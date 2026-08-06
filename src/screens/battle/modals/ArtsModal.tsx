@@ -177,6 +177,15 @@ export function ArtsModal(p: ArtsModalProps) {
                 ? computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
                 : null;
               const rawEffectiveCost = betReplacedCost ?? pendingArtsEffectiveCost ?? pendingArtsCard.Cost;
+              // SPECIFIC_CARD_COST_REDUCE の二重適用を防ぐ（タスク12(xcvi)）＝
+              // `pendingArtsEffectiveCost` は Phase1（同 :70）で **すでに applySpecificCardCostReduction 済み**の値なので、
+              // ここで再適用すると `removeNColorFromCost` が2回走って《無》を2N枚ぶん引く。一方 `betReplacedCost`
+              // （ベット宣言の置換値）と印刷コスト（`pendingArtsCard.Cost`）は未適用なので、その2つのときだけ適用する。
+              // ⚠適用順は Phase1 と同じ「軽減 → 《無》→センター色 の読み替え」に揃える（読み替え後だと《無》を見失う）。
+              const specificAlreadyApplied = betReplacedCost === null && pendingArtsEffectiveCost !== null;
+              const reducedEffectiveCost = specificAlreadyApplied
+                ? rawEffectiveCost
+                : applySpecificCardCostReduction(rawEffectiveCost, pendingArtsCard.CardName, specificCardCostReductions);
               // ARTS_COLORLESS_MUST_PAY_CENTER_COLOR: 《無》コストをセンタールリグ色で支払わなければならない
               const hasColorlessRestriction = (effectsMap.get(pendingArtsCard.CardNum) ?? [])
                 .some(e => e.effectType === 'ACTIVATED' && JSON.stringify(e.action).includes('ARTS_COLORLESS_MUST_PAY_CENTER_COLOR'));
@@ -184,11 +193,9 @@ export function ArtsModal(p: ArtsModalProps) {
               const centerColorForRestr = hasColorlessRestriction
                 ? splitColors(battleCardMap.get(my.field.lrig.at(-1) ?? '')?.Color)[0] ?? ''
                 : '';
-              const effectiveCost = applySpecificCardCostReduction(
-                hasColorlessRestriction && centerColorForRestr
-                  ? rawEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
-                  : rawEffectiveCost,
-                pendingArtsCard.CardName, specificCardCostReductions);
+              const effectiveCost = hasColorlessRestriction && centerColorForRestr
+                ? reducedEffectiveCost.replace(/《無》/g, `《${centerColorForRestr}》`)
+                : reducedEffectiveCost;
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
               const useCostSpec = parseUseTimeCostReduction(pendingArtsCard.EffectText ?? '');
               const useCostCands = useCostSpec ? useTimeCostCandidates(useCostSpec, my, battleCardMap) : [];
