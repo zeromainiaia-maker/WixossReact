@@ -6533,6 +6533,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
           coins: Math.max(0, my.coins - betCost),
+          coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
           is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
           bet_coins_paid: betCost > 0 ? betCost : undefined,
         };
@@ -6549,6 +6550,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           next_spell_cost_reduction: undefined, // 次スペルコスト軽減を消費（WX04-008）
           ...(card.Story !== 'Dissona' ? { non_dissona_spell_played_this_turn: true } : {}),
           coins: Math.max(0, my.coins - betCost),
+          coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
           is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
           bet_coins_paid: betCost > 0 ? betCost : undefined,
         };
