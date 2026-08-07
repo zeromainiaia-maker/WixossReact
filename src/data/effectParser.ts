@@ -4868,6 +4868,50 @@ function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
     ? (a as import('../types/effects').ConditionalAction).then : a;
 }
 
+// ── §5d パターンA 第7バッチ（続き375）：エナゾーン対象宣言の**ゾーンごと取り違え** ──
+// 「(対戦相手|あなた)のエナゾーンから〈修飾〉カードN枚(まで)を対象とし、〈任意コスト〉てもよい。
+//   そうした場合、それをトラッシュに置く」で、**対象宣言のゾーンと所有者が丸ごと落ち**、帰結が
+//   `TRASH{ SIGNI, owner:'any' }`＝**場のシグニを落とす別物**になっていた（`WXDi-D09-H20-E1`／
+//   `WXDi-P04-054-E1`／`WXDi-P11-060-E2`。全CSVでこの文型は4効果で、`WXK06-053-E1` は MANUAL で
+//   既に正しい `TRASH{ENERGY_CARD,opponent}` を持つ＝**それが正準形**）。
+//
+// ⚠`applyDroppedTargetDesignation`（SELECT_TARGET_ONLY 方式）は使わない。あちらは**コスト量が対象に依存する**
+//   形のための機構で、ここは依存しない（固定コスト）。同族30効果も素の `TRASH{ENERGY_CARD,...,filter}` で
+//   表現されており、そちらが正準形＝`SELECT_TARGET_ONLY` を持ち込むと engine 側（`execStubPart1` の
+//   SIGNI 専用制限・`execTrash` の ENERGY_CARD 分岐が `targetsStored` を見ない）まで拡張が要り、
+//   得るものは選択タイミングの前後だけになる。
+const ENERGY_DESIG_BEFORE_COST_RE =
+  /(対戦相手|あなた)のエナゾーンから([^。]{0,60}?)カード(?:を)?([０-９\d]+)枚(まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?をトラッシュに置く/;
+
+function applyDroppedEnergyDesignation(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const m = text.match(ENERGY_DESIG_BEFORE_COST_RE);
+  if (!m) return action;
+  const steps = [...(action as SequenceAction).steps];
+  const gateIdx = steps.findIndex(isDidItGate);
+  if (gateIdx < 0) return action;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  const then = gate.then as EffectAction & { target?: EffectTarget };
+  // 帰結が「宣言ゾーンを取りこぼした SIGNI 対象の TRASH」でなければ触らない（既に正しい形は据置）。
+  if (then?.type !== 'TRASH' || then.target?.type !== 'SIGNI') return action;
+  const desc = m[2];
+  const filter: TargetFilter = {
+    // ENERGY_CARD 対象では `colorNotMatchesLrig` が**対象オーナー（＝相手）のルリグ基準**で解決される
+    // （`execTrash` の ENERGY_CARD 分岐）＝同族30効果と同じキーを使う。
+    ...parseColorMatchesLrig(desc, { includeNegative: true }),
+    ...parseStoryFilter(desc), ...parseColorFilter(desc), ...parseLevelFilter(desc),
+  };
+  const target: EffectTarget = {
+    type: 'ENERGY_CARD',
+    owner: m[1] === '対戦相手' ? 'opponent' : 'self',
+    count: parseNum(m[3]),
+    ...(m[4] ? { upToCount: true } : {}),
+    ...(Object.keys(filter).length > 0 ? { filter } : {}),
+  };
+  steps[gateIdx] = { ...gate, then: { ...then, target } } as EffectAction;
+  return { ...action, steps } as EffectAction;
+}
+
 function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (TARGET_LEVEL_SCALE_RE.test(text)) return action;              // (liii) の領分
