@@ -6258,6 +6258,9 @@ function parseActionTextInner(text: string): EffectAction {
         ...parseStoryFilter(condText),
         ...parseLevelFilter(condText),
         ...parseColorFilter(condText),
+        // 「そのカードが《コードメイズ　ウムル//メモリア》**以外の**シグニの場合」（`WXDi-P08-062-E2`）＝
+        // 除外が落ちて自分自身も出せる過剰効果だった（§5d パターンA・続き371）。
+        ...parseExcludeCardNameFilter(condText),
       };
       const rp = { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1, then: thenAction, remainder: { location: 'deck', position: 'top' } } as RevealAndPickAction;
       // 公開文の前置き「あなたのエナゾーンにあるカードがN枚以下の場合、／エナゾーンにカードがない場合、」
