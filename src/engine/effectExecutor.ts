@@ -428,6 +428,11 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (triggerRestrict !== null) cands = cands.filter(n => triggerRestrict!.includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
+  // excludeSelf（「（あなたの）他のシグニ」）＝効果元シグニ自身を対象から除外。⚠**execBanish だけ未配線だった**
+  //   （続き377）＝`matchesFilter` は excludeSelf を見ないので、`WX22-024-E2`「あなたの他のすべてのシグニを
+  //   バニッシュしてもよい」のように JSON には載っているのに**効果元自身まで巻き込んで消えて**いた。
+  //   POWER_MODIFY（:809）・GRANT_KEYWORD（:2667）等は既に同じ形で実装済み。
+  if (resolvedFilter?.excludeSelf && ctx.sourceCardNum) cands = cands.filter(n => n !== ctx.sourceCardNum);
   if (tgt.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants;
     // 'any' の場合は相手側の候補にだけバニッシュ耐性を効かせる（自分の場のシグニには相手の耐性は無関係）
