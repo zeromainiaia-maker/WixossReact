@@ -1830,8 +1830,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 既存入口の挙動は保ったまま、今回追加した合成語彙だけを共通抽出器から配線する。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
-    const excludeNameM = trashTargetPhrase.match(/《([^》]+)》以外のレベル[０-９\d]+以下の＜龍獣＞/);
-    if (excludeNameM) filter.excludeCardName = excludeNameM[1];
+    // 「《カード名》以外の〜」（§5d パターンA・続き371）。旧実装は ＜龍獣＞1枚のためだけの narrow regex で、
+    // 同型の10効果（`WX16-025-E3`／`WX18-081-E2`／`WXK07-081-E2` 等）が**自分自身も回収できる過剰効果**だった。
+    Object.assign(filter, parseExcludeCardNameFilter(trashTargetPhrase));
     if (useBatch2FilterComposition) {
       if (Array.isArray(extracted.color) || extracted.color === '無') filter.color = extracted.color;
       if (extracted.cardName) filter.cardName = extracted.cardName;
