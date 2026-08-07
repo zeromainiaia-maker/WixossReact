@@ -472,7 +472,7 @@ function parseCost(costStr: string): EffectCost | undefined {
   // エナゾーンから《keyword》のカードN枚をトラッシュ（アイコン型）
   if (!cost.energyTrash && !cost.energyTrashAll) {
     const etIconM = costStr.match(/エナゾーンから《([^》]+)》のカード([０-９\d]+)枚をトラッシュに置く/);
-    if (etIconM) cost.energyTrash = { count: parseNum(etIconM[2]), filter: { keyword: etIconM[1] } };
+    if (etIconM) cost.energyTrash = { count: parseNum(etIconM[2]), filter: iconFilter(etIconM[1]) };
   }
   // 手札から[フィルター]カードN枚を捨てる（シグニ以外の汎用手札捨て）
   if (!cost.handDiscardSigni && !cost.discardSelfFromHand && !cost.discard && !cost.discardVariable) {
