@@ -473,6 +473,10 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parseHandDiffLevelFilter(text),
     ...parseColorFilter(text),
     ...parseStoryFilter(text),
+    // 《ライズ／クロス／アクセアイコン》＝**対象名詞句に隣接**するときだけ（続き377c）。全文スキャンだと
+    // 「あなたの場に《ライズアイコン》を持つシグニが２体ある場合、…対戦相手のシグニ１体を対象とし」の
+    // **条件節**を対象へ引き込み、原文と逆の過小実行になる。
+    ...signiClauseIconFilter(text),
   };
   // ⚠従来は `hasOtherSelfSigniNoun`（＝「他の」がある）ときだけ isDisona を立てていたため、
   //   「あなたの《ディソナアイコン》のシグニ１体を対象とし」（`WXDi-P13-077-E1`）のように
