@@ -7525,7 +7525,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // よって filter をここに置かないと、主語の限定（色・パワー等）が自分のアタック時だけ素通りする
         // ＝WXDi-P02-079-E2/WXK07-030-E2 の「パワー15000以上」がパワー不問で発火していた（タスク12(lxix)）。
         // ⚠ atkSelfPowers（calcFieldPowers）のキーは場のスタック頂点の生値なので getCardNum() で丸めない。
-        .filter(e => !e.triggerFilter || matchesFilter(battleCardMap.get(getCardNum(myTopNum)), e.triggerFilter, atkSelfPowers.get(myTopNum)))
+        // ⚠ 判定は `attackerSelfTriggerFilterOk`（pure・triggerCollect.ts）に集約＝素の matchesFilter は
+        //   `excludeSelf` を見ないので「あなたの**他の**〜がアタックしたとき」が自身のアタックで誤発火する。
+        .filter(e => attackerSelfTriggerFilterOk(e, battleCardMap.get(getCardNum(myTopNum)), atkSelfPowers.get(myTopNum)))
         // ⚠`triggerCondition.turnOwner` はここで見なくてよい＝収集後段の `effectStack.turnGateOk` が
         //   entry.playerId 基準で全コレクタ共通に落とす（タスク12(xcix) で一度足して差し戻した）。
         .filter(e => !e.condition || evalUseCondition(e.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, atkSelfPowers))
