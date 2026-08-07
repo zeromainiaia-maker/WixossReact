@@ -2969,7 +2969,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   {
     // 「無色ではないカード1枚を選び」（§5d パターンA・続き372）＝選べる範囲の絞り込みが落ちて
     // **無色カードも捨てさせられる過剰効果**だった（`WX07-015-E1`／`WXK10-026-BURST`）。
-    const hvdFilter: TargetFilter | undefined = /無色ではない/.test(t) ? { nonColorless: true } : undefined;
+    // 「《ガードアイコン》を持たないカード１枚を選び、捨てさせる」（続き377b）＝選べる範囲の絞り込みが落ちて
+    //   **ガード持ちも捨てさせられる過剰効果**だった（`WXDi-P00-006-E1`／`WXDi-P08-033-E1`／`WXDi-P14-045-E1`）。
+    //   ⚠この形は「相手のガード札を残さない」ではなく**逆**＝ガードを持つカードは捨てさせられない制限なので、
+    //     落ちると相手の防御札を不当に剥がせる。engine は `handCandidates`→`matchesFilter` で noGuard 対応済み。
+    const hvdGuard = parseGuardFilter(t);
+    const hvdFilter: TargetFilter | undefined = (/無色ではない/.test(t) || Object.keys(hvdGuard).length)
+      ? { ...(/無色ではない/.test(t) ? { nonColorless: true } : {}), ...hvdGuard } : undefined;
     const hvdM = t.match(/対戦相手の手札を見て([０-９\d]+)枚選び/);
     if (hvdM) {
       return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hvdM[1]), ...(hvdFilter ? { filter: hvdFilter } : {}), actingPlayerSelects: true } };

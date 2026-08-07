@@ -3,48 +3,35 @@
 
 --- 語彙キー別サマリ（miss 降順）---
   miss   has  語彙キー
-     8    67  noGuard
-     8        合計
+     5    36  hasGuard
+     5        合計
 
 --- セル別明細（miss 降順・上位のみ stdout／全量は docs/_census_wiring.txt）---
-  miss=  3 has=   3  noGuard × TRASH{HAND_CARD}  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  1 has=  67  noGuard × TRASH_CARD[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
-  miss=  1 has=   5  noGuard × SIGNI[filter]  ★同入口に配線済みあり＝穴が濃い
-  miss=  1 has=   1  noGuard × GRANT_KEYWORD{SIGNI}  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  1 has=   4  noGuard × TRASH{DECK_CARD}  （同入口の配線済みは僅少＝先に用法分類を）
-  miss=  1 has=   0  noGuard × TRASH{TRASH_CARD}  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  1 has=   0  noGuard × PLACE_UNDER_SIGNI[filter]  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  1 has=   0  noGuard × EXILE{TRASH_CARD}  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  2 has=   0  hasGuard × (filter無)  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   0  hasGuard × DOWN{LRIG}  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   0  hasGuard × LRIG[filter]  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   0  hasGuard × BOUNCE{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   1  hasGuard × SIGNI[filter]  （同入口の配線済みは僅少＝先に用法分類を）
+  miss=  1 has=   0  hasGuard × SEARCH[filter]  （同入口に配線済みなし＝機構未実装の可能性）
 
 ===== セル別 全明細 =====
 
-## noGuard × TRASH{HAND_CARD}   miss=3 has=3
-   MISS WXDi-P00-006-E1	対戦相手の手札を見て《ガードアイコン》を持たないカードを１枚選び、捨てさせる。
-   MISS WXDi-P08-033-E1	【出】：対戦相手の手札を見て《ガードアイコン》を持たないカード１枚を選び、捨てさせる。
-   MISS WXDi-P14-045-E1	【自】：あなたのアタックフェイズ開始時、このシグニが覚醒状態の場合、対戦相手の手札を見て《ガードアイコン》を持たないカード１枚を選び、捨てさせる。
-   （配線済み見本: WX26-CP1-010-E1, WXDi-P02-003-E1, WXDi-P04-070-E1）
+## hasGuard × (filter無)   miss=2 has=0
+   MISS SPDi43-26-E2	【起】《ゲーム１回》インフレーション《白×0》：あなたのデッキの上からカードを５枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。その後、対戦相手のシグニ１体を対象とし、手札から《ガー
+   MISS WXDi-CP01-006-E3	【起】《ゲーム１回》＃賢者の時間《白×0》：ターン終了時まで、このルリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手が《無》《無》《無》《無》を支払うか《ガードアイコン》を持つカードを１枚捨てないかぎ
 
-## noGuard × TRASH_CARD[filter]   miss=1 has=67
-   MISS WXDi-P11-008-E3	【起】《ゲーム１回》《黒×0》：対戦相手のデッキの上からカードを８枚トラッシュに置く。その後、対戦相手のトラッシュから《ガードアイコン》を持たないカードを３枚まで対象とし、それらをゲームから除外する。
-   （配線済み見本: SPDi43-16-E1, WX24-P2-058-BURST, WX24-P3-093-BURST, WX24-P4-023-E2, WX24-P4-032-E1, WX25-P1-007-E1, WX25-P1-104-BURST, WX25-P1-110-BURST …）
+## hasGuard × DOWN{LRIG}   miss=1 has=0
+   MISS WXDi-D03-004-E3	【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つカードを１
 
-## noGuard × SIGNI[filter]   miss=1 has=5
-   MISS WXDi-P11-074-E2	【自】：このシグニがバニッシュされたとき、あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、それらを好きな順番でデッキの一番下に置く。
-   （配線済み見本: WX25-P1-007-E1, WX26-CP1-010-E1, WXDi-P07-038-E1, WXDi-P08-080-BURST, WXDi-P14-027-E1）
+## hasGuard × LRIG[filter]   miss=1 has=0
+   MISS WXDi-D03-004-E3	【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つカードを１
 
-## noGuard × GRANT_KEYWORD{SIGNI}   miss=1 has=1
-   MISS WXDi-P07-002-E1	【使用条件】【ドリームチーム】合計３種類以上の色を持つ以下の４つからあなたのセンタールリグのレベル１につき１つまで選ぶ。①あなたのトラッシュから《ガードアイコン》を持たないカードを２枚まで対象とし、それらをエナゾーンに置
-   （配線済み見本: WXDi-D06-011-E1）
+## hasGuard × BOUNCE{SIGNI}   miss=1 has=0
+   MISS WXDi-P04-033-E2	【出】手札から《ガードアイコン》を持つシグニを１枚捨てる：対戦相手のレベル２以下のシグニ１体を対象とし、それを手札に戻す。
 
-## noGuard × TRASH{DECK_CARD}   miss=1 has=4
-   MISS WXDi-P11-008-E3	【起】《ゲーム１回》《黒×0》：対戦相手のデッキの上からカードを８枚トラッシュに置く。その後、対戦相手のトラッシュから《ガードアイコン》を持たないカードを３枚まで対象とし、それらをゲームから除外する。
-   （配線済み見本: WXDi-D06-011-E1, WXDi-P02-089-E1, WXDi-P07-035-E1, WXDi-P14-036-E1）
+## hasGuard × SIGNI[filter]   miss=1 has=1
+   MISS WXDi-P04-033-E2	【出】手札から《ガードアイコン》を持つシグニを１枚捨てる：対戦相手のレベル２以下のシグニ１体を対象とし、それを手札に戻す。
+   （配線済み見本: WXDi-P08-002-E1）
 
-## noGuard × TRASH{TRASH_CARD}   miss=1 has=0
-   MISS WXDi-P04-013-E3	【起】《ゲーム１回》エクシード３：あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、あなたのルリグデッキにあるピース１枚をゲームから除外する。そうした場合、それらを手札に加える。
-
-## noGuard × PLACE_UNDER_SIGNI[filter]   miss=1 has=0
-   MISS WXDi-P06-039-E2	【出】：あなたのエナゾーンから《ガードアイコン》を持たないシグニ１枚を対象とし、それをこのシグニの下に置く。
-
-## noGuard × EXILE{TRASH_CARD}   miss=1 has=0
-   MISS WXDi-P11-008-E3	【起】《ゲーム１回》《黒×0》：対戦相手のデッキの上からカードを８枚トラッシュに置く。その後、対戦相手のトラッシュから《ガードアイコン》を持たないカードを３枚まで対象とし、それらをゲームから除外する。
+## hasGuard × SEARCH[filter]   miss=1 has=0
+   MISS WXK03-029-E2	【出】《無》：あなたのデッキから《ガードアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。

@@ -59,11 +59,14 @@ const OUT = path.join('docs', '_census_wiring.txt');
 // 「直す場所がアクションの target ではなく **timing の抽出側**」の語彙は、アクション別ラベルに
 // 散らすと大セルに埋もれてしまう（実際 `ON_ATTACK_SIGNI` の8件は `cardClass × POWER_MODIFY{SIGNI}`
 // 等に紛れていた）。timing でまとめると「どの timing の抽出を直せばよいか」がそのままセルになる。
-interface Vocab { key: string; re: RegExp; jsonKeys?: string[]; note?: string; labelBy?: 'timing'; }
+// `jsonRe` は `jsonKeys` の逃げ道＝**キー名だけでは等価表現を判定できない**語彙に使う
+// （例: `noGuard:true` と `hasGuard:false` は `matchesFilter`（execUtils:663-668）で**完全に等価**なので、
+//  キー名照合だけだと後者を miss と誤検出する＝続き377b で `WXDi-P11-008-E3` がこれだった）。
+interface Vocab { key: string; re: RegExp; jsonKeys?: string[]; jsonRe?: RegExp; note?: string; labelBy?: 'timing'; }
 const VOCAB: Vocab[] = [
   // --- 静的カード属性（execUtils.matchesFilter） ---
-  { key: 'noGuard',          re: /《ガードアイコン》を持たない/ },
-  { key: 'hasGuard',         re: /《ガードアイコン》を持つ/ },
+  { key: 'noGuard',          re: /《ガードアイコン》を持たない/, jsonRe: /"noGuard"\s*:|"hasGuard"\s*:\s*false/ },
+  { key: 'hasGuard',         re: /《ガードアイコン》を持つ/, jsonRe: /"hasGuard"\s*:\s*true|"noGuard"\s*:\s*false/ },
   { key: 'noRiseIcon',       re: /《ライズアイコン》を持たない/ },
   { key: 'hasRiseIcon',      re: /《ライズアイコン》を持つ/ },
   { key: 'hasCrossIcon',     re: /《クロスアイコン》を持つ/ },
