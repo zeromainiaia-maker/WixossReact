@@ -1767,11 +1767,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「すべての＜迷宮＞のシグニ」（すべてが種族の前）も拾えるよう すべての を種族の前後どちらでも許容。
     // 種族フィルタ付き（WX11-038/WX05-036/WXEX1-14）が従来 count:1/filter無し に潰れ「1体だけアップ」へ縮退していた。
     // ⚠フィルタは**対象名詞句内**からのみ取る（全文スキャン禁止）。engine の execUp は count:ALL+filter を完全対応。
-    const upGroupM = t.match(/あなたの(?:すべての)?(?:他の)?((?:レベル[０-９\d]+(?:以上|以下)?の|[白赤青緑黒]の|《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)(?:すべての)?シグニ[をが]アップ/);
+    // 「カード名に《X》を含む」（続き377 追加）＝`WX20-068-E2` が upMods に載らず filter 無しへ落ち、
+    //   **自分の全シグニをアップ**する過剰効果だった（原文は《シュレデ》名を含むシグニだけ）。
+    const upGroupM = t.match(/あなたの(?:すべての)?(?:他の)?((?:レベル[０-９\d]+(?:以上|以下)?の|[白赤青緑黒]の|《ディソナアイコン》の|カード名に《[^》]+》を含む|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)(?:すべての)?シグニ[をが]アップ/);
     if (t.includes('すべてのシグニをアップ') || t.match(/あなたのシグニ[をが]アップ/) || (upGroupM && upGroupM[1])) {
       const upMods = upGroupM?.[1] ?? '';
       const upFilter: TargetFilter = { ...parseLevelFilter(upMods), ...parseColorFilter(upMods), ...parseStoryFilter(upMods) };
       if (upMods.includes('《ディソナアイコン》')) upFilter.isDisona = true;
+      const upNameM = upMods.match(/カード名に《([^》]+)》を含む/);
+      if (upNameM) upFilter.cardName = upNameM[1];
       return { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL', ...(Object.keys(upFilter).length ? { filter: upFilter } : {}) } };
     }
     // 「このシグニをアップする」＝効果元自身（thisCardOnly）。
