@@ -221,7 +221,7 @@ function main(): void {
 
       let byLabel = cells.get(v.key);
       if (!byLabel) { byLabel = new Map(); cells.set(v.key, byLabel); }
-      for (const lb of labels) {
+      for (const lb of (v.labelBy === 'timing' ? timings : labels)) {
         let c = byLabel.get(lb);
         if (!c) { c = { has: [], miss: [] }; byLabel.set(lb, c); }
         (hasKey ? c.has : c.miss).push(effectId);
