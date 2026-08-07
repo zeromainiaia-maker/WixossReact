@@ -2136,7 +2136,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。手札から対象を選んで出す。
   if (t.includes('手札から') && (t.includes('場に出す') || t.includes('場に出してもよい'))
       && !t.includes('エナ') && !t.includes('トラッシュ') && !t.includes('ルリグデッキ') && !t.includes('デッキの一番上') && !t.includes('デッキの上')) {
-    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t), ...parseNameFilter(t) };
+    // 「あなたの手札から《ＧＦ　ハウス》以外のレベル４のシグニ１枚を場に出す」（`WXK06-023-E2`）＝
+    // `parseNameFilter` が除外名を `cardName`（部分一致）に入れてしまい、**そのカードしか出せない原文と真逆**の
+    // 効果になっていた（§5d パターンA・続き371 の「反転」型）。除外が取れたら name 側は捨てる。
+    const excludeNameFilter = parseExcludeCardNameFilter(t);
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t),
+      ...(excludeNameFilter.excludeCardName ? excludeNameFilter : parseNameFilter(t)) };
     const exclM = t.match(/([白青赤緑黒])ではない/);
     if (exclM) filter.colorExclude = exclM[1];
     else Object.assign(filter, parseColorFilter(t));
