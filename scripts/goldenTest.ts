@@ -8315,7 +8315,7 @@ test('§5d(A) engine パリティ: HAS_CARD_IN_FIELD が colorExclude/excludeRes
   ok(has(black, { cardType: 'シグニ', colorExclude: '白' }), '黒シグニなら成立');
   ok(!has(resona, { cardType: 'シグニ', excludeResona: true }), 'レゾナだけの場では excludeResona が不成立');
   ok(has(black, { cardType: 'シグニ', excludeResona: true }), '非レゾナなら成立');
-});
+}));
 // §5d パターンA 第3バッチ「《カード名》以外の〜」＝`excludeCardName`（型・matchesFilter・decompiler は実装済み）。
 // 各ビルダーのフィルタ合成から漏れており、実害が**2種**あった：
 //   ①**反転**＝除外名が `cardName`（部分一致）に入り「そのカードしか選べない」原文と真逆の効果（SEARCH 系13効果）。
