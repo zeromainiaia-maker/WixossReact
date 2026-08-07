@@ -603,6 +603,22 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     if (exClasses.some(c => cardData.CardClass?.includes(c))) return false;
   }
   if (filter.excludeCardName && cardData.CardName === filter.excludeCardName) return false;
+  // ⚠**execUtils 版とのパリティ欠落**（§5d パターンA・続き372 で発見）。この3つは execUtils の matchesFilter に
+  //   あるのにこちらに無く、CONTINUOUS のパワー計算・activeCondition・HAS_CARD_IN_FIELD の評価では
+  //   **黙って無視されていた**（＝絞り込みが効かない過剰判定）。live JSON の使用数は
+  //   colorExclude 3／excludeResona 33／noAbilities 11。いずれも cardData だけで判定でき state を要さない。
+  if (filter.colorExclude) {
+    const excl = Array.isArray(filter.colorExclude) ? filter.colorExclude : [filter.colorExclude];
+    if (excl.some(c => cardData.Color?.includes(c))) return false;
+  }
+  if (filter.excludeResona && cardData.Type?.includes('レゾナ')) return false;
+  if (filter.noAbilities !== undefined) {
+    // execUtils 版と同基準＝①解析済み効果が1件でもあれば能力あり ②0件は根拠にならず原文で判定
+    //（CSV は素のシグニを `-` で持つ）。場の `abilities_removed` は state が要るので fieldCandidates 側の担当。
+    const blankTxt = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
+    const noAb = (cardData.effects?.length ?? 0) === 0 && blankTxt(cardData.EffectText) && blankTxt(cardData.BurstText);
+    if (filter.noAbilities !== noAb) return false;
+  }
   if (filter.levelParity !== undefined) {
     const lv = parseInt(cardData.Level ?? '', 10);
     if (filter.levelParity === 'even' && lv % 2 !== 0) return false;
