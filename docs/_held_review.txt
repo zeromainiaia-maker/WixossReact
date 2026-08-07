@@ -269,6 +269,8 @@ WXEX2-09 WXK08-048
 WXEX2-18 WXEX2-70
 --- WXEX2-18
   原文: 【自】《ターン１回》：あなたの＜遊具＞のシグニ１体がアタックしたとき、そのシグニをアップする。【起】《ターン１回》《緑×0》：対戦相手のシグニ１体を対象とし、レゾナではないあなたの＜遊具＞のシグニ１体をバニッシュする。そうした場合、それをエナゾーンに置く。【起】《アタックフェイズアイコン》《コインアイコン》《コインアイコン》：【エナチャージ３】をする。その後
+  + [0].triggerScope = "any_ally"
+  + [0].triggerFilter.story = "遊具"
   ~ [1].action.steps[1].then.type : "ENERGY_CHARGE" → "SEND_TO_ENERGY"
   ~ [1].action.steps[1].then.target.type : "DECK_CARD" → "SIGNI"
   ~ [1].action.steps[1].then.target.owner : "self" → "opponent"

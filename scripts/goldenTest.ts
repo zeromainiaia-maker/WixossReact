@@ -5718,6 +5718,64 @@ test('task12(xcix): any スコープで「相手のアタック」を watcher �
     'ターン限定が無ければ自ターンでも落とされない');
 }));
 
+// ── 続き376b: ON_ATTACK_SIGNI の主語「あなたの[＜X＞の]シグニN体が」＝any_ally＋triggerFilter。
+//    従来 `effectParser.ts` の抽出が**「他の」があるときだけ**動いており、「他の」無しは triggerScope が
+//    既定 `self` に落ちて **watcher 自身がアタックしたときしか発火しない過小実行**だった（実測16効果）。
+//    engine（collectFieldTriggers の any_ally path）は元から対応済みで、落ちていたのは parser の1行だけ。
+test('続き376b: 「あなたの＜X＞のシグニN体がアタックしたとき」は any_ally＋triggerFilter.story', () => withSavedCursor(() => {
+  const classCases: [string, string, string][] = [
+    ['WX13-037', 'WX13-037-E2', '凶蟲'], ['WX17-032', 'WX17-032-E2', '英知'],
+    ['WX18-054', 'WX18-054-E1', '悪魔'], ['WX19-072', 'WX19-072-E1', '地獣'],
+    ['WXEX2-13', 'WXEX2-13-E1', '水獣'], ['WXEX2-18', 'WXEX2-18-E1', '遊具'],
+    ['WXEX2-20', 'WXEX2-20-E1', '英知'], ['WX25-CP1-091', 'WX25-CP1-091-E1', 'ブルアカ'],
+    ['WXDi-D09-P17', 'WXDi-D09-P17-E2', '天使'],
+  ];
+  for (const [card, effId, story] of classCases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(e?.triggerScope, 'any_ally', `${effId}: scope=any_ally（旧: 既定 self へ潰れ自身のアタックでしか発火しなかった）`);
+    eq(e?.triggerFilter?.story, story, `${effId}: triggerFilter.story=${story}`);
+    // 「他の」が無い＝**自身も引き金になる**ので excludeSelf を付けてはいけない
+    eq(e?.triggerFilter?.excludeSelf, undefined, `${effId}: 「他の」が無いので excludeSelf は付けない`);
+  }
+  // 主語がクラス無し「あなたのシグニN体が」＝any_ally・フィルタ無し
+  for (const [card, effId] of [
+    ['WD23-032-A', 'WD23-032-A-E2'], ['WX14-006A', 'WX14-006A-E1'], ['WXEX2-16', 'WXEX2-16-E2'],
+    ['WX25-P2-022', 'WX25-P2-022-E1'], ['WXDi-P10-054', 'WXDi-P10-054-E1'], ['WXK07-030', 'WXK07-030-E1'],
+    ['WX25-P3-023', 'WX25-P3-023-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(e?.triggerScope, 'any_ally', `${effId}: scope=any_ally（クラス無しの素の主語）`);
+    eq(e?.triggerFilter, undefined, `${effId}: フィルタは付けない`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**前置き修飾つきの主語を any_ally に広げてはいけない**。
+//   「【ソウル】が付いているあなたのシグニ」「レベルが奇数のあなたの＜トリック＞のシグニ」を
+//   前置きごと無視して any_ally にすると、**過小実行を過剰発火へ付け替えるだけ**になる
+//   （「条件を満たすシグニだけ」が「味方シグニ全部」へ広がる）。抽出は先頭限定（^）で弾いている。
+//   この3効果を配線したくなったら、先に triggerFilter 側へ前置きの語彙（ソウル付き／levelParity）を
+//   載せてからにすること。
+test('続き376b トリップワイヤ: 前置き修飾つきのアタック主語は any_ally に広げない', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['WXDi-P04-016', 'WXDi-P04-016-E1'], ['WXK10-084', 'WXK10-084-E1'], ['WXK10-084', 'WXK10-084-E2'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(e?.triggerScope ?? 'self', 'self', `${effId}: 前置き（ソウル付き／レベル偶奇）を表せないうちは広げない`);
+  }
+}));
+
+test('続き376b: any_ally＋story は同クラスの味方アタックで発火し、別クラスでは発火しない', () => withSavedCursor(() => {
+  // WX13-037-E2＝「あなたの＜凶蟲＞のシグニ１体がアタックしたとき」。watcher 自身も＜凶蟲＞なので
+  // 「他の」が無い原文どおり **自身のアタックでも発火する**。
+  const kyochu = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('凶蟲') && c.CardNum !== 'WX13-037');
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('凶蟲'));
+  const host = mkState({ signi: ['WX13-037', kyochu, other] });
+  eq(hasEffect(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', kyochu, host, mkState({}), HOST), 'WX13-037-E2'), true,
+    '別の＜凶蟲＞がアタック → 発火（これが従来まるごと落ちていた挙動）');
+  eq(hasEffect(cftEntries(trigCtx(HOST), 'ON_ATTACK_SIGNI', other, host, mkState({}), HOST), 'WX13-037-E2'), false,
+    '＜凶蟲＞でないシグニのアタックでは発火しない（triggerFilter.story が効いている）');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
