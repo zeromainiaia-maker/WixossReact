@@ -1866,11 +1866,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       if (extracted.excludeCardName) filter.excludeCardName = extracted.excludeCardName;
       if (extracted.nonColorless) filter.nonColorless = true;
     }
-    // 動的等値/直前カード共通色を同時に表せない2系統は、部分filterだけの採用を禁止する（`WXEX2-06-E2`）。
+    // 「そのシグニと**共通する色**」は動的参照の語彙がこの入口に無いので、**部分filterだけの採用を禁止**する。
     // ⚠**判定は対象名詞句だけを見る**（続き372 で是正）。旧実装は全文 `t` を見ていたため、
     //   `WXK09-029-BURST`「…無色ではないシグニ1枚を手札に加える。**その後**、…**そのシグニと共通する色を持つ**
     //   スペル1枚を…」で**後続文の語が前文の filter を巻き添えで消していた**（＝無色シグニまで拾える過剰効果に戻る）。
-    if (/そのシグニと同じレベル/.test(trashTargetPhrase) || /そのシグニと共通する色/.test(trashTargetPhrase)) {
+    // ⚠**「そのシグニと同じレベル」はこの禁止から外した**（続き373）＝`levelEqTrigger` を上で配線したので
+    //   `WXEX2-06-E2`「そのシグニと同じレベルの**無色ではない**シグニ」は**2系統とも表現できる**ようになった。
+    //   部分filter禁止は「片方を表せない」ときの規律であって、表せるようになったら**据置を解く**のが正しい。
+    if (/そのシグニと共通する色/.test(trashTargetPhrase)) {
       delete filter.nonColorless;
     }
     const upToM = t.match(/([０-９\d]+)枚まで/);
