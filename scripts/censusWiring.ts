@@ -29,10 +29,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
-const ROOT = path.resolve(__dirname, '..');
-const SRCTEXT = path.join(ROOT, 'docs', '_effect_srctext.json');
-const EFFECTS_DIR = path.join(ROOT, 'public', 'data');
-const OUT = path.join(ROOT, 'docs', '_census_wiring.txt');
+// パスは他の計器スクリプト（timingCensus 等）と同じく **リポジトリルート相対**（npm scripts はルートで走る）。
+const SRCTEXT = path.join('docs', '_effect_srctext.json');
+const EFFECTS_DIR = path.join('public', 'data');
+const OUT = path.join('docs', '_census_wiring.txt');
 
 // ===== 語彙表 =====
 // [表示名, 原文フレーズ正規表現, TargetFilter キー]
