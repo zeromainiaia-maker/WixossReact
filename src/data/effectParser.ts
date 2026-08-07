@@ -8196,10 +8196,11 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           // 続き218j で**ルリグ単独主語も対象化**した（engine に防御側収集経路 collectLrigAttackDefenderTriggers を
           // 新設し、timing 側も ON_ATTACK_LRIG を出すようにしたため、もう ON_ATTACK_SIGNI へ誤って載る心配がない）。
           const oppAttM = actionText.match(/^対戦相手の(?:(?:すべての|各)?)(?:＜([^＞]+)＞の)?(?:シグニ(?:か(?:センター)?ルリグ)?|(?:センター)?ルリグ(?:かシグニ)?)(?:[０-９\d]+体)?がアタックしたとき[、,]/);
-          // 「あなたのパワーN以上のシグニ（1体）がアタックしたとき」（WXDi-P02-079-E2／WXK07-030-E2）。
-          // 主語は「あなたの」＝味方全体なので any_ally。閾値は triggerFilter.powerRange へ載せ、
-          // 収集側（collectFieldTriggers／BattleScreen のアタッカー自身経路）が**実効パワー**で判定する。
-          const allyPowerM = actionText.match(/^あなたのパワー([０-９\d]+)以上のシグニ(?:[０-９\d]+体)?がアタックしたとき[、,]/);
+          // 「[修飾]あなたの[修飾]シグニ（N体）がアタックしたとき」＝味方側主語。主語は「あなたの」＝味方全体なので
+          // any_ally。修飾語（パワー／レベル／レベル奇偶／色／ディソナ／カード名／＜クラス＞／他の）は
+          // triggerFilter へ載せ、収集側（collectFieldTriggers／BattleScreen のアタッカー自身経路）が
+          // **実効パワー**込みで判定する。未知の修飾が残る場合は null＝**配線しない**（関数側コメント参照）。
+          const allySubj = parseAllyAttackSubject(actionText);
           // 🆕主語なし「シグニN体がアタックしたとき」＝**どちらの陣営のアタックでも**反応する（実測3効果＝
           // `WXDi-P06-033-E2`／`WXDi-CP02-053-E1`／`WXEX2-04-E1`。タスク12(xcix)）。
           // ⚠既定 self へ潰れると「このシグニがアタックしたとき」と**同義**になり、
