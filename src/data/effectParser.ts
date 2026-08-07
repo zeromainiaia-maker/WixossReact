@@ -664,7 +664,7 @@ function parseCost(costStr: string): EffectCost | undefined {
     const hcKwM = costStr.match(/手札から《([^》]+)》のカードを([０-９\d]+)枚捨てる/);
     if (hcKwM) {
       cost.discard = parseNum(hcKwM[2]);
-      cost.discardFilter = { keyword: hcKwM[1] };
+      cost.discardFilter = iconFilter(hcKwM[1]);
     }
   }
   // 手札にあるこのカードをゲームから除外する → handExileSelf
