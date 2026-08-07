@@ -18312,8 +18312,13 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // 「任意・コストなし」の穴から mandatory へ戻った分。
     // （タスク12(xxix)(2)）。さらに WXDi-P15-034-E1 は【出】自体の2択が強制で、
     // 任意なのはchoice②内の支払いだけなので mandatory へ戻す。段階3在庫は 39→38。
-    eq(eligible.length, 1454, '段階2 mandatory集合');
-    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    // 1454→1455＝続き377h（stale live 刈り取り）で `WX25-P1-061-E1` の timing が
+    // `ON_ATTACK_SIGNI`→`ON_PLAY` へ是正され、この集合に入った分（原文＝「あなたのシグニ１体が
+    // トラッシュから場に出たとき」）。⚠この札は `triggerScope`（any_ally）と
+    // `triggerCondition.placedFromTrash` がまだ無い＝**timing だけ直った途中段階**なので、
+    // scope を足したらこの集合から抜けて 1454 に戻る（そのときは期待値も戻す）。
+    eq(eligible.length, 1455, '段階2 mandatory集合');
+    eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 51, '段階2 condition/activeConditionあり（クラス種類数ゲートを含む）');
     eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
     eq(optionalNoCost.length, 16, '任意costなし（第15波で可変枚数2効果を構造化後）');

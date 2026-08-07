@@ -249,7 +249,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXDi-P15-044-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
   ],
   "WXK06-048": [
-    {"effectId":"WXK06-048-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
+    {"effectId":"WXK06-048-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsLastProcessed":true,"redirectTo":"trash","until":"END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
   ],
   // PLAN §6.3 sub-case (b): Carnival -Q- ignores opponent effects. The
   // own-other-source part of "except itself" is near-inert and intentionally
