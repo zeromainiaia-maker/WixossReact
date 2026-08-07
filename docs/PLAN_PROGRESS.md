@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き372・Opus 5〔**§5d パターンA 第4バッチ**＝`nonColorless` の残りビルダー＋ガードのスコープ是正＋engine パリティ〕）＝ユーザー指示「続ける」。触った層は `parseSentencePart1.ts`（6ビルダー＋whitelist 1枚＋ガード）／`effectParser.ts`（条件節1本）／**`effectEngine.ts`（matchesFilter に3フィールド）**／`public/data/effects_*.json`（12効果）／`goldenTest.ts`／`vocabCensus.ts`。
+  - **census「否定フィルタ」の高シグナル14件は全件 `nonColorless` だった**＝第2バッチ（続き370）は **SEARCH と トラッシュ→手札 だけ**を配線しており、トラッシュ→デッキ／デッキの一番下／トラッシュ→エナ／エナ→手札／相手手札を見て捨てさせる／`POWER_MODIFY_PER_TRASH_COUNT` の countFilter が素通しだった。**「1語彙＝1バッチ」ではなく「1語彙×Nビルダー」なので、配線したら残りビルダーを必ず洗う。**
+  - **⚠独立バグ①＝部分filter禁止ガードのスコープが広すぎた**。続き370 が入れたガードが**対象名詞句ではなく文全体**を見ており、`WXK09-029-BURST` で**後続文の語が前文の filter を巻き添えで消していた**。ガードを `trashTargetPhrase` に限定。**「filter を落とす側のガード」もスコープを間違えると過剰効果を作る。**
+  - **⚠独立バグ②＝`effectEngine.ts` の `matchesFilter` が `execUtils` 版と乖離**。「揃える」と明記されているのに `colorExclude`／`excludeResona`／`noAbilities` が**無く、CONTINUOUS・activeCondition・HAS_CARD_IN_FIELD で黙って無視**されていた（live 使用数 3／33／11）。3つとも cardData だけで判定できるのでそのまま移植。**engine の matchesFilter は2本ある＝片方に足したら他方も確認する。**
+  - **⚠据置＝`WXK09-029-BURST`**（続き370 の明示ガードを尊重）。ただし**根拠は再評価の余地あり**＝「部分filter不採用」は `WXEX2-06`（**同一の対象**に2系統）では正当だが、本件は**別ステップの別対象**で step1 だけ正しくしても step2 は悪化しない。§5d に再評価候補として登録済み。
+  - **⚠golden の落とし穴**＝`mkState` は共有カーソルを進めるので新テストは **`withSavedCursor` で包む**（包み忘れて無関係な `WXK11-031` のテストが落ちた）。しかも即時実行関数なので `test(name, () => withSavedCursor(() => {…}))` の形にする。
+  - **ゲート**＝全緑。**golden 1413→1415**（+2）、**census 1181→1170**（−11・`BASELINE_HIGH` 更新）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors、held **231 据置**。A/B 差分は段階ごとに機械確認（9→1→1→1）。
+  - **次の一手**＝**§5d パターンA を続ける**。残クラスタ＝「同一性(〜と同じ色/レベル/名前)」21件・「共通する色」23件（どちらも**動的参照**なので `levelEqTrigger`／`colorMatchesLastProcessed` 等の既存フィールドの有無を先に確認する）・「クラス指定」155件。**§5d 末尾の照合済み12件**（owner取り違え・重度混線）も未修正。**`WXK09-029-BURST` の据置再評価**も入口のひとつ。**Opusタスク12 の在庫は3件**〔(cxiii)(cxiv)(cxv)〕。**Sonnet**＝§7 実機検証（タスク1）＝続き366 の (cxvi) 分が最優先。
 - **セッション（2026-08-07・続き371・Opus 5〔**§5d パターンA 第3バッチ**＝「《カード名》以外の」〕）＝ユーザー指示「PLANをよみ作業の続きを行う」。触った層は `parserUtils.ts`（helper 新設）／`parseSentencePart1.ts`（7ビルダー）／`effectParser.ts`（1ビルダー）／`public/data/effects_*.json`（36効果）／`goldenTest.ts`／`vocabCensus.ts`（BASELINE）。**型・engine は無改造**。
   - **`excludeCardName` は既に型にも `matchesFilter`（execUtils・effectEngine 両方）にも decompiler にも実装済みだった**＝壊れていたのは**フィルタ合成の配線**。前バッチと**まったく同じ形**＝「語彙が無い」ではなく「語彙はあるが呼ばれていない」。
   - **⚠実害が2種あり、片方は「過剰」ではなく「原文と真逆」だった**＝①**反転13効果**＝除外名が `cardName`（**部分一致**）に入り「**そのカードしか選べない**」（`WX13-041-E1`「《巨弓　ガンデヴァ》以外の…シグニを探して」→ ガンデヴァしか探せない）。②**脱落23効果**＝除外が消えて**自分自身も回収/バフできる**過剰効果。**パターンA を「過剰効果の系統」と決めつけないこと。**

@@ -8260,14 +8260,43 @@ test('§5d(A) nonColorless: SEARCH／トラッシュ→手札 の9効果に載�
     'WX20-031', 'WX22-049', 'WXK04-015']) {
     ok(has(num), `${num}: 「無色ではない」が filter に載る（無色まで拾う過剰に戻っていない）`);
   }
-  // ⚠「そのシグニと同じレベル／共通する色」併記型は2系統を同時に表せないため nonColorless を落とす既存方針
-  //   （部分 filter だけを採用しない）。据置であることを固定する。
-  ok(!has('WXEX2-06'), 'WXEX2-06「そのシグニと同じレベルの無色ではないシグニ」は据置（部分filter不採用）');
+  // ⚠**据置は続き373 で解除した**＝`levelEqTrigger` を トラッシュ→手札 に配線して**2系統とも表現できる**
+  //   ようになったため（部分filter禁止は「片方を表せない」ときの規律であって、表せるなら据置を解く）。
+  ok(has('WXEX2-06'), 'WXEX2-06「そのシグニと同じレベルの無色ではないシグニ」は levelEqTrigger と同居して採用');
   // engine 判定＝無色（Color が「無」）は候補から外れる
   const colored = findCard(c => c.Type === 'シグニ' && !!c.Color && c.Color !== '無' && c.Color !== '');
   const colorless = findCard(c => c.Type === 'シグニ' && c.Color === '無');
   ok(matchesFilter(cardMap.get(colored), { cardType: 'シグニ', nonColorless: true }), '有色シグニは一致する');
   ok(!matchesFilter(cardMap.get(colorless), { cardType: 'シグニ', nonColorless: true }), '無色シグニは一致しない');
+});
+// §5d パターンA 第5バッチ＝**動的な同一性参照**（`levelEqTrigger` / `nameEqLastProcessed` / `levelEqualsVar`）。
+// いずれも型にも engine にも実装済みで、**入口のフィルタ合成から呼ばれていない**だけだった（3バッチ連続の同じ形）。
+test('§5d(A) 同一性: 「そのシグニと同じレベル」がトラッシュ→手札にも載る', () => {
+  const effOf = (num: string, id: string) => JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === id) ?? {});
+  // トラッシュ→**場** では配線済みだったのに トラッシュ→**手札** では呼ばれず、
+  // **どのレベルのシグニでも回収できる過剰効果**だった。
+  ok(effOf('WXEX2-06', 'WXEX2-06-E2').includes('"levelEqTrigger":true'), 'WXEX2-06-E2: トリガー元と同レベル');
+  ok(effOf('WXEX2-78', 'WXEX2-78-E1').includes('"levelEqTrigger":true'), 'WXEX2-78-E1: トリガー元と同レベル');
+  // ⚠「その後、そのシグニと同じレベル」は**lastProcessed 基準の別機構**＝横取りしないこと
+  //   （`parseTriggerComparison` が先頭で「その後」を見て自分で降りる。だから文全体を渡している）。
+  ok(effOf('WX22-024', 'WX22-024-BURST').includes('"levelEqLastProcessed":true')
+    && !effOf('WX22-024', 'WX22-024-BURST').includes('levelEqTrigger'),
+    'WX22-024-BURST は lastProcessed のまま（トリガー参照に化けていない）');
+});
+test('§5d(A) 同一性: デッキサーチの同一性制約が載る（万能サーチに戻っていない）', () => {
+  const effOf = (num: string, id: string) => JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === id) ?? {});
+  // `WXK05-044-E1`＝前段 REVEAL が `source:HAND_CARD` を持って初めて engine が lastProcessedCards を記録する。
+  //   語順「シグニ**N枚を**公開する」が未対応で bare REVEAL に潰れていたため、参照先ごと消えていた。
+  const k44 = effOf('WXK05-044', 'WXK05-044-E1');
+  ok(k44.includes('"nameEqLastProcessed":true'), 'WXK05-044-E1: 公開したシグニと同名だけを探せる');
+  ok(k44.includes('"type":"HAND_CARD"') && k44.includes('"story":"水獣"') && k44.includes('"level":{"min":3}'),
+    'WXK05-044-E1: 前段 REVEAL に source/クラス/レベルが載る（参照先が記録される）');
+  // `WXK09-032-E2`＝兄弟 E1 と同じ `energyTrash` コストなので同じ変数を参照できる。
+  ok(effOf('WXK09-032', 'WXK09-032-E2').includes('"levelEqualsVar":"cost_energy_trash_level_sum"'),
+    'WXK09-032-E2: 支払ったシグニのレベル合計と同じレベルだけを探せる');
+  // `WX24-P3-063-E1`＝MANUAL 定義は正しかったが held に滞留していただけ（採用漏れ）。
+  ok(effOf('WX24-P3-063', 'WX24-P3-063-E1').includes('"levelEqLastProcessed":true'),
+    'WX24-P3-063-E1: 公開したシグニと同レベルの相手シグニだけが能力を失う');
 });
 // §5d パターンA 第4バッチ＝`nonColorless` の**残りビルダー**（第2バッチは SEARCH と トラッシュ→手札 だけ配線していた）。
 // 併せて①ガードのスコープ是正（全文→対象名詞句）②「〈色〉ではないシグニがある場合」の条件節
@@ -8290,9 +8319,10 @@ test('§5d(A) nonColorless: トラッシュ→デッキ／エナ／相手手札�
     ok(effOf(num, id).includes('"nonColorless":true'), `${id}: 「無色ではない」が載る（無色まで拾う過剰に戻っていない）`);
   }
   // ⚠ガードは**対象名詞句だけ**を見る。全文を見ていた旧実装は後続文の語で前文の filter を巻き添えにしていた。
-  //   `WXEX2-06-E2` は同じ名詞句内に動的等値があるので従来どおり据置（部分filter不採用）。
-  ok(!effOf('WXEX2-06', 'WXEX2-06-E2').includes('nonColorless'),
-    'WXEX2-06「そのシグニと同じレベルの無色ではないシグニ」は据置');
+  //   残る禁止対象は「そのシグニと**共通する色**」だけ（動的参照の語彙がこの入口に無い）。
+  ok(effOf('WXEX2-06', 'WXEX2-06-E2').includes('"levelEqTrigger":true')
+    && effOf('WXEX2-06', 'WXEX2-06-E2').includes('"nonColorless":true'),
+    'WXEX2-06 は levelEqTrigger と nonColorless の両方が載る（続き373 で据置解除）');
   // 「あなたの場に白ではないシグニがある場合」＝条件節が丸ごと落ちて無条件で基本パワー5000だった
   ok(effOf('WX16-Re06', 'WX16-Re06-E1').includes('"colorExclude":"白"'),
     'WX16-Re06: 色除外の存在条件が activeCondition に載る（無条件発動に戻っていない）');
@@ -13455,8 +13485,13 @@ test('対象filter合成 第1波: matchesFilter成立/不成立を両方向で�
   ok(matchesFilter(card('別の紅蓮','シグニ','赤','紅蓮'), { excludeCardName:'紅蓮の使い魔　ツクヨミ' }), '別名は成立');
 });
 
-test('対象filter合成 第1波: 見送り3効果はcuratedへ部分採用しない', () => {
-  for (const [card, id] of [['WXEX2-06','WXEX2-06-E2'], ['WXDi-P02-003','WXDi-P02-003-E1'], ['WXK09-029','WXK09-029-BURST']] as const) {
+test('対象filter合成 第1波: 表せない系統だけを見送る（表せるようになったら採用する）', () => {
+  // ⚠`WXEX2-06-E2` は**続き373 で見送りを解除**＝`levelEqTrigger` を配線して「そのシグニと同じレベル」と
+  //   `nonColorless` の**2系統とも表現できる**ようになった。部分filter禁止は「片方を表せない」ときの規律。
+  const wxex206 = JSON.stringify(effectsMap.get('WXEX2-06')!.find(x => x.effectId === 'WXEX2-06-E2')!.action);
+  ok(wxex206.includes('"levelEqTrigger":true') && wxex206.includes('"nonColorless":true'), 'WXEX2-06-E2: 2系統とも採用');
+  // 残り2件は動的参照（センタールリグ共通色／そのシグニと共通する色）を表せないままなので見送り継続。
+  for (const [card, id] of [['WXDi-P02-003','WXDi-P02-003-E1'], ['WXK09-029','WXK09-029-BURST']] as const) {
     const e = effectsMap.get(card)!.find(x => x.effectId === id)!;
     const s = JSON.stringify(e.action);
     ok(!s.includes('"nonColorless":true') && !s.includes('levelEqTrigger'), `${id}: 未採用`);
@@ -18257,7 +18292,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         ok(!!e.cost?.[VAR_TO_COST[v]], `${e.effectId}: ${v} を参照するなら cost.${VAR_TO_COST[v]} が要る`);
       }
     }
-    eq(checked, 2, '現行の参照は第12波の2効果だけ（増えたら支払い経路の網羅を再確認する）');
+    // ⚠増やすときは「そのコスト経路が実際にその変数を記録するか」を確認してから数を上げること。
+    //   +1＝`WXK09-032-E2`（続き373）＝兄弟 E1 と同じ `energyTrash` コストなので同じ変数が populate される。
+    eq(checked, 3, '現行の参照は第12波の2効果＋WXK09-032-E2（増えたら支払い経路の網羅を再確認する）');
   });
 
   test('(xxix)(1) 第11波: distinct class コストは成立集合だけ支払え、不正集合を拒否する', () => {
