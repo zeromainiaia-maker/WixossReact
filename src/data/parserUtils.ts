@@ -188,6 +188,26 @@ export function parseGuardFilter(text: string): Partial<TargetFilter> {
   return {};
 }
 
+/**
+ * 「《カード名》以外の〜」＝**カード名除外**の名詞句修飾（§5d パターンA・続き371）。
+ *
+ * `excludeCardName` は型・`matchesFilter`（`execUtils`/`effectEngine` の両方）・decompiler に**実装済み**で、
+ * 壊れていたのは各アクションビルダーの**フィルタ合成の配線**だった（パターンA の典型形）。配線漏れの実害は2種：
+ *   ①**反転**＝除外すべき名前が `cardName`（部分一致）に入り「そのカードしか選べない」原文と真逆の効果
+ *     （SEARCH 系13効果。live JSON にのみ残っていた旧値で、parser 側は既に是正済みだった）。
+ *   ②**脱落**＝除外が消えて自分自身も選べる**過剰効果**（トラッシュ/エナ回収系23効果）。
+ *
+ * ⚠全CSV走査（`《X》以外の` 50ヒット／49効果）で確認した**別用法**＝
+ *   「《アーク・ディストラクト》**以外のアーツを使用していない場合**」（PR-204/PR-238）だけは**条件節**であって
+ *   対象フィルタではない。したがって本関数は**対象名詞句スパンに対して呼ぶ**こと（文全体に対して呼ぶ場合は、
+ *   その分岐が条件節を含まないことを確認してから使う）。
+ *   それ以外の48件はすべて名詞句修飾（除外対象は常にカード名で、《…アイコン》以外 の形は存在しない）。
+ */
+export function parseExcludeCardNameFilter(span: string): Partial<TargetFilter> {
+  const m = span.match(/《([^》]+)》以外の/);
+  return m ? { excludeCardName: m[1] } : {};
+}
+
 /** 対象名詞句 span から、既存の静的 TargetFilter 語彙を合成する。 */
 export function extractNounPhraseFilter(
   span: string,
