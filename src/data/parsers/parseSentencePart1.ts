@@ -2872,9 +2872,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // ⚠**全文からは取らない**（続き376d の BOUNCE で7件中4件を誤配線した教訓）＝「トラッシュから」以降に
     //   限り、かつ ＜X＞の が対象名詞句のシグニに**隣接**（間に別の「シグニ」を挟まない）ときだけ拾う。
     //   前文の「対戦相手のシグニ１体を対象とし」の側へ付けてはいけない。
-    const dbSrc = t.includes('トラッシュから') ? t.slice(t.indexOf('トラッシュから')) : t;
-    const dbSpan = dbSrc.match(/^([^。]*?)デッキの一番下に置く/s)?.[1] ?? '';
-    const dbStoryM = dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/);
+    // ⚠**「トラッシュから」がある文にだけ適用する**＝無いと `WXDi-P16-069-E2`
+    //   「このカードの上にある**＜解放派＞の**シグニは『…それをデッキの一番下に置く』を得る」の
+    //   **付与対象**のクラスを、置かれる相手シグニ側へ付けてしまう。
+    const dbSpan = t.includes('トラッシュから')
+      ? (t.slice(t.indexOf('トラッシュから')).match(/^([^。]*?)デッキの一番下に置く/s)?.[1] ?? '')
+      : '';
+    // ⚠**span 内に別々の ＜クラス＞ が2つ以上あるときは付けない**＝`PR-322-E1`「＜天使＞のシグニ１枚**と**
+    //   ＜古代兵器＞のシグニ１枚」（別々のピック）・`WX08-036-E1`「＜鉱石＞**か**＜宝石＞のシグニ合計５枚」（OR）は
+    //   片方だけ載せると**原文と逆の過小実行**になる。AND/OR/別ピックの区別がこの規則では付かないので
+    //   **既存の過剰効果を残すほうを選ぶ**（PLAN §5d-0 (i) へ follow-up として登録）。
+    const dbClasses = [...new Set([...dbSpan.matchAll(/＜([^＞]+)＞/g)].map(m => m[1]))];
+    const dbStoryM = dbClasses.length === 1
+      ? dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/)
+      : null;
     const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) };
     return {
       type: 'TRANSFER_TO_DECK',
