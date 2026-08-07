@@ -4880,8 +4880,10 @@ function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
 //   表現されており、そちらが正準形＝`SELECT_TARGET_ONLY` を持ち込むと engine 側（`execStubPart1` の
 //   SIGNI 専用制限・`execTrash` の ENERGY_CARD 分岐が `targetsStored` を見ない）まで拡張が要り、
 //   得るものは選択タイミングの前後だけになる。
+// ⚠名詞句 span は**「カード」まで含めて**捕る。`LRIG_COLOR_NOT_RE` 等は「…持たない**カード**」のように
+//   名詞の直前接続を要求するので、直前で切ると色制限が黙って落ちる（＝ゾーンだけ直って過剰効果が残る）。
 const ENERGY_DESIG_BEFORE_COST_RE =
-  /(対戦相手|あなた)のエナゾーンから([^。]{0,60}?)カード(?:を)?([０-９\d]+)枚(まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?をトラッシュに置く/;
+  /(対戦相手|あなた)のエナゾーンから([^。]{0,60}?カード)(?:を)?([０-９\d]+)枚(まで)?を?対象とし、[^。]*?てもよい。そうした場合、それら?をトラッシュに置く/;
 
 function applyDroppedEnergyDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
