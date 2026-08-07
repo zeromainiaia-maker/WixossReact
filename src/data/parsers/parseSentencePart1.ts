@@ -1858,7 +1858,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // トラッシュ→**手札** では呼ばれておらず、**どのレベルのシグニでも回収できる過剰効果**だった
     // （`WXEX2-06-E2`／`WXEX2-78-E1`）。⚠`parseTriggerComparison` は先頭で「その後」を見て
     //   lastProcessed 文脈（別機構＝`WX22-024-BURST`）を自分で外すので、そちらを横取りしない。
-    Object.assign(filter, parseTriggerComparison(trashTargetPhrase, { allowLevelEq: true }));
+    //   ⚠したがって**文全体 `t` を渡す**（名詞句だけだと「その後」を見失い lastProcessed を横取りする）。
+    Object.assign(filter, parseTriggerComparison(t, { allowLevelEq: true }));
     if (useBatch2FilterComposition) {
       if (Array.isArray(extracted.color) || extracted.color === '無') filter.color = extracted.color;
       if (extracted.cardName) filter.cardName = extracted.cardName;
