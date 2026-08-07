@@ -46,7 +46,8 @@ const VOCAB: Vocab[] = [
   { key: 'noRiseIcon',       re: /《ライズアイコン》を持たない/ },
   { key: 'hasRiseIcon',      re: /《ライズアイコン》を持つ/ },
   { key: 'hasCrossIcon',     re: /《クロスアイコン》を持つ/ },
-  { key: 'isDisona',         re: /《ディソナアイコン》を持つ/ },
+  // ディソナは「《ディソナアイコン》のシグニ／のカード」という**連体の「の」**で書かれる（「を持つ」形は原文に無い）
+  { key: 'isDisona',         re: /《ディソナアイコン》の/ },
   { key: 'excludeResona',    re: /レゾナではない/ },
   { key: 'nonColorless',     re: /無色ではない/ },
   { key: 'noAbilities',      re: /能力を持たない/ },
@@ -245,7 +246,7 @@ function main(): void {
   }
   fs.writeFileSync(OUT, lines.join('\n') + '\n', 'utf8');
   console.log('');
-  console.log(`明細 → ${path.relative(ROOT, OUT)}`);
+  console.log(`明細 → ${OUT}`);
   console.log('セル1本を取るときは `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>`');
 }
 
