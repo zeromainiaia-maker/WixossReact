@@ -6177,6 +6177,65 @@ test('続き377d トリップワイヤ: ルリグ/自身/ビートコストの�
   }
 }));
 
+// ── 続き377e 第10バッチ: `cardClass × POWER_MODIFY{SIGNI}`（miss 16・has 159★★）。
+//    **「すべての」は修飾語の前にも来る**＝「あなたの**すべての**＜地獣＞のシグニのパワーを＋3000」。
+//    旧実装は `(?:すべての)?` を修飾語群の**後ろ**にしか置いておらず、この語順だと分岐条件ごと外れて
+//    既定の `{SIGNI, owner:'any', count:1}` へ潰れていた＝**味方全体バフが「どちらかのシグニ1体」**に化け、
+//    しかも `owner:'any'` なので**相手のシグニにも撃てた**。
+test('続き377e: 「あなたのすべての〈filter〉シグニのパワーを±N」は self/ALL＋filter', () => withSavedCursor(() => {
+  const cases: [string, string, string][] = [
+    ['WX24-P1-073', 'WX24-P1-073-E1', '"story":"地獣"'],
+    ['WX25-P2-064', 'WX25-P2-064-E1', '"story":"宇宙"'],
+    ['WX25-CP1-072', 'WX25-CP1-072-E1', '"story":"ブルアカ"'],
+    ['WX26-CP1-063', 'WX26-CP1-063-E1', '"story":"プリオケ"'],
+    ['WXDi-D02-24', 'WXDi-D02-24-E2', '"story":"バーチャル"'],
+    ['WXEX2-67', 'WXEX2-67-E2', '"story":"植物"'],
+    ['WXK05-072', 'WXK05-072-E2', '"story":"水獣"'],
+    // 「＜X＞と＜Y＞のシグニ」＝どちらのクラスも対象（any-of）
+    ['WX14-CB04', 'WX14-CB04-E1', '"story":["空獣","地獣"]'],
+    ['WXK05-060', 'WXK05-060-E2', '"story":["紅蓮","古代兵器"]'],
+  ];
+  for (const [card, effId, needle] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(js.includes(`"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL"`), true,
+      `${effId}: owner:self / count:ALL（旧: owner:any / count:1＝相手のシグニ1体にも撃てた）`);
+    eq(js.includes(needle), true, `${effId}: filter に ${needle}`);
+  }
+}));
+
+// ── 続き377e: 続き376d 第4バッチで**held に別系統の改善が同居していたため据置**にした3枚を採用。
+//    ①「あなたの＜X＞のシグニ１体を対象とし…それのパワーを±N」の owner/filter 脱落
+//    ②「**このシグニは**【X】を得る」の `thisCardOnly` 脱落＝**別のシグニに付与できる**過剰対象化。
+test('続き377e: 据置していた held 3枚（owner/filter ＋ thisCardOnly）', () => withSavedCursor(() => {
+  for (const [card, effId, story] of [
+    ['WX24-P4-079', 'WX24-P4-079-E1', '地獣'], ['WXK09-080', 'WXK09-080-E2', '電機'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(js.includes(`"owner":"self","count":1,"filter":{"cardType":"シグニ","story":"${story}"`), true,
+      `${effId}: owner:self＋story=${story}`);
+  }
+  for (const [card, effId] of [
+    ['WX24-P4-079', 'WX24-P4-079-E2'], ['WXK09-080', 'WXK09-080-E1'], ['WXDi-CP02-063', 'WXDi-CP02-063-E2'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes('"thisCardOnly":true'), true,
+      `${effId}: 「このシグニは〜を得る」は thisCardOnly（別のシグニに付与できない）`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**条件節のクラスを全体バフの対象へ引き込まない**。`SPDi43-31` は
+//   「…レベル３の場合、…あなたのすべてのシグニ＋3000」＝レベルは**条件**であって対象の修飾ではない
+//   （続き371 の教訓を維持）。名詞句 span から取っているので level は載らない。
+test('続き377e トリップワイヤ: 全体バフの対象に条件節のレベルを載せない', () => withSavedCursor(() => {
+  const e = (effectsMap.get('SPDi43-31') ?? []).find(x => x.effectId === 'SPDi43-31-E1');
+  if (!e) return; // カードが無ければスキップ（母集団変化に強くする）
+  const js = JSON.stringify(e.action);
+  if (!js.includes('"count":"ALL"')) return;
+  eq(/"count":"ALL","filter":\{[^}]*"level"/.test(js), false, 'SPDi43-31-E1: 条件節のレベルを対象に載せない');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
