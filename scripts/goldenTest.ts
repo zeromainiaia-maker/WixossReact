@@ -8300,14 +8300,17 @@ test('§5d(A) nonColorless: トラッシュ→デッキ／エナ／相手手札�
 // effectEngine 版 matchesFilter は execUtils 版と挙動を揃える約束なのに colorExclude/excludeResona/noAbilities が
 // 欠けており、CONTINUOUS パワー計算・activeCondition・HAS_CARD_IN_FIELD では**黙って無視**されていた。
 // 実経路（checkActiveCondition の HAS_CARD_IN_FIELD）で確認する。
-test('§5d(A) engine パリティ: HAS_CARD_IN_FIELD が colorExclude/excludeResona を見る', () => {
+// ⚠`mkState` は cursor を進めるので `withSavedCursor` で包む（包まないと後続テストの引くカードがずれ、
+//   無関係なテスト＝task12(lxiii) WXK11-031 が落ちる）。
+test('§5d(A) engine パリティ: HAS_CARD_IN_FIELD が colorExclude/excludeResona を見る', withSavedCursor(() => {
+  const cmp = cardMap as Map<string, CardData>;
   const white = findCard(c => isSigni(c) && c.Color === '白' && !c.Type?.includes('レゾナ'));
   const black = findCard(c => isSigni(c) && c.Color === '黒' && !c.Type?.includes('レゾナ'));
   const resona = findCard(c => c.Type?.includes('レゾナ') === true);
   const empty = mkState({ signi: [null, null, null] });
   const has = (num: string, filter: Record<string, unknown>) => checkActiveCondition(
     { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter } as unknown as Parameters<typeof checkActiveCondition>[0],
-    mkState({ signi: [num, null, null] }), empty, true, cm);
+    mkState({ signi: [num, null, null] }), empty, true, cmp);
   ok(!has(white, { cardType: 'シグニ', colorExclude: '白' }), '白シグニだけの場では colorExclude:白 が不成立');
   ok(has(black, { cardType: 'シグニ', colorExclude: '白' }), '黒シグニなら成立');
   ok(!has(resona, { cardType: 'シグニ', excludeResona: true }), 'レゾナだけの場では excludeResona が不成立');
