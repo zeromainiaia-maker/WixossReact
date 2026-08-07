@@ -2091,6 +2091,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseTriggerComparison(t, { allowPlacement: true }), // 「そのシグニより低い/高いレベル」＝トリガー元基準（被バニッシュ/被トラッシュ/場に出た）
       ...parseNoAbilitiesFilter(t), // 「能力を持たないシグニN枚」（§5d パターンA）。「〜として場に出す」は helper 側で除外
       ...(/カード名に《[^》]+》を含む/.test(t) ? parseNameFilter(t) : {}), // 「カード名に《X》を含むシグニ」＝部分一致（WXEX2-51 ユラギ）
+      // 「《カード名》以外の〜」（§5d パターンA・続き371）＝自分自身を回収できてしまう過剰効果の是正
+      //   （`SP27-003-E1`／`WDK14-012-E1`／`WX20-048-E1`／`WXEX2-80-E1`）。この分岐は「トラッシュから…場に出す」
+      //   の実行文だけを受けるので、条件節用法（PR-204/PR-238「以外のアーツを使用していない場合」）は入らない。
+      ...parseExcludeCardNameFilter(t),
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
