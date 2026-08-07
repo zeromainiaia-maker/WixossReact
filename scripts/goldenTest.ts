@@ -5749,19 +5749,60 @@ test('続き376b: 「あなたの＜X＞のシグニN体がアタックしたと
   }
 }));
 
-// ⚠トリップワイヤ＝**前置き修飾つきの主語を any_ally に広げてはいけない**。
-//   「【ソウル】が付いているあなたのシグニ」「レベルが奇数のあなたの＜トリック＞のシグニ」を
-//   前置きごと無視して any_ally にすると、**過小実行を過剰発火へ付け替えるだけ**になる
-//   （「条件を満たすシグニだけ」が「味方シグニ全部」へ広がる）。抽出は先頭限定（^）で弾いている。
-//   この3効果を配線したくなったら、先に triggerFilter 側へ前置きの語彙（ソウル付き／levelParity）を
-//   載せてからにすること。
-test('続き376b トリップワイヤ: 前置き修飾つきのアタック主語は any_ally に広げない', () => withSavedCursor(() => {
+// ⚠トリップワイヤ＝**語彙化できていない修飾つきの主語を any_ally に広げてはいけない**。
+//   「【ソウル】が付いているあなたのシグニ」を修飾ごと無視して any_ally にすると、
+//   **過小実行を過剰発火へ付け替えるだけ**になる（「条件を満たすシグニだけ」が「味方シグニ全部」へ広がる）。
+//   `parseAllyAttackSubject` は**未知の修飾語が1文字でも残れば null を返す**ことでこれを構造的に防ぐ。
+//   配線したくなったら、先に triggerFilter 側へ語彙（【ソウル】が付いている＝盤面状態）を載せてからにする。
+test('続き376b トリップワイヤ: 語彙の無い修飾つきのアタック主語は any_ally に広げない', () => withSavedCursor(() => {
+  for (const [card, effId] of [['WXDi-P04-016', 'WXDi-P04-016-E1']] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(e?.triggerScope ?? 'self', 'self', `${effId}: 【ソウル】が付いている＝フィルタ語彙が無いので広げない`);
+  }
+}));
+
+// ── 続き377f: アタック主語の修飾語を統合抽出（被覆マトリクス `cardClass × (filter無)` の全数分類から）。
+//    従来は「クラスのみ」「パワーのみ」「色のみ」が**別々の regex**に分かれており、
+//    修飾が2つ以上（パワー＋クラス等）だと**どちらにも当たらず既定 self へ潰れて**いた＝
+//    ①watcher 自身のアタックでしか発火しない過小実行 かつ ②その自身に対して主語の限定（パワー等）が
+//    一切効かない、という二重のズレ。`parseAllyAttackSubject` へ統合し修飾を順不同で取る。
+test('続き377f: 複合修飾のアタック主語も any_ally＋triggerFilter へ載る', () => withSavedCursor(() => {
+  const cases: [string, string, Record<string, unknown>][] = [
+    ['WX20-061', 'WX20-061-E1', { powerRange: { min: 10000 }, story: '龍獣' }],
+    ['WXDi-P08-073', 'WXDi-P08-073-E2', { powerRange: { min: 10000 }, story: '地獣' }],
+    ['WXK03-030', 'WXK03-030-E1', { level: 4, story: '遊具' }],
+    ['WXK10-084', 'WXK10-084-E1', { levelParity: 'odd', story: 'トリック' }],
+    ['WXK10-084', 'WXK10-084-E2', { levelParity: 'even', story: 'トリック' }],
+    ['WXDi-P12-064', 'WXDi-P12-064-E1', { isDisona: true }],
+    ['WXEX1-60', 'WXEX1-60-E1', { cardName: 'フレイスロ' }],
+    // 「あなたの緑のシグニ**１体**が」＝旧 regex は「N体」を許していなかったため色が落ちていた
+    ['WX20-046', 'WX20-046-E3', { color: '緑' }],
+  ];
+  for (const [card, effId, want] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(e?.triggerScope, 'any_ally', `${effId}: scope=any_ally（旧: 既定 self へ潰れていた）`);
+    eq(JSON.stringify(e?.triggerFilter), JSON.stringify(want), `${effId}: triggerFilter=${JSON.stringify(want)}`);
+  }
+}));
+
+// ⚠`matchesFilter` は `excludeSelf` を見ない（候補集合を作る側の責務）＝BattleScreen の
+//   **アタッカー自身**経路が triggerFilter を素の matchesFilter へ丸ごと渡していたため、
+//   「あなたの**他の**〜シグニがアタックしたとき」が watcher 自身のアタックでも発火していた。
+//   `collectFieldTriggers` 側は `topNum === triggeringCardNum` の skip で正しく除外できており、
+//   **同じ語彙が入口ごとに違う壊れ方をしていた**（続き377f）。
+test('続き377f: アタッカー自身経路は triggerFilter.excludeSelf を尊重する', () => withSavedCursor(() => {
   for (const [card, effId] of [
-    ['WXDi-P04-016', 'WXDi-P04-016-E1'], ['WXK10-084', 'WXK10-084-E1'], ['WXK10-084', 'WXK10-084-E2'],
+    ['WX22-022', 'WX22-022-E4'], ['WX25-CP1-047', 'WX25-CP1-047-E1'], ['WXDi-CP02-102', 'WXDi-CP02-102-E1'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
-    eq(e?.triggerScope ?? 'self', 'self', `${effId}: 前置き（ソウル付き／レベル偶奇）を表せないうちは広げない`);
+    eq(e?.triggerFilter?.excludeSelf, true, `${effId}: 「他の」＝excludeSelf`);
+    eq(attackerSelfTriggerFilterOk(e!, cardMap.get(card), 99999), false,
+      `${effId}: 自身のアタックでは発火しない（旧: matchesFilter が excludeSelf を無視して発火していた）`);
   }
+  // excludeSelf が無い側は従来どおり自身のアタックでも発火する（過剰な締めつけをしていないこと）
+  const kyochu = (effectsMap.get('WX13-037') ?? []).find(x => x.effectId === 'WX13-037-E2');
+  eq(attackerSelfTriggerFilterOk(kyochu!, cardMap.get('WX13-037')), true,
+    'WX13-037-E2: 「他の」が無いので自身のアタックでも発火する');
 }));
 
 test('続き376b: any_ally＋story は同クラスの味方アタックで発火し、別クラスでは発火しない', () => withSavedCursor(() => {
