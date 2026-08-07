@@ -68,8 +68,12 @@ const VOCAB: Vocab[] = [
   { key: 'noGuard',          re: /《ガードアイコン》を持たない/, jsonRe: /"noGuard"\s*:|"hasGuard"\s*:\s*false/ },
   { key: 'hasGuard',         re: /《ガードアイコン》を持つ/, jsonRe: /"hasGuard"\s*:\s*true|"noGuard"\s*:\s*false/ },
   { key: 'noRiseIcon',       re: /《ライズアイコン》を持たない/ },
-  { key: 'hasRiseIcon',      re: /《ライズアイコン》を持つ/ },
-  { key: 'hasCrossIcon',     re: /《クロスアイコン》を持つ/ },
+  // ⚠**アイコンは2つのキー綴りが併存している**（続き377c 実測）＝専用キー `hasRiseIcon`/`hasCrossIcon` と
+  //   汎用キー `hasIcon:'ライズ'|'クロス'`。`matchesFilter` は両方を見ており（execUtils:624-626 と :689-698）、
+  //   ライズは判定式まで同一（どちらも `EffectText.includes('【ライズ】')`）、クロスも実データで 74 vs 73（差は `WX10-060` 1枚）。
+  //   キー名照合だけだと `hasIcon` 側を全部 miss と誤検出する（cross は miss 22 のうち実質4件だけが本物だった）。
+  { key: 'hasRiseIcon',      re: /《ライズアイコン》を持つ/,  jsonRe: /"hasRiseIcon"\s*:|"hasIcon"\s*:\s*"ライズ"/ },
+  { key: 'hasCrossIcon',     re: /《クロスアイコン》を持つ/, jsonRe: /"hasCrossIcon"\s*:|"hasIcon"\s*:\s*"クロス"/ },
   // ディソナは「《ディソナアイコン》のシグニ／のカード」という**連体の「の」**で書かれる（「を持つ」形は原文に無い）
   { key: 'isDisona',         re: /《ディソナアイコン》の/ },
   { key: 'excludeResona',    re: /レゾナではない/ },

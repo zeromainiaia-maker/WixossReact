@@ -189,6 +189,23 @@ export function parseGuardFilter(text: string): Partial<TargetFilter> {
 }
 
 /**
+ * 「《ライズ／クロス／アクセアイコン》を持つ〔シグニ／カード〕」＝アイコン保持フィルタ（続き377c）。
+ *
+ * ⚠**名詞句スパンに対して呼ぶこと。** 全文に対して呼ぶと条件節用法
+ * （`WX17-053-E2`「あなたの場に《ライズアイコン》を持つシグニが**２体ある場合**、…対戦相手のシグニ１体を対象とし」）
+ * を対象フィルタへ引き込み、**原文と逆の過小実行**になる。
+ *
+ * ⚠**キー綴りは `hasIcon` に寄せる**＝専用キー `hasRiseIcon`/`hasCrossIcon` も型と `matchesFilter` にあるが
+ * （`REVEAL_PICK_DESC_RULES` はそちらを使う）、parser 出力の多数派は `hasIcon` で、engine の判定は
+ * ライズについては両者**同一式**（`EffectText.includes('【ライズ】')`）。綴りを増やさない。
+ */
+export function parseIconFilter(span: string): Partial<TargetFilter> {
+  if (/《ライズアイコン》を持たない/.test(span)) return { noRiseIcon: true };
+  const m = span.match(/《(ライズ|クロス|アクセ)アイコン》を持つ/);
+  return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};
+}
+
+/**
  * 「《カード名》以外の〜」＝**カード名除外**の名詞句修飾（§5d パターンA・続き371）。
  *
  * `excludeCardName` は型・`matchesFilter`（`execUtils`/`effectEngine` の両方）・decompiler に**実装済み**で、
