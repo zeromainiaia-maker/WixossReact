@@ -155,7 +155,32 @@ for (const id of allIds) {
   if (JSON.stringify(existing) === JSON.stringify(fresh)) continue;       // 変化なし
   // parseStatus だけの差分（AUTO→PARTIAL 刻印等）＝実体は同一。existing 温存（held に落とさない）
   if (equalIgnoringParseStatus(existing, fresh)) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_metaOnly.push(id); continue; }
-  if (existing.some(e => PRESERVE_STATUSES.has(e?.parseStatus))) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_manual.push(id); continue; }
+  if (existing.some(e => PRESERVE_STATUSES.has(e?.parseStatus))) {
+    // ⚠**カード単位ではなく効果単位で温存する**（続き377i）。
+    //   従来は「カード内に MANUAL/PARTIAL が1つでもあれば**カード丸ごと**温存」だったため、
+    //   **同じカードの AUTO 効果に対する parser 改善が永久に live へ届かなかった**（実測 584カードが
+    //   このバケツに入っており、その中に「parser は直っているのに live は古い」効果が溜まっていた
+    //   ＝続き377g/h で刈った stale live の**本体**）。
+    //   効果単位に落としても安全性は変わらない＝①MANUAL/PARTIAL の効果は**絶対に触らない**
+    //   ②残りの AUTO 効果も `isPureSuperset`（既存リーフを1つも失わない）を**個別に**通ったものだけ採る。
+    //   ⚠effectId の集合が変わるカード（効果の増減＝構造変更）は従来どおり**カード丸ごと温存**する。
+    const exIds = existing.map(e => e?.effectId);
+    const frIds = fresh.map(e => e?.effectId);
+    const sameIdSet = exIds.length === frIds.length && exIds.every((v, i) => v === frIds[i]);
+    if (!sameIdSet) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_manual.push(id); continue; }
+    let gained = false;
+    const merged = existing.map((ex, i) => {
+      const fr = fresh[i];
+      if (PRESERVE_STATUSES.has(ex?.parseStatus)) return ex;   // 手修正は不可侵
+      if (!fr || JSON.stringify(ex) === JSON.stringify(fr)) return ex;
+      if (!isPureSuperset(ex, fr)) return ex;                  // 損失リスクのある差分は温存
+      gained = true;
+      return fr;
+    });
+    result[id] = merged as ReturnType<typeof parseCardEffects>;
+    (gained ? report.adopted_partial : report.preserved_manual).push(id);
+    continue;
+  }
   if (isPureSuperset(existing, fresh)) { report.adopted_gain.push(id); continue; } // fresh をそのまま採用
   heldFresh[id] = fresh;
   result[id] = existing as ReturnType<typeof parseCardEffects>;          // 損失リスク→温存
