@@ -4123,6 +4123,15 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   'WXK03-074-E1': { type: 'BANISH', flag: 'levelEqLastProcessedCount', value: { cardType: 'シグニ', story: '武勇' } },
   'WXEX1-60-E2': { type: 'BANISH', flag: 'levelEqLastProcessedCount', value: true },
   'WX21-059-E1': { type: 'SEARCH', flag: 'levelEqLastProcessedLevelSum' },
+  // §5d パターンA 第5バッチ（続き373）＝デッキサーチの同一性制約が丸ごと落ちて**どのシグニでも持ってこられる
+  //   万能サーチ**になっていた2件。
+  // `WXK05-044-E1`「あなたの手札からレベル３以上の＜水獣＞のシグニ1枚を公開する。そうした場合、あなたのデッキから
+  //   **この方法で公開したシグニと同じ名前の**シグニ1枚を探して…」＝前段の REVEAL が
+  //   `source:HAND_CARD` を持って初めて engine が lastProcessedCards を記録する（同セッションで語順を是正済み）。
+  'WXK05-044-E1': { type: 'SEARCH', flag: 'nameEqLastProcessed' },
+  // `WXK09-032-E2` は兄弟 E1 と**同じコスト経路**（`energyTrash`）なので同じ変数を参照する。
+  //   「この方法でトラッシュに置いたシグニのレベルの合計と同じレベルを持つ」＝`last_cost_energy_trash_level_sum`。
+  'WXK09-032-E2': { type: 'SEARCH', flag: 'levelEqualsVar', value: 'cost_energy_trash_level_sum' },
   'WXK10-053-BURST': { type: 'TRASH', flag: 'levelEqLrig', value: 'self' },
 };
 function applyIdentityBatch5b(effects: CardEffect[]): void {
