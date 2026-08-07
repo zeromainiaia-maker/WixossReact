@@ -5807,6 +5807,36 @@ test('続き376d トリップワイヤ: 対象名詞句に隣接しないクラ�
   }
 }));
 
+// ── 続き376d 第3バッチ: 「トラッシュから〈…＜X＞の〉シグニN枚を…デッキの一番下に置く」の
+//    source フィルタに ＜クラス＞ が載っていなかった（`selectionConstraint:{distinct:'level'}` は載るのに）。
+//    ＝トラッシュの**どのシグニでも**戻せる過剰効果。17効果を是正。
+test('続き376d: トラッシュ→デッキ一番下の source に story が載る', () => withSavedCursor(() => {
+  for (const [card, effId, story] of [
+    ['SPDi44-12', 'SPDi44-12-E1', '天使'], ['SPDi44-16', 'SPDi44-16-E1', '古代兵器'],
+    ['WX25-P1-014', 'WX25-P1-014-E1', '天使'], ['WX25-P1-030', 'WX25-P1-030-E1', '古代兵器'],
+    ['WX25-P2-063', 'WX25-P2-063-E2', '電機'], ['WXK10-073', 'WXK10-073-E2', '英知'],
+    ['WXK09-067', 'WXK09-067-E1', '天使'], ['WXDi-CP01-046', 'WXDi-CP01-046-E1', 'バーチャル'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(js.includes(`"story":"${story}"`), true, `${effId}: トラッシュ source に story=${story}`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**クラスが2つ以上ある span では付けない／「トラッシュから」が無い文では拾わない**。
+//   `PR-322-E1`「＜天使＞のシグニ１枚**と**＜古代兵器＞のシグニ１枚」・`WX08-036-E1`「＜鉱石＞**か**＜宝石＞の
+//   シグニ合計５枚」は片方だけ載せると**原文と逆の過小実行**。`WXDi-P16-069-E2` は ＜解放派＞ が**付与対象**で、
+//   置かれる相手シグニ側に付けるのは誤り。いずれも続き376d の A/B で実際に誤配線して差し戻した。
+test('続き376d トリップワイヤ: 複数クラス／付与対象のクラスは source に載せない', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['PR-322', 'PR-322-E1'], ['WX08-036', 'WX08-036-E1'], ['WXDi-P16-069', 'WXDi-P16-069-E2'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(/"story"/.test(JSON.stringify(e?.action ?? {})), false,
+      `${effId}: 曖昧なクラスを source フィルタに引き込まない（過小実行を作らない）`);
+  }
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
