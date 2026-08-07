@@ -7706,16 +7706,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       //   主語を巻き込まないため。前置きを無視して any_ally にすると「その条件を満たすシグニだけ」が
       //   「味方シグニ全部」へ広がる＝**過小実行を過剰発火に付け替えるだけ**になる。
       //   この2系統（計3効果）は別途 triggerFilter の語彙化が要る（PLAN §5d-0 (i) に登録）。
-      if (timing[0] === 'ON_ATTACK_SIGNI') {
-        const attackM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき/);
-        if (attackM) {
-          extractedTriggerScope = 'any_ally';
-          const tf: NonNullable<typeof extractedTriggerFilter> = {};
-          if (attackM[1]) tf.excludeSelf = true; // 「他の」＝自身を除く
-          if (attackM[2]) tf.story = attackM[2];
-          if (Object.keys(tf).length) extractedTriggerFilter = tf;
-        }
-      }
+      // ⚠この場所では **scope を決めない**（下の ON_ATTACK_SIGNI ブロック＝`parseAllyAttackSubject` が唯一の入口）。
+      //   続き377f までは同じ抽出がここと下の2箇所に分かれており、修飾語の組み合わせ（パワー＋クラス等）で
+      //   どちらの regex にも当たらず**既定 self へ潰れる**穴になっていた。
       if (timing[0] === 'ON_KEYWORD_GAINED'
         && /あなたの他のシグニ(?:[０-９\d]+体)?が(?:【アサシン】|【ランサー】|【ダブルクラッシュ】)/.test(actionText)) {
         extractedTriggerScope = 'any_ally';
