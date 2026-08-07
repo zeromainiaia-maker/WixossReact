@@ -410,7 +410,11 @@ const PATTERNS: Pattern[] = [
     } },
   { name: 'コスト:手札を捨てる', re: /手札[かをら][^。：]{0,12}捨て(る|て)：/, keys: ['discard', 'handDiscard', 'Discard'], src: 'eff' },
   { name: 'コスト:エナからトラッシュ', re: /エナゾーンから[^。：]{0,18}(トラッシュに置く|支払う)：?/, keys: ['energyTrash', 'ENERGY'], src: 'eff' },
-  { name: 'コスト:場からトラッシュ', re: /場から[^。：]{0,18}トラッシュに置く：/, keys: ['fieldTrash', 'trash_self', 'beat', 'fieldTo'], src: 'eff' },
+  // ⚠`trash_key` は続き376c 追加＝「このキーを場からルリグトラッシュに置く：」（【起】コスト）の正表現。
+  //   型（`effects.ts:355`）にも engine（`BattleScreen.tsx:6314` で実際に支払い、コスト表示にも出る）にも
+  //   実装済みなのに対応表から漏れており、**このクラスタの高シグナル34件が全部これ1つ**だった
+  //   （34件すべて原文が「この(キー|カード)を場から〜トラッシュに置く：」形であることを機械確認済み）。
+  { name: 'コスト:場からトラッシュ', re: /場から[^。：]{0,18}トラッシュに置く：/, keys: ['fieldTrash', 'trash_self', 'beat', 'fieldTo', 'trash_key'], src: 'eff' },
   {
     name: 'ゾーン:エナゾーンに置く', re: /エナゾーンに置/, keys: ['ENERGY', 'nerg'],
     // 「（対戦相手の）シグニがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置く」は
