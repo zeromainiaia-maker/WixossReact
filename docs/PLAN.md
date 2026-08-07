@@ -287,7 +287,7 @@
 
 **⚠この測定から出た教訓**＝**「census に残っている＝バグ」ではない**。残り1162のうち約3割は計器側の問題で、**較正は実装より安い**。次バッチを取る前に (iv) を先に潰すと、以後のサンプリング精度も上がる。
 
-#### ③ worklist を**クラスタ別ではなく作業種別**に組み替える
+#### ✅③ worklist を**クラスタ別ではなく作業種別**へ組み替えた（続き376）
 
 **根拠＝残り1162は均質ではない**（続き375 実測のクラスタ別「もう直っている率」）：
 
@@ -297,6 +297,49 @@
 - **構造混線（パターンD）**：タスク13 へ送る。
 
 **分類の4区分**＝(i)配線ギャップ〔①で機械検出・バッチ化〕 (ii)機構ギャップ〔§6.3〕 (iii)構造混線〔タスク13〕 (iv)計器較正〔`vocabCensus.ts` の対応語彙表を直す〕。
+
+---
+
+### 🗂 作業種別 worklist（**続き376 以降はこれが正**・クラスタ別 worklist は索引としてのみ残す）
+
+> **取り方**＝上から順ではなく、**(iv)→(i)→(ii)→(iii) の順にコストが安い**。②の実測では残1162の内訳が概ね
+> **(i)25% / (ii)30% / (iii)15% / (iv)30%** で、**(iv) は実装ゼロで減る**ぶん最初に取るのが効率がよい。
+> 各項目の末尾が**着手時にまず打つコマンド**。
+
+#### (iv) 計器較正 — `scripts/vocabCensus.ts` の対応語彙表を直す（**実装ゼロ・最優先**）
+- [ ] **`LOOK_PICK_CHAIN` を「Nまで」の対応語彙に入れる**＝`stage.pickCount` は `needsInteraction` に `maxPick` として渡っており**上限として正しく効いている**。クラスタ「「Nまで」上限選択」93件のうち **28件が該当**（続き376 実測）。⚠残る 63件は別形なので**まとめて免除しない**。
+- [ ] **`FORCE_PLACE_FRONT` を条件節クラスタの extraOk に入れる**＝「配置する**場合**」は条件節ではない。フル実装済み（`effectEngine.ts:5610`）。
+- [ ] **`levelEqLrig` / `colorMatchesLrig` を「同一性」「共通する色」の対応語彙に入れる**（`WDA-F03-09-E2`）。
+- [ ] **`COUNTER_SPELL.maxCost` を「合計制約」の対応語彙に入れる**（`WX13-015-E1`）。
+- [ ] **filter による条件の等価表現を条件節クラスタの extraOk に入れる**＝「それが〈desc〉の**場合**」を `ADD_TO_FIELD{source:{filter}}`／`SEARCH{filter}` で表す形（`WX15-001-E2`）。続き365 は `REVEAL_AND_PICK` 形だけ較正しており**この形が漏れていた**。
+- ⚠**較正のたびに残渣チェック必須**（続き365 の規律）＝desc からモデル化できた識別子を除いて**何か残るなら covered にしない**。実バグを masking したら計器の意味が消える。
+- `npm run census`（較正後は `BASELINE_HIGH` と §4 恒久指標を実数更新）
+
+#### (i) 配線ギャップ — ①のマトリクスからセル単位で取る（**バッチ化できる唯一の区分**）
+現在の miss 上位（`npm run census:wiring`・続き376 実測。★＝同じ入口に配線済みの効果があり穴が明確）：
+- [ ] **`isDisona` 34**（has 21）＝WXDi-P12/P13 系に集中。
+- [ ] **`hasRiseIcon` 31**（has 8）★＝`TRASH_CARD[filter]` 9／`SIGNI[filter]` 8／`SEARCH[filter]` 7／`BANISH{SIGNI}` 6／`GRANT_KEYWORD{SIGNI}` 6。`WX16-026-BURST` ほか**トラッシュから何でも回収できる**過剰効果。
+- [ ] **`eachDistinctLevel` 29**（has 1）＝`TRASH_CARD[filter]` 20／`SIGNI[filter]` 12。⚠**厳密 enforce は engine 側が TODO**（選択補助＋逆翻訳のみ）＝配線しても表現改善どまり。取る前に enforce を入れるか決めること。
+- [ ] **`hasCrossIcon` 22**（has 2）★＝`SIGNI[filter]` 11／`SEARCH[filter]` 10／`POWER_MODIFY{SIGNI}` 7。`WX07-010-E1` ほか7効果が**自分の全シグニに+1000**の過剰効果。
+- [ ] **`noGuard` 14**（has 61）★＝`TRASH_CARD[filter]` に 7 miss だが**同じ入口で 61件が配線済み**＝最も明確な穴。
+- [ ] `isPuppet` 10／`isAwakened` 10／`levelParity` 9（has 4）★／`excludeResona` 6／`hasGuard` 6／`nonColorless` 5／`levelEqTrigger` 5 ほか。
+- ⚠**一度も配線されていない語彙は (i) ではない**＝`powerLteSelf` 9／`isDrive` 14／`eachDistinctColor` 3／`levelLtSelf` 2 は has=0＝**機構未実装 (ii)**。スクリプトが自動で別枠に落とす。
+- ⚠**セルを取るたびに全CSV走査で用法を分類してから配線する**（付与文・条件節・リマインダー文を filter にすると**原文と逆の過小実行**になる＝続き369 の教訓）。
+- `npm run census:wiring` → `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>`
+
+#### (ii) 機構ギャップ — §6.3 台帳／Opusタスク12 へ送る（1件ずつ・逓減しない）
+- [ ] **`parseStatus:UNKNOWN` の完全no-op ＝ union 1162 中 4件**（続き376 実測。`WXDi-P05-010-E3` ほか）。**最も安く確実な (ii)**＝数が確定していて全数潰せる。
+- [ ] **`PARTIAL` ＝ union 1162 中 23件**（同）。無言フォールバックの刻印つき＝理由が `docs/_partial_report.txt` に出ている。
+- [ ] **未配線語彙（has=0）**＝`isDrive` 14／`powerLteSelf` 9／`eachDistinctColor` 3／`levelLtSelf` 2。
+- [ ] **`LOOK_AND_REORDER` の `canTrash` に枚数上限が無い**（続き376 発見・`WX25-P1-098-E1`）＝原文「カードを**1枚まで**トラッシュに置き」なのに `EffectInteractionModal.tsx:661` の `lookReorderTrash` は **Set で無制限**＝公開した3枚全部を捨てられる過剰効果。型に上限フィールドを足して UI で cap する。
+- [ ] **既存の機構待ち登録**＝チーム 34／アンコール 19／合計制約 25／同一性 16／ゲームから除外 26／正面 19／数量比例 26（§6.3 台帳）。§5c の「⏳機構待ちと判定したテンプレ」＋§5d の「🆕新機構待ちとして登録」も同区分。
+- `npm run census:clusters` → §6.3 台帳
+
+#### (iii) 構造混線 — Opusタスク13（**1件ずつ再parse・バッチ化できない**）
+- [ ] **②で新規発見した3件**：`WXK04-090-E1`（「公開しないかぎり**自分を**トラッシュ」→「自分の水獣シグニをトラッシュ」）／`WXK04-025-CB-E2`（多段閾値全脱落・`ALL`→1・能力付与が**直接ライフクラッシュ**に化ける・エナ全トラッシュのコスト欠落）／`WXDi-P16-034-E2`（引用付与の平坦化で《無》支払い回避が消え**無条件アタック禁止**・owner/duration も誤り）。
+- [ ] **続き369 で照合済みの `WXDi-P04-016-E3`**（パターンD）。
+- [ ] **§5d 末尾の照合済み12件**のうち (D) 相当。
+- ⚠**「効果はだいたい parse できていて修飾が1つ落ちている」(i)(ii) と違い、(iii) は木ごと作り直し**＝1件あたりのコストが桁で違う。**後回しでよい。**
 
 #### ⚠️ 併せて記録（続き375 実測・**思い込みの訂正**）
 
