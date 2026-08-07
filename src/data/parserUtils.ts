@@ -379,6 +379,26 @@ export function parseNameFilter(text: string): Partial<TargetFilter> {
 const SIGNI_TARGET_CLAUSE = /シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
 const CLAUSE_SEG_BREAK = /[。、「」『』（）：]/;
 
+/**
+ * 「〈…＜X＞の〉シグニN体（まで）を対象とし」の**対象名詞句に隣接する ＜クラス＞ だけ**を拾う（続き376d）。
+ *
+ * ⚠**素の `parseStoryFilter(文全体)` を対象フィルタに使ってはいけない。** 実測（続き376d の A/B）で
+ * 7効果中4効果が誤配線になった＝
+ *   ・`WX14-016-E1`「アンコール－手札から**＜美巧＞の**シグニを１枚捨てる…対戦相手のシグニ１体を対象とし」
+ *     ＝クラスは**アンコールコスト**側（対象に付けると相手の美巧しか戻せない過小実行）
+ *   ・`WX22-011-E1`「…あなたの場に緑と白の**＜美巧＞の**シグニがある場合」＝**条件節**
+ *   ・`WXEX2-55-E1`「あなたの場にある**＜天使＞の**シグニの数以下のレベルを持つ対戦相手のシグニ１体」＝**個数参照**
+ *   ・`WXEX2-57-E1`「対象のあなたの緑の**＜美巧＞の**シグニ１体と同じレベルの…対戦相手のシグニ１体」＝**別の対象**
+ * これは続き372 で「部分filter禁止ガードが全文を見ていた」のと同じ事故＝**対象名詞句に限定する**のが規律。
+ *
+ * 判定＝`＜X＞の` と対象句の間に**別の「シグニ」を挟まない**短い窓しか許さない。挟まったらそれは別の名詞句。
+ */
+const SIGNI_TARGET_ADJACENT_STORY = /＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClauseStoryFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_TARGET_ADJACENT_STORY);
+  return m ? { story: m[1] } : {};
+}
+
 export function signiClauseOwner(text: string, fallback: Owner = 'self'): Owner {
   // 文中に「対戦相手」があれば従来どおり opponent（既存挙動を一切変えないための先行判定）
   if (text.includes('対戦相手')) return 'opponent';
