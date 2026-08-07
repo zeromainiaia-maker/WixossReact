@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-07・続き377f・Opus 5〔**(i)配線ギャップ 第11バッチ＝ON_ATTACK_SIGNI の味方側トリガー主語**〕）＝ユーザー指示「PLANの続きを行う」。**触った層＝`effectParser.ts`（主語抽出3本を `parseAllyAttackSubject` へ統合）／`triggerCollect.ts`（pure ヘルパー新設）／`BattleScreen.tsx`（薄い呼び出しへ置換）／`scripts/censusWiring.ts`（`cardClass` 較正）／`scripts/goldenTest.ts`／live JSON 8効果。**
+  - **✅① 最大セル `cardClass × (filter無)`（miss 33／has 83★★）を全数分類したら「1 regex で N 効果」型ではなかった**＝5系統の寄せ集め（アタック主語5／LOOK_PICK_CHAIN 10／構造欠落8／条件節4／コスト2／他 timing 主語4／計器誤検出3）。**ただしセル外へ広がった**＝同じ「アタック主語」を全CSV走査したら `color`／`levelParity`／`isDisona`／`cardName` の同型が3件見つかり計8効果。**セルは母集団の索引であって母集団そのものではない。**
+  - **✅② 修飾が2つ以上あると分岐ごと外れて既定 `self` へ潰れる（8効果）**＝抽出が「クラスのみ」「パワーのみ」「色のみ」の**3本の別 regex** に分かれていた。壊れ方は2重＝**①味方全体が引き金なのに watcher 自身のアタックでしか発火しない過小実行 ②その自身に対しても「パワー10000以上」等の限定が一切効かない**。`parseAllyAttackSubject` へ統合し修飾を順不同で取る。
+  - **✅③ 安全弁を「コメントの規律」から「関数の戻り値」へ**＝**未知の修飾語が1文字でも残れば `null`＝配線しない**。これで【ソウル】が付いている（＝盤面状態でフィルタ語彙が無い `WXDi-P04-016-E1`）は構造的に据置される。従来は「先頭限定（`^`）にしてある」というコメントの申し合わせだった。
+  - **✅④ engine 同居バグ＝アタッカー自身経路が `excludeSelf` を無視（3効果）**＝`matchesFilter` は `excludeSelf` を見ない（候補集合を作る側の責務）のに BattleScreen が `triggerFilter` を丸ごと渡していたため「あなたの**他の**〜がアタックしたとき」が自身のアタックでも発火。`collectFieldTriggers` 側は正しく除外できていた＝**同じ語彙が入口ごとに違う壊れ方をしていた**。pure ヘルパー `attackerSelfTriggerFilterOk` に集約して golden から両方向を固定。
+  - **✅⑤ 計器較正（誤検出3件）**＝トリガーの原因カード/host のクラス限定は `TargetFilter.story` ではなく `banishedSourceStory`／`accedHostStory` 等の専用キーに載る。キー名照合だけの計器が**配線済みを miss と誤検出**していた（trap (h) と同型）。
+  - **⚠lint 248→250 は本変更由来ではない**＝触った4ファイルの warning 数はベースラインと同一。**`npm run gates` の lint は `--cache` を使うのでキャッシュが古いと実数とズレる**（実数は 250）。**指標を簿記する前にキャッシュを消して測り直す。**
+  - **🆕(ii) へ登録＝【ソウル】が付いているシグニの filter キーが無い**（`WXDi-P04-016-E1`）。**(iii) へ登録＝`cardClass × (filter無)` の構造欠落8件**（`WDK10-001-E3`／`WXEX2-48-E1`＝トラッシュから選んだシグニをライフに加えるはずが `ADD_TO_LIFE{fromTop}`／`WDK07-E07-E1`／`WXK10-074-E1`＝【アクセ】付与が丸ごと脱落し `SHUFFLE_DECK` だけ／`WX05-080-E1`／`WX25-P2-079-E1`／`WX16-003-E1`／`WD14-011-BURST`）。
+
 - **🆕 セッション（2026-08-07・続き377e・Opus 5〔**(i)配線ギャップ 第10バッチ＝「あなたの**すべての**＜X＞のシグニ」の語順**〕）＝ユーザー指示「続ける」。**触った層＝`parseSentencePart1.ts`（自分側全体バフ分岐の regex 1箇所）／`scripts/censusWiring.ts`（`cardClass` 較正）／`scripts/goldenTest.ts`／live JSON（held 11枚採用＋外科パッチ1）。**
   - **✅① 「すべての」は修飾語の前にも来る（9効果）**＝「あなたの**すべての**＜地獣＞のシグニのパワーを＋3000」。`(?:すべての)?` が修飾語群の**後ろ**にしか無かったため**分岐条件ごと外れ**、既定の `{SIGNI, owner:'any', count:1}` へ潰れていた。壊れ方は2重＝**①味方全体バフが「シグニ1体」に縮退**（クラス限定も消える）**②`owner:'any'` なので相手のシグニにも撃てる**。
   - **⚠A/B の件数（15）と実際に直った件数（9）は違う**＝6件は **live が MANUAL で既に正しかった**（fresh との差は `parseStatus` だけ）。**「parser が追いついた」と「live が直った」は別**＝簿記では後者を数える。

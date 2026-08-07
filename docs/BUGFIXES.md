@@ -1,5 +1,73 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — **§5d-0(i) 第12バッチ**＝**live 焼き付き（stale live）の一括解消**・38効果（census 1030→**1000**・被覆マトリクス miss 338→320）（Opus 5・続き377g）
+
+ユーザー指示「census が1000になるまで」。**文型クラスタは枯渇（最大6件）**しており、被覆マトリクスの
+★★セルも `cardClass × SIGNI[filter]` を全数分類したところ **18件中15件がコスト節・条件節・トリガー主語の
+クロス計上**で「1 regex で N 効果」型の収穫は無かった。そこで**別の系統**を計器化した。
+
+### ⭐ 発見＝`build:effects` の非破壊マージが「parser は直っているのに live は古いまま」の在庫を作る
+
+`build:effects` は**証明可能に無損失な上位集合だけ**を自動採用する収穫マージなので、parser が後から
+正しくなっても **live JSON の古い値は上書きされない**。その結果、
+
+> **parser を直したのに census には過剰効果として残り続ける**
+
+在庫が溜まる。census 高シグナル 1030件を fresh と全件突き合わせたところ、**fresh のほうが語彙キーを
+多く持つ効果が 30件**あった。
+
+### ① 外科的採用 30効果（MANUAL の live は触らない）
+
+`heldReview --adopt` は**カード単位**で fresh を採る。しかし対象30効果のうち**6件は同じカードの別効果が
+live=MANUAL で、fresh はそれを退化させる**（`triggerScope`/`triggerCondition`/`triggerFilter` の脱落）。
+そこで**対象効果だけを差し替える外科的パッチ**にし、`parseStatus==='MANUAL'` の live は無条件でスキップした。
+
+典型的な壊れ方は **`GRANT_KEYWORD{keyword:"使用条件"}`**＝【使用条件】という前置きを
+「使用条件というキーワードを付与する」と誤解した古い形で、**本文の効果を丸ごと食っていた**：
+
+| 効果 | LIVE（焼き付き） | FRESH（採用後） |
+|---|---|---|
+| `WXDi-P07-002-E1` | `GRANT_KEYWORD{keyword:"使用条件"}` | `CHOOSE` 4択（エナ回収／ドロー／レベル3以上バニッシュ／ダメージ防止） |
+| `WXDi-P09-001-E1` | 同上 | `GROW_COST_REDUCTION{無×4}` |
+| `WXDi-P00-004-E1` | 同上 | `condition:LRIG_COLOR{緑}` ＋ `GRANT_KEYWORD{ランサー}` |
+| `WXDi-P16-004/006-E1` | 同上 | `condition:LRIG_COLOR` ＋ コスト減 STUB ＋ 本体 |
+| `WD14-011-BURST` | `ADD_TO_LIFE{fromTop}` のみ | `CHOOSE` 2択（手札2枚捨て→ライフ／トラッシュから＜悪魔＞回収） |
+| `WD21-020-E1` | `IS_MY_TURN` 3連（＝常時true） | `LAST_PROCESSED_MATCHES{level:1/2/3/4以上}` の4分岐 |
+| `WXK10-025-E3` | `filter:{cardType:"シグニ"}` | `+ level:{max:3}, color:"青"` |
+| `WXDi-D09-P19-E2` | `filter:{}` | `+ cardType, story:"天使"` |
+
+### ② held からの採用 8カード（原文照合済み）
+
+census 高シグナルに当たる held のうち、**同カードに MANUAL が無く差分が全て改善**の8カードを
+`heldReview --adopt` で採用（`WX15-093`＝付与対象が `owner:"opponent"` になっていた／
+`WXDi-P02-055`・`WXDi-P03-018`＝`UNTIL_END_OF_TURN`→`UNTIL_OPP_TURN_END`／`WXDi-P09-003`・
+`WXDi-P10-001`・`WXDi-P11-001`＝「使用条件」焼き付きの解消／`WXDi-P08-037`＝入れ替え先の限定／`WX19-014`）。
+
+⚠**採らなかった例＝`WX21-032-E1`**。live も held も**条件節のクラス（「他の＜天使＞のシグニがある場合」）を
+相手シグニの BANISH 対象に載せている**誤りで、held は `excludeSelf` を外すだけ＝**どちらも正しくない**。
+「held のほうが差分が小さい」は採用理由にならない。
+
+### ③ 🔴罠＝簡易 fresh ダンプは post-pass 依存の効果を取りこぼす
+
+A/B 用に `parseCardEffects` を直接呼ぶ自作スクリプトで全カード fresh をダンプしたが、
+**`applyLrigColorBatch5` など `_sourceTextLog`（モジュール状態）を参照する post-pass が効かない**。
+そのため `WXDi-P15-089-E1` の `colorNotMatchesLrig` が落ち、**golden のトリップワイヤが鳴った**
+（§5d パターンA 第6バッチで入れたテスト）。`npm run build:effects` を通すと復活する。
+
+> **採用の正は `build:effects` の出力**。自作 fresh ダンプは*候補の発見*にだけ使い、
+> **採用値そのものには使わない**。
+
+なお**この一件は golden が live を読むことの盲点も示した**＝parser 側の退化は live が古いままだと
+テストに映らない。今回 live を fresh へ寄せた瞬間に検出された。
+
+### 検証
+
+- `npm run gates` 全緑。census **1030→1000**（`BASELINE_HIGH` 更新）、golden **1450 据置**（FAIL 0）、
+  smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、manual field loss **0**、
+  held **208→189枚／署名グループ 104→89件**、被覆マトリクス miss **338→320**。
+- **キー消失の機械確認**＝採用30効果をベースラインコミットと再帰的にキー比較。消失8件はすべて
+  `keyword:"使用条件"` 等**意図した置換**であることを1件ずつ確認済み。
+
 ## 2026-08-07 — **§5d-0(i) 配線ギャップ 第11バッチ**＝ON_ATTACK_SIGNI の味方側トリガー主語・11効果＋計器較正（census 1032→1030・被覆マトリクス miss 349→338）（Opus 5・続き377f）
 
 被覆マトリクスの最大セル `cardClass × (filter無)`（miss 33／has 83★★）を**全数分類**したところ、このセルは

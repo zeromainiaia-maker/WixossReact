@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［82枚］
-PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WDK07-E15 WX05-025 WX07-029 WX10-062 WX13-031 WX15-093 WX15-094 WX15-095 WX15-096 WX16-023 WX16-048 WX17-009 WX19-014 WX21-032 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX25-CP1-001 WX25-CP1-005 WX25-CP1-080 WX25-P1-061 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK05 WX25-P2-TK06 WX25-P3-003 WX25-P3-019 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-026 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-085 WXDi-CP02-086 WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P02-055 WXDi-P03-018 WXDi-P03-036 WXDi-P05-005 WXDi-P06-013 WXDi-P07-045 WXDi-P08-037 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P10-036 WXDi-P11-010B WXDi-P11-064 WXDi-P11-TK01 WXDi-P12-041 WXDi-P14-057 WXDi-P15-084 WXEX1-58 WXK01-020 WXK01-044 WXK05-022 WXK05-040 WXK06-048 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-057
+## （type増減なし＝値/構造変更） ［76枚］
+PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WDK07-E15 WX05-025 WX07-029 WX10-062 WX13-031 WX15-094 WX15-095 WX15-096 WX16-023 WX16-048 WX17-009 WX21-032 WX24-D2-11 WX24-P2-059 WX24-P3-061 WX25-CP1-001 WX25-CP1-005 WX25-CP1-080 WX25-P1-061 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK05 WX25-P2-TK06 WX25-P3-003 WX25-P3-019 WX25-P3-085 WXDi-CP01-006 WXDi-CP01-026 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-085 WXDi-CP02-086 WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P03-036 WXDi-P05-005 WXDi-P06-013 WXDi-P07-045 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-010B WXDi-P11-064 WXDi-P11-TK01 WXDi-P12-041 WXDi-P14-057 WXDi-P15-084 WXEX1-58 WXK01-020 WXK01-044 WXK05-022 WXK05-040 WXK06-048 WXK08-056 WXK09-040 WXK09-084 WXK11-019 WXK11-057
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -14,45 +14,6 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi47-04 WD07-006 WDK07-E15 WX05-025 WX
 --- SPDi43-12
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
-
-## +LRIG_COLOR +STUB -GRANT_KEYWORD -SIGNI ［5枚］
-WXDi-P16-003 WXDi-P16-004 WXDi-P16-005 WXDi-P16-006 WXDi-P16-007
---- WXDi-P16-003
-  原文: 【使用条件】あなたの場に白のルリグがいるあなたの場に白のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる白のルリグ１体につき《白×1》減る。【ルリグバリア】２つを得る。,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "PERMANENT"
-  + [0].condition.type = "LRIG_COLOR"
-  + [0].condition.owner = "self"
-  + [0].condition.color = "白"
-  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
---- WXDi-P16-004
-  原文: 【使用条件】あなたの場に赤のルリグがいるあなたの場に赤のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる赤のルリグ１体につき《赤×1》減る。対戦相手のライフクロス１枚をトラッシュに置く。,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "PERMANENT"
-  + [0].condition.type = "LRIG_COLOR"
-  + [0].condition.owner = "self"
-  + [0].condition.color = "赤"
-  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
---- WXDi-P16-005
-  原文: 【使用条件】あなたの場に青のルリグがいるあなたの場に青のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる青のルリグ１体につき《青×1》減る。対戦相手のすべてのルリグとシグニをダウンし凍結する。次の対戦相手のドローフェイズの間、対戦相手はカードを合計１枚までしか引けない。,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "PERMANENT"
-  + [0].condition.type = "LRIG_COLOR"
-  + [0].condition.owner = "self"
-  + [0].condition.color = "青"
-  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
 
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
@@ -181,6 +142,45 @@ WDK06-C08 WX25-P3-105 WXDi-P01-044
   - [1].action.steps[1].condition.value = 20
   …（他 24 行）
 
+## +LRIG_COLOR +STUB -GRANT_KEYWORD -SIGNI ［3枚］
+WXDi-P16-003 WXDi-P16-005 WXDi-P16-007
+--- WXDi-P16-003
+  原文: 【使用条件】あなたの場に白のルリグがいるあなたの場に白のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる白のルリグ１体につき《白×1》減る。【ルリグバリア】２つを得る。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "白"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+--- WXDi-P16-005
+  原文: 【使用条件】あなたの場に青のルリグがいるあなたの場に青のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる青のルリグ１体につき《青×1》減る。対戦相手のすべてのルリグとシグニをダウンし凍結する。次の対戦相手のドローフェイズの間、対戦相手はカードを合計１枚までしか引けない。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "青"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+--- WXDi-P16-007
+  原文: 【使用条件】あなたの場に黒のルリグがいるあなたの場に黒のルリグが２体以上いるかぎり、このピースの使用コストはあなたの場にいる黒のルリグ１体につき《黒×1》減る。このターン、あなたの効果によって対戦相手のシグニのパワーが－される場合、代わりに２倍－される。このターン、対戦相手のシグニがバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  + [0].condition.type = "LRIG_COLOR"
+  + [0].condition.owner = "self"
+  + [0].condition.color = "黒"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "ARTS_COST_REDUCTION_BY_EFFECT"
+
 ## +CHOOSE +SIGNI +UP ［2枚］
 WX06-017 WX19-029
 --- WX06-017
@@ -298,37 +298,6 @@ WX24-P4-082 WXDi-P02-071
   + [0].action.steps[2].then.target.type = "HAND_CARD"
   …（他 3 行）
 
-## +EXILE +LAST_PROCESSED_COUNT_GTE +LRIG_DECK_CARD -DECK_CARD -IS_MY_TURN -TRASH ［2枚］
-WXDi-P04-013 WXDi-P04-016
---- WXDi-P04-013
-  原文: 【常】：あなたのターンの間、【ソウル】が付いているあなたのシグニの正面のシグニのパワーを－2000する。【起】《黒×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。【起】《ゲーム１回》エクシード３：あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、あなたのルリグデッキにあるピース１枚をゲーム
-  ~ [2].action.steps[0].type : "TRASH" → "EXILE"
-  ~ [2].action.steps[0].target.type : "TRASH_CARD" → "LRIG_DECK_CARD"
-  ~ [2].action.steps[0].target.count : 3 → 1
-  + [2].action.steps[0].target.filter.cardType = "ピース"
-  ~ [2].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [2].action.steps[1].condition.value = 1
-  ~ [2].action.steps[1].then.source.type : "DECK_CARD" → "TRASH_CARD"
-  ~ [2].action.steps[1].then.source.count : 1 → 3
-  + [2].action.steps[1].then.source.upToCount = true
-  + [2].action.steps[1].then.source.filter.cardType = "シグニ"
-  + [2].action.steps[1].then.source.filter.noGuard = true
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
---- WXDi-P04-016
-  原文: 【自】：【ソウル】が付いているあなたのシグニ１体がアタックしたとき、対戦相手のデッキの上からカードを２枚トラッシュに置く。【起】《黒×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。【起】《ゲーム１回》エクシード３：対戦相手のシグニを２体まで対象とし、あなたのルリグデッキにあるピース１枚をゲームから除外する。そうした
-  ~ [2].action.steps[0].type : "TRASH" → "EXILE"
-  ~ [2].action.steps[0].target.type : "DECK_CARD" → "LRIG_DECK_CARD"
-  ~ [2].action.steps[0].target.owner : "opponent" → "self"
-  ~ [2].action.steps[0].target.count : 2 → 1
-  + [2].action.steps[0].target.filter.cardType = "ピース"
-  ~ [2].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [2].action.steps[1].condition.value = 1
-  ~ [2].action.steps[1].then.target.count : 1 → 2
-  + [2].action.steps[1].then.target.upToCount = true
-  + [2].action.steps[1].then.duration = "UNTIL_END_OF_TURN"
-  ~ [2].duration : "UNTIL_END_OF_TURN" → "INSTANT"
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
-
 ## +UNKNOWN -GRANT_KEYWORD -SIGNI -STUB ［2枚］
 WXDi-P06-002 WXDi-P07-001
 --- WXDi-P06-002
@@ -359,39 +328,6 @@ WXDi-P06-002 WXDi-P07-001
   - [0].action.steps[2].source.upToCount = true
   …（他 12 行）
 
-## +GRANT_EFFECT +SIGNI ［2枚］
-WX24-P2-055 WXDi-P08-080
---- WX24-P2-055
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニが【ランサー】か【Ｓランサー】によって対戦相手のライフクロス１枚をクラッシュしたとき、《緑》《緑》《無》を支払ってもよい。そうした場合、対戦相手のライフクロス１枚をクラッシュする。」を得る。,：どちらか１つを選ぶ。①対戦相手のアップ
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "緑"
-  - [0].action.steps[0].costColors[1] = "緑"
-  - [0].action.steps[0].costColors[2] = "無"
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "LIFE_CRASH"
-  - [0].action.steps[1].then.owner = "opponent"
-  - [0].action.steps[1].then.count = 1
-  - [0].action.steps[1].then.triggerBurst = true
-  ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
-  …（他 28 行）
---- WXDi-P08-080
-  原文: 【自】：対戦相手のアタックフェイズ開始時、ターン終了時まで、対戦相手のすべてのレベル１のシグニは「【自】：このシグニがアタックしたとき、ターン終了時まで、このシグニのパワーを－8000する。」を得る。,：どちらか１つを選ぶ。①対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。②あなたのトラッシュから《ガードアイコン》を持たないシ
-  - [0].action.target.filter.thisCardOnly = true
-  - [0].action.delta = -8000
-  ~ [0].action.type : "POWER_MODIFY" → "GRANT_EFFECT"
-  ~ [0].action.target.owner : "self" → "opponent"
-  ~ [0].action.target.count : 1 → "ALL"
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.level = 1
-  + [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].action.effect.effectId = "WXDi-P08-080-sub-E1"
-  + [0].action.effect.effectType = "AUTO"
-  + [0].action.effect.timing[0] = "ON_ATTACK_SIGNI"
-  + [0].action.effect.action.type = "POWER_MODIFY"
-  …（他 9 行）
-
 ## +UNKNOWN -GRANT_KEYWORD -SIGNI ［2枚］
 WX25-P1-048 WXDi-P09-002
 --- WX25-P1-048
@@ -415,60 +351,6 @@ WX25-P1-048 WXDi-P09-002
   + [0].action.raw = "対戦相手のすべてのシグニをデッキの一番上に置く"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
-## +STUB -GRANT_KEYWORD -SIGNI ［2枚］
-WXDi-P09-003 WXDi-P15-002
---- WXDi-P09-003
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ次の対戦相手のターン終了時まで、対戦相手のシグニゾーン１つを消す。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "使用条件"
-  - [0].action.duration = "UNTIL_END_OF_TURN"
-  ~ [0].action.type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.id = "REMOVE_SIGNI_ZONE"
---- WXDi-P15-002
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つこのピースを使用する際、使用コストとして追加でエクシード４を支払ってもよい。以下の４つから２つまで選ぶ。追加でエクシード４を支払っていた場合、代わりに３つまで選ぶ。①あなたのトラッシュから＜闘争派＞のシグニを２枚まで対象とし、それらを場に出す。②あなたの＜闘争派＞のシグニ１体を選び、ターン終了時まで、それ
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "PERMANENT"
-  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_COST"
-
-## +CONDITIONAL +LAST_PROCESSED_MATCHES ［2枚］
-WX25-P2-060 WXK03-081
---- WX25-P2-060
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《ミュウ＝パピヨン》がいる場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを－10000する。【起】《ターン１回》エナゾーンから＜凶蟲＞のシグニ１枚をトラッシュに置く：対戦相手のシグニ１体を対象と
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "any"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].delta = -10000
-  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.hasCharm = true
-  + [0].action.steps[1].then.type = "POWER_MODIFY"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "opponent"
-  + [0].action.steps[1].then.target.count = 1
-  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  …（他 4 行）
---- WXK03-081
-  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの一番上のカードをトラッシュに置く。それがレベルが奇数のシグニの場合、ターン終了時まで、それのパワーを－1000する。,：カードを１枚引く。
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "any"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].delta = -1000
-  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.filter.levelParity = "odd"
-  + [0].action.steps[1].then.type = "POWER_MODIFY"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "self"
-  + [0].action.steps[1].then.target.count = 1
-  …（他 2 行）
-
 ## +BANISH +SEQUENCE +SIGNI ［1枚］
 WX08-026
 --- WX08-026
@@ -486,24 +368,6 @@ WX08-026
   + [0].action.steps[1].steps[0].target.upToCount = false
   + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
   …（他 3 行）
-
-## +STUB -GRANT_PROTECTION -SIGNI ［1枚］
-WX12-033
---- WX12-033
-  原文: 【常】：あなたの場にカード名に《セイリュ》を含むシグニがあるかぎり、あなたのシグニの基本パワーを15000にする。【常】：あなたのトラッシュにカード名に《セイリュ》を含むカードがあるかぎり、このシグニは【ランサー】を得る。【常】：対戦相手の効果によって、あなたの＜空獣＞と＜地獣＞のシグニのパワーは増減しない。,-
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "self"
-  - [2].action.target.count = "ALL"
-  - [2].action.from[0] = "POWER_MODIFY"
-  - [2].action.sourceOwner = "opponent"
-  - [2].action.duration = "PERMANENT"
-  + [1].action.target.filter.thisCardOnly = true
-  ~ [2].action.type : "GRANT_PROTECTION" → "STUB"
-  + [2].action.id = "PREVENT_POWER_MODIFY_BY_OPP"
-  + [2].action.powerModifyProtection.directions[0] = "plus"
-  + [2].action.powerModifyProtection.directions[1] = "minus"
-  + [2].action.powerModifyProtection.subjectOwner = "self"
-  …（他 4 行）
 
 ## +NO_COMMON_COLOR_AMONG_FIELD_SIGNI×2 +POWER_SET ［1枚］
 WX12-Re09
@@ -549,15 +413,6 @@ WX14-064
   ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "SELF_OPTIONAL_EFFECT_TAKEN"
   ~ [0].mandatory : true → false
   ~ [0].parseStatus : "AUTO" → "MANUAL"
-
-## +LAST_PROCESSED_MATCHES -IS_MY_TURN ［1枚］
-WX14-072
---- WX14-072
-  原文: 【出】：あなたの手札から＜天使＞のシグニ１枚を公開するか、このシグニを場からトラッシュに置く。この方法で＜天使＞のシグニを公開した場合、あなたのデッキから＜天使＞のシグニ１枚を探してトラッシュに置き、デッキをシャッフルする。,-
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.story = "天使"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.minCount = 1
 
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
@@ -775,23 +630,6 @@ WXDi-D01-016
   - [0].action.steps[1].target.blind = true
   …（他 16 行）
 
-## +EXILE +LAST_PROCESSED_COUNT_GTE +LRIG_DECK_CARD -IS_MY_TURN -TRASH -TRASH_CARD ［1枚］
-WXDi-D07-004
---- WXDi-D07-004
-  原文: 【自】：あなたのシグニ１体に【ソウル】が付いたとき、手札を１枚捨ててもよい。そうした場合、カードを１枚引く。【起】《赤×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。【起】《ゲーム１回》エクシード３：あなたの赤のシグニを２体まで対象とし、あなたのルリグデッキにあるピース１枚をゲームから除外する。そうした場合、ターン
-  ~ [2].action.steps[0].type : "TRASH" → "EXILE"
-  ~ [2].action.steps[0].target.type : "TRASH_CARD" → "LRIG_DECK_CARD"
-  + [2].action.steps[0].target.filter.cardType = "ピース"
-  ~ [2].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
-  + [2].action.steps[1].condition.value = 1
-  ~ [2].action.steps[1].then.target.owner : "any" → "self"
-  ~ [2].action.steps[1].then.target.count : 1 → 2
-  + [2].action.steps[1].then.target.upToCount = true
-  + [2].action.steps[1].then.target.filter.cardType = "シグニ"
-  + [2].action.steps[1].then.target.filter.color = "赤"
-  ~ [2].duration : "UNTIL_END_OF_TURN" → "INSTANT"
-  ~ [2].parseStatus : "AUTO" → "MANUAL"
-
 ## +UNKNOWN -CONDITIONAL -GRANT_KEYWORD -IS_MY_TURN -SIGNI -STUB×2 ［1枚］
 WXDi-D09-H11
 --- WXDi-D09-H11
@@ -828,32 +666,6 @@ WXDi-D09-P15
   - [0].action.choices[0].action.steps[1].condition.type = "IS_MY_TURN"
   …（他 61 行）
 
-## +LRIG_COLOR +UNKNOWN -GRANT_KEYWORD -SIGNI ［1枚］
-WXDi-P00-002
---- WXDi-P00-002
-  原文: 【使用条件】あなたの場に白のルリグがいる対戦相手のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】【ランサー】【ダブルクラッシュ】を失い、新たに得られない。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "使用条件"
-  - [0].action.duration = "UNTIL_END_OF_TURN"
-  + [0].condition.type = "LRIG_COLOR"
-  + [0].condition.owner = "self"
-  + [0].condition.color = "白"
-  ~ [0].action.type : "GRANT_KEYWORD" → "UNKNOWN"
-  + [0].action.raw = "対戦相手のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】【ランサー】【ダブルクラッシュ】を失い、新たに得られない"
-  ~ [0].parseStatus : "AUTO" → "UNKNOWN"
-
-## +LRIG_COLOR ［1枚］
-WXDi-P00-004
---- WXDi-P00-004
-  原文: 【使用条件】あなたの場に緑のルリグがいるあなたのパワー１５０００以上のシグニを２体まで対象とし、ターン終了時まで、それらは【ランサー】を得る。,-
-  + [0].condition.type = "LRIG_COLOR"
-  + [0].condition.owner = "self"
-  + [0].condition.color = "緑"
-  ~ [0].action.target.owner : "self" → "any"
-  ~ [0].action.keyword : "使用条件" → "ランサー"
-
 ## -TRASH_HAS_CARD ［1枚］
 WXDi-P00-040
 --- WXDi-P00-040
@@ -882,23 +694,22 @@ WXDi-P01-003
   + [0].action.target.filter.isFrozen = true
   …（他 1 行）
 
-## +LRIG_COLOR +STUB -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -SEQUENCE -SIGNI ［1枚］
-WXDi-P03-002
---- WXDi-P03-002
-  原文: 【使用条件】あなたの場に緑のルリグがいるこのゲームの間、あなたは以下の能力を得る。『【自】：あなたのターンの間、あなたのルリグがグロウしたとき、それがそのターンであなたの最初のグロウである場合、【エナチャージ１】をする。』,-
-  - [0].action.steps[0].type = "GRANT_KEYWORD"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "PERMANENT"
-  - [0].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 1
-  + [0].condition.type = "LRIG_COLOR"
-  + [0].condition.owner = "self"
-  + [0].condition.color = "緑"
-  …（他 2 行）
+## +EXILE +LAST_PROCESSED_COUNT_GTE +LRIG_DECK_CARD -DECK_CARD -IS_MY_TURN -TRASH ［1枚］
+WXDi-P04-016
+--- WXDi-P04-016
+  原文: 【自】：【ソウル】が付いているあなたのシグニ１体がアタックしたとき、対戦相手のデッキの上からカードを２枚トラッシュに置く。【起】《黒×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。【起】《ゲーム１回》エクシード３：対戦相手のシグニを２体まで対象とし、あなたのルリグデッキにあるピース１枚をゲームから除外する。そうした
+  ~ [2].action.steps[0].type : "TRASH" → "EXILE"
+  ~ [2].action.steps[0].target.type : "DECK_CARD" → "LRIG_DECK_CARD"
+  ~ [2].action.steps[0].target.owner : "opponent" → "self"
+  ~ [2].action.steps[0].target.count : 2 → 1
+  + [2].action.steps[0].target.filter.cardType = "ピース"
+  ~ [2].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
+  + [2].action.steps[1].condition.value = 1
+  ~ [2].action.steps[1].then.target.count : 1 → 2
+  + [2].action.steps[1].then.target.upToCount = true
+  + [2].action.steps[1].then.duration = "UNTIL_END_OF_TURN"
+  ~ [2].duration : "UNTIL_END_OF_TURN" → "INSTANT"
+  ~ [2].parseStatus : "AUTO" → "MANUAL"
 
 ## +ADD_TO_FIELD +CHOOSE +DECK_CARD×2 +POWER_MODIFY +SEQUENCE +TRANSFER_TO_HAND +TRASH_CARD×2 +TRASH×2 -GRANT_KEYWORD ［1枚］
 WXDi-P06-003
@@ -943,37 +754,6 @@ WXDi-P06-031
   + [1].activeCondition.type = "IS_SELF_DOWN"
   ~ [1].parseStatus : "AUTO" → "MANUAL"
 
-## +BANISH +CHOOSE +DRAW +ENERGY_CHARGE +STUB +TRASH_CARD -GRANT_KEYWORD ［1枚］
-WXDi-P07-002
---- WXDi-P07-002
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ以下の４つからあなたのセンタールリグのレベル１につき１つまで選ぶ。①あなたのトラッシュから《ガードアイコン》を持たないカードを２枚まで対象とし、それらをエナゾーンに置く。②カードを２枚引く。③対戦相手のレベル３以上のシグニ１体を対象とし、それをバニッシュする。④次の対戦相手のターンの間、あなたが対戦相手の
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "使用条件"
-  - [0].action.duration = "PERMANENT"
-  ~ [0].action.type : "GRANT_KEYWORD" → "CHOOSE"
-  + [0].action.choose_count = 1
-  + [0].action.from_count = 4
-  + [0].action.choices[0].choiceId = "c0"
-  + [0].action.choices[0].label = "選択肢1"
-  + [0].action.choices[0].action.type = "ENERGY_CHARGE"
-  + [0].action.choices[0].action.target.type = "TRASH_CARD"
-  …（他 22 行）
-
-## +GROW_COST_REDUCTION -GRANT_KEYWORD -SIGNI ［1枚］
-WXDi-P09-001
---- WXDi-P09-001
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つこのターン、あなたが次にルリグをグロウする場合、グロウするためのコストは《無×4》減る。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "使用条件"
-  - [0].action.duration = "PERMANENT"
-  ~ [0].action.type : "GRANT_KEYWORD" → "GROW_COST_REDUCTION"
-  + [0].action.reduction[0].color = "無"
-  + [0].action.reduction[0].count = 4
-
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
@@ -992,24 +772,6 @@ WXDi-P09-054
   - [0].action.steps[1].then.choices[0].action.target.upToCount = false
   …（他 21 行）
 
-## +CONDITIONAL +GRANT_EFFECT +LRIG_LEVEL +SEQUENCE +SIGNI×2 +UP ［1枚］
-WXDi-P10-001
---- WXDi-P10-001
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのセンタールリグがレベル３以上の場合、ターン終了時まで、あなたのすべてのシグニは「【自】：このシグニがアタックしたとき、このシグニをアップし、ターン終了時まで、このシグニは能力を失う。」を得る。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = "ALL"
-  - [0].action.until = "UNTIL_END_OF_TURN"
-  ~ [0].action.type : "REMOVE_ABILITIES" → "CONDITIONAL"
-  + [0].action.condition.type = "LRIG_LEVEL"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.operator = "gte"
-  + [0].action.condition.value = 3
-  + [0].action.then.type = "GRANT_EFFECT"
-  + [0].action.then.target.type = "SIGNI"
-  + [0].action.then.target.owner = "self"
-  …（他 22 行）
-
 ## +STUB -CHOOSE -ENERGY_CARD -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -SEQUENCE -SIGNI -TRANSFER_TO_HAND ［1枚］
 WXDi-P10-002
 --- WXDi-P10-002
@@ -1027,24 +789,6 @@ WXDi-P10-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "TRANSFER_TO_HAND"
   …（他 11 行）
-
-## +BANISH +FIELD_LRIG_COLOR_COUNT +LIFE_CRASHED_LAST_TURN×2 +SEQUENCE×2 +SHUFFLE_DECK +SIGNI ［1枚］
-WXDi-P11-001
---- WXDi-P11-001
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ以下の２つから１つを選ぶ。①直前のターンにあなたのライフクロスが２枚以上クラッシュされていた場合、対戦相手のシグニ１体を対象とし、それをバニッシュし、カードを２枚引く。②直前のターンにあなたのライフクロスが４枚以上クラッシュされていた場合、あなたのデッキをシャッフルし一番上のカードをライフクロスに加える。
-  - [0].action.choices[0].action.owner = "self"
-  - [0].action.choices[0].action.count = 2
-  - [0].action.choices[1].action.owner = "self"
-  - [0].action.choices[1].action.count = 1
-  - [0].action.choices[1].action.fromTop = true
-  + [0].condition.type = "FIELD_LRIG_COLOR_COUNT"
-  + [0].condition.owner = "self"
-  + [0].condition.operator = "gte"
-  + [0].condition.value = 3
-  + [0].condition.minLrigs = 3
-  ~ [0].action.choices[0].choiceId : "c0" → "banish-draw"
-  ~ [0].action.choices[0].label : "選択肢1" → "直前のターンにライフクロスが2枚以上クラッシュされていた場合、相手シグニ1体をバニッシュし2枚引く"
-  …（他 28 行）
 
 ## -CHOOSE -GRANT_KEYWORD -HAND_CARD -SEQUENCE -SIGNI -TRASH -UNKNOWN ［1枚］
 WXDi-P11-002
@@ -1118,23 +862,17 @@ WXDi-P14-002
   - [0].action.choices[1].label = "選択肢2"
   …（他 36 行）
 
-## +CONDITIONAL +LRIG_LEVEL +SIGNI -LRIG ［1枚］
-WXDi-P14-070
---- WXDi-P14-070
-  原文: あなたのトラッシュから＜電音部＞のシグニを３枚まで対象とし、それらを場に出す。あなたのセンタールリグがレベル３以上の場合、次の対戦相手のターンの間、あなたの＜電音部＞のシグニは【シャドウ】を得る。,-
-  - [0].action.steps[1].target.type = "LRIG"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].keyword = "シャドウ"
-  - [0].action.steps[1].duration = "UNTIL_OPP_TURN_END"
-  ~ [0].action.steps[1].type : "GRANT_KEYWORD" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "LRIG_LEVEL"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.operator = "gte"
-  + [0].action.steps[1].condition.value = 3
-  + [0].action.steps[1].then.type = "GRANT_KEYWORD"
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  …（他 6 行）
+## +STUB -GRANT_KEYWORD -SIGNI ［1枚］
+WXDi-P15-002
+--- WXDi-P15-002
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つこのピースを使用する際、使用コストとして追加でエクシード４を支払ってもよい。以下の４つから２つまで選ぶ。追加でエクシード４を支払っていた場合、代わりに３つまで選ぶ。①あなたのトラッシュから＜闘争派＞のシグニを２枚まで対象とし、それらを場に出す。②あなたの＜闘争派＞のシグニ１体を選び、ターン終了時まで、それ
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "使用条件"
+  - [0].action.steps[0].duration = "PERMANENT"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "OPTIONAL_COST"
 
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052
@@ -1234,6 +972,24 @@ WX24-P2-044
   + [0].action.effect.action.steps[0].type = "STUB"
   …（他 31 行）
 
+## +GRANT_EFFECT +SIGNI ［1枚］
+WX24-P2-055
+--- WX24-P2-055
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニが【ランサー】か【Ｓランサー】によって対戦相手のライフクロス１枚をクラッシュしたとき、《緑》《緑》《無》を支払ってもよい。そうした場合、対戦相手のライフクロス１枚をクラッシュする。」を得る。,：どちらか１つを選ぶ。①対戦相手のアップ
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "OPTIONAL_COST"
+  - [0].action.steps[0].costColors[0] = "緑"
+  - [0].action.steps[0].costColors[1] = "緑"
+  - [0].action.steps[0].costColors[2] = "無"
+  - [0].action.steps[1].type = "CONDITIONAL"
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "LIFE_CRASH"
+  - [0].action.steps[1].then.owner = "opponent"
+  - [0].action.steps[1].then.count = 1
+  - [0].action.steps[1].then.triggerBurst = true
+  ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
+  …（他 28 行）
+
 ## +COUNTER_SPELL +SEQUENCE +STUB -CONDITIONAL -IS_MY_TURN -UNKNOWN×2 ［1枚］
 WX24-P3-036
 --- WX24-P3-036
@@ -1252,24 +1008,6 @@ WX24-P3-036
   - [0].action.choices[1].action.steps[2].raw = "このターンにあなたが《アンチ・スペル・バツ》を使用したのが一度目の場合、このカードをルリグデッキに戻してもよい"
   …（他 17 行）
 
-## +CONDITIONAL×2 +LAST_LOOK_TRASHED_MATCHES +PAID_ADDITIONAL_COST +POWER_MODIFY×2 +SEQUENCE×2 +SIGNI×2 +STUB×2 ［1枚］
-WX25-P1-103
---- WX25-P1-103
-  原文: 【出】：あなたのデッキの上からカードを３枚見る。その中からカードを１枚までトラッシュに置き、残りを好きな順番でデッキの一番下に置く。その後、この効果で＜古代兵器＞のシグニをトラッシュに置いた場合、対戦相手のシグニ１体を対象とし、あなたのエナゾーンから＜古代兵器＞のシグニ１枚をトラッシュに置いてもよい。そうした場合、ターン終了時まで、それのパワーを－5000す
-  - [0].action.source.location = "deck"
-  - [0].action.source.owner = "self"
-  - [0].action.count = 3
-  - [0].action.private = true
-  - [0].action.reorder = true
-  - [0].action.canTrash = true
-  - [0].action.destination.location = "deck"
-  - [0].action.destination.owner = "self"
-  - [0].action.destination.position = "bottom"
-  ~ [0].action.type : "LOOK_AND_REORDER" → "SEQUENCE"
-  + [0].action.steps[0].type = "LOOK_AND_REORDER"
-  + [0].action.steps[0].source.location = "deck"
-  …（他 33 行）
-
 ## +STUB -REMOVE_ABILITIES -SIGNI ［1枚］
 WX25-P2-030
 --- WX25-P2-030
@@ -1280,6 +1018,24 @@ WX25-P2-030
   - [1].action.until = "UNTIL_END_OF_TURN"
   ~ [1].action.type : "REMOVE_ABILITIES" → "STUB"
   + [1].action.id = "GRANT_ABILITY_INNER_TEXT"
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES ［1枚］
+WX25-P2-060
+--- WX25-P2-060
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《ミュウ＝パピヨン》がいる場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。それに【チャーム】が付いている場合、代わりにターン終了時まで、それのパワーを－10000する。【起】《ターン１回》エナゾーンから＜凶蟲＞のシグニ１枚をトラッシュに置く：対戦相手のシグニ１体を対象と
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "any"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].delta = -10000
+  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.hasCharm = true
+  + [0].action.steps[1].then.type = "POWER_MODIFY"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  + [0].action.steps[1].then.target.owner = "opponent"
+  + [0].action.steps[1].then.target.count = 1
+  + [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  …（他 4 行）
 
 ## +PAID_ADDITIONAL_COST -IS_MY_TURN ［1枚］
 WX25-P2-084
@@ -1505,24 +1261,6 @@ WXK09-031
   + [0].action.steps[0].condition.levels[2] = 3
   …（他 8 行）
 
-## +CONDITIONAL×2 +ENERGY_EACH_LEVEL_FILTER_GTE×2 +GRANT_EFFECT×2 +SIGNI×2 ［1枚］
-WXK09-055
---- WXK09-055
-  原文: あなたの＜電機＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、【エナチャージ３】をする。」を得る。あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、追加でそれは「【自】：このシグニがアタックしたとき、カードを２枚引く。」を得る。それぞれ２枚以上ある場合、追加でそれは「【自】：このシグニがア
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 2
-  - [0].action.steps[2].target.type = "SIGNI"
-  - [0].action.steps[2].target.owner = "opponent"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].target.filter.cardType = "シグニ"
-  ~ [0].action.steps[0].effect.effectId : "WXK09-055-sub-E1" → "WXK09-055-sub-EC3"
-  ~ [0].action.steps[0].effect.parseStatus : "AUTO" → "MANUAL"
-  ~ [0].action.steps[1].type : "DRAW" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
-  + [0].action.steps[1].condition.owner = "self"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  …（他 50 行）
-
 ## +PAID_ADDITIONAL_COST +POWER_MODIFY +SIGNI -IS_MY_TURN ［1枚］
 WXK10-080
 --- WXK10-080
@@ -1602,24 +1340,6 @@ WD09-018
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
 
-## +CHOOSE +CONDITIONAL +HAND_CARD +LAST_PROCESSED_COUNT_GTE +SEQUENCE +TRANSFER_TO_HAND +TRASH +TRASH_CARD ［1枚］
-WD14-011
---- WD14-011
-  原文: 【自】：あなたの＜悪魔＞のシグニ１体がバニッシュされたとき、あなたのトラッシュからそのシグニより低いレベルを持つシグニ１枚を対象とし、それを場に出す。【出】：あなたの他のすべてのシグニをトラッシュに置く。その後、この方法でトラッシュに置いたシグニ１体につき対戦相手のシグニ１体を対象とし、それらをバニッシュする。,：どちらか１つを選ぶ。①手札を２枚捨てる。この
-  - [2].action.owner = "self"
-  - [2].action.count = 1
-  - [2].action.fromTop = true
-  ~ [0].parseStatus : "AUTO" → "MANUAL"
-  ~ [2].action.type : "ADD_TO_LIFE" → "CHOOSE"
-  + [2].action.choose_count = 1
-  + [2].action.from_count = 2
-  + [2].action.choices[0].choiceId = "discard-life"
-  + [2].action.choices[0].label = "手札を2枚捨て、この方法で2枚捨てた場合デッキの一番上をライフクロスに加える"
-  + [2].action.choices[0].action.type = "SEQUENCE"
-  + [2].action.choices[0].action.steps[0].type = "TRASH"
-  + [2].action.choices[0].action.steps[0].target.type = "HAND_CARD"
-  …（他 19 行）
-
 ## +STUB -DRAW ［1枚］
 WD16-014
 --- WD16-014
@@ -1648,24 +1368,6 @@ WD18-008
   + [0].action.steps[1].then.effect.action.type = "GRANT_PROTECTION"
   + [0].action.steps[1].then.effect.action.fromAll = true
   …（他 6 行）
-
-## +CONDITIONAL×3 +LAST_PROCESSED_MATCHES×4 -IS_MY_TURN ［1枚］
-WD21-020
---- WD21-020
-  原文: あなたの＜宇宙＞のシグニ１体を対象とし、それをバニッシュする。そうした場合、あなたのデッキの上からシグニがめくれるまで公開し、公開したカードをシャッフルし、デッキの一番下に置く。その後、この方法で公開したシグニがレベル１の場合、カードを１枚引く。レベル２の場合、あなたのデッキの一番上のカードをエナゾーンに置く。レベル３の場合、対戦相手は手札を１枚捨てる。レベ
-  - [0].action.steps[3].owner = "self"
-  - [0].action.steps[3].count = 1
-  - [0].action.steps[4].target.type = "HAND_CARD"
-  - [0].action.steps[4].target.owner = "opponent"
-  - [0].action.steps[4].target.count = 1
-  - [0].action.steps[5].source.type = "TRASH_CARD"
-  - [0].action.steps[5].source.owner = "self"
-  - [0].action.steps[5].source.count = 1
-  - [0].action.steps[5].source.upToCount = false
-  - [0].action.steps[5].source.filter.cardType = "シグニ"
-  - [0].action.steps[5].source.filter.story = "宇宙"
-  ~ [0].action.steps[2].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  …（他 26 行）
 
 ## +STUB -CONDITIONAL×2 -IS_MY_TURN -TRASH -TRASH_CARD ［1枚］
 WD22-035-G
