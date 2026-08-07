@@ -5902,6 +5902,95 @@ test('続き376d トリップワイヤ: keyword:"ディソナアイコン" は l
   eq(hits.join(','), '', 'ディソナは isDisona で表す（keyword 文字列は印字ベースで外れる）');
 }));
 
+// ── 続き377 第6バッチ: `hasOtherSelfSigniNoun`（「他の」）ゲートの棚卸し。
+//    「すべてのシグニをバニッシュ」ビルダーが owner も filter も**文全体**から取っていた（全文スキャン禁止違反）。
+//    ①レベル/レベル奇偶/ライズアイコン の限定が丸ごと落ちて**相手シグニ全体**を消す過剰効果
+//    ②文中の別の位置の「対戦相手」を owner に取り違え ③「あなたの」を伴わない「他の」で excludeSelf が落ちる。
+test('続き377: 「〈filter〉すべてのシグニをバニッシュ」は名詞句 span から filter を取る', () => withSavedCursor(() => {
+  const cases: [string, string, string][] = [
+    ['WX11-050', 'WX11-050-E2', '"level":{"max":1}'],        // 対戦相手のレベル１以下の
+    ['WXDi-CP02-042', 'WXDi-CP02-042-E1', '"level":{"min":3}'], // 対戦相手のレベル３以上の
+    ['WXEX1-08', 'WXEX1-08-E3', '"noRiseIcon":true'],        // 《ライズアイコン》を持たない
+    ['WXK03-028', 'WXK03-028-BURST', '"levelParity":"odd"'], // レベルが奇数の
+  ];
+  for (const [card, effId, needle] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes(needle), true,
+      `${effId}: BANISH{ALL} の filter に ${needle}（旧: 相手の全シグニを消す過剰効果）`);
+  }
+}));
+
+// ⚠トリップワイヤ①＝**owner は名詞句 span で決める**。`WXDi-P07-073` は「**対戦相手のターン終了時**、
+//   あなたのすべてのシグニをバニッシュする」＝文中の「対戦相手」は**タイミング句**であって所有者ではない。
+//   全文スキャンへ戻すと自分のシグニを消す自傷デメリットが**相手の全滅**へ反転する。
+// ⚠トリップワイヤ②＝**所有者の指定が無い「すべてのシグニをバニッシュ」は owner:any のまま**（両者が消える）。
+//   span 判定を厳しくしすぎて self/opponent へ倒すと原文と逆の過小実行になる。
+test('続き377 トリップワイヤ: BANISH{ALL} の owner は名詞句 span で決める', () => withSavedCursor(() => {
+  const sub = JSON.stringify((effectsMap.get('WXDi-P07-073') ?? []).find(x => x.effectId === 'WXDi-P07-073-E1')?.action ?? {});
+  eq(sub.includes('"type":"BANISH","target":{"type":"SIGNI","owner":"self"'), true,
+    'WXDi-P07-073-E1: 付与能力の「あなたのすべてのシグニ」は self（トリガー句の「対戦相手」に引きずられない）');
+  for (const [card, effId] of [['WX02-006', 'WX02-006-E1'], ['WX05-045', 'WX05-045-BURST']] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes('"type":"BANISH","target":{"type":"SIGNI","owner":"any"'), true,
+      `${effId}: 修飾の無い「すべてのシグニ」は any（＝両者が消える）のまま`);
+  }
+}));
+
+// ⚠「他の」は「あなたの」を伴わない形（`WXEX2-51-E2`「他のすべてのシグニ」）でも excludeSelf。
+//   従来は `hasOtherSelfSigniNoun`（＝「**あなたの**他の…シグニ」）でしか立たず、**効果元自身まで巻き込んで**いた。
+test('続き377: 「他のすべてのシグニをバニッシュ」は excludeSelf（あなたの が無くても）', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['WXEX2-51', 'WXEX2-51-E2'], ['WX17-046', 'WX17-046-E3'], ['WX22-024', 'WX22-024-E2'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes('"excludeSelf":true'), true, `${effId}: excludeSelf`);
+  }
+}));
+
+// ── 続き377: engine 側＝`execBanish` が `excludeSelf` を**見ていなかった**（POWER_MODIFY/GRANT_KEYWORD は実装済み）。
+//    JSON に載っていても効果元自身が消えるままだったので、盤面を作って自身が残ることを確認する。
+test('続き377 engine: BANISH{ALL,excludeSelf} は効果元シグニを消さない', () => withSavedCursor(() => {
+  const self = fresh(), ally1 = fresh(), ally2 = fresh();
+  const ctx = mkCtx({ signi: [self, ally1, ally2] }, {}, self);
+  const act = { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', excludeSelf: true } } } as unknown as EffectAction;
+  const r = run(act, ctx);
+  const left = r.ownerState.field.signi.map(s => s?.at(-1) ?? null).filter(Boolean);
+  eq(left.join(','), self, '効果元だけが残る（旧: excludeSelf 未配線で自身も消えた）');
+  // excludeSelf 無しなら全部消える＝上のテストが「常に自身が残る」ではないことの対照
+  const ctx2 = mkCtx({ signi: [fresh(), fresh(), fresh()] }, {}, undefined);
+  const src2 = ctx2.ownerState.field.signi[0]!.at(-1)!;
+  const ctx2b = { ...ctx2, sourceCardNum: src2 } as ExecCtx;
+  const r2 = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } } } as unknown as EffectAction, ctx2b);
+  eq(r2.ownerState.field.signi.map(s => s?.at(-1) ?? null).filter(Boolean).length, 0, 'excludeSelf 無しなら自身も含めて全滅');
+}));
+
+// ── 続き377: UP の対象も同じ「他の」ゲートの穴。「あなたの＜X＞のシグニ１体を対象とし、それをアップする」で
+//    クラス/カード名の限定が丸ごと落ち、**自分のどのシグニでもアップできる**過剰効果だった。
+test('続き377: 「あなたの〈filter〉シグニN体を対象とし…アップする」に filter が載る', () => withSavedCursor(() => {
+  const cases: [string, string, string][] = [
+    ['WX14-051', 'WX14-051-E1', '"story":"アーム"'],
+    ['WXDi-P00-044', 'WXDi-P00-044-E1', '"story":"バーチャル"'],
+    ['WXK09-078', 'WXK09-078-E1', '"story":"電機"'],
+    ['WX13-002', 'WX13-002-E2', '"story":"毒牙"'],
+    ['WXEX1-60', 'WXEX1-60-E1', '"cardName":"フレイスロ"'],
+  ];
+  for (const [card, effId, needle] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(js.includes('"type":"UP"'), true, `${effId}: UP アクション`);
+    eq(js.includes(needle), true, `${effId}: UP 対象に ${needle}`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**修飾の無い対象には filter を付けない**（`parseSigniTarget(文全体)` へ寄せると
+//   トリガー節・条件節のクラスを引き込む＝続き376d のトラップ(a)）。`WX01-027-E2` は原文が
+//   「あなたのシグニ１体を対象とし、それをアップする」＝クラス指定が無いのが正しい。
+test('続き377 トリップワイヤ: 修飾の無いアップ対象に filter を付けない', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WX01-027') ?? []).find(x => x.effectId === 'WX01-027-E2');
+  eq(JSON.stringify(e?.action ?? {}), '{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1}}',
+    'WX01-027-E2: 素の owner:self/count:1（別の節の修飾を引き込まない）');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
