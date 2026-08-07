@@ -341,7 +341,14 @@
 - `npm run census`（較正後は `BASELINE_HIGH` と §4 恒久指標を実数更新）
 
 #### (i) 配線ギャップ — ①のマトリクスからセル単位で取る（**バッチ化できる唯一の区分**）
-現在の miss 上位（`npm run census:wiring`・続き376 実測。★＝同じ入口に配線済みの効果があり穴が明確）：
+
+**🎯次に取るべき1本＝`triggerSubjectClass × TRIGGER{ON_ATTACK_SIGNI}`（miss 8・has 37）**（続き376b 新発見）。「あなたの＜X＞のシグニがアタックしたとき」の主語限定が落ちて**どのシグニのアタックでも発火**する過剰効果。**同型44件中36件は既に `triggerFilter` を持ち、無いのは8件・全部同じ timing** ＝直す場所が確定していて、配線済みの見本（`WX25-CP1-047-E1`／`WXDi-CP02-102-E1`）もある。**このマトリクスで最も条件のよいセル。**
+
+**⚠取る前に必ず**：`--cell` で原文を全部読み、**クロス計上**（フレーズが同じ効果の別の入口に掛かっている）・**条件節用法**・**コスト側フィルタ**を仕分ける。miss 数＝見込み件数ではない（①の⚠⚠を参照）。
+
+現在の miss 上位（`npm run census:wiring`・続き376b 実測＝**合計 541**。★★＝同入口に20件以上の配線済み／★＝5件以上）：
+- [ ] **大クラスタ（続き376b 追加）**＝`cardClass` **154**（has 1407）／`levelRange` **81**（247）／`color` **36**（297）／`powerRange` **30**（507）／`levelExact` **29**（103）。★★セルは `cardClass × SIGNI[filter]` 46／`cardClass × POWER_MODIFY{SIGNI}` 38／`levelRange × SIGNI[filter]` 25／`cardClass × TRASH_CARD[filter]` 13／`color × SIGNI[filter]` 12 ほか。⚠`cardClass × (filter無)` 37 は**条件節用法が濃い**＝優先度低。
+- 以下は続き376 時点の実測（マイナー語彙・★＝同じ入口に配線済みの効果があり穴が明確）：
 - [ ] **`isDisona` 34**（has 21）＝WXDi-P12/P13 系に集中。
 - [ ] **`hasRiseIcon` 31**（has 8）★＝`TRASH_CARD[filter]` 9／`SIGNI[filter]` 8／`SEARCH[filter]` 7／`BANISH{SIGNI}` 6／`GRANT_KEYWORD{SIGNI}` 6。`WX16-026-BURST` ほか**トラッシュから何でも回収できる**過剰効果。
 - [ ] **`eachDistinctLevel` 29**（has 1）＝`TRASH_CARD[filter]` 20／`SIGNI[filter]` 12。⚠**厳密 enforce は engine 側が TODO**（選択補助＋逆翻訳のみ）＝配線しても表現改善どまり。取る前に enforce を入れるか決めること。
