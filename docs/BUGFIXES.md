@@ -1,5 +1,44 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — **§5d パターンA 第6バッチ**＝「対戦相手のセンタールリグと共通する色を持たない」相手エナ除去の残りを消化（census 1166→1164・golden 1417→1418）（Opus 5・続き374）
+
+### 何が壊れていたか
+
+census「共通する色」クラスタを分類したところ、最大の系統は**「対戦相手のセンタールリグと共通する色を持たない」相手エナ除去（原文38効果）**だった。うち **30件は既に正しく**、残り8件が未配線。既存の段階ロールアウト表 `LRIG_COLOR_BATCH5_ENERGY`（effectId アンカー・「helper は一般形を認識しつつ原文照合済みの effectId だけへ局所合成する」という設計）に載っていないぶんだった。
+
+未配線だと `TRASH{ENERGY_CARD, owner:'opponent'}` に filter が付かず、**相手エナのどのカードでも落とせる過剰効果**になる。
+
+### 直し方（4効果）
+
+原文照合のうえ `LRIG_COLOR_BATCH5_ENERGY` へ3件追加＝`WXDi-P14-054-E1`／`WXDi-P15-089-E1`／`WXDi-P12-002-E1`。機構は無改造。
+
+- `WXDi-P15-089-E1` は `parseStatus:'PARTIAL'` で**カード単位 PRESERVE**（held に載らない）ため `effectId` アンカーの**外科パッチ**。値は parser 出力と完全一致させてある。
+- `WXDi-P12-002` は held から採用。これにより**「あなたの場に《ディソナアイコン》のシグニが3体ある場合」ゲートも同時に復活**した（従来は条件ごと落ちて**無条件発動**）。
+
+### ⚠あえて直さなかった3件＝「対象ゾーンごと取り違え」（色フィルタ以前の問題）
+
+`WXDi-D09-H20-E1`／`WXDi-P04-054-E1`／`WXDi-P11-060-E2` は同じ文型
+「対戦相手のエナゾーンから…カード１枚を対象とし、〈任意コスト〉てもよい。そうした場合、それをトラッシュに置く」
+だが、JSON は **`TRASH{ SIGNI, owner:'any' }`**＝**ゾーンも所有者も違うカードを落とす**別物になっている。ここに色フィルタだけ足すと**誤った対象に正しい制限を付ける**ことになり、誤りを固定してしまう。golden に「足していないこと」を明示的に固定した。
+
+**ブロッカーは特定済み**＝この形の正準修正は既存の `applyDroppedTargetDesignation`（`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈コスト〉→ gate{targetsStored}` へ組み替える一般ヘルパー）だが、
+①入口の `DESIG_BEFORE_COST_RE` が**シグニ対象専用**
+②`bindToStoredTarget` が `tgt.type !== 'SIGNI'` で降りる
+③executor が ENERGY_CARD 対象で `targetsStored` を honor するか未検証
+の3点。②③は engine 側の確認が要るので別バッチ。
+
+### ⚠同じく未修正＝`WD15-018-E1`（条件節の存在条件）
+
+「対戦相手のパワー5000以下のシグニ１体を対象とし、**対戦相手のエナゾーンに対戦相手のセンタールリグと共通する色を持たないカードがある場合**、それをバニッシュする」＝条件節が丸ごと落ちて**無条件バニッシュ**。
+**ブロッカー**＝この位置の条件節は実行時 `CONDITIONAL` になり `execUtils.evalCondition` が評価するが、**`ENERGY_HAS_CARD` は `effectEngine.ts`（activeCondition 評価器）にしか実装が無い**。さらに `colorNotMatchesLrig` は `resolveDynamicFilter` で解決される動的フィルタなので、condition 内 filter としては解決経路が無い。**2箇所の engine 追加が要る**ので別バッチ。
+
+### 検証
+
+`npm run gates` 全緑＝golden **1417→1418**（+1）、census **1166→1164**（−2・`BASELINE_HIGH` 更新。この系統は **OK 30→33／未配線 8→5**）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors、held **230→229**。A/B 差分 `added=0 removed=0 changed=2`＋外科パッチ1＋採用1。
+
+---
+
+
 ## 2026-08-07 — **§5d パターンA 第5バッチ**＝動的な同一性参照（`levelEqTrigger`／`nameEqLastProcessed`／`levelEqualsVar`）を配線し、**続き370 からの据置を1件解除**（census 1170→1166・golden 1415→1417）（Opus 5・続き373）
 
 ### 何が壊れていたか

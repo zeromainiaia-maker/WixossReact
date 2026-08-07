@@ -8269,6 +8269,33 @@ test('§5d(A) nonColorless: SEARCH／トラッシュ→手札 の9効果に載�
   ok(matchesFilter(cardMap.get(colored), { cardType: 'シグニ', nonColorless: true }), '有色シグニは一致する');
   ok(!matchesFilter(cardMap.get(colorless), { cardType: 'シグニ', nonColorless: true }), '無色シグニは一致しない');
 });
+// §5d パターンA 第6バッチ＝「対戦相手のセンタールリグと共通する色を持たない」相手エナ除去の残り。
+// 既存の段階ロールアウト表（`LRIG_COLOR_BATCH5_ENERGY`）に原文照合済みの3件を足しただけで、機構は無改造。
+test('§5d(A) 共通色否定: 相手エナ除去の色制限が残り4効果にも載る', () => {
+  const effOf = (num: string, id: string) => JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === id) ?? {});
+  for (const [num, id] of [
+    ['WXDi-P14-054', 'WXDi-P14-054-E1'],
+    ['WXDi-P12-002', 'WXDi-P12-002-E1'],
+    ['WXDi-P15-089', 'WXDi-P15-089-E1'], // PARTIAL＝カード単位 PRESERVE のため外科パッチ（値は parser 出力と一致）
+  ] as [string, string][]) {
+    ok(effOf(num, id).includes('"colorNotMatchesLrig":true'),
+      `${id}: 相手エナのどのカードでも落とせる過剰効果に戻っていない`);
+  }
+  // `WXDi-P12-002-E1` は held に滞留していた「《ディソナアイコン》のシグニが3体ある場合」ゲートも同時に採用した
+  //（従来は**無条件発動**）。
+  ok(effOf('WXDi-P12-002', 'WXDi-P12-002-E1').includes('"isDisona":true')
+    && effOf('WXDi-P12-002', 'WXDi-P12-002-E1').includes('"minCount":3'),
+    'WXDi-P12-002-E1: ディソナ3体ゲートが載る（無条件発動に戻っていない）');
+  // ⚠**未修正の3件は「対象ゾーンごと取り違えている」**＝`TRASH{SIGNI, owner:"any"}` になっており、
+  //   本来の `ENERGY_CARD/opponent` ではない。色フィルタを足す以前の問題なので、この表には**入れない**。
+  //   直すには `bindToStoredTarget` を SIGNI 専用から広げる必要がある（§5d の登録済み項目）。
+  for (const [num, id] of [
+    ['WXDi-D09-H20', 'WXDi-D09-H20-E1'], ['WXDi-P04-054', 'WXDi-P04-054-E1'], ['WXDi-P11-060', 'WXDi-P11-060-E2'],
+  ] as [string, string][]) {
+    ok(!effOf(num, id).includes('colorNotMatchesLrig'),
+      `${id}: 対象ゾーン取り違えのまま色フィルタだけ足していない（部分修正で誤りを固定しない）`);
+  }
+});
 // §5d パターンA 第5バッチ＝**動的な同一性参照**（`levelEqTrigger` / `nameEqLastProcessed` / `levelEqualsVar`）。
 // いずれも型にも engine にも実装済みで、**入口のフィルタ合成から呼ばれていない**だけだった（3バッチ連続の同じ形）。
 test('§5d(A) 同一性: 「そのシグニと同じレベル」がトラッシュ→手札にも載る', () => {
