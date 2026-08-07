@@ -76,6 +76,22 @@ const VOCAB: Vocab[] = [
   { key: 'isDrive',          re: /ドライブ状態/ },
   { key: 'crossState',       re: /クロス状態/ },
   { key: 'isPuppet',         re: /傀儡状態/ },
+
+  // --- 大クラスタ語彙（2026-08-07 続き376b 追加）---
+  // ⚠上の「マイナーな真偽値フラグ」群と**性質が違う**＝原文にも live JSON にも大量にあり、
+  //   **has が桁で大きい**（`cardClass` は 1407 配線済み／154 未配線）。つまり
+  //   **miss 率が低いぶん、miss したセルは「同じ入口の他は全部正しいのにこれだけ落ちた」＝穴が濃い。**
+  //   ②の無作為20件でも配線ギャップ5件中2件がここ（`WX12-016-E1` の色／`WXDi-P02-073-E1` の level:1）だった。
+  // ⚠**この5キーは誤検出も多い。**（a）**条件節用法**＝「あなたの場に＜天使＞のシグニがある場合」は
+  //   対象フィルタではない（`(filter無)` ラベルのセルはこれが濃い）。（b）**コスト文・リマインダー文**。
+  //   （c）**数値が filter ではなく action の値**＝「パワーを＋10000」「基本パワーを1にする」は
+  //   `powerRange` ではなく `POWER_MODIFY`/`POWER_SET` の値。
+  //   **セルを取るたびに全CSV走査で用法を分類する**という §5d の規律は、ここでは特に外せない。
+  { key: 'cardClass',   re: /＜[^＞]{1,8}＞の(シグニ|カード)/,   jsonKeys: ['story', 'cardClass'], note: '大クラスタ・条件節用法の誤検出が濃い' },
+  { key: 'levelRange',  re: /レベル[０-９0-9]+以(上|下)/,        jsonKeys: ['level', 'levelRange'], note: '大クラスタ' },
+  { key: 'levelExact',  re: /レベル[０-９0-9]+の(シグニ|カード)/, jsonKeys: ['level', 'levelRange'], note: '大クラスタ・レベル丁度' },
+  { key: 'color',       re: /[白赤青緑黒]の(シグニ|カード|スペル)/, jsonKeys: ['color'], note: '大クラスタ' },
+  { key: 'powerRange',  re: /パワー[0-9０-９,，]+以(上|下)/,      jsonKeys: ['powerRange'], note: '大クラスタ・action の値との取り違えに注意' },
 ];
 
 // ===== 入力 =====
