@@ -269,6 +269,16 @@ const PATTERNS: Pattern[] = [
           .replace(/そう(しなかった|した|でない|である)場合/g, '');
         if (!/場合[、,]/.test(tb)) return true;
       }
+      // 「【常】：対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない」の
+      // 「配置する場合」は**条件節ではなく行動の言い回し**。効果全体が `BLOCK_ACTION{actionId:'FORCE_PLACE_FRONT'}`
+      // で表現され、engine（`effectEngine.ts` の FORCE_PLACE_FRONT ハンドラ）・UI（`SigniSummonZoneModal`／
+      // `BattleScreen` の配置ゾーン制限）まで**フル実装済み**（続き376c に実測確認）。
+      // ⚠ここでも残渣チェックは維持＝この言い回しを除いて**他に条件節が残るなら covered にしない**。
+      if (js.includes('FORCE_PLACE_FRONT')) {
+        const tf = t.replace(/(?:対戦相手|あなた)が[^。]{0,12}?を?配置する場合[、,]/g, '')
+          .replace(/そう(しなかった|した|でない|である)場合/g, '');
+        if (!/場合[、,]/.test(tf)) return true;
+      }
       if (!js.includes('REVEAL_AND_PICK')) return false;
       let allCovered = true;
       // 「（デッキの一番上を公開する。）〈それ|そのカード|この方法で公開したカード〉が <desc> (ではない)場合、…」は
