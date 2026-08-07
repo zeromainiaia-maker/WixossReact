@@ -8224,6 +8224,34 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
+// §5d パターンA「能力を持たない〜シグニN体」＝対象を能力なしに絞る名詞句修飾（11効果）。
+// 従来は語彙が無く**能力持ちも対象にできる過剰効果**だった。
+test('§5d(A) noAbilities: 11効果に載る＋「として」形/条件節形には載らない', () => {
+  const has = (num: string) => JSON.stringify(effectsMap.get(num) ?? []).includes('"noAbilities":true');
+  for (const num of ['WX12-040', 'WX14-023', 'WX19-022', 'WX19-050', 'WX20-Re20', 'WX25-P3-067',
+    'WXDi-P03-024', 'WXK02-006', 'WXK09-006', 'WXK10-016', 'WXK10-022']) {
+    ok(has(num), `${num}: 「能力を持たない」が filter に載る（無制限対象に戻っていない）`);
+  }
+  // ⚠同じ語でも filter にしてはいけない3用法（誤爆すると原文と逆の過小実行になる）
+  for (const num of ['WXDi-P03-034', 'WXDi-P07-005', 'WXDi-P13-042', 'WXDi-P15-046', 'WX16-Re20']) {
+    ok(!has(num), `${num}: 「〜を能力を持たないシグニ**として**場に出す」は付与形＝filter にしない`);
+  }
+  for (const num of ['WX25-P3-038', 'WX25-P3-069', 'WX25-P3-072', 'WX25-CP1-002']) {
+    ok(!has(num), `${num}: 「それが能力を持たない**場合**」は条件節＝filter にしない`);
+  }
+});
+test('§5d(A) noAbilities: engine 判定＝素のシグニのみ候補／能力持ちは除外／abilities_removed も「持たない」', () => withSavedCursor(() => {
+  const plain = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').trim() === '-' && (c.BurstText ?? '').trim() === '-');
+  const withAb = findCard(c => c.Type === 'シグニ' && (c.EffectText ?? '').trim() !== '-' && (c.EffectText ?? '').trim() !== '');
+  const st = mkState({ signi: [plain, withAb, null] });
+  const cands = fieldCandidates(st, { cardType: 'シグニ', noAbilities: true }, cardMap as Map<string, CardData>);
+  ok(cands.includes(plain), '素のシグニ（EffectText が `-`）は候補になる');
+  ok(!cands.includes(withAb), '能力を持つシグニは候補から外れる');
+  // 効果で能力を失ったシグニも「能力を持たない」に数える
+  const removed = { ...st, abilities_removed: [withAb] } as PlayerState;
+  ok(fieldCandidates(removed, { cardType: 'シグニ', noAbilities: true }, cardMap as Map<string, CardData>).includes(withAb),
+    'abilities_removed のシグニは「能力を持たない」に数える');
+}));
 // §5c 文型バッチ「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」。
 // 規則自体は `parseSingleSentence` の局所 CLAUSES にあったが**共通表（STATE_CONDITION_CLAUSES_V2）に無かった**ため、
 // 【自】トリガー文の条件節 hoist 経路では拾えず、3カードが条件節ごと落ちて無条件発火していた。
