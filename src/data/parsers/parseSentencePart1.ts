@@ -2936,9 +2936,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
       //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
       ...parseGuardFilter(dbSpan) };
+    // 枚数は「N体」（場のシグニ）だけを見ていたため、**トラッシュから「N枚」**の形が全部 count:1 へ潰れ、
+    //   「３枚まで」が1枚しか動かせない**過小実行**になっていた（続き377b・実測8効果＝`WDK09-013-E2`／
+    //   `WX06-001-E2`／`WX06-001-E3`／`WX08-036-E1`／`WX25-CP1-047-E1`／`WXDi-P11-074-E2`／`WXK06-041-E2`／
+    //   `WXK10-066-E2`）。⚠**全文の「N枚」は見ない**（コスト節の「手札から＜X＞のシグニを１枚捨てる」を拾う）＝
+    //   `dbSpan`（トラッシュから〜デッキの一番下）内の最初の「N枚」だけ。「N枚まで」は `upToCount`。
+    //   「それぞれレベルの異なる」系は `applyDistinctBatch5c` が後段で count を確定するので既存値と一致する。
+    const dbCountM = dbSpan.match(/([０-９\d]+)枚(まで)?/);
     return {
       type: 'TRANSFER_TO_DECK',
-      source: { type: 'SIGNI', owner, count, filter },
+      source: {
+        type: 'SIGNI', owner,
+        count: dbCountM ? parseNum(dbCountM[1]) : count,
+        ...(dbCountM?.[2] ? { upToCount: true } : {}),
+        filter,
+      },
       shuffle: false,
       position: 'bottom',
     } as TransferToDeckAction;
