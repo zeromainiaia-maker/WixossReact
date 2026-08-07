@@ -253,7 +253,7 @@
 
 **使い方**＝`npm run census:wiring` でセル一覧 → `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>` でそのセルの効果IDと原文を全部出す → 全数分類 → parser の該当ビルダーへフィルタ合成を1本足す。**★印（同じ入口に配線済みの効果がある）が付いたセルが最優先**＝「同じ入口の他の効果は正しいのにこれだけ落ちている」＝明確な穴。
 
-**実装方針**（試作の設計。`scripts/` に置き `package.json` に script を足す）：
+**実装方針**（✅**続き376 で全項目そのまま実装済み**。以下は設計記録として残す）：
 1. `docs/_effect_srctext.json` × live JSON を全数走査。
 2. `[原文フレーズ正規表現, TargetFilterキー]` の表を持つ（**既に型にも engine にも実装済みの語彙だけ**を載せる。未実装語彙は §6.3 の領分で別物）。
 3. 各効果について「**filter を保持しているアクション型**」を列挙してラベル化（`TRASH_CARD` / `SEARCH` / `ENERGY_CARD` / `SIGNI` / `(filter無)` 等）。
