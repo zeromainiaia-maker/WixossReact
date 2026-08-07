@@ -3,14 +3,13 @@
 
 --- 語彙キー別サマリ（miss 降順）---
   miss   has  語彙キー
-     3    21  hasCrossIcon
-     3        合計
+     2    22  hasCrossIcon
+     2        合計
 
 --- セル別明細（miss 降順・上位のみ stdout／全量は docs/_census_wiring.txt）---
   miss=  1 has=  11  hasCrossIcon × SIGNI[filter]  ★同入口に配線済みあり＝穴が濃い
   miss=  1 has=   0  hasCrossIcon × POWER_MODIFY_PER_FIELD{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
   miss=  1 has=   0  hasCrossIcon × BOUNCE{SIGNI}  （同入口に配線済みなし＝機構未実装の可能性）
-  miss=  1 has=   0  hasCrossIcon × TRASH_CARD[filter]  （同入口に配線済みなし＝機構未実装の可能性）
 
 ===== セル別 全明細 =====
 
@@ -23,6 +22,3 @@
 
 ## hasCrossIcon × BOUNCE{SIGNI}   miss=1 has=0
    MISS WX10-060-E1	《クロスアイコン》を持つ対戦相手のシグニ１体を対象とし、それを手札に戻す。
-
-## hasCrossIcon × TRASH_CARD[filter]   miss=1 has=0
-   MISS WX13-031-BURST	：あなたのトラッシュから《クロスアイコン》を持つシグニを２枚まで対象とし、それらを手札に加える。

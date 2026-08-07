@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き377b・Opus 5〔**(i)配線ギャップ 第7バッチ＝`noGuard × TRASH_CARD[filter]` → 同じビルダーの構造バグ**〕）＝ユーザー指示「続ける」。§4 の「次の一手 ①」（★★セル）をそのまま取った。**触った層＝`src/data/parsers/parseSentencePart1.ts`（トラッシュ→デッキ の2ビルダー＋開示ハンデス）／`parseSentencePart2.ts`（トラッシュ→デッキの一番上）／`src/engine/effectExecutor.ts`（`TRANSFER_TO_DECK{TRASH_CARD}` の `upToCount`）／`scripts/censusWiring.ts`（較正）／`scripts/goldenTest.ts`／live JSON（自動14＋held 15枚＋外科パッチ1）。**
+  - **🔎この回の教訓＝「セルを取ったら、同じビルダーにもっと重い構造バグが埋まっていた」。** 被覆マトリクスが指した ★★セルは《ガードアイコン》の脱落（11効果）だったが、そのビルダーを読んだら **`source` が `SIGNI`（＝場のシグニ）のまま**という構造バグが同居していた（19効果）。**セルは入口であって終点ではない。**
+  - **✅① 《ガードアイコン》限定の脱落 11効果**＝入口3つ（トラッシュ→デッキ＋シャッフル／トラッシュ→デッキの一番上／**相手手札の開示ハンデス**）。いずれも名詞句 span は切ってあるのに `parseGuardFilter` だけ合成漏れ。ハンデス側は**相手のガード札まで捨てさせられる**＝実害が大きい。逆方向の `hasGuard` も1件（`WXDi-P03-023-E2`）。
+  - **✅② 構造バグ 19効果**＝「トラッシュから…デッキの一番下に置く」の source が `SIGNI` 固定で、owner も**全文の「対戦相手」**で決めていた。`WX06-001-E2`「対戦相手のシグニ１体を対象とし、**あなたの**トラッシュから＜天使＞のシグニ７枚を…」が**相手の場のシグニを1体デッキへ送る**別物になっていた。**正準形は同じ文型の13効果が既に持っていた**（`DISTINCT_SOURCE_FIX_BATCH5C` の名指し表）＝**名指し表でやっていたことをビルダー本体へ一般化する**のが正しい直し方。
+  - **✅③ 枚数の過小実行 8効果**＝「N体」しか見ておらず「N枚（まで）」が全部 `count:1` へ潰れていた。⚠**③だけ先に入れてはいけなかった**＝②が誤ったままだと「相手の場のシグニを**1体**送る」が「**7体**送る」になり**誤りを増幅する**。A/B で②に気づいた時点で③を保留し、セットで入れた（続き374 の「部分修正が誤りを固定する形か見極める」と同じ判断）。
+  - **✅④ engine**＝`TRANSFER_TO_DECK{source:TRASH_CARD}` が `upToCount` を無視して**強制 N 枚**だった（`a.optional` しか見ていない）。`a.optional` と同じ選択経路へ。golden に対照テスト。
+  - **✅⑤ 計器較正（−1）**＝`noGuard:true` と `hasGuard:false` は `matchesFilter` で**完全に等価**なのにキー名照合で miss と誤検出していた。`censusWiring.ts` の `Vocab` に `jsonRe` を追加。
+  - **⚠held の扱い**＝構造変更は held の**型集合**を変えるので一気に +15枚 落ちた。**採用前に全効果の fresh↔live を突き合わせ、差分が `TRANSFER_TO_DECK` の source 部分木だけであることを機械確認**してから `--adopt`。`WX06-014-E2` は **MANUAL のほうが正しい**（原文が `《古代兵器》` と 《》 表記で parser の ＜＞ 抽出では story が取れない）ので**あえて採らなかった**。
+  - **ゲート**＝全緑。**golden 1436→1440**（+4）、**census 1053→1048**（−5・`BASELINE_HIGH` 更新）、**被覆マトリクス miss 476→464**、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors/248 warnings（追加0）、manual field loss 0、held **211 据置／104群**。**是正した効果は 30＋engine 1本。**
+
 - **セッション（2026-08-07・続き377・Opus 5〔**(i)配線ギャップ 第6バッチ＝`hasOtherSelfSigniNoun`（「他の」）ゲートの棚卸し**〕）＝ユーザー指示「PLAN5の続きを行う」。§4 の「次の一手 ①」をそのまま取った。**触った層＝`src/data/parsers/parseSentencePart1.ts`（BANISH{ALL} と UP の2ビルダー）／`src/engine/effectExecutor.ts`（`execBanish` の `excludeSelf` 配線）／`scripts/goldenTest.ts`／`scripts/vocabCensus.ts`（BASELINE）／live JSON（自動採用10＋held採用1＋外科パッチ1）。**
   - **✅棚卸しのやり方**＝`grep -rn "hasOtherSelfSigniNoun" src/data/` で全13箇所を出し、**`excludeSelf` を立てるだけの箇所は定義どおり正しい**ので除外し、**「他の」以外のものを gate している箇所**だけを見る。落ちたのは2つ。
   - **✅① 「〈filter〉すべてのシグニをバニッシュ」が全文スキャンだった**（`parseSentencePart1.ts:1222`）。owner も filter も文全体から取り、合成は power/state だけ＝**level/levelParity/ライズアイコン/クラス/色が丸ごと落ちる**。壊れ方は3方向＝**①過剰効果**（`WX11-050-E2`「レベル１以下の」・`WXDi-CP02-042-E1`「レベル３以上の」・`WXK03-028-BURST`「レベルが奇数の」・`WXEX1-08-E3`「《ライズアイコン》を持たない」が**相手シグニ全体**を消す）**②owner 取り違え**（`WXDi-P07-073-E1`＝「**対戦相手のターン終了時**、あなたのすべてのシグニをバニッシュする」の自傷デメリットが**相手の全滅**へ反転）**③excludeSelf 脱落**（`WXEX2-51-E2`「**他の**すべてのシグニ」は「あなたの」を伴わないので false＝**自身まで消える**）。→ **隣接名詞句 span** から owner も filter も取る形へ。
