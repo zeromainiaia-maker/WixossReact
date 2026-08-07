@@ -69,7 +69,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
