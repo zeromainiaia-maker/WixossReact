@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-07・続き377h・Opus 5〔**(iv) stale live の刈り取り**完了**＝census 1000→**972**〕）＝ユーザー指示「(iv) stale live の残りを刈る」。**触った層＝live JSON 37効果（held採用36カード＋外科1）／`src/data/manualEffects.ts`（MANUAL 定義1件）／`scripts/goldenTest.ts`（在庫カウンタ）。parser/engine は無変更。**
+  - **✅① 系統を枯渇させた**＝held 189枚のうち census 高シグナルに当たる **38カード/40効果を全件原文照合**して消化。**終了時点で census 高シグナルに当たる held は 0**（計器で確認）。held 自体も **189→144枚／89→71群**。
+  - **✅② 採用した壊れ方の内訳**＝(a) **「次の対戦相手のターン終了時まで」の duration 取り違え**（`UNTIL_OPP_TURN_END`→`UNTIL_END_OF_TURN` に潰れ**相手ターンに効果が切れる**）8効果 (b) **付与対象の `thisCardOnly` 脱落**（「**このシグニは**」が味方1体選択になる過剰対象化）6効果 (c) **条件節の常時true化**5効果 (d) **「そうした場合」の対象取り違え**（原文は**あなたの**シグニをバニッシュなのに**相手**をバニッシュ）2効果 (e) **trigger timing の取り違え**（内側の付与能力を最上位に平坦化）3効果 (f) **【使用条件】の焼き付き**4効果 (g) **条件節由来の `excludeSelf` が相手側の対象フィルタへ漏れる**3効果。
+  - **⚠③ 「held が新しい」は「held が正しい」ではない**＝40効果のうち**2件（5%）は逆方向**だった。`WXDi-P06-011-E1`（原文「**対戦相手は**【エナチャージ１】をしてもよい」なのに held が `owner:"self"`）／`WXK06-048-E1`（原文「**それが**バニッシュされる場合」＝同一対象なのに held が `targetsLastProcessed` を落とす）。**前者は同カードの E3 だけ外科的に採用**した＝カード単位採用だと巻き添えになる。
+  - **🔴④ `manualEffects.ts` の MANUAL 定義が live より古い（逆パターン）**＝`WXK06-048-E1` は **live 側だけ手で直っていて MANUAL ソースが古かった**。`parseStatus:MANUAL` は `mergeManualEffects` で**毎回 live を上書きしうる**ので、放置すると held が永久に残る。**JSON 直しではなくソース側に追記**して解消。**held が消えない MANUAL 効果を見たら、live と `manualEffects.ts` のどちらが新しいかを先に確かめる。**
+  - **✅⑤ golden の在庫カウンタを更新**＝`WX25-P1-061-E1` の timing 是正（`ON_ATTACK_SIGNI`→`ON_PLAY`）で「段階2 mandatory集合」が 1454→**1455**。⚠この札は `triggerScope`（any_ally）と `placedFromTrash` がまだ無い**途中段階**で、scope を足せば 1454 に戻る旨をテストにコメントで残した。
+
 - **🆕 セッション（2026-08-07・続き377g・Opus 5〔**live 焼き付き（stale live）の一括解消＝census 1030→**1000**〕）＝ユーザー指示「進みが遅いので census が1000になるまで処理して」。**触った層＝live JSON 38効果（外科的採用30＋held採用8カード）／`scripts/vocabCensus.ts`（BASELINE）。parser/engine は無変更。**
   - **⭐① 新しい系統を見つけた＝`build:effects` の非破壊マージが「parser は直っているのに live は古いまま」の在庫を作る**。収穫マージは**証明可能に無損失な上位集合だけ**を自動採用するので、parser が後から正しくなっても live の古い値は上書きされない＝**census には過剰効果として残り続ける**。census 高シグナル 1030件を fresh と全件突き合わせて 30効果を回収した。**この系統は parser を1行も触らずに直る**＝コスト最小で最大の収穫だった（1バッチで −30）。
   - **✅② 典型は `GRANT_KEYWORD{keyword:"使用条件"}`**＝【使用条件】の前置きを「使用条件というキーワードを付与」と誤解した古い形が**本文の効果を丸ごと食っていた**（`CHOOSE` 4択／`GROW_COST_REDUCTION`／`LRIG_COLOR` 条件などが復活）。ほかに `IS_MY_TURN` 3連（＝常時true）→`LAST_PROCESSED_MATCHES` の4分岐（`WD21-020-E1`）など。

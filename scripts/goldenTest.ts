@@ -11131,11 +11131,30 @@ test('duration「次の対戦相手のターン終了時まで」= UNTIL_OPP_TUR
   ok(findDur(pm.action, n => n.type === 'POWER_MODIFY' && n.duration === 'UNTIL_OPP_TURN_END'), 'POWER_MODIFY に UNTIL_OPP_TURN_END が付く');
   const gk = effectsMap.get('WX24-P1-040')!.find(e => e.effectId === 'WX24-P1-040-E2')!; // 次の対戦相手のターン終了時まで、【シャドウ】を得る
   ok(findDur(gk.action, n => n.type === 'GRANT_KEYWORD' && n.duration === 'UNTIL_OPP_TURN_END'), 'GRANT_KEYWORD が UNTIL_OPP_TURN_END へ昇格');
-  // 対称ガード：素の「ターン終了時まで」は UNTIL_END_OF_TURN のままで昇格しない（WXDi-CP02-051-E2 の REMOVE_ABILITIES）
-  const mixed = effectsMap.get('WXDi-CP02-051')!.find(e => e.effectId === 'WXDi-CP02-051-E2')!;
-  ok(findDur(mixed.action, n => n.type === 'POWER_MODIFY' && n.duration === 'UNTIL_OPP_TURN_END'), '同カードの opp文 POWER_MODIFY は昇格');
-  const ra = (mixed.action as unknown as { steps: { type: string; then?: { type: string; until?: string } }[] }).steps
-    .map(s => s.then).find(t => t?.type === 'REMOVE_ABILITIES');
+  // 対称ガード：同じカードで「素の『ターン終了時まで』は昇格しない」「『次の対戦相手の〜』は昇格する」の両方を見る。
+  // ⚠**参照先を E2→E3 へ直した**（続き377i）＝この assert は元々 E2 の action 内に POWER_MODIFY があることを
+  //   前提にしていたが、E2 の原文（「…このシグニをアップし、ターン終了時まで、このシグニは能力を失う」）に
+  //   パワー修正は無い。**E3 の内容が E2 へ漏れていたパース由来のアーティファクト**を検証していた
+  //   （effect 単位マージで E2 が正しい形＝UP＋REMOVE_ABILITIES に直った瞬間に落ちた）。
+  //   opp昇格の実体は E3「次の対戦相手のターン終了時まで、このシグニのパワーを＋5000」の側にある。
+  const mixedE2 = effectsMap.get('WXDi-CP02-051')!.find(e => e.effectId === 'WXDi-CP02-051-E2')!;
+  ok(!findDur(mixedE2.action, n => n.duration === 'UNTIL_OPP_TURN_END'),
+    'E2 に opp昇格は混入しない（E3 の内容が漏れていた旧アーティファクトの回帰ガード）');
+  const mixedE3 = effectsMap.get('WXDi-CP02-051')!.find(e => e.effectId === 'WXDi-CP02-051-E3')!;
+  ok(findDur(mixedE3.action, n => n.type === 'POWER_MODIFY' && n.duration === 'UNTIL_OPP_TURN_END'), '同カードの opp文 POWER_MODIFY は昇格');
+  // ⚠**再帰で探す**（続き377i）＝E2 が正しい形へ直り CONDITIONAL.then が SEQUENCE[UP, REMOVE_ABILITIES] に
+  //   なったため、`steps.map(s => s.then)` の1段決め打ちでは見つからなくなった。構造に依存しない探索にする。
+  const findNode = (a: unknown, want: (x: { type?: string }) => boolean): { until?: string } | undefined => {
+    const n = a as { type?: string; steps?: unknown[]; then?: unknown; else?: unknown; choices?: { action?: unknown }[] };
+    if (!n || typeof n !== 'object') return undefined;
+    if (want(n)) return n as { until?: string };
+    for (const c of [...(n.steps ?? []), n.then, n.else, ...((n.choices ?? []).map(c => c.action))]) {
+      const hit = findNode(c, want);
+      if (hit) return hit;
+    }
+    return undefined;
+  };
+  const ra = findNode(mixedE2.action, n => n.type === 'REMOVE_ABILITIES');
   eq(ra?.until, 'UNTIL_END_OF_TURN', '素の「ターン終了時まで」由来 REMOVE_ABILITIES は昇格しない');
 });
 

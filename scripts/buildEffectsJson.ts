@@ -134,7 +134,7 @@ for (const r of rows) {
 //   - fresh が純粋上位集合 → fresh 採用（証明可能に無損失な改善のみ自動収穫）
 //   - それ以外（損失/値変更/混在）→ existing 温存し、レポートに記録（人が後でレビュー）
 const report: Record<string, string[]> = {
-  adopted_new: [], adopted_gain: [], preserved_manual: [],
+  adopted_new: [], adopted_gain: [], adopted_partial: [], preserved_manual: [],
   preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [],
 };
 // 【出現条件】は実効果ではなくカード単位メタデータ。richness ガードが MANUAL 効果を
@@ -147,6 +147,9 @@ const equalIgnoringParseStatus = (a: any[], b: any[]) =>
 const allIds = new Set<string>([...existingEffects.keys(), ...Object.keys(result)]);
 // held（温存＝要レビュー）カードの fresh 出力を保存＝scripts/heldReview.mjs のレビュー/採用の入力
 const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
+// 混在カード（MANUAL/PARTIAL 同居）のうち、AUTO 効果に superset ではない差分が残るカードの fresh。
+// ＝効果単位マージでは自動採用できない「値変更/構造変更」の**第2のレビュー待ち行列**（続き377i 新設）。
+const partialFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
 for (const id of allIds) {
   const existing = existingEffects.get(id);
   const fresh = result[id];
@@ -178,6 +181,11 @@ for (const id of allIds) {
       return fr;
     });
     result[id] = merged as ReturnType<typeof parseCardEffects>;
+    // 混在カードのうち「MANUAL/PARTIAL ではない効果に superset ではない差分が残っている」ものは、
+    // held と同じく**人のレビュー待ち**。held キュー（_held_fresh.json）とは母集団が違うので別ファイルへ出す。
+    const needsReview = existing.some((ex, i) => !PRESERVE_STATUSES.has(ex?.parseStatus)
+      && fresh[i] && JSON.stringify(ex) !== JSON.stringify(fresh[i]) && !isPureSuperset(ex, fresh[i]));
+    if (needsReview) partialFresh[id] = fresh;
     (gained ? report.adopted_partial : report.preserved_manual).push(id);
     continue;
   }
@@ -205,7 +213,8 @@ if (wx24p2047Choice1) {
   };
 }
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
-console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
+writeFileSync(join(root, 'docs', '_partial_fresh.json'), JSON.stringify(partialFresh), 'utf-8');
+console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 効果単位採用 ${report.adopted_partial.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）
 {
   const lines: string[] = [];
@@ -217,6 +226,7 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
   };
   section('採用：新規パース可能カード', report.adopted_new);
   section('採用：純改善（無損失で情報増）', report.adopted_gain);
+  section('採用：効果単位の純改善（同カードの MANUAL/PARTIAL は不可侵のまま AUTO 効果だけ収穫）', report.adopted_partial);
   section('温存：手修正(MANUAL/PARTIAL)', report.preserved_manual);
   section('温存：要レビュー（再生成で損失/値変更/混在＝パーサー改善候補）', report.preserved_held);
   section('温存：パーサーが効果0（既存維持）', report.preserved_emptyFresh);
