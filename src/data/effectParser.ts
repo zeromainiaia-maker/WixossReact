@@ -7653,14 +7653,27 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (beatM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), excludeSelf: true };
         }
       }
-      // ON_ATTACK_SIGNI: 「あなたの他の…シグニ」が攻撃した場合は watcher 自身を除外する。
+      // ON_ATTACK_SIGNI: 主語「あなたの[他の][＜X＞の]シグニ[N体]がアタックしたとき」を any_ally＋triggerFilter へ。
       // 「他のシグニゾーン」等は「シグニがアタックしたとき」まで要求するため一致しない。
+      //
+      // ⚠2026-08-07 続き376b までは `if (attackM?.[1])` ＝**「他の」があるときだけ**抽出していた。
+      //   そのため「あなたの＜凶蟲＞のシグニ１体がアタックしたとき」（他の 無し）は scope が既定の
+      //   `self` に落ち、**watcher 自身がアタックしたときしか発火しない過小実行**になっていた
+      //   （原文は味方の該当シグニ全部が引き金）。実測16効果＝クラス有9／クラス無7。
+      //   engine 側（collectFieldTriggers の any_ally path）は triggerFilter/excludeSelf とも対応済みで、
+      //   **落ちていたのは parser のこの1行だけ**だった。
+      //
+      // ⚠**先頭限定（^）にしてある**＝「【ソウル】が付いているあなたのシグニ１体が」（WXDi-P04-016-E1）や
+      //   「レベルが奇数のあなたの＜トリック＞のシグニ１体が」（WXK10-084-E1/E2）のような**前置き修飾つき**の
+      //   主語を巻き込まないため。前置きを無視して any_ally にすると「その条件を満たすシグニだけ」が
+      //   「味方シグニ全部」へ広がる＝**過小実行を過剰発火に付け替えるだけ**になる。
+      //   この2系統（計3効果）は別途 triggerFilter の語彙化が要る（PLAN §5d-0 (i) に登録）。
       if (timing[0] === 'ON_ATTACK_SIGNI') {
-        const attackM = actionText.match(/あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき/);
-        if (attackM?.[1]) {
+        const attackM = actionText.match(/^あなたの(他の)?(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?がアタックしたとき/);
+        if (attackM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
-          tf.excludeSelf = true;
+          if (attackM[1]) tf.excludeSelf = true; // 「他の」＝自身を除く
           if (attackM[2]) tf.story = attackM[2];
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
         }
