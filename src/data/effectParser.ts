@@ -69,7 +69,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -1446,7 +1446,7 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
     if (col1) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', color: col1[1] } };
     const sm = desc.match(/^(?:レベル[０-９\d]+(?:以上|以下)?の)?(?:《ガードアイコン》を持つ)?(?:＜[^＞]+＞(?:か＜[^＞]+＞)?の)?シグニ$/);
     if (sm) {
-      const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(desc), ...parseStoryFilter(desc), ...parseGuardFilter(desc) };
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(desc), ...parseStoryFilter(desc), ...parseGuardFilter(desc), ...parseIconFilter(desc) };
       if (Object.keys(filter).length > 1) return { type: 'LAST_PROCESSED_MATCHES', filter };
     }
     return null;
@@ -1547,7 +1547,7 @@ function parseThisWayGenericCount(clause: string): Condition | null {
   const minCount = cm ? parseNum(cm[1]) : 1;
   const parityM = clause.match(/レベルが(偶数|奇数)/);
   const filter: TargetFilter = {
-    ...parseStoryFilter(clause), ...parseLevelFilter(clause), ...parseColorFilter(clause), ...parseGuardFilter(clause),
+    ...parseStoryFilter(clause), ...parseLevelFilter(clause), ...parseColorFilter(clause), ...parseGuardFilter(clause), ...parseIconFilter(clause),
     ...(parityM ? { levelParity: parityM[1] === '偶数' ? 'even' as const : 'odd' as const } : {}),
   };
   if (/スペル/.test(clause)) filter.cardType = 'スペル';
@@ -1571,7 +1571,7 @@ function parseAllMatchCondition(clause: string): Condition | null {
   if (/種類|共通する|異なる|合計|同じレベル|中に/.test(desc)) return null;
   if (parseNameFilter(desc).cardName || parseNameFilter(desc).cardNames) return null;
   const filter: TargetFilter = {
-    ...parseStoryFilter(desc), ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseGuardFilter(desc),
+    ...parseStoryFilter(desc), ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseGuardFilter(desc), ...parseIconFilter(desc),
   };
   // 末尾の「の」を区切りに消費するため desc は「黒」等の bare 色になりうる（parseColorFilter は「(色)の」要求）。
   if (!filter.color) { const bc = desc.match(/^(白|赤|青|緑|黒)$/); if (bc) filter.color = bc[1]; }
@@ -1620,7 +1620,7 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
   const lvExact = desc.match(/レベル([０-９\d]+)(?:の|$)/);
   if (lvAbove || lvBelow) filter.level = { ...(lvAbove ? { min: parseNum(lvAbove[1]) } : {}), ...(lvBelow ? { max: parseNum(lvBelow[1]) } : {}) };
   else if (lvExact) filter.level = parseNum(lvExact[1]);
-  Object.assign(filter, parseStoryFilter(desc), parseColorFilter(desc), parseGuardFilter(desc));
+  Object.assign(filter, parseStoryFilter(desc), parseColorFilter(desc), parseGuardFilter(desc), parseIconFilter(desc));
   if (/スペル/.test(desc)) filter.cardType = 'スペル';
   else if (/シグニ/.test(desc)) filter.cardType = 'シグニ';
   const hasDisc = filter.level !== undefined || filter.levelParity !== undefined || filter.story !== undefined || filter.color !== undefined ||
@@ -4792,7 +4792,7 @@ function applyLeadingTrashHandAnaphora(text: string, action: EffectAction): Effe
   const span = desigM[1];
   const filter: TargetFilter = {
     ...(span.includes('シグニ') ? { cardType: 'シグニ' as const } : {}),
-    ...parseStoryFilter(span), ...parseColorFilter(span), ...parseLevelFilter(span), ...parseGuardFilter(span),
+    ...parseStoryFilter(span), ...parseColorFilter(span), ...parseLevelFilter(span), ...parseGuardFilter(span), ...parseIconFilter(span),
   };
   const count = parseNum(desigM[2]);
   const upTo = !!desigM[3];

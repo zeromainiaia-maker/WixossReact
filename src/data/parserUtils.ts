@@ -200,6 +200,15 @@ export function parseGuardFilter(text: string): Partial<TargetFilter> {
  * ライズについては両者**同一式**（`EffectText.includes('【ライズ】')`）。綴りを増やさない。
  */
 export function parseIconFilter(span: string): Partial<TargetFilter> {
+  // ⚠**別ピックが2本ある span では付けない**（続き376d の ＜クラス＞ と同じ規律・A/B で実際に3件誤配線した）。
+  //   `WX16-026-BURST`「《ライズアイコン》を持つシグニ**と**《武勇》のシグニを**それぞれ**１枚まで」・
+  //   `WX16-031-BURST`「＜調理＞のシグニ**１枚と**《アクセアイコン》を持つシグニ１枚」・
+  //   `WXK02-002-E1`「《ライズアイコン》を持つシグニ**１枚と**＜アーム＞のシグニ１枚」は**2本の別ピック**で、
+  //   単一 filter に AND で載せると「調理**かつ**アクセ」のような**原文と逆の過小実行**になる。
+  //   ⚠一方 `WXK10-038-E1`「捨てたシグニと共通するクラスを持ち《ライズアイコン》を持つシグニ１枚」は
+  //     **本物の AND**（左側に枚数が無く「それぞれ」も無い）＝除外してはいけない。この2つを枚数で見分ける。
+  if (/それぞれ[０-９\d]+枚/.test(span) && span.includes('と')) return {};
+  if (/シグニ(?:を)?[０-９\d]+枚と/.test(span)) return {};
   if (/《ライズアイコン》を持たない/.test(span)) return { noRiseIcon: true };
   const m = span.match(/《(ライズ|クロス|アクセ)アイコン》を持つ/);
   return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};

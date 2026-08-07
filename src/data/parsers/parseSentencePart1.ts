@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter,
 } from '../parserUtils';
 
 /**
@@ -1893,7 +1893,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const extracted = extractNounPhraseFilter(spanTxt, { levelText: trashTargetPhrase });
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t), ...parseCostTotalFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt),
-      ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt),
+      ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt), ...parseIconFilter(spanTxt),
     };
     // 既存入口の挙動は保ったまま、今回追加した合成語彙だけを共通抽出器から配線する。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
@@ -1962,7 +1962,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   `noGuard × TRASH_CARD[filter]` miss 7／has 61＝**同じ入口で61件が配線済み**の明確な穴）。
       //   落ちると**ガードを持つシグニまでデッキへ戻せる**過剰効果になる（`WXDi-D05-015-E2` ほか）。
       //   ⚠デッキ圧縮系のカードでは「ガード持ちを残す」ことがデッキ構築上の意味なので、実害は小さくない。
-      ...parseGuardFilter(deckSpan),
+      ...parseGuardFilter(deckSpan), ...parseIconFilter(deckSpan),
       // 「《カード名》以外の〜をデッキに加えて」（§5d パターンA・続き371）＝`WX17-063-E1`／`WXK09-090-E1`／
       //   `WD23-041-EA-E1`。上のコメントどおり名前指定は色/story を汚さないので cleanSpan ではなく deckSpan から取る。
       ...parseExcludeCardNameFilter(deckSpan),
@@ -2935,7 +2935,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
       // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
       //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
-      ...parseGuardFilter(dbSpan) };
+      ...parseGuardFilter(dbSpan), ...parseIconFilter(dbSpan) };
     // 枚数は「N体」（場のシグニ）だけを見ていたため、**トラッシュから「N枚」**の形が全部 count:1 へ潰れ、
     //   「３枚まで」が1枚しか動かせない**過小実行**になっていた（続き377b・実測8効果＝`WDK09-013-E2`／
     //   `WX06-001-E2`／`WX06-001-E3`／`WX08-036-E1`／`WX25-CP1-047-E1`／`WXDi-P11-074-E2`／`WXK06-041-E2`／
