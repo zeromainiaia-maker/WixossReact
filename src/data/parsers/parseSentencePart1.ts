@@ -1376,7 +1376,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
+        // ⚠`parseStoryFilter` は続き376d 追加。`parseSigniTarget`（parserUtils）は元から合成しているのに、
+        //   この BOUNCE ビルダーだけ filter をインラインで組んでいて**＜クラス＞だけ落ちて**いた
+        //   ＝「あなたの＜遊具＞のシグニを２体まで対象とし、それらを手札に戻す」で**自分の全シグニ**が
+        //   候補になる過剰効果（`WDK05-T07-E1`／`WX24-P3-026-E1`／`WXDi-P02-047-E1`）。
+        //   `excludeSelf`（「他の」）は載っていたのにクラスだけ落ちる＝被覆マトリクスが指した典型例。
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...parseStoryFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
