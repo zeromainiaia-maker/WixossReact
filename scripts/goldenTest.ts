@@ -5869,6 +5869,39 @@ test('続き376d トリップワイヤ: 所有者指定の無い「シグニN体
     'WXK07-046-E1: 主語の無い対象は any のまま（コスト節の「あなたの」に引きずられない）');
 }));
 
+// ── 続き376d 第5バッチ: 《ディソナアイコン》を `keyword` で表していた（＝印字ベース判定なので両方向に外れる）。
+//    `matchesFilter` の keyword は「EffectText に【X】/《X》という**文字列**があるか」の近似で、
+//    ディソナは CSV の `Story==='Dissona'` 属性。実測＝ディソナ98枚のうち EffectText に
+//    《ディソナアイコン》を書いているのは60枚だけ＝**38枚を取りこぼし／非ディソナ17枚を誤ヒット**。
+test('続き376d: ディソナ判定は isDisona（keyword 文字列で表さない）', () => withSavedCursor(() => {
+  // コスト側＝「手札から《ディソナアイコン》のカードをN枚捨てる」「エナゾーンから〜N枚をトラッシュに置く」
+  for (const [card, effId] of [
+    ['WXDi-P12-053', 'WXDi-P12-053-E2'], ['WXDi-P12-065', 'WXDi-P12-065-E1'],
+    ['WXDi-P12-083', 'WXDi-P12-083-E1'], ['WXDi-P13-007', 'WXDi-P13-007-E2'],
+    ['WXDi-P13-081', 'WXDi-P13-081-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.cost ?? {}).includes('"isDisona":true'), true, `${effId}: コストの filter が isDisona`);
+  }
+  // 対象側＝「あなたの《ディソナアイコン》のシグニN体を対象とし」（「他の」が無い形。旧: 丸ごと脱落）
+  for (const [card, effId] of [
+    ['WXDi-P13-077', 'WXDi-P13-077-E1'], ['WXDi-P12-044', 'WXDi-P12-044-E2'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes('"isDisona":true'), true, `${effId}: 対象 filter が isDisona`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**live JSON 全体に `keyword:"ディソナアイコン"` が1つも無いこと**。
+//   新しい規則で再び keyword 側へ流し込むと、印字ベース近似のせいで静かに両方向へ外れる。
+test('続き376d トリップワイヤ: keyword:"ディソナアイコン" は live JSON に存在しない', () => withSavedCursor(() => {
+  const hits: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) if (JSON.stringify(e).includes('"keyword":"ディソナアイコン"')) hits.push(e.effectId);
+  }
+  eq(hits.join(','), '', 'ディソナは isDisona で表す（keyword 文字列は印字ベースで外れる）');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
