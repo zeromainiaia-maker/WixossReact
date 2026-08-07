@@ -5776,6 +5776,37 @@ test('続き376b: any_ally＋story は同クラスの味方アタックで発火
     '＜凶蟲＞でないシグニのアタックでは発火しない（triggerFilter.story が効いている）');
 }));
 
+// ── 続き376d: BOUNCE{SIGNI} の対象フィルタに ＜クラス＞ が載っていなかった（被覆マトリクス
+//    `cardClass × SIGNI[filter]` から）。`parseSigniTarget`（parserUtils）は元から `parseStoryFilter` を
+//    合成しているのに、この BOUNCE ビルダーだけ filter をインラインで組んでいて**クラスだけ落ちて**いた。
+test('続き376d: 「あなたの＜X＞のシグニN体を対象とし手札に戻す」に story が載る', () => withSavedCursor(() => {
+  for (const [card, effId, story] of [
+    ['WDK05-T07', 'WDK05-T07-E1', '遊具'], ['WX24-P3-026', 'WX24-P3-026-E1', '美巧'],
+    ['WXDi-P02-047', 'WXDi-P02-047-E1', '天使'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const first = e?.action.type === 'SEQUENCE' ? e.action.steps[0] : e?.action;
+    const f = (first as { target?: { filter?: { story?: unknown } } } | undefined)?.target?.filter;
+    eq(f?.story, story, `${effId}: BOUNCE 対象に story=${story}（旧: 自分の全シグニが候補の過剰効果）`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**＜クラス＞は対象名詞句に隣接しているときだけ拾う**。
+//   素の `parseStoryFilter(文全体)` に戻すと、下の4件が**誤配線**になる（続き376d の A/B で実測）＝
+//   `WX14-016-E1` はアンコールコスト側／`WX22-011-E1` は条件節／`WXEX2-55-E1` は個数参照／
+//   `WXEX2-57-E1` は別の対象、のクラスを**相手シグニの対象フィルタ**に付けてしまい、
+//   「相手の＜X＞しか戻せない」**過小実行**になる。続き372 の「部分filter禁止ガードが全文を見ていた」と同型。
+test('続き376d トリップワイヤ: 対象名詞句に隣接しないクラスは対象フィルタに載せない', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['WX14-016', 'WX14-016-E1'], ['WX22-011', 'WX22-011-E1'],
+    ['WXEX2-55', 'WXEX2-55-E1'], ['WXEX2-57', 'WXEX2-57-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(/"story"/.test(JSON.stringify(e?.action ?? {})), false,
+      `${effId}: 別の節のクラスを対象フィルタに引き込まない`);
+  }
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)

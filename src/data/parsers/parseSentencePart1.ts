@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter,
 } from '../parserUtils';
 
 /**
@@ -1381,7 +1381,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         //   ＝「あなたの＜遊具＞のシグニを２体まで対象とし、それらを手札に戻す」で**自分の全シグニ**が
         //   候補になる過剰効果（`WDK05-T07-E1`／`WX24-P3-026-E1`／`WXDi-P02-047-E1`）。
         //   `excludeSelf`（「他の」）は載っていたのにクラスだけ落ちる＝被覆マトリクスが指した典型例。
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...parseStoryFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
