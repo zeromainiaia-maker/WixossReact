@@ -2298,6 +2298,28 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- 効果耐性付与（「対戦相手の〜の効果を受けない/受けず」）----
   if (t.match(/効果を受けない|効果を受けず/)) {
+    // ⚠🔴**「〔X〕以外の効果を受けない」は意味が逆**（続き377j）。素の `t.includes('アーツ')` 判定は
+    //   「対戦相手の、**アーツ以外の**効果を受けない」を `from:['アーツ']`＝「アーツの効果だけ受けない」
+    //   と読み、**保護される範囲が原文とちょうど反対**になっていた（実測2効果＝`WX12-018-E1`／`WX09-017-E2`。
+    //   前者は live が既に正しい形を持っており、parser だけが退化していた＝`_partial_fresh` 行列に居た）。
+    //   正しい表現は既存の `fromAll` ＋ `exceptSource`（上の「ルリグ以外からの効果を受けない」と同型）。
+    //   ⚠**種別語に限る**＝「**自身**以外の効果を受けない」（`WX17-001-E1`）は sourceType の語彙が無いので触らない。
+    const exceptM = t.match(/(アーツ|スペル|シグニ|ルリグ)以外(?:から)?の効果を受けない/);
+    if (exceptM) {
+      const exSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parsePowerFilter(t) };
+      const exHasFilter = exSigniFilter.story || exSigniFilter.powerRange;
+      const exCount: number | 'ALL' = /この(?:シグニ|カード)は/.test(t) ? 1 : 'ALL';
+      return {
+        type: 'GRANT_PROTECTION',
+        target: (exHasFilter
+          ? { type: 'SIGNI', owner: 'self', count: exCount, filter: exSigniFilter }
+          : { type: 'SIGNI', owner: 'self', count: exCount }) as EffectTarget,
+        fromAll: true,
+        exceptSource: { sourceType: exceptM[1], sourceOwner: 'opponent' as Owner },
+        sourceOwner: 'opponent',
+        duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
     const from: string[] = [];
     if (t.includes('ルリグ')) from.push('ルリグ');
     if (t.match(/シグニの効果|シグニとシグニ|シグニ以外/)) from.push('シグニ');
