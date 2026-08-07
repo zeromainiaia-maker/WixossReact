@@ -227,7 +227,8 @@ function main(): void {
       if (onlyKey && v.key !== onlyKey) continue;
       if (!v.re.test(text)) continue;
       // jsonKeys のどれか1つでも載っていれば「配線済み」（＜クラス＞の story/cardClass のような別名対応）
-      const hasKey = (v.jsonKeys ?? [v.key]).some(k => new RegExp(`"${k}"\\s*:`).test(rec.json));
+      const hasKey = v.jsonRe ? v.jsonRe.test(rec.json)
+        : (v.jsonKeys ?? [v.key]).some(k => new RegExp(`"${k}"\\s*:`).test(rec.json));
       const tot = keyTotal.get(v.key) ?? { has: 0, miss: 0 };
       if (hasKey) tot.has++; else tot.miss++;
       keyTotal.set(v.key, tot);

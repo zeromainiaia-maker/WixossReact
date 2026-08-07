@@ -39,7 +39,7 @@ import type {
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
-  parseCardTypeFilter,
+  parseCardTypeFilter, parseGuardFilter,
 } from '../parserUtils';
 
 export function parseSentencePart2(t: string): EffectAction | null {
@@ -224,6 +224,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
       const owner: Owner = t.includes('対戦相手のトラッシュ') ? 'opponent' : 'self';
       const filter: TargetFilter = {
         ...parseCardTypeFilter(desc), ...parseLevelFilter(desc), ...parseColorFilter(desc), ...parseStoryFilter(desc),
+        // 「《ガードアイコン》を持たない〜をデッキの一番上に置く」（続き377b）＝落ちるとガード持ちも積める過剰効果
+        //   （`WXDi-P01-063-E1`）。デッキに加えてシャッフルする側（part1）と同じ穴。
+        ...parseGuardFilter(desc),
       };
       const upTo = !!trashToDeckTopM[3];
       return {
