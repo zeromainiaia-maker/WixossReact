@@ -1852,6 +1852,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 「《カード名》以外の〜」（§5d パターンA・続き371）。旧実装は ＜龍獣＞1枚のためだけの narrow regex で、
     // 同型の10効果（`WX16-025-E3`／`WX18-081-E2`／`WXK07-081-E2` 等）が**自分自身も回収できる過剰効果**だった。
     Object.assign(filter, parseExcludeCardNameFilter(trashTargetPhrase));
+    // 「そのシグニと同じレベルの」＝**トリガー元シグニ基準**の動的等値（§5d パターンA・続き373）。
+    // `levelEqTrigger` は型にも engine（`resolveDynamicFilter` の triggeringCardNum 経路／
+    // `resolveLeaveFieldDynamicFilters`）にも実装済みで、トラッシュ→**場** の入口では既に配線されていたのに
+    // トラッシュ→**手札** では呼ばれておらず、**どのレベルのシグニでも回収できる過剰効果**だった
+    // （`WXEX2-06-E2`／`WXEX2-78-E1`）。⚠`parseTriggerComparison` は先頭で「その後」を見て
+    //   lastProcessed 文脈（別機構＝`WX22-024-BURST`）を自分で外すので、そちらを横取りしない。
+    Object.assign(filter, parseTriggerComparison(trashTargetPhrase, { allowLevelEq: true }));
     if (useBatch2FilterComposition) {
       if (Array.isArray(extracted.color) || extracted.color === '無') filter.color = extracted.color;
       if (extracted.cardName) filter.cardName = extracted.cardName;
