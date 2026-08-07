@@ -8269,6 +8269,50 @@ test('§5d(A) nonColorless: SEARCH／トラッシュ→手札 の9効果に載�
   ok(matchesFilter(cardMap.get(colored), { cardType: 'シグニ', nonColorless: true }), '有色シグニは一致する');
   ok(!matchesFilter(cardMap.get(colorless), { cardType: 'シグニ', nonColorless: true }), '無色シグニは一致しない');
 });
+// §5d パターンA 第4バッチ＝`nonColorless` の**残りビルダー**（第2バッチは SEARCH と トラッシュ→手札 だけ配線していた）。
+// 併せて①ガードのスコープ是正（全文→対象名詞句）②「〈色〉ではないシグニがある場合」の条件節
+// ③effectEngine 版 matchesFilter の **execUtils とのパリティ欠落**（colorExclude/excludeResona/noAbilities）。
+test('§5d(A) nonColorless: トラッシュ→デッキ／エナ／相手手札／per-trash-count の各ビルダーにも載る', () => {
+  const effOf = (num: string, id: string) => JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === id) ?? {});
+  for (const [num, id] of [
+    ['WX07-015', 'WX07-015-E1'],       // 相手手札を見て選び捨てさせる（選べる範囲）
+    ['WXK10-026', 'WXK10-026-BURST'],  // 同上（BURST）
+    ['WX11-018', 'WX11-018-E1'],       // CHOOSE 選択肢②のトラッシュ→手札
+    ['WX13-065', 'WX13-065-E1'],       // トラッシュ→デッキ
+    ['WX14-030', 'WX14-030-E1'],
+    ['WX15-Re15', 'WX15-Re15-E1'],     // トラッシュ→デッキの一番下（distinct の source 付け替え後も filter が残る）
+    ['WX21-026', 'WX21-026-E3'],
+    ['WXDi-P10-070', 'WXDi-P10-070-E1'], // トラッシュ→エナ
+    ['WXK09-033', 'WXK09-033-E2'],
+    ['WXK07-029', 'WXK07-029-E2'],     // エナ→手札（E1 が MANUAL＝カード単位 PRESERVE のため外科パッチ）
+    ['WXK09-036', 'WXK09-036-E2'],     // 数える母集団（countFilter）
+  ] as [string, string][]) {
+    ok(effOf(num, id).includes('"nonColorless":true'), `${id}: 「無色ではない」が載る（無色まで拾う過剰に戻っていない）`);
+  }
+  // ⚠ガードは**対象名詞句だけ**を見る。全文を見ていた旧実装は後続文の語で前文の filter を巻き添えにしていた。
+  //   `WXEX2-06-E2` は同じ名詞句内に動的等値があるので従来どおり据置（部分filter不採用）。
+  ok(!effOf('WXEX2-06', 'WXEX2-06-E2').includes('nonColorless'),
+    'WXEX2-06「そのシグニと同じレベルの無色ではないシグニ」は据置');
+  // 「あなたの場に白ではないシグニがある場合」＝条件節が丸ごと落ちて無条件で基本パワー5000だった
+  ok(effOf('WX16-Re06', 'WX16-Re06-E1').includes('"colorExclude":"白"'),
+    'WX16-Re06: 色除外の存在条件が activeCondition に載る（無条件発動に戻っていない）');
+});
+// effectEngine 版 matchesFilter は execUtils 版と挙動を揃える約束なのに colorExclude/excludeResona/noAbilities が
+// 欠けており、CONTINUOUS パワー計算・activeCondition・HAS_CARD_IN_FIELD では**黙って無視**されていた。
+// 実経路（checkActiveCondition の HAS_CARD_IN_FIELD）で確認する。
+test('§5d(A) engine パリティ: HAS_CARD_IN_FIELD が colorExclude/excludeResona を見る', () => {
+  const white = findCard(c => isSigni(c) && c.Color === '白' && !c.Type?.includes('レゾナ'));
+  const black = findCard(c => isSigni(c) && c.Color === '黒' && !c.Type?.includes('レゾナ'));
+  const resona = findCard(c => c.Type?.includes('レゾナ') === true);
+  const empty = mkState({ signi: [null, null, null] });
+  const has = (num: string, filter: Record<string, unknown>) => checkActiveCondition(
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter } as unknown as Parameters<typeof checkActiveCondition>[0],
+    mkState({ signi: [num, null, null] }), empty, true, cm);
+  ok(!has(white, { cardType: 'シグニ', colorExclude: '白' }), '白シグニだけの場では colorExclude:白 が不成立');
+  ok(has(black, { cardType: 'シグニ', colorExclude: '白' }), '黒シグニなら成立');
+  ok(!has(resona, { cardType: 'シグニ', excludeResona: true }), 'レゾナだけの場では excludeResona が不成立');
+  ok(has(black, { cardType: 'シグニ', excludeResona: true }), '非レゾナなら成立');
+});
 // §5d パターンA 第3バッチ「《カード名》以外の〜」＝`excludeCardName`（型・matchesFilter・decompiler は実装済み）。
 // 各ビルダーのフィルタ合成から漏れており、実害が**2種**あった：
 //   ①**反転**＝除外名が `cardName`（部分一致）に入り「そのカードしか選べない」原文と真逆の効果（SEARCH 系13効果）。
