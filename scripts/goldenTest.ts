@@ -6076,6 +6076,68 @@ test('続き377b engine: トラッシュ→デッキの upToCount は上限（�
   eq(r2.ownerState.trash.length, 0, '3枚ともデッキへ');
 }));
 
+// ── 続き377c 第8バッチ: 《ライズ／クロス／アクセアイコン》を持つ の対象・source フィルタが各入口で落ちていた。
+//    ⚠**キー綴りは `hasIcon` に寄せる**（専用キー `hasRiseIcon`/`hasCrossIcon` も型と matchesFilter にあるが、
+//      parser 出力の多数派は `hasIcon` で、ライズは engine の判定式まで同一）。
+test('続き377c: 《Xアイコン》を持つ の限定が各入口の filter に載る', () => withSavedCursor(() => {
+  const cases: [string, string, string][] = [
+    // トラッシュ→手札／デッキ
+    ['WX13-031', 'WX13-031-BURST', '"hasIcon":"クロス"'],
+    ['WX18-030', 'WX18-030-BURST', '"hasIcon":"ライズ"'],
+    ['WXEX1-61', 'WXEX1-61-E1', '"hasIcon":"ライズ"'],
+    ['WX17-037', 'WX17-037-E2', '"hasIcon":"ライズ"'],
+    ['WXK10-038', 'WXK10-038-E1', '"hasIcon":"ライズ"'],
+    // トラッシュ／手札 → 場
+    ['WXDi-P09-039', 'WXDi-P09-039-E2', '"hasIcon":"ライズ"'],
+    ['WXDi-P15-006', 'WXDi-P15-006-E2', '"hasIcon":"ライズ"'],
+    ['WXEX2-09', 'WXEX2-09-E2', '"hasIcon":"ライズ"'],
+    ['WX16-026', 'WX16-026-E2', '"hasIcon":"ライズ"'],
+    ['WX18-030', 'WX18-030-E2', '"hasIcon":"ライズ"'],
+    // キーワード付与の対象／バニッシュ対象
+    ['WX15-070', 'WX15-070-E1', '"hasIcon":"ライズ"'],
+    ['WXEX2-61', 'WXEX2-61-E2', '"hasIcon":"ライズ"'],
+    ['WXK02-002', 'WXK02-002-E2', '"hasIcon":"ライズ"'],
+    ['WXK10-038', 'WXK10-038-E2', '"hasIcon":"ライズ"'],
+    ['WX13-047', 'WX13-047-E1', '"hasIcon":"クロス"'],
+    // デッキ検索＝旧 live は `cardName:"ライズアイコン"` という**どのカード名にも当たらない**キーだった
+    ['WD17-011', 'WD17-011-E2', '"hasIcon":"ライズ"'],
+  ];
+  for (const [card, effId, needle] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes(needle), true, `${effId}: filter に ${needle}`);
+  }
+  eq(JSON.stringify([...effectsMap.values()].flat()).includes('"cardName":"ライズアイコン"'), false,
+    'アイコンは cardName で表さない（どのカード名にも当たらず無言 no-match になる）');
+}));
+
+// ⚠トリップワイヤ①＝**別ピックが2本ある span には付けない**（続き376d の ＜クラス＞ と同じ規律）。
+//   `WX16-026-BURST`「《ライズアイコン》を持つシグニ**と**《武勇》のシグニを**それぞれ**１枚まで」・
+//   `WX16-031-BURST`「＜調理＞のシグニ**１枚と**《アクセアイコン》を持つシグニ１枚」・
+//   `WXK02-002-E1`「《ライズアイコン》を持つシグニ**１枚と**＜アーム＞のシグニ１枚」は
+//   単一 filter に AND で載せると「調理**かつ**アクセ」のような**原文と逆の過小実行**になる。A/B で実際に3件誤配線した。
+test('続き377c トリップワイヤ: 別ピック2本の span にアイコンを AND しない', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['WX16-026', 'WX16-026-BURST'], ['WX16-031', 'WX16-031-BURST'], ['WXK02-002', 'WXK02-002-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(/"hasIcon"/.test(JSON.stringify(e?.action ?? {})), false,
+      `${effId}: 2本の別ピックを1つの filter に AND しない（過小実行を作らない）`);
+  }
+}));
+
+// ⚠トリップワイヤ②＝**条件節のアイコン／レベルを対象へ引き込まない**。
+//   `WX18-030-E1`「あなたの場に《ライズアイコン》を持つシグニが**２体あるかぎり**、このシグニは【アサシン】を得る」＝
+//   付与先は**このシグニ**（thisCardOnly）であってライズ持ちではない。
+//   `WD21-001-E1`「あなたのシグニ１体を対象とし、…公開したカードが**レベル１のシグニの場合**、【ダブルクラッシュ】を得る」＝
+//   レベルは**公開カードの条件**。A/B で実際に引き込んで差し戻した（`kwSigniFilter` は全文から取るので使えない）。
+test('続き377c トリップワイヤ: 条件節の修飾を付与対象へ引き込まない', () => withSavedCursor(() => {
+  const a = (effectsMap.get('WX18-030') ?? []).find(x => x.effectId === 'WX18-030-E1');
+  eq(/"hasIcon"/.test(JSON.stringify(a?.action ?? {})), false, 'WX18-030-E1: 条件節のライズを付与対象に載せない');
+  const b = (effectsMap.get('WD21-001') ?? []).find(x => x.effectId === 'WD21-001-E1');
+  const first = b?.action.type === 'SEQUENCE' ? b.action.steps.find(s => s.type === 'GRANT_KEYWORD') : undefined;
+  eq(/"level"/.test(JSON.stringify(first ?? {})), false, 'WD21-001-E1: 公開カードのレベル条件を付与対象に載せない');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)

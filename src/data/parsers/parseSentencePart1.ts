@@ -2193,6 +2193,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   （`SP27-003-E1`／`WDK14-012-E1`／`WX20-048-E1`／`WXEX2-80-E1`）。この分岐は「トラッシュから…場に出す」
       //   の実行文だけを受けるので、条件節用法（PR-204/PR-238「以外のアーツを使用していない場合」）は入らない。
       ...parseExcludeCardNameFilter(t),
+      // 《ライズ／クロス／アクセアイコン》を持つ（続き377c）＝落ちると**トラッシュのどのシグニでも出せる**過剰効果
+      //   （`WXDi-P09-039-E2`／`WXDi-P15-006-E2`／`WXEX2-09-E2`）。この分岐は「トラッシュから…場に出す」の
+      //   実行文だけを受けるので条件節用法は入らない（`parseExcludeCardNameFilter` と同じ理由）。
+      ...parseIconFilter(t),
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
@@ -2226,6 +2230,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 効果になっていた（§5d パターンA・続き371 の「反転」型）。除外が取れたら name 側は捨てる。
     const excludeNameFilter = parseExcludeCardNameFilter(t);
     const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStoryFilter(t),
+      // 《ライズ／クロス／アクセアイコン》を持つ（続き377c）＝落ちると**手札のどのシグニでも出せる**過剰効果
+      //   （`WX16-026-E2`／`WX18-030-E2`）。この分岐は「手札から…場に出す」の実行文だけを受ける。
+      ...parseIconFilter(t),
       ...(excludeNameFilter.excludeCardName ? excludeNameFilter : parseNameFilter(t)) };
     const exclM = t.match(/([白青赤緑黒])ではない/);
     if (exclM) filter.colorExclude = exclM[1];
@@ -2449,6 +2456,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   **条件節**を対象へ引き込むので、隣接判定は外せない。
       const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
+      // ⚠「あなたのシグニ**N体**」枝は **`kwSigniFilter` を使ってはいけない**（続き377c で A/B により判明）＝
+      //   `kwSigniFilter` は `parseLevelFilter(t)` 等を**全文**から取るので、`WD21-001-E1`
+      //   「あなたのシグニ１体を対象とし、…この方法で公開したカードが**レベル１のシグニの場合**、【ダブルクラッシュ】を得る」の
+      //   **条件節のレベル**を対象へ載せてしまい、原文と逆の過小実行になる。**対象名詞句に隣接する語彙だけ**を合成する。
+      const kwCountSelfFilter: TargetFilter = { cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t) };
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
         // 「このシグニは【X】を得る」＝**効果元自身**。thisCardOnly を落とすと engine は「自分のシグニ1体」の
