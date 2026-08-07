@@ -424,6 +424,16 @@ function parseCost(costStr: string): EffectCost | undefined {
   // 場のチャームN枚をトラッシュ → charmTrash
   const ctM = costStr.match(/(?:あなたの)?(?:場にある)?【チャーム】([０-９\d]+)枚をトラッシュに置く/);
   if (ctM) cost.charmTrash = parseNum(ctM[1]);
+  // 《アイコン》名 → TargetFilter（続き376d）。
+  // ⚠**《ディソナアイコン》を `keyword` にしてはいけない。** `matchesFilter` の `keyword` 判定は
+  //   **EffectText に「【X】/《X》」という文字列があるか**の印字ベース近似で、ディソナは
+  //   CSV の `Story==='Dissona'` 属性なので**両方向に外れる**（実測＝ディソナ98枚のうち EffectText に
+  //   《ディソナアイコン》を書いているのは60枚だけ＝**38枚を取りこぼし**、逆に非ディソナ17枚を**誤ってヒット**）。
+  //   `TargetFilter.isDisona` が正しい判定キー（型のコメントにも「ディソナ判定は isDisona を使う」と明記）。
+  //   他のアイコン（【ライフバースト】等）は印字ベースで正しいので従来どおり keyword に載せる。
+  const iconFilter = (icon: string): TargetFilter =>
+    (icon === 'ディソナアイコン' ? { isDisona: true } : { keyword: icon });
+
   // エナゾーンのカードをすべてトラッシュ → energyTrashAll
   if (/エナゾーンから(?:すべての)?カードをすべてトラッシュに置く|エナゾーンからすべてのカードをトラッシュに置く/.test(costStr)) {
     cost.energyTrashAll = true;
