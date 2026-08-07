@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き377d・Opus 5〔**(i)配線ギャップ 第9バッチ＝シグニ→デッキ上/下 のレベル範囲**〕）＝ユーザー指示「続ける」。**触った層＝`src/data/parserUtils.ts`（`signiClauseLevelFilter` 新設）／`parseSentencePart1.ts`（デッキ一番上／一番下の2ビルダー）／`scripts/censusWiring.ts`（`levelRange` 較正）／`scripts/goldenTest.ts`／live JSON（自動7＋外科パッチ1）。**
+  - **✅① 本物のギャップ 8効果**＝「対戦相手の**レベルN以下の**シグニ１体を対象とし、それをデッキの一番上／一番下に置く」で**レベル限定が丸ごと落ちて**いた＝**どのレベルのシグニでもデッキへ送れる**過剰効果（重い除去なので実害大）。原因は入口ごとに別＝**一番上**は `filter:{cardType:'シグニ'}` 固定でレベルを一切見ない／**一番下**は `lvM` が「レベル**N の**」＝**丁度**しか見ておらず「以上／以下」を取りこぼしていた。
+  - **⚠② miss 22 のうち本物は8件だけ**＝残り14件はクロス計上。**レベル語は TargetFilter 以外にも同じ表記で現れる**（ルリグのレベル条件／条件節／自身のレベル条件／【ビート】コスト）。素の `parseLevelFilter(文全体)` を使うと**原文と逆の過小実行**になるので、`signiClauseLevelFilter`（**対象名詞句に隣接するレベルだけ**）を新設。これで `signiClauseStoryFilter`（続き376d）・`signiClauseIconFilter`（続き377c）と合わせ **クラス・アイコン・レベルの3つが揃った**。
+  - **✅③ 計器較正（実装ゼロ・miss −38）**＝`censusWiring.ts` の `levelRange` 原文正規表現が名詞に係らない形まで拾っていた。**`levelRange × GRANT_KEYWORD{SIGNI}` の miss 9 は 9件すべてがこれ**（ルリグレベル条件・使用条件・【チーム】全員レベルN以上）。名詞に係る形へ限定して **79→41**。⚠**ルリグ／レゾナも noun に含める**（`PR-465-E2`「レベル４以下の**ルリグ**１枚」・`WD12-007-E1`「レベル３以下の＜遊具＞の**レゾナ**」を落とさないため）。
+  - **🔎3バッチ連続で確認できたこと**＝**★★セルの miss 数は見込み件数ではない**（第8バッチ `levelRange × BANISH{SIGNI}` は 6件中5件が偽陽性、今回は 22件中14件）。**セルを取ったらまず全数分類し、偽陽性の型が分かったら計器側を較正する**のが最短（較正は実装ゼロで miss が減り、以後のセル選定精度も上がる）。
+  - **ゲート**＝全緑。**golden 1443→1445**（+2）、**census 1048→1041**（−7・`BASELINE_HIGH` 更新）、**被覆マトリクス miss 422→376**（較正 −38／機能是正 −8）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors/248 warnings（追加0）、manual field loss 0、held **211 据置／104群**。
+
 - **セッション（2026-08-07・続き377c・Opus 5〔**(i)配線ギャップ 第8バッチ＝《ライズ／クロス／アクセアイコン》の対象フィルタ**〕）＝ユーザー指示「続ける」。**触った層＝`src/data/parserUtils.ts`（`parseIconFilter`／`signiClauseIconFilter` 新設）／`parseSentencePart1.ts`（trash→field・hand→field・GRANT_KEYWORD の枝）／`parseSentencePart2.ts`／`effectParser.ts`（span 5箇所）／`scripts/censusWiring.ts`（較正）／`scripts/goldenTest.ts`／live JSON（自動12＋外科パッチ5）。**
   - **ⓠまず ★★セル `levelRange × BANISH{SIGNI}` を取ったが miss 6 のうち5件が偽陽性**（クロス計上＝レベル語は条件節・ルリグレベル・ビートコストに掛かる）。真の脱落は `WXK05-043-E1` 1件だけ（owner 取り違え＋level 脱落＋条件節脱落の3重＝(iii) へ送り）。**収穫が薄いのでセルを乗り換えた**＝★★でも中身を読むまでは分からない。
   - **✅① 較正（実装ゼロ・miss −28）＝アイコンにはキー綴りが2つ併存していた。** 専用キー `hasCrossIcon`/`hasRiseIcon`（`REVEAL_PICK_DESC_RULES` が使う）と汎用キー `hasIcon:'クロス'|'ライズ'`（parser 出力の多数派）。`matchesFilter` は**両方**を見ており**ライズは判定式まで同一**。計器がキー名照合だけしていたので `hasIcon` 側を全部 miss と誤検出＝`hasCrossIcon` **22→3**／`hasRiseIcon` **31→22**。
