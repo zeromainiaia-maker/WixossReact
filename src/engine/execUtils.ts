@@ -666,6 +666,14 @@ export function matchesFilter(
     if (filter.hasGuard !== hasGuard) return false;
   }
   if (filter.noGuard && card.Guard === '1') return false;
+  // 「能力を持たないシグニ」（§5d パターンA・14効果）。判定は hasNoAbility と同基準＝
+  //   ①解析済み効果が1件でもあれば能力あり ②0件は根拠にならないので原文で判定（CSV は素のシグニを `-` で持つ）。
+  // ⚠場のシグニの `abilities_removed`（効果で能力を失った）は state が要るので fieldCandidates 側で加算する。
+  if (filter.noAbilities !== undefined) {
+    const blankTxt = (s?: string) => { const t = (s ?? '').trim(); return t === '' || t === '-'; };
+    const noAb = (card.effects?.length ?? 0) === 0 && blankTxt(card.EffectText) && blankTxt(card.BurstText);
+    if (filter.noAbilities !== noAb) return false;
+  }
   if (filter.nonColorless) {
     const col = card.Color ?? '';
     // 無色のColorはデータ上「無」（36枚）。空/「無色」表記も保険で除外する。
