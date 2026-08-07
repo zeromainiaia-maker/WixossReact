@@ -252,9 +252,8 @@ function main(): void {
     for (const [lb, c] of byLabel) if (c.miss.length) allCells.push({ key: k, label: lb, c });
   }
   allCells.sort((a, b) => b.c.miss.length - a.c.miss.length);
-  allCells.slice(0, 25).forEach(({ key, label, c }) => {
-    const flag = c.has.length > 0 ? '★同じ入口に配線済みあり＝明確な穴' : '';
-    emit(`  miss=${String(c.miss.length).padStart(3)} has=${String(c.has.length).padStart(3)}  ${key} × ${label}  ${flag}`);
+  allCells.slice(0, 30).forEach(({ key, label, c }) => {
+    emit(`  miss=${String(c.miss.length).padStart(3)} has=${String(c.has.length).padStart(4)}  ${key} × ${label}  ${starOf(c)}`);
   });
 
   // 明細ファイル（全量）
