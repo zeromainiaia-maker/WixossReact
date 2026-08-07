@@ -84,13 +84,16 @@ function loadSrcText(): Record<string, string> {
   return JSON.parse(fs.readFileSync(SRCTEXT, 'utf8'));
 }
 
-interface EffectRec { effectId: string; cardNum: string; json: string; obj: any; }
+// live JSON はこの計器にとって「木を歩いて type/target を拾うだけ」の相手なので、
+// src/types/effects.ts の厳密な型は引かずに最小の構造だけ宣言する（計器を型変更に巻き込まない）。
+interface EffectObj { effectId?: string; parseStatus?: string; action?: unknown; condition?: unknown; cost?: unknown; }
+interface EffectRec { effectId: string; cardNum: string; json: string; obj: EffectObj; }
 function loadEffects(): Map<string, EffectRec> {
   const out = new Map<string, EffectRec>();
   for (const f of fs.readdirSync(EFFECTS_DIR)) {
     if (!/^effects_.*\.json$/.test(f)) continue;
-    const j = JSON.parse(fs.readFileSync(path.join(EFFECTS_DIR, f), 'utf8'));
-    for (const [cardNum, effs] of Object.entries(j as Record<string, any[]>)) {
+    const j: unknown = JSON.parse(fs.readFileSync(path.join(EFFECTS_DIR, f), 'utf8'));
+    for (const [cardNum, effs] of Object.entries(j as Record<string, EffectObj[]>)) {
       if (!Array.isArray(effs)) continue;
       for (const e of effs) {
         if (!e?.effectId) continue;
