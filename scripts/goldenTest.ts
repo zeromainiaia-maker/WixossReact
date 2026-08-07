@@ -5766,6 +5766,47 @@ test('続き376b トリップワイヤ: 語彙の無い修飾つきのアタッ�
 //    修飾が2つ以上（パワー＋クラス等）だと**どちらにも当たらず既定 self へ潰れて**いた＝
 //    ①watcher 自身のアタックでしか発火しない過小実行 かつ ②その自身に対して主語の限定（パワー等）が
 //    一切効かない、という二重のズレ。`parseAllyAttackSubject` へ統合し修飾を順不同で取る。
+// ── 続き377j: `docs/_partial_fresh.json`（混在カードのレビュー行列）から見つけた parser 側の2系統。
+//    どちらも **live には正しい形があるのに parser だけが退化**していた＝行列に居続ける原因。
+//    parser を直すと live と一致して行列から落ち、以後の改善も自動で届く（効果単位マージ）。
+test('続き377j: 「(あなた|対戦相手)のエナゾーンにあるカードがN枚以上/以下であるかぎり」を activeCondition へ', () => withSavedCursor(() => {
+  // ⚠旧規則は **「あなたの」「N枚以上」「あるかぎり」** の1形だけを見ており、所有者・不等号・語尾の
+  //   変種が丸ごと素通り＝条件が無言で落ちて**無条件発火**していた（「相手のエナが少ないときだけ
+  //   強くなる」札が常時強い）。
+  const cases: [string, string, 'self' | 'opponent', 'gte' | 'lte', number][] = [
+    ['WX04-002', 'WX04-002-E1', 'opponent', 'lte', 4],
+    ['WX10-042', 'WX10-042-E1', 'opponent', 'lte', 3],
+    ['WX10-064', 'WX10-064-E1', 'opponent', 'lte', 2],
+    ['WX24-P2-067', 'WX24-P2-067-E1', 'opponent', 'lte', 3],
+  ];
+  for (const [card, effId, owner, op, val] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const ac = e?.activeCondition as { type?: string; location?: string; owner?: string; operator?: string; value?: number } | undefined;
+    eq(ac?.type, 'COUNT_THRESHOLD', `${effId}: activeCondition が付く（旧: 条件が落ちて無条件発火）`);
+    eq(ac?.location, 'energy', `${effId}: location=energy`);
+    eq(ac?.owner, owner, `${effId}: owner=${owner}`);
+    eq(ac?.operator, op, `${effId}: operator=${op}`);
+    eq(ac?.value, val, `${effId}: value=${val}`);
+  }
+}));
+
+test('続き377j: 「〔X〕以外の効果を受けない」は fromAll＋exceptSource（from:[X] は意味が逆）', () => withSavedCursor(() => {
+  // 🔴素の `t.includes('アーツ')` 判定は「対戦相手の、**アーツ以外の**効果を受けない」を
+  //   `from:['アーツ']`＝「アーツの効果**だけ**受けない」と読み、保護範囲が原文とちょうど反対だった。
+  for (const [card, effId] of [['WX12-018', 'WX12-018-E1'], ['WX09-017', 'WX09-017-E2']] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const a = e?.action as { type?: string; fromAll?: boolean; from?: string[]; exceptSource?: { sourceType?: string } } | undefined;
+    eq(a?.type, 'GRANT_PROTECTION', `${effId}: GRANT_PROTECTION`);
+    eq(a?.fromAll, true, `${effId}: fromAll＝アーツ以外の全部から守る`);
+    eq(a?.exceptSource?.sourceType, 'アーツ', `${effId}: exceptSource=アーツ（アーツからは受ける）`);
+    eq(a?.from, undefined, `${effId}: from:['アーツ'] は付けない（意味が逆になる）`);
+  }
+  // ⚠トリップワイヤ＝「**自身**以外の効果を受けない」は sourceType の語彙が無いので触らない（WX17-001-E1）。
+  const self = (effectsMap.get('WX17-001') ?? []).find(x => x.effectId === 'WX17-001-E1');
+  eq((self?.action as { exceptSource?: unknown } | undefined)?.exceptSource, undefined,
+    'WX17-001-E1: 「自身以外」は種別語ではないので exceptSource を作らない');
+}));
+
 test('続き377f: 複合修飾のアタック主語も any_ally＋triggerFilter へ載る', () => withSavedCursor(() => {
   const cases: [string, string, Record<string, unknown>][] = [
     ['WX20-061', 'WX20-061-E1', { powerRange: { min: 10000 }, story: '龍獣' }],
