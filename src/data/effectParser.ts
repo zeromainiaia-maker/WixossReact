@@ -5170,7 +5170,7 @@ function tryParseDoAllItems(text: string): EffectAction | null {
 }
 
 function parseActionText(text: string): EffectAction {
-  const parse = (source: string): EffectAction => bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedTargetDesignation(source,
+  const parse = (source: string): EffectAction => bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
