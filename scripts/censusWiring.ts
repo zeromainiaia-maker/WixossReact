@@ -41,7 +41,12 @@ const OUT = path.join('docs', '_census_wiring.txt');
 //
 // `key` は表示名。JSON 側で探すキーが表示名と違う／複数ありうる場合だけ `jsonKeys` を書く
 // （例: ＜クラス＞は歴史的経緯で `story` と `cardClass` の2名があり、どちらでも「配線済み」）。
-interface Vocab { key: string; re: RegExp; jsonKeys?: string[]; note?: string; }
+//
+// `labelBy:'timing'` は**入口ラベルを差し替える**指定。トリガー主語のように
+// 「直す場所がアクションの target ではなく **timing の抽出側**」の語彙は、アクション別ラベルに
+// 散らすと大セルに埋もれてしまう（実際 `ON_ATTACK_SIGNI` の8件は `cardClass × POWER_MODIFY{SIGNI}`
+// 等に紛れていた）。timing でまとめると「どの timing の抽出を直せばよいか」がそのままセルになる。
+interface Vocab { key: string; re: RegExp; jsonKeys?: string[]; note?: string; labelBy?: 'timing'; }
 const VOCAB: Vocab[] = [
   // --- 静的カード属性（execUtils.matchesFilter） ---
   { key: 'noGuard',          re: /《ガードアイコン》を持たない/ },
