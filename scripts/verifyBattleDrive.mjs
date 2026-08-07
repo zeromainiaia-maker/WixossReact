@@ -9332,6 +9332,150 @@ const scenarios = {
       return { pass: false, detail: `未完了（energySelected=${energySelected} lrigTop=${fin?.host?.lrigTop} pEff=${fin?.pendingEffect ?? '-'}）` };
     },
   },
+
+  // §7 実機検証＝Sonnetタスク1（2026-08-07）＝続き366新設の「コイン支払い累計」機構（PlayerState.coins_paid_this_turn・
+  // Condition COINS_PAID_THIS_TURN・effectParser.ts:1644）の実機検証。従来は条件節ごと落ちて無条件発火していた
+  // （アタックのたびに必ず本体が発火＝過剰効果）。WXDi-P15-068（羅原　ミルルン//THE DOOR）＝
+  // 【自】このシグニがアタックしたとき、このターンにあなたが《コインアイコン》を合計２枚以上支払っていた場合、
+  // 【エナチャージ１】をする。【起】《ターン１回》《コインアイコン》×2：【エナチャージ１】＝コイン支払い経路
+  // （BattleScreen.tsx 10箇所のうち【起】ACTIVATED経路＝executeSigniActivated）と条件判定が同一カードで完結する。
+  // 対になる9枚（WXDi-P09-039/P15-053/054/070/072/073・WXDi-P16-057/076/081）は同じ coins_paid_this_turn を
+  // 読むだけの CONDITIONAL/CHOOSE条件で、書き込み側は同じ10経路を共有するため個別カードの実機は不要（機構1本で足りる）。
+  coinsPaidAttackFires: {
+    title: 'WXDi-P15-068-E1（COINS_PAID_THIS_TURN条件成立＝コイン2枚支払後にアタックしてエナチャージ発火）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P15-068#1'], null, null], // 支払い元（【起】）兼アタッカー（【自】）を1枚で兼ねる
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'coins': 2, // 【起】コスト《コインアイコン》×2 ちょうど
+        'coins_paid_this_turn': 0, // ルーム再利用時の前シナリオ残留を明示的にクリア
+        'deck': ['WD01-013#950', 'WD01-013#951', 'WD01-013#952', 'WD01-013#953', 'WD01-013#954'], // 先頭2枚がマーカー（【起】の1回目→#950／E1の2回目→#951）
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null], // ブロッカー無し＝直接クラッシュ
+        'life_cloth': ['WD01-013#960', 'WD01-013#961'], // バーストなし固定（WD01-013はLifeBurst無し）
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      await H.ensureMain();
+      const before = await H.queryState();
+      H.log('開始時 host.coins:', before?.host?.coins, 'host.energyCards:', JSON.stringify(before?.host?.energyCards));
+      // Step1: MAIN中に【起】《コインアイコン》×2を発動（usageLimit《ターン1回》・コインのみコストでcanAfford即成立）
+      let modalOpened = false, paid = false;
+      for (let s = 0; s < 16 && !paid; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/coinsPaidAttackFires-pay-${s}.png`, fullPage: true });
+        let did = null;
+        if (!modalOpened) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) did = await H.clickBtn(/^【起】/, { exact: false });
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did) did = await H.clickTextOrBtn(['決定', 'OK']);
+        const st = await H.queryState();
+        H.log(`  pay[${s}] -> ${did ?? 'なし'} | coins=${st?.host?.coins ?? '-'} energyCards=${JSON.stringify(st?.host?.energyCards)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        if ((st?.host?.energyCards ?? []).some(c => c.startsWith('WD01-013#950')) && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+          paid = true;
+        }
+      }
+      const afterPay = await H.queryState();
+      if (!paid) {
+        return { pass: false, detail: `【起】コイン支払いが完了せず（coins=${afterPay?.host?.coins ?? '-'} energyCards=${JSON.stringify(afterPay?.host?.energyCards)}）` };
+      }
+      H.log('支払い完了 coins:', afterPay?.host?.coins, 'energyCards:', JSON.stringify(afterPay?.host?.energyCards));
+      // Step2: アタックフェイズへ進行→自身でアタック→ON_ATTACK_SIGNIのCONDITIONALがcoins_paid_this_turn>=2で成立
+      let attacked = false;
+      modalOpened = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/coinsPaidAttackFires-atk-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        const phaseChk = await H.queryState();
+        if (!did && !modalOpened && !attacked && phaseChk?.turnPhase === 'ATTACK_SIGNI') {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const atkDid = await H.clickBtn('アタック', { exact: true });
+          if (atkDid) { did = atkDid; attacked = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', '確認', 'OK', 'はい', '発動順序を確定', '確定']);
+        const st = await H.queryState();
+        const secondCharge = (st?.host?.energyCards ?? []).some(c => c.startsWith('WD01-013#951'));
+        H.log(`  atk[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} energyCards=${JSON.stringify(st?.host?.energyCards)} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+        if (secondCharge) {
+          return { pass: true, detail: `COINS_PAID_THIS_TURN条件成立（【起】でコイン2枚支払済）でアタック→E1のCONDITIONALが発火し2回目の【エナチャージ1】を確認（energyCards=${JSON.stringify(st.host.energyCards)}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `2回目のエナチャージ未確認（energyCards=${JSON.stringify(fin?.host?.energyCards)} attacked=${attacked} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
+  // 条件不成立の対照実験＝続き366以前は条件節が丸ごと落ちて無条件発火していた退化の再発検出。
+  // コインを一切支払わずに攻撃し、【エナチャージ1】が発火しない（energyCardsが空のまま）ことを確認する。
+  coinsPaidAttackSkipped: {
+    title: 'WXDi-P15-068-E1（COINS_PAID_THIS_TURN条件不成立＝コイン未払いでアタックしてもエナチャージが発火しないこと＝続き366以前の退化再発検出）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD03-003#1'],
+        'field.signi': [['WXDi-P15-068#1'], null, null],
+        'field.signi_down': [false, false, false],
+        'energy': [],
+        'coins': 0, // 未払い＝coins_paid_this_turn=0のまま
+        'coins_paid_this_turn': 0, // ルーム再利用時の前シナリオ残留を明示的にクリア
+        'deck': ['WD01-013#950', 'WD01-013#951', 'WD01-013#952', 'WD01-013#953', 'WD01-013#954'],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-002#1'],
+        'field.signi': [null, null, null],
+        'life_cloth': ['WD01-013#962', 'WD01-013#963'],
+        'blocked_actions': [],
+      },
+      top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 host.coins:', before?.host?.coins, 'host.energyCards:', JSON.stringify(before?.host?.energyCards), 'guest.life:', before?.guest?.life);
+      let modalOpened = false, attacked = false;
+      for (let s = 0; s < 22; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/coinsPaidAttackSkipped-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did && !modalOpened && !attacked) {
+          const opened = await H.clickTestId('my-signi-zone-0');
+          if (opened) { did = opened; modalOpened = true; }
+        }
+        if (!did) {
+          const atkDid = await H.clickBtn('アタック', { exact: true });
+          if (atkDid) { did = atkDid; attacked = true; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', '確認', 'OK', 'はい', '発動順序を確定', '確定']);
+        const st = await H.queryState();
+        const crashed = (st?.guest?.life ?? 99) < (before?.guest?.life ?? 2);
+        const chargedAny = (st?.host?.energyCards ?? []).length > 0;
+        H.log(`  skip[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gLife=${st?.guest?.life}(開始${before?.guest?.life}) energyCards=${JSON.stringify(st?.host?.energyCards)} pEff=${st?.pendingEffect ?? '-'}`);
+        if (attacked && crashed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+          if (chargedAny) {
+            return { pass: false, detail: `【要注意】COINS_PAID_THIS_TURN条件不成立（コイン未払い）でもエナチャージが発火した＝続き366以前の無条件発火バグの再発（energyCards=${JSON.stringify(st.host.energyCards)}）` };
+          }
+          return { pass: true, detail: `COINS_PAID_THIS_TURN条件不成立（コイン未払い）＝アタック解決完了後もエナチャージ不発を確認（energyCards=空・gLife ${before?.guest?.life}→${st.guest.life}）` };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `アタック解決完了を確認できず（attacked=${attacked} gLife=${fin?.guest?.life} energyCards=${JSON.stringify(fin?.host?.energyCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
 };
 
 // タスク12(xciv) δ-6：`WX13-026`「このターンに対戦相手のシグニがバニッシュされている場合、使用コストは
