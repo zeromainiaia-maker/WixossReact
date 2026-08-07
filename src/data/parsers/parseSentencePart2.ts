@@ -300,10 +300,15 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   シグニをN枚以上公開した場合」の結果カウント条件が全て IS_MY_TURN 化していた（タスク12(xxii)・WX21-023/
   //   WXEX1-69/WXK04-034/WDK08-Y01/Y11 等）。source:HAND_CARD にすれば execReveal が選択カードを記録する。
   {
-    const revealHandM = t.match(/あなたの手札から(それぞれ名前が異なる|名前の異なる)?(?:(.+?)の)?シグニを?(?:([０-９\d]+)枚(まで)?|好きな枚数)公開(?:する|してもよい)/);
+    // ⚠語順「シグニ**N枚を**公開する」（`WX14-072-E1`／`WX14-075-E1`／`WXK05-044-E1`）も受ける（続き373）。
+    //   旧実装は「シグニ(を)N枚公開」だけを見ており、この3効果は bare REVEAL に潰れて source/filter が丸ごと
+    //   落ちていた＝engine が lastProcessedCards を記録できず、後続の「この方法で公開したシグニと同じ名前の…」
+    //   （`WXK05-044-E1`）が**参照先を失う**。
+    const revealHandM = t.match(/あなたの手札から(それぞれ名前が異なる|名前の異なる)?(?:(.+?)の)?シグニ(?:を?(?:([０-９\d]+)枚(まで)?|好きな枚数)を?)公開(?:する|してもよい)/);
     if (revealHandM) {
       const filter: TargetFilter = { cardType: 'シグニ' };
-      if (revealHandM[2]) Object.assign(filter, parseStoryFilter(revealHandM[2]));
+      // 「レベル３以上の＜水獣＞の」のようにレベルとクラスが同居する（旧実装はクラスだけ拾いレベルを落としていた）。
+      if (revealHandM[2]) Object.assign(filter, parseStoryFilter(revealHandM[2]), parseLevelFilter(revealHandM[2]));
       // 「それぞれ名前が異なる」は公開選択の軽微な制約＝TargetFilter 未対応・記録/条件には影響しないため据置。
       const count = revealHandM[3] ? parseNum(revealHandM[3]) : 'ALL';
       // 「N枚まで」「好きな枚数」＝可変（upTo）／「N枚」＝ちょうど。
