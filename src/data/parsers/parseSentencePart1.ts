@@ -1904,6 +1904,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseCardTypeFilter(energySpan),
       ...parseStoryFilter(energySpan),
       ...parseColorMatchesLrig(energySpan),
+      // 「エナゾーンから《カード名》以外の〜」（§5d パターンA・続き371）＝`WXEX1-34-E3`／`WXK05-027-E1`
+      ...parseExcludeCardNameFilter(energySpan),
     };
     const filter: TargetFilter | undefined = Object.keys(filterParts).length > 0 ? filterParts : undefined;
     const upToM = t.match(/([０-９\d]+)枚まで/);
