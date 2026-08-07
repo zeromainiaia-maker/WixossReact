@@ -1220,8 +1220,32 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'last_processed_count' }, filter: { cardType: 'シグニ' }, upToCount: true } };
     }
     if (t.match(/すべてのシグニをバニッシュ/)) {
-      const owner: Owner = t.includes('対戦相手') ? 'opponent' : hasOtherSelfSigniNoun(t) ? 'self' : 'any';
-      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseStateFilter(t), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) } } };
+      // ⚠**全文スキャン禁止**（続き377・(i)配線ギャップ 第6バッチ）。従来は owner も filter も文全体から取っており、
+      //   ①レベル/クラス/レベル奇偶/ライズアイコン の限定が丸ごと落ちて**相手シグニ全体をバニッシュ**する過剰効果
+      //     （`WX11-050-E2`「レベル１以下の」・`WXDi-CP02-042-E1`「レベル３以上の」・`WXK03-028-BURST`「レベルが奇数の」・
+      //      `WXEX1-08-E3`「《ライズアイコン》を持たない」）
+      //   ②文中の別の位置にある「対戦相手」を owner に取り違え（`WXDi-P07-073-E1`＝「**対戦相手のターン終了時**、
+      //     あなたのすべてのシグニをバニッシュする」が**相手の全シグニ**を消していた）
+      //   ③「他の」が「あなたの」を伴わないと `excludeSelf` が落ちる（`WXEX2-51-E2`「他のすべてのシグニ」＝自分自身も消える）
+      //   が起きていた。**「すべてのシグニをバニッシュ」に隣接する名詞句 span**（読点・鉤括弧・コロンまで）だけを見る。
+      const banishAllSpan = t.match(/([^。、：「」]*?)すべてのシグニをバニッシュ/)?.[1] ?? '';
+      const banishAllOther = banishAllSpan.includes('他の');
+      const owner: Owner = banishAllSpan.includes('対戦相手') ? 'opponent'
+        : banishAllSpan.includes('あなた') ? 'self'
+        : 'any';
+      const banishAllFilter: TargetFilter = {
+        cardType: 'シグニ',
+        ...parsePowerFilter(banishAllSpan), ...parseStateFilter(banishAllSpan),
+        ...parseLevelFilter(banishAllSpan), ...parseColorFilter(banishAllSpan), ...parseStoryFilter(banishAllSpan),
+        ...(banishAllOther ? { excludeSelf: true } : {}),
+      };
+      // 「レベルが奇数/偶数の」（levelParity）・「《ライズアイコン》を持つ/持たない」＝型にも matchesFilter にも実装済み。
+      const banishAllParityM = banishAllSpan.match(/レベルが(奇数|偶数)/);
+      if (banishAllParityM) banishAllFilter.levelParity = banishAllParityM[1] === '奇数' ? 'odd' : 'even';
+      if (/《ライズアイコン》を持たない/.test(banishAllSpan)) banishAllFilter.noRiseIcon = true;
+      else if (/《ライズアイコン》を持つ/.test(banishAllSpan)) banishAllFilter.hasRiseIcon = true;
+      if (/無色ではない/.test(banishAllSpan)) banishAllFilter.nonColorless = true;
+      return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: banishAllFilter } };
     }
     // 「対戦相手のシグニN体を対象とし、このシグニとそれをバニッシュする」＝選んだ相手シグニ＋自身を共にバニッシュ（WX03-032-E2）
     if (/このシグニと(?:それ|それら)を[^。]*バニッシュ/.test(t) && t.includes('対戦相手')) {
