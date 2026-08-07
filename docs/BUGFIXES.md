@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — **§5d パターンA 第4バッチ**＝`nonColorless` の残りビルダー配線＋**ガードのスコープ是正**＋**effectEngine の matchesFilter パリティ欠落**（census 1181→1170・golden 1413→1415）（Opus 5・続き372）
+
+### 何が壊れていたか
+
+census「否定フィルタ(〜ではない○○)」の高シグナル14件を原文照合したところ、**全件が `nonColorless`**（第2バッチ＝続き370 で扱った語彙）だった。第2バッチは **SEARCH と「トラッシュ→手札」だけ**を配線していたため、残りのビルダーが素通しのままだった＝**無色カードまで拾える過剰効果**。
+
+さらに、その調査中に**独立した2つのバグ**が出た。
+
+**(A) 部分filter禁止ガードのスコープが広すぎた（真因は「全文を見ていた」）。**
+「そのシグニと同じレベル／共通する色」と `nonColorless` を同時に表せないため落とすガード（続き370 で導入）が、**対象名詞句ではなく文全体**を見ていた。そのため
+`WXK09-029-BURST`「…無色ではないシグニ1枚を手札に加える。**その後**、…**そのシグニと共通する色を持つ**スペル1枚を…」で、**後続文の語が前文の filter を巻き添えで消していた**。判定を対象名詞句（`trashTargetPhrase`）に限定した。`WXEX2-06-E2` は同じ名詞句内に動的等値があるので従来どおり据置。
+
+**(B) `effectEngine.ts` の `matchesFilter` が `execUtils` 版と乖離していた。**
+`effectEngine` 側は「execUtils 版と挙動を揃える」と明記されているのに、**`colorExclude` / `excludeResona` / `noAbilities` の3つが欠けていた**。この関数は CONTINUOUS のパワー計算・`activeCondition`・`HAS_CARD_IN_FIELD` の評価に使われるため、これらの絞り込みが**黙って無視**されていた（live JSON の使用数＝colorExclude 3／excludeResona 33／noAbilities 11）。3つとも cardData だけで判定でき state を要さないので、そのまま移植した。
+
+### 直し方
+
+`nonColorless` を6ビルダーへ配線（型・engine の判定ロジックは無改造）：
+
+| ビルダー | 効果 |
+|---|---|
+| トラッシュ→デッキ | `WX13-065-E1`／`WX14-030-E1`／`WX21-026-E3` |
+| トラッシュ→デッキの一番下 | `WX15-Re15-E1`（`applyDistinctBatch5c` の source 付け替えにも filter が引き継がれる） |
+| トラッシュ→エナ | `WXDi-P10-070-E1`／`WXK09-033-E2` |
+| エナ→手札 | `WXK07-029-E2` |
+| 相手手札を見て選び捨てさせる | `WX07-015-E1`／`WXK10-026-BURST` |
+| `POWER_MODIFY_PER_TRASH_COUNT` の countFilter | `WXK09-036-E2`（数える母集団が過大＝下げ幅が過大だった） |
+| トラッシュ→手札 whitelist に1枚追加 | `WX11-018`（CHOOSE 選択肢②・原文照合済み） |
+
+加えて「(あなた|対戦相手)の場に〈色〉ではないシグニがある場合」を `parseActiveCondition` に新設（`HAS_CARD_IN_FIELD{colorExclude}`）。`WX16-Re06-E1` は条件節が丸ごと落ちて**無条件で基本パワー5000**だった。全CSV走査でこの文型は1効果のみ。
+
+`WXK07-029-E2` は同居する E1 が MANUAL で**カード単位 PRESERVE**（held に載らない）ため `effectId` アンカーの**外科パッチ**。パッチ後の値は parser 出力と完全一致させてある（parserWorklist を増やさない）。
+
+### 据置＝`WXK09-029-BURST`（前セッションの明示ガードを尊重）
+
+`effectParser` に続き370 が置いた**明示的な抑制**（「そのシグニと共通する色を持つスペル」を含むカードでは同じ効果木の `nonColorless` も落とす）がある。(A) の修正で parser 本体は正しい値を出すようになったが、この抑制は残っているので live は据置。
+
+⚠**ただし据置の根拠は再評価の余地がある**＝続き370 の「部分filterだけ採用しない」方針は `WXEX2-06`（**同一の対象**に2系統が掛かる）で正当だったが、本件は**別ステップの別対象**（step1＝無色ではないシグニ／step2＝そのシグニと共通色のスペル）で、step1 だけ正しくしても step2 が悪化しない。次セッションの再評価候補として §5d に登録した。
+
+### 検証
+
+`npm run gates` 全緑＝golden **1413→1415**（+2）、census **1181→1170**（−11・`BASELINE_HIGH` 更新）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors、held **231 据置**。
+A/B 差分は段階ごとに機械確認（`added=0 removed=0 changed=9` → `1` → `1` → `1`）＝意図した効果だけが変わった。
+
+⚠**golden の落とし穴**＝`mkState` は共有カーソル（`fresh()`）を進めるので、新テストは **`withSavedCursor` で包む**こと。包み忘れると後続テストの引くカードがずれ、**無関係なテスト**（task12(lxiii) `WXK11-031`）が落ちる。しかも `withSavedCursor` は即時実行なので `test(name, () => withSavedCursor(() => {...}))` の形にする（`test(name, withSavedCursor(...))` は `fn is not a function`）。
+
+---
+
+
 ## 2026-08-07 — **§5d パターンA 第3バッチ**＝「《カード名》以外の」の `excludeCardName` を36効果へ配線（**13効果は原文と真逆**だった）（census 1184→1181・golden 1411→1413）（Opus 5・続き371）
 
 ### 何が壊れていたか（実害は2種）

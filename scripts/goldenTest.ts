@@ -8302,7 +8302,7 @@ test('§5d(A) nonColorless: トラッシュ→デッキ／エナ／相手手札�
 // 実経路（checkActiveCondition の HAS_CARD_IN_FIELD）で確認する。
 // ⚠`mkState` は cursor を進めるので `withSavedCursor` で包む（包まないと後続テストの引くカードがずれ、
 //   無関係なテスト＝task12(lxiii) WXK11-031 が落ちる）。
-test('§5d(A) engine パリティ: HAS_CARD_IN_FIELD が colorExclude/excludeResona を見る', withSavedCursor(() => {
+test('§5d(A) engine パリティ: HAS_CARD_IN_FIELD が colorExclude/excludeResona を見る', () => withSavedCursor(() => {
   const cmp = cardMap as Map<string, CardData>;
   const white = findCard(c => isSigni(c) && c.Color === '白' && !c.Type?.includes('レゾナ'));
   const black = findCard(c => isSigni(c) && c.Color === '黒' && !c.Type?.includes('レゾナ'));
