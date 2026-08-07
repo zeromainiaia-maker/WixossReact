@@ -98,6 +98,9 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
   //   ⚠「そのシグニと同じレベル／共通する色」を併記する形（`WXEX2-06` 等）は2系統を同時に表せないため
   //     既存ガードが nonColorless を落とす＝ここには入れない（部分 filter だけの採用を禁止する方針を踏襲）。
   'WX20-031', 'WX22-049', 'WXK04-015', 'WXK09-029',
+  // 続き372（§5d パターンA 第4バッチ）＝CHOOSE 選択肢②「あなたのトラッシュから無色ではないシグニ1枚を
+  //   対象とし、それを手札に加える」（原文照合済み・他系統の修飾を持たない素の形）。
+  'WX11-018',
 ]);
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
