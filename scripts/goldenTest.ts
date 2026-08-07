@@ -8269,6 +8269,27 @@ test('§5d(A) nonColorless: SEARCH／トラッシュ→手札 の9効果に載�
   ok(matchesFilter(cardMap.get(colored), { cardType: 'シグニ', nonColorless: true }), '有色シグニは一致する');
   ok(!matchesFilter(cardMap.get(colorless), { cardType: 'シグニ', nonColorless: true }), '無色シグニは一致しない');
 });
+// §5d パターンA 第7バッチ（続き375）＝`ENERGY_COUNT_FILTER` の条件内で**ルリグ色参照を解決する**。
+// `matchesFilter` は `colorNotMatchesLrig` を知らないので、未解決のまま渡すと**黙って無視**され
+// 「エナに何かあるか」だけの過剰な条件になる。cond.owner のセンタールリグ基準で colorExclude へ解く。
+test('§5d(A) 条件内ルリグ色: ENERGY_COUNT_FILTER が colorNotMatchesLrig を解決する', () => withSavedCursor(() => {
+  const cmp2 = cardMap as Map<string, CardData>;
+  const redLrig = findCard(c => c.Type === 'ルリグ' && c.Color === '赤');
+  const redCard = findCard(c => isSigni(c) && c.Color === '赤');
+  const blueCard = findCard(c => isSigni(c) && c.Color === '青');
+  const cond = { type: 'ENERGY_COUNT_FILTER', owner: 'opponent',
+    filter: { colorNotMatchesLrig: true }, operator: 'gte', value: 1 } as unknown as Parameters<typeof evalCondition>[0];
+  const oppWith = (energy: string[]) => {
+    const st = mkState({ energy: 0, lrig: [redLrig] });
+    return { ...st, energy };
+  };
+  const run2 = (energy: string[]) => evalCondition(cond, {
+    ownerState: mkState({}), otherState: oppWith(energy), cardMap: cmp2,
+  } as unknown as Parameters<typeof evalCondition>[1]);
+  ok(run2([blueCard]), '相手ルリグ(赤)と共通色でない青エナがあれば成立');
+  ok(!run2([redCard]), '赤エナだけなら不成立（未解決なら「何かあれば成立」で誤って true になる）');
+  ok(!run2([]), 'エナが空なら不成立');
+}));
 // §5d パターンA 第6バッチ＝「対戦相手のセンタールリグと共通する色を持たない」相手エナ除去の残り。
 // 既存の段階ロールアウト表（`LRIG_COLOR_BATCH5_ENERGY`）に原文照合済みの3件を足しただけで、機構は無改造。
 test('§5d(A) 共通色否定: 相手エナ除去の色制限が残り4効果にも載る', () => {
@@ -8286,15 +8307,21 @@ test('§5d(A) 共通色否定: 相手エナ除去の色制限が残り4効果に
   ok(effOf('WXDi-P12-002', 'WXDi-P12-002-E1').includes('"isDisona":true')
     && effOf('WXDi-P12-002', 'WXDi-P12-002-E1').includes('"minCount":3'),
     'WXDi-P12-002-E1: ディソナ3体ゲートが載る（無条件発動に戻っていない）');
-  // ⚠**未修正の3件は「対象ゾーンごと取り違えている」**＝`TRASH{SIGNI, owner:"any"}` になっており、
-  //   本来の `ENERGY_CARD/opponent` ではない。色フィルタを足す以前の問題なので、この表には**入れない**。
-  //   直すには `bindToStoredTarget` を SIGNI 専用から広げる必要がある（§5d の登録済み項目）。
+  // ⚠この3件は続き374 時点では `TRASH{SIGNI, owner:"any"}`＝**対象ゾーンごと取り違え**ており、
+  //   「色フィルタだけ足す」ことを禁じていた。続き375 で `applyDroppedEnergyDesignation` によって
+  //   ゾーンと所有者を先に正し、**そのうえで**色フィルタが載るようになったので期待値を反転する。
   for (const [num, id] of [
     ['WXDi-D09-H20', 'WXDi-D09-H20-E1'], ['WXDi-P04-054', 'WXDi-P04-054-E1'], ['WXDi-P11-060', 'WXDi-P11-060-E2'],
   ] as [string, string][]) {
-    ok(!effOf(num, id).includes('colorNotMatchesLrig'),
-      `${id}: 対象ゾーン取り違えのまま色フィルタだけ足していない（部分修正で誤りを固定しない）`);
+    const s = effOf(num, id);
+    ok(s.includes('"type":"ENERGY_CARD"') && s.includes('"owner":"opponent"'),
+      `${id}: 相手エナが対象（場のシグニを落とす別物に戻っていない）`);
+    ok(s.includes('"colorNotMatchesLrig":true'), `${id}: ゾーンを正したうえで色制限も載る`);
+    ok(!/"type":"TRASH","target":\{"type":"SIGNI","owner":"any"/.test(s), `${id}: SIGNI/any の取り違えが残っていない`);
   }
+  // 「相手エナに〈相手ルリグと共通色でない〉カードがある場合」の条件節（続き375）＝従来は**無条件バニッシュ**。
+  ok(effOf('WD15-018', 'WD15-018-E1').includes('"type":"ENERGY_COUNT_FILTER"'),
+    'WD15-018-E1: エナ存在条件が載る（無条件バニッシュに戻っていない）');
 });
 // §5d パターンA 第5バッチ＝**動的な同一性参照**（`levelEqTrigger` / `nameEqLastProcessed` / `levelEqualsVar`）。
 // いずれも型にも engine にも実装済みで、**入口のフィルタ合成から呼ばれていない**だけだった（3バッチ連続の同じ形）。

@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き374・Opus 5〔**§5d パターンA 第6バッチ**＝「共通する色」クラスタ〕）＝ユーザー指示「続ける」。触った層は `effectParser.ts`（既存表 `LRIG_COLOR_BATCH5_ENERGY` に3件）／`public/data/effects_WXDi.json`（外科パッチ1＋採用1）／`goldenTest.ts`。**機構・型・engine は無改造**。
+  - **census「共通する色」の最大系統は「対戦相手のセンタールリグと共通する色を持たない」相手エナ除去（原文38効果）で、30件は既に正しかった**＝**まずクラスタを分類して「もう直っている割合」を測る**と、残りの少数に集中できる。未配線だと `TRASH{ENERGY_CARD,opponent}` に filter が付かず**相手エナのどのカードでも落とせる過剰効果**。
+  - **既存の段階ロールアウト表に原文照合して3件足しただけ**（`WXDi-P14-054-E1`／`WXDi-P15-089-E1`／`WXDi-P12-002-E1`）。`WXDi-P15-089-E1` は PARTIAL＝カード単位 PRESERVE で held に載らないため**外科パッチ**、`WXDi-P12-002` は held から採用（**「ディソナ3体ある場合」ゲートも同時に復活**＝従来は無条件発動）。
+  - **⚠あえて直さなかった3件＝「対象ゾーンごと取り違え」**（`WXDi-D09-H20-E1`／`WXDi-P04-054-E1`／`WXDi-P11-060-E2`）。原文は「対戦相手の**エナゾーンから**カード1枚を対象とし…」なのに JSON は `TRASH{SIGNI, owner:'any'}`＝**ゾーンも所有者も違う**。ここに色フィルタだけ足すと**誤った対象に正しい制限を付ける**＝誤りを固定するので入れず、golden に「足していないこと」を固定した。**部分修正が誤りを固定する形かどうかを見極めること。**
+  - **ブロッカーは特定済み**＝①`applyDroppedTargetDesignation` の入口 `DESIG_BEFORE_COST_RE` がシグニ対象専用 ②`bindToStoredTarget` が `tgt.type !== 'SIGNI'` で降りる ③executor が ENERGY_CARD 対象で `targetsStored` を honor するか未検証。**`WD15-018-E1`**（条件節ごと落ちて無条件バニッシュ）は別ブロッカー＝**`ENERGY_HAS_CARD` が `effectEngine.ts` にしか無く `execUtils.evalCondition` に無い**＋condition 内 filter では動的ルリグ色を解決できない。
+  - **ゲート**＝全緑。**golden 1417→1418**（+1）、**census 1166→1164**（−2・`BASELINE_HIGH` 更新。この系統は **OK 30→33／未配線 8→5**）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors、held **230→229**。
+  - **次の一手**＝**§5d パターンA を続ける**。**この2つは engine 修正込みの明確な次バッチ**＝①**対象ゾーン取り違え3件**（`bindToStoredTarget` を ENERGY_CARD へ拡張＋executor の `targetsStored` 対応確認）②**`WD15-018-E1`**（`ENERGY_HAS_CARD` を `execUtils.evalCondition` へ＋condition 内の動的ルリグ色解決）。残クラスタ＝「クラス指定」155件・「条件節」286件・「小さい数(2-5枚/体)不在」182件。**§5d 末尾の照合済み12件**も未修正。**新機構待ち登録**＝`WXK11-040-E2`（コスト経路の名前変数）／`WX14-072・075-E1`（選択肢構造の潰れ）／`WXK09-029-BURST`（据置再評価）。**Opusタスク12 の在庫は3件**〔(cxiii)(cxiv)(cxv)〕。**Sonnet**＝§7 実機検証（タスク1）＝続き366 の (cxvi) 分が最優先。
 - **セッション（2026-08-07・続き373・Opus 5〔**§5d パターンA 第5バッチ**＝動的な同一性参照＋**据置1件の解除**〕）＝ユーザー指示「続ける」。触った層は `parseSentencePart1.ts`（トラッシュ→手札に1本＋whitelist 1枚＋ガード条件の縮小）／`parseSentencePart2.ts`（reveal の語順）／`effectParser.ts`（`IDENTITY_BATCH5B` に2件）／`public/data/effects_*.json`（6効果）／`goldenTest.ts`。**型・engine は無改造**。
   - **またしても「語彙はあるが呼ばれていない」**（4バッチ連続）＝`levelEqTrigger` は トラッシュ→**場** では配線済みなのに トラッシュ→**手札** では呼ばれず、`WXEX2-06-E2`／`WXEX2-78-E1` が**どのレベルのシグニでも回収できる過剰効果**だった。**同じ語彙の入口を横に洗うのが最短。**
   - **⚠「参照先が記録されているか」まで見ないと、過剰効果を no-op に置き換えるだけになる**＝`WXK05-044-E1` の前段「手札からシグニ**１枚を**公開する」は reveal ビルダーの語順ミスで **bare REVEAL** に潰れており、`execReveal` が `source:HAND_CARD` のときだけ `lastProcessedCards` を記録する以上、**参照先ごと消えていた**。`nameEqLastProcessed` だけ足すと確実な no-op になる。**動的参照を配線するときは記録側と参照側をセットで直す。**

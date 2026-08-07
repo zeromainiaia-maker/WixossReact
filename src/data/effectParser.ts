@@ -1854,6 +1854,16 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
       cardType: 'シグニ', story: g[1], powerRange: { min: parseNum(g[0]) },
     } })],
+  // 「(あなた|対戦相手)のエナゾーンにセンタールリグと共通する色を持たないカードがある場合」（§5d パターンA・続き375）。
+  //   `WD15-018-E1` は条件節が丸ごと落ちて**無条件バニッシュ**だった。⚠`colorNotMatchesLrig` は
+  //   `matchesFilter` が知らないキーなので、evalCondition の `ENERGY_COUNT_FILTER` 側で **cond.owner の
+  //   センタールリグ基準**に解決するよう同セッションで補った（未解決のまま渡すと黙って無視され
+  //   「エナに何かあるか」だけの過剰な条件になる）。
+  //   ⚠他の「エナゾーンに〜がある/ない場合」（色指定・クラス指定・枚数0）は既存規則の担当なので、
+  //     ルリグ色否定の形だけに限定する。
+  [/(あなた|対戦相手)のエナゾーンに(?:あなた|対戦相手)のセンタールリグと共通する色を持たないカードがある場合/,
+    g => ({ type: 'ENERGY_COUNT_FILTER', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+      filter: { colorNotMatchesLrig: true }, operator: 'gte', value: 1 })],
 ];
 
 // 盤面状態の条件節（「〜の場合」）を既存 Condition 型にエンコードするテンプレ表。
@@ -1963,16 +1973,6 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 「あなたの場にレゾナがある場合」＝HAS_CARD_IN_FIELD{cardType:レゾナ}（matchesFilter は Type='レゾナ' を照合。WD09/11/12-018 の「追加で」枝）。
   [/あなたの場にレゾナがある場合/,
     () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } })],
-  // 「(あなた|対戦相手)のエナゾーンにセンタールリグと共通する色を持たないカードがある場合」（§5d パターンA・続き375）。
-  //   `WD15-018-E1` は条件節が丸ごと落ちて**無条件バニッシュ**だった。⚠`colorNotMatchesLrig` は
-  //   `matchesFilter` が知らないキーなので、evalCondition の `ENERGY_COUNT_FILTER` 側で **cond.owner の
-  //   センタールリグ基準**に解決するよう同セッションで補った（未解決のまま渡すと黙って無視され
-  //   「エナに何かあるか」だけの過剰な条件になる）。
-  //   ⚠他の「エナゾーンに〜がある/ない場合」（色指定・クラス指定・枚数0）は既存規則の担当なので、
-  //     ルリグ色否定の形だけに限定する。
-  [/(あなた|対戦相手)のエナゾーンに(?:あなた|対戦相手)のセンタールリグと共通する色を持たないカードがある場合/,
-    g => ({ type: 'ENERGY_COUNT_FILTER', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
-      filter: { colorNotMatchesLrig: true }, operator: 'gte', value: 1 })],
   // 「(あなた|対戦相手)の場に〈色〉ではないシグニがある場合」＝HAS_CARD_IN_FIELD{colorExclude}（§5d パターンA・続き372）。
   //   `WX16-Re06-E1`「あなたの場に**白ではない**シグニがある場合、このシグニの基本パワーは5000になる」は
   //   条件節が丸ごと落ちて**無条件で基本パワー5000**になっていた。⚠`colorExclude` は execUtils の matchesFilter
