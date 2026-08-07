@@ -322,7 +322,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- ルリグトラッシュ→ルリグデッキ ----
   if (t.match(/ルリグトラッシュから.*ルリグデッキに加える/)) {
-    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseCostTotalFilter(t) };
+    // 「《スピリット・サルベージ》以外のアーツ1枚」（`WD13-009-E1`）＝自分自身を回収できる過剰効果だった
+    // （§5d パターンA・続き371）。
+    const filter: TargetFilter = { ...parseCardTypeFilter(t), ...parseColorFilter(t), ...parseCostTotalFilter(t), ...parseExcludeCardNameFilter(t) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 1, filter },
