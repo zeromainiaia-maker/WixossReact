@@ -38,7 +38,10 @@ const OUT = path.join('docs', '_census_wiring.txt');
 // [表示名, 原文フレーズ正規表現, TargetFilter キー]
 // **既に型にも engine（execUtils.matchesFilter か effectExecutor.resolveDynamicFilter）にも実装済みの語彙だけ**を載せる。
 // 未実装語彙は「配線漏れ」ではなく「機構未実装」＝§6.3 の領分なのでここには載せない。
-interface Vocab { key: string; re: RegExp; note?: string; }
+//
+// `key` は表示名。JSON 側で探すキーが表示名と違う／複数ありうる場合だけ `jsonKeys` を書く
+// （例: ＜クラス＞は歴史的経緯で `story` と `cardClass` の2名があり、どちらでも「配線済み」）。
+interface Vocab { key: string; re: RegExp; jsonKeys?: string[]; note?: string; }
 const VOCAB: Vocab[] = [
   // --- 静的カード属性（execUtils.matchesFilter） ---
   { key: 'noGuard',          re: /《ガードアイコン》を持たない/ },
