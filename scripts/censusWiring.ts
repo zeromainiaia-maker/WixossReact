@@ -116,7 +116,12 @@ const VOCAB: Vocab[] = [
   //   「＜X＞のシグニ**１体につき**《赤×1》減る」「トラッシュに＜X＞のシグニが**１８枚以上ある**かぎり」は
   //   `HAS_CARD_IN_FIELD` やコスト軽減の領分であって **TargetFilter ではない**。実測 38効果がこれだけで miss に居た。
   //   ⚠**否定先読みなので、同じ効果に対象用法が別にあれば従来どおり miss に残る**（混在ケースは落とさない）。
-  { key: 'cardClass',   re: /＜[^＞]{1,8}＞の(?:シグニ|カード)(?![^。]{0,10}?(?:がある|がいる|があるかぎり|につき|以上ある|以上あるかぎり|種類以上|の数))/,   jsonKeys: ['story', 'cardClass'], note: '大クラスタ・対象名詞句用法のみ' },
+  // ⚠**`triggerCondition` 側の `*Story` 系も「配線済み」に数える**（続き377f 較正）＝トリガーの
+  //   **原因カード／host カード**のクラス限定は `TargetFilter.story` ではなく専用キー（`banishedSourceStory`
+  //   ＝「あなたの＜X＞のシグニの**効果によって**」／`accedHostStory`＝「＜X＞のシグニに**付いたとき**」等）
+  //   に載る。キー名照合だけの計器はこれを見落として **配線済みの効果を miss と誤検出**していた
+  //   （trap (h)「同じ概念に2つのキー綴りが併存」と同型）。
+  { key: 'cardClass',   re: /＜[^＞]{1,8}＞の(?:シグニ|カード)(?![^。]{0,10}?(?:がある|がいる|があるかぎり|につき|以上ある|以上あるかぎり|種類以上|の数))/,   jsonKeys: ['story', 'cardClass', 'banishedSourceStory', 'accedHostStory', 'trashSourceStory', 'milledSourceStory', 'discardCostSourceStory', 'drawBySourceStory', 'powerDecreaseSourceStory'], note: '大クラスタ・対象名詞句用法のみ' },
   // ⚠**名詞に係る形だけを見る**（続き377d 較正）＝素の `/レベルN以上|以下/` は
   //   **ルリグのレベル条件**（「センタールリグが**レベル４以上**であるかぎり／の場合」）・**使用条件**・
   //   **【チーム】全員レベルN以上**にも当たり、TargetFilter とは無関係な 59件を miss に混ぜていた。
