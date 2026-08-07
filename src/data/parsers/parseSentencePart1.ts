@@ -2932,7 +2932,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const dbStoryM = dbClasses.length === 1
       ? dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/)
       : null;
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
+      // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
+      //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
+      ...parseGuardFilter(dbSpan) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
