@@ -5980,6 +5980,10 @@ test('続き377: 「あなたの〈filter〉シグニN体を対象とし…ア�
     eq(js.includes('"type":"UP"'), true, `${effId}: UP アクション`);
     eq(js.includes(needle), true, `${effId}: UP 対象に ${needle}`);
   }
+  // 全体アップ側（count:'ALL'）の名詞句にも「カード名に《X》を含む」を許す＝旧: filter 無しで**自分の全シグニ**をアップ。
+  const w = (effectsMap.get('WX20-068') ?? []).find(x => x.effectId === 'WX20-068-E2');
+  eq(JSON.stringify(w?.action ?? {}).includes('"cardName":"シュレデ"'), true,
+    'WX20-068-E2: 「カード名に《シュレデ》を含むすべてのシグニをアップする」に cardName');
 }));
 
 // ⚠トリップワイヤ＝**修飾の無い対象には filter を付けない**（`parseSigniTarget(文全体)` へ寄せると
