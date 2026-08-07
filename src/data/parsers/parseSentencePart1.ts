@@ -1552,7 +1552,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const selfBuffState: Partial<TargetFilter> = {};
       if (nounMods.includes('《ディソナアイコン》')) selfBuffState.isDisona = true;
       if (nounMods.includes('覚醒状態')) selfBuffState.isAwakened = true;
-      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseLevelFilter(nounMods), ...selfBuffState, ...parseColorFilter(t), ...parseStoryFilter(t) } };
+      // 「《プリパラアイドル　真中らぁら》以外のあなたの＜プリパラ＞のシグニのパワーを＋2000」（`WXDi-P10-033-E1`）＝
+      // 除外が落ちて**自分自身までバフされる過剰効果**だった（§5d パターンA・続き371）。
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', ...parseLevelFilter(nounMods), ...selfBuffState, ...parseColorFilter(t), ...parseStoryFilter(t), ...parseExcludeCardNameFilter(t) } };
       if (/あなたの他の/.test(t)) excludeSelf = true;
     } else if (t.match(/対戦相手のすべてのシグニ/) ||
                t.match(/(?:感染状態の)?対戦相手のシグニすべて/) ||
