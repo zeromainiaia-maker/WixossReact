@@ -159,6 +159,29 @@ export function parseColorMatchesLrig(
 }
 
 // 《ガードアイコン》を持つ → hasGuard ／ 持たない → noGuard（G237）。名詞句スパンに対して呼ぶこと。
+/**
+ * 「能力を持たない〜シグニN体/N枚」＝**対象を能力なしに絞る名詞句修飾**（§5d パターンA・14効果）。
+ *
+ * ⚠🔴**同じ「能力を持たない」でも用法が4つあり、3つは filter にしてはいけない**（全CSV実測）：
+ *   (a) ✅名詞句修飾＝「**能力を持たない**対戦相手のシグニ**１体**を対象とし」＝これだけが filter。
+ *   (b) ❌**付与形**＝「それらを**能力を持たないシグニとして**場に出す」（WXDi-P03-034/P07-005/P13-042/P15-046・
+ *       WX16-Re20）＝出す**際に能力を失わせる**アクション側の修飾。filter にすると
+ *       「トラッシュから選べるのが能力なしシグニだけ」になり**原文と逆の過小実行**になる。
+ *   (c) ❌条件節＝「それが**能力を持たない場合**、代わりに…」（WX25-P3-038/069/072/073・WX25-CP1-002）＝
+ *       `LAST_PROCESSED_HAS_NO_ABILITIES` の領分。
+ *   (d) ❌リマインダー＝「（《ＳＥＲＶＡＮＴ　ＺＥＲＯ》はレベル１、＜精元＞、パワー1000、無色で
+ *       **能力を持たないシグニである**）」＝カード注釈。
+ *
+ * したがって **「として」が後続しない**かつ **シグニに数量詞が付く**形だけを取る。
+ * 「対戦相手の場に能力を持たないシグニが**ある**かぎり/場合」（存在条件）も数量詞が無いので自然に外れる。
+ */
+export function parseNoAbilitiesFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(/能力を持たない(?:対戦相手の|あなたの)?[^。、]{0,14}?シグニ(?:を)?(?:好きな枚数|[０-９\d]+(?:体|枚))/);
+  if (!m) return {};
+  if (/として/.test(m[0])) return {};                 // (b) 付与形
+  return { noAbilities: true };
+}
+
 export function parseGuardFilter(text: string): Partial<TargetFilter> {
   if (/《ガードアイコン》を持たない/.test(text)) return { noGuard: true };
   if (/《ガードアイコン》を持つ/.test(text)) return { hasGuard: true };
