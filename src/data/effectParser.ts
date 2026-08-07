@@ -4691,6 +4691,33 @@ function applyExceedBodyFixes(cardNum: string, effects: CardEffect[]): void {
   }
 }
 
+// ── §5d-0(i) 第4バッチ（続き376d）：「**あなたの**〈filter〉シグニN体を対象とし、（…まで、）それのパワーを±N」──
+//
+// `applyLeadingOpponentDesignation` は**「対戦相手の」専用**で、自分側の対象宣言に対応する兄弟が無かった。
+// そのため `parseSentencePart1` の POWER_MODIFY ビルダーには**末尾の「（…まで、）それのパワーを±N」だけ**が
+// 渡り、どの分岐にも当たらず既定の `{ SIGNI, owner:'any', count:1 }` へ落ちていた（実測24効果）。
+// ＝**owner ごと落ちている**（自分のシグニ限定のバフが相手のシグニにも撃てる）うえ、
+//   ＜クラス＞／色／レベルの限定も丸ごと消えていた（`WXK05-072-E1`「あなたの＜水獣＞のシグニ１体」等）。
+//
+// ⚠ narrow に保つための条件：
+//   (a) 対象宣言は「あなたの」で始まり、修飾に読点・句点を含まない（＝1つの名詞句）。
+//   (b) 文中の「を対象とし」が**1つだけ**（複数対象の文は照応先が曖昧なので触らない）。
+//   (c) 末尾アクションが POWER_MODIFY で **owner:'any' のまま**のときだけ直す（既に owner が付いている＝
+//       別経路で正しく解決済みなので上書きしない）。
+//   (d) 「代わりに」置換は別系統（applyLeadingOpponentDesignation と同じ理由で据置）。
+function applyLeadingSelfDesignationToPowerModify(text: string, action: EffectAction): EffectAction {
+  if (/代わりに/.test(text)) return action;
+  if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  const m = text.match(/あなたの([^、。]{0,24}?)シグニ(?:を)?([０-９\d]+)体(?:まで)?を対象とし、[^。]*?それら?の(?:基本)?パワーを/);
+  if (!m) return action;
+  const fin = findTailAction(action) as (EffectAction & { target?: EffectTarget }) | null;
+  if (!fin || fin.type !== 'POWER_MODIFY' || !fin.target) return action;
+  if (fin.target.type !== 'SIGNI' || fin.target.owner !== 'any') return action;
+  // 名詞句だけを parseSigniTarget に渡す（文全体を渡すと後続節の語を拾う＝続き376d の教訓）
+  fin.target = parseSigniTarget(`あなたの${m[1]}シグニ${m[2]}体`, 'self');
+  return action;
+}
+
 function applyLeadingOpponentDesignation(text: string, action: EffectAction): EffectAction {
   // 「それ」の直前に来る接続節。従来は「そうした場合、それを…」限定だったが、同じ照応構造を持つ
   // 「この方法で〜した場合、（ターン終了時まで、）それを/それの…」（続き209・タスク12(xxii) 検証で発見）も通す。
