@@ -10117,6 +10117,12 @@ order.push('banishHistoryForCost');
 // タスク12(cx)＝守備側の応答窓（`performSigniAttack` の収集）は BattleScreen 側＝golden では踏めない。
 order.push('oppSigniAttackActivated');
 order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で実行
+// coinsPaidAttackFires/coinsPaidAttackSkipped（2026-08-07・Sonnet・PLAN§7 実機検証タスク1）＝続き366新設の
+// COINS_PAID_THIS_TURN機構をWXDi-P15-068-E1で実機確認。【起】でコイン2枚支払後にアタック→条件成立で
+// 2回目の【エナチャージ1】が発火（PASS）／コイン未払いのままアタックすると発火しない（続き366以前の
+// 無条件発火バグが再発していないことを確認・PASS）。各2回連続PASSで既定orderに追加。
+order.push('coinsPaidAttackFires');
+order.push('coinsPaidAttackSkipped');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
