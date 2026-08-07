@@ -430,7 +430,15 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parseColorFilter(text),
     ...parseStoryFilter(text),
   };
-  if (hasOtherSelfSigniNoun(text) && /《ディソナアイコン》のシグニ/.test(text)) filter.isDisona = true;
+  // ⚠従来は `hasOtherSelfSigniNoun`（＝「他の」がある）ときだけ isDisona を立てていたため、
+  //   「あなたの《ディソナアイコン》のシグニ１体を対象とし」（`WXDi-P13-077-E1`）のように
+  //   「他の」が無い形で**ディソナ限定が丸ごと落ちて**いた（続き376d）。ON_ATTACK_SIGNI の主語抽出と同じ
+  //   「他の」ゲートの穴。「他の」の有無ではなく**対象名詞句かどうか**で判定するのが正しい。
+  //   ⚠条件節「あなたの場に《ディソナアイコン》のシグニがある場合」を巻き込まないよう、
+  //     **体数付きの対象句**（「シグニN体」）に限る。
+  if (/《ディソナアイコン》のシグニ(?:を)?[０-９\d]+体/.test(text) || (hasOtherSelfSigniNoun(text) && /《ディソナアイコン》のシグニ/.test(text))) {
+    filter.isDisona = true;
+  }
   // 「この方法でダウンしたルリグと共通する色を持つ〜シグニ」＝直前に実処理したルリグの色基準。
   // 名詞句修飾形に限定し、一般の「共通する色」全文スキャンには広げない。
   // ⚠ 参照先は「効果内の DOWN（lastProcessedCards）」と「コストのルリグダウン（PlayerState）」の両方がありうる。
