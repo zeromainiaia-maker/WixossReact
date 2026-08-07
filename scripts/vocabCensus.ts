@@ -310,6 +310,10 @@ const PATTERNS: Pattern[] = [
           else if (lvMax) need.push(`"max":${zh(lvMax[1])}`);
           else if (lvEq) need.push(`"level":${zh(lvEq[1])}`);
           if (/シグニ/.test(desc)) need.push('"cardType":"シグニ"');
+          // 色（続き376d 追加）＝「それが**赤の**シグニの場合」。従来 color を識別子として取っておらず、
+          // 残渣に「赤」が残って**必ず covered にならなかった**（＝実表現があっても偽陽性のまま）。
+          const colM = desc.match(/([白赤青緑黒])の/);
+          if (colM) need.push(`"color":"${colM[1]}"`);
           if (neg) need.push('elseAction');
           // ⚠**残渣チェック**（較正が過剰にならないための要）＝desc からモデル化できた識別子を取り除いて
           //   何か残るなら covered にしない。これが無いと「センタールリグと共通する色を持つシグニ」
