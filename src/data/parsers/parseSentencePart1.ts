@@ -2464,7 +2464,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
         //   `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
         //   **どのシグニにも付与できる**過剰効果になっていた。枝ごとの取りこぼしは同じ関数内でも起きる。
-        : kwCountSelfM ? { type: 'SIGNI', owner: 'self', count: parseNum(kwCountSelfM[1]), ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
+        : kwCountSelfM ? { type: 'SIGNI', owner: 'self', count: parseNum(kwCountSelfM[1]), ...(Object.keys(kwCountSelfFilter).length > 1 ? { filter: kwCountSelfFilter } : {}) }
         : kwSelfSigni ? { type: 'SIGNI', owner: 'self', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : kwOppSigni ? { type: 'SIGNI', owner: 'opponent', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : { type: 'SIGNI', owner: 'any', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) };
