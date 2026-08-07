@@ -160,6 +160,16 @@ function entryLabels(eff: EffectObj): string[] {
 // ===== 集計 =====
 interface Cell { has: string[]; miss: string[]; }
 
+// ★の意味＝「**同じ入口で既に配線済みの効果がどれだけあるか**」＝穴の確からしさ。
+// 大クラスタ語彙（cardClass 等）は has が桁で大きいので、has>0 だけでは全部★になって選別に使えない。
+// has が多いほど「他は全部正しいのにこれだけ落ちた」＝実バグの確度が高い、として段階化する。
+function starOf(c: Cell): string {
+  if (c.has.length >= 20) return '★★同入口に20件以上の配線済み＝穴がほぼ確実';
+  if (c.has.length >= 5) return '★同入口に配線済みあり＝穴が濃い';
+  if (c.has.length > 0) return '（同入口の配線済みは僅少＝先に用法分類を）';
+  return '（同入口に配線済みなし＝機構未実装の可能性）';
+}
+
 function main(): void {
   const args = process.argv.slice(2);
   const onlyKey = args.includes('--key') ? args[args.indexOf('--key') + 1] : undefined;
