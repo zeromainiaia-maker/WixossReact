@@ -1949,6 +1949,12 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 「あなたの場にレゾナがある場合」＝HAS_CARD_IN_FIELD{cardType:レゾナ}（matchesFilter は Type='レゾナ' を照合。WD09/11/12-018 の「追加で」枝）。
   [/あなたの場にレゾナがある場合/,
     () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } })],
+  // 「(あなた|対戦相手)の場に〈色〉ではないシグニがある場合」＝HAS_CARD_IN_FIELD{colorExclude}（§5d パターンA・続き372）。
+  //   `WX16-Re06-E1`「あなたの場に**白ではない**シグニがある場合、このシグニの基本パワーは5000になる」は
+  //   条件節が丸ごと落ちて**無条件で基本パワー5000**になっていた。⚠`colorExclude` は execUtils の matchesFilter
+  //   にはあったが effectEngine 側（HAS_CARD_IN_FIELD の評価器）に無く黙って無視されていたので同時に補った。
+  [/(あなた|対戦相手)の場に([白赤青緑黒])ではないシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', colorExclude: g[1] } })],
   // 「(あなた|対戦相手)のトラッシュにカードがN枚以上ある場合」＝TRASH_COUNT（trash.length 比較）。
   //   ⚠フィルタ付き（＜X＞のシグニ/レベル/色）は先行エントリが先にマッチする＝ここは無フィルタの総枚数専用。
   [/(あなた|対戦相手)のトラッシュにカードが([０-９\d]+)枚以上ある場合/,
