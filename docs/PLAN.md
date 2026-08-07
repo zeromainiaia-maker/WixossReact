@@ -243,6 +243,12 @@
 | `excludeResona` | 1 | 6 | |
 | `noRiseIcon` / `nonColorless` / `excludeCardName` / `levelEqTrigger` ほか | — | 各1〜5 | |
 
+**🏁続き376 で `scripts/censusWiring.ts` として常設化（`npm run census:wiring`／明細 `docs/_census_wiring.txt`）。** 試作の数字は再現できた（`noGuard` 61/14・`eachDistinctLevel` 1/29・`levelParity` 4/9・`excludeResona` 1/6 が完全一致、`isDisona` 21/34 は試作の 21/35 と1件差）。**語彙表を26キーへ拡張して miss 合計 134→203。** 走査 7721効果（STUB除外 2164／MANUAL除外 756）。
+
+**新規に見つかった大物3つ（試作の表には無かった）**＝`isDisona` **34**（原文は「《ディソナアイコン》**の**シグニ」という**連体の「の」**で書かれる。試作が「を持つ」で探していたら 0 になる＝**語彙表の正規表現は必ず実データで表記を確認してから書く**）／`hasRiseIcon` **31**／`hasCrossIcon` **22**。⚠後2つは**過剰効果として実害が明確**＝`WX07-010-E1` ほか7効果「あなたの《クロスアイコン》を持つシグニのパワーを＋1000」が filter 無し＝**自分の全シグニに+1000**、`WX16-026-BURST` ほか9効果「トラッシュから《ライズアイコン》を持つシグニ」が filter 無し＝**どのシグニでも回収できる**。
+
+**使い方**＝`npm run census:wiring` でセル一覧 → `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>` でそのセルの効果IDと原文を全部出す → 全数分類 → parser の該当ビルダーへフィルタ合成を1本足す。**★印（同じ入口に配線済みの効果がある）が付いたセルが最優先**＝「同じ入口の他の効果は正しいのにこれだけ落ちている」＝明確な穴。
+
 **実装方針**（試作の設計。`scripts/` に置き `package.json` に script を足す）：
 1. `docs/_effect_srctext.json` × live JSON を全数走査。
 2. `[原文フレーズ正規表現, TargetFilterキー]` の表を持つ（**既に型にも engine にも実装済みの語彙だけ**を載せる。未実装語彙は §6.3 の領分で別物）。
