@@ -443,6 +443,28 @@ export function signiClauseIconFilter(text: string): Partial<TargetFilter> {
   return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};
 }
 
+/**
+ * 「〈…〉レベルN〔以上／以下〕のシグニN体を対象とし」の**対象名詞句に隣接するレベルだけ**を拾う（続き377d）。
+ *
+ * ⚠**素の `parseLevelFilter(文全体)` を対象フィルタに使ってはいけない**＝この語彙は
+ * **ルリグのレベル条件**（「あなたのセンタールリグが**レベル４以上**であるかぎり」`WXK05-028-E1`／
+ * 「対戦相手のセンタールリグが**レベル３以上**の場合」`WX25-P1-003-E1`）・
+ * **自身のレベル条件**（「このシグニが**レベル３以上**の場合」`WX24-P3-TK1A-E3`）・
+ * **【ビート】コスト**（「［**レベル３以上**が４枚以上］」`WXK08-041-E2`）にも同じ表記で現れる。
+ * 実測（被覆マトリクス `levelRange × SIGNI[filter]` miss 22）でも**本物は7件で残り15件はこれらのクロス計上**だった。
+ *
+ * `[^。、シ]` で読点を跨がせないので、条件節の「…の**場合、**対戦相手のシグニ１体を対象とし」は自然に外れる。
+ */
+const SIGNI_TARGET_ADJACENT_LEVEL = /レベル([０-９\d]+)(以上|以下)?の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClauseLevelFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_TARGET_ADJACENT_LEVEL);
+  if (!m) return {};
+  const n = parseNum(m[1]);
+  if (m[2] === '以上') return { level: { min: n } };
+  if (m[2] === '以下') return { level: { max: n } };
+  return { level: n };
+}
+
 export function signiClauseOwner(text: string, fallback: Owner = 'self'): Owner {
   // 文中に「対戦相手」があれば従来どおり opponent（既存挙動を一切変えないための先行判定）
   if (text.includes('対戦相手')) return 'opponent';
