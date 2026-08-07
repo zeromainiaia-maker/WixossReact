@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter,
 } from '../parserUtils';
 
 /**
@@ -2928,6 +2928,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const cM = t.match(/([０-９\d]+)体/);
     const count = cM ? parseNum(cM[1]) : 1;
     // 「対戦相手のレベルNのシグニ」等のレベル指定をフィルタに反映（G100）
+    // ⚠この `lvM` は「レベル**N**の」＝**丁度**しか見ておらず、「レベルN**以上／以下**の」を取りこぼす。
+    //   下の filter で `signiClauseLevelFilter`（対象名詞句に隣接する範囲レベル）を併用する（続き377d）。
     const lvM = t.match(/レベル([０-９\d]+)の(?:[白赤青緑黒]の|＜[^＞]+＞の)?シグニ/);
     // 「無色ではないシグニN枚をデッキの一番下に置く」（§5d パターンA・続き372）＝`WX15-Re15-E1`。
     // ここで立てた filter は `applyDistinctBatch5c` の source 付け替え（SIGNI→TRASH_CARD）にも引き継がれる。
@@ -2952,7 +2954,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const dbStoryM = dbClasses.length === 1
       ? dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/)
       : null;
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
+    const filter: TargetFilter = { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
       // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
       //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
       ...parseGuardFilter(dbSpan), ...parseIconFilter(dbSpan) };
@@ -3048,7 +3050,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 場のシグニ移動ではない。part2 の TRASH_CARD 規則に委譲するためここでは掴まない（掴むと場のシグニ幻覚化する）。
   if (!t.includes('トラッシュから') && (t.match(/それをデッキの一番上に置く/) || t.match(/シグニ.+をデッキの一番上に置く/))) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter: { cardType: 'シグニ' } }, shuffle: false, position: 'top' } as TransferToDeckAction;
+    // レベル限定（続き377d）＝「対戦相手の**レベル２以下の**シグニ１体を対象とし、それをデッキの一番上に置く」で
+    //   丸ごと落ちており、**どのレベルのシグニでもデッキへ送れる**過剰効果だった（`WX16-066-BURST`／`WX19-026-BURST`／`WXK10-044-BURST`）。
+    //   ⚠**対象名詞句に隣接するレベルだけ**（`signiClauseLevelFilter`）＝素の `parseLevelFilter(t)` だと
+    //     ルリグのレベル条件・自身のレベル条件・【ビート】コストを引き込む。
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter: { cardType: 'シグニ', ...signiClauseLevelFilter(t) } }, shuffle: false, position: 'top' } as TransferToDeckAction;
   }
 
   // ---- 対戦相手は自分のデッキの一番上を公開する ----

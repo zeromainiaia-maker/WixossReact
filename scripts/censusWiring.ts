@@ -113,7 +113,11 @@ const VOCAB: Vocab[] = [
   //   `powerRange` ではなく `POWER_MODIFY`/`POWER_SET` の値。
   //   **セルを取るたびに全CSV走査で用法を分類する**という §5d の規律は、ここでは特に外せない。
   { key: 'cardClass',   re: /＜[^＞]{1,8}＞の(シグニ|カード)/,   jsonKeys: ['story', 'cardClass'], note: '大クラスタ・条件節用法の誤検出が濃い' },
-  { key: 'levelRange',  re: /レベル[０-９0-9]+以(上|下)/,        jsonKeys: ['level', 'levelRange'], note: '大クラスタ' },
+  // ⚠**名詞に係る形だけを見る**（続き377d 較正）＝素の `/レベルN以上|以下/` は
+  //   **ルリグのレベル条件**（「センタールリグが**レベル４以上**であるかぎり／の場合」）・**使用条件**・
+  //   **【チーム】全員レベルN以上**にも当たり、TargetFilter とは無関係な 59件を miss に混ぜていた。
+  //   実測＝`levelRange × GRANT_KEYWORD{SIGNI}`（miss 9）は**9件すべて**がこれだった。
+  { key: 'levelRange',  re: /レベル[０-９0-9]+以(?:上|下)の(?:[^。、]{0,20}?)?(?:シグニ|カード|スペル|ルリグ|レゾナ)/, jsonKeys: ['level', 'levelRange'], note: '大クラスタ' },
   { key: 'levelExact',  re: /レベル[０-９0-9]+の(シグニ|カード)/, jsonKeys: ['level', 'levelRange'], note: '大クラスタ・レベル丁度' },
   { key: 'color',       re: /[白赤青緑黒]の(シグニ|カード|スペル)/, jsonKeys: ['color'], note: '大クラスタ' },
   { key: 'powerRange',  re: /パワー[0-9０-９,，]+以(上|下)/,      jsonKeys: ['powerRange'], note: '大クラスタ・action の値との取り違えに注意' },

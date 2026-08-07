@@ -6138,6 +6138,45 @@ test('続き377c トリップワイヤ: 条件節の修飾を付与対象へ引�
   eq(/"level"/.test(JSON.stringify(first ?? {})), false, 'WD21-001-E1: 公開カードのレベル条件を付与対象に載せない');
 }));
 
+// ── 続き377d 第9バッチ: 被覆マトリクス `levelRange × SIGNI[filter]`（miss 22・has 138★★）。
+//    「対戦相手の**レベルN以下の**シグニ１体を対象とし、それをデッキの一番上／一番下に置く」で
+//    レベル限定が丸ごと落ちており、**どのレベルのシグニでもデッキへ送れる**過剰効果だった。
+//    ⚠miss 22 のうち**本物は8件**で、残り14件は**ルリグのレベル条件・使用条件・【ビート】コスト**のクロス計上。
+test('続き377d: シグニ→デッキ上/下 の対象にレベル範囲が載る', () => withSavedCursor(() => {
+  const cases: [string, string, string][] = [
+    ['WX16-066', 'WX16-066-BURST', '"level":{"max":2}'],
+    ['WX19-026', 'WX19-026-BURST', '"level":{"max":3}'],
+    ['WXK10-043', 'WXK10-043-E2', '"level":{"max":3}'],
+    ['WXK10-044', 'WXK10-044-BURST', '"level":{"max":3}'],
+    ['WXDi-P00-066', 'WXDi-P00-066-E1', '"level":{"max":2}'],
+    ['WXDi-P00-066', 'WXDi-P00-066-BURST', '"level":{"max":2}'],
+    ['WXDi-P01-027', 'WXDi-P01-027-E1', '"level":{"max":2}'],
+    ['WXDi-P14-003', 'WXDi-P14-003-E1', '"level":{"max":2}'],
+  ];
+  for (const [card, effId, needle] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes(needle), true, `${effId}: デッキ移動の対象に ${needle}`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**レベル語は「ルリグのレベル条件」「自身のレベル条件」「【ビート】コスト」にも同じ表記で現れる**。
+//   素の `parseLevelFilter(文全体)` に戻すと下の4件が**原文と逆の過小実行**になる＝
+//   `WXK05-028-E1`「あなたのセンタールリグが**レベル４以上**であるかぎり、このシグニのパワーは＋4000」（付与対象は自身）／
+//   `WX25-P1-003-E1`「対戦相手のセンタールリグが**レベル３以上**の場合、…エナゾーンから」（条件節）／
+//   `WX24-P3-TK1A-E3`「このシグニが**レベル３以上**の場合、対戦相手のシグニ１体を対象とし」（自身の条件）／
+//   `WXK08-041-E2`「［**レベル３以上**が４枚以上］」（【ビート】コスト）。
+test('続き377d トリップワイヤ: ルリグ/自身/ビートコストのレベルを対象へ引き込まない', () => withSavedCursor(() => {
+  for (const [card, effId] of [
+    ['WXK05-028', 'WXK05-028-E1'], ['WX25-P1-003', 'WX25-P1-003-E1'],
+    ['WX24-P3-TK1A', 'WX24-P3-TK1A-E3'], ['WXK08-041', 'WXK08-041-E2'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(/"target":\{"type":"SIGNI"[^}]*"filter":\{[^}]*"level"/.test(js), false,
+      `${effId}: 条件節のレベルを対象フィルタに載せない`);
+  }
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
