@@ -181,6 +181,11 @@ export function extractNounPhraseFilter(
 
   const excludeName = span.match(/《([^》]+)》以外の/);
   if (excludeName) filter.excludeCardName = excludeName[1];
+  // 「能力を持たない〜」（§5d パターンA・14効果）。従来は語彙が無く**能力持ちも対象になる過剰効果**だった
+  //   （`WX14-023-E3`「能力を持たない対戦相手のシグニ1体を手札に戻す」等）。
+  //   ⚠「能力を持たない」は所有格より**前**に出る（「能力を持たない**対戦相手の**シグニ」）ので、
+  //     名詞句 span 全体に対する含有判定で取る（先頭一致だと取りこぼす）。
+  if (/能力を持たない/.test(span)) filter.noAbilities = true;
   const containsName = span.match(/カード名に《([^》]+)》を含む/);
   if (containsName) filter.cardName = containsName[1];
   if (/無色ではない/.test(span)) filter.nonColorless = true;

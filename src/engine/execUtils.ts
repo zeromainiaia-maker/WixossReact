@@ -1064,10 +1064,12 @@ export function fieldCandidates(
     if (!stack || stack.length === 0) return [];
     const cardNum = stack[stack.length - 1];
     // 「能力を持たない」＝場では **abilities_removed（効果で能力を失った）も含む**（§5d パターンA）。
-    // matchesFilter は card 単体しか見られないので、state を持つここで hasNoAbility に委ねて上書きする。
+    // matchesFilter は card 単体しか見られないので、state を持つここで hasNoAbility に委ねて判定し、
+    // 下の matchesFilter へは noAbilities を**外した filter** を渡す（二重判定で食い違わせない）。
     if (filter?.noAbilities !== undefined) {
       if (filter.noAbilities !== hasNoAbility(cardNum, cardMap, state)) return [];
     }
+    const filterForCard = filter?.noAbilities !== undefined ? { ...filter, noAbilities: undefined } : filter;
     // ゾーン状態に依存するフィルター（infected / hasAcce / hasCharm）
     if (filter?.infected !== undefined) {
       const infected = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
@@ -1131,13 +1133,13 @@ export function fieldCandidates(
     const effLevel = lvMods && lvMods.length
       ? Math.max(0, parseInt(cardMap.get(cardNum)?.Level ?? '', 10) + lvMods.filter(m => m.cardNum === cardNum).reduce((s, m) => s + m.delta, 0))
       : undefined;
-    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filter, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) {
+    if (!isAllColor && !matchesFilter(cardMap.get(cardNum), filterForCard, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) {
       // 追加色がある場合: 色フィルターだけ追加色でも再チェック
       if (!extraColors || !filter?.color) return [];
       const filterColors = Array.isArray(filter.color) ? filter.color : [filter.color];
       if (!filterColors.some(c => extraColors.includes(c))) return [];
       // 色フィルター以外のフィルターを通常チェック
-      const filterNoColor = { ...filter, color: undefined };
+      const filterNoColor = { ...filterForCard, color: undefined };
       if (!matchesFilter(cardMap.get(cardNum), filterNoColor, effectivePowers?.get(cardNum), classOverride, undefined, effLevel)) return [];
     }
     if (isAllColor) {
