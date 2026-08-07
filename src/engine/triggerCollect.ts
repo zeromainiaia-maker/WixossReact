@@ -3074,6 +3074,30 @@ function actionRevivesSelfFromTrash(action: CardEffect['action']): boolean {
 }
 
 /**
+ * アタッカー**自身**が持つ ON_ATTACK_SIGNI の triggerFilter 判定（BattleScreen の self 経路の pure 部分）。
+ *
+ * この経路は triggerScope を見ずアタッカーの ON_ATTACK_SIGNI を全部拾うため、any_ally の効果も
+ * 「自身がアタックした場合」はここで収集される。よって主語の限定はここでも効かせる必要がある。
+ *
+ * ⚠**`excludeSelf` は `matchesFilter` が見ない**（候補集合を作る側の責務）。素の `matchesFilter` に
+ *   丸ごと渡していたため、「あなたの**他の**〜シグニがアタックしたとき」が **watcher 自身のアタックでも
+ *   発火**していた（続き377f 実測3効果＝WX22-022-E4／WX25-CP1-047-E1／WXDi-CP02-102-E1）。
+ *   `collectFieldTriggers` 側は `topNum === triggeringCardNum` の skip で正しく除外できていたので、
+ *   **同じ語彙が入口ごとに違う壊れ方をしていた**例。
+ */
+export function attackerSelfTriggerFilterOk(
+  eff: CardEffect,
+  card: CardData | undefined,
+  effectivePower?: number,
+): boolean {
+  if (!eff.triggerFilter) return true;
+  const { excludeSelf, ...rest } = eff.triggerFilter;
+  if (excludeSelf) return false; // この経路は watcher＝アタッカー自身なので常に除外される
+  if (Object.keys(rest).length === 0) return true;
+  return matchesFilter(card, rest, effectivePower);
+}
+
+/**
  * フィールドのシグニ/ルリグの「他のシグニが◯◯したとき」系トリガー（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM）を収集する（Stage2 抽出）。
  * 自分の場＝any_ally/any、相手の場＝any_opp/any。byEffect/bySigniEffect・placedDown/placedFromTrash/placedPuppet・
  * frontLowerLevelThanSource/placedFront・triggerFilter・REMOVE_ABILITIES/FROZEN_LOSES_ABILITIES・ARTS_SELF_RECYCLE を保持。
