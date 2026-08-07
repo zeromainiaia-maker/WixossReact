@@ -97,6 +97,13 @@ const VOCAB: Vocab[] = [
   { key: 'levelExact',  re: /レベル[０-９0-9]+の(シグニ|カード)/, jsonKeys: ['level', 'levelRange'], note: '大クラスタ・レベル丁度' },
   { key: 'color',       re: /[白赤青緑黒]の(シグニ|カード|スペル)/, jsonKeys: ['color'], note: '大クラスタ' },
   { key: 'powerRange',  re: /パワー[0-9０-９,，]+以(上|下)/,      jsonKeys: ['powerRange'], note: '大クラスタ・action の値との取り違えに注意' },
+
+  // --- トリガー主語（timing の抽出側で直す）---
+  // 「あなたの＜凶蟲＞のシグニ1体がアタックしたとき」＝**誰が引き金か**の限定。落ちると
+  // 「どのシグニがアタックしても発火」する過剰効果になる（`WX13-037-E2` ほか実測）。
+  // 直す場所は target の filter ビルダーではなく **parser の timing/トリガー抽出**なので `labelBy:'timing'`。
+  { key: 'triggerSubjectClass', re: /(あなた|対戦相手)の(他の)?＜[^＞]{1,8}＞の(シグニ|カード)[^、。]{0,12}?が[^、。]{0,10}?(とき|たび)/,
+    jsonKeys: ['triggerFilter'], labelBy: 'timing', note: 'トリガー主語のクラス限定' },
 ];
 
 // ===== 入力 =====
