@@ -206,6 +206,9 @@ function main(): void {
 
     const text = stripReminder(raw);
     const labels = entryLabels(rec.obj);
+    // labelBy:'timing' の語彙用＝【自】のトリガー種別そのものを入口にする
+    const timings = Array.isArray(rec.obj.timing) && rec.obj.timing.length
+      ? rec.obj.timing.map(t => `TRIGGER{${String(t)}}`) : ['TRIGGER{(timing無)}'];
 
     for (const v of VOCAB) {
       if (onlyKey && v.key !== onlyKey) continue;
