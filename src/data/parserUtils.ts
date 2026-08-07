@@ -427,6 +427,22 @@ export function signiClauseStoryFilter(text: string): Partial<TargetFilter> {
   return m ? { story: m[1] } : {};
 }
 
+/**
+ * 「《ライズ／クロス／アクセアイコン》を持つ〈…〉シグニN体を対象とし」の**対象名詞句に隣接するアイコンだけ**を拾う
+ * （続き377c）。`signiClauseStoryFilter` と同じ規律＝**全文スキャン禁止**。
+ *
+ * ⚠外れてほしい形（全文で見ると誤配線になるもの）＝
+ *   ・`WX18-030-E1`「あなたの場に《ライズアイコン》を持つシグニが**２体あるかぎり**、このシグニは【アサシン】を得る」＝**条件節**
+ *   ・`WX17-053-E2`「あなたの場に《ライズアイコン》を持つシグニが**２体ある場合**、…対戦相手のシグニ１体を対象とし」＝条件節
+ *     （全文から拾うと**相手のライズ持ちしかバニッシュできない**過小実行になる）
+ * いずれも「を対象とし」が名詞句に続かないので、この regex では自然に外れる。
+ */
+const SIGNI_TARGET_ADJACENT_ICON = /《(ライズ|クロス|アクセ)アイコン》を持つ(?:あなたの|対戦相手の)?(?:[^。、シ]{0,12})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClauseIconFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_TARGET_ADJACENT_ICON);
+  return m ? { hasIcon: m[1] as NonNullable<TargetFilter['hasIcon']> } : {};
+}
+
 export function signiClauseOwner(text: string, fallback: Owner = 'self'): Owner {
   // 文中に「対戦相手」があれば従来どおり opponent（既存挙動を一切変えないための先行判定）
   if (text.includes('対戦相手')) return 'opponent';
