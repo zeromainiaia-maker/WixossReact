@@ -8269,6 +8269,66 @@ test('§5d(A) nonColorless: SEARCH／トラッシュ→手札 の9効果に載�
   ok(matchesFilter(cardMap.get(colored), { cardType: 'シグニ', nonColorless: true }), '有色シグニは一致する');
   ok(!matchesFilter(cardMap.get(colorless), { cardType: 'シグニ', nonColorless: true }), '無色シグニは一致しない');
 });
+// §5d パターンA 第3バッチ「《カード名》以外の〜」＝`excludeCardName`（型・matchesFilter・decompiler は実装済み）。
+// 各ビルダーのフィルタ合成から漏れており、実害が**2種**あった：
+//   ①**反転**＝除外名が `cardName`（部分一致）に入り「そのカードしか選べない」原文と真逆の効果（SEARCH 系13効果）。
+//   ②**脱落**＝除外が消えて自分自身も回収できる過剰効果（トラッシュ/エナ/デッキ操作系 23効果）。
+test('§5d(A) excludeCardName:「《カード名》以外の」が36効果に載り、反転（cardName）が消えている', () => {
+  const effOf = (num: string, id: string) => JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === id) ?? {});
+  // ①反転していた SEARCH／手札→場 系＝`excludeCardName` になり、旧 `cardName`（同名の部分一致）が消えている
+  const inverted: [string, string, string][] = [
+    ['WDK08-L12', 'WDK08-L12-E1', '紅蓮の使い魔　イザナミ'], ['WDK11-011', 'WDK11-011-E2', 'ＧＦ　イザベラ'],
+    ['WX06-023', 'WX06-023-E1', '聖墓の神妹　ナキールン'], ['WX07-035', 'WX07-035-E1', '羅星　ミモザ'],
+    ['WX09-CB02', 'WX09-CB02-E2', '終末の回旋　チェロン'], ['WX13-041', 'WX13-041-E1', '巨弓　ガンデヴァ'],
+    ['WX16-035', 'WX16-035-E1', '幻怪　ザシワラ'], ['WX16-Re03', 'WX16-Re03-E1', 'ＭＡＧＩＣ　ＨＡＮＤ'],
+    ['WX17-Re02', 'WX17-Re02-E3', '幻竜　アパト'], ['WX18-077', 'WX18-077-E1', '幻獣　シロチ'],
+    ['WXK01-036', 'WXK01-036-E2', 'コードアクセル　エフワン'], ['WXK06-023', 'WXK06-023-E2', 'ＧＦ　ハウス'],
+    ['WXK08-023', 'WXK08-023-E3', 'コードＶＬ　物述有栖'],
+  ];
+  for (const [num, id, name] of inverted) {
+    const s = effOf(num, id);
+    ok(s.includes(`"excludeCardName":"${name}"`), `${id}: 《${name}》以外＝除外として載る`);
+    ok(!s.includes(`"cardName":"${name}"`), `${id}: 反転（そのカードしか選べない）に戻っていない`);
+  }
+  // ②除外が丸ごと落ちていた回収・バフ系（トラッシュ/エナ/ルリグトラッシュ/デッキ公開/常時パワー）
+  const dropped: [string, string][] = [
+    ['SP27-003', 'SP27-003-E1'], ['SPK01-09', 'SPK01-09-E2'], ['WD13-009', 'WD13-009-E1'],
+    ['WD23-041-EA', 'WD23-041-EA-E1'], ['WDK14-012', 'WDK14-012-E1'], ['WX16-025', 'WX16-025-E3'],
+    ['WX17-063', 'WX17-063-E1'], ['WX18-033', 'WX18-033-E2'], ['WX18-081', 'WX18-081-E2'],
+    ['WX19-Re19', 'WX19-Re19-E1'], ['WX20-048', 'WX20-048-E1'], ['WXDi-P08-047', 'WXDi-P08-047-E2'],
+    ['WXDi-P08-062', 'WXDi-P08-062-E2'], ['WXDi-P10-033', 'WXDi-P10-033-E1'], ['WXEX1-34', 'WXEX1-34-E3'],
+    ['WXEX1-78', 'WXEX1-78-E2'], ['WXEX2-75', 'WXEX2-75-E2'], ['WXEX2-78', 'WXEX2-78-E1'],
+    ['WXEX2-80', 'WXEX2-80-E1'], ['WXK04-078', 'WXK04-078-E1'], ['WXK05-027', 'WXK05-027-E1'],
+    ['WXK07-081', 'WXK07-081-E2'], ['WXK09-090', 'WXK09-090-E1'],
+  ];
+  for (const [num, id] of dropped) {
+    ok(effOf(num, id).includes('"excludeCardName"'), `${id}: 除外が載る（自分自身も拾える過剰に戻っていない）`);
+  }
+  // 除外と部分一致は**同居**する（旧 SEARCH は else-if で後者を捨てていた）
+  ok(effOf('WX13-041', 'WX13-041-E1').includes('"cardName":"弓"'),
+    'WX13-041:「カード名に《弓》を含む」が除外と同居する');
+  // engine 判定＝完全一致で除外／別カードは通す
+  const c = (name: string): CardData => ({ CardName: name, Type: 'シグニ' } as CardData);
+  ok(!matchesFilter(c('幻蟲　キアハ'), { excludeCardName: '幻蟲　キアハ' }), '同名は除外される');
+  ok(matchesFilter(c('幻蟲　ゲンゴロ'), { excludeCardName: '幻蟲　キアハ' }), '別名は通る');
+});
+// 【ビート】コストの「《X》以外のシグニ1体を【ビート】にする」（`WDK14-014`／`WXK08-043`／`WXK10-041`）は
+// cost.beat_signi が count しか持たないため JSON に語彙が載らないが、**engine が EffectText から除外名を読む**
+// （`analyzeBeatSigniCost` の `excludedName`）＝据置で正しい。census にだけ残る形なので回帰を固定する。
+test('§5d(A) beat コストの《X》以外は engine 側（analyzeBeatSigniCost）で効く', () => {
+  const st = { field: { signi: [['WDK14-014'], ['WDK14-012'], null] } } as unknown as PlayerState;
+  const m = new Map<string, CardData>([
+    ['WDK14-014', { CardName: '炎魔の孔雀　カイム', EffectText: '【出】《ビートアイコン》［４枚以下］《炎魔の孔雀　カイム》以外のシグニ１体を【ビート】にする：カードを１枚引く。' } as CardData],
+    ['WDK14-012', { CardName: '炎魔の陽杖　トービエ' } as CardData],
+  ]);
+  const a = analyzeBeatSigniCost(st, 'WDK14-014', m, 1);
+  ok(!a.includeSelf, '自身は【ビート】にしない');
+  ok(a.eligibleOtherZones.length === 1 && a.eligibleOtherZones[0] === 1, '除外名以外のシグニだけが候補');
+  // 場のもう1体も同名なら候補が消える＝支払い不能側へ倒れる
+  const st2 = { field: { signi: [['WDK14-014'], ['WDK14-014b'], null] } } as unknown as PlayerState;
+  const m2 = new Map(m); m2.set('WDK14-014b', { CardName: '炎魔の孔雀　カイム' } as CardData);
+  ok(analyzeBeatSigniCost(st2, 'WDK14-014', m2, 1).eligibleOtherZones.length === 0, '同名だけなら候補ゼロ');
+});
 // §5c 文型バッチ「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」。
 // 規則自体は `parseSingleSentence` の局所 CLAUSES にあったが**共通表（STATE_CONDITION_CLAUSES_V2）に無かった**ため、
 // 【自】トリガー文の条件節 hoist 経路では拾えず、3カードが条件節ごと落ちて無条件発火していた。
