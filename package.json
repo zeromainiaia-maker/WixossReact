@@ -23,7 +23,8 @@
     "verify:browser": "node scripts/verifyBrowser.mjs",
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "preview": "vite preview",
-    "census:timing": "tsx scripts/timingCensus.ts"
+    "census:timing": "tsx scripts/timingCensus.ts",
+    "census:wiring": "tsx scripts/censusWiring.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
