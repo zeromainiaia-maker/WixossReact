@@ -232,7 +232,11 @@ const PATTERNS: Pattern[] = [
   {
     name: '合計制約(合計がN以上/以下)',
     re: /(パワー|レベル|コスト)の合計が[０-９\d]+以[上下]?/,
-    keys: ['costMax', 'costMin', 'Sum', 'sum', 'totalPower', 'totalLevel'],
+    // ⚠`maxCost` は続き376c 追加＝`COUNTER_SPELL{maxCost:N}` が「コストの合計がN以下のスペル」の正表現。
+    //   対応表には `costMax`（TargetFilter 側の名前）しか無く、**大文字小文字が違うだけで部分一致しない**
+    //   ため偽陽性になっていた（`WX13-015-E1`。§5d-0 ② の無作為20件で発見）。
+    //   ⚠これは続き368 の `minPower`／`Under` と**同じ罠**＝「対応語彙は部分一致なので大文字小文字で穴が空く」。
+    keys: ['costMax', 'costMin', 'maxCost', 'Sum', 'sum', 'totalPower', 'totalLevel'],
   },
   {
     name: 'それぞれ異なる',
