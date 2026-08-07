@@ -1,5 +1,55 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — **§5d-0(iv) 第13バッチ**＝**stale live の刈り取り完了**・37効果（census 1000→**972**・被覆マトリクス miss 320→319）（Opus 5・続き377h）
+
+続き377g で新設した (iv) の残りを刈った。**held 189枚のうち census 高シグナルに当たる 38カード/40効果を全件原文照合**し、
+36カードを `heldReview --adopt`、1効果を外科的に採用。**終了時点で census 高シグナルに当たる held は 0**。
+
+### ① 採用した系統
+
+| 系統 | 例 | 壊れ方 |
+|---|---|---|
+| **「次の対戦相手のターン終了時まで」の duration 取り違え** | `WXDi-P07-045-E2/E3`／`WX24-P3-061-E1/E2`／`WXDi-P03-036-E2`／`WXDi-CP01-026-E1`／`WX24-P2-059-E1`／`WX25-CP1-005-E1`／`SPDi47-04-E2` | `UNTIL_OPP_TURN_END` が `UNTIL_END_OF_TURN` に潰れ、**相手ターンに効果が切れる**（＝過小） |
+| **付与対象の `thisCardOnly` 脱落** | `WX15-094/095/096-E1`／`WXDi-P07-045-E2`／`WX24-P3-061-E2` | 「**このシグニは**〜を得る」が**味方シグニ1体を選んで付与**できる過剰対象化 |
+| **条件節の脱落（常時true化）** | `WXDi-P02-071-E1`（凍結3体以上）／`WXDi-P06-011-E3`（相手エナ4枚以上）／`WX24-P4-082-E1`（レベル4以上のルリグ）／`WXK08-066-E1`（登録者数）／`WXK11-070-E1`（10枚以上） | 「〜の場合」が丸ごと落ちて**無条件発火** |
+| **「そうした場合」の対象取り違え** | `WX16-033-BURST`／`WX17-041-BURST` | 原文は「**あなたの**シグニをバニッシュ」なのに**相手のシグニ**をバニッシュしていた |
+| **trigger timing の取り違え** | `WX25-P1-061-E1`（`ON_ATTACK_SIGNI`→`ON_PLAY`）／`WX21-Re06-E1`（`ON_TURN_END`→`ON_PLAY`+`placedFromTrash`）／`WD16-014-E1`（`ON_ATTACK_SIGNI`→`ON_HAND_DISCARDED`+`any_opp`） | **内側の付与能力を最上位に平坦化**して別のタイミングで撃っていた |
+| **【使用条件】の焼き付き** | `WXDi-P01-003-E1`／`WX25-P1-048-E1`／`WXDi-P10-002-E1`／`WX25-P2-030-E2` | `GRANT_KEYWORD{keyword:"使用条件"}` が**本文を丸ごと食っていた**（続き377g と同型） |
+| **条件節由来の `excludeSelf` が対象へ漏れる** | `WXK11-057-E1`／`WX21-032-E1`／`WXDi-CP02-085-E2` | 「あなたの場に**他の**〜がある場合」の「他の」が**相手シグニの対象フィルタ**に載っていた（相手側で `excludeSelf` は無意味） |
+
+### ② ⚠採らなかった2カード＝**held のほうが退化していた**
+
+- **`WXDi-P06-011-E1`** — 原文「そうした場合、**対戦相手は**【エナチャージ１】をしてもよい」。
+  live は `ENERGY_CHARGE_FROM_DECK{owner:"opponent"}` で**正しい**のに、held は `owner:"self"`。
+  同カードの `E3` は改善（相手エナ4枚以上の条件追加）だったので、**E3 だけ外科的に採用**した。
+- **`WXK06-048-E1`** — 原文「このターン、**それが**バニッシュされる場合」＝直前に対象化した同一シグニ。
+  live は `targetsLastProcessed:true` を持つが held は落とす。
+
+> **「held が新しい」は「held が正しい」ではない。** 40効果のうち2件（5%）は逆方向だった。
+
+### ③ 🔴`manualEffects.ts` の MANUAL 定義が live より古い（逆パターン）
+
+`WXK06-048-E1` を追うと、**live 側だけ手で直っていて MANUAL ソースが古い**ことが分かった
+（`src/data/manualEffects.ts` の定義に `targetsLastProcessed` が無い）。
+これは `parseStatus:MANUAL` が `mergeManualEffects` で**毎回 live を上書きしうる**ことを意味し、
+放置すると held が永久に残る。**JSON 直しではなくソース側（`manualEffects.ts`）に追記**して解消した。
+
+> **held が消えない MANUAL 効果を見たら、live と `manualEffects.ts` のどちらが新しいかを先に確かめる。**
+
+### ④ golden の在庫カウンタを更新
+
+`WX25-P1-061-E1` の timing 是正で「段階2 mandatory集合」が 1454→**1455** に増えた（正しい増加）。
+⚠この札は `triggerScope`（any_ally）と `triggerCondition.placedFromTrash` がまだ無い**途中段階**で、
+scope を足したらこの集合から抜けて 1454 に戻る旨をテストにコメントとして残した。
+
+### 検証
+
+- `npm run gates` 全緑。census **1000→972**（`BASELINE_HIGH` 更新）、golden **1450 据置**（期待値のみ更新）、
+  smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、manual field loss 0、
+  held **189→144枚／署名グループ 89→71件**、被覆マトリクス miss **320→319**、
+  lint 0 errors/**248 warnings**（キャッシュ削除後の実測）。
+- **終了条件を計器で確認**＝「census 高シグナルに当たる held」が **38カード → 0カード**。この系統は枯渇した。
+
 ## 2026-08-07 — **§5d-0(i) 第12バッチ**＝**live 焼き付き（stale live）の一括解消**・38効果（census 1030→**1000**・被覆マトリクス miss 338→320）（Opus 5・続き377g）
 
 ユーザー指示「census が1000になるまで」。**文型クラスタは枯渇（最大6件）**しており、被覆マトリクスの

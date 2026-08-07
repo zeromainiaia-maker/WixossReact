@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-07・続き377g・Opus 5〔**live 焼き付き（stale live）の一括解消＝census 1030→**1000**〕）＝ユーザー指示「進みが遅いので census が1000になるまで処理して」。**触った層＝live JSON 38効果（外科的採用30＋held採用8カード）／`scripts/vocabCensus.ts`（BASELINE）。parser/engine は無変更。**
+  - **⭐① 新しい系統を見つけた＝`build:effects` の非破壊マージが「parser は直っているのに live は古いまま」の在庫を作る**。収穫マージは**証明可能に無損失な上位集合だけ**を自動採用するので、parser が後から正しくなっても live の古い値は上書きされない＝**census には過剰効果として残り続ける**。census 高シグナル 1030件を fresh と全件突き合わせて 30効果を回収した。**この系統は parser を1行も触らずに直る**＝コスト最小で最大の収穫だった（1バッチで −30）。
+  - **✅② 典型は `GRANT_KEYWORD{keyword:"使用条件"}`**＝【使用条件】の前置きを「使用条件というキーワードを付与」と誤解した古い形が**本文の効果を丸ごと食っていた**（`CHOOSE` 4択／`GROW_COST_REDUCTION`／`LRIG_COLOR` 条件などが復活）。ほかに `IS_MY_TURN` 3連（＝常時true）→`LAST_PROCESSED_MATCHES` の4分岐（`WD21-020-E1`）など。
+  - **✅③ 採用はカード単位ではなく効果単位で**＝対象30効果のうち**6件は同カードの別効果が live=MANUAL で fresh はそれを退化させる**（`triggerScope`/`triggerCondition`/`triggerFilter` の脱落）。`heldReview --adopt` はカード単位なので、**対象効果だけを差し替え MANUAL は無条件スキップ**する外科パッチにした。
+  - **🔴④ 罠＝簡易 fresh ダンプは post-pass 依存の効果を取りこぼす**＝`parseCardEffects` を直接呼ぶ自作スクリプトでは `applyLrigColorBatch5` など **`_sourceTextLog`（モジュール状態）を参照する post-pass が効かない**。`WXDi-P15-089-E1` の `colorNotMatchesLrig` が落ちて golden のトリップワイヤが鳴った。**採用の正は `build:effects` の出力**＝自作ダンプは*候補の発見*にだけ使う。
+  - **⚠⑤ この一件は「golden が live を読む」ことの盲点も示した**＝parser 側の退化は live が古いままだとテストに映らない。**live を fresh へ寄せた瞬間に検出された**＝stale live の解消は**回帰検出力そのものを上げる**。
+  - **⚠⑥ 採らなかった例＝`WX21-032-E1`**＝live も held も条件節のクラス（「他の＜天使＞のシグニがある場合」）を相手シグニの BANISH 対象に載せている誤りで、held は `excludeSelf` を外すだけ＝**どちらも正しくない**。**「held のほうが差分が小さい」は採用理由にならない。**
+  - **📉 文型クラスタは枯渇を再確認**（`census:clusters` の最大が6件）。★★セル `cardClass × SIGNI[filter]` も全数分類で**18件中15件がコスト節・条件節・トリガー主語のクロス計上**＝「1 regex で N 効果」型の収穫は無し。**census を動かすなら stale live 系統のほうが桁で効率が良い。**
+
 - **🆕 セッション（2026-08-07・続き377f・Opus 5〔**(i)配線ギャップ 第11バッチ＝ON_ATTACK_SIGNI の味方側トリガー主語**〕）＝ユーザー指示「PLANの続きを行う」。**触った層＝`effectParser.ts`（主語抽出3本を `parseAllyAttackSubject` へ統合）／`triggerCollect.ts`（pure ヘルパー新設）／`BattleScreen.tsx`（薄い呼び出しへ置換）／`scripts/censusWiring.ts`（`cardClass` 較正）／`scripts/goldenTest.ts`／live JSON 8効果。**
   - **✅① 最大セル `cardClass × (filter無)`（miss 33／has 83★★）を全数分類したら「1 regex で N 効果」型ではなかった**＝5系統の寄せ集め（アタック主語5／LOOK_PICK_CHAIN 10／構造欠落8／条件節4／コスト2／他 timing 主語4／計器誤検出3）。**ただしセル外へ広がった**＝同じ「アタック主語」を全CSV走査したら `color`／`levelParity`／`isDisona`／`cardName` の同型が3件見つかり計8効果。**セルは母集団の索引であって母集団そのものではない。**
   - **✅② 修飾が2つ以上あると分岐ごと外れて既定 `self` へ潰れる（8効果）**＝抽出が「クラスのみ」「パワーのみ」「色のみ」の**3本の別 regex** に分かれていた。壊れ方は2重＝**①味方全体が引き金なのに watcher 自身のアタックでしか発火しない過小実行 ②その自身に対しても「パワー10000以上」等の限定が一切効かない**。`parseAllyAttackSubject` へ統合し修飾を順不同で取る。
