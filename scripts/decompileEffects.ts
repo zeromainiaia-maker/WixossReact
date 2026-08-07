@@ -191,6 +191,7 @@ function filterJa(f?: any): string {
   if (f.classMatchesDiscardSigni) parts.push('この方法で捨てたシグニと共通するクラスを持つ');
   if (f.hasGuard) parts.push('《ガードアイコン》を持つ');
   if (f.noGuard) parts.push('《ガードアイコン》を持たない');
+  if (f.noAbilities) parts.push('能力を持たない'); // §5d パターンA（描画が無いと原文照合で脱落に見える）
   if (f.hasRiseIcon) parts.push('《ライズアイコン》を持つ');
   if (f.noRiseIcon) parts.push('《ライズアイコン》を持たない');
   if (f.hasCrossIcon) parts.push('《クロスアイコン》を持つ');
