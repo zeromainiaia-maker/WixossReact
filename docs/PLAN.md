@@ -332,13 +332,15 @@
 > **(i)25% / (ii)30% / (iii)15% / (iv)30%** で、**(iv) は実装ゼロで減る**ぶん最初に取るのが効率がよい。
 > 各項目の末尾が**着手時にまず打つコマンド**。
 
-#### (iv) 計器較正 — `scripts/vocabCensus.ts` の対応語彙表を直す（**実装ゼロ・最優先**）
-- [ ] **`LOOK_PICK_CHAIN` を「Nまで」の対応語彙に入れる**＝`stage.pickCount` は `needsInteraction` に `maxPick` として渡っており**上限として正しく効いている**。クラスタ「「Nまで」上限選択」93件のうち **28件が該当**（続き376 実測）。⚠残る 63件は別形なので**まとめて免除しない**。
-- [ ] **`FORCE_PLACE_FRONT` を条件節クラスタの extraOk に入れる**＝「配置する**場合**」は条件節ではない。フル実装済み（`effectEngine.ts:5610`）。
-- [ ] **`levelEqLrig` / `colorMatchesLrig` を「同一性」「共通する色」の対応語彙に入れる**（`WDA-F03-09-E2`）。
-- [ ] **`COUNTER_SPELL.maxCost` を「合計制約」の対応語彙に入れる**（`WX13-015-E1`）。
-- [ ] **filter による条件の等価表現を条件節クラスタの extraOk に入れる**＝「それが〈desc〉の**場合**」を `ADD_TO_FIELD{source:{filter}}`／`SEARCH{filter}` で表す形（`WX15-001-E2`）。続き365 は `REVEAL_AND_PICK` 形だけ較正しており**この形が漏れていた**。
-- ⚠**較正のたびに残渣チェック必須**（続き365 の規律）＝desc からモデル化できた識別子を除いて**何か残るなら covered にしない**。実バグを masking したら計器の意味が消える。
+#### (iv) 計器較正 — `scripts/vocabCensus.ts` の対応語彙表を直す（**実装ゼロ**）
+
+**✅第1バッチ完了（続き376c）＝census 1151→1120（−31）。実装ゼロ・バグ修正なし。**
+- [x] **`LOOK_PICK_CHAIN` の「Nまで」**（−25）＝`stage.pickCount` は `execLookPickChain` が `needsInteraction({type:'SEARCH', maxPick})` へ渡しており**上限として正しく効いている**。⚠**型名を key に足す一括免除はしなかった**＝`vocabCensus.ts` に「LPC は型名を key に足さない」という**過去の明示判断**があり、その理由（効果全体が免除され、同じ効果の**別アクション**にある「N体まで」の脱落まで隠れる＝続き376b のクロス計上と同じ罠）は今も正しい。代わりに **`extraOk` で残渣チェック**＝原文の「Nまで／好きな枚数」の出現数以上の**上限スロット**が JSON にあるときだけ免除。実測＝高シグナル93件中 LPC 28件が**全数 slots ≥ need**。
+- [x] **`FORCE_PLACE_FRONT`**（−4）＝「対戦相手がシグニを配置する**場合**」は条件節ではなく行動の言い回し。parser／`effectEngine.ts:5610`／`SigniSummonZoneModal.tsx:58`／`BattleScreen.tsx:5284` までフル実装済み。残渣チェック付きで免除。
+- [x] **`COUNTER_SPELL.maxCost`**（−2）＝「コストの合計がN以下のスペル」の正表現。対応表には `costMax`（TargetFilter 側の名前）しか無く、**大文字小文字が違うだけで部分一致しない**という続き368 の `minPower`／`Under` と**同じ罠**だった。
+- [ ] **filter による条件の等価表現を条件節クラスタの extraOk に入れる**＝「それが〈desc〉の**場合**」を `ADD_TO_FIELD{source:{filter}}`／`SEARCH{filter}` で表す形（`WX15-001-E2`）。続き365 は `REVEAL_AND_PICK` 形だけ較正しており**この形が漏れていた**。⚠**条件節クラスタは283件と最大**なので、広い extraOk は masking リスクも最大＝残渣チェックを特に厳しく。
+- ⚠**PLAN の旧記載を訂正**＝「`levelEqLrig`／`colorMatchesLrig` を『同一性』『共通する色』の対応語彙に入れる」は**クラスタの誤記**だった。`WDA-F03-09-E2` が落ちているのは「**コスト:場からトラッシュ**」クラスタで、`levelEq`／`colorMatchesLrig` は同一性・共通する色の対応表に**元から入っている**。当該クラスタ（`keys: ['fieldTrash','trash_self','beat','fieldTo']`）に `trash_key` 系が無いのが真因＝未着手。
+- ⚠**較正のたびに残渣チェック必須**（続き365 の規律）＝desc からモデル化できた識別子を除いて**何か残るなら covered にしない**。実バグを masking したら計器の意味が消える。**較正後は消えた効果を全件目視し、「新たに高シグナルへ出た効果が0件」を機械確認する**（続き376c で実施）。
 - `npm run census`（較正後は `BASELINE_HIGH` と §4 恒久指標を実数更新）
 
 #### (i) 配線ギャップ — ①のマトリクスからセル単位で取る（**バッチ化できる唯一の区分**）
