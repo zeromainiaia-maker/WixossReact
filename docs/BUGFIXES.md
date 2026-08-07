@@ -1,5 +1,85 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-07 — **§5d-0(i) 配線ギャップ 第6バッチ**＝`hasOtherSelfSigniNoun`（「他の」）ゲートの棚卸し・12効果＋engine 1本（census 1061→1053・golden 1430→1436）（Opus 5・続き377）
+
+続き376d の第1バッチ（`ON_ATTACK_SIGNI` の主語抽出）と第5バッチ（`parseSigniTarget` の `isDisona`）が**同型の穴**
+（「**『他の』があるときだけ**修飾を拾う」）だったので、`grep -rn "hasOtherSelfSigniNoun" src/data/` で全使用箇所（13箇所）を
+棚卸しした。**`excludeSelf` を立てるだけの箇所は定義どおり正しい**ので、**「他の」以外のものを gate している箇所**だけを見る。
+そこから2つのビルダーが落ちた。
+
+### ① 「〈filter〉すべてのシグニをバニッシュ」（`parseSentencePart1.ts:1222`）＝**全文スキャン**していた
+
+```ts
+const owner = t.includes('対戦相手') ? 'opponent' : hasOtherSelfSigniNoun(t) ? 'self' : 'any';
+filter = { cardType:'シグニ', ...parsePowerFilter(t), ...parseStateFilter(t), ... }
+```
+
+owner も filter も**文全体**から取っていた（＝§5d の「全文スキャン禁止」に違反）。合成しているのは power と state だけで、
+**level / levelParity / ライズアイコン / クラス / 色が丸ごと落ちる**。壊れ方は3方向：
+
+- **①過剰効果**＝`WX11-050-E2`「対戦相手の**レベル１以下の**すべてのシグニ」・`WXDi-CP02-042-E1`「**レベル３以上の**」・
+  `WXK03-028-BURST`「**レベルが奇数の**」・`WXEX1-08-E3`「**《ライズアイコン》を持たない**」が**相手シグニ全体**を消していた。
+- **②owner の取り違え**＝`WXDi-P07-073-E1`「**対戦相手のターン終了時**、あなたのすべてのシグニをバニッシュする」（付与能力）が、
+  文中の「対戦相手」を所有者と読んで **`owner:'opponent'`**＝**自傷デメリットが相手の全滅へ反転**していた。
+- **③`excludeSelf` の脱落**＝`WXEX2-51-E2`「**他の**すべてのシグニをバニッシュする」は「あなたの」を伴わないので
+  `hasOtherSelfSigniNoun` が false ＝**効果元自身まで消えて**いた（`WX17-046-E3` も同型）。
+
+**直し方**＝「すべてのシグニをバニッシュ」に**隣接する名詞句 span**（`[^。、：「」]*?`）を切り、owner も filter もその span からだけ取る。
+`levelParity`／`noRiseIcon`／`hasRiseIcon`／`nonColorless` は型にも `matchesFilter`（`execUtils.ts:617,626,628`）にも実装済みなので追加合成した。
+
+### ② 「〈filter〉シグニN体を対象とし…アップする」（`parseSentencePart1.ts:1798`）＝裸の SIGNI へ落ちていた
+
+```ts
+return { type:'UP', target: hasOtherSelfSigniNoun(t) ? parseSigniTarget(t,'self')
+                                                    : { type:'SIGNI', owner: signiClauseOwner(t), count: 1 } };
+```
+
+「他の」が無い形は **filter 無し・count 1** の裸の SIGNI へ落ち、**自分のどのシグニでもアップできる**過剰効果だった
+（`WX14-051-E1` ＜アーム＞／`WXDi-P00-044-E1` ＜バーチャル＞／`WXK09-078-E1` ＜電機＞／`WXEX1-60-E1` カード名に《フレイスロ》を含む）。
+⚠ここで **`parseSigniTarget(文全体)` へ丸ごと寄せてはいけない**（続き376d のトラップ(a)＝トリガー節・条件節のクラスを引き込む）。
+**対象名詞句 span** を切って `extractNounPhraseFilter` で合成し、`count` も span から取る形にした。
+全体アップ側（`count:'ALL'`）の名詞句許容表にも「カード名に《X》を含む」を追加＝`WX20-068-E2`（**自分の全シグニをアップ**していた）。
+
+### ③ engine＝`execBanish` だけ `excludeSelf` が未配線だった
+
+`matchesFilter` は `excludeSelf` を見ない（候補集合を作る側の責務）。`execPowerModify`（`effectExecutor.ts:809`）・
+`GRANT_KEYWORD`（同 :2667）等は自前で除外しているのに **`execBanish` にだけ無く**、
+`WX22-024-E2`「あなたの**他の**すべてのシグニをバニッシュしてもよい」は JSON に `excludeSelf:true` が**元から載っていたのに**
+効果元自身まで巻き込んで消えていた。`thisCardRestrict`/`triggerRestrict` と同じ位置に1行追加。
+golden に**盤面を作って自身が残ることを確認する engine テスト**＋「excludeSelf 無しなら全滅する」対照を置いた。
+
+### 是正した効果（計12＋engine 1本）
+
+BANISH 7＝`WX11-050-E2`／`WXDi-CP02-042-E1`／`WXEX1-08-E3`／`WXK03-028-BURST`／`WXEX2-51-E2`／`WX17-046-E3`／`WXDi-P07-073-E1`。
+UP 5＝`WX14-051-E1`／`WXDi-P00-044-E1`／`WXK09-078-E1`／`WXEX1-60-E1`／`WX20-068-E2`。
+engine＝`execBanish` の `excludeSelf`（`WX22-024-E2` ほか、上記 BANISH 3件にも効く）。
+
+### 採用経路（3種が混在＝続き376d と同じ）
+
+- **build:effects で自動採用 10効果**（A/B 差分を全件目視＝**意図した箇所以外の変化 0**）。
+- **held 経由 1枚**＝`WXDi-P07-073`（`--adopt`。採用前に card 全効果の fresh↔live を突き合わせ、差分が owner 1点だけであることを機械確認）。
+- **カード単位 PRESERVE の外科パッチ 1件**＝`WXK03-028-BURST`（同カードの E2 が MANUAL のため held にも載らない）。parser 出力と完全一致する形で当てた。
+
+### ⚠A/B の取り方（auto-commit がある環境での注意）
+
+このリポジトリは変更を**自動 commit** するので `git stash` で「変更前」を作れない。
+**ベースラインコミットから parser を `git show <sha>:<path>` で取り出して全カード fresh をダンプ→戻して再ダンプ→diff** が正しい手順。
+これで **live に採用されない（MANUAL/カード単位 PRESERVE の）効果も含めた全差分 12件**を確認できた（live 側の差分は10件しか出ない）。
+
+### 収穫と残り
+
+- **`WX13-002-E2`**（「あなたの＜毒牙＞のシグニ１体を対象とし、それをアップする」）は**過去に手で当てていた**ぶんが
+  parser 出力と一致するようになった＝held **213→211枚**。
+- **新しく (ii) 機構ギャップへ登録**＝「**黒ではない**対戦相手の…すべてのシグニ」（色の否定 filter が型に無い・`WXDi-P03-085-E1`）／
+  「**そのターンにアタックしていた**すべてのシグニ」（アタック済みフラグの filter が無い・`WXDi-P08-010-E3`／`WXK01-035-E1`）／
+  「**【アサシン】【ランサー】【ダブルクラッシュ】のいずれかを持つ**すべてのシグニ」（キーワードOR filter・`WX14-004-E1`③）／
+  「**このシグニと同じパワーを持つ**他のすべてのシグニ」（自身パワー等値比較・`WX17-046-E3` は excludeSelf だけ載った）。
+- **ゲート**＝golden **1430→1436**（+6）、census **1061→1053**（−8＝**全部が機能是正**・較正ぶんは無し）、
+  被覆マトリクス miss **483→476**、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、
+  lint 0 errors/248 warnings（追加0）、manual field loss 0、held **213→211枚／104群**。
+
+---
+
 ## 2026-08-07 — **§5d-0(i) 配線ギャップ 第5バッチ**＝ディソナ判定が `keyword` 文字列で両方向に外れていた12効果（**census では検出できない系統**・golden 1428→1430）（Opus 5・続き376d）
 
 **census が 1061 のまま動かない回。** それでも 12効果が実際に直った＝**被覆マトリクスにしか映らない系統**を初めて踏んだ。
