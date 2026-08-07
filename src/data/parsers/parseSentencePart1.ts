@@ -2984,6 +2984,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const filter: TargetFilter = { ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parseGuardFilter(t) };
       if (t.includes('シグニ')) filter.cardType = 'シグニ';
       if (t.includes('スペル')) filter.cardType = 'スペル';
+      // 「トラッシュから無色ではない〜をエナゾーンに置く」（§5d パターンA・続き372）＝`WXK09-033-E2`／`WXDi-P10-070-E1`。
+      // 従来は無色カードもエナに送れる過剰効果だった。⚠`parseColorFilter` が「無色ではない」から color:'無' を
+      // 立てていたら**真逆**になるので、nonColorless を立てる側で打ち消す。
+      if (/無色ではない/.test(t)) { delete filter.color; filter.nonColorless = true; }
       return {
         type: 'ENERGY_CHARGE',
         target: { type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToEnaG[1]), upToCount: !!trashToEnaG[2], filter: Object.keys(filter).length > 0 ? filter : undefined },
