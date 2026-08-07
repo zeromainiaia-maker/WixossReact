@@ -1920,6 +1920,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseColorMatchesLrig(energySpan),
       // 「エナゾーンから《カード名》以外の〜」（§5d パターンA・続き371）＝`WXEX1-34-E3`／`WXK05-027-E1`
       ...parseExcludeCardNameFilter(energySpan),
+      // 「エナゾーンから無色ではないシグニ1枚」（§5d パターンA・続き372）＝`WXK07-029-E2`
+      ...(/無色ではない/.test(energySpan) ? { nonColorless: true } : {}),
     };
     const filter: TargetFilter | undefined = Object.keys(filterParts).length > 0 ? filterParts : undefined;
     const upToM = t.match(/([０-９\d]+)枚まで/);
