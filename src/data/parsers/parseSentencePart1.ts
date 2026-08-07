@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseNoAbilitiesFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun,
 } from '../parserUtils';
 
 /**
@@ -1355,7 +1355,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       type: 'BOUNCE',
       target: {
         type: 'SIGNI', owner, count, upToCount: !!upToM,
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
@@ -1422,6 +1422,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseColorFilter(t),
       ...parseStoryFilter(t),
       ...parseColorMatchesLrig(t),
+      ...parseNoAbilitiesFilter(t),
     };
     const excludeNameM = t.match(/《([^》]+)》以外/);
     const nameM = t.match(/《([^》]+)》/);
@@ -2077,6 +2078,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseColorMatchesLrig(t),
       ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準。resolveDynamicFilter が解決
       ...parseTriggerComparison(t, { allowPlacement: true }), // 「そのシグニより低い/高いレベル」＝トリガー元基準（被バニッシュ/被トラッシュ/場に出た）
+      ...parseNoAbilitiesFilter(t), // 「能力を持たないシグニN枚」（§5d パターンA）。「〜として場に出す」は helper 側で除外
       ...(/カード名に《[^》]+》を含む/.test(t) ? parseNameFilter(t) : {}), // 「カード名に《X》を含むシグニ」＝部分一致（WXEX2-51 ユラギ）
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
@@ -2490,7 +2492,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     /(?:すべての)?シグニを(?:対戦相手の)?デッキに戻[すし]/.test(t);
   if (signiToDeck) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStateFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseLevelFilter(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t) };
     return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter }, shuffle: false } as TransferToDeckAction;
   }
 

@@ -504,35 +504,6 @@ WX25-P2-060 WXK03-081
   + [0].action.steps[1].then.target.count = 1
   …（他 2 行）
 
-## +CONDITIONAL +OPP_CARDS_MOVED_TO_DECK_THIS_TURN ［2枚］
-WXK06-068 WXK06-070
---- WXK06-068
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンに対戦相手のカードがあなたの効果によって３枚以上デッキに移動していた場合、【エナチャージ２】をする。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 2
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
-  + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
-  + [0].action.condition.operator = "gte"
-  + [0].action.condition.value = 3
-  + [0].action.then.type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.then.owner = "self"
-  + [0].action.then.count = 2
---- WXK06-070
-  原文: 【自】：このシグニがアタックしたとき、このターンに対戦相手のカードがあなたの効果によって２枚以上デッキに移動していた場合、あなたのデッキから青のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,-
-  - [0].action.from.location = "deck"
-  - [0].action.from.owner = "self"
-  - [0].action.filter.cardType = "シグニ"
-  - [0].action.filter.color = "青"
-  - [0].action.maxCount = 1
-  - [0].action.then.steps[0].type = "REVEAL"
-  - [0].action.then.steps[1].type = "ADD_TO_HAND"
-  - [0].action.then.steps[1].owner = "self"
-  - [0].action.afterSearch.type = "SHUFFLE_DECK"
-  - [0].action.afterSearch.owner = "self"
-  ~ [0].action.type : "SEARCH" → "CONDITIONAL"
-  + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
-  …（他 14 行）
-
 ## +BANISH +SEQUENCE +SIGNI ［1枚］
 WX08-026
 --- WX08-026
@@ -1787,24 +1758,6 @@ WDK08-Y08
   + [0].action.steps[1].condition.value = 5
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "その差の分だけ手札からカードをエナゾーンに置く"
-
-## +CONDITIONAL×2 +OPP_CARDS_MOVED_TO_DECK_THIS_TURN×2 ［1枚］
-WDK09-014
---- WDK09-014
-  原文: 【自】：あなたのアタックフェイズ開始時、このターンに対戦相手のカードがあなたの効果によって４枚以上デッキに移動していた場合、カードを１枚引く。【自】：このシグニがアタックしたとき、このターンに対戦相手のカードがあなたの効果によって１枚以上デッキに移動していた場合、カードを１枚引く。,：カードを１枚引く。
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [0].action.type : "DRAW" → "CONDITIONAL"
-  + [0].action.condition.type = "OPP_CARDS_MOVED_TO_DECK_THIS_TURN"
-  + [0].action.condition.operator = "gte"
-  + [0].action.condition.value = 4
-  + [0].action.then.type = "DRAW"
-  + [0].action.then.owner = "self"
-  + [0].action.then.count = 1
-  ~ [1].action.type : "DRAW" → "CONDITIONAL"
-  …（他 6 行）
 
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007

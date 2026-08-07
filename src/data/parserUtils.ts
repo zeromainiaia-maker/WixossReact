@@ -204,11 +204,7 @@ export function extractNounPhraseFilter(
 
   const excludeName = span.match(/《([^》]+)》以外の/);
   if (excludeName) filter.excludeCardName = excludeName[1];
-  // 「能力を持たない〜」（§5d パターンA・14効果）。従来は語彙が無く**能力持ちも対象になる過剰効果**だった
-  //   （`WX14-023-E3`「能力を持たない対戦相手のシグニ1体を手札に戻す」等）。
-  //   ⚠「能力を持たない」は所有格より**前**に出る（「能力を持たない**対戦相手の**シグニ」）ので、
-  //     名詞句 span 全体に対する含有判定で取る（先頭一致だと取りこぼす）。
-  if (/能力を持たない/.test(span)) filter.noAbilities = true;
+  Object.assign(filter, parseNoAbilitiesFilter(span));
   const containsName = span.match(/カード名に《([^》]+)》を含む/);
   if (containsName) filter.cardName = containsName[1];
   if (/無色ではない/.test(span)) filter.nonColorless = true;
@@ -412,11 +408,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   //   ⚠「このシグニが中央のシグニゾーンにあるかぎり／場合、…対戦相手のシグニ1体を対象とし」＝**効果元の位置条件**を
   //     巻き込まないよう、名詞句が読点を挟まずシグニへ続く形に限定する。
   if (/中央のシグニゾーンにある[^。、]*シグニ/.test(text)) filter.centerZoneOnly = true;
-  // 「能力を持たない〜シグニ」（§5d パターンA・14効果）。従来は語彙が無く**能力持ちも対象になる過剰効果**
-  //   （`WX14-023-E3`／`WX19-022-E1`／`WXK10-022-E2` 等が「対戦相手のシグニ1体」を無制限に選べていた）。
-  //   ⚠「能力を**失って**いる」は REMOVE_ABILITIES の結果を指す別語彙なので、ここでは扱わない（原文どおり
-  //     「持たない」だけを取る。engine の hasNoAbility は abilities_removed も「持たない」に数えるので結果は包含）。
-  if (/能力を持たない/.test(text)) filter.noAbilities = true;
+  Object.assign(filter, parseNoAbilitiesFilter(text)); // 「能力を持たない〜シグニN体」（§5d パターンA）
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
   if (/【チャーム】が付いている/.test(text)) filter.hasCharm = true; // 「【チャーム】が付いている対戦相手のシグニ」（G153）
