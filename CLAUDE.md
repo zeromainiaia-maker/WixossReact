@@ -27,6 +27,7 @@ WixossカードゲームのReactクローン実装。
 - `npm run fuzz` — 乱択 自己対戦ファズ＝進化盤面で効果連鎖し相互作用/複製バグ検出（現状 全0・シード再現可）
 - `npm run census` — 語彙センサス＝過剰効果/幻覚の両方向計器（高シグナル1872ベースライン・超過で exit 1）。消化は `npm run census:clusters`（文型クラスタ表）→parser規則→`npm run build:effects`→`node scripts/heldReview.mjs` 一括採用（手順は PLAN.md §5c・§4「次の一手」）
 - **`npm run census:timing`** — **timing 語彙センサス（2026-07-12新設）＝「【自】なのに timing 判定が全て外れて `ON_PLAY`（＝場に出たとき）へフォールバックした効果」**を原文トリガー句でクラスタリング（`docs/_timing_census.txt`）。**engine に収集関数があるのに parser がその timing を生成していない穴**を炙り出す計器＝上位クラスタは parser に regex 1本足すだけで直ることが多い（PLAN §3 Opusタスク16）。ゲートではない（exit 0）
+- **`npm run census:wiring`** — **被覆マトリクス（2026-08-07新設）＝「TargetFilter の語彙は型にも engine にも実装済みなのに、parser の一部のビルダーからだけ合成されていない」配線漏れ**を (語彙キー × アクション入口) で機械検出（`docs/_census_wiring.txt`）。**セルを取るときは `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>`**。★印＝同じ入口に配線済みの効果がある＝穴が明確＝最優先。`has=0` の語彙は自動で別枠（＝機構未実装＝PLAN §6.3）。ゲートではない（exit 0）
 - **engine / BattleScreen / decompiler を触ったら（C・D・Stage2）上記 smoke・golden・fuzz を必ず回す**（数秒）。バグを golden に1件足してから直すと回帰を防げる。
 - **CI（`.github/workflows/ci.yml`）が push/PR(master) で typecheck・lint・golden・smoke・fuzz を自動実行**＝回し忘れても素通りしない。ローカルで先に回して緑にしてから push する。
 
