@@ -8192,7 +8192,6 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (selfAttM) {
           extractedTriggerScope = 'self';
         } else {
-          const allyColorM = actionText.match(/^あなたの([白赤青緑黒])のシグニがアタックしたとき、/);
           // 「対戦相手の〔シグニ／ルリグ／シグニかルリグ／ルリグかシグニ／センタールリグ…〕がアタックしたとき」。
           // 続き218j で**ルリグ単独主語も対象化**した（engine に防御側収集経路 collectLrigAttackDefenderTriggers を
           // 新設し、timing 側も ON_ATTACK_LRIG を出すようにしたため、もう ON_ATTACK_SIGNI へ誤って載る心配がない）。
