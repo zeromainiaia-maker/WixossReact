@@ -1893,6 +1893,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 「《カード名》以外の〜をデッキに加えて」（§5d パターンA・続き371）＝`WX17-063-E1`／`WXK09-090-E1`／
       //   `WD23-041-EA-E1`。上のコメントどおり名前指定は色/story を汚さないので cleanSpan ではなく deckSpan から取る。
       ...parseExcludeCardNameFilter(deckSpan),
+      // 「無色ではない〜をデッキに加えて」（§5d パターンA・続き372）＝上の cleanSpan は positive filter を
+      //   汚さないために否定トークンを**捨てて**いたが、`nonColorless` として**拾い直す**のが正しい。
+      //   従来は無色シグニもデッキに戻せる過剰効果だった（`WX13-065-E1`／`WX14-030-E1`／`WX15-Re15-E1`／`WX21-026-E3`）。
+      ...(/無色ではない/.test(deckSpan) ? { nonColorless: true } : {}),
     };
     // count：「N枚まで」＝upTo／span 内の「N枚」＝明示枚数／すべて＝ALL／無指定＝1。
     const upToM = deckSpan.match(/([０-９\d]+)枚まで/);
