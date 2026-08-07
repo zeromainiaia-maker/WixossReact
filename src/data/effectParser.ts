@@ -1149,6 +1149,25 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン5a0: 「（あなた|対戦相手）のエナゾーンにあるカードがN枚（以上|以下）であるかぎり、」（続き377j）
+  // ⚠上のパターン5は **「あなたの」「N枚以上」「あるかぎり」** の1形だけを見ており、
+  //   **所有者が対戦相手／閾値が以下／語尾が「であるかぎり」** の変種が丸ごと素通りしていた＝
+  //   条件が無言で落ちて**無条件発火**になる（実測4効果＝`WX04-002-E1`／`WX10-042-E1`／`WX10-064-E1`／
+  //   `WX24-P2-067-E1`。いずれも「相手のエナが少ないときだけ強くなる」札が**常時強い**状態だった）。
+  const enaCountM = text.match(/^(あなた|対戦相手)のエナゾーンに(?:ある)?カードが([０-９\d]+)枚(以上|以下)(?:である|ある)かぎり、/);
+  if (enaCountM) {
+    return {
+      condition: {
+        type: 'COUNT_THRESHOLD', location: 'energy',
+        owner: enaCountM[1] === '対戦相手' ? 'opponent' : 'self',
+        operator: enaCountM[3] === '以下' ? 'lte' : 'gte',
+        value: parseNum(enaCountM[2]),
+      },
+      rest: text.slice(enaCountM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン5a1: 「あなたのエナゾーンにあるカードが持つ色がN種類以上あるかぎり、」（無色は数えない。G070）
   const enaColorTypesM = text.match(/^あなたのエナゾーンにあるカードが持つ色が([０-９\d]+)種類(以上|以下)?あるかぎり、/);
   if (enaColorTypesM) {
