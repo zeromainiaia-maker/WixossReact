@@ -2865,7 +2865,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const lvM = t.match(/レベル([０-９\d]+)の(?:[白赤青緑黒]の|＜[^＞]+＞の)?シグニ/);
     // 「無色ではないシグニN枚をデッキの一番下に置く」（§5d パターンA・続き372）＝`WX15-Re15-E1`。
     // ここで立てた filter は `applyDistinctBatch5c` の source 付け替え（SIGNI→TRASH_CARD）にも引き継がれる。
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) };
+    // ＜クラス＞（続き376d 追加）＝「トラッシュからそれぞれレベルの異なる**＜天使＞の**シグニ３枚を…
+    // デッキの一番下に置く」で `selectionConstraint:{distinct:'level'}` は載るのに**クラスだけ落ちて**いた
+    // ＝トラッシュのどのシグニでも戻せる過剰効果（`SPDi44-12-E1`／`SPDi44-16-E1`／`WX25-P1-014-E1`／
+    //   `WX25-P1-030-E1`／`WX25-P2-063-E2`）。
+    // ⚠**全文からは取らない**（続き376d の BOUNCE で7件中4件を誤配線した教訓）＝「トラッシュから」以降に
+    //   限り、かつ ＜X＞の が対象名詞句のシグニに**隣接**（間に別の「シグニ」を挟まない）ときだけ拾う。
+    //   前文の「対戦相手のシグニ１体を対象とし」の側へ付けてはいけない。
+    const dbSrc = t.includes('トラッシュから') ? t.slice(t.indexOf('トラッシュから')) : t;
+    const dbSpan = dbSrc.match(/^([^。]*?)デッキの一番下に置く/s)?.[1] ?? '';
+    const dbStoryM = dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/);
+    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
