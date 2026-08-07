@@ -1297,7 +1297,20 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'ENERGY_COUNT':
       return cmp(st(cond.owner).energy.length, cond.operator, resolveNum(cond.value));
     case 'ENERGY_COUNT_FILTER': {
-      const matched = energyCandidates(st(cond.owner), cond.filter, ctx.cardMap, ctx.treatAsClassAllZones);
+      // 「〈そのプレイヤーの〉センタールリグと共通する色を(持つ|持たない)カード」＝**条件の owner のルリグ基準**で
+      // 解決する（§5d パターンA・続き375）。`matchesFilter` はこの2キーを知らないので、解決せずに渡すと
+      // **黙って無視され「エナに何かあるか」だけの過剰な条件**になる（`WD15-018-E1`）。
+      // 解決先は `resolveDynamicFilter`（effectExecutor）と同じ＝色一致→`color` ／色不一致→`colorExclude`。
+      let condFilter = cond.filter;
+      if (condFilter?.colorMatchesLrig || condFilter?.colorNotMatchesLrig) {
+        const lrigTop = st(cond.owner).field.lrig.at(-1);
+        const lrigColor = lrigTop ? ctx.cardMap.get(getCardNum(lrigTop))?.Color : undefined;
+        const { colorMatchesLrig: _m, colorNotMatchesLrig: _n, ...rest } = condFilter;
+        condFilter = !lrigColor ? rest
+          : condFilter.colorMatchesLrig ? { ...rest, color: lrigColor }
+          : { ...rest, colorExclude: lrigColor };
+      }
+      const matched = energyCandidates(st(cond.owner), condFilter, ctx.cardMap, ctx.treatAsClassAllZones);
       const n = cond.distinctClasses
         ? new Set(matched.flatMap(cn => splitClasses(ctx.cardMap.get(cn)?.CardClass)).filter(c => !(cond.excludeClasses ?? []).includes(c))).size
         : cond.distinctColor
