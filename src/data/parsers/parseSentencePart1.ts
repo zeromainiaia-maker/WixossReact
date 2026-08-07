@@ -101,6 +101,9 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
   // 続き372（§5d パターンA 第4バッチ）＝CHOOSE 選択肢②「あなたのトラッシュから無色ではないシグニ1枚を
   //   対象とし、それを手札に加える」（原文照合済み・他系統の修飾を持たない素の形）。
   'WX11-018',
+  // 続き373（§5d パターンA 第5バッチ）＝`levelEqTrigger` を配線して**動的等値と `nonColorless` を同時に表せる**
+  //   ようになったので、続き370 から据置だった `WXEX2-06`「そのシグニと同じレベルの無色ではないシグニ1枚」を解禁。
+  'WXEX2-06',
 ]);
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
