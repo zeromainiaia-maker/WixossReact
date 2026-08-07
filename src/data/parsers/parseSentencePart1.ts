@@ -1958,6 +1958,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filter: TargetFilter = {
       ...(cleanSpan.includes('シグニ') ? { cardType: 'シグニ' } : {}),
       ...spanStory, ...spanColor, ...spanLevel,
+      // 「《ガードアイコン》を持たない〜をデッキに加えてシャッフルする」（続き377b・被覆マトリクス
+      //   `noGuard × TRASH_CARD[filter]` miss 7／has 61＝**同じ入口で61件が配線済み**の明確な穴）。
+      //   落ちると**ガードを持つシグニまでデッキへ戻せる**過剰効果になる（`WXDi-D05-015-E2` ほか）。
+      //   ⚠デッキ圧縮系のカードでは「ガード持ちを残す」ことがデッキ構築上の意味なので、実害は小さくない。
+      ...parseGuardFilter(deckSpan),
       // 「《カード名》以外の〜をデッキに加えて」（§5d パターンA・続き371）＝`WX17-063-E1`／`WXK09-090-E1`／
       //   `WD23-041-EA-E1`。上のコメントどおり名前指定は色/story を汚さないので cleanSpan ではなく deckSpan から取る。
       ...parseExcludeCardNameFilter(deckSpan),
