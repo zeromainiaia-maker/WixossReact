@@ -4090,7 +4090,9 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     // optional:「トラッシュから…をデッキに戻してもよい」（WX17-028-E1）。選択 or スキップにし、
     // スキップ（0体選択）時は resumeSelectTarget が続く「そうした場合」(CONDITIONAL IS_MY_TURN) を stripDidItConditional で無効化する。
     // ⚠従来は無条件で slice(0,N) を強制していた（続き137・タスク12(viii)）。
-    if (a.optional && src.count !== 'ALL') {
+    // `src.upToCount`（「N枚**まで**」）も同じ扱い＝上限 N の任意枚数選択（続き377b）。従来は `a.optional` しか
+    //   見ておらず、`upToCount` は**素通りして slice(0,N) の強制 N 枚**になっていた（`WXK09-067-E1`「４枚まで」等）。
+    if ((a.optional || src.upToCount) && src.count !== 'ALL') {
       const count = resolveNum(src.count);
       const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
       return selectOrInteract(cands, count, true, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
