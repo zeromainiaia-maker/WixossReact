@@ -321,6 +321,7 @@ const PATTERNS: Pattern[] = [
           //   （WXK11-048）のように **filter に載っていない条件を落としている実バグ**まで合格にしてしまう。
           const residue = desc
             .replace(/＜[^＞]+＞/g, '').replace(/レベル[０-９\d]+(?:以上|以下)?/g, '')
+            .replace(/[白赤青緑黒]の/g, '') // 色（need に載せたぶんだけ取り除く）
             .replace(/シグニ|カード/g, '').replace(/[のかそれ、\s]/g, '').trim();
           if (residue !== '' || need.length === 0 || !need.every(k => js.includes(k))) { allCovered = false; return whole; }
           return '';
