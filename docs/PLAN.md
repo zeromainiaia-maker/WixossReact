@@ -357,6 +357,13 @@
 - [ ] **`noGuard` 14**（has 61）★＝`TRASH_CARD[filter]` に 7 miss だが**同じ入口で 61件が配線済み**＝最も明確な穴。
 - [ ] `isPuppet` 10／`isAwakened` 10／`levelParity` 9（has 4）★／`excludeResona` 6／`hasGuard` 6／`nonColorless` 5／`levelEqTrigger` 5 ほか。
 - ⚠**一度も配線されていない語彙は (i) ではない**＝`powerLteSelf` 9／`isDrive` 14／`eachDistinctColor` 3／`levelLtSelf` 2 は has=0＝**機構未実装 (ii)**。スクリプトが自動で別枠に落とす。
+
+**✅消化済みセル**
+- **（続き376b・第1バッチ）`triggerSubjectClass × TRIGGER{ON_ATTACK_SIGNI}` 16効果**＝`effectParser.ts` の ON_ATTACK_SIGNI 主語抽出が**「他の」があるときだけ**動いており、「他の」無しは `triggerScope` が既定 `self` に落ちて **watcher 自身がアタックしたときしか発火しない過小実行**だった（原文は味方の該当シグニ全部が引き金）。⚠**当初「どのシグニでも発火する過剰効果」と読んだのは誤りで、実際は逆方向（過小実行）**＝`triggerScope` の既定が `self` であることを確認せずに書いた。**engine（`collectFieldTriggers` の any_ally path）は元から `triggerFilter`/`excludeSelf` に対応済みで、落ちていたのは parser の1行だけ。**
+  - 内訳＝クラス有9（`WX13-037-E2` 凶蟲／`WX17-032-E2`・`WXEX2-20-E1` 英知／`WX18-054-E1` 悪魔／`WX19-072-E1` 地獣／`WXEX2-13-E1` 水獣／`WXEX2-18-E1` 遊具／`WX25-CP1-091-E1` ブルアカ／`WXDi-D09-P17-E2` 天使）＋クラス無7（`WD23-032-A-E2`／`WX10-035-E1`／`WX14-006A-E1`／`WXEX2-16-E2`／`WX25-P2-022-E1`／`WX25-P3-023-E1`／`WXDi-P10-054-E1`／`WXK07-030-E1`）。
+  - ⚠**抽出を先頭限定（`^`）にして前置き修飾つき3効果を意図的に除外**＝`WXDi-P04-016-E1`「**【ソウル】が付いている**あなたのシグニ」／`WXK10-084-E1・E2`「**レベルが奇数/偶数の**あなたの＜トリック＞のシグニ」。前置きごと無視して any_ally に広げると「条件を満たすシグニだけ」が「味方シグニ全部」になり、**過小実行を過剰発火へ付け替えるだけ**になる。**golden にトリップワイヤを設置済み**（広げたら落ちる）。→ 配線したい場合は先に triggerFilter 側へ前置きの語彙（ソウル付き／`levelParity`）を載せること。`levelParity` は型にも `matchesFilter` にも実装済みなので `WXK10-084` の2件は**すぐ取れる在庫**。
+  - ⚠**採用経路が2種混在**＝`WXEX2-18` は held に正しい形が滞留していたので `heldReview --adopt`（同時に E2「それをエナゾーンに置く」＝**デッキトップを自分のエナへ**という別物だったのと、E3 の「＜遊具＞のシグニ5枚まで」フィルタ欠落も是正）。`WX25-CP1-091` は E2 が PARTIAL のため**カード単位 PRESERVE で held に載らない**＝parser 出力と完全一致する形で外科パッチ（続き371 の `WX09-CB02` と同型。**held を増やさないための必須手順**）。
+  - **ゲート**＝golden **1419→1422**（+3＝parser 側16効果の固定／前置き除外のトリップワイヤ／engine の同クラス発火・別クラス非発火）、census **1162→1151**（−11・`BASELINE_HIGH` 更新）、smoke 全0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors/248 warnings（追加0）、manual field loss 0。**A/B 差分で `triggerScope`/`triggerFilter` 以外の変化が 0 件であることを機械確認済み。**
 - ⚠**セルを取るたびに全CSV走査で用法を分類してから配線する**（付与文・条件節・リマインダー文を filter にすると**原文と逆の過小実行**になる＝続き369 の教訓）。
 - `npm run census:wiring` → `npx tsx scripts/censusWiring.ts --cell <キー>:<入口ラベル>`
 
