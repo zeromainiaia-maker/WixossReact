@@ -732,8 +732,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const trashOwner: 'self' | 'opponent' | 'both' = m2[1] === 'あなた' ? 'self' : 'opponent';
       const sign = m2[4] === '＋' ? 1 : -1;
       const filterStr = m2[2].trim();
+      // 「トラッシュにある**無色ではない**シグニN枚/種類につき」（§5d パターンA・続き372）＝`WXK09-036-E2`。
+      // 数える母集団の絞り込みが落ちると**下げ幅が過大になる**（＝過剰効果）。
       const filter: TargetFilter | undefined =
-        filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) } : undefined;
+        filterStr.includes('シグニ')
+          ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...(/無色ではない/.test(filterStr) ? { nonColorless: true } : {}) }
+          : undefined;
       return {
         type: 'POWER_MODIFY_PER_TRASH_COUNT',
         target: { type: 'SIGNI', owner: 'self', count: 1 },
@@ -796,8 +800,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const trashOwner: 'self' | 'opponent' | 'both' = m[2] === 'あなた' ? 'self' : 'opponent';
       const sign = m[5] === '＋' ? 1 : -1;
       const filterStr = m[3].trim();
+      // 「トラッシュにある**無色ではない**シグニN枚/種類につき」（§5d パターンA・続き372）＝`WXK09-036-E2`。
+      // 数える母集団の絞り込みが落ちると**下げ幅が過大になる**（＝過剰効果）。
       const filter: TargetFilter | undefined =
-        filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) } : undefined;
+        filterStr.includes('シグニ')
+          ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...(/無色ではない/.test(filterStr) ? { nonColorless: true } : {}) }
+          : undefined;
       return {
         type: 'POWER_MODIFY_PER_TRASH_COUNT',
         target: { type: 'SIGNI', owner: 'opponent', count: parseNum(m[1]) },
