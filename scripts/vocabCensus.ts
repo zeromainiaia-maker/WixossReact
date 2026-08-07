@@ -422,7 +422,39 @@ const PATTERNS: Pattern[] = [
   //   好きな枚数あり」を機械確認済み＝取りこぼしを隠していない）。
   //   ⚠残 106 のうち 27 は LOOK_PICK_CHAIN。**あちらは型名を key に足さない**＝LPC は stage の枚数を
   //   常に上限として扱うため「ちょうどN枚」を表現できず、一括免除すると**その機構ギャップごと隠れる**。
-  { name: '「Nまで」上限選択', re: /[０-９\d](枚|体)まで/, keys: ['"upToCount":true', 'maxCount', 'upTo', 'pickUpTo', 'transferGroups'] },
+  //   ⚠**2026-08-07 続き376c で LOOK_PICK_CHAIN を較正した（ただし一括免除ではない）。** 上の
+  //   「型名を key に足さない」判断は**一括免除に対しては今も正しい**（LPC を含むだけで効果全体が免除され、
+  //   同じ効果の**別のアクション**にある「N体まで」の脱落まで隠れる＝続き376b で実測したクロス計上と同じ罠）。
+  //   そこで key ではなく **extraOk で残渣チェック**する＝「原文の『Nまで／好きな枚数』の出現数」以上の
+  //   **上限スロット**（upToCount:true／pickUpTo／maxCount／transferGroups／LPC の stage 数）が JSON にあるときだけ免除する。
+  //   実測＝高シグナル93件中 LPC は28件で、**28件すべてが slots ≥ need**（残渣ゼロ）＝全数が偽陽性だった。
+  //   ⚠**LPC が「ちょうどN枚」を表現できないギャップは別に残る**＝`stage.pickCount` は `maxPick`（上限）として
+  //   渡るため、原文が強制の「その中からシグニ１枚を場に出し」でも **0枚を選べてしまう**（実測 **23効果**・
+  //   「〜してもよい」形9件は上限扱いで正しいので除く）。この計器は「Nまで」しか見ないので元々検出できない。
+  //   **PLAN §5d-0 (ii) に「LPC の exact-N 表現ギャップ 23効果」として登録済み**＝較正で見えなくしたわけではない。
+  {
+    name: '「Nまで」上限選択', re: /[０-９\d](枚|体)まで/,
+    keys: ['"upToCount":true', 'maxCount', 'upTo', 'pickUpTo', 'transferGroups'],
+    extraOk: (js, t) => {
+      if (!js.includes('LOOK_PICK_CHAIN')) return false;
+      const text = t.replace(/（[^（）]*）/g, ''); // リマインダー文は数えない
+      const need = (text.match(/[０-９\d](枚|体)まで/g) ?? []).length + (text.match(/好きな枚数/g) ?? []).length;
+      let slots = 0;
+      const walk = (o: unknown): void => {
+        if (!o || typeof o !== 'object') return;
+        if (Array.isArray(o)) { o.forEach(walk); return; }
+        const r = o as Record<string, unknown>;
+        if (r.upToCount === true) slots++;
+        if (r.pickUpTo === true) slots++;
+        if (r.maxCount !== undefined) slots++;
+        if (r.transferGroups !== undefined) slots++;
+        if (r.type === 'LOOK_PICK_CHAIN' && Array.isArray(r.stages)) slots += r.stages.length;
+        for (const v of Object.values(r)) walk(v);
+      };
+      try { walk(JSON.parse(js)); } catch { return false; }
+      return need > 0 && slots >= need;
+    },
+  },
   { name: '公開し', re: /公開し/, keys: ['REVEAL', 'reveal'] },
   { name: '次の相手ターン終了時まで', re: /次の(対戦相手の)?ターン(の)?終了時まで/, keys: ['UNTIL_OPP_TURN_END', 'NEXT_OPP_TURN', 'NEXT_TURN'] },
   { name: '相手が選ぶ', re: /対戦相手[はが](自分の)?[^。]{0,25}選[びぶ]/, keys: ['opponentSelects', 'actingPlayerSelects', 'OPPONENT_SELECT'] },
