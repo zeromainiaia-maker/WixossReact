@@ -911,6 +911,20 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン2e: 「(あなた|対戦相手)の場に〈色〉ではないシグニがある場合/あるかぎり、」（色除外の存在条件・§5d パターンA・続き372）。
+  //   `WX16-Re06-E1`「あなたの場に**白ではない**シグニがある場合、このシグニの基本パワーは5000になる」は
+  //   条件節が丸ごと落ちて**無条件で基本パワー5000**になっていた。⚠`colorExclude` は execUtils の matchesFilter
+  //   にはあったが effectEngine 側（HAS_CARD_IN_FIELD の評価器）に無く黙って無視されていたので同時に補った。
+  const fieldColorExcludeM = text.match(/^(あなた|対戦相手)の場に([白赤青緑黒])ではないシグニがある(?:場合|かぎり|限り)、/);
+  if (fieldColorExcludeM) {
+    return {
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldColorExcludeM[1] === '対戦相手' ? 'opponent' : 'self',
+        filter: { cardType: 'シグニ', colorExclude: fieldColorExcludeM[2] } },
+      rest: text.slice(fieldColorExcludeM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3a: 「あなたの場にレゾナがあるかぎり、」
   if (text.startsWith('あなたの場にレゾナがあるかぎり、')) {
     return { condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } }, rest: text.slice('あなたの場にレゾナがあるかぎり、'.length), conditionFound: true };
