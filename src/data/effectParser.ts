@@ -3812,6 +3812,11 @@ const LRIG_COLOR_BATCH5_ENERGY: Record<string, number> = {
   'WX24-P1-062-E1': 1, 'WX24-P2-071-E1': 1, 'WX24-P1-019-E1': 1, 'WX24-P2-003-E1': 1,
   'WXDi-P04-020-E2': 1, 'WXDi-P10-026-E2': 1, 'WX25-P3-080-E1': 1, 'WX25-P2-078-E1': 2,
   'WXDi-P04-057-E1': 1,
+  // §5d パターンA 第6バッチ（続き374）＝原文照合済みの残り3件。いずれも
+  //   「対戦相手のエナゾーンから対戦相手のセンタールリグと共通する色を持たないカード1枚を対象とし、
+  //     それをトラッシュに置く」＝**相手エナのどのカードでも落とせる過剰効果**だった。
+  //   ⚠この3件は `TRASH{ENERGY_CARD, owner:'opponent'}` が正しく立っている（＝この helper が効く）形だけを選んだ。
+  'WXDi-P14-054-E1': 1, 'WXDi-P15-089-E1': 1, 'WXDi-P12-002-E1': 1,
 };
 function applyLrigColorBatch5(effects: CardEffect[]): void {
   const visitEnergyTrash = (node: unknown, remaining: { n: number }): void => {
