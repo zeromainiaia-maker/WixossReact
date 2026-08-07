@@ -2844,7 +2844,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const count = cM ? parseNum(cM[1]) : 1;
     // 「対戦相手のレベルNのシグニ」等のレベル指定をフィルタに反映（G100）
     const lvM = t.match(/レベル([０-９\d]+)の(?:[白赤青緑黒]の|＜[^＞]+＞の)?シグニ/);
-    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) };
+    // 「無色ではないシグニN枚をデッキの一番下に置く」（§5d パターンA・続き372）＝`WX15-Re15-E1`。
+    // ここで立てた filter は `applyDistinctBatch5c` の source 付け替え（SIGNI→TRASH_CARD）にも引き継がれる。
+    const filter: TargetFilter = { cardType: 'シグニ', ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}) };
     return {
       type: 'TRANSFER_TO_DECK',
       source: { type: 'SIGNI', owner, count, filter },
