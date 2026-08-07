@@ -39,7 +39,7 @@ import type {
 import {
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
-  parseCardTypeFilter, parseGuardFilter, parseIconFilter,
+  parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter,
 } from '../parserUtils';
 
 export function parseSentencePart2(t: string): EffectAction | null {
@@ -2021,7 +2021,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
   const kwThrFilter = kwTgtPhraseM
     ? { ...parsePowerFilter(kwTgtPhraseM[1]), ...parseLevelFilter(kwTgtPhraseM[1]), ...parseStateFilter(kwTgtPhraseM[1]), ...parseColorFilter(kwTgtPhraseM[1]) }
     : {};
-  const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter };
+  // 《ライズ／クロス／アクセアイコン》（続き377c）＝上の `kwTgtPhraseM` は「あなたの」と「シグニ」の**間**しか見ないので、
+  //   「**《ライズアイコン》を持つ**あなたのシグニ１体を対象とし」のように**「あなたの」より前**に付く修飾を取りこぼす。
+  //   `signiClauseIconFilter` は対象名詞句への隣接だけを見るので条件節（「場に…が２体あるかぎり」）は入らない。
+  const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter, ...signiClauseIconFilter(t) };
   const kwTargetFilter = Object.keys(kwMergedFilter).length > 0 ? { filter: kwMergedFilter } : {};
 
   // ---- 【キーワード】を得る（文脈依存owner/count）----

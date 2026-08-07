@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter,
 } from '../parserUtils';
 
 /**
@@ -2443,7 +2443,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const kwOppSigni = t.includes('対戦相手のシグニ') || /対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t)
         || /対戦相手の他の(?:[白赤青緑黒]の|＜[^＞]+＞か?の?)*シグニ/.test(t);
       // 単体シグニ付与に付くクラス/色/レベルフィルタ（＜鉱石＞か＜宝石＞か＜ウェポン＞ 等）
-      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t) };
+      // 《ライズ／クロス／アクセアイコン》（続き377c）＝**対象名詞句に隣接**するときだけ（`signiClauseIconFilter`）。
+      //   落ちると `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
+      //   **どのシグニにも付与できる**過剰効果になる。全文スキャンにすると `WX18-030-E1`「場に…が２体あるかぎり」の
+      //   **条件節**を対象へ引き込むので、隣接判定は外せない。
+      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
@@ -2456,7 +2460,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
-        : kwCountSelfM ? { type: 'SIGNI', owner: 'self', count: parseNum(kwCountSelfM[1]) }
+        // ⚠**枚数付きの枝だけ filter を落としていた**（続き377c）＝下の `kwSelfSigni` 枝には
+        //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
+        //   `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
+        //   **どのシグニにも付与できる**過剰効果になっていた。枝ごとの取りこぼしは同じ関数内でも起きる。
+        : kwCountSelfM ? { type: 'SIGNI', owner: 'self', count: parseNum(kwCountSelfM[1]), ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : kwSelfSigni ? { type: 'SIGNI', owner: 'self', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : kwOppSigni ? { type: 'SIGNI', owner: 'opponent', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : { type: 'SIGNI', owner: 'any', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) };
