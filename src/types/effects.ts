@@ -467,6 +467,10 @@ export interface TargetFilter {
   cardClassExclude?: string | string[]; // ＜クラス＞除外（「＜天使＞ではないシグニ」等。CardClassにincludesでマッチしたら除外）WX03-002
   hasGuard?:  boolean;
   noGuard?:   boolean; // 《ガードアイコン》を持たない（G237）。matchesFilter で Guard!=='1' を要求
+  // 「能力を持たないシグニ」（§5d パターンA）。判定は `hasNoAbility` と同基準（①効果1件以上＝能力あり
+  // ②0件は根拠にならず原文で判定・CSV は素のシグニを `-` で持つ）。場のシグニでは `abilities_removed`
+  // （効果で能力を失った）も「持たない」に数える＝`fieldCandidates` が state を見て加算する。
+  noAbilities?: boolean;
   nonColorless?: boolean; // 無色ではない（色を1つ以上持つ）。matchesFilter で Color が空/無色のカードを除外（G240）
   isDisona?:  boolean; // 《ディソナアイコン》を持つカード（CSVの Story==='Dissona'）。matchesFilter で判定
   levelParity?: 'odd' | 'even'; // レベルが奇数/偶数のシグニ（WXK01-004「奇数」/WDK04-012「偶数」）。Level 非数値は不一致
