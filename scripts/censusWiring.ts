@@ -112,23 +112,24 @@ function stripReminder(t: string): string {
 // ===== 入口ラベル =====
 // 「filter を保持しうるアクション」を `アクション型{ターゲット型}` でラベル化する。
 // これが parser のビルダー1本にほぼ対応する＝配線を足す先の単位。
-function entryLabels(eff: any): string[] {
+function entryLabels(eff: EffectObj): string[] {
   const labels = new Set<string>();
-  const walk = (node: any): void => {
+  const walk = (node: unknown): void => {
     if (node === null || typeof node !== 'object') return;
     if (Array.isArray(node)) { node.forEach(walk); return; }
-    const t = node.type;
+    const rec = node as Record<string, unknown>;
+    const t = rec.type;
     if (typeof t === 'string') {
-      const tgt = node.target;
+      const tgt = rec.target as Record<string, unknown> | undefined;
       if (tgt && typeof tgt === 'object' && typeof tgt.type === 'string') {
         labels.add(`${t}{${tgt.type}}`);
       }
       // target を持たないが filter を直接持つ形（countFilter / triggerFilter / cost 内 filter 等）
       for (const k of ['filter', 'countFilter', 'triggerFilter', 'sourceFilter']) {
-        if (node[k] && typeof node[k] === 'object' && !node.target) labels.add(`${t}[${k}]`);
+        if (rec[k] && typeof rec[k] === 'object' && !rec.target) labels.add(`${t}[${k}]`);
       }
     }
-    for (const v of Object.values(node)) walk(v);
+    for (const v of Object.values(rec)) walk(v);
   };
   walk(eff.action);
   if (eff.condition) walk(eff.condition);
