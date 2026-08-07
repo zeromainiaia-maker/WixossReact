@@ -93,6 +93,11 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
   'WX14-031', 'WXEX1-30', 'WXDi-P11-010A', 'WXDi-P00-001',
   // 第2波（Opus 分担・単発）＝「白か黒のシグニ1枚」colorOR 脱落是正
   'WX09-020',
+  // §5d パターンA（続き370）＝「あなたのトラッシュから**無色ではない**（レベルNの）シグニ1枚を対象とし、
+  //   それを手札に加える」。`nonColorless` が落ちて**無色シグニまで拾える過剰効果**だった。
+  //   ⚠「そのシグニと同じレベル／共通する色」を併記する形（`WXEX2-06` 等）は2系統を同時に表せないため
+  //     既存ガードが nonColorless を落とす＝ここには入れない（部分 filter だけの採用を禁止する方針を踏襲）。
+  'WX20-031', 'WX22-049', 'WXK04-015', 'WXK09-029',
 ]);
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
@@ -1423,6 +1428,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseStoryFilter(t),
       ...parseColorMatchesLrig(t),
       ...parseNoAbilitiesFilter(t),
+      // 「無色ではない〜」（§5d パターンA）。`nonColorless` は型にも matchesFilter にも実装済みなのに
+      // SEARCH のフィルタ合成から漏れており、**無色シグニまで探せる過剰効果**だった
+      // （`PR-K043-E2`／`WXK02-010`／`WXK11-034`／`WXK11-051`／`WX06-025` 等）。
+      // ⚠全CSV走査で「無色ではない」55件はすべて名詞句修飾（「〜として」「〜場合」の別用法が無い）ことを確認済み。
+      ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
     };
     const excludeNameM = t.match(/《([^》]+)》以外/);
     const nameM = t.match(/《([^》]+)》/);

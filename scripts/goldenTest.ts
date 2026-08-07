@@ -8252,6 +8252,23 @@ test('§5d(A) noAbilities: engine 判定＝素のシグニのみ候補／能力�
   ok(fieldCandidates(removed, { cardType: 'シグニ', noAbilities: true }, cardMap as Map<string, CardData>).includes(withAb),
     'abilities_removed のシグニは「能力を持たない」に数える');
 }));
+// §5d パターンA 第2バッチ「無色ではない〜」＝`nonColorless`（型・matchesFilter は実装済みだった）。
+// SEARCH と トラッシュ→手札 のフィルタ合成から漏れており、**無色シグニまで拾える過剰効果**だった。
+test('§5d(A) nonColorless: SEARCH／トラッシュ→手札 の9効果に載る', () => {
+  const has = (num: string) => JSON.stringify(effectsMap.get(num) ?? []).includes('"nonColorless":true');
+  for (const num of ['PR-K043', 'PR-K070', 'WX16-Re08', 'WXK02-010', 'WXK11-034', 'WXK11-051',
+    'WX20-031', 'WX22-049', 'WXK04-015']) {
+    ok(has(num), `${num}: 「無色ではない」が filter に載る（無色まで拾う過剰に戻っていない）`);
+  }
+  // ⚠「そのシグニと同じレベル／共通する色」併記型は2系統を同時に表せないため nonColorless を落とす既存方針
+  //   （部分 filter だけを採用しない）。据置であることを固定する。
+  ok(!has('WXEX2-06'), 'WXEX2-06「そのシグニと同じレベルの無色ではないシグニ」は据置（部分filter不採用）');
+  // engine 判定＝無色（Color が「無」）は候補から外れる
+  const colored = findCard(c => c.Type === 'シグニ' && !!c.Color && c.Color !== '無' && c.Color !== '');
+  const colorless = findCard(c => c.Type === 'シグニ' && c.Color === '無');
+  ok(matchesFilter(cardMap.get(colored), { cardType: 'シグニ', nonColorless: true }), '有色シグニは一致する');
+  ok(!matchesFilter(cardMap.get(colorless), { cardType: 'シグニ', nonColorless: true }), '無色シグニは一致しない');
+});
 // §5c 文型バッチ「このターンに対戦相手のカードがあなたの効果によってN枚以上デッキに移動していた場合」。
 // 規則自体は `parseSingleSentence` の局所 CLAUSES にあったが**共通表（STATE_CONDITION_CLAUSES_V2）に無かった**ため、
 // 【自】トリガー文の条件節 hoist 経路では拾えず、3カードが条件節ごと落ちて無条件発火していた。
