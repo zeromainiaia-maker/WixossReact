@@ -1063,6 +1063,11 @@ export function fieldCandidates(
   const baseCands = state.field.signi.flatMap((stack, zoneIdx) => {
     if (!stack || stack.length === 0) return [];
     const cardNum = stack[stack.length - 1];
+    // 「能力を持たない」＝場では **abilities_removed（効果で能力を失った）も含む**（§5d パターンA）。
+    // matchesFilter は card 単体しか見られないので、state を持つここで hasNoAbility に委ねて上書きする。
+    if (filter?.noAbilities !== undefined) {
+      if (filter.noAbilities !== hasNoAbility(cardNum, cardMap, state)) return [];
+    }
     // ゾーン状態に依存するフィルター（infected / hasAcce / hasCharm）
     if (filter?.infected !== undefined) {
       const infected = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
