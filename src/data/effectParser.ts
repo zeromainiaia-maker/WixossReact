@@ -58,6 +58,44 @@ const LOOK_PICK_CHAIN_WAVE2_CARDS = new Set([
   'WXEX1-25', 'WXDi-P16-008', 'WXK01-069', 'WXEX1-15', 'WXDi-P14-079',
 ]);
 let _parsingCardNum = '';
+/**
+ * 「[レベルが奇数/偶数の]あなたの[他の][修飾群]シグニ[N体]がアタックしたとき、」＝ON_ATTACK_SIGNI の**味方側主語**を
+ * `triggerScope:'any_ally'` ＋ `triggerFilter` へ落とす唯一の入口（続き377f で3箇所の regex を統合）。
+ *
+ * ⚠**未知の修飾語が1文字でも残ったら null を返す**（＝呼び出し側は既定 `self` のまま何もしない）。
+ *   これが本関数の安全弁＝「あなたの」で始まるからと機械的に any_ally にすると、
+ *   限定条件（例：【ソウル】が付いている＝盤面状態でフィルタ語彙が無い）が黙って落ち、
+ *   **過小実行を過剰発火へ付け替えるだけ**になる。語彙が無い修飾は**配線しない**のが正しい。
+ *
+ * 対応する修飾（順不同・重複可）：他の／パワーN以上・以下の／レベルNの／レベルが奇数・偶数の／色／
+ * 《ディソナアイコン》の／カード名に《X》を含む／＜クラス＞の。
+ */
+function parseAllyAttackSubject(text: string): { filter: TargetFilter } | null {
+  // 「レベルが奇数の」等は「あなたの」の**前**にも置かれる（WXK10-084-E1/E2）ので前置きも取る。
+  const m = text.match(/^(.{0,12}?)あなたの(.{0,32}?)シグニ(?:[０-９\d一二三四五六七八九]+体)?がアタックしたとき[、,]/);
+  if (!m) return null;
+  let rest = `${m[1]}${m[2]}`;
+  const filter: TargetFilter = {};
+  const take = (re: RegExp, apply: (mm: RegExpMatchArray) => void): void => {
+    const mm = rest.match(re);
+    if (!mm) return;
+    apply(mm);
+    rest = rest.replace(re, '');
+  };
+  take(/他の/, () => { filter.excludeSelf = true; });
+  take(/パワー([０-９\d]+)以上の/, mm => { filter.powerRange = { ...(filter.powerRange ?? {}), min: parseNum(mm[1]) }; });
+  take(/パワー([０-９\d]+)以下の/, mm => { filter.powerRange = { ...(filter.powerRange ?? {}), max: parseNum(mm[1]) }; });
+  take(/レベルが奇数の/, () => { filter.levelParity = 'odd'; });
+  take(/レベルが偶数の/, () => { filter.levelParity = 'even'; });
+  take(/レベル([０-９\d]+)の/, mm => { filter.level = parseNum(mm[1]); });
+  take(/《ディソナアイコン》の/, () => { filter.isDisona = true; });
+  take(/カード名に《([^》]+)》を含む/, mm => { filter.cardName = mm[1]; });
+  take(/＜([^＞]+)＞の/, mm => { filter.story = mm[1]; });
+  take(/([白赤青緑黒])の/, mm => { filter.color = mm[1]; });
+  if (rest.length > 0) return null; // 未知の修飾語が残る＝語彙化されていない＝配線しない
+  return { filter };
+}
+
 function isBatch1OnlyClause(re: RegExp): boolean {
   // ⚠「対戦相手のライフクロス〜があなたより多い場合」族はカードゲートを外した（タスク12(lxiii)）。
   //   全CSVで4枚（WX15-033／WX17-040／WX18-032／WXK11-031）しかなく、いずれもゲートに載っておらず
