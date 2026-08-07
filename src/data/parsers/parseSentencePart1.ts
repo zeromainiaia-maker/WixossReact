@@ -2943,14 +2943,37 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   `dbSpan`（トラッシュから〜デッキの一番下）内の最初の「N枚」だけ。「N枚まで」は `upToCount`。
     //   「それぞれレベルの異なる」系は `applyDistinctBatch5c` が後段で count を確定するので既存値と一致する。
     const dbCountM = dbSpan.match(/([０-９\d]+)枚(まで)?/);
+    // ⚠**dbSpan があるとき＝移す元は「トラッシュ」であって場のシグニではない**（続き377b）。
+    //   従来は常に `source:{type:'SIGNI'}`＝**場のシグニをデッキ下へ送る別物**を出しており、しかも owner は
+    //   全文の「対戦相手」で決めていたので `WX06-001-E2`「対戦相手のシグニ１体を対象とし、**あなたの**トラッシュから
+    //   ＜天使＞のシグニ７枚をデッキの一番下に置く」が **相手の場のシグニ**を送る形になっていた（実測19効果）。
+    //   正準形は同じ文型の13効果が既に持っている `source:{type:'TRASH_CARD', owner, count, filter}`
+    //   （`applyDistinctBatch5c` の `DISTINCT_SOURCE_FIX_BATCH5C` が名指しで付け替えていたぶん）＝
+    //   **名指し表でやっていたことをビルダー本体へ一般化する**。
+    //   owner は「対戦相手のトラッシュから」かどうか（＝トラッシュ直前の語）だけで決める＝全文スキャンしない。
+    const dbTrashIdx = t.indexOf('トラッシュから');
+    const dbTrashOwner: Owner = /対戦相手の$/.test(t.slice(Math.max(0, dbTrashIdx - 5), dbTrashIdx)) ? 'opponent' : 'self';
+    // 「対戦相手のトラッシュから**カード**を２枚まで」＝シグニ限定ではない（`WDK09-013-E2`／`WXK06-041-E2`／
+    //   `WXDi-P06-043-E1`／`WXDi-P11-074-E1`）。cardType を残すとシグニしか戻せない過小実行になる。
+    const dbIsCardNoun = /カード(?:を)?[０-９\d]*枚/.test(dbSpan) && !/シグニ(?:を)?[０-９\d]*枚/.test(dbSpan);
+    const { cardType: _dbCardType, ...dbFilterNoType } = filter;
+    const dbFilter = dbIsCardNoun ? dbFilterNoType : filter;
+    if (dbSpan) {
+      return {
+        type: 'TRANSFER_TO_DECK',
+        source: {
+          type: 'TRASH_CARD', owner: dbTrashOwner,
+          count: dbCountM ? parseNum(dbCountM[1]) : count,
+          ...(dbCountM?.[2] ? { upToCount: true } : {}),
+          ...(Object.keys(dbFilter).length > 0 ? { filter: dbFilter } : {}),
+        },
+        shuffle: false,
+        position: 'bottom',
+      } as TransferToDeckAction;
+    }
     return {
       type: 'TRANSFER_TO_DECK',
-      source: {
-        type: 'SIGNI', owner,
-        count: dbCountM ? parseNum(dbCountM[1]) : count,
-        ...(dbCountM?.[2] ? { upToCount: true } : {}),
-        filter,
-      },
+      source: { type: 'SIGNI', owner, count, filter },
       shuffle: false,
       position: 'bottom',
     } as TransferToDeckAction;
