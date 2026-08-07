@@ -117,7 +117,7 @@ function loadSrcText(): Record<string, string> {
 
 // live JSON はこの計器にとって「木を歩いて type/target を拾うだけ」の相手なので、
 // src/types/effects.ts の厳密な型は引かずに最小の構造だけ宣言する（計器を型変更に巻き込まない）。
-interface EffectObj { effectId?: string; parseStatus?: string; action?: unknown; condition?: unknown; cost?: unknown; }
+interface EffectObj { effectId?: string; parseStatus?: string; timing?: unknown[]; action?: unknown; condition?: unknown; cost?: unknown; }
 interface EffectRec { effectId: string; cardNum: string; json: string; obj: EffectObj; }
 function loadEffects(): Map<string, EffectRec> {
   const out = new Map<string, EffectRec>();
