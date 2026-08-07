@@ -8209,14 +8209,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           const anyAttM = actionText.match(/^シグニ(?:[０-９\d一]+体)?がアタックしたとき[、,]/);
           if (anyAttM) {
             extractedTriggerScope = 'any';
-          } else if (allyPowerM) {
+          } else if (allySubj) {
             extractedTriggerScope = 'any_ally';
-            extractedTriggerFilter = { powerRange: { min: parseNum(allyPowerM[1]) } };
-          } else if (allyColorM) {
-            extractedTriggerScope = 'any_ally';
-            extractedTriggerFilter = { color: allyColorM[1] };
-          } else if (/^あなたのシグニがアタックしたとき、/.test(actionText)) {
-            extractedTriggerScope = 'any_ally';
+            const tf = { ...(extractedTriggerFilter ?? {}), ...allySubj.filter };
+            if (Object.keys(tf).length) extractedTriggerFilter = tf;
           } else if (oppAttM) {
             // 「対戦相手の（＜X＞の）シグニ/ルリグがアタックしたとき」: 防御側が相手アタックに反応（any_opp）
             extractedTriggerScope = 'any_opp';
