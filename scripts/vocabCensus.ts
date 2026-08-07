@@ -283,7 +283,13 @@ const PATTERNS: Pattern[] = [
           .replace(/そう(しなかった|した|でない|である)場合/g, '');
         if (!/場合[、,]/.test(tf)) return true;
       }
-      if (!js.includes('REVEAL_AND_PICK')) return false;
+      // ⚠2026-08-07 続き376d でゲートを拡張＝**同じ「それが〈desc〉の場合、それを〜」を
+      //   `ADD_TO_FIELD{source:{type:'DECK_CARD', fromTop:true, filter}}` で表す形**が続き24/365 の較正から漏れていた
+      //   （`WX15-001-E2`「デッキの一番上を見る。それが赤のシグニの場合、それを場に出してもよい」＝
+      //     赤以外なら候補0で不発＝`REVEAL_AND_PICK{filter}` と等価）。
+      //   ⚠**ゲートを開いても残渣チェックは共通**なので、同じ形でも filter に載っていない条件
+      //   （`WX15-057-E1`「《アクセアイコン》を持つシグニの場合」＝無条件ドローの実バグ）は素通りしない。
+      if (!js.includes('REVEAL_AND_PICK') && !(js.includes('ADD_TO_FIELD') && js.includes('"fromTop":true'))) return false;
       let allCovered = true;
       // 「（デッキの一番上を公開する。）〈それ|そのカード|この方法で公開したカード〉が <desc> (ではない)場合、…」は
       // REVEAL_AND_PICK{filter}（と否定側の elseAction）が条件を担う**正表現**。

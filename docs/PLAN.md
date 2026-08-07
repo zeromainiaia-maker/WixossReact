@@ -155,7 +155,7 @@
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝**全ゲート緑（2026-08-07 続き376c＝(i)配線ギャップ第1バッチ＋(iv)計器較正第1バッチ後）**＝golden **1422**・smoke **10679** 全0（SKIP も 0）・fuzz 全0・同型★**0**（265群）・census **1120**（回帰ゲート）・manual field loss 0・lint 0 errors/**248 warnings**・held **229枚／104群**・実機 driver 既定order **128件**（続き376 の §7 コイン支払い累計2本を追加）。**被覆マトリクス miss 525**（`npm run census:wiring`）。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝**全ゲート緑（2026-08-07 続き376c＝(i)配線ギャップ第1バッチ＋(iv)計器較正 第1・2バッチ後）**＝golden **1422**・smoke **10679** 全0（SKIP も 0）・fuzz 全0・同型★**0**（265群）・census **1089**（回帰ゲート）・manual field loss 0・lint 0 errors/**248 warnings**・held **229枚／104群**・実機 driver 既定order **128件**（続き376 の §7 コイン支払い累計2本を追加）。**被覆マトリクス miss 525**（`npm run census:wiring`）。
 >
 > **🏁 P1（表現）は 2026-07-23 に完了宣言済み**（宣言・3分類・以後の運用＝[P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md) 冒頭／§2 DoD／§5）。**主軸は P2/P3**＝①**§6.3 機構台帳**（宣言で正式送りした282効果の消化先＝正面40・チーム35・ゲームから除外残・アンコール19・動的比較14・ソウル11・ドライブ9 等を機構単位で）②**§7 実機検証** ③**BEHAVIOR_AUDIT（§5a・フェーズ跨ぎで継続）**。
 >
