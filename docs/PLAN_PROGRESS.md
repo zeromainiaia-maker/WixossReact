@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-07・続き377c・Opus 5〔**(i)配線ギャップ 第8バッチ＝《ライズ／クロス／アクセアイコン》の対象フィルタ**〕）＝ユーザー指示「続ける」。**触った層＝`src/data/parserUtils.ts`（`parseIconFilter`／`signiClauseIconFilter` 新設）／`parseSentencePart1.ts`（trash→field・hand→field・GRANT_KEYWORD の枝）／`parseSentencePart2.ts`／`effectParser.ts`（span 5箇所）／`scripts/censusWiring.ts`（較正）／`scripts/goldenTest.ts`／live JSON（自動12＋外科パッチ5）。**
+  - **ⓠまず ★★セル `levelRange × BANISH{SIGNI}` を取ったが miss 6 のうち5件が偽陽性**（クロス計上＝レベル語は条件節・ルリグレベル・ビートコストに掛かる）。真の脱落は `WXK05-043-E1` 1件だけ（owner 取り違え＋level 脱落＋条件節脱落の3重＝(iii) へ送り）。**収穫が薄いのでセルを乗り換えた**＝★★でも中身を読むまでは分からない。
+  - **✅① 較正（実装ゼロ・miss −28）＝アイコンにはキー綴りが2つ併存していた。** 専用キー `hasCrossIcon`/`hasRiseIcon`（`REVEAL_PICK_DESC_RULES` が使う）と汎用キー `hasIcon:'クロス'|'ライズ'`（parser 出力の多数派）。`matchesFilter` は**両方**を見ており**ライズは判定式まで同一**。計器がキー名照合だけしていたので `hasIcon` 側を全部 miss と誤検出＝`hasCrossIcon` **22→3**／`hasRiseIcon` **31→22**。
+  - **✅② 本物のギャップ 17効果**＝「《ライズアイコン》を持つ〜」の限定が**入口ごとに落ちて**いた（トラッシュ→手札／デッキ 5／トラッシュ→場 3／手札→場 2／キーワード付与 4／バニッシュ対象 1／デッキ検索 2）。ライズ軸の回収・展開が**どのシグニでも通る**過剰効果だった。
+  - **⚠`cardName:"ライズアイコン"` という完全 no-match が2件 live に焼き付いていた**（`WD17-011-E2`／`WX15-005-E1`）＝**parser は既に `hasIcon` を出していた**のに、カード単位 PRESERVE と live-only MANUAL で古い値が残っていた（続き376d のトラップ(c) の実例）。golden に「live 全体に存在しないこと」のトリップワイヤ。
+  - **🔎③ 同じ関数の中でも枝によって filter が落ちる**＝`GRANT_KEYWORD` の target 選択チェーンで `kwSelfSigni` 枝には `kwHasFilter` があるのに、**先に当たる `kwCountSelfM` 枝（「あなたのシグニN体」）には無かった**。⚠**ここで `kwSigniFilter` をそのまま使ってはいけない**（A/B で差し戻し）＝全文から `parseLevelFilter` を取るので `WD21-001-E1` の**条件節のレベル**を対象へ載せる。**対象名詞句に隣接する語彙だけ**を合成する形にした。
+  - **⚠④ 別ピック2本の span には AND しない**（A/B で3件誤配線して差し戻し）＝「＜調理＞のシグニ**１枚と**《アクセアイコン》を持つシグニ１枚」に AND で載せると「調理**かつ**アクセ」＝原文と逆の過小実行。⚠一方「捨てたシグニと共通するクラスを持ち《ライズアイコン》を持つシグニ」は**本物の AND**なので、**枚数で見分ける**（`それぞれN枚`＋「と」／`シグニN枚と`）。
+  - **ゲート**＝全緑。**golden 1440→1443**（+3）、**census 1048 据置**（この語彙は census に無い＝**被覆マトリクスにしか映らない**＝続き376d のディソナと同じ）、**被覆マトリクス miss 464→422**（較正 −28／機能是正 −14）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、lint 0 errors/248 warnings（追加0）、manual field loss 0、held **211 据置／104群**。
+
 - **セッション（2026-08-07・続き377b・Opus 5〔**(i)配線ギャップ 第7バッチ＝`noGuard × TRASH_CARD[filter]` → 同じビルダーの構造バグ**〕）＝ユーザー指示「続ける」。§4 の「次の一手 ①」（★★セル）をそのまま取った。**触った層＝`src/data/parsers/parseSentencePart1.ts`（トラッシュ→デッキ の2ビルダー＋開示ハンデス）／`parseSentencePart2.ts`（トラッシュ→デッキの一番上）／`src/engine/effectExecutor.ts`（`TRANSFER_TO_DECK{TRASH_CARD}` の `upToCount`）／`scripts/censusWiring.ts`（較正）／`scripts/goldenTest.ts`／live JSON（自動14＋held 15枚＋外科パッチ1）。**
   - **🔎この回の教訓＝「セルを取ったら、同じビルダーにもっと重い構造バグが埋まっていた」。** 被覆マトリクスが指した ★★セルは《ガードアイコン》の脱落（11効果）だったが、そのビルダーを読んだら **`source` が `SIGNI`（＝場のシグニ）のまま**という構造バグが同居していた（19効果）。**セルは入口であって終点ではない。**
   - **✅① 《ガードアイコン》限定の脱落 11効果**＝入口3つ（トラッシュ→デッキ＋シャッフル／トラッシュ→デッキの一番上／**相手手札の開示ハンデス**）。いずれも名詞句 span は切ってあるのに `parseGuardFilter` だけ合成漏れ。ハンデス側は**相手のガード札まで捨てさせられる**＝実害が大きい。逆方向の `hasGuard` も1件（`WXDi-P03-023-E2`）。
