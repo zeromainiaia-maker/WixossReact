@@ -244,6 +244,8 @@ export function extractNounPhraseFilter(
   Object.assign(filter, parseNoAbilitiesFilter(span));
   const containsName = span.match(/カード名に《([^》]+)》を含む/);
   if (containsName) filter.cardName = containsName[1];
+  // 《ライズ／クロス／アクセアイコン》を持つ（続き377c）＝span 限定なので条件節用法は入らない。
+  Object.assign(filter, parseIconFilter(span));
   if (/無色ではない/.test(span)) filter.nonColorless = true;
 
   const positiveSpan = span.replace(/無色ではない/g, '');
