@@ -5837,6 +5837,38 @@ test('続き376d トリップワイヤ: 複数クラス／付与対象のクラ�
   }
 }));
 
+// ── 続き376d 第4バッチ: 「**あなたの**〈filter〉シグニN体を対象とし、（…まで、）それのパワーを±N」。
+//    `applyLeadingOpponentDesignation` は「対戦相手の」専用で自分側の兄弟が無く、POWER_MODIFY ビルダーには
+//    末尾の「それのパワーを±N」だけが渡って既定 `{SIGNI, owner:'any', count:1}` へ落ちていた
+//    ＝**owner ごと落ちて相手のシグニにも撃てる**うえ、クラス／色の限定も消えていた（18効果）。
+test('続き376d: 「あなたの〈filter〉シグニN体を対象とし…それのパワーを±N」は owner:self＋filter', () => withSavedCursor(() => {
+  const cases: [string, string, 'story' | 'color', string][] = [
+    ['WX24-P3-081', 'WX24-P3-081-E1', 'story', '美巧'], ['WXDi-P14-071', 'WXDi-P14-071-E2', 'story', '電音部'],
+    ['WXK02-047', 'WXK02-047-E2', 'story', 'アーム'], ['WXK04-037', 'WXK04-037-E2', 'story', '植物'],
+    ['WXK04-070', 'WXK04-070-E2', 'story', '紅蓮'], ['WXK05-072', 'WXK05-072-E1', 'story', '水獣'],
+    ['WXDi-D02-04L', 'WXDi-D02-04L-E1', 'story', 'バーチャル'],
+    ['WX24-D1-11', 'WX24-D1-11-E1', 'color', '白'], ['WXDi-P00-049', 'WXDi-P00-049-E1', 'color', '赤'],
+    ['WXK10-051', 'WXK10-051-E2', 'color', '黒'], ['WXK11-066', 'WXK11-066-E1', 'color', '緑'],
+  ];
+  for (const [card, effId, key, val] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(js.includes(`"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self"`), true,
+      `${effId}: owner=self（旧: owner:any＝相手のシグニにも撃てた）`);
+    eq(js.includes(`"${key}":"${val}"`), true, `${effId}: filter.${key}=${val}`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**対象宣言でないものを拾わない**。`WXK07-046-E1` は原文が「…：**シグニ１体**を対象とし」＝
+//   所有者の指定が無い（＝どちらのシグニでもよい）ので owner:'any' が**正しい**。前置きのコスト節に
+//   「あなたの場にある【チャーム】」があるだけで self へ寄せてはいけない。
+test('続き376d トリップワイヤ: 所有者指定の無い「シグニN体を対象とし」は owner:any のまま', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WXK07-046') ?? []).find(x => x.effectId === 'WXK07-046-E1');
+  const js = JSON.stringify(e?.action ?? {});
+  eq(js.includes('"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any"'), true,
+    'WXK07-046-E1: 主語の無い対象は any のまま（コスト節の「あなたの」に引きずられない）');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
