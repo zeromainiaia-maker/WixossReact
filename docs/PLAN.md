@@ -339,7 +339,7 @@
 - [x] **`FORCE_PLACE_FRONT`**（−4）＝「対戦相手がシグニを配置する**場合**」は条件節ではなく行動の言い回し。parser／`effectEngine.ts:5610`／`SigniSummonZoneModal.tsx:58`／`BattleScreen.tsx:5284` までフル実装済み。残渣チェック付きで免除。
 - [x] **`COUNTER_SPELL.maxCost`**（−2）＝「コストの合計がN以下のスペル」の正表現。対応表には `costMax`（TargetFilter 側の名前）しか無く、**大文字小文字が違うだけで部分一致しない**という続き368 の `minPower`／`Under` と**同じ罠**だった。
 - [ ] **filter による条件の等価表現を条件節クラスタの extraOk に入れる**＝「それが〈desc〉の**場合**」を `ADD_TO_FIELD{source:{filter}}`／`SEARCH{filter}` で表す形（`WX15-001-E2`）。続き365 は `REVEAL_AND_PICK` 形だけ較正しており**この形が漏れていた**。⚠**条件節クラスタは283件と最大**なので、広い extraOk は masking リスクも最大＝残渣チェックを特に厳しく。
-- ⚠**PLAN の旧記載を訂正**＝「`levelEqLrig`／`colorMatchesLrig` を『同一性』『共通する色』の対応語彙に入れる」は**クラスタの誤記**だった。`WDA-F03-09-E2` が落ちているのは「**コスト:場からトラッシュ**」クラスタで、`levelEq`／`colorMatchesLrig` は同一性・共通する色の対応表に**元から入っている**。当該クラスタ（`keys: ['fieldTrash','trash_self','beat','fieldTo']`）に `trash_key` 系が無いのが真因＝未着手。
+- [x] **🆕`trash_key`**（−31・続き376c 第2バッチ）＝「このキーを場からルリグトラッシュに置く：」（【起】コスト）。型（`effects.ts:355`）にも engine（`BattleScreen.tsx:6314` で実際に支払い、コスト表示にも出る）にも実装済みなのに対応表から漏れており、**「コスト:場からトラッシュ」クラスタの高シグナル34件が全部これ1つ**だった。⚠**PLAN の旧記載を訂正**＝「`levelEqLrig`／`colorMatchesLrig` を『同一性』『共通する色』の対応語彙に入れる」は**クラスタの誤記**で、`WDA-F03-09-E2` が落ちていたのは実はこのクラスタ。`levelEq`／`colorMatchesLrig` は同一性・共通する色の対応表に**元から入っていた**。
 - ⚠**較正のたびに残渣チェック必須**（続き365 の規律）＝desc からモデル化できた識別子を除いて**何か残るなら covered にしない**。実バグを masking したら計器の意味が消える。**較正後は消えた効果を全件目視し、「新たに高シグナルへ出た効果が0件」を機械確認する**（続き376c で実施）。
 - `npm run census`（較正後は `BASELINE_HIGH` と §4 恒久指標を実数更新）
 
