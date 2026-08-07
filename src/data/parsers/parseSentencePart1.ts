@@ -1795,9 +1795,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (t.match(/(この|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
       return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
     }
-    return { type: 'UP', target: hasOtherSelfSigniNoun(t)
-      ? parseSigniTarget(t, 'self')
-      : { type: 'SIGNI', owner: signiClauseOwner(t), count: 1 } };
+    if (hasOtherSelfSigniNoun(t)) return { type: 'UP', target: parseSigniTarget(t, 'self') };
+    // ⚠**「他の」ゲートの穴**（続き377・(i)配線ギャップ 第6バッチ）＝従来はここが `count:1`・filter 無しの裸の
+    //   SIGNI へ落ちており、「あなたの＜アーム＞のシグニ１体を対象とし、それをアップする」のように**「他の」が無い**形で
+    //   **クラス/カード名の限定が丸ごと落ちて**いた＝**自分のどのシグニでもアップできる過剰効果**
+    //   （`WX14-051-E1` ＜アーム＞／`WXDi-P00-044-E1` ＜バーチャル＞／`WXK09-078-E1` ＜電機＞／
+    //    `WXEX1-60-E1` カード名に《フレイスロ》を含む）。ON_ATTACK_SIGNI 主語・`parseSigniTarget` の isDisona と同型で、
+    //   **「他の」の有無ではなく対象名詞句かどうかで判定する**のが正しい。
+    //   ⚠`parseSigniTarget(文全体)` へ寄せるとトリガー節・条件節のクラスを引き込む（続き376d のトラップ(a)）ので、
+    //     **対象名詞句 span**（読点/鉤括弧/コロンまで）を切って `extractNounPhraseFilter` で合成する。
+    const upSpanM = t.match(/([^。、：「」]*?)シグニ(?:を)?([０-９\d]+)体(?:まで)?を対象とし/);
+    const upFilter: TargetFilter = { cardType: 'シグニ', ...(upSpanM ? extractNounPhraseFilter(upSpanM[1]) : {}) };
+    if (upSpanM && upSpanM[1].includes('他の')) upFilter.excludeSelf = true;
+    return { type: 'UP', target: {
+      type: 'SIGNI', owner: signiClauseOwner(t), count: upSpanM ? parseNum(upSpanM[2]) : 1,
+      ...(Object.keys(upFilter).length > 1 ? { filter: upFilter } : {}),
+    } };
   }
 
   // ---- デッキ上 → エナゾーン ----
