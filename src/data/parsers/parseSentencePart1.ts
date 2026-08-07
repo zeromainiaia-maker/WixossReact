@@ -1876,6 +1876,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filter: TargetFilter = {
       ...(cleanSpan.includes('シグニ') ? { cardType: 'シグニ' } : {}),
       ...spanStory, ...spanColor, ...spanLevel,
+      // 「《カード名》以外の〜をデッキに加えて」（§5d パターンA・続き371）＝`WX17-063-E1`／`WXK09-090-E1`／
+      //   `WD23-041-EA-E1`。上のコメントどおり名前指定は色/story を汚さないので cleanSpan ではなく deckSpan から取る。
+      ...parseExcludeCardNameFilter(deckSpan),
     };
     // count：「N枚まで」＝upTo／span 内の「N枚」＝明示枚数／すべて＝ALL／無指定＝1。
     const upToM = deckSpan.match(/([０-９\d]+)枚まで/);
