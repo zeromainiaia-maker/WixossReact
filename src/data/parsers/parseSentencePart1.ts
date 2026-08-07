@@ -1438,6 +1438,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const nameM = t.match(/《([^》]+)》/);
     if (excludeNameM) {
       filter.excludeCardName = excludeNameM[1];
+      // 「《巨弓　ガンデヴァ》**以外の**カード名に《弓》を含むシグニ」（`WX13-041-E1`）＝除外と部分一致が**同居**する。
+      // 旧実装は else-if で後者を捨てており、どのシグニでも探せる過剰効果になっていた（§5d パターンA・続き371）。
+      const containsM = t.match(/カード名に《([^》]+)》を含む/);
+      if (containsM) filter.cardName = containsM[1];
     } else if (nameM) {
       // 《Xアイコン》を持つカード＝アイコン保持フィルタ（hasIcon）。カード名フィルタにすると
       // どのカード名にも含まれず無言no-matchになる（WX08-072-BURST の旧バグ）
