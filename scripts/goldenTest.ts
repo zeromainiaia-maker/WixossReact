@@ -5995,6 +5995,87 @@ test('続き377 トリップワイヤ: 修飾の無いアップ対象に filter 
     'WX01-027-E2: 素の owner:self/count:1（別の節の修飾を引き込まない）');
 }));
 
+// ── 続き377b 第7バッチ: 被覆マトリクス `noGuard × TRASH_CARD[filter]`（miss 7・has 61★★）から。
+//    《ガードアイコン》を持つ/持たない の限定を落としていた入口が3つあった。
+test('続き377b: 《ガードアイコン》限定が各入口の filter に載る', () => withSavedCursor(() => {
+  const cases: [string, string, string][] = [
+    // トラッシュ→デッキ（シャッフル）＝ガード持ちまでデッキへ戻せる過剰効果だった
+    ['WXDi-D05-015', 'WXDi-D05-015-E2', '"noGuard":true'],
+    ['WXDi-P00-023', 'WXDi-P00-023-E1', '"noGuard":true'],
+    ['WXDi-P01-034', 'WXDi-P01-034-E1', '"noGuard":true'],
+    ['WXDi-P05-085', 'WXDi-P05-085-E1', '"noGuard":true'],
+    ['WXDi-P14-027', 'WXDi-P14-027-E1', '"noGuard":true'],
+    // トラッシュ→デッキの一番上／一番下
+    ['WXDi-P01-063', 'WXDi-P01-063-E1', '"noGuard":true'],
+    ['WXDi-P11-074', 'WXDi-P11-074-E2', '"noGuard":true'],
+    // 逆方向＝「《ガードアイコン》を**持つ**」限定（落ちるとどのシグニでも積める）
+    ['WXDi-P03-023', 'WXDi-P03-023-E2', '"hasGuard":true'],
+    // 相手手札の開示ハンデス＝ガード持ちまで捨てさせられる過剰効果だった
+    ['WXDi-P00-006', 'WXDi-P00-006-E1', '"noGuard":true'],
+    ['WXDi-P08-033', 'WXDi-P08-033-E1', '"noGuard":true'],
+    ['WXDi-P14-045', 'WXDi-P14-045-E1', '"noGuard":true'],
+  ];
+  for (const [card, effId, needle] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.action ?? {}).includes(needle), true, `${effId}: filter に ${needle}`);
+  }
+}));
+
+// ── 続き377b: 同じビルダーの**構造バグ**＝「トラッシュから…デッキの一番下に置く」の source が
+//    `SIGNI`（＝**場のシグニ**）のままだった。owner も全文の「対戦相手」で決めていたので
+//    `WX06-001-E2`「対戦相手のシグニ１体を対象とし、**あなたの**トラッシュから＜天使＞のシグニ７枚を…」は
+//    **相手の場のシグニを1体デッキへ送る**という原文と無関係な動作になっていた（実測19効果）。
+//    正準形は同じ文型の13効果が既に持つ `source:{type:'TRASH_CARD', owner, count, filter}`。
+test('続き377b: 「トラッシュから…デッキの一番下に置く」の source は TRASH_CARD', () => withSavedCursor(() => {
+  const cases: [string, string, string, number][] = [
+    ['WX06-001', 'WX06-001-E2', 'self', 7], ['WX06-001', 'WX06-001-E3', 'self', 7],
+    ['WX08-036', 'WX08-036-E1', 'self', 5], ['WXK10-066', 'WXK10-066-E2', 'self', 2],
+    ['WXEX2-04', 'WXEX2-04-E2', 'self', 1], ['WXK09-058', 'WXK09-058-E1', 'self', 1],
+    ['WXDi-CP01-046', 'WXDi-CP01-046-E1', 'self', 1], ['WX25-CP1-047', 'WX25-CP1-047-E1', 'self', 3],
+    // 「**対戦相手の**トラッシュから」＝owner:opponent（トラッシュ直前の語だけで決める）
+    ['WX25-P1-113', 'WX25-P1-113-E1', 'opponent', 1], ['WXDi-P06-043', 'WXDi-P06-043-E1', 'opponent', 1],
+    ['WXDi-P11-074', 'WXDi-P11-074-E1', 'opponent', 1], ['WXK06-041', 'WXK06-041-E2', 'opponent', 2],
+    ['WDK09-013', 'WDK09-013-E2', 'opponent', 2],
+  ];
+  for (const [card, effId, owner, count] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const js = JSON.stringify(e?.action ?? {});
+    eq(js.includes(`"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"${owner}","count":${count}`), true,
+      `${effId}: TRASH_CARD/${owner}/${count}（旧: 場のシグニを1体送る別物）`);
+  }
+  // 「対戦相手のトラッシュから**カード**をN枚」＝シグニ限定ではない（cardType を残すと過小実行）
+  for (const [card, effId] of [['WXDi-P06-043', 'WXDi-P06-043-E1'], ['WXK06-041', 'WXK06-041-E2']] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(/"cardType":"シグニ"/.test(JSON.stringify(e?.action ?? {})), false, `${effId}: 「カード」なので cardType を付けない`);
+  }
+}));
+
+// ⚠トリップワイヤ＝**「トラッシュから」が無い文では source を付け替えない**。`WD21-020-E1` は
+//   「デッキの上からシグニがめくれるまで公開し…デッキの一番下に置く」＝トラッシュ由来ではない。
+test('続き377b トリップワイヤ: トラッシュ由来でない「デッキの一番下」は付け替えない', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WD21-020') ?? []).find(x => x.effectId === 'WD21-020-E1');
+  eq(/"type":"TRANSFER_TO_DECK","source":\{"type":"TRASH_CARD"/.test(JSON.stringify(e?.action ?? {})), false,
+    'WD21-020-E1: トラッシュから移す文ではないので SIGNI のまま');
+}));
+
+// ── 続き377b engine: `TRANSFER_TO_DECK{source:{TRASH_CARD, upToCount}}` が上限として効いていなかった
+//    （`a.optional` しか見ておらず、`upToCount` は素通りして slice(0,N) の**強制 N 枚**になっていた）。
+test('続き377b engine: トラッシュ→デッキの upToCount は上限（強制 N 枚にしない）', () => withSavedCursor(() => {
+  const t1 = fresh(), t2 = fresh(), t3 = fresh();
+  const ctx = mkCtx({ trash: 0 }, {});
+  const c2: ExecCtx = { ...ctx, ownerState: { ...ctx.ownerState, trash: [t1, t2, t3] } };
+  const act = { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 3, upToCount: true }, shuffle: false, position: 'bottom' } as unknown as EffectAction;
+  const r = runEffect(act, c2);
+  ok(!r.done, 'upToCount は選択待ちになる（自動で3枚戻さない）');
+  const p = (r as { pending: { type: string; count?: number } }).pending;
+  eq(p.type, 'SELECT_TARGET', 'pending は SELECT_TARGET');
+  // upToCount 無しなら選択させず3枚を自動で戻す＝上のテストが「常に選択待ち」ではないことの対照
+  const c3: ExecCtx = { ...ctx, ownerState: { ...ctx.ownerState, trash: [t1, t2, t3] } };
+  const r2 = runEffect({ type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 3 }, shuffle: false, position: 'bottom' } as unknown as EffectAction, c3);
+  ok(r2.done, 'upToCount 無しは即完了（強制3枚）');
+  eq(r2.ownerState.trash.length, 0, '3枚ともデッキへ');
+}));
+
 test('task12(xcix): 母集団＝主語なしアタック watcher は3効果だけ', () => withSavedCursor(() => {
   const srcT: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const ids = Object.entries(srcT)
