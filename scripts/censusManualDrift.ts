@@ -111,6 +111,88 @@ for (const cardNum of Object.keys(MANUAL_EFFECTS)) {
   }
 }
 
+// ── --date：git 履歴で「どちらが後に変更されたか」を機械判定する ──
+//   型の増減だけでは方向が決まらない（`CHANGED` は双方向）ため、**両側の最終変更時刻**で決める。
+//   ・manual 側＝`git blame` でそのカードのブロック行範囲の最大 commit 時刻（entry がいつ最後に書き換わったか）
+//   ・live 側＝`git log -S<現在の効果JSONそのもの>` ＝**現在の値がいつ live に入ったか**（JSON はミニファイ1行なので
+//     効果まるごとの文字列が一意な needle になる。`-G` は1行ファイルでは全 commit に当たるので使えない）
+//   ⚠これは**着手順を決めるための機械判定**であって原文照合の代わりではない。採用前に必ず原文と engine 実装を見る。
+function dateMode(): void {
+  const blame = execFileSync('git', ['blame', '--line-porcelain', '--', 'src/data/manualEffects.ts'],
+    { encoding: 'utf-8', maxBuffer: 1 << 30, cwd: root });
+  const lineTimes: number[] = [];      // 1-indexed
+  const lineText: string[] = [];
+  let pendingTime = 0;
+  for (const ln of blame.split('\n')) {
+    if (/^author-time /.test(ln)) pendingTime = Number(ln.slice(12));
+    else if (ln.startsWith('\t')) { lineTimes.push(pendingTime); lineText.push(ln.slice(1)); }
+  }
+  /** そのカードの manual ブロック（`"CARDNUM": [` 〜 対応する `],`）の最終変更時刻。 */
+  const manualTime = (cardNum: string): number | null => {
+    const start = lineText.findIndex(t => t.trimStart().startsWith(`"${cardNum}": [`));
+    if (start < 0) return null;
+    let depth = 0, end = start;
+    for (let i = start; i < lineText.length; i++) {
+      for (const ch of lineText[i]) { if (ch === '[') depth++; else if (ch === ']') depth--; }
+      if (depth <= 0 && i > start) { end = i; break; }
+      end = i;
+    }
+    let max = 0;
+    for (let i = start; i <= end; i++) max = Math.max(max, lineTimes[i] ?? 0);
+    return max || null;
+  };
+  const fileOf = (cardNum: string): string => {
+    for (const f of EFFECT_FILES) {
+      const p = join(root, 'public/data', f);
+      if (existsSync(p) && JSON.parse(readFileSync(p, 'utf-8'))[cardNum]) return `public/data/${f}`;
+    }
+    return '';
+  };
+  const liveTime = (cardNum: string, effJson: string): number | null => {
+    const file = fileOf(cardNum);
+    if (!file || !effJson) return null;
+    try {
+      const out = execFileSync('git', ['log', '-1', '--format=%ct', `-S${effJson}`, '--', file],
+        { encoding: 'utf-8', maxBuffer: 1 << 28, cwd: root }).trim();
+      return out ? Number(out) : null;
+    } catch { return null; }
+  };
+  const iso = (t: number | null) => (t ? new Date(t * 1000).toISOString().slice(0, 10) : '?');
+  const verdicts: { r: Row; mt: number | null; lt: number | null; verdict: string }[] = [];
+  const manualTimeCache = new Map<string, number | null>();
+  for (const r of rows) {
+    if (!manualTimeCache.has(r.card)) manualTimeCache.set(r.card, manualTime(r.card));
+    const mt = manualTimeCache.get(r.card) ?? null;
+    const lt = liveTime(r.card, r.liveJson);
+    const verdict = r.kind === 'LIVE_ONLY' || r.kind === 'LIVE_RICHER' ? 'LIVE_NEWER'
+      : mt === null || lt === null ? 'UNDATED'
+      : mt > lt ? 'MANUAL_NEWER' : lt > mt ? 'LIVE_NEWER' : 'SAME_TIME';
+    verdicts.push({ r, mt, lt, verdict });
+  }
+  const out: string[] = [];
+  out.push('# manualEffects.ts ↔ live JSON 乖離：git 履歴による方向判定（§6.3 K）', '');
+  out.push(`生成: ${new Date().toISOString()}`, '');
+  out.push('⚠**機械判定は着手順を決めるためのもの**＝採用前に必ず原文と engine 実装を照合する。');
+  out.push('⚠manual 側＝`git blame` のカードブロック最終変更時刻／live 側＝現在の効果JSONが live に入った commit 時刻。', '');
+  const byVerdict = new Map<string, typeof verdicts>();
+  for (const v of verdicts) byVerdict.set(v.verdict, [...(byVerdict.get(v.verdict) ?? []), v]);
+  out.push('## 判定ごとの件数');
+  for (const [k, v] of [...byVerdict].sort((a, b) => b[1].length - a[1].length)) out.push(`  ${k.padEnd(14)} ${String(v.length).padStart(4)} 効果`);
+  out.push('');
+  for (const [k, v] of [...byVerdict].sort((a, b) => b[1].length - a[1].length)) {
+    out.push(`## ${k}（${v.length} 効果）`);
+    for (const x of v) {
+      out.push(`  ${x.r.effectId.padEnd(24)} ${x.r.kind.padEnd(11)} manual=${iso(x.mt)} live=${iso(x.lt)}${x.r.fromManual ? ' (manual定義)' : ''}${x.r.signals.length ? ' ⚠' + x.r.signals.join('/') : ''}`);
+    }
+    out.push('');
+  }
+  writeFileSync(join(root, 'docs/_manual_drift_dates.txt'), out.join('\n'), 'utf-8');
+  console.log('git 履歴による方向判定:');
+  for (const [k, v] of [...byVerdict].sort((a, b) => b[1].length - a[1].length)) console.log(`  ${k.padEnd(14)} ${String(v.length).padStart(4)} 効果`);
+  console.log('明細: docs/_manual_drift_dates.txt');
+}
+if (process.argv.includes('--date')) { dateMode(); process.exit(0); }
+
 // ── --card <ID>：1カードの完全 diff ──
 const cardArgIdx = process.argv.indexOf('--card');
 if (cardArgIdx >= 0) {
