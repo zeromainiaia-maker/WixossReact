@@ -2570,10 +2570,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const kwSpecOwnerOk = kwSpec && target.type === 'SIGNI' && target.owner === 'any'
         && !kwAllSelf && !kwZoneFilter && !target.filter?.thisCardOnly;
       // 体数・上限は「N体まで」が対象句に隣接しているときだけ。count:'ALL' の全体付与には触らない。
-      const kwSpecCountOk = kwSpec && target.type === 'SIGNI' && target.count === 1 && !target.filter?.thisCardOnly;
-      const kwSpecFilter: TargetFilter = kwSpec
+      // ⚠体数は**対象句の所有者と枝の所有者が一致するときだけ**上書きする＝食い違うのは
+      //   「対象句と付与句が別の action に属している」誤parseの徴候で、そこで体数だけ広げると
+      //   `WXK05-052-E1`（対象は「対戦相手のシグニを２体まで」だが枝は条件節の【シード】を自分へ付与と誤読）で
+      //   **誤りを2体ぶんに増幅する**（続き377b の「枚数だけ先に直さない」と同じ判断）。
+      const kwSpecCountOk = kwSpec && target.type === 'SIGNI' && target.count === 1 && !target.filter?.thisCardOnly
+        && (target.owner === 'any' || target.owner === kwSpec.owner);
+      // ⚠**既に枝が決めたキーは上書きしない**（追加だけ）＝`signiClause*Filter` は隣接する**1つ**しか返さないので、
+      //   「＜空獣＞か＜地獣＞のシグニ」の OR（`story:["空獣","地獣"]`）を最後の1クラスへ潰してしまう
+      //   （実測 A/B で `WX02-055-E1`／`WX04-069-E1`／`WX05-041-E1`／`WX19-042-E1`／`WX19-070-E1`／`WXEX2-43-E1` が退化）。
+      const kwSpecFilterRaw: TargetFilter = kwSpec
         ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t) }
         : {};
+      const kwSpecFilter: TargetFilter = Object.fromEntries(
+        Object.entries(kwSpecFilterRaw).filter(([k]) => (target.filter as Record<string, unknown> | undefined)?.[k] === undefined),
+      ) as TargetFilter;
       const targetWithSpec: EffectTarget = kwSpec && (kwSpecOwnerOk || kwSpecCountOk)
         ? {
             ...target,
