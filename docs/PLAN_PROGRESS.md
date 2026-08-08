@@ -4,7 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
-- **🆕 セッション（2026-08-08・続き377n・Opus 5〔**§5d-0(ii) 機構ギャップ＝ブロッカーが関数名まで特定済みだった7効果を実装**＝**23効果是正**・census 932→**924**・golden 1472→**1488**〕）＝ユーザー指示「PLAN5を行う」。PLAN §4「次の一手」の ⓪-2 在庫（続き377m が関数名まで特定して据置した7効果）をそのまま取った。**触った層＝`effectExecutor.ts`（`execAttachCharm` の複数ペア／`execGrantKeyword` の `upToCount`／`execRevealAndPick` の捨札フィルタ解決）／`parserUtils.ts`（`signiClauseTargetSpec`・`signiClausePowerFilter`・捨札クラス記述子）／`parseSentencePart1.ts`（GRANT_KEYWORD 対象・ATTACH_CHARM 枚数）／`parseSentencePart2.ts`（付与3枝の `upToCount`）／`decompileEffects.ts`／`goldenTest.ts`（新規5）／live 23効果。**
+- **セッション（2026-08-08・続き378・Opus 5 ＋ **Codex 委譲1バッチ**〔**§5d-0(i) 配線ギャップ 第19バッチ＝`isDisona` / `excludeResona` の対象フィルタ合成漏れ**＝**計22効果是正**・golden 1488→**1517**・被覆マトリクス miss 307→**291**・census **924 据置**〕）＝ユーザー指示「codex に PLAN5 をやらせる。CODEX_GUIDE も確認。最終確認は Claude」。**差し戻し0・是正0。**
+  - **⭐① 投入前の全数分類がスコープを作り替えた**＝★★セルは薄く（`isPuppet × TRASH_CARD` 7 は**計器の誤検出**／`isAwakened × SIGNI` 6 は**全部条件節のクロス計上**）、未分類だった `isDisona`／`excludeResona` が当たりだった。
+  - **🔴② 真因は `parseIconFilter` の接続助詞**＝「**を持つ**」接続の3アイコンしか見ず、連体の「の」で書かれる《ディソナアイコン》に永久に当たらない＝トラッシュ／エナから**どのシグニでも回収・蘇生できる**過剰効果。
+  - **🔴③ 最大の収穫は engine のパリティ穴**＝`effectEngine.matchesFilter` に `isDisona` だけが無く、**JSON が正しくても engine が filter を無視**して5効果が全味方をバフしていた（**JSON 差分にもゲートにも映らない**）。1行移植で是正。
+  - **✅④ 据置判断が的確**＝`WXEX2-18-E2`（2対象の owner 取り違え＝構造混線）に手を付けず、トリップワイヤ golden まで自発設置。
+  - **⚠⑤ 運用**＝codex はハーネスのバックグラウンド上限（10分）で最終レポート直前に kill された（成果物は無傷・Claude 検証で代替）。→ CODEX_GUIDE §2 に追記。
+
+- **セッション（2026-08-08・続き377n・Opus 5〔**§5d-0(ii) 機構ギャップ＝ブロッカーが関数名まで特定済みだった7効果を実装**＝**23効果是正**・census 932→**924**・golden 1472→**1488**〕）＝ユーザー指示「PLAN5を行う」。PLAN §4「次の一手」の ⓪-2 在庫（続き377m が関数名まで特定して据置した7効果）をそのまま取った。**触った層＝`effectExecutor.ts`（`execAttachCharm` の複数ペア／`execGrantKeyword` の `upToCount`／`execRevealAndPick` の捨札フィルタ解決）／`parserUtils.ts`（`signiClauseTargetSpec`・`signiClausePowerFilter`・捨札クラス記述子）／`parseSentencePart1.ts`（GRANT_KEYWORD 対象・ATTACH_CHARM 枚数）／`parseSentencePart2.ts`（付与3枝の `upToCount`）／`decompileEffects.ts`／`goldenTest.ts`（新規5）／live 23効果。**
   - **⭐① 「特定済みブロッカー」の在庫は本当に安い**＝続き377m が exec の該当行まで書き残していたので**調査ゼロで実装に入れた**。3件とも同じ型＝**語彙は型にも engine にもあるのに、その入口では読まれていない**（`upToCount` は `selectOrInteract` 第3引数が `false` ハードコード／`classMatchesDiscardSigni` は `resolveDiscardLevelFilter` を通していたのが SEARCH と ADD_TO_FIELD だけ／`ATTACH_CHARM` は `slice(0,1)` と `[0]×[0]`）。**次バッチも「関数名まで書いてから据置する」を続ける価値がある。**
   - **🔴② 最大の実害は在庫リストに載っていなかった**＝(b) を直すために対象名詞句パーサを入れたら、**`owner:'any'` が engine で `tgtOwner='opponent'` に解決される**ことが判明（`execGrantKeyword`）。「**あなたの**〈修飾〉シグニ1体に【ランサー】を得る」が**対戦相手のシグニに付与**されており、既存の枝が「あなたのシグニ」の**隣接形（色句・クラス句）しか見ない**ためパワー句・レベル句・状態句が挟まると既定へ落ちていた＝**14効果**。**在庫2効果を取りに行って14効果が出てきた。**
   - **🔴③ A/B で退化を2型潰した（どちらも「上書きしない」で解決）**＝(a) `signiClause*Filter` は隣接する**1つ**しか返さないので、枝が決めた `story:["空獣","地獣"]` を上書きすると**OR が最後の1クラスへ潰れる**（実測6効果）→**既存キーは追加せず据え置く**。(b) `WXK05-052-E1` は条件節の【シード】をキーワードと誤読した**構造混線**で、体数だけ2体に広げると**誤りを2体ぶんに増幅**する→**対象句と枝の所有者が食い違うときは体数を上書きしない**（続き377b「枚数だけ先に直さない」の4例目）。

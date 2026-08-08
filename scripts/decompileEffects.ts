@@ -539,7 +539,7 @@ function condJa(c?: any): string {
     }
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
     case 'THIS_CARD_HAS_UNDER': return c.filter
-      ? `このシグニの下に${filterJa(c.filter)}シグニが${c.negate ? '無い' : 'ある'}`
+      ? `このシグニの下に${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.negate ? '無い' : 'ある'}`
       : `このシグニの下にカードが${c.negate ? '無い' : 'ある'}`;
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;

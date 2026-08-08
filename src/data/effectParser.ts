@@ -1049,6 +1049,34 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // §5d-0(i): 《ディソナアイコン》を含むカードのゾーン条件（「かぎり」＝ActiveCondition）。
+  // 「カード」なので cardType:'シグニ' は課さない。従来は下の generic catch-all に条件節だけ消費され、
+  // WXDi-P12-051/P12-085/P13-083 の常在バフが無条件で有効になっていた。
+  const enaDisonaCountM = text.match(/^あなたのエナゾーンに《ディソナアイコン》のカードが([０-９\d]+)枚以上あるかぎり、/);
+  if (enaDisonaCountM) {
+    return {
+      condition: { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { isDisona: true }, minCount: parseNum(enaDisonaCountM[1]) },
+      rest: text.slice(enaDisonaCountM[0].length),
+      conditionFound: true,
+    };
+  }
+  const trashDisonaCountM = text.match(/^あなたのトラッシュに《ディソナアイコン》のカードが([０-９\d]+)枚以上あるかぎり、/);
+  if (trashDisonaCountM) {
+    return {
+      condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { isDisona: true }, minCount: parseNum(trashDisonaCountM[1]) },
+      rest: text.slice(trashDisonaCountM[0].length),
+      conditionFound: true,
+    };
+  }
+  const underDisonaM = text.match(/^このシグニの下に《ディソナアイコン》のカードがあるかぎり、/);
+  if (underDisonaM) {
+    return {
+      condition: { type: 'THIS_CARD_HAS_UNDER', filter: { isDisona: true } },
+      rest: text.slice(underDisonaM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3g: 「あなたのトラッシュに＜X＞(か＜Y＞)*のシグニがN枚以上あるかぎり、」（トラッシュのクラス指定枚数条件。G090）
   const trashStoryCountM = text.match(/^あなたのトラッシュに((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)枚以上あるかぎり、/);
   if (trashStoryCountM) {
@@ -1766,6 +1794,21 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     () => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } })],
   [/このシグニの下にカードが無い場合/,
     () => ({ type: 'THIS_CARD_HAS_UNDER', negate: true })],
+  // §5d-0(i): 《ディソナアイコン》の条件節（「場合」＝解決時 Condition）。
+  // 複合 AND は単独の「他のディソナ」より先に置き、同一条件節を途中まで食べない。
+  [/あなたの場に他の《ディソナアイコン》のシグニがあり対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, excludeSelf: true },
+      { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[0]) },
+    ] })],
+  [/あなたの場に他の《ディソナアイコン》のシグニがある場合/,
+    () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, excludeSelf: true })],
+  [/このシグニの下に《ディソナアイコン》のカードがある場合/,
+    () => ({ type: 'THIS_CARD_HAS_UNDER', filter: { isDisona: true } })],
+  [/あなたの場にパワー([０-９\d]+)以上の《ディソナアイコン》のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: 'シグニ', isDisona: true, powerRange: { min: parseNum(g[0]) },
+    } })],
   [/いずれかのプレイヤーの手札が([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'HAND_COUNT', owner: 'any', operator: 'gte', value: parseNum(g[0]) })],
   [/あなたのトラッシュに＜(古代兵器)＞のシグニが(７)種類以上ある場合/,

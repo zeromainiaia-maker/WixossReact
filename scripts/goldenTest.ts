@@ -4106,8 +4106,146 @@ test('batch19 E2E: effectEngine continuous filter buffs Disona but not ordinary 
 test('batch19 tripwire: condition-clause Disona does not leak into WXDi-P13-069-E1 targets', () => {
   const freshEffect = parseCardEffects(cardMap.get('WXDi-P13-069')!).find(e => e.effectId === 'WXDi-P13-069-E1');
   ok(!!freshEffect, 'fresh parse exists');
-  eq(batch19Count(freshEffect, '"isDisona":true'), 0, 'condition-clause vocabulary is not attached to an action target');
+  const consequence = freshEffect?.action.type === 'CONDITIONAL' ? freshEffect.action.then : freshEffect?.action;
+  eq(batch19Count(consequence, '"isDisona":true'), 0, 'condition-clause vocabulary is not attached to an action target');
 });
+
+// ── §5d-0(i) 条件節グループ: isDisona の条件丸ごと脱落（続き379）──
+const disonaConditionEffect = (cardNum: string, effectId: string): CardEffect => {
+  const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: live effect not found`);
+  return effect;
+};
+
+for (const [cardNum, effectId, expected] of [
+  ['WXDi-P12-051', 'WXDi-P12-051-E1', { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { isDisona: true }, minCount: 3 }],
+  ['WXDi-P12-085', 'WXDi-P12-085-E1', { type: 'TRASH_HAS_CARD', owner: 'self', filter: { isDisona: true }, minCount: 3 }],
+  ['WXDi-P13-083', 'WXDi-P13-083-E1', { type: 'THIS_CARD_HAS_UNDER', filter: { isDisona: true } }],
+] as [string, string, ActiveCondition][]) {
+  test(`続き379 structure: ${effectId} activeCondition`, () => {
+    eq(JSON.stringify(disonaConditionEffect(cardNum, effectId).activeCondition), JSON.stringify(expected), `${effectId}: 「かぎり」は activeCondition`);
+  });
+}
+
+for (const [cardNum, effectId, expected] of [
+  ['WXDi-P13-069', 'WXDi-P13-069-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, excludeSelf: true }],
+  ['WXDi-P13-086', 'WXDi-P13-086-E1', { type: 'THIS_CARD_HAS_UNDER', filter: { isDisona: true } }],
+  ['WXDi-P13-064', 'WXDi-P13-064-E1', { type: 'AND', conditions: [
+    { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, excludeSelf: true },
+    { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 4 },
+  ] }],
+  ['WXDi-P13-078', 'WXDi-P13-078-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true, powerRange: { min: 10000 } } }],
+] as [string, string, import('../src/types/effects').Condition][]) {
+  test(`続き379 structure: ${effectId} condition`, () => {
+    const action = disonaConditionEffect(cardNum, effectId).action;
+    ok(action.type === 'CONDITIONAL', `${effectId}: 「場合」は CONDITIONAL`);
+    if (action.type === 'CONDITIONAL') eq(JSON.stringify(action.condition), JSON.stringify(expected), `${effectId}: condition JSON`);
+  });
+}
+
+test('続き379 E2E: WXDi-P12-051-E1 はエナのディソナ2枚で不成立・3枚で+3000', () => withSavedCursor(() => {
+  const source = 'WXDi-P12-051';
+  const disona = [...cardMap.values()].filter(c => c.Story === 'Dissona' && c.CardNum !== source).slice(0, 3).map(c => c.CardNum);
+  eq(disona.length, 3, 'テスト用ディソナ3枚');
+  const stateWith = (n: number) => {
+    const state = mkState({ signi: [source, null, null], energy: 0 });
+    state.energy = disona.slice(0, n);
+    return state;
+  };
+  const base = Number(cardMap.get(source)?.Power ?? 0);
+  eq(calcFieldPowers(stateWith(2), mkState(), true, effectsMap, cardMap).get(source), base, 'ディソナ2枚では+3000なし');
+  eq(calcFieldPowers(stateWith(3), mkState(), true, effectsMap, cardMap).get(source), base + 3000, 'ディソナ3枚で+3000');
+}));
+
+test('続き379 E2E: WXDi-P12-085-E1 はトラッシュのディソナ2枚で不成立・3枚で+5000', () => withSavedCursor(() => {
+  const source = 'WXDi-P12-085';
+  const disona = [...cardMap.values()].filter(c => c.Story === 'Dissona' && c.CardNum !== source).slice(0, 3).map(c => c.CardNum);
+  const stateWith = (n: number) => {
+    const state = mkState({ signi: [source, null, null], trash: 0 });
+    state.trash = disona.slice(0, n);
+    return state;
+  };
+  const base = Number(cardMap.get(source)?.Power ?? 0);
+  eq(calcFieldPowers(stateWith(2), mkState(), true, effectsMap, cardMap).get(source), base, 'ディソナ2枚では+5000なし');
+  eq(calcFieldPowers(stateWith(3), mkState(), true, effectsMap, cardMap).get(source), base + 5000, 'ディソナ3枚で+5000');
+}));
+
+test('続き379 E2E: WXDi-P13-083-E1 は下カードのディソナ属性を両方向に判定する', () => withSavedCursor(() => {
+  const source = 'WXDi-P13-083';
+  const disona = findCard(c => c.Story === 'Dissona' && c.CardNum !== source);
+  const ordinary = findCard(c => c.Story !== 'Dissona' && c.CardNum !== source);
+  const stateWith = (under: string) => {
+    const state = mkState({ signi: [source, null, null] });
+    state.field.signi[0] = [under, source];
+    return state;
+  };
+  const base = Number(cardMap.get(source)?.Power ?? 0);
+  eq(calcFieldPowers(stateWith(ordinary), mkState(), true, effectsMap, cardMap).get(source), base, '非ディソナだけなら+5000なし');
+  eq(calcFieldPowers(stateWith(disona), mkState(), true, effectsMap, cardMap).get(source), base + 5000, 'ディソナが下にあれば+5000');
+}));
+
+test('続き379 E2E: WXDi-P13-069-E1 は他のディソナがいる場合だけドローして捨てる', () => withSavedCursor(() => {
+  const source = 'WXDi-P13-069';
+  const disona = findCard(c => isSigni(c) && c.Story === 'Dissona' && c.CardNum !== source);
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona' && c.CardNum !== source);
+  const effect = disonaConditionEffect(source, 'WXDi-P13-069-E1');
+  const noCtx = mkCtx({ signi: [source, ordinary, null] }, {}, source);
+  const noResult = run(effect.action, noCtx);
+  eq(noResult.ownerState.deck.length, noCtx.ownerState.deck.length, '他のディソナなしではドローしない');
+  eq(noResult.ownerState.trash.length, noCtx.ownerState.trash.length, '他のディソナなしでは捨てない');
+  const yesCtx = mkCtx({ signi: [source, disona, null] }, {}, source);
+  const yesResult = run(effect.action, yesCtx);
+  eq(yesResult.ownerState.deck.length, yesCtx.ownerState.deck.length - 1, '他のディソナありで1枚ドロー');
+  eq(yesResult.ownerState.trash.length, yesCtx.ownerState.trash.length + 1, '続けて手札を1枚捨てる');
+}));
+
+test('続き379 E2E: WXDi-P13-086-E1 は下にディソナがある場合だけ相手を4枚ミルする', () => withSavedCursor(() => {
+  const source = 'WXDi-P13-086';
+  const disona = findCard(c => c.Story === 'Dissona' && c.CardNum !== source);
+  const ordinary = findCard(c => c.Story !== 'Dissona' && c.CardNum !== source);
+  const effect = disonaConditionEffect(source, 'WXDi-P13-086-E1');
+  const ctxWith = (under: string) => {
+    const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+    ctx.ownerState.field.signi[0] = [under, source];
+    return ctx;
+  };
+  const noCtx = ctxWith(ordinary), noResult = run(effect.action, noCtx);
+  eq(noResult.otherState.deck.length, noCtx.otherState.deck.length, '非ディソナだけならミルしない');
+  const yesCtx = ctxWith(disona), yesResult = run(effect.action, yesCtx);
+  eq(yesResult.otherState.deck.length, yesCtx.otherState.deck.length - 4, 'ディソナが下にあれば相手デッキを4枚削る');
+  eq(yesResult.otherState.trash.length, yesCtx.otherState.trash.length + 4, '削った4枚を相手トラッシュへ置く');
+}));
+
+test('続き379 E2E: WXDi-P13-064-E1 は他のディソナ AND 相手エナ4枚を双方要求する', () => withSavedCursor(() => {
+  const source = 'WXDi-P13-064';
+  const disona = findCard(c => isSigni(c) && c.Story === 'Dissona' && c.CardNum !== source);
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona' && c.CardNum !== source);
+  const effect = disonaConditionEffect(source, 'WXDi-P13-064-E1');
+  const runCase = (ally: string, energy: number) => {
+    const ctx = mkCtx({ signi: [source, ally, null] }, { energy }, source);
+    return { ctx, result: run(effect.action, ctx) };
+  };
+  const low = runCase(disona, 3);
+  eq(low.result.otherState.energy.length, 3, '他のディソナありでも相手エナ3枚なら不成立');
+  const noDisona = runCase(ordinary, 4);
+  eq(noDisona.result.otherState.energy.length, 4, '相手エナ4枚でも他のディソナなしなら不成立');
+  const both = runCase(disona, 4);
+  eq(both.result.otherState.energy.length, 3, '両条件成立で相手エナを1枚トラッシュ');
+  eq(both.result.otherState.trash.length, both.ctx.otherState.trash.length + 1, '相手が選んだエナ1枚が相手トラッシュへ移る');
+}));
+
+test('続き379 E2E: WXDi-P13-078-E1 はバフ込みパワー10000のディソナでだけエナチャージする', () => withSavedCursor(() => {
+  const source = 'WXDi-P13-078'; // 印字パワー2000・自身もディソナ
+  const effect = disonaConditionEffect(source, 'WXDi-P13-078-E1');
+  const noCtx = mkCtx({ signi: [source, null, null] }, {}, source);
+  const noResult = run(effect.action, noCtx);
+  eq(noResult.ownerState.energy.length, noCtx.ownerState.energy.length, '印字2000のままなら不成立');
+  const yesCtx = mkCtx({ signi: [source, null, null] }, {}, source);
+  yesCtx.effectivePowers = new Map([[source, 10000]]);
+  const yesResult = run(effect.action, yesCtx);
+  eq(yesResult.ownerState.energy.length, yesCtx.ownerState.energy.length + 1, '実効パワー10000ならエナチャージ1');
+  eq(yesResult.ownerState.deck.length, yesCtx.ownerState.deck.length - 1, 'デッキ上1枚がエナへ移る');
+}));
 
 test('batch19 tripwire: WXEX2-18-E2 structural mix is not constrained on the wrong opponent target', () => {
   const effect = batch19Effect('WXEX2-18', 'WXEX2-18-E2');

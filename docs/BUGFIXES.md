@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — §5d-0(ii) `isDisona` 条件節＝**無条件発火7効果を是正**（続き379・codex 委譲）
+
+**真因**＝原文の「《ディソナアイコン》のカード／シグニがあるかぎり・ある場合」を parser が条件として構築しておらず、CONTINUOUS 3効果は `activeCondition` なしで常時有効、AUTO 4効果は `CONDITIONAL` なしで無条件解決になっていた。続き378で `isDisona` が ActiveCondition／Condition 両評価器の `matchesFilter` に到達するようになったため、今回は既存条件型だけで原文どおり配線した。
+
+- 常在3効果：`WXDi-P12-051-E1` に `ENERGY_HAS_CARD{self,isDisona,minCount:3}`、`WXDi-P12-085-E1` に `TRASH_HAS_CARD{self,isDisona,minCount:3}`、`WXDi-P13-083-E1` に `THIS_CARD_HAS_UNDER{isDisona}` を `activeCondition` として追加。「カード」なので `cardType:'シグニ'` は足していない。
+- 解決時4効果：`WXDi-P13-069-E1`（他のディソナシグニ）、`WXDi-P13-086-E1`（このシグニの下のディソナカード）、`WXDi-P13-064-E1`（他のディソナシグニ **AND** 相手エナ4枚以上）、`WXDi-P13-078-E1`（実効パワー10000以上のディソナシグニ）を既存 `CONDITIONAL` 条件で囲んだ。
+- `HAS_CARD_IN_FIELD × powerRange` の既存6効果（`WX06-034-E1` / `WX15-046-E1` / `WX15-089-E1` / `WX15-090-E1` / `WX15-091-E1` / `WXEX1-50-E1`）を原文照合し、全件が印字値指定ではない通常の「パワー」条件だったため、Condition 評価時に `ctx.effectivePowers` を `matchesFilter` へ渡すよう修正。バフ込み10000に達した `WXDi-P13-078-E1` も成立することを実行 golden で固定した。
+- **据置（§6.3 機構ギャップ登録対象）**：`WXDi-P12-056-E1` の「エナゾーンとトラッシュの《ディソナ》カードが**合計7枚以上**」は2ゾーン合算条件型が存在しない。`AND` や片側だけでは同値にならないため近似せず、live/fresh とも従来の `DRAW 1` のまま据え置いた。
+- 逆翻訳の `THIS_CARD_HAS_UNDER` は filter の `cardType` に応じて「シグニ／カード」を描き分け、今回の「カード」を偽って狭めない表示にした。
+- golden は7効果すべて成立／不成立を固定（構造7本＋engine E2E 7本）。続き378の対象フィルタ混入トリップワイヤも、条件 subtree は許可しつつ consequence 側への `isDisona` 漏出を引き続き検査する形へ更新した。
+- 全カード fresh A/B（HEAD `99d5db0e2` 対比）は変化8効果：上記7効果＋`WXDi-P12-063-E1`。後者も同じ条件節を正しく拾ったが既存 held カードなので未採用。live A/B は指定7効果だけ（outlier 0）。禁止対象 `WXDi-P13-005-E1` / `P13-007-E3` / `P13-008-E3` は無変化。
+- held は最終再生成で **146枚／72群**（指定ベースライン147枚／71群から -1枚／+1群）。`WXDi-P12-063` が追加、既存の stale held `WX16-Re01` / `WX16-Re10` が fresh と live の一致により除外された。manual field loss 0。
+- ゲート：`golden` **1531/1531**（+14）、`smoke` **10686/10686・CRASH/HANG/INVARIANT/SKIP 全0**、`fuzz` **200ゲーム全0**、census 高シグナル **919**（924→919、既存 `BASELINE_HIGH` を更新）、被覆 miss **283**（291→283。条件内 filter も計器対象だったため fresh変化8件分減少）、同型★ **0/265群**、lint **0 errors / 248 warnings**（cache削除後も同値）、typecheck・regen・manual field loss すべて通過。変更全ファイルの新規 U+FFFD／`?` 3連以上／UTF-8 BOM は全0。
+
+**Claude 側の検証結果と是正**（ベースライン `99d5db0e2` との per-effect 機械 diff）
+- **added 0 / removed 0 / changed 8**（codex の7効果＋下記の採用1件）。エンコーディング新規増0・同型★0・逆翻訳の原文照合も独立確認。
+- 🔴**codex の据置1件を差し戻して採用＝`WXDi-P12-063-E1`**（held に積まれていた）。原文「あなたの場に**他の《ディソナアイコン》のシグニがある場合**、…《赤》《無》を支払ってもよい。そうした場合、それをバニッシュする」に対し live は**ゲートが無く無条件でコストを払ってバニッシュできた**。fresh は `CONDITIONAL{HAS_CARD_IN_FIELD → STUB OPTIONAL_COST}` の**包み形**で、これは engine の**正準形**（`effectExecutor.ts:2898-2914` に専用の解き処理があり46効果が使用中。ゲート不成立時は `:2916-2925` で「そうした場合」の本体ごとスキップする）と確認できたので `heldReview --adopt` で採用。**held 147→145枚**。
+- ⚠**`powerRange` の実効パワー化の影響範囲を切り分けた**＝live で `HAS_CARD_IN_FIELD` の**中に** `powerRange` を持つのは **7効果**（`condition` 側3＝`WX06-034-E1`／`WXEX1-50-E1`＋新規／`activeCondition` 側4＝`WX15-046-E1`／`WX15-089・090・091-E1`）。今回変わったのは **`condition` 側の2効果＋新規1**で、両方とも原文は素の「パワーN以上」＝**実効パワーが正**（改善）。**`activeCondition` 側4件は印字のまま据置が正しい**＝`WX15-089/090/091` は「パワーN以上があるかぎり、このシグニの**基本パワー**はMになる」＝実効パワーで評価すると**パワー計算が循環する**。**この非対称は意図的なものとして残す**（同じ「両評価器のパリティ」でも、続き378 の `isDisona` とは逆に**揃えてはいけない**例）。
+- ⚠**指示書の誤りを codex が訂正した**（2例目）＝Claude は「被覆マトリクスは条件節を集計しないので miss は動かない」と書いたが、実際は**条件内の filter も集計する**ため 291→283 と8件減った。
+
 ## 2026-08-08 — §5d-0(i) 配線ギャップ第19バッチ（`isDisona` / `excludeResona`）＝**計22効果是正**（続き378・codex 委譲＋Claude 検証）
 
 **真因**＝`isDisona`（《ディソナアイコン》＝CSV `Story==='Dissona'`）と `excludeResona`（「レゾナではない」）は**型にも engine にも実装済み**なのに、parser の一部ビルダーからだけ合成されていなかった（続き370 `nonColorless`／371 `excludeCardName`／377c アイコン系と同型）。
