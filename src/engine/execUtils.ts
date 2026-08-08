@@ -1943,8 +1943,30 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const base = ctx.effectivePowers?.get(lp) ?? parseInt(ctx.cardMap.get(lp)?.Power ?? '0', 10);
       return base + (cond.addDelta ?? 0) >= cond.value;
     }
-    default: return true;
+    // ActiveCondition 側（`checkActiveCondition`）にだけ実装があり、こちらには case が無く
+    // **無条件 true へフォールスルー**していた（live 使用0件の潜在穴・タスク12(cxv)）。
+    case 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI': {
+      const nccSigni = st(cond.owner).field.signi
+        .map(stack => stack?.at(-1))
+        .filter((n): n is string => !!n);
+      if (nccSigni.length !== cond.count) return false;
+      const nccSets = nccSigni.map(n => new Set(splitColors(ctx.cardMap.get(getCardNum(n))?.Color)));
+      const nccCommon = new Set(nccSets[0]);
+      for (const colors of nccSets.slice(1)) for (const c of nccCommon) if (!colors.has(c)) nccCommon.delete(c);
+      return nccCommon.size === 0;
+    }
+    // ⚠**汎用評価では素通りさせる（設計どおり）**＝「同時に何枚クラッシュされたイベントか」は
+    // ExecCtx に無い情報で、実ゲートは収集時のインライン評価（`BattleScreen.tsx` の `oppCrashEventSize`）。
+    // 網羅性ガードのために case を明示しておく（従来の `default: return true` と同じ挙動）。
+    case 'OPP_LIFE_CRASH_EVENT_GTE': return true;
   }
+  // ⚠**網羅性ガード（タスク12(cxv)）**＝この switch を抜ける＝未実装の Condition 型がある、ということ。
+  // 抜けた先は `return true`（＝無条件成立）なので、**未実装型を JSON に書くと過剰実行になるのに
+  // 全ゲート緑のまま素通りする**。`Condition` に型を足したら**必ずここに case を足す**
+  // ＝足し忘れは下の `never` 代入が typecheck を落として教える。
+  const _condExhaustive: never = cond;
+  void _condExhaustive;
+  return true;
 }
 
 // ===== 使用条件チェック（BattleScreen から呼び出す） =====
