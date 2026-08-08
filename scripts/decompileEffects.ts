@@ -983,7 +983,11 @@ function actionJa(a?: Action, effectType?: string): string {
         && (a.target.owner === 'self' || a.target.owner === 'any');
       const subjOwnerJa = a.subjectFilter ? ownerJa(a.subjectOwner ?? 'self') : '';
       const subjNoun = a.subjectFilter?.cardType === 'レゾナ' ? 'レゾナ' : 'シグニ';
-      const subject = protThisOnly ? 'このシグニ'
+      // subjectFilter も target も無い CONTINUOUS ＝ engine（`collectEffectImmuneSigni` の
+      // `else { immune.add(sourceNum) }`）が**発生源シグニ自身だけ**を守る形。主語なしで
+      // 「シグニは…」と書くと場の全シグニと読めてしまうので「このシグニ」と明示する（タスク12(cxiii)）。
+      const protSelfOnly = effectType === 'CONTINUOUS' && !a.subjectFilter && !a.target;
+      const subject = protThisOnly || protSelfOnly ? 'このシグニ'
         : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + subjNoun;
       if (a.sourceEffectType === 'LIFE_BURST') return `${subject}は${ownerJa(a.sourceOwner)}ライフバーストの効果を受けない`;
       if (a.fromAll && a.exceptSource) {
