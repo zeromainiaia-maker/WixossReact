@@ -7739,13 +7739,14 @@ test('J-4 ON_ATTACK_PHASE_END: そのアタックフェイズに＜遊具＞が�
     // engine 評価＝記録された instanceId を cardMap で filter 照合する
     const yuguSigni = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具'))!;
     const otherSigni = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具'))!;
-    const mk = (left: string[]) => {
-      const st = mkState({}); st.signi_left_field_this_attack_phase = left; return st;
+    const ev = (left: string[]) => {
+      const ctx = mkCtx({}, {});
+      ctx.ownerState = { ...ctx.ownerState, signi_left_field_this_attack_phase: left };
+      return evalCondition(eff.condition as never, ctx as never);
     };
-    const ev = (st: PlayerState) => evalCondition(eff.condition as never, mkCtxFrom(st) as never);
-    eq(ev(mk([yuguSigni])), true, '＜遊具＞が離れていれば成立');
-    eq(ev(mk([otherSigni])), false, '別クラスでは不成立');
-    eq(ev(mk([])), false, '離場0件では不成立');
+    eq(ev([yuguSigni]), true, '＜遊具＞が離れていれば成立');
+    eq(ev([otherSigni]), false, '別クラスでは不成立');
+    eq(ev([]), false, '離場0件では不成立');
   });
 });
 
