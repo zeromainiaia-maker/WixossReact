@@ -1597,6 +1597,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const czFilter: TargetFilter = { cardType: 'シグニ', centerZoneOnly: true, ...parseColorFilter(czMods), ...parseStoryFilter(czMods) };
       if (czMods.includes('《ディソナアイコン》')) czFilter.isDisona = true;
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: czFilter };
+    } else if (t.match(/あなたの(左|右)のシグニゾーンにある.*?シグニのパワーを/)) {
+      // 「あなたの〔左|右〕のシグニゾーンにある[＜種族＞]の?シグニのパワーを±N」＝側方ゾーン(index 0/2)の該当シグニ全体。
+      // ⚠中央版（すぐ上）だけが実装されていて左右が無く、この形は既定 else の `owner:'any'/count:1` へ潰れて
+      //   **クラスもゾーンも落ちた**状態だった＝CONTINUOUS では effectEngine が count≠ALL を効果元自身へ解決するので
+      //   「右のゾーンの＜怪異＞に＋4000」が**自分に＋4000**になっていた（`WXK10-078-E1`／`WX25-P3-093-E1/E2`）。
+      const szNounM = t.match(/(左|右)のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニのパワーを/);
+      const szMods = szNounM?.[2] ?? '';
+      const szFilter: TargetFilter = {
+        cardType: 'シグニ',
+        zoneSide: szNounM?.[1] === '左' ? 'left' : 'right',
+        ...parseColorFilter(szMods), ...parseStoryFilter(szMods),
+      };
+      if (szMods.includes('《ディソナアイコン》')) szFilter.isDisona = true;
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: szFilter };
     } else if (hasOtherSelfSigniNoun(t) && /シグニのパワーを/.test(t)) {
       target = parseSigniTarget(t, 'self');
       excludeSelf = true;
