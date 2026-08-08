@@ -2716,8 +2716,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
   // 「N体**まで**を対象とし」＝上限（0体でもよい）。第3引数を `false` に固定していたため、
   // parser が `upToCount` を載せても**死にフラグ**で N体の強制選択のままだった（続き377m の実測）。
-  // BANISH（`:516`）と同じ `(a.optional ?? false) || (tgt.upToCount ?? false)` に揃える。
-  return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx);
+  // BANISH（`:516`）と同じく `upToCount` を optional として渡す（GRANT_KEYWORD に `optional` フィールドは無い）。
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
