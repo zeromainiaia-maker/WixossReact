@@ -194,7 +194,7 @@ for (const id of allIds) {
     // 混在カードのうち「MANUAL/PARTIAL ではない効果に superset ではない差分が残っている」ものは、
     // held と同じく**人のレビュー待ち**。held キュー（_held_fresh.json）とは母集団が違うので別ファイルへ出す。
     const needsReview = existing.some((ex, i) => !PRESERVE_STATUSES.has(ex?.parseStatus)
-      && fresh[i] && JSON.stringify(ex) !== JSON.stringify(fresh[i]) && !isPureSuperset(ex, fresh[i]));
+      && fresh[i] && !equalIgnoringParseStatus(ex, fresh[i]) && !isPureSuperset(ex, fresh[i]));
     if (needsReview) partialFresh[id] = fresh;
     (gained ? report.adopted_partial : report.preserved_manual).push(id);
     continue;
