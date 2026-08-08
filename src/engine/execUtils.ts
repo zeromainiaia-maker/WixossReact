@@ -1600,6 +1600,14 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneIdx < 0) return false;
       return (ctx.ownerState.field.signi_acce?.[zoneIdx] ?? null) !== null;
     }
+    case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
+      // 「そのアタックフェイズの間に〈owner〉のシグニ（filter一致）が場を離れていた場合」（§6.3 J-4・WX24-P2-075-E1）。
+      // 記録は instanceId なので cardMap 照合には getCardNum を通す。⚠行き先は問わない。
+      const st = cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
+      const left = st.signi_left_field_this_attack_phase ?? [];
+      const n = left.filter(id => !cond.filter || matchesFilter(ctx.cardMap.get(getCardNum(id)), cond.filter)).length;
+      return n >= (cond.minCount ?? 1);
+    }
     case 'THIS_CARD_HAS_ATTACHED': {
       // 「このシグニにカードが付いている場合」＝【チャーム】/【アクセ】/【ソウル】の合計枚数（WXK10-049-E2）。
       const src = ctx.sourceCardNum;

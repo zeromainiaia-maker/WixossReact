@@ -418,6 +418,14 @@ export interface PlayerState {
   lrig_attack_remaining?: number;
   // このターン既にルリグがアタックした（ON_ATTACK_LRIG効果でアップされても再アタック不可）
   lrig_has_attacked?: boolean;
+  /**
+   * そのアタックフェイズの間にこのプレイヤーの場を離れたシグニの instanceId（§6.3 J-4・`WX24-P2-075-E1`
+   * 「そのアタックフェイズの間にあなたの＜遊具＞のシグニが場を離れていた場合」）。
+   * アタックフェイズ開始時（MAIN→ATTACK_ARTS）にクリアし、離場の2経路
+   * （効果解決の中央 diff ＝ `collectAutoTriggersFromDiff` ／ バトル解決＝`resolvePendingSigniBattleFor`）で追記する。
+   * ⚠**行き先は問わない**（バニッシュ/エナ送り/トラッシュ/手札戻し すべて「場を離れた」）。
+   */
+  signi_left_field_this_attack_phase?: string[];
   // ライドシステム：LRIGが現在乗っている乗機シグニのCardNum一覧（ターン終了時にクリア）
   lrig_riding_signi?: string[];
   // このプレイヤーのシグニがドライブ状態になった（ルリグがライドした）直後にセット: 新たにドライブ状態になったシグニのCardNum
