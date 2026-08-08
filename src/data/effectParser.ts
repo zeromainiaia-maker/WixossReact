@@ -4275,6 +4275,43 @@ function applyQuotedFrontPowerGrantBatch(cardNum: string, effects: CardEffect[])
   const declare: EffectAction = { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: gk.target } as EffectAction;
   seq.steps[0] = declare;
   if (spec.addGrantStep) seq.steps.splice(1, 0, { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as EffectAction);
+
+  // ── タスク12(cxviii)：`WXDi-P15-071` のベット分岐 ──
+  // 「…それは『【常】：正面のシグニのパワーが8000以下であるかぎり【ランサー】を得る。』を得る。
+  //   あなたがベットしていた場合、**代わりに**それは『【常】：【Ｓランサー】』を得る」
+  // 引用付与ハンドラ（`GRANT_ABILITY_INNER_TEXT`）は**原文をテキスト検出するだけで分岐を持たない**ので、
+  // ベットしていても常に非ベット側（条件つき【ランサー】）が付いていた。
+  // `IS_BETTING` は評価器に実装済み・`GRANT_EFFECT{targetsLastProcessed}` は任意の CardEffect を
+  // 付与先へ積めるので、**新機構なしで `CONDITIONAL` に組み替えられる**。
+  // ⚠「代わりに」＝排他なので then/else にする（両方付けない）。
+  if (cardNum === 'WXDi-P15-071') {
+    seq.steps[1] = {
+      type: 'CONDITIONAL',
+      condition: { type: 'IS_BETTING' },
+      // ベット時＝【Ｓランサー】（原文どおり**無条件**＝正面パワーの制限は付かない）
+      then: {
+        type: 'GRANT_KEYWORD', targetsLastProcessed: true,
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        keyword: 'Sランサー', duration: 'UNTIL_END_OF_TURN',
+      },
+      // 非ベット時＝「正面のシグニのパワーが8000以下であるかぎり【ランサー】」＝
+      //   付与先を発生源として毎フレーム評価される CONTINUOUS を積む（タスク12(cxiv) と同じ形）。
+      else: {
+        type: 'GRANT_EFFECT', targetsLastProcessed: true, duration: 'UNTIL_END_OF_TURN',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        effect: {
+          effectId: 'WXDi-P15-071-E1-GRANT', effectType: 'CONTINUOUS',
+          duration: 'UNTIL_END_OF_TURN', mandatory: true,
+          activeCondition: { type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 8000 },
+          action: {
+            type: 'GRANT_KEYWORD',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN',
+          },
+        } as CardEffect,
+      },
+    } as EffectAction;
+  }
 }
 
 function applyProportionalCountBatch6(effects: CardEffect[]): void {
