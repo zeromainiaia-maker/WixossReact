@@ -25722,6 +25722,41 @@ test('続き377n トリップワイヤ: 「ターン終了時まで」で upToCo
     'WXK05-052-E1: 所有者が食い違う（対象は相手・枝は自分）ので体数を広げない');
 }));
 
+
+// ── §5d-0(ii) 機構ギャップ: `classMatchesDiscardSigni` が REVEAL_AND_PICK 経路で解決されていなかった（続き377n）──
+// 語彙は型にも engine（`resolveDiscardLevelFilter`）にもあったが、解決していたのは SEARCH と ADD_TO_FIELD だけで、
+// `execRevealAndPick` は素の `resolveDynamicFilter` しか通さず**キーを黙って無視**していた（＝公開札から何でも拾えた）。
+test('続き377n: WXK10-029-E2 はコストで捨てたシグニと共通クラスの札だけ拾える', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXK10-029') ?? []).find(e => e.effectId === 'WXK10-029-E2');
+  ok(!!effect, 'WXK10-029-E2: live effect exists');
+  if (!effect) return;
+  eq(JSON.stringify(effect?.action ?? {}).includes('"classMatchesDiscardSigni":true'), true, 'filter に載っている');
+
+  // 捨てたシグニのクラスを持つ札／持たない札を1枚ずつデッキトップへ置く。
+  const classOf = (n: string) => (cardMap.get(n)?.CardClass ?? '');
+  const discarded = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('精像'));
+  const same = findCard(c => isSigni(c) && c.CardNum !== discarded && (c.CardClass ?? '').includes('精像'));
+  const diff = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('精像') && (c.CardClass ?? '') !== '');
+  const filler = fresh();
+  const base = mkCtx({ trash: 0 }, {});
+  const ctx: ExecCtx = {
+    ...base,
+    ownerState: { ...base.ownerState, deck: [same, diff, filler, ...base.ownerState.deck], last_discarded_signi_class: classOf(discarded) },
+  };
+  const r = runEffect(effect.action, ctx);
+  ok(!r.done && r.pending.type === 'SEARCH', '公開3枚から選択待ちになる');
+  if (r.done || r.pending.type !== 'SEARCH') return;
+  ok(r.pending.visibleCards.includes(same), '共通クラスの札は候補');
+  ok(!r.pending.visibleCards.includes(diff), '別クラスの札は候補外（従来は何でも拾えた）');
+
+  // 対照＝捨てクラスが記録されていない場合は絞り込まない（参照不能時のフォールバックは従来どおり）。
+  const ctx2: ExecCtx = { ...base, ownerState: { ...base.ownerState, deck: [same, diff, filler, ...base.ownerState.deck] } };
+  const r2 = runEffect(effect.action, ctx2);
+  ok(!r2.done && r2.pending.type === 'SEARCH', '記録なしでも選択待ち');
+  if (r2.done || r2.pending.type !== 'SEARCH') return;
+  ok(r2.pending.visibleCards.includes(diff), '記録が無ければクラス制限なし（無言 no-op にしない）');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
