@@ -155,7 +155,7 @@
 - **decompile再生成は `npm run regen`**（全シート＋下流一括・UTF-8直書き＝シェル非依存。2026-07-07にリダイレクト方式を廃止。旧「⚠Bash の `>`」問題は解消済みだが、万一 UTF-16 が混入すると下流3スクリプトがガードで即 exit 1 する）。
 
 ### 📌 次の一手（推奨順）
-> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝**全ゲート緑（2026-08-08 続き377l＝左右のシグニゾーン機構の新設）**＝golden **1466**・smoke **10679** 全0（SKIP も 0）・fuzz 全0・同型★**0**（265群）・census **953**（回帰ゲート）・manual field loss 0・lint 0 errors/**248 warnings**（⚠`--cache` 使用のため実数とズレることがある＝簿記前に `rm -rf node_modules/.cache/eslint` して測り直す）・held **145枚／71群**・実機 driver 既定order **128件**。**被覆マトリクス miss 318**（`npm run census:wiring`）。**混在カードのレビュー待ち 10カード**（`docs/_partial_fresh.json`）。
+> **cold start＝まず `npm install` → `npm run gates`（全ゲート一括・数秒）が緑になることを確認する。** 現状＝**全ゲート緑（2026-08-08 続き377m＝Codex 委譲3バッチ）**＝golden **1472**・smoke **10679** 全0（SKIP も 0）・fuzz 全0・同型★**0**（265群）・census **927**（回帰ゲート）・manual field loss 0・lint 0 errors/**248 warnings**（⚠`--cache` 使用のため実数とズレることがある＝簿記前に `rm -rf node_modules/.cache/eslint` して測り直す）・held **145枚／71群**・実機 driver 既定order **128件**。**被覆マトリクス miss 311**（`npm run census:wiring`）。**混在カードのレビュー待ち 3カード**（`docs/_partial_fresh.json`・すべて機構ギャップ）。
 >
 > **🏁 P1（表現）は 2026-07-23 に完了宣言済み**（宣言・3分類・以後の運用＝[P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md) 冒頭／§2 DoD／§5）。**主軸は P2/P3**＝①**§6.3 機構台帳**（宣言で正式送りした282効果の消化先＝正面40・チーム35・ゲームから除外残・アンコール19・動的比較14・ソウル11・ドライブ9 等を機構単位で）②**§7 実機検証** ③**BEHAVIOR_AUDIT（§5a・フェーズ跨ぎで継続）**。
 >
