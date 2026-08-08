@@ -4607,6 +4607,11 @@ export function collectEffectImmuneSigni(
   let _powers = effectivePowers;
   const powersOf = (): Map<string, number> =>
     (_powers ??= calcFieldPowers(state, opponentState, isOwnerTurn, effectsMap, cardMap));
+  // 実効レベル（`SELF_LEVEL_THRESHOLD`。タスク12(cxvii)）＝`WX20-Re18`「レベルが5以上であるかぎり
+  // 対戦相手の効果を受けない」は**表記レベル2**なので、渡さないと一生 false になる。
+  let _levels: Map<string, number> | undefined;
+  const levelsOf = (): Map<string, number> =>
+    (_levels ??= calcSigniLevels(state, opponentState, effectsMap, cardMap));
   const immune = new Set<string>();
   const srcType = sourceCardType ?? '';
   // sourceCostMin（「コストの合計がN以上の、アーツとスペルの効果を受けない」WX15-031）判定用に
