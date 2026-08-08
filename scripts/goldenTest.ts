@@ -9449,6 +9449,89 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
   eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P10-025,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069,WXDi-P15-071',
      '正面パワー条件つき引用付与の母集団は8枚（タスク12(cxiv)）');
 }));
+// ── タスク12(cxvii)（2026-08-08）：`WX20-Re18` の動的レベル閾値（`SELF_LEVEL_THRESHOLD`）──
+// 「レベルはエナ5枚につき＋1され、パワーはレベル1につき＋3000される」＝**表記レベル2**で、
+// 原文の「レベル4以上／5以上であるかぎり」は**動的にしか届かない**。
+// `DYNAMIC_LEVEL_BY_ENERGY`（実効レベル計算）自体は実装済みだったが、**それを読む条件型が無かった**ため
+// 旧 `E2` は「レベル4以上」を `SELF_POWER_GTE 12000` で近似しており、レベル5側は丸ごと欠落していた。
+test('task12(cxvii) WX20-Re18: 実効レベルで【自】が発火し、レベル5で効果耐性が付く', () => withSavedCursor(() => {
+  const effs = effectsMap.get('WX20-Re18') ?? [];
+  const e2 = effs.find(e => e.effectId === 'WX20-Re18-E2')!;
+  const e4 = effs.find(e => e.effectId === 'WX20-Re18-E4')!;
+  eq(JSON.stringify(e2.condition), JSON.stringify({ type: 'SELF_LEVEL_THRESHOLD', operator: 'gte', value: 4 }),
+     'E2＝レベル4以上（パワー12000近似から是正）');
+  eq(JSON.stringify(e4.activeCondition), JSON.stringify({ type: 'SELF_LEVEL_THRESHOLD', operator: 'gte', value: 5 }),
+     'E4＝レベル5以上（新設）');
+
+  // ① 実効レベルの計算そのもの＝表記2＋エナ5枚につき＋1
+  const stAt = (energy: number) => mkState({ signi: ['WX20-Re18', null, null], energy });
+  const lvAt = (energy: number) =>
+    calcSigniLevels(stAt(energy), mkState({}), effectsMap, cardMap as Map<string, CardData>).get('WX20-Re18');
+  eq(lvAt(0), 2, 'エナ0＝表記レベル2');
+  eq(lvAt(9), 3, 'エナ9＝＋1（9/5=1）');
+  eq(lvAt(10), 4, 'エナ10＝＋2＝レベル4');
+  eq(lvAt(15), 5, 'エナ15＝＋3＝レベル5');
+
+  // ② 【自】側は evalCondition（ExecCtx）で評価される。ctx.effectsMap があれば実効レベルを自前計算する。
+  const banishFires = (energy: number) => {
+    const ctx = { ...mkCtx({ signi: ['WX20-Re18', null, null], energy }, {}), sourceCardNum: 'WX20-Re18', effectsMap };
+    return evalCondition(e2.condition!, ctx as ExecCtx);
+  };
+  eq(banishFires(9), false, 'レベル3＝アタック時バニッシュは発火しない');
+  eq(banishFires(10), true, 'レベル4＝発火する（旧＝パワー近似でも通っていたが、いまはレベルで判定）');
+  // ⚠近似の弊害＝「パワーだけ12000以上に上がったレベル3」でも旧条件では発火していた。
+  //   実効レベルで判定するようになったので、パワーを持ち上げても発火しないことを固定する。
+  const lv3ButStrong = { ...mkCtx({ signi: ['WX20-Re18', null, null], energy: 9 }, {}), sourceCardNum: 'WX20-Re18',
+    effectsMap, effectivePowers: new Map([['WX20-Re18', 30000]]) };
+  eq(evalCondition(e2.condition!, lv3ButStrong as ExecCtx), false,
+     'パワー30000でもレベル3なら発火しない（パワー近似の過剰を潰した）');
+
+  // ③ レベル5の効果耐性は collectEffectImmuneSigni 経由＝実効レベルを渡さないと一生 false になる箇所
+  const immuneAt = (energy: number) => collectEffectImmuneSigni(stAt(energy), mkState({}),
+    cardMap as Map<string, CardData>, effectsMap, false, 'シグニ').has('WX20-Re18');
+  eq(immuneAt(10), false, 'レベル4＝まだ効果耐性は無い');
+  eq(immuneAt(15), true, 'レベル5＝対戦相手の効果を受けない（powers/levels 未指定でも state から計算）');
+}));
+// ── タスク12(cxviii)（2026-08-08）：`WXDi-P15-071` のベット分岐 ──
+// 「…それは『【常】：正面のパワーが8000以下であるかぎり【ランサー】』を得る。ベットしていた場合、
+//   **代わりに**それは『【常】：【Ｓランサー】』を得る」＝引用付与ハンドラはテキスト検出だけで分岐を持たず、
+// ベットしても常に非ベット側が付いていた。`CONDITIONAL{IS_BETTING}` ＋ `GRANT_EFFECT` で排他にする。
+test('task12(cxviii) WXDi-P15-071: ベットで【Ｓランサー】、非ベットは条件つき【ランサー】（排他）', () => withSavedCursor(() => {
+  const seq = (effectsMap.get('WXDi-P15-071') ?? []).find(e => e.effectId === 'WXDi-P15-071-E1')!.action as SequenceAction;
+  const cond = seq.steps[1] as { type: string; condition: { type: string }; then: EffectAction; else: EffectAction };
+  eq(cond.type, 'CONDITIONAL', '2ステップ目がベット分岐');
+  eq(cond.condition.type, 'IS_BETTING', 'ベットしているかで分ける');
+
+  const targetSigni = fresh();
+  const withTarget = (betting: boolean) => {
+    const c = mkCtx({ signi: [targetSigni, null, null] }, {});
+    (c.ownerState as unknown as { is_betting_this_effect?: boolean }).is_betting_this_effect = betting;
+    return { ...c, lastProcessedCards: [targetSigni] } as ExecCtx;
+  };
+  // ベット時＝【Ｓランサー】が直接 keyword_grants へ（原文どおり**無条件**＝正面パワーの制限なし）
+  const betR = run(cond.then, withTarget(true));
+  ok((betR.ownerState.keyword_grants?.[targetSigni] ?? []).includes('Sランサー'), 'ベット時は【Ｓランサー】');
+  eq((betR.ownerState.granted_effects?.[targetSigni] ?? []).length, 0, 'ベット時は条件つき付与を積まない');
+  // 非ベット時＝条件つき CONTINUOUS（正面のパワー8000以下）を granted_effects へ
+  const plainR = run(cond.else, withTarget(false));
+  ok(!(plainR.ownerState.keyword_grants?.[targetSigni] ?? []).includes('ランサー'),
+     '非ベット時は無条件 keyword_grants に入らない');
+  const granted = plainR.ownerState.granted_effects?.[targetSigni] ?? [];
+  eq(granted.length, 1, `条件つき CONTINUOUS が1本: ${JSON.stringify(granted)}`);
+  eq(JSON.stringify(granted[0].activeCondition),
+     JSON.stringify({ type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 8000 }), '正面のパワー8000以下ゲート');
+  // engine の効き＝付与先を発生源として毎フレーム評価
+  const augmented = new Map(effectsMap);
+  augmented.set(targetSigni, [...(effectsMap.get(targetSigni) ?? []), ...granted]);
+  const kwWithFront = (frontPower: number) => {
+    const front = fresh();
+    return (collectContinuousGrantedKeywords(mkState({ signi: [targetSigni, null, null] }),
+      mkState({ signi: [null, null, front] }), true, augmented, cardMap as Map<string, CardData>,
+      new Map([[front, frontPower]]))[targetSigni] ?? []);
+  };
+  eq(kwWithFront(8000).join(','), 'ランサー', '正面8000以下＝【ランサー】が付く');
+  eq(kwWithFront(8001).join(','), '', '正面8001＝付かない');
+}));
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
 test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => withSavedCursor(() => {
