@@ -9427,7 +9427,9 @@ test('checkActiveCondition AND[LRIG_COLOR,IS_SELF_IN_CENTER_ZONE]: 両成立で�
 
 // 続き377l: IS_SELF_IN_SIDE_ZONE の engine 評価。ゾーン添字は**所有者から見た表示順**＝left=0 / center=1 / right=2
 // （`BoardComponents` の signiRow が自分側を rawIdx 昇順で左から描く）。この対応が逆だと左右が入れ替わる。
-test('checkActiveCondition IS_SELF_IN_SIDE_ZONE: left=index0 / right=index2 / either=中央以外', () => {
+// ⚠`fresh()` は共有 POOL の cursor を進めるので、engine テストでも `withSavedCursor` で包む
+//   （包まないと後続の `fill(n)` が別のカードを引き、ハードコードした候補集合のテストが落ちる）。
+test('checkActiveCondition IS_SELF_IN_SIDE_ZONE: left=index0 / right=index2 / either=中央以外', () => withSavedCursor(() => {
   const cond = (side: 'left' | 'right' | 'either') =>
     ({ type: 'IS_SELF_IN_SIDE_ZONE', side }) as unknown as import('../src/types/effects').ActiveCondition;
   const src = fresh();
