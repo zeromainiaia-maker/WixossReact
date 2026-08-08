@@ -2487,14 +2487,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   保有条件として使われている keyword だけを飛ばし、残りに付与形があればそちらを採る。
     const isPossessionFilterKw = (k: string) =>
       new RegExp(`【${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}】を持つ(?:カード|シグニ|スペル|アーツ|ルリグ|ピース)`).test(t);
-    // 「…を得る／を持つ」に**隣接する**【K】を優先する。従来は文中の**最初の**【】を採っていたため、
-    // 「その正面のシグニに【チャーム】が付いているかぎり【アサシン】を得る」で**付与するキーワードが
-    // 条件側の【チャーム】に化けていた**（`WX10-036-BURST`＝live も同じ）。`isPossessionFilterKw` は
-    // 「【K】を持つシグニ」形だけを飛ばすので、「付いているかぎり」等の別の条件表現は拾えない。
-    const kwAdjacent = t.match(/【([^】]+)】(?:[と・]【[^】]+】)*を(?:得る|持つ)/)?.[1];
-    const kwGrantName = kwAdjacent && !['常','出','起','自','ガード'].includes(kwAdjacent)
-      ? kwAdjacent
-      : kwM && !['常','出','起','自','ガード'].includes(kwM[1]) && isPossessionFilterKw(kwM[1])
+    // ⚠**「…を得る／を持つ」に隣接する【K】を優先する」一般化は入れてはいけない**（続き377l で A/B により却下）＝
+    //   `t.match(/【K】…を(得る|持つ)/)` は文中の**最初の**一致を返すため、①`WX08-061`「【ダブルクラッシュ】を
+    //   **持つ**シグニ１体を対象とし…【アサシン】を得る」の**保有フィルタ**に当たる ②`WXDi-P15-048`
+    //   「【アサシン】**か**【ダブルクラッシュ】を得る」の後段だけを採る ③`WXK02-057`/`WXDi-P11-071`/`WXDi-P13-044`
+    //   の「『【常】：〜かぎり、【K】を得る。』を得る」＝**条件付き引用付与**の STUB を無条件 GRANT_KEYWORD へ潰す
+    //   （内側の条件が丸ごと落ちる過剰実行）。実測 36カード中 16カードが退化した。**下の保有フィルタ除外のまま据置。**
+    const kwGrantName = kwM && !['常','出','起','自','ガード'].includes(kwM[1]) && isPossessionFilterKw(kwM[1])
       ? [...t.matchAll(/【([^】]+)】/g)].map(m => m[1])
           .find(k => !['常','出','起','自','ガード'].includes(k) && !isPossessionFilterKw(k))
       : kwM?.[1];
