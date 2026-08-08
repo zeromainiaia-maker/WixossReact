@@ -2870,6 +2870,15 @@ function effJa(e: Eff): string {
       const who = sc === 'any_ally' ? 'あなたの' : sc === 'any_opp' ? '対戦相手の' : '';
       s = `${who}【チャーム】１枚が場からいずれかのトラッシュに置かれたとき`;
     }
+    // ON_ABILITY_ACTIVATED（§6.3 J-1）の限定を原文語彙へ戻す（誰の／どの種別／【英知】限定／場のシグニ限定）。
+    if (t === 'ON_ABILITY_ACTIVATED') {
+      const tc = e.triggerCondition ?? {};
+      const who = tc.activatedAbilityOwner === 'opponent' ? '対戦相手の' : tc.activatedAbilityOwner === 'self' ? 'あなたの' : '';
+      const src = tc.activatedAbilityFromFieldSigni ? '場にあるシグニの' : '';
+      const kind = tc.activatedAbilityKind === 'ON_PLAY' ? '【出】' : tc.activatedAbilityKind === 'AUTO' ? '【自】' : '';
+      const eichi = tc.activatedAbilityEichi ? 'の【英知】' : '';
+      s = `${who}${src}${kind}${eichi}能力が発動したとき`;
+    }
     // ON_ACCE の triggerScope を主語に反映（self=このシグニに／any_ally=あなたのシグニ1体に）
     if (t === 'ON_ACCE' && (e.triggerScope === 'any_ally' || e.triggerScope === 'any')) {
       s = 'あなたのシグニ１体に【アクセ】が付いたとき';
