@@ -2590,9 +2590,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 「のうち最も…シグニ」等の超上級句が「シグニ」と「を対象とし」の間に挟まる形（WX25-CP1-051）も narrow に拾う。
       const kwExcludeSelf = hasOtherSelfSigniNoun(t) && (/シグニ[^。、]*を対象とし/.test(t) || !!kwAllSelf)
         || /(?:あなた|対戦相手)の他の[^。、]*シグニのうち最も[^。、]*を対象とし/.test(t);
-      const kwTarget: EffectTarget = kwExcludeSelf && target.type === 'SIGNI'
-        ? { ...target, filter: { ...(target.filter ?? {}), excludeSelf: true } }
-        : target;
+      const kwTarget: EffectTarget = kwExcludeSelf && targetWithSpec.type === 'SIGNI'
+        ? { ...targetWithSpec, filter: { ...(targetWithSpec.filter ?? {}), excludeSelf: true } }
+        : targetWithSpec;
       // 「【X】と【Y】を得る」「【X】【Y】を持つ」複合付与 → SEQUENCE
       // 「を得る/を持つ」直前に隣接するキーワード連続（と/・接続のみ）に限定し、
       // 文境界を跨いだ無関係キーワードの巻き込みを防ぐ
