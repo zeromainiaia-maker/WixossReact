@@ -4464,6 +4464,16 @@ export function execStubPart2(
     // 対象選択済みならキーワードを付与
     if (ctx.lastProcessedCards?.length) {
       if (!kwSGQCA) return done(addLog(ctx, '[SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: キーワード解析不可]'));
+      // ⚠引用の内側が「正面のシグニのパワーがN以上であるかぎり」型なら条件つき CONTINUOUS として
+      //   `granted_effects` へ（`keyword_grants` は条件を持てず**常時発動**になる。タスク12(cxiv)）。
+      const gatedSGQCA = buildFrontPowerGatedKeywordGrant(txtSGQCA, kwSGQCA);
+      if (gatedSGQCA) {
+        const grantedMapSG = { ...(ctx.ownerState.granted_effects ?? {}) };
+        for (const cn of ctx.lastProcessedCards) grantedMapSG[cn] = [...(grantedMapSG[cn] ?? []), gatedSGQCA];
+        const namesSG = ctx.lastProcessedCards.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・');
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapSG } },
+          `${namesSG}→【${kwSGQCA}】を条件つきで付与（正面のパワー条件つき）`));
+      }
       const newGrants = { ...(ctx.ownerState.keyword_grants ?? {}) };
       for (const cn of ctx.lastProcessedCards) {
         const prev = newGrants[cn] ?? [];
