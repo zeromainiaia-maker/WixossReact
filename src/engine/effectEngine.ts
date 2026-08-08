@@ -528,6 +528,13 @@ export function checkActiveCondition(
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase));
   }
+  // ⚠**網羅性ガード（タスク12(cxv)）**＝この switch を抜ける＝未実装の ActiveCondition 型がある、ということ。
+  // 抜けた先は `return true`（＝無条件成立）なので、**未実装型を JSON に書くと過剰実行になるのに
+  // 全ゲート緑のまま素通りする**（`activeCondition` に Condition 型を流用した3効果が実際にそうなっていた：
+  // `WX05-021-E4`／`WXDi-P07-060-E3`／`PR-426-E3`）。`ActiveCondition` に型を足したら**必ずここに case を足す**
+  // ＝足し忘れは下の `never` 代入が typecheck を落として教える。
+  const _acExhaustive: never = cond;
+  void _acExhaustive;
   return true;
 }
 
