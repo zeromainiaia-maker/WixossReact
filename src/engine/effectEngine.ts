@@ -61,6 +61,9 @@ export function checkActiveCondition(
   effectivePowers?: Map<string, number>,
   oppTrashColorLoss?: boolean,
   turnPhase?: TurnPhase,
+  // 実効レベル（`calcSigniLevels`）。`effectivePowers` と同じ扱いで、**渡さないと表記レベルへ
+  // フォールバック**する（動的レベル札は一生 false＝過小実行。タスク12(cxii) と同じ罠）。
+  effectiveLevels?: Map<string, number>,
 ): boolean {
   if (!cond) return true;
   switch (cond.type) {
