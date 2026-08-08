@@ -58,6 +58,9 @@ export type EffectTiming =
   | 'ON_SIGNI_POWER_ZERO_OR_LESS' // シグニのパワーが0以下になったとき
   | 'ON_SIGNI_FROZEN'           // シグニが凍結状態になったとき（signi_frozen の false→true を効果解決の set-diff で検出。WX08-039/WXEX2-02/WXDi-P04-065）
   | 'ON_CHARM_TO_TRASH'         // 【チャーム】1枚が場からいずれかのトラッシュに置かれたとき（signi_charms の set-diff で検出。WX16-Re05。triggerScope any/any_ally/any_opp）
+  | 'ON_ACCE_TO_TRASH'          // 【アクセ】N枚がトラッシュに置かれたとき（signi_acce の set-diff で検出。WXEX2-19。triggerScope any/any_ally/any_opp・triggerCondition.minCount）
+  | 'ON_SOUL_ATTACHED'          // 【ソウル】が付いたとき（signi_soul の null→非null を効果解決の set-diff で検出。WXDi-D07-004「あなたのシグニ1体に」=any_ally／WXDi-D07-019「このシグニに」=self）
+  | 'ON_CARD_ATTACHED'          // このシグニにカードN枚が付いたとき（【チャーム】/【アクセ】/【ソウル】いずれの付与でも発火する汎用版。WXK10-049。triggerScope self/any_ally・triggerCondition.minCount）
   | 'ON_ENERGY_TO_TRASH'        // エナゾーンからカードがトラッシュに置かれたとき（energy→trash の set-diff で検出。WD15-015「あなたの効果によって対戦相手のエナゾーンから」。triggerCondition.energyTrashedOwner で発生源）
   | 'ON_REFRESH'                // いずれかのプレイヤーがリフレッシュしたとき（refresh_count_this_turn の set-diff で検出。WXDi-P04-043。triggerCondition.refreshedOwner で発生源。⚠効果解決経路のリフレッシュのみ検出＝ドローフェイズの過剰ドロー refresh は未検出の近似）
   | 'ON_OPP_POWER_DECREASED'    // あなたの効果によって対戦相手のシグニのパワーが減ったとき（毒牙。temp_power_mods の新規負 delta を効果解決の set-diff で検出。WX13-036/WXEX2-52。⚠「あなたの効果」限定は近似＝相手自身の自己弱体でも発火しうる／temp_power_mods のみ＝UNTIL_OPP_TURN_END 弱体は未計上）
