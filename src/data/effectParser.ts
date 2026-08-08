@@ -4083,6 +4083,141 @@ function applyOpponentSelectsBatch11(effects: CardEffect[]): void {
 
 // ROADMAP batch6「1枚/1体につき」。原文照合済み effectId だけを単一チョークポイントで補正する。
 // 比例元が直前の処理結果なら last_processed_count、盤面/ゾーンなら countFromZone を使う。
+// ── Opusタスク12(cxiii)：多段閾値の【常】（2026-08-08）────────────────────────────────────
+// 1つの【常】文に閾値が2つ入る形。原文には2種類ある：
+//   ①**置換型**「N以上であるかぎり X。M以上であるかぎり、代わりに Y。」＝X と Y は**排他**
+//   ②**累積型**「N以上であるかぎり X、M以上であるかぎり Y」＝X と Y は**両方**乗る
+// どちらも従来は前段の閾値ひとつしか載らず、後段は
+//   ・置換型：SEQUENCE に2ステップ並べる（＝`collectContinuousGrantedKeywords` は**action 直下の
+//     `GRANT_KEYWORD` しか読まない**ので `WXEX1-33-E2` は**どのパワーでも何も付かなかった**）か
+//     `STUB:CONDITIONAL_ALT_POWER_BOOST` で無視（＝上位帯でも下位の値のまま＝過小）
+//   ・累積型：後段が丸ごと欠落（`WX09-019` のアーツ耐性と【ランサー】）
+// **新機構は要らない**＝置換型は「下限以上かつ上限未満」の帯（`AND` ＋ `operator:'lt'`）で、
+// 累積型は閾値ごとに別 CONTINUOUS を並べるだけで既存 DSL で表せる。パワー修正だけは
+// `WXDi-P05-076`（既存）と同じ**加算分解**（上位帯には差分だけを足す）が読みやすいのでそれに倣う。
+// ⚠原文照合済みの effectId だけを名指しで直す（同型文へ regex で波及させない）。
+function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void {
+  const find = (id: string) => effects.find(e => e.effectId === id);
+  const thisCard: TargetFilter = { thisCardOnly: true };
+  const selfSigni = { type: 'SIGNI' as const, owner: 'self' as const, count: 1 as const };
+  /** 「M以上であるかぎり、代わりに」の下位帯＝N以上かつM未満 */
+  const band = (lo: number, hi: number): ActiveCondition => ({
+    type: 'AND',
+    conditions: [
+      { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: lo },
+      { type: 'SELF_POWER_THRESHOLD', operator: 'lt', value: hi },
+    ],
+  });
+
+  // ① 置換型（パワー閾値・キーワード）：`WXEX1-33-E2`
+  //    「パワーが20000以上であるかぎり、【ダブルクラッシュ】を得る。30000以上であるかぎり、代わりに
+  //     【トリプルクラッシュ】を得る。」＝20000〜29999 はダブル／30000以上はトリプル**のみ**。
+  //    従来は AND なしの gte20000 ＋ SEQUENCE[ダブル, トリプル] で、SEQUENCE 直下は収集されないため
+  //    実測で**両方とも一度も付かなかった**（キーワード付与は action 直下の GRANT_KEYWORD だけを読む）。
+  if (cardNum === 'WXEX1-33') {
+    const e2 = find('WXEX1-33-E2');
+    if (e2) {
+      e2.activeCondition = band(20000, 30000);
+      e2.action = { type: 'GRANT_KEYWORD', target: { ...selfSigni }, keyword: 'ダブルクラッシュ', duration: 'PERMANENT' };
+      effects.push({
+        ...e2, effectId: 'WXEX1-33-E2b',
+        activeCondition: { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: 30000 },
+        action: { type: 'GRANT_KEYWORD', target: { ...selfSigni }, keyword: 'トリプルクラッシュ', duration: 'PERMANENT' },
+      });
+    }
+  }
+
+  // ② 置換型（枚数閾値・パワー修正）：`WXK02-038-E1`
+  //    「トラッシュにカードが15枚以上あるかぎり＋3000。25枚以上あるかぎり、代わりに＋5000。」
+  //    加算分解＝15以上で＋3000／25以上でさらに＋2000（合計＋5000）。従来の第2段は
+  //    `STUB:CONDITIONAL_ALT_POWER_BOOST`（no-op）で、25枚以上でも＋3000のままだった。
+  if (cardNum === 'WXK02-038') {
+    const e1 = find('WXK02-038-E1');
+    if (e1) {
+      e1.activeCondition = { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: 15 };
+      e1.action = { type: 'POWER_MODIFY', target: { ...selfSigni, filter: { ...thisCard } }, delta: 3000 };
+      effects.push({
+        ...e1, effectId: 'WXK02-038-E1b',
+        activeCondition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'gte', value: 25 },
+        action: { type: 'POWER_MODIFY', target: { ...selfSigni, filter: { ...thisCard } }, delta: 2000 },
+      });
+    }
+  }
+
+  // ③ 置換型（登録者数・パワー修正）：`WXK10-036-E1`
+  //    「あなたの＜電機＞のシグニのパワーを＋1000する。登録者数が50万人を達成しているかぎり、代わりに＋2000する。」
+  //    前段は無条件・後段が上乗せなので加算分解（＋1000／達成でさらに＋1000）。
+  if (cardNum === 'WXK10-036') {
+    const e1 = find('WXK10-036-E1');
+    if (e1) {
+      const denki: TargetFilter = { cardType: 'シグニ', story: '電機' };
+      const boost = (delta: number): EffectAction => ({
+        type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { ...denki } }, delta,
+      });
+      delete e1.activeCondition;
+      e1.action = boost(1000);
+      effects.push({
+        ...e1, effectId: 'WXK10-036-E1b',
+        activeCondition: { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 50 },
+        action: boost(1000),
+      });
+    }
+  }
+
+  // ④ 置換型（登録者数・効果耐性）：`WXK10-035-E1`
+  //    「あなたの＜電機＞のシグニは対戦相手の**レベル1以下**のシグニの効果を受けない。登録者数が50万人を
+  //     達成しているかぎり、代わりに**レベル2以下**の…」。従来は同一の GRANT_PROTECTION が2つ並ぶだけで
+  //    **発生源のレベル制限（`sourceFilter`）が丸ごと無かった**＝相手シグニの効果を**全部**受けない過剰実行。
+  //    パワーではなく登録者数の帯なので `SUBSCRIBER_COUNT` の lt/gte で排他にする。
+  if (cardNum === 'WXK10-035') {
+    const e1 = find('WXK10-035-E1');
+    if (e1) {
+      const prot = (maxLevel: number): EffectAction => ({
+        type: 'GRANT_PROTECTION',
+        subjectFilter: { cardType: 'シグニ', story: '電機' },
+        subjectOwner: 'self',
+        from: ['シグニ'],
+        sourceOwner: 'opponent',
+        sourceFilter: { level: { max: maxLevel } },
+        duration: 'PERMANENT',
+      });
+      e1.activeCondition = { type: 'SUBSCRIBER_COUNT', operator: 'lt', value: 50 };
+      e1.action = prot(1);
+      effects.push({
+        ...e1, effectId: 'WXK10-035-E1b',
+        activeCondition: { type: 'SUBSCRIBER_COUNT', operator: 'gte', value: 50 },
+        action: prot(2),
+      });
+    }
+  }
+
+  // ⑤ 累積型：`WX09-019`
+  //    「このシグニは自身のパワーが**14000以上**であるかぎり対戦相手のアーツの効果を受けず、
+  //     **18000以上**であるかぎり【ランサー】と「【自】：…」を得る。」
+  //    引用付きの【自】は既に `WX09-019-E2`（`SELF_POWER_GTE 18000` つき MANUAL）が持っているので、
+  //    ここで足すのは**アーツ耐性（14000）とキーワード【ランサー】（18000）**の2つ。
+  //    ⚠表記パワーは**0**（エナ1枚につき＋2000の完全動的）なので、耐性側は
+  //      `collectEffectImmuneSigni` が実効パワーを見ないと一生 false（同セッションで engine を是正）。
+  if (cardNum === 'WX09-019') {
+    const anchor = find('WX09-019-E1');
+    if (anchor && !find('WX09-019-E4')) {
+      const base = { effectType: 'CONTINUOUS' as const, duration: 'PERMANENT' as const, mandatory: true, parseStatus: 'MANUAL' as const };
+      effects.push({
+        ...base, effectId: 'WX09-019-E4',
+        activeCondition: { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: 14000 },
+        // subjectFilter / target を持たない CONT の GRANT_PROTECTION ＝発生源シグニ自身のみを守る
+        // （`collectEffectImmuneSigni` の `else { immune.add(sourceNum) }` 枝）。
+        action: { type: 'GRANT_PROTECTION', from: ['アーツ'], sourceOwner: 'opponent', duration: 'PERMANENT' },
+      } as CardEffect);
+      effects.push({
+        ...base, effectId: 'WX09-019-E5',
+        activeCondition: { type: 'SELF_POWER_THRESHOLD', operator: 'gte', value: 18000 },
+        action: { type: 'GRANT_KEYWORD', target: { ...selfSigni }, keyword: 'ランサー', duration: 'PERMANENT' },
+      } as CardEffect);
+    }
+  }
+}
+
 function applyProportionalCountBatch6(effects: CardEffect[]): void {
   const ref = { $ref: 'last_processed_count' } as const;
   const visit = (node: unknown, predicate: (o: Record<string, unknown>) => boolean,
