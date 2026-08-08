@@ -1669,6 +1669,69 @@ export function collectCharmToTrashTriggers(
 }
 
 /**
+ * 他の能力が発動したとき（ON_ABILITY_ACTIVATED）トリガーを収集する（§6.3 J-1）。
+ *
+ * **発動の定義**＝effectStack から1件取り出して**解決を始める瞬間**（`BattleScreen.resolveStackNext` の
+ * `shiftQueue` 直後）。スタック投入時ではなく解決開始時にしたのは、投入されても turnGate 等で落ちる
+ * エントリを「発動した」と数えないため。⚠この funnel は `shiftQueue` の**唯一の呼び出し元**なので、
+ * ここを押さえれば全経路（人間/CPU・【出】/【自】/LB）を1箇所でカバーできる。
+ *
+ * 限定は `triggerCondition.activatedAbility*`＝持ち主（self/opponent）・種別（【自】/【出】）・
+ * 【英知】能力か・発動元が場のシグニか。
+ * ⚠**発動した能力自身が ON_ABILITY_ACTIVATED の場合は無視する**（監視の連鎖・自己発火を作らない）。
+ */
+export function collectAbilityActivatedTriggers(
+  ctx: TrigCtx, watcherId: string, watcherState: PlayerState, otherState: PlayerState,
+  activated: { ownerId: string; effect: CardEffect; cardNum: string; ownerState: PlayerState },
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  const act = activated.effect;
+  if (!act || act.timing?.includes('ON_ABILITY_ACTIVATED')) return { entries, usedOncePerTurnIds };
+  // 発動した能力の性質を先に確定させる（watcher ごとに再計算しない）。
+  const isOnPlay = !!act.timing?.includes('ON_PLAY');
+  const kind: 'AUTO' | 'ON_PLAY' | null = isOnPlay ? 'ON_PLAY' : act.effectType === 'AUTO' ? 'AUTO' : null;
+  const hasEichi = (() => {
+    const walk = (c: unknown): boolean => {
+      if (!c || typeof c !== 'object') return false;
+      const o = c as { type?: string; conditions?: unknown[] };
+      if (o.type === 'EICHI_LEVEL_SUM') return true;
+      return (o.conditions ?? []).some(walk);
+    };
+    return walk(act.activeCondition) || walk(act.condition);
+  })();
+  const fromFieldSigni = activated.ownerState.field.signi.some(s => s?.at(-1) === activated.cardNum);
+  const isWatcherTurn = watcherId === ctx.activeUserId;
+  const limitOk = mkLimitOk(watcherState.actions_done, usedOncePerTurnIds);
+  const removed = collectContinuousAbilitiesRemovedSigni(watcherState, otherState, isWatcherTurn, ctx.effectsMap, ctx.cardMap, '自');
+  const ownAutoBlocked = watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+  for (const topNum of ownFieldSources(watcherState)) {
+    if (ownAutoBlocked) continue;
+    if (removed.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ABILITY_ACTIVATED')) continue;
+      // 自分自身の発動には反応しない（「他の能力」）。
+      if (activated.effect.effectId === eff.effectId) continue;
+      const tc = eff.triggerCondition ?? {};
+      if (tc.activatedAbilityOwner === 'self' && activated.ownerId !== watcherId) continue;
+      if (tc.activatedAbilityOwner === 'opponent' && activated.ownerId === watcherId) continue;
+      if (tc.activatedAbilityKind && tc.activatedAbilityKind !== kind) continue;
+      if (tc.activatedAbilityEichi && !hasEichi) continue;
+      if (tc.activatedAbilityFromFieldSigni && !fromFieldSigni) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, isWatcherTurn, ctx.cardMap, topNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（能力発動時）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}
+
+/**
  * 《コインアイコン》を得たとき（ON_COIN_GAINED）トリガーを収集する（§6.3 J-5・SP27-007-E1）。
  * 既存 `collectCoinPaidTriggers`（減少方向）の逆向き。watcher 側の場を走査し、
  * triggerScope で「あなたか対戦相手」（any＝既定）／「あなた」（self）／「対戦相手」（any_opp）を弁別する。
