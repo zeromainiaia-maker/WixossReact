@@ -1550,6 +1550,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // ⚠これが無いと下の else へ落ちて owner:'any'/count:1＝「場のシグニ1体を任意選択」という別物になっていた
     //   （CONTINUOUS 側は effectEngine が count≠ALL を「効果元自身」に解決するため**自分に**バフする過剰実行）。
     const aboveSelfM = t.match(/このカードの上にある(＜[^＞]+＞の|《[^》]+》|[白赤青緑黒]の)?(?:シグニ)?のパワーを/);
+    // 「これにアクセされている[＜クラス＞の|《名前》]シグニのパワーを±N」＝このカードが**アクセとして付いている**
+    // ホスト宛（acceHost）。⚠`parseSentencePart2` に専用規則が3本あるが、Part1 の本ブロックが常に先に
+    //   `パワーを＋N` を食うため**到達不能な死んだ規則**で、実際には下の既定 else に落ちて
+    //   **`filter` が丸ごと無い owner:'any'/count:1**＝「場のシグニ1体を任意選択」に潰れていた
+    //   （CONTINUOUS では effectEngine が count≠ALL を効果元自身に解決するので**自分にバフ**する過剰実行）。
+    //   全CSV走査で該当10枚（`SP27-015`／`WX17-033`／`WX20-072`／`WXEX2-69`／`WXK04-080`／`WXK04-082`／
+    //   `WD18-013`／`WD18-015`／`WDK17-015`／`WXDi-P09-TK01A`）が**全部この穴**に落ちていた（live は手修正で正しい）。
+    //   実体の加算は effectEngine の signi_acce ループが行う（aboveSelf の兄弟＝装着経路だけが違う）。
+    const acceHostM = t.match(/^これにアクセされている(＜[^＞]+＞の|《[^》]+》)?(?:シグニ)?のパワーを/);
     if (otherSelfDesignated) {
       target = parseSigniTarget(t, 'self');
       excludeSelf = true;
