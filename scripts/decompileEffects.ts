@@ -994,6 +994,9 @@ function actionJa(a?: Action, effectType?: string): string {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
         return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
       }
+      // 例外なしの fromAll＝「〜の効果を受けない」。`from` が空なので下の軸トークン分岐へ落ちると
+      // 軸リストが空になり **「対戦相手の効果によってない」** という壊れた文になっていた（3効果）。
+      if (a.fromAll) return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
       const fromArr: string[] = a.from ?? [];
       const srcTypes = ['ルリグ', 'シグニ', 'スペル', 'アーツ'];
       const srcTokens = fromArr.filter(f => srcTypes.includes(f));
