@@ -3149,6 +3149,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
     //   PR-470A・WXK03-037・WXK04-081/083・WXDi-P11-066 等）。トリガー句は parseBlock で既処理＝除去しても
     //   action 部の意味は変わらない（既存の「あなたのターン終了時、」strip と同じ扱い）。
     .replace(/^(?:あなた|対戦相手)のアタックフェイズ開始時、/, '')
+    // §6.3 J-4：アタックフェイズ終了時／個別アタック終了時のトリガー句（`WX24-P2-075`／`WXK11-018`）。
+    .replace(/^(?:あなた|対戦相手)のアタックフェイズ終了時、/, '')
+    .replace(/^このシグニがアタックしたアタック終了時、/, '')
     .replace(/^対戦相手の効果によってこのカードが(?:手札から)?捨てられたとき、/, '')
     .replace(/^このシグニがアタックしたとき、/, '')
     .replace(/^このシグニが開花したとき、/, '')
@@ -9487,7 +9490,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   // ⚠上の汎用 hoist は「以下の◯つ」ヘッダが続く形にしか効かないので、この文型は個別に拾う。
   //   従来は条件節が丸ごと落ちて**無条件発火**だった。
   if (effectType === 'AUTO' && actionText) {
-    const lfm = actionText.match(/^その?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場を離れていた場合[、,]\s*(.+)$/s);
+    // ⚠この時点の actionText は**まだトリガー句を含む**（「〜終了時、」の除去は下流）ので、
+    //   先頭アンカーではなく**節をその場で取り除く**（残りは従来どおり下流が処理する）。
+    const lfm = actionText.match(/その?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場を離れていた場合[、,]\s*/);
     if (lfm) {
       const lfCond: Condition = { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE',
         owner: lfm[1] === '対戦相手' ? 'opponent' : 'self',
@@ -9495,7 +9500,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       extractedTriggerCondition = extractedTriggerCondition
         ? { type: 'AND', conditions: [extractedTriggerCondition, lfCond] }
         : lfCond;
-      actionText = lfm[3];
+      actionText = actionText.replace(lfm[0], '');
     }
   }
   if (actionText && !/^以下の/.test(actionText)) {
