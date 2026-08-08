@@ -706,6 +706,10 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
   if (filter.centerZoneOnly !== undefined) {
     if (filter.centerZoneOnly !== (zoneIdx === 1)) return false;
   }
+  // 左／右のシグニゾーン限定（所有者から見た表示順＝left=0 / right=2）
+  if (filter.zoneSide !== undefined) {
+    if (zoneIdx !== (filter.zoneSide === 'left' ? 0 : 2)) return false;
+  }
   return true;
 }
 
