@@ -999,9 +999,14 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcTokens = fromArr.filter(f => srcTypes.includes(f));
       // sourceCostMin:「コストの合計がN以上の、アーツとスペルの効果を受けない」（WX15-031）
       const costMinJa = a.sourceCostMin !== undefined ? `コストの合計が${a.sourceCostMin}以上の、` : '';
+      // sourceFilter の**レベル上限**（「対戦相手のレベルN以下のシグニの効果を受けない」WXK10-035）。
+      // これを描かないと、レベル1以下版とレベル2以下版が逆翻訳で**同じ文**になり
+      // 「engine は区別しているのに原文照合では見えない」偽陰性になる（タスク12(cxiii)）。
+      const srcLvMax = (a.sourceFilter as { level?: { max?: number } } | undefined)?.level?.max;
+      const srcLvJa = srcLvMax !== undefined ? `レベル${srcLvMax}以下の` : '';
       // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
       if (srcTokens.length > 0) {
-        return `${subject}は${ownerJa(a.sourceOwner)}${costMinJa || '、'}${srcTokens.join('と')}の効果を受けない`;
+        return `${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`;
       }
       if (fromArr.includes('any')) {
         return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
