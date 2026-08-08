@@ -2487,7 +2487,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   保有条件として使われている keyword だけを飛ばし、残りに付与形があればそちらを採る。
     const isPossessionFilterKw = (k: string) =>
       new RegExp(`【${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}】を持つ(?:カード|シグニ|スペル|アーツ|ルリグ|ピース)`).test(t);
-    const kwGrantName = kwM && !['常','出','起','自','ガード'].includes(kwM[1]) && isPossessionFilterKw(kwM[1])
+    // 「…を得る／を持つ」に**隣接する**【K】を優先する。従来は文中の**最初の**【】を採っていたため、
+    // 「その正面のシグニに【チャーム】が付いているかぎり【アサシン】を得る」で**付与するキーワードが
+    // 条件側の【チャーム】に化けていた**（`WX10-036-BURST`＝live も同じ）。`isPossessionFilterKw` は
+    // 「【K】を持つシグニ」形だけを飛ばすので、「付いているかぎり」等の別の条件表現は拾えない。
+    const kwAdjacent = t.match(/【([^】]+)】(?:[と・]【[^】]+】)*を(?:得る|持つ)/)?.[1];
+    const kwGrantName = kwAdjacent && !['常','出','起','自','ガード'].includes(kwAdjacent)
+      ? kwAdjacent
+      : kwM && !['常','出','起','自','ガード'].includes(kwM[1]) && isPossessionFilterKw(kwM[1])
       ? [...t.matchAll(/【([^】]+)】/g)].map(m => m[1])
           .find(k => !['常','出','起','自','ガード'].includes(k) && !isPossessionFilterKw(k))
       : kwM?.[1];
