@@ -8218,6 +8218,30 @@ test('Stage2 boardDiff countCharmsToTrash: チャームのトラッシュ送り�
   const after = mkState({}); after.field.signi_charms = [null, null, null]; after.trash = ['charmA'];
   eq(countCharmsToTrash(before, after), 1, 'チャーム1枚');
 });
+test('J-2 boardDiff countAcceToTrash: アクセのトラッシュ送りを計数', () => {
+  const before = mkState({}); before.field.signi_acce = ['acceA', null, null];
+  const after = mkState({}); after.field.signi_acce = [null, null, null]; after.trash = ['acceA'];
+  eq(countAcceToTrash(before, after), 1, 'アクセ1枚');
+  const toEner = mkState({}); toEner.field.signi_acce = [null, null, null]; toEner.energy = ['acceA'];
+  eq(countAcceToTrash(before, toEner), 0, 'エナ行きはトラッシュではない');
+});
+test('J-2 boardDiff detectSoulAttached / detectCardAttached: 新規付与だけを検出（本体入れ替えは拾わない）', () => {
+  const before = mkState({ signi: ['S0', 'S1', null] });
+  const after = mkState({ signi: ['S0', 'S1', null] });
+  after.field.signi_soul = ['soulX', null, null];
+  eq(detectSoulAttached(before, after).map(x => `${x.hostNum}:${x.soulNum}`).join(','), 'S0:soulX', 'ソウル新規付与を検出');
+  eq(detectSoulAttached(after, after).length, 0, '差分なしは0件');
+  // 本体が入れ替わったゾーンは「付いた」と数えない（ライズ・場出しでソウル持ちに替わったケース）
+  const swapped = mkState({ signi: ['S9', 'S1', null] }); swapped.field.signi_soul = ['soulX', null, null];
+  eq(detectSoulAttached(before, swapped).length, 0, '本体入れ替えは非検出');
+  // 汎用版はチャーム/アクセ/ソウルを横断して枚数を数える
+  const multi = mkState({ signi: ['S0', 'S1', null] });
+  multi.field.signi_charms = ['cA', null, null]; multi.field.signi_acce = ['aA', null, null];
+  const got = detectCardAttached(before, multi);
+  eq(got.length, 1, '1ゾーン');
+  eq(got[0].hostNum, 'S0', 'ホストはS0');
+  eq(got[0].count, 2, 'チャーム＋アクセで2枚');
+});
 
 // Stage2⑬: effect_stack 整列（effectStack.ts・既存 pure モジュール）の golden 自動検証。
 const mkEntry = (effectId: string, playerId: string, turnOwner?: 'self' | 'opponent'): StackEntry => ({
