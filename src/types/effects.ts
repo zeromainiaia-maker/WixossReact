@@ -185,6 +185,10 @@ export type ActiveCondition =
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
   | { type: 'IS_SELF_DOWN' }                                    // このシグニがダウン状態であるかぎり
   | { type: 'IS_SELF_IN_CENTER_ZONE' }                          // このシグニが中央のシグニゾーンにあるかぎり
+  // このシグニが左／右（または「左か右」）のシグニゾーンにあるかぎり。ゾーン添字は所有者から見た
+  // 表示順＝left=0 / right=2（`TargetFilter.zoneSide` と同じ規約）。`either`＝「左か右の」＝中央以外。
+  // ⚠Condition 側にも同型あり＝両方揃えて更新すること（`HAND_DIFF` と同じ運用）。
+  | { type: 'IS_SELF_IN_SIDE_ZONE'; side: 'left' | 'right' | 'either' }
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }            // このターンにあなたが手札をN枚以上捨てている場合
   | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter }      // このシグニの下にカードがあるかぎり（filter=「下にレベルNのシグニがあるかぎり」等の下カード条件。WX24-P1-043）
   | { type: 'SELF_HAS_KEYWORD'; keyword: string }              // このシグニが【keyword】を持っているかぎり（WX04-088-E1）
