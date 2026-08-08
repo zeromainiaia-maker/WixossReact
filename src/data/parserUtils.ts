@@ -526,6 +526,14 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   //   ⚠「このシグニが中央のシグニゾーンにあるかぎり／場合、…対戦相手のシグニ1体を対象とし」＝**効果元の位置条件**を
   //     巻き込まないよう、名詞句が読点を挟まずシグニへ続く形に限定する。
   if (/中央のシグニゾーンにある[^。、]*シグニ/.test(text)) filter.centerZoneOnly = true;
+  // 「あなたの〔左|右〕のシグニゾーンにある〈filter〉シグニ」＝`zoneSide`（centerZoneOnly の兄弟）。
+  //   ⚠「**この**シグニが左のシグニゾーンにあるかぎり」＝**効果元の位置条件**（activeCondition/Condition の
+  //     `IS_SELF_IN_SIDE_ZONE`）なので取り違えない＝上と同じく名詞句が読点を挟まず「シグニ」へ続く形に限定し、
+  //     さらに主語が「この」で始まる形は除外する（「このシグニが左の…にあるかぎり」は名詞句ではない）。
+  {
+    const sideM = text.match(/(?<!この)(左|右)のシグニゾーンにある[^。、]*シグニ/);
+    if (sideM) filter.zoneSide = sideM[1] === '左' ? 'left' : 'right';
+  }
   Object.assign(filter, parseNoAbilitiesFilter(text)); // 「能力を持たない〜シグニN体」（§5d パターンA）
   if (text.includes('感染状態')) filter.infected = true;
   if (text.includes('アクセされている') || text.match(/アクセされて(?:いる|いた)/)) filter.hasAcce = true;
