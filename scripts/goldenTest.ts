@@ -7715,6 +7715,40 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
   eq(stale.join(','), '', `既に解消済みなのに MANUAL_DRIFT_KNOWN に残っている: ${stale.join(', ')}`);
 });
 
+// §6.3 J-4「フェイズ／アタック終了 timing」＝ON_ATTACK_PHASE_END / ON_ATTACK_END（従来 timing:[] で安全停止）。
+test('J-4 ON_ATTACK_END: ダメージを与えていないときだけ発火（WXK11-018-E2）', () => {
+  withSavedCursor(() => {
+    const host = mkState({ signi: ['WXK11-018', null, null] }); const guest = mkState({});
+    const fire = (dealt: boolean) =>
+      has(collectAttackEndTriggers(trigCtx(HOST), HOST, 'WXK11-018', host, guest, dealt).entries, 'WXK11-018-E2');
+    eq(fire(false), true, 'ダメージなし→発火');
+    eq(fire(true), false, 'ダメージあり→非発火（attackDealtNoDamage）');
+  });
+});
+test('J-4 WXK11-018-E2 の対象は「このシグニより低いレベル」の他シグニ（自分自身ではない）', () => {
+  const eff = (effectsMap.get('WXK11-018') ?? []).find(e => e.effectId === 'WXK11-018-E2');
+  const tgt = (eff?.action as { target?: { filter?: Record<string, unknown> } })?.target;
+  eq(tgt?.filter?.levelLtSelf, true, 'levelLtSelf（型にも engine にもあるのに parser が合成していなかった語彙）');
+  eq(tgt?.filter?.thisCardOnly, undefined, '自分自身をアップする誤対象になっていない（旧＝thisCardOnly）');
+});
+test('J-4 ON_ATTACK_PHASE_END: そのアタックフェイズに＜遊具＞が場を離れた場合だけ発火（WX24-P2-075-E1）', () => {
+  withSavedCursor(() => {
+    const eff = (effectsMap.get('WX24-P2-075') ?? []).find(e => e.effectId === 'WX24-P2-075-E1')!;
+    eq(eff.timing?.[0], 'ON_ATTACK_PHASE_END', 'アタックフェイズ終了時');
+    eq(eff.condition?.type, 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', '条件節が残っている（旧＝丸ごと脱落で無条件発火）');
+    // engine 評価＝記録された instanceId を cardMap で filter 照合する
+    const yuguSigni = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('遊具'))!;
+    const otherSigni = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具'))!;
+    const mk = (left: string[]) => {
+      const st = mkState({}); st.signi_left_field_this_attack_phase = left; return st;
+    };
+    const ev = (st: PlayerState) => evalCondition(eff.condition as never, mkCtxFrom(st) as never);
+    eq(ev(mk([yuguSigni])), true, '＜遊具＞が離れていれば成立');
+    eq(ev(mk([otherSigni])), false, '別クラスでは不成立');
+    eq(ev(mk([])), false, '離場0件では不成立');
+  });
+});
+
 // §6.3 J-1「他能力の発動監視」＝ON_ABILITY_ACTIVATED（従来 timing:[] で安全停止）。
 test('J-1 ON_ABILITY_ACTIVATED: 【自】の【英知】能力の発動だけに反応する（WX19-066-E1）', () => {
   withSavedCursor(() => {
@@ -12899,7 +12933,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 44, 'ActiveCondition の型数（増えたら union に足した合図。44＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
-  eq(Object.keys(C_TYPES).length, 114, 'Condition の型数（増えたら union に足した合図。114＝§6.3 J-2 の THIS_CARD_HAS_ATTACHED 追加後）');
+  eq(Object.keys(C_TYPES).length, 115, 'Condition の型数（増えたら union に足した合図。115＝§6.3 J-4 の SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。

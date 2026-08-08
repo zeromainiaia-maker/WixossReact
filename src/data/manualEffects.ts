@@ -4791,6 +4791,18 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"EFFECTIVE_LRIG_LIMIT_GTE","value":9},"then":{"type":"STUB","id":"MUGEN_Q_RESET_AND_FLIP"}}
     ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // §6.3 J-4（続き384）: timing を配線して**実際に発動する**ようになったので、action 側の既存誤 parse を是正する。
+  //   `WXK11-018-E2`＝「このシグニより低いレベルを持つあなたのシグニ1体」が汎用アナフォラ解決で `thisCardOnly`
+  //   （＝自分自身をアップ）に化けていた。型にも engine にもある `levelLtSelf` を使う（doc コメントが本カードを名指し）。
+  "WXK11-018": [
+    {"effectId":"WXK11-018-E2","effectType":"AUTO","timing":["ON_ATTACK_END"],"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","levelLtSelf":true,"excludeSelf":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self","triggerCondition":{"attackDealtNoDamage":true},"usageLimit":"once_per_turn"}
+  ],
+  //   `WX24-P2-075-E1`＝「このシグニを場からデッキの一番下に置いてもよい」が無関係な STUB `LRIG_UNDER_CARD_OP`
+  //   （シグニ下カードのコスト消費）に化けていた。TRANSFER_TO_DECK{position:bottom, optional} が正しい。
+  //   続く CONDITIONAL{IS_MY_TURN} は「そうした場合」の慣例エンコード（engine に専用の解き処理あり）。
+  "WX24-P2-075": [
+    {"effectId":"WX24-P2-075-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_END"],"condition":{"type":"SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE","owner":"self","filter":{"cardType":"シグニ","story":"遊具"}},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"shuffle":false,"position":"bottom","optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":2},"story":"遊具"}},"asDown":true,"optional":true,"suppressOnPlay":true}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+  ],
   "WXDi-P11-010B": [
     {"effectId":"WXDi-P11-010B-E1","effectType":"AUTO","timing":["ON_LRIG_FLIP"],"action":{"type":"SEQUENCE","steps":[
       {"type":"DRAW","owner":"self","count":5},
