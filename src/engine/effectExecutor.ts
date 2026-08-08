@@ -4372,34 +4372,37 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   }
   if (toCands.length === 0) return done(addLog(ctx, 'チャーム付与対象なし'));
 
-  const charmNum = charmCands[0];
-  const targetNum = toCands[0];
-  const zoneIdx = toState.field.signi.findIndex(s => s?.at(-1) === targetNum);
-  if (zoneIdx < 0) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
+  // ペアを i 番目どうしで対応させる（原文は「カードN枚を、シグニN体の【チャーム】にする」＝1体1枚）。
+  const pairCount = Math.min(charmCands.length, toCands.length, charmLimit, toLimit);
+  if (pairCount <= 0) return done(addLog(ctx, 'チャーム付与対象なし'));
+  const charmNums = charmCands.slice(0, pairCount);
+  const targetNums = toCands.slice(0, pairCount);
+  const zoneIdxs = targetNums.map(n => toState.field.signi.findIndex(s => s?.at(-1) === n));
+  if (zoneIdxs.some(i => i < 0)) return done(addLog(ctx, 'チャーム付与: ゾーン不明'));
 
   // チャームカードをソースから除去
   let newCharmSrc: PlayerState = { ...charmSrc };
   if (charmFromLocation === 'deck') {
-    newCharmSrc = { ...newCharmSrc, deck: newCharmSrc.deck.slice(1) };
+    newCharmSrc = { ...newCharmSrc, deck: newCharmSrc.deck.slice(pairCount) };
   } else if (charmFromLocation === 'energy') {
-    newCharmSrc = { ...newCharmSrc, energy: newCharmSrc.energy.filter(n => n !== charmNum) };
+    newCharmSrc = { ...newCharmSrc, energy: newCharmSrc.energy.filter(n => !charmNums.includes(n)) };
   } else if (charmFromLocation === 'trash') {
-    newCharmSrc = { ...newCharmSrc, trash: newCharmSrc.trash.filter(n => n !== charmNum) };
+    newCharmSrc = { ...newCharmSrc, trash: newCharmSrc.trash.filter(n => !charmNums.includes(n)) };
   } else {
-    newCharmSrc = { ...newCharmSrc, hand: newCharmSrc.hand.filter(n => n !== charmNum) };
+    newCharmSrc = { ...newCharmSrc, hand: newCharmSrc.hand.filter(n => !charmNums.includes(n)) };
   }
   let ctx2 = setOwnerState(charmOwner, newCharmSrc, ctx);
 
   // 対象シグニのゾーンにチャームをセット
   let newToState = ownerState(toOwner, ctx2);
   const charms = [...(newToState.field.signi_charms ?? [null, null, null])];
-  charms[zoneIdx] = charmNum;
+  zoneIdxs.forEach((zoneIdx, i) => { charms[zoneIdx] = charmNums[i]; });
   newToState = { ...newToState, field: { ...newToState.field, signi_charms: charms } };
   ctx2 = setOwnerState(toOwner, newToState, ctx2);
 
-  const cardName = ctx.cardMap.get(charmNum)?.CardName ?? charmNum;
-  const targetName = ctx.cardMap.get(targetNum)?.CardName ?? targetNum;
-  return done(addLog(ctx2, `${cardName}を${targetName}にチャームとして付与`));
+  const nameOf = (n: string) => ctx.cardMap.get(n)?.CardName ?? n;
+  return done(addLog(ctx2, charmNums
+    .map((c, i) => `${nameOf(c)}を${nameOf(targetNums[i])}にチャームとして付与`).join('／')));
 }
 
 /** LEVEL_REFERENCE_OVERRIDE: カードテキストから許容レベル範囲を解析して返す。
