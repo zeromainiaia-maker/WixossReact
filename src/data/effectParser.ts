@@ -9482,6 +9482,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     const g = findOpponentUnlessGate(s);
     return g && g.index === 0 ? s.slice(g.length) : s;
   };
+  // 「そのアタックフェイズの間に〜が場を離れていた場合、」（§6.3 J-4・WX24-P2-075-E1）＝**発動時の盤面条件**なので
+  // CardEffect.condition へ持ち上げる（collector が `evalUseCondition` で評価する＝満たさなければ積まれない）。
+  // ⚠上の汎用 hoist は「以下の◯つ」ヘッダが続く形にしか効かないので、この文型は個別に拾う。
+  //   従来は条件節が丸ごと落ちて**無条件発火**だった。
+  if (effectType === 'AUTO' && actionText) {
+    const lfm = actionText.match(/^その?アタックフェイズの間に(あなた|対戦相手)の(?:＜([^＞]+)＞の)?シグニが場を離れていた場合[、,]\s*(.+)$/s);
+    if (lfm) {
+      const lfCond: Condition = { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE',
+        owner: lfm[1] === '対戦相手' ? 'opponent' : 'self',
+        ...(lfm[2] ? { filter: { cardType: 'シグニ', story: lfm[2] } } : {}) };
+      extractedTriggerCondition = extractedTriggerCondition
+        ? { type: 'AND', conditions: [extractedTriggerCondition, lfCond] }
+        : lfCond;
+      actionText = lfm[3];
+    }
+  }
   if (actionText && !/^以下の/.test(actionText)) {
     const cm = matchLeadingStateCondition(actionText);
     if (cm && /^(?:あなたは)?以下の[０-９\d一二三四五六七八九]/.test(skipUnlessClause(cm.rest))) {
