@@ -7932,6 +7932,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   engine 配線済み＝collectCharmToTrashTriggers（signi_charms の set-diff で検出・triggerScope any/any_ally/any_opp で発生源フィールドを判定）。scope は下で抽出。
              //   ⚠ ON_TRASH より前に置く（【チャーム】は専用受け皿）。ただし ON_TRASH regex は「場から**いずれかの**トラッシュ」を「場からトラッシュ」として拾わないので実害はない。
              : /【チャーム】[０-９\d]*枚?が(?:場から)?(?:いずれかの)?トラッシュに置かれたとき/.test(trigText) ? ['ON_CHARM_TO_TRASH']
+             // 「あなたの【アクセ】N枚がトラッシュに置かれたとき」（§6.3 J-2・WXEX2-19）。チャームと同型＝signi_acce の
+             //   set-diff で検出（collectAcceToTrashTriggers）。scope/minCount は下で抽出。⚠ ON_TRASH より前。
+             : /【アクセ】[０-９\d]*枚?が(?:場から)?(?:いずれかの)?トラッシュに置かれたとき/.test(trigText) ? ['ON_ACCE_TO_TRASH']
+             // 「（このシグニ／あなたのシグニN体）に【ソウル】が付いたとき」（§6.3 J-2・WXDi-D07-004/019）。
+             //   engine 配線済み＝collectAttachedTriggers（signi_soul の null→非null を効果解決の set-diff で検出）。
+             : /【ソウル】が付いたとき/.test(trigText) ? ['ON_SOUL_ATTACHED']
+             // 「このシグニにカードN枚が付いたとき」（§6.3 J-2・WXK10-049）＝チャーム/アクセ/ソウルを横断する汎用付与。
+             //   ⚠【ソウル】【チャーム】等の**種別指定つき**は上で先に拾うので、ここに来るのは無指定の「カード」だけ。
+             : /に(?:カード)?[０-９\d]*枚?が付いたとき/.test(trigText) ? ['ON_CARD_ATTACHED']
              : trigText.match(/(?:手札(?:かデッキ)?から|デッキから|場から|いずれかの領域から|シグニの下から)トラッシュに置かれたとき/) ? ['ON_TRASH']
              : trigText.match(/トラッシュからエナゾーンに置かれたとき/) ? ['ON_ENERGY_FROM_TRASH']
              : trigText.match(/このシグニのパワーが[０-９\d]+以上になったとき/) ? ['ON_POWER_THRESHOLD']
