@@ -3690,16 +3690,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newMyState = clearEndOfAttackPhaseDelayedTriggers(newMyState);
           const opKey = isHost ? 'guest_state' : 'host_state';
           oppWrite = { key: opKey, state: clearEndOfAttackPhaseDelayedTriggers(op) };
-          // ON_ATTACK_PHASE_END（§6.3 J-4）: ATTACK_LRIG→END＝アタックフェイズ終了時。
-          // ⚠**離場履歴のクリアより前**に収集する（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` 条件がここを読むため）。
-          const apeRes = collectTurnTriggers('ON_ATTACK_PHASE_END', newMyState, op);
-          foldTurnUsed(apeRes);
-          if (apeRes.entries.length > 0) {
-            const baseStackAPE = phaseStack ?? bs.effect_stack ?? null;
-            phaseStack = baseStackAPE
-              ? pushToStack(baseStackAPE, apeRes.entries)
-              : initStack(bs.active_user_id ?? user.id, apeRes.entries);
-          }
         }
         // ENERGY→GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
         if (phase === 'ENERGY' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
