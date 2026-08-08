@@ -3774,6 +3774,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               : initStack(bs.active_user_id ?? user.id, apsEntries);
           }
         }
+        // ON_ATTACK_PHASE_END（§6.3 J-4）: ATTACK_LRIG→END 移行時（アタックフェイズ終了時）トリガー。
+        // ⚠`signi_left_field_this_attack_phase` はアタックフェイズ**開始時**にクリアするので、ここではまだ
+        //   このアタックフェイズぶんの離場履歴が残っている＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` 条件が読める。
+        if (phase === 'ATTACK_LRIG' && nextPhase === 'END') {
+          const apeRes = collectTurnTriggers('ON_ATTACK_PHASE_END', newMyState, op);
+          foldTurnUsed(apeRes);
+          if (apeRes.entries.length > 0) {
+            const baseStackAPE = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackAPE
+              ? pushToStack(baseStackAPE, apeRes.entries)
+              : initStack(bs.active_user_id ?? user.id, apeRes.entries);
+          }
+        }
         // ON_LRIG_ATTACK_STEP_START（C1 配線）: ATTACK_SIGNI→ATTACK_LRIG移行時（ルリグアタックステップ開始時）トリガー。
         // ターンプレイヤー（newMyState）の self【自】を発火（WX25-CP1-042-E2 等）。
         if (phase === 'ATTACK_SIGNI' && nextPhase === 'ATTACK_LRIG') {
