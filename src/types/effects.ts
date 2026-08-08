@@ -293,6 +293,9 @@ export type Condition =
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number } // 登録者数（万人）条件
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_GTE'; value: number; operator?: CompareOp }
+  // このシグニ自身の**実効レベル**（`calcSigniLevels`＝表記＋動的修正）の比較。ActiveCondition 側と同形＝
+  // 両方揃えて更新すること。「レベルが４以上であるかぎり『【自】…』を得る」の【自】側に載る（`WX20-Re18-E2`）。
+  | { type: 'SELF_LEVEL_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'THIS_CARD_FROM_TRASH' } // このシグニがトラッシュから場に出た場合（WX03-034-E1。signi_played_from_trashで判定）
   | { type: 'THIS_CARD_FROM_NON_HAND_THIS_TURN' } // このターンにこのシグニが手札以外の領域から場に出ていた場合
   | { type: 'THIS_CARD_PLACED_BY_CLASS'; cardClass?: string } // class省略時は効果起因の配置全般
