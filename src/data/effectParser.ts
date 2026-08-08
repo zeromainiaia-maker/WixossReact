@@ -8482,6 +8482,23 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/対戦相手の場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_opp';
         else if (/あなたの場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_ACCE_TO_TRASH（§6.3 J-2）: チャームと同型の発生源フィールド抽出＋「N枚」の閾値抽出。
+      //   「あなたの【アクセ】1枚が」＝自分の場（any_ally）。無指定は any（engine 既定）。
+      if (timing[0] === 'ON_ACCE_TO_TRASH') {
+        if (/対戦相手の(?:場にある)?【アクセ】/.test(actionText)) extractedTriggerScope = 'any_opp';
+        else if (/あなたの(?:場にある)?【アクセ】/.test(actionText)) extractedTriggerScope = 'any_ally';
+        const am = trigText.match(/【アクセ】([０-９\d]+)枚/);
+        if (am && parseNum(am[1]) > 1) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), minCount: parseNum(am[1]) };
+      }
+      // ON_SOUL_ATTACHED / ON_CARD_ATTACHED（§6.3 J-2）: 付与先の主語で scope を決める。
+      //   「このシグニに」＝self（engine 既定）／「あなたのシグニN体に」＝any_ally。枚数は minCount。
+      if (timing[0] === 'ON_SOUL_ATTACHED' || timing[0] === 'ON_CARD_ATTACHED') {
+        if (/あなたの(?:他の)?シグニ[０-９\d]*体?に【?(?:ソウル|カード)?】?/.test(trigText) && !/このシグニに/.test(trigText)) {
+          extractedTriggerScope = 'any_ally';
+        }
+        const nm = trigText.match(/カード([０-９\d]+)枚が付いたとき/);
+        if (nm && parseNum(nm[1]) > 1) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), minCount: parseNum(nm[1]) };
+      }
       // ON_RISE: 「（カード名に）《X》（を含むシグニ）にライズされたとき」→ 下敷きシグニ名で限定（risedOntoNameContains）。
       //   engine は下敷き元シグニの CardName に対する includes 判定（WX20-056=オダノブ部分一致／WXDi-P06-054=フルネーム）。
       if (timing[0] === 'ON_RISE') {
