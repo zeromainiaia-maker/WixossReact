@@ -4261,8 +4261,7 @@ function applyQuotedFrontPowerGrantBatch(cardNum: string, effects: CardEffect[])
     'WXDi-P14-065': { effectId: 'WXDi-P14-065-E1', addGrantStep: true },
     // 「ベット―…あなたの＜闘争派＞のシグニ1体を対象とし、…「【常】：…8000以下であるかぎり【ランサー】を得る。」
     //   を得る。あなたがベットしていた場合、代わりにそれは「【常】：【Ｓランサー】」を得る」
-    //   ＝2ステップ目が既に `GRANT_ABILITY_INNER_TEXT`（引用付与ハンドラの同族）なので**足さない**。
-    //   ⚠ベット時の「代わりに【Ｓランサー】」は据置＝引用付与の中の分岐は別機構（honest defer）。
+    //   ＝ベット分岐は下の (cxviii) 節で `CONDITIONAL{IS_BETTING}` に組み替えるので、ここでは対象宣言だけ。
     'WXDi-P15-071': { effectId: 'WXDi-P15-071-E1', addGrantStep: false },
   };
   const spec = SPEC[cardNum];
