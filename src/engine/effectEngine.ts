@@ -68,7 +68,7 @@ export function checkActiveCondition(
   if (!cond) return true;
   switch (cond.type) {
     case 'OR':
-      return cond.conditions.some(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase));
+      return cond.conditions.some(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase, effectiveLevels));
     case 'TURN_OWNER':
       return cond.owner === 'self' ? isOwnerTurn : !isOwnerTurn;
 
@@ -223,6 +223,25 @@ export function checkActiveCondition(
         case 'neq': return selfPower !== cond.value;
       }
       return true;
+    }
+
+    // タスク12(cxvii)：このシグニ自身の**実効レベル**（`DYNAMIC_LEVEL_BY_ENERGY` 等の動的修正込み）。
+    // `WX20-Re18`＝表記レベル2／エナ5枚につき＋1＝レベル4・5の閾値は**動的にしか届かない**ので、
+    // 呼び出し元が `effectiveLevels`（`calcSigniLevels`）を渡さないと一生 false になる。
+    case 'SELF_LEVEL_THRESHOLD': {
+      if (!sourceCardNum) return false;
+      const selfLevel = effectiveLevels?.get(sourceCardNum)
+        ?? parseInt(cardMap.get(sourceCardNum)?.Level ?? '', 10);
+      if (isNaN(selfLevel)) return false;   // レベルを持たないカード（ルリグ等）＝不成立
+      switch (cond.operator) {
+        case 'gte': return selfLevel >= cond.value;
+        case 'lte': return selfLevel <= cond.value;
+        case 'gt':  return selfLevel >  cond.value;
+        case 'lt':  return selfLevel <  cond.value;
+        case 'eq':  return selfLevel === cond.value;
+        case 'neq': return selfLevel !== cond.value;
+      }
+      return false;
     }
 
     case 'FRONT_SIGNI_POWER': {
@@ -539,7 +558,7 @@ export function checkActiveCondition(
       return (cond.owner === 'self' ? ownerState : otherState).turn_signi_returned_to_hand === true;
 
     case 'AND':
-      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase));
+      return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase, effectiveLevels));
   }
   // ⚠**網羅性ガード（タスク12(cxv)）**＝この switch を抜ける＝未実装の ActiveCondition 型がある、ということ。
   // 抜けた先は `return true`（＝無条件成立）なので、**未実装型を JSON に書くと過剰実行になるのに
