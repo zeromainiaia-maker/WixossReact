@@ -1,5 +1,36 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — §6.3 J-2「付与・離脱イベント」機構＝**timing collector 不在で安全停止していた4効果を実装**（続き380）
+
+**真因**＝原文が【自】なのに、そのイベントを検出する collector が engine に存在しなかった群（PLAN §6.3 J の家族2）。parser は timing を決められず `timing:[]` を吐き、engine は一度も発火させない＝**過剰実行は起きないが永久に no-op**。action 本体は4効果とも元から正しく parse できており、**足りないのはイベント検出の配線だけ**だった。
+
+**実装**＝既存 `ON_CHARM_TO_TRASH` の配線（boardDiff の set-diff detector → triggerCollect の collector → `BattleScreen` の中央 diff funnel）をそのまま型紙にして、3 timing を新設した。カード固有コードは0行。
+
+- `src/types/effects.ts`：`EffectTiming` に **`ON_ACCE_TO_TRASH` / `ON_SOUL_ATTACHED` / `ON_CARD_ATTACHED`** を追加。あわせて Condition に **`THIS_CARD_HAS_ATTACHED{minCount?}`**（【チャーム】/【アクセ】/【ソウル】の合計枚数）を追加（`CONDITION_TYPES` にも登録＝113→114）。
+- `src/engine/boardDiff.ts`：**`countAcceToTrash`**（`countCharmsToTrash` のアクセ版）、**`detectSoulAttached`**（`signi_soul[z]` の null/別カード→非null）、**`detectCardAttached`**（charm/acce/soul の3枠を横断してゾーンごとの新規付与枚数を数える）。⚠**本体が前後で同一のゾーンだけを拾う**＝ライズ/場出しでソウル持ちに入れ替わったのを「付いた」と誤検出しない（`detectNewlyDowned`/`detectNewlyUpped` と同じ既存規約）。
+- `src/engine/triggerCollect.ts`：**`collectAcceToTrashTriggers`**（`triggerScope` any/any_ally/any_opp ＋ `triggerCondition.minCount`）と **`collectAttachedTriggers`**（`ON_SOUL_ATTACHED` / `ON_CARD_ATTACHED` 兼用。scope `self`＝「このシグニに」＝付与先がトリガー元自身のときだけ／それ以外は自分の場の付与すべて）。ルリグも `ownFieldSources` に含まれるので、ルリグ側の【自】も同じ collector で拾える。
+- `src/screens/BattleScreen.tsx`：ON_BANISH / ON_TRASH / ON_CHARM_TO_TRASH と**同じ中央 diff funnel**に配線。付与側はプレイヤーごとに before/after を回し、そのプレイヤーの場の【自】だけが反応する。
+- `src/engine/execUtils.ts`：`THIS_CARD_HAS_ATTACHED` の評価（効果元シグニのゾーンで charm/acce/soul の在中数を数え `minCount` と比較）。
+- `src/data/effectParser.ts`：3 timing の regex（⚠**種別指定つきを先に置く**＝`【ソウル】` → 汎用「カードN枚が付いたとき」の順。既存 `ON_ACCE`〔`checkAndFireOnAcceTriggersForOwner` の別経路〕と `ON_CHARM_TO_TRASH` は奪わない）＋ scope/minCount 抽出＋「このシグニにカード（N枚）が付いている場合」→`THIS_CARD_HAS_ATTACHED`。
+- `scripts/decompileEffects.ts`：3 timing の `timingJa` と `THIS_CARD_HAS_ATTACHED` の `condToText`（生ID `[条件:X]` を出さない不変条件を維持）。
+
+**直った効果**
+
+- `WXDi-D07-004-E1`（エクス・スリー／ルリグ）「**あなたのシグニ１体に【ソウル】が付いたとき**、手札を１枚捨ててもよい。そうした場合、カードを１枚引く」＝`ON_SOUL_ATTACHED` scope `any_ally`。同カード E2【起】《赤×0》がルリグの下からカードをシグニの【ソウル】にする経路とセットで動く。
+- `WXDi-D07-019-E1`（コードアンチ　オベリスク）「**このシグニに【ソウル】が付いたとき**、あなたか対戦相手のデッキの上からカードを２枚トラッシュに置く」＝`ON_SOUL_ATTACHED` scope `self`（既定）。
+- `WXK10-049-E1`（食菌　イースト）「**このシグニにカード１枚が付いたとき**、【エナチャージ１】をする」＝`ON_CARD_ATTACHED`。
+- `WXEX2-19-E1`（メル＝ミントビア／ルリグ）「**あなたの【アクセ】１枚がトラッシュに置かれたとき**、あなたのトラッシュから《アクセアイコン》を持つレベル２以下のシグニ１枚を対象とし、それをエナゾーンに置く」＝`ON_ACCE_TO_TRASH` scope `any_ally`。`removeFromField` がホスト離場時にアクセをトラッシュへ送る差分でも発火する。
+- **🔴同カードの過剰実行を1件同時に是正**＝`WXK10-049-E2`「このシグニがアタックしたとき、**このシグニにカードが付いている場合**、ターン終了時まで、このシグニは【ランサー】を得る」の条件節が JSON に存在せず**無条件ランサー**だった。`THIS_CARD_HAS_ATTACHED` で包んで是正（`heldReview --adopt WXK10-049`＝`GRANT_KEYWORD` → `CONDITIONAL{...then:GRANT_KEYWORD}` の包み替えは pure superset ではないので held 経由。リーフの欠落なしを確認済み）。
+
+**教訓**
+
+- ⭐**機構待ちカードは timing だけ見て閉じない**＝`WXK10-049` は timing 欠落（no-op）と条件節脱落（過剰実行）が**同じカードに同居**していた。逆方向のバグなので、どちらの計器も片方しか映さない。
+- 🔴**golden の `mkState` は共有カード在庫カーソル（`fresh()`）を進める**＝テストを途中に挿入すると**後続テストの引くカードが変わって落ちる**。今回 `task12(lxiii)` の victim がパワー5000超のカードに変わり、無関係な source 回帰に見えた。**新規テストは既存の `withSavedCursor` で包む**のが正しい対処。source 回帰との切り分けは、**ベースライン commit の worktree に `node_modules` を junction して golden を回す**のが速い（autocommit デーモンがあるので `git stash` A/B は使えない）。
+
+**検証**＝`npm run gates` 全緑。golden 1531→**1537**（collector 3／boardDiff 2／parser 1）、census 919→**916**（`BASELINE_HIGH` 更新）、smoke 全0・SKIP 0、fuzz 全0（200ゲーム）、lint 0 errors、manual field loss 0。**未検証UIは PLAN §7 の「続き380」項に2件登録**（実機の発火は `BattleScreen` の中央 diff にしか無く golden では原理的に踏めない）。
+
+**§6.3 J の残＝7効果**（J-1 他能力の発動監視2／J-4 フェイズ・アタック終了 timing 2／J-5 単発3）。いずれも既存 collector の逆方向/別イベントで、J-2 のような一括開通は望めない。
+
 ## 2026-08-08 — §5d-0(ii) `isDisona` 条件節＝**無条件発火7効果を是正**（続き379・codex 委譲）
 
 **真因**＝原文の「《ディソナアイコン》のカード／シグニがあるかぎり・ある場合」を parser が条件として構築しておらず、CONTINUOUS 3効果は `activeCondition` なしで常時有効、AUTO 4効果は `CONDITIONAL` なしで無条件解決になっていた。続き378で `isDisona` が ActiveCondition／Condition 両評価器の `matchesFilter` に到達するようになったため、今回は既存条件型だけで原文どおり配線した。
