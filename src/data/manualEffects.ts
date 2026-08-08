@@ -618,9 +618,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX04-093 惰眠（スペル -）デッキの上からシグニがめくれるまで公開→そのシグニを場に出し、残りをトラッシュ。これを3回繰り返す。
   //   旧: SEQUENCE(STUB DECK_REVEAL_UNTIL / REVEALED_SIGNI_TO_FIELD_REST_TRASH / REPEAT_EFFECT) で未実装。
   //   新アクション REVEAL_UNTIL_TO_FIELD（repeat:3）で本実装。場に出せないシグニ（空きゾーンなし）はトラッシュへ。
+  //   ⚠BURST は**ここから外した**（続き377k）＝原文「デッキの上からカードを３枚見る。その中からカード１枚を
+  //     手札に加え、残りをトラッシュに置く」に対し、旧 MANUAL は `LOOK_AND_REORDER{canTrash, dest:deck top}`＝
+  //     **手札に加える動作が丸ごと無く、残りもデッキに戻る**古い近似だった。parser は既に正しい
+  //     `REVEAL_AND_PICK{revealCount:3, pickCount:1, then:ADD_TO_HAND, remainder:trash}` を作れるので、
+  //     MANUAL で上書きすると **live より古いソースで退化させる**（PLAN §5d-0 の「MANUAL が live より古い」型）。
   "WX04-093": [
-    {"effectId":"WX04-093-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"白","count":1}]},"action":{"type":"REVEAL_UNTIL_TO_FIELD","owner":"self","repeat":3},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WX04-093-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":3,"private":true,"reorder":false,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"top"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+    {"effectId":"WX04-093-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"白","count":1}]},"action":{"type":"REVEAL_UNTIL_TO_FIELD","owner":"self","repeat":3},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX04-094 怒号（スペル -）あなたの＜空獣＞か＜地獣＞のシグニ1体を対象とし、ターン終了時までパワー+2000。
