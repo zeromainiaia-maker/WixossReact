@@ -2519,6 +2519,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   「あなたのシグニ１体を対象とし、…この方法で公開したカードが**レベル１のシグニの場合**、【ダブルクラッシュ】を得る」の
       //   **条件節のレベル**を対象へ載せてしまい、原文と逆の過小実行になる。**対象名詞句に隣接する語彙だけ**を合成する。
       const kwCountSelfFilter: TargetFilter = { cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t) };
+      // 「あなたの〔中央|左|右〕のシグニゾーンにある[＜X＞の]シグニは【K】を得る」＝**ゾーン限定の全体付与**。
+      // ⚠POWER_MODIFY 側には中央ゾーンの専用枝があるのに、付与側には**中央すら無く**全部が既定の
+      //   `owner:'any'/count:1` へ潰れていた＝「中央ゾーンのシグニだけがランサー」が「どちらかのシグニ1体」に化け、
+      //   CONTINUOUS では効果元自身へ解決される（`WX05-034`／`WX10-036`／`WX11-031`／`WD15-002`／
+      //   `WXDi-P06-009`／`WXK10-078-E2`＝live も同じ穴）。ゾーンの語彙が入ったので3方向まとめて配線する。
+      const kwZoneM = t.match(/あなたの(中央|左|右)のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニ/);
+      const kwZoneFilter: TargetFilter | null = kwZoneM
+        ? {
+            cardType: 'シグニ',
+            ...(kwZoneM[1] === '中央' ? { centerZoneOnly: true } : { zoneSide: kwZoneM[1] === '左' ? 'left' as const : 'right' as const }),
+            ...parseStoryFilter(kwZoneM[2]), ...parseColorFilter(kwZoneM[2]),
+            ...(kwZoneM[2].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
+          }
+        : null;
       const target: EffectTarget = t.includes('エナゾーンにあるカード') || t.includes('エナゾーンのカード')
         ? { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }
         // 「このシグニは【X】を得る」＝**効果元自身**。thisCardOnly を落とすと engine は「自分のシグニ1体」の
