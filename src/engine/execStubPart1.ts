@@ -910,6 +910,21 @@ export function execStubPart1(
       ? rawTargets.filter(cn => !abilityGainBlockedGQ.has(cn))
       : rawTargets;
 
+    // ⚠**条件つきキーワードを先に捌く**（タスク12(cxiv)）＝引用の内側が「正面のシグニのパワーが
+    //   N以下であるかぎり」型のときは `keyword_grants`（条件を持てない）に入れると**常時発動**になる。
+    //   `granted_effects` へ条件つき CONTINUOUS として置き、毎フレーム正面パワーで評価させる。
+    if (grantedKws.length > 0 && targetCardNums.length > 0) {
+      const gatedGQ = grantedKws
+        .map(kw => buildFrontPowerGatedKeywordGrant(quotedText, kw))
+        .filter((e): e is import('../types/effects').CardEffect => e !== null);
+      if (gatedGQ.length > 0) {
+        const grantedMapGQ = { ...(ctx.ownerState.granted_effects ?? {}) };
+        for (const cn of targetCardNums) grantedMapGQ[cn] = [...(grantedMapGQ[cn] ?? []), ...gatedGQ];
+        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGQ } },
+          `${grantedKws.join('・')}を条件つきで付与（${targetCardNums.length}体・正面のパワー条件つき）`));
+      }
+    }
+
     // シンプルキーワード付与
     if (grantedKws.length > 0 && targetCardNums.length > 0) {
       // 「あなたのシグニは【シャドウX】を得る」パターン: ルリグが対象でも全フィールドシグニへ
