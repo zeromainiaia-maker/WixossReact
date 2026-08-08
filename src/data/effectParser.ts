@@ -7919,6 +7919,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
              // 「あなたが《コイン》を1枚以上支払ったとき」（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線。トリガー文非除去
              : trigText.match(/あなたが《コイン[^》]*》を(?:[^。]{0,8}支払った|ベットした)とき/) ? ['ON_COIN_PAID']
+             // 「このルリグが《X》から《Y》になったとき」（§6.3 J-5・WXDi-P11-010B）＝両面ルリグの反転イベント。
+             //   engine 配線済み＝collectLrigFlipTriggers（センタールリグの `card_identity_overrides` 変化を検出し、
+             //   **反転後の identity** の効果を引く）＝この timing の**初の利用者**。⚠今日は発火しない＝産出側
+             //   （`WXDi-P11-010A-E1` の「このルリグを裏向きにする」が `UNKNOWN`）が未実装なため。**過剰実行の
+             //   リスクは無い**（実際に反転が起きたときだけ collector が拾う）＝機構の受け皿としては正しい配線。
+             : /このルリグが《[^》]+》から《[^》]+》になったとき/.test(trigText) ? ['ON_LRIG_FLIP']
              // 「（あなたか対戦相手／あなた／対戦相手）が《コインアイコン》を得たとき」（§6.3 J-5・SP27-007）。
              //   engine 配線済み＝collectCoinGainedTriggers（既存 ON_COIN_PAID の逆方向。獲得サイトは効果解決の
              //   中央 diff ＋ グロウ／アシストグロウ／CPU グロウ）。主語は下で triggerScope に抽出。
