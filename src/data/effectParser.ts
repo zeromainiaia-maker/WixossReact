@@ -8491,6 +8491,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/対戦相手の場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_opp';
         else if (/あなたの場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_COIN_GAINED（§6.3 J-5）: 獲得したプレイヤーを triggerScope に（「あなたか対戦相手が」＝any〔engine 既定〕／
+      //   「あなたが」＝self／「対戦相手が」＝any_opp）。
+      if (timing[0] === 'ON_COIN_GAINED') {
+        if (/あなたか対戦相手が《コイン/.test(trigText)) extractedTriggerScope = 'any';
+        else if (/対戦相手が《コイン/.test(trigText)) extractedTriggerScope = 'any_opp';
+        else if (/あなたが《コイン/.test(trigText)) extractedTriggerScope = 'self';
+      }
       // ON_ACCE_TO_TRASH（§6.3 J-2）: チャームと同型の発生源フィールド抽出＋「N枚」の閾値抽出。
       //   「あなたの【アクセ】1枚が」＝自分の場（any_ally）。無指定は any（engine 既定）。
       if (timing[0] === 'ON_ACCE_TO_TRASH') {
