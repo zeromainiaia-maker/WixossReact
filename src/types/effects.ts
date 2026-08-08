@@ -339,6 +339,65 @@ export type Condition =
   | { type: 'LAST_LOOK_TRASHED_MATCHES'; filter: TargetFilter; minCount?: number } // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
   | { type: 'LAST_PROCESSED_ALL_MATCH'; filter: TargetFilter };  // lastProcessedCards が **すべて** filter 一致（空集合は false）（「この方法でトラッシュに置かれたカードがすべて黒の場合」WXK09-097／「すべてのカードがレベル１のシグニの場合」WXDi-P05-042）
 
+// ===== 条件型の実行時ホワイトリスト（タスク12(cxv)）=====
+// `ActiveCondition` と `Condition` は**別の union** なのに、JSON は型検査を通らないので
+// `activeCondition` スロットに Condition 型を書いても誰も止めない。そして両評価器
+// （`checkActiveCondition` / `evalCondition`）は未知の型で **`return true`＝無条件成立** に倒れるため、
+// 型を1つ取り違えるだけで「条件つき常在能力が常時発動」になり、**smoke/census/fuzz は全部緑のまま**
+// 素通りする（実際に `WX05-021-E4`／`WXDi-P07-060-E3`／`PR-426-E3` の3効果がそうなっていた）。
+// そこで **union のメンバ名を実行時に列挙できる表**を置き、golden が live JSON を機械照合する。
+// `Record<Union['type'], true>` なので **union に型を足すとキー不足で typecheck が落ちる**＝
+// ここへの追記が強制される（余計なキーもエラー）。**評価器側の実装漏れ**は各評価器末尾の
+// `never` 代入が別途 typecheck で捕まえる。
+export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
+  LRIG_DECK_COUNT: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
+  FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true,
+  HAS_KEY_IN_FIELD: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
+  FRONT_SIGNI_POWER: true, HAND_DIFF: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
+  EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_CHARMED: true,
+  IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true,
+  IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
+  THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
+  LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true,
+  TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, BEAT_CONDITION: true,
+  DURING_ATTACK_PHASE: true, AND: true,
+};
+
+export const CONDITION_TYPES: Record<Condition['type'], true> = {
+  CENTER_LRIG_NOT_GROWN_THIS_TURN: true, FIELD_LRIGS_HAVE_COLORS: true, FIELD_LRIG_COLOR_COUNT: true,
+  LAST_PROCESSED_HAS_NO_ABILITIES: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
+  FIELD_LRIGS_SHARE_COLOR: true, FIELD_COUNT: true, DECK_COUNT: true, DECK_COUNT_FILTER: true,
+  HAND_COUNT: true, HAND_COUNT_FILTER: true, HAND_DIFF: true, IS_SELF_IN_SIDE_ZONE: true, LIFE_COUNT: true,
+  LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
+  ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
+  COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
+  ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
+  THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
+  SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
+  COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true,
+  HAS_KEY_IN_FIELD: true, ALL_FIELD_SIGNI_MATCH: true, TRASH_HAS_CARD: true, ALL_SELF_SIGNI_DOWN: true,
+  TRASH_COUNT: true, DECK_TOP_MATCHES: true, LRIG_LEVEL: true, LRIG_STORY: true, THIS_CARD_IN_LOCATION: true,
+  THIS_CARD_IN_CENTER_ZONE: true, THIS_CARD_IS_DOWN: true, THIS_CARD_IS_UP: true, CENTER_LRIG_IS_UP: true,
+  THIS_CARD_IS_ARMORED: true, THIS_CARD_IS_AWAKENED: true, THIS_CARD_IS_ACCED: true, IS_DRIVE_STATE: true,
+  TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
+  LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,
+  LRIG_TEAM_COUNT: true, SUBSCRIBER_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
+  THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
+  THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,
+  LIFE_COMPARE_OPP: true, HAND_COMPARE_OPP: true, ENERGY_COMPARE_OPP: true, EFFECTIVE_LRIG_LIMIT_GTE: true,
+  DURING_PHASE: true, OPP_SIGNI_ATTACKING: true, AND: true, IS_MY_TURN: true, IS_OPPONENT_TURN: true,
+  IS_BETTING: true, IS_BOOSTING: true, PAID_ADDITIONAL_COST: true, ANY_PLAYER_REFRESHED_THIS_TURN: true,
+  BEAT_CONDITION: true, COND_STUB: true, LAST_PROCESSED_COUNT_GTE: true,
+  LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED: true, LAST_PROCESSED_LEVEL_SUM: true,
+  TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true,
+  ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
+  HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true,
+  FIELD_HAS_GATE: true, NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN: true, DECK_TOP_SHARES_COLOR_WITH_LRIG: true,
+  FIELD_SIGNI_ALL_DISTINCT_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
+  LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
+  LAST_LOOK_TRASHED_MATCHES: true, LAST_PROCESSED_ALL_MATCH: true,
+};
+
 export type CompareOp = 'eq' | 'neq' | 'gte' | 'lte' | 'gt' | 'lt';
 
 // ===== コスト =====
