@@ -4324,7 +4324,7 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   // 「カードをN枚まで × シグニN体まで」＝**複数ペア**（続き377n）。従来は charm/to とも先頭1件しか見ず、
   // `WX07-045-E2`（トラッシュから3枚まで）・`WXEX1-22-E2`（3枚→3体）・`WXK07-070-E1`／`WX17-Re05-E1`（2枚→2体）が
   // **常に1組だけ**になる過小実行だった。ペア数＝min(チャーム候補, 付与先候補, charm.count, to.count)。
-  const pairLimit = (tgt: EffectTarget): number =>
+  const pairLimit = (tgt: import('../types/effects').EffectTarget): number =>
     tgt.count === 'ALL' ? Number.MAX_SAFE_INTEGER : Math.max(1, resolveNum(tgt.count));
   const charmLimit = pairLimit(a.charm);
   const toLimit = pairLimit(a.to);

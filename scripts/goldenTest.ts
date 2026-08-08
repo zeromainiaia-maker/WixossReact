@@ -25757,6 +25757,74 @@ test('続き377n: WXK10-029-E2 はコストで捨てたシグニと共通クラ�
   ok(r2.pending.visibleCards.includes(diff), '記録が無ければクラス制限なし（無言 no-op にしない）');
 }));
 
+
+// ── §5d-0(ii) 機構ギャップ: ATTACH_CHARM の複数ペア（続き377n）──
+// `execAttachCharm` は `charmSrc.deck.slice(0, 1)` と `charmCands[0] × toCands[0]` で**1組しか処理しない**ため、
+// 「カードN枚まで × シグニN体まで」が常に1組の過小実行だった。ペア数＝min(候補, 候補, charm.count, to.count)。
+test('続き377n engine: ATTACH_CHARM は N枚×N体をペアで付与する（デッキ上）', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXK07-070') ?? []).find(e => e.effectId === 'WXK07-070-E1');
+  ok(!!effect, 'WXK07-070-E1: live effect exists');
+  if (!effect) return;
+  const a1 = fresh(), a2 = fresh(), a3 = fresh();
+  const d1 = fresh(), d2 = fresh();
+  const base = mkCtx({ signi: [a1, a2, a3] }, {});
+  const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, deck: [d1, d2, ...base.ownerState.deck] } };
+  const r = runEffect(effect.action, ctx);
+  ok(r.done, 'デッキ上からの付与は選択を挟まず解決する');
+  const charms = r.ownerState.field.signi_charms ?? [];
+  eq(charms.filter(Boolean).length, 2, '2組つく（従来は1組だけだった）');
+  eq(charms[0], d1, '1体目にはデッキ1枚目');
+  eq(charms[1], d2, '2体目にはデッキ2枚目');
+  eq(r.ownerState.deck[0], base.ownerState.deck[0], 'デッキからは2枚だけ減る');
+}));
+
+test('続き377n engine: 単数ペア（1枚→1体）の既存挙動は変えない', () => withSavedCursor(() => {
+  // 「あなたのトラッシュから対象の＜微菌＞のシグニ１枚を対象のあなたのシグニ１体の【チャーム】にする」
+  const effect = (effectsMap.get('WDK12-001') ?? []).find(e => e.effectId === 'WDK12-001-E2');
+  ok(!!effect, 'WDK12-001-E2: live effect exists');
+  if (!effect) return;
+  const a1 = fresh(), a2 = fresh();
+  const t1 = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('微菌'));
+  const t2 = findCard(c => isSigni(c) && c.CardNum !== t1 && (c.CardClass ?? '').includes('微菌'));
+  const base = mkCtx({ signi: [a1, a2, null], trash: 0 }, {});
+  const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, trash: [t1, t2] } };
+  const r = runEffect(effect.action, ctx);
+  ok(r.done, '解決する');
+  eq((r.ownerState.field.signi_charms ?? []).filter(Boolean).length, 1, '1組だけ＝複数ペア化の巻き添えを受けない');
+  eq(r.ownerState.trash.length, 1, 'トラッシュからは1枚だけ減る');
+}));
+
+test('続き377n: 「N枚まで × N体まで」が live JSON の charm/to 両側に載る', () => withSavedCursor(() => {
+  const act = (card: string, effId: string): string => {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    ok(!!e, `${effId}: live effect exists`);
+    return JSON.stringify(e?.action ?? {});
+  };
+  // トラッシュから3枚まで → 好きな数の＜悪魔＞のシグニ
+  const wx07 = act('WX07-045', 'WX07-045-E2');
+  eq(wx07.includes('"charm":{"type":"TRASH_CARD","owner":"self","count":3'), true, 'WX07-045-E2: チャームは3枚まで');
+  eq(wx07.includes('"to":{"type":"SIGNI","owner":"self","count":"ALL"'), true, 'WX07-045-E2: 付与先は「好きな数」＝ALL');
+  // ⚠クラスの帰属＝＜悪魔＞は**付与先**に掛かる。charm 側へ載せると
+  //   「トラッシュの＜悪魔＞しかチャームにできない」原文と逆の過小実行になる。
+  eq(/"charm":\{[^}]*"story"/.test(wx07), false, 'WX07-045-E2: ＜悪魔＞を charm 側へ載せない');
+  eq(wx07.includes('"to":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"story":"悪魔"}}'), true, 'WX07-045-E2: ＜悪魔＞は付与先側');
+  // 相手のトラッシュ3枚まで → 相手のシグニ3体まで
+  const ex1 = act('WXEX1-22', 'WXEX1-22-E2');
+  eq(ex1.includes('"count":3,"upToCount":true'), true, 'WXEX1-22-E2: 3枚/3体まで');
+  // 2枚→2体（2択の両枝とも）
+  const re05 = act('WX17-Re05', 'WX17-Re05-E1');
+  eq((re05.match(/"count":2/g) ?? []).length, 4, 'WX17-Re05-E1: 両選択肢とも charm/to が2');
+  eq(act('WXK07-070', 'WXK07-070-E1').includes('"count":2,"upToCount":true'), true, 'WXK07-070-E1: 2枚/2体まで');
+  // ⚠トリップワイヤ＝1枚→1体の形に枚数を広げない（＜微菌＞系は原文が「１枚」「１体」）。
+  for (const [card, effId] of [
+    ['WDK12-001', 'WDK12-001-E2'], ['WDK12-013', 'WDK12-013-E2'], ['WXK07-046', 'WXK07-046-E2'],
+    ['WX08-078', 'WX08-078-E1'], ['WXEX1-75', 'WXEX1-75-E1'],
+  ] as [string, string][]) {
+    const j = act(card, effId);
+    eq(/"count":[２-９2-9]/.test(j), false, `${effId}: 単数ペアのまま`);
+  }
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
