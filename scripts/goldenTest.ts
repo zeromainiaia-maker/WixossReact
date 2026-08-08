@@ -10760,6 +10760,21 @@ test('parse timing 語彙: このカードが【アクセ】として…シグ�
   eq(maxStory.triggerCondition?.accedHostMaxLevel, 2, 'レベルN以下→accedHostMaxLevel');
   eq(maxStory.triggerCondition?.accedHostStory, '調理', '＜X＞→accedHostStory');
 });
+test('parse timing 語彙: §6.3 J-1 他能力の発動監視（ON_ABILITY_ACTIVATED）', () => {
+  const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-J1', Type: 'シグニ', EffectText: `【自】：${t}` } as unknown as CardData)[0];
+  const eichi = mk('あなたの【自】の【英知】能力が発動したとき、このシグニをアップする。');
+  eq(eichi.timing?.[0], 'ON_ABILITY_ACTIVATED', '「能力が発動したとき」→ON_ABILITY_ACTIVATED');
+  eq(eichi.triggerCondition?.activatedAbilityOwner, 'self', '「あなたの」＝self');
+  eq(eichi.triggerCondition?.activatedAbilityKind, 'AUTO', '【自】＝AUTO');
+  eq(eichi.triggerCondition?.activatedAbilityEichi, true, '【英知】限定');
+  const oppPlay = mk('対戦相手の場にあるシグニの【出】能力が発動したとき、対戦相手は手札を１枚捨てる。');
+  eq(oppPlay.triggerCondition?.activatedAbilityOwner, 'opponent', '「対戦相手の」＝opponent');
+  eq(oppPlay.triggerCondition?.activatedAbilityKind, 'ON_PLAY', '【出】＝ON_PLAY');
+  eq(oppPlay.triggerCondition?.activatedAbilityFromFieldSigni, true, '「場にあるシグニの」限定');
+  eq(oppPlay.triggerCondition?.activatedAbilityEichi, undefined, '英知限定は付かない');
+  // 回帰ガード＝「【出】能力は発動しない」等の別文型を奪わない（発動**した**ときだけ）
+  eq(mk('このシグニがアタックしたとき、カードを１枚引く。').timing?.[0], 'ON_ATTACK_SIGNI', '既存トリガーを奪わない');
+});
 test('parse timing 語彙: §6.3 J-5 単発（コイン獲得／両面ルリグ反転）', () => {
   const mk = (t: string, type = 'シグニ') => parseCardEffects({ CardNum: 'TEST-J5', Type: type, EffectText: `【自】：${t}` } as unknown as CardData)[0];
   const any = mk('あなたか対戦相手が《コインアイコン》を得たとき、あなたはカードを１枚引く。');
