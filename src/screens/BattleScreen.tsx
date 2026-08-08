@@ -6053,6 +6053,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...fieldLimitEntries,
         ...growTriggerEntries,
         ...growCoinPaidEntries,
+        ...growCoinGainedEntries,
         ...mandatoryOnPlay.map(eff => ({
           id: generateUUID(), playerId: user.id, cardNum,
           effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
