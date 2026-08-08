@@ -2359,6 +2359,8 @@ function actionJa(a?: Action, effectType?: string): string {
         CONDITIONAL_GROW_AND_KEY_DISABLE: 'あなたのセンタールリグが対戦相手のセンタールリグのレベル以下の場合、あなたのセンタールリグはグロウする。ターン終了時まで、あなたのすべてのキーは能力を失う。（グロウコストは支払う）',
         INTERNAL_ARTS_RECYCLE_EXECUTE: '追加でこのカードをルリグデッキに戻す',
         LRIG_GRANT_MILL_PER_PREVENTED_DAMAGE: 'ターン終了時まで、このルリグは「【自】：ターン終了時、あなたのデッキの上からカードを５枚トラッシュに置く。」を得る（※engine未実装＝防御成功イベント待ち）',
+        // §6.3 J-5（続き381）＝live 同期で初めてシートに露出した。STUBS.md の説明が英語なので日本語語彙を与える。
+        MUGEN_Q_RESET_AND_FLIP: 'あなたの手札とエナゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルし、このルリグ以外の、あなたのルリグデッキと場にあるすべてのカードをゲームから除外し、このルリグを裏向きにする',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
