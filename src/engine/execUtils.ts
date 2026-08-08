@@ -1600,6 +1600,17 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneIdx < 0) return false;
       return (ctx.ownerState.field.signi_acce?.[zoneIdx] ?? null) !== null;
     }
+    case 'THIS_CARD_HAS_ATTACHED': {
+      // 「このシグニにカードが付いている場合」＝【チャーム】/【アクセ】/【ソウル】の合計枚数（WXK10-049-E2）。
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === src);
+      if (zoneIdx < 0) return false;
+      const f = ctx.ownerState.field;
+      const n = [f.signi_charms, f.signi_acce, f.signi_soul]
+        .filter(slot => (slot ?? [])[zoneIdx] != null).length;
+      return n >= (cond.minCount ?? 1);
+    }
     case 'IS_DRIVE_STATE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
