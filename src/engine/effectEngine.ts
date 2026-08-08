@@ -3674,6 +3674,11 @@ export function collectContinuousGrantedKeywords(
   let _powers = effectivePowers;
   const powersOf = (): Map<string, number> =>
     (_powers ??= calcFieldPowers(ownerState, otherState, isOwnerTurn, effectsMap, cardMap));
+  // パワーと同じ理由で実効レベルも渡す（`SELF_LEVEL_THRESHOLD` つきキーワード付与が
+  // 表記レベルへ落ちないように。タスク12(cxvii)。live 実データは今は無いが同じ穴を残さない）。
+  let _levels: Map<string, number> | undefined;
+  const levelsOf = (): Map<string, number> =>
+    (_levels ??= calcSigniLevels(ownerState, otherState, effectsMap, cardMap));
   const add = (num: string, kw: string) => {
     (result[num] ??= []);
     if (!result[num].includes(kw)) result[num].push(kw);
