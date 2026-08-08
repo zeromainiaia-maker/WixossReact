@@ -30,7 +30,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -7713,6 +7713,43 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
   // 消化して減ったらリストも縮める＝残骸が「まだ乖離している」と嘘をつかないようにする。
   const stale = [...MANUAL_DRIFT_KNOWN].filter(id => !drifted.includes(id));
   eq(stale.join(','), '', `既に解消済みなのに MANUAL_DRIFT_KNOWN に残っている: ${stale.join(', ')}`);
+});
+
+// §6.3 J-1「他能力の発動監視」＝ON_ABILITY_ACTIVATED（従来 timing:[] で安全停止）。
+test('J-1 ON_ABILITY_ACTIVATED: 【自】の【英知】能力の発動だけに反応する（WX19-066-E1）', () => {
+  withSavedCursor(() => {
+    const host = mkState({ signi: ['WX19-066', null, null] }); const guest = mkState({});
+    const act = (effect: Partial<CardEffect>, ownerId = HOST, ownerState = host, cardNum = 'WD20-013') =>
+      collectAbilityActivatedTriggers(trigCtx(HOST), HOST, host, guest,
+        { ownerId, cardNum, ownerState, effect: { effectId: 'X-E1', duration: 'INSTANT', mandatory: true, action: { type: 'DRAW', owner: 'self', count: 1 }, ...effect } as CardEffect });
+    const eichiAuto = { effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], activeCondition: { type: 'EICHI_LEVEL_SUM', operator: 'eq', value: 4 } } as Partial<CardEffect>;
+    eq(has(act(eichiAuto).entries, 'WX19-066-E1'), true, '【自】＋英知条件で発火');
+    // 英知条件が無い【自】は対象外
+    eq(has(act({ effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'] }).entries, 'WX19-066-E1'), false, '英知条件なしは非発火');
+    // 【出】（ON_PLAY）は【自】ではない＝対象外
+    eq(has(act({ ...eichiAuto, timing: ['ON_PLAY'] }).entries, 'WX19-066-E1'), false, '【出】は非発火（kind 違い）');
+    // 相手の能力は対象外（activatedAbilityOwner:'self'）
+    eq(has(act(eichiAuto, GUEST, guest).entries, 'WX19-066-E1'), false, '対戦相手の能力では非発火');
+  });
+});
+test('J-1 ON_ABILITY_ACTIVATED: 対戦相手の場のシグニの【出】だけに反応する（WXEX1-77-E1）', () => {
+  withSavedCursor(() => {
+    const host = mkState({ signi: ['WXEX1-77', null, null] });
+    const guest = mkState({ signi: ['WD20-013', null, null] });
+    const act = (effect: Partial<CardEffect>, ownerId: string, ownerState: PlayerState, cardNum: string) =>
+      collectAbilityActivatedTriggers(trigCtx(HOST), HOST, host, guest,
+        { ownerId, cardNum, ownerState, effect: { effectId: 'X-E1', duration: 'INSTANT', mandatory: true, action: { type: 'DRAW', owner: 'self', count: 1 }, ...effect } as CardEffect });
+    const onPlay = { effectType: 'AUTO', timing: ['ON_PLAY'] } as Partial<CardEffect>;
+    eq(has(act(onPlay, GUEST, guest, 'WD20-013').entries, 'WXEX1-77-E1'), true, '相手の場のシグニの【出】で発火');
+    // 自分の【出】は対象外
+    eq(has(act(onPlay, HOST, host, 'WXEX1-77').entries, 'WXEX1-77-E1'), false, '自分の【出】では非発火');
+    // 相手でも「場にあるシグニ」でなければ対象外（ルリグ/スペル由来）
+    eq(has(act(onPlay, GUEST, guest, 'NOT-ON-FIELD').entries, 'WXEX1-77-E1'), false, '場のシグニでなければ非発火');
+    // 【自】は対象外
+    eq(has(act({ effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'] }, GUEST, guest, 'WD20-013').entries, 'WXEX1-77-E1'), false, '【自】は非発火（kind 違い）');
+    // ⚠監視能力どうしが連鎖しない（発動した能力自身が ON_ABILITY_ACTIVATED なら無視）
+    eq(act({ effectType: 'AUTO', timing: ['ON_ABILITY_ACTIVATED'] }, GUEST, guest, 'WD20-013').entries.length, 0, '監視の連鎖は起きない');
+  });
 });
 
 // §6.3 J-5「単発」＝ON_COIN_GAINED（既存 ON_COIN_PAID の逆方向。従来 timing:[] で安全停止）。
