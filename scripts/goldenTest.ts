@@ -9385,6 +9385,57 @@ test('task12(cxiii) WX09-019: 累積型（14000でアーツ耐性／18000でラ�
   eq(lancerAt(17999).join(','), '', '18000未満＝ランサーは付かない');
   eq(lancerAt(18000).join(','), 'ランサー', '18000以上＝ランサー');
 }));
+// ── タスク12(cxiv)（2026-08-08）：引用付与の内側の「正面のシグニのパワーがN以下であるかぎり」 ──
+// 引用付与の STUB（`GRANT_QUOTED_ABILITY` / `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`）は原文から
+// キーワードを抜いて `keyword_grants` へ入れる実装だったが、**`keyword_grants` は条件を持てない**ので
+// 「かぎり」の正面パワー条件が丸ごと落ちて**常時発動**していた（8カード・過剰実行）。
+// 条件つきのときは `granted_effects` の CONTINUOUS `GRANT_KEYWORD{activeCondition: FRONT_SIGNI_POWER}` へ回す。
+test('task12(cxiv) 引用付与の正面パワー条件: keyword_grants ではなく条件つき granted_effects へ入る', () => withSavedCursor(() => {
+  // `WXDi-CP02-057-E2`「このシグニは正面のシグニのパワーが12000以上であるかぎり、【アサシン】を得る」
+  const eff = (effectsMap.get('WXDi-CP02-057') ?? []).find(e => e.effectId === 'WXDi-CP02-057-E2')!;
+  const ctx = { ...mkCtx({ signi: ['WXDi-CP02-057', null, null] }, {}), sourceCardNum: 'WXDi-CP02-057' };
+  const r = run(eff.action as EffectAction, ctx);
+  ok(r.done, '解決が完了する');
+  const kwGrants = (r.ownerState.keyword_grants ?? {})['WXDi-CP02-057'] ?? [];
+  ok(!kwGrants.includes('アサシン'), '無条件の keyword_grants には入らない（＝常時アサシンに戻っていない）');
+  const granted = (r.ownerState.granted_effects ?? {})['WXDi-CP02-057'] ?? [];
+  eq(granted.length, 1, `条件つき CONTINUOUS が1本積まれる: ${JSON.stringify(granted)}`);
+  eq(granted[0].effectType, 'CONTINUOUS', 'CONTINUOUS として積む');
+  eq(JSON.stringify(granted[0].activeCondition),
+     JSON.stringify({ type: 'FRONT_SIGNI_POWER', operator: 'gte', value: 12000 }),
+     '正面のシグニのパワーが12000以上ゲート');
+  // ★engine 側の効き＝付与先を発生源として毎フレーム評価される（granted_effects を effectsMap へ合流）
+  const augmented = new Map(effectsMap);
+  augmented.set('WXDi-CP02-057', [...(effectsMap.get('WXDi-CP02-057') ?? []), ...granted]);
+  const kwWith = (frontPower: number | null) => {
+    const own = mkState({ signi: ['WXDi-CP02-057', null, null] });
+    const front = frontPower === null ? null : fresh();
+    // facing は engine 共通規約の 2 - zi＝自分 zi=0 の正面は相手 zi=2
+    const opp = mkState({ signi: [null, null, front] });
+    const powers = new Map<string, number>([['WXDi-CP02-057', 3000]]);
+    if (front) powers.set(front, frontPower!);
+    return (collectContinuousGrantedKeywords(own, opp, true, augmented, cardMap as Map<string, CardData>, powers)['WXDi-CP02-057'] ?? []);
+  };
+  eq(kwWith(11999).join(','), '', '正面が11999＝アサシンは付かない（旧実装はここでも付いていた）');
+  eq(kwWith(12000).join(','), 'アサシン', '正面が12000以上＝アサシン');
+  eq(kwWith(null).join(','), '', '正面が空＝不成立（FRONT_SIGNI_POWER の規約）');
+}));
+test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚が対象宣言＋引用付与になった', () => withSavedCursor(() => {
+  // 旧＝`GRANT_KEYWORD.keyword` が「このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る」
+  //     という**文そのもの**＝`hasKeyword` は正式名でしか照合しないので【ランサー】が一度も付かなかった（過小）。
+  for (const [num, id] of [['WXDi-P14-065', 'WXDi-P14-065-E1'], ['WXDi-P15-071', 'WXDi-P15-071-E1']] as const) {
+    const seq = (effectsMap.get(num) ?? []).find(e => e.effectId === id)!.action as SequenceAction;
+    const step0 = seq.steps[0] as StubAction;
+    eq(step0.type, 'STUB', `${id}: 1ステップ目は STUB`);
+    eq(step0.id, 'SELECT_TARGET_ONLY', `${id}: 対象宣言だけを行う（盤面は変えない）`);
+    ok(!!step0.selectTarget?.filter, `${id}: 原文の対象フィルタ（緑／＜闘争派＞）を保つ`);
+    const ids = seq.steps.map(s => (s as StubAction).id ?? s.type);
+    ok(ids.includes('GRANT_QUOTED_ABILITY') || ids.includes('GRANT_ABILITY_INNER_TEXT'),
+       `${id}: 付与は引用付与ハンドラが行う（＝正面パワー条件つきで付く）`);
+    ok(!JSON.stringify(seq).includes('であるかぎり、【'),
+       `${id}: keyword スロットに引用文が残っていない`);
+  }
+}));
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
 test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => withSavedCursor(() => {
