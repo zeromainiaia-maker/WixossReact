@@ -1,5 +1,41 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — 🏁§6.3 J-4「フェイズ／アタック終了 timing」を消化し **J 群を残0クローズ**（続き384）
+
+**真因**＝原文が「アタックフェイズ**終了時**」「アタックした**アタック終了時**」なのに、**終了イベントを発行/収集する仕組みが無かった**（開始側の `ON_ATTACK_PHASE_START` / `ON_LRIG_ATTACK_STEP_START` だけが実在）。2効果とも `timing:[]` で安全停止＝永久に no-op。
+
+### ① ⭐ 台帳の警告が古かった（J-5 に続き2度目）
+
+PLAN §6.3 J-4 は「⚠着手するならタスク12(lxvii) と一体＝フェーズ/ターン境界は **CPU 側の収集が面で欠けている**」と警告していたが、**(lxvii) は 2026-08-04 に残0クローズ済み**で `collectTurnTriggers`（人間）と `collectCpuTurnTriggers`（CPU）は既に対称。**timing を union に1語足すだけで両経路に載った。** 着手前に台帳の警告を実データで検証すること。
+
+### ② 終了イベントの置き場所は既存の対称点で決まった
+
+- **`ON_ATTACK_PHASE_END`**＝`ATTACK_LRIG→END` の遷移（既存 `ON_LRIG_ATTACK_STEP_START` が `ATTACK_SIGNI→ATTACK_LRIG` で発火するのと同じ場所）。人間 `doPhaseAdvance` と CPU 経路の両方へ配線。
+- **`ON_ATTACK_END`**＝個別アタックの終了＝`resolvePendingSigniBattleFor`（バトル解決 Phase2）の末尾。**`dealtSigniDamage` が既にそこで確定していた**ので、`triggerCondition.attackDealtNoDamage`（「そのアタックによって対戦相手にダメージが与えられていない場合」）を新しい追跡なしで判定できた。⚠**近似**＝この後に走る【ライフバースト】の解決は「アタック終了」に含めない（クラッシュ有無は既に確定しているのでこの効果の意味では差が出ない）。
+
+### ③ 新しい条件と追跡（`WX24-P2-075-E1` の「そのアタックフェイズの間に…」）
+
+- Condition **`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE{owner, filter, minCount}`**
+- PlayerState **`signi_left_field_this_attack_phase`**＝アタックフェイズ**開始時にリセット**し、離場の**2経路**（効果解決の中央 diff ＝`collectAutoTriggersFromDiff` ／ バトル解決＝`resolvePendingSigniBattleFor`）で追記。行き先は問わない。
+- parser は「そのアタックフェイズの間に〈owner〉の＜X＞のシグニが場を離れていた場合、」を **`CardEffect.condition` へ持ち上げる**（collector が `evalUseCondition` で評価＝満たさなければスタックに積まれない）。⚠この時点の `actionText` は**まだトリガー句を含む**ので、先頭アンカーではなく**節をその場で取り除く**。従来は条件節が丸ごと落ちて**無条件発火**だった。
+
+### ④ 🔴 timing を配線すると action が実際に走る＝action 側の既存誤 parse も同時に直す必要があった
+
+配線した瞬間に「no-op」が「誤動作」へ変わるため、2件を是正した：
+
+- `WXK11-018-E2`：「このシグニより低いレベルを持つあなたのシグニ１体」が汎用アナフォラ解決で **`thisCardOnly`（＝自分自身をアップ）** に化けていた。⚠`levelLtSelf` は**型にも engine にもあり doc コメントが本カードを名指ししていた**のに parser が合成していなかった語彙。
+- `WX24-P2-075-E1`：「このシグニを場からデッキの一番下に置いてもよい」が**無関係な STUB `LRIG_UNDER_CARD_OP`**（シグニ下カードのコスト消費）に化けていた。`TRANSFER_TO_DECK{position:'bottom', optional}` が正しい。
+
+両方 `manualEffects.ts` で是正。⚠parser 側の汎用アナフォラ経路の是正は別軸（本バッチのスコープ外＝この誤 parse は timing とは独立に**既存**だった）。
+
+### ⑤ ✅ 前バッチのゲートと工具がそのまま回収された
+
+`manualEffects.ts` を直した直後、**§6.3 K トリップワイヤ（続き382 新設）がその場で2件の未達を検出**し、`npx tsx scripts/censusManualDrift.ts --adopt` で live へ同期して解消。**死角をゲート化した投資が次のバッチで回収された実例。**
+
+**検証**＝`npm run gates` 全緑。golden 1544→**1548**、census 911→**910**（`BASELINE_HIGH` 更新）、smoke 全0・SKIP 0、fuzz 全0、lint 0 errors、manual field loss 0。逆翻訳も原文どおりに復元（限定・条件とも）。**未検証UIは PLAN §7 の「続き384」項に2件登録**。
+
+**🏁§6.3 J は残0クローズ**（13効果・5家族＝J-3 ライフクロス閾値／J-2 付与・離脱／J-5 単発／J-1 他能力の発動監視／J-4 フェイズ・アタック終了）。**§6.3 の残は C／E／F／G／K。**
+
 ## 2026-08-08 — §6.3 J-1「他能力の発動監視」＝`ON_ABILITY_ACTIVATED` を新設（続き383）
 
 **真因**＝原文が「〈誰か〉の〈種別〉能力が**発動したとき**」なのに、**他の能力の発動を横から監視するイベントが engine に無かった**。2効果とも `timing:[]` で安全停止＝永久に no-op。

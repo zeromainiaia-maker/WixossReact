@@ -538,6 +538,11 @@ function condJa(c?: any): string {
       return `${ownerJa(c.owner)}場にあるすべてのシグニが${cls}`;
     }
     case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
+    case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
+      const who = c.owner === 'opponent' ? '対戦相手' : 'あなた';
+      const cls = c.filter?.story ? `＜${c.filter.story}＞の` : '';
+      return `そのアタックフェイズの間に${who}の${cls}シグニが場を離れていた`;
+    }
     case 'THIS_CARD_HAS_ATTACHED': return `このシグニにカードが${(c.minCount ?? 1) > 1 ? `${c.minCount}枚以上` : ''}付いている`;
     case 'THIS_CARD_HAS_UNDER': return c.filter
       ? `このシグニの下に${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.negate ? '無い' : 'ある'}`
@@ -2386,6 +2391,8 @@ const timingJa: Record<string, string> = {
   ON_ACCE_TO_TRASH: '【アクセ】がトラッシュに置かれたとき',
   ON_COIN_GAINED: '《コインアイコン》を得たとき',
   ON_ABILITY_ACTIVATED: '能力が発動したとき',
+  ON_ATTACK_PHASE_END: 'あなたのアタックフェイズ終了時',
+  ON_ATTACK_END: 'このシグニがアタックしたアタック終了時',
   ON_SOUL_ATTACHED: 'このシグニに【ソウル】が付いたとき',
   ON_CARD_ATTACHED: 'このシグニにカードが付いたとき',
   ON_SELF_REVEAL_FROM_HAND: 'あなたが自分の効果によって手札からカードを公開したとき',
@@ -2869,6 +2876,10 @@ function effJa(e: Eff): string {
       const sc = e.triggerScope ?? 'any';
       const who = sc === 'any_ally' ? 'あなたの' : sc === 'any_opp' ? '対戦相手の' : '';
       s = `${who}【チャーム】１枚が場からいずれかのトラッシュに置かれたとき`;
+    }
+    // ON_ATTACK_END（§6.3 J-4）の「そのアタックによってダメージが与えられていない場合」を原文語彙へ戻す。
+    if (t === 'ON_ATTACK_END' && e.triggerCondition?.attackDealtNoDamage) {
+      s = 'このシグニがアタックしたアタック終了時、そのアタックによって対戦相手にダメージが与えられていない場合';
     }
     // ON_ABILITY_ACTIVATED（§6.3 J-1）の限定を原文語彙へ戻す（誰の／どの種別／【英知】限定／場のシグニ限定）。
     if (t === 'ON_ABILITY_ACTIVATED') {
