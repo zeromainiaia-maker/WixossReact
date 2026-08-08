@@ -47,8 +47,15 @@ for (const p of [...Array.from({ length: 11 }, (_, i) => `public/data/CardData_S
   for (const r of data) if (r.CardNum) cards.set(r.CardNum, r);
 }
 
-/** 値を「リーフパス→値」の平坦マップへ（buildEffectsJson と同じ規約。配列は添字パス）。 */
+/**
+ * 値を「リーフパス→値」の平坦マップへ（buildEffectsJson と同じ規約。配列は添字パス）。
+ * ⚠**値が `undefined` のキーは存在しないものとして扱う**＝live は JSON 由来なので `undefined` を持ち得ないが、
+ *   parser 出力は `{ upToCount: undefined }` のような明示 undefined を持つことがあり、`JSON.stringify` では
+ *   消えるのに素朴な leaf 走査では「fresh にだけ在るリーフ」に見える。これを弾かないと **FRESH_GAIN が
+ *   実体のない差分で水増しされる**（本計器の初版がこれで 223 件を誤検出した）。
+ */
 function leafMap(o: unknown, pre = '', out: Map<string, unknown> = new Map()): Map<string, unknown> {
+  if (o === undefined) return out;
   if (Array.isArray(o)) o.forEach((v, i) => leafMap(v, `${pre}[${i}]`, out));
   else if (o && typeof o === 'object') for (const k of Object.keys(o)) leafMap((o as Record<string, unknown>)[k], `${pre}.${k}`, out);
   else out.set(pre, o);

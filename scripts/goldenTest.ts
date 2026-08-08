@@ -7669,17 +7669,14 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
 // scripts/censusManualDrift.ts` で明細・`--date` で方向判定・`--adopt <id,…>` で効果単位に同期）。
 // **リストに無い effectId が乖離したら即 FAIL**＝新しい陳腐化はここで止まる。
 const MANUAL_DRIFT_KNOWN = new Set([
-  // live のほうが新しい（後から live へ直接入れた手修正）＝**同期してはいけない**側
-  'WX20-072-E3',
-  // 以下は未判定＝§6.3 K の worklist（`--date` の機械判定と原文照合で1件ずつ decide する）
-  'PR-204-E1', 'PR-238-E1', 'PR-Di017B-E1', 'SP36-001-E1', 'SPK06-01-E1', 'WD18-008-E1', 'WD21-009-E1',
-  'WDK07-E15-E1', 'WDK08-Y12-E1', 'WX05-025-E2', 'WX10-018-E1', 'WX13-040-E1', 'WX14-064-E1', 'WX16-023-E1',
-  'WX16-040-E1', 'WX16-048-E1', 'WX17-001-E1', 'WX20-023-LAYER', 'WX24-P2-044-E1', 'WX24-P2-044-E2',
-  'WX24-P2-087-E1', 'WX24-P4-045-E1', 'WX25-P1-052-E1', 'WX25-P2-084-E1', 'WX25-P3-038-E1', 'WX25-P3-062-E2',
-  'WXDi-D01-016-E1', 'WXDi-D08-012-E1', 'WXDi-D09-P15-E1', 'WXDi-P02-039-E1', 'WXDi-P06-031-E2', 'WXEX1-58-E1',
-  'WXEX1-66-E2', 'WXEX1-72-E1', 'WXEX2-36-E1', 'WXEX2-71-E2', 'WXEX2-71-E3', 'WXK04-003-DECORE',
-  'WXK04-042-E1b', 'WXK05-030-MULTIENA', 'WXK06-032-E1', 'WXK08-055-E1', 'WXK10-008-E1', 'WXK10-080-E1',
-  'WXK11-021-E1',
+  // ── live のほうが新しい（後から live へ直接入れた手修正）＝**同期してはいけない**側 ──
+  'WX20-072-E3',        // live に acce ホストの cardName 限定あり（manual は限定なし＝広すぎる）
+  'WX24-P4-045-E1', 'WXEX2-71-E2', 'WXEX2-71-E3',   // git 履歴で live が後（--date 判定）
+  // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
+  'PR-Di017B-E1',       // UNDATED（manual ブロックが blame で取れない）
+  'WX05-025-E2', 'WX10-018-E1', 'WX13-040-E1', 'WX14-064-E1',       // UNDATED（manual 側の日付が取れない）
+  'WXK04-003-DECORE', 'WXK04-042-E1b', 'WXK05-030-MULTIENA',        // FRESH_ONLY＝live に無い効果（増設は要判断）
+  'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
   // ⚠比較は**リーフパス集合**で行う（`JSON.stringify` の素朴比較はキー順に依存し、実体が同一でも
