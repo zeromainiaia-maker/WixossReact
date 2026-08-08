@@ -7682,10 +7682,21 @@ const MANUAL_DRIFT_KNOWN = new Set([
   'WXK11-021-E1',
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
-  // parseStatus は刻印なので比較から外す（実体だけを見る）。
+  // ⚠比較は**リーフパス集合**で行う（`JSON.stringify` の素朴比較はキー順に依存し、実体が同一でも
+  //   「parser が同じ値を別の順で組み立てただけ」を乖離と誤判定する＝`WD14-011-E1` が既知の実例）。
+  //   parseStatus は刻印なので除く（AUTO/MANUAL の差だけで乖離扱いしない）。
   const strip = (e: CardEffect): string => {
-    const seen = JSON.stringify(e, (k, v) => (k === 'parseStatus' ? undefined : v));
-    return seen;
+    const out: string[] = [];
+    const walk = (o: unknown, pre: string): void => {
+      if (Array.isArray(o)) o.forEach((v, i) => walk(v, `${pre}[${i}]`));
+      else if (o && typeof o === 'object') for (const k of Object.keys(o)) {
+        if (k === 'parseStatus') continue;
+        walk((o as Record<string, unknown>)[k], `${pre}.${k}`);
+      }
+      else out.push(`${pre}=${JSON.stringify(o)}`);
+    };
+    walk(e, '');
+    return out.sort().join('\n');
   };
   const drifted: string[] = [];
   for (const [cardNum, manuals] of Object.entries(MANUAL_EFFECTS)) {
