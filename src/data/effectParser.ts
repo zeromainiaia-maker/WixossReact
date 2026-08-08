@@ -679,24 +679,25 @@ function parseCost(costStr: string): EffectCost | undefined {
       ];
     }
   }
-  // 手札から[色]の＜A＞のシグニN枚と[色]の＜B＞のシグニN枚を捨てる → discardGroups
+  // 手札から〈名詞句A〉N枚と〈名詞句B〉M枚を捨てる → discardGroups
+  // ⚠旧実装は「[色]の＜A＞のシグニ」「＜A＞のシグニ」の**2形だけ**を別 regex で見ており、
+  //   ①種別が混ざる形（`スペル`＋`＜原子＞のシグニ`＝WX04-003）②クラス無しの色だけ（`白のシグニ`＋
+  //   `黒のシグニ`＝WX20-Re07）が素通り＝**コスト節が丸ごと落ちて無料で撃てる**状態だった。
+  //   名詞句スパンを `extractNounPhraseFilter` に渡す1本へ統合し、〔種別〕〔色〕〔クラス〕〔レベル〕
+  //   〔カード名〕のどの組み合わせでも同じ経路で拾う（続き377k）。
+  //   ⚠スパンは「手札から」と枚数の間だけ＝条件節を含まないので名詞句用の抽出器を安全に使える。
   if (!cost.handDiscardSigni && !cost.discardGroups) {
-    const hdsColorGroupM = costStr.match(/手札から([白赤青緑黒])の＜([^＞]+)＞のシグニ([０-９\d]+)枚と([白赤青緑黒])の＜([^＞]+)＞のシグニ([０-９\d]+)枚を捨てる/);
-    if (hdsColorGroupM) {
-      cost.discardGroups = [
-        { count: parseNum(hdsColorGroupM[3]), filter: { cardType: 'シグニ', color: hdsColorGroupM[1], story: hdsColorGroupM[2] } },
-        { count: parseNum(hdsColorGroupM[6]), filter: { cardType: 'シグニ', color: hdsColorGroupM[4], story: hdsColorGroupM[5] } },
-      ];
-    }
-  }
-  // 手札から＜A＞のシグニN枚と＜B＞のシグニN枚を捨てる → discardGroups
-  if (!cost.handDiscardSigni && !cost.discardGroups) {
-    const hdsStoryGroupM = costStr.match(/手札から＜([^＞]+)＞のシグニ([０-９\d]+|一)枚と＜([^＞]+)＞のシグニ([０-９\d]+|一)枚を捨てる/);
-    if (hdsStoryGroupM) {
-      cost.discardGroups = [
-        { count: costCount(hdsStoryGroupM[2]), filter: { cardType: 'シグニ', story: hdsStoryGroupM[1] } },
-        { count: costCount(hdsStoryGroupM[4]), filter: { cardType: 'シグニ', story: hdsStoryGroupM[3] } },
-      ];
+    const hdsGroupM = costStr.match(/手札から([^：。、]{1,24}?)([０-９\d]+|一)枚と([^：。、]{1,24}?)([０-９\d]+|一)枚を捨てる/);
+    if (hdsGroupM) {
+      const gA = extractNounPhraseFilter(hdsGroupM[1]);
+      const gB = extractNounPhraseFilter(hdsGroupM[3]);
+      // 両群ともカード種別が取れた場合だけ配線する（＝語彙化できない修飾が残る形は据置＝曖昧なら付けない）
+      if (gA.cardType && gB.cardType) {
+        cost.discardGroups = [
+          { count: costCount(hdsGroupM[2]), filter: gA },
+          { count: costCount(hdsGroupM[4]), filter: gB },
+        ];
+      }
     }
   }
   // 手札からカード名に《XXX》を含むカードをN枚捨てる → discard + discardFilter
