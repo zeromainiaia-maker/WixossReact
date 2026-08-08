@@ -9314,6 +9314,77 @@ test('task12(cxii) パワー参照ゲート: powers 未指定でも state から
   ok(!collectBanishEffectProtectedSigni(mkState({ signi: ['WDK08-Y11', null, null] }), opp, true, buffMap, cardMap as Map<string, CardData>).has('WDK08-Y11'),
     'バフ源が居なければ保護されない（過剰側にも倒れていない）');
 }));
+// ── タスク12(cxiii)（2026-08-08）：多段閾値の【常】＝**置換型「代わりに」** と **累積型** ──
+// 1つの【常】に閾値が2つ入る形は、従来どちらも前段だけが載って後段が消えていた。
+// 置換型は「下限以上かつ上限未満」の帯（AND＋operator:'lt'）／パワー修正は加算分解（上位帯に差分だけ足す）、
+// 累積型は閾値ごとに別 CONTINUOUS ＝**新機構なしで既存 DSL に収まる**ことを固定する。
+test('task12(cxiii) WXEX1-33: 「30000以上であるかぎり、代わりにトリプル」＝帯で排他になる', () => withSavedCursor(() => {
+  const st = mkState({ signi: ['WXEX1-33', null, null] });
+  const kwAt = (pw: number) => (collectContinuousGrantedKeywords(st, mkState({}), true, effectsMap,
+    cardMap as Map<string, CardData>, new Map([['WXEX1-33', pw]]))['WXEX1-33'] ?? []).sort().join(',');
+  // 旧実装は gte20000 の下に SEQUENCE[ダブル, トリプル] を積んでいた＝キーワード収集は action 直下の
+  // GRANT_KEYWORD しか読まないので**どのパワーでも1つも付かなかった**（過小）。
+  eq(kwAt(5000), '', '10000未満＝何も付かない');
+  eq(kwAt(10000), 'アサシン', '10000以上＝アサシンだけ');
+  eq(kwAt(20000), 'アサシン,ダブルクラッシュ', '20000〜29999＝ダブルクラッシュ');
+  eq(kwAt(29999), 'アサシン,ダブルクラッシュ', '帯の上端はまだダブル');
+  eq(kwAt(30000), 'アサシン,トリプルクラッシュ', '30000以上＝トリプルが**代わりに**（ダブルは消える）');
+}));
+test('task12(cxiii) WXK02-038 / WXK10-036: 「代わりに＋N」は加算分解で上位帯の合計になる', () => withSavedCursor(() => {
+  // WXK02-038「トラッシュ15枚以上で＋3000。25枚以上あるかぎり、代わりに＋5000」＝表記10000。
+  // 旧実装の第2段は STUB:CONDITIONAL_ALT_POWER_BOOST（no-op）で、25枚でも＋3000のままだった。
+  const powerAt = (trash: number) => {
+    const st = mkState({ signi: ['WXK02-038', null, null], trash });
+    return calcFieldPowers(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get('WXK02-038');
+  };
+  eq(powerAt(14), 10000, 'トラッシュ14枚＝素の10000');
+  eq(powerAt(15), 13000, '15枚以上＝＋3000');
+  eq(powerAt(24), 13000, '24枚でも＋3000のまま');
+  eq(powerAt(25), 15000, '25枚以上＝＋5000（＋3000と＋2000の加算分解）');
+  // WXK10-036「＜電機＞のシグニのパワーを＋1000。登録者数50万人達成しているかぎり、代わりに＋2000」
+  const denki = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== 'WXK10-036');
+  const subPower = (subs: number) => {
+    const st = mkState({ signi: ['WXK10-036', denki, null] });
+    (st as unknown as { subscriber_count: number }).subscriber_count = subs;
+    const base = parseInt(cardMap.get(denki)!.Power || '0', 10);
+    return (calcFieldPowers(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(denki) ?? 0) - base;
+  };
+  eq(subPower(0), 1000, '未達成＝＋1000');
+  eq(subPower(49), 1000, '49万人＝まだ＋1000');
+  eq(subPower(50), 2000, '50万人達成＝＋2000（代わりに）');
+}));
+test('task12(cxiii) WXK10-035: 発生源のレベル制限が復活し、登録者数で1以下→2以下へ入れ替わる', () => withSavedCursor(() => {
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== lv1);
+  const lv3 = findCard(c => isSigni(c) && c.Level === '3');
+  const denki = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== 'WXK10-035');
+  const immuneTo = (srcNum: string, subs: number) => {
+    const st = mkState({ signi: ['WXK10-035', denki, null] });
+    (st as unknown as { subscriber_count: number }).subscriber_count = subs;
+    return collectEffectImmuneSigni(st, mkState({ signi: [srcNum, null, null] }),
+      cardMap as Map<string, CardData>, effectsMap, false, 'シグニ', srcNum).has(denki);
+  };
+  // 旧実装は同一の GRANT_PROTECTION が2つ並ぶだけで sourceFilter が無く＝**相手シグニの効果を全部**受けなかった。
+  eq(immuneTo(lv1, 0), true, '未達成＝レベル1のシグニの効果は受けない');
+  eq(immuneTo(lv2, 0), false, '未達成＝レベル2は通る（旧実装はここで誤って耐性が付いていた）');
+  eq(immuneTo(lv2, 50), true, '50万人達成＝レベル2以下へ広がる');
+  eq(immuneTo(lv3, 50), false, '達成してもレベル3は通る');
+}));
+test('task12(cxiii) WX09-019: 累積型（14000でアーツ耐性／18000でランサー）＋耐性側も実効パワーで判定', () => withSavedCursor(() => {
+  // 表記パワーは **0**（エナ1枚につき＋2000の完全動的）。collectEffectImmuneSigni が effectivePowers を
+  // 見ていなかったため、この形は**どれだけバフしても一生 false**だった（(cxii) が直し残した4本目のコレクタ）。
+  const artsImmune = (energy: number) => {
+    const st = mkState({ signi: ['WX09-019', null, null], energy });
+    return collectEffectImmuneSigni(st, mkState({}), cardMap as Map<string, CardData>, effectsMap,
+      false, 'アーツ', undefined).has('WX09-019');
+  };
+  eq(artsImmune(6), false, 'エナ6枚＝12000（<14000）＝アーツの効果を受ける');
+  eq(artsImmune(7), true, 'エナ7枚＝14000＝アーツの効果を受けない（powers 未指定でも state から計算）');
+  const lancerAt = (pw: number) => (collectContinuousGrantedKeywords(mkState({ signi: ['WX09-019', null, null] }),
+    mkState({}), true, effectsMap, cardMap as Map<string, CardData>, new Map([['WX09-019', pw]]))['WX09-019'] ?? []);
+  eq(lancerAt(17999).join(','), '', '18000未満＝ランサーは付かない');
+  eq(lancerAt(18000).join(','), 'ランサー', '18000以上＝ランサー');
+}));
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
 test('task12(cxvi) COINS_PAID_THIS_TURN: 10効果に条件が載る＋evalCondition が累計で判定', () => withSavedCursor(() => {
