@@ -4191,6 +4191,30 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
     }
   }
 
+  // ⑥ 累積型（レベル閾値）：`WX20-Re18`＝タスク12(cxvii)
+  //    「【常】：このシグニのレベルはあなたのエナゾーンにあるカード５枚につき＋１され、パワーはレベル１につき＋3000される。
+  //      【常】：このシグニは**レベルが４以上**であるかぎり、「【自】：アタックしたとき、正面のシグニをバニッシュする。」を得、
+  //      **レベルが５以上**であるかぎり、「【常】：このシグニは対戦相手の効果を受けない。」を得る。」
+  //    ⚠従来 `E2` の条件は `SELF_POWER_GTE 12000`＝**「レベル4以上」をパワーで近似した手当て**だった。
+  //      実効パワー ＝ 表記1000 ＋ 3000×実効レベル なので、レベル4＝13000／レベル3＝10000＝閾値12000 は
+  //      たまたま境界を分けるが、**別の効果でパワーだけバフされるとレベル3でも発火する**（過剰）。
+  //      `SELF_LEVEL_THRESHOLD`（実効レベル＝`calcSigniLevels`）を新設したので原文どおりに書ける。
+  //    レベル5側（効果耐性）は丸ごと欠落していたので新設する。
+  if (cardNum === 'WX20-Re18') {
+    const e2 = find('WX20-Re18-E2');
+    if (e2) e2.condition = { type: 'SELF_LEVEL_THRESHOLD', operator: 'gte', value: 4 };
+    if (e2 && !find('WX20-Re18-E4')) {
+      effects.push({
+        effectId: 'WX20-Re18-E4', effectType: 'CONTINUOUS', duration: 'PERMANENT', mandatory: true,
+        parseStatus: 'MANUAL',
+        activeCondition: { type: 'SELF_LEVEL_THRESHOLD', operator: 'gte', value: 5 },
+        // subjectFilter / target なし＝発生源シグニ自身だけを守る（collectEffectImmuneSigni の else 枝）。
+        // 「対戦相手の効果を受けない」＝種別を問わないので fromAll。
+        action: { type: 'GRANT_PROTECTION', fromAll: true, sourceOwner: 'opponent', duration: 'PERMANENT' },
+      } as CardEffect);
+    }
+  }
+
   // ⑤ 累積型：`WX09-019`
   //    「このシグニは自身のパワーが**14000以上**であるかぎり対戦相手のアーツの効果を受けず、
   //     **18000以上**であるかぎり【ランサー】と「【自】：…」を得る。」
