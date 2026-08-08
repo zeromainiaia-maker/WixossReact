@@ -2903,6 +2903,35 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...chG.entries); useGuest(chG.usedOncePerTurnIds);
     }
 
+    // ON_ACCE_TO_TRASH: 【アクセ】が場→トラッシュに置かれた場合（§6.3 J-2・WXEX2-19-E1）
+    const acceHost  = countAcceToTrash(beforeHost, h);
+    const acceGuest = countAcceToTrash(beforeGuest, g);
+    if (acceHost > 0 || acceGuest > 0) {
+      const acH = collectAcceToTrashTriggers(bs.host_id, h, g, acceHost, acceGuest);
+      entries.push(...acH.entries); useHost(acH.usedOncePerTurnIds);
+      const acG = collectAcceToTrashTriggers(bs.guest_id, g, h, acceGuest, acceHost);
+      entries.push(...acG.entries); useGuest(acG.usedOncePerTurnIds);
+    }
+
+    // ON_SOUL_ATTACHED / ON_CARD_ATTACHED: 自分の場のシグニに【ソウル】/カードが付いた場合（§6.3 J-2）。
+    // 付与先ホストは各プレイヤーの盤面ごとに検出する＝そのプレイヤーの場の【自】だけが反応する。
+    for (const [pid, before, after, otherAfter] of [
+      [bs.host_id, beforeHost, h, g] as const,
+      [bs.guest_id, beforeGuest, g, h] as const,
+    ]) {
+      const use = pid === bs.host_id ? useHost : useGuest;
+      const souls = detectSoulAttached(before, after).map(x => ({ hostNum: x.hostNum, count: 1 }));
+      if (souls.length > 0) {
+        const r = collectAttachedTriggers(pid, after, otherAfter, 'ON_SOUL_ATTACHED', souls);
+        entries.push(...r.entries); use(r.usedOncePerTurnIds);
+      }
+      const attached = detectCardAttached(before, after).map(x => ({ hostNum: x.hostNum, count: x.count }));
+      if (attached.length > 0) {
+        const r = collectAttachedTriggers(pid, after, otherAfter, 'ON_CARD_ATTACHED', attached);
+        entries.push(...r.entries); use(r.usedOncePerTurnIds);
+      }
+    }
+
     // ON_ENERGY_TO_TRASH: エナゾーン→トラッシュが起きた場合。
     // ⚠あわせて「エナゾーンから出て行った枚数（行き先を問わない）」も渡す＝`energyLeftToAnyZone` を持つ効果
     //   （WXDi-P06-038-E1「他の領域に移動したとき」）は手札/場/デッキ行きでも発火する。ここは効果解決の
