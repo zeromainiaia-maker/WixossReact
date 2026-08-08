@@ -8168,6 +8168,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   any_ally＋byOpponentEffect（原因効果のオーナーが相手のときのみ発火）。
              : /シグニ(?:[０-９\d]+体)?が対戦相手の効果によって場を離れ?たとき/.test(trigText) ? ['ON_LEAVE_FIELD']
              : trigText.includes('アタックフェイズ開始時') ? ['ON_ATTACK_PHASE_START']
+             // 「あなたのアタックフェイズ終了時」（§6.3 J-4・WX24-P2-075）。engine 配線済み
+             //   ＝`ATTACK_LRIG→END` 遷移で collectTurnTriggers('ON_ATTACK_PHASE_END')（人間・CPU 両方）。
+             : trigText.includes('アタックフェイズ終了時') ? ['ON_ATTACK_PHASE_END']
+             // 「このシグニがアタックしたアタック終了時」（§6.3 J-4・WXK11-018）＝**個別アタック**の終了。
+             //   engine 配線済み＝collectAttackEndTriggers（バトル解決 Phase2 の末尾）。
+             //   ⚠「アタックフェイズ終了時」より後に置く（フェイズ側が先に一致する）。
+             : /アタック(?:した)?アタック終了時|このシグニがアタックした.{0,6}終了時/.test(trigText) ? ['ON_ATTACK_END']
              : trigText.includes('グロウフェイズ開始時') ? ['ON_GROW_PHASE_START']
              // 「（あなた/対戦相手の）メインフェイズ開始時」（29件・§3 Opusタスク16 の最大クラスタ）。engine 配線済み
              // ＝GROW→MAIN 移行時に collectTurnTriggers が収集（triggerScope self/any_opp も評価）。parser に語彙が
