@@ -12174,6 +12174,121 @@ test('(cvii) ctx.currentPhase を見る機構の母集団固定と DURING_PHASE 
      'アタックフェイズ限定のバニッシュ先置換は3効果（phase 不明なら保守的にスキップされる側）');
 });
 
+// ── タスク12(cxv)（2026-08-08）：`activeCondition` に `Condition` 型を流用していた3効果 ──
+// `checkActiveCondition` は switch を抜けると `return true`＝**未実装/別 union の型は無条件成立**。
+// つまり型を1つ取り違えるだけで「条件つき常在能力」が**常時発動**になり、しかも
+// smoke（クラッシュなし）・census（語彙は原文どおり）・fuzz（no-op ではない）の全ゲートが緑のまま素通りする。
+// engine 側は `never` 代入で網羅性を typecheck に固定した（`checkActiveCondition` / `evalCondition`）ので、
+// ここで固定するのは **JSON 側＝「正しい union の型か」** と、是正した3効果の実挙動。
+test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / condition が正しい union の型である', () => {
+  // ① ミラー表。`Record<Union['type'], true>` なので **union に型を足すと typecheck が落ちて**
+  //    ここへの追記を強制する（キーの過不足がどちらもエラーになる）。
+  const AC_TYPES: Record<ActiveCondition['type'], true> = {
+    LRIG_DECK_COUNT: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
+    FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true,
+    HAS_KEY_IN_FIELD: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
+    FRONT_SIGNI_POWER: true, HAND_DIFF: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
+    EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_CHARMED: true,
+    IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true,
+    IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
+    THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
+    LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true,
+    TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, BEAT_CONDITION: true,
+    DURING_ATTACK_PHASE: true, AND: true,
+  };
+  const C_TYPES: Record<Condition['type'], true> = {
+    CENTER_LRIG_NOT_GROWN_THIS_TURN: true, FIELD_LRIGS_HAVE_COLORS: true, FIELD_LRIG_COLOR_COUNT: true,
+    LAST_PROCESSED_HAS_NO_ABILITIES: true, OR: true, TURN_OWNER: true, NO_COMMON_COLOR_AMONG_FIELD_SIGNI: true,
+    FIELD_LRIGS_SHARE_COLOR: true, FIELD_COUNT: true, DECK_COUNT: true, DECK_COUNT_FILTER: true,
+    HAND_COUNT: true, HAND_COUNT_FILTER: true, HAND_DIFF: true, IS_SELF_IN_SIDE_ZONE: true, LIFE_COUNT: true,
+    LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
+    ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
+    COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
+    ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
+    THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
+    SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
+    COST_DISCARDED_SIGNI_LEVEL: true, COST_TRASHED_MATCHES: true, HAS_CARD_IN_FIELD: true,
+    HAS_KEY_IN_FIELD: true, ALL_FIELD_SIGNI_MATCH: true, TRASH_HAS_CARD: true, ALL_SELF_SIGNI_DOWN: true,
+    TRASH_COUNT: true, DECK_TOP_MATCHES: true, LRIG_LEVEL: true, LRIG_STORY: true, THIS_CARD_IN_LOCATION: true,
+    THIS_CARD_IN_CENTER_ZONE: true, THIS_CARD_IS_DOWN: true, THIS_CARD_IS_UP: true, CENTER_LRIG_IS_UP: true,
+    THIS_CARD_IS_ARMORED: true, THIS_CARD_IS_AWAKENED: true, THIS_CARD_IS_ACCED: true, IS_DRIVE_STATE: true,
+    TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
+    LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,
+    LRIG_TEAM_COUNT: true, SUBSCRIBER_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
+    THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
+    THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,
+    LIFE_COMPARE_OPP: true, HAND_COMPARE_OPP: true, ENERGY_COMPARE_OPP: true, EFFECTIVE_LRIG_LIMIT_GTE: true,
+    DURING_PHASE: true, OPP_SIGNI_ATTACKING: true, AND: true, IS_MY_TURN: true, IS_OPPONENT_TURN: true,
+    IS_BETTING: true, IS_BOOSTING: true, PAID_ADDITIONAL_COST: true, ANY_PLAYER_REFRESHED_THIS_TURN: true,
+    BEAT_CONDITION: true, COND_STUB: true, LAST_PROCESSED_COUNT_GTE: true,
+    LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED: true, LAST_PROCESSED_LEVEL_SUM: true,
+    TRASHED_DISTINCT_LEVELS_GTE: true, TRASHED_STORY_COUNT_GTE: true, LAST_PROCESSED_POWER_GTE: true,
+    ENERGY_TRASH_COLOR_COUNT_GTE: true, OPPONENT_NOT_PAID: true, SELF_OPTIONAL_EFFECT_TAKEN: true,
+    HAS_BOND: true, ACTIVATED_DISCARD_COUNT_GTE: true, OPP_LIFE_CRASH_EVENT_GTE: true, SAME_ZONE_HAS_GATE: true,
+    FIELD_HAS_GATE: true, NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN: true, DECK_TOP_SHARES_COLOR_WITH_LRIG: true,
+    FIELD_SIGNI_ALL_DISTINCT_CLASS: true, LAST_PROCESSED_HAS_BURST: true, LAST_PROCESSED_HAS_TYPE: true,
+    LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI: true, LAST_PROCESSED_SHARE_COLOR: true, LAST_PROCESSED_MATCHES: true,
+    LAST_LOOK_TRASHED_MATCHES: true, LAST_PROCESSED_ALL_MATCH: true,
+  };
+
+  // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
+  //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
+  const wrong: string[] = [];
+  const walkCond = (node: unknown, allowed: Record<string, true>, slot: string, id: string) => {
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, unknown>;
+    if (typeof o.type === 'string' && !allowed[o.type]) wrong.push(`${id} ${slot} type=${o.type}`);
+    if (Array.isArray(o.conditions)) o.conditions.forEach(c => walkCond(c, allowed, slot, id));
+  };
+  const scanSlots = (node: unknown, id: string) => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(v => scanSlots(v, id)); return; }
+    for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+      if (k === 'activeCondition') walkCond(v, AC_TYPES, 'activeCondition', id);
+      else if (k === 'condition') walkCond(v, C_TYPES, 'condition', id);
+      else scanSlots(v, id);
+    }
+  };
+  for (const [, effs] of effectsMap) for (const e of effs) scanSlots(e, e.effectId);
+  eq(wrong.sort().join(' / '), '',
+     'activeCondition/condition に別 union の型は0件（＝無条件成立へフォールスルーしない）');
+
+  // ③ 是正した3効果の実挙動（型を直すまでは3つとも「条件を満たさない盤面でも true」だった）
+  const acOf = (cardNum: string, effectId: string) =>
+    (effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!.activeCondition) as ActiveCondition;
+  const chk = (ac: ActiveCondition, owner: StateOpts, src: string, powers?: Map<string, number>) =>
+    checkActiveCondition(ac, mkState(owner), mkState({}), true, cardMap, src, powers);
+
+  // (a) WX05-021-E4「このシグニはパワーが20000以上であるかぎり【ダブルクラッシュ】…を得る」
+  //     基本パワー12000＝閾値未満。旧 `SELF_POWER_GTE`（Condition 型）では常時ダブルクラッシュだった。
+  const wx05021 = acOf('WX05-021', 'WX05-021-E4');
+  eq(wx05021.type, 'SELF_POWER_THRESHOLD', 'ActiveCondition 側の閾値型を使う');
+  eq(chk(wx05021, { signi: ['WX05-021', null, null] }, 'WX05-021'), false, '基本12000＜20000＝付与されない');
+  eq(chk(wx05021, { signi: ['WX05-021', null, null] }, 'WX05-021', new Map([['WX05-021', 20000]])), true,
+     'バフで実効20000に届けば付与される');
+
+  // (b) WXDi-P07-060-E3「このシグニが覚醒状態であるかぎり、パワーは＋2000され…」
+  //     旧 `THIS_CARD_IS_AWAKENED`（Condition 側の名前）では覚醒前から＋2000されていた。
+  const p07060 = acOf('WXDi-P07-060', 'WXDi-P07-060-E3');
+  eq(p07060.type, 'IS_SELF_AWAKENED', 'ActiveCondition 側の覚醒型を使う');
+  const awakenSt = (awakened: boolean) => {
+    const s = mkState({ signi: ['WXDi-P07-060', null, null] });
+    if (awakened) (s as unknown as { awakened_signi: string[] }).awakened_signi = ['WXDi-P07-060'];
+    return s;
+  };
+  eq(checkActiveCondition(p07060, awakenSt(false), mkState({}), true, cardMap, 'WXDi-P07-060'), false,
+     '覚醒していなければ＋2000は乗らない');
+  eq(checkActiveCondition(p07060, awakenSt(true), mkState({}), true, cardMap, 'WXDi-P07-060'), true,
+     '覚醒状態なら乗る');
+
+  // (c) PR-426-E3「ライフクロスが1枚以下で、このシグニが中央のシグニゾーンにあるかぎり…＋4000」
+  //     AND の**子2つ**が Condition 型＝どちらも true へフォールスルー＝ライフ満タン・サイドでも＋4000。
+  const pr426 = acOf('PR-426', 'PR-426-E3');
+  eq(chk(pr426, { signi: [null, 'PR-426', null], life: 1 }, 'PR-426'), true, 'ライフ1枚＋中央＝成立');
+  eq(chk(pr426, { signi: [null, 'PR-426', null], life: 7 }, 'PR-426'), false, 'ライフ7枚＝ライフ条件で不成立');
+  eq(chk(pr426, { signi: ['PR-426', null, null], life: 1 }, 'PR-426'), false, '左ゾーン＝ゾーン条件で不成立');
+});
+
 // ── タスク12(lxxiii)（2026-08-01）：トラッシュ領域移動ロック（`LOCK_OPP_TRASH_MOVE`）──
 // 「次の対戦相手のメインフェイズとアタックフェイズの間、対戦相手のトラッシュにあるカードは
 //   対戦相手の効果によって他の領域に移動しない」（`WX24-P4-007-E1` ③／`WXDi-P14-005-E1` c2）。
