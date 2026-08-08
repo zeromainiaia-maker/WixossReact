@@ -221,6 +221,10 @@ export type Condition =
   | { type: 'HAND_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'HAND_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: NumberOrRef; distinctName?: boolean } // フィルタ一致する手札枚数（distinctName=名前の異なる枚数）
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札−相手の手札の符号付き差（「手札が対戦相手より少ない場合」=lt,0／「より多い場合」=gt,0）。ActiveCondition 側にも同型あり＝両方揃えて更新すること
+  // このシグニが左／右（または「左か右」）のシグニゾーンにある場合（実行時判定＝`evalCondition`）。
+  // 【自】のトリガー時条件（「対戦相手がアーツを使用したとき、このシグニが左か右のシグニゾーンにある場合」
+  // ／「このシグニが左のシグニゾーンに出たとき」）に使う。ActiveCondition 側にも同型あり＝両方揃えて更新すること
+  | { type: 'IS_SELF_IN_SIDE_ZONE'; side: 'left' | 'right' | 'either' }
   | { type: 'LIFE_COUNT';  owner: Owner; operator: CompareOp; value: NumberOrRef }
   | { type: 'LIFE_CRASHED_THIS_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef } // このターンに owner のライフクロスがクラッシュされた枚数
   | { type: 'LIFE_CRASHED_LAST_TURN'; owner: Owner; operator: CompareOp; value: NumberOrRef }
