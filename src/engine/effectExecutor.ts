@@ -4423,7 +4423,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
   const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
   const otherSt = a.owner === 'self' ? ctx.otherState : ctx.ownerState;
-  const rapFilter = resolveDynamicFilter(a.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+  // 捨札参照（`classMatchesDiscardSigni` 等）は**キャスター（コスト支払者）の記録値**で解決する＝
+  // `resolveDynamicFilter` は知らないので、SEARCH（`:2812`）／ADD_TO_FIELD（`:4171`）と同じく先に前処理する。
+  // 落ちていると `WXK10-029-E2`「コストで捨てたシグニと共通するクラスを持つシグニを２枚まで」が
+  // **公開3枚から何でも2枚拾える**過剰効果になる（続き377n）。
+  const rapFilter = resolveDynamicFilter(resolveDiscardLevelFilter(a.filter, ctx.ownerState), ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   let pickable = rapFilter ? visible.filter(n => matchesFilter(ctx.cardMap.get(n), rapFilter)) : visible;
   // LEVEL_REFERENCE_OVERRIDE: レベルフィルターがある場合、デッキ/手札/トラッシュ中の
   // 「レベル参照上書き」カードも対象に含める
