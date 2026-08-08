@@ -683,24 +683,6 @@ WXDi-P15-052
   + [0].action.choices[1].condition.operator = "gte"
   …（他 1 行）
 
-## +CONDITIONAL +FRONT_SIGNI_POWER +GRANT_EFFECT +GRANT_KEYWORD×2 +IS_BETTING +SIGNI×3 -STUB ［1枚］
-WXDi-P15-071
---- WXDi-P15-071
-  原文: ベット―《コインアイコン》《コインアイコン》《コインアイコン》あなたの＜闘争派＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る。」を得る。あなたがベットしていた場合、代わりにそれは「【常】：【Ｓランサー】」を得る。,：【エナチャージ１】をする。その後、あなたのエナゾーン
-  - [0].action.steps[1].id = "GRANT_ABILITY_INNER_TEXT"
-  ~ [0].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[1].condition.type = "IS_BETTING"
-  + [0].action.steps[1].then.type = "GRANT_KEYWORD"
-  + [0].action.steps[1].then.targetsLastProcessed = true
-  + [0].action.steps[1].then.target.type = "SIGNI"
-  + [0].action.steps[1].then.target.owner = "self"
-  + [0].action.steps[1].then.target.count = 1
-  + [0].action.steps[1].then.keyword = "Sランサー"
-  + [0].action.steps[1].then.duration = "UNTIL_END_OF_TURN"
-  + [0].action.steps[1].else.type = "GRANT_EFFECT"
-  + [0].action.steps[1].else.targetsLastProcessed = true
-  …（他 18 行）
-
 ## +COINS_PAID_THIS_TURN×2 +CONDITIONAL×2 ［1枚］
 WXDi-P15-074
 --- WXDi-P15-074

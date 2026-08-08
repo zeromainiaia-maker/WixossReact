@@ -1202,14 +1202,20 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'ATTACH_CHARM': {
       // TRASH_CARD + thisCardOnly:「このカードを【チャーム】にする」（効果元自身。WX04-102）
       const thisCardCharm = a.charm?.type === 'TRASH_CARD' && a.charm.filter?.thisCardOnly;
+      // 枚数・体数は**複数ペア**を表す（続き377n の engine 拡張と対で入れる）。逆翻訳が1枚/1体のままだと
+      // 「JSON は直っているのに逆翻訳は直っていない」乖離＝計器の偽陰性になる。
+      const cntJa = (c: unknown, unit: string, upTo?: boolean): string =>
+        c === 'ALL' ? '好きな数' : `${typeof c === 'number' ? c : 1}${unit}${upTo ? 'まで' : ''}`;
+      const charmCntJa = cntJa(a.charm?.count, '枚', a.charm?.upToCount);
+      const toCntJa = cntJa(a.to?.count, '体', a.to?.upToCount);
       const charmJa = thisCardCharm ? 'このカード'
-        : a.charm?.type === 'DECK_CARD' ? `${ownerJa(a.charm?.owner)}デッキの一番上のカード`
-        : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード1枚`
-        : a.charm?.type === 'HAND_CARD' ? `${ownerJa(a.charm?.owner)}手札から${filterJa(a.charm.filter)}カード1枚`
+        : a.charm?.type === 'DECK_CARD' ? `${ownerJa(a.charm?.owner)}デッキの上からカード${charmCntJa}`
+        : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード${charmCntJa}`
+        : a.charm?.type === 'HAND_CARD' ? `${ownerJa(a.charm?.owner)}手札から${filterJa(a.charm.filter)}カード${charmCntJa}`
         : `${ownerJa(a.charm?.owner)}カード`;
       const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ'
         : a.to?.filter?.isTriggerSource ? 'そのシグニ（場に出たシグニ）'
-        : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ1体`;
+        : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ${toCntJa}`;
       return `${charmJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
     }
     case 'SET_BASE_LEVEL': {
