@@ -5807,6 +5807,105 @@ test('続き377j: 「〔X〕以外の効果を受けない」は fromAll＋excep
     'WX17-001-E1: 「自身以外」は種別語ではないので exceptSource を作らない');
 }));
 
+// ── 続き377l: **左右のシグニゾーン（zoneSide / IS_SELF_IN_SIDE_ZONE）機構**を新設（被覆マトリクス
+//    `cardClass × POWER_MODIFY{SIGNI}` の全数分類から）。`centerZoneOnly` / `IS_SELF_IN_CENTER_ZONE` の
+//    兄弟が無く、左右を指す全効果が**限定ごと落ちて過剰発火**していた。
+test('続き377l: 「あなたの〔左|右〕のシグニゾーンにある〈X〉のシグニ」を zoneSide フィルタへ', () => withSavedCursor(() => {
+  const cases: [string, string, Record<string, unknown>][] = [
+    ['WXK10-078', 'WXK10-078-E1', { cardType: 'シグニ', zoneSide: 'right', story: '怪異' }],
+    ['WXK10-078', 'WXK10-078-E2', { cardType: 'シグニ', zoneSide: 'left', story: '怪異' }],
+    ['WX25-P3-093', 'WX25-P3-093-E1', { cardType: 'シグニ', zoneSide: 'left', story: '迷宮' }],
+    ['WX25-P3-093', 'WX25-P3-093-E2', { cardType: 'シグニ', zoneSide: 'right', story: '迷宮' }],
+  ];
+  for (const [card, effId, want] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const tgt = (e?.action as { target?: EffectTarget } | undefined)?.target;
+    eq(JSON.stringify(tgt?.filter), JSON.stringify(want), `${effId}: filter=${JSON.stringify(want)}`);
+    // 旧は owner:'any'/count:1＝CONTINUOUS では効果元自身へ解決＝**自分にバフ**していた
+    eq(tgt?.owner, 'self', `${effId}: owner=self`);
+    eq(tgt?.count, 'ALL', `${effId}: count=ALL（該当ゾーンのシグニ全体）`);
+  }
+}));
+
+test('続き377l: 付与側のゾーン限定は中央も落ちていた（GRANT_KEYWORD × ゾーン）', () => withSavedCursor(() => {
+  // POWER_MODIFY には中央ゾーン専用枝があるのに、付与側には**中央すら無く**全部が既定の
+  // owner:'any'/count:1 へ潰れていた（live も同じ穴）。ゾーン語彙の追加に合わせて3方向まとめて配線した。
+  const cases: [string, string, Record<string, unknown>][] = [
+    ['WX05-034', 'WX05-034-BURST', { cardType: 'シグニ', centerZoneOnly: true }],
+    ['WXDi-P06-009', 'WXDi-P06-009-E2', { cardType: 'シグニ', centerZoneOnly: true }],
+    ['WD15-002', 'WD15-002-E1', { cardType: 'シグニ', centerZoneOnly: true, story: '龍獣' }],
+  ];
+  for (const [card, effId, want] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const tgt = (e?.action as { target?: EffectTarget } | undefined)?.target;
+    eq(JSON.stringify(tgt?.filter), JSON.stringify(want), `${effId}: filter=${JSON.stringify(want)}`);
+    eq(tgt?.count, 'ALL', `${effId}: count=ALL`);
+  }
+}));
+
+test('続き377l: 「このシグニが〔左|右|左か右〕のシグニゾーンにあるかぎり」を activeCondition へ', () => withSavedCursor(() => {
+  // 条件が丸ごと落ちて無条件発動していた＝`WXK01-099-E1` は**常に＋1000**、`WXK01-094-E2`/`WXK01-096-E2` は**常時バニッシュ耐性**。
+  const cases: [string, string, string][] = [
+    ['WXK01-094', 'WXK01-094-E2', 'right'],
+    ['WXK01-096', 'WXK01-096-E2', 'left'],
+    ['WXK01-099', 'WXK01-099-E1', 'either'],
+    ['WXDi-D04-013', 'WXDi-D04-013-E1', 'either'],
+  ];
+  for (const [card, effId, side] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const ac = e?.activeCondition as { type?: string; side?: string } | undefined;
+    eq(ac?.type, 'IS_SELF_IN_SIDE_ZONE', `${effId}: activeCondition が付く`);
+    eq(ac?.side, side, `${effId}: side=${side}`);
+  }
+  // 中央版も MANUAL 側で落ちていた（同カードの対になる能力）
+  const c = (effectsMap.get('WXK01-099') ?? []).find(x => x.effectId === 'WXK01-099-E2');
+  eq(c?.activeCondition?.type, 'IS_SELF_IN_CENTER_ZONE', 'WXK01-099-E2: 中央条件が付く');
+}));
+
+test('続き377l: 実行時のゾーンゲート（IS_SELF_IN_SIDE_ZONE を Condition 側にも）', () => withSavedCursor(() => {
+  // 「対戦相手がアーツを使用したとき、このシグニが左か右のシグニゾーンにある場合」＝どこに居ても発火していた
+  const a = (effectsMap.get('WXK03-071') ?? []).find(x => x.effectId === 'WXK03-071-E2');
+  const aa = a?.action as { type?: string; condition?: { type?: string; side?: string } } | undefined;
+  eq(aa?.type, 'CONDITIONAL', 'WXK03-071-E2: CONDITIONAL で包まれる');
+  eq(aa?.condition?.type, 'IS_SELF_IN_SIDE_ZONE', 'WXK03-071-E2: 条件型');
+  eq(aa?.condition?.side, 'either', 'WXK03-071-E2: side=either');
+  // 「このシグニが左のシグニゾーンに**出たとき**」＝どのゾーンに出ても発火していた
+  const b = (effectsMap.get('WDK03-012') ?? []).find(x => x.effectId === 'WDK03-012-E1');
+  const ba = b?.action as { type?: string; condition?: { type?: string; side?: string } } | undefined;
+  eq(ba?.type, 'CONDITIONAL', 'WDK03-012-E1: CONDITIONAL で包まれる');
+  eq(ba?.condition?.side, 'left', 'WDK03-012-E1: side=left');
+}));
+
+test('続き377l: 「〔種別〕の効果によってバニッシュされない」は BANISH 軸＋bySourceType', () => withSavedCursor(() => {
+  // 🔴`from:['シグニ']` は `collectEffectImmuneSigni` が拾う「**シグニの効果を（何であれ）受けない**」の
+  //   表現で、原文（バニッシュのみ）より広い過剰保護。live 10枚は既に正しい形＝parser だけが退化していた。
+  for (const [card, effId] of [
+    ['WXK01-094', 'WXK01-094-E2'], ['WXK01-096', 'WXK01-096-E2'], ['WXK01-099', 'WXK01-099-E2'],
+    ['WXK04-064', 'WXK04-064-E1'], ['WXK08-036', 'WXK08-036-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const a = e?.action as { from?: string[]; bySourceType?: string } | undefined;
+    eq(a?.bySourceType, 'シグニ', `${effId}: bySourceType=シグニ`);
+    eq(JSON.stringify(a?.from), JSON.stringify(['BANISH']), `${effId}: from=['BANISH']（種別トークンを置かない）`);
+  }
+}));
+
+test('続き377l: 【K】は「を得る」隣接では取らない（保有フィルタ・OR・引用付与のトリップワイヤ）', () => withSavedCursor(() => {
+  // 🔴「…を得る/を持つ に隣接する【K】を優先」という一般化を入れると、文中の**最初の**一致を拾うため
+  //   ①保有フィルタ ②「【A】か【B】」の後段 ③条件付き引用付与の STUB 潰し で 16カードが退化した（続き377l で却下）。
+  const wx08 = (effectsMap.get('WX08-061') ?? []).find(x => x.effectId === 'WX08-061-E1');
+  eq((wx08?.action as { keyword?: string } | undefined)?.keyword, 'アサシン',
+    'WX08-061-E1: 「【ダブルクラッシュ】を持つシグニ」は保有フィルタ＝付与するのはアサシン');
+  const p15 = (effectsMap.get('WXDi-P15-048') ?? []).find(x => x.effectId === 'WXDi-P15-048-E2');
+  eq((p15?.action as { keyword?: string } | undefined)?.keyword, 'アサシン',
+    'WXDi-P15-048-E2: 「【アサシン】か【ダブルクラッシュ】」の後段だけを採らない');
+  for (const [card, effId] of [['WXK02-057', 'WXK02-057-E1'], ['WXDi-P11-071', 'WXDi-P11-071-E2']] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(e?.action?.type, 'STUB',
+      `${effId}: 「『【常】：〜かぎり、【K】を得る。』を得る」＝条件付き引用付与を無条件 GRANT_KEYWORD へ潰さない`);
+  }
+}));
+
 // ── 続き377k: `docs/_partial_fresh.json` 行列の残りを parser 側で片付けた5系統（行列 10→3カード）。
 test('続き377k: 「手札から〈A〉N枚と〈B〉M枚を捨てる」の2グループ手札コストを拾う', () => withSavedCursor(() => {
   // ⚠旧実装は「[色]の＜A＞のシグニ」「＜A＞のシグニ」の**2形だけ**を別 regex で見ており、
