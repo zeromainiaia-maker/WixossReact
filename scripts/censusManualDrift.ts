@@ -216,6 +216,20 @@ if (adoptIdx >= 0) {
         freshCache.set(cardNum, mergeManualEffects(cardNum, parseCardEffects({ ...(card as unknown as CardData), effects: [] } as CardData)));
       }
       const freshById = new Map(freshCache.get(cardNum)!.map(e => [e.effectId, e]));
+      // ⚠**timing が変わる採用は既定で止める**（続き382 の実例＝`WX16-023-E1`/`WXK10-008-E1` は manualEffects.ts 側が
+      //   action は新しいのに **timing を落として** `["ATTACK"]` に狭めており、CSV の `Timing` 列（アーツの使用
+      //   タイミング）と食い違っていた＝採用すると「使えない側」へ退化する。**同じ効果でも項目ごとに新旧が違う**。
+      //   直すべきは live ではなく `manualEffects.ts` 側。意図して変える場合だけ --allow-timing-change を付ける。
+      const allowTiming = process.argv.includes('--allow-timing-change');
+      for (const e of effs) {
+        const f = freshById.get(e.effectId);
+        if (!targets.has(e.effectId) || !f) continue;
+        const lt = JSON.stringify(e.timing ?? []), ft = JSON.stringify(f.timing ?? []);
+        if (lt !== ft && !allowTiming) {
+          console.log(`⚠ ${e.effectId}: timing が変わるので採用を中止 ${lt} → ${ft}（CSV の Timing 列と照合し、必要なら manualEffects.ts 側を直す。意図的なら --allow-timing-change）`);
+          targets.delete(e.effectId);
+        }
+      }
       const next: CardEffect[] = effs.map(e => (targets.has(e.effectId) && freshById.has(e.effectId))
         ? (applied++, touched = true, freshById.get(e.effectId)!) : e);
       // live に無い効果（FRESH_ONLY）を明示指定された場合は末尾へ追加する。

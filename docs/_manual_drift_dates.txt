@@ -1,17 +1,17 @@
 # manualEffects.ts ↔ live JSON 乖離：git 履歴による方向判定（§6.3 K）
 
-生成: 2026-08-08T12:41:18.234Z
+生成: 2026-08-08T12:48:11.819Z
 
 ⚠**機械判定は着手順を決めるためのもの**＝採用前に必ず原文と engine 実装を照合する。
 ⚠manual 側＝`git blame` のカードブロック最終変更時刻／live 側＝現在の効果JSONが live に入った commit 時刻。
 
 ## 判定ごとの件数
-  MANUAL_NEWER    150 効果
+  MANUAL_NEWER    145 効果
   LIVE_NEWER       80 効果
   UNDATED          77 効果
   SAME_TIME         2 効果
 
-## MANUAL_NEWER（150 効果）
+## MANUAL_NEWER（145 効果）
   PR-461-E1                FRESH_GAIN  manual=2026-07-30 live=2026-07-28
   PR-461-E3                FRESH_GAIN  manual=2026-07-30 live=2026-07-28
   WXDi-P11-038-E1          FRESH_GAIN  manual=2026-07-29 live=2026-07-22
@@ -20,7 +20,6 @@
   WXDi-P11-039-E2          FRESH_GAIN  manual=2026-07-28 live=2026-07-19
   WDK05-T01-E2             FRESH_GAIN  manual=2026-07-28 live=2026-07-19
   WDK05-T01-E3             FRESH_GAIN  manual=2026-07-28 live=2026-07-14
-  WX24-P3-069-E1           CHANGED     manual=2026-07-30 live=2026-07-28 (manual定義) ⚠live_UNKNOWN解消/STUB増
   WX24-P4-067-BURST        FRESH_GAIN  manual=2026-07-28 live=2026-07-14
   WXDi-P06-031-E1          FRESH_GAIN  manual=2026-07-27 live=2026-07-14
   WXDi-P06-031-E2          FRESH_GAIN  manual=2026-07-27 live=2026-07-14 (manual定義)
@@ -135,8 +134,6 @@
   WX16-048-E1              FRESH_GAIN  manual=2026-07-28 live=2026-06-22 (manual定義)
   WX16-023-E1              CHANGED     manual=2026-07-28 live=2026-06-22 (manual定義)
   WXK10-008-E1             CHANGED     manual=2026-07-28 live=2026-06-25 (manual定義) ⚠STUB増
-  WX24-P3-036-E1           CHANGED     manual=2026-07-28 live=2026-07-18 (manual定義) ⚠live_UNKNOWN解消/STUB増
-  WXDi-P05-006-E1          CHANGED     manual=2026-07-28 live=2026-07-14 (manual定義) ⚠live_UNKNOWN解消/STUB増
   WDK11-001-E2             FRESH_GAIN  manual=2026-07-27 live=2026-07-22
   WDK11-001-E3             FRESH_GAIN  manual=2026-07-27 live=2026-07-14
   WX22-043-E2              FRESH_GAIN  manual=2026-07-27 live=2026-06-22
@@ -148,9 +145,7 @@
   WXK11-024-E1             FRESH_GAIN  manual=2026-07-27 live=2026-07-11
   WXK06-031-E2             FRESH_GAIN  manual=2026-07-27 live=2026-07-16
   WDK08-Y01-E2             FRESH_GAIN  manual=2026-07-27 live=2026-07-14
-  WX15-067-E1              CHANGED     manual=2026-07-30 live=2026-07-27 (manual定義) ⚠live_UNKNOWN解消
   WXDi-P11-010A-E2         FRESH_GAIN  manual=2026-07-30 live=2026-07-22
-  WXDi-P13-003A-E1         CHANGED     manual=2026-07-30 live=2026-07-27 (manual定義) ⚠live_UNKNOWN解消/STUB増
   WXEX1-66-E1              FRESH_GAIN  manual=2026-07-28 live=2026-06-22
   WXDi-P06-039-E2          FRESH_GAIN  manual=2026-07-28 live=2026-07-14
   WXDi-P06-039-BURST       FRESH_GAIN  manual=2026-07-28 live=2026-07-14
