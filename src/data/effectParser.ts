@@ -8501,6 +8501,17 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/対戦相手の場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_opp';
         else if (/あなたの場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_ABILITY_ACTIVATED（§6.3 J-1）: 発動した能力の持ち主・種別・【英知】限定・発動元を triggerCondition へ。
+      if (timing[0] === 'ON_ABILITY_ACTIVATED') {
+        const tc: Record<string, unknown> = { ...(extractedTriggerCondObj ?? {}) };
+        if (/対戦相手の/.test(trigText)) tc.activatedAbilityOwner = 'opponent';
+        else if (/あなたの/.test(trigText)) tc.activatedAbilityOwner = 'self';
+        const km = trigText.match(/【(自|出)】(?:の【[^】]+】)?能力が発動したとき/);
+        if (km) tc.activatedAbilityKind = km[1] === '出' ? 'ON_PLAY' : 'AUTO';
+        if (/【自】の【英知】能力|【出】の【英知】能力/.test(trigText)) tc.activatedAbilityEichi = true;
+        if (/場にあるシグニの/.test(trigText)) tc.activatedAbilityFromFieldSigni = true;
+        extractedTriggerCondObj = tc as typeof extractedTriggerCondObj;
+      }
       // ON_COIN_GAINED（§6.3 J-5）: 獲得したプレイヤーを triggerScope に（「あなたか対戦相手が」＝any〔engine 既定〕／
       //   「あなたが」＝self／「対戦相手が」＝any_opp）。
       if (timing[0] === 'ON_COIN_GAINED') {
