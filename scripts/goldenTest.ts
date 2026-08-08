@@ -18,7 +18,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -9429,9 +9429,12 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
     eq(step0.type, 'STUB', `${id}: 1ステップ目は STUB`);
     eq(step0.id, 'SELECT_TARGET_ONLY', `${id}: 対象宣言だけを行う（盤面は変えない）`);
     ok(!!step0.selectTarget?.filter, `${id}: 原文の対象フィルタ（緑／＜闘争派＞）を保つ`);
+    // 付与は「引用付与ハンドラ」か、`WXDi-P15-071` のようにベット分岐が要る場合は
+    // `CONDITIONAL{IS_BETTING}`＋`GRANT_EFFECT`（タスク12(cxviii) で組み替え）が担う。
+    // どちらでも**条件つきで**付くのが要件で、無条件 `GRANT_KEYWORD` に戻っていないことが本質。
     const ids = seq.steps.map(s => (s as StubAction).id ?? s.type);
-    ok(ids.includes('GRANT_QUOTED_ABILITY') || ids.includes('GRANT_ABILITY_INNER_TEXT'),
-       `${id}: 付与は引用付与ハンドラが行う（＝正面パワー条件つきで付く）`);
+    ok(ids.includes('GRANT_QUOTED_ABILITY') || ids.includes('GRANT_ABILITY_INNER_TEXT') || ids.includes('CONDITIONAL'),
+       `${id}: 付与は引用付与ハンドラかベット分岐が行う（＝正面パワー条件つきで付く）`);
     ok(!JSON.stringify(seq).includes('であるかぎり、【'),
        `${id}: keyword スロットに引用文が残っていない`);
   }
@@ -12405,8 +12408,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 43, 'ActiveCondition の型数（増えたら union に足した合図）');
-  eq(Object.keys(C_TYPES).length, 112, 'Condition の型数（増えたら union に足した合図）');
+  eq(Object.keys(AC_TYPES).length, 44, 'ActiveCondition の型数（増えたら union に足した合図。44＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
+  eq(Object.keys(C_TYPES).length, 113, 'Condition の型数（増えたら union に足した合図。113＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
