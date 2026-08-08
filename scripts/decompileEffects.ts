@@ -324,7 +324,10 @@ function costJa(c?: any): string {
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.handToEnergy) parts.push(`手札から${filterJa(c.handToEnergy.filter)}シグニ${c.handToEnergy.count}枚をエナゾーンに置く`);
   if (c.handToUnderSelf) parts.push(`手札から${constraintJa(c.handToUnderSelf.selectionConstraint)}${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
-  if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}を${g.count}枚捨てる`).join('＋'));
+  // ⚠`filterJa` は cardType を描かない（呼び出し側が名詞を足す規約）。ここが名詞を落としていたため
+  //   「手札から《白》の**を**1枚捨てる」と読めない逆翻訳になっていた（続き377k・discardGroups は
+  //   シグニ／スペルが混ざる形もある＝群ごとの cardType を使う）。
+  if (c.discardGroups) parts.push(c.discardGroups.map((g: any) => `手札から${filterJa(g.filter)}${g.filter?.cardType ?? 'カード'}を${g.count}枚捨てる`).join('＋'));
   if (c.coin != null) parts.push(`コイン${c.coin}`);
   if (c.beat_signi != null) parts.push(`シグニ${c.beat_signi}体を【ビート】にする`);
   if (c.beat_signi_from_trash) parts.push(`トラッシュから${filterJa(c.beat_signi_from_trash.filter)}シグニ${c.beat_signi_from_trash.count}枚を【ビート】にする`);
