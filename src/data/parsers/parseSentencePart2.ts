@@ -2012,6 +2012,11 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   `signiClauseIconFilter` は対象名詞句への隣接だけを見るので条件節（「場に…が２体あるかぎり」）は入らない。
   const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter, ...signiClauseIconFilter(t) };
   const kwTargetFilter = Object.keys(kwMergedFilter).length > 0 ? { filter: kwMergedFilter } : {};
+  // 「シグニをN体まで対象とし」＝上限指定（0体でもよい）。engine は `upToCount` を見て選択UIを任意化する
+  // （落とすと `WXDi-P09-053-E1`「あなたのレベル１のシグニを２体まで対象とし」が**2体を強制選択**になる）。
+  // ⚠素の `t.includes('まで')` は「ターン終了時**まで**」に必ず当たるので、**数詞に隣接した「体まで」だけ**を見る。
+  const kwUpToCount = /(?:あなた|対戦相手)の(?:(?!あなた|対戦相手|シグニ|ルリグ)[^。、]){0,24}?シグニ(?:を)?[０-９\d]+体まで(?:を)?対象とし/.test(t)
+    ? { upToCount: true } : {};
 
   // ---- 【キーワード】を得る（文脈依存owner/count）----
   {
