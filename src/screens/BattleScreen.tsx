@@ -10002,6 +10002,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const apsCpu = collectCpuTurnTriggers('ON_ATTACK_PHASE_START', newCpuSt, huSt);
       apsStackEntries.push(...apsCpu.entries);
       newCpuSt = apsCpu.cpuState;
+      // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
+      newCpuSt = { ...newCpuSt, signi_left_field_this_attack_phase: [] };
       let huStAfterAps: PlayerState | undefined = apsCpu.humanState;
 
       // HASTARLIQ: CPUのMAIN→ATTACK_ARTS移行時、相手(人間)の hastarliq_zones があれば発動。
