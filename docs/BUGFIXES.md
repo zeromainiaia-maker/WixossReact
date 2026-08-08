@@ -1,5 +1,33 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — **§5d-0(iv) 計器較正 第3バッチ**＝条件節クラスタの偽陽性19効果（census 953→**936**／golden 1466→**1468**）（Codex・実装ゼロ）
+
+`docs/_vocab_census.txt` の条件節クラスタ **258効果**を原文ブロックと live JSON で全数照合し、
+条件を `condition` ではなく action 自体が内包している5語彙だけを残渣チェック付きで較正した。
+parser / engine / 型 / decompiler / effects JSON は変更していない。
+
+- `BANISH_REDIRECT`：条件節から14効果を除外。owner / count / filter / `bySource` / `whenPowerZero` /
+  `frontOnly` / `until` が原文と一致する節だけを消す。全体の高シグナル union からは12効果減り、
+  `whenPowerZero` 2効果は別の「パワー閾値」クラスタに残した。
+- `BANISH_SUBSTITUTE`：2効果。trigger / substituteCost / optional を照合し、同時に「代わりに」クラスタも較正。
+- `CHARM_PROTECTION`：1効果。＜クラス＞ / cardType / optional を照合。
+- `POWER_FLIP`：1効果。対象 owner / count と効果元 owner を照合。
+- `FORCE_END_TURN`：1効果。`FORCE_END_TURN` だけでなく使用コストの白赤青緑黒5色を全数照合。
+
+⚠型名を `keys` に足す一括免除はしていない。`WX24-P4-050-E2` は同じ `BANISH_REDIRECT` でも
+「**次に**」「**このシグニの効果によって**」が JSON に無いため高シグナル維持、
+`WXDi-P16-063-E1` は redirect 節を表現済みでも一度目/二度目のアタック条件が残るため維持した。
+既知の `WX15-057-E1`（アクセアイコン）／`WX13-032-BURST`（LB）／`WX09-Re06-E1`（最初のリフレッシュ）／
+`WX16-003-E1`（最初のアーツ）も全件維持。golden は較正19効果の非検出と残渣6効果＋置換未実装2効果の
+検出継続を両方向で固定した。
+
+機械差分は条件節 **258→239**、全高シグナル **953→936**、新規高シグナル **0**。
+消えた17効果は原文と action leaf を全件目視し、別条件・別アクションの脱落を隠していないことを確認した。
+
+検証は `npm run gates` 全緑：typecheck／golden **1468/1468**／smoke **10679/10679** 全0・SKIP 0／
+fuzz 200ゲーム全0／census **936**／manual field loss 0／lint 0 errors・248 warnings。
+`npm run regen` と `groupSimilar --all` も実行し、同型★ **0**（265群）据置。
+
 ## 2026-08-08 — **§5d-0(i) 第17バッチ**＝**左右のシグニゾーン機構の新設**・15効果（census 957→**953**／golden 1459→**1466**）（Opus 5・続き377l）
 
 被覆マトリクス（`npm run census:wiring`）の ★★セル `cardClass × POWER_MODIFY{SIGNI}` を全数分類したところ、

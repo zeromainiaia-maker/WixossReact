@@ -64,6 +64,7 @@ import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
+import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
@@ -25165,6 +25166,62 @@ test('task12(cx) 実行: 支払えばアタックが消え、支払わなけれ�
   ok(!skipped.otherState.cancel_current_signi_attack, '支払わなければアタックはそのまま通る');
   eq(skipped.ownerState.lrig_trash.length, 0, '支払わなければエクシードも減らない');
 }));
+
+// ── §5d-0(iv) 計器較正 第3バッチ: 条件節を内包するaction型（実装変更なし）──
+test('§5d-0(iv) 条件節較正: actionが内包する19効果は高シグナル条件節に出ない', () => {
+  const src = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8')) as Record<string, string>;
+  const byVocabulary: Record<string, string[]> = {
+    BANISH_REDIRECT: [
+      'WX01-027-E3', 'WX18-038-E2', 'WX19-078-E1', 'WX21-005-E1', 'WX24-P4-042-E1',
+      'WX26-CP1-044-E2', 'WXDi-CP02-072-E3', 'WXDi-CP02-102-E2', 'WXDi-P10-009-E3',
+      'WXDi-P12-073-E1', 'WXDi-P15-044-E1', 'WXK06-048-E1', 'WXK10-053-E1', 'WXK11-032-E1',
+    ],
+    BANISH_SUBSTITUTE: ['WX10-033-E1', 'WX11-029-E2'],
+    CHARM_PROTECTION: ['WX04-052-E1'],
+    POWER_FLIP: ['WX09-021-E1'],
+    FORCE_END_TURN: ['WX05-016-E1'],
+  };
+  for (const [vocabulary, ids] of Object.entries(byVocabulary)) {
+    for (const effectId of ids) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live effect exists`);
+      if (!effect) continue;
+      ok(conditionClauseExtraOk(JSON.stringify(effect), src[effectId] ?? ''),
+        `${effectId}: ${vocabulary} が条件節を残渣なく表現`);
+    }
+  }
+  // 既知の最優先形＝ADD_TO_FIELD{source:{fromTop,filter}} も引き続き covered。
+  const known = (effectsMap.get('WX15-001') ?? []).find(e => e.effectId === 'WX15-001-E2');
+  ok(!!known && conditionClauseExtraOk(JSON.stringify(known), src['WX15-001-E2'] ?? ''),
+    'WX15-001-E2: fromTop+filter による既知の等価表現を維持');
+});
+
+test('§5d-0(iv) 条件節較正: 未モデル化の残渣と別条件は高シグナルに残る', () => {
+  const src = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8')) as Record<string, string>;
+  const remains = [
+    // 同じ BANISH_REDIRECT でも「次に」＋「このシグニの効果によって」がJSONに無い。
+    'WX24-P4-050-E2',
+    // redirect節は正しくても、一度目/二度目のアタック条件が別に残る。
+    'WXDi-P16-063-E1',
+    // filter 等価表現の残渣（アイコン／履歴）がJSONに載っていない既知の実ギャップ。
+    'WX15-057-E1', 'WX13-032-BURST', 'WX09-Re06-E1', 'WX16-003-E1',
+  ];
+  for (const effectId of remains) {
+    const cardNum = effectId.replace(/-(?:E\d+|BURST)$/, '');
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId}: live effect exists`);
+    if (!effect) continue;
+    ok(!conditionClauseExtraOk(JSON.stringify(effect), src[effectId] ?? ''),
+      `${effectId}: 未モデル化の残渣があるため covered にしない`);
+  }
+  for (const effectId of ['WD06-009-E2', 'WX24-P4-009-E1']) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!effect && !replacementClauseExtraOk(JSON.stringify(effect), src[effectId] ?? ''),
+      `${effectId}: 置換がJSONに無いため「代わりに」高シグナルを維持`);
+  }
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
