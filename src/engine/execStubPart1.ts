@@ -9,7 +9,7 @@ import {
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
   payBeatSigniCost, payBeatSigniFromTrashCost,
-  isOwnTrashMoveLocked,
+  isOwnTrashMoveLocked, buildFrontPowerGatedKeywordGrant,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
