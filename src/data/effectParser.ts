@@ -9187,6 +9187,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       actionText = extracted.cleaned;
     }
     resolvedAction = parseActionText(actionText);
+    // any_opp の ON_PLAY で帰結が「（ターン終了時まで、）そのシグニ〜」＝**場に出たそのシグニ**への照応。
+    // この分岐はトリガー句を残す仕様なので target が「対戦相手のシグニ１体」＝**任意選択**に落ちており、
+    // 原文と別のシグニを撃てる過剰対象化になっていた（`WXK10-022-E1`＝能力を失わせる相手を選び直せた）。
+    if (extractedTriggerScope === 'any_opp' && timing?.[0] === 'ON_PLAY') {
+      const tailM = actionText.match(/場に出たとき[、,](.+)$/s);
+      if (tailM) resolvedAction = bindUnlessGateAnaphora(tailM[1].trim(), resolvedAction);
+    }
     if (timing?.[0] === 'ON_BANISH' && resolvedAction.type === 'BANISH' && /そのシグニと同じレベルの/.test(actionText)) {
       const banish = resolvedAction as import('../types/effects').BanishAction;
       banish.target.filter = { ...(banish.target.filter ?? {}), ...parseTriggerComparison(actionText, { allowLevelEq: true }) };
