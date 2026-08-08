@@ -444,6 +444,42 @@ export function signiClauseIconFilter(text: string): Partial<TargetFilter> {
 }
 
 /**
+ * 「《ディソナアイコン》のシグニN枚/体（まで）」の**対象名詞句に隣接するディソナ属性**だけを拾う。
+ * 《ライズ》等の `hasIcon` は印字能力を見るのに対し、ディソナは CSV `Story === 'Dissona'` を見る
+ * `isDisona` が正準。トラッシュ/エナのカード対象は助数詞が「枚」なので「枚/体」の両方を許す。
+ *
+ * 数量詞の直後が文末・対象宣言・実行動詞のときだけ成立させるため、
+ * 「場に《ディソナアイコン》のシグニがある場合、…対戦相手のシグニ1体を対象とし」の条件節は拾わない。
+ */
+const SIGNI_CLAUSE_ADJACENT_DISONA =
+  /《ディソナアイコン》の(?:(?![。、]|シグニ).){0,16}シグニ(?:を)?[０-９\d]+(?:枚|体)(?:まで)?(?:を)?(?=$|対象とし|(?:手札に加え|場に出|バニッシュ|トラッシュに置))/;
+export function signiClauseDisonaFilter(text: string): Partial<TargetFilter> {
+  return SIGNI_CLAUSE_ADJACENT_DISONA.test(text) ? { isDisona: true } : {};
+}
+
+/** 「レゾナではない〈owner/modifier〉シグニN体」の対象限定。 */
+export function signiClauseExcludeResonaFilter(text: string): Partial<TargetFilter> {
+  const marker = 'レゾナではない';
+  const at = text.indexOf(marker);
+  if (at < 0) return {};
+  // 先に別の対象宣言がある文は構造混線の可能性がある。
+  // WXEX2-18-E2 は「相手シグニを対象→非レゾナの自シグニをバニッシュ」の2対象なので、
+  // 誤って相手側へこの限定を固定しない。
+  if (/シグニ(?:を)?[０-９\d]+体(?:まで)?を?対象とし/.test(text.slice(0, at))) return {};
+  const span = text.slice(at);
+  return /^レゾナではない(?:(?![。、]|シグニ).){0,32}シグニ(?:を)?[０-９\d]+体(?:まで)?(?=$|を?対象とし|を?バニッシュ|を?場からトラッシュに置)/.test(span)
+    ? { excludeResona: true }
+    : {};
+}
+
+/** 「対象のあなたのレゾナN体」＝シグニ一般ではなくレゾナ限定。 */
+export function signiClauseResonaFilter(text: string): Partial<TargetFilter> {
+  return /(?:対象の)?あなたのレゾナ[０-９\d]+体(?:を)?(?:対象とし|バニッシュ)/.test(text)
+    ? { cardType: 'レゾナ' }
+    : {};
+}
+
+/**
  * 「〈…〉レベルN〔以上／以下〕のシグニN体を対象とし」の**対象名詞句に隣接するレベルだけ**を拾う（続き377d）。
  *
  * ⚠**素の `parseLevelFilter(文全体)` を対象フィルタに使ってはいけない**＝この語彙は
@@ -541,6 +577,9 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     // 「あなたの場に《ライズアイコン》を持つシグニが２体ある場合、…対戦相手のシグニ１体を対象とし」の
     // **条件節**を対象へ引き込み、原文と逆の過小実行になる。
     ...signiClauseIconFilter(text),
+    ...signiClauseDisonaFilter(text),
+    ...signiClauseExcludeResonaFilter(text),
+    ...signiClauseResonaFilter(text),
   };
   // ⚠従来は `hasOtherSelfSigniNoun`（＝「他の」がある）ときだけ isDisona を立てていたため、
   //   「あなたの《ディソナアイコン》のシグニ１体を対象とし」（`WXDi-P13-077-E1`）のように

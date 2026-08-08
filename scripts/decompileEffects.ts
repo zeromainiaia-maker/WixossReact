@@ -198,6 +198,7 @@ function filterJa(f?: any): string {
   if (f.hasCrossIcon) parts.push('《クロスアイコン》を持つ');
   if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');
   if (f.nonColorless) parts.push('無色ではない');
+  if (f.excludeResona) parts.push('レゾナではない');
   if (f.isDisona) parts.push('《ディソナアイコン》を持つ');
   if (f.hasLifeBurst === true) parts.push('【ライフバースト】を持つ');
   if (f.hasLifeBurst === false) parts.push('【ライフバースト】を持たない');

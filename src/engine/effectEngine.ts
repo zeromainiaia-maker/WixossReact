@@ -669,6 +669,7 @@ function matchesFilter(cardData: CardData | undefined, filter: TargetFilter | un
     if (excl.some(c => cardData.Color?.includes(c))) return false;
   }
   if (filter.excludeResona && cardData.Type?.includes('レゾナ')) return false;
+  if (filter.isDisona && (cardData.Story ?? '') !== 'Dissona') return false;
   if (filter.noAbilities !== undefined) {
     // execUtils 版と同基準＝①解析済み効果が1件でもあれば能力あり ②0件は根拠にならず原文で判定
     //（CSV は素のシグニを `-` で持つ）。場の `abilities_removed` は state が要るので fieldCandidates 側の担当。

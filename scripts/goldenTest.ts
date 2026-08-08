@@ -3996,6 +3996,124 @@ function stepSearch(result: ExecResult, ctx: ExecCtx): { visible: string[]; next
   const picked = pending.visibleCards.slice(0, Math.min(pending.maxPick, pending.visibleCards.length));
   return { visible: pending.visibleCards, next: resumeSearch(picked, pending as never, c) };
 }
+// ── §5d-0(i) 配線ギャップ第19バッチ: isDisona / excludeResona ──
+const batch19Effect = (cardNum: string, effectId: string): CardEffect => {
+  const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: live effect not found`);
+  return effect;
+};
+const batch19Count = (value: unknown, needle: string): number =>
+  (JSON.stringify(value).match(new RegExp(needle, 'g')) ?? []).length;
+
+for (const [cardNum, effectId, key, count] of [
+  ['WXDi-P12-004', 'WXDi-P12-004-E1', '"isDisona":true', 1],
+  ['WXDi-P12-010', 'WXDi-P12-010-E3', '"isDisona":true', 1],
+  ['WXDi-P12-087', 'WXDi-P12-087-E2', '"isDisona":true', 1],
+  ['WXDi-P12-087', 'WXDi-P12-087-BURST', '"isDisona":true', 2],
+  ['WXDi-P13-055', 'WXDi-P13-055-E2', '"isDisona":true', 1],
+  ['WXDi-P13-084', 'WXDi-P13-084-E1', '"isDisona":true', 1],
+  ['WXDi-P13-088', 'WXDi-P13-088-E1', '"isDisona":true', 1],
+  ['WXDi-P12-003', 'WXDi-P12-003-E1', '"isDisona":true', 2],
+  ['WXDi-P12-076', 'WXDi-P12-076-E2', '"isDisona":true', 1],
+  ['WXDi-P12-082', 'WXDi-P12-082-E1', '"isDisona":true', 1],
+  ['SP27-010', 'SP27-010-E1', '"excludeResona":true', 1],
+  ['WX16-Re01', 'WX16-Re01-E1', '"excludeResona":true', 1],
+  ['WX16-Re10', 'WX16-Re10-E1', '"excludeResona":true', 1],
+  ['WXDi-P13-058', 'WXDi-P13-058-E1', '"isDisona":true', 1],
+  ['WX10-028', 'WX10-028-E3', '"excludeResona":true', 1],
+  ['WX10-049', 'WX10-049-E1', '"excludeResona":true', 1],
+  ['WXDi-P13-002', 'WXDi-P13-002-E1', '"isDisona":true', 1],
+] as [string, string, string, number][]) {
+  test(`batch19 structure: ${effectId}`, () => {
+    const effect = batch19Effect(cardNum, effectId);
+    eq(batch19Count(effect, key), count, `${effectId}: ${key} count`);
+    if (effectId === 'WXDi-P12-087-E2') ok(JSON.stringify(effect).includes('"level":3'), `${effectId}: level 3 preserved`);
+    if (effectId === 'WX16-Re01-E1' || effectId === 'WX16-Re10-E1') {
+      eq(batch19Count(effect, '"cardType":"レゾナ"'), 1, `${effectId}: branch 2 is Resona-only`);
+    }
+  });
+}
+
+// effectEngine 側 matchesFilter の isDisona パリティ移植で挙動が変わる既存5効果も効果単位で固定する。
+for (const [cardNum, effectId] of [
+  ['WXDi-P12-044', 'WXDi-P12-044-E1'],
+  ['WXDi-P12-060', 'WXDi-P12-060-E1'],
+  ['WXDi-P13-009', 'WXDi-P13-009-E1'],
+  ['WXDi-P13-047', 'WXDi-P13-047-E1'],
+  ['WXDi-P13-070', 'WXDi-P13-070-E1'],
+] as [string, string][]) {
+  test(`batch19 parity structure: ${effectId}`, () => {
+    eq(batch19Count(batch19Effect(cardNum, effectId), '"isDisona":true'), 1, `${effectId}: Disona target filter`);
+  });
+}
+
+test('batch19 E2E: WXDi-P12-004-E1 trash candidates are Disona-only', () => withSavedCursor(() => {
+  const disona = findCard(c => isSigni(c) && c.Story === 'Dissona');
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona');
+  const base = mkCtx({ trash: 0 }, {});
+  const ctx: ExecCtx = { ...base, ownerState: { ...base.ownerState, trash: [disona, ordinary] } };
+  const result = executeEffect(batch19Effect('WXDi-P12-004', 'WXDi-P12-004-E1'), ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', 'trash selection is requested');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(result.pending.candidates), JSON.stringify([disona]), 'only the Disona SIGNI is selectable');
+}));
+
+test('batch19 E2E: WX16-Re01-E1 branch 1 excludes Resona candidates', () => withSavedCursor(() => {
+  const resona = findCard(c => c.Type === 'レゾナ');
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona');
+  const effect = batch19Effect('WX16-Re01', 'WX16-Re01-E1');
+  const branch = (effect.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[0].action;
+  const ctx = mkCtx({ signi: [resona, ordinary, null] }, {});
+  const result = executeEffect({ effectId: 'batch19', effectType: 'AUTO', action: branch, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', 'BANISH selection is requested');
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(result.pending.candidates), JSON.stringify([ordinary]), 'Resona is excluded from branch 1');
+}));
+
+test('batch19 E2E: WXDi-P13-058-E1 active condition requires another Disona SIGNI', () => withSavedCursor(() => {
+  const source = 'WXDi-P13-058';
+  const disona = findCard(c => isSigni(c) && c.Story === 'Dissona' && c.CardNum !== source);
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona');
+  const condition = batch19Effect(source, 'WXDi-P13-058-E1').activeCondition!;
+  ok(!checkActiveCondition(condition, mkState({ signi: [source, ordinary, null] }), mkState(), false, cardMap, source),
+    'another ordinary SIGNI does not satisfy the condition');
+  ok(checkActiveCondition(condition, mkState({ signi: [source, disona, null] }), mkState(), false, cardMap, source),
+    'another Disona SIGNI satisfies the condition');
+}));
+
+test('batch19 E2E: WX10-028-E3 field-trash cost excludes Resona and self', () => withSavedCursor(() => {
+  const resona = findCard(c => c.Type === 'レゾナ');
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona');
+  const source = findCard(c => isSigni(c) && c.CardNum !== ordinary);
+  const cost = batch19Effect('WX10-028', 'WX10-028-E3').cost?.fieldTrash;
+  const zones = fieldTrashSelectableZones(cost, mkState({ signi: [resona, ordinary, source] }), cardMap, 2);
+  eq(JSON.stringify(zones), JSON.stringify([1]), 'only the non-Resona, non-self SIGNI is payable');
+}));
+
+test('batch19 E2E: effectEngine continuous filter buffs Disona but not ordinary SIGNI', () => withSavedCursor(() => {
+  const emitter = 'WXDi-P12-044';
+  const disona = findCard(c => isSigni(c) && c.Story === 'Dissona' && c.CardNum !== emitter);
+  const ordinary = findCard(c => isSigni(c) && c.Story !== 'Dissona');
+  const state = mkState({ signi: [emitter, disona, ordinary] });
+  const withoutEmitter = new Map(effectsMap);
+  withoutEmitter.set(emitter, []);
+  const baseline = calcFieldPowers(state, mkState(), false, withoutEmitter, cardMap);
+  const powers = calcFieldPowers(state, mkState(), false, effectsMap, cardMap);
+  eq((powers.get(disona) ?? 0) - (baseline.get(disona) ?? 0), 3000, 'Disona ally receives +3000');
+  eq((powers.get(ordinary) ?? 0) - (baseline.get(ordinary) ?? 0), 0, 'ordinary ally receives no bonus');
+}));
+
+test('batch19 tripwire: condition-clause Disona does not leak into WXDi-P13-069-E1 targets', () => {
+  const freshEffect = parseCardEffects(cardMap.get('WXDi-P13-069')!).find(e => e.effectId === 'WXDi-P13-069-E1');
+  ok(!!freshEffect, 'fresh parse exists');
+  eq(batch19Count(freshEffect, '"isDisona":true'), 0, 'condition-clause vocabulary is not attached to an action target');
+});
+
+test('batch19 tripwire: WXEX2-18-E2 structural mix is not constrained on the wrong opponent target', () => {
+  const effect = batch19Effect('WXEX2-18', 'WXEX2-18-E2');
+  eq(batch19Count(effect, '"excludeResona":true'), 0, 'wrong opponent BANISH target remains untouched');
+});
+
 const runEffect = (a: EffectAction, ctx: ExecCtx): ExecResult =>
   executeEffect({ effectId: 't', effectType: 'AUTO', action: a, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
 

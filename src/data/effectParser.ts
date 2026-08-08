@@ -433,6 +433,11 @@ function parseCost(costStr: string): EffectCost | undefined {
       excludeSelf: true,
     };
   }
+  // 「レゾナではない他の〜シグニN体を場からトラッシュに置く」＝通常シグニだけを支払い候補にする。
+  // costStr は能力ヘッダから分離済みなので、効果本文や出現条件の同語を対象コストへ混入させない。
+  if (cost.fieldTrash && /レゾナではない[^。、]*シグニ[０-９\d]+体(?:まで)?を場からトラッシュに置く/.test(costStr)) {
+    cost.fieldTrash.filter = { ...(cost.fieldTrash.filter ?? { cardType: 'シグニ' }), excludeResona: true };
+  }
   // 手札から[フィルター]カード/シグニN枚をエナゾーンに置く → handToEnergy
   // 【出】ヘッダから切り出された costStr だけを受けるため、効果本体の同文型には波及しない。
   const hteM = costStr.match(/手札から(?:(?:＜([^＞]+)＞の)?(カード|シグニ)|シグニ)(?:を)?([０-９\d]+)枚を?エナゾーンに置く/);
@@ -954,7 +959,8 @@ function parseActiveCondition(text: string): ConditionParseResult {
   const fieldOtherIconM = text.match(/^あなたの場に他の《([^》]+)》のシグニがあるかぎり、/);
   if (fieldOtherIconM) {
     return {
-      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, excludeSelf: true },
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self',
+        filter: { cardType: 'シグニ', ...(fieldOtherIconM[1] === 'ディソナアイコン' ? { isDisona: true } : {}) }, excludeSelf: true },
       rest: text.slice(fieldOtherIconM[0].length),
       conditionFound: true,
     };

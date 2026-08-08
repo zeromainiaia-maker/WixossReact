@@ -55,7 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseTargetSpec,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
 } from '../parserUtils';
 
 /**
@@ -1930,6 +1930,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filter: TargetFilter = {
       ...parseCardTypeFilter(t), ...parseCostTotalFilter(t), ...levelFilter, ...parseStoryFilter(spanTxt),
       ...parseColorMatchesLrig(t), ...parseGuardFilter(spanTxt), ...parseIconFilter(spanTxt),
+      ...signiClauseDisonaFilter(trashTargetPhrase),
     };
     // 既存入口の挙動は保ったまま、今回追加した合成語彙だけを共通抽出器から配線する。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
@@ -2026,6 +2027,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filterParts: TargetFilter = {
       ...parseCardTypeFilter(energySpan),
       ...parseStoryFilter(energySpan),
+      ...signiClauseDisonaFilter(energySpan),
       ...parseColorMatchesLrig(energySpan),
       // 「エナゾーンから《カード名》以外の〜」（§5d パターンA・続き371）＝`WXEX1-34-E3`／`WXK05-027-E1`
       ...parseExcludeCardNameFilter(energySpan),
@@ -2188,6 +2190,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...parseStoryFilter(t),
       ...parseSelfComparison(t), // 「このシグニよりパワー/レベルの低い」＝効果元基準（WXDi-P03-078）。resolveDynamicFilter が解決
       ...parseTriggerComparison(t, { allowPlacement: true, allowLevelEq: true }), // 「そのシグニと同じレベル」等＝トリガー元基準（WX21-004）
+      ...signiClauseDisonaFilter(t),
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
@@ -2233,6 +2236,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   （`WXDi-P09-039-E2`／`WXDi-P15-006-E2`／`WXEX2-09-E2`）。この分岐は「トラッシュから…場に出す」の
       //   実行文だけを受けるので条件節用法は入らない（`parseExcludeCardNameFilter` と同じ理由）。
       ...parseIconFilter(t),
+      ...signiClauseDisonaFilter(t),
     };
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const countM = t.match(/([０-９\d]+)枚を対象/);
@@ -2543,13 +2547,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   落ちると `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
       //   **どのシグニにも付与できる**過剰効果になる。全文スキャンにすると `WX18-030-E1`「場に…が２体あるかぎり」の
       //   **条件節**を対象へ引き込むので、隣接判定は外せない。
-      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t) };
+      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       // ⚠「あなたのシグニ**N体**」枝は **`kwSigniFilter` を使ってはいけない**（続き377c で A/B により判明）＝
       //   `kwSigniFilter` は `parseLevelFilter(t)` 等を**全文**から取るので、`WD21-001-E1`
       //   「あなたのシグニ１体を対象とし、…この方法で公開したカードが**レベル１のシグニの場合**、【ダブルクラッシュ】を得る」の
       //   **条件節のレベル**を対象へ載せてしまい、原文と逆の過小実行になる。**対象名詞句に隣接する語彙だけ**を合成する。
-      const kwCountSelfFilter: TargetFilter = { cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t) };
+      const kwCountSelfFilter: TargetFilter = { cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) };
       // 「あなたの〔中央|左|右〕のシグニゾーンにある[＜X＞の]シグニは【K】を得る」＝**ゾーン限定の全体付与**。
       // ⚠POWER_MODIFY 側には中央ゾーンの専用枝があるのに、付与側には**中央すら無く**全部が既定の
       //   `owner:'any'/count:1` へ潰れていた＝「中央ゾーンのシグニだけがランサー」が「どちらかのシグニ1体」に化け、
@@ -2605,7 +2609,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   「＜空獣＞か＜地獣＞のシグニ」の OR（`story:["空獣","地獣"]`）を最後の1クラスへ潰してしまう
       //   （実測 A/B で `WX02-055-E1`／`WX04-069-E1`／`WX05-041-E1`／`WX19-042-E1`／`WX19-070-E1`／`WXEX2-43-E1` が退化）。
       const kwSpecFilterRaw: TargetFilter = kwSpec
-        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t) }
+        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) }
         : {};
       const kwSpecFilter: TargetFilter = Object.fromEntries(
         Object.entries(kwSpecFilterRaw).filter(([k]) => (target.filter as Record<string, unknown> | undefined)?.[k] === undefined),
