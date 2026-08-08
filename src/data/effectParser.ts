@@ -7919,6 +7919,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
              // 「あなたが《コイン》を1枚以上支払ったとき」（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線。トリガー文非除去
              : trigText.match(/あなたが《コイン[^》]*》を(?:[^。]{0,8}支払った|ベットした)とき/) ? ['ON_COIN_PAID']
+             // 「〈主語〉の【自】/【出】（の【英知】）能力が発動したとき」（§6.3 J-1・WX19-066／WXEX1-77）。
+             //   engine 配線済み＝collectAbilityActivatedTriggers（effectStack から解決を始める瞬間に照合）。
+             //   持ち主・種別・【英知】限定・「場にあるシグニの」限定は下で triggerCondition へ抽出。
+             : /【(?:自|出)】(?:の【[^】]+】)?能力が発動したとき/.test(trigText) ? ['ON_ABILITY_ACTIVATED']
              // 「このルリグが《X》から《Y》になったとき」（§6.3 J-5・WXDi-P11-010B）＝両面ルリグの反転イベント。
              //   engine 配線済み＝collectLrigFlipTriggers（センタールリグの `card_identity_overrides` 変化を検出し、
              //   **反転後の identity** の効果を引く）＝この timing の**初の利用者**。⚠今日は発火しない＝産出側
