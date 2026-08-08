@@ -171,6 +171,12 @@ export type ActiveCondition =
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
+  // このシグニ自身の**実効レベル**（表記レベル＋`LEVEL_MOD_PER_COUNT` / `DYNAMIC_LEVEL_BY_ENERGY` 等の
+  // 動的修正、`calcSigniLevels`）がかぎり条件を満たすか。`SELF_POWER_THRESHOLD` のレベル版で、
+  // 「このシグニはレベルが４以上であるかぎり」（`WX20-Re18`。タスク12(cxvii)）。
+  // ⚠`Condition` 側にも同型あり＝両方揃えて更新すること（`HAND_DIFF` と同じ運用）。
+  // ⚠評価器に実効レベルを渡さないと**表記レベルへフォールバック**する（動的レベル札は一生 false＝過小）。
+  | { type: 'SELF_LEVEL_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'FRONT_SIGNI_POWER'; operator: CompareOp; value: number } // このシグニの正面（相手ゾーン 2-zi）のシグニの実効パワーが条件を満たすかぎり（正面が空なら不成立。SP27-002-E3）
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
   | { type: 'ENA_DIFF'; operator: CompareOp; value: number }   // 自分のエナと相手のエナの差
