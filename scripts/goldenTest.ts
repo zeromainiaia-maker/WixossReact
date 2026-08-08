@@ -30,7 +30,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -68,7 +68,7 @@ import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
-import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countAcceToTrash, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -7654,6 +7654,27 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WX16-Re05-E1'), true, '1枚で発火');
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WX16-Re05-E1'), false, '0枚は非発火');
 });
+// §6.3 J-5「単発」＝ON_COIN_GAINED（既存 ON_COIN_PAID の逆方向。従来 timing:[] で安全停止）。
+test('J-5 ON_COIN_GAINED: 「あなたか対戦相手が」＝どちらの獲得でも発火（SP27-007-E1 any）', () => {
+  withSavedCursor(() => {
+    const host = mkState({ signi: ['SP27-007', null, null] }); const guest = mkState({});
+    const fire = (self: number, opp: number) =>
+      has(collectCoinGainedTriggers(trigCtx(HOST), HOST, host, guest, self, opp).entries, 'SP27-007-E1');
+    eq(fire(1, 0), true, '自分の獲得で発火');
+    eq(fire(0, 1), true, '対戦相手の獲得でも発火（any）');
+    eq(fire(0, 0), false, '獲得0は非発火');
+  });
+});
+test('J-5 boardDiff countCoinsGained: 増加ぶんだけを返す（減少は0）', () => {
+  withSavedCursor(() => {
+    const before = mkState({}); const after = mkState({});
+    before.coins = 1; after.coins = 3;
+    eq(countCoinsGained(before, after), 2, '+2');
+    eq(countCoinsGained(after, before), 0, '減少は0（支払いは ON_COIN_PAID の領分）');
+    eq(countCoinsGained(before, before), 0, '変化なしは0');
+  });
+});
+
 // §6.3 J-2「付与・離脱イベント」＝ON_ACCE_TO_TRASH / ON_SOUL_ATTACHED / ON_CARD_ATTACHED（従来 timing:[] で安全停止）。
 test('J-2 ON_ACCE_TO_TRASH: 自分の【アクセ】がトラッシュへ置かれたときだけ発火（WXEX2-19-E1 any_ally）', () => {
   withSavedCursor(() => {
