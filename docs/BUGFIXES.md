@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — §6.3 K＝`manualEffects.ts`→live の乖離を計器化し **37効果を同期**、死角をゲート化（続き382）
+
+**真因**（続き381 で発見）＝`buildEffectsJson.ts:187` は live 側 `parseStatus:MANUAL`/`PARTIAL` を「手修正は不可侵」として温存するが、**`mergeManualEffects` の出力も MANUAL** なので、**`manualEffects.ts` を後から直しても live には永久に届かない**。`_held_review` にも `_partial_fresh` にも出ない第3の死角。
+
+### ① 計器を作った（`scripts/censusManualDrift.ts`）
+
+- 既定＝全数を**効果単位**で分類（`FRESH_GAIN`／`CHANGED`／`FRESH_ONLY`／`LIVE_ONLY`／`LIVE_RICHER`）→ `docs/_manual_drift.txt`
+- `--date`＝git 履歴で方向判定（manual 側＝`git blame` のカードブロック最終変更時刻／live 側＝`git log -S<現在の効果JSON>`）→ `docs/_manual_drift_dates.txt`
+- `--card <ID>`＝1カードの原文つき完全 diff／`--adopt <effectId,…>`＝**効果単位**で live へ同期
+
+⚠**カード丸ごとではなく効果単位**にしたのは、同じカードに「live のほうが新しい」兄弟効果（`PR-426-E3` 型の後付け手修正）が同居するため。
+
+### ② 🔴 速報値 105/427 カードは過大だった
+
+続き381 の速報は素朴な JSON 文字列比較で、**キー順・`parseStatus` 刻印・明示 `undefined`** を差分として数えていた。計器で測り直した **52 効果／46 カードが正**（PLAN §6.3 K・BUGFIXES 続き381 の当該節も訂正済み）。
+
+さらに計器の初版自体もバグっていた＝`leafMap` が**値 `undefined` のキーをリーフとして数え**、`FRESH_GAIN` を 223 件も出した（JSON 側は `undefined` を持てないので全部「fresh にだけ在る」に見える）。**`npm run build:effects` を実際に走らせたら 1 カードしか変わらなかった**ことで発覚。⚠**自作計器の数字は、本番パイプラインが同じ判断をするか確かめるまで信じない。**
+
+### ③ 同期した 37 効果
+
+- **`live_UNKNOWN解消` 5件**＝engine 実装済みなのに live が `UNKNOWN` のまま死んでいた（夢限-Q- と同型）。`WX24-P3-069-E1`（`GRANT_LRIG_ABILITY`＋`OPP_GUARD_COST_COLORLESS`）／`WX24-P3-036-E1`（`COUNTER_SPELL`＋`OPTIONAL_RETURN_SELF_ARTS_FIRST_USE`）／`WX15-067-E1`（`preUseVirusChoose`）／`WXDi-P05-006-E1`（choice② 実装＋choice① を明示 defer。live は無意味な `GRANT_KEYWORD{keyword:"使用条件"}` を持つ過剰実行だった）／`WXDi-P13-003A-E1`（`CENTER_LRIG_NOT_GROWN_THIS_TURN`＋`MAYU_ENCOUNTER_FLIP_AND_GROW`。live は効果まるごと `UNKNOWN`）。**採用前に4つの stub/action すべての engine 実装を確認済み。**
+- **git 履歴で manual が後と判定した 32 件**＝`WXDi-D08-012-E1`（「追加でエクシード4を払っていた場合、代わりに除外」の置換構造）／`WXK10-008-E1`（平坦化されていた2択の復元）ほか。
+
+### ④ 🔴 「同じ効果でも項目ごとに新旧が違う」
+
+`WX16-023-E1`／`WXK10-008-E1` は **action は manual が新しいのに timing は manual が退化**していた（CSV の `Timing` 列＝アーツの使用タイミングより狭い `["ATTACK"]`）。そのまま採ると「使えない側」への退化になる。**live ではなく `manualEffects.ts` 側を CSV に合わせて修正**し、`--adopt` に **timing が変わったら既定で中止**するガードを入れた（`--allow-timing-change` で明示解除）。
+
+### ⑤ 🔴 日付判定は `manualEffects.ts` 定義の効果にしか使えない
+
+parser 由来の効果に対する「manual 側の日付」は*そのカードのブロックが触られた時刻*でしかなく、その効果の新旧を表さない。日付が `MANUAL_NEWER` と言った parser 由来5件は、**原文照合すると全件 live のほうが正しかった**（`WX22-013-E2` は fresh が「エナに置くか引く」の2択を `DRAW` 1本に平坦化＝退化／`WX25-P3-062-E1` は実装済み `POWER_MODIFY` を裸の STUB に戻す）。計器は以後これを `PARSER_REVIEW` として別枠に出す。
+
+### ⑥ ✅ 死角をゲート化した（goldenTest「§6.3 K トリップワイヤ」）
+
+`MANUAL_EFFECTS` が定義する全効果について live と一致するかを検査し、**既知リスト `MANUAL_DRIFT_KNOWN` に無い乖離が出たら即 FAIL**／**解消したのにリストに残っていても FAIL**（＝リストは worklist であって許可リストではない）。
+
+⚠**なぜ従来のゲートが見逃したか**＝goldenTest の `manualEffect()`／`mergeManualEffects()` ヘルパは **live に manualEffects.ts を被せてから**検証する（204 箇所で使用）ので、live 単体の陳腐化が構造的に見えない。**live を直接見る test を1本置く**のが解決。⚠比較は**リーフパス集合**で行う（素朴な `JSON.stringify` はキー順に依存し `WD14-011-E1` のような実体同一を誤検出する）。
+
+**検証**＝`npm run gates` 全緑。golden 1540→**1541**、census 915→**911**（`BASELINE_HIGH` 更新）、smoke 全0・SKIP 0、fuzz 全0、lint 0 errors、manual field loss 0。既存 `(ci)` 母集団ガードは `OPPONENT_PAY_OPTIONAL` 71→**73** へ更新（増えた2件はいずれも `costColors` 付き＝安全弁「回避枝なし＝0」は不変）。
+
+**§6.3 K の残＝15 効果**（`PARSER_REVIEW`＝通常の目視レビュー案件 ＋ manual 定義の `UNDATED` 8／`SAME_TIME` 2）。
+
 ## 2026-08-08 — §6.3 J-5「単発」＝`ON_COIN_GAINED` 新設＋**夢限-Q- 機構の live 復旧**（続き381）
 
 ### ① 台帳の1件は既に消化済みだった
@@ -31,7 +72,9 @@
 
 あわせて `scripts/decompileEffects.ts` の `miscStubMap` に `MUGEN_Q_RESET_AND_FLIP` の日本語語彙を追加（live 同期で初めてシートに露出し、`STUBS.md` の英語説明が漏れていた）。
 
-### ④ 📋 副産物の発見＝`manualEffects.ts` ↔ live の乖離 **105/427 カード**（§6.3 K として新規登録）
+### ④ 📋 副産物の発見＝`manualEffects.ts` ↔ live の乖離（§6.3 K として新規登録）
+
+⚠**この節の速報値「105/427 カード」は過大**（素朴な JSON 文字列比較＝キー順・`parseStatus` 刻印・明示 `undefined` を差分として数えていた）。**翌バッチ（続き382）で計器 `scripts/censusManualDrift.ts` を作って実測した 52 効果／46 カードが正**。
 
 `buildEffectsJson.ts:187` は live 側 `parseStatus:MANUAL` を「手修正は不可侵」として温存するが、**`mergeManualEffects` の出力も MANUAL** なので、**`manualEffects.ts` を後から直しても live には永久に届かない**。`_held_review` にも `_partial_fresh` にも出ない**第3の死角**＝どのゲートも計器も検出しない。
 
