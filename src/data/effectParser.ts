@@ -1323,6 +1323,20 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン6c-2: 「このシグニ{は/が}〔左|右|左か右〕のシグニゾーンにあるかぎり、」（engine checkActiveCondition 実装済み）
+  //   ⚠中央版（すぐ上）だけが実装されていて左右が無く、この形は条件が**丸ごと落ちて無条件発動**していた＝
+  //     `WXK01-099-E1`（左か右で＋1000）が**常に＋1000**、`WXK01-094-E2`/`WXK01-096-E2`（右/左でバニッシュ耐性）が
+  //     **常時耐性**、`WXDi-D04-013-E1`（左か右のときだけ中央を＋3000）が**常時バフ**になっていた。
+  const sideKagiriM = text.match(/^このシグニ[はが](左か右|右か左|左|右)のシグニゾーンにあるかぎり、/);
+  if (sideKagiriM) {
+    const side = sideKagiriM[1].length > 1 ? 'either' : sideKagiriM[1] === '左' ? 'left' : 'right';
+    return {
+      condition: { type: 'IS_SELF_IN_SIDE_ZONE', side } as ActiveCondition,
+      rest: text.slice(sideKagiriM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン6d: 「このシグニ{は/が}覚醒状態であるかぎり、」（engine checkActiveCondition 実装済み）
   const awakenKagiriM = text.match(/^このシグニ[はが]覚醒状態であるかぎり、/);
   if (awakenKagiriM) {
