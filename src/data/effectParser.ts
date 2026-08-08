@@ -8460,7 +8460,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           actionText = anyPlayM[1];
         } else if (oppPlayM) {
           extractedTriggerScope = 'any_opp';
-          if (oppPlayM[1]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), story: oppPlayM[1] };
+          if (oppPlayM[1]) {
+            extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: oppPlayM[1] === 'あなた' ? 'self' : 'opponent' };
+          }
+          if (oppPlayM[2]) extractedTriggerFilter = { ...(extractedTriggerFilter ?? {}), story: oppPlayM[2] };
           // actionText は非改変（トリガー句を残す）
         } else {
           // 「（このシグニが）（シグニの）効果によって場に出たとき」= self 限定。
