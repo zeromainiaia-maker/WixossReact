@@ -12269,8 +12269,10 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   const withCost = stubs.filter(s => ((s.costColors as string[]) ?? []).length > 0
     || s.opponentPayColorlessPerSigniAttack === true);
   const noCost = stubs.filter(s => !withCost.includes(s));
-  eq(stubs.length, 71, 'OPPONENT_PAY_OPTIONAL の live 出現数');
-  eq(withCost.length, 38, 'エナコストを持つ（＝pay 枝が出る）STUB');
+  // 73/40/33＝2026-08-08 続き382（§6.3 K の manual→live 同期32効果）後。旧 71/38/33＝同期前。
+  // ⚠増えた2件はいずれも **costColors 付き**（＝pay 枝が出る安全な側）で、下の安全弁（回避枝なし＝0）は不変。
+  eq(stubs.length, 73, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  eq(withCost.length, 40, 'エナコストを持つ（＝pay 枝が出る）STUB');
   eq(noCost.length, 33, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
