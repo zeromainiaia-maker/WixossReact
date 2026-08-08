@@ -2027,7 +2027,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       const kwAll = t.includes('すべてのシグニ') || t.includes('全てのシグニ') || t.includes('シグニすべて');
       const kwCountM = t.match(/シグニ([０-９\d]+)体/);
       const kwCount: number | 'ALL' = kwAll ? 'ALL' : kwCountM ? parseNum(kwCountM[1]) : 1;
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount, ...kwTargetFilter }, keyword: kwBracketM[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount, ...kwUpToCount, ...kwTargetFilter }, keyword: kwBracketM[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
     }
   }
 
@@ -2084,7 +2084,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       const kwAll = t.includes('すべてのシグニ') || t.includes('全てのシグニ') || t.includes('シグニすべて');
       const kwCountM = t.match(/シグニ([０-９\d]+)体/);
       const kwCount: number | 'ALL' = kwAll ? 'ALL' : kwCountM ? parseNum(kwCountM[1]) : 1;
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount, ...kwTargetFilter }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: kwOwner, count: kwCount, ...kwUpToCount, ...kwTargetFilter }, keyword: kwMatch[1], duration: 'UNTIL_END_OF_TURN' } as GrantKeywordAction;
     }
     // 引用内が「【常】：…【シャドウ（X）】を得る。」のみの場合はシャドウ付与へ平坦化
     // （シャドウスコープは encodeShadowScopesInText 済 → 【シャドウ:{...}】）
@@ -2098,7 +2098,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
       // 引用内の 【常】：対戦相手のターンの間 は外側の継続期間に依存
       const swDur: EffectDuration = (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
         : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
-      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: swOwner, count: swCount, ...kwTargetFilter }, keyword: innerShadowM[1], duration: swDur } as GrantKeywordAction;
+      return { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: swOwner, count: swCount, ...kwUpToCount, ...kwTargetFilter }, keyword: innerShadowM[1], duration: swDur } as GrantKeywordAction;
     }
     return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
   }
