@@ -845,6 +845,24 @@ WXK02-022
   + [1].action.steps[0].steps[1].owner = "self"
   + [1].action.steps[0].steps[1].count = 2
 
+## +COUNT_THRESHOLD +POWER_MODIFY +SIGNI -SEQUENCE -STUB ［1枚］
+WXK02-038
+--- WXK02-038
+  原文: 【常】：あなたのトラッシュにカードが１５枚以上あるかぎり、このシグニのパワーは＋3000される。２５枚以上あるかぎり、代わりに＋5000される。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、《黒》《黒》を支払ってもよい。そうした場合、ターン終了時まで、それのパワーをこのシグニのパワーと同じだけ－する。,：対戦相手のシグニ１体を対象とし
+  - [0].action.steps[0].type = "POWER_MODIFY"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.thisCardOnly = true
+  - [0].action.steps[0].delta = 3000
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "CONDITIONAL_ALT_POWER_BOOST"
+  ~ [0].action.type : "SEQUENCE" → "POWER_MODIFY"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  + [0].action.target.count = 1
+  …（他 18 行）
+
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069
@@ -1008,6 +1026,42 @@ WXK09-031
   + [0].action.steps[0].condition.levels[1] = 2
   + [0].action.steps[0].condition.levels[2] = 3
   …（他 8 行）
+
+## +SUBSCRIBER_COUNT×2 -SEQUENCE ［1枚］
+WXK10-035
+--- WXK10-035
+  原文: 【常】：あなたの＜電機＞のシグニは対戦相手のレベル１以下のシグニの効果を受けない。あなたの登録者数が５０万人を達成しているかぎり、代わりにあなたの＜電機＞のシグニは対戦相手のレベル２以下のシグニの効果を受けない。【自】：このシグニがアタックしたとき、あなたの場に《コードＶＬ　アンジュ・カトリーナ》がある場合、【エナチャージ１】をする。,-
+  - [0].action.steps[0].type = "GRANT_PROTECTION"
+  - [0].action.steps[0].subjectFilter.cardType = "シグニ"
+  - [0].action.steps[0].subjectFilter.story = "電機"
+  - [0].action.steps[0].from[0] = "シグニ"
+  - [0].action.steps[0].sourceOwner = "opponent"
+  - [0].action.steps[0].duration = "PERMANENT"
+  - [0].action.steps[1].type = "GRANT_PROTECTION"
+  - [0].action.steps[1].subjectFilter.cardType = "シグニ"
+  - [0].action.steps[1].subjectFilter.story = "電機"
+  - [0].action.steps[1].from[0] = "シグニ"
+  - [0].action.steps[1].sourceOwner = "opponent"
+  - [0].action.steps[1].duration = "PERMANENT"
+  …（他 27 行）
+
+## +POWER_MODIFY +SIGNI +SUBSCRIBER_COUNT -SEQUENCE -STUB ［1枚］
+WXK10-036
+--- WXK10-036
+  原文: 【常】：あなたの＜電機＞のシグニのパワーを＋1000する。あなたの登録者数が５０万人を達成しているかぎり、代わりに＋2000する。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの場に《コードＶＬ　リゼ・ヘルエスタ》がある場合、《無》を支払ってもよい。そうした場合、それを手札に戻す。,-
+  - [0].action.steps[0].type = "POWER_MODIFY"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = "ALL"
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.story = "電機"
+  - [0].action.steps[0].delta = 1000
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "CONDITIONAL_ALT_POWER_BOOST"
+  ~ [0].action.type : "SEQUENCE" → "POWER_MODIFY"
+  + [0].action.target.type = "SIGNI"
+  + [0].action.target.owner = "self"
+  …（他 19 行）
 
 ## +PAID_ADDITIONAL_COST +POWER_MODIFY +SIGNI -IS_MY_TURN ［1枚］
 WXK10-080
