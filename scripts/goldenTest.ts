@@ -7685,6 +7685,9 @@ test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に
   const strip = (e: CardEffect): string => {
     const out: string[] = [];
     const walk = (o: unknown, pre: string): void => {
+      // ⚠値が undefined のキーは「無い」扱い（JSON 側は undefined を持てないので、素朴に数えると
+      //   parser 由来の明示 undefined が偽の差分になる＝censusManualDrift 初版のバグと同じ罠）。
+      if (o === undefined) return;
       if (Array.isArray(o)) o.forEach((v, i) => walk(v, `${pre}[${i}]`));
       else if (o && typeof o === 'object') for (const k of Object.keys(o)) {
         if (k === 'parseStatus') continue;
