@@ -4218,6 +4218,42 @@ function applyGradedThresholdBatch(cardNum: string, effects: CardEffect[]): void
   }
 }
 
+// ── Opusタスク12(cxiv)：引用付与の内側が「正面のシグニのパワーがN以下であるかぎり」型（2026-08-08）──
+// 8カードのうち6枚は `GRANT_QUOTED_ABILITY` / `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` STUB で、
+// **STUB ハンドラは実装済み**（原文からキーワードを抜いて付与する）＝engine 側で「正面パワーのゲートを
+// `granted_effects` の条件つき CONTINUOUS にする」だけで直る（同セッションで是正）。
+// 残る2枚は**引用文が丸ごと `GRANT_KEYWORD.keyword` に流れ込んでいた**＝
+// `keyword` が「このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る」という
+// 文そのものになり、`hasKeyword` は正式名でしか照合しないので**【ランサー】が一度も付かない**（過小）。
+// 直し方＝壊れた `GRANT_KEYWORD` を **`SELECT_TARGET_ONLY`（対象宣言だけ）** に置き換え、
+// 付与は引用付与ハンドラに任せる（そちらは原文を読んで**条件つきで**付与する）。
+// ⚠原文照合済みの effectId のみ。
+function applyQuotedFrontPowerGrantBatch(cardNum: string, effects: CardEffect[]): void {
+  const SPEC: Record<string, { effectId: string; addGrantStep: boolean }> = {
+    // 「あなたの緑のシグニ1体を対象とし、…それは「【常】：…8000以下であるかぎり【ランサー】を得る。」を得る。
+    //   それが《コードオーダー メル//フェゾーネ》の場合、それは覚醒する」
+    //   ＝後続の CONDITIONAL{LAST_PROCESSED_MATCHES}/AWAKEN_SIGNI も lastProcessedCards を見るので、
+    //     対象宣言に置き換えても壊れない。引用付与ステップは無いので**足す**。
+    'WXDi-P14-065': { effectId: 'WXDi-P14-065-E1', addGrantStep: true },
+    // 「ベット―…あなたの＜闘争派＞のシグニ1体を対象とし、…「【常】：…8000以下であるかぎり【ランサー】を得る。」
+    //   を得る。あなたがベットしていた場合、代わりにそれは「【常】：【Ｓランサー】」を得る」
+    //   ＝2ステップ目が既に `GRANT_ABILITY_INNER_TEXT`（引用付与ハンドラの同族）なので**足さない**。
+    //   ⚠ベット時の「代わりに【Ｓランサー】」は据置＝引用付与の中の分岐は別機構（honest defer）。
+    'WXDi-P15-071': { effectId: 'WXDi-P15-071-E1', addGrantStep: false },
+  };
+  const spec = SPEC[cardNum];
+  if (!spec) return;
+  const eff = effects.find(e => e.effectId === spec.effectId);
+  const seq = eff?.action as SequenceAction | undefined;
+  if (!seq || seq.type !== 'SEQUENCE' || !Array.isArray(seq.steps)) return;
+  const gk = seq.steps[0] as { type?: string; keyword?: string; target?: EffectTarget } | undefined;
+  // 「keyword に文が入っている」ことを条件にする＝正しい keyword のときは触らない。
+  if (gk?.type !== 'GRANT_KEYWORD' || !gk.keyword?.includes('であるかぎり')) return;
+  const declare: EffectAction = { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: gk.target } as EffectAction;
+  seq.steps[0] = declare;
+  if (spec.addGrantStep) seq.steps.splice(1, 0, { type: 'STUB', id: 'GRANT_QUOTED_ABILITY' } as EffectAction);
+}
+
 function applyProportionalCountBatch6(effects: CardEffect[]): void {
   const ref = { $ref: 'last_processed_count' } as const;
   const visit = (node: unknown, predicate: (o: Record<string, unknown>) => boolean,
