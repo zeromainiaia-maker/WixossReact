@@ -9435,6 +9435,19 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
     ok(!JSON.stringify(seq).includes('であるかぎり、【'),
        `${id}: keyword スロットに引用文が残っていない`);
   }
+  // 母集団固定＝「原文に正面パワーの『かぎり』があり、引用付与ハンドラを通るカード」は8枚。
+  // ⚠増えたら「そのカードでも `buildFrontPowerGatedKeywordGrant` が条件を拾えるか」を確認する合図
+  //   （part2 の `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` はカード全文を渡すので、引用**以外**の場所に
+  //   正面パワー節があるカードが入ると誤検出しうる。現状の8枚はすべて引用内なので安全）。
+  const QUOTE_STUBS = ['GRANT_QUOTED_ABILITY', 'GRANT_QUOTED_AUTO_ABILITY', 'GRANT_ABILITY_INNER_TEXT', 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY'];
+  const pop = [...cardMap.values()].filter(c => {
+    const t = `${c.EffectText ?? ''} ${(c as { BurstText?: string }).BurstText ?? ''}`;
+    if (!/正面のシグニのパワーが[０-９\d,]+(以上|以下)であるかぎり/.test(t)) return false;
+    const js = JSON.stringify(effectsMap.get(c.CardNum) ?? []);
+    return QUOTE_STUBS.some(s => js.includes(`"${s}"`));
+  }).map(c => c.CardNum).sort();
+  eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P10-025,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069,WXDi-P15-071',
+     '正面パワー条件つき引用付与の母集団は8枚（タスク12(cxiv)）');
 }));
 // タスク12(cxvi)「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝COINS_PAID_THIS_TURN
 // 従来は条件節ごと落ちて**無条件発火**（アタックのたびに必ずバニッシュ/エナチャージ/パワー−）だった。
