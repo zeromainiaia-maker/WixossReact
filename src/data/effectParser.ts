@@ -7179,6 +7179,25 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 先頭文の条件節が**後続文まで及ぶ**形（続き377k）。
+  // 「あなたのライフクロスが１枚以下の場合、あなたのデッキの上からカードを３枚公開する。その中から…、
+  //  残りを好きな順番でデッキの一番上に戻す。」のように、後続文が先頭文の結果（公開集合／選んだカード）を
+  // 指すだけの**継続節**である場合、原文の条件は文全体を支配する。文単位に切って組むと CONDITIONAL が
+  // 先頭文だけを包み、**後続文が無条件で実行**される（`WX11-026-E2`＝ライフが1枚以下でなくてもデッキ操作が走る）。
+  // ⚠持ち上げるのは「継続マーカーで始まる後続文しか無い」場合に限る＝自前の条件節や「そうした場合」を
+  //   持つ後続文があれば据置（そこは別の入れ子であって、外側条件に巻き込むと過小実行になる）。
+  if (!dreamRevealLead && steps.length >= 2 && sentences.length >= 2
+      && steps[0]?.type === 'CONDITIONAL' && !(steps[0] as import('../types/effects').ConditionalAction).else
+      && /^.{1,40}?(?:場合|かぎり)、/.test(sentences[0].trim())
+      && sentences.slice(1).every(s => /^(?:その中から|それらを|残りを)/.test(s.trim()))) {
+    const head = steps[0] as import('../types/effects').ConditionalAction;
+    return {
+      type: 'CONDITIONAL',
+      condition: head.condition,
+      then: { type: 'SEQUENCE', steps: [head.then, ...steps.slice(1)] } as SequenceAction,
+    } as import('../types/effects').ConditionalAction;
+  }
+
   if (steps.length === 1) return steps[0];
   return { type: 'SEQUENCE', steps };
 }
