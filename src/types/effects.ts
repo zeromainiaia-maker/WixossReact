@@ -59,6 +59,8 @@ export type EffectTiming =
   | 'ON_SIGNI_FROZEN'           // シグニが凍結状態になったとき（signi_frozen の false→true を効果解決の set-diff で検出。WX08-039/WXEX2-02/WXDi-P04-065）
   | 'ON_CHARM_TO_TRASH'         // 【チャーム】1枚が場からいずれかのトラッシュに置かれたとき（signi_charms の set-diff で検出。WX16-Re05。triggerScope any/any_ally/any_opp）
   | 'ON_COIN_GAINED'            // いずれかのプレイヤーが《コインアイコン》を得たとき（SP27-007）＝既存 ON_COIN_PAID の**逆方向**。coins の増加を、効果解決の中央 diff とグロウ/アシストの各獲得サイトで検出。triggerScope any（あなたか対戦相手）/self（あなただけ）/any_opp（対戦相手だけ）
+  | 'ON_ATTACK_PHASE_END'       // あなたのアタックフェイズ終了時（§6.3 J-4・WX24-P2-075）＝`ATTACK_LRIG→END` の遷移で発火（既存 `ON_LRIG_ATTACK_STEP_START` が `ATTACK_SIGNI→ATTACK_LRIG` で発火するのと同じ場所）。人間 `doPhaseAdvance` と CPU 経路の両方に配線
+  | 'ON_ATTACK_END'             // このシグニがアタックしたアタック終了時（§6.3 J-4・WXK11-018）＝**個別アタック**の終了。`resolvePendingSigniBattleFor`（バトル解決 Phase2）の末尾で発火。triggerCondition.attackDealtNoDamage で「そのアタックでダメージが与えられていない場合」を判定
   | 'ON_ABILITY_ACTIVATED'      // 他の能力が発動したとき（§6.3 J-1）＝`WX19-066`「あなたの【自】の【英知】能力が発動したとき」／`WXEX1-77`「対戦相手の場にあるシグニの【出】能力が発動したとき」。**effectStack から1件取り出して解決を始める瞬間**（`resolveStackNext` の `shiftQueue` 直後＝唯一の funnel）に照合する。限定は triggerCondition.activatedAbility*
   | 'ON_ACCE_TO_TRASH'          // 【アクセ】N枚がトラッシュに置かれたとき（signi_acce の set-diff で検出。WXEX2-19。triggerScope any/any_ally/any_opp・triggerCondition.minCount）
   | 'ON_SOUL_ATTACHED'          // 【ソウル】が付いたとき（signi_soul の null→非null を効果解決の set-diff で検出。WXDi-D07-004「あなたのシグニ1体に」=any_ally／WXDi-D07-019「このシグニに」=self）

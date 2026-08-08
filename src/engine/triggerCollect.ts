@@ -3526,7 +3526,7 @@ export function collectBloomTriggers(
  */
 export function collectTurnTriggers(
   ctx: TrigCtx,
-  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_ATTACK_PHASE_END' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
   myState: PlayerState,
   opState: PlayerState,
 ): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
@@ -3544,7 +3544,8 @@ export function collectTurnTriggers(
     : timing === 'ON_TURN_END' ? 'ターン終了時'
     : timing === 'ON_GROW_PHASE_START' ? 'グロウフェイズ開始時'
     : timing === 'ON_MAIN_PHASE_START' ? 'メインフェイズ開始時'
-    : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時' : 'アタックフェイズ開始時';
+    : timing === 'ON_LRIG_ATTACK_STEP_START' ? 'ルリグアタックステップ開始時'
+    : timing === 'ON_ATTACK_PHASE_END' ? 'アタックフェイズ終了時' : 'アタックフェイズ開始時';
 
   // WXDi-P10-034: 「次のあなたのメインフェイズ開始時、そのカードを表向きにしてもよい」の遅延分岐。
   //   自アタックフェイズ開始時に設置した pending_facedown_flip を、次の自メインフェイズ開始時に RESOLVE_FACEDOWN_FLIP として発火する

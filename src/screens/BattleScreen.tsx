@@ -2369,7 +2369,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // （呼び出し元が actions_done へ書き戻す＝他コレクターと同型。続き119でusageLimit配線）。
   // ⚠myState はターンプレイヤー（=user.id=meId）、opState は非ターンプレイヤーである前提（doPhaseAdvance）。
   const collectTurnTriggers = (
-    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_ATTACK_PHASE_END' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     myState: PlayerState,
     opState: PlayerState,
   ): { entries: StackEntry[]; usedMyIds: string[]; usedOpIds: string[] } => {
@@ -2390,7 +2390,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * ⚠戻り値の `humanState` は **once_per_turn を消費したときだけ** 値が入る（＝不要な書き込みをしない）。
    */
   const collectCpuTurnTriggers = (
-    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+    timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_ATTACK_PHASE_END' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
     cpuState: PlayerState,
     humanState: PlayerState,
   ): { entries: StackEntry[]; cpuState: PlayerState; humanState?: PlayerState } => {
