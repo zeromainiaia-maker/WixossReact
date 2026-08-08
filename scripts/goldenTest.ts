@@ -15,7 +15,7 @@ import type { CardData, PlayerState, StackEntry } from '../src/types';
 import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
-import { mergeManualEffects } from '../src/data/manualEffects';
+import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
@@ -7654,6 +7654,56 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WX16-Re05-E1'), true, '1枚で発火');
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WX16-Re05-E1'), false, '0枚は非発火');
 });
+// §6.3 K トリップワイヤ＝`manualEffects.ts` を直しても live JSON に届かない死角を可視化する（2026-08-08 続き382 新設）。
+//
+// **背景**＝`build:effects` は live 側 `parseStatus:MANUAL`/`PARTIAL` を「手修正は不可侵」として温存するが、
+// `mergeManualEffects` の出力も MANUAL なので、**`manualEffects.ts` を後から直しても live には永久に届かない**。
+// この乖離は `_held_fresh.json` にも `_partial_fresh.json` にも出ない。実例＝夢限-Q- は stub も collector も
+// golden も揃っていたのに live だけが古く**機構が丸ごと死んでいた**のに、全ゲートが緑のままだった（続き381）。
+//
+// ⚠**なぜ golden が見逃したか**＝この test ファイルの `manualEffect()` / `mergeManualEffects()` ヘルパは
+// **live に manualEffects.ts を被せてから**検証するので、live 単体の陳腐化が構造的に見えない（204 箇所で使用）。
+// そこで「live と manualEffects.ts が一致しているか」だけを見る本 test を1本置く。
+//
+// **運用**＝下の既知リストは**worklist であって許可リストではない**。§6.3 K の消化で**減らしていく**（`npx tsx
+// scripts/censusManualDrift.ts` で明細・`--date` で方向判定・`--adopt <id,…>` で効果単位に同期）。
+// **リストに無い effectId が乖離したら即 FAIL**＝新しい陳腐化はここで止まる。
+const MANUAL_DRIFT_KNOWN = new Set([
+  // live のほうが新しい（後から live へ直接入れた手修正）＝**同期してはいけない**側
+  'WX20-072-E3',
+  // 以下は未判定＝§6.3 K の worklist（`--date` の機械判定と原文照合で1件ずつ decide する）
+  'PR-204-E1', 'PR-238-E1', 'PR-Di017B-E1', 'SP36-001-E1', 'SPK06-01-E1', 'WD18-008-E1', 'WD21-009-E1',
+  'WDK07-E15-E1', 'WDK08-Y12-E1', 'WX05-025-E2', 'WX10-018-E1', 'WX13-040-E1', 'WX14-064-E1', 'WX16-023-E1',
+  'WX16-040-E1', 'WX16-048-E1', 'WX17-001-E1', 'WX20-023-LAYER', 'WX24-P2-044-E1', 'WX24-P2-044-E2',
+  'WX24-P2-087-E1', 'WX24-P4-045-E1', 'WX25-P1-052-E1', 'WX25-P2-084-E1', 'WX25-P3-038-E1', 'WX25-P3-062-E2',
+  'WXDi-D01-016-E1', 'WXDi-D08-012-E1', 'WXDi-D09-P15-E1', 'WXDi-P02-039-E1', 'WXDi-P06-031-E2', 'WXEX1-58-E1',
+  'WXEX1-66-E2', 'WXEX1-72-E1', 'WXEX2-36-E1', 'WXEX2-71-E2', 'WXEX2-71-E3', 'WXK04-003-DECORE',
+  'WXK04-042-E1b', 'WXK05-030-MULTIENA', 'WXK06-032-E1', 'WXK08-055-E1', 'WXK10-008-E1', 'WXK10-080-E1',
+  'WXK11-021-E1',
+]);
+test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {
+  // parseStatus は刻印なので比較から外す（実体だけを見る）。
+  const strip = (e: CardEffect): string => {
+    const seen = JSON.stringify(e, (k, v) => (k === 'parseStatus' ? undefined : v));
+    return seen;
+  };
+  const drifted: string[] = [];
+  for (const [cardNum, manuals] of Object.entries(MANUAL_EFFECTS)) {
+    const liveEffs = effectsMap.get(cardNum);
+    if (!liveEffs) continue;                       // live に無いカード（トークン等）は対象外
+    for (const m of manuals) {
+      const l = liveEffs.find(e => e.effectId === m.effectId);
+      if (!l) { drifted.push(m.effectId); continue; }
+      if (strip(l) !== strip(m)) drifted.push(m.effectId);
+    }
+  }
+  const unexpected = drifted.filter(id => !MANUAL_DRIFT_KNOWN.has(id));
+  eq(unexpected.join(','), '', `新しい乖離（manualEffects.ts を直したが live に届いていない）: ${unexpected.join(', ')}`);
+  // 消化して減ったらリストも縮める＝残骸が「まだ乖離している」と嘘をつかないようにする。
+  const stale = [...MANUAL_DRIFT_KNOWN].filter(id => !drifted.includes(id));
+  eq(stale.join(','), '', `既に解消済みなのに MANUAL_DRIFT_KNOWN に残っている: ${stale.join(', ')}`);
+});
+
 // §6.3 J-5「単発」＝ON_COIN_GAINED（既存 ON_COIN_PAID の逆方向。従来 timing:[] で安全停止）。
 test('J-5 ON_COIN_GAINED: 「あなたか対戦相手が」＝どちらの獲得でも発火（SP27-007-E1 any）', () => {
   withSavedCursor(() => {
