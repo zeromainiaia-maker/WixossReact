@@ -1708,6 +1708,13 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 「このシグニが〔左|右|左か右〕のシグニゾーンに〔ある場合|出たとき〕」＝効果元の位置ゲート（続き377l）。
+  //   activeCondition 版（`IS_SELF_IN_SIDE_ZONE`・parseActiveCondition のパターン6c-2）の**実行時**対応。
+  //   ⚠従来この語彙が無く条件節ごと落ちて**無条件発火**していた＝`WXK03-071-E2`（相手のアーツ使用時に
+  //     左右に居るときだけエナチャージ2）が**どこに居ても発火**、`WDK03-012-E1`（左のゾーンに出たときだけ
+  //     エナチャージ1）が**どのゾーンに出ても発火**していた。
+  [/このシグニが(左か右|右か左|左|右)のシグニゾーンに(?:ある|出た)(?:場合|とき)/,
+    g => ({ type: 'IS_SELF_IN_SIDE_ZONE', side: g[0].length > 1 ? 'either' : g[0] === '左' ? 'left' : 'right' })],
   [/あなたのデッキが([０-９\d]+)枚の場合/,
     g => ({ type: 'DECK_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
   [/(?:この方法で)?対戦相手のデッキが([０-９\d]+)枚になった場合/,
