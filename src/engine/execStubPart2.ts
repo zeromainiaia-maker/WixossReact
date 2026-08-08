@@ -13,6 +13,7 @@ import {
   isOwnTrashMoveLocked,
   matchesFilter,
   hasNoAbility,
+  buildFrontPowerGatedKeywordGrant,
 } from './execUtils';
 
 export function execStubPart2(
