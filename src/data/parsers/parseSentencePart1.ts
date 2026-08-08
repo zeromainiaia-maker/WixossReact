@@ -1572,6 +1572,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const colM = mod.match(/^([白赤青緑黒])の$/);
       if (colM) aboveFilter.color = colM[1];
       target = { type: 'SIGNI', owner: 'self', count: 1, filter: aboveFilter };
+    } else if (acceHostM) {
+      const mod = acceHostM[1] ?? '';
+      const acceFilter: TargetFilter = { acceHost: true };
+      const clsM = mod.match(/^＜([^＞]+)＞の$/);
+      if (clsM) acceFilter.cardClass = clsM[1];
+      const nameM = mod.match(/^《([^》]+)》$/);
+      if (nameM) acceFilter.cardName = nameM[1];
+      target = { type: 'SIGNI', owner: 'self', count: 1, filter: acceFilter };
     } else if (iconM) {
       // 「あなたの《クロスアイコン》を持つシグニのパワーを＋Nする」等。対象は該当アイコン持ち全シグニ
       const owner: Owner = iconM[1] === 'あなた' ? 'self' : 'opponent';
