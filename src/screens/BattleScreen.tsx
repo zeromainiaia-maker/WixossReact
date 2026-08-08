@@ -2877,6 +2877,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const lf = collectLeaveFieldTriggers(cardNum, under, bs.guest_id, h, g, causeOwnerId, beforeGuest, zoneIdx);
       entries.push(...lf.entries); useHost(lf.usedHostIds); useGuest(lf.usedGuestIds);
     }
+    // §6.3 J-4: アタックフェイズ中に場を離れたシグニを記録する（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE`・WX24-P2-075-E1）。
+    // ⚠アタックフェイズ以外では記録しない（フェイズ開始時のリセットと合わせて「そのアタックフェイズの間」を表す）。
+    if (['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'].includes(bs.turn_phase)) {
+      const leftHost  = detectLeftFieldSigni(beforeHost, h).map(x => x.cardNum);
+      const leftGuest = detectLeftFieldSigni(beforeGuest, g).map(x => x.cardNum);
+      if (leftHost.length > 0)  h = { ...h, signi_left_field_this_attack_phase: [...(h.signi_left_field_this_attack_phase ?? []), ...leftHost] };
+      if (leftGuest.length > 0) g = { ...g, signi_left_field_this_attack_phase: [...(g.signi_left_field_this_attack_phase ?? []), ...leftGuest] };
+    }
 
     // ON_DRAW: 効果でカードを引いた場合（cards_drawn_by_effect_this_turn 増加を検出）
     if ((h.cards_drawn_by_effect_this_turn ?? 0) > (beforeHost.cards_drawn_by_effect_this_turn ?? 0)) {
