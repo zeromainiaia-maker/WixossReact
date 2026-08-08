@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — §6.3 J-5「単発」＝`ON_COIN_GAINED` 新設＋**夢限-Q- 機構の live 復旧**（続き381）
+
+### ① 台帳の1件は既に消化済みだった
+
+`WXEX1-41-E1`「あなたの【トラップ】1つが設置されたとき」は PLAN §6.3 J-5 に「collector が無い」と書かれていたが、実データでは既に `ON_TRAP_SET` として配線済み（Batch D／タスク(lxx)）。**機構台帳は着手前に実データで裏を取る**。
+
+### ② `ON_COIN_GAINED`（新 timing）＝`SP27-007-E1`
+
+**真因**＝「あなたか対戦相手が《コインアイコン》を**得た**とき」を検出する collector が無かった（既存 `ON_COIN_PAID` は**支払い＝減少方向**のみ）。`timing:[]` で安全停止＝永久に no-op。
+
+- `src/types/effects.ts`：`ON_COIN_GAINED` を追加。
+- `src/engine/boardDiff.ts`：**`countCoinsGained`**（増加ぶんのみ。減少は0＝支払いは `ON_COIN_PAID` の領分）。
+- `src/engine/triggerCollect.ts`：**`collectCoinGainedTriggers`**（`triggerScope` any＝あなたか対戦相手〔既定〕／self／any_opp）。
+- `src/screens/BattleScreen.tsx`：**獲得サイトは中央 diff だけでは足りない**。効果解決の中央 diff に加え、**グロウ**（人間）・**アシストルリグ配置**・**CPU グロウ**の3サイトへ個別配線した（既存 `ON_COIN_PAID` がコスト支払いの全サイトを個別に押さえているのと同じ構造）。⚠**枚数はサイト側が上限5クランプ後の実増加を渡す**＝グロウは支払いと獲得が同じ差分に同居するため before/after 差では取りこぼす。相手側 watcher の《ターン1回》消化は `opp:` 経由で相手 state へ書き戻す。
+- `src/data/effectParser.ts`：「《コインアイコン》をN枚得たとき」の regex ＋ 主語→`triggerScope` 抽出。
+
+### ③ 🔴 夢限-Q-（`WXDi-P11-010A`/`010B`）＝**実装済みの機構が live JSON の陳腐化だけで丸ごと死んでいた**
+
+`WXDi-P11-010B-E1`「このルリグが《夢限　-Q-》から《夢限　-A-》になったとき」は **collector 不在ではなかった**。既存 `ON_LRIG_FLIP`（`collectLrigFlipTriggers`＝センタールリグの `card_identity_overrides` 変化で検出・`BattleScreen` 配線済み）が受け皿で、**利用者0件の死んだ受け皿**だっただけ。
+
+真因は **live JSON の陳腐化**。`manualEffects.ts` には
+
+- A面の産出 stub `MUGEN_Q_RESET_AND_FLIP`（`execStubPart1.ts:25` に**実装済み**・golden 済み・`verifyBattleDrive.mjs` の `mugenQFlip` シナリオが既定 order にある）
+- B面 E1 の `timing:["ON_LRIG_FLIP"]`
+
+が**両方書かれているのに live には届いておらず**、live は A面が `UNKNOWN`／B面が `timing:[]` のままだった＝**グロウでリミット9に到達しても何も起きない**。live を `manualEffects.ts` へ同期して復旧した。
+
+**🔴 そして既存 golden はこの陳腐化を「テスト内で `mergeManualEffects` を再適用して」迂回していた**（`goldenTest.ts` の夢限 test）。だから機構が丸ごと死んでいるのにゲートは全緑だった。**live 側を直接 assert する2行を足して再発を止めた**（A面が `MUGEN_Q_RESET_AND_FLIP` に繋がっていること／B面 E1 が `ON_LRIG_FLIP` を持つこと）。⚠**テストがデータを補正し始めたら、それはデータのバグを隠している合図**。
+
+あわせて `scripts/decompileEffects.ts` の `miscStubMap` に `MUGEN_Q_RESET_AND_FLIP` の日本語語彙を追加（live 同期で初めてシートに露出し、`STUBS.md` の英語説明が漏れていた）。
+
+### ④ 📋 副産物の発見＝`manualEffects.ts` ↔ live の乖離 **105/427 カード**（§6.3 K として新規登録）
+
+`buildEffectsJson.ts:187` は live 側 `parseStatus:MANUAL` を「手修正は不可侵」として温存するが、**`mergeManualEffects` の出力も MANUAL** なので、**`manualEffects.ts` を後から直しても live には永久に届かない**。`_held_review` にも `_partial_fresh` にも出ない**第3の死角**＝どのゲートも計器も検出しない。
+
+⚠**一括同期は不可（双方向の乖離）**＝`PR-426` のように **live のほうが新しい**ケースがある（タスク12(cxv) の E3 は live にだけ在る）。**1カードずつ「どちらが新しいか」を原文照合して決める**。今回は夢限ペアのみ、engine 実装・golden・実機シナリオの実在を確認したうえで同期した。
+
+**検証**＝`npm run gates` 全緑。golden 1537→**1540**、census 916→**915**（`BASELINE_HIGH` 更新）、smoke 全0・SKIP 0、fuzz 全0、lint 0 errors、manual field loss 0。**未検証UIは PLAN §7 の「続き381」項に2件登録**（コイン獲得の3サイト／`mugenQFlip` シナリオの再実行）。
+
+**§6.3 J の残＝4効果**（J-1 他能力の発動監視2／J-4 フェイズ・アタック終了 timing 2）。
+
 ## 2026-08-08 — §6.3 J-2「付与・離脱イベント」機構＝**timing collector 不在で安全停止していた4効果を実装**（続き380）
 
 **真因**＝原文が【自】なのに、そのイベントを検出する collector が engine に存在しなかった群（PLAN §6.3 J の家族2）。parser は timing を決められず `timing:[]` を吐き、engine は一度も発火させない＝**過剰実行は起きないが永久に no-op**。action 本体は4効果とも元から正しく parse できており、**足りないのはイベント検出の配線だけ**だった。
