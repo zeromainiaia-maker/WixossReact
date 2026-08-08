@@ -109,6 +109,16 @@ export function checkActiveCondition(
     case 'FIELD_LRIGS_SHARE_COLOR':
       return fieldLrigsShareColor(cond.owner === 'opponent' ? otherState : ownerState, cond.minCount, cardMap);
 
+    // Condition 側（`evalCondition`）と同形。ActiveCondition の union には昔からあったが
+    // ここに case が無く**無条件 true へフォールスルー**していた（live 使用0件の潜在穴・タスク12(cxv)）。
+    case 'FIELD_LRIGS_HAVE_COLORS': {
+      const flf = (cond.owner === 'opponent' ? otherState : ownerState).field;
+      const flNums = [flf.lrig.at(-1), flf.assist_lrig_l?.at(-1), flf.assist_lrig_r?.at(-1)]
+        .filter((n): n is string => !!n);
+      return cond.colors.every(color =>
+        flNums.some(n => splitFieldColors(cardMap.get(n)?.Color).includes(color)));
+    }
+
     case 'DURING_ATTACK_PHASE': {
       // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果。turnPhase を渡さない呼び出し元では
       // 従来どおり true（過小実行を避ける＝主用途 calcFieldPowers 以外は phase を持たない）。
