@@ -1,5 +1,39 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — **§5d-0(i) 配線ギャップ 第18バッチ**＝「Nまで」上限スロット7効果を実働化（census 933→**927**／golden 1470→**1472**）（Codex）
+
+`src/data/effectParser.ts` に、原文の対象名詞句と既存 action 部分木がそれぞれ一意な場合だけ
+既存の `upToCount`／`pickUpTo` と隣接 filter を復元する後処理を追加した。全文に「まで」があるだけでは
+適用せず、カード番号やカード固有本文を分岐条件に使わない。全カード生パース A/B は
+**10645効果中7効果だけが変化、added 0 / removed 0 / outlier 0**。
+
+- `WX24-P3-059-E1`：＜宇宙＞の自シグニ **2体まで**（旧 owner:any / count:1）。
+- `WX25-P2-058-E2`：手札の＜遊具＞シグニ **2枚まで**（旧クラス欠落・2枚強制）。
+- `WXDi-P01-042-E2`：**他の自シグニ2体まで**（旧 owner:any / count:1 / excludeSelf欠落）。
+- `WXDi-P02-073-E1`：手札のレベル1シグニ **1枚まで**（旧レベル欠落・1枚強制）。
+- `WXDi-P10-008-E1`／`WXDi-P16-012-E1`：手札の**カード**3枚まで
+  （旧3枚強制＋`cardType:"シグニ"` 幻覚 filter）。
+- `WXEX2-41-E1`：トラッシュの、名前がそれぞれ異なる＜原子＞シグニ **15枚まで**
+  （旧クラス欠落・15枚強制。既存 `selectionConstraint:{distinct:"name"}` は維持）。
+残る7効果（`WX07-045-E2`／`WX17-Re05-E1`／`WXDi-P00-004-E1`／`WXDi-P09-053-E1`／
+`WXEX1-22-E2`／`WXK07-070-E1`／`WXK10-029-E2`）は parser-only では実害を直せないため据置。
+チャーム4件（`WX07-045-E2`／`WX17-Re05-E1`／`WXEX1-22-E2`／`WXK07-070-E1`）を担う
+`execAttachCharm` は `charm.count`／`to.count`／`upToCount` を読まず候補先頭1組だけを処理し、
+能力付与2件（`WXDi-P00-004-E1`／`WXDi-P09-053-E1`）を担う `execGrantKeyword` は
+`selectOrInteract(..., false, ...)` で上限を任意選択へ渡さない。
+`WXK10-029-E2` は `pickCount:2` 自体は実働する一方、`execRevealAndPick` が既存の
+`resolveDiscardLevelFilter` を通らず、`classMatchesDiscardSigni` を載せても共通クラス filter が死ぬ。
+死んだ JSON キーだけを追加せず、engine 作業が許可される回へ回す。
+
+golden は live JSON の実行で、`WXDi-P10-008-E1` の0枚選択、4枚入力時の3枚打ち切り、
+スペルも選択可能であることと、`WXDi-P01-042-E2` の0体選択・効果元自身/相手シグニの候補除外・
+他の自シグニ2体だけへの+5000を固定。`build:effects`→`heldReview` 再実測は **152→145枚**、
+先頭バケット **67→61枚**、署名グループ **72→71**。
+
+`npm run gates` 全緑：typecheck／golden **1472/1472**／smoke **10679/10679** 全0・SKIP 0／
+fuzz 200ゲーム全0（7982手・2708種）／census **927**／manual field loss 0／lint 0 errors・248 warnings。
+`npm run regen` と `node scripts/groupSimilar.mjs --all` も実行し、同型★ **0**（265群）据置。
+
 ## 2026-08-08 — **§5d-0(iv) 計器較正 第4バッチ**＝「Nまで」52効果／「代わりに」38効果の全数照合（census 936→**933**／golden 1468→**1470**）（Codex・実装ゼロ）
 
 原文ブロックと live JSON を90効果すべてで照合し、置換を action 自体が完全に内包していた3語彙だけを

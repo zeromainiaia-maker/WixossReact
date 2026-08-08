@@ -25261,6 +25261,95 @@ test('§5d-0(iv) 置換較正: 逆向き・分割残渣・未実装形は高シ�
   }
 });
 
+// ── §5d-0(i) 配線ギャップ 第18バッチ: 「Nまで」上限スロット ──
+// live JSON を executor へ通し、0枚選択・外部からの上限超過入力・owner/excludeSelf を盤面で固定する。
+test('§5d-0(i) WXDi-P10-008-E1: 手札のカードを3枚まで＝0枚可・4枚入力は3枚で打ち切り・スペルも選べる', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P10-008') ?? []).find(e => e.effectId === 'WXDi-P10-008-E1');
+  ok(!!effect, 'WXDi-P10-008-E1: live effect exists');
+  if (!effect) return;
+
+  const s1 = fresh(), s2 = fresh(), s3 = fresh();
+  const spell = findCard(c => c.Type === 'スペル');
+  const base = mkCtx({ hand: 0, energy: 0 }, {});
+  const ctx: ExecCtx = {
+    ...base,
+    ownerState: { ...base.ownerState, hand: [s1, s2, s3, spell], energy: [] },
+  };
+  const resumeCtx = (r: ExecResult): ExecCtx => ({
+    ...ctx,
+    ownerState: r.ownerState,
+    otherState: r.otherState,
+    logs: r.logs,
+    lastProcessedCards: r.lastProcessedCards,
+  });
+
+  const zeroPending = runEffect(effect.action, ctx);
+  ok(!zeroPending.done && zeroPending.pending.type === 'SELECT_TARGET', '0～3枚の選択待ちになる');
+  if (zeroPending.done || zeroPending.pending.type !== 'SELECT_TARGET') return;
+  eq(zeroPending.pending.count, 3, '選択上限は3枚');
+  eq(zeroPending.pending.optional, true, '「まで」は0枚選択可');
+  ok(zeroPending.pending.candidates.includes(spell), '「カード」なのでスペルも候補に含む');
+  const zero = resumeSelectTarget([], zeroPending.pending, resumeCtx(zeroPending));
+  ok(zero.done, '0枚選択でも効果解決が完了する');
+  eq(zero.ownerState.hand.length, 4, '0枚選択なら手札は減らない');
+  eq(zero.ownerState.energy.length, 0, '0枚選択ならエナは増えない');
+
+  const overPending = runEffect(effect.action, ctx);
+  ok(!overPending.done && overPending.pending.type === 'SELECT_TARGET', '上限超過入力の選択待ちになる');
+  if (overPending.done || overPending.pending.type !== 'SELECT_TARGET') return;
+  const over = resumeSelectTarget(overPending.pending.candidates.slice(0, 4), overPending.pending, resumeCtx(overPending));
+  ok(over.done, '上限超過入力も安全に解決する');
+  eq(over.ownerState.energy.length, 3, '4枚を渡しても3枚までしかエナへ置かない');
+  eq(over.ownerState.hand.length, 1, '上限を超えた1枚は手札に残る');
+
+  const spellPending = runEffect(effect.action, ctx);
+  ok(!spellPending.done && spellPending.pending.type === 'SELECT_TARGET', 'スペル単独選択の待ちになる');
+  if (spellPending.done || spellPending.pending.type !== 'SELECT_TARGET') return;
+  const spellOnly = resumeSelectTarget([spell], spellPending.pending, resumeCtx(spellPending));
+  ok(spellOnly.done && spellOnly.ownerState.energy.includes(spell), 'スペル1枚も実際にエナへ置ける');
+}));
+
+test('§5d-0(i) WXDi-P01-042-E2: 他の自シグニ2体まで＝0体可・自身/相手は対象外', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P01-042') ?? []).find(e => e.effectId === 'WXDi-P01-042-E2');
+  ok(!!effect, 'WXDi-P01-042-E2: live effect exists');
+  if (!effect) return;
+
+  const source = 'WXDi-P01-042';
+  const ally1 = fresh(), ally2 = fresh(), opponent = fresh();
+  const ctx = mkCtx({ signi: [source, ally1, ally2] }, { signi: [opponent, null, null] }, source);
+  const resumeCtx = (r: ExecResult): ExecCtx => ({
+    ...ctx,
+    ownerState: r.ownerState,
+    otherState: r.otherState,
+    logs: r.logs,
+    lastProcessedCards: r.lastProcessedCards,
+  });
+
+  const zeroPending = runEffect(effect.action, ctx);
+  ok(!zeroPending.done && zeroPending.pending.type === 'SELECT_TARGET', '0～2体の選択待ちになる');
+  if (zeroPending.done || zeroPending.pending.type !== 'SELECT_TARGET') return;
+  eq(zeroPending.pending.count, 2, '選択上限は2体');
+  eq(zeroPending.pending.optional, true, '「まで」は0体選択可');
+  eq(zeroPending.pending.candidates.length, 2, '候補は他の自シグニ2体だけ');
+  ok(zeroPending.pending.candidates.includes(ally1) && zeroPending.pending.candidates.includes(ally2), '自分の他のシグニを候補にする');
+  ok(!zeroPending.pending.candidates.includes(source), '効果元自身を候補にしない');
+  ok(!zeroPending.pending.candidates.includes(opponent), '相手シグニを候補にしない');
+  const zero = resumeSelectTarget([], zeroPending.pending, resumeCtx(zeroPending));
+  ok(zero.done, '0体選択でも効果解決が完了する');
+  eq(zero.ownerState.temp_power_mods?.length ?? 0, 0, '0体選択ならパワー修正なし');
+
+  const applyPending = runEffect(effect.action, ctx);
+  ok(!applyPending.done && applyPending.pending.type === 'SELECT_TARGET', '2体適用の選択待ちになる');
+  if (applyPending.done || applyPending.pending.type !== 'SELECT_TARGET') return;
+  const applied = resumeSelectTarget(applyPending.pending.candidates, applyPending.pending, resumeCtx(applyPending));
+  ok(applied.done, '自分の他の2体への適用が完了する');
+  const modified = applied.ownerState.temp_power_mods ?? [];
+  eq(modified.length, 2, '自分の他の2体だけに修正を載せる');
+  ok(modified.some(m => m.cardNum === ally1 && m.delta === 5000), '1体目に+5000');
+  ok(modified.some(m => m.cardNum === ally2 && m.delta === 5000), '2体目に+5000');
+  eq(applied.otherState.temp_power_mods?.length ?? 0, 0, '相手シグニには修正を載せない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

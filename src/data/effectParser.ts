@@ -5298,12 +5298,12 @@ function tryParseDoAllItems(text: string): EffectAction | null {
 }
 
 function parseActionText(text: string): EffectAction {
-  const parse = (source: string): EffectAction => bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
+  const parse = (source: string): EffectAction => applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
@@ -5399,6 +5399,95 @@ function parseActionText(text: string): EffectAction {
     return node;
   };
   return pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+}
+
+/**
+ * 「N枚/体まで」のうち、action の大枠は正しいが選択上限と隣接 filter だけが落ちた形を、
+ * 原文の対象名詞句と action tree の一意な部分木を突き合わせて既存語彙へ配線する。
+ *
+ * ⚠全文に語があるだけでは適用しない。該当する原文節と action 部分木がそれぞれ1つのときだけ変更する。
+ * 同じ効果に複数の選択群がある形、未知の名詞句修飾、ATTACH_CHARM のように executor が複数選択を
+ * 消費しない型は据え置く（上限キーだけ載せて「直ったように見える」死データを作らない）。
+ */
+function applyUpperBoundSelectionWiring(text: string, action: EffectAction): EffectAction {
+  const nodesOfType = (root: unknown, type: string): Record<string, unknown>[] => {
+    const found: Record<string, unknown>[] = [];
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      if (obj.type === type) found.push(obj);
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) value.forEach(visit);
+        else visit(value);
+      }
+    };
+    visit(root);
+    return found;
+  };
+
+  // 「あなたの手札から〈修飾〉カード/シグニをN枚までエナゾーンに置く」
+  // plain「カード」は filter 無しが正しい（cardType:'シグニ' を残さない）。
+  const handEnergyClauses = [...text.matchAll(/あなたの手札から([^。、]{0,48}?)(カード|シグニ)を?([０-９\d]+)枚まで(?:エナゾーン|エナ)に置く/g)];
+  const handEnergyActions = nodesOfType(action, 'ENERGY_CHARGE').filter(node => {
+    const target = node.target as Record<string, unknown> | undefined;
+    return target?.type === 'HAND_CARD' && target.owner === 'self';
+  });
+  if (handEnergyClauses.length === 1 && handEnergyActions.length === 1) {
+    const clause = handEnergyClauses[0];
+    const filter = parsePickNounPhraseFilter(clause[1], clause[2]);
+    if (filter) {
+      const target = handEnergyActions[0].target as Record<string, unknown>;
+      target.count = parseNum(clause[3]);
+      target.upToCount = true;
+      if (Object.keys(filter).length > 0) target.filter = filter;
+      else delete target.filter;
+    }
+  }
+
+  // 「あなたの/対戦相手の/他の〈修飾〉シグニをN体まで対象とし、…パワーを±M」
+  // 「他の」は自分の場＋効果元自身を除外。条件節等の別のレベル/クラスは capture 外なので混ざらない。
+  const powerTargetClauses = [...text.matchAll(/(あなたの|対戦相手の|他の)([^。、]{0,48}?)シグニを?([０-９\d]+)体まで対象とし/g)];
+  const powerActions = nodesOfType(action, 'POWER_MODIFY');
+  if (powerTargetClauses.length === 1 && powerActions.length === 1) {
+    const clause = powerTargetClauses[0];
+    const filter = parsePickNounPhraseFilter(clause[2], 'シグニ');
+    if (filter) {
+      const target = powerActions[0].target as Record<string, unknown> | undefined;
+      // 今回直す配線穴は、対象宣言が既定の owner:any/count:1 へ丸ごと落ちた2形だけ。
+      // 既に owner/count/upToCount が立つ効果や、任意コスト/別対象の SEQUENCE は触らない。
+      const direct = action.type === 'POWER_MODIFY';
+      const revealThenModify = action.type === 'SEQUENCE'
+        && action.steps[0]?.type === 'REVEAL_DECK_TOP';
+      if (target?.type === 'SIGNI' && target.owner === 'any' && target.count === 1
+          && target.upToCount === undefined && (direct || revealThenModify)) {
+        target.owner = clause[1] === '対戦相手の' ? 'opponent' : 'self';
+        target.count = parseNum(clause[3]);
+        target.upToCount = true;
+        target.filter = clause[1] === '他の' ? { ...filter, excludeSelf: true } : filter;
+      }
+    }
+  }
+
+  // 「トラッシュから〈修飾〉カード/シグニをN枚までこのシグニの下に置く」。
+  // distinct:name は既存 selectionConstraint が表すため、名詞句 filter の解析前にその語だけ除く。
+  const underClauses = [...text.matchAll(/あなたのトラッシュから([^。、]{0,64}?)(カード|シグニ)を?([０-９\d]+)枚までこのシグニの下に置く/g)];
+  const underActions = nodesOfType(action, 'PLACE_UNDER_SIGNI').filter(node => node.source === 'trash');
+  if (underClauses.length === 1 && underActions.length === 1) {
+    const clause = underClauses[0];
+    const under = underActions[0];
+    // 「それぞれ名前の異なる」は候補filterではなく selectionConstraint の語なので、
+    // 名詞句filterを全消費解析する前に分離する（constraint 自体は既存後処理が付ける）。
+    const desc = clause[1].replace(/^それぞれ名前の異なる/, '');
+    const filter = parsePickNounPhraseFilter(desc, clause[2]);
+    if (filter) {
+      under.count = parseNum(clause[3]);
+      under.upToCount = true;
+      if (Object.keys(filter).length > 0) under.filter = filter;
+      else delete under.filter;
+    }
+  }
+
+  return action;
 }
 
 // 「他の自シグニ1体を対象」とした後に、STUB が対象を読まず発生源自身／全体へ作用する2文型。
