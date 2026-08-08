@@ -5807,6 +5807,114 @@ test('続き377j: 「〔X〕以外の効果を受けない」は fromAll＋excep
     'WX17-001-E1: 「自身以外」は種別語ではないので exceptSource を作らない');
 }));
 
+// ── 続き377k: `docs/_partial_fresh.json` 行列の残りを parser 側で片付けた5系統（行列 10→3カード）。
+test('続き377k: 「手札から〈A〉N枚と〈B〉M枚を捨てる」の2グループ手札コストを拾う', () => withSavedCursor(() => {
+  // ⚠旧実装は「[色]の＜A＞のシグニ」「＜A＞のシグニ」の**2形だけ**を別 regex で見ており、
+  //   ①種別が混ざる形 ②クラス無しの色だけ が素通り＝**コスト節が丸ごと落ちて無料で撃てる**状態だった。
+  const cases: [string, string, unknown][] = [
+    ['WX04-003', 'WX04-003-E2', [
+      { count: 1, filter: { cardType: 'スペル' } },
+      { count: 1, filter: { cardType: 'シグニ', story: '原子' } },
+    ]],
+    ['WX20-Re07', 'WX20-Re07-E3', [
+      { count: 1, filter: { cardType: 'シグニ', color: '白' } },
+      { count: 1, filter: { cardType: 'シグニ', color: '黒' } },
+    ]],
+  ];
+  for (const [card, effId, want] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    eq(JSON.stringify(e?.cost?.discardGroups), JSON.stringify(want), `${effId}: discardGroups（旧: コスト脱落＝無料）`);
+  }
+}));
+
+test('続き377k: 先頭文の条件節は継続節の後続文まで及ぶ', () => withSavedCursor(() => {
+  // 「ライフクロスが１枚以下の場合、…３枚公開する。その中から…、残りを…戻す。」＝文単位に切ると
+  //  CONDITIONAL が先頭文だけを包み、**後続文が無条件で実行**されていた（WX11-026-E2）。
+  const e = (effectsMap.get('WX11-026') ?? []).find(x => x.effectId === 'WX11-026-E2');
+  const a = e?.action as { type?: string; condition?: { type?: string }; then?: { type?: string; steps?: unknown[] } } | undefined;
+  eq(a?.type, 'CONDITIONAL', 'WX11-026-E2: 最上位が CONDITIONAL（旧: SEQUENCE[CONDITIONAL, 無条件LOOK]）');
+  eq(a?.condition?.type, 'LIFE_COUNT', 'WX11-026-E2: 条件は LIFE_COUNT');
+  eq(a?.then?.type, 'SEQUENCE', 'WX11-026-E2: then が SEQUENCE＝2文とも条件の内側');
+}));
+
+test('続き377k: デッキトップ公開分岐の後続文は【出】不発だけ引き連れる（分岐文は足さない）', () => withSavedCursor(() => {
+  // ✅拾う側＝「それがシグニの場合、それを場に出す。**それの【出】能力は発動しない。**」（WXK10-017-E3）。
+  const e3 = (effectsMap.get('WXK10-017') ?? []).find(x => x.effectId === 'WXK10-017-E3');
+  eq(JSON.stringify(e3?.action).includes('"suppressOnPlay":true'), true,
+    'WXK10-017-E3: suppressOnPlay（旧: 3文目が丸ごと捨てられていた）');
+  // 🔴トリップワイヤ＝後続文を**一律に SEQUENCE へ足すのは不可**。この文型の後続文はほぼ全部が
+  //   公開カードを条件にする**排他分岐**で、無条件に並べると全部を実行する過剰効果になる。
+  const b = (effectsMap.get('WX05-021') ?? []).find(x => x.effectId === 'WX05-021-BURST');
+  eq((b?.action as { type?: string } | undefined)?.type, 'REVEAL_AND_PICK',
+    'WX05-021-BURST: 「＜龍獣＞ではない場合」は elseAction＝SEQUENCE で並べない（ドロー2＋1になる）');
+  const cb = (effectsMap.get('WX12-CB02') ?? []).find(x => x.effectId === 'WX12-CB02-E1');
+  const cbSteps = (cb?.action as { steps?: { type?: string }[] } | undefined)?.steps ?? [];
+  eq(cbSteps.every(s => s.type !== 'DRAW'), true,
+    'WX12-CB02-E1: 「レベル４の場合、カードを１枚引く」等の多分岐を無条件ステップにしない');
+}));
+
+test('続き377k: 「それらを好きな順番でデッキの一番上に戻す」の孤立マーカーを直前 LOOK へ畳む', () => withSavedCursor(() => {
+  // 単独では `LOOK_AND_REORDER{count:0}`＝engine が即 return する**完全 no-op**＝並べ替えの権利が落ちていた。
+  for (const [card, effId] of [
+    ['WXK10-017', 'WXK10-017-E1'], ['WDK04-017', 'WDK04-017-E1'], ['WDK05-T17', 'WDK05-T17-E1'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const a = e?.action as { type?: string; count?: number; reorder?: boolean } | undefined;
+    eq(a?.type, 'LOOK_AND_REORDER', `${effId}: 単一 LOOK（旧: SEQUENCE[LOOK, count0 の空 LOOK]）`);
+    eq(a?.count, 3, `${effId}: count=3`);
+    eq(a?.reorder, true, `${effId}: reorder=true＝好きな順番で戻せる`);
+  }
+  // WXK08-066 は後続に CONDITIONAL が続く形＝畳んでもステップ数が1減るだけ
+  const k = (effectsMap.get('WXK08-066') ?? []).find(x => x.effectId === 'WXK08-066-E1');
+  const kSteps = (k?.action as { steps?: { type?: string; count?: number; reorder?: boolean }[] } | undefined)?.steps ?? [];
+  eq(kSteps.length, 2, 'WXK08-066-E1: 空 LOOK が消えて2ステップ');
+  eq(kSteps[0]?.reorder, true, 'WXK08-066-E1: 先頭 LOOK に reorder が乗る');
+}));
+
+test('続き377k: 「これにアクセされている…のパワーを＋N」は acceHost フィルタを持つ', () => withSavedCursor(() => {
+  // ⚠parseSentencePart2 に規則が3本あったが Part1 の汎用 POWER_MODIFY が常に先に食う**到達不能な死んだ規則**で、
+  //   実際は `filter` 無し owner:'any'/count:1 に潰れていた＝CONTINUOUS では効果元自身にバフする過剰実行。
+  const cases: [string, string, Record<string, unknown>][] = [
+    ['SP27-015', 'SP27-015-E2', { acceHost: true }],
+    ['WXK04-080', 'WXK04-080-E2', { acceHost: true }],
+    ['WXDi-P09-TK01A', 'WXDi-P09-TK01A-E1', { acceHost: true }],
+    ['WX17-033', 'WX17-033-E3', { acceHost: true, cardClass: '調理' }],
+    ['WD18-013', 'WD18-013-E2', { acceHost: true, cardClass: '調理' }],
+  ];
+  for (const [card, effId, want] of cases) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    const a = e?.action as { type?: string; target?: { filter?: unknown } } | undefined;
+    eq(a?.type, 'POWER_MODIFY', `${effId}: POWER_MODIFY`);
+    eq(JSON.stringify(a?.target?.filter), JSON.stringify(want), `${effId}: filter=${JSON.stringify(want)}`);
+  }
+}));
+
+test('続き377k: 「あなたのターンの間、対戦相手のシグニが場に出たとき」の主語・ターン限定・照応', () => withSavedCursor(() => {
+  // 旧: 「あなたのターンの間、」の前置きで `^` アンカーが外れ scope 既定 self＝**自身が場に出たとき**に化け、
+  //     さらに対象は「相手のシグニ1体」＝任意選択で、原文と別のシグニの能力を消せた。
+  const e = (effectsMap.get('WXK10-022') ?? []).find(x => x.effectId === 'WXK10-022-E1');
+  eq(e?.triggerScope, 'any_opp', 'WXK10-022-E1: scope=any_opp');
+  eq((e?.triggerCondition as { turnOwner?: string } | undefined)?.turnOwner, 'self', 'WXK10-022-E1: turnOwner=self');
+  eq((e?.action as { targetsTriggerSource?: boolean } | undefined)?.targetsTriggerSource, true,
+    'WXK10-022-E1: 場に出たそのシグニへ束縛（旧: 相手シグニを選び直せた）');
+  // 「それが**無色ではない**シグニの場合」＝限定が落ちて無色シグニでも発火していた
+  const e3 = (effectsMap.get('WXK10-022') ?? []).find(x => x.effectId === 'WXK10-022-E3');
+  eq((e3?.action as { filter?: { nonColorless?: boolean } } | undefined)?.filter?.nonColorless, true,
+    'WXK10-022-E3: nonColorless');
+}));
+
+test('続き377k: manualEffects が live より古い上書きを剥がす（WX04-093-BURST）', () => withSavedCursor(() => {
+  // 旧 MANUAL は `LOOK_AND_REORDER{canTrash, dest:deck top}`＝原文の「その中からカード１枚を手札に加え、
+  // 残りをトラッシュに置く」のうち**手札に加える動作が丸ごと無く、残りもデッキに戻る**古い近似だった。
+  const e = (effectsMap.get('WX04-093') ?? []).find(x => x.effectId === 'WX04-093-BURST');
+  const a = e?.action as { type?: string; revealCount?: number; pickCount?: number;
+    then?: { type?: string }; remainder?: { location?: string } } | undefined;
+  eq(a?.type, 'REVEAL_AND_PICK', 'WX04-093-BURST: REVEAL_AND_PICK');
+  eq(a?.revealCount, 3, 'WX04-093-BURST: 3枚見る');
+  eq(a?.then?.type, 'ADD_TO_HAND', 'WX04-093-BURST: 手札に加える');
+  eq(a?.remainder?.location, 'trash', 'WX04-093-BURST: 残りはトラッシュ');
+}));
+
 test('続き377f: 複合修飾のアタック主語も any_ally＋triggerFilter へ載る', () => withSavedCursor(() => {
   const cases: [string, string, Record<string, unknown>][] = [
     ['WX20-061', 'WX20-061-E1', { powerRange: { min: 10000 }, story: '龍獣' }],
