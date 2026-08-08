@@ -1741,7 +1741,7 @@ export function collectAttachedTriggers(
       if (relevant < (eff.triggerCondition?.minCount ?? 1)) continue;
       if (eff.triggerFilter && !attachedHosts.some(h =>
         (scope === 'self' ? h.hostNum === topNum : true)
-        && matchesTriggerFilter(eff.triggerFilter!, h.hostNum, controllerState, ctx.cardMap))) continue;
+        && matchesFilter(ctx.cardMap.get(getCardNum(h.hostNum)), eff.triggerFilter))) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOk(eff)) continue;
