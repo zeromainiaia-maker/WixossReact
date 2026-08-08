@@ -141,9 +141,19 @@ const report: Record<string, string[]> = {
 // 温存したカードでも失わないよう、fresh から独立して最後に重ねる。
 // parseStatus 以外が同一か（無言フォールバック刻印＝AUTO→PARTIAL のメタ差分だけで
 // held キュー/parserWorklist を汚さないためのガード。2026-07-07）
-const stripParseStatus = (effs: any[]) => effs.map(e => { const { parseStatus: _ps, ...rest } = e ?? {}; return rest; });
-const equalIgnoringParseStatus = (a: any[], b: any[]) =>
-  JSON.stringify(stripParseStatus(a)) === JSON.stringify(stripParseStatus(b));
+// ⚠`JSON.stringify` 比較は**キー順に依存する**ため、parser が同じ値を**別の順**で組み立てた
+//   だけ（`triggerScope`/`triggerFilter` を action の前に置く等）でも「差分あり」と誤判定し、
+//   レビュー行列（`_partial_fresh` / `_held_fresh`）に**偽の採用待ち**を積んでいた（`WD14-011-E1`＝
+//   実体は完全同一で刻印 AUTO/MANUAL とキー順だけが違った）。リーフパス集合で正規化して比較する。
+const canonLeaves = (o: any): string => {
+  const out: string[] = [];
+  for (const [path, val] of leafMap(o)) {
+    if (path === '.parseStatus' || path.endsWith('.parseStatus')) continue;
+    out.push(`${path}=${JSON.stringify(val)}`);
+  }
+  return out.sort().join('\n');
+};
+const equalIgnoringParseStatus = (a: any, b: any) => canonLeaves(a) === canonLeaves(b);
 const allIds = new Set<string>([...existingEffects.keys(), ...Object.keys(result)]);
 // held（温存＝要レビュー）カードの fresh 出力を保存＝scripts/heldReview.mjs のレビュー/採用の入力
 const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
