@@ -2559,6 +2559,31 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : kwSelfSigni ? { type: 'SIGNI', owner: 'self', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : kwOppSigni ? { type: 'SIGNI', owner: 'opponent', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) }
         : { type: 'SIGNI', owner: 'any', count: 1, ...(kwHasFilter ? { filter: kwSigniFilter } : {}) };
+      // 「（あなた|対戦相手）の〈修飾〉シグニをN体まで対象とし」＝**対象名詞句そのもの**から所有者・体数・上限を取る（続き377n）。
+      // ⚠上の枝はどれも「あなたのシグニ」の**隣接形**（色句・クラス句）しか見ないので、`WXDi-P00-004-E1`
+      //   「あなたの**パワー１５０００以上の**シグニを２体まで対象とし…【ランサー】を得る」は
+      //   ①`owner:'any'` 既定へ潰れて**対戦相手のシグニにも付与できた** ②「２体まで」が `count:1` に化けた
+      //   ③パワー条件が丸ごと落ちた、の三重のズレになっていた（`kwSigniFilter` に `parsePowerFilter` が無い）。
+      //   `signiClauseTargetSpec` は修飾語 span に別の所有者トークンを跨がせないので【使用条件】節を巻き込まない。
+      const kwSpec = signiClauseTargetSpec(t);
+      // 所有者は**既定の 'any' へ潰れたときだけ**上書きする（既存の枝が決めた所有者は動かさない）。
+      const kwSpecOwnerOk = kwSpec && target.type === 'SIGNI' && target.owner === 'any'
+        && !kwAllSelf && !kwZoneFilter && !target.filter?.thisCardOnly;
+      // 体数・上限は「N体まで」が対象句に隣接しているときだけ。count:'ALL' の全体付与には触らない。
+      const kwSpecCountOk = kwSpec && target.type === 'SIGNI' && target.count === 1 && !target.filter?.thisCardOnly;
+      const kwSpecFilter: TargetFilter = kwSpec
+        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t) }
+        : {};
+      const targetWithSpec: EffectTarget = kwSpec && (kwSpecOwnerOk || kwSpecCountOk)
+        ? {
+            ...target,
+            ...(kwSpecOwnerOk ? { owner: kwSpec.owner } : {}),
+            ...(kwSpecCountOk ? { count: kwSpec.count, ...(kwSpec.upToCount ? { upToCount: true } : {}) } : {}),
+            ...(Object.keys(kwSpecFilter).length > 0
+              ? { filter: { ...(target.filter ?? {}), ...kwSpecFilter } }
+              : {}),
+          }
+        : target;
       // 「あなたの他のシグニ1体を対象とし」＝効果元シグニ自身を対象から除外（WXDi-P11-040）。
       // 未表現だと他に味方シグニが居ないとき自分自身に付与される（続き72の実機観測・続き75で engine の
       // excludeSelf 実装とセットで修正）。対象節に隣接する「他の」だけを見る（他 action の「他のシグニ」に反応しない）。
