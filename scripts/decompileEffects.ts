@@ -502,6 +502,8 @@ function condJa(c?: any): string {
     case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ?? 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
     case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator ?? 'gte')}`;
+    // タスク12(cxvii)：実効レベル（動的レベル込み）の閾値。`condJa` は Condition と ActiveCondition の
+    // **両方**を1つの switch で描くので、同名の型は**ここ1箇所だけ**に書く（二重 case は lint error）。
     case 'SELF_LEVEL_THRESHOLD': return `このシグニのレベルが${numJa(c.value)}${opJa(c.operator)}`;
     case 'THIS_CARD_FROM_TRASH': return 'このシグニがトラッシュから場に出た';
     case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
