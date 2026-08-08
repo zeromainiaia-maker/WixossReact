@@ -283,6 +283,7 @@ export type Condition =
   | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
   | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
+  | { type: 'THIS_CARD_HAS_ATTACHED'; minCount?: number }     // このシグニにカードがN枚以上付いている場合（【チャーム】/【アクセ】/【ソウル】の合計。省略=1。WXK10-049-E2）
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
   | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; negate?: boolean } // このシグニの下にカードがある場合。negate=true は「無い場合」
