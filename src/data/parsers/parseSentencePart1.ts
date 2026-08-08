@@ -2421,10 +2421,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // チャームの出所オーナー（「対戦相手は自分のデッキ…」＝対戦相手が自分のデッキから＝opponent。WXEX2-76/WX08-006）
     const charmOwner: Owner = t.includes('対戦相手のデッキ') || t.includes('対戦相手のトラッシュ')
       || t.includes('対戦相手は自分のデッキ') || t.includes('対戦相手は自分のトラッシュ') ? 'opponent' : 'self';
+    // 「カードをN枚（まで）… シグニN体（まで）の【チャーム】にする」＝**複数ペア**（続き377n）。
+    // ⚠従来は charm/to とも `count:1` 固定で、`WX07-045-E2`（3枚）・`WXEX1-22-E2`（3枚→3体）・
+    //   `WXK07-070-E1`／`WX17-Re05-E1`（2枚→2体）が**常に1組だけ**の過小実行になっていた。
+    // ⚠枚数は**出所句に隣接する「N枚」だけ**を見る（全文から拾うと付与先の「N体」や別文の枚数を引き込む）。
+    const charmCountM = t.match(/(?:トラッシュ|デッキの上|デッキの一番上)から([^。、]{0,24}?)(?:カード|シグニ)(?:を)?([０-９\d]+)枚(まで)?/);
+    const charmCount = charmCountM ? parseNum(charmCountM[2]) : 1;
+    // ⚠クラスは**出所句に隣接するときだけ** charm 側に載せる＝素の `parseStoryFilter(全文)` は
+    //   `WX07-045-E2`「トラッシュから対象のカードを３枚まで対象のあなたの好きな数の**＜悪魔＞の**シグニの【チャーム】にする」で
+    //   **付与先のクラス**を charm 側へ載せてしまい、「トラッシュの＜悪魔＞しかチャームにできない」過小実行になる。
+    const charmStory = charmCountM ? parseStoryFilter(charmCountM[1]) : parseStoryFilter(t);
+    const charmUpTo = charmCountM?.[3] ? { upToCount: true } : {};
     const charm: EffectTarget = charmIsTopOfDeck
-      ? { type: 'DECK_CARD', owner: charmOwner, count: 1 }
+      ? { type: 'DECK_CARD', owner: charmOwner, count: charmCount, ...charmUpTo }
       : charmFromTrash
-        ? { type: 'TRASH_CARD', owner: charmOwner, count: 1, filter: parseStoryFilter(t) as TargetFilter }
+        ? { type: 'TRASH_CARD', owner: charmOwner, count: charmCount, ...charmUpTo, filter: charmStory as TargetFilter }
         : charmIsSelf || charmIsThisCard
           ? { type: 'SIGNI', owner: 'self', count: 1 }
           : { type: 'SIGNI', owner: 'self', count: 1 };
