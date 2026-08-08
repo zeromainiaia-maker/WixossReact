@@ -238,7 +238,6 @@ if (cardArgIdx >= 0) {
   const target = process.argv[cardArgIdx + 1];
   const card = cards.get(target);
   if (!card) { console.log(`${target}: CSV に無い`); process.exit(0); }
-  const fresh = mergeManualEffects(target, parseCardEffects({ ...(card as unknown as CardData), effects: [] } as CardData));
   console.log(`=== ${target}  ${card.CardName ?? ''}`);
   console.log(`原文: ${(card.EffectText ?? '').replace(/\n/g, ' ')}`);
   if (card.BurstText) console.log(`Burst: ${card.BurstText.replace(/\n/g, ' ')}`);
