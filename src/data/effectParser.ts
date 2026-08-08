@@ -6459,19 +6459,18 @@ function parseActionTextInner(text: string): EffectAction {
           then: rp,
         } as import('../types/effects').ConditionalAction;
       }
-      // 3文目以降が残っている形（`WXK10-017-E3`＝「…それを場に出す。**それの【出】能力は発動しない。**」）は
-      // この早期 return が sentences[0..1] しか消費しないため**丸ごと捨てられていた**（無言の脱落）。
-      // 後続文が既知アクションに解けるものだけなら SEQUENCE で引き連れる（末尾の
-      // `foldSuppressOnPlay` が BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ畳み込む）。
-      // ⚠「そうした場合／そうでない場合」等の**前段の結果を条件にする後続文**は除外する＝無条件に足すと
-      //   条件が消えて過剰実行になる（`WXK03-050`／`WXDi-P09-068`＝else 相当は別の入れ子機構が要る）。
+      // 3文目以降が残っている形は、この早期 return が sentences[0..1] しか消費しないため
+      // **丸ごと捨てられていた**（無言の脱落）。⚠ただし後続文を一律に SEQUENCE へ足すのは**不可**＝
+      // この文型の後続文はほぼ全部が**公開したカードを条件にする排他分岐**で（「それが＜X＞のシグニ
+      // ではない場合、〜」＝else／「レベル２の場合、〜」「レベル３の場合、〜」＝多分岐）、無条件に
+      // 並べると全部を実行する過剰効果になる（実測 `WX05-021`＝ドロー2＋1、`WX12-CB02`＝5分岐すべて発火）。
+      // ＝**入れ子を表現できる後続文だけ**を足す。現状その条件を満たすのは「〔それ／そのシグニ〕の【出】
+      // 能力は発動しない」＝分岐ではなく直前の配置への修飾で、末尾の `foldSuppressOnPlay` が
+      // BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ畳み込める形（`WXK10-017-E3`）。
       {
         const tail = sentences.slice(2).map(s => s.trim().replace(/。$/, '')).filter(Boolean);
-        if (tail.length > 0 && tail.every(s => !/^(?:そうした場合|そうでない場合|この能力は|（)/.test(s))) {
-          const tailActions = tail.map(s => parseSingleSentence(s));
-          if (tailActions.every(a => a.type !== 'UNKNOWN')) {
-            return { type: 'SEQUENCE', steps: [rp, ...tailActions] } as SequenceAction;
-          }
+        if (tail.length > 0 && tail.every(s => /^(?:それ|それら|そのシグニ)の【出】能力は発動しない$/.test(s))) {
+          return { type: 'SEQUENCE', steps: [rp, ...tail.map(s => parseSingleSentence(s))] } as SequenceAction;
         }
       }
       return rp;
