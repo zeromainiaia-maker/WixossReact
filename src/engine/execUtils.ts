@@ -1689,6 +1689,19 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const pw = ctx.effectivePowers?.get(src) ?? parseInt(ctx.cardMap.get(src)?.Power ?? '0', 10);
       return cmp(pw, cond.operator ?? 'gte', cond.value);
     }
+    // タスク12(cxvii)：このシグニ自身の**実効レベル**。`ctx.effectivePowers` に相当するレベルの箱は
+    // ExecCtx に無いので、`effectsMap` があれば `calcSigniLevels` でその場で計算する
+    // （`DYNAMIC_LEVEL_BY_ENERGY` 等の動的レベルを拾う唯一の経路。表記レベルへ落とすと
+    //  `WX20-Re18`＝表記2・閾値4/5 が一生 false になる）。
+    case 'SELF_LEVEL_THRESHOLD': {
+      const srcLv = ctx.sourceCardNum;
+      if (!srcLv) return false;
+      const lv = (ctx.effectsMap
+        ? calcSigniLevels(ctx.ownerState, ctx.otherState, ctx.effectsMap, ctx.cardMap).get(getCardNum(srcLv))
+        : undefined) ?? parseInt(ctx.cardMap.get(getCardNum(srcLv))?.Level ?? '', 10);
+      if (isNaN(lv)) return false;
+      return cmp(lv, cond.operator, cond.value);
+    }
     case 'IS_SELF_IN_SIDE_ZONE': {
       // このシグニが左（index 0）／右（index 2）／左か右（中央以外）のシグニゾーンにある場合。
       // ActiveCondition 版（effectEngine の checkActiveCondition）と同じ判定＝両方揃えて更新すること。
