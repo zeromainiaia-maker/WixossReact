@@ -172,7 +172,13 @@ function dateMode(): void {
     if (!manualTimeCache.has(r.card)) manualTimeCache.set(r.card, manualTime(r.card));
     const mt = manualTimeCache.get(r.card) ?? null;
     const lt = liveTime(r.card, r.liveJson);
+    // ⚠**日付判定は `manualEffects.ts` が定義している効果にしか意味が無い**。parser 由来の効果に対する
+    //   「manual 側の日付」は*そのカードのブロックがいつ触られたか*でしかなく、その効果の新旧を表さない。
+    //   実測（続き382）＝parser 由来を日付で MANUAL_NEWER と判定した5件は、原文照合すると**全件 live のほうが
+    //   正しかった**（`WX22-013-E2` は fresh が2択を DRAW 1本に平坦化＝退化）。parser 由来は held/partial と
+    //   同じ「fresh が良いか」の目視レビュー案件なので、日付では決めずに別枠へ出す。
     const verdict = r.kind === 'LIVE_ONLY' || r.kind === 'LIVE_RICHER' ? 'LIVE_NEWER'
+      : !r.fromManual ? 'PARSER_REVIEW'
       : mt === null || lt === null ? 'UNDATED'
       : mt > lt ? 'MANUAL_NEWER' : lt > mt ? 'LIVE_NEWER' : 'SAME_TIME';
     verdicts.push({ r, mt, lt, verdict });
