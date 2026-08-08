@@ -10662,6 +10662,19 @@ test('parse timing 語彙: このカードが【アクセ】として…シグ�
   eq(maxStory.triggerCondition?.accedHostMaxLevel, 2, 'レベルN以下→accedHostMaxLevel');
   eq(maxStory.triggerCondition?.accedHostStory, '調理', '＜X＞→accedHostStory');
 });
+test('parse timing 語彙: §6.3 J-5 単発（コイン獲得／両面ルリグ反転）', () => {
+  const mk = (t: string, type = 'シグニ') => parseCardEffects({ CardNum: 'TEST-J5', Type: type, EffectText: `【自】：${t}` } as unknown as CardData)[0];
+  const any = mk('あなたか対戦相手が《コインアイコン》を得たとき、あなたはカードを１枚引く。');
+  eq(any.timing?.[0], 'ON_COIN_GAINED', '「得たとき」→ON_COIN_GAINED');
+  eq(any.triggerScope, 'any', '「あなたか対戦相手が」＝any');
+  eq(mk('対戦相手が《コインアイコン》を得たとき、カードを１枚引く。').triggerScope, 'any_opp', '「対戦相手が」＝any_opp');
+  eq(mk('あなたが《コインアイコン》を得たとき、カードを１枚引く。').triggerScope, 'self', '「あなたが」＝self');
+  // 支払い側（既存 ON_COIN_PAID）を奪わない回帰ガード＝獲得と支払いは逆方向の別 timing
+  eq(mk('あなたが《コイン》を支払ったとき、カードを１枚引く。').timing?.[0], 'ON_COIN_PAID', '支払いは従来どおり');
+  // 両面ルリグの反転＝既存 collectLrigFlipTriggers の初の利用者（産出側 UNKNOWN のため今日は発火しない）
+  const flip = mk('このルリグが《夢限　-Q-》から《夢限　-A-》になったとき、カードを５枚引く。', 'ルリグ');
+  eq(flip.timing?.[0], 'ON_LRIG_FLIP', '「《X》から《Y》になったとき」→ON_LRIG_FLIP');
+});
 test('parse timing 語彙: §6.3 J-2 付与・離脱イベント（ソウル/汎用付与/アクセトラッシュ）', () => {
   const mk = (t: string, type = 'シグニ') => parseCardEffects({ CardNum: 'TEST-J2', Type: type, EffectText: `【自】：${t}` } as unknown as CardData)[0];
   const selfSoul = mk('このシグニに【ソウル】が付いたとき、カードを１枚引く。');
