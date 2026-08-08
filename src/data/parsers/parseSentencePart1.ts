@@ -2543,6 +2543,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           ? { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }
         : t.includes('このシグニ') ? { type: 'SIGNI', owner: 'self', count: 1 }
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
+        : kwZoneFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwZoneFilter }
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
         // ⚠**枚数付きの枝だけ filter を落としていた**（続き377c）＝下の `kwSelfSigni` 枝には
         //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
