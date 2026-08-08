@@ -8436,8 +8436,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         //   scope 既定 self で「このシグニ（自身）が場に出たとき」に化けていた（一度も発火しない・§3 タスク12(xxx)）。
         //   トリガー句は**除去しない**（後続の ATTACH_CHARM が「対戦相手は…そのシグニの【チャーム】」から
         //   charm owner／対象トリガー元を読むため）。
+        //   ⚠**「（あなた|対戦相手）のターンの間、」の前置きを許す**（続き377k）＝`^` アンカーが前置きで外れて
+        //     scope 既定 self に落ち、`WXK10-022-E1`（あなたのターンの間、対戦相手のシグニが場に出たとき）は
+        //     **自身が場に出たときに1回だけ発火し、相手の任意のシグニ1体の能力を消す**という原文と別物になっていた。
+        //     ターン限定は他のトリガー群と同じ `triggerCondition.turnOwner` に落とす。
         const oppPlayM = !allyPlayM && !allyResonaPlayM && !anyPlayM
-          && actionText.match(/^対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場に出たとき[、,]/);
+          && actionText.match(/^(?:(あなた|対戦相手)のターンの間[、,])?対戦相手の(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場に出たとき[、,]/);
         if (allyPlayM) {
           extractedTriggerScope = 'any_ally';
           const tf: NonNullable<typeof extractedTriggerFilter> = {};
