@@ -1669,6 +1669,43 @@ export function collectCharmToTrashTriggers(
 }
 
 /**
+ * 個別アタックの終了時（ON_ATTACK_END）トリガーを収集する（§6.3 J-4・WXK11-018-E2）。
+ *
+ * **アタック終了の定義**＝`BattleScreen.resolvePendingSigniBattleFor`（バトル解決 Phase2）の末尾
+ * ＝バトル・バニッシュ・ライフクラッシュまで解決し終えた地点。ここで `dealtSigniDamage`（このアタックで
+ * 相手ライフをクラッシュしたか）が確定しているので `triggerCondition.attackDealtNoDamage` を判定できる。
+ * ⚠**近似**＝この後に走る【ライフバースト】の解決は「アタック終了」に含めない（バーストで盤面が変わっても
+ *   判定はクラッシュ有無で確定済み＝この効果の意味では差が出ない）。
+ * ⚠アタックしたシグニ自身の【自】だけを見る（`triggerScope:'self'` 相当）＝原文が「このシグニがアタックした
+ *   アタック終了時」なので watcher＝アタッカー。
+ */
+export function collectAttackEndTriggers(
+  ctx: TrigCtx, attackerId: string, attackerNum: string,
+  attackerState: PlayerState, defenderState: PlayerState, dealtDamage: boolean,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  const isAttackerTurn = attackerId === ctx.activeUserId;
+  const limitOk = mkLimitOk(attackerState.actions_done, usedOncePerTurnIds);
+  const removed = collectContinuousAbilitiesRemovedSigni(attackerState, defenderState, isAttackerTurn, ctx.effectsMap, ctx.cardMap, '自');
+  if (attackerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) return { entries, usedOncePerTurnIds };
+  if (removed.has(attackerNum)) return { entries, usedOncePerTurnIds };
+  for (const eff of (ctx.effectsMap.get(attackerNum) ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_END')) continue;
+    if (eff.triggerCondition?.attackDealtNoDamage && dealtDamage) continue;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, attackerState, defenderState, isAttackerTurn, ctx.cardMap, attackerNum)) continue;
+    if (eff.condition && !evalUseCondition(eff.condition, attackerState, defenderState, ctx.cardMap, attackerNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+    if (!limitOk(eff)) continue;
+    const cardName = ctx.cardMap.get(getCardNum(attackerNum))?.CardName ?? attackerNum;
+    entries.push({
+      id: ctx.genId(), playerId: attackerId, cardNum: attackerNum, effectId: eff.effectId,
+      label: `${cardName} の【自】効果（アタック終了時）`, effect: eff, triggeringCardNum: attackerNum,
+    });
+  }
+  return { entries, usedOncePerTurnIds };
+}
+
+/**
  * 他の能力が発動したとき（ON_ABILITY_ACTIVATED）トリガーを収集する（§6.3 J-1）。
  *
  * **発動の定義**＝effectStack から1件取り出して**解決を始める瞬間**（`BattleScreen.resolveStackNext` の
