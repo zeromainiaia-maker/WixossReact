@@ -8508,6 +8508,14 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/対戦相手の場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_opp';
         else if (/あなたの場にある【チャーム】/.test(actionText)) extractedTriggerScope = 'any_ally';
       }
+      // ON_ATTACK_END（§6.3 J-4）: 「そのアタックによって対戦相手にダメージが与えられていない場合」を抽出。
+      //   scope は self（「このシグニがアタックした」＝アタッカー自身）。
+      if (timing[0] === 'ON_ATTACK_END') {
+        extractedTriggerScope = 'self';
+        if (/そのアタックによって[^。]*ダメージが与えられていない場合/.test(actionText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), attackDealtNoDamage: true };
+        }
+      }
       // ON_ABILITY_ACTIVATED（§6.3 J-1）: 発動した能力の持ち主・種別・【英知】限定・発動元を triggerCondition へ。
       if (timing[0] === 'ON_ABILITY_ACTIVATED') {
         const tc: Record<string, unknown> = { ...(extractedTriggerCondObj ?? {}) };
