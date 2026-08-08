@@ -30,7 +30,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -10794,6 +10794,21 @@ test('parse timing 語彙: このカードが【アクセ】として…シグ�
   const maxStory = parseCardEffects({ CardNum: 'TEST-ACCESELF3', Type: 'シグニ', EffectText: '【自】：このカードが【アクセ】としてレベル２以下の＜調理＞のシグニに付いたとき、カードを１枚引く。' } as unknown as CardData)[0];
   eq(maxStory.triggerCondition?.accedHostMaxLevel, 2, 'レベルN以下→accedHostMaxLevel');
   eq(maxStory.triggerCondition?.accedHostStory, '調理', '＜X＞→accedHostStory');
+});
+test('parse timing 語彙: §6.3 J-4 フェイズ／アタック終了（ON_ATTACK_PHASE_END / ON_ATTACK_END）', () => {
+  const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-J4', Type: 'シグニ', EffectText: `【自】：${t}` } as unknown as CardData)[0];
+  const ape = mk('あなたのアタックフェイズ終了時、そのアタックフェイズの間にあなたの＜遊具＞のシグニが場を離れていた場合、カードを１枚引く。');
+  eq(ape.timing?.[0], 'ON_ATTACK_PHASE_END', '「アタックフェイズ終了時」→ON_ATTACK_PHASE_END');
+  eq(ape.condition?.type, 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE', '離場条件が effect.condition へ持ち上がる（旧＝丸ごと脱落）');
+  eq((ape.condition as { filter?: { story?: string } })?.filter?.story, '遊具', '＜X＞がフィルタに乗る');
+  eq(JSON.stringify(ape.action), '{"type":"DRAW","owner":"self","count":1}', '条件節を剥がした残りが action');
+  const ae = mk('このシグニがアタックしたアタック終了時、そのアタックによって対戦相手にダメージが与えられていない場合、カードを１枚引く。');
+  eq(ae.timing?.[0], 'ON_ATTACK_END', '「アタックしたアタック終了時」→ON_ATTACK_END');
+  eq(ae.triggerCondition?.attackDealtNoDamage, true, 'ダメージ無し限定');
+  eq(ae.triggerScope, 'self', 'アタッカー自身が watcher');
+  // 回帰ガード＝「アタックフェイズ開始時」「このシグニがアタックしたとき」を奪わない
+  eq(mk('あなたのアタックフェイズ開始時、カードを１枚引く。').timing?.[0], 'ON_ATTACK_PHASE_START', '開始時は従来どおり');
+  eq(mk('このシグニがアタックしたとき、カードを１枚引く。').timing?.[0], 'ON_ATTACK_SIGNI', 'アタック時は従来どおり');
 });
 test('parse timing 語彙: §6.3 J-1 他能力の発動監視（ON_ABILITY_ACTIVATED）', () => {
   const mk = (t: string) => parseCardEffects({ CardNum: 'TEST-J1', Type: 'シグニ', EffectText: `【自】：${t}` } as unknown as CardData)[0];
