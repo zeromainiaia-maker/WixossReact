@@ -6474,12 +6474,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         mkTrigCtx(), instanceId, newMyState, op, user.id,
       );
       const usedIds = isHost ? assistOnPlay.usedHostIds : assistOnPlay.usedGuestIds;
-      const committedMyState = usedIds.length > 0
-        ? { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...usedIds] }
+      // ON_COIN_GAINED（§6.3 J-5）: アシストルリグ配置で Coin 欄ぶんコインを得た場合。中央 diff を通らない獲得サイト。
+      // ⚠上限5のクランプ後の実増加で判定する（アシストは支払いにコインを使わないので単純差でよい）。
+      const assistCoinGainActual = Math.min(5, my.coins + assistCoinGain) - my.coins;
+      const assistCoinMine = assistCoinGainActual > 0
+        ? collectCoinGainedTriggers(user.id, newMyState, op, assistCoinGainActual, 0)
+        : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
+      const assistCoinOpp = assistCoinGainActual > 0
+        ? collectCoinGainedTriggers(isHost ? bs.guest_id : bs.host_id, op, newMyState, 0, assistCoinGainActual)
+        : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
+      const assistAllEntries = [...assistOnPlay.entries, ...assistCoinMine.entries, ...assistCoinOpp.entries];
+      const committedMyState = (usedIds.length > 0 || assistCoinMine.usedOncePerTurnIds.length > 0)
+        ? { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...usedIds, ...assistCoinMine.usedOncePerTurnIds] }
         : newMyState;
-      if (assistOnPlay.entries.length > 0) {
+      const assistOppState: PlayerState | null = assistCoinOpp.usedOncePerTurnIds.length > 0
+        ? { ...op, actions_done: [...(op.actions_done ?? []), ...assistCoinOpp.usedOncePerTurnIds] }
+        : null;
+      const assistOppKey = isHost ? 'guest_state' : 'host_state';
+      if (assistAllEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
-        const stack = existing ? pushToStack(existing, assistOnPlay.entries) : initStack(bs?.active_user_id ?? user.id, assistOnPlay.entries);
+        const stack = existing ? pushToStack(existing, assistAllEntries) : initStack(bs?.active_user_id ?? user.id, assistAllEntries);
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState, effectStack: stack }));
       } else {
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState }));
