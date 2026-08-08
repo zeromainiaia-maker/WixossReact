@@ -181,7 +181,9 @@ export function checkActiveCondition(
         case 'eq':  return count === cond.value;
         case 'neq': return count !== cond.value;
       }
-      break;
+      // 内側の operator switch は CompareOp を網羅済み（到達しない）。`break` だと外側 switch を抜けて
+      // 末尾の `return true`＝無条件成立に落ちるので、**保守側（不成立）で閉じる**（タスク12(cxv) の網羅性ガード）。
+      return false;
     }
 
     case 'FIELD_SIGNI_POWER_COUNT': {
@@ -249,7 +251,9 @@ export function checkActiveCondition(
         case 'eq':  return diff === cond.value;
         case 'neq': return diff !== cond.value;
       }
-      break;
+      // 内側の operator switch は CompareOp を網羅済み（到達しない）。`break` だと外側 switch を抜けて
+      // 末尾の `return true`＝無条件成立に落ちるので、**保守側（不成立）で閉じる**（タスク12(cxv) の網羅性ガード）。
+      return false;
     }
 
     case 'ENA_DIFF': {
@@ -262,7 +266,9 @@ export function checkActiveCondition(
         case 'eq':  return enaDiff === cond.value;
         case 'neq': return enaDiff !== cond.value;
       }
-      break;
+      // 内側の operator switch は CompareOp を網羅済み（到達しない）。`break` だと外側 switch を抜けて
+      // 末尾の `return true`＝無条件成立に落ちるので、**保守側（不成立）で閉じる**（タスク12(cxv) の網羅性ガード）。
+      return false;
     }
 
     case 'ENERGY_COLOR_TYPES': {
@@ -284,7 +290,9 @@ export function checkActiveCondition(
         case 'eq':  return typeCount === cond.value;
         case 'neq': return typeCount !== cond.value;
       }
-      break;
+      // 内側の operator switch は CompareOp を網羅済み（到達しない）。`break` だと外側 switch を抜けて
+      // 末尾の `return true`＝無条件成立に落ちるので、**保守側（不成立）で閉じる**（タスク12(cxv) の網羅性ガード）。
+      return false;
     }
 
     case 'LRIG_LEVEL': {
@@ -301,7 +309,9 @@ export function checkActiveCondition(
         case 'eq':  return lv === cond.value;
         case 'neq': return lv !== cond.value;
       }
-      break;
+      // 内側の operator switch は CompareOp を網羅済み（到達しない）。`break` だと外側 switch を抜けて
+      // 末尾の `return true`＝無条件成立に落ちるので、**保守側（不成立）で閉じる**（タスク12(cxv) の網羅性ガード）。
+      return false;
     }
 
     case 'EICHI_LEVEL_SUM': {
