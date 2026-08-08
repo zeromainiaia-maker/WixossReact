@@ -1669,6 +1669,46 @@ export function collectCharmToTrashTriggers(
 }
 
 /**
+ * 《コインアイコン》を得たとき（ON_COIN_GAINED）トリガーを収集する（§6.3 J-5・SP27-007-E1）。
+ * 既存 `collectCoinPaidTriggers`（減少方向）の逆向き。watcher 側の場を走査し、
+ * triggerScope で「あなたか対戦相手」（any＝既定）／「あなた」（self）／「対戦相手」（any_opp）を弁別する。
+ * ⚠ 呼び出し側は**獲得枚数を直接渡す**（グロウは同じ差分に支払いが同居するため before/after 差では取りこぼす）。
+ */
+export function collectCoinGainedTriggers(
+  ctx: TrigCtx, watcherId: string, watcherState: PlayerState, otherState: PlayerState,
+  gainedBySelf: number, gainedByOpp: number,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  if (gainedBySelf <= 0 && gainedByOpp <= 0) return { entries, usedOncePerTurnIds };
+  const isWatcherTurn = watcherId === ctx.activeUserId;
+  const limitOk = mkLimitOk(watcherState.actions_done, usedOncePerTurnIds);
+  const removed = collectContinuousAbilitiesRemovedSigni(watcherState, otherState, isWatcherTurn, ctx.effectsMap, ctx.cardMap, '自');
+  const ownAutoBlocked = watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+  for (const topNum of ownFieldSources(watcherState)) {
+    if (ownAutoBlocked) continue;
+    if (removed.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_COIN_GAINED')) continue;
+      const scope = eff.triggerScope ?? 'any';
+      const relevant = scope === 'self' || scope === 'any_ally' ? gainedBySelf
+        : scope === 'any_opp' ? gainedByOpp
+        : gainedBySelf + gainedByOpp;
+      if (relevant < (eff.triggerCondition?.minCount ?? 1)) continue;
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, isWatcherTurn, ctx.cardMap, topNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOk(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（コイン獲得時）`, effect: eff,
+      });
+    }
+  }
+  return { entries, usedOncePerTurnIds };
+}
+
+/**
  * 【アクセ】がトラッシュに置かれたとき（ON_ACCE_TO_TRASH）トリガーを収集する（§6.3 J-2）。
  * collectCharmToTrashTriggers の【アクセ】版＝triggerScope（any/any_ally/any_opp）で発生源フィールドを判定し、
  * triggerCondition.minCount で「N枚がトラッシュに置かれたとき」の閾値を見る。
