@@ -9449,8 +9449,10 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
     const js = JSON.stringify(effectsMap.get(c.CardNum) ?? []);
     return QUOTE_STUBS.some(s => js.includes(`"${s}"`));
   }).map(c => c.CardNum).sort();
-  eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P10-025,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069,WXDi-P15-071',
-     '正面パワー条件つき引用付与の母集団は8枚（タスク12(cxiv)）');
+  // 原文母集団は8枚だが、`WXDi-P15-071` だけは**ベット分岐**が要るので (cxviii) で
+  // `CONDITIONAL{IS_BETTING}`＋`GRANT_EFFECT` へ組み替えた＝引用付与ハンドラを通らない。残り7枚。
+  eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P10-025,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069',
+     '引用付与ハンドラを通る正面パワー条件つきカードは7枚（8枚目の WXDi-P15-071 は (cxviii) で別経路）');
 }));
 // ── タスク12(cxvii)（2026-08-08）：`WX20-Re18` の動的レベル閾値（`SELF_LEVEL_THRESHOLD`）──
 // 「レベルはエナ5枚につき＋1され、パワーはレベル1につき＋3000される」＝**表記レベル2**で、
