@@ -2349,6 +2349,8 @@ export interface CardEffect {
     milledCardFilter?: TargetFilter;
     /** ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH 共通の解決単位最低枚数。省略=1。 */
     minCount?: number;
+    /** ON_ATTACK_END（§6.3 J-4・`WXK11-018-E2`）＝「そのアタックによって対戦相手にダメージが与えられていない場合」。バトル解決の `dealtSigniDamage` が false のときだけ発火する。 */
+    attackDealtNoDamage?: boolean;
     // ── ON_ABILITY_ACTIVATED（§6.3 J-1「他能力の発動監視」）の限定 ──
     /** 発動した能力の持ち主（watcher から見て）。省略=どちらでも。 */
     activatedAbilityOwner?: 'self' | 'opponent';
