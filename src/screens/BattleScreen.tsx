@@ -6494,9 +6494,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (assistAllEntries.length > 0) {
         const existing = bs?.effect_stack ?? null;
         const stack = existing ? pushToStack(existing, assistAllEntries) : initStack(bs?.active_user_id ?? user.id, assistAllEntries);
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState, effectStack: stack }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState, effectStack: stack, opp: assistOppState ? { key: assistOppKey, state: assistOppState } : undefined }));
       } else {
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: committedMyState, opp: assistOppState ? { key: assistOppKey, state: assistOppState } : undefined }));
       }
     } finally {
       setLoading(false);
