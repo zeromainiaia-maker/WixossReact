@@ -7919,6 +7919,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              : trigText.match(/(?:あなた|対戦相手)の(?:他の)?(?:センター)?ルリグがグロウしたとき/) ? ['ON_LRIG_GROW']
              // 「あなたが《コイン》を1枚以上支払ったとき」（WXDi-P15-055/069・WXDi-P16-057）。⚠engine未配線。トリガー文非除去
              : trigText.match(/あなたが《コイン[^》]*》を(?:[^。]{0,8}支払った|ベットした)とき/) ? ['ON_COIN_PAID']
+             // 「（あなたか対戦相手／あなた／対戦相手）が《コインアイコン》を得たとき」（§6.3 J-5・SP27-007）。
+             //   engine 配線済み＝collectCoinGainedTriggers（既存 ON_COIN_PAID の逆方向。獲得サイトは効果解決の
+             //   中央 diff ＋ グロウ／アシストグロウ／CPU グロウ）。主語は下で triggerScope に抽出。
+             : trigText.match(/《コイン[^》]*》を(?:[０-９\d]+枚)?得たとき/) ? ['ON_COIN_GAINED']
              // 「《改造素材》が使用された/あなたが《改造素材》を使用したとき」（WXK09-047 等）。⚠engine未配線。トリガー文非除去・scope/cond は下で抽出
              : trigText.match(/《改造素材》[^。]{0,12}(?:使用された|使用した)とき/) ? ['ON_MATERIAL_USED']
              // 「（このシグニ／あなたの他のシグニが）開花したとき」=【シード】開花トリガー。場に出た扱いではないため ON_PLAY とは別（triggerScope は下で設定）。
