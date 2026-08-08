@@ -1645,6 +1645,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const pw = ctx.effectivePowers?.get(src) ?? parseInt(ctx.cardMap.get(src)?.Power ?? '0', 10);
       return cmp(pw, cond.operator ?? 'gte', cond.value);
     }
+    case 'IS_SELF_IN_SIDE_ZONE': {
+      // このシグニが左（index 0）／右（index 2）／左か右（中央以外）のシグニゾーンにある場合。
+      // ActiveCondition 版（effectEngine の checkActiveCondition）と同じ判定＝両方揃えて更新すること。
+      const src = ctx.sourceCardNum;
+      if (!src) return false;
+      const zi = ctx.ownerState.field.signi.findIndex(s => s?.includes(src));
+      if (zi < 0) return false;
+      return cond.side === 'either' ? zi !== 1 : zi === (cond.side === 'left' ? 0 : 2);
+    }
     case 'THIS_CARD_FROM_TRASH':
       // このシグニがトラッシュから場に出た場合（execAddToField で signi_played_from_trash に記録）
       return !!ctx.sourceCardNum && (ctx.ownerState.signi_played_from_trash?.includes(ctx.sourceCardNum) ?? false);
