@@ -2914,6 +2914,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       entries.push(...chG.entries); useGuest(chG.usedOncePerTurnIds);
     }
 
+    // ON_COIN_GAINED: 効果解決で《コインアイコン》が増えた場合（§6.3 J-5・SP27-007-E1）。
+    // ⚠グロウ／アシストグロウ／CPU グロウの獲得はこの funnel を通らないので各サイトで別途収集する
+    //   （既存 ON_COIN_PAID がコスト支払いの全サイトを個別に押さえているのと同じ形）。
+    const coinGainHost  = countCoinsGained(beforeHost, h);
+    const coinGainGuest = countCoinsGained(beforeGuest, g);
+    if (coinGainHost > 0 || coinGainGuest > 0) {
+      const cgH = collectCoinGainedTriggers(bs.host_id, h, g, coinGainHost, coinGainGuest);
+      entries.push(...cgH.entries); useHost(cgH.usedOncePerTurnIds);
+      const cgG = collectCoinGainedTriggers(bs.guest_id, g, h, coinGainGuest, coinGainHost);
+      entries.push(...cgG.entries); useGuest(cgG.usedOncePerTurnIds);
+    }
+
     // ON_ACCE_TO_TRASH: 【アクセ】が場→トラッシュに置かれた場合（§6.3 J-2・WXEX2-19-E1）
     const acceHost  = countAcceToTrash(beforeHost, h);
     const acceGuest = countAcceToTrash(beforeGuest, g);
