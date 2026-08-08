@@ -15,6 +15,7 @@
  *   npx tsx scripts/censusManualDrift.ts --card <ID> … 1カードの live/fresh 完全 diff を表示
  */
 import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { execFileSync } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import Papa from 'papaparse';
@@ -192,6 +193,44 @@ function dateMode(): void {
   console.log('明細: docs/_manual_drift_dates.txt');
 }
 if (process.argv.includes('--date')) { dateMode(); process.exit(0); }
+
+// ── --adopt <effectId,…>：指定した**効果だけ**を fresh（manualEffects.ts/parser）から live へ同期する ──
+//   ⚠**カード丸ごとではなく効果単位**＝同じカードに「live のほうが新しい」兄弟効果（`PR-426-E3` 型）が同居するため。
+//   ⚠fresh に無い effectId（`LIVE_ONLY`）は触らない＝live 側の後付け効果を消さない。
+const adoptIdx = process.argv.indexOf('--adopt');
+if (adoptIdx >= 0) {
+  const targets = new Set((process.argv[adoptIdx + 1] ?? '').split(',').map(s => s.trim()).filter(Boolean));
+  if (targets.size === 0) { console.log('--adopt <effectId,…> を指定する'); process.exit(0); }
+  const freshCache = new Map<string, CardEffect[]>();
+  let applied = 0;
+  for (const f of EFFECT_FILES) {
+    const p = join(root, 'public/data', f);
+    if (!existsSync(p)) continue;
+    const j = JSON.parse(readFileSync(p, 'utf-8')) as Record<string, CardEffect[]>;
+    let touched = false;
+    for (const [cardNum, effs] of Object.entries(j)) {
+      if (!effs.some(e => targets.has(e.effectId)) && !(MANUAL_EFFECTS[cardNum] ?? []).some(e => targets.has(e.effectId))) continue;
+      const card = cards.get(cardNum);
+      if (!card) continue;
+      if (!freshCache.has(cardNum)) {
+        freshCache.set(cardNum, mergeManualEffects(cardNum, parseCardEffects({ ...(card as unknown as CardData), effects: [] } as CardData)));
+      }
+      const freshById = new Map(freshCache.get(cardNum)!.map(e => [e.effectId, e]));
+      const next: CardEffect[] = effs.map(e => (targets.has(e.effectId) && freshById.has(e.effectId))
+        ? (applied++, touched = true, freshById.get(e.effectId)!) : e);
+      // live に無い効果（FRESH_ONLY）を明示指定された場合は末尾へ追加する。
+      for (const id of targets) {
+        if (freshById.has(id) && !next.some(e => e.effectId === id) && id.startsWith(cardNum)) {
+          next.push(freshById.get(id)!); applied++; touched = true;
+        }
+      }
+      if (touched) { j[cardNum] = next; console.log(`${f}: ${cardNum} → ${effs.filter(e => targets.has(e.effectId)).map(e => e.effectId).join(', ') || '(追加)'}`); }
+    }
+    if (touched) writeFileSync(p, JSON.stringify(j), 'utf-8');
+  }
+  console.log(`計 ${applied} 効果を live へ同期。ゲートを回すこと: npm run gates`);
+  process.exit(0);
+}
 
 // ── --card <ID>：1カードの完全 diff ──
 const cardArgIdx = process.argv.indexOf('--card');
