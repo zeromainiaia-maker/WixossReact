@@ -1114,6 +1114,10 @@ export function fieldCandidates(
     if (filter?.centerZoneOnly !== undefined) {
       if (filter.centerZoneOnly !== (zoneIdx === 1)) return [];
     }
+    // 左／右のシグニゾーン限定（所有者から見た表示順＝left=0 / right=2）
+    if (filter?.zoneSide !== undefined) {
+      if (zoneIdx !== (filter.zoneSide === 'left' ? 0 : 2)) return [];
+    }
     // 表記パワー比較（per-candidate）: 実効パワー vs 自身の表記パワー。低い=低下中／高い=増強中。
     // 表記が数値でない（∞等）シグニは比較不能＝対象外。
     if (filter?.powerLtPrinted || filter?.powerGtPrinted) {
