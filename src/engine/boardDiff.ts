@@ -296,6 +296,17 @@ export function countCharmsToTrash(before: PlayerState, after: PlayerState): num
   return count;
 }
 
+/**
+ * 《コインアイコン》を得た枚数を算出（ON_COIN_GAINED＝既存 ON_COIN_PAID の逆方向）。
+ * ⚠**上限5でクランプされた実増加**を返す（`coins` は上限5）＝「5枚持ちで得ても0枚」が正しい。
+ * ⚠効果解決の中央 diff 専用。グロウ/アシストの獲得は**支払いと同じ差分に同居する**ため、
+ *   各サイトで実増加を直接渡す（ここに通すと支払い分と相殺されて取りこぼす）。
+ */
+export function countCoinsGained(before: PlayerState, after: PlayerState): number {
+  if (!before || !after) return 0;
+  return Math.max(0, (after.coins ?? 0) - (before.coins ?? 0));
+}
+
 /** 場の【アクセ】（signi_acce）がトラッシュに置かれた枚数を算出（ON_ACCE_TO_TRASH）。countCharmsToTrash の【アクセ】版。 */
 export function countAcceToTrash(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;
