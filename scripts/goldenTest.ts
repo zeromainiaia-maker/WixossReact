@@ -23506,6 +23506,14 @@ test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () =>
     eq(result.ownerState.game_grow_phase_limit_plus, undefined, 'Q future gain stops');
     eq(result.ownerState.game_lrig_limit_bonus, undefined, 'Q accumulated bonus stops applying');
 
+    // ⚠**live JSON そのもの**が反転機構に繋がっていることを固定する（§6.3 J-5・続き381）。
+    //   従来この test は `mergeManualEffects` をテスト内で再適用して live の陳腐化を迂回していたため、
+    //   **stub も collector も実装済みなのに live の A面が `UNKNOWN`／B面が `timing:[]` で機構全体が死んでいた**のを
+    //   ゲートが1件も検出できなかった。live 側を直接 assert して同じ陳腐化が再発したら落ちるようにする。
+    ok(JSON.stringify(effectsMap.get('WXDi-P11-010A') ?? []).includes('MUGEN_Q_RESET_AND_FLIP'),
+      'live A面が反転 stub に繋がっている（UNKNOWN のままなら機構が死ぬ）');
+    eq(JSON.stringify((effectsMap.get('WXDi-P11-010B') ?? []).find(e => e.effectId === 'WXDi-P11-010B-E1')?.timing),
+      '["ON_LRIG_FLIP"]', 'live B面 E1 が ON_LRIG_FLIP を持つ（timing:[] なら反転しても発火しない）');
     const bEffects = mergeManualEffects('WXDi-P11-010B', effectsMap.get('WXDi-P11-010B') ?? []);
     const flipMap = new Map(effectsMap); flipMap.set('WXDi-P11-010B', bEffects);
     const trigCtx = { hostId: 'p1', guestId: 'p2', activeUserId: 'p1', turnPhase: 'GROW',
