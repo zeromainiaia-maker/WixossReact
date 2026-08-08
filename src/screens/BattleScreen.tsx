@@ -8864,8 +8864,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
+      // §6.3 J-4: バトルで場を離れたシグニを離場履歴へ記録する（中央 diff を通らない経路＝実戦で最頻）。
+      // ⚠アタックフェイズ以外では起きないので位相判定は不要。
+      {
+        const leftMine = detectLeftFieldSigni(myS, finalMyState).map(x => x.cardNum);
+        const leftOpp  = detectLeftFieldSigni(opS, finalOpState).map(x => x.cardNum);
+        if (leftMine.length > 0) finalMyState = { ...finalMyState, signi_left_field_this_attack_phase: [...(finalMyState.signi_left_field_this_attack_phase ?? []), ...leftMine] };
+        if (leftOpp.length > 0)  finalOpState = { ...finalOpState, signi_left_field_this_attack_phase: [...(finalOpState.signi_left_field_this_attack_phase ?? []), ...leftOpp] };
+      }
+
+      // ON_ATTACK_END（§6.3 J-4・WXK11-018-E2）＝**このアタックの終了時**。バトル・バニッシュ・ライフクラッシュを
+      // 解決し終えたここが終了点で、`dealtSigniDamage` が確定しているので「ダメージが与えられていない場合」を判定できる。
+      // ⚠アタッカーが場を離れている場合は collector 側の effectsMap 走査に載らない＝自然に発火しない。
+      const attackEndEntries: StackEntry[] = [];
+      {
+        const ae = pureCollectAttackEndTriggers(mkTrigCtx(), attackerId, myTopNum, finalMyState, finalOpState, dealtSigniDamage);
+        attackEndEntries.push(...ae.entries);
+        if (ae.usedOncePerTurnIds.length > 0) {
+          finalMyState = { ...finalMyState, actions_done: [...(finalMyState.actions_done ?? []), ...ae.usedOncePerTurnIds] };
+        }
+      }
+
       // Phase 2のトリガー（ON_BANISHなど。ON_ATTACK_SIGNIはPhase 1で処理済み）
-      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries, ...charmEntries, ...crashTotalEntries];
+      const allTriggers = [...banishEntries, ...battleBanishEntries, ...trashEntriesSA, ...leaveEntriesSA, ...heavenEntries, ...signiBattleEntries, ...damageEntries, ...charmEntries, ...crashTotalEntries, ...attackEndEntries];
       if (allTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
