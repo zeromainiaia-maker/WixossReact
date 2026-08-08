@@ -5996,9 +5996,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // usageLimit（《ターン1回》）消費を actions_done へ永続化（従来は「読むだけ」で書き戻しが無く実質ノーガードだった。続き135）
       const growUsedMine = isHost ? growTrig.usedHostIds : growTrig.usedGuestIds;
       const growUsedOpp  = isHost ? growTrig.usedGuestIds : growTrig.usedHostIds;
-      if (growUsedMine.length > 0) newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...growUsedMine] };
-      const opAfterGrow: PlayerState | null = growUsedOpp.length > 0
-        ? { ...growOp, actions_done: [...(growOp.actions_done ?? []), ...growUsedOpp] }
+      // ON_COIN_GAINED（§6.3 J-5）: グロウでルリグの Coin 欄ぶんコインを得た場合。**この経路は効果解決の
+      // 中央 diff を通らない**ので、既存 ON_COIN_PAID がここでコスト支払いを拾っているのと同じ場所で獲得も拾う。
+      // ⚠実増加は上限5のクランプ後（「5枚持ちでグロウしても得ていない」が正しい）。支払いはこの差から除く。
+      const coinsAfterGrowPay = Math.max(0, growBase.coins - growCoinCost);
+      const growCoinGainActual = Math.min(5, coinsAfterGrowPay + coinGain) - coinsAfterGrowPay;
+      const growCoinGainMine = growCoinGainActual > 0
+        ? collectCoinGainedTriggers(user.id, newMyState, growOp, growCoinGainActual, 0)
+        : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
+      const growCoinGainOpp = growCoinGainActual > 0
+        ? collectCoinGainedTriggers(isHost ? bs.guest_id : bs.host_id, growOp, newMyState, 0, growCoinGainActual)
+        : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
+      const growCoinGainedEntries = [...growCoinGainMine.entries, ...growCoinGainOpp.entries];
+      if (growUsedMine.length > 0 || growCoinGainMine.usedOncePerTurnIds.length > 0) {
+        newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...growUsedMine, ...growCoinGainMine.usedOncePerTurnIds] };
+      }
+      const growOppUsedAll = [...growUsedOpp, ...growCoinGainOpp.usedOncePerTurnIds];
+      const opAfterGrow: PlayerState | null = growOppUsedAll.length > 0
+        ? { ...growOp, actions_done: [...(growOp.actions_done ?? []), ...growOppUsedAll] }
         : (growOp !== op ? growOp : null);
       const opKeyGrow = isHost ? 'guest_state' : 'host_state';
       // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
