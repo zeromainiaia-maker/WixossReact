@@ -378,6 +378,14 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return ownerState.field.signi[1]?.includes(sourceCardNum) ?? false;
 
+    case 'IS_SELF_IN_SIDE_ZONE': {
+      // このシグニが左（index 0）／右（index 2）／左か右（中央以外）のシグニゾーンにあるかぎり
+      if (!sourceCardNum) return false;
+      const zi = ownerState.field.signi.findIndex(s => s?.includes(sourceCardNum));
+      if (zi < 0) return false;
+      return cond.side === 'either' ? zi !== 1 : zi === (cond.side === 'left' ? 0 : 2);
+    }
+
     case 'TURN_HAND_DISCARD_GTE':
       // このターンにあなたが手札をN枚以上捨てている場合
       return (ownerState.turn_hand_discarded_count ?? 0) >= cond.value;

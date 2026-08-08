@@ -1882,7 +1882,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ゾーン状態フィルタ（hasCharm/isFrozen/infected 等）が指定された場合は、直前に処理したカードを
       // 場から探してゾーン状態も照合する（「それに【チャーム】が付いている場合」WX25-P2-102/107/109。
       // matchesFilter は CardData のみで hasCharm 等を黙って無視するため、この補助照合が要る）。
-      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly'] as const;
+      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide'] as const;
       const needsZoneState = !!cond.filter && ZONE_STATE_KEYS.some(k => (cond.filter as Record<string, unknown>)[k] !== undefined);
       const matchedCards = procM.filter(cn => {
         const card = ctx.cardMap.get(getCardNum(cn));
