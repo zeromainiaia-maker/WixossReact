@@ -128,6 +128,7 @@ function filterJa(f?: any): string {
   if (f.frontOfGateZone) parts.push('【ゲート】の正面の');
   if (f.inGateZone) parts.push('同じゾーンに【ゲート】がある');
   if (f.centerZoneOnly) parts.push('中央ゾーンの');
+  if (f.zoneSide) parts.push(f.zoneSide === 'left' ? '左ゾーンの' : '右ゾーンの');
   if (f.isFrozen) parts.push('凍結状態の');
   if (f.isPuppet) parts.push('傀儡状態の');
   if (f.eachDistinctLevel) parts.push('それぞれレベルの異なる');
@@ -624,6 +625,8 @@ function condJa(c?: any): string {
     case 'IS_SELF_CHARMED': return 'このシグニに【チャーム】が付いている';
     case 'IS_SELF_AWAKENED': return 'このシグニが覚醒状態';
     case 'IS_SELF_IN_CENTER_ZONE': return 'このシグニが中央ゾーンにある';
+    case 'IS_SELF_IN_SIDE_ZONE':
+      return `このシグニが${c.side === 'either' ? '左か右' : c.side === 'left' ? '左' : '右'}のシグニゾーンにある`;
     default: return `[条件:${c.type}]`;
   }
 }

@@ -2869,8 +2869,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (t.includes('スペルの効果') || t.includes('スペルによって')) from.push('スペル');
     if (t.includes('アーツの効果') || t.includes('アーツによって')) from.push('アーツ');
     if (from.length === 0) from.push('BANISH');
+    // 🔴**軸（BANISH）を落として種別トークンだけを置くと保護範囲が広がりすぎる**（続き377l）＝
+    //   `from:['シグニ']` は `collectEffectImmuneSigni` が拾う「**対戦相手のシグニの効果を（何であれ）
+    //   受けない**」の表現で、原文「対戦相手のシグニの効果によって**バニッシュ**されない」より広い。
+    //   正しい形は `from:['BANISH']` ＋ `bySourceType`（＝`collectBanishBySourceProtectedSigni` が
+    //   解決中ソースの種別を見てバニッシュ軸だけ保護する）で、**live 10枚は既にその形**＝parser だけが退化していた
+    //   （`WXK01-094/096/099`／`WXK04-064`／`WXK08-036`／`WDK07-Y17`／`WDK17-015`／`WXDi-P03-074`／
+    //   `WXDi-P10-046`／`WXDi-CP01-038`）。⚠`bySourceType` は単数なので**種別が1つだけ**名指された形に限る。
+    const bySourceType = from.length === 1 && from[0] !== 'BANISH'
+      ? from[0] as 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ'
+      : undefined;
+    if (bySourceType) { from.length = 0; from.push('BANISH'); }
     return {
       type: 'GRANT_PROTECTION',
+      ...(bySourceType ? { bySourceType } : {}),
       // ⚠ここは signiClauseOwner を使わない：本形の大半は「このシグニは**対戦相手の効果によって**
       //   バニッシュされない」＝文中の「対戦相手」は**バニッシュの主体**であって対象の所有者ではない。
       //   helper に委ねると自己保護が相手シグニへの付与に反転する（WX06-022/WX13-049/WXK01-039 等26枚）。
