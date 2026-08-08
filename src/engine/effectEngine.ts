@@ -4575,7 +4575,16 @@ export function collectEffectImmuneSigni(
   sourceCardType: string,
   sourceCardNum?: string,
   sourceEffectType?: import('../types/effects').CardEffect['effectType'],
+  effectivePowers?: Map<string, number>,
 ): Set<string> {
+  // タスク12(cxii) と同じ穴＝`activeCondition` に実効パワー参照（`SELF_POWER_THRESHOLD` 等）があると、
+  // powers を渡さない限り**表記パワーへフォールバック**して「バフしても耐性が付かない」過小実行になる。
+  // (cxii) では耐性系のうち `collectBanishEffectProtectedSigni`（バニッシュ軸）だけを直しており、
+  // **汎用の効果耐性を読むこの関数は残っていた**（当時 live 母集団が0件だったため）。
+  // `WX09-019`（表記パワー**0**／「パワーが14000以上であるかぎり対戦相手のアーツの効果を受けず」）で顕在化。
+  let _powers = effectivePowers;
+  const powersOf = (): Map<string, number> =>
+    (_powers ??= calcFieldPowers(state, opponentState, isOwnerTurn, effectsMap, cardMap));
   const immune = new Set<string>();
   const srcType = sourceCardType ?? '';
   // sourceCostMin（「コストの合計がN以上の、アーツとスペルの効果を受けない」WX15-031）判定用に
