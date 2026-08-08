@@ -13,6 +13,7 @@ import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, StackEntry } from '../src/types';
 import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
+import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
