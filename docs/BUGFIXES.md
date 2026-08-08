@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — 🏁🏁**Opusタスク12 (cxvii)(cxviii) も残0クローズ**＝「機構待ち」と判定した2件が**既存部品の組み合わせ**で届いた（golden 1479→**1481**・census 932 据置・live 2カード・**要実機検証2件**）（Opus 5）
+
+同日に (cxiii) から切り出した機構待ち2件。**どちらも「新機構が要る」という見立ては外れ**で、
+足りなかったのは①**動的レベルを読む条件型**と②**分岐を書ける場所**だけだった。
+
+### (cxvii) `WX20-Re18`＝動的レベル機構は**あった**。無かったのは「それを読む条件型」
+
+`STUB:DYNAMIC_LEVEL_BY_ENERGY` は既に実装済みで（`buildLevelMods` が実効レベルを、
+`calcFieldPowers` が「レベル1につき＋3000」をそれで計算していた）、**実効レベルを条件として読む型が無い**
+のが本体だった。`SELF_POWER_THRESHOLD` のレベル版として **`SELF_LEVEL_THRESHOLD`** を
+`ActiveCondition` / `Condition` の両方に新設した。
+
+- **`checkActiveCondition`** に `effectiveLevels?` 引数を足して case を実装（`AND`/`OR` の再帰にも伝播）。
+- **`evalCondition`** は ExecCtx にレベルの箱が無いので、`ctx.effectsMap` があれば
+  **`calcSigniLevels` でその場計算**する（動的レベルを拾う唯一の経路）。
+- **`collectEffectImmuneSigni` / `collectContinuousGrantedKeywords`** に遅延計算の levels を配線
+  （タスク12(cxii) と同じ「渡さないと表記値へフォールバック」の罠。`WX20-Re18` は**表記レベル2**なので
+  渡さないと閾値4/5が一生 false）。
+
+データ2点（原文「レベルが**４以上**であるかぎり『【自】アタック時、正面をバニッシュ』を得、
+**５以上**であるかぎり『【常】対戦相手の効果を受けない』を得る」）：
+
+- `E2` の条件 `SELF_POWER_GTE 12000` → `SELF_LEVEL_THRESHOLD gte 4`。
+  ⚠旧値は**レベル条件をパワーで近似した手当て**（実効パワー＝表記1000＋3000×実効レベル なので
+  Lv4=13000／Lv3=10000 とたまたま境界が合う）。**別の効果でパワーだけバフされるとレベル3でも発火する**
+  過剰実行だった＝golden に「パワー30000でもレベル3なら発火しない」を固定した。
+  ⚠`manualEffects.ts` 側の実体なので**そちらを直す**（`mergeManualEffects` は parser 後処理を上書きする）。
+- `E4` を新設（レベル5以上で `GRANT_PROTECTION{fromAll}`）＝原文の後段は**丸ごと欠落**していた。
+
+### (cxviii) `WXDi-P15-071`＝引用付与ハンドラは分岐を持てない → `CONDITIONAL` へ組み替え
+
+原文「…それは『【常】：正面のパワーが8000以下であるかぎり【ランサー】を得る。』を得る。
+**あなたがベットしていた場合、代わりに**それは『【常】：【Ｓランサー】』を得る」。
+引用付与ハンドラ（`GRANT_ABILITY_INNER_TEXT`）は**原文をテキスト検出するだけで分岐を持たない**ので、
+ベットしても常に非ベット側が付いていた。
+
+`IS_BETTING`（評価器に実装済み）と `GRANT_EFFECT{targetsLastProcessed}`（任意の `CardEffect` を
+付与先へ積める）が揃っているので、**新機構なしで排他分岐に書き換えられた**：
+
+```
+SEQUENCE[ STUB{SELECT_TARGET_ONLY:＜闘争派＞1体},
+          CONDITIONAL{IS_BETTING,
+            then: GRANT_KEYWORD{targetsLastProcessed, 'Sランサー'}        // 原文どおり無条件
+            else: GRANT_EFFECT{targetsLastProcessed, effect: CONTINUOUS
+                    GRANT_KEYWORD{'ランサー'} activeCondition FRONT_SIGNI_POWER lte 8000 } } ]
+```
+
+⚠これに伴い (cxiv) の母集団固定を **8枚→7枚**へ更新した（`WXDi-P15-071` だけ引用付与ハンドラを通らなくなった）。
+
+### 検証
+
+- `npm run gates` 全緑＝typecheck / golden **1479→1481**（+2＝(cxvii) の実効レベル4方向＋(cxviii) の
+  ベット/非ベット排他）／smoke **10686** 全0（+1＝`WX20-Re18-E4`）／fuzz 全0／census **932 据置**
+  （表現ではなく実行の是正なので動かないのが正）／lint 0 errors。
+- `npm run regen` → 逆翻訳は `SELF_LEVEL_THRESHOLD` の表示規則を追加して3行が原文どおりに（同型★**0 据置**）。
+  ⚠`condJa` は Condition と ActiveCondition を**1つの switch** で描くので、同名型の case は1箇所だけ
+  （最初 両方に足して `no-duplicate-case` で lint が落ちた）。
+- `WX20-Re18` は (cxiii) と同じ `sameIdSet` ガードに落ちるので parser 出力を直接 live へ
+  （`scripts/archive/landRe18_task12cxvii.ts`）。`WXDi-P15-071` は held 経由で採用。
+
+### 残した follow-up
+
+- **要実機検証2件（Sonnetタスク1へ）**＝①`WX20-Re18` をエナ10枚/15枚で場に出し、
+  **レベル表示・アタック時バニッシュ・レベル5の効果耐性**が実効レベルどおりに切り替わるか
+  （`BattleScreen` のレベル表示は `calcSigniLevels` を別途呼んでいるので engine と一致するかも見る）。
+  ②`WXDi-P15-071` を**ベットあり／なし**で撃ち分け、【Ｓランサー】と条件つき【ランサー】が排他になるか。
+
 ## 2026-08-08 — 🏁🏁**Opusタスク12 在庫 残0クローズ**＝(cxv)(cxiii)(cxiv) の3件（golden 1472→**1479**・census 927→**932**・live 10カード・**要実機検証3件**）（Opus 5）
 
 在庫3件を1セッションで消化した。**3件とも「全ゲート緑のまま意味だけが間違っている」型**で、
