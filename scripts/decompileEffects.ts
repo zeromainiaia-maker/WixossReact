@@ -1213,8 +1213,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.charm?.type === 'TRASH_CARD' ? `${ownerJa(a.charm?.owner)}トラッシュから${filterJa(a.charm.filter)}カード${charmCntJa}`
         : a.charm?.type === 'HAND_CARD' ? `${ownerJa(a.charm?.owner)}手札から${filterJa(a.charm.filter)}カード${charmCntJa}`
         : `${ownerJa(a.charm?.owner)}カード`;
+      // 「好きな数」は数詞ではなく修飾語なので**名詞の前**に置く（「シグニ好きな数の」は日本語にならない）。
       const toJa = a.to?.filter?.thisCardOnly ? 'このシグニ'
         : a.to?.filter?.isTriggerSource ? 'そのシグニ（場に出たシグニ）'
+        : a.to?.count === 'ALL' ? `${ownerJa(a.to?.owner)}好きな数の${filterJa(a.to?.filter)}シグニ`
         : `${ownerJa(a.to?.owner)}${filterJa(a.to?.filter)}シグニ${toCntJa}`;
       return `${charmJa}を${toJa}の【チャーム】にする${a.optional ? '（してもよい）' : ''}`;
     }
