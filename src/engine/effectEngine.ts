@@ -4617,7 +4617,8 @@ export function collectEffectImmuneSigni(
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
-      if (!checkActiveCondition(eff.activeCondition, state, opponentState, isOwnerTurn, cardMap, sourceNum)) continue;
+      if (!checkActiveCondition(eff.activeCondition, state, opponentState, isOwnerTurn, cardMap, sourceNum,
+                                eff.activeCondition ? powersOf() : undefined)) continue;
       const gp = eff.action as GrantProtectionAction;
       if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
 
