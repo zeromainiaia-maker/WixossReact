@@ -1,5 +1,118 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — 🏁🏁**Opusタスク12 在庫 残0クローズ**＝(cxv)(cxiii)(cxiv) の3件（golden 1472→**1479**・census 927→**932**・live 10カード・**要実機検証3件**）（Opus 5）
+
+在庫3件を1セッションで消化した。**3件とも「全ゲート緑のまま意味だけが間違っている」型**で、
+どれも登録時の見立て（(cxv)＝過小／(cxiii)(cxiv)＝機構待ち）とは**別の真因**だった。
+
+### (cxv) 真因は「欠落」ではなく **`activeCondition` に `Condition` 型を流用**＝無条件成立
+
+`WX05-021-E4` の【ダブルクラッシュ】付与は JSON に**あった**。壊れていたのは条件の**型**で、
+`activeCondition` に `Condition` 側の `SELF_POWER_GTE` が入っていた。`checkActiveCondition` は
+**switch を抜けると `return true`**（未知の型＝無条件成立）なので、表記12000のシグニに
+**常時ダブルクラッシュ**が付いていた（過剰実行）。
+
+機械検出したら**同型が3効果**あった（`activeCondition` の型は `ActiveCondition` union の43型だけが有効）：
+
+| 効果 | 誤った型 | 正しい型 | 症状 |
+|---|---|---|---|
+| `WX05-021-E4` | `SELF_POWER_GTE` | `SELF_POWER_THRESHOLD{gte,20000}` | 表記12000で常時【ダブルクラッシュ】 |
+| `WXDi-P07-060-E3` | `THIS_CARD_IS_AWAKENED` | `IS_SELF_AWAKENED` | 覚醒前から＋2000（3000→5000） |
+| `PR-426-E3` | `AND[LIFE_COUNT, THIS_CARD_IN_CENTER_ZONE]` | `AND[COUNT_THRESHOLD{life_cloth}, IS_SELF_IN_CENTER_ZONE]` | ライフ満タン・サイドゾーンでも＋4000 |
+
+`AND` 自体は実装済みなので、**子だけが別 union の型**でも親は素通りする（`PR-426-E3` がそれ）。
+
+**再発防止は2段**にした（症状を刈るだけでは同じ穴に落ちる）：
+
+1. **評価器の網羅性を typecheck に固定**＝`checkActiveCondition` / `evalCondition` の末尾に `const _x: never = cond;`
+   を置いた。union に型を足して実装を忘れると**ビルドが落ちる**。あわせて
+   ⓐ `FIELD_LRIGS_HAVE_COLORS`（ActiveCondition 側に case が無かった）と
+   ⓑ `NO_COMMON_COLOR_AMONG_FIELD_SIGNI`（Condition 側に case が無かった）を相互移植し、
+   ⓒ `OPP_LIFE_CRASH_EVENT_GTE` は「実ゲートは収集時のインライン評価」という設計を明示 case にした。
+   ⓓ `COUNT_THRESHOLD`/`HAND_DIFF`/`ENA_DIFF`/`ENERGY_COLOR_TYPES`/`LRIG_LEVEL` の内側 operator switch 後の
+   `break;` は**外側 switch を抜けて `return true` に落ちる**書き方だったので保守側（`return false`）で閉じた。
+2. **JSON 側は golden で機械照合**＝`src/types/effects.ts` に `ACTIVE_CONDITION_TYPES` / `CONDITION_TYPES`
+   （`Record<Union['type'], true>`＝union に足すとキー不足で typecheck が落ちる）を置き、golden が
+   live 全効果の `activeCondition` / `condition` を**ネストした `AND`/`OR` の子まで**照合して0件を固定。
+   ⚠**ミラー表は `src/` に置くしかない**＝`scripts/` は tsconfig の include 外で**型検査されない**
+   （goldenTest 内に書くと自動追随しない。実際に最初 `Condition` を import せずに書いても素通りした）。
+
+### (cxiii) 多段閾値＝**「代わりに」は帯（AND＋`lt`）で表せる**＝機構は要らなかった
+
+登録時は「置換機構待ち」としていたが、**下限以上かつ上限未満**の帯で排他にできる。
+パワー修正だけは既存 `WXDi-P05-076` と同じ**加算分解**（上位帯に差分だけ足す）が読みやすい。
+原文には2種類あり、置換型（「代わりに」＝排他）と累積型（両方乗る）を作り分けた
+（`applyGradedThresholdBatch` in `effectParser.ts`。原文照合済み effectId のみ・regex 波及なし）。
+
+| カード | 原文 | 直す前の挙動 |
+|---|---|---|
+| `WXEX1-33-E2` | 20000で【ダブルクラッシュ】／30000で代わりに【トリプルクラッシュ】 | **どのパワーでも1つも付かない**（`SEQUENCE` 直下に2つ並べていたが、キーワード収集は `action` 直下の `GRANT_KEYWORD` しか読まない） |
+| `WXK02-038-E1` | トラッシュ15枚で＋3000／25枚で代わりに＋5000 | 25枚以上でも＋3000（第2段が `STUB:CONDITIONAL_ALT_POWER_BOOST`＝no-op） |
+| `WXK10-036-E1` | ＜電機＞に＋1000／50万人達成で代わりに＋2000 | 同上（達成しても＋1000） |
+| `WXK10-035-E1` | ＜電機＞は相手の**レベル1以下**のシグニの効果を受けない／50万人で**レベル2以下** | 同一の `GRANT_PROTECTION` が2つ並ぶだけで**`sourceFilter` が無く＝相手シグニの効果を全部受けない**（過剰保護） |
+| `WX09-019` | 14000でアーツ耐性／18000で【ランサー】＋引用【自】 | 引用【自】だけが存在し、**アーツ耐性と【ランサー】が丸ごと欠落** |
+
+**engine 1件セット**＝`collectEffectImmuneSigni` が `checkActiveCondition` に `effectivePowers` を
+渡していなかった（タスク12(cxii) が耐性系のうち**バニッシュ軸だけ**を直しており、汎用の効果耐性は
+当時 live 母集団0件で残っていた）。`WX09-019` は**表記パワー0**（エナ1枚につき＋2000の完全動的）なので、
+これを直さないとアーツ耐性が一生 false になる。(cxii) と同じ「渡されなければその場で `calcFieldPowers`」方式。
+
+⚠**`build:effects` の収穫マージが構造的に届かない穴**を1つ確認した＝`buildEffectsJson.ts` は
+「MANUAL/PARTIAL を含むカードで **effectId の集合が変わる**」場合、`_held_fresh` / `_partial_fresh` の
+**どちらのレビュー行列にも載せずカード丸ごと温存**する（`sameIdSet` ガード）。効果を新設するバッチは
+必ずここに落ちるので、`WXEX1-33` / `WX09-019` は**parser の出力そのもの**を live へ書いた
+（`scripts/archive/landGradedCards_task12cxiii.ts`）＝parser と live は完全一致で held は増えない。
+他3枚は通常どおり held 経由で採用。
+
+### (cxiv) 引用付与の内側の条件＝**STUB は実装済みで、落ちていたのは「条件を置く場所」**
+
+8カードのうち6枚は `GRANT_QUOTED_ABILITY` / `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` STUB だが、
+**どちらもハンドラは実装済み**（原文からキーワードを抜いて付与する）。問題は
+**`keyword_grants`（`Record<cardNum, string[]>`）が条件を持てない**ことで、
+「正面のシグニのパワーがN以下であるかぎり」が丸ごと落ちて**正面が誰でも【ランサー】【アサシン】が付いていた**。
+
+直し方＝条件つきのときは `granted_effects` の **CONTINUOUS `GRANT_KEYWORD{activeCondition: FRONT_SIGNI_POWER}`**
+へ回す（`buildFrontPowerGatedKeywordGrant` in `execUtils.ts`）。`granted_effects` は `BattleScreen` の
+augmented effectsMap 経由で **付与先シグニ自身を発生源として** CONTINUOUS 収集に載るので、
+`collectContinuousGrantedKeywords` が実効パワーで毎フレーム評価する（正面が空なら不成立＝原文どおり）。
+
+残る2枚（`WXDi-P14-065-E1` / `WXDi-P15-071-E1`）は**引用文が丸ごと `GRANT_KEYWORD.keyword` に流れ込んで**
+いた（`keyword` が「このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る」という
+文そのもの＝`hasKeyword` は正式名でしか照合しないので**一度も付かない**＝過小）。
+壊れた `GRANT_KEYWORD` を **`STUB:SELECT_TARGET_ONLY`（対象宣言だけ・原文の対象フィルタは保つ）** に置き換え、
+付与は引用付与ハンドラに任せた。母集団は golden で8枚に固定した。
+
+### 逆翻訳（decompiler）を engine に合わせた3点
+
+- `GRANT_PROTECTION` の `sourceFilter.level.max` を描く（これが無いとレベル1以下版と2以下版が**同じ文**になり、
+  「engine は区別しているのに原文照合では見えない」偽陰性になる）。
+- `subjectFilter` も `target` も無い CONTINUOUS の `GRANT_PROTECTION` は engine が**発生源自身だけ**を守るので
+  主語を「このシグニ」と明示（従来は「シグニは…」＝場の全シグニと読めた。4効果）。
+- 例外なしの `fromAll` が軸トークン分岐に落ちて **「対戦相手の効果によってない」** という壊れた文になっていた
+  （3効果）。
+
+### 検証
+
+- `npm run gates` 全緑＝typecheck / golden **1472→1479**（+7＝(cxv) 条件型ガード1／(cxiii) 4／(cxiv) 2）／
+  smoke **10685** 全0（効果数 10679→10685＝新設6）／fuzz 全0／census **927→933→932**
+  （+6＝1文を効果2本に割った分の既知の偽陽性・追加ID6件/削除0件を機械diffで確認／−1＝(cxiv) の keyword 復元）／
+  lint 0 errors。
+- `npm run regen` → 逆翻訳の変更は上記3点＋対象10カードのみ（原文と照合済み）。同型★**0 据置**（265群）。
+- held **148→145**（採用3枚）。`_partial_fresh` 影響なし。
+
+### 残した follow-up
+
+- **要実機検証3件（Sonnetタスク1へ）**＝いずれも `BattleScreen` の経路にしか無く golden では踏めない。
+  ①(cxiv) の条件つき付与が **augmented effectsMap 経由で実際にバッジ／アタック処理に効くか**
+  （`WXDi-CP02-057` か `WXDi-P11-071` で、正面のパワーを跨がせて【ランサー】が付く／付かないを見る）。
+  ②(cxiii) `WXK10-035` の効果耐性（`collectEffectImmuneSigni` の呼び出しは `BattleScreen.tsx:4256` の1箇所）。
+  ③(cxv) `PR-426-E3` / `WXDi-P07-060-E3` の＋パワーが条件どおりに出入りするか。
+- **(cxvii)**〔新規登録〕`WX20-Re18`＝**レベルが動的に変わる機構が無い**（`STUB:DYNAMIC_LEVEL_BY_ENERGY`）。
+  現行 `E2` は「レベル4以上」を**パワー12000以上で近似**した手当てで、原文の「レベル5以上であるかぎり
+  対戦相手の効果を受けない」は未実装。動的レベルを実装しないと正しく書けないので (cxiii) から切り出した。
+- **(cxviii)**〔新規登録〕`WXDi-P15-071` の**ベット時「代わりに【Ｓランサー】」**＝引用付与の**中**の分岐。
+  非ベット側（正面パワー条件つき【ランサー】）は本セッションで実働化したが、ベット分岐は別機構。
+
 ## 2026-08-08 — **§5d-0(i) 配線ギャップ 第18バッチ**＝「Nまで」上限スロット7効果を実働化（census 933→**927**／golden 1470→**1472**）（Codex）
 
 `src/data/effectParser.ts` に、原文の対象名詞句と既存 action 部分木がそれぞれ一意な場合だけ
