@@ -30,7 +30,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -68,7 +68,7 @@ import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
-import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
+import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countAcceToTrash, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -7653,6 +7653,32 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
   const host = mkState({ signi: ['WX16-Re05', null, null] }); const guest = mkState({});
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WX16-Re05-E1'), true, '1枚で発火');
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WX16-Re05-E1'), false, '0枚は非発火');
+});
+// §6.3 J-2「付与・離脱イベント」＝ON_ACCE_TO_TRASH / ON_SOUL_ATTACHED / ON_CARD_ATTACHED（従来 timing:[] で安全停止）。
+test('J-2 ON_ACCE_TO_TRASH: 自分の【アクセ】がトラッシュへ置かれたときだけ発火（WXEX2-19-E1 any_ally）', () => {
+  const host = mkState({ signi: ['WXEX2-19', null, null] }); const guest = mkState({});
+  eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WXEX2-19-E1'), true, '自アクセ1枚で発火');
+  eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'WXEX2-19-E1'), false, '相手アクセでは非発火（any_ally）');
+  eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WXEX2-19-E1'), false, '0枚は非発火');
+});
+test('J-2 ON_SOUL_ATTACHED: scope self は自分に付いたときのみ・any_ally は場のどれでも発火', () => {
+  // WXDi-D07-019-E1＝「このシグニに」＝self／WXDi-D07-004-E1＝ルリグの「あなたのシグニ1体に」＝any_ally
+  const host = mkState({ signi: ['WXDi-D07-019', 'WXK10-049', null] });
+  host.field.lrig = ['WXDi-D07-004'];
+  const guest = mkState({});
+  const fire = (hosts: { hostNum: string; count: number }[]) =>
+    collectAttachedTriggers(trigCtx(HOST), HOST, host, guest, 'ON_SOUL_ATTACHED', hosts).entries;
+  eq(has(fire([{ hostNum: 'WXDi-D07-019', count: 1 }]), 'WXDi-D07-019-E1'), true, 'self＝自身に付いて発火');
+  eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXDi-D07-019-E1'), false, 'self＝他シグニに付いても非発火');
+  eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXDi-D07-004-E1'), true, 'any_ally＝場のどれでも発火');
+  eq(has(fire([]), 'WXDi-D07-004-E1'), false, '付与0件は非発火');
+});
+test('J-2 ON_CARD_ATTACHED: 「このシグニにカード1枚が付いたとき」は自身への付与でのみ発火（WXK10-049-E1）', () => {
+  const host = mkState({ signi: ['WXK10-049', 'WXDi-D07-019', null] }); const guest = mkState({});
+  const fire = (hosts: { hostNum: string; count: number }[]) =>
+    collectAttachedTriggers(trigCtx(HOST), HOST, host, guest, 'ON_CARD_ATTACHED', hosts).entries;
+  eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXK10-049-E1'), true, '自身への付与で発火');
+  eq(has(fire([{ hostNum: 'WXDi-D07-019', count: 1 }]), 'WXK10-049-E1'), false, '他シグニへの付与では非発火');
 });
 test('Stage2 ON_ENERGY_TO_TRASH: energyTrashedOwner=opponent は相手エナ消費でのみ発火（WD15-015-E1）', () => {
   const host = mkState({ signi: ['WD15-015', null, null] }); const guest = mkState({});
