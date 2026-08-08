@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword } from '../utils/keywords';
-import { checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, type BanishedCardAttrs } from './effectEngine';
+import { checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, calcSigniLevels, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
   EffectAction,
