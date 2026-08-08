@@ -465,6 +465,48 @@ export function signiClauseLevelFilter(text: string): Partial<TargetFilter> {
   return { level: n };
 }
 
+/**
+ * 「〈…〉パワーN〔以上／以下〕のシグニN体を対象とし」の**対象名詞句に隣接するパワーだけ**を拾う（続き377n）。
+ * `signiClauseStoryFilter`（クラス）／`signiClauseIconFilter`（アイコン）／`signiClauseLevelFilter`（レベル）の4番目の兄弟。
+ *
+ * ⚠**素の `parsePowerFilter(文全体)` を対象フィルタに使ってはいけない**＝この語彙は
+ * **条件節**（「あなたの場に**パワー10000以上の**シグニがあるかぎり」）・
+ * **付与値**（「それのパワーを＋5000する」）にも同じ表記で現れる。`[^。、シ]` で読点を跨がせない。
+ */
+const SIGNI_TARGET_ADJACENT_POWER = /パワー([０-９\d]+)(以上|以下)の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/;
+export function signiClausePowerFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_TARGET_ADJACENT_POWER);
+  if (!m) return {};
+  const n = parseNum(m[1]);
+  return { powerRange: m[2] === '以上' ? { min: n } : { max: n } };
+}
+
+/**
+ * 「（あなた|対戦相手）の〈修飾〉シグニ（を）N体（まで）を対象とし」の**対象名詞句そのもの**から
+ * 所有者・体数・上限フラグを取る（続き377n）。
+ *
+ * ⚠**修飾語の span に別の所有者トークン／「シグニ」「ルリグ」を跨がせない**＝跨がせると
+ * `WXDi-P00-004-E1`「【使用条件】**あなたの場に緑のルリグがいる**あなたのパワー１５０００以上のシグニを２体まで対象とし」で
+ * **【使用条件】節の「あなた」**を所有者に採り、修飾語に条件節を丸ごと巻き込む。
+ *
+ * ⚠**`t.includes('まで')` で上限を判定してはいけない**＝「ターン**終了時まで**」に必ず当たり、
+ * ほぼ全効果が「N体まで（＝0体でもよい）」に化ける。数詞に隣接した「体まで」だけを見る。
+ */
+const SIGNI_TARGET_CLAUSE_SPEC =
+  /(あなた|対戦相手)の((?:(?!あなた|対戦相手|シグニ|ルリグ)[^。、]){0,24}?)シグニ(?:を)?([０-９\d]+)体(まで)?を?対象とし/;
+export function signiClauseTargetSpec(
+  text: string,
+): { owner: Owner; count: number; upToCount: boolean; modifiers: string } | null {
+  const m = text.match(SIGNI_TARGET_CLAUSE_SPEC);
+  if (!m) return null;
+  return {
+    owner: m[1] === 'あなた' ? 'self' : 'opponent',
+    count: parseNum(m[3]),
+    upToCount: !!m[4],
+    modifiers: m[2],
+  };
+}
+
 export function signiClauseOwner(text: string, fallback: Owner = 'self'): Owner {
   // 文中に「対戦相手」があれば従来どおり opponent（既存挙動を一切変えないための先行判定）
   if (text.includes('対戦相手')) return 'opponent';
