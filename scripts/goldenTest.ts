@@ -9449,7 +9449,7 @@ test('checkActiveCondition IS_SELF_IN_SIDE_ZONE: left=index0 / right=index2 / ei
   eq(chk('either', 0), true, 'either は index0 で true');
   eq(chk('either', 2), true, 'either は index2 で true');
   eq(chk('either', 1), false, 'either は中央だけ false');
-});
+}));
 
 // ATTACH_ACCE fromHand（デコレ）: 手札のアクセカードを2段階選択（step1=手札から／step2=ホストシグニ）して装着（続き65）
 test('ATTACH_ACCE fromHand: 手札シグニを場のホストシグニにアクセ（signi_acce設定・手札-1）', () => {
