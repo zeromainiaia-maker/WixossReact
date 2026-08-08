@@ -525,6 +525,12 @@ export interface TargetFilter {
   frontOfGateZone?: boolean; // THE DOOR【ゲート】がある自分のシグニゾーンの正面にある対戦相手のシグニ（own_gate_zones の各 zi に対し相手ゾーン 2-zi。execTransferToDeck が解決）
   inGateZone?: boolean;      // このシグニと同じシグニゾーンに THE DOOR【ゲート】がある（own_gate_zones にゾーンが含まれる。状態ベース＝fieldCandidates/matchesStateFilter で判定）
   centerZoneOnly?: boolean;  // 中央のシグニゾーン（zone index 1）にあるシグニのみ（状態ベース＝fieldCandidates/matchesStateFilter で判定）
+  // 左／右のシグニゾーンにあるシグニのみ（`centerZoneOnly` の兄弟。状態ベース＝fieldCandidates/matchesStateFilter で判定）。
+  // ゾーン添字は**所有者から見た表示順**＝left=0 / center=1 / right=2（`BoardComponents` の signiRow が
+  // 自分側を rawIdx 昇順で左から描き、相手側だけ左右反転して描く＝物理盤面と同じ）。
+  // ⚠これが無いと「あなたの右のシグニゾーンにある＜怪異＞のシグニのパワーを＋4000」が
+  //   `owner:'any'/count:1` の filter 無しへ潰れ、CONTINUOUS では効果元自身に解決＝**自分にバフ**していた。
+  zoneSide?: 'left' | 'right';
   thisCardOnly?: boolean; // 効果元シグニ自身のみ（「このシグニをバニッシュする」等の自己対象。execBanishが解決）
   frontOfSelf?: boolean; // このシグニの正面（相手ゾーン 2-zi）の相手シグニ1枚のみ。効果元が場のシグニでない／正面が空なら候補ゼロ＝no-op
   excludeSelf?: boolean;  // 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」等。execTrash/execBanishが解決）
