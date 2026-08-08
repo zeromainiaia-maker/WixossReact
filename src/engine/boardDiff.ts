@@ -296,6 +296,69 @@ export function countCharmsToTrash(before: PlayerState, after: PlayerState): num
   return count;
 }
 
+/** 場の【アクセ】（signi_acce）がトラッシュに置かれた枚数を算出（ON_ACCE_TO_TRASH）。countCharmsToTrash の【アクセ】版。 */
+export function countAcceToTrash(before: PlayerState, after: PlayerState): number {
+  if (!before || !after) return 0;
+  const beforeAcce = (before.field.signi_acce ?? []).filter((c): c is string => !!c);
+  const afterAcce = new Set((after.field.signi_acce ?? []).filter((c): c is string => !!c));
+  const afterTrash = new Set(after.trash ?? []);
+  let count = 0;
+  for (const c of beforeAcce) {
+    if (!afterAcce.has(c) && afterTrash.has(c)) count++;
+  }
+  return count;
+}
+
+/**
+ * この解決で新たに【ソウル】が付いたシグニを {hostNum, zoneIdx, soulNum} で返す（ON_SOUL_ATTACHED）。
+ * signi_soul[z] が null/別カード → 非null に変わったゾーンを見る。
+ * ⚠**そのゾーンのシグニ本体が前後で同一**の場合だけ拾う＝「ソウルが付いたまま別シグニに入れ替わった」
+ *   （ライズ・場出し）を「付いた」と誤検出しない。
+ */
+export function detectSoulAttached(
+  before: PlayerState, after: PlayerState,
+): { hostNum: string; zoneIdx: number; soulNum: string }[] {
+  if (!before || !after) return [];
+  const bs = before.field.signi_soul ?? [];
+  const as = after.field.signi_soul ?? [];
+  const out: { hostNum: string; zoneIdx: number; soulNum: string }[] = [];
+  const zones = after.field.signi?.length ?? 0;
+  for (let z = 0; z < zones; z++) {
+    const soulNum = as[z] ?? null;
+    if (!soulNum || soulNum === (bs[z] ?? null)) continue;
+    const hostNum = after.field.signi[z]?.at(-1);
+    if (!hostNum || before.field.signi[z]?.at(-1) !== hostNum) continue;
+    out.push({ hostNum, zoneIdx: z, soulNum });
+  }
+  return out;
+}
+
+/**
+ * この解決で「カードが付いた」シグニを {hostNum, zoneIdx, count} で返す（ON_CARD_ATTACHED）。
+ * 【チャーム】【アクセ】【ソウル】の3枠を横断し、ゾーンごとに新規付与された枚数を数える。
+ * ⚠detectSoulAttached と同じく**本体が前後で同一のゾーンだけ**（入れ替わりを付与と誤検出しない）。
+ */
+export function detectCardAttached(
+  before: PlayerState, after: PlayerState,
+): { hostNum: string; zoneIdx: number; count: number }[] {
+  if (!before || !after) return [];
+  const slots = ['signi_charms', 'signi_acce', 'signi_soul'] as const;
+  const out: { hostNum: string; zoneIdx: number; count: number }[] = [];
+  const zones = after.field.signi?.length ?? 0;
+  for (let z = 0; z < zones; z++) {
+    const hostNum = after.field.signi[z]?.at(-1);
+    if (!hostNum || before.field.signi[z]?.at(-1) !== hostNum) continue;
+    let count = 0;
+    for (const slot of slots) {
+      const bv = (before.field[slot] ?? [])[z] ?? null;
+      const av = (after.field[slot] ?? [])[z] ?? null;
+      if (av && av !== bv) count++;
+    }
+    if (count > 0) out.push({ hostNum, zoneIdx: z, count });
+  }
+  return out;
+}
+
 /** エナゾーン→トラッシュ枚数を算出（ON_ENERGY_TO_TRASH。before.energy にあって after に無く after.trash 在中）。 */
 export function countEnergyToTrash(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;
