@@ -7656,29 +7656,35 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
 });
 // §6.3 J-2「付与・離脱イベント」＝ON_ACCE_TO_TRASH / ON_SOUL_ATTACHED / ON_CARD_ATTACHED（従来 timing:[] で安全停止）。
 test('J-2 ON_ACCE_TO_TRASH: 自分の【アクセ】がトラッシュへ置かれたときだけ発火（WXEX2-19-E1 any_ally）', () => {
-  const host = mkState({ signi: ['WXEX2-19', null, null] }); const guest = mkState({});
-  eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WXEX2-19-E1'), true, '自アクセ1枚で発火');
-  eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'WXEX2-19-E1'), false, '相手アクセでは非発火（any_ally）');
-  eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WXEX2-19-E1'), false, '0枚は非発火');
+  withSavedCursor(() => {
+    const host = mkState({ signi: ['WXEX2-19', null, null] }); const guest = mkState({});
+    eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WXEX2-19-E1'), true, '自アクセ1枚で発火');
+    eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 1).entries, 'WXEX2-19-E1'), false, '相手アクセでは非発火（any_ally）');
+    eq(has(collectAcceToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WXEX2-19-E1'), false, '0枚は非発火');
+  });
 });
 test('J-2 ON_SOUL_ATTACHED: scope self は自分に付いたときのみ・any_ally は場のどれでも発火', () => {
-  // WXDi-D07-019-E1＝「このシグニに」＝self／WXDi-D07-004-E1＝ルリグの「あなたのシグニ1体に」＝any_ally
-  const host = mkState({ signi: ['WXDi-D07-019', 'WXK10-049', null] });
-  host.field.lrig = ['WXDi-D07-004'];
-  const guest = mkState({});
-  const fire = (hosts: { hostNum: string; count: number }[]) =>
-    collectAttachedTriggers(trigCtx(HOST), HOST, host, guest, 'ON_SOUL_ATTACHED', hosts).entries;
-  eq(has(fire([{ hostNum: 'WXDi-D07-019', count: 1 }]), 'WXDi-D07-019-E1'), true, 'self＝自身に付いて発火');
-  eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXDi-D07-019-E1'), false, 'self＝他シグニに付いても非発火');
-  eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXDi-D07-004-E1'), true, 'any_ally＝場のどれでも発火');
-  eq(has(fire([]), 'WXDi-D07-004-E1'), false, '付与0件は非発火');
+  withSavedCursor(() => {
+    // WXDi-D07-019-E1＝「このシグニに」＝self／WXDi-D07-004-E1＝ルリグの「あなたのシグニ1体に」＝any_ally
+    const host = mkState({ signi: ['WXDi-D07-019', 'WXK10-049', null] });
+    host.field.lrig = ['WXDi-D07-004'];
+    const guest = mkState({});
+    const fire = (hosts: { hostNum: string; count: number }[]) =>
+      collectAttachedTriggers(trigCtx(HOST), HOST, host, guest, 'ON_SOUL_ATTACHED', hosts).entries;
+    eq(has(fire([{ hostNum: 'WXDi-D07-019', count: 1 }]), 'WXDi-D07-019-E1'), true, 'self＝自身に付いて発火');
+    eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXDi-D07-019-E1'), false, 'self＝他シグニに付いても非発火');
+    eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXDi-D07-004-E1'), true, 'any_ally＝場のどれでも発火');
+    eq(has(fire([]), 'WXDi-D07-004-E1'), false, '付与0件は非発火');
+  });
 });
 test('J-2 ON_CARD_ATTACHED: 「このシグニにカード1枚が付いたとき」は自身への付与でのみ発火（WXK10-049-E1）', () => {
-  const host = mkState({ signi: ['WXK10-049', 'WXDi-D07-019', null] }); const guest = mkState({});
-  const fire = (hosts: { hostNum: string; count: number }[]) =>
-    collectAttachedTriggers(trigCtx(HOST), HOST, host, guest, 'ON_CARD_ATTACHED', hosts).entries;
-  eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXK10-049-E1'), true, '自身への付与で発火');
-  eq(has(fire([{ hostNum: 'WXDi-D07-019', count: 1 }]), 'WXK10-049-E1'), false, '他シグニへの付与では非発火');
+  withSavedCursor(() => {
+    const host = mkState({ signi: ['WXK10-049', 'WXDi-D07-019', null] }); const guest = mkState({});
+    const fire = (hosts: { hostNum: string; count: number }[]) =>
+      collectAttachedTriggers(trigCtx(HOST), HOST, host, guest, 'ON_CARD_ATTACHED', hosts).entries;
+    eq(has(fire([{ hostNum: 'WXK10-049', count: 1 }]), 'WXK10-049-E1'), true, '自身への付与で発火');
+    eq(has(fire([{ hostNum: 'WXDi-D07-019', count: 1 }]), 'WXK10-049-E1'), false, '他シグニへの付与では非発火');
+  });
 });
 test('Stage2 ON_ENERGY_TO_TRASH: energyTrashedOwner=opponent は相手エナ消費でのみ発火（WD15-015-E1）', () => {
   const host = mkState({ signi: ['WD15-015', null, null] }); const guest = mkState({});
@@ -8219,28 +8225,32 @@ test('Stage2 boardDiff countCharmsToTrash: チャームのトラッシュ送り�
   eq(countCharmsToTrash(before, after), 1, 'チャーム1枚');
 });
 test('J-2 boardDiff countAcceToTrash: アクセのトラッシュ送りを計数', () => {
-  const before = mkState({}); before.field.signi_acce = ['acceA', null, null];
-  const after = mkState({}); after.field.signi_acce = [null, null, null]; after.trash = ['acceA'];
-  eq(countAcceToTrash(before, after), 1, 'アクセ1枚');
-  const toEner = mkState({}); toEner.field.signi_acce = [null, null, null]; toEner.energy = ['acceA'];
-  eq(countAcceToTrash(before, toEner), 0, 'エナ行きはトラッシュではない');
+  withSavedCursor(() => {
+    const before = mkState({}); before.field.signi_acce = ['acceA', null, null];
+    const after = mkState({}); after.field.signi_acce = [null, null, null]; after.trash = ['acceA'];
+    eq(countAcceToTrash(before, after), 1, 'アクセ1枚');
+    const toEner = mkState({}); toEner.field.signi_acce = [null, null, null]; toEner.energy = ['acceA'];
+    eq(countAcceToTrash(before, toEner), 0, 'エナ行きはトラッシュではない');
+  });
 });
 test('J-2 boardDiff detectSoulAttached / detectCardAttached: 新規付与だけを検出（本体入れ替えは拾わない）', () => {
-  const before = mkState({ signi: ['S0', 'S1', null] });
-  const after = mkState({ signi: ['S0', 'S1', null] });
-  after.field.signi_soul = ['soulX', null, null];
-  eq(detectSoulAttached(before, after).map(x => `${x.hostNum}:${x.soulNum}`).join(','), 'S0:soulX', 'ソウル新規付与を検出');
-  eq(detectSoulAttached(after, after).length, 0, '差分なしは0件');
-  // 本体が入れ替わったゾーンは「付いた」と数えない（ライズ・場出しでソウル持ちに替わったケース）
-  const swapped = mkState({ signi: ['S9', 'S1', null] }); swapped.field.signi_soul = ['soulX', null, null];
-  eq(detectSoulAttached(before, swapped).length, 0, '本体入れ替えは非検出');
-  // 汎用版はチャーム/アクセ/ソウルを横断して枚数を数える
-  const multi = mkState({ signi: ['S0', 'S1', null] });
-  multi.field.signi_charms = ['cA', null, null]; multi.field.signi_acce = ['aA', null, null];
-  const got = detectCardAttached(before, multi);
-  eq(got.length, 1, '1ゾーン');
-  eq(got[0].hostNum, 'S0', 'ホストはS0');
-  eq(got[0].count, 2, 'チャーム＋アクセで2枚');
+  withSavedCursor(() => {
+    const before = mkState({ signi: ['S0', 'S1', null] });
+    const after = mkState({ signi: ['S0', 'S1', null] });
+    after.field.signi_soul = ['soulX', null, null];
+    eq(detectSoulAttached(before, after).map(x => `${x.hostNum}:${x.soulNum}`).join(','), 'S0:soulX', 'ソウル新規付与を検出');
+    eq(detectSoulAttached(after, after).length, 0, '差分なしは0件');
+    // 本体が入れ替わったゾーンは「付いた」と数えない（ライズ・場出しでソウル持ちに替わったケース）
+    const swapped = mkState({ signi: ['S9', 'S1', null] }); swapped.field.signi_soul = ['soulX', null, null];
+    eq(detectSoulAttached(before, swapped).length, 0, '本体入れ替えは非検出');
+    // 汎用版はチャーム/アクセ/ソウルを横断して枚数を数える
+    const multi = mkState({ signi: ['S0', 'S1', null] });
+    multi.field.signi_charms = ['cA', null, null]; multi.field.signi_acce = ['aA', null, null];
+    const got = detectCardAttached(before, multi);
+    eq(got.length, 1, '1ゾーン');
+    eq(got[0].hostNum, 'S0', 'ホストはS0');
+    eq(got[0].count, 2, 'チャーム＋アクセで2枚');
+  });
 });
 
 // Stage2⑬: effect_stack 整列（effectStack.ts・既存 pure モジュール）の golden 自動検証。
@@ -12740,7 +12750,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 44, 'ActiveCondition の型数（増えたら union に足した合図。44＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
-  eq(Object.keys(C_TYPES).length, 113, 'Condition の型数（増えたら union に足した合図。113＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
+  eq(Object.keys(C_TYPES).length, 114, 'Condition の型数（増えたら union に足した合図。114＝§6.3 J-2 の THIS_CARD_HAS_ATTACHED 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
