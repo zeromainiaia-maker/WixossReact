@@ -3764,6 +3764,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         // ON_ATTACK_PHASE_START: MAIN→ATTACK_ARTS移行時（アタックフェイズ開始時）トリガー
         if (phase === 'MAIN') {
+          // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
+          newMyState = { ...newMyState, signi_left_field_this_attack_phase: [] };
           const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
           foldTurnUsed(apsRes);
           const apsEntries = apsRes.entries;
