@@ -9425,6 +9425,30 @@ test('checkActiveCondition AND[LRIG_COLOR,IS_SELF_IN_CENTER_ZONE]: 両成立で�
   eq(checkActiveCondition(cond, me2, op, true, cardMap as Map<string, CardData>, srcInst), false, '端ゾーンなら false');
 });
 
+// 続き377l: IS_SELF_IN_SIDE_ZONE の engine 評価。ゾーン添字は**所有者から見た表示順**＝left=0 / center=1 / right=2
+// （`BoardComponents` の signiRow が自分側を rawIdx 昇順で左から描く）。この対応が逆だと左右が入れ替わる。
+test('checkActiveCondition IS_SELF_IN_SIDE_ZONE: left=index0 / right=index2 / either=中央以外', () => {
+  const cond = (side: 'left' | 'right' | 'either') =>
+    ({ type: 'IS_SELF_IN_SIDE_ZONE', side }) as unknown as import('../src/types/effects').ActiveCondition;
+  const src = fresh();
+  const op = mkState({});
+  const at = (zi: 0 | 1 | 2) => {
+    const signi: (string | null)[] = [null, null, null];
+    signi[zi] = src;
+    return mkState({ signi: signi as never });
+  };
+  const chk = (side: 'left' | 'right' | 'either', zi: 0 | 1 | 2) =>
+    checkActiveCondition(cond(side), at(zi), op, true, cardMap as Map<string, CardData>, src);
+  eq(chk('left', 0), true, 'left は index0 で true');
+  eq(chk('left', 1), false, 'left は中央で false');
+  eq(chk('left', 2), false, 'left は index2 で false');
+  eq(chk('right', 2), true, 'right は index2 で true');
+  eq(chk('right', 0), false, 'right は index0 で false');
+  eq(chk('either', 0), true, 'either は index0 で true');
+  eq(chk('either', 2), true, 'either は index2 で true');
+  eq(chk('either', 1), false, 'either は中央だけ false');
+});
+
 // ATTACH_ACCE fromHand（デコレ）: 手札のアクセカードを2段階選択（step1=手札から／step2=ホストシグニ）して装着（続き65）
 test('ATTACH_ACCE fromHand: 手札シグニを場のホストシグニにアクセ（signi_acce設定・手札-1）', () => {
   const HOST = SIGNI_P12000;
