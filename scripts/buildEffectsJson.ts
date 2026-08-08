@@ -185,7 +185,7 @@ for (const id of allIds) {
     const merged = existing.map((ex, i) => {
       const fr = fresh[i];
       if (PRESERVE_STATUSES.has(ex?.parseStatus)) return ex;   // 手修正は不可侵
-      if (!fr || JSON.stringify(ex) === JSON.stringify(fr)) return ex;
+      if (!fr || equalIgnoringParseStatus(ex, fr)) return ex;  // 実体同一（キー順/刻印差のみ）
       if (!isPureSuperset(ex, fr)) return ex;                  // 損失リスクのある差分は温存
       gained = true;
       return fr;
