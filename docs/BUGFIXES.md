@@ -1,5 +1,90 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — **§5d-0(iv) 計器較正 第4バッチ**＝「Nまで」52効果／「代わりに」38効果の全数照合（census 936→**933**／golden 1468→**1470**）（Codex・実装ゼロ）
+
+原文ブロックと live JSON を90効果すべてで照合し、置換を action 自体が完全に内包していた3語彙だけを
+`extraOk` の残渣チェックへ追加した。parser / engine / 型 / decompiler / effects JSON は変更していない。
+「Nまで」は安全に免除できる効果が0件だったため **52件すべて据置**。
+
+- `COST_SUBSTITUTE`（`WX08-042-E1`／`WX21-044-E1`）：原文の支払色と
+  `originalCost[{color,count:1}]`、`substituteCost.banish_self:true`、`optional:true` を全照合。
+  後者の「エナゾーンにあるかぎり」は engine がエナのカードだけを代替候補に集める構造と一致。置換 －2、union －2。
+- `BANISH_SUBSTITUTE{substituteCost.lifeCrash}`（`WX14-026-E1`）：相手ターン条件、self / count 1 /
+  `thisCardOnly`、lifeCrash 1、optional を全照合。置換 －1、union －1。
+- `CHOOSE.recollectArts`（`WX26-CP1-009-E1`）：原文の「3つから1つ／アーツ4枚以上なら代わりに2つまで」と
+  `from_count:3` / `choose_count:1` / `minArts:4` / `thenChooseCount:2` / `thenUpTo:true` を全照合。
+  置換 －1だが、別クラスタに残るため union 差0。同じ厳密なヘッダを持つ STUB/MANUAL欄の
+  `WX26-CP1-001-E1`／`WX26-CP1-005-E1`／`WX26-CP1-007-E1` も置換欄から外れた
+  （未実装の個別選択肢は別のSTUB検出に残る）。
+
+### 較正しなかった「Nまで」52効果（全件）
+
+**(i) 配線 14** — action の大枠はあるが、上限フラグ・個数・filter のいずれかが欠落：
+`WX07-045-E2`（2箇所が固定1/1）／`WX17-Re05-E1`（2箇所が固定1/1）／
+`WX24-P3-059-E1`（count/story）／`WX25-P2-058-E2`（exact 2・story）／
+`WXDi-P00-004-E1`（count/power）／`WXDi-P01-042-E2`（count/excludeSelf）／
+`WXDi-P02-073-E1`（level/upTo）／`WXDi-P09-053-E1`（count 2だが強制）／
+`WXDi-P10-008-E1`／`WXDi-P16-012-E1`（カード3枚がシグニ3枚の強制選択）／
+`WXEX1-22-E2`（公開3・対象3が1/1）／`WXEX2-41-E1`（15体が強制かつstory欠落）／
+`WXK07-070-E1`（対象2・チャーム2が1/1）／`WXK10-029-E2`（pickCount 2の上限は実働するが
+「コストで捨てたシグニと共通クラス」filterが欠落）。
+
+**(ii) 機構 7** — `WD06-007-E1`（LOOK_AND_REORDERは見られる上限であり選択上限ではない）／
+`WX16-031-E1`（`ACCE_LIMIT_2` は collector が読むIDと不一致）／`WX20-032-E1`／`WXK11-016-E1`
+（ターン中のクラッシュ上限を保持・判定する機構なし）／`WX24-P4-072-E1`（`discardUpTo` を支払う実行経路なし）／
+`WX25-P1-098-E1`（`canTrash` に最大1枚の語彙なし）／`WXK02-004-E3`（ゲーム中のキー枚数上限機構なし）。
+
+**(iii) 構造混線 31** — 選択段そのもの、複数選択群、移動元/先、または後続が欠落・別actionへ変形：
+`PR-380-E1`／`SPDi43-24-E1`／`WD23-008-A-E2`／`WD23-033-A-E1`／`WDK07-E07-E1`／
+`WX11-026-E2`／`WX13-046-E1`／`WX20-042-CB-E1`／`WX24-P2-032-E1`／
+`WX24-P2-082-E2`／`WX24-P2-085-E2`／`WX24-P3-067-E1`／`WX24-P3-070-E1`／
+`WX24-P3-072-E1`／`WX25-P1-022-E2`／`WX25-P1-TK6-E2`／`WX25-P3-015-E1`／
+`WXDi-D01-011-E1`／`WXDi-P01-002-E1`／`WXDi-P03-030-E1`／`WXDi-P05-009-E2`／
+`WXDi-P10-007-E3`／`WXDi-P10-040-E2`／`WXDi-P11-047-E1`／`WXDi-P12-039-E1`／
+`WXDi-P12-041-E1`／`WXDi-P13-009-E2`／`WXEX2-52-E3`／`WXEX2-84-E1`／
+`WXK05-052-E1`／`WXK11-004-E1`。
+
+上限スロット数の罠は別集計した。原文に複数の上限箇所があるのに有効スロット0なのは
+`PR-380-E1`（arts/resonaの2）／`WDK07-E07-E1`（対象/デッキacceの2）／`WX07-045-E2`（2）／
+`WX20-042-CB-E1`（signi/spellの2）／`WXDi-D01-011-E1`（level 1/2/3の3）／
+`WXDi-P10-040-E2`（spell/青signiの2）／`WXDi-P12-039-E1`（2群）／`WXK07-070-E1`（対象/charmの2）。
+`WXK10-029-E2` だけは上限1箇所を `pickCount` が実働表現するが、別filter残渣があるので較正しなかった。
+
+### 較正しなかった「代わりに」34効果（全件）
+
+**(i) 配線 22** — 既存条件語彙で分岐可能なのに、基本段と置換段が `SEQUENCE` 両実行または条件なしに平坦化：
+`SP27-012-E1`／`WX09-045-E1`／`WX09-Re01-E2`／`WX13-058-E2`／`WX21-039-E1`／
+`WX22-020-E2`／`WX25-CP1-020-E1`／`WX25-P2-078-E1`／`WX25-P2-088-E1`／
+`WXDi-CP01-026-E1`／`WXDi-D09-P04-E1`／`WXDi-P06-084-E1`／`WXDi-P09-074-E1`／
+`WXDi-P10-054-E1`／`WXDi-P12-081-E1`／`WXDi-P13-005-E1`／`WXDi-P16-089-E1`／
+`WXEX1-33-E2`／`WXK02-052-E1`／`WXK07-028-E1`／`WXK10-035-E1`／`WXK11-005-E1`。
+
+**(ii) 機構 9** — `WD06-009-E2`（チェックゾーン札の行先置換）／`WX07-027-E2`
+（`cost.costSubstitute` は宣言だけで未実装）／`WX24-P3-043-E1`（ダメージ置換でassist LRIG 2体をダウン）／
+`WX24-P4-009-E1`（ライフクラッシュをmill 10へ予約置換）／`WX25-P3-053-E1`（次のダメージを2回予約置換）／
+`WXDi-CP01-023-E1`（付与されたライフクラッシュ置換）／`WXDi-P13-004A-E1`／`WXK08-030-E1`
+（PARTIAL/UNKNOWN）／`WXK08-049-E2`（パワー減少量の倍化置換をraw keywordだけで保持）。
+
+**(iii) 構造混線 3** — `WXDi-P05-076-E1`／`WXDi-P05-076-E1b` は +2000 と
+3体時の差分+1000を兄弟effectへ分割して合計+3000にしているが、各effect単独では原文の置換全文を表さないため
+兄弟参照なしの免除を拒否。`WXEX2-28-E1` は「このシグニをダウン」が opponentの＜ウェポン＞対象へ反転。
+
+置換の向きが逆／対象軸が逆なのは `WX09-Re01-E2`（置換BANISHが opponentの同一対象でなく owner:self）、
+`WX24-P3-043-E1`（assist LRIG 2体でなくSIGNI 1体）、`WXEX2-28-E1`（self hostでなくopponent weapon）。
+
+### masking確認と検証
+
+各語彙を1種ずつ有効化して report を保存し、全高シグナル集合を機械差分した。
+`COST_SUBSTITUTE` は removed 2 / added 0、lifeCrash形は removed 1 / added 0、recollect形は
+union removed 0 / added 0。最終は **936→933、removed 3、added 0**。
+置換欄から消えた7 effectId（高シグナル4＋STUB/MANUAL 3）は原文・action leaf・engine消費箇所を全件目視し、
+色・枚数・向き・owner・filter・activeCondition・optional の残渣なしを確認した。
+golden は較正4効果の非検出と、未実装／分割残渣／逆向き／閾値欠落4効果の検出継続を両方向で固定。
+
+`npm run gates` 全緑：typecheck／golden **1470/1470**／smoke **10679/10679** 全0・SKIP 0／
+fuzz 200ゲーム全0（7982手・2705種）／census **933**／manual field loss 0／lint 0 errors・248 warnings。
+`npm run regen` と `node scripts/groupSimilar.mjs --all` も実行し、同型★ **0**（265群）据置。
+
 ## 2026-08-08 — **§5d-0(iv) 計器較正 第3バッチ**＝条件節クラスタの偽陽性19効果（census 953→**936**／golden 1466→**1468**）（Codex・実装ゼロ）
 
 `docs/_vocab_census.txt` の条件節クラスタ **258効果**を原文ブロックと live JSON で全数照合し、

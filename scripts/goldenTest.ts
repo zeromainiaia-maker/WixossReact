@@ -25223,6 +25223,44 @@ test('§5d-0(iv) 条件節較正: 未モデル化の残渣と別条件は高シ�
   }
 });
 
+// ── §5d-0(iv) 計器較正 第4バッチ: actionが内包する置換（実装変更なし）──
+test('§5d-0(iv) 置換較正: 較正対象4効果を残渣なく認識する', () => {
+  const src = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8')) as Record<string, string>;
+  const byVocabulary: Record<string, string[]> = {
+    COST_SUBSTITUTE: ['WX08-042-E1', 'WX21-044-E1'],
+    BANISH_SUBSTITUTE_LIFE_CRASH: ['WX14-026-E1'],
+    CHOOSE_RECOLLECT_ARTS: ['WX26-CP1-009-E1'],
+  };
+  for (const [vocabulary, ids] of Object.entries(byVocabulary)) {
+    for (const effectId of ids) {
+      const cardNum = effectId.replace(/-E\d+$/, '');
+      const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+      ok(!!effect, `${effectId}: live effect exists`);
+      if (!effect) continue;
+      ok(replacementClauseExtraOk(JSON.stringify(effect), src[effectId] ?? ''),
+        `${effectId}: ${vocabulary} が置換句を残渣なく表現`);
+    }
+  }
+});
+
+test('§5d-0(iv) 置換較正: 逆向き・分割残渣・未実装形は高シグナルに残る', () => {
+  const src = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8')) as Record<string, string>;
+  const remains = [
+    'WX07-027-E2',       // cost.costSubstitute は engine 未実装で、COST_SUBSTITUTE action ではない。
+    'WXDi-P05-076-E1',   // 段階差分の兄弟効果を合わせないと置換全文を表現できない。
+    'WXEX2-28-E1',       // 「このシグニをダウン」の向きが相手シグニ対象へ反転している。
+    'WXK10-035-E1',      // 置換条件のレベル閾値がJSONに残っていない。
+  ];
+  for (const effectId of remains) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId}: live effect exists`);
+    if (!effect) continue;
+    ok(!replacementClauseExtraOk(JSON.stringify(effect), src[effectId] ?? ''),
+      `${effectId}: 未モデル化の置換残渣があるため covered にしない`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
