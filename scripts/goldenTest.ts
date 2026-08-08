@@ -25647,6 +25647,81 @@ test('§5d-0(i) WXDi-P01-042-E2: 他の自シグニ2体まで＝0体可・自身
   eq(applied.otherState.temp_power_mods?.length ?? 0, 0, '相手シグニには修正を載せない');
 }));
 
+
+// ── §5d-0(ii) 機構ギャップ: GRANT_KEYWORD の「N体まで」上限（続き377n）──
+// `execGrantKeyword` は `selectOrInteract(cands, count, false, …)` と第3引数をハードコードしており、
+// parser が `upToCount` を載せても**死にフラグ**で N体の強制選択のままだった。
+test('続き377n engine: GRANT_KEYWORD の upToCount は上限（0体選択でも解決する）', () => withSavedCursor(() => {
+  const a1 = fresh(), a2 = fresh();
+  const ctx = mkCtx({ signi: [a1, a2, null] }, {});
+  const act = { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 2, upToCount: true }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' } as EffectAction;
+  const r = runEffect(act, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', 'upToCount は選択待ちになる');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq(r.pending.count, 2, '選択上限は2体');
+  eq(r.pending.optional, true, '「まで」は0体選択可');
+  const zero = resumeSelectTarget([], r.pending, { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
+  ok(zero.done, '0体選択でも効果解決が完了する');
+  eq(Object.keys(zero.ownerState.keyword_grants ?? {}).length, 0, '0体選択なら誰にも付与しない');
+  // 対照＝upToCount 無しは従来どおり「強制N体」（既存挙動を変えていないことの固定）
+  const r2 = runEffect({ type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 2 }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' } as EffectAction, ctx);
+  ok(!r2.done && r2.pending.type === 'SELECT_TARGET', '上限なしも選択待ち');
+  if (r2.done || r2.pending.type !== 'SELECT_TARGET') return;
+  eq(r2.pending.optional, false, 'upToCount 無しは強制選択のまま');
+}));
+
+// live JSON 側＝対象名詞句そのものから所有者・体数・上限・パワー条件を取る（`signiClauseTargetSpec`）。
+test('続き377n: 「あなたの〈修飾〉シグニをN体まで対象とし」が owner/count/upToCount/filter へ載る', () => withSavedCursor(() => {
+  const tgt = (card: string, effId: string): Record<string, unknown> => {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    ok(!!e, `${effId}: live effect exists`);
+    return ((e?.action as unknown as { target?: Record<string, unknown> })?.target) ?? {};
+  };
+  // ⚠owner:'any' は engine で **tgtOwner='opponent'** に解決される＝「あなたの…シグニ」への付与が
+  //   **対戦相手のシグニ**に付いていた（`execGrantKeyword` の `tgt.owner === 'any' ? 'opponent'`）。
+  const p00 = tgt('WXDi-P00-004', 'WXDi-P00-004-E1');
+  eq(p00.owner, 'self', 'WXDi-P00-004-E1: あなたのシグニ＝self（any だと相手へ付与されていた）');
+  eq(p00.count, 2, 'WXDi-P00-004-E1: ２体');
+  eq(p00.upToCount, true, 'WXDi-P00-004-E1: 「まで」');
+  eq(JSON.stringify((p00.filter as Record<string, unknown>)?.powerRange), '{"min":15000}', 'WXDi-P00-004-E1: パワー15000以上');
+  const p09 = tgt('WXDi-P09-053', 'WXDi-P09-053-E1');
+  eq(p09.count, 2, 'WXDi-P09-053-E1: ２体');
+  eq(p09.upToCount, true, 'WXDi-P09-053-E1: 「まで」');
+  const d01 = tgt('WXDi-D01-014', 'WXDi-D01-014-E2');
+  eq(d01.owner, 'self', 'WXDi-D01-014-E2: self');
+  eq(JSON.stringify((d01.filter as Record<string, unknown>)?.powerRange), '{"min":15000}', 'WXDi-D01-014-E2: パワー15000以上');
+}));
+
+// ⚠トリップワイヤ①＝**「ターン終了時まで」で upToCount を立てない**。素の `t.includes('まで')` で判定すると
+//   ほぼ全ての付与効果が「0体でもよい」に化ける（＝対象を取らずに解決できてしまう過小実行）。
+// ⚠トリップワイヤ②＝**「＜A＞か＜B＞」の OR を1クラスへ潰さない**。`signiClause*Filter` は隣接する1つしか
+//   返さないので、枝が既に決めた filter キーを上書きすると原文と逆の過小実行になる（A/B で6効果が退化した）。
+test('続き377n トリップワイヤ: 「ターン終了時まで」で upToCount を立てず、クラスORも潰さない', () => withSavedCursor(() => {
+  const act = (card: string, effId: string): string => {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
+    ok(!!e, `${effId}: live effect exists`);
+    return JSON.stringify(e?.action ?? {});
+  };
+  for (const [card, effId] of [
+    ['WXDi-P06-027', 'WXDi-P06-027-E2'], ['WXDi-P02-063', 'WXDi-P02-063-E1'], ['WX13-045', 'WX13-045-E1'],
+  ] as [string, string][]) {
+    eq(act(card, effId).includes('"upToCount":true'), false, `${effId}: 「N体」指定が無いので upToCount は立てない`);
+  }
+  for (const [card, effId, want] of [
+    ['WX02-055', 'WX02-055-E1', '["鉱石","宝石","ウェポン"]'],
+    ['WX05-041', 'WX05-041-E1', '["空獣","地獣"]'],
+    ['WX19-070', 'WX19-070-E1', '["空獣","地獣"]'],
+    ['WXEX2-43', 'WXEX2-43-E1', '["空獣","地獣"]'],
+  ] as [string, string, string][]) {
+    eq(act(card, effId).includes(`"story":${want}`), true, `${effId}: クラスORを保つ`);
+  }
+  // ⚠トリップワイヤ③＝**対象句と枝の所有者が食い違うときは体数を広げない**＝
+  //   `WXK05-052-E1` は条件節の【シード】をキーワードと誤読した構造混線（§5d-0(iii) 在庫）で、
+  //   体数だけ2体へ広げると**誤りを2体ぶんに増幅**する。
+  eq(act('WXK05-052', 'WXK05-052-E1').includes('"count":2'), false,
+    'WXK05-052-E1: 所有者が食い違う（対象は相手・枝は自分）ので体数を広げない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

@@ -744,6 +744,10 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: { 
   { re: /^(?:あなたの)?センタールリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesLrig = true; return true; } },
   { re: /^センタールリグではない(?:あなたの)?いずれかのルリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesNonCenterLrig = true; return true; } },
   { re: /^(?:あなたの)?場に(?:いる|ある)ルリグと共通する色を持つ/, apply: (_m, a) => { a.filter.colorMatchesAnyLrig = true; return true; } },
+  // 「この能力の**コストで捨てた**シグニと共通するクラスを持つ」＝`classMatchesDiscardSigni`（続き377n）。
+  // engine は `resolveDiscardLevelFilter` が caster の `last_discarded_signi_class` で解決する（SEARCH 経路は実装済み）。
+  // ⚠落とすと `WXK10-029-E2` は**公開3枚から何でも2枚拾える**過剰効果になる（コストで捨てたクラスの縛りが消える）。
+  { re: /^(?:この能力の)?(?:コスト|この方法)で捨てたシグニと共通するクラスを持(?:つ|ち)/, apply: (_m, a) => { a.filter.classMatchesDiscardSigni = true; return true; } },
   { re: /^共通する色を持たない/, apply: (_m, a) => { a.filter.eachDistinctColor = true; return true; } },
   { re: /^それぞれレベルの異なる/, apply: (_m, a) => { a.filter.eachDistinctLevel = true; return true; } },
   // 宣言参照（タスク12(xlvi)(c)）。⚠具体形（数字／クラス）を裸の「宣言した」より**前**に置く
