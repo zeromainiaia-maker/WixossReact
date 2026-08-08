@@ -7085,6 +7085,37 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 「〔それら／残り〕を好きな順番でデッキの一番上に戻す」の**孤立マーカー**を直前の LOOK へ畳む（続き377k）。
+  // この文は単独では `LOOK_AND_REORDER{count:0, reorder:true}` になり、engine 側は `cards.length === 0` で
+  // 即 return する＝**完全 no-op**。つまり「N枚見て**好きな順番で**戻す」の**並べ替えの権利が丸ごと落ちて**、
+  // デッキが元の順のまま返る（`WXK10-017-E1`／`WDK04-017`／`WDK05-T17`／`WXK08-066`＝デッキ操作がカードの主眼）。
+  // 直前が同じデッキ・同じ行き先の LOOK なら、その `reorder` を立ててマーカーを落とす。
+  // ⚠直前が REVEAL_AND_PICK/BOUNCE/STUB 等の別形（`remainder` を自前で持つ・アンカーが特定できない）は据置。
+  {
+    const folded: EffectAction[] = [];
+    for (const st of steps) {
+      const prev = folded[folded.length - 1];
+      const isOrphan = st?.type === 'LOOK_AND_REORDER'
+        && (st as LookAndReorderAction).count === 0 && (st as LookAndReorderAction).reorder === true;
+      if (isOrphan && prev?.type === 'LOOK_AND_REORDER') {
+        const p = prev as LookAndReorderAction;
+        const o = st as LookAndReorderAction;
+        if (typeof p.count === 'number' && p.count > 0 && p.reorder === false
+            && p.source.location === o.source.location && p.source.owner === o.source.owner
+            && p.destination.location === o.destination.location
+            && p.destination.position === o.destination.position) {
+          folded[folded.length - 1] = { ...p, reorder: true };
+          continue;
+        }
+      }
+      folded.push(st);
+    }
+    if (folded.length !== steps.length) {
+      steps.length = 0;
+      steps.push(...folded);
+    }
+  }
+
   // SONG_FRAGMENT の二重化を畳む（タスク12(lxvi)②）。
   // 原文「エナゾーンから【歌のカケラ】を持つカード１枚をトラッシュに置いてもよい。〈主語〉はそのカードの
   // 【歌のカケラ】を使用する。」は**2文で1つの動作**（＝engine の `SONG_FRAGMENT` が「トラッシュへ置く」と
