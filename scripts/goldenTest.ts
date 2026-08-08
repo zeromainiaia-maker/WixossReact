@@ -10631,6 +10631,29 @@ test('parse timing 語彙: このカードが【アクセ】として…シグ�
   eq(maxStory.triggerCondition?.accedHostMaxLevel, 2, 'レベルN以下→accedHostMaxLevel');
   eq(maxStory.triggerCondition?.accedHostStory, '調理', '＜X＞→accedHostStory');
 });
+test('parse timing 語彙: §6.3 J-2 付与・離脱イベント（ソウル/汎用付与/アクセトラッシュ）', () => {
+  const mk = (t: string, type = 'シグニ') => parseCardEffects({ CardNum: 'TEST-J2', Type: type, EffectText: `【自】：${t}` } as unknown as CardData)[0];
+  const selfSoul = mk('このシグニに【ソウル】が付いたとき、カードを１枚引く。');
+  eq(selfSoul.timing?.[0], 'ON_SOUL_ATTACHED', 'このシグニに【ソウル】→ON_SOUL_ATTACHED');
+  eq(selfSoul.triggerScope ?? 'self', 'self', '「このシグニに」＝self（engine 既定）');
+  const allySoul = mk('あなたのシグニ１体に【ソウル】が付いたとき、カードを１枚引く。', 'ルリグ');
+  eq(allySoul.timing?.[0], 'ON_SOUL_ATTACHED', 'ルリグ側も同じ受け皿');
+  eq(allySoul.triggerScope, 'any_ally', '「あなたのシグニ1体に」＝any_ally');
+  const attached = mk('このシグニにカード１枚が付いたとき、【エナチャージ１】をする。');
+  eq(attached.timing?.[0], 'ON_CARD_ATTACHED', '種別無指定の「カードN枚が付いたとき」→ON_CARD_ATTACHED');
+  const attached2 = mk('このシグニにカード２枚が付いたとき、カードを１枚引く。');
+  eq(attached2.triggerCondition?.minCount, 2, '「2枚」→minCount');
+  // 種別つきは従来の専用受け皿を奪わない（回帰ガード）
+  eq(mk('このシグニに【アクセ】が付いたとき、カードを１枚引く。').timing?.[0], 'ON_ACCE', '【アクセ】は従来どおり ON_ACCE');
+  const acceTrash = mk('あなたの【アクセ】１枚がトラッシュに置かれたとき、カードを１枚引く。');
+  eq(acceTrash.timing?.[0], 'ON_ACCE_TO_TRASH', '【アクセ】トラッシュ→ON_ACCE_TO_TRASH');
+  eq(acceTrash.triggerScope, 'any_ally', '「あなたの」＝any_ally');
+  eq(mk('【チャーム】１枚が場からいずれかのトラッシュに置かれたとき、カードを１枚引く。').timing?.[0], 'ON_CHARM_TO_TRASH', 'チャームは従来どおり');
+  // 「このシグニにカードが付いている場合」＝THIS_CARD_HAS_ATTACHED（従来は条件節が丸ごと落ちて無条件発火）
+  const cond = parseCardEffects({ CardNum: 'TEST-J2C', Type: 'シグニ', EffectText: '【自】：このシグニがアタックしたとき、このシグニにカードが付いている場合、ターン終了時まで、このシグニは【ランサー】を得る。' } as unknown as CardData)[0];
+  eq((cond.action as { type: string }).type, 'CONDITIONAL', '条件節が残る');
+  eq(((cond.action as { condition: { type: string } }).condition).type, 'THIS_CARD_HAS_ATTACHED', '→THIS_CARD_HAS_ATTACHED');
+});
 test('parse timing 語彙: バトル/ダメージ/ライズ/チャーム/デッキ移動/離場/ウィルス/エクシード（タスク16[A] 一括）', () => {
   const mk = (t: string, type = 'シグニ') => parseCardEffects({ CardNum: 'TEST-T16', Type: type, EffectText: `【自】：${t}` } as unknown as CardData)[0];
   // ON_SIGNI_BATTLE 基本形（レベル/パワー filter 付きは engine 未対応で拾わない）
