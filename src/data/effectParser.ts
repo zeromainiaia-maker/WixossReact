@@ -10631,6 +10631,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyOpponentSelectsBatch11(effects);
   applyProportionalCountBatch6(effects);
   applyGradedThresholdBatch(card.CardNum, effects);
+  applyQuotedFrontPowerGrantBatch(card.CardNum, effects);
 
   // WXEX1-13-E1 は「既存トラップを手札へ戻した場合」の did-it ゲートと、トラップを
   // SIGNI として BOUNCE している別の構造破壊を先に直す必要がある。LPC だけ部分移行すると
