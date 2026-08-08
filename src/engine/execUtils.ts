@@ -1220,6 +1220,50 @@ export function energyCandidates(state: PlayerState, filter: TargetFilter | unde
   return state.energy.filter(n => matchesFilter(cardMap.get(n), filter, undefined, undefined, allZoneClassOverrides));
 }
 
+/**
+ * Opusタスク12(cxiv)：引用付与の内側が「このシグニは**正面のシグニのパワーが**N{以上|以下}であるかぎり、
+ * 【KW】を得る」型のとき、**条件つきの** CONTINUOUS `GRANT_KEYWORD` を1本組み立てて返す。
+ *
+ * なぜ必要か＝`keyword_grants`（`Record<cardNum, string[]>`）は**条件を持てない**ので、
+ * 引用付与の STUB ハンドラ（`GRANT_QUOTED_ABILITY` / `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`）が
+ * 原文からキーワードだけ抜いてそこへ入れると、**「かぎり」の正面パワー条件が丸ごと落ちて常時発動**になる
+ * （8カード＝正面が誰であっても【ランサー】【アサシン】が付いていた＝過剰実行）。
+ * `granted_effects` は `BattleScreen` の augmented effectsMap 経由で **付与先シグニ自身を発生源として**
+ * CONTINUOUS 収集に載る（`collectContinuousGrantedKeywords` が `FRONT_SIGNI_POWER` を実効パワーで毎回評価する）
+ * ので、条件つき付与はそちらへ回す。
+ *
+ * ⚠`FRONT_SIGNI_POWER` は**正面が空なら不成立**（`checkActiveCondition`）＝原文どおり。
+ * 条件節が見つからなければ `null`＝呼び出し元は従来の無条件 `keyword_grants` を続ける（退化させない）。
+ */
+export function buildFrontPowerGatedKeywordGrant(
+  quotedText: string,
+  keyword: string,
+  duration: 'UNTIL_END_OF_TURN' | 'PERMANENT' = 'UNTIL_END_OF_TURN',
+): CardEffect | null {
+  const hw = quotedText.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const m = hw.match(/正面のシグニのパワーが([\d,]+)(以上|以下)であるかぎり/);
+  if (!m) return null;
+  return {
+    effectId: `granted-front-power-${keyword}-${m[1]}-${m[2]}`,
+    effectType: 'CONTINUOUS',
+    duration,
+    mandatory: true,
+    activeCondition: {
+      type: 'FRONT_SIGNI_POWER',
+      operator: m[2] === '以上' ? 'gte' : 'lte',
+      value: parseInt(m[1].replace(/,/g, ''), 10),
+    },
+    // count:1 かつ filter:thisCardOnly ＝ collectContinuousGrantedKeywords は発生源自身にだけ付ける。
+    // ここでの「発生源」は granted_effects のキー＝**付与された側のシグニ**なので原文どおり。
+    action: {
+      type: 'GRANT_KEYWORD',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      keyword,
+      duration,
+    },
+  } as CardEffect;
+}
+
 export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
   const s = ctx.ownerState;
   const o = ctx.otherState;
