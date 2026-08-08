@@ -1,5 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-08 — §6.3 J-1「他能力の発動監視」＝`ON_ABILITY_ACTIVATED` を新設（続き383）
+
+**真因**＝原文が「〈誰か〉の〈種別〉能力が**発動したとき**」なのに、**他の能力の発動を横から監視するイベントが engine に無かった**。2効果とも `timing:[]` で安全停止＝永久に no-op。
+
+### ① イベント定義を1段ずらして配線量を2桁減らした
+
+「発動した瞬間」の候補は2つあった：
+
+- **スタック投入時**（`initStack` / `pushToStack`）＝BattleScreen 内に **113 箇所**。個別配線は不可能。
+- **解決開始時**（`shiftQueue`）＝呼び出し元は **`resolveStackNext` の1箇所だけ**。
+
+後者を採った。人間/CPU・【出】/【自】/【ライフバースト】の全経路がこの1箇所を通る。⚠副次的な利点＝**投入されても turnGate 等で落ちるエントリを「発動した」と数えない**（投入時フックだと数えてしまう）。
+
+### ② 実装
+
+- `src/types/effects.ts`：timing `ON_ABILITY_ACTIVATED` ＋ `triggerCondition.activatedAbility{Owner,Kind,Eichi,FromFieldSigni}`。
+  - `Kind`＝`'ON_PLAY'`（【出】）/`'AUTO'`（【自】）。この codebase では【出】＝`effectType:'AUTO'`＋`timing:['ON_PLAY']` なので、**`ON_PLAY` を含むかで弁別**する。
+  - `Eichi`＝発動した能力の `activeCondition` に `EICHI_LEVEL_SUM` を含むか（`AND` の入れ子に埋まるので**再帰探索**）。
+- `src/engine/triggerCollect.ts`：`collectAbilityActivatedTriggers`。
+- `src/screens/BattleScreen.tsx`：`resolveStackNext` の `shiftQueue` 直後で両プレイヤー分を収集し、**同じスタックへ push**（発動した能力の直後に解決される）。
+- `src/data/effectParser.ts`：regex ＋ 4軸の抽出。
+- `scripts/decompileEffects.ts`：4軸を**日本語へ復元**（timing 名だけ出す実装では限定が丸ごと消えていた）。
+
+### ③ ⚠ 監視型の機構に必要な2つの安全弁
+
+- **自己連鎖の遮断**＝発動した能力自身が `ON_ABILITY_ACTIVATED` なら collector が無視する。これが無いと監視どうしが互いを発動と数えて**無限に増える**。
+- **《ターン1回》の書き戻し**＝collector が使用回数を読むのは `actions_done` なので、`usedOncePerTurnIds` を解決後の state へ書き戻さないと**同一ターンに何度でも再発火する**（既存 collector 群と同じ規約）。
+
+どちらも**欠けてもゲートは緑のまま**なので、golden にトリップワイヤを置いた。
+
+### ④ 直った効果
+
+- `WX19-066-E1`（答英の採点　＃アカペン＃）「**あなたの【自】の【英知】能力が発動したとき**、このシグニをアップする」
+- `WXEX1-77-E1`（アイン＝シュミット）「**対戦相手の場にあるシグニの【出】能力が発動したとき**、対戦相手は手札を１枚捨てる」
+
+逆翻訳も原文どおりに戻ることを確認済み。
+
+**検証**＝`npm run gates` 全緑。golden 1541→**1544**、smoke 全0・SKIP 0、fuzz 全0、lint 0 errors、manual field loss 0。⚠**census は 911 据置**＝この2効果の欠落は census 語彙に無く、**timing 配線の穴は census には映らない**（続き378 と同型＝「計器が動かない回でも効果は直る」）。**未検証UIは PLAN §7 の「続き383」項に1件登録**。
+
+**§6.3 J の残＝2効果（J-4 のみ）**＝`WX24-P2-075-E1`（あなたのアタックフェイズ終了時）／`WXK11-018-E2`（このシグニがアタックしたアタック終了時）。⚠着手はタスク12(lxvii) と一体で（フェーズ/ターン境界は CPU 側の収集が面で欠けている）。
+
 ## 2026-08-08 — §6.3 K＝`manualEffects.ts`→live の乖離を計器化し **37効果を同期**、死角をゲート化（続き382）
 
 **真因**（続き381 で発見）＝`buildEffectsJson.ts:187` は live 側 `parseStatus:MANUAL`/`PARTIAL` を「手修正は不可侵」として温存するが、**`mergeManualEffects` の出力も MANUAL** なので、**`manualEffects.ts` を後から直しても live には永久に届かない**。`_held_review` にも `_partial_fresh` にも出ない第3の死角。
