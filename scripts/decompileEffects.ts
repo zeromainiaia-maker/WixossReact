@@ -2382,6 +2382,7 @@ const timingJa: Record<string, string> = {
   ON_ATTACK_LRIG: 'このルリグがアタックしたとき',
   ON_ACCE: 'このシグニに【アクセ】が付いたとき',
   ON_ACCE_TO_TRASH: '【アクセ】がトラッシュに置かれたとき',
+  ON_COIN_GAINED: '《コインアイコン》を得たとき',
   ON_SOUL_ATTACHED: 'このシグニに【ソウル】が付いたとき',
   ON_CARD_ATTACHED: 'このシグニにカードが付いたとき',
   ON_SELF_REVEAL_FROM_HAND: 'あなたが自分の効果によって手札からカードを公開したとき',
