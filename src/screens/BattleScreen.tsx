@@ -9738,9 +9738,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ON_COIN_PAID（C1 配線・CPUグロウコストのコイン支払）
           const cpuGrowCoin = growCoinCostCpu > 0 ? collectCoinPaidTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state) : { entries: [] as StackEntry[], usedIds: [] as string[] };
           const cpuGrowCoinEntries = cpuGrowCoin.entries;
-          const cpuStAfterCoin = applyCoinPaidUsed(newCpuSt, cpuGrowCoin); // 《ターン1回/2回》消化を永続化（続き106）
-          // 場出し数制限の選択トラッシュ（人間相手）＋グロウ反応＋コイン支払反応＋ルリグ【出】効果をスタックに積む
-          const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowReactEntries, ...cpuGrowCoinEntries, ...cpuGrowEntries];
+          let cpuStAfterCoin = applyCoinPaidUsed(newCpuSt, cpuGrowCoin); // 《ターン1回/2回》消化を永続化（続き106）
+          // ON_COIN_GAINED（§6.3 J-5・CPUグロウでのコイン獲得）: 人間側の【自】も「対戦相手が得たとき」で反応する。
+          const cpuCoinsAfterPay = Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu);
+          const cpuCoinGainActual = Math.min(5, cpuCoinsAfterPay + coinGainCpu) - cpuCoinsAfterPay;
+          const cpuCoinGainSelf = cpuCoinGainActual > 0
+            ? collectCoinGainedTriggers(CPU_PLAYER_ID, cpuStAfterCoin, bs.host_state, cpuCoinGainActual, 0)
+            : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
+          const cpuCoinGainHuman = cpuCoinGainActual > 0
+            ? collectCoinGainedTriggers(bs.host_id, humanStateAfterGrowReact ?? bs.host_state, cpuStAfterCoin, 0, cpuCoinGainActual)
+            : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
+          if (cpuCoinGainSelf.usedOncePerTurnIds.length > 0) {
+            cpuStAfterCoin = { ...cpuStAfterCoin, actions_done: [...(cpuStAfterCoin.actions_done ?? []), ...cpuCoinGainSelf.usedOncePerTurnIds] };
+          }
+          const humanAfterCoinGain: PlayerState | null = cpuCoinGainHuman.usedOncePerTurnIds.length > 0
+            ? { ...(humanStateAfterGrowReact ?? bs.host_state), actions_done: [...((humanStateAfterGrowReact ?? bs.host_state).actions_done ?? []), ...cpuCoinGainHuman.usedOncePerTurnIds] }
+            : humanStateAfterGrowReact;
+          // 場出し数制限の選択トラッシュ（人間相手）＋グロウ反応＋コイン支払/獲得反応＋ルリグ【出】効果をスタックに積む
+          const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowReactEntries, ...cpuGrowCoinEntries, ...cpuCoinGainSelf.entries, ...cpuCoinGainHuman.entries, ...cpuGrowEntries];
           if (cpuAllGrowEntries.length > 0) {
             // スタックに積んで解決を待つ（GROWに留まり、解決後の再実行でMAINへ進む）
             const existingStackGR = bs.effect_stack ?? null;
