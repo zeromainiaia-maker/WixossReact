@@ -6459,6 +6459,21 @@ function parseActionTextInner(text: string): EffectAction {
           then: rp,
         } as import('../types/effects').ConditionalAction;
       }
+      // 3文目以降が残っている形（`WXK10-017-E3`＝「…それを場に出す。**それの【出】能力は発動しない。**」）は
+      // この早期 return が sentences[0..1] しか消費しないため**丸ごと捨てられていた**（無言の脱落）。
+      // 後続文が既知アクションに解けるものだけなら SEQUENCE で引き連れる（末尾の
+      // `foldSuppressOnPlay` が BLOCK_ACTION{ON_PLAY_ABILITY} を配置アンカーへ畳み込む）。
+      // ⚠「そうした場合／そうでない場合」等の**前段の結果を条件にする後続文**は除外する＝無条件に足すと
+      //   条件が消えて過剰実行になる（`WXK03-050`／`WXDi-P09-068`＝else 相当は別の入れ子機構が要る）。
+      {
+        const tail = sentences.slice(2).map(s => s.trim().replace(/。$/, '')).filter(Boolean);
+        if (tail.length > 0 && tail.every(s => !/^(?:そうした場合|そうでない場合|この能力は|（)/.test(s))) {
+          const tailActions = tail.map(s => parseSingleSentence(s));
+          if (tailActions.every(a => a.type !== 'UNKNOWN')) {
+            return { type: 'SEQUENCE', steps: [rp, ...tailActions] } as SequenceAction;
+          }
+        }
+      }
       return rp;
     }
     // マッチしない場合、単純に「公開する + 後続」のシーケンスとして扱う
