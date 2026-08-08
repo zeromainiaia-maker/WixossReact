@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-08・続き377l・Opus 5〔**左右のシグニゾーン機構を新設**＝15効果是正・census 957→**953**・golden 1459→**1466**〕）＝ユーザー指示「続ける」。**触った層＝`types/effects.ts`（`TargetFilter.zoneSide`＋`IS_SELF_IN_SIDE_ZONE` を ActiveCondition/Condition 両方に）／`effectEngine.ts`（`matchesStateFilter`＋`checkActiveCondition`）／`execUtils.ts`（`fieldCandidates`＋`evalCondition`＋`ZONE_STATE_KEYS`）／`triggerCollect.ts`／`parserUtils.ts`／`parseSentencePart1.ts`（POWER_MODIFY・GRANT_KEYWORD・バニッシュ耐性）／`effectParser.ts`（パターン6c-2＋`STATE_CONDITION_CLAUSES_V2`）／`decompileEffects.ts`／`goldenTest.ts`（新規テスト7）／live JSON 15効果。**
+  - **⭐① 片側だけ実装された対称機構を疑う**＝`centerZoneOnly` / `IS_SELF_IN_CENTER_ZONE` はあるのに**左右の兄弟が無く**、さらに `POWER_MODIFY` にはゾーン枝があるのに `GRANT_KEYWORD` には**中央すら無い**という**非対称が2重に**あった。該当7カード11効果は**全部が限定ごと落ちて過剰発火**（`WXK10-078-E1` は「右ゾーンの＜怪異＞全体に＋4000」が**このシグニ自身に＋4000**、`WXK01-099-E1` は**常に＋1000**、`WXK01-094-E2`/`096-E2` は**常時バニッシュ耐性**、`WDK03-012-E1` は**どのゾーンに出ても発火**）。
+  - **🔴② 「【K】は『を得る/を持つ』に隣接するものを取る」一般化は却下**＝`WX10-036-BURST` のキーワードが条件側の【チャーム】に化けているのを直そうとしたら、**36カード中16カードが退化**した（全CSV A/B で発覚）。`t.match()` は**最初の一致**を返すので ①保有フィルタ「【ダブルクラッシュ】を**持つ**シグニ」②OR「【アサシン】**か**【ダブルクラッシュ】」の後段 ③条件付き引用付与「『【常】：〜かぎり、【K】を得る。』を得る」の STUB 潰し に当たる。**5枚を golden のトリップワイヤに固定して据置。**
+  - **✅③ ゾーン添字の左右対応を engine テストで固定**＝`left=0 / center=1 / right=2`（`BoardComponents` の signiRow が自分側を rawIdx 昇順で左から描く）。**逆だと左右が入れ替わるだけで誰も気付かない**ので `checkActiveCondition` を両方向 assert した。
+  - **🔴④ `from:['シグニ']` は「シグニの効果を何であれ受けない」＝原文より広い過剰保護**＝「シグニの効果によって**バニッシュ**されない」の正しい形は `from:['BANISH']`＋`bySourceType`（live 10枚は既に正しく parser だけが退化）。**軸トークンを種別トークンで置き換えてはいけない。**
+  - **📋⑤ 隣接して残したもの**＝`WX10-036-BURST` の付与キーワード（【チャーム】→【アサシン】・live も同じ）／`WX05-034-BURST`「このターンと次のターンの間」・`WD15-002-E1`「このターン」の `duration:'PERMANENT'`（duration 軸＝別系統）。§5d-0 (iii) 在庫へ登録。
+
 - **セッション（2026-08-08・続き377k・Opus 5〔**`_partial_fresh` 行列を 10→3カードへ**＝19効果是正・golden 1452→**1459**・census 957 据置〕）＝ユーザー指示「PLAN5の続きを行う」。**触った層＝`buildEffectsJson.ts`（同一判定の正規化）／`effectParser.ts`（コスト2グループ・条件節の持ち上げ・後続文・孤立reorder・nonColorless・any_opp前置き）／`parseSentencePart1.ts`（acceHost 新設）／`parseSentencePart2.ts`（死んだ規則3本を削除）／`manualEffects.ts`（古い上書きを剥がす）／`decompileEffects.ts`（逆翻訳の名詞欠落）／`goldenTest.ts`（新規テスト7）／live JSON 8効果。**
   - **⭐① 同じ文型に規則が2箇所あると、後ろ側は静かに死ぬ**＝`parseSentencePart2` の acceHost 規則3本は、Part1 の汎用 POWER_MODIFY が `パワーを＋N` を常に先に食うため**一度も到達していなかった**（`??` 連鎖の順序）。実際は `filter` 無し `owner:'any'/count:1` に潰れ、CONTINUOUS では effectEngine が効果元自身へ解決＝**自分にバフする**過剰実行。全CSVで該当10枚が**全部この穴**（live は手修正で正しく計器に出ない）。**規則の存在は発火の証明にならない＝実データで発火を確認するまで「対応済み」と書かない。**
   - **🔴② レビュー行列の偽陽性の正体はツール側の `JSON.stringify` 比較（キー順依存）**＝`WD14-011-E1` は実体完全同一でキー順と `parseStatus` 刻印だけが違った。リーフパス集合で正規化する `canonLeaves` に差し替え、効果単位判定・`needsReview` の両方で使う。**行列に居るものを疑う前に、行列を作る計器を疑う。**
