@@ -2347,6 +2347,15 @@ export interface CardEffect {
     milledCardFilter?: TargetFilter;
     /** ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH 共通の解決単位最低枚数。省略=1。 */
     minCount?: number;
+    // ── ON_ABILITY_ACTIVATED（§6.3 J-1「他能力の発動監視」）の限定 ──
+    /** 発動した能力の持ち主（watcher から見て）。省略=どちらでも。 */
+    activatedAbilityOwner?: 'self' | 'opponent';
+    /** 発動した能力の種別。'ON_PLAY'＝【出】／'AUTO'＝【自】（＝AUTO かつ ON_PLAY を含まない）。省略=種別不問。 */
+    activatedAbilityKind?: 'AUTO' | 'ON_PLAY';
+    /** 【英知】能力限定＝発動した能力の activeCondition に `EICHI_LEVEL_SUM` を含む（`WX19-066`）。 */
+    activatedAbilityEichi?: boolean;
+    /** 「場にあるシグニの」限定＝発動元カードが持ち主の場のシグニ（`WXEX1-77`）。ルリグ/スペル/アーツ由来では発火しない。 */
+    activatedAbilityFromFieldSigni?: boolean;
     banishedLevelLtWatcher?: boolean;
     notWhileAttacking?: boolean;
     banishedFromCenterZone?: boolean;
