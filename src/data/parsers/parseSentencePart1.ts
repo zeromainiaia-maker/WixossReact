@@ -2449,7 +2449,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       : toTriggerSource ? { isTriggerSource: true }
         : hasOtherSelfSigniNoun(t) ? { excludeSelf: true }
           : undefined;
-    const toTarget: EffectTarget = { type: 'SIGNI', owner: toOwner, count: 1, ...(toFilter ? { filter: toFilter } : {}) };
+    // 付与先の体数＝「〈修飾〉シグニN体（まで）の【チャーム】に」（出所が先の語順）か
+    //   「〈修飾〉シグニをN体まで対象とし」（付与先が先の語順）。「好きな数の」は count:'ALL'。
+    const toCharmM = t.match(/(?:あなた|対戦相手)の(好きな数の)?([^。、]{0,20}?)シグニ(?:を)?(?:([０-９\d]+)体)?(まで)?の【チャーム】に/);
+    const toClauseM = toCharmM ?? t.match(/(?:あなた|対戦相手)の(好きな数の)?([^。、]{0,20}?)シグニ(?:を)?([０-９\d]+)体(まで)?を?対象とし/);
+    const toCount: number | 'ALL' = toClauseM
+      ? (toClauseM[1] ? 'ALL' : toClauseM[3] ? parseNum(toClauseM[3]) : 1)
+      : 1;
+    const toUpTo = toClauseM?.[4] && toCount !== 'ALL' ? { upToCount: true } : {};
+    // 付与先のクラスも**その名詞句に隣接するとき**だけ（`WX07-045-E2` の ＜悪魔＞ はここに属する）。
+    const toStory = toClauseM ? parseStoryFilter(toClauseM[2]) : {};
+    const toMergedFilter = { ...(toFilter ?? {}), ...toStory };
+    const toTarget: EffectTarget = {
+      type: 'SIGNI', owner: toOwner, count: toCount, ...toUpTo,
+      ...(Object.keys(toMergedFilter).length > 0 ? { filter: toMergedFilter } : {}),
+    };
     return { type: 'ATTACH_CHARM', charm, to: toTarget } as AttachCharmAction;
   }
 
