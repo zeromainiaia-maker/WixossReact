@@ -4402,6 +4402,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //  で読み戻していた＝3キーとも初期化済みなので **読み戻し先は常に累積値**）。
       let hostAcc = hostState;
       let guestAcc = guestState;
+      // ON_ABILITY_ACTIVATED（§6.3 J-1）の《ターン1回》消化を actions_done へ永続化する。
+      // collector が使用回数を読むのは actions_done なので、書き戻さないと**同じターンに何度でも再発火**する
+      // （既存 collector 群が usedOncePerTurnIds を呼び出し側で書き戻しているのと同じ規約）。
+      if (aaHost.usedOncePerTurnIds.length > 0) {
+        hostAcc = { ...hostAcc, actions_done: [...(hostAcc.actions_done ?? []), ...aaHost.usedOncePerTurnIds] };
+      }
+      if (aaGuest.usedOncePerTurnIds.length > 0) {
+        guestAcc = { ...guestAcc, actions_done: [...(guestAcc.actions_done ?? []), ...aaGuest.usedOncePerTurnIds] };
+      }
       let stackAcc: EffectStack | null = stackAfter;
       let pendingAcc: PendingEffect | null;
       /** FORCE_END_TURN で重ねるターン終了（未発生＝undefined）。 */
