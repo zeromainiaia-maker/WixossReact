@@ -28394,6 +28394,145 @@ test('§6.3 E WX24-P2-010-E1: 他のシグニ2体トラッシュで対象シグ�
   ok(leaveEntries.some(e => e.effectId === 'attack-cost-leave'), '支払いでON_LEAVE_FIELDを収集する');
 }));
 
+// ─────────────────────────────────────────────────────────────────────────────
+// §6.4 トラッシュ自己起動【起】のコストUI：エナ以外（手札捨て／コイン／【ウィルス】除去／
+//   【チャーム】／ルリグダウン／エクシード）と《アタックフェイズアイコン》起動。
+//   ⚠ ここが緑でも実機（ブラウザ対戦）での配置検証は別途必要（PLAN §7）。
+// ─────────────────────────────────────────────────────────────────────────────
+test('§6.4 対象カードの trashActivated【起】が全部「支払える形」になっている', () => {
+  // live JSON の trashActivated 効果を総なめし、未対応コストキーが残っていないことを固定する。
+  // ⚠ ここが赤くなる＝新しいコスト種が parser から生えた＝UI 側の対応漏れ（黙って発動不可になる）。
+  const leftovers: string[] = [];
+  for (const [num, effs] of effectsMap) {
+    for (const eff of effs) {
+      if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
+      const keys = unsupportedTrashActivateCostKeys(eff.cost);
+      if (keys.length > 0) leftovers.push(`${num}/${eff.effectId}:${keys.join('+')}`);
+    }
+  }
+  eq(leftovers.join(' '), '', 'トラッシュ自己起動【起】に未対応コストキーが残っていない');
+});
+
+test('§6.4 手札捨てコストの正規化（discard / discardFilter / handDiscardSigni を1つの選択形に畳む）', () => {
+  eq(trashActivateHandDiscard(undefined), null, 'コストなしは手札捨てなし');
+  eq(trashActivateHandDiscard({ energy: [{ color: '黒', count: 2 }] })?.count, undefined, 'エナだけなら手札捨てなし');
+  eq(trashActivateHandDiscard({ discard: 2 })?.count, 2, 'WXDi-P03-087型：無条件の手札2枚');
+  // WXDi-P12-053：《ディソナアイコン》のカード2枚＝discardFilter つき
+  const disona = trashActivateHandDiscard({ discard: 2, discardFilter: { isDisona: true } })!;
+  eq(disona.count, 2, 'discardFilter つきでも枚数は discard 由来');
+  // WXDi-CP01-050／WX19-029：＜バーチャル＞／＜遊具＞のシグニ2枚＝handDiscardSigni
+  const virtual = trashActivateHandDiscard({ handDiscardSigni: { count: 2, story: 'バーチャル' } })!;
+  eq(virtual.count, 2, 'handDiscardSigni の枚数');
+  const vSigni = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('バーチャル'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('バーチャル'));
+  ok(virtual.matches(cardMap.get(vSigni)), '＜バーチャル＞のシグニは捨てられる');
+  ok(!virtual.matches(cardMap.get(other)), '＜バーチャル＞以外は捨てられない（クラス指定が落ちない）');
+});
+
+test('§6.4 payTrashActivateCost：エナ＋手札捨てを払い、効果元カードはトラッシュに残す', () => {
+  const src = 'WXDi-P03-087';
+  const eff = effectsMap.get(src)!.find(e => e.effectId === 'WXDi-P03-087-E2')!;
+  eq(eff.cost?.discard, 2, '前提：手札2枚捨てコスト');
+  const my: PlayerState = { ...mkState({ hand: 4 }), trash: [src] };
+  const op = mkState({});
+  // 枚数不足は成立させない（UI が押せる＝払える、を崩さない）
+  eq(payTrashActivateCost(eff, my, op, { energy: new Set(), handDiscard: new Set([0]), exceed: new Set() }, cardMap), null,
+     '選択が必要数に足りなければ支払わない');
+  const paid = payTrashActivateCost(eff, my, op, { energy: new Set(), handDiscard: new Set([0, 1]), exceed: new Set() }, cardMap)!;
+  eq(paid.my.hand.length, my.hand.length - 2, '手札が2枚減る');
+  eq(paid.discardedCards.join(','), `${my.hand[0]},${my.hand[1]}`, '捨てた2枚を返す（ON_DISCARDED_AS_COST 用）');
+  ok(paid.my.trash.includes(src), '効果元カード自身はトラッシュに残る（execAddToField が後で場へ移す）');
+  eq(paid.my.trash.filter(n => n === src).length, 1, '効果元カードを二重に積まない');
+  eq(paid.op, null, 'ウィルス除去がなければ相手状態は書き換えない');
+  eq(paid.my.last_activated_discard_count, 2, 'コストで捨てた枚数を記録する');
+  eq(my.hand.length, 4, '入力 state は破壊しない');
+});
+
+test('§6.4 payTrashActivateCost：コイン／【ウィルス】除去／【チャーム】は自動支払い', () => {
+  const coinEff = effectsMap.get('WXDi-P16-082')!.find(e => e.effectId === 'WXDi-P16-082-E2')!;
+  eq(coinEff.cost?.coin, 2, '前提：《コイン》2枚コスト');
+  const rich: PlayerState = { ...mkState({}), coins: 3 };
+  const paidCoin = payTrashActivateCost(coinEff, rich, mkState({}), { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap)!;
+  eq(paidCoin.my.coins, 1, '《コイン》2枚を支払う');
+  eq(paidCoin.my.coins_paid_this_turn, 2, 'COINS_PAID_THIS_TURN 用の累計も進む');
+  eq(paidCoin.coinPaid, 2, 'ON_COIN_PAID 収集用に支払い枚数を返す');
+  const poor: PlayerState = { ...mkState({}), coins: 1 };
+  eq(payTrashActivateCost(coinEff, poor, mkState({}), { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap), null,
+     '《コイン》不足では支払わない');
+
+  const virusEff = effectsMap.get('WX17-049')!.find(e => e.effectId === 'WX17-049-E2')!;
+  eq(virusEff.cost?.removeOppVirus, 2, '前提：相手の【ウィルス】2個除去');
+  const opVirus: PlayerState = { ...mkState({}), field: { ...mkState({}).field, signi_virus: [1, 2, 0] } };
+  const paidVirus = payTrashActivateCost(virusEff, mkState({}), opVirus, { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap)!;
+  eq(paidVirus.op!.field.signi_virus!.join(','), '0,1,0', '左のゾーンから順に2個取り除く');
+  ok(paidVirus.my.opp_virus_removed_just, '相手状態も書き戻す必要があることを自状態のマーカーで示す');
+  const opThin: PlayerState = { ...mkState({}), field: { ...mkState({}).field, signi_virus: [1, 0, 0] } };
+  eq(payTrashActivateCost(virusEff, mkState({}), opThin, { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap), null,
+     '【ウィルス】不足では支払わない');
+
+  const charmEff = effectsMap.get('WXEX2-73')!.find(e => e.effectId === 'WXEX2-73-E2')!;
+  eq(charmEff.cost?.charmTrash, 1, '前提：場の【チャーム】1枚をトラッシュ');
+  const base = mkState({});
+  const charmed: PlayerState = { ...base, field: { ...base.field, signi_charms: [null, SIGNI, null] } };
+  const paidCharm = payTrashActivateCost(charmEff, charmed, mkState({}), { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap)!;
+  eq(paidCharm.my.field.signi_charms!.filter(Boolean).length, 0, '【チャーム】が場から外れる');
+  ok(paidCharm.my.trash.includes(SIGNI), '外した【チャーム】はトラッシュへ');
+  eq(payTrashActivateCost(charmEff, base, mkState({}), { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap), null,
+     '【チャーム】がなければ支払わない');
+});
+
+test('§6.4 canOfferTrashActivate：在庫不足の【起】はトラッシュUIに出さない（WXDi-P04-042 ルリグダウン）', () => {
+  const eff = effectsMap.get('WXDi-P04-042')!.find(e => e.effectId === 'WXDi-P04-042-E2')!;
+  eq(eff.cost?.lrigDown?.count, 2, '前提：アップ状態のレベル2のルリグ2体をダウン');
+  eq(eff.cost?.lrigDown?.level, 2, '前提：レベル2限定');
+  const lv2 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 2);
+  const lv1 = findCard(c => c.Type === 'ルリグ' && Number(c.Level) === 1);
+  const board = (assist: string) => {
+    const st = mkState({ lrig: [`${lv2}#center`], assistL: [`${assist}#left`] });
+    st.field.lrig_down = false; st.field.assist_lrig_l_down = false;
+    return st;
+  };
+  ok(canOfferTrashActivate(eff, board(lv2), mkState({}), cardMap), 'レベル2が2体アップならUIに出す');
+  ok(!canOfferTrashActivate(eff, board(lv1), mkState({}), cardMap), 'レベル1は数に入らない＝UIに出さない');
+  const paid = payTrashActivateCost(eff, board(lv2), mkState({}), { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap)!;
+  ok(paid.my.field.lrig_down && paid.my.field.assist_lrig_l_down, 'センター→アシストLの順にダウンする');
+  eq(payTrashActivateCost(eff, board(lv1), mkState({}), { energy: new Set(), handDiscard: new Set(), exceed: new Set() }, cardMap), null,
+     '支払い不能なら盤面を変えず null');
+});
+
+test('§6.4 canOfferTrashActivate：手札に該当シグニが足りなければ出さない（WXDi-CP01-050）', () => {
+  const eff = effectsMap.get('WXDi-CP01-050')!.find(e => e.effectId === 'WXDi-CP01-050-E2')!;
+  eq(eff.cost?.handDiscardSigni?.count, 2, '前提：手札から＜バーチャル＞のシグニ2枚');
+  const virtual = allCards.filter(c => isSigni(c) && (c.CardClass ?? '').includes('バーチャル')).slice(0, 2).map(c => c.CardNum);
+  const nonVirtual = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('バーチャル'));
+  const withTwo: PlayerState = { ...mkState({}), hand: [...virtual, nonVirtual] };
+  const withOne: PlayerState = { ...mkState({}), hand: [virtual[0], nonVirtual, nonVirtual] };
+  ok(canOfferTrashActivate(eff, withTwo, mkState({}), cardMap), '＜バーチャル＞が2枚あればUIに出す');
+  ok(!canOfferTrashActivate(eff, withOne, mkState({}), cardMap), '1枚しかなければUIに出さない');
+  // フィルタ違反の混入は選択段階で弾く（UIの「押せるのに払われない」を作らない）
+  ok(!trashActivateSelectionsSatisfied(eff, withTwo, { energy: new Set(), handDiscard: new Set([0, 2]), exceed: new Set() }, cardMap),
+     '＜バーチャル＞以外を混ぜた選択は成立しない');
+  ok(trashActivateSelectionsSatisfied(eff, withTwo, { energy: new Set(), handDiscard: new Set([0, 1]), exceed: new Set() }, cardMap),
+     '＜バーチャル＞2枚の選択は成立する');
+});
+
+test('§6.4 《アタックフェイズアイコン》起動と CHARM_COUNT 使用条件（WX11-049-E2）', () => {
+  const eff = effectsMap.get('WX11-049')!.find(e => e.effectId === 'WX11-049-E2')!;
+  eq(eff.timing?.join(','), 'ATTACK_ARTS', '《アタックフェイズアイコン》＝ATTACK_ARTS 起動');
+  ok(eff.trashActivated, 'トラッシュ自己起動である');
+  eq(eff.condition?.type, 'CHARM_COUNT', '「対戦相手の場に【チャーム】が３枚ある」は COND_STUB（常に許可）ではない');
+  const base = mkState({});
+  const charmed = (n: number): PlayerState => ({
+    ...base,
+    field: { ...base.field, signi_charms: [0, 1, 2].map(i => (i < n ? SIGNI : null)) },
+  });
+  const evalWith = (opState: PlayerState) =>
+    evalCondition(eff.condition!, { ...mkCtx({}, {}), ownerState: base, otherState: opState });
+  ok(evalWith(charmed(3)), '相手の場に【チャーム】3枚なら使用できる');
+  ok(!evalWith(charmed(2)), '2枚では使用できない（旧 COND_STUB は常に true だった）');
+  eq(trashActivateCostLabels(eff, base, charmed(3)).join('・'), '', '《黒×0》＝実質コストなしのラベル');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
