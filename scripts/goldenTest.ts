@@ -23310,7 +23310,11 @@ test('task12(lxiii) 「対戦相手の〈ゾーン〉があなたより多い場
   }
   // ④ WXK11-031-E1: 条件で包んだ前段の did-it ゲート＝ライフ条件を満たさなければ本体バニッシュも起きない
   const eff = effectsMap.get('WXK11-031')!.find(e => e.effectId === 'WXK11-031-E1')!;
-  const victim = fresh();
+  // ⚠ 対象は「パワー5000以下のシグニ」限定。素の `fresh()` だとカーソル位置しだいで 5000 超のカードを
+  //   引き当て、**バニッシュ側の assert だけが落ちる**（前段のテストが1枚多く払い出すと再現する）。
+  //   カーソル方式の distinct 性は保ったまま、フィルタを満たすまで払い出す。
+  let victim = fresh();
+  while ((parseInt(cardMap.get(victim)?.Power ?? '0', 10) || 0) > 5000) victim = fresh();
   const notMore = run(eff.action, mkCtx({ life: 5, hand: 3 }, { life: 2, signi: [victim, null, null] }));
   ok(notMore.otherState.field.signi.some(s => s?.at(-1) === victim), '条件不成立ならバニッシュしない（旧＝条件脱落で常時バニッシュ）');
   eq(notMore.ownerState.hand.length, 3, '条件不成立なら手札も捨てない');
