@@ -5682,6 +5682,158 @@ function applyThisWayTrashOutcomeGuards(text: string, action: EffectAction): Eff
   return action;
 }
 
+// §6.3 C 第2波: 「この方法で公開／手札に加えたカードが〜の場合」の後段条件。
+// effectId アンカーの外科パッチだが、各条件は既存の recorder/Condition 語彙だけで構成する。
+// REVEAL_AND_PICK は recordRevealed を付けず、resumeSearch が最後に残す picked（実際に手札へ加えた集合）を読む。
+function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): void {
+  const effect = (id: string): CardEffect | undefined => effects.find(e => e.effectId === id);
+  const setAction = (id: string, action: EffectAction): CardEffect | undefined => {
+    const e = effect(id);
+    if (e) e.action = action;
+    return e;
+  };
+  const selfSigni = { type: 'SIGNI' as const, owner: 'self' as const, count: 1 as const, filter: { thisCardOnly: true } };
+  const publicTop = (position: 'top' | 'bottom'): LookAndReorderAction => ({
+    type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1,
+    private: false, reorder: false, destination: { location: 'deck', owner: 'self', position },
+  });
+  const lastSigniLevel = (level: number): Condition => ({
+    type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level },
+  });
+
+  if (cardNum === 'WXDi-P06-071') {
+    setAction('WXDi-P06-071-E1', { type: 'SEQUENCE', steps: [
+      publicTop('bottom'),
+      { type: 'CONDITIONAL', condition: lastSigniLevel(1), then: {
+        type: 'POWER_MODIFY', target: selfSigni, delta: 4000, duration: 'UNTIL_OPP_TURN_END',
+      } },
+    ] });
+  }
+  if (cardNum === 'WDK04-014') {
+    const e = effect('WDK04-014-E1');
+    if (e) {
+      e.condition = { type: 'THIS_CARD_IN_CENTER_ZONE' };
+      e.action = { type: 'SEQUENCE', steps: [
+        publicTop('bottom'),
+        { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'odd' } }, then: {
+          type: 'SEQUENCE', steps: [
+            { type: 'POWER_MODIFY', target: selfSigni, delta: 5000 },
+            { type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' },
+          ],
+        } },
+      ] };
+    }
+  }
+  if (cardNum === 'WDK04-015') {
+    setAction('WDK04-015-E1', { type: 'SEQUENCE', steps: [
+      publicTop('top'),
+      { ...publicTop('bottom'), private: true },
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'odd' } }, then: {
+        type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['黒'] },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'SEQUENCE', steps: [
+            { type: 'POWER_MODIFY', target: selfSigni, delta: 7000 },
+            { type: 'GRANT_EFFECT', target: selfSigni, duration: 'UNTIL_END_OF_TURN', effect: {
+              effectId: 'WDK04-015-E1-GRANT', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], triggerScope: 'self',
+              action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, delta: -2000, duration: 'UNTIL_END_OF_TURN' },
+              duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+            } },
+          ] } },
+        ],
+      } },
+    ] });
+  }
+  if (cardNum === 'WD21-001') {
+    const keyword = (level: number, name: 'ダブルクラッシュ' | 'アサシン' | 'ランサー'): EffectAction => ({
+      type: 'CONDITIONAL', condition: lastSigniLevel(level), then: {
+        type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: name, duration: 'UNTIL_END_OF_TURN',
+      },
+    });
+    setAction('WD21-001-E1', { type: 'SEQUENCE', steps: [
+      publicTop('top'), keyword(1, 'ダブルクラッシュ'), keyword(2, 'アサシン'), keyword(3, 'ランサー'),
+      { type: 'CONDITIONAL', condition: lastSigniLevel(4), then: {
+        type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1 },
+        from: ['BANISH'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN',
+      } },
+    ] });
+  }
+  if (cardNum === 'WX24-P4-043') {
+    setAction('WX24-P4-043-E1', { type: 'SEQUENCE', steps: [
+      publicTop('top'),
+      { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+        { choiceId: 'c0', label: '選択肢1', action: { type: 'CONDITIONAL', condition: lastSigniLevel(1), then: {
+          type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'DECK_CARD', owner: 'self', count: 1, fromTop: true, filter: { cardType: 'シグニ', level: 1 } },
+          optional: true, asDown: true, suppressOnPlay: true,
+        } } },
+        { choiceId: 'c1', label: '選択肢2', action: { type: 'DRAW', owner: 'self', count: 1 } },
+      ] },
+    ] });
+  }
+  if (cardNum === 'WX25-P2-045') {
+    const e = effect('WX25-P2-045-E1');
+    if (e?.action.type === 'REVEAL_AND_PICK') e.action = { type: 'SEQUENCE', steps: [
+      e.action,
+      { type: 'CONDITIONAL', condition: {
+        type: 'LAST_PROCESSED_MATCHES', filter: {}, operator: 'eq', value: 2,
+        requiredDistinctColors: ['青', '黒'], verbJa: '手札に加えた',
+      }, then: {
+        type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+        delta: -10000, duration: 'UNTIL_END_OF_TURN',
+      } },
+    ] };
+  }
+  if (cardNum === 'WX25-CP1-001') {
+    const e = effect('WX25-CP1-001-E1');
+    if (e?.action.type === 'SEQUENCE' && e.action.steps[0]?.type === 'REVEAL_AND_PICK') {
+      e.action.steps.splice(1, 0, { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 2, verbJa: '手札に加えた' }, then: {
+        type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false }, optional: false,
+      } });
+    }
+  }
+  if (cardNum === 'WX10-041') {
+    const e = effect('WX10-041-E1');
+    if (e?.action.type === 'REVEAL_AND_PICK') e.action = { type: 'SEQUENCE', steps: [
+      e.action,
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1, negate: true, verbJa: '手札に加えた' }, then: {
+        type: 'DOWN', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      } },
+    ] };
+  }
+  if (cardNum === 'WDK08-Y11') {
+    setAction('WDK08-Y11-E2', { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' },
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 6, verbJa: '公開した' }, then: {
+        type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'Ｓランサー', duration: 'UNTIL_END_OF_TURN',
+      }, else: { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 4, verbJa: '公開した' }, then: {
+        type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN',
+      } } },
+    ] });
+  }
+  if (cardNum === 'WXK04-034') {
+    setAction('WXK04-034-E1', { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' },
+      { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 5, verbJa: '公開した' }, then: {
+        type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2,
+      }, else: { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 3, verbJa: '公開した' }, then: {
+        type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1,
+      } } },
+    ] });
+  }
+  if (cardNum === 'WX12-004') {
+    setAction('WX12-004-E1', { type: 'SEQUENCE', steps: [
+      { type: 'LIFE_CRASH', owner: 'self', count: 1, triggerBurst: true },
+      { type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: [
+        { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 }, then: {
+          type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+        } },
+        { type: 'CONDITIONAL', condition: { type: 'AND', conditions: [
+          { type: 'LRIG_NAME_CONTAINS', owner: 'self', name: 'ユヅキ' }, { type: 'LAST_PROCESSED_HAS_BURST' },
+        ] }, then: { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true } },
+      ] },
+    ] });
+  }
+}
+
 function parseActionText(text: string): EffectAction {
   const parse = (source: string): EffectAction => applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
@@ -11032,6 +11184,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyProportionalCountBatch6(effects);
   applyGradedThresholdBatch(card.CardNum, effects);
   applyQuotedFrontPowerGrantBatch(card.CardNum, effects);
+  applyResultConditionalWave2(card.CardNum, effects);
 
   // WXEX1-13-E1 は「既存トラップを手札へ戻した場合」の did-it ゲートと、トラップを
   // SIGNI として BOUNCE している別の構造破壊を先に直す必要がある。LPC だけ部分移行すると

@@ -14244,7 +14244,7 @@ test('タスク12(xxii) 第2バッチ20効果: condition成立/不成立の両�
   const ancient = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardClass?.includes('古代兵器'))
     .filter((c, i, a) => a.findIndex(x => x.CardName === c.CardName) === i).slice(0, 7).map(c => c.CardNum);
   eq(ancient.length, 7, '古代兵器の異名7種がテストデータに必要');
-  const burst = pick('ライフバーストあり', c => !!c.LifeBurst && c.LifeBurst !== '-');
+  const burst = pick('ライフバーストあり', c => c.LifeBurst === '1');
   const eclipse = pick('羅星姫 イクリプス', c => c.CardName === '羅星姫　イクリプス');
   const whiteLrig = pick('白ルリグ', c => c.Type === 'ルリグ' && c.Color?.includes('白'));
   const nonWhiteLrig = pick('非白ルリグ', c => c.Type === 'ルリグ' && !c.Color?.includes('白'));
@@ -18649,8 +18649,8 @@ test('task12(xxxix) WX24-P3-050-E1: live signi opens MB; burst/no-burst branches
   try {
     const source = 'WX24-P3-050';
     const chiyori = findCard(c => c.CardName === 'ちより　第三章');
-    const burst = findCard(c => !!c.LifeBurst && c.LifeBurst !== '-');
-    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const burst = findCard(c => c.LifeBurst === '1');
+    const noBurst = findCard(c => c.LifeBurst !== '1');
     const effect = manualEffect(source, 'WX24-P3-050-E1');
     const resolveWithMb = (mb: string) => {
       const ctx = mkCtx({ signi: [source, chiyori, null] }, { life: 7, energy: 5 }, source);
@@ -18673,8 +18673,8 @@ test('task12(xxxix) WX24-P4-067-E1: live signi opens MB; non-LB cancels attack a
   const savedCursor = cursor;
   try {
     const source = 'WX24-P4-067';
-    const burst = findCard(c => !!c.LifeBurst && c.LifeBurst !== '-');
-    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const burst = findCard(c => c.LifeBurst === '1');
+    const noBurst = findCard(c => c.LifeBurst !== '1');
     const whiteLrig = findCard(c => c.Type === 'ルリグ' && c.Color?.includes('白'));
     const white = findCard(c => c.Color?.includes('白') && c.Type === 'シグニ');
     const red = findCard(c => c.Color?.includes('赤') && !c.Color?.includes('白') && c.Type === 'シグニ');
@@ -18799,8 +18799,8 @@ test('PLAN §6.3 I WX24-P3-069-E1: non-LB cancels attack and grants guard extra 
   const savedCursor = cursor;
   try {
     const source = 'WX24-P3-069';
-    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
-    const burst = findCard(c => !!c.LifeBurst && c.LifeBurst !== '-');
+    const noBurst = findCard(c => c.LifeBurst !== '1');
+    const burst = findCard(c => c.LifeBurst === '1');
     const resolve = (mb: string) => {
       const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
       ctx.ownerState.field.signi_magic_boxes = [mb, null, null];
@@ -18890,7 +18890,7 @@ test('task12(xxxix) WX24-P3-050-E1: refusing five colorless takes LIFE_CRASH bra
   try {
     const source = 'WX24-P3-050';
     const chiyori = findCard(c => c.CardName === 'ちより　第三章');
-    const noBurst = findCard(c => !c.LifeBurst || c.LifeBurst === '-');
+    const noBurst = findCard(c => c.LifeBurst !== '1');
     const ctx = mkCtx({ signi: [source, chiyori, null] }, { life: 7, energy: 5 }, source);
     ctx.ownerState.field.signi_magic_boxes = [noBurst, null, null];
     const open = executeEffect(manualEffect(source, 'WX24-P3-050-E1'), ctx);
@@ -27540,6 +27540,217 @@ test('続き394 WXK05-025-E2: デッキ下4枚の合計11以上だけ凍結シ�
   no.ownerState.deck = [...fill(5), 'WD01-009', 'WD01-010', 'WD01-012', 'WD01-013'];
   no.otherState.field.signi_frozen = [true, true, false];
   eq(run(action, no).otherState.field.signi.filter(Boolean).length, 2, '4+3+2+1=10ならバニッシュしない');
+}));
+
+// §6.3 C wave 2: result-card conditionals. These tests execute the live effects and
+// explicitly cross every LOOK/SEARCH/SELECT pause used by the changed families.
+function wave2Effect(cardNum: string, effectId: string): CardEffect {
+  const effect = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} not found`);
+  return effect;
+}
+function wave2Ctx(base: ExecCtx, result: ExecResult): ExecCtx {
+  return {
+    ...base,
+    ownerState: result.ownerState,
+    otherState: result.otherState,
+    logs: result.logs,
+    lastProcessedCards: result.lastProcessedCards,
+    storedTargetCards: result.storedTargetCards ?? base.storedTargetCards,
+  } as ExecCtx;
+}
+function startWave2(cardNum: string, effectId: string, ctx: ExecCtx): ExecResult {
+  return executeEffect(wave2Effect(cardNum, effectId), ctx);
+}
+function resumeWave2Look(result: ExecResult, base: ExecCtx): ExecResult {
+  ok(!result.done && result.pending.type === 'LOOK_AND_REORDER', 'LOOK_AND_REORDER pause');
+  if (result.done || result.pending.type !== 'LOOK_AND_REORDER') return result;
+  return resumeLookAndReorder(result.pending.cards, [], result.pending, wave2Ctx(base, result));
+}
+
+test('wave2 A1 WXDi-P06-071-E1: resumed public level-1 reveal gates +4000 both ways', () => withSavedCursor(() => {
+  const yes = mkCtx({ signi: ['WXDi-P06-071', null, null], deckTop: ['WD01-013'] }, {}, 'WXDi-P06-071');
+  const ry = finish(resumeWave2Look(startWave2('WXDi-P06-071', 'WXDi-P06-071-E1', yes), yes), yes);
+  ok(ry.done, 'continuation completes after resume');
+  ok((ry.ownerState.power_mods_until_opp_turn ?? []).some(m => m.cardNum === 'WXDi-P06-071' && m.delta === 4000), 'level 1 grants +4000');
+  const no = mkCtx({ signi: ['WXDi-P06-071', null, null], deckTop: ['WD01-012'] }, {}, 'WXDi-P06-071');
+  const rn = finish(resumeWave2Look(startWave2('WXDi-P06-071', 'WXDi-P06-071-E1', no), no), no);
+  eq((rn.ownerState.power_mods_until_opp_turn ?? []).length, 0, 'level 2 does not grant +4000');
+}));
+
+test('wave2 A2 WDK04-014-E1: center + resumed odd-level reveal gates power and lancer', () => withSavedCursor(() => {
+  const resolve = (top: string) => {
+    const ctx = mkCtx({ signi: [null, 'WDK04-014', null], deckTop: [top] }, {}, 'WDK04-014');
+    return finish(resumeWave2Look(startWave2('WDK04-014', 'WDK04-014-E1', ctx), ctx), ctx);
+  };
+  const yes = resolve('WD01-010');
+  ok((yes.ownerState.temp_power_mods ?? []).some(m => m.cardNum === 'WDK04-014' && m.delta === 5000), 'odd grants +5000');
+  ok((yes.ownerState.keyword_grants?.['WDK04-014'] ?? []).includes('ランサー'), 'odd grants lancer');
+  const no = resolve('WD01-012');
+  eq((no.ownerState.temp_power_mods ?? []).length, 0, 'even grants no power');
+  eq((no.ownerState.keyword_grants?.['WDK04-014'] ?? []).length, 0, 'even grants no lancer');
+}));
+
+test('wave2 A3 WDK04-015-E1: resumed odd reveal encloses optional cost and self grants', () => withSavedCursor(() => {
+  const begin = (top: string) => {
+    const ctx = mkCtx({ signi: ['WDK04-015', null, null], deckTop: [top], energy: 0 }, {}, 'WDK04-015');
+    ctx.ownerState.energy = ['WD05-009'];
+    let result = resumeWave2Look(startWave2('WDK04-015', 'WDK04-015-E1', ctx), ctx);
+    result = resumeWave2Look(result, ctx);
+    return { ctx, result };
+  };
+  const yes = begin('WD01-010');
+  const paid = finishPayingCosts(yes.result, yes.ctx);
+  ok((paid.ownerState.temp_power_mods ?? []).some(m => m.cardNum === 'WDK04-015' && m.delta === 7000), 'odd paid grants +7000 to self');
+  ok((paid.ownerState.granted_effects?.['WDK04-015'] ?? []).some(e => e.effectId === 'WDK04-015-E1-GRANT'), 'odd paid grants quoted attack auto');
+  const no = begin('WD01-012').result;
+  ok(no.done, 'even completes without cost prompt');
+  eq((no.ownerState.temp_power_mods ?? []).length, 0, 'even grants no power');
+}));
+
+test('wave2 A4 WD21-001-E1: one resumed reveal selects one shared target and only its level branch', () => withSavedCursor(() => {
+  const cases = [
+    ['WD01-013', 'ダブルクラッシュ'], ['WD01-012', 'アサシン'], ['WD01-010', 'ランサー'],
+  ] as const;
+  for (const [top, keyword] of cases) {
+    const ctx = mkCtx({ signi: ['WD01-013', 'WD01-012', null], deckTop: [top] }, {}, 'WD21-001');
+    let result = resumeWave2Look(startWave2('WD21-001', 'WD21-001-E1', ctx), ctx);
+    ok(!result.done && result.pending.type === 'SELECT_TARGET', `${keyword} target pause`);
+    if (!result.done && result.pending.type === 'SELECT_TARGET') {
+      result = resumeSelectTarget(['WD01-012'], result.pending, wave2Ctx(ctx, result));
+    }
+    eq(JSON.stringify(result.ownerState.keyword_grants?.['WD01-012'] ?? []), JSON.stringify([keyword]), `${keyword} only on chosen signi`);
+    eq((result.ownerState.keyword_grants?.['WD01-013'] ?? []).length, 0, 'other signi untouched');
+  }
+  const ctx4 = mkCtx({ signi: ['WD01-013', 'WD01-012', null], deckTop: ['WD01-009'] }, {}, 'WD21-001');
+  let r4 = resumeWave2Look(startWave2('WD21-001', 'WD21-001-E1', ctx4), ctx4);
+  if (!r4.done && r4.pending.type === 'SELECT_TARGET') r4 = resumeSelectTarget(['WD01-012'], r4.pending, wave2Ctx(ctx4, r4));
+  ok((r4.ownerState.keyword_grants?.['WD01-012'] ?? []).includes('PROTECTION:BANISH:opponent'), 'level 4 grants banish protection');
+  const no = mkCtx({ signi: ['WD01-013', null, null], deckTop: ['WD03-015'] }, {}, 'WD21-001');
+  const rn = resumeWave2Look(startWave2('WD21-001', 'WD21-001-E1', no), no);
+  ok(rn.done && Object.keys(rn.ownerState.keyword_grants ?? {}).length === 0, 'spell reveal grants nothing');
+}));
+
+test('wave2 A5 WX24-P4-043-E1: resumed level-1 reveal gates down placement; draw branch remains live', () => withSavedCursor(() => {
+  const resolveChoice = (top: string, choiceIndex: number) => {
+    const ctx = mkCtx({ deckTop: [top], hand: 0 }, {}, 'WX24-P4-043');
+    const looked = resumeWave2Look(startWave2('WX24-P4-043', 'WX24-P4-043-E1', ctx), ctx);
+    ok(!looked.done && looked.pending.type === 'CHOOSE', 'post-look choice pause');
+    if (looked.done || looked.pending.type !== 'CHOOSE') return looked;
+    const choice = looked.pending.options[choiceIndex];
+    if (!choice) throw new Error(`choice ${choiceIndex} missing: ${JSON.stringify(looked.pending.options)}`);
+    let result = resumeChoose(choice.id, looked.pending, wave2Ctx(ctx, looked));
+    if (choiceIndex === 0 && !result.done && result.pending.type === 'CHOOSE') {
+      const apply = result.pending.options.find(o => o.id !== 'skip' && o.available !== false);
+      if (!apply) throw new Error(`optional placement choice missing: ${JSON.stringify(result.pending.options)}`);
+      result = resumeChoose(apply.id, result.pending, wave2Ctx(ctx, result));
+    }
+    return finish(result, ctx);
+  };
+  const yes = resolveChoice('WD01-013', 0);
+  ok(yes.ownerState.field.signi.some(stack => stack?.at(-1) === 'WD01-013'), `revealed level 1 enters field: ${JSON.stringify({ field: yes.ownerState.field.signi, deck: yes.ownerState.deck.slice(0, 3), logs: yes.logs.slice(-5) })}`);
+  const no = resolveChoice('WD01-012', 0);
+  ok(!no.ownerState.field.signi.some(Boolean), 'revealed level 2 does not enter field');
+  eq(resolveChoice('WD01-012', 1).ownerState.hand.length, 1, 'draw branch still draws');
+}));
+
+test('wave2 B1 WX25-P2-045-E1: picked distinct blue+black cards, not all revealed cards, gate -10000', () => withSavedCursor(() => {
+  const target = 'WD01-013';
+  const start = (picks: string[]) => {
+    const top = [...picks, 'WD01-009', 'WD01-010', 'WD01-012', 'WD01-013', 'WD01-014'];
+    const ctx = mkCtx({ deckTop: top }, { signi: [target, null, null] }, 'WX25-P2-045');
+    const first = startWave2('WX25-P2-045', 'WX25-P2-045-E1', ctx);
+    ok(!first.done && first.pending.type === 'SEARCH', 'reveal-and-pick pause');
+    if (first.done || first.pending.type !== 'SEARCH') return { ctx, result: first };
+    return { ctx, result: resumeSearch(picks, first.pending, wave2Ctx(ctx, first)) };
+  };
+  const yes = start(['WD03-015', 'WD05-017']);
+  ok(!yes.result.done && yes.result.pending.type === 'SELECT_TARGET', 'blue+black reaches power target');
+  let doneYes = yes.result;
+  if (!doneYes.done && doneYes.pending.type === 'SELECT_TARGET') doneYes = resumeSelectTarget([target], doneYes.pending, wave2Ctx(yes.ctx, doneYes));
+  ok((doneYes.otherState.temp_power_mods ?? []).some(m => m.cardNum === target && m.delta === -10000), 'blue+black applies -10000');
+  const no = start(['WD03-015', 'WD01-015']).result;
+  ok(no.done && (no.otherState.temp_power_mods ?? []).length === 0, 'blue+white does not apply');
+}));
+
+test('wave2 B2 WX25-CP1-001-E1: picked count two bounces before recollect gate', () => withSavedCursor(() => {
+  const target = 'WD01-013';
+  const resolve = (picks: string[]) => {
+    const ctx = mkCtx({ deckTop: [...picks, 'WD01-009', 'WD01-010', 'WD01-012', 'WD01-013', 'WD01-014'] }, { signi: [target, null, null] }, 'WX25-CP1-001');
+    const first = startWave2('WX25-CP1-001', 'WX25-CP1-001-E1', ctx);
+    if (first.done) return first;
+    ok(first.pending.type === 'SEARCH', 'reveal-and-pick pause');
+    if (first.pending.type !== 'SEARCH') return first;
+    let result = resumeSearch(picks, first.pending, wave2Ctx(ctx, first));
+    if (!result.done && result.pending.type === 'SELECT_TARGET') result = resumeSelectTarget([target], result.pending, wave2Ctx(ctx, result));
+    return result;
+  };
+  eq(resolve(['WX25-CP1-TK1A', 'WX25-CP1-TK2A']).otherState.field.signi[0], null, 'two picked bounce target');
+  eq(resolve(['WX25-CP1-TK1A']).otherState.field.signi[0]?.at(-1), target, 'one picked does not bounce');
+}));
+
+test('wave2 B3 WX10-041-E1: empty picked set overwrites stale state and downs self', () => withSavedCursor(() => {
+  const resolve = (top: string[], picks: string[], stale: string[] = []) => {
+    const ctx = mkCtx({ signi: ['WX10-041', null, null], deckTop: top }, {}, 'WX10-041');
+    ctx.lastProcessedCards = stale;
+    const first = startWave2('WX10-041', 'WX10-041-E1', ctx);
+    if (first.done) return first;
+    if (first.pending.type === 'SEARCH') return resumeSearch(picks, first.pending, wave2Ctx(ctx, first));
+    if (first.pending.type === 'SELECT_TARGET' && picks.length === 0) {
+      return resumeSelectTarget(['WX10-041'], first.pending, wave2Ctx(ctx, first));
+    }
+    throw new Error(`unexpected pause ${first.pending.type}: ${JSON.stringify(first.pending)}`);
+  };
+  const none = resolve(['WD03-015', 'WD05-017'], [], ['WD01-013']);
+  eq(none.ownerState.field.signi_down[0], true, 'zero matching picks downs self despite stale prior cards');
+  const picked = resolve(['WD01-013', 'WX01-072'], ['WD01-013']);
+  eq(picked.ownerState.field.signi_down[0], false, 'one picked signi does not down self');
+}));
+
+test('wave2 C1 WDK08-Y11-E2: hand reveal count 4/6 is exclusive and resumes selection', () => withSavedCursor(() => {
+  const resolve = (count: number) => {
+    const ctx = mkCtx({ signi: ['WDK08-Y11', null, null], hand: 0 }, {}, 'WDK08-Y11');
+    ctx.ownerState.hand = ['WX01-043', 'WX01-045', 'WX01-080', 'WX01-083', 'WX02-023', 'WX02-056'];
+    const first = startWave2('WDK08-Y11', 'WDK08-Y11-E2', ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'hand reveal selection');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') return first;
+    return resumeSelectTarget(ctx.ownerState.hand.slice(0, count), first.pending, wave2Ctx(ctx, first));
+  };
+  eq(JSON.stringify(resolve(3).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), '[]', 'three grants nothing');
+  eq(JSON.stringify(resolve(4).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), JSON.stringify(['ランサー']), 'four grants lancer');
+  eq(JSON.stringify(resolve(6).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), JSON.stringify(['Ｓランサー']), 'six grants only S-lancer');
+}));
+
+test('wave2 C2 WXK04-034-E1: hand reveal count 3/5 charges exclusively after resume', () => withSavedCursor(() => {
+  const resolve = (count: number) => {
+    const ctx = mkCtx({ signi: ['WXK04-034', null, null], hand: 0, energy: 0, deckTop: ['WD01-009', 'WD01-010', 'WD01-011'] }, {}, 'WXK04-034');
+    ctx.ownerState.hand = ['WX01-043', 'WX01-045', 'WX01-080', 'WX01-083', 'WX02-023'];
+    const first = startWave2('WXK04-034', 'WXK04-034-E1', ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'hand reveal selection');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') return first;
+    return resumeSelectTarget(ctx.ownerState.hand.slice(0, count), first.pending, wave2Ctx(ctx, first));
+  };
+  eq(resolve(2).ownerState.energy.length, 0, 'two charges zero');
+  eq(resolve(3).ownerState.energy.length, 1, 'three charges one');
+  eq(resolve(5).ownerState.energy.length, 2, 'five charges two, not three');
+}));
+
+test('wave2 D1 WX12-004-E1: self life crash snapshot survives banish and gates Yuzuki+burst', () => withSavedCursor(() => {
+  const target = 'WD01-013';
+  const resolve = (life: string, lrig: string[]) => {
+    const ctx = mkCtx({ life: 0, lrig, deckTop: ['WD01-014'] }, { signi: [target, null, null], life: 2 }, 'WX12-004');
+    ctx.ownerState.life_cloth = [life];
+    const first = startWave2('WX12-004', 'WX12-004-E1', ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', 'post-crash banish target');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') return first;
+    return resumeSelectTarget([target], first.pending, wave2Ctx(ctx, first));
+  };
+  const yes = resolve('WD01-009', ['SPDi34-13']);
+  eq(yes.ownerState.life_cloth.length, 1, 'burst under Yuzuki adds top card to life');
+  eq(yes.otherState.field.signi[0], null, 'opponent signi banished');
+  eq(yes.otherState.life_cloth.length, 2, 'opponent life is not crashed');
+  eq(resolve('WD01-010', ['SPDi34-13']).ownerState.life_cloth.length, 0, 'non-burst adds no life');
+  eq(resolve('WD01-009', []).ownerState.life_cloth.length, 0, 'non-Yuzuki adds no life');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

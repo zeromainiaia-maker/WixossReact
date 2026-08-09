@@ -4530,9 +4530,11 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
         ...(a.remainder.location === 'energy' ? { energy: [...state.energy, ...restOrdered] } : {}),
       };
       const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`);
-      return a.elseAction ? executeAction(a.elseAction, { ...unmatched, lastProcessedCards: visible }) : done(a.recordRevealed ? { ...unmatched, lastProcessedCards: visible } : unmatched);
+      const recorded = { ...unmatched, lastProcessedCards: a.recordRevealed ? visible : [] };
+      return a.elseAction ? executeAction(a.elseAction, recorded) : done(recorded);
     }
-    return a.elseAction ? executeAction(a.elseAction, { ...ctx, lastProcessedCards: visible }) : done(a.recordRevealed ? { ...ctx, lastProcessedCards: visible } : ctx);
+    const recorded = { ...ctx, lastProcessedCards: a.recordRevealed ? visible : [] };
+    return a.elseAction ? executeAction(a.elseAction, recorded) : done(recorded);
   }
 
   // デッキはスライスせず公開カードを残す（resumeSearch が picked を各領域へ、未pick公開カードを

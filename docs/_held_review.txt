@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［56枚］
-PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX25-CP1-001 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-086 WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-022 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［55枚］
+PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-075 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-086 WXDi-D06-010 WXDi-D08-004 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-022 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -183,6 +183,42 @@ WX08-026
   + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
   …（他 3 行）
 
+## +CONDITIONAL +DOWN +LAST_PROCESSED_COUNT_GTE +SEQUENCE +SIGNI ［1枚］
+WX10-041
+--- WX10-041
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中から＜アーム＞のシグニ１枚と＜ウェポン＞のシグニ１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。この方法でシグニを１枚も手札に加えていない場合、このシグニをダウンする。,-
+  - [0].action.owner = "self"
+  - [0].action.revealCount = 2
+  - [0].action.filter.cardType = "シグニ"
+  - [0].action.filter.story[0] = "アーム"
+  - [0].action.filter.story[1] = "ウェポン"
+  - [0].action.pickCount = 1
+  - [0].action.then.type = "ADD_TO_HAND"
+  - [0].action.then.owner = "self"
+  - [0].action.remainder.location = "deck"
+  - [0].action.remainder.position = "top"
+  ~ [0].action.type : "REVEAL_AND_PICK" → "SEQUENCE"
+  + [0].action.steps[0].type = "REVEAL_AND_PICK"
+  …（他 20 行）
+
+## +AND +CONDITIONAL +LAST_PROCESSED_COUNT_GTE +LAST_PROCESSED_HAS_BURST +LRIG_NAME_CONTAINS +SEQUENCE -IS_MY_TURN ［1枚］
+WX12-004
+--- WX12-004
+  原文: 対戦相手のシグニ１体を対象とし、あなたのライフクロス１枚をクラッシュする。そうした場合、それをバニッシュする。あなたのセンタールリグが＜ユヅキ＞で、この方法でクラッシュしたカードが【ライフバースト】を持っていた場合、あなたのデッキの一番上のカードをライフクロスに加える。,-
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BANISH"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.target.upToCount = false
+  - [0].action.steps[2].type = "ADD_TO_LIFE"
+  - [0].action.steps[2].owner = "self"
+  - [0].action.steps[2].count = 1
+  - [0].action.steps[2].fromTop = true
+  ~ [0].action.steps[0].owner : "opponent" → "self"
+  …（他 21 行）
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -342,6 +378,24 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES ［1枚］
+WXDi-P06-071
+--- WXDi-P06-071
+  原文: 【出】：あなたのデッキの一番上を公開し、そのカードをデッキの一番下に置いてもよい。この効果で公開されたカードがレベル１のシグニの場合、次の対戦相手のターン終了時まで、このシグニのパワーを＋4000する。,-
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].target.filter.thisCardOnly = true
+  - [0].action.steps[1].delta = 4000
+  - [0].action.steps[1].duration = "UNTIL_OPP_TURN_END"
+  ~ [0].action.steps[1].type : "POWER_MODIFY" → "CONDITIONAL"
+  + [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].condition.filter.level = 1
+  + [0].action.steps[1].then.type = "POWER_MODIFY"
+  + [0].action.steps[1].then.target.type = "SIGNI"
+  …（他 5 行）
 
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
@@ -549,6 +603,60 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
+## +CONDITIONAL +DECK_CARD +LAST_PROCESSED_MATCHES -SEQUENCE ［1枚］
+WX24-P4-043
+--- WX24-P4-043
+  原文: 【自】《相手ターン》《ターン１回》：あなたのシグニ１体が場を離れたとき、あなたのデッキの一番上を公開する。その後、以下の２つから１つを選ぶ。①この方法で公開されたカードがレベル１のシグニの場合、そのシグニをダウン状態で場に出してもよい。そのシグニの【出】能力は発動しない。②カードを１枚引く。【出】《白》：あなたのデッキの上からカードを３枚見る。その中からカー
+  - [0].action.steps[1].choices[0].action.steps[0].type = "ADD_TO_FIELD"
+  - [0].action.steps[1].choices[0].action.steps[0].owner = "self"
+  - [0].action.steps[1].choices[0].action.steps[0].optional = true
+  - [0].action.steps[1].choices[0].action.steps[0].suppressOnPlay = true
+  ~ [0].action.steps[1].choices[0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.steps[1].choices[0].action.condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[1].choices[0].action.condition.filter.cardType = "シグニ"
+  + [0].action.steps[1].choices[0].action.condition.filter.level = 1
+  + [0].action.steps[1].choices[0].action.then.type = "ADD_TO_FIELD"
+  + [0].action.steps[1].choices[0].action.then.owner = "self"
+  + [0].action.steps[1].choices[0].action.then.source.type = "DECK_CARD"
+  + [0].action.steps[1].choices[0].action.then.source.owner = "self"
+  …（他 7 行）
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES +POWER_MODIFY +SEQUENCE +SIGNI ［1枚］
+WX25-P2-045
+--- WX25-P2-045
+  原文: あなたのデッキの上からカードを７枚見る。その中からスペルか＜電機＞のシグニを合計２枚まで公開し手札に加え、残りをシャッフルしてデッキの一番下に置く。その後、この方法で手札に加えたカード１枚が青で、もう１枚が黒の場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。,-
+  - [0].action.owner = "self"
+  - [0].action.revealCount = 7
+  - [0].action.filter.anyOf[0].cardType = "スペル"
+  - [0].action.filter.anyOf[1].story = "電機"
+  - [0].action.filter.anyOf[1].cardType = "シグニ"
+  - [0].action.pickCount = 2
+  - [0].action.pickUpTo = true
+  - [0].action.pickNoun = "カード"
+  - [0].action.then.type = "ADD_TO_HAND"
+  - [0].action.then.owner = "self"
+  - [0].action.remainder.location = "deck"
+  - [0].action.remainder.position = "bottom"
+  …（他 29 行）
+
+## +BOUNCE +CONDITIONAL +LAST_PROCESSED_COUNT_GTE +SIGNI ［1枚］
+WX25-CP1-001
+--- WX25-CP1-001
+  原文: あなたのデッキの上からカードを７枚見る。その中から＜ブルアカ＞のカードを２枚まで公開し手札に加え、残りをシャッフルしてデッキの一番下に置く。その後、この方法でカード２枚を手札に加えた場合、対戦相手のシグニ１体を対象とし、それを手札に戻す。《リコレクトアイコン》［４枚以上］追加であなたのルリグ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：この
+  - [0].action.steps[1].minArts = 4
+  - [0].action.steps[2].target.type = "LRIG"
+  - [0].action.steps[2].target.owner = "self"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].duration = "UNTIL_END_OF_TURN"
+  - [0].action.steps[2].effect.effectId = "WX25-CP1-001-sub-E1"
+  - [0].action.steps[2].effect.effectType = "AUTO"
+  - [0].action.steps[2].effect.timing[0] = "ON_ATTACK_LRIG"
+  - [0].action.steps[2].effect.costUnparsed = true
+  - [0].action.steps[2].effect.action.type = "SEQUENCE"
+  - [0].action.steps[2].effect.action.steps[0].type = "STUB"
+  - [0].action.steps[2].effect.action.steps[0].id = "OPPONENT_PAY_OPTIONAL"
+  …（他 50 行）
+
 ## +SEQUENCE +SIGNI +TRASH ［1枚］
 WXK02-022
 --- WXK02-022
@@ -616,21 +724,23 @@ WXK04-014
   + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
   …（他 13 行）
 
-## +HAND_CARD +LAST_PROCESSED_MATCHES +REVEAL -IS_MY_TURN -STUB ［1枚］
+## +CONDITIONAL +LAST_PROCESSED_COUNT_GTE×2 -IS_MY_TURN ［1枚］
 WXK04-034
 --- WXK04-034
   原文: 【自】：このシグニがアタックしたとき、あなたの手札から＜水獣＞のシグニを好きな枚数公開する。この方法でシグニを３枚以上公開した場合、【エナチャージ１】をする。５枚以上公開した場合、代わりに【エナチャージ２】をする。【出】《緑》《緑》：あなたのデッキの上からカードを２枚見る。その中から１枚を手札に加え、残りをエナゾーンに置く。,：どちらか１つを選ぶ。①対戦相手
-  - [0].action.steps[0].id = "REVEAL_CLASS_SIGNI_FROM_HAND"
-  ~ [0].action.steps[0].type : "STUB" → "REVEAL"
-  + [0].action.steps[0].source.type = "HAND_CARD"
-  + [0].action.steps[0].source.owner = "self"
-  + [0].action.steps[0].source.count = "ALL"
-  + [0].action.steps[0].source.upToCount = true
-  + [0].action.steps[0].source.filter.cardType = "シグニ"
-  + [0].action.steps[0].source.filter.story = "水獣"
-  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_MATCHES"
-  + [0].action.steps[1].condition.filter.cardType = "シグニ"
-  + [0].action.steps[1].condition.minCount = 3
+  - [0].action.steps[2].type = "ENERGY_CHARGE_FROM_DECK"
+  - [0].action.steps[2].owner = "self"
+  - [0].action.steps[2].count = 2
+  ~ [0].action.steps[1].condition.type : "IS_MY_TURN" → "LAST_PROCESSED_COUNT_GTE"
+  + [0].action.steps[1].condition.value = 5
+  + [0].action.steps[1].condition.verbJa = "公開した"
+  ~ [0].action.steps[1].then.count : 1 → 2
+  + [0].action.steps[1].else.type = "CONDITIONAL"
+  + [0].action.steps[1].else.condition.type = "LAST_PROCESSED_COUNT_GTE"
+  + [0].action.steps[1].else.condition.value = 3
+  + [0].action.steps[1].else.condition.verbJa = "公開した"
+  + [0].action.steps[1].else.then.type = "ENERGY_CHARGE_FROM_DECK"
+  …（他 2 行）
 
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028
@@ -719,6 +829,24 @@ WD09-018
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
 
+## +CONDITIONAL×4 +LAST_PROCESSED_MATCHES×4 ［1枚］
+WD21-001
+--- WD21-001
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのデッキをシャッフルし一番上を公開する。その後、あなたのシグニ１体を対象とし、ターン終了時まで、それは、この方法で公開したカードがレベル１のシグニの場合、【ダブルクラッシュ】を得る。レベル２の場合、【アサシン】を得る。レベル３の場合、【ランサー】を得る。レベル４の場合、「【常】：バニッシュされない。」を得る。【出
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].keyword = "ダブルクラッシュ"
+  - [0].action.steps[1].duration = "UNTIL_END_OF_TURN"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "any"
+  - [0].action.steps[2].target.count = 1
+  - [0].action.steps[2].target.filter.cardType = "シグニ"
+  - [0].action.steps[2].target.filter.level = 2
+  - [0].action.steps[2].keyword = "アサシン"
+  - [0].action.steps[2].duration = "PERMANENT"
+  …（他 54 行）
+
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009
 --- WDK01-009
@@ -727,6 +855,42 @@ WDK01-009
   - [0].condition.color = "赤"
   ~ [0].condition.type : "LRIG_COLOR" → "COND_STUB"
   + [0].condition.raw = "あなたのセンタールリグが赤の"
+
+## +CONDITIONAL +GRANT_KEYWORD +LAST_PROCESSED_MATCHES +SEQUENCE +SIGNI +THIS_CARD_IN_CENTER_ZONE -STUB ［1枚］
+WDK04-014
+--- WDK04-014
+  原文: 【自】：このシグニがアタックしたとき、このシグニが中央のシグニゾーンにある場合、あなたのデッキの一番上を公開する。それをデッキの一番下に置いてもよい。この方法で公開したカードがレベルが奇数のシグニの場合、ターン終了時まで、このシグニのパワーは＋5000され、このシグニは【ランサー】を得る。,：カードを１枚引く。
+  - [0].action.steps[0].id = "CENTER_ZONE_CONDITION"
+  - [0].action.steps[1].source.location = "deck"
+  - [0].action.steps[1].source.owner = "self"
+  - [0].action.steps[1].count = 1
+  - [0].action.steps[1].private = true
+  - [0].action.steps[1].reorder = false
+  - [0].action.steps[1].destination.location = "deck"
+  - [0].action.steps[1].destination.owner = "self"
+  - [0].action.steps[1].destination.position = "bottom"
+  - [0].action.steps[2].type = "POWER_MODIFY"
+  - [0].action.steps[2].target.type = "SIGNI"
+  - [0].action.steps[2].target.owner = "self"
+  …（他 31 行）
+
+## +CONDITIONAL +GRANT_EFFECT +LAST_PROCESSED_MATCHES +POWER_MODIFY +SEQUENCE×2 +SIGNI×2 ［1枚］
+WDK04-015
+--- WDK04-015
+  原文: 【出】：あなたのデッキの一番上を公開する。それをデッキの一番下に置いてもよい。この方法で公開したカードがレベルが奇数のシグニの場合、《黒》を支払ってもよい。そうした場合、ターン終了時まで、このシグニのパワーは＋7000され、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。」を
+  - [0].action.steps[2].id = "OPTIONAL_COST"
+  - [0].action.steps[2].costColors[0] = "黒"
+  - [0].action.steps[3].type = "CONDITIONAL"
+  - [0].action.steps[3].condition.type = "IS_MY_TURN"
+  - [0].action.steps[3].then.type = "POWER_MODIFY"
+  - [0].action.steps[3].then.target.type = "SIGNI"
+  - [0].action.steps[3].then.target.owner = "opponent"
+  - [0].action.steps[3].then.target.count = 1
+  - [0].action.steps[3].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[3].then.target.upToCount = false
+  - [0].action.steps[3].then.delta = 7000
+  ~ [0].action.steps[2].type : "STUB" → "CONDITIONAL"
+  …（他 35 行）
 
 ## +ADD_TO_HAND +BANISH +CHOOSE +REVEAL +SEARCH +SEQUENCE +SHUFFLE_DECK +SIGNI -STUB ［1枚］
 WDK06-R08

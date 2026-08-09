@@ -1,5 +1,16 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 C 第2波：公開／手札に加えたカードの後段条件（11効果採用）
+
+- `WXDi-P06-071-E1` / `WDK04-014-E1` / `WDK04-015-E1` / `WD21-001-E1` / `WX24-P4-043-E1`：公開したカードのレベル条件を `LOOK_AND_REORDER` の resume 後に評価。欠落していたランサー・引用能力・対象／duration／中央ゾーン条件も原文に合わせた。
+- `WX25-P2-045-E1` / `WX25-CP1-001-E1` / `WX10-041-E1`：`REVEAL_AND_PICK` で実際に選んだ集合を条件評価。青・黒を別カード1枚ずつ、2枚取得、0枚取得の三文型を復元した。候補0枚経路が stale `lastProcessedCards` を残す不具合も是正。
+- `WDK08-Y11-E2` / `WXK04-034-E1`：手札公開枚数の4/6枚・3/5枚を排他的な `else` 分岐にし、「代わりに」を復元。候補0枚時も空集合を記録する。
+- `WX12-004-E1`：自分のライフをクラッシュし、クラッシュ結果をスナップショットして「センタールリグが＜ユヅキ＞」AND「ライフバーストあり」を判定。LifeBurst列の文字列 `0` をバーストありと誤認する既存条件と golden fixture も是正した。
+- pause 共通結果が `lastProcessedCards` を落としていたため、`needsInteraction` の `ExecResult` に保持。公開→選択肢→条件の `WX24-P4-043-E1` を実際の resume 経路で固定した。
+- `LAST_PROCESSED_MATCHES` 既存型へ `requiredDistinctColors` を追加（新 condition type は0）。`recordRevealed` は公開全体で picked 集合を上書きする実装のため、手札に加えた集合を読む本バッチ群Bには付けていない。
+- 見送り：`WX24-P4-034-E1` は `PICK_FROM_TRASHED_CARDS` が直前にミルした集合を保持せず1枚選択のみ、`WX19-006-E1` は `BET_MECHANIC` と③の除外2枚条件が既に実装済みのため変更なし。群E 4カードは指示どおり実測のみ。
+- 回帰：typecheck PASS、golden 1671/1671、smoke 10686/10686（全異常0）、fuzz 200ゲーム全0、census 889、lint 0 errors / 254 warnings。
+
 ## 2026-08-09 — 「この方法で…した場合」の効果内トラッシュ結果条件を11効果へ復旧（続き394）
 
 開始時 HEAD は `fccfa2f91`（clean）。効果は動くため smoke/no-op 網に出ないまま後段だけ無条件実行されていた §6.3 C 第1波を、live per-effect diff 11件だけで是正した。既存語彙を使った9効果は `WD21-012-E2`／`WXK03-068-E1`／`WXDi-CP01-032-E2`／`WX18-006-E1`（7/10/12の独立3段を snapshot 評価）／`WD08-008-E1`／`WX26-CP1-058-E1`（self_deck 枝内だけ）／`WD20-018-E1`②／`WX22-Re03-E1`②／`WXK05-025-E2`。新 condition type は作らず、`LAST_PROCESSED_MATCHES` に同レベル最大共有枚数 `shareLevel`、`TRASHED_DISTINCT_LEVELS_GTE` にシグニ1枚以上かつ全同レベルの `allSameLevel` を足して `WX11-028-E2`／`WXDi-CP02-060-E2` を表現した。`shareClass` は従来の「一致集合の全カードが同クラス」から、原文どおり「同クラスを共有する最大枚数」を数えるよう是正した（既存 reader `WX22-006-E1-G2` の7枚全共有は同じ結果）。前段不成立時の stale `lastProcessedCards` を読まないよう `WXDi-CP01-032-E2` は前段条件内へ後段をネストし、`WX18-006-E1` は最初のハンデスが記録を上書きしても10/12段が壊れない既存 `snapshotLastProcessedForConditionals` を使った。

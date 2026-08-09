@@ -590,6 +590,7 @@ function condJa(c?: any): string {
       const op = c.operator ?? 'gte';
       const threshold = `${numJa(value)}${c.distinctName ? '種類' : '枚'}${op === 'gte' ? '以上' : op === 'lte' ? '以下' : ''}`;
       if (c.requiredCardNames) return `この方法で${c.requiredCardNames.map((n: string) => `《${n}》`).join('と')}を${c.verbJa ?? '処理した'}`;
+      if (c.requiredDistinctColors) return `この方法で手札に加えたカードがそれぞれ${c.requiredDistinctColors.join('と')}（別々のカード）`;
       if (c.shareClass) return `この方法で共通するクラスを持つカード${numJa(value)}枚を${c.verbJa ?? '処理した'}`;
       if (c.shareLevel) return `この方法で共通するレベルを持つシグニが${numJa(value)}枚以上処理された`;
       if (c.levelLteCenterLrig) return `この方法であなたのセンタールリグのレベル以下のシグニが${c.verbJa ?? '処理された'}`;

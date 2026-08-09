@@ -95,7 +95,7 @@ export interface ExecCtx {
 
 export type ExecResult =
   | { done: true;  ownerState: PlayerState; otherState: PlayerState; logs: string[]; forceEndTurn?: boolean; lastProcessedCards?: string[]; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; autoTargetedCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] }
-  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] };
+  | { done: false; ownerState: PlayerState; otherState: PlayerState; logs: string[]; pending: PendingInteractionDef; lastProcessedCards?: string[]; lastLookTrashedCards?: string[]; storedTargetCards?: string[]; fieldTrashCostCards?: string[]; trapActivated?: boolean; trapSetOwners?: Owner[] };
 
 // ===== ユーティリティ =====
 
@@ -570,7 +570,7 @@ export function done(ctx: ExecCtx): ExecResult {
 }
 
 export function needsInteraction(ctx: ExecCtx, pending: PendingInteractionDef): ExecResult {
-  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
+  return { done: false, ownerState: ctx.ownerState, otherState: ctx.otherState, logs: ctx.logs, pending, lastProcessedCards: ctx.lastProcessedCards, lastLookTrashedCards: ctx.lastLookTrashedCards, storedTargetCards: ctx.storedTargetCards, fieldTrashCostCards: ctx.fieldTrashCostCards, trapActivated: ctx.trapActivated, trapSetOwners: ctx.trapSetOwners };
 }
 
 export function matchesFilter(
@@ -1935,7 +1935,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const proc = ctx.lastProcessedCards ?? [];
       if (proc.length === 0) return false;
       const c = ctx.cardMap.get(proc[0]);
-      const hasBurst = !!c?.LifeBurst && c.LifeBurst !== '-' && c.LifeBurst !== '';
+      const hasBurst = !!c?.LifeBurst
+        && c.LifeBurst !== '-'
+        && c.LifeBurst !== ''
+        && c.LifeBurst !== '0';
       return cond.negate ? !hasBurst : hasBurst;
     }
     case 'LAST_PROCESSED_HAS_TYPE': {
@@ -1990,6 +1993,24 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       });
       if (cond.requiredCardNames && !cond.requiredCardNames.every(name =>
         matchedCards.some(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === name))) return false;
+      if (cond.requiredDistinctColors) {
+        // 「1枚が青で、もう1枚が黒」などは、各色を別カードへ割り当てる必要がある。
+        // 単純な色条件のANDだと青黒の多色1枚が両方を満たすため、少数集合の完全マッチングで判定する。
+        const assign = (colorIndex: number, used: Set<string>): boolean => {
+          if (colorIndex >= cond.requiredDistinctColors!.length) return true;
+          const color = cond.requiredDistinctColors![colorIndex];
+          for (const cn of matchedCards) {
+            if (used.has(cn)) continue;
+            const colors = [...(ctx.cardMap.get(getCardNum(cn))?.Color ?? '')].filter(c => '白赤青緑黒'.includes(c));
+            if (!colors.includes(color)) continue;
+            used.add(cn);
+            if (assign(colorIndex + 1, used)) return true;
+            used.delete(cn);
+          }
+          return false;
+        };
+        if (!assign(0, new Set<string>())) return false;
+      }
       let sharedCount: number | undefined;
       if (cond.shareClass) {
         const counts = new Map<string, number>();
