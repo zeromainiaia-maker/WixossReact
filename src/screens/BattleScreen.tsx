@@ -163,6 +163,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost,
     pendingTrashActivated, setPendingTrashActivated, selectedTrashActivatedCost, setSelectedTrashActivatedCost,
+    selectedTrashActivatedDiscard, setSelectedTrashActivatedDiscard,
+    selectedTrashActivatedExceed, setSelectedTrashActivatedExceed,
     pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost,
     pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost,
     selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard,
