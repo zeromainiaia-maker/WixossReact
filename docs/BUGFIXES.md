@@ -2,6 +2,14 @@
 
 ## 2026-08-09 — §6.3 E-2 第3波：`WX20-028` 多重アクセ機構
 
+### 検証側の追補（Codex が Windows `0xC0000142` で実行できなかった工程＋held 増分の判定）
+
+- **同じ死語彙だった2枚を追加採用**＝`ACCE_LIMIT_*` は `src/` に消費実装が1件も無い死アクションで、`WX20-028` 以外にも残っていた。parser 修正で fresh 側が正しい `STUB{MULTI_ACCE_LIMIT}` を吐くようになったため held 増分として現れ、**原文照合のうえ2枚とも採用**した：**`WX16-031-E1`**（「このシグニには**２枚まで**【アクセ】を付けることができる」→ `value:2`）／**`WXK04-053-E1`**（「**好きな枚数**の【アクセ】を付けることができる」→ `value:"ALL"`）。⚠**held の枚数を戻すことが目的ではなく**、1件ずつ原文と突き合わせて「live が死語彙・fresh が実働語彙」と確認したうえでの採用（CODEX_GUIDE §5-5）。
+- **`BASELINE_HIGH` を 882→880 に更新**（上記2件の採用ぶん減少。ラチェットを締める）。
+- **最終ゲート（検証側で独立実行）**＝`npm run gates` 全緑：golden **1698 / FAIL 0**（1696→1698）、census **880 ／ ベースライン 880**、smoke 全異常0、fuzz 200ゲーム全異常0、typecheck、manual-fields 0、lint **254 warnings / 0 errors**（増減なし）。**同型★ 0**（5986枚・265群）。**held 110枚 / 47グループ**＝着手前と同値。`git diff --check` クリーン。変更全ファイルで BOM(`efbbbf`)・U+FFFD の新規混入 **0**。
+- **`c474376f3` 比の live per-effect diff＝changed 4**（`WX20-028-E1` / `WX20-028-E2` / 追加採用の `WX16-031-E1` / `WXK04-053-E1`）・added 0・removed 0。`WX20-028-E3` / `WX20-028-BURST` は完全不変。
+- ⚠**`signi_acce` の型移行（`(string|null)[]` → `(string[]|null)[]`）は永続化データの形も変える。** 既存の進行中バトル状態を読み込む経路（Supabase の `host_state`/`guest_state`）で旧形式（文字列直値）が来た場合の扱いは**実機で未検証**＝§7 の実機検証項目に登録する。
+
 ### Step A — `WX20-028-E1` を live collector 語彙へ接続
 
 - 原文「【常】：このシグニには好きな枚数の【アクセ】を付けることができる」に対し、旧 live の `BLOCK_ACTION{actionId:'ACCE_LIMIT_99'}` は `src/` に reader が0件で完全な死アクションだった。既存の宣言語彙 `STUB{MULTI_ACCE_LIMIT}` へ置換し、上限を曖昧にしないよう `value:'ALL'` を明示した。`collectMultiAcceSigni` がフィールド上の当該 CONTINUOUS を収集し、BattleScreen のアクセ対象ゲートが読む既存経路へ到達する。
