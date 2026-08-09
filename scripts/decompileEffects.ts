@@ -455,7 +455,11 @@ function condJa(c?: any): string {
       if (c.filter?.cardName && !c.filter?.cardType && !c.filter?.story && !c.filter?.color)
         return `${ownerJa(c.owner)}場に《${c.filter.cardName}》がいる`;
       // 「場にレベルN以上のルリグがいる」（ルリグゾーン走査・WX24-P4-061/068）
-      if (c.filter?.cardType === 'ルリグ')
+      // ⚠ cardType は配列形もある（`['ルリグ','アシストルリグ']`＝アシストを含めてルリグとして数える形。
+      //   続き385 の WXDi-P00-002-E1）。文字列比較だけだと既定の「シグニ」枝へ落ちて逆翻訳が嘘になる。
+      if (Array.isArray(c.filter?.cardType)
+        ? c.filter!.cardType.every((t: string) => t.includes('ルリグ'))
+        : c.filter?.cardType === 'ルリグ')
         return `${ownerJa(c.owner)}場に${filterJa(c.filter)}ルリグがいる`;
       if (c.filter?.cardType === 'キー')
         return `${ownerJa(c.owner)}場にキーがある`;
