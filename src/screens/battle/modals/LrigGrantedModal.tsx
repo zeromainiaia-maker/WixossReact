@@ -6,7 +6,7 @@ import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { matchesFilter } from '../../../engine/effectExecutor';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, canAffordGrowCost } from '../costs';
+import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, canAffordGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
 import type { BattleModalCtx } from './types';
 
