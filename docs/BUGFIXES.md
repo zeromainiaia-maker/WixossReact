@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 E-2 第1波：`WX25-P3-023-E2` の「2ターン持続の監視能力」が起動時即発動に化けていた
+
+- **実害**＝原文は「【起】《ゲーム1回》…**このターンと次のターンの間**、グロウフェイズ以外で**対戦相手の効果1つによってカードが合計1枚以上対戦相手の手札に移動したとき**、対戦相手の手札を1枚見ないで選び、捨てさせる」だが、live は `TRASH{HAND_CARD, owner:'opponent', blind:true}` 単体＝**起動した瞬間に無条件で1枚捨てさせる**。発動条件と持続期間を丸ごと失った**過剰実行**だった。
+- **PLAN §6.3 E-2 の「2ターン持続＋相手効果による相手手札移動 collector（が必要）」は投入前実測で両方とも否定**＝どちらも既存機構が揃っていた。①監視＝`ON_HAND_ADDED`（`triggerCondition.handOwner` / `byOpponentEffect` / `excludeGrowPhase`。テンプレは `WX25-P2-063-E1`）②持続＝`GRANT_LRIG_ABILITY{duration:'UNTIL_OPP_TURN_END'}` → `PlayerState.lrig_granted_auto_effects_until_opp_turn`。**新語彙0で表現できた。**
+- ⚠**`WX25-P2-063-E1` 固有の `turnOwner:'opponent'` と `usageLimit:'once_per_turn'` は今回の原文に無いのでコピーしていない**（テンプレ流用時のコピペ退化を回避）。
+- 🔴**構造だけ直しても恒久 no-op だった**＝`collectHandAddedTriggers` は `effectsMap` しか走査せず、**`GRANT_LRIG_ABILITY` の結果が入る `lrig_granted_auto_effects` / `lrig_granted_auto_effects_until_opp_turn` を読んでいなかった**。センタールリグの付与 watcher を走査する分岐を追加（`triggerCollect.ts:2313`）。**live の `ON_HAND_ADDED` は全8効果で、うち付与入れ子は本件のみ**（他7件はトップレベル＝この分岐を通らず挙動不変。全数走査で確認）。
+- 🔴**`UNTIL_OPP_TURN_END` の失効が CPU 戦だけ抜けていた**＝PvP の `doPhaseAdvance`（`BattleScreen.tsx:3671`）と `confirmEndDiscard`（`:4036`）は `clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState))` を呼ぶのに、`cpuTurnAction` のターン終了だけ呼んでおらず**人間側の当該状態が永続していた**。同一の呼び出しを `:10326` に追加してPvPとパリティを取った。**この期限を使う live 効果は152件**あり、いずれも「PvP では既に正しく失効していた」側なので**方向は過剰実行の解消**。⚠BattleScreen 経路のため golden では踏めない＝**実機検証項目**（§7）。
+- 実寿命の実測＝起動した自ターン中と次の相手ターン中は有効、相手ターン終了時に失効＝原文「このターンと次のターンの間」と一致。
+- golden は5方向を実行 E2E で固定（①起動しただけでは相手手札が減らない＝本バグの再発防止 ②相手の効果による相手手札への移動で1枚捨てる ③グロウフェイズでは不発 ④自分の効果による移動では不発 ⑤2ターン経過後は不発）。**1688→1693 / FAIL 0**。
+- 検証（Claude 側で独立実行）＝gates 全緑（census **882/882**、smoke 全異常0、fuzz 全異常0、typecheck、manual-fields 0、lint **254 warnings / 0 errors** 増減なし）、同型★**0**（5986枚・265群）、held **111枚/48群** 据置、`32e9d459e` 比 live per-effect **changed 1 / added 0 / removed 0**、BOM・U+FFFD の新規増0。
+- ⚠**Codex 側は Windows の `0xC0000142`（ヘルパー起動失敗）で最終3工程（BUGFIXES 追記・同型★再実測・エンコーディング検査）を実行できず**、検証側が引き取った。実装と live 同期はワークツリーに完全な形で残っていた。
+- **あわせて判明＝`WDK14-013` は既に消化済み**（PLAN の「残は複数候補時のプレイヤー選択のみ」が stale）。`beatSigniFromTrashCandidates`（`execUtils.ts:917`）→ `SigniOnPlayCostModal.tsx:581-587` がトラッシュ候補を描画して選ばせ、`BattleScreen.tsx:11750` が `payBeatSigniFromTrashCost(..., [...beatZones])` で選択を渡している。残っているのは `:11748` の「自動選択近似」という古いコメントのみ。
+
 ## 2026-08-09 — §6.3 E 第2波：`WX24-P2-010-E1` 解除コストつきアタック制限
 
 - 原文「対戦相手のシグニを2体まで対象とし、ターン終了時まで、それらは『【常】：あなたの他のシグニ2体を場からトラッシュに置かないかぎりアタックできない。』を得る」に対し、旧 live は `BLOCK_ACTION{owner:'any',count:1}` の無条件アタック禁止へ退化していた。対象を `owner:'opponent',count:2,upToCount:true` に直し、既存 `BLOCK_ACTION` へ `attackCost.fieldTrash{count:2,excludeSelf:true}` を追加した。引用内の「あなた」は付与先シグニの持ち主＝アタック側、「他の」はアタッカー自身を除外として解決する。前段 `ARTS_COST_REDUCTION_BY_EFFECT` は不変。

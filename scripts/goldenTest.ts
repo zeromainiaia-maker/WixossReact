@@ -33,7 +33,7 @@ import {
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
-import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
+import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
@@ -7006,6 +7006,104 @@ test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12
   const e2 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, host, guest);
   eq(hasEff(e2.entries, 'WD12-009-E2'), false, '他カードの移動では非発火');
 });
+
+// 続き400: WX25-P3-023-E2「このターンと次のターンの間」の一時付与 watcher。
+// 起動→相手効果による実際のエナ→手札移動→中央 diff と同じ detector/collector→付与AUTO実行、
+// という実行鎖を通し、旧「起動時に即1枚捨てる」過剰実行と4つの非発火条件を固定する。
+const wx25P3023E2 = () => {
+  const effect = effectsMap.get('WX25-P3-023')?.find(e => e.effectId === 'WX25-P3-023-E2');
+  if (!effect) throw new Error('WX25-P3-023-E2 missing');
+  return effect;
+};
+const armWx25P3023 = () => {
+  const ctx = mkCtx({ lrig: ['WX25-P3-023'], hand: 3 }, { hand: 3 }, 'WX25-P3-023');
+  const beforeOppHand = ctx.otherState.hand.length;
+  const result = finish(executeEffect(wx25P3023E2(), ctx), ctx);
+  return { result, beforeOppHand };
+};
+const opponentAddsEnergyToHand = () => {
+  const ctx = mkCtx({ energy: 1, hand: 3 }, {});
+  const before = ctx.ownerState;
+  const result = run({
+    type: 'TRANSFER_TO_HAND',
+    source: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' },
+  }, ctx);
+  return { before, after: result.ownerState, moved: detectHandAdded(before, result.ownerState) };
+};
+
+test('WX25-P3-023-E2 E2E①: 起動しただけでは相手の手札を捨てず、2ターン watcher を付与する', () => withSavedCursor(() => {
+  const { result, beforeOppHand } = armWx25P3023();
+  eq(result.otherState.hand.length, beforeOppHand, '起動時点で相手手札を捨てている');
+  eq(result.ownerState.lrig_granted_auto_effects_until_opp_turn?.length, 1, 'UNTIL_OPP_TURN_END watcher が付与されていない');
+}));
+
+test('WX25-P3-023-E2 E2E②: 相手効果で相手手札に移動すると、付与AUTOが1枚を見ずに捨てさせる', () => withSavedCursor(() => {
+  const armed = armWx25P3023().result.ownerState;
+  const moved = opponentAddsEnergyToHand();
+  const collected = collectHandAddedTriggers(
+    trigCtx(HOST),
+    [{ ownerId: HOST, moved: [] }, { ownerId: GUEST, moved: moved.moved }],
+    GUEST,
+    armed,
+    moved.after,
+  );
+  const entry = collected.entries.find(e => e.effectId === 'WX25-P3-023-E2-GRANT');
+  ok(!!entry, '付与AUTOが ON_HAND_ADDED collector に載らない');
+  const ctx = { ...mkCtx({}, {}), ownerState: armed, otherState: moved.after, sourceCardNum: 'WX25-P3-023' };
+  const resolved = finish(executeEffect(entry!.effect, ctx), ctx);
+  eq(resolved.otherState.hand.length, moved.after.hand.length - 1, '相手手札を1枚捨てていない');
+  eq(resolved.otherState.trash.length, moved.after.trash.length + 1, '捨てたカードがトラッシュへ移動していない');
+}));
+
+test('WX25-P3-023-E2 E2E③: グロウフェイズの相手手札移動では発火しない', () => withSavedCursor(() => {
+  const armed = armWx25P3023().result.ownerState;
+  const moved = opponentAddsEnergyToHand();
+  const collected = collectHandAddedTriggers(
+    { ...trigCtx(HOST), turnPhase: 'GROW' },
+    [{ ownerId: HOST, moved: [] }, { ownerId: GUEST, moved: moved.moved }],
+    GUEST,
+    armed,
+    moved.after,
+  );
+  eq(hasEff(collected.entries, 'WX25-P3-023-E2-GRANT'), false, 'グロウフェイズで発火した');
+}));
+
+test('WX25-P3-023-E2 E2E④: 自分の効果による相手手札移動では発火しない', () => withSavedCursor(() => {
+  const armed = armWx25P3023().result.ownerState;
+  const moved = opponentAddsEnergyToHand();
+  const collected = collectHandAddedTriggers(
+    trigCtx(HOST),
+    [{ ownerId: HOST, moved: [] }, { ownerId: GUEST, moved: moved.moved }],
+    HOST,
+    armed,
+    moved.after,
+  );
+  eq(hasEff(collected.entries, 'WX25-P3-023-E2-GRANT'), false, '自分の効果起因で発火した');
+}));
+
+test('WX25-P3-023-E2 E2E⑤: 次の相手ターン終了後は watcher が消え、以後発火しない', () => withSavedCursor(() => {
+  const armed = armWx25P3023().result.ownerState;
+  const movedDuringOppTurn = opponentAddsEnergyToHand();
+  const during = collectHandAddedTriggers(
+    trigCtx(GUEST),
+    [{ ownerId: HOST, moved: [] }, { ownerId: GUEST, moved: movedDuringOppTurn.moved }],
+    GUEST,
+    armed,
+    movedDuringOppTurn.after,
+  );
+  eq(hasEff(during.entries, 'WX25-P3-023-E2-GRANT'), true, '次の相手ターン中に早期失効した');
+  const expired = clearUntilOppTurnEffects(armed);
+  const movedAfterExpiry = opponentAddsEnergyToHand();
+  const after = collectHandAddedTriggers(
+    trigCtx(HOST),
+    [{ ownerId: HOST, moved: [] }, { ownerId: GUEST, moved: movedAfterExpiry.moved }],
+    GUEST,
+    expired,
+    movedAfterExpiry.after,
+  );
+  eq(expired.lrig_granted_auto_effects_until_opp_turn, undefined, '相手ターン終了時に watcher が残った');
+  eq(hasEff(after.entries, 'WX25-P3-023-E2-GRANT'), false, '2ターン経過後も発火した');
+}));
 
 test('ON_LIFE_CLOTH_ADDED: 増加 set-diff だけで LRIG watcher が発火し、WD20 は自ターン限定', () => {
   const before = mkState({ life: 2 });

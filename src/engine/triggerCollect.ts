@@ -2310,6 +2310,38 @@ export function collectHandAddedTriggers(
         }
       }
     }
+    // ── 起動効果でセンタールリグへ一時付与された watcher ──
+    // GRANT_LRIG_ABILITY の実行結果は effectsMap ではなく PlayerState の専用配列へ入る。
+    // 通常の「このターン」付与と「次の相手ターン終了時まで」付与を両方走査しないと、
+    // ON_HAND_ADDED の内側能力（WX25-P3-023-E2-GRANT）は構造が正しくても恒久 no-op になる。
+    const lrigTop = watcherState.field.lrig.at(-1);
+    if (lrigTop && !watcherState.lrig_abilities_disabled) {
+      const granted = [
+        ...(watcherState.lrig_granted_auto_effects ?? []),
+        ...(watcherState.lrig_granted_auto_effects_until_opp_turn ?? []),
+      ];
+      for (const eff of granted) {
+        if (eff.triggerCondition?.movedSelf) continue;
+        if (!evalCommon(eff, watcherId, watcherState, otherState, lrigTop)) continue;
+        const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+        for (const grp of addedByOwner) {
+          if (grp.moved.length === 0) continue;
+          const handIsWatcherOwn = grp.ownerId === watcherId;
+          const ho = eff.triggerCondition?.handOwner ?? 'self';
+          if (ho === 'self' && !handIsWatcherOwn) continue;
+          if (ho === 'opponent' && handIsWatcherOwn) continue;
+          if (matchingMoved(eff, grp.moved).length < (eff.triggerCondition?.minCount ?? 1)) continue;
+          const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+            + usedIds.filter(id => id === eff.effectId).length;
+          if (used >= max) break;
+          if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+          entries.push({
+            id: ctx.genId(), playerId: watcherId, cardNum: lrigTop, effectId: eff.effectId,
+            label: `${ctx.cardMap.get(getCardNum(lrigTop))?.CardName ?? lrigTop} の【自】効果（手札移動時・付与能力）`, effect: eff,
+          });
+        }
+      }
+    }
     // ── 移動カード自身の watcher（movedSelf・手札から発火＝WD12-009/010）──
     for (const grp of addedByOwner) {
       if (grp.ownerId !== watcherId) continue;

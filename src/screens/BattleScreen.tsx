@@ -10320,7 +10320,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuLrigFrozen = huEndState.field.lrig_frozen ?? false;
       const curHuAssistLFrozen = huEndState.field.assist_lrig_l_frozen ?? false;
       const curHuAssistRFrozen = huEndState.field.assist_lrig_r_frozen ?? false;
-      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huEndState,
+      // CPUターン終了＝人間側から見た「次の相手ターン終了時」。PvP の doPhaseAdvance / confirmEndDiscard と同じく、
+      // 次ターンプレイヤーが保持する UNTIL_OPP_TURN_END 状態をここで失効させる。
+      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+        ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(huEndState)),
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
         life_crashed_last_turn: huEndState.life_crashed_this_turn ?? 0,
