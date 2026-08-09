@@ -10,6 +10,9 @@ export interface ActivatedModalsState {
   // トラッシュ自己起動（「このシグニをトラッシュから場に出す」等）
   pendingTrashActivated: { cardNum: string; effect: CardEffect } | null;
   selectedTrashActivatedCost: Set<number>;
+  // トラッシュ自己起動のエナ以外コスト（§6.4）：手札捨て・エクシードの選択インデックス
+  selectedTrashActivatedDiscard: Set<number>;
+  selectedTrashActivatedExceed: Set<number>;
   // エナゾーンのACTIVATED能力（アクセカード発動）
   pendingEnergyActivated: { cardNum: string; effect: CardEffect } | null;
   selectedEnergyActivatedCost: Set<number>;
