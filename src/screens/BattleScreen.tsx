@@ -12673,7 +12673,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <HandActivatedModal ctx={modalCtx} pendingHandActivated={pendingHandActivated} setPendingHandActivated={setPendingHandActivated} selectedHandActivatedCost={selectedHandActivatedCost} setSelectedHandActivatedCost={setSelectedHandActivatedCost} executeHandActivated={executeHandActivated} />
 
       {/* トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）のエナコスト支払い */}
-      <TrashActivatedModal ctx={modalCtx} pendingTrashActivated={pendingTrashActivated} setPendingTrashActivated={setPendingTrashActivated} selectedTrashActivatedCost={selectedTrashActivatedCost} setSelectedTrashActivatedCost={setSelectedTrashActivatedCost} executeTrashActivated={executeTrashActivated} />
+      <TrashActivatedModal ctx={modalCtx} pendingTrashActivated={pendingTrashActivated} setPendingTrashActivated={setPendingTrashActivated} selectedTrashActivatedCost={selectedTrashActivatedCost} setSelectedTrashActivatedCost={setSelectedTrashActivatedCost} selectedTrashActivatedDiscard={selectedTrashActivatedDiscard} setSelectedTrashActivatedDiscard={setSelectedTrashActivatedDiscard} selectedTrashActivatedExceed={selectedTrashActivatedExceed} setSelectedTrashActivatedExceed={setSelectedTrashActivatedExceed} executeTrashActivated={executeTrashActivated} />
 
       {/* v0.278: WX25-P2-001 付与【起】 ガードシグニ捨て→ルリグバリア */}
       <GuardBarrierActModal ctx={modalCtx} pendingGuardBarrierAct={pendingGuardBarrierAct} setPendingGuardBarrierAct={setPendingGuardBarrierAct} selectedBarrierGuardCard={selectedBarrierGuardCard} setSelectedBarrierGuardCard={setSelectedBarrierGuardCard} executeGuardBarrierAct={executeGuardBarrierAct} />
