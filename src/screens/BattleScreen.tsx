@@ -74,6 +74,7 @@ import { HandActivatedModal } from './battle/modals/HandActivatedModal';
 import { TrashActivatedModal } from './battle/modals/TrashActivatedModal';
 import { GuardBarrierActModal } from './battle/modals/GuardBarrierActModal';
 import { NegateEscapeModal } from './battle/modals/NegateEscapeModal';
+import { AttackFieldTrashCostModal } from './battle/modals/AttackFieldTrashCostModal';
 import { SpellCutinOverlays } from './battle/modals/SpellCutinOverlays';
 import { EndConfirmModal } from './battle/modals/EndConfirmModal';
 import { FinishedPopup } from './battle/modals/FinishedPopup';
@@ -105,6 +106,7 @@ import { pendingEffectCardNums } from './battle/pendingEffectCards';
 import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
+import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
@@ -172,7 +174,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const {
     pendingGuardBarrierAct, setPendingGuardBarrierAct, selectedBarrierGuardCard, setSelectedBarrierGuardCard,
     negateEscape, selectedNegateEscape, setSelectedNegateEscape,
+    attackFieldTrashPayment, selectedAttackFieldTrashZones, setSelectedAttackFieldTrashZones,
     openGuardBarrierAct, closeGuardBarrierAct, openNegateEscape, closeNegateEscape,
+    openAttackFieldTrashPayment, closeAttackFieldTrashPayment,
   } = useGuardResponses();
   const {
     pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost,
@@ -3530,7 +3534,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
-        newMyState = clearEndOfTurnDelayedTriggers({
+        newMyState = clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
           ...myEndState,
           hand: myHandEND,
           deck: myDeckPreLimit,
@@ -3642,7 +3646,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
           last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
-        });
+        }));
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
         const opKey = isHost ? 'guest_state' : 'host_state';
@@ -3953,7 +3957,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
-      let newMyState: typeof my = clearEndOfTurnDelayedTriggers({
+      let newMyState: typeof my = clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...myEndState,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
@@ -4011,7 +4015,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
-      });
+      }));
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
       // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）
@@ -7541,9 +7545,49 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
   };
 
+  /** アタック解除コストによる場→トラッシュを、通常の ON_TRASH / ON_LEAVE_FIELD collector へ通す。 */
+  const collectAttackFieldTrashCostTriggers = (
+    beforeAttacker: PlayerState,
+    paidAttacker: PlayerState,
+    defender: PlayerState,
+    attackerId: string,
+    attackerIsHost: boolean,
+    trashedSigniNums: string[],
+  ): { attacker: PlayerState; defender: PlayerState; entries: StackEntry[] } => {
+    let hostState = attackerIsHost ? paidAttacker : defender;
+    let guestState = attackerIsHost ? defender : paidAttacker;
+    const entries: StackEntry[] = [];
+    const applyUsed = (usedHostIds: string[], usedGuestIds: string[]) => {
+      if (usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...usedHostIds] };
+      if (usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...usedGuestIds] };
+    };
+    for (const cardNum of trashedSigniNums) {
+      const zoneIdx = beforeAttacker.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+      const under = zoneIdx >= 0 ? (beforeAttacker.field.signi[zoneIdx] ?? []).slice(0, -1) : [];
+      const trash = collectTrashTriggers(cardNum, attackerId, hostState, guestState, false, true, false);
+      entries.push(...trash.entries);
+      applyUsed(trash.usedHostIds, trash.usedGuestIds);
+      const leave = collectLeaveFieldTriggers(
+        cardNum, under, attackerId, hostState, guestState,
+        undefined, beforeAttacker, zoneIdx >= 0 ? zoneIdx : undefined,
+      );
+      entries.push(...leave.entries);
+      applyUsed(leave.usedHostIds, leave.usedGuestIds);
+    }
+    return {
+      attacker: attackerIsHost ? hostState : guestState,
+      defender: attackerIsHost ? guestState : hostState,
+      entries,
+    };
+  };
+
   // WXDi-P05-069: フリップアタック（ロビンフッドが自シグニを裏向きにしてアタック）
   const handleFlipAttack = async (attackZone: number, flipZones: number[]) => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
+    const attackerNum = my.field.signi[attackZone]?.at(-1);
+    // 解除コストは「他のシグニ2体をトラッシュ」。3面制限下では支払い後にフリップ対象が残らないため、
+    // この代替アタックは成立しない。UIでも非表示にし、直呼びもここで止める。
+    if (attackerNum && attackFieldTrashCost(my, attackerNum) > 0) return;
     setLoading(true);
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
@@ -7599,8 +7643,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     attackerId: string; defenderId: string;
     attackerKey: 'host_state' | 'guest_state';
     targetOpZone?: number; // 【側面アタック】: 正面(2-zoneIndex)ではなく指定した相手シグニゾーンを攻撃。シグニ無ければ何も起きない・ライフダメージなし
+    attackFieldTrashZones?: number[];
+    attackFieldTrashAlreadyPaid?: boolean;
   }) => {
-    const { attacker: my, defender: op, attackerId, defenderId } = p;
+    let my = p.attacker;
+    let op = p.defender;
+    const { attackerId, defenderId } = p;
     const attackerIsHost = p.attackerKey === 'host_state';
     setLoading(true);
     try {
@@ -7608,6 +7656,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!myTopNum) return;
       // GATE: blocked_actions に 'ATTACK:cardId' があればアタック不可
       if (my.blocked_actions?.includes(`ATTACK:${myTopNum}`)) return;
+
+      // 解除コストつきアタック制限：人間はモーダルで選んだゾーン、CPUは左から決定論的に選ぶ。
+      let attackFieldTrashTriggerEntries: StackEntry[] = [];
+      if (!p.attackFieldTrashAlreadyPaid && attackFieldTrashCost(my, myTopNum) > 0) {
+        const selectedZones = p.attackFieldTrashZones
+          ?? (attackerId === CPU_PLAYER_ID ? deterministicAttackFieldTrashZones(my, myTopNum, battleCardMap) : []);
+        const paid = payAttackFieldTrashCost(my, myTopNum, selectedZones, battleCardMap);
+        if (!paid) return;
+        const collected = collectAttackFieldTrashCostTriggers(
+          my, paid.state, op, attackerId, attackerIsHost, paid.trashedSigniNums,
+        );
+        my = collected.attacker;
+        op = collected.defender;
+        attackFieldTrashTriggerEntries = collected.entries;
+        appendBattleLogs([`${paid.trashedSigniNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を場からトラッシュに置き、アタック制限を解除`]);
+      }
 
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
       const isSideAttack = p.targetOpZone !== undefined; // 【側面アタック】
@@ -7655,8 +7719,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
           ? { ...signiNegation.defender, actions_done: [...(signiNegation.defender.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
           : signiNegation.defender;
-        const stack = negatedTriggers.entries.length > 0
-          ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? attackerId, negatedTriggers.entries))
+        const allNegatedEntries = [...attackFieldTrashTriggerEntries, ...negatedTriggers.entries];
+        const stack = allNegatedEntries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, allNegatedEntries) : initStack(bs.active_user_id ?? attackerId, allNegatedEntries))
           : undefined;
         appendBattleLogs([`${myCardName}のアタックは無効化された（残り${signiNegation.remaining}回）`]);
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
@@ -7667,7 +7732,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // escapeDiscard（G154 BURST）: アタック側が手札をN枚捨てれば無効化を回避できる。手札が足りればモーダルで選択させる。
         const escapeCount = my.negated_attacks_escape?.[myTopNum];
         if (escapeCount && my.hand.length >= escapeCount) {
-          openNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount });
+          openNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount, attackFieldTrashAlreadyPaid: true });
+          const paymentStack = attackFieldTrashTriggerEntries.length > 0
+            ? (bs.effect_stack ? pushToStack(bs.effect_stack, attackFieldTrashTriggerEntries) : initStack(bs.active_user_id ?? attackerId, attackFieldTrashTriggerEntries))
+            : undefined;
+          await persist.commit(reduceBattle(bs, {
+            type: 'WRITE_STATE', myKey, myState: my,
+            opp: { key: opKey, state: op }, ...(paymentStack ? { effectStack: paymentStack } : {}),
+          }));
           setLoading(false);
           return; // アタックを保留してプレイヤーの選択を待つ
         }
@@ -7682,8 +7754,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const defenderAfterTrigger: PlayerState = negatedTriggers.usedOncePerTurnIds.length > 0
           ? { ...op, actions_done: [...(op.actions_done ?? []), ...negatedTriggers.usedOncePerTurnIds] }
           : op;
-        const stack = negatedTriggers.entries.length > 0
-          ? (bs.effect_stack ? pushToStack(bs.effect_stack, negatedTriggers.entries) : initStack(bs.active_user_id ?? attackerId, negatedTriggers.entries))
+        const allNegatedEntries = [...attackFieldTrashTriggerEntries, ...negatedTriggers.entries];
+        const stack = allNegatedEntries.length > 0
+          ? (bs.effect_stack ? pushToStack(bs.effect_stack, allNegatedEntries) : initStack(bs.active_user_id ?? attackerId, allNegatedEntries))
           : undefined;
         appendBattleLogs([`${myCardName}のアタックは無効化された`]);
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyNA, opp: { key: opKey, state: defenderAfterTrigger }, ...(stack ? { effectStack: stack } : {}) }));
@@ -7842,7 +7915,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) },
       };
 
-      const allAttackTriggers = [...attackEntries, ...allyAttackEntries, ...opAtkedEntries, ...atkDownRes.entries];
+      const allAttackTriggers = [...attackFieldTrashTriggerEntries, ...attackEntries, ...allyAttackEntries, ...opAtkedEntries, ...atkDownRes.entries];
       if (allAttackTriggers.length > 0) {
         const turnPlayerId = bs.active_user_id ?? attackerId;
         const existingStack = bs.effect_stack ?? null;
@@ -8949,6 +9022,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleSigniAttack = async (zoneIndex: number) => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
     if (op.field.check) return; // 相手のライフバースト処理待ち中はアタック不可
+    const cardNum = my.field.signi[zoneIndex]?.at(-1);
+    const fieldTrashCount = cardNum ? attackFieldTrashCost(my, cardNum) : 0;
+    if (cardNum && fieldTrashCount > 0) {
+      if (!canPayAttackFieldTrashCost(my, cardNum, battleCardMap)) return;
+      openAttackFieldTrashPayment({ zoneIndex, cardNum, count: fieldTrashCount });
+      return;
+    }
     await performSigniAttack(zoneIndex, {
       attacker: my,
       defender: op,
@@ -8962,6 +9042,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const handleSigniSideAttack = async (zoneIndex: number, targetOpZone: number) => {
     if (!isMyTurn || loading || bs.turn_phase !== 'ATTACK_SIGNI') return;
     if (op.field.check) return;
+    const cardNum = my.field.signi[zoneIndex]?.at(-1);
+    const fieldTrashCount = cardNum ? attackFieldTrashCost(my, cardNum) : 0;
+    if (cardNum && fieldTrashCount > 0) {
+      if (!canPayAttackFieldTrashCost(my, cardNum, battleCardMap)) return;
+      openAttackFieldTrashPayment({ zoneIndex, targetOpZone, cardNum, count: fieldTrashCount });
+      return;
+    }
     await performSigniAttack(zoneIndex, {
       attacker: my,
       defender: op,
@@ -8972,10 +9059,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
+  const resolveAttackFieldTrashPayment = async () => {
+    if (!attackFieldTrashPayment || loading) return;
+    if (selectedAttackFieldTrashZones.size !== attackFieldTrashPayment.count) return;
+    const pending = attackFieldTrashPayment;
+    const zones = [...selectedAttackFieldTrashZones].sort((a, b) => a - b);
+    closeAttackFieldTrashPayment();
+    await performSigniAttack(pending.zoneIndex, {
+      attacker: my,
+      defender: op,
+      attackerId: user.id,
+      defenderId: isHost ? bs.guest_id : bs.host_id,
+      attackerKey: isHost ? 'host_state' : 'guest_state',
+      targetOpZone: pending.targetOpZone,
+      attackFieldTrashZones: zones,
+    });
+  };
+
   // G154 BURST: アタック無効化を「手札N枚捨て」で回避してアタックを通す
   const resolveNegateEscapeDiscard = async () => {
     if (!negateEscape || selectedNegateEscape.size !== negateEscape.count || loading) return;
-    const { zoneIndex, targetOpZone, cardNum } = negateEscape;
+    const { zoneIndex, targetOpZone, cardNum, attackFieldTrashAlreadyPaid } = negateEscape;
     const escaped = resolveNegateEscapeChoice(my, op, 'discard', cardNum, zoneIndex, selectedNegateEscape);
     appendBattleLogs([`手札${negateEscape.count}枚を捨ててアタックを通した`]);
     closeNegateEscape();
@@ -8989,7 +9093,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       await performSigniAttack(zoneIndex, {
         attacker: escaped.attacker, defender: escaped.defender,
         attackerId: user.id, defenderId: isHost ? bs.guest_id : bs.host_id,
-        attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone,
+        attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone, attackFieldTrashAlreadyPaid,
       });
     }
   };
@@ -10129,6 +10233,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // アタック不可のシグニはダウンされず performSigniAttack が早期returnして
         // 無限ループするため、ここで候補から除外する
         if (cpuSt.blocked_actions?.includes(`ATTACK:${top}`)) return false;
+        if (!canPayAttackFieldTrashCost(cpuSt, top, battleCardMap)) return false;
         return true;
       });
 
@@ -10245,7 +10350,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
-      const cleanCpuSt: PlayerState = resolvePendingExiles(clearEndOfTurnDelayedTriggers({
+      const cleanCpuSt: PlayerState = resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...cpuEndState,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
@@ -10271,7 +10376,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
-      }), true);
+      })), true);
       await persist.commit(reduceBattle(bs, {
         type: 'BEGIN_NEXT_TURN',
         activeUserId: user.id,
@@ -12110,7 +12215,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要
       const signiAtkCost = my.signi_attack_cost ?? 0;
       if (signiAtkCost > 0 && my.energy.length < signiAtkCost) return []; // エナ不足でアタック不可
-      const atkLabel = signiAtkCost > 0 ? `アタック（《無》×${signiAtkCost}）` : 'アタック';
+      const fieldTrashAtkCost = attackFieldTrashCost(my, topNum);
+      if (fieldTrashAtkCost > 0 && !canPayAttackFieldTrashCost(my, topNum, battleCardMap)) return [];
+      const atkCosts = [
+        ...(signiAtkCost > 0 ? [`《無》×${signiAtkCost}`] : []),
+        ...(fieldTrashAtkCost > 0 ? [`他のシグニ${fieldTrashAtkCost}体トラッシュ`] : []),
+      ];
+      const atkLabel = atkCosts.length > 0 ? `アタック（${atkCosts.join('・')}）` : 'アタック';
       const actions: CardAction[] = [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
       // 【側面アタック】（G077等）: 正面の1つ隣の相手シグニゾーンにアタックできる。
       // 攻撃先は正面か側面を「選ぶ」（同時攻撃ではない）。空ゾーンは何も起きないため占有ゾーンのみ提示。
@@ -12128,7 +12239,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // WXDi-P05-069: フリップアタック（ロビンフッド対象）
       const altFlip = collectAltAttackFlipSigni(my, battleCardMap, effectsMap);
-      if (altFlip && (battleCardMap.get(topNum)?.CardName ?? '').includes(altFlip.targetSigniName)) {
+      if (altFlip && fieldTrashAtkCost === 0 && (battleCardMap.get(topNum)?.CardName ?? '').includes(altFlip.targetSigniName)) {
         const flipCandidates = [0, 1, 2].filter(zi => zi !== rawZoneIdx && (my.field.signi[zi]?.length ?? 0) > 0);
         if (flipCandidates.length > 0) {
           const flipZones = flipCandidates.slice(0, altFlip.maxFlip);
@@ -12544,6 +12655,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       {/* G154 BURST: アタック無効化の「手札N枚捨て」回避モーダル */}
       <NegateEscapeModal ctx={modalCtx} negateEscape={negateEscape} selectedNegateEscape={selectedNegateEscape} setSelectedNegateEscape={setSelectedNegateEscape} resolveNegateEscapeDiscard={resolveNegateEscapeDiscard} resolveNegateEscapeAccept={resolveNegateEscapeAccept} />
+
+      {/* 解除コストつきアタック制限：「他のシグニ」を選んで場からトラッシュ */}
+      <AttackFieldTrashCostModal ctx={modalCtx} payment={attackFieldTrashPayment}
+        selectedZones={selectedAttackFieldTrashZones} setSelectedZones={setSelectedAttackFieldTrashZones}
+        onPay={resolveAttackFieldTrashPayment} onCancel={closeAttackFieldTrashPayment} />
 
       {/* スペルカットイン カード拡大＋スペル発動待機中（発動側） */}
       <SpellCutinOverlays ctx={modalCtx} cutinSpellZoomed={cutinSpellZoomed} setCutinSpellZoomed={setCutinSpellZoomed} />

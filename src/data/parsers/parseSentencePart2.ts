@@ -2035,6 +2035,26 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.endsWith('」を得る') || t.endsWith('」を得る。')) {
     const quoted = (t.match(/「([^」]+)」を得る/) ?? [])[1] ?? '';
     if (quoted.includes('アタックできない')) {
+      // 「<対象>は『【常】：あなたの他のシグニN体を場からトラッシュに置かないかぎり
+      // アタックできない。』を得る」＝対象シグニ別の解除コストつきアタック制限。
+      // 引用能力の「あなた」は付与先シグニの持ち主なので、支払い側で攻撃シグニ自身を除外する。
+      const attackFieldTrashM = quoted.trim().match(/^【常】：あなたの他のシグニ([０-９\d]+)体を場からトラッシュに置かないかぎりアタックできない。?$/);
+      if (attackFieldTrashM) {
+        const kwOwnerCA: Owner = t.includes('対戦相手') ? 'opponent' : t.includes('あなた') ? 'self' : 'any';
+        const targetCountM = t.match(/シグニを([０-９\d]+)体まで対象とし/);
+        return {
+          type: 'BLOCK_ACTION',
+          target: {
+            type: 'SIGNI', owner: kwOwnerCA,
+            count: targetCountM ? parseNum(targetCountM[1]) : 1,
+            ...(targetCountM ? { upToCount: true } : {}),
+            ...kwTargetFilter,
+          },
+          actionId: 'ATTACK',
+          until: 'END_OF_TURN',
+          attackCost: { fieldTrash: { count: parseNum(attackFieldTrashM[1]), excludeSelf: true } },
+        } as BlockActionAction;
+      }
       // 「<対象>は「【常】：アタックできない。」を得る」。
       // ⚠従来は対象を一切読まず SIGNI/owner:'any'/count:1/END_OF_TURN 決め打ちで、原文が**ルリグ**を対象に
       //   していても**シグニ**をブロックする別効果に化けていた（ルリグは素通り＋無関係なシグニが止まる二重誤り）。

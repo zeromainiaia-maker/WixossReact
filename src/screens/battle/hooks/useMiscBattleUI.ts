@@ -25,8 +25,11 @@ export interface GuardResponsesState {
   pendingGuardBarrierAct: boolean;
   selectedBarrierGuardCard: number | null;
   // G154 BURST: アタック無効化を「手札N枚捨て」で回避するか選択（NEGATE_ATTACK escapeDiscard）
-  negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;
+  negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number; attackFieldTrashAlreadyPaid?: boolean } | null;
   selectedNegateEscape: Set<number>;
+  // 解除コストつきアタック制限：アタック宣言前に「他のシグニ」を選んでトラッシュする
+  attackFieldTrashPayment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;
+  selectedAttackFieldTrashZones: Set<number>;
 }
 
 export function useGuardResponses() {
@@ -35,6 +38,8 @@ export function useGuardResponses() {
     selectedBarrierGuardCard: null,
     negateEscape: null,
     selectedNegateEscape: new Set(),
+    attackFieldTrashPayment: null,
+    selectedAttackFieldTrashZones: new Set(),
   });
   return {
     ...state,
@@ -42,6 +47,8 @@ export function useGuardResponses() {
     setSelectedBarrierGuardCard: set.selectedBarrierGuardCard,
     setNegateEscape: set.negateEscape,
     setSelectedNegateEscape: set.selectedNegateEscape,
+    setAttackFieldTrashPayment: set.attackFieldTrashPayment,
+    setSelectedAttackFieldTrashZones: set.selectedAttackFieldTrashZones,
     /** バリア【起】の応答UIを開く（ガードカード選択は白紙化） */
     openGuardBarrierAct: () => patch({ pendingGuardBarrierAct: true, selectedBarrierGuardCard: null }),
     /** バリア【起】の応答UIを閉じる */
@@ -51,6 +58,11 @@ export function useGuardResponses() {
       patch({ negateEscape: v, selectedNegateEscape: new Set() }),
     /** G154 回避の選択UIを閉じる */
     closeNegateEscape: () => patch({ negateEscape: null, selectedNegateEscape: new Set() }),
+    /** 解除コスト支払いUIを開く（対象ゾーン選択は白紙化） */
+    openAttackFieldTrashPayment: (v: NonNullable<GuardResponsesState['attackFieldTrashPayment']>) =>
+      patch({ attackFieldTrashPayment: v, selectedAttackFieldTrashZones: new Set() }),
+    /** 解除コスト支払いUIを閉じる */
+    closeAttackFieldTrashPayment: () => patch({ attackFieldTrashPayment: null, selectedAttackFieldTrashZones: new Set() }),
   };
 }
 

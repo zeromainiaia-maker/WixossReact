@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 E 第2波：`WX24-P2-010-E1` 解除コストつきアタック制限
+
+- 原文「対戦相手のシグニを2体まで対象とし、ターン終了時まで、それらは『【常】：あなたの他のシグニ2体を場からトラッシュに置かないかぎりアタックできない。』を得る」に対し、旧 live は `BLOCK_ACTION{owner:'any',count:1}` の無条件アタック禁止へ退化していた。対象を `owner:'opponent',count:2,upToCount:true` に直し、既存 `BLOCK_ACTION` へ `attackCost.fieldTrash{count:2,excludeSelf:true}` を追加した。引用内の「あなた」は付与先シグニの持ち主＝アタック側、「他の」はアタッカー自身を除外として解決する。前段 `ARTS_COST_REDUCTION_BY_EFFECT` は不変。
+- 続き398の honest defer は撤回。既存 `signi_attack_cost` と同じアタック入口を使えるという投入時の見立ては正しかった。一方、旧 `BLOCK_ACTION{SIGNI,ATTACK}` の writer は現行コードでは `blocked_actions` ではなく `keyword_grants['アタックできない']` で、消費は人間UIの継続判定に偏るため、今回の reader には流用していない。対象側 `PlayerState.signi_attack_field_trash_costs` に `instanceId→必要体数` を予約し、`performSigniAttack` が人間通常・側面・無効化回避後・CPUを共通処理する設計にした。
+- 人間は `AttackFieldTrashCostModal` で支払う2ゾーンを選択し、CPUは候補ゾーンの昇順から決定論的に2体を選ぶ。`getMySigniZoneActions` と `cpuTurnAction` の候補フィルタは他のシグニ2体未満ならアタック候補から外し、`performSigniAttack` も支払い結果を再検証して直呼びを防ぐ。支払いは対象スタック全体と付属チャーム／アクセをトラッシュへ移し、ダウン／凍結等のゾーン状態をクリアする。
+- 支払いで場を離れた各シグニは `collectTrashTriggers(...,byCostOrEffect:true,byEffectCause:false)` と `collectLeaveFieldTriggers(...,causeOwnerId:undefined)` を通す。したがって `ON_TRASH` の「コストか効果によって」は発火し、「効果によって」限定は発火せず、`ON_LEAVE_FIELD` の効果起因限定も誤発火しない。使用回数の `actions_done` も両 collector の返却値から書き戻す。
+- `handleFlipAttack` は共通関数を通らない例外として別途確認・配線した。3面の盤面で「他の2体」をトラッシュするとフリップ対象が0体になり、既存フリップアタックの支払いを同時に満たせないため、当該制限中は `getMySigniZoneActions` でフリップアタックを提示せず、`handleFlipAttack` 自体にもハードガードを置いた。
+- ターン終了リセットは `doPhaseAdvance`、`confirmEndDiscard`、`cpuTurnAction` の3経路で `signi_attack_field_trash_costs` を消去する。実行 E2E で①他2体がいれば支払い可能、②1体以下なら不可、③2体＋付属カードが実際にトラッシュへ移動、④非対象は制限なし、⑤ターン終了クリア、⑥ON_TRASH／ON_LEAVE_FIELD collector 到達を固定。最終値は golden **1687→1688 / FAIL 0**、census **882→882**、smoke **10686件・全異常0**、fuzz **200戦・全異常0**、lint **254 warnings / 0 errors→同値**、held **111枚 / 48群→同値**、同型★ **0→0**、manual-fields **0→0**。全カード live diff は `WX24-P2-010-E1` の1効果だけ、追加regexの原文該当もcanonical CSVで1件、文字化け指標の新規増0。commit／push、PLAN／PLAN_PROGRESS の編集は行っていない。
+
 ## 2026-08-09 — §6.3 E 第1効果：`WX20-036-CB-E1` 引用【常】の他シグニ耐性＋全体パワー修正
 
 - 原文「中央のシグニゾーンにあるかぎり、このシグニは『あなたの他のシグニはライフバーストではない対戦相手のシグニの効果を受けず、それらのパワーを＋3000する』を得る」に対し、旧 live は引用内を `POWER_MODIFY{owner:'any',count:1}` だけに平坦化し、耐性を丸ごと脱落していた。引用 `rawText` が外側の組み立て後に `parseBlock` で単独再パースされるため、外側 `GRANT_FIELD_SIGNI_ABILITY` の空 `abilities` に先行適用される既存 fixup は届いていなかった。

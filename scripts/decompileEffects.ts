@@ -796,6 +796,11 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'BLOCK_ACTION': {
       if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
       if (a.actionId === 'FORCE_PLACE_FRONT') return '対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない';
+      if (a.actionId === 'ATTACK' && a.attackCost?.fieldTrash) {
+        const n = a.attackCost.fieldTrash.count;
+        const duration = a.until === 'END_OF_TURN' ? 'ターン終了時まで、' : '';
+        return `${targetJa(a.target)}を対象とし、${duration}それらは「【常】：あなたの他のシグニ${n}体を場からトラッシュに置かないかぎりアタックできない。」を得る`;
+      }
       const ownerWord = a.target?.owner === 'opponent' ? '対戦相手' : a.target?.owner === 'self' ? 'あなた' : '';
       const untilPre = a.until === 'END_OF_TURN' ? 'このターン、' : a.until === 'NEXT_TURN' ? '次のターンの間、' : a.until === 'END_OF_ATTACK' ? 'そのアタックの間、' : '';
       // 完成文型（主語/肯定否定が特殊＝テンプレートを使わず直接返す）。許可系（〜できる）含む。

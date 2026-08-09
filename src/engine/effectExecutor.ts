@@ -2534,11 +2534,23 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
     const tgtOwner: Owner = a.target.owner === 'self' ? 'self' : 'opponent';
     const tgtState = ownerState(tgtOwner, ctx);
     const untilLbl = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
-    // アタック不可付与は効果元（ctx.ownerState）の keyword_grants にカード番号キーで格納する
+    // 解除コストつき制限は対象側 state の per-signi 予約へ格納する。
+    // keyword_grants の「アタックできない」は UI の継続判定しか見ないため、共通実行経路と CPU に届かない。
+    const applyAttackCost = (targets: string[], c: ExecCtx): ExecResult => {
+      const count = a.attackCost?.fieldTrash.count ?? 0;
+      if (targets.length === 0 || count <= 0) return done(c);
+      const state = ownerState(tgtOwner, c);
+      const costs = { ...(state.signi_attack_field_trash_costs ?? {}) };
+      for (const cn of targets) costs[cn] = Math.max(costs[cn] ?? 0, count);
+      return done(addLog(setOwnerState(tgtOwner, { ...state, signi_attack_field_trash_costs: costs }, c),
+        `${targets.map(cn => c.cardMap.get(cn)?.CardName ?? cn).join('・')}は他のシグニ${count}体を場からトラッシュに置かなければアタックできない${untilLbl}`));
+    };
+    // 無条件のアタック不可付与は効果元（ctx.ownerState）の keyword_grants にカード番号キーで格納する
     // （effectEngine.ts の判定が host/guest 両者の keyword_grants を攻撃シグニの cardNum で参照するため、
     //  相手シグニへの付与も効果元側に置いてよい）。
     const applyAttackBlock = (targets: string[], c: ExecCtx): ExecResult => {
       if (targets.length === 0) return done(c);
+      if (a.attackCost?.fieldTrash) return applyAttackCost(targets, c);
       const grants = { ...(c.ownerState.keyword_grants ?? {}) };
       for (const cn of targets) grants[cn] = [...new Set([...(grants[cn] ?? []), 'アタックできない'])];
       return done(addLog({ ...c, ownerState: { ...c.ownerState, keyword_grants: grants } },

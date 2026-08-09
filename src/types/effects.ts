@@ -1156,6 +1156,8 @@ export interface BlockActionAction {
   target: EffectTarget; // 封じる対象プレイヤー
   actionId: string;     // 封じるアクションID（例: 'ATTACK_SIGNI'）
   until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT' | 'END_OF_GAME' | 'END_OF_ATTACK';
+  /** 「他のシグニN体を場からトラッシュに置かないかぎりアタックできない」の解除コスト。 */
+  attackCost?: { fieldTrash: { count: number; excludeSelf?: boolean } };
 }
 
 export interface StoryChangeAction {

@@ -72,6 +72,7 @@ import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckT
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
+import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -28047,6 +28048,73 @@ test('§6.3 C final WXDi-P09-009-E3: 終了時に全自シグニを裏向き化�
   eq(blocked.ownerState.field.facedown_signi?.[0], own[0], '元ゾーンが埋まった対象は裏向きのまま残す');
   ok(!blocked.ownerState.trash.includes(own[0]), '原文に無い占有時トラッシュを足さない');
   eq(blocked.ownerState.field.signi[1]?.at(-1), own[1], '空いている他ゾーンの対象は表向きに戻る');
+}));
+
+test('§6.3 E WX24-P2-010-E1: 他のシグニ2体トラッシュで対象シグニだけアタック制限を解除', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX24-P2-010') ?? []).find(e => e.effectId === 'WX24-P2-010-E1');
+  ok(!!effect, 'live効果が存在する');
+  const block = effect?.action.type === 'SEQUENCE'
+    ? effect.action.steps.find(a => a.type === 'BLOCK_ACTION') as import('../src/types/effects').BlockActionAction | undefined
+    : undefined;
+  ok(!!block, '解除コストつきBLOCK_ACTIONを生成する');
+  eq(JSON.stringify(block?.target), JSON.stringify({ type: 'SIGNI', owner: 'opponent', count: 2, upToCount: true }), '相手シグニ2体までを対象にする');
+  eq(JSON.stringify(block?.attackCost), JSON.stringify({ fieldTrash: { count: 2, excludeSelf: true } }), '引用内の「他のシグニ2体」を保持する');
+
+  const [target, target2, untargeted] = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const applyCtx = mkCtx({}, { signi: [target, target2, untargeted] }, 'WX24-P2-010');
+  const applied = finish(executeEffect(effect!, applyCtx), applyCtx);
+  eq(attackFieldTrashCost(applied.otherState, target), 2, '対象1体目だけに解除コストを予約する');
+  eq(attackFieldTrashCost(applied.otherState, target2), 2, '対象2体目だけに解除コストを予約する');
+  eq(attackFieldTrashCost(applied.otherState, untargeted), 0, '対象外シグニは無条件でアタックできる');
+
+  const payable: PlayerState = {
+    ...applied.otherState,
+    field: {
+      ...applied.otherState.field,
+      signi: [[target], [target2], [untargeted]],
+      signi_charms: [null, SIGNI_L4, null],
+      signi_acce: [null, null, SIGNI],
+    },
+    trash: [],
+  };
+  ok(canPayAttackFieldTrashCost(payable, target, cardMap), '他のシグニが2体なら支払ってアタックできる');
+  const paid = payAttackFieldTrashCost(payable, target, [1, 2], cardMap);
+  ok(!!paid, '正しい2ゾーンの支払いが成立する');
+  eq(paid?.state.field.signi[0]?.at(-1), target, 'アタッカー自身は「他の」支払いから除外する');
+  eq(paid?.state.field.signi[1], null, '支払い1体目が場を離れる');
+  eq(paid?.state.field.signi[2], null, '支払い2体目が場を離れる');
+  ok(paid?.state.trash.includes(target2), '支払い1体目が実際にトラッシュへ行く');
+  ok(paid?.state.trash.includes(untargeted), '支払い2体目が実際にトラッシュへ行く');
+  ok(paid?.state.trash.includes(SIGNI_L4), '付属チャームもトラッシュへ行く');
+  ok(paid?.state.trash.includes(SIGNI), '付属アクセもトラッシュへ行く');
+
+  const shortState: PlayerState = {
+    ...payable,
+    field: { ...payable.field, signi: [[target], [target2], null] },
+  };
+  ok(!canPayAttackFieldTrashCost(shortState, target, cardMap), '他のシグニが1体以下なら支払えずアタックできない');
+  eq(payAttackFieldTrashCost(shortState, target, [1], cardMap), null, '不足支払いでは盤面を変更しない');
+
+  const cleared = clearAttackFieldTrashCosts(payable);
+  eq(attackFieldTrashCost(cleared, target), 0, 'ターン終了後は対象別制限が消える');
+
+  // 支払いは効果ではなくコスト。ON_TRASH は byCostOrEffect=true / byEffectCause=false、
+  // ON_LEAVE_FIELD は causeOwnerId=undefined の正規 collector 経路で収集できることを固定する。
+  const triggerEffects = new Map(effectsMap);
+  triggerEffects.set(target2, [{
+    effectId: 'attack-cost-trash', effectType: 'AUTO', timing: ['ON_TRASH'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+  } as CardEffect]);
+  triggerEffects.set(untargeted, [{
+    effectId: 'attack-cost-leave', effectType: 'AUTO', timing: ['ON_LEAVE_FIELD'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+  } as CardEffect]);
+  const costTrigCtx: TrigCtx = { ...trigCtx(HOST, HOST), effectsMap: triggerEffects };
+  const defender = mkState({});
+  const trashEntries = collectTrashTriggers(costTrigCtx, target2, HOST, paid!.state, defender, false, true, false).entries;
+  const leaveEntries = collectLeaveFieldTriggers(costTrigCtx, untargeted, [], HOST, paid!.state, defender, undefined, payable, 2).entries;
+  ok(trashEntries.some(e => e.effectId === 'attack-cost-trash'), '支払いでON_TRASHを収集する');
+  ok(leaveEntries.some(e => e.effectId === 'attack-cost-leave'), '支払いでON_LEAVE_FIELDを収集する');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
