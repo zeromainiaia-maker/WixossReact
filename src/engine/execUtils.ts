@@ -1705,6 +1705,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'SUBSCRIBER_COUNT':
       return cmp(ctx.ownerState.subscriber_count ?? 0, cond.operator, cond.value);
+    // 場に付いている【チャーム】の枚数（signi_charms は「ゾーンごとに1枚 or null」）。
+    case 'CHARM_COUNT':
+      return cmp((st(cond.owner).field.signi_charms ?? []).filter(Boolean).length, cond.operator, cond.value);
     case 'SELF_POWER_GTE': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
