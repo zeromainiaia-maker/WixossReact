@@ -511,6 +511,7 @@ function condJa(c?: any): string {
     case 'LRIG_LEVEL_CMP_OPP': return `自分のセンタールリグのレベルが対戦相手のセンタールリグ${c.operator === 'lt' ? 'より低い' : c.operator === 'lte' ? '以下' : c.operator === 'gt' ? 'より高い' : '以上'}`;
     case 'LRIG_TRASH_COUNT': return `ルリグトラッシュに${c.cardType ?? 'カード'}が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'SUBSCRIBER_COUNT': return `登録者数が${numJa(c.value)}万${opJa(c.operator)}`;
+    case 'CHARM_COUNT': return `${ownerJa(c.owner)}場の【チャーム】が${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'SELF_POWER_GTE': return `このシグニのパワーが${numJa(c.value)}${opJa(c.operator ?? 'gte')}`;
     // タスク12(cxvii)：実効レベル（動的レベル込み）の閾値。`condJa` は Condition と ActiveCondition の
     // **両方**を1つの switch で描くので、同名の型は**ここ1箇所だけ**に書く（二重 case は lint error）。
