@@ -400,6 +400,7 @@ export function getSigniStatusKeywords(
   cards: CardData[],
   keywordGrants?: Record<string, string[]>,
   abilitiesRemoved?: string[],
+  keywordAbilitiesRemoved?: Record<string, string[]>,
   dynamicKeywords?: Record<string, string[]>,
   fieldKeywords?: string[], // 自ターン中に全自シグニが得ているキーワード（field_keyword_grants_active）
 ): string[] {
@@ -414,6 +415,7 @@ export function getSigniStatusKeywords(
   // 「【kw】を得る/得て/を持つ/を与える」等、効果で付与・参照される記述は固有キーワードとして扱わない。
   // （実際に付与された場合は keywordGrants / dynamicKeywords 側で動的に検出されるため、未発動時にバッジが誤表示されない）
   const has = (kw: string) => {
+    if (keywordAbilitiesRemoved?.[topNum]?.some(removed => kw === removed || kw.startsWith(`${removed}:`))) return false;
     if (granted.includes(kw)) return true;
     if (dynamic.includes(kw)) return true;
     if (fieldKeywords?.includes(kw)) return true;
@@ -1082,7 +1084,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             seedCardNum={state.field.signi_seeds?.[rawIdx] ?? null}
             faceDownCardNum={state.field.facedown_signi?.[rawIdx] ?? null}
             magicBoxCardNum={state.field.signi_magic_boxes?.[rawIdx] ?? null}
-            statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed, dynamicKeywords, state.field_keyword_grants_active)}
+            statusKeywords={getSigniStatusKeywords(s, cards, state.keyword_grants, state.abilities_removed, state.keyword_abilities_removed, dynamicKeywords, state.field_keyword_grants_active)}
             hasGate={state.own_gate_zones?.includes(rawIdx) ?? false}
             isMe={isMe} />
           </div>

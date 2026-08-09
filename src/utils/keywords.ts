@@ -1,5 +1,14 @@
 import type { CardData, PlayerState } from '../types';
 
+/** 指定キーワードだけを失う効果。plain 名はスコープ付き表現（例: アサシン:{...}）も止める。 */
+export function isKeywordAbilityRemoved(
+  cardNum: string,
+  keyword: string,
+  removals?: Record<string, string[]>,
+): boolean {
+  return removals?.[cardNum]?.some(removed => keyword === removed || keyword.startsWith(`${removed}:`)) ?? false;
+}
+
 /**
  * シグニがキーワード能力を持つかチェックする。
  * - card.effects の CONTINUOUS GRANT_KEYWORD（先天的 / 恒久付与）
@@ -17,9 +26,11 @@ export function hasKeyword(
   extraGrants?: Record<string, string[]>, // UNTIL_OPP_TURN_END で付与されたキーワード
   fieldKeywords?: string[], // 自ターン中に全自シグニが得ているキーワード（field_keyword_grants_active）
   abilitiesRemoved?: string[], // REMOVE_ABILITIES で能力を失っているシグニ（印字・付与いずれのキーワードも持たない）
+  keywordAbilitiesRemoved?: Record<string, string[]>, // 指定キーワードだけを失い、新たに得られない
 ): boolean {
   // 能力を失っているシグニはいかなるキーワードも持たない（「能力を失い、新たに得られない」。G085 等）
   if (abilitiesRemoved?.includes(cardNum)) return false;
+  if (isKeywordAbilityRemoved(cardNum, keyword, keywordAbilitiesRemoved)) return false;
   const card = cardMap.get(cardNum);
   const matches = (kw: string) => kw === keyword || kw.startsWith(keyword + ':');
   if (card?.effects?.some(e => {

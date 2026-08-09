@@ -1,7 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { applyRefreshState } from './refresh';
 import type {
-  CardEffect, EffectAction, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
+  CardEffect, EffectAction, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
 import type { ExecCtx, ExecResult
 } from './execUtils';
 import {
@@ -19,8 +19,9 @@ export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSi
 import { matchesStateFilter } from './effectEngine';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
-import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword } from '../utils/keywords';
+import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
+import { collectReturnableAssistLrigTops } from './assistLrig';
 
 // いま**アタックを宣言していてバトル未解決**のシグニ（`pending_signi_battle` のゾーン頂点）。無ければ undefined。
 // 「対戦相手のアタックしているシグニ」の解決と、進行中アタックの無効化先の判定に使う（Opusタスク12(cx)）。
@@ -2608,6 +2609,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       else if (cur.otherState.field.signi.some(s => s?.at(-1) === cn)) owner = 'opponent';
       if (!owner) continue;
       const s = ownerState(owner, cur);
+      if (isKeywordAbilityRemoved(cn, a.keyword, s.keyword_abilities_removed)) continue;
       const grants = { ...(s[gkey] ?? {}) };
       grants[cn] = [...new Set([...(grants[cn] ?? []), a.keyword])];
       cur = addLog(setOwnerState(owner, { ...s, [gkey]: grants }, cur),
@@ -2625,6 +2627,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     if (!owner) return done(ctx);
     const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
     const s = ownerState(owner, ctx);
+    if (isKeywordAbilityRemoved(autoNum, a.keyword, s.keyword_abilities_removed)) return done(ctx);
     const grants = { ...(s[gkey] ?? {}) };
     grants[autoNum] = [...new Set([...(grants[autoNum] ?? []), a.keyword])];
     return done(addLog(setOwnerState(owner, { ...s, [gkey]: grants }, ctx),
@@ -2683,14 +2686,15 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     // 通常の keyword_grants は付与者のターン終了時にクリアされるため、ターン終了時付与は必ずこちらを使う。
     const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
     const grants = { ...(s[gkey] ?? {}) };
-    for (const n of selected) {
+    const grantable = selected.filter(n => !isKeywordAbilityRemoved(n, a.keyword, s.keyword_abilities_removed));
+    for (const n of grantable) {
       grants[n] = [...(grants[n] ?? []), a.keyword];
     }
     let newS: PlayerState = { ...s, [gkey]: grants };
 
     // チアガールはフリーゾーンへ移動
     if (a.keyword === 'チアガール') {
-      for (const n of selected) {
+      for (const n of grantable) {
         const zoneIdx = newS.field.signi.findIndex(stack => stack?.at(-1) === n);
         if (zoneIdx >= 0) {
           const newSigni = [...newS.field.signi] as (string[] | null)[];
@@ -2702,7 +2706,9 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     }
 
     return addLog(setOwnerState(tgtOwner, newS, c),
-      `${selected.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に「${a.keyword}」を付与`);
+      grantable.length > 0
+        ? `${grantable.map(n => c.cardMap.get(n)?.CardName ?? n).join('・')}に「${a.keyword}」を付与`
+        : `【${a.keyword}】は新たに得られない`);
   }
 
   // LRIGは選択UIを出さず自動付与
@@ -5182,6 +5188,26 @@ function execVariableDiscardAndDraw(a: VariableDiscardAndDrawAction, ctx: ExecCt
   });
 }
 
+function applyAbilitiesRemoval(
+  action: RemoveAbilitiesAction,
+  state: PlayerState,
+  cardNums: string[],
+): PlayerState {
+  if (action.keywords?.length) {
+    const removedKeywords = { ...(state.keyword_abilities_removed ?? {}) };
+    for (const cardNum of cardNums) {
+      removedKeywords[cardNum] = [...new Set([...(removedKeywords[cardNum] ?? []), ...action.keywords])];
+    }
+    return { ...state, keyword_abilities_removed: removedKeywords };
+  }
+  return { ...state, abilities_removed: [...new Set([...(state.abilities_removed ?? []), ...cardNums])] };
+}
+
+function execReturnAssistLrigToDeck(a: ReturnAssistLrigToDeckAction, ctx: ExecCtx): ExecResult {
+  const candidates = collectReturnableAssistLrigTops(ctx.ownerState, a, ctx.cardMap);
+  return selectOrInteract(candidates, 1, false, 'self_assist_lrig', a, undefined, ctx);
+}
+
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
@@ -5189,8 +5215,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
     if (autoNum && state.field.signi.some(s => s?.at(-1) === autoNum)) {
-      const removed = [...new Set([...(state.abilities_removed ?? []), autoNum])];
-      const newS: PlayerState = { ...state, abilities_removed: removed };
+      const newS = applyAbilitiesRemoval(a, state, [autoNum]);
       return done(addLog(setOwnerState(tgtOwner, newS, ctx), `1`));
     }
     return done(ctx);
@@ -5229,8 +5254,7 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
   }
-  const removed = [...new Set([...(state.abilities_removed ?? []), ...cands])];
-  const newS: PlayerState = { ...state, abilities_removed: removed };
+  const newS = applyAbilitiesRemoval(a, state, cands);
   // 非対話経路（ALL / thisCardOnly / frontOfSelf で対象確定）も lastProcessedCards を残す（§3タスク6 E）。
   return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: cands }, `${cands.length}`));
 }
@@ -5951,6 +5975,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'CHARM_PROTECTION':           return execCharmProtection(action as CharmProtectionAction, ctx);
     case 'MUTUAL_DISCARD_AND_DRAW': return execMutualDiscardAndDraw(action as MutualDiscardAndDrawAction, ctx);
     case 'VARIABLE_DISCARD_AND_DRAW': return execVariableDiscardAndDraw(action as VariableDiscardAndDrawAction, ctx);
+    case 'RETURN_ASSIST_LRIG_TO_DECK': return execReturnAssistLrigToDeck(action as ReturnAssistLrigToDeckAction, ctx);
     case 'REMOVE_ABILITIES':        return execRemoveAbilities(action as RemoveAbilitiesAction, ctx);
     case 'GAIN_COIN':               return execGainCoin(action as GainCoinAction, ctx);
     case 'DISCARD_BOTH':            return execDiscardBoth(action as DiscardBothAction, ctx);
@@ -7639,6 +7664,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else if (ctx.otherState.field.lrig.at(-1) === cardNum) gkOwner = 'opponent';
       if (!gkOwner) return done(ctx);
       const gkS = ownerState(gkOwner, ctx);
+      if (isKeywordAbilityRemoved(cardNum, gkA.keyword, gkS.keyword_abilities_removed)) {
+        return done(addLog(ctx, `【${gkA.keyword}】は新たに得られない`));
+      }
       if (gkA.duration === 'UNTIL_OPP_TURN_END') {
         const gkGrantsOpp = { ...(gkS.keyword_grants_until_opp_turn ?? {}) };
         gkGrantsOpp[cardNum] = [...new Set([...(gkGrantsOpp[cardNum] ?? []), gkA.keyword])];
@@ -7664,6 +7692,25 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       geGranted[cardNum] = [...(geGranted[cardNum] ?? []), geEff];
       return done(addLog(setOwnerState(geOwner, { ...geS, [geKey]: geGranted }, ctx),
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+    }
+    case 'RETURN_ASSIST_LRIG_TO_DECK': {
+      const left = ctx.ownerState.field.assist_lrig_l ?? [];
+      const right = ctx.ownerState.field.assist_lrig_r ?? [];
+      const fromLeft = left.at(-1) === cardNum;
+      const fromRight = right.at(-1) === cardNum;
+      if (!fromLeft && !fromRight) return done(ctx);
+      const field = {
+        ...ctx.ownerState.field,
+        ...(fromLeft ? { assist_lrig_l: left.slice(0, -1) } : {}),
+        ...(fromRight ? { assist_lrig_r: right.slice(0, -1) } : {}),
+      };
+      const newOwner = {
+        ...ctx.ownerState,
+        field,
+        lrig_deck: [...ctx.ownerState.lrig_deck, cardNum],
+      };
+      return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [cardNum] },
+        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をルリグデッキへ戻す（下のカードは場に残す）`));
     }
     case 'TAKE_FROM_UNDER_SIGNI': {
       const ta = action as import('../types/effects').TakeFromUnderSigniAction;
@@ -7693,11 +7740,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) raOwner = 'opponent';
       if (!raOwner) return done(ctx);
       const raS = ownerState(raOwner, ctx);
-      const raRemoved = [...new Set([...(raS.abilities_removed ?? []), cardNum])];
+      const raNew = applyAbilitiesRemoval(action as RemoveAbilitiesAction, raS, [cardNum]);
       // §3タスク6 E: 選んだ対象を lastProcessedCards に記録＝後続の「それのパワーを－Nする」
       //（POWER_MODIFY targetsLastProcessed）が**同じ対象**に載る（WX26-CP1-009-E1）。
-      return done(addLog({ ...setOwnerState(raOwner, { ...raS, abilities_removed: raRemoved }, ctx), lastProcessedCards: [cardNum] },
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}は能力を失う`));
+      const label = (action as RemoveAbilitiesAction).keywords?.length
+        ? `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}は${(action as RemoveAbilitiesAction).keywords!.map(k => `【${k}】`).join('')}を失い、新たに得られない`
+        : `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}は能力を失う`;
+      return done(addLog({ ...setOwnerState(raOwner, raNew, ctx), lastProcessedCards: [cardNum] }, label));
     }
     case 'ADD_TO_LIFE': {
       // fromHand 選択後: 手札からライフクロスに移動

@@ -133,6 +133,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               opp_hand_energy:  '相手の手札とエナから合計',
               self_lrig_deck: 'ルリグデッキから',
               opp_lrig_deck: '相手のルリグデッキから',
+              self_assist_lrig: '自分のアシストルリグから',
               self_trash:  'トラッシュから',
               opp_trash:   '相手のトラッシュから',
             };
@@ -154,6 +155,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               act.type === 'BANISH_SUBSTITUTE' ? 'バニッシュ代わりの' :
               act.type === 'REVEAL'         ? '公開する' :
               act.type === 'TRANSFER_TO_DECK' ? 'デッキに加える' :
+              act.type === 'RETURN_ASSIST_LRIG_TO_DECK' ? 'ルリグデッキに戻す' :
               act.type === 'BLOOD_CRYSTAL_ARMOR' ? '血晶武装する' :
               '';
             // パワー合計上限つき選択（「パワーの合計がN以下になるように好きな数」）

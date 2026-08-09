@@ -406,6 +406,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // ---- 指定キーワードだけを失い、新たに得られない ----
+  // 「能力」全体の喪失とは別。照応語を含むこの完全文型だけを取り、一般の「これ」を奪わない。
+  const keywordLossM = t.match(/それは((?:【[^】]+】)+)を失い、新たに得られない/);
+  if (keywordLossM) {
+    const keywords = [...keywordLossM[1].matchAll(/【([^】]+)】/g)].map(match => match[1]);
+    return {
+      type: 'REMOVE_ABILITIES',
+      target: { type: 'SIGNI', owner: t.includes('対戦相手') ? 'opponent' : 'self', count: 1 },
+      keywords,
+      until: t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT',
+    } as RemoveAbilitiesAction;
+  }
+
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
@@ -2738,6 +2751,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
   }
 
+  // ---- パワー閾値トリガー後の「これをトラッシュに置く」（WX09-019）----
+  // 完全文一致に限定し、別対象を指す一般の「これ」には波及させない。
+  if (/^これをトラッシュに置く$/.test(t)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } };
+  }
+
   // ---- 自分のすべてのシグニをトラッシュ（任意）----
   if (t.match(/あなたのすべてのシグニを場からトラッシュに置いてもよい/)) {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
@@ -2747,6 +2766,29 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (t.match(/あなたの(?:.+の)?シグニを好きな数対象とし.*トラッシュに置く/)) {
     const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
+  }
+
+  // ---- 場のアシストルリグ最上段だけをルリグデッキに戻す ----
+  const teamAssistReturnM = t.match(/^あなたの＜([^＞]+)＞のレベル([０-９\d]+)のルリグ１体を対象とし、それをルリグデッキに戻す$/);
+  if (teamAssistReturnM) {
+    return {
+      type: 'RETURN_ASSIST_LRIG_TO_DECK',
+      team: teamAssistReturnM[1],
+      level: parseNum(teamAssistReturnM[2]),
+    };
+  }
+  if (/持たずグロウコストが《無×0》ではないあなたのアシストルリグ１体を対象とし、それをルリグデッキに戻す$/.test(t)) {
+    return {
+      type: 'RETURN_ASSIST_LRIG_TO_DECK',
+      withoutAttackPhaseIcon: true,
+      excludeColorlessZeroGrowCost: true,
+    };
+  }
+
+  // アシストルリグのアタック機構は未実装。既存の実働 STUB を借りず、計器に残る専用宣言 STUB とする。
+  const assistAttackM = t.match(/^このターン、あなたはレベル([０-９\d]+)以上のアシストルリグでアタックできる$/);
+  if (assistAttackM) {
+    return { type: 'STUB', id: 'ASSIST_LRIG_ATTACK_THIS_TURN', count: parseNum(assistAttackM[1]) } as StubAction;
   }
 
   // ---- ドロー後、このアーツ/カードをルリグデッキに戻す ----

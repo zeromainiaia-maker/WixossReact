@@ -975,6 +975,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REMOVE_ABILITIES': {
       // action内 until が curated JSON で落ちている場合、原文の「能力を失い/失う」文から期間注記を復元（§5b・タスクA）
       const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
+      if (a.keywords?.length) {
+        return `${targetJa(a.target)}は${a.keywords.map((keyword: string) => `【${keyword}】`).join('')}を失い、新たに得られない${durRA}`;
+      }
       // §6.3「正面」サブ機構(b)(e): filter.frontOfSelf は原文が「このシグニの正面のシグニ」＝owner 接頭辞を出さない。
       // abilityTypes は「【出】能力は発動しない」等の種別限定（WXK11-029-E1）。
       if (a.target?.filter?.frontOfSelf) {
@@ -1262,6 +1265,11 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GROW_FREE': return a.levelFilter === 'same'
       ? 'あなたのセンタールリグと同じレベルのルリグ1枚をルリグデッキからグロウコストを支払わずグロウする'
       : 'コストを支払わずにグロウする';
+    case 'RETURN_ASSIST_LRIG_TO_DECK':
+      if (a.team && a.level !== undefined) {
+        return `あなたの＜${a.team}＞のレベル${a.level}のルリグ1体を対象とし、それをルリグデッキに戻す（下のカードは場に残す）`;
+      }
+      return '《アタックフェイズアイコン》を持たずグロウコストが《無×0》ではないあなたのアシストルリグ1体を対象とし、それをルリグデッキに戻す';
     case 'MUTUAL_DISCARD_AND_DRAW': return a.drawMax
       ? 'あなたと対戦相手は手札をすべて捨て、捨てられた枚数のうち最も大きい数に等しい枚数を双方が引く'
       : 'あなたと対戦相手は手札をすべて捨てる';
@@ -1481,6 +1489,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
+      if (a.id === 'ASSIST_LRIG_ATTACK_THIS_TURN') return `このターン、あなたはレベル${a.count ?? 1}以上のアシストルリグでアタックできる（未実装）`;
       if (a.id === 'LIFE_TO_ENERGY') return `${ownerJa(a.owner)}ライフクロス1枚をエナゾーンに置く`;
       if (a.id === 'ENERGY_TO_HAND_ON_DECK') return 'このカードをエナゾーンから手札に加えてもよい';
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）

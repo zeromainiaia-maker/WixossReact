@@ -15,7 +15,7 @@ import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrow
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, attackerSelfTriggerFilterOk } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource } from '../engine/boardDiff';
-import { hasKeyword, hasBanishResist, hasApplicableAssassin } from '../utils/keywords';
+import { hasKeyword, hasBanishResist } from '../utils/keywords';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
@@ -95,6 +95,7 @@ import { useGameStartSetup, useSigniSummonFlow } from './battle/hooks/useSetupFl
 import { useBattlePersist } from './battle/controller/persist';
 import { reduceBattle, type PlayerStateKey } from './battle/controller/battleController';
 import { canCardGuard } from './battle/guard';
+import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
 import { consumeTriggeredGrantedAutos } from './battle/grantedAuto';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
@@ -3937,6 +3938,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
         abilities_removed: [], // REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア
+        keyword_abilities_removed: {}, // 指定キーワード喪失／新規獲得禁止も同じ期限でクリア
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
         cards_drawn_by_effect_this_turn: 0,
@@ -4004,6 +4006,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
+        keyword_abilities_removed: {},
         field_keyword_grants_active: opState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
         field_keyword_grants_next_turn: undefined,
         // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
@@ -7956,7 +7959,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       };
 
       // キーワード能力確認
-      const myGrants = myS.keyword_grants;
       const myArmoredNums = new Set(
         myS.field.signi.flatMap((stack, i) =>
           (myS.field.signi_armor?.[i] && stack?.at(-1)) ? [stack.at(-1)!] : [],
@@ -8020,26 +8022,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
       }
-      const hasGrantedKeyword = (kw: string) =>
-        // REMOVE_ABILITIES で能力を失っているシグニは印字・付与いずれのキーワードも持たない（G085 等）
-        !myS.abilities_removed?.includes(myTopNum) &&
-        (hasKeyword(myTopNum, kw, battleCardMap, myGrants, undefined, myS.keyword_grants_until_opp_turn, myS.field_keyword_grants_active, myS.abilities_removed) || contGrantedKeywords.has(kw));
-      const assassinKeywords = new Set<string>([
-        ...(myGrants?.[myTopNum] ?? []),
-        ...(myS.keyword_grants_until_opp_turn?.[myTopNum] ?? []),
-        ...(myS.field_keyword_grants_active ?? []),
-        ...contGrantedKeywords,
-        ...((battleCardMap.get(myTopNum)?.effects ?? [])
-          .filter(e => e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_KEYWORD' && !e.activeCondition)
-          .map(e => (e.action as import('../types/effects').GrantKeywordAction).keyword)),
-      ]);
-      const isAssassin = !myS.abilities_removed?.includes(myTopNum)
-        && hasApplicableAssassin(assassinKeywords, opS, battleCardMap, effectivePowers);
-      const isLancer      = hasGrantedKeyword('ランサー');
-      const isSLancer     = hasGrantedKeyword('Sランサー');
-      const isTripleCrush = hasGrantedKeyword('トリプルクラッシュ');
-      const isDoubleCrush = hasGrantedKeyword('ダブルクラッシュ');
-      const isShoot       = hasGrantedKeyword('シュート');
+      const { isAssassin, isLancer, isSLancer, isTripleCrush, isDoubleCrush, isShoot } =
+        getSigniAttackKeywordState(myTopNum, myS, opS, battleCardMap, effectivePowers, contGrantedKeywords);
 
       // アサシン：正面シグニを無視してライフへ直接アタック
       // NO_BATTLE_DEFENDER: 防御シグニが「バトルしない」CONTINUOUS効果を持つ場合もライフへ直接アタック

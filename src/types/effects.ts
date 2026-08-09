@@ -770,6 +770,7 @@ export type EffectAction =
   | RearrangeSigniAction
   | SetBaseLevelAction
   | GrowFreeAction
+  | ReturnAssistLrigToDeckAction
   | RemoveAbilitiesAction
   | PlayFreeAction
   | CostIncreaseAction
@@ -1637,9 +1638,22 @@ export interface GrowFreeAction {
   levelFilter?: 'same' | 'any'; // 'same'=現在のルリグと同レベルのみ
 }
 
+// 場のアシストルリグのグロウスタック最上段だけをルリグデッキへ戻す。
+// 「下のカードは場に残す」ため、通常のルリグトラッシュ／自身回収とは別の移動元を持つ。
+export interface ReturnAssistLrigToDeckAction {
+  type: 'RETURN_ASSIST_LRIG_TO_DECK';
+  team?: string;
+  level?: number;
+  withoutAttackPhaseIcon?: boolean;
+  excludeColorlessZeroGrowCost?: boolean;
+}
+
 // シグニの能力を消去する
 export interface RemoveAbilitiesAction {
   abilityTypes?: Array<'常' | '自' | '起' | '出'>;
+  // 指定キーワードだけを失わせ、同じターン中に新たに得ることも禁止する。
+  // 省略時は従来どおり全能力を失う。
+  keywords?: string[];
   type: 'REMOVE_ABILITIES';
   target: EffectTarget;
   until: EffectDuration;

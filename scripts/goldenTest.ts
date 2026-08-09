@@ -69,6 +69,8 @@ import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus'
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
 import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
+import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
+import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -26370,6 +26372,94 @@ test('続き377n: 「N枚まで × N体まで」が live JSON の charm/to 両�
     eq(/"count":[２-９2-9]/.test(j), false, `${effId}: 単数ペアのまま`);
   }
 }));
+
+// ── §5d-0(ii) parseStatus:UNKNOWN 完全no-op 7効果（続き385）──
+const assistReturnCases = [
+  ['WXDi-D06-004', 'WXDi-D06-004-E3'],
+  ['WXDi-P02-030', 'WXDi-P02-030-E3'],
+  ['WXDi-P03-030', 'WXDi-P03-030-E3'],
+  ['WXDi-P05-010', 'WXDi-P05-010-E3'],
+] as const;
+for (const [cardNum, effectId] of assistReturnCases) {
+  test(`続き385 群A ${effectId}: アシスト最上段だけをルリグデッキへ戻し、下カードを場に残す`, () => withSavedCursor(() => {
+  const lower = 'WXDi-D06-001';
+  const eligible = 'WXDi-D06-002';
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    eq(effect.action.type, 'RETURN_ASSIST_LRIG_TO_DECK', `${effectId}: 専用action`);
+    // センタールリグ【起】の実UI入口が、この効果をMAINで列挙することも同時に固定する。
+    const uiMap = new Map([[cardNum, [effect]]]);
+    eq(collectCenterLrigActivatedEffects(mkState({ lrig: [cardNum] }), uiMap, 'MAIN').some(e => e.effectId === effectId), true,
+      `${effectId}: センタールリグ起動能力UI入口`);
+    const ctx = mkCtx({ lrig: [cardNum], assistL: [lower, eligible] }, {}, cardNum);
+    const result = finish(executeEffect(effect, ctx), ctx);
+    eq(result.ownerState.field.assist_lrig_l?.join(','), lower, `${effectId}: 下カードを場に残す`);
+    eq(result.ownerState.lrig_deck.at(-1), eligible, `${effectId}: 最上段をルリグデッキへ`);
+  }));
+}
+
+test('続き385 群A WXDi-P05-010-E3: アイコン／グロウコストの両除外を候補純関数で固定', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P05-010')!).find(e => e.effectId === 'WXDi-P05-010-E3')!;
+  if (effect.action.type !== 'RETURN_ASSIST_LRIG_TO_DECK') throw new Error('action type');
+  const eligible = 'WXDi-D06-002';             // 色つき0・アタックフェイズアイコンなし
+  const attackIcon = 'WDK05-T01';              // アタックフェイズアイコンあり
+  const colorlessZero = 'WX22-002';             // 《無》×0・アイコンなし
+  const state = mkState({ assistL: [eligible], assistR: [attackIcon] });
+  eq(collectReturnableAssistLrigTops(state, effect.action, cardMap).join(','), eligible, 'アイコン持ちを除外');
+  state.field.assist_lrig_r = [colorlessZero];
+  eq(collectReturnableAssistLrigTops(state, effect.action, cardMap).join(','), eligible, '無色0コストを除外');
+}));
+
+test('続き385 群B WX09-019-E3: 閾値成立時に自身だけを場からトラッシュへ置く', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WX09-019')!).find(e => e.effectId === 'WX09-019-E3')!;
+  eq(effect.action.type, 'TRASH', '既存TRASH語彙を使用');
+  const other = fresh();
+  const ctx: ExecCtx = { ...mkCtx({ signi: ['WX09-019', other, null] }, {}, 'WX09-019'), effectivePowers: new Map([['WX09-019', 20000]]) };
+  const result = finish(executeEffect(effect, ctx), ctx);
+  eq(result.ownerState.field.signi[0], null, '自身のゾーンだけ空く');
+  eq(result.ownerState.field.signi[1]?.at(-1), other, '他シグニは残る');
+  eq(result.ownerState.trash.includes('WX09-019'), true, '自身がトラッシュへ移る');
+}));
+
+test('続き385 群C WXDi-P00-002-E1: 3キーワードを実戦判定から外し、その後の付与も拒否する', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P00-002')!).find(e => e.effectId === 'WXDi-P00-002-E1')!;
+  eq(effect.action.type, 'REMOVE_ABILITIES', '既存REMOVE_ABILITIESを拡張');
+  const target = fresh();
+  const attacker = mkState({ signi: [target, null, null] });
+  attacker.keyword_grants = { [target]: ['アサシン', 'ランサー', 'ダブルクラッシュ'] };
+  const before = getSigniAttackKeywordState(target, attacker, mkState(), cardMap, new Map());
+  ok(before.isAssassin && before.isLancer && before.isDoubleCrush, '適用前は3キーワードが実戦判定で有効');
+
+  const whiteAssist = findCard(card => card.Type === 'ルリグ' && card.Color?.includes('白'));
+  const nonWhiteCenter = findCard(card => card.Type === 'ルリグ' && !card.Color?.includes('白'));
+  const ctx: ExecCtx = {
+    ...mkCtx({ lrig: [nonWhiteCenter], assistL: [whiteAssist] }, { signi: [target, null, null] }, 'WXDi-P00-002'),
+    otherState: attacker,
+  };
+  const removed = finish(executeEffect(effect, ctx), ctx);
+  eq(effect.condition?.type, 'HAS_CARD_IN_FIELD', '白アシストだけでも満たす場のルリグ色条件');
+  const after = getSigniAttackKeywordState(target, removed.otherState, removed.ownerState, cardMap, new Map());
+  ok(!after.isAssassin && !after.isLancer && !after.isDoubleCrush, 'アサシン／ランサー／ダブルクラッシュの全消費経路で無効');
+
+  const grant: EffectAction = { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, keyword: 'アサシン', duration: 'UNTIL_END_OF_TURN' };
+  const grantCtx: ExecCtx = { ...ctx, ownerState: removed.ownerState, otherState: removed.otherState };
+  const grantResult = finish(executeEffect({ ...effect, condition: undefined, action: grant }, grantCtx), grantCtx);
+  eq(grantResult.otherState.keyword_grants?.[target]?.filter(k => k === 'アサシン').length ?? 0, 1,
+    '既存のアサシンだけが残り、新しい重複付与は保存されない');
+
+  const continuousMap = new Map<string, CardEffect[]>([[target, [{
+    effectId: 'kw-cont', effectType: 'CONTINUOUS',
+    action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, keyword: 'アサシン', duration: 'PERMANENT' },
+    duration: 'PERMANENT', mandatory: true,
+  } as CardEffect]]]);
+  eq(collectContinuousGrantedKeywords(removed.otherState, removed.ownerState, true, continuousMap, cardMap)[target]?.includes('アサシン') ?? false,
+    false, 'CONTINUOUS付与でも新たに得ない');
+}));
+
+test('続き385 群D WX25-P1-048-E1: 既存実働STUBを借りず専用の未実装宣言へ退避', () => {
+  const effect = parseCardEffects(cardMap.get('WX25-P1-048')!).find(e => e.effectId === 'WX25-P1-048-E1')!;
+  eq(effect.action.type, 'STUB', 'UNKNOWNを宣言STUBへ');
+  eq((effect.action as StubAction).id, 'ASSIST_LRIG_ATTACK_THIS_TURN', '専用id');
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

@@ -1,5 +1,33 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を残0クローズ（続き385）
+
+**真因**＝live JSON に `action:{type:"UNKNOWN"}` が7効果残り、executor 分岐が無いため実機ではログも盤面差分も無い完全 no-op だった。逆翻訳だけは `raw` を原文どおり表示するため、シート目視では壊れて見えない偽陰性でもあった。
+
+### ① 場のアシストルリグ最上段だけをルリグデッキへ戻す（4効果）
+
+`RETURN_ASSIST_LRIG_TO_DECK` を1型だけ新設し、`collectReturnableAssistLrigTops` で左右の `assist_lrig_l/r` の**最上段だけ**を候補化、`execReturnAssistLrigToDeck`→`SELECT_TARGET`→`applyDirectAction` で選んだ1枚だけ `lrig_deck` へ移した。下段は同じスタックに残る。`Team`／`Level`／`GrowCost` は CSV 列、アタックフェイズアイコンは現行 CSV の実態に合わせ `EffectText` で判定する（ルリグの `Timing` 列は全件 `-` だった）。
+
+- `WXDi-D06-004-E3`／`WXDi-P02-030-E3`／`WXDi-P03-030-E3`：`Team=DIAGRAM` かつ `Level=1`
+- `WXDi-P05-010-E3`：アタックフェイズアイコン無し、かつグロウコストが《無×0》ではない
+
+【起】の既存 UI 入口 `getMyLrigFieldActions`→`collectCenterLrigActivatedEffects` と汎用対象選択 `EffectInteractionModal` に配線。golden は4 effectId を**別テスト**として登録し、各々で UI 列挙・最上段移動・下段残留を盤面固定した。
+
+### ② 既存語彙で直した2効果
+
+- `WX09-019-E3`：「これをトラッシュに置く」を、この完全文型だけに限定して既存 `TRASH{SIGNI,self,count:1,filter:{cardType:'シグニ',thisCardOnly:true}}` へ変換。全 CSV A/B でこの1効果だけが変化し、閾値成立時に自身だけが場からトラッシュへ動く E2E を追加。
+- `WXDi-P00-002-E1`：既存 `RemoveAbilitiesAction` に `keywords?:string[]` を追加し、3語だけの喪失を `keyword_abilities_removed` に保持。`execGrantKeyword` の全選択入口、`collectContinuousGrantedKeywords`、`hasKeyword`、実戦のアサシン／ランサー／クラッシュ枚数判定を純関数 `getSigniAttackKeywordState` に集約して、一過性付与と CONTINUOUS 付与の双方を遮断した。ターン終了時に通常の能力喪失と同時に解除する。さらに既存 `condition:{type:'LRIG_COLOR'}` は executor がセンタールリグしか読まず、原文の「場に白のルリグ」（アシストを含む）より狭かったため、同じ効果の木形だけをガードして既存 `HAS_CARD_IN_FIELD{cardType:'ルリグ',color:'白'}` へ是正した。
+
+### ③ アシストルリグのアタックはフェイク実装せず、専用宣言 STUB へ defer
+
+`WX25-P1-048-E1` は `ASSIST_LRIG_ATTACK_THIS_TURN` 専用 STUB に変換した。現行の `getMyLrigFieldActions`／`performLrigAttack`／CPU `ATTACK_LRIG`／ガード応答はいずれもセンタールリグ1体と `lrig_down` を前提にしており、アシスト左右の攻撃順・ダウン状態・攻撃元・ガード可能攻撃を表現できない。加えて parser は【ドリームチーム】合計N色の使用条件を `effectParser.ts` の前置き除去で捨てており、JSON条件／`canUseArtsCondition` の評価語彙も未実装。既存の名前が近い実働 STUB は流用せず、executor 分岐を持たないため `[STUB: ASSIST_LRIG_ATTACK_THIS_TURN]` ログだけを出し、`STUBS.md` にフォールバック1件として残した。
+
+### ④ 採用・計器
+
+5カードは `heldReview --adopt`、同カードの効果単位収穫枝で対象 UNKNOWN だけ温存された `WX09-019-E3`／`WXDi-P02-030-E3` は検証済み fresh を effectId アンカーで外科採用した。`da193ae3c` の parser を別 worktree から実行した全カード生パース A/B は**変化7効果／outlier 0**。最終 `build:effects`→`heldReview` は **120枚／53群**（増減0）。対象7効果は live の `UNKNOWN` から全件離脱し、全体 UNKNOWN は14→7。逆翻訳3シートと `STUBS.md` を再生成した。
+
+**検証**＝`npm run gates` 全緑。golden **1556/0**、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム不具合0、manual field loss 0、同型★0、lint 0 errors/**254 warnings**。census **910→909**（既存 `BASELINE_HIGH` 本体を909へ更新）、被覆マトリクス miss **281→280**。
+
 ## 2026-08-08 — 🏁§6.3 J-4「フェイズ／アタック終了 timing」を消化し **J 群を残0クローズ**（続き384）
 
 **真因**＝原文が「アタックフェイズ**終了時**」「アタックした**アタック終了時**」なのに、**終了イベントを発行/収集する仕組みが無かった**（開始側の `ON_ATTACK_PHASE_START` / `ON_LRIG_ATTACK_STEP_START` だけが実在）。2効果とも `timing:[]` で安全停止＝永久に no-op。

@@ -30,7 +30,7 @@ import type {
   DownAction,
   PowerFlipAction,
 } from '../types/effects';
-import { hasKeyword } from '../utils/keywords';
+import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
@@ -451,7 +451,7 @@ export function checkActiveCondition(
       return hasKeyword(sourceCardNum, cond.keyword, cardMap,
         ownerState.keyword_grants, undefined,
         ownerState.keyword_grants_until_opp_turn, ownerState.field_keyword_grants_active,
-        ownerState.abilities_removed);
+        ownerState.abilities_removed, ownerState.keyword_abilities_removed);
 
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
@@ -3681,6 +3681,7 @@ export function collectContinuousGrantedKeywords(
   const levelsOf = (): Map<string, number> =>
     (_levels ??= calcSigniLevels(ownerState, otherState, effectsMap, cardMap));
   const add = (num: string, kw: string) => {
+    if (isKeywordAbilityRemoved(num, kw, ownerState.keyword_abilities_removed)) return;
     (result[num] ??= []);
     if (!result[num].includes(kw)) result[num].push(kw);
   };
@@ -4957,6 +4958,7 @@ export function collectContinuousAbilitiesRemovedSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
       const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (act.keywords?.length) continue;
       if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
       if (act.target.owner !== 'self') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
@@ -4973,6 +4975,7 @@ export function collectContinuousAbilitiesRemovedSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
       const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (act.keywords?.length) continue;
       if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
       if (act.target.owner !== 'opponent') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, sourceNum)) continue;
@@ -5007,6 +5010,7 @@ export function collectContinuousAbilitiesRemovedSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if ((eff.action as { type: string }).type !== RemoveAbilitiesType) continue;
       const act = eff.action as import('../types/effects').RemoveAbilitiesAction;
+      if (act.keywords?.length) continue;
       if (abilityType && act.abilityTypes && !act.abilityTypes.includes(abilityType)) continue;
       if (act.target.owner !== 'opponent' || act.target.count !== 'ALL') continue;
       if (!checkActiveCondition(eff.activeCondition, otherState, state, !isOwnerTurn, cardMap, otherLrigTop)) continue;

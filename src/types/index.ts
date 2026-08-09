@@ -200,6 +200,8 @@ export interface PlayerState {
   }>;
   // 能力消去されたシグニのCardNum一覧
   abilities_removed?: string[];
+  // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
+  keyword_abilities_removed?: Record<string, string[]>;
   // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
   prevent_next_damage?: number;
   // 発生源限定付きの「次のダメージ」予約。count は条件に合うダメージでのみ減る。
@@ -678,7 +680,8 @@ export type TargetScope =
   // 手札＋エナゾーンを跨いだ単一プール（「エナゾーンのカードと手札を合計N枚」＝タスク12(lxi) 第11波）
   | 'self_hand_energy' | 'opp_hand_energy'
   | 'self_lrig_deck' | 'opp_lrig_deck'
-  | 'self_lrig_under';
+  | 'self_lrig_under'
+  | 'self_assist_lrig';
 
 import type { EffectAction, SelectionConstraint } from './effects';
 
