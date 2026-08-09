@@ -26429,7 +26429,10 @@ test('続き385 群C WXDi-P00-002-E1: 3キーワードを実戦判定から外�
   const before = getSigniAttackKeywordState(target, attacker, mkState(), cardMap, new Map());
   ok(before.isAssassin && before.isLancer && before.isDoubleCrush, '適用前は3キーワードが実戦判定で有効');
 
-  const whiteAssist = findCard(card => card.Type === 'ルリグ' && card.Color?.includes('白'));
+  // ⚠ 本物の **Type='アシストルリグ'** を使う。ここを Type==='ルリグ' のカードで代用すると
+  //   `matchesFilter` の cardType 厳密一致（execUtils.ts:590-597）を素通りしてしまい、
+  //   「アシストを走査できている」ことの検査にならない（続き385 検証で実際に取りこぼした）。
+  const whiteAssist = findCard(card => card.Type === 'アシストルリグ' && !!card.Color?.includes('白'));
   const nonWhiteCenter = findCard(card => card.Type === 'ルリグ' && !card.Color?.includes('白'));
   const ctx: ExecCtx = {
     ...mkCtx({ lrig: [nonWhiteCenter], assistL: [whiteAssist] }, { signi: [target, null, null] }, 'WXDi-P00-002'),
@@ -26437,6 +26440,12 @@ test('続き385 群C WXDi-P00-002-E1: 3キーワードを実戦判定から外�
   };
   const removed = finish(executeEffect(effect, ctx), ctx);
   eq(effect.condition?.type, 'HAS_CARD_IN_FIELD', '白アシストだけでも満たす場のルリグ色条件');
+  // 構造 assert ではなく **評価器で成立/不成立の両方向**を固定する（§5-5d）。
+  ok(evalUseCondition(effect.condition!, ctx.ownerState, ctx.otherState, cardMap as Map<string, CardData>, 'WXDi-P00-002', 'MAIN'),
+    '白のアシストルリグだけでも使用条件が成立する');
+  const noWhiteCtx = mkCtx({ lrig: [nonWhiteCenter] }, { signi: [target, null, null] }, 'WXDi-P00-002');
+  ok(!evalUseCondition(effect.condition!, noWhiteCtx.ownerState, noWhiteCtx.otherState, cardMap as Map<string, CardData>, 'WXDi-P00-002', 'MAIN'),
+    '場に白のルリグが1体もいなければ成立しない');
   const after = getSigniAttackKeywordState(target, removed.otherState, removed.ownerState, cardMap, new Map());
   ok(!after.isAssassin && !after.isLancer && !after.isDoubleCrush, 'アサシン／ランサー／ダブルクラッシュの全消費経路で無効');
 
