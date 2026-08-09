@@ -26985,6 +26985,17 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
   const d04RawIds = parseCardEffects(cardMap.get('WXDi-D04-011')!).map(effect => effect.effectId);
   const d04LiveIds = effectsMap.get('WXDi-D04-011')!.map(effect => effect.effectId);
   eq(JSON.stringify(d04LiveIds), JSON.stringify(d04RawIds), 'PARTIAL機械採用はeffectId集合を維持');
+
+  // ⚠ D04-011 の action は raw（`SEQUENCE[UNKNOWN, LOOK_AND_REORDER]`）を採らず
+  //   `STUB{GRANT_QUOTED_ABILITY}` を温存する＝原文「それは以下の能力を得る。『…』」は
+  //   引用付与そのもので、この STUB には engine 実装がある（execStubPart1.ts:890＝
+  //   keyword_grants / granted_effects へ展開。他14カードが使用中）。
+  //   raw を採ると実装済み機構を UNKNOWN(no-op) へ落とす退化になる（続き389 検証で是正）。
+  const d04Live = effectsMap.get('WXDi-D04-011')![0];
+  eq(d04Live.action.type, 'STUB', 'D04-011: 実装済みの引用付与STUBを温存');
+  eq((d04Live.action as StubAction).id, 'GRANT_QUOTED_ABILITY', 'D04-011: 引用付与STUBのid');
+  ok(!JSON.stringify(d04Live.action).includes('UNKNOWN'), 'D04-011: raw の UNKNOWN 形を採用しない');
+  ok(!!d04Live.condition, 'D04-011: 使用条件は採用したまま');
 });
 
 test('続き389 群D: カットイン条件／チーム名不問条件は通常の同一チーム使用ゲートへ誤昇格しない', () => {
