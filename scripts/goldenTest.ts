@@ -10727,7 +10727,7 @@ test('parse 「ルリグかシグニ」（センター表記なし）も CENTER_
   eq(t2.upToCount, true, 'まで＝upToCount');
 });
 test('FREEZE(LRIG) 実行: 相手センタールリグが lrig_frozen になる', () => {
-  const ctx = mkCtx({}, {});
+  const ctx = mkCtx({}, { lrig: [findCard(c => c.Type === 'ルリグ')] });
   const r = run({ type: 'FREEZE', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as unknown as EffectAction, ctx);
   eq(r.otherState.field.lrig_frozen, true, '相手ルリグが凍結');
   eq(r.otherState.field.lrig_down ?? false, false, 'down:false ならダウンはしない');
@@ -27242,6 +27242,106 @@ for (const spec of batch390Cases) {
     }
   }));
 }
+
+// ── 続き392：原文より対象範囲が狭い／空の4効果 ──
+test('続き392 WXDi-P09-002-E1: 使用条件を満たしたとき相手シグニ全部をデッキトップへ置く', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P09-002')!).find(e => e.effectId === 'WXDi-P09-002-E1')!;
+  eq(JSON.stringify(effect.condition), JSON.stringify(batch388Condition), '続き388で据置したドリームチーム条件も同時に復元');
+  eq(effect.action.type, 'TRANSFER_TO_DECK', '本体はTRANSFER_TO_DECK');
+  const transfer = effect.action as Extract<EffectAction, { type: 'TRANSFER_TO_DECK' }>;
+  eq(transfer.source.type, 'SIGNI', '対象は場のシグニ');
+  eq(transfer.source.owner, 'opponent', '相手シグニ');
+  eq(transfer.source.count, 'ALL', 'すべて＝ALL（count:1退化防止）');
+  eq(transfer.position, 'top', 'デッキの一番上');
+  eq(transfer.shuffle, false, 'シャッフルしない');
+
+  const owner = batch390SatisfyingState('WXDi-P09-002');
+  const opponent = mkState({});
+  ok(evalUseCondition(effect.condition!, owner, opponent, cardMap, 'WXDi-P09-002', 'MAIN'), '3体3色で条件成立');
+  ok(canUseArtsCondition([effect], owner, opponent, cardMap, 'WXDi-P09-002', 'MAIN'), 'ピース実使用ゲートも成立');
+  ok(!canUseArtsCondition([effect], mkState({ lrig: owner.field.lrig }), opponent, cardMap, 'WXDi-P09-002', 'MAIN'), 'ルリグ1体だけでは使用不可');
+
+  const victims = [fresh(), fresh(), fresh()];
+  const ctx = mkCtx({}, { signi: victims }, 'WXDi-P09-002');
+  const originalDeck = [...ctx.otherState.deck];
+  const result = run(effect.action, ctx);
+  ok(result.done, '全対象は選択UIなしで解決');
+  ok(result.otherState.field.signi.every(stack => stack === null), '相手シグニが全部場を離れる');
+  eq(new Set(result.otherState.deck.slice(0, victims.length)).size, victims.length, 'デッキトップに3体すべて置かれる');
+  ok(victims.every(num => result.otherState.deck.slice(0, victims.length).includes(num)), '対象3体を取りこぼさない');
+  eq(JSON.stringify(result.otherState.deck.slice(victims.length)), JSON.stringify(originalDeck), '元のデッキ順は維持');
+}));
+
+test('続き392 WX24-D4-08-E1: ルリグ＋シグニ合計2体までの次回アタックを両方無効化', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WX24-D4-08')!).find(e => e.effectId === 'WX24-D4-08-E1')!;
+  eq(effect.action.type, 'NEGATE_ATTACK', 'NEGATE_ATTACK');
+  const negate = effect.action as Extract<EffectAction, { type: 'NEGATE_ATTACK' }>;
+  eq(negate.target.type, 'CENTER_LRIG_OR_SIGNI', 'ルリグ＋シグニの単一候補プール');
+  eq(negate.target.count, 2, '合計2体（count:1退化防止）');
+  eq(negate.target.upToCount, true, '2体まで');
+
+  const lrig = findCard(card => card.Type === 'ルリグ');
+  const signi = fresh();
+  const bothCtx = mkCtx({}, { lrig: [lrig], signi: [signi, null, null] }, 'WX24-D4-08');
+  const both = run(effect.action, bothCtx);
+  ok((both.otherState.negated_attacks ?? []).includes(lrig), '相手ルリグの次回アタックを無効化');
+  ok((both.otherState.negated_attacks ?? []).includes(signi), '相手シグニの次回アタックを無効化');
+
+  const signis = [fresh(), fresh()];
+  const signiOnlyCtx = mkCtx({}, { signi: [signis[0], signis[1], null] }, 'WX24-D4-08');
+  const signiOnly = run(effect.action, signiOnlyCtx);
+  ok(signis.every(num => (signiOnly.otherState.negated_attacks ?? []).includes(num)), 'シグニだけの盤面でも2体とも解決');
+}));
+
+test('続き392 WX24-P2-032-E1: ルリグ＋シグニ合計2体までが能力を失う', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WX24-P2-032')!).find(e => e.effectId === 'WX24-P2-032-E1')!;
+  eq(effect.action.type, 'SEQUENCE', '使用ターン制限＋能力喪失');
+  const remove = (effect.action as SequenceAction).steps.find(step => step.type === 'REMOVE_ABILITIES') as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }>;
+  ok(!!remove, 'REMOVE_ABILITIES step');
+  eq(remove.target.type, 'CENTER_LRIG_OR_SIGNI', 'ルリグ＋シグニの単一候補プール');
+  eq(remove.target.count, 2, '合計2体（count:1退化防止）');
+  eq(remove.target.upToCount, true, '2体まで');
+
+  const lrig = findCard(card => card.Type === 'ルリグ');
+  const signi = fresh();
+  const bothCtx = mkCtx({}, { lrig: [lrig], signi: [signi, null, null] }, 'WX24-P2-032');
+  const both = run(remove, bothCtx);
+  ok((both.otherState.abilities_removed ?? []).includes(lrig), '相手ルリグが能力を失う');
+  ok((both.otherState.abilities_removed ?? []).includes(signi), '相手シグニが能力を失う');
+
+  const signis = [fresh(), fresh()];
+  const signiOnlyCtx = mkCtx({}, { signi: [signis[0], signis[1], null] }, 'WX24-P2-032');
+  const signiOnly = run(remove, signiOnlyCtx);
+  ok(signis.every(num => (signiOnly.otherState.abilities_removed ?? []).includes(num)), 'シグニだけの盤面でも2体とも解決');
+}));
+
+test('続き392 WXDi-P16-005-E1: 相手のセンター・左右アシスト・全シグニをダウンし凍結', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P16-005')!).find(e => e.effectId === 'WXDi-P16-005-E1')!;
+  eq(effect.action.type, 'SEQUENCE', 'コスト軽減＋全体凍結＋ドロー制限');
+  const freeze = (effect.action as SequenceAction).steps.find(step => step.type === 'FREEZE') as Extract<EffectAction, { type: 'FREEZE' }>;
+  ok(!!freeze, 'FREEZE step');
+  eq(freeze.target.type, 'CENTER_LRIG_OR_SIGNI', '全ルリグ＋シグニを同じ対象型で表す');
+  eq(freeze.target.count, 'ALL', 'すべて＝ALL（count:1退化防止）');
+  eq(freeze.down, true, 'ダウンも同時適用');
+
+  const center = findCard(card => card.Type === 'ルリグ');
+  const assists = [...cardMap.values()].filter(card => card.Type === 'アシストルリグ').slice(0, 2).map(card => card.CardNum);
+  const signis = [fresh(), fresh(), fresh()];
+  const ctx = mkCtx({}, { lrig: [center], assistL: [assists[0]], assistR: [assists[1]], signi: signis }, 'WXDi-P16-005');
+  const result = run(freeze, ctx);
+  const field = result.otherState.field as PlayerState['field'] & {
+    assist_lrig_l_frozen?: boolean;
+    assist_lrig_r_frozen?: boolean;
+  };
+  eq(field.lrig_down, true, 'センタールリグをダウン');
+  eq(field.lrig_frozen, true, 'センタールリグを凍結');
+  eq(field.assist_lrig_l_down, true, '左アシストをダウン');
+  eq(field.assist_lrig_l_frozen, true, '左アシストを凍結');
+  eq(field.assist_lrig_r_down, true, '右アシストをダウン');
+  eq(field.assist_lrig_r_frozen, true, '右アシストを凍結');
+  eq(JSON.stringify(field.signi_down), JSON.stringify([true, true, true]), '全シグニをダウン');
+  eq(JSON.stringify(field.signi_frozen), JSON.stringify([true, true, true]), '全シグニを凍結');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

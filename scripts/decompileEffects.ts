@@ -263,7 +263,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     : t.type === 'LRIG_TRASH_CARD' ? '(ルリグトラッシュ)' : t.type === 'LIFE_CLOTH_CARD' ? '(ライフ)' : '';
   let u: string;
   if (t.type === 'LRIG') u = 'ルリグ';
-  else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = 'センタールリグかシグニ';
+  else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = t.count === 'ALL' ? 'ルリグとシグニ' : 'センタールリグかシグニ';
   else if (t.type === 'PLAYER') u = '';
   else if (loc) {
     const ct = t.filter?.cardType;
@@ -1253,7 +1253,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキを上から${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがめくれるまで公開し、そのシグニを場に出し、残りをトラッシュに置く（場に出せないシグニはトラッシュへ）。これを${a.repeat}回繰り返す${a.suppressOnPlay ? '。その【出】能力は発動しない' : ''}`;
     // attackingOnly＝「**アタックしている**シグニ1体を対象」＝候補はいま宣言中のアタッカー（進行中のアタックを落とす）。
     // 無指定は「このターン次にアタックしたとき無効」＝事前登録型で、対象は場の全シグニ（別の意味なので書き分ける）。
-    case 'NEGATE_ATTACK': return `${a.attackingOnly ? `${ownerJa(a.target?.owner)}アタックしているシグニ${numJa(a.target?.count ?? 1)}体を対象とし` : a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? `${ownerJa(a.target.owner)}ルリグかシグニ${a.target.count}体を対象とし、このターンそれがアタックしたとき` : 'そのアタックがあったとき'}${a.escapeDiscard ? `、${a.target?.owner === 'opponent' ? '対戦相手' : 'あなた'}が手札を${a.escapeDiscard}枚捨てないかぎり` : ''}${a.attackingOnly ? '、それの' : 'その'}アタックを無効にする`;
+    case 'NEGATE_ATTACK': return `${a.attackingOnly ? `${ownerJa(a.target?.owner)}アタックしているシグニ${numJa(a.target?.count ?? 1)}体を対象とし` : a.target?.type === 'CENTER_LRIG_OR_SIGNI' ? `${ownerJa(a.target.owner)}ルリグかシグニ${a.target.count}${a.target.upToCount ? '体まで' : '体'}を対象とし、このターン${typeof a.target.count === 'number' && a.target.count > 1 ? 'それらがそれぞれ次に' : 'それが'}アタックしたとき` : 'そのアタックがあったとき'}${a.escapeDiscard ? `、${a.target?.owner === 'opponent' ? '対戦相手' : 'あなた'}が手札を${a.escapeDiscard}枚捨てないかぎり` : ''}${a.attackingOnly ? '、それの' : 'その'}アタックを無効にする`;
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
     case 'EQUALIZE_ENERGY': return `${a.owner ? ownerJa(a.owner) : '各プレイヤーの'}エナゾーンのカードが${a.targetCount}枚になるようにトラッシュに置く`;

@@ -12,7 +12,7 @@ import {
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
   canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
-  movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility,
+  movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -2177,7 +2177,60 @@ function execAddToLife(a: AddToLifeAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキトップ${count}枚をライフクロスに追加`));
 }
 
+function applyFreezeToFieldCard(a: FreezeAction, cardNum: string, own: Owner, ctx: ExecCtx): ExecCtx {
+  const state = ownerState(own, ctx);
+  const name = ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum;
+  const fieldPatch: Partial<PlayerState['field']> = {};
+
+  if (state.field.lrig.at(-1) === cardNum) {
+    fieldPatch.lrig_frozen = true;
+    if (a.down) fieldPatch.lrig_down = true;
+  } else if (state.field.assist_lrig_l?.at(-1) === cardNum) {
+    fieldPatch.assist_lrig_l_frozen = true;
+    if (a.down) fieldPatch.assist_lrig_l_down = true;
+  } else if (state.field.assist_lrig_r?.at(-1) === cardNum) {
+    fieldPatch.assist_lrig_r_frozen = true;
+    if (a.down) fieldPatch.assist_lrig_r_down = true;
+  } else {
+    const zoneIdx = state.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+    if (zoneIdx < 0) return ctx;
+    const frozen = [...(state.field.signi_frozen ?? [false, false, false])] as boolean[];
+    frozen[zoneIdx] = true;
+    fieldPatch.signi_frozen = frozen;
+    if (a.down) {
+      const down = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
+      down[zoneIdx] = true;
+      fieldPatch.signi_down = down;
+    }
+  }
+
+  const next = { ...state, field: { ...state.field, ...fieldPatch } };
+  return addLog(setOwnerState(own, next, ctx), `${name}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`);
+}
+
 function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
+  // CENTER_LRIG_OR_SIGNI + ALL: センター／左右アシストの各トップと全シグニを同じ候補集合で解決する。
+  // 「すべてのルリグとシグニ」（WXDi-P16-005）は LRIG(センター固定)+SIGNI の2段では
+  // アシストが永久に対象外になるため、既存の複合対象型をこの action でも実装する。
+  if (a.target.type === 'CENTER_LRIG_OR_SIGNI') {
+    const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
+    const state = ownerState(tgtOwner, ctx);
+    const lrigs = lrigZoneTops(state.field).filter((num): num is string => !!num);
+    const signis = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+    let cands = [...lrigs, ...signis];
+    if (tgtOwner === 'opponent' && ctx.otherEffectImmuneNums?.size) {
+      cands = cands.filter(num => !ctx.otherEffectImmuneNums!.has(num));
+    }
+    if (cands.length === 0) return done(ctx);
+    if (a.target.count === 'ALL') {
+      let cur = ctx;
+      for (const num of cands) cur = applyFreezeToFieldCard(a, num, tgtOwner, cur);
+      return done({ ...cur, lastProcessedCards: cands });
+    }
+    const count = resolveNum(a.target.count);
+    const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+    return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx, false, { selectionConstraint: a.target.selectionConstraint });
+  }
   // LRIG 対象（「対戦相手のセンタールリグ1体を対象とし、それを凍結する」WX17-020③）。
   // `lrig_frozen` は PlayerState/UI/BattleScreen 側に既にあり（アップフェイズでアップしない）、
   // STUB からは設定されていたが FREEZE アクションが LRIG 対象を扱っていなかった＝execDown の LRIG 分岐と同型で対応する。
@@ -2187,13 +2240,8 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     if (a.target.owner === 'opponent' && lrigTopId && ctx.otherEffectImmuneNums?.has(lrigTopId)) {
       return done(addLog(ctx, 'センタールリグは効果を受けない（凍結無効）'));
     }
-    const lrigName = ctx.cardMap.get(lrigTopId ? getCardNum(lrigTopId) : '')?.CardName ?? 'ルリグ';
-    const newS: PlayerState = {
-      ...lstate,
-      field: { ...lstate.field, lrig_frozen: true, ...(a.down ? { lrig_down: true } : {}) },
-    };
-    return done(addLog(setOwnerState(a.target.owner, newS, ctx),
-      `${lrigName}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`));
+    if (!lrigTopId) return done(ctx);
+    return done(applyFreezeToFieldCard(a, lrigTopId, a.target.owner as Owner, ctx));
   }
   // owner:'any'＋isTriggerSource（「シグニ1体がダウン状態になったとき、そのシグニを凍結する」WXK11-015-E3＝
   // triggerScope:any でトリガー元がどちらの場かは実行時に決まる）: トリガー元の所在側を特定してから通常経路へ。
@@ -2228,21 +2276,7 @@ function execFreeze(a: FreezeAction, ctx: ExecCtx): ExecResult {
     let cur = c;
     for (const num of selected) {
       const own: Owner = a.target.owner === 'any' ? sideOfFieldCard(num, cur) : a.target.owner;
-      const s = ownerState(own, cur);
-      const zoneIdx = s.field.signi.findIndex(st => st?.at(-1) === num);
-      if (zoneIdx < 0) continue;
-      const newFrozen = [...(s.field.signi_frozen ?? [false, false, false])] as boolean[];
-      newFrozen[zoneIdx] = true;
-      // 凍結のみ（現在のアップ/ダウン状態は変えない）。「ダウンし凍結」(down:true)のときのみダウンも行う。
-      const fieldPatch: Partial<PlayerState['field']> = { signi_frozen: newFrozen };
-      if (a.down) {
-        const newDown = [...(s.field.signi_down ?? [false, false, false])] as boolean[];
-        newDown[zoneIdx] = true;
-        fieldPatch.signi_down = newDown;
-      }
-      const newS: PlayerState = { ...s, field: { ...s.field, ...fieldPatch } };
-      cur = addLog(setOwnerState(own, newS, cur),
-        `${cur.cardMap.get(num)?.CardName ?? num}を${a.down ? 'ダウンしてフリーズ' : 'フリーズ'}`);
+      cur = applyFreezeToFieldCard(a, num, own, cur);
     }
     return cur;
   }
@@ -5243,7 +5277,13 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
     thisCardRestrict = (ctx.sourceCardNum && state.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum))
       ? [ctx.sourceCardNum] : [];
   }
-  let cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const signiCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  const lrigTop = state.field.lrig.at(-1);
+  let cands = a.target.type === 'CENTER_LRIG_OR_SIGNI'
+    ? [...(lrigTop ? [lrigTop] : []), ...signiCands]
+    : a.target.type === 'LRIG'
+      ? (lrigTop ? [lrigTop] : [])
+      : signiCands;
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (cands.length === 0) return done(ctx);
@@ -7641,19 +7681,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'FREEZE': {
       const frzA = action as import('../types/effects').FreezeAction;
       const frzOwner: Owner = frzA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : frzA.target.owner as Owner;
-      const frzS = ownerState(frzOwner, ctx);
-      const frzIdx = frzS.field.signi.findIndex(st => st?.at(-1) === cardNum);
-      if (frzIdx < 0) return done(ctx);
-      const newFrz = [...(frzS.field.signi_frozen ?? [false, false, false])] as boolean[];
-      newFrz[frzIdx] = true;
-      const frzFieldPatch: Partial<PlayerState['field']> = { signi_frozen: newFrz };
-      if (frzA.down) {
-        const newFrzDown = [...(frzS.field.signi_down ?? [false, false, false])] as boolean[];
-        newFrzDown[frzIdx] = true;
-        frzFieldPatch.signi_down = newFrzDown;
-      }
-      return done(addLog(setOwnerState(frzOwner, { ...frzS, field: { ...frzS.field, ...frzFieldPatch } }, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+      return done(applyFreezeToFieldCard(frzA, cardNum, frzOwner, ctx));
     }
     case 'GRANT_KEYWORD': {
       const gkA = action as GrantKeywordAction;
@@ -7736,8 +7764,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'REMOVE_ABILITIES': {
       // SELECT_TARGET 解決後: 選ばれた1枚の能力を失わせる（abilities_removed に追加）。
       let raOwner: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) raOwner = 'self';
-      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) raOwner = 'opponent';
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.ownerState.field).includes(cardNum)) raOwner = 'self';
+      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.otherState.field).includes(cardNum)) raOwner = 'opponent';
       if (!raOwner) return done(ctx);
       const raS = ownerState(raOwner, ctx);
       const raNew = applyAbilitiesRemoval(action as RemoveAbilitiesAction, raS, [cardNum]);

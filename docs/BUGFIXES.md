@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — 原文より対象範囲が狭い／空の4効果を実働化（続き392）
+
+開始時 HEAD は `90ed3d9d016a0a542da913dd624375dc2e115aa1`（clean）。`WXDi-P09-002-E1` は live がゴミ `GRANT_KEYWORD{keyword:'使用条件'}` だけの完全 no-op だったため、続き388で既に raw に復元済みの `FIELD_LRIG_COLOR_COUNT{gte:3,minLrigs:3}` と、`TRANSFER_TO_DECK{source:{type:'SIGNI',owner:'opponent',count:'ALL'},position:'top'}` を同時採用した。`WX24-D4-08-E1` は `NEGATE_ATTACK`、`WX24-P2-032-E1` は `REMOVE_ABILITIES` をそれぞれ `CENTER_LRIG_OR_SIGNI,count:2,upToCount:true` に修正。`WXDi-P16-005-E1` は `FREEZE{CENTER_LRIG_OR_SIGNI,count:'ALL',down:true}` とし、センター＋左右アシスト＋全シグニへ実適用する executor 分岐、アシストの frozen 状態・UI表示・4本のアップフェイズ解除経路を追加した。
+
+exec の実確認では、`execTransferToDeck` は SIGNI 候補を `fieldCandidates` で生成し `ALL` を全件自動処理、`execNegateAttack` は既にセンタールリグ＋シグニ候補を生成していた。対して `execRemoveAbilities` は SIGNI 固定、`execFreeze` は複合型未対応だったため、前者へセンター＋シグニ候補と選択後ルリグ適用、後者へ `lrigZoneTops`（センター＋左右アシスト）＋シグニ候補と全件適用を実装した。各効果に実盤面 E2E を1本追加し、①全相手シグニ移動＋使用条件 true/false、②③ルリグ1体＋シグニ1体およびシグニだけ2体、④センター・左右アシスト・全シグニの down/frozen を固定した。修正前は新規4本が全滅（1641 PASS / 4 FAIL）、修正後は1645 PASS / 0 FAIL。
+
+全6712カードの生パース A/B と live JSON A/B はどちらも changed が指定4効果だけ、added 0／removed 0／outlier 0。途中の広すぎる規則で拾った `WXK03-051-E1`／`WXDi-P02-058-E1`／`WX25-CP1-030-E1`／`WX25-CD1-06-E1` は規則を原文句へ再限定して最終差分から除外した。変更禁止の9効果 `WD13-010-E1`／`WX04-035-E1`／`WX19-046-E1`／`WX20-024-E1`／`WXDi-CP01-038-E1`／`WXDi-P06-031-E1`／`WXDi-P10-046-E1`／`WXDi-P14-040-E1`／`WXK07-005-E3` は raw/live とも完全同一。これらは今回必要な対象語彙ではなく、主に `GRANT_PROTECTION` の発生源種別（ルリグ／シグニ）を表す別機構である。
+
+原文との差は1件だけ残る。`WXDi-P09-002-E1` の「置く順番は対戦相手が決める」用の既存フィールドは無い。`opponentSelects` は数値対象の選択者だけを切り替え、`count:'ALL'` の並べ順を表せないため、死にフィールドを新設せず deterministic order の近似とした。他3効果は対象範囲・数・上限・期間を含め原文一致。逆翻訳は複合 `ALL` を「すべてのルリグとシグニ」、複数 `NEGATE_ATTACK` を「N体まで／それぞれ次に」まで表示するよう是正して全10シートを再生成した。
+
+**検証**＝`npm run gates` 全緑。golden **1645/0**（+4）、census **898→897**（既存 `BASELINE_HIGH` 本体を897へ更新）、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム・CRASH/HANG/INVARIANT/EXPLOSION全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、被覆マトリクス miss **277**、`parseStatus:'UNKNOWN'`／トップレベル `action.type:'UNKNOWN'` は **0／0**（入れ子43）。held は4枚採用後の再 build 実測で **114→113枚／50→49群**、lint warning は増減0。変更20ファイルの U+FFFD／3文字以上連続 `?`／先頭BOM は新規増0。commit／pushは行っていない。
+
 ## 2026-08-09 — `POWER_MODIFY_PER_FIELD` の CONTINUOUS 11効果を実働化（続き391）
 
 開始時 HEAD は `60597a7877b0bf5f29d435743c3e2235cc737c8b`（clean）。指示書の `calcContinuousSigniMutations` は BANISH/FREEZE/DOWN 用で、パワー計算の実経路は `calcFieldPowers` だった。同関数の action 抽出兄弟へ `extractPowerModifiesPerField` を追加し、`countOwner:self/opponent/any`、`excludeSelf`、`target.count:'ALL'`、対象 owner、パワー増減保護を既存枝と同じ方式で解決した。カウントは印刷属性だけを見て実効パワーを参照しない。ルリグ系 `countFilter.cardType` の場合だけ `lrigZoneTops`（センター＋左右アシスト）も走査する。各効果の処理より前に既存 `checkActiveCondition` があるため、`WD13-002-E2/E3` の `TURN_OWNER` は偽ターンで適用されない。

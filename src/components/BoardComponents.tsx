@@ -1163,8 +1163,12 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
                 slot.label === 'アシスト右' && isMe && getAssistRActions  ? getAssistRActions()  :
                 undefined
               }
-              isDown={slot.label === 'LRIG' ? lrig_down : false}
-              isFrozen={slot.label === 'LRIG' ? (state.field.lrig_frozen ?? false) : false}
+              isDown={slot.label === 'LRIG' ? lrig_down
+                : slot.label === 'アシスト左' ? (state.field.assist_lrig_l_down ?? false)
+                : slot.label === 'アシスト右' ? (state.field.assist_lrig_r_down ?? false) : false}
+              isFrozen={slot.label === 'LRIG' ? (state.field.lrig_frozen ?? false)
+                : slot.label === 'アシスト左' ? (state.field.assist_lrig_l_frozen ?? false)
+                : slot.label === 'アシスト右' ? (state.field.assist_lrig_r_frozen ?? false) : false}
             />
           : <CardSlot key={i} cardNum={slot.cardNum ?? null} cards={cards} width={slot.w} height={slot.h} label={slot.label}
               actions={slot.label === 'KEY' && isMe && getKeyPieceActions ? getKeyPieceActions() : undefined} />

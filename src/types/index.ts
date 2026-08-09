@@ -95,6 +95,8 @@ export interface PlayerState {
     assist_lrig_r?: string[];
     assist_lrig_l_down?: boolean; // true=左アシストルリグがダウン状態（【出】ルリグダウンコスト等）
     assist_lrig_r_down?: boolean; // true=右アシストルリグがダウン状態
+    assist_lrig_l_frozen?: boolean; // true=左アシストルリグが凍結中（次のアップフェイズにアップせず解除）
+    assist_lrig_r_frozen?: boolean; // true=右アシストルリグが凍結中（次のアップフェイズにアップせず解除）
     check?: string | null;
     key_piece?: string | null;
     key_piece_extra?: string[];  // UNLIMITED_KEYS: 2枚目以降のキー/ピース

@@ -422,6 +422,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+    // 「ルリグとシグニを合計N体まで対象とし、…それらは能力を失う」＝両種別を跨ぐ単一の候補プール。
+    // SIGNI の「N体まで」規則へ落とすと、ルリグが消えたうえ count:1 になる（WX24-P2-032）。
+    const lrigSigniRemoveM = t.match(/対戦相手のルリグとシグニを合計([０-９\d]+)体(まで)?対象とし/);
+    if (lrigSigniRemoveM) {
+      return {
+        type: 'REMOVE_ABILITIES',
+        target: {
+          type: 'CENTER_LRIG_OR_SIGNI', owner: 'opponent', count: parseNum(lrigSigniRemoveM[1]),
+          ...(lrigSigniRemoveM[2] ? { upToCount: true } : {}),
+        },
+        until: dur,
+      } as RemoveAbilitiesAction;
+    }
     // 「対戦相手のセンタールリグは能力を失う」（WX20-003②）。汎用枝は能力喪失を
     // SIGNI 固定で組むため、対象種別を明示してからそちらへ渡さない。
     if (/対戦相手のセンタールリグは能力を失/.test(t)) {
@@ -1700,6 +1713,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // （SEQUENCE[DOWN, FREEZE] だと選択対象が別々になりうるため単一アクションにする）。
   if (t.includes('ダウンし凍結')) {
     const owner: Owner = signiClauseOwner(t);
+    // 「すべてのルリグとシグニ」＝センター＋左右アシスト＋全シグニ。count:ALL を複合対象の
+    // executor 分岐へ渡す（従来は parseSigniTarget に落ち、相手シグニ1体だけになっていた）。
+    if (/すべてのルリグとシグニをダウンし凍結/.test(t)) {
+      return { type: 'FREEZE', target: { type: 'CENTER_LRIG_OR_SIGNI', owner, count: 'ALL' }, down: true };
+    }
     const signiTgt = parseSigniTarget(t, owner);
     return { type: 'FREEZE', target: signiTgt, down: true };
   }
@@ -3252,13 +3270,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- シグニをデッキの一番上に置く（場のシグニ限定）----
   // 「トラッシュから…を対象とし、それをデッキの一番上に置く」はトラッシュ回収→トップ（TRASH_CARD）であり
   // 場のシグニ移動ではない。part2 の TRASH_CARD 規則に委譲するためここでは掴まない（掴むと場のシグニ幻覚化する）。
-  if (!t.includes('トラッシュから') && (t.match(/それをデッキの一番上に置く/) || t.match(/シグニ.+をデッキの一番上に置く/))) {
+  if (!t.includes('トラッシュから') && (t.match(/それをデッキの一番上に置く/) || t.match(/シグニ.+をデッキの一番上に置く/) || t.match(/対戦相手のすべてのシグニをデッキの一番上に置く/))) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
+    const all = /すべてのシグニをデッキの一番上に置く/.test(t);
     // レベル限定（続き377d）＝「対戦相手の**レベル２以下の**シグニ１体を対象とし、それをデッキの一番上に置く」で
     //   丸ごと落ちており、**どのレベルのシグニでもデッキへ送れる**過剰効果だった（`WX16-066-BURST`／`WX19-026-BURST`／`WXK10-044-BURST`）。
     //   ⚠**対象名詞句に隣接するレベルだけ**（`signiClauseLevelFilter`）＝素の `parseLevelFilter(t)` だと
     //     ルリグのレベル条件・自身のレベル条件・【ビート】コストを引き込む。
-    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: 1, filter: { cardType: 'シグニ', ...signiClauseLevelFilter(t) } }, shuffle: false, position: 'top' } as TransferToDeckAction;
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: all ? 'ALL' : 1, filter: { cardType: 'シグニ', ...signiClauseLevelFilter(t) } }, shuffle: false, position: 'top' } as TransferToDeckAction;
   }
 
   // ---- 対戦相手は自分のデッキの一番上を公開する ----

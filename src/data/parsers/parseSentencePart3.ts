@@ -131,13 +131,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- 対戦相手のシグニN体を対象とし、このターン、次にアタックしたとき無効 ----
   {
-    const m = t.match(/対戦相手の(?:シグニ(?:やルリグ)?|ルリグとシグニ)(?:を([１-９\d０-９]+)体)?(?:まで)?を?対象とし.*次に.*アタックしたとき.*そのアタックを無効にする/);
+    const m = t.match(/対戦相手の(?:シグニ(?:やルリグ)?|ルリグとシグニ)(?:を(?:合計)?([１-９\d０-９]+)体)?(?:まで)?を?対象とし.*次に.*アタックしたとき.*そのアタックを無効にする/);
     if (m || t.includes('アタックしたとき、そのアタックを無効にする')) {
       const cnt = m?.[1] ? parseNum(m[1]) : 1;
       // ⚠「対戦相手の**センタールリグ**がアタックしたとき、そのアタックを無効にする」（WXK10-012②）は
       //   ルリグ単独対象。従来は無条件に SIGNI 対象で、**シグニのアタックを無効にする**別効果に化けていた
       //   （§3 Opusタスク10 パターンB）。engine は LRIG / CENTER_LRIG_OR_SIGNI の両方を解決できる。
-      const tgtType = /センタールリグ(?:か|または|と).*シグニ/.test(t) ? 'CENTER_LRIG_OR_SIGNI'
+      const tgtType = (/センタールリグ(?:か|または|と).*シグニ/.test(t) || /対戦相手のルリグとシグニを合計/.test(t)) ? 'CENTER_LRIG_OR_SIGNI'
         : (t.includes('センタールリグ') && !m) ? 'LRIG' : 'SIGNI';
       return {
         type: 'NEGATE_ATTACK',

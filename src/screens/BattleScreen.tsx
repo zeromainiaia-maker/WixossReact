@@ -3637,6 +3637,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
         const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
         const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
+        const curAssistLFrozen = opState.field.assist_lrig_l_frozen ?? false;
+        const curAssistRFrozen = opState.field.assist_lrig_r_frozen ?? false;
         const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
         // ':NEXT_TURN' サフィックスのブロックを次のターン用に変換（サフィックス除去して残す）
         const convertedOpBlocked = (opState.blocked_actions ?? [])
@@ -3672,8 +3674,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             signi_frozen: [false, false, false],
             lrig_down:    upkeepLrigDown,
             lrig_frozen:  false,
-            assist_lrig_l_down: false,
-            assist_lrig_r_down: false,
+            assist_lrig_l_down: (opState.field.assist_lrig_l_down ?? false) && curAssistLFrozen,
+            assist_lrig_r_down: (opState.field.assist_lrig_r_down ?? false) && curAssistRFrozen,
+            assist_lrig_l_frozen: false,
+            assist_lrig_r_frozen: false,
           },
         }, !my.extra_turn).state, !my.extra_turn));
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
@@ -3995,6 +3999,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
       const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
       const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
+      const curAssistLFrozen = opState.field.assist_lrig_l_frozen ?? false;
+      const curAssistRFrozen = opState.field.assist_lrig_r_frozen ?? false;
       const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
       const convertedOpBlocked = (opState.blocked_actions ?? [])
         .filter(a => a.endsWith(':NEXT_TURN'))
@@ -4025,8 +4031,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           signi_frozen: [false, false, false],
           lrig_down:    upkeepLrigDown2,
           lrig_frozen:  false,
-          assist_lrig_l_down: false,
-          assist_lrig_r_down: false,
+          assist_lrig_l_down: (opState.field.assist_lrig_l_down ?? false) && curAssistLFrozen,
+          assist_lrig_r_down: (opState.field.assist_lrig_r_down ?? false) && curAssistRFrozen,
+          assist_lrig_l_frozen: false,
+          assist_lrig_r_frozen: false,
         },
       }, !my.extra_turn).state, !my.extra_turn));
       // 追加ターン / ターンプレイヤー交代
@@ -4689,8 +4697,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               signi_frozen: [false, false, false] as [boolean, boolean, boolean],
               lrig_down:    (nextState.field.lrig_down ?? false) && (nextState.field.lrig_frozen ?? false),
               lrig_frozen:  false,
-              assist_lrig_l_down: false,
-              assist_lrig_r_down: false,
+              assist_lrig_l_down: (nextState.field.assist_lrig_l_down ?? false) && (nextState.field.assist_lrig_l_frozen ?? false),
+              assist_lrig_r_down: (nextState.field.assist_lrig_r_down ?? false) && (nextState.field.assist_lrig_r_frozen ?? false),
+              assist_lrig_l_frozen: false,
+              assist_lrig_r_frozen: false,
             },
           }).state);
 
@@ -10179,6 +10189,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
       const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
       const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
+      const curHuAssistLFrozen = huSt.field.assist_lrig_l_frozen ?? false;
+      const curHuAssistRFrozen = huSt.field.assist_lrig_r_frozen ?? false;
       const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huSt,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
@@ -10195,8 +10207,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         signi_frozen: [false, false, false] as boolean[],
         lrig_down:    (huSt.field.lrig_down ?? false) && curHuLrigFrozen,
         lrig_frozen:  false,
-        assist_lrig_l_down: false,
-        assist_lrig_r_down: false,
+        assist_lrig_l_down: (huSt.field.assist_lrig_l_down ?? false) && curHuAssistLFrozen,
+        assist_lrig_r_down: (huSt.field.assist_lrig_r_down ?? false) && curHuAssistRFrozen,
+        assist_lrig_l_frozen: false,
+        assist_lrig_r_frozen: false,
       }}).state));
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
       let cpuHandEND = cpuSt.hand;

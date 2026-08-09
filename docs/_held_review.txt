@@ -343,24 +343,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
-## +FIELD_LRIG_COLOR_COUNT +UNKNOWN -GRANT_KEYWORD -SIGNI ［1枚］
-WXDi-P09-002
---- WXDi-P09-002
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ対戦相手のすべてのシグニをデッキの一番上に置く。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "使用条件"
-  - [0].action.duration = "PERMANENT"
-  + [0].condition.type = "FIELD_LRIG_COLOR_COUNT"
-  + [0].condition.owner = "self"
-  + [0].condition.operator = "gte"
-  + [0].condition.value = 3
-  + [0].condition.minLrigs = 3
-  ~ [0].action.type : "GRANT_KEYWORD" → "UNKNOWN"
-  + [0].action.raw = "対戦相手のすべてのシグニをデッキの一番上に置く"
-  …（他 1 行）
-
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
