@@ -10173,10 +10173,55 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     //   続く色別3分岐（あなたの場に(色)のルリグがいる場合）が丸ごと脱落して無条件実行される（WXDi-P08-001〜005）。
     //   （…）は stripRuleParens が既に除去済み。
     .replace(/^【使用条件】【ドリームチーム】合計[０-９\d]+種類以上の色を持つ/, '');
-  // ピースの印刷済み使用条件「【使用条件】あなたの場に(色)のルリグがいる」。
-  // CardEffect.condition は BattleScreen の候補表示・実行直前の双方で evalUseCondition に評価される。
-  const printedColorLrig = stripped.match(/^【使用条件】あなたの場に(白|赤|青|緑|黒)のルリグがいる/);
-  const withoutPrintedUseCondition = printedColorLrig ? stripped.slice(printedColorLrig[0].length) : stripped;
+  // ピースの印刷済み【使用条件】は区切りなしで本文へ直結するため、先頭節を文型テーブルで
+  // condition へ持ち上げ、同時に本文から除去する。CardEffect.condition は BattleScreen の
+  // 候補表示・実行直前の双方で evalUseCondition に評価される。
+  // ⚠複数の【使用条件】を持つカードは、全条件を表現できるまで一部だけを採らない。
+  const printedUseConditionPatterns: { pattern: RegExp; build: (match: RegExpMatchArray) => Condition }[] = [
+    {
+      pattern: /^【使用条件】あなたの場に((?:白|赤|青|緑|黒)(?:と(?:白|赤|青|緑|黒)){1,2})のルリグがいる/,
+      build: match => ({
+        type: 'AND',
+        conditions: match[1].split('と').map(color => ({
+          type: 'HAS_CARD_IN_FIELD', owner: 'self',
+          filter: { cardType: ['ルリグ', 'アシストルリグ'], color },
+        })),
+      }),
+    },
+    {
+      pattern: /^【使用条件】あなたの場に(白|赤|青|緑|黒)のルリグが([０-９\d]+)体以上いる/,
+      build: match => ({
+        type: 'HAS_CARD_IN_FIELD', owner: 'self',
+        filter: { cardType: ['ルリグ', 'アシストルリグ'], color: match[1] },
+        minCount: parseNum(match[2]),
+      }),
+    },
+    {
+      pattern: /^【使用条件】あなたのセンタールリグがレベル([０-９\d]+)以上/,
+      build: match => ({ type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseNum(match[1]) }),
+    },
+    {
+      pattern: /^【使用条件】【ドリームチーム】白か黒のルリグを１体以上含む/,
+      build: () => ({
+        type: 'HAS_CARD_IN_FIELD', owner: 'self',
+        filter: { cardType: ['ルリグ', 'アシストルリグ'], color: ['白', '黒'] },
+      }),
+    },
+    {
+      pattern: /^【使用条件】あなたの場に(白|赤|青|緑|黒)のルリグがいる/,
+      build: match => ({
+        type: 'HAS_CARD_IN_FIELD', owner: 'self',
+        filter: { cardType: ['ルリグ', 'アシストルリグ'], color: match[1] },
+      }),
+    },
+  ];
+  const printedUseConditionMatch = printedUseConditionPatterns
+    .map(entry => ({ entry, match: stripped.match(entry.pattern) }))
+    .find(found => found.match !== null);
+  const printedUseCondition = printedUseConditionMatch?.entry.build(printedUseConditionMatch.match!);
+  const withoutPrintedUseCondition = printedUseConditionMatch
+    ? stripped.slice(printedUseConditionMatch.match![0].length)
+    : stripped;
   // 印刷済み【使用条件】の直後に続くライフ枚数条件（WXDi-P01-004）。通常の
   // 「このカードは…場合にしか使用できない」接尾辞ではないため、先頭節として availability へ持ち上げる。
   // ⚠バッチ1カードに限定（続き249検証）：無ゲートだと WX16-Re20「ライフ2枚以下の場合、このアーツは追加で
@@ -10186,18 +10231,13 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     ? withoutPrintedUseCondition.match(/^(?:【使用条件】あなたの場に[^。]+のルリグがいる)?あなたのライフクロスが([０-９\d]+)枚(以上|以下)?の場合、(.+)$/s)
     : null;
   const extractedUse = extractUseCondition(printedLifeM ? printedLifeM[3] : withoutPrintedUseCondition);
-  // 「あなたの場に(色)のルリグがいる」はセンター＋左右アシストを数える。cardType は
-  // matchesFilter で厳密一致するため、CSV 上で別 Type のアシストルリグも配列に明示する。
-  const printedColorLrigCondition: Condition | undefined = printedColorLrig
-    ? {
-        type: 'HAS_CARD_IN_FIELD', owner: 'self',
-        filter: { cardType: ['ルリグ', 'アシストルリグ'], color: printedColorLrig[1] },
-      }
-    : undefined;
-  let condition: Condition | undefined = printedColorLrig
+  // 既存のライフ条件持ち上げ対象は本バッチ外。従来どおりライフ条件だけを維持し、
+  // 新テーブルによる条件追加（同時に別の可用条件を変更すること）を避ける。
+  const applicablePrintedUseCondition = printedLifeM ? undefined : printedUseCondition;
+  let condition: Condition | undefined = applicablePrintedUseCondition
     ? (extractedUse.condition
-        ? { type: 'AND', conditions: [printedColorLrigCondition!, extractedUse.condition] }
-        : printedColorLrigCondition)
+        ? { type: 'AND', conditions: [applicablePrintedUseCondition, extractedUse.condition] }
+        : applicablePrintedUseCondition)
     : extractedUse.condition;
   if (printedLifeM) {
     const lifeCond: Condition = { type: 'LIFE_COUNT', owner: 'self', operator: printedLifeM[2] === '以上' ? 'gte' : printedLifeM[2] === '以下' ? 'lte' : 'eq', value: parseNum(printedLifeM[1]) };

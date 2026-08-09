@@ -1,5 +1,33 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — ピースの印刷済み【使用条件】欠落15効果を文型テーブルで是正（続き387）
+
+**真因**＝ピースの印刷済み【使用条件】は区切り記号なしで本文へ直結するが、`effectParser.ts` の共通入口は「あなたの場に(単色)のルリグがいる」だけを認識していた。そのため条件が live から丸ごと落ち、残った条件文を本文 parser が読んで `GRANT_KEYWORD{keyword:'使用条件'}` 等のゴミ action も生成していた。既存の生成地点を先頭節の文型テーブルへ一般化し、条件を生成したときだけ同じ節を本文から strip するようにした。カード番号・固有本文による分岐、後段のゴミ keyword 握り潰し、新 Condition 型は追加していない。
+
+### ① 採用15効果と action A/B
+
+- **2色 AND 7効果**：`WXDi-D08-011-E1`、`WXDi-P00-001-E1`、`WXDi-P01-002-E1`、`WXDi-P01-005-E1`、`WXDi-P02-001-E1`、`WXDi-P02-002-E1`、`WXDi-P02-003-E1`。各色を `HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ']}` とし `AND` で結合。
+- **3色 AND 1効果**：`WXDi-P00-003-E1`。赤・青・緑の3条件を `AND` で結合。
+- **同色2体以上 5効果**：`WXDi-D09-P11-E1`、`WXDi-P04-001-E1`、`WXDi-P04-004-E1`、`WXDi-P05-001-E1`、`WXDi-P05-002-E1`。同じフィルタへ `minCount:2` を付与。
+- **センターLv 1効果**：`WXDi-P03-003-E1` を `LRIG_LEVEL{owner:'self',operator:'gte',value:2}` とし、アシストを含めない。
+- **白または黒 1効果**：`WXDi-P16-001A-E1` を色配列 `['白','黒']` の OR とした。
+
+strip 前後の action 部分木は、**同一6効果**（`D09-P11`、`P00-001`、`P02-001`、`P02-002`、`P02-003`、`P05-002`）、**改善9効果**（`D08-011`、`P00-003`、`P01-002`、`P01-005`、`P03-003`、`P04-001`、`P04-004`、`P05-001`、`P16-001A`）、退化0。改善群では条件由来の誤った色制限／`GRANT_KEYWORD{keyword:'使用条件'}`／幻覚 action が消え、本文の既存 action または正直な STUB/UNKNOWN が表面化した。ゴミ keyword は live **19→14効果**。
+
+### ② 回帰固定・対照群・残存 action 不一致
+
+golden は15 effectId ごとに実データのアシストルリグを置き、2/3色 AND の片色不足、同色1体対2体、センターLv1＋Lv2アシスト対センターLv2、白のみ／黒のみ／どちらも無しを `evalUseCondition` と `canUseArtsCondition` の双方で固定した。続き386 の単色9カードは raw fresh 全体が byte-for-byte 不変。ドリームチーム合計3色、【チーム】、二重【使用条件】6枚も全カード生パース差分の変化集合外で不変。後者はゲーム中にリレーピースを使った履歴、または《連邦生徒会》《クロノス報道部》を使った履歴を見る述語が未実装なので、色条件だけを部分採用していない。
+
+条件自体は15件とも原文一致。ただし本文 action には既存の不一致が5件残る：`WXDi-P02-003-E1` の回収2枚のレベル合計制約欠落、`WXDi-P03-003-E1` の獲得能力が汎用 STUB、`WXDi-P04-004-E1` の選択数がトラッシュ10枚ごとの可変でなく固定1、`WXDi-P05-001-E1` の捨てた枚数＋2ドローが `lastProcessedCards` 汚染を受けうる STUB、`WXDi-P16-001A-E1` の無償グロウ本文が UNKNOWN。本バッチでは機構を広げず据置。
+
+### ③ 差分・計器・実経路
+
+全6666カード生パース A/B は **変化15効果／15カード、outlier 0**。対象15件の effectId 集合は live/fresh で一致し、対象の `_partial_fresh` は0。action が変わった9件を `heldReview --adopt` し、held は一時 **126枚/59群**から既定の **117枚/52群**へ復帰、既存 `_partial_fresh` 3カードも不変。
+
+**検証**＝`npm run gates` 全緑。golden **1585/0**、census **904**（909→904のため既存 `BASELINE_HIGH` 本体を更新）、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP 全0、fuzz 200ゲーム全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、被覆マトリクス miss **278**（280→278）。`npm run regen` で全10シートを再生成した。
+
+ピースの実使用条件は候補表示 `BattleScreen.tsx:7432` と `executeKeyPiece` 実行直前 `:6309` がともに `canUseArtsCondition`（`battleUtils.ts:11`）を呼び、同ヘルパーが `evalUseCondition`（`execUtils.ts:2050`）を経て `evalCondition` へ委譲する。`HAS_CARD_IN_FIELD` は `execUtils.ts:1410`、センター限定 `LRIG_LEVEL` は `:1533` で評価される。
+
 ## 2026-08-09 — 「あなたの場に(色)のルリグがいる」がアシストルリグを数え落とす17効果を面で是正（続き386）
 
 **真因**＝Diva の「場のルリグ」はセンター1体＋左右アシスト2体だが、CSV の `Type` は `ルリグ` と `アシストルリグ` が別値で、`matchesFilter` の `cardType` は配列要素との厳密一致だった。したがって `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` はルリグ3ゾーンを走査してもアシストを落とし、`LRIG_COLOR` は構造上センターだけを見ていた。engine の一般緩和は対象フィルタまで広げるため行わず、原文が「あなたの場」と言う条件だけをデータ側の `cardType:['ルリグ','アシストルリグ']` へ正規化した。

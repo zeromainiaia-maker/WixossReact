@@ -459,8 +459,13 @@ function condJa(c?: any): string {
       //   続き385 の WXDi-P00-002-E1）。文字列比較だけだと既定の「シグニ」枝へ落ちて逆翻訳が嘘になる。
       if (Array.isArray(c.filter?.cardType)
         ? c.filter!.cardType.every((t: string) => t.includes('ルリグ'))
-        : c.filter?.cardType === 'ルリグ')
-        return `${ownerJa(c.owner)}場に${filterJa(c.filter)}ルリグがいる`;
+        : c.filter?.cardType === 'ルリグ') {
+        const lrigFilter = Array.isArray(c.filter?.color)
+          ? c.filter.color.map((color: string) => `《${color}》`).join('か') + 'の'
+          : filterJa(c.filter);
+        const lrigCount = c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}体以上` : '';
+        return `${ownerJa(c.owner)}場に${lrigFilter}ルリグが${lrigCount}いる`;
+      }
       if (c.filter?.cardType === 'キー')
         return `${ownerJa(c.owner)}場にキーがある`;
       if (c.distinctColors)
@@ -2344,7 +2349,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // 引用能力付与（GRANT_QUOTED_ACTIVATE_ABILITY＝引用【起】／SIGNI_GRANT_QUOTED_CONSTANT_ABILITY＝引用【常】）
       // ＝「…は「【起】/【常】：…」を得る(。（補足）)」を原文抽出。主語は直近の。／：以降、引用内は「」を得る の最初の閉じまで。
       if (a.id === 'GRANT_QUOTED_ACTIVATE_ABILITY' || a.id === 'SIGNI_GRANT_QUOTED_CONSTANT_ABILITY') {
-        const m = currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
+        // 印刷済み【使用条件】が本文へ直結するピースでは、条件側の「あなたの場に…」から
+        // 抽出を始めると condition と本体が二重表示になる。対象シグニ句を優先アンカーにする。
+        const m = currentCardText.match(/あなたの(?!場に)[^。「」]*?シグニ[^。「」]*?(?:は|それ(?:ら)?は)「[\s\S]+?」を得る(?:。（[^）]*）)?/)
+          ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。

@@ -26640,6 +26640,135 @@ test('続き386 対照群 PR-305-E2: センター明示のLRIG_COLORは黒アシ
   ok(evalCondition(condition, blackCenter), '黒センターなら成立');
 }));
 
+// ── 続き387：ピースの印刷済み【使用条件】を先頭節から availability へ持ち上げる ──
+const batch387AssistByColor = {
+  白: 'WXDi-D02-06LT',
+  赤: 'WXDi-D01-007',
+  青: 'WXDi-D01-009',
+  緑: 'WXDi-D04-009',
+  黒: 'WXDi-D02-09LA',
+} as const;
+const batch387CenterByColor = {
+  白: 'WD01-004',
+  赤: 'WD02-004',
+  青: 'WD03-004',
+  緑: 'WD04-004',
+  黒: 'WD05-004',
+} as const;
+type Batch387Color = keyof typeof batch387AssistByColor;
+
+const batch387Effect = (cardNum: string) => batch386Effect(cardNum, `${cardNum}-E1`);
+const batch387AssertCondition = (effect: CardEffect, expected: Condition) => {
+  eq(JSON.stringify(effect.condition), JSON.stringify(expected), `${effect.effectId}: condition JSON`);
+};
+const batch387AssertUseGate = (effect: CardEffect, yes: PlayerState, no: PlayerState) => {
+  const opponent = mkState({});
+  ok(evalUseCondition(effect.condition!, yes, opponent, cardMap, effect.effectId.replace(/-E1$/, ''), 'MAIN'),
+    `${effect.effectId}: evalUseCondition true`);
+  ok(canUseArtsCondition([effect], yes, opponent, cardMap, effect.effectId.replace(/-E1$/, ''), 'MAIN'),
+    `${effect.effectId}: 候補表示／実行直前の共通ゲート true`);
+  ok(!evalUseCondition(effect.condition!, no, opponent, cardMap, effect.effectId.replace(/-E1$/, ''), 'MAIN'),
+    `${effect.effectId}: evalUseCondition false`);
+  ok(!canUseArtsCondition([effect], no, opponent, cardMap, effect.effectId.replace(/-E1$/, ''), 'MAIN'),
+    `${effect.effectId}: 候補表示／実行直前の共通ゲート false`);
+};
+
+const batch387TwoColorCases = [
+  ['WXDi-D08-011', '白', '赤'],
+  ['WXDi-P00-001', '白', '黒'],
+  ['WXDi-P01-002', '赤', '緑'],
+  ['WXDi-P01-005', '緑', '黒'],
+  ['WXDi-P02-001', '白', '緑'],
+  ['WXDi-P02-002', '赤', '青'],
+  ['WXDi-P02-003', '青', '黒'],
+] as const;
+for (const [cardNum, firstColor, secondColor] of batch387TwoColorCases) {
+  test(`続き387 ${cardNum}-E1: ${firstColor}だけでは不成立、${firstColor}＋${secondColor}で成立`, () => withSavedCursor(() => {
+    const effect = batch387Effect(cardNum);
+    const colorCondition = (color: Batch387Color): Condition => ({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self',
+      filter: { cardType: ['ルリグ', 'アシストルリグ'], color },
+    });
+    batch387AssertCondition(effect, {
+      type: 'AND', conditions: [colorCondition(firstColor), colorCondition(secondColor)],
+    });
+    const yes = mkState({
+      lrig: [batch387CenterByColor[firstColor]],
+      assistL: [batch387AssistByColor[secondColor]],
+    });
+    const no = mkState({ lrig: [batch387CenterByColor[firstColor]] });
+    batch387AssertUseGate(effect, yes, no);
+  }));
+}
+
+test('続き387 WXDi-P00-003-E1: 赤だけでは不成立、赤＋青＋緑で成立', () => withSavedCursor(() => {
+  const effect = batch387Effect('WXDi-P00-003');
+  batch387AssertCondition(effect, {
+    type: 'AND', conditions: (['赤', '青', '緑'] as const).map(color => ({
+      type: 'HAS_CARD_IN_FIELD', owner: 'self',
+      filter: { cardType: ['ルリグ', 'アシストルリグ'], color },
+    })),
+  });
+  const yes = mkState({
+    lrig: [batch387CenterByColor.赤],
+    assistL: [batch387AssistByColor.青],
+    assistR: [batch387AssistByColor.緑],
+  });
+  const no = mkState({ lrig: [batch387CenterByColor.赤] });
+  batch387AssertUseGate(effect, yes, no);
+}));
+
+const batch387MinCountCases = [
+  ['WXDi-D09-P11', '青', 'WXDi-D01-009', 'WXDi-D01-010'],
+  ['WXDi-P04-001', '白', 'WXDi-D02-06LT', 'WXDi-D02-07LT'],
+  ['WXDi-P04-004', '黒', 'WXDi-D02-09LA', 'WXDi-D02-10LA'],
+  ['WXDi-P05-001', '赤', 'WXDi-D01-006', 'WXDi-D01-007'],
+  ['WXDi-P05-002', '緑', 'WXDi-D04-009', 'WXDi-D04-010'],
+] as const;
+for (const [cardNum, color, firstAssist, secondAssist] of batch387MinCountCases) {
+  test(`続き387 ${cardNum}-E1: ${color}アシスト1体では不成立、2体で成立`, () => withSavedCursor(() => {
+    const effect = batch387Effect(cardNum);
+    batch387AssertCondition(effect, {
+      type: 'HAS_CARD_IN_FIELD', owner: 'self',
+      filter: { cardType: ['ルリグ', 'アシストルリグ'], color }, minCount: 2,
+    });
+    eq(cardMap.get(firstAssist)?.Type, 'アシストルリグ', `${firstAssist}: 実データのアシストルリグ`);
+    eq(cardMap.get(secondAssist)?.Type, 'アシストルリグ', `${secondAssist}: 実データのアシストルリグ`);
+    const yes = mkState({ assistL: [firstAssist], assistR: [secondAssist] });
+    const no = mkState({ assistL: [firstAssist] });
+    batch387AssertUseGate(effect, yes, no);
+  }));
+}
+
+test('続き387 WXDi-P03-003-E1: センターLv1では不成立、Lv2で成立（Lv2アシストは不参照）', () => withSavedCursor(() => {
+  const effect = batch387Effect('WXDi-P03-003');
+  batch387AssertCondition(effect, { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 2 });
+  const level2Assist = 'WXDi-D01-007';
+  eq(cardMap.get(level2Assist)?.Type, 'アシストルリグ', '実データのLv2アシストルリグ');
+  eq(cardMap.get(level2Assist)?.Level, '2', 'トリップワイヤ用アシストはLv2');
+  const yes = mkState({ lrig: ['WD02-003'], assistL: [level2Assist] });
+  const no = mkState({ lrig: ['WD02-004'], assistL: [level2Assist] });
+  batch387AssertUseGate(effect, yes, no);
+}));
+
+test('続き387 WXDi-P16-001A-E1: 白のみ／黒のみは成立、どちらも無ければ不成立', () => withSavedCursor(() => {
+  const effect = batch387Effect('WXDi-P16-001A');
+  batch387AssertCondition(effect, {
+    type: 'HAS_CARD_IN_FIELD', owner: 'self',
+    filter: { cardType: ['ルリグ', 'アシストルリグ'], color: ['白', '黒'] },
+  });
+  const opponent = mkState({});
+  const white = mkState({ assistL: [batch387AssistByColor.白] });
+  const black = mkState({ assistL: [batch387AssistByColor.黒] });
+  const neither = mkState({ assistL: [batch387AssistByColor.赤] });
+  ok(evalUseCondition(effect.condition!, white, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '白のみで成立');
+  ok(canUseArtsCondition([effect], white, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '白のみで使用可');
+  ok(evalUseCondition(effect.condition!, black, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '黒のみで成立');
+  ok(canUseArtsCondition([effect], black, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '黒のみで使用可');
+  ok(!evalUseCondition(effect.condition!, neither, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '白黒なしで不成立');
+  ok(!canUseArtsCondition([effect], neither, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '白黒なしで使用不可');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
