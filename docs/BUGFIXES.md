@@ -27,6 +27,12 @@
 - 見送り：`WX24-P4-034-E1` は `PICK_FROM_TRASHED_CARDS` が直前にミルした集合を保持せず1枚選択のみ、`WX19-006-E1` は `BET_MECHANIC` と③の除外2枚条件が既に実装済みのため変更なし。群E 4カードは指示どおり実測のみ。
 - 回帰：typecheck PASS、golden 1671/1671、smoke 10686/10686（全異常0）、fuzz 200ゲーム全0、census 889、lint 0 errors / 254 warnings。
 
+**検証（Claude 側・続き395）**＝⚠**Codex は Windows のプロセス生成が `0xC0000142`（DLL initialization failed）で恒久失敗**し、末尾工程（`BASELINE_HIGH` 890→889／`regen`／`groupSimilar`／`manual-fields`／最終 diff／エンコーディング検査／報告）を残して停止。検証側が引き取って完了。**差し戻し0・是正0。** live per-effect diff **changed 11 / added 0 / removed 0**、held 113→**111枚/48群**、同型★0、エンコーディング新規増0。
+- 🔴**Codex の報告に無かった波及確認を検証側で実施**＝共有経路 `execRevealAndPick` の**候補0件パスを `[]` 明示に変えた**（従来は前段の値を素通りさせていた）ため、`REVEAL_AND_PICK` の後段で `lastProcessedCards` を読む live 効果を全数走査した＝**13件あり全件が `REVEAL_AND_PICK` を step 0 に持つ**（前段に記録者なし）＝**波及ゼロ**。⚠**共有経路を触ったら全数走査を報告に入れる**を次回以降の指示書へ明記した。
+- ✅**指示書で先出しした罠②の解決が正しいことを裏取り**＝`resumeSearch` は `lastProcessedCards: pending.lastProcessedCardsAfter ?? picked`（`effectExecutor.ts:6626`）なので、**「手札に加えた」条件は `recordRevealed` を付けないのが正解**（付けると `visible` が picked を上書きする）。「公開された」条件のときだけ `recordRevealed: true`。
+- ✅`STUB{CENTER_ZONE_CONDITION}` の消失は退化ではなく、既存条件型 **`condition:{type:'THIS_CARD_IN_CENTER_ZONE'}` への昇格**だった（`WDK04-014-E1`）。
+- ⭐条件以外の誤りも同時に是正されていた＝`WDK04-015-E1` の「+7000」が **`owner:'opponent'`＝相手シグニを強化**していた／`WX12-004-E1` の `LIFE_CRASH{owner:'opponent'}`（原文は「**あなたの**ライフクロス1枚をクラッシュする」）。
+
 ## 2026-08-09 — 「この方法で…した場合」の効果内トラッシュ結果条件を11効果へ復旧（続き394）
 
 開始時 HEAD は `fccfa2f91`（clean）。効果は動くため smoke/no-op 網に出ないまま後段だけ無条件実行されていた §6.3 C 第1波を、live per-effect diff 11件だけで是正した。既存語彙を使った9効果は `WD21-012-E2`／`WXK03-068-E1`／`WXDi-CP01-032-E2`／`WX18-006-E1`（7/10/12の独立3段を snapshot 評価）／`WD08-008-E1`／`WX26-CP1-058-E1`（self_deck 枝内だけ）／`WD20-018-E1`②／`WX22-Re03-E1`②／`WXK05-025-E2`。新 condition type は作らず、`LAST_PROCESSED_MATCHES` に同レベル最大共有枚数 `shareLevel`、`TRASHED_DISTINCT_LEVELS_GTE` にシグニ1枚以上かつ全同レベルの `allSameLevel` を足して `WX11-028-E2`／`WXDi-CP02-060-E2` を表現した。`shareClass` は従来の「一致集合の全カードが同クラス」から、原文どおり「同クラスを共有する最大枚数」を数えるよう是正した（既存 reader `WX22-006-E1-G2` の7枚全共有は同じ結果）。前段不成立時の stale `lastProcessedCards` を読まないよう `WXDi-CP01-032-E2` は前段条件内へ後段をネストし、`WX18-006-E1` は最初のハンデスが記録を上書きしても10/12段が壊れない既存 `snapshotLastProcessedForConditionals` を使った。
