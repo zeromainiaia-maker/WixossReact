@@ -23,6 +23,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageS
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
+import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 
 interface Props {
