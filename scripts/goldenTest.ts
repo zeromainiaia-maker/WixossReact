@@ -26905,6 +26905,95 @@ test('続き388 群D WXDi-P16-001A-E1: CHECK_ZONE_FLIP_FREE_GROW は宣言STUB�
   ok(result.logs.some(log => log.includes('[STUB: CHECK_ZONE_FLIP_FREE_GROW]')), 'ログだけを残す');
 });
 
+// ── 続き389：【チーム】＜X＞＆全員レベル1以上の印刷済み使用条件 ──
+const batch389Cases = [
+  ['WXDi-D01-011', 'アンシエント・サプライズ', true],
+  ['WXDi-D03-011', 'NoLimit', true],
+  ['WXDi-D05-011', 'うちゅうのはじまり', true],
+  ['WXDi-D06-011', 'DIAGRAM', true],
+  ['WXDi-D07-011', 'デウス・エクス・マキナ', true],
+  ['WXDi-P16-002', '夢限少女', true],
+  ['WXDi-P04-002', 'アンシエント・サプライズ', false],
+  ['WXDi-D02-19LAT', 'さんばか', true],
+  ['WXDi-D04-011', 'CardJockey', true],
+] as const;
+
+const batch389TeamCondition = (team: string, withLevel: boolean): Condition => {
+  const teamCondition: Condition = {
+    type: 'LRIG_TEAM_COUNT', owner: 'self', team, operator: 'gte', value: 3,
+  };
+  return withLevel
+    ? { type: 'AND', conditions: [teamCondition, { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: 1 }] }
+    : teamCondition;
+};
+
+for (const [cardNum, team, withLevel] of batch389Cases) {
+  test(`続き389 ${cardNum}-E1: 実データの同一チーム3体とセンターLvで使用ゲートを評価`, () => withSavedCursor(() => {
+    const rawEffects = parseCardEffects(cardMap.get(cardNum)!);
+    const effect = rawEffects.find(candidate => candidate.effectId === `${cardNum}-E1`)!;
+    batch387AssertCondition(effect, batch389TeamCondition(team, withLevel));
+
+    // condition.team は原文の表記を盲信せず、CSV Team 列に完全一致する正準値でなければならない。
+    const exactTeamCards = [...cardMap.values()].filter(card => card.Team === team);
+    ok(exactTeamCards.length > 0, `${cardNum}: condition.team=${team} がCSV Team列に実在`);
+    const levelOneCenter = findCard(card => card.Type === 'ルリグ' && card.Team === team && parseInt(card.Level, 10) >= 1);
+    const levelZeroCenter = findCard(card => card.Type === 'ルリグ' && card.Team === team && card.Level === '0');
+    const assists = exactTeamCards.filter(card => card.Type === 'アシストルリグ').map(card => card.CardNum);
+    ok(assists.length >= 2, `${cardNum}: 同一チームの実アシストが2体以上`);
+    const mixedAssist = findCard(card => card.Type === 'アシストルリグ' && card.Team !== team && card.Team !== '-');
+
+    const opponent = mkState({});
+    const states = [
+      [mkState({ lrig: [levelOneCenter], assistL: [assists[0]], assistR: [assists[1]] }), true, '同一チーム3体・センターLv1以上'],
+      [mkState({ lrig: [levelZeroCenter], assistL: [assists[0]], assistR: [assists[1]] }), !withLevel, '同一チーム3体・センターLv0'],
+      [mkState({ lrig: [levelOneCenter], assistL: [assists[0]] }), false, '同一チーム2体'],
+      [mkState({ lrig: [levelOneCenter], assistL: [assists[0]], assistR: [mixedAssist] }), false, '別チーム混在'],
+    ] as const;
+    for (const [state, expected, label] of states) {
+      eq(evalUseCondition(effect.condition!, state, opponent, cardMap, cardNum, 'MAIN'), expected,
+        `${cardNum}: evalUseCondition ${label}`);
+      eq(canUseArtsCondition([effect], state, opponent, cardMap, cardNum, 'MAIN'), expected,
+        `${cardNum}: canUseArtsCondition ${label}`);
+    }
+    if (cardNum === 'WXDi-D01-011') {
+      ok(cardMap.get(cardNum)!.EffectText.includes('アンシエント･サプライズ'), '原文は半角中黒のトリップワイヤ');
+      eq((effect.condition as { conditions: { team?: string }[] }).conditions[0].team, 'アンシエント・サプライズ',
+        'condition.team はCSVの全角中黒へ正規化');
+    }
+    if (cardNum === 'WXDi-P04-002') eq(effect.condition!.type, 'LRIG_TEAM_COUNT', 'レベル節なしはANDにしない');
+  }));
+}
+
+test('続き389 採用5効果と据置4効果: live の採否を action 退化トリップワイヤ込みで固定', () => {
+  const adopted = ['WXDi-D01-011', 'WXDi-D03-011', 'WXDi-D07-011', 'WXDi-D02-19LAT', 'WXDi-D04-011'] as const;
+  for (const cardNum of adopted) {
+    const live = effectsMap.get(cardNum)?.find(effect => effect.effectId === `${cardNum}-E1`);
+    ok(!!live?.condition, `${cardNum}: 採用済みlive condition`);
+  }
+
+  const deferred = ['WXDi-D05-011', 'WXDi-D06-011', 'WXDi-P04-002', 'WXDi-P16-002'] as const;
+  for (const cardNum of deferred) {
+    const live = (effectsMap.get(cardNum) ?? []).find(effect => effect.effectId === `${cardNum}-E1`);
+    if (!live) throw new Error(`${cardNum}: live effect exists`);
+    eq(live.condition, undefined, `${cardNum}: action退化を飲まずconditionも据置`);
+    eq(live.action.type, 'SEQUENCE', `${cardNum}: 既存の具体SEQUENCEを温存`);
+  }
+  const p16Raw = parseCardEffects(cardMap.get('WXDi-P16-002')!)[0];
+  ok(JSON.stringify(p16Raw.action).includes('LRIG_GROW_RESTRICT'), 'P16 raw は原文と無関係な実働STUBへ退化する');
+  ok(!JSON.stringify(effectsMap.get('WXDi-P16-002')![0].action).includes('LRIG_GROW_RESTRICT'), 'P16 live は実働STUBを採用しない');
+
+  const d04RawIds = parseCardEffects(cardMap.get('WXDi-D04-011')!).map(effect => effect.effectId);
+  const d04LiveIds = effectsMap.get('WXDi-D04-011')!.map(effect => effect.effectId);
+  eq(JSON.stringify(d04LiveIds), JSON.stringify(d04RawIds), 'PARTIAL機械採用はeffectId集合を維持');
+});
+
+test('続き389 群D: カットイン条件／チーム名不問条件は通常の同一チーム使用ゲートへ誤昇格しない', () => {
+  for (const cardNum of ['WXDi-P05-006', 'WX25-P3-050']) {
+    const raw = parseCardEffects(cardMap.get(cardNum)!).find(effect => effect.effectId === `${cardNum}-E1`)!;
+    eq(raw.condition, undefined, `${cardNum}: 別述語待ちのためcondition据置`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

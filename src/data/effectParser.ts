@@ -10171,7 +10171,26 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // condition へ持ち上げ、同時に本文から除去する。CardEffect.condition は BattleScreen の
   // 候補表示・実行直前の双方で evalUseCondition に評価される。
   // ⚠複数の【使用条件】を持つカードは、全条件を表現できるまで一部だけを採らない。
+  const normalizePrintedTeamName = (team: string): string => team.replace(/･/g, '・');
   const printedUseConditionPatterns: { pattern: RegExp; build: (match: RegExpMatchArray) => Condition }[] = [
+    {
+      // 【チーム】は同じチームのセンター＋左右アシスト3体を要求する。
+      // 原文には半角中黒「･」の表記揺れがあるため、CSV Team 列の全角中黒「・」へデータ側で正規化する。
+      pattern: /^【使用条件】【チーム】＜([^＞]+)＞＆全員レベル([０-９\d]+)以上/,
+      build: match => ({
+        type: 'AND', conditions: [
+          { type: 'LRIG_TEAM_COUNT', owner: 'self', team: normalizePrintedTeamName(match[1]), operator: 'gte', value: 3 },
+          { type: 'LRIG_LEVEL', owner: 'self', operator: 'gte', value: parseNum(match[2]) },
+        ],
+      }),
+    },
+    {
+      // 「＆…」を部分採用しない。カットイン可能条件が続く別機構も、この通常使用ゲートへ持ち上げない。
+      pattern: /^【使用条件】【チーム】＜([^＞]+)＞(?!＆|このピースは、対戦相手が【使用条件】)/,
+      build: match => ({
+        type: 'LRIG_TEAM_COUNT', owner: 'self', team: normalizePrintedTeamName(match[1]), operator: 'gte', value: 3,
+      }),
+    },
     {
       // 【ドリームチーム】合計N色＝センター＋左右アシストの3体が揃い、合計N色以上。
       // 旧 strip と同じ先頭節をここで消費するため、末尾「色を持つ」が keyword 規則へ漏れず、

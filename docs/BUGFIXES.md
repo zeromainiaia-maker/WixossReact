@@ -1,5 +1,31 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — 【チーム】3体＆全員レベル1以上の印刷済み使用条件を5効果へ追加し、退化4効果は温存（続き389）
+
+開始時 HEAD は `feba390d38f4ee92b015b025f2ecd27343aa0f4b`（clean）。`parseArtsEffect` の印刷済み【使用条件】先頭節テーブルに、既存語彙だけで `AND[LRIG_TEAM_COUNT{gte:3},LRIG_LEVEL{gte:1}]` と、レベル節なしの `LRIG_TEAM_COUNT{gte:3}` を追加した。新 Condition/action 型・engine 分岐はゼロ。原文の `アンシエント･サプライズ`（半角中黒）は parser の入力境界で `アンシエント・サプライズ`（CSV `Team` 列の実在値41枚）へ正規化し、engine の `includes` 判定は緩和していない。カットイン記述が続く `WXDi-P05-006` と `＆` で未知条件が続く形は部分採用しない regex ガードも置いた。
+
+### ① action A/B と採否
+
+全9効果の strip 前後 raw action を機械比較し、**同一2／改善3／退化4**に分類した。採用は5効果：`WXDi-D01-011-E1`／`WXDi-D07-011-E1` は action 同一、`WXDi-D03-011-E1` はゴミ `GRANT_KEYWORD{keyword:'使用条件'}` を正直な部分 `UNKNOWN` へ置換、`WXDi-D02-19LAT-E1` は条件節由来の誤った level/story filter が消える改善（live の正しい MANUAL action は維持）、`WXDi-D04-011-E1` はゴミ keyword が引用付与の未解析表示へ変わる改善。AUTO は純上位集合2＋`heldReview --adopt WXDi-D03-011`、MANUAL は全トップレベルフィールドを `manualEffects.ts` へ移して merged fresh、PARTIAL は raw/live の effectId 集合・順序一致を検査した raw fresh で採用した。
+
+退化4効果は condition も live へ入れず据置：`WXDi-D05-011-E1`／`WXDi-D06-011-E1` は具体 `CHOOSE` が `GRANT_ABILITY_INNER_TEXT` STUB へ、`WXDi-P04-002-E1` は具体3択が同 STUB へ、`WXDi-P16-002-E1` はゴミ keyword が原文と無関係な**実働** `LRIG_GROW_RESTRICT`（相手 `no_grow` 設定）へ変わるため。raw 側では9件とも正しい condition を生成し、P04-002 は `LRIG_TEAM_COUNT` 単独（ANDなし）であることを固定した。
+
+群Dは未変更。`WXDi-P05-006-E1` には「対戦相手が印刷済み【使用条件】【チーム】を持つピースを使用中」というカットイン応答述語／解決中ピース参照が必要。`WX25-P3-050-E1` にはチーム名を指定せず「場のルリグ3体が同一の実在チームを共有する」述語が必要。
+
+### ② 実データ E2E・逆翻訳照合
+
+9効果ごとに CSV の同一チーム所属ルリグを使い、同一チーム3体＋センターLv1以上=true、同3体＋センターLv0=false（レベル節なし P04-002 だけtrue）、2体=false、別チーム混在=false を `evalUseCondition` と `canUseArtsCondition` の双方で実行した。condition の `team` は各値が CSV `Team` 列に完全一致で1枚以上存在することも assert。`WXDi-D01-011` は原文が半角中黒、condition が全角中黒で実際に成立するトリップワイヤを持つ。
+
+採用5件の条件は逆翻訳と原文が全件一致。全文は `D02-19LAT`／`D07-011` が一致し、既存 action 不一致が3件残る：`D01-011` は8枚を見る以降のレベル1/2/3各1体場出し＋3キーワード付与が欠落、`D03-011` はLv3ルリグへのダブルクラッシュ付与と発火時ガード不可が未構造化、`D04-011` はダウン状態アタック／上限3／公開レベルによる上限低下が未構造化。見送り4件も上記の引用付与・遅延防御 action が不一致だが、本バッチでは action 退化を飲まず据置した。
+
+### ③ 差分・計器・指示訂正
+
+全 **5971カード／10652効果** raw 生パース A/B は **changed 9／added 0／removed 0／outlier 0**。live は **changed 5／added 0／removed 0**。既存 `LRIG_TEAM_COUNT` 7カード、続き388据置7カード、`CP01-002/004`・`CP02-001〜004`・`P11-001`・`P13-003A`・`P15-003`、群D 2カードは旧HEADとカード配列完全同一。live の `parseStatus:'UNKNOWN'`／トップレベル `action.type:'UNKNOWN'` は **0／0**。
+
+指示書との不一致は1件：`WXDi-D02-19LAT` は live が MANUAL だったが、開始時 `manualEffects.ts` に定義がなく source of truth になっていなかった（続き388の P10-004 と同型）。live の全フィールドを移して是正し `check:manual-fields` は脱落0。被覆マトリクス miss は **278→279**：指定どおり `WXDi-D04-011` を単一 STUB から raw PARTIAL へ採用したため、従来 STUB 除外されていた既存 `levelExact × (filter無)` 欠落が1件表面化したもの。`_partial_fresh` は3カード据置。
+
+**検証**＝`npm run gates` 全緑。golden **1625/0**（1614→1625）、census **901**／`BASELINE_HIGH` 901据置、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、held **115→119枚／50→54群**。`npm run regen` で全10シートを再生成し、全変更ファイルのエンコーディング差分検査も新規増0を確認した。
+
 ## 2026-08-09 — 【ドリームチーム】3体・合計3色の使用条件を25効果へ追加し、退化7効果は温存（続き388）
 
 **真因**＝`parseArtsEffect` は `【使用条件】【ドリームチーム】合計N種類以上の色を持つ` を action 誤解析防止のため本文から strip していたが、対応する `condition` を生成していなかった。この既存 strip を印刷済み使用条件の先頭節テーブルへ移し、節を消費すると同時に先例 `WXDi-P11-001-E1` と完全同形の `FIELD_LRIG_COLOR_COUNT{owner:'self',operator:'gte',value:3,minLrigs:3}` を生成するようにした。`minLrigs:3` により多色ルリグ2体だけでは成立しない。新 Condition 型、engine 分岐、`effectEngine` の active/continuous 評価は追加していない。

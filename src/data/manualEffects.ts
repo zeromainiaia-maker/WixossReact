@@ -7,6 +7,10 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // 続き389: 印刷済み【チーム】使用条件。live MANUAL の全トップレベルフィールドを保持する。
+  "WXDi-D02-19LAT": [
+    {"effectId":"WXDi-D02-19LAT-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"さんばか","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","cardClass":"バーチャル"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
+  ],
   // タスク12(lxxxii) 第5波: 3択は即時実行ではなく、選んだON_ATTACK_LRIG能力をターン終了時まで付与する。
   "PR-Di013": [
     { effectId: 'PR-Di013-E1', effectType: 'ACTIVATED', timing: ['MAIN'], cost: { energy: [{ color: '無', count: 0 }] }, action: {
