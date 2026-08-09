@@ -4941,6 +4941,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK10-067": [
     {"effectId":"WXK10-067-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"赤","count":1}]},"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"古代兵器","excludeSelf":true},"upToCount":false}},{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","nameEqLastProcessed":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // §6.3 E-2 第3波 Step A：好きな枚数の【アクセ】を許可する既存 collector 語彙へ接続。
+  "WX20-028": [
+    {"effectId":"WX20-028-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"MULTI_ACCE_LIMIT","value":"ALL"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+    {"effectId":"WX20-028-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"THIS_CARD_IS_ACCED","minCount":3},"then":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRASH_SELF_ACCE_ALL"},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":"ALL"}},{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}]}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"}
+  ],
   // §6.3 E-2 第1波：起動時の即時手札破壊ではなく、現在ターン＋次の相手ターンを監視する付与AUTO。
   "WX25-P3-023": [
     {"effectId":"WX25-P3-023-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_OPP_TURN_END","rawText":"グロウフェイズ以外で対戦相手の効果１つによってカードが合計１枚以上対戦相手の手札に移動したとき、対戦相手の手札を１枚見ないで選び、捨てさせる。","abilities":[{"effectId":"WX25-P3-023-E2-GRANT","effectType":"AUTO","timing":["ON_HAND_ADDED"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"handOwner":"opponent","byOpponentEffect":true,"excludeGrowPhase":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"}

@@ -139,10 +139,6 @@ const FIXES = [
     params: { reduction: [{ color: '緑', count: 1 }, { color: '白', count: 1 }] },
     locate: e => e },
 
-  // 1シグニ複数アクセを保持できない現行 state では「アクセ3枚以上」を判定不能。
-  // 誤った「相手のアクセ持ちシグニ1体をトラッシュ」を、明示的な未実装 no-op へ戻す。
-  { file: 'effects_WX', card: 'WX20-028', eid: 'WX20-028-E2', type: 'deferMultiAcceMassTrash',
-    locate: e => e },
 ];
 
 const DIR = 'public/data';
@@ -217,11 +213,6 @@ function applyFix(obj, type, params) {
   }
   if (type === 'searchDistinctColors') {
     obj.action.selectionConstraint = { sharedColor: 'none' };
-    obj.parseStatus = 'MANUAL';
-    return true;
-  }
-  if (type === 'deferMultiAcceMassTrash') {
-    obj.action = { type: 'STUB', id: 'MULTI_ACCE_3_MASS_TRASH' };
     obj.parseStatus = 'MANUAL';
     return true;
   }

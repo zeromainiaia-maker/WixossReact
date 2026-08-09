@@ -286,7 +286,7 @@ export type Condition =
   | { type: 'CENTER_LRIG_IS_UP' }                             // あなたのセンタールリグがアップ状態の場合（WX25-P2-048）
   | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
-  | { type: 'THIS_CARD_IS_ACCED' }                            // このシグニに【アクセ】が付いている場合
+  | { type: 'THIS_CARD_IS_ACCED'; minCount?: number }         // 効果元シグニに付いた【アクセ】枚数（省略=1枚以上）
   | { type: 'THIS_CARD_HAS_ATTACHED'; minCount?: number }     // このシグニにカードがN枚以上付いている場合（【チャーム】/【アクセ】/【ソウル】の合計。省略=1。WXK10-049-E2）
   | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number } // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。`signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合

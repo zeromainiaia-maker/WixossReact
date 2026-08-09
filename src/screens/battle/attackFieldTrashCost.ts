@@ -77,7 +77,7 @@ export function payAttackFieldTrashCost(
     trashedSigniNums.push(top);
     movedCards.push(...stack);
     if (charms[zone]) movedCards.push(charms[zone]!);
-    if (acce[zone]) movedCards.push(acce[zone]!);
+    if (acce[zone]) movedCards.push(...acce[zone]!);
     signi[zone] = null;
     down[zone] = false;
     frozen[zone] = false;

@@ -101,7 +101,7 @@ export interface PlayerState {
     key_piece?: string | null;
     key_piece_extra?: string[];  // UNLIMITED_KEYS: 2枚目以降のキー/ピース
     signi_charms?: (string | null)[]; // [zone0, zone1, zone2] チャームカードのCardNum or null
-    signi_acce?:   (string | null)[]; // [zone0, zone1, zone2] アクセカードのCardNum or null
+    signi_acce?:   (string[] | null)[]; // [zone0, zone1, zone2] 各ホストに付いた全アクセのCardNum配列。未装着はnull
     signi_virus?:  number[];          // [zone0, zone1, zone2] ウィルス数（0 or 1）
     signi_chokkin?: number[];         // [zone0, zone1, zone2] 貯菌カウンター数
     signi_soul?:   (string | null)[]; // [zone0, zone1, zone2] ソウルカードのCardNum（場を離れるとlrig_trashへ）

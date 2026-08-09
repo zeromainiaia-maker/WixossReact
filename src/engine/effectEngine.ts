@@ -32,6 +32,7 @@ import type {
   PowerFlipAction,
 } from '../types/effects';
 import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
+import { acceCardsAt, allAcceCards, hasAcceAt } from '../utils/acce';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
@@ -383,13 +384,13 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
       if (zoneIdx < 0) return false;
-      return (ownerState.field.signi_acce?.[zoneIdx] ?? null) !== null;
+      return hasAcceAt(ownerState.field, zoneIdx);
     }
 
     case 'IS_SELF_ACCE_CARD': {
       // このカードがアクセスロットに装着されているかぎり
       if (!sourceCardNum) return false;
-      return (ownerState.field.signi_acce ?? []).includes(sourceCardNum);
+      return allAcceCards(ownerState.field).includes(sourceCardNum);
     }
 
     case 'IS_SELF_CHARMED': {
@@ -723,7 +724,7 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     if (filter.hasCharm !== v) return false;
   }
   if (filter.hasAcce !== undefined) {
-    const v = (state.field.signi_acce?.[zoneIdx] ?? null) !== null;
+    const v = hasAcceAt(state.field, zoneIdx);
     if (filter.hasAcce !== v) return false;
   }
   if (filter.infected !== undefined) {
@@ -1610,13 +1611,13 @@ export function calcFieldPowers(
     // 例: 「これにアクセされているシグニはパワー+3000を得る」
     // キーワード付与（ランサー等）はBattleScreen側で collectAcceCardKeywords で処理
     for (let zi = 0; zi < 3; zi++) {
-      const acceNum = (ownerState.field.signi_acce ?? [])[zi] ?? null;
-      if (!acceNum) continue;
+      const acceNums = acceCardsAt(ownerState.field, zi);
+      if (acceNums.length === 0) continue;
       const hostStack = ownerState.field.signi[zi];
       if (!hostStack || hostStack.length === 0) continue;
       const hostNum = hostStack[hostStack.length - 1];
       if (!powers.has(hostNum)) continue;
-      for (const eff of (effectsMap.get(acceNum) ?? [])) {
+      for (const acceNum of acceNums) for (const eff of (effectsMap.get(acceNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS') continue;
         if (eff.activeCondition && eff.activeCondition.type !== 'IS_SELF_ACCE_CARD') continue;
         const act = eff.action;
@@ -2076,7 +2077,7 @@ export function calcFieldPowers(
 
           // POWER_BY_ACCE_COUNT: 場のアクセ枚数×値だけパワーアップ
           if (stub.id === 'POWER_BY_ACCE_COUNT') {
-            const acceCount = (ownerState.field.signi_acce ?? []).filter(a => a !== null).length;
+            const acceCount = allAcceCards(ownerState.field).length;
             const m = txt.match(/【アクセ】１枚につき[＋+]([０-９\d]+)/);
             if (m && acceCount > 0 && powers.has(topNum)) {
               applyDeltaToCard(topNum, acceCount * parseN(m[1]), powers, ownerPowerProtection);
@@ -4322,17 +4323,15 @@ export function collectLrigColorInheritSigni(
   return result;
 }
 
-/**
- * MULTI_ACCE_LIMIT: フィールド上の「このシグニには2枚まで【アクセ】を付けられる」CONT効果のシグニを返す。
- */
-export function collectMultiAcceSigni(
+/** MULTI_ACCE_LIMIT のホスト別上限。value:'ALL' は Infinity、旧liveの値なしは印刷本文どおり2。 */
+export function collectMultiAcceLimits(
   state: PlayerState,
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
   otherState: PlayerState,
   isOwnerTurn: boolean,
-): string[] {
-  const result: string[] = [];
+): Map<string, number> {
+  const result = new Map<string, number>();
   for (const stack of state.field.signi) {
     if (!stack || stack.length === 0) continue;
     const topNum = stack[stack.length - 1];
@@ -4340,10 +4339,24 @@ export function collectMultiAcceSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, topNum)) continue;
       const act = eff.action as import('../types/effects').StubAction;
-      if (act.type === 'STUB' && act.id === 'MULTI_ACCE_LIMIT') result.push(topNum);
+      if (act.type === 'STUB' && act.id === 'MULTI_ACCE_LIMIT') {
+        const limit = act.value === 'ALL' ? Infinity : (typeof act.value === 'number' ? act.value : 2);
+        result.set(topNum, Math.max(result.get(topNum) ?? 1, limit));
+      }
     }
   }
   return result;
+}
+
+/** 後方互換の「複数アクセ可ホスト」一覧。上限の強制には collectMultiAcceLimits を使う。 */
+export function collectMultiAcceSigni(
+  state: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+): string[] {
+  return [...collectMultiAcceLimits(state, effectsMap, cardMap, otherState, isOwnerTurn).keys()];
 }
 
 /**
@@ -5599,12 +5612,12 @@ export function collectGrantedFromAcce(
   const baseNum = (n: string) => n.includes('#') ? n.slice(0, n.indexOf('#')) : n;
   type GrantAcce = import('../types/effects').GrantAcceHostAbilityAction;
   for (let zi = 0; zi < 3; zi++) {
-    const acceNum = (ownerState.field.signi_acce ?? [])[zi] ?? null;
-    if (!acceNum) continue;
+    const acceNums = acceCardsAt(ownerState.field, zi);
+    if (acceNums.length === 0) continue;
     const hostTop = ownerState.field.signi[zi]?.at(-1);
     if (!hostTop) continue;
     const hostCard = cardMap.get(baseNum(hostTop));
-    for (const eff of (effectsMap.get(acceNum) ?? [])) {
+    for (const acceNum of acceNums) for (const eff of (effectsMap.get(acceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_ACCE_HOST_ABILITY') continue;
       if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, acceNum)) continue;
@@ -6029,11 +6042,11 @@ export function collectAllColorSigniForField(
   // アクセカードは場のシグニではないため CONTINUOUS STUB が発火せず story_overrides に乗らない。
   // ここで signi_acce を直接走査し、ホストへ全色バイパスを付与する。
   for (let zi = 0; zi < (state.field.signi_acce?.length ?? 0); zi++) {
-    const acceNum = state.field.signi_acce?.[zi] ?? null;
-    if (!acceNum) continue;
+    const acceNums = acceCardsAt(state.field, zi);
+    if (acceNums.length === 0) continue;
     const hostTop = state.field.signi[zi]?.at(-1);
     if (!hostTop) continue;
-    for (const eff of (effectsMap.get(acceNum) ?? [])) {
+    for (const acceNum of acceNums) for (const eff of (effectsMap.get(acceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type === 'STUB' && act.id === 'ACCE_SIGNI_ALL_COLOR') result.add(hostTop);

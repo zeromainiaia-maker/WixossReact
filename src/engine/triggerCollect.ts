@@ -11,7 +11,8 @@
 import type { PlayerState, CardData, StackEntry } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
-import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isKizunaActive, matchesStateFilter } from './effectEngine';
+import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, matchesStateFilter } from './effectEngine';
+import { acceCardsAt } from '../utils/acce';
 
 export interface TargetedOrigin {
   cardNum: string;
@@ -1008,13 +1009,13 @@ export function collectBanishTriggers(
   // 0. アクセ付与の ON_BANISH 能力を復元（WX18-076: 離場で消えるため前状態から再構築）
   if (prevOwnerState) {
     const zi = prevOwnerState.field.signi.findIndex(s => s?.at(-1) === banishedCardNum);
-    const acceNum = zi >= 0 ? (prevOwnerState.field.signi_acce ?? [])[zi] : null;
-    if (acceNum) {
+    const acceNums = zi >= 0 ? acceCardsAt(prevOwnerState.field, zi) : [];
+    if (acceNums.length > 0) {
       const ownerAfter = banishedOwnerIsMe ? myAfterState : opAfterState;
       const otherAfter = banishedOwnerIsMe ? opAfterState : myAfterState;
       const hostCard = ctx.cardMap.get(getCardNum(banishedCardNum));
       const isBanishedOwnerTurn = ctx.activeUserId === banishedPlayerId;
-      for (const eff of (ctx.effectsMap.get(acceNum) ?? [])) {
+      for (const acceNum of acceNums) for (const eff of (ctx.effectsMap.get(acceNum) ?? [])) {
         if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'GRANT_ACCE_HOST_ABILITY') continue;
         const g = eff.action as GrantAcceHostAbilityAction;
         if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
@@ -3358,6 +3359,30 @@ export function attackerSelfTriggerFilterOk(
   if (excludeSelf) return false; // この経路は watcher＝アタッカー自身なので常に除外される
   if (Object.keys(rest).length === 0) return true;
   return matchesFilter(card, rest, effectivePower);
+}
+
+/** アタッカー自身が持つ ON_ATTACK_SIGNI だけを収集する pure collector。非アタックイベントからは呼ばない。 */
+export function collectAttackerSelfTriggers(
+  ctx: TrigCtx,
+  myState: PlayerState,
+  opState: PlayerState,
+  attackerNum: string,
+  ownerId: string,
+  effectivePowers?: Map<string, number>,
+): StackEntry[] {
+  const attackerCard = ctx.cardMap.get(getCardNum(attackerNum));
+  const crossOk = isCrossZoneActive(myState, attackerNum, ctx.cardMap);
+  return (ctx.effectsMap.get(attackerNum) ?? [])
+    .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
+    .filter(e => !e.crossOnly || crossOk)
+    .filter(e => !e.kizunaIcon || isKizunaActive(myState, attackerNum, ctx.cardMap))
+    .filter(e => attackerSelfTriggerFilterOk(e, attackerCard, effectivePowers?.get(attackerNum)))
+    .filter(e => !e.condition || evalUseCondition(e.condition, myState, opState, ctx.cardMap, attackerNum, ctx.turnPhase, effectivePowers))
+    .map(e => ({
+      id: ctx.genId(), playerId: ownerId, cardNum: attackerNum, effectId: e.effectId,
+      label: `${attackerCard?.CardName ?? attackerNum} の【自】効果（シグニアタック時）`,
+      effect: e, triggeringCardNum: attackerNum,
+    }));
 }
 
 /**

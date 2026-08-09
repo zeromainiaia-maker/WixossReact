@@ -138,12 +138,14 @@ export function reduceFieldSigniToLimit(
   const newDown = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
   const newFrozen = [...(state.field.signi_frozen ?? [false, false, false])] as boolean[];
   const newCharms = state.field.signi_charms ? [...state.field.signi_charms] as (string | null)[] : undefined;
-  const newAcce = state.field.signi_acce ? [...state.field.signi_acce] as (string | null)[] : undefined;
+  const newAcce = state.field.signi_acce ? state.field.signi_acce.map(cards => cards ? [...cards] : null) : undefined;
   let trash = [...state.trash];
   const trashed: string[] = [];
   for (const z of zones) {
     if (keep.has(z.zi)) continue;
     trash = [...trash, ...z.stk];
+    if (newCharms?.[z.zi]) trash.push(newCharms[z.zi]!);
+    if (newAcce?.[z.zi]) trash.push(...newAcce[z.zi]!);
     if (z.top) trashed.push(z.top);
     newSigni[z.zi] = null;
     newDown[z.zi] = false;

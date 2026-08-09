@@ -11,15 +11,22 @@ import {
   isOwnTrashMoveLocked,
   matchesFilter,
 } from './execUtils';
-import { LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
+import { collectMultiAcceLimits, LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { applyDeployCountLimit } from '../screens/battle/deployCountLimit';
+import { acceCardsAt, cloneAcceSlots, countAcce, findAcceZone } from '../utils/acce';
 
 export function execStubPart3(
   stub: StubAction,
   ctx: ExecCtx,
   exec: (action: EffectAction, ctx: ExecCtx) => ExecResult,
 ): ExecResult | null {
+  const canAttachSelf = (host: string, zoneIdx: number): boolean => {
+    const limit = ctx.effectsMap
+      ? (collectMultiAcceLimits(ctx.ownerState, ctx.effectsMap, ctx.cardMap, ctx.otherState, ctx.isOwnerTurn ?? true).get(host) ?? 1)
+      : 1;
+    return acceCardsAt(ctx.ownerState.field, zoneIdx).length < limit;
+  };
   // WDK07-E15: REVEAL_AND_PICK passes the picked deck card in
   // lastProcessedCards. Attach that exact card to the effect source itself.
   if (stub.id === 'INTERNAL_ACCE_PICKED_TO_SELF') {
@@ -28,15 +35,14 @@ export function execStubPart3(
     if (!picked || !host) return done(addLog(ctx, '公開カードまたはアクセ先がないためアクセ化できない'));
     const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === host);
     if (zoneIdx < 0) return done(addLog(ctx, '効果元シグニが場にいないためアクセ化できない'));
-    const currentAcce = ctx.ownerState.field.signi_acce ?? [null, null, null];
-    if (currentAcce[zoneIdx] !== null) return done(addLog(ctx, '効果元シグニには既にアクセがある'));
+    if (!canAttachSelf(host, zoneIdx)) return done(addLog(ctx, '効果元シグニのアクセ上限に達している'));
     const deckIdx = ctx.ownerState.deck.indexOf(picked);
     if (deckIdx < 0) return done(addLog(ctx, '公開カードがデッキにないためアクセ化できない'));
 
     const deck = [...ctx.ownerState.deck];
     deck.splice(deckIdx, 1);
-    const signiAcce = [...currentAcce];
-    signiAcce[zoneIdx] = picked;
+    const signiAcce = cloneAcceSlots(ctx.ownerState.field);
+    signiAcce[zoneIdx] = [...acceCardsAt(ctx.ownerState.field, zoneIdx), picked];
     const ownerState = {
       ...ctx.ownerState,
       deck,
@@ -2266,14 +2272,13 @@ export function execStubPart3(
   }
   // ACCE_OP: アクセ操作（汎用ログ）
   if (stub.id === 'ACCE_OP') {
-    const acceCountAO = (ctx.ownerState.field.signi_acce ?? []).filter(cn => cn !== null).length;
+    const acceCountAO = countAcce(ctx.ownerState.field);
     return done(addLog(ctx, `アクセ操作（現在${acceCountAO}個のアクセ）`));
   }
   // ACCE_SIGNI_ALL_COLOR: アクセ中のシグニを全色にする
   if (stub.id === 'ACCE_SIGNI_ALL_COLOR') {
     const srcASAC = ctx.sourceCardNum;
-    const acceASAC = ctx.ownerState.field.signi_acce ?? [null, null, null];
-    const zoneIdxASAC = acceASAC.findIndex(cn => cn === srcASAC);
+    const zoneIdxASAC = findAcceZone(ctx.ownerState.field, srcASAC);
     if (zoneIdxASAC < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
     const targetSigniASAC = ctx.ownerState.field.signi[zoneIdxASAC]?.at(-1);
     if (!targetSigniASAC) return done(addLog(ctx, 'アクセ先のシグニがいない'));
@@ -2301,12 +2306,11 @@ export function execStubPart3(
     const zoneIdxTATE = srcTATE
       ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === srcTATE)
       : -1;
-    const acceTATE = zoneIdxTATE >= 0
-      ? (ctx.ownerState.field.signi_acce ?? [null, null, null])[zoneIdxTATE]
-      : null;
+    const acceTATE = zoneIdxTATE >= 0 ? acceCardsAt(ctx.ownerState.field, zoneIdxTATE)[0] : null;
     if (!acceTATE) return done(addLog(ctx, 'アクセなし（TRASH_ACCE_AT_TURN_END）'));
-    const newAcceTATE = [...(ctx.ownerState.field.signi_acce ?? [null, null, null])] as (string | null)[];
-    newAcceTATE[zoneIdxTATE] = null;
+    const newAcceTATE = cloneAcceSlots(ctx.ownerState.field);
+    const remainingTATE = acceCardsAt(ctx.ownerState.field, zoneIdxTATE).filter(cn => cn !== acceTATE);
+    newAcceTATE[zoneIdxTATE] = remainingTATE.length > 0 ? remainingTATE : null;
     const newSTATE: PlayerState = {
       ...ctx.ownerState,
       trash: [...ctx.ownerState.trash, acceTATE],
@@ -2315,9 +2319,25 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newSTATE },
       `${ctx.cardMap.get(acceTATE)?.CardName ?? acceTATE}（アクセ）→トラッシュ`));
   }
+  // TRASH_SELF_ACCE_ALL: 効果元シグニに付いている全【アクセ】をトラッシュへ。
+  if (stub.id === 'TRASH_SELF_ACCE_ALL') {
+    const source = ctx.sourceCardNum;
+    const zoneIdx = source ? ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === source) : -1;
+    if (zoneIdx < 0) return done({ ...addLog(ctx, '効果元シグニが場にない（TRASH_SELF_ACCE_ALL）'), lastProcessedCards: [] });
+    const trashed = acceCardsAt(ctx.ownerState.field, zoneIdx);
+    if (trashed.length === 0) return done({ ...addLog(ctx, 'アクセなし（TRASH_SELF_ACCE_ALL）'), lastProcessedCards: [] });
+    const nextAcce = cloneAcceSlots(ctx.ownerState.field);
+    nextAcce[zoneIdx] = null;
+    const nextState: PlayerState = {
+      ...ctx.ownerState,
+      trash: [...ctx.ownerState.trash, ...trashed],
+      field: { ...ctx.ownerState.field, signi_acce: nextAcce },
+    };
+    return done({ ...addLog({ ...ctx, ownerState: nextState }, `効果元シグニのアクセ${trashed.length}枚をトラッシュへ`), lastProcessedCards: trashed });
+  }
   // MULTI_ACCE_LIMIT: アクセを特定枚数に制限（ログのみ）
   if (stub.id === 'MULTI_ACCE_LIMIT') {
-    const acceCountMAL = (ctx.ownerState.field.signi_acce ?? []).filter(cn => cn !== null).length;
+    const acceCountMAL = countAcce(ctx.ownerState.field);
     return done(addLog(ctx, `マルチアクセ制限（現在${acceCountMAL}個）`));
   }
   // CHOOSE_HAND_CARD: 手札から1枚選択（lastProcessedCardsに設定）
@@ -3280,8 +3300,7 @@ export function execStubPart3(
   // ACCE_SIGNI_GRANT_ABILITY: アクセ中のシグニにキーワード能力を付与
   if (stub.id === 'ACCE_SIGNI_GRANT_ABILITY') {
     const srcAcceAGSA = ctx.sourceCardNum;
-    const acceAGSA = ctx.ownerState.field.signi_acce ?? [null, null, null];
-    const zoneIdxAGSA = acceAGSA.findIndex(cn => cn === srcAcceAGSA);
+    const zoneIdxAGSA = findAcceZone(ctx.ownerState.field, srcAcceAGSA);
     if (zoneIdxAGSA < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
     const targetSigniAGSA = ctx.ownerState.field.signi[zoneIdxAGSA]?.at(-1);
     if (!targetSigniAGSA) return done(addLog(ctx, 'アクセ先のシグニがいない'));
@@ -3299,15 +3318,18 @@ export function execStubPart3(
   // MOVE_ACCE_TO_SIGNI: アクセを別のシグニに付け替え
   if (stub.id === 'MOVE_ACCE_TO_SIGNI') {
     const srcAcceMATS = ctx.sourceCardNum;
-    const acceMATS = [...(ctx.ownerState.field.signi_acce ?? [null, null, null])];
-    const srcZoneMATS = acceMATS.findIndex(cn => cn === srcAcceMATS);
+    const acceMATS = cloneAcceSlots(ctx.ownerState.field);
+    const srcZoneMATS = findAcceZone(ctx.ownerState.field, srcAcceMATS);
     if (srcZoneMATS < 0) return done(addLog(ctx, 'アクセ中のシグニが見つからない'));
     // アクセがついていないゾーンを探す
-    const dstZoneMATS = acceMATS.findIndex((cn, i) => i !== srcZoneMATS && cn === null &&
-      ctx.ownerState.field.signi[i] && (ctx.ownerState.field.signi[i]?.length ?? 0) > 0);
+    const dstZoneMATS = acceMATS.findIndex((_cards, i) => {
+      const host = ctx.ownerState.field.signi[i]?.at(-1);
+      return i !== srcZoneMATS && !!host && canAttachSelf(host, i);
+    });
     if (dstZoneMATS < 0) return done(addLog(ctx, '移動先のシグニゾーンなし'));
-    acceMATS[srcZoneMATS] = null;
-    acceMATS[dstZoneMATS] = srcAcceMATS ?? null;
+    const srcRemainingMATS = acceCardsAt(ctx.ownerState.field, srcZoneMATS).filter(cn => cn !== srcAcceMATS);
+    acceMATS[srcZoneMATS] = srcRemainingMATS.length > 0 ? srcRemainingMATS : null;
+    acceMATS[dstZoneMATS] = [...acceCardsAt(ctx.ownerState.field, dstZoneMATS), srcAcceMATS!];
     const newSMATS: PlayerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_acce: acceMATS } };
     const dstSigniName = ctx.cardMap.get(ctx.ownerState.field.signi[dstZoneMATS]?.at(-1) ?? '')?.CardName ?? 'シグニ';
     return done(addLog({ ...ctx, ownerState: newSMATS },
@@ -3611,11 +3633,10 @@ export function execStubPart3(
   if (stub.id === 'ACCE_FROM_HAND' || stub.id === 'MULTI_ACCE_FROM_HAND') {
     const srcAFH = ctx.sourceCardNum;
     if (!srcAFH || !ctx.ownerState.hand.includes(srcAFH)) return done(addLog(ctx, 'アクセカードが手札にない'));
-    const acceAFH = ctx.ownerState.field.signi_acce ?? [null, null, null];
     const candidatesAFH = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
       if (!stack || stack.length === 0) return [];
-      if (acceAFH[i] !== null) return [];
-      return [stack[stack.length - 1]];
+      const host = stack[stack.length - 1];
+      return canAttachSelf(host, i) ? [host] : [];
     });
     if (candidatesAFH.length === 0) return done(addLog(ctx, 'アクセ対象のシグニなし'));
     const attachAFH: AttachAcceAction = { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' };
@@ -3626,11 +3647,10 @@ export function execStubPart3(
   }
   // ACCE_FROM_TRASH: トラッシュのアクセカードを自分のシグニに付ける
   if (stub.id === 'ACCE_FROM_TRASH' || stub.id === 'NAMED_SIGNI_ACCE_FROM_TRASH') {
-    const acceAFTR = ctx.ownerState.field.signi_acce ?? [null, null, null];
     const candidatesAFTR = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
       if (!stack || stack.length === 0) return [];
-      if (acceAFTR[i] !== null) return [];
-      return [stack[stack.length - 1]];
+      const host = stack[stack.length - 1];
+      return canAttachSelf(host, i) ? [host] : [];
     });
     if (candidatesAFTR.length === 0) return done(addLog(ctx, 'アクセ対象のシグニなし'));
     // トラッシュのアクセカードをいったん手札に移し、ATTACH_ACCEで処理
@@ -5000,11 +5020,10 @@ export function execStubPart3(
     if (!searchedASAA || !ctx.ownerState.hand.includes(searchedASAA)) {
       return done(addLog(ctx, 'ATTACH_SEARCHED_AS_ACCE: サーチカードが手札にない'));
     }
-    const acceASAA = ctx.ownerState.field.signi_acce ?? [null, null, null];
     const candidatesASAA = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
       if (!stack || stack.length === 0) return [];
-      if (acceASAA[i] !== null) return [];
-      return [stack[stack.length - 1]];
+      const host = stack[stack.length - 1];
+      return canAttachSelf(host, i) ? [host] : [];
     });
     if (candidatesASAA.length === 0) return done(addLog(ctx, 'ATTACH_SEARCHED_AS_ACCE: アクセ対象シグニなし'));
     const ctxASAA = { ...ctx, sourceCardNum: searchedASAA };
@@ -5070,7 +5089,7 @@ export function execStubPart3(
     const charmTAUC = ctx.ownerState.field.signi_charms ?? [null, null, null];
     const candidatesTAUC: string[] = [];
     for (let iTAUC = 0; iTAUC < 3; iTAUC++) {
-      if (acceTAUC[iTAUC]) candidatesTAUC.push(acceTAUC[iTAUC]!);
+      candidatesTAUC.push(...(acceTAUC[iTAUC] ?? []));
       if (charmTAUC[iTAUC]) candidatesTAUC.push(charmTAUC[iTAUC]!);
       const stackTAUC = ctx.ownerState.field.signi[iTAUC];
       if (stackTAUC && stackTAUC.length > 1) candidatesTAUC.push(...stackTAUC.slice(0, -1));
@@ -5078,7 +5097,10 @@ export function execStubPart3(
     if (candidatesTAUC.length === 0) return done(addLog(ctx, '付属カードなし（TRASH_ATTACHED_OR_UNDER_CARD）'));
     // 自動選択: 最初の候補をトラッシュ（近似）
     const pickedTAUC = candidatesTAUC[0];
-    const newAcceTAUC = (acceTAUC as (string | null)[]).map(c => c === pickedTAUC ? null : c);
+    const newAcceTAUC = acceTAUC.map(cards => {
+      const remaining = (cards ?? []).filter(c => c !== pickedTAUC);
+      return remaining.length > 0 ? remaining : null;
+    });
     const newCharmTAUC = (charmTAUC as (string | null)[]).map(c => c === pickedTAUC ? null : c);
     const newSigniTAUC = ctx.ownerState.field.signi.map(s => {
       if (!s || !s.includes(pickedTAUC)) return s;

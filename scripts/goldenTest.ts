@@ -16,7 +16,7 @@ import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAct
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
-import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
+import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy } from '../src/engine/execUtils';
@@ -30,7 +30,7 @@ import {
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -1261,12 +1261,41 @@ test('PLAN §6.3 WXDi-P16-092: チームルリグ3体未満だけ全領域色喪
   ok(!collectColorlessOverrides(full, mkState({}), cardMap).ownerColorless.includes(target), '3体なら色保持');
 });
 
-test('PLAN §6.3 WX20-028-E2: 多重アクセstate待ちの明示no-op（旧誤形を撤去）', () => {
+test('PLAN §6.3 WX20-028-E2: 2枚不発／3枚で全アクセ・相手エナ・相手シグニを一括トラッシュ', () => withSavedCursor(() => {
   const e2 = effectsMap.get('WX20-028')!.find(e => e.effectId === 'WX20-028-E2')!;
-  eq(e2.action.type, 'STUB', '条件無視の全体除去や旧・相手1体除去にしない');
-  eq((e2.action as { id?: string }).id, 'MULTI_ACCE_3_MASS_TRASH', '多重アクセ機構待ちID');
-  eq(e2.parseStatus, 'MANUAL', 'curated deferを維持');
-});
+  eq(e2.timing?.join(','), 'ON_ATTACK_SIGNI', 'アタック時だけのtiming');
+  eq(e2.action.type, 'CONDITIONAL', '3枚条件をaction内で評価');
+
+  const twoAcce = [fresh(), fresh()];
+  const oppEnergy = [fresh(), fresh()];
+  const oppSigni = [fresh(), fresh()];
+  const twoCtx = mkCtx({ signi: ['WX20-028', null, null] }, { signi: [oppSigni[0], oppSigni[1], null] }, 'WX20-028');
+  twoCtx.ownerState.field.signi_acce = [twoAcce, null, null];
+  twoCtx.otherState = { ...twoCtx.otherState, energy: oppEnergy, trash: [] };
+  const missed = run(e2.action, { ...twoCtx, effectsMap });
+  eq(missed.ownerState.field.signi_acce?.[0]?.join('|'), twoAcce.join('|'), 'アクセ2枚では自身のアクセ不変');
+  eq(missed.otherState.energy.join('|'), oppEnergy.join('|'), 'アクセ2枚では相手エナ不変');
+  eq(missed.otherState.field.signi.filter(Boolean).length, 2, 'アクセ2枚では相手シグニ不変');
+
+  const threeAcce = [...twoAcce, fresh()];
+  const oppHostAcce = fresh();
+  const fireCtx = mkCtx({ signi: ['WX20-028', null, null] }, { signi: [oppSigni[0], oppSigni[1], null] }, 'WX20-028');
+  fireCtx.ownerState = { ...fireCtx.ownerState, trash: [], field: { ...fireCtx.ownerState.field, signi_acce: [threeAcce, null, null] } };
+  fireCtx.otherState = { ...fireCtx.otherState, energy: oppEnergy, trash: [], field: { ...fireCtx.otherState.field, signi_acce: [[oppHostAcce], null, null] } };
+  const fired = run(e2.action, { ...fireCtx, effectsMap });
+  eq(fired.ownerState.field.signi_acce?.[0] ?? null, null, '自身に付いたアクセを全消去');
+  ok(threeAcce.every(cn => fired.ownerState.trash.includes(cn)), '自身のアクセ3枚がすべてトラッシュ');
+  eq(fired.otherState.energy.length, 0, '相手エナをすべてトラッシュ');
+  ok(oppEnergy.every(cn => fired.otherState.trash.includes(cn)), '相手エナ全枚数がトラッシュに存在');
+  eq(fired.otherState.field.signi.filter(Boolean).length, 0, '相手シグニをすべてトラッシュ');
+  ok([...oppSigni, oppHostAcce].every(cn => fired.otherState.trash.includes(cn)), '相手シグニと付属アクセもトラッシュ');
+
+  const attackEntries = collectAttackerSelfTriggers({
+    hostId: 'host', guestId: 'guest', activeUserId: 'host', turnPhase: 'ATTACK',
+    effectsMap, cardMap: cardMap as Map<string, CardData>, genId: () => 'wx20-028-e2',
+  }, fireCtx.ownerState, fireCtx.otherState, 'WX20-028', 'host', undefined);
+  ok(attackEntries.some(entry => entry.effectId === 'WX20-028-E2'), 'ON_ATTACK_SIGNI collectorでのみ収集される');
+}));
 
 test('IS_BOOSTING: 非宣言は基本効果のみ／宣言時だけボーナス発火', () => {
   const action: EffectAction = {
@@ -5741,7 +5770,7 @@ test('§3タスク3 engine: ON_LEAVE_FIELD self スコープが leftStateFilter{
   localEffects.set('LEAVER', [eff]);
   const ctxOf = (activeUserId: string) => ({ ...trigCtx(activeUserId), effectsMap: localEffects });
   const after = mkState({});
-  const withAcce = { ...mkState({}), field: { ...mkState({}).field, signi_acce: ['ACCE', null, null] } } as unknown as PlayerState;
+  const withAcce = { ...mkState({}), field: { ...mkState({}).field, signi_acce: [['ACCE'], null, null] } } as unknown as PlayerState;
   const noAcce = { ...mkState({}), field: { ...mkState({}).field, signi_acce: [null, null, null] } } as unknown as PlayerState;
   // leftPlayerId=HOST。active=GUEST ＝「対戦相手のターン」で turnOwner:opponent が成立。
   const fire = (before: PlayerState, active: string) =>
@@ -7006,6 +7035,50 @@ test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12
   const e2 = collectHandAddedTriggers(trigCtx(HOST), [{ ownerId: HOST, moved: [{ cardNum: SIGNI, from: 'energy' }] }, { ownerId: GUEST, moved: [] }], HOST, host, guest);
   eq(hasEff(e2.entries, 'WD12-009-E2'), false, '他カードの移動では非発火');
 });
+
+test('PLAN §6.3 WX20-028-E1: 好きな枚数のアクセ宣言は既存MULTI_ACCE_LIMIT collectorへ届く', () => {
+  withSavedCursor(() => {
+    const e1 = MANUAL_EFFECTS['WX20-028']!.find(e => e.effectId === 'WX20-028-E1')!;
+    eq(e1.action.type, 'STUB');
+    eq((e1.action as StubAction).id, 'MULTI_ACCE_LIMIT');
+    eq((e1.action as StubAction).value, 'ALL');
+    const state = mkState({ signi: ['WX20-028', null, null] });
+    ok(collectMultiAcceSigni(state, new Map([['WX20-028', [e1]]]), cardMap, mkState({}), true).includes('WX20-028'),
+      'CONTINUOUS collector が効果元シグニを返す');
+  });
+});
+
+test('PLAN §6.3 WX20-028 Step B: 複数アクセ保持・無制限/2枚/通常1枚の上限を実行固定', () => withSavedCursor(() => {
+  const acceAction = { type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self' } as EffectAction;
+  const attach = (ctx: ExecCtx, acceNum: string): ExecResult => run(acceAction, {
+    ...ctx,
+    sourceCardNum: acceNum,
+    ownerState: { ...ctx.ownerState, energy: [...ctx.ownerState.energy, acceNum] },
+    effectsMap,
+    isOwnerTurn: true,
+  });
+
+  const unlimitedBase = mkCtx({ signi: ['WX20-028', null, null] }, {});
+  let unlimited: ExecResult = { ...unlimitedBase, done: true } as ExecResult;
+  const three = [fresh(), fresh(), fresh()];
+  for (const acceNum of three) unlimited = attach({ ...unlimitedBase, ownerState: unlimited.ownerState, otherState: unlimited.otherState }, acceNum);
+  eq(unlimited.ownerState.field.signi_acce?.[0]?.join('|'), three.join('|'), 'WX20-028 は3枚を同じホストへ順序保持');
+  eq(collectMultiAcceLimits(unlimited.ownerState, effectsMap, cardMap, unlimited.otherState, true).get('WX20-028'), Infinity,
+    'value:ALL は無制限として収集');
+
+  const normalHost = fresh();
+  const normalBase = mkCtx({ signi: [normalHost, null, null] }, {});
+  const first = attach(normalBase, fresh());
+  const beforeSecond = first.ownerState.field.signi_acce?.[0]?.join('|');
+  const secondCard = fresh();
+  const second = attach({ ...normalBase, ownerState: first.ownerState, otherState: first.otherState }, secondCard);
+  eq(second.ownerState.field.signi_acce?.[0]?.join('|'), beforeSecond, '通常シグニは2枚目を付けられない');
+  ok(second.ownerState.energy.includes(secondCard), '上限超過カードはエナに残る');
+
+  const twoLimit = mkState({ signi: ['WXK11-037', null, null] });
+  eq(collectMultiAcceLimits(twoLimit, effectsMap, cardMap, mkState({}), true).get('WXK11-037'), 2,
+    '旧live値なしMULTI_ACCE_LIMITも印刷本文どおり2枚上限');
+}));
 
 // 続き400: WX25-P3-023-E2「このターンと次のターンの間」の一時付与 watcher。
 // 起動→相手効果による実際のエナ→手札移動→中央 diff と同じ detector/collector→付与AUTO実行、
@@ -8482,9 +8555,12 @@ test('Stage2 boardDiff countCharmsToTrash: チャームのトラッシュ送り�
 });
 test('J-2 boardDiff countAcceToTrash: アクセのトラッシュ送りを計数', () => {
   withSavedCursor(() => {
-    const before = mkState({}); before.field.signi_acce = ['acceA', null, null];
+    const before = mkState({}); before.field.signi_acce = [['acceA'], null, null];
     const after = mkState({}); after.field.signi_acce = [null, null, null]; after.trash = ['acceA'];
     eq(countAcceToTrash(before, after), 1, 'アクセ1枚');
+    const multiBefore = mkState({}); multiBefore.field.signi_acce = [['acceA', 'acceB', 'acceC'], null, null];
+    const multiAfter = mkState({}); multiAfter.field.signi_acce = [['acceC'], null, null]; multiAfter.trash = ['acceA', 'acceB'];
+    eq(countAcceToTrash(multiBefore, multiAfter), 2, '同一ホストから2枚トラッシュもset-diffで計数');
     const toEner = mkState({}); toEner.field.signi_acce = [null, null, null]; toEner.energy = ['acceA'];
     eq(countAcceToTrash(before, toEner), 0, 'エナ行きはトラッシュではない');
   });
@@ -8501,11 +8577,11 @@ test('J-2 boardDiff detectSoulAttached / detectCardAttached: 新規付与だけ�
     eq(detectSoulAttached(before, swapped).length, 0, '本体入れ替えは非検出');
     // 汎用版はチャーム/アクセ/ソウルを横断して枚数を数える
     const multi = mkState({ signi: ['S0', 'S1', null] });
-    multi.field.signi_charms = ['cA', null, null]; multi.field.signi_acce = ['aA', null, null];
+    multi.field.signi_charms = ['cA', null, null]; multi.field.signi_acce = [['aA', 'aB'], null, null];
     const got = detectCardAttached(before, multi);
     eq(got.length, 1, '1ゾーン');
     eq(got[0].hostNum, 'S0', 'ホストはS0');
-    eq(got[0].count, 2, 'チャーム＋アクセで2枚');
+    eq(got[0].count, 3, 'チャーム1枚＋アクセ2枚で3枚');
   });
 });
 
@@ -10400,7 +10476,7 @@ test('ATTACH_ACCE fromHand: 手札シグニを場のホストシグニにアク�
   const ctx = { ...base, ownerState: { ...base.ownerState, hand: [ACCE, ...base.ownerState.hand] } } as ExecCtx;
   const h0 = ctx.ownerState.hand.length;
   const r = run({ type: 'ATTACH_ACCE', targetSigniOwner: 'self', sourceOwner: 'self', fromHand: true } as EffectAction, ctx);
-  eq(r.ownerState.field.signi_acce?.[0], ACCE, 'ゾーン0のホストにアクセカード装着');
+  eq(r.ownerState.field.signi_acce?.[0]?.[0], ACCE, 'ゾーン0のホストにアクセカード装着');
   eq(r.ownerState.hand.includes(ACCE), false, 'アクセカードが手札から除去');
   eq(r.ownerState.hand.length, h0 - 1, '手札-1');
   eq(r.ownerState.acce_just_done, HOST, 'acce_just_doneにホストシグニ（ON_ACCE検出用）');
@@ -12443,7 +12519,7 @@ test('REARRANGE_SIGNI swap: 2体の場所とゾーン状態を交換する', () 
     const ctx = mkCtx({ signi: [src, target, third], down: [false, true, false] }, {}, src);
     ctx.ownerState.field.signi_frozen = [false, true, false];
     ctx.ownerState.field.signi_charms = [null, fresh(), null];
-    ctx.ownerState.field.signi_acce = [null, fresh(), null];
+  ctx.ownerState.field.signi_acce = [null, [fresh()], null];
     ctx.ownerState.field.signi_soul = [null, fresh(), null];
     ctx.ownerState.field.signi_armor = [false, true, false];
     ctx.ownerState.field.signi_virus = [0, 1, 0];
@@ -17183,7 +17259,7 @@ test('PLAN §6.3 tail C-2 WDK07-E15 picked Cooking SIGNI attaches to self', () =
   const nonCooking = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('調理'));
   const eff = mergeManualEffects(host, effectsMap.get(host) ?? []).find(e => e.effectId === 'WDK07-E15-E1')!;
   const attached = run(eff.action, mkCtx({ signi: [host, null, null], deckTop: [cooking] }, {}, host));
-  eq(attached.ownerState.field.signi_acce?.[0], cooking, 'Cooking SIGNI attaches to this SIGNI');
+  eq(attached.ownerState.field.signi_acce?.[0]?.[0], cooking, 'Cooking SIGNI attaches to this SIGNI');
   ok(!attached.ownerState.deck.includes(cooking), 'attached card leaves the deck');
   const missed = run(eff.action, mkCtx({ signi: [host, null, null], deckTop: [nonCooking] }, {}, host));
   eq(missed.ownerState.field.signi_acce?.[0] ?? null, null, 'non-Cooking does not attach');
@@ -24016,7 +24092,7 @@ test('WXDi-P11-010A-E1: reset/exile/flip and B-face abilities are atomic', () =>
     before.field = {
       ...before.field, lrig: ['old-lrig', q], signi: [['under-1', 'signi-top'], null, ['token-signi']],
       assist_lrig_l: ['assist-l'], assist_lrig_r: ['assist-r'], key_piece: 'key-1', key_piece_extra: ['key-2'],
-      signi_charms: ['charm-1', null, null], signi_acce: ['acce-1', null, null],
+    signi_charms: ['charm-1', null, null], signi_acce: [['acce-1'], null, null],
       signi_soul: ['soul-1', null, null], signi_traps: ['trap-1', null, null],
       signi_magic_boxes: ['box-1', null, null], signi_seeds: ['seed-1', null, null],
       facedown_signi: [null, 'facedown-1', null], free_zone: ['free-token'], beat_zone: ['beat-token'],
@@ -25671,7 +25747,7 @@ test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理host�
   const spEffect = effectsMap.get(spSource)!.find(e => e.effectId === 'SP27-015-E1')!;
   eq(spEffect.action.type, 'FIELD_SIGNI_TO_ACCE', 'SP27-015-E1 live action');
   const spCtx = mkCtx({ signi: [spSource, spHost1, spHost2] }, {}, spSource);
-  spCtx.ownerState = { ...spCtx.ownerState, field: { ...spCtx.ownerState.field, signi_acce: [spOldAcce, null, null] } };
+    spCtx.ownerState = { ...spCtx.ownerState, field: { ...spCtx.ownerState.field, signi_acce: [[spOldAcce], null, null] } };
   const spFirst = executeEffect(spEffect, spCtx);
   ok(!spFirst.done && spFirst.pending.type === 'SELECT_TARGET', 'SP27 host selection offered');
   if (!spFirst.done && spFirst.pending.type === 'SELECT_TARGET') {
@@ -25681,8 +25757,8 @@ test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理host�
     if (!spSecond.done && spSecond.pending.type === 'SELECT_TARGET') {
       const spResolved = finish(resumeSelectTarget([spHost2], spSecond.pending, { ...spCtx, ownerState: spSecond.ownerState, otherState: spSecond.otherState, logs: spSecond.logs }), spCtx);
       eq(spResolved.ownerState.field.signi[0], null, 'SP27 source left field');
-      eq(spResolved.ownerState.field.signi_acce?.[1], spSource, 'SP27 source attached');
-      eq(spResolved.ownerState.field.signi_acce?.[2], spOldAcce, 'SP27 previous acce reattached');
+    eq(spResolved.ownerState.field.signi_acce?.[1]?.[0], spSource, 'SP27 source attached');
+    eq(spResolved.ownerState.field.signi_acce?.[2]?.[0], spOldAcce, 'SP27 previous acce reattached');
       ok(!spResolved.ownerState.trash.includes(spOldAcce), 'SP27 previous acce removed from trash');
     }
   }
@@ -25694,7 +25770,7 @@ test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理host�
   const effect = effectsMap.get(abilitySource)!.find(e => e.effectId === 'WXEX2-19-E2')!;
   eq(effect.action.type, 'SEQUENCE', 'live JSONがSEQUENCEでない');
   const ctx = mkCtx({ signi: [abilitySource, acceSource, cookingHost] }, {}, abilitySource);
-  ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_acce: [null, oldAcce, null] } };
+  ctx.ownerState = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_acce: [null, [oldAcce], null] } };
   const hand0 = ctx.ownerState.hand.length;
   const sourceOffer = executeEffect(effect, ctx);
   ok(!sourceOffer.done && sourceOffer.pending.type === 'SELECT_TARGET', 'アクセ元選択が出ない');
@@ -25707,7 +25783,7 @@ test('task12(lxxxiii) 第12波 WXEX2-19-E2: live場シグニを他の調理host�
   ok(!hostOffer.pending.candidates.includes(acceSource), 'アクセ元自身がhost候補に混入');
   const resolved = finish(resumeSelectTarget([cookingHost], hostOffer.pending, { ...ctx, ownerState: hostOffer.ownerState, otherState: hostOffer.otherState, logs: hostOffer.logs }), ctx);
   eq(resolved.ownerState.field.signi[1], null, 'アクセ元がシグニゾーンに残った');
-  eq(resolved.ownerState.field.signi_acce?.[2], acceSource, '選択hostへアクセされていない');
+  eq(resolved.ownerState.field.signi_acce?.[2]?.[0], acceSource, '選択hostへアクセされていない');
   ok(resolved.ownerState.trash.includes(oldAcce), '元シグニに付いていた既存アクセが共通離場処理でトラッシュされない');
   eq(resolved.ownerState.hand.length, hand0 + 1, 'そうした場合の1ドローが実行されない');
   eq(resolved.ownerState.acce_just_done, cookingHost, 'ON_ACCE用host markerがない');
@@ -26237,7 +26313,7 @@ test('task12(xciv) cost reduction tail: each new cluster actually fires on a sat
   eq(run('WX09-037', mkMy({}), undefined, undefined, 5), '《白》×1《黒》×1', 'δ-1: センタールリグ Lv5以上');
   eq(run('WX09-037', mkMy({}), undefined, undefined, 4), cardMap.get('WX09-037')!.Cost, 'δ-1: Lv4 では成立しない');
   const chori = findSigni(c => (c.CardClass ?? '').includes('調理'));
-  const acceField = { lrig: [], signi: [[chori], null, null], signi_acce: [chori, null, null] } as unknown as PlayerState['field'];
+  const acceField = { lrig: [], signi: [[chori], null, null], signi_acce: [[chori], null, null] } as unknown as PlayerState['field'];
   eq(run('WX15-060', mkMy({ field: acceField })), '《緑》×2', 'δ-3: アクセされている＜調理＞1体');
   const noAcceField = { lrig: [], signi: [[chori], null, null], signi_acce: [null, null, null] } as unknown as PlayerState['field'];
   eq(run('WX15-060', mkMy({ field: noAcceField })), cardMap.get('WX15-060')!.Cost, 'δ-3: アクセが無ければ減らない');
@@ -28273,7 +28349,7 @@ test('§6.3 E WX24-P2-010-E1: 他のシグニ2体トラッシュで対象シグ�
       ...applied.otherState.field,
       signi: [[target], [target2], [untargeted]],
       signi_charms: [null, SIGNI_L4, null],
-      signi_acce: [null, null, SIGNI],
+      signi_acce: [null, null, [SIGNI]],
     },
     trash: [],
   };

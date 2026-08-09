@@ -330,8 +330,8 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.match(/このシグニには.*【アクセ】を付けることができる/)) {
     const maxM = t.match(/([０-９\d]+)枚まで/);
     const unlimited = t.includes('好きな枚数');
-    const max = unlimited ? 99 : (maxM ? parseNum(maxM[1]) : 1);
-    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: `ACCE_LIMIT_${max}`, until: 'PERMANENT' };
+    const max = unlimited ? 'ALL' : (maxM ? parseNum(maxM[1]) : 1);
+    return { type: 'STUB', id: 'MULTI_ACCE_LIMIT', value: max } as StubAction;
   }
 
   // ---- このターン、次に対戦相手のシグニがアタックしたとき、そのアタックを無効にする ----
@@ -788,6 +788,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- このシグニには複数枚アクセを付けられる ----
   if (t.match(/このシグニには[２-９]枚まで【アクセ】を付けられる/)) {
+    // live 既存語彙は値なし＝2枚上限の1件だけ。collector が後方互換で2として読む。
     return { type: 'STUB', id: 'MULTI_ACCE_LIMIT' } as StubAction;
   }
 

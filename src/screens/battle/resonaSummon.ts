@@ -286,7 +286,7 @@ export function payResonaAppearanceAndPlace(
     else fieldTrashed.push(topNum);
     extras.push(...stack.slice(0, -1).map(getCardNum));
     if (nextCharms[zi]) extras.push(nextCharms[zi]!);
-    if (nextAcce[zi]) extras.push(nextAcce[zi]!);
+    if (nextAcce[zi]) extras.push(...nextAcce[zi]!);
     if (nextSoul[zi]) lrigTrashed.push(nextSoul[zi]!);
     nextSigni[zi] = null; nextDown[zi] = false; nextFrozen[zi] = false;
     nextCharms[zi] = null; nextAcce[zi] = null; nextSoul[zi] = null;

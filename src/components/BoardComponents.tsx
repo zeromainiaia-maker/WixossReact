@@ -443,7 +443,7 @@ export interface StackedSigniSlotProps {
   isAbilityRemoved?: boolean;
   effectivePowers?: Map<string, number>;
   charmCardNum?: string | null;
-  acceCardNum?: string | null;
+  acceCardNums?: string[] | null;
   virusCount?: number;
   chokkinCount?: number;
   isMe?: boolean;
@@ -455,7 +455,7 @@ export interface StackedSigniSlotProps {
   hasGate?: boolean;
 }
 
-export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNum, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, faceDownCardNum, magicBoxCardNum, statusKeywords = [], hasGate = false }: StackedSigniSlotProps) {
+export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label, actions, isDown = false, isFrozen = false, isArmored = false, isAbilityRemoved = false, effectivePowers, charmCardNum, acceCardNums, virusCount = 0, chokkinCount = 0, isMe, trapCardNum, seedCardNum, faceDownCardNum, magicBoxCardNum, statusKeywords = [], hasGate = false }: StackedSigniSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const [showCharmModal, setShowCharmModal] = useState(false);
   const [showMBPeek, setShowMBPeek] = useState(false);
@@ -725,14 +725,14 @@ export function StackedSigniSlot({ stack, cards, width = 82, height = 82, label,
             菌×{chokkinCount}
           </div>
         )}
-        {acceCardNum && (
+        {!!acceCardNums?.length && (
           <div style={{
             position: 'absolute', bottom: extraH + 2, right: 2,
             backgroundColor: 'rgba(0,120,60,0.9)', color: '#fff',
             fontSize: 7, fontWeight: 'bold', borderRadius: 3,
             padding: '1px 3px', lineHeight: 1, pointerEvents: 'none', zIndex: n + 3,
           }}>
-            ACE
+            ACE{acceCardNums.length > 1 ? `×${acceCardNums.length}` : ''}
           </div>
         )}
         {trapCardNum && (
@@ -1077,7 +1077,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             isAbilityRemoved={s ? s.some(num => state.abilities_removed?.includes(num)) : false}
             effectivePowers={effectivePowers}
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
-            acceCardNum={state.field.signi_acce?.[rawIdx] ?? null}
+            acceCardNums={state.field.signi_acce?.[rawIdx] ?? null}
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
             chokkinCount={state.field.signi_chokkin?.[rawIdx] ?? 0}
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}

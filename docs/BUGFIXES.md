@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 E-2 第3波：`WX20-028` 多重アクセ機構
+
+### Step A — `WX20-028-E1` を live collector 語彙へ接続
+
+- 原文「【常】：このシグニには好きな枚数の【アクセ】を付けることができる」に対し、旧 live の `BLOCK_ACTION{actionId:'ACCE_LIMIT_99'}` は `src/` に reader が0件で完全な死アクションだった。既存の宣言語彙 `STUB{MULTI_ACCE_LIMIT}` へ置換し、上限を曖昧にしないよう `value:'ALL'` を明示した。`collectMultiAcceSigni` がフィールド上の当該 CONTINUOUS を収集し、BattleScreen のアクセ対象ゲートが読む既存経路へ到達する。
+- 同じ語彙を使う live は `WXK11-037-E1` の1効果だけで、原文は「2枚まで」。対象2効果だけというスコープを守るため既存の値なしJSONは変更せず、reader が値なしを2、本件の `value:'ALL'` を無制限として読む後方互換拡張にした。新語彙の乱立や既存語彙の意味のすり替えは行っていない。
+- `manualEffects.ts` へトップレベル全フィールドを持つ E1 を登録し、`censusManualDrift.ts --adopt WX20-028-E1` で live に同期。golden は構造だけでなく `collectMultiAcceSigni` の実収集まで固定し、**1696→1697 / FAIL 0**。この段階では storage と E2 は未変更。
+
+### Step B — storage をゾーン別の複数枚保持へ移行
+
+- 設計は **(a) 型そのものを `(string[] | null)[]` へ変更**。代表1枚＋追加フィールドの (b) は、どちらを真とするかが reader ごとに分裂し、離場・描画・付与能力・`ON_ACCE_TO_TRASH` のいずれかが追加分を落とすため不採用。`src/types/index.ts` の型変更後に typecheck を一度全落ちさせ、`signi_acce` の生検索 **107行／19ファイル**と照合して reader/writer を全追従した。共通の `acceCardsAt` / `allAcceCards` / `cloneAcceSlots` 等を `src/utils/acce.ts` に置き、最終 typecheck は0件。
+- attach writer は `execAttachAcce` / `applyDirectAction(ATTACH_ACCE)` / `execFieldSigniToAcce` / `execStubPart3` の手札・トラッシュ・サーチ・移設経路を末尾追加へ変更。`collectMultiAcceLimits` が `WX20-028` の `value:'ALL'` を無制限、`WXK11-037` の旧live値なしを2、宣言の無い通常シグニを1として強制する。したがって挙動が広がるのは対象 `WX20-028` だけで、`WXK11-037` は印刷上限2、他カードは従来どおり1枚。
+- 全枚数を読む経路は `calcFieldPowers`、`collectGrantedFromAcce`、`collectAllColorSigniForField`、`collectBanishTriggers`、BattleScreen のキーワード／ON_ACCE_ATTACH／カードロードへ追従。場離れは `removeFromField`、バトルバニッシュ、ライズ、レゾナ支払い、fieldTrash、場上限整理、アタック追加コストが全アクセをルールどおりトラッシュへ送る。1枚だけを支払う／置換する経路（`acceTrash`、`TRASH_ACCE_AT_TURN_END`、調理バニッシュ代替、アクセ自身のバニッシュ代替）は該当1枚だけを除き、残りを保持する。
+- `boardDiff.countAcceToTrash` と `detectCardAttached` は内側配列の set-diff に変更し、同一ホストから2枚トラッシュ／同一ホストへ2枚付与を golden で固定。`BoardComponents.StackedSigniSlot` は `ACE×N` を描画する。golden は実 executor で **①WX20-028へ3枚保持 ②通常シグニの2枚目拒否 ③拒否カードがエナに残る ④WXK11-037の上限2**を固定し、**1697→1698 / FAIL 0**。
+
+### Step C — `WX20-028-E2` の3枚条件＋3系統一括トラッシュ
+
+- 旧 `STUB{MULTI_ACCE_3_MASS_TRASH}` は `src/` に reader が0件の真no-op。既存 `THIS_CARD_IS_ACCED` を `minCount?:number` へ後方互換拡張し、`CONDITIONAL{minCount:3}` の内側を `SEQUENCE[TRASH_SELF_ACCE_ALL, TRASH{opponent ENERGY ALL}, TRASH{opponent SIGNI ALL}]` とした。`TRASH_SELF_ACCE_ALL` はカード番号分岐を持たず、効果元ホストの全アクセだけをトラッシュへ移す意味的 handler。相手シグニは既存 `execTrash`→`removeFromField` を通るため、各シグニのスタック下・チャーム・全アクセもルール処理される。
+- 発火入口は `performSigniAttack` 内の pure `collectAttackerSelfTriggers`。従来 BattleScreen 内に直書きだったアタッカー自身の `ON_ATTACK_SIGNI` 収集を同名関数へ抽出し、`timing:['ON_ATTACK_SIGNI']` 以外から到達しない。`triggerScope:'self'`、mandatory、duration は原文どおり保持。
+- golden 実行E2Eは **①アクセ2枚では3系統すべて不変 ②3枚では自身の全アクセ・相手全エナ・相手全シグニがトラッシュ ③相手シグニに付いていたアクセも同時にトラッシュ ④`collectAttackerSelfTriggers` がアタック時にE2を収集し、live timing がON_ATTACK_SIGNIだけ**を固定。最終 **1698 / FAIL 0**。`manualEffects.ts` のE2はトップレベル全フィールドを保持し、`censusManualDrift.ts --adopt WX20-028-E2` でlive同期済み。
+- 全カード `build:effects` で、後段 `fixLrigColorFilters.mjs` に本件を旧deferへ戻す stale writer が残っていることを検出。`src/` 内 reader 0という投入時実測は正しいが、「宣言だけ」ではなく再生成時に no-op を**再注入する writer が scripts に1件**あった点を訂正する。storage完成に伴いこの外科パッチを削除し、再adopt後の build 冪等性でE2が維持されることを確認する。
+
 ## 2026-08-09 — §6.3 E-2 第2波：permanent 引用付与（4効果）
 
 - **① `WX15-002-E2` は baseline `0b9d7e117` の時点で既に正しかった**。live は `GRANT_LRIG_ABILITY{permanent:true}` で、実行時に内側AUTOへ `permanentGrant:true` を刻む。投入表の「`permanent` 欠落」は現行HEADと不一致だったためデータは変更していない。内側の宣言 `UNKNOWN` は指示どおり据置。ターン終了3経路が同じ pure helper `clearTurnGrantedLrigAbilities` を呼ぶ形へ集約し、golden は executor から付与後、その実リセット関数を通して一時付与だけが消え、permanent付与が残ることを固定した。収集は相手ルリグアタック時に `collectLrigAttackDefenderTriggers` が防御側ストアを読む。

@@ -17,6 +17,7 @@ import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
 import { canPayUnderAnySigniTrash } from '../screens/battle/underAnySigniCost';
+import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
 
 // ===== 実行コンテキスト & 結果型 =====
 
@@ -1076,7 +1077,7 @@ export function fieldCandidates(
       if (filter.infected !== infected) return [];
     }
     if (filter?.hasAcce !== undefined) {
-      const acceExists = (state.field.signi_acce?.[zoneIdx] ?? null) !== null;
+      const acceExists = hasAcceAt(state.field, zoneIdx);
       if (filter.hasAcce !== acceExists) return [];
     }
     if (filter?.hasCharm !== undefined) {
@@ -1598,7 +1599,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (!src) return false;
       const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === src);
       if (zoneIdx < 0) return false;
-      return (ctx.ownerState.field.signi_acce?.[zoneIdx] ?? null) !== null;
+      return acceCardsAt(ctx.ownerState.field, zoneIdx).length >= (cond.minCount ?? 1);
     }
     case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
       // 「そのアタックフェイズの間に〈owner〉のシグニ（filter一致）が場を離れていた場合」（§6.3 J-4・WX24-P2-075-E1）。
@@ -1615,8 +1616,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const zoneIdx = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === src);
       if (zoneIdx < 0) return false;
       const f = ctx.ownerState.field;
-      const n = [f.signi_charms, f.signi_acce, f.signi_soul]
-        .filter(slot => (slot ?? [])[zoneIdx] != null).length;
+      const n = (f.signi_charms?.[zoneIdx] ? 1 : 0)
+        + acceCardsAt(f, zoneIdx).length
+        + (f.signi_soul?.[zoneIdx] ? 1 : 0);
       return n >= (cond.minCount ?? 1);
     }
     case 'IS_DRIVE_STATE': {
@@ -2114,7 +2116,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
   const newDown   = [...(state.field.signi_down   ?? [false, false, false])];
   const newFrozen = [...(state.field.signi_frozen  ?? [false, false, false])];
   const newCharms = [...(state.field.signi_charms  ?? [null, null, null])];
-  const newAcce   = [...(state.field.signi_acce    ?? [null, null, null])];
+  const newAcce   = cloneAcceSlots(state.field);
   const newSoul   = [...(state.field.signi_soul    ?? [null, null, null])];
   const newArmor  = [...(state.field.signi_armor   ?? [false, false, false])];
   const extraTrash: string[] = [];
@@ -2124,7 +2126,7 @@ export function removeFromField(cardNum: string, state: PlayerState): PlayerStat
     newFrozen[zoneIdx] = false;
     newArmor[zoneIdx]  = false;
     if (newCharms[zoneIdx]) { extraTrash.push(newCharms[zoneIdx]!); newCharms[zoneIdx] = null; }
-    if (newAcce[zoneIdx])   { extraTrash.push(newAcce[zoneIdx]!);   newAcce[zoneIdx]   = null; }
+    if (newAcce[zoneIdx])   { extraTrash.push(...newAcce[zoneIdx]!); newAcce[zoneIdx] = null; }
     // ソウルはシグニが場を離れるとルリグトラッシュへ
     if (newSoul[zoneIdx])   { extraLrigTrash.push(newSoul[zoneIdx]!); newSoul[zoneIdx] = null; }
     // 血晶武装の下カード（スタックの先頭からシグニ直前まで）をトラッシュへ

@@ -15,6 +15,7 @@ import {
   hasNoAbility,
   buildFrontPowerGatedKeywordGrant,
 } from './execUtils';
+import { allAcceCards, countAcce } from '../utils/acce';
 import {
   markTurnEndFacedownTrashIfOccupied,
   moveFieldSigniFacedown,
@@ -1938,7 +1939,7 @@ export function execStubPart2(
   // ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ
   if (stub.id === 'ACCE_TO_ENERGY' || stub.id === 'PLACE_ACCE_SIGNI_TO_ENERGY') {
     const sATE = ctx.ownerState;
-    const acceCardsATE = (sATE.field.signi_acce ?? []).filter((c): c is string => c !== null);
+    const acceCardsATE = allAcceCards(sATE.field);
     if (acceCardsATE.length === 0) return done({ ...addLog(ctx, 'アクセなし'), lastProcessedCards: [] });
     const newSATE: PlayerState = {
       ...sATE,
@@ -1954,7 +1955,7 @@ export function execStubPart2(
   // ACCE_BANISH_SELF_TRASH: アクセを自分のトラッシュへ
   if (stub.id === 'ACCE_BANISH_SELF_TRASH') {
     const sABST = ctx.ownerState;
-    const acceCardsABST = (sABST.field.signi_acce ?? []).filter((c): c is string => c !== null);
+    const acceCardsABST = allAcceCards(sABST.field);
     if (acceCardsABST.length === 0) return done(addLog(ctx, 'アクセなし'));
     const newSABST: PlayerState = {
       ...sABST,
@@ -2001,7 +2002,7 @@ export function execStubPart2(
     const mPBAC = txtPBAC.match(/([＋+－-][０-９\d]+)/);
     if (!mPBAC) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_BY_ACCE_COUNT）'));
     const singleDeltaPBAC = parseInt(toHWPBAC(mPBAC[1]).replace('＋', '+').replace('－', '-'));
-    const acceCountPBAC = (ctx.ownerState.field.signi_acce ?? []).filter(c => c !== null).length;
+    const acceCountPBAC = countAcce(ctx.ownerState.field);
     const totalDeltaPBAC = singleDeltaPBAC * acceCountPBAC;
     if (totalDeltaPBAC === 0) return done(addLog(ctx, 'アクセなし（POWER_BY_ACCE_COUNT）'));
     const modsPBAC = [...(ctx.otherState.temp_power_mods ?? [])];

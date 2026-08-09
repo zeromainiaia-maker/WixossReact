@@ -16,12 +16,13 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
-import { matchesStateFilter } from './effectEngine';
+import { collectMultiAcceLimits, matchesStateFilter } from './effectEngine';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { collectReturnableAssistLrigTops } from './assistLrig';
+import { acceCardsAt, cloneAcceSlots } from '../utils/acce';
 
 // いま**アタックを宣言していてバトル未解決**のシグニ（`pending_signi_battle` のゾーン頂点）。無ければ undefined。
 // 「対戦相手のアタックしているシグニ」の解決と、進行中アタックの無効化先の判定に使う（Opusタスク12(cx)）。
@@ -5778,10 +5779,25 @@ export function resumeSelectVirusZone(
   return done(cur);
 }
 
+function canAttachAcceToHost(
+  state: PlayerState,
+  otherState: PlayerState,
+  hostNum: string,
+  zoneIdx: number,
+  ctx: ExecCtx,
+  isStateOwnerTurn: boolean,
+): boolean {
+  const limit = ctx.effectsMap
+    ? (collectMultiAcceLimits(state, ctx.effectsMap, ctx.cardMap, otherState, isStateOwnerTurn).get(hostNum) ?? 1)
+    : 1;
+  return acceCardsAt(state.field, zoneIdx).length < limit;
+}
+
 function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   const srcState = a.sourceOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
   const tgtState = a.targetSigniOwner === 'opponent' ? ctx.otherState : ctx.ownerState;
-  const acce = tgtState.field.signi_acce ?? [null, null, null];
+  const tgtOther = a.targetSigniOwner === 'opponent' ? ctx.ownerState : ctx.otherState;
+  const isTgtTurn = a.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
 
   // romHand
    if (a.fromHand) {
@@ -5808,8 +5824,8 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
   // targetFilter でホスト側フィルター、signiFilter でアクセカード側フィルター
   const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
     if (!stack || stack.length === 0) return [];
-    if (acce[i] !== null) return [];
     const top = stack[stack.length - 1];
+    if (!canAttachAcceToHost(tgtState, tgtOther, top, i, ctx, isTgtTurn)) return [];
     if (a.targetFilter && !matchesFilter(ctx.cardMap.get(top), a.targetFilter)) return [];
     return [top];
   });
@@ -5829,13 +5845,15 @@ function execAttachAcce(a: AttachAcceAction, ctx: ExecCtx): ExecResult {
 function execFieldSigniToAcce(a: import('../types/effects').FieldSigniToAcceAction, ctx: ExecCtx): ExecResult {
   const srcState = ownerState(a.sourceOwner, ctx);
   const tgtState = ownerState(a.targetSigniOwner, ctx);
+  const tgtOther = a.targetSigniOwner === 'opponent' ? ctx.ownerState : ctx.otherState;
+  const isTgtTurn = a.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
   const picked = a.sourceThisCard ? ctx.sourceCardNum : a._pickedFieldSigni;
 
   if (a._reattachSelectingHost && a._reattachAcceCard) {
     const hostCands = fieldCandidates(tgtState, a.targetFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => {
         const zi = tgtState.field.signi.findIndex(s => s?.at(-1) === n);
-        return zi >= 0 && (tgtState.field.signi_acce?.[zi] ?? null) === null;
+        return zi >= 0 && canAttachAcceToHost(tgtState, tgtOther, n, zi, ctx, isTgtTurn);
       });
     if (hostCands.length === 0) return done(ctx);
     const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
@@ -5855,12 +5873,10 @@ function execFieldSigniToAcce(a: import('../types/effects').FieldSigniToAcceActi
     });
   }
 
-  const acce = tgtState.field.signi_acce ?? [null, null, null];
   const hostCands = fieldCandidates(tgtState, a.targetFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors).filter(cn => {
     if (cn === picked) return false;
     const zi = tgtState.field.signi.findIndex(s => s?.at(-1) === cn);
-    if (zi < 0 || acce[zi] !== null) return false;
-    return true;
+    return zi >= 0 && canAttachAcceToHost(tgtState, tgtOther, cn, zi, ctx, isTgtTurn);
   });
   if (hostCands.length === 0) return done(addLog(ctx, 'アクセ対象なし'));
   const scope: TargetScope = a.targetSigniOwner === 'opponent' ? 'opp_field' : 'self_field';
@@ -7476,13 +7492,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const acceAction = action as import('../types/effects').AttachAcceAction;
       const tgtState = ownerState(acceAction.targetSigniOwner, ctx);
       const srcState = ownerState(acceAction.sourceOwner, ctx);
+      const tgtOther = acceAction.targetSigniOwner === 'opponent' ? ctx.ownerState : ctx.otherState;
+      const isTgtTurn = acceAction.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
       // fromHand step1完了: cardNum = 手札から選んだアクセカード。続けてホストシグニ選択(step2)を発行する。
       if (acceAction._selectingAcceFromHand) {
-        const acce = tgtState.field.signi_acce ?? [null, null, null];
         const hostCands = (tgtState.field.signi ?? []).flatMap((stack, i) => {
           if (!stack || stack.length === 0) return [];
-          if (acce[i] !== null) return [];
           const top = stack[stack.length - 1];
+          if (!canAttachAcceToHost(tgtState, tgtOther, top, i, ctx, isTgtTurn)) return [];
           if (acceAction.targetFilter && !matchesFilter(ctx.cardMap.get(top), acceAction.targetFilter)) return [];
           return [top];
         });
@@ -7501,6 +7518,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // step2 / エナ経路: cardNum = SELECT_TARGETで選ばれたホストシグニ
       const zoneIdx  = tgtState.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (zoneIdx < 0) return done(ctx);
+      if (!canAttachAcceToHost(tgtState, tgtOther, cardNum, zoneIdx, ctx, isTgtTurn)) return done(ctx);
       // acceカード = _pickedAcceCard（手札選択後）／sourceCardNum（エナゾーンからの場合）／lastProcessedCards[0]
       const acceCardNum = acceAction._pickedAcceCard ?? ctx.sourceCardNum ?? ctx.lastProcessedCards?.[0];
       if (!acceCardNum) return done(ctx);
@@ -7514,10 +7532,10 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         return done(addLog(ctx, `ATTACH_ACCE: ${ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum}がエナ/手札にない`));
       }
       let ctx2 = setOwnerState(acceAction.sourceOwner, newSrc, ctx);
-      // signi_acce[zoneIdx] に設定
+      // signi_acce[zoneIdx] の末尾へ追加
       const tgt2 = ownerState(acceAction.targetSigniOwner, ctx2);
-      const newAcce = [...(tgt2.field.signi_acce ?? [null, null, null])];
-      newAcce[zoneIdx] = acceCardNum;
+      const newAcce = cloneAcceSlots(tgt2.field);
+      newAcce[zoneIdx] = [...acceCardsAt(tgt2.field, zoneIdx), acceCardNum];
       const newTgt: import('../types').PlayerState = { ...tgt2, field: { ...tgt2.field, signi_acce: newAcce } };
       ctx2 = setOwnerState(acceAction.targetSigniOwner, newTgt, ctx2);
       const acceCardName  = ctx.cardMap.get(acceCardNum)?.CardName ?? acceCardNum;
@@ -7537,11 +7555,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const fieldAcce = action as import('../types/effects').FieldSigniToAcceAction;
       if (fieldAcce._reattachSelectingHost && fieldAcce._reattachAcceCard) {
         const state = ownerState(fieldAcce.targetSigniOwner, ctx);
+        const other = fieldAcce.targetSigniOwner === 'opponent' ? ctx.ownerState : ctx.otherState;
+        const isStateTurn = fieldAcce.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
         const hostZone = state.field.signi.findIndex(s => s?.at(-1) === cardNum);
         const trashIdx = state.trash.indexOf(fieldAcce._reattachAcceCard);
-        if (hostZone < 0 || trashIdx < 0 || (state.field.signi_acce?.[hostZone] ?? null) !== null) return done(ctx);
+        if (hostZone < 0 || trashIdx < 0 || !canAttachAcceToHost(state, other, cardNum, hostZone, ctx, isStateTurn)) return done(ctx);
         const trash = [...state.trash]; trash.splice(trashIdx, 1);
-        const acce = [...(state.field.signi_acce ?? [null, null, null])]; acce[hostZone] = fieldAcce._reattachAcceCard;
+        const acce = cloneAcceSlots(state.field); acce[hostZone] = [...acceCardsAt(state.field, hostZone), fieldAcce._reattachAcceCard];
         return done(addLog(setOwnerState(fieldAcce.targetSigniOwner, {
           ...state, trash, field: { ...state.field, signi_acce: acce }, acce_just_done: cardNum,
         }, ctx), `${ctx.cardMap.get(fieldAcce._reattachAcceCard)?.CardName ?? fieldAcce._reattachAcceCard}を移設`));
@@ -7553,11 +7573,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const acceCardNum = fieldAcce.sourceThisCard ? ctx.sourceCardNum : fieldAcce._pickedFieldSigni;
       if (!acceCardNum) return done(ctx);
       const tgtBefore = ownerState(fieldAcce.targetSigniOwner, ctx);
+      const tgtOther = fieldAcce.targetSigniOwner === 'opponent' ? ctx.ownerState : ctx.otherState;
+      const isTgtTurn = fieldAcce.targetSigniOwner === 'opponent' ? !(ctx.isOwnerTurn ?? true) : (ctx.isOwnerTurn ?? true);
       const hostZone = tgtBefore.field.signi.findIndex(s => s?.at(-1) === cardNum);
-      if (hostZone < 0 || (tgtBefore.field.signi_acce?.[hostZone] ?? null) !== null) return done(ctx);
+      if (hostZone < 0 || !canAttachAcceToHost(tgtBefore, tgtOther, cardNum, hostZone, ctx, isTgtTurn)) return done(ctx);
       const srcBefore = ownerState(fieldAcce.sourceOwner, ctx);
       const srcZone = srcBefore.field.signi.findIndex(s => s?.at(-1) === acceCardNum);
-      const previousAcce = srcZone >= 0 ? (srcBefore.field.signi_acce?.[srcZone] ?? null) : null;
+      const previousAcce = srcZone >= 0 ? (srcBefore.field.signi_acce?.[srcZone]?.[0] ?? null) : null;
       if (!srcBefore.field.signi.some(s => s?.at(-1) === acceCardNum)) {
         return done(addLog(ctx, 'FIELD_SIGNI_TO_ACCE: アクセ元が場にない'));
       }
@@ -7567,8 +7589,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const tgtAfter = ownerState(fieldAcce.targetSigniOwner, ctx2);
       const hostZoneAfter = tgtAfter.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (hostZoneAfter < 0) return done(ctx2);
-      const newAcce = [...(tgtAfter.field.signi_acce ?? [null, null, null])];
-      newAcce[hostZoneAfter] = acceCardNum;
+      const newAcce = cloneAcceSlots(tgtAfter.field);
+      newAcce[hostZoneAfter] = [...acceCardsAt(tgtAfter.field, hostZoneAfter), acceCardNum];
       const withAcce: import('../types').PlayerState = {
         ...tgtAfter,
         field: { ...tgtAfter.field, signi_acce: newAcce },

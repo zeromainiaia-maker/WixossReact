@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -12,10 +12,11 @@ import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, re
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
-import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, attackerSelfTriggerFilterOk } from '../engine/triggerCollect';
+import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
+import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, hasAcceAt } from '../utils/acce';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
@@ -610,7 +611,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       (s.field.facedown_signi ?? []).forEach(n => n && nums.add(getCardNum(n))); // 裏向きシグニ（WXDi-P10-034）のカードデータをロード
       // signi_acce: 手札/エナから装着されたアクセカード自身のロードに必須（装着でhand/energyから外れるため
       //   これを走査しないと自身のON_ACCE_ATTACH能力等がeffectsMapから脱落する。WXK05-041デコレ）。
-      (s.field.signi_acce   ?? []).forEach(n => n && nums.add(getCardNum(n)));
+      allAcceCards(s.field).forEach(n => nums.add(getCardNum(n)));
       addAll(s.field.free_zone);
       // beat_zone: シグニが【ビート】になると field.signi から外れ beat_zone に移るため、これを走査しないと
       //   なったカード自身の ON_BECOME_BEAT（self）が effectsMap から脱落し collectBeatBecameTriggers の
@@ -754,8 +755,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     ));
 
     // アクセ付与（GRANT_ACCE_HOST_ABILITY）持ちアクセカードの有無チェック
-    const hasAcceGrant = [...(myS.field.signi_acce ?? []), ...(opS.field.signi_acce ?? [])].some(acceNum => {
-      if (!acceNum) return false;
+    const hasAcceGrant = [...allAcceCards(myS.field), ...allAcceCards(opS.field)].some(acceNum => {
       return (baseEffectsMap.get(acceNum) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_ACCE_HOST_ABILITY');
     });
@@ -5485,7 +5485,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newSigniDown   = [...(my.field.signi_down   ?? [false, false, false])];
       const newSigniFrozen = [...(my.field.signi_frozen  ?? [false, false, false])];
       const newCharms      = [...(my.field.signi_charms  ?? [null, null, null])];
-      const newAcce        = [...(my.field.signi_acce    ?? [null, null, null])];
+      const newAcce        = cloneAcceSlots(my.field);
       const newSoul        = [...(my.field.signi_soul    ?? [null, null, null])];
       newSigniDown[zoneIndex]   = false;
       newSigniFrozen[zoneIndex] = false;
@@ -5493,7 +5493,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const zoneExtraLrigTrash: string[] = [];
       // ライズ時: チャームはルール処理でトラッシュへ（アクセもリセット）
       if (newCharms[zoneIndex]) { zoneExtraTrash.push(newCharms[zoneIndex]!); newCharms[zoneIndex] = null; }
-      if (newAcce[zoneIndex])   { zoneExtraTrash.push(newAcce[zoneIndex]!);   newAcce[zoneIndex]   = null; }
+      if (newAcce[zoneIndex])   { zoneExtraTrash.push(...newAcce[zoneIndex]!); newAcce[zoneIndex] = null; }
       // ライズで元のトップシグニが下に置かれるカードになると、付いていた【ソウル】はルリグトラッシュへ（ルール処理）
       if (newSoul[zoneIndex])   { zoneExtraLrigTrash.push(newSoul[zoneIndex]!); newSoul[zoneIndex] = null; }
       let placed: PlayerState;
@@ -7771,32 +7771,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_ATTACK_SIGNIトリガー収集（Phase 1：バトル前に処理するトリガー）
       // condition を持つ AUTO は発動条件を満たす場合のみ収集（「〜であるかぎり『【自】アタック時…』を得る」系）
       const atkSelfPowers = calcFieldPowers(newMyState, newOpState, true, effectsMap, battleCardMap, bs.turn_phase);
-      const attackerCrossOk = isCrossZoneActive(newMyState, myTopNum, battleCardMap);
-      const attackEntries: StackEntry[] = (effectsMap.get(myTopNum) ?? [])
-        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_SIGNI'))
-        .filter(e => !e.crossOnly || attackerCrossOk) // 【クロス自】はアタッカーがクロス状態のときのみ
-        .filter(e => !e.kizunaIcon || isKizunaActive(newMyState, myTopNum, battleCardMap)) // 【絆自】は絆獲得時のみ
-        // triggerFilter は「アタックしたシグニ」＝ここではアタッカー自身に適用する。この経路は triggerScope を
-        // 見ずアタッカーの ON_ATTACK_SIGNI を全部拾うため、any_ally（「あなたの〜シグニがアタックしたとき」）の
-        // 効果も**自身がアタックした場合はここで**収集される（他の味方が攻めた分は collectFieldTriggers 側）。
-        // よって filter をここに置かないと、主語の限定（色・パワー等）が自分のアタック時だけ素通りする
-        // ＝WXDi-P02-079-E2/WXK07-030-E2 の「パワー15000以上」がパワー不問で発火していた（タスク12(lxix)）。
-        // ⚠ atkSelfPowers（calcFieldPowers）のキーは場のスタック頂点の生値なので getCardNum() で丸めない。
-        // ⚠ 判定は `attackerSelfTriggerFilterOk`（pure・triggerCollect.ts）に集約＝素の matchesFilter は
-        //   `excludeSelf` を見ないので「あなたの**他の**〜がアタックしたとき」が自身のアタックで誤発火する。
-        .filter(e => attackerSelfTriggerFilterOk(e, battleCardMap.get(getCardNum(myTopNum)), atkSelfPowers.get(myTopNum)))
-        // ⚠`triggerCondition.turnOwner` はここで見なくてよい＝収集後段の `effectStack.turnGateOk` が
-        //   entry.playerId 基準で全コレクタ共通に落とす（タスク12(xcix) で一度足して差し戻した）。
-        .filter(e => !e.condition || evalUseCondition(e.condition, newMyState, newOpState, battleCardMap, myTopNum, bs.turn_phase, atkSelfPowers))
-        .map(e => ({
-          id: generateUUID(),
-          playerId: attackerId,
-          cardNum: myTopNum,
-          effectId: e.effectId,
-          label: `${battleCardMap.get(myTopNum)?.CardName ?? myTopNum} の【自】効果（シグニアタック時）`,
-          effect: e,
-          triggeringCardNum: myTopNum, // 「それ」= 自身
-        } satisfies StackEntry));
+      const attackEntries = pureCollectAttackerSelfTriggers(
+        mkTrigCtx(), newMyState, newOpState, myTopNum, attackerId, atkSelfPowers,
+      );
 
       // any_ally scope: 味方フィールドの他シグニが持つON_ATTACK_SIGNIへの応答（例: WX01-029）
       const allyAttackRes = collectFieldTriggers('ON_ATTACK_SIGNI', myTopNum, newMyState, newOpState, attackerId);
@@ -8108,9 +8085,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       const myZoneIdx = myS.field.signi.findIndex(s => s?.at(-1) === myTopNum);
       if (myZoneIdx >= 0) {
-        const acceNum = myS.field.signi_acce?.[myZoneIdx] ?? null;
-        if (acceNum) {
-          for (const eff of (effectsMap.get(acceNum) ?? [])) {
+        const acceNums = acceCardsAt(myS.field, myZoneIdx);
+        if (acceNums.length > 0) {
+          for (const acceNum of acceNums) for (const eff of (effectsMap.get(acceNum) ?? [])) {
             if (eff.effectType !== 'CONTINUOUS') continue;
             if (eff.activeCondition && eff.activeCondition.type !== 'IS_SELF_ACCE_CARD') continue;
             const gkA = eff.action.type === 'GRANT_KEYWORD'
@@ -8162,7 +8139,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const newOpDown   = [...(opS.field.signi_down   ?? [false, false, false])];
           const newOpFrozen = [...(opS.field.signi_frozen  ?? [false, false, false])];
           const newOpCharms = [...(opS.field.signi_charms  ?? [null, null, null])];
-          const newOpAcce   = [...(opS.field.signi_acce    ?? [null, null, null])];
+          const newOpAcce   = cloneAcceSlots(opS.field);
           const wasOpFrozen = newOpFrozen[opZoneIndex] ?? false;
 
           // ─── F-3 BANISH_SUBSTITUTE: バトルバニッシュの任意身代わり置換 ───
@@ -8248,7 +8225,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               newOpDown[sacZone] = false;
               newOpFrozen[sacZone] = false;
               if (newOpCharms[sacZone]) { f3Extra.push(newOpCharms[sacZone]!); newOpCharms[sacZone] = null; }
-              if (newOpAcce[sacZone])   { f3Extra.push(newOpAcce[sacZone]!);   newOpAcce[sacZone]   = null; }
+              if (newOpAcce[sacZone])   { f3Extra.push(...newOpAcce[sacZone]!); newOpAcce[sacZone] = null; }
             }
             newOpState = {
               ...opS,
@@ -8327,7 +8304,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // （防御側から見て相手ターンのみ＝アタックは常にアタッカーのターンなので常に該当）
           const opTopCardClass = opTopCardNum ? (battleCardMap.get(opTopCardNum)?.CardClass ?? '') : '';
           const cookingBanishSub = opTopCardClass.includes('調理') &&
-            (opS.field.signi_acce?.[opZoneIndex] ?? null) !== null &&
+            hasAcceAt(opS.field, opZoneIndex) &&
             opS.field.signi.some(stack => {
               const top = stack?.at(-1);
               return top && (effectsMap.get(top) ?? []).some(eff =>
@@ -8349,32 +8326,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             newOpState = { ...opS, trash: [...opS.trash, charmTrashCS], field: { ...opS.field, signi: newOpSigniCS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（チャーム盾）【チャーム】をトラッシュしてバニッシュ回避`]);
           } else if (cookingBanishSub) {
-            const acceTrash = newOpAcce[opZoneIndex]!;
-            newOpAcce[opZoneIndex] = null;
+            const acceTrash = newOpAcce[opZoneIndex]![0];
+            const remaining = newOpAcce[opZoneIndex]!.slice(1);
+            newOpAcce[opZoneIndex] = remaining.length > 0 ? remaining : null;
             newOpFrozen[opZoneIndex] = false;
             const newOpSigniCBS = [...opS.field.signi] as (string[] | null)[];
             newOpState = { ...opS, trash: [...opS.trash, acceTrash], field: { ...opS.field, signi: newOpSigniCBS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（調理バニッシュ代替）アクセをトラッシュしてバニッシュ回避`]);
-          } else if (newOpAcce[opZoneIndex] && (effectsMap.get(newOpAcce[opZoneIndex]!) ?? []).some(eff =>
+          } else if ((newOpAcce[opZoneIndex] ?? []).some(acceNum => (effectsMap.get(acceNum) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
             (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-            (eff.action as import('../types/effects').StubAction).id === 'ACCE_BANISH_SUBSTITUTE')) {
+            (eff.action as import('../types/effects').StubAction).id === 'ACCE_BANISH_SUBSTITUTE'))) {
             // ACCE_BANISH_SUBSTITUTE: アクセをゲームから除外してシグニをダウン（バニッシュ回避）
-            const exiledAcce = newOpAcce[opZoneIndex]!;
-            newOpAcce[opZoneIndex] = null;
+            const exiledAcce = newOpAcce[opZoneIndex]!.find(acceNum => (effectsMap.get(acceNum) ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB' && eff.action.id === 'ACCE_BANISH_SUBSTITUTE'))!;
+            const remaining = newOpAcce[opZoneIndex]!.filter(cn => cn !== exiledAcce);
+            newOpAcce[opZoneIndex] = remaining.length > 0 ? remaining : null;
             newOpDown[opZoneIndex] = true;
             newOpFrozen[opZoneIndex] = false;
             const newOpSigniABS = [...opS.field.signi] as (string[] | null)[];
             newOpState = { ...opS, trash: [...opS.trash, exiledAcce], field: { ...opS.field, signi: newOpSigniABS, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
             appendBattleLogs([`${opCardName}（アクセ代替バニッシュ）アクセをゲームから除外してダウン`]);
-          } else if (newOpAcce[opZoneIndex] && (effectsMap.get(newOpAcce[opZoneIndex]!) ?? []).some(eff =>
+          } else if ((newOpAcce[opZoneIndex] ?? []).some(acceNum => (effectsMap.get(acceNum) ?? []).some(eff =>
             eff.effectType === 'CONTINUOUS' &&
             (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-            (eff.action as import('../types/effects').StubAction).id === 'ACCE_BANISH_SELF_TRASH')) {
+            (eff.action as import('../types/effects').StubAction).id === 'ACCE_BANISH_SELF_TRASH'))) {
             // ACCE_BANISH_SELF_TRASH（WXK04-031 メレドール）: 代わりにアクセ（このカード）をトラッシュに置きバニッシュ回避。
             // シグニはダウンせずそのまま場に残る（バニッシュを丸ごとアクセの離脱で置換）。
-            const trashedAcce = newOpAcce[opZoneIndex]!;
-            newOpAcce[opZoneIndex] = null;
+            const trashedAcce = newOpAcce[opZoneIndex]!.find(acceNum => (effectsMap.get(acceNum) ?? []).some(eff =>
+              eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB' && eff.action.id === 'ACCE_BANISH_SELF_TRASH'))!;
+            const remaining = newOpAcce[opZoneIndex]!.filter(cn => cn !== trashedAcce);
+            newOpAcce[opZoneIndex] = remaining.length > 0 ? remaining : null;
             newOpFrozen[opZoneIndex] = false;
             const newOpSigniABT = [...opS.field.signi] as (string[] | null)[];
             newOpState = { ...opS, trash: [...opS.trash, trashedAcce], field: { ...opS.field, signi: newOpSigniABT, signi_down: newOpDown, signi_frozen: newOpFrozen, signi_charms: newOpCharms, signi_acce: newOpAcce } };
@@ -8412,7 +8394,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newOpFrozen[opZoneIndex] = false;
           const banishExtraTrash: string[] = [];
           if (newOpCharms[opZoneIndex]) { banishExtraTrash.push(newOpCharms[opZoneIndex]!); newOpCharms[opZoneIndex] = null; }
-          if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(newOpAcce[opZoneIndex]!);   newOpAcce[opZoneIndex]   = null; }
+          if (newOpAcce[opZoneIndex])   { banishExtraTrash.push(...newOpAcce[opZoneIndex]!); newOpAcce[opZoneIndex] = null; }
           // ウィルスはゾーンに属するため、シグニがバニッシュされても除去しない
           // 状態フラグ（ACTIVATEDで設定済み）またはCONTINUOUS BANISH_REDIRECT効果（activeCondition評価込み）
           const redirectBanish =
@@ -11161,13 +11143,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // acceTrash: あなたの【アクセ】N枚をトラッシュ（自動選択。先頭のゾーンから）
       const acceTrashNAct = effect.cost?.acceTrash ?? 0;
       if (acceTrashNAct > 0) {
-        const newAcceAct = [...(paid.field.signi_acce ?? [null, null, null])];
+        const newAcceAct = cloneAcceSlots(paid.field);
         const movedAcceAct: string[] = [];
         for (let zi = 0; zi < newAcceAct.length && movedAcceAct.length < acceTrashNAct; zi++) {
-          if (newAcceAct[zi]) { movedAcceAct.push(newAcceAct[zi]!); newAcceAct[zi] = null; }
+          while (newAcceAct[zi]?.length && movedAcceAct.length < acceTrashNAct) {
+            movedAcceAct.push(newAcceAct[zi]!.shift()!);
+          }
+          if (newAcceAct[zi]?.length === 0) newAcceAct[zi] = null;
         }
         if (movedAcceAct.length < acceTrashNAct) return; // 支払い不能
-        paid = { ...paid, field: { ...paid.field, signi_acce: newAcceAct as (string | null)[] }, trash: [...paid.trash, ...movedAcceAct] };
+        paid = { ...paid, field: { ...paid.field, signi_acce: newAcceAct }, trash: [...paid.trash, ...movedAcceAct] };
       }
       // fieldTrash: 場のシグニをコストでトラッシュ（チャーム/アクセも一緒に。WX03-035「他の＜古代兵器＞のシグニ1体を場からトラッシュ」等）
       if (fieldTrashZones.size > 0) {
@@ -11185,7 +11170,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (topSigniFA) trashedSigniLevelFA = parseInt(topSigniFA.Level ?? '0', 10) || 0;
           toTrashFA.push(...stack.map(getCardNum));
           if (newCharmsFA[zi]) { toTrashFA.push(newCharmsFA[zi]!); newCharmsFA[zi] = null; }
-          if (newAcceFA[zi])   { toTrashFA.push(newAcceFA[zi]!);   newAcceFA[zi]   = null; }
+          if (newAcceFA[zi])   { toTrashFA.push(...newAcceFA[zi]!); newAcceFA[zi] = null; }
           newSigniFA[zi] = null;
           newDownFA[zi] = false;
           newFrozenFA[zi] = false;
@@ -11527,7 +11512,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // ON_ACCE_ATTACH（アクセカード自身）: 「このカードが【アクセ】としてシグニに付いたとき」（SPK01-11 ラズベリー）
     const hostZoneAcce = state.field.signi.findIndex(s => s?.at(-1) === acceHostCardNum);
-    const attachedAcceNum = hostZoneAcce >= 0 ? (state.field.signi_acce?.[hostZoneAcce] ?? null) : null;
+    const attachedAcceNum = hostZoneAcce >= 0 ? acceCardsAt(state.field, hostZoneAcce).at(-1) : null;
     if (attachedAcceNum) {
       for (const eff of (effectsMap.get(attachedAcceNum) ?? [])) {
         if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ACCE_ATTACH')) continue;
@@ -11726,7 +11711,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             toTrashF.push(...stack.map(getCardNum));
           }
           if (newCharmsF[zi]) { toTrashF.push(newCharmsF[zi]!); newCharmsF[zi] = null; }
-          if (newAcceF[zi])   { toTrashF.push(newAcceF[zi]!);   newAcceF[zi]   = null; }
+          if (newAcceF[zi])   { toTrashF.push(...newAcceF[zi]!); newAcceF[zi] = null; }
           newSigniF[zi] = null;
           newDownF[zi] = false;
           newFrozenF[zi] = false;
@@ -12123,7 +12108,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // discard コストは手札の枚数が足りないと支払えない
       const handCount = my.hand.length;
       // acceTrash コストは【アクセ】枚数が足りないと支払えない
-      const acceCount = (my.field.signi_acce ?? []).filter(a => a !== null).length;
+      const acceCount = countAcce(my.field);
       // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
       const kizunaOkHere = isKizunaActive(my, topNum, battleCardMap);
       const activatable = effects.filter(e =>
@@ -12812,14 +12797,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               {acceEffects.map(({ cardNum, effect, alreadyDone }) => {
                 const card = battleCardMap.get(cardNum);
                 // MULTI_ACCE_LIMIT: 多アクセ可能シグニ（max2個）を考慮したターゲット判定
-                const multiAcceSigni = collectMultiAcceSigni(my, effectsMap, battleCardMap, op, true);
+                const multiAcceLimits = collectMultiAcceLimits(my, effectsMap, battleCardMap, op, true);
                 const hasTarget = my.field.signi.some((s, i) => {
                   if (!s?.length) return false;
                   const topCn = s.at(-1)!;
-                  const currentAcce = my.field.signi_acce?.[i];
-                  if (!currentAcce) return true; // 空きスロット
-                  // MULTI_ACCE_LIMIT: このシグニが多アクセ可で既に1個ついている場合は追加可
-                  return multiAcceSigni.includes(topCn);
+                  const limit = multiAcceLimits.get(topCn) ?? 1;
+                  return acceCardsAt(my.field, i).length < limit;
                 });
                 return (
                   <button key={cardNum + effect.effectId}

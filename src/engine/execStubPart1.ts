@@ -36,7 +36,7 @@ export function execStubPart1(
       ...field.signi.flatMap(stack => stack ?? []),
       ...cards(field.assist_lrig_l), ...cards(field.assist_lrig_r),
       ...cards([field.key_piece]), ...cards(field.key_piece_extra),
-      ...cards(field.signi_charms), ...cards(field.signi_acce), ...cards(field.signi_soul),
+      ...cards(field.signi_charms), ...(field.signi_acce ?? []).flatMap(acce => acce ?? []), ...cards(field.signi_soul),
       ...cards(field.signi_traps), ...cards(field.signi_magic_boxes), ...cards(field.signi_seeds),
       ...cards(field.facedown_signi), ...cards(field.free_zone), ...cards(field.beat_zone),
     ];
@@ -4578,7 +4578,7 @@ export function execStubPart1(
     const newDown   = copyArr(ctx.ownerState.field.signi_down, false);
     const newFrozen = copyArr(ctx.ownerState.field.signi_frozen, false);
     const newCharms = copyArr(ctx.ownerState.field.signi_charms as (null | string)[], null);
-    const newAcce   = copyArr(ctx.ownerState.field.signi_acce as (null | string)[], null);
+    const newAcce   = copyArr(ctx.ownerState.field.signi_acce as (null | string[])[], null);
     const newVirus   = copyArr(ctx.ownerState.field.signi_virus, 0);
     const newChokkin = copyArr(ctx.ownerState.field.signi_chokkin, 0);
     [newDown[targetZoneNum], newFrozen[targetZoneNum], newCharms[targetZoneNum], newAcce[targetZoneNum], newVirus[targetZoneNum], newChokkin[targetZoneNum]] =

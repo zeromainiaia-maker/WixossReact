@@ -7,6 +7,7 @@
  * 収集側（どのカードが反応するか）は triggerCollect.ts、本モジュールは「イベントの発生検出」を担う。
  */
 import type { PlayerState } from '../types';
+import { acceCardsAt, allAcceCards } from '../utils/acce';
 
 /** バニッシュされた（場→エナへ移動した）シグニ番号を検出。各ゾーン最前面の before→after 差分。 */
 export function detectBanishedSigni(before: PlayerState, after: PlayerState): string[] {
@@ -310,8 +311,8 @@ export function countCoinsGained(before: PlayerState, after: PlayerState): numbe
 /** 場の【アクセ】（signi_acce）がトラッシュに置かれた枚数を算出（ON_ACCE_TO_TRASH）。countCharmsToTrash の【アクセ】版。 */
 export function countAcceToTrash(before: PlayerState, after: PlayerState): number {
   if (!before || !after) return 0;
-  const beforeAcce = (before.field.signi_acce ?? []).filter((c): c is string => !!c);
-  const afterAcce = new Set((after.field.signi_acce ?? []).filter((c): c is string => !!c));
+  const beforeAcce = allAcceCards(before.field);
+  const afterAcce = new Set(allAcceCards(after.field));
   const afterTrash = new Set(after.trash ?? []);
   let count = 0;
   for (const c of beforeAcce) {
@@ -361,6 +362,11 @@ export function detectCardAttached(
     if (!hostNum || before.field.signi[z]?.at(-1) !== hostNum) continue;
     let count = 0;
     for (const slot of slots) {
+      if (slot === 'signi_acce') {
+        const beforeSet = new Set(acceCardsAt(before.field, z));
+        count += acceCardsAt(after.field, z).filter(cardNum => !beforeSet.has(cardNum)).length;
+        continue;
+      }
       const bv = (before.field[slot] ?? [])[z] ?? null;
       const av = (after.field[slot] ?? [])[z] ?? null;
       if (av && av !== bv) count++;

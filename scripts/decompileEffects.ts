@@ -546,7 +546,9 @@ function condJa(c?: any): string {
         : filterJa(c.filter);
       return `${ownerJa(c.owner)}場にあるすべてのシグニが${cls}`;
     }
-    case 'THIS_CARD_IS_ACCED': return 'このシグニに【アクセ】が付いている';
+    case 'THIS_CARD_IS_ACCED': return c.minCount && c.minCount > 1
+      ? `このシグニにカードが${numJa(c.minCount)}枚以上アクセされている`
+      : 'このシグニに【アクセ】が付いている';
     case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
       const who = c.owner === 'opponent' ? '対戦相手' : 'あなた';
       const cls = c.filter?.story ? `＜${c.filter.story}＞の` : '';
@@ -1546,6 +1548,10 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'FORCE_FRONT_SIGNI_ATTACK': return 'このシグニの正面のシグニは、可能ならアタックしなければならない';
     case 'UNKNOWN': return `【未実装/UNKNOWN：${a.text ?? a.raw ?? ''}】`;
     case 'STUB': {
+      if (a.id === 'MULTI_ACCE_LIMIT') return a.value === 'ALL'
+        ? 'このシグニには好きな枚数の【アクセ】を付けることができる'
+        : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
+      if (a.id === 'TRASH_SELF_ACCE_ALL') return 'このシグニに付いている【アクセ】をすべてトラッシュに置く';
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       if (a.id === 'ASSIST_LRIG_ATTACK_THIS_TURN') return `このターン、あなたはレベル${a.count ?? 1}以上のアシストルリグでアタックできる（未実装）`;
       if (a.id === 'CHECK_ZONE_FLIP_FREE_GROW') return 'このターンにセンタールリグがグロウしていない場合、チェックゾーンのこのカードを裏返し、指定ルリグへグロウコストを支払わずにグロウする（未実装）';
