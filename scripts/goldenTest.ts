@@ -28503,7 +28503,7 @@ test('§6.4 canOfferTrashActivate：在庫不足の【起】はトラッシュUI
 test('§6.4 canOfferTrashActivate：手札に該当シグニが足りなければ出さない（WXDi-CP01-050）', () => {
   const eff = effectsMap.get('WXDi-CP01-050')!.find(e => e.effectId === 'WXDi-CP01-050-E2')!;
   eq(eff.cost?.handDiscardSigni?.count, 2, '前提：手札から＜バーチャル＞のシグニ2枚');
-  const virtual = allCards.filter(c => isSigni(c) && (c.CardClass ?? '').includes('バーチャル')).slice(0, 2).map(c => c.CardNum);
+  const virtual = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('バーチャル')).slice(0, 2).map(c => c.CardNum);
   const nonVirtual = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('バーチャル'));
   const withTwo: PlayerState = { ...mkState({}), hand: [...virtual, nonVirtual] };
   const withOne: PlayerState = { ...mkState({}), hand: [virtual[0], nonVirtual, nonVirtual] };
