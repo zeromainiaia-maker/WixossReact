@@ -220,7 +220,8 @@ export function payTrashActivateCost(
     coins: coinPaid > 0 ? Math.max(0, (my.coins ?? 0) - coinPaid) : my.coins,
     coins_paid_this_turn: coinPaid > 0 ? (my.coins_paid_this_turn ?? 0) + coinPaid : my.coins_paid_this_turn,
     last_cost_trashed_cards: [...energyPaid, ...discardedCards],
-    last_activated_discard_count: discardedCards.length,
+    // 「この【起】のコストで捨てた枚数」の集約は他のコスト経路と同じ入口で作る
+    ...activatedDiscardCostRecord(discardedCards.length, 0, 0, 0),
     ...(nextOp ? { opp_virus_removed_just: true } : {}),
   };
   // 「この方法で捨てたシグニ」の参照先（他の【起】コスト経路と同じ規約で記録する）。
