@@ -1,5 +1,44 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 トラッシュ自己起動【起】のコストUI（対象14枚・続き403）
+
+### 症状
+
+トラッシュにあるカードの「このシグニをトラッシュから場に出す」【起】は、**エナコストの効果しかトラッシュゾーンUIに出なかった**。`getMyTrashCardActions` が `k !== 'energy' && v` のコストキーを1つでも見つけると `continue` していたためで、**手札捨て／コイン／【ウィルス】除去／【チャーム】／ルリグダウン**を要求する効果は**発動手段が存在しない**（黙って死んでいる）。さらに **timing が `MAIN` 固定**だったので、《アタックフェイズアイコン》起動（`ATTACK_ARTS`）の4枚も同様に到達不能だった。
+
+### 原因と直し方
+
+- **原因1＝支払いロジックが3箇所に散る構造**。旧実装は「アクション出し分けの在庫判定」と「モーダルの `isValid`」が別式で、実行側（`executeTrashActivated`）はエナしか払っていなかった。コスト種を足すたびに3箇所へ写経する形なので、必ず**「UIでは押せるのに払われない」**が出る。
+  → **`src/screens/battle/trashActivateCost.ts` を新設して支払いを1本に集約**。3箇所すべてが同じ関数群を呼ぶ：
+  - `canOfferTrashActivate(effect, my, op, cardMap)` — トラッシュUIに出すか（在庫だけの事前判定）
+  - `trashActivateSelectionsSatisfied` + `trashActivateAutoCostShortfall` — モーダルの発動ボタン可否
+  - `payTrashActivateCost(effect, my, op, selections, cardMap)` — 実行（不能なら盤面を変えず `null`）
+  - ⚠**効果元カード自身はトラッシュに残す**。場へ移すのは resolver の `execAddToField`（`thisCardOnly` source）。ここで trash から抜くと ADD_TO_FIELD が source を見失う。
+- **原因2＝未対応コストの扱いが「素通り」に倒れやすい**。
+  → `unsupportedTrashActivateCostKeys` の**ホワイトリスト方式**にして、対応外キーが1つでもあれば **UI ごと出さない**（コストなしで場に出るより発動できない方が安全側）。golden が live JSON を総なめして「未対応キーが残っていない」を assert するので、**parser から新しいコスト種が生えたらゲートが赤くなる**。
+- 対応コスト＝`energy` / `discard`(+`discardFilter`) / `handDiscardSigni` / `coin` / `removeOppVirus` / `charmTrash` / `lrigDown` / `exceed`。手札捨ての3形は `trashActivateHandDiscard` で**1つの選択UI**に畳んだ。
+- `executeTrashActivated` は **ON_DISCARDED_AS_COST / ON_HAND_DISCARDED**（`collectHandDiscardTriggers`）と **ON_COIN_PAID**（`collectCoinPaidTriggers` + `applyCoinPaidUsed`）を積むようにした（シグニ【起】経路と同型）。ウィルス除去時は相手状態も `opp` で書き戻す。
+
+### 併せて直した2件
+
+- 🔴**`WX11-049-E2` の使用条件が `COND_STUB`（＝常に true）だった**。「対戦相手の場に【チャーム】が３枚ある場合にしか使用できない」が丸ごと落ちており、**それまで能力ごと到達不能だったので無害だったが、アタックフェイズ窓を開けた瞬間に「無条件で使える過剰実行」に変わる**。使用条件 **`CHARM_COUNT`** を新設（`types/effects.ts` の union と `CONDITION_TYPES`／`execUtils.evalCondition`／`effectParser.parseUseCondition`／`decompileEffects` の4点セット）し、`node scripts/heldReview.mjs --adopt WX11-049` で採用。**live 変更が当該1枚のみ**であることを機械 diff で確認。
+- 🔧**`handDiscardSigni` の合致判定が2箇所に写経されていて、`LrigGrantedModal` 側が `level` 指定を見ていなかった**（`WXK03-047` ほか6効果＝「レベル1のシグニを捨てる」で任意レベルが捨てられた）。`costs.ts` に `matchesHandDiscardSigni` を置いて両モーダルで共有。ラベル `fmtHandDiscardSigniLabel` もレベルを描くようにした。
+
+### golden のカーソル依存を1件修正
+
+`task12(lxiii)` の `const victim = fresh();` は **`WXK11-031-E1` の対象フィルタ「パワー5000以下」を満たすとは限らない**。前段のテストが1枚多く払い出すと `victim` がずれ、**バニッシュ側の assert だけが落ちる**（今回の live JSON 変更で顕在化。同種の注意書きは同ファイル 9990 行にも既にあった）。`fresh()` の distinct 性は保ったまま、フィルタを満たすまで払い出す形へ。
+
+### ゲート
+
+`npm run gates` 全緑：typecheck / golden **1705 PASS・FAIL 0**（+7件＝§6.4 の支払い・出し分け・`CHARM_COUNT` 評価）/ smoke / fuzz / census **880＝ベースライン維持** / lint 0 error。`npm run regen` 済み（`WX11-049-E2` の逆翻訳が `[条件STUB:対戦相手の場に【チャーム】が３枚ある]` → 「対戦相手の場の【チャーム】が3枚以上の場合」）。
+
+### 🔴 残（実機検証・別バッチ）
+
+- **対象14枚のトラッシュゾーンUIからの実発動は未検証**（golden は支払い関数までしか踏めない）。重点＝`WXDi-P04-042`（ルリグ2体ダウンの自動支払い）／`WX19-029`（アタックフェイズ＋エナ2＋＜遊具＞2枚＝唯一の複合コスト・`asDown:true`）／`WXDi-P12-053`（《ディソナアイコン》フィルタ）／`WXDi-P16-082`（コイン2＋ON_COIN_PAID 連鎖）。
+- **`collectIncreaseActCost`（相手の「起動能力のコスト+1」）はトラッシュ起動に未適用**＝現状シグニ【起】経路だけが見ている。
+- **トラッシュ起動の CPU 使用は未実装**（PLAN §6.4 の CPU AI 欄）。
+- `WX17-044` は §6.4 待ちではなくなったが、**別要因3つ**（`trashActivated` が立たない／本体アクションが【トラップ】発動で `ADD_TO_FIELD` ではない／`trashExile.self` を対応キーに入れていない）で依然ブロック。
+
 ## 2026-08-09 — §6.3 E-2 第3波：`WX20-028` 多重アクセ機構
 
 ### 検証側の追補（Codex が Windows `0xC0000142` で実行できなかった工程＋held 増分の判定）
