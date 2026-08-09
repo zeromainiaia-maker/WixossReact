@@ -602,9 +602,13 @@ function condJa(c?: any): string {
       if (c.verbJa === '手札に加えた' && c.filter?.color && c.filter?.cardType === 'シグニ') return `この方法で${[].concat(c.filter.color).join('か')}のシグニを手札に加えた`;
       if (c.verbJa) {
         const subject = c.filter?.hasIcon ? `《${c.filter.hasIcon}アイコン》を持つカード`
+          : c.filter?.color && c.filter?.story && c.filter?.cardType === 'シグニ'
+            ? `${[].concat(c.filter.color).join('か')}の${[].concat(c.filter.story).map((s: string) => `＜${s}＞`).join('か')}のシグニ`
           : c.filter?.color && c.filter?.cardType === 'シグニ' ? `${[].concat(c.filter.color).join('か')}のシグニ`
           : Array.isArray(c.filter?.story) && c.filter?.cardType === 'シグニ' ? `${c.filter.story.map((s: string) => `＜${s}＞`).join('か')}のシグニ`
+          : c.filter?.cardType === 'スペル' ? 'スペル'
           : `${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
+        if (c.verbJa === '捨てた') return `この方法で${subject}を${threshold}捨てた`;
         return `この方法で${subject}が${threshold}${c.verbJa}`;
       }
       return `この方法で${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : (c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}を${threshold}${c.verbJa ?? '処理した'}`;
@@ -865,7 +869,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${src}${loc}${cntJa}を見る${a.canTrash ? '（不要札はトラッシュに置いてもよい）' : ''}`;
     }
     case 'MILL':
-      if (a.countIsLastProcessedLevelSum) return `この方法で場に出たシグニのレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
+      if (a.countIsLastProcessedLevelSum) return `この方法で${a.lastProcessedLevelVerbJa ?? '場に出たシグニ'}のレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
       if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
       return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return a.triggerBurst === false

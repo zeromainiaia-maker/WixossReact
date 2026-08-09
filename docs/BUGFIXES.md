@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 C 第3波：「この方法で捨てた／エナゾーンに置いた」後段条件（11効果採用）
+
+- 効果内 discard 7効果は `execTrash` の `lastProcessedCards` を読む。`WX24-P4-028/030` は「特定1色／それ以外の4色」を別カードに割り当てられるよう既存 `requiredDistinctColors` の各1色スロットを OR 候補配列へ拡張。`WX25-P2-082/100` は `IS_MY_TURN` の did-it ゲートを残し、黒／青の＜電機＞を捨てたときだけ通常側を排他置換。P2-100 は相手シグニを1回だけ対象化し、同じ1体に−3000／−5000を排他適用する。
+- `WXDi-P14-085` の＜電音部＞3枚追加ハンデスと `WX11-015` の3枚以上追加バニッシュは、通常バニッシュが捨て札記録を上書きしないよう `snapshotLastProcessedForConditionals` で同じ捨て札集合を先に評価。`WX11-015` の花代コスト軽減 STUB は別機構として据置した。
+- `WXDi-P16-093` は欠落していた相手1ドローと【チーム】＜DIAGRAM＞3体条件を復元。ランダムに捨てた札を snapshot し、既存 `MILL.countIsLastProcessedLevelSum` でシグニのレベル合計分だけ相手デッキをミル、スペルなら追加エナチャージ1。
+- 起動コスト discardAll 2効果は `BattleScreen` の支払い側が書く `last_activated_discard_count` を `ACTIVATED_DISCARD_COUNT_GTE` で評価。シグニ起動／ルリグ起動の両経路がテスト可能な同一 `activatedDiscardCostRecord` を通るよう整理し、`WX05-022-E2` は2枚以上だけバニッシュ、MANUAL の `WX10-037-E3` は4枚以上だけライフ追加とした。
+- エナ配置2効果は `execEnergyCharge` / `execEnergyChargeFromDeck` が書く `lastProcessedCards` を評価。`WX24-P4-032` は緑／緑以外の別カード2枚でだけ2ドロー、`WXDi-D01-004-E2` は最大共有クラス枚数 `< 2` かつ実際に2枚置いた場合だけ追加1エナチャージ。クラス無しの `-` は共有クラスに数えない。
+- 対照群 `WD06-009-E2` / `WX20-043-E1` は、チェックゾーンからエナへの移動に割り込む置換機構が無く、現行は `LIFE_CRASH` 後の `ADD_TO_LIFE` 無条件追加のまま。指示どおり未変更。
+- 採用11効果それぞれに成立／不成立の実盤面 E2E を追加し、A3/A4は成立側で通常側が併走しないことも固定。golden 1671→1682、census 889→882（`BASELINE_HIGH` 本体と履歴を更新）。
+
+**検証（Claude 側・続き396）**＝⚠**Codex は最終レポート生成の直前で利用上限（`You've hit your usage limit`・復帰 2026-08-16）に到達し exit 1**。ただし**実装・ゲート・BUGFIXES 追記・`BASELINE_HIGH` 更新まで完了済み**で成果物は無傷だったため、残工程（`regen`／`groupSimilar`／`build:effects`→`heldReview`／per-effect diff／エンコーディング検査／原文照合）を検証側が引き取って完了させた。**差し戻し0・是正0。** `npm run gates` 全緑（golden **1682/0**・census **882/882**・smoke 10686 全0・fuzz 全0・lint 0 errors/254 warnings・manual field loss 0）、同型★**0**（265群）、held **111枚/48群**、live per-effect diff **changed 11 / added 0 / removed 0**（巻き添え0）、エンコーディング新規増0。
+- 🔴**死フラグ疑いを1件つぶした**＝`ACTIVATED_DISCARD_COUNT_GTE` が読む `last_activated_discard_count` は engine を grep すると**読み手2箇所しか出ない**が、書き込み側は新設の純関数 `activatedDiscardCostRecord`（`src/screens/battle/costs.ts:26`）にあり、**`BattleScreen.tsx:10941`（シグニ起動）と `:11833`（ルリグ起動）の両経路**から paid state へ spread されていた（既存 `last_cost_trashed_cards` と同じ場所）。§5-14 の死フラグではない。**BattleScreen 側の書き込みは engine の grep に出ないので、コスト系フィールドは必ず `src/screens/` まで探すこと。**
+- ⭐**「近似で色を決め打ちするな」への回答が良質**＝「1枚が赤で、もう1枚が白か青か緑か黒」に対し `requiredDistinctColors` の型を `string[]` → **`(string | string[])[]`（スロットが配列なら OR 候補）** へ拡張し、engine も `Array.isArray(colorSlot)` で受ける（`execUtils.ts:2002`）。近似も defer もせず原文と完全一致で解けた。
+- ⭐`WX25-P2-100-E1` は `SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS` で**対象を先に固定**し `targetsStored:true` で −3000／−5000 を同じ1体に載せた。指示書が指摘した `owner:'self'`（**自分のシグニを弱体化していた**）も是正済み。
+- ⚠`shareClass` のクラス集合から `'-'` を除外する変更（`execUtils.ts`）が入った。live 利用者は3件（`WD08-008-E1`／`WX22-006-E1-G2`／`WXDi-D01-004-E2`）で、`WX22-006` は `filter:{cardType:'シグニ'}` ＝ '-' が現れず不変、`WD08-008` は**スペル等の無クラス札を「共通クラス」と数えていた過剰実行の是正**＝改善方向。
+
 ## 2026-08-09 — §6.3 C 第2波：公開／手札に加えたカードの後段条件（11効果採用）
 
 - `WXDi-P06-071-E1` / `WDK04-014-E1` / `WDK04-015-E1` / `WD21-001-E1` / `WX24-P4-043-E1`：公開したカードのレベル条件を `LOOK_AND_REORDER` の resume 後に評価。欠落していたランサー・引用能力・対象／duration／中央ゾーン条件も原文に合わせた。

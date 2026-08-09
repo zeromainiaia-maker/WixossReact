@@ -5879,7 +5879,7 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
         filter: { cardType: 'シグニ', story: '電機' } }, optional: true },
       { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
         type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
-          filter: { cardType: 'シグニ', story: '電機', color: '黒' } },
+          filter: { cardType: 'シグニ', story: '電機', color: '黒' }, verbJa: '捨てた' },
         then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } },
         else: handTrash('opponent', 1),
       } },
@@ -5893,7 +5893,7 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
         filter: { cardType: 'シグニ', story: '電機' } }, optional: true },
       { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
         type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
-          filter: { cardType: 'シグニ', story: '電機', color: '青' } },
+          filter: { cardType: 'シグニ', story: '電機', color: '青' }, verbJa: '捨てた' },
         then: { type: 'POWER_MODIFY', target: opponentSigni, targetsStored: true, delta: -5000 },
         else: { type: 'POWER_MODIFY', target: opponentSigni, targetsStored: true, delta: -3000 },
       } },
@@ -5902,19 +5902,23 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
   if (cardNum === 'WXDi-P14-085') {
     const e = effect('WXDi-P14-085-E1');
     if (e?.action.type === 'SEQUENCE' && e.action.steps.length >= 2) {
-      e.action = { ...e.action, steps: [e.action.steps[0], e.action.steps[1], {
-        type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
-          filter: { cardType: 'シグニ', story: '電音部' }, operator: 'gte', value: 3, verbJa: '捨てた' },
-        then: handTrash('opponent', 1),
+      e.action = { ...e.action, steps: [e.action.steps[0], {
+        type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: [e.action.steps[1], {
+          type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
+            filter: { cardType: 'シグニ', story: '電音部' }, operator: 'gte', value: 3, verbJa: '捨てた' },
+          then: handTrash('opponent', 1),
+        }],
       }] };
     }
   }
   if (cardNum === 'WX11-015') {
     const e = effect('WX11-015-E1');
     if (e?.action.type === 'SEQUENCE' && e.action.steps.length === 4) {
-      e.action = { ...e.action, steps: [e.action.steps[0], e.action.steps[1], e.action.steps[2], {
-        type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 3, verbJa: '捨てた' },
-        then: e.action.steps[3],
+      e.action = { ...e.action, steps: [e.action.steps[0], e.action.steps[1], {
+        type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: [e.action.steps[2], {
+          type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 3, verbJa: '捨てた' },
+          then: e.action.steps[3],
+        }],
       }] };
     }
   }
@@ -5926,7 +5930,7 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
         { type: 'DRAW', owner: 'opponent', count: 1 },
         { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } },
         { type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: [
-          { type: 'MILL', owner: 'opponent', count: 0, countIsLastProcessedLevelSum: true },
+          { type: 'MILL', owner: 'opponent', count: 0, countIsLastProcessedLevelSum: true, lastProcessedLevelVerbJa: '捨てられたシグニ' },
           { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'スペル' }, verbJa: '捨てられた' },
             then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
         ] },

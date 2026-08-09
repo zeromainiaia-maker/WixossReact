@@ -60,7 +60,7 @@ import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
@@ -27751,6 +27751,120 @@ test('wave2 D1 WX12-004-E1: self life crash snapshot survives banish and gates Y
   eq(yes.otherState.life_cloth.length, 2, 'opponent life is not crashed');
   eq(resolve('WD01-010', ['SPDi34-13']).ownerState.life_cloth.length, 0, 'non-burst adds no life');
   eq(resolve('WD01-009', []).ownerState.life_cloth.length, 0, 'non-Yuzuki adds no life');
+}));
+
+// ── §6.3 C 第3波: 効果内 discard / 起動コスト discardAll / エナ配置の結果条件 ──
+function wave3Effect(cardNum: string, effectId: string): CardEffect {
+  const found = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!found) throw new Error(`wave3 effect missing: ${effectId}`);
+  return mergeManualEffects(cardNum, [found]).find(e => e.effectId === effectId) ?? found;
+}
+function wave3Run(cardNum: string, effectId: string, ctx: ExecCtx): ExecResult {
+  return finish(executeEffect(wave3Effect(cardNum, effectId), ctx), ctx);
+}
+const wave3Cards = (pred: (c: CardData) => boolean, count: number): string[] =>
+  [...cardMap.values()].filter(pred).slice(0, count).map(c => c.CardNum);
+const wave3Color = (color: string, count = 1): string[] => wave3Cards(c => c.Type === 'シグニ' && c.Color === color, count);
+const wave3Story = (story: string, color?: string, count = 1): string[] => wave3Cards(c =>
+  c.Type === 'シグニ' && (c.CardClass ?? '').includes(story) && (!color || (c.Color ?? '').includes(color)), count);
+
+test('wave3 A1 WX24-P4-028-E1: 赤＋赤以外だけが無色対象の10000以下バニッシュを開く', () => withSavedCursor(() => {
+  const [red1, red2] = wave3Color('赤', 2); const [white] = wave3Color('白');
+  const target = findCard(c => c.Type === 'シグニ' && parseInt(c.Power || '0', 10) <= 10000 && c.Color !== '黒');
+  const resolve = (hand: string[]) => { const ctx = mkCtx({ hand: 0 }, { signi: [target, null, null] }, 'WX24-P4-028'); ctx.ownerState.hand = hand; return wave3Run('WX24-P4-028', 'WX24-P4-028-E1', ctx); };
+  eq(resolve([red1, white]).otherState.field.signi[0], null, '赤＋白で発火（相手色を限定しない）');
+  eq(resolve([red1, red2]).otherState.field.signi[0]?.at(-1), target, '赤＋赤では不発');
+}));
+
+test('wave3 A2 WX24-P4-030-E1: 青＋青以外だけが相手のランダム1枚捨てを開く', () => withSavedCursor(() => {
+  const [blue1, blue2] = wave3Color('青', 2); const [green] = wave3Color('緑');
+  const resolve = (hand: string[]) => { const ctx = mkCtx({ hand: 0 }, { hand: 2 }, 'WX24-P4-030'); ctx.ownerState.hand = hand; return wave3Run('WX24-P4-030', 'WX24-P4-030-E1', ctx); };
+  eq(resolve([blue1, green]).otherState.hand.length, 1, '青＋緑で1枚捨てる');
+  eq(resolve([blue1, blue2]).otherState.hand.length, 2, '青＋青では捨てない');
+}));
+
+test('wave3 A3 WX25-P2-082-E1: 黒＜電機＞なら通常捨てをランダム捨てへ排他置換', () => withSavedCursor(() => {
+  const [black] = wave3Story('電機', '黒'); const [blue] = wave3Story('電機', '青');
+  const resolve = (discard: string) => { const ctx = mkCtx({ hand: 0 }, { hand: 2 }, 'WX25-P2-082'); ctx.ownerState.hand = [discard]; return wave3Run('WX25-P2-082', 'WX25-P2-082-E1', ctx); };
+  const yes = resolve(black); const no = resolve(blue);
+  eq(yes.otherState.hand.length, 1, '黒＜電機＞でも相手は合計1枚だけ捨てる');
+  ok(yes.logs.some(l => l.includes('ランダム1枚')), '成立側は見ないで捨てる');
+  eq(no.otherState.hand.length, 1, '非黒でも通常側だけで合計1枚');
+  ok(!no.logs.some(l => l.includes('ランダム1枚')), '不成立側はランダム側が走らない');
+}));
+
+test('wave3 A4 WX25-P2-100-E1: 同じ相手対象へ青＜電機＞-5000／それ以外-3000を排他適用', () => withSavedCursor(() => {
+  const [blue] = wave3Story('電機', '青'); const [black] = wave3Story('電機', '黒'); const target = SIGNI_L2;
+  const resolve = (discard: string) => { const ctx = mkCtx({ hand: 0 }, { signi: [target, null, null] }, 'WX25-P2-100'); ctx.ownerState.hand = [discard]; return wave3Run('WX25-P2-100', 'WX25-P2-100-E1', ctx); };
+  const yes = resolve(blue).otherState.temp_power_mods ?? [];
+  eq(JSON.stringify(yes.map(m => [m.cardNum, m.delta])), JSON.stringify([[target, -5000]]), '成立側は同一対象に-5000だけ');
+  const no = resolve(black).otherState.temp_power_mods ?? [];
+  eq(JSON.stringify(no.map(m => [m.cardNum, m.delta])), JSON.stringify([[target, -3000]]), '不成立側は同一対象に-3000だけ');
+}));
+
+test('wave3 A5 WXDi-P14-085-E1: ＜電音部＞3枚を捨てたときだけ通常バニッシュへ相手1捨てを追加', () => withSavedCursor(() => {
+  const sound = wave3Story('電音部', undefined, 3); const [other] = wave3Story('電機'); const target = SIGNI_L2;
+  const resolve = (hand: string[]) => { const ctx = mkCtx({ hand: 0 }, { signi: [target, null, null], hand: 2 }, 'WXDi-P14-085'); ctx.ownerState.hand = hand; return wave3Run('WXDi-P14-085', 'WXDi-P14-085-E1', ctx); };
+  const yes = resolve(sound); eq(yes.otherState.field.signi[0], null, '成立側も通常バニッシュ'); eq(yes.otherState.hand.length, 1, '成立側だけ追加ハンデス');
+  const no = resolve([sound[0], sound[1], other]); eq(no.otherState.field.signi[0], null, '不成立側も通常バニッシュ'); eq(no.otherState.hand.length, 2, '不成立側は追加なし');
+}));
+
+test('wave3 A6 WX11-015-E1: 効果内で手札3枚以上を捨てたときだけ2体目を追加バニッシュ', () => withSavedCursor(() => {
+  const targets = wave3Cards(c => c.Type === 'シグニ', 2);
+  const resolve = (n: number) => { const ctx = mkCtx({ hand: n }, { signi: [targets[0], targets[1], null] }, 'WX11-015'); return wave3Run('WX11-015', 'WX11-015-E1', ctx); };
+  eq(resolve(3).otherState.field.signi.filter(Boolean).length, 0, '3枚なら2体バニッシュ');
+  eq(resolve(2).otherState.field.signi.filter(Boolean).length, 1, '2枚なら通常の1体だけ');
+}));
+
+test('wave3 A7 WXDi-P16-093-E1: 捨てられたシグニのレベル比例ミルとスペル条件エナチャージをsnapshot評価', () => withSavedCursor(() => {
+  const team = wave3Cards(c => (c.Team ?? '').includes('DIAGRAM'), 3);
+  const lv3 = wave3Cards(c => c.Type === 'シグニ' && c.Level === '3', 2); const lv1 = wave3Cards(c => c.Type === 'シグニ' && c.Level === '1', 2);
+  const spells = wave3Cards(c => c.Type === 'スペル', 2);
+  const resolve = (pair: string[], withTeam = true) => {
+    const ctx = mkCtx({ hand: 0, energy: 0, lrig: withTeam ? [team[0]] : [], assistL: withTeam ? [team[1]] : [], assistR: withTeam ? [team[2]] : [] }, { hand: 0, deckTop: [pair[1], ...fill(8)] }, 'WXDi-P16-093');
+    ctx.otherState.hand = [pair[0]]; const beforeTrash = ctx.otherState.trash.length; const result = wave3Run('WXDi-P16-093', 'WXDi-P16-093-E1', ctx); return { result, beforeTrash };
+  };
+  const l3 = resolve(lv3); eq(l3.result.otherState.trash.length - l3.beforeTrash, 4, 'Lv3捨て＝捨て札1＋3枚ミル');
+  const l1 = resolve(lv1); eq(l1.result.otherState.trash.length - l1.beforeTrash, 2, 'Lv1捨て＝捨て札1＋1枚ミル'); eq(l1.result.ownerState.energy.length, 0, 'シグニではエナチャージしない');
+  eq(resolve(spells).result.ownerState.energy.length, 1, 'スペルならミル後も捨て札snapshotからエナチャージ');
+  const off = resolve(spells, false).result; eq(off.otherState.hand.length, 1, 'DIAGRAMルリグ3体なしでは効果全体が発火しない');
+}));
+
+function wave3PayDiscardAll(ctx: ExecCtx, cards: string[]): ExecCtx {
+  return { ...ctx, ownerState: { ...ctx.ownerState, hand: [], trash: [...ctx.ownerState.trash, ...cards],
+    ...activatedDiscardCostRecord(0, cards.length, 0, 0) } };
+}
+
+test('wave3 B1 WX05-022-E2: BattleScreen共通のdiscardAll記録で2枚以上だけバニッシュ', () => withSavedCursor(() => {
+  const target = SIGNI_L2;
+  const resolve = (n: number) => { let ctx = mkCtx({ hand: 0 }, { signi: [target, null, null] }, 'WX05-022'); const cards = fill(n); ctx.ownerState.hand = cards; ctx = wave3PayDiscardAll(ctx, cards); return wave3Run('WX05-022', 'WX05-022-E2', ctx); };
+  eq(resolve(2).otherState.field.signi[0], null, '2枚支払いでバニッシュ');
+  eq(resolve(1).otherState.field.signi[0]?.at(-1), target, '1枚支払いでは不発');
+}));
+
+test('wave3 B2 WX10-037-E3: MANUAL効果も実discardAll記録4枚以上だけライフ追加', () => withSavedCursor(() => {
+  const resolve = (n: number) => { let ctx = mkCtx({ hand: 0, life: 0, deckTop: [SIGNI_L1] }, {}, 'WX10-037'); const cards = fill(n); ctx.ownerState.hand = cards; ctx = wave3PayDiscardAll(ctx, cards); return wave3Run('WX10-037', 'WX10-037-E3', ctx); };
+  eq(resolve(4).ownerState.life_cloth.length, 1, '4枚支払いでライフ追加');
+  eq(resolve(3).ownerState.life_cloth.length, 0, '3枚支払いでは不発');
+}));
+
+test('wave3 C1 WX24-P4-032-E1: 緑＋緑以外を実際にエナへ置いたときだけ2ドロー', () => withSavedCursor(() => {
+  const [green1, green2] = wave3Color('緑', 2); const [red] = wave3Color('赤');
+  const resolve = (trash: string[]) => { const ctx = mkCtx({ hand: 0, trash: 0, energy: 0 }, {}, 'WX24-P4-032'); ctx.ownerState.trash = trash; return wave3Run('WX24-P4-032', 'WX24-P4-032-E1', ctx); };
+  eq(resolve([green1, red]).ownerState.hand.length, 2, '緑＋赤で2ドロー');
+  eq(resolve([green1, green2]).ownerState.hand.length, 0, '緑＋緑ではドローしない');
+}));
+
+test('wave3 C2 WXDi-D01-004-E2: 置かれた2枚に共通クラスが無いときだけ追加エナチャージ1', () => withSavedCursor(() => {
+  const signi = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardClass && c.CardClass !== '-');
+  const classes = (c: CardData) => new Set((c.CardClass ?? '').split(/[／/]/).map(s => s.split(/[:：]/).pop()?.trim() ?? '').filter(s => !!s && s !== '-'));
+  const same = signi.find((a, i) => signi.slice(i + 1).some(b => [...classes(a)].some(cl => classes(b).has(cl))))!;
+  const same2 = signi.find(b => b.CardNum !== same.CardNum && [...classes(same)].some(cl => classes(b).has(cl)))!;
+  const different = signi.find(b => b.CardNum !== same.CardNum && [...classes(same)].every(cl => !classes(b).has(cl)))!;
+  const resolve = (top: string[]) => wave3Run('WXDi-D01-004', 'WXDi-D01-004-E2', mkCtx({ energy: 0, deckTop: [...top, SIGNI_L1] }, {}, 'WXDi-D01-004'));
+  eq(resolve([same.CardNum, different.CardNum]).ownerState.energy.length, 3, '異クラス2枚なら2+追加1');
+  eq(resolve([same.CardNum, same2.CardNum]).ownerState.energy.length, 2, '共通クラスありなら2だけ');
+  const spells = wave3Cards(c => c.Type === 'スペル' && c.CardClass === '-', 2); eq(resolve(spells).ownerState.energy.length, 3, 'クラス無し2枚は「共通クラスなし」');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
