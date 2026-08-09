@@ -197,11 +197,8 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                           if (lgGroups) {
                             isValidTarget = lgGroups.some(g => matchesFilter(c, g.filter));
                           } else {
-                            const hdColors = hdSigniCost!.color ? (Array.isArray(hdSigniCost!.color) ? hdSigniCost!.color : [hdSigniCost!.color]) : null;
-                            const hdStories = hdSigniCost!.story ? (Array.isArray(hdSigniCost!.story) ? hdSigniCost!.story : [hdSigniCost!.story]) : null;
-                            isValidTarget = c?.Type === 'シグニ' &&
-                              (!hdColors || hdColors.some(col => c?.Color?.includes(col))) &&
-                              (!hdStories || hdStories.some(st => (c?.CardClass ?? '').includes(st)));
+                            // ⚠ 判定は costs.ts の共有関数だけを使う（写経すると `level` 指定が片方で落ちる）
+                            isValidTarget = matchesHandDiscardSigni(c, hdSigniCost!);
                           }
                           const isSel = selectedLrigGrantedHandDiscard.has(i);
                           if (!isValidTarget && !isSel) return null;
