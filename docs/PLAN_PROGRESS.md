@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-08・続き384・Opus 5）＝🏁§6.3 J-4 を消化し **J 群を残0クローズ**（5家族すべて完了）**・golden 1544→**1548**・census 911→**910**。
+  - **⭐① 台帳の警告が古かった（J-5 に続き2度目）**＝「⚠着手するならタスク12(lxvii) と一体＝CPU 側の収集が面で欠けている」は**既に解消済み**（(lxvii) は 2026-08-04 に残0クローズ）。`collectTurnTriggers`（人間）／`collectCpuTurnTriggers`（CPU）が対称に揃っていたので、**timing を union に足すだけで両経路に載った**。**着手前に台帳の警告を実データで検証する。**
+  - **⭐② 終了イベントの置き場所は既存の対称点を探せば決まる**＝`ON_ATTACK_PHASE_END` は `ATTACK_LRIG→END`（既存 `ON_LRIG_ATTACK_STEP_START` が `ATTACK_SIGNI→ATTACK_LRIG` で発火するのと同じ場所）。`ON_ATTACK_END` は `resolvePendingSigniBattleFor`（バトル解決 Phase2）の末尾で、**`dealtSigniDamage` が既にそこで確定していた**ので「そのアタックでダメージが与えられていない場合」をそのまま判定できた（新しい追跡を足さずに済んだ）。
+  - **🔴③ timing を配線すると action が実際に走る＝action 側の既存誤 parse も同時に直さないと「no-op」が「誤動作」に化ける**。`WXK11-018-E2` は「このシグニより低いレベルを持つあなたのシグニ1体」が汎用アナフォラ解決で `thisCardOnly`（＝**自分自身をアップ**）に、`WX24-P2-075-E1` は「このシグニを場からデッキの一番下に置いてもよい」が無関係な STUB `LRIG_UNDER_CARD_OP` に化けていた。⚠**機構待ちカードを開けるときは action 本体も原文照合する**（続き380 の教訓の再確認）。
+  - **✅④ 新設したトリップワイヤが即座に働いた**＝上記を `manualEffects.ts` で是正したところ、live に届かないまま §6.3 K トリップワイヤが**その場で2件を検出**。`censusManualDrift --adopt` で同期して解消＝**前バッチで作ったゲートと工具がそのまま次バッチで回収された**。
+  - **📋⑤ §6.3 の残＝C／E／F／G／K**。J 群（13効果）は完了。K は残 15 効果で工具・ゲート完備。⚠**§7 の未検証UIが続き380/381/383/384 で計7件たまっている**＝engine 側は golden で固定済みだが `BattleScreen` 経路は計器に映らないので、そろそろ実機検証を挟むのが妥当。
+
 - **🆕 セッション（2026-08-08・続き383・Opus 5）＝§6.3 J-1「他能力の発動監視」を消化（`ON_ABILITY_ACTIVATED` 新設）**・golden 1541→**1544**・census 911 据置。**§6.3 J は実残 2効果（J-4 のみ）＝家族4つのうち3つを消化。**
   - **⭐① 「発動した瞬間」の funnel を1つに絞れたのが鍵**＝`initStack`/`pushToStack` は BattleScreen 内に **113 箇所**あり個別配線は不可能。対して **`shiftQueue` の呼び出し元は `resolveStackNext` の1箇所だけ**なので、**スタック投入時ではなく解決開始時**をイベント定義にした。人間/CPU・【出】/【自】/LB の全経路が1箇所で片付く。⚠副次的な利点＝投入されても turnGate 等で落ちるエントリを「発動した」と数えない。
   - **⭐② 限定は4軸で表現**＝`triggerCondition.activatedAbility{Owner,Kind,Eichi,FromFieldSigni}`。【自】/【出】の区別は既存表現に合わせて **`ON_PLAY` を含むか**で判定（この codebase では【出】＝`AUTO`＋`timing:['ON_PLAY']`）。【英知】は `activeCondition` に `EICHI_LEVEL_SUM` を含むかを再帰探索（`AND` の入れ子に埋まる）。
