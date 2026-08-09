@@ -7,7 +7,7 @@ import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { matchesFilter } from '../../engine/effectExecutor';
 import {
-  canPayExceed, exceedPoolOf, paySelectedExceed,
+  activatedDiscardCostRecord, canPayExceed, exceedPoolOf, paySelectedExceed,
   fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni,
 } from './costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './lrigDownCost';
