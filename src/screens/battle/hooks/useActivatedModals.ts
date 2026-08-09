@@ -80,6 +80,8 @@ export function useActivatedModals() {
     setSelectedHandActivatedCost: set.selectedHandActivatedCost,
     setPendingTrashActivated: set.pendingTrashActivated,
     setSelectedTrashActivatedCost: set.selectedTrashActivatedCost,
+    setSelectedTrashActivatedDiscard: set.selectedTrashActivatedDiscard,
+    setSelectedTrashActivatedExceed: set.selectedTrashActivatedExceed,
     setPendingEnergyActivated: set.pendingEnergyActivated,
     setSelectedEnergyActivatedCost: set.selectedEnergyActivatedCost,
     setPendingLrigGranted: set.pendingLrigGranted,
