@@ -6055,7 +6055,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (ga.abilities && ga.abilities.length > 0) {
         const untilOppTurn = ga.duration === 'UNTIL_OPP_TURN_END';
         const storeKey = untilOppTurn ? 'lrig_granted_auto_effects_until_opp_turn' : 'lrig_granted_auto_effects';
-        const existing = ctx.ownerState[storeKey] ?? [];
+        const targetsOpponent = ga.targetOwner === 'opponent';
+        const targetState = targetsOpponent ? ctx.otherState : ctx.ownerState;
+        const existing = targetState[storeKey] ?? [];
         // permanent（「このゲームの間」）は各能力に permanentGrant を刻み、ターン境界リセットで残す
         const granted = ga.permanent ? ga.abilities.map(ab => ({ ...ab, permanentGrant: true })) : ga.abilities;
         const guardAlt = ga.abilities
@@ -6064,8 +6066,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
             act.type === 'STUB' && act.id === 'GUARD_ALT_HAND_REPLACE');
         const holographReplace = ga.abilities.some(ab =>
           ab.action.type === 'STUB' && ab.action.id === 'HOLOGRAPH_REVEAL_REPLACE');
-        const newOwner: PlayerState = {
-          ...ctx.ownerState,
+        const newTarget: PlayerState = {
+          ...targetState,
           [storeKey]: [...existing, ...granted],
           ...(guardAlt
             ? (untilOppTurn
@@ -6074,10 +6076,24 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
             : {}),
           ...(holographReplace ? { holograph_reveal_replace_this_turn: true } : {}),
         };
-        return done(addLog({ ...ctx, ownerState: newOwner }, `ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText}`));
+        const nextCtx = targetsOpponent ? { ...ctx, otherState: newTarget } : { ...ctx, ownerState: newTarget };
+        return done(addLog(nextCtx, `${targetsOpponent ? '対戦相手の' : ''}ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText}`));
       }
       return done(ctx);
     }
+    case 'GRANT_PLAYER_ABILITY': {
+      const gp = action as import('../types/effects').GrantPlayerAbilityAction;
+      if (!gp.abilities?.length) return done(ctx);
+      const existing = ctx.ownerState.game_granted_effects ?? [];
+      const existingIds = new Set(existing.map(e => e.effectId));
+      const additions = gp.abilities.filter(e => !existingIds.has(e.effectId));
+      return done(addLog({
+        ...ctx,
+        ownerState: { ...ctx.ownerState, game_granted_effects: [...existing, ...additions] },
+      }, `プレイヤー付与能力（このゲームの間）: ${gp.rawText ?? additions.map(e => e.effectId).join(',')}`));
+    }
+    case 'DRAW_PHASE_REPLACEMENT':
+      return done(addLog(ctx, 'ドローフェイズの通常ドロー置換（フェイズ進行時に適用）'));
     case 'PLACE_VIRUS':                  return execPlaceVirus(action as PlaceVirusAction, ctx);
     case 'ATTACH_ACCE':                  return execAttachAcce(action as AttachAcceAction, ctx);
     case 'FIELD_SIGNI_TO_ACCE':          return execFieldSigniToAcce(action as import('../types/effects').FieldSigniToAcceAction, ctx);

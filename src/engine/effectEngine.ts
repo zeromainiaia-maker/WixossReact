@@ -2194,6 +2194,23 @@ export function calcFieldPowers(
         }
       }
     }
+
+    // プレイヤー自身がゲーム中得たCONTINUOUS能力。場のカードを効果元に持たないため、
+    // count:'ALL' の対象指定だけをプレイヤー視点で適用する。
+    for (const effect of (ownerState.game_granted_effects ?? [])) {
+      if (effect.effectType !== 'CONTINUOUS') continue;
+      if (!checkActiveCondition(effect.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, '', powers, oppTrashColorLoss, turnPhase)) continue;
+      for (const mod of extractPowerModifies(effect.action)) {
+        if (mod.target.count !== 'ALL') continue;
+        const delta = typeof mod.delta === 'number' ? mod.delta : 0;
+        if (mod.target.owner === 'self' || mod.target.owner === 'any') {
+          applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+        }
+        if (mod.target.owner === 'opponent' || mod.target.owner === 'any') {
+          applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection);
+        }
+      }
+    }
   };
 
   applyEffects(myState, opState, isMyTurn);
@@ -2905,6 +2922,23 @@ export function collectEichiStubEffects(
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type === 'STUB') result.push(act.id);
     }
+  }
+  return result;
+}
+
+/**
+ * センタールリグへ実行時付与されたCONTINUOUSのドローフェイズ置換を適用する。
+ * 「1枚引く場合、代わりに2枚」なので、通常2枚のターンには影響しない。
+ */
+export function applyLrigDrawPhaseReplacement(state: PlayerState, drawCount: number): number {
+  let result = drawCount;
+  for (const eff of [
+    ...(state.lrig_granted_auto_effects ?? []),
+    ...(state.lrig_granted_auto_effects_until_opp_turn ?? []),
+  ]) {
+    if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'DRAW_PHASE_REPLACEMENT') continue;
+    const rep = eff.action as import('../types/effects').DrawPhaseReplacementAction;
+    if (result === rep.fromCount) result = rep.toCount;
   }
   return result;
 }
@@ -5494,8 +5528,8 @@ export function collectGrantedFromLayer(
   type GrantAction = import('../types/effects').GrantFieldSigniAbilityAction;
 
   // 1) 場のシグニから付与宣言を収集（付与先オーナーごとに分ける）。thisCardOnly の判定に付与元 top を保持。
-  const selfGrants: Array<{ g: GrantAction; src: string }> = [];   // targetOwner 省略/self: 自分の場へ付与
-  const oppGrants: Array<{ g: GrantAction; src: string }> = [];    // targetOwner:'opponent': 対戦相手の場へ付与
+  const selfGrants: Array<{ g: GrantAction; src: string; fromPlayer?: boolean }> = [];   // targetOwner 省略/self: 自分の場へ付与
+  const oppGrants: Array<{ g: GrantAction; src: string; fromPlayer?: boolean }> = [];    // targetOwner:'opponent': 対戦相手の場へ付与
   for (let zi = 0; zi < 3; zi++) {
     const top = ownerState.field.signi[zi]?.at(-1);
     if (!top) continue;
@@ -5514,18 +5548,31 @@ export function collectGrantedFromLayer(
       }
     }
   }
+
+  // プレイヤー自身へゲーム中付与されたCONTINUOUSも、同じシグニ能力付与レイヤーへ載せる。
+  for (const eff of (ownerState.game_granted_effects ?? [])) {
+    if (eff.effectType !== 'CONTINUOUS') continue;
+    if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, '', powersOf())) continue;
+    const actions = eff.action.type === 'SEQUENCE' ? eff.action.steps : [eff.action];
+    for (const act of actions) {
+      if (act.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
+      const g = act as GrantAction;
+      (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: '', fromPlayer: true });
+    }
+  }
   if (selfGrants.length === 0 && oppGrants.length === 0) return result;
 
   // 2) フィルタに合う付与先の場のシグニへ付与（thisCardOnly は付与元自身のみ）
-  const apply = (grants: Array<{ g: GrantAction; src: string }>, tgtState: PlayerState) => {
+  const apply = (grants: Array<{ g: GrantAction; src: string; fromPlayer?: boolean }>, tgtState: PlayerState) => {
     if (grants.length === 0) return;
     for (let zi = 0; zi < 3; zi++) {
       const top = tgtState.field.signi[zi]?.at(-1);
       if (!top) continue;
       const card = cardMap.get(baseNum(top));
-      for (const { g, src } of grants) {
+      for (const { g, src, fromPlayer } of grants) {
         if (g.thisCardOnly && top !== src) continue;
         if (g.filter && !matchesFilter(card, g.filter)) continue;
+        if (fromPlayer && g.filter && !matchesStateFilter(tgtState, zi, g.filter)) continue;
         result.set(top, [...(result.get(top) ?? []), ...g.abilities]);
       }
     }

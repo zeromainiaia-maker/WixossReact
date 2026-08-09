@@ -814,6 +814,8 @@ export type EffectAction =
   | ForceSigniAttackAction
   | ForceFrontSigniAttackAction
   | GrantLrigAbilityAction
+  | GrantPlayerAbilityAction
+  | DrawPhaseReplacementAction
   | PlaceVirusAction
   | AttachAcceAction
   | FieldSigniToAcceAction
@@ -1928,6 +1930,22 @@ export interface GrantLrigAbilityAction {
   permanent?: boolean;      // 「このゲームの間」付与（グロウしても維持・ターン境界で消えない。WXDi-P06-004等）。省略=ターン終了時まで
   duration?: EffectDuration; // UNTIL_OPP_TURN_END は長期ストアへ格納
   targetedCenter?: boolean; // 「あなたのセンタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る」表記変種（WX25-P1-001系）。engine挙動は既定と同一（自分のセンタールリグへ付与）＝decompiler表示用
+  targetOwner?: Owner;      // 付与先センタールリグの持ち主。省略=self、opponent=対戦相手（WXK03-001-E3）
+}
+
+/** プレイヤー自身が「このゲームの間」得る能力。場を離れるカードではなくPlayerStateへ保持する。 */
+export interface GrantPlayerAbilityAction {
+  type: 'GRANT_PLAYER_ABILITY';
+  abilities: CardEffect[];
+  rawText?: string;
+  permanent: true;
+}
+
+/** ドローフェイズで「1枚引く場合、代わりに2枚引く」置換。ルリグのCONTINUOUS能力として収集する。 */
+export interface DrawPhaseReplacementAction {
+  type: 'DRAW_PHASE_REPLACEMENT';
+  fromCount: number;
+  toCount: number;
 }
 
 // チャームを外す（シグニに付いたチャームをトラッシュに置く）
@@ -2394,7 +2412,8 @@ export interface CardEffect {
     /** 「場にあるシグニの」限定＝発動元カードが持ち主の場のシグニ（`WXEX1-77`）。ルリグ/スペル/アーツ由来では発火しない。 */
     activatedAbilityFromFieldSigni?: boolean;
     banishedLevelLtWatcher?: boolean;
-    notWhileAttacking?: boolean;
+  notWhileAttacking?: boolean;
+  outsideMainPhase?: boolean;                        // 「あなたのメインフェイズ以外で」発生したイベントのみ
     banishedFromCenterZone?: boolean;
     banishedWasUp?: boolean;
     turnOwner?: 'self' | 'opponent'; // 《自分ターン》/《相手ターン》: そのターン中のみ AUTO 発火（self=効果オーナーのターン / opponent=相手のターン）。effectStack の initStack/pushToStack で現ターンと照合しゲート（WXDi-P06-033 等）

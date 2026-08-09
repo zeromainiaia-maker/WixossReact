@@ -644,22 +644,6 @@ WXK06-049
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
 
-## -LRIG_NAME_CONTAINS -OR ［1枚］
-WXK07-001
---- WXK07-001
-  原文: このアーツはあなたのセンタールリグが＜花代＞の場合か、あなたのセンタールリグがレベル４以上の場合にしか使用できない。あなたのセンタールリグ１体を対象とし、このゲームの間、それは「【自】：あなたのアタックフェイズ開始時、数字１つを宣言する。対戦相手はこのアタックフェイズの間、無色のカードでエナコストを支払えず、宣言された数字と同じレベルのシグニで【ガード】がで
-  - [0].condition.conditions[0].type = "LRIG_NAME_CONTAINS"
-  - [0].condition.conditions[0].owner = "self"
-  - [0].condition.conditions[0].name = "花代"
-  - [0].condition.conditions[1].type = "LRIG_LEVEL"
-  - [0].condition.conditions[1].owner = "self"
-  - [0].condition.conditions[1].operator = "gte"
-  - [0].condition.conditions[1].value = 4
-  ~ [0].condition.type : "OR" → "LRIG_LEVEL"
-  + [0].condition.owner = "self"
-  + [0].condition.operator = "gte"
-  + [0].condition.value = 4
-
 ## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE +SEND_TO_ENERGY +SIGNI -ENERGY_CARD -TRANSFER_TO_HAND ［1枚］
 WXK09-031
 --- WXK09-031

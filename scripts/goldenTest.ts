@@ -18,7 +18,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -63,7 +63,7 @@ import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
-import { collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
+import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
@@ -8806,10 +8806,112 @@ test('GRANT_LRIG_ABILITY: 付与能力が登録され permanent は permanentGra
   const g2 = (r2.ownerState as { lrig_granted_auto_effects?: CardEffect[] }).lrig_granted_auto_effects ?? [];
   eq(g2.length, 1, 'permanent付与能力が登録されていない');
   eq((g2[0] as { permanentGrant?: boolean }).permanentGrant, true, 'permanentGrantが刻まれていない');
-  // ターン境界リセット相当の filter で permanent だけ残ることを確認
-  const after = g2.concat(g1).filter(e => (e as { permanentGrant?: boolean }).permanentGrant);
-  eq(after.length, 1, 'ターン境界フィルタでpermanentのみ残っていない');
+  // doPhaseAdvance / confirmEndDiscard / cpuTurnAction が共通利用する実リセット関数を通す。
+  const after = clearTurnGrantedLrigAbilities({
+    ...mkState({}),
+    lrig_granted_auto_effects: g2.concat(g1),
+  }).lrig_granted_auto_effects ?? [];
+  eq(after.length, 1, 'ターン終了処理でpermanentのみ残っていない');
+  eq(after[0].effectId, 'TEST-sub-E1', 'ターン終了処理がpermanent能力を取り違えた');
 });
+
+test('§6.3 E-2 WXK07-001-E1: 自ルリグへ恒久付与し、APS collectorへ載る（内側制限はhonest defer）', () => {
+  const effect = (MANUAL_EFFECTS['WXK07-001'] ?? []).find(e => e.effectId === 'WXK07-001-E1')!;
+  const flower = mkState({ lrig: ['WXK07-001'] });
+  const noGrant = collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', flower, mkState({})).entries;
+  ok(!hasEffect(noGrant, 'WXK07-001-E1-GRANT'), '付与前に引用AUTOが発火した');
+
+  const installed = run(effect.action, mkCtx({ lrig: ['WXK07-001'] }, {}, 'WXK07-001'));
+  const granted = installed.ownerState.lrig_granted_auto_effects ?? [];
+  eq(granted.length, 1, '引用AUTOが自ルリグの付与ストアへ入らない');
+  eq(granted[0].permanentGrant, true, '引用AUTOにpermanentGrantが刻まれない');
+  eq((granted[0].action as StubAction).id, 'DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS', '実装済み共有STUBを誤流用した');
+
+  const afterTurn = clearTurnGrantedLrigAbilities(installed.ownerState);
+  eq(afterTurn.lrig_granted_auto_effects?.length, 1, 'ターン終了時に恒久付与が消えた');
+  const collected = collectTurnTriggers(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_START', afterTurn, installed.otherState).entries;
+  ok(hasEffect(collected, 'WXK07-001-E1-GRANT'), '付与AUTOが自アタックフェイズ開始collectorへ載らない');
+});
+
+test('§6.3 E-2 WXDi-P03-003-E1: プレイヤー恒久【常】が中央＜武勇＞だけを強化し、非メイン時バニッシュでEC1', () => withSavedCursor(() => {
+  const effect = (MANUAL_EFFECTS['WXDi-P03-003'] ?? []).find(e => e.effectId === 'WXDi-P03-003-E1')!;
+  const warriors = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('武勇') && Number.isFinite(parseInt(c.Power ?? '', 10)));
+  const nonWarrior = [...cardMap.values()].find(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('武勇') && Number.isFinite(parseInt(c.Power ?? '', 10)))!;
+  ok(warriors.length >= 2, '＜武勇＞テストカード不足');
+  const side = warriors[0].CardNum;
+  const center = warriors[1].CardNum;
+  const ctx = mkCtx({ signi: [side, center, nonWarrior.CardNum] }, {}, 'WXDi-P03-003');
+  const installed = run(effect.action, ctx);
+  eq(installed.ownerState.game_granted_effects?.length, 1, 'プレイヤー付与【常】が永続ストアへ入らない');
+  eq(installed.ownerState.lrig_granted_auto_effects?.length ?? 0, 0, 'プレイヤー能力をルリグ付与ストアへ誤格納した');
+  eq(clearTurnGrantedLrigAbilities(installed.ownerState).game_granted_effects?.length, 1, 'ターン終了処理でプレイヤー恒久能力が消えた');
+
+  const without = { ...installed.ownerState, game_granted_effects: undefined };
+  const basePowers = calcFieldPowers(without, installed.otherState, true, effectsMap, cardMap);
+  const grantedPowers = calcFieldPowers(installed.ownerState, installed.otherState, true, effectsMap, cardMap);
+  eq(grantedPowers.get(center), (basePowers.get(center) ?? 0) + 1000, '中央＜武勇＞が+1000されない');
+  eq(grantedPowers.get(side), basePowers.get(side), '側面＜武勇＞まで過剰に+1000された');
+  eq(grantedPowers.get(nonWarrior.CardNum), basePowers.get(nonWarrior.CardNum), '非＜武勇＞まで過剰に+1000された');
+
+  const layer = collectGrantedFromLayer(installed.ownerState, installed.otherState, true, effectsMap, cardMap, grantedPowers);
+  ok(layer.has(center), '中央＜武勇＞へ内側AUTOが付与されない');
+  ok(!layer.has(side) && !layer.has(nonWarrior.CardNum), '中央＜武勇＞以外へ内側AUTOが過剰付与された');
+  const augmented = new Map(effectsMap);
+  for (const [num, extras] of layer) augmented.set(num, [...(augmented.get(num) ?? []), ...extras]);
+  const afterBanish = {
+    ...installed.ownerState,
+    field: { ...installed.ownerState.field, signi: [installed.ownerState.field.signi[0], null, installed.ownerState.field.signi[2]] },
+  };
+  const main = collectBanishTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'MAIN', effectsMap: augmented }, center, HOST, afterBanish, installed.otherState, installed.ownerState).entries;
+  ok(!hasEffect(main, 'WXDi-P03-003-E1-GRANT-BANISH'), 'メインフェイズ中のバニッシュで過剰発火した');
+  const attack = collectBanishTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI', effectsMap: augmented }, center, HOST, afterBanish, installed.otherState, installed.ownerState).entries;
+  const entry = attack.find(e => e.effectId === 'WXDi-P03-003-E1-GRANT-BANISH');
+  ok(!!entry, 'メインフェイズ以外のバニッシュで付与AUTOが発火しない');
+  const resolved = run(entry!.effect.action, { ...ctx, ownerState: afterBanish, otherState: installed.otherState, sourceCardNum: center });
+  eq(resolved.ownerState.energy.length, afterBanish.energy.length + 1, '付与AUTOのエナチャージ1が実行されない');
+}));
+
+test('§6.3 E-2 WXK03-001-E3: 相手ルリグへ2能力を恒久付与し、引用内の「あなた」を付与先として実行', () => withSavedCursor(() => {
+  const effect = (MANUAL_EFFECTS['WXK03-001'] ?? []).find(e => e.effectId === 'WXK03-001-E3')!;
+  eq(effect.cost, undefined, '《コイン×0》を実コストとして追加した');
+  const colorless = [...cardMap.values()].find(c => c.Color === '無' && c.Type !== 'ルリグ')!;
+  ok(!!colorless, '無色手札コスト用カード不足');
+  const ctx = mkCtx({ lrig: ['WXK03-001'] }, { lrig: ['WXK03-001'], hand: 2, life: 3 }, 'WXK03-001');
+  ctx.otherState = { ...ctx.otherState, hand: [colorless.CardNum, ...ctx.otherState.hand.slice(1)] };
+  const installed = run(effect.action, ctx);
+  eq(installed.ownerState.lrig_granted_auto_effects?.length ?? 0, 0, '能力を効果使用者のルリグへ誤付与した');
+  const targetGrants = installed.otherState.lrig_granted_auto_effects ?? [];
+  eq(targetGrants.length, 2, '対戦相手ルリグへ引用2能力が付与されない');
+  ok(targetGrants.every(e => e.permanentGrant), '相手への付与能力にpermanentGrantが刻まれない');
+  const afterTurn = clearTurnGrantedLrigAbilities(installed.otherState);
+  eq(afterTurn.lrig_granted_auto_effects?.length, 2, '付与先のターン終了で恒久能力が消えた');
+
+  eq(applyLrigDrawPhaseReplacement({ ...afterTurn, lrig_granted_auto_effects: [] }, 1), 1, '付与なしで通常1ドローが変化した');
+  eq(applyLrigDrawPhaseReplacement(afterTurn, 1), 2, '通常1ドローが2ドローへ置換されない');
+  eq(applyLrigDrawPhaseReplacement(afterTurn, 2), 2, '通常2ドローまで過剰増加した');
+
+  const turnEnd = collectTurnTriggers(trigCtx(GUEST, GUEST), 'ON_TURN_END', afterTurn, installed.ownerState).entries;
+  const entry = turnEnd.find(e => e.effectId === 'WXK03-001-E3-GRANT-END');
+  ok(!!entry, '付与先自身のターン終了collectorへ引用AUTOが載らない');
+
+  const paidCtx = { ...ctx, ownerState: afterTurn, otherState: installed.ownerState, sourceCardNum: 'WXK03-001' };
+  const paidOffer = executeEffect(entry!.effect, paidCtx);
+  ok(!paidOffer.done && paidOffer.pending.type === 'CHOOSE', '無色手札1枚の任意支払いが提示されない');
+  const paidResume = resumeOptionalCost('pay', [], (paidOffer as Extract<ExecResult, { done: false }>).pending as never,
+    { ...paidCtx, ownerState: paidOffer.ownerState, otherState: paidOffer.otherState, logs: paidOffer.logs });
+  const paid = finish(paidResume, paidCtx);
+  eq(paid.ownerState.life_cloth.length, afterTurn.life_cloth.length, '無色カードを捨てたのに自傷した');
+  ok(paid.ownerState.trash.includes(colorless.CardNum), '支払った無色カードがトラッシュへ行かない');
+  eq(paid.otherState.life_cloth.length, installed.ownerState.life_cloth.length, '引用内の「あなた」を効果使用者へ誤適用した');
+
+  const skipCtx = { ...ctx, ownerState: afterTurn, otherState: installed.ownerState, sourceCardNum: 'WXK03-001' };
+  const skipOffer = executeEffect(entry!.effect, skipCtx);
+  const skippedResume = resumeOptionalCost('skip', [], (skipOffer as Extract<ExecResult, { done: false }>).pending as never,
+    { ...skipCtx, ownerState: skipOffer.ownerState, otherState: skipOffer.otherState, logs: skipOffer.logs });
+  const skipped = finish(skippedResume, skipCtx);
+  eq(skipped.ownerState.life_cloth.length, afterTurn.life_cloth.length - 1, '未払い時に付与先が1ダメージを受けない');
+  eq(skipped.otherState.life_cloth.length, installed.ownerState.life_cloth.length, '未払い自傷を元の効果使用者へ誤適用した');
+}));
 
 // タスク12(xxiii): 「センタールリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【起】エクシード…』」
 // （WX25-P1-001/003/005/007/009）。従来は付与構造が丸ごと欠落し、3能力をコストゲートも選択も無く

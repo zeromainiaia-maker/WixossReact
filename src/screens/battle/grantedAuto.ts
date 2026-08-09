@@ -1,6 +1,17 @@
 import type { PlayerState, StackEntry } from '../../types';
 import type { CardEffect } from '../../types/effects';
 
+/**
+ * ターン終了時までのルリグ付与能力だけを落とす。
+ * `GRANT_LRIG_ABILITY.permanent` が刻んだ能力は、全ターン終了経路で保持する。
+ */
+export function clearTurnGrantedLrigAbilities(state: PlayerState): PlayerState {
+  return {
+    ...state,
+    lrig_granted_auto_effects: state.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
+  };
+}
+
 /** 攻撃側ルリグに実行時付与された ON_ATTACK_LRIG AUTO を収集し、usageLimit の消費IDを返す。 */
 export function collectAttackingLrigGrantedAutos(
   state: PlayerState,

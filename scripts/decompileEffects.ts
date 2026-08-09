@@ -1485,9 +1485,14 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
         : '';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
-      if (a.targetedCenter) return `あなたのセンタールリグ１体を対象とし、${a.permanent ? 'このゲームの間' : 'ターン終了時まで'}、それは以下の能力を得る。『${glaInner}』`;
-      return `${glaDuration}あなたのセンタールリグは『${glaInner}』を得る`;
+      const glaOwner = a.targetOwner === 'opponent' ? '対戦相手の' : 'あなたの';
+      if (a.targetedCenter) return `${glaOwner}センタールリグ１体を対象とし、${a.permanent ? 'このゲームの間' : 'ターン終了時まで'}、それは以下の能力を得る。『${glaInner}』`;
+      return `${glaDuration}${glaOwner}センタールリグは『${glaInner}』を得る`;
     }
+    case 'GRANT_PLAYER_ABILITY':
+      return `このゲームの間、あなたは以下の能力を得る。『${(a.abilities || []).map(effJa).join(' / ') || a.rawText || ''}』`;
+    case 'DRAW_PHASE_REPLACEMENT':
+      return `あなたがドローフェイズにカードを${a.fromCount}枚引く場合、代わりに${a.toCount}枚引く`;
     case 'AWAKEN_SIGNI': return a.targetsLastProcessed ? 'それは覚醒する' : 'このシグニを覚醒状態にする';
     case 'GAIN_BOND': return a.source === 'declared'
       ? 'あなたのデッキからカード1枚を選び、そのカード名との絆を獲得する'

@@ -1020,6 +1020,7 @@ export function collectBanishTriggers(
         if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
         for (const ab of g.abilities) {
           if (ab.effectType !== 'AUTO' || !ab.timing?.includes('ON_BANISH')) continue;
+          if (ab.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
           if (ab.activeCondition && !checkActiveCondition(ab.activeCondition, ownerAfter, otherAfter, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
           const frontNum = otherAfter.field.signi[2 - zi]?.at(-1); // 正面（前ゾーン 2-zi）の相手シグニ
           entries.push({
@@ -1034,6 +1035,7 @@ export function collectBanishTriggers(
   // 1. バニッシュされたカード自身の ON_BANISH 効果
   for (const eff of (ctx.effectsMap.get(banishedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
+    if (eff.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
     const selfScope = eff.triggerScope ?? 'self';
     if (selfScope !== 'self') {
       // any_ally（「あなたの＜悪魔＞のシグニ1体がバニッシュされたとき」）は**被バニッシュ側自身も母集団に含む**
@@ -1075,6 +1077,7 @@ export function collectBanishTriggers(
       // duringAttackPhase＝アタックフェイズ中のバニッシュのみ発火（「（対戦相手の）アタックフェイズの間、」WX18-002/WXEX1-18）。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+      if (eff.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
       // turnOwner＝反応側（me）のターン限定（'self'＝自分ターン／'opponent'＝相手ターン。「対戦相手のアタックフェイズ」等）。
       if (eff.triggerCondition?.turnOwner === 'self' && !isMyTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
@@ -1123,6 +1126,7 @@ export function collectBanishTriggers(
       // duringAttackPhase / turnOwner（反応側＝opId 視点）を section2 と対称に評価。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+      if (eff.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
       if (eff.triggerCondition?.turnOwner === 'self' && !isOpTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
@@ -3715,6 +3719,18 @@ export function collectTurnTriggers(
         label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
       });
     }
+  }
+
+  // 起動効果で自センタールリグへ付与されたフェイズ境界AUTO。
+  // effectsMap には存在せず PlayerState の専用ストアにだけ入るため、印刷能力とは別に走査する。
+  for (const eff of (myState.lrig_granted_auto_effects ?? [])) {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+    if (!limitOkMy(eff)) continue;
+    entries.push({
+      id: ctx.genId(), playerId: meId, cardNum: myLrigNum ?? '', effectId: eff.effectId,
+      label: `ルリグ付与効果（${labelSuffix}）`, effect: eff,
+    });
   }
 
   // 相手フィールドシグニ（any_opp / any でこちらのターンにも反応するカード）

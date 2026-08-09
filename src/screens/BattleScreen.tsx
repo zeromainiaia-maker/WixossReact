@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceSigni, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -99,7 +99,7 @@ import { reduceBattle, type PlayerStateKey } from './battle/controller/battleCon
 import { canCardGuard } from './battle/guard';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
-import { collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from './battle/grantedAuto';
+import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from './battle/grantedAuto';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
@@ -748,6 +748,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return (baseEffectsMap.get(top) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' && e.action.type === 'GRANT_FIELD_SIGNI_ABILITY');
     });
+    const hasPlayerFieldGrant = [myS, opS].some(st => (st.game_granted_effects ?? []).some(e =>
+      e.effectType === 'CONTINUOUS' && (e.action.type === 'GRANT_FIELD_SIGNI_ABILITY'
+        || (e.action.type === 'SEQUENCE' && e.action.steps.some(a => a.type === 'GRANT_FIELD_SIGNI_ABILITY'))),
+    ));
 
     // アクセ付与（GRANT_ACCE_HOST_ABILITY）持ちアクセカードの有無チェック
     const hasAcceGrant = [...(myS.field.signi_acce ?? []), ...(opS.field.signi_acce ?? [])].some(acceNum => {
@@ -774,7 +778,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (e.action as import('../types/effects').StubAction).id === 'COPY_LRIG_NAME_ABILITY');
     });
 
-    if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant && !hasAcceGrant && !hasSoulGrant && !hasCopyLrigCont) return baseEffectsMap;
+    if (!hasGranted && !hasStack && !hasOverrides && !hasFieldGrant && !hasPlayerFieldGrant && !hasAcceGrant && !hasSoulGrant && !hasCopyLrigCont) return baseEffectsMap;
 
     const augMap = new Map<string, import('../types/effects').CardEffect[]>(baseEffectsMap);
 
@@ -813,7 +817,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     // レイヤー等のフィールド付与（collectGrantedFromLayer）
-    if (hasFieldGrant) {
+    if (hasFieldGrant || hasPlayerFieldGrant) {
       const myLayer = collectGrantedFromLayer(myS, opS, myTurn, augMap, battleCardMap);
       const opLayer = collectGrantedFromLayer(opS, myS, !myTurn, augMap, battleCardMap);
       for (const [num, extra] of [...myLayer, ...opLayer]) {
@@ -3293,7 +3297,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const effectiveDrawLimit = contDrawLimit !== undefined
           ? (my.draw_limit !== undefined ? Math.min(my.draw_limit, contDrawLimit) : contDrawLimit)
           : my.draw_limit;
-        const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(drawCount, effectiveDrawLimit) : drawCount;
+        const replacedDrawCount = applyLrigDrawPhaseReplacement(my, drawCount);
+        const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(replacedDrawCount, effectiveDrawLimit) : replacedDrawCount;
         const preventRefreshTrash = my.field.signi.some(s => {
           const top = s?.at(-1);
           return top && (effectsMap.get(top) ?? []).some(e =>
@@ -3574,7 +3579,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：このターン分は消滅・「次のターンの間」は1回だけ持ち越し
           damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
-          lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
+          lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           holograph_reveal_replace_this_turn: undefined,
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_target_nums: undefined, // 選択対象限定のバニッシュ先変更をクリア
@@ -3985,7 +3990,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
-        lrig_granted_auto_effects: my.lrig_granted_auto_effects?.filter(e => e.permanentGrant), holograph_reveal_replace_this_turn: undefined, banish_redirect: undefined,
+        lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, holograph_reveal_replace_this_turn: undefined, banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
         banish_redirect_power0_target_nums: undefined,
@@ -10368,7 +10373,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
-        lrig_granted_auto_effects: cpuEndState.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
+        lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(cpuEndState).lrig_granted_auto_effects,
         opp_guard_extra_colorless_this_turn: undefined,
         holograph_reveal_replace_this_turn: undefined,
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,

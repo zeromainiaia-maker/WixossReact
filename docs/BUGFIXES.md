@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 E-2 第2波：permanent 引用付与（4効果）
+
+- **① `WX15-002-E2` は baseline `0b9d7e117` の時点で既に正しかった**。live は `GRANT_LRIG_ABILITY{permanent:true}` で、実行時に内側AUTOへ `permanentGrant:true` を刻む。投入表の「`permanent` 欠落」は現行HEADと不一致だったためデータは変更していない。内側の宣言 `UNKNOWN` は指示どおり据置。ターン終了3経路が同じ pure helper `clearTurnGrantedLrigAbilities` を呼ぶ形へ集約し、golden は executor から付与後、その実リセット関数を通して一時付与だけが消え、permanent付与が残ることを固定した。収集は相手ルリグアタック時に `collectLrigAttackDefenderTriggers` が防御側ストアを読む。
+- **② `WXK07-001-E1` は外側を `GRANT_LRIG_ABILITY{permanent:true,targetedCenter:true}`、内側を `AUTO{ON_ATTACK_PHASE_START}` として構造化**した。旧 `GRANT_QUOTED_AUTO_ABILITY` は `execStubPart1` に WD21-007 専用の5択実装と汎用テキスト嗅ぎ分け実装を持つため流用せず、数字宣言・無色エナ支払い不可・指定レベルガード不可・レベル4以上時のアーツ1回制限は、engine分岐を持たない専用 `DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS` として honest defer した。使用条件の＜花代＞またはLv4以上と印刷エナ《赤×0》は保持。実測で `collectTurnTriggers` が自ルリグの印刷AUTOしか読まず付与ストアを読んでいなかったため、自側 `lrig_granted_auto_effects` 走査を追加し、付与前不発／付与後発火／ターン終了後も残存をgolden E2Eで固定した。
+- **③ `WXDi-P03-003-E1` はルリグ付与ではなくプレイヤー付与だったため、新 `GRANT_PLAYER_ABILITY` と永続 `game_granted_effects` を追加**した。付与【常】は中央ゾーンの＜武勇＞だけを+1000し、同じシグニへ `AUTO{ON_BANISH, outsideMainPhase:true}` を付与して【エナチャージ1】する二重入れ子まで構造化。`calcFieldPowers` がプレイヤー付与CONTINUOUSを評価し、`collectGrantedFromLayer` と BattleScreen のaugmented effectsMapが内側AUTOを対象instanceへ載せる。`collectBanishTriggers` はメインフェイズ中を拒否し、それ以外だけ収集する。既存 `game_granted_auto_effects` は特定AUTO用でCONTINUOUSを収集しないため流用していない。goldenは側面＜武勇＞・非＜武勇＞の非適用、中央＜武勇＞+1000、メイン中不発、アタックフェイズ中発火→実エナチャージ1を両方向固定した。
+- **④ `WXK03-001-E3` は `GrantLrigAbilityAction.targetOwner:'opponent'` を型・executorへ追加し、対戦相手側ストアへ2能力を `permanentGrant` 付きで格納**した。引用【常】は新 `DRAW_PHASE_REPLACEMENT{fromCount:1,toCount:2}` とし、通常1枚の先攻初回だけ2枚へ置換、通常2枚は据置、既存ドロー上限制限は置換後に適用する。引用【自】は `collectTurnTriggers` の付与先自身ループから発火し、無色手札1枚の `OPTIONAL_COST` を支払えば終了、未払いなら `LIFE_CRASH{owner:'self',count:1,triggerBurst:true}`。実行時のownerStateは付与先＝対戦相手なので、引用内の「あなた」を元の効果使用者へ誤適用しない。goldenで付与先／非付与側、ターン終了後残存、1→2／2→2、任意コスト支払い／未払い自傷を固定した。《コイン×0》は支払い不要なのでトップレベル`cost`を追加していない。
+
 ## 2026-08-09 — §6.3 E-2 第1波：`WX25-P3-023-E2` の「2ターン持続の監視能力」が起動時即発動に化けていた
 
 - **実害**＝原文は「【起】《ゲーム1回》…**このターンと次のターンの間**、グロウフェイズ以外で**対戦相手の効果1つによってカードが合計1枚以上対戦相手の手札に移動したとき**、対戦相手の手札を1枚見ないで選び、捨てさせる」だが、live は `TRASH{HAND_CARD, owner:'opponent', blind:true}` 単体＝**起動した瞬間に無条件で1枚捨てさせる**。発動条件と持続期間を丸ごと失った**過剰実行**だった。

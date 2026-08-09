@@ -234,6 +234,8 @@ export interface PlayerState {
   // 「このゲームの間、あなたは以下の能力を得る」でプレイヤーに付与された AUTO 能力。
   // ゲーム中持続するためターン境界ではクリアしない。
   game_granted_auto_effects?: import('./effects').CardEffect[];
+  // 「このゲームの間、あなたは以下の能力を得る」でプレイヤー自身へ付与された能力（AUTO以外も保持）。
+  game_granted_effects?: import('./effects').CardEffect[];
   // 次にこのプレイヤーが行うリフレッシュを置換する一発フラグ。実行時までターンを跨いで保持する。
   next_refresh_replaced?: boolean;
   // このターンと次のターンの間のリフレッシュ禁止。自分の次ターン開始時にクリア。
