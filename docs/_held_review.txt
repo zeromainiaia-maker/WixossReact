@@ -183,6 +183,16 @@ WX08-026
   + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
   …（他 3 行）
 
+## +CHARM_COUNT -COND_STUB ［1枚］
+WX11-049
+--- WX11-049
+  原文: 【出】：対戦相手の場にあるすべての【チャーム】をトラッシュに置く。【起】《アタックフェイズアイコン》《黒×0》：このシグニをトラッシュから場に出す。この能力は対戦相手の場に【チャーム】が３枚ある場合にしか使用できない。,-
+  - [1].condition.raw = "対戦相手の場に【チャーム】が３枚ある"
+  ~ [1].condition.type : "COND_STUB" → "CHARM_COUNT"
+  + [1].condition.owner = "opponent"
+  + [1].condition.operator = "gte"
+  + [1].condition.value = 3
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
