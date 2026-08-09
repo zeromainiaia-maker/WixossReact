@@ -31,6 +31,8 @@ const initialState: ActivatedModalsState = {
   selectedHandActivatedCost: new Set(),
   pendingTrashActivated: null,
   selectedTrashActivatedCost: new Set(),
+  selectedTrashActivatedDiscard: new Set(),
+  selectedTrashActivatedExceed: new Set(),
   pendingEnergyActivated: null,
   selectedEnergyActivatedCost: new Set(),
   pendingLrigGranted: null,
