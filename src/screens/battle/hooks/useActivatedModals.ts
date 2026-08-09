@@ -51,11 +51,17 @@ export function useActivatedModals() {
       patch({ pendingHandActivated: pending, selectedHandActivatedCost: new Set() }),
     closeHandActivated: () =>
       patch({ pendingHandActivated: null, selectedHandActivatedCost: new Set() }),
-    /** トラッシュ自己起動モーダルを開く（コスト選択は白紙化） */
+    /** トラッシュ自己起動モーダルを開く（エナ・手札捨て・エクシードの選択は白紙化） */
     openTrashActivated: (pending: NonNullable<ActivatedModalsState['pendingTrashActivated']>) =>
-      patch({ pendingTrashActivated: pending, selectedTrashActivatedCost: new Set() }),
+      patch({
+        pendingTrashActivated: pending, selectedTrashActivatedCost: new Set(),
+        selectedTrashActivatedDiscard: new Set(), selectedTrashActivatedExceed: new Set(),
+      }),
     closeTrashActivated: () =>
-      patch({ pendingTrashActivated: null, selectedTrashActivatedCost: new Set() }),
+      patch({
+        pendingTrashActivated: null, selectedTrashActivatedCost: new Set(),
+        selectedTrashActivatedDiscard: new Set(), selectedTrashActivatedExceed: new Set(),
+      }),
     /** エナACTIVATED（アクセ発動）モーダルを開く（コスト選択は白紙化） */
     openEnergyActivated: (pending: NonNullable<ActivatedModalsState['pendingEnergyActivated']>) =>
       patch({ pendingEnergyActivated: pending, selectedEnergyActivatedCost: new Set() }),
