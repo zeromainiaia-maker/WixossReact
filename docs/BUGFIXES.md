@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — 「あなたの場に(色)のルリグがいる」がアシストルリグを数え落とす17効果を面で是正（続き386）
+
+**真因**＝Diva の「場のルリグ」はセンター1体＋左右アシスト2体だが、CSV の `Type` は `ルリグ` と `アシストルリグ` が別値で、`matchesFilter` の `cardType` は配列要素との厳密一致だった。したがって `HAS_CARD_IN_FIELD{cardType:'ルリグ'}` はルリグ3ゾーンを走査してもアシストを落とし、`LRIG_COLOR` は構造上センターだけを見ていた。engine の一般緩和は対象フィルタまで広げるため行わず、原文が「あなたの場」と言う条件だけをデータ側の `cardType:['ルリグ','アシストルリグ']` へ正規化した。
+
+### ① 採用17効果
+
+- **群A 5効果／15条件ノード**：`WXDi-P08-001-E1`〜`005-E1` のドリームチーム色別分岐。単独条件と `WXDi-P08-005-E1` の `AND{HAS_CARD_IN_FIELD,LRIG_LEVEL}` の双方を配列形へ変更。
+- **群B 5効果**：`WXDi-P00-004-E1`／`WXDi-P03-001-E1`／`WXDi-P03-002-E1`／`WXDi-P16-004-E1`／`WXDi-P16-006-E1`。印刷済み【使用条件】の共通生成地点を `HAS_CARD_IN_FIELD` へ統合し、続き385 の `REMOVE_ABILITIES` 限定特例を削除。`WXDi-P00-002-E1` は raw/live とも完全同一。
+- **群B' 3効果**：`WXDi-P16-003-E1`／`005-E1`／`007-E1`。fresh が獲得した使用条件と `ARTS_COST_REDUCTION_BY_EFFECT` を `heldReview --adopt` で採用し、誤った `GRANT_KEYWORD{keyword:'使用条件',target:SIGNI}` を除去。
+- **群C 4効果**：`WX24-P4-068-E1`／`075-E1`／`082-E1`／`089-E1` の「場にレベル4以上のルリグ」を配列形へ正規化。現存アシストは Level 1/2 のみなので現行盤面の挙動は不変。
+
+### ② 回帰固定と評価経路
+
+golden は実データの `Type==='アシストルリグ'` を使用。群A 5効果は各 action を成立／不成立盤面で実行し、`WXDi-P08-005-E1` の AND 枝も実行した。群B/B' は効果ごとに `evalUseCondition` と BattleScreen 共通の `canUseArtsCondition` で true/false を固定。群C は `WXDi-D01-007`（Level 2 アシスト）だけでは不成立、対照群 `PR-305-E2` は黒アシストだけでは `LRIG_COLOR` が不成立となるトリップワイヤを追加した。
+
+評価は既存の3系統へ流れる：解決時 `evalCondition`（`evalUseCondition` もここへ委譲）、常在 `checkActiveCondition`、CONTINUOUS `evalConditionForContinuous`。ピースの実使用条件は `BattleScreen.tsx` の候補表示と `executeKeyPiece` 実行直前がともに `canUseArtsCondition` を呼び、同ヘルパーが `evalUseCondition` を呼ぶ。
+
+### ③ 差分・計器
+
+全カード生パース A/B は **変化17効果／outlier 0**。live も同じ17効果だけを変更し added/removed 0。`WXDi-P03-001-E1` は live 自身が `parseStatus:PARTIAL` のため `build:effects` が不可侵として `_held_fresh`／`_partial_fresh` の双方へ出さないことを実測し、effectId 集合一致を検査した raw fresh を機械採用した（parser 修正は恒久化済み）。
+
+**検証**＝`npm run gates` 全緑。golden **1570/0**、census **909** 据置、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP 全0、fuzz 200ゲーム全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、被覆マトリクス miss **280**。逆翻訳は全10シート再生成し、条件文が「あなたの場に《色》のルリグがいる」へ追随した。
+
+### ④ 見送り・残存不一致
+
+群D（`WXDi-P05-049-E1` の `POWER_MODIFY_PER_FIELD` 機構ギャップ、ゴミ `GRANT_KEYWORD{keyword:'使用条件'}` の一般22効果、`HAS_CARD_IN_FIELD.minCount` のルリグゾーン経路）は未変更。原文が「センタールリグ」と明示する `LRIG_COLOR` 対照群も未変更。逆翻訳全文の照合では、今回の条件以外に既存の action 近似／STUB／UNKNOWN が残る効果を確認したが、本バッチでは広げず報告のみとした。
+
 ## 2026-08-09 — §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を残0クローズ（続き385）
 
 **真因**＝live JSON に `action:{type:"UNKNOWN"}` が7効果残り、executor 分岐が無いため実機ではログも盤面差分も無い完全 no-op だった。逆翻訳だけは `raw` を原文どおり表示するため、シート目視では壊れて見えない偽陰性でもあった。
