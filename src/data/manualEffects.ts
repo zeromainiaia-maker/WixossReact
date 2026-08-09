@@ -2393,26 +2393,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
-  // WX08-035 弩砲　トーピード（E1のみ）
-  // 【常】あなたの場にある《クロスアイコン》を持つシグニ1体につき＋2000される。
-  //   （アイコンフィルタ未対応のためPARTIAL：全シグニ1体ごと+2000で近似）
-  'WX08-035': [
-    {
-      effectId: 'WX08-035-E1',
-      effectType: 'CONTINUOUS',
-      action: {
-        type: 'POWER_MODIFY_PER_FIELD',
-        target: { type: 'SIGNI', owner: 'self', count: 1 },
-        deltaPerUnit: 2000,
-        countFilter: { cardType: 'シグニ' },
-        countOwner: 'self',
-      },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'AUTO',
-    },
-  ],
-
   // WX09-CB02 終末の回旋　チェロン（E1のみ）：§6.2 系統②（Opusタスク9）で是正。
   // 【常】あなたの《クロスアイコン》を持つ＜美巧＞のシグニは対戦相手の効果によってバニッシュされない。
   //   旧近似は from:['シグニ','アーツ','スペル','ルリグ']（＝全効果耐性の過剰保護）＋《クロスアイコン》条件脱落だった。

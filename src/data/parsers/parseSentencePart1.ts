@@ -3281,7 +3281,23 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         type: 'POWER_MODIFY_PER_FIELD',
         target: { type: 'SIGNI', owner: 'self', count: 1 },
         deltaPerUnit: sign * parseNum(m[4]),
-        countFilter: { cardType: 'ルリグ', ...parseColorFilter(m[2]), ...parseStoryFilter(m[2]) },
+        countFilter: { cardType: ['ルリグ', 'アシストルリグ'], ...parseColorFilter(`${m[2]}の`), ...parseStoryFilter(m[2]) },
+        countOwner,
+      } as PowerModifyPerFieldAction;
+    }
+  }
+
+  // ---- CONTINUOUS: 場の《クロスアイコン》を持つシグニ N体につきパワー±N ----
+  {
+    const m = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある《クロスアイコン》を持つシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
+    if (m) {
+      const countOwner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+      const sign = m[2] === '＋' ? 1 : -1;
+      return {
+        type: 'POWER_MODIFY_PER_FIELD',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        deltaPerUnit: sign * parseNum(m[3]),
+        countFilter: { cardType: 'シグニ', hasCrossIcon: true },
         countOwner,
       } as PowerModifyPerFieldAction;
     }
@@ -3304,16 +3320,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- このシグニのパワーはあなたの場にある[他の]＜X＞のシグニ１体につき±Nされる ----
-  const perFieldSelfM = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある(?:他の)?(.+?)のシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
+  const perFieldSelfM = t.match(/このシグニのパワーは(あなた|対戦相手)の場にある(他の)?(.+?)のシグニ(?:[０-９\d]+)?体?につき([＋－])([０-９\d]+)され/);
   if (perFieldSelfM) {
     const countOwner: Owner = perFieldSelfM[1] === '対戦相手' ? 'opponent' : 'self';
-    const sign = perFieldSelfM[3] === '＋' ? 1 : -1;
+    const sign = perFieldSelfM[4] === '＋' ? 1 : -1;
     return {
       type: 'POWER_MODIFY_PER_FIELD',
       target: { type: 'SIGNI', owner: 'self', count: 1 },
-      deltaPerUnit: sign * parseNum(perFieldSelfM[4]),
-      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[2]), ...parseColorFilter(perFieldSelfM[2]) },
+      deltaPerUnit: sign * parseNum(perFieldSelfM[5]),
+      countFilter: { cardType: 'シグニ', ...parseStoryFilter(perFieldSelfM[3]), ...parseColorFilter(perFieldSelfM[3]) },
       countOwner,
+      ...(perFieldSelfM[2] ? { excludeSelf: true } : {}),
     } as PowerModifyPerFieldAction;
   }
 

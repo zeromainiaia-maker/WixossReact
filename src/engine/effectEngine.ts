@@ -5,6 +5,7 @@ import type {
   EffectAction,
   PowerModifyAction,
   PowerModifyPerStackAction,
+  PowerModifyPerFieldAction,
   PowerModifyPerLevelSumAction,
   PowerModifyPerLrigLevelAction,
   PowerModifyPerTrashCountAction,
@@ -1040,6 +1041,14 @@ function extractPowerModifiesPerStack(action: EffectAction): PowerModifyPerStack
   return [];
 }
 
+function extractPowerModifiesPerField(action: EffectAction): PowerModifyPerFieldAction[] {
+  if (action.type === 'POWER_MODIFY_PER_FIELD') return [action as PowerModifyPerFieldAction];
+  if (action.type === 'SEQUENCE') {
+    return action.steps.flatMap(s => extractPowerModifiesPerField(s));
+  }
+  return [];
+}
+
 function extractPowerModifiesPerLevelSum(action: EffectAction): PowerModifyPerLevelSumAction[] {
   if (action.type === 'POWER_MODIFY_PER_LEVEL_SUM') return [action as PowerModifyPerLevelSumAction];
   if (action.type === 'SEQUENCE') {
@@ -1862,6 +1871,46 @@ export function calcFieldPowers(
           const delta = mod.deltaPerLevel * levelSum;
           if (delta !== 0 && powers.has(topNum)) {
             applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
+          }
+        }
+
+        // POWER_MODIFY_PER_FIELD: 場のフィルタ一致カード数に比例したパワー増減
+        const perFieldMods = extractPowerModifiesPerField(effect.action);
+        for (const mod of perFieldMods) {
+          const countStates = mod.countOwner === 'self' ? [ownerState]
+            : mod.countOwner === 'opponent' ? [otherState]
+            : [ownerState, otherState];
+          const countTypes = mod.countFilter.cardType === undefined ? []
+            : Array.isArray(mod.countFilter.cardType) ? mod.countFilter.cardType
+            : [mod.countFilter.cardType];
+          const countsLrig = countTypes.includes('ルリグ') || countTypes.includes('アシストルリグ');
+          let count = 0;
+          for (const countState of countStates) {
+            for (const stack of countState.field.signi) {
+              const countNum = stack?.at(-1);
+              if (!countNum || (mod.excludeSelf && countNum === topNum)) continue;
+              if (matchesFilter(cardMap.get(countNum), mod.countFilter)) count++;
+            }
+            if (countsLrig) {
+              for (const countNum of lrigZoneTops(countState.field)) {
+                if (!countNum || (mod.excludeSelf && countNum === topNum)) continue;
+                if (matchesFilter(cardMap.get(countNum), mod.countFilter)) count++;
+              }
+            }
+          }
+          const delta = mod.deltaPerUnit * count;
+          if (delta === 0) continue;
+          if (mod.target.count !== 'ALL') {
+            if ((mod.target.owner === 'self' || mod.target.owner === 'any') && powers.has(topNum)) {
+              applyDeltaToCard(topNum, delta, powers, ownerPowerProtection);
+            }
+          } else {
+            if (mod.target.owner === 'self' || mod.target.owner === 'any') {
+              applyDeltaToState(ownerState, delta, mod.target.filter, cardMap, powers, ownerPowerProtection);
+            }
+            if (mod.target.owner === 'opponent' || mod.target.owner === 'any') {
+              applyDeltaToState(otherState, delta, mod.target.filter, cardMap, powers, otherPowerProtection, dblOtherMult);
+            }
           }
         }
 
@@ -6046,7 +6095,7 @@ export function collectFieldSigniExtraColors(
 /**
  * collectAltAttackFlipSigni: WXDi-P05-069 翠将　リトルジョン
  * フィールドに「特定シグニがアタックする場合、代わりにシグニを裏向きにしてアタック」
- * CONTINUOUS GRANT_ABILITY_INNER_TEXT があれば、対象シグニ名と最大フリ��プ数を返す。
+ * CONTINUOUS GRANT_ABILITY_INNER_TEXT があれば、対象シグニ名と最大フリップ数を返す。
  */
 export function collectAltAttackFlipSigni(
   state: PlayerState,

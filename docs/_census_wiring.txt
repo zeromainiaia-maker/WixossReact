@@ -21,9 +21,9 @@
      4    10  noAbilities
      3    37  excludeCardName
      3     6  levelLtTrigger
-     2    22  hasCrossIcon
      2     2  noRiseIcon
      2    11  powerLtSelf
+     1    23  hasCrossIcon
      1     6  excludeResona
      1    72  noGuard
      1     2  powerLtTrigger
@@ -31,7 +31,7 @@
      0     3  powerLteTrigger
      0     1  levelGtTrigger
      0     1  powerGtSelf
-   278        合計
+   277        合計
 
 --- 除外：一度も配線されていない語彙（＝配線漏れではなく機構未実装／計器の誤検出）---
   powerLteSelf  miss=8 has=0
@@ -802,9 +802,6 @@
 ## hasCrossIcon × SIGNI[filter]   miss=1 has=11
    MISS WX10-060-E1	《クロスアイコン》を持つ対戦相手のシグニ１体を対象とし、それを手札に戻す。
    （配線済み見本: PR-195-E1, WX07-010-E1, WX07-013-E1, WX07-016-E1, WX07-019-E1, WX08-009-E1, WX08-012-E1, WX08-016-E1 …）
-
-## hasCrossIcon × POWER_MODIFY_PER_FIELD{SIGNI}   miss=1 has=0
-   MISS WX08-035-E1	【常】：このシグニのパワーはあなたの場にある《クロスアイコン》を持つシグニ１体につき＋2000される。
 
 ## hasCrossIcon × BOUNCE{SIGNI}   miss=1 has=0
    MISS WX10-060-E1	《クロスアイコン》を持つ対戦相手のシグニ１体を対象とし、それを手札に戻す。

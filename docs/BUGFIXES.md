@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — `POWER_MODIFY_PER_FIELD` の CONTINUOUS 11効果を実働化（続き391）
+
+開始時 HEAD は `60597a7877b0bf5f29d435743c3e2235cc737c8b`（clean）。指示書の `calcContinuousSigniMutations` は BANISH/FREEZE/DOWN 用で、パワー計算の実経路は `calcFieldPowers` だった。同関数の action 抽出兄弟へ `extractPowerModifiesPerField` を追加し、`countOwner:self/opponent/any`、`excludeSelf`、`target.count:'ALL'`、対象 owner、パワー増減保護を既存枝と同じ方式で解決した。カウントは印刷属性だけを見て実効パワーを参照しない。ルリグ系 `countFilter.cardType` の場合だけ `lrigZoneTops`（センター＋左右アシスト）も走査する。各効果の処理より前に既存 `checkActiveCondition` があるため、`WD13-002-E2/E3` の `TURN_OWNER` は偽ターンで適用されない。
+
+データ誤り6効果も parser source of truth から同時是正した。`WX06-016-E1`／`WX06-017-E1`／`WX15-037-E1`／`WXK04-068-E1` は `excludeSelf:true`、`WX08-035-E1` は `countFilter.hasCrossIcon:true`（陳腐化した manual override を撤去）、`WXDi-P05-049-E1` は `countFilter:{cardType:['ルリグ','アシストルリグ'],color:'白'}`。残る5効果は JSON 不変で挙動だけ 0→実働。全カード生パース A/B は changed 6／added 0／removed 0／outlier 0、開始 HEAD との live JSON 差分も同じ6効果だけで、CONTINUOUS パワー効果453件のうち対象11件以外の442件は不変。ACTIVATED/INSTANT の `POWER_MODIFY_PER_FIELD` は実測8効果で、`effectExecutor.ts` と live JSON は全件不変。
+
+`WX06-017` は fresh に今回外の E2 改善（DOWN単独→UP/DOWN選択）が同居し、カード単位 held 採用では期待6効果を越えるため、E2を byte-for-byte 温存して E1だけを `_held_fresh` から effectId 固定で外科採用した。これは指示書の「buildだけで反映」と現行 held のカード粒度が両立しなかった点。11 effectId ごとの `calcFieldPowers` E2Eを追加し、excludeSelf有無、opponent/any、ALL両陣営、TURN_OWNER偽、白の実データ `Type='アシストルリグ'`／非白、該当0体を固定した。
+
+**検証**＝`npm run gates` 全緑。golden **1641/0**（1630→1641）、census **899→898**（既存 `BASELINE_HIGH` 本体を898へ更新）、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム・CRASH/HANG/INVARIANT/EXPLOSION全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、被覆マトリクス miss **277**（278→277）、`parseStatus:'UNKNOWN'`／トップレベル `action.type:'UNKNOWN'` は **0／0**（入れ子43）。`npm run regen` で全10シートと下流を再生成し、11効果の逆翻訳を原文照合した。対象11効果の見送りは0件。条件外では `WX06-017-E2` の live が原文の UP/DOWN 選択を DOWN 単独にしている既存不一致を1件確認したが、スコープ外のため据え置いた。commit／pushは行っていない。
+
 ## 2026-08-09 — 引用付与【自】5効果をピース使用時の即時実行から `GRANT_LRIG_ABILITY` へ修正（続き390）
 
 開始時 HEAD は `05a0331f3372e164eab012af3530a814e0882af8`（clean）。続き388/389で条件 strip 後の fresh が具体 action を失うため温存した11枚から、完全同型5枚（`WXDi-D05-011-E1`／`WXDi-D06-011-E1`／`WXDi-D09-H11-E1`／`WXDi-P06-002-E1`／`WXDi-P07-001-E1`）を本修正した。旧 live は引用内の【自】を `GRANT_KEYWORD{keyword:'使用条件'}` 後の裸 action としてピース使用時に即時実行していた。parser に「レベル3のルリグ1体を対象・ターン終了時まで・引用が【自】開始」の限定入口を置き、続き388/389の使用条件を維持したまま、旧 live の具体 action と実装済み STUB を `GRANT_LRIG_ABILITY.abilities[0].action` へ一切捨てず移した。P07 の【出】不発は `ADD_TO_FIELD.suppressOnPlay:true` の正準形へ戻し、`CRASH_LIFE_TO_HAND` は付与元ルリグではなく `sourceEffectId` の親ピースを参照できるようにした。

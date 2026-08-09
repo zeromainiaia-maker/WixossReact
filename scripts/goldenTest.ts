@@ -11457,6 +11457,121 @@ test('POWER_MODIFY_PER_LEVEL_SUM: CONTINUOUS＝場の他＜龍獣＞のレベル
   const p = calcFieldPowers(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(p.get('WX05-058'), base + 3000, '他＜龍獣＞レベル合計3×1000');
 });
+
+const oneContinuousEffectMap = (cardNum: string, effectId: string): Map<string, CardEffect[]> => {
+  const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} not found`);
+  return new Map([[cardNum, [effect]]]);
+};
+const printedPower = (cardNum: string): number => parseInt(cardMap.get(cardNum)?.Power || '0', 10);
+const signiWithStory = (story: string, exclude: string): string => findCard(c =>
+  c.Type === 'シグニ' && c.CardNum !== exclude && (c.CardClass ?? '').includes(story));
+const perFieldContinuousTest = (name: string, fn: () => void) => test(name, () => withSavedCursor(fn));
+
+perFieldContinuousTest('WX06-016-E1 POWER_MODIFY_PER_FIELD CONT: 他の＜天使＞だけを数えて自身を除外', () => {
+  const source = 'WX06-016';
+  const ally = signiWithStory('天使', source);
+  const map = oneContinuousEffectMap(source, 'WX06-016-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '自身だけなら+0');
+  eq(calcFieldPowers(mkState({ signi: [source, ally, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 1000, '他の天使1体で+1000');
+});
+
+perFieldContinuousTest('WX06-017-E1 POWER_MODIFY_PER_FIELD CONT: 他の＜アーム＞だけを数えて自身を除外', () => {
+  const source = 'WX06-017';
+  const ally = signiWithStory('アーム', source);
+  const map = oneContinuousEffectMap(source, 'WX06-017-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '自身だけなら+0');
+  eq(calcFieldPowers(mkState({ signi: [source, ally, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 1000, '他のアーム1体で+1000');
+});
+
+perFieldContinuousTest('WX15-037-E1 POWER_MODIFY_PER_FIELD CONT: 他の＜英知＞だけを数えて自身を除外', () => {
+  const source = 'WX15-037';
+  const ally = signiWithStory('英知', source);
+  const map = oneContinuousEffectMap(source, 'WX15-037-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '自身だけなら+0');
+  eq(calcFieldPowers(mkState({ signi: [source, ally, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 3000, '他の英知1体で+3000');
+});
+
+perFieldContinuousTest('WXK04-068-E1 POWER_MODIFY_PER_FIELD CONT: 他の＜紅蓮＞だけを数えて自身を除外', () => {
+  const source = 'WXK04-068';
+  const ally = signiWithStory('紅蓮', source);
+  const map = oneContinuousEffectMap(source, 'WXK04-068-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '自身だけなら+0');
+  eq(calcFieldPowers(mkState({ signi: [source, ally, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 4000, '他の紅蓮1体で+4000');
+});
+
+perFieldContinuousTest('WX08-035-E1 POWER_MODIFY_PER_FIELD CONT: 《クロスアイコン》を持つシグニだけを数える', () => {
+  const source = 'WX08-035';
+  const cross = findCard(c => c.Type === 'シグニ' && c.CardNum !== source && (c.EffectText ?? '').startsWith('《クロスアイコン》'));
+  const nonCross = findCard(c => c.Type === 'シグニ' && c.CardNum !== source && c.CardNum !== cross && !(c.EffectText ?? '').startsWith('《クロスアイコン》'));
+  const map = oneContinuousEffectMap(source, 'WX08-035-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, nonCross, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '該当0体なら+0');
+  eq(calcFieldPowers(mkState({ signi: [source, cross, nonCross] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 2000, 'クロスアイコン1体だけで+2000');
+});
+
+perFieldContinuousTest('WXDi-P05-049-E1 POWER_MODIFY_PER_FIELD CONT: 白のアシストルリグを数え、非白は数えない', () => {
+  const source = 'WXDi-P05-049';
+  const whiteAssist = findCard(c => c.Type === 'アシストルリグ' && (c.Color ?? '').includes('白'));
+  const nonWhiteAssist = findCard(c => c.Type === 'アシストルリグ' && !(c.Color ?? '').includes('白'));
+  const map = oneContinuousEffectMap(source, 'WXDi-P05-049-E1');
+  eq(cardMap.get(whiteAssist)?.Type, 'アシストルリグ', '実データのアシストルリグを使用');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null], assistL: [nonWhiteAssist] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '白でないアシストは+0');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null], assistL: [whiteAssist] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 2000, '白のアシスト1体で+2000');
+});
+
+perFieldContinuousTest('WX06-020-E1 POWER_MODIFY_PER_FIELD CONT: countOwner=opponent の場だけを数える', () => {
+  const source = 'WX06-020';
+  const opponents = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardNum !== source).slice(0, 2).map(c => c.CardNum);
+  const map = oneContinuousEffectMap(source, 'WX06-020-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source), '相手0体なら+0');
+  eq(calcFieldPowers(mkState({ signi: [source, null, null] }), mkState({ signi: [opponents[0], opponents[1], null] }), true, map, cardMap).get(source), printedPower(source) + 8000, '相手2体で+8000');
+});
+
+perFieldContinuousTest('WX10-029-E1 POWER_MODIFY_PER_FIELD CONT: excludeSelfなしは一致する効果元も数える', () => {
+  const source = 'WX10-029';
+  const weapon = signiWithStory('ウェポン', source);
+  const map = oneContinuousEffectMap(source, 'WX10-029-E1');
+  eq(calcFieldPowers(mkState({ signi: [source, weapon, null] }), mkState({}), true, map, cardMap).get(source), printedPower(source) + 5000, '実カード盤面: ウェポン1体で+5000');
+  const effect = map.get(source)![0];
+  const matchingSourceMap = new Map<string, CardEffect[]>([[weapon, [effect]]]);
+  eq(calcFieldPowers(mkState({ signi: [weapon, null, null] }), mkState({}), true, matchingSourceMap, cardMap).get(weapon), printedPower(weapon) + 5000, 'excludeSelfなし: 一致する効果元自身も1体に数える');
+});
+
+perFieldContinuousTest('WXDi-P06-051-E1 POWER_MODIFY_PER_FIELD CONT: countOwner=any は両場を合算し自身を除外', () => {
+  const source = 'WXDi-P06-051';
+  const others = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.CardNum !== source).slice(0, 3).map(c => c.CardNum);
+  const map = oneContinuousEffectMap(source, 'WXDi-P06-051-E1');
+  const mine = mkState({ signi: [source, others[0], null] });
+  const theirs = mkState({ signi: [others[1], others[2], null] });
+  eq(calcFieldPowers(mine, theirs, true, map, cardMap).get(source), printedPower(source) + 3000, '自分の他1体+相手2体=3体で+3000');
+});
+
+perFieldContinuousTest('WD13-002-E2 POWER_MODIFY_PER_FIELD CONT: 相手ターンだけ自場の＜迷宮＞数を自シグニ全体へ加算', () => {
+  const source = 'WD13-002';
+  const maze = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('迷宮')).slice(0, 2).map(c => c.CardNum);
+  const map = oneContinuousEffectMap(source, 'WD13-002-E2');
+  const mine = mkState({ signi: [maze[0], maze[1], null], lrig: [source] });
+  const active = calcFieldPowers(mine, mkState({}), false, map, cardMap);
+  eq(active.get(maze[0]), printedPower(maze[0]) + 2000, '相手ターン: 迷宮2体分を対象1へ+2000');
+  eq(active.get(maze[1]), printedPower(maze[1]) + 2000, '相手ターン: ALL対象2にも+2000');
+  const inactive = calcFieldPowers(mine, mkState({}), true, map, cardMap);
+  eq(inactive.get(maze[0]), printedPower(maze[0]), '自ターン: activeCondition偽で+0');
+});
+
+perFieldContinuousTest('WD13-002-E3 POWER_MODIFY_PER_FIELD CONT: 自ターンだけ自場の＜毒牙＞数を相手シグニ全体へ減算', () => {
+  const source = 'WD13-002';
+  const poison = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('毒牙')).slice(0, 2).map(c => c.CardNum);
+  const targets = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !poison.includes(c.CardNum)).slice(0, 2).map(c => c.CardNum);
+  const map = oneContinuousEffectMap(source, 'WD13-002-E3');
+  const mine = mkState({ signi: [poison[0], poison[1], null], lrig: [source] });
+  const theirs = mkState({ signi: [targets[0], targets[1], null] });
+  const active = calcFieldPowers(mine, theirs, true, map, cardMap);
+  eq(active.get(targets[0]), printedPower(targets[0]) - 2000, '自ターン: 毒牙2体分を相手対象1へ-2000');
+  eq(active.get(targets[1]), printedPower(targets[1]) - 2000, '自ターン: ALL対象2にも-2000');
+  const inactive = calcFieldPowers(mine, theirs, false, map, cardMap);
+  eq(inactive.get(targets[0]), printedPower(targets[0]), '相手ターン: activeCondition偽で-0');
+});
+
 test('POWER_MODIFY_PER_LRIG_LEVEL(count:ALL): 自センタールリグLv×deltaPerLevelを相手全シグニに適用（WX04-101系）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] });
   ctx.ownerState.field.lrig = ['WD03-002']; // Lv3
