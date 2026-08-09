@@ -4518,9 +4518,10 @@ export function collectBanishEffectProtectedSigni(
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
       if (gp.sourceOwner !== 'opponent') continue;
-      // bySourceType（「シグニの効果によってバニッシュされない」等）は発生源種別を知る効果解決文脈でのみ
+      // bySourceType/bySourceLevel（「レベル2以下のルリグとシグニの効果によって…」等）は
+      // 発生源カードを知る効果解決文脈でのみ
       // 評価する（collectBanishBySourceProtectedSigni）。バトル・他コンテキストの本コレクタでは適用しない。
-      if (gp.bySourceType) continue;
+      if (gp.bySourceType || gp.bySourceLevel !== undefined) continue;
       if (!gp.from?.includes('BANISH') && !gp.from?.includes('any')) continue;
       if (gp.subjectFilter) {
         for (const s2 of state.field.signi) {
@@ -4552,8 +4553,9 @@ export function collectBanishEffectProtectedSigni(
 }
 
 /**
- * collectBanishBySourceProtectedSigni: GRANT_PROTECTION で from に 'BANISH' を持ち bySourceType（発生源カード種別）が
- * 指定されたシグニのうち、いま解決中の効果のソース種別 `sourceCardType` が一致する場合のみ、バニッシュ保護される
+ * collectBanishBySourceProtectedSigni: GRANT_PROTECTION で from に 'BANISH' を持ち、bySourceType（発生源カード種別）
+ * または bySourceLevel（発生源カードの表記レベル）が指定されたシグニのうち、いま解決中の効果ソースが
+ * 両方の制約に一致する場合のみ、バニッシュ保護される
  * シグニ番号を返す（「対戦相手のシグニの効果によってバニッシュされない」WXK04-064 等）。
  * バトルやルール処理（power≤0）はソース種別を持たないため発火しない＝原文の「シグニとのバトル…はバニッシュされる」と整合。
  * 呼び出し側で otherBanishProtectedNums に union する（バニッシュ軸のみ。バウンス/ダウン等は保護しない）。
@@ -4565,16 +4567,38 @@ export function collectBanishBySourceProtectedSigni(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
   sourceCardType: string,
+  sourceCardNum?: string,
 ): Set<string> {
   const protected_ = new Set<string>();
   const srcType = sourceCardType ?? '';
+  const baseSourceNum = sourceCardNum?.includes('#')
+    ? sourceCardNum.slice(0, sourceCardNum.indexOf('#'))
+    : sourceCardNum;
+  const sourceCard = baseSourceNum ? cardMap.get(baseSourceNum) : undefined;
+  const sourceLevel = Number.parseInt(sourceCard?.Level ?? '', 10);
   const srcIsSigni = srcType.includes('シグニ') || srcType.includes('レゾナ');
   const srcIsLrig = srcType.includes('ルリグ');
   const srcIsSpell = srcType.includes('スペル');
   const srcIsArts = srcType.includes('アーツ') || srcType.includes('ピース') || srcType.includes('キー');
-  const matchesSource = (t: string): boolean =>
-    (t === 'シグニ' && srcIsSigni) || (t === 'ルリグ' && srcIsLrig)
-    || (t === 'スペル' && srcIsSpell) || (t === 'アーツ' && srcIsArts);
+  const matchesSource = (types: GrantProtectionAction['bySourceType']): boolean => {
+    if (!types) return true;
+    const list = Array.isArray(types) ? types : [types];
+    return list.some(t => (t === 'シグニ' && srcIsSigni) || (t === 'ルリグ' && srcIsLrig)
+      || (t === 'スペル' && srcIsSpell) || (t === 'アーツ' && srcIsArts));
+  };
+  const matchesSourceLevel = (level: GrantProtectionAction['bySourceLevel']): boolean => {
+    if (level === undefined) return true;
+    // Level 未定義・非数値のカードは、レベル制限つき保護へ誤って入れない（fail closed）。
+    if (!Number.isFinite(sourceLevel)) return false;
+    if (typeof level === 'number') return sourceLevel === level;
+    if (level.min !== undefined && sourceLevel < level.min) return false;
+    if (level.max !== undefined && sourceLevel > level.max) return false;
+    return true;
+  };
+  const sourceConstraintsMatch = (
+    bySourceType: GrantProtectionAction['bySourceType'],
+    bySourceLevel: GrantProtectionAction['bySourceLevel'],
+  ): boolean => matchesSource(bySourceType) && matchesSourceLevel(bySourceLevel);
   for (const stack of state.field.signi) {
     const sourceNum = stack?.at(-1);
     if (!sourceNum) continue;
@@ -4582,9 +4606,9 @@ export function collectBanishBySourceProtectedSigni(
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
-      if (!gp.bySourceType || !gp.from?.includes('BANISH')) continue;
+      if ((!gp.bySourceType && gp.bySourceLevel === undefined) || !gp.from?.includes('BANISH')) continue;
       if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
-      if (!matchesSource(gp.bySourceType)) continue;
+      if (!sourceConstraintsMatch(gp.bySourceType, gp.bySourceLevel)) continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
       if (gp.subjectFilter) {
         for (const s2 of state.field.signi) {
@@ -4596,6 +4620,29 @@ export function collectBanishBySourceProtectedSigni(
       } else {
         protected_.add(sourceNum); // target self count:1 → このシグニ
       }
+    }
+  }
+
+  // AUTO/ACTIVATED で付与された同じ保護語彙。execGrantProtection が制約を専用キーワードへ
+  // JSON保存するため、通常の PROTECTION:BANISH（全発生源）経路へは流さずここで同じ判定を行う。
+  const grantedMatches = (keyword: string): boolean => {
+    const prefix = 'PROTECTION_BY_SOURCE:';
+    if (!keyword.startsWith(prefix)) return false;
+    try {
+      const grant = JSON.parse(keyword.slice(prefix.length)) as Pick<GrantProtectionAction,
+        'from' | 'sourceOwner' | 'bySourceType' | 'bySourceLevel'>;
+      if (!grant.from?.includes('BANISH')) return false;
+      if (grant.sourceOwner && grant.sourceOwner !== 'opponent') return false;
+      return sourceConstraintsMatch(grant.bySourceType, grant.bySourceLevel);
+    } catch {
+      return false;
+    }
+  };
+  for (const store of [state.keyword_grants, state.keyword_grants_until_opp_turn]) {
+    if (!store) continue;
+    for (const stack of state.field.signi) {
+      const top = stack?.at(-1);
+      if (top && (store[top] ?? []).some(grantedMatches)) protected_.add(top);
     }
   }
   return protected_;

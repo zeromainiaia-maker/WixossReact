@@ -4277,6 +4277,18 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   return done(ctx);
 }
 
+function protectionKeyword(a: GrantProtectionAction): string {
+  if (a.bySourceType || a.bySourceLevel !== undefined) {
+    return `PROTECTION_BY_SOURCE:${JSON.stringify({
+      from: a.from ?? [],
+      sourceOwner: a.sourceOwner,
+      bySourceType: a.bySourceType,
+      bySourceLevel: a.bySourceLevel,
+    })}`;
+  }
+  return `PROTECTION:${(a.from ?? []).join(',')}:${a.sourceOwner ?? ''}`;
+}
+
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
   // subjectFilter のみの場合は CONTINUOUS 用宣言（effectEngine 側で処理）→ no-op
   if (!a.target && a.subjectFilter) {
@@ -4285,7 +4297,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   if (!a.target) return done(ctx);
   // 効果耐性はキーワード付与として扱う
   const tgt = a.target;
-  const keyword = `PROTECTION:${(a.from ?? []).join(',')}:${a.sourceOwner ?? ''}`;
+  const keyword = protectionKeyword(a);
   // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時までクリアされない）
   const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
 
@@ -7868,7 +7880,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const gpA = action as GrantProtectionAction;
       if (!gpA.target) return done(ctx);
       const gpOwner: Owner = gpA.target.owner === 'any' ? sideOfFieldCard(cardNum, ctx) : gpA.target.owner;
-      const gpKeyword = `PROTECTION:${(gpA.from ?? []).join(',')}:${gpA.sourceOwner ?? ''}`;
+      const gpKeyword = protectionKeyword(gpA);
       const gpGkey = gpA.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
       const gpS = ownerState(gpOwner, ctx);
       const gpGrants = { ...(gpS[gpGkey] ?? {}) };

@@ -7,6 +7,16 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // 続き393: バニッシュ保護の発生源種別（複数可）と表記レベル制限を source of truth 化。
+  "WXDi-P03-074": [
+    {"effectId":"WXDi-P03-074-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT","bySourceType":"シグニ","bySourceLevel":1},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXDi-P10-046": [
+    {"effectId":"WXDi-P10-046-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT","bySourceType":["ルリグ","シグニ"],"bySourceLevel":{"max":2}},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
+  ],
+  "WXDi-CP01-038": [
+    {"effectId":"WXDi-CP01-038-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"バーチャル","excludeSelf":true}},"from":["BANISH"],"sourceOwner":"opponent","duration":"UNTIL_OPP_TURN_END","bySourceType":["ルリグ","シグニ"],"bySourceLevel":{"max":2}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL"},
+  ],
   // 続き389: 印刷済み【チーム】使用条件。live MANUAL の全トップレベルフィールドを保持する。
   "WXDi-D02-19LAT": [
     {"effectId":"WXDi-D02-19LAT-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"さんばか","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","cardClass":"バーチャル"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},

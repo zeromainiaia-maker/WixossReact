@@ -359,6 +359,10 @@ export function hasBanishResist(
   if (hasKeyword(cardNum, 'バニッシュされない', cardMap, keywordGrants, undefined, extraGrants)) return true;
   // effects.json 未登録カード用フォールバック（『』内の引用テキストは除外：条件付き付与の誤検知防止）
   const card = cardMap.get(cardNum);
+  // 発生源制約つきの登録済み保護は collectBanishBySourceProtectedSigni が種別・レベルを評価する。
+  // 原文だけで true にすると、その不成立を上書きして全発生源から守ってしまう。
+  if (card?.effects?.some(e => e.action.type === 'GRANT_PROTECTION'
+    && (!!e.action.bySourceType || e.action.bySourceLevel !== undefined))) return false;
   const text = (card?.EffectText ?? '').replace(/『[^』]*』/g, '');
   return text.includes('バニッシュされない');
 }

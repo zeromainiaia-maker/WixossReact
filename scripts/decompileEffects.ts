@@ -1036,12 +1036,27 @@ function actionJa(a?: Action, effectType?: string): string {
       if (fromArr.includes('any')) {
         return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
       }
-      // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等
-      // bySourceType 指定時は発生源種別を明示（「対戦相手のシグニの効果によってバニッシュされない」）
+      // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等。
+      // bySourceType/bySourceLevel は発生源の複数種別と表記レベル制限を両方描く。
       const axisJa: Record<string, string> = { BANISH: 'バニッシュされ', BOUNCE: '手札に戻され', DOWN: 'ダウンし', FREEZE: '凍結され', POWER_MODIFY: 'パワーを増減され' };
       const axes = fromArr.filter(f => axisJa[f] !== undefined || !srcTypes.includes(f)).map(f => axisJa[f] ?? (f + 'され'));
-      const srcQ = a.bySourceType ? `${a.bySourceType}の` : '';
-      return `${subject}は${ownerJa(a.sourceOwner)}${srcQ}効果によって${axes.join('・')}ない`;
+      const byTypes: string[] = a.bySourceType
+        ? (Array.isArray(a.bySourceType) ? a.bySourceType : [a.bySourceType])
+        : [];
+      const byLevel = a.bySourceLevel as number | { min?: number; max?: number } | undefined;
+      let byLevelJa = '';
+      if (typeof byLevel === 'number') byLevelJa = `レベル${byLevel}の`;
+      else if (byLevel?.min !== undefined && byLevel.max !== undefined && byLevel.min === byLevel.max) byLevelJa = `レベル${byLevel.min}の`;
+      else if (byLevel?.min !== undefined && byLevel.max !== undefined) byLevelJa = `レベル${byLevel.min}以上${byLevel.max}以下の、`;
+      else if (byLevel?.min !== undefined) byLevelJa = `レベル${byLevel.min}以上の、`;
+      else if (byLevel?.max !== undefined) byLevelJa = `レベル${byLevel.max}以下の、`;
+      const srcQ = byTypes.length > 0
+        ? `${byLevelJa}${byTypes.join('と')}の`
+        : byLevelJa ? `${byLevelJa}カードの` : '';
+      const protectionDurationJa = effectType !== 'CONTINUOUS' && a.duration === 'UNTIL_OPP_TURN_END'
+        ? '次の対戦相手のターン終了時まで、'
+        : '';
+      return `${protectionDurationJa}${subject}は${ownerJa(a.sourceOwner)}${srcQ}効果によって${axes.join('・')}ない`;
     }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
     case 'GRANT_FIELD_SIGNI_ABILITY': return a.thisCardOnly

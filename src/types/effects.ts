@@ -1423,6 +1423,8 @@ export interface CostReductionAction {
   duration?: 'UNTIL_END_OF_TURN' | 'PERMANENT' | 'NEXT_TURN';
 }
 
+export type ProtectionSourceType = 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ';
+
 // 効果耐性付与（「対戦相手の〜の効果を受けない」）
 export interface GrantProtectionAction {
   type: 'GRANT_PROTECTION';
@@ -1433,7 +1435,8 @@ export interface GrantProtectionAction {
   from?: string[];    // 保護元：'ルリグ' | 'シグニ' | 'スペル' | 'アーツ' | 'DOWN' | 'BOUNCE' | 'BANISH' | 'any'
   // 軸（BANISH等）を発生源カード種別で限定する（「対戦相手の【シグニ】の効果によってバニッシュされない」。
   // from に 'BANISH' 等の軸トークンを置き、bySourceType でソース種別を絞る。バトル・ルール処理には適用されない）。
-  bySourceType?: 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ';
+  bySourceType?: ProtectionSourceType | ProtectionSourceType[];
+  bySourceLevel?: number | { min?: number; max?: number }; // 発生源カードの表記レベル。number=ちょうどN、範囲=min/max（CardData.Levelを整数化して判定）
   sourceCostMin?: number; // 保護元カード（アーツ/スペル）の使用コスト合計がN以上の効果のみ保護する（「対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない」WX15-031）。collectEffectImmuneSigni が解決中ソースカードの Cost 合計で判定
   sourceFilter?: TargetFilter; // 保護元カードの属性で耐性を絞る（sourceCostMin の一般化）。collectEffectImmuneSigni が解決中ソースカードの CardData を matchesFilter で判定し、非マッチなら保護しない（WXEX2-36「ライズアイコンを持たない対戦相手のシグニの効果を受けない」／WXK11-021「ライフバーストではない…」）
   sourceEffectType?: 'LIFE_BURST'; // 発生源カードの属性ではなく、現在解決中の効果種別を限定する（WX11-027「対戦相手のライフバーストの効果」）

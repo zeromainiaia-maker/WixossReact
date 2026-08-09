@@ -4370,7 +4370,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const immuneSourceType = battleCardMap.get(entry.cardNum)?.Type ?? '';
       const otherEffectImmuneNums = collectEffectImmuneSigni(otherState, ownerStateForCtx, battleCardMap, effectsMap, !isOwnerTurn, immuneSourceType, entry.cardNum, entry.effect.effectType);
       // 「対戦相手の【シグニ】の効果によってバニッシュされない」: ソース種別一致時のみバニッシュ保護（バニッシュ軸限定）
-      const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType);
+      const otherBanishBySourceNums = collectBanishBySourceProtectedSigni(
+        otherState, ownerStateForCtx, !isOwnerTurn, effectsMap, battleCardMap, immuneSourceType, entry.cardNum,
+      );
       const otherDownProtectedNumsM   = [...otherDownProtectedNums, ...otherEffectImmuneNums];
       const otherBounceProtectedNumsM = [...otherBounceProtectedNums, ...otherEffectImmuneNums];
       const otherBanishProtectedNumsM = new Set<string>([...otherBanishProtectedNums, ...otherEffectImmuneNums, ...otherBanishBySourceNums]);

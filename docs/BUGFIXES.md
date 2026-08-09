@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — バニッシュ保護の発生源を複数種別＋表記レベルで限定（続き393）
+
+開始時 HEAD は `814b4b71934a9d09c1b2197abe2011bea04c15f2`（clean）。`GRANT_PROTECTION.bySourceType` を既存イディオムどおり単一値または配列へ広げ、`TargetFilter.level` と同形の `bySourceLevel?: number | {min?:number;max?:number}` を追加した。`WXDi-P03-074-E1` は `bySourceType:'シグニ',bySourceLevel:1`（exact 1）、`WXDi-P10-046-E1`／`WXDi-CP01-038-E1` は `bySourceType:['ルリグ','シグニ'],bySourceLevel:{max:2}` とし、開始時に存在しなかった3件の `manualEffects.ts` 定義へ全トップレベルフィールド込みで source of truth 化した。`censusManualDrift --adopt` で live へ同期し、live changed は指定3効果だけ、added/removed 0。
+
+実経路は `BattleScreen` の効果解決が発生源 `entry.cardNum` と `CardData.Type` を `collectBanishBySourceProtectedSigni` へ渡し、同collectorが `CardData.Level` を `Number.parseInt` して種別・レベルをAND判定、結果を `ExecCtx.otherBanishProtectedNums` へ渡して `execBanish` が候補から除外する。レベル未定義／非数値は制限つき保護へ入れない fail-closed。汎用 `collectBanishEffectProtectedSigni` は `bySourceType || bySourceLevel` を従来どおり専用経路へ送る。実コード上の追加穴2件も同時に塞いだ：①AUTOの `CP01-038` は旧 `execGrantProtection` が `bySourceType` を状態へ保存せず `BANISH` 全発生源保護へ化けていたため、専用キーワードへ全制約をJSON保存して同collectorで読む、②`hasBanishResist` の原文フォールバックが登録済みの発生源制約つき保護まで無条件trueに戻してcollectorの不成立を上書きしていたため、この形だけ構造化判定を正とした。
+
+golden は対象3件すべてを実盤面でバニッシュまで実行し、P03のLv1成立/Lv2不成立、P10・CP01のLv2シグニ/Lv2ルリグ成立とLv3両種不成立、P10の自ターン不成立を固定。対照 `WXK04-064-E1` は単一文字列のままLv1/Lv4シグニ双方から守る。全6712カード／10652効果の生パースA/Bは changed/added/removed 0、live A/Bは changed 3／added 0／removed 0。変更禁止7カード（`WDK07-Y17`／`WDK17-015`／`WXK01-094`／`WXK01-096`／`WXK01-099`／`WXK04-064`／`WXK08-036`）と完全耐性3カード（`WX04-035`／`WX19-046`／`WX20-024`）はカード配列完全同一。逆翻訳は単一／配列と exact／max を描き分け、全10シートを再生成した。
+
+**検証**＝`npm run gates` 全緑。golden **1649/0**（1645→1649）、census **897**／`BASELINE_HIGH` 897据置、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム・CRASH/HANG/INVARIANT/EXPLOSION全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、被覆マトリクス miss **277**、`parseStatus:'UNKNOWN'`／トップレベル `action.type:'UNKNOWN'` は **0／0**（入れ子43）。held は最終再build後 **113枚／49群**、lint warning は増減0。変更全ファイルの U+FFFD／3文字以上連続 `?`／先頭BOM は新規増0。指示書との差は、`CP01-038` が専用collectorを通らず汎用一時保護へ化けていたこと、`hasBanishResist` がcollectorを迂回していたこと、3件とも開始時 `manualEffects.ts` 定義が無かったことの3点。commit／pushは行っていない。
+
 ## 2026-08-09 — 原文より対象範囲が狭い／空の4効果を実働化（続き392）
 
 開始時 HEAD は `90ed3d9d016a0a542da913dd624375dc2e115aa1`（clean）。`WXDi-P09-002-E1` は live がゴミ `GRANT_KEYWORD{keyword:'使用条件'}` だけの完全 no-op だったため、続き388で既に raw に復元済みの `FIELD_LRIG_COLOR_COUNT{gte:3,minLrigs:3}` と、`TRANSFER_TO_DECK{source:{type:'SIGNI',owner:'opponent',count:'ALL'},position:'top'}` を同時採用した。`WX24-D4-08-E1` は `NEGATE_ATTACK`、`WX24-P2-032-E1` は `REMOVE_ABILITIES` をそれぞれ `CENTER_LRIG_OR_SIGNI,count:2,upToCount:true` に修正。`WXDi-P16-005-E1` は `FREEZE{CENTER_LRIG_OR_SIGNI,count:'ALL',down:true}` とし、センター＋左右アシスト＋全シグニへ実適用する executor 分岐、アシストの frozen 状態・UI表示・4本のアップフェイズ解除経路を追加した。

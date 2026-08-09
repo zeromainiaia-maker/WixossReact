@@ -12,13 +12,13 @@ import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, StackEntry } from '../src/types';
-import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
+import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
-import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -24651,7 +24651,7 @@ test('lxxxiii wave 3: live action targets exclude their own source', () => withS
   const virtual = [...cardMap.values()].filter(c => isSigni(c) && c.CardClass?.includes('バーチャル')).slice(0, 2).map(c => c.CardNum);
   ok(virtual.length === 2, 'WXDi-CP01-038 fixtures');
   const cp01 = run(live('WXDi-CP01-038', 'WXDi-CP01-038-E1').action, mkCtx({ signi: [virtual[0], virtual[1], null] }, {}, virtual[0]));
-  ok(!!cp01.ownerState.keyword_grants_until_opp_turn?.[virtual[1]]?.some(k => k.startsWith('PROTECTION:')), 'WXDi-CP01-038: other gets protection');
+  ok(!!cp01.ownerState.keyword_grants_until_opp_turn?.[virtual[1]]?.some(k => k.startsWith('PROTECTION_BY_SOURCE:')), 'WXDi-CP01-038: other gets source-scoped protection');
   ok(!cp01.ownerState.keyword_grants_until_opp_turn?.[virtual[0]], 'WXDi-CP01-038: source gets no protection');
 }));
 test('task12(lxxxiii): 修飾つき「あなたの他のシグニ」対象は self/excludeSelf、他のシグニゾーンは非該当', () => {
@@ -27341,6 +27341,90 @@ test('続き392 WXDi-P16-005-E1: 相手のセンター・左右アシスト・�
   eq(field.assist_lrig_r_frozen, true, '右アシストを凍結');
   eq(JSON.stringify(field.signi_down), JSON.stringify([true, true, true]), '全シグニをダウン');
   eq(JSON.stringify(field.signi_frozen), JSON.stringify([true, true, true]), '全シグニを凍結');
+}));
+
+const survivesBanishFromSource = (
+  defender: PlayerState,
+  victimNum: string,
+  sourceCardNum: string,
+  isDefenderTurn: boolean,
+): boolean => {
+  const sourceType = cardMap.get(sourceCardNum)?.Type ?? '';
+  const attacker = mkState();
+  const protectedNums = collectBanishBySourceProtectedSigni(
+    defender, attacker, isDefenderTurn, effectsMap, cardMap as Map<string, CardData>, sourceType, sourceCardNum,
+  );
+  const ctx = {
+    ...mkCtx({}, {}, sourceCardNum),
+    ownerState: attacker,
+    otherState: defender,
+    otherBanishProtectedNums: protectedNums,
+  } as ExecCtx;
+  const banish = {
+    effectId: `TEST-BANISH-${sourceCardNum}`,
+    effectType: 'AUTO',
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } } },
+    duration: 'INSTANT', mandatory: true,
+  } as CardEffect;
+  const result = finish(executeEffect(banish, ctx), ctx);
+  return result.otherState.field.signi.some(stack => stack?.at(-1) === victimNum);
+};
+
+test('続き393 WXDi-P03-074-E1: レベル1シグニだけからバニッシュ保護', () => withSavedCursor(() => {
+  const action = (effectsMap.get('WXDi-P03-074') ?? []).find(e => e.effectId === 'WXDi-P03-074-E1')?.action as GrantProtectionAction;
+  eq(action.bySourceType, 'シグニ', '単一種別形を維持');
+  eq(action.bySourceLevel, 1, '「レベル1の」＝exact 1');
+  const defender = mkState({ signi: ['WXDi-P03-074', null, null] });
+  ok(survivesBanishFromSource(defender, 'WXDi-P03-074', SIGNI_L1, false), 'レベル1シグニ効果では守られる');
+  ok(!survivesBanishFromSource(defender, 'WXDi-P03-074', SIGNI_L2, false), 'レベル2シグニ効果ではバニッシュされる');
+}));
+
+test('続き393 WXDi-P10-046-E1: レベル2以下のルリグとシグニだけからバニッシュ保護', () => withSavedCursor(() => {
+  const action = (effectsMap.get('WXDi-P10-046') ?? []).find(e => e.effectId === 'WXDi-P10-046-E1')?.action as GrantProtectionAction;
+  eq(JSON.stringify(action.bySourceType), JSON.stringify(['ルリグ', 'シグニ']), '複数種別を配列で保持');
+  eq(JSON.stringify(action.bySourceLevel), JSON.stringify({ max: 2 }), '「レベル2以下」＝max 2');
+  const defender = mkState({ signi: ['WXDi-P10-046', null, null] });
+  const lrigL2 = findCard(card => card.Type === 'ルリグ' && card.Level === '2');
+  const lrigL3 = findCard(card => card.Type === 'ルリグ' && card.Level === '3');
+  ok(survivesBanishFromSource(defender, 'WXDi-P10-046', SIGNI_L2, false), '相手ターンのレベル2シグニ効果では守られる');
+  ok(survivesBanishFromSource(defender, 'WXDi-P10-046', lrigL2, false), '相手ターンのレベル2ルリグ効果でも守られる');
+  ok(!survivesBanishFromSource(defender, 'WXDi-P10-046', SIGNI_L3, false), 'レベル3シグニ効果ではバニッシュされる');
+  ok(!survivesBanishFromSource(defender, 'WXDi-P10-046', lrigL3, false), 'レベル3ルリグ効果ではバニッシュされる');
+  ok(!survivesBanishFromSource(defender, 'WXDi-P10-046', SIGNI_L2, true), '自ターンは常在条件が不成立');
+}));
+
+test('続き393 WXDi-CP01-038-E1: 一時付与後も発生源種別・レベル制限を保存', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-CP01-038') ?? []).find(e => e.effectId === 'WXDi-CP01-038-E1')!;
+  const action = effect.action as GrantProtectionAction;
+  eq(JSON.stringify(action.bySourceType), JSON.stringify(['ルリグ', 'シグニ']), '複数種別を配列で保持');
+  eq(JSON.stringify(action.bySourceLevel), JSON.stringify({ max: 2 }), '「レベル2以下」＝max 2');
+  const virtual = findCard(card => card.Type === 'シグニ' && card.CardNum !== 'WXDi-CP01-038' && (card.CardClass ?? '').includes('バーチャル'));
+  const grantCtx = mkCtx({ signi: ['WXDi-CP01-038', virtual, null] }, {}, 'WXDi-CP01-038');
+  const granted = finish(executeEffect(effect, grantCtx), grantCtx).ownerState;
+  ok((granted.keyword_grants_until_opp_turn?.[virtual] ?? []).some(kw => kw.startsWith('PROTECTION_BY_SOURCE:')),
+    '一時付与ストアへ発生源制約つきで保存');
+  const lrigL2 = findCard(card => card.Type === 'ルリグ' && card.Level === '2');
+  const lrigL3 = findCard(card => card.Type === 'ルリグ' && card.Level === '3');
+  ok(survivesBanishFromSource(granted, virtual, SIGNI_L2, false), 'レベル2シグニ効果では守られる');
+  ok(survivesBanishFromSource(granted, virtual, lrigL2, false), 'レベル2ルリグ効果でも守られる');
+  ok(!survivesBanishFromSource(granted, virtual, SIGNI_L3, false), 'レベル3シグニ効果ではバニッシュされる');
+  ok(!survivesBanishFromSource(granted, virtual, lrigL3, false), 'レベル3ルリグ効果ではバニッシュされる');
+}));
+
+test('続き393 対照 WXK04-064-E1: 単一文字列・レベル無制限を維持', () => withSavedCursor(() => {
+  const action = (effectsMap.get('WXK04-064') ?? []).find(e => e.effectId === 'WXK04-064-E1')?.action as GrantProtectionAction;
+  eq(action.bySourceType, 'シグニ', '既存の単一文字列形');
+  eq(action.bySourceLevel, undefined, '発生源レベル制限なし');
+  const defender = mkState({ signi: ['WXK04-064', null, null] });
+  ok(survivesBanishFromSource(defender, 'WXK04-064', SIGNI_L1, false), 'レベル1シグニ効果から守る');
+  ok(survivesBanishFromSource(defender, 'WXK04-064', SIGNI_L4, false), 'レベル4シグニ効果からも守る');
+
+  const noLevelMap = new Map(cardMap as Map<string, CardData>);
+  noLevelMap.set('TEST-NO-LEVEL', { CardNum: 'TEST-NO-LEVEL', CardName: 'level missing', Type: 'シグニ', Level: '' } as CardData);
+  const noLevelProtected = collectBanishBySourceProtectedSigni(
+    mkState({ signi: ['WXDi-P03-074', null, null] }), mkState(), false, effectsMap, noLevelMap, 'シグニ', 'TEST-NO-LEVEL',
+  );
+  ok(!noLevelProtected.has('WXDi-P03-074'), 'Level未定義はレベル制限へ入れずfail closed');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
