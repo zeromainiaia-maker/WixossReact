@@ -73,10 +73,28 @@ export function paySelectedExceed(state: PlayerState, count: number, selectedInd
 }
 
 // handDiscardSigniコストの色/クラス部ラベル（配列はOR=「か」結合）
-export function fmtHandDiscardSigniLabel(hd: { color?: string | string[]; story?: string | string[] }): string {
+export function fmtHandDiscardSigniLabel(hd: { color?: string | string[]; story?: string | string[]; level?: number }): string {
   const colors = hd.color ? (Array.isArray(hd.color) ? hd.color : [hd.color]) : [];
   const stories = hd.story ? (Array.isArray(hd.story) ? hd.story : [hd.story]) : [];
-  return `${colors.join('か')}${stories.map(s => `＜${s}＞`).join('か')}`;
+  return `${hd.level !== undefined ? `レベル${hd.level}の` : ''}${colors.join('か')}${stories.map(s => `＜${s}＞`).join('か')}`;
+}
+
+/**
+ * handDiscardSigni コスト（色／＜クラス＞／レベルのOR条件）に手札の1枚が合致するか。
+ * ⚠ 支払いUI（ルリグ付与【起】・トラッシュ自己起動【起】）で共有する唯一の判定。
+ *   個別モーダルに写経すると `level` 指定（WXK03-047 等6効果）だけ片方で落ちる。
+ */
+export function matchesHandDiscardSigni(
+  card: CardData | undefined,
+  hd: NonNullable<import('../../types/effects').EffectCost['handDiscardSigni']>,
+): boolean {
+  if (card?.Type !== 'シグニ') return false;
+  const colors = hd.color ? (Array.isArray(hd.color) ? hd.color : [hd.color]) : null;
+  const stories = hd.story ? (Array.isArray(hd.story) ? hd.story : [hd.story]) : null;
+  if (colors && !colors.some(col => card.Color?.includes(col))) return false;
+  if (stories && !stories.some(st => (card.CardClass ?? '').includes(st))) return false;
+  if (hd.level !== undefined && Number(card.Level) !== hd.level) return false;
+  return true;
 }
 
 // discardFilter/discardGroupsのフィルタ内容ラベル（「青の＜電機＞のシグニ」等）
