@@ -97,7 +97,7 @@ import { reduceBattle, type PlayerStateKey } from './battle/controller/battleCon
 import { canCardGuard } from './battle/guard';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
-import { consumeTriggeredGrantedAutos } from './battle/grantedAuto';
+import { collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from './battle/grantedAuto';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
@@ -9071,9 +9071,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
       const lrigCardEffects = (effectsMap.get(lrigNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
-      const grantedAttackEffects = (my.lrig_granted_auto_effects ?? [])
-        .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
-      newMyState = consumeTriggeredGrantedAutos(newMyState, grantedAttackEffects);
+      const grantedAttack = collectAttackingLrigGrantedAutos(newMyState, attackerId, lrigNum, generateUUID);
+      newMyState = consumeTriggeredGrantedAutos(newMyState, grantedAttack.triggered);
+      if (grantedAttack.usedIds.length > 0) {
+        newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...grantedAttack.usedIds] };
+      }
       const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true)
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
       // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の
@@ -9083,7 +9085,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const contGrantedLrigEffects = collectLrigGrantedEffects(my, op, true, effectsMap, battleCardMap)
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG')
           && (e.triggerScope ?? 'self') !== 'any_opp');
-      const onAttackEffects = [...lrigCardEffects, ...grantedAttackEffects, ...copiedAutoEffects, ...contGrantedLrigEffects];
+      const otherAttackEffects = [...copiedAutoEffects, ...contGrantedLrigEffects];
       // 防御側の付与AUTO（「対戦相手のルリグがアタックしたとき」＝any_opp/any scope・タスク12(xlvii)）。
       // アタック側とは playerId も usageLimit の書き戻し先も異なるため、別の entries として結合する。
       const defenderKey: 'host_state' | 'guest_state' = myKey === 'host_state' ? 'guest_state' : 'host_state';
@@ -9092,14 +9094,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const defenderUsed = defRes.usedIds.length > 0
         ? { key: defenderKey, state: { ...op, actions_done: [...(op.actions_done ?? []), ...defRes.usedIds] } }
         : undefined;
-      const attackerEntries: StackEntry[] = onAttackEffects.map(e => ({
+      const attackerEntries: StackEntry[] = [...lrigCardEffects.map(e => ({
         id: generateUUID(),
         playerId: attackerId,
         cardNum: lrigNum,
         effectId: e.effectId,
         label: `${lrigName} の【自】効果（アタック時）`,
         effect: e,
-      }));
+      } satisfies StackEntry)), ...grantedAttack.entries, ...otherAttackEffects.map(e => ({
+        id: generateUUID(),
+        playerId: attackerId,
+        cardNum: lrigNum,
+        effectId: e.effectId,
+        label: `${lrigName} の【自】効果（アタック時）`,
+        effect: e,
+      } satisfies StackEntry))];
       const entries: StackEntry[] = [...attackerEntries, ...defRes.entries];
       const existingStackLA = bs.effect_stack ?? null;
       await persist.commit(reduceBattle(bs, {

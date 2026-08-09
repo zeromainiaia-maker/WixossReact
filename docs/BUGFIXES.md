@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — 引用付与【自】5効果をピース使用時の即時実行から `GRANT_LRIG_ABILITY` へ修正（続き390）
+
+開始時 HEAD は `05a0331f3372e164eab012af3530a814e0882af8`（clean）。続き388/389で条件 strip 後の fresh が具体 action を失うため温存した11枚から、完全同型5枚（`WXDi-D05-011-E1`／`WXDi-D06-011-E1`／`WXDi-D09-H11-E1`／`WXDi-P06-002-E1`／`WXDi-P07-001-E1`）を本修正した。旧 live は引用内の【自】を `GRANT_KEYWORD{keyword:'使用条件'}` 後の裸 action としてピース使用時に即時実行していた。parser に「レベル3のルリグ1体を対象・ターン終了時まで・引用が【自】開始」の限定入口を置き、続き388/389の使用条件を維持したまま、旧 live の具体 action と実装済み STUB を `GRANT_LRIG_ABILITY.abilities[0].action` へ一切捨てず移した。P07 の【出】不発は `ADD_TO_FIELD.suppressOnPlay:true` の正準形へ戻し、`CRASH_LIFE_TO_HAND` は付与元ルリグではなく `sourceEffectId` の親ピースを参照できるようにした。
+
+### 発火経路と E2E
+
+`GRANT_LRIG_ABILITY` executor は `effectExecutor.ts` の `GRANT_LRIG_ABILITY` 分岐で `ownerState.lrig_granted_auto_effects` へ能力を格納する。攻撃側の走査を pure helper `collectAttackingLrigGrantedAutos` へ集約し、`BattleScreen.performLrigAttack` の `ON_ATTACK_LRIG` 収集へ配線、`once_per_turn`／`twice_per_turn` は `actions_done` へ消費IDを書き戻すようにした。短期ストアはターン終了の既存2経路で `permanentGrant` だけ残してクリアされる。5効果それぞれに、①使用条件 true/false、②ピース使用直後はライフ・手札・デッキ・場に帰結なし、③その後のルリグ攻撃収集で能力が発火、④具体帰結、⑤ターン1回3枚は再収集不可、を実行する golden を追加した。
+
+対象指定は既存型・executor の制約どおりプレイヤーの現センタールリグへの付与であり、印刷文の「レベル3のルリグ1体を対象」の選択・存在確認を直接は表現できない近似。通常盤面ではLv3になれるのはセンターだけだが、対象不在時の使用拒否までは行わない。また `WXDi-D05-011` の旧 live `CHOOSE` には「相手センタールリグのレベル回繰り返す」が元から欠落しており、本バッチの「具体 action を捨てず包む」範囲では残存する原文不一致として明示した。他4件は条件・付与期間・発火 timing・具体 action が原文と一致する。
+
+### 差分・対照群・見送り
+
+全 **5971カード／10652効果**の生パース A/B は changed が上記5効果のみ、added 0／removed 0／outlier 0。live の `GRANT_LRIG_ABILITY` は **106→111** で、開始時から存在した106 action node は全件 JSON 完全同一。先例 `WXDi-D03-004`／`WXDi-D04-004`、群B 6枚、指定変更禁止カードも HEAD とカード配列完全同一。`parseStatus:'UNKNOWN'`／トップレベル `action.type:'UNKNOWN'` は **0／0**、入れ子 `UNKNOWN` は **43** で増減なし。
+
+群Bは未変更。`P11-002` は permanent・相手側付与・ON_TURN_END、`P11-003` は permanent・ON_MAIN_PHASE_START、`P04-002` は permanent なプレイヤー付与・ON_PLAY_SIGNI、`P14-002` は4択全体の忠実な CHOOSE、`P16-002` は次相手ターンの保護と遅延帰結、`P09-002` は `TRANSFER_TO_DECK{source: opponent all SIGNI, position:top, order chooser:opponent}` 相当が必要な別バッチである。
+
+**検証**＝`npm run gates` 全緑。golden **1630/0**（+5）、census **900→899**（既存 `BASELINE_HIGH` 本体を899へ更新）、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム全0、manual field loss 0、同型★0（265群）、被覆マトリクス miss **278**、lint 0 errors/**254 warnings**。`npm run regen` で全10シートと下流を再生成。held は対象5枚を `heldReview --adopt` し **119→114枚／54→50群**。commit／push は行っていない。
+
 ## 2026-08-09 — 【チーム】3体＆全員レベル1以上の印刷済み使用条件を5効果へ追加し、退化4効果は温存（続き389）
 
 開始時 HEAD は `feba390d38f4ee92b015b025f2ecd27343aa0f4b`（clean）。`parseArtsEffect` の印刷済み【使用条件】先頭節テーブルに、既存語彙だけで `AND[LRIG_TEAM_COUNT{gte:3},LRIG_LEVEL{gte:1}]` と、レベル節なしの `LRIG_TEAM_COUNT{gte:3}` を追加した。新 Condition/action 型・engine 分岐はゼロ。原文の `アンシエント･サプライズ`（半角中黒）は parser の入力境界で `アンシエント・サプライズ`（CSV `Team` 列の実在値41枚）へ正規化し、engine の `includes` 判定は緩和していない。カットイン記述が続く `WXDi-P05-006` と `＆` で未知条件が続く形は部分採用しない regex ガードも置いた。

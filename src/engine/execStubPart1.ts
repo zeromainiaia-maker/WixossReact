@@ -3270,10 +3270,14 @@ export function execStubPart1(
   }
   // ライフクロスの一番上を手札に加える
   if (stub.id === 'CRASH_LIFE_TO_HAND') {
-    const srcCLH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+    // GRANT_LRIG_ABILITY の子はスタック上の sourceCardNum が付与先ルリグになる。
+    // 所有者判定に必要な原文は `{元カード}-sub-E*` の effectId から付与元カードを復元する。
+    const grantedSourceNum = ctx.sourceEffectId?.match(/^(.+)-sub-E\d+(?:[A-Za-z]\w*)?$/)?.[1];
+    const srcCLHNum = grantedSourceNum ?? ctx.sourceCardNum;
+    const srcCLH = srcCLHNum ? ctx.cardMap.get(srcCLHNum) : undefined;
     const txtCLH = srcCLH ? (srcCLH.EffectText ?? '') + ' ' + (srcCLH.BurstText ?? '') : '';
     // 対象プレイヤーを判定
-    const isOpp = txtCLH.match(/対戦相手のライフクロス.*手札に加える/);
+    const isOpp = txtCLH.match(/対戦相手のライフクロス.*手札に加え(?:る|させる)/);
     const target = isOpp ? 'opponent' : 'self';
     const st = ownerState(target, ctx);
     if (st.life_cloth.length === 0) return done(addLog(ctx, 'ライフクロスなし（CRASH_LIFE_TO_HAND）'));

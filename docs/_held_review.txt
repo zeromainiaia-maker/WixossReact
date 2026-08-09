@@ -165,39 +165,6 @@ WXEX2-09 WXK08-048
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
-## +FIELD_LRIG_COLOR_COUNT +UNKNOWN -GRANT_KEYWORD -SIGNI -STUB ［2枚］
-WXDi-P06-002 WXDi-P07-001
---- WXDi-P06-002
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】《ターン１回》：このルリグがアタックしたとき、対戦相手の手札を見て１枚選び、捨てさせる。次の対戦相手のアップフェイズに、対戦相手が《無》《無》《無》を支払わないかぎり、対戦相手のセンタールリグはアップしない。』,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  - [0].action.steps[2].type = "STUB"
-  - [0].action.steps[2].id = "UPKEEP_OR_NO_UP"
-  + [0].condition.type = "FIELD_LRIG_COLOR_COUNT"
-  + [0].condition.owner = "self"
-  + [0].condition.operator = "gte"
-  + [0].condition.value = 3
-  + [0].condition.minLrigs = 3
-  …（他 3 行）
---- WXDi-P07-001
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のライフクロス１枚を手札に加えさせる。その後、あなたの手札からシグニを１枚まで場に出す。そのシグニの【出】能力は発動しない。』,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  - [0].action.steps[1].id = "CRASH_LIFE_TO_HAND"
-  - [0].action.steps[2].type = "ADD_TO_FIELD"
-  - [0].action.steps[2].owner = "self"
-  - [0].action.steps[2].source.type = "HAND_CARD"
-  - [0].action.steps[2].source.owner = "self"
-  - [0].action.steps[2].source.count = 1
-  - [0].action.steps[2].source.upToCount = true
-  …（他 17 行）
-
 ## +BANISH +SEQUENCE +SIGNI ［1枚］
 WX08-026
 --- WX08-026
@@ -347,60 +314,6 @@ WXEX2-70
   + [0].action.steps[1].then.target.filter.cardType = "シグニ"
   + [0].action.steps[1].then.target.filter.level.max = 3
   + [0].action.steps[1].then.target.upToCount = false
-
-## +AND +LRIG_LEVEL +LRIG_TEAM_COUNT +STUB -CHOOSE -DRAW -GRANT_KEYWORD -HAND_CARD -SEQUENCE -SIGNI -TRASH ［1枚］
-WXDi-D05-011
---- WXDi-D05-011
-  原文: 【使用条件】【チーム】＜うちゅうのはじまり＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１つを選ぶ。この効果を対戦相手のセンタールリグのレベルと同じ回数行う。①カードを１枚引く。②対戦相手の手札を１枚見ないで選び、捨てさせる。』,-
-  - [0].action.steps[0].type = "GRANT_KEYWORD"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  - [0].action.steps[1].type = "CHOOSE"
-  - [0].action.steps[1].choose_count = 1
-  - [0].action.steps[1].from_count = 2
-  - [0].action.steps[1].choices[0].choiceId = "c0"
-  - [0].action.steps[1].choices[0].label = "選択肢1"
-  - [0].action.steps[1].choices[0].action.type = "DRAW"
-  …（他 21 行）
-
-## +AND +LRIG_LEVEL +LRIG_TEAM_COUNT +STUB -CHOOSE -DECK_CARD -GRANT_KEYWORD -SEQUENCE -SIGNI -TRANSFER_TO_HAND -TRASH -TRASH_CARD ［1枚］
-WXDi-D06-011
---- WXDi-D06-011
-  原文: 【使用条件】【チーム】＜DIAGRAM＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１つを選ぶ。①対戦相手のデッキの上からカードを１５枚トラッシュに置く。②あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、それらを手札に加え
-  - [0].action.steps[0].type = "GRANT_KEYWORD"
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  - [0].action.steps[1].type = "CHOOSE"
-  - [0].action.steps[1].choose_count = 1
-  - [0].action.steps[1].from_count = 2
-  - [0].action.steps[1].choices[0].choiceId = "c0"
-  - [0].action.steps[1].choices[0].label = "選択肢1"
-  - [0].action.steps[1].choices[0].action.type = "TRASH"
-  …（他 24 行）
-
-## +FIELD_LRIG_COLOR_COUNT +UNKNOWN -CONDITIONAL -GRANT_KEYWORD -IS_MY_TURN -SIGNI -STUB×2 ［1枚］
-WXDi-D09-H11
---- WXDi-D09-H11
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つあなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】《ターン１回》：このルリグがアタックしたとき、対戦相手のライフクロス１枚をクラッシュする。対戦相手がそのカードのライフバーストを使用することを選んだ場合、《無》《無》を支払ってもよい。そうした場合、そのカードのライフ
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "使用条件"
-  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  - [0].action.steps[2].type = "STUB"
-  - [0].action.steps[2].id = "OPTIONAL_COST"
-  - [0].action.steps[2].costColors[0] = "無"
-  - [0].action.steps[2].costColors[1] = "無"
-  - [0].action.steps[3].type = "CONDITIONAL"
-  - [0].action.steps[3].condition.type = "IS_MY_TURN"
-  - [0].action.steps[3].then.type = "STUB"
-  …（他 9 行）
 
 ## -TRASH_HAS_CARD ［1枚］
 WXDi-P00-040

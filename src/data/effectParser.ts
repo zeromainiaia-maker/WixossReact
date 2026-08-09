@@ -6075,6 +6075,16 @@ function parseActionTextInner(text: string): EffectAction {
   // 付与→ lrig_granted_auto_effects → UI が付与ACTIVATEDとして列挙・エクシード支払い）で完結する。
   // abilities は expandGrantLrigAbilities が rawText から展開する（既存規則と同方式）。
   {
+    // ピースの「あなたのレベル3のルリグ1体を対象とし、ターン終了時まで、それは以下の【自】を得る」。
+    // 引用の【自】を親の即時 action として平坦化すると、ピース使用時に帰結が走るため、付与能力へ入れ子化する。
+    // 【自】開始に限定し、【常】を併記する別文型（WXDi-D03-011 / D04-011）は従来の curated 形を維持する。
+    const targetedLevel3LrigGrantM = text.match(/(?:あなたの)?レベル[３3]のルリグ[１1]体を対象とし[、,](?:ターン終了時まで[、,])?それは以下の能力を得る。?[『「](【自】[\s\S]+)[』」]/);
+    if (targetedLevel3LrigGrantM) {
+      return {
+        type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: targetedLevel3LrigGrantM[1].trim(),
+        duration: 'UNTIL_END_OF_TURN',
+      } as GrantLrigAbilityAction;
+    }
     const targetGrantM = text.match(/(?:あなたの)?センタールリグ[１1]体を対象とし[、,](?:ターン終了時まで[、,])?それは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
     if (targetGrantM) {
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: targetGrantM[1].trim(), targetedCenter: true,
@@ -10107,6 +10117,21 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
           .flatMap(p => splitEffectBlocks(p))
           .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
           .filter((e): e is CardEffect => e !== null);
+        }
+      }
+      // 引用内の「そのシグニの【出】能力は発動しない」は、通常本文では ADD_TO_FIELD.suppressOnPlay
+      // に畳まれる。引用の再 parse では独立 BLOCK_ACTION に分かれるため、同じ正準形へ戻す。
+      if (gla.rawText?.includes('そのシグニの【出】能力は発動しない')) {
+        for (const ability of gla.abilities) {
+          if (ability.action.type !== 'SEQUENCE') continue;
+          const steps = (ability.action as SequenceAction).steps;
+          const add = steps.find(step => step.type === 'ADD_TO_FIELD') as AddToFieldAction | undefined;
+          const blockIndex = steps.findIndex(step => step.type === 'BLOCK_ACTION'
+            && (step as EffectAction & { actionId?: string }).actionId === 'ON_PLAY_ABILITY');
+          if (add?.source?.type === 'HAND_CARD' && blockIndex >= 0) {
+            add.suppressOnPlay = true;
+            ability.action = { ...(ability.action as SequenceAction), steps: steps.filter((_, i) => i !== blockIndex) };
+          }
         }
       }
       const rawTextOnlyPunct = !gla.rawText || /^[。、\s]*$/.test(gla.rawText);

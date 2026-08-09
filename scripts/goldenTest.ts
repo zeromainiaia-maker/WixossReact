@@ -63,7 +63,7 @@ import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
-import { consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
+import { collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
@@ -26971,7 +26971,7 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
     ok(!!live?.condition, `${cardNum}: 採用済みlive condition`);
   }
 
-  const deferred = ['WXDi-D05-011', 'WXDi-D06-011', 'WXDi-P04-002', 'WXDi-P16-002'] as const;
+  const deferred = ['WXDi-P04-002', 'WXDi-P16-002'] as const;
   for (const cardNum of deferred) {
     const live = (effectsMap.get(cardNum) ?? []).find(effect => effect.effectId === `${cardNum}-E1`);
     if (!live) throw new Error(`${cardNum}: live effect exists`);
@@ -27004,6 +27004,129 @@ test('続き389 群D: カットイン条件／チーム名不問条件は通常�
     eq(raw.condition, undefined, `${cardNum}: 別述語待ちのためcondition据置`);
   }
 });
+
+// ── 続き390：対象ルリグへ付与する【自】をピース使用時に平坦実行しない ──
+const batch390Cases = [
+  {
+    cardNum: 'WXDi-D09-H11', usageLimit: 'once_per_turn',
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
+      { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無'] },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CARD' } },
+    ] },
+  },
+  {
+    cardNum: 'WXDi-P06-002', usageLimit: 'once_per_turn',
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, actingPlayerSelects: true } },
+      { type: 'STUB', id: 'UPKEEP_OR_NO_UP' },
+    ] },
+  },
+  {
+    cardNum: 'WXDi-P07-001', usageLimit: 'once_per_turn',
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'CRASH_LIFE_TO_HAND' },
+      { type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count: 1, upToCount: true, filter: { cardType: 'シグニ' } }, suppressOnPlay: true },
+    ] },
+  },
+  {
+    cardNum: 'WXDi-D05-011', usageLimit: undefined,
+    action: { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+      { choiceId: 'c0', label: '選択肢1', action: { type: 'DRAW', owner: 'self', count: 1 } },
+      { choiceId: 'c1', label: '選択肢2', action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } },
+    ] },
+  },
+  {
+    cardNum: 'WXDi-D06-011', usageLimit: undefined,
+    action: { type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+      { choiceId: 'c0', label: '選択肢1', action: { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: 15 } } },
+      { choiceId: 'c1', label: '選択肢2', action: { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 3, upToCount: true, filter: { cardType: 'シグニ', noGuard: true } } } },
+    ] },
+  },
+] as const;
+
+const batch390SatisfyingState = (cardNum: string): PlayerState => {
+  if (cardNum === 'WXDi-D05-011' || cardNum === 'WXDi-D06-011') {
+    const team = cardNum === 'WXDi-D05-011' ? 'うちゅうのはじまり' : 'DIAGRAM';
+    const center = findCard(card => card.Type === 'ルリグ' && card.Team === team && card.Level === '3');
+    const assists = [...cardMap.values()].filter(card => card.Type === 'アシストルリグ' && card.Team === team);
+    return mkState({ lrig: [center], assistL: [assists[0].CardNum], assistR: [assists[1].CardNum] });
+  }
+  return mkState({
+    lrig: [batch387CenterByColor.白],
+    assistL: [batch387AssistByColor.赤],
+    assistR: [batch387AssistByColor.青],
+  });
+};
+
+for (const spec of batch390Cases) {
+  test(`続き390 ${spec.cardNum}-E1: 使用時は帰結なし、ルリグアタック時だけ付与【自】が実行`, () => withSavedCursor(() => {
+    const effect = batch387Effect(spec.cardNum);
+    const grant = effect.action as Extract<EffectAction, { type: 'GRANT_LRIG_ABILITY' }>;
+    eq(grant.type, 'GRANT_LRIG_ABILITY', `${spec.cardNum}: 引用は付与action`);
+    eq(grant.duration, 'UNTIL_END_OF_TURN', `${spec.cardNum}: ターン終了時まで`);
+    eq(grant.abilities.length, 1, `${spec.cardNum}: 付与AUTO 1本`);
+    const ability = grant.abilities[0];
+    eq(ability.effectType, 'AUTO', `${spec.cardNum}: 【自】`);
+    eq(JSON.stringify(ability.timing), JSON.stringify(['ON_ATTACK_LRIG']), `${spec.cardNum}: ルリグアタック時`);
+    eq(ability.usageLimit, spec.usageLimit, `${spec.cardNum}: 《ターン1回》語彙`);
+    eq(JSON.stringify(ability.action), JSON.stringify(spec.action), `${spec.cardNum}: live の具体actionを内側へ維持`);
+
+    const owner = batch390SatisfyingState(spec.cardNum);
+    const opponent = mkState({});
+    ok(evalUseCondition(effect.condition!, owner, opponent, cardMap, spec.cardNum, 'MAIN'), `${spec.cardNum}: 使用条件成立`);
+    ok(canUseArtsCondition([effect], owner, opponent, cardMap, spec.cardNum, 'MAIN'), `${spec.cardNum}: 実使用ゲート成立`);
+    ok(!canUseArtsCondition([effect], mkState({}), opponent, cardMap, spec.cardNum, 'MAIN'), `${spec.cardNum}: 条件不成立では使用不可`);
+
+    const before = {
+      ownerHand: owner.hand.length,
+      ownerSigni: owner.field.signi.filter(Boolean).length,
+      oppLife: opponent.life_cloth.length,
+      oppHand: opponent.hand.length,
+      oppDeck: opponent.deck.length,
+      oppTrash: opponent.trash.length,
+    };
+    const useCtx = { ...mkCtx({}, {}, spec.cardNum), ownerState: owner, otherState: opponent } as ExecCtx;
+    const installed = finish(executeEffect(effect, useCtx), useCtx);
+    eq(JSON.stringify({
+      ownerHand: installed.ownerState.hand.length,
+      ownerSigni: installed.ownerState.field.signi.filter(Boolean).length,
+      oppLife: installed.otherState.life_cloth.length,
+      oppHand: installed.otherState.hand.length,
+      oppDeck: installed.otherState.deck.length,
+      oppTrash: installed.otherState.trash.length,
+    }), JSON.stringify(before), `${spec.cardNum}: ピース使用時には引用内帰結を実行しない`);
+    eq(installed.ownerState.lrig_granted_auto_effects?.length ?? 0, 1, `${spec.cardNum}: 付与ストアへ登録`);
+
+    const lrigNum = installed.ownerState.field.lrig.at(-1)!;
+    const collected = collectAttackingLrigGrantedAutos(installed.ownerState, 'host', lrigNum, () => 'batch390-trigger');
+    eq(collected.entries.length, 1, `${spec.cardNum}: ON_ATTACK_LRIG collector が収集`);
+    if (spec.usageLimit === 'once_per_turn') {
+      eq(collected.usedIds.join(','), ability.effectId, `${spec.cardNum}: usageLimit を消費`);
+      const consumed = { ...installed.ownerState, actions_done: [...(installed.ownerState.actions_done ?? []), ...collected.usedIds] };
+      eq(collectAttackingLrigGrantedAutos(consumed, 'host', lrigNum, () => 'batch390-again').entries.length, 0,
+        `${spec.cardNum}: 同ターン2回目は収集しない`);
+    }
+
+    const attackCtx = { ...useCtx, ownerState: installed.ownerState, otherState: installed.otherState,
+      sourceCardNum: lrigNum, sourceEffectId: collected.entries[0].effectId } as ExecCtx;
+    const initialAttack = executeEffect(collected.entries[0].effect, attackCtx);
+    const fired = spec.cardNum === 'WXDi-D09-H11'
+      ? finishPayingCosts(initialAttack, attackCtx)
+      : finish(initialAttack, attackCtx);
+    if (spec.cardNum === 'WXDi-D09-H11') eq(fired.otherState.life_cloth.length, before.oppLife - 1, 'D09: アタック時にライフクラッシュ');
+    if (spec.cardNum === 'WXDi-P06-002') eq(fired.otherState.hand.length, before.oppHand - 1, 'P06: アタック時に相手手札を捨てさせる');
+    if (spec.cardNum === 'WXDi-P07-001') {
+      eq(fired.otherState.life_cloth.length, before.oppLife - 1, 'P07: アタック時に相手ライフを手札へ');
+      eq(fired.ownerState.field.signi.filter(Boolean).length, before.ownerSigni + 1, 'P07: アタック時に手札からシグニを場へ');
+    }
+    if (spec.cardNum === 'WXDi-D05-011') eq(fired.ownerState.hand.length, before.ownerHand + 1, 'D05: アタック時に選択肢①で1枚引く');
+    if (spec.cardNum === 'WXDi-D06-011') {
+      eq(fired.otherState.deck.length, before.oppDeck - 15, 'D06: アタック時に選択肢①で相手デッキ15枚を落とす');
+      eq(fired.otherState.trash.length, before.oppTrash + 15, 'D06: 落とした15枚が相手トラッシュへ');
+    }
+  }));
+}
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
