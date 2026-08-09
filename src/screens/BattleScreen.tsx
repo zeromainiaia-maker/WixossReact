@@ -11387,22 +11387,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  // トラッシュ自己起動【起】を実行（エナコスト支払い → このカードをトラッシュから場に出す）。
+  // トラッシュ自己起動【起】を実行（コスト支払い → このカードをトラッシュから場に出す）。
   // カードはトラッシュに残したまま effect_stack に積み、resolver の execAddToField が
   // thisCardOnly source（トラッシュの効果元自身）を場へ移す。
-  const executeTrashActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>) => {
+  // ⚠ コスト支払いは `payTrashActivateCost` 一本（UI の可否判定と同じ関数群を使う）。
+  const executeTrashActivated = async (
+    cardNum: string,
+    effect: import('../types/effects').CardEffect,
+    costIndices: Set<number>,
+    discardIndices: Set<number> = new Set(),
+    exceedIndices: Set<number> = new Set(),
+  ) => {
     if (loading) return;
     setLoading(true);
     closeTrashActivated();
     try {
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const payment = payTrashActivateCost(
+        effect, my, op,
+        { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices },
+        battleCardMap,
+      );
+      if (!payment) return; // 支払い不能（UI側でも無効化済み）
       const isGameOnce = effect.usageLimit === 'once_per_game';
-      // 支払ったエナはトラッシュへ。効果元カード自身はトラッシュに残し、ADD_TO_FIELD 解決時に場へ移す。
-      const paid: PlayerState = {
-        ...my,
-        energy: newEnergy,
-        trash: [...my.trash, ...paidNums],
+      let paid: PlayerState = {
+        ...payment.my,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
       };
@@ -11415,13 +11423,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         label: `${cardName}【起】（トラッシュから場に出す）`,
         effect,
       };
+      const stackEntries: StackEntry[] = [entry];
+      // ON_DISCARDED_AS_COST / ON_HAND_DISCARDED: 【起】コストで手札を捨てた場合のトリガー
+      if (payment.discardedCards.length > 0) {
+        const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
+          payment.discardedCards, paid, user.id, true,
+          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum, undefined, undefined);
+        stackEntries.push(...hdEntries);
+        if (usedLimitIds.length > 0) paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
+      }
+      // ON_COIN_PAID: 《コイン》を支払った場合に反応する【自】を積む（シグニ【起】経路と同型）
+      if (payment.coinPaid > 0) {
+        const coinTrig = collectCoinPaidTriggers(user.id, paid, isHost ? bs.guest_state : bs.host_state);
+        stackEntries.push(...coinTrig.entries);
+        paid = applyCoinPaidUsed(paid, coinTrig);
+      }
       const turnPlayerId = bs.active_user_id ?? user.id;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
-        ? pushToStack(existingStack, [entry])
-        : initStack(turnPlayerId, [entry]);
+        ? pushToStack(existingStack, stackEntries)
+        : initStack(turnPlayerId, stackEntries);
       const stateKey = isHost ? 'host_state' : 'guest_state';
-      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true }));
+      const oppStateKey = isHost ? 'guest_state' : 'host_state';
+      await persist.commit(reduceBattle(bs, {
+        type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true,
+        opp: payment.op ? { key: oppStateKey, state: payment.op } : undefined,
+      }));
     } finally {
       setLoading(false);
     }
