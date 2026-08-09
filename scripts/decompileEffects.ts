@@ -228,7 +228,7 @@ function filterJa(f?: any): string {
   if (f.colorMatchesUnderCards) parts.push('このシグニの下にあるカードと共通する色を持つ');
   if (f.colorMatchesCostTrashed) parts.push('このコストでトラッシュに置いたカードと共通する色を持つ');
   if (f.keyword) parts.push(`${[].concat(f.keyword).map((k: string) => `【${k}】`).join('か')}を持つ`);
-  return parts.join('');
+  return [...new Set(parts)].join('');
 }
 
 // transferGroups は群ごとの filter しか持たないため、移動元ゾーンは source から前置きする
@@ -502,7 +502,7 @@ function condJa(c?: any): string {
       if (c.negate && c.verbJa === '捨てた') return `この方法で手札を${numJa(c.value)}枚捨てなかった`;
       if (c.negate && c.verbJa === 'チャームをトラッシュに置いた') return `この方法で【チャーム】${numJa(c.value)}枚がトラッシュに置かれなかった`;
       if (c.verbJa === 'このシグニをバニッシュしていた') return 'この効果でこのシグニをバニッシュしていた';
-      return `この方法でカードを${numJa(c.value)}枚${c.omitGteJa ? '' : '以上'}${c.verbJa ?? '手札に加えた'}`;
+      return `この方法でカードを${numJa(c.value)}枚${c.omitGteJa ? '' : '以上'}${c.verbJa ?? '処理した'}`;
     }
     case 'LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED':
       return 'この方法で公開されたシグニのレベルが宣言と異なる';
@@ -578,9 +578,11 @@ function condJa(c?: any): string {
     case 'SELF_OPTIONAL_EFFECT_TAKEN': return '自分が任意効果を実行した';
     case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN': return 'このターン《ディソナ》以外のスペルを使用していない';
     case 'LAST_PROCESSED_LEVEL_SUM': return `直前に処理したシグニのレベル合計が${numJa(c.value)}${opJa(c.operator)}`;
-    case 'TRASHED_DISTINCT_LEVELS_GTE': return c.allSigniDistinct
-      ? 'この方法でトラッシュに置かれたすべてのカードの中に同じレベルを持つシグニがない'
-      : `この方法でそれぞれレベルの異なるシグニが${numJa(c.count)}体トラッシュに置かれた`;
+    case 'TRASHED_DISTINCT_LEVELS_GTE': return c.allSameLevel
+      ? 'この方法でトラッシュに置かれたシグニのレベルがすべて同じ'
+      : c.allSigniDistinct
+        ? 'この方法でトラッシュに置かれたすべてのカードの中に同じレベルを持つシグニがない'
+        : `この方法でそれぞれレベルの異なるシグニが${numJa(c.count)}体トラッシュに置かれた`;
     case 'TRASHED_STORY_COUNT_GTE': return `この方法で${numJa(c.count)}体の＜${c.story}＞のシグニがトラッシュに置かれた`;
     case 'LAST_PROCESSED_POWER_GTE': return `直前に選んだシグニのパワー${c.addDelta ? `（+${c.addDelta}後）` : ''}が${numJa(c.value)}以上`;
     case 'LAST_PROCESSED_MATCHES': {
@@ -588,7 +590,8 @@ function condJa(c?: any): string {
       const op = c.operator ?? 'gte';
       const threshold = `${numJa(value)}${c.distinctName ? '種類' : '枚'}${op === 'gte' ? '以上' : op === 'lte' ? '以下' : ''}`;
       if (c.requiredCardNames) return `この方法で${c.requiredCardNames.map((n: string) => `《${n}》`).join('と')}を${c.verbJa ?? '処理した'}`;
-      if (c.shareClass) return `この方法で共通するクラスを持つシグニ${numJa(value)}枚を${c.verbJa ?? '処理した'}`;
+      if (c.shareClass) return `この方法で共通するクラスを持つカード${numJa(value)}枚を${c.verbJa ?? '処理した'}`;
+      if (c.shareLevel) return `この方法で共通するレベルを持つシグニが${numJa(value)}枚以上処理された`;
       if (c.levelLteCenterLrig) return `この方法であなたのセンタールリグのレベル以下のシグニが${c.verbJa ?? '処理された'}`;
       if (c.verbJa === '手札に加えた' && c.filter?.color && c.filter?.cardType === 'シグニ') return `この方法で${[].concat(c.filter.color).join('か')}のシグニを手札に加えた`;
       if (c.verbJa) {
@@ -598,7 +601,7 @@ function condJa(c?: any): string {
           : `${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}`;
         return `この方法で${subject}が${threshold}${c.verbJa}`;
       }
-      return `それが${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : (c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}`;
+      return `この方法で${filterJa(c.filter)}${c.filter?.isResona ? 'レゾナ' : (c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}を${threshold}${c.verbJa ?? '処理した'}`;
     }
     case 'LAST_PROCESSED_ALL_MATCH': return `この方法で処理したカードがすべて${filterJa(c.filter)}${(c.filter?.cardType ?? 'カード') === 'シグニ' ? 'シグニ' : (c.filter?.cardType ?? 'カード')}`;
     case 'ENERGY_TRASH_COLOR_COUNT_GTE': return `この方法で指定色のカードが${numJa(c.value)}枚以上トラッシュに置かれた`;
@@ -858,7 +861,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'MILL':
       if (a.countIsLastProcessedLevelSum) return `この方法で場に出たシグニのレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
       if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
-      return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚トラッシュに置く`;
+      return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置く`;
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュ${a.optional ? 'してもよい' : 'する'}${a.conditional ? '（そうした場合）' : ''}`;

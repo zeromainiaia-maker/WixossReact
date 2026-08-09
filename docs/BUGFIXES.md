@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — 「この方法で…した場合」の効果内トラッシュ結果条件を11効果へ復旧（続き394）
+
+開始時 HEAD は `fccfa2f91`（clean）。効果は動くため smoke/no-op 網に出ないまま後段だけ無条件実行されていた §6.3 C 第1波を、live per-effect diff 11件だけで是正した。既存語彙を使った9効果は `WD21-012-E2`／`WXK03-068-E1`／`WXDi-CP01-032-E2`／`WX18-006-E1`（7/10/12の独立3段を snapshot 評価）／`WD08-008-E1`／`WX26-CP1-058-E1`（self_deck 枝内だけ）／`WD20-018-E1`②／`WX22-Re03-E1`②／`WXK05-025-E2`。新 condition type は作らず、`LAST_PROCESSED_MATCHES` に同レベル最大共有枚数 `shareLevel`、`TRASHED_DISTINCT_LEVELS_GTE` にシグニ1枚以上かつ全同レベルの `allSameLevel` を足して `WX11-028-E2`／`WXDi-CP02-060-E2` を表現した。`shareClass` は従来の「一致集合の全カードが同クラス」から、原文どおり「同クラスを共有する最大枚数」を数えるよう是正した（既存 reader `WX22-006-E1-G2` の7枚全共有は同じ結果）。前段不成立時の stale `lastProcessedCards` を読まないよう `WXDi-CP01-032-E2` は前段条件内へ後段をネストし、`WX18-006-E1` は最初のハンデスが記録を上書きしても10/12段が壊れない既存 `snapshotLastProcessedForConditionals` を使った。
+
+PRESERVE 4効果は全トップレベルフィールドを保持した `manualEffects.ts` 定義を source of truth とし、現行 HEAD では manual 定義だけでは live に届かないため `censusManualDrift --adopt` で同期した。AUTO/PARTIAL 7効果は held 原文照合後に採用。`WXK03-039-E1` は宣言 STUB の内側が既に「対象保持→デッキ下4枚ミル→相異なるレベル4枚条件→保持対象バニッシュ」まで実装・両方向 golden 済みだったため不変。4効果は honest defer：`WXK11-068` は指示の E1 が別能力で、該当E2も効果内トラッシュではなく `cost.energyTrashAll` 経路、`WX12-037-E2` は任意反復機構なし、`WXK05-028-E3` は lastProcessedCards 内から選んで回収する source 語彙なし、`WXK07-106-E1` は奇偶 filter 自体は既存だがベット時2回を含む反復本体がない。群B 6効果は実測だけ行い未変更。
+
+採用11効果それぞれに成立／不成立の実盤面 E2E を追加し、B1 は opponent deck 枝でプリオケ5枚を落としても－5000しないこと、A3 は stale 記録を与えて前段不成立でも追加7枚を落とさないこと、A7 はシグニ0枚を false とすることも固定した。条件外の既存不一致は4点を据置：`WXK03-068-E1` の前段が原文「デッキ下」ではなく live `TRASH{DECK_CARD}`（上）、`WD08-008-E1` の「選択したクラス」を回収 filter へ渡せない、`WD20-018-E1`①の公開取得 filter に＜英知＞がない、同②の「トラッシュに置いてもよい」が強制 `TRASH{ALL}`。これらを部分的に触って別の過小実行へ変えない判断とした。
+
+**検証**＝`npm run gates` 全緑。golden **1660/0**（1649→1660）、census **897→890**（既存 `BASELINE_HIGH` 本体を890へ更新）、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム・CRASH/HANG/INVARIANT/EXPLOSION全0、manual field loss 0、lint 0 errors/**254 warnings**（増減0）。live A/B は changed **11**／added 0／removed 0／outlier 0、生パース規則の変化集合は対象AUTO 7効果だけ／outlier 0。最終 `build:effects` 直後の held は **113枚／49群**（開始値と同じ）。commit／push、PLAN／PLAN_PROGRESS の編集は行っていない。
+
 ## 2026-08-09 — バニッシュ保護の発生源を複数種別＋表記レベルで限定（続き393）
 
 開始時 HEAD は `814b4b71934a9d09c1b2197abe2011bea04c15f2`（clean）。`GRANT_PROTECTION.bySourceType` を既存イディオムどおり単一値または配列へ広げ、`TargetFilter.level` と同形の `bySourceLevel?: number | {min?:number;max?:number}` を追加した。`WXDi-P03-074-E1` は `bySourceType:'シグニ',bySourceLevel:1`（exact 1）、`WXDi-P10-046-E1`／`WXDi-CP01-038-E1` は `bySourceType:['ルリグ','シグニ'],bySourceLevel:{max:2}` とし、開始時に存在しなかった3件の `manualEffects.ts` 定義へ全トップレベルフィールド込みで source of truth 化した。`censusManualDrift --adopt` で live へ同期し、live changed は指定3効果だけ、added/removed 0。

@@ -335,7 +335,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number; verbJa?: string; negate?: boolean; omitGteJa?: boolean } // この方法で直前に処理したカード枚数がN以上。negate=true は「N枚処理しなかった」＝N未満（否定3件）。verbJa/omitGteJa は decompiler 表示専用
   | { type: 'LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED' } // 公開されたシグニがあり、そのレベル偶奇が declared_number(偶=0/奇=1) と異なる
   | { type: 'LAST_PROCESSED_LEVEL_SUM'; operator: CompareOp; value: number }   // lastProcessedCardsのシグニレベル合計とNの比較（operator省略時eqだった旧LAST_PROCESSED_LEVEL_SUM_EQを一般化・続き160）
-  | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number; allSigniDistinct?: boolean }   // 相異なるレベルがcount種以上。allSigniDistinct は処理した全シグニのレベルが相異なる（WXK09-100）
+  | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number; allSigniDistinct?: boolean; allSameLevel?: boolean }   // 相異なるレベルがcount種以上。allSigniDistinct は処理した全シグニのレベルが相異なる（WXK09-100）、allSameLevel はシグニ1枚以上かつ全て同レベル
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
   | { type: 'LAST_PROCESSED_POWER_GTE'; value: number; addDelta?: number }  // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー(+addDelta)がvalue以上（WX03-046「それのパワーが15000以上」。addDeltaで直前の+パワーを加味）
   | { type: 'ENERGY_TRASH_COLOR_COUNT_GTE'; value: number }   // 直前コスト(energyTrashColorAll)でトラッシュした指定色カードがvalue枚以上（WX04-002-E2「この方法で赤が3枚以上」）
@@ -353,7 +353,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
   | { type: 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI' }         // 直前に処理したカードと、効果元シグニの正面（相手2-zi）のシグニの表記レベルが同じ（WXEX1-65）
   | { type: 'LAST_PROCESSED_SHARE_COLOR' }                   // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
-  | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number; operator?: CompareOp; value?: number; distinctName?: boolean; requiredCardNames?: string[]; shareClass?: boolean; levelLteCenterLrig?: Owner; verbJa?: string }  // lastProcessedCards の filter 一致数。旧 minCount は gte、operator/value で eq/lte 等、distinctName はカード名種類数、requiredCardNames は全指定名の包含、shareClass は全カードの共通クラス、levelLteCenterLrig は動的中央ルリグレベル比較。verbJa は decompiler 表示用
+  | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number; operator?: CompareOp; value?: number; distinctName?: boolean; requiredCardNames?: string[]; shareClass?: boolean; shareLevel?: boolean; levelLteCenterLrig?: Owner; verbJa?: string }  // lastProcessedCards の filter 一致数。旧 minCount は gte、operator/value で eq/lte 等、distinctName はカード名種類数、requiredCardNames は全指定名の包含、shareClass/shareLevel は同じクラス/レベルを共有する最大枚数、levelLteCenterLrig は動的中央ルリグレベル比較。verbJa は decompiler 表示用
   | { type: 'LAST_LOOK_TRASHED_MATCHES'; filter: TargetFilter; minCount?: number } // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
   | { type: 'LAST_PROCESSED_ALL_MATCH'; filter: TargetFilter };  // lastProcessedCards が **すべて** filter 一致（空集合は false）（「この方法でトラッシュに置かれたカードがすべて黒の場合」WXK09-097／「すべてのカードがレベル１のシグニの場合」WXDi-P05-042）
 

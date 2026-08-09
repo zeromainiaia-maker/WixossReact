@@ -5620,13 +5620,75 @@ function tryParseDoAllItems(text: string): EffectAction | null {
   return { type: 'SEQUENCE', steps } as SequenceAction;
 }
 
+function applyThisWayTrashOutcomeGuards(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = action.steps;
+  const isDeckTrash = (step: EffectAction | undefined, owner: Owner, count: number): step is import('../types/effects').TrashAction =>
+    step?.type === 'TRASH' && step.target.type === 'DECK_CARD' && step.target.owner === owner && step.target.count === count;
+  const isSelfDeckTrash = (step: EffectAction | undefined): step is import('../types/effects').TrashAction =>
+    step?.type === 'TRASH' && step.target.type === 'DECK_CARD' && step.target.owner === 'self' && typeof step.target.count === 'number';
+  const levelClauses = [...text.matchAll(/(?:レベルの合計が)?([０-９\d]+)(以上|以下)?の場合/g)].map(m => ({
+    condition: { type: 'LAST_PROCESSED_LEVEL_SUM', operator: m[2] === '以上' ? 'gte' : m[2] === '以下' ? 'lte' : 'eq', value: parseNum(m[1]) } as Condition,
+  }));
+
+  // 先行の場条件が偽なら後段も丸ごと不発。条件を外へ置くと、呼び出し元に残った古い
+  // lastProcessedCards を読めるため、recorder と帰結を同じ then の内側へ閉じ込める。
+  const lead = steps[0] as import('../types/effects').ConditionalAction | undefined;
+  if (levelClauses.length === 1 && steps.length === 2 && lead?.type === 'CONDITIONAL' && !lead.else
+      && isDeckTrash(lead.then, 'opponent', 3) && isDeckTrash(steps[1], 'opponent', 7)) {
+    return { ...action, steps: [{ ...lead, then: { type: 'SEQUENCE', steps: [lead.then,
+      { type: 'CONDITIONAL', condition: levelClauses[0].condition, then: steps[1] }] } }] };
+  }
+
+  // 同じミル結果を読む独立3段。第1段の手札破棄が lastProcessedCards を上書きするため、
+  // 既存 snapshot 機構で3条件を先に同じ ctx に対して解決する。
+  if (levelClauses.length === 3 && steps.length === 4 && isDeckTrash(steps[0], 'self', 3)) {
+    return { ...action, steps: [steps[0], { type: 'SEQUENCE', snapshotLastProcessedForConditionals: true,
+      steps: levelClauses.map((clause, i) => ({ type: 'CONDITIONAL', condition: clause.condition, then: steps[i + 1] })) }] };
+  }
+
+  // 単一のレベル合計条件。後段が実 action の木だけを包み、意味不明 STUB は「直った」扱いにしない。
+  if (levelClauses.length === 1 && steps.length === 2 && isSelfDeckTrash(steps[0])
+      && steps[1].type !== 'STUB' && steps[1].type !== 'UNKNOWN' && steps[1].type !== 'CONDITIONAL') {
+    return { ...action, steps: [steps[0], { type: 'CONDITIONAL', condition: levelClauses[0].condition, then: steps[1] }] };
+  }
+
+  // 「共通するクラスを持つカードがN枚以上」。shareClass は一致カード全体の共通集合ではなく、
+  // 各クラスの最大出現枚数を operator/value と比較する。選んだクラスを後段 filter へ渡す機構は無いため
+  // 条件ゲートだけを正し、PARTIAL 刻印を残す。
+  const commonClass = text.match(/共通するクラスを持つカードが([０-９\d]+)枚以上ある場合/);
+  if (commonClass && steps.length === 3 && isSelfDeckTrash(steps[0])
+      && steps[1]?.type === 'STUB' && steps[1].id === 'CONDITIONAL_PER_TRASH' && steps[2]?.type === 'TRANSFER_TO_HAND') {
+    markSilentFallback('この方法で選択したクラスを後段の回収filterへ渡す機構が未実装');
+    return { ...action, steps: [steps[0], { type: 'CONDITIONAL',
+      condition: { type: 'LAST_PROCESSED_MATCHES', filter: {}, shareClass: true, operator: 'gte', value: parseNum(commonClass[1]) },
+      then: steps[2] }] };
+  }
+
+  const commonLevel = text.match(/共通するレベルを持つシグニが([０-９\d]+)枚以上ある場合/);
+  if (commonLevel && steps.length === 2 && isSelfDeckTrash(steps[0])
+      && steps[1]?.type === 'BANISH') {
+    return { ...action, steps: [steps[0], { type: 'CONDITIONAL',
+      condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ' }, shareLevel: true, operator: 'gte', value: parseNum(commonLevel[1]) },
+      then: steps[1] }] };
+  }
+
+  if (/トラッシュに置かれたシグニのレベルがすべて同じ場合/.test(text)
+      && steps.length === 2 && isSelfDeckTrash(steps[0])
+      && steps[1]?.type === 'TRASH' && steps[1].target.type === 'HAND_CARD' && steps[1].target.owner === 'self') {
+    return { ...action, steps: [steps[0], { type: 'CONDITIONAL',
+      condition: { type: 'TRASHED_DISTINCT_LEVELS_GTE', count: 1, allSameLevel: true }, then: steps[1] }] };
+  }
+  return action;
+}
+
 function parseActionText(text: string): EffectAction {
-  const parse = (source: string): EffectAction => applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
+  const parse = (source: string): EffectAction => applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。

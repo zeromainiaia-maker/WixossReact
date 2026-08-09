@@ -27427,6 +27427,121 @@ test('続き393 対照 WXK04-064-E1: 単一文字列・レベル無制限を維�
   ok(!noLevelProtected.has('WXDi-P03-074'), 'Level未定義はレベル制限へ入れずfail closed');
 }));
 
+const conditionBatchEffect = (cardNum: string, effectId: string): CardEffect => {
+  const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} missing`);
+  return effect;
+};
+
+const runChoice = (effect: CardEffect, ctx: ExecCtx, choiceId: string): ExecResult => {
+  const initial = executeEffect(effect, ctx);
+  if (initial.done || initial.pending.type !== 'CHOOSE') throw new Error(`${effect.effectId}: CHOOSE not reached`);
+  const resumedCtx = {
+    ...ctx, ownerState: initial.ownerState, otherState: initial.otherState, logs: initial.logs,
+    lastProcessedCards: initial.lastProcessedCards,
+    storedTargetCards: initial.storedTargetCards ?? ctx.storedTargetCards,
+  } as ExecCtx;
+  return finish(resumeChoose(choiceId, initial.pending, resumedCtx), resumedCtx);
+};
+
+test('続き394 WD21-012-E2: ミルしたレベル合計10だけがバニッシュを許可する', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WD21-012', 'WD21-012-E2').action;
+  const target = 'WD01-013';
+  eq(run(action, mkCtx({ deckTop: ['WD01-009', 'WD01-010', 'WD02-010'] }, { signi: [target, null, null] })).otherState.field.signi[0], null, '4+3+3=10 は成立');
+  eq(run(action, mkCtx({ deckTop: ['WD01-009', 'WD01-010', 'WD01-012'] }, { signi: [target, null, null] })).otherState.field.signi[0]?.at(-1), target, '4+3+2=9 は不成立');
+}));
+
+test('続き394 WXK03-068-E1: ミルしたレベル合計5だけがドローを許可する', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WXK03-068', 'WXK03-068-E1').action;
+  eq(run(action, mkCtx({ deckTop: ['WD01-010', 'WD01-012'], hand: 0 }, {})).ownerState.hand.length, 1, '3+2=5 は1枚引く');
+  eq(run(action, mkCtx({ deckTop: ['WD01-012', 'WD02-012'], hand: 0 }, {})).ownerState.hand.length, 0, '2+2=4 は引かない');
+}));
+
+test('続き394 WXDi-CP01-032-E2: 前段成立かつ相手ミル合計7だけ追加7枚を落とす', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WXDi-CP01-032', 'WXDi-CP01-032-E2').action;
+  const virtual = ['WXDi-D02-20', 'WXDi-D02-21', 'WXDi-D02-23'];
+  const yes = mkCtx({ signi: virtual }, { deckTop: ['WD01-009', 'WD01-012', 'WD01-013', ...fill(8)] });
+  const yesLen = yes.otherState.deck.length;
+  eq(run(action, yes).otherState.deck.length, yesLen - 10, '4+2+1=7 は合計10枚ミル');
+  const no = mkCtx({ signi: virtual }, { deckTop: ['WD01-010', 'WD01-012', 'WD01-013', ...fill(8)] });
+  const noLen = no.otherState.deck.length;
+  eq(run(action, no).otherState.deck.length, noLen - 3, '3+2+1=6 は3枚だけミル');
+  const gated = mkCtx({ signi: ['WD01-013', null, null] }, { deckTop: fill(12) });
+  gated.lastProcessedCards = ['WD01-009', 'WD01-012', 'WD01-013'];
+  const gatedLen = gated.otherState.deck.length;
+  eq(run(action, gated).otherState.deck.length, gatedLen, '前段不成立時は stale lastProcessedCards でも追加ミルしない');
+}));
+
+test('続き394 WX18-006-E1: レベル合計7/10/12の独立3段を評価する', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WX18-006', 'WX18-006-E1').action;
+  const yes = mkCtx({ signi: ['WX18-006', null, null], deckTop: ['WD01-009', 'WD02-009', 'WD03-009'] }, { hand: 3 }, 'WX18-006');
+  const ry = run(action, yes);
+  eq(ry.otherState.hand.length, 2, '合計12は手札1枚を捨てる');
+  ok(ry.ownerState.keyword_grants?.['WX18-006']?.includes('アサシン') ?? false, '合計12はアサシンを得る');
+  ok(ry.ownerState.keyword_grants?.['WX18-006']?.includes('トリプルクラッシュ') ?? false, '合計12はトリプルクラッシュを得る');
+  const rn = run(action, mkCtx({ signi: ['WX18-006', null, null], deckTop: ['WD01-010', 'WD01-012', 'WD01-013'] }, { hand: 3 }, 'WX18-006'));
+  eq(rn.otherState.hand.length, 3, '合計6は手札を捨てない');
+  eq((rn.ownerState.keyword_grants?.['WX18-006'] ?? []).length, 0, '合計6はキーワードを得ない');
+}));
+
+test('続き394 WD08-008-E1: 3枚以上が共通クラスのときだけ回収へ進む', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WD08-008', 'WD08-008-E1').action;
+  eq(run(action, mkCtx({ deckTop: ['WD01-009', 'WD01-010', 'WD01-012', 'WD02-009', 'WD03-009'], hand: 0 }, {})).ownerState.hand.length, 2, 'アーム3枚で2枚まで回収');
+  eq(run(action, mkCtx({ deckTop: ['WD01-009', 'WD02-009', 'WD03-009', 'WD04-009', 'WD05-009'], hand: 0 }, {})).ownerState.hand.length, 0, '共通クラス3枚未満なら回収しない');
+}));
+
+test('続き394 WX11-028-E2: 共通レベル2枚以上のときだけバニッシュする', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WX11-028', 'WX11-028-E2').action;
+  const target = 'WD01-013';
+  eq(run(action, mkCtx({ deckTop: ['WD01-013', 'WD01-014', 'WD01-012'] }, { signi: [target, null, null] })).otherState.field.signi[0], null, 'レベル1が2枚なら成立');
+  eq(run(action, mkCtx({ deckTop: ['WD01-013', 'WD01-012', 'WD01-010'] }, { signi: [target, null, null] })).otherState.field.signi[0]?.at(-1), target, 'レベル1/2/3なら不成立');
+}));
+
+test('続き394 WXDi-CP02-060-E2: ミルしたシグニのレベルが全て同じときだけ全手札を捨てる', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WXDi-CP02-060', 'WXDi-CP02-060-E2').action;
+  eq(run(action, mkCtx({ deckTop: ['WD01-013', 'WD01-014', 'WD02-013'], hand: 3 }, {})).ownerState.hand.length, 0, '全てレベル1なら全捨て');
+  eq(run(action, mkCtx({ deckTop: ['WD01-013', 'WD01-012', 'WD01-010'], hand: 3 }, {})).ownerState.hand.length, 3, 'レベル混在なら捨てない');
+  eq(run(action, mkCtx({ deckTop: ['WX01-028', 'WX19-010', 'WXK03-008'], hand: 3 }, {})).ownerState.hand.length, 3, 'シグニ0枚は不成立');
+}));
+
+test('続き394 WX26-CP1-058-E1: 自分のデッキ枝でプリオケ3枚以上のときだけ-5000', () => withSavedCursor(() => {
+  const effect = conditionBatchEffect('WX26-CP1-058', 'WX26-CP1-058-E1');
+  const field = ['WX26-CP1-045', 'WX26-CP1-046', 'WX26-CP1-047'];
+  const target = 'WD01-013';
+  const yes = mkCtx({ signi: field, deckTop: ['WX26-CP1-048', 'WX26-CP1-049', 'WX26-CP1-050', 'WD01-013', 'WD01-012'] }, { signi: [target, null, null] });
+  ok((run(effect.action, yes).otherState.temp_power_mods ?? []).some(m => m.delta === -5000), 'self_deck枝の3枚で成立');
+  const no = mkCtx({ signi: field, deckTop: ['WX26-CP1-048', 'WX26-CP1-049', 'WD01-013', 'WD01-012', 'WD01-010'] }, { signi: [target, null, null] });
+  eq((run(effect.action, no).otherState.temp_power_mods ?? []).length, 0, 'self_deck枝の2枚では不成立');
+  const opp = mkCtx({ signi: field, deckTop: fill(5) }, { signi: [target, null, null], deckTop: ['WX26-CP1-048', 'WX26-CP1-049', 'WX26-CP1-050', 'WX26-CP1-051', 'WX26-CP1-052'] });
+  eq((runChoice(effect, opp, 'opp_deck').otherState.temp_power_mods ?? []).length, 0, 'opp_deck枝では5枚ともプリオケでも不成立');
+}));
+
+test('続き394 WD20-018-E1②: この方法で英知3体をトラッシュしたときだけライフ追加', () => withSavedCursor(() => {
+  const effect = conditionBatchEffect('WD20-018', 'WD20-018-E1');
+  eq(runChoice(effect, mkCtx({ signi: ['WX15-037', 'WX15-054', 'WX15-055'], life: 0 }, {}), 'c1').ownerState.life_cloth.length, 1, '英知3体で成立');
+  eq(runChoice(effect, mkCtx({ signi: ['WX15-037', 'WX15-054', 'WD01-013'], life: 0 }, {}), 'c1').ownerState.life_cloth.length, 0, '英知2体では不成立');
+}));
+
+test('続き394 WX22-Re03-E1②: この方法でシグニ2体をトラッシュしたときだけバウンス', () => withSavedCursor(() => {
+  const effect = conditionBatchEffect('WX22-Re03', 'WX22-Re03-E1');
+  const target = 'WD01-013';
+  eq(runChoice(effect, mkCtx({ signi: ['WX15-031', 'WX16-024', null] }, { signi: [target, null, null] }), 'c1').otherState.field.signi[0], null, '怪異2体で成立');
+  eq(runChoice(effect, mkCtx({ signi: ['WX15-031', null, null] }, { signi: [target, null, null] }), 'c1').otherState.field.signi[0]?.at(-1), target, '1体しか置けなければ不成立');
+}));
+
+test('続き394 WXK05-025-E2: デッキ下4枚の合計11以上だけ凍結シグニをバニッシュ', () => withSavedCursor(() => {
+  const action = conditionBatchEffect('WXK05-025', 'WXK05-025-E2').action;
+  const targets = ['WD01-013', 'WD01-014'];
+  const yes = mkCtx({ lrig: ['WX19-010'] }, { signi: [targets[0], targets[1], null] });
+  yes.ownerState.deck = [...fill(5), 'WD01-009', 'WD01-010', 'WD01-012', 'WD02-012'];
+  yes.otherState.field.signi_frozen = [true, true, false];
+  eq(run(action, yes).otherState.field.signi.filter(Boolean).length, 0, '4+3+2+2=11かつリメンバなら2体バニッシュ');
+  const no = mkCtx({ lrig: ['WX19-010'] }, { signi: [targets[0], targets[1], null] });
+  no.ownerState.deck = [...fill(5), 'WD01-009', 'WD01-010', 'WD01-012', 'WD01-013'];
+  no.otherState.field.signi_frozen = [true, true, false];
+  eq(run(action, no).otherState.field.signi.filter(Boolean).length, 2, '4+3+2+1=10ならバニッシュしない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

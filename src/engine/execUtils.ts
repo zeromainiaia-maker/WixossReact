@@ -1908,6 +1908,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         if (c?.Type !== 'シグニ') continue;
         levels.add(parseInt(c.Level ?? '0', 10) || 0);
       }
+      if (cond.allSameLevel) {
+        const signiCount = processedTDL.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ').length;
+        return signiCount > 0 && levels.size === 1;
+      }
       if (cond.allSigniDistinct) {
         const signiCount = processedTDL.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ').length;
         return levels.size === signiCount;
@@ -1986,17 +1990,27 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       });
       if (cond.requiredCardNames && !cond.requiredCardNames.every(name =>
         matchedCards.some(cn => ctx.cardMap.get(getCardNum(cn))?.CardName === name))) return false;
+      let sharedCount: number | undefined;
       if (cond.shareClass) {
-        if (matchedCards.length === 0) return false;
-        const classSets = matchedCards.map(cn => new Set(
-          (ctx.cardMap.get(getCardNum(cn))?.CardClass ?? '').split(/[／/]/)
-            .map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean),
-        ));
-        if (classSets[0].size === 0 || ![...classSets[0]].some(cl => classSets.every(set => set.has(cl)))) return false;
+        const counts = new Map<string, number>();
+        for (const cn of matchedCards) {
+          const classes = new Set((ctx.cardMap.get(getCardNum(cn))?.CardClass ?? '').split(/[／/]/)
+            .map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean));
+          for (const cl of classes) counts.set(cl, (counts.get(cl) ?? 0) + 1);
+        }
+        sharedCount = Math.max(0, ...counts.values());
       }
-      const count = cond.distinctName
+      if (cond.shareLevel) {
+        const counts = new Map<number, number>();
+        for (const cn of matchedCards) {
+          const level = parseInt(ctx.cardMap.get(getCardNum(cn))?.Level ?? '', 10);
+          if (Number.isFinite(level)) counts.set(level, (counts.get(level) ?? 0) + 1);
+        }
+        sharedCount = Math.max(0, ...counts.values());
+      }
+      const count = sharedCount ?? (cond.distinctName
         ? new Set(matchedCards.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? getCardNum(cn))).size
-        : matchedCards.length;
+        : matchedCards.length);
       return cmp(count, cond.operator ?? 'gte', cond.value ?? cond.minCount ?? 1);
     }
     case 'LAST_LOOK_TRASHED_MATCHES': {
