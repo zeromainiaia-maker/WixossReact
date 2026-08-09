@@ -7289,26 +7289,28 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // トラッシュ自己起動【起】（「このシグニをトラッシュから場に出す」等）。トラッシュゾーンUIから発動。
-  // 現状はエナコストのみ対応（手札捨て/コイン/エクシード等の複合コストは未対応）。
+  // エナ以外のコスト（手札捨て/コイン/【ウィルス】除去/【チャーム】/ルリグダウン/エクシード）と
+  // 《アタックフェイズアイコン》起動に対応（PLAN §6.4）。支払い可否は `canOfferTrashActivate` 一本。
   const getMyTrashCardActions = (cardNum: string): CardAction[] => {
     if (loading) return [];
     const actions: CardAction[] = [];
-    if (!isMyTurn || bs.turn_phase !== 'MAIN') return actions;
+    // 《メインフェイズアイコン》＝自分の MAIN／《アタックフェイズアイコン》＝アーツステップ。
+    // ATTACK_ARTS_OP（相手ターンのアーツステップ）は自分のトラッシュ起動の窓ではない。
+    const phase = bs.turn_phase;
+    const trashTiming: import('../types/effects').EffectTiming | null =
+      phase === 'MAIN' ? 'MAIN' : phase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null;
+    if (!isMyTurn || !trashTiming) return actions;
     const effs = effectsMap.get(cardNum) ?? [];
     for (const eff of effs) {
       if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
-      if (!eff.timing?.includes('MAIN')) continue;
+      if (!eff.timing?.includes(trashTiming)) continue;
       if (my.actions_done?.includes(eff.effectId)) continue;
       if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
-      // エナ以外のコストキーがあれば未対応としてスキップ
-      const c = eff.cost;
-      const hasUnsupportedCost = !!c && Object.entries(c).some(([k, v]) => k !== 'energy' && v);
-      if (hasUnsupportedCost) continue;
-      const energyTotal = (c?.energy ?? []).reduce((s, e) => s + e.count, 0);
-      if (my.energy.length < energyTotal) continue;
+      if (!canOfferTrashActivate(eff, my, op, battleCardMap)) continue;
+      const costLabel = trashActivateCostLabels(eff, my, op).join('・');
       actions.push({
-        label: energyTotal > 0 ? `【起】トラッシュから出す（エナ${energyTotal}）` : '【起】トラッシュから出す',
+        label: costLabel ? `【起】トラッシュから出す（${costLabel}）` : '【起】トラッシュから出す',
         color: '#ff6b35',
         onClick: () => { openTrashActivated({ cardNum, effect: eff }); },
       });
