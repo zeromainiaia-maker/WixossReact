@@ -353,7 +353,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_HAS_TYPE'; cardType: string }   // lastProcessedCards のいずれかが指定Type（'スペル'等）の場合（G164「この方法でトラッシュしたカードの中にスペルがある場合」）
   | { type: 'LAST_PROCESSED_LEVEL_EQ_FRONT_SIGNI' }         // 直前に処理したカードと、効果元シグニの正面（相手2-zi）のシグニの表記レベルが同じ（WXEX1-65）
   | { type: 'LAST_PROCESSED_SHARE_COLOR' }                   // lastProcessedCards 全てに共通する色が1つ以上ある場合（「それらがそれぞれ共通する色を持つ場合」。WDK10-008）
-  | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number; operator?: CompareOp; value?: number; distinctName?: boolean; requiredCardNames?: string[]; requiredDistinctColors?: string[]; shareClass?: boolean; shareLevel?: boolean; levelLteCenterLrig?: Owner; verbJa?: string }  // lastProcessedCards の filter 一致数。requiredDistinctColors は各色を互いに異なるカードへ割り当てられること（多色1枚による二重充足を禁止）。
+  | { type: 'LAST_PROCESSED_MATCHES'; filter: TargetFilter; minCount?: number; operator?: CompareOp; value?: number; distinctName?: boolean; requiredCardNames?: string[]; requiredDistinctColors?: (string | string[])[]; shareClass?: boolean; shareLevel?: boolean; levelLteCenterLrig?: Owner; verbJa?: string }  // lastProcessedCards の filter 一致数。requiredDistinctColors は各色スロット（配列ならOR候補）を互いに異なるカードへ割り当てる（多色1枚による二重充足を禁止）。
   | { type: 'LAST_LOOK_TRASHED_MATCHES'; filter: TargetFilter; minCount?: number } // 直前の LOOK_AND_REORDER で実際にトラッシュへ置いたカード
   | { type: 'LAST_PROCESSED_ALL_MATCH'; filter: TargetFilter };  // lastProcessedCards が **すべて** filter 一致（空集合は false）（「この方法でトラッシュに置かれたカードがすべて黒の場合」WXK09-097／「すべてのカードがレベル１のシグニの場合」WXDi-P05-042）
 

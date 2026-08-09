@@ -1998,11 +1998,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         // 単純な色条件のANDだと青黒の多色1枚が両方を満たすため、少数集合の完全マッチングで判定する。
         const assign = (colorIndex: number, used: Set<string>): boolean => {
           if (colorIndex >= cond.requiredDistinctColors!.length) return true;
-          const color = cond.requiredDistinctColors![colorIndex];
+          const colorSlot = cond.requiredDistinctColors![colorIndex];
+          const acceptedColors = Array.isArray(colorSlot) ? colorSlot : [colorSlot];
           for (const cn of matchedCards) {
             if (used.has(cn)) continue;
             const colors = [...(ctx.cardMap.get(getCardNum(cn))?.Color ?? '')].filter(c => '白赤青緑黒'.includes(c));
-            if (!colors.includes(color)) continue;
+            if (!acceptedColors.some(color => colors.includes(color))) continue;
             used.add(cn);
             if (assign(colorIndex + 1, used)) return true;
             used.delete(cn);
@@ -2016,7 +2017,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         const counts = new Map<string, number>();
         for (const cn of matchedCards) {
           const classes = new Set((ctx.cardMap.get(getCardNum(cn))?.CardClass ?? '').split(/[／/]/)
-            .map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(Boolean));
+            .map(seg => seg.split(/[:：]/).pop()?.trim() ?? '').filter(cl => !!cl && cl !== '-'));
           for (const cl of classes) counts.set(cl, (counts.get(cl) ?? 0) + 1);
         }
         sharedCount = Math.max(0, ...counts.values());

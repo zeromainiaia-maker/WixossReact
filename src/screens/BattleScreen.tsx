@@ -33,7 +33,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
-import { activatedDiscardPaidCount, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
@@ -10924,10 +10924,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (removedV < removeVirusNAct) return; // 支払い不能
         newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
       }
-      // 捨てた合計枚数（ACTIVATED_DISCARD_COUNT_GTE条件用）
-      const totalDiscardedCount = activatedDiscardPaidCount(
-        discardedCards.length, discardAllCards.length, energyTrashAllCards.length, discardVarCards.length,
-      );
       const isGameOnceAct = effect.usageLimit === 'once_per_game';
       let paid: PlayerState = {
         ...my,
@@ -10942,7 +10938,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
         game_actions_done: isGameOnceAct ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
-        last_activated_discard_count: totalDiscardedCount,
+        ...activatedDiscardCostRecord(
+          discardedCards.length, discardAllCards.length, energyTrashAllCards.length, discardVarCards.length,
+        ),
         last_activated_discard_level_sum: discardVarCards.length > 0
           ? discardVarLevelSum
           : discardedCards.length > 0 ? fixedDiscardLevelSum : my.last_activated_discard_level_sum,
@@ -11822,7 +11820,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // discardAll: 手札をすべて捨てる（自動）
       const lgDiscardAllCards = effect.cost?.discardAll ? [...baseLGHand] : [];
       const newHand = effect.cost?.discardAll ? [] : baseLGHand;
-      const lgTotalDiscarded = discardedHandNums.length + lgDiscardAllCards.length + lgEnergyTrashAllCards.length;
       const lgIsGameOnce = effect.usageLimit === 'once_per_game';
       let paid: import('../types').PlayerState = {
         ...my,
@@ -11833,7 +11830,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         lrig_trash: newLrigTrash,
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
-        last_activated_discard_count: lgTotalDiscarded,
+        ...activatedDiscardCostRecord(
+          discardedHandNums.length, lgDiscardAllCards.length, lgEnergyTrashAllCards.length, 0,
+        ),
         last_cost_energy_trash_count: activatedEnergyTrashPaidCount(energyTrashIndices),
         last_energy_trash_color_count: lgEnergyTrashColor ? lgEnergyTrashColorCards.length : my.last_energy_trash_color_count,
       };

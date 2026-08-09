@@ -5834,6 +5834,129 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
   }
 }
 
+// §6.3 C 第3波: 効果内の手札捨て／エナ配置結果と、起動コストの手札捨て枚数を読む後段条件。
+// effectId アンカーの外科パッチだが、記録先は効果内=lastProcessedCards、コスト=last_activated_discard_countと分ける。
+function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): void {
+  const effect = (id: string): CardEffect | undefined => effects.find(e => e.effectId === id);
+  const setAction = (id: string, action: EffectAction): CardEffect | undefined => {
+    const e = effect(id);
+    if (e) e.action = action;
+    return e;
+  };
+  const handTrash = (owner: 'self' | 'opponent', count: number | 'ALL'): EffectAction => ({
+    type: 'TRASH', target: { type: 'HAND_CARD', owner, count },
+  });
+  const opponentSigni = { type: 'SIGNI' as const, owner: 'opponent' as const, count: 1 as const,
+    filter: { cardType: 'シグニ' as const }, upToCount: false };
+  const resultColorPair = (first: string, alternatives: string[], verbJa: string): Condition => ({
+    type: 'LAST_PROCESSED_MATCHES', filter: {}, operator: 'eq', value: 2,
+    requiredDistinctColors: [first, alternatives], verbJa,
+  });
+
+  if (cardNum === 'WX24-P4-028') {
+    setAction('WX24-P4-028-E1', { type: 'SEQUENCE', steps: [
+      { type: 'SEQUENCE', steps: [
+        handTrash('self', 2), { type: 'DRAW', owner: 'self', count: 4 },
+      ] },
+      { type: 'CONDITIONAL', condition: resultColorPair('赤', ['白', '青', '緑', '黒'], '捨てた'), then: {
+        type: 'BANISH', target: { ...opponentSigni, filter: { cardType: 'シグニ', powerRange: { max: 10000 } } },
+      } },
+    ] });
+  }
+  if (cardNum === 'WX24-P4-030') {
+    setAction('WX24-P4-030-E1', { type: 'SEQUENCE', steps: [
+      { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'self', count: 4 }, handTrash('self', 2),
+      ] },
+      { type: 'CONDITIONAL', condition: resultColorPair('青', ['白', '赤', '緑', '黒'], '捨てた'), then: {
+        type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true },
+      } },
+    ] });
+  }
+  if (cardNum === 'WX25-P2-082') {
+    setAction('WX25-P2-082-E1', { type: 'SEQUENCE', steps: [
+      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1,
+        filter: { cardType: 'シグニ', story: '電機' } }, optional: true },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+        type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
+          filter: { cardType: 'シグニ', story: '電機', color: '黒' } },
+        then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } },
+        else: handTrash('opponent', 1),
+      } },
+    ] });
+  }
+  if (cardNum === 'WX25-P2-100') {
+    setAction('WX25-P2-100-E1', { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: opponentSigni },
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1,
+        filter: { cardType: 'シグニ', story: '電機' } }, optional: true },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
+        type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
+          filter: { cardType: 'シグニ', story: '電機', color: '青' } },
+        then: { type: 'POWER_MODIFY', target: opponentSigni, targetsStored: true, delta: -5000 },
+        else: { type: 'POWER_MODIFY', target: opponentSigni, targetsStored: true, delta: -3000 },
+      } },
+    ] });
+  }
+  if (cardNum === 'WXDi-P14-085') {
+    const e = effect('WXDi-P14-085-E1');
+    if (e?.action.type === 'SEQUENCE' && e.action.steps.length >= 2) {
+      e.action = { ...e.action, steps: [e.action.steps[0], e.action.steps[1], {
+        type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
+          filter: { cardType: 'シグニ', story: '電音部' }, operator: 'gte', value: 3, verbJa: '捨てた' },
+        then: handTrash('opponent', 1),
+      }] };
+    }
+  }
+  if (cardNum === 'WX11-015') {
+    const e = effect('WX11-015-E1');
+    if (e?.action.type === 'SEQUENCE' && e.action.steps.length === 4) {
+      e.action = { ...e.action, steps: [e.action.steps[0], e.action.steps[1], e.action.steps[2], {
+        type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 3, verbJa: '捨てた' },
+        then: e.action.steps[3],
+      }] };
+    }
+  }
+  if (cardNum === 'WXDi-P16-093') {
+    const e = effect('WXDi-P16-093-E1');
+    if (e) {
+      e.condition = { type: 'LRIG_TEAM_COUNT', owner: 'self', team: 'DIAGRAM', operator: 'gte', value: 3 };
+      e.action = { type: 'SEQUENCE', steps: [
+        { type: 'DRAW', owner: 'opponent', count: 1 },
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } },
+        { type: 'SEQUENCE', snapshotLastProcessedForConditionals: true, steps: [
+          { type: 'MILL', owner: 'opponent', count: 0, countIsLastProcessedLevelSum: true },
+          { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'スペル' }, verbJa: '捨てられた' },
+            then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
+        ] },
+      ] };
+    }
+  }
+  if (cardNum === 'WX05-022') {
+    const e = effect('WX05-022-E2');
+    if (e) e.action = { type: 'CONDITIONAL', condition: { type: 'ACTIVATED_DISCARD_COUNT_GTE', value: 2 }, then: e.action };
+  }
+  if (cardNum === 'WX24-P4-032') {
+    const e = effect('WX24-P4-032-E1');
+    if (e?.action.type === 'SEQUENCE' && e.action.steps.length === 2) {
+      e.action = { ...e.action, steps: [e.action.steps[0], {
+        type: 'CONDITIONAL', condition: resultColorPair('緑', ['白', '赤', '青', '黒'], 'エナゾーンに置いた'),
+        then: e.action.steps[1],
+      }] };
+    }
+  }
+  if (cardNum === 'WXDi-D01-004') {
+    setAction('WXDi-D01-004-E2', { type: 'SEQUENCE', steps: [
+      { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 2 },
+      { type: 'CONDITIONAL', condition: { type: 'AND', conditions: [
+        { type: 'LAST_PROCESSED_MATCHES', filter: {}, operator: 'eq', value: 2, verbJa: 'エナゾーンに置かれた' },
+        { type: 'LAST_PROCESSED_MATCHES', filter: {}, shareClass: true, operator: 'lt', value: 2, verbJa: 'エナゾーンに置かれた' },
+      ] }, then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
+    ] });
+  }
+}
+
 function parseActionText(text: string): EffectAction {
   const parse = (source: string): EffectAction => applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
@@ -11185,6 +11308,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyGradedThresholdBatch(card.CardNum, effects);
   applyQuotedFrontPowerGrantBatch(card.CardNum, effects);
   applyResultConditionalWave2(card.CardNum, effects);
+  applyResultConditionalWave3(card.CardNum, effects);
 
   // WXEX1-13-E1 は「既存トラップを手札へ戻した場合」の did-it ゲートと、トラップを
   // SIGNI として BOUNCE している別の構造破壊を先に直す必要がある。LPC だけ部分移行すると

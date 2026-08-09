@@ -22,6 +22,20 @@ export function activatedDiscardPaidCount(
   return fixedDiscardCount + discardAllCount + energyTrashAllCount + variableDiscardCount;
 }
 
+/** BattleScreen の起動コスト支払いが条件評価へ渡す枚数記録。 */
+export function activatedDiscardCostRecord(
+  fixedDiscardCount: number,
+  discardAllCount: number,
+  energyTrashAllCount: number,
+  variableDiscardCount: number,
+): Pick<PlayerState, 'last_activated_discard_count'> {
+  return {
+    last_activated_discard_count: activatedDiscardPaidCount(
+      fixedDiscardCount, discardAllCount, energyTrashAllCount, variableDiscardCount,
+    ),
+  };
+}
+
 /** 指定 energyTrash コストで選んだ枚数（通常の色エナコストは含めない）。 */
 export function activatedEnergyTrashPaidCount(selected: Set<number>): number {
   return selected.size;
