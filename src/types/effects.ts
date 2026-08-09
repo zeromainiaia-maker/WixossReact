@@ -2222,6 +2222,17 @@ export interface StubAction {
   // 省略時は従来どおり盤面/手札/トラッシュから動的収集する。列挙があるのに無制限に宣言させるのは過剰実行なので明示で絞る。
   declareOptions?: string[];
   count?: number;          // GAIN_SIGNI_BARRIER / GAIN_LRIG_BARRIER 等の個数
+  /** SIGNI_FLIP_FACEDOWN: 裏向きにする場シグニの対象宣言。 */
+  faceDownTarget?: {
+    owner: 'self' | 'opponent';
+    count: number | 'ALL';
+    upToCount?: boolean;
+    frontOfSelf?: boolean;
+    /** 対象化を効果解決時ではなく現在ターン終了時まで遅延する。 */
+    delayUntilTurnEnd?: boolean;
+    /** 裏向き化後の復帰 timing。 */
+    returnTiming?: 'TURN_END' | 'NEXT_OPP_ATTACK_PHASE_START';
+  };
   // STEAL_OPP_TRASH_PUPPET の汎用化パラメータ（WXK10-055 等）。省略時は従来挙動（ベット時2枚/非ベット1枚・必須・レベル制限なし）。
   puppetParams?: {
     count?: number;          // 出す枚数（省略時=ベット2/非ベット1）

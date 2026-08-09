@@ -1,14 +1,14 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-08T12:56:22.112Z
-manualEffects エントリ 427 カード / 乖離 46 カード・52 効果
+生成: 2026-08-09T11:44:23.225Z
+manualEffects エントリ 442 カード / 乖離 47 カード・53 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。
 
 ## 区分ごとの件数
   FRESH_ONLY     23 効果  （manual定義 3 / parser由来 20）
-  CHANGED        19 効果  （manual定義 8 / parser由来 11）
+  CHANGED        20 効果  （manual定義 8 / parser由来 12）
   LIVE_ONLY       5 効果  （manual定義 0 / parser由来 5）
   FRESH_GAIN      3 効果  （manual定義 2 / parser由来 1）
   LIVE_RICHER     2 効果  （manual定義 1 / parser由来 1）
@@ -88,7 +88,10 @@ manualEffects エントリ 427 カード / 乖離 46 カード・52 効果
   live : （無し）
   fresh: {"effectId":"WX12-010-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}},{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
 
-## CHANGED（19 効果）
+## CHANGED（20 効果）
+--- WXK05-025-E1 (parser由来)
+  live : {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":2,"private":true,"reorder":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"
+  fresh: {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":1,"private":true,"reorder":false,"destination":{"location":"deck","owner":"self","position":"bottom"}}]},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","
 --- WX25-P3-027-E1 (parser由来)
   live : {"effectId":"WX25-P3-027-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["黒"]},{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"IS_MY_TURN"},{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardType":"シグニ","story":"悪魔"},"minCount":15}]},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opp
   fresh: {"effectId":"WX25-P3-027-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardType":"シグニ","story":"悪魔"},"minCount":15},"then":{"type":"STUB","id":"OPTIONAL_COST","costColors":["黒"]}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER",

@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 C 第4波①：`WXDi-P09-034-E1` の裏向き状態をターン終了時まで保持
+
+- `FACE_DOWN_OPP_SIGNI` は対象を未消費の `PlayerState.face_down_signi` へ印付けする近似をやめ、元のシグニゾーンから `field.facedown_signi[zoneIndex]` へ実際に移すよう修正した。これにより裏向き中は能力・パワー・アタックを持つ場のシグニとして扱われず、同じ場所へ別のシグニを置ける。
+- `FLIP_FACE_DOWN_SIGNI` は両者の裏向き一覧を同じ解決内で全消去せず、`turn_end_facedown_signi_returns` にこの効果で裏向きにした `{cardNum, zoneIndex}` だけを予約する。後続 `TRASH_IF_ZONE_OCCUPIED` は効果元ではなく、その予約対象へ「元ゾーン占有時はトラッシュ」を付ける。
+- pure helper `resolveTurnEndFacedownReturns` で、元ゾーンが空なら表向きのシグニへ戻し、埋まっていれば裏向きカードをトラッシュへ置く。`BattleScreen.doPhaseAdvance`／`confirmEndDiscard`／`cpuTurnAction` の3終了経路すべてで、ターンプレイヤーと非ターンプレイヤーの両方を解決する。予約は消費時にクリアし、別効果の裏向きカードは残す。
+- 実行 E2E は live `WXDi-P09-034-E1` を対象選択から完走し、①解決直後は元ゾーンが空で対象が裏向きのまま、②終了時に空きなら表向き、③別シグニがいればその別シグニを残して対象をトラッシュ、④無関係な裏向きカードを巻き込まない、を固定した。golden **1682→1683 / FAIL 0**。
+- live JSON は既存 `SEQUENCE[FACE_DOWN_OPP_SIGNI, FLIP_FACE_DOWN_SIGNI, TRASH_IF_ZONE_OCCUPIED]` のまま（engine の誤実装が真因）。逆翻訳語彙は各STUBの原文意味へ更新した。commit／push、PLAN／PLAN_PROGRESS、regen、BASELINE_HIGH は未実施。
+- `WXDi-P05-037-E2` も採用。`SIGNI_FLIP_FACEDOWN.faceDownTarget`（既存 STUB への対象宣言フィールド）を追加し、`owner:'opponent', count:1, frontOfSelf:true` を効果元の在場ゾーンから `2 - zoneIndex` で解決する。`OPTIONAL_COST` 直後の `CONDITIONAL{IS_MY_TURN}` は「そうした場合」の既存ゲートとして維持し、実 E2E で《青青》を支払った側だけが正面を裏向き化・終了時復帰し、支払えない側は盤面／予約とも不変、非正面は巻き込まないことを固定。`manualEffects.ts` から `censusManualDrift --adopt` で live 同期し、golden **1683→1684 / FAIL 0**。
+- `WXDi-P01-040-E2` も採用。既存 `OPTIONAL_ACTIVATE` で「裏向きにしてもよい」を選択可能にし、`faceDownTarget:{owner:'self',count:2,upToCount:true}` で自シグニを2体まで選ぶ。`TRASH_IF_ZONE_OCCUPIED` は付けず、終了時に元ゾーンが空の対象だけ表向き化し、埋まった対象は裏向きのまま・トラッシュしない。実 E2E で2体対象／3体目非対象／空き側復帰／占有側非トラッシュ／任意不発側の完全不変を固定。manual→live 同期後、golden **1684→1685 / FAIL 0**。
+- `WXDi-P09-009-E3` も採用。起動時は `turn_end_facedown_all` へ1段目だけを予約し、解決直後は表向きのまま。3終了経路でその時点の全自シグニを `field.facedown_signi` へ移して、複数枚の `{cardNum,zoneIndex,sourceCardNum}` を `pending_opponent_attack_facedown_returns` に持ち越す。次の対戦相手 `ON_ATTACK_PHASE_START` に `collectTurnTriggers` が非ターンプレイヤー側を走査して `RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS` を合成し、空きゾーンだけ表向き化する。占有時トラッシュは原文に無いため付けない。`delayed_triggers` はターン境界で消え、既存 `pending_facedown_flip` は単一枚・自メイン用なので、複数枚／相手ターン走査という別軸の専用配列を採用した。起動直後→ターン終了→相手メインでは不発→相手アタック開始で発火、空き／占有の両方向を E2E 固定。manual→live 同期後、golden **1685→1686 / FAIL 0**。
+- 最終検証：`npm run regen` 済み、`npm run gates` 全緑（golden **1686/0**、census **882/882**、smoke **10686/10686**・全異常0、fuzz 200ゲーム・全異常0、typecheck、manual field loss 0、lint **0 errors / 254 warnings**）。同型★0（5986枚・265群）、held **111枚/48群**、`7707408cd` 比 live per-effect **changed 3 / added 0 / removed 0**（P09-034 は engine-only）、UTF-8/BOM/U+FFFD/3連続`?`の新規増0。入力表の held「58群」は現行 `heldReview` 実測および直前コミットの検証記録「48群」と一致しなかったため、実測48群を採用した。commit／push、PLAN／PLAN_PROGRESS、BASELINE_HIGH 更新は未実施。
+
 ## 2026-08-09 — §6.3 C 第3波：「この方法で捨てた／エナゾーンに置いた」後段条件（11効果採用）
 
 - 効果内 discard 7効果は `execTrash` の `lastProcessedCards` を読む。`WX24-P4-028/030` は「特定1色／それ以外の4色」を別カードに割り当てられるよう既存 `requiredDistinctColors` の各1色スロットを OR 候補配列へ拡張。`WX25-P2-082/100` は `IS_MY_TURN` の did-it ゲートを残し、黒／青の＜電機＞を捨てたときだけ通常側を排他置換。P2-100 は相手シグニを1回だけ対象化し、同じ1体に−3000／−5000を排他適用する。

@@ -41,6 +41,7 @@ import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
 import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
+import { resolveTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { resolveNextPhaseWithAttackStepBlocks } from './battle/attackStepPhase';
 import { MulliganCard } from './battle/MulliganCard';
@@ -3382,11 +3383,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
 
+        // 「この方法で裏向きにしたシグニ」のターン終了時復帰は、ターンプレイヤー／非ターンプレイヤーの
+        // 両方を解決する。相手シグニを裏向きにする効果では予約が op 側に載るため、my 側だけでは永久に残る。
+        const facedownMyEND = resolveTurnEndFacedownReturns(my);
+        const facedownOpEND = resolveTurnEndFacedownReturns(op);
+        const myEndState = facedownMyEND.state;
+        const opEndState = facedownOpEND.state;
+        const logFacedownEND = (who: string, flipped: string[], trashed: string[]) => {
+          if (flipped.length > 0) appendBattleLogs([`ターン終了時：${who}${flipped.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を表向きにする`]);
+          if (trashed.length > 0) appendBattleLogs([`ターン終了時：${who}${trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をトラッシュへ`]);
+        };
+        logFacedownEND('', facedownMyEND.flipped, facedownMyEND.trashed);
+        logFacedownEND('相手の', facedownOpEND.flipped, facedownOpEND.trashed);
+
         // ENDフェーズ：ビートゾーン全カードをトラッシュへ（手札上限処理と同タイミング）
-        let myBeatEND = my.field.beat_zone ?? [];
-        let myTrashBeat = my.trash;
+        let myBeatEND = myEndState.field.beat_zone ?? [];
+        let myTrashBeat = myEndState.trash;
         if (myBeatEND.length > 0) {
-          myTrashBeat = [...my.trash, ...myBeatEND];
+          myTrashBeat = [...myEndState.trash, ...myBeatEND];
           appendBattleLogs([`ビートゾーン（${myBeatEND.length}枚）をトラッシュへ`]);
           myBeatEND = [];
         }
@@ -3395,11 +3409,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 公式ルール：エンドフェイズは ①「ターン終了時に」効果 → ②手札上限調整(6枚) → ③ターン終了 の順。
         // 手札を増やす効果（ドロー／トラッシュ→手札）も②より前に解決する必要があるため、ここで一括処理する。
         // ※標準の timing:ON_TURN_END 効果は上の collectTurnTriggers でスタック解決済み（同じく②より前）。
-        let myHandEND = my.hand;
-        let myDeckPreLimit = my.deck;
-        let myFieldAfterCoinCheck = { ...my.field, beat_zone: myBeatEND };
+        let myHandEND = myEndState.hand;
+        let myDeckPreLimit = myEndState.deck;
+        let myFieldAfterCoinCheck = { ...myEndState.field, beat_zone: myBeatEND };
         let myTrashAfterCoinCheck = myTrashBeat;
-        let myExcludedEND = my.excluded;
+        let myExcludedEND = myEndState.excluded;
         if ((my.turn_end_mill_count ?? 0) > 0) {
           const resolved = resolveTurnEndPreventionMill({ ...my, deck: myDeckPreLimit, trash: myTrashAfterCoinCheck });
           myDeckPreLimit = resolved.state.deck;
@@ -3497,7 +3511,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           await persist.commit(reduceBattle(bs, {
             type: 'WRITE_STATE', myKey: stateKey,
             myState: {
-              ...my,
+              ...myEndState,
               hand: myHandEND, deck: myDeckPreLimit,
               trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
               excluded: myExcludedEND, pending_exile_nums: undefined,
@@ -3508,6 +3522,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               flip_attack_signi_zones: undefined,
               end_turn_effects_resolved: true,
             },
+            opp: { key: isHost ? 'guest_state' : 'host_state', state: opEndState },
           }));
           openEndDiscard(myHandEND.length - handLimitEND);
           return; // ユーザー選択後に confirmEndDiscard で処理
@@ -3516,7 +3531,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
         newMyState = clearEndOfTurnDelayedTriggers({
-          ...my,
+          ...myEndState,
           hand: myHandEND,
           deck: myDeckPreLimit,
           trash: myTrashAfterCoinCheck,
@@ -3633,7 +3648,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opKey = isHost ? 'guest_state' : 'host_state';
         // 遅延自己除外は非ターンプレイヤー側にも適用（WX16-040/WD22-035-G 等は相手ターン中に蘇生
         // →そのターン終了時に除外、が主用途。ターンプレイヤー側だけだと1ターン生き延びる）。
-        const opState = resolvePendingExiles(isHost ? bs.guest_state : bs.host_state, true);
+        const opState = resolvePendingExiles(opEndState, true);
         const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
         const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
         const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
@@ -3849,25 +3864,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const stateKey = isHost ? 'host_state' : 'guest_state';
+      // 通常は doPhaseAdvance が先に消費済み。直接この経路へ来ても両者の予約を落とさないため冪等に再適用する。
+      const facedownMyEND = resolveTurnEndFacedownReturns(my);
+      const facedownOpEND = resolveTurnEndFacedownReturns(op);
+      const myEndState = facedownMyEND.state;
+      const opEndState = facedownOpEND.state;
 
       // ビートゾーンをトラッシュへ（doPhaseAdvance と同じ処理）
-      const myBeatEND = my.field.beat_zone ?? [];
-      let myTrashBeat = my.trash;
+      const myBeatEND = myEndState.field.beat_zone ?? [];
+      let myTrashBeat = myEndState.trash;
       if (myBeatEND.length > 0) {
-        myTrashBeat = [...my.trash, ...myBeatEND];
+        myTrashBeat = [...myEndState.trash, ...myBeatEND];
         appendBattleLogs([`ビートゾーン（${myBeatEND.length}枚）をトラッシュへ`]);
       }
 
       // 選択されたカードを捨てる
-      const discardNums = [...selectedEndDiscard].map(i => my.hand[i]);
-      let myHandEND = my.hand.filter((_, i) => !selectedEndDiscard.has(i));
+      const discardNums = [...selectedEndDiscard].map(i => myEndState.hand[i]);
+      let myHandEND = myEndState.hand.filter((_, i) => !selectedEndDiscard.has(i));
       const myTrashEND = [...myTrashBeat, ...discardNums];
-      appendBattleLogs([`手札上限超過（${my.hand.length}枚→${myHandEND.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
+      appendBattleLogs([`手札上限超過（${myEndState.hand.length}枚→${myHandEND.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
 
       // ターン終了時に効果（コイン/場トラッシュ/トラッシュ→手札/フリップ復元）。
       // doPhaseAdvance（ENDフェーズ①）で解決済み（end_turn_effects_resolved）の場合は再実行しない
       // ＝手札上限超過でここに来たケースは常に解決済み。未解決の防御として個別ガードを付ける。
-      let myFieldAfterCoinCheck = { ...my.field, beat_zone: [] as string[] };
+      let myFieldAfterCoinCheck = { ...myEndState.field, beat_zone: [] as string[] };
       let myTrashAfterCoinCheck = myTrashEND;
       // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
       if (!my.end_turn_effects_resolved && (my.coin_condition_signi_instances ?? []).length > 0) {
@@ -3934,7 +3954,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
       let newMyState: typeof my = clearEndOfTurnDelayedTriggers({
-        ...my,
+        ...myEndState,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
         field: myFieldAfterCoinCheck,
@@ -3995,7 +4015,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
       // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）
-      const opState = resolvePendingExiles(isHost ? bs.guest_state : bs.host_state, true);
+      const opState = resolvePendingExiles(opEndState, true);
       const curSigniDown   = opState.field.signi_down   ?? [false, false, false];
       const curSigniFrozen = opState.field.signi_frozen  ?? [false, false, false];
       const curLrigFrozen  = opState.field.lrig_frozen   ?? false;
@@ -10188,46 +10208,48 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return; // 解決後に再度この END 分岐へ入り、マーカー済みなので素通りして後始末へ進む
         }
       }
-      const curHuDown   = huSt.field.signi_down   ?? [false, false, false];
-      const curHuFrozen = huSt.field.signi_frozen  ?? [false, false, false];
-      const curHuLrigFrozen = huSt.field.lrig_frozen ?? false;
-      const curHuAssistLFrozen = huSt.field.assist_lrig_l_frozen ?? false;
-      const curHuAssistRFrozen = huSt.field.assist_lrig_r_frozen ?? false;
-      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huSt,
+      const cpuEndState = resolveTurnEndFacedownReturns(cpuSt).state;
+      const huEndState = resolveTurnEndFacedownReturns(huSt).state;
+      const curHuDown   = huEndState.field.signi_down   ?? [false, false, false];
+      const curHuFrozen = huEndState.field.signi_frozen  ?? [false, false, false];
+      const curHuLrigFrozen = huEndState.field.lrig_frozen ?? false;
+      const curHuAssistLFrozen = huEndState.field.assist_lrig_l_frozen ?? false;
+      const curHuAssistRFrozen = huEndState.field.assist_lrig_r_frozen ?? false;
+      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({ ...huEndState,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
-        life_crashed_last_turn: huSt.life_crashed_this_turn ?? 0,
+        life_crashed_last_turn: huEndState.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
         field: {
-        ...huSt.field,
+        ...huEndState.field,
         // 凍結中のシグニはアップしない（frozen=true かつ down=true はそのまま残す）
         signi_down:   curHuDown.map((d, i) => d && curHuFrozen[i]) as boolean[],
         signi_frozen: [false, false, false] as boolean[],
-        lrig_down:    (huSt.field.lrig_down ?? false) && curHuLrigFrozen,
+        lrig_down:    (huEndState.field.lrig_down ?? false) && curHuLrigFrozen,
         lrig_frozen:  false,
-        assist_lrig_l_down: (huSt.field.assist_lrig_l_down ?? false) && curHuAssistLFrozen,
-        assist_lrig_r_down: (huSt.field.assist_lrig_r_down ?? false) && curHuAssistRFrozen,
+        assist_lrig_l_down: (huEndState.field.assist_lrig_l_down ?? false) && curHuAssistLFrozen,
+        assist_lrig_r_down: (huEndState.field.assist_lrig_r_down ?? false) && curHuAssistRFrozen,
         assist_lrig_l_frozen: false,
         assist_lrig_r_frozen: false,
       }}).state));
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
-      let cpuHandEND = cpuSt.hand;
-      let cpuDeckEND = cpuSt.deck;
-      if ((cpuSt.turn_end_draw_count ?? 0) > 0) {
-        const drawnCPU = cpuDeckEND.slice(0, cpuSt.turn_end_draw_count);
-        cpuDeckEND = cpuDeckEND.slice(cpuSt.turn_end_draw_count);
+      let cpuHandEND = cpuEndState.hand;
+      let cpuDeckEND = cpuEndState.deck;
+      if ((cpuEndState.turn_end_draw_count ?? 0) > 0) {
+        const drawnCPU = cpuDeckEND.slice(0, cpuEndState.turn_end_draw_count);
+        cpuDeckEND = cpuDeckEND.slice(cpuEndState.turn_end_draw_count);
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
       const cleanCpuSt: PlayerState = resolvePendingExiles(clearEndOfTurnDelayedTriggers({
-        ...cpuSt,
+        ...cpuEndState,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
-        life_crashed_last_turn: cpuSt.life_crashed_this_turn ?? 0,
+        life_crashed_last_turn: cpuEndState.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
@@ -10235,10 +10257,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
-        prevent_damage_windows: advancePreventDamageWindows(cpuSt.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
+        prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
-        cost_modifiers: (cpuSt.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
-        lrig_granted_auto_effects: cpuSt.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
+        cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
+        lrig_granted_auto_effects: cpuEndState.lrig_granted_auto_effects?.filter(e => e.permanentGrant),
         opp_guard_extra_colorless_this_turn: undefined,
         holograph_reveal_replace_this_turn: undefined,
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,

@@ -15,6 +15,12 @@ import {
   hasNoAbility,
   buildFrontPowerGatedKeywordGrant,
 } from './execUtils';
+import {
+  markTurnEndFacedownTrashIfOccupied,
+  moveFieldSigniFacedown,
+  resolveOpponentAttackFacedownReturns,
+  scheduleTurnEndFacedownReturns,
+} from './facedownSigni';
 
 export function execStubPart2(
   stub: StubAction,
@@ -1520,15 +1526,13 @@ export function execStubPart2(
     }
     return done(addLog(ctx, 'ガードカード（NON_GUARD_DISCARD_TO_ENERGY）'));
   }
-  // ゾーンが空いているときトラッシュ（条件付き）
+  // この方法で裏向きにしたカードの元ゾーンがターン終了時に埋まっていればトラッシュ
   if (stub.id === 'TRASH_IF_ZONE_OCCUPIED') {
-    const emptyZoneTIZO = ctx.ownerState.field.signi.findIndex(z => !z || z.length === 0);
-    if (emptyZoneTIZO < 0 && ctx.sourceCardNum && ctx.ownerState.field.signi.some(s => s?.at(-1) === ctx.sourceCardNum)) {
-      const removedTIZO = removeFromField(ctx.sourceCardNum, ctx.ownerState);
-      return done(addLog({ ...ctx, ownerState: { ...removedTIZO, trash: [...removedTIZO.trash, ctx.sourceCardNum] } },
-        `${ctx.cardMap.get(ctx.sourceCardNum)?.CardName ?? ctx.sourceCardNum}→トラッシュ（ゾーン満杯）`));
-    }
-    return done(addLog(ctx, 'ゾーン空きあり（TRASH_IF_ZONE_OCCUPIED）'));
+    const targetsTIZO = ctx.lastProcessedCards ?? [];
+    const ownerTIZO = markTurnEndFacedownTrashIfOccupied(ctx.ownerState, targetsTIZO);
+    const otherTIZO = markTurnEndFacedownTrashIfOccupied(ctx.otherState, targetsTIZO);
+    return done(addLog({ ...ctx, ownerState: ownerTIZO, otherState: otherTIZO },
+      targetsTIZO.length > 0 ? 'ターン終了時：元ゾーン占有時トラッシュを予約' : '占有時トラッシュ対象なし'));
   }
   // 条件付きトラッシュ→エナ（センタールリグ名条件付き）
   if (stub.id === 'CONDITIONAL_TRASH_TO_ENERGY') {
@@ -3755,7 +3759,7 @@ export function execStubPart2(
       `${ctx.cardMap.get(getCardNum(pfTH.cardNum))?.CardName ?? pfTH.cardNum}を手札に加える`));
   }
 
-  // 裏向き系（face_down_signi + abilities_removed で近似実装済み）
+  // 裏向き系（field.facedown_signi へ移し、場のシグニとして扱わない）
   // REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除
   if (stub.id === 'REMOVE_SIGNI_ZONE') {
     // 対戦相手のゾーン選択（CHOOSEインタラクション）
@@ -4174,56 +4178,102 @@ export function execStubPart2(
   }
   // SIGNI_FLIP_FACEDOWN: 自シグニ（または相手lastProcessed）を裏向きにする
   if (stub.id === 'SIGNI_FLIP_FACEDOWN') {
+    if (stub.faceDownTarget) {
+      const specSFD = stub.faceDownTarget;
+      if (specSFD.delayUntilTurnEnd) {
+        if (specSFD.owner !== 'self' || specSFD.count !== 'ALL' || specSFD.returnTiming !== 'NEXT_OPP_ATTACK_PHASE_START') {
+          return done(addLog({ ...ctx, lastProcessedCards: [] }, '未対応の遅延裏向き対象'));
+        }
+        const requestSFD = {
+          sourceCardNum: ctx.sourceCardNum ?? '',
+          returnTiming: specSFD.returnTiming,
+        } as const;
+        if (!requestSFD.sourceCardNum) return done(addLog({ ...ctx, lastProcessedCards: [] }, '遅延裏向き：効果元なし'));
+        const requestsSFD = [...(ctx.ownerState.turn_end_facedown_all ?? []), requestSFD];
+        return done(addLog({
+          ...ctx,
+          ownerState: { ...ctx.ownerState, turn_end_facedown_all: requestsSFD },
+          lastProcessedCards: [],
+        }, 'ターン終了時：自分のすべてのシグニを裏向きにする予約'));
+      }
+      const targetStateSFD = specSFD.owner === 'self' ? ctx.ownerState : ctx.otherState;
+      let candsSFD = targetStateSFD.field.signi
+        .map(stack => stack?.at(-1))
+        .filter((cn): cn is string => !!cn);
+      if (specSFD.frontOfSelf) {
+        const sourceZoneSFD = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === ctx.sourceCardNum);
+        const frontSFD = sourceZoneSFD >= 0 ? ctx.otherState.field.signi[2 - sourceZoneSFD]?.at(-1) : undefined;
+        candsSFD = frontSFD ? [frontSFD] : [];
+      }
+      const selectedSFD = (ctx.lastProcessedCards ?? []).filter(cn => candsSFD.includes(cn));
+      const autoSFD = specSFD.frontOfSelf || specSFD.count === 'ALL';
+      if (!autoSFD && selectedSFD.length === 0) {
+        const maxSFD = typeof specSFD.count === 'number' ? specSFD.count : candsSFD.length;
+        if (candsSFD.length === 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, '裏向きにできる対象なし'));
+        return selectOrInteract(
+          candsSFD,
+          maxSFD,
+          specSFD.upToCount === true,
+          specSFD.owner === 'self' ? 'self_field' : 'opp_field',
+          stub as EffectAction,
+          undefined,
+          { ...ctx, lastProcessedCards: [] },
+        );
+      }
+      const targetsSFD = autoSFD ? candsSFD : selectedSFD;
+      let nextStateSFD = targetStateSFD;
+      const movedSFD: string[] = [];
+      for (const targetSFD of targetsSFD) {
+        const moved = moveFieldSigniFacedown(nextStateSFD, targetSFD);
+        nextStateSFD = moved.state;
+        if (moved.target) movedSFD.push(targetSFD);
+      }
+      const nextCtxSFD = specSFD.owner === 'self'
+        ? { ...ctx, ownerState: nextStateSFD, lastProcessedCards: movedSFD }
+        : { ...ctx, otherState: nextStateSFD, lastProcessedCards: movedSFD };
+      return done(addLog(nextCtxSFD, movedSFD.length > 0
+        ? `${movedSFD.length}体のシグニを裏向きに`
+        : '裏向きにできる対象なし'));
+    }
     const srcSFD = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!srcSFD) return done(addLog(ctx, '裏向き: ソースなし'));
-    // 自フィールドにいれば ownerState、相手フィールドにいれば otherState に追加
+    // 自フィールドにいれば ownerState、相手フィールドにいれば otherState を移動
     const inOwnerSFD = ctx.ownerState.field.signi.some(s => s?.includes(srcSFD));
     if (inOwnerSFD) {
-      const newFaceSFD = [...new Set([...(ctx.ownerState.face_down_signi ?? []), srcSFD])];
-      const newAbilSFD = [...new Set([...(ctx.ownerState.abilities_removed ?? []), srcSFD])];
-      return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, face_down_signi: newFaceSFD, abilities_removed: newAbilSFD } },
-        `${ctx.cardMap.get(srcSFD)?.CardName ?? srcSFD}を裏向きに`));
+      const movedSFD = moveFieldSigniFacedown(ctx.ownerState, srcSFD);
+      return done(addLog({ ...ctx, ownerState: movedSFD.state }, movedSFD.target
+        ? `${ctx.cardMap.get(getCardNum(srcSFD))?.CardName ?? srcSFD}を裏向きに`
+        : '裏向きにできる対象なし'));
     }
-    const newFaceOppSFD = [...new Set([...(ctx.otherState.face_down_signi ?? []), srcSFD])];
-    const newAbilOppSFD = [...new Set([...(ctx.otherState.abilities_removed ?? []), srcSFD])];
-    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, face_down_signi: newFaceOppSFD, abilities_removed: newAbilOppSFD } },
-      `${ctx.cardMap.get(srcSFD)?.CardName ?? srcSFD}を裏向きに`));
+    const movedOppSFD = moveFieldSigniFacedown(ctx.otherState, srcSFD);
+    return done(addLog({ ...ctx, otherState: movedOppSFD.state }, movedOppSFD.target
+      ? `${ctx.cardMap.get(getCardNum(srcSFD))?.CardName ?? srcSFD}を裏向きに`
+      : '裏向きにできる対象なし'));
   }
-  // FLIP_FACE_DOWN_SIGNI: 裏向きシグニを表向きに戻す（"この方法で裏向きにしたシグニを表向きにする"）
+  // RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS: 次の対戦相手アタックフェイズ開始時の合成トリガー。
+  if (stub.id === 'RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS') {
+    const resolvedOAF = resolveOpponentAttackFacedownReturns(ctx.ownerState);
+    return done(addLog({ ...ctx, ownerState: resolvedOAF.state }, resolvedOAF.flipped.length > 0
+      ? `裏向きシグニ${resolvedOAF.flipped.length}体を表向きに`
+      : '表向きにできる裏向きシグニなし'));
+  }
+  // FLIP_FACE_DOWN_SIGNI: この方法で裏向きにした対象だけをターン終了時の表向き復帰へ予約
   if (stub.id === 'FLIP_FACE_DOWN_SIGNI') {
-    const faceDownFBSFD = ctx.ownerState.face_down_signi ?? [];
-    const oppFaceDownFBSFD = ctx.otherState.face_down_signi ?? [];
-    if (faceDownFBSFD.length === 0 && oppFaceDownFBSFD.length === 0) {
-      return done(addLog(ctx, '裏向きシグニなし（flip-back不要）'));
-    }
-    let newOwnerFBSFD = ctx.ownerState;
-    let newOtherFBSFD = ctx.otherState;
-    if (faceDownFBSFD.length > 0) {
-      newOwnerFBSFD = {
-        ...newOwnerFBSFD,
-        face_down_signi: [],
-        abilities_removed: (newOwnerFBSFD.abilities_removed ?? []).filter(cn => !faceDownFBSFD.includes(cn)),
-      };
-    }
-    if (oppFaceDownFBSFD.length > 0) {
-      newOtherFBSFD = {
-        ...newOtherFBSFD,
-        face_down_signi: [],
-        abilities_removed: (newOtherFBSFD.abilities_removed ?? []).filter(cn => !oppFaceDownFBSFD.includes(cn)),
-      };
-    }
+    const targetsFBSFD = ctx.lastProcessedCards ?? [];
+    const newOwnerFBSFD = scheduleTurnEndFacedownReturns(ctx.ownerState, targetsFBSFD);
+    const newOtherFBSFD = scheduleTurnEndFacedownReturns(ctx.otherState, targetsFBSFD);
     return done(addLog({ ...ctx, ownerState: newOwnerFBSFD, otherState: newOtherFBSFD },
-      `裏向きシグニ${faceDownFBSFD.length + oppFaceDownFBSFD.length}体を表向きに`));
+      targetsFBSFD.length > 0 ? `裏向きシグニ${targetsFBSFD.length}体のターン終了時復帰を予約` : '裏向き復帰対象なし'));
   }
   // FACE_DOWN_OPP_SIGNI: 相手シグニを対象選択→裏向きにする
   if (stub.id === 'FACE_DOWN_OPP_SIGNI') {
     // lastProcessedCardsが既にある場合はそれを使用（他STUBから連鎖）
     const preselectedFDOS = ctx.lastProcessedCards?.[0];
     if (preselectedFDOS && ctx.otherState.field.signi.some(s => s?.at(-1) === preselectedFDOS)) {
-      const newFaceFDOS = [...new Set([...(ctx.otherState.face_down_signi ?? []), preselectedFDOS])];
-      const newAbilFDOS = [...new Set([...(ctx.otherState.abilities_removed ?? []), preselectedFDOS])];
-      return done(addLog({ ...ctx, otherState: { ...ctx.otherState, face_down_signi: newFaceFDOS, abilities_removed: newAbilFDOS } },
-        `${ctx.cardMap.get(preselectedFDOS)?.CardName ?? preselectedFDOS}を裏向きに`));
+      const movedFDOS = moveFieldSigniFacedown(ctx.otherState, preselectedFDOS);
+      return done(addLog({ ...ctx, otherState: movedFDOS.state }, movedFDOS.target
+        ? `${ctx.cardMap.get(getCardNum(preselectedFDOS))?.CardName ?? preselectedFDOS}を裏向きに`
+        : '裏向きにできる対象なし'));
     }
     // 相手シグニを選択
     const candsFDOS = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);

@@ -1097,6 +1097,14 @@ function actionJa(a?: Action, effectType?: string): string {
           && a.steps[1]?.then?.type === 'BANISH') {
         return `${actionJa(a.steps[0])}。そうした場合、それをバニッシュする`;
       }
+      // 裏向き化を任意にする形。OPTIONAL_ACTIVATE は制御用なので、逆翻訳では
+      // 後続の「裏向きにする」へ「てもよい」を戻して原文の1文として描く。
+      if (a.steps.length === 3 && a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'OPTIONAL_ACTIVATE'
+          && a.steps[1]?.type === 'STUB' && a.steps[1].id === 'SIGNI_FLIP_FACEDOWN'
+          && a.steps[1].faceDownTarget?.upToCount
+          && a.steps[2]?.type === 'STUB' && a.steps[2].id === 'FLIP_FACE_DOWN_SIGNI') {
+        return `${actionJa(a.steps[1]).replace(/にする$/, 'にしてもよい')}。${actionJa(a.steps[2])}`;
+      }
       // DO_THREE_THINGS が先頭のSEQUENCEは、その1STUBが原文「N つを行う。①②③」全体を表現し、
       // 後続 step は parser の冗長な再パース（②③の consequence を重複描画）なので先頭のみ描画する。
       if (a.steps[0]?.type === 'STUB' && a.steps[0]?.id === 'DO_THREE_THINGS') {
@@ -2387,9 +2395,25 @@ function actionJa(a?: Action, effectType?: string): string {
           ?? currentCardText.match(/[^。：]*?は「[\s\S]+?」を得る(?:。（[^）]*）)?/);
         if (m) return m[0];
       }
+      if (a.id === 'SIGNI_FLIP_FACEDOWN' && a.faceDownTarget) {
+        if (a.faceDownTarget.delayUntilTurnEnd && a.faceDownTarget.returnTiming === 'NEXT_OPP_ATTACK_PHASE_START') {
+          return 'このターン終了時、あなたのすべてのシグニを裏向きにする。次の対戦相手のアタックフェイズ開始時、この方法で裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする';
+        }
+        if (a.faceDownTarget.frontOfSelf && a.faceDownTarget.owner === 'opponent') {
+          return 'このシグニの正面のシグニ１体を対象とし、それを裏向きにする';
+        }
+        if (a.faceDownTarget.owner === 'self') {
+          const count = a.faceDownTarget.count === 'ALL' ? 'すべての' : `${numJa(a.faceDownTarget.count)}体${a.faceDownTarget.upToCount ? 'まで' : ''}`;
+          return `あなたのシグニを${count}対象とし、それらを裏向きにする`;
+        }
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        FACE_DOWN_OPP_SIGNI: '対戦相手のシグニ１体を対象とし、それを裏向きにする',
+        SIGNI_FLIP_FACEDOWN: '対象としたシグニを裏向きにする',
+        FLIP_FACE_DOWN_SIGNI: 'このターン終了時、この方法で裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする',
+        TRASH_IF_ZONE_OCCUPIED: '同じ場所にシグニがある場合、トラッシュに置く',
         WHITE_SIGNI_ABILITY_PROTECT: 'あなたの白のシグニは対戦相手の効果によって能力を失わない',
         SIGNI_PROTECT_MOVE_EXCEPT_ENERGY: 'このシグニは対戦相手の効果によって場からエナゾーン以外の領域に移動しない',
         RESTRICT_CHARMED_SIGNI_ACTIVATED: '対戦相手は【チャーム】が付いているシグニの【起】能力を使用できない',

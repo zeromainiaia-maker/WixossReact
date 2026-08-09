@@ -71,6 +71,7 @@ import { hasApplicableAssassin } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
+import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -27865,6 +27866,145 @@ test('wave3 C2 WXDi-D01-004-E2: 置かれた2枚に共通クラスが無いと�
   eq(resolve([same.CardNum, different.CardNum]).ownerState.energy.length, 3, '異クラス2枚なら2+追加1');
   eq(resolve([same.CardNum, same2.CardNum]).ownerState.energy.length, 2, '共通クラスありなら2だけ');
   const spells = wave3Cards(c => c.Type === 'スペル' && c.CardClass === '-', 2); eq(resolve(spells).ownerState.energy.length, 3, 'クラス無し2枚は「共通クラスなし」');
+}));
+
+test('§6.3 C final WXDi-P09-034-E1: 相手シグニは解決直後も裏向きで、ターン終了時に元ゾーンの空き／占有へ分岐する', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P09-034') ?? []).find(e => e.effectId === 'WXDi-P09-034-E1');
+  ok(!!effect, 'live効果が存在する');
+  const target = SIGNI_L2;
+  const unrelatedFacedown = SIGNI_L3;
+  const blocker = SIGNI_L4;
+  const resolveEffect = () => {
+    const ctx = mkCtx({}, { signi: [target, null, null] }, 'WXDi-P09-034');
+    ctx.otherState.field.facedown_signi = [null, unrelatedFacedown, null];
+    return finishPayingCosts(executeEffect(effect!, ctx), ctx);
+  };
+
+  const after = resolveEffect();
+  ok(after.done, '対象選択を含めて効果解決が完了する');
+  eq(after.otherState.field.signi[0], null, '解決直後は元ゾーンが空く');
+  eq(after.otherState.field.facedown_signi?.[0], target, '解決直後も対象は裏向きのまま（即時復帰しない）');
+  eq(after.otherState.field.facedown_signi?.[1], unrelatedFacedown, '別効果の裏向きカードを巻き込まない');
+  eq(JSON.stringify(after.otherState.turn_end_facedown_signi_returns), JSON.stringify([
+    { cardNum: target, zoneIndex: 0, trashIfOccupied: true },
+  ]), 'この方法で裏向きにした1体と元ゾーンだけを予約する');
+
+  const emptyEnd = resolveTurnEndFacedownReturns(after.otherState).state;
+  eq(emptyEnd.field.signi[0]?.at(-1), target, 'ターン終了時、元ゾーンが空なら表向きに戻る');
+  eq(emptyEnd.field.facedown_signi?.[0], null, '表向き化で裏向き枠を空ける');
+  eq(emptyEnd.field.facedown_signi?.[1], unrelatedFacedown, '成立側でも無関係な裏向きカードは残る');
+
+  const occupiedBefore = resolveEffect().otherState;
+  occupiedBefore.field = { ...occupiedBefore.field, signi: [[blocker], null, null] };
+  const occupiedEnd = resolveTurnEndFacedownReturns(occupiedBefore).state;
+  eq(occupiedEnd.field.signi[0]?.at(-1), blocker, 'ターン終了時、元ゾーンの新しいシグニを残す');
+  ok(occupiedEnd.trash.includes(target), '元ゾーンが埋まっていれば裏向き対象をトラッシュへ置く');
+  eq(occupiedEnd.field.facedown_signi?.[0], null, 'トラッシュ分岐でも裏向き枠を空ける');
+}));
+
+test('§6.3 C final WXDi-P05-037-E2: 《青青》支払い時だけ正面の相手シグニを遅延フリップバックする', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P05-037') ?? []).find(e => e.effectId === 'WXDi-P05-037-E2');
+  ok(!!effect, 'live効果が存在する');
+  const [blue1, blue2] = wave3Color('青', 2);
+  const front = SIGNI_L2;
+  const nonFront = SIGNI_L3;
+  const source = 'WXDi-P05-037';
+  const resolveEffect = (canPay: boolean) => {
+    const ctx = mkCtx({ signi: [null, source, null], energy: 0 }, { signi: [nonFront, front, null] }, source);
+    ctx.ownerState.energy = canPay ? [blue1, blue2] : [];
+    return finishPayingCosts(executeEffect(effect!, ctx), ctx);
+  };
+
+  const paid = resolveEffect(true);
+  eq(paid.ownerState.energy.length, 0, '成立側は《青青》を実際に支払う');
+  eq(paid.otherState.field.signi[1], null, '正面ゾーンだけが空く');
+  eq(paid.otherState.field.facedown_signi?.[1], front, '解決直後は正面シグニが裏向きのまま');
+  eq(paid.otherState.field.signi[0]?.at(-1), nonFront, '正面でない相手シグニを巻き込まない');
+  const paidEnd = resolveTurnEndFacedownReturns(paid.otherState).state;
+  eq(paidEnd.field.signi[1]?.at(-1), front, 'ターン終了時、正面だった元ゾーンが空なら表向きに戻る');
+
+  const unpaid = resolveEffect(false);
+  eq(unpaid.otherState.field.signi[1]?.at(-1), front, '《青青》を支払えない不成立側は対象を裏向きにしない');
+  eq(unpaid.otherState.turn_end_facedown_signi_returns, undefined, '不成立側は復帰予約も作らない');
+}));
+
+test('§6.3 C final WXDi-P01-040-E2: 自シグニ2体までを任意で裏向きにし、占有時もトラッシュしない', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P01-040') ?? []).find(e => e.effectId === 'WXDi-P01-040-E2');
+  ok(!!effect, 'live効果が存在する');
+  const source = 'WXDi-P01-040';
+  const other = SIGNI_L2;
+  const untouched = SIGNI_L3;
+  const blocker = SIGNI_L4;
+  const mk = () => mkCtx({ signi: [source, other, untouched] }, {}, source);
+
+  const paidCtx = mk();
+  const paid = finishPayingCosts(executeEffect(effect!, paidCtx), paidCtx);
+  eq(paid.ownerState.field.facedown_signi?.filter(Boolean).length, 2, '成立側は上限2体を裏向きにできる');
+  eq(paid.ownerState.field.signi.filter(Boolean).length, 1, '対象にしなかった3体目は表向きで残る');
+  eq(paid.ownerState.field.signi[2]?.at(-1), untouched, '非対象を巻き込まない');
+  eq(paid.ownerState.turn_end_facedown_signi_returns?.length, 2, 'この方法で裏向きにした2体だけを予約する');
+
+  const occupied = paid.ownerState;
+  occupied.field = { ...occupied.field, signi: [[blocker], null, occupied.field.signi[2]] };
+  const atEnd = resolveTurnEndFacedownReturns(occupied).state;
+  eq(atEnd.field.signi[0]?.at(-1), blocker, '占有された元ゾーンの新しいシグニを残す');
+  eq(atEnd.field.facedown_signi?.[0], source, 'トラッシュ節が無いため占有時は裏向き対象をそのまま残す');
+  ok(!atEnd.trash.includes(source), '占有時も対象を勝手にトラッシュしない');
+  eq(atEnd.field.signi[1]?.at(-1), other, '空いている元ゾーンの対象だけ表向きに戻る');
+  eq(atEnd.turn_end_facedown_signi_returns, undefined, '一度きりのターン終了予約は消費する');
+
+  const skipCtx = mk();
+  const offered = executeEffect(effect!, skipCtx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '「してもよい」の発動／不発動を提示する');
+  if (offered.done || offered.pending.type !== 'CHOOSE') return;
+  const skipState: ExecCtx = { ...skipCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs };
+  const skipped = resumeChoose('skip', offered.pending, skipState);
+  ok(skipped.done, '発動しない選択を完走する');
+  eq(skipped.ownerState.field.signi[0]?.at(-1), source, '不成立側は自身を表向きで残す');
+  eq(skipped.ownerState.field.signi[1]?.at(-1), other, '不成立側は他の自シグニも表向きで残す');
+  eq(skipped.ownerState.turn_end_facedown_signi_returns, undefined, '不成立側は復帰予約を作らない');
+}));
+
+test('§6.3 C final WXDi-P09-009-E3: 終了時に全自シグニを裏向き化し、次の相手アタックフェイズ開始時に戻す', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P09-009') ?? []).find(e => e.effectId === 'WXDi-P09-009-E3');
+  ok(!!effect, 'live効果が存在する');
+  const source = 'WXDi-P09-009';
+  const own = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const installCtx = mkCtx({ signi: own }, {}, source);
+  const installed = finish(executeEffect(effect!, installCtx), installCtx);
+  eq(installed.ownerState.field.signi.filter(Boolean).length, 3, '起動解決直後はまだ全シグニが表向き');
+  eq(installed.ownerState.field.facedown_signi?.filter(Boolean).length ?? 0, 0, '起動解決直後に先走って裏向きにしない');
+  eq(installed.ownerState.turn_end_facedown_all?.length, 1, 'このターン終了時の1段目だけを予約する');
+
+  const turnEnd = resolveTurnEndFacedownReturns(installed.ownerState).state;
+  eq(turnEnd.field.signi.filter(Boolean).length, 0, 'このターン終了時に全自シグニが場のシグニでなくなる');
+  eq(turnEnd.field.facedown_signi?.filter(Boolean).length, 3, 'このターン終了時に3体すべてを裏向きで保持する');
+  eq(turnEnd.pending_opponent_attack_facedown_returns?.length, 3, '次の対戦相手アタックフェイズへ3体の元ゾーンを持ち越す');
+  eq(turnEnd.turn_end_facedown_all, undefined, '1段目のターン終了予約は消費する');
+
+  const opponent = mkState({});
+  const beforeAttack = collectTurnTriggers(trigCtx(GUEST, GUEST), 'ON_MAIN_PHASE_START', opponent, turnEnd);
+  ok(!beforeAttack.entries.some(e => e.effectId.startsWith('OPP_ATTACK_FACEDOWN_FLIPS:')), '相手メインフェイズ開始時にはまだ戻さない');
+  const attackStart = collectTurnTriggers(trigCtx(GUEST, GUEST), 'ON_ATTACK_PHASE_START', opponent, turnEnd);
+  const entry = attackStart.entries.find(e => e.effectId.startsWith('OPP_ATTACK_FACEDOWN_FLIPS:'));
+  ok(!!entry, '次の対戦相手アタックフェイズ開始時に非ターンプレイヤー側の予約を収集する');
+  eq(entry?.playerId, HOST, '合成効果の解決主体は裏向きシグニの所有者');
+  const fireCtx = { ...installCtx, ownerState: turnEnd, otherState: opponent, sourceCardNum: source } as ExecCtx;
+  const returned = finish(executeEffect(entry!.effect, fireCtx), fireCtx);
+  eq(returned.ownerState.field.signi.filter(Boolean).length, 3, '元ゾーンが空なら3体すべて表向きに戻る');
+  eq(returned.ownerState.field.facedown_signi?.filter(Boolean).length ?? 0, 0, '復帰した裏向き枠を空ける');
+  eq(returned.ownerState.pending_opponent_attack_facedown_returns, undefined, '2段目のターン跨ぎ予約を消費する');
+
+  const blockedTurnEnd = resolveTurnEndFacedownReturns(installed.ownerState).state;
+  blockedTurnEnd.field = { ...blockedTurnEnd.field, signi: [[SIGNI_L4], null, null] };
+  const blockedEntry = collectTurnTriggers(trigCtx(GUEST, GUEST), 'ON_ATTACK_PHASE_START', opponent, blockedTurnEnd)
+    .entries.find(e => e.effectId.startsWith('OPP_ATTACK_FACEDOWN_FLIPS:'))!;
+  const blockedCtx = { ...installCtx, ownerState: blockedTurnEnd, otherState: opponent, sourceCardNum: source } as ExecCtx;
+  const blocked = finish(executeEffect(blockedEntry.effect, blockedCtx), blockedCtx);
+  eq(blocked.ownerState.field.signi[0]?.at(-1), SIGNI_L4, '元ゾーンの新しいシグニを残す');
+  eq(blocked.ownerState.field.facedown_signi?.[0], own[0], '元ゾーンが埋まった対象は裏向きのまま残す');
+  ok(!blocked.ownerState.trash.includes(own[0]), '原文に無い占有時トラッシュを足さない');
+  eq(blocked.ownerState.field.signi[1]?.at(-1), own[1], '空いている他ゾーンの対象は表向きに戻る');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

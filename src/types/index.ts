@@ -552,6 +552,14 @@ export interface PlayerState {
   lrig_copy_opp_level_limit?: boolean;             // WXK03-003A: ルリグのレベル・リミットを相手センタールリグからコピー
   lrig_activation_count?: { [cardNum: string]: number }; // WXK03-003A: 特定ルリグ起動能力の使用回数
   flip_attack_signi_zones?: number[];              // WXDi-P05-069: フリップアタックで裏向きにしたゾーン番号
+  // 「この方法で裏向きにしたシグニ」のターン終了時復帰予約。
+  // field.facedown_signi と同じゾーン番号を保持し、別効果で裏向きになったカードを巻き込まない。
+  // trashIfOccupied=false は「同じ場所にシグニがない場合だけ表向き」（場所が埋まっていれば裏向きのまま）。
+  turn_end_facedown_signi_returns?: Array<{ cardNum: string; zoneIndex: number; trashIfOccupied: boolean }>;
+  // 現在ターン終了時に自分の全シグニを裏向きにし、次の対戦相手アタックフェイズ開始時の復帰を予約する。
+  // delayed_triggers はターン境界で消えるため、二重遅延の1段目／2段目を専用の永続フィールドで持つ。
+  turn_end_facedown_all?: Array<{ sourceCardNum: string; returnTiming: 'NEXT_OPP_ATTACK_PHASE_START' }>;
+  pending_opponent_attack_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string }>;
   // TRASH_AT_TURN_END: ターン終了時にフィールドからトラッシュに置くカードのインスタンスID一覧
   turn_end_field_trash_targets?: string[];
   // DRAW_AT_TURN_END: このターン終了時に引くカード枚数（場を離れても引く。WXK01-054/089）。ターン終了時に消化してクリア

@@ -7,6 +7,18 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // §6.3 C 第4波: ターン終了時に全自シグニを裏向き化し、次の対戦相手アタックフェイズ開始時に戻す二重遅延。
+  "WXDi-P09-009": [
+    {"effectId":"WXDi-P09-009-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"STUB","id":"SIGNI_FLIP_FACEDOWN","faceDownTarget":{"owner":"self","count":"ALL","delayUntilTurnEnd":true,"returnTiming":"NEXT_OPP_ATTACK_PHASE_START"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},
+  ],
+  // §6.3 C 第4波: 自シグニを2体まで任意で裏向きにし、ターン終了時に元ゾーンが空の対象だけ戻す。
+  "WXDi-P01-040": [
+    {"effectId":"WXDi-P01-040-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_ACTIVATE"},{"type":"STUB","id":"SIGNI_FLIP_FACEDOWN","faceDownTarget":{"owner":"self","count":2,"upToCount":true}},{"type":"STUB","id":"FLIP_FACE_DOWN_SIGNI"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
+  // §6.3 C 第4波: 正面の相手シグニを任意《青青》支払い後に裏向きにし、ターン終了時に元ゾーンで分岐する。
+  "WXDi-P05-037": [
+    {"effectId":"WXDi-P05-037-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["青","青"]},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"SIGNI_FLIP_FACEDOWN","faceDownTarget":{"owner":"opponent","count":1,"frontOfSelf":true}}},{"type":"STUB","id":"FLIP_FACE_DOWN_SIGNI"},{"type":"STUB","id":"TRASH_IF_ZONE_OCCUPIED"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
   // §6.3 C 第3波: MANUAL 効果は build が curated を温存するため、discardAll の実支払枚数ゲートを完全置換する。
   "WX10-037": [
     {"effectId":"WX10-037-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"discardAll":true},"action":{"type":"CONDITIONAL","condition":{"type":"ACTIVATED_DISCARD_COUNT_GTE","value":4},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},

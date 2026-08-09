@@ -3604,6 +3604,25 @@ export function collectTurnTriggers(
     });
   }
 
+  // WXDi-P09-009: 自ターン終了時に裏向きにした複数シグニを、次の対戦相手アタックフェイズ開始時に戻す。
+  // 予約は非ターンプレイヤー（opState）側にあるため、myState だけを見る既存 pending_facedown_flip とは走査軸が異なる。
+  if (timing === 'ON_ATTACK_PHASE_START' && (opState.pending_opponent_attack_facedown_returns ?? []).length > 0) {
+    const firstOAF = opState.pending_opponent_attack_facedown_returns![0];
+    entries.push({
+      id: ctx.genId(), playerId: opId, cardNum: firstOAF.sourceCardNum,
+      effectId: `OPP_ATTACK_FACEDOWN_FLIPS:${firstOAF.sourceCardNum}`,
+      label: 'この方法で裏向きにしたシグニを表向きにする（対戦相手アタックフェイズ開始時）',
+      effect: {
+        effectId: `OPP_ATTACK_FACEDOWN_FLIPS:${firstOAF.sourceCardNum}`,
+        effectType: 'AUTO',
+        timing: ['ON_ATTACK_PHASE_START'],
+        action: { type: 'STUB', id: 'RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS' } as StubAction,
+        duration: 'INSTANT',
+        mandatory: true,
+      } as CardEffect,
+    });
+  }
+
   const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   // collectTurnTriggers はターンプレイヤー=自分が主体（isOwnerTurn: my=true / op=false）
   const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap, '自');
