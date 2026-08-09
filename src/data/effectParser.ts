@@ -28,7 +28,6 @@ import type {
   StubAction,
   Condition,
   GrantKeywordAction,
-  RemoveAbilitiesAction,
   PowerModifyAction,
   TransferToHandAction,
   AddToFieldAction,
@@ -1856,7 +1855,9 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   [/このシグニがトラッシュから場に出(?:てい)?た場合/,
     () => ({ type: 'THIS_CARD_FROM_TRASH' })],
   [/あなたの場にレベル([０-９\d]+)以上のルリグがいる場合/,
-    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', level: { min: parseNum(g[0]) } } })],
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
+      cardType: ['ルリグ', 'アシストルリグ'], level: { min: parseNum(g[0]) },
+    } })],
   // 「このターンにあなたがスペルを使用していた場合」＝actions_done の 'USE_SPELL' マーカー参照（続き110）。
   // AUTO 効果全体のゲートは hoist（parseBlock 側）が先に処理する＝ここは選択肢内条件（WX25-P2-086/105 の②）と
   // 「代わりに」置換（WX25-P2-108＝matchLeadingStateCondition 経由の per-target 値すり替え）用。
@@ -1981,11 +1982,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   単独 color-lrig 規則より先に置く（先勝ち）。
   [/あなたの場に(白|赤|青|緑|黒)のルリグがいて対戦相手のセンタールリグがレベル([０-９\d]+)以上の場合/,
     g => ({ type: 'AND', conditions: [
-      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', color: g[0] } },
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], color: g[0] } },
       { type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
     ] })],
   [/あなたの場に(白|赤|青|緑|黒)のルリグがいる場合/,
-    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'ルリグ', color: g[0] } })],
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], color: g[0] } })],
   // 「あなたのトラッシュに《X》と《Y》がある場合」＝2枚の名前指定カードがそれぞれトラッシュに有る（AND）。
   //   従来は無条件発火（WX12-043/WX13-077/WXDi-P14-082 等）。decompiler は AND を「かつ」で描画（同型★0 維持済）。
   [/あなたのトラッシュに《([^》]+)》と《([^》]+)》がある場合/,
@@ -10185,10 +10186,18 @@ function parseArtsEffect(card: CardData): CardEffect | null {
     ? withoutPrintedUseCondition.match(/^(?:【使用条件】あなたの場に[^。]+のルリグがいる)?あなたのライフクロスが([０-９\d]+)枚(以上|以下)?の場合、(.+)$/s)
     : null;
   const extractedUse = extractUseCondition(printedLifeM ? printedLifeM[3] : withoutPrintedUseCondition);
+  // 「あなたの場に(色)のルリグがいる」はセンター＋左右アシストを数える。cardType は
+  // matchesFilter で厳密一致するため、CSV 上で別 Type のアシストルリグも配列に明示する。
+  const printedColorLrigCondition: Condition | undefined = printedColorLrig
+    ? {
+        type: 'HAS_CARD_IN_FIELD', owner: 'self',
+        filter: { cardType: ['ルリグ', 'アシストルリグ'], color: printedColorLrig[1] },
+      }
+    : undefined;
   let condition: Condition | undefined = printedColorLrig
     ? (extractedUse.condition
-        ? { type: 'AND', conditions: [{ type: 'LRIG_COLOR', owner: 'self', color: printedColorLrig[1] }, extractedUse.condition] }
-        : { type: 'LRIG_COLOR', owner: 'self', color: printedColorLrig[1] })
+        ? { type: 'AND', conditions: [printedColorLrigCondition!, extractedUse.condition] }
+        : printedColorLrigCondition)
     : extractedUse.condition;
   if (printedLifeM) {
     const lifeCond: Condition = { type: 'LIFE_COUNT', owner: 'self', operator: printedLifeM[2] === '以上' ? 'gte' : printedLifeM[2] === '以下' ? 'lte' : 'eq', value: parseNum(printedLifeM[1]) };
@@ -10209,23 +10218,6 @@ function parseArtsEffect(card: CardData): CardEffect | null {
       : ({ type: 'STUB', id: 'BET_MECHANIC' } as StubAction);
   } else {
     action = parseActionText(condition ? cleaned : stripped);
-  }
-  // 指定キーワードだけを失わせるピースの印刷済み「場に(色)のルリグがいる」は、
-  // センタールリグ限定の LRIG_COLOR ではなくセンター＋左右アシストを走査する。
-  // action の木形で限定し、他の印刷済み使用条件をこのバッチへ巻き込まない。
-  // ⚠ cardType は **配列で 'アシストルリグ' も明示**する＝`matchesFilter` の cardType 照合は
-  //   `types.includes(card.Type)` の厳密一致で（レゾナ→シグニのような緩和は 'シグニ' 向きにしか無い）、
-  //   `'ルリグ'` だけだと CSV の Type が 'アシストルリグ' の 340 枚が落ち、
-  //   `lrigZoneTops` がアシストを走査していても**黙ってセンター限定に戻る**（続き385 検証で発見）。
-  if (printedColorLrig && action.type === 'REMOVE_ABILITIES'
-      && (action as RemoveAbilitiesAction).keywords?.length) {
-    const fieldColorCondition: Condition = {
-      type: 'HAS_CARD_IN_FIELD', owner: 'self',
-      filter: { cardType: ['ルリグ', 'アシストルリグ'], color: printedColorLrig[1] },
-    };
-    condition = extractedUse.condition
-      ? { type: 'AND', conditions: [fieldColorCondition, extractedUse.condition] }
-      : fieldColorCondition;
   }
   // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払いは使用時UIが行うので解決中の重複ステップを落とす。
   action = stripUseTimeCostReductionStep(action, stripped);

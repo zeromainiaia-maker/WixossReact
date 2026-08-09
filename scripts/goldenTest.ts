@@ -12,7 +12,7 @@ import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
 import type { CardData, PlayerState, StackEntry } from '../src/types';
-import type { CardEffect, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
+import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
@@ -13777,18 +13777,20 @@ test('PR-K073-E1: レベル2/3/4の場条件がCHOOSE全体をANDゲートし、
   eq(searchFilter?.cardName, undefined, '包含filterへ反転しない');
 });
 
-test('WXDi-P03-001-E1: 青LRIG使用条件をparserがemitし、evalUseConditionがプレイ可否をゲート', () => {
+test('続き386 群B WXDi-P03-001-E1: 青アシストで使用可、場に青ルリグなしで使用不可', () => withSavedCursor(() => {
   const e = parseCardEffects(cardMap.get('WXDi-P03-001')!)[0];
-  eq(e.condition?.type, 'LRIG_COLOR', 'condition=LRIG_COLOR');
+  eq(e.condition?.type, 'HAS_CARD_IN_FIELD', 'condition=HAS_CARD_IN_FIELD');
   const condition = e.condition!;
-  const blueLrig = findCard(c => c.Type === 'ルリグ' && c.Color?.includes('青'));
-  const redLrig = findCard(c => c.Type === 'ルリグ' && c.Color?.includes('赤') && !c.Color?.includes('青'));
-  const blue = mkState({}); blue.field.lrig = [blueLrig];
-  const red = mkState({}); red.field.lrig = [redLrig];
-  ok(evalUseCondition(condition, blue, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '青LRIGなら使用可');
-  ok(!evalUseCondition(condition, red, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '青でなければ使用不可');
+  const blueAssist = findCard(c => c.Type === 'アシストルリグ' && c.Color === '青');
+  const redCenter = findCard(c => c.Type === 'ルリグ' && c.Color === '赤');
+  const withBlueAssist = mkState({ lrig: [redCenter], assistL: [blueAssist] });
+  const withoutBlue = mkState({ lrig: [redCenter] });
+  ok(evalUseCondition(condition, withBlueAssist, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '青アシストだけで使用可');
+  ok(canUseArtsCondition([e], withBlueAssist, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), 'ピース実使用ゲートも通る');
+  ok(!evalUseCondition(condition, withoutBlue, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '場に青ルリグがなければ使用不可');
+  ok(!canUseArtsCondition([e], withoutBlue, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), 'ピース実使用ゲートも拒否する');
   ok(JSON.stringify(e.action).includes('次のあなたのターン終了時、手札を２枚捨てる'), '遅延効果UNKNOWNは温存');
-});
+}));
 
 test('WDK13-008-E1: 選択肢2だけが相手key_piece条件付きで、HAS_CARD_IN_FIELDがキーを走査', () => {
   const e = parseCardEffects(cardMap.get('WDK13-008')!)[0];
@@ -26469,6 +26471,174 @@ test('続き385 群D WX25-P1-048-E1: 既存実働STUBを借りず専用の未実
   eq(effect.action.type, 'STUB', 'UNKNOWNを宣言STUBへ');
   eq((effect.action as StubAction).id, 'ASSIST_LRIG_ATTACK_THIS_TURN', '専用id');
 });
+
+// ── 続き386：「あなたの場に(色)のルリグがいる」はセンター＋アシストを数える ──
+type Batch386ActionNode = EffectAction & {
+  condition?: Condition;
+  then?: EffectAction;
+  else?: EffectAction;
+  steps?: EffectAction[];
+  choices?: { action: EffectAction }[];
+};
+
+const batch386ActionConditions = (action: EffectAction, out: Condition[] = []): Condition[] => {
+  const node = action as Batch386ActionNode;
+  if (node.condition) out.push(node.condition);
+  if (node.then) batch386ActionConditions(node.then, out);
+  if (node.else) batch386ActionConditions(node.else, out);
+  for (const step of node.steps ?? []) batch386ActionConditions(step, out);
+  for (const choice of node.choices ?? []) batch386ActionConditions(choice.action, out);
+  return out;
+};
+
+const batch386FieldLrigConditions = (condition: Condition, out: Condition[] = []): Condition[] => {
+  const node = condition as Condition & {
+    filter?: { cardType?: string | string[] };
+    conditions?: Condition[];
+  };
+  const types = Array.isArray(node.filter?.cardType) ? node.filter.cardType : [node.filter?.cardType];
+  if (node.type === 'HAS_CARD_IN_FIELD' && types.includes('ルリグ')) out.push(condition);
+  for (const child of node.conditions ?? []) batch386FieldLrigConditions(child, out);
+  return out;
+};
+
+const batch386AssertFieldLrigArrays = (effect: CardEffect, expected: number) => {
+  const all = [effect.condition, ...batch386ActionConditions(effect.action)].filter((c): c is Condition => !!c)
+    .flatMap(c => batch386FieldLrigConditions(c));
+  eq(all.length, expected, `${effect.effectId}: 場のルリグ条件数`);
+  for (const condition of all) {
+    const filter = (condition as Condition & { filter: { cardType: string | string[] } }).filter;
+    eq(JSON.stringify(filter.cardType), JSON.stringify(['ルリグ', 'アシストルリグ']),
+      `${effect.effectId}: センター＋アシストの配列形`);
+  }
+};
+
+const batch386Assist = (color: string) => findCard(c => c.Type === 'アシストルリグ' && c.Color === color);
+const batch386Center = (color: string) => findCard(c => c.Type === 'ルリグ' && c.Color === color);
+const batch386Effect = (cardNum: string, effectId: string) =>
+  parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+
+test('続き386 群A WXDi-P08-001-E1: 青アシストで手札破壊、非該当盤面では不発', () => withSavedCursor(() => {
+  const effect = batch386Effect('WXDi-P08-001', 'WXDi-P08-001-E1');
+  batch386AssertFieldLrigArrays(effect, 3);
+  const yesCtx = mkCtx({ lrig: [batch386Center('赤')], assistL: [batch386Assist('青')] }, { hand: 5 }, 'WXDi-P08-001');
+  const yes = finish(executeEffect(effect, yesCtx), yesCtx);
+  eq(yes.otherState.hand.length, 4, '青アシストだけで青分岐を実行');
+  const noCtx = mkCtx({ lrig: [batch386Center('赤')] }, { hand: 5 }, 'WXDi-P08-001');
+  const no = finish(executeEffect(effect, noCtx), noCtx);
+  eq(no.otherState.hand.length, 5, '青・緑・黒ルリグなしでは全分岐不発');
+}));
+
+test('続き386 群A WXDi-P08-002-E1: 緑アシストでバニッシュ、非該当盤面では不発', () => withSavedCursor(() => {
+  const effect = batch386Effect('WXDi-P08-002', 'WXDi-P08-002-E1');
+  batch386AssertFieldLrigArrays(effect, 3);
+  const yesCtx = mkCtx({ lrig: [batch386Center('赤')], assistL: [batch386Assist('緑')] }, { signi: [SIGNI_P12000, null, null] }, 'WXDi-P08-002');
+  const yes = finish(executeEffect(effect, yesCtx), yesCtx);
+  eq(yes.otherState.field.signi[0], null, '緑アシストだけで緑分岐を実行');
+  const noCtx = mkCtx({ lrig: [batch386Center('赤')] }, { signi: [SIGNI_P12000, null, null] }, 'WXDi-P08-002');
+  const no = finish(executeEffect(effect, noCtx), noCtx);
+  eq(no.otherState.field.signi[0]?.at(-1), SIGNI_P12000, '白・緑・黒ルリグなしでは全分岐不発');
+}));
+
+test('続き386 群A WXDi-P08-003-E1: 黒アシストでデッキ破壊、非該当盤面では不発', () => withSavedCursor(() => {
+  const effect = batch386Effect('WXDi-P08-003', 'WXDi-P08-003-E1');
+  batch386AssertFieldLrigArrays(effect, 3);
+  const yesCtx = mkCtx({ lrig: [batch386Center('青')], assistL: [batch386Assist('黒')] }, {}, 'WXDi-P08-003');
+  const yesDeck = yesCtx.otherState.deck.length;
+  const yesTrash = yesCtx.otherState.trash.length;
+  const yes = finish(executeEffect(effect, yesCtx), yesCtx);
+  eq(yes.otherState.deck.length, yesDeck - 10, '黒アシストだけで黒分岐を実行');
+  eq(yes.otherState.trash.length, yesTrash + 10, 'デッキ上10枚をトラッシュへ');
+  const noCtx = mkCtx({ lrig: [batch386Center('青')] }, {}, 'WXDi-P08-003');
+  const noDeck = noCtx.otherState.deck.length;
+  const no = finish(executeEffect(effect, noCtx), noCtx);
+  eq(no.otherState.deck.length, noDeck, '白・赤・黒ルリグなしでは全分岐不発');
+}));
+
+test('続き386 群A WXDi-P08-004-E1: 白アシストでバウンス、非該当盤面では不発', () => withSavedCursor(() => {
+  const effect = batch386Effect('WXDi-P08-004', 'WXDi-P08-004-E1');
+  batch386AssertFieldLrigArrays(effect, 3);
+  const target = fresh();
+  const yesCtx = mkCtx({ lrig: [batch386Center('緑')], assistL: [batch386Assist('白')] }, { signi: [target, null, null] }, 'WXDi-P08-004');
+  const yes = finish(executeEffect(effect, yesCtx), yesCtx);
+  eq(yes.otherState.field.signi[0], null, '白アシストだけで白分岐を実行');
+  eq(yes.otherState.hand.includes(target), true, '対象を相手の手札へ戻す');
+  const noCtx = mkCtx({ lrig: [batch386Center('緑')] }, { signi: [target, null, null] }, 'WXDi-P08-004');
+  const no = finish(executeEffect(effect, noCtx), noCtx);
+  eq(no.otherState.field.signi[0]?.at(-1), target, '白・赤・青ルリグなしでは全分岐不発');
+}));
+
+test('続き386 群A WXDi-P08-005-E1: 青アシストと赤AND枝が実行され、非該当盤面では不発', () => withSavedCursor(() => {
+  const effect = batch386Effect('WXDi-P08-005', 'WXDi-P08-005-E1');
+  batch386AssertFieldLrigArrays(effect, 3);
+  const drawCtx = mkCtx({ lrig: [batch386Center('白')], assistL: [batch386Assist('青')] }, {}, 'WXDi-P08-005');
+  const handBefore = drawCtx.ownerState.hand.length;
+  const drawn = finish(executeEffect(effect, drawCtx), drawCtx);
+  eq(drawn.ownerState.hand.length, handBefore + 3, '青アシストだけで青分岐を実行');
+
+  const oppL3 = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const redCtx = mkCtx({ lrig: [batch386Center('白')], assistL: [batch386Assist('赤')] }, { lrig: [oppL3], energy: 5 }, 'WXDi-P08-005');
+  const firstCondition = batch386ActionConditions(effect.action)[0]!;
+  ok(evalCondition(firstCondition, redCtx), '赤アシスト＋相手センターLv3でAND枝成立');
+  const red = finish(executeEffect(effect, redCtx), redCtx);
+  eq(red.otherState.energy.length, 2, 'AND枝で相手エナ3枚をトラッシュ');
+
+  const noCtx = mkCtx({ lrig: [batch386Center('白')] }, { lrig: [oppL3], energy: 5 }, 'WXDi-P08-005');
+  ok(!evalCondition(firstCondition, noCtx), '赤ルリグなしではAND枝不成立');
+  const noHand = noCtx.ownerState.hand.length;
+  const noEnergy = noCtx.otherState.energy.length;
+  const no = finish(executeEffect(effect, noCtx), noCtx);
+  eq(no.ownerState.hand.length, noHand, '赤・青・緑ルリグなしではドローしない');
+  eq(no.otherState.energy.length, noEnergy, '赤・青・緑ルリグなしではエナを捨てない');
+}));
+
+const batch386PrintedUseCases = [
+  ['群B', 'WXDi-P00-004', 'WXDi-P00-004-E1', '緑'],
+  ['群B', 'WXDi-P03-002', 'WXDi-P03-002-E1', '緑'],
+  ['群B', 'WXDi-P16-004', 'WXDi-P16-004-E1', '赤'],
+  ['群B', 'WXDi-P16-006', 'WXDi-P16-006-E1', '緑'],
+  ['群B\'', 'WXDi-P16-003', 'WXDi-P16-003-E1', '白'],
+  ['群B\'', 'WXDi-P16-005', 'WXDi-P16-005-E1', '青'],
+  ['群B\'', 'WXDi-P16-007', 'WXDi-P16-007-E1', '黒'],
+] as const;
+
+for (const [group, cardNum, effectId, color] of batch386PrintedUseCases) {
+  test(`続き386 ${group} ${effectId}: 該当色アシストで使用可、非該当盤面で使用不可`, () => withSavedCursor(() => {
+    const effect = batch386Effect(cardNum, effectId);
+    batch386AssertFieldLrigArrays(effect, 1);
+    const otherColor = color === '赤' ? '白' : '赤';
+    const yes = mkState({ lrig: [batch386Center(otherColor)], assistL: [batch386Assist(color)] });
+    const no = mkState({ lrig: [batch386Center(otherColor)] });
+    ok(evalUseCondition(effect.condition!, yes, mkState({}), cardMap, cardNum, 'MAIN'), `${effectId}: evalUseCondition true`);
+    ok(canUseArtsCondition([effect], yes, mkState({}), cardMap, cardNum, 'MAIN'), `${effectId}: ピース実使用ゲート true`);
+    ok(!evalUseCondition(effect.condition!, no, mkState({}), cardMap, cardNum, 'MAIN'), `${effectId}: evalUseCondition false`);
+    ok(!canUseArtsCondition([effect], no, mkState({}), cardMap, cardNum, 'MAIN'), `${effectId}: ピース実使用ゲート false`);
+  }));
+}
+
+test('続き386 群C WX24-P4-068/075/082/089: Level1/2アシストだけではLv4条件不成立', () => withSavedCursor(() => {
+  const assistL2 = 'WXDi-D01-007';
+  eq(cardMap.get(assistL2)?.Type, 'アシストルリグ', '実データのアシストルリグを使用');
+  eq(cardMap.get(assistL2)?.Level, '2', '実データのLevel2を使用');
+  for (const cardNum of ['WX24-P4-068', 'WX24-P4-075', 'WX24-P4-082', 'WX24-P4-089']) {
+    const effect = batch386Effect(cardNum, `${cardNum}-E1`);
+    batch386AssertFieldLrigArrays(effect, 1);
+    const condition = batch386ActionConditions(effect.action)
+      .flatMap(c => batch386FieldLrigConditions(c))[0]!;
+    const ctx = mkCtx({ assistL: [assistL2] }, {}, cardNum);
+    ok(!evalCondition(condition, ctx), `${cardNum}: Level2アシストだけではLv4以上にならない`);
+  }
+}));
+
+test('続き386 対照群 PR-305-E2: センター明示のLRIG_COLORは黒アシストだけでは成立しない', () => withSavedCursor(() => {
+  const effect = batch386Effect('PR-305', 'PR-305-E2');
+  const condition = batch386ActionConditions(effect.action)[0]!;
+  eq(condition.type, 'LRIG_COLOR', 'センタールリグ明示はLRIG_COLORを維持');
+  const assistOnly = mkCtx({ lrig: [batch386Center('白')], assistL: [batch386Assist('黒')] }, {}, 'PR-305');
+  ok(!evalCondition(condition, assistOnly), '黒アシストがいても白センターなら不成立');
+  const blackCenter = mkCtx({ lrig: [batch386Center('黒')] }, {}, 'PR-305');
+  ok(evalCondition(condition, blackCenter), '黒センターなら成立');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
