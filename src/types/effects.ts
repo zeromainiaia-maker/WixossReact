@@ -300,6 +300,9 @@ export type Condition =
   | { type: 'FIELD_CLASS_COUNT'; owner: Owner; story: string; operator: CompareOp; value: number } // 場のシグニのうちCardClassがstoryを含むものの数（「場に＜天使＞が3体」等）
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number } // 場のルリグ（センター＋アシストL/R）のうちTeamがteamを含むものの数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021。Teamはチーム名でCardClass/Storyとは別）
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number } // 登録者数（万人）条件
+  // 場に付いている【チャーム】の枚数（「対戦相手の場に【チャーム】が３枚ある場合」WX11-049-E2）。
+  // 【ウィルス】の VIRUS_COUNT（ActiveCondition 側）と対になる使用条件版。
+  | { type: 'CHARM_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'SELF_POWER_GTE'; value: number; operator?: CompareOp }
   // このシグニ自身の**実効レベル**（`calcSigniLevels`＝表記＋動的修正）の比較。ActiveCondition 側と同形＝
