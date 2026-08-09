@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 590 |
+| JSON で使用中の STUB id 種類 | 591 |
 | 　└ ハンドラ実装あり | 554 |
-| 　└ フォールバック（execStub 未処理） | 36 |
-| 総 STUB ノード件数 | 2700 |
+| 　└ フォールバック（execStub 未処理） | 37 |
+| 総 STUB ノード件数 | 2707 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 307 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -42,6 +42,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ASSIST_LRIG_ATTACK_THIS_TURN` | 1 | 1 | WX25-P1-048 |  |
 | `ATTACK_NEGATE_IMMUNITY_SELF` | 1 | 1 | WX24-P4-016 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
+| `CHECK_ZONE_FLIP_FREE_GROW` | 1 | 1 | WXDi-P16-001A |  |
 | `COUNTER_TEAM_PIECE_CUTIN_DEFERRED` | 1 | 1 | WXDi-P05-006 |  |
 | `DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS` | 1 | 1 | WX09-Re01 |  |
 | `DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY` | 1 | 1 | WXDi-P16-062 |  |
@@ -74,15 +75,15 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 414 | 401 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
+| `OPTIONAL_COST` | 415 | 402 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
 | `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 120 | 117 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
-| `ARTS_COST_REDUCTION_BY_EFFECT` | 113 | 111 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
+| `ARTS_COST_REDUCTION_BY_EFFECT` | 116 | 114 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
 | `STORE_LAST_PROCESSED_TARGETS` | 110 | 109 | WD12-009, WDK06-C17, WDK08-Y01 |  |
 | `SELECT_TARGET_ONLY` | 97 | 96 | WD12-009, WDK06-C17, WDK08-L15 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `OPPONENT_PAY_OPTIONAL` | 73 | 65 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `POWER_MOD_PER_COUNT` | 60 | 60 | WD19-001, WDK06-C17, WDK10-009 | 動的パワー修正（COUNT依存） |
 | `TARGET_AND_DISCARD_HAND` | 57 | 53 | PR-195, PR-370, PR-K043 | 手札を捨てて対戦相手シグニを対象とする効果（スタンドアロン時：手札1枚捨て+相手シグニをlastProcessedCardsへ） |
-| `GRANT_ABILITY_INNER_TEXT` | 46 | 46 | WD16-014, WD17-001, SPDi43-01 |  |
+| `GRANT_ABILITY_INNER_TEXT` | 47 | 47 | WD16-014, WD17-001, SPDi43-01 |  |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 41 | 41 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `RULE_REMINDER_TEXT` | 41 | 40 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `DECLARE_NUMBER` | 33 | 32 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
@@ -231,6 +232,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SELF_TRASH_IF_NO_OPP_CHARM` | 3 | 3 | WX13-086, WX13-089, WX13-093 | SELF_TRASH_IF_NO_OPP_CHARM: 相手の場に【チャーム】がなければ自トラッシュ（WX13-086等） |
 | `SET_OPP_SIGNI_AS_TRAP` | 3 | 2 | WX21-003, WX21-025 | SET_OPP_SIGNI_AS_TRAP: 相手のシグニ1体をトラップとして設置 |
 | `SIGNI_FLIP_FACEDOWN` | 3 | 3 | WXDi-P01-040, WXDi-P05-037, WXDi-P09-009 | SIGNI_FLIP_FACEDOWN: 自シグニ（または相手lastProcessed）を裏向きにする |
+| `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` | 3 | 3 | WXDi-P01-002, WXDi-P10-025, WXDi-P14-008 | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用常在能力を自シグニに付与（SELECT_TARGET→keyword_grants） |
 | `BANISH` | 2 | 2 | WXDi-CP01-015, WXK06-025 | BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ |
 | `CONDITIONAL_PER_TRASH` | 2 | 2 | WD08-008, WX12-037 | CONDITIONAL_PER_TRASH: トラッシュ枚数による条件（N枚以上でX） |
 | `COPY_TARGET_POWER` | 2 | 2 | WXDi-P02-079, WXDi-P09-051 | COPY_TARGET_POWER: 対象シグニのパワーを自シグニの基本パワーにする |
@@ -261,7 +263,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `PREVENT_SIGNI_ABILITY_LOSS_BY_OPP` | 2 | 2 | WX25-P2-053, WXK10-024 |  |
 | `RIDE_ON` | 2 | 1 | WXK03-022 | RIDE_ON: ルリグが乗機シグニ1体に任意でライド（ドライブ状態でない場合のみ可） |
 | `SIGNI_CANT_BOUNCE_FROM_FIELD` | 2 | 2 | WX13-029, WXK05-024 |  |
-| `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY` | 2 | 2 | WXDi-P10-025, WXDi-P14-008 | SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: 引用常在能力を自シグニに付与（SELECT_TARGET→keyword_grants） |
 | `SIGNI_SERVANT_ZERO` | 2 | 2 | WX19-002, WXDi-P07-041 | ALL_OPP_SIGNI_SERVANT_ZERO / MAKE_SERVANT_ZERO / MAKE_MULTI_SERVANT_ZERO / SIGNI_SERVANT_ZERO: 対象シグニをサーバントZERO（WXDi-P07… |
 | `SPECIFIC_CARD_COST_REDUCE` | 2 | 2 | WXDi-CP01-027, WXDi-CP01-048 |  |
 | `SPELL_COST_REDUCTION_BY_TRASH_COUNT` | 2 | 2 | WX12-056, WXK06-055 |  |

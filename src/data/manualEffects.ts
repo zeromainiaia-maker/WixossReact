@@ -4613,6 +4613,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       ]}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
+  // Curated CHOOSE is preserved here because the generic parser still loses two choices.
+  // Dream Team requires all three LRIG slots and at least three distinct colors.
+  "WXDi-P10-004": [
+    {"effectId":"WXDi-P10-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"filter":{"cardType":"シグニ","cardClass":"プリパラ"},"pickCount":2,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom"}},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":"ALL","filter":{"cardType":"シグニ","cardClass":"プリパラ"}}}]}},{"choiceId":"c1","label":"選択肢2","action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"プリパラ"},"minCount":3},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}],"upTo":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  ],
   // Dream Team requires all three LRIG slots and at least three distinct colors.
   "WXDi-P11-001": [
     {"effectId":"WXDi-P11-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[

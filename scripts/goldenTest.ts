@@ -26769,6 +26769,142 @@ test('続き387 WXDi-P16-001A-E1: 白のみ／黒のみは成立、どちらも�
   ok(!canUseArtsCondition([effect], neither, opponent, cardMap, 'WXDi-P16-001A', 'MAIN'), '白黒なしで使用不可');
 }));
 
+// ── 続き388：【ドリームチーム】合計3色の印刷済み使用条件＋宣言STUB ──
+const batch388Condition: Condition = {
+  type: 'FIELD_LRIG_COLOR_COUNT', owner: 'self', operator: 'gte', value: 3, minLrigs: 3,
+};
+const batch388AdoptedCards = [
+  'WXDi-P06-003', 'WXDi-P07-002',
+  'WXDi-P08-001', 'WXDi-P08-002', 'WXDi-P08-003', 'WXDi-P08-004', 'WXDi-P08-005',
+  'WXDi-P09-001', 'WXDi-P09-003',
+  'WXDi-P10-001', 'WXDi-P10-002', 'WXDi-P10-003', 'WXDi-P10-004',
+  'WXDi-P12-001', 'WXDi-P12-002', 'WXDi-P12-003', 'WXDi-P13-001', 'WXDi-P13-002',
+  'WXDi-P14-001', 'WXDi-P14-003', 'WXDi-P14-004', 'WXDi-P14-005',
+  'WXDi-P15-001', 'WXDi-P15-002', 'WX25-P1-048',
+] as const;
+const batch388RawCards = [
+  'WXDi-D09-H11', 'WXDi-P06-002', 'WXDi-P06-003', 'WXDi-P07-001', 'WXDi-P07-002',
+  'WXDi-P08-001', 'WXDi-P08-002', 'WXDi-P08-003', 'WXDi-P08-004', 'WXDi-P08-005',
+  'WXDi-P09-001', 'WXDi-P09-002', 'WXDi-P09-003',
+  'WXDi-P10-001', 'WXDi-P10-002', 'WXDi-P10-003', 'WXDi-P10-004',
+  'WXDi-P11-002', 'WXDi-P11-003',
+  'WXDi-P12-001', 'WXDi-P12-002', 'WXDi-P12-003', 'WXDi-P13-001', 'WXDi-P13-002',
+  'WXDi-P14-001', 'WXDi-P14-002', 'WXDi-P14-003', 'WXDi-P14-004', 'WXDi-P14-005',
+  'WXDi-P15-001', 'WXDi-P15-002', 'WXDi-P15-003', 'WX25-P1-048',
+] as const;
+
+test('続き388 母集団33枚: raw先頭節は同じ3体3色条件を生成し、真偽盤面で評価できる', () => {
+  const opponent = mkState({});
+  const yes = mkState({
+    lrig: [batch387CenterByColor.白],
+    assistL: [batch387AssistByColor.赤],
+    assistR: [batch387AssistByColor.青],
+  });
+  const noTwoColors = mkState({
+    lrig: [batch387CenterByColor.白],
+    assistL: ['WXDi-D01-006'],
+    assistR: [batch387AssistByColor.赤],
+  });
+  const noTwoLrigThreeColors = mkState({
+    lrig: ['WX19-001'],
+    assistL: [batch387AssistByColor.青],
+  });
+  for (const cardNum of batch388RawCards) {
+    const raw = parseCardEffects(cardMap.get(cardNum)!).find(effect => effect.effectId === `${cardNum}-E1`)!;
+    batch387AssertCondition(raw, batch388Condition);
+    ok(evalUseCondition(raw.condition!, yes, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 3体3色=true`);
+    ok(!evalUseCondition(raw.condition!, noTwoColors, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 3体2色=false`);
+    ok(!evalUseCondition(raw.condition!, noTwoLrigThreeColors, opponent, cardMap, cardNum, 'MAIN'), `${cardNum}: 2体3色=false`);
+  }
+});
+
+for (const cardNum of batch388AdoptedCards) {
+  test(`続き388 ${cardNum}-E1: 3体3色のみ使用可（evalUseCondition／canUseArtsCondition）`, () => withSavedCursor(() => {
+    const effect = batch387Effect(cardNum);
+    batch387AssertCondition(effect, batch388Condition);
+    const opponent = mkState({});
+    const threeLrigThreeColors = mkState({
+      lrig: [batch387CenterByColor.白],
+      assistL: [batch387AssistByColor.赤],
+      assistR: [batch387AssistByColor.青],
+    });
+    const threeLrigTwoColors = mkState({
+      lrig: [batch387CenterByColor.白],
+      assistL: ['WXDi-D01-006'],
+      assistR: [batch387AssistByColor.赤],
+    });
+    const twoLrigTwoColors = mkState({
+      lrig: [batch387CenterByColor.白],
+      assistL: [batch387AssistByColor.赤],
+    });
+    // 2体で合計3色に届いても minLrigs:3 が独立に不成立へ倒す。
+    const twoLrigThreeColors = mkState({
+      lrig: ['WX19-001'],
+      assistL: [batch387AssistByColor.青],
+    });
+    eq(cardMap.get('WXDi-D01-006')?.Type, 'アシストルリグ', '2色盤面も実データのアシスト');
+    eq(cardMap.get('WXDi-D01-006')?.Color, '赤', '2色盤面の左右は同色');
+    eq(cardMap.get('WX19-001')?.Type, 'ルリグ', 'minLrigsトリップワイヤは実データのルリグ');
+    eq(cardMap.get('WX19-001')?.Color, '白赤', '2体で3色を作る多色センター');
+    const assertGate = (state: PlayerState, expected: boolean, label: string) => {
+      eq(evalUseCondition(effect.condition!, state, opponent, cardMap, cardNum, 'MAIN'), expected,
+        `${effect.effectId}: evalUseCondition ${label}`);
+      eq(canUseArtsCondition([effect], state, opponent, cardMap, cardNum, 'MAIN'), expected,
+        `${effect.effectId}: canUseArtsCondition ${label}`);
+    };
+    assertGate(threeLrigThreeColors, true, '3体3色');
+    assertGate(threeLrigTwoColors, false, '3体2色');
+    assertGate(twoLrigTwoColors, false, '2体2色');
+    assertGate(twoLrigThreeColors, false, '2体3色（minLrigs）');
+  }));
+}
+
+test('続き388 strip退化トリップワイヤ: WXDi-P08-001〜005 の色別3分岐を保持', () => {
+  const expected = new Map<string, string[]>([
+    ['WXDi-P08-001', ['青', '緑', '黒']],
+    ['WXDi-P08-002', ['白', '緑', '黒']],
+    ['WXDi-P08-003', ['白', '赤', '黒']],
+    ['WXDi-P08-004', ['白', '赤', '青']],
+    ['WXDi-P08-005', ['赤', '青', '緑']],
+  ]);
+  for (const [cardNum, colors] of expected) {
+    const effect = batch387Effect(cardNum);
+    const branches = batch386ActionConditions(effect.action)
+      .flatMap(condition => batch386FieldLrigConditions(condition));
+    const actual = branches.map(condition => {
+      const filter = (condition as Condition & { filter: { cardType?: string | string[]; color?: string } }).filter;
+      eq(JSON.stringify(filter.cardType), JSON.stringify(['ルリグ', 'アシストルリグ']), `${cardNum}: 場のルリグ種別`);
+      return filter.color!;
+    });
+    eq(JSON.stringify(actual), JSON.stringify(colors), `${cardNum}: 色別3分岐`);
+  }
+});
+
+test('続き388 群C WXDi-P15-003: ACTIVATED効果が無く、condition追加は使用ゲートにならない', () => {
+  const effects = effectsMap.get('WXDi-P15-003') ?? [];
+  eq(effects.filter(effect => effect.effectType === 'ACTIVATED').length, 0, 'トップレベルACTIVATEDは0');
+  ok(effects.every(effect => effect.condition === undefined), '死フラグになるconditionは付けない');
+  ok(canUseArtsCondition(effects, mkState({}), mkState({}), cardMap, 'WXDi-P15-003', 'MAIN'),
+    'ACTIVATEDが無い現行経路では使用条件を評価できない');
+});
+
+test('続き388 群D WXDi-P16-001A-E1: CHECK_ZONE_FLIP_FREE_GROW は宣言STUBで盤面不変', () => {
+  const effect = batch387Effect('WXDi-P16-001A');
+  eq(effect.parseStatus, 'AUTO', 'UNKNOWN計器から宣言STUBへ');
+  eq(effect.action.type, 'STUB', 'action type');
+  eq((effect.action as StubAction).id, 'CHECK_ZONE_FLIP_FREE_GROW', '専用id');
+  const executorSources = ['execStub.ts', 'execStubPart1.ts', 'execStubPart2.ts', 'execStubPart3.ts']
+    .map(file => fs.readFileSync(join(root, 'src', 'engine', file), 'utf8')).join('\n');
+  ok(!executorSources.includes('CHECK_ZONE_FLIP_FREE_GROW'), 'engine実働分岐を持たない');
+  const ctx = mkCtx({ lrig: [batch387CenterByColor.白] }, {}, 'WXDi-P16-001A');
+  const beforeOwner = JSON.stringify(ctx.ownerState);
+  const beforeOther = JSON.stringify(ctx.otherState);
+  const result = finish(executeEffect(effect, ctx), ctx);
+  eq(JSON.stringify(result.ownerState), beforeOwner, 'owner盤面不変');
+  eq(JSON.stringify(result.otherState), beforeOther, 'opponent盤面不変');
+  ok(result.logs.some(log => log.includes('[STUB: CHECK_ZONE_FLIP_FREE_GROW]')), 'ログだけを残す');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

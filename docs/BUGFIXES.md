@@ -1,5 +1,40 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — 【ドリームチーム】3体・合計3色の使用条件を25効果へ追加し、退化7効果は温存（続き388）
+
+**真因**＝`parseArtsEffect` は `【使用条件】【ドリームチーム】合計N種類以上の色を持つ` を action 誤解析防止のため本文から strip していたが、対応する `condition` を生成していなかった。この既存 strip を印刷済み使用条件の先頭節テーブルへ移し、節を消費すると同時に先例 `WXDi-P11-001-E1` と完全同形の `FIELD_LRIG_COLOR_COUNT{owner:'self',operator:'gte',value:3,minLrigs:3}` を生成するようにした。`minLrigs:3` により多色ルリグ2体だけでは成立しない。新 Condition 型、engine 分岐、`effectEngine` の active/continuous 評価は追加していない。
+
+### ① action A/B と採否
+
+CSV の同文型34枚から正しい先例 `WXDi-P11-001` を除く33枚を raw fresh で原文照合した。strip 後の action は **同一24枚／改善2枚／退化7枚**。同一24枚のうち使用ゲートへ到達しない `WXDi-P15-003` は据置し、残り23枚と、ゴミ `GRANT_KEYWORD` から具体 action へ改善した `WXDi-P06-003-E1`、`WXDi-P15-002-E1` の計25効果を採用した。
+
+退化7効果は条件だけを入れて既存 action を失うことを避け、live を温存した。
+
+- `WXDi-D09-H11-E1`：任意《無》《無》支払いとライフバースト抑制を失う。
+- `WXDi-P06-002-E1`：次のアップフェイズの《無》《無》《無》支払い／アップ抑制を失う。
+- `WXDi-P07-001-E1`：ライフクロスを手札へ加える処理と【出】抑制を失う。
+- `WXDi-P09-002-E1`：相手の全シグニをデッキ上へ置く本文が `UNKNOWN` になる。
+- `WXDi-P11-002-E1`／`WXDi-P11-003-E1`：既存の具体的 `CHOOSE` が汎用 `GRANT_ABILITY_INNER_TEXT` STUB へ退化する。
+- `WXDi-P14-002-E1`：4択のうちライフクラッシュだけになる。
+
+`WXDi-P10-004-E1` は指示と異なり `manualEffects.ts` に定義が無かったため、live MANUAL の全トップレベルフィールドを source of truth へ移し、同じ condition を追加した。`check:manual-fields` は脱落0。`WXDi-P15-003` はトップレベル効果が AUTO と CONTINUOUS だけで `canUseArtsCondition` が検索する ACTIVATED 効果を持たないため、condition を足しても死フラグになる。使用ゲートへ乗せるには、ピース自体の使用可能性を表す ACTIVATED 効果またはカード単位の使用条件を評価する経路が必要。
+
+### ② strip 回帰と宣言 STUB
+
+`WXDi-P08-001`〜`005` は、同じ先頭節を確実に消費した後も色別3分岐の `HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],color}` が各3本残ることを golden で固定した。25カードすべてについて実データのセンター／アシストを使い、3体3色=true、3体2色=false、2体2色=false、さらに多色を含む2体3色=false を `evalUseCondition` と `canUseArtsCondition` の両方で実行した。
+
+`WXDi-P16-001A-E1` は完全 no-op の `UNKNOWN` を、原文全文 regex から生成する専用宣言 STUB `CHECK_ZONE_FLIP_FREE_GROW` へ変更した。executor/`execStub` に同 id の分岐はなく、実行時は STUB ログだけで両盤面不変。逆翻訳ラベルと専用 id の golden を追加し、`STUBS.md` は生成スクリプトで未実装として再生成した。live の `parseStatus:'UNKNOWN'` は **1→0**。
+
+### ③ 差分・残存する原文不一致
+
+旧HEADとの全 **6712カード／10687効果** 生パース A/B は期待した **changed 33／added 0／removed 0／outlier 0**（条件候補32＋宣言STUB 1）。live の per-effect 差分は **changed 26／added 0／removed 0**（条件25＋宣言STUB 1）。変更禁止の `WXDi-P11-001`、`WXDi-P13-003A`、`WXDi-CP01-002`、`WXDi-CP01-004`、`WXDi-CP02-001`〜`004` は旧HEADと JSON 完全同一。
+
+条件以外では既存または改善後 action に次の原文不一致が残ることを確認した（本バッチでは拡張しない）：`P06-003`／`P07-002`／`P14-003` のセンターLv依存選択数、`P07-002` のルリグ由来ダメージ限定、`P08-002` のLv2・Lv3各1枚回収、`P09-003` の「次の相手ターン終了時まで」、`P10-004` の場の＜プリパラ＞数依存EC、`P12-002` の全シグニバニッシュ、`P12-003` のトラッシュ全戻し＋シャッフル、`P13-002` の枚数依存パワー低下、`P14-001` のシグニバリア、`P14-004` のセンターLv×EC2、`P15-001` のドロー3＋任意捨て／ライフクラッシュ、`P15-002` の任意エクシード4と選択数分岐。`P10-002`、`P13-002`、`P15-001`、`P15-002`、`WX25-P1-048` には宣言／検出型 STUB も残る。
+
+指示書の「群A 30枚」は列挙外の `WXDi-P15-002` を注記では対象としており、実データ上は **31枚**。「期待 live changed 32」は退化7枚を据置し、群Cを除くと **26効果**が正しい。また held 注記は `WXDi-P12-002` を漏らしていた。最終 held は **115枚／50群**（117／52から2枚・2群減）、`_partial_fresh` は3カードのまま。
+
+**検証**＝`npm run gates` 全緑。golden **1614/0**、census **901**（904→901のため既存 `BASELINE_HIGH` 本体を更新）、smoke **10686/10686**・CRASH/HANG/INVARIANT/SKIP全0、fuzz 200ゲーム全0、manual field loss 0、同型★0（265群）、lint 0 errors/**254 warnings**、被覆マトリクス miss **278**。`npm run regen`、`genStubsMd`、全変更ファイルのエンコーディング差分検査も実施。
+
 ## 2026-08-09 — ピースの印刷済み【使用条件】欠落15効果を文型テーブルで是正（続き387）
 
 **真因**＝ピースの印刷済み【使用条件】は区切り記号なしで本文へ直結するが、`effectParser.ts` の共通入口は「あなたの場に(単色)のルリグがいる」だけを認識していた。そのため条件が live から丸ごと落ち、残った条件文を本文 parser が読んで `GRANT_KEYWORD{keyword:'使用条件'}` 等のゴミ action も生成していた。既存の生成地点を先頭節の文型テーブルへ一般化し、条件を生成したときだけ同じ節を本文から strip するようにした。カード番号・固有本文による分岐、後段のゴミ keyword 握り潰し、新 Condition 型は追加していない。

@@ -624,7 +624,7 @@ function condJa(c?: any): string {
     case 'ALL_SELF_SIGNI_DOWN': return 'あなたのすべてのシグニがダウン状態';
     case 'ANY_PLAYER_REFRESHED_THIS_TURN': return 'このターンにいずれかのプレイヤーがリフレッシュしていた';
     case 'CENTER_LRIG_NOT_GROWN_THIS_TURN': return `このターンに${ownerJa(c.owner)}センタールリグがグロウしていない`;
-    case 'FIELD_LRIG_COLOR_COUNT': return `${ownerJa(c.owner)}場のルリグが持つ色が${numJa(c.value)}種類${opJa(c.operator)}`;
+    case 'FIELD_LRIG_COLOR_COUNT': return `${ownerJa(c.owner)}場のルリグが${c.minLrigs ? `${numJa(c.minLrigs)}体以上いて、` : ''}持つ色が${numJa(c.value)}種類${opJa(c.operator)}`;
     case 'FIELD_LRIGS_HAVE_COLORS': return `${ownerJa(c.owner)}場に${(c.colors || []).join('と')}のルリグがいる`;
     case 'IS_BOOSTING': return 'このアーツでブースト（追加エナ）を支払っていた';
     case 'IS_SELF_DOWN': return 'このシグニがダウン状態';
@@ -1499,6 +1499,7 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'STUB': {
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       if (a.id === 'ASSIST_LRIG_ATTACK_THIS_TURN') return `このターン、あなたはレベル${a.count ?? 1}以上のアシストルリグでアタックできる（未実装）`;
+      if (a.id === 'CHECK_ZONE_FLIP_FREE_GROW') return 'このターンにセンタールリグがグロウしていない場合、チェックゾーンのこのカードを裏返し、指定ルリグへグロウコストを支払わずにグロウする（未実装）';
       if (a.id === 'LIFE_TO_ENERGY') return `${ownerJa(a.owner)}ライフクロス1枚をエナゾーンに置く`;
       if (a.id === 'ENERGY_TO_HAND_ON_DECK') return 'このカードをエナゾーンから手札に加えてもよい';
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）

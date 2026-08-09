@@ -10166,18 +10166,21 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // アンコール／ベット／ブースト（任意追加エナ）のプレフィックスを除去してから解析
   const isBet = /^ベット[―─]/.test(card.EffectText);
   const stripped = stripRuleParens(card.EffectText)
-    .replace(/^(?:アンコール－|ベット[―─]|ブースト[―─])(?:《[^》]+》)*\s*/, '')
-    // 【使用条件】【ドリームチーム】合計N種類以上の色を持つ（＝場の3ルリグが合計N色以上：ピースの使用条件）。
-    //   engine に「チームの合計色数」条件が無いため近似省略（WXDi-P15-003 と同じ扱い）。⚠除去しないと
-    //   末尾「…色を持つ」が part1 の「を持つ」キーワード付与規則に食われ GRANT_KEYWORD"使用条件" のゴミになり、
-    //   続く色別3分岐（あなたの場に(色)のルリグがいる場合）が丸ごと脱落して無条件実行される（WXDi-P08-001〜005）。
-    //   （…）は stripRuleParens が既に除去済み。
-    .replace(/^【使用条件】【ドリームチーム】合計[０-９\d]+種類以上の色を持つ/, '');
+    .replace(/^(?:アンコール－|ベット[―─]|ブースト[―─])(?:《[^》]+》)*\s*/, '');
   // ピースの印刷済み【使用条件】は区切りなしで本文へ直結するため、先頭節を文型テーブルで
   // condition へ持ち上げ、同時に本文から除去する。CardEffect.condition は BattleScreen の
   // 候補表示・実行直前の双方で evalUseCondition に評価される。
   // ⚠複数の【使用条件】を持つカードは、全条件を表現できるまで一部だけを採らない。
   const printedUseConditionPatterns: { pattern: RegExp; build: (match: RegExpMatchArray) => Condition }[] = [
+    {
+      // 【ドリームチーム】合計N色＝センター＋左右アシストの3体が揃い、合計N色以上。
+      // 旧 strip と同じ先頭節をここで消費するため、末尾「色を持つ」が keyword 規則へ漏れず、
+      // WXDi-P08-001〜005 の後続する色別3分岐も従来どおり本文 parser に届く。
+      pattern: /^【使用条件】【ドリームチーム】合計([０-９\d]+)種類以上の色を持つ/,
+      build: match => ({
+        type: 'FIELD_LRIG_COLOR_COUNT', owner: 'self', operator: 'gte', value: parseNum(match[1]), minLrigs: 3,
+      }),
+    },
     {
       pattern: /^【使用条件】あなたの場に((?:白|赤|青|緑|黒)(?:と(?:白|赤|青|緑|黒)){1,2})のルリグがいる/,
       build: match => ({

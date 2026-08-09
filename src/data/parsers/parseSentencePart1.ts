@@ -2791,6 +2791,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'STUB', id: 'ASSIST_LRIG_ATTACK_THIS_TURN', count: parseNum(assistAttackM[1]) } as StubAction;
   }
 
+  // チェックゾーンのピースを裏返して無償グロウする機構は未実装。
+  // 原文の全文文型で取り、既存の実働 STUB を借りない専用宣言 STUB として計器に残す。
+  if (/^このターンにあなたのセンタールリグがグロウしていない場合、チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《[^》]+》にグロウコストを支払わずにグロウする$/.test(t)) {
+    return { type: 'STUB', id: 'CHECK_ZONE_FLIP_FREE_GROW' } as StubAction;
+  }
+
   // ---- ドロー後、このアーツ/カードをルリグデッキに戻す ----
   const drawReturnSelfM = t.match(/^カードを([０-９\d]+)枚引き、この(?:アーツ|カード)を(?:あなたの)?ルリグデッキに戻す$/);
   if (drawReturnSelfM) {
