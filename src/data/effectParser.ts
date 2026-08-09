@@ -228,6 +228,15 @@ function parseUseCondition(text: string): Condition {
   m = text.match(/あなたのセンタールリグが＜([^＞]+)＞/);
   if (m) return { type: 'LRIG_STORY', owner: 'self', story: m[1] };
 
+  // (あなた|対戦相手)の場に【チャーム】がN枚ある（WX11-049-E2「３枚ある場合にしか使用できない」）
+  m = text.match(/(あなた|対戦相手)の場に【チャーム】が([０-９\d]+)枚(以上|以下)?ある/);
+  if (m) return {
+    type: 'CHARM_COUNT',
+    owner: m[1] === 'あなた' ? 'self' : 'opponent',
+    operator: m[3] ? op(m[3]) : 'gte', // 「３枚ある」＝3枚以上（現物が3枚を超えることはないが gte が原文に忠実）
+    value: n(m[2]),
+  };
+
   // 対戦相手の手札がX枚
   m = text.match(/対戦相手の手札が([０-９\d]+)枚/);
   if (m) return { type: 'HAND_COUNT', owner: 'opponent', operator: 'eq', value: n(m[1]) };
