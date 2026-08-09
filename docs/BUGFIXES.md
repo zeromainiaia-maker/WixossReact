@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-09 — §6.3 E 第1効果：`WX20-036-CB-E1` 引用【常】の他シグニ耐性＋全体パワー修正
+
+- 原文「中央のシグニゾーンにあるかぎり、このシグニは『あなたの他のシグニはライフバーストではない対戦相手のシグニの効果を受けず、それらのパワーを＋3000する』を得る」に対し、旧 live は引用内を `POWER_MODIFY{owner:'any',count:1}` だけに平坦化し、耐性を丸ごと脱落していた。引用 `rawText` が外側の組み立て後に `parseBlock` で単独再パースされるため、外側 `GRANT_FIELD_SIGNI_ABILITY` の空 `abilities` に先行適用される既存 fixup は届いていなかった。
+- 内側の完全一致文型だけを `SEQUENCE[GRANT_PROTECTION,POWER_MODIFY]` に展開した。両 step は `owner/subjectOwner:'self'`、`count:'ALL'`、`filter/subjectFilter:{cardType:'シグニ',excludeSelf:true}`。耐性は既存 `sourceOwner:'opponent'`、`from:['シグニ']`、`sourceFilter:{hasLifeBurst:false}` を流用し、新 action／field は増やしていない。生コーパスの同文型一致は本効果1件だけで、`WX20-036-CB-E2` は不変。
+- 指示の「engine は既に実装済み」は一部だけ正しかった。`collectGrantedFromLayer` は付与先 instanceId をキーに能力を合成し、`calcFieldPowers` はその holder を `excludeSelf` 基準にできる。一方 `collectEffectImmuneSigni` は action 直下の `GRANT_PROTECTION` しか読まず、指定された `SEQUENCE` 形では保護だけ不発だった。そこで同 collector だけを、意味が無条件に各 step へ及ぶ `SEQUENCE` に限って再帰させた（`CONDITIONAL`／`CHOOSE` は対象外）。
+- live `WX20-036-CB-E1` を fresh parser と一致させ、実行 E2E で①holder 以外の自シグニ全部が＋3000、②非LBの相手シグニ効果から他シグニだけを保護、③holder 自身には＋3000も耐性も付かない、④LB持ち相手シグニの効果は防がない、⑤中央ゾーン外では引用能力自体を得ない、を固定した。typecheck PASS、golden **1686→1687 / FAIL 0**。commit／push、PLAN／PLAN_PROGRESS、regen、BASELINE_HIGH は未実施。
+- `WX24-P2-010-E1` は honest defer。真の実装には、`BLOCK_ACTION` の付与対象ごとの解除コスト保持、攻撃宣言直前の「holder 以外の自シグニ2体」支払い、コスト起因の場→トラッシュを `collectBoardDiffTriggers` へ渡す処理を、人間通常／側面／無効化回避後／フリップ直撃／CPU の全宣言経路へ配線する必要がある。実測では `calcContinuousBlockedActions.cannotAttackSigni` の消費は人間のボタン生成だけで、共通 `performSigniAttack` と CPU 候補選定は `blocked_actions` しか見ず、`BattleScreen` の engine ctx 箇所は攻撃可否を渡していない。現行の無条件 `BLOCK_ACTION` は、3面盤面で他2体を犠牲にする意思がある例外では過剰だが、それ以外では原文と同じく攻撃不可。外すと常に自由攻撃となり主効果を全面的に失うため、害が小さい現行近似を残した。対象だけ2体までへ広げると絶対封鎖を2体へ増幅するので、その部分修正も行っていない。`parseSentencePart2` の条件つき「アタックできない」defer 規則は未変更。
+
 ## 2026-08-09 — §6.3 C 第4波①：`WXDi-P09-034-E1` の裏向き状態をターン終了時まで保持
 
 - `FACE_DOWN_OPP_SIGNI` は対象を未消費の `PlayerState.face_down_signi` へ印付けする近似をやめ、元のシグニゾーンから `field.facedown_signi[zoneIndex]` へ実際に移すよう修正した。これにより裏向き中は能力・パワー・アタックを持つ場のシグニとして扱われず、同じ場所へ別のシグニを置ける。

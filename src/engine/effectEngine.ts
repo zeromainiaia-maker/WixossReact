@@ -4743,45 +4743,69 @@ export function collectEffectImmuneSigni(
       || (ex.sourceType === 'アーツ' && srcIsArts);
   };
 
+  // CONTINUOUS の SEQUENCE は各 step が同時に常在する。POWER_MODIFY 側は既に再帰抽出する一方、
+  // 効果耐性だけ action 直下に限定されていたため、引用能力内の複合【常】で保護節が不発になっていた。
+  // CONDITIONAL/CHOOSE は分岐条件の評価が必要なので、ここでは意味が自明な SEQUENCE だけを再帰する。
+  const extractGrantProtections = (action: EffectAction, insideSequence = false): GrantProtectionAction[] => {
+    if (action.type === 'GRANT_PROTECTION') {
+      const gp = action as GrantProtectionAction;
+      if (!insideSequence) return [gp];
+      // 本バッチの引用内複合形だけを解禁する。既存 live には別意味の SEQUENCE 内
+      // GRANT_PROTECTION が11効果あり、無条件に一般化するとそれらまで挙動変更するため。
+      const isOtherSigniNonLbProtection = gp.subjectOwner === 'self'
+        && gp.subjectFilter?.excludeSelf === true
+        && gp.sourceOwner === 'opponent'
+        && gp.sourceFilter?.hasLifeBurst === false
+        && gp.from?.length === 1 && gp.from[0] === 'シグニ';
+      return isOtherSigniNonLbProtection ? [gp] : [];
+    }
+    if (action.type === 'SEQUENCE') {
+      return (action as import('../types/effects').SequenceAction).steps.flatMap(step => extractGrantProtections(step, true));
+    }
+    return [];
+  };
+
   const collectFromCard = (sourceNum: string): void => {
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (eff.action.type !== 'GRANT_PROTECTION') continue;
+      const protections = extractGrantProtections(eff.action);
+      if (protections.length === 0) continue;
       if (!checkActiveCondition(eff.activeCondition, state, opponentState, isOwnerTurn, cardMap, sourceNum,
                                 eff.activeCondition ? powersOf() : undefined, undefined, undefined,
                                 eff.activeCondition ? levelsOf() : undefined)) continue;
-      const gp = eff.action as GrantProtectionAction;
-      if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
+      for (const gp of protections) {
+        if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
 
-      // この解決中のソース種別が耐性対象に含まれるか判定
-      const blocked = gp.fromAll
-        ? !exceptMatches(gp.exceptSource)
-        : sourceMatches(gp.from);
-      if (!blocked) continue;
+        // この解決中のソース種別が耐性対象に含まれるか判定
+        const blocked = gp.fromAll
+          ? !exceptMatches(gp.exceptSource)
+          : sourceMatches(gp.from);
+        if (!blocked) continue;
 
-      // sourceCostMin: 解決中ソースカード（アーツ/スペル）の使用コスト合計が閾値未満なら保護しない（WX15-031）
-      if (gp.sourceCostMin !== undefined && !matchesFilter(srcCard, { costMin: gp.sourceCostMin })) continue;
+        // sourceCostMin: 解決中ソースカード（アーツ/スペル）の使用コスト合計が閾値未満なら保護しない（WX15-031）
+        if (gp.sourceCostMin !== undefined && !matchesFilter(srcCard, { costMin: gp.sourceCostMin })) continue;
 
-      // sourceFilter: 解決中ソースカードの属性が指定フィルタに非マッチなら保護しない（WXEX2-36 ライズアイコン非所持／WXK11-021 LB非所持）
-      if (gp.sourceFilter && !matchesFilter(srcCard, gp.sourceFilter)) continue;
-      if (gp.sourceEffectType && gp.sourceEffectType !== sourceEffectType) continue;
+        // sourceFilter: 解決中ソースカードの属性が指定フィルタに非マッチなら保護しない（WXEX2-36 ライズアイコン非所持／WXK11-021 LB非所持）
+        if (gp.sourceFilter && !matchesFilter(srcCard, gp.sourceFilter)) continue;
+        if (gp.sourceEffectType && gp.sourceEffectType !== sourceEffectType) continue;
 
-      // 保護対象シグニを収集
-      if (gp.subjectFilter) {
-        const subjState = gp.subjectOwner === 'opponent' ? opponentState : state;
-        // カード属性（matchesFilter）に加えゾーン状態（isDown/isDrive 等）も honor する（WXK04-002 血晶武装シグニ保護）。
-        // excludeSelf（「あなたの他のレゾナ」WX13-005A）は付与元シグニ自身を除外する。
-        subjState.field.signi.forEach((s2, zi2) => {
-          const top2 = s2?.at(-1);
-          if (!top2) return;
-          if (gp.subjectFilter?.excludeSelf && top2 === sourceNum) return;
-          if (matchesFilter(cardMap.get(top2), gp.subjectFilter) && matchesStateFilter(subjState, zi2, gp.subjectFilter)) immune.add(top2);
-        });
-      } else if (gp.target) {
-        // target ベース（一時付与でない CONT は稀）: self/any count:1 → このシグニ自身
-        if ((gp.target.owner === 'self' || gp.target.owner === 'any')) immune.add(sourceNum);
-      } else {
-        immune.add(sourceNum);
+        // 保護対象シグニを収集
+        if (gp.subjectFilter) {
+          const subjState = gp.subjectOwner === 'opponent' ? opponentState : state;
+          // カード属性（matchesFilter）に加えゾーン状態（isDown/isDrive 等）も honor する（WXK04-002 血晶武装シグニ保護）。
+          // excludeSelf（「あなたの他のレゾナ」WX13-005A）は付与元シグニ自身を除外する。
+          subjState.field.signi.forEach((s2, zi2) => {
+            const top2 = s2?.at(-1);
+            if (!top2) return;
+            if (gp.subjectFilter?.excludeSelf && top2 === sourceNum) return;
+            if (matchesFilter(cardMap.get(top2), gp.subjectFilter) && matchesStateFilter(subjState, zi2, gp.subjectFilter)) immune.add(top2);
+          });
+        } else if (gp.target) {
+          // target ベース（一時付与でない CONT は稀）: self/any count:1 → このシグニ自身
+          if ((gp.target.owner === 'self' || gp.target.owner === 'any')) immune.add(sourceNum);
+        } else {
+          immune.add(sourceNum);
+        }
       }
     }
   };

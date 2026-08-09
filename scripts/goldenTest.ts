@@ -9460,6 +9460,48 @@ test('GRANT_FIELD_SIGNI_ABILITY: activeCondition が偽なら付与されない'
   const res = collectGrantedFromLayer(st, mkState({}), true, localMap, cardMap as Map<string, CardData>);
   ok(!res.has(srcInst), '条件不成立なら付与されないべき');
 });
+test('WX20-036-CB-E1: holder基準の「他のシグニ」全体へ+3000と非LBシグニ効果耐性', () => withSavedCursor(() => {
+  const holder = 'WX20-036-CB';
+  const other = findCard(c => isSigni(c) && c.CardNum !== holder && (!c.BurstText || c.BurstText === '-'));
+  const nonLbSource = findCard(c => isSigni(c) && c.CardNum !== holder && c.CardNum !== other
+    && (!c.BurstText || c.BurstText === '-'));
+  const lbSource = findCard(c => isSigni(c) && c.CardNum !== holder && c.CardNum !== other
+    && c.CardNum !== nonLbSource && !!c.BurstText && c.BurstText !== '-');
+  const freshEffects = parseCardEffects(cardMap.get(holder)!);
+  const freshEffect = freshEffects.find(e => e.effectId === 'WX20-036-CB-E1')!;
+  const liveEffect = (effectsMap.get(holder) ?? []).find(e => e.effectId === 'WX20-036-CB-E1')!;
+  eq(JSON.stringify(liveEffect), JSON.stringify(freshEffect), 'live JSON が修正済み fresh parser と一致する');
+  eq(freshEffect.activeCondition?.type, 'IS_SELF_IN_CENTER_ZONE', '中央ゾーン条件を維持する');
+  eq(freshEffect.action.type, 'GRANT_FIELD_SIGNI_ABILITY', '引用【常】を自身へ付与する');
+
+  const baseMap = new Map(effectsMap);
+  baseMap.set(holder, freshEffects);
+  const owner = mkState({ signi: [other, holder, null] }); // holder は中央ゾーン(index 1)
+  const opponent = mkState({ signi: [nonLbSource, null, lbSource] });
+  const layer = collectGrantedFromLayer(owner, opponent, true, baseMap, cardMap as Map<string, CardData>);
+  eq(layer.get(holder)?.length, 1, '中央の holder に引用能力が付与される');
+  ok(!layer.has(other), '引用能力そのものは他シグニへ複製されない');
+  const augmented = new Map(baseMap);
+  augmented.set(holder, [...freshEffects, ...(layer.get(holder) ?? [])]);
+
+  const powers = calcFieldPowers(owner, opponent, true, augmented, cardMap as Map<string, CardData>);
+  const holderBase = parseInt(cardMap.get(holder)!.Power || '0', 10);
+  const otherBase = parseInt(cardMap.get(other)!.Power || '0', 10);
+  eq(powers.get(other), otherBase + 3000, 'holder が自分の他のシグニ全部へ+3000する');
+  eq(powers.get(holder), holderBase, '不成立側: holder 自身には+3000しない');
+
+  const immuneFromNonLb = collectEffectImmuneSigni(owner, opponent, cardMap as Map<string, CardData>, augmented,
+    true, 'シグニ', nonLbSource);
+  ok(immuneFromNonLb.has(other), '非LBの相手シグニ効果から他シグニを保護する');
+  ok(!immuneFromNonLb.has(holder), '不成立側: holder 自身は保護しない');
+  const immuneFromLb = collectEffectImmuneSigni(owner, opponent, cardMap as Map<string, CardData>, augmented,
+    true, 'シグニ', lbSource);
+  ok(!immuneFromLb.has(other) && !immuneFromLb.has(holder), '不成立側: LB持ち相手シグニの効果は防がない');
+
+  const offCenter = mkState({ signi: [holder, other, null] });
+  ok(!collectGrantedFromLayer(offCenter, opponent, true, baseMap, cardMap as Map<string, CardData>).has(holder),
+    '不成立側: holder が中央ゾーン外なら引用能力を得ない');
+}));
 // 採用JSONの構造ガード（再harvestで旧形＝有害な無条件CONTINUOUSの平坦化に戻ったら即FAIL・§5c 続き34）
 test('引用付与バッチ2: CONTINUOUS自己付与の構造固定（WX12-028/WX13-057/WXDi-P05-047/WXDi-P09-073）', () => {
   const s1 = JSON.stringify(effectsMap.get('WX12-028') ?? []);

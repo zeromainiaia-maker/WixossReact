@@ -5962,7 +5962,40 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
 }
 
 function parseActionText(text: string): EffectAction {
-  const parse = (source: string): EffectAction => applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
+  // 引用内の複合【常】「あなたの他のシグニは<耐性節>、それらのパワーを±Nする」。
+  // rawText は外側 GRANT_FIELD_SIGNI_ABILITY の組み立て後に parseBlock で単独再パースされるため、
+  // 外側 node.abilities への fixup では届かない。内側文そのものを既存2語彙の SEQUENCE にする。
+  // ⚠ライフバースト非所持の相手シグニ効果という完全一致の意味帯に限定し、一般の「受けず、」へ広げない。
+  const parseQuotedOtherSigniProtectionAndPower = (source: string): EffectAction | null => {
+    const m = source.match(/^あなたの他のシグニはライフバーストではない対戦相手のシグニの効果を受けず、それらのパワーを([＋+－-])([０-９\d,，]+)する。?$/);
+    if (!m) return null;
+    const sign = (m[1] === '－' || m[1] === '-') ? -1 : 1;
+    const otherSelfSigni: EffectTarget = {
+      type: 'SIGNI', owner: 'self', count: 'ALL',
+      filter: { cardType: 'シグニ', excludeSelf: true },
+    };
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'GRANT_PROTECTION',
+          subjectOwner: 'self',
+          subjectFilter: { cardType: 'シグニ', excludeSelf: true },
+          from: ['シグニ'],
+          sourceOwner: 'opponent',
+          sourceFilter: { hasLifeBurst: false },
+          duration: 'PERMANENT',
+        },
+        {
+          type: 'POWER_MODIFY',
+          target: otherSelfSigni,
+          delta: sign * parseNum(m[2]),
+        },
+      ],
+    } as SequenceAction;
+  };
+  const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
+    ?? applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
