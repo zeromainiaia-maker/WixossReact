@@ -1676,6 +1676,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isOwnerActiveTurn = ownerId === bs.active_user_id;
       // ON_ENERGY_CHARGE: エナがちょうど1枚増えたとき（差分の新規カードが1枚）
       const addedToEnergy = st.energy.filter(n => !prevE.includes(n));
+      // センタールリグの付与ストア（effectsMap 非搭載）の ON_ENERGY_CHARGE watcher（SPDi43-13-E2＝
+      // 「ターン終了時まで、このルリグは『【自】あなたのエナゾーンにカードが置かれたとき…』を得る」）。
+      // 下の走査は場のシグニしか見ないため、ルリグ host の付与能力は構造どおりでも恒久 no-op だった。
+      // ⚠この経路は entries を積むだけで actions_done へ書き戻さない＝usageLimit は既存シグニ側と同じく未管理。
+      const ecLrigTop = st.field.lrig.at(-1);
+      if (ecLrigTop && addedToEnergy.length === 1) {
+        for (const w of grantedStoreWatchers(st, 'ON_ENERGY_CHARGE', ['self', 'any_ally', 'any'])) {
+          const eff = w.effect;
+          if (eff.triggerCondition?.movedSelf) continue;
+          if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
+          if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
+              && !evalUseCondition(eff.condition, st, op, battleCardMap, ecLrigTop, bs.turn_phase, curPowers)) continue;
+          entries.push({ id: generateUUID(), playerId: ownerId, cardNum: ecLrigTop, effectId: eff.effectId,
+            label: `${battleCardMap.get(ecLrigTop)?.CardName ?? ecLrigTop} の【自】効果（エナチャージ時・付与能力）`, effect: eff });
+        }
+      }
       // ON_POWER_THRESHOLD / ON_ENERGY_CHARGE は場のシグニを走査
       for (let zi = 0; zi < st.field.signi.length; zi++) {
         const topNum = st.field.signi[zi]?.at(-1);
