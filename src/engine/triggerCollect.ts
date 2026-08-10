@@ -8,7 +8,7 @@
  * 対象 timing: ON_TARGETED / ON_LRIG_GROW / ON_COIN_PAID（いずれも C1・2026-06-29 配線）
  *           / ON_SIGNI_POWER_ZERO_OR_LESS（R37・Stage2第2弾）/ ON_BLOOD_CRYSTAL_ARMOR（Stage2第3弾）。
  */
-import type { PlayerState, CardData, StackEntry } from '../types';
+import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, matchesStateFilter } from './effectEngine';
