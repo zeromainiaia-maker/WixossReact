@@ -250,6 +250,10 @@ const rows: Row[] = [...allIds].map(id => {
     else {
       const pay = payloadConsumers(id);
       if (pay.length) { cons = pay; via = 'ペイロードキー'; }
+      else {
+        const byCard = cardNumConsumers(id);
+        if (byCard.length) { cons = byCard; via = 'カード番号'; }
+      }
     }
   }
   return {
