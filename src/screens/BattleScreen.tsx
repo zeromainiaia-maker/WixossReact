@@ -3597,6 +3597,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_actions:    [],   // ターン内封じ行動をリセット
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
           signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
+          side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
           hand_trashed_by_opp_this_turn: 0,   // 相手効果による手札→トラッシュ累計をリセット（HAND_TRASHED_BY_OPP）
@@ -4015,6 +4016,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keyword_abilities_removed: {}, // 指定キーワード喪失／新規獲得禁止も同じ期限でクリア
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
+        side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）
         cards_drawn_by_effect_this_turn: 0,
         hand_trashed_by_opp_this_turn: 0,   // HAND_TRASHED_BY_OPP
         energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
@@ -4742,6 +4744,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             granted_effects:    {},
             blocked_actions:    [],
             actions_done:       [],
+            side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）
 
             cost_modifiers: (activeState.cost_modifiers ?? []).filter((m: {until?: string}) => m.until !== 'END_OF_TURN'),
           };
@@ -10442,6 +10445,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...cpuEndState,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
+        side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）
         life_crashed_last_turn: cpuEndState.life_crashed_this_turn ?? 0,
         life_crashed_this_turn: undefined,
         life_crashed_by_signi_this_turn: undefined,

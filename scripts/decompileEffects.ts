@@ -2473,6 +2473,7 @@ function actionJa(a?: Action, effectType?: string): string {
         // ⚠`PLAY_MILLED_SIGNI_DELAYED_TRASH` はここに書かない＝**上の :1591 に既に専用分岐がある**
         //   （二重に置くと到達不能な死語彙になる）。
         OPP_LRIG_DECK_TO_LRIG_TRASH: '対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く',
+        ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 'このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
