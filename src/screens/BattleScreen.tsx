@@ -110,6 +110,7 @@ import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './ba
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack } from './battle/signiAttackGate';
+import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 
