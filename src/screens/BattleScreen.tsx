@@ -12879,7 +12879,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ⚠ あなたのシグニは可能ならばアタックしなければなりません
         </div>
       )}
-      {!isMyTurn && op.must_attack_signi && bs.turn_phase === 'ATTACK_SIGNI' && (
+      {!isMyTurn && opForcedAttack.forced && bs.turn_phase === 'ATTACK_SIGNI' && (
         <div style={{ flexShrink: 0, backgroundColor: '#1a3a1a', padding: '4px 12px',
           fontSize: 11, color: '#aaffaa', textAlign: 'center' }}>
           対戦相手のシグニは可能ならばアタックしなければなりません
