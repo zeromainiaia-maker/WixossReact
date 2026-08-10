@@ -12,7 +12,7 @@
 // ⚠id には日本語を含むものがある（`ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白`）＝`[A-Z0-9_]+` で
 //   拾うと実装済みなのに「フォールバック」に化ける（genStubsMd.mjs の既知の誤検出）。
 // ゲートではない（exit 0）。
-import { readFileSync, readdirSync, existsSync, writeFileSync } from 'fs';
+import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join, relative } from 'path';
 
 const root = join(import.meta.dirname, '..');
