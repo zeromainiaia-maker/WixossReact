@@ -4056,6 +4056,29 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // E1 を「覚醒中」condition 付き AUTO ON_TURN_END に修正。相手エナの「相手センターと共通しない色」は
   //   energy 対象で colorNotMatchesLrig が対象オーナー（相手）のルリグ基準で colorExclude へ解決される（execExecutor）。
   // E2 を ON_SIGNI_BATTLE→AWAKEN_SIGNI に修正（バトル成立時に発火。「バニッシュした」勝利限定は専用情報がなく近似）。
+  // WXDi-P09-064 羅星 ヴォランス（シグニ）
+  // 【出】：対戦相手は手札を２枚まで捨ててもよい。対戦相手はこの方法で捨てたカード１枚につきカードを１枚引く。
+  // 🔴旧パース＝`SEQUENCE[STUB{TARGET_AND_DISCARD_HAND}, DRAW{owner:'self'}]`＝**主語が丸ごと反転**して
+  //   「**自分**が手札を1枚捨てて**自分**が1枚引く」（相手のデッキ圧縮のはずが自分の手札交換）になっていた。
+  // 📋**近似**＝「２枚**まで**」は `OPPONENT_PAY_OPTIONAL` が all-or-nothing の pay/skip なので**0枚か2枚**に丸める
+  //   （1枚だけ捨てる中間の選択肢が消える）。所有者と方向は原文どおりになり、捨てた枚数＝引く枚数の対応も
+  //   両枝で保たれる（0→0／2→2）。可変枚数の相手側任意コストは機構が要る＝§6.4 に登録。
+  'WXDi-P09-064': [
+    {
+      effectId: 'WXDi-P09-064-E1',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      triggerScope: 'self',
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 2, thenOnPay: true },
+        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'opponent', count: 2 } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   'WXDi-P09-058': [
     {
       effectId: 'WXDi-P09-058-E1',

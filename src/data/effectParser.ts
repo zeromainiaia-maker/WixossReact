@@ -6427,10 +6427,21 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
       } },
     ] });
   }
+  // ⚠**この2枚は「任意コスト」を素の `TRASH{optional}` で書いてはいけない**（§6.4・続き425）。
+  //   原文は「手札から＜電機＞のシグニを1枚捨てて**もよい**。そうした場合、…」＝正準形は
+  //   `STUB{OPTIONAL_COST, handDiscard}`。素の TRASH のままだと `resumeSelectTarget` の 0枚選択で
+  //   **払わずに「そうした場合」ゲートを通せる**（golden の `FORCED_HAND_COST_KNOWN` トリップワイヤが
+  //   まさにこの2枚を挙げていた）。この外科パッチが `applyOptionalHandDiscardCost` の変換を
+  //   **後段で丸ごと組み直して巻き戻していた**のが原因なので、ここで正準形を直接書く。
+  //   ⚠支払い枝は `optionalCostPaySteps` が同じ `TRASH{HAND_CARD, asCost}` を再生成し
+  //   `lastProcessedCards` も残るので、直後の「この方法で黒/青の＜電機＞を捨てた場合」ゲートは生きる。
+  const optionalDenkiDiscard = (): EffectAction => ({
+    type: 'STUB', id: 'OPTIONAL_COST',
+    handDiscard: { count: 1, filter: { cardType: 'シグニ', story: '電機' } },
+  } as StubAction);
   if (cardNum === 'WX25-P2-082') {
     setAction('WX25-P2-082-E1', { type: 'SEQUENCE', steps: [
-      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1,
-        filter: { cardType: 'シグニ', story: '電機' } }, optional: true },
+      optionalDenkiDiscard(),
       { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
         type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
           filter: { cardType: 'シグニ', story: '電機', color: '黒' }, verbJa: '捨てた' },
@@ -6443,8 +6454,7 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
     setAction('WX25-P2-100-E1', { type: 'SEQUENCE', steps: [
       { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: opponentSigni },
       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
-      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1,
-        filter: { cardType: 'シグニ', story: '電機' } }, optional: true },
+      optionalDenkiDiscard(),
       { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: {
         type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES',
           filter: { cardType: 'シグニ', story: '電機', color: '青' }, verbJa: '捨てた' },
