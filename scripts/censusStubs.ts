@@ -133,7 +133,8 @@ const codeConsumers = (id: string): Ref[] => (consumers.get(id) ?? []).filter(r 
 const consumerCode: { file: string; line: number; text: string }[] = [];
 for (const abs of walkFiles(join(root, 'src'))) {
   const rel = relative(root, abs);
-  if (HANDLER_RE.test(rel) || PRODUCER_RE.test(rel)) continue;
+  // `src/types/` は型宣言＝「消費」ではない（`powerModifyProtection?: {…}` は実装ではない）。
+  if (HANDLER_RE.test(rel) || PRODUCER_RE.test(rel) || /^src[\\/]types[\\/]/.test(rel)) continue;
   const lines = readFileSync(abs, 'utf-8').split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
     const t = lines[i].trim();
