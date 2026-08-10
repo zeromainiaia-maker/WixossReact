@@ -2470,10 +2470,9 @@ function actionJa(a?: Action, effectType?: string): string {
         MUGEN_Q_RESET_AND_FLIP: 'あなたの手札とエナゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルし、このルリグ以外の、あなたのルリグデッキと場にあるすべてのカードをゲームから除外し、このルリグを裏向きにする',
         // §6.4 A群（STUB 仕分け計器）で engine 実装を入れたぶんの表示語彙。
         CANNOT_DEAL_DAMAGE_TO_OPPONENT: 'このシグニは対戦相手にダメージを与えない',
+        // ⚠`PLAY_MILLED_SIGNI_DELAYED_TRASH` はここに書かない＝**上の :1591 に既に専用分岐がある**
+        //   （二重に置くと到達不能な死語彙になる）。
         OPP_LRIG_DECK_TO_LRIG_TRASH: '対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く',
-        // トリガー部（「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき」）は
-        // timing/triggerCondition 側が別途描くので、ここは本体だけ。
-        PLAY_MILLED_SIGNI_DELAYED_TRASH: 'そのシグニを場に出す。ターン終了時、そのシグニを場からトラッシュに置く',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
