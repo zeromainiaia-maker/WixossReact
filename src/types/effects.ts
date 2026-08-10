@@ -2129,6 +2129,13 @@ export interface StubAction {
    *   （除外は `excluded` 行きでリフレッシュにも戻らない）。`minTotalCost` は「コストの合計がN以上」。
    */
   exileArtsFromLrigDeck?: { count: number; minTotalCost?: number };
+  /**
+   * `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`（`WX16-021`）: このターン、指定クラスのシグニが**シグニのいない**
+   * 相手シグニゾーンへ【側面アタック】した場合、正面扱いにして対戦相手にダメージを与える。
+   * ⚠既定の【側面アタック】は**空ゾーンだと何も起きない**（UI も空ゾーンを提示しない）ので、
+   *   この効果は「解決」と「アタック先の提示」の両方を変える。
+   */
+  sideAttackEmptyZoneAsFront?: { cardClass?: string };
   /** OPTIONAL_COST: 相手の場のウィルスN個を左のゾーンから取り除く任意コスト。 */
   removeOppVirus?: number;
   // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----
