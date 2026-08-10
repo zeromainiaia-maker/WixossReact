@@ -1583,8 +1583,14 @@ export function collectMillTriggers(
         : owner === 'opponent' ? milledOppCards
         : (milledControllerCards && milledOppCards ? [...milledControllerCards, ...milledOppCards] : undefined);
       if (eff.triggerCondition?.milledCardFilter && !relevantCards) continue;
-      const relevant = eff.triggerCondition?.milledCardFilter
-        ? relevantCards!.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerCondition!.milledCardFilter!)).length
+      // フィルタに一致した**カードそのもの**を保持する（従来は件数だけ数えて捨てていた）。
+      // 「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき、**そのシグニ**を場に出す」
+      // （`WXDi-P09-079-E1`）のように**ミルされたカードを後段が参照する**効果があるため。
+      const matchedMill = eff.triggerCondition?.milledCardFilter
+        ? relevantCards!.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerCondition!.milledCardFilter!))
+        : undefined;
+      const relevant = matchedMill
+        ? matchedMill.length
         : owner === 'self' ? milledFromControllerDeck
         : owner === 'opponent' ? milledFromOppDeck
         : milledFromControllerDeck + milledFromOppDeck;
