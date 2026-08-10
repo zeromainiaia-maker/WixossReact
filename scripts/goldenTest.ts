@@ -12100,6 +12100,28 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 空ゾーンへの側面アタックを正面扱いにする（§6.4 A群・WX16-021）', () => withSavedCursor(() => {
+  // live JSON が構造（cardClass）を持ち、engine はそれを state のターンフラグへ写す。
+  // ⚠engine 側で costText を再パースしない契約もここで固定する。
+  const live = (effectsMap.get('WX16-021') ?? [])[0];
+  const act = live?.action as { id?: string; sideAttackEmptyZoneAsFront?: { cardClass?: string } } | undefined;
+  eq(act?.id, 'ARTS_ATTACK_EMPTY_ZONE_AS_FRONT', 'WX16-021 の action が変わっている');
+  eq(act?.sideAttackEmptyZoneAsFront?.cardClass, '英知', 'クラス限定が構造に載っていない');
+
+  const r = run(live!.action as EffectAction, mkCtx({}, {}));
+  eq(r.ownerState.side_attack_empty_zone_damage_class, '英知', 'ターンフラグが立っていない');
+
+  // 判定関数＝アタック先ボタン生成と解決の両方が使う唯一の軸
+  const eichi = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('英知'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('英知'));
+  const on: PlayerState = { ...mkState({}), side_attack_empty_zone_damage_class: '英知' };
+  eq(sideAttackEmptyZoneDealsDamage(on, eichi, cardMap as Map<string, CardData>), true, '＜英知＞が対象外になっている');
+  eq(sideAttackEmptyZoneDealsDamage(on, other, cardMap as Map<string, CardData>), false, '⚠クラス限定が効かず全シグニに適用されている');
+  eq(sideAttackEmptyZoneDealsDamage(mkState({}), eichi, cardMap as Map<string, CardData>), false, 'フラグ未設定でも有効になっている');
+  // クラス不問（空文字）＝将来カード用の逃げ道
+  const any: PlayerState = { ...mkState({}), side_attack_empty_zone_damage_class: '' };
+  eq(sideAttackEmptyZoneDealsDamage(any, other, cardMap as Map<string, CardData>), true, 'クラス不問が効いていない');
+}));
 test('OPP_LRIG_DECK_TO_LRIG_TRASH: 対戦相手が自分のルリグデッキから1枚をルリグトラッシュへ（§6.4 A群・WX24-P4-014②）', () => withSavedCursor(() => {
   const stub = { type: 'STUB', id: 'OPP_LRIG_DECK_TO_LRIG_TRASH' } as unknown as EffectAction;
   const ctx = mkCtx({}, {});
