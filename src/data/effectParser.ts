@@ -1942,6 +1942,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   ⚠「の枚数」の有無は表記ゆれ（`WX18-032-E1`／`WXK11-031-E1` は「対戦相手のライフクロスがあなたより多い場合」）。
   [/対戦相手のライフクロス(?:の枚数)?があなたより多い場合/,
     () => ({ type: 'LIFE_COMPARE_OPP', operator: 'lt' })],
+  // 「あなたの〈ゾーン〉が対戦相手の〈ゾーン〉以下の場合」＝上の裏返し（cmp(自分, 'lte', 相手)）。
+  //   `WXDi-CP01-026-E1` は条件節が落ち、「代わりにそれは【シャドウ】を得る」が**無条件の別ステップ**として
+  //   残って `GRANT_KEYWORD{owner:'any'}` の恒久シャドウ付与になっていた（§6.4・2026-08-10）。
+  [/あなたのライフクロス(?:の枚数)?が対戦相手のライフクロス(?:の枚数)?以下の場合/,
+    () => ({ type: 'LIFE_COMPARE_OPP', operator: 'lte' })],
   [/対戦相手の手札(?:の枚数)?があなたより多い場合/,
     () => ({ type: 'HAND_COMPARE_OPP', operator: 'lt' })],
   [/対戦相手のエナゾーンにあるカード(?:の枚数)?があなたより多い場合/,
@@ -7828,9 +7833,19 @@ function parseActionTextInner(text: string): EffectAction {
             return null;
           };
           const baseKey = tgtKeyOf(baseCore);
-          const prefixM = prevRaw.match(/^((?:あなた|対戦相手)の[^。「」]*?を?対象とし、)/);
-          if (baseKey && prefixM) {
-            const then = parseSingleSentence(prefixM[1] + enhancedText);
+          // 先行詞＝直前文の**最後の**対象節（「〜を対象とし、」）。⚠ prevRaw は
+          //   `【自】` のトリガー節（「このシグニがアタックしたとき、」）を残したままなので先頭固定では取れず、
+          //   逆に非貪欲な前方一致だと直前の条件節まで飲む＝**末尾から所有者語まで戻して切り出す**。
+          const TSUF = 'を対象とし、';
+          const tIdx = prevRaw.lastIndexOf(TSUF);
+          let prefix: string | null = null;
+          if (tIdx >= 0) {
+            const head = prevRaw.slice(0, tIdx);
+            const oIdx = Math.max(head.lastIndexOf('あなたの'), head.lastIndexOf('対戦相手の'));
+            if (oIdx >= 0 && !/[。「」]/.test(head.slice(oIdx))) prefix = prevRaw.slice(oIdx, tIdx + TSUF.length);
+          }
+          if (baseKey && prefix) {
+            const then = parseSingleSentence(prefix + enhancedText);
             const thenKey = tgtKeyOf(then);
             // 昇格先が**別の対象を選び直す**形（対象節を無視して独自 target を作った等）は据置＝
             // 対象キーが取れないアクション（DRAW 等）へ縮退したものも弾く。
