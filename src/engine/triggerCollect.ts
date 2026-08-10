@@ -3513,9 +3513,10 @@ export function collectFieldTriggers(
     : false;
   // 相手のセンタールリグも any_opp/any watcher に含める（signi のみ走査だと相手 LRIG watcher が
   // 構造的に発火しなかった＝続き96・ON_BANISH any_opp の WXEX2-26 等）。
+  const opLrigTopField = opState.field.lrig.at(-1);
   for (const topNum of ownFieldSources(opState)) {
     if (opAbilitiesRemoved.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of watcherEffects(opState, topNum, topNum === opLrigTopField)) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes(event)) continue;
       if (oppAutoBlocked) continue;
