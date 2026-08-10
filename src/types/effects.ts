@@ -292,7 +292,10 @@ export type Condition =
   | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number } // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。`signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
-  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; negate?: boolean } // このシグニの下にカードがある場合。negate=true は「無い場合」
+  // このシグニの下にカードがある場合。negate=true は「無い場合」。
+  // minCount は「下にカードがN枚以上ある場合」（省略=1）＝`WXK08-030-E1` の２枚/５枚の多段閾値。
+  // ⚠ filter 併用時は **filter 一致の枚数**を数える（無指定なら下カード総数）。
+  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; negate?: boolean; minCount?: number }
   | { type: 'LRIG_LEVEL_EQ_OPP' }                             // 自分のセンタールリグのレベルが対戦相手のセンタールリグと同じ場合
   | { type: 'LRIG_LEVEL_CMP_OPP'; operator: 'lt' | 'lte' | 'gt' | 'gte' } // 自分のセンタールリグのレベルが対戦相手のセンタールリグ より低い/以下/より高い/以上 の場合（WXK07-025/WXK10-068。EQ の不等号版）
   | { type: 'LRIG_NAME_CONTAINS'; owner: Owner; name: string } // センタールリグのカード名が name を含む場合
