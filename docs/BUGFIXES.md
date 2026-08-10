@@ -1,5 +1,57 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 UNKNOWN 第2バッチ＝ライフバースト抑制2効果（続き415）
+
+### 直したもの
+
+`WXEX1-32-LAYER-E1`（【レイヤー】で＜怪異＞へ付与される【常】「このシグニによってクラッシュされた
+**対戦相手の**カードのライフバーストは発動しない」）／`WX25-P3-036-E1`（「**その対戦相手の**カードの
+ライフバーストは発動しない」）。
+
+**原因は regex が所有者句を挟む形に未対応だっただけ**＝既存規則は
+`/そのカードのライフバーストは発動しない/`・`/このシグニによってクラッシュされたカードの…/` で、
+原文に「対戦相手の」が挟まると外れて**丸ごと UNKNOWN に落ちていた**。`(?:対戦相手の)?` を足して解決。
+
+### 🔴 parser を直すだけでは足りなかった（採用前チェックの実例）
+
+`WXEX1-32` は**【レイヤー】で付与される CONTINUOUS**。既存の受け皿は3軸あるが**どれにも載らない**：
+
+| 軸 | 実体 | なぜ載らないか |
+|---|---|---|
+| `suppress_life_burst` | STUB を**実行**したときに立つターンフラグ | CONTINUOUS 能力は実行されない |
+| `eichiSuppressActive` | `collectEichiStubEffects` | `activeCondition.type==='EICHI_LEVEL_SUM'` 限定（`WX16-067` 専用） |
+| `game_suppress_lb` | プレイヤー付与 | 付与経路が違う |
+
+そのまま採用すると**逆翻訳にだけ出て動かない**（＝`census:stubs` の C群が増えるだけ）ので、
+第4軸を新設した：
+
+- **新設 `src/screens/battle/lifeBurstSuppress.ts`** ＝ `crashSourceSuppressesLifeBurst()`。
+  🔴**`crash_source_card_num`（`execLifeCrash` が記録するクラッシュ元）だけ**を見る＝原文が
+  「**このシグニによって**クラッシュされた」なので、盤面全体を見る実装は**過剰抑制**になる
+  （golden にトリップワイヤ）。
+  🔴**印字だけでなく【レイヤー】付与も見る**＝`collectGrantedFromLayer` を通さないと `WXEX1-32` の形が
+  丸ごと落ちる。発生源が場を離れていれば効かない。
+- `LifeBurstCheckModal` の `burstSuppressed` に第4軸として合流。
+
+### 表示語彙も原文へ
+
+`SUPPRESS_LIFE_BURST_ON_CRASH`／`_ON_CARD` は従来 **STUBS.md のハンドラ直前コメント**
+（実装語彙「対戦相手の `suppress_life_burst` フラグをセット」）がそのまま逆翻訳に出ていた。
+⚠利用カードごとに主語が違う（「この効果で」「この方法で」「このシグニによって」）ので、
+**主語を含めない共通の言い回し**を `miscStubMap` に置いた。
+
+### ⭐ 教訓
+
+**UNKNOWN は「parser を直せば終わり」ではない。** 受け皿（engine 側の消費地点）が
+**effectType（AUTO / CONTINUOUS）ごとに別軸**になっていることがある。
+**採用前に「この effectType でその STUB は実際に読まれるか」を確かめる。**
+
+### ゲート
+
+`npm run gates` 全緑＝golden **1750（+1）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+census **877 据置** / lint 0 errors・256 warnings。**UNKNOWN 40 → 38 ノード**（40→36 カード）。
+同型★ **0**／held **113カード・48群 据置**。
+
 ## 2026-08-10 — §6.4 UNKNOWN 第1バッチ＝「その中から＜X＞のシグニを場に出し、残りをデッキの一番下」を構造化（続き414）
 
 ### 実数の測り直し

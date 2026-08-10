@@ -61,6 +61,7 @@ import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, t
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttackDamage';
+import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
