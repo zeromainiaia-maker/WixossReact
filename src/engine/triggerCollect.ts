@@ -1954,9 +1954,9 @@ export function collectEnergyToTrashTriggers(
   // GRANT_LRIG_ABILITY の実行結果は effectsMap ではなく lrig_granted_auto_effects に格納されるため、
   // ここを走査しないと ON_ENERGY_TO_TRASH の内側能力（SPDi43-12）が timing を持っていても no-op になる。
   const lrigTop = controllerState.field.lrig.at(-1);
-  if (lrigTop && !controllerState.lrig_abilities_disabled) {
-    for (const eff of controllerState.lrig_granted_auto_effects ?? []) {
-      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ENERGY_TO_TRASH')) continue;
+  if (lrigTop) {
+    // 3ストア横断は `grantedStore.ts` の共通経路（lrig_abilities_disabled もそこで判定）。
+    for (const eff of grantedStoreWatchers(controllerState, 'ON_ENERGY_TO_TRASH', ['self', 'any_ally', 'any']).map(w => w.effect)) {
       if (relevantCount(eff) <= 0) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, lrigTop)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, lrigTop, ctx.turnPhase, ctx.effectivePowers)) continue;
