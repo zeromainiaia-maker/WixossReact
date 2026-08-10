@@ -7495,6 +7495,15 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const owner = (action as AddToFieldAction).owner;
       const asDown = (action as AddToFieldAction).asDown;
       const state = ownerState(owner, ctx);
+      // 配置制限（「シグニをN体までしか場に出せない」）。⚠**元の領域から取り除く前**に弾く
+      //   （取り除いてから弾くとカードが消失する）。
+      {
+        const blockedDF = deployLimitBlockedFor(owner, cardNum, ctx);
+        if (blockedDF) {
+          return done(addLog(ctx, deployLimitLogMessage(
+            blockedDF, ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum)));
+        }
+      }
       let newS = { ...state };
       const placedFromHand = state.hand.includes(cardNum);
       const placedFromNonHand = state.deck.includes(cardNum) || state.trash.includes(cardNum) || state.energy.includes(cardNum);
