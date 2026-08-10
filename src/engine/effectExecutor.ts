@@ -4821,10 +4821,14 @@ function execRevealUntilToField(a: import('../types/effects').RevealUntilToField
   const fieldState = ownerState(a.owner, cur);
   const signi = [...fieldState.field.signi] as (string[] | null)[];
   const emptyZones = signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
-  if (emptyZones.length === 0) {
+  // 配置制限で出せない場合も「場に出すことのできないシグニ」＝原文どおりトラッシュへ送る。
+  const blockedRU = emptyZones.length > 0 ? deployLimitBlockedFor(a.owner, hit, cur) : null;
+  if (emptyZones.length === 0 || blockedRU) {
     // 場に出せない → トラッシュ（原文「場に出すことのできないシグニはトラッシュに置かれる」）
     cur = addLog(setOwnerState(a.owner, { ...fieldState, trash: [...fieldState.trash, hit] }, cur),
-      `空きゾーンなし → ${ctx.cardMap.get(hit)?.CardName ?? hit}をトラッシュ`);
+      blockedRU
+        ? `${deployLimitLogMessage(blockedRU, ctx.cardMap.get(hit)?.CardName ?? hit)} → トラッシュ`
+        : `空きゾーンなし → ${ctx.cardMap.get(hit)?.CardName ?? hit}をトラッシュ`);
     return executeAction(next, cur);
   }
   // 場に出したシグニは lastProcessedCards に蓄積する。呼び出し側（BattleScreen）が
