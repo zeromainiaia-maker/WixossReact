@@ -161,11 +161,34 @@ const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
 // ＝効果単位マージでは自動採用できない「値変更/構造変更」の**第2のレビュー待ち行列**（続き377i 新設）。
 const partialFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
 for (const id of allIds) {
-  const existing = existingEffects.get(id);
+  let existing = existingEffects.get(id);
   const fresh = result[id];
   if (!existing) { report.adopted_new.push(id); continue; }              // fresh は既に result[id]
   if (!fresh || fresh.length === 0) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_emptyFresh.push(id); continue; }
-  if (JSON.stringify(existing) === JSON.stringify(fresh)) continue;       // 変化なし
+  // ── 手書き効果の**新規追加**だけは無条件に live へ落とす（続き424・§6.4）──
+  // ⚠これが無いと **`manualEffects.ts` に効果を1本足しても live に永久に届かない**。
+  //   下の richness ガードは「effectId の集合が変わるカードは丸ごと温存」なので、
+  //   *既存 id への上書き*は届くのに *新しい id の追加*だけが黙って捨てられていた（第4の死角）。
+  //   実測3件が長期間落ちていた＝`WXK04-003-DECORE`（【デコレ】そのもの）／`WXK04-042-E1b`
+  //   （血晶武装で得る【自】）／`WXK05-030-MULTIENA`（【マルチエナ】）。
+  // ⚠**MANUAL/PARTIAL の追加だけ**を採る。parser 由来（AUTO）の追加まで採ると、
+  //   例えば `WD01-016` は既に MANUAL の `-MULTIENA` を持つのに parser の粗い `-E2`
+  //   （`thisCardOnly` 無しの【マルチエナ】）が**二重に**載ってしまう。
+  const exIdSet = new Set(existing.map(e => e?.effectId));
+  const addedManual = fresh.filter(fr => !exIdSet.has(fr?.effectId) && PRESERVE_STATUSES.has(fr?.parseStatus));
+  if (addedManual.length > 0) {
+    const rest = [...existing];
+    const withAdded: any[] = [];
+    for (const fr of fresh) {                       // 並びは fresh 準拠（先頭に来る手書き効果もあるため）
+      if (addedManual.includes(fr)) { withAdded.push(fr); continue; }
+      const i = rest.findIndex(e => e?.effectId === fr?.effectId);
+      if (i >= 0) withAdded.push(...rest.splice(i, 1));
+    }
+    withAdded.push(...rest);                        // fresh に無い既存効果は末尾に温存
+    existing = withAdded;
+    report.adopted_manual_add.push(id);
+  }
+  if (JSON.stringify(existing) === JSON.stringify(fresh)) { result[id] = existing as ReturnType<typeof parseCardEffects>; continue; } // 変化なし
   // parseStatus だけの差分（AUTO→PARTIAL 刻印等）＝実体は同一。existing 温存（held に落とさない）
   if (equalIgnoringParseStatus(existing, fresh)) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_metaOnly.push(id); continue; }
   if (existing.some(e => PRESERVE_STATUSES.has(e?.parseStatus))) {
