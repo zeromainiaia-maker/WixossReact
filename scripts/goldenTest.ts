@@ -7845,6 +7845,54 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WX16-Re05-E1'), true, '1枚で発火');
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WX16-Re05-E1'), false, '0枚は非発火');
 });
+// §6.4「任意コスト脱落」トリップワイヤ（2026-08-10 続き416 新設）＝原文が「〜てもよい。そうした場合、…」なのに
+// live が **素の `TRASH{HAND_CARD,owner:self}` ＋ did-it ゲート**を持っている＝**コストが強制**の形。
+//
+// **なぜ計器が要るか**＝この形は engine が普通に動くので smoke/fuzz は緑のまま。
+// `mandatory` も `TRASH{optional:true}` も代用にならない（前者は ON_PLAY 以外で読まれず、
+// 後者は「0枚選択」でも直後の「そうした場合」ゲートが通り**払わずに本体が撃てる**）。
+// 正準形は `STUB{OPTIONAL_COST, handDiscard}`（effectExecutor Pattern ③/④/⑤ の pay/skip 分岐）。
+//
+// **運用**＝下は worklist であって許可リストではない。**リストに無いカードがこの形になったら即FAIL**。
+// 残りの内訳は PLAN §6.4 を参照（parser 側の別文型・所有者取り違え等で1件ずつ性質が違う）。
+const FORCED_HAND_COST_KNOWN = new Set([
+  // ── 原文が強制の手札捨て（＝バグではない。「捨てる。そうした場合」形）──
+  'WDK07-E01-E2', 'WDK07-E06-E1', 'WX03-034-BURST', 'WX04-030-BURST', 'WX05-030-BURST',
+  'WX05-045-BURST', 'WX14-012-E1', 'WX19-001-E3', 'WX25-P1-TK2-E1', 'WX25-P3-TK03-E1',
+  'WX26-CP1-068-E1', 'WXK05-003-E1',
+  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist）──
+  'WX25-P2-082-E1',   // 「代わりに」畳み込みが parser 後段で再構築し、任意コスト化が巻き戻る
+  'WX25-P2-100-E1',   // 同上
+  'WXDi-P07-010-E2',  // 「①/②を行う」多分岐の内側
+  'WXDi-P10-039-E2',  // 二段の任意（捨ててもよい→そのターン終了時に《青》《無》を払ってもよい）
+  'WXDi-P14-002-E1',  // CHOOSE 選択肢の内側
+  'WXDi-P14-044-E1',  // action のトップが CONDITIONAL（SEQUENCE ではない）
+  'WXDi-P05-037-E1',  // ⚠別バグ同居＝原文「**対戦相手は**手札を２枚捨ててもよい」なのに owner:self
+]);
+test('§6.4 トリップワイヤ: 「〜てもよい。そうした場合」の任意コストが素の TRASH のまま残っていない（既知リスト外は即FAIL）', () => {
+  const found: string[] = [];
+  const walk = (node: unknown, id: string, effId: string): void => {
+    if (Array.isArray(node)) return node.forEach(v => walk(v, id, effId));
+    if (!node || typeof node !== 'object') return;
+    const o = node as Record<string, any>;
+    if (o.type === 'SEQUENCE' && Array.isArray(o.steps)) {
+      o.steps.forEach((s: any, i: number) => {
+        const nx = o.steps[i + 1];
+        if (s?.type === 'TRASH' && s.target?.type === 'HAND_CARD' && s.target.owner === 'self'
+          && nx?.type === 'CONDITIONAL' && ['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes(nx.condition?.type)
+          && !found.includes(effId)) found.push(effId);
+      });
+    }
+    for (const k of Object.keys(o)) walk(o[k], id, effId);
+  };
+  for (const [id, effs] of effectsMap) for (const e of effs) walk(e.action, id, e.effectId);
+  const extra = found.filter(x => !FORCED_HAND_COST_KNOWN.has(x));
+  eq(extra.join(','), '', `新しい「強制の手札捨てコスト」: ${extra.join(',')}`);
+  // 既知リストが消化で空になったら、この test ごと畳めるようリストの陳腐化も止める
+  const stale = [...FORCED_HAND_COST_KNOWN].filter(x => !found.includes(x));
+  eq(stale.join(','), '', `既に解消済みなのにリストに残っている: ${stale.join(',')}`);
+});
+
 // §6.3 K トリップワイヤ＝`manualEffects.ts` を直しても live JSON に届かない死角を可視化する（2026-08-08 続き382 新設）。
 //
 // **背景**＝`build:effects` は live 側 `parseStatus:MANUAL`/`PARTIAL` を「手修正は不可侵」として温存するが、
