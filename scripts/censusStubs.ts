@@ -227,7 +227,9 @@ const rows: Row[] = [...allIds].map(id => {
 
 const inLive = rows.filter(r => r.count > 0);
 // A＝実装の穴：live に居るのに engine のどこにも消費が無い＝実行しても何も起きない。
+// うち `DEFERRED_*` は「機構が無いことを明示するために置いた honest defer」＝無言バグではない。
 const holeImpl = inLive.filter(r => !r.handler && r.consumers.length === 0);
+const isDeferred = (r: Row) => r.id.startsWith('DEFERRED_');
 // B＝宣言型：ハンドラは無いが engine の別経路（CONTINUOUS 収集等）が読んでいる＝実害なしの見込み。
 const declarative = inLive.filter(r => !r.handler && r.consumers.length > 0);
 // C＝表示だけの穴：実装はあるのに逆翻訳に英語 ID が出ている。
