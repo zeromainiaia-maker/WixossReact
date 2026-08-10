@@ -30,12 +30,18 @@ SEQUENCE[ STUB{OPTIONAL_COST,handDiscard{1,＜天使＞}}, CONDITIONAL{IS_MY_TUR
 機械確認した。⚠**署名グループ一括採用（`--adopt-sig`）は危険**＝同じ署名の `WX25-P3-003` は
 別に `exceed:3` を失っており、巻き添えで手修正が消えるところだった。
 
-### 🔴 代用にならない表現（この罠でどちらも過去に踏まれている）
+### 🔴 内訳＝120箇所中「本当に強制だった」のは46箇所（45カード）
 
-| 表現 | なぜ駄目か |
-|---|---|
-| `mandatory:false` | **ON_PLAY 以外では engine が `mandatory` を読まない**。ON_PLAY では「コスト無し mandatory:false」が `mandatoryOnPlay`／`costOnPlay` の**両方の収集フィルタから漏れて一切発火しない** |
-| `TRASH{optional:true}` | 「0枚選択」でも直後の「そうした場合」ゲート（`CONDITIONAL{IS_MY_TURN}`）が通り、**払わずに本体が撃てる**（`WX24-P4-050`・`WXK08-052` が実例） |
+続き417 で変換前後を機械比較して切り分けた：
+
+| 変換前 | 箇所 | 実際の挙動 | 本変換の意味 |
+|---|---|---|---|
+| 素の `TRASH`（`optional` 無し） | **46** | UI が1枚選択を要求＝**必ず捨てさせられる** | 🔴**バグ修正** |
+| `TRASH{optional:true}` | 74 | `resumeSelectTarget` の `stripDidItConditional` が0枚選択で「そうした場合」ゲートごと落とす＝**正しく動いていた**（手札0枚でも本体は撃たない。engine 実測で確認） | 表現の統一＋支払い可能性チェック＋「支払う／スキップ」の明示UI |
+
+⚠**`mandatory:false` は代用にならない**＝**ON_PLAY 以外では engine が `mandatory` を読まず**、ON_PLAY では
+「コスト無し mandatory:false」が `mandatoryOnPlay`／`costOnPlay` の収集フィルタの穴に落ちる。
+任意性は必ず action 木の側（`STUB{OPTIONAL_COST}` か `optional:true`）で表す。
 
 ### ⚠ 使用時（支払い時）コストには触ってはいけない
 
@@ -52,7 +58,7 @@ SEQUENCE[ STUB{OPTIONAL_COST,handDiscard{1,＜天使＞}}, CONDITIONAL{IS_MY_TUR
 
 ### 回帰ガード
 
-- golden `§6.4 トリップワイヤ`＝全 live を走査して「素の `TRASH{HAND_CARD,self}` ＋ did-it ゲート」を
+- golden `§6.4 トリップワイヤ`＝全 live を走査して「素の `TRASH{HAND_CARD,self}`（`optional` 無し）＋ did-it ゲート」を
   検出し、既知リスト（`FORCED_HAND_COST_KNOWN`＝原文が強制の12件＋未消化7件）**以外は即FAIL**。
   リストの陳腐化（既に解消済みなのに残っている）も同時に FAIL にする。
 - golden `OPTIONAL_COST(handDiscard)→…→BANISH`（`WX24-P4-050`）＝pay で手札1枚減／

@@ -5442,6 +5442,44 @@ function applyOptionalHandDiscardCost(text: string, action: EffectAction): Effec
   return { ...action, steps } as EffectAction;
 }
 
+// ── §6.4 「〈行動〉てもよい」＝**行動そのものが任意**（コストではない）形（続き417）──
+// 上の `applyOptionalHandDiscardCost` はコストを `OPTIONAL_COST` に載せる形。こちらは
+// **`OptionalCostSpec` で表せない行動**（引く／エナチャージ／ライフクラッシュ／【チャーム】付け）で、
+// engine 側にも `optional` / `upToCount` の受け皿が無いため**任意性を表す場所が無く強制になっていた**。
+// 正準形＝`SEQUENCE[STUB{OPTIONAL_ACTIVATE}, <行動>, …]`（effectExecutor Pattern⑤＝
+// 「発動する／発動しない」。発動しなければ**残りステップごとスキップ**＝「そうした場合」も走らない）。
+//
+// ⚠**型ホワイトリスト制**にする。`OPTIONAL_ACTIVATE` は `canAfford` が常に true なので、
+//   コスト（手札捨て・エナ支払い・自己トラッシュ等）を先頭に持つ形へ広げると
+//   **払えなくても「発動する」が選べて本体だけ通る**（＝踏み倒し）。任意コストは `OPTIONAL_COST` の領分。
+const OPTIONAL_ACTIVATE_TYPES = new Set([
+  'DRAW',                     // 「カードをN枚引いてもよい」
+  'ENERGY_CHARGE_FROM_DECK',  // 「デッキの上からカードをN枚エナゾーンに置いてもよい」
+  'MILL',                     // 「デッキの上からカードをN枚トラッシュに置いてもよい」
+  'LIFE_CRASH',               // 「あなたのライフクロス1枚をクラッシュしてもよい」
+  'ATTACH_CHARM',             // 「…を【チャーム】にしてもよい」
+]);
+
+function applyOptionalActivateGate(text: string, action: EffectAction): EffectAction {
+  if (hasOptionalCostStub(action)) return action;
+  if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;   // 使用時コストは別機構
+  const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
+  if (sentences.length === 0) return action;
+  // ①先頭文が「〜てもよい」で終わる（主語が対戦相手の形は自分の任意性ではない＝除外）
+  if (!/てもよい$/.test(sentences[0])) return action;
+  if (/対戦相手[はが]/.test(sentences[0])) return action;
+  // ②後続は帰結だけ（「そうした場合／その後、」）＝任意性が文全体に掛かることを保証する。
+  //   独立した別命令が続く形にゲートを掛けると、強制のはずの後段まで辞退できてしまう。
+  if (sentences.slice(1).some(s => !/^(?:そうした場合|その後)/.test(s))) return action;
+  const steps = action.type === 'SEQUENCE' ? [...(action as SequenceAction).steps] : [action];
+  const first = steps[0];
+  if (!first || !OPTIONAL_ACTIVATE_TYPES.has(first.type)) return action;
+  // ③既に辞退できる形（`optional` / `upToCount`）なら二重に問わない
+  const f = first as EffectAction & { optional?: boolean; target?: EffectTarget; source?: EffectTarget };
+  if (f.optional === true || f.target?.upToCount === true || f.source?.upToCount === true) return action;
+  return { type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction, ...steps] } as SequenceAction;
+}
+
 function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (TARGET_LEVEL_SCALE_RE.test(text)) return action;              // (liii) の領分
