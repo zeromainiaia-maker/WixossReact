@@ -1182,6 +1182,26 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       mandatory: true,
       parseStatus: 'MANUAL',
     },
+    {
+      // 【出】：対戦相手のすべてのシグニを好きなように配置し直してもよい。
+      //        あなたはこの方法で他のシグニゾーンに移動したシグニをアップしてもよい。
+      // ⚠parser の素の出力は 2段目が `UP{SIGNI, owner:'self', count:1}`＝**自分のシグニをアップ**する
+      //   別物だった（主語のない「移動したシグニ」を self へ倒す既知の反転）。採ると過剰効果になるので
+      //   ここで手書きに置き換える。1段目の「配置し直して**もよい**」も素の出力は optional が落ちていた。
+      // 📋 2段目は明示 defer＝「この方法で移動したシグニ」だけを対象に**任意で**アップする選択UIが要る
+      //   （`resumeRearrangeSigni` は移動したシグニを `rearrMoved` として既に把握しているので、
+      //     必要なのは pay/skip ではなく「アップするシグニを選ぶ」インタラクション）。
+      effectId: 'WX12-010-E3',
+      effectType: 'AUTO',
+      timing: ['ON_PLAY'],
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true },
+        { type: 'STUB', id: 'DEFERRED_UP_REARRANGED_MOVED_SIGNI' },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
   ],
 
   // WD07-012 コードアンチ ヴィマナ（シグニ）
