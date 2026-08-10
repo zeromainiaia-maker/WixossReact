@@ -7847,13 +7847,23 @@ function parseActionTextInner(text: string): EffectAction {
           if (baseKey && prefix) {
             const then = parseSingleSentence(prefix + enhancedText);
             const thenKey = tgtKeyOf(then);
-            // 昇格先が**別の対象を選び直す**形（対象節を無視して独自 target を作った等）は据置＝
-            // 対象キーが取れないアクション（DRAW 等）へ縮退したものも弾く。
-            if (thenKey && !JSON.stringify(then).includes('"UNKNOWN"') && then.type !== coreOf(base).type) {
-              (then as unknown as Record<string, unknown>)[thenKey] =
-                JSON.parse(JSON.stringify((baseCore as unknown as Record<string, unknown>)[baseKey]));
-              steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
-              continue;
+            // 対象キーが取れないアクション（DRAW 等）へ縮退したものは据置＝「それ」の解決に失敗している。
+            if (thenKey && !JSON.stringify(then).includes('"UNKNOWN"')) {
+              const thenO = then as unknown as Record<string, unknown>;
+              thenO[thenKey] = JSON.parse(JSON.stringify((baseCore as unknown as Record<string, unknown>)[baseKey]));
+              // 期間も base から引き継ぐ（昇格文が期間を書かない形＝「代わりにそれは【シャドウ】を得る」は
+              // 単独再パースだと PERMANENT へ落ち、base の `次の対戦相手のターン終了時まで` が黙って
+              // 恒久付与に化ける＝`WXDi-CP01-026-E1`）。昇格文が期間を明示する形はそちらを尊重する。
+              const baseDur = (baseCore as unknown as Record<string, unknown>).duration;
+              if (baseDur !== undefined && thenO.duration !== undefined && !/ターン終了時まで/.test(enhancedText)) {
+                thenO.duration = baseDur;
+              }
+              // 再パースが base と完全同型になった＝昇格が何も変えていない（＝「代わりに」の中身を
+              // 表現できていない）ので、意味のない CONDITIONAL を作らずに据置する。
+              if (JSON.stringify(then) !== JSON.stringify(baseCore)) {
+                steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
+                continue;
+              }
             }
           }
         }
