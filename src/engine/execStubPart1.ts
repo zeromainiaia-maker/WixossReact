@@ -2445,6 +2445,47 @@ export function execStubPart1(
     };
     return selectOrInteract(cands, 1, false, 'self_hand', trashAction, undefined, ctx, true);
   }
+  // MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC（WX24-P4-016-E3）：
+  //   「このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きに
+  //     なったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か
+  //     【ダブルクラッシュ】を得る。」
+  // ⚠**印字能力ではなく「そのターンだけ付与される watcher」**なので `lrig_granted_auto_effects` へ積む
+  //   （`permanentGrant` を付けない＝`clearTurnGrantedLrigAbilities` がターン終了時に落とす）。
+  //   `game_granted_auto_effects` は「このゲームの間」用でターン境界のクリアが無く、使うと持ち越す。
+  // ⚠発火は `collectMagicBoxFlippedTriggers` が**付与ストアも走査**して拾う（印字だけ見ると恒久 no-op）。
+  if (stub.id === 'MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC') {
+    const grantKw = (keyword: string, choiceId: string): { choiceId: string; label: string; action: EffectAction } => ({
+      choiceId, label: `【${keyword}】`,
+      action: {
+        type: 'GRANT_KEYWORD',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        keyword, duration: 'UNTIL_END_OF_TURN',
+      } as EffectAction,
+    });
+    const watcherMBF = {
+      effectId: `${ctx.sourceEffectId ?? 'MAGIC_BOX_FLIP_GRANT'}-G`,
+      effectType: 'AUTO' as const,
+      timing: ['ON_MAGIC_BOX_FLIPPED' as const],
+      triggerScope: 'any_ally' as const,
+      // 「このターンのアタックフェイズの間」＝ターン限定は付与ストアの寿命が担い、
+      // フェイズ限定はこの activeCondition が担う。
+      activeCondition: { type: 'DURING_ATTACK_PHASE' as const, owner: 'self' as const },
+      action: {
+        type: 'CHOOSE', choose_count: 1, from_count: 2,
+        choices: [grantKw('アサシン', 'c0'), grantKw('ダブルクラッシュ', 'c1')],
+      } as EffectAction,
+      duration: 'INSTANT' as const,
+      mandatory: true,
+      parseStatus: 'MANUAL' as const,
+    };
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        lrig_granted_auto_effects: [...(ctx.ownerState.lrig_granted_auto_effects ?? []), watcherMBF],
+      },
+    }, 'このターンのアタックフェイズ中、【マジックボックス】が表向きになったらシグニ1体に【アサシン】か【ダブルクラッシュ】を与える'));
+  }
   // ARTS_ATTACK_EMPTY_ZONE_AS_FRONT（WX16-021 驚天動地）：
   //   「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、
   //     代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える。」
