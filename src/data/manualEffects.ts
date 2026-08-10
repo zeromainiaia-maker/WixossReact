@@ -4056,6 +4056,31 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // E1 を「覚醒中」condition 付き AUTO ON_TURN_END に修正。相手エナの「相手センターと共通しない色」は
   //   energy 対象で colorNotMatchesLrig が対象オーナー（相手）のルリグ基準で colorExclude へ解決される（execExecutor）。
   // E2 を ON_SIGNI_BATTLE→AWAKEN_SIGNI に修正（バトル成立時に発火。「バニッシュした」勝利限定は専用情報がなく近似）。
+  // WXDi-P07-010 でじたるあーや！Ⅲ（ルリグ）
+  // 【起】《ゲーム１回》《青×0》：対戦相手のシグニ１体を対象とし、それを裏向きにする。
+  //   各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
+  //   対戦相手は《無》《無》を支払うか手札を２枚捨ててもよい。そうした場合、それを表向きにする。
+  // 🔴旧パース＝2文目が `TRASH{HAND_CARD, owner:'self', 2, optional}`＝**自分が手札2枚を捨てる**（しかも
+  //   帰結は `RULE_REMINDER_TEXT`＝何も起きない）＝**ただの自傷**だった。
+  // 📋 解放条件は「**各**アタックフェイズ開始時に、同じ場所が空なら相手が支払える」という**繰り返す遅延ゲート**で、
+  //   現行の遅延トリガー機構（THIS_TURN 主体）では表せない。裏向きにする本体だけを残し、解放側は明示 defer。
+  'WXDi-P07-010': [
+    {
+      effectId: 'WXDi-P07-010-E2',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '青', count: 0 }] },
+      usageLimit: 'once_per_game',
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'FACE_DOWN_OPP_SIGNI' },
+        { type: 'STUB', id: 'DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT' },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P09-064 羅星 ヴォランス（シグニ）
   // 【出】：対戦相手は手札を２枚まで捨ててもよい。対戦相手はこの方法で捨てたカード１枚につきカードを１枚引く。
   // 🔴旧パース＝`SEQUENCE[STUB{TARGET_AND_DISCARD_HAND}, DRAW{owner:'self'}]`＝**主語が丸ごと反転**して
