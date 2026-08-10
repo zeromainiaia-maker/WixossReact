@@ -1478,9 +1478,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 「てもよい」＝任意。「そうした場合、それを<除去>」の did-it ゲートと組む任意コストで、optional を落とすと
   //   engine が強制で手札を捨てさせる（curated が持つ optional:true を復元＝§3 タスク12(vii)系）。
   //   ⚠この規則は先頭非アンカーで「…を対象とし、手札をN枚捨ててもよい」も拾う＝part3 の anchored 版より先に効く。
+  // ⚠**主語が「対戦相手は」の形はここで取ってはいけない**（§6.4・続き425）＝捨てるのは相手なので
+  //   `owner:'self'` は所有者反転そのもの。判定は**最後の読点以降の節**で見る（前置きの条件節に
+  //   「対戦相手のシグニ1体を対象とし、」等が入る形を巻き込まないため）。相手側の任意支払いは
+  //   part3 の `OPPONENT_PAY_OPTIONAL` が受ける。
   {
     const optDiscardM = t.match(/手札を([０-９\d]+)枚捨ててもよい$/);
-    if (optDiscardM) return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(optDiscardM[1]) }, optional: true };
+    const lastClause = t.slice(t.lastIndexOf('、') + 1);
+    if (optDiscardM && !/^対戦相手[はが]/.test(lastClause)) {
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(optDiscardM[1]) }, optional: true };
+    }
   }
 
   // ---- サーチ（手札 or 場に出す or エナゾーン）----
