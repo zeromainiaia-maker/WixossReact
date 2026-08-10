@@ -138,7 +138,14 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               opp_trash:   '相手のトラッシュから',
             };
             // opp_hand は viewer が持ち主なら「あなたの手札から」（タスク12(cv)）
-            const from = oppHandOwnerIsViewer ? 'あなたの手札から' : (scopeDesc[inter.targetScope] ?? '');
+            // 同型＝`opp_lrig_deck` × `opponentResponds:true`（「対戦相手は自分のルリグデッキから…」WX24-P4-014）は
+            // **応答者＝viewer 自身がそのルリグデッキの持ち主**なので「相手の」と出すと嘘になる。
+            // ⚠候補は `inter.candidates` から直接描くので opp_hand のようなソフトロックは起きない＝**表示だけの是正**。
+            const oppLrigDeckOwnerIsViewer = inter.type === 'SELECT_TARGET'
+              && inter.targetScope === 'opp_lrig_deck' && !!inter.opponentResponds;
+            const from = oppHandOwnerIsViewer ? 'あなたの手札から'
+              : oppLrigDeckOwnerIsViewer ? 'あなたのルリグデッキから'
+              : (scopeDesc[inter.targetScope] ?? '');
             const act = inter.thenAction;
             const actionDesc =
               act.type === 'BANISH'         ? 'バニッシュする' :
