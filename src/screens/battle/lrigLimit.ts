@@ -33,6 +33,12 @@ export function computeEffectiveLrigLimit(
   const continuousDelta = collectLrigColorAndLimitMods(
     state, cardMap, effectsMap, otherState, isOwnerTurn,
   ).limitDelta;
+  // ⚠**相手の場が宣言する `LRIG_LIMIT_MODIFY{owner:'opponent'}` はここでしか拾えない**（続き407）。
+  //   `collectLrigColorAndLimitMods` は「その state 自身の場が宣言する owner:'self'」しか集計しないので、
+  //   `WX22-002-E1`（「対戦相手のターンの間、対戦相手のセンタールリグのリミットは1減る」）が丸ごと落ちていた。
+  const oppDeclaredDelta = collectOppDeclaredLrigLimitDelta(
+    otherState, state, cardMap, effectsMap, !isOwnerTurn,
+  );
 
   return (basicOverride ?? copiedLimit ?? parseLimit(center?.Limit))
     + ((state.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
