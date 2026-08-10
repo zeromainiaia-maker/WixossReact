@@ -1964,6 +1964,11 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     if (!state.field.signi.some(z => !z || z.length === 0)) {
       return done(addLog(ctx, `空きシグニゾーンなし（${a.cardName}配置不可）`));
     }
+    // 配置制限（「シグニをN体までしか場に出せない」）。⚠ゾーン選択UIを出す**前**に弾く。
+    {
+      const blocked = deployLimitBlockedFor(tgtOwner, a.cardName, ctx);
+      if (blocked) return done(addLog(ctx, deployLimitLogMessage(blocked, a.cardName)));
+    }
     // a.cardName は原文の《CardName》。InstanceMap は CardNum でカードデータを引くため、
     // クラフト/トークンの CardName を CardNum に解決してインスタンスの基底にする
     // （未解決だと能力・パワーが付かない空トークンになる）。
