@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を2件実装（続き409〜410）
+## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を4件実装（続き409〜411）
 
 ### 背景：`[STUB:X]` 907箇所は「表示の穴」と「実装の穴」が混ざっていた
 
@@ -90,21 +90,64 @@ live JSON は `GRANT_EFFECT` で正しく付与していたが、**engine 側に
 - **golden +2**／**live JSON 変化は `WXK11-001-E1` の1効果のみ**／**A群 12→11**。
 - ⚠**実機UI未検証**（新規 CHOOSE ＋ ルリグデッキ選択モーダル）＝§7 送り。
 
-### A群の残 11件（1カード1機構・逓減しない）
+### A群の3・4件目：`OPP_LRIG_DECK_TO_LRIG_TRASH` / `PLAY_MILLED_SIGNI_DELAYED_TRASH`（続き411）
+
+#### (a) `OPP_LRIG_DECK_TO_LRIG_TRASH`（WX24-P4-014-E3 ②）
+
+原文＝「対戦相手のライフクロスが０枚の場合、対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く。」
+構造（CHOOSE →②CONDITIONAL）は既に正しく、action だけが死んでいた。
+
+- **選ぶのはカードの持ち主＝対戦相手**なので `selectOrInteract(..., opponentResponds=true)`
+  （`OPP_CHOOSE_YOUR_HAND_DISCARD` と同じ慣例）。
+- 🔴**`opponentResponds` は「誰がクリックするか」だけを変える＝ctx の視点は反転しない**。候補も適用先も
+  `ctx.otherState`（効果コントローラーから見た対戦相手）のまま扱う。golden にトリップワイヤ
+  （自分側のルリグトラッシュに入っていたら FAIL）。
+- 🔴**行先は `trash` ではなく `lrig_trash`**（ルリグデッキのカードはルリグトラッシュへ）。これも golden で固定。
+- **UI 表示の是正**＝`targetScope:'opp_lrig_deck'` × `opponentResponds:true` では**応答者＝viewer 自身が
+  そのルリグデッキの持ち主**なので「相手のルリグデッキから」は嘘になる（`opp_hand` の先例と同型）。
+  ⚠候補は `inter.candidates` から直接描くので `opp_hand` のようなソフトロックは起きない＝**表示だけの是正**。
+
+#### (b) `PLAY_MILLED_SIGNI_DELAYED_TRASH`（WXDi-P09-079-E1）
+
+原文＝「【自】《ターン１回》：あなたのメインフェイズの間、あなたのデッキからレベル１のシグニ１枚が
+トラッシュに置かれたとき、そのシグニを場に出す。ターン終了時、そのシグニを場からトラッシュに置く。」
+
+🔴**真因は collector 側だった**＝`collectMillTriggers` は `milledCardFilter` の**一致件数だけ数えて
+カードそのものを捨てていた**ので、後段が「そのシグニ」を引く手段が無かった。一致カードを
+`StackEntry.triggeringCardNum` に載せて解決。
+⚠**`sourceCardNum`（＝能力ホスト）とは別軸**なので既存の `thisCardOnly` 効果には影響しない
+（**この timing の live 16効果のうち triggerSource を読むものは 0** ＝投入前に全数確認してから入れた）。
+
+- **ターン終了時トラッシュは既存機構**＝`turn_end_field_trash_targets`（`TRASH_AT_TURN_END` と同じストア。
+  BattleScreen の ENDフェイズが消化する）。
+- 🔴**配置制限を必ず通す**＝`deployLimit.ts` の `deployLimitBlockReason`。**直接 `field.signi` に書く実装は
+  「シグニをN体までしか場に出せない」をすり抜ける常習箇所**（続き405 で一本化した経緯そのもの）。
+  golden にトリップワイヤ（`signi_deploy_count_limit` を掛けた状態で場に出たら FAIL）。
+- 空きゾーンなし／トリガー元不明は不発（`lastProcessedCards` を空に倒して「そうした場合」を漏らさない）。
+
+#### 共通の教訓
+
+⭐**A群は「半分だけ実装済み」が多い＝後段の機構が既にあるかを先に確かめる。** 実績4件ともそうだった
+（WXK11-001② はスキップ機構が完備／WX24-P4-014② は相手選択とルリグデッキ移動が既存／WXDi-P09-079 は
+timing・triggerCondition・ターン終了時トラッシュがすべて既存で、**死んでいたのは action だけ**）。
+
+⚠**実機UI未検証**（相手ルリグデッキ選択モーダル）＝§7 送り。
+
+### A群の残 9件（1カード1機構・逓減しない）
 
 `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`（WX16-021）／`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）／
 `ATTACK_NEGATE_IMMUNITY_SELF`・`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（ともに WX24-P4-016）／
-`CHECK_ZONE_FLIP_FREE_GROW`（WXDi-P16-001A）／`OPP_LRIG_DECK_TO_LRIG_TRASH`（WX24-P4-014）／
-`PLAY_MILLED_SIGNI_DELAYED_TRASH`（WXDi-P09-079）／`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041）／
+`CHECK_ZONE_FLIP_FREE_GROW`（WXDi-P16-001A）／`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041）／
 `FLIP_SELF_FACE_DOWN_UP`（WX25-CP1-060）／
 `COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（WXDi-P05-006＝§6.3 E-2 (b) の**着手禁止**）／
 `GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（WXDi-P00-026＝§6.3 F の**保留**）。
 
 ### ゲート
 
-`npm run gates` 全緑＝golden **1744（+3）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+`npm run gates` 全緑＝golden **1746（+5）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
 census **880 据置** / lint 0 errors・254 warnings（増減0）。`npm run build:effects`＋`npm run regen` 実施。
-**live JSON 変化は `WXK11-001-E1` の1効果のみ**。
+**live JSON 変化は `WXK11-001-E1` の1効果のみ**（続き411 は engine/collector のみで live 変化0）。
+**A群の無言 no-op は 12 → 9**。
 
 ## 2026-08-10 — §6.4 計器（checkAllEffects / verifyEffects）の誤検出を潰し、任意性脱落の系統バグを発見（続き408）
 
