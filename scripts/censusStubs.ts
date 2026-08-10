@@ -220,8 +220,8 @@ const rows: Row[] = [...allIds].map(id => {
   let cons = codeConsumers(id);
   let via: Row['via'] = '';
   if (!handler && cons.length === 0) {
-    const pre = prefixConsumers(id);
-    if (pre.length) { cons = pre; via = '前方一致'; }
+    const pre = matcherConsumers(id);
+    if (pre.length) { cons = pre; via = 'id正規表現'; }
     else {
       const pay = payloadConsumers(id);
       if (pay.length) { cons = pay; via = 'ペイロードキー'; }
