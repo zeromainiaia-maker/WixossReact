@@ -2026,6 +2026,14 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
     // 空きゾーンがなければスキップ
     if (!state.field.signi.some(z => !z || z.length === 0)) return done(ctx);
     const cardNum = state.deck[0];
+    // 配置制限（「シグニをN体までしか場に出せない」）。⚠ゾーン選択UI／任意選択を出す**前**に弾く。
+    {
+      const blocked = deployLimitBlockedFor(tgtOwner, cardNum, ctx);
+      if (blocked) {
+        return done(addLog(ctx, deployLimitLogMessage(
+          blocked, ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum)));
+      }
+    }
     // optional:「場に出してもよい」＝出す/出さないを選択（デッキトップ公開後の任意配置。WDK16-13/WXK08-033）。
     // 出す側は optional を落として同アクションへ再入し、下の SELECT_ZONE 分岐で配置する。
     if (a.optional) {
