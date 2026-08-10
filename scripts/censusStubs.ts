@@ -125,6 +125,49 @@ for (const abs of walkFiles(join(root, 'src'))) {
 // 実コード（非コメント）の消費だけを「実装あり」の根拠にする。
 const codeConsumers = (id: string): Ref[] => (consumers.get(id) ?? []).filter(r => !r.comment);
 
+// ── 2b) id 文字列が出てこない消費の2形（初版の誤検出2件の原因）──
+// (a) 前方一致／正規表現ディスパッチ＝`act.id.match(/^LIMIT_ALL_FIELD_(\d+)$/)` は id 全体を書かない。
+// (b) ペイロードのキーで実装＝`PREVENT_POWER_MODIFY_BY_OPP` は effectEngine が `act.powerModifyProtection`
+//     だけを読む（id は一度も比較されない）。
+// この2つを見ないと「実装済みなのに実装の穴」と誤って報告する＝計器が過剰報告する典型。
+const consumerCode: { file: string; line: number; text: string }[] = [];
+for (const abs of walkFiles(join(root, 'src'))) {
+  const rel = relative(root, abs);
+  if (HANDLER_RE.test(rel) || PRODUCER_RE.test(rel)) continue;
+  const lines = readFileSync(abs, 'utf-8').split(/\r?\n/);
+  for (let i = 0; i < lines.length; i++) {
+    const t = lines[i].trim();
+    if (t.startsWith('//') || t.startsWith('*') || t.startsWith('/*')) continue;
+    consumerCode.push({ file: rel, line: i + 1, text: t });
+  }
+}
+function prefixConsumers(id: string): Ref[] {
+  const seg = id.split('_');
+  const hits: Ref[] = [];
+  for (let n = seg.length - 1; n >= 2; n--) {
+    const prefix = seg.slice(0, n).join('_') + '_';
+    for (const c of consumerCode) {
+      if (c.text.includes(prefix)) hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
+    }
+    if (hits.length) break; // 最も長い（＝最も特異な）前方一致だけを根拠にする
+  }
+  return hits;
+}
+function payloadConsumers(id: string): Ref[] {
+  const keys = [...(livePayloadKeys.get(id) ?? [])];
+  const hits: Ref[] = [];
+  for (const k of keys) {
+    for (const c of consumerCode) {
+      // `act.powerModifyProtection` / `.powerModifyProtection` の形だけを取る（型定義ファイルは除外済みではないので
+      // `?:` を含む宣言行は落とす）。
+      if (new RegExp(`\\.${k}\\b`).test(c.text) && !new RegExp(`${k}\\??\\s*:`).test(c.text)) {
+        hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
+      }
+    }
+  }
+  return hits;
+}
+
 // ── 3) 逆翻訳シートでの「生ID露出」を実測 ──
 // `[STUB:<生ID>` がそのまま出ているか＝表示語彙が無い（説明文が付いていれば日本語になる）。
 const sheetText = (() => {
