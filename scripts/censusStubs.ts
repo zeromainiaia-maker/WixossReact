@@ -297,7 +297,7 @@ p('【B】宣言型＝execStub ハンドラは無いが engine の別経路が i
 p('==============================================================================');
 for (const r of declarative.sort((a, b) => b.count - a.count || a.id.localeCompare(b.id))) {
   p(fmt(r));
-  p(`        消費: ${r.consumers.slice(0, 3).map(x => `${x.file}:${x.line}`).join(' / ')}${r.consumers.length > 3 ? ` …他${r.consumers.length - 3}箇所` : ''}`);
+  p(`        消費${r.via ? `(${r.via})` : ''}: ${r.consumers.slice(0, 3).map(x => `${x.file}:${x.line}`).join(' / ')}${r.consumers.length > 3 ? ` …他${r.consumers.length - 3}箇所` : ''}`);
 }
 p('');
 
