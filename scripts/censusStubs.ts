@@ -141,26 +141,41 @@ for (const abs of walkFiles(join(root, 'src'))) {
     consumerCode.push({ file: rel, line: i + 1, text: t });
   }
 }
-function prefixConsumers(id: string): Ref[] {
-  const seg = id.split('_');
-  const hits: Ref[] = [];
-  for (let n = seg.length - 1; n >= 2; n--) {
-    const prefix = seg.slice(0, n).join('_') + '_';
-    for (const c of consumerCode) {
-      if (c.text.includes(prefix)) hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
-    }
-    if (hits.length) break; // 最も長い（＝最も特異な）前方一致だけを根拠にする
+// (a) id に対する正規表現／前方一致ディスパッチ。⚠**「id の前方一致文字列を src から探す」実装は誤検出だらけになる**
+//     （`ASSIST_LRIG_ATTACK_THIS_TURN` が `RETURN_ASSIST_LRIG_TO_DECK` に、`PREVENT_POWER_MODIFY_BY_OPP` が
+//     `PREVENT_POWER_MINUS_BY_OPP` に当たる）。**コード側の matcher を集めて id を test する**のが正しい向き。
+const idMatchers: { re: RegExp; file: string; line: number }[] = [];
+const idPrefixes: { prefix: string; file: string; line: number }[] = [];
+for (const c of consumerCode) {
+  if (!/\.id\b/.test(c.text)) continue;
+  for (const m of c.text.matchAll(/\.id(?:\s*\?\?\s*'')?\s*\.match\(\/([^/]+)\/[gimsuy]*\)/g)) {
+    try { idMatchers.push({ re: new RegExp(m[1]), file: c.file, line: c.line }); } catch { /* 解釈できない正規表現は無視 */ }
   }
+  for (const m of c.text.matchAll(/\.id\s*\.startsWith\(\s*'([^']+)'/g)) {
+    idPrefixes.push({ prefix: m[1], file: c.file, line: c.line });
+  }
+}
+function matcherConsumers(id: string): Ref[] {
+  const hits: Ref[] = [];
+  for (const m of idMatchers) if (m.re.test(id)) hits.push({ file: m.file, line: m.line, text: '', comment: false });
+  for (const p of idPrefixes) if (id.startsWith(p.prefix)) hits.push({ file: p.file, line: p.line, text: '', comment: false });
   return hits;
 }
-function payloadConsumers(id: string): Ref[] {
-  const keys = [...(livePayloadKeys.get(id) ?? [])];
-  const hits: Ref[] = [];
+// (b) ペイロードのキーで実装されている STUB（id は一度も比較されない）。⚠**汎用キー（`text`/`costText`/`count` 等）は
+//     根拠にならない**＝そのキーを持つ STUB id が何種類あるかで「その STUB 専用のキーか」を判定する。
+const keyToIds = new Map<string, Set<string>>();
+for (const [id, keys] of livePayloadKeys) {
   for (const k of keys) {
+    if (!keyToIds.has(k)) keyToIds.set(k, new Set());
+    keyToIds.get(k)!.add(id);
+  }
+}
+function payloadConsumers(id: string): Ref[] {
+  const hits: Ref[] = [];
+  for (const k of livePayloadKeys.get(id) ?? []) {
+    if ((keyToIds.get(k)?.size ?? 99) > 2) continue; // 専用キーだけを根拠にする
     for (const c of consumerCode) {
-      // `act.powerModifyProtection` / `.powerModifyProtection` の形だけを取る（型定義ファイルは除外済みではないので
-      // `?:` を含む宣言行は落とす）。
-      if (new RegExp(`\\.${k}\\b`).test(c.text) && !new RegExp(`${k}\\??\\s*:`).test(c.text)) {
+      if (new RegExp(`\\.${k}\\b`).test(c.text) && !new RegExp(`\\b${k}\\??\\s*:`).test(c.text)) {
         hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
       }
     }

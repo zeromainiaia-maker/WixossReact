@@ -5,27 +5,19 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
 逆翻訳シートの [STUB:…] 総数: 907  うち生ID露出 276 箇所（191 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 23 種 / 29 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 14 種 / 24 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 174 種 / 253 箇所
-  D 健全（実装あり＋日本語表示）                          : 395 種
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 15 種 / 17 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 7 種 / 9 件
+      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 8 種 / 8 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 22 種 / 36 件
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 179 種 / 262 箇所
+  D 健全（実装あり＋日本語表示）                          : 398 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 309 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
   ⚠ これが本命の worklist。1件ずつ原文照合して「機構実装」か「そもそも parser が誤って STUB を吐いている」かを判定する。
 ==============================================================================
-     5件   5枚  PREVENT_POWER_MODIFY_BY_OPP  [生ID露出 5]
-        カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-        生成: src\data\manualEffects.ts:372 / src\data\manualEffects.ts:377
-     3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
-        カード: WX25-P3-055, WXK01-002, WXK03-071
-        生成: src\data\manualEffects.ts:4516 / src\data\manualEffects.ts:4519
-     1件   1枚  ARTS_ATTACK_EMPTY_ZONE_AS_FRONT  [生ID露出 1]
-        カード: WX16-021
-     1件   1枚  ASSIST_LRIG_ATTACK_THIS_TURN
-        カード: WX25-P1-048
-        生成: src\data\parsers\parseSentencePart1.ts:2809
+-- 無言の no-op（要対応）--
      1件   1枚  ATTACK_NEGATE_IMMUNITY_SELF
         カード: WX24-P4-016
      1件   1枚  CANNOT_DEAL_DAMAGE_TO_OPPONENT  [生ID露出 1]
@@ -37,6 +29,19 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      1件   1枚  COUNTER_TEAM_PIECE_CUTIN_DEFERRED  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4693
+     1件   1枚  FLIP_SELF_FACE_DOWN_UP
+        カード: WX25-CP1-060
+     1件   1枚  GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
+        カード: WXDi-P00-026
+     1件   1枚  MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC
+        カード: WX24-P4-016
+     1件   1枚  PLAY_MILLED_SIGNI_DELAYED_TRASH
+        カード: WXDi-P09-079
+
+-- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
+     3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
+        カード: WX25-P3-055, WXK01-002, WXK03-071
+        生成: src\data\manualEffects.ts:4516 / src\data\manualEffects.ts:4519
      1件   1枚  DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS  [生ID露出 1]
         カード: WX09-Re01
         生成: src\data\manualEffects.ts:4502
@@ -55,30 +60,13 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
-     1件   1枚  EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP  [生ID露出 1]
-        カード: WXK11-001
-        生成: src\data\effectParser.ts:5574
-     1件   1枚  FLIP_SELF_FACE_DOWN_UP
-        カード: WX25-CP1-060
-     1件   1枚  GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
-        カード: WXDi-P00-026
-     1件   1枚  LIMIT_ALL_FIELD_1
-        カード: WX04-005
-     1件   1枚  MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC
-        カード: WX24-P4-016
-     1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW  [生ID露出 1]
-        カード: WXDi-P13-003A
-        生成: src\data\manualEffects.ts:4861
-     1件   1枚  OPP_LRIG_DECK_TO_LRIG_TRASH  [生ID露出 1]
-        カード: WX24-P4-014
-     1件   1枚  PLAY_MILLED_SIGNI_DELAYED_TRASH
-        カード: WXDi-P09-079
-     1件   1枚  UNDER_CARD_AS_ENERGY_COST
-        カード: WXDi-P10-041
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
 ==============================================================================
+     5件   5枚  PREVENT_POWER_MODIFY_BY_OPP  [生ID露出 5]
+        カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
+        消費(前方一致): src\engine\effectEngine.ts:1474 / src\engine\effectEngine.ts:4910
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
         消費: src\engine\effectEngine.ts:4527
@@ -97,18 +85,36 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
         消費: src\engine\effectExecutor.ts:3528
+     1件   1枚  ARTS_ATTACK_EMPTY_ZONE_AS_FRONT  [生ID露出 1]
+        カード: WX16-021
+        消費(ペイロードキー): src\engine\effectExecutor.ts:3703
+     1件   1枚  ASSIST_LRIG_ATTACK_THIS_TURN
+        カード: WX25-P1-048
+        消費(前方一致): src\engine\effectExecutor.ts:6214 / src\engine\effectExecutor.ts:7967 / src\screens\battle\modals\EffectInteractionModal.tsx:158 …他1箇所
      1件   1枚  EFFECT_LEAVE_REPLACE_BANISH
         カード: WX25-P1-056
         消費: src\engine\effectExecutor.ts:231
+     1件   1枚  EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP  [生ID露出 1]
+        カード: WXK11-001
+        消費(ペイロードキー): src\App.tsx:87 / src\App.tsx:89 / src\App.tsx:90 …他164箇所
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
         消費: src\engine\effectExecutor.ts:6236
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
         消費: src\engine\effectExecutor.ts:6238
+     1件   1枚  LIMIT_ALL_FIELD_1
+        カード: WX04-005
+        消費(前方一致): src\screens\battle\fieldLimit.ts:65
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
         消費: src\engine\effectExecutor.ts:3134
+     1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW  [生ID露出 1]
+        カード: WXDi-P13-003A
+        消費(前方一致): src\screens\battle\mayuEncounter.ts:4 / src\screens\battle\mayuEncounter.ts:5 / src\screens\battle\mayuEncounter.ts:19 …他5箇所
+     1件   1枚  OPP_LRIG_DECK_TO_LRIG_TRASH  [生ID露出 1]
+        カード: WX24-P4-014
+        消費(前方一致): src\engine\effectEngine.ts:3842 / src\engine\effectEngine.ts:4214
      1件   1枚  OPTIONAL_ACTIVATE
         カード: WXDi-P01-040
         消費: src\engine\effectExecutor.ts:3842 / src\engine\effectExecutor.ts:3857 / src\engine\triggerCollect.ts:277
@@ -121,6 +127,9 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6435
+     1件   1枚  UNDER_CARD_AS_ENERGY_COST
+        カード: WXDi-P10-041
+        消費(前方一致): src\engine\effectExecutor.ts:3353
 
 ==============================================================================
 【C】表示だけの穴＝engine は動くが逆翻訳に英語 ID が出る（decompileEffects.ts に語彙を足す案件）
@@ -135,6 +144,8 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
   露出  6箇所 (live 6件/6枚)  RETURN_SELF_ARTS_TO_LRIG_DECK  [execStubPart3]
         カード: WDK17-008, SP07-009, WXDi-P06-023, WXK01-005, WXK06-016, WXK11-003
         既存コメント: RETURN_SELF_ARTS_TO_LRIG_DECK: 使用後の自身をルリグデッキに戻す。 アーツは lrig_trash、アシストルリグは左右いずれかのアシストルリグスタックにある。
+  露出  5箇所 (live 5件/5枚)  PREVENT_POWER_MODIFY_BY_OPP  [engine別経路]
+        カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
   露出  4箇所 (live 4件/4枚)  CHOOSE_HAND_OR_ENERGY  [execStubPart3]
         カード: WX24-P1-025, WX24-P2-042, WXDi-CP01-004, WXDi-CP02-003
         既存コメント: CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
@@ -272,6 +283,8 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
   露出  1箇所 (live 1件/1枚)  ALL_ZONE_BLACK  [execStubPart3]
         カード: WDA-F02-17
         既存コメント: ALL_ZONE_BLACK: CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み
+  露出  1箇所 (live 1件/1枚)  ARTS_ATTACK_EMPTY_ZONE_AS_FRONT  [engine別経路]
+        カード: WX16-021
   露出  1箇所 (live 1件/1枚)  ARTS_EXTRA_COST_CONDITION  [execStubPart2]
         カード: WX26-CP1-024
         既存コメント: ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
@@ -382,6 +395,8 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
   露出  1箇所 (live 1件/1枚)  ENERGY_LEVEL_CONDITION_CHOOSE  [execStubPart3]
         カード: WXK09-031
         既存コメント: ENERGY_LEVEL_CONDITION_CHOOSE: エナにレベルN以上があればCHOOSE提示
+  露出  1箇所 (live 1件/1枚)  EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP  [engine別経路]
+        カード: WXK11-001
   露出  1箇所 (live 1件/1枚)  FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM  [execStubPart2]
         カード: WXDi-P13-071
         既存コメント: FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 凍結シグニのバニッシュをデッキ下へ
@@ -447,6 +462,8 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
   露出  1箇所 (live 1件/1枚)  LRIG_TRASH_KEY_TO_CENTER_UNDER  [execStubPart2]
         カード: WXK09-005
         既存コメント: LRIG_TRASH_KEY_TO_CENTER_UNDER: ルリグトラッシュのキーをセンタールリグの下に
+  露出  1箇所 (live 1件/1枚)  MAYU_ENCOUNTER_FLIP_AND_GROW  [engine別経路]
+        カード: WXDi-P13-003A
   露出  1箇所 (live 1件/1枚)  MOVE_ACCE_TO_SIGNI  [execStubPart3]
         カード: WXK05-064
         既存コメント: MOVE_ACCE_TO_SIGNI: アクセを別のシグニに付け替え
@@ -468,6 +485,8 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
   露出  1箇所 (live 1件/1枚)  OPP_ENERGY_REDUCE_TO_N  [execStubPart3]
         カード: WXK06-055
         既存コメント: OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）
+  露出  1箇所 (live 1件/1枚)  OPP_LRIG_DECK_TO_LRIG_TRASH  [engine別経路]
+        カード: WX24-P4-014
   露出  1箇所 (live 1件/1枚)  OPP_REVEAL_SPELL_USE_FREE  [execStubPart1]
         カード: WX04-015
         既存コメント: OPP_REVEAL_SPELL_USE_FREE: 対戦相手のデッキを上からスペルがめくれるまで公開し、 めくれたスペルをあなたが手札にあるかのようにコストなし・限定条件無視で使用してもよい。 残り（公開した非スペル）
