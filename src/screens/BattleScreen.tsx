@@ -6902,8 +6902,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...casterAfter.field.signi.map(stack => stack?.at(-1)),
         ].filter((n): n is string => !!n);
         const usedIdsSU: string[] = [];
+        const spellUseLrigTop = casterAfter.field.lrig.at(-1);
         for (const srcNum of spellUseSources) {
-          for (const eff of (effectsMap.get(srcNum) ?? [])) {
+          // センタールリグには付与ストア（effectsMap 非搭載）を合流させる（WXDi-P13-008-E3＝エクシード4で
+          // 「【自】あなたが《ディソナアイコン》のスペルを使用したとき…」を得る）。scope は self（主語＝プレイヤー）。
+          const srcEffsSU = srcNum === spellUseLrigTop
+            ? [...(effectsMap.get(srcNum) ?? []), ...grantedStoreWatchers(casterAfter, 'ON_SPELL_USE', ['self']).map(w => w.effect)]
+            : (effectsMap.get(srcNum) ?? []);
+          for (const eff of srcEffsSU) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
             // スペル色フィルタ（「緑のスペルを使用したとき」等。color は単色 or 配列）
             if (eff.triggerFilter?.color) {
