@@ -5383,7 +5383,9 @@ function applyDroppedEnergyDesignation(text: string, action: EffectAction): Effe
 //   mandatory を読まず、ON_PLAY では**コスト無し mandatory:false が収集フィルタの穴**に落ちて無発火になる）。
 // ⚠`upToCount:true`（0枚まで選べる）では代用にならない＝0枚でも後続の「そうした場合」ゲートが通り、
 //   **コストを払わずに本体が撃てる**（WXK08-052 系の実バグ）。任意性は STUB の pay/skip 分岐で表す。
-const OPTIONAL_HAND_DISCARD_RE = /^(?:あなたの)?手札(?:から)?(.{0,30}?)を?([０-９\d]+)枚(?:を)?捨ててもよい$/;
+// ⚠先頭アンカー必須＝「対戦相手（の|は）手札を…捨ててもよい」を弾くのはこのアンカーの役目
+//   （相手の手札を捨てさせる形は別物で、step 側の owner:self とも噛み合わない）。
+const OPTIONAL_HAND_DISCARD_RE = /^(?:あなたは)?(?:あなたの)?手札(?:から)?(.{0,30}?)を?([０-９\d]+)枚(?:を)?捨ててもよい$/;
 
 /** 既に任意コスト STUB を持つ形（＝別経路で表現済み）は触らない。 */
 function hasOptionalCostStub(action: EffectAction): boolean {
