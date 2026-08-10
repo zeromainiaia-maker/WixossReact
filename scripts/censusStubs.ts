@@ -360,3 +360,17 @@ p('');
 writeFileSync(join(root, 'docs/_census_stubs.txt'), out.join('\n') + '\n');
 console.log(out.slice(0, 22).join('\n'));
 console.log(`\n明細 → docs/_census_stubs.txt`);
+
+// ── ゲート化（2026-08-11 続き427）──
+// **A群の「無言の no-op」が 0 になった**ので、以後は**増えたら止める**（従来は常に exit 0 の索引だった）。
+// ⚠止めるのは 🔴 側だけ＝`DEFERRED_*`（機構が無いことを宣言済み）は理由つきの保留なので数えない。
+// 新しい STUB を足して engine に消費地点を書き忘れると、ここで落ちる。
+//   - 実装するなら execStub ハンドラ／engine 別経路／ペイロードキー／カード番号のどれかで消費する
+//   - 保留するなら id を `DEFERRED_` で始める（＝機構不在の明示宣言）
+const silentNoOps = holeImpl.filter(r => !isDeferred(r));
+if (silentNoOps.length > 0) {
+  console.error(`\n❌ 無言の no-op（engine に消費が無く DEFERRED_ でもない STUB）が ${silentNoOps.length} 種 / ${silentNoOps.reduce((a, r) => a + r.count, 0)} 件`);
+  for (const r of silentNoOps) console.error(`   - ${r.id}（${r.cards.slice(0, 4).join(', ')}）`);
+  console.error('   実装するか、id を DEFERRED_* にして保留理由を PLAN §6.4 に書く。');
+  process.exit(1);
+}

@@ -39,6 +39,9 @@ const results = await Promise.all([
   run('smoke', 'smoke'),
   run('fuzz', 'fuzz'),
   run('census', 'census'),
+  // A群（実装の穴）の🔴側＝「engine に消費が無く DEFERRED_ でもない STUB」が 0 になった（続き427）ので
+  // ゲートに載せる。新しい STUB を足して消費地点を書き忘れたらここで止まる。
+  run('census-stubs', 'census:stubs'),
   run('manual-fields', 'check:manual-fields'),
   run('lint', 'lint'),
 ]);

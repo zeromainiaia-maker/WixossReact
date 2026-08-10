@@ -110,6 +110,7 @@ import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './ba
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack } from './battle/signiAttackGate';
+import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
@@ -3651,6 +3652,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           pending_crash_source_card_nums: [], crash_source_card_num: undefined,
           must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
+          assist_lrig_attack_min_level: undefined,  // アシストルリグのアタック許可をリセット（このターン限定）
           must_attack_infected_only: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
@@ -4067,7 +4069,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
@@ -4274,7 +4276,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (bs.turn_phase === 'ATTACK_LRIG') {
       const hasLrig  = (my.field.lrig?.length ?? 0) > 0;
       const lrigUp   = !(my.field.lrig_down ?? false);
-      if (hasLrig && lrigUp) {
+      // ⚠アシストルリグがアタックできるターン（`ASSIST_LRIG_ATTACK_THIS_TURN`）は**未アタックのアシスト**も
+      //   スキップ確認の対象にする（確認せずに進めると 1回きりのピースの効果を黙って捨てることになる）。
+      //   強制ではない（原文は「アタックできる」）ので、警告ではなく確認ダイアログ止まり。
+      const assistCanAttack = assistLrigAttackableSlots(my, battleCardMap).length > 0;
+      if ((hasLrig && lrigUp) || assistCanAttack) {
         setShowLrigAttackSkipConfirm(true);
         return;
       }
@@ -9133,8 +9139,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opKey = isHost ? 'guest_state' : 'host_state';
     setLoading(true);
     try {
-      const newMyState: PlayerState = { ...my, pending_lrig_attack: undefined };
-      const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true } };
+      const newMyState: PlayerState = { ...my, pending_lrig_attack: undefined, pending_lrig_attack_num: undefined };
+      const newOpState: PlayerState = { ...op, field: { ...op.field, lrig_attacked: true },
+        lrig_attacked_by_num: my.pending_lrig_attack_num };
       await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: myKey, myState: newMyState, opp: { key: opKey, state: newOpState } }));
     } finally {
       setLoading(false);
@@ -9254,18 +9261,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     attacker: PlayerState; defender: PlayerState;
     attackerId: string;
     attackerKey: 'host_state' | 'guest_state';
+    /**
+     * アタック元のルリグ枠（省略＝センター）。`assist_l`/`assist_r` は `ASSIST_LRIG_ATTACK_THIS_TURN`
+     * が立っているターンだけ到達する（§6.4 A群・続き427）。
+     * ⚠**センター専用の判定・収集はアシストでは飛ばす**＝`lrig_has_attacked`（センターの1回制限）、
+     *   ドライブ状態（ルリグに乗っているシグニ）、センタールリグ付与ストア由来の ON_ATTACK_LRIG。
+     *   ここを共有すると「アシストがアタックしたらセンターも撃てなくなる」等の別バグになる。
+     */
+    slot?: LrigAttackSlot;
   }): Promise<boolean> => {
     const { attacker: my, defender: op, attackerId } = p;
-    if (my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
-    if (my.field.lrig_down) return false; // すでに攻撃済み
+    const slot: LrigAttackSlot = p.slot ?? 'center';
+    const isCenterAttack = slot === 'center';
+    if (isCenterAttack && my.lrig_has_attacked) return false; // このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）
+    if (isCenterAttack && my.field.lrig_down) return false; // すでに攻撃済み
+    if (!isCenterAttack && !assistLrigAttackableSlots(my, battleCardMap).includes(slot)) return false;
     if (op.field.lrig_attacked) return false; // ガード応答待ち中
-    const myLrigNumLA = my.field.lrig.at(-1);
+    const myLrigNumLA = lrigSlotTop(my, slot);
     const allowDriveAttack = !!(myLrigNumLA && (effectsMap.get(myLrigNumLA) ?? []).some(e =>
       e.effectType === 'CONTINUOUS' &&
       (e.action as import('../types/effects').StubAction).type === 'STUB' &&
       (e.action as import('../types/effects').StubAction).id === 'ALLOW_ATTACK_WHILE_DRIVE',
     ));
-    if ((my.lrig_riding_signi?.length ?? 0) > 0 && !allowDriveAttack) return false; // ドライブ状態：ルリグはアタックできない
+    if (isCenterAttack && (my.lrig_riding_signi?.length ?? 0) > 0 && !allowDriveAttack) return false; // ドライブ状態：ルリグはアタックできない
     // keyword_grants で「アタックできない」が付与されている場合アタック不可
     if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return false;
     // NEGATE_ATTACK: ルリグもアタック宣言時に無効化。escapeDiscard があり手札を払える場合は既存回避UIへ。
@@ -9297,7 +9315,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     try {
       const myKey = p.attackerKey;
-      const lrigNum = my.field.lrig.at(-1) ?? '';
+      const lrigNum = myLrigNumLA ?? '';
       const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
       // OPP_LRIG_ATTACK_COST: 相手フィールドの効果による追加コスト支払い（アタッカーは常にターンプレイヤー）
       const lrigAttackExtraCost = collectOppLrigAttackExtraCost(op, my, battleCardMap, effectsMap, false);
@@ -9308,7 +9326,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
       }
       appendBattleLogs([`${lrigName}がアタック`]);
-      const attackedMyState: PlayerState = { ...my, energy: myEnergyAfterAttack, lrig_has_attacked: true, field: { ...my.field, lrig_down: true } };
+      const attackedMyState: PlayerState = {
+        ...my, energy: myEnergyAfterAttack,
+        ...(isCenterAttack ? { lrig_has_attacked: true } : {}),
+        field: markLrigSlotDown(my, slot),
+      };
       // NEGATE_NTH_ATTACK は「アタックしたとき」に無効化するため、追加コスト支払い・ダウン・攻撃済み化は行う。
       // ただし pending_lrig_attack を立てず、ON_ATTACK_LRIG収集とガード/ダメージ応答へは進めない。
       const lrigNegation = consumeNthAttackNegation(op, 'lrig');
@@ -9324,24 +9346,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return true;
       }
       // pending_lrig_attack: true でON_ATTACK_LRIG解決後にガード応答（lrig_attacked）をセット
-      let newMyState: PlayerState = { ...attackedMyState, pending_lrig_attack: true };
+      // ⚠攻撃元カードも一緒に運ぶ＝ダメージ解決（ダブル/トリプルクラッシュ判定）が
+      //   「攻撃側＝センタールリグ」と決め打てなくなったため（アシストのアタック・続き427）。
+      let newMyState: PlayerState = { ...attackedMyState, pending_lrig_attack: true, pending_lrig_attack_num: lrigNum };
       // lrig_attacked は ON_ATTACK_LRIG 解決後にセット（スタック解決後の useEffect で対応）
 
       // ON_ATTACK_LRIG AUTO トリガー収集（ルリグカード自身の効果 + スペル付与の能力 + COPY_LRIG_NAME_ABILITYコピー効果）
       const lrigCardEffects = (effectsMap.get(lrigNum) ?? [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG'));
-      const grantedAttack = collectAttackingLrigGrantedAutos(newMyState, attackerId, lrigNum, generateUUID);
+      // ⚠**付与ストア／コピー／CONTINUOUS 付与はいずれも「センタールリグの能力」**なので、
+      //   アシストルリグのアタックでは収集しない（収集すると同じ能力がアシストのアタックでも
+      //   撃てる過剰実行になる）。アシストは**そのカード自身の** ON_ATTACK_LRIG だけが発火する。
+      const grantedAttack = isCenterAttack
+        ? collectAttackingLrigGrantedAutos(newMyState, attackerId, lrigNum, generateUUID)
+        : { entries: [] as StackEntry[], triggered: [], usedIds: [] as string[] };
       newMyState = consumeTriggeredGrantedAutos(newMyState, grantedAttack.triggered);
       if (grantedAttack.usedIds.length > 0) {
         newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...grantedAttack.usedIds] };
       }
-      const copiedAutoEffects = collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true)
+      const copiedAutoEffects = (isCenterAttack ? collectCopiedLrigAutoEffects(my, battleCardMap, effectsMap, op, true) : [])
         .filter(e => e.timing?.includes('ON_ATTACK_LRIG'));
       // CONTINUOUS GRANT_LRIG_ABILITY（場のシグニ/キーが「あなたのセンタールリグは『【自】…』を得る」を宣言）由来の
       // ON_ATTACK_LRIG 付与能力（WXDi-P05-032 等）。lrig_granted_auto_effects（実行時付与）とは別ソース。
       // ⚠triggerScope:'any_opp'（「**対戦相手の**センタールリグがアタックしたとき」）は防御側の能力なので
       //   アタック側では拾わない（下の collectLrigAttackDefenderTriggers が担当。タスク12(l)＝WDK04-006）。
-      const contGrantedLrigEffects = collectLrigGrantedEffects(my, op, true, effectsMap, battleCardMap)
+      const contGrantedLrigEffects = (isCenterAttack ? collectLrigGrantedEffects(my, op, true, effectsMap, battleCardMap) : [])
         .filter(e => e.effectType === 'AUTO' && e.timing?.includes('ON_ATTACK_LRIG')
           && (e.triggerScope ?? 'self') !== 'any_opp');
       const otherAttackEffects = [...copiedAutoEffects, ...contGrantedLrigEffects];
@@ -9716,8 +9745,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── CPUのON_ATTACK_LRIG処理完了後のガード応答セット（pending_lrig_attack）───
     if (cpuSt.pending_lrig_attack && !bs.effect_stack && !bs.pending_effect) {
-      const cleanCpuSt: PlayerState = { ...cpuSt, pending_lrig_attack: undefined };
-      const huStWithLrigAttacked: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true } };
+      const cleanCpuSt: PlayerState = { ...cpuSt, pending_lrig_attack: undefined, pending_lrig_attack_num: undefined };
+      const huStWithLrigAttacked: PlayerState = { ...huSt, field: { ...huSt.field, lrig_attacked: true },
+        lrig_attacked_by_num: cpuSt.pending_lrig_attack_num };
       await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cleanCpuSt, opp: { key: 'host_state', state: huStWithLrigAttacked } }));
       return;
     }
@@ -10418,6 +10448,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // ガード応答待ち・ライフバースト処理中はENDへ進まない
       if (huSt.field.lrig_attacked || huSt.field.check) return;
+      // アシストルリグのアタック（§6.4 A群・続き427）。センターの後に1体ずつ。
+      // ⚠人間側のボタン生成と同じ `assistLrigAttackableSlots` を通す（軸ズレ防止）。
+      const cpuAssistSlots = assistLrigAttackableSlots(cpuSt, battleCardMap);
+      if (cpuAssistSlots.length > 0) {
+        const attackedAssist = await performLrigAttack({
+          attacker: cpuSt, defender: huSt,
+          attackerId: CPU_PLAYER_ID, attackerKey: 'guest_state',
+          slot: cpuAssistSlots[0],
+        });
+        if (attackedAssist) return;   // 次の useEffect で残りのアシストへ
+      }
       // ルリグアタック済み → ENDへ
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_LRIG', cpuSt) }));
       return;
@@ -10498,7 +10539,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy_colorless_ability_loss_this_turn: undefined,
         signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）をクリア。予約(_next_turn)は残す
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
@@ -10690,7 +10731,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         // ガードしない → ライフクロスをクラッシュ
         // 攻撃側ルリグのダブルクラッシュ確認
-        const opLrigNum = op.field.lrig.at(-1);
+        // ⚠**攻撃したルリグ**を見る（アシストがアタックしたのにセンターのキーワードで判定すると
+        //   ダブルクラッシュが誤って乗る／乗らない。続き427）。未設定＝従来どおりセンター。
+        const opLrigNum = my.lrig_attacked_by_num ?? op.field.lrig.at(-1);
         const opDynamicKeywords = collectContinuousGrantedKeywords(op, my, true, effectsMap, battleCardMap);
         const opLrigHasDoubleCrush = !!(opLrigNum && (
           (op.keyword_grants?.[opLrigNum] ?? []).includes('ダブルクラッシュ')
@@ -12681,6 +12724,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         color: '#6644aa',
         onClick: () => {
           openAssistGrow(side);
+        },
+      });
+    }
+
+    // アシストルリグのアタック（`ASSIST_LRIG_ATTACK_THIS_TURN` が立っているターンだけ・§6.4 A群/続き427）。
+    // ⚠可否判定は `assistLrigAttackableSlots` の1本に寄せる（CPU・フェイズ進行と同じ軸）。
+    if (isMyTurn && !loading && phase === 'ATTACK_LRIG' && !my.pending_lrig_attack && !op.field.lrig_attacked
+        && assistLrigAttackableSlots(my, battleCardMap).includes(side === 'l' ? 'assist_l' : 'assist_r')) {
+      actions.push({
+        label: 'アタック',
+        color: C.danger,
+        onClick: () => {
+          void performLrigAttack({
+            attacker: my, defender: op, attackerId: user.id,
+            attackerKey: isHost ? 'host_state' : 'guest_state',
+            slot: side === 'l' ? 'assist_l' : 'assist_r',
+          });
         },
       });
     }

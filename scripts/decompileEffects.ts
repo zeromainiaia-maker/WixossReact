@@ -1563,8 +1563,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
       if (a.id === 'TRASH_SELF_ACCE_ALL') return 'このシグニに付いている【アクセ】をすべてトラッシュに置く';
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
-      if (a.id === 'ASSIST_LRIG_ATTACK_THIS_TURN') return `このターン、あなたはレベル${a.count ?? 1}以上のアシストルリグでアタックできる（未実装）`;
-      if (a.id === 'CHECK_ZONE_FLIP_FREE_GROW') return 'このターンにセンタールリグがグロウしていない場合、チェックゾーンのこのカードを裏返し、指定ルリグへグロウコストを支払わずにグロウする（未実装）';
+      // §6.4 A群・続き427 で実装済み（`screens/battle/assistLrigAttack.ts` ＋ `performLrigAttack(slot)`）。
+      // ⚠レベルは `count` ではなく `minLevel`（`count` だと「N体まで」と誤読される）。
+      if (a.id === 'ASSIST_LRIG_ATTACK_THIS_TURN') return `このターン、あなたはレベル${a.minLevel ?? a.count ?? 1}以上のアシストルリグでアタックできる`;
+      if (a.id === 'DEFERRED_CHECK_ZONE_FLIP_FREE_GROW') return 'このターンにセンタールリグがグロウしていない場合、チェックゾーンのこのカードを裏返し、指定ルリグへグロウコストを支払わずにグロウする（未実装）';
       if (a.id === 'LIFE_TO_ENERGY') return `${ownerJa(a.owner)}ライフクロス1枚をエナゾーンに置く`;
       if (a.id === 'ENERGY_TO_HAND_ON_DECK') return 'このカードをエナゾーンから手札に加えてもよい';
       // 相手センタールリグ色による基本コスト軽減（支払い時 computeArtsEffectiveCost が適用＝実装済み）
@@ -1598,8 +1600,8 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
       if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
-      if (a.id === 'UNDER_CARD_AS_ENERGY_COST') return 'あなたのアタックフェイズの間、このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える（この方法で1ターンに3つまで）';
-      if (a.id === 'FLIP_SELF_FACE_DOWN_UP') return 'このシグニを裏向きにし、表向きにする';
+      if (a.id === 'DEFERRED_UNDER_CARD_AS_ENERGY_COST') return 'あなたのアタックフェイズの間、このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える（この方法で1ターンに3つまで）';
+      if (a.id === 'DEFERRED_FLIP_SELF_FACE_DOWN_UP') return 'このシグニを裏向きにし、表向きにする';
       // WXDi-P10-034: デッキ上N枚を見て1枚を裏向きでシグニゾーンに置き、残りをデッキ下→次の自メインフェイズ開始時に表向き分岐
       if (a.id === 'LOOK_PLACE_FACEDOWN_DELAYED') {
         const cnt = typeof a.count === 'number' ? a.count : 4;
@@ -1676,13 +1678,13 @@ function actionJa(a?: Action, effectType?: string): string {
         return '対戦相手のトラッシュからシグニを傀儡状態であなたの場に出す（ベット時2枚／非ベット1枚。離場時は持ち主のトラッシュへ）';
       }
       if (a.id === 'DISRUPT_OPP_LRIG_UNDER_BY_TYPE') return '対戦相手のセンタールリグの下のカードを最大2枚、あなたのルリグデッキから同じルリグタイプのルリグ2枚をルリグトラッシュに置いてもよい。そうした場合、それらをルリグトラッシュに置く';
-      if (a.id === 'GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG') return 'あなたの＜さんばか＞のルリグ1体に「【自】《ターン1回》：このルリグがアタックしたとき、このルリグをアップする」を付与する（ターン終了時まで）※ルリグ対象grant未配線';
+      if (a.id === 'DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG') return 'あなたの＜さんばか＞のルリグ1体に「【自】《ターン1回》：このルリグがアタックしたとき、このルリグをアップする」を付与する（ターン終了時まで）※ルリグ対象grant未配線';
       if (a.id === 'FREE_GROW_NEXT_TURN') return '次のあなたのターンの間、あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'GROW_COST_ZERO') return 'あなたのグロウコストは《無×0》になる（実質フリーグロウ）';
       if (a.id === 'POWER_DOUBLE_ALL') return 'ターン終了時まで、あなたのすべてのシグニのパワーを2倍にする';
       if (a.id === 'BANISH_REDIRECT_POWER0_TRASH') return 'このターン、パワーが0以下のシグニがバニッシュされる場合、エナゾーンの代わりにトラッシュに置かれる';
       // WX24-P4-016-E3（タスク12(xxiii)残・engine未実装の正直STUB＝旧GRANT_KEYWORD幻覚の是正）
-      if (a.id === 'ATTACK_NEGATE_IMMUNITY_SELF') return 'このターン、あなたの効果によってシグニのアタックは無効にならない';
+      if (a.id === 'DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF') return 'このターン、あなたの効果によってシグニのアタックは無効にならない';
       if (a.id === 'MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC') return 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る';
       if (a.id === 'DOUBLE_POWER_MINUS_THIS_TURN') return 'このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合、代わりに2倍－される';
       // DISCARD_OR_PENALTY: 原文から「＜クラス＞/種別のカードを1枚捨てないかぎり手札をN枚捨てる」を復元

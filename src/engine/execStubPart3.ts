@@ -719,6 +719,16 @@ export function execStubPart3(
       thenAction: { type: 'STUB', id: 'INTERNAL_MILL_BOTTOM_DISTINCT4_BANISH' } as StubAction,
     });
   }
+  // ASSIST_LRIG_ATTACK_THIS_TURN: このターン、レベルが minLevel 以上のアシストルリグでアタックできる
+  // （`WX25-P1-048`。§6.4 A群＝engine に消費地点が無く恒久 no-op だった。続き427）。
+  // ⚠フラグはアタックする側（＝この効果のコントローラー）に立てる。判定・アタック実行は
+  //   `screens/battle/assistLrigAttack.ts` ＋ `performLrigAttack(slot)` の側。
+  if (stub.id === 'ASSIST_LRIG_ATTACK_THIS_TURN') {
+    const minLv = stub.minLevel ?? 1;
+    const newSelfALA: PlayerState = { ...ctx.ownerState, assist_lrig_attack_min_level: minLv };
+    return done(addLog({ ...ctx, ownerState: newSelfALA },
+      `このターン、レベル${minLv}以上のアシストルリグでアタックできる`));
+  }
   // LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限
   if (stub.id === 'LIMIT_OPP_SIGNI_ATTACKS_ONCE' || stub.id === 'OPP_SIGNI_ONE_ATTACK_TOTAL' || stub.id === 'LIMIT_OPP_ATTACK_ONCE') {
     const newOtherOSA: PlayerState = { ...ctx.otherState, signi_attack_once_limit: true };

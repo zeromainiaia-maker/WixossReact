@@ -59,6 +59,7 @@ import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
+import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown } from '../src/screens/battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
@@ -11831,6 +11832,39 @@ test('型網羅 LRIG_LIMIT_MODIFY: 相手の場が宣言する owner:opponent �
   eq(computeEffectiveLrigLimit(victim, declarer, cm, effectsMap, false), base, '宣言側のターンでは減らない');
   eq(collectOppDeclaredLrigLimitDelta(bare, victim, cm, effectsMap, false), 0, '宣言者がいなければ0');
 }));
+// ── §6.4 A群 `ASSIST_LRIG_ATTACK_THIS_TURN`（続き427）＝アシストルリグのアタック許可 ──
+// ⚠回帰の型：**通常ルールではアシストルリグはアタックできない**。フラグを見ないで枠だけ足すと
+//   常時アタックできる過剰実行になる。判定は `assistLrigAttackableSlots` の1本に寄せてある。
+test('型網羅 ASSIST_LRIG_ATTACK_THIS_TURN: フラグ・レベル下限・ダウン/凍結を1本で判定する（WX25-P1-048）', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const lv1 = findCard(c => c.Type === 'アシストルリグ' && c.Level === '1');
+  const lv2 = findCard(c => c.Type === 'アシストルリグ' && c.Level === '2');
+  const base = mkState({ assistL: [lv2], assistR: [lv1] });
+  eq(assistLrigAttackableSlots(base, cm).length, 0, 'フラグが無ければアタックできない（通常ルール）');
+  const allowed: PlayerState = { ...base, assist_lrig_attack_min_level: 1 };
+  eq(assistLrigAttackableSlots(allowed, cm).join(','), 'assist_l,assist_r', 'レベル1以上＝左右とも可');
+  const lv2only: PlayerState = { ...base, assist_lrig_attack_min_level: 2 };
+  eq(assistLrigAttackableSlots(lv2only, cm).join(','), 'assist_l', 'レベル下限を満たさないアシストは除外');
+  const downed: PlayerState = { ...allowed, field: { ...allowed.field, assist_lrig_l_down: true } };
+  eq(assistLrigAttackableSlots(downed, cm).join(','), 'assist_r', 'ダウン（アタック済み）は除外');
+  const frozen: PlayerState = { ...allowed, field: { ...allowed.field, assist_lrig_r_frozen: true } };
+  eq(assistLrigAttackableSlots(frozen, cm).join(','), 'assist_l', '凍結中は除外');
+  eq(assistLrigAttackableSlots({ ...mkState({}), assist_lrig_attack_min_level: 1 }, cm).length, 0, 'アシスト不在なら空');
+  // 枠ヘルパ（`performLrigAttack` がダウンさせる先）
+  eq(lrigSlotTop(allowed, 'assist_l'), lv2, 'lrigSlotTop: 左アシストの頂点');
+  eq(markLrigSlotDown(allowed, 'assist_r').assist_lrig_r_down, true, 'markLrigSlotDown: 右アシストだけダウン');
+  eq(markLrigSlotDown(allowed, 'assist_r').lrig_down ?? false, false, 'センターは巻き添えでダウンしない');
+}));
+// live 側＝STUB を実行するとフラグが立つ（engine に消費地点があることの固定）。
+test('型網羅 ASSIST_LRIG_ATTACK_THIS_TURN: STUB 実行で assist_lrig_attack_min_level が立つ', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX25-P1-048') ?? []).find(e => e.effectId === 'WX25-P1-048-E1');
+  const act = eff?.action as { type?: string; id?: string; minLevel?: number } | undefined;
+  eq(act?.id, 'ASSIST_LRIG_ATTACK_THIS_TURN', 'live に STUB がある');
+  eq(act?.minLevel, 1, 'レベル下限は minLevel（count ではない）');
+  const r = run(eff!.action, mkCtx({}, {}));
+  eq(r.ownerState.assist_lrig_attack_min_level, 1, '実行するとコントローラーにフラグが立つ');
+  eq(r.otherState.assist_lrig_attack_min_level, undefined, '相手には立たない');
+}));
 test('型網羅 FORCE_FRONT_SIGNI_ATTACK: アクセ付与された「正面は可能ならアタック」が強制ゾーンを返す（WX20-045-E2）', () => withSavedCursor(() => {
   const cook = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('調理') && c.CardNum !== 'WX20-045');
   const victim = fresh();
@@ -17177,7 +17211,7 @@ test('batch9: きゅるきゅる～んはchoice②のみ実装しchoice①を明
   const eff = mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? [])[0];
   ok(eff?.action.type === 'CHOOSE', 'ピースは2択を保持');
   if (!eff || eff.action.type !== 'CHOOSE') return;
-  ok(JSON.stringify(eff.action.choices[0].action).includes('COUNTER_TEAM_PIECE_CUTIN_DEFERRED'), 'choice①は基盤待ちSTUB');
+  ok(JSON.stringify(eff.action.choices[0].action).includes('DEFERRED_COUNTER_TEAM_PIECE_CUTIN'), 'choice①は基盤待ちSTUB');
   const c2 = JSON.stringify(eff.action.choices[1].action);
   ok(c2.includes('"type":"DRAW"') && c2.includes('ENERGY_CHARGE_FROM_DECK'), 'choice② draw+energy charge');
 });
@@ -28244,21 +28278,21 @@ test('続き388 群C WXDi-P15-003: ACTIVATED効果が無く、condition追加は
     'ACTIVATEDが無い現行経路では使用条件を評価できない');
 });
 
-test('続き388 群D WXDi-P16-001A-E1: CHECK_ZONE_FLIP_FREE_GROW は宣言STUBで盤面不変', () => {
+test('続き388 群D WXDi-P16-001A-E1: DEFERRED_CHECK_ZONE_FLIP_FREE_GROW は宣言STUBで盤面不変', () => {
   const effect = batch387Effect('WXDi-P16-001A');
   eq(effect.parseStatus, 'AUTO', 'UNKNOWN計器から宣言STUBへ');
   eq(effect.action.type, 'STUB', 'action type');
-  eq((effect.action as StubAction).id, 'CHECK_ZONE_FLIP_FREE_GROW', '専用id');
+  eq((effect.action as StubAction).id, 'DEFERRED_CHECK_ZONE_FLIP_FREE_GROW', '専用id');
   const executorSources = ['execStub.ts', 'execStubPart1.ts', 'execStubPart2.ts', 'execStubPart3.ts']
     .map(file => fs.readFileSync(join(root, 'src', 'engine', file), 'utf8')).join('\n');
-  ok(!executorSources.includes('CHECK_ZONE_FLIP_FREE_GROW'), 'engine実働分岐を持たない');
+  ok(!executorSources.includes('DEFERRED_CHECK_ZONE_FLIP_FREE_GROW'), 'engine実働分岐を持たない');
   const ctx = mkCtx({ lrig: [batch387CenterByColor.白] }, {}, 'WXDi-P16-001A');
   const beforeOwner = JSON.stringify(ctx.ownerState);
   const beforeOther = JSON.stringify(ctx.otherState);
   const result = finish(executeEffect(effect, ctx), ctx);
   eq(JSON.stringify(result.ownerState), beforeOwner, 'owner盤面不変');
   eq(JSON.stringify(result.otherState), beforeOther, 'opponent盤面不変');
-  ok(result.logs.some(log => log.includes('[STUB: CHECK_ZONE_FLIP_FREE_GROW]')), 'ログだけを残す');
+  ok(result.logs.some(log => log.includes('[STUB: DEFERRED_CHECK_ZONE_FLIP_FREE_GROW]')), 'ログだけを残す');
 });
 
 // ── 続き389：【チーム】＜X＞＆全員レベル1以上の印刷済み使用条件 ──

@@ -200,6 +200,13 @@ export interface PlayerState {
    * 判定は必ず `screens/battle/assistLrigAttack.ts` の1本を通す（人間UI／CPU／フェイズ進行の3経路共通）。
    */
   assist_lrig_attack_min_level?: number;
+  /**
+   * いま宣言中のルリグアタックの**攻撃元カード**（`pending_lrig_attack` と対）。アシストルリグも
+   * アタックしうる（続き427）ため「攻撃元＝センタールリグ」と決め打てなくなった。
+   */
+  pending_lrig_attack_num?: string;
+  /** 自分が受けているルリグアタックの**攻撃元カード**（`field.lrig_attacked` と対）。未設定＝センター扱い。 */
+  lrig_attacked_by_num?: string;
   // アクティブなコスト修正（CostIncrease/CostReduction効果）
   cost_modifiers?: Array<{
     direction: 'increase' | 'decrease';

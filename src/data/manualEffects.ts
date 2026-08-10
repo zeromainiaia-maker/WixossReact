@@ -4815,7 +4815,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 通常使用でも正しく解決できる②だけを実装する。
   "WXDi-P05-006": [
     {"effectId":"WXDi-P05-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
-      {"choiceId":"counter-piece","label":"チームピースの効果を打ち消し、ゲームから除外する（基盤待ち）","action":{"type":"STUB","id":"COUNTER_TEAM_PIECE_CUTIN_DEFERRED"}},
+      {"choiceId":"counter-piece","label":"チームピースの効果を打ち消し、ゲームから除外する（基盤待ち）","action":{"type":"STUB","id":"DEFERRED_COUNTER_TEAM_PIECE_CUTIN"}},
       {"choiceId":"draw-energy","label":"カードを1枚引き、エナチャージ1","action":{"type":"SEQUENCE","steps":[
         {"type":"DRAW","owner":"self","count":1},
         {"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}
