@@ -197,18 +197,33 @@ let totalStubTags = 0;
 type Row = {
   id: string; count: number; cards: string[];
   handler: string | null; consumers: Ref[]; producers: Ref[];
+  via: '' | '前方一致' | 'ペイロードキー';
   raw: number; comment: string;
 };
-const rows: Row[] = [...allIds].map(id => ({
-  id,
-  count: liveCount.get(id) ?? 0,
-  cards: [...(liveCards.get(id) ?? [])],
-  handler: handlerOf.get(id) ?? null,
-  consumers: codeConsumers(id),
-  producers: (producers.get(id) ?? []).filter(r => !r.comment),
-  raw: rawExposure.get(id) ?? 0,
-  comment: handlerComment.get(id) ?? '',
-}));
+const rows: Row[] = [...allIds].map(id => {
+  const handler = handlerOf.get(id) ?? null;
+  let cons = codeConsumers(id);
+  let via: Row['via'] = '';
+  if (!handler && cons.length === 0) {
+    const pre = prefixConsumers(id);
+    if (pre.length) { cons = pre; via = '前方一致'; }
+    else {
+      const pay = payloadConsumers(id);
+      if (pay.length) { cons = pay; via = 'ペイロードキー'; }
+    }
+  }
+  return {
+    id,
+    count: liveCount.get(id) ?? 0,
+    cards: [...(liveCards.get(id) ?? [])],
+    handler,
+    consumers: cons,
+    producers: (producers.get(id) ?? []).filter(r => !r.comment),
+    via,
+    raw: rawExposure.get(id) ?? 0,
+    comment: handlerComment.get(id) ?? '',
+  };
+});
 
 const inLive = rows.filter(r => r.count > 0);
 // A＝実装の穴：live に居るのに engine のどこにも消費が無い＝実行しても何も起きない。
