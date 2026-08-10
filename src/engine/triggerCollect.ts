@@ -3778,10 +3778,9 @@ export function collectTurnTriggers(
   }
 
   // 起動効果で自センタールリグへ付与されたフェイズ境界AUTO。
-  // effectsMap には存在せず PlayerState の専用ストアにだけ入るため、印刷能力とは別に走査する。
-  for (const eff of (myState.lrig_granted_auto_effects ?? [])) {
-    if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-    if ((eff.triggerScope ?? 'self') !== 'self') continue;
+  // effectsMap には存在せず PlayerState の専用ストアにだけ入るため、印刷能力とは別に走査する
+  // （3ストア横断は `grantedStore.ts` の共通経路。旧実装は base ストア1本しか見ていなかった）。
+  for (const eff of grantedStoreWatchers(myState, timing, ['self']).map(w => w.effect)) {
     if (!limitOkMy(eff)) continue;
     entries.push({
       id: ctx.genId(), playerId: meId, cardNum: myLrigNum ?? '', effectId: eff.effectId,
