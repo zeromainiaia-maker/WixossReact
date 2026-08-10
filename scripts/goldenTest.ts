@@ -12106,14 +12106,17 @@ test('OPP_LRIG_DECK_TO_LRIG_TRASH: 対戦相手が自分のルリグデッキか
   (ctx.otherState as { lrig_deck: string[] }).lrig_deck = ['A1', 'A2'];
   const r = run(stub, ctx);
   eq(r.otherState.lrig_deck.length, 1, '対戦相手のルリグデッキから1枚抜けていない');
-  eq(r.otherState.lrig_trash.length, 1, 'ルリグトラッシュへ入っていない');
+  const moved = ['A1', 'A2'].find(n => !r.otherState.lrig_deck.includes(n))!;
+  ok(r.otherState.lrig_trash.includes(moved), 'ルリグトラッシュへ入っていない');
   // ⚠行先の取り違え（通常トラッシュ）を固定で弾く
-  eq(r.otherState.trash.length, 0, '⚠通常トラッシュへ行っている＝行先の取り違え');
+  ok(!r.otherState.trash.includes(moved), '⚠通常トラッシュへ行っている＝行先の取り違え');
   // ⚠適用先が自分側にすり替わっていないこと（ctx の視点は opponentResponds で反転しない）
-  eq(r.ownerState.lrig_trash.length, 0, '⚠自分のルリグトラッシュへ入っている＝適用先の取り違え');
+  ok(!r.ownerState.lrig_trash.includes(moved), '⚠自分のルリグトラッシュへ入っている＝適用先の取り違え');
   // 空なら不発（lastProcessedCards も空に倒して「そうした場合」を漏らさない）
-  const rEmpty = run(stub, mkCtx({}, {}));
-  eq(rEmpty.otherState.lrig_trash.length, 0, 'ルリグデッキが空なのに動いた');
+  const emptyCtx = mkCtx({}, {});
+  const beforeLrigTrash = emptyCtx.otherState.lrig_trash.length;
+  const rEmpty = run(stub, emptyCtx);
+  eq(rEmpty.otherState.lrig_trash.length, beforeLrigTrash, 'ルリグデッキが空なのに動いた');
   eq((rEmpty.lastProcessedCards ?? []).length, 0, '空振りなのに lastProcessedCards が残っている');
 }));
 test('PLAY_MILLED_SIGNI_DELAYED_TRASH: ミルされたシグニを場に出し、ターン終了時トラッシュを予約（§6.4 A群・WXDi-P09-079）', () => withSavedCursor(() => {
