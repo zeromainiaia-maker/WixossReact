@@ -26,6 +26,9 @@ const onlyId = (() => {
 const SHEETS = ['misc', 'WX', 'WX24_26', 'WXDi', 'WXK'];
 const liveCount = new Map<string, number>();
 const liveCards = new Map<string, Set<string>>();
+// STUB ノードが持つ追加キー（id/type 以外）＝engine が id ではなく**このキー**を読んで実装している
+// ことがある（`PREVENT_POWER_MODIFY_BY_OPP` は `powerModifyProtection` を effectEngine が読む）。
+const livePayloadKeys = new Map<string, Set<string>>();
 for (const s of SHEETS) {
   const data = JSON.parse(readFileSync(join(root, `public/data/effects_${s}.json`), 'utf-8')) as Record<string, unknown[]>;
   for (const [cardNum, effects] of Object.entries(data)) {
