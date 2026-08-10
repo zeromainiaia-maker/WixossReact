@@ -5537,6 +5537,42 @@ function applyOptionalDeckMillCost(text: string, action: EffectAction): EffectAc
   return { ...action, steps } as EffectAction;
 }
 
+// ── §6.4 「あなたのアップ状態の〈X〉のシグニN体をダウンし《色》を支払ってもよい」（続き417）──
+// 実測9カード。parser は **DOWN を強制ステップとして残し、《色》の支払いは丸ごと落として**いた
+//（`WX25-P3-019` はコスト句ごと脱落）。`DOWN` は `optional` を持たないので任意性を表す場所が無い。
+// 正準形＝`STUB{OPTIONAL_COST, fieldDown{count,filter}, costColors}` ＋ 「そうした場合」ゲート。
+// `fieldDown` は本バッチで新設（`optionalCostPaySteps` が `DOWN{isUp}` を再生成し、`canAfford` が
+// アップ状態の該当シグニ数を数える＝**払えないのに発動できる**を防ぐ）。
+const FIELD_DOWN_COST_RE =
+  /(?:^|、)あなたのアップ状態の([^。、]{0,40}?)シグニ([０-９\d]+)体をダウンし((?:《[^》]+》)+)を支払ってもよい$/;
+
+function applyFieldDownOptionalCost(text: string, action: EffectAction): EffectAction {
+  if (hasOptionalCostStub(action)) return action;
+  if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
+  const sentences = sentencesOutsideQuotes(text);
+  const m = sentences[0]?.match(FIELD_DOWN_COST_RE);
+  if (!m) return action;
+  if (sentences.slice(1).some(s => !/^(?:そうした場合|その後)/.test(s))) return action;
+  const spec = m[1];
+  const count = parseNum(m[2]);
+  const costColors = [...m[3].matchAll(/《([^》]+)》/g)].map(x => x[1]);
+  const filter: TargetFilter = {
+    cardType: 'シグニ',
+    ...parseColorFilter(spec), ...parseStoryFilter(spec),
+    ...(/《ディソナアイコン》/.test(spec) ? { isDisona: true } : {}),
+  };
+  const stub: StubAction = { type: 'STUB', id: 'OPTIONAL_COST', fieldDown: { count, filter }, costColors } as StubAction;
+  const steps = action.type === 'SEQUENCE' ? [...(action as SequenceAction).steps] : [action];
+  // 既にダウンのステップが生成されていればそれを置換、無ければ（コストごと脱落）ゲート前へ挿す。
+  const downIdx = steps.findIndex(s => s?.type === 'DOWN'
+    && (s as EffectAction & { target?: EffectTarget }).target?.owner === 'self'
+    && (s as EffectAction & { target?: EffectTarget }).target?.count === count);
+  if (downIdx >= 0) { steps[downIdx] = stub; return { ...(action as SequenceAction), steps } as EffectAction; }
+  const gate = steps.findIndex(isDidItGate);
+  if (gate >= 0) { steps.splice(gate, 0, stub); return { type: 'SEQUENCE', steps } as SequenceAction; }
+  return { type: 'SEQUENCE', steps: [stub, { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: steps.length === 1 ? steps[0] : { type: 'SEQUENCE', steps } } as EffectAction] } as SequenceAction;
+}
+
 function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectAction {
   if (hasOptionalCostStub(action)) return action;
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
@@ -6195,13 +6231,13 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
+    ?? applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。

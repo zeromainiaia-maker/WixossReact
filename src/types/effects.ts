@@ -2101,6 +2101,8 @@ export interface StubAction {
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   /** OPTIONAL_COST: 自分の場のカードをルリグトラッシュへ置く任意コスト。 */
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
+  /** OPTIONAL_COST: アップ状態の**自分の場のシグニ**N体をダウンする任意コスト（「あなたのアップ状態の＜X＞のシグニN体をダウンし…てもよい」）。filter は色/クラス等の限定。 */
+  fieldDown?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: アップ状態のセンタールリグ1体をダウンする任意コスト。 */
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   /** OPTIONAL_COST: アップ状態のルリグを好きな数ダウンする。 */

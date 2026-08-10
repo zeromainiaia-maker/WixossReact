@@ -15,6 +15,36 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
+## +MILL -DECK_CARD -TRASH ［5枚］
+WX24-P2-009 WX24-P3-088 WX25-CP1-007 WX26-CP1-057 WXDi-P13-088
+--- WX24-P2-009
+  原文: あなたのデッキの上からカードを３枚トラッシュに置いてもよい。その後、対戦相手のシグニを好きな数対象とし、ターン終了時まで、それらのパワーを合計であなたのトラッシュにあるカード１枚につき－1000する。この効果では1000単位でしか数字を割り振れない。《リコレクトアイコン》［４枚以上］追加であなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニを
+  - [0].action.steps[0].target.type = "DECK_CARD"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 3
+  ~ [0].action.steps[0].type : "TRASH" → "MILL"
+  + [0].action.steps[0].owner = "self"
+  + [0].action.steps[0].count = 3
+  + [0].action.steps[0].optional = true
+--- WX24-P3-088
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを３枚トラッシュに置いてもよい。この方法で＜悪魔＞のシグニが１枚以上トラッシュに置かれた場合、対戦相手のデッキの上からカードを３枚トラッシュに置く。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
+  - [0].action.steps[0].target.type = "DECK_CARD"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 3
+  ~ [0].action.steps[0].type : "TRASH" → "MILL"
+  + [0].action.steps[0].owner = "self"
+  + [0].action.steps[0].count = 3
+  + [0].action.steps[0].optional = true
+--- WX25-CP1-007
+  原文: あなたのデッキの上からカードを３枚トラッシュに置いてもよい。その後、あなたのトラッシュから＜ブルアカ＞のシグニを３枚まで対象とし、それらを手札に加える。《リコレクトアイコン》［４枚以上］追加で０～１０の数字１つを宣言する。対戦相手のデッキの上からカードを宣言した数字に等しい枚数トラッシュに置く。,-
+  - [0].action.steps[0].target.type = "DECK_CARD"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 3
+  ~ [0].action.steps[0].type : "TRASH" → "MILL"
+  + [0].action.steps[0].owner = "self"
+  + [0].action.steps[0].count = 3
+  + [0].action.steps[0].optional = true
+
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
@@ -146,39 +176,6 @@ WX06-017 WX19-029
   + [0].action.choices[0].action.type = "UP"
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 12 行）
-
-## +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB ［2枚］
-PR-319 WX14-042
---- PR-319
-  原文: 【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【常】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－700
-  - [1].action.abilities[0].effectId = "PR-319-sub-E1"
-  - [1].action.abilities[0].effectType = "ACTIVATED"
-  - [1].action.abilities[0].timing[0] = "ATTACK_ARTS"
-  - [1].action.abilities[0].cost.energy[0].color = "黒"
-  - [1].action.abilities[0].cost.energy[0].count = 0
-  - [1].action.abilities[0].action.type = "POWER_MODIFY"
-  - [1].action.abilities[0].action.target.type = "SIGNI"
-  - [1].action.abilities[0].action.target.owner = "opponent"
-  - [1].action.abilities[0].action.target.count = 1
-  - [1].action.abilities[0].action.target.filter.cardType = "シグニ"
-  - [1].action.abilities[0].action.target.upToCount = false
-  - [1].action.abilities[0].action.delta = -7000
-  …（他 28 行）
---- WX14-042
-  原文: 【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【自】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュす
-  - [1].action.abilities[0].effectId = "WX14-042-sub-E1"
-  - [1].action.abilities[0].effectType = "ACTIVATED"
-  - [1].action.abilities[0].timing[0] = "ATTACK_ARTS"
-  - [1].action.abilities[0].cost.energy[0].color = "緑"
-  - [1].action.abilities[0].cost.energy[0].count = 0
-  - [1].action.abilities[0].action.type = "BANISH"
-  - [1].action.abilities[0].action.target.type = "SIGNI"
-  - [1].action.abilities[0].action.target.owner = "opponent"
-  - [1].action.abilities[0].action.target.count = 1
-  - [1].action.abilities[0].action.target.filter.cardType = "シグニ"
-  - [1].action.abilities[0].action.target.filter.powerRange.min = 12000
-  - [1].action.abilities[0].action.target.upToCount = false
-  …（他 28 行）
 
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［2枚］
 WXEX2-09 WXK08-048
@@ -599,6 +596,24 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
+
+## +MILL×2 -DECK_CARD×2 -TRASH×2 ［1枚］
+WX24-P4-049
+--- WX24-P4-049
+  原文: 【自】《ターン１回》：いずれかのプレイヤーがリフレッシュしたとき、【エナチャージ１】をする。【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを３枚トラッシュに置いてもよい。この方法でトラッシュに置かれたシグニのレベルの合計１につき対戦相手のデッキの上からカードを１枚トラッシュに置く。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体
+  - [1].action.steps[0].target.type = "DECK_CARD"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 3
+  - [1].action.steps[1].target.type = "DECK_CARD"
+  - [1].action.steps[1].target.owner = "opponent"
+  - [1].action.steps[1].target.count = 1
+  ~ [1].action.steps[0].type : "TRASH" → "MILL"
+  + [1].action.steps[0].owner = "self"
+  + [1].action.steps[0].count = 3
+  + [1].action.steps[0].optional = true
+  ~ [1].action.steps[1].type : "TRASH" → "MILL"
+  + [1].action.steps[1].owner = "opponent"
+  …（他 2 行）
 
 ## +SEQUENCE +SIGNI +TRASH ［1枚］
 WXK02-022

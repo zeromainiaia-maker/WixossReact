@@ -170,6 +170,7 @@ export interface OptionalCostSpec {
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
+  fieldDown?: { count: number; filter?: TargetFilter };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   down_self?: boolean;
   beat_signi?: number;
@@ -206,7 +207,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     underAnySigniTrash: a.underAnySigniTrash,
     energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
-    fieldToLrigTrash: a.fieldToLrigTrash, lrigDown: a.lrigDown, down_self: a.down_self,
+    fieldToLrigTrash: a.fieldToLrigTrash, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     deckTrash: a.deckTrash, charmTrash: a.charmTrash,
@@ -281,6 +282,11 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.fieldToLrigTrash) {
     const matching = fieldCandidates(ctx.ownerState, spec.fieldToLrigTrash.filter, ctx.cardMap);
     if (matching.length < spec.fieldToLrigTrash.count) return false;
+  }
+  if (spec.fieldDown) {
+    // アップ状態の自分シグニがN体そろっているか（`isUp` はフィルタ側で判定される）
+    const matching = fieldCandidates(ctx.ownerState, { ...(spec.fieldDown.filter ?? {}), isUp: true }, ctx.cardMap);
+    if (matching.length < spec.fieldDown.count) return false;
   }
   if (spec.lrigDown) {
     if (!payLrigDownCost(ctx.ownerState, spec.lrigDown, ctx.cardMap)) return false;
@@ -370,6 +376,11 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.fieldToLrigTrash ? [{
       type: 'TRASH', asCost: true, destination: 'lrig_trash',
       target: { type: 'SIGNI', owner: 'self', count: spec.fieldToLrigTrash.count, filter: spec.fieldToLrigTrash.filter },
+    } as EffectAction] : []),
+    ...(spec.fieldDown ? [{
+      type: 'DOWN',
+      target: { type: 'SIGNI', owner: 'self', count: spec.fieldDown.count, upToCount: false,
+        filter: { ...(spec.fieldDown.filter ?? {}), isUp: true } },
     } as EffectAction] : []),
     ...(spec.lrigDown ? [{
       type: 'STUB', id: 'INTERNAL_PAY_LRIG_DOWN', lrigDown: spec.lrigDown,
