@@ -12100,6 +12100,28 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('signiDamageGate: 「このシグニは対戦相手にダメージを与えない」（§6.4 A群・WX25-CP1-074-E1 の付与）', () => withSavedCursor(() => {
+  // §6.4 の STUB 仕分け計器が「A＝engine のどこにも消費が無い」として検出した実装の穴。
+  // 付与ストア2本と印字能力の3軸すべてで効くことを固定する（付与ストアだけ見る実装にすると
+  // 同じ文を印字するカードが増えた瞬間に無言で落ちる）。
+  const cont = {
+    effectId: 'GOLDEN-CANNOT-DAMAGE', effectType: 'CONTINUOUS' as const,
+    action: { type: 'STUB' as const, id: 'CANNOT_DEAL_DAMAGE_TO_OPPONENT' },
+    duration: 'UNTIL_END_OF_TURN' as const, mandatory: true, parseStatus: 'MANUAL' as const,
+  };
+  const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
+  eq(signiCannotDealDamageToOpponent(base, SIGNI, effectsMap), false, '付与前はダメージを与える');
+  const granted: PlayerState = { ...base, granted_effects: { [SIGNI]: [cont] } };
+  eq(signiCannotDealDamageToOpponent(granted, SIGNI, effectsMap), true, 'granted_effects の付与で抑止');
+  eq(signiCannotDealDamageToOpponent(granted, SIGNI_P3000, effectsMap), false, '付与されていないシグニは影響なし');
+  const untilOpp: PlayerState = { ...base, granted_effects_until_opp_turn: { [SIGNI]: [cont] } };
+  eq(signiCannotDealDamageToOpponent(untilOpp, SIGNI, effectsMap), true, '相手ターンまでの付与でも抑止');
+  // 印字能力軸（effectsMap を差し替えて確認）
+  const printed = new Map(effectsMap);
+  printed.set(SIGNI_P3000, [cont]);
+  eq(signiCannotDealDamageToOpponent(base, SIGNI_P3000, printed), true, '印字 CONTINUOUS でも抑止');
+  eq(signiCannotDealDamageToOpponent(base, undefined, effectsMap), false, 'アタッカー不明なら抑止しない');
+}));
 test('signiAttackGate: blocked_actions / パワー上限 / 1回制限 / エナコスト の各軸（続き404）', () => withSavedCursor(() => {
   const def = mkState({});
   const reason = (attacker: PlayerState, defender: PlayerState, num: string, powers?: Map<string, number>) =>
