@@ -556,9 +556,12 @@ function condJa(c?: any): string {
       return `そのアタックフェイズの間に${who}の${cls}シグニが場を離れていた`;
     }
     case 'THIS_CARD_HAS_ATTACHED': return `このシグニにカードが${(c.minCount ?? 1) > 1 ? `${c.minCount}枚以上` : ''}付いている`;
-    case 'THIS_CARD_HAS_UNDER': return c.filter
-      ? `このシグニの下に${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.negate ? '無い' : 'ある'}`
-      : `このシグニの下にカードが${c.negate ? '無い' : 'ある'}`;
+    case 'THIS_CARD_HAS_UNDER': {
+      const n = (c.minCount ?? 1) > 1 ? `${numJa(c.minCount!)}枚以上` : '';
+      return c.filter
+        ? `このシグニの下に${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${n}${c.negate ? '無い' : 'ある'}`
+        : `このシグニの下にカードが${n}${c.negate ? '無い' : 'ある'}`;
+    }
     case 'IS_DRIVE_STATE': return 'このシグニがドライブ状態';
     case 'TURN_HAND_DISCARD_GTE': return `このターン手札を${numJa(c.value)}枚以上捨てている`;
     // ── §3 タスク6「代わりに」B1残
