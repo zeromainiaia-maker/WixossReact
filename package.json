@@ -25,7 +25,8 @@
     "preview": "vite preview",
     "census:timing": "tsx scripts/timingCensus.ts",
     "census:wiring": "tsx scripts/censusWiring.ts",
-    "census:goldentypes": "tsx scripts/goldenTypeCoverage.ts"
+    "census:goldentypes": "tsx scripts/goldenTypeCoverage.ts",
+    "census:stubs": "tsx scripts/censusStubs.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
