@@ -1822,8 +1822,9 @@ function actionJa(a?: Action, effectType?: string): string {
         // 原文の枚数・クラス指定が逆翻訳から丸ごと消えていた（handDiscard を持つ既存 MANUAL も同様）。
         if (a.handDiscard) {
           const fHD = a.handDiscard.filter ? filterJa(a.handDiscard.filter) : '';
-          const nounHD = a.handDiscard.filter?.cardType ?? 'カード';
-          const bodyHD = `手札から${fHD}${fHD.endsWith(nounHD) ? '' : nounHD}を${a.handDiscard.count}枚捨て`;
+          // filterJa は名詞（シグニ/カード）を含まないので cardType から補う
+          const nounHD = ([] as string[]).concat(a.handDiscard.filter?.cardType ?? 'カード').join('か');
+          const bodyHD = `手札から${fHD}${nounHD}を${a.handDiscard.count}枚捨て`;
           return `${headOC}${costJaOC ? `${costJaOC}を支払い` : ''}${bodyHD}てもよい`;
         }
         return `${headOC}${costJaOC || 'コスト'}を支払ってもよい`;
