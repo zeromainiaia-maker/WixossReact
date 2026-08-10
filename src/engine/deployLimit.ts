@@ -11,8 +11,10 @@ import { collectDeployCountLimit } from './effectEngine';
  * `execAddToField` ほか engine 側の効果配置は cap も power limit も一切見ずにすり抜けていた
  * （＝「対戦相手はシグニを2体までしか場に出せない」を掛けても、効果で出す分は無制限だった。該当7効果）。
  *
- * ⚠**ライズ（既存シグニへの上乗せ）は「新たに場に出す」ではない**ので count 制限の対象外
- * （`onExistingStack: true` を渡す）。パワー制限は原文が「新たに場に出せない」なので同じく対象外。
+ * ⚠**ライズ（既存シグニへの上乗せ）が外れるのは count 制限だけ**（`onExistingStack: true`）。
+ * 数制限の原文は「（すでに場に3体ある場合は2体になるようにトラッシュ）」＝**場のシグニの体数**を縛るもので、
+ * 上乗せでは体数が増えないため対象外。一方パワー制限は「パワーN以上のシグニを**新たに場に出せない**」＝
+ * ライズも場に出す行為なので**適用する**（旧・通常召喚UIの分岐と同じ非対称）。
  */
 export type DeployBlockReason =
   | 'COUNT_LIMIT'  // 「シグニをN体までしか場に出すことができない」（AUTO フラグ or CONTINUOUS）
