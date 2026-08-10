@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-10・続き405・Opus 5）＝§6.4「配置制限が engine の効果配置をすり抜ける」を消化**。続き404 と**まったく同じ形の穴**＝「判定は実装済みなのに、それを必要とする全経路のうち一部からしか読まれていない」。
+  - **⭐① 配置制限ゲートの一本化**＝新設 `src/engine/deployLimit.ts`（`deployLimitBlockReason()` / `deployCountCap()`）。「シグニをN体までしか場に出せない」「パワーN以上のシグニを新たに場に出せない」は**通常召喚UI／召喚ゾーンモーダル／CPU召喚の3箇所にしか無く、engine の効果配置は全部素通り**していた。**engine 側5入口**（`execAddToField` の3分岐／`execRevealUntilToField`／`applyDirectAction` の `ADD_TO_FIELD`）へ配線し、UI3箇所も同じ関数へ寄せた。該当7効果が同時に実効化。
+  - **🔴② CPU はパワー上限を一切見ていなかった**（続き404 のアタック可否と同じ非対称）。CPU 召喚の候補選定もゲート経由にした。
+  - **🔑③ ライズが外れるのは count 制限だけ**＝数制限の原文は「（すでに場に3体ある場合は2体になるようにトラッシュ）」＝**場のシグニの体数**を縛る。上乗せでは体数が増えないので対象外。パワー制限は「**新たに場に出せない**」＝ライズも場に出す行為なので適用する。
+  - **🔑④ 複数枚配置は1枚ごとに再評価**＝`applyToField` は場のシグニ数が増えながら進むので、まとめて1回判定だと上限を跨いで置けてしまう（golden で固定）。
+  - **🔴⑤ CONTINUOUS 版を `ctx.effectsMap` 依存にしてはいけない**＝`ExecCtx.effectsMap` は **BattleScreen のスタック解決1経路でしか代入されない**（続き296 で判明済み）ので、依存させると「engine は正しいのに実UIでは丸ごと効かない」dead flag になる。**`ExecCtx` に `deployCountCapSelf`/`deployCountCapOpponent` を追加し、ExecCtx 生成8箇所すべてで `fillDeployCaps(ctx)` を呼ぶ**（`signiFieldPlaceByEffectBlocked` 等と同じ既存パターン）。⚠`ctx.isOwnerTurn` 確定後に呼ぶこと。
+  - **✅⑥ ゲート**＝`npm run gates` 全緑（typecheck / golden **1715→1721**（+6）/ smoke **10686/10686** 全0・SKIP 0 / fuzz 200ゲーム 全0 / census **880 据置** / manual field loss 0 / lint 0 errors・**254 warnings 増減0**）。**live JSON 変更0＝engine/UI 配線のみ**（`npm run regen` 不要）。
+  - **⚠⑦ 実機検証が要る**＝(a)**相手に配置数制限を掛けた状態で相手の「効果配置」が止まるか**（`WXDi-P05-024`／`WXK11-074` のフラグ版＋`WX07-006` の CONT 版＝**後者は `fillDeployCaps` の呼び忘れが1箇所でもあると黙って効かない**）(b)**CPU が配置数制限・パワー上限を守って召喚するか**。§7 に登録済み。
+  - **📋⑧ 次の一手**＝**Opus 側**＝(a)§6.4 の **F-3 残＝`WX17-075`**（`ON_PLACED_FRONT` 任意トリガー・別機構）と、**3つの離場置換を対話化するか決める**（現状は「してもよい」を自動適用する決定論的近似）(b)Opus タスク12 の在庫2件〔(cxix) `SPDi43-11-E2` の timing 誤パース／(cxx) ON_ENERGY_CHARGE watcher の usageLimit 未管理〕(c)`collectIncreaseActCost` がトラッシュ起動に未適用（続き403 が残した1件）。**Sonnet 側**＝§7 の実機未検証UI（続き403 の14枚＋続き404 の3件＋続き405 の2件）と §5c census 文型バッチ。
+
+
 - **🆕 セッション（2026-08-10・続き404・Opus 5）＝§6.4「オープンな実装課題（機構・基盤）」の先頭2項目を消化**。どちらも**「実装済みの判定が、それを必要とする全経路のうち1経路からしか読まれていない」**という同型の穴で、**判定を1関数に集約して全経路から呼ぶ**形に揃えた（続き403 の `trashActivateCost.ts` と同じレシピ）。
   - **⭐① アタック可否ゲートの一本化**＝新設 `src/screens/battle/signiAttackGate.ts`。`cannotAttackSigni` を読むのは**人間のアタックボタン生成1箇所だけ**で、共通実行経路 `performSigniAttack` も CPU のアタック候補フィルタも見ていなかった（＝付与された「アタックできない」が **CPU に一切効かない**）。`canSigniAttack()` に集約し**3箇所が同じ関数を呼ぶ**形へ。
   - **🔴② 同じ穴だった兄弟軸を同時に閉じた（実測で判明）**＝`opp_signi_attack_power_cap`（パワー上限）／`signi_attack_once_limit`（合計1回）／`signi_attack_cost` も人間UI専用で、**CPU はエナ不足でも `energy.slice(0,-n)` で黙って過少払いしていた**。⚠**`fieldTrashCostAlreadyPaid` フラグが必須**＝G154 BURST の無効化回避モーダルからの再入は「支払い後の盤面＋残ったコスト予約」で来るため、無いと再入時に「もう払えない」と誤判定してアタックが黙って消える。

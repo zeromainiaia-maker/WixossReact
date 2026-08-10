@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 F-3 身代わりバニッシュが「効果によるバニッシュ」に一切効いていなかった（続き406）
+
+### 症状
+
+`BANISH_SUBSTITUTE`（F-3）の原文は **「このシグニがバニッシュされる場合、代わりに〜してもよい」＝バトル限定ではない**。
+にもかかわらず `collectBanishSubstitutes` の**消費地点は `BattleScreen` のバトルバニッシュ経路1箇所だけ**で、
+`execBanish`（＝アーツ/スペル/【出】などの効果によるバニッシュ）からは一切参照されていなかった。
+⇒ 効果でバニッシュされると身代わりが**丸ごと無効**。live の該当は8効果：
+
+| 型 | カード |
+|---|---|
+| 犠牲型 `self_sacrifice_other` | `WX12-024`／`WXEX2-60` |
+| 保護型 `protect_other_sacrifice_self` | `WX20-055`／`WXDi-CP01-032`／`WXDi-P10-052` |
+| コスト払い型 | `WX10-033`（手札スペル1）／`WX11-029`（下スペル2）／`WX14-026`（ライフ1） |
+
+（`WX06-019` の `powerReduction` だけは別ハンドラ `findEffectLeavePowerReductionSubstitute` で離場経路に配線済みだった。）
+
+### 直し方
+
+`applyEffectBanishSubstitute()` を新設し、**置換チェーンの唯一の入口 `applyEffectLeaveSubstitutes` に組み込んだ**。
+バニッシュ2経路（`execBanish` の `applyBanish` ／ `applyDirectAction` の `case 'BANISH'`）が `{ isBanish: true }` で呼ぶ。
+
+**🔑 オプションを `skipReplaceBanish` → `isBanish` の1本に変えた**のが要点。チェーン③段は排他で、
+`ReplaceBanish` は原文が「その移動が**バニッシュによるものでないなら**」＝非バニッシュ経路専用、
+F-3 身代わりは逆に**バニッシュのときだけ**成立する。フラグを2つに分けたままだと、
+バニッシュ経路を新設した人が片方だけ書いて取りこぼす（この関数はまさに「11経路の手書きチェーンを1本に畳んだ」経緯を持つ）。
+
+適用順：①ルリグ付与能力の喪失 → ②パワー減 → ③（バニッシュなら F-3 身代わり／非バニッシュなら ReplaceBanish）→ ④能力なし→デッキ下。
+
+### 3つの設計判断
+
+1. **`victimOwner === 'opponent'` のときだけ置換する**（他3本と同じガード）。
+   原文には「対戦相手の効果によって」の限定は無いが、**自動適用**なので、自分の効果で自分のシグニをバニッシュする
+   「コスト/利得」型（例：自シグニをバニッシュして何かを得る）を勝手に他シグニの犠牲へすり替えないため。
+2. **決定論的な選択順を安い順に固定**＝①スタック下のスペル（盤外資源）→②手札のスペル→③他シグニの犠牲。
+   対話実装が入るまでの近似（他の置換3本と同じ「してもよいの自動適用」方針）。
+3. 🔴**`lifeCrash`（`WX14-026`）は engine では適用しない**＝ライフクラッシュは【ライフバースト】確認フロー（`field.check`）を
+   伴うため、効果解決の途中に同期的に差し込めない。中途半端に「バーストを飛ばすクラッシュ」を書くより、
+   engine 対象外にしてバトル経路の対話実装に任せる方が正しい。8効果中7が実効化。
+
+### effectsMap 依存を避けた
+
+`collectBanishSubstitutes` は effectsMap を要求するが、**`ExecCtx.effectsMap` は BattleScreen のスタック解決1経路でしか代入されない**
+（続き296／続き405 と同じ罠）。そこで victim 側の場のトップ3枚ぶんだけローカル Map を組み、
+`ctx.effectsMap` →（無ければ）`ctx.cardMap.get(...)?.effects` の順で引く。
+後者は `App.tsx` が live JSON を各 CardData に載せているので**実アプリでも確実に引ける**
+（既存の `findEffectLeavePowerReductionSubstitute` / `applyEffectLeaveReplaceBanishSubstitute` と同じ channel）。
+
+### PLAN の在庫記述がまた古かった（続き402〜406 で6回連続）
+
+この項目は「残＝`WX17-075`（`ON_PLACED_FRONT` 任意トリガー・別機構）だけ」と書いていたが、
+**`WX17-075` はそもそも身代わり置換のカードではなくバニッシュ**トリガー**側**のカードで、
+`WX17-075-E1`／`-E3-G` は `ON_PLAY` + `triggerScope:'any_opp'` + `triggerCondition.placedFront`／
+`frontLowerLevelThanSource` として **`collectFieldTriggers` に配線済み**（parser・engine とも実装済み）。
+**投入前に live JSON と engine を実測する**手順が、今回も記述より先に正解を出した。
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / golden **1726 PASS**（1721→+5）/ smoke **10686/10686** 全0・SKIP 0 /
+fuzz 200ゲーム 全0 / census 880 据置 / manual field loss 0 / lint 0 errors・254 warnings 増減0）。
+**live JSON 変更0＝engine 配線のみ**。実UIでの自動適用は PLAN §7 に実機検証項目として登録。
+
+
 ## 2026-08-10 — §6.4 配置制限（DEPLOY_RESTRICT）が engine の効果配置をすり抜けていた（続き405）
 
 ### 症状
