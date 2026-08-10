@@ -2444,6 +2444,39 @@ export function execStubPart1(
     };
     return selectOrInteract(cands, 1, false, 'self_hand', trashAction, undefined, ctx, true);
   }
+  // PLAY_MILLED_SIGNI_DELAYED_TRASH（WXDi-P09-079-E1）：
+  //   「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき、そのシグニを場に出す。
+  //     ターン終了時、そのシグニを場からトラッシュに置く。」
+  // ⚠**timing・triggerCondition は既に配線済み**（`ON_CARD_MILLED_FROM_DECK` ＋ `milledCardFilter`）で、
+  //   死んでいたのは action だけだった。「そのシグニ」は `collectMillTriggers` が
+  //   `triggeringCardNum`（＝フィルタに一致したミル済みカード）に載せる。
+  // ⚠**ターン終了時トラッシュも既存機構**＝`turn_end_field_trash_targets`（`TRASH_AT_TURN_END` と同じストア）。
+  // ⚠**配置制限を必ず通す**（続き405 で一本化した `deployLimit.ts`）＝直接 field に書く実装は
+  //   「シグニをN体までしか場に出せない」をすり抜ける常習箇所。
+  if (stub.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') {
+    const milledPM = ctx.triggeringCardNum;
+    if (!milledPM || !ctx.ownerState.trash.includes(milledPM)) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] }, 'ミルされたシグニがトラッシュにない'));
+    }
+    const signiPM = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    const zonePM = signiPM.findIndex(z => !z || z.length === 0);
+    const namePM = ctx.cardMap.get(getCardNum(milledPM))?.CardName ?? milledPM;
+    if (zonePM < 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, `空きシグニゾーンなし（${namePM}を場に出せない）`));
+    const blockedPM = deployLimitBlockReason({
+      placingState: ctx.ownerState, opponentState: ctx.otherState,
+      cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCap,
+    });
+    if (blockedPM) return done(addLog({ ...ctx, lastProcessedCards: [] }, deployLimitLogMessage(blockedPM, namePM)));
+    signiPM[zonePM] = [milledPM];
+    const newOwnerPM: PlayerState = {
+      ...ctx.ownerState,
+      trash: ctx.ownerState.trash.filter(x => x !== milledPM),
+      field: { ...ctx.ownerState.field, signi: signiPM },
+      turn_end_field_trash_targets: [...new Set([...(ctx.ownerState.turn_end_field_trash_targets ?? []), milledPM])],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerPM, lastProcessedCards: [milledPM] },
+      `${namePM}を場に出す（ターン終了時にトラッシュ）`));
+  }
   // 対戦相手が自分のルリグデッキからカード1枚を選んでルリグトラッシュに置く（WX24-P4-014-E3 ②）。
   // ⚠**選ぶのはカードの持ち主＝対戦相手**なので `opponentResponds` を立てる（`OPP_CHOOSE_YOUR_HAND_DISCARD` と同じ慣例）。
   // ⚠**ctx の視点は反転しない**＝`opponentResponds` は「誰がクリックするか」だけを変えるので、
