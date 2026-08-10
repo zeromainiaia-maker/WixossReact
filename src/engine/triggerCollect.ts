@@ -1721,7 +1721,7 @@ export function collectMagicBoxFlippedTriggers(
     if (relevantFor(eff.triggerScope ?? 'any') < (eff.triggerCondition?.minCount ?? 1)) return false;
     if (eff.activeCondition && !checkActiveCondition(
       eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap,
-      hostNum, ctx.effectivePowers, undefined, ctx.turnPhase)) return false;
+      hostNum, ctx.effectivePowers, undefined, ctx.turnPhase as TurnPhase)) return false;
     if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, hostNum, ctx.turnPhase, ctx.effectivePowers)) return false;
     return limitOk(eff);
   };
