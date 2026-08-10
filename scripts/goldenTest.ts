@@ -16380,6 +16380,18 @@ test('task16 group A: ON_CARD_MILLED_FROM_DECK の移動カード filter を両�
     ).entries.some(e => e.effectId === 'WXDi-P09-079-E1');
   eq(firesInPhase('MAIN'), true, 'WXDi-P09-079-E1: メインフェイズで発火');
   eq(firesInPhase('ATTACK'), false, 'WXDi-P09-079-E1: アタックフェイズでは非発火');
+  // §6.4 A群（続き411）＝「そのシグニ」＝ミルされたカードを triggeringCardNum に載せる。
+  // ⚠ホスト（sourceCardNum=能力の持ち主）とは**別軸**であることも固定する。
+  {
+    const milledInst = `${level1}#77`;
+    const entry = collectMillTriggers(
+      { ...trigCtx(HOST), effectsMap: localEffects, turnPhase: 'MAIN' },
+      HOST, host, mkState({}), 1, 0, [milledInst], [],
+    ).entries.find(e => e.effectId === 'WXDi-P09-079-E1');
+    ok(!!entry, 'WXDi-P09-079-E1 のエントリが無い');
+    eq(entry!.triggeringCardNum, milledInst, '「そのシグニ」＝ミルされたカードが triggeringCardNum に載っていない');
+    eq(entry!.cardNum, source, 'cardNum（能力ホスト）が triggeringCardNum に上書きされている');
+  }
   } finally {
     cursor = savedCursor;
   }
