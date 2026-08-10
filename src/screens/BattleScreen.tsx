@@ -8564,7 +8564,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
-          if (isLancer || isSLancer) {
+          // ⚠「このシグニは対戦相手にダメージを与えない」（WX25-CP1-074 が付与）はここも止める
+          //   ＝止めないと「バトルに勝ったときだけダメージが通る」半端な近似になる。
+          if ((isLancer || isSLancer) && cannotDealDamageToOpp) {
+            appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
+          } else if (isLancer || isSLancer) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
             const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
             if (prevented) {
