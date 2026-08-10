@@ -10048,11 +10048,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // LIMIT_ALL_FIELD_N: シグニ場出し数の上限（WX04-005-E3）。CPU=guest, 人間=host。
       const cpuFieldSigniLimitBase = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
       // DEPLOY_RESTRICT（配置数制限）: 相手（host）の CONT レゾナ＋自フラグ（このターン）の小さい方を上限に反映。
-      const cpuDeployCap = (() => {
-        const cont = collectDeployCountLimit(bs.host_state, newCpuSt, battleCardMap, effectsMap, false);
-        const flag = newCpuSt.signi_deploy_count_limit;
-        return flag !== undefined ? (cont !== undefined ? Math.min(flag, cont) : flag) : cont;
-      })();
+      // 上限計算は `engine/deployLimit.ts` に一本化（人間UI・engine の効果配置と同じ関数＝続き405）。
+      const cpuDeployCap = deployCountCap({
+        placingState: newCpuSt, opponentState: bs.host_state,
+        cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
+      });
       const cpuFieldSigniLimit = cpuDeployCap !== undefined ? Math.min(cpuFieldSigniLimitBase, cpuDeployCap) : cpuFieldSigniLimitBase;
 
       for (let zone = 0; zone < 3; zone++) {
