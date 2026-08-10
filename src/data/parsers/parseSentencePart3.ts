@@ -1179,10 +1179,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- 任意コスト支払い（広い汎用パターン）→ STUB with costColors ----
   if (t.match(/を支払ってもよい$/) || t.match(/を支払ってもよい。$/)) {
     const costColors = extractCostColors(t);
+    // 🆕《コインアイコン》のコイン支払い（§6.4・2026-08-10）。`extractCostColors` は色しか拾わないため、
+    //   コインだけのコストが**payload 無しの OPTIONAL_COST＝コスト0**に落ちて**ただで撃てて**いた
+    //   （`WXDi-P07-055/072/094` 等）。engine（`effectExecutor` の `coinCost`）は実装済みで、
+    //   parser が一度も生成していなかっただけ。
+    // ⚠**「を支払ってもよい」直前の《…》の連なりだけ**を数える＝同じ文の別の箇所にある
+    //   「《コインアイコン》を得て」等を支払いに数え込まないため。
+    const payTokens = t.match(/((?:《[^》]+》)+)を支払ってもよい/);
+    const coinCost = (payTokens?.[1].match(/《コインアイコン》/g) ?? []).length;
     const tradeCost = tradeOptionalCost(t);
     return tradeCost.id === 'OPTIONAL_COST'
-      ? { ...tradeCost, ...(costColors.length ? { costColors } : {}) }
-      : { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}) } as StubAction;
+      ? { ...tradeCost, ...(costColors.length ? { costColors } : {}), ...(coinCost ? { coinCost } : {}) }
+      : { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}), ...(coinCost ? { coinCost } : {}) } as StubAction;
   }
 
   // ---- 括弧で始まるルール説明（汎用スキップ）----
