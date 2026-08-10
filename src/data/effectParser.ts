@@ -5465,9 +5465,12 @@ function applyOptionalActivateGate(text: string, action: EffectAction): EffectAc
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;   // 使用時コストは別機構
   const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
   if (sentences.length === 0) return action;
-  // ①先頭文が「〜てもよい」で終わる（主語が対戦相手の形は自分の任意性ではない＝除外）
+  // ①先頭文が「〜てもよい」で終わる。⚠主語判定は**最後の読点以降の節**で見る＝トリガー句が
+  //   残っている形（「対戦相手がアーツを使用したとき、…置いてもよい」）を主語で誤除外しないため。
   if (!/てもよい$/.test(sentences[0])) return action;
-  if (/対戦相手[はが]/.test(sentences[0])) return action;
+  const clause0 = sentences[0].slice(sentences[0].lastIndexOf('、') + 1);
+  //   ⚠助詞まで見る＝「対戦相手**の**デッキの上のカードを…してもよい」は**自分の**任意行動（WX08-046）。
+  if (/^対戦相手[はが]/.test(clause0)) return action;   // 「対戦相手は…てもよい」＝相手側の任意
   // ②後続は帰結だけ（「そうした場合／その後、」）＝任意性が文全体に掛かることを保証する。
   //   独立した別命令が続く形にゲートを掛けると、強制のはずの後段まで辞退できてしまう。
   if (sentences.slice(1).some(s => !/^(?:そうした場合|その後)/.test(s))) return action;
@@ -5478,6 +5481,40 @@ function applyOptionalActivateGate(text: string, action: EffectAction): EffectAc
   const f = first as EffectAction & { optional?: boolean; target?: EffectTarget; source?: EffectTarget };
   if (f.optional === true || f.target?.upToCount === true || f.source?.upToCount === true) return action;
   return { type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction, ...steps] } as SequenceAction;
+}
+
+// ── §6.4 「このシグニを場からトラッシュに置いてもよい。そうした場合、…」のコスト**脱落**（続き417）──
+// 実測16カードで**コストのステップが1つも生成されず、本体だけが無条件に走っていた**（＝ただで撃てる
+// 過剰効果）。engine には専用 STUB `OPTIONAL_TRASH_SELF` が実装済み（`effectExecutor` Pattern ③＝
+// 「このシグニをトラッシュして発動／スキップ」。skip は `conditional.else`＝何もしない）。
+//
+// ⚠**コストが `TRASH{SIGNI,thisCardOnly,optional:true}` として残っている形は触らない**＝あちらは
+//   `execTrash` の `selectOrInteract(..., a.optional)` が 0体選択で「そうした場合」ゲートごと落とすので
+//   **既に正しく動いている**（続き417 に engine 実測）。ここで直すのは**脱落した**ものだけ。
+// ⚠「代わりに…してもよい」＝置換効果は別機構（§6.4 置換5本）。`BANISH{selfTrashCost}` も既存の別実装。
+const SELF_TRASH_COST_SENT_RE = /このシグニを場からトラッシュに置いてもよい$/;
+
+function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectAction {
+  if (hasOptionalCostStub(action)) return action;
+  if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
+  const json = JSON.stringify(action);
+  if (json.includes('OPTIONAL_TRASH_SELF') || json.includes('selfTrashCost')) return action;
+  if (json.includes('"thisCardOnly":true') && json.includes('"TRASH"')) return action;   // コストは生成済み
+  const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
+  if (sentences.length === 0) return action;
+  if (!SELF_TRASH_COST_SENT_RE.test(sentences[0])) return action;
+  if (/代わりに/.test(sentences[0])) return action;                 // 置換効果＝別機構
+  // 後続は帰結だけ（独立した別命令が続く形にコストゲートを掛けない）
+  if (sentences.slice(1).some(s => !/^(?:そうした場合|その後)/.test(s))) return action;
+  const stub: StubAction = { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' } as StubAction;
+  if (action.type === 'SEQUENCE') {
+    const steps = [...(action as SequenceAction).steps];
+    const gate = steps.findIndex(isDidItGate);
+    // ゲートの**直前**に挿す（Pattern ③ は STUB の直後が CONDITIONAL であることを見る）
+    if (gate >= 0) { steps.splice(gate, 0, stub); return { ...action, steps } as EffectAction; }
+    return { ...action, steps: [stub, { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'SEQUENCE', steps } } as EffectAction] } as EffectAction;
+  }
+  return { type: 'SEQUENCE', steps: [stub, { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: action } as EffectAction] } as SequenceAction;
 }
 
 function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
@@ -6115,13 +6152,13 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applyOptionalHandDiscardCost(source,
+    ?? applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。

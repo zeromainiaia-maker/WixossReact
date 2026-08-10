@@ -7845,6 +7845,26 @@ test('Stage2 ON_CHARM_TO_TRASH: チャーム枚数>0 で発火・0で非発火�
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 1, 0).entries, 'WX16-Re05-E1'), true, '1枚で発火');
   eq(has(collectCharmToTrashTriggers(trigCtx(HOST), HOST, host, guest, 0, 0).entries, 'WX16-Re05-E1'), false, '0枚は非発火');
 });
+// §6.4「行動そのものが任意」＝`OPTIONAL_ACTIVATE` 前置（2026-08-10 続き417）。
+// `DRAW`/`ENERGY_CHARGE_FROM_DECK`/`LIFE_CRASH`/`ATTACH_CHARM` は engine に `optional`/`upToCount` の
+// 受け皿が無く、原文の「〜てもよい」を表す場所が無いまま**強制**になっていた。
+test('§6.4 OPTIONAL_ACTIVATE: 「引いてもよい。そうした場合、手札を1枚捨てる」は発動しないを選べる（WX07-003-E1）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX07-003')!.find(e => e.effectId === 'WX07-003-E1')!;
+  const steps = (eff.action as unknown as { steps: { type: string; id?: string }[] }).steps;
+  eq(steps[0].id, 'OPTIONAL_ACTIVATE', '任意発動の包みが無い（強制のドローに戻っている）');
+  const ctx = mkCtx({ hand: 3, deck: 10 }, {}, 'WX07-003');
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done, '発動可否の対話待ちになっていない');
+  const pend = (r0 as { pending: { options: { id: string }[] } }).pending;
+  const c: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+  const skipped = resumeChoose('skip', pend as never, c);
+  eq(skipped.ownerState.hand.length, 3, '発動しないを選んだのに手札が動いた');
+  const paid = finish(resumeChoose('pay', pend as never, c), c);
+  // 1枚引いて1枚捨てる＝手札は増減なし・デッキだけ1枚減る
+  eq(paid.ownerState.hand.length, 3, '発動＝引いて捨てるので手札は同数');
+  eq(paid.ownerState.deck.length, ctx.ownerState.deck.length - 1, '発動＝デッキが1枚減る');
+}));
+
 // §6.4「任意コスト脱落」トリップワイヤ（2026-08-10 続き416 新設）＝原文が「〜てもよい。そうした場合、…」なのに
 // live が **素の `TRASH{HAND_CARD,owner:self}` ＋ did-it ゲート**を持っている＝**コストが強制**の形。
 //
