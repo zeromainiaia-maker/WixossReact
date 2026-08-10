@@ -210,6 +210,24 @@ WX14-064
   ~ [0].mandatory : true → false
   ~ [0].parseStatus : "AUTO" → "MANUAL"
 
+## +DECK_CARD +ENERGY_CHARGE +REVEAL_AND_PICK -LOOK_AND_REORDER -SEQUENCE -STUB ［1枚］
+WX15-003
+--- WX15-003
+  原文: 【自】：アクセされているあなたのシグニ１体があなたの効果以外によってバニッシュされたとき、カードを１枚引いてもよい。【自】：あなたのメインフェイズ開始時、あなたのデッキの上からカードを３枚公開してもよい。その中から《アクセアイコン》を持つカード１枚をエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。【起】ベルセルク《コインアイコン》《コインアイコン》
+  - [1].action.steps[0].type = "LOOK_AND_REORDER"
+  - [1].action.steps[0].source.location = "deck"
+  - [1].action.steps[0].source.owner = "self"
+  - [1].action.steps[0].count = 3
+  - [1].action.steps[0].private = false
+  - [1].action.steps[0].reorder = false
+  - [1].action.steps[0].canTrash = false
+  - [1].action.steps[0].destination.location = "deck"
+  - [1].action.steps[0].destination.owner = "self"
+  - [1].action.steps[0].destination.position = "top"
+  - [1].action.steps[1].type = "STUB"
+  - [1].action.steps[1].id = "REVEAL_PICK_CLASS_TO_ENERGY"
+  …（他 12 行）
+
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
 --- WX16-005

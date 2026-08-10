@@ -1,5 +1,71 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 UNKNOWN 第1バッチ＝「その中から＜X＞のシグニを場に出し、残りをデッキの一番下」を構造化（続き414）
+
+### 実数の測り直し
+
+PLAN の「42箇所／31カード」は **decompile シートの出現数**で、live のノード数とは別物だった。
+live JSON を全数走査した実数は **43 ノード／40 カード**（本バッチ後 **40 ノード／38 カード**）。
+
+### 直したもの（3効果）
+
+`SP27-004-E1`（＜アーム＞）／`SP27-004-E2`（＜ウェポン＞）／`WX14-046-E1`（＜毒牙＞）
+＝「あなたのデッキの上からカードを３枚公開する。その中から＜X＞のシグニ１枚を場に出し、
+残りを好きな順番でデッキの一番下に置く。」
+
+live は `SEQUENCE[LOOK_AND_REORDER(3), UNKNOWN]` で**後半が丸ごと死んでいた**。
+既存の構造化語彙 `REVEAL_AND_PICK` へ畳んで解決：
+
+```
+REVEAL_AND_PICK { revealCount:3, filter:{story:'X',cardType:'シグニ'},
+                  pickCount:1, then:ADD_TO_FIELD, remainder:{deck, bottom} }
+```
+
+### 🔴 副産物：潜在バグを1つ潰した
+
+`parseRevealPickDescriptor` は**最初から `dest:'field'`（場に出す）を解けていた**のに、
+`makeRevealPickStub` が
+
+```ts
+then: desc ? (desc.dest === 'energy' ? 'energy' : 'hand') : then,
+```
+
+と書かれていて **`'field'` を `'hand'` へ落としていた**。つまりこの文型を通した瞬間、
+**「場に出す」が黙って「手札に加える」に化ける**。`revealPickParams.then` に `'field'` を足し、
+融合規則側も `ADD_TO_FIELD` を作るようにした。**golden にトリップワイヤ**（`then` が
+`ADD_TO_HAND` へ戻ったら FAIL）。
+
+### 🔴 手順の必須知識：parser を直しただけでは live に届かない
+
+`buildEffectsJson.ts` の `PRESERVE_STATUSES` は **MANUAL だけでなく `PARTIAL` も不可侵**。
+UNKNOWN を含む効果はたいてい `parseStatus:"PARTIAL"` で固定されているので、
+**parser を直して `npm run build:effects` を回しても live は1文字も変わらない**
+（§6.3 K と同じ「第3の死角」）。必要な手順は4手：
+
+1. parser を直す（fresh parse が正しくなることを確認）
+2. **live の当該効果の `parseStatus` を `PARTIAL` → `AUTO` へ戻す**（＝parser に所有権を返す）
+3. `npm run build:effects`（構造が変わるので `isPureSuperset` を通らず held へ落ちる）
+4. `node scripts/heldReview.mjs --adopt <CardNum>` で採用
+
+②を飛ばすと何回 build しても live は変わらない。
+
+### 残り37ノードの内訳（大きい順）
+
+- **ライフバースト抑制 2件**（`WXEX1-32-LAYER-E1`／`WX25-P3-036-E1`）＝既存 STUB
+  `SUPPRESS_LIFE_BURST_ON_CRASH`／`SUPPRESS_LIFE_BURST_ON_CARD` が受け皿。**次に安い。**
+- **「代わりにそれをトラッシュに置く」置換 2件**（`WX06-024-BURST`／`WXK08-030-E1`）
+- **デッキ公開→処理の変形 2件**＝`WX21-028-E1` は「その中から**すべての**＜天使＞のシグニをエナゾーンに」で
+  **枚数語が名詞より前**にあり `parseRevealPickDescriptor` の語順に合わない／`SP38-006-E1-G2` は主語が
+  対戦相手で1文に「見る」も含む
+- 残りは**単発**（1カード1機構）
+
+### ゲート
+
+`npm run gates` 全緑＝golden **1749（+1）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+**census 880→877**（`BASELINE_HIGH` 更新済み）/ lint 0 errors・256 warnings。
+`npm run build:effects`＋`heldReview --adopt`＋`npm run regen` 実施。同型★ **0**／held **113カード・48群**。
+逆翻訳は原文と一致することを目視確認済み。
+
 ## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を6件実装（続き409〜413）
 
 ### 背景：`[STUB:X]` 907箇所は「表示の穴」と「実装の穴」が混ざっていた
