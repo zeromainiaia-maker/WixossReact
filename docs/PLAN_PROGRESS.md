@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-11・続き424・Opus 5）＝§6.4「強制アタック機構」＝軸が2本あるうち CONTINUOUS 側が engine のどこからも読まれていなかった。golden 1771→1772・census 854 据置。印字【常】6カードが恒久 no-op から復帰＋手書き効果3件が live へ着地**。
+  - **🔴① `FORCE_SIGNI_ATTACK` は「アクション型で書いてある」のに CONTINUOUS では永久に実行されない**＝`execForceSigniAttack` が立てる `must_attack_signi` フラグは【起】【出】経由でしか立たず、**印字/付与の【常】は読む側が0箇所**だった（`WD07-004`／`WX14-018`／`WX20-Re07〜09`＋`WX12-010`）。§6.4 A群と同じ「型は正しいのに消費者が居ない」形。`resolveForcedSigniAttack`（effectEngine）に**2軸を一本化**し、呼び出し元3箇所（フェイズ進行ゲート／バナー2種／`PhaseConfirmDialogs` の文言）をすべてそこへ寄せた。
+  - **🔴② `manualEffects.ts` に効果を1本「足す」と live に永久に届かない（第4の死角）**＝`buildEffectsJson` の richness ガードが「**effectId の集合が変わるカードは丸ごと温存**」なので、*上書き*は届くのに *新規 id の追加*だけが黙って捨てられていた。**3件が長期間欠落**＝`WXK04-003-DECORE`（【デコレ】そのもの）／`WXK04-042-E1b`／`WXK05-030-MULTIENA`。⚠**MANUAL/PARTIAL の追加だけ**を採る（AUTO まで採ると `WD01-016` の【マルチエナ】が二重に載る）。
+  - **🔴③ `WX12-010` は①と②が重なった二重の no-op**＝MANUAL 項目が E2 しか持たず E1（【常】強制アタック）/E3（【出】再配置）が live に存在しなかった。E3 は parser の素の出力が **2段目「移動したシグニをアップ」を `UP{owner:'self'}`＝自分のシグニをアップする別物**に化けていたので手書きへ置換し、その節は明示 defer（`DEFERRED_UP_REARRANGED_MOVED_SIGNI`）。
+  - **⭐④ 「実装済みの受け皿があるか」より先に「その effectType でその型は実行されるか」を見る**＝今回は受け皿（フラグ・UI・警告モーダル）が**全部あった**のに、CONTINUOUS が `executeAction` を通らないという1点だけで6カードが死んでいた。§6.4 の教訓「effectType ごとに消費地点が別軸」の最も素直な実例。
+  - **⭐⑤ 計器自身の穴**＝逆翻訳の `FORCE_SIGNI_ATTACK` は `a.target?.owner`（型のキーは `targetOwner`）を見ていて**所有者が常に空**＝「誰が強制されるのか」が原文照合から落ちていた。続き423 ⑩と同型。
+  - **✅⑥ ゲート**＝`npm run gates` 全緑（golden **1772（+1）** / smoke 全0・SKIP 0 / fuzz 全0 / census **854 据置** / lint 0 errors）。`EFFECT_TYPE_MISSING_CONTINUOUS` **1→0**。`census:stubs` A群 16→17件（増分は③の明示 defer 1件・**無言 no-op は 7件のまま**）。**要実機検証3件**＝強制アタックのフェイズ進行ゲート（§7 に登録済み）。
+  - **📋⑦ 次の一手**＝**Opus 側**＝(a)**§6.4 A群の着手可能2件**（`ASSIST_LRIG_ATTACK_THIS_TURN`＝アシストルリグのアタック経路そのもの／`UNDER_CARD_AS_ENERGY_COST`）(b)**所有者語の「前」に付く修飾が filter に載らない**（`WX25-P3-014-E1` 等・20枚規模）(c)🔴`WX25-CP1-092-E1`（幻コスト最後の1件）(d)**残 A群17件の手札コスト変換**(e)`WXEX2-70-E1`／`WX24-P4-048-E2`。**Sonnet 側**＝§7 実機検証（**続き420〜424 のコスト/対象/強制アタックUI を最優先**）／`/census-batch`。
+
 - **🆕 セッション（2026-08-10・続き418〜423・Opus 5）＝「所有者反転／コスト取り違え」を計器で追って6波。census 860→854・golden 1753→1771。68効果/64カード是正（うち🔴自傷11件・🔴コスト取り違え19件）**。
   - **🔴① 続き418＝「代わりにそれを＜動詞＞」の per-target 形を parser が意図的に除外**していたため、昇格文が別ステップとして残り `owner:'self'` へ反転＝**自分のシグニをバニッシュ/付与**。PLAN が「UNKNOWN 2件」と書いていた家族の**本体は無言の過剰効果**だった。
   - **🔴② (B) 対象プロパティ条件を (A) 盤面状態の形で書くと恒久 no-op**＝`LAST_PROCESSED_MATCHES` が対象選択より前に評価され常に偽。**golden の「実行結果」テストで捕まえた**。POWER_MODIFY の値昇格は加算モデル。
