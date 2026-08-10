@@ -7897,13 +7897,13 @@ const FORCED_HAND_COST_KNOWN = new Set([
   'WDK07-E01-E2', 'WDK07-E06-E1', 'WX03-034-BURST', 'WX04-030-BURST', 'WX05-030-BURST',
   'WX05-045-BURST', 'WX14-012-E1', 'WX19-001-E3', 'WX25-P1-TK2-E1', 'WX25-P3-TK03-E1',
   'WX26-CP1-068-E1', 'WXK05-003-E1',
-  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist。続き425 時点で3件）──
+  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist。続き426 時点で1件）──
   // ⚠2026-08-11（続き425）に4件消化＝`WX25-P2-082-E1`／`WX25-P2-100-E1`（外科パッチ
   //   `applyResultConditionalWave3` が任意コスト化を後段で組み直して巻き戻していた）／
   //   `WXDi-P05-037-E1`・`WXDi-P07-010-E2`（原文の主語は「**対戦相手は**」＝所有者反転の自傷）。
-  'WXDi-P10-039-E2',  // 二段の任意（捨ててもよい→そのターン終了時に《青》《無》を払ってもよい）
-  'WXDi-P14-002-E1',  // CHOOSE 選択肢の内側
-  'WXDi-P14-044-E1',  // action のトップが CONDITIONAL（SEQUENCE ではない）
+  // ⚠2026-08-11（続き426）にさらに2件消化＝`WXDi-P10-039-E2`（二段の任意＝2段目の `OPTIONAL_COST` に
+  //   阻まれて1段目が変換されなかった）／`WXDi-P14-044-E1`（トップが CONDITIONAL＋「《青》を支払い」前置き）。
+  'WXDi-P14-002-E1',  // CHOOSE 選択肢の内側（fresh が CHOOSE を再現できない＝parser 側が別途退化している）
 ]);
 test('§6.4 トリップワイヤ: 「〜てもよい。そうした場合」の任意コストが素の TRASH のまま残っていない（既知リスト外は即FAIL）', () => {
   const found: string[] = [];

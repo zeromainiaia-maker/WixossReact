@@ -4056,6 +4056,46 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // E1 を「覚醒中」condition 付き AUTO ON_TURN_END に修正。相手エナの「相手センターと共通しない色」は
   //   energy 対象で colorNotMatchesLrig が対象オーナー（相手）のルリグ基準で colorExclude へ解決される（execExecutor）。
   // E2 を ON_SIGNI_BATTLE→AWAKEN_SIGNI に修正（バトル成立時に発火。「バニッシュした」勝利限定は専用情報がなく近似）。
+  // WXDi-P14-002 CONNECTスピニング（ピース）
+  // 【使用条件】【ドリームチーム】合計３種類以上の色を持つ
+  // 以下の４つからあなたのセンタールリグのレベル１につき１つまで選ぶ。
+  //   ①対戦相手のシグニ１体をバニッシュ ②相手センタールリグがLv3以上なら相手はエナ3枚をトラッシュ
+  //   ③手札をすべて捨て、カードを４枚引く ④手札を２枚捨ててもよい。そうした場合、相手のライフクロス１枚をクラッシュ
+  // 🔴④が素の `TRASH{HAND_CARD,self,2}`＋did-it ゲートだった＝**手札が2枚無くてもライフをクラッシュできる**
+  //   （`resumeSelectTarget` は足りない枚数でも選択を通し、ゲートは成立する）。正準形の
+  //   `STUB{OPTIONAL_COST, handDiscard}` は `canAfford` で支払い可能性を見るので踏み倒しが塞がる。
+  // ⚠**parser の fresh は CHOOSE 自体を再現できない**（④の LIFE_CRASH 単体に潰れる）ので、
+  //   live の良い構造ごと MANUAL で固定する。fresh を採用してはいけない。
+  // 📋 残＝「センタールリグのレベル１につき１つ**まで**選ぶ」の可変 choose_count は語彙が無く `1` 固定。
+  'WXDi-P14-002': [
+    {
+      effectId: 'WXDi-P14-002-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '赤', count: 1 }, { color: '無', count: 2 }] },
+      condition: { type: 'FIELD_LRIG_COLOR_COUNT', owner: 'self', operator: 'gte', value: 3, minLrigs: 3 },
+      action: { type: 'CHOOSE', choose_count: 1, from_count: 4, choices: [
+        { choiceId: 'c0', label: '選択肢1', action: {
+          type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } } },
+        { choiceId: 'c1', label: '選択肢2',
+          condition: { type: 'LRIG_LEVEL', owner: 'opponent', operator: 'gte', value: 3 },
+          action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 3 }, opponentSelects: true } },
+        { choiceId: 'c2', label: '選択肢3', action: { type: 'SEQUENCE', steps: [
+          { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' } },
+          { type: 'DRAW', owner: 'self', count: 4 },
+        ] } },
+        { choiceId: 'c3', label: '選択肢4', action: { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 2 } },
+          { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
+            then: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true } },
+        ] } },
+      ] },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WXDi-P07-010 でじたるあーや！Ⅲ（ルリグ）
   // 【起】《ゲーム１回》《青×0》：対戦相手のシグニ１体を対象とし、それを裏向きにする。
   //   各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
