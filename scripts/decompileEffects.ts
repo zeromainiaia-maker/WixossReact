@@ -2489,6 +2489,9 @@ function actionJa(a?: Action, effectType?: string): string {
         // `resumeRearrangeSigni` は移動したシグニ（rearrMoved）を既に把握しているが、
         // 「どれをアップするか」を選ぶインタラクションが無いため未実装のまま明示保留。
         DEFERRED_UP_REARRANGED_MOVED_SIGNI: '【未実装】この方法で他のシグニゾーンに移動したシグニをアップしてもよい',
+        // 明示 defer（§6.4・続き425）＝「各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
+        // 対戦相手は〈コスト〉を支払ってもよい。そうした場合、それを表向きにする」＝**繰り返す遅延ゲート**。
+        DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT: '【未実装】各アタックフェイズ開始時、同じ場所にシグニがない場合、対戦相手はコストを支払って裏向きのそれを表向きにできる',
         FACE_DOWN_OPP_SIGNI: '対戦相手のシグニ１体を対象とし、それを裏向きにする',
         SIGNI_FLIP_FACEDOWN: '対象としたシグニを裏向きにする',
         FLIP_FACE_DOWN_SIGNI: 'このターン終了時、この方法で裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする',

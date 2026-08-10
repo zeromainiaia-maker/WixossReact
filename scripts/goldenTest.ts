@@ -7897,14 +7897,13 @@ const FORCED_HAND_COST_KNOWN = new Set([
   'WDK07-E01-E2', 'WDK07-E06-E1', 'WX03-034-BURST', 'WX04-030-BURST', 'WX05-030-BURST',
   'WX05-045-BURST', 'WX14-012-E1', 'WX19-001-E3', 'WX25-P1-TK2-E1', 'WX25-P3-TK03-E1',
   'WX26-CP1-068-E1', 'WXK05-003-E1',
-  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist。続き417 時点で7件）──
-  'WX25-P2-082-E1',   // 「代わりに」畳み込みが parser 後段で再構築し、任意コスト化が巻き戻る
-  'WX25-P2-100-E1',   // 同上
-  'WXDi-P07-010-E2',  // 「①/②を行う」多分岐の内側
+  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist。続き425 時点で3件）──
+  // ⚠2026-08-11（続き425）に4件消化＝`WX25-P2-082-E1`／`WX25-P2-100-E1`（外科パッチ
+  //   `applyResultConditionalWave3` が任意コスト化を後段で組み直して巻き戻していた）／
+  //   `WXDi-P05-037-E1`・`WXDi-P07-010-E2`（原文の主語は「**対戦相手は**」＝所有者反転の自傷）。
   'WXDi-P10-039-E2',  // 二段の任意（捨ててもよい→そのターン終了時に《青》《無》を払ってもよい）
   'WXDi-P14-002-E1',  // CHOOSE 選択肢の内側
   'WXDi-P14-044-E1',  // action のトップが CONDITIONAL（SEQUENCE ではない）
-  'WXDi-P05-037-E1',  // ⚠別バグ同居＝原文「**対戦相手は**手札を２枚捨ててもよい」なのに owner:self
 ]);
 test('§6.4 トリップワイヤ: 「〜てもよい。そうした場合」の任意コストが素の TRASH のまま残っていない（既知リスト外は即FAIL）', () => {
   const found: string[] = [];
@@ -13647,6 +13646,50 @@ test('(ci) OPPONENT_PAY_OPTIONAL: エナコストが無ければ「支払う」�
   cursor = savedCursor;
 });
 
+// ── §6.4 OPPONENT_PAY_OPTIONAL の**極性**（続き425）────────────────────────────────────
+// 既定は「払わなかったら then」（回避ゲート・原文「〜しないかぎり」）。`thenOnPay` は逆＝
+// 「払ったら then」（原文「対戦相手は〜てもよい。そうした場合、X」）。
+// ⚠回帰の型＝この2つを取り違えると**カードの意味が真逆**になる（`SPDi43-06`／`WXDi-P05-037` は
+//   「相手が何もしなければ自分のアタックが無効になる」状態だった）。両極性を実行結果で固定する。
+test('§6.4 OPPONENT_PAY_OPTIONAL thenOnPay: 「そうした場合」形は**払った枝**に帰結が付く', () => {
+  const savedCursor = cursor;
+  const build = (stub: Record<string, unknown>): EffectAction => ({
+    type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...stub } as unknown as EffectAction,
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' },
+        then: { type: 'DRAW', owner: 'self', count: 1 } } as unknown as EffectAction,
+    ],
+  } as unknown as EffectAction);
+  const opts = (stub: Record<string, unknown>) => {
+    const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: build(stub), duration: 'INSTANT', mandatory: true } as CardEffect,
+      mkCtx({}, { hand: 5 }));
+    if (r.done || r.pending.type !== 'CHOOSE') throw new Error('CHOOSE not opened');
+    return new Map(r.pending.options.map(o => [o.id, JSON.stringify(o.action)]));
+  };
+  // 既定（回避ゲート）＝skip に then、discard は支払いだけ
+  const base = opts({ opponentHandDiscard: 2 });
+  ok(base.get('skip')!.includes('"DRAW"'), '既定: 支払わない枝に帰結が付く');
+  ok(!base.get('discard')!.includes('"DRAW"'), '既定: 支払う枝は支払いだけ');
+  // thenOnPay＝逆。discard に then、skip は何もしない
+  const flipped = opts({ opponentHandDiscard: 2, thenOnPay: true });
+  ok(flipped.get('discard')!.includes('"DRAW"'), 'thenOnPay: 支払った枝に帰結が付く');
+  ok(!flipped.get('skip')!.includes('"DRAW"'), 'thenOnPay: 支払わない枝は何もしない');
+  cursor = savedCursor;
+});
+// live 側の刻印＝「対戦相手は〜てもよい。そうした場合」の2枚に thenOnPay が乗っていること。
+// ⚠**この2枚以外に乗ってはいけない**（乗ると 65 件の回避ゲートが逆転する）。
+test('§6.4 thenOnPay は「そうした場合」形の2効果だけに乗る（SPDi43-06 / WXDi-P05-037 / WXDi-P09-064）', () => {
+  const marked: string[] = [];
+  const walk = (n: unknown, id: string): void => {
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'OPPONENT_PAY_OPTIONAL' && o.thenOnPay === true) marked.push(id);
+    for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(x => walk(x, id)); else if (v && typeof v === 'object') walk(v, id); }
+  };
+  for (const [, effs] of effectsMap) for (const e of effs) walk(e.action, e.effectId);
+  eq(marked.sort().join(','), 'SPDi43-06-E1,WXDi-P05-037-E1,WXDi-P09-064-E1', '極性反転は3効果ちょうど');
+});
+
 test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を持つ（＝過剰実行にならない）', () => {
   const SPECS = ['opponentHandDiscard', 'opponentEnergyTrash', 'opponentSigniTrash',
     'opponentSigniToDeckTop', 'opponentHandOrEnergyToDeckTop'];
@@ -13665,9 +13708,12 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   const noCost = stubs.filter(s => !withCost.includes(s));
   // 73/40/33＝2026-08-08 続き382（§6.3 K の manual→live 同期32効果）後。旧 71/38/33＝同期前。
   // ⚠増えた2件はいずれも **costColors 付き**（＝pay 枝が出る安全な側）で、下の安全弁（回避枝なし＝0）は不変。
-  eq(stubs.length, 73, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  // 75/40/35＝2026-08-11 続き425（「対戦相手は〈コスト〉てもよい」の所有者反転を是正）後。
+  //   増えた2件（`WXDi-P05-037-E1`／`WXDi-P09-064-E1`）はどちらも **opponentHandDiscard 搭載**＝
+  //   costColors は無いが回避枝を持つので、下の安全弁（回避枝なし＝0）は不変。
+  eq(stubs.length, 75, 'OPPONENT_PAY_OPTIONAL の live 出現数');
   eq(withCost.length, 40, 'エナコストを持つ（＝pay 枝が出る）STUB');
-  eq(noCost.length, 33, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
+  eq(noCost.length, 35, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
      'エナコスト非搭載の STUB はすべて別の回避手段（手札捨て/エナトラッシュ等）を持つ');
