@@ -2798,8 +2798,15 @@ export function collectSelfEventTriggers(
     myState.field.key_piece,
     ...(myState.field.key_piece_extra ?? []),
   ].filter((n): n is string => !!n);
+  const selfEventLrigTop = myState.field.lrig.at(-1);
   for (const srcNum of nonSigniSources) {
-    for (const eff of ctx.effectsMap.get(srcNum) ?? []) {
+    // センタールリグには付与ストア（effectsMap に載らない実行時付与）を合流させる。
+    // 「あなたのライフがクラッシュされたとき」等はプレイヤー自身が主語なので scope は self。
+    // 外すと WXDi-P12-030-E2（レイラ・ザ・クラック）が構造どおりでも恒久 no-op になる。
+    const srcEffects = srcNum === selfEventLrigTop
+      ? [...(ctx.effectsMap.get(srcNum) ?? []), ...grantedStoreWatchers(myState, timing, ['self']).map(w => w.effect)]
+      : (ctx.effectsMap.get(srcNum) ?? []);
+    for (const eff of srcEffects) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if (timing === 'ON_GUARD' && eff.triggerCondition?.lrigAttackGuarded) continue;
       if (!limitOk(eff)) continue;
