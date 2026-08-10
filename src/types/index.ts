@@ -200,6 +200,12 @@ export interface PlayerState {
     amount: { color: string; count: number }[];
     until: 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT';
   }>;
+  /**
+   * このターン、【側面アタック】でシグニのいない相手シグニゾーンを攻撃したとき「正面扱い」でダメージを
+   * 与えられるシグニのクラス（`ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`・`WX16-021`）。
+   * 空文字＝クラス不問。ターン終了時にリセットする。
+   */
+  side_attack_empty_zone_damage_class?: string;
   // 能力消去されたシグニのCardNum一覧
   abilities_removed?: string[];
   // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
