@@ -11647,6 +11647,83 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
+// ══════════════ 付与ストア（GRANT_LRIG_ABILITY の実行結果）の共通走査（続き404・PLAN §6.4）══════════════
+// 付与された【自】は effectsMap に載らず PlayerState の専用ストアにだけ入るため、各コレクタが
+// grantedStore.ts の共通経路を呼ばないと「構造は正しいのに恒久 no-op」になる。
+// 旧実装は timing ごとにハードコードした走査が5箇所に散在し、下記8 timing が丸ごと死んでいた。
+const grantedInner = (cardNum: string, effectId: string): CardEffect => {
+  const outer = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!outer) throw new Error(`${effectId} なし`);
+  const abilities = (outer.action as unknown as { abilities?: CardEffect[] }).abilities;
+  if (!abilities?.length) throw new Error(`${effectId} に abilities なし`);
+  return abilities[0];
+};
+const withGranted = (state: PlayerState, lrig: string, effs: CardEffect[]): PlayerState => ({
+  ...state,
+  field: { ...state.field, lrig: [lrig] },
+  lrig_granted_auto_effects: effs,
+});
+const ANY_LRIG = findCard(c => c.Type === 'ルリグ');
+
+test('付与ストア共通走査: ON_PLAY any_ally の付与【自】が味方シグニ召喚で発火（続き404・WDK12-001-E3）', () => withSavedCursor(() => {
+  const inner = grantedInner('WDK12-001', 'WDK12-001-E3');
+  const played = fresh();
+  const my = withGranted(mkState({ signi: [played, SIGNI, null] }), ANY_LRIG, [inner]);
+  const entries = cftEntries(trigCtx(HOST, HOST), 'ON_PLAY', played, my, mkState({}), HOST);
+  eq(hasEffect(entries, inner.effectId), true, '付与された ON_PLAY any_ally が発火');
+  // 付与前は発火しない＝この経路が付与ストア由来であることの対照
+  const bare = { ...my, lrig_granted_auto_effects: undefined };
+  eq(hasEffect(cftEntries(trigCtx(HOST, HOST), 'ON_PLAY', played, bare, mkState({}), HOST), inner.effectId), false, '付与前は非発火');
+}));
+test('付与ストア共通走査: ON_ATTACK_SIGNI any_opp の付与【自】が相手シグニのアタックで発火（続き404・WX15-016-E1）', () => withSavedCursor(() => {
+  const inner = grantedInner('WX15-016', 'WX15-016-E1');
+  const attacker = fresh();
+  // 攻撃側＝HOST。watcher（付与を受けたルリグ）は防御側＝opState 側。
+  const my = mkState({ signi: [attacker, null, null] });
+  const op = withGranted(mkState({ signi: [SIGNI, null, null] }), ANY_LRIG, [inner]);
+  const entries = cftEntries(trigCtx(HOST, HOST), 'ON_ATTACK_SIGNI', attacker, my, op, HOST);
+  eq(hasEffect(entries, inner.effectId), true, '付与された ON_ATTACK_SIGNI any_opp が発火');
+  const bare = { ...op, lrig_granted_auto_effects: undefined };
+  eq(hasEffect(cftEntries(trigCtx(HOST, HOST), 'ON_ATTACK_SIGNI', attacker, my, bare, HOST), inner.effectId), false, '付与前は非発火');
+}));
+test('付与ストア共通走査: ON_LIFE_CRASHED self の付与【自】が発火（続き404・WXDi-P12-030-E2）', () => withSavedCursor(() => {
+  const inner = grantedInner('WXDi-P12-030', 'WXDi-P12-030-E2');
+  const my = withGranted(mkState({}), ANY_LRIG, [inner]);
+  const entries = collectSelfEventTriggers(trigCtx(HOST, HOST), 'ON_LIFE_CRASHED', my, mkState({}), 'クラッシュ時', HOST).entries;
+  eq(hasEffect(entries, inner.effectId), true, '付与された ON_LIFE_CRASHED が発火');
+  const bare = { ...my, lrig_granted_auto_effects: undefined };
+  eq(hasEffect(collectSelfEventTriggers(trigCtx(HOST, HOST), 'ON_LIFE_CRASHED', bare, mkState({}), 'クラッシュ時', HOST).entries, inner.effectId), false, '付与前は非発火');
+}));
+test('付与ストア共通走査: ON_OPP_LIFE_CRASHED の付与【自】が発火（続き404・WXDi-CP02-050-E1）', () => withSavedCursor(() => {
+  const inner = grantedInner('WXDi-CP02-050', 'WXDi-CP02-050-E1');
+  const crasher = withGranted(mkState({ signi: [SIGNI, null, null] }), ANY_LRIG, [inner]);
+  eq(hasEffect(collectOppLifeCrashedTriggers(trigCtx(HOST, HOST), crasher, HOST).entries, inner.effectId), true, '付与された ON_OPP_LIFE_CRASHED が発火');
+  const bare = { ...crasher, lrig_granted_auto_effects: undefined };
+  eq(hasEffect(collectOppLifeCrashedTriggers(trigCtx(HOST, HOST), bare, HOST).entries, inner.effectId), false, '付与前は非発火');
+}));
+test('付与ストア共通走査: ON_LEAVE_FIELD any_ally の付与【自】が味方シグニ離脱で発火（続き404・WX25-P2-049-E1）', () => withSavedCursor(() => {
+  const inner = grantedInner('WX25-P2-049', 'WX25-P2-049-E1');
+  const left = fresh();
+  const after = withGranted(mkState({ signi: [SIGNI, null, null] }), ANY_LRIG, [inner]);
+  const entries = collectLeaveFieldTriggers(trigCtx(HOST, HOST), left, [], HOST, after, mkState({})).entries;
+  eq(hasEffect(entries, inner.effectId), true, '付与された ON_LEAVE_FIELD any_ally が発火');
+  const bare = { ...after, lrig_granted_auto_effects: undefined };
+  eq(hasEffect(collectLeaveFieldTriggers(trigCtx(HOST, HOST), left, [], HOST, bare, mkState({})).entries, inner.effectId), false, '付与前は非発火');
+}));
+test('付与ストア共通走査: 3ストア横断（until_opp_turn / game_granted も走査される）（続き404）', () => withSavedCursor(() => {
+  const inner = grantedInner('WXDi-P07-073', 'WXDi-P07-073-E1'); // ON_TURN_END any_opp
+  const base = mkState({});
+  const lrigOn = (o: Partial<PlayerState>): PlayerState => ({ ...base, field: { ...base.field, lrig: [ANY_LRIG] }, ...o } as PlayerState);
+  // ターンプレイヤー＝HOST、付与を受けた側＝GUEST（＝GUEST にとって「対戦相手のターン終了時」）
+  const fire = (op: PlayerState) => hasEffect(cttEntries(trigCtx(HOST, HOST), 'ON_TURN_END', mkState({}), op), inner.effectId);
+  eq(fire(lrigOn({ lrig_granted_auto_effects: [inner] })), true, '通常付与ストア');
+  eq(fire(lrigOn({ lrig_granted_auto_effects_until_opp_turn: [inner] })), true, '次の相手ターン終了時まで付与ストア');
+  eq(fire(lrigOn({ game_granted_effects: [inner] })), true, 'プレイヤー付与ストア');
+  eq(fire(lrigOn({})), false, '付与なしは非発火');
+  // ルリグ能力消失はルリグ付与2ストアだけを落とす（プレイヤー付与は落とさない）
+  eq(fire(lrigOn({ lrig_granted_auto_effects: [inner], lrig_abilities_disabled: true })), false, '能力消失でルリグ付与は落ちる');
+  eq(fire(lrigOn({ game_granted_effects: [inner], lrig_abilities_disabled: true })), true, 'プレイヤー付与は能力消失の影響を受けない');
+}));
 test('signiAttackGate: cannotAttackSigni（CONTINUOUS 自己アタック封じ）がアタック可否に反映される（続き404・WX05-023）', () => withSavedCursor(() => {
   // 旧実装では cannotAttackSigni を読むのは人間のアタックボタン生成1箇所だけで、
   // 共通実行経路（performSigniAttack）と CPU のアタック候補フィルタは blocked_actions しか見ていなかった。
