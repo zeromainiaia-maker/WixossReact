@@ -72,7 +72,8 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   const signiAtkCost = attacker.signi_attack_cost ?? 0;
   if (signiAtkCost > 0 && attacker.energy.length < signiAtkCost) return 'ENERGY_COST';
 
-  if (attackFieldTrashCost(attacker, attackerNum) > 0
+  if (!p.fieldTrashCostAlreadyPaid
+      && attackFieldTrashCost(attacker, attackerNum) > 0
       && !canPayAttackFieldTrashCost(attacker, attackerNum, cardMap)) {
     return 'FIELD_TRASH_COST';
   }
