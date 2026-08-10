@@ -24,8 +24,10 @@ export function collectAttackingLrigGrantedAutos(
   const usedIds: string[] = [];
   if (state.lrig_abilities_disabled) return { entries, triggered, usedIds };
 
-  for (const effect of state.lrig_granted_auto_effects ?? []) {
-    if (effect.effectType !== 'AUTO' || !effect.timing?.includes('ON_ATTACK_LRIG')) continue;
+  // 3ストア横断の走査は `engine/grantedStore.ts` の共通経路に寄せる（旧実装は base ストア1本だけ）。
+  // ⚠scope any_opp（「**対戦相手の**ルリグがアタックしたとき」）は防御側の能力なのでアタック側では拾わない
+  //   （`collectLrigAttackDefenderTriggers` が担当）。旧実装は scope を見ておらず any_opp も混ぜていた。
+  for (const effect of grantedStoreWatchers(state, 'ON_ATTACK_LRIG', ['self', 'any_ally', 'any']).map(w => w.effect)) {
     if (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn') {
       const max = effect.usageLimit === 'once_per_turn' ? 1 : 2;
       const consumed = (state.actions_done ?? []).filter(id => id === effect.effectId).length
