@@ -377,6 +377,60 @@ export function execStubPart1(
       lastProcessedCards: [cardNum],
     }, 'ルリグデッキからアーツ1枚をコストでルリグトラッシュに置いた'));
   }
+  // WXK11-001 ②「あなたのルリグデッキにあるコストの合計が２以上のアーツ１枚をゲームから除外してもよい。
+  //   そうした場合、このターン、シグニアタックステップをスキップする。」
+  // ⚠**スキップ機構は既に完備**（同カード①のルリグ側が `BLOCK_ACTION{SIGNI_ATTACK_STEP}` で動いている）。
+  //   欠けていたのは任意コスト側だけだったので、後段はその BLOCK_ACTION をそのまま `exec` して再利用する。
+  // ⚠行先は**ルリグトラッシュではなく `excluded`**＝`trashArtsFromLrigDeck` 族を流用してはいけない。
+  if (stub.id === 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP') {
+    const specEA = stub.exileArtsFromLrigDeck ?? { count: 1, minTotalCost: 2 };
+    const candsEA = exileArtsFromLrigDeckCandidates(ctx, specEA);
+    const selectEA: StubAction = { type: 'STUB', id: 'INTERNAL_EXILE_ARTS_FROM_LRIG_DECK_SELECT', exileArtsFromLrigDeck: specEA };
+    const noopEA: SequenceAction = { type: 'SEQUENCE', steps: [] };
+    return needsInteraction(addLog(ctx, 'ルリグデッキのアーツ1枚をゲームから除外しますか？'), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'exile', label: 'ゲームから除外する（シグニアタックステップをスキップ）', action: selectEA as EffectAction, available: candsEA.length >= specEA.count },
+        { id: 'skip', label: 'そうしない', action: noopEA as EffectAction, available: true },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_EXILE_ARTS_FROM_LRIG_DECK_SELECT') {
+    const specEAS = stub.exileArtsFromLrigDeck ?? { count: 1, minTotalCost: 2 };
+    const candsEAS = exileArtsFromLrigDeckCandidates(ctx, specEAS);
+    if (candsEAS.length < specEAS.count) return done(addLog(ctx, '除外できるアーツがルリグデッキにない'));
+    const thenEAS: StubAction = { type: 'STUB', id: 'INTERNAL_EXILE_SELECTED_ARTS_AND_SKIP_SIGNI_STEP' };
+    return selectOrInteract(candsEAS, specEAS.count, false, 'self_lrig_deck', thenEAS, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_EXILE_SELECTED_ARTS_AND_SKIP_SIGNI_STEP') {
+    const selectedEAX = ctx.lastProcessedCards ?? [];
+    if (selectedEAX.length === 0) return done(addLog(ctx, '除外するアーツを選べなかった'));
+    const lrigDeckEAX = [...ctx.ownerState.lrig_deck];
+    const exiledEAX: string[] = [];
+    for (const n of selectedEAX) {
+      const i = lrigDeckEAX.indexOf(n);
+      if (i < 0) continue;
+      lrigDeckEAX.splice(i, 1);
+      exiledEAX.push(n);
+    }
+    if (exiledEAX.length === 0) return done(addLog(ctx, '選んだアーツがルリグデッキにない'));
+    const afterExileEAX = addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        lrig_deck: lrigDeckEAX,
+        excluded: [...(ctx.ownerState.excluded ?? []), ...exiledEAX],
+      },
+      lastProcessedCards: exiledEAX,
+    }, `${exiledEAX.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキからゲームから除外した`);
+    // 後段＝①のルリグ側と同じ語彙（相手＝ターンプレイヤーのシグニアタックステップを封じる）。
+    return exec({
+      type: 'BLOCK_ACTION',
+      target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+      actionId: 'SIGNI_ATTACK_STEP',
+      until: 'END_OF_TURN',
+    } as EffectAction, afterExileEAX);
+  }
   if (stub.id === 'INTERNAL_PAY_REMOVE_OPP_VIRUS') {
     const count = stub.removeOppVirus ?? 0;
     const virus = [...(ctx.otherState.field.signi_virus ?? [0, 0, 0])];
