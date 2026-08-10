@@ -5563,15 +5563,18 @@ function tryParseDoAllItems(text: string): EffectAction | null {
         then: { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'LRIG_ATTACK_STEP', until: 'END_OF_TURN' },
       } as ConditionalAction;
     }
-    // 行先が異なる既存コスト語彙を流用すると、使用したこのアーツ自身を除外する別動作になる。
-    // 選択・コスト支払い・後続ゲートを一体で表せるまで、項目全体を明示 defer する。
-    // ⚠**汎用の `UNKNOWN_NESTED` を defer マーカーに使ってはいけない**＝engine 実装が
-    //   「**このシグニを任意でトラッシュに置く**」（`execStubPart1` の CHOOSE）であって no-op ではない。
-    //   `self_optional_effect_taken` も書くため後続の「そうした場合」を巻き込む。
-    //   ⇒ engine 分岐を持たない**専用の宣言 STUB** にする（`execStub` の既定は `[STUB: id]` ログのみ＝真の no-op）。
-    //   未実装であることは `docs/STUBS.md` に載る＝計器を甘くしない（先例 `LOCK_OPP_TRASH_MOVE`）。
-    if (/^あなたのルリグデッキにあるコストの合計が[０-９\d]+以上のアーツ[０-９\d]+枚をゲームから除外してもよい。そうした場合、このターン、シグニアタックステップをスキップする$/.test(item)) {
-      return { type: 'STUB', id: 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP', text: item } as StubAction;
+    // ②「ルリグデッキのコスト合計N以上のアーツM枚をゲームから除外してもよい。そうした場合、シグニアタックステップをスキップ」。
+    // ⚠**行先が違うので `trashArtsFromLrigDeck`（ルリグトラッシュ行き）を流用してはいけない**＝除外は
+    //   `excluded` 行きでリフレッシュにも戻らない。専用の `exileArtsFromLrigDeck` を engine に持たせた。
+    // ⚠**閾値・枚数は原文から取って構造に載せる**（engine 側で text を再パースしない）。
+    // 後段のスキップは①のルリグ側と同じ `BLOCK_ACTION{SIGNI_ATTACK_STEP}` を engine が exec して再利用する。
+    const exileArtsM = item.match(/^あなたのルリグデッキにあるコストの合計が([０-９\d]+)以上のアーツ([０-９\d]+)枚をゲームから除外してもよい。そうした場合、このターン、シグニアタックステップをスキップする$/);
+    if (exileArtsM) {
+      return {
+        type: 'STUB', id: 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP',
+        exileArtsFromLrigDeck: { count: parseNum(exileArtsM[2]), minTotalCost: parseNum(exileArtsM[1]) },
+        text: item,
+      } as StubAction;
     }
     // 退化① `WXK11-002`④：単独パースは「ルリグの下」を読めず `TRASH{SIGNI opponent}`＝
     // **盤面のシグニを消す全くの別動作**になる。engine の旧 DTT パターン P4 を宣言 STUB へ移設した。
