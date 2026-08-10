@@ -15,6 +15,28 @@ import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 
+/**
+ * `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` の候補＝ルリグデッキにある「コストの合計が N 以上」のアーツ。
+ *
+ * ⚠**コストの合計は `parseEnergyCosts` で数える**＝`《白》×１《無》×１` のような表記を色ごとに分解して
+ *   個数を合計する（`effectExecutor` の `costThreshold` と同じ数え方に揃える）。素朴な `×(\d+)` の総和だと
+ *   《コインアイコン》のような非エナコストを混ぜてしまう。
+ * ⚠候補判定と支払いで別々に絞ると「選べるのに払えない」が起きるので、CHOOSE の可否判定と選択肢生成の
+ *   両方でこの1関数を通す。
+ */
+function exileArtsFromLrigDeckCandidates(
+  ctx: ExecCtx,
+  spec: { count: number; minTotalCost?: number },
+): string[] {
+  const min = spec.minTotalCost ?? 0;
+  return (ctx.ownerState.lrig_deck ?? []).filter(n => {
+    const card = ctx.cardMap.get(getCardNum(n));
+    if (card?.Type !== 'アーツ') return false;
+    const total = parseEnergyCosts(card.Cost ?? '').reduce((sum, e) => sum + e.count, 0);
+    return total >= min;
+  });
+}
+
 export function execStubPart1(
   stub: StubAction,
   ctx: ExecCtx,
