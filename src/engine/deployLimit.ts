@@ -34,7 +34,7 @@ export interface DeployLimitInput {
   contCountCap?: number;
   /** 配置する側のターンか（CONTINUOUS 側の `activeCondition` 評価に使う）。不明なら相手ターン扱いにしない。 */
   isPlacingOwnerTurn?: boolean;
-  /** ライズ＝既存スタックへの上乗せ（新規配置ではない）。 */
+  /** ライズ＝既存スタックへの上乗せ。**count 制限だけ**を外す（パワー制限は外さない）。 */
   onExistingStack?: boolean;
   /** 場のシグニ数から差し引く枚数（レゾナの出現条件で場から払う分など、この配置と同時に場を空ける数）。 */
   fieldCountAdjust?: number;
