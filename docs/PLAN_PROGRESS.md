@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-10・続き407・Opus 5）＝§6.4「golden の型網羅」を未カバー0で消化＋実測で「クラフトトークン残」も残0**。
+  - **⭐① 計器を先に作った**＝新設 `scripts/goldenTypeCoverage.ts`（`npm run census:goldentypes`）が `EffectAction` union の型名を列挙し **goldenTest.ts に型名が1度も出ない型**を live 出現数順に報告する。**128型中13が未カバー**と判明 → 1型1テストで塞いで **未カバー0**。
+  - **🔴② 計器の第1版が過剰報告した（最大の教訓）**＝`type: 'FOO'` **リテラル一致**で数えて39件と出したが、大半は既にテスト済みだった。**CONTINUOUS 専用型は合成 action を書かず live effectsMap から実カードを引く**のが正しい書き方で、テスト名/コメントに型名を書く形をリテラル一致では構造的に取りこぼす。**型名の単語一致**へ直して実数13。⚠**過剰報告する計器は無いより悪い**（存在しない問題へ作業を誘導する）。
+  - **🔴③ 網羅の過程で live の真no-op 2件を発見・修正（本題より価値があった）**＝(a)**`LRIG_LIMIT_MODIFY` の AUTO 版が executor でログだけの no-op**＝`WX16-Re19-E2`「次の対戦相手のメインフェイズの間、対戦相手のリミットは1減る」が丸ごと死亡 → `until` で振り分け（`NEXT_TURN`→`pending_lrig_limit_mod`／`END_OF_TURN`→`lrig_limit_mod`／**`PERMANENT` は書かない**＝常在は `collectLrigColorAndLimitMods` の担当で二重計上になる）。(b)**`computeEffectiveLrigLimit` が「相手の場が宣言する `owner:'opponent'` の常在」を集めていなかった**＝`WX22-002-E1`「対戦相手のターンの間、対戦相手のリミットは1減る」が丸ごと死亡 → `collectOppDeclaredLrigLimitDelta` を新設して加算。
+  - **⚠④ アクセ／ソウル／レイヤー付与は effectsMap に載らない**＝`FORCE_FRONT_SIGNI_ATTACK` のテストは **BattleScreen と同じく `collectGrantedFromAcce` をマージした augMap を渡す**必要がある（素の effectsMap で「発火しない」と早合点しかけた）。付与ストア（続き404）と同じ罠が collector 側にもある。
+  - **⚠⑤ `POWER_THRESHOLD_TRASH` は parser が生成しうるのに engine に消費地点が無い**（live 0件なので現状無害）。**「live 0件」を assert する契約テスト**を置き、parser 規則が生えた瞬間に赤くなるようにした。
+  - **✅⑥ 実測で §6.4「クラフトトークン残＝`WX22-001-E3`（`GRANT_LEAVE_PLACE_PENDING` 未実装＝機構待ち）」も残0**＝当該 STUB は **live 0件**で、`WX22-001-E3` は `INSTALL_DELAYED_TRIGGER{THIS_ATTACK_PHASE / ON_LEAVE_FIELD / levelLtTrigger}` へ構造化済み。設置→アタックフェイズ限定の発火→leftOwner/triggerFilter ゲート→レベル相対フィルタ確定まで golden で固定。**PLAN の在庫記述が古いのは続き402〜407 で7回連続**。
+  - **✅⑦ ゲート**＝`npm run gates` 全緑（typecheck / golden **1726→1741**（+15）/ smoke **10686/10686** 全0・SKIP 0 / fuzz 200ゲーム 全0 / census **880 据置** / manual field loss 0 / lint 0 errors・**254 warnings 増減0**）。**golden 型カバレッジ 128/128**。live JSON 変更0。
+  - **📋⑧ 次の一手**＝**Opus 側**＝(a)**置換系5本をまとめて対話化するか決める**（現状すべて「してもよい」の自動適用。engine は同期 ctx 変換で pause を張れず設計変更が要る＝単独バッチ）(b)Opus タスク12 の在庫2件〔(cxix) `SPDi43-11-E2` の timing 誤パース／(cxx) ON_ENERGY_CHARGE watcher の usageLimit 未管理〕(c)`collectIncreaseActCost` がトラッシュ起動に未適用（続き403 の残）(d)§6.4 残＝**`checkAllEffects` の `MANDATORY_SUSPICIOUS` 精査**／**UNKNOWN 24枚**／CPU AI（→§8）。**Sonnet 側**＝§7 の実機未検証UI（続き403 の14枚＋404 の3件＋405 の2件＋406 の1件）と §5c census 文型バッチ。
+
+
 - **🆕 セッション（2026-08-10・続き406・Opus 5）＝§6.4「F-3 効果バニッシュ経路（身代わり置換の execBanish フック）」を消化**。続き404・405 と**同じ形の穴**が3連続＝「判定は実装済みなのに、それを必要とする経路の一部からしか読まれていない」。
   - **⭐① F-3 身代わりを効果バニッシュへ配線**＝`collectBanishSubstitutes` の消費地点は **BattleScreen のバトルバニッシュ1箇所だけ**で、`execBanish` からは一切参照されていなかった（原文「このシグニがバニッシュされる場合」＝バトル限定ではないのに）。新設 `applyEffectBanishSubstitute` を**置換チェーンの唯一の入口 `applyEffectLeaveSubstitutes` に組み込み**、バニッシュ2経路が `{ isBanish: true }` で呼ぶ形へ。**8効果中7が実効化**（`WX12-024`／`WXEX2-60`／`WX20-055`／`WXDi-CP01-032`／`WXDi-P10-052`／`WX10-033`／`WX11-029`）。
   - **🔑② オプションを `skipReplaceBanish` → `isBanish` の1本に変えたのが要点**＝チェーン③段は排他（`ReplaceBanish` は「その移動が**バニッシュによるものでないなら**」＝非バニッシュ専用／F-3 身代わりは**バニッシュのときだけ**）。2フラグのままだとバニッシュ経路を新設した人が片方だけ書いて取りこぼす。

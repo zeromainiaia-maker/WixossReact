@@ -391,6 +391,21 @@ for (const row of rows) {
       if (timing && !(e.timing ?? []).includes(timing)) return false;
       return true;
     });
+    // ⚠**【常】の2形は CONTINUOUS を持たないのが正しい**（2026-08-10 続き408 の仕分けで判明）：
+    //   (a)「…あるかぎり、（このシグニ）は「【自】…」を得る」だけの【常】＝parser が **AUTO + activeCondition へ
+    //      平坦化**する引用付与。CONTINUOUS を別途作らない。
+    //   (b) カードが【常】と印字していても本文が「〜したとき」＝triggered（`WX11-063`/`WX11-064`）。
+    //   どちらも「定義なし」ではないので誤検出になる。`_checkAllEffects.mjs` と同じ除外を掛ける。
+    if (marker === '【常】' && matchedEffs.length === 0) {
+      const maskedCont = effectText.replace(/[「『][^」』]*[」』]/g,
+        m => /【[常自起]】/.test(m) ? 'GRANT' : 'Q');
+      const contSentences = maskedCont.split(/(?=【[常自起出]】)/).filter(x => x.startsWith('【常】'));
+      const grantOnly = contSentences.length > 0
+        && contSentences.every(sent => /を得る/.test(sent) && sent.includes('GRANT'));
+      const triggered = contSentences.length > 0
+        && contSentences.every(sent => /(したとき|されたとき|するたび)/.test(sent));
+      if (grantOnly || triggered) continue;
+    }
     if (matchedEffs.length === 0) {
       addIssue(cardNum, cardName, 'タイミング',
         `"${marker}"が${count}件あるがeffects.jsonに対応するエフェクト(type=${type}${timing ? `, timing=${timing}` : ''})がない`);

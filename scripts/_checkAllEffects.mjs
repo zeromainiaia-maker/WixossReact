@@ -176,7 +176,23 @@ for (const { json, csvs } of FILES) {
     // ただし「ガード」「マルチエナ」のみの【常】は除外（通常LIFE_BURSTとして実装）
     if (/【常】/.test(effStripped) && !jsonTypes.includes('CONTINUOUS') && !hasStub) {
       const isGuardOrMultiEnaOnly = /【常】：【(マルチエナ|ガード)】/.test(eff) && (eff.match(/【常】/g)||[]).length === 1;
-      if (!isGuardOrMultiEnaOnly) {
+      // ⚠**「…あるかぎり、（このシグニ）は「【自】…」を得る」だけの【常】は CONTINUOUS を持たないのが正しい**。
+      //   この形は parser が **AUTO + activeCondition へ平坦化**するのが本プロジェクトの表現（引用付与の展開）で、
+      //   CONTINUOUS を別途作らない。旧実装は 15件中12件をこれで誤検出していた（2026-08-10 仕分け）。
+      // ⚠引用（「」『』）の中にも【自】等が入るので、**先に引用をマスクしてから**【常】文へ分割する
+      //   （マスクしないと `[^【]*` が引用内の【自】で切れて文を取り違える）。
+      const masked = eff.replace(/[「『][^」』]*[」』]/g,
+        m => /【[常自起]】/.test(m) ? 'GRANT' : 'Q');
+      // ⚠**能力マーカー（【常】【自】【起】【出】）だけで区切る**＝`[^【]*` で切ると
+      //   文中の【ゲート】【エナチャージ】等のキーワードで文が途切れて誤判定する。
+      const contSentences = masked.split(/(?=【[常自起出]】)/).filter(x => x.startsWith('【常】'));
+      const grantOnlyCont = contSentences.length > 0
+        && contSentences.every(sent => /を得る/.test(sent) && sent.includes('GRANT'));
+      // ⚠**カードが【常】と印字していても本文が「〜したとき」なら triggered**（WX11-063/064）。
+      //   AUTO + activeCondition が正しい表現なので CONTINUOUS を要求しない。
+      const triggeredCont = contSentences.length > 0
+        && contSentences.every(sent => /(したとき|されたとき|するたび)/.test(sent));
+      if (!isGuardOrMultiEnaOnly && !grantOnlyCont && !triggeredCont) {
         report(json, cardId, name, 'EFFECT_TYPE_MISSING_CONTINUOUS',
           `CSV【常】あり、JSONにCONTINUOUSなし (types:${jsonTypes.join(',')})`, eff);
       }
@@ -235,7 +251,11 @@ for (const { json, csvs } of FILES) {
       if (jsonMillActs.length > 0 && csvMillCounts.length === 1) {
         const csvMill = csvMillCounts[0];
         const jsonMill = jsonMillActs[0].count;
-        if (csvMill !== jsonMill) {
+        // ⚠**`count:0` + `countPerLastProcessed` は「この方法で処理した枚数につき1枚」の可変ミル**＝
+        //   固定枚数と比較してはいけない（WXDi-P11-077 を誤検出していた）。
+        const isVariableMill = jsonMillActs.some(a =>
+          Object.keys(a).some(k => /^count(?!$)/.test(k) && a[k] === true || /^count(Per|Is)/.test(k)));
+        if (csvMill !== jsonMill && !isVariableMill) {
           report(json, cardId, name, 'MILL_COUNT_MISMATCH',
             `CSV「${csvMill}枚トラッシュ」、JSONのMILL=${jsonMill}`, fullText);
         }
@@ -244,7 +264,8 @@ for (const { json, csvs } of FILES) {
 
     // ── 5. パワー値不一致 ──────────────────────────────────────
     // CSV「パワーを±N000」とJSON POWER_MODIFY.deltaを比較
-    const powerMatches = [...fullText.matchAll(/パワー[をは]([＋\+－\-])([０-９\d,，]+)/g)];
+    // 「パワーを**それぞれ**－15000する」のような副詞挟みも拾う（WX06-006 を取りこぼしていた）。
+    const powerMatches = [...fullText.matchAll(/パワー[をは](?:それぞれ|さらに|合計で)?([＋\+－\-])([０-９\d,，]+)/g)];
     if (powerMatches.length > 0 && !hasStub && !hasUnknown) {
       const csvPowerVals = powerMatches.map(m => {
         const sign = (m[1] === '＋' || m[1] === '+') ? 1 : -1;
@@ -252,10 +273,17 @@ for (const { json, csvs } of FILES) {
         return sign * num;
       }).filter(n => !isNaN(n));
       const jsonPowerActs = allActs.filter(a => a.type === 'POWER_MODIFY');
+      // ⚠**「代わりに」は加算分解で表現する**のが本プロジェクトの表現＝「－5000。…代わりに－8000」は
+      //   `-5000` ＋（条件成立時に）`-3000` の2ステップになる。**差分値も正当な delta** として許容する
+      //   （旧実装は素の値としか比較せず、6件すべてを誤検出していた。2026-08-10 仕分け）。
+      // ⚠**対象を選ぶだけの `delta:0` ステップ**（後続 `targetsLastProcessed` が本体）も正当（WX25-P2-068/070）。
+      const allowedDeltas = new Set(csvPowerVals);
+      allowedDeltas.add(0);
+      for (const a of csvPowerVals) for (const b of csvPowerVals) if (a !== b) allowedDeltas.add(a - b);
       for (const pa of jsonPowerActs) {
-        if (pa.delta !== undefined && !csvPowerVals.includes(pa.delta)) {
+        if (pa.delta !== undefined && !allowedDeltas.has(pa.delta)) {
           report(json, cardId, name, 'POWER_VALUE_MISMATCH',
-            `JSONのdelta=${pa.delta}、CSV値=[${csvPowerVals.join(',')}]`, fullText);
+            `JSONのdelta=${pa.delta}、CSV値=[${csvPowerVals.join(',')}]（差分・0も許容済み）`, fullText);
         }
       }
     }
@@ -271,7 +299,12 @@ for (const { json, csvs } of FILES) {
       .replace(/「[^」]*してもよい[^」]*」/g, '') // 付与効果内除外
       .replace(/『[^』]*』/g, '')           // 『〜』付与効果内除外
       .replace(/【起】.*?(?=【(?:出|自|常|起)】|$)/gs, ''); // 起動能力内除外（次の能力マーカーまで）
-    const hasOptional = /してもよい/.test(effForOptCheck);
+    // ⚠**「してもよい」だけを見てはいけない**＝「引いてもよい」「クラッシュしてもよい」「置いてもよい」など
+    //   連用形＋「てもよい」が実データの多数派で、旧実装はこれを任意と認識せず
+    //   `OPTIONAL_SUSPICIOUS` を誤検出していた（WX02-003/WX18-059）。
+    // ⚠**主語が「対戦相手は」の「〜てもよい」は自分の効果の任意性ではない**（WX26-CP1-048）＝除外する。
+    const effForOptCheck2 = effForOptCheck.replace(/対戦相手は[^。]*?てもよい/g, '');
+    const hasOptional = /[てで]もよい/.test(effForOptCheck2);
     // アクション木に辞退可能な表現があるか
     const actionIsSkippable = (a) => {
       if (!a || typeof a !== 'object') return false;
@@ -279,6 +312,10 @@ for (const { json, csvs } of FILES) {
       if (a.target?.upToCount === true) return true;
       if (a.source?.upToCount === true) return true;
       if (a.type === 'SEARCH' || a.type === 'REVEAL_AND_PICK' || a.type === 'STUB' || a.type === 'UNKNOWN') return true;
+      // CHOOSE{upTo:true}＝「N つまで選ぶ」＝0個選択できる＝辞退可能（WX16-070）
+      if (a.type === 'CHOOSE' && a.upTo === true) return true;
+      // LOOK_PICK_CHAIN＝「見た中からN枚まで…してもよい」＝各 stage の pick は 0 可（WX15-049/WX15-082）
+      if (a.type === 'LOOK_PICK_CHAIN' || a.type === 'LOOK_AND_REORDER') return true;
       // PLAY_FREE系は使用確認UI、REARRANGEは配置をユーザーが決める（現状維持も選べる）ため辞退可能扱い
       if (a.type === 'PLAY_FREE' || a.type === 'PLAY_FREE_FROM_TRASH' || a.type === 'REARRANGE_SIGNI') return true;
       if (a.type === 'CHOOSE' && (a.choices ?? []).some(c =>
