@@ -298,6 +298,30 @@ export function countCharmsToTrash(before: PlayerState, after: PlayerState): num
 }
 
 /**
+ * 【マジックボックス】が表向きになった枚数を算出（ON_MAGIC_BOX_FLIPPED・§6.4 A群・WX24-P4-016）。
+ *
+ * ⚠**「MB ゾーンから消えた」だけでは数えない**＝行先が**トラッシュ**（`INTERNAL_OPEN_MB_DO`＝
+ *   表向きにしてトラッシュ）か**場のシグニ**（`MAGIC_BOX_REVEAL`＝表向きにしてシグニにする）の
+ *   どちらかであることを要求する。`MUGEN_Q_RESET_AND_FLIP` のような**盤面ごとゲーム除外**でも
+ *   MB ゾーンは空になるので、これを見ないと「表向きになった」を誤検出する。
+ * ⚠ゾーンの入れ替え（`permute`）では集合が変わらないので誤検出しない（`countCharmsToTrash` と同型）。
+ */
+export function countMagicBoxesFlipped(before: PlayerState, after: PlayerState): number {
+  if (!before || !after) return 0;
+  const beforeMBs = (before.field.signi_magic_boxes ?? []).filter((c): c is string => !!c);
+  if (beforeMBs.length === 0) return 0;
+  const afterMBs = new Set((after.field.signi_magic_boxes ?? []).filter((c): c is string => !!c));
+  const afterTrash = new Set(after.trash ?? []);
+  const afterSigni = new Set((after.field.signi ?? []).flatMap(stack => stack ?? []));
+  let count = 0;
+  for (const c of beforeMBs) {
+    if (afterMBs.has(c)) continue;
+    if (afterTrash.has(c) || afterSigni.has(c)) count++;
+  }
+  return count;
+}
+
+/**
  * 《コインアイコン》を得た枚数を算出（ON_COIN_GAINED＝既存 ON_COIN_PAID の逆方向）。
  * ⚠**上限5でクランプされた実増加**を返す（`coins` は上限5）＝「5枚持ちで得ても0枚」が正しい。
  * ⚠効果解決の中央 diff 専用。グロウ/アシストの獲得は**支払いと同じ差分に同居する**ため、
