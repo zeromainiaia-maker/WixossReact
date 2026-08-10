@@ -43,10 +43,9 @@ const allTypes = [...new Set(typeOf.values())].sort();
 //   （例: `test('POWER_MODIFY_PER_ENERGY: エナ枚数×deltaでCONTパワー加算（WX09-019）')`）を
 //   **全部「未カバー」と誤報**した（39件中の大半）。CONTINUOUS 専用型は合成 action を書かず live を引くのが
 //   正しい書き方なので、リテラル一致では構造的に取りこぼす。**型名がどこかに現れれば覆われている**とみなす。
+// 型ごとに単語境界つきで引く（`UP` のような短い型名を全トークン抽出で扱うと `UPKEEP` 等と衝突する）。
 const golden = fs.readFileSync(join(root, 'scripts/goldenTest.ts'), 'utf8');
-const covered = new Set(
-  [...golden.matchAll(/\b([A-Z][A-Z_0-9]{3,})\b/g)].map(m => m[1]),
-);
+const isCovered = (t: string): boolean => new RegExp(`\\b${t}\\b`).test(golden);
 
 // ── ④ live JSON の出現数（優先度づけ用） ──
 const live: Record<string, unknown[]> = {};
