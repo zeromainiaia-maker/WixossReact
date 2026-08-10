@@ -4773,7 +4773,7 @@ export function resolveForcedSigniAttack(
   const scan = (holder: PlayerState, other: PlayerState, isHolderTurn: boolean, holderIsViewer: boolean) => {
     // holder の能力が viewer を強制するのは、holder 自身が viewer なら targetOwner:'self'、
     // holder が対戦相手なら targetOwner:'opponent' のときだけ。
-    const wantOwner: Owner = holderIsViewer ? 'self' : 'opponent';
+    const wantOwner = holderIsViewer ? 'self' : 'opponent';
     const consider = (hostNum: string, effects: readonly import('../types/effects').CardEffect[]) => {
       for (const eff of effects) {
         if (eff.effectType !== 'CONTINUOUS') continue;
