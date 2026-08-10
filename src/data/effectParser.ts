@@ -7752,15 +7752,16 @@ function parseActionTextInner(text: string): EffectAction {
         if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
             ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT', 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', 'THIS_CARD_HAS_UNDER'].includes(prev.condition.type)) {
           const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number; operator?: CompareOp };
-          // minCount 型は「N以上」しか表せない＝「N以下」形が来たら**引き継がない**（黙って意味が反転するため）
+          // minCount 型は「N以上」しか表せない＝「N以下」形が来たら**引き継がず据置**にする
+          //   （数値だけ差し替えると「N以下」が黙って「N以上」に反転するため。全CSVで該当0だが構造的に塞ぐ）
           const minCountType = cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD' || cond.type === 'THIS_CARD_HAS_UNDER';
-          if (minCountType && bm[2] === '以下') { /* 表現不能＝据置 */ }
-          else if (minCountType) cond.minCount = parseNum(bm[1]);
-          else {
+          if (minCountType) {
+            if (bm[2] === '以上') { cond.minCount = parseNum(bm[1]); cm = { condition: cond, rest: bm[3] }; }
+          } else {
             cond.value = parseNum(bm[1]);
             if (cond.operator !== undefined) cond.operator = bm[2] === '以上' ? 'gte' : 'lte';
+            cm = { condition: cond, rest: bm[3] };
           }
-          cm = { condition: cond, rest: bm[3] };
         }
       }
       // 「N枚以上ある場合、追加で<X>」＝置換ではなく追加ボーナス＝CONDITIONAL を新ステップとして積む
