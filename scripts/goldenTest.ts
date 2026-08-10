@@ -11848,6 +11848,36 @@ test('型網羅 FORCE_FRONT_SIGNI_ATTACK: アクセ付与された「正面は�
   eq(collectForcedFrontAttackZones(my, mkState({ signi: [cook, null, null] }), true, effectsMap, cardMap as Map<string, CardData>).size, 0,
     'アクセが無ければ強制されない');
 }));
+// ── 強制アタック機構（§6.4・続き424）＝【常】と【起】由来フラグの2軸を1関数で解決する ──
+// ⚠回帰の型：CONTINUOUS の FORCE_SIGNI_ATTACK は executeAction を通らない＝フラグは永久に立たない。
+//   フラグだけを読む実装に戻ると印字【常】6カード（WD07-004/WX14-018/WX20-Re07〜09/WX12-010）が
+//   まるごと恒久 no-op に落ちる。
+test('型網羅 FORCE_SIGNI_ATTACK: 【常】「対戦相手のシグニは可能ならばアタックしなければならない」が強制になる（WX12-010/WD07-004）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const bare = mkState({});
+  // (1) 相手のセンタールリグの印字【常】＝自分（viewer）が強制される
+  const oppLrig = mkState({ lrig: ['WD07-004'] });
+  eq(resolveForcedSigniAttack(bare, oppLrig, true, effectsMap, cm).forced, true, '相手ルリグの【常】で自分が強制');
+  eq(resolveForcedSigniAttack(oppLrig, bare, false, effectsMap, cm).forced, false, '宣言者自身は強制されない');
+  // (2) レゾナ（シグニゾーン）の印字【常】＝復活させた WX12-010-E1
+  ok((effectsMap.get('WX12-010') ?? []).some(e => e.effectType === 'CONTINUOUS' && e.action.type === 'FORCE_SIGNI_ATTACK'),
+    'WX12-010-E1（【常】強制アタック）が live に存在する');
+  eq(resolveForcedSigniAttack(bare, mkState({ signi: ['WX12-010', null, null] }), true, effectsMap, cm).forced, true,
+    'レゾナのシグニゾーン印字【常】でも強制');
+  // (3) ルリグの能力消失中は落ちる
+  const disabled: PlayerState = { ...oppLrig, lrig_abilities_disabled: true };
+  eq(resolveForcedSigniAttack(bare, disabled, true, effectsMap, cm).forced, false, '能力消失中のルリグ【常】は効かない');
+  // (4) 既存のターン限定フラグ軸（【起】由来）も同じ関数で解決される
+  const flagged: PlayerState = { ...bare, must_attack_signi: true, must_attack_infected_only: true };
+  const flagRes = resolveForcedSigniAttack(flagged, bare, true, effectsMap, cm);
+  eq(flagRes.forced, true, 'must_attack_signi フラグも強制');
+  eq(flagRes.infectedOnly, true, '感染限定フラグ単独なら infectedOnly');
+  // (5) 感染限定と全体強制が同居したら全体が勝つ（感染していないシグニも強制される）
+  eq(resolveForcedSigniAttack(flagged, oppLrig, true, effectsMap, cm).infectedOnly, false,
+    '全体強制が1つでもあれば感染限定にはならない');
+  // (6) 強制源が無ければ false
+  eq(resolveForcedSigniAttack(bare, bare, true, effectsMap, cm).forced, false, '強制源なし');
+});
 test('型網羅 DRAW_PHASE_REPLACEMENT: 付与された「1枚引く場合は代わりに2枚」がドロー数を置換する（WXK03-001-E3）', () => withSavedCursor(() => {
   const grant = (effectsMap.get('WXK03-001') ?? []).find(e => e.effectId === 'WXK03-001-E3');
   const abilities = ((grant!.action as unknown as { abilities?: CardEffect[] }).abilities) ?? [];
