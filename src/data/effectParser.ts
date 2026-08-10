@@ -101,8 +101,11 @@ function isBatch1OnlyClause(re: RegExp): boolean {
   //   全CSVで4枚（WX15-033／WX17-040／WX18-032／WXK11-031）しかなく、いずれもゲートに載っておらず
   //   条件が黙って落ちて**無条件発火**していたため。閾値形（「対戦相手のライフクロスがN枚以下の場合」等）は
   //   引き続きゲート内＝`ライフクロスが[０-９\d]` を含む source だけを batch1 限定にする。
+  // ⚠両者を直接比べる形（「あなたのライフクロスが対戦相手のライフクロス以下の場合」＝LIFE_COMPARE_OPP）も
+  //   ゲート外＝閾値形ではないので batch1 限定の理由が無い（§6.4・2026-08-10・`WXDi-CP01-026-E1`）。
+  const lifeCompare = re.source.includes('あなたのライフクロス(?:の枚数)?が対戦相手のライフクロス');
   return re.source.includes('ターンの場合')
-    || (re.source.includes('対戦相手のライフクロス') && !re.source.includes('あなたより多い'))
+    || (re.source.includes('対戦相手のライフクロス') && !re.source.includes('あなたより多い') && !lifeCompare)
     || (re.source.includes('このシグニのパワーが') && re.source.includes('ライフクロス'))
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
@@ -7786,6 +7789,7 @@ function parseActionTextInner(text: string): EffectAction {
           continue;
         }
       }
+      if (process.env.DBG_PT) console.error('[S]', JSON.stringify({clean, cm: cm && cm.condition.type, rest: cm && cm.rest, nsteps: steps.length}));
       if (cm && cm.rest.startsWith('代わりに')) {
         const enhancedText = cm.rest.slice('代わりに'.length);
         const base = steps[steps.length - 1];
