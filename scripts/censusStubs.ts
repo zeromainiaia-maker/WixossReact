@@ -193,6 +193,21 @@ function payloadConsumers(id: string): Ref[] {
   return hits;
 }
 
+// (c) カード番号で実装されている STUB（id も専用キーも読まず、engine/BattleScreen が **カード番号**で分岐する）。
+//     `MAYU_ENCOUNTER_FLIP_AND_GROW` は `screens/battle/mayuEncounter.ts` が `'WXDi-P13-003A'` で判定する。
+//     ⚠カード番号は**コメントにも大量に書かれている**（`types/effects.ts` の timing 注記等）＝非コメント行に限る。
+function cardNumConsumers(id: string): Ref[] {
+  const hits: Ref[] = [];
+  for (const cardNum of liveCards.get(id) ?? []) {
+    for (const c of consumerCode) {
+      if (c.text.includes(`'${cardNum}'`) || c.text.includes(`"${cardNum}"`)) {
+        hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
+      }
+    }
+  }
+  return hits;
+}
+
 // ── 3) 逆翻訳シートでの「生ID露出」を実測 ──
 // `[STUB:<生ID>` がそのまま出ているか＝表示語彙が無い（説明文が付いていれば日本語になる）。
 const sheetText = (() => {

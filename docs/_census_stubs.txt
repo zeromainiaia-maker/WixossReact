@@ -5,11 +5,11 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
 逆翻訳シートの [STUB:…] 総数: 907  うち生ID露出 276 箇所（191 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 20 種 / 22 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 21 種 / 23 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 7 種 / 9 件
-      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 13 種 / 13 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 17 種 / 31 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 259 箇所
+      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 14 種 / 14 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 16 種 / 30 件
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 175 種 / 258 箇所
   D 健全（実装あり＋日本語表示）                          : 396 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 309 種
 
@@ -46,6 +46,8 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW  [生ID露出 1]
         カード: WXDi-P13-003A
         生成: src\data\manualEffects.ts:4861
+     1件   1枚  OPP_LRIG_DECK_TO_LRIG_TRASH  [生ID露出 1]
+        カード: WX24-P4-014
      1件   1枚  PLAY_MILLED_SIGNI_DELAYED_TRASH
         カード: WXDi-P09-079
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
@@ -113,9 +115,6 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
         消費: src\engine\effectExecutor.ts:3134
-     1件   1枚  OPP_LRIG_DECK_TO_LRIG_TRASH  [生ID露出 1]
-        カード: WX24-P4-014
-        消費(ペイロードキー): src\engine\effectExecutor.ts:6433
      1件   1枚  OPTIONAL_ACTIVATE
         カード: WXDi-P01-040
         消費: src\engine\effectExecutor.ts:3842 / src\engine\effectExecutor.ts:3857 / src\engine\triggerCollect.ts:277
@@ -477,8 +476,6 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
   露出  1箇所 (live 1件/1枚)  OPP_ENERGY_REDUCE_TO_N  [execStubPart3]
         カード: WXK06-055
         既存コメント: OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）
-  露出  1箇所 (live 1件/1枚)  OPP_LRIG_DECK_TO_LRIG_TRASH  [engine別経路]
-        カード: WX24-P4-014
   露出  1箇所 (live 1件/1枚)  OPP_REVEAL_SPELL_USE_FREE  [execStubPart1]
         カード: WX04-015
         既存コメント: OPP_REVEAL_SPELL_USE_FREE: 対戦相手のデッキを上からスペルがめくれるまで公開し、 めくれたスペルをあなたが手札にあるかのようにコストなし・限定条件無視で使用してもよい。 残り（公開した非スペル）
