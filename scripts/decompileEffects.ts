@@ -1305,7 +1305,10 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'COUNTER_SPELL': return `スペル${a.maxCost != null ? '（コスト' + a.maxCost + '以下）' : ''}の効果を打ち消す`;
     case 'SHUFFLE_DECK': return `${ownerJa(a.owner)}デッキをシャッフルする`;
     case 'EQUALIZE_ENERGY': return `${a.owner ? ownerJa(a.owner) : '各プレイヤーの'}エナゾーンのカードが${a.targetCount}枚になるようにトラッシュに置く`;
-    case 'FORCE_SIGNI_ATTACK': return `${ownerJa(a.target?.owner)}シグニは可能ならアタックする`;
+    // ⚠所有者は `target.owner` ではなく `targetOwner`（型は ForceSigniAttackAction）。
+    //   従来は `a.target?.owner` を見ていて常に空＝「誰のシグニが強制されるのか」が逆翻訳から落ちていた。
+    case 'FORCE_SIGNI_ATTACK':
+      return `${ownerJa(a.targetOwner)}${a.infectedOnly ? '感染状態の' : ''}シグニは可能ならばアタックしなければならない`;
     case 'COST_REDUCTION': {
       const red = Array.isArray(a.reduction) && a.reduction.length > 0
         ? a.reduction.map((e: any) => `《${e.color}×${e.count}》`).join('')

@@ -20756,7 +20756,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 51, '段階2 condition/activeConditionあり（クラス種類数ゲートを含む）');
     eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
-    eq(optionalNoCost.length, 16, '任意costなし（第15波で可変枚数2効果を構造化後）');
+    // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
+    //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
+    eq(optionalNoCost.length, 17, '任意costなし（第15波で可変枚数2効果を構造化後）');
     // 段階3のうち**原文にコスト句があるのに cost 未表現**のものは据え置き＝collector へ入らない。
     // （真の「〜してもよい」は (xxix)(2) で OPTIONAL_ACTIVATE 包みとして入るようになった＝下の専用テスト）
     {
@@ -20928,7 +20930,7 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
         } else deferred++;
       }
     }
-    eq(wrapped, 12, '包む＝真に任意5効果＋action自身が選択・徴収する可変捨て7効果');
+    eq(wrapped, 13, '包む＝真に任意6効果（続き424 の WX12-010-E3 を含む）＋action自身が選択・徴収する可変捨て7効果');
     eq(deferred, 4, '据え置き＝明示保留した cost 未表現の4効果（parser 在庫）');
   });
 
