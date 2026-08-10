@@ -2019,7 +2019,7 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'スペル' }, minCount: parseNum(g[0]), distinctName: true })],
   // 「あなたの場にあるシグニが持つ色が合計N種類以上ある場合」＝場のシグニが持つ色の異なり数
   //   （`HAS_CARD_IN_FIELD.distinctColors`）。`WXDi-P13-036-E1` の「代わりに」ゲート。
-  [/あなたの場にある(?:(他の)の?)?シグニが持つ色が合計([０-９\d]+)種類以上ある場合/,
+  [/あなたの場にある(他の)?シグニが持つ色が合計([０-９\d]+)種類以上ある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, minCount: parseNum(g[1]), distinctColors: true, ...(g[0] ? { excludeSelf: true } : {}) })],
   // ── 続き166（2026-07-16）：semantic audit Cluster A の条件節丸ごと脱落（常時発動化）を是正。
   // 「あなたの場にパワーN以上の＜C＞のシグニがある場合」＝同一シグニに power/story の積条件（WXEX1-50-E1）。
