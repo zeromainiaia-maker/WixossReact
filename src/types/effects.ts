@@ -2191,6 +2191,19 @@ export interface StubAction {
    * `attacked_signi_ids.length` を実行時に《無》の枚数として解決する。アタックのたびにコストが上がる。
    */
   opponentPayColorlessPerSigniAttack?: boolean;
+  /**
+   * OPPONENT_PAY_OPTIONAL: **極性の反転**（§6.4・続き425）。
+   *
+   * 既定（false／未指定）は原文「対戦相手が〈コスト〉**しないかぎり**、X」＝**支払わなかったとき**に
+   * 直後 `CONDITIONAL` の `then`（＝X）が走る（回避ゲート）。ところが同じ STUB を使う原文にはもう1つ
+   * **逆向きの極性**がある＝「対戦相手は〈コスト〉**してもよい。そうした場合**、X」＝**支払ったとき**に X。
+   * parser はどちらも同じ `STUB + CONDITIONAL{IS_MY_TURN}` に落としていたため、後者2効果
+   * （`SPDi43-06-E1`／`WXDi-P05-037-E1`＝どちらも「そうした場合、このアタックを無効にする」）は
+   * **意味が真逆**になっていた（相手が何もしなければ自分のアタックが無効化される）。
+   *
+   * true のとき：各支払い枝は `SEQUENCE[支払い, then]`、「支払わない」枝は `else ?? 何もしない`。
+   */
+  thenOnPay?: boolean;
   // ---- BLOCK_OPP_ZONE_PLACEMENT: 指定シグニゾーンへの新規配置禁止（タスク12(lxi) 第10波）----
   /** 禁止がこのターンにも及ぶ（「**このターンと**次のターンの間」＝WXDi-P11-009-E3）。 */
   zoneBlockThisTurn?: boolean;
