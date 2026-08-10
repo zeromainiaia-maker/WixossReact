@@ -2123,6 +2123,12 @@ export interface StubAction {
   charmTrash?: number;
   /** OPTIONAL_COST: ルリグデッキから条件一致アーツを選んでルリグトラッシュへ置く任意コスト。 */
   trashArtsFromLrigDeck?: { color?: string; count: number };
+  /**
+   * `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`: ルリグデッキのアーツを**ゲームから除外**する任意コスト。
+   * ⚠`trashArtsFromLrigDeck`（行先＝ルリグトラッシュ）とは**行先が違う**ので流用してはいけない
+   *   （除外は `excluded` 行きでリフレッシュにも戻らない）。`minTotalCost` は「コストの合計がN以上」。
+   */
+  exileArtsFromLrigDeck?: { count: number; minTotalCost?: number };
   /** OPTIONAL_COST: 相手の場のウィルスN個を左のゾーンから取り除く任意コスト。 */
   removeOppVirus?: number;
   // ---- 「それのレベル１につき〈コスト単位〉を支払ってもよい」族（タスク12(liii)）----
