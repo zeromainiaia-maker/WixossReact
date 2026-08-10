@@ -11646,6 +11646,77 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
+test('signiAttackGate: cannotAttackSigni（CONTINUOUS 自己アタック封じ）がアタック可否に反映される（続き404・WX05-023）', () => {
+  // 旧実装では cannotAttackSigni を読むのは人間のアタックボタン生成1箇所だけで、
+  // 共通実行経路（performSigniAttack）と CPU のアタック候補フィルタは blocked_actions しか見ていなかった。
+  const atk = mkState({ signi: ['WX05-023', SIGNI, null] });
+  const def = mkState({});
+  const g = (num: string) => signiAttackBlockReason({
+    attacker: atk, defender: def, attackerNum: num,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(g('WX05-023'), 'CONTINUOUS_CANNOT_ATTACK', '自己アタック封じシグニはアタック不可');
+  eq(g(SIGNI), null, '他のシグニはアタック可能');
+});
+test('signiAttackGate: 付与された「アタックできない」（keyword_grants）がアタック可否に反映される（続き404）', () => {
+  // keyword_grants['アタックできない'] は execBlockAction 由来。CPU 候補フィルタが見ていなかった軸。
+  const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
+  const def = mkState({});
+  const granted: PlayerState = { ...base, keyword_grants: { [SIGNI]: ['アタックできない'] } };
+  const g = (attacker: PlayerState, num: string) => signiAttackBlockReason({
+    attacker, defender: def, attackerNum: num,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(g(granted, SIGNI), 'CONTINUOUS_CANNOT_ATTACK', '付与「アタックできない」でアタック不可');
+  eq(g(granted, SIGNI_P3000), null, '付与されていないシグニは影響なし');
+  eq(g(base, SIGNI), null, '付与前はアタック可能');
+  // until_opp_turn 版・相手側 state に積まれた版も同じ軸で効く
+  const untilOpp: PlayerState = { ...base, keyword_grants_until_opp_turn: { [SIGNI]: ['アタックできない'] } };
+  eq(g(untilOpp, SIGNI), 'CONTINUOUS_CANNOT_ATTACK', '相手ターンまでの付与でもアタック不可');
+  const defGranted: PlayerState = { ...def, keyword_grants: { [SIGNI]: ['アタックできない'] } };
+  eq(signiAttackBlockReason({
+    attacker: base, defender: defGranted, attackerNum: SIGNI,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
+});
+test('signiAttackGate: blocked_actions / パワー上限 / 1回制限 / エナコスト の各軸（続き404）', () => {
+  const def = mkState({});
+  const reason = (attacker: PlayerState, defender: PlayerState, num: string, powers?: Map<string, number>) =>
+    signiAttackBlockReason({
+      attacker, defender, attackerNum: num,
+      effectsMap, cardMap: cardMap as Map<string, CardData>, effectivePowers: powers,
+    });
+  const base = mkState({ signi: [SIGNI_P3000, null, null], energy: 0 });
+  eq(reason(base, def, SIGNI_P3000), null, '素の盤面はアタック可能');
+  eq(reason({ ...base, blocked_actions: [`ATTACK:${SIGNI_P3000}`] }, def, SIGNI_P3000), 'BLOCKED_ACTION', 'blocked_actions');
+  // OPP_SIGNI_ATTACK_POWER_RESTRICT: 上限「以下」は不可・超過は可
+  eq(reason(base, { ...def, opp_signi_attack_power_cap: 3000 }, SIGNI_P3000), 'OPP_POWER_CAP', 'パワー上限以下は不可');
+  eq(reason(base, { ...def, opp_signi_attack_power_cap: 2000 }, SIGNI_P3000), null, '上限超過は可');
+  // 実効パワー（強化後）で判定する
+  eq(reason(base, { ...def, opp_signi_attack_power_cap: 3000 }, SIGNI_P3000, new Map([[SIGNI_P3000, 8000]])), null, '実効パワーが上限超なら可');
+  eq(reason({ ...base, signi_attack_once_limit: true, attacked_signi_ids: [SIGNI] }, def, SIGNI_P3000), 'ONCE_PER_TURN_LIMIT', '合計1回制限');
+  eq(reason({ ...base, signi_attack_once_limit: true }, def, SIGNI_P3000), null, '未アタックなら1回制限に掛からない');
+  eq(reason({ ...base, signi_attack_cost: 2 }, def, SIGNI_P3000), 'ENERGY_COST', 'エナ不足');
+  eq(reason({ ...mkState({ signi: [SIGNI_P3000, null, null], energy: 2 }), signi_attack_cost: 2 }, def, SIGNI_P3000), null, 'エナが足りれば可');
+});
+test('signiAttackGate: 場トラッシュコストは支払い済み再入で再判定しない（続き404）', () => {
+  // G154 BURST のアタック無効化回避モーダルからの再入は「支払い後の盤面＋残ったコスト予約」で来る。
+  // fieldTrashCostAlreadyPaid を渡さないと「もう払えない」でアタックが黙って消える。
+  const attacker: PlayerState = {
+    ...mkState({ signi: [SIGNI, null, null] }),
+    signi_attack_field_trash_costs: { [SIGNI]: 2 },
+  };
+  const def = mkState({});
+  const common = { attacker, defender: def, attackerNum: SIGNI, effectsMap, cardMap: cardMap as Map<string, CardData> };
+  eq(signiAttackBlockReason(common), 'FIELD_TRASH_COST', '他のシグニがいなければ払えない＝アタック不可');
+  eq(signiAttackBlockReason({ ...common, fieldTrashCostAlreadyPaid: true }), null, '支払い済み再入では再判定しない');
+  // 他のシグニ2体がいれば通常経路でも可
+  const payable: PlayerState = {
+    ...mkState({ signi: [SIGNI, SIGNI_P3000, SIGNI_P12000] }),
+    signi_attack_field_trash_costs: { [SIGNI]: 2 },
+  };
+  eq(signiAttackBlockReason({ ...common, attacker: payable }), null, '他のシグニ2体を払えるならアタック可能');
+});
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
