@@ -407,13 +407,16 @@ export function applyEffectLeaveSubstitutes(
   victimNum: string,
   victimOwner: Owner,
   ctx: ExecCtx,
-  opts?: { skipReplaceBanish?: boolean },
+  opts?: { isBanish?: boolean },
 ): { ctx: ExecCtx; replaced: boolean } {
   const lrigSub = applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
   if (lrigSub.replaced) return lrigSub;
   const powerSub = applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx);
   if (powerSub.replaced) return powerSub;
-  if (!opts?.skipReplaceBanish) {
+  if (opts?.isBanish) {
+    const f3Sub = applyEffectBanishSubstitute(victimNum, victimOwner, ctx);
+    if (f3Sub.replaced) return f3Sub;
+  } else {
     const banishSub = applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx);
     if (banishSub.replaced) return banishSub;
   }
