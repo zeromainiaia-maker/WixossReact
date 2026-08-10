@@ -2424,6 +2424,14 @@ function actionJa(a?: Action, effectType?: string): string {
           return `あなたのシグニを${count}対象とし、それらを裏向きにする`;
         }
       }
+      // 任意ルリグデッキ除外＋シグニアタックステップ封じ（WXK11-001②）＝閾値・枚数は構造から復元する
+      // （固定文にすると parser が別の数値を載せたときに黙って嘘をつく）。
+      if (a.id === 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP') {
+        const exSpec = (a as { exileArtsFromLrigDeck?: { count: number; minTotalCost?: number } }).exileArtsFromLrigDeck;
+        if (exSpec) {
+          return `あなたのルリグデッキにあるコストの合計が${numJa(exSpec.minTotalCost ?? 0)}以上のアーツ${numJa(exSpec.count)}枚をゲームから除外してもよい。そうした場合、このターン、シグニアタックステップをスキップする`;
+        }
+      }
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
