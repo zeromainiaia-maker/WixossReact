@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を4件実装（続き409〜411）
+## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を5件実装（続き409〜412）
 
 ### 背景：`[STUB:X]` 907箇所は「表示の穴」と「実装の穴」が混ざっていた
 
@@ -133,21 +133,61 @@ timing・triggerCondition・ターン終了時トラッシュがすべて既存�
 
 ⚠**実機UI未検証**（相手ルリグデッキ選択モーダル）＝§7 送り。
 
-### A群の残 9件（1カード1機構・逓減しない）
+### A群の5件目：`ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`（WX16-021 驚天動地・続き412）
 
-`ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`（WX16-021）／`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）／
-`ATTACK_NEGATE_IMMUNITY_SELF`・`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（ともに WX24-P4-016）／
-`CHECK_ZONE_FLIP_FREE_GROW`（WXDi-P16-001A）／`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041）／
-`FLIP_SELF_FACE_DOWN_UP`（WX25-CP1-060）／
-`COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（WXDi-P05-006＝§6.3 E-2 (b) の**着手禁止**）／
-`GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（WXDi-P00-026＝§6.3 F の**保留**）。
+原文＝「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、
+代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える。」
+
+⚠**既定の【側面アタック】は空ゾーンだと何も起きない**（`resolvePendingSigniBattleFor` の
+「側面アタックで対象のシグニゾーンにシグニがいないため何も起こらない」分岐）**うえ、UI も空ゾーンを
+提示しない**（アタック先ボタン生成が `if (!adjTop) continue;`）。**この効果は両方を変える。**
+
+- **新設 `src/screens/battle/sideAttackDamage.ts`**＝`sideAttackEmptyZoneDealsDamage(state, attackerNum, cardMap)`。
+  🔴**必ず2箇所から同じ関数を呼ぶ**＝片方だけ直すと「押せるのに何も起きない」か「効果が有効なのに
+  押せない」のどちらかになる。
+- **クラス限定は live JSON の構造に載せた**＝`sideAttackEmptyZoneAsFront: { cardClass: '英知' }`。
+  engine で `costText` を再パースしない（続き410 と同じ契約）。判定は `CardClass` の**部分一致**
+  （`奏械：英知` のように区切り付きで入る）。空文字＝クラス不問。
+- **ターン境界リセットは4箇所**（PvP通常終了／手札上限確認後／別経路／CPU）＝`機構実装の「型」`の④。
+- ⚠**`WX16-021` は `manualEffects.ts` に無い MANUAL エントリ**＝**live JSON 直編集が正**
+  （`buildEffectsJson.ts` の「手修正は不可侵」で保持される。`npm run build:effects` 後も残ることを実測確認）。
+- 🔴**JSON を `json.dump` で書き戻すとファイル全体が再フォーマットされる**（実際に 113,266 行の差分が出た）。
+  **文字列置換で局所編集する**こと。修正後の差分は 1 行。
+
+### `FLIP_SELF_FACE_DOWN_UP`（WX25-CP1-060）は honest defer（続き412 で理由を確定）
+
+原文＝「【自】《相手ターン》：このシグニが対戦相手の、能力か効果の対象になったとき、あなたの場に他の
+＜ブルアカ＞のシグニがある場合、**このシグニを裏向きにし、表向きにする**。ターン終了時まで、この方法で
+表向きになったシグニは**【自】能力を失う**。」
+
+🔴**利益と費用が分かれており、費用だけ実装できてしまう**＝利益は「裏返して表に戻す＝別オブジェクトに
+なり、対象に取った効果が不発になる（fizzle）」、費用は「【自】喪失」。**【自】喪失だけ実装すると
+純粋な弱体化＝no-op より悪い。**
+
+⚠**現アーキテクチャでは fizzle が作れない**＝`collectTargetedTriggers` は `BattleScreen.tsx:4634` で
+**効果適用後の盤面**（`afterHostState`/`afterGuestState`）を受け取って発火し、ON_TARGETED はスタックに
+積まれて**後から**解決する。対象決定をキャンセルできる地点が存在しない。**着手するなら「対象の無効化」
+機構が先。**
+
+⭐**教訓＝「実装できる」と「実装してよい」は別。** A群を機械的に消化すると、この型を踏んで退化させる。
+
+### A群の残 8件（1カード1機構・逓減しない）
+
+**着手可能は4件**＝`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）／`CHECK_ZONE_FLIP_FREE_GROW`
+（WXDi-P16-001A＝`screens/battle/mayuEncounter.ts` が「裏返し＋グロウ」の先例）／
+`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（WX24-P4-016＝「【マジックボックス】が表向きになったとき」timing の新設）／
+`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041＝代替エナ支払いの既存機構 `myEnergyTrashSubInfo` が近い）。
+
+**残4件は着手しない理由が確定済み**＝`COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（§6.3 E-2 (b) の着手禁止）／
+`GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（§6.3 F の保留）／`ATTACK_NEGATE_IMMUNITY_SELF`
+（原文が誰のシグニを指すか確定できない＝裁定確認が先）／`FLIP_SELF_FACE_DOWN_UP`（上記）。
 
 ### ゲート
 
-`npm run gates` 全緑＝golden **1746（+5）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+`npm run gates` 全緑＝golden **1747（+6）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
 census **880 据置** / lint 0 errors・254 warnings（増減0）。`npm run build:effects`＋`npm run regen` 実施。
-**live JSON 変化は `WXK11-001-E1` の1効果のみ**（続き411 は engine/collector のみで live 変化0）。
-**A群の無言 no-op は 12 → 9**。
+**live JSON 変化は `WXK11-001-E1` と `WX16-021-E1` の2効果のみ**（続き411 は engine/collector のみで live 変化0）。
+**A群の無言 no-op は 12 → 8**。
 
 ## 2026-08-10 — §6.4 計器（checkAllEffects / verifyEffects）の誤検出を潰し、任意性脱落の系統バグを発見（続き408）
 
