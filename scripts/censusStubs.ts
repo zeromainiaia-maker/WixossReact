@@ -170,11 +170,18 @@ for (const [id, keys] of livePayloadKeys) {
     keyToIds.get(k)!.add(id);
   }
 }
+// ⚠**プロパティ名が一般語の場合は「専用キー」判定をすり抜ける**＝`text` は live で2 id しか使っていないが
+//   コード側の `r.text()` に当たる。一般語は名前で除外し、さらに**行が STUB 文脈か**も要求する。
+const GENERIC_KEYS = new Set(['text', 'costText', 'value', 'count', 'label', 'name', 'note', 'comment',
+  'description', 'target', 'filter', 'amount', 'source', 'level', 'power', 'color', 'options', 'effects',
+  'condition', 'duration', 'zone', 'owner', 'keyword', 'cardClass']);
 function payloadConsumers(id: string): Ref[] {
   const hits: Ref[] = [];
   for (const k of livePayloadKeys.get(id) ?? []) {
+    if (GENERIC_KEYS.has(k)) continue;
     if ((keyToIds.get(k)?.size ?? 99) > 2) continue; // 専用キーだけを根拠にする
     for (const c of consumerCode) {
+      if (!/\bstub\b|\bact\b|\baction\b|'STUB'/.test(c.text)) continue; // STUB 文脈の行だけ
       if (new RegExp(`\\.${k}\\b`).test(c.text) && !new RegExp(`\\b${k}\\??\\s*:`).test(c.text)) {
         hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
       }
