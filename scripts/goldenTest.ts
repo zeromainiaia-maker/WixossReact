@@ -29511,6 +29511,74 @@ test('§6.4 対象プロパティ×値昇格: base＋差分の加算モデルに
   ok(a.steps[1]?.then?.targetsLastProcessed === true, '同じ対象へ加算する');
 });
 
+// ── §6.4「どちらか１つを選ぶ。①…②〈任意コスト〉てもよい。そうした場合、…」（2026-08-10）────────
+// 選択肢の内側が2文構成だと、①②行は番号フィルタで落ち、**帰結文「そうした場合、〜」だけが生き残って
+// 単文パスへ流れて CHOOSE が丸ごと消えて**いた。しかも先行詞のない「それを〜する」が `owner:'self'` へ
+// 反転する＝🔴**自分のシグニを手札に戻す/デッキへ送る**、あるいは**コストが消えて無条件に強い方**。
+// ここが崩れると「選べない」「自傷」「ただ撃ち」の3つが同時に起きるので、4カードまとめて固定する。
+test('§6.4 選択肢内の任意コスト: CHOOSE が残り・両枝とも対戦相手・コストが付く', () => {
+  type Ch = { type: string; from_count?: number; choices?: Array<{ action: Ch }>; steps?: Ch[];
+    id?: string; coinCost?: number; handDiscard?: { count: number };
+    condition?: { type: string }; then?: Ch;
+    target?: { owner?: string; filter?: { powerRange?: { max?: number } } };
+    source?: { owner?: string; filter?: { powerRange?: { max?: number } } }; delta?: number };
+  const pick = (cardNum: string, effectId: string): Ch => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    return e!.action as unknown as Ch;
+  };
+  // カード, 効果, 弱い方(①)の型, 強い方(②)の型, ②のコスト種
+  const cases: Array<[string, string, string, string, 'coin' | 'hand']> = [
+    ['WXDi-P07-055', 'WXDi-P07-055-BURST', 'BOUNCE', 'BOUNCE', 'coin'],
+    ['WXDi-P07-072', 'WXDi-P07-072-BURST', 'TRANSFER_TO_DECK', 'TRANSFER_TO_DECK', 'coin'],
+    ['WXDi-P07-094', 'WXDi-P07-094-BURST', 'POWER_MODIFY', 'POWER_MODIFY', 'coin'],
+  ];
+  for (const [cardNum, effectId, t0, t1, costKind] of cases) {
+    const a = pick(cardNum, effectId);
+    eq(a.type, 'CHOOSE', `${effectId}: CHOOSE が残っている（平坦化していない）`);
+    eq(a.from_count, 2, `${effectId}: 選択肢は2つ`);
+    const c0 = a.choices![0].action, c1 = a.choices![1].action;
+    eq(c0.type, t0, `${effectId}: ①はコスト無しの弱い方`);
+    // ①の対象は相手（🔴旧実装は owner:'self'＝自分のシグニに撃っていた）
+    eq((c0.target ?? c0.source)?.owner, 'opponent', `${effectId}: ①は対戦相手のシグニ`);
+    // ②は「コストステップ → そうした場合ゲート」の2段
+    eq(c1.type, 'SEQUENCE', `${effectId}: ②は任意コスト付き`);
+    const cost = c1.steps![0];
+    eq(cost.id, 'OPTIONAL_COST', `${effectId}: ②の先頭は任意コスト`);
+    if (costKind === 'coin') eq(cost.coinCost, 1, `${effectId}: 🔴《コイン》1枚のコストが付いている（無料で撃てない）`);
+    const gate = c1.steps![1];
+    eq(gate.condition?.type, 'IS_MY_TURN', `${effectId}: 「そうした場合」ゲート`);
+    eq(gate.then!.type, t1, `${effectId}: ②の本体`);
+    eq((gate.then!.target ?? gate.then!.source)?.owner, 'opponent', `${effectId}: ②も対戦相手のシグニ`);
+  }
+  // パワー制限も選択肢ごとに違う（①5000以下 / ②12000以下）＝旧実装はフィルタごと落ちて無差別だった
+  const p55 = pick('WXDi-P07-055', 'WXDi-P07-055-BURST');
+  eq(p55.choices![0].action.target?.filter?.powerRange?.max, 5000, '①はパワー5000以下');
+  eq(p55.choices![1].action.steps![1].then!.target?.filter?.powerRange?.max, 12000, '②はパワー12000以下');
+  // 値も選択肢ごと（①−5000 / ②−12000）
+  const p94 = pick('WXDi-P07-094', 'WXDi-P07-094-BURST');
+  eq(p94.choices![0].action.delta, -5000, '①は−5000');
+  eq(p94.choices![1].action.steps![1].then!.delta, -12000, '②は−12000');
+  // 手札コスト版（①にコストがあり②が無コスト＝順序が逆の形）
+  const p17 = pick('WXDi-D09-P17', 'WXDi-D09-P17-BURST');
+  eq(p17.type, 'CHOOSE', 'WXDi-D09-P17-BURST: CHOOSE が残っている');
+  eq(p17.choices![0].action.steps![0].handDiscard?.count, 2, '①は手札2枚捨てるコスト（無条件バニッシュではない）');
+  eq(p17.choices![0].action.steps![1].then!.target?.owner, 'opponent', '①のバニッシュは対戦相手');
+  eq(p17.choices![1].action.type, 'TRASH', '②は相手の手札を1枚捨てさせる');
+});
+
+// `coinCost` は engine（effectExecutor の OPTIONAL_COST 分岐）に最初から実装されていたのに
+// **parser が一度も生成していなかった**＝コインを払わず強い方が撃てた。生成側の回帰を止める。
+test('§6.4 OPTIONAL_COST.coinCost: 《コインアイコン》の任意コストが parser から出る', () => {
+  const withCoin = [...effectsMap.entries()].filter(([, effs]) =>
+    JSON.stringify(effs).includes('"coinCost"'));
+  ok(withCoin.length >= 4, `coinCost を持つカードが4枚以上あるはず（got ${withCoin.length}）`);
+  // AUTO（parser 生成）でも出ていること＝MANUAL 手書きだけに戻っていない
+  const autoWithCoin = withCoin.filter(([, effs]) =>
+    effs.some(e => e.parseStatus === 'AUTO' && JSON.stringify(e).includes('"coinCost"')));
+  ok(autoWithCoin.length >= 3, `parser 生成（AUTO）の coinCost が3枚以上あるはず（got ${autoWithCoin.length}）`);
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
