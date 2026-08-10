@@ -10229,10 +10229,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const top = (stack ?? []).at(-1);
         if (!top || signiDown[i]) return false;
         // アタック不可のシグニはダウンされず performSigniAttack が早期returnして
-        // 無限ループするため、ここで候補から除外する
-        if (cpuSt.blocked_actions?.includes(`ATTACK:${top}`)) return false;
-        if (!canPayAttackFieldTrashCost(cpuSt, top, battleCardMap)) return false;
-        return true;
+        // 無限ループするため、ここで候補から除外する。判定は人間ボタン／共通実行経路と
+        // 同じ signiAttackGate に一本化する（旧実装は blocked_actions と場トラッシュコストしか
+        // 見ておらず、付与「アタックできない」等の cannotAttackSigni 軸が CPU に効いていなかった）。
+        return canSigniAttack({
+          attacker: cpuSt, defender: huSt, attackerNum: top,
+          effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
+        });
       });
 
       if (firstUp >= 0) {
