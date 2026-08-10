@@ -5660,41 +5660,108 @@ function applyOpponentPayThenOnPay(text: string, action: EffectAction): EffectAc
 }
 
 function applyOptionalHandDiscardCost(text: string, action: EffectAction): EffectAction {
-  if (action.type !== 'SEQUENCE') return action;
-  if (hasOptionalCostStub(action)) return action;
+  // ⚠**すでに手札捨てを載せた任意コスト**があるときだけ抜ける（続き426 で精密化）。
+  //   従来は「木のどこかに `OPTIONAL_COST` が居たら触らない」だったため、**二段の任意**
+  //   （`WXDi-P10-039-E2`＝「手札を1枚捨ててもよい。そうした場合、そのターン終了時、《青》《無》を
+  //   支払ってもよい」）は**2段目の OPTIONAL_COST に阻まれて1段目が素の TRASH のまま**残っていた。
+  if (hasOptionalHandDiscardStub(action)) return action;
   // ⚠**使用時（支払い時）の任意コスト**は解決中のステップではない＝ここの領分ではない
   //   （`stripUseTimeOptionalCostStep` / `stripUseTimeCostReductionStep` ＋ `useTimeCost.ts` の担当）。
   //   触ると「以下のN つから選ぶ」連結（allowedOptionalPayment が素の TRASH を要求）が外れて
   //   **CHOOSE 本体が丸ごと落ちる**（WD21-008 で実測）。
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
+  // ⚠**CHOOSE は選択肢ごとに独立**（続き426）＝「①…③手札をすべて捨て…④手札を２枚捨ててもよい」の
+  //   ように**別の選択肢に強制の手札捨てがある**と、下の「最初の手札捨て」ガードで丸ごと弾かれる。
+  //   選択肢は ①②③④ で原文が分かれているので、**選択肢テキスト × 選択肢アクション**で個別に掛ける。
+  if (action.type === 'CHOOSE') return applyOptionalHandDiscardInChoices(text, action as ChooseAction);
+  // 先頭が条件ゲートの形（`CONDITIONAL{cond, then: SEQUENCE}`）は中身へ降りる（`WXDi-P14-044-E1`＝
+  // 「…いる場合、…捨ててもよい」）。⚠`else` があるものは分岐ごとに原文が違うので触らない。
+  if (action.type === 'CONDITIONAL' && !(action as import('../types/effects').ConditionalAction).else) {
+    const c = action as import('../types/effects').ConditionalAction;
+    const inner = applyOptionalHandDiscardCost(text, c.then);
+    return inner === c.then ? action : ({ ...c, then: inner } as EffectAction);
+  }
+  if (action.type !== 'SEQUENCE') return action;
   // 原文で「手札をN枚捨ててもよい」が**最初の手札捨て**である文型だけを扱う（前段に強制の手札捨てが
   // あると step との対応が崩れ、強制側を任意に化けさせる）。
   const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
   const idx = sentences.findIndex(s => /手札[^。]{0,34}捨て/.test(s));
   if (idx < 0) return action;
-  const sent = sentences[idx];
+  const converted = convertSelfHandDiscardStep(sentences[idx], action as SequenceAction);
+  return converted ?? action;
+}
+
+/** 木のどこかに「手札捨てを載せた任意コスト」があるか（＝この変換は済んでいる）。 */
+function hasOptionalHandDiscardStub(action: EffectAction): boolean {
+  const s = JSON.stringify(action);
+  if (['OPTIONAL_ACTIVATE', 'OPTIONAL_TRASH_ENERGY_CLASS', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST']
+    .some(id => s.includes(`"${id}"`))) return true;
+  const found: boolean[] = [];
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'OPTIONAL_COST' && o.handDiscard !== undefined) found.push(true);
+    for (const v of Object.values(o)) { if (Array.isArray(v)) v.forEach(walk); else walk(v); }
+  };
+  walk(action);
+  return found.length > 0;
+}
+
+/**
+ * 原文1文（「〈前置き〉、[《色》を支払い]手札から〈filter〉をN枚捨ててもよい」）を SEQUENCE の
+ * 該当ステップに突き合わせ、素の `TRASH{HAND_CARD,self}` を `STUB{OPTIONAL_COST, handDiscard}` へ置換する。
+ * 変換できなければ null（呼び出し元は元の action を返す）。
+ */
+function convertSelfHandDiscardStep(sent: string, seq: SequenceAction): EffectAction | null {
   // 対象宣言などの前置き節を落として「手札から〜捨ててもよい」本体だけを見る
-  const clause = sent.slice(sent.lastIndexOf('、') + 1);
+  let clause = sent.slice(sent.lastIndexOf('、') + 1);
+  // ⚠「《青》を支払い手札を２枚捨ててもよい」＝**エナと手札の複合コスト**（`WXDi-P14-044-E1`）。
+  //   従来は先頭アンカーで弾かれ、**《青》が丸ごと脱落したうえ手札捨てが強制**になっていた。
+  const payM = clause.match(/^((?:《[白赤青緑黒無]》)+)を支払い(.+)$/);
+  const costColors = payM ? [...payM[1].matchAll(/《([白赤青緑黒無])》/g)].map(x => x[1]) : [];
+  if (payM) clause = payM[2];
   const m = clause.match(OPTIONAL_HAND_DISCARD_RE);
-  if (!m) return action;
+  if (!m) return null;
   const count = parseNum(m[2]);
-  const steps = [...(action as SequenceAction).steps];
+  const steps = [...seq.steps];
   const hit = steps.findIndex(s => {
     const t = selfHandDiscardStep(s);
     return !!t && t.target!.count === count;
   });
-  if (hit < 0) return action;
+  if (hit < 0) return null;
   const trash = selfHandDiscardStep(steps[hit])!;
   const stub: StubAction = {
     type: 'STUB', id: 'OPTIONAL_COST',
     handDiscard: { count, ...(trash.target!.filter ? { filter: trash.target!.filter } : {}) },
+    ...(costColors.length ? { costColors } : {}),
   } as StubAction;
   // 包み形（CONDITIONAL{ゲート, then: コスト}）は executor が解いて Pattern ④/⑤ へ委譲するので保つ。
   const wrapped = steps[hit];
   steps[hit] = wrapped?.type === 'CONDITIONAL' && !(wrapped as import('../types/effects').ConditionalAction).else
     ? { ...(wrapped as import('../types/effects').ConditionalAction), then: stub } as EffectAction
     : stub;
-  return { ...action, steps } as EffectAction;
+  return { ...seq, steps } as EffectAction;
+}
+
+/** CHOOSE の選択肢を「①②③④」の原文と突き合わせ、選択肢ごとに任意コスト化する。 */
+function applyOptionalHandDiscardInChoices(text: string, choose: ChooseAction): EffectAction {
+  const MARKS = ['①', '②', '③', '④', '⑤', '⑥'];
+  let changed = false;
+  const choices = choose.choices.map((ch, i) => {
+    const mark = MARKS[i];
+    if (!mark || ch.action?.type !== 'SEQUENCE') return ch;
+    const start = text.indexOf(mark);
+    if (start < 0) return ch;
+    const nextIdx = MARKS[i + 1] ? text.indexOf(MARKS[i + 1], start) : -1;
+    const body = text.slice(start + mark.length, nextIdx >= 0 ? nextIdx : undefined);
+    const sent = body.split('。').map(x => x.trim()).find(x => /手札[^。]{0,34}捨て/.test(x));
+    if (!sent) return ch;
+    const conv = convertSelfHandDiscardStep(sent, ch.action as SequenceAction);
+    if (!conv) return ch;
+    changed = true;
+    return { ...ch, action: conv };
+  });
+  return changed ? ({ ...choose, choices } as EffectAction) : (choose as EffectAction);
 }
 
 // ── §6.4 「〈行動〉てもよい」＝**行動そのものが任意**（コストではない）形（続き417）──
