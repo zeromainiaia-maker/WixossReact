@@ -5278,7 +5278,10 @@ test('「てもよい」optional 保持: DOWN／手札捨て／エナ→トラ�
     return found;
   };
   ok(findOpt('WXDi-P16-078', 'DOWN'), 'WXDi-P16-078-E1「アップ状態のこのシグニをダウンしてもよい」→ DOWN optional');
-  ok(findOpt('WX24-P4-050', 'TRASH'), 'WX24-P4-050-E1「…を対象とし、手札を1枚捨ててもよい」→ TRASH optional');
+  // ⚠WX24-P4-050 の「手札を1枚捨ててもよい」は続き416 で `STUB{OPTIONAL_COST,handDiscard}` へ移した
+  //   （`TRASH{optional}` は「0枚選択」でも後続の「そうした場合」ゲートが通り、**払わずに本体が撃てた**）。
+  //   任意性の検証はここではなく上の pay/skip 挙動テストが担うので、ここでは形だけ固定する。
+  ok(findOptionalCostHandDiscard('WX24-P4-050'), 'WX24-P4-050-E1「…を対象とし、手札を1枚捨ててもよい」→ STUB OPTIONAL_COST{handDiscard}');
   ok(findOpt('WXDi-P06-011', 'TRASH'), 'WXDi-P06-011-E1「対戦相手のエナゾーンから…トラッシュに置いてもよい」→ TRASH optional');
   ok(findOpt('WXK08-059', 'ADD_TO_FIELD'), 'WXK08-059-E1「手札から…場に出してもよい」→ ADD_TO_FIELD optional');
 });
