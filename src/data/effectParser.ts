@@ -7809,6 +7809,39 @@ function parseActionTextInner(text: string): EffectAction {
           continue;
         }
         const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
+        // (d) 🆕**同一対象への動詞昇格**「＜盤面状態条件＞の場合、代わりにそれを＜別の動詞＞」
+        //     （§6.4「代わりに」置換・2026-08-10）。base と then は**同じ1体**（「それ」の先行詞＝
+        //     直前文の対象節）を指すので、条件は対象決定より前に評価される盤面状態＝
+        //     `CONDITIONAL{then: 昇格動詞, else: base}` と挙動同値になる（どちらの枝も対象選択は1回）。
+        //     🔴従来はこの形が丸ごと落ちて**別ステップとして残り**、主語のない「それを〜する」が
+        //       `owner:'self'` へ反転していた＝**自分のシグニをバニッシュ/バウンス**する実バグ
+        //       （`WX08-028-BURST`／`WX09-Re01-E2`／`WX25-P3-014-E1`）。ほかは `UNKNOWN` や
+        //       無関係 STUB へ落ちて昇格が no-op（`WX06-024-BURST`／`WXK08-030-E1`／`WXEX1-38-E2`）。
+        //     直し方＝**prevRaw の対象節を前置して再パース**して先行詞を復元し、さらに得られた
+        //     action の対象を**base の対象で上書き**する（再パースが独自にフィルタを引き当てて
+        //     選択空間がずれるのを防ぐ＝(b)(c) の「base を複製して差分だけ差し替える」と同じ考え方）。
+        if (perTarget) {
+          const tgtKeyOf = (a: EffectAction): 'target' | 'source' | null => {
+            const o = a as unknown as Record<string, unknown>;
+            if (o.target && typeof o.target === 'object') return 'target';
+            if (o.source && typeof o.source === 'object') return 'source';
+            return null;
+          };
+          const baseKey = tgtKeyOf(baseCore);
+          const prefixM = prevRaw.match(/^((?:あなた|対戦相手)の[^。「」]*?を?対象とし、)/);
+          if (baseKey && prefixM) {
+            const then = parseSingleSentence(prefixM[1] + enhancedText);
+            const thenKey = tgtKeyOf(then);
+            // 昇格先が**別の対象を選び直す**形（対象節を無視して独自 target を作った等）は据置＝
+            // 対象キーが取れないアクション（DRAW 等）へ縮退したものも弾く。
+            if (thenKey && !JSON.stringify(then).includes('"UNKNOWN"') && then.type !== coreOf(base).type) {
+              (then as unknown as Record<string, unknown>)[thenKey] =
+                JSON.parse(JSON.stringify((baseCore as unknown as Record<string, unknown>)[baseKey]));
+              steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
+              continue;
+            }
+          }
+        }
         if (!perTarget) {
           const then = parseSingleSentence(enhancedText);
           if (!JSON.stringify(then).includes('"UNKNOWN"') && coreOf(base).type === 'BOUNCE'
