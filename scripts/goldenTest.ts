@@ -59,6 +59,8 @@ import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
+import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
+interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onExistingStack: boolean; fieldCountAdjust: number }
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
@@ -11647,6 +11649,80 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
+// ══════════════ 配置制限（DEPLOY_RESTRICT）の共通ゲート（続き405・PLAN §6.4）══════════════
+// 「シグニをN体までしか場に出すことができない」「パワーN以上のシグニを新たに場に出せない」は
+// 旧実装だと**通常召喚UI／CPU召喚の3箇所にしか無く**、engine の効果配置（execAddToField ほか）が
+// 全部すり抜けていた。判定は engine/deployLimit.ts に一本化してある。
+test('配置制限ゲート: 配置数上限（フラグ版）は体数で弾き、ライズ（上乗せ）は対象外（続き405）', () => withSavedCursor(() => {
+  const target = fresh();
+  const reason = (o: Partial<DeployLimitTestOpts> = {}) => deployLimitBlockReason({
+    placingState: o.placingState ?? { ...mkState({ signi: [SIGNI, SIGNI_P3000, null] }), signi_deploy_count_limit: 2 },
+    opponentState: mkState({}), cardNum: o.cardNum ?? target,
+    cardMap: cardMap as Map<string, CardData>,
+    onExistingStack: o.onExistingStack, fieldCountAdjust: o.fieldCountAdjust,
+  });
+  eq(reason(), 'COUNT_LIMIT', '上限2・場に2体＝新規配置不可');
+  eq(reason({ onExistingStack: true }), null, 'ライズ（上乗せ）は体数が増えないので対象外');
+  eq(reason({ fieldCountAdjust: 1 }), null, '同時に場から1体払うなら配置可');
+  eq(reason({ placingState: { ...mkState({ signi: [SIGNI, null, null] }), signi_deploy_count_limit: 2 } }), null, '場が1体なら配置可');
+  eq(reason({ placingState: mkState({ signi: [SIGNI, SIGNI_P3000, null] }) }), null, '制限なしなら配置可');
+}));
+test('配置制限ゲート: パワー上限はライズにも適用される（続き405）', () => withSavedCursor(() => {
+  const base = { ...mkState({ signi: [null, null, null] }), signi_deploy_power_limit: 12000 };
+  const reason = (num: string, onExistingStack = false) => deployLimitBlockReason({
+    placingState: base, opponentState: mkState({}), cardNum: num,
+    cardMap: cardMap as Map<string, CardData>, onExistingStack,
+  });
+  eq(reason(SIGNI_P12000), 'POWER_LIMIT', 'パワー12000は上限12000「以上」で不可');
+  eq(reason(SIGNI_P3000), null, 'パワー3000は可');
+  // 原文は「パワーN以上のシグニを新たに場に出せない」＝ライズも場に出す行為なので適用する
+  eq(reason(SIGNI_P12000, true), 'POWER_LIMIT', 'ライズでもパワー制限は掛かる');
+}));
+test('配置制限ゲート: CONTINUOUS版（WX07-006）は相手場から自分の配置数を縛る（続き405）', () => withSavedCursor(() => {
+  const opWithSatan = mkState({ signi: ['WX07-006', null, null] });
+  const cap = (placing: PlayerState) => deployCountCap({
+    placingState: placing, opponentState: opWithSatan,
+    cardMap: cardMap as Map<string, CardData>, effectsMap, isPlacingOwnerTurn: true,
+  });
+  eq(cap(mkState({})), 2, '「対戦相手はシグニを2体までしか場に出せない」を読む');
+  // AUTO フラグ版との小さい方を採る
+  eq(cap({ ...mkState({}), signi_deploy_count_limit: 1 }), 1, 'フラグ1とCONT2なら1');
+  eq(deployCountCap({
+    placingState: mkState({}), opponentState: mkState({}),
+    cardMap: cardMap as Map<string, CardData>, effectsMap, isPlacingOwnerTurn: true,
+  }), undefined, '該当カードが無ければ制限なし');
+}));
+test('配置制限ゲート: engine の効果配置（execAddToField）が上限を守る（続き405）', () => withSavedCursor(() => {
+  const revive = fresh();
+  const place = (opts: { cap?: number; signi: (string | null)[] }) => {
+    const ctx = mkCtx({ signi: opts.signi, trash: 0 }, {});
+    ctx.ownerState = { ...ctx.ownerState, trash: [revive], ...(opts.cap !== undefined ? { signi_deploy_count_limit: opts.cap } : {}) };
+    const r = run({ type: 'ADD_TO_FIELD', owner: 'self',
+      source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+    return (r.ownerState as PlayerState).field.signi.some(z => z?.includes(revive));
+  };
+  eq(place({ cap: 2, signi: [SIGNI, SIGNI_P3000, null] }), false, '上限2・場に2体＝効果でも場に出せない');
+  eq(place({ cap: 2, signi: [SIGNI, null, null] }), true, '上限2・場に1体＝効果で場に出せる');
+  eq(place({ signi: [SIGNI, SIGNI_P3000, null] }), true, '制限なしなら従来どおり場に出る');
+}));
+test('配置制限ゲート: engine のパワー上限も効果配置に効く（続き405）', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [null, null, null], trash: 0 }, {});
+  ctx.ownerState = { ...ctx.ownerState, trash: [SIGNI_P12000], signi_deploy_power_limit: 12000 };
+  const r = run({ type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+  eq((r.ownerState as PlayerState).field.signi.some(z => z?.includes(SIGNI_P12000)), false, 'パワー上限以上は効果でも場に出せない');
+  eq((r.ownerState as PlayerState).trash.includes(SIGNI_P12000), true, 'トラッシュに残る（カード消失しない）');
+}));
+test('配置制限ゲート: 複数枚配置は1枚ごとに上限を再評価する（続き405）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh();
+  const ctx = mkCtx({ signi: [SIGNI, null, null], trash: 0 }, {});
+  ctx.ownerState = { ...ctx.ownerState, trash: [a, b], signi_deploy_count_limit: 2 };
+  const r = run({ type: 'ADD_TO_FIELD', owner: 'self',
+    source: { type: 'TRASH_CARD', owner: 'self', count: 2, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+  const placed = (r.ownerState as PlayerState).field.signi.filter(z => z && z.length > 0).length;
+  eq(placed, 2, '上限2・場に1体＝2枚指定でも1枚しか出ない（まとめて1回判定だと上限を跨いで置けてしまう）');
+}));
+
 // ══════════════ 付与ストア（GRANT_LRIG_ABILITY の実行結果）の共通走査（続き404・PLAN §6.4）══════════════
 // 付与された【自】は effectsMap に載らず PlayerState の専用ストアにだけ入るため、各コレクタが
 // grantedStore.ts の共通経路を呼ばないと「構造は正しいのに恒久 no-op」になる。

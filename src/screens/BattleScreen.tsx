@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, StackEntry, EffectStack } from '../types';
 import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectDeployCountLimit, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -4471,6 +4471,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // EFFECTIVE_LRIG_LIMIT_GTE（WXDi-P11-010A）は実効リミット計算に effectsMap を要る。
       // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。
       ctx.effectsMap = effectsMap;
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ（isOwnerTurn 確定後に呼ぶ）
       let result = executeEffect(entry.effect, ctx);
       // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
       {
@@ -4831,6 +4832,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap2 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap2, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourceEffectId: pe.effectId, sourcePlacementPending: !!pe.spellPlacement, triggeringCardNum: pe.triggeringCardNum, leftFieldUnderCards: pe.leftFieldUnderCards, triggeringKeyword: pe.triggeringKeyword, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, storedTargetCards: pe.storedTargetCards, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       const inter = pe.interaction;
 
@@ -5098,6 +5100,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap3 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap3, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectZone(zoneIndex, inter, ctx);
@@ -5152,6 +5155,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap5 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap5, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectSigniZone(zoneIndex, inter, ctx);
@@ -5201,6 +5205,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const otherState  = ownerIsHost ? bs.guest_state : bs.host_state;
       const declaredCardMapR = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, bs.active_user_id === pe.sourcePlayerId);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMapR, logs: [], currentPhase: bs.turn_phase ?? undefined, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       const targetState = inter.owner === 'opponent' ? otherState : ownerState;
       // rearrange の skip は恒等配置、swap の skip は候補なし（空配列）として解決する。
       const arrangement = buildRearrangeSigniArrangement(newArrangement, inter.mode, targetState.field.signi);
@@ -5242,6 +5247,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const deckTrashLevel1Nums = collectDeckTrashLevel1Nums(ownerState, otherState, effectsMap);
       const declaredCardMap4 = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, ownerState, otherState), ownerState, otherState, effectsMap, isOwnerTurn);
       const ctx: ExecCtx = { ownerState, otherState, cardMap: declaredCardMap4, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: ctxPowers, sourceCardNum: pe.sourceCardNum, sourcePlacementPending: !!pe.spellPlacement, trapActivated: pe.trapActivated, trapSetOwners: pe.trapSetOwners, allColorSigniNums, fieldSigniExtraColors, treatAsClassAllZones, deckTrashLevel1Nums };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
 
       ctx.isOwnerTurn = bs.active_user_id === pe.sourcePlayerId;
       let result = resumeSelectVirusZone(zoneIndex, inter, ctx);
@@ -6914,6 +6920,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(resolved, nonCasterState, effectsMap);
       const spellDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, resolved, nonCasterState), resolved, nonCasterState, effectsMap, spellIsOwnerTurn);
       const ctx: ExecCtx = { ownerState: resolved, otherState: nonCasterState, cardMap: spellDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: spellPowers, sourceCardNum: card_num, sourcePlacementPending: true, allColorSigniNums: spellAllColorSigniNums, fieldSigniExtraColors: spellExtraColors, deckTrashLevel1Nums: spellDeckTrashLevel1Nums, paidEnergyColorSets: bs.pending_spell.paid_energy_colors, preUseVirusRemoved: bs.pending_spell.pre_use_virus_removed };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       ctx.isOwnerTurn = spellIsOwnerTurn;
       let result = executeEffect(spellEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペル解決後）
@@ -7228,6 +7235,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cutinDeckTrashLevel1Nums = collectDeckTrashLevel1Nums(cutinPaid, newCasterState, effectsMap);
       const cutinDeclaredCardMap = applyContinuousBaseLevelOverride(applyDeclaredZoneClassOverride(battleCardMap, cutinPaid, newCasterState), cutinPaid, newCasterState, effectsMap, cutinIsOwnerTurn);
       const ctx: ExecCtx = { ownerState: cutinPaid, otherState: newCasterState, cardMap: cutinDeclaredCardMap, logs: [], currentPhase: bs.turn_phase ?? undefined, effectivePowers: cutinPowers, sourceCardNum: cutinInstanceId, allColorSigniNums: cutinAllColorSigniNums, fieldSigniExtraColors: cutinExtraColors, deckTrashLevel1Nums: cutinDeckTrashLevel1Nums };
+      fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ
       ctx.isOwnerTurn = cutinIsOwnerTurn;
       let result = executeEffect(cutinEff, ctx);
       result = applyRefreshOnDone(result, battleCardMap); // デッキ0枚→リフレッシュ（スペルカットイン解決後）
