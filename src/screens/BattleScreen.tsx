@@ -1004,8 +1004,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
     return calcContinuousBlockedActions(myS, opS, myTurn, effectsMap, battleCardMap);
-   
+
   }, [bs, effectsMap, battleCardMap, user.id]);
+
+  // DEPLOY_RESTRICT（CONTINUOUS 版・WX07-006 レゾナ等）の配置数上限を ExecCtx へ載せる。
+  // ⚠**ExecCtx を作るところでは必ずこれを呼ぶこと**＝`ctx.effectsMap` はスタック解決の1経路でしか
+  //   代入されないため、engine 側の配置制限を effectsMap 依存にすると「engine は正しいのに実UIでは
+  //   丸ごと効かない」dead flag になる（続き296 と同じ罠）。AUTO フラグ版は PlayerState に載るので不要。
+  const fillDeployCaps = (c: ExecCtx): ExecCtx => {
+    c.deployCountCapSelf = deployCountCap({
+      placingState: c.ownerState, opponentState: c.otherState,
+      cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: c.isOwnerTurn,
+    });
+    c.deployCountCapOpponent = deployCountCap({
+      placingState: c.otherState, opponentState: c.ownerState,
+      cardMap: battleCardMap, effectsMap,
+      isPlacingOwnerTurn: c.isOwnerTurn === undefined ? undefined : !c.isOwnerTurn,
+    });
+    return c;
+  };
 
   // LOSE_COLOR_ALL_ZONES: チームルリグ3体未満→全ゾーン色喪失カードのリスト
   const myColorlessOverrides = useMemo(() => {
