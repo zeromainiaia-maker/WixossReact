@@ -1,5 +1,5 @@
 import type { PlayerState } from '../types';
-import type { CardEffect, TriggerScope, TimingType } from '../types/effects';
+import type { CardEffect, TriggerScope, EffectTiming } from '../types/effects';
 
 /**
  * 付与ストア（＝実行時に「あなたのセンタールリグは『【自】…』を得る」で積まれた能力）の共通走査。
@@ -38,7 +38,7 @@ export interface GrantedStoreWatcher {
  */
 export function grantedStoreWatchers(
   state: PlayerState,
-  timing: TimingType,
+  timing: EffectTiming,
   scopes: readonly TriggerScope[],
 ): GrantedStoreWatcher[] {
   const lrigTop = state.field.lrig.at(-1) ?? '';

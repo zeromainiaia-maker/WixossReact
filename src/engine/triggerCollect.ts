@@ -3422,6 +3422,16 @@ export function collectFieldTriggers(
   const myAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(myState, opState, isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap, '自');
   const opAbilitiesRemoved = collectContinuousAbilitiesRemovedSigni(opState, myState, !isOwnerTurnForTrigger, ctx.effectsMap, ctx.cardMap, '自');
 
+  // センタールリグ watcher の能力列には、effectsMap に載らない**付与ストア**を合流させる
+  // （`grantedStore.ts` 参照）。これを外すと「ターン終了時まで、このルリグは『【自】あなたのシグニが
+  // 場に出たとき…』を得る」（WDK12-001-E3）や ON_ATTACK_SIGNI any_opp の付与（WX15-016-E1 ほか7件）が
+  // 構造は正しいまま恒久 no-op になる。scope の絞りは各ループ側の既存ゲートがそのまま担う。
+  const watcherEffects = (state: PlayerState, topNum: string, isLrig: boolean): CardEffect[] => {
+    const printed = ctx.effectsMap.get(topNum) ?? [];
+    if (!isLrig) return printed;
+    return [...printed, ...grantedStoreWatchers(state, event, ['any_ally', 'any_opp', 'any']).map(w => w.effect)];
+  };
+
   // 自分のフィールド：'any_ally' または 'any' トリガー。ON_PLAY ではルリグも監視対象。
   const ownAutoBlocked = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   const allyWatchers: { topNum: string; isLrig: boolean; fromTrash?: boolean }[] = [];
