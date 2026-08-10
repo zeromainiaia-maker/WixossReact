@@ -2,9 +2,9 @@
  * goldenTypeCoverage.ts — DSLアクション型の golden カバレッジ計器（PLAN §6.4「golden の型網羅」）
  *
  * `EffectAction` union の各メンバが持つ `type: 'FOO'` リテラルを列挙し、
- * **`scripts/goldenTest.ts` の中にその型リテラルが1度も現れない型**＝未カバーとして報告する。
+ * **`scripts/goldenTest.ts` の中に型名が1度も現れない型**＝未カバーとして報告する。
  *
- * ⚠これは「型ごとに1テストある」ことの近似（リテラル出現の有無）であって、テストの中身は見ない。
+ * ⚠これは「型ごとに1テストある」ことの近似（型名の出現の有無）であって、テストの中身は見ない。
  *   それでも **「新しいアクション型を足したのに golden を1件も書いていない」は確実に捕まる**＝
  *   型が増えるたびに無検証の実装が積み上がるのを防ぐのが目的。
  *
@@ -70,7 +70,7 @@ for (const [card, effects] of Object.entries(live)) {
   }
 }
 
-const missing = allTypes.filter(t => !covered.has(t));
+const missing = allTypes.filter(t => !isCovered(t));
 const missingLive = missing.filter(t => (liveCount.get(t) ?? 0) > 0);
 
 console.log('===== golden 型カバレッジ =====');
