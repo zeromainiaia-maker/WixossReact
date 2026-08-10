@@ -40,6 +40,10 @@ for (const s of SHEETS) {
         liveCount.set(rec.id, (liveCount.get(rec.id) ?? 0) + 1);
         if (!liveCards.has(rec.id)) liveCards.set(rec.id, new Set());
         liveCards.get(rec.id)!.add(cardNum);
+        if (!livePayloadKeys.has(rec.id)) livePayloadKeys.set(rec.id, new Set());
+        for (const k of Object.keys(rec)) {
+          if (k !== 'type' && k !== 'id' && k !== 'rawText') livePayloadKeys.get(rec.id)!.add(k);
+        }
       }
       for (const v of Object.values(rec)) walk(v);
     };
