@@ -216,7 +216,7 @@ export function PhaseConfirmDialogs(p: PhaseConfirmDialogsProps) {
               ⚠ アタックしなければなりません
             </p>
             <p style={{ color: C.textDim, fontSize: 13, margin: '0 0 20px', lineHeight: 1.6 }}>
-              {my.must_attack_infected_only
+              {forcedAttack.infectedOnly
                 ? '感染状態のシグニは可能ならばアタックしなければなりません。'
                 : 'あなたのシグニは可能ならばアタックしなければなりません。'}
               <br />
