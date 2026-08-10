@@ -4104,7 +4104,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             action: {
               type: 'SEQUENCE',
               steps: [
-                { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 1 } },
+                // 原文「手札を１枚捨ててもよい」＝任意コスト（続き416）。素の TRASH だと強制で捨てさせ、
+                // かつ「そうした場合」ゲートが常時成立する。
+                { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1 } },
                 { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } },
               ],
             } as SequenceAction,
