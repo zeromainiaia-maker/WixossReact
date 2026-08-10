@@ -1178,9 +1178,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   が「対戦相手が手札をN枚捨てないかぎり」用に生成する）＝**parser が生成していなかっただけ**。
   // ⚠**「まで」は除外**＝`OPPONENT_PAY_OPTIONAL` は all-or-nothing の pay/skip なので、
   //   「N枚まで捨ててもよい」（捨てた枚数に比例する帰結を持つ）は表せない（`WXDi-P09-064` は MANUAL）。
-  if (/^対戦相手は/.test(t) && /てもよい/.test(t) && !/まで/.test(t)) {
-    const costColors = extractCostColors(t);
-    const handM = t.match(/手札を([０-９\d]+)枚捨て/);
+  // ⚠主語判定は**最後の読点以降の節**で見る（前置きの条件節を巻き込まないため。part1 の除外と同じ軸）。
+  const oppPayClause = t.slice(t.lastIndexOf('、') + 1);
+  if (/^対戦相手は/.test(oppPayClause) && /てもよい/.test(oppPayClause) && !/まで/.test(oppPayClause)) {
+    const costColors = extractCostColors(oppPayClause);
+    const handM = oppPayClause.match(/手札を([０-９\d]+)枚捨て/);
     if (costColors.length > 0 || handM) {
       return {
         type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL',
