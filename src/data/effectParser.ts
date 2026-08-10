@@ -5372,6 +5372,71 @@ function applyDroppedEnergyDesignation(text: string, action: EffectAction): Effe
   return { ...action, steps } as EffectAction;
 }
 
+// ── §6.4 「〈任意コスト〉てもよい。そうした場合、〈本体〉」の**任意性脱落**（続き416）──
+// 原文の「てもよい」が parser で落ち、コスト（手札を捨てる等）が **強制** になっていた系統
+// （`node scripts/_checkAllEffects.mjs` の `MANDATORY_SUSPICIOUS` 実測35カード。手札捨てが最大クラスタ）。
+// engine の正準形は `SEQUENCE[STUB{OPTIONAL_COST,<spec>}, CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST, …}]`
+// ＝MANUAL 多数で実証済み（effectExecutor Pattern ③/④/⑤）。
+//
+// ⚠**支払い枝は変換前と等価**＝`optionalCostPaySteps` が同じ `TRASH{HAND_CARD,asCost}` を再生成するので、
+//   増えるのは「スキップ」枝だけ。ここを `mandatory:false` で表してはいけない（ON_PLAY 以外では engine が
+//   mandatory を読まず、ON_PLAY では**コスト無し mandatory:false が収集フィルタの穴**に落ちて無発火になる）。
+// ⚠`upToCount:true`（0枚まで選べる）では代用にならない＝0枚でも後続の「そうした場合」ゲートが通り、
+//   **コストを払わずに本体が撃てる**（WXK08-052 系の実バグ）。任意性は STUB の pay/skip 分岐で表す。
+const OPTIONAL_HAND_DISCARD_RE = /^(?:あなたの)?手札(?:から)?(.{0,30}?)を?([０-９\d]+)枚(?:を)?捨ててもよい$/;
+
+/** 既に任意コスト STUB を持つ形（＝別経路で表現済み）は触らない。 */
+function hasOptionalCostStub(action: EffectAction): boolean {
+  return ['OPTIONAL_COST', 'OPTIONAL_ACTIVATE', 'OPTIONAL_TRASH_ENERGY_CLASS', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST']
+    .some(id => JSON.stringify(action).includes(`"${id}"`));
+}
+
+/** 自分の手札を捨てるステップ（素／else なし CONDITIONAL 包み）か。包みの中身も返す。 */
+function selfHandDiscardStep(step: EffectAction | undefined): import('../types/effects').TrashAction | null {
+  const core = coreOfCondWrap(step);
+  if (core?.type !== 'TRASH') return null;
+  const t = core as import('../types/effects').TrashAction;
+  if (t.asCost) return null;                                  // 既にコスト扱い
+  if (t.target?.type !== 'HAND_CARD' || t.target.owner !== 'self') return null;
+  if (typeof t.target.count !== 'number') return null;
+  return t;
+}
+
+function applyOptionalHandDiscardCost(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  if (hasOptionalCostStub(action)) return action;
+  // 原文で「手札をN枚捨ててもよい」が**最初の手札捨て**である文型だけを扱う（前段に強制の手札捨てが
+  // あると step との対応が崩れ、強制側を任意に化けさせる）。
+  const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
+  const idx = sentences.findIndex(s => /手札[^。]{0,34}捨て/.test(s));
+  if (idx < 0) return action;
+  const sent = sentences[idx];
+  // 「対戦相手は手札を…捨ててもよい」＝相手の手札＝別物（step の owner:self とも噛み合わない）
+  if (/対戦相手[はの][^。]*手札/.test(sent)) return action;
+  // 対象宣言などの前置き節を落として「手札から〜捨ててもよい」本体だけを見る
+  const clause = sent.slice(sent.lastIndexOf('、') + 1);
+  const m = clause.match(OPTIONAL_HAND_DISCARD_RE);
+  if (!m) return action;
+  const count = parseNum(m[2]);
+  const steps = [...(action as SequenceAction).steps];
+  const hit = steps.findIndex(s => {
+    const t = selfHandDiscardStep(s);
+    return !!t && t.target!.count === count;
+  });
+  if (hit < 0) return action;
+  const trash = selfHandDiscardStep(steps[hit])!;
+  const stub: StubAction = {
+    type: 'STUB', id: 'OPTIONAL_COST',
+    handDiscard: { count, ...(trash.target!.filter ? { filter: trash.target!.filter } : {}) },
+  } as StubAction;
+  // 包み形（CONDITIONAL{ゲート, then: コスト}）は executor が解いて Pattern ④/⑤ へ委譲するので保つ。
+  const wrapped = steps[hit];
+  steps[hit] = wrapped?.type === 'CONDITIONAL' && !(wrapped as import('../types/effects').ConditionalAction).else
+    ? { ...(wrapped as import('../types/effects').ConditionalAction), then: stub } as EffectAction
+    : stub;
+  return { ...action, steps } as EffectAction;
+}
+
 function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (TARGET_LEVEL_SCALE_RE.test(text)) return action;              // (liii) の領分
