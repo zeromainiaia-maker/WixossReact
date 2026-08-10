@@ -183,7 +183,9 @@ function payloadConsumers(id: string): Ref[] {
     if ((keyToIds.get(k)?.size ?? 99) > 2) continue; // 専用キーだけを根拠にする
     for (const c of consumerCode) {
       if (!/\bstub\b|\bact\b|\baction\b|'STUB'/.test(c.text)) continue; // STUB 文脈の行だけ
-      if (new RegExp(`\\.${k}\\b`).test(c.text) && !new RegExp(`\\b${k}\\??\\s*:`).test(c.text)) {
+      // ⚠`k` の直後のコロンを型宣言とみなして落とすと三項演算子（`? act.powerModifyProtection : undefined`）まで
+      //   落ちる＝型宣言は `src/types/` を丸ごと除外して扱う（consumerCode 構築側）。
+      if (new RegExp(`\\.${k}\\b`).test(c.text)) {
         hits.push({ file: c.file, line: c.line, text: c.text.slice(0, 160), comment: false });
       }
     }
