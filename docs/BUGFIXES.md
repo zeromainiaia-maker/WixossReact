@@ -1,5 +1,59 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — 幻の手札コスト 第2波＋自分が入れた死フィールドの回収（続き422）
+
+golden **1766→1769**、census **854 据置**、ゲート全緑・同型★0（265群）。**幻の手札コスト 3→1件**。
+
+### ⚠ まず、続き421 の引き継ぎの見立ては外れていた
+
+「残19件は【起】のコスト行＝対象外の見込み」と書いたが、**実測すると「B 【起】コスト行のみ」は0件**。
+実際は **A 本文に手札捨てあり17件／C 原文に手札捨てが一切無い（=幻）3件**。
+⑦の教訓（引き継ぎの見積もりは着手前に実測し直す）が2回連続で当たった。
+
+### 🔴 自分が続き421 で入れた `underAnySigniTrash.filter` は死フィールドだった
+
+`OptionalCostSpec` は **JSON payload 用（`src/types/effects.ts`）と解決後の runtime 用
+（`src/engine/execUtils.ts`）で別々に宣言**されている。続き421 は parser 側で
+`as StubAction` キャストして filter を書き込んでいたため、**型にも存在せず**
+`optionalCostPaySteps` / `canAffordOptionalCostSpec` の**どちらも見ていなかった**。
+しかも逆翻訳には出るので「実装済みに見える」＝`census:stubs` の C群（表示だけの穴）そのもの。
+
+直し方＝**両方の型にキーを足し**、`optionalCostPaySteps` は `TAKE_FROM_UNDER_SIGNI` へ filter を渡し
+（`execTakeFromUnderSigni` は元から filter を honor する）、`canAffordOptionalCostSpec` は
+**一致する下カードだけを数える**（数えないと払えない盤面で「支払う」が出る）。
+
+⭐**golden は構造ではなく「支払い可否（runtime）」で固定した**＝構造アサートでは死フィールドを検出できない。
+
+### 幻の手札コスト 残3件の処理
+
+| 効果 | 原文のコスト | 対応 |
+|---|---|---|
+| `WX25-P1-096-E1` | エナから**共通するクラスを持たない**シグニ2枚 | `energyTrash{count:2, selectionConstraint:{distinct:'class'}}`（filter では表せないが制約なら表せる） |
+| `WXDi-P14-060-E1` | （コストではない）**あなたはそのカードを捨てさせてもよい** | 🔴下記 |
+| `WX25-CP1-092-E1` | 対象1体**につき**エナ1枚 | **据置**（比例コスト＝表現不能。下記） |
+
+🔴**`WXDi-P14-060-E1` は真逆の効果になっていた**＝原文は「相手の手札を1枚公開 → **捨てさせてもよい**
+→ そうした場合、相手が1枚引く」なのに、live は**自分の手札が1枚落ちたうえで相手が1枚引く**。
+正準形＝`REVEAL_OPP_HAND_CARD` → `OPTIONAL_ACTIVATE`（辞退で以降ごとスキップ）→ 相手手札の破棄。
+⚠**公開した「そのカード」には固定できない**（`execTrash` の HAND_CARD は `targetsLastProcessed` を
+見ない）ので `blind:true`＝相手手札からランダム1枚で近似。公開自体もランダム（`REVEAL_OPP_HAND_CARD`）
+なので実質差は小さいが、**厳密には別カードが落ちうる**。
+
+### 逆翻訳（計器）の穴を2つ塞いだ
+
+- `energyTrash.selectionConstraint` が出ておらず「エナゾーンからシグニ2枚」＝**制約の有無が読めなかった**。
+- `OPTIONAL_ACTIVATE` が生 id `[STUB:OPTIONAL_ACTIVATE]` のまま漏れて**何が任意なのか読めなかった**。
+
+続き421 の `energyTrash` 未描画と同じクラス＝**新しい payload キーを足したら逆翻訳も併せて足す**。
+
+### 残1件（登録のみ）
+
+`WX25-CP1-092-E1`＝「対戦相手のシグニを**３体まで**対象とし、**それらのシグニ１体につき**エナから
+＜ブルアカ＞1枚」。**比例コストを表す語彙が無い**うえ、本体も `POWER_MODIFY{owner:'any', count:1}` で
+**3体まで／それら が落ちている**＝コストだけ直しても正しくならない。`OptionalCostSpec` の
+per-target-count 倍率（`energyTrashCountFromTargetLevel` の枚数版）と併せて1件で扱う。
+
+
 ## 2026-08-10 — 🔴 幻の手札コスト＝原文と違うコストが徴収されていた（続き421）
 
 golden **1764→1766**、census **854 据置**、ゲート全緑・同型★0（265群）。**16効果**を是正。

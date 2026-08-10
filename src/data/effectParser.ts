@@ -10,6 +10,7 @@ import type {
   EffectDuration,
   ActiveCondition,
   TargetFilter,
+  SelectionConstraint,
   CardTypeFilter,
   EffectTarget,
   Owner,
@@ -5505,9 +5506,17 @@ const TADH_ENERGY_COST_RE = /(?:あなたの)?エナゾーンから(.{0,40}?)を
 const TADH_SELF_TRASH_RE = /この(?:シグニ|カード)を場からトラッシュに置いてもよい$/;
 const TADH_UNDER_COST_RE = /このシグニの下から(.{0,30}?)を?([０-９\d]+)枚を?トラッシュに置いて?もよい$/;
 
-/** エナ／下カードのコスト名詞句を TargetFilter へ。表現できない修飾が残れば null（＝変換しない）。 */
-function costSpecFilter(spec: string): TargetFilter | null {
-  if (/好きな枚数|合計|につき|共通|それぞれ/.test(spec)) return null;
+/**
+ * エナ／下カードのコスト名詞句を TargetFilter（＋選択制約）へ。表現できない修飾が残れば null（＝変換しない）。
+ * 「共通するクラスを持たない」は filter では表せないが `SelectionConstraint{distinct:'class'}` で表せるので
+ * 分けて返す（`OptionalCostSpec.energyTrash.selectionConstraint` が受ける・続き422）。
+ */
+function costSpecFilter(spec: string): { filter: TargetFilter; constraint?: SelectionConstraint } | null {
+  // 「共通するクラスを持たない」＝選んだN枚が互いに異クラス。これだけは制約として表せる。
+  const distinctClass = /共通するクラスを持たない/.test(spec);
+  const spec0 = spec.replace(/共通するクラスを持たない/g, '');
+  if (/好きな枚数|合計|につき|共通|それぞれ/.test(spec0)) return null;
+  spec = spec0;
   const filter: TargetFilter = {
     ...(spec.includes('シグニ') ? { cardType: 'シグニ' as const } : {}),
     ...parseColorFilter(spec),
@@ -5521,7 +5530,7 @@ function costSpecFilter(spec: string): TargetFilter | null {
     .replace(/レベル[０-９\d]+/g, '')
     .replace(/シグニ|カード|[の,、か]/g, '').replace(/[白赤青緑黒無]色?/g, '').trim();
   if (rest.length > 0) return null;
-  return filter;
+  return { filter, ...(distinctClass ? { constraint: { distinct: 'class' as const } } : {}) };
 }
 
 function applyTargetAndDiscardHandCost(text: string, action: EffectAction): EffectAction {
@@ -5540,6 +5549,20 @@ function applyTargetAndDiscardHandCost(text: string, action: EffectAction): Effe
       ? stub
       : { ...(wrapped as import('../types/effects').ConditionalAction), then: stub } as EffectAction;
   };
+
+  // 🔴「あなたはそのカードを捨てさせてもよい」＝**相手に捨てさせる**（自分のコストではない）。
+  //   `WXDi-P14-060-E1` は「相手の手札を1枚公開 → 捨てさせてもよい → そうした場合 相手が1枚引く」なのに、
+  //   **自分の手札が1枚落ちたうえで相手が1枚引く**という真逆の効果になっていた。
+  //   正準形＝`OPTIONAL_ACTIVATE`（辞退で以降のステップごとスキップ＝Pattern⑤）＋相手手札の破棄。
+  //   ⚠**公開した「そのカード」に固定はできない**（`execTrash` の HAND_CARD は `targetsLastProcessed` を
+  //     見ない）ので `blind:true`＝相手手札からランダム1枚で近似する。公開自体もランダム選択
+  //     （`REVEAL_OPP_HAND_CARD`）なので実質差は小さいが、**厳密には別カードが落ちうる**。
+  if (/そのカードを捨てさせてもよい/.test(text) && isTadh(wrapped)) {
+    steps.splice(hit, 1,
+      { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as EffectAction,
+      { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1, blind: true } } as EffectAction);
+    return { ...action, steps } as EffectAction;
+  }
 
   const sentences = text.split('。').map(x => x.trim()).filter(Boolean);
   // ⚠主語が対戦相手の節（「対戦相手は手札を１枚捨てる」）は**相手の手札**の話＝自分の任意コストにしない。
@@ -5565,17 +5588,19 @@ function applyTargetAndDiscardHandCost(text: string, action: EffectAction): Effe
     const selfTrash = clauses.some(c => TADH_SELF_TRASH_RE.test(c));
     if (en) {
       const m = en.match(TADH_ENERGY_COST_RE)!;
-      const filter = costSpecFilter(m[1]);
-      if (filter === null) return action;
+      const cs = costSpecFilter(m[1]);
+      if (cs === null) return action;
       setCost({ type: 'STUB', id: 'OPTIONAL_COST',
-        energyTrash: { count: parseNum(m[2]), ...(Object.keys(filter).length ? { filter } : {}) } } as StubAction);
+        energyTrash: { count: parseNum(m[2]),
+          ...(Object.keys(cs.filter).length ? { filter: cs.filter } : {}),
+          ...(cs.constraint ? { selectionConstraint: cs.constraint } : {}) } } as StubAction);
     } else if (under) {
       const m = under.match(TADH_UNDER_COST_RE)!;
-      const filter = costSpecFilter(m[1]);
-      if (filter === null) return action;
+      const cs = costSpecFilter(m[1]);
+      if (cs === null) return action;
       setCost({ type: 'STUB', id: 'OPTIONAL_COST',
         underAnySigniTrash: { count: parseNum(m[2]), fromThis: true,
-          ...(Object.keys(filter).length ? { filter } : {}) } } as StubAction);
+          ...(Object.keys(cs.filter).length ? { filter: cs.filter } : {}) } } as StubAction);
     } else if (selfTrash) {
       // 「このシグニを場からトラッシュに置いてもよい」＝別途 `OPTIONAL_TRASH_SELF` が既に出ている
       // （`WX06-CB01-E1`＝2ステップ並んでいた）。**幻のほうを消す**だけでよい。

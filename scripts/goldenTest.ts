@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
-import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy } from '../src/engine/execUtils';
+import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -29733,6 +29733,52 @@ test('§6.4 幻の手札コスト・据置: 対象数に比例するコストは
   ok(!!e, 'WX25-CP1-092-E1 が存在する');
   ok(JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'),
      '「それらのシグニ１体につきエナから１枚」＝比例コストなので据置（固定 count:1 に潰さない）');
+});
+
+// ── §6.4 幻の手札コスト 第2波（2026-08-10・続き422）────────────────────────────────────────
+// 🔴**自分が続き421 で入れた `underAnySigniTrash.filter` は「死フィールド」だった**＝
+//   `OptionalCostSpec` が **JSON payload 用（types/effects.ts）と解決後の runtime 用（execUtils.ts）で
+//   別々に宣言**されており、片方にキーを足しても `resolveOptionalCostSpec` が落として黙って無視する。
+//   しかも逆翻訳には出るので「実装済みに見える」＝`census:stubs` の C群（表示だけの穴）そのものだった。
+// ここは**構造ではなく支払い可否（runtime）**で固定する（構造アサートでは死フィールドを検出できない）。
+test('§6.4 underAnySigniTrash.filter が実際に効く（死フィールドでない）', () => {
+  const host = SIGNI, red = findCard(c => isSigni(c) && (c.Color ?? '').includes('赤'));
+  const notRed = findCard(c => isSigni(c) && !(c.Color ?? '').includes('赤'));
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST',
+    underAnySigniTrash: { count: 1, fromThis: true, filter: { cardType: 'シグニ', color: '赤' } } } as unknown as Parameters<typeof resolveOptionalCostSpec>[0];
+  const canPay = (under: string) => {
+    const c = mkCtx({}, {}, host);
+    c.ownerState.field.signi = [[under, host], null, null];
+    return canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, c), c);
+  };
+  ok(canPay(red), '下が赤のシグニなら支払える');
+  ok(!canPay(notRed), '🔴下が赤でなければ支払えない（filter を無視すると true になる）');
+});
+
+// 「共通するクラスを持たないシグニ２枚」＝filter では表せないが SelectionConstraint{distinct:'class'} で表せる。
+// これを落とすと**同クラス2枚でも払えて**しまう（原文より緩い）。
+test('§6.4 幻の手札コスト: 共通クラス制約つきエナコスト（WX25-P1-096-E1）', () => {
+  const e = effectsMap.get('WX25-P1-096')?.find(x => x.effectId === 'WX25-P1-096-E1');
+  ok(!!e, 'WX25-P1-096-E1 が存在する');
+  ok(!JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'), '🔴 幻の手札コストが消えている');
+  const st = (e!.action as unknown as { steps: Array<{ id?: string; energyTrash?: { count: number; selectionConstraint?: { distinct?: string } } }> }).steps[0];
+  eq(st.id, 'OPTIONAL_COST', '任意コストになっている');
+  eq(st.energyTrash?.count, 2, 'エナから2枚');
+  eq(st.energyTrash?.selectionConstraint?.distinct, 'class', '「共通するクラスを持たない」＝異クラス制約');
+});
+
+// 🔴「あなたはそのカードを捨てさせてもよい」＝**相手に捨てさせる**。従来は自分の手札が落ちたうえで
+//   相手が1枚引く＝真逆の効果だった（`WXDi-P14-060-E1`）。
+test('§6.4 捨てさせる向き: 損失は対戦相手側（WXDi-P14-060-E1）', () => {
+  const e = effectsMap.get('WXDi-P14-060')?.find(x => x.effectId === 'WXDi-P14-060-E1');
+  ok(!!e, 'WXDi-P14-060-E1 が存在する');
+  const steps = (e!.action as unknown as { steps: Array<{ type: string; id?: string; target?: { type?: string; owner?: string }; then?: { owner?: string } }> }).steps;
+  eq(steps[0]?.id, 'REVEAL_OPP_HAND_CARD', '①相手の手札を1枚公開');
+  eq(steps[1]?.id, 'OPTIONAL_ACTIVATE', '②「捨てさせてもよい」＝辞退できる（辞退なら以降ごとスキップ）');
+  eq(steps[2]?.type, 'TRASH', '③捨てさせる');
+  eq(steps[2]?.target?.type, 'HAND_CARD', '③手札を');
+  eq(steps[2]?.target?.owner, 'opponent', '🔴③対戦相手の手札（旧実装は自分の手札を捨てていた）');
+  eq(steps[3]?.then?.owner, 'opponent', '④そうした場合、対戦相手が1枚引く');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

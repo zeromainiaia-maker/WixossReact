@@ -164,7 +164,9 @@ export interface OptionalCostSpec {
   handDiscard?: { count: number; filter?: TargetFilter };
   handToEnergy?: { count: number; filter?: TargetFilter };
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
-  underAnySigniTrash?: { count: number; fromThis?: boolean };
+  // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
+  //   片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される（続き422 で実際に踏んだ）。
+  underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
   energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
@@ -264,9 +266,12 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.underAnySigniTrash) {
     // fromThis＝「このシグニの下から」＝効果元スタックの下だけを数える（全シグニで数えると
     // **他のシグニの下のカードで払えてしまう**＝原文より緩い）。
+    // ⚠filter 指定時は**一致する下カードだけ**を数える（数えないと払えない盤面で「支払う」が出る）
+    const uFil = spec.underAnySigniTrash.filter;
+    const uMatch = (cn: string) => !uFil || matchesFilter(ctx.cardMap.get(getCardNum(cn)), uFil);
     const underCount = spec.underAnySigniTrash.fromThis
-      ? (ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? ''))?.length ?? 1) - 1
-      : underAnySigniCostCandidates(ctx.ownerState).length;
+      ? ((ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? '')) ?? []).slice(0, -1).filter(uMatch).length)
+      : underAnySigniCostCandidates(ctx.ownerState).filter(c => uMatch(c.cardNum)).length;
     if (underCount < spec.underAnySigniTrash.count) return false;
   }
   if (spec.fieldTrash) {
@@ -355,6 +360,9 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash',
       count: spec.underAnySigniTrash.count, upToCount: false,
       ...(spec.underAnySigniTrash.fromThis ? { fromThis: true } : {}),
+      // ⚠filter を渡さないと `execTakeFromUnderSigni` が**下のどのカードでも払える**（原文より緩い）。
+      //   続き421 で「赤のシグニ1枚」等の絞り込みを parser が載せ始めたので、ここで受ける（続き422）。
+      ...(spec.underAnySigniTrash.filter ? { filter: spec.underAnySigniTrash.filter } : {}),
     } as EffectAction] : []),
     ...(spec.fieldTrash ? [{
       type: 'TRASH', asCost: true,

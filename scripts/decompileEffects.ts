@@ -1838,7 +1838,13 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.energyTrash) {
           const fET = a.energyTrash.filter ? filterJa(a.energyTrash.filter) : '';
           const nounET = ([] as string[]).concat(a.energyTrash.filter?.cardType ?? 'カード').join('か');
-          return `${headOC}あなたのエナゾーンから${fET}${nounET}${a.energyTrash.count}枚をトラッシュに置いてもよい`;
+          // 選択制約（「共通するクラスを持たない」等）も出す＝出さないと原文照合で制約の有無が判定できない
+          const scET = a.energyTrash.selectionConstraint;
+          const cET = scET?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
+            : scET?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
+            : scET?.distinct ? `それぞれ${scET.distinct === 'level' ? 'レベル' : scET.distinct === 'name' ? '名前' : 'クラス'}の異なる`
+            : '';
+          return `${headOC}あなたのエナゾーンから${cET}${fET}${nounET}${a.energyTrash.count}枚をトラッシュに置いてもよい`;
         }
         // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
         if (a.fieldDown) {
@@ -2471,6 +2477,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // 「〜してもよい」の任意性そのものを表す制御 STUB（effectExecutor Pattern⑤）。
+        // 生 id が逆翻訳に漏れると原文照合で「何が任意なのか」が読めない（続き422）。
+        OPTIONAL_ACTIVATE: '次の効果を行ってもよい（行わない場合、以降は実行しない）',
         FACE_DOWN_OPP_SIGNI: '対戦相手のシグニ１体を対象とし、それを裏向きにする',
         SIGNI_FLIP_FACEDOWN: '対象としたシグニを裏向きにする',
         FLIP_FACE_DOWN_SIGNI: 'このターン終了時、この方法で裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする',

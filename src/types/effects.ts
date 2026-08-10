@@ -463,7 +463,10 @@ export interface EffectCost {
   lifeToHand?: number;    // ライフクロス上からN枚を手札に加える
   deckTrash?: number;     // デッキ上からN枚をトラッシュに置く
   underSelfTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint }; // このシグニの下から指定カードN枚をトラッシュに置く（【起】コスト）
-  underAnySigniTrash?: { count: number }; // あなたのシグニの下から合計N枚をトラッシュ（自分の場の全シグニを横断）
+  // あなたのシグニの下から合計N枚をトラッシュ（自分の場の全シグニを横断）。
+  // fromThis＝「このシグニの下」限定（続き417）／filter＝下カードの絞り込み（続き422）。
+  // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること。
+  underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
   trashArtsFromLrigDeck?: { color?: string; count: number }; // ルリグデッキからアーツN枚をトラッシュ（【出】コスト）
@@ -2095,7 +2098,10 @@ export interface StubAction {
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 自分の全シグニの下から合計N枚をトラッシュへ置く任意コスト。`fromThis`＝「**このシグニの**下から」限定。 */
-  underAnySigniTrash?: { count: number; fromThis?: boolean };
+  // filter＝下カードの絞り込み（「このシグニの下から**赤のシグニ**1枚」＝`WXDi-P11-042-E1`）。
+  // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること
+  //   （片方だけだと「払えない盤面で支払うボタンが出る」か「どの下カードでも払える」になる）。
+  underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
