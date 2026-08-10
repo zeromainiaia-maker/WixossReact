@@ -2,7 +2,7 @@
 import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
-import { collectGrowCostReductions } from '../../../engine/effectEngine';
+import { collectGrowCostReductions, resolveForcedSigniAttack } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { applyGrowCostReduction, canAffordGrowCost } from '../costs';
 import type { BattleModalCtx } from './types';
