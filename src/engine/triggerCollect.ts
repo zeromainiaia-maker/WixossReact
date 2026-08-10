@@ -3861,11 +3861,8 @@ export function collectTurnTriggers(
     }
   }
 
-  // 相手ルリグの付与AUTO（lrig_granted_auto_effects: any_opp/any scope）
-  for (const eff of (opState.lrig_granted_auto_effects ?? [])) {
-    if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
-    const scope = eff.triggerScope ?? 'self';
-    if (scope !== 'any_opp' && scope !== 'any') continue;
+  // 相手ルリグの付与AUTO（any_opp/any scope・3ストア横断は `grantedStore.ts` の共通経路）
+  for (const eff of grantedStoreWatchers(opState, timing, ['any_opp', 'any']).map(w => w.effect)) {
     if (!limitOkOp(eff)) continue;
     const opLrigNum = opState.field.lrig.at(-1) ?? '';
     entries.push({
