@@ -1,5 +1,6 @@
 import type { PlayerState, StackEntry } from '../../types';
 import type { CardEffect } from '../../types/effects';
+import { grantedStoreWatchers } from '../../engine/grantedStore';
 
 /**
  * ターン終了時までのルリグ付与能力だけを落とす。
