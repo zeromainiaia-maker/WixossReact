@@ -3614,6 +3614,15 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           // 回避手段は「エナ支払い」以外に**手札捨て**と**自分のエナをトラッシュ**を取りうる（タスク12(lxi) 第2波）。
           // いずれも相手が自分の資源を払って効果を回避する枝＝選んだ時点で conditional.then は実行しない。
           // 'ALL' は「手札をすべて捨てる」「エナゾーンにあるすべてのカードをトラッシュに置く」（WX24-P4-023）。
+          //
+          // ⚠**極性は2種類ある**（§6.4・続き425）。既定は上記の回避ゲート（＝払わなかったら then）だが、
+          //   原文「対戦相手は〈コスト〉**してもよい。そうした場合**、X」は**払ったら then** の逆向き。
+          //   `thenOnPay` が立っているときだけ then を支払い枝へ移す（既定の65効果には影響しない）。
+          const thenOnPay = stub.thenOnPay === true;
+          /** 支払い枝のアクション。`thenOnPay` のときだけ帰結（then）を後ろに繋ぐ。 */
+          const payBranch = (payment: EffectAction): EffectAction => thenOnPay
+            ? { type: 'SEQUENCE', steps: [payment, conditional.then] } as SequenceAction
+            : payment;
           const handSpec = stub.opponentHandDiscard;
           const handFilter = stub.opponentHandDiscardFilter;
           const eligibleHand = handFilter
