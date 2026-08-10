@@ -268,6 +268,8 @@ p(`逆翻訳シートの [STUB:…] 総数: ${totalStubTags}  うち生ID露出 
 p('');
 p('■ 仕分け結果');
 p(`  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : ${holeImpl.length} 種 / ${holeImpl.reduce((a, r) => a + r.count, 0)} 件`);
+p(`      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : ${holeImpl.filter(isDeferred).length} 種 / ${holeImpl.filter(isDeferred).reduce((a, r) => a + r.count, 0)} 件`);
+p(`      └ 無言の no-op（DEFERRED_ でない＝要対応）           : ${holeImpl.filter(r => !isDeferred(r)).length} 種 / ${holeImpl.filter(r => !isDeferred(r)).reduce((a, r) => a + r.count, 0)} 件`);
 p(`  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : ${declarative.length} 種 / ${declarative.reduce((a, r) => a + r.count, 0)} 件`);
 p(`  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : ${holeDisplay.length} 種 / ${holeDisplay.reduce((a, r) => a + r.raw, 0)} 箇所`);
 p(`  D 健全（実装あり＋日本語表示）                          : ${healthy.length} 種`);
