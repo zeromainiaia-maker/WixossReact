@@ -1,5 +1,89 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群の初回1件を実装（続き409）
+
+### 背景：`[STUB:X]` 907箇所は「表示の穴」と「実装の穴」が混ざっていた
+
+PLAN §6.4 の未消化項目「生ID残存＝表示or実装の穴」。**「STUB＝未実装」ではない**（実装済みハンドラの
+表示名でもある）ため、まず仕分ける計器を作った＝`scripts/censusStubs.ts`（`npm run census:stubs`・
+明細 `docs/_census_stubs.txt`・`--id <STUB_ID>` で1件の完全内訳）。
+
+**実測＝逆翻訳の `[STUB:…]` 906箇所（うち生ID露出 275）**
+
+| 区分 | 実数 | 意味 |
+|---|---:|---|
+| A 実装の穴 | 19種 / 21件 | live に居るのに engine のどこにも消費が無い＝実行しても何も起きない |
+| 　└ 明示 defer（`DEFERRED_*`） | 7種 / 9件 | 機構不在を宣言済み＝無言バグではない |
+| 　└ 無言の no-op | 12種 / 12件 | **本命の worklist** |
+| B 宣言型 | 18種 / 32件 | ハンドラは無いが engine 別経路が読む（実害なし） |
+| C 表示だけの穴 | 176種 / 259箇所 | engine は動くが逆翻訳に英語 ID が出る |
+| D 健全 | 396種 | 実装あり＋日本語表示 |
+
+### 計器の較正で判明した4つの実装軸（実測で5種が誤検出だった）
+
+「実装済みか」を id 文字列の grep で測ると壊れる。消費の経路は4本ある：
+
+1. **`execStubPart1-3` のハンドラ**（`stub.id === '…'`）
+2. **engine 別経路**＝CONTINUOUS 宣言型を `effectEngine` / `BattleScreen` / `screens/battle/*` が読む
+3. **ペイロードキー**＝`PREVENT_POWER_MODIFY_BY_OPP` は id を一度も比較せず `act.powerModifyProtection`
+   だけを読む（`effectEngine.ts:1476`）
+4. **カード番号**＝`MAYU_ENCOUNTER_FLIP_AND_GROW` は `screens/battle/mayuEncounter.ts` が
+   `'WXDi-P13-003A'` で分岐する
+
+### 較正中に踏んだ罠（同じ計器を書く人向け）
+
+- 🔴**「id の前方一致を src から探す」は誤検出だらけになる**＝`ASSIST_LRIG_ATTACK_THIS_TURN` が
+  `RETURN_ASSIST_LRIG_TO_DECK` に、`PREVENT_POWER_MODIFY_BY_OPP` が `PREVENT_POWER_MINUS_BY_OPP` に当たる。
+  **向きを逆にして「コード側の matcher（`.id.match(/…/)` / `.id.startsWith()`）を集めて id を test する」**
+  のが正しい（実測でコード全体に matcher は**1本だけ**＝`screens/battle/fieldLimit.ts:65` の
+  `/^LIMIT_ALL_FIELD_(\d+)$/`）。
+- 🔴**ペイロードキーは汎用名を除外し、そのキーを持つ STUB が2種以下のときだけ根拠にする**＝`text` /
+  `raw` / `costText` を根拠にすると `r.text()`（`App.tsx`）に当たる。
+- 🔴**生成側（`data/manualEffects.ts` / `data/parsers/**` / `data/effectParser.ts`）の言及は「消費」ではない**
+  ＝STUB を作る側なので、そこにしか出てこない id は「作られるが誰も読まない＝真 no-op」。
+- 🔴**`src/types/` も消費ではない**＝除外しないと `powerModifyProtection?: {…}` の型宣言を実装と誤認する。
+  さらに**型宣言を「キー直後のコロン」で落とす実装は三項演算子（`? act.powerModifyProtection : undefined`）
+  まで落とす**＝ファイル単位で除外するのが正しい。
+- ⚠**`scripts/genStubsMd.mjs` の「フォールバック」欄は仕分けに使えない**（軸が1本＋id 正規表現が
+  `[A-Z0-9_]+` なので日本語入り id `ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白` を**実装済みなのに未実装**と誤報）。
+
+### A群の初回消化：`CANNOT_DEAL_DAMAGE_TO_OPPONENT`（WX25-CP1-074）
+
+原文＝【出】が他の＜ブルアカ＞のシグニに「**【常】：このシグニは対戦相手にダメージを与えない。**」を付与する。
+live JSON は `GRANT_EFFECT` で正しく付与していたが、**engine 側に受け皿が無く実機ではライフを普通に
+クラッシュしていた**（＝逆翻訳には出るのに動かない無言バグ）。
+
+- **新設 `src/screens/battle/signiDamageGate.ts`**＝`signiCannotDealDamageToOpponent(state, attackerNum, effectsMap)`。
+  **印字（`effectsMap`）＋付与2ストア（`granted_effects` / `granted_effects_until_opp_turn`）の3軸**を走査する
+  （付与ストアだけ見る実装にすると、同じ文を印字するカードが増えた瞬間に無言で落ちる）。
+- **配線＝`resolvePendingSigniBattleFor` の2つのダメージ地点**：(a) ランサー/Sランサーの追加クラッシュ
+  (b) 正面が空/アサシンのライフアタック。⚠**片方だけ止めると「バトルに勝ったときだけダメージが通る」
+  半端な近似**になる。この関数は**人間・CPU 共通経路**なので1箇所で両方に載る。
+- **表示語彙**も `scripts/decompileEffects.ts` の `miscStubMap` に追加（C群 −1）。
+- **golden +1**＝3軸すべてと「付与されていないシグニ／アタッカー不明」の陰性を固定。
+
+### A群の残 12件（1カード1機構・逓減しない）
+
+`ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`（WX16-021）／`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）／
+`ATTACK_NEGATE_IMMUNITY_SELF`・`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（ともに WX24-P4-016）／
+`CHECK_ZONE_FLIP_FREE_GROW`（WXDi-P16-001A）／`OPP_LRIG_DECK_TO_LRIG_TRASH`（WX24-P4-014）／
+`PLAY_MILLED_SIGNI_DELAYED_TRASH`（WXDi-P09-079）／`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041）／
+`FLIP_SELF_FACE_DOWN_UP`（WX25-CP1-060）／`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`（WXK11-001）／
+`COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（WXDi-P05-006＝§6.3 E-2 (b) の**着手禁止**）／
+`GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（WXDi-P00-026＝§6.3 F の**保留**）。
+
+⭐**一番安いのは `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`**＝シグニアタックステップのスキップ機構は
+既に完備（`BLOCK_ACTION{actionId:'SIGNI_ATTACK_STEP'}` → `screens/battle/attackStepPhase.ts:11`。
+**同カード①のルリグ側は既にこれで動いている**）。欠けているのは**任意コスト「ルリグデッキのコスト合計2以上の
+アーツ1枚をゲームから除外」の語彙だけ**（`effectParser.ts:5566-5574` に honest defer の根拠コメントあり
+＝行先が「ルリグトラッシュ」の既存 `OPTIONAL_COST` は流用不可）。
+
+### ゲート
+
+`npm run gates` 全緑＝golden **1742（+1）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+census **880 据置** / lint 0 errors・254 warnings（増減0）。`npm run regen` 実施（表示語彙追加のため）。
+**live JSON 変化 0 効果**。
+
 ## 2026-08-10 — §6.4 計器（checkAllEffects / verifyEffects）の誤検出を潰し、任意性脱落の系統バグを発見（続き408）
 
 ### 進め方：まず33件を1件ずつ仕分けた
