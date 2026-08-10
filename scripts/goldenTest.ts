@@ -29761,7 +29761,16 @@ test('§6.4 幻の手札コスト: 共通クラス制約つきエナコスト（
   const e = effectsMap.get('WX25-P1-096')?.find(x => x.effectId === 'WX25-P1-096-E1');
   ok(!!e, 'WX25-P1-096-E1 が存在する');
   ok(!JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'), '🔴 幻の手札コストが消えている');
-  const st = (e!.action as unknown as { steps: Array<{ id?: string; energyTrash?: { count: number; selectionConstraint?: { distinct?: string } } }> }).steps[0];
+  // ⚠位置で取らない＝対象宣言の復元（続き423）で `SELECT_TARGET_ONLY`/`STORE` が前に挿さる。
+  let st: { id?: string; energyTrash?: { count: number; selectionConstraint?: { distinct?: string } } } = {};
+  const walkET = (n: unknown): void => {
+    if (!n || typeof n !== 'object' || st.id) return;
+    if (Array.isArray(n)) { n.forEach(walkET); return; }
+    const o = n as typeof st & Record<string, unknown>;
+    if (o.id === 'OPTIONAL_COST' && o.energyTrash) { st = o; return; }
+    Object.values(o).forEach(walkET);
+  };
+  walkET(e!.action);
   eq(st.id, 'OPTIONAL_COST', '任意コストになっている');
   eq(st.energyTrash?.count, 2, 'エナから2枚');
   eq(st.energyTrash?.selectionConstraint?.distinct, 'class', '「共通するクラスを持たない」＝異クラス制約');
@@ -29779,6 +29788,48 @@ test('§6.4 捨てさせる向き: 損失は対戦相手側（WXDi-P14-060-E1）
   eq(steps[2]?.target?.type, 'HAND_CARD', '③手札を');
   eq(steps[2]?.target?.owner, 'opponent', '🔴③対戦相手の手札（旧実装は自分の手札を捨てていた）');
   eq(steps[3]?.then?.owner, 'opponent', '④そうした場合、対戦相手が1枚引く');
+});
+
+// ── 🔴 対象宣言の脱落＝「フィルタが無いから等価」は誤り（2026-08-10・続き423）─────────────
+// `applyDroppedTargetDesignation` は「宣言に filter が無ければ脱落しても等価」として据置していたが、
+// 脱落するのは filter だけでなく**所有者と体数**も＝帰結は既定の `SIGNI{owner:'self', count:1}` に落ちる。
+//   🔴「対戦相手のシグニを**２体まで**対象とし…そうした場合、それら**を手札に戻す**」
+//      → `BOUNCE{owner:'self', count:1}`＝**自分のシグニ1体が手札に戻る**（`WXDi-P02-009-E3`）
+// さらに `extraKeys` が空だと後段の `every()` が **true** になって無条件 return していた（2箇所）。
+test('§6.4 対象宣言の脱落: フィルタが無くても owner/count は帰結へ届く', () => {
+  type T = { type?: string; owner?: string; count?: number | string; upToCount?: boolean };
+  const bodyTarget = (cardNum: string, effectId: string): T => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    const m = JSON.stringify(e).match(/"condition":\{"type":"IS_MY_TURN"\},"then":\{[^]*?"target":(\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\})/);
+    ok(!!m, `${effectId}: 「そうした場合」ゲートの帰結対象が読める`);
+    return JSON.parse(m![1]) as T;
+  };
+  // 🔴 素の「対戦相手のシグニを2体まで」＝filter は無いが owner/count/upToCount が落ちていた
+  const b1 = bodyTarget('WXDi-P02-009', 'WXDi-P02-009-E3');
+  eq(b1.owner, 'opponent', 'WXDi-P02-009-E3: 対戦相手のシグニ（旧実装は自分のシグニを手札に戻していた）');
+  eq(b1.count, 2, 'WXDi-P02-009-E3: 2体');
+  ok(b1.upToCount === true, 'WXDi-P02-009-E3: 「まで」＝上限指定');
+  // 修飾が所有者語の**前**に付く宣言（「能力を持たない対戦相手のシグニ1体」）
+  const b2 = bodyTarget('WX25-P3-014', 'WX25-P3-014-E1');
+  eq(b2.owner, 'opponent', 'WX25-P3-014-E1: 対戦相手のシグニ（旧実装は自分のシグニをバウンスしていた）');
+  // 🔴 宣言が**ルリグ**（`DESIG_BEFORE_COST_RE` はシグニ専用なので外れていた）
+  const b3 = bodyTarget('WXDi-P02-040', 'WXDi-P02-040-E2');
+  eq(b3.type, 'LRIG', 'WXDi-P02-040-E2: ルリグを対象にする');
+  eq(b3.owner, 'opponent', 'WXDi-P02-040-E2: 対戦相手（旧実装は自分のシグニを凍結していた）');
+});
+
+// 副産物＝同じ経路でパワー/レベル制限も帰結へ届くようになった（従来は無差別に撃てる過剰効果）。
+test('§6.4 対象宣言の脱落: パワー制限が帰結に載る（過剰対象化の防止）', () => {
+  const declared = (cardNum: string, effectId: string): string => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    return JSON.stringify(e);
+  };
+  ok(declared('WX06-CB01', 'WX06-CB01-E1').includes('"max":3000'),
+     'WX06-CB01-E1: 「パワー3000以下」が載る（従来は任意のシグニをバニッシュできた）');
+  ok(declared('WXDi-P11-042', 'WXDi-P11-042-E1').includes('"max":10000'),
+     'WXDi-P11-042-E1: 「パワー10000以下」が載る');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -5295,7 +5295,11 @@ function isDidItGate(a: EffectAction | undefined): a is import('../types/effects
 function isDroppedCostStep(a: EffectAction | undefined): boolean {
   if (!a) return false;
   if (a.type === 'STUB') {
-    return ['OPTIONAL_COST', 'OPTIONAL_TRASH_ENERGY_CLASS', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST'].includes((a as StubAction).id);
+    // ⚠`TARGET_AND_DISCARD_HAND` もこの時点では**コストステップ**
+    //   （続き420〜422 の変換はこのパスより**後段**で走るので、ここではまだ元の id のまま来る）。
+    //   入れないと対象宣言の復元が「コスト位置を同定できない」で諦める（`WXDi-P02-009-E3`・続き423）。
+    return ['OPTIONAL_COST', 'OPTIONAL_TRASH_ENERGY_CLASS', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST',
+      'TARGET_AND_DISCARD_HAND'].includes((a as StubAction).id);
   }
   const t = a as import('../types/effects').TrashAction;
   return a.type === 'TRASH' && !!t.optional && t.target?.type === 'HAND_CARD';
@@ -5847,11 +5851,33 @@ function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectA
   return { type: 'SEQUENCE', steps: [stub, { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: action } as EffectAction] } as SequenceAction;
 }
 
+/** SEQUENCE 内の「そうした場合」ゲート（`CONDITIONAL{IS_MY_TURN}`）の index。無ければ -1。 */
+function steps0FindDidItGate(action: EffectAction): number {
+  return action.type === 'SEQUENCE' ? (action as SequenceAction).steps.findIndex(isDidItGate) : -1;
+}
+
 function applyDroppedTargetDesignation(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (TARGET_LEVEL_SCALE_RE.test(text)) return action;              // (liii) の領分
   if ((text.match(/対象とし/g)?.length ?? 0) !== 1) return action;   // 「それ」の指し先が一意でない
   if (JSON.stringify(action).includes('SELECT_TARGET_ONLY')) return action; // 既に対象宣言済み
+  // 🔴「対戦相手の**ルリグ**N体を対象とし、〈任意コスト〉てもよい。そうした場合、それを〜」＝
+  //   `DESIG_BEFORE_COST_RE` は**シグニ専用**なので外れ、帰結が既定の `SIGNI{owner:'self'}` に落ちて
+  //   **自分のシグニを撃って**いた（`WXDi-P02-040-E2`＝自分のシグニを凍結・続き423）。
+  //   センタールリグは1体しかないので対象選択の機構は要らず、帰結の対象を差し替えるだけでよい
+  //   （SELECT_TARGET_ONLY／bindToStoredTarget は SIGNI 専用なので持ち込まない）。
+  const lrigM = text.match(/対戦相手のルリグ([０-９\d]*)体?を?対象とし、[^。]*?てもよい。そうした場合、それ/);
+  if (lrigM) {
+    const stepsL = [...(action as SequenceAction).steps];
+    const gi = stepsL.findIndex(isDidItGate);
+    const gate = gi >= 0 ? stepsL[gi] as import('../types/effects').ConditionalAction : null;
+    const body = gate?.then as (EffectAction & { target?: EffectTarget }) | undefined;
+    if (gate && body?.target?.type === 'SIGNI') {
+      stepsL[gi] = { ...gate, then: { ...body, target: { type: 'LRIG', owner: 'opponent', count: 1 } } as EffectAction };
+      return { ...action, steps: stepsL } as EffectAction;
+    }
+    return action;
+  }
   const m = text.match(DESIG_BEFORE_COST_RE);
   if (!m) return action;
   // ⚠所有者は名詞句の**最後の**「対戦相手の／あなたの」から取る。前方に別プレイヤーの語が混ざる修飾
@@ -5862,7 +5888,19 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   const desig = cut > 0 ? desig0.slice(cut) : desig0;
   const target = parseSigniTarget(desig, desig.startsWith('対戦相手') ? 'opponent' : 'self');
   const extraKeys = Object.keys(target.filter ?? {}).filter(k => k !== 'cardType');
-  if (extraKeys.length === 0) return action;   // 素の「シグニN体」＝フィルタが無いので脱落しても等価
+  // ⚠🔴**「フィルタが無いから脱落しても等価」は誤り**（続き423）。脱落するのは filter だけでなく
+  //   **所有者と体数**も＝帰結は既定の `SIGNI{owner:'self', count:1}` に落ちる。素の
+  //   「対戦相手のシグニを２体まで対象とし…そうした場合、それらを手札に戻す」が
+  //   **自分のシグニ1体を手札に戻す**になっていた（`WXDi-P02-009-E3`）。
+  //   ⇒ filter が無くても **owner / count / upToCount が帰結と食い違うなら**続行する。
+  const gateIdx0 = steps0FindDidItGate(action);
+  const thenTgt0 = gateIdx0 >= 0
+    ? (((action as SequenceAction).steps[gateIdx0] as import('../types/effects').ConditionalAction).then as EffectAction & { target?: EffectTarget; source?: EffectTarget })
+    : undefined;
+  const t0 = thenTgt0?.target ?? thenTgt0?.source;
+  const ownerOrCountDiffers = !!t0 && (t0.owner !== target.owner || t0.count !== target.count
+    || (!!target.upToCount !== !!t0.upToCount));
+  if (extraKeys.length === 0 && !ownerOrCountDiffers) return action;   // 本当に等価な場合だけ据置
 
   const steps = [...(action as SequenceAction).steps];
   const gateIdx = steps.findIndex(isDidItGate);
@@ -5874,7 +5912,9 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   if (!thenTgt || thenTgt.type !== 'SIGNI') return action;
   const got = (thenTgt.filter ?? {}) as Record<string, unknown>;
   const want = (target.filter ?? {}) as Record<string, unknown>;
-  if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k]))) return action;
+  // ⚠ここも「filter が一致していれば据置」ではいけない＝**所有者/体数の食い違い**も直す対象
+  //   （`extraKeys` が空だと `[].every()` が true になって無条件 return していた・続き423）。
+  if (extraKeys.every(k => JSON.stringify(got[k]) === JSON.stringify(want[k])) && !ownerOrCountDiffers) return action;
 
   // コストステップ（任意コスト STUB か任意の手札捨て TRASH。条件で包まれていても可）を同定する
   let costIdx = -1;
