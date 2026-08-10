@@ -2464,7 +2464,7 @@ export function execStubPart1(
     if (zonePM < 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, `空きシグニゾーンなし（${namePM}を場に出せない）`));
     const blockedPM = deployLimitBlockReason({
       placingState: ctx.ownerState, opponentState: ctx.otherState,
-      cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCap,
+      cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCapSelf,
     });
     if (blockedPM) return done(addLog({ ...ctx, lastProcessedCards: [] }, deployLimitLogMessage(blockedPM, namePM)));
     signiPM[zonePM] = [milledPM];
