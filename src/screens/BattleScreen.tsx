@@ -12226,22 +12226,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (my.pending_signi_battle) return []; // 別シグニのアタック解決中は操作不可
       if (loading) return []; // 処理中は操作不可
       const topNum = stack[stack.length - 1];
-      if (contBlocked.cannotAttackSigni.has(topNum)) return []; // アタック不可シグニ
-      // GATE: blocked_actions に 'ATTACK:cardId' があればアタックボタンを非表示
-      if (my.blocked_actions?.includes(`ATTACK:${topNum}`)) return [];
-      // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手側が設定したパワー上限でアタック制限
-      const oppPowerCap = op.opp_signi_attack_power_cap;
-      if (oppPowerCap !== undefined) {
-        const signiPower = effectivePowers.get(topNum) ?? parsePowerVal(battleCardMap.get(topNum)?.Power);
-        if (signiPower <= oppPowerCap) return [];
-      }
-      // シグニ合計1回アタック制限チェック
-      if (my.signi_attack_once_limit && (my.attacked_signi_ids?.length ?? 0) > 0) return [];
-      // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要
+      // GATE: アタック可否のルール判定は signiAttackGate に一本化する（人間ボタン／共通実行経路
+      // performSigniAttack／CPU のアタック候補フィルタの3箇所が同じ関数を呼ぶ）。ここに条件を写経すると
+      // 「人間には出ないが CPU は撃てる」型の軸ズレが必ず出る（続き404 で `cannotAttackSigni` がまさにそれだった）。
+      if (!canSigniAttack({
+        attacker: my, defender: op, attackerNum: topNum,
+        effectsMap, cardMap: battleCardMap,
+        contBlocked, effectivePowers, turnPhase: bs.turn_phase,
+      })) return [];
       const signiAtkCost = my.signi_attack_cost ?? 0;
-      if (signiAtkCost > 0 && my.energy.length < signiAtkCost) return []; // エナ不足でアタック不可
       const fieldTrashAtkCost = attackFieldTrashCost(my, topNum);
-      if (fieldTrashAtkCost > 0 && !canPayAttackFieldTrashCost(my, topNum, battleCardMap)) return [];
       const atkCosts = [
         ...(signiAtkCost > 0 ? [`《無》×${signiAtkCost}`] : []),
         ...(fieldTrashAtkCost > 0 ? [`他のシグニ${fieldTrashAtkCost}体トラッシュ`] : []),
