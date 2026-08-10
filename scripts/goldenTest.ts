@@ -11482,27 +11482,32 @@ test('CHOOSE choice.condition: 選択肢②「あなたの場に赤の＜龍獣�
   const pendingYes = (rYes as { pending: { options: { id: string; available?: boolean }[] } }).pending;
   eq(pendingYes.options.find(o => o.id === 'c1')?.available, true, '赤の＜龍獣＞シグニ(WX04-031)が場にあれば選択肢②は選択可');
 });
-test('TRASH.optional→CONDITIONAL(IS_MY_TURN)→BANISHのパワー閾値: 対象はpowerRange以下のみ・辞退時はバニッシュされない（WX24-P4-050・続き105単点修正の回帰ガード）', () => {
+// 続き416：任意コストの表現が `TRASH{optional}` から `STUB{OPTIONAL_COST,handDiscard}` へ変わった
+// （前者は「0枚選択」でも後続の「そうした場合」ゲートが通る＝**払わずに本体が撃てる**）。
+// 検証する契約は同じ＝①支払っても閾値超のシグニはバニッシュされない ②スキップなら手札も減らず本体も走らない。
+test('OPTIONAL_COST(handDiscard)→CONDITIONAL(IS_MY_TURN)→BANISHのパワー閾値: 対象はpowerRange以下のみ・スキップ時はバニッシュされない（WX24-P4-050・続き105/416の回帰ガード）', () => {
   const eff = effectsMap.get('WX24-P4-050')!.find(e => e.effectId === 'WX24-P4-050-E1')!;
+  const steps = (eff.action as unknown as { steps: { type: string; id?: string }[] }).steps;
+  ok(steps.some(s => s.type === 'STUB' && s.id === 'OPTIONAL_COST'), '任意コストが STUB になっていない（強制の手札捨てに戻っている）');
   // 相手の場はパワー12000のシグニ1体のみ＝閾値8000を超えるためBANISHの対象になってはいけない
   const highPowerOpp = [...cardMap.values()].find(c => isSigni(c) && parseInt(c.Power || '0', 10) > 8000)!.CardNum;
   const ctxAccept = mkCtx({ hand: 3 }, { signi: [highPowerOpp, null, null] }, 'WX24-P4-050');
-  const rTrashPending = executeEffect(eff, ctxAccept);
-  ok(!rTrashPending.done, 'TRASH(optional)で対話待ち');
-  const trashPending = (rTrashPending as { pending: { candidates: string[] } }).pending;
-  const c1: ExecCtx = { ...ctxAccept, ownerState: rTrashPending.ownerState, otherState: rTrashPending.otherState, logs: rTrashPending.logs };
-  const rAccept = resumeSelectTarget(trashPending.candidates.slice(0, 1), trashPending as never, c1);
-  eq(rAccept.done, true, '対象パワーが閾値超のみなのでBANISH候補0件のままdone（過剰効果なら対話待ちのまま残る）');
+  const rPay = executeEffect(eff, ctxAccept);
+  ok(!rPay.done, '任意コストの pay/skip 対話待ちになっていない');
+  const payPending = (rPay as { pending: { options: { id: string }[] } }).pending;
+  const c1: ExecCtx = { ...ctxAccept, ownerState: rPay.ownerState, otherState: rPay.otherState, logs: rPay.logs };
+  const rAccept = finish(resumeChoose('pay', payPending as never, c1), c1);
   eq(rAccept.otherState.field.signi[0]?.at(-1), highPowerOpp, '閾値超のシグニはバニッシュされず場に残る');
+  eq(rAccept.ownerState.hand.length, 2, '支払い枝では手札が1枚減る');
 
-  // 辞退（0枚選択）した場合: 後続のCONDITIONAL(IS_MY_TURN)=「そうした場合」は実行されない
+  // スキップした場合: 後続のCONDITIONAL(IS_MY_TURN)=「そうした場合」は実行されない
   const ctxDecline = mkCtx({ hand: 3 }, {}, 'WX24-P4-050');
-  const rTrashPending2 = executeEffect(eff, ctxDecline);
-  const trashPending2 = (rTrashPending2 as { pending: { candidates: string[] } }).pending;
-  const c2: ExecCtx = { ...ctxDecline, ownerState: rTrashPending2.ownerState, otherState: rTrashPending2.otherState, logs: rTrashPending2.logs };
-  const rDecline = resumeSelectTarget([], trashPending2 as never, c2);
-  eq(rDecline.done, true, '辞退時は即done（BANISHへ進まない）');
-  eq(rDecline.ownerState.hand.length, ctxDecline.ownerState.hand.length, '辞退時は手札を捨てない');
+  const rSkipPending = executeEffect(eff, ctxDecline);
+  const skipPending = (rSkipPending as { pending: { options: { id: string }[] } }).pending;
+  const c2: ExecCtx = { ...ctxDecline, ownerState: rSkipPending.ownerState, otherState: rSkipPending.otherState, logs: rSkipPending.logs };
+  const rDecline = resumeChoose('skip', skipPending as never, c2);
+  eq(rDecline.done, true, 'スキップ時は即done（BANISHへ進まない）');
+  eq(rDecline.ownerState.hand.length, ctxDecline.ownerState.hand.length, 'スキップ時は手札を捨てない');
 });
 test('TRASH{HAND_CARD,count:1} の SELECT_TARGET 再開経路が手札カウンタ3種を更新する（続き81発見・続き135修正・タスク12(iv)）', () => {
   // 即時適用パス（count:'ALL'＝applyTrashHand）は hand_discarded_just / turn_hand_discarded_count /

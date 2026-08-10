@@ -5407,6 +5407,11 @@ function selfHandDiscardStep(step: EffectAction | undefined): import('../types/e
 function applyOptionalHandDiscardCost(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (hasOptionalCostStub(action)) return action;
+  // ⚠**使用時（支払い時）の任意コスト**は解決中のステップではない＝ここの領分ではない
+  //   （`stripUseTimeOptionalCostStep` / `stripUseTimeCostReductionStep` ＋ `useTimeCost.ts` の担当）。
+  //   触ると「以下のN つから選ぶ」連結（allowedOptionalPayment が素の TRASH を要求）が外れて
+  //   **CHOOSE 本体が丸ごと落ちる**（WD21-008 で実測）。
+  if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
   // 原文で「手札をN枚捨ててもよい」が**最初の手札捨て**である文型だけを扱う（前段に強制の手札捨てが
   // あると step との対応が崩れ、強制側を任意に化けさせる）。
   const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
