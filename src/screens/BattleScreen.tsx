@@ -109,6 +109,7 @@ import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
+import { canSigniAttack } from './battle/signiAttackGate';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
