@@ -68,15 +68,15 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                   : 0;
                 const afterTotal = fieldSigniTotal - existingTopLevel + signiLevel;
                 const overLimit = afterTotal > lrigLimit;
-                // DEPLOY_RESTRICT: signi_deploy_power_limit が設定されている場合
-                const overPowerLimit = my.signi_deploy_power_limit !== undefined && signiPower >= my.signi_deploy_power_limit;
-                // DEPLOY_RESTRICT（配置数制限）: フラグ（このターン）＋相手場の CONT レゾナ の小さい方が場のシグニ数以下なら新規配置不可
-                const contCountCap = collectDeployCountLimit(op, my, battleCardMap, effectsMap, !isMyTurn);
-                const countCap = my.signi_deploy_count_limit !== undefined
-                  ? (contCountCap !== undefined ? Math.min(my.signi_deploy_count_limit, contCountCap) : my.signi_deploy_count_limit)
-                  : contCountCap;
-                const overCountLimit = !pendingRiseFilter && countCap !== undefined
-                  && my.field.signi.filter(s => s && s.length > 0).length >= countCap;
+                // DEPLOY_RESTRICT（配置パワー制限／配置数制限）は `engine/deployLimit.ts` に一本化
+                // （通常召喚UI・このモーダル・CPU召喚・engine の効果配置が同じ関数を呼ぶ＝続き405）。
+                const deployBlock = deployLimitBlockReason({
+                  placingState: my, opponentState: op, cardNum: summonCardNum,
+                  cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
+                  onExistingStack: !!pendingRiseFilter,
+                });
+                const overPowerLimit = deployBlock === 'POWER_LIMIT';
+                const overCountLimit = deployBlock === 'COUNT_LIMIT';
                 // BLOCK_OPP_ZONE_PLACEMENT / REMOVE_SIGNI_ZONE（タスク12(lxi) 第10波）:
                 // 「新たに配置できない」ゾーン。《無》×N の支払い回避つきはエナが足りれば選べる（払って配置）。
                 const zoneBlock = pendingRiseFilter ? undefined : findSigniZoneBlock(my, zi);
