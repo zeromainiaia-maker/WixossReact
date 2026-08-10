@@ -191,6 +191,8 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-02 整理②：PLAN §3 在庫表の残0クローズ行／§4 恒久指標の計測履歴（原文）
 
+- **旧: 2026-08-10 続き418〜419（§6.4「代わりに/選択肢」の所有者反転を系統消化）後 最新値（当時の正）**：census **854**（860→854・`BASELINE_HIGH` 更新済み）、golden **1761（+8）**、`MANDATORY_SUSPICIOUS` **2**（据置・`node scripts/_checkAllEffects.mjs`）、held **115カード／49群**（うち採用済み4枚は除外表示）、同型★ **0**（265群）、smoke **10686/10686** 全0・SKIP 0、fuzz 全0（200ゲーム）、lint 0 errors/**256 warnings**、manual field loss 0、golden 型カバレッジ **128/128**、UNKNOWN **36ノード/34カード**（38→36）。母数＝効果カード **5975**／効果 **10683**／MANUAL効果 **1118**。
+
 - **旧: 2026-08-10 続き418（§6.4「代わりにそれを〜」動詞昇格の機構化）後 最新値（当時の正）**：census **858**（860→858・`BASELINE_HIGH` 更新済み。**+2 は加算モデルの良性検出**＝実質 855 相当）、golden **1759（+6）**、`MANDATORY_SUSPICIOUS` **2**（据置・`node scripts/_checkAllEffects.mjs`）、held **114カード／49群**、同型★ **0**（265群）、smoke **10686/10686** 全0・SKIP 0、fuzz 全0（200ゲーム）、lint 0 errors/**256 warnings**、manual field loss 0、golden 型カバレッジ **128/128**、UNKNOWN **36ノード/34カード**（38→36）。母数＝効果カード **5975**／効果 **10683**／MANUAL効果 **1118**。
 
 - 旧: 2026-08-10 続き416〜417（§6.4 任意性脱落の系統消化）後 最新値（当時の正）**：census **860**（877→860・`BASELINE_HIGH` 更新済み）、golden **1753（+3）**、`MANDATORY_SUSPICIOUS` **2**（35→2・`node scripts/_checkAllEffects.mjs`）、held **115カード／49群**、同型★ **0**（265群）、smoke **10686/10686** 全0・SKIP 0、fuzz 全0（200ゲーム）、lint 0 errors/**256 warnings**、manual field loss 0、golden 型カバレッジ **128/128**、UNKNOWN **38ノード/36カード 据置**。母数＝効果カード **5975**／効果 **10683**／MANUAL効果 **1118**。

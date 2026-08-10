@@ -29579,6 +29579,92 @@ test('§6.4 OPTIONAL_COST.coinCost: 《コインアイコン》の任意コス�
   ok(autoWithCoin.length >= 3, `parser 生成（AUTO）の coinCost が3枚以上あるはず（got ${autoWithCoin.length}）`);
 });
 
+// ── §6.4 `TARGET_AND_DISCARD_HAND` のコスト payload 脱落（2026-08-10・続き420）──────────────
+// この STUB は payload を持たず、engine（Pattern⑥）は**手札の最後の1枚を問答無用で捨てる**。
+// ＝①絞り込みが効かない ②「捨ててもよい」の任意性が消える ③プレイヤーが選べない。
+// 正準形 `OPTIONAL_COST{handDiscard:{count,filter}}`（pay/skip UI・候補 filter 照合つき）へ寄せた。
+test('§6.4 手札コストの絞り込み: TARGET_AND_DISCARD_HAND が OPTIONAL_COST{handDiscard} になっている', () => {
+  type St = { type: string; id?: string; handDiscard?: { count: number; filter?: Record<string, unknown> } };
+  // ⚠CHOOSE の選択肢内にコストが入る形もある（`WXDi-P09-062-E1`）＝木を降りて handDiscard を探す。
+  const costOf = (cardNum: string, effectId: string): St => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    let found: St | undefined;
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object' || found) return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as St & Record<string, unknown>;
+      if (o.id === 'OPTIONAL_COST' && o.handDiscard) { found = o; return; }
+      Object.values(o).forEach(walk);
+    };
+    walk(e!.action);
+    return (found ?? {}) as St;
+  };
+  // カード, 効果, 枚数, 期待 filter（原文の絞り込み）
+  const cases: Array<[string, string, number, Record<string, unknown>]> = [
+    ['WX18-001', 'WX18-001-E3', 1, { cardType: 'シグニ', story: '悪魔' }],
+    ['WX21-004', 'WX21-004-E3', 1, { cardType: 'シグニ', story: '英知' }],
+    ['WX22-008', 'WX22-008-E3', 1, { cardType: 'シグニ', story: '原子' }],
+    ['WXEX1-23', 'WXEX1-23-E2', 1, { cardType: 'シグニ', story: '毒牙' }],
+    ['WXDi-P09-062', 'WXDi-P09-062-E1', 1, { cardType: 'シグニ', story: '武勇' }],
+    ['WX25-CP1-052', 'WX25-CP1-052-E1', 1, { story: 'ブルアカ' }],           // 「＜ブルアカ＞のカード」＝シグニ限定でない
+    ['SPDi43-15', 'SPDi43-15-E1', 2, { color: '青' }],
+    ['WXDi-CP01-027', 'WXDi-CP01-027-E3', 1, { cardType: 'シグニ', hasGuard: true }],
+    ['WXDi-P13-045', 'WXDi-P13-045-E1', 1, { isDisona: true }],
+    ['PR-370', 'PR-370-E1', 1, { cardType: 'シグニ', cardName: '槍' }],
+    ['WX12-017', 'WX12-017-E1', 1, { cardType: 'スペル' }],
+  ];
+  for (const [cardNum, effectId, count, filter] of cases) {
+    const c = costOf(cardNum, effectId);
+    eq(c?.id, 'OPTIONAL_COST', `${effectId}: 正準形の任意コストになっている`);
+    eq(c?.handDiscard?.count, count, `${effectId}: 捨てる枚数`);
+    eq(JSON.stringify(c?.handDiscard?.filter), JSON.stringify(filter),
+       `${effectId}: 原文の絞り込みが filter に載っている（載らないと無関係な手札が落ちる）`);
+  }
+  // 「＜鉱石＞か＜宝石＞」＝OR は配列で持つ
+  eq(JSON.stringify(costOf('WX08-026', 'WX08-026-BURST').handDiscard?.filter),
+     JSON.stringify({ cardType: 'シグニ', story: ['鉱石', '宝石'] }), 'WX08-026-BURST: クラスの OR は配列');
+  // spec 無し（「手札を1枚捨てる」）は filter を付けない＝count だけ
+  const plain = costOf('WX07-077', 'WX07-077-E1');
+  eq(plain.handDiscard?.count, 1, 'WX07-077-E1: 枚数だけ');
+  ok(plain.handDiscard?.filter === undefined, 'WX07-077-E1: 絞り込みが無い原文に filter を捏造しない');
+});
+
+// 🔴「対戦相手の**ルリグ**１体を対象とし、…そうした場合、それを〜」＝宣言がルリグなのに本体が
+//   既定の `SIGNI{owner:'self'}` に落ちて**自分のシグニを撃って**いた。センタールリグは1体しかないので
+//   対象選択の機構は要らず、本体の対象を差し替えるだけでよい。
+test('§6.4 ルリグ宣言の取りこぼし: 本体が LRIG{opponent} になっている（自分のシグニを撃たない）', () => {
+  type Body = { type: string; target?: { type?: string; owner?: string } };
+  // WX25-CP1-004-E1 は4択 CHOOSE。②がルリグ版・③がシグニ版＝**両方**確かめる（片方に寄せると気づけない）
+  const ch = effectsMap.get('WX25-CP1-004')!.find(e => e.effectId === 'WX25-CP1-004-E1')!.action as unknown as
+    { type: string; choices: Array<{ action: { steps?: Array<{ then?: Body }> } }> };
+  eq(ch.type, 'CHOOSE', 'WX25-CP1-004-E1: CHOOSE');
+  const opt2 = ch.choices[1].action.steps![1].then!;
+  eq(opt2.target?.type, 'LRIG', '②「対戦相手のルリグ１体」＝LRIG を対象にする');
+  eq(opt2.target?.owner, 'opponent', '②は対戦相手（🔴旧実装は owner:self＝自分のシグニをダウンしていた）');
+  const opt3 = ch.choices[2].action.steps![1].then!;
+  eq(opt3.target?.type, 'SIGNI', '③「対戦相手のシグニ１体」＝SIGNI のまま');
+  eq(opt3.target?.owner, 'opponent', '③も対戦相手');
+  // 同型の単文カード
+  const b6 = effectsMap.get('WX26-CP1-006')!.find(e => e.effectId === 'WX26-CP1-006-E1')!.action as unknown as
+    { steps?: Array<{ then?: Body }> };
+  const body6 = b6.steps!.find(x => x.then)!.then!;
+  eq(body6.target?.type, 'LRIG', 'WX26-CP1-006-E1: LRIG を対象にする');
+  eq(body6.target?.owner, 'opponent', 'WX26-CP1-006-E1: 対戦相手');
+});
+
+// 変換を掛けてはいけない形＝据置のトリップワイヤ（誤った filter を作るより無変換が安全）。
+test('§6.4 手札コスト変換の据置: 表現できない形は TARGET_AND_DISCARD_HAND のまま', () => {
+  const stillStub = (cardNum: string, effectId: string, why: string) => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    ok(JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'), `${effectId}: ${why}`);
+  };
+  stillStub('WXDi-P11-041', 'WXDi-P11-041-E2', '「＜アーム＞と＜ウェポン＞を合計2枚」＝handDiscardGroups の領分');
+  stillStub('WX26-CP1-051', 'WX26-CP1-051-E1', '「好きな枚数」＝固定枚数で表せない');
+  stillStub('WX24-P3-052', 'WX24-P3-052-E2', '「好きな枚数」＝固定枚数で表せない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

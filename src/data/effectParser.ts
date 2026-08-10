@@ -5454,6 +5454,81 @@ function selfHandDiscardStep(step: EffectAction | undefined): import('../types/e
   return t;
 }
 
+// ── §6.4 `TARGET_AND_DISCARD_HAND` のコスト payload 脱落（続き420）────────────────────────
+// 正準形は `SEQUENCE[STUB{TARGET_AND_DISCARD_HAND}, CONDITIONAL{IS_MY_TURN, then:〈本体〉}]` だが、
+// この STUB は **payload を一切持たない**＝engine（`effectExecutor` Pattern⑥）は
+// **手札の最後の1枚を問答無用で捨てる**。その結果:
+//   ①「手札から＜X＞のシグニを捨てる」の**絞り込みが効かない**（無関係なカードが落ちる・実測23効果）
+//   ②「捨ててもよい」の**任意性が消える**（辞退できない・実測17効果）
+//   ③捨てるカードを**プレイヤーが選べない**（UI が出ない）
+// 既存の `OPTIONAL_COST{handDiscard:{count,filter}}`（続き416 の正準形）は pay/skip UI・候補の
+// filter 照合・支払い可能性チェックをすべて備えているので、そちらへ寄せる。
+// ⚠**枚数が固定で spec を確実に filter へ落とせる形だけ**を変換する（「好きな枚数」「レベルの合計が
+//   ７になるように」「＜A＞と＜B＞を合計N枚」＝`handDiscardGroups` の領分 などは据置＝
+//   誤った filter を作るより無変換のほうが安全）。
+// ⚠「手札**を**N枚捨てる」（spec 無し）も含める＝option ④ 型（`WX25-CP1-004-E1`）。
+//   ここを外すと engine が**手札の最後の1枚を自動で捨てる**ままになり、プレイヤーが選べない。
+const TADH_DISCARD_RE = /手札(?:から)?(.{0,32}?)を?([０-９\d]+)枚(?:を)?捨て(てもよい|る)$/;
+
+/** 手札コストの名詞句（「＜ブルアカ＞のカード」「《ガードアイコン》を持つシグニ」等）を TargetFilter へ。 */
+function handDiscardSpecFilter(spec: string): TargetFilter | null {
+  // 表現できない（＝取りこぼすと過剰に緩くなる）修飾が混ざる形は null＝変換しない
+  if (/好きな枚数|合計|レベル|パワー|以上|以下/.test(spec)) return null;
+  const cardType = spec.includes('シグニ') ? 'シグニ' : spec.includes('スペル') ? 'スペル' : undefined;
+  const filter: TargetFilter = {
+    ...(cardType ? { cardType: cardType as 'シグニ' } : {}),
+    ...parseColorFilter(spec),
+    ...parseStoryFilter(spec),
+    ...(/《ガードアイコン》を持つ/.test(spec) ? { hasGuard: true } : {}),
+    ...(/《ディソナアイコン》/.test(spec) ? { isDisona: true } : {}),
+  };
+  const nameM = spec.match(/カード名に《([^》]+)》を含む/);
+  if (nameM) filter.cardName = nameM[1];
+  // ⚠**取りこぼしの検出を先に行う**＝拾えなかった修飾が残っていたら諦める（無変換）。
+  //   ここを空 filter の早期 return より後ろに置くと、「《幻水　コノハケロ》を１枚捨てる」のような
+  //   **カード名指定が丸ごと落ちて「手札の任意の1枚」に化ける**（実測で踏んだ）。
+  const rest = spec
+    .replace(/＜[^＞]+＞/g, '').replace(/《ガードアイコン》を持つ/g, '')
+    .replace(/《ディソナアイコン》(?:の)?/g, '').replace(/カード名に《[^》]+》を含む/g, '')
+    .replace(/シグニ|スペル|カード|[の,、か]/g, '')
+    .replace(/[白赤青緑黒無]色?/g, '').trim();
+  if (rest.length > 0) return null;
+  return filter;
+}
+
+function applyTargetAndDiscardHandCost(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = [...(action as SequenceAction).steps];
+  const hit = steps.findIndex(s => s?.type === 'STUB' && (s as StubAction).id === 'TARGET_AND_DISCARD_HAND');
+  if (hit < 0) return action;
+  // 原文から「手札から〈spec〉をN枚捨て(る|てもよい)」の節を取る（対象宣言などの前置きは読点で落とす）
+  const sentences = text.split('。').map(x => x.trim()).filter(Boolean);
+  // ⚠主語が対戦相手の節（「対戦相手は手札を１枚捨てる」）は**相手の手札**の話＝自分の任意コストにしない。
+  const clauseOf = (x: string) => x.slice(x.lastIndexOf('、') + 1);
+  const sent = sentences.find(x => TADH_DISCARD_RE.test(clauseOf(x)) && !/対戦相手[はが]/.test(clauseOf(x)));
+  if (!sent) return action;
+  const m = clauseOf(sent).match(TADH_DISCARD_RE)!;
+  const filter = handDiscardSpecFilter(m[1]);
+  if (filter === null) return action;
+  steps[hit] = {
+    type: 'STUB', id: 'OPTIONAL_COST',
+    handDiscard: { count: parseNum(m[2]), ...(Object.keys(filter).length ? { filter } : {}) },
+  } as StubAction;
+  // 「対戦相手の**ルリグ**１体を対象とし、…そうした場合、それを〜する」＝宣言が**ルリグ**なのに
+  // 本体が既定の `SIGNI{owner:'self'}` に落ちていた（🔴自分のシグニを撃つ＝`WX25-CP1-004-E1` 選択肢②／
+  // `WX26-CP1-006-E1`）。センタールリグは1体しかないので**対象選択の機構は要らず**、本体の対象を
+  // 差し替えるだけで足りる（SELECT_TARGET_ONLY 系は SIGNI 専用なので持ち込まない）。
+  if (/対戦相手のルリグ[０-９\d]*体?を?対象とし/.test(text)) {
+    const gateIdx = steps.findIndex(isDidItGate);
+    const gate = gateIdx >= 0 ? steps[gateIdx] as import('../types/effects').ConditionalAction : null;
+    const body = gate?.then as (EffectAction & { target?: EffectTarget }) | undefined;
+    if (gate && body?.target?.type === 'SIGNI') {
+      steps[gateIdx] = { ...gate, then: { ...body, target: { type: 'LRIG', owner: 'opponent', count: 1 } } as EffectAction };
+    }
+  }
+  return { ...action, steps } as EffectAction;
+}
+
 function applyOptionalHandDiscardCost(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (hasOptionalCostStub(action)) return action;
@@ -6308,13 +6383,13 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
+    ?? applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
