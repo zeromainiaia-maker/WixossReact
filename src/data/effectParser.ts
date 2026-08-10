@@ -7834,8 +7834,25 @@ function parseActionTextInner(text: string): EffectAction {
         const baseCore = coreOf(base);
         if (vm && (base.type === 'POWER_MODIFY' || base.type === 'CONDITIONAL') &&
             baseCore.type === 'POWER_MODIFY' && typeof (baseCore as import('../types/effects').PowerModifyAction).delta === 'number') {
+          const enhancedDelta = ((vm[1] === '－' || vm[1] === '-') ? -1 : 1) * parseNum(vm[2]);
+          if (cmIsTargetProperty) {
+            // 🆕対象プロパティ条件（「それが感染状態の場合、代わりに－12000する」＝`WX15-027-E1`／
+            //   `WX15-040-BURST`）は**条件が対象決定より後にしか評価できない**ので、then/else の
+            //   置換にすると `LAST_PROCESSED_MATCHES` が対象選択前に評価されて**常に偽＝昇格が恒久 no-op**
+            //   になる。⇒ base はそのまま撃って lastProcessedCards を書かせ、**差分だけ**を同一対象へ
+            //   加算する（上の `tpm`「それに【チャーム】が付いている場合」と同じ加算モデル）。
+            const extra = enhancedDelta - ((baseCore as import('../types/effects').PowerModifyAction).delta as number);
+            const bonusPM: import('../types/effects').PowerModifyAction = {
+              type: 'POWER_MODIFY',
+              target: JSON.parse(JSON.stringify((baseCore as import('../types/effects').PowerModifyAction).target)),
+              delta: extra,
+              targetsLastProcessed: true,
+            };
+            steps.push({ type: 'CONDITIONAL', condition: cm.condition, then: bonusPM });
+            continue;
+          }
           const thenPM = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').PowerModifyAction;
-          thenPM.delta = ((vm[1] === '－' || vm[1] === '-') ? -1 : 1) * parseNum(vm[2]);
+          thenPM.delta = enhancedDelta;
           steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then: thenPM, else: base };
           continue;
         }
