@@ -3463,7 +3463,7 @@ export function collectFieldTriggers(
     if (topNum === triggeringCardNum) continue;
     if (ownAutoBlocked && !isLrig) continue; // BLOCK_OWN_SIGNI_AUTO はシグニ限定
     if (!fromTrash && myAbilitiesRemoved.has(topNum)) continue;
-    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+    for (const eff of watcherEffects(myState, topNum, isLrig)) {
       if (eff.effectType !== 'AUTO') continue;
       if (!eff.timing?.includes(event)) continue;
       const scope = eff.triggerScope ?? 'self';
