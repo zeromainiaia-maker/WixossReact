@@ -7743,12 +7743,16 @@ function parseActionTextInner(text: string): EffectAction {
         //   （タスク12(lxii)＝`WD16-016-BURST`「対戦相手の手札が５枚以下の場合…。６枚以上の場合、代わりに２枚捨てる」＝
         //    前段が `HAND_COUNT lte 5` なので数値だけ差し替えると `lte 6` という真逆の条件になる）。
         //   以上/以下を明示する既存利用（すべて gte 基底の以上形）は挙動不変。裸形は全CSVでこの1枚のみ。
-        const bm = clean.match(/^(?:その後、)?([０-９\d]+)[枚体](以上|以下)(?:ある|移動していた|の)?場合、((?:代わりに|追加で).+)$/s);
+        //   🆕2026-08-10（§6.4）＝主語つきの裸形「スペルが５種類以上ある場合、」（`WXEX1-38-E2`）と
+        //     「５枚以上ある場合、」が前段の `THIS_CARD_HAS_UNDER`（下カード枚数）を引き継ぐ形
+        //     （`WXK08-030-E1`）も許容する。いずれも**前段の条件を複製して数値だけ差し替える**ので、
+        //     主語が省略された文を素直に再パースして別条件へ化けるのを構造的に防ぐ。
+        const bm = clean.match(/^(?:その後、)?(?:(?:スペル|カード|シグニ)が)?([０-９\d]+)(?:[枚体]|種類)(以上|以下)(?:ある|移動していた|の)?場合、((?:代わりに|追加で).+)$/s);
         const prev = steps[steps.length - 1] as import('../types/effects').ConditionalAction;
         if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
-            ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT', 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN'].includes(prev.condition.type)) {
+            ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT', 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', 'THIS_CARD_HAS_UNDER'].includes(prev.condition.type)) {
           const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number; operator?: CompareOp };
-          if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD') cond.minCount = parseNum(bm[1]);
+          if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD' || cond.type === 'THIS_CARD_HAS_UNDER') cond.minCount = parseNum(bm[1]);
           else {
             cond.value = parseNum(bm[1]);
             if (cond.operator !== undefined) cond.operator = bm[2] === '以上' ? 'gte' : 'lte';
