@@ -2003,10 +2003,24 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
       { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: g[0] } },
       { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: g[1] } },
     ] })],
+  // 「このシグニの下にカードがN枚以上ある場合」＝下カード枚数の閾値（§6.4・2026-08-10）。
+  //   ⚠**枚数なし形より先に置くこと**（後者の regex が部分一致で先に食う）。
+  //   `WXK08-030-E1` は「２枚以上ある場合、それをバニッシュする。５枚以上ある場合、代わりに…」の
+  //   多段閾値で、従来は **２枚ゲートが丸ごと落ちて無条件バニッシュ**（過剰効果）だった。
+  [/このシグニの下にカードが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'THIS_CARD_HAS_UNDER', minCount: parseNum(g[0]) })],
   // 「このシグニの下にカードがある場合」＝効果元シグニの下に1枚以上（THIS_CARD_HAS_UNDER・filter 無し）。
   //   従来は無条件発火（WDK15-014/WXDi-P11-081）。
   [/このシグニの下にカードがある場合/,
     () => ({ type: 'THIS_CARD_HAS_UNDER' })],
+  // 「あなたのトラッシュにスペルがN種類以上ある場合」＝カード名の異なり数（枚数形とは別物）。
+  //   `WXEX1-38-E2` は３種類ゲートが落ちて**無条件バニッシュ**だった（§6.4・2026-08-10）。
+  [/あなたのトラッシュにスペルが([０-９\d]+)種類以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'スペル' }, minCount: parseNum(g[0]), distinctName: true })],
+  // 「あなたの場にあるシグニが持つ色が合計N種類以上ある場合」＝場のシグニが持つ色の異なり数
+  //   （`HAS_CARD_IN_FIELD.distinctColors`）。`WXDi-P13-036-E1` の「代わりに」ゲート。
+  [/あなたの場にある(?:(他の)の?)?シグニが持つ色が合計([０-９\d]+)種類以上ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, minCount: parseNum(g[1]), distinctColors: true, ...(g[0] ? { excludeSelf: true } : {}) })],
   // ── 続き166（2026-07-16）：semantic audit Cluster A の条件節丸ごと脱落（常時発動化）を是正。
   // 「あなたの場にパワーN以上の＜C＞のシグニがある場合」＝同一シグニに power/story の積条件（WXEX1-50-E1）。
   //   AND に分けると別々のシグニで条件成立してしまうため、1つの HAS_CARD_IN_FIELD filter に積む。
