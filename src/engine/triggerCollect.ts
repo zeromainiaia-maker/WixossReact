@@ -534,7 +534,9 @@ export function collectLrigAttackDefenderTriggers(
   if (defenderState.lrig_abilities_disabled) return { entries, usedIds };
   const limitOk = mkLimitOk(defenderState.actions_done, usedIds);
   const defLrigNum = defenderState.field.lrig.at(-1) ?? '';
-  for (const eff of [...(defenderState.lrig_granted_auto_effects ?? []), ...contGranted]) {
+  // 付与ストアの走査は `grantedStore.ts` の共通経路に寄せる（3ストア横断＝旧実装は base 1本だけを見ていた）。
+  const granted = grantedStoreWatchers(defenderState, 'ON_ATTACK_LRIG', ['any_opp', 'any']).map(w => w.effect);
+  for (const eff of [...granted, ...contGranted]) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
     const scope = eff.triggerScope ?? 'self';
     if (scope !== 'any_opp' && scope !== 'any') continue;
