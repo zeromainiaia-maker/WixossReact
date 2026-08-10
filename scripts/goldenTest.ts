@@ -7897,7 +7897,7 @@ const FORCED_HAND_COST_KNOWN = new Set([
   'WDK07-E01-E2', 'WDK07-E06-E1', 'WX03-034-BURST', 'WX04-030-BURST', 'WX05-030-BURST',
   'WX05-045-BURST', 'WX14-012-E1', 'WX19-001-E3', 'WX25-P1-TK2-E1', 'WX25-P3-TK03-E1',
   'WX26-CP1-068-E1', 'WXK05-003-E1',
-  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist）──
+  // ── 🔴未消化＝原文は「捨ててもよい」（PLAN §6.4 の残 worklist。続き417 時点で7件）──
   'WX25-P2-082-E1',   // 「代わりに」畳み込みが parser 後段で再構築し、任意コスト化が巻き戻る
   'WX25-P2-100-E1',   // 同上
   'WXDi-P07-010-E2',  // 「①/②を行う」多分岐の内側

@@ -6258,13 +6258,13 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
+    ?? applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。

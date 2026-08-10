@@ -879,7 +879,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'MILL':
       if (a.countIsLastProcessedLevelSum) return `この方法で${a.lastProcessedLevelVerbJa ?? '場に出たシグニ'}のレベル1につき${ownerJa(a.owner)}デッキの上からカードを1枚トラッシュに置く`;
       if (a.countPlusLastDownedLrigLevelSum) return `${ownerJa(a.owner)}デッキの上からこの方法でダウンしたルリグのレベルの合計に${numJa(a.count)}を加えた枚数のカードをトラッシュに置く`;
-      return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置く`;
+      // optional＝原文「〜トラッシュに置いてもよい」（続き417 で任意デッキミルをここへ寄せた）
+      return `${ownerJa(a.owner)}デッキの${a.fromBottom ? '下' : '上'}から${numJa(a.count)}枚トラッシュに置${a.optional ? 'いてもよい' : 'く'}`;
     case 'LIFE_CRASH': return a.triggerBurst === false
       ? `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚トラッシュに置く（バースト不発）${a.conditional ? '（そうした場合）' : ''}`
       : `${ownerJa(a.owner)}ライフクロスを${numJa(a.count)}枚クラッシュ${a.optional ? 'してもよい' : 'する'}${a.conditional ? '（そうした場合）' : ''}`;
@@ -1820,6 +1821,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const headOC = a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? '対戦相手のシグニ１体を対象とし、' : '';
         // 手札捨てコスト（続き416）。従来は spec を見ずに「コストを支払ってもよい」へ潰れており、
         // 原文の枚数・クラス指定が逆翻訳から丸ごと消えていた（handDiscard を持つ既存 MANUAL も同様）。
+        // シグニの下からトラッシュする任意コスト（`fromThis`＝このシグニの下から）
+        if (a.underAnySigniTrash) {
+          const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
+          return `${headOC}${whereUA}カードを${a.underAnySigniTrash.count}枚トラッシュに置いてもよい`;
+        }
         // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
         if (a.fieldDown) {
           const fFD = a.fieldDown.filter ? filterJa({ ...a.fieldDown.filter, cardType: undefined, isUp: undefined }) : '';

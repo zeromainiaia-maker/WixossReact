@@ -15,53 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +STUB -DOWN -SIGNI ［4枚］
-WXDi-D08-004 WXDi-P03-035 WXDi-P04-051 WXDi-P12-044
---- WXDi-D08-004
-  原文: 【自】《ターン１回》：このルリグがアタックしたとき、あなたのアップ状態のシグニ２体をダウンし《白》《無》を支払ってもよい。そうした場合、このルリグをアップし、ターン終了時まで、このルリグは能力を失う。【出】：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。【起】《ゲーム１回》《白×0》：タ
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 2
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.isUp = true
-  - [0].action.steps[0].target.upToCount = false
-  - [2].action.abilities[0].costUnparsed = true
-  ~ [0].action.steps[0].type : "DOWN" → "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_COST"
-  + [0].action.steps[0].fieldDown.count = 2
-  + [0].action.steps[0].fieldDown.filter.cardType = "シグニ"
-  + [0].action.steps[0].costColors[0] = "白"
-  …（他 1 行）
---- WXDi-P03-035
-  原文: 【ハーモニー】緑のルリグ１体【自】：あなたの白のルリグ１体がアタックしたとき、あなたのアップ状態のシグニ２体をダウンし《白》《無》を支払ってもよい。そうした場合、そのルリグをアップし、ターン終了時まで、そのルリグは能力を失う。【自】：アップ状態のこのシグニがバニッシュされたとき、《白》《無》《無》を支払ってもよい。そうした場合、このシグニをエナゾーンからダウ
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 2
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.isUp = true
-  - [0].action.steps[0].target.upToCount = false
-  ~ [0].action.steps[0].type : "DOWN" → "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_COST"
-  + [0].action.steps[0].fieldDown.count = 2
-  + [0].action.steps[0].fieldDown.filter.cardType = "シグニ"
-  + [0].action.steps[0].costColors[0] = "白"
-  + [0].action.steps[0].costColors[1] = "無"
---- WXDi-P04-051
-  原文: 【自】：あなたのルリグ１体がアタックしたとき、あなたのアップ状態の白のシグニ３体をダウンし《白》を支払ってもよい。そうした場合、そのルリグをアップし、ターン終了時まで、そのルリグは能力を失う。,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 3
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.color = "白"
-  - [0].action.steps[0].target.filter.isUp = true
-  - [0].action.steps[0].target.upToCount = false
-  ~ [0].action.steps[0].type : "DOWN" → "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_COST"
-  + [0].action.steps[0].fieldDown.count = 3
-  + [0].action.steps[0].fieldDown.filter.cardType = "シグニ"
-  + [0].action.steps[0].fieldDown.filter.color = "白"
-  …（他 1 行）
-
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
@@ -380,6 +333,24 @@ WXEX2-70
   + [0].action.steps[1].then.target.filter.level.max = 3
   + [0].action.steps[1].then.target.upToCount = false
 
+## +STUB -DOWN -SIGNI ［1枚］
+WXDi-D08-004
+--- WXDi-D08-004
+  原文: 【自】《ターン１回》：このルリグがアタックしたとき、あなたのアップ状態のシグニ２体をダウンし《白》《無》を支払ってもよい。そうした場合、このルリグをアップし、ターン終了時まで、このルリグは能力を失う。【出】：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。【起】《ゲーム１回》《白×0》：タ
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 2
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.filter.isUp = true
+  - [0].action.steps[0].target.upToCount = false
+  - [2].action.abilities[0].costUnparsed = true
+  ~ [0].action.steps[0].type : "DOWN" → "STUB"
+  + [0].action.steps[0].id = "OPTIONAL_COST"
+  + [0].action.steps[0].fieldDown.count = 2
+  + [0].action.steps[0].fieldDown.filter.cardType = "シグニ"
+  + [0].action.steps[0].costColors[0] = "白"
+  …（他 1 行）
+
 ## -TRASH_HAS_CARD ［1枚］
 WXDi-P00-040
 --- WXDi-P00-040
@@ -613,24 +584,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB ［1枚］
-WX25-P3-019
---- WX25-P3-019
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の＜天使＞のシグニ２体をダウンし《赤》を支払ってもよい。そうした場合、ターン終了時まで、このルリグは「【自】《ターン１回》：このルリグがアタックしたとき、対戦相手が自分のルリグデッキからカード１枚をルリグトラッシュに置かないかぎり、対戦相手にダメージを与える。」を得る。【起】《ゲーム１回》行こう、てっ
-  - [0].action.abilities[0].effectId = "WX25-P3-019-sub-E1"
-  - [0].action.abilities[0].effectType = "AUTO"
-  - [0].action.abilities[0].timing[0] = "ON_ATTACK_LRIG"
-  - [0].action.abilities[0].action.type = "LIFE_CRASH"
-  - [0].action.abilities[0].action.owner = "opponent"
-  - [0].action.abilities[0].action.count = 1
-  - [0].action.abilities[0].action.triggerBurst = true
-  - [0].action.abilities[0].duration = "INSTANT"
-  - [0].action.abilities[0].mandatory = true
-  - [0].action.abilities[0].parseStatus = "AUTO"
-  - [0].action.abilities[0].usageLimit = "once_per_turn"
-  - [0].action.rawText = "【自】《ターン１回》：このルリグがアタックしたとき、対戦相手が自分のルリグデッキからカード１枚をルリグトラッシュに置かないかぎり、対戦相手にダメージを与える。"
-  …（他 22 行）
 
 ## +SEQUENCE +SIGNI +TRASH ［1枚］
 WXK02-022

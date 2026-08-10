@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 任意性脱落 第2バッチ＝残クラスタを機構ごと消化（続き417）
+
+`MANDATORY_SUSPICIOUS` **16→2**、census **868→860**、ゲート全緑（golden 1753/1753）。
+
+### ⭐ 先に確かめたこと＝「`optional` の受け皿があるか」は型ごとに違う
+
+同じ「〜てもよい」でも、**直すべきものと既に正しいものが型で割れる**（engine 実測）：
+
+| 型 | `optional` の扱い | 判定 |
+|---|---|---|
+| `TRASH{HAND_CARD/SIGNI}` | `selectOrInteract(..., a.optional)` → 0体選択で `stripDidItConditional` が「そうした場合」ゲートごと落とす | ✅既に正しい |
+| `TAKE_FROM_UNDER_SIGNI{upToCount}` | 同上（ただし N≧2 は**部分払い**が通る） | △N≧2 だけ穴 |
+| `DRAW` / `DOWN` / `ATTACH_CHARM` / `ENERGY_CHARGE_FROM_DECK` | `optional` を**持たない** | 🔴強制 |
+| `TRASH{DECK_CARD}` | `optional` を**一切見ない**（無条件ミル） | 🔴強制 |
+| `MILL` | `optional` あり＋専用プロンプト | ✅受け皿 |
+
+### 直したもの（5クラスタ）
+
+1. **効果まるごと任意 → `STUB{OPTIONAL_ACTIVATE}` 前置（17カード）**。`effectExecutor` Pattern⑤ の
+   「発動する／発動しない」に載せる。⚠**型ホワイトリスト制**にした＝`OPTIONAL_ACTIVATE` は
+   `canAfford` が常に true なので、コスト系へ広げると**払えなくても発動できて本体だけ通る**。
+2. **自己トラッシュコストの脱落 → `STUB{OPTIONAL_TRASH_SELF}` 挿入（11カード）**。
+   「このシグニを場からトラッシュに置いてもよい。そうした場合、…」で**コストのステップが1つも
+   生成されず本体だけ無条件に走っていた**＝ただで撃てる過剰効果。engine 側 STUB は実装済みで、
+   parser が**一度も生成していなかった**（live 3件は手パッチ）。
+3. **任意デッキミル → `MILL{optional}` 化（6カード）**。副産物で `WX24-P4-049` の
+   「この方法でトラッシュに置かれたシグニのレベルの合計1につき」倍率脱落も
+   `countIsLastProcessedLevelSum` で復旧。⚠**ここを直さないとスキップしても相手が1枚ミルされる**。
+4. **新設 `OptionalCostSpec.fieldDown`（4カード）**＝「あなたのアップ状態の＜X＞のシグニN体を
+   ダウンし《色》を支払ってもよい」。従来は **DOWN が強制ステップで残り《色》は丸ごと脱落**
+   （`WX25-P3-019` はコスト句ごと消滅）。`canAfford` がアップ状態の該当シグニ数を数える。
+5. **`underAnySigniTrash.fromThis` 追加（4カード）**＝「このシグニの下からカードをN枚トラッシュに
+   置いてもよい」の all-or-nothing 化（`WX20-042-CB-E3` は1枚だけ払って本体を撃てた）。
+   ⚠`fromThis` を数えないと**他のシグニの下のカードで払えて**しまう。
+
+### 🔴 副産物＝付与能力が丸ごと消える構造バグ
+
+`parseBlock` の `GRANT_LRIG_ABILITY` 展開が **`resolvedAction.type === 'GRANT_LRIG_ABILITY'` という
+トップレベル型でしか判定していなかった**。任意コストで `SEQUENCE`/`CONDITIONAL` に包んだ途端に
+この分岐へ入らず、`abilities` が**空のまま**（付与する能力が消滅）になった。
+`expandGrantLrigAbilities` 自体は元から SEQUENCE/CONDITIONAL を walk できるので、
+**判定を「木の中に居るか」へ変えるだけ**で解消（`grantLrigAbilityNodes`）。
+
+⭐**「包んだら別の post-pass が効かなくなる」型の死角**。held レビューで
+`abilities:[]` に気づいたので採用前に止まった（署名グループ一括採用なら見落としていた）。
+
+### 併せて直した計器の誤検出（2件）
+
+`scripts/_checkAllEffects.mjs` の `actionIsSkippable` が `GRANT_*_ABILITY.abilities[].action` /
+`GRANT_EFFECT.effect` の**内側へ再帰していなかった**（`WX17-077` の `CHOOSE{upTo}`／
+`WX21-052` の `BANISH{target.upToCount}` はどちらも引用能力の中にあり engine では辞退できる）。
+子ノードに `abilities`／`effect`／`thenAction`／`burstAction` を追加。
+
+### 回帰ガード
+
+- golden `§6.4 OPTIONAL_ACTIVATE`（`WX07-003-E1`）＝skip で手札不変・pay で「引いて捨てる」。
+- golden `§6.4 fieldDown`（`WXDi-P04-051`）＝アップ白シグニが足りなければ `pay` が `available:false`。
+- 既設の `§6.4 トリップワイヤ` は据置（既知リスト外の「強制の手札捨てコスト」で即FAIL）。
+
+### 残 2件
+
+`WX12-010`（別件＝**強制アタック機構が未実装**）／`WXDi-CP01-023`（**置換**＝§6.4「置換5本の対話化」とセット）。
+
 ## 2026-08-10 — §6.4 任意性脱落 第1バッチ＝「〈手札を捨て〉てもよい。そうした場合、…」107カード（続き416）
 
 ### 直したもの
