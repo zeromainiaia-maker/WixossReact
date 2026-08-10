@@ -24,7 +24,8 @@
     "lint": "eslint . --cache --cache-location node_modules/.cache/eslint/",
     "preview": "vite preview",
     "census:timing": "tsx scripts/timingCensus.ts",
-    "census:wiring": "tsx scripts/censusWiring.ts"
+    "census:wiring": "tsx scripts/censusWiring.ts",
+    "census:goldentypes": "tsx scripts/goldenTypeCoverage.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.99.0",
