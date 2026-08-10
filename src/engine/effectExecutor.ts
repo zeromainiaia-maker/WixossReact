@@ -389,10 +389,13 @@ export function applyEffectBanishSubstitute(
  * 相手効果による場離れの**置換チェーンの唯一の入口**（タスク12(xcvii)）。
  *
  * 適用順は固定＝①ルリグ付与能力の喪失（`…LrigAbility`）→②パワー減の身代わり（`…PowerReduction`）→
- * ③バニッシュへの差し替え（`…ReplaceBanish`）→④能力なし→デッキ下（`…NoAbilityDeckBottom`）。
+ * ③**バニッシュ経路なら** F-3 身代わり（`…BanishSubstitute`）／**非バニッシュ経路なら**バニッシュへの
+ * 差し替え（`…ReplaceBanish`）→④能力なし→デッキ下（`…NoAbilityDeckBottom`）。
  * 先に成立したものを1つだけ適用して打ち切る（従来の手書きチェーンと同じ早期 return）。
  *
- * - **バニッシュ経路からは `skipReplaceBanish: true`** で呼ぶ＝原文「その移動がバニッシュによるものでないなら」。
+ * - **バニッシュ経路からは `isBanish: true`** で呼ぶ。③の2本は排他＝`ReplaceBanish` の原文は
+ *   「その移動が**バニッシュによるものでないなら**」、F-3 身代わりは逆に**バニッシュのときだけ**成立する。
+ *   ⚠**フラグを1つにまとめてあるのは、バニッシュ経路を新設した人が片方だけ書いて取りこぼすのを防ぐため**。
  * - 呼び出し側は `if (sub.replaced) { …置換済みなので本来の移動はしない… }` だけ書けばよい。
  *
  * 【背景】従来は離場11経路が3〜4本の置換を**手書きで並べて**いて、`execSendToEnergy` の複数選択経路だけ
