@@ -2108,6 +2108,13 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
         cur = addLog(cur, '空きシグニゾーンがないため場に出せない');
         continue;
       }
+      // 配置制限は**1枚ごとに**評価する（複数枚配置は場のシグニ数が増えながら進むため、
+      // まとめて1回だけ見ると上限を跨いで置けてしまう）。
+      const blockedDL = deployLimitBlockedFor(tgtOwner, n, cur);
+      if (blockedDL) {
+        cur = addLog(cur, deployLimitLogMessage(blockedDL, ctx.cardMap.get(getCardNum(n))?.CardName ?? n));
+        continue;
+      }
       let newS = { ...s };
       if (srcDefined.type === 'TRASH_CARD') {
         // THIS_CARD_FROM_TRASH 用に「トラッシュから出た」インスタンスを記録（直後の【出】効果が参照）
