@@ -5,12 +5,12 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
 逆翻訳シートの [STUB:…] 総数: 903  うち生ID露出 272 箇所（187 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 15 種 / 17 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 14 種 / 16 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 7 種 / 9 件
-      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 8 種 / 8 件
+      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 7 種 / 7 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 18 種 / 32 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 259 箇所
-  D 健全（実装あり＋日本語表示）                          : 401 種
+  D 健全（実装あり＋日本語表示）                          : 402 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 312 種
 
 ==============================================================================
@@ -33,8 +33,6 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
         カード: WX25-CP1-060
      1件   1枚  GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
         カード: WXDi-P00-026
-     1件   1枚  MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC
-        カード: WX24-P4-016
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
 
@@ -114,7 +112,7 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
         消費: src\engine\effectExecutor.ts:3293
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:974 / src\screens\BattleScreen.tsx:9873
+        消費: src\screens\BattleScreen.tsx:974 / src\screens\BattleScreen.tsx:9894
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6435

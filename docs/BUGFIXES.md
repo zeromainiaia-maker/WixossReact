@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を5件実装（続き409〜412）
+## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を6件実装（続き409〜413）
 
 ### 背景：`[STUB:X]` 907箇所は「表示の穴」と「実装の穴」が混ざっていた
 
@@ -171,23 +171,69 @@ timing・triggerCondition・ターン終了時トラッシュがすべて既存�
 
 ⭐**教訓＝「実装できる」と「実装してよい」は別。** A群を機械的に消化すると、この型を踏んで退化させる。
 
-### A群の残 8件（1カード1機構・逓減しない）
+### A群の6件目：`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`＝新 timing `ON_MAGIC_BOX_FLIPPED`（続き413）
 
-**着手可能は4件**＝`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）／`CHECK_ZONE_FLIP_FREE_GROW`
-（WXDi-P16-001A＝`screens/battle/mayuEncounter.ts` が「裏返し＋グロウ」の先例）／
-`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（WX24-P4-016＝「【マジックボックス】が表向きになったとき」timing の新設）／
-`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041＝代替エナ支払いの既存機構 `myEnergyTrashSubInfo` が近い）。
+原文（WX24-P4-016-E3 の後半）＝「このターンのアタックフェイズの間、効果によってあなたの
+【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、
+それは【アサシン】か【ダブルクラッシュ】を得る。」
 
-**残4件は着手しない理由が確定済み**＝`COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（§6.3 E-2 (b) の着手禁止）／
-`GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（§6.3 F の保留）／`ATTACK_NEGATE_IMMUNITY_SELF`
-（原文が誰のシグニを指すか確定できない＝裁定確認が先）／`FLIP_SELF_FACE_DOWN_UP`（上記）。
+⭐**着手前に producer（MB を表向きにする側）の有無を確かめた**＝原文走査で6カードあり、engine 実装も
+`INTERNAL_OPEN_MB_DO`（表向き→トラッシュ）／`MAGIC_BOX_REVEAL`（表向き→シグニ）で揃っていた。
+**producer が無ければ watcher を作っても永久 no-op**になる（§6.3 J 群と同じ罠）。
+
+PLAN §4「新規 timing 配線の確立パターン」どおり6段：
+
+1. **timing** `ON_MAGIC_BOX_FLIPPED`（`types/effects.ts`）
+2. **detector** `boardDiff.countMagicBoxesFlipped(before, after)`
+   🔴**「MB ゾーンから消えた」だけでは数えない**＝行先が**トラッシュ**か**場のシグニ**であることを要求する。
+   `MUGEN_Q_RESET_AND_FLIP` は盤面ごとゲーム除外するので MB ゾーンも空になり、これを見ないと
+   「表向きになった」を誤検出する（`countCharmsToTrash` が `afterTrash` を要求しているのと同じ形）。
+3. **collector** `triggerCollect.collectMagicBoxFlippedTriggers`
+   🔴**印字能力に加えて付与ストア（`grantedStore.ts`）も走査する**＝このカードの watcher は印字ではなく
+   「そのターンだけ付与されるもの」なので、印字だけ見ると**構造が正しくても恒久 no-op**（§6.3 の教訓）。
+   ⚠`activeCondition`（`DURING_ATTACK_PHASE`）は **`ctx.turnPhase` を渡さないと常に true に倒れる**。
+4. **中央 diff funnel**（BattleScreen の ON_CHARM_TO_TRASH／ON_COIN_GAINED と同じ場所）＋薄いラッパ
+5. **golden**（detector の3ケース／付与ストア発火／付与ストアへの積み方）
+6. **逆翻訳語彙**（timing 名＋本体文）
+
+⚠**付与先は `lrig_granted_auto_effects`**（`permanentGrant` を付けない＝`clearTurnGrantedLrigAbilities` が
+ターン終了時に落とす）。`game_granted_auto_effects` は「このゲームの間」用で**ターン境界のクリアが無く
+持ち越す**。golden にトリップワイヤ（`permanentGrant` が付いていたら FAIL）。
+
+⚠**実機UI未検証**＝§7 送り。
+
+### 着手不能と判明した2件（続き413）
+
+- 🔴**`CHECK_ZONE_FLIP_FREE_GROW`（WXDi-P16-001A NEXT GATE）＝データの欠落**。原文は「チェックゾーンに
+  あるこのカードを裏返し、あなたのセンタールリグはこの《扉の俯瞰者　ウトゥルス》にグロウコストを
+  支払わずにグロウする」で、`mayuEncounter.ts`（裏返し＋グロウ）が機構の先例になる。**しかし B面
+  `WXDi-P16-001B` が CSV に存在しない**＝グロウ先が Level/Power/Type を持たない壊れたルリグになる。
+  ⚠live effects JSON には `WXDi-P16-001B-E1/E2` が入っているが `cardMap` に載らないので**到達不能**。
+  **機構ではなくデータを足すのが先。**
+- **`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）＝アシストルリグのアタック経路そのものが無い**。
+  現状ルリグアタックは**センタールリグ1体ぶん**（`field.lrig_down` で攻撃済みを管理）しか無く、
+  per-assist の攻撃済み管理・アタックボタン・ガード応答が要る。§6.4 に残る中では最大。
+
+### A群の残 7件（1カード1機構・逓減しない）
+
+**着手可能は2件**＝`ASSIST_LRIG_ATTACK_THIS_TURN`（上記・大物）／`UNDER_CARD_AS_ENERGY_COST`
+（WXDi-P10-041＝代替エナ支払いの既存機構 `myEnergyTrashSubInfo`／`ENERGY_SUBSTITUTE_TRASH_KEY` が近い）。
+
+**残5件は着手しない理由が確定済み**＝`COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（§6.3 E-2 (b) の着手禁止）／
+`GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（§6.3 F の保留）／`ATTACK_NEGATE_IMMUNITY_SELF`（原文の裁定確認が先）／
+`FLIP_SELF_FACE_DOWN_UP`（費用だけ実装＝退化）／`CHECK_ZONE_FLIP_FREE_GROW`（B面のデータが無い）。
 
 ### ゲート
 
-`npm run gates` 全緑＝golden **1747（+6）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
-census **880 据置** / lint 0 errors・254 warnings（増減0）。`npm run build:effects`＋`npm run regen` 実施。
-**live JSON 変化は `WXK11-001-E1` と `WX16-021-E1` の2効果のみ**（続き411 は engine/collector のみで live 変化0）。
-**A群の無言 no-op は 12 → 8**。
+`npm run gates` 全緑＝golden **1748（+7）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+census **880 据置** / lint **0 errors・256 warnings**。`npm run build:effects`＋`npm run regen` 実施。
+**live JSON 変化は `WXK11-001-E1` と `WX16-021-E1` の2効果のみ**（続き411・413 は engine/collector のみで live 変化0）。
+**A群の無言 no-op は 12 → 7**。
+
+⚠**lint 254→256 の内訳**＝旧 254 は `--cache` 込みの値で、キャッシュを消したベースライン実測は **251**。
+増分2は**中央 diff funnel にブロックを1つ足したぶん**＝局所ヘルパ `useHost`/`useGuest` が
+**React hook と誤認される名前**なので `react-hooks/rules-of-hooks` の偽陽性が2件増える（既存の全ブロックが
+同じ warning を出している）。残り3は未追跡の `scripts/_dbgFresh.ts`。**実害なし。**
 
 ## 2026-08-10 — §6.4 計器（checkAllEffects / verifyEffects）の誤検出を潰し、任意性脱落の系統バグを発見（続き408）
 
