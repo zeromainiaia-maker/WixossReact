@@ -2445,6 +2445,18 @@ export function execStubPart1(
     };
     return selectOrInteract(cands, 1, false, 'self_hand', trashAction, undefined, ctx, true);
   }
+  // ARTS_ATTACK_EMPTY_ZONE_AS_FRONT（WX16-021 驚天動地）：
+  //   「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、
+  //     代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える。」
+  // ⚠クラスは**構造（`sideAttackEmptyZoneAsFront.cardClass`）から取る**＝`costText` を engine で再パースしない。
+  // 判定側は `screens/battle/sideAttackDamage.ts` に置き、**アタック先ボタン生成と解決の2箇所**から同じ関数を呼ぶ。
+  if (stub.id === 'ARTS_ATTACK_EMPTY_ZONE_AS_FRONT') {
+    const clsAEZ = stub.sideAttackEmptyZoneAsFront?.cardClass ?? '';
+    return done(addLog({
+      ...ctx,
+      ownerState: { ...ctx.ownerState, side_attack_empty_zone_damage_class: clsAEZ },
+    }, `このターン、${clsAEZ ? `＜${clsAEZ}＞の` : ''}シグニは空の相手シグニゾーンへの側面アタックで対戦相手にダメージを与える`));
+  }
   // PLAY_MILLED_SIGNI_DELAYED_TRASH（WXDi-P09-079-E1）：
   //   「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき、そのシグニを場に出す。
   //     ターン終了時、そのシグニを場からトラッシュに置く。」
