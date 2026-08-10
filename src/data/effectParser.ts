@@ -5545,8 +5545,8 @@ let _resolvingSeparatedPick = false;
 //
 // (lxxiv) で母集団10枚を全項目監査し、**単独パースが原文より情報を失う2文型だけ**をここで
 // 正規化してから「全部実行」へ開いた（無条件に開くと下の2つが退化する。詳細は各分岐のコメント）。
-// `WXK11-001` 型の①は既存条件語彙で復元する。②の任意ルリグデッキ除外は、
-// 既存 OPTIONAL_COST が「ルリグトラッシュへ置く」専用で行先が異なるため STUB のまま honest defer。
+// `WXK11-001` 型の①は既存条件語彙で復元する。②の任意ルリグデッキ除外は 2026-08-10（続き410）に
+// 専用の `exileArtsFromLrigDeck` を engine へ入れて実装済み（旧・honest defer は解消）。
 function tryParseDoAllItems(text: string): EffectAction | null {
   if (!/^以下の[０-９\d２-９]+つを行う。/.test(text.trim()) || !/[①②③④⑤]/.test(text)) return null;
   const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
