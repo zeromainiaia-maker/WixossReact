@@ -12873,7 +12873,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       />
 
       {/* 強制攻撃バナー */}
-      {isMyTurn && my.must_attack_signi && bs.turn_phase === 'ATTACK_SIGNI' && (
+      {isMyTurn && myForcedAttack.forced && bs.turn_phase === 'ATTACK_SIGNI' && (
         <div style={{ flexShrink: 0, backgroundColor: '#7a1a1a', padding: '4px 12px',
           fontSize: 11, color: '#ffaaaa', textAlign: 'center' }}>
           ⚠ あなたのシグニは可能ならばアタックしなければなりません
