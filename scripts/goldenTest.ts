@@ -12100,6 +12100,50 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('OPP_LRIG_DECK_TO_LRIG_TRASH: 対戦相手が自分のルリグデッキから1枚をルリグトラッシュへ（§6.4 A群・WX24-P4-014②）', () => withSavedCursor(() => {
+  const stub = { type: 'STUB', id: 'OPP_LRIG_DECK_TO_LRIG_TRASH' } as unknown as EffectAction;
+  const ctx = mkCtx({}, {});
+  (ctx.otherState as { lrig_deck: string[] }).lrig_deck = ['A1', 'A2'];
+  const r = run(stub, ctx);
+  eq(r.otherState.lrig_deck.length, 1, '対戦相手のルリグデッキから1枚抜けていない');
+  eq(r.otherState.lrig_trash.length, 1, 'ルリグトラッシュへ入っていない');
+  // ⚠行先の取り違え（通常トラッシュ）を固定で弾く
+  eq(r.otherState.trash.length, 0, '⚠通常トラッシュへ行っている＝行先の取り違え');
+  // ⚠適用先が自分側にすり替わっていないこと（ctx の視点は opponentResponds で反転しない）
+  eq(r.ownerState.lrig_trash.length, 0, '⚠自分のルリグトラッシュへ入っている＝適用先の取り違え');
+  // 空なら不発（lastProcessedCards も空に倒して「そうした場合」を漏らさない）
+  const rEmpty = run(stub, mkCtx({}, {}));
+  eq(rEmpty.otherState.lrig_trash.length, 0, 'ルリグデッキが空なのに動いた');
+  eq((rEmpty.lastProcessedCards ?? []).length, 0, '空振りなのに lastProcessedCards が残っている');
+}));
+test('PLAY_MILLED_SIGNI_DELAYED_TRASH: ミルされたシグニを場に出し、ターン終了時トラッシュを予約（§6.4 A群・WXDi-P09-079）', () => withSavedCursor(() => {
+  const stub = { type: 'STUB', id: 'PLAY_MILLED_SIGNI_DELAYED_TRASH' } as unknown as EffectAction;
+  const milled = `${findCard(c => isSigni(c) && c.Level === '1')}#55`;
+  // (a) 通常＝トラッシュから場へ出て、ターン終了時トラッシュ予約に載る
+  const ctxA = mkCtx({ signi: [null, null, null] }, {});
+  (ctxA.ownerState as { trash: string[] }).trash = [milled];
+  (ctxA as { triggeringCardNum?: string }).triggeringCardNum = milled;
+  const rA = run(stub, ctxA);
+  ok(rA.ownerState.field.signi.some(s => s?.at(-1) === milled), 'ミルされたシグニが場に出ていない');
+  ok(!rA.ownerState.trash.includes(milled), 'トラッシュから抜けていない');
+  ok((rA.ownerState.turn_end_field_trash_targets ?? []).includes(milled), 'ターン終了時トラッシュが予約されていない');
+  // (b) 空きゾーンなし＝不発
+  const ctxB = mkCtx({ signi: [SIGNI, SIGNI_P3000, SIGNI_P12000] }, {});
+  (ctxB.ownerState as { trash: string[] }).trash = [milled];
+  (ctxB as { triggeringCardNum?: string }).triggeringCardNum = milled;
+  const rB = run(stub, ctxB);
+  ok(rB.ownerState.trash.includes(milled), '空きゾーンが無いのに場に出た');
+  // (c) ⚠配置制限（「シグニをN体までしか場に出せない」）を必ず通す＝直接 field に書く実装の常習バグ
+  const ctxC = mkCtx({ signi: [SIGNI, null, null] }, {});
+  (ctxC.ownerState as { trash: string[] }).trash = [milled];
+  (ctxC.ownerState as { signi_deploy_count_limit?: number }).signi_deploy_count_limit = 1;
+  (ctxC as { triggeringCardNum?: string }).triggeringCardNum = milled;
+  const rC = run(stub, ctxC);
+  ok(rC.ownerState.trash.includes(milled), '⚠配置数制限をすり抜けて場に出た');
+  // (d) トリガー元が不明／トラッシュに無い＝不発
+  const rD = run(stub, mkCtx({}, {}));
+  eq((rD.lastProcessedCards ?? []).length, 0, 'トリガー元が無いのに何かした');
+}));
 test('EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP: ルリグデッキのアーツ除外→シグニアタックステップ封じ（§6.4 A群・WXK11-001②）', () => withSavedCursor(() => {
   // §6.4 A群（STUB 仕分け計器）の2件目。スキップ機構（BLOCK_ACTION{SIGNI_ATTACK_STEP}）は
   // 同カード①のルリグ側で既に動いており、欠けていたのは任意コスト側だけだった。
