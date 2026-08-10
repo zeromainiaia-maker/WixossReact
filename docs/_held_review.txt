@@ -361,6 +361,20 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +STUB -HAND_CARD -TRASH ［1枚］
+WXDi-P07-010
+--- WXDi-P07-010
+  原文: 【自】：このルリグがアタックしたとき、対戦相手のデッキの一番上を公開する。それがレベル１のシグニの場合、①を行う。レベル２のシグニの場合、②を行う。レベル３のシグニの場合、①か②を行う。スペルの場合、①と②を行う。①カードを１枚引く。②対戦相手は手札を１枚捨てる。【起】《ゲーム１回》《青×0》：対戦相手のシグニ１体を対象とし、それを裏向きにする。各アタックフ
+  - [1].action.steps[1].target.type = "HAND_CARD"
+  - [1].action.steps[1].target.owner = "self"
+  - [1].action.steps[1].target.count = 2
+  - [1].action.steps[1].optional = true
+  ~ [1].action.steps[1].type : "TRASH" → "STUB"
+  + [1].action.steps[1].id = "OPPONENT_PAY_OPTIONAL"
+  + [1].action.steps[1].costColors[0] = "無"
+  + [1].action.steps[1].costColors[1] = "無"
+  + [1].action.steps[1].opponentHandDiscard = 2
+
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
