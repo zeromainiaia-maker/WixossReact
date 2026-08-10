@@ -7752,7 +7752,10 @@ function parseActionTextInner(text: string): EffectAction {
         if (bm && prev?.type === 'CONDITIONAL' && prev.condition &&
             ['TRASH_COUNT', 'TRASH_HAS_CARD', 'LRIG_TRASH_COUNT', 'HAS_CARD_IN_FIELD', 'ENERGY_COUNT', 'HAND_COUNT', 'LIFE_COUNT', 'OPP_CARDS_MOVED_TO_DECK_THIS_TURN', 'THIS_CARD_HAS_UNDER'].includes(prev.condition.type)) {
           const cond = JSON.parse(JSON.stringify(prev.condition)) as Condition & { minCount?: number; value?: number; operator?: CompareOp };
-          if (cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD' || cond.type === 'THIS_CARD_HAS_UNDER') cond.minCount = parseNum(bm[1]);
+          // minCount 型は「N以上」しか表せない＝「N以下」形が来たら**引き継がない**（黙って意味が反転するため）
+          const minCountType = cond.type === 'TRASH_HAS_CARD' || cond.type === 'HAS_CARD_IN_FIELD' || cond.type === 'THIS_CARD_HAS_UNDER';
+          if (minCountType && bm[2] === '以下') { /* 表現不能＝据置 */ }
+          else if (minCountType) cond.minCount = parseNum(bm[1]);
           else {
             cond.value = parseNum(bm[1]);
             if (cond.operator !== undefined) cond.operator = bm[2] === '以上' ? 'gte' : 'lte';
