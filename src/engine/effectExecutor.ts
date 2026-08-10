@@ -286,6 +286,106 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
 }
 
 /**
+ * **効果による**バニッシュを、被害側の場が宣言する `BANISH_SUBSTITUTE`（F-3）で置換する（続き406）。
+ *
+ * 対象は `collectBanishSubstitutes` が列挙する2形＝
+ * **犠牲型**（`self_sacrifice_other`＝`WX12-024`/`WXEX2-60`／`protect_other_sacrifice_self`＝
+ * `WX20-055`/`WXDi-CP01-032`/`WXDi-P10-052`）と**コスト払い型**（`discardSpell`＝`WX10-033`／
+ * `trashStackSpell`＝`WX11-029`）。
+ *
+ * ⚠**これらの原文は「このシグニがバニッシュされる場合」＝バトル限定ではない**のに、
+ * 従来 `collectBanishSubstitutes` の消費地点は **BattleScreen のバトルバニッシュ経路1箇所だけ**で、
+ * `execBanish`（効果によるバニッシュ）からは一切参照されていなかった＝効果バニッシュに対しては丸ごと無効だった。
+ *
+ * - `victimOwner === 'opponent'` ＝ ctx の効果主から見た相手側だけを置換する（自分の効果で自分のシグニを
+ *   バニッシュする「コスト/利得」型を、勝手に他シグニの犠牲へすり替えないため）。他3本と同じガード。
+ * - 「してもよい」は**自動適用**＝他の置換3本と同じ決定論的近似（同期的な ctx 変換なので対話 pause を張れない）。
+ *   **選ぶ順は安い順に固定**＝①スタック下のスペル→②手札のスペル→③他シグニの犠牲。
+ * - ⚠**`lifeCrash`（`WX14-026`）は engine では適用しない**＝ライフクラッシュは【ライフバースト】確認フロー
+ *   （`field.check`）を伴うため、効果解決の途中で同期的に差し込めない。バトル経路の対話実装が引き続き担当する。
+ */
+export function applyEffectBanishSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  // `collectBanishSubstitutes` の isOwnerTurn は**victim オーナー視点**。ctx.isOwnerTurn は効果主視点なので反転する。
+  // 未設定なら false＝「victim オーナーのターンではない」に倒す（バトル経路の呼び出しも常に false。
+  // 効果主が動いている＝多くは効果主のターン、という最頻ケースに合わせる）。
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  // 付与ストアと同じ理由で `ctx.effectsMap` には依存できない（代入されるのは BattleScreen の1経路だけ）。
+  // 実アプリでは CardData.effects に live JSON が載っている（App.tsx）ので、そちらを優先フォールバックにする。
+  const localEffects = new Map<string, CardEffect[]>();
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    localEffects.set(top, ctx.effectsMap?.get(top)
+      ?? ctx.effectsMap?.get(getCardNum(top))
+      ?? ctx.cardMap.get(getCardNum(top))?.effects
+      ?? []);
+  }
+  const options = collectBanishSubstitutes(
+    state, attackerState, victimOwnerTurn, ctx.cardMap, localEffects, victimNum,
+  ).filter(o => !(o.kind === 'pay_cost' && o.costType === 'lifeCrash'));
+  if (options.length === 0) return { ctx, replaced: false };
+
+  const rank = (o: typeof options[number]): number =>
+    o.kind === 'pay_cost' ? (o.costType === 'trashStackSpell' ? 0 : 1) : 2;
+  const chosen = [...options].sort((a, b) => rank(a) - rank(b))[0];
+  const isSpell = (n: string) => ctx.cardMap.get(getCardNum(n))?.Type === 'スペル';
+  const nameOf = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+
+  if (chosen.kind === 'sacrifice') {
+    // victim は場に残り、代わりに sacrificeNum をバニッシュする（バニッシュ先は通常経路と同じ）。
+    const removed = removeFromField(chosen.sacrificeNum, state);
+    const { state: dest, log } = banishDestination(
+      removed, attackerState, chosen.sacrificeNum, banishRedirectOpts(ctx, state, chosen.sacrificeNum),
+    );
+    return {
+      ctx: addLog(setOwnerState(victimOwner, dest, ctx),
+        `身代わり：${nameOf(victimNum)}の代わりに${nameOf(chosen.sacrificeNum)}${log}`),
+      replaced: true,
+    };
+  }
+
+  if (chosen.costType === 'discardSpell') {
+    const picked: string[] = [];
+    const restHand: string[] = [];
+    for (const h of state.hand) {
+      if (picked.length < chosen.amount && isSpell(h)) picked.push(h); else restHand.push(h);
+    }
+    return {
+      ctx: addLog(setOwnerState(victimOwner,
+        { ...state, hand: restHand, trash: [...state.trash, ...picked] }, ctx),
+        `身代わり：手札からスペル${picked.length}枚を捨てて${nameOf(victimNum)}のバニッシュを回避`),
+      replaced: true,
+    };
+  }
+
+  // trashStackSpell: 宣言者（sourceNum）の下からスペルを amount 枚トラッシュへ。トップと残りは維持。
+  const srcZone = state.field.signi.findIndex(stack => stack?.at(-1) === chosen.sourceNum);
+  const stack = srcZone >= 0 ? (state.field.signi[srcZone] ?? []) : [];
+  const top = stack.at(-1);
+  const trashed: string[] = [];
+  const keptUnder: string[] = [];
+  for (const u of stack.slice(0, -1)) {
+    if (trashed.length < chosen.amount && isSpell(u)) trashed.push(u); else keptUnder.push(u);
+  }
+  const nextSigni = [...state.field.signi] as (string[] | null)[];
+  if (srcZone >= 0 && top) nextSigni[srcZone] = [...keptUnder, top];
+  return {
+    ctx: addLog(setOwnerState(victimOwner,
+      { ...state, trash: [...state.trash, ...trashed], field: { ...state.field, signi: nextSigni } }, ctx),
+      `身代わり：${nameOf(chosen.sourceNum)}の下からスペル${trashed.length}枚をトラッシュして${nameOf(victimNum)}のバニッシュを回避`),
+    replaced: true,
+  };
+}
+
+/**
  * 相手効果による場離れの**置換チェーンの唯一の入口**（タスク12(xcvii)）。
  *
  * 適用順は固定＝①ルリグ付与能力の喪失（`…LrigAbility`）→②パワー減の身代わり（`…PowerReduction`）→
