@@ -2,16 +2,16 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 592（総ノード 2709 件）
-逆翻訳シートの [STUB:…] 総数: 906  うち生ID露出 275 箇所（190 種）
+逆翻訳シートの [STUB:…] 総数: 905  うち生ID露出 274 箇所（189 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 19 種 / 21 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 18 種 / 20 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 7 種 / 9 件
-      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 12 種 / 12 件
+      └ 無言の no-op（DEFERRED_ でない＝要対応）           : 11 種 / 11 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 18 種 / 32 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 259 箇所
-  D 健全（実装あり＋日本語表示）                          : 397 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 309 種
+  D 健全（実装あり＋日本語表示）                          : 398 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 311 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -31,9 +31,6 @@ live JSON の STUB id 種類 : 592（総ノード 2709 件）
      1件   1枚  COUNTER_TEAM_PIECE_CUTIN_DEFERRED  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4693
-     1件   1枚  EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP  [生ID露出 1]
-        カード: WXK11-001
-        生成: src\data\effectParser.ts:5574
      1件   1枚  FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
      1件   1枚  GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG

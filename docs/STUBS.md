@@ -12,10 +12,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 592 |
-| 　└ ハンドラ実装あり | 554 |
-| 　└ フォールバック（execStub 未処理） | 38 |
+| 　└ ハンドラ実装あり | 555 |
+| 　└ フォールバック（execStub 未処理） | 37 |
 | 総 STUB ノード件数 | 2709 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 309 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 311 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -51,7 +51,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY` | 1 | 1 | WX12-023 |  |
 | `DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN` | 1 | 1 | WXK08-002 |  |
 | `EFFECT_LEAVE_REPLACE_BANISH` | 1 | 1 | WX25-P1-056 |  |
-| `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` | 1 | 1 | WXK11-001 |  |
 | `FLIP_SELF_FACE_DOWN_UP` | 1 | 1 | WX25-CP1-060 |  |
 | `GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG` | 1 | 1 | WXDi-P00-026 |  |
 | `GUARD_ALT_HAND_REPLACE` | 1 | 1 | WX24-P4-026 |  |
@@ -72,7 +71,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ## 実装済み STUB（ハンドラ別）
 
-### execStubPart1.ts（116 種）
+### execStubPart1.ts（117 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -165,6 +164,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DISCARD_IF_NO_CLASS_SIGNI` | 1 | 1 | WXDi-P07-062 | フィールドに他のクラスシグニがない場合、手札を捨てる |
 | `DRAW_IF_POWER_ZERO_TEMP` | 1 | 1 | WX15-064 | DRAW_IF_POWER_ZERO_TEMP: lastProcessedCards[0]がtemp_power_mods適用後パワー0以下なら1枚引く（WX15-064型） |
 | `EACH_PLAYER_DRAW_DISCARD` | 1 | 1 | WXDi-P04-010 | 各プレイヤーがカードを1枚引き、1枚捨てる |
+| `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` | 1 | 1 | WXK11-001 | WXK11-001 ②「あなたのルリグデッキにあるコストの合計が２以上のアーツ１枚をゲームから除外してもよい。   そうした場合、このターン、シグニアタックステップをスキップする。」 ⚠**スキップ機構は既に完備**（同カード①のルリグ側… |
 | `HAND_NONCOLORLESS_TO_ENERGY` | 1 | 1 | WXK10-083 | 手札から無色でないカードをエナに置く |
 | `INSTALL_GAME_GRANTED_AUTO` | 1 | 1 | WX25-P2-009 | ゲーム全体能力付与 |
 | `INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED` | 1 | 1 | WXK04-030 | INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED: WXK04-030 血晶の紅雨。   あなたの血晶武装状態のすべてのシグニに「【自】このシグニがアタックしたとき、自パワー以下の対戦相手のシグニ1体をバニッ… |
@@ -644,7 +644,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 309 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 311 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -764,7 +764,9 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_ENERGY_TO_HAND` | 0 | 0 |  | ENERGY_TO_HAND_ON_DECK 後処理：選択エナを手札へ |
 | `INTERNAL_ENERGY_TO_TRASH` | 0 | 0 |  | ENERGY_TO_TRASH の後処理：選択したエナカードをトラッシュへ |
 | `INTERNAL_EVDIVA_RED_BANISH` | 0 | 0 |  | INTERNAL_EVDIVA_RED_BANISH: 選択したシグニのパワー合計が12000以下ならバニッシュ（エビディバ赤効果） |
+| `INTERNAL_EXILE_ARTS_FROM_LRIG_DECK_SELECT` | 0 | 0 |  |  |
 | `INTERNAL_EXILE_OPP_TRASH` | 0 | 0 |  | INTERNAL_EXILE_OPP_TRASH: 相手トラッシュのカードをゲームから除外（2枚まで） |
+| `INTERNAL_EXILE_SELECTED_ARTS_AND_SKIP_SIGNI_STEP` | 0 | 0 |  |  |
 | `INTERNAL_FREEZE_OPP_LRIG` | 0 | 0 |  | INTERNAL_FREEZE_OPP_LRIG: 相手センタールリグを凍結（ダウン+凍結状態） |
 | `INTERNAL_GCA_APPLY` | 0 | 0 |  | INTERNAL_GCA_APPLY: 選んだ保護（ダウン/バウンス）をターン終了時まで付与 |
 | `INTERNAL_GCA_SELECT` | 0 | 0 |  | INTERNAL_GCA_SELECT: 表記パワーより現在パワーが高いあなたの＜電機＞シグニ１体を対象に選ぶ |
