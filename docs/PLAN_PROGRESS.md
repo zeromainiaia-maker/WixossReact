@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-10・続き404・Opus 5）＝§6.4「オープンな実装課題（機構・基盤）」の先頭2項目を消化**。どちらも**「実装済みの判定が、それを必要とする全経路のうち1経路からしか読まれていない」**という同型の穴で、**判定を1関数に集約して全経路から呼ぶ**形に揃えた（続き403 の `trashActivateCost.ts` と同じレシピ）。
+  - **⭐① アタック可否ゲートの一本化**＝新設 `src/screens/battle/signiAttackGate.ts`。`cannotAttackSigni` を読むのは**人間のアタックボタン生成1箇所だけ**で、共通実行経路 `performSigniAttack` も CPU のアタック候補フィルタも見ていなかった（＝付与された「アタックできない」が **CPU に一切効かない**）。`canSigniAttack()` に集約し**3箇所が同じ関数を呼ぶ**形へ。
+  - **🔴② 同じ穴だった兄弟軸を同時に閉じた（実測で判明）**＝`opp_signi_attack_power_cap`（パワー上限）／`signi_attack_once_limit`（合計1回）／`signi_attack_cost` も人間UI専用で、**CPU はエナ不足でも `energy.slice(0,-n)` で黙って過少払いしていた**。⚠**`fieldTrashCostAlreadyPaid` フラグが必須**＝G154 BURST の無効化回避モーダルからの再入は「支払い後の盤面＋残ったコスト予約」で来るため、無いと再入時に「もう払えない」と誤判定してアタックが黙って消える。
+  - **⭐③ 付与ストアの共通走査**＝新設 `src/engine/grantedStore.ts` の `grantedStoreWatchers(state, timing, scopes)` が**3ストア（`lrig_granted_auto_effects` / `..._until_opp_turn` / `game_granted_effects`）を任意 timing・任意 scope で横断走査**する。ハードコード5箇所をこれに寄せ、**死んでいた8 timing を新規配線**（ON_PLAY/ON_BANISH/ON_ATTACK_SIGNI/ON_BLOOM＝`collectFieldTriggers` の ally・opp 両側／ON_LIFE_CRASHED／ON_OPP_LIFE_CRASHED／ON_LEAVE_FIELD／ON_SPELL_USE／ON_SIGNI_BANISH_OPPONENT／ON_ENERGY_CHARGE）。活きた効果＝`WDK12-001-E3`／`WX15-016-E1` ほか7件／`WXDi-P12-030-E2`／`WXDi-CP02-050-E1`／`WX25-P2-049-E1`／`WXDi-P13-008-E3`／`WXDi-P12-041-E1`／`SPDi43-13-E2`。
+  - **🔴④ PLAN の在庫記述がまた古かった（続き397〜402 に続き5回連続）**＝§6.4 は「`triggerScope` が self 以外の付与 AUTO は拾われない／`WXDi-P07-073-E1` は今も死んだまま」と書いていたが、**続き401 の `collectTurnTriggers` opState any_opp 走査が既に拾っていた**（probe で発火を実測）。**本当の穴は scope ではなく「そもそも走査されない timing」の側**で、live JSON 全走査（付与能力144件を timing×scope×ストアで集計）して初めて 8 timing が特定できた。**投入前に必ず実測する**。
+  - **🔑⑤ scope 集合は timing の意味で決める**＝プレイヤーが主語（「あなたがスペルを使用したとき」）なら `self` を含め、カードが主語（「あなたのシグニが場に出たとき」）なら含めない（host はセンタールリグなので `self` は永久に成立せず、含めると誤発火の温床）。実例＝**`SPDi43-11-E2` は原文 ON_HAND_ADDED なのに `ON_PLAY`+`self` へ誤パースされており**、含めていたら全召喚で誤発火していた（parser 側の別案件として §3 Opus タスク12 に登録）。
+  - **✅⑥ ゲート**＝`npm run gates` 全緑（typecheck / golden **1715 PASS**（1705→+10）/ smoke 10686 全0・SKIP 0 / fuzz 200ゲーム 全0 / census **880 据置** / manual field loss 0 / lint 0 errors・**254 warnings 増減0**）。**live JSON 変更なし＝engine/UI 配線のみ**（`npm run regen` 不要）。
+  - **⚠⑦ 実機検証が要る（golden では原理的に踏めない）**＝(a)**CPU がアタック不可のシグニをスキップし無限ループしないか**（付与「アタックできない」／パワー上限／合計1回／エナコスト）(b)**付与された【自】が ON_SPELL_USE・ON_SIGNI_BANISH_OPPONENT で発火するか**（`WXDi-P13-008-E3`／`WXDi-P12-041-E1`）(c)**同 ON_ENERGY_CHARGE**（`SPDi43-13-E2`）。§7 に登録済み。
+  - **📋⑧ 次の一手**＝**Opus 側**＝(a)§6.4 残り上位の**配置数制限（`signi_deploy_count_limit`）が engine 側の効果配置（`execAddToField` ほか）をすり抜ける**（該当7効果の共通穴＝今回と同型の「1経路しか見ていない」バッチ）(b)`SPDi43-11-E2` の timing 誤パース（ON_PLAY→ON_HAND_ADDED）(c)ON_ENERGY_CHARGE watcher 経路の usageLimit 未管理（付与・印刷とも）。**Sonnet 側**＝§7 の実機未検証UI 消化（続き403 の14枚＋今回の3件）と §5c census 文型バッチ。
+
+
 - **🆕 セッション（2026-08-10・続き403・Opus 5）＝§6.4「トラッシュ起動のコストUI」を消化**（対象14枚の共通穴。エナコスト以外が全部未対応で、該当【起】はトラッシュUIに**そもそも出ていなかった**）。
   - **⭐① 支払いを1本に集約したのが本体**＝新設 `src/screens/battle/trashActivateCost.ts`。**「アクション出し分け」「モーダルの発動ボタン可否」「実行」の3箇所が同じ関数群を呼ぶ**（`canOfferTrashActivate` / `trashActivateSelectionsSatisfied`＋`trashActivateAutoCostShortfall` / `payTrashActivateCost`）。**この3箇所に条件を写経すると「UIでは押せるのに払われない」型のズレが必ず出る**（旧実装は `getMyTrashCardActions` の在庫判定とモーダルの `isValid` が別式だった）。
   - **⭐② 未対応コストは「素通り」ではなく「UIごと出さない」側へ倒した**＝`unsupportedTrashActivateCostKeys` のホワイトリスト方式。旧実装の `Object.entries(c).some(([k,v]) => k!=='energy' && v)` と同じ**安全側**の思想を残しつつ、**golden が live JSON を総なめして「未対応キーが残っていない」を assert する**ので、parser から新しいコスト種が生えたら赤くなる（黙って発動不可のまま埋もれない）。

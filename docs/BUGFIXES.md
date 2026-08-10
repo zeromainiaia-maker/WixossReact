@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 配置制限（DEPLOY_RESTRICT）が engine の効果配置をすり抜けていた（続き405）
+
+### 症状
+
+「対戦相手はシグニを２体までしか場に出すことができない」「パワーＮ以上のシグニを新たに場に出せない」の判定が
+**通常召喚UI（`handleSummonSigni`）／召喚ゾーンモーダル／CPU召喚の3箇所にしかなく**、
+**engine 側の効果配置（`execAddToField` ほか）は cap も `signi_deploy_power_limit` も一切見ずに素通り**していた。
+⇒ 制限を掛けても「効果で場に出す」分は無制限に置けた。該当7効果
+（`WXDi-P13-003B-E2`／`WXK06-004-E1`／`WX07-006-E1`／`WX12-008-E1`／`WXDi-P05-024-E1`／`WXK05-009-E1`／`WXK11-074-E1`）に共通。
+
+**CPU 側の追加穴**：CPU 召喚は配置数上限は見ていたが **`signi_deploy_power_limit`（パワー上限）を一切見ていなかった**
+（人間だけが縛られていた＝続き404 のアタック可否と同じ非対称）。
+
+### 直し方
+
+`src/engine/deployLimit.ts` を新設し、`deployLimitBlockReason()` / `deployCountCap()` に判定を集約。
+**通常召喚UI・召喚ゾーンモーダル・CPU召喚・engine の効果配置4経路が同じ関数を呼ぶ**。
+
+engine 側の配線先（「シグニを新たに場に出す」入口すべて）：
+
+| 場所 | 内容 |
+|---|---|
+| `execAddToField`（`!src && a.cardName`） | ゲーム外からのトークン生成。**ゾーン選択UIを出す前**に弾く |
+| `execAddToField`（`!src`） | デッキトップからの配置。**任意選択/ゾーン選択を出す前**に弾く |
+| `execAddToField` → `applyToField` | トラッシュ/デッキ/エナ/手札 source。**1枚ごとに**再評価 |
+| `execRevealUntilToField` | 出せない場合は原文どおりトラッシュへ送る |
+| `applyDirectAction` の `ADD_TO_FIELD` | **元の領域から取り除く前**に弾く（後だとカードが消失する） |
+
+### 設計上の3つの判断（次に触る人向け）
+
+1. **ライズ（上乗せ）が外れるのは count 制限だけ**。数制限の原文は「（すでに場に３体ある場合は２体になるようにトラッシュ）」＝
+   **場のシグニの体数**を縛るもので、上乗せでは体数が増えないため対象外。
+   一方パワー制限は「パワーＮ以上のシグニを**新たに場に出せない**」＝ライズも場に出す行為なので適用する。
+   この非対称は旧・通常召喚UIの分岐がすでに持っていたもので、関数へそのまま移した。
+2. **複数枚配置は1枚ごとに評価する**。`applyToField` は場のシグニ数が増えながら進むので、
+   まとめて1回だけ判定すると上限を跨いで置けてしまう（golden で固定）。
+3. 🔴**CONTINUOUS 版（`WX07-006` 白羅星 サタン）を `ctx.effectsMap` 依存にしない**。
+   `ExecCtx.effectsMap` は **BattleScreen のスタック解決1経路でしか代入されない**（続き296 で判明済み）ので、
+   依存させると「engine は正しいのに実UIでは丸ごと効かない」dead flag になる。
+   → `ExecCtx` に `deployCountCapSelf` / `deployCountCapOpponent` を追加し、
+   **ExecCtx 生成8箇所すべてで `fillDeployCaps(ctx)` を呼ぶ**（`signiFieldPlaceByEffectBlocked` 等と同じ既存パターン）。
+   AUTO フラグ版（`PlayerState.signi_deploy_count_limit`）は state に載るのでこの経路は不要。
+   ⚠**`fillDeployCaps` は `ctx.isOwnerTurn` 確定後に呼ぶこと**（CONT 側の `activeCondition` 評価に使う）。
+
+### 残した既知の穴
+
+`SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME`（`PR-470A`）は同一ゾーンでの入れ替え＝体数不変なので count 制限は無関係だが、
+**パワー制限は未評価**（1カードの端案件として PLAN §6.4 に注記）。
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / golden **1721 PASS**（1715→+6）/ smoke **10686/10686** 全0・SKIP 0 /
+fuzz 200ゲーム 全0 / census 880 据置 / manual field loss 0 / lint 0 errors・254 warnings 増減0）。
+**live JSON 変更0＝engine/UI 配線のみ**。実UI経路（`fillDeployCaps` 経由の CONT 版）と CPU 召喚は
+golden で踏めないため PLAN §7 に実機検証項目として登録。
+
+
 ## 2026-08-10 — §6.4 ①アタック可否ゲートの一本化 ②付与ストアの任意 timing・任意 scope 走査（続き404）
 
 PLAN §6.4「オープンな実装課題（機構・基盤）」の先頭2項目を消化した。どちらも**「実装済みの判定が、判定を必要とする全経路のうち1経路からしか読まれていない」**という同型の穴。
