@@ -11649,6 +11649,70 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
+// ══════════════ F-3 身代わりバニッシュを「効果によるバニッシュ」へ配線（続き406・PLAN §6.4）══════════════
+// 原文は「このシグニがバニッシュされる場合」＝バトル限定ではないのに、collectBanishSubstitutes の
+// 消費地点は BattleScreen のバトルバニッシュ1箇所だけで、execBanish からは一切見ていなかった。
+// engine 側は applyEffectLeaveSubstitutes({ isBanish: true }) 経由で自動適用する（決定論的近似）。
+// ⚠victim は **otherState 側**（＝ctx の効果主から見た opponent）に置く＝自分の効果で自分のシグニを
+//   バニッシュする場合は置換しないガードがあるため。
+const f3Banish = (oppSigni: (string | null)[], patch?: (s: PlayerState) => PlayerState): ExecResult => {
+  const ctx = mkCtx({}, { signi: oppSigni });
+  ctx.effectsMap = effectsMap;
+  if (patch) ctx.otherState = patch(ctx.otherState);
+  return run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1,
+    filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+};
+const f3Field = (r: ExecResult): string[] => (r.otherState as PlayerState).field.signi.flatMap(z => z ?? []);
+
+test('F-3 効果バニッシュ: 犠牲型（WX12-024）が execBanish 経由で身代わりになる（続き406）', () => withSavedCursor(() => {
+  const r = f3Banish(['WX12-024', 'WD03-009', null]); // victim=zone0 / 犠牲候補=WD03-009（＜電機＞）
+  eq(f3Field(r).includes('WX12-024'), true, 'victim は場に残る');
+  eq(f3Field(r).includes('WD03-009'), false, '代わりに＜電機＞のシグニがバニッシュされる');
+  // 犠牲候補がいなければ通常どおりバニッシュされる
+  eq(f3Field(f3Banish(['WX12-024', null, null])).includes('WX12-024'), false, '犠牲候補なしなら victim がバニッシュ');
+}));
+test('F-3 効果バニッシュ: 保護型（WXDi-CP01-032）は他の味方を守って自己犠牲する（続き406）', () => withSavedCursor(() => {
+  const r = f3Banish(['WD03-009', 'WXDi-CP01-032', null]); // victim=zone0（他の味方）/ 保護者=zone1
+  eq(f3Field(r).includes('WD03-009'), true, '守られた victim は場に残る');
+  eq(f3Field(r).includes('WXDi-CP01-032'), false, '保護者が代わりにバニッシュされる');
+}));
+test('F-3 効果バニッシュ: コスト払い型（WX10-033）は手札のスペルを捨てて場に残る（続き406）', () => withSavedCursor(() => {
+  const spell = findCard(c => c.Type === 'スペル');
+  const r = f3Banish(['WX10-033', null, null], st => ({ ...st, hand: [spell] }));
+  const opState = r.otherState as PlayerState;
+  eq(f3Field(r).includes('WX10-033'), true, 'victim は場に残る');
+  eq(opState.hand.includes(spell), false, '手札のスペルが支払われる');
+  eq(opState.trash.includes(spell), true, '支払ったスペルはトラッシュへ');
+  // 手札にスペルが無ければ払えない＝通常どおりバニッシュ
+  eq(f3Field(f3Banish(['WX10-033', null, null], st => ({ ...st, hand: [] }))).includes('WX10-033'), false,
+    'コストを払えなければバニッシュされる');
+}));
+test('F-3 効果バニッシュ: 下からスペルをトラッシュする型（WX11-029）＝犠牲より優先される（続き406）', () => withSavedCursor(() => {
+  const spellA = findCard(c => c.Type === 'スペル');
+  const spellB = findCard(c => c.Type === 'スペル' && c.CardNum !== spellA);
+  // victim=zone0（＜電機＞なので WX12-024 の犠牲候補にもなる）／宣言者=WX11-029（下にスペル2枚）
+  const r = f3Banish(['WD03-009', 'WX11-029', 'WX12-024'], st => {
+    const signi = [...st.field.signi] as (string[] | null)[];
+    signi[1] = [spellA, spellB, 'WX11-029'];
+    return { ...st, field: { ...st.field, signi } };
+  });
+  const opState = r.otherState as PlayerState;
+  eq(opState.field.signi.flatMap(z => z ?? []).includes('WD03-009'), true, 'victim は場に残る');
+  eq(opState.trash.includes(spellA) && opState.trash.includes(spellB), true, '下のスペル2枚がトラッシュへ');
+  eq(opState.field.signi[1]?.at(-1), 'WX11-029', '宣言者自身は場に残る（トップ維持）');
+  eq(opState.field.signi.flatMap(z => z ?? []).includes('WX12-024'), true, '犠牲型より安いコスト払い型が選ばれる');
+}));
+test('F-3 効果バニッシュ: 自分の効果で自分のシグニをバニッシュする場合は置換しない（続き406）', () => withSavedCursor(() => {
+  // victimOwner==='self'＝効果主自身の場＝「コスト/利得」型を勝手に他シグニの犠牲へすり替えない。
+  const ctx = mkCtx({ signi: ['WX12-024', 'WD03-009', null] }, {});
+  ctx.effectsMap = effectsMap;
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1,
+    filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
+  const myField = (r.ownerState as PlayerState).field.signi.flatMap(z => z ?? []);
+  eq(myField.includes('WX12-024'), false, '自分の効果なら victim がそのままバニッシュされる');
+  eq(myField.includes('WD03-009'), true, '他のシグニは巻き込まれない');
+}));
+
 // ══════════════ 配置制限（DEPLOY_RESTRICT）の共通ゲート（続き405・PLAN §6.4）══════════════
 // 「シグニをN体までしか場に出すことができない」「パワーN以上のシグニを新たに場に出せない」は
 // 旧実装だと**通常召喚UI／CPU召喚の3箇所にしか無く**、engine の効果配置（execAddToField ほか）が

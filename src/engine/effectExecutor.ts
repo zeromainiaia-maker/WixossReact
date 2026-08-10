@@ -16,7 +16,8 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
-import { collectMultiAcceLimits, matchesStateFilter } from './effectEngine';
+import { collectBanishSubstitutes, collectMultiAcceLimits, matchesStateFilter } from './effectEngine';
+import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, type DeployBlockReason } from './deployLimit';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
@@ -330,7 +331,7 @@ export function applyEffectBanishSubstitute(
   }
   const options = collectBanishSubstitutes(
     state, attackerState, victimOwnerTurn, ctx.cardMap, localEffects, victimNum,
-  ).filter(o => !(o.kind === 'pay_cost' && o.costType === 'lifeCrash'));
+  ).filter((o): o is BanishSubstituteOption => !(o.kind === 'pay_cost' && o.costType === 'lifeCrash'));
   if (options.length === 0) return { ctx, replaced: false };
 
   const rank = (o: typeof options[number]): number =>
@@ -568,8 +569,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
           continue;
         }
       }
-      // バニッシュ経路＝`ReplaceBanish`（「バニッシュでないなら代わりにバニッシュ」）は対象外
-      const sub = applyEffectLeaveSubstitutes(num, own, cur, { skipReplaceBanish: true });
+      // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
+      const sub = applyEffectLeaveSubstitutes(num, own, cur, { isBanish: true });
       if (sub.replaced) {
         cur = sub.ctx;
         continue;
@@ -7293,8 +7294,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'self';
       if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum)) found = 'opponent';
       if (!found) return done(ctx);
-      // バニッシュ経路＝`ReplaceBanish` は対象外
-      const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx, { skipReplaceBanish: true });
+      // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
+      const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx, { isBanish: true });
       if (sub.replaced) return done(sub.ctx);
       const s = ownerState(found, ctx);
       const removed = removeFromField(cardNum, s);
