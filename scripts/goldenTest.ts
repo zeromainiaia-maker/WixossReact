@@ -29372,6 +29372,92 @@ test('§6.4 《アタックフェイズアイコン》起動と CHARM_COUNT 使�
   eq(trashActivateCostLabels(eff, base, charmed(3)).join('・'), '', '《黒×0》＝実質コストなしのラベル');
 });
 
+// ── §6.4「代わりにそれを〜」＝**同一対象への動詞昇格**（2026-08-10）──────────────────────
+// 「＜対象＞を対象とし、それをAする。＜盤面状態条件＞の場合、代わりにそれをBする。」は
+// 対象を1回だけ選び、条件で A/B のどちらか一方だけを撃つ＝`CONDITIONAL{then:B, else:A}`。
+// 🔴従来は昇格文が**別ステップとして残り**、主語のない「それを〜する」が `owner:'self'` に反転して
+//   **自分のシグニをバニッシュ/バウンス**していた（WX08-028-BURST／WXDi-CP01-026-E1）。
+//   ほかは UNKNOWN や無関係 STUB へ落ちて昇格が no-op だった。
+// ⚠ここが崩れると「二重適用」か「自傷」のどちらかに倒れるので、**then/else 双方の owner を必ず見る**。
+test('§6.4 代わりに動詞昇格: 同一対象の CONDITIONAL{then/else}・両枝とも owner=opponent', () => {
+  type Cond = { type: string; then?: Cond; else?: Cond; target?: { owner?: string }; condition?: { type: string; minCount?: number } };
+  const pick = (cardNum: string, effectId: string): Cond => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    return e!.action as unknown as Cond;
+  };
+  // カード, 効果, 条件型, else側（base）のaction型, then側（昇格）のaction型
+  const cases: Array<[string, string, string, string, string]> = [
+    ['WX06-024', 'WX06-024-BURST', 'HAS_CARD_IN_FIELD', 'DOWN', 'TRASH'],       // 場に＜天使＞→ダウンでなくトラッシュ
+    ['WX08-028', 'WX08-028-BURST', 'HAS_CARD_IN_FIELD', 'FREEZE', 'BANISH'],    // 場に＜電機＞→凍結でなくバニッシュ
+    ['WXEX1-38', 'WXEX1-38-E2', 'TRASH_HAS_CARD', 'CONDITIONAL', 'TRASH'],      // スペル5種類→バニッシュでなくトラッシュ
+    ['WXDi-P13-036', 'WXDi-P13-036-E1', 'HAS_CARD_IN_FIELD', 'BANISH', 'TRASH'],// 場の色2種類→バニッシュでなくトラッシュ
+    ['WXK08-030', 'WXK08-030-E1', 'THIS_CARD_HAS_UNDER', 'CONDITIONAL', 'TRASH'],// 下5枚→バニッシュでなくトラッシュ
+  ];
+  for (const [cardNum, effectId, condType, elseType, thenType] of cases) {
+    const a = pick(cardNum, effectId);
+    eq(a.type, 'CONDITIONAL', `${effectId}: トップが CONDITIONAL（別ステップに分かれていない）`);
+    eq(a.condition?.type, condType, `${effectId}: 昇格ゲートの条件型`);
+    eq(a.then?.type, thenType, `${effectId}: then＝昇格後のアクション`);
+    eq(a.else?.type, elseType, `${effectId}: else＝base のアクション`);
+    // 🔴自傷トリップワイヤ：「それ」の先行詞は相手のシグニなので、両枝とも owner は opponent。
+    const owners = [a.then, a.else?.type === 'CONDITIONAL' ? a.else.then : a.else]
+      .map(x => x?.target?.owner);
+    for (const o of owners) eq(o, 'opponent', `${effectId}: 昇格/base とも対戦相手のシグニを対象にする`);
+  }
+  // 多段閾値（WXK08-030-E1）＝「下2枚以上→バニッシュ／5枚以上→代わりにトラッシュ」の入れ子。
+  //   ⚠2枚ゲートは従来**丸ごと脱落して無条件バニッシュ**だった（過剰効果）。
+  const k = pick('WXK08-030', 'WXK08-030-E1');
+  eq(k.condition?.minCount, 5, 'WXK08-030-E1: 外側は下5枚以上');
+  eq(k.else?.condition?.type, 'THIS_CARD_HAS_UNDER', 'WXK08-030-E1: 内側も下カード条件');
+  eq(k.else?.condition?.minCount, 2, 'WXK08-030-E1: 内側は下2枚以上（無条件バニッシュではない）');
+  // WXEX1-38-E2 の内側も 3種類ゲート（従来は無条件バニッシュ）
+  const x = pick('WXEX1-38', 'WXEX1-38-E2');
+  eq(x.condition?.minCount, 5, 'WXEX1-38-E2: 外側はスペル5種類以上');
+  eq(x.else?.condition?.minCount, 3, 'WXEX1-38-E2: 内側はスペル3種類以上（無条件バニッシュではない）');
+  // WXDi-CP01-026-E1＝付与の昇格。**期間が base から引き継がれる**こと（単独再パースだと PERMANENT へ落ち、
+  //   「次の対戦相手のターン終了時まで」の【シャドウ】が黙って恒久付与に化けていた）。
+  const g = pick('WXDi-CP01-026', 'WXDi-CP01-026-E1') as Cond & { then?: { duration?: string; keyword?: string }; else?: { duration?: string; keyword?: string } };
+  eq(g.type, 'CONDITIONAL', 'WXDi-CP01-026-E1: CONDITIONAL 化されている');
+  eq(g.condition?.type, 'LIFE_COMPARE_OPP', 'WXDi-CP01-026-E1: ライフ比較ゲート');
+  eq(g.then?.keyword, 'シャドウ', 'then＝無制限【シャドウ】');
+  eq(g.then?.duration, 'UNTIL_OPP_TURN_END', 'then の期間は base から引き継ぐ（PERMANENT ではない）');
+  eq(g.else?.duration, 'UNTIL_OPP_TURN_END', 'else（base）の期間');
+});
+
+// `THIS_CARD_HAS_UNDER.minCount`＝「このシグニの下にカードがN枚以上ある場合」（WXK08-030-E1 の2枚/5枚）。
+// minCount 省略は従来どおり「1枚以上」。
+test('§6.4 THIS_CARD_HAS_UNDER.minCount: 下カード枚数の閾値を数える', () => {
+  const host = SIGNI, u1 = SIGNI_P3000, u2 = SIGNI_P12000;
+  const ctxWithUnder = (n: number) => {
+    const c = mkCtx({}, {}, host);
+    c.ownerState.field.signi = [[...[u1, u2, u1, u2, u1].slice(0, n), host], null, null];
+    return c;
+  };
+  const cond = (minCount?: number) => ({ type: 'THIS_CARD_HAS_UNDER', ...(minCount ? { minCount } : {}) }) as unknown as Parameters<typeof evalCondition>[0];
+  ok(!evalCondition(cond(2), ctxWithUnder(1)), '下1枚では2枚以上を満たさない');
+  ok(evalCondition(cond(2), ctxWithUnder(2)), '下2枚で2枚以上を満たす');
+  ok(!evalCondition(cond(5), ctxWithUnder(4)), '下4枚では5枚以上を満たさない');
+  ok(evalCondition(cond(5), ctxWithUnder(5)), '下5枚で5枚以上を満たす');
+  ok(evalCondition(cond(), ctxWithUnder(1)), 'minCount 省略は1枚以上（従来挙動）');
+  ok(!evalCondition(cond(), ctxWithUnder(0)), '下が空なら偽');
+});
+
+// 条件節そのものの脱落トリップワイヤ（昇格とは別軸＝base 側のゲート）。
+// WXK11-057-E1 は「場にある**他の**シグニが持つ色が合計2種類以上ある場合」が丸ごと落ちて
+// **無条件バニッシュ**だった（§6.4・2026-08-10）。excludeSelf を落とすと自分自身の色を数えて過剰成立する。
+test('§6.4 場の色の種類数ゲート: WXK11-057-E1 は無条件バニッシュではない', () => {
+  const e = effectsMap.get('WXK11-057')?.find(x => x.effectId === 'WXK11-057-E1');
+  ok(!!e, 'WXK11-057-E1 が存在する');
+  const a = e!.action as unknown as { type: string; condition?: { type: string; minCount?: number; distinctColors?: boolean; excludeSelf?: boolean }; then?: { type: string } };
+  eq(a.type, 'CONDITIONAL', 'ゲートされている');
+  eq(a.condition?.type, 'HAS_CARD_IN_FIELD', '場のシグニ条件');
+  eq(a.condition?.minCount, 2, '2種類以上');
+  ok(a.condition?.distinctColors === true, '色の種類数で数える');
+  ok(a.condition?.excludeSelf === true, '「他の」＝効果元自身を除く');
+  eq(a.then?.type, 'BANISH', '成立時のみバニッシュ');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

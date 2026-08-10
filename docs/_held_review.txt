@@ -680,6 +680,24 @@ WXK06-049
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
 
+## +CONDITIONAL×2 +SIGNI +THIS_CARD_HAS_UNDER×2 +TRASH -SEQUENCE -UNKNOWN ［1枚］
+WXK08-030
+--- WXK08-030
+  原文: 【ライズ】あなたの＜ウェポン＞のシグニ１体の上に置く【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このシグニの下にカードが２枚以上ある場合、それをバニッシュする。５枚以上ある場合、代わりにそれをトラッシュに置く。【出】：あなたのすべての＜ウェポン＞のシグニの下に、それぞれあなたのトラッシュからシグニを１枚ずつ選び置く。,：対戦相手のシ
+  - [0].action.steps[0].type = "BANISH"
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "opponent"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.steps[0].target.upToCount = false
+  - [0].action.steps[1].type = "UNKNOWN"
+  - [0].action.steps[1].raw = "５枚以上ある場合、代わりにそれをトラッシュに置く"
+  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.condition.type = "THIS_CARD_HAS_UNDER"
+  + [0].action.condition.minCount = 5
+  + [0].action.then.type = "TRASH"
+  …（他 14 行）
+
 ## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE +SEND_TO_ENERGY +SIGNI -ENERGY_CARD -TRANSFER_TO_HAND ［1枚］
 WXK09-031
 --- WXK09-031

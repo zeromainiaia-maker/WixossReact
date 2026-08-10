@@ -2186,6 +2186,34 @@ function matchLeadingStateCondition(text: string): { condition: Condition; rest:
   return null;
 }
 
+// ── §6.4「代わりにそれを〜」の**対象プロパティ条件**（2026-08-10）─────────────────────────
+// 「それ／そのシグニ」＝直前文で選んだ1体そのものの状態を見る条件。盤面状態条件（STATE_CONDITION_CLAUSES）
+// と違って**対象を選ぶ前には評価できない**ので、`CONDITIONAL{then, else}` へ素直に畳むと条件が
+// 対象決定より前に来てしまう。⇒ 既存の正準形
+//   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{ …{targetsStored} }`
+// へ組み替えて使う（`LAST_PROCESSED_MATCHES` はゾーン状態キー isFrozen/infected も照合できる）。
+// ⚠この表は**「代わりに」置換の per-target 経路からのみ**引く。STATE_CONDITION_CLAUSES へ混ぜると
+//   一般の CONDITIONAL 持ち上げでも lastProcessedCards を参照してしまい、前段が何も記録していない
+//   文脈で黙って偽（＝恒久 no-op）になる。
+const TARGET_PROPERTY_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 「すでにそのシグニが凍結状態である場合」（WX09-Re01-E2）＝凍結済みならバニッシュへ昇格。
+  [/(?:すでに)?(?:それ|そのシグニ)が凍結状態(?:である)?の?場合/,
+    () => ({ type: 'LAST_PROCESSED_MATCHES', filter: { isFrozen: true } })],
+  // 「それが感染状態の場合」（WXDi-P07-036-E1）＝【ウィルス】と同じゾーンのシグニ。
+  [/(?:それ|そのシグニ)が感染状態(?:である)?の?場合/,
+    () => ({ type: 'LAST_PROCESSED_MATCHES', filter: { infected: true } })],
+];
+
+// 「代わりに」置換専用：先頭が対象プロパティ条件節なら Condition と残りを返す。
+function matchTargetPropertyCondition(text: string): { condition: Condition; rest: string } | null {
+  const t = text.trim();
+  for (const [re, mk] of TARGET_PROPERTY_CLAUSES) {
+    const m = t.match(new RegExp('^' + re.source + '、(.+)$', 's'));
+    if (m) return { condition: mk(m.slice(1, m.length - 1)), rest: m[m.length - 1] };
+  }
+  return null;
+}
+
 // CONDITIONAL 持ち上げの条件節「その後、〜の場合、」全体を STATE_CONDITION_CLAUSES で照合する
 //（前段の記録に依存しない独立ゲート＝盤面状態条件。engine evalCondition 対応済みの型のみ）。
 // 例：「その後、対戦相手の手札が０枚の場合、」→ HAND_COUNT(opponent,eq,0)／
@@ -7789,7 +7817,6 @@ function parseActionTextInner(text: string): EffectAction {
           continue;
         }
       }
-      if (process.env.DBG_PT) console.error('[S]', JSON.stringify({clean, cm: cm && cm.condition.type, rest: cm && cm.rest, nsteps: steps.length}));
       if (cm && cm.rest.startsWith('代わりに')) {
         const enhancedText = cm.rest.slice('代わりに'.length);
         const base = steps[steps.length - 1];
