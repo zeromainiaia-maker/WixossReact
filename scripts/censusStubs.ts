@@ -173,7 +173,7 @@ for (const [id, keys] of livePayloadKeys) {
 }
 // ⚠**プロパティ名が一般語の場合は「専用キー」判定をすり抜ける**＝`text` は live で2 id しか使っていないが
 //   コード側の `r.text()` に当たる。一般語は名前で除外し、さらに**行が STUB 文脈か**も要求する。
-const GENERIC_KEYS = new Set(['text', 'costText', 'value', 'count', 'label', 'name', 'note', 'comment',
+const GENERIC_KEYS = new Set(['text', 'raw', 'costText', 'value', 'count', 'label', 'name', 'note', 'comment',
   'description', 'target', 'filter', 'amount', 'source', 'level', 'power', 'color', 'options', 'effects',
   'condition', 'duration', 'zone', 'owner', 'keyword', 'cardClass']);
 function payloadConsumers(id: string): Ref[] {
