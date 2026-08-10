@@ -134,7 +134,7 @@ for (const r of rows) {
 //   - fresh が純粋上位集合 → fresh 採用（証明可能に無損失な改善のみ自動収穫）
 //   - それ以外（損失/値変更/混在）→ existing 温存し、レポートに記録（人が後でレビュー）
 const report: Record<string, string[]> = {
-  adopted_new: [], adopted_gain: [], adopted_partial: [], preserved_manual: [],
+  adopted_new: [], adopted_gain: [], adopted_partial: [], adopted_manual_add: [], preserved_manual: [],
   preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [],
 };
 // 【出現条件】は実効果ではなくカード単位メタデータ。richness ガードが MANUAL 効果を
