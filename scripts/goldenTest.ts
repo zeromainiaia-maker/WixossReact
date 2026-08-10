@@ -11647,7 +11647,7 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
-test('signiAttackGate: cannotAttackSigni（CONTINUOUS 自己アタック封じ）がアタック可否に反映される（続き404・WX05-023）', () => {
+test('signiAttackGate: cannotAttackSigni（CONTINUOUS 自己アタック封じ）がアタック可否に反映される（続き404・WX05-023）', () => withSavedCursor(() => {
   // 旧実装では cannotAttackSigni を読むのは人間のアタックボタン生成1箇所だけで、
   // 共通実行経路（performSigniAttack）と CPU のアタック候補フィルタは blocked_actions しか見ていなかった。
   const atk = mkState({ signi: ['WX05-023', SIGNI, null] });
@@ -11658,8 +11658,8 @@ test('signiAttackGate: cannotAttackSigni（CONTINUOUS 自己アタック封じ�
   });
   eq(g('WX05-023'), 'CONTINUOUS_CANNOT_ATTACK', '自己アタック封じシグニはアタック不可');
   eq(g(SIGNI), null, '他のシグニはアタック可能');
-});
-test('signiAttackGate: 付与された「アタックできない」（keyword_grants）がアタック可否に反映される（続き404）', () => {
+}));
+test('signiAttackGate: 付与された「アタックできない」（keyword_grants）がアタック可否に反映される（続き404）', () => withSavedCursor(() => {
   // keyword_grants['アタックできない'] は execBlockAction 由来。CPU 候補フィルタが見ていなかった軸。
   const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
   const def = mkState({});
@@ -11679,8 +11679,8 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     attacker: base, defender: defGranted, attackerNum: SIGNI,
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
-});
-test('signiAttackGate: blocked_actions / パワー上限 / 1回制限 / エナコスト の各軸（続き404）', () => {
+}));
+test('signiAttackGate: blocked_actions / パワー上限 / 1回制限 / エナコスト の各軸（続き404）', () => withSavedCursor(() => {
   const def = mkState({});
   const reason = (attacker: PlayerState, defender: PlayerState, num: string, powers?: Map<string, number>) =>
     signiAttackBlockReason({
@@ -11699,8 +11699,8 @@ test('signiAttackGate: blocked_actions / パワー上限 / 1回制限 / エナ�
   eq(reason({ ...base, signi_attack_once_limit: true }, def, SIGNI_P3000), null, '未アタックなら1回制限に掛からない');
   eq(reason({ ...base, signi_attack_cost: 2 }, def, SIGNI_P3000), 'ENERGY_COST', 'エナ不足');
   eq(reason({ ...mkState({ signi: [SIGNI_P3000, null, null], energy: 2 }), signi_attack_cost: 2 }, def, SIGNI_P3000), null, 'エナが足りれば可');
-});
-test('signiAttackGate: 場トラッシュコストは支払い済み再入で再判定しない（続き404）', () => {
+}));
+test('signiAttackGate: 場トラッシュコストは支払い済み再入で再判定しない（続き404）', () => withSavedCursor(() => {
   // G154 BURST のアタック無効化回避モーダルからの再入は「支払い後の盤面＋残ったコスト予約」で来る。
   // fieldTrashCostAlreadyPaid を渡さないと「もう払えない」でアタックが黙って消える。
   const attacker: PlayerState = {
@@ -11717,7 +11717,7 @@ test('signiAttackGate: 場トラッシュコストは支払い済み再入で再
     signi_attack_field_trash_costs: { [SIGNI]: 2 },
   };
   eq(signiAttackBlockReason({ ...common, attacker: payable }), null, '他のシグニ2体を払えるならアタック可能');
-});
+}));
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
