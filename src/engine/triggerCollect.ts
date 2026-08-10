@@ -3117,8 +3117,14 @@ export function collectOppLifeCrashedTriggers(
     crasherState.field.assist_lrig_l?.at(-1), crasherState.field.assist_lrig_r?.at(-1),
     crasherState.field.key_piece, ...(crasherState.field.key_piece_extra ?? [])]
     .filter((n): n is string => !!n);
+  // センタールリグには付与ストア（effectsMap 非搭載）を合流させる（WXDi-CP02-050-E1）。
+  const crasherLrigTop = crasherState.field.lrig.at(-1);
   for (const watcher of sources) {
-    for (const eff of ctx.effectsMap.get(watcher) ?? []) {
+    const watcherEffs = watcher === crasherLrigTop
+      ? [...(ctx.effectsMap.get(watcher) ?? []),
+         ...grantedStoreWatchers(crasherState, 'ON_OPP_LIFE_CRASHED', ['self', 'any_ally', 'any']).map(w => w.effect)]
+      : (ctx.effectsMap.get(watcher) ?? []);
+    for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
       if (eff.triggerScope === 'any_ally' && crashSourceCardNum) {
         if (eff.triggerFilter?.excludeSelf && crashSourceCardNum === watcher) continue;
