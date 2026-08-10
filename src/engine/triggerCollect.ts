@@ -1693,6 +1693,63 @@ export function collectCharmToTrashTriggers(
 }
 
 /**
+ * 【マジックボックス】が表向きになったとき（ON_MAGIC_BOX_FLIPPED）のトリガーを収集する
+ * （§6.4 A群・`WX24-P4-016-E3`）。
+ *
+ * ⚠**このカードの watcher は印字能力ではなく「そのターンだけ付与されるもの」**なので、
+ *   場のカードの印字能力に加えて**付与ストア（`grantedStore.ts`）も必ず走査する**
+ *   （§6.3 の教訓＝構造だけ直して付与ストアを見ないと恒久 no-op になる）。
+ * ⚠`activeCondition`（「このターンのアタックフェイズの間」＝`DURING_ATTACK_PHASE`）は
+ *   **`ctx.turnPhase` を渡さないと常に true** に倒れる＝必ず渡すこと。
+ */
+export function collectMagicBoxFlippedTriggers(
+  ctx: TrigCtx, controllerId: string, controllerState: PlayerState, otherState: PlayerState,
+  flippedOnControllerField: number, flippedOnOppField: number,
+): { entries: StackEntry[]; usedOncePerTurnIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedOncePerTurnIds: string[] = [];
+  const isControllerTurn = controllerId === ctx.activeUserId;
+  const limitOk = mkLimitOk(controllerState.actions_done, usedOncePerTurnIds);
+  const removed = collectContinuousAbilitiesRemovedSigni(controllerState, otherState, isControllerTurn, ctx.effectsMap, ctx.cardMap, '自');
+  const ownAutoBlocked = controllerState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
+  const relevantFor = (scope: string): number =>
+    scope === 'any_ally' ? flippedOnControllerField
+    : scope === 'any_opp' ? flippedOnOppField
+    : flippedOnControllerField + flippedOnOppField;
+  const accept = (eff: CardEffect, hostNum: string): boolean => {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_MAGIC_BOX_FLIPPED')) return false;
+    if (relevantFor(eff.triggerScope ?? 'any') < (eff.triggerCondition?.minCount ?? 1)) return false;
+    if (eff.activeCondition && !checkActiveCondition(
+      eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap,
+      hostNum, ctx.effectivePowers, undefined, ctx.turnPhase)) return false;
+    if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, hostNum, ctx.turnPhase, ctx.effectivePowers)) return false;
+    return limitOk(eff);
+  };
+  for (const topNum of ownFieldSources(controllerState)) {
+    if (ownAutoBlocked) continue;
+    if (removed.has(topNum)) continue;
+    for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
+      if (!accept(eff, topNum)) continue;
+      const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: controllerId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（マジックボックス公開時）`, effect: eff,
+      });
+    }
+  }
+  // 付与ストア（ルリグ付与2本＋プレイヤー付与）。この timing の実カードはこちら側から来る。
+  for (const w of grantedStoreWatchers(controllerState, 'ON_MAGIC_BOX_FLIPPED', ['self', 'any_ally', 'any'])) {
+    if (!accept(w.effect, w.cardNum)) continue;
+    const cardName = ctx.cardMap.get(w.cardNum)?.CardName ?? w.cardNum;
+    entries.push({
+      id: ctx.genId(), playerId: controllerId, cardNum: w.cardNum, effectId: w.effect.effectId,
+      label: `${cardName} の付与【自】効果（マジックボックス公開時）`, effect: w.effect,
+    });
+  }
+  return { entries, usedOncePerTurnIds };
+}
+
+/**
  * 個別アタックの終了時（ON_ATTACK_END）トリガーを収集する（§6.3 J-4・WXK11-018-E2）。
  *
  * **アタック終了の定義**＝`BattleScreen.resolvePendingSigniBattleFor`（バトル解決 Phase2）の末尾
