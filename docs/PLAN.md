@@ -587,6 +587,7 @@
 
 **■ 消化済み項目が残した宿題（小粒・親項目は退避済み）**
 - **A群の初回消化＝`CANNOT_DEAL_DAMAGE_TO_OPPONENT` 実装済み（続き409）**＝`src/screens/battle/signiDamageGate.ts`（印字＋付与2ストアの3軸走査）を新設し、`resolvePendingSigniBattleFor` の**2つのダメージ地点（ランサー/Sランサーの追加クラッシュ／正面空・アサシンのライフアタック）**に配線。⚠**片方だけ止めると「バトルに勝ったときだけダメージが通る」半端な近似**になる。
+- **A群2件目＝`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`（WXK11-001②）実装済み（続き410）**＝新語彙 `StubAction.exileArtsFromLrigDeck{count,minTotalCost}` ＋ engine 3段（CHOOSE→`self_lrig_deck` 選択→除外＋後段）。⚠**行先が `excluded`（ゲームから除外）なので `trashArtsFromLrigDeck`（ルリグトラッシュ行き）を流用してはいけない**。後段は①のルリグ側と同じ `BLOCK_ACTION{SIGNI_ATTACK_STEP}` を engine が `exec` して再利用する。**⚠実機UI未検証**（新規 CHOOSE ＋ ルリグデッキ選択モーダル）＝§7 送り。
 - **置換5本の対話化を決める**（続き406）＝離場置換4本＋F-3 身代わりはすべて「してもよい」を**自動適用**する決定論的近似。対話実装があるのはバトルバニッシュの `BANISH_SUBSTITUTE`（BattleScreen）だけ。**engine 側は同期的な ctx 変換で pause を張れないので設計変更が要る＝単独バッチ**。
 - **`WX14-026`（`lifeCrash` 身代わり）が効果バニッシュでは適用されない**（続き406）＝ライフクラッシュは【ライフバースト】確認フロー（`field.check`）を伴い効果解決の途中に同期的に差し込めないため engine 対象外にした。上の対話化とセットで解ける。
 - **`collectIncreaseActCost`（相手の起動能力コスト+1）がトラッシュ起動に未適用**（続き403）＝現状シグニ【起】経路だけが見ている。
