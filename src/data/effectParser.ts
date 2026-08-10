@@ -5413,8 +5413,6 @@ function applyOptionalHandDiscardCost(text: string, action: EffectAction): Effec
   const idx = sentences.findIndex(s => /手札[^。]{0,34}捨て/.test(s));
   if (idx < 0) return action;
   const sent = sentences[idx];
-  // 「対戦相手は手札を…捨ててもよい」＝相手の手札＝別物（step の owner:self とも噛み合わない）
-  if (/対戦相手[はの][^。]*手札/.test(sent)) return action;
   // 対象宣言などの前置き節を落として「手札から〜捨ててもよい」本体だけを見る
   const clause = sent.slice(sent.lastIndexOf('、') + 1);
   const m = clause.match(OPTIONAL_HAND_DISCARD_RE);
