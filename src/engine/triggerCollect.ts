@@ -2329,11 +2329,9 @@ export function collectHandAddedTriggers(
     // 通常の「このターン」付与と「次の相手ターン終了時まで」付与を両方走査しないと、
     // ON_HAND_ADDED の内側能力（WX25-P3-023-E2-GRANT）は構造が正しくても恒久 no-op になる。
     const lrigTop = watcherState.field.lrig.at(-1);
-    if (lrigTop && !watcherState.lrig_abilities_disabled) {
-      const granted = [
-        ...(watcherState.lrig_granted_auto_effects ?? []),
-        ...(watcherState.lrig_granted_auto_effects_until_opp_turn ?? []),
-      ];
+    if (lrigTop) {
+      // 3ストア横断は `grantedStore.ts` の共通経路（lrig_abilities_disabled もそこで判定）。
+      const granted = grantedStoreWatchers(watcherState, 'ON_HAND_ADDED', ['self', 'any_ally', 'any']).map(w => w.effect);
       for (const eff of granted) {
         if (eff.triggerCondition?.movedSelf) continue;
         if (!evalCommon(eff, watcherId, watcherState, otherState, lrigTop)) continue;
