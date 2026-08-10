@@ -12100,6 +12100,54 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP: ルリグデッキのアーツ除外→シグニアタックステップ封じ（§6.4 A群・WXK11-001②）', () => withSavedCursor(() => {
+  // §6.4 A群（STUB 仕分け計器）の2件目。スキップ機構（BLOCK_ACTION{SIGNI_ATTACK_STEP}）は
+  // 同カード①のルリグ側で既に動いており、欠けていたのは任意コスト側だけだった。
+  const costTotal = (c: CardData) =>
+    [...(c.Cost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)]
+      .filter(m => m[1] !== 'コイン')
+      .reduce((s, m) => s + (parseInt(m[2].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10) || 0), 0);
+  const arts = [...cardMap.values()].filter(c => c.Type === 'アーツ');
+  const rich = arts.find(c => costTotal(c) >= 2)!;
+  const cheap = arts.find(c => costTotal(c) <= 1)!;
+  const stub = {
+    type: 'STUB', id: 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP',
+    exileArtsFromLrigDeck: { count: 1, minTotalCost: 2 },
+  } as unknown as EffectAction;
+
+  // (a) コスト合計2以上のアーツがある → 除外され、相手（＝ターンプレイヤー）が封じられる
+  const ctxA = mkCtx({}, {});
+  (ctxA.ownerState as { lrig_deck: string[] }).lrig_deck = [rich.CardNum];
+  const rA = run(stub, ctxA);
+  eq(JSON.stringify(rA.ownerState.lrig_deck), '[]', 'ルリグデッキから抜けていない');
+  ok((rA.ownerState.excluded ?? []).includes(rich.CardNum), 'excluded（ゲームから除外）に入っていない');
+  ok(!(rA.ownerState.lrig_trash ?? []).includes(rich.CardNum), '⚠ルリグトラッシュへ行っている＝行先の取り違え');
+  ok((rA.otherState.blocked_actions ?? []).includes('SIGNI_ATTACK_STEP'), 'シグニアタックステップが封じられていない');
+
+  // (b) コスト合計が閾値未満のアーツしかない → 候補外なので何も起きない
+  const ctxB = mkCtx({}, {});
+  (ctxB.ownerState as { lrig_deck: string[] }).lrig_deck = [cheap.CardNum];
+  const rB = run(stub, ctxB);
+  eq(JSON.stringify(rB.ownerState.lrig_deck), JSON.stringify([cheap.CardNum]), '閾値未満のアーツが除外された');
+  ok(!(rB.otherState.blocked_actions ?? []).includes('SIGNI_ATTACK_STEP'), '支払えていないのに封じられた');
+
+  // (c) ルリグデッキが空 → 何も起きない（任意コストなので不発が正しい）
+  const rC = run(stub, mkCtx({}, {}));
+  ok(!(rC.otherState.blocked_actions ?? []).includes('SIGNI_ATTACK_STEP'), '候補ゼロなのに封じられた');
+}));
+test('EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP: parser が閾値と枚数を構造に載せる（WXK11-001②）', () => {
+  // engine 側で text を再パースしない契約。①のルリグ側 BLOCK_ACTION と同居することも固定する。
+  const eff = (parseCardEffects(cardMap.get('WXK11-001')!) ?? []).find(e => e.effectId === 'WXK11-001-E1');
+  ok(!!eff, 'WXK11-001-E1 が無い');
+  const steps = (eff!.action as { steps?: EffectAction[] }).steps ?? [];
+  const exile = steps.find(s => (s as { id?: string }).id === 'EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP') as
+    { exileArtsFromLrigDeck?: { count: number; minTotalCost?: number } } | undefined;
+  ok(!!exile, '②が EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP になっていない');
+  eq(exile!.exileArtsFromLrigDeck?.count, 1, '除外枚数が構造に載っていない');
+  eq(exile!.exileArtsFromLrigDeck?.minTotalCost, 2, 'コスト合計の閾値が構造に載っていない');
+  const lrigStep = steps.find(s => ((s as { then?: { actionId?: string } }).then?.actionId) === 'LRIG_ATTACK_STEP');
+  ok(!!lrigStep, '①のルリグアタックステップ封じが消えている');
+});
 test('signiDamageGate: 「このシグニは対戦相手にダメージを与えない」（§6.4 A群・WX25-CP1-074-E1 の付与）', () => withSavedCursor(() => {
   // §6.4 の STUB 仕分け計器が「A＝engine のどこにも消費が無い」として検出した実装の穴。
   // 付与ストア2本と印字能力の3軸すべてで効くことを固定する（付与ストアだけ見る実装にすると
