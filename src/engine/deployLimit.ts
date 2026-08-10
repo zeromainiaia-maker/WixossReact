@@ -62,9 +62,9 @@ export function deployCountCap(p: {
 
 /** 配置できない理由。null なら配置可能。 */
 export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason | null {
-  // パワー制限（「パワーN以上のシグニを新たに場に出せない」）。ライズ＝上乗せは「新たに」ではない。
+  // パワー制限（「パワーN以上のシグニを新たに場に出せない」）＝ライズにも適用する。
   const powerLimit = p.placingState.signi_deploy_power_limit;
-  if (powerLimit !== undefined && !p.onExistingStack) {
+  if (powerLimit !== undefined) {
     const raw = p.cardMap.get(p.cardNum)?.Power ?? p.cardMap.get(p.cardNum.split('#')[0])?.Power;
     const power = raw === '∞' ? Infinity : (parseInt(raw ?? '', 10) || 0);
     if (power >= powerLimit) return 'POWER_LIMIT';
