@@ -35,6 +35,13 @@ export interface SigniAttackGateInput {
   /** 事前計算済みなら渡す（UI のメモ）。無ければアタッカー視点で計算する。 */
   effectivePowers?: Map<string, number>;
   turnPhase?: TurnPhase;
+  /**
+   * 「他のシグニN体トラッシュ」を**支払い済みで再入**した場合に true。
+   * ⚠支払い後も `signi_attack_field_trash_costs` の予約は残り、支払いで場が減っているため、
+   *   このフラグ無しだと再入時に「もう払えない」と誤判定してアタックが黙って消える
+   *   （G154 BURST の無効化回避モーダルからの再実行が該当）。
+   */
+  fieldTrashCostAlreadyPaid?: boolean;
 }
 
 /** アタックできない理由。null ならアタック可能。 */
