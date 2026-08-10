@@ -13,6 +13,7 @@ import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, P
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
 import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
+import { grantedStoreWatchers } from './grantedStore';
 
 export interface TargetedOrigin {
   cardNum: string;
