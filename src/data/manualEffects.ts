@@ -1157,7 +1157,20 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX12-010 ホワイトメイズ ホデサパ（レゾナ）
   // 「対戦相手のシグニ1体がアタックしたとき、ターン終了時まで、そのシグニのパワーを－2000する」
   // 旧パース誤り: POWER_MODIFY target が owner:any/count:1。正しくは「そのシグニ」＝アタッカー（targetsTriggerSource）。
+  // ⚠**E1/E3 は long らく live から欠落していた**（続き424・§6.4）＝この MANUAL 項目が E2 しか持たず、
+  //   buildEffectsJson の richness ガードが「effectId 集合が変わるカードは丸ごと温存」で
+  //   parser の E1/E3 を永久に捨てていた。E1（強制アタック）は engine 側も未配線だったので二重の no-op。
   'WX12-010': [
+    {
+      // 【常】：対戦相手のシグニは可能ならばアタックしなければならない。
+      // ⚠CONTINUOUS の FORCE_SIGNI_ATTACK は**実行されない**＝`resolveForcedSigniAttack`（effectEngine）が読む。
+      effectId: 'WX12-010-E1',
+      effectType: 'CONTINUOUS',
+      action: { type: 'FORCE_SIGNI_ATTACK', targetOwner: 'opponent' },
+      duration: 'PERMANENT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
     {
       effectId: 'WX12-010-E2',
       effectType: 'AUTO',

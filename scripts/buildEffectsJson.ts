@@ -247,7 +247,7 @@ if (wx24p2047Choice1) {
 }
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
 writeFileSync(join(root, 'docs', '_partial_fresh.json'), JSON.stringify(partialFresh), 'utf-8');
-console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 効果単位採用 ${report.adopted_partial.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
+console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 効果単位採用 ${report.adopted_partial.length} / 手書き効果の新規追加 ${report.adopted_manual_add.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）
 {
   const lines: string[] = [];
@@ -260,6 +260,7 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
   section('採用：新規パース可能カード', report.adopted_new);
   section('採用：純改善（無損失で情報増）', report.adopted_gain);
   section('採用：効果単位の純改善（同カードの MANUAL/PARTIAL は不可侵のまま AUTO 効果だけ収穫）', report.adopted_partial);
+  section('採用：手書き効果の新規追加（manualEffects が足した effectId を live へ落とす）', report.adopted_manual_add);
   section('温存：手修正(MANUAL/PARTIAL)', report.preserved_manual);
   section('温存：要レビュー（再生成で損失/値変更/混在＝パーサー改善候補）', report.preserved_held);
   section('温存：パーサーが効果0（既存維持）', report.preserved_emptyFresh);
