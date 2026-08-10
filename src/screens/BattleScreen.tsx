@@ -8600,8 +8600,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else {
           appendBattleLogs([`${myCardName}はバトルに敗北`]);
         }
-      } else if (isSideAttack) {
+      } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
         // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
+        // ⚠ WX16-021（このターン、＜英知＞は空ゾーンへの側面アタックを正面扱いにする）が有効なら
+        //   この分岐を飛ばして下のライフアタックへ落とす＝**ボタン生成側と同じ関数で判定する**。
         appendBattleLogs([`${myCardName}の側面アタック：対象のシグニゾーンにシグニがいないため何も起こらない`]);
       } else if (cannotDealDamageToOpp) {
         // ─── 「このシグニは対戦相手にダメージを与えない」（WX25-CP1-074-E1 の付与）───
