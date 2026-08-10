@@ -1,5 +1,78 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — 🔴 強制アタック機構が丸ごと無配線＋「手書き効果の新規追加」が live へ永久に届かない（続き424・§6.4）
+
+golden **1772（+1）**、census **854 据置**、`EFFECT_TYPE_MISSING_CONTINUOUS` **1→0**、ゲート全緑。
+**6カードの【常】が恒久 no-op から復帰**＋**手書き効果3件が live へ着地**。
+
+### ① 🔴 CONTINUOUS の `FORCE_SIGNI_ATTACK` は engine のどこからも読まれていなかった
+
+「（対戦相手の）シグニは可能ならばアタックしなければならない」には**軸が2本**ある。
+
+| 軸 | 出どころ | 従来 |
+|---|---|---|
+| ターン限定フラグ `must_attack_signi` | 【起】【出】の `FORCE_SIGNI_ATTACK` を `execForceSigniAttack` が立てる | ✅動いていた |
+| 印字/付与の **CONTINUOUS** `FORCE_SIGNI_ATTACK` | `WD07-004-E1` / `WX14-018-E1` / `WX20-Re07〜09-E1`（+ `WX12-010-E1`） | 🔴**恒久 no-op** |
+
+⚠**CONTINUOUS は宣言型で `executeAction` を通らない**＝アクション型で書いてあってもフラグは永久に立たない。
+「型は正しいのに読む側が居ない」という §6.4 A群と同じ形で、**live には構造として入っているのに実機では何も起きない**状態だった。
+
+**修正**＝`resolveForcedSigniAttack`（`src/engine/effectEngine.ts`）を新設し、**2軸を1関数で解決**する。
+走査軸は「印字（シグニゾーン＋センター/アシストルリグ）＋付与2ストア（`granted_effects` /
+`granted_effects_until_opp_turn`）」＝付与ストアを見ないと `GRANT_EFFECT` で配られた【常】が落ちる。
+ルリグ側は `lrig_abilities_disabled` で丸ごと落とす（`scanLrigSelfBlocks` と同じ扱い）。
+
+呼び出し元は**3か所とも同じ関数**に寄せた＝`mustAttackRemainingZones`（フェイズ進行ゲート）／
+強制攻撃バナー2種／`PhaseConfirmDialogs` の文言（従来は `must_attack_infected_only` を直接読んでいて、
+【常】由来の強制では「感染状態のシグニは〜」と**誤表示**になっていた）。
+
+⚠**CPU 側は自動的に満たされている**＝CPU はアタック可能なシグニを1体も残さず全部アタックするため。
+**CPU がアタックを選ぶようになったら**（§8 メインフェイズAI）ここで同じ関数を見ること（コード側に注意書き済み）。
+
+### ② 🔴 `manualEffects.ts` に効果を1本**足しても** live に永久に届かない（第4の死角）
+
+`buildEffectsJson` の richness ガードは「**effectId の集合が変わるカードは丸ごと温存**」なので、
+*既存 id への上書き*は届くのに ***新しい id の追加*だけが黙って捨てられていた**。
+実測で**3件が長期間落ちていた**：
+
+| 効果 | 原文 | 実害 |
+|---|---|---|
+| `WXK04-003-DECORE` | 【デコレ】そのもの | 起動能力が1本まるごと存在しない |
+| `WXK04-042-E1b` | 血晶武装で得る【自】（アタック時バニッシュ） | 条件つきバニッシュが不発 |
+| `WXK05-030-MULTIENA` | 【常】：【マルチエナ】 | 好きな色として支払えない |
+
+**修正**＝fresh が持ち込む**新規 effectId のうち parseStatus が MANUAL/PARTIAL のものだけ**を live へ落とす。
+⚠**parser 由来（AUTO）の追加まで採ってはいけない**＝`WD01-016` は既に MANUAL の `-MULTIENA` を持つのに
+parser の粗い `-E2`（`thisCardOnly` 無しの【マルチエナ】）が**二重に**載る。
+（id 集合が変わるカードの実測＝増えるだけ22／減るだけ15／混在12。このうち**手書き追加は4カードだけ**。）
+
+### ③ `WX12-010`（ホワイトメイズ ホデサパ）＝E1/E3 が live から欠落していた
+
+MANUAL 項目が E2 しか持たず、②のガードで parser の E1/E3 が永久に捨てられていた
+（＝`EFFECT_TYPE_MISSING_CONTINUOUS` が指していた最後の1件）。**①と重なって二重の no-op**。
+
+- **E1**（【常】強制アタック）＝手書きで復活。①の受け皿に載る。
+- **E3**（【出】相手シグニ全体の再配置）＝parser の素の出力は 2段目が `UP{SIGNI, owner:'self', count:1}`＝
+  **自分のシグニをアップする別物**（主語のない「移動したシグニ」を self へ倒す既知の反転）で、
+  1段目の「配置し直して**もよい**」も `optional` が落ちていた。**採ると過剰効果になる**ので手書きに置換し、
+  2段目は明示 defer `STUB{DEFERRED_UP_REARRANGED_MOVED_SIGNI}` にした
+  （`resumeRearrangeSigni` は移動したシグニを `rearrMoved` として既に把握しているので、
+  残っているのは「どれをアップするか選ぶ」インタラクションだけ）。
+- ⚠**【出現条件】は buildEffectsJson の後段が必ず先頭効果へ寄せる**ので、manual 側も E2→E1 へ移した
+  （移さないと §6.3 K トリップワイヤが「manual を直したが live に届いていない」と鳴る）。
+
+### ④ 逆翻訳＝`FORCE_SIGNI_ATTACK` の所有者が**常に空**だった
+
+`a.target?.owner` を見ていたが型のキーは `targetOwner`。「誰のシグニが強制されるのか」が
+逆翻訳から落ちており、原文照合で①の無配線に気付けない状態だった（**計器自身の穴**＝続き423 ⑩と同型）。
+`infectedOnly` も併せて出す。
+
+### ⑤ ゲート
+
+`npm run gates` 全緑（golden **1772** / smoke 全0・SKIP 0 / fuzz 全0 / census **854** / lint 0 errors）。
+`census:stubs` の A群は 16→17件（増分は③の明示 defer 1件＝**無言 no-op は 7件のまま**）。
+**⚠実機UI未検証**＝強制アタックのフェイズ進行ゲートは `BattleScreen` にしかなく golden では原理的に踏めない（§7 に登録）。
+
 ## 2026-08-10 — 🔴 対象宣言の脱落＝「フィルタが無いから等価」は誤りだった（続き423）
 
 golden **1769→1771**、census **854 据置**、ゲート全緑・同型★0（265群）。**16効果**を是正（🔴自傷3件）。
