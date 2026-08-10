@@ -7664,8 +7664,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     try {
       const myTopNum = (my.field.signi[zoneIndex] ?? []).at(-1);
       if (!myTopNum) return;
-      // GATE: blocked_actions に 'ATTACK:cardId' があればアタック不可
-      if (my.blocked_actions?.includes(`ATTACK:${myTopNum}`)) return;
+      // GATE: アタック可否は signiAttackGate に一本化（人間ボタン／CPU候補フィルタと同じ関数）。
+      // ⚠ここで弾かれるシグニは CPU 候補フィルタ側でも同じ理由で除外されている必要がある
+      //   （除外漏れがあるとアタッカーがダウンせず ATTACK_SIGNI で無限ループする）。
+      if (!canSigniAttack({
+        attacker: my, defender: op, attackerNum: myTopNum,
+        effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
+      })) return;
 
       // 解除コストつきアタック制限：人間はモーダルで選んだゾーン、CPUは左から決定論的に選ぶ。
       let attackFieldTrashTriggerEntries: StackEntry[] = [];
