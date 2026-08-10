@@ -29458,6 +29458,59 @@ test('§6.4 場の色の種類数ゲート: WXK11-057-E1 は無条件バニッ�
   eq(a.then?.type, 'BANISH', '成立時のみバニッシュ');
 });
 
+// ── §6.4「代わりにそれを〜」の**対象プロパティ条件**（2026-08-10）──────────────────────
+// 「それが感染状態の場合／すでにそのシグニが凍結状態である場合、代わりに…」は条件が**選んだ1体の状態**に
+// 依存する＝盤面状態版のように「条件→対象選択」の順にできない。正準形は
+//   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{LAST_PROCESSED_MATCHES, …targetsStored}`。
+// ⚠これを素の `CONDITIONAL{then,else}` にすると `LAST_PROCESSED_MATCHES` が対象選択前に評価されて
+//   **常に偽＝昇格が恒久 no-op** になる。ここは構造だけでなく**実行結果**で固定する。
+test('§6.4 対象プロパティ昇格: 凍結済みならバニッシュ・未凍結なら凍結（WX09-Re01-E2 実行）', () => {
+  const eff = effectsMap.get('WX09-Re01')!.find(e => e.effectId === 'WX09-Re01-E2')!;
+  // (1) 対象が未凍結 → else枝＝凍結する（バニッシュしない）
+  const c1 = mkCtx({}, { signi: [SIGNI, null, null] });
+  const r1 = run(eff.action, c1);
+  eq((r1.otherState as PlayerState).field.signi[0]?.at(-1), SIGNI, '未凍結なら場に残る（バニッシュされない）');
+  eq((r1.otherState as PlayerState).field.signi_frozen?.[0], true, '未凍結なら凍結される');
+  // (2) 対象が凍結済み → then枝＝バニッシュ（自分のシグニではなく**相手**のシグニが消える）
+  //   ⚠自分側は**別のカード番号**を置く。`LAST_PROCESSED_MATCHES` のゾーン状態照合は CardNum で
+  //     場を引くので、両者に同じカードを置くと自分側の未凍結コピーを先に拾って条件が偽になる。
+  const c2 = mkCtx({ signi: [SIGNI_P3000, null, null] }, { signi: [SIGNI, null, null] });
+  c2.otherState.field.signi_frozen = [true, false, false];
+  const myBefore = (c2.ownerState as PlayerState).field.signi.filter(Boolean).length;
+  const r2 = run(eff.action, c2);
+  eq((r2.otherState as PlayerState).field.signi[0], null, '凍結済みなら相手シグニがバニッシュされる');
+  eq((r2.ownerState as PlayerState).field.signi.filter(Boolean).length, myBefore,
+     '🔴自分のシグニは絶対に減らない（旧実装は owner:self で自傷していた）');
+});
+
+test('§6.4 対象プロパティ昇格: 感染状態ならトラッシュ・非感染ならバニッシュ（WXDi-P07-036-E1 構造）', () => {
+  const eff = effectsMap.get('WXDi-P07-036')!.find(e => e.effectId === 'WXDi-P07-036-E1')!;
+  const a = eff.action as unknown as { type: string; steps: Array<{ type: string; id?: string; condition?: { type: string; filter?: Record<string, unknown> }; then?: { type: string; targetsStored?: boolean; target?: { owner?: string } }; else?: { type: string; targetsStored?: boolean; target?: { owner?: string } } }> };
+  eq(a.type, 'SEQUENCE', 'SELECT/STORE を伴う正準形');
+  eq(a.steps[0]?.id, 'SELECT_TARGET_ONLY', '①対象だけ先に宣言する');
+  eq(a.steps[1]?.id, 'STORE_LAST_PROCESSED_TARGETS', '②その対象を固定する');
+  eq(a.steps[2]?.condition?.type, 'LAST_PROCESSED_MATCHES', '③条件は「選んだ1体」を見る');
+  ok(a.steps[2]?.condition?.filter?.infected === true, '感染状態で分岐する');
+  eq(a.steps[2]?.then?.type, 'TRASH', '感染していればトラッシュ（昇格）');
+  eq(a.steps[2]?.else?.type, 'BANISH', '感染していなければバニッシュ（base）');
+  for (const br of [a.steps[2]?.then, a.steps[2]?.else]) {
+    ok(br?.targetsStored === true, '両枝とも固定した対象を撃つ（選び直さない）');
+    eq(br?.target?.owner, 'opponent', '両枝とも対戦相手のシグニ');
+  }
+});
+
+// per-target **値**の昇格（POWER_MODIFY）は else 置換ではなく**加算モデル**でなければならない。
+// base が撃って lastProcessedCards を書いた**後**でしか条件を評価できないため（WX15-027-E1／WX15-040-BURST）。
+test('§6.4 対象プロパティ×値昇格: base＋差分の加算モデルになっている（WX15-027-E1）', () => {
+  const a = effectsMap.get('WX15-027')!.find(e => e.effectId === 'WX15-027-E1')!.action as unknown as
+    { type: string; steps: Array<{ type: string; delta?: number; condition?: { type: string }; then?: { type: string; delta?: number; targetsLastProcessed?: boolean } }> };
+  eq(a.type, 'SEQUENCE', '置換ではなく2ステップ');
+  eq(a.steps[0]?.delta, -7000, '①base の－7000は無条件で撃つ');
+  eq(a.steps[1]?.condition?.type, 'LAST_PROCESSED_MATCHES', '②条件は撃った対象を見る');
+  eq(a.steps[1]?.then?.delta, -5000, '③差分だけ加算（合計－12000。－12000を再指定すると二重掛けになる）');
+  ok(a.steps[1]?.then?.targetsLastProcessed === true, '同じ対象へ加算する');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

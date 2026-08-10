@@ -1,5 +1,94 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4「代わりにそれを〜」＝**同一対象への動詞昇格**を機構化（続き418）
+
+census **860→858**（実質 855 相当。下記の良性 +2 を含む）、golden **1753→1759**、UNKNOWN **38→36 ノード**、
+ゲート全緑・同型★0（265群）。**11効果／10カード**を是正（うち **🔴自傷バグ 3件**）。
+
+### 真因＝「それ」の先行詞が文をまたぐと解決できず、主語なしの文が `owner:'self'` に反転する
+
+原文の形は「＜対象＞を対象とし、それをAする。**＜条件＞の場合、代わりにそれをBする。**」。
+対象は1回だけ選び、条件でA/Bの**どちらか一方だけ**を撃つ。ところが parser の「代わりに」畳み込みは
+
+```js
+const perTarget = /それ/.test(enhancedText) && !/対象とし/.test(enhancedText);
+if (!perTarget) { …畳み込む… }     // ← perTarget は素通り＝畳み込まない
+```
+
+で **per-target 形を意図的に除外**していた（素直に再パースすると先行詞が失われるため）。
+結果、昇格文は**別ステップとして残り**、主語のない「それをバニッシュする」が
+`BANISH{owner:'self'}` にフォールバックしていた。
+
+| 効果 | 従来の live | 実害 |
+|---|---|---|
+| `WX08-028-BURST` | `FREEZE{opp}` ＋ `BANISH{owner:'self'}` | 🔴**自分のシグニをバニッシュ**（昇格もしない） |
+| `WX09-Re01-E2` | `FREEZE{opp}` ＋ `BANISH{owner:'self',isFrozen}` | 🔴**自分の凍結シグニをバニッシュ**（条件も脱落＝無条件） |
+| `WXDi-CP01-026-E1` | `GRANT_KEYWORD{owner:'any'}` を**無条件**で追加 | 🔴誰かに**恒久**【シャドウ】付与（原文は次相手ターン終了時まで・条件つき） |
+| `WX06-024-BURST` | `CONDITIONAL{…, then:UNKNOWN}` | 昇格が no-op（常にダウン止まり） |
+| `WXK08-030-E1` | `BANISH` ＋ `UNKNOWN` | **下2枚ゲートごと脱落＝無条件バニッシュ**（過剰効果） |
+| `WXEX1-38-E2` | `BANISH` ＋ `STUB{CONDITIONAL_POWER_BONUS}` | **スペル3種類ゲート脱落＝無条件バニッシュ** |
+| `WXDi-P13-036-E1` / `WXDi-P07-036-E1` | 同上 | 昇格が no-op |
+| `WXK11-057-E1` | `BANISH`（裸） | **色2種類ゲート脱落＝無条件バニッシュ** |
+| `WX15-027-E1` / `WX15-040-BURST` | `POWER_MODIFY` ＋ `STUB{CONDITIONAL_POWER_BONUS}` | 感染時の増分が no-op |
+
+### 直し方＝条件が「盤面」を見るか「選んだ1体」を見るかで**2つの正準形**に割る
+
+**(A) 盤面状態条件**（「あなたの場に＜天使＞のシグニがある場合」等）＝条件は対象決定より前に評価できる
+⇒ `CONDITIONAL{cond, then:昇格, else:base}`。どちらの枝も対象選択は1回なので原文と挙動同値。
+
+先行詞の復元は **`prevRaw` の対象節を前置して再パース**し、得られた action の対象を
+**base の対象で上書き**する（再パースが独自にフィルタを引き当てて選択空間がずれるのを防ぐ）。
+⚠`prevRaw` は `【自】` のトリガー節（「このシグニがアタックしたとき、」）を残したままなので
+**先頭固定では取れない**。かつ非貪欲な前方一致だと直前の条件節まで飲む
+⇒ **末尾の「を対象とし、」から所有者語まで戻して切り出す**。
+⚠**期間も base から引き継ぐ**（`WXDi-CP01-026-E1`＝「代わりにそれは【シャドウ】を得る」は単独再パースだと
+`PERMANENT` へ落ち、base の `UNTIL_OPP_TURN_END` が黙って恒久付与に化ける）。
+
+**(B) 対象プロパティ条件**（「それが感染状態の場合」「すでにそのシグニが凍結状態である場合」）＝
+条件が**選んだ1体の状態**に依存する ⇒ 既存の正準形
+`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{LAST_PROCESSED_MATCHES, …targetsStored}`
+へ組み替える（`bindToStoredTarget` を再利用）。
+
+🔴**(B) を (A) の形で書くと恒久 no-op になる**＝`LAST_PROCESSED_MATCHES` が**対象選択より前**に評価され、
+`lastProcessedCards` が空で**常に偽**。実装途中で実際にこの形を通してしまい、golden の
+**実行結果テスト**（構造テストではなく）で捕まえた。
+同じ理由で **POWER_MODIFY の値昇格は else 置換ではなく加算モデル**にする＝base を撃って
+`lastProcessedCards` を書かせ、**差分だけ**を `targetsLastProcessed` で同一対象へ加算する
+（`WX15-027-E1`＝−7000 ＋ 条件付き −5000）。既存の `tpm`（「それに【チャーム】が付いている場合」）と同型。
+
+### 併せて足した条件語彙（いずれも**ゲートが丸ごと落ちて無条件発火**していた）
+
+- `THIS_CARD_HAS_UNDER.minCount`（「このシグニの下にカードがN枚以上ある場合」＝`WXK08-030-E1` の2枚/5枚）。
+  型・`execUtils` 評価器・decompiler の3点セット。
+- 「あなたのトラッシュにスペルがN種類以上ある場合」→ `TRASH_HAS_CARD{cardType:'スペル', distinctName}`。
+- 「あなたの場にある(他の)シグニが持つ色が合計N種類以上ある場合」→ `HAS_CARD_IN_FIELD{distinctColors, excludeSelf}`。
+- 「あなたのライフクロスが対戦相手のライフクロス以下の場合」→ `LIFE_COMPARE_OPP{lte}`。
+  ⚠`isBatch1OnlyClause` が「対戦相手のライフクロス」を含む source を**カードゲート**していたため、
+  規則を足しても `WXDi-CP01-026` では引かれなかった。閾値形ではない比較形をゲート外に出した。
+- 多段閾値の引き継ぎ（`bm`）に `THIS_CARD_HAS_UNDER` と主語つき裸形「スペルが5種類以上ある場合、」を追加。
+  ⚠`minCount` 型は「N以上」しか表せないので、**「N以下」形が来たら引き継がず据置**にした
+  （数値だけ差し替えると条件が黙って反転する）。
+
+### 手順のメモ
+
+- `WXK08-030-E1` は `parseStatus:'PARTIAL'` で `PRESERVE_STATUSES` に守られており、parser を直しても
+  live に届かない。**`PARTIAL`→`AUTO` へ戻してから `build:effects`→`heldReview --adopt`**（§6.4 の既知手順）。
+- `WX09-Re01` は MANUAL 効果と同居する混在カードなので held ではなく **`docs/_partial_fresh.json`** に落ちる。
+  こちらには adopt スクリプトが無いので、当該 AUTO 効果だけを live へ直接移送した。
+
+### 判明した既存の限界（今回は回避・記録のみ）
+
+`LAST_PROCESSED_MATCHES` のゾーン状態照合（`findFieldZoneState`）は **CardNum で場を引く**ため、
+**両プレイヤーの場に同じカード番号があると取り違える**（自分側の未凍結コピーを先に拾って条件が偽になる）。
+golden はこれを避けて別カードで組んである。instanceId 化されるまでの既知の穴。
+
+### 残り（同族で今回入れなかったもの）
+
+- `WX25-P3-014-E1`＝🔴 `BOUNCE{owner:'self'}` の自傷が残る。base が任意コスト STUB を含む
+  多段構成で、(B) の SELECT/STORE 組み替えが did-it ゲートと干渉するため**据置**（PLAN §6.4 に登録）。
+- `WX20-043-E2`／`WD06-009-E2`＝「チェックゾーンのカードがエナに置かれる**代わりに**」＝真の置換効果で別家族。
+
+
 ## 2026-08-10 — §6.4 任意性脱落 第2バッチ＝残クラスタを機構ごと消化（続き417）
 
 `MANDATORY_SUSPICIOUS` **16→2**、census **868→860**、ゲート全緑（golden 1753/1753）。
