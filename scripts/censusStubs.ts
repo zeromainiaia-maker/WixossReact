@@ -212,7 +212,7 @@ let totalStubTags = 0;
 type Row = {
   id: string; count: number; cards: string[];
   handler: string | null; consumers: Ref[]; producers: Ref[];
-  via: '' | '前方一致' | 'ペイロードキー';
+  via: '' | 'id正規表現' | 'ペイロードキー';
   raw: number; comment: string;
 };
 const rows: Row[] = [...allIds].map(id => {
