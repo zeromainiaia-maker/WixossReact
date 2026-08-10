@@ -5632,6 +5632,33 @@ function applyTargetAndDiscardHandCost(text: string, action: EffectAction): Effe
   return { ...action, steps } as EffectAction;
 }
 
+// ── §6.4 `OPPONENT_PAY_OPTIONAL` の**極性**（続き425）────────────────────────────────────
+// 同じ STUB に原文の意味が2種類ある：
+//   (a)「対戦相手が〈コスト〉**しないかぎり**、X」＝**払わなかったら X**（回避ゲート・live 65効果）
+//   (b)「対戦相手は〈コスト〉**してもよい。そうした場合**、X」＝**払ったら X**（live 2効果）
+// parser はどちらも `STUB + CONDITIONAL{IS_MY_TURN}` に落としており、engine は (a) 固定で解釈する
+// ＝(b) の2効果は**意味が真逆**だった（`SPDi43-06-E1`／`WXDi-P05-037-E1` は「相手が何もしなければ
+// 自分のアタックが無効になる」）。極性は**次の文**にしか現れないので、文単位のパース規則では判定できず
+// ここ（効果本文まるごとを見る後段）で刻む。
+// ⚠「てもよい。そうした場合」の**隣接**だけを見る＝「そうしなかった場合」形（`WXEX1-34`／`WXEX2-08`）は (a) のまま。
+const OPPONENT_PAY_THEN_ON_PAY_RE = /対戦相手は[^。]*てもよい。そうした場合/;
+
+function applyOpponentPayThenOnPay(text: string, action: EffectAction): EffectAction {
+  if (!OPPONENT_PAY_THEN_ON_PAY_RE.test(text)) return action;
+  const mark = (node: EffectAction): EffectAction => {
+    if (node.type === 'STUB' && (node as StubAction).id === 'OPPONENT_PAY_OPTIONAL') {
+      return { ...(node as StubAction), thenOnPay: true } as EffectAction;
+    }
+    if (node.type === 'SEQUENCE') return { ...node, steps: (node as SequenceAction).steps.map(mark) };
+    if (node.type === 'CONDITIONAL') {
+      const c = node as import('../types/effects').ConditionalAction;
+      return { ...c, then: mark(c.then), ...(c.else ? { else: mark(c.else) } : {}) } as EffectAction;
+    }
+    return node;
+  };
+  return mark(action);
+}
+
 function applyOptionalHandDiscardCost(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   if (hasOptionalCostStub(action)) return action;

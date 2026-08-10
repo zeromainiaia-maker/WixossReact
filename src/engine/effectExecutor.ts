@@ -3641,24 +3641,24 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             //   ⚠`perAttackOPO` で回数0のときも costColorsOPO は空＝ここで枝ごと消えるのが正しい
             //   （既存コメントの「タダで回避できる穴を作らない」意図と一致）。
             ...(costColorsOPO.length > 0 ? [{
-              id: 'pay', label: payLabel, action: noopAction as EffectAction, available: canOppAfford, costColors: costColorsOPO,
+              id: 'pay', label: payLabel, action: payBranch(noopAction as EffectAction), available: canOppAfford, costColors: costColorsOPO,
             }] : []),
             ...(handSpec !== undefined && handCount > 0 ? [{
               id: 'discard',
               label: handSpec === 'ALL' ? '手札をすべて捨てる' : `${handLabelNoun}を${handCount}枚捨てる`,
-              action: {
+              action: payBranch({
                 type: 'TRASH',
                 target: { type: 'HAND_CARD', owner: 'opponent', count: handSpec === 'ALL' ? 'ALL' : handCount, ...(handFilter ? { filter: handFilter } : {}) },
-              } as EffectAction,
+              } as EffectAction),
               available: eligibleHand.length >= handCount,
             }] : []),
             ...(enSpec !== undefined && enCount > 0 ? [{
               id: 'energyTrash',
               label: enSpec === 'ALL' ? 'エナゾーンのすべてのカードをトラッシュに置く' : `エナゾーンからカードを${enCount}枚トラッシュに置く`,
-              action: {
+              action: payBranch({
                 type: 'TRASH',
                 target: { type: 'ENERGY_CARD', owner: 'opponent', count: enSpec === 'ALL' ? 'ALL' : enCount },
-              } as EffectAction,
+              } as EffectAction),
               available: cur.otherState.energy.length >= enCount,
             }] : []),
             // 「自分のシグニ１体を場からトラッシュに置く」枝（タスク12(lxi) 第3波）。相手が自分の場から選ぶので
@@ -3666,23 +3666,23 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ...(stub.opponentSigniTrash !== undefined && stub.opponentSigniTrash > 0 ? [{
               id: 'signiTrash',
               label: `自分のシグニを${stub.opponentSigniTrash}体トラッシュに置く`,
-              action: {
+              action: payBranch({
                 type: 'TRASH',
                 target: { type: 'SIGNI', owner: 'opponent', count: stub.opponentSigniTrash, filter: { cardType: 'シグニ' } },
                 opponentSelects: true,
-              } as EffectAction,
+              } as EffectAction),
               available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniTrash,
             }] : []),
             ...(stub.opponentSigniToDeckTop !== undefined && stub.opponentSigniToDeckTop > 0 ? [{
               id: 'signiToDeckTop',
               label: `自分のシグニを${stub.opponentSigniToDeckTop}体デッキの一番上に置く`,
-              action: {
+              action: payBranch({
                 type: 'TRANSFER_TO_DECK',
                 source: { type: 'SIGNI', owner: 'opponent', count: stub.opponentSigniToDeckTop, filter: { cardType: 'シグニ' } },
                 shuffle: false,
                 position: 'top',
                 opponentSelects: true,
-              } as EffectAction,
+              } as EffectAction),
               available: cur.otherState.field.signi.filter(s => s && s.length > 0).length >= stub.opponentSigniToDeckTop,
             }] : []),
             // 「エナゾーンのカードと手札を合計N枚デッキの一番上に置く」枝（タスク12(lxi) 第11波・`WXK06-067-E1`）。
@@ -3691,16 +3691,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ...(stub.opponentHandOrEnergyToDeckTop !== undefined && stub.opponentHandOrEnergyToDeckTop > 0 ? [{
               id: 'handOrEnergyToDeckTop',
               label: `手札とエナゾーンから合計${stub.opponentHandOrEnergyToDeckTop}枚をデッキの一番上に置く`,
-              action: {
+              action: payBranch({
                 type: 'TRANSFER_TO_DECK',
                 source: { type: 'HAND_OR_ENERGY_CARD', owner: 'opponent', count: stub.opponentHandOrEnergyToDeckTop },
                 shuffle: false,
                 position: 'top',
                 opponentSelects: true,
-              } as EffectAction,
+              } as EffectAction),
               available: cur.otherState.hand.length + cur.otherState.energy.length >= stub.opponentHandOrEnergyToDeckTop,
             }] : []),
-            { id: 'skip', label: '支払わない', action: conditional.then, available: true },
+            { id: 'skip', label: '支払わない', action: thenOnPay ? ((conditional.else ?? noopAction) as EffectAction) : conditional.then, available: true },
           ];
           const pending: PendingInteractionDef = {
             type: 'CHOOSE', options, count: 1, opponentResponds: true,
