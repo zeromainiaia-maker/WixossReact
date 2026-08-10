@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — §6.4 任意コスト脱落トリップワイヤの🔴側を**残0**に（続き426）
+
+golden **1774 据置**（判定内容は更新）、census **854 据置**、ゲート全緑。**3効果**を是正。
+`FORCED_HAND_COST_KNOWN` の 🔴 worklist は **7→0**（続き425 の4件と合わせて完走）。
+
+### ① 変換が届かなかった理由は**3つとも別の死角**だった
+
+`applyOptionalHandDiscardCost`（続き416 の正準形化）は「素の `TRASH{HAND_CARD,self}`＋did-it ゲート」を
+`STUB{OPTIONAL_COST, handDiscard}` へ寄せる。残っていた3件は**入口の形がそれぞれ違う**だけだった。
+
+| 効果 | 届かなかった理由 | 実害 |
+|---|---|---|
+| `WXDi-P10-039-E2` | **二段の任意**＝2段目（《青》《無》）の `OPTIONAL_COST` を見た `hasOptionalCostStub` が「変換済み」と誤判定して早期 return | 1段目の手札1枚が**強制** |
+| `WXDi-P14-044-E1` | action のトップが `CONDITIONAL`（`SEQUENCE` 以外は即 return）＋原文が「**《青》を支払い**手札を２枚捨ててもよい」で先頭アンカーに掛からない | 🔴**《青》が丸ごと脱落**したうえ手札2枚が強制 |
+| `WXDi-P14-002-E1` | `CHOOSE` 選択肢の内側。**別の選択肢③に強制の手札捨て**があるため「最初の手札捨て」ガードで丸ごと弾かれる | 🔴**手札が2枚無くてもライフをクラッシュできる**（`resumeSelectTarget` は不足枚数でも選択を通し did-it ゲートが成立する） |
+
+**修正**＝(a) ガードを `hasOptionalHandDiscardStub`（**handDiscard を持つ** `OPTIONAL_COST` があるときだけ抜ける）へ精密化
+(b) `CONDITIONAL{cond, then}`（`else` 無し）は中身へ降りる (c) 「《色》を支払い」前置きを受けて `costColors` を併載
+(d) `CHOOSE` は**選択肢テキスト（①②③④）× 選択肢アクション**で個別に掛ける。
+共通部分は `convertSelfHandDiscardStep` に切り出した。
+
+**影響範囲は実測3効果**（変更前の parser と fresh 出力を全数比較）＝上記2件＋`WX04-004-E2`。
+
+### ② ⚠採用ツールのガードが**退化を1件止めた**
+
+`WX04-004-E2` は fresh のほうが「手札コスト＋《緑》《無》」を正しく持つが、
+`censusManualDrift --adopt` が **timing が変わる**（live `ON_OPP_SIGNI_ATTACK_DIRECT` → fresh `ON_ATTACK_SIGNI`）
+として採用を中止した。**live のほうが正しい**＝原文「その正面にシグニがない場合」を専用 timing ＋
+専用 STUB `OPP_DIRECT_ATTACK_NEGATE` で実装した MANUAL だった。**採用しないのが正解**。
+
+### ③ `WXDi-P14-002-E1` は fresh が使えないので live 構造ごと MANUAL 固定
+
+parser の fresh は **CHOOSE 自体を再現できず**、④の `LIFE_CRASH` 単体に潰れる（別系統の退化）。
+live の良い構造を MANUAL に写し、④だけ正準形へ。ついでに**落ちていた【使用条件】**
+（【ドリームチーム】合計3種類以上の色＝`FIELD_LRIG_COLOR_COUNT{minLrigs:3}`）も復元した。
+📋 残＝「センタールリグのレベル１につき１つ**まで**選ぶ」の可変 `choose_count` は語彙が無く `1` 固定。
+
+### ④ 副産物＝計器の外にある既知の近似を1つ確認
+
+`PR-459A-E1`（「レベル５のシグニの場合、あなたは手札を１枚捨てる」＝**強制**）は fresh だと
+`OPTIONAL_COST{handDiscard:1}` になる。これは 続き420 の `TADH_DISCARD_RE` が
+「捨て**る**」も受ける**意図的な選択**（外すと engine が手札の最後の1枚を無言で捨てる）で、
+**live は変換前のままなので実害なし**。⚠この効果を fresh から採用すると強制が任意に化けるので採用しない。
+
+### ⑤ ゲート
+
+`npm run gates` 全緑（golden **1774** / smoke 全0・SKIP 0 / fuzz 全0 / census **854** / lint 0 errors）。
+**⚠実機UI未検証**＝新たに pay/skip モーダルが出る3カード（§7 に登録）。
+
 ## 2026-08-11 — 🔴「対戦相手は〈コスト〉てもよい」＝主語も極性も反転していた（続き425・§6.4）
 
 golden **1772→1774**、census **854 据置**、ゲート全緑。**5効果**を是正（🔴自傷2件・🔴意味の真逆2件・任意コスト巻き戻し2件）。
