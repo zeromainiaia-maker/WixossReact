@@ -1223,7 +1223,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- ライフバーストを発動しない（そのカードの）----
-  if (t.match(/そのカードのライフバーストは発動しない/)) {
+  // ⚠「その**対戦相手の**カードの…」のように所有者句が挟まる形がある（`WX25-P3-036-E1`）＝
+  //   挟まると旧 regex は外れて丸ごと UNKNOWN に落ちていた（§6.4 UNKNOWN 消化）。
+  if (t.match(/その(?:対戦相手の)?カードのライフバーストは発動しない/)) {
     return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CARD' } as StubAction;
   }
 
@@ -2098,7 +2100,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
   // ---- このシグニによってクラッシュされたLBは発動しない ----
-  if (t.match(/このシグニによってクラッシュされたカードのライフバーストは発動しない/))
+  // ⚠「クラッシュされた**対戦相手の**カードの…」の所有者句つきも受ける（`WXEX1-32-LAYER-E1`）。
+  if (t.match(/このシグニによってクラッシュされた(?:対戦相手の)?カードのライフバーストは発動しない/))
     return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CRASH' } as StubAction;
 
   // ---- この効果でレベルは0以下にならない ----
