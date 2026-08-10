@@ -1827,7 +1827,18 @@ function actionJa(a?: Action, effectType?: string): string {
         // シグニの下からトラッシュする任意コスト（`fromThis`＝このシグニの下から）
         if (a.underAnySigniTrash) {
           const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
-          return `${headOC}${whereUA}カードを${a.underAnySigniTrash.count}枚トラッシュに置いてもよい`;
+          // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）
+          const fUA = a.underAnySigniTrash.filter ? filterJa(a.underAnySigniTrash.filter) : '';
+          const nounUA = ([] as string[]).concat(a.underAnySigniTrash.filter?.cardType ?? 'カード').join('か');
+          return `${headOC}${whereUA}${fUA}${nounUA}を${a.underAnySigniTrash.count}枚トラッシュに置いてもよい`;
+        }
+        // エナゾーンからトラッシュする任意コスト（続き421）。従来は spec を見ずに
+        // 「コストを支払ってもよい」へ潰れており、**どのカードを何枚払うのかが逆翻訳から消えて**いた
+        // ＝原文照合でコスト取り違え（幻の手札コスト）を見つけられない状態だった。
+        if (a.energyTrash) {
+          const fET = a.energyTrash.filter ? filterJa(a.energyTrash.filter) : '';
+          const nounET = ([] as string[]).concat(a.energyTrash.filter?.cardType ?? 'カード').join('か');
+          return `${headOC}あなたのエナゾーンから${fET}${nounET}${a.energyTrash.count}枚をトラッシュに置いてもよい`;
         }
         // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
         if (a.fieldDown) {

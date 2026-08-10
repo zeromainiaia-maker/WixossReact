@@ -29665,6 +29665,76 @@ test('§6.4 手札コスト変換の据置: 表現できない形は TARGET_AND_
   stillStub('WX24-P3-052', 'WX24-P3-052-E2', '「好きな枚数」＝固定枚数で表せない');
 });
 
+// ── 🔴 幻の手札コスト（2026-08-10・続き421）───────────────────────────────────────────────
+// `TARGET_AND_DISCARD_HAND` は「対戦相手のシグニを対象とし、〈何か〉を消費してもよい」という
+// **広すぎる catch-all** から出ており、原文のコストが**エナゾーン／このシグニ自身／このシグニの下**
+// でも同じ STUB になっていた。engine は中身を見ずに**手札を1枚捨てる**ので
+//   ①原文のコストが**一切支払われない**（エナが減らない） ②原文に無い**手札1枚が消える**
+// の二重バグだった（実測16効果）。正しい受け皿（`energyTrash`／`underAnySigniTrash`／
+// `OPTIONAL_TRASH_SELF`）へ載せ替えたことを、**コスト種ごと**に固定する。
+test('§6.4 幻の手札コスト: 原文のコスト種と JSON のコスト種が一致する', () => {
+  type St = { id?: string; handDiscard?: unknown; energyTrash?: { count: number; filter?: Record<string, unknown> };
+    underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: Record<string, unknown> } };
+  const costOf = (cardNum: string, effectId: string): St => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が存在する`);
+    let found: St | undefined;
+    const walk = (n: unknown): void => {
+      if (!n || typeof n !== 'object' || found) return;
+      if (Array.isArray(n)) { n.forEach(walk); return; }
+      const o = n as St & Record<string, unknown>;
+      if (o.id === 'OPTIONAL_COST' || o.id === 'OPTIONAL_TRASH_SELF') { found = o; return; }
+      Object.values(o).forEach(walk);
+    };
+    walk(e!.action);
+    return (found ?? {}) as St;
+  };
+  const noPhantomHand = (cardNum: string, effectId: string) => {
+    const e = effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!;
+    ok(!JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'),
+       `${effectId}: 🔴 幻の手札コストが残っている（engine が手札を1枚捨ててしまう）`);
+    ok(!JSON.stringify(e).includes('"handDiscard"'),
+       `${effectId}: 原文は手札コストではないので handDiscard は載らない`);
+  };
+  // ① エナゾーンコスト（原文「あなたのエナゾーンから〈spec〉N枚をトラッシュに置いてもよい」）
+  const energyCases: Array<[string, string, number, Record<string, unknown>]> = [
+    ['WX24-P1-047', 'WX24-P1-047-E1', 2, { cardType: 'シグニ', level: 1 }],
+    ['WX25-P1-077', 'WX25-P1-077-E1', 1, { cardType: 'シグニ', story: '古代兵器' }],
+    ['WX25-P2-077', 'WX25-P2-077-E1', 1, { cardType: 'シグニ', story: '遊具' }],
+    ['WX25-CP1-032', 'WX25-CP1-032-E1', 2, { story: 'ブルアカ' }],          // 「＜ブルアカ＞のカード」＝シグニ限定でない
+    ['WXDi-P12-046', 'WXDi-P12-046-E1', 1, { isDisona: true }],
+    ['WXDi-P14-082', 'WXDi-P14-082-E1', 1, { cardType: 'シグニ', story: '電音部' }],
+    ['WX26-CP1-078', 'WX26-CP1-078-BURST', 1, { story: 'プリオケ' }],
+  ];
+  for (const [cardNum, effectId, count, filter] of energyCases) {
+    noPhantomHand(cardNum, effectId);
+    const c = costOf(cardNum, effectId);
+    eq(c.energyTrash?.count, count, `${effectId}: エナから落とす枚数`);
+    eq(JSON.stringify(c.energyTrash?.filter), JSON.stringify(filter), `${effectId}: エナコストの絞り込み`);
+  }
+  // ② このシグニの下からのコスト
+  noPhantomHand('WXDi-P11-042', 'WXDi-P11-042-E1');
+  const u = costOf('WXDi-P11-042', 'WXDi-P11-042-E1');
+  eq(u.underAnySigniTrash?.count, 1, 'WXDi-P11-042-E1: 下から1枚');
+  ok(u.underAnySigniTrash?.fromThis === true, 'WXDi-P11-042-E1: 「このシグニの下」限定');
+  eq(JSON.stringify(u.underAnySigniTrash?.filter), JSON.stringify({ cardType: 'シグニ', color: '赤' }),
+     'WXDi-P11-042-E1: 赤のシグニ限定');
+  // ③ 自己トラッシュコスト＝正しい `OPTIONAL_TRASH_SELF` は既にあり、幻のほうだけを消す
+  for (const [cardNum, effectId] of [['WX06-CB01', 'WX06-CB01-E1'], ['WX13-056', 'WX13-056-E1']] as const) {
+    noPhantomHand(cardNum, effectId);
+    ok(JSON.stringify(effectsMap.get(cardNum)!.find(x => x.effectId === effectId)!).includes('OPTIONAL_TRASH_SELF'),
+       `${effectId}: 本来のコスト（このシグニを場からトラッシュ）は残っている`);
+  }
+});
+
+// 対象数に比例するコストは固定枚数へ潰してはいけない（潰すと対象を増やすほど安くなる＝過少請求）。
+test('§6.4 幻の手札コスト・据置: 対象数に比例するコストは変換しない（WX25-CP1-092-E1）', () => {
+  const e = effectsMap.get('WX25-CP1-092')?.find(x => x.effectId === 'WX25-CP1-092-E1');
+  ok(!!e, 'WX25-CP1-092-E1 が存在する');
+  ok(JSON.stringify(e).includes('TARGET_AND_DISCARD_HAND'),
+     '「それらのシグニ１体につきエナから１枚」＝比例コストなので据置（固定 count:1 に潰さない）');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

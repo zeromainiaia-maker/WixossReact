@@ -5496,24 +5496,98 @@ function handDiscardSpecFilter(spec: string): TargetFilter | null {
   return filter;
 }
 
+// 🔴**幻の手札コスト**（続き421）＝`TARGET_AND_DISCARD_HAND` は「対戦相手のシグニを対象とし、〈何か〉を
+// 消費してもよい」という**広すぎる catch-all**（`parseSentencePart3` 実測）から出ており、原文の
+// コストが**エナゾーン／このシグニ自身／このシグニの下**でも同じ STUB になっていた。engine は
+// 中身を見ずに**手札を1枚捨てる**ので、①**原文のコストが一切支払われず** ②**原文に無い手札1枚が
+// 消える**。実測16効果（うちエナゾーン11・自己トラッシュ2・下から1）。
+const TADH_ENERGY_COST_RE = /(?:あなたの)?エナゾーンから(.{0,40}?)を?([０-９\d]+)枚を?トラッシュに置いて?もよい$/;
+const TADH_SELF_TRASH_RE = /この(?:シグニ|カード)を場からトラッシュに置いてもよい$/;
+const TADH_UNDER_COST_RE = /このシグニの下から(.{0,30}?)を?([０-９\d]+)枚を?トラッシュに置いて?もよい$/;
+
+/** エナ／下カードのコスト名詞句を TargetFilter へ。表現できない修飾が残れば null（＝変換しない）。 */
+function costSpecFilter(spec: string): TargetFilter | null {
+  if (/好きな枚数|合計|につき|共通|それぞれ/.test(spec)) return null;
+  const filter: TargetFilter = {
+    ...(spec.includes('シグニ') ? { cardType: 'シグニ' as const } : {}),
+    ...parseColorFilter(spec),
+    ...parseStoryFilter(spec),
+    ...(/《ディソナアイコン》/.test(spec) ? { isDisona: true } : {}),
+  };
+  const lv = spec.match(/レベル([０-９\d]+)の/);
+  if (lv) filter.level = parseNum(lv[1]);   // ちょうどそのレベル（`filter.level` は数値で完全一致）
+  const rest = spec
+    .replace(/＜[^＞]+＞/g, '').replace(/《ディソナアイコン》(?:の)?/g, '')
+    .replace(/レベル[０-９\d]+/g, '')
+    .replace(/シグニ|カード|[の,、か]/g, '').replace(/[白赤青緑黒無]色?/g, '').trim();
+  if (rest.length > 0) return null;
+  return filter;
+}
+
 function applyTargetAndDiscardHandCost(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
   const steps = [...(action as SequenceAction).steps];
-  const hit = steps.findIndex(s => s?.type === 'STUB' && (s as StubAction).id === 'TARGET_AND_DISCARD_HAND');
+  const isTadh = (a: EffectAction | undefined) =>
+    a?.type === 'STUB' && (a as StubAction).id === 'TARGET_AND_DISCARD_HAND';
+  // ⚠コストは条件で包まれることがある（`CONDITIONAL{手札がN枚以上, then: STUB}`＝`WXDi-P05-066-E1`／
+  //   `WX24-P4-047-E1`）。包みは executor が解いて Pattern④/⑤ へ委ねるので**保ったまま中身だけ**差し替える。
+  const hit = steps.findIndex(s => isTadh(s) || isTadh(coreOfCondWrap(s)));
   if (hit < 0) return action;
-  // 原文から「手札から〈spec〉をN枚捨て(る|てもよい)」の節を取る（対象宣言などの前置きは読点で落とす）
+  const wrapped = steps[hit];
+  const setCost = (stub: StubAction | null): void => {
+    if (stub === null) { steps.splice(hit, 1); return; }   // 幻のコスト＝ステップごと削除
+    steps[hit] = isTadh(wrapped)
+      ? stub
+      : { ...(wrapped as import('../types/effects').ConditionalAction), then: stub } as EffectAction;
+  };
+
   const sentences = text.split('。').map(x => x.trim()).filter(Boolean);
   // ⚠主語が対戦相手の節（「対戦相手は手札を１枚捨てる」）は**相手の手札**の話＝自分の任意コストにしない。
   const clauseOf = (x: string) => x.slice(x.lastIndexOf('、') + 1);
-  const sent = sentences.find(x => TADH_DISCARD_RE.test(clauseOf(x)) && !/対戦相手[はが]/.test(clauseOf(x)));
-  if (!sent) return action;
-  const m = clauseOf(sent).match(TADH_DISCARD_RE)!;
-  const filter = handDiscardSpecFilter(m[1]);
-  if (filter === null) return action;
-  steps[hit] = {
-    type: 'STUB', id: 'OPTIONAL_COST',
-    handDiscard: { count: parseNum(m[2]), ...(Object.keys(filter).length ? { filter } : {}) },
-  } as StubAction;
+  const clauses = sentences.map(clauseOf).filter(c => !/対戦相手[はが]/.test(c));
+
+  // ① 手札コスト（本来の意味）
+  const hand = clauses.find(c => TADH_DISCARD_RE.test(c));
+  if (hand) {
+    const m = hand.match(TADH_DISCARD_RE)!;
+    const filter = handDiscardSpecFilter(m[1]);
+    if (filter === null) return action;
+    setCost({ type: 'STUB', id: 'OPTIONAL_COST',
+      handDiscard: { count: parseNum(m[2]), ...(Object.keys(filter).length ? { filter } : {}) } } as StubAction);
+  } else {
+    // ② 🔴幻の手札コスト＝原文のコストは手札ではない。正しい受け皿へ載せ替える。
+    // ⚠「それらのシグニ**１体につき**エナゾーンから…」＝**対象数に比例するコスト**（`WX25-CP1-092-E1`）。
+    //   spec 側には「につき」が入らないので `costSpecFilter` では弾けない＝**節全体**で見て据置にする
+    //   （固定枚数へ潰すと対象を増やすほど安くなる＝過少請求になる）。
+    const noScale = (c: string) => !/につき/.test(c);
+    const en = clauses.find(c => TADH_ENERGY_COST_RE.test(c) && noScale(c));
+    const under = clauses.find(c => TADH_UNDER_COST_RE.test(c) && noScale(c));
+    const selfTrash = clauses.some(c => TADH_SELF_TRASH_RE.test(c));
+    if (en) {
+      const m = en.match(TADH_ENERGY_COST_RE)!;
+      const filter = costSpecFilter(m[1]);
+      if (filter === null) return action;
+      setCost({ type: 'STUB', id: 'OPTIONAL_COST',
+        energyTrash: { count: parseNum(m[2]), ...(Object.keys(filter).length ? { filter } : {}) } } as StubAction);
+    } else if (under) {
+      const m = under.match(TADH_UNDER_COST_RE)!;
+      const filter = costSpecFilter(m[1]);
+      if (filter === null) return action;
+      setCost({ type: 'STUB', id: 'OPTIONAL_COST',
+        underAnySigniTrash: { count: parseNum(m[2]), fromThis: true,
+          ...(Object.keys(filter).length ? { filter } : {}) } } as StubAction);
+    } else if (selfTrash) {
+      // 「このシグニを場からトラッシュに置いてもよい」＝別途 `OPTIONAL_TRASH_SELF` が既に出ている
+      // （`WX06-CB01-E1`＝2ステップ並んでいた）。**幻のほうを消す**だけでよい。
+      const hasSelfStub = steps.some((st, k) => k !== hit
+        && coreOfCondWrap(st)?.type === 'STUB'
+        && (coreOfCondWrap(st) as StubAction).id === 'OPTIONAL_TRASH_SELF');
+      setCost(hasSelfStub ? null : { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' } as StubAction);
+    } else {
+      return action;   // 判別できない形は据置
+    }
+  }
+
   // 「対戦相手の**ルリグ**１体を対象とし、…そうした場合、それを〜する」＝宣言が**ルリグ**なのに
   // 本体が既定の `SIGNI{owner:'self'}` に落ちていた（🔴自分のシグニを撃つ＝`WX25-CP1-004-E1` 選択肢②／
   // `WX26-CP1-006-E1`）。センタールリグは1体しかないので**対象選択の機構は要らず**、本体の対象を
