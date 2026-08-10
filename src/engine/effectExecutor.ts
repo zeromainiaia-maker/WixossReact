@@ -1923,6 +1923,28 @@ function clearNonHandPlacement(state: PlayerState, placedInstanceId: string): Pl
   };
 }
 
+/**
+ * 配置制限（`deployLimit.ts`）を ExecCtx から評価する。**engine の「シグニを新たに場に出す」全経路で呼ぶこと**。
+ * 通常召喚UI／CPU召喚と同じ関数を共有する（旧実装は engine 側だけ判定が無く素通りしていた）。
+ */
+function deployLimitBlockedFor(
+  tgtOwner: Owner, cardNum: string, ctx: ExecCtx, fieldCountAdjust = 0,
+): DeployBlockReason | null {
+  const placingIsSelf = tgtOwner === 'self';
+  return deployLimitBlockReason({
+    placingState: ownerState(tgtOwner, ctx),
+    opponentState: placingIsSelf ? ctx.otherState : ctx.ownerState,
+    cardNum,
+    cardMap: ctx.cardMap,
+    effectsMap: ctx.effectsMap,
+    contCountCap: placingIsSelf ? ctx.deployCountCapSelf : ctx.deployCountCapOpponent,
+    isPlacingOwnerTurn: ctx.isOwnerTurn === undefined
+      ? undefined
+      : (placingIsSelf ? ctx.isOwnerTurn : !ctx.isOwnerTurn),
+    fieldCountAdjust,
+  });
+}
+
 function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.owner;
   const src = a.source;
