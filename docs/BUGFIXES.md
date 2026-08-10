@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — §6.4 A群「無言の no-op」を**残0**にしてゲート化（続き427）
+
+golden **1774→1776**、census **854 据置**、ゲート全緑。`census:stubs` の A群 🔴側 **7件→0件**。
+**`npm run census:stubs` をゲートに昇格**（`npm run gates` に追加）＝以後は増えたら止まる。
+
+### ① 実装＝`ASSIST_LRIG_ATTACK_THIS_TURN`（`WX25-P1-048`）＝アシストルリグのアタック経路
+
+原文「このターン、あなたはレベル１以上のアシストルリグでアタックできる」。
+**通常ルールではアシストルリグはアタックできない**ので、このピースだけが例外を作る。
+
+- **状態**＝`PlayerState.assist_lrig_attack_min_level`（このターン限定・ターン境界3経路でクリア）。
+  ⚠数字は**レベルの下限**なので payload は `count` ではなく **`minLevel`**（`count` だと「N体まで」と誤読される）。
+- **判定を1本化**＝`screens/battle/assistLrigAttack.ts` の `assistLrigAttackableSlots`。
+  **人間のアタックボタン／CPU／フェイズ進行の確認ダイアログの3経路**すべてがこれを通る
+  （`signiAttackGate.ts` と同じ理由＝軸がずれると「人間には出ないが CPU は撃てる」が必ず出る）。
+  ダウン（アタック済み）・凍結・レベル下限未満は除外。
+- **実行**＝`performLrigAttack` に `slot: 'center' | 'assist_l' | 'assist_r'` を追加。
+  ⚠**センター専用の判定・収集はアシストでは飛ばす**＝`lrig_has_attacked`（センターの1回制限）／
+  ドライブ状態／**センタールリグ付与ストア由来の ON_ATTACK_LRIG**（付与・コピー・CONTINUOUS 付与は
+  いずれも「センタールリグの能力」なので、アシストのアタックで収集すると過剰実行）。
+  アシストは**そのカード自身の** ON_ATTACK_LRIG と、防御側の「対戦相手のルリグがアタックしたとき」だけが発火する。
+- 🔴**副産物＝ダメージ解決が「攻撃側＝センタールリグ」と決め打っていた**＝ダブル／トリプルクラッシュの
+  判定が `op.field.lrig.at(-1)` 固定で、アシストが攻撃してもセンターのキーワードで判定していた。
+  攻撃元カードを `pending_lrig_attack_num` → `lrig_attacked_by_num` で運ぶようにした（未設定＝従来どおりセンター）。
+- **強制ではない**（原文は「アタックできる」）＝`mustAttackRemainingZones` には入れず、
+  フェイズ進行は確認ダイアログ止まり。ただし**未アタックのアシストがあるなら確認を出す**
+  （出さないと1回きりのピースの効果を黙って捨てることになる）。
+
+### ② 残6件は**明示 defer**（`DEFERRED_*`）へ＝理由を id に載せる
+
+`census:stubs` は **`DEFERRED_` で始まる id を「機構が無いことを宣言済み」** として 🔴 から外す。
+6件はいずれも**着手しない理由が確定済み**なのに素の id だったため、毎回 🔴 に出て worklist を汚していた。
+
+| 旧 id | 新 id | 着手しない理由 |
+|---|---|---|
+| `UNDER_CARD_AS_ENERGY_COST` | `DEFERRED_UNDER_CARD_AS_ENERGY_COST` | **エナ支払い元の一本化が先**（下記） |
+| `COUNTER_TEAM_PIECE_CUTIN_DEFERRED` | `DEFERRED_COUNTER_TEAM_PIECE_CUTIN` | §6.3 E-2 (b) の着手禁止（id に `_DEFERRED` は付いていたが**接頭辞ではない**ので計器から見えていなかった） |
+| `GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG` | `DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG` | §6.3 F＝**ルリグ再アタック機構**がブロッカー（`lrig_has_attacked` が意図的に再攻撃を止めている） |
+| `ATTACK_NEGATE_IMMUNITY_SELF` | `DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF` | 原文「あなたの効果によってシグニのアタックは無効にならない」が誰のシグニか確定できない＝裁定確認が先 |
+| `FLIP_SELF_FACE_DOWN_UP` | `DEFERRED_FLIP_SELF_FACE_DOWN_UP` | **実装すると退化する**（利益＝fizzle が現アーキテクチャで作れず、費用＝【自】喪失だけが乗る） |
+| `CHECK_ZONE_FLIP_FREE_GROW` | `DEFERRED_CHECK_ZONE_FLIP_FREE_GROW` | **機構ではなくデータの欠落**＝グロウ先 B面 `WXDi-P16-001B` が CardData CSV に無い |
+
+⚠**`UNDER_CARD_AS_ENERGY_COST` は「難しいから」ではなく「先にやることがある」defer**。
+原文は「あなたのアタックフェイズの間、エナコストを支払う際、このシグニの下のカードを
+エナゾーンにあるかのようにトラッシュに置いて支払える（1ターンに3つまで）」＝**支払い元ゾーンの拡張**で、
+既存の代替エナ機構（`collectEnergyTrashSubstituteInfo`）が扱う**色の読み替え**とは軸が違う。
+実測で **`my.energy` を直接読む支払いモーダルが17本**あり、候補生成も控除も各モーダルに散っている。
+半分だけ配線すると「アーツには使えるが【起】には使えない」という無言の不整合になるので、
+**先に「エナ支払い元」の funnel を作る**（§6.4 に登録）。
+
+### ③ `census:stubs` をゲートへ昇格
+
+A群の🔴側が 0 になったので、**増えたら止める**計器に変えた（従来は常に exit 0 の索引）。
+新しい STUB を足して engine に消費地点を書き忘れると `npm run gates` で落ちる。
+⚠止めるのは 🔴 側だけ＝`DEFERRED_*` は理由つきの保留なので数えない。
+**仕込みで実際に落ちることを確認済み**（ダミー id を live に入れて exit 1 を確認 → 復元）。
+
+### ④ ゲート
+
+`npm run gates` 全緑（typecheck / golden **1776（+2）** / smoke 全0・SKIP 0 / fuzz 全0 /
+census **854** / **census-stubs（新規）** / manual-fields / lint 0 errors）。
+**⚠実機UI未検証**＝アシストルリグのアタック（ボタン・ガード応答・CPU）は golden では踏めない（§7 に登録）。
+
 ## 2026-08-11 — §6.4 任意コスト脱落トリップワイヤの🔴側を**残0**に（続き426）
 
 golden **1774 据置**（判定内容は更新）、census **854 据置**、ゲート全緑。**3効果**を是正。
