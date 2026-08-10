@@ -12101,6 +12101,31 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('REVEAL_AND_PICK{then:ADD_TO_FIELD}: 「その中から＜X＞のシグニN枚を場に出し、残りをデッキの一番下」（§6.4 UNKNOWN 消化）', () => {
+  // 🔴トリップワイヤ＝`parseRevealPickDescriptor` は最初から `dest:'field'` を解けていたのに
+  //   `makeRevealPickStub` が `'hand'` へ落としており、**「場に出す」が黙って「手札に加える」に化ける**
+  //   潜在バグだった。`then` が ADD_TO_HAND へ戻ったらここで落とす。
+  for (const [cardNum, effectId, story] of [
+    ['SP27-004', 'SP27-004-E1', 'アーム'],
+    ['SP27-004', 'SP27-004-E2', 'ウェポン'],
+    ['WX14-046', 'WX14-046-E1', '毒牙'],
+  ] as const) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が無い`);
+    const a = eff!.action as {
+      type?: string; revealCount?: number; filter?: { story?: string; cardType?: string };
+      pickCount?: number; then?: { type?: string }; remainder?: { location?: string; position?: string };
+    };
+    eq(a.type, 'REVEAL_AND_PICK', `${effectId}: UNKNOWN/SEQUENCE のまま`);
+    eq(a.revealCount, 3, `${effectId}: 公開枚数が違う`);
+    eq(a.filter?.story, story, `${effectId}: クラス限定が落ちている`);
+    eq(a.filter?.cardType, 'シグニ', `${effectId}: シグニ限定が落ちている`);
+    eq(a.pickCount, 1, `${effectId}: ピック枚数が違う`);
+    eq(a.then?.type, 'ADD_TO_FIELD', `${effectId}: ⚠「場に出す」が別の行き先へ化けている`);
+    eq(a.remainder?.location, 'deck', `${effectId}: 残りの行き先が違う`);
+    eq(a.remainder?.position, 'bottom', `${effectId}: 残りがデッキの一番下でない`);
+  }
+});
 test('ON_MAGIC_BOX_FLIPPED: MB公開の検出と付与 watcher の発火（§6.4 A群・WX24-P4-016-E3）', () => withSavedCursor(() => {
   const MB = 'GOLDEN-MB#1';
   const base = mkState({ signi: [SIGNI, null, null] });

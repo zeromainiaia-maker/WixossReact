@@ -678,6 +678,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return makeRevealPickStub(t);
   }
 
+  // ---- デッキ上複数枚見て一部を場に出す／エナへ・残りをデッキ下（§6.4 UNKNOWN 消化）----
+  // 「その中から＜X＞のシグニN枚を場に出し、残りを好きな順番でデッキの一番下に置く」。
+  // ⚠直前の `LOOK_AND_REORDER` と `effectParser` の融合規則で `REVEAL_AND_PICK` に畳まれる
+  //   （単独では公開枚数が分からない）。融合しない配置では STUB のまま残る。
+  if (t.match(/その中から.*(?:シグニ|スペル|カード).*(?:場に出|エナゾーンに置)[^。]*、残り.*デッキの一番下に置く/)
+      && !t.includes('手札に加え')) {
+    return makeRevealPickStub(t);
+  }
+
   // ---- 対戦相手のスペル・起を使用できない（次のターン間） ----
   if (t.match(/次の対戦相手のターンの間.*スペルと【起】能力を使用できない/)) {
     return { type: 'STUB', id: 'BLOCK_OPP_SPELL_ACT_NEXT_TURN' } as StubAction;

@@ -60,15 +60,18 @@ export function makeRevealPickStub(t: string): StubAction {
   } else if (t.match(/残り.*トラッシュ|トラッシュに置く$|トラッシュに置いてもよい$/)) restDest = 'trash';
   else if (t.match(/残り.*エナゾーン|エナゾーンに置く$/)) restDest = 'energy';
   const restShuffle = /残り[^。]*シャッフル/.test(t);
-  const then: 'hand' | 'energy' =
-    (t.match(/エナゾーンに置く/) && !t.match(/手札に加え/)) ? 'energy' : 'hand';
+  // ⚠記述子が解けないときのフォールバック。「場に出す」を先に見る（手札/エナより特異）。
+  const then: 'hand' | 'energy' | 'field' =
+    (t.match(/場に出/) && !t.match(/手札に加え/)) ? 'field'
+    : (t.match(/エナゾーンに置く/) && !t.match(/手札に加え/)) ? 'energy' : 'hand';
   return {
     type: 'STUB', id: 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM',
     revealPickParams: {
       pickCount: desc ? desc.pickCount : pickCount,
       restDest,
       ...(restShuffle ? { restShuffle: true } : {}),
-      then: desc ? (desc.dest === 'energy' ? 'energy' : 'hand') : then,
+      // ⚠`desc.dest==='field'` を落とすと「場に出す」が黙って「手札に加える」になる（旧実装のバグ）。
+      then: desc ? (desc.dest === 'energy' ? 'energy' : desc.dest === 'field' ? 'field' : 'hand') : then,
       ...(desc && Object.keys(desc.filter).length > 0 ? { filter: desc.filter } : {}),
       ...(desc?.pickUpTo ? { pickUpTo: true } : {}),
       ...(desc && desc.noun !== 'シグニ' ? { pickNoun: desc.noun } : {}),

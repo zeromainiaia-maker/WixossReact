@@ -7989,7 +7989,9 @@ function parseActionTextInner(text: string): EffectAction {
         const thenDest = rpp?.then ?? 'hand';
         const thenAction: EffectAction = thenDest === 'energy'
           ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' as Owner, count: 1 } } as EnergyChargeAction
-          : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
+          : thenDest === 'field'
+            ? { type: 'ADD_TO_FIELD', owner: 'self' } as import('../types/effects').AddToFieldAction
+            : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
         const remainder = restDest === 'trash'
           ? { location: 'trash' as import('../types/effects').CardLocation, position: 'bottom' as const }
           : { location: 'deck' as import('../types/effects').CardLocation, position: 'bottom' as const,

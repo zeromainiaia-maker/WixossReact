@@ -2238,7 +2238,9 @@ export interface StubAction {
     pickCount: number | 'ALL';
     restDest: 'deck_bottom' | 'trash' | 'energy';
     restShuffle?: boolean; // 「残りをシャッフルしてデッキの一番下に置く」（PR-434）
-    then: 'hand' | 'energy';
+    // ⚠`'field'` は `parseRevealPickDescriptor` が最初から解けていたのに `makeRevealPickStub` が
+    //   `'hand'` へ落としていた（＝「場に出す」が黙って「手札に加える」に化ける潜在バグ。§6.4 UNKNOWN 消化で是正）。
+    then: 'hand' | 'energy' | 'field';
     // ピック対象の絞り込み（タスク12(xlvi)(h)）。融合規則が filter を運ばず「どのカードでも拾える」
     // 過剰実行になっていたため、pick 記述子から復元して REVEAL_AND_PICK へ渡す。
     filter?: TargetFilter;
