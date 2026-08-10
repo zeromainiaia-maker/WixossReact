@@ -5463,7 +5463,7 @@ const OPTIONAL_ACTIVATE_TYPES = new Set([
 function applyOptionalActivateGate(text: string, action: EffectAction): EffectAction {
   if (hasOptionalCostStub(action)) return action;
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;   // 使用時コストは別機構
-  const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
+  const sentences = sentencesOutsideQuotes(text);
   if (sentences.length === 0) return action;
   // ①先頭文が「〜てもよい」で終わる。⚠主語判定は**最後の読点以降の節**で見る＝トリガー句が
   //   残っている形（「対戦相手がアーツを使用したとき、…置いてもよい」）を主語で誤除外しないため。
@@ -5494,13 +5494,56 @@ function applyOptionalActivateGate(text: string, action: EffectAction): EffectAc
 // ⚠「代わりに…してもよい」＝置換効果は別機構（§6.4 置換5本）。`BANISH{selfTrashCost}` も既存の別実装。
 const SELF_TRASH_COST_SENT_RE = /このシグニを場からトラッシュに置いてもよい$/;
 
+// 文分割の前に引用（「…」『…』）を潰す。⚠引用の中には「。」が入るので素朴な split では
+// 「そうした場合、…『【常】：アタックできない。』を得る」が2文に割れ、帰結判定が外れる。
+function sentencesOutsideQuotes(text: string): string[] {
+  return text
+    .replace(/「[\s\S]*?」/g, '「__Q__」')
+    .replace(/『[\s\S]*?』/g, '『__Q__』')
+    .split('。').map(x => x.trim()).filter(Boolean);
+}
+
+// ── §6.4 「あなたのデッキの上からカードをN枚トラッシュに置いてもよい」の任意性脱落（続き417）──
+// `TRASH{DECK_CARD}` は `optional` を**一切見ない**（`execTrash` の DECK_CARD 分岐は無条件にミルする）
+// ＝原文の「てもよい」を表す場所が無く強制だった。`MILL` は `optional` を持ち専用の
+// 「トラッシュに置く／置かない」プロンプトを出すので、そちらへ寄せる（両者とも `lastProcessedCards`
+// を残すので「この方法で〜置かれた場合」条件は生きる。スキップ時は空配列＝条件は偽に倒れる）。
+const OPTIONAL_DECK_MILL_SENT_RE = /(?:^|、)(?:あなたの)?デッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい$/;
+
+function applyOptionalDeckMillCost(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  if (hasOptionalCostStub(action)) return action;
+  if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
+  const sentences = sentencesOutsideQuotes(text);
+  const m = sentences[0]?.match(OPTIONAL_DECK_MILL_SENT_RE);
+  if (!m) return action;
+  const count = parseNum(m[1]);
+  const steps = [...(action as SequenceAction).steps];
+  const hit = steps.findIndex(s => s?.type === 'TRASH'
+    && (s as import('../types/effects').TrashAction).target?.type === 'DECK_CARD'
+    && (s as import('../types/effects').TrashAction).target?.owner === 'self'
+    && (s as import('../types/effects').TrashAction).target?.count === count);
+  if (hit < 0) return action;
+  steps[hit] = { type: 'MILL', owner: 'self', count, optional: true } as EffectAction;
+  // 後段「この方法でトラッシュに置かれたシグニのレベルの合計1につき対戦相手のデッキの上から
+  // カードを1枚トラッシュに置く」＝倍率が落ちて固定1枚になっていた（`WX24-P4-049`）。
+  // ⚠ここを直さないと**スキップしても相手が1枚ミルされる**＝任意化が半端になる。
+  if (/この方法でトラッシュに置かれたシグニのレベルの合計[０-９\d]*につき対戦相手のデッキの上からカードを[０-９\d]+枚トラッシュに置く/.test(text)) {
+    const opp = steps.findIndex((s, i) => i > hit && s?.type === 'TRASH'
+      && (s as import('../types/effects').TrashAction).target?.type === 'DECK_CARD'
+      && (s as import('../types/effects').TrashAction).target?.owner === 'opponent');
+    if (opp > hit) steps[opp] = { type: 'MILL', owner: 'opponent', count: 0, countIsLastProcessedLevelSum: true } as EffectAction;
+  }
+  return { ...action, steps } as EffectAction;
+}
+
 function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectAction {
   if (hasOptionalCostStub(action)) return action;
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
   const json = JSON.stringify(action);
   if (json.includes('OPTIONAL_TRASH_SELF') || json.includes('selfTrashCost')) return action;
   if (json.includes('"thisCardOnly":true') && json.includes('"TRASH"')) return action;   // コストは生成済み
-  const sentences = text.split('。').map(s => s.trim()).filter(Boolean);
+  const sentences = sentencesOutsideQuotes(text);
   if (sentences.length === 0) return action;
   if (!SELF_TRASH_COST_SENT_RE.test(sentences[0])) return action;
   if (/代わりに/.test(sentences[0])) return action;                 // 置換効果＝別機構
@@ -6152,13 +6195,13 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
+    ?? applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
@@ -10330,13 +10373,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   } else
   // GRANT_LRIG_ABILITY: rawText からサブ能力をここでパース（parseBlock が使えるタイミング）
   // rawTextが「。」だけ（句点のみ）の場合は、実際の能力は別のブロックで解析済みのためAUTO扱い
-  if (resolvedAction.type === 'GRANT_LRIG_ABILITY') {
+  // ⚠**トップレベル型ではなく木の中に居るかで判定する**（2026-08-10 続き417）＝任意コスト等で
+  //   `SEQUENCE`/`CONDITIONAL` に包まれた瞬間に**この分岐へ入らず `abilities` が空のまま**になり、
+  //   付与能力が丸ごと消えていた（`WX14-042`／`PR-319`＝自己トラッシュコストを足したら再現）。
+  //   `expandGrantLrigAbilities` 自体は元から SEQUENCE/CONDITIONAL を walk できる。
+  if (grantLrigAbilityNodes(resolvedAction).length > 0) {
     const hasUnknownSub = expandGrantLrigAbilities(resolvedAction, cardNum);
     parseStatus = hasUnknownSub ? 'PARTIAL' : 'AUTO';
     // ホログラフ効果が付与した能力は、その能力の実行もホログラフ由来として扱う
     // （WX15-002-E2＝【出】ホログラフで付与した【自】の中で「デッキの一番上を公開する」が起きる）。
     if (isHolograph) {
-      for (const sub of (resolvedAction as GrantLrigAbilityAction).abilities ?? []) sub.holograph = true;
+      for (const node of grantLrigAbilityNodes(resolvedAction)) {
+        for (const sub of node.abilities ?? []) sub.holograph = true;
+      }
     }
   } else
   // GRANT_FIELD_SIGNI_ABILITY: rawStages（多段「<条件>かぎり、「Q」を得る。」＝WX24-P1-043）を段ごとに
@@ -10610,6 +10659,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
 // GRANT_LRIG_ABILITY の rawText からサブ能力を展開する（parseBlock/parseSpellEffect と同処理）。
 // SEQUENCE/CONDITIONAL 内の GLA も対象。展開できないサブがあれば true（=PARTIAL相当）を返す。
+/** 木の中の GRANT_LRIG_ABILITY ノードを集める（walk 範囲は expandGrantLrigAbilities と同じ）。 */
+function grantLrigAbilityNodes(action: EffectAction): GrantLrigAbilityAction[] {
+  const out: GrantLrigAbilityAction[] = [];
+  const walk = (a: EffectAction | undefined): void => {
+    if (!a) return;
+    if (a.type === 'GRANT_LRIG_ABILITY') out.push(a as GrantLrigAbilityAction);
+    else if (a.type === 'SEQUENCE') (a as SequenceAction).steps.forEach(walk);
+    else if (a.type === 'CONDITIONAL') {
+      const c = a as import('../types/effects').ConditionalAction;
+      walk(c.then); walk(c.else);
+    }
+  };
+  walk(action);
+  return out;
+}
+
 function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolean {
   let hasUnknownSub = false;
   const walk = (a: EffectAction) => {

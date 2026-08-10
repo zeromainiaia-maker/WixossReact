@@ -15,54 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +SEQUENCE +STUB ［4枚］
-WX08-046 WX08-078 WX08-080 WX20-082
---- WX08-046
-  原文: 【出】：対戦相手のシグニ１体を対象とし、対戦相手のデッキの一番上のカードをそれの【チャーム】にしてもよい。,：どちらか１つを選ぶ。①対戦相手は自分のシグニ１体につき自分のデッキの上からカード１枚を、それらの【チャーム】にする。②対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。
-  - [0].action.charm.type = "DECK_CARD"
-  - [0].action.charm.owner = "opponent"
-  - [0].action.charm.count = 1
-  - [0].action.to.type = "SIGNI"
-  - [0].action.to.owner = "opponent"
-  - [0].action.to.count = 1
-  ~ [0].action.type : "ATTACH_CHARM" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_ACTIVATE"
-  + [0].action.steps[1].type = "ATTACH_CHARM"
-  + [0].action.steps[1].charm.type = "DECK_CARD"
-  + [0].action.steps[1].charm.owner = "opponent"
-  …（他 4 行）
---- WX08-078
-  原文: 【自】：このシグニが場を離れたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。,-
-  - [0].action.charm.type = "TRASH_CARD"
-  - [0].action.charm.owner = "opponent"
-  - [0].action.charm.count = 1
-  - [0].action.to.type = "SIGNI"
-  - [0].action.to.owner = "opponent"
-  - [0].action.to.count = 1
-  ~ [0].action.type : "ATTACH_CHARM" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_ACTIVATE"
-  + [0].action.steps[1].type = "ATTACH_CHARM"
-  + [0].action.steps[1].charm.type = "TRASH_CARD"
-  + [0].action.steps[1].charm.owner = "opponent"
-  …（他 4 行）
---- WX08-080
-  原文: 【自】：このシグニが場を離れたとき、対戦相手のトラッシュから対象のカード１枚を対象の対戦相手のシグニ１体の【チャーム】にしてもよい。,-
-  - [0].action.charm.type = "TRASH_CARD"
-  - [0].action.charm.owner = "opponent"
-  - [0].action.charm.count = 1
-  - [0].action.to.type = "SIGNI"
-  - [0].action.to.owner = "opponent"
-  - [0].action.to.count = 1
-  ~ [0].action.type : "ATTACH_CHARM" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_ACTIVATE"
-  + [0].action.steps[1].type = "ATTACH_CHARM"
-  + [0].action.steps[1].charm.type = "TRASH_CARD"
-  + [0].action.steps[1].charm.owner = "opponent"
-  …（他 4 行）
-
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
@@ -195,6 +147,39 @@ WX06-017 WX19-029
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 12 行）
 
+## +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB ［2枚］
+PR-319 WX14-042
+--- PR-319
+  原文: 【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【常】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－700
+  - [1].action.abilities[0].effectId = "PR-319-sub-E1"
+  - [1].action.abilities[0].effectType = "ACTIVATED"
+  - [1].action.abilities[0].timing[0] = "ATTACK_ARTS"
+  - [1].action.abilities[0].cost.energy[0].color = "黒"
+  - [1].action.abilities[0].cost.energy[0].count = 0
+  - [1].action.abilities[0].action.type = "POWER_MODIFY"
+  - [1].action.abilities[0].action.target.type = "SIGNI"
+  - [1].action.abilities[0].action.target.owner = "opponent"
+  - [1].action.abilities[0].action.target.count = 1
+  - [1].action.abilities[0].action.target.filter.cardType = "シグニ"
+  - [1].action.abilities[0].action.target.upToCount = false
+  - [1].action.abilities[0].action.delta = -7000
+  …（他 28 行）
+--- WX14-042
+  原文: 【常】：あなたの場にレゾナがあるかぎり、このシグニの基本パワーは12000になる。【自】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次の対戦相手のターン終了時まで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《緑×0》：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュす
+  - [1].action.abilities[0].effectId = "WX14-042-sub-E1"
+  - [1].action.abilities[0].effectType = "ACTIVATED"
+  - [1].action.abilities[0].timing[0] = "ATTACK_ARTS"
+  - [1].action.abilities[0].cost.energy[0].color = "緑"
+  - [1].action.abilities[0].cost.energy[0].count = 0
+  - [1].action.abilities[0].action.type = "BANISH"
+  - [1].action.abilities[0].action.target.type = "SIGNI"
+  - [1].action.abilities[0].action.target.owner = "opponent"
+  - [1].action.abilities[0].action.target.count = 1
+  - [1].action.abilities[0].action.target.filter.cardType = "シグニ"
+  - [1].action.abilities[0].action.target.filter.powerRange.min = 12000
+  - [1].action.abilities[0].action.target.upToCount = false
+  …（他 28 行）
+
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［2枚］
 WXEX2-09 WXK08-048
 --- WXEX2-09
@@ -230,24 +215,6 @@ WX08-026
   + [0].action.steps[1].steps[0].target.upToCount = false
   + [0].action.steps[1].steps[1].type = "LIFE_CRASH"
   …（他 3 行）
-
-## +STUB ［1枚］
-WX11-034
---- WX11-034
-  原文: 【常】：対戦相手の場に【チャーム】があるかぎり、このシグニはバニッシュされない。【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：シグニ１体を対象とし、ターン終了時まで、それのパワーを場にある【チャーム】１枚につき－3000する。,：対戦相手のシグニ１体を対象とし、対戦相手のデッキの一番上のカードをそれの【チャーム】にしてもよい。その後、ターン終了
-  - [2].action.steps[0].charm.type = "DECK_CARD"
-  - [2].action.steps[0].charm.owner = "opponent"
-  - [2].action.steps[0].charm.count = 1
-  - [2].action.steps[0].to.type = "SIGNI"
-  - [2].action.steps[0].to.owner = "opponent"
-  - [2].action.steps[0].to.count = 1
-  - [2].action.steps[1].target.type = "SIGNI"
-  - [2].action.steps[1].target.owner = "opponent"
-  - [2].action.steps[1].target.count = "ALL"
-  - [2].action.steps[1].target.filter.cardType = "シグニ"
-  - [2].action.steps[1].delta = -8000
-  ~ [2].action.steps[0].type : "ATTACH_CHARM" → "STUB"
-  …（他 14 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
