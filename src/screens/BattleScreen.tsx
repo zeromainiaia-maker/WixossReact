@@ -112,6 +112,7 @@ import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrash
 import { canSigniAttack } from './battle/signiAttackGate';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
+import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 
@@ -1039,6 +1040,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // PREVENT_ZONE_MOVE_BY_OPP はresolveStackNext内でotherProtectedZonesとして動的計算
 
   // 英知CONTINUOUS STUB効果: SUPPRESS_LIFE_BURST_ON_CRASH など（動的チェック）
+  // 「このシグニによってクラッシュされた（対戦相手の）カードのライフバーストは発動しない」の CONTINUOUS 用法
+  // （§6.4 UNKNOWN 消化・`WXEX1-32`＝【レイヤー】で＜怪異＞へ付与される）。⚠既存の3軸では拾えない
+  //   （ターンフラグは実行時のみ／英知軸は EICHI_LEVEL_SUM 限定／game_suppress_lb はプレイヤー付与）。
+  const crashSourceSuppressActive = useMemo(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return false;
+    const localIsHost = user.id === bs.host_id;
+    const myS = localIsHost ? bs.host_state : bs.guest_state;
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    // クラッシュ元は「クラッシュされた側（＝自分）」の state に記録され、カード自体は相手の場にある。
+    return crashSourceSuppressesLifeBurst(
+      opS, myS, myS.crash_source_card_num, effectsMap, battleCardMap,
+      bs.active_user_id !== user.id,
+    );
+   
+  }, [bs, battleCardMap, effectsMap, user.id]);
+
   const eichiSuppressActive = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return false;
     const localIsHost = user.id === bs.host_id;
@@ -12822,7 +12839,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <BanishSubstituteModal ctx={modalCtx} handleBanishSubstituteChoice={handleBanishSubstituteChoice} />
 
       {/* ライフバースト確認＋カード拡大＋相手クラッシュ確認 */}
-      <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
+      <LifeBurstCheckModal ctx={modalCtx} eichiSuppressActive={eichiSuppressActive} crashSourceSuppressActive={crashSourceSuppressActive} matchesAllZoneBurstGrant={matchesAllZoneBurstGrant} burstCardZoomed={burstCardZoomed} setBurstCardZoomed={setBurstCardZoomed} opCheckCardZoomed={opCheckCardZoomed} setOpCheckCardZoomed={setOpCheckCardZoomed} handleLifeBurstResponse={handleLifeBurstResponse} />
 
       {/* ガード応答ダイアログ（自分が攻撃されたとき・バースト処理中は非表示） */}
       <GuardResponseDialog ctx={modalCtx} contBlocked={contBlocked} myHandGuardClasses={myHandGuardClasses} isHost={isHost} performGuardResponse={performGuardResponse} handleGuardResponse={handleGuardResponse} handleGuardWithEnergyAlternative={handleGuardWithEnergyAlternative} handleGuardWithHandAlternative={handleGuardWithHandAlternative} />

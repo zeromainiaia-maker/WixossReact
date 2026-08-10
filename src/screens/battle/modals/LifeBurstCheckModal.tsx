@@ -8,6 +8,8 @@ import type { BattleModalCtx } from './types';
 interface LifeBurstCheckModalProps {
   ctx: BattleModalCtx;
   eichiSuppressActive: boolean;
+  /** 「このシグニによってクラッシュされた…LBは発動しない」の CONTINUOUS 用法（§6.4・WXEX1-32）。 */
+  crashSourceSuppressActive: boolean;
   matchesAllZoneBurstGrant: (cardNum: string, ownerState: PlayerState) => boolean;
   burstCardZoomed: boolean;
   setBurstCardZoomed: Dispatch<SetStateAction<boolean>>;
@@ -18,7 +20,7 @@ interface LifeBurstCheckModalProps {
 
 export function LifeBurstCheckModal(p: LifeBurstCheckModalProps) {
   const { my, op, loading, battleCardMap, effectsMap } = p.ctx;
-  const { eichiSuppressActive, matchesAllZoneBurstGrant, burstCardZoomed, setBurstCardZoomed, opCheckCardZoomed, setOpCheckCardZoomed, handleLifeBurstResponse } = p;
+  const { eichiSuppressActive, crashSourceSuppressActive, matchesAllZoneBurstGrant, burstCardZoomed, setBurstCardZoomed, opCheckCardZoomed, setOpCheckCardZoomed, handleLifeBurstResponse } = p;
   return (
     <>
       {/* ライフバースト確認（自分のチェックゾーンにカードがある場合） */}
@@ -49,7 +51,7 @@ export function LifeBurstCheckModal(p: LifeBurstCheckModalProps) {
                     const hasBurst = card?.LifeBurst === '1'
                       || (effectsMap.get(cardNum) ?? []).some(e => e.effectType === 'LIFE_BURST')
                       || matchesAllZoneBurstGrant(cardNum, my);
-                    const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || my.game_suppress_lb);
+                    const burstSuppressed = !!(my.suppress_life_burst || eichiSuppressActive || crashSourceSuppressActive || my.game_suppress_lb);
                     return (
                       <div key={cardNum + idx} style={{
                         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,

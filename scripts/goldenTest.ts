@@ -12101,6 +12101,35 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('ライフバースト抑制: 所有者句つき2文型と CONTINUOUS 用法（§6.4 UNKNOWN 第2バッチ）', () => {
+  // ⚠旧 regex は「その**対戦相手の**カードの…」「クラッシュされた**対戦相手の**カードの…」と
+  //   所有者句が挟まると外れ、丸ごと UNKNOWN に落ちていた。
+  const layer = (effectsMap.get('WXEX1-32') ?? []).find(e => e.effectId === 'WXEX1-32-LAYER');
+  ok(!!layer, 'WXEX1-32-LAYER が無い');
+  const inner = (layer!.action as { abilities?: CardEffect[] }).abilities?.[0];
+  eq((inner?.action as { id?: string })?.id, 'SUPPRESS_LIFE_BURST_ON_CRASH', 'レイヤー付与の中身が UNKNOWN のまま');
+  eq(inner?.effectType, 'CONTINUOUS', 'レイヤー付与の【常】が失われている');
+  const p3036 = (effectsMap.get('WX25-P3-036') ?? []).find(e => e.effectId === 'WX25-P3-036-E1');
+  ok(JSON.stringify(p3036?.action ?? {}).includes('SUPPRESS_LIFE_BURST_ON_CARD'), 'WX25-P3-036-E1 が UNKNOWN のまま');
+
+  // CONTINUOUS 用法の受け皿＝発生源（crash_source_card_num）だけを見る
+  const HOSTILE = 'WXEX1-32#1';
+  const em = new Map(effectsMap);
+  em.set(HOSTILE, effectsMap.get('WXEX1-32')!);
+  const srcOwner: PlayerState = { ...mkState({}), field: { ...mkState({}).field, signi: [[HOSTILE], null, null] } };
+  const victim = mkState({});
+  const cm = cardMap as Map<string, CardData>;
+  eq(crashSourceSuppressesLifeBurst(srcOwner, victim, HOSTILE, em, cm, true), true,
+    '【レイヤー】付与の CONTINUOUS 抑制が拾えていない');
+  // ⚠発生源が別カードなら抑制しない（盤面全体を見る実装だと過剰抑制になる）
+  eq(crashSourceSuppressesLifeBurst(srcOwner, victim, SIGNI, em, cm, true), false,
+    '⚠発生源でないカードのクラッシュまで抑制している');
+  eq(crashSourceSuppressesLifeBurst(srcOwner, victim, undefined, em, cm, true), false,
+    '発生源不明で抑制した');
+  // 場を離れていれば効かない
+  eq(crashSourceSuppressesLifeBurst(mkState({}), victim, HOSTILE, em, cm, true), false,
+    '場にいない発生源で抑制した');
+});
 test('REVEAL_AND_PICK{then:ADD_TO_FIELD}: 「その中から＜X＞のシグニN枚を場に出し、残りをデッキの一番下」（§6.4 UNKNOWN 消化）', () => {
   // 🔴トリップワイヤ＝`parseRevealPickDescriptor` は最初から `dest:'field'` を解けていたのに
   //   `makeRevealPickStub` が `'hand'` へ落としており、**「場に出す」が黙って「手札に加える」に化ける**
