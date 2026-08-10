@@ -35,7 +35,7 @@ import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapS
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
-import { computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
+import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
 import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
@@ -11697,14 +11697,38 @@ test('型網羅 GROW_FREE: live のコスト無しグロウが action 木から�
   const r = run(eff!.action as EffectAction, mkCtx({}, {}));
   eq(r.done, true, 'engine では no-op として完了する（配置は BattleScreen 側）');
 }));
-test('型網羅 LRIG_LIMIT_MODIFY: 相手のリミットを次ターンまで減らす（WX16-Re19-E2）', () => withSavedCursor(() => {
+test('型網羅 LRIG_LIMIT_MODIFY: AUTO版が相手リミットを実際に減らす（続き407・WX16-Re19-E2）', () => withSavedCursor(() => {
+  // 🔴従来 executor の case はログだけの no-op で、【出】「次の対戦相手のメインフェイズの間、
+  //   対戦相手のセンタールリグのリミットは1減る」が丸ごと死んでいた。
   const eff = (effectsMap.get('WX16-Re19') ?? []).find(e => e.effectId === 'WX16-Re19-E2');
   const lrig = findCard(c => c.Type === 'ルリグ' && (c.Limit ?? '') !== '' && (c.Limit ?? '') !== '∞');
   const ctx = mkCtx({}, { lrig: [lrig] });
-  const before = computeEffectiveLrigLimit(ctx.otherState, ctx.ownerState, cardMap as Map<string, CardData>, effectsMap, false);
   const r = run(eff!.action as EffectAction, ctx);
-  const after = computeEffectiveLrigLimit(r.otherState as PlayerState, r.ownerState as PlayerState, cardMap as Map<string, CardData>, effectsMap, false);
-  eq(after, before - 1, `相手リミットが1減る (${before}→${after})`);
+  // until:'NEXT_TURN' は pending へ積む（BattleScreen の GROW→MAIN が lrig_limit_mod へ移す）
+  eq((r.otherState as PlayerState).pending_lrig_limit_mod, -1, '相手の pending_lrig_limit_mod が -1');
+  eq((r.ownerState as PlayerState).pending_lrig_limit_mod, undefined, '自分側は変わらない');
+  // 適用後（GROW→MAIN 相当）は実効リミットが1減る
+  const applied: PlayerState = { ...(r.otherState as PlayerState), lrig_limit_mod: -1, pending_lrig_limit_mod: undefined };
+  const base = computeEffectiveLrigLimit(ctx.otherState, ctx.ownerState, cardMap as Map<string, CardData>, effectsMap, false);
+  eq(computeEffectiveLrigLimit(applied, ctx.ownerState, cardMap as Map<string, CardData>, effectsMap, false), base - 1,
+    '適用後は実効リミットが1減る');
+  // until:'PERMANENT'（＝常在）は executor では書かない（collectLrigColorAndLimitMods と二重計上しない）
+  const perm = run({ type: 'LRIG_LIMIT_MODIFY', owner: 'self', delta: -1, until: 'PERMANENT' } as unknown as EffectAction, mkCtx({}, {}));
+  eq((perm.ownerState as PlayerState).lrig_limit_mod, undefined, '常在版は executor で state を書かない');
+}));
+test('型網羅 LRIG_LIMIT_MODIFY: 相手の場が宣言する owner:opponent の常在も効く（続き407・WX22-002-E1）', () => withSavedCursor(() => {
+  // 🔴collectLrigColorAndLimitMods は「自分の場が宣言する owner:'self'」しか集計しないため、
+  //   「対戦相手のターンの間、対戦相手のセンタールリグのリミットは1減る」が丸ごと落ちていた。
+  const lrig = findCard(c => c.Type === 'ルリグ' && (c.Limit ?? '') !== '' && (c.Limit ?? '') !== '∞');
+  const victim = mkState({ lrig: [lrig] });
+  const bare = mkState({});
+  const declarer = mkState({ lrig: ['WX22-002'] });
+  const cm = cardMap as Map<string, CardData>;
+  const base = computeEffectiveLrigLimit(victim, bare, cm, effectsMap, false);
+  // activeCondition = TURN_OWNER opponent（宣言側から見て「対戦相手のターン」＝victim のターン）
+  eq(computeEffectiveLrigLimit(victim, declarer, cm, effectsMap, true), base - 1, 'victim のターンなら1減る');
+  eq(computeEffectiveLrigLimit(victim, declarer, cm, effectsMap, false), base, '宣言側のターンでは減らない');
+  eq(collectOppDeclaredLrigLimitDelta(bare, victim, cm, effectsMap, false), 0, '宣言者がいなければ0');
 }));
 test('型網羅 FORCE_FRONT_SIGNI_ATTACK: アクセ付与された「正面は可能ならアタック」が強制ゾーンを返す（WX20-045-E2）', () => withSavedCursor(() => {
   const cook = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('調理') && c.CardNum !== 'WX20-045');
@@ -11713,8 +11737,15 @@ test('型網羅 FORCE_FRONT_SIGNI_ATTACK: アクセ付与された「正面は�
   const op = mkState({ signi: [cook, null, null] });
   op.field.signi_acce = [['WX20-045'], null, null];
   const my = mkState({ signi: [null, null, victim] });
-  const zones = collectForcedFrontAttackZones(my, op, true, effectsMap, cardMap as Map<string, CardData>);
+  // ⚠アクセ付与は effectsMap に載らない＝**BattleScreen と同じく augMap を組んでから渡す**
+  //   （実アプリの effectsMap memo が collectGrantedFromAcce をマージしている）。
+  const aug = new Map(effectsMap);
+  for (const [num, extra] of collectGrantedFromAcce(op, my, false, effectsMap, cardMap as Map<string, CardData>)) {
+    aug.set(num, [...(aug.get(num) ?? []), ...extra]);
+  }
+  const zones = collectForcedFrontAttackZones(my, op, true, aug, cardMap as Map<string, CardData>);
   eq(zones.has(2), true, `正面ゾーン2が強制対象 (${[...zones]})`);
+  // アクセ無しの盤面は付与も起きない＝素の effectsMap で 0 件（aug を使い回すと付与が残って誤判定する）
   eq(collectForcedFrontAttackZones(my, mkState({ signi: [cook, null, null] }), true, effectsMap, cardMap as Map<string, CardData>).size, 0,
     'アクセが無ければ強制されない');
 }));

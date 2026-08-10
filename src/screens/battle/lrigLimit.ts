@@ -1,6 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect } from '../../types/effects';
-import { collectLrigColorAndLimitMods } from '../../engine/effectEngine';
+import { checkActiveCondition, collectLrigColorAndLimitMods } from '../../engine/effectEngine';
 
 const baseCardNum = (id: string): string => id.split('#')[0];
 
@@ -46,5 +46,39 @@ export function computeEffectiveLrigLimit(
     + (state.lrig_limit_mod ?? 0)
     + (state.game_lrig_limit_bonus ?? 0)
     + limitUpperBonus
-    + continuousDelta;
+    + continuousDelta
+    + oppDeclaredDelta;
+}
+
+/**
+ * 相手（declarerState）の場が CONTINUOUS `LRIG_LIMIT_MODIFY{owner:'opponent'}` で宣言する、
+ * **こちら（victimState）のリミット増減**を集める。`collectLrigColorAndLimitMods` は
+ * 「自分の場が宣言する owner:'self'」しか見ないため、対面からの宣言はこの関数でしか拾えない。
+ * `activeCondition`（例: `TURN_OWNER opponent`＝「対戦相手のターンの間」）は宣言側視点で評価する。
+ */
+export function collectOppDeclaredLrigLimitDelta(
+  declarerState: PlayerState,
+  victimState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, CardEffect[]>,
+  isDeclarerTurn: boolean,
+): number {
+  let delta = 0;
+  const sources = [
+    ...declarerState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+    ...(declarerState.field.lrig.at(-1) ? [declarerState.field.lrig.at(-1)!] : []),
+    ...(declarerState.field.assist_lrig_l?.at(-1) ? [declarerState.field.assist_lrig_l.at(-1)!] : []),
+    ...(declarerState.field.assist_lrig_r?.at(-1) ? [declarerState.field.assist_lrig_r.at(-1)!] : []),
+    ...(declarerState.field.key_piece ? [declarerState.field.key_piece] : []),
+  ];
+  for (const num of sources) {
+    for (const eff of (effectsMap.get(num) ?? effectsMap.get(baseCardNum(num)) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'LRIG_LIMIT_MODIFY') continue;
+      const act = eff.action as import('../../types/effects').LrigLimitModifyAction;
+      if (act.owner !== 'opponent') continue;
+      if (!checkActiveCondition(eff.activeCondition, declarerState, victimState, isDeclarerTurn, cardMap, num)) continue;
+      delta += act.delta;
+    }
+  }
+  return delta;
 }

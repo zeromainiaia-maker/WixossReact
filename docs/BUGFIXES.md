@@ -1,5 +1,71 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4「golden の型網羅」を未カバー0へ／過程で live の真no-op 2件を発見・修正（続き407）
+
+### やったこと
+
+PLAN §6.4「DSLアクション型のうち golden 未カバーの型を洗い出し、1型1テストで追加」を消化した。
+**計器を作る → 実数を測る → 全部塞ぐ**の順で進め、その過程で**engine の真 no-op 2件**が出てきた。
+
+### ① 計器：`scripts/goldenTypeCoverage.ts`（`npm run census:goldentypes`）
+
+`EffectAction` union のメンバ型が持つ `type: 'FOO'` リテラルを列挙し、
+**`scripts/goldenTest.ts` に型名が1度も現れない型**を live 出現数の多い順に報告する（ゲートではない＝exit 0）。
+
+🔴**計器の第1版は使い物にならなかった**。`type: 'FOO'` **リテラル一致**で数えたところ **39件**と出たが、
+実際には大半が既にテスト済みで、`test('POWER_MODIFY_PER_ENERGY: エナ枚数×deltaでCONTパワー加算（WX09-019）')`
+のように**テスト名に型名を書いて live effectsMap から実カードを引く**形だった。
+CONTINUOUS 専用型は合成 action を書くとテストの意味が薄れる（live の形と乖離し parser 退化を検出できない）ので、
+**この書き方の方が正しい**。⇒ 判定を**型名の単語一致**（`\bFOO\b`。`UP` のような短い型名があるので全トークン抽出ではなく型ごとに引く）へ直したら実数は **13件**だった。
+**過剰報告する計器は無いより悪い**（存在しない問題へ作業を誘導する）。
+
+### ② 未カバー13型を1型1テストで塞いだ（→ 未カバー0）
+
+`GRANT_ACCE_HOST_ABILITY` / `GRANT_SOUL_HOST_ABILITY` / `GRANT_SIGNI_ABOVE_ABILITY` / `GROW_FREE` /
+`LRIG_LIMIT_MODIFY` / `FORCE_FRONT_SIGNI_ATTACK` / `DRAW_PHASE_REPLACEMENT` / `GRANT_FIELD_SHADOW` /
+`GRANT_PLAYER_ABILITY` / `PREVENT_REFRESH` / `REPEAT` / `ALT_COST_OPP_TURN` / `POWER_THRESHOLD_TRASH`。
+
+- **CONTINUOUS 専用型は live 実カードを引いて対応する collector を叩く**（`collectGrantedFromAcce` /
+  `collectGrantedFromSoul` / `collectGrantedFromUnderSigni` / `collectForcedFrontAttackZones` /
+  `applyLrigDrawPhaseReplacement` / `getFieldGrantedShadowScopes` / `computeEffectiveLrigLimit`）。
+- ⚠**アクセ／ソウル／レイヤー付与は effectsMap に載らない**＝`FORCE_FRONT_SIGNI_ATTACK` のテストは
+  **BattleScreen と同じく `collectGrantedFromAcce` の結果をマージした augMap を渡す**必要がある
+  （素の effectsMap を渡して「発火しない」と早合点しかけた）。
+- `POWER_THRESHOLD_TRASH` は **parser（`parseSentencePart2`）が生成しうるのに engine に消費地点が無い**。
+  現状 live 0件なので無害だが、**「live 0件」を assert する契約テスト**を置き、parser 規則が生えた瞬間に赤くなるようにした。
+
+### ③ 網羅の過程で見つかった真 no-op 2件（本題）
+
+**(a) `LRIG_LIMIT_MODIFY` の AUTO 版が executor でログだけの no-op だった**
+`WX16-Re19-E2`（【出】「次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットは１減る」）が丸ごと死んでいた。
+→ `until` で振り分ける実装に変更：
+
+| until | 適用先 |
+|---|---|
+| `NEXT_TURN` | 対象側の `pending_lrig_limit_mod`（BattleScreen の GROW→MAIN 遷移が `lrig_limit_mod` へ移す＝STUB `OPP_MAIN_PHASE_LIMIT_DOWN` と同経路） |
+| `END_OF_TURN` | 対象側の `lrig_limit_mod` |
+| `PERMANENT` | **何もしない**＝常在は `collectLrigColorAndLimitMods` が毎フレーム集計するので、ここで書くと二重計上になる |
+
+**(b) `computeEffectiveLrigLimit` が「相手の場が宣言する `owner:'opponent'` の常在」を集めていなかった**
+`collectLrigColorAndLimitMods` は「その state 自身の場が宣言する `owner:'self'`」しか加算しないため、
+`WX22-002-E1`（【常】「対戦相手のターンの間、対戦相手のセンタールリグのリミットは１減る」）が丸ごと落ちていた。
+→ `collectOppDeclaredLrigLimitDelta()` を新設（宣言側の場を走査し、`activeCondition` は**宣言側視点**で評価）して加算。
+
+### ④ ついでに実測で残0になった項目
+
+§6.4「クラフトトークン…**残＝`WX22-001-E3`（STUB `GRANT_LEAVE_PLACE_PENDING` が未実装＝機構待ち）**」は**古かった**。
+`GRANT_LEAVE_PLACE_PENDING` は **live JSON に0件**で、`WX22-001-E3` は
+`INSTALL_DELAYED_TRIGGER{duration:THIS_ATTACK_PHASE, trigger:ON_LEAVE_FIELD+leftOwner+triggerFilter, effect:ADD_TO_FIELD+levelLtTrigger}`
+へ構造化済み。**設置→アタックフェイズ限定の発火→leftOwner/triggerFilter ゲート→レベル相対フィルタの確定**まで
+通しで動くことを golden で固定した（PLAN の在庫記述が古いのは続き402〜407 で7回連続）。
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / golden **1741 PASS**（1726→+15）/ smoke **10686/10686** 全0・SKIP 0 /
+fuzz 200ゲーム 全0 / census 880 据置 / manual field loss 0 / lint 0 errors・254 warnings 増減0）。
+**golden 型カバレッジ 128/128（未カバー0）**。live JSON 変更0＝engine 修正とテスト追加のみ。
+
+
 ## 2026-08-10 — §6.4 F-3 身代わりバニッシュが「効果によるバニッシュ」に一切効いていなかった（続き406）
 
 ### 症状
