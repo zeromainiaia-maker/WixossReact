@@ -1817,7 +1817,16 @@ function actionJa(a?: Action, effectType?: string): string {
         // コストスロットは「青|黒」（青か黒のいずれか）形式を許容 → 「《青》か《黒》」
         const costJaOC = (a.costColors ?? []).map((c: string) => c.split('|').map((x: string) => `《${x}》`).join('か')).join('')
           + (a.coinCost ? `《コイン》×${a.coinCost}` : '');
-        return `${a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? '対戦相手のシグニ１体を対象とし、' : ''}${costJaOC || 'コスト'}を支払ってもよい`;
+        const headOC = a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? '対戦相手のシグニ１体を対象とし、' : '';
+        // 手札捨てコスト（続き416）。従来は spec を見ずに「コストを支払ってもよい」へ潰れており、
+        // 原文の枚数・クラス指定が逆翻訳から丸ごと消えていた（handDiscard を持つ既存 MANUAL も同様）。
+        if (a.handDiscard) {
+          const fHD = a.handDiscard.filter ? filterJa(a.handDiscard.filter) : '';
+          const nounHD = a.handDiscard.filter?.cardType ?? 'カード';
+          const bodyHD = `手札から${fHD}${fHD.endsWith(nounHD) ? '' : nounHD}を${a.handDiscard.count}枚捨て`;
+          return `${headOC}${costJaOC ? `${costJaOC}を支払い` : ''}${bodyHD}てもよい`;
+        }
+        return `${headOC}${costJaOC || 'コスト'}を支払ってもよい`;
       }
       const burstExtra = a.id === 'GRANT_ALL_ZONE_LIFEBURST'
         ? `（全領域のカードに【ライフバースト】付与${a.burstAdditive ? '・既存バーストにも追加' : ''}${a.burstFilter ? '・対象' + filterJa(a.burstFilter) : ''}${a.burstAction ? '・効果=' + actionJa(a.burstAction) : ''}）`
