@@ -5277,6 +5277,9 @@ test('「てもよい」optional 保持: DOWN／手札捨て／エナ→トラ�
     for (const e of parseCardEffects(cardMap.get(cardNum)!)) walk(e.action);
     return found;
   };
+  const findOptionalCostHandDiscard = (cardNum: string): boolean =>
+    parseCardEffects(cardMap.get(cardNum)!).some(e =>
+      /"id":"OPTIONAL_COST","handDiscard"/.test(JSON.stringify(e.action)));
   ok(findOpt('WXDi-P16-078', 'DOWN'), 'WXDi-P16-078-E1「アップ状態のこのシグニをダウンしてもよい」→ DOWN optional');
   // ⚠WX24-P4-050 の「手札を1枚捨ててもよい」は続き416 で `STUB{OPTIONAL_COST,handDiscard}` へ移した
   //   （`TRASH{optional}` は「0枚選択」でも後続の「そうした場合」ゲートが通り、**払わずに本体が撃てた**）。
