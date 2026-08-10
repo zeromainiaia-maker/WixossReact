@@ -7860,7 +7860,8 @@ function parseActionTextInner(text: string): EffectAction {
         //   （タスク12(lxii)＝`WD16-016-BURST`「対戦相手は手札を１枚捨てる。６枚以上の場合、代わりに２枚捨てる」）。
         //   文が主語を省くため素直に再パースすると owner が self へ反転する＝base を複製して count だけ差し替える
         //   （上の (b) per-target 値のみ形と同じ考え方）。
-        const cmm = enhancedText.match(/^(?:手札を)?([０-９\d]+)枚捨てる。?$/);
+        //   ⚠対象プロパティ条件では使わない（条件が対象決定より前に評価されて常に偽になる）。
+        const cmm = !cmIsTargetProperty && enhancedText.match(/^(?:手札を)?([０-９\d]+)枚捨てる。?$/);
         if (cmm && baseCore.type === 'TRASH'
             && (baseCore as import('../types/effects').TrashAction).target?.type === 'HAND_CARD') {
           const thenTR = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').TrashAction;
