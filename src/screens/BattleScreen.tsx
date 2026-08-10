@@ -10352,6 +10352,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     // ─── ATTACK_SIGNIフェイズ：全シグニでアタック ───
+    // ⚠強制攻撃（`resolveForcedSigniAttack`）は CPU 側では**自動的に満たされている**＝アタック可能な
+    //   シグニを1体も残さないため。**CPU がアタックを選ぶようになったら**（§8 メインフェイズAI拡張）、
+    //   ここで `resolveForcedSigniAttack(cpuSt, huSt, true, …)` を見て強制対象を先に消化すること。
     if (phase === 'ATTACK_SIGNI') {
       // まだダウンしていない（かつアタック可能な）シグニを1枚ずつアタック
       const signiDown = cpuSt.field.signi_down ?? [false, false, false];
