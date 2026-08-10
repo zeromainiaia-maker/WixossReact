@@ -6943,8 +6943,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...result.otherState.field.signi.map(stack => stack?.at(-1)),
         ].filter((n): n is string => !!n);
         const usedIdsSUOpp: string[] = [];
+        const oppWatchLrigTop = result.otherState.field.lrig.at(-1);
         for (const srcNum of oppWatchSources) {
-          for (const eff of (effectsMap.get(srcNum) ?? [])) {
+          const srcEffsSUOpp = srcNum === oppWatchLrigTop
+            ? [...(effectsMap.get(srcNum) ?? []),
+               ...grantedStoreWatchers(result.otherState, 'ON_SPELL_USE', ['any_opp', 'any']).map(w => w.effect)]
+            : (effectsMap.get(srcNum) ?? []);
+          for (const eff of srcEffsSUOpp) {
             if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_SPELL_USE')) continue;
             const scopeSU = eff.triggerScope ?? 'self';
             if (scopeSU !== 'any_opp' && scopeSU !== 'any') continue; // self は使用者側でのみ発火（上のブロック）
