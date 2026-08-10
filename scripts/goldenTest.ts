@@ -12101,6 +12101,36 @@ test('signiAttackGate: 付与された「アタックできない」（keyword_g
     effectsMap, cardMap: cardMap as Map<string, CardData>,
   }), 'CONTINUOUS_CANNOT_ATTACK', '相手側 state に積まれた付与でもアタック不可');
 }));
+test('ON_MAGIC_BOX_FLIPPED: MB公開の検出と付与 watcher の発火（§6.4 A群・WX24-P4-016-E3）', () => withSavedCursor(() => {
+  const MB = 'GOLDEN-MB#1';
+  const base = mkState({ signi: [SIGNI, null, null] });
+  const withMB: PlayerState = { ...base, field: { ...base.field, signi_magic_boxes: [MB, null, null] } };
+  const clearMB = (s: PlayerState): PlayerState => ({ ...s, field: { ...s.field, signi_magic_boxes: [null, null, null] } });
+  // (a) 表向き→トラッシュ（INTERNAL_OPEN_MB_DO 相当）／表向き→シグニ（MAGIC_BOX_REVEAL 相当）を検出
+  const toTrash: PlayerState = { ...clearMB(withMB), trash: [...withMB.trash, MB] };
+  eq(countMagicBoxesFlipped(withMB, toTrash), 1, 'トラッシュ行きの公開を検出できていない');
+  const asSigni: PlayerState = { ...clearMB(withMB), field: { ...clearMB(withMB).field, signi: [SIGNI, [MB], null] } };
+  eq(countMagicBoxesFlipped(withMB, asSigni), 1, 'シグニ化した公開を検出できていない');
+  // (b) ⚠盤面ごとゲーム除外（MUGEN_Q）で MB が消えても「表向きになった」ではない
+  const exiled: PlayerState = { ...clearMB(withMB), excluded: [MB] };
+  eq(countMagicBoxesFlipped(withMB, exiled), 0, '⚠ゲーム除外を公開と誤検出している');
+  eq(countMagicBoxesFlipped(withMB, withMB), 0, '無変化で検出している');
+
+  // (c) 付与ストアの watcher が拾われる（印字だけ見る実装だと恒久 no-op になる軸）
+  const watcher = {
+    effectId: 'GOLDEN-MBF-G', effectType: 'AUTO' as const,
+    timing: ['ON_MAGIC_BOX_FLIPPED' as const], triggerScope: 'any_ally' as const,
+    action: { type: 'DRAW', count: 1 } as unknown as EffectAction,
+    duration: 'INSTANT' as const, mandatory: true, parseStatus: 'MANUAL' as const,
+  };
+  const granted: PlayerState = { ...withMB, field: { ...withMB.field, lrig: ['WX24-P4-016'] }, lrig_granted_auto_effects: [watcher] };
+  const fired = (state: PlayerState, own: number) =>
+    collectMagicBoxFlippedTriggers(trigCtx(HOST), HOST, state, mkState({}), own, 0)
+      .entries.some(e => e.effectId === 'GOLDEN-MBF-G');
+  eq(fired(granted, 1), true, '付与ストアの watcher が拾われていない');
+  eq(fired(granted, 0), false, '公開0件なのに発火した');
+  eq(fired(withMB, 1), false, '付与していないのに発火した');
+}));
 test('ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 空ゾーンへの側面アタックを正面扱いにする（§6.4 A群・WX16-021）', () => withSavedCursor(() => {
   // live JSON が構造（cardClass）を持ち、engine はそれを state のターンフラグへ写す。
   // ⚠engine 側で costText を再パースしない契約もここで固定する。

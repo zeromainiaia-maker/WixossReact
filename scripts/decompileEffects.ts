@@ -2474,6 +2474,7 @@ function actionJa(a?: Action, effectType?: string): string {
         //   （二重に置くと到達不能な死語彙になる）。
         OPP_LRIG_DECK_TO_LRIG_TRASH: '対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く',
         ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 'このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える',
+        MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC: 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る',
       };
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
@@ -2497,6 +2498,7 @@ const timingJa: Record<string, string> = {
   ON_ATTACK_LRIG: 'このルリグがアタックしたとき',
   ON_ACCE: 'このシグニに【アクセ】が付いたとき',
   ON_ACCE_TO_TRASH: '【アクセ】がトラッシュに置かれたとき',
+  ON_MAGIC_BOX_FLIPPED: '【マジックボックス】が表向きになったとき',
   ON_COIN_GAINED: '《コインアイコン》を得たとき',
   ON_ABILITY_ACTIVATED: '能力が発動したとき',
   ON_ATTACK_PHASE_END: 'あなたのアタックフェイズ終了時',
