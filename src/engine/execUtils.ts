@@ -67,6 +67,12 @@ export interface ExecCtx {
   deckToEnergyBlocked?: boolean;
   // BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT: 相手CONTにより自分はシグニ効果でシグニを出せない
   signiFieldPlaceByEffectBlocked?: boolean;
+  // DEPLOY_RESTRICT（CONTINUOUS 版・WX07-006 レゾナ等）の配置数上限を**事前計算して**渡す。
+  // ⚠`ctx.effectsMap` は BattleScreen の一部経路（スタック解決の1箇所）でしか代入されないため、
+  //   effectsMap 依存だけにすると「engine は正しいのに実UIでは丸ごと効かない」dead flag になる（続き296 と同じ罠）。
+  //   AUTO フラグ版（`PlayerState.signi_deploy_count_limit`）は state に載るのでこの経路は不要。
+  deployCountCapSelf?: number;      // ownerState が場に出すときの上限
+  deployCountCapOpponent?: number;  // otherState が場に出すときの上限
   // PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH / PREVENT_NON_FIELD_MOVE_BY_OPP / SIGNI_PROTECT_MOVE_EXCEPT_ENERGY:
   // 相手効果でフィールドから移動（バウンス/トラッシュ）できないシグニ番号
   otherTrashFieldProtectedNums?: string[];
