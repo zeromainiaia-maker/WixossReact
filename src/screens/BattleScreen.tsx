@@ -8599,6 +8599,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else if (isSideAttack) {
         // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
         appendBattleLogs([`${myCardName}の側面アタック：対象のシグニゾーンにシグニがいないため何も起こらない`]);
+      } else if (cannotDealDamageToOpp) {
+        // ─── 「このシグニは対戦相手にダメージを与えない」（WX25-CP1-074-E1 の付与）───
+        appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない`]);
       } else {
         // ─── ライフへのアタック（正面空 or アサシン）───
         const crashCount = isTripleCrush ? 3 : isDoubleCrush ? 2 : 1;
