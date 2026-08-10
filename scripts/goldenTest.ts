@@ -11649,6 +11649,47 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
+// ══════════════ WX22-001-E3「このアタックフェイズの間、離場に反応して手札から出す」（続き407・PLAN §6.4）══════════════
+// PLAN §6.4 は「STUB GRANT_LEAVE_PLACE_PENDING が未実装＝機構待ち」と書いていたが、live JSON では
+// INSTALL_DELAYED_TRIGGER（duration:THIS_ATTACK_PHASE / trigger:ON_LEAVE_FIELD / levelLtTrigger）へ
+// 構造化済み。設置→発火→動的フィルタ解決の通しをここで固定する。
+test('WX22-001-E3: アタックフェイズ限定の離場遅延トリガーが設置・発火し、レベル相対フィルタが解決される（続き407）', () => withSavedCursor(() => {
+  const install = (effectsMap.get('WX22-001') ?? []).find(e => e.effectId === 'WX22-001-E3');
+  ok(!!install, 'WX22-001-E3 が live effectsMap に存在');
+  const toy = (lv: string) => findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('遊具') && c.Level === lv);
+  const left = toy('3'); // 場を離れる＜遊具＞シグニ（レベル3）
+
+  // ① 設置
+  const ctx = mkCtx({ signi: [left, null, null] }, {});
+  const r = run(install!.action as EffectAction, ctx);
+  const installed = (r.ownerState as PlayerState).delayed_triggers ?? [];
+  eq(installed.length, 1, '遅延トリガーが1件設置される');
+  eq(installed[0].duration, 'THIS_ATTACK_PHASE', 'アタックフェイズ限定');
+  eq(installed[0].trigger?.timing, 'ON_LEAVE_FIELD', '離場トリガー');
+
+  // ② 発火（アタックフェイズ中・自分の＜遊具＞が離れた）
+  const after = { ...(r.ownerState as PlayerState), field: { ...(r.ownerState as PlayerState).field, signi: [null, null, null] } };
+  const atkCtx: TrigCtx = { ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' };
+  const fired = collectLeaveFieldTriggers(atkCtx, left, [], HOST, after, mkState({})).entries;
+  eq(fired.some(e => e.effectId === 'DELAYED_TRIGGER'), true, 'アタックフェイズ中の自＜遊具＞離場で発火');
+
+  // ③ levelLtTrigger が「離れたシグニ（Lv3）より低い＝Lv2以下」へ解決される
+  const act = fired.find(e => e.effectId === 'DELAYED_TRIGGER')!.effect.action as AddToFieldAction;
+  eq(JSON.stringify(act.source?.filter?.level), JSON.stringify({ max: 2 }), 'レベル相対フィルタが max:2 に確定');
+  eq('levelLtTrigger' in (act.source?.filter ?? {}), false, '動的フラグは解決後に消える');
+
+  // ④ 非発火の2軸：アタックフェイズ外／相手のシグニが離れた場合
+  eq(collectLeaveFieldTriggers(trigCtx(HOST, HOST), left, [], HOST, after, mkState({})).entries
+    .some(e => e.effectId === 'DELAYED_TRIGGER'), false, 'アタックフェイズ外では発火しない');
+  // 設置者は HOST のまま、離れたのは GUEST のシグニ＝leftOwner:'self' に一致しない
+  eq(collectLeaveFieldTriggers(atkCtx, left, [], GUEST, after, mkState({})).entries
+    .some(e => e.effectId === 'DELAYED_TRIGGER'), false, '相手（leftOwner:self 不一致）の離場では発火しない');
+  // ⑤ ＜遊具＞以外が離れた場合も発火しない（triggerFilter）
+  const nonToy = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('遊具'));
+  eq(collectLeaveFieldTriggers(atkCtx, nonToy, [], HOST, after, mkState({})).entries
+    .some(e => e.effectId === 'DELAYED_TRIGGER'), false, '＜遊具＞以外の離場では発火しない');
+}));
+
 // ══════════════ F-3 身代わりバニッシュを「効果によるバニッシュ」へ配線（続き406・PLAN §6.4）══════════════
 // 原文は「このシグニがバニッシュされる場合」＝バトル限定ではないのに、collectBanishSubstitutes の
 // 消費地点は BattleScreen のバトルバニッシュ1箇所だけで、execBanish からは一切見ていなかった。
