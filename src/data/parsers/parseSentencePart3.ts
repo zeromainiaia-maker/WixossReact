@@ -892,6 +892,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_COST', costColors } as StubAction;
   }
 
+  // ---- 《コインアイコン》を支払ってもよい → OPTIONAL_COST with coinCost（§6.4・2026-08-10）----
+  //   engine 側（`effectExecutor` の OPTIONAL_COST 分岐・`coinCost` 参照）は**最初から実装済み**なのに
+  //   **parser が一度も生成していなかった**＝素の `OPTIONAL_COST`（payload 無し＝コスト0）へ落ちて
+  //   **コインを払わずに強い方の効果が撃てる**過剰効果だった（`WXDi-P07-055/072/094` 等）。
+  //   唯一正しかった `WXDi-P07-066-BURST` は MANUAL で手書きされていた＝それが正準形。
+  if (t.match(/^《コインアイコン》+を支払ってもよい$/)) {
+    return { type: 'STUB', id: 'OPTIONAL_COST', coinCost: (t.match(/《コインアイコン》/g) ?? []).length } as StubAction;
+  }
+
   // ---- あなたのルリグゾーンに【リミットアッパー】を置く ----
   if (t.match(/ルリグゾーンに【リミットアッパー】[０-９\d]*つを置く/)) {
     return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as StubAction;
