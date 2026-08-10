@@ -7899,8 +7899,30 @@ function parseActionTextInner(text: string): EffectAction {
               // 再パースが base と完全同型になった＝昇格が何も変えていない（＝「代わりに」の中身を
               // 表現できていない）ので、意味のない CONDITIONAL を作らずに据置する。
               if (JSON.stringify(then) !== JSON.stringify(baseCore)) {
-                steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
-                continue;
+                if (cmIsTargetProperty) {
+                  // (d-2) 条件が**選んだ1体の状態**に依存する形（「それが感染状態の場合」）＝条件を
+                  //   対象決定より前に評価できないので、既存の正準形へ組み替える：
+                  //   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{…targetsStored}`。
+                  //   ⚠ base が SEQUENCE／コストステップを含む形（`WX25-P3-014-E1` 等）は組み替え先が
+                  //     did-it ゲートと干渉するので据置＝base が単一の除去アクションのときだけ。
+                  const desig = (baseCore as unknown as Record<string, EffectTarget>)[baseKey];
+                  const boundThen = bindToStoredTarget(then, desig);
+                  const boundElse = bindToStoredTarget(baseCore, desig);
+                  const wired = (a: EffectAction) => (a as unknown as { targetsStored?: boolean }).targetsStored === true;
+                  if (base === baseCore && desig?.type === 'SIGNI' && wired(boundThen) && wired(boundElse)) {
+                    steps[steps.length - 1] = { type: 'SEQUENCE', steps: [
+                      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: JSON.parse(JSON.stringify(desig)) } as EffectAction,
+                      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+                      { type: 'CONDITIONAL', condition: cm.condition, then: boundThen, else: boundElse },
+                    ] };
+                    continue;
+                  }
+                  // 組み替えられない形は**据置**（盤面状態版へ流すと条件が対象決定より前に評価され、
+                  //   「それ」の状態を見たつもりで別物になる）。
+                } else {
+                  steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then, else: base };
+                  continue;
+                }
               }
             }
           }
