@@ -2444,6 +2444,40 @@ export function execStubPart1(
     };
     return selectOrInteract(cands, 1, false, 'self_hand', trashAction, undefined, ctx, true);
   }
+  // 対戦相手が自分のルリグデッキからカード1枚を選んでルリグトラッシュに置く（WX24-P4-014-E3 ②）。
+  // ⚠**選ぶのはカードの持ち主＝対戦相手**なので `opponentResponds` を立てる（`OPP_CHOOSE_YOUR_HAND_DISCARD` と同じ慣例）。
+  // ⚠**ctx の視点は反転しない**＝`opponentResponds` は「誰がクリックするか」だけを変えるので、
+  //   候補も適用先も `ctx.otherState`（＝効果コントローラーから見た対戦相手）のまま扱う。
+  // ⚠行先は `trash` ではなく **`lrig_trash`**（ルリグデッキのカードはルリグトラッシュへ行く）。
+  if (stub.id === 'OPP_LRIG_DECK_TO_LRIG_TRASH') {
+    const candsOLD = ctx.otherState.lrig_deck ?? [];
+    if (candsOLD.length === 0) {
+      return done(addLog({ ...ctx, lastProcessedCards: [] }, '対戦相手のルリグデッキにカードがない'));
+    }
+    const applyOLD: StubAction = { type: 'STUB', id: 'INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY' };
+    return selectOrInteract(candsOLD, 1, false, 'opp_lrig_deck', applyOLD, undefined, ctx, true);
+  }
+  if (stub.id === 'INTERNAL_OPP_LRIG_DECK_TO_LRIG_TRASH_APPLY') {
+    const selOLD = ctx.lastProcessedCards ?? [];
+    const deckOLD = [...(ctx.otherState.lrig_deck ?? [])];
+    const movedOLD: string[] = [];
+    for (const n of selOLD) {
+      const i = deckOLD.indexOf(n);
+      if (i < 0) continue;
+      deckOLD.splice(i, 1);
+      movedOLD.push(n);
+    }
+    if (movedOLD.length === 0) return done(addLog(ctx, '選んだカードが対戦相手のルリグデッキにない'));
+    return done(addLog({
+      ...ctx,
+      otherState: {
+        ...ctx.otherState,
+        lrig_deck: deckOLD,
+        lrig_trash: [...ctx.otherState.lrig_trash, ...movedOLD],
+      },
+      lastProcessedCards: movedOLD,
+    }, `対戦相手は${movedOLD.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキからルリグトラッシュに置いた`));
+  }
   // チェックゾーンから除外：対戦相手のチェックゾーンのカードをトラッシュへ
   if (stub.id === 'EXILE_FROM_CHECK_ZONE') {
     const target = ctx.otherState.field.check ?? ctx.ownerState.field.check;
