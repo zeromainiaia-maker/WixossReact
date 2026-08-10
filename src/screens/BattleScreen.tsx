@@ -10067,10 +10067,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 《無》回避つきは支払えるときだけ配置可（CPU は常に支払う方針）。徴収はシグニコスト確定後。
         if (!resolveSigniZonePlacement(newCpuSt, zone).allowed) continue;
 
-        // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv）
-        const candidate = handSignis.find(({ card }) => {
+        // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv かつ 配置制限を満たす）。
+        // ⚠パワー上限（`signi_deploy_power_limit`）は従来 CPU が見ておらず、人間だけが縛られていた（続き405）。
+        const candidate = handSignis.find(({ id, card }) => {
           const lv = parseInt(card!.Level) || 0;
-          return lv <= cpuLrigLevel && fieldTotal + lv <= cpuLimit;
+          if (lv > cpuLrigLevel || fieldTotal + lv > cpuLimit) return false;
+          return deployLimitBlockReason({
+            placingState: newCpuSt, opponentState: bs.host_state, cardNum: id,
+            cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
+          }) === null;
         });
         if (!candidate) break;
 
