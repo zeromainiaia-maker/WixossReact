@@ -280,11 +280,17 @@ p('=============================================================================
 p('【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）');
 p('  ⚠ これが本命の worklist。1件ずつ原文照合して「機構実装」か「そもそも parser が誤って STUB を吐いている」かを判定する。');
 p('==============================================================================');
-for (const r of holeImpl.sort((a, b) => b.count - a.count || a.id.localeCompare(b.id))) {
-  p(fmt(r));
-  if (r.producers.length) p(`        生成: ${r.producers.slice(0, 2).map(x => `${x.file}:${x.line}`).join(' / ')}`);
+for (const group of [
+  { label: '-- 無言の no-op（要対応）--', list: holeImpl.filter(r => !isDeferred(r)) },
+  { label: '-- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--', list: holeImpl.filter(isDeferred) },
+]) {
+  p(group.label);
+  for (const r of group.list.sort((a, b) => b.count - a.count || a.id.localeCompare(b.id))) {
+    p(fmt(r));
+    if (r.producers.length) p(`        生成: ${r.producers.slice(0, 2).map(x => `${x.file}:${x.line}`).join(' / ')}`);
+  }
+  p('');
 }
-p('');
 
 p('==============================================================================');
 p('【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）');
