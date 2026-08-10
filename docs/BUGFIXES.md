@@ -1,5 +1,53 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 ①アタック可否ゲートの一本化 ②付与ストアの任意 timing・任意 scope 走査（続き404）
+
+PLAN §6.4「オープンな実装課題（機構・基盤）」の先頭2項目を消化した。どちらも**「実装済みの判定が、判定を必要とする全経路のうち1経路からしか読まれていない」**という同型の穴。
+
+### ① `cannotAttackSigni` ほかアタック可否軸が人間UIからしか読まれていなかった
+
+**症状**：`calcContinuousBlockedActions` が返す `cannotAttackSigni`（CONTINUOUS の「このシグニはアタックできない」・`ONE_ATTACK_PER_TURN`・`ODD_LEVEL_SIGNI_CANT_ATTACK`・`BLOCK_FRONT_SIGNI_ATTACK`・`ATTACK_COUNT_BY_POWER`・付与 `keyword_grants['アタックできない']`）の消費地点が **`BattleScreen.getMySigniZoneActions`（人間のアタックボタン生成）だけ**で、**共通実行経路 `performSigniAttack` も CPU のアタック候補フィルタも見ていなかった**。⇒ 付与された「アタックできない」は **CPU に一切効かない**。
+
+**同じ穴だった兄弟軸**（実測で判明・今回まとめて閉じた）：
+- `opp_signi_attack_power_cap`（OPP_SIGNI_ATTACK_POWER_RESTRICT のパワー上限）
+- `signi_attack_once_limit`（このターンのシグニアタックは合計1回）
+- `signi_attack_cost`（アタックのエナコスト）＝**CPU は affordability を見ずに撃ち、`performSigniAttack` の `energy.slice(0, -n)` が黙って過少払いしていた**（エナ1枚でコスト2なら全額しか引かれない）
+
+**直し方**：`src/screens/battle/signiAttackGate.ts` を新設し、`signiAttackBlockReason()` / `canSigniAttack()` にルール由来の可否軸を集約。**3箇所（人間ボタン／`performSigniAttack`／CPU 候補フィルタ）が同じ関数を呼ぶ**形にした。「処理中」「相手のライフバースト待ち」等の一過性UI条件はゲートに入れず呼び出し元に残す（入れると CPU が候補を絞れず ATTACK_SIGNI で無限ループする）。
+
+⚠**`fieldTrashCostAlreadyPaid` フラグが必須**＝G154 BURST の「手札を捨ててアタック無効化を回避」モーダルからの再入は**支払い後の盤面＋残ったコスト予約**（`signi_attack_field_trash_costs` は支払いで消えない）で来るため、フラグ無しだと「他のシグニをもう払えない」と誤判定してアタックが黙って消える。
+
+**再現/回帰**：golden に4テスト追加（`signiAttackGate:` で始まる）。CPU 実挙動は実機検証項目として PLAN §7 に登録（golden では踏めない）。
+
+### ② 付与ストアの走査が timing ごとにハードコードで5箇所に散在していた
+
+**症状**：`GRANT_LRIG_ABILITY` / `GRANT_PLAYER_ABILITY` の実行結果は **effectsMap に載らず** PlayerState の3ストア（`lrig_granted_auto_effects` / `..._until_opp_turn` / `game_granted_effects`）にしか入らない。各コレクタが個別に走査する必要があるが、走査があったのは **ON_ATTACK_LRIG（攻守2箇所）/ ON_ENERGY_TO_TRASH / ON_HAND_ADDED / フェイズ境界（self・any_opp）の5箇所だけ**で、**それ以外の timing の付与 AUTO は構造が正しくても丸ごと死んでいた**。
+
+**実測で分かった2点（PLAN の記述が古かった）**：
+- PLAN は「`triggerScope` が `self` 以外の付与 AUTO は拾われない／`WXDi-P07-073-E1` は今も死んだまま」と書いていたが、**これは古い警告**。続き401 で入れた `collectTurnTriggers` の opState any_opp 走査が既に拾っていた（probe で発火を実測）。
+- **本当の穴は scope ではなく「そもそも走査されない timing」の側**。live JSON 全走査で付与能力 144 件を timing×scope×ストアで集計し、死んでいた 8 timing を特定した。
+
+**直し方**：`src/engine/grantedStore.ts` を新設。`grantedStoreWatchers(state, timing, scopes)` が**3ストアを任意 timing・任意 scope で横断走査**する（`lrig_abilities_disabled` はルリグ付与2ストアだけに効かせ、プレイヤー付与には効かせない）。既存のハードコード5箇所をこれに寄せたうえで、未配線だった経路へ新規配線：
+
+| timing | 配線先 | 活きた効果 |
+|---|---|---|
+| ON_PLAY / ON_BANISH / ON_ATTACK_SIGNI / ON_BLOOM | `collectFieldTriggers`（ally・opp 両側の LRIG watcher） | `WDK12-001-E3`、`WX15-016-E1` ほか ON_ATTACK_SIGNI any_opp 7件 |
+| ON_LIFE_CRASHED ほか自イベント | `collectSelfEventTriggers` | `WXDi-P12-030-E2` |
+| ON_OPP_LIFE_CRASHED | `collectOppLifeCrashedTriggers` | `WXDi-CP02-050-E1` |
+| ON_LEAVE_FIELD | `collectLeaveFieldTriggers` | `WX25-P2-049-E1` |
+| ON_SPELL_USE | BattleScreen（使用者側・相手側の2ブロック） | `WXDi-P13-008-E3` |
+| ON_SIGNI_BANISH_OPPONENT / ON_SIGNI_BANISH_BATTLE | BattleScreen（バトルバニッシュ解決） | `WXDi-P12-041-E1` |
+| ON_ENERGY_CHARGE | BattleScreen（エナ差分 watcher） | `SPDi43-13-E2` |
+
+**🔑 scope 集合は timing の意味で決める**：「あなたがスペルを使用したとき」のようにプレイヤーが主語なら `self` を含め、「あなたのシグニが場に出たとき」のようにカードが主語なら含めない（host はセンタールリグなので `self` は永久に成立せず、含めると誤発火の温床）。実例＝**`SPDi43-11-E2` は原文が「あなたの効果によってカードが手札に移動したとき」（ON_HAND_ADDED）なのに `ON_PLAY`+`self` へ誤パースされている**ため、ON_PLAY で `self` を含めていたら全召喚で誤発火していた。**parser 側の別バッチ案件として PLAN §3 Opus タスク12 に登録**。
+
+**残った既知の穴**：BattleScreen の ON_ENERGY_CHARGE watcher 経路は `actions_done` へ書き戻さないため **usageLimit（《ターン2回》）が未管理**（既存のシグニ側 watcher と同じ穴＝今回の付与配線で新たに作った穴ではない）。
+
+**再現/回帰**：golden に6テスト追加（`付与ストア共通走査:` で始まる。各テストは「付与前は非発火／付与後は発火」を対で assert し、3ストア横断と `lrig_abilities_disabled` の効き方も固定）。BattleScreen 側の3経路は golden で踏めないため PLAN §7 に実機検証項目として登録。
+
+**ゲート**：`npm run gates` 全緑（typecheck / golden **1715 PASS**（1705→+10）/ smoke 10686 全0・SKIP 0 / fuzz 200ゲーム 全0 / census 880 据置 / manual field loss 0 / lint 0 errors・254 warnings 増減0）。live JSON 変更なし＝**engine/UI 配線のみ**。
+
+
 ## 2026-08-10 — §6.4 トラッシュ自己起動【起】のコストUI（対象14枚・続き403）
 
 ### 症状
