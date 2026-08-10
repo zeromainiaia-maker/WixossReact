@@ -1,6 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import { parseEnergyCosts } from '../data/parserUtils';
+import { deployLimitBlockReason, deployLimitLogMessage } from './deployLimit';
 import type {
   EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
