@@ -18,7 +18,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
-import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
@@ -7951,7 +7951,8 @@ const MANUAL_DRIFT_KNOWN = new Set([
   // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
   'PR-Di017B-E1',       // UNDATED（manual ブロックが blame で取れない）
   'WX05-025-E2', 'WX10-018-E1', 'WX13-040-E1', 'WX14-064-E1',       // UNDATED（manual 側の日付が取れない）
-  'WXK04-003-DECORE', 'WXK04-042-E1b', 'WXK05-030-MULTIENA',        // FRESH_ONLY＝live に無い効果（増設は要判断）
+  // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
+  //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
 ]);
 test('§6.3 K トリップワイヤ: manualEffects.ts の定義が live JSON に届いている（既知の乖離リスト外は即FAIL）', () => {

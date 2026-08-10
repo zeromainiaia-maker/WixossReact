@@ -1166,6 +1166,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       // ⚠CONTINUOUS の FORCE_SIGNI_ATTACK は**実行されない**＝`resolveForcedSigniAttack`（effectEngine）が読む。
       effectId: 'WX12-010-E1',
       effectType: 'CONTINUOUS',
+      // ⚠【出現条件】は buildEffectsJson の後段が**必ず先頭効果へ寄せる**ので、manual 側も先頭（E1）に置く。
+      //   E2 に付けたままだと §6.3 K トリップワイヤが「manual を直したが live に届いていない」と鳴る。
+      appearanceCondition: {"rawText":"《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる","timings":["MAIN","ATTACK"],"cost":{"discardGroups":[{"count":1,"filter":{"cardType":"シグニ","color":"白"}},{"count":1,"filter":{"cardType":"シグニ","color":"黒"}}]},"paymentShape":"REQUIRES_NEW_FLOW"},
       action: { type: 'FORCE_SIGNI_ATTACK', targetOwner: 'opponent' },
       duration: 'PERMANENT',
       mandatory: true,
@@ -1175,7 +1178,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       effectId: 'WX12-010-E2',
       effectType: 'AUTO',
       timing: ['ON_ATTACK_SIGNI'],
-      appearanceCondition: {"rawText":"《メインフェイズアイコン》《アタックフェイズアイコン》白のシグニ１枚と黒のシグニ１枚をあなたの手札から捨てる","timings":["MAIN","ATTACK"],"cost":{"discardGroups":[{"count":1,"filter":{"cardType":"シグニ","color":"白"}},{"count":1,"filter":{"cardType":"シグニ","color":"黒"}}]},"paymentShape":"REQUIRES_NEW_FLOW"},
       triggerScope: 'any_opp',
       action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, targetsTriggerSource: true, delta: -2000 },
       duration: 'UNTIL_END_OF_TURN',
