@@ -8085,6 +8085,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let newOpState: PlayerState = opS;
       // ON_SIGNI_DAMAGE: このアタックで実際に相手ライフをクラッシュ（ダメージを与えた）か
       let dealtSigniDamage = false;
+      // 「このシグニは対戦相手にダメージを与えない」（§6.4 A群・WX25-CP1-074-E1 の付与）。
+      // 攻撃側の盤面（付与前ではなく解決開始時点）で1度だけ判定し、下の2つのダメージ地点で共有する。
+      const cannotDealDamageToOpp = signiCannotDealDamageToOpponent(myS, myTopNum, effectsMap);
       let banishedOpCardNum: string | null = null;
       let banishedOpUnderCards: string[] = [];
 
