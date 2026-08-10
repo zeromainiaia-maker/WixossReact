@@ -3,9 +3,9 @@ import type { Dispatch, SetStateAction } from 'react';
 import { createPortal } from 'react-dom';
 import { getCardNum } from '../../../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter } from '../../../engine/execUtils';
-import { collectForcePlaceFrontZones, collectDeployCountLimit } from '../../../engine/effectEngine';
+import { collectForcePlaceFrontZones } from '../../../engine/effectEngine';
+import { deployLimitBlockReason } from '../../../engine/deployLimit';
 import { C } from '../../../components/BoardComponents';
-import { parsePowerVal } from '../battleUtils';
 import { findSigniZoneBlock, resolveSigniZonePlacement } from '../signiZoneBlock';
 import type { BattleModalCtx } from './types';
 
@@ -51,7 +51,6 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
               {([0, 1, 2] as const).map(zi => {
                 const summonCard = battleCardMap.get(pendingSigniSummon.cardNum);
                 const signiLevel = parseInt(summonCard?.Level ?? '0') || 0;
-                const signiPower = parsePowerVal(summonCard?.Power);
                 const zoneStack = my.field.signi[zi] ?? [];
                 const isOccupied = zoneStack.length > 0;
                 const pendingRiseFilter = summonCard ? getRiseFilter(summonCard.EffectText ?? '') : null;
@@ -71,7 +70,7 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                 // DEPLOY_RESTRICT（配置パワー制限／配置数制限）は `engine/deployLimit.ts` に一本化
                 // （通常召喚UI・このモーダル・CPU召喚・engine の効果配置が同じ関数を呼ぶ＝続き405）。
                 const deployBlock = deployLimitBlockReason({
-                  placingState: my, opponentState: op, cardNum: summonCardNum,
+                  placingState: my, opponentState: op, cardNum: pendingSigniSummon.cardNum,
                   cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
                   onExistingStack: !!pendingRiseFilter,
                 });
