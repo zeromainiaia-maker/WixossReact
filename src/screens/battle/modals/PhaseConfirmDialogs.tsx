@@ -35,6 +35,9 @@ export function PhaseConfirmDialogs(p: PhaseConfirmDialogsProps) {
     showMustAttackWarning, setShowMustAttackWarning, showRemoveBlockedWarn, setShowRemoveBlockedWarn,
     showLrigAttackSkipConfirm, setShowLrigAttackSkipConfirm,
     growCandidates, doPhaseAdvance, handleUpkeepPay, handleUpkeepDecline } = p;
+  // 強制攻撃の文言は `must_attack_infected_only` を直接読まない＝【常】由来（印字/付与の CONTINUOUS）の
+  // 強制ではフラグが立たず「感染状態の〜」と誤表示になるため、判定と同じ resolveForcedSigniAttack を使う。
+  const forcedAttack = resolveForcedSigniAttack(my, op, isMyTurn, effectsMap, battleCardMap);
   return (
     <>
       {/* エナチャージスキップ確認 */}
