@@ -63,6 +63,7 @@ export type EffectTiming =
   | 'ON_ATTACK_END'             // このシグニがアタックしたアタック終了時（§6.3 J-4・WXK11-018）＝**個別アタック**の終了。`resolvePendingSigniBattleFor`（バトル解決 Phase2）の末尾で発火。triggerCondition.attackDealtNoDamage で「そのアタックでダメージが与えられていない場合」を判定
   | 'ON_ABILITY_ACTIVATED'      // 他の能力が発動したとき（§6.3 J-1）＝`WX19-066`「あなたの【自】の【英知】能力が発動したとき」／`WXEX1-77`「対戦相手の場にあるシグニの【出】能力が発動したとき」。**effectStack から1件取り出して解決を始める瞬間**（`resolveStackNext` の `shiftQueue` 直後＝唯一の funnel）に照合する。限定は triggerCondition.activatedAbility*
   | 'ON_ACCE_TO_TRASH'          // 【アクセ】N枚がトラッシュに置かれたとき（signi_acce の set-diff で検出。WXEX2-19。triggerScope any/any_ally/any_opp・triggerCondition.minCount）
+  | 'ON_MAGIC_BOX_FLIPPED'      // 【マジックボックス】が表向きになったとき（§6.4 A群・WX24-P4-016-E3 が「このターンのアタックフェイズの間」限定で付与する watcher）。`signi_magic_boxes` の set-diff で検出＝**行先がトラッシュか場のシグニのものだけ**を「表向き」と数える（除外・盤面リセットで消えた分は数えない）。triggerScope any/any_ally/any_opp・triggerCondition.minCount
   | 'ON_SOUL_ATTACHED'          // 【ソウル】が付いたとき（signi_soul の null→非null を効果解決の set-diff で検出。WXDi-D07-004「あなたのシグニ1体に」=any_ally／WXDi-D07-019「このシグニに」=self）
   | 'ON_CARD_ATTACHED'          // このシグニにカードN枚が付いたとき（【チャーム】/【アクセ】/【ソウル】いずれの付与でも発火する汎用版。WXK10-049。triggerScope self/any_ally・triggerCondition.minCount）
   | 'ON_ENERGY_TO_TRASH'        // エナゾーンからカードがトラッシュに置かれたとき（energy→trash の set-diff で検出。WD15-015「あなたの効果によって対戦相手のエナゾーンから」。triggerCondition.energyTrashedOwner で発生源）
