@@ -8756,10 +8756,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 場から消えるゾーン状態のため、防御側の**バトル前状態（opS）**の被バニッシュゾーンで判定する（pre-banish スナップ）。
         // 犠牲（BanishSubstitute）経路では正面以外のゾーンが落ちるので findIndex で引く。
         const banishedZoneIdxBB = opS.field.signi.findIndex(s => s?.at(-1) === banishedOpCardNum);
+        // watcher＝自フィールドのシグニ＋（付与ストア経由でのみ watcher になりうる）センタールリグ。
+        // ルリグは印刷能力ではこの timing の watcher にならないが、「ターン終了時まで、このルリグは
+        // 『【自】あなたのシグニ1体がバトルによってシグニ1体をバニッシュしたとき…』を得る」（WXDi-P12-041-E1）が
+        // effectsMap に載らない付与ストアへ入るため、ここを走査しないと構造どおりでも恒久 no-op になる。
+        const bbWatchers: { num: string; effs: import('../types/effects').CardEffect[] }[] = [];
         for (const stackBB of newMyState.field.signi) {
           const topNumBB = stackBB?.at(-1);
-          if (!topNumBB) continue;
-          for (const eff of (effectsMap.get(topNumBB) ?? [])) {
+          if (topNumBB) bbWatchers.push({ num: topNumBB, effs: effectsMap.get(topNumBB) ?? [] });
+        }
+        const bbLrigTop = newMyState.field.lrig.at(-1);
+        if (bbLrigTop) {
+          const grantedBB = [
+            ...grantedStoreWatchers(newMyState, 'ON_SIGNI_BANISH_OPPONENT', ['any_ally', 'any']),
+            ...grantedStoreWatchers(newMyState, 'ON_SIGNI_BANISH_BATTLE', ['any_ally', 'any']),
+          ].map(w => w.effect);
+          if (grantedBB.length > 0) bbWatchers.push({ num: bbLrigTop, effs: grantedBB });
+        }
+        for (const { num: topNumBB, effs: effsBB } of bbWatchers) {
+          for (const eff of effsBB) {
             if (eff.effectType !== 'AUTO' ||
                 !(eff.timing?.includes('ON_SIGNI_BANISH_BATTLE') || eff.timing?.includes('ON_SIGNI_BANISH_OPPONENT'))) continue;
             // 主体 scope/filter（story・実効パワー等）と《ターン1回》は pure helper と golden で共通検査する。
