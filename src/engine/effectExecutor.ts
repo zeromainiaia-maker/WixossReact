@@ -17,6 +17,7 @@ import {
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
 import { collectMultiAcceLimits, matchesStateFilter } from './effectEngine';
+import { deployLimitBlockReason, deployLimitLogMessage, type DeployBlockReason } from './deployLimit';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
