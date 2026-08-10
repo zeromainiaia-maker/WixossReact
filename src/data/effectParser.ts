@@ -6072,7 +6072,8 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
+    ?? applyOptionalHandDiscardCost(source,
+    applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
