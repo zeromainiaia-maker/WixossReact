@@ -1617,6 +1617,10 @@ export function collectMillTriggers(
       entries.push({
         id: ctx.genId(), playerId: controllerId, cardNum: topNum, effectId: eff.effectId,
         label: `${cardName} の【自】効果（デッキトラッシュ時）`, effect: eff,
+        // 「そのシグニ」＝フィルタに一致してミルされたカード。⚠**`sourceCardNum`（＝能力ホスト `topNum`）とは別軸**
+        //   なので、既存の `thisCardOnly`（ホスト自身を指す）効果には影響しない
+        //   （この timing の live 16効果のうち triggerSource を読むものは 0＝投入前に全数確認済み）。
+        ...(matchedMill && matchedMill.length > 0 ? { triggeringCardNum: matchedMill[0] } : {}),
       });
     }
   }
