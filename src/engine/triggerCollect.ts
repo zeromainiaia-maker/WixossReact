@@ -1311,7 +1311,13 @@ export function collectLeaveFieldTriggers(
     ...(lrigTop ? [lrigTop] : []),
   ];
   for (const topNum of watcherNums) {
-    for (const eff of (ctx.effectsMap.get(getCardNum(topNum)) ?? [])) {
+    // センタールリグには付与ストア（effectsMap 非搭載）を合流させる（WX25-P2-049-E1
+    // 「ターン終了時まで、このルリグは『【自】あなたのシグニ1体が場を離れたとき…』を得る」）。
+    const watcherEffs = topNum === lrigTop
+      ? [...(ctx.effectsMap.get(getCardNum(topNum)) ?? []),
+         ...grantedStoreWatchers(ownerStateAfter, 'ON_LEAVE_FIELD', ['any_ally', 'any']).map(w => w.effect)]
+      : (ctx.effectsMap.get(getCardNum(topNum)) ?? []);
+    for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_LEAVE_FIELD')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
