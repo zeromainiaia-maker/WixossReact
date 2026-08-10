@@ -60,6 +60,9 @@ import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
+import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
+import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
+import { findGrowFreeAction } from '../src/screens/battle/growLogic';
 interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onExistingStack: boolean; fieldCountAdjust: number }
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
@@ -11649,6 +11652,133 @@ test('CONTINUOUS BLOCK_ACTION「このシグニはアタックできない」: �
   eq(r.cannotAttackSigni.has('WX05-023'), true, '自己アタック封じが有効');
   eq(r.cannotAttackSigni.has(SIGNI), false, '他のシグニは制限されない');
 });
+// ══════════════ DSLアクション型の golden 網羅（続き407・PLAN §6.4「golden の型網羅」）══════════════
+// `npm run census:goldentypes`（scripts/goldenTypeCoverage.ts）が「goldenTest.ts に型名が1度も出ない
+// EffectAction 型」を数える。以下はその未カバー13型を1型1テストで塞いだもの。
+// ⚠**CONTINUOUS 専用型は合成 action を書かず live effectsMap から実カードを引く**（合成すると
+//   「型は通るが live の形とは違う」テストになり、parser 側の退化を検出できない）。
+test('型網羅 GRANT_ACCE_HOST_ABILITY: アクセ元の宣言がホストシグニへ能力を付与する（WX15-058-E3）', () => withSavedCursor(() => {
+  const host = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('調理') && c.CardNum !== 'WX15-058');
+  const st = mkState({ signi: [host, null, null] });
+  st.field.signi_acce = [['WX15-058'], null, null];
+  const granted = collectGrantedFromAcce(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok((granted.get(host) ?? []).some(e => e.effectId === 'WX15-058-E3-G'), `＜調理＞ホストへ付与 (${[...granted.keys()]})`);
+  // クラス不一致のホストには付かない
+  const nonCook = findCard(c => c.Type === 'シグニ' && !(c.CardClass ?? '').includes('調理'));
+  const st2 = mkState({ signi: [nonCook, null, null] });
+  st2.field.signi_acce = [['WX15-058'], null, null];
+  eq((collectGrantedFromAcce(st2, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(nonCook) ?? []).length, 0,
+    '＜調理＞以外には付与しない');
+}));
+test('型網羅 GRANT_SOUL_HOST_ABILITY: ソウルとして付いたカードがホストへ能力を付与する（WXDi-D07-003-E1）', () => withSavedCursor(() => {
+  const host = fresh();
+  const st = mkState({ signi: [host, null, null] });
+  st.field.signi_soul = ['WXDi-D07-003', null, null];
+  const granted = collectGrantedFromSoul(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok((granted.get(host) ?? []).some(e => e.effectId === 'WXDi-D07-003-E1-G'), `ソウルホストへ付与 (${[...granted.keys()]})`);
+  const bare = mkState({ signi: [host, null, null] });
+  eq((collectGrantedFromSoul(bare, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(host) ?? []).length, 0,
+    'ソウルが無ければ付与されない');
+}));
+test('型網羅 GRANT_SIGNI_ABOVE_ABILITY: 下のカードが上のシグニへ能力を付与する（WXDi-P15-060-E2）', () => withSavedCursor(() => {
+  const top = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('解放派'));
+  const st = mkState({ signi: [null, null, null] });
+  st.field.signi = [['WXDi-P15-060', top], null, null];
+  const granted = collectGrantedFromUnderSigni(st, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok((granted.get(top) ?? []).some(e => e.effectId === 'WXDi-P15-060-E2-G'), `上のシグニへ付与 (${[...granted.keys()]})`);
+}));
+test('型網羅 GROW_FREE: live のコスト無しグロウが action 木から検出できる（WX03-024-E1）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX03-024') ?? []).find(e => e.effectId === 'WX03-024-E1');
+  ok(!!eff, 'WX03-024-E1 が live に存在');
+  const found = findGrowFreeAction(eff!.action);
+  ok(!!found, 'GROW_FREE が action 木から見つかる');
+  eq(found!.levelFilter, 'same', '同レベルへのグロウ');
+  // engine 側は BattleScreen 処理へ委譲するだけ＝実行しても盤面を壊さない
+  const r = run(eff!.action as EffectAction, mkCtx({}, {}));
+  eq(r.done, true, 'engine では no-op として完了する（配置は BattleScreen 側）');
+}));
+test('型網羅 LRIG_LIMIT_MODIFY: 相手のリミットを次ターンまで減らす（WX16-Re19-E2）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX16-Re19') ?? []).find(e => e.effectId === 'WX16-Re19-E2');
+  const lrig = findCard(c => c.Type === 'ルリグ' && (c.Limit ?? '') !== '' && (c.Limit ?? '') !== '∞');
+  const ctx = mkCtx({}, { lrig: [lrig] });
+  const before = computeEffectiveLrigLimit(ctx.otherState, ctx.ownerState, cardMap as Map<string, CardData>, effectsMap, false);
+  const r = run(eff!.action as EffectAction, ctx);
+  const after = computeEffectiveLrigLimit(r.otherState as PlayerState, r.ownerState as PlayerState, cardMap as Map<string, CardData>, effectsMap, false);
+  eq(after, before - 1, `相手リミットが1減る (${before}→${after})`);
+}));
+test('型網羅 FORCE_FRONT_SIGNI_ATTACK: アクセ付与された「正面は可能ならアタック」が強制ゾーンを返す（WX20-045-E2）', () => withSavedCursor(() => {
+  const cook = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('調理') && c.CardNum !== 'WX20-045');
+  const victim = fresh();
+  // 相手（op）の zone0 に＜調理＞＋WX20-045 アクセ → 自分の正面（zone2）が強制対象
+  const op = mkState({ signi: [cook, null, null] });
+  op.field.signi_acce = [['WX20-045'], null, null];
+  const my = mkState({ signi: [null, null, victim] });
+  const zones = collectForcedFrontAttackZones(my, op, true, effectsMap, cardMap as Map<string, CardData>);
+  eq(zones.has(2), true, `正面ゾーン2が強制対象 (${[...zones]})`);
+  eq(collectForcedFrontAttackZones(my, mkState({ signi: [cook, null, null] }), true, effectsMap, cardMap as Map<string, CardData>).size, 0,
+    'アクセが無ければ強制されない');
+}));
+test('型網羅 DRAW_PHASE_REPLACEMENT: 付与された「1枚引く場合は代わりに2枚」がドロー数を置換する（WXK03-001-E3）', () => withSavedCursor(() => {
+  const grant = (effectsMap.get('WXK03-001') ?? []).find(e => e.effectId === 'WXK03-001-E3');
+  const abilities = ((grant!.action as unknown as { abilities?: CardEffect[] }).abilities) ?? [];
+  const repl = abilities.find(a => a.action.type === 'DRAW_PHASE_REPLACEMENT');
+  ok(!!repl, '付与能力に DRAW_PHASE_REPLACEMENT が含まれる');
+  const st: PlayerState = { ...mkState({}), lrig_granted_auto_effects: [repl!] };
+  eq(applyLrigDrawPhaseReplacement(st, 1), 2, '1枚→2枚に置換');
+  eq(applyLrigDrawPhaseReplacement(st, 2), 2, 'fromCount 以外は置換しない');
+  eq(applyLrigDrawPhaseReplacement(mkState({}), 1), 1, '付与が無ければ据え置き');
+}));
+test('型網羅 GRANT_FIELD_SHADOW: 同ゾーンに【ゲート】がある自シグニがシャドウ（スペル）を得る（WXDi-P15-058-E1）', () => withSavedCursor(() => {
+  const ally = fresh();
+  const st = mkState({ signi: ['WXDi-P15-058', ally, null] });
+  st.own_gate_zones = [0];
+  const scopes = getFieldGrantedShadowScopes('WXDi-P15-058', st, cardMap as Map<string, CardData>);
+  ok(scopes.length > 0, `ゲートゾーンのシグニにシャドウが付く (${JSON.stringify(scopes)})`);
+  const noGate = mkState({ signi: ['WXDi-P15-058', ally, null] });
+  eq(getFieldGrantedShadowScopes('WXDi-P15-058', noGate, cardMap as Map<string, CardData>).length, 0,
+    '【ゲート】が無いゾーンには付かない');
+}));
+test('型網羅 GRANT_PLAYER_ABILITY: プレイヤー自身がゲーム中の能力を得る（WXDi-P03-003-E1）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P03-003') ?? []).find(e => e.effectId === 'WXDi-P03-003-E1');
+  const r = run(eff!.action as EffectAction, mkCtx({}, {}));
+  const granted = (r.ownerState as PlayerState).game_granted_effects ?? [];
+  eq(granted.length, 1, 'game_granted_effects へ1件入る');
+  eq(granted[0].effectId, 'WXDi-P03-003-E1-GRANT', '付与された能力IDが載る');
+  // 同じ effectId は二重登録しない
+  const again = run(eff!.action as EffectAction, { ...mkCtx({}, {}), ownerState: r.ownerState as PlayerState } as ExecCtx);
+  eq(((again.ownerState as PlayerState).game_granted_effects ?? []).length, 1, '二重付与しない');
+}));
+test('型網羅 PREVENT_REFRESH: このターンと次のターンの間リフレッシュできないフラグが立つ', () => withSavedCursor(() => {
+  const r = run({ type: 'PREVENT_REFRESH' } as EffectAction, mkCtx({}, {}));
+  eq((r.ownerState as PlayerState).prevent_refresh_until_opp_turn, true, 'prevent_refresh_until_opp_turn が立つ');
+}));
+test('型網羅 REPEAT: 指定回数だけ内側アクションを繰り返す', () => withSavedCursor(() => {
+  const ctx = mkCtx({ hand: 0 }, {});
+  const r = run({ type: 'REPEAT', count: 3, action: { type: 'DRAW', owner: 'self', count: 1 } } as unknown as EffectAction, ctx);
+  eq((r.ownerState as PlayerState).hand.length, 3, '3回繰り返して3枚引く');
+}));
+test('型網羅 ALT_COST_OPP_TURN: engine では no-op（展開フェイズで適用済み・live 0件）', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {});
+  const before = JSON.stringify(ctx.ownerState.field.signi);
+  const r = run({ type: 'ALT_COST_OPP_TURN' } as EffectAction, ctx);
+  eq(r.done, true, '完了する');
+  eq(JSON.stringify((r.ownerState as PlayerState).field.signi), before, '盤面を変えない');
+}));
+test('型網羅 POWER_THRESHOLD_TRASH: engine ハンドラが無いので live に出てはいけない（契約）', () => withSavedCursor(() => {
+  // parser（parseSentencePart2）は生成しうるが engine のどこにも消費地点が無い＝出た瞬間に真 no-op。
+  // live 件数0を assert しておくことで、parser 規則が生えた瞬間にここが赤くなる。
+  let count = 0;
+  const walk = (n: unknown): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(walk); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === 'POWER_THRESHOLD_TRASH') count++;
+    Object.values(o).forEach(walk);
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action);
+  eq(count, 0, 'live に POWER_THRESHOLD_TRASH は無い（出たら engine 実装が要る）');
+}));
+
 // ══════════════ WX22-001-E3「このアタックフェイズの間、離場に反応して手札から出す」（続き407・PLAN §6.4）══════════════
 // PLAN §6.4 は「STUB GRANT_LEAVE_PLACE_PENDING が未実装＝機構待ち」と書いていたが、live JSON では
 // INSTALL_DELAYED_TRIGGER（duration:THIS_ATTACK_PHASE / trigger:ON_LEAVE_FIELD / levelLtTrigger）へ

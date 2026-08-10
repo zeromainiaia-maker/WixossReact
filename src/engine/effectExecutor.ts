@@ -6269,7 +6269,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'FIELD_SIGNI_TO_ACCE':          return execFieldSigniToAcce(action as import('../types/effects').FieldSigniToAcceAction, ctx);
     case 'BLOOD_CRYSTAL_ARMOR':          return execBloodCrystalArmor(action as BloodCrystalArmorAction, ctx);
     case 'POWER_MODIFY_PER_VIRUS_COUNT': return done(addLog(ctx, 'ウィルス数比例パワー（effectEngine処理）'));
-    case 'LRIG_LIMIT_MODIFY':            return done(addLog(ctx, `リミット${(action as import('../types/effects').LrigLimitModifyAction).delta > 0 ? '+' : ''}${(action as import('../types/effects').LrigLimitModifyAction).delta}（UI処理）`));
+    case 'LRIG_LIMIT_MODIFY': {
+      // ⚠**`until:'PERMANENT'` だけが「常在」＝`collectLrigColorAndLimitMods` が毎フレーム集計する**ので
+      //   ここでは何もしない（実行するとフラグ側と二重計上になる）。
+      //   `END_OF_TURN`/`NEXT_TURN` は**実行時に1回だけ state へ書く**種類で、従来ここはログだけの no-op だった
+      //   ＝`WX16-Re19-E2`（【出】「次の対戦相手のメインフェイズの間、対戦相手のリミットは1減る」）が丸ごと死んでいた（続き407）。
+      const lm = action as import('../types/effects').LrigLimitModifyAction;
+      if (lm.until === 'PERMANENT') return done(addLog(ctx, `リミット${lm.delta > 0 ? '+' : ''}${lm.delta}（常在＝effectEngine が集計）`));
+      const lmOwner: Owner = lm.owner === 'opponent' ? 'opponent' : 'self';
+      const lmState = ownerState(lmOwner, ctx);
+      // NEXT_TURN は「次のそのプレイヤーのメインフェイズから」＝pending へ積み、BattleScreen の
+      // GROW→MAIN 遷移が `lrig_limit_mod` へ移す（STUB `OPP_MAIN_PHASE_LIMIT_DOWN` と同じ経路）。
+      const lmNext: PlayerState = lm.until === 'NEXT_TURN'
+        ? { ...lmState, pending_lrig_limit_mod: (lmState.pending_lrig_limit_mod ?? 0) + lm.delta }
+        : { ...lmState, lrig_limit_mod: (lmState.lrig_limit_mod ?? 0) + lm.delta };
+      return done(addLog(setOwnerState(lmOwner, lmNext, ctx),
+        `${lmOwner === 'opponent' ? '対戦相手の' : ''}ルリグリミット${lm.delta > 0 ? '+' : ''}${lm.delta}${lm.until === 'NEXT_TURN' ? '（次のメインフェイズから）' : '（ターン終了時まで）'}`));
+    }
     case 'ADD_CRAFT_TO_LRIG_DECK':       return execAddCraftToLrigDeck(action as import('../types/effects').AddCraftToLrigDeckAction, ctx);
     case 'SET_CARD_COST_REPLACEMENT':    return execSetCardCostReplacement(action as import('../types/effects').SetCardCostReplacementAction, ctx);
     //  以下はCONTINUOUS効果専用（effectEngine側で処理）
