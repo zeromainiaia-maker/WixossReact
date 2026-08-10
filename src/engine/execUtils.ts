@@ -1667,10 +1667,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const src = ctx.sourceCardNum;
       if (!src) return false;
       const stack = ctx.ownerState.field.signi.find(s => s?.at(-1) === src);
-      const hasMatch = !!stack && stack.length > 1 && (!cond.filter || stack.slice(0, -1).some(cn => {
+      // minCount は「下にカードがN枚以上ある場合」（省略=1）。filter 併用時は filter 一致だけを数える。
+      const unders = (stack ?? []).slice(0, -1).filter(cn => {
+        if (!cond.filter) return true;
         const base = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
         return matchesFilter(ctx.cardMap.get(base), cond.filter);
-      }));
+      });
+      const hasMatch = unders.length >= (cond.minCount ?? 1);
       return cond.negate ? !hasMatch : hasMatch;
     }
     case 'LRIG_LEVEL_EQ_OPP': {
