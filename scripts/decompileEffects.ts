@@ -1131,8 +1131,10 @@ function actionJa(a?: Action, effectType?: string): string {
         if (step?.condition?.type === 'IS_MY_TURN' || part.startsWith('そうした場合')) {
           // OPPONENT_PAY_OPTIONAL 直後の then は「支払わ**なかった**場合に実行」（executor:2339 の skip 枝）
           // ＝「そうした場合」では意味が反転するため「そうしなかった場合」に置き換える
-          const prevQ = pairs[i - 1]?.step as { type?: string; id?: string } | undefined;
-          if (prevQ?.type === 'STUB' && prevQ?.id === 'OPPONENT_PAY_OPTIONAL' && part.startsWith('そうした場合、')) {
+          // ⚠`thenOnPay`（§6.4・続き425）が立っている STUB は**極性が逆**＝「支払ったら実行」なので
+          //   原文どおり「そうした場合」のまま出す（反転すると逆翻訳が原文照合の役に立たなくなる）。
+          const prevQ = pairs[i - 1]?.step as { type?: string; id?: string; thenOnPay?: boolean } | undefined;
+          if (prevQ?.type === 'STUB' && prevQ?.id === 'OPPONENT_PAY_OPTIONAL' && !prevQ.thenOnPay && part.startsWith('そうした場合、')) {
             return acc + '。そうしなかった場合、' + part.slice('そうした場合、'.length);
           }
           return acc + '。' + part;
