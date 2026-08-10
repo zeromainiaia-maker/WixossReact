@@ -193,6 +193,13 @@ export interface PlayerState {
   must_attack_signi?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）
   must_attack_infected_only?: boolean;
+  /**
+   * このターン、レベルがこの値以上の**アシストルリグ**でアタックできる（`ASSIST_LRIG_ATTACK_THIS_TURN`。
+   * `WX25-P1-048`「このターン、あなたはレベル１以上のアシストルリグでアタックできる」）。
+   * ⚠通常ルールではアシストルリグはアタックできない＝この値が入っているターンだけ例外的に許可される。
+   * 判定は必ず `screens/battle/assistLrigAttack.ts` の1本を通す（人間UI／CPU／フェイズ進行の3経路共通）。
+   */
+  assist_lrig_attack_min_level?: number;
   // アクティブなコスト修正（CostIncrease/CostReduction効果）
   cost_modifiers?: Array<{
     direction: 'increase' | 'decrease';

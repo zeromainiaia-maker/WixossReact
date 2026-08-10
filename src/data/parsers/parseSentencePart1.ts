@@ -2810,10 +2810,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     };
   }
 
-  // アシストルリグのアタック機構は未実装。既存の実働 STUB を借りず、計器に残る専用宣言 STUB とする。
+  // アシストルリグのアタック（§6.4 A群・続き427 で実装）。数字は**レベルの下限**なので `count` ではなく
+  // `minLevel` に載せる（`count` だと「N体までアタックできる」と読めてしまう）。
   const assistAttackM = t.match(/^このターン、あなたはレベル([０-９\d]+)以上のアシストルリグでアタックできる$/);
   if (assistAttackM) {
-    return { type: 'STUB', id: 'ASSIST_LRIG_ATTACK_THIS_TURN', count: parseNum(assistAttackM[1]) } as StubAction;
+    return { type: 'STUB', id: 'ASSIST_LRIG_ATTACK_THIS_TURN', minLevel: parseNum(assistAttackM[1]) } as StubAction;
   }
 
   // チェックゾーンのピースを裏返して無償グロウする機構は未実装。

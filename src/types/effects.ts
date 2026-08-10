@@ -2190,6 +2190,8 @@ export interface StubAction {
    * タスク12(lxi) 第8波）。true のとき `costColors` は無視し、**支払う側**（＝`otherState`）の
    * `attacked_signi_ids.length` を実行時に《無》の枚数として解決する。アタックのたびにコストが上がる。
    */
+  /** ASSIST_LRIG_ATTACK_THIS_TURN: アタックを許可するアシストルリグのレベル下限（「レベル１以上の」）。 */
+  minLevel?: number;
   opponentPayColorlessPerSigniAttack?: boolean;
   /**
    * OPPONENT_PAY_OPTIONAL: **極性の反転**（§6.4・続き425）。
