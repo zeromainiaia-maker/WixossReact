@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-10 — §6.4 任意性脱落 第1バッチ＝「〈手札を捨て〉てもよい。そうした場合、…」107カード（続き416）
+
+### 直したもの
+
+原文が「**〜てもよい**。そうした場合、…」なのに parser が「てもよい」を落とし、
+**コスト（手札を捨てる）が強制**になっていた系統（`node scripts/_checkAllEffects.mjs` の
+`MANDATORY_SUSPICIOUS` 35件が入口。実際の母集団は 107カードで、検出器は
+「カードの全効果が mandatory かつ辞退不能」のときしか鳴らないので**大半が隠れていた**）。
+
+`src/data/effectParser.ts` に **`applyOptionalHandDiscardCost`** を新設（`parseActionText` の
+post-pass チェーンの最外周）。素の `TRASH{HAND_CARD, owner:'self'}` を engine の正準形
+**`STUB{OPTIONAL_COST, handDiscard:{count,filter}}`** に置き換える。
+
+```
+SEQUENCE[ TRASH{HAND_CARD,self,1,＜天使＞}, CONDITIONAL{IS_MY_TURN, then:<本体>} ]   ← 強制
+SEQUENCE[ STUB{OPTIONAL_COST,handDiscard{1,＜天使＞}}, CONDITIONAL{IS_MY_TURN, …} ]  ← 正
+```
+
+- **採用**＝`npm run build:effects` → `heldReview.mjs --adopt`（95枚）＋ 混在カードの
+  `docs/_partial_fresh.json` から12枚 ＋ MANUAL 不可侵の live/`manualEffects.ts` 直編集9件。
+- **census 877→868**、`MANDATORY_SUSPICIOUS` 35→18、ゲート全緑（golden 1751/1751）。
+
+### ⭐ なぜこの置換が安全か（＝採用の根拠）
+
+**支払い枝は変換前と厳密に等価**＝`optionalCostPaySteps` が同じ `TRASH{HAND_CARD, asCost:true}` を
+再生成するので、**増えるのは「スキップ」枝だけ**。採用前に live と fresh を
+「`OPTIONAL_COST{handDiscard}` ⇄ `TRASH{HAND_CARD}`」で正規化して**差がこの変換だけであること**を
+機械確認した。⚠**署名グループ一括採用（`--adopt-sig`）は危険**＝同じ署名の `WX25-P3-003` は
+別に `exceed:3` を失っており、巻き添えで手修正が消えるところだった。
+
+### 🔴 代用にならない表現（この罠でどちらも過去に踏まれている）
+
+| 表現 | なぜ駄目か |
+|---|---|
+| `mandatory:false` | **ON_PLAY 以外では engine が `mandatory` を読まない**。ON_PLAY では「コスト無し mandatory:false」が `mandatoryOnPlay`／`costOnPlay` の**両方の収集フィルタから漏れて一切発火しない** |
+| `TRASH{optional:true}` | 「0枚選択」でも直後の「そうした場合」ゲート（`CONDITIONAL{IS_MY_TURN}`）が通り、**払わずに本体が撃てる**（`WX24-P4-050`・`WXK08-052` が実例） |
+
+### ⚠ 使用時（支払い時）コストには触ってはいけない
+
+「この{スペル|アーツ}を使用する際、…捨ててもよい」は解決中のステップではなく
+`src/screens/battle/useTimeCost.ts` ＋ ArtsModal の領分。ここを変換すると
+「以下のNつから選ぶ」の連結条件（`allowedOptionalPayment` が**素の TRASH** を要求）が外れて
+**CHOOSE 本体が丸ごと落ちる**（`WD21-008` で実測＝steps 2→1）。parser にガードを入れてある。
+
+### 併せて直した表示
+
+`scripts/decompileEffects.ts` の `OPTIONAL_COST` 分岐は `handDiscard` を見ておらず
+「コストを支払ってもよい」に潰れていた（**既存 MANUAL カードも同じ**）。原文どおり
+「手札から＜天使＞のシグニを1枚捨ててもよい」を描画するようにした。
+
+### 回帰ガード
+
+- golden `§6.4 トリップワイヤ`＝全 live を走査して「素の `TRASH{HAND_CARD,self}` ＋ did-it ゲート」を
+  検出し、既知リスト（`FORCED_HAND_COST_KNOWN`＝原文が強制の12件＋未消化7件）**以外は即FAIL**。
+  リストの陳腐化（既に解消済みなのに残っている）も同時に FAIL にする。
+- golden `OPTIONAL_COST(handDiscard)→…→BANISH`（`WX24-P4-050`）＝pay で手札1枚減／
+  skip で手札不変かつ本体不発を engine 挙動で固定。
+
+### 残（PLAN §6.4 の worklist へ登録）
+
+18件。別コスト種（自シグニダウン＋色・このシグニの下から・デッキミル・自己トラッシュ）／
+効果まるごと任意（`OPTIONAL_ACTIVATE` 形）／置換／検出器の誤検出2件。
+🔴 `WXDi-P05-037-E1` は**別バグ同居**＝原文「**対戦相手は**手札を２枚捨ててもよい」なのに `owner:self`。
+
 ## 2026-08-10 — §6.4 UNKNOWN 第2バッチ＝ライフバースト抑制2効果（続き415）
 
 ### 直したもの

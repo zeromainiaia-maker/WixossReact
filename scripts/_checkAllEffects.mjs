@@ -320,9 +320,15 @@ for (const { json, csvs } of FILES) {
       if (a.type === 'PLAY_FREE' || a.type === 'PLAY_FREE_FROM_TRASH' || a.type === 'REARRANGE_SIGNI') return true;
       if (a.type === 'CHOOSE' && (a.choices ?? []).some(c =>
         c.action?.type === 'SEQUENCE' && (c.action.steps ?? []).length === 0)) return true;
+      // ⚠**付与能力の中身まで潜る**（2026-08-10 続き417）＝従来は steps/then/else/choices しか見ておらず、
+      //   `GRANT_*_ABILITY.abilities[].action` や `GRANT_EFFECT.effect.action` の内側にある辞退可能表現を
+      //   見落として**誤検出**していた（`WX17-077` の `CHOOSE{upTo}`／`WX21-052` の `BANISH{upToCount}`）。
+      //   「原文の『てもよい』が引用能力の中にある」カードなので、その中身を見るのが正しい。
       const children = [
-        ...(a.steps ?? []), a.then, a.else,
+        ...(a.steps ?? []), a.then, a.else, a.thenAction, a.burstAction,
         ...((a.choices ?? []).map(c => c.action)),
+        ...((a.abilities ?? []).map(ab => ab?.action)),
+        a.effect?.action ?? a.effect,
       ];
       return children.some(actionIsSkippable);
     };
