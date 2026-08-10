@@ -1170,10 +1170,24 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
-  // ---- 対戦相手が任意コストを支払う（支払わなかった場合に効果発動）----
-  if (t.match(/^対戦相手は.*を支払ってもよい/)) {
+  // ---- 対戦相手が任意コストを支払う（`OPPONENT_PAY_OPTIONAL` ＋ 直後 CONDITIONAL の look-ahead ペア）----
+  // ⚠**従来は「支払ってもよい」しか見ていなかった**（§6.4・続き425）。同じ「対戦相手は〜てもよい」でも
+  //   **手札を捨てる**形はここに掛からず下の汎用手札捨て規則へ落ち、`TRASH{HAND_CARD, owner:'self'}`
+  //   ＝**自分が捨てる**へ所有者が反転していた（`WXDi-P05-037-E1`＝アタック無効化の可否が逆転／
+  //   `WXDi-P07-010-E2`）。engine 側は `opponentHandDiscard` を最初から持っていた（`parseOpponentUnlessCost`
+  //   が「対戦相手が手札をN枚捨てないかぎり」用に生成する）＝**parser が生成していなかっただけ**。
+  // ⚠**「まで」は除外**＝`OPPONENT_PAY_OPTIONAL` は all-or-nothing の pay/skip なので、
+  //   「N枚まで捨ててもよい」（捨てた枚数に比例する帰結を持つ）は表せない（`WXDi-P09-064` は MANUAL）。
+  if (/^対戦相手は/.test(t) && /てもよい/.test(t) && !/まで/.test(t)) {
     const costColors = extractCostColors(t);
-    return { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...(costColors.length ? { costColors } : {}) } as StubAction;
+    const handM = t.match(/手札を([０-９\d]+)枚捨て/);
+    if (costColors.length > 0 || handM) {
+      return {
+        type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL',
+        ...(costColors.length ? { costColors } : {}),
+        ...(handM ? { opponentHandDiscard: parseNum(handM[1]) } : {}),
+      } as StubAction;
+    }
   }
 
   // ---- 任意コスト支払い（広い汎用パターン）→ STUB with costColors ----
