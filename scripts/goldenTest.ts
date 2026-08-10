@@ -7865,6 +7865,23 @@ test('§6.4 OPTIONAL_ACTIVATE: 「引いてもよい。そうした場合、手�
   eq(paid.ownerState.deck.length, ctx.ownerState.deck.length - 1, '発動＝デッキが1枚減る');
 }));
 
+// §6.4 新設 `OPTIONAL_COST.fieldDown`＝「あなたのアップ状態の＜X＞のシグニN体をダウンし《色》を
+// 支払ってもよい」（2026-08-10 続き417）。従来は DOWN が**強制ステップ**で残り《色》は脱落していた。
+test('§6.4 fieldDown: アップ状態の該当シグニが足りなければ支払い不可・払えば DOWN が走る（WXDi-P04-051）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P04-051')!.find(e => e.effectId === 'WXDi-P04-051-E1')!;
+  const stub = (eff.action as unknown as { steps: { id?: string; fieldDown?: { count: number } }[] }).steps[0];
+  eq(stub.id, 'OPTIONAL_COST', '任意コスト STUB になっていない');
+  eq(stub.fieldDown?.count, 3, '「白のシグニ3体をダウン」の体数');
+  // 白のシグニが1体しかいない＝支払い不可（available=false）でなければならない
+  const white = findCard(c => isSigni(c) && (c.Color ?? '').includes('白'));
+  const ctxShort = mkCtx({ signi: [white, null, null], energy: 5 }, {}, 'WXDi-P04-051');
+  const rShort = executeEffect(eff, ctxShort);
+  ok(!rShort.done, '支払い可否の対話待ちになっていない');
+  const pShort = (rShort as { pending: { options: { id: string; available?: boolean }[] } }).pending;
+  eq(pShort.options.find(o => o.id === 'pay')?.available, false, 'アップ白シグニ1体でも「支払う」が選べてしまう');
+  ok(pShort.options.some(o => o.id === 'skip'), 'スキップ枝が無い');
+}));
+
 // §6.4「任意コスト脱落」トリップワイヤ（2026-08-10 続き416 新設）＝原文が「〜てもよい。そうした場合、…」なのに
 // live が **素の `TRASH{HAND_CARD,owner:self}` ＋ did-it ゲート**を持っている＝**コストが強制**の形。
 //

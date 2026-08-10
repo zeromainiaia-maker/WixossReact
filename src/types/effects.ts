@@ -2091,8 +2091,8 @@ export interface StubAction {
   handToEnergy?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
-  /** OPTIONAL_COST: 自分の全シグニの下から合計N枚をトラッシュへ置く任意コスト。 */
-  underAnySigniTrash?: { count: number };
+  /** OPTIONAL_COST: 自分の全シグニの下から合計N枚をトラッシュへ置く任意コスト。`fromThis`＝「**このシグニの**下から」限定。 */
+  underAnySigniTrash?: { count: number; fromThis?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */

@@ -5573,6 +5573,33 @@ function applyFieldDownOptionalCost(text: string, action: EffectAction): EffectA
   return { type: 'SEQUENCE', steps: [stub, { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: steps.length === 1 ? steps[0] : { type: 'SEQUENCE', steps } } as EffectAction] } as SequenceAction;
 }
 
+// ── §6.4 「このシグニの下（にある/から）カードをN枚トラッシュに置いてもよい」（続き417）──
+// 従来は `TAKE_FROM_UNDER_SIGNI{count:N, upToCount:true}` ＝「N枚**まで**」だった。0枚なら
+// `resumeSelectTarget` が「そうした場合」ゲートを落とすので N=1 は等価だが、**N≧2 では 1枚だけ払って
+// 本体を撃てる**（部分払いの抜け穴＝`WX20-042-CB-E3` の実例）。原文は all-or-nothing なので
+// `STUB{OPTIONAL_COST, underAnySigniTrash{count, fromThis}}` の pay/skip 2択へ寄せる。
+const UNDER_THIS_TRASH_COST_RE =
+  /(?:^|、)このシグニの下(?:にある|から)カード(?:を)?([０-９\d]+)枚(?:を)?トラッシュに置いてもよい$/;
+
+function applyUnderThisTrashOptionalCost(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  if (hasOptionalCostStub(action)) return action;
+  if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
+  const sentences = sentencesOutsideQuotes(text);
+  const m = sentences[0]?.match(UNDER_THIS_TRASH_COST_RE);
+  if (!m) return action;
+  const count = parseNum(m[1]);
+  const steps = [...(action as SequenceAction).steps];
+  const hit = steps.findIndex(s => s?.type === 'TAKE_FROM_UNDER_SIGNI'
+    && (s as EffectAction & { destination?: string; count?: number; fromThis?: boolean }).destination === 'trash'
+    && (s as EffectAction & { count?: number }).count === count);
+  if (hit < 0) return action;
+  const from = steps[hit] as EffectAction & { fromThis?: boolean };
+  steps[hit] = { type: 'STUB', id: 'OPTIONAL_COST',
+    underAnySigniTrash: { count, ...(from.fromThis ? { fromThis: true } : {}) } } as StubAction;
+  return { ...action, steps } as EffectAction;
+}
+
 function applySelfTrashOptionalCost(text: string, action: EffectAction): EffectAction {
   if (hasOptionalCostStub(action)) return action;
   if (/この(?:スペル|アーツ|カード)を使用する際/.test(text)) return action;
@@ -6231,13 +6258,13 @@ function parseActionText(text: string): EffectAction {
     } as SequenceAction;
   };
   const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
-    ?? applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
+    ?? applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。

@@ -16,7 +16,7 @@ import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { computeEffectiveLrigLimit } from '../screens/battle/lrigLimit';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
 import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
-import { canPayUnderAnySigniTrash } from '../screens/battle/underAnySigniCost';
+import { underAnySigniCostCandidates } from '../screens/battle/underAnySigniCost';
 import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
 
 // ===== 実行コンテキスト & 結果型 =====
@@ -164,7 +164,7 @@ export interface OptionalCostSpec {
   handDiscard?: { count: number; filter?: TargetFilter };
   handToEnergy?: { count: number; filter?: TargetFilter };
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
-  underAnySigniTrash?: { count: number };
+  underAnySigniTrash?: { count: number; fromThis?: boolean };
   energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
@@ -261,8 +261,14 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     if (!hasValidConstrainedSelection(matching, spec.handToUnderSelf.count, spec.handToUnderSelf.selectionConstraint, ctx.cardMap)) return false;
     if (!ctx.sourceCardNum || !ctx.ownerState.field.signi.some(stack => stack?.includes(ctx.sourceCardNum!))) return false;
   }
-  if (spec.underAnySigniTrash
-    && !canPayUnderAnySigniTrash(ctx.ownerState, spec.underAnySigniTrash.count)) return false;
+  if (spec.underAnySigniTrash) {
+    // fromThis＝「このシグニの下から」＝効果元スタックの下だけを数える（全シグニで数えると
+    // **他のシグニの下のカードで払えてしまう**＝原文より緩い）。
+    const underCount = spec.underAnySigniTrash.fromThis
+      ? (ctx.ownerState.field.signi.find(st => st?.includes(ctx.sourceCardNum ?? ''))?.length ?? 1) - 1
+      : underAnySigniCostCandidates(ctx.ownerState).length;
+    if (underCount < spec.underAnySigniTrash.count) return false;
+  }
   if (spec.fieldTrash) {
     const filter = {
       ...(spec.fieldTrash.filter ?? {}),
@@ -348,6 +354,7 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.underAnySigniTrash ? [{
       type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash',
       count: spec.underAnySigniTrash.count, upToCount: false,
+      ...(spec.underAnySigniTrash.fromThis ? { fromThis: true } : {}),
     } as EffectAction] : []),
     ...(spec.fieldTrash ? [{
       type: 'TRASH', asCost: true,

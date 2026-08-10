@@ -1820,6 +1820,12 @@ function actionJa(a?: Action, effectType?: string): string {
         const headOC = a.id === 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST' ? '対戦相手のシグニ１体を対象とし、' : '';
         // 手札捨てコスト（続き416）。従来は spec を見ずに「コストを支払ってもよい」へ潰れており、
         // 原文の枚数・クラス指定が逆翻訳から丸ごと消えていた（handDiscard を持つ既存 MANUAL も同様）。
+        // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
+        if (a.fieldDown) {
+          const fFD = a.fieldDown.filter ? filterJa({ ...a.fieldDown.filter, cardType: undefined, isUp: undefined }) : '';
+          const bodyFD = `あなたのアップ状態の${fFD}シグニ${a.fieldDown.count}体をダウンし`;
+          return `${headOC}${bodyFD}${costJaOC ? `${costJaOC}を支払っ` : ''}てもよい`;
+        }
         if (a.handDiscard) {
           const fHD = a.handDiscard.filter ? filterJa(a.handDiscard.filter) : '';
           // filterJa は名詞（シグニ/カード）を含まないので cardType から補う
