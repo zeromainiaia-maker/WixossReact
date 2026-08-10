@@ -7800,6 +7800,13 @@ function parseActionTextInner(text: string): EffectAction {
           }
         }
       }
+      // 対象プロパティ条件（「それが感染状態の場合、代わりに…」）は盤面状態では表せないので別表から引く。
+      //   ここで拾った場合だけ下の per-target 経路が SELECT/STORE 正準形へ組み替える（§6.4・2026-08-10）。
+      let cmIsTargetProperty = false;
+      if (!cm) {
+        const tp = matchTargetPropertyCondition(clean);
+        if (tp && tp.rest.startsWith('代わりに')) { cm = tp; cmIsTargetProperty = true; }
+      }
       // 「N枚以上ある場合、追加で<X>」＝置換ではなく追加ボーナス＝CONDITIONAL を新ステップとして積む
       // （WXDi-CP02-062「ブルアカ5枚→−5000。10枚以上ある場合、追加で3枚ミル」。続き29）
       if (cm && cm.rest.startsWith('追加で')) {
