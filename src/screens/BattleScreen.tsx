@@ -12338,11 +12338,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         || (my.keyword_grants?.[topNum] ?? []).includes('側面アタック');
       if (hasSideAttack) {
         const frontOpZone = 2 - rawZoneIdx;
+        // WX16-021: このターン、空ゾーンへの側面アタックが「正面扱い」でダメージになるなら空ゾーンも提示する。
+        // ⚠解決側（resolvePendingSigniBattleFor）と**同じ関数**で判定すること。
+        const emptyZoneDamages = sideAttackEmptyZoneDealsDamage(my, topNum, battleCardMap);
         for (const adj of [frontOpZone - 1, frontOpZone + 1]) {
           if (adj < 0 || adj > 2) continue;
           const adjTop = op.field.signi[adj]?.at(-1);
-          if (!adjTop) continue; // 空ゾーンは提示しない（アタックしても何も起こらない）
-          const targetName = battleCardMap.get(adjTop)?.CardName ?? adjTop;
+          if (!adjTop && !emptyZoneDamages) continue; // 空ゾーンは提示しない（アタックしても何も起こらない）
+          const targetName = adjTop ? (battleCardMap.get(adjTop)?.CardName ?? adjTop) : '空きゾーン（ダメージ）';
           actions.push({ label: `側面アタック→${targetName}`, color: '#b5651d', onClick: () => handleSigniSideAttack(rawZoneIdx, adj) });
         }
       }
