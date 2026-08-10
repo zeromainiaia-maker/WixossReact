@@ -4724,6 +4724,94 @@ export function collectForcedFrontAttackZones(
   return zones;
 }
 
+/** resolveForcedSigniAttack の結果。`forced=false` のとき `infectedOnly` は意味を持たない。 */
+export interface ForcedSigniAttackResult {
+  /** viewerState のシグニが「可能ならばアタックしなければならない」か。 */
+  forced: boolean;
+  /** 強制対象が感染状態のシグニだけか（WX16-047）。強制源が1つでも全体強制なら false。 */
+  infectedOnly: boolean;
+}
+
+/**
+ * resolveForcedSigniAttack: 「（対戦相手の）シグニは可能ならばアタックしなければならない」を**1か所で**解決する。
+ *
+ * ⚠**軸が2本ある**のが要点。
+ *  - (1) ターン限定フラグ `must_attack_signi` … 【起】【出】の `FORCE_SIGNI_ATTACK` を `execForceSigniAttack` が
+ *        立てる（WXK01-035／WXDi-P08-010／WX15-003／WXEX2-19／WX16-047）。
+ *  - (2) 印字/付与の **CONTINUOUS** `FORCE_SIGNI_ATTACK` … こちらは**実行されない**（CONTINUOUS は宣言型で
+ *        `executeAction` を通らない）ため、フラグは永久に立たない。**読む側がここで拾わないと恒久 no-op** になる。
+ *        実際 `WD07-004-E1`／`WX14-018-E1`／`WX20-Re07〜09-E1`（＋復活させた `WX12-010-E1`）の【常】は
+ *        live に構造としては入っているのに engine のどこからも読まれていなかった（§6.4「強制アタック機構」）。
+ *
+ * ⚠**呼び出し元は必ずこの関数を使う**（フラグを直接読まない）。フラグだけを見ると【常】が効かず、
+ *   CONTINUOUS だけを見ると【起】由来が効かない、という軸ズレが即座に発生する。
+ *
+ * 走査軸は「印字（シグニ＋センター/アシストルリグ）＋付与2ストア」。付与ストアを見ないと
+ * `GRANT_EFFECT` で配られた【常】が落ちる（`effectsMap` には載らないため）。
+ *
+ * @param viewerState 強制されるか判定したいプレイヤー（＝いまアタックする側）
+ */
+export function resolveForcedSigniAttack(
+  viewerState: PlayerState,
+  opponentState: PlayerState,
+  isViewerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): ForcedSigniAttackResult {
+  let forced = false;
+  let infectedOnly = true; // 「全ての強制源が感染限定」のときだけ true で返す
+
+  const note = (isInfectedOnly: boolean) => {
+    forced = true;
+    if (!isInfectedOnly) infectedOnly = false;
+  };
+
+  // 軸(1) ターン限定フラグ
+  if (viewerState.must_attack_signi) note(viewerState.must_attack_infected_only ?? false);
+
+  // 軸(2) CONTINUOUS（印字＋付与）
+  const scan = (holder: PlayerState, other: PlayerState, isHolderTurn: boolean, holderIsViewer: boolean) => {
+    // holder の能力が viewer を強制するのは、holder 自身が viewer なら targetOwner:'self'、
+    // holder が対戦相手なら targetOwner:'opponent' のときだけ。
+    const wantOwner: Owner = holderIsViewer ? 'self' : 'opponent';
+    const consider = (hostNum: string, effects: readonly import('../types/effects').CardEffect[]) => {
+      for (const eff of effects) {
+        if (eff.effectType !== 'CONTINUOUS') continue;
+        const act = eff.action as import('../types/effects').ForceSigniAttackAction;
+        if (act?.type !== 'FORCE_SIGNI_ATTACK') continue;
+        if ((act.targetOwner ?? 'opponent') !== wantOwner) continue;
+        if (!checkActiveCondition(eff.activeCondition, holder, other, isHolderTurn, cardMap, hostNum)) continue;
+        note(act.infectedOnly ?? false);
+      }
+    };
+    for (const stack of holder.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      consider(top, [
+        ...(effectsMap.get(top) ?? []),
+        ...(holder.granted_effects?.[top] ?? []),
+        ...(holder.granted_effects_until_opp_turn?.[top] ?? []),
+      ]);
+    }
+    // ルリグ側（この文型の印字は大半がルリグ＝WX14-018／WX20-Re07〜09／WD07-004）。
+    // 能力消失（lrig_abilities_disabled）で丸ごと落ちるのは scanLrigSelfBlocks と同じ扱い。
+    if (!holder.lrig_abilities_disabled) {
+      for (const top of lrigZoneTops(holder.field)) {
+        if (!top) continue;
+        consider(top, [
+          ...(effectsMap.get(top) ?? []),
+          ...(holder.granted_effects?.[top] ?? []),
+          ...(holder.granted_effects_until_opp_turn?.[top] ?? []),
+        ]);
+      }
+    }
+  };
+  scan(viewerState, opponentState, isViewerTurn, true);
+  scan(opponentState, viewerState, !isViewerTurn, false);
+
+  return { forced, infectedOnly: forced && infectedOnly };
+}
+
 /**
  * collectEffectImmuneSigni: 「対戦相手の、ルリグ／シグニ（等）の効果を受けない」完全効果耐性を持つシグニを返す。
  * GRANT_PROTECTION の from に source-type トークン（ルリグ/シグニ/スペル/アーツ）または 'any'、もしくは
