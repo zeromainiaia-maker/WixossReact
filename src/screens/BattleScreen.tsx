@@ -4191,9 +4191,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const forcedFrontAttackZones = (): Set<number> =>
     collectForcedFrontAttackZones(my, op, isMyTurn, effectsMap, battleCardMap);
 
+  // 全体強制（ターン限定フラグ＋印字/付与の【常】）は resolveForcedSigniAttack に一本化する。
+  // ⚠`my.must_attack_signi` を直接読むと【常】（WD07-004/WX14-018/WX20-Re07〜09/WX12-010）が恒久 no-op に戻る。
+  const myForcedAttack = resolveForcedSigniAttack(my, op, isMyTurn, effectsMap, battleCardMap);
+  const opForcedAttack = resolveForcedSigniAttack(op, my, !isMyTurn, effectsMap, battleCardMap);
+
   const mustAttackRemainingZones = (): number[] => {
     const forcedFront = forcedFrontAttackZones();
-    if (!my.must_attack_signi && forcedFront.size === 0) return [];
+    if (!myForcedAttack.forced && forcedFront.size === 0) return [];
     const signiDown = my.field.signi_down  ?? [false, false, false];
     const virus     = my.field.signi_virus ?? [0, 0, 0];
     const zones: number[] = [];
@@ -4203,8 +4208,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (signiDown[i]) continue;                                   // 既にアタック済み（ダウン）
       // 全体強制でない（個別の正面強制のみの）ゾーンは forcedFront に含まれるゾーンに限定
       const isForcedByFront = forcedFront.has(i);
-      if (!my.must_attack_signi && !isForcedByFront) continue;
-      if (my.must_attack_signi && my.must_attack_infected_only && (virus[i] ?? 0) === 0 && !isForcedByFront) continue; // 非感染は対象外
+      if (!myForcedAttack.forced && !isForcedByFront) continue;
+      if (myForcedAttack.forced && myForcedAttack.infectedOnly && (virus[i] ?? 0) === 0 && !isForcedByFront) continue; // 非感染は対象外
       const acts = getMySigniZoneActions(i);                        // アタックボタンが出る＝アタック可能
       if (!acts.some(a => a.label.includes('アタック'))) continue;
       zones.push(i);
