@@ -24,6 +24,9 @@ import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCos
  *   《コインアイコン》のような非エナコストを混ぜてしまう。
  * ⚠候補判定と支払いで別々に絞ると「選べるのに払えない」が起きるので、CHOOSE の可否判定と選択肢生成の
  *   両方でこの1関数を通す。
+ * 📌**使用中のアーツ自身は候補に入らない**＝`BattleScreen` のアーツ使用は効果解決の**前**に
+ *   `lrig_deck` から抜いて `lrig_trash` へ入れる（`paid: { lrig_deck: newLrigDeck, lrig_trash: [...,instanceId] }`）。
+ *   `WXK11-001` 自身のコスト合計は2で閾値を満たすため、この順序が崩れると自己除外が起きる。
  */
 function exileArtsFromLrigDeckCandidates(
   ctx: ExecCtx,

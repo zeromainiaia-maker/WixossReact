@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群の初回1件を実装（続き409）
+## 2026-08-10 — §6.4 STUB 仕分け計器（`npm run census:stubs`）を新設し、A群を2件実装（続き409〜410）
 
 ### 背景：`[STUB:X]` 907箇所は「表示の穴」と「実装の穴」が混ざっていた
 
@@ -62,27 +62,49 @@ live JSON は `GRANT_EFFECT` で正しく付与していたが、**engine 側に
 - **表示語彙**も `scripts/decompileEffects.ts` の `miscStubMap` に追加（C群 −1）。
 - **golden +1**＝3軸すべてと「付与されていないシグニ／アタッカー不明」の陰性を固定。
 
-### A群の残 12件（1カード1機構・逓減しない）
+### A群の2件目：`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`（WXK11-001②・続き410）
+
+原文②＝「あなたのルリグデッキにあるコストの合計が２以上のアーツ１枚をゲームから除外してもよい。
+そうした場合、このターン、シグニアタックステップをスキップする。」
+
+⭐**「半分だけ実装済み」だった**＝**後段のスキップ機構は既に完備**（`BLOCK_ACTION{actionId:'SIGNI_ATTACK_STEP'}`
+→ `screens/battle/attackStepPhase.ts:11`。**同カード①のルリグ側が既にこれで動いていた**）。
+欠けていたのは**任意コスト側の語彙だけ**で、`effectParser.ts` に honest defer の根拠コメントが残っていた。
+**A群を取るときは、まず後段の機構が既にあるかを確かめると安い。**
+
+- **新語彙**＝`StubAction.exileArtsFromLrigDeck: { count: number; minTotalCost?: number }`。
+  ⚠**`trashArtsFromLrigDeck`（行先＝ルリグトラッシュ）を流用してはいけない**＝除外は `excluded` 行きで
+  リフレッシュにも戻らない。**golden にトリップワイヤ**（ルリグトラッシュへ入っていたら FAIL）。
+- **parser**（`effectParser.ts` の `tryParseDoAllItems`）＝**閾値と枚数を原文から取って構造に載せる**
+  （engine 側で `text` を再パースしない）。golden で `{count:1, minTotalCost:2}` と①の共存を固定。
+- **engine**（`execStubPart1.ts`・3段）＝(1)`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP` が CHOOSE
+  （候補ゼロなら「除外する」を `available:false`）→ (2)`INTERNAL_EXILE_ARTS_FROM_LRIG_DECK_SELECT` が
+  `selectOrInteract(..., 'self_lrig_deck', ...)` で1枚選ばせる → (3)`INTERNAL_EXILE_SELECTED_ARTS_AND_SKIP_SIGNI_STEP`
+  が `lrig_deck`→`excluded` へ移し、**後段は①と同じ `BLOCK_ACTION` を `exec` して再利用**する。
+  ⚠**コストの合計は `parseEnergyCosts` で数える**（`effectExecutor` の `costThreshold` と同じ数え方）＝
+  素朴な `×(\d+)` の総和だと《コインアイコン》のような非エナコストを混ぜる。
+  ⚠候補判定と選択肢生成は**同じ1関数**（`exileArtsFromLrigDeckCandidates`）を通す＝別々に絞ると
+  「選べるのに払えない」が起きる。
+- **逆翻訳**＝閾値・枚数を**構造から復元**して原文文を出す（固定文にすると parser が別の数値を載せたときに
+  黙って嘘をつく）。
+- **golden +2**／**live JSON 変化は `WXK11-001-E1` の1効果のみ**／**A群 12→11**。
+- ⚠**実機UI未検証**（新規 CHOOSE ＋ ルリグデッキ選択モーダル）＝§7 送り。
+
+### A群の残 11件（1カード1機構・逓減しない）
 
 `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT`（WX16-021）／`ASSIST_LRIG_ATTACK_THIS_TURN`（WX25-P1-048）／
 `ATTACK_NEGATE_IMMUNITY_SELF`・`MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC`（ともに WX24-P4-016）／
 `CHECK_ZONE_FLIP_FREE_GROW`（WXDi-P16-001A）／`OPP_LRIG_DECK_TO_LRIG_TRASH`（WX24-P4-014）／
 `PLAY_MILLED_SIGNI_DELAYED_TRASH`（WXDi-P09-079）／`UNDER_CARD_AS_ENERGY_COST`（WXDi-P10-041）／
-`FLIP_SELF_FACE_DOWN_UP`（WX25-CP1-060）／`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`（WXK11-001）／
+`FLIP_SELF_FACE_DOWN_UP`（WX25-CP1-060）／
 `COUNTER_TEAM_PIECE_CUTIN_DEFERRED`（WXDi-P05-006＝§6.3 E-2 (b) の**着手禁止**）／
 `GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG`（WXDi-P00-026＝§6.3 F の**保留**）。
 
-⭐**一番安いのは `EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`**＝シグニアタックステップのスキップ機構は
-既に完備（`BLOCK_ACTION{actionId:'SIGNI_ATTACK_STEP'}` → `screens/battle/attackStepPhase.ts:11`。
-**同カード①のルリグ側は既にこれで動いている**）。欠けているのは**任意コスト「ルリグデッキのコスト合計2以上の
-アーツ1枚をゲームから除外」の語彙だけ**（`effectParser.ts:5566-5574` に honest defer の根拠コメントあり
-＝行先が「ルリグトラッシュ」の既存 `OPTIONAL_COST` は流用不可）。
-
 ### ゲート
 
-`npm run gates` 全緑＝golden **1742（+1）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
-census **880 据置** / lint 0 errors・254 warnings（増減0）。`npm run regen` 実施（表示語彙追加のため）。
-**live JSON 変化 0 効果**。
+`npm run gates` 全緑＝golden **1744（+3）** / smoke **10686/10686** 全0・SKIP 0 / fuzz 全0 /
+census **880 据置** / lint 0 errors・254 warnings（増減0）。`npm run build:effects`＋`npm run regen` 実施。
+**live JSON 変化は `WXK11-001-E1` の1効果のみ**。
 
 ## 2026-08-10 — §6.4 計器（checkAllEffects / verifyEffects）の誤検出を潰し、任意性脱落の系統バグを発見（続き408）
 
