@@ -7670,6 +7670,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!canSigniAttack({
         attacker: my, defender: op, attackerNum: myTopNum,
         effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
+        fieldTrashCostAlreadyPaid: p.attackFieldTrashAlreadyPaid,
       })) return;
 
       // 解除コストつきアタック制限：人間はモーダルで選んだゾーン、CPUは左から決定論的に選ぶ。
