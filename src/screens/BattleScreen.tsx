@@ -6102,17 +6102,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const coinGain = parseInt(card.Coin) || 0;
       // フリーグロウ（ゲット・グロウ等）はグロウコストのコインを支払わず、通常グロウ枠も消費しない（横グロウ）
       const growCoinCost = wasFreeGrow ? 0 : parseCoinCost(card.GrowCost);
-      let newMyState: PlayerState = {
+      let newMyState: PlayerState = growPay.applyTo({
         ...growBase,
         lrig_deck: newLrigDeck,
         field: { ...growBase.field, lrig: [...growBase.field.lrig, instanceId] },
-        energy: newEnergy,
         trash: [...growBase.trash, ...paidNums],
         actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
         coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
         coins_paid_this_turn: (growBase.coins_paid_this_turn ?? 0) + growCoinCost, // COINS_PAID_THIS_TURN（支払いのみ・coinGain は数えない）
         free_grow_this_turn: undefined,
-      };
+      });
+      // 代替シグニ（GROW_COST_SUBSTITUTE_TRASH_SIGNI）はカード番号で除く＝funnel の index 控除のあとに当てる
+      if (growSubSigniPaid) {
+        newMyState = { ...newMyState, energy: newMyState.energy.filter(cn => cn !== growSubSigniPaid) };
+      }
       // グロウ条件の追加効果（ルリグをデッキから下に置く・除外する等）
       const growCond = extractGrowCondition(card.EffectText);
       const { state: afterGrowEffect, log: growEffectLog } = applyGrowEffect(growCond, newMyState, battleCardMap);
