@@ -11882,7 +11882,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               return sum + (Number.isFinite(lv) ? lv : 0);
             }, 0)
           : undefined,
-      };
+      });
+      // handToEnergy コスト（手札→エナ）は funnel の控除**後**のエナに積む
+      if (isHandToEnergy) paid = { ...paid, energy: [...paid.energy, ...handPickedNums] };
       const payLogs: string[] = [];
       const underAnyCost = cost?.underAnySigniTrash;
       if (underAnyCost) {
