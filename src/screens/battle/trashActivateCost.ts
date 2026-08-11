@@ -139,7 +139,10 @@ export function trashActivateCostLabels(effect: CardEffect, my: PlayerState, op:
 }
 
 export interface TrashActivateSelections {
-  /** `my.energy` のインデックス。 */
+  /**
+   * エナ支払い元プールのインデックス（§6.4 funnel）。**先頭 `my.energy.length` 件は
+   * エナゾーンそのもの**なので、pool を渡さない呼び出しでは従来どおり `my.energy` の index。
+   */
   energy: Set<number>;
   /** `my.hand` のインデックス（discard / handDiscardSigni 共通）。 */
   handDiscard: Set<number>;
