@@ -11840,10 +11840,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cost = costEffect.cost;
       const selectedDiscardCards = [...discardIndices].map(i => battleCardMap.get(getCardNum(placedState.hand[i])));
       if (cost?.discardGroups && !canSatisfyDiscardGroups(selectedDiscardCards, cost.discardGroups)) return;
-      // エナ消費はplacedState基準（チェーン2回目以降は前回の支払い結果を引き継ぐ）
-      const energyRemovedIdx = new Set([...costIndices, ...energyTrashIndices]);
-      const paidNums = [...energyRemovedIdx].map(i => placedState.energy[i]);
-      const newEnergy = placedState.energy.filter((_, i) => !energyRemovedIdx.has(i));
+      // エナ消費はplacedState基準（チェーン2回目以降は前回の支払い結果を引き継ぐ）＝支払い元は funnel 1本（§6.4）
+      const opcPool = placedState === my ? myEnergyPayPool : buildEnergyPayPool(placedState, energyPayCtx);
+      const opcPay = planEnergyPayment(placedState, opcPool, costIndices, energyTrashIndices);
+      const paidNums = [...opcPay.paidNums, ...opcPay.extraEnergyNums];
       // 手札コスト: discard（トラッシュ）/ handToEnergy（エナへ）/ handToUnderSelf（このシグニの下へ）で行き先が異なる
       const handPickedNums = [...discardIndices].map(i => placedState.hand[i]);
       const newHand = placedState.hand.filter((_, i) => !discardIndices.has(i));
