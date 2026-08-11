@@ -141,7 +141,7 @@ export function CutinModal(p: CutinModalProps) {
                               ? artsBaseCost(candidate.card)
                               : effectEnergyCostStr(candidate.effect.cost?.energy);
                             const addColorless = candidate.additionalColorlessCost ? `《無》×${candidate.additionalColorlessCost}` : '';
-                            const costStr = `${baseCostStr}${addColorless}`;
+                            const costStr = withActCostExtra(`${baseCostStr}${addColorless}`, candidate.source);
                             // ベット宣言（タスク12(lxxxiv)）: 宣言できる札は、置換後コストでも支払い可否を見る。
                             // 印刷コストだけで判定すると WX17-019（《青》×2 → ベットで《青×0》）が
                             // エナ不足で候補から消え、ベットを宣言する画面へ辿り着けない。
