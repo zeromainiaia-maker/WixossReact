@@ -30695,17 +30695,29 @@ test('§6.4 任意コストの UNKNOWN 落ち: このシグニの下からの〈
 // 各テストは live の実カード action を実行し、固定1/0のままでは落ちる複数枚ケースと
 // 参照元0枚の完走を固定する。
 // ══════════════════════════════════════════════════════════════════════════════
-test('WXEX1-44-E2 defer: TRANSFER_TO_HAND が参照を0扱いする間は死んだ$refを生成しない', () => {
+// 🔴2026-08-11（続き441）で defer の根拠が入れ替わった。
+// 旧根拠「TRANSFER_TO_HAND が resolveNum で $ref を0にする」は**解消済み**（下の C2 が resolveCountRef を固定する）。
+// 真のブロッカーは**前段 STUB が原文と別機構**であること＝原文は「あなたの**手札から**《アクセアイコン》を持つ
+// シグニを２枚までエナゾーンに置く」なのに、engine の PLACE_ACCE_SIGNI_TO_ENERGY は
+// **場のアクセゾーン**のカードを全部エナへ送る（`allAcceCards(field.signi_acce)`）。
+// ⇒ lastProcessedCards は記録されるが**原文と無関係な枚数**なので、$ref を書くと悪化するだけ。
+// PLAN §6.4 の「前段の STUB は枚数を記録するので resolveNum 側を直せば通る」は誤った見立てだった。
+test('WXEX1-44-E2 defer: 前段STUBが原文と別機構である間は$refを生成しない', () => {
   const freshEff = parseCardEffects(cardMap.get('WXEX1-44')!).find(e => e.effectId === 'WXEX1-44-E2');
   const liveEff = effectsMap.get('WXEX1-44')?.find(e => e.effectId === 'WXEX1-44-E2');
   if (!freshEff || !liveEff) throw new Error('WXEX1-44-E2 が存在');
   const freshLast = (freshEff.action as SequenceAction).steps.at(-1) as import('../src/types/effects').TransferToHandAction;
   const liveLast = (liveEff.action as SequenceAction).steps.at(-1) as import('../src/types/effects').TransferToHandAction;
-  eq(freshLast.source.count, 1, 'executor未対応中は parser から恒久0枚の$refを出さない');
+  eq(freshLast.source.count, 1, '機構が別である間は parser から意味のない$refを出さない');
   eq(liveLast.source.count, 1, 'live も見せかけだけの$refを採用しない');
-  const executorSrc = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
-  ok(/function execTransferToHand[\s\S]*?const count = src\.count === 'ALL' \? cands\.length : resolveNum\(src\.count\)/.test(executorSrc),
-    'defer根拠: TRANSFER_TO_HAND は resolveCountRef ではなく resolveNum を使う');
+  // defer根拠①: 前段は依然 PLACE_ACCE_SIGNI_TO_ENERGY
+  const freshFirst = (freshEff.action as SequenceAction).steps[0] as import('../src/types/effects').StubAction;
+  eq(freshFirst.id, 'PLACE_ACCE_SIGNI_TO_ENERGY', 'defer根拠: 前段は手札配置ではなくアクセ送りのSTUB');
+  // defer根拠②: そのハンドラは「場のアクセゾーン」を読む＝原文の「手札から2枚まで」ではない。
+  // ⇒ 手札から選ばせる実装へ変わったらこのテストが落ちる＝そのとき $ref を採用しに来ること。
+  const stubSrc = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
+  ok(/PLACE_ACCE_SIGNI_TO_ENERGY[\s\S]{0,400}?allAcceCards\(sATE\.field\)/.test(stubSrc),
+    'defer根拠: ハンドラは場のアクセゾーンを全部エナへ送る（手札からの任意2枚ではない）');
 });
 
 test('WXEX2-07-E3: 全バニッシュ3体と同数まで回収し、0体なら0枚', () => withSavedCursor(() => {
