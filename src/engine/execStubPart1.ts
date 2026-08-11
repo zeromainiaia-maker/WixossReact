@@ -185,7 +185,16 @@ export function execStubPart1(
     const returned = signi[zone]!.pop()!;
     if (signi[zone]!.length === 0) signi[zone] = null;
     const nextLrigDeck = [...ctx.ownerState.lrig_deck, returned];
-    if (fetched) {
+    // 配置制限（§6.4 続き405 の `deployLimit.ts` funnel）を通す。⚠**同一ゾーンの入れ替えなので体数は不変**
+    //   ＝`fieldCountAdjust:1`（この配置と同時に場を空ける1体）で count 制限には掛からないが、
+    //   **パワー制限（「パワーN以上のシグニを新たに場に出せない」）は掛かる**＝従来はここだけ素通りしていた。
+    const deployBlocked = fetched ? deployLimitBlockReason({
+      placingState: ctx.ownerState, opponentState: ctx.otherState,
+      cardNum: fetched, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
+      contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
+      fieldCountAdjust: 1,
+    }) : null;
+    if (fetched && !deployBlocked) {
       const idx = nextLrigDeck.indexOf(fetched);
       if (idx >= 0) nextLrigDeck.splice(idx, 1);
       signi[zone] = [fetched];
