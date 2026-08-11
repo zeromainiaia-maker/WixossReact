@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — `$ref` が消費側で黙って0に潰れる死角を一掃（続き441・PLAN §6.4）
+
+**🔴 バグの正体＝engine に数量解決関数が2つあり、片方が `$ref` を警告なく捨てていた。** `resolveCountRef`（`execUtils.ts:122`）は `$ref` を解くが、`resolveNum`（`:118`）は `typeof n === 'number' ? n : 0` ＝**object ref を問答無用で 0 にする**。`resolveNum` 側へ流れた `$ref` は **その action が丸ごと不発**になるのに、例外もログも出ない。⚠**逆翻訳は JSON を読むので「同じ枚数」と正しく描画される＝原理的に気付けない偽陰性**。golden・census・smoke・fuzz も全緑のまま素通りしていた。
+
+**実測＝live の `$ref` 全26箇所を (祖先 action 型, キー) で抽出し、`resolveNum`/`resolveCountRef` の全呼び出しを囲む関数へ紐づけて突き合わせた結果、20件は正常・6件が現に不発。** 解決関数は関数単位で割れており、`execTrash` だけがゾーン分岐で NUM/REF 混在という最も危険な形だった（`LIFE_CLOTH`=NUM／`SIGNI`=REF／`HAND_CARD` blind=NUM・通常=REF／`ENERGY_CARD`=NUM／`DECK_CARD`=REF）。
+
+**engine 修正4サイト**＝`execBounce` の非ALL経路（`:988`）／`execTrash` の `HAND_CARD{blind}`（`:1504`）と `ENERGY_CARD`（`:1646`）／`execTransferToHand` の非ALL経路（`:2288`）を `resolveCountRef(..., ctx, ...countFromZone)` へ寄せた。⭐**固定値に対して厳密に恒等**（`resolveCountRef` は `fromZone` 無し・数値ならその値を返す＝`:136`）なので、既存の数値 `count` の挙動は1ビットも変わらない。これがこの置換が安全な理由。
+
+**実害が消えた6効果**＝`WDK05-T07-E1`（アーツ後半＝相手シグニのバウンスが丸ごと不発）／`WXDi-P10-008-E3`（《緑》×3+《無》ゲーム1回の大技で**相手のエナが1枚も落ちない**）／`WXK01-038-E1`（スペルの主目的＝相手の手札破壊が**0枚**。付与能力の内側かつ blind 経路）／`WX24-P1-014-E2`／`WXDi-P13-007-E3`／`WX24-P2-003-E1`。
+
+**併せて是正した「同居していた別軸」3件**（count だけ通すと原文とズレたまま固定されるため必須）：
+- `WX24-P1-014-E2`＝🔴**ゾーンが違った**。原文「対戦相手の**エナゾーンから**カードを１枚まで対象とし、それらを**手札に戻す**」なのに `BOUNCE{SIGNI,opponent}`＝**場のシグニ**を戻す実装だった。`TRANSFER_TO_HAND{ENERGY_CARD,owner:'opponent'}` へ。⚠戻り先が「相手の手札」であることを消費コードで確認済み（`applyTransfer` は `ownerState(tgtOwner)` 内で energy→hand を動かす＝`:2270-2285`）。
+- `WXDi-P13-007-E3`＝原文「この方法で捨てた**《ディソナアイコン》の**カード１枚につき」の限定が無く**過剰**になるところだった。`NumberOrRef.filter`（続き440 で追加）に `isDisona` を載せた。
+- `WX24-P2-003-E1`＝🔴**2軸が入れ替わっていた**。前半「この効果で捨てた**赤の**カード１枚につき…**１枚まで**」が `count:1` 固定、後半《リコレクト》の「**２枚まで**」が `$ref` だった。前半を `$ref{filter:{color:'赤'}}`・後半を固定 `2` へ。⚠数え上げの `filter`（赤）と対象の `filter`（`colorNotMatchesLrig`）は別物なので混同しない。
+
+**📋 defer 1件＝`WXEX1-44-E2`（採用を取り消した）。** `resolveNum` 側は解消したが、**真のブロッカーは前段 STUB が原文と別機構**であること＝原文は「あなたの**手札から**《アクセアイコン》を持つシグニを**２枚まで**エナゾーンに置く」なのに、`PLACE_ACCE_SIGNI_TO_ENERGY`（`execStubPart2.ts:1940`）は **場のアクセゾーン**のカードを全部エナへ送る（`allAcceCards(field.signi_acce)`＝`utils/acce.ts:15`）。⇒ `lastProcessedCards` は記録されるが**原文と無関係な枚数**なので、`$ref` を書くと「0枚」が「別の誤った枚数」に化けるだけ。⚠**アクセは CardClass ではない**（〈遊具〉等のクラスとは別軸）＝《アクセアイコン》は専用フィルタ `hasIcon:'アクセ'`（`execUtils.ts:727-734` が消費）。**正しい実装に必要な語彙は既に揃っており、要るのは手札選択の機構だけ**＝この defer は「難しい」ではなく「未着手」。
+
+**⚠ 在庫の記述が劣化していた**＝PLAN §6.4 は「前段の STUB は枚数を記録する**ので**、`resolveNum` 側を直せば通る」と書いていたが、**続き440 の BUGFIXES には正しく「場の `signi_acce` を全エナ送りする旧近似であり、数量参照だけ直しても前段は一致しない」と記録されていた**。§4 の教訓「在庫の症状記述は実測で覆る」の再来だが、今回は**要約側が原記録から劣化した**形＝**PLAN の1行サマリを根拠に着手しない**こと。
+
+**トリップワイヤ2本（このバッチの本体）**：
+- **C1（live データ側）**＝live の全 `$ref` を「(最も内側の `type`).(キー)」で位置抽出し、**消費側が `resolveCountRef` だと実コードで確認した位置のホワイトリスト**以外に出たら FAIL。parser が新しい位置へ動的枚数を吐いた瞬間に赤くなる。
+- **C2（engine ソース側）**＝「枚数キーを `resolveNum` で解く関数」の集合を**凍結**。増えたら（新しい死角）も、今回直した4関数へ戻ったら（退化）も赤くなる。⚠残る30関数は **live に `$ref` が1件も無い**ので今は無害＝予防的置換はしない判断。C1 と対で守る。
+
+**E2E golden 6本＋トリップワイヤ2本を追加（1826→1834 PASS）。** ⭐**空振りでないことを検算済み**＝engine を修正前へ一時的に戻すと**6本すべてが「0枚」で落ち**、C2 も退化を検出した。⚠このバグは逆翻訳に映らないので、JSON 構造 assert（`$ref` が入っているか）では**無価値**（修正前から入っていた）＝各テストは盤面を組んで実行し「何枚動いたか」と「参照元0枚でも完走するか」を両方固定している。
+
+**ゲート**＝全緑。golden **1834**（+8）／census **847→846**（`BASELINE_HIGH` 締め直し）／smoke・fuzz 0／census:stubs 無言 no-op 0／manual-fields 0／lint 0 errors・259 warnings 据置／同型★ 0／held **107枚・47群**（増減0）。生パース effect 単位 diff は**3効果のみ・outlier 0・effectId 増減0**。変更全7ファイルのエンコーディング検査（BOM／U+FFFD／`?`3連以上）は新規増0。
+
+⚠**経緯**＝本バッチは Codex へ委譲したが**使用量上限で最終工程の前に停止**した（engine 4サイトと parser 群Bまで到達／E2E golden・トリップワイヤ・検証は未着手）。Claude 側で `WXEX1-44-E2` の誤採用を差し戻し、残りを完成させた。⚠**自動コミットフックが未検証の中断成果を `47a1e053d` としてコミットした**ため、検証のベースラインは `HEAD` ではなく **`5f7c34b3c`** を使った（CODEX_GUIDE §2 の既知の罠）。
+
 ## 2026-08-11 — 「この方法で処理したカードと同じ枚数」が固定値に潰れる4効果を是正・1効果を安全 defer（続き440）
 
 **採用4件**＝`WXEX2-07-E3`／`WXK11-028-E1`／`WXK11-013-E1-G`／`WXDi-P03-009-E3`。前段の実処理枚数を既存 `$ref:'last_processed_count'` で後段へ渡した。`WXEX2-07-E3` は全バニッシュ後、参照を0扱いする `TRANSFER_TO_HAND` ではなく、既存の `SEARCH{from:trash,maxCount:$ref,then:ADD_TO_HAND}` で＜鉱石＞／＜宝石＞を同数**まで**回収する。`WXK11-028-E1` は `count:0` の `LOOK_AND_REORDER` と先行する裸 `ADD_TO_FIELD` を、動的公開枚数・白シグニ1枚・手札／場の二択・残りデッキ上を一体で扱う `REVEAL_AND_PICK` へ置換した。`WXK11-013-E1-G` は付与能力内側の `ADD_TO_FIELD.source.count` を参照化し `upToCount:true` を復元。`WXDi-P03-009-E3` は `NumberOrRef` に既存 `TargetFilter` を任意追加し、`resolveCountRef` が `lastProcessedCards` のうち青だけを `matchesFilter` で数える形にした。新しい ref キーは追加していない。
