@@ -8,6 +8,7 @@ import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
+import { collectIncreaseActCost } from '../../../engine/effectEngine';
 
 // ベット宣言（タスク12(lxxxiv)）＝カットイン窓でもアーツ経路（ArtsModal）と同じベット枝を出す。
 // 対象は lrig_deck 由来＝アーツ本体のみ（場のルリグ/シグニの【起】は原文にベットを持たない）。
@@ -44,7 +45,7 @@ interface CutinModalProps {
 }
 
 export function CutinModal(p: CutinModalProps) {
-  const { bs, user, my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { bs, user, my, op, isMyTurn, effectsMap, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, cutinBetAmount, setCutinBetAmount, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   // ベット宣言でコストが置換される札（WX17-019《青×0》/ WD20-007《緑×0》）の置換後コスト。
   const betReplacedCostOf = (card: { CardName?: string; Cost: string; EffectText?: string }): string | null =>
@@ -58,6 +59,7 @@ export function CutinModal(p: CutinModalProps) {
   // （実測で条件つきにズレる札は `WXK05-004`／`WXK06-016`／`SP36-001`／`SP38-002` の4枚。
   //  うち `SP36-001` は「対戦相手がスペルを使用していた場合」＝**カットイン窓こそ効くべき場面**）。
   // ⚠`specificCardCostReductions` はこの経路だけが持っている軽減なので、最後に重ねて失わない。
+
   // INCREASE_ACT_ABILITY_COST（`WXDi-P06-031`「対戦相手の、センタールリグとシグニの【起】能力の
   // 使用コストは《無》増える」）＝**カットイン窓経由でも同じ【起】能力なので同じだけ増える**。
   // ⚠従来この窓だけ素通りしていた＝「メインフェイズ経由だと増えるが、カットイン窓経由だと増えない」
