@@ -1,5 +1,69 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — §6.4 エナ支払い元の一本化（funnel 新設）＋ `UNDER_CARD_AS_ENERGY_COST` 実装（続き428）
+
+golden **1776→1785**、census **854 据置**、`census:stubs` 明示 defer **17→16**（無言の no-op は 0 のまま）、ゲート全緑。
+
+### 何が問題だったか
+
+「エナコストの支払い」が**どこにも1本化されていなかった**。支払いモーダル14本が `my.energy` を直接読み、
+候補生成（`my.energy.map(...)`）も控除（選択 index を `my.energy` から除去）も**BattleScreen の14サイトに散在**。
+この状態で「エナゾーン以外を支払い元にする」語彙（`UNDER_CARD_AS_ENERGY_COST` ＝ `WXDi-P10-041`
+「あなたのアタックフェイズの間、あなたがエナコストを支払う際、このシグニの下にあるカードをエナゾーンに
+あるかのようにトラッシュに置いて支払える」）を載せると、**半分だけ配線された瞬間に
+「アーツには使えるが【起】には使えない」という無言の不整合**になる（`census` にも `census:stubs` にも出ない）。
+続き427 でこれを理由に `DEFERRED_UNDER_CARD_AS_ENERGY_COST` として明示 defer し、funnel を先に作ると決めていた。
+
+### funnel の設計＝`src/screens/battle/energyPaySource.ts`
+
+1. **後方互換の index 空間**＝`buildEnergyPayPool` が返す配列は**先頭 `my.energy.length` 件がエナゾーンそのもの・
+   同じ順**。よって既存の `costIndices:Set<number>`（＝エナ index）が**そのまま pool の index として通る**。
+   追加元が0件のときは pool ≡ `my.energy`＝**従来と完全に等価**。移行が機械的で安全になる。
+2. 🔑**控除は `planEnergyPayment(...).applyTo(state)` で「サイトが state を組み立てたあと」に当てる**。
+   サイトが `field` を自前で組み直しても（key_piece を落とす／エクシードを払う等）**シグニの下からの
+   支払いを取りこぼさない**。前に当てる設計だと 14 サイトのどれか1つが `field:` を上書きした瞬間に
+   「払ったのにカードが残る」無言バグになる。
+3. ⭐**安全弁は関数の戻り値に置いた**（PLAN §4 教訓 (m)）＝`applyTo` を呼び忘れると**エナが1枚も減らない**
+   ＝「ただでアーツが撃てる」という**即座に露見する**壊れ方になる。**無言にならない壊れ方を選ぶ**のが本質。
+4. **トリップワイヤ2本**（goldenTest）＝(a) `BattleScreen.tsx` に `.energy.filter((_, i) => !` が
+   **1件も残っていない**（新しい支払い経路が funnel を迂回したら赤くなる）(b) `UNDER_CARD_AS_ENERGY_COST` と
+   `underSelfTrash` を**同じカードが持たない**（同じスタックを2つのコスト機構が index で触ると必ずズレる。
+   カットイン経路だけが両者と同居しうる）。
+
+### 配線した範囲
+
+- **支払い14サイト**（BattleScreen）＝グロウ／アーツ／キー使用／キー【起】／アシストグロウ／アシスト【起】／
+  スペル／カットイン／シグニ【起】／エナ【起】／手札【起】／【出】コスト／ルリグ付与【起】／トラッシュ【起】。
+- **候補描画14モーダル**＋**支払い可否ゲート7箇所**（`canAffordGrowCost`／`canAffordWithExtraCost`）。
+  ⚠**ゲートも pool にしないと「払えるのに候補に出ない」**＝候補生成と対で直す。
+- ⚠**funnel を通さないものを3つ明示的に残した**（原文の「支払う際」＝選んで払う場面に当たらない）＝
+  (a) `signi_attack_cost` の自動控除 (b) ガード追加《無》の自動控除
+  (c) `energyTrash*`／レゾナ出現条件＝原文が「**エナゾーンから**トラッシュに置く」なのでエナゾーン専用が正しい
+  （`planEnergyPayment` の `alsoRemoveEnergyIndices` がこの軸を受ける。色コストと index が重なったら
+  トラッシュへ二重に積まないよう控除済み index を除く）。
+- ⚠**CPU の支払いヒューリスティックは pool を見ない**＝下カードから払わないだけでルール違反にはならない近似。
+
+### `UNDER_CARD_AS_ENERGY_COST`（`WXDi-P10-041` 羅植姫　タナバタ）
+
+- **宣言は live JSON の構造**＝`STUB{id:'UNDER_CARD_AS_ENERGY_COST', underCardAsEnergyCost:{perTurnLimit:3,
+  duringMyAttackPhase:true}}`。⚠**engine で原文を再パースしない**（`sideAttackEmptyZoneAsFront` と同じ規約）。
+  この効果は `parseStatus:"MANUAL"` かつ `manualEffects.ts` に無い＝**live JSON 直編集が正**（`WX16-021` と同型）。
+- **収集は印字＋付与2ストアの3軸**（`signiDamageGate.ts` と同じ走査軸）＝印字だけ見ると、同じ文を付与する
+  カードが増えた瞬間に無言で落ちる。
+- 🔑**「この方法でエナコストは１ターンに３つまでしか支払えない」は候補生成の1点で止める**＝pool に
+  **残り上限ぶんしか載せない**。13本のモーダルのトグルに検算を撒かずに済み、**過払いが構造的に起きない**。
+  副作用＝残り2枚で下カードが3枚あるとき「どれを払うか」は選べない（上から2枚が候補）＝安全側の近似。
+- **計数**＝`PlayerState.turn_off_zone_energy_paid_count`。ターン境界リセットは**3箇所**
+  （`assist_lrig_attack_min_level` と同じ位置）。
+- **逆翻訳**＝`decompileEffects.ts` を payload 参照へ変更（`DEFERRED_` 決め打ちの固定文をやめた）。
+
+### ⚠実機UI未検証
+
+**PLAN §7 に4件送り**（回帰確認が最優先＝14経路で「選んだエナだけが減る」こと）。
+候補の視覚マーカーは現状 `title` 属性だけ／CPU は下カードから払わない／残り上限より下カードが多いとき
+どれを払うかは選べない＝いずれも**未実装として明示**（バグではない）。
+
+
 ## 2026-08-11 — §6.4 A群「無言の no-op」を**残0**にしてゲート化（続き427）
 
 golden **1774→1776**、census **854 据置**、ゲート全緑。`census:stubs` の A群 🔴側 **7件→0件**。
