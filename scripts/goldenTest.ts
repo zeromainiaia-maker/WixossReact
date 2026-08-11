@@ -30690,6 +30690,101 @@ test('§6.4 任意コストの UNKNOWN 落ち: このシグニの下からの〈
   ok(!j.includes('"upToCount":true'), '部分払いの抜け穴（upToCount）が残っていない');
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 2026-08-11 「この方法で〜したカードと同じ枚数」固定値潰れ 5効果
+// 各テストは live の実カード action を実行し、固定1/0のままでは落ちる複数枚ケースと
+// 参照元0枚の完走を固定する。
+// ══════════════════════════════════════════════════════════════════════════════
+test('WXEX1-44-E2 defer: TRANSFER_TO_HAND が参照を0扱いする間は死んだ$refを生成しない', () => {
+  const freshEff = parseCardEffects(cardMap.get('WXEX1-44')!).find(e => e.effectId === 'WXEX1-44-E2');
+  const liveEff = effectsMap.get('WXEX1-44')?.find(e => e.effectId === 'WXEX1-44-E2');
+  if (!freshEff || !liveEff) throw new Error('WXEX1-44-E2 が存在');
+  const freshLast = (freshEff.action as SequenceAction).steps.at(-1) as import('../src/types/effects').TransferToHandAction;
+  const liveLast = (liveEff.action as SequenceAction).steps.at(-1) as import('../src/types/effects').TransferToHandAction;
+  eq(freshLast.source.count, 1, 'executor未対応中は parser から恒久0枚の$refを出さない');
+  eq(liveLast.source.count, 1, 'live も見せかけだけの$refを採用しない');
+  const executorSrc = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
+  ok(/function execTransferToHand[\s\S]*?const count = src\.count === 'ALL' \? cands\.length : resolveNum\(src\.count\)/.test(executorSrc),
+    'defer根拠: TRANSFER_TO_HAND は resolveCountRef ではなく resolveNum を使う');
+});
+
+test('WXEX2-07-E3: 全バニッシュ3体と同数まで回収し、0体なら0枚', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXEX2-07')?.find(e => e.effectId === 'WXEX2-07-E3');
+  if (!eff) throw new Error('WXEX2-07-E3 が存在');
+  const gems = [...cardMap.values()].filter(c => c.Type === 'シグニ' && (c.CardClass?.includes('鉱石') || c.CardClass?.includes('宝石'))).slice(0, 3).map(c => c.CardNum);
+  const victims = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !gems.includes(c.CardNum)).slice(0, 3).map(c => c.CardNum);
+  eq(gems.length, 3, '鉱石／宝石3枚を確保');
+
+  const ctx = mkCtx({ hand: 0, trash: 0 }, { signi: victims }); ctx.ownerState.trash = [...gems];
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.hand.length, 3, '🔴3体バニッシュ時は固定1ではなく3枚回収');
+  eq(r.otherState.field.signi.filter(Boolean).length, 0, '相手シグニ3体を全バニッシュ');
+
+  const zero = mkCtx({ hand: 0, trash: 0 }, { signi: [null, null, null] }); zero.ownerState.trash = [...gems];
+  const rz = run(eff.action, zero);
+  ok(rz.done, '0体バニッシュでもクラッシュせず完走');
+  eq(rz.ownerState.hand.length, 0, '0体なら回収も0枚');
+  const search = (eff.action as SequenceAction).steps[1] as import('../src/types/effects').SearchAction;
+  eq(search.maxCount && typeof search.maxCount === 'object' ? search.maxCount.$ref : '', 'last_processed_count',
+    '「同じ枚数まで」＝SEARCH の動的上限');
+}));
+
+test('WXK11-028-E1: 2体バウンスなら上2枚を公開し、0体なら0枚公開', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXK11-028')?.find(e => e.effectId === 'WXK11-028-E1');
+  if (!eff) throw new Error('WXK11-028-E1 が存在');
+  const white = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白'));
+  const nonWhite = findCard(c => c.Type === 'シグニ' && !c.Color?.includes('白'));
+  const allies = [...cardMap.values()].filter(c => c.Type === 'シグニ' && ![white, nonWhite, 'WXK11-028'].includes(c.CardNum)).slice(0, 2).map(c => c.CardNum);
+  const ctx = mkCtx({ signi: ['WXK11-028', allies[0], allies[1]], hand: 0, deckTop: [white, nonWhite] }, {}, 'WXK11-028');
+  const r0 = executeEffect(eff, ctx);
+  ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '先に他のシグニ2体を選ぶ');
+  const r1 = resumeSelectTarget(allies, r0.pending as never, { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs });
+  ok(!r1.done && r1.pending.type === 'SEARCH', 'バウンス後に公開・選択へ進む');
+  eq(r1.pending.revealRemainder?.cards.length, 2, '🔴固定0ではなく戻した2体と同じ2枚を公開');
+  eq(r1.pending.visibleCards.join(','), white, '公開2枚中、白のシグニだけを選択候補にする');
+  const r2 = resumeSearch([white], r1.pending, { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs, lastProcessedCards: r1.lastProcessedCards });
+  ok(!r2.done && r2.pending.type === 'CHOOSE', '手札／場の二択を提示');
+
+  const zero = mkCtx({ signi: [null, null, null], hand: 0, deckTop: [white, nonWhite] }, {}, 'WXK11-028');
+  const rz = executeEffect(eff, zero);
+  ok(rz.done, '他のシグニ0体なら公開0枚で完走');
+  eq(rz.ownerState.deck.slice(0, 2).join(','), [white, nonWhite].join(','), '0枚公開時はデッキ不変');
+}));
+
+test('WXK11-013-E1-G: 全トラッシュ3体と同数まで場に戻し、0体なら0体', () => withSavedCursor(() => {
+  const granted = findEffectDeep(effectsMap.get('WXK11-013') ?? [], 'WXK11-013-E1-G');
+  if (!granted) throw new Error('WXK11-013-E1-G が存在');
+  const field = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
+  const trash = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !field.includes(c.CardNum)).slice(0, 3).map(c => c.CardNum);
+  const ctx = mkCtx({ signi: field, trash: 0 }, {}); ctx.ownerState.trash = [...trash];
+  const r = run(granted.action, ctx);
+  eq(r.ownerState.field.signi.filter(Boolean).length, 3, '🔴3体トラッシュ時は固定1ではなく3体まで場へ戻せる');
+  const add = (granted.action as SequenceAction).steps[1] as AddToFieldAction;
+  eq(add.source?.upToCount, true, '「同じ枚数まで」＝0体選択可能な上限');
+
+  const zero = mkCtx({ signi: [null, null, null], trash: 0 }, {}); zero.ownerState.trash = [...trash];
+  const rz = run(granted.action, zero);
+  ok(rz.done, '場のシグニ0体でもクラッシュせず完走');
+  eq(rz.ownerState.field.signi.filter(Boolean).length, 0, '0体処理なら場出しも0体');
+}));
+
+test('WXDi-P03-009-E3: 捨てた青2枚だけを数えて相手が2枚捨て、青0枚なら0枚', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P03-009')?.find(e => e.effectId === 'WXDi-P03-009-E3');
+  if (!eff) throw new Error('WXDi-P03-009-E3 が存在');
+  const blue = [...cardMap.values()].filter(c => c.Color?.includes('青')).slice(0, 2).map(c => c.CardNum);
+  const red = findCard(c => c.Color?.includes('赤') && !c.Color?.includes('青'));
+  const opp = [...cardMap.values()].filter(c => ![...blue, red].includes(c.CardNum)).slice(0, 4).map(c => c.CardNum);
+  const ctx = mkCtx({ hand: 0, trash: 0 }, { hand: 0 }); ctx.ownerState.hand = [...blue, red]; ctx.otherState.hand = [...opp];
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.hand.length, 0, '自分は手札3枚をすべて捨てる');
+  eq(r.otherState.hand.length, 2, '🔴青2枚だけを数え、相手は固定1でなく2枚捨てる');
+
+  const zero = mkCtx({ hand: 0, trash: 0 }, { hand: 0 }); zero.ownerState.hand = [red]; zero.otherState.hand = [...opp];
+  const rz = run(eff.action, zero);
+  ok(rz.done, '青0枚でもクラッシュせず完走');
+  eq(rz.otherState.hand.length, 4, '青0枚なら相手は0枚捨てる');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

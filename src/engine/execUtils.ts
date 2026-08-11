@@ -135,7 +135,12 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   }
   if (typeof n === 'number') return n;
   if (n.$ref === 'seven_minus_self_life_count') return Math.max(0, 7 - ctx.ownerState.life_cloth.length);
-  if (n.$ref === 'last_processed_count') return ctx.lastProcessedCards?.length ?? 0;
+  if (n.$ref === 'last_processed_count') {
+    const cards = ctx.lastProcessedCards ?? [];
+    return n.filter
+      ? cards.filter(cardNum => matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length
+      : cards.length;
+  }
   if (n.$ref === 'last_processed_level') return maxCardLevel(ctx.lastProcessedCards, ctx);
   if (n.$ref === 'stored_target_level') return maxCardLevel(ctx.storedTargetCards, ctx);
   console.warn(`[effectExecutor] unknown numeric ref: ${n.$ref}`);

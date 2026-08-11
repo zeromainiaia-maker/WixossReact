@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — 「この方法で処理したカードと同じ枚数」が固定値に潰れる4効果を是正・1効果を安全 defer（続き440）
+
+**採用4件**＝`WXEX2-07-E3`／`WXK11-028-E1`／`WXK11-013-E1-G`／`WXDi-P03-009-E3`。前段の実処理枚数を既存 `$ref:'last_processed_count'` で後段へ渡した。`WXEX2-07-E3` は全バニッシュ後、参照を0扱いする `TRANSFER_TO_HAND` ではなく、既存の `SEARCH{from:trash,maxCount:$ref,then:ADD_TO_HAND}` で＜鉱石＞／＜宝石＞を同数**まで**回収する。`WXK11-028-E1` は `count:0` の `LOOK_AND_REORDER` と先行する裸 `ADD_TO_FIELD` を、動的公開枚数・白シグニ1枚・手札／場の二択・残りデッキ上を一体で扱う `REVEAL_AND_PICK` へ置換した。`WXK11-013-E1-G` は付与能力内側の `ADD_TO_FIELD.source.count` を参照化し `upToCount:true` を復元。`WXDi-P03-009-E3` は `NumberOrRef` に既存 `TargetFilter` を任意追加し、`resolveCountRef` が `lastProcessedCards` のうち青だけを `matchesFilter` で数える形にした。新しい ref キーは追加していない。
+
+**defer 1件**＝`WXEX1-44-E2`。前段 `STUB{PLACE_ACCE_SIGNI_TO_ENERGY}` 自体は `lastProcessedCards` を空時も含めて記録するが、後段 `TRANSFER_TO_HAND` は型と違って `resolveNum(src.count)` を使い、object ref を0枚扱いする。今回許可された engine 拡張は A5 だけなので、恒久 no-op になる見せかけの `$ref` は parser/live とも採用せず `count:1` を維持した。さらに当該 STUB は原文の「手札からアクセアイコンを持つシグニ2枚まで」ではなく、場の `signi_acce` を全エナ送りする旧近似であり、数量参照だけ直しても前段は一致しない。
+
+**消費側を読んで訂正した点**：`BANISH count:ALL` は `effectExecutor.ts:918-928`、`TRASH SIGNI count:ALL` は `:1482-1492`、`TRASH HAND count:ALL` は `:1553-1572` で記録する。選択式 `BOUNCE` は `execBounce` から `resumeSelectTarget` へ進み `:6995-7017` で選択枚数を記録する。一方、`TRANSFER_TO_HAND` は `:2288`、`LOOK_AND_REORDER` は `:4537` が `resolveNum` のため、指示書どおり count だけを ref 化すると0枚になる。A2 は `SEARCH.maxCount` の `resolveCountRef`（`:3359-3364`）、A3 は既存 `REVEAL_AND_PICK.revealCount` 解決経路へ載せた。A3 は既存 `handOrField` の場出しがダウン状態を表現せず、また `BOUNCE.filter.excludeSelf` が候補生成で効かない別バグも実測したため、どちらもスコープ外の残課題として明示する。
+
+golden は5本追加し **1821→1826 PASS**。A2〜A5 は live 実カード action を実行して、複数枚処理時に同数が動くことと0枚時に0枚で完走することを各効果で固定した。A3 は固定0でなく2枚を公開し、白だけが候補になり、手札／場の `CHOOSE` が出るところまで検査。A1 は fresh/live とも死んだ ref を生成しない defer 根拠を executor ソース込みで固定した。全ゲートは typecheck PASS、golden **1826/1826**、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz バグ0・SKIP 0、census **847/847**（848→847 改善につき `BASELINE_HIGH` 更新）、census:stubs 無言 no-op 0、manual-fields 0、lint 0 errors／259 warnings。最終 build→heldReview は **107枚／47群**で基準と一致。
+
+全カード生パースの effect 単位差分は `WXEX2-07-E3`／`WXK11-028-E1`／`WXK11-013-E1-G`／`WXDi-P03-009-E3` の4件だけで outlier 0、effectId 増減0。live JSON の子 effect を親から分離した機械 diff も同じ4件だけ。群外 `WX05-010`／`WX18-046`／`WXK02-004`／`WXK03-025`／`WXK06-028`／`WDK07-E09` と defer の `WXEX1-44` は HEAD 前後の entry JSON が一致し、effects JSON は全ファイル1行・BOM/末尾改行なしを維持した。同カード他効果／BURST、React、PLAN/PLAN_PROGRESS は不変。
+
 ## 2026-08-11 — 「能力を持たない」2軸配線：動詞昇格3効果＋対象限定2効果を是正（続き439）
 
 **採用5件**＝動詞昇格 `WX25-P3-069-E1`／`WX25-P3-072-E1`／`WX25-P3-073-E1`、対象限定 `WXEX1-55-E2`、両軸 `WX25-P3-014-E1`。前3件は「手札に戻す。それが能力を持たない場合、代わりにトラッシュ」を `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{LAST_PROCESSED_MATCHES{noAbilities}, then:TRASH, else:BOUNCE}` へ畳み、`073` は `GRANT_EFFECT.effect.action` の内側を修正した。`014` は選択 filter に `noAbilities:true` を足し、昇格条件は原文どおり能力ではなく `level:{max:2}`。`WXEX1-55-E2` は対象 filter だけを直し、原文に無い昇格は加えていない。effectId 集合、同カードの他効果、`WX25-P3-073-BURST` は不変。

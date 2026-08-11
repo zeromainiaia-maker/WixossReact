@@ -150,8 +150,9 @@ export interface Variable {
   cardType?: CardTypeFilter;
 }
 
-// 数値または変数参照
-export type NumberOrRef = number | { $ref: string };
+// 数値または変数参照。last_processed_count は、直前に処理したカードのうち
+// filter に一致する枚数だけを参照できる（例：「この方法で捨てた青のカードと同じ枚数」）。
+export type NumberOrRef = number | { $ref: string; filter?: TargetFilter };
 
 export interface CountFromZone {
   zone: 'field' | 'energy' | 'trash' | 'lrig_trash';
@@ -712,7 +713,7 @@ export interface EffectTarget {
     | 'LIFE_CLOTH_CARD'
     | 'PLAYER';
   owner: Owner;
-  count: number | 'ALL' | { $ref: string }; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）
+  count: NumberOrRef | 'ALL'; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）
   /** count に直前の処理枚数を加算する（「この方法で～した枚数にNを加えた数」）。 */
   addLastProcessedCount?: boolean;
   countFromZone?: CountFromZone;

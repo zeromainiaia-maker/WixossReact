@@ -4547,6 +4547,57 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
       case 'WXK01-038-E1':
         lastOfType(e, 'TRASH', o => ((o.target as Record<string, unknown>).count = ref)); break;
 
+      // 「この方法で〜したカードと同じ枚数」固定値潰れ（2026-08-11）。
+      // effectId と既存木の型を両方アンカーにし、同じ語を持つ別機構へ波及させない。
+      case 'WXEX2-07-E3':
+        if (e.action.type === 'SEQUENCE') {
+          const last = e.action.steps.at(-1);
+          if (last?.type === 'TRANSFER_TO_HAND' && last.source.type === 'TRASH_CARD') {
+            // TRANSFER_TO_HAND.count は型上 NumberOrRef でも executor が resolveNum を使い、ref を0扱いする。
+            // engine を広げず、maxCount を resolveCountRef する既存 SEARCH のトラッシュ入口へ載せる。
+            e.action.steps[e.action.steps.length - 1] = {
+              type: 'SEARCH', from: { location: 'trash', owner: last.source.owner },
+              filter: last.source.filter ?? {}, maxCount: ref,
+              then: { type: 'ADD_TO_HAND', owner: last.source.owner },
+            };
+          }
+        }
+        break;
+      case 'WXK11-028-E1':
+        if (e.action.type === 'SEQUENCE'
+          && e.action.steps[0]?.type === 'BOUNCE'
+          && e.action.steps.at(-1)?.type === 'LOOK_AND_REORDER') {
+          // LOOK_AND_REORDER は NumberOrRef 型でも executor が resolveNum を使うため、$ref を
+          // その count に載せるだけでは0枚のまま。動的枚数を既に解決する REVEAL_AND_PICK へ畳む。
+          e.action.steps = [
+            e.action.steps[0],
+            {
+              type: 'REVEAL_AND_PICK', owner: 'self', revealCount: ref,
+              filter: { cardType: 'シグニ', color: '白' }, pickCount: 1,
+              handOrField: true, then: { type: 'ADD_TO_HAND', owner: 'self' },
+              remainder: { location: 'deck', position: 'top' },
+            } as RevealAndPickAction,
+          ];
+        }
+        break;
+      case 'WXK11-013-E1':
+        visit(e.action, o => o.effectId === 'WXK11-013-E1-G' && o.action != null, o => {
+          const granted = o.action as Record<string, unknown>;
+          visit(granted, n => n.type === 'ADD_TO_FIELD', n => {
+            const src = n.source as Record<string, unknown> | undefined;
+            if (src?.type === 'TRASH_CARD') { src.count = ref; src.upToCount = true; }
+          });
+        });
+        break;
+      case 'WXDi-P03-009-E3':
+        lastOfType(e, 'TRASH', o => {
+          const target = o.target as Record<string, unknown> | undefined;
+          if (target?.type === 'HAND_CARD' && target.owner === 'opponent') {
+            target.count = { $ref: 'last_processed_count', filter: { color: '青' } };
+          }
+        });
+        break;
+
       case 'WX26-CP1-009-E1':
         lastOfType(e, 'TRASH', o => {
           const t = o.target as Record<string, unknown>;

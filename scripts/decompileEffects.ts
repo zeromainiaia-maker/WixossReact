@@ -735,6 +735,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : '';
       const cnt = t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて')
         : (typeof t?.count === 'object' && LEVEL_REFS.includes(t?.count?.$ref)) ? 'それのレベル1につき1枚'
+        : (typeof t?.count === 'object' && t?.count?.$ref === 'last_processed_count' && t.count.filter)
+          ? `この方法で処理した${t.count.filter ? `${filterJa(t.count.filter)}カード` : 'カード'}と同じ枚数`
         : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
@@ -936,9 +938,17 @@ function actionJa(a?: Action, effectType?: string): string {
         return `捨てたカード１枚につき${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}１枚を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
       }
       const maxJa = typeof a.maxCount === 'object'
-        ? (a.maxCount?.$ref === 'last_processed_count' ? 'この方法でバニッシュ／トラッシュした数と同じ枚数の' : '')
+        ? (a.maxCount?.$ref === 'last_processed_count'
+          ? (a.from?.location === 'trash'
+            ? 'この方法でバニッシュ／トラッシュした数と同じ枚数までの'
+            : 'この方法でバニッシュ／トラッシュした数と同じ枚数の')
+          : '')
         : (a.maxCount ? a.maxCount + '枚まで' : '');
-      return `${ownerJa(a.from?.owner)}デッキから${maxJa}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
+      // 動的な直前処理枚数でトラッシュを探す形（WXEX2-07-E3）は、デッキ検索と誤表示しない。
+      const sourceJa = a.maxCount?.$ref === 'last_processed_count' && a.from?.location === 'trash'
+        ? `${ownerJa(a.from?.owner)}トラッシュから`
+        : `${ownerJa(a.from?.owner)}デッキから`;
+      return `${sourceJa}${maxJa}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': {
       // ランサー:N → 「ランサー（パワーN以下のシグニ）」（hasKeyword は 'ランサー:' プレフィックスで検出）
@@ -1238,6 +1248,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
       const revealJa = rapCnt?.$ref === 'last_processed_level'
         ? `${ownerJa(rapOwner)}デッキの上からこの方法でトラッシュに置いたシグニのレベルと同じ枚数のカードを見て`
+        : rapCnt?.$ref === 'last_processed_count'
+          ? `${ownerJa(rapOwner)}デッキの上からこの方法で処理したカードと同じ枚数のカードを公開し`
         : `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先
       const rem = a.remainder;
