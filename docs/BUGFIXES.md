@@ -21,7 +21,7 @@
 
 `optcost-pay`/`skip`はエナ色コスト用UIにしか付いておらず、手札捨て／下カードだけの任意コストは汎用`CHOOSE`ボタンへ流れる実装だったため、汎用側の`pay`/`skip`にも同じ既存testidを付与。不足時の`pay`は消えず`available:false`のdisabled枝として残るため、`kokonaUnderInsufficient`は`pendingOptions`と`isEnabled()`の両方で「有効なpay枝がない」ことをassertする。フェイズ進行ボタンは`BattleScreen.tsx`の共通ボタン1個だけが表示されるため、A4のtestid追加は不要と判定。
 
-Codex環境ではライブSupabaseへの外部ネットワークが使えないため、`node scripts/verifyBattleDrive.mjs <id>`は**未実行（Claude側で実行）**。UIの変更はDOM属性の追加だけで、engine/parser/effectsは変更なし。`npm run gates`は全緑：golden 1809/1809、smoke 10688/10688（CRASH/HANG/INVARIANT/SKIP 0）、census 852/852、census:stubs no-op 0、manual field loss 0、lint 0 errors/259 warnings。fuzzは不具合0・SKIP 0だが、並列gatesの distinct 2672（指定ベースライン2682）、単独再実行は7983手/distinct 2666と試行間で変動。既定`order`領域とPASS済7シナリオは編集前後のSHA-256が全件一致。全5変更ファイルのU+FFFD／3文字以上の`?`／先頭BOMはベースライン比の新規增0。
+Codex環境ではライブSupabaseへの外部ネットワークが使えないため、`node scripts/verifyBattleDrive.mjs <id>`は**未実行（Claude側で実行）**。UIの変更はDOM属性の追加だけで、engine/parser/effectsは変更なし。`npm run gates`は全緑：golden 1809/1809、smoke 10688/10688（CRASH/HANG/INVARIANT/SKIP 0）、census 852/852、census:stubs no-op 0、manual field loss 0、lint 0 errors/259 warnings。fuzzは不具合0・SKIP 0だが、並列gatesの distinct 2672（指定ベースライン2682）、単独再実行は7983手/distinct 2666と試行間で変動。既定`order`領域とPASS済7シナリオは編集前後のSHA-256が全件一致。全5変更ファイルのU+FFFD／3文字以上の`?`／先頭BOMはベースライン比の新規増0。
 
 ## 2026-08-11 — PLAN §7 実機検証バッチ1（Codex起案→Claude実機検証・続き435）
 
