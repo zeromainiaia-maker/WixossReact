@@ -594,6 +594,90 @@ export function leaveSubstituteAskOptions(
   return options.filter(o => o.kind === 'optional');
 }
 
+/**
+ * 離場置換の「先に全部聞く」チェーンを組む（§6.4 M2・続き430）。
+ *
+ * 🔑**設計の要点＝離場ループの途中では pause しない**。engine には「per-card ループの途中で中断して
+ * 残りを再開する」機構が無い（`resumeSelectTarget` の per-card ループは pause すると残りを落とすため、
+ * ADD_TO_FIELD 等は個別に特例回避してある）。そこで**移動を1つも適用する前に**、対象すべてについて
+ * 被害側へ問い、決定を `PlayerState.leave_substitute_choices` に刻んでから、**従来どおり同期的に**
+ * 適用する。決定は PlayerState なので pause を跨いで自動的に保持される（`banish_substitute_choice` と同型）。
+ *
+ * - 問う相手は**被害側**＝`CHOOSE{opponentResponds:true}`（`victimOwner==='opponent'` のときだけ
+ *   任意置換が成立するので、応答者は常に効果主の対戦相手）。
+ * - 問う必要が1体も無ければ `null` を返す＝**呼び出し側は従来の同期パスをそのまま走らせる**
+ *   （＝大多数の盤面でコードパスが変わらない＝退化リスクを新経路だけに閉じ込める）。
+ * - `then` は「問い終わったあとに実行する本来の処理」。
+ */
+export function hoistLeaveSubstituteAsks(
+  victims: readonly string[],
+  victimOwner: Owner,
+  ctx: ExecCtx,
+  then: EffectAction,
+  opts?: { isBanish?: boolean },
+): ExecResult | null {
+  const queue = victims.filter(v => leaveSubstituteAskOptions(v, victimOwner, ctx, opts).length > 0);
+  if (queue.length === 0) return null;
+  return executeAction(makeLeaveSubAsk(queue, victimOwner, then, opts), ctx);
+}
+
+function makeLeaveSubAsk(
+  queue: string[], victimOwner: Owner, then: EffectAction, opts?: { isBanish?: boolean },
+): EffectAction {
+  return {
+    type: 'STUB', id: 'INTERNAL_LEAVE_SUB_ASK',
+    leaveSub: { queue, victimOwner, ...(opts?.isBanish ? { isBanish: true } : {}) },
+    thenAction: then,
+  } as unknown as EffectAction;
+}
+
+/**
+ * `INTERNAL_LEAVE_SUB_ASK` の本体＝待ち行列の先頭1体について被害側へ CHOOSE を出す。
+ * 候補が無くなっていたら（盤面が変わった／既に決定済み）その1体は飛ばして次へ進む。
+ */
+export function execLeaveSubAsk(stub: StubAction, ctx: ExecCtx): ExecResult {
+  const spec = stub.leaveSub ?? {};
+  const victimOwner: Owner = spec.victimOwner ?? 'opponent';
+  const isBanish = spec.isBanish;
+  const then = (stub as unknown as { thenAction?: EffectAction }).thenAction;
+  const queue = [...(spec.queue ?? [])];
+  while (queue.length > 0) {
+    const victim = queue.shift()!;
+    const options = leaveSubstituteAskOptions(victim, victimOwner, ctx, { isBanish });
+    if (options.length === 0) continue;
+    const rest: EffectAction | undefined = queue.length > 0
+      ? makeLeaveSubAsk(queue, victimOwner, then ?? noOpAction(), { isBanish })
+      : then;
+    const decide = (choice: string): EffectAction => ({
+      type: 'STUB', id: 'INTERNAL_LEAVE_SUB_DECIDE',
+      leaveSub: { victim, choice, victimOwner },
+    } as unknown as EffectAction);
+    const victimName = ctx.cardMap.get(getCardNum(victim))?.CardName ?? victim;
+    return needsInteraction(addLog(ctx, `${victimName}の場離れを置換しますか？（対戦相手が選択）`), {
+      type: 'CHOOSE',
+      count: 1,
+      opponentResponds: true,
+      options: [
+        ...options.map(o => ({ id: o.key, label: o.label, available: true, action: decide(o.key) })),
+        { id: 'none', label: '置換しない', available: true, action: decide('none') },
+      ],
+      ...(rest ? { continuation: rest } : {}),
+    });
+  }
+  return then ? executeAction(then, ctx) : done(ctx);
+}
+
+/** `INTERNAL_LEAVE_SUB_DECIDE` の本体＝被害側の決定を state に刻むだけ（適用は移動の直前）。 */
+export function execLeaveSubDecide(stub: StubAction, ctx: ExecCtx): ExecResult {
+  const spec = stub.leaveSub ?? {};
+  const victim = spec.victim;
+  if (!victim) return done(ctx);
+  const victimOwner: Owner = spec.victimOwner ?? 'opponent';
+  const state = ownerState(victimOwner, ctx);
+  const next = { ...(state.leave_substitute_choices ?? {}), [victim]: spec.choice ?? 'none' };
+  return done(setOwnerState(victimOwner, { ...state, leave_substitute_choices: next }, ctx));
+}
+
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
 export function resolveFrontOfSelfCardNum(ctx: Pick<ExecCtx, 'ownerState' | 'otherState' | 'sourceCardNum'>): string | null {
   const zi = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === ctx.sourceCardNum);
