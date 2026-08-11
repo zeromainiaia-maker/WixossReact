@@ -7428,7 +7428,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (my.actions_done?.includes(eff.effectId)) continue;
       if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)) continue;
-      if (!canOfferTrashActivate(eff, my, op, battleCardMap)) continue;
+      if (!canOfferTrashActivate(eff, my, op, battleCardMap, myEnergyPayPool)) continue;
       const costLabel = trashActivateCostLabels(eff, my, op).join('・');
       actions.push({
         label: costLabel ? `【起】トラッシュから出す（${costLabel}）` : '【起】トラッシュから出す',

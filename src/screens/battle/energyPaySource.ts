@@ -107,9 +107,14 @@ export function buildEnergyPayPool(my: PlayerState, ctx: EnergyPoolContext): Ene
     if (remaining <= 0) continue;
     const stack = my.field.signi[src.zone] ?? [];
     // 最上段（シグニ本体）は支払い元にならない。
-    stack.slice(0, -1).forEach((cardNum, underIndex) => {
-      pool.push({ origin: 'under', cardNum, zone: src.zone, underIndex, hostCardNum: src.hostCardNum });
-    });
+    // ⚠**このターンの残り上限ぶんしか pool に載せない**＝1回の支払いで上限超過を選べない
+    //   （「1ターンに3つまで」の enforcement を候補生成の1点に閉じ込める＝13本のモーダルの
+    //     トグルに検算を撒かない）。副作用として残り2枚のとき下カード3枚のうち上2枚しか
+    //     選べない（どれを払うかは選べない）＝過払いにはならない安全側の近似。
+    stack.slice(0, -1).slice(0, Number.isFinite(remaining) ? remaining : undefined)
+      .forEach((cardNum, underIndex) => {
+        pool.push({ origin: 'under', cardNum, zone: src.zone, underIndex, hostCardNum: src.hostCardNum });
+      });
   }
   return pool;
 }
