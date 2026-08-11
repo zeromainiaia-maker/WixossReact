@@ -4263,7 +4263,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return (gCoin === 0 || my.coins >= gCoin) &&
             // エナ代替トラッシュ（COST_SUBSTITUTE / ENERGY_SUBSTITUTE_TRASH_SIGNI 等）はグロウ支払いにも効く
             // ＝原文「あなたが《X》を支払う際」はグロウコストを含む（タスク12(xxxvi)・続き206）。
-            canAffordGrowCost(my.energy, battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
+            canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
               undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
         });
         if (hasAffordable) {
@@ -7499,7 +7499,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectType === 'ACTIVATED');
       const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       // コスト支払い可能か（簡易チェック：エナで賄えるか）
-      const costOk = canAffordWithExtraCost(my.energy, battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+      const costOk = canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
       if (canUse && condOk && costOk) {
         actions.push({
           label: '使用',
@@ -7550,9 +7550,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
-        ? canAffordGrowCost(my.energy, battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
-        : (canAffordWithExtraCost(my.energy, battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
-           (artsBetCost !== null && canAffordWithExtraCost(my.energy, battleCards, artsBetCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
+        ? canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
+        : (canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
+           (artsBetCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, artsBetCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       if (canUse && condOk && costOk) {
@@ -7592,7 +7592,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         myLrigCardPC ? parseInt(myLrigCardPC.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
         { oppState: op, cardCostReplacements: my.card_cost_replacements },
       );
-      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(my.energy, battleCards, pieceEffCostGate, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+      const canAfford = my.coins >= coinNeeded && canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, pieceEffCostGate, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );
