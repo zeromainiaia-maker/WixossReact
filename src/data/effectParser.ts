@@ -5913,15 +5913,19 @@ function applyUnderThisTrashOptionalCost(text: string, action: EffectAction): Ef
   const sentences = sentencesOutsideQuotes(text);
   const m = sentences[0]?.match(UNDER_THIS_TRASH_COST_RE);
   if (!m) return action;
-  const count = parseNum(m[1]);
+  const count = parseNum(m[1] ?? m[2]);
   const steps = [...(action as SequenceAction).steps];
   const hit = steps.findIndex(s => s?.type === 'TAKE_FROM_UNDER_SIGNI'
     && (s as EffectAction & { destination?: string; count?: number; fromThis?: boolean }).destination === 'trash'
     && (s as EffectAction & { count?: number }).count === count);
   if (hit < 0) return action;
-  const from = steps[hit] as EffectAction & { fromThis?: boolean };
+  const from = steps[hit] as EffectAction & { fromThis?: boolean; filter?: TargetFilter };
+  // ⚠**限定（＜X＞の）を落とさない**＝落とすと「どの下カードでも払える」過少請求になる。
+  //   engine 側（`canAffordOptionalCostSpec` / `optionalCostPaySteps`）は filter を honor する。
   steps[hit] = { type: 'STUB', id: 'OPTIONAL_COST',
-    underAnySigniTrash: { count, ...(from.fromThis ? { fromThis: true } : {}) } } as StubAction;
+    underAnySigniTrash: { count,
+      ...(from.fromThis ? { fromThis: true } : {}),
+      ...(from.filter ? { filter: from.filter } : {}) } } as StubAction;
   return { ...action, steps } as EffectAction;
 }
 
