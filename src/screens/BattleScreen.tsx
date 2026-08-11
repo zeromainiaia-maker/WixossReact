@@ -6705,18 +6705,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     closeAssistActivated();
     try {
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const assistActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = assistActPay.paidNums;
       const discardNums = [...discardIndices].map(i => my.hand[i]);
       const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
-      let paid: PlayerState = {
+      let paid: PlayerState = assistActPay.applyTo({
         ...my,
-        energy: newEnergy,
         hand: newHand,
         trash: [...my.trash, ...paidNums, ...discardNums],
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
-      };
+      });
       // removeOppVirus: 相手の場のウィルスN個を取り除く
       const removeVirusNAssist = effect.cost?.removeOppVirus ?? 0;
       let newOpVirusStateAssist: typeof op | null = null;
