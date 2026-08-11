@@ -18,7 +18,7 @@ interface KeyUseModalProps {
 }
 
 export function KeyUseModal(p: KeyUseModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myLrigNameAliases, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showKeyModal, setShowKeyModal, pendingKeyCard, setPendingKeyCard, selectedKeyCost, setSelectedKeyCost, executeKeyPiece } = p;
   return (
     <>
@@ -43,7 +43,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
                 { oppState: op, cardCostReplacements: my.card_cost_replacements },
               );
               const energyTotal = parseGrowCost(effKeyCost).reduce((s, c) => s + c.count, 0);
-              const selectedNums = [...selectedKeyCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedKeyCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 || (selectedKeyCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, effKeyCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && my.coins >= coinNeeded;
               return (
@@ -66,7 +66,8 @@ export function KeyUseModal(p: KeyUseModalProps) {
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedKeyCost.size} / {energyTotal}枚</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const c = battleCardMap.get(num);
                           const isSel = selectedKeyCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

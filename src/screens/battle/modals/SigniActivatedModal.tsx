@@ -40,7 +40,7 @@ interface SigniActivatedModalProps {
 }
 
 export function SigniActivatedModal(p: SigniActivatedModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingSigniActivated, setPendingSigniActivated, selectedSigniActivatedCost, setSelectedSigniActivatedCost, selectedSigniActivatedDiscard, setSelectedSigniActivatedDiscard, selectedSigniActivatedDiscardVar, setSelectedSigniActivatedDiscardVar, selectedSigniActivatedFieldTrash, setSelectedSigniActivatedFieldTrash, selectedSigniActivatedUnderTrash, setSelectedSigniActivatedUnderTrash, selectedSigniActivatedEnergyTrash, setSelectedSigniActivatedEnergyTrash, selectedSigniActivatedTrashExile, setSelectedSigniActivatedTrashExile, selectedSigniActivatedBeat, setSelectedSigniActivatedBeat, signiActCharmTrashVar, setSigniActCharmTrashVar, keySubstituteEnabled, setKeySubstituteEnabled, executeSigniActivated } = p;
   return (
     <>
@@ -76,7 +76,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const actExtraCosts: { color: string; count: number }[] =
                 actCostExtra > 0 ? [{ color: '無', count: actCostExtra }] : [];
               const adjustedTotal = Math.max(0, energyTotal + actCostExtra - keySubCount);
-              const selectedNums = [...selectedSigniActivatedCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedSigniActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 && actCostExtra === 0
                 ? true
                 : selectedSigniActivatedCost.size === adjustedTotal &&
@@ -261,7 +261,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                         )}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

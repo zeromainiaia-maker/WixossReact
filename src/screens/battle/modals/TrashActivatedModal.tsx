@@ -39,7 +39,7 @@ function toggleCapped(prev: Set<number>, index: number, cap: number): Set<number
 }
 
 export function TrashActivatedModal(p: TrashActivatedModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const {
     pendingTrashActivated, setPendingTrashActivated,
     selectedTrashActivatedCost, setSelectedTrashActivatedCost,
@@ -71,7 +71,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
               const energyCosts = taEffect.cost?.energy ?? [];
               const energyTotal = trashActivateEnergyTotal(taEffect.cost);
               const energyCostStr = energyCostToString(energyCosts);
-              const selectedNums = [...selectedTrashActivatedCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedTrashActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 ||
                 canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
               const handDiscard = trashActivateHandDiscard(taEffect.cost);
@@ -124,7 +124,8 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                         ))}
                       </p>
                       <div style={{ overflowY: 'auto', maxHeight: 160, display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const card = battleCardMap.get(num);
                           const isSel = selectedTrashActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

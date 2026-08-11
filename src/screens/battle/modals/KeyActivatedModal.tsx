@@ -18,7 +18,7 @@ interface KeyActivatedModalProps {
 }
 
 export function KeyActivatedModal(p: KeyActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingKeyActivated, setPendingKeyActivated, selectedKeyActivatedCost, setSelectedKeyActivatedCost, selectedKeyActivatedDiscard, setSelectedKeyActivatedDiscard, executeKeyActivated } = p;
   return (
     <>
@@ -36,7 +36,7 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
-              const selectedNums = [...selectedKeyActivatedCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedKeyActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const energyOk = energyTotal === 0 || (selectedKeyActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs));
               const canAfford = energyOk && selectedKeyActivatedDiscard.size >= discardNeeded;
               return (
@@ -58,7 +58,8 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedKeyActivatedCost.size} / {energyTotal}枚</p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const c = battleCardMap.get(num);
                           const isSel = selectedKeyActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

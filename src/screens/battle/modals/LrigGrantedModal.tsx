@@ -26,7 +26,7 @@ interface LrigGrantedModalProps {
 }
 
 export function LrigGrantedModal(p: LrigGrantedModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingLrigGranted, setPendingLrigGranted, selectedLrigGrantedCost, setSelectedLrigGrantedCost, selectedLrigGrantedHandDiscard, setSelectedLrigGrantedHandDiscard, selectedLrigGrantedEnergyTrash, setSelectedLrigGrantedEnergyTrash, selectedLrigGrantedTrashExile, setSelectedLrigGrantedTrashExile, executeLrigGranted } = p;
   return (
     <>
@@ -55,7 +55,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                 ...(eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`),
                 ...(actCostExtra > 0 ? [`《無》×${actCostExtra}`] : []),
               ].join('');
-              const selectedNums = [...selectedLrigGrantedCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedLrigGrantedCost].map(i => myEnergyPayPool[i].cardNum);
               const canAffordEnergy = energyTotal === 0
                 ? true
                 : selectedLrigGrantedCost.size === energyTotal &&
@@ -145,7 +145,8 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                         エナゾーンから選択: {selectedLrigGrantedCost.size} / {energyTotal}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const c = battleCardMap.get(num);
                           const isSel = selectedLrigGrantedCost.has(i);
                           return (

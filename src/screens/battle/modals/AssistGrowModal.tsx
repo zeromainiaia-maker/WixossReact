@@ -5,6 +5,7 @@ import type { CardData } from '../../../types';
 import { collectGrowCostReductions } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { applyGrowCostReduction, canAffordGrowCost, parseGrowCost, isMultiEna } from '../costs';
+import { energyPoolCardNums } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface AssistGrowModalProps {
@@ -22,7 +23,7 @@ interface AssistGrowModalProps {
 }
 
 export function AssistGrowModal(p: AssistGrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showAssistGrowModal, setShowAssistGrowModal, pendingAssistGrowCard, setPendingAssistGrowCard, pendingAssistSide, setPendingAssistSide, selectedAssistGrowCost, setSelectedAssistGrowCost, getAssistGrowCandidates, executeAssistGrow } = p;
   return (
     <>
@@ -44,7 +45,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
                     const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
-                    const canAfford = canAffordGrowCost(my.energy, battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                    const canAfford = canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
                     const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -84,7 +85,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 // GROW_COST_REDUCTION 軽減後コストで支払い必要枚数を算出（フェーズ1候補と一致させる。減額しないと全額要求のままになる）
                 const growCost = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
                 const energyTotal = parseGrowCost(growCost).reduce((s, c) => s + c.count, 0);
-                const selectedNums = [...selectedAssistGrowCost].map(i => my.energy[i]);
+                const selectedNums = [...selectedAssistGrowCost].map(i => myEnergyPayPool[i].cardNum);
                 const canAfford = energyTotal === 0
                   ? true
                   : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
@@ -104,7 +105,8 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                       <>
                         <p style={{ color: C.text, fontSize: 12, margin: 0 }}>エナゾーンから選択: {selectedAssistGrowCost.size} / {energyTotal}枚</p>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                          {my.energy.map((num, i) => {
+                          {myEnergyPayPool.map((payEntry, i) => {
+                            const num = payEntry.cardNum;
                             const c = battleCardMap.get(num);
                             const isSel = selectedAssistGrowCost.has(i);
                             const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

@@ -17,7 +17,7 @@ interface EnergyActivatedModalProps {
 }
 
 export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs , myEnergyPayPool } = p.ctx;
   const { pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost, executeEnergyActivated } = p;
   return (
     <>
@@ -53,7 +53,7 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
                 : baseCostItems;
               const energyTotal = reducedCostItems.reduce((s, c) => s + c.count, 0);
               const costStr = reducedCostItems.map(e => `${e.color}${e.count}`).join('') || '';
-              const selectedNums = [...selectedEnergyActivatedCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedEnergyActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const canAfford = energyTotal === 0
                 ? true
                 : selectedEnergyActivatedCost.size === energyTotal &&
@@ -87,7 +87,8 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
                         エナゾーンから選択: {selectedEnergyActivatedCost.size} / {energyTotal}枚
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const c2 = battleCardMap.get(num);
                           // アクセカード自身は選択対象から除外
                           if (num === pendingEnergyActivated.cardNum) return null;

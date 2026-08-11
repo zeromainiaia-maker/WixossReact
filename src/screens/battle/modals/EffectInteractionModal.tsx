@@ -32,7 +32,7 @@ interface EffectInteractionModalProps {
 
 export function EffectInteractionModal(p: EffectInteractionModalProps) {
   const [selectedOptionalCostChoiceId, setSelectedOptionalCostChoiceId] = useState<string | null>(null);
-  const { bs, user, my, op, loading, battleCardMap, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { bs, user, my, op, loading, battleCardMap, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { effectSelectedNums, setEffectSelectedNums, selectedOptCost, setSelectedOptCost, selectedMultiChoiceIds, setSelectedMultiChoiceIds, lookReorderOrder, setLookReorderOrder, lookReorderTrash, setLookReorderTrash, lookReorderBottom, setLookReorderBottom, rearrangeSlots, setRearrangeSlots, handleEffectInteraction, handleSelectZoneForEffect, handleSelectSigniZoneForEffect, handleSelectVirusZoneForEffect, handleRearrangeSigniConfirm } = p;
   return (
     <>
@@ -437,7 +437,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             const selectedPayOpt = payOpt!;
             const costColors = selectedPayOpt.costColors!;
             const totalReq = costColors.length;
-            const selectedNums = [...selectedOptCost].map(i => my.energy[i]);
+            const selectedNums = [...selectedOptCost].map(i => myEnergyPayPool[i].cardNum);
             const colorValid = (() => {
               const needed = [...costColors];
               for (const n of selectedNums) {
@@ -471,9 +471,10 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     {costColors.map((c, i) => <span key={i} style={{ marginLeft: 4, color: C.textDim }}>({c.split('|').join('か')})</span>)}
                   </p>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                    {my.energy.length === 0
+                    {myEnergyPayPool.length === 0
                       ? <p style={{ color: C.textFaint, fontSize: 12 }}>エナがありません</p>
-                      : my.energy.map((num, i) => {
+                      : myEnergyPayPool.map((payEntry, i) => {
+                        const num = payEntry.cardNum;
                           const card = battleCardMap.get(num);
                           const isSel = selectedOptCost.has(i);
                           return (

@@ -7,6 +7,7 @@ import { C } from '../../../components/BoardComponents';
 import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
+import { energyPoolCardNums } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface ArtsModalProps {
@@ -37,7 +38,7 @@ interface ArtsModalProps {
 }
 
 export function ArtsModal(p: ArtsModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
   return (
     <>
@@ -94,9 +95,9 @@ export function ArtsModal(p: ArtsModalProps) {
                     const useCostMinCost = useCostSpecHere && useCostMaxHere > 0
                       ? applyUseTimeCostReduction(effCost, useCostSpecHere, useCostMaxHere) : null;
                     const canAfford =
-                      canAffordWithExtraCost(my.energy, battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
-                      (betCost !== null && canAffordWithExtraCost(my.energy, battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)) ||
-                      (useCostMinCost !== null && canAffordWithExtraCost(my.energy, battleCards, useCostMinCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                      canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
+                      (betCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)) ||
+                      (useCostMinCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, useCostMinCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
                       : betSpecBadge.options.length > 1 ? `ベット: ${betSpecBadge.options.join('か')}枚`
@@ -220,7 +221,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 (isEncore ? encoreExtraEna.reduce((s, e) => s + e.count, 0) : 0) +
                 boostExtraEna.reduce((s, e) => s + e.count, 0);
               const totalReq = Math.max(0, baseReq - keySubCount);
-              const selectedNums = [...selectedArtsCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedArtsCost].map(i => myEnergyPayPool[i].cardNum);
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
@@ -368,9 +369,10 @@ export function ArtsModal(p: ArtsModalProps) {
                     ))}
                   </p>
                   <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                    {my.energy.length === 0 ? (
+                    {myEnergyPayPool.length === 0 ? (
                       <p style={{ color: C.textFaint, fontSize: 12, margin: '8px 0' }}>エナがありません</p>
-                    ) : my.energy.map((num, i) => {
+                    ) : myEnergyPayPool.map((payEntry, i) => {
+                      const num = payEntry.cardNum;
                       const card = battleCardMap.get(num);
                       const isSel = selectedArtsCost.has(i);
                       const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

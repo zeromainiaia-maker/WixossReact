@@ -7,6 +7,7 @@ import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr,
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
+import { energyPoolCardNums } from '../energyPaySource';
 
 // ベット宣言（タスク12(lxxxiv)）＝カットイン窓でもアーツ経路（ArtsModal）と同じベット枝を出す。
 // 対象は lrig_deck 由来＝アーツ本体のみ（場のルリグ/シグニの【起】は原文にベットを持たない）。
@@ -43,7 +44,7 @@ interface CutinModalProps {
 }
 
 export function CutinModal(p: CutinModalProps) {
-  const { bs, user, my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { bs, user, my, op, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, specificCardCostReductions, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost, selectedCutinExceed, setSelectedCutinExceed, selectedCutinUnderTrash, setSelectedCutinUnderTrash, cutinBetAmount, setCutinBetAmount, setCutinSpellZoomed, cutinCandidates, handleCutinPass, handleCutinUse, handleResonaCutinSelect, toggleCutinCostCard } = p;
   // ベット宣言でコストが置換される札（WX17-019《青×0》/ WD20-007《緑×0》）の置換後コスト。
   const betReplacedCostOf = (card: { CardName?: string; Cost: string; EffectText?: string }): string | null =>
@@ -150,8 +151,8 @@ export function CutinModal(p: CutinModalProps) {
                             const betCostCand = canBetCand ? betReplacedCostOf(candidate.card) : null;
                             const canAffordEnergy = isHandDiscard
                               ? true
-                              : canAffordWithExtraCost(my.energy, battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
-                                || (betCostCand !== null && canAffordWithExtraCost(my.energy, battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                              : canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
+                                || (betCostCand !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
                             const energyPart = isHandDiscard ? '手札から自分を捨てる' : costStr || '';
@@ -219,7 +220,7 @@ export function CutinModal(p: CutinModalProps) {
               const cutinCostLabelModal = [exceedPartModal, energyPartModal].filter(Boolean).join('・') || 'なし';
               const costItems = isHandDiscardModal ? [] : parseGrowCost(cutinCostStrModal);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
-              const selectedNums = [...selectedCutinCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedCutinCost].map(i => myEnergyPayPool[i].cardNum);
               const extraArtsCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
                 .flatMap(m => m.amount);
@@ -328,7 +329,8 @@ export function CutinModal(p: CutinModalProps) {
                         ))}
                       </p>
                       <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const card = battleCardMap.get(num);
                           const isSel = selectedCutinCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

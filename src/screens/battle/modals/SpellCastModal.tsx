@@ -27,7 +27,7 @@ interface SpellCastModalProps {
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, selectedSpellUseCostPay, setSelectedSpellUseCostPay, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
@@ -78,7 +78,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
               }
               const costItems = parseGrowCost(effSpellCost);
               const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
-              const selectedNums = [...selectedSpellCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedSpellCost].map(i => myEnergyPayPool[i].cardNum);
               const extraSpellCosts = activeCostMods.forMy
                 .filter(m => m.direction === 'increase' && m.targetCardType === 'スペル')
                 .flatMap(m => m.amount);
@@ -221,7 +221,8 @@ export function SpellCastModal(p: SpellCastModalProps) {
                         )}
                       </p>
                       <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const card = battleCardMap.get(num);
                           const isSel = selectedSpellCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

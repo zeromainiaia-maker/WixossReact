@@ -5,6 +5,7 @@ import type { CardData } from '../../../types';
 import { collectGrowCostReductions, collectGrowCostSubstitute } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna } from '../costs';
+import { energyPoolCardNums } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface GrowModalProps {
@@ -24,7 +25,7 @@ interface GrowModalProps {
 }
 
 export function GrowModal(p: GrowModalProps) {
-  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyTrashSubInfo, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { showGrowModal, setShowGrowModal, pendingGrowCard, setPendingGrowCard, selectedGrowCost, setSelectedGrowCost, freeGrowFilter, setFreeGrowFilter, growCandidates, currentLrigLevel, executeGrow, toggleGrowCostCard } = p;
   return (
     <>
@@ -59,7 +60,7 @@ export function GrowModal(p: GrowModalProps) {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(my.energy, battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap));
+                      canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -116,7 +117,7 @@ export function GrowModal(p: GrowModalProps) {
               const reducedGrowCost = applyGrowCostReduction(pendingGrowCard.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
               const costItems = parseGrowCost(reducedGrowCost);
               const totalReq = costItems.reduce((s, c) => s + c.count, 0);
-              const selectedNums = [...selectedGrowCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedGrowCost].map(i => myEnergyPayPool[i].cardNum);
               // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 代替コスト情報
               const growSubInfo = collectGrowCostSubstitute(my, battleCardMap, effectsMap);
               const growSubEnaSigni = growSubInfo ? my.energy.filter(cn => {
@@ -170,9 +171,10 @@ export function GrowModal(p: GrowModalProps) {
                     ))}
                   </p>
                   <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                    {my.energy.length === 0 ? (
+                    {myEnergyPayPool.length === 0 ? (
                       <p style={{ color: C.textFaint, fontSize: 12, margin: '8px 0' }}>エナがありません</p>
-                    ) : my.energy.map((num, i) => {
+                    ) : myEnergyPayPool.map((payEntry, i) => {
+                      const num = payEntry.cardNum;
                       const card = battleCardMap.get(num);
                       const isSel = selectedGrowCost.has(i);
                       const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);

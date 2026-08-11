@@ -16,7 +16,7 @@ interface HandActivatedModalProps {
 }
 
 export function HandActivatedModal(p: HandActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { pendingHandActivated, setPendingHandActivated, selectedHandActivatedCost, setSelectedHandActivatedCost, executeHandActivated } = p;
   return (
     <>
@@ -37,7 +37,7 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
               const energyCosts = haEffect.cost?.energy ?? [];
               const energyTotal = energyCosts.reduce((s, c) => s + c.count, 0);
               const energyCostStr = energyCostToString(energyCosts);
-              const selectedNums = [...selectedHandActivatedCost].map(i => my.energy[i]);
+              const selectedNums = [...selectedHandActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const isValid = energyTotal === 0 ||
                 (selectedHandActivatedCost.size === energyTotal &&
                   canAffordGrowCost(selectedNums, battleCards, energyCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
@@ -74,7 +74,8 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
                         ))}
                       </p>
                       <div style={{ overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                        {my.energy.map((num, i) => {
+                        {myEnergyPayPool.map((payEntry, i) => {
+                          const num = payEntry.cardNum;
                           const card = battleCardMap.get(num);
                           const isSel = selectedHandActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
