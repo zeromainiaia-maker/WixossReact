@@ -30299,6 +30299,76 @@ test('§6.4 ライフクラッシュ置換: 続行中の対戦の legacy damage_
   eq(picked!.repl.once, true, '旧形式は「次に」＝1回限りとして扱う');
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 INCREASE_ACT_ABILITY_COST の適用範囲（`WXDi-P06-031`）
+// 原文＝「【常】《相手ターン》：対戦相手の、**センタールリグとシグニ**の【起】能力の使用コストは《無》増える。」
+// ⚠**「未適用の入口」は全部が穴ではない**＝原文が対象を限定しているので、
+//   アシストルリグ／キー／手札・エナ・トラッシュのカードの【起】は**適用しないのが正しい**。
+//   §6.4 の宿題に「トラッシュ起動に未適用」と登録されていたが、**それは仕様どおり**だった（続き432 で実測）。
+//   トラッシュにあるカードは「シグニ」ではない＝新しいカードが「この**カード**をトラッシュから場に出す」と
+//   書き分けているのが根拠（古い札の「このシグニを」は緩い表記）。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 起動コスト増加: 原文どおり「センタールリグとシグニ」に限定されている', () => {
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  const decl = srcText['WXDi-P06-031-E1'] ?? '';
+  ok(decl.includes('センタールリグとシグニ'), '前提：原文が「センタールリグとシグニ」に限定している');
+  ok(!decl.includes('アシスト'), '前提：アシストルリグは対象外');
+
+  // 適用する入口＝センタールリグ【起】（LrigGrantedModal）／シグニ【起】（SigniActivatedModal）／
+  //               カットイン窓の lrig_field・signi_field（CutinModal・続き432 で追加）
+  const applies = ['LrigGrantedModal', 'SigniActivatedModal', 'CutinModal'];
+  for (const m of applies) {
+    const src = fs.readFileSync(join(root, `src/screens/battle/modals/${m}.tsx`), 'utf8');
+    ok(src.includes('collectIncreaseActCost'), `${m}: 起動コスト増加を適用する入口`);
+  }
+  // 適用しない入口＝原文の対象外（アシスト／キー／手札・エナ・トラッシュ）
+  const doesNotApply = ['AssistActivatedModal', 'KeyActivatedModal', 'HandActivatedModal',
+    'EnergyActivatedModal', 'TrashActivatedModal'];
+  for (const m of doesNotApply) {
+    const src = fs.readFileSync(join(root, `src/screens/battle/modals/${m}.tsx`), 'utf8');
+    ok(!src.includes('collectIncreaseActCost'),
+       `${m}: 原文の対象外なので適用しない（「未適用＝穴」と誤って直さないための固定）`);
+  }
+});
+
+test('§6.4 起動コスト増加: カットイン窓でも同じ【起】能力なら同じだけ増える', () => {
+  // ⚠同じ能力なのに入口でコストが食い違う穴（このファイルの上部にアーツ実効コストの同型が記録済み）。
+  const src = fs.readFileSync(join(root, 'src/screens/battle/modals/CutinModal.tsx'), 'utf8');
+  ok(/source === 'lrig_field' \|\| source === 'signi_field'/.test(src),
+     'カットイン窓は lrig_field／signi_field だけに増加を載せる（アーツ本体・手札は対象外）');
+  ok(src.includes('withActCostExtra(`${baseCostStr}${addColorless}`'),
+     '候補一覧の支払い可否にも増加が乗る（「押せるのに払えない」を作らない）');
+  ok(src.includes('withActCostExtra('), '支払いモーダルの必要枚数にも増加が乗る');
+});
+
+
+test('§6.4 離場置換: 宣言走査は印字＋付与2ストアの3軸（付与された瞬間に落ちない）', () => {
+  // ⚠続き432 まで**印字だけ**を見ており、同じ【常】を GRANT_EFFECT で付与するカードが出た瞬間に
+  //   無言で落ちる状態だった（現状 live に付与するカードは 0 件なので挙動は変わらない）。
+  const src = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
+  const helper = src.match(/function declaredContinuousEffects\([\s\S]*?\n\}/)?.[0] ?? '';
+  ok(helper.includes('granted_effects?.'), '付与ストア（ターン限定）を見る');
+  ok(helper.includes('granted_effects_until_opp_turn'), '付与ストア（次の相手ターンまで）を見る');
+  // 置換の**関数本体だけ**を見る（無関係な印字走査＝PREVENT_LIFE_REFRESH_TRASH 等を巻き込まない）
+  const bodyOf = (name: string): string => {
+    const i = src.indexOf(`function ${name}(`);
+    ok(i >= 0, `${name} が見つかる`);
+    const end = src.indexOf('\n}', i);
+    return i >= 0 ? src.slice(i, end) : '';
+  };
+  for (const fn of ['findEffectLeavePowerReductionSubstitute', 'applyEffectLeaveReplaceBanishSubstitute',
+                    'applyEffectLeaveNoAbilityDeckBottomSubstitute']) {
+    const body = bodyOf(fn);
+    ok(!/cardMap\.get\((?:getCardNum\(top\)|top)\)\?\.effects/.test(body),
+       `${fn}: 印字直読みが残っている（付与された瞬間に無言で落ちる）`);
+    ok(body.includes('declaredContinuousEffects'), `${fn}: 3軸ヘルパを通している`);
+  }
+  // F-3 身代わりの列挙も付与ストアを見る（fallback 鎖の末尾に印字が残るのは正常＝それに足す形）
+  ok(bodyOf('collectEffectBanishSubstituteChoices').includes('granted_effects?.'),
+     'collectEffectBanishSubstituteChoices: 付与ストアも走査する');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

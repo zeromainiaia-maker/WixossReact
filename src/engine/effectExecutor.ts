@@ -104,6 +104,27 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
   return done(addLog(setOwnerState(a.owner, s, ctx), `${count}枚ドロー`));
 }
 
+/**
+ * 場のカードが**いま宣言している**能力（印字＋付与2ストアの3軸）。
+ *
+ * ⚠離場置換の宣言走査は 2026-08-11（続き432）まで**印字（`CardData.effects`）だけ**を見ていた＝
+ *   同じ【常】を `GRANT_EFFECT` で付与するカードが出た瞬間に**無言で落ちる**状態だった
+ *   （`signiDamageGate.ts` のコメントに書いてある罠と同じ）。現状 live に付与するカードは 0 件なので
+ *   挙動は変わらないが、走査軸を先に揃えておく。
+ */
+function declaredContinuousEffects(
+  cardNum: string,
+  state: PlayerState,
+  cardMap: Map<string, import('../types').CardData>,
+): CardEffect[] {
+  const base = getCardNum(cardNum);
+  return [
+    ...(cardMap.get(base)?.effects ?? []),
+    ...(state.granted_effects?.[base] ?? []),
+    ...(state.granted_effects_until_opp_turn?.[base] ?? []),
+  ];
+}
+
 // 効果離場の powerReduction 身代わり（WX06-019 シロナクジ型）:
 // victim owner の場に「あなたの他の＜X＞が対戦相手の効果で場を離れる場合、代わりにこのシグニのパワーを-N」を
 // CONTINUOUS BANISH_SUBSTITUTE{substituteCost.powerReduction} で宣言するカード(protector)があり、
@@ -118,7 +139,7 @@ function findEffectLeavePowerReductionSubstitute(
   for (const stack of victimState.field.signi) {
     const top = stack?.at(-1);
     if (!top || top === victimNum) continue; // 「他の」＝victim自身は除外
-    for (const eff of (cardMap.get(top)?.effects ?? [])) {
+    for (const eff of declaredContinuousEffects(top, victimState, cardMap)) {
       if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'BANISH_SUBSTITUTE') continue;
       const ba = eff.action as import('../types/effects').BanishSubstituteAction;
       if (!ba.substituteCost.powerReduction) continue;
@@ -225,7 +246,7 @@ export function applyEffectLeaveReplaceBanishSubstitute(
   const declarer = state.field.signi.some(stack => {
     const top = stack?.at(-1);
     if (!top) return false;
-    return (ctx.cardMap.get(getCardNum(top))?.effects ?? []).some(eff => {
+    return declaredContinuousEffects(top, state, ctx.cardMap).some(eff => {
       if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') return false;
       const act = eff.action as import('../types/effects').StubAction;
       if (act.id !== 'EFFECT_LEAVE_REPLACE_BANISH' || !act.leaveReplaceBanish) return false;
@@ -273,7 +294,7 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
   const declared = declarerState.field.signi.some(stack => {
     const top = stack?.at(-1);
     if (!top) return false;
-    return (ctx.cardMap.get(getCardNum(top))?.effects ?? []).some(eff =>
+    return declaredContinuousEffects(top, declarerState, ctx.cardMap).some(eff =>
       eff.effectType === 'CONTINUOUS' && eff.action.type === 'STUB'
       && (eff.action as import('../types/effects').StubAction).id === 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM');
   });
@@ -331,10 +352,15 @@ export function collectEffectBanishSubstituteChoices(
   for (const stack of state.field.signi) {
     const top = stack?.at(-1);
     if (!top) continue;
-    localEffects.set(top, ctx.effectsMap?.get(top)
-      ?? ctx.effectsMap?.get(getCardNum(top))
-      ?? ctx.cardMap.get(getCardNum(top))?.effects
-      ?? []);
+    // ⚠付与ストアも足す（続き432）＝`GRANT_EFFECT` で F-3 身代わりを付与された瞬間に落ちないため。
+    localEffects.set(top, [
+      ...(ctx.effectsMap?.get(top)
+        ?? ctx.effectsMap?.get(getCardNum(top))
+        ?? ctx.cardMap.get(getCardNum(top))?.effects
+        ?? []),
+      ...(state.granted_effects?.[getCardNum(top)] ?? []),
+      ...(state.granted_effects_until_opp_turn?.[getCardNum(top)] ?? []),
+    ]);
   }
   const rank = (o: BanishSubstituteOption): number =>
     o.kind === 'pay_cost' ? (o.costType === 'trashStackSpell' ? 0 : 1) : 2;
