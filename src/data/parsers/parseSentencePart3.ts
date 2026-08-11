@@ -1499,15 +1499,20 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- このシグニの下からカードをトラッシュに置く ----
   {
-    const mOpt = t.match(/このシグニの下からカード([０-９\d]*)枚?をトラッシュに置いてもよい/);
-    if (mOpt) {
-      const count = mOpt[1] ? parseNum(mOpt[1]) : 1;
-      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, upToCount: true, fromThis: true } as TakeFromUnderSigniAction;
-    }
-    const mReq = t.match(/このシグニの下からカード([０-９\d]*)枚?をトラッシュに置く$/);
-    if (mReq) {
-      const count = mReq[1] ? parseNum(mReq[1]) : 1;
-      return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, fromThis: true } as TakeFromUnderSigniAction;
+    // ⚠**枚数語の位置が2通りある**（「カード３枚を」／「カードを３枚」）うえ、**クラス限定が挟まる形**
+    //   （「このシグニの下から＜ブルアカ＞のカードを３枚…」＝`WX25-CP1-091-E2`）があり、従来は後者2つが
+    //   規則に掛からず `UNKNOWN` へ落ちていた。**任意コストで落ちると本体だけ無条件に走る**＝
+    //   `WX25-CP1-091-E2` は**コストを払わずに毎ターン終了時エナチャージ**していた（過剰効果・続き434）。
+    // ⚠filter は engine 側（`canAffordOptionalCostSpec` / `optionalCostPaySteps`）が honor するので載せてよい。
+    const mU = t.match(/このシグニの下から(.*?)カード(?:([０-９\d]*)枚?を|を([０-９\d]+)枚)トラッシュに置(いてもよい|く)$/);
+    if (mU) {
+      const count = mU[2] ? parseNum(mU[2]) : mU[3] ? parseNum(mU[3]) : 1;
+      const underStory = parseStoryFilter(mU[1] ?? '');
+      return {
+        type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count, fromThis: true,
+        ...(mU[4] === 'いてもよい' ? { upToCount: true } : {}),
+        ...(Object.keys(underStory).length ? { filter: underStory } : {}),
+      } as TakeFromUnderSigniAction;
     }
   }
 
