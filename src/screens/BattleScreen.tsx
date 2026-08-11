@@ -6549,8 +6549,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const keyPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = keyPay.paidNums;
       const coinCost = parseCoinCost(card.Cost) + parseCoinCost(card.GrowCost);
       const hasUnlimitedKeysEKP = my.field.lrig.some(ln =>
         (effectsMap.get(ln) ?? []).some(e =>
