@@ -300,19 +300,26 @@ export function applyEffectLeaveNoAbilityDeckBottomSubstitute(
  *
  * - `victimOwner === 'opponent'` ＝ ctx の効果主から見た相手側だけを置換する（自分の効果で自分のシグニを
  *   バニッシュする「コスト/利得」型を、勝手に他シグニの犠牲へすり替えないため）。他3本と同じガード。
- * - 「してもよい」は**自動適用**＝他の置換3本と同じ決定論的近似（同期的な ctx 変換なので対話 pause を張れない）。
+ * - 「してもよい」は現状**自動適用**（決定論的近似）＝`autoChooseLeaveSubstitute` の policy。
  *   **選ぶ順は安い順に固定**＝①スタック下のスペル→②手札のスペル→③他シグニの犠牲。
- * - ⚠**`lifeCrash`（`WX14-026`）は engine では適用しない**＝ライフクラッシュは【ライフバースト】確認フロー
- *   （`field.check`）を伴うため、効果解決の途中で同期的に差し込めない。バトル経路の対話実装が引き続き担当する。
+ * - ⚠**`lifeCrash`（`WX14-026`）は列挙はするが自動選択しない**（`autoEligible:false`）＝ライフクラッシュは
+ *   【ライフバースト】確認フロー（`field.check`）を伴うため効果解決の途中で同期的に差し込めない。
+ *   **対話 policy が入れば選択肢として出せる**ところまで配線済み（従来は列挙からも落としていた）。
  */
-export function applyEffectBanishSubstitute(
+
+/**
+ * F-3 身代わりの候補を**適用せずに**列挙する（決定層の enumerate 側）。
+ * 並びは「安い順」＝①スタック下のスペル→②手札のスペル→③他シグニの犠牲で固定
+ * （`autoChooseLeaveSubstitute` はこの先頭から採るので、並びを変えると自動選択が変わる）。
+ */
+export function collectEffectBanishSubstituteChoices(
   victimNum: string,
   victimOwner: Owner,
   ctx: ExecCtx,
-): { ctx: ExecCtx; replaced: boolean } {
-  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+): BanishSubstituteOption[] {
+  if (victimOwner !== 'opponent') return [];
   const state = ownerState(victimOwner, ctx);
-  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return { ctx, replaced: false };
+  if (!state.field.signi.some(stack => stack?.at(-1) === victimNum)) return [];
   const attackerState = ownerState('self', ctx);
   // `collectBanishSubstitutes` の isOwnerTurn は**victim オーナー視点**。ctx.isOwnerTurn は効果主視点なので反転する。
   // 未設定なら false＝「victim オーナーのターンではない」に倒す（バトル経路の呼び出しも常に false。
@@ -329,14 +336,27 @@ export function applyEffectBanishSubstitute(
       ?? ctx.cardMap.get(getCardNum(top))?.effects
       ?? []);
   }
-  const options = collectBanishSubstitutes(
-    state, attackerState, victimOwnerTurn, ctx.cardMap, localEffects, victimNum,
-  ).filter((o): o is BanishSubstituteOption => !(o.kind === 'pay_cost' && o.costType === 'lifeCrash'));
-  if (options.length === 0) return { ctx, replaced: false };
-
-  const rank = (o: typeof options[number]): number =>
+  const rank = (o: BanishSubstituteOption): number =>
     o.kind === 'pay_cost' ? (o.costType === 'trashStackSpell' ? 0 : 1) : 2;
-  const chosen = [...options].sort((a, b) => rank(a) - rank(b))[0];
+  return [...collectBanishSubstitutes(
+    state, attackerState, victimOwnerTurn, ctx.cardMap, localEffects, victimNum,
+  )].sort((a, b) => rank(a) - rank(b));
+}
+
+/** F-3 身代わり候補が engine の自動 policy で選べるか。`lifeCrash` だけ対話専用（上のコメント参照）。 */
+export function banishSubstituteAutoEligible(o: BanishSubstituteOption): boolean {
+  return !(o.kind === 'pay_cost' && o.costType === 'lifeCrash');
+}
+
+/** 選んだ F-3 身代わりを適用する（決定層の apply 側）。 */
+export function applyEffectBanishSubstituteChoice(
+  victimNum: string,
+  victimOwner: Owner,
+  chosen: BanishSubstituteOption,
+  ctx: ExecCtx,
+): ExecCtx {
+  const state = ownerState(victimOwner, ctx);
+  const attackerState = ownerState(victimOwner === 'self' ? 'opponent' : 'self', ctx);
   const isSpell = (n: string) => ctx.cardMap.get(getCardNum(n))?.Type === 'スペル';
   const nameOf = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
 
