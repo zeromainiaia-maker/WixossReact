@@ -6549,6 +6549,20 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
             act.type === 'STUB' && act.id === 'GUARD_ALT_HAND_REPLACE');
         const holographReplace = ga.abilities.some(ab =>
           ab.action.type === 'STUB' && ab.action.id === 'HOLOGRAPH_REVEAL_REPLACE');
+        // §6.4 ライフクラッシュ置換の【常】付与（`WXDi-CP01-023`）＝**付与時に宣言を積む**。
+        // ⚠CONTINUOUS は `executeAction` を通らないので、能力として持たせるだけでは恒久 no-op になる
+        //   （続き424 の `FORCE_SIGNI_ATTACK` と同型）。`GUARD_ALT_HAND_REPLACE` と同じ扱い。
+        const lifeCrashRepl = ga.abilities
+          .map(ab => ab.action)
+          .filter((act): act is import('../types/effects').LifeCrashReplaceAction =>
+            act.type === 'LIFE_CRASH_REPLACE')
+          .map((act): import('../types').LifeCrashReplacement => ({
+            kind: act.replaceKind, count: act.count,
+            ...(act.damageSource ? { damageSource: act.damageSource } : {}),
+            ...(act.byAttack ? { byAttack: true } : {}),
+            ...(act.once ? { once: true } : {}),
+            ...(act.optional ? { optional: true } : {}),
+          }));
         const newTarget: PlayerState = {
           ...targetState,
           [storeKey]: [...existing, ...granted],
@@ -6558,6 +6572,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
               : { game_guard_alt_hand: guardAlt.count ?? 1 })
             : {}),
           ...(holographReplace ? { holograph_reveal_replace_this_turn: true } : {}),
+          ...(lifeCrashRepl.length > 0
+            ? { life_crash_replacements: [...(targetState.life_crash_replacements ?? []), ...lifeCrashRepl] }
+            : {}),
         };
         const nextCtx = targetsOpponent ? { ...ctx, otherState: newTarget } : { ...ctx, ownerState: newTarget };
         return done(addLog(nextCtx, `${targetsOpponent ? '対戦相手の' : ''}ルリグ付与能力${ga.permanent ? '（このゲームの間）' : ''}: ${ga.rawText}`));
@@ -6727,10 +6744,40 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         `${pd.until === 'NEXT_TURN' ? '次のターンの間' : 'このターン'}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
     }
     case 'REPLACE_NEXT_DAMAGE_WITH_MILL': {
-      // 「次にダメージを受ける場合、代わりにデッキ上N枚をトラッシュ」の予約（消費は crashOneLife／ルリグアタック応答）
+      // 「次にダメージを受ける場合、代わりにデッキ上N枚をトラッシュ」の予約
+      // （消費は `screens/battle/lifeCrashReplace.ts` の funnel＝crashOneLife／ルリグアタック応答の2地点）。
+      // ⚠**`damageSource` を落とさない**＝従来は宣言していたのに捨てており、「シグニによって」限定の札
+      //   （`WX25-P1-010`）が**ルリグアタックのダメージまで置換**していた。
       const rdm = action as import('../types/effects').ReplaceNextDamageWithMillAction;
-      const newOwner = { ...ctx.ownerState, damage_replace_mill: [...(ctx.ownerState.damage_replace_mill ?? []), rdm.millCount] };
+      const decl: import('../types').LifeCrashReplacement = {
+        kind: 'mill', count: rdm.millCount, once: true,
+        ...(rdm.damageSource ? { damageSource: rdm.damageSource } : {}),
+      };
+      const newOwner = {
+        ...ctx.ownerState,
+        life_crash_replacements: [...(ctx.ownerState.life_crash_replacements ?? []), decl],
+      };
       return done(addLog({ ...ctx, ownerState: newOwner }, `このターン、次のダメージを代わりにデッキ上${rdm.millCount}枚トラッシュで置き換え（予約）`));
+    }
+    case 'LIFE_CRASH_REPLACE': {
+      // 「あなたのライフクロスがクラッシュされる場合、代わりに〜する」の宣言（§6.4）。
+      // ⚠**その場で実行してはいけない**＝従来 `WX24-P4-009` は自分のデッキを即10枚削り、
+      //   `WX25-P3-004` はタダで相手のライフを割っていた。
+      const lcr = action as import('../types/effects').LifeCrashReplaceAction;
+      const declared: import('../types').LifeCrashReplacement = {
+        kind: lcr.replaceKind, count: lcr.count,
+        ...(lcr.damageSource ? { damageSource: lcr.damageSource } : {}),
+        ...(lcr.byAttack ? { byAttack: true } : {}),
+        ...(lcr.once ? { once: true } : {}),
+        ...(lcr.optional ? { optional: true } : {}),
+      };
+      return done(addLog({
+        ...ctx,
+        ownerState: {
+          ...ctx.ownerState,
+          life_crash_replacements: [...(ctx.ownerState.life_crash_replacements ?? []), declared],
+        },
+      }, `このターン、あなたのライフクロスのクラッシュを置換（${declared.kind === 'mill' ? `デッキ上${declared.count}枚トラッシュ` : `対戦相手のライフクロス${declared.count}枚クラッシュ`}）`));
     }
     case 'ENERGY_CHARGE_BY_FIELD_COUNT':   return execEnergyChargeByFieldCount(action as import('../types/effects').EnergyChargeByFieldCountAction, ctx);
     case 'POWER_MODIFY_BY_TARGET_LEVEL':   return execPowerModifyByTargetLevel(action as PowerModifyByTargetLevelAction, ctx);

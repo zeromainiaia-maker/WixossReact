@@ -243,7 +243,19 @@ export interface PlayerState {
   turn_end_mill_count?: number;
   // 次のダメージを「代わりに自デッキ上N枚トラッシュ」で置き換えるキュー（REPLACE_NEXT_DAMAGE_WITH_MILL 効果。
   // 各要素=ミル枚数。デッキが枚数未満のエントリは置き換え不可＝原文注記どおりダメージ通過。ターン境界でリセット）
+  /**
+   * @deprecated 続き431 で `life_crash_replacements` へ統合。**読むときは
+   * `screens/battle/lifeCrashReplace.ts` の `lifeCrashReplacements()` を通すこと**
+   * （続行中の対戦の state にはこの形式が残っている）。新規の書き込みはしない。
+   */
   damage_replace_mill?: number[];
+  /**
+   * 「あなたのライフクロスがクラッシュされる場合、代わりに〜する」＝**ライフクラッシュの置換**（§6.4）。
+   * 宣言（アーツ／【出】／ルリグ付与の【常】）はここへ積み、消費は
+   * `screens/battle/lifeCrashReplace.ts` の funnel 1本を通す（消費地点は
+   * シグニアタックの `crashOneLife` とルリグアタックの2つ）。ターン境界でクリアする。
+   */
+  life_crash_replacements?: LifeCrashReplacement[];
   // ダメージ無効ウィンドウ（PREVENT_DAMAGE 効果）。期間内は回数無制限で無効化する（prevent_next_damage の1回消費とは別）。
   // scope='ALL'＝あらゆるダメージ（crashOneLife 経路も含む）／'LRIG'＝ルリグアタックのダメージのみ。
   // expires='MY_TURN_END'＝自分のターン終了時に消滅／'NEXT_TURN_END'＝「次のターンの間」＝自ターン終了を1回だけ生き延び、
@@ -698,6 +710,21 @@ export interface PlayerState {
    * 機構を engine に新設せずに済んでいる＝**先に全部聞いてから同期的に適用する**。
    */
   leave_substitute_choices?: Record<string, string>;
+}
+
+/** ライフクラッシュ置換1件ぶんの宣言（`PlayerState.life_crash_replacements`）。 */
+export interface LifeCrashReplacement {
+  /** 置換の中身。`mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ。 */
+  kind: 'mill' | 'crash_opponent';
+  count: number;
+  /** 「対戦相手の**シグニ**によって」等の発生源限定。未指定＝どのダメージでもよい。 */
+  damageSource?: 'lrig' | 'signi';
+  /** 「シグニの**アタック**によって」限定＝効果によるクラッシュには乗らない。 */
+  byAttack?: boolean;
+  /** 「**次に**」＝1回限り。未指定＝そのターン中は何度でも成立する（【常】付与型）。 */
+  once?: boolean;
+  /** 原文「〜してもよい」。⚠現状は自動適用の近似（funnel のコメント参照）。 */
+  optional?: boolean;
 }
 
 export interface GameLog {

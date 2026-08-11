@@ -1308,6 +1308,36 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}), ...(oppSelects ? { opponentSelects: true } : {}) };
   }
 
+  // ---- ライフクロスがクラッシュされる場合の置換（§6.4・WX24-P4-009／WX25-P3-004／WXDi-CP01-023）----
+  // ⚠**下の deck-mill／LIFE_CRASH 規則より先に判定する**＝置換の宣言を即時実行に化けさせないため。
+  //   実測の壊れ方＝`WX24-P4-009` は**その場で自分のデッキを10枚削り**、`WX25-P3-004` は
+  //   **タダで相手のライフを1枚割って**いた（どちらも「代わりに」を読み落とした即時実行）。
+  //   すぐ下の置換ミル規則に同じ注意書きがあるのと同じ事故が、別の文型で再発していた。
+  {
+    if (/クラッシュされる場合、代わりに/.test(t) && /ライフクロス/.test(t)) {
+      const once = /次に/.test(t);
+      const srcM = t.match(/対戦相手の(シグニ|ルリグ)(?:のアタック)?によって/);
+      const byAttack = /のアタックによって/.test(t);
+      const optional = /てもよい/.test(t);
+      const base = {
+        type: 'LIFE_CRASH_REPLACE' as const,
+        ...(srcM ? { damageSource: (srcM[1] === 'ルリグ' ? 'lrig' : 'signi') as 'lrig' | 'signi' } : {}),
+        ...(byAttack ? { byAttack: true } : {}),
+        ...(once ? { once: true } : {}),
+        ...(optional ? { optional: true } : {}),
+      };
+      // ⚠語尾は「置く」と「置いてもよい」の両方がある（任意版を落とすと即時自ミルへ落ちる＝元のバグに戻る）
+      const millM = t.match(/代わりにあなたのデッキの上からカードを([０-９\d]+)枚トラッシュに置(?:く|いて)/);
+      if (millM) {
+        return { ...base, replaceKind: 'mill', count: parseNum(millM[1]) } as import('../../types/effects').LifeCrashReplaceAction;
+      }
+      const crashM = t.match(/代わりに対戦相手のライフクロス([０-９\d]+)枚をクラッシュ(?:する|して)/);
+      if (crashM) {
+        return { ...base, replaceKind: 'crash_opponent', count: parseNum(crashM[1]) } as import('../../types/effects').LifeCrashReplaceAction;
+      }
+    }
+  }
+
   // ---- このターン次にダメージを受ける場合、代わりにデッキ上N枚トラッシュ（置換ミル・WXDi-P15-041/WX24-P1-010 等）----
   // ⚠下の deck-mill 規則より先に判定すること（「代わりに…デッキの上から…トラッシュに置く」が
   //   即時自ミルに化けていた実バグの根本原因＝置換シールドが無条件自傷になっていた・続き25）

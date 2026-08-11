@@ -770,6 +770,15 @@ function actionJa(a?: Action, effectType?: string): string {
         : `このターン、次の${a.count ?? 1}回のダメージを受けない`;
     case 'REPLACE_NEXT_DAMAGE_WITH_MILL':
       return `このターン、次にあなたが${a.damageSource ? (a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ') + 'によって' : ''}ダメージを受ける場合、代わりにあなたのデッキの上からカードを${a.millCount}枚トラッシュに置く`;
+    case 'LIFE_CRASH_REPLACE': {
+      const src = a.damageSource ? `対戦相手の${a.damageSource === 'lrig' ? 'ルリグ' : 'シグニ'}${a.byAttack ? 'のアタック' : ''}によって` : '';
+      // ⚠語尾は活用が変わる（「置く」/「置いてもよい」・「クラッシュする」/「クラッシュしてもよい」）＝
+      //   `${…}てもよい` と素朴に繋ぐと「置くてもよい」になる。
+      const what = a.replaceKind === 'mill'
+        ? `あなたのデッキの上からカードを${a.count}枚トラッシュに${a.optional ? '置いてもよい' : '置く'}`
+        : `対戦相手のライフクロス${a.count}枚を${a.optional ? 'クラッシュしてもよい' : 'クラッシュする'}`;
+      return `このターン、${a.once ? '次に' : ''}あなたのライフクロスが${src}クラッシュされる場合、代わりに${what}`;
+    }
     case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
     case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': {

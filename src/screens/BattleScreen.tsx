@@ -20,6 +20,7 @@ import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, hasAcceAt } from 
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
+import { pickLifeCrashReplacement, applyMillReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
@@ -3676,6 +3677,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_end_mill_count: undefined,
           prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：このターン分は消滅・「次のターンの間」は1回だけ持ち越し
           damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
+          life_crash_replacements: undefined, // §6.4 ライフクラッシュ置換の宣言をリセット（このターン限定）
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           holograph_reveal_replace_this_turn: undefined,
@@ -4088,7 +4090,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, leave_substitute_choices: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
-        prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
+        prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, holograph_reveal_replace_this_turn: undefined, banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
@@ -7620,7 +7622,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     state: PlayerState,
     damageSource?: DamageSourceContext,
     crashSourceCardNum?: string,
-  ): { newState: PlayerState; crashed: string | null; prevented?: boolean } => {
+  ): { newState: PlayerState; crashed: string | null; prevented?: boolean; crashOpponentInstead?: number } => {
     // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
     // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
     if ((state.prevent_damage_windows ?? []).some(w => w.scope === 'ALL')) {
@@ -7644,24 +7646,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         prevented: true,
       };
     }
-    // REPLACE_NEXT_DAMAGE_WITH_MILL: ダメージを「デッキ上N枚トラッシュ」で置き換え（WXDi-P15-041 等）。
-    // デッキがN枚未満のエントリは置き換え不可（原文注記「デッキが2枚以下の場合は置き換えられない」）＝スキップ。
+    // ライフクラッシュ置換（§6.4 funnel＝`screens/battle/lifeCrashReplace.ts`）。
+    // ⚠**限定（誰のどんな攻撃か）はここで見る**＝従来は `damageSource` を宣言していたのに捨てていて、
+    //   「シグニによって」限定の札がルリグアタックのダメージまで置換していた。
     {
-      const drm = state.damage_replace_mill ?? [];
-      const di = drm.findIndex(n => state.deck.length >= n);
-      if (di >= 0) {
-        const n = drm[di];
-        const milled = state.deck.slice(0, n);
-        appendBattleLogs([`ダメージ置換：代わりにデッキの上から${n}枚をトラッシュに置く`]);
+      const picked = pickLifeCrashReplacement(state, { damageSource: damageSource?.type });
+      if (picked && picked.repl.kind === 'mill') {
+        const applied = applyMillReplacement(state, picked.index, picked.repl.count);
+        appendBattleLogs([lifeCrashReplaceLog(picked.repl)]);
+        return { newState: applied.state, crashed: null, prevented: true };
+      }
+      if (picked && picked.repl.kind === 'crash_opponent') {
+        // 「代わりに**対戦相手の**ライフクロスをクラッシュする」＝相手 state が要るので
+        // ここでは消費だけ行い、実際のクラッシュは呼び出し側（両者の state を持つ）が行う。
+        appendBattleLogs([lifeCrashReplaceLog(picked.repl)]);
         return {
-          newState: {
-            ...state,
-            deck: state.deck.slice(n),
-            trash: [...state.trash, ...milled],
-            damage_replace_mill: drm.filter((_, i) => i !== di),
-          },
+          newState: consumeLifeCrashReplacement(state, picked.index),
           crashed: null,
           prevented: true,
+          crashOpponentInstead: picked.repl.count,
         };
       }
     }
@@ -8649,8 +8652,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
           } else if (isLancer || isSLancer) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
-            const { newState: afterCrash, crashed, prevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
-            if (prevented) {
+            const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
+            if (crashOpponentInstead) {
+              // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」＝
+              // 置換した側（防御側）から見た「対戦相手」＝**アタックしている自分**のライフを割る。
+              newOpState = afterCrash;
+              for (let i = 0; i < crashOpponentInstead; i++) newMyState = crashOneLife(newMyState).newState;
+            } else if (prevented) {
               appendBattleLogs([`${label}：ダメージ無効`]);
               newOpState = afterCrash;
             } else if (!crashed) {
@@ -8691,8 +8699,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           : `${myCardName}がライフをクラッシュ`;
 
         // 1枚目クラッシュ
-        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
-        if (firstPrevented) {
+        const { newState: afterFirst, crashed: firstCrashed, prevented: firstPrevented, crashOpponentInstead: firstCrashOpp } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
+        if (firstCrashOpp) {
+          // ライフクラッシュ置換「代わりに対戦相手のライフクロスをクラッシュする」（WX25-P3-004）。
+          // ⚠置換した側から見た「対戦相手」＝**アタックしている自分**なので、割れるのは自分のライフ。
+          newOpState = afterFirst;
+          for (let i = 0; i < firstCrashOpp; i++) newMyState = crashOneLife(newMyState).newState;
+        } else if (firstPrevented) {
           appendBattleLogs([`${myCardName}がアタック：ダメージ無効`]);
           newOpState = afterFirst;
         } else if (!firstCrashed) {
@@ -10563,6 +10576,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, leave_substitute_choices: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
+        life_crash_replacements: undefined,
         prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
@@ -10779,19 +10793,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...consumed,
             field: { ...my.field, lrig_attacked: false },
           };
-        } else if ((my.damage_replace_mill ?? []).some(n => my.deck.length >= n)) {
-          // REPLACE_NEXT_DAMAGE_WITH_MILL: ルリグアタックのダメージを「デッキ上N枚トラッシュ」で置き換え（crashOneLife と同仕様）
-          const drmL = my.damage_replace_mill ?? [];
-          const diL = drmL.findIndex(n => my.deck.length >= n);
-          const nL = drmL[diL];
-          appendBattleLogs([`ルリグアタック：ダメージ置換＝代わりにデッキの上から${nL}枚をトラッシュに置く`]);
-          newMyState = {
-            ...my,
-            deck: my.deck.slice(nL),
-            trash: [...my.trash, ...my.deck.slice(0, nL)],
-            damage_replace_mill: drmL.filter((_, i) => i !== diL),
-            field: { ...my.field, lrig_attacked: false },
-          };
+        } else if (pickLifeCrashReplacement(my, { damageSource: 'lrig' })?.repl.kind === 'mill') {
+          // ライフクラッシュ置換（ルリグアタック側の消費地点）＝ funnel で crashOneLife と同じ規則を通す。
+          // ⚠「シグニによって」限定の宣言はここで**選ばれない**（従来は限定を見ずに消費していた）。
+          const pickedL = pickLifeCrashReplacement(my, { damageSource: 'lrig' })!;
+          const appliedL = applyMillReplacement(my, pickedL.index, pickedL.repl.count);
+          appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(pickedL.repl)}`]);
+          newMyState = { ...appliedL.state, field: { ...my.field, lrig_attacked: false } };
         } else if (my.prevent_lrig_damage || (() => {
           // PREVENT_LRIG_DAMAGE (条件付き): activeCondition を正確に評価
           return my.field.signi.some((stack) => {

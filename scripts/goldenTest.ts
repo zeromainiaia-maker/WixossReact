@@ -60,6 +60,7 @@ import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
+import { pickLifeCrashReplacement, applyMillReplacement } from '../src/screens/battle/lifeCrashReplace';
 import { buildEnergyPayPool, energyPoolCardNums, offZonePayLimit, planEnergyPayment } from '../src/screens/battle/energyPaySource';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown } from '../src/screens/battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
@@ -9464,16 +9465,21 @@ test('POWER_MODIFY targetsLastProcessed: 選択した＜毒牙＞に合計+10000
 // ── REPLACE_NEXT_DAMAGE_WITH_MILL（2026-07-04 続き25）: ダメージ置換ミルの予約 ──
 // 「次にあなたがダメージを受ける場合、代わりにデッキ上N枚トラッシュ」（WXDi-P15-041 等・黒ハナレ系）。
 // 消費側（crashOneLife/ルリグアタック応答）は BattleScreen 層＝実機検証対象。ここでは予約の積み上げを固定。
-test('REPLACE_NEXT_DAMAGE_WITH_MILL: 予約が damage_replace_mill キューに積まれる', () => {
+test('REPLACE_NEXT_DAMAGE_WITH_MILL: 予約が life_crash_replacements に積まれ、発生源限定を落とさない', () => {
   const act = { type: 'SEQUENCE', steps: [
     { type: 'REPLACE_NEXT_DAMAGE_WITH_MILL', millCount: 3 },
     { type: 'REPLACE_NEXT_DAMAGE_WITH_MILL', millCount: 3, damageSource: 'signi' },
   ] } as unknown as EffectAction;
   const ctx = mkCtx({}, {});
   const r = run(act, ctx);
-  const q = (r.ownerState as PlayerState & { damage_replace_mill?: number[] }).damage_replace_mill ?? [];
+  const q = r.ownerState.life_crash_replacements ?? [];
   eq(q.length, 2, '2件予約されるはず');
-  eq(q[0], 3, 'ミル枚数3のはず');
+  eq(q[0].count, 3, 'ミル枚数3のはず');
+  eq(q[0].once, true, '「次に」＝1回限り');
+  eq(q[0].damageSource, undefined, '限定なしの宣言は限定を持たない');
+  // 🔴 続き431 まで `damage_replace_mill: number[]` に潰していて **damageSource を捨てて**いた＝
+  //    「シグニによって」限定の WX25-P1-010 がルリグアタックのダメージまで置換していた。
+  eq(q[1].damageSource, 'signi', '発生源限定を予約に載せる（捨てると限定が効かない）');
 });
 
 // ── 「「【常】：アタックできない。」を得る」の対象決め打ち是正（2026-07-19 続き205・Opusタスク1(a)）──
@@ -30227,6 +30233,70 @@ test('§6.4 離場置換の対話: 決定は再検証される（盤面が変わ
   const applied = applyEffectLeaveSubstitutes(victim, 'opponent', stale, { isBanish: true });
   eq(applied.replaced, false, '成立しない決定は置換に使わない');
   eq(applied.ctx.otherState.leave_substitute_choices, undefined, '使った決定は消費して残さない');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 ライフクラッシュの置換（`screens/battle/lifeCrashReplace.ts`）
+// ⚠**「代わりに」を読み落とすと置換が即時実行に化ける**＝実測で `WX24-P4-009` は自分のデッキを
+//   10枚削り、`WX25-P3-004` はタダで相手のライフを割っていた。ここがその再発の見張り。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 ライフクラッシュ置換: 3枚が「即時実行」ではなく「置換の宣言」になっている', () => {
+  const decl = (cardNum: string, effectId: string) => {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live にある`);
+    return JSON.stringify(e);
+  };
+  const a = decl('WX24-P4-009', 'WX24-P4-009-E1');
+  ok(a.includes('"LIFE_CRASH_REPLACE"'), 'WX24-P4-009: 置換の宣言になっている');
+  ok(!/"type":"TRASH","target":\{"type":"DECK_CARD","owner":"self","count":10/.test(a),
+     '🔴WX24-P4-009: 素の自ミル10に戻っていない（アーツを使った瞬間に自分のデッキが10枚削れる退化）');
+  const b = decl('WX25-P3-004', 'WX25-P3-004-E1');
+  ok(b.includes('"LIFE_CRASH_REPLACE"'), 'WX25-P3-004: 置換の宣言になっている');
+  ok(!b.includes('"type":"LIFE_CRASH"'), '🔴WX25-P3-004: 即時の相手ライフクラッシュに戻っていない（タダで1枚割る退化）');
+  const c = decl('WXDi-CP01-023', 'WXDi-CP01-023-E1');
+  ok(c.includes('"LIFE_CRASH_REPLACE"'), 'WXDi-CP01-023: 付与する【常】が置換の宣言になっている');
+  ok(c.includes('"byAttack":true'), 'WXDi-CP01-023: 「シグニのアタックによって」限定が載る');
+});
+
+test('§6.4 ライフクラッシュ置換: 発生源の限定が効く（従来は宣言していたのに捨てていた）', () => {
+  const signiOnly: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 3, damageSource: 'signi', once: true }] };
+  ok(!!pickLifeCrashReplacement(signiOnly, { damageSource: 'signi' }), 'シグニのダメージなら置換できる');
+  eq(pickLifeCrashReplacement(signiOnly, { damageSource: 'lrig' }), null,
+     '🔴ルリグのダメージは置換しない（WX25-P1-010「シグニによって」限定が効いていなかった実バグ）');
+  const anySrc: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 3, once: true }] };
+  ok(!!pickLifeCrashReplacement(anySrc, { damageSource: 'lrig' }), '限定なしの宣言はどのダメージでも置換する');
+});
+
+test('§6.4 ライフクラッシュ置換: 「アタックによって」限定は効果クラッシュに乗らない', () => {
+  const byAttack: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 5, damageSource: 'signi', byAttack: true }] };
+  ok(!!pickLifeCrashReplacement(byAttack, { damageSource: 'signi' }), 'シグニのアタックなら置換する');
+  eq(pickLifeCrashReplacement(byAttack, {}), null, '効果によるクラッシュ（damageSource なし）には乗らない');
+});
+
+test('§6.4 ライフクラッシュ置換: デッキが足りなければ置き換えない（原文の注記＝デッキアウト自傷の防止）', () => {
+  const thin: PlayerState = { ...mkState({}), deck: ['a', 'b'], life_crash_replacements: [{ kind: 'mill', count: 3, once: true }] };
+  eq(pickLifeCrashReplacement(thin, { damageSource: 'signi' }), null, 'デッキ2枚では3枚ミルの置換は成立しない');
+  const enough: PlayerState = { ...thin, deck: ['a', 'b', 'c'] };
+  ok(!!pickLifeCrashReplacement(enough, { damageSource: 'signi' }), 'デッキが足りれば成立する');
+});
+
+test('§6.4 ライフクラッシュ置換: once は消費し、【常】付与型はターン中に何度でも成立する', () => {
+  const once: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 2, once: true }] };
+  const applied = applyMillReplacement(once, 0, 2);
+  eq(applied.milled.length, 2, 'デッキ上2枚がトラッシュへ');
+  eq(applied.state.trash.length, once.trash.length + 2, 'トラッシュが2枚増える');
+  eq(pickLifeCrashReplacement(applied.state, { damageSource: 'signi' }), null, '「次に」は1回で消える');
+  const cont: PlayerState = { ...mkState({}), life_crash_replacements: [{ kind: 'mill', count: 2 }] };
+  const contApplied = applyMillReplacement(cont, 0, 2);
+  ok(!!pickLifeCrashReplacement(contApplied.state, { damageSource: 'signi' }), '【常】付与型は残る（ターン中何度でも）');
+});
+
+test('§6.4 ライフクラッシュ置換: 続行中の対戦の legacy damage_replace_mill も読める', () => {
+  const legacy: PlayerState = { ...mkState({}), damage_replace_mill: [3] };
+  const picked = pickLifeCrashReplacement(legacy, { damageSource: 'signi' });
+  ok(!!picked, '旧形式（number[]）の予約も置換に使える');
+  eq(picked!.repl.once, true, '旧形式は「次に」＝1回限りとして扱う');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

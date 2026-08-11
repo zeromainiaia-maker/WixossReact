@@ -847,6 +847,7 @@ export type EffectAction =
   | PlaceUnderSourceSigniAction
   | PreventNextDamageAction
   | ReplaceNextDamageWithMillAction
+  | LifeCrashReplaceAction
   | TakeFromUnderSigniAction
   | GrantEffectAction
   | InstallDelayedTriggerAction
@@ -2412,6 +2413,27 @@ export interface PreventNextDamageAction {
 // 「このターン、次にあなたがダメージを受ける場合、代わりにあなたのデッキの上からカードをN枚トラッシュに置く」
 // （WXDi-P15-041/WX24-P1-010 等・黒ハナレ系）。PlayerState.damage_replace_mill のキューに積み、
 // crashOneLife／ルリグアタック応答が消費する。デッキがN枚未満なら置き換え不可（原文注記）＝ダメージ通過。
+/**
+ * 「あなたのライフクロス（1枚）が〈対戦相手のシグニのアタック〉によってクラッシュされる場合、
+ * 代わりに〜する」＝**ライフクラッシュの置換宣言**（`WX24-P4-009`／`WX25-P3-004`／`WXDi-CP01-023`）。
+ * ⚠**宣言であって即時実行ではない**＝`PlayerState.life_crash_replacements` に積み、
+ * 消費は `screens/battle/lifeCrashReplace.ts` の funnel（消費地点2つ）が行う。
+ */
+export interface LifeCrashReplaceAction {
+  type: 'LIFE_CRASH_REPLACE';
+  /** `mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ。 */
+  replaceKind: 'mill' | 'crash_opponent';
+  count: number;
+  /** 「対戦相手の**シグニ**によって」等の限定。 */
+  damageSource?: 'lrig' | 'signi';
+  /** 「シグニの**アタック**によって」限定（効果によるクラッシュには乗らない）。 */
+  byAttack?: boolean;
+  /** 「**次に**」＝1回限り。 */
+  once?: boolean;
+  /** 原文「〜してもよい」。 */
+  optional?: boolean;
+}
+
 export interface ReplaceNextDamageWithMillAction {
   type: 'REPLACE_NEXT_DAMAGE_WITH_MILL';
   millCount: number;
