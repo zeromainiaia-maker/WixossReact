@@ -30439,6 +30439,38 @@ test('§6.4 一時レゾナ: ターン終了処理2経路の両方で funnel を
   eq(calls, 2, `ターン終了処理2経路の両方から呼ぶ（現在 ${calls} 箇所）`);
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 UNKNOWN 消化: 任意コストが UNKNOWN に落ちて「タダで本体が撃てる」形（続き434）
+// 🔴**任意コストが UNKNOWN になると本体だけが無条件に走る**＝下振れではなく**過剰効果**。
+//   ここは「コストが載っているか」を live 構造で見張る。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 任意コストの UNKNOWN 落ち: 手札の〈種別〉指定コストが載る', () => {
+  // WX24-P1-065-E1 ②「手札からスペルを１枚捨ててもよい。そうした場合、対戦相手の手札を１枚…捨てさせる」
+  const e1 = effectsMap.get('WX24-P1-065')?.find(x => x.effectId === 'WX24-P1-065-E1');
+  ok(!!e1, 'WX24-P1-065-E1 が live にある');
+  const j1 = JSON.stringify(e1);
+  ok(!j1.includes('"type":"UNKNOWN"'), '🔴WX24-P1-065-E1: コストが UNKNOWN に戻っていない（タダで相手の手札を落とす退化）');
+  ok(j1.includes('"cardType":"スペル"'), '②の「スペル」限定が載る（どのカードでも払えると過少請求）');
+  // WXEX2-20-E3「手札からシグニを１枚捨ててもよい。その後、…」
+  const e2 = effectsMap.get('WXEX2-20')?.find(x => x.effectId === 'WXEX2-20-E3');
+  ok(!!e2, 'WXEX2-20-E3 が live にある');
+  ok(!JSON.stringify(e2).includes('"type":"UNKNOWN"'), '🔴WXEX2-20-E3: UNKNOWN に戻っていない');
+});
+
+test('§6.4 任意コストの UNKNOWN 落ち: このシグニの下からの〈クラス〉指定コストが載る', () => {
+  // WX25-CP1-091-E2「このシグニの下から＜ブルアカ＞のカードを３枚トラッシュに置いてもよい。そうした場合、【エナチャージ１】」
+  const e = effectsMap.get('WX25-CP1-091')?.find(x => x.effectId === 'WX25-CP1-091-E2');
+  ok(!!e, 'WX25-CP1-091-E2 が live にある');
+  const j = JSON.stringify(e);
+  ok(!j.includes('"type":"UNKNOWN"'), '🔴WX25-CP1-091-E2: UNKNOWN に戻っていない（タダで毎ターンエナチャージする退化）');
+  ok(j.includes('"underAnySigniTrash"'), '「このシグニの下から」コストが任意コストとして載る');
+  ok(j.includes('"fromThis":true'), '「この**シグニの**下から」限定（他のシグニの下では払えない）');
+  ok(j.includes('"story":"ブルアカ"'), '＜ブルアカ＞限定が落ちていない（落とすと過少請求）');
+  // ⚠`TAKE_FROM_UNDER_SIGNI{upToCount:true}` のまま残すと N≧2 で1枚だけ払って本体を撃てる
+  ok(!j.includes('"upToCount":true'), '部分払いの抜け穴（upToCount）が残っていない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

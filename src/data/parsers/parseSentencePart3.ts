@@ -499,7 +499,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のシグニをエナゾーンに置く（エナ送り。バニッシュとは別アクション） ----
+  // ⚠**BANISH は `parseSigniTarget` を通すのに、エナ送りは narrow な regex で filter を手組みしていた**＝
+  //   同じ修飾でも動詞によって落ちる（PLAN §4 教訓 (i)「同じ語彙でも入口ごとに壊れ方が違う」の再来）。
+  //   実測＝「対戦相手の**ダウン状態の**シグニ1体を対象とし、それをエナゾーンに置く」は
+  //   バニッシュなら `isDown:true` が載るのに、エナ送りでは **UNKNOWN** に落ちていた（`WXEX2-20-E3`）。
+  //   修飾つきの「〜を対象とし、（それを）エナゾーンに置く」は共通の対象パーサへ寄せる。
   {
+    const tgtM = t.match(/対戦相手の[^。]*シグニ(?:[０-９\d]+体|１体)?を対象とし、?(?:それを)?エナゾーンに置く$/);
+    if (tgtM) return { type: 'SEND_TO_ENERGY', target: parseSigniTarget(t, 'opponent') } as SendToEnergyAction;
     const m = t.match(/対戦相手のシグニ([０-９\d]*)体(?:を対象とし、)?(?:それを)?エナゾーンに置く/);
     if (m) {
       const cnt = m[1] ? parseNum(m[1]) : 1;
