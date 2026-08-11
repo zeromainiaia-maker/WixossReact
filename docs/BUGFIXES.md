@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — PLAN §7 実機検証バッチ1（Codex起案→Claude実機検証・続き435）
+
+続き427（アシストルリグアタック）／続き426（複合任意コスト）／続き434（UNKNOWN是正3件）が持ち込んだ計9件の未検証UI項目を、CODEX_GUIDE.mdの手順どおりCodexへ指示書（Claude作成）で投入。**Codexのサンドボックス環境はSupabaseへのネットワークアクセスが `net::ERR_NETWORK_ACCESS_DENIED` で遮断されており、`scripts/verifyBattleDrive.mjs` の実行検証が一切できなかった**（15シナリオのコードは書けたが全件`BLOCKED`）＝**新知見としてCODEX_GUIDE.md §2に追記**。
+
+Claude側（ネットワークアクセスあり）で15シナリオを実行し検証：
+- **✅完全PASS（7件）**＝`assistAttackNoFlag`／`assistAttackSkipConfirm`／`assistAttackCpuSequence`／`assistAttackNoEligibleAdvance`（アシストルリグのアタック機構3系統）／`fezoneDoubleCostSkip`（`WXDi-P14-044` skip側）／`sYokusenkiSpellSkip`（`WX24-P1-065`② skip側）／`cheatingSameLevelDownFilter`（`WXEX2-20` 同レベル＋ダウン限定フィルタ）。既定orderに登録。
+- **❌ドライバ未完成（8件）**＝`assistAttackBoth`／`connectSpinningChoice4Pay`・`Insufficient`／`fezoneDoubleCostPay`／`sYokusenkiSpellPay`／`kokonaUnderThreePay`・`ThreeSkip`・`Insufficient`。**バッチ実行時と個別実行時でPASS/FAILが一部入れ替わった**（`sYokusenkiSpellSkip`・`fezoneDoubleCostSkip`・`assistAttackNoEligibleAdvance`はバッチではFAIL・個別ではPASS＝既知のバッチ限定状態汚染）が、残る8件は個別実行でも一貫してFAIL。原因調査の結果、**engine側のバグではなくシナリオのクリック手順・盤面注入の不備が濃厚**と判断（例：`connectSpinningChoice4Pay`はピース`WXDi-P14-002`を`lrig_deck`ゾーンに置いて`my-lrig-dk`→`zone-card-0`経由で開こうとしているが、コスト支払い用のエナ選択で参照しているカード名（altテキスト）が実際の注入カードと一致していない疑いがある。既存の類似シナリオ`mayuEncounterFreeGrow`と手順を比較したが、コスト有無の違いで単純な移植ができなかった）。**これらのscenarios定義はコードとして残置し既定orderからは除外**（follow-upで書き直す）。
+- **🔎副産物の発見**＝2026-07-09（続き60）に記録されていた「`WDA-F02-17`のON_TRASH self resume経路取りこぼし」バグ（`handDiscard`シナリオ・既定order除外中）を再実行したところ**既にPASSしていた**＝別の一般化修正（`handleEffectInteraction`が`collectBoardDiffTriggers`を呼ぶようになった経路）で無申告のまま解消済みだったと判明。`handDiscard`を既定orderに復帰。
+
+ゲート：golden 1809/1809・census 852（据置）・smoke 全0・fuzz 全0・lint 0 errors/259 warnings（変化なし＝engine/parser/effects_*.jsonは触っていない）。変更ファイルは `scripts/verifyBattleDrive.mjs` のみ（+15シナリオ・700行）。
+
+**PLAN.md §7 更新**＝A群（アシストルリグ）は3項目中2項目チェック済み（残り1項目＝人間クリックでの左右連続アタックはCPU版で機構確認済みだがドライバ未完成）、C群（`WXEX2-20`）は完全チェック、B群・C群の残りは「skip側は確認済み・pay側は未確認」を明記して未チェックのまま維持。
+
 ## 2026-08-11 — §6.4 UNKNOWN 消化：任意コストが落ちて「タダで本体が撃てる」形を3件是正（続き434）
 
 golden **1807→1809**、census **854→852**（ベースライン締め直し）、**UNKNOWN 34→30ノード／32→29カード**、ゲート全緑。
