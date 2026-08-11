@@ -7177,9 +7177,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ? { ...casterState, lrig_trash: [...casterState.lrig_trash, card_num] }
         : { ...casterState, trash: [...casterState.trash, card_num] })
         : casterState;
-      // コスト支払い
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      // コスト支払い（エナ支払い元は funnel 1本＝§6.4）。
+      // ⚠この経路だけ `underSelfTrash`（シグニの下からのコスト）と同居しうる。両者が**同じスタック**を
+      //   触ると index がずれるので、`UNDER_CARD_AS_ENERGY_COST` と `underSelfTrash` を同じカードが
+      //   持たないことを goldenTest でロックしてある（現状 0件）。
+      const cutinPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = cutinPay.paidNums;
       let cutinPaid: PlayerState;
       if (source === 'lrig_deck') {
         // ルリグデッキから使用: デッキから取り出してルリグトラッシュへ
