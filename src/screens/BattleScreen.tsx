@@ -6354,8 +6354,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const artsPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = artsPay.paidNums;
       // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払い元が手札なら
       // 既存の discard と**同じ index 空間**でまとめて消す（別々に消すと index がずれる）。
       const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
