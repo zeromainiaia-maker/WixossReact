@@ -6694,7 +6694,16 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'REVEAL_UNTIL_TO_FIELD':          return execRevealUntilToField(action as import('../types/effects').RevealUntilToFieldAction, ctx);
     case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
     case 'MILL':                    return execMill(action as MILLAction, ctx);
-    case 'STUB': return execStub(action as StubAction, ctx, executeAction);
+    case 'STUB': {
+      // §6.4 離場置換の対話化（続き430）の内部 STUB は**このファイル内**で処理する
+      //   （置換の列挙・適用と同じ場所に閉じておく／`execStubPart*` は effectExecutor を
+      //     import できない＝循環参照になるため）。
+      const stub = action as StubAction;
+      if (stub.id === 'INTERNAL_LEAVE_SUB_ASK') return execLeaveSubAsk(stub, ctx);
+      if (stub.id === 'INTERNAL_LEAVE_SUB_DECIDE') return execLeaveSubDecide(stub, ctx);
+      if (stub.id === 'INTERNAL_LEAVE_SUB_NOOP') return done(ctx);
+      return execStub(stub, ctx, executeAction);
+    }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
     default:                        return done(ctx);
   }
