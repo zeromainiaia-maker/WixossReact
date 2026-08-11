@@ -11853,9 +11853,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 《コインアイコン》コスト（【出】《コイン》等）
       const coinCostOPC = cost?.coin ?? 0;
       if (coinCostOPC > 0 && (placedState.coins ?? 0) < coinCostOPC) return; // 支払い不能（UI側でも無効化済み）
-      let paid: PlayerState = {
+      let paid: PlayerState = opcPay.applyTo({
         ...placedState,
-        energy: isHandToEnergy ? [...newEnergy, ...handPickedNums] : newEnergy,
         hand: newHand,
         coins: Math.max(0, (placedState.coins ?? 0) - coinCostOPC),
         coins_paid_this_turn: (placedState.coins_paid_this_turn ?? 0) + coinCostOPC, // COINS_PAID_THIS_TURN
