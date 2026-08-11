@@ -506,7 +506,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   修飾つきの「〜を対象とし、（それを）エナゾーンに置く」は共通の対象パーサへ寄せる。
   {
     const tgtM = t.match(/対戦相手の[^。]*シグニ(?:[０-９\d]+体|１体)?を対象とし、?(?:それを)?エナゾーンに置く$/);
-    if (tgtM) return { type: 'SEND_TO_ENERGY', target: parseSigniTarget(t, 'opponent') } as SendToEnergyAction;
+    if (tgtM) {
+      const tgt = parseSigniTarget(t, 'opponent');
+      // ⚠「この方法で捨てたシグニと**同じレベル**の」＝同一性参照。`parseSigniTarget` は持たないので
+      //   ここで載せる（`effectParser` の `IDENTITY_BATCH5B` は**付与能力の内側には届かない**＝
+      //   `WXEX2-20-sub-E1` で実測）。キーは同型の兄弟 `WXK06-060-E1` に合わせる。
+      //   ⚠載せないと「同じレベル」限定が落ちて**どのダウン状態シグニでもエナ送りできる過剰効果**になる。
+      if (/この方法で捨てたシグニと同じレベル/.test(t)) {
+        tgt.filter = { ...(tgt.filter ?? {}), levelEqLastProcessed: true };
+      }
+      return { type: 'SEND_TO_ENERGY', target: tgt } as SendToEnergyAction;
+    }
     const m = t.match(/対戦相手のシグニ([０-９\d]*)体(?:を対象とし、)?(?:それを)?エナゾーンに置く/);
     if (m) {
       const cnt = m[1] ? parseNum(m[1]) : 1;

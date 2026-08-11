@@ -4596,6 +4596,9 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   'WXEX1-36-E1': { type: 'BANISH', flag: 'levelEqLastProcessed' },
   'WXEX2-42-TRAP': { type: 'TRANSFER_TO_DECK', flag: 'levelEqLastProcessed' },
   'WXK06-060-E1': { type: 'BOUNCE', flag: 'levelEqLastProcessed' },
+  // 続き434＝`WXEX2-20-E3` がルリグへ付与する【自】の内側（「その後、この方法で捨てたシグニと
+  // 同じレベルの対戦相手のダウン状態のシグニ1体を…エナゾーンに置く」）。兄弟の `WXK06-060-E1` と同型。
+  'WXEX2-20-sub-E1': { type: 'SEND_TO_ENERGY', flag: 'levelEqLastProcessed' },
   'WXDi-P04-070-E1': { type: 'TRANSFER_TO_HAND', flag: 'levelEqLastProcessed' },
   'WXDi-P05-018-E1': { type: 'ADD_TO_FIELD', flag: 'levelEqLastProcessed' },
   'WXDi-P02-034-E2': { type: 'ADD_TO_FIELD', flag: 'levelEqLastProcessed' },
