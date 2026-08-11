@@ -12174,10 +12174,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const lgDiscardAllCards = effect.cost?.discardAll ? [...baseLGHand] : [];
       const newHand = effect.cost?.discardAll ? [] : baseLGHand;
       const lgIsGameOnce = effect.usageLimit === 'once_per_game';
-      let paid: import('../types').PlayerState = {
+      let paid: import('../types').PlayerState = lgPay.applyTo({
         ...my,
         hand: newHand,
-        energy: newEnergy,
         trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
