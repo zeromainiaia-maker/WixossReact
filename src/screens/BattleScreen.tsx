@@ -11246,10 +11246,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
       }
       const isGameOnceAct = effect.usageLimit === 'once_per_game';
-      let paid: PlayerState = {
+      let paid: PlayerState = signiActPay.applyTo({
         ...my,
         hand: newHand,
-        energy: newEnergy,
         coins: coinCostAct > 0 ? Math.max(0, (my.coins ?? 0) - coinCostAct) : my.coins,
         coins_paid_this_turn: coinCostAct > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostAct : my.coins_paid_this_turn, // COINS_PAID_THIS_TURN
         activate_cost_zero_signi: my.activate_cost_zero_signi === cardNum ? undefined : my.activate_cost_zero_signi,
