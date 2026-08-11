@@ -207,6 +207,10 @@ export function execStubPart1(
         ...(ctx.ownerState.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== fetched), fetched,
       ] } : {}),
     };
+    if (deployBlocked) {
+      return done(addLog({ ...ctx, ownerState: next, lastProcessedCards: [] },
+        deployLimitLogMessage(deployBlocked, `《${fetchName}》`)));
+    }
     return done(addLog({ ...ctx, ownerState: next, lastProcessedCards: fetched ? [fetched] : [] }, fetched ? `《${fetchName}》をルリグデッキから場に出した` : `《${fetchName}》がルリグデッキにない`));
   }
   if (stub.id === 'PREVENT_NEXT_DAMAGE' || stub.id === 'PREVENT_NEXT_DAMAGE_THIS_TURN') {
