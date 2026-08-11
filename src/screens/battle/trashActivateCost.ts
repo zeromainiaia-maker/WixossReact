@@ -229,7 +229,7 @@ export function payTrashActivateCost(
     // 「この【起】のコストで捨てた枚数」の集約は他のコスト経路と同じ入口で作る
     ...activatedDiscardCostRecord(discardedCards.length, 0, 0, 0),
     ...(nextOp ? { opp_virus_removed_just: true } : {}),
-  };
+  });
   // 「この方法で捨てたシグニ」の参照先（他の【起】コスト経路と同じ規約で記録する）。
   if (discardedCards.length > 0) {
     const first = cardMap.get(discardedCards[0]);
