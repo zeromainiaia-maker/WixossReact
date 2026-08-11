@@ -913,7 +913,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const chooser = a.opponentSelects && a.source?.owner === 'opponent' ? '（相手が選ぶ）' : '';
       return a.shuffle
         ? `${targetJa(a.source)}をデッキに加えてシャッフルする${chooser}${opt}`
-        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : '上'}に置く${chooser}${opt}`;
+        : `${targetJa(a.source)}をデッキの${a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : '上'}に置く${chooser}${opt}`;
     }
     case 'ADD_CRAFT_TO_LRIG_DECK':
       return `${ownerJa(a.owner)}ルリグデッキに《${a.cardName}》${numJa(a.count)}枚を加える`;
@@ -926,6 +926,28 @@ function actionJa(a?: Action, effectType?: string): string {
       // cardType フィルタを名詞に反映（「カード」だとスペルも引けるように誤読されるため）
       const ct = a.filter?.cardType;
       const noun = ct ? ([] as string[]).concat(ct).join('か') : 'カード';
+      // デッキ全体サーチ後にシャッフルを跨いで選択札を top/second へ予約配置する形。
+      // 通常の SEARCH 逆翻訳（「処理する」）へ落とすと、今回の主目的である行き先が見えなくなる。
+      const directDeck = a.then?.type === 'TRANSFER_TO_DECK' && a.then.source?.type === 'DECK_CARD'
+        ? a.then : undefined;
+      const deckChoices = a.then?.type === 'CHOOSE'
+        ? (a.then.choices ?? []).map((c: any) => c.action)
+          .filter((x: any) => x?.type === 'TRANSFER_TO_DECK' && x.source?.type === 'DECK_CARD')
+        : [];
+      if (a.from?.location === 'deck' && a.afterSearch?.type === 'SHUFFLE_DECK'
+          && (directDeck || deckChoices.length === (a.then?.choices?.length ?? -1))) {
+        const owner = a.from?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
+        const picked = noun === 'シグニ' ? 'そのシグニ' : 'そのカード';
+        const chooseSecond = deckChoices.some((x: any) => x.position === 'second');
+        const destination = chooseSecond ? 'デッキの上から一番目か二番目' : 'デッキの一番上';
+        const subject = `${owner}デッキから${filterJa(a.filter)}${noun}１枚`;
+        if (a.upToTarget) {
+          return `${subject}を探してもよい。そうした場合、デッキをシャッフルし、${picked}を${a.revealPicked ? '公開し' : ''}${destination}に置く`;
+        }
+        return a.revealPicked
+          ? `${subject}を探して公開する。デッキをシャッフルし、${picked}を${destination}に置く`
+          : `${subject}を探す。その後、デッキをシャッフルし、${picked}を${destination}に置く`;
+      }
       // then（SEQUENCE）に REVEAL/ADD_TO_HAND があれば「公開し手札に加える」を反映
       const thenSteps = a.then?.type === 'SEQUENCE' ? (a.then.steps ?? []) : (a.then ? [a.then] : []);
       const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';

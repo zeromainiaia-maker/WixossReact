@@ -209,7 +209,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                     effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
                     inter.selectionConstraint,
                     battleCardMap)))
-            : effectSelectedNums.length <= maxPick
+            : (inter.optional || effectSelectedNums.length >= maxPick)
+              && effectSelectedNums.length <= maxPick
               && satisfiesSelectionConstraint(
                 effectSelectedNums.map(i => sortedCandidates[parseInt(i, 10)]).filter((n): n is string => n !== undefined),
                 inter.selectionConstraint,

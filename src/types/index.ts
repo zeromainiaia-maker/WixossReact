@@ -793,6 +793,8 @@ export type PendingInteractionDef =
       type: 'SEARCH';
       visibleCards: string[];     // デッキ公開カードのCardNum一覧
       maxPick: number;
+      optional?: boolean;         // true: 0枚選択可。false: maxPick 枚必須
+      revealPicked?: boolean;     // 選択したカードを公開ログへ記録
       thenAction: EffectAction;   // ピックしたカードに対するアクション
       afterAction?: EffectAction; // 完了後のアクション（通常はSHUFFLE_DECK）
       restDest?: 'deck_bottom' | 'trash' | 'energy'; // 未ピックカードの行き先（REVEAL_PICK_HAND_SHUFFLE_BOTTOM用）

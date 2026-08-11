@@ -3378,6 +3378,8 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     type: 'SEARCH',
     visibleCards,
     maxPick,
+    optional: a.upToTarget !== false,
+    revealPicked: a.revealPicked,
     thenAction: a.then,
     afterAction: a.afterSearch,
     selectionConstraint: a.selectionConstraint,
@@ -4571,10 +4573,41 @@ function execPlaceLrigsUnderCenter(a: import('../types/effects').PlaceLrigsUnder
     `ルリグトラッシュのルリグ${lrigs.length}枚をセンタールリグの下に置く`));
 }
 
+function transferSpecificDeckCard(a: TransferToDeckAction, cardNum: string, ctx: ExecCtx): ExecResult {
+  const owner = a.source.owner as Owner;
+  const state = ownerState(owner, ctx);
+  const index = state.deck.indexOf(cardNum);
+  if (index < 0) return done(ctx);
+  const deck = [...state.deck];
+  deck.splice(index, 1);
+  if (a.shuffle) {
+    deck.push(cardNum);
+    const newS = { ...state, deck: shuffle(deck) };
+    return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキに加えてシャッフル`), lastProcessedCards: [cardNum] });
+  }
+  const insertAt = a.position === 'bottom' ? deck.length : a.position === 'second' ? Math.min(1, deck.length) : 0;
+  deck.splice(insertAt, 0, cardNum);
+  const posJa = a.position === 'bottom' ? '一番下' : a.position === 'second' ? '上から二番目' : '一番上';
+  const newS = { ...state, deck };
+  return done({ ...addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキの${posJa}に置く`), lastProcessedCards: [cardNum] });
+}
+
 function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   const src = a.source;
   const state = ownerState(src.owner, ctx);
   const toBottom = a.position === 'bottom';
+
+  // SEARCH で選択済みの DECK_CARD を位置確定する経路。選択前の DECK_CARD を count だけ
+  // 自動取得すると「探したカード」と無関係な札を動かすため、fixedCardNums がある場合だけ実行する。
+  // 通常の SEARCH then は applyDirectAction、CHOOSE を挟む top/second 選択はこの経路を通る。
+  if (src.type === 'DECK_CARD') {
+    let cur = ctx;
+    for (const cardNum of a.fixedCardNums ?? []) {
+      const moved = transferSpecificDeckCard(a, cardNum, cur);
+      cur = { ...cur, ownerState: moved.ownerState, otherState: moved.otherState, logs: moved.logs, lastProcessedCards: moved.lastProcessedCards };
+    }
+    return done(cur);
+  }
 
   // LRIG_TRASH_CARD: ルリグトラッシュから（アーツ等を）ルリグデッキ/デッキへ戻す（WX05-001「白と黒のアーツをルリグデッキに戻す」）
   if (src.type === 'LRIG_TRASH_CARD') {
@@ -7058,6 +7091,30 @@ function stripDidItConditional(action: EffectAction): EffectAction | undefined {
   return action;
 }
 
+function isDeckPlacementFromSearch(action: EffectAction): boolean {
+  if (action.type === 'TRANSFER_TO_DECK') {
+    return (action as TransferToDeckAction).source.type === 'DECK_CARD';
+  }
+  if (action.type !== 'CHOOSE') return false;
+  const choices = (action as ChooseAction).choices ?? [];
+  return choices.length > 0 && choices.every(choice => isDeckPlacementFromSearch(choice.action));
+}
+
+function bindSearchedDeckCards(action: EffectAction, picked: string[]): EffectAction {
+  if (action.type === 'TRANSFER_TO_DECK') {
+    const transfer = action as TransferToDeckAction;
+    return transfer.source.type === 'DECK_CARD' ? { ...transfer, fixedCardNums: [...picked] } : action;
+  }
+  if (action.type === 'CHOOSE') {
+    const choose = action as ChooseAction;
+    return { ...choose, choices: choose.choices.map(choice => ({
+      ...choice,
+      action: bindSearchedDeckCards(choice.action, picked),
+    })) };
+  }
+  return action;
+}
+
 // SEARCH: picked[]
 export function resumeSearch(
   picked: string[],
@@ -7145,6 +7202,46 @@ export function resumeSearch(
       ...(rr.location === 'energy' ? { energy: [...s.energy, ...moved] } : {}) };
     const destJa = rr.location === 'deck' ? (rr.position === 'bottom' ? 'デッキの一番下' : 'デッキの上') : rr.location === 'trash' ? 'トラッシュ' : 'エナゾーン';
     cur = moved.length > 0 ? addLog({ ...cur, ownerState: s }, `残り${moved.length}枚を${destJa}へ`) : { ...cur, ownerState: s };
+  }
+  // 「探す → シャッフル → 探したカードをデッキ上へ」の順序予約。
+  // SEARCH の通常契約は thenAction → afterAction だが、この木の形だけは選択札をデッキに残したまま
+  // SHUFFLE_DECK を先に実行し、最後に instanceId で top/second を確定する。先に top へ置いてから
+  // シャッフルすると選択札が流れるため（LOOK_PICK_CHAIN の _topReserved と同じ「最後に当てる」設計）。
+  if (picked.length > 0
+      && pending.afterAction?.type === 'SHUFFLE_DECK'
+      && isDeckPlacementFromSearch(pending.thenAction)) {
+    const shuffled = executeAction(pending.afterAction, { ...cur, lastProcessedCards: picked });
+    if (!shuffled.done) return shuffled;
+    cur = {
+      ...cur,
+      ownerState: shuffled.ownerState,
+      otherState: shuffled.otherState,
+      logs: shuffled.logs,
+      lastProcessedCards: picked,
+    };
+    if (pending.revealPicked) {
+      const names = picked.map(n => cur.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
+      cur = addLog(cur, `${names}を公開`);
+    }
+    if (pending.thenAction.type === 'TRANSFER_TO_DECK') {
+      for (const cardNum of picked) {
+        const placed = applyDirectAction(pending.thenAction, cardNum, cur);
+        if (!placed.done) return placed;
+        cur = { ...cur, ownerState: placed.ownerState, otherState: placed.otherState, logs: placed.logs,
+          lastProcessedCards: placed.lastProcessedCards ?? picked };
+      }
+      if (pending.continuation) return executeAction(pending.continuation, cur);
+      return done(cur);
+    }
+    const boundChoice = bindSearchedDeckCards(pending.thenAction, picked);
+    const next = pending.continuation
+      ? { type: 'SEQUENCE', steps: [boundChoice, pending.continuation] } as SequenceAction
+      : boundChoice;
+    return executeAction(next, cur);
+  }
+  if (pending.revealPicked && picked.length > 0) {
+    const names = picked.map(n => cur.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
+    cur = addLog(cur, `${names}を公開`);
   }
   // handOrField: ピックしたシグニを「手札に加える or 場に出す」の対話選択で処理（「公開し手札に加えるか場に出し」）。
   //   対象カードは pickCount 1（シグニ1枚）＝1回の CHOOSE。余剰（防御）は手札へ。
@@ -8519,6 +8616,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // 外部SELECT_TARGET経由で選ばれた単一カードをデッキへ戻す（top/bottom/shuffle）。
       // execTransferToDeck の insertToDeck と同じ配置ロジック（続き93）。
       const tdA = action as TransferToDeckAction;
+      if (tdA.source.type === 'DECK_CARD') return transferSpecificDeckCard(tdA, cardNum, ctx);
       const tdOwner = tdA.source.owner;
       const tdS = ownerState(tdOwner, ctx);
       let tdNew = { ...tdS };

@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11（続き442） — デッキ全体サーチ後に選択札をshuffle後のtop/secondへ戻す4効果を機構化（PLAN §6.4）
+
+**🔴 バグの正体**＝`WXK02-031-E2`／`WXK02-070-E1`／`WXK03-049-E1`／`WD23-024-E-E1` の「デッキから1枚探す→シャッフル→そのカードをデッキ上へ」が、裸 `STUB{REVEAL_AND_PICK}` に潰れていた。旧ハンドラは実行時にカード原文を再parseし、デッキ全体から無条件のシグニ1枚を**手札へ加える**ため、本来の「次のドローを仕込む」効果が万能サーチへ化ける過剰実行だった。さらに `WXK02-070`／`WXK03-049` は原文に無い `CONDITIONAL{IS_MY_TURN}→STUB{DECK_TOP_TO_LIFE}` が同居し、タダでライフクロスを1枚増やしていた。
+
+**parser**＝具体文型を `SEARCH{from:deck,filter,maxCount:1,then:TRANSFER_TO_DECK,afterSearch:SHUFFLE_DECK}` へ正準化した。`WXK02-031` はシグニ、`WXK02-070` はレベル2以下のシグニ＋`upToTarget:true`、`WXK03-049` は＜遊具＞のシグニ＋`upToTarget:true`、`WD23-024-E` は filter 空の全カード検索。後者は `PARTIAL` 温存を解除して `AUTO` へ戻し、build 後に4枚を1件ずつ `heldReview --adopt` した。`WXK03-049` の「一番目かニ番目」は defer／一番目固定にせず、既存 `CHOOSE` 2択と `TransferToDeckAction.position:'second'` の最小拡張で採用した（CSV原文は漢数字「二」でなくカタカナ「ニ」なので両表記を受ける）。
+
+**engine の順序解決**＝通常の `resumeSearch` は `thenAction→afterAction` だが、この木の形だけは選択札をデッキ内に予約したまま `SHUFFLE_DECK` を先に実行し、最後に選択した instanceId を top/second へ確定する。`LOOK_PICK_CHAIN` の `_topReserved` と同じ「最後に当てる」設計で、`INTERNAL_KEEP_ON_DECK_TOP`（受け側の無い no-op）は使っていない。単一top配置は `resumeSearch→applyDirectAction(TRANSFER_TO_DECK)`、top/second選択は選択札を既存 `fixedCardNums` へ束縛して `CHOOSE→execTransferToDeck` を通る。`SearchAction.revealPicked` は公開ログ、`upToTarget:false` は必須選択へ配線した（undefined は既存互換で0枚可）。
+
+**⚠ 指示書との重要な不一致**＝開始HEAD `52e94dcdc` の `applyDirectAction` には、指示書の「caseが無い」と異なり、後段に既存 `TRANSFER_TO_DECK` case があった（場／手札／トラッシュ／エナの選択札をデッキへ移す実装）。新しいcaseを前段へ重複追加すると既存経路を遮断するため、既存caseの先頭へ `DECK_CARD` 分岐だけを足した。実装途中にこの重複を golden が18件検出し、既存caseへ統合後は全緑へ戻った。
+
+**トリップワイヤ／E2E**＝T1「live の裸 `REVEAL_AND_PICK` は既知7枚だけ」、T2「`DECK_TOP_TO_LIFE` は `WX10-002`／`WXK02-035` だけ」、4採用効果それぞれの実行E2E（filter成立／不成立、任意性、手札へ入らない、shuffle後のtop/second、複製なし）を追加した。`Math.random=()=>0` で「topへ置いてからshuffle」なら必ず流れる盤面に固定。engine の `DECK_CARD` 2経路を一時的に no-op へ戻すと4本すべて失敗（1837 PASS／4 FAIL）し、復元後は **1841 PASS／0 FAIL**（1834→+7）。
+
+**スコープ外7枚は不変**＝`WDK13-011`／`WXK07-054-CB`（レベル合計までreveal）、`WXK07-034`（Lv4シグニ2枚までreveal）、`WXK05-027`／`WXK05-071`（手札公開コスト）、`PR-457`（デッキ上2枚の色参照振り分け）、`WXDi-P11-043`（宣言数字照合）。fresh と live の正規化JSONをHEAD前後で比較し全件一致。裸STUBハンドラ本体 `execStubPart1.ts` は未変更。
+
+**機械diff／最終ゲート**＝全カード fresh の per-effect 差分は上記4 effectIdだけ、outlier 0、effectId増減0。`npm run gates` 全緑＝golden 1841/0、smoke 10688/10688（CRASH/HANG/INVARIANT/SKIP 全0）、fuzz 不具合0、census 846/846、silent no-op A群0、manual field loss 0、lint 0 errors/259 warnings。census は任意SEARCHの既存フィールド `upToTarget:true` と終止形「探す」を語彙対応へ加えて計器の偽陽性3件だけを解消し、別ベースラインは作っていない。同型★0（265グループ）、UNKNOWN 27ノード/26カード、MANDATORY_SUSPICIOUS 0。held は build直後111枚/51署名→4枚を個別採用→最終build直後107枚/47署名（開始値と同じ）。
+
+### 検証側（Claude）が独立実測で追加した2点
+
+**🔴 未着手の5枚目を発見＝`WD23-013-A-E1`（アンコール）は live で完全な no-op**。原文「あなたのデッキからカード１枚を探してデッキをシャッフルし、そのカードをデッキの一番上に置く」はこのバッチと**同じ文型**なのに、live JSON は `TRANSFER_TO_DECK{source:{DECK_CARD},position:'top',shuffle:true}` **だけ**で SEARCH が丸ごと無い。⚠**本バッチの回帰ではない**＝ベースライン `52e94dcdc` の `execTransferToDeck` は `LRIG_TRASH_CARD`／`LIFE_CLOTH_CARD`／`TRASH_CARD`／`HAND_CARD`／`HAND_OR_ENERGY_CARD`／`SIGNI` の6分岐しか持たず、`DECK_CARD` は全分岐を素通りして末尾の `return done(ctx)` に落ちていた（本バッチの新分岐も `fixedCardNums` が無ければ同じ `done(ctx)` を返すので**挙動は厳密に不変**）。**機構ができた今なら安い**＝parser 側で `foldDeckSearchToTop` の regex が拾わない理由は、原文が「探し**て**デッキをシャッフルし」で `。` 区切りが無く、現行 regex が `探(して公開する|してもよい|す)。` を要求するため。⚠この効果は裸 `STUB{REVEAL_AND_PICK}` を持たないので、**裸STUB を入口にした棚卸しでは原理的に見つからない**（計器の網の外＝続き425 の `SPDi43-06` と同型の死角）。**live の `TRANSFER_TO_DECK{DECK_CARD}` 全6箇所を走査して発見した。**
+
+**⚠ 指示書（Claude）側の誤りを記録**＝「`applyDirectAction` に `TRANSFER_TO_DECK` の case が無い・全17 case を列挙した」と書いたが**誤り**。case は存在した（ベースラインの関数先頭から相対810行目＝絶対 8500 行台）。原因は **`awk NR>=7709 && NR<=8200` と走査範囲を根拠なく打ち切ったこと**で、「全部見た」と書いたのに実際は関数の後半を見ていなかった。codex はこれを実測で訂正したが、一時的に case を重複させて golden 18件失敗の手戻りが発生している。⇒ **「全 case を列挙した」と主張する前に、関数の終端まで走査したことを確認する**（範囲指定 `sed`/`awk` は関数境界ではなく行番号で切るので、長い関数では途中で切れる）。
+
 ## 2026-08-11 — `$ref` が消費側で黙って0に潰れる死角を一掃（続き441・PLAN §6.4）
 
 **🔴 バグの正体＝engine に数量解決関数が2つあり、片方が `$ref` を警告なく捨てていた。** `resolveCountRef`（`execUtils.ts:122`）は `$ref` を解くが、`resolveNum`（`:118`）は `typeof n === 'number' ? n : 0` ＝**object ref を問答無用で 0 にする**。`resolveNum` 側へ流れた `$ref` は **その action が丸ごと不発**になるのに、例外もログも出ない。⚠**逆翻訳は JSON を読むので「同じ枚数」と正しく描画される＝原理的に気付けない偽陰性**。golden・census・smoke・fuzz も全緑のまま素通りしていた。

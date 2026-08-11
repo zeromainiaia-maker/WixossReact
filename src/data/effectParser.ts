@@ -31,6 +31,8 @@ import type {
   GrantKeywordAction,
   PowerModifyAction,
   TransferToHandAction,
+  TransferToDeckAction,
+  SearchAction,
   AddToFieldAction,
   DrawAction,
 } from '../types/effects';
@@ -1450,6 +1452,11 @@ export function getTimingFallbackLog(): readonly TimingFallbackEntry[] { return 
 function clearTimingFallback(effectId: string): void {
   for (let i = _timingFallbackLog.length - 1; i >= 0; i--) {
     if (_timingFallbackLog[i].effectId === effectId) _timingFallbackLog.splice(i, 1);
+  }
+}
+function clearSilentFallback(effectId: string): void {
+  for (let i = _silentFallbackLog.length - 1; i >= 0; i--) {
+    if (_silentFallbackLog[i].effectId === effectId) _silentFallbackLog.splice(i, 1);
   }
 }
 function logTimingFallback(effectId: string, text: string): void {
@@ -11902,6 +11909,55 @@ function foldMagicBoxFromLook(action: EffectAction, sourceText: string): EffectA
   } as RevealAndPickAction;
 }
 
+// 「デッキ全体から1枚探す → シャッフル → 探したカードをデッキ上へ」の正準化。
+// 旧木は裸 REVEAL_AND_PICK（実行時に原文を再parseして手札へ入れる）＋無関係な後段へ崩れていた。
+// sourceText は文型の filter／任意性／公開／配置候補だけを読む。適用可否は action 木に裸STUBがあるかで
+// 決めるため、同じカードの別効果や、reveal-until／手札公開コストの REVEAL_AND_PICK は触らない。
+function foldDeckSearchToTop(action: EffectAction, sourceText: string): EffectAction {
+  if (action.type !== 'SEQUENCE'
+      || !action.steps.some(step => step.type === 'STUB' && step.id === 'REVEAL_AND_PICK')) return action;
+  const m = sourceText.match(
+    /あなたのデッキから((?:レベル[０-９\d]+以下の|＜[^＞]+＞の)?)(シグニ|カード)[１1]枚を探(して公開する|してもよい|す)。(?:そうした場合、|その後、)?デッキをシャッフルし、(その(?:カード|シグニ)を公開し)?(?:その(?:カード|シグニ)を)?デッキの(一番上|上から一番目か[二ニ]番目)に置く/,
+  );
+  if (!m) return action;
+
+  const modifier = m[1];
+  const noun = m[2];
+  const filter: TargetFilter = {};
+  if (noun === 'シグニ') filter.cardType = 'シグニ';
+  const levelM = modifier.match(/^レベル([０-９\d]+)以下の$/);
+  const storyM = modifier.match(/^＜([^＞]+)＞の$/);
+  if (modifier && !levelM && !storyM) return action;
+  if (levelM) filter.level = { max: parseNum(levelM[1]) };
+  if (storyM) filter.story = storyM[1];
+  if (noun === 'カード' && Object.keys(filter).length > 0) return action;
+
+  const transfer = (position: 'top' | 'second'): TransferToDeckAction => ({
+    type: 'TRANSFER_TO_DECK',
+    source: { type: 'DECK_CARD', owner: 'self', count: 1 },
+    shuffle: false,
+    position,
+  });
+  const choosePosition = m[5] !== '一番上';
+  const then: EffectAction = choosePosition ? {
+    type: 'CHOOSE', choose_count: 1, from_count: 2,
+    choices: [
+      { choiceId: 'top', label: 'デッキの一番上に置く', action: transfer('top') },
+      { choiceId: 'second', label: 'デッキの上から二番目に置く', action: transfer('second') },
+    ],
+  } as ChooseAction : transfer('top');
+  return {
+    type: 'SEARCH',
+    from: { location: 'deck', owner: 'self' },
+    filter,
+    maxCount: 1,
+    upToTarget: m[3] === 'してもよい',
+    revealPicked: m[3] === 'して公開する' || !!m[4],
+    then,
+    afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+  } as SearchAction;
+}
+
 // ===== センタールリグへの能力付与（ブロック隣接形）の入れ子化 =====
 // キーカードは【常】宣言文の**直後に続く別ブロック**として付与能力を並べる（引用符が無い＝原文に入れ子
 // マーカーがない）。従来は宣言文ブロックの rawText が「。」だけになり `abilities` 空＝executor で完全
@@ -12326,6 +12382,15 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyQuotedFrontPowerGrantBatch(card.CardNum, effects);
   applyResultConditionalWave2(card.CardNum, effects);
   applyResultConditionalWave3(card.CardNum, effects);
+
+  for (const e of effects) {
+    const folded = foldDeckSearchToTop(e.action, card.EffectText ?? '');
+    if (folded !== e.action) {
+      e.action = folded;
+      e.parseStatus = 'AUTO';
+      clearSilentFallback(e.effectId);
+    }
+  }
 
   // WXEX1-13-E1 は「既存トラップを手札へ戻した場合」の did-it ゲートと、トラップを
   // SIGNI として BOUNCE している別の構造破壊を先に直す必要がある。LPC だけ部分移行すると

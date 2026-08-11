@@ -3549,16 +3549,11 @@ test('マジックボックス欠落見送り WX24-P3-033-E1: 2群を単一pick�
   ok(!actionJson.includes('PLACE_MAGIC_BOX'), '2群対応なしで設置だけを部分採用しない');
 });
 
-test('UNKNOWN第6バッチ defer固定: A3/B1/C1 は未対応機構を既存語彙へ誤載せしない', () => {
+test('UNKNOWN第6バッチ defer固定: A3/C1 は未対応機構を既存語彙へ誤載せしない', () => {
   const a3 = parseCardEffects(cardMap.get('WXK07-034')!).find(e => e.effectId === 'WXK07-034-E1')!;
   const a3Json = JSON.stringify(a3.action);
   ok(a3Json.includes('それらを手札に加え、残りをシャッフルしてデッキの一番下に置く'), 'A3 後段UNKNOWNを維持');
   ok(!a3Json.includes('REVEAL_UNTIL_TO_HAND') && !a3Json.includes('REVEAL_UNTIL_TO_FIELD'), 'A3を1枚停止/場出し型へ近似しない');
-
-  const b1 = parseCardEffects(cardMap.get('WD23-024-E')!).find(e => e.effectId === 'WD23-024-E-E1')!;
-  const b1Json = JSON.stringify(b1.action);
-  ok(b1Json.includes('そのカードをデッキの一番上に置く'), 'B1 top配置UNKNOWNを維持');
-  ok(!b1Json.includes('INTERNAL_KEEP_ON_DECK_TOP'), 'SEARCH後shuffleで無効になるLPC専用マーカーを流用しない');
 
   const c1Live = manualEffect('SP38-006', 'SP38-006-E1-G2');
   const c1LiveJson = JSON.stringify(c1Live.action);
@@ -3568,6 +3563,148 @@ test('UNKNOWN第6バッチ defer固定: A3/B1/C1 は未対応機構を既存語�
   const c1FreshJson = JSON.stringify(c1Fresh.action);
   ok(!c1FreshJson.includes('"REVEAL_AND_PICK","owner":"opponent"') && !c1FreshJson.includes('LOOK_PICK_CHAIN'),
     '相手応答不能の実行型へ載せない');
+});
+
+const SEARCH_TOP_EFFECTS = [
+  ['WXK02-031', 'WXK02-031-E2'],
+  ['WXK02-070', 'WXK02-070-E1'],
+  ['WXK03-049', 'WXK03-049-E1'],
+  ['WD23-024-E', 'WD23-024-E-E1'],
+] as const;
+
+test('§6.4 デッキ全体サーチ→shuffle→top: 4効果の構造・filter・任意性', () => {
+  for (const [cardNum, effectId] of SEARCH_TOP_EFFECTS) {
+    const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    eq(fresh.parseStatus, 'AUTO', `${effectId}: parser が AUTO まで完結`);
+    eq(fresh.action.type, 'SEARCH', `${effectId}: 裸 REVEAL_AND_PICK ではなく SEARCH`);
+    const search = fresh.action as Extract<EffectAction, { type: 'SEARCH' }>;
+    eq(search.from.location, 'deck', `${effectId}: デッキ全体から探す`);
+    eq(search.maxCount, 1, `${effectId}: 1枚を探す`);
+    eq(search.afterSearch?.type, 'SHUFFLE_DECK', `${effectId}: 検索後シャッフル`);
+    ok(!JSON.stringify(search).includes('INTERNAL_KEEP_ON_DECK_TOP'), `${effectId}: LPC専用no-opマーカーを使わない`);
+  }
+  const one = parseCardEffects(cardMap.get('WXK02-031')!).find(e => e.effectId === 'WXK02-031-E2')!.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(JSON.stringify(one.filter), JSON.stringify({ cardType: 'シグニ' }), 'WXK02-031-E2: シグニだけ');
+  eq(one.upToTarget, false, 'WXK02-031-E2: 1枚必須');
+  const two = parseCardEffects(cardMap.get('WXK02-070')!).find(e => e.effectId === 'WXK02-070-E1')!.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(JSON.stringify(two.filter), JSON.stringify({ cardType: 'シグニ', level: { max: 2 } }), 'WXK02-070-E1: レベル2以下');
+  eq(two.upToTarget, true, 'WXK02-070-E1: 0枚選択可');
+  const three = parseCardEffects(cardMap.get('WXK03-049')!).find(e => e.effectId === 'WXK03-049-E1')!.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(JSON.stringify(three.filter), JSON.stringify({ cardType: 'シグニ', story: '遊具' }), 'WXK03-049-E1: ＜遊具＞限定');
+  eq(three.then.type, 'CHOOSE', 'WXK03-049-E1: top/second を2択する');
+  const positions = three.then.type === 'CHOOSE'
+    ? three.then.choices.map(c => (c.action as { position?: string }).position).sort().join('|') : '';
+  eq(positions, 'second|top', 'WXK03-049-E1: 一番目と二番目の両候補');
+  const four = parseCardEffects(cardMap.get('WD23-024-E')!).find(e => e.effectId === 'WD23-024-E-E1')!.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(JSON.stringify(four.filter), '{}', 'WD23-024-E-E1: 種別無制限のカード検索');
+  eq(four.upToTarget, false, 'WD23-024-E-E1: 1枚必須');
+});
+
+function matchingCard(filter: Record<string, unknown>, include: (card: CardData) => boolean = () => true): string {
+  const found = [...cardMap.values()].find(card => include(card) && matchesFilter(card, filter as never));
+  if (!found) throw new Error(`filter成立カードなし: ${JSON.stringify(filter)}`);
+  return found.CardNum;
+}
+
+function executeSearchTopE2E(cardNum: string, effectId: string, picked: string, position: 'top' | 'second'): ExecResult {
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+  const otherCards = [...cardMap.keys()].filter(n => n !== picked).slice(0, 6);
+  const ctx = mkCtx({ deckTop: [picked, ...otherCards] }, {}, cardNum);
+  const initialHand = [...ctx.ownerState.hand];
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SEARCH', `${effectId}: execSearch が SEARCH interaction を生成`);
+  if (first.done || first.pending.type !== 'SEARCH') return first;
+  const expectedOptional = (effect.action as Extract<EffectAction, { type: 'SEARCH' }>).upToTarget !== false;
+  eq(first.pending.optional, expectedOptional, `${effectId}: upToTarget が UI 必須/任意へ配線`);
+  const oldRandom = Math.random;
+  Math.random = () => 0;
+  try {
+    const resumedCtx = { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs } as ExecCtx;
+    let result = resumeSearch([picked], first.pending, resumedCtx);
+    if (position === 'second') {
+      ok(!result.done && result.pending.type === 'CHOOSE', `${effectId}: 一番目/二番目の CHOOSE を生成`);
+      if (result.done || result.pending.type !== 'CHOOSE') return result;
+      result = resumeChoose('second', result.pending, {
+        ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+        lastProcessedCards: result.lastProcessedCards,
+      });
+    }
+    ok(result.done, `${effectId}: 配置まで完了`);
+    eq(result.ownerState.deck[position === 'top' ? 0 : 1], picked, `${effectId}: shuffle 後も指定位置に選択札が残る`);
+    eq(result.ownerState.deck.filter(n => n === picked).length, 1, `${effectId}: 選択札を複製しない`);
+    eq(JSON.stringify(result.ownerState.hand), JSON.stringify(initialHand), `${effectId}: 万能サーチで手札へ加えない`);
+    return result;
+  } finally {
+    Math.random = oldRandom;
+  }
+}
+
+test('§6.4 E2E WXK02-031-E2: シグニをshuffle後のデッキトップへ', () => {
+  const picked = matchingCard({ cardType: 'シグニ' });
+  const nonSigni = matchingCard({}, c => c.Type !== 'シグニ');
+  const effect = parseCardEffects(cardMap.get('WXK02-031')!).find(e => e.effectId === 'WXK02-031-E2')!;
+  const ctx = mkCtx({ deckTop: [picked, nonSigni] }, {}, 'WXK02-031');
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SEARCH' && !first.pending.visibleCards.includes(nonSigni), '非シグニは候補外');
+  executeSearchTopE2E('WXK02-031', 'WXK02-031-E2', picked, 'top');
+});
+
+test('§6.4 E2E WXK02-070-E1: Lv2以下だけ・0枚可・選べばshuffle後top', () => {
+  const picked = matchingCard({ cardType: 'シグニ', level: { max: 2 } });
+  const high = matchingCard({ cardType: 'シグニ' }, c => parseInt(c.Level ?? '0', 10) > 2);
+  const effect = parseCardEffects(cardMap.get('WXK02-070')!).find(e => e.effectId === 'WXK02-070-E1')!;
+  const ctx = mkCtx({ deckTop: [picked, high] }, {}, 'WXK02-070');
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SEARCH' && first.pending.optional === true, '任意SEARCH');
+  if (!first.done && first.pending.type === 'SEARCH') {
+    ok(!first.pending.visibleCards.includes(high), 'Lv3以上は候補外');
+    const skipped = resumeSearch([], first.pending, { ...ctx, ownerState: first.ownerState, otherState: first.otherState, logs: first.logs });
+    ok(skipped.done && skipped.ownerState.deck.includes(picked), '0枚選択ではカードを移動しない');
+  }
+  executeSearchTopE2E('WXK02-070', 'WXK02-070-E1', picked, 'top');
+});
+
+test('§6.4 E2E WXK03-049-E1: ＜遊具＞だけ・shuffle後の二番目を選べる', () => {
+  const picked = matchingCard({ cardType: 'シグニ', story: '遊具' });
+  const other = matchingCard({ cardType: 'シグニ' }, c => !matchesFilter(c, { cardType: 'シグニ', story: '遊具' }));
+  const effect = parseCardEffects(cardMap.get('WXK03-049')!).find(e => e.effectId === 'WXK03-049-E1')!;
+  const ctx = mkCtx({ deckTop: [picked, other] }, {}, 'WXK03-049');
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SEARCH' && !first.pending.visibleCards.includes(other), '＜遊具＞以外は候補外');
+  executeSearchTopE2E('WXK03-049', 'WXK03-049-E1', picked, 'second');
+});
+
+test('§6.4 E2E WD23-024-E-E1: 種別無制限カードをshuffle後top', () => {
+  const picked = matchingCard({}, c => c.Type !== 'シグニ');
+  const effect = parseCardEffects(cardMap.get('WD23-024-E')!).find(e => e.effectId === 'WD23-024-E-E1')!;
+  const ctx = mkCtx({ deckTop: [picked] }, {}, 'WD23-024-E');
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SEARCH' && first.pending.visibleCards.includes(picked), 'スペル/ルリグ等も検索候補');
+  executeSearchTopE2E('WD23-024-E', 'WD23-024-E-E1', picked, 'top');
+});
+
+function cardsWithStub(id: string, bareOnly = false): string[] {
+  const cards: string[] = [];
+  const walk = (node: unknown): boolean => {
+    if (!node || typeof node !== 'object') return false;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === id
+        && (!bareOnly || Object.keys(obj).sort().join('|') === 'id|type')) return true;
+    return Object.values(obj).some(value => Array.isArray(value) ? value.some(walk) : walk(value));
+  };
+  for (const [cardNum, effects] of effectsMap) if (effects.some(effect => walk(effect.action))) cards.push(cardNum);
+  return cards.sort();
+}
+
+test('§6.4 T1: live の裸 REVEAL_AND_PICK は既知7枚だけ', () => {
+  eq(cardsWithStub('REVEAL_AND_PICK', true).join('|'),
+    ['PR-457', 'WDK13-011', 'WXDi-P11-043', 'WXK05-027', 'WXK05-071', 'WXK07-034', 'WXK07-054-CB'].sort().join('|'),
+    '裸STUBの既知集合（増加も対象4件の残存も禁止）');
+});
+
+test('§6.4 T2: live の DECK_TOP_TO_LIFE は原文にライフクロスがある既知2枚だけ', () => {
+  eq(cardsWithStub('DECK_TOP_TO_LIFE').join('|'), ['WX10-002', 'WXK02-035'].sort().join('|'),
+    '原文に無いタダのライフ増加を禁止');
 });
 // タスク12(xlvi) 第1波：curated の LOOK_AND_REORDER が pick を丸ごと落としていた実カード。
 // 各 effectId を実際に executeEffect → SEARCH resume まで通し、手札増加と公開残りの保存を固定する。

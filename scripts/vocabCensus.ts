@@ -557,7 +557,7 @@ const PATTERNS: Pattern[] = [
   {
     name: '任意(してもよい)',
     re: /(してもよい|することができる)/,
-    keys: ['"mandatory":false', '"optional":true', 'mayChoose'],
+    keys: ['"mandatory":false', '"optional":true', '"upToTarget":true', 'mayChoose'],
   },
   {
     name: '能力を持たない/失っている',
@@ -975,7 +975,8 @@ function main(): void {
       ['GAIN_COIN', /コイン/],
       ['LIFE_CRASH', /クラッシュ|ダメージ/],
       ['DRAW', /引/],
-      ['SEARCH', /探し/],
+      // 「探して」だけでなく終止形「探す」も SearchAction の原文語彙。
+      ['SEARCH', /探[しす]/],
     ];
     for (const [act, re] of VERB) {
       let hits = 0;
