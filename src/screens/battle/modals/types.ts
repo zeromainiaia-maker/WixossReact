@@ -6,6 +6,7 @@ import type { BattleStateRow, PlayerState, CardData } from '../../../types';
 import type { CardEffect } from '../../../types/effects';
 import type { ActiveCostMod } from '../../../engine/effectEngine';
 import type { ResonaSummonCandidate } from '../resonaSummon';
+import type { EnergyPayEntry } from '../energyPaySource';
 
 // カットイン候補（スペルカットイン/カットイン起動効果の出所つきカード）
 export interface EffectCutinCandidate {
