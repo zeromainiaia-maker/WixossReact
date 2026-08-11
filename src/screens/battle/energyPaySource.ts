@@ -144,7 +144,11 @@ export function energySelectionWithinOffZoneLimit(
 export interface EnergyPaymentPlan {
   /** 色エナコストとして支払ったカード（＝トラッシュ行き。従来の `paidNums` と同じ並び）。 */
   paidNums: string[];
-  /** `alsoRemoveEnergyIndices` で追加控除したエナゾーンのカード（`energyTrash` コスト等）。 */
+  /**
+   * `alsoRemoveEnergyIndices` で追加控除したエナゾーンのカード（`energyTrash` コスト等）。
+   * ⚠色コストで既に払った index は**除いてある**＝トラッシュへ二重に積まれない
+   * （UI 上は別セレクタなので通常は素通り。重なったときだけ効く安全側の規則）。
+   */
   extraEnergyNums: string[];
   /** 控除後のエナゾーン（`energyTrashAll` の対象算出など**読み取り専用**の用途に使う）。 */
   energyAfter: string[];
