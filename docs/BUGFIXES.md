@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — §6.4 離場置換：前提の訂正（強制2軸／任意3軸）＋決定層の分離（続き429）
+
+golden **1785→1790**、census **854 据置**、ゲート全緑。**engine の挙動は不変**（決定層の分離＝リファクタ）。
+
+### 🔴 登録時の前提が違っていた
+
+§6.4 には「**置換5本**＝離場置換4本＋F-3 身代わりは**すべて「してもよい」を自動適用する決定論的近似**」と
+書かれていたが、live の原文を全数照合すると **強制3効果（2軸）／任意10効果（3軸）** に割れる。
+
+| 軸 | 原文 | 判定 |
+|---|---|---|
+| `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY`（`SPDi44-08-E2`／`WX25-P1-018-E2`） | 「代わりにこのルリグはこの能力を失う」 | **強制**＝自動適用が正しい |
+| `NO_ABILITY_SIGNI_TO_DECK_BOTTOM`（`WXEX2-30-E1`） | 「代わりにデッキの一番下に置かれる」 | **強制**＝自動適用が正しい |
+| `BANISH_SUBSTITUTE` 9効果 | 「代わりに…してもよい」 | **任意**＝被害側が選ぶ |
+| `EFFECT_LEAVE_REPLACE_BANISH`（`WX25-P1-056-E1`） | 「代わりにそのシグニをバニッシュしてもよい」 | **任意**＝被害側が選ぶ |
+
+⚠**強制軸を「近似だから」と対話の選択肢に出すとルール違反**になる（プレイヤーが断れてはいけない）。
+逆に任意軸を自動適用し続けるとプレイヤーの選択を奪う。**どちらも盤面には現れない**ので、
+goldenTest に**原文（`docs/_effect_srctext.json`）から語尾を数える機械ロック**を置いた
+（分類と原文が食い違ったら赤くなる）。
+
+### 決定層の分離（挙動不変）
+
+`applyEffectLeaveSubstitutes` を **collect → choose → apply** の3段に分解した。
+
+- `collectLeaveSubstituteOptions(victim, owner, ctx, {isBanish})` → `LeaveSubstituteOption[]`
+  （`axis` / `kind:'mandatory'|'optional'` / `label` / `autoEligible` / `resultCtx`）。
+  🔑**投機実行**＝`ExecCtx` は `setOwnerState`／`addLog` とも不変なので、各軸を実際に走らせて
+  結果 ctx を持たせ、採用しなかったものは捨てるだけでよい（**ログも漏れない**＝golden で固定）。
+  並びは従来の適用順そのまま＝並べ替えると自動選択が変わる。
+- `autoChooseLeaveSubstitute(options)` ＝ 現行 policy「成立した最初の1本」。
+  **任意軸を勝手に適用しているのはこの policy であって列挙側ではない**＝対話化はここの差し替えで済む。
+- **F-3 の内部選択も1件ずつ option 化**（下スペル／手札スペル／犠牲／ライフクラッシュ）＝
+  従来は `applyEffectBanishSubstitute` の内側で「安い順」に潰していたので、対話 policy から見えなかった。
+
+### `WX14-026`（lifeCrash 身代わり）
+
+engine が適用しない理由（【ライフバースト】確認フロー `field.check` を効果解決の途中に同期的に
+差し込めない）は変わらないが、**従来は列挙からも落としていた**ため「対話 policy を入れても
+選択肢に出せない」状態だった。`autoEligible:false` に変えて**列挙はする／自動では選ばない**へ。
+挙動は従来のまま（golden で固定）。
+
+### 📋 残＝対話 policy（M2・単独バッチ）
+
+設計は確定。`collectLeaveSubstituteOptions` の結果を被害側へ `CHOOSE{opponentResponds:true}` で出し、
+選ばれた option の `resultCtx` を採る。pause は `applyDirectAction(action, cardNum, ctx): ExecResult`
+（単票の離場適用・ポーズ可能）＋ `INTERNAL_HAND_OR_ENERGY` の `pickQueue`（1枚ずつ問い直す先例）で張る。
+⚠呼び出し13サイトのうち**6は単票で無料・5はループ**（`execBanish`／`applyBounce`／`applySend`／
+`applyTrashField`／`applyToBottom`）で、**ループ前後の簿記（`costLevels`／`trashedPuppet`／
+`lastProcessedCards`）をポーズ跨ぎで運ぶ設計が M2 の実質**。候補0件の盤面（大多数）は現行の同期パスの
+ままにしてリスクを新経路に閉じ込める。
+
+⚠**latent な穴（現状 live 0件なので無害）**＝`powerReduction`／`replaceBanish`／`noAbilityDeckBottom` の
+宣言走査は**印字（`cardMap.get(top)?.effects`）だけ**で付与ストアを見ていない。
+`GRANT_EFFECT` で付与するカードが出た瞬間に無言で落ちる＝3軸走査へ揃えるのは M2 と同時が安い。
+
+
 ## 2026-08-11 — §6.4 エナ支払い元の一本化（funnel 新設）＋ `UNDER_CARD_AS_ENERGY_COST` 実装（続き428）
 
 golden **1776→1785**、census **854 据置**、`census:stubs` 明示 defer **17→16**（無言の no-op は 0 のまま）、ゲート全緑。

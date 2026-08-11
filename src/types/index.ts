@@ -688,6 +688,16 @@ export interface PlayerState {
   pending_banish_substitute?: { victimNum: string; options: BanishSubstituteOptionState[] };
   // BANISH_SUBSTITUTE 防御側の決定。option=null は「身代わりしない（通常バニッシュ）」。
   banish_substitute_choice?: { victimNum: string; option: BanishSubstituteOptionState | null };
+  /**
+   * **効果による**離場置換（§6.4）で被害側が下した決定。victim（instanceId）→ `LeaveSubstituteOption.key`。
+   * `'none'` は「置換しない」。engine は移動の直前に**再検証したうえで**消費する（盤面が変わって
+   * その置換がもう成立しないなら黙って通常の移動に倒す）。
+   *
+   * ⚠**ExecCtx ではなく PlayerState に置いてある**＝対話 pause を跨いで自動的に保持されるため
+   * （`banish_substitute_choice` と同じ理由）。これのおかげで「離場ループの途中で pause する」
+   * 機構を engine に新設せずに済んでいる＝**先に全部聞いてから同期的に適用する**。
+   */
+  leave_substitute_choices?: Record<string, string>;
 }
 
 export interface GameLog {
