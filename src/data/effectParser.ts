@@ -5900,8 +5900,11 @@ function applyFieldDownOptionalCost(text: string, action: EffectAction): EffectA
 // `resumeSelectTarget` が「そうした場合」ゲートを落とすので N=1 は等価だが、**N≧2 では 1枚だけ払って
 // 本体を撃てる**（部分払いの抜け穴＝`WX20-042-CB-E3` の実例）。原文は all-or-nothing なので
 // `STUB{OPTIONAL_COST, underAnySigniTrash{count, fromThis}}` の pay/skip 2択へ寄せる。
+// ⚠**枚数語の位置が2通り**（「カードを３枚」／「カード３枚を」）＋**クラス限定が挟まる形**
+//   （`WX25-CP1-091-E2`「＜ブルアカ＞のカードを３枚」）＝続き434 で両方を受けるよう広げた。
+//   広げないと `TAKE_FROM_UNDER_SIGNI{upToCount:true}` のまま残り、**N≧2 で1枚だけ払って本体を撃てる**。
 const UNDER_THIS_TRASH_COST_RE =
-  /(?:^|、)このシグニの下(?:にある|から)カード(?:を)?([０-９\d]+)枚(?:を)?トラッシュに置いてもよい$/;
+  /(?:^|、)このシグニの下(?:にある|から)[^。]*?カード(?:を([０-９\d]+)枚|([０-９\d]+)枚を?)トラッシュに置いてもよい$/;
 
 function applyUnderThisTrashOptionalCost(text: string, action: EffectAction): EffectAction {
   if (action.type !== 'SEQUENCE') return action;
