@@ -12,6 +12,20 @@ golden は5本追加し **1821→1826 PASS**。A2〜A5 は live 実カード act
 
 全カード生パースの effect 単位差分は `WXEX2-07-E3`／`WXK11-028-E1`／`WXK11-013-E1-G`／`WXDi-P03-009-E3` の4件だけで outlier 0、effectId 増減0。live JSON の子 effect を親から分離した機械 diff も同じ4件だけ。群外 `WX05-010`／`WX18-046`／`WXK02-004`／`WXK03-025`／`WXK06-028`／`WDK07-E09` と defer の `WXEX1-44` は HEAD 前後の entry JSON が一致し、effects JSON は全ファイル1行・BOM/末尾改行なしを維持した。同カード他効果／BURST、React、PLAN/PLAN_PROGRESS は不変。
 
+
+**⚙ 検証側（Claude）の独立検証**＝全項目一致。
+
+- ゲート全緑。golden **1826/1826**（+5）／smoke 10688 全OK／census **847**（848→847）／lint 据置。
+- per-effect diff（ベースライン `674acebc0`）＝`WXEX2-07-E3`／`WXK11-013-E1`／`WXK11-028-E1`／`WXDi-P03-009-E3` の**4効果のみ・outlier 0**。
+- **群外6枚＋defer した `WXEX1-44` を独立検証＝全件バイト不変**。held 107枚/47群で増減なし。エンコーディング（15ファイル）新規増0。
+- **型/engine 変更の妥当性**＝`NumberOrRef` への `filter?` 追加は後方互換（既存の数値・`$ref` 単体はそのまま）。`resolveCountRef` 側も `getCardNum` で正規化してから `matchesFilter` にかけており、instanceId（`CardNum#N`）でも取りこぼさない。
+
+🔑**Codex が指示書に無い罠を1つ見つけた（本バッチ最大の収穫）**＝**`count` の解決関数は action 型ごとに違う**。
+`TRANSFER_TO_HAND` は `resolveNum(src.count)`（`effectExecutor.ts:2288`）を使い、**`resolveNum` は `{$ref}` を問答無用で 0 にする**（`execUtils.ts:118-120`）。
+つまり `TRANSFER_TO_HAND` に `{$ref:'last_processed_count'}` を書くと**黙って0枚**になる。
+⇒ A1（`WXEX1-44-E2`）は**この理由で defer が正しい**。採用した4件は消費側が `resolveCountRef` であることを検証側でも確認した＝
+`SEARCH.maxCount`（`:3360`）／`REVEAL_AND_PICK.revealCount`（`:4986`）／`ADD_TO_FIELD.source.count`（`:2588`）／`execTrash` の `HAND_CARD` 経路（`:1494`）。
+📋**残タスク候補**＝`resolveNum` を使っている `count` 消費地点（`:1005`／`:2238`／`:2288` 等）は**動的枚数を書けない死角**。`resolveCountRef` へ寄せるか、少なくとも「ここに `$ref` を書いてはいけない」を golden のトリップワイヤで固定するのが望ましい。
 ## 2026-08-11 — 「能力を持たない」2軸配線：動詞昇格3効果＋対象限定2効果を是正（続き439）
 
 **採用5件**＝動詞昇格 `WX25-P3-069-E1`／`WX25-P3-072-E1`／`WX25-P3-073-E1`、対象限定 `WXEX1-55-E2`、両軸 `WX25-P3-014-E1`。前3件は「手札に戻す。それが能力を持たない場合、代わりにトラッシュ」を `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{LAST_PROCESSED_MATCHES{noAbilities}, then:TRASH, else:BOUNCE}` へ畳み、`073` は `GRANT_EFFECT.effect.action` の内側を修正した。`014` は選択 filter に `noAbilities:true` を足し、昇格条件は原文どおり能力ではなく `level:{max:2}`。`WXEX1-55-E2` は対象 filter だけを直し、原文に無い昇格は加えていない。effectId 集合、同カードの他効果、`WX25-P3-073-BURST` は不変。
