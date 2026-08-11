@@ -776,6 +776,13 @@ export type PendingInteractionDef =
       count: number;
       continuation?: EffectAction;
       opponentResponds?: boolean; // true = 対戦相手が選択するインタラクション（例:「対戦相手は支払ってもよい」）
+      /**
+       * §6.4 離場置換の可否を被害側に問う CHOOSE（`INTERNAL_LEAVE_SUB_ASK`）。
+       * ⚠**`opponentResponds` だけでは足りない**＝BattleScreen は `opponentResponds` の CHOOSE を
+       *   `resumeOpponentPayOptional`（＝相手が「支払う」流れ）へ固定ルートしており、コストの無い
+       *   問いをそこへ流すと「エナ不足」で即終了＝**無言で潰れる**。このフラグで素の `resumeChoose` へ分ける。
+       */
+      leaveSubstituteAsk?: boolean;
       multiSelect?: boolean;       // true = count > 1 の複数選択UI
       upTo?: boolean;              // true = 「N個まで」選択可（0個も可）
     }

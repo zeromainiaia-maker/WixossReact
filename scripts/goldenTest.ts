@@ -11,7 +11,7 @@
 import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
-import type { CardData, PlayerState, StackEntry, TurnPhase } from '../src/types';
+import type { CardData, PlayerState, StackEntry, TurnPhase, PendingInteractionDef } from '../src/types';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
@@ -25831,16 +25831,34 @@ test('task12(lxxxiii) 第15波 WX06-019-E1: live場離れ置換を単体選択�
     { type: 'EXILE', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction,
     { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim], position: 'bottom' } as unknown as EffectAction,
   ];
+  // 2026-08-11（続き430）＝原文「代わりに…してもよい」なので**被害側に問う**ようになった。
+  // 置換を選べば従来どおり victim が残り protector が -6000、辞退すれば victim は普通に場を離れる。
+  const stepCtx = (r: ExecResult, base: ExecCtx): ExecCtx =>
+    ({ ...base, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs });
   for (const action of actions) {
-    const ctx = mkCtx({}, { signi: [protector, victim, null] });
-    let result = executeEffect({ effectId: 'leave-test', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true }, ctx);
-    if (!result.done && result.pending.type === 'SELECT_TARGET') {
-      result = resumeSelectTarget([victim], result.pending, { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs });
+    for (const decline of [false, true]) {
+      const ctx = mkCtx({}, { signi: [protector, victim, null] });
+      let result = executeEffect({ effectId: 'leave-test', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true }, ctx);
+      if (!result.done && result.pending.type === 'SELECT_TARGET') {
+        result = resumeSelectTarget([victim], result.pending, stepCtx(result, ctx));
+      }
+      ok(!result.done && result.pending.type === 'CHOOSE', `${action.type}: 置換の可否を被害側に問わない`);
+      if (result.done) continue;
+      const choose = result.pending as PendingInteractionDef & { type: 'CHOOSE' };
+      eq(choose.opponentResponds, true, `${action.type}: 問う相手が被害側（対戦相手）でない`);
+      const pick = decline ? 'none' : choose.options.find(o => o.id !== 'none')!.id;
+      result = resumeChoose(pick, choose, stepCtx(result, ctx));
+      ok(result.done, `${action.type}(${decline ? '辞退' : '置換'}): 解決が完了しない`);
+      const stillOnField = result.otherState.field.signi.some(s => s?.at(-1) === victim);
+      const reduced = result.otherState.temp_power_mods?.find(m => m.cardNum === protector)?.delta;
+      if (decline) {
+        ok(!stillOnField, `${action.type}: 辞退したのに＜水獣＞が場に残った`);
+        ok(reduced === undefined, `${action.type}: 辞退したのに発生源に-6000した`);
+      } else {
+        ok(stillOnField, `${action.type}: 他の＜水獣＞が場を離れた`);
+        eq(reduced, -6000, `${action.type}: 発生源のパワー-6000が付かない`);
+      }
     }
-    ok(result.done, `${action.type}: 解決が完了しない`);
-    ok(result.otherState.field.signi.some(s => s?.at(-1) === victim), `${action.type}: 他の＜水獣＞が場を離れた`);
-    eq(result.otherState.temp_power_mods?.find(m => m.cardNum === protector)?.delta, -6000,
-      `${action.type}: 発生源のパワー-6000が付かない`);
   }
 
   const selfCtx = mkCtx({}, { signi: [protector, victim, null] });

@@ -609,6 +609,29 @@ export function leaveSubstituteAskOptions(
  *   （＝大多数の盤面でコードパスが変わらない＝退化リスクを新経路だけに閉じ込める）。
  * - `then` は「問い終わったあとに実行する本来の処理」。
  */
+/**
+ * `applyDirectAction` が離場置換を通すアクション型（＝原文「場を離れる場合」の対象）。
+ * ⚠**ここに足し忘れると、その移動だけ置換の対話を素通りする**（`applyEffectLeaveSubstitutes` の
+ *   呼び出し箇所と1対1で対応させること）。
+ */
+const LEAVE_MOVE_ACTION_TYPES = new Set(['BANISH', 'BOUNCE', 'SEND_TO_ENERGY', 'TRASH', 'EXILE', 'TRANSFER_TO_DECK']);
+
+/** その離場アクションで被害側へ問うべき任意置換があるか（`hoistLeaveSubstituteAsks` の呼び出し前判定）。 */
+export function leaveSubstituteAskQueue(
+  actionType: string,
+  cardNums: readonly string[],
+  ctx: ExecCtx,
+): { queue: string[]; isBanish: boolean } {
+  if (!LEAVE_MOVE_ACTION_TYPES.has(actionType)) return { queue: [], isBanish: false };
+  const isBanish = actionType === 'BANISH';
+  // ⚠任意置換は `victimOwner === 'opponent'`（＝効果主から見た相手側）でしか成立しないので、
+  //   自分の効果で自分のシグニを動かす経路はここで落ちる＝問い自体が出ない。
+  const queue = cardNums.filter(n =>
+    ctx.otherState.field.signi.some(st => st?.at(-1) === n)
+    && leaveSubstituteAskOptions(n, 'opponent', ctx, { isBanish }).length > 0);
+  return { queue, isBanish };
+}
+
 export function hoistLeaveSubstituteAsks(
   victims: readonly string[],
   victimOwner: Owner,
@@ -661,6 +684,7 @@ export function execLeaveSubAsk(stub: StubAction, ctx: ExecCtx): ExecResult {
       type: 'CHOOSE',
       count: 1,
       opponentResponds: true,
+      leaveSubstituteAsk: true,
       options: [
         ...options.map(o => ({ id: o.key, label: o.label, available: true, action: decide(o.key) })),
         { id: 'none', label: '置換しない', available: true, action: decide('none') },
@@ -871,6 +895,10 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
       return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
     }
+    // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
+    //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
+    { const ask = leaveSubstituteAskQueue('BANISH', cands, ctx);
+      if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
     return done({ ...applyBanish(cands, ctx), lastProcessedCards: cands });
   }
   // last_processed_count: 「トラッシュに置いたシグニ1体につき対戦相手のシグニ1体」→ 直前にトラッシュした枚数
@@ -925,6 +953,10 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     const moved = cands.filter(num =>
       ctx.ownerState.field.signi.some(stack => stack?.at(-1) === num)
       || ctx.otherState.field.signi.some(stack => stack?.at(-1) === num));
+    // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
+    //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
+    { const ask = leaveSubstituteAskQueue('BOUNCE', moved, ctx);
+      if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
     return done({ ...applyBounce(moved, ctx), lastProcessedCards: moved });
   }
   const count = resolveNum(tgt.count);
@@ -1096,7 +1128,13 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
-  if (tgt.count === 'ALL') return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
+  if (tgt.count === 'ALL') {
+    // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
+    //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
+    { const ask = leaveSubstituteAskQueue('SEND_TO_ENERGY', cands, ctx);
+      if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
+    return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
+  }
   const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
     + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
   if (count <= 0) return done(addLog(ctx, 'エナ送り数0 → スキップ'));
@@ -1421,6 +1459,10 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
         return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
       }
+      // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
+      //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
+      { const ask = leaveSubstituteAskQueue('TRASH', cands, ctx);
+        if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
       return done({ ...applyTrashField(cands, ctx), lastProcessedCards: cands });
     }
     const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone)
@@ -4697,7 +4739,13 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       return cur;
     }
 
-    if (src.count === 'ALL') return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
+    if (src.count === 'ALL') {
+      // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
+      //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
+      { const ask = leaveSubstituteAskQueue('TRANSFER_TO_DECK', cands, ctx);
+        if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
+      return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
+    }
     const oppResponds = !!a.opponentSelects && src.owner === 'opponent';
     return selectOrInteract(cands, count, false, scope, a, undefined, ctx, oppResponds);
   }
@@ -6702,6 +6750,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'INTERNAL_LEAVE_SUB_ASK') return execLeaveSubAsk(stub, ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_DECIDE') return execLeaveSubDecide(stub, ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_NOOP') return done(ctx);
+      if (stub.id === 'INTERNAL_LEAVE_SUB_RESUME_SELECT') {
+        const r = (stub as unknown as { leaveSubResume?: { selected: string[]; pending: PendingInteractionDef & { type: 'SELECT_TARGET' } } }).leaveSubResume;
+        return r ? resumeSelectTarget(r.selected, r.pending, ctx) : done(ctx);
+      }
       return execStub(stub, ctx, executeAction);
     }
     case 'UNKNOWN':                 return done(addLog(ctx, `[UNKNOWN: ${(action as {raw:string}).raw?.slice(0, 40) ?? ''}]`));
@@ -6853,6 +6905,19 @@ export function applyRefreshOnDone(
     }
     if (pending.continuation) return executeAction(pending.continuation, cur);
     return done(cur);
+  }
+  // §6.4 離場置換の対話化（続き430）＝**移動を1つも適用する前に**被害側へまとめて問う。
+  // ⚠この per-card ループは pause すると残りの選択を落とす（ADD_TO_FIELD 等が個別に特例回避して
+  //   いるのがその証拠）。だから「ループの途中で聞く」のではなく、**ここで全部聞いてから**
+  //   同じ引数で再入する（決定は PlayerState に載るので pause を跨いで残り、再入時は問いが出ない）。
+  {
+    const ask = leaveSubstituteAskQueue(pending.thenAction.type, selected, cur);
+    if (ask.queue.length > 0) {
+      return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', {
+        type: 'STUB', id: 'INTERNAL_LEAVE_SUB_RESUME_SELECT',
+        leaveSubResume: { selected, pending },
+      } as unknown as EffectAction, { isBanish: ask.isBanish }), cur);
+    }
   }
   for (const cardNum of selected) {
     // thenActionを単一カードに適用するため、フィルタなしで直接適用

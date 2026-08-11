@@ -602,7 +602,13 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
                   {srcCard?.CardName ?? pe.sourceCardNum}の効果
                 </p>
-                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>効果を選択してください</p>
+                {/* §6.4 離場置換の可否は**被害側＝この画面の viewer** に問う。相手のカード名を出して
+                    「効果を選択してください」と書くと、誰が何を決めているのか分からない。 */}
+                <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
+                  {inter.leaveSubstituteAsk
+                    ? `${srcCard?.CardName ?? pe.sourceCardNum}の効果であなたのシグニが場を離れます。代わりの処理を選べます。`
+                    : '効果を選択してください'}
+                </p>
                 {inter.options.map(opt => (
                   <button key={opt.id}
                     disabled={loading || !opt.available}
