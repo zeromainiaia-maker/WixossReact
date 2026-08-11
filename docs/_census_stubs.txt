@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 595（総ノード 2910 件）
+live JSON の STUB id 種類 : 595（総ノード 2913 件）
 逆翻訳シートの [STUB:…] 総数: 847  うち生ID露出 272 箇所（187 種）
 
 ■ 仕分け結果
@@ -500,8 +500,8 @@ live JSON の STUB id 種類 : 595（総ノード 2910 件）
   露出  1箇所 (live 1件/1枚)  PLACE_LRIG_FROM_DECK_ON_TOP  [execStubPart2]
         カード: WXEX1-20
         既存コメント: PLACE_LRIG_FROM_DECK_ON_TOP: ルリグデッキからルリグをフィールドへ
-  露出  1箇所 (live 3件/3枚)  PLACE_MAGIC_BOX  [execStubPart3]
-        カード: WX24-P3-018, WX24-P3-089, WX24-P4-064
+  露出  1箇所 (live 6件/6枚)  PLACE_MAGIC_BOX  [execStubPart3]
+        カード: WX24-P3-018, WX24-P3-067, WX24-P3-070, WX24-P3-072, WX24-P3-089, WX24-P4-064
         既存コメント: PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
   露出  1箇所 (live 1件/1枚)  PLACE_REV_SIGNI  [execStubPart1]
         カード: PR-Di017A

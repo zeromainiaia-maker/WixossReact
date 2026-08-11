@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — 【マジックボックス】設置が live から丸ごと落ちていた3効果を是正（続き438）
+
+**採用3件**＝`WX24-P3-067-E1`／`WX24-P3-070-E1`／`WX24-P3-072-E1`。いずれも「デッキ上3枚を見る→カード1枚までを【マジックボックス】として設置→残りをデッキ下」だが、live は `LOOK_AND_REORDER` だけで設置が丸ごと欠落していた。最終 action を `REVEAL_AND_PICK{revealCount:3,pickCount:1,pickUpTo:true,pickNoun:'カード',then:STUB{PLACE_MAGIC_BOX},remainder:{deck,bottom}}` へ置換した。コスト・使用回数・各 BURST は不変。
+
+parser は具体文型 regex と最終 action の木（単独 `LOOK_AND_REORDER{deck→deck/bottom}`）を同時に要求する `foldMagicBoxFromLook` に限定。これにより同じ語を持つが既に複合 `SEQUENCE` の `WX24-P3-018-E1`、1枚を見る `WX24-P3-089-E2`／`WX24-P4-064-E1`、設置＋＜トリック＞手札加えの2群形 `WX24-P3-033-E1` へ波及しない。全カード生パース差分／live 差分はいずれも採用3 effectId だけ（outlier 0）。見本3カードは HEAD 比の entry JSON SHA-256 が一致し、バイト不変。
+
+engine は `resumeSearch` に `PLACE_MAGIC_BOX` 専用分岐を1本追加。汎用 `applyDirectAction` ループは picked card を引数で渡すだけで `lastProcessedCards` を設定しないため、`PLACE_MAGIC_BOX` が「カードなし」で無音終了する。さらに対話 pause の `!done` で早期 return すると after/外側 continuation を落としうるため、トラップ設置と同じく `SEQUENCE` に after/continuation を積み、`{...cur,lastProcessedCards:picked}` で実行する。`REVEAL_AND_PICK.revealRemainder` は現行コードではこの分岐より前に処理されるが、専用分岐は後続 continuation も保持する。
+
+golden は採用効果ごとに実カード action を実行し、①選択札が `field.signi_magic_boxes[1]` に入りデッキから消える ②未選択2枚がデッキ最下段へ行く ③`resumeSearch([])` で設置CHOOSEなしに完了し、見た3枚すべてがデッキ下へ行く、を固定。`WX24-P3-033-E1` は既存の `transferGroups` が同一移動元から複数条件を**手札へ**移す専用で、設置＋手札の2群を表せず、`LOOK_PICK_CHAIN` にも magic-box 段が無い。指定外の型／engine拡張なしに片群だけ直すと原文不一致を固定するため、全体を見送り、部分採用しないことをgoldenで固定した。
+
+ゲート全緑：golden **1812→1816**、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz バグ0・SKIP 0、census **851→848**（`BASELINE_HIGH` 更新）、census:stubs A群 no-op **0**、manual-fields 0、lint 0 errors／259 warnings。UNKNOWN は **28ノード／27カード**で不変。最終 `build:effects`→`heldReview` は **107枚／47群**で基準と同じ（対象4カードはいずれも held 外）。
+
 ## 2026-08-11 — §6.4 UNKNOWN 第6バッチ：公開／見る→振り分け→残り処理を2件是正
 
 **採用2件**＝`WX21-028-E1` と `WDK13-022-E1`。UNKNOWN は **30→28ノード／29→27カード**、全カード生パース差分もこの2 effectId だけ（outlier 0）。新しい action 型や engine 分岐は作らず、既存 `REVEAL_AND_PICK` と既存参照 `$ref:'last_processed_level'` に載せた。

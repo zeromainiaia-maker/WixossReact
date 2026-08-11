@@ -7202,6 +7202,21 @@ export function resumeSearch(
       { ...cur, lastProcessedCards: picked },
     );
   }
+  // 【マジックボックス】設置: PLACE_MAGIC_BOX は lastProcessedCards[0] を設置札として読む。
+  // 下の applyDirectAction ループは picked を引数で渡すだけで lastProcessedCards を設定せず、
+  // 対話 pause で早期 return すると afterAction / continuation も落ちるため、SEQUENCE に積んで渡す。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'PLACE_MAGIC_BOX' && picked.length > 0) {
+    const magicBoxSteps: EffectAction[] = [pending.thenAction];
+    if (pending.afterAction) magicBoxSteps.push(pending.afterAction);
+    if (pending.continuation) magicBoxSteps.push(pending.continuation);
+    return executeAction(
+      magicBoxSteps.length === 1
+        ? magicBoxSteps[0]
+        : { type: 'SEQUENCE', steps: magicBoxSteps } as SequenceAction,
+      { ...cur, lastProcessedCards: picked },
+    );
+  }
   // ADD_TO_FIELD（場に出す）: 複数枚を1枚ずつゾーン選択でチェーン配置（途中で消失しないように）。
   // afterAction（シャッフル等）と外側 continuation は全配置後に実行する。
   if (pending.thenAction.type === 'ADD_TO_FIELD' && picked.length > 0) {

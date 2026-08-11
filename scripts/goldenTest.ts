@@ -3487,6 +3487,68 @@ test('UNKNOWN第6バッチ A2: トラッシュしたシグニのレベルを公�
   ok(r.ownerState.deck.slice(-2).includes(p2) && r.ownerState.deck.slice(-2).includes(p3), '公開残り2枚はデッキ下');
 });
 
+function assertMagicBoxLookPick(effectId: string): void {
+  withSavedCursor(() => {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const freshEff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    const rap = freshEff.action as import('../src/types/effects').RevealAndPickAction;
+    eq(`${rap.type}/${rap.revealCount}/${rap.pickCount}/${rap.pickUpTo}/${rap.pickNoun}/${rap.then.type}/${(rap.then as StubAction).id}/${rap.remainder?.location}/${rap.remainder?.position}`,
+      'REVEAL_AND_PICK/3/1/true/カード/STUB/PLACE_MAGIC_BOX/deck/bottom', `${effectId} fresh構造`);
+
+    const [picked, rest1, rest2, untouched] = fill(4);
+    const ctx = mkCtx({ deckTop: [picked, rest1, rest2, untouched] }, {}, cardNum);
+    let result = executeEffect(freshEff, ctx);
+    ok(!result.done && result.pending.type === 'SEARCH', `${effectId} 3枚から設置札を選ぶ`);
+    if (result.done || result.pending.type !== 'SEARCH') return;
+    eq(result.pending.maxPick, 1, `${effectId} 選択上限1枚`);
+    let c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs } as ExecCtx;
+    result = resumeSearch([picked], result.pending, c);
+    ok(!result.done && result.pending.type === 'CHOOSE', `${effectId} MB設置ゾーンを選ぶ`);
+    if (result.done || result.pending.type !== 'CHOOSE') return;
+    c = { ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+      lastProcessedCards: result.lastProcessedCards } as ExecCtx;
+    result = resumeChoose('zone_1', result.pending, c);
+    ok(result.done, `${effectId} ゾーン選択後に完了`);
+    eq(result.ownerState.field.signi_magic_boxes?.[1], picked, `${effectId} 選択札をMBとして実設置`);
+    ok(!result.ownerState.deck.includes(picked), `${effectId} 設置札をデッキから除去`);
+    eq(result.ownerState.deck[0], untouched, `${effectId} 未公開札がデッキトップへ`);
+    eq(result.ownerState.deck.slice(-2).join('|'), [rest1, rest2].join('|'), `${effectId} 残り2枚はデッキ下`);
+
+    const [skip1, skip2, skip3, skipUntouched] = fill(4);
+    const skipCtx = mkCtx({ deckTop: [skip1, skip2, skip3, skipUntouched] }, {}, cardNum);
+    const skipFirst = executeEffect(freshEff, skipCtx);
+    ok(!skipFirst.done && skipFirst.pending.type === 'SEARCH', `${effectId} 0枚選択可能なSEARCH`);
+    if (skipFirst.done || skipFirst.pending.type !== 'SEARCH') return;
+    const skipDone = resumeSearch([], skipFirst.pending, {
+      ...skipCtx, ownerState: skipFirst.ownerState, otherState: skipFirst.otherState, logs: skipFirst.logs,
+    });
+    ok(skipDone.done, `${effectId} 0枚選択で設置CHOOSEを出さず完了`);
+    eq(JSON.stringify(skipDone.ownerState.field.signi_magic_boxes ?? [null, null, null]), JSON.stringify([null, null, null]),
+      `${effectId} 0枚選択ではMBを設置しない`);
+    eq(skipDone.ownerState.deck[0], skipUntouched, `${effectId} 0枚選択でも未公開札がトップへ`);
+    eq(skipDone.ownerState.deck.slice(-3).join('|'), [skip1, skip2, skip3].join('|'), `${effectId} 0枚選択時も見た3枚をデッキ下`);
+  });
+}
+
+test('マジックボックス欠落是正 WX24-P3-072-E1: 設置・残り下・0枚選択', () => {
+  assertMagicBoxLookPick('WX24-P3-072-E1');
+});
+
+test('マジックボックス欠落是正 WX24-P3-067-E1: 設置・残り下・0枚選択', () => {
+  assertMagicBoxLookPick('WX24-P3-067-E1');
+});
+
+test('マジックボックス欠落是正 WX24-P3-070-E1: 設置・残り下・0枚選択', () => {
+  assertMagicBoxLookPick('WX24-P3-070-E1');
+});
+
+test('マジックボックス欠落見送り WX24-P3-033-E1: 2群を単一pickへ近似しない', () => {
+  const freshEff = parseCardEffects(cardMap.get('WX24-P3-033')!).find(e => e.effectId === 'WX24-P3-033-E1')!;
+  const actionJson = JSON.stringify(freshEff.action);
+  ok(actionJson.includes('"REVEAL_AND_PICK"') && actionJson.includes('"ADD_TO_HAND"'), '既存の＜トリック＞手札加えは維持');
+  ok(!actionJson.includes('PLACE_MAGIC_BOX'), '2群対応なしで設置だけを部分採用しない');
+});
+
 test('UNKNOWN第6バッチ defer固定: A3/B1/C1 は未対応機構を既存語彙へ誤載せしない', () => {
   const a3 = parseCardEffects(cardMap.get('WXK07-034')!).find(e => e.effectId === 'WXK07-034-E1')!;
   const a3Json = JSON.stringify(a3.action);

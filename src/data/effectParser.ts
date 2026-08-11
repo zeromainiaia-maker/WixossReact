@@ -11722,6 +11722,23 @@ function foldPlaceTrapFromRevealed(
   return visit(action);
 }
 
+// 「デッキ上N枚を見る。その中からカードM枚までを【マジックボックス】として設置し、残りをデッキ下」。
+// 文型自体は具体 regex で読むが、既に複合 SEQUENCE として意味を持つ兄弟（WX24-P3-018 等）は
+// 上書きしない。最終組み立てが単独 LOOK_AND_REORDER に落ちた木だけを REVEAL_AND_PICK へ昇格する。
+function foldMagicBoxFromLook(action: EffectAction, sourceText: string): EffectAction {
+  if (action.type !== 'LOOK_AND_REORDER'
+      || action.source.location !== 'deck' || action.source.owner !== 'self'
+      || action.destination.location !== 'deck' || action.destination.position !== 'bottom') return action;
+  const magicBox = sourceText.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚見る。その中からカードを([０-９\d]+)枚(まで)?【マジックボックス】として(?:あなたの)?シグニゾーンに設置し、残りを(?:好きな順番で)?デッキの一番下に置く/);
+  if (!magicBox || action.count !== parseNum(magicBox[1])) return action;
+  return {
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(magicBox[1]),
+    pickCount: parseNum(magicBox[2]), ...(magicBox[3] === 'まで' ? { pickUpTo: true } : {}),
+    pickNoun: 'カード', then: { type: 'STUB', id: 'PLACE_MAGIC_BOX' } as StubAction,
+    remainder: { location: 'deck', position: 'bottom' },
+  } as RevealAndPickAction;
+}
+
 // ===== センタールリグへの能力付与（ブロック隣接形）の入れ子化 =====
 // キーカードは【常】宣言文の**直後に続く別ブロック**として付与能力を並べる（引用符が無い＝原文に入れ子
 // マーカーがない）。従来は宣言文ブロックの rawText が「。」だけになり `abilities` 空＝executor で完全
@@ -12150,6 +12167,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // WXEX1-13-E1 は「既存トラップを手札へ戻した場合」の did-it ゲートと、トラップを
   // SIGNI として BOUNCE している別の構造破壊を先に直す必要がある。LPC だけ部分移行すると
   // 条件を踏み倒すため、この1件は honest defer。ほかは原文の remainder を action に固定する。
+  for (const e of effects) e.action = foldMagicBoxFromLook(e.action, card.EffectText ?? '');
   if (card.CardNum !== 'WXEX1-13') {
     for (const e of effects) e.action = foldPlaceTrapFromRevealed(e.action, card.EffectText ?? '');
   }
