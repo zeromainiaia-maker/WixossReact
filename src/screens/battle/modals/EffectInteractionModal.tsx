@@ -600,7 +600,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   padding: '20px 16px', width: 'min(92vw, 360px)',
                   display: 'flex', flexDirection: 'column', gap: 12 }}>
                 <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                  {inter.leaveSubstituteAsk ? '場離れの置換' : `${srcCard?.CardName ?? pe.sourceCardNum}の効果`}
                 </p>
                 {/* §6.4 離場置換の可否は**被害側＝この画面の viewer** に問う。相手のカード名を出して
                     「効果を選択してください」と書くと、誰が何を決めているのか分からない。 */}
