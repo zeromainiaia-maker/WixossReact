@@ -7221,9 +7221,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const exceedCards = exceedCostH > 0
           ? new Set([...selectedCutinExceed].map(i => exceedPoolH[i]).filter(Boolean))
           : new Set<string>();
-        cutinPaid = {
+        cutinPaid = cutinPay.applyTo({
           ...my,
-          energy: newEnergy,
           trash: [...my.trash, ...paidNums],
           lrig_trash: [...my.lrig_trash, ...exceedCards],
           field: {
@@ -7232,7 +7231,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_l: my.field.assist_lrig_l?.filter(id => !exceedCards.has(id)),
             assist_lrig_r: my.field.assist_lrig_r?.filter(id => !exceedCards.has(id)),
           },
-        };
+        });
         if (source === 'signi_field' && candidate.effect.cost?.underSelfTrash) {
           const zoneIdx = candidate.zoneIdx ?? cutinPaid.field.signi.findIndex(stack => stack?.at(-1) === cutinInstanceId);
           const underPaid = payUnderSelfTrash(
