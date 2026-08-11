@@ -12187,7 +12187,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ),
         last_cost_energy_trash_count: activatedEnergyTrashPaidCount(energyTrashIndices),
         last_energy_trash_color_count: lgEnergyTrashColor ? lgEnergyTrashColorCards.length : my.last_energy_trash_color_count,
-      };
+      });
+      if (lgOverrideEnergy) paid = { ...paid, energy: lgOverrideEnergy };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
       if (trashExileIndices.size > 0) {
         const lgExiledNums = [...trashExileIndices].map(i => my.trash[i]);
