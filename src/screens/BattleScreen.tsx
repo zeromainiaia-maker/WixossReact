@@ -6397,7 +6397,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         is_betting_this_effect: betCost > 0 ? true : undefined,
         is_boosting_this_effect: boosting ? true : undefined,
         bet_coins_paid: betCost > 0 ? betCost : undefined,
-      };
+      });
       if (betCost > 0) appendBattleLogs([`ベット：コイン${betCost}枚消費`]);
       if (boosting) appendBattleLogs([`ブースト：追加エナコストを支払い`]);
       if (useCostHandIdx.length > 0) {
