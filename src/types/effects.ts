@@ -2109,6 +2109,23 @@ export interface StubAction {
    * ⚠engine で原文を再パースしない＝限定は必ずこの構造に載せる（`sideAttackEmptyZoneAsFront` と同じ規約）。
    */
   underCardAsEnergyCost?: { perTurnLimit?: number; duringMyAttackPhase?: boolean };
+  /**
+   * INTERNAL_LEAVE_SUB_ASK / INTERNAL_LEAVE_SUB_DECIDE（§6.4 離場置換の対話化）。
+   * `ask` ＝まだ問うていない victim の待ち行列、`decide` ＝被害側が下した1件の決定。
+   * ⚠**engine 内部専用**（parser は生成しない・逆翻訳にも出さない）。
+   */
+  leaveSub?: {
+    /** 問う対象の残り（先頭から1体ずつ CHOOSE を出す）。 */
+    queue?: string[];
+    /** 決定を書き込む victim。 */
+    victim?: string;
+    /** `LeaveSubstituteOption.key`。`'none'` は「置換しない」。 */
+    choice?: string;
+    /** victim の所有者（効果主から見た owner）。 */
+    victimOwner?: Owner;
+    /** バニッシュ経路か（F-3 と replaceBanish は排他）。 */
+    isBanish?: boolean;
+  };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */

@@ -445,6 +445,12 @@ export type LeaveSubstituteAxisId =
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
+  /**
+   * 決定を state に刻むための安定キー（`PlayerState.leave_substitute_choices` の値）。
+   * ⚠**盤面から再導出できる情報だけで組む**＝pause を跨いだあとに `collectLeaveSubstituteOptions` を
+   *   引き直して同じキーが出せなければ、その決定は「もう成立しない」として通常の移動に倒す。
+   */
+  key: string;
   /** 原文の語尾由来。`mandatory` は選択肢に出さず必ず適用する。 */
   kind: 'mandatory' | 'optional';
   /** 対話UI／ログ用の短い説明（この置換を選ぶと何が起きるか）。 */
@@ -482,7 +488,7 @@ export function collectLeaveSubstituteOptions(
   const push = (
     axis: LeaveSubstituteAxisId, kind: 'mandatory' | 'optional', label: string,
     r: { ctx: ExecCtx; replaced: boolean },
-  ) => { if (r.replaced) out.push({ axis, kind, label, autoEligible: true, resultCtx: r.ctx }); };
+  ) => { if (r.replaced) out.push({ axis, key: axis, kind, label, autoEligible: true, resultCtx: r.ctx }); };
 
   push('lrigAbility', 'mandatory', '代わりにルリグがこの能力を失う',
     applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx));
@@ -491,7 +497,9 @@ export function collectLeaveSubstituteOptions(
   if (opts?.isBanish) {
     for (const choice of collectEffectBanishSubstituteChoices(victimNum, victimOwner, ctx)) {
       out.push({
-        axis: 'banishSubstitute', kind: 'optional',
+        axis: 'banishSubstitute',
+        key: `banishSubstitute:${choice.sourceNum}:${choice.kind === 'sacrifice' ? choice.sacrificeNum : `${choice.costType}${choice.amount}`}`,
+        kind: 'optional',
         label: choice.kind === 'sacrifice'
           ? `代わりに${ctx.cardMap.get(getCardNum(choice.sacrificeNum))?.CardName ?? choice.sacrificeNum}をバニッシュする`
           : choice.costType === 'discardSpell' ? `代わりに手札からスペル${choice.amount}枚を捨てる`
@@ -524,14 +532,66 @@ export function autoChooseLeaveSubstitute(
   return options.find(o => o.autoEligible) ?? null;
 }
 
+/** 被害側が下した決定を1件消費する（`ctx` から取り除いた新しい ctx を返す）。 */
+function consumeLeaveSubstituteDecision(
+  victimNum: string, victimOwner: Owner, ctx: ExecCtx,
+): { decision: string | undefined; ctx: ExecCtx } {
+  const state = ownerState(victimOwner, ctx);
+  const decision = state.leave_substitute_choices?.[victimNum];
+  if (decision === undefined) return { decision, ctx };
+  const rest = { ...state.leave_substitute_choices };
+  delete rest[victimNum];
+  return {
+    decision,
+    ctx: setOwnerState(victimOwner,
+      { ...state, leave_substitute_choices: Object.keys(rest).length > 0 ? rest : undefined }, ctx),
+  };
+}
+
+/**
+ * 被害側の決定（`leave_substitute_choices`）があればそれを、無ければ現行 policy を採る。
+ *
+ * ⚠**「置換しない」を選んでも `mandatory` 軸は適用する**＝原文に「してもよい」が無い置換
+ * （`WXEX2-30`／`SPDi44-08`）はプレイヤーが断れない。任意軸を辞退した結果として強制軸が
+ * 残るなら、そちらは必ず効く。
+ * ⚠**決定は再検証する**＝pause 中に盤面が変わって同じ key の候補が出せないなら、
+ * 黙って「置換しない」に倒す（存在しない身代わりを適用して盤面を壊さない）。
+ */
 export function applyEffectLeaveSubstitutes(
   victimNum: string,
   victimOwner: Owner,
   ctx: ExecCtx,
   opts?: { isBanish?: boolean },
 ): { ctx: ExecCtx; replaced: boolean } {
-  const chosen = autoChooseLeaveSubstitute(collectLeaveSubstituteOptions(victimNum, victimOwner, ctx, opts));
-  return chosen ? { ctx: chosen.resultCtx, replaced: true } : { ctx, replaced: false };
+  const consumed = consumeLeaveSubstituteDecision(victimNum, victimOwner, ctx);
+  const base = consumed.ctx;
+  const options = collectLeaveSubstituteOptions(victimNum, victimOwner, base, opts);
+  const chosen = consumed.decision === undefined
+    ? autoChooseLeaveSubstitute(options)
+    : (options.find(o => o.key === consumed.decision && o.kind === 'optional')
+       ?? options.find(o => o.kind === 'mandatory')
+       ?? null);
+  return chosen ? { ctx: chosen.resultCtx, replaced: true } : { ctx: base, replaced: false };
+}
+
+/**
+ * その victim について**被害側に問うべき任意置換**があるか（`hoistLeaveSubstituteAsks` の判定）。
+ *
+ * - 既に決定済みなら問わない（同じ問いを2回出さない）。
+ * - `mandatory` が先に成立するなら問わない＝強制置換が勝つので選択の余地が無い。
+ * - `optional` が1つでもあれば問う。⚠`autoEligible:false`（`WX14-026` の lifeCrash）も**問う**＝
+ *   対話でなら選べる（engine の自動適用ができないだけ）。ここが M1 で列挙側に載せておいた効き目。
+ */
+export function leaveSubstituteAskOptions(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+  opts?: { isBanish?: boolean },
+): LeaveSubstituteOption[] {
+  if (ownerState(victimOwner, ctx).leave_substitute_choices?.[victimNum] !== undefined) return [];
+  const options = collectLeaveSubstituteOptions(victimNum, victimOwner, ctx, opts);
+  if (options.length === 0 || options[0].kind === 'mandatory') return [];
+  return options.filter(o => o.kind === 'optional');
 }
 
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
