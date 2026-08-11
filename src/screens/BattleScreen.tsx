@@ -6833,13 +6833,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
           is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
           bet_coins_paid: betCost > 0 ? betCost : undefined,
-        };
+        });
       } else {
         spellInstanceId = my.hand[handIdx] ?? card.CardNum;
-        newMyState = {
+        newMyState = spellPay.applyTo({
           ...my,
           hand: my.hand.filter((_, i) => i !== handIdx && !discardSet.has(i)),
-          energy: newEnergy,
           trash: [...my.trash, ...paidNums, ...discardNums],
           turn_hand_discarded_count: discardNums.length > 0
             ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
