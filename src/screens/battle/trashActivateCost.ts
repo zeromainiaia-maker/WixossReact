@@ -196,8 +196,10 @@ export function payTrashActivateCost(
   if (unsupportedTrashActivateCostKeys(cost).length > 0) return null;
   if (!trashActivateSelectionsSatisfied(effect, my, selections, cardMap)) return null;
 
-  const energyPaid = [...selections.energy].map(i => my.energy[i]);
-  if (energyPaid.some(num => num === undefined)) return null;
+  const pool = energyPool ?? my.energy.map((cardNum, energyIndex) => ({ origin: 'energy' as const, cardNum, energyIndex }));
+  const energyPlan = planEnergyPayment(my, pool, selections.energy);
+  const energyPaid = energyPlan.paidNums;
+  if (energyPaid.length !== selections.energy.size) return null;
   const discardedCards = [...selections.handDiscard].map(i => my.hand[i]);
   if (discardedCards.some(num => num === undefined)) return null;
 
