@@ -6370,12 +6370,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）
       const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
       const lrigTrashBase = encore ? my.lrig_trash : [...my.lrig_trash, instanceId];
-      const paid: PlayerState = {
+      const paid: PlayerState = artsPay.applyTo({
         ...my,
         lrig_deck: encore
           ? [instanceId, ...newLrigDeck]    // アンコール：ルリグデッキ先頭に戻す
           : newLrigDeck,
-        energy: newEnergy,
         hand: newHand,
         lrig_trash: keySub ? [...lrigTrashBase, myEnergyTrashSubInfo.keySubInstId!] : lrigTrashBase,
         trash: [...my.trash, ...paidNums, ...discardNums],
