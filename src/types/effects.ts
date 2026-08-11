@@ -2102,6 +2102,13 @@ export interface StubAction {
   // ⚠`optionalCostPaySteps` と `canAffordOptionalCostSpec` の**両方**で honor すること
   //   （片方だけだと「払えない盤面で支払うボタンが出る」か「どの下カードでも払える」になる）。
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
+  /**
+   * UNDER_CARD_AS_ENERGY_COST: 「このシグニの下にあるカードをエナゾーンにあるかのように
+   * トラッシュに置いて（エナコストを）支払える」（`WXDi-P10-041`）。CONTINUOUS の宣言型で、
+   * 消費は `screens/battle/energyPaySource.ts`（エナ支払い元 funnel）。
+   * ⚠engine で原文を再パースしない＝限定は必ずこの構造に載せる（`sideAttackEmptyZoneAsFront` と同じ規約）。
+   */
+  underCardAsEnergyCost?: { perTurnLimit?: number; duringMyAttackPhase?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをトラッシュへ置く任意コスト。 */
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   /** OPTIONAL_COST: 自分の場のシグニをデッキの一番下へ置く任意コスト。 */
