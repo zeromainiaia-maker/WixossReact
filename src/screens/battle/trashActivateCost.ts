@@ -186,6 +186,11 @@ export function payTrashActivateCost(
   op: PlayerState,
   selections: TrashActivateSelections,
   cardMap: Map<string, CardData>,
+  /**
+   * エナ支払い元プール（§6.4 funnel）。省略時はエナゾーンだけ＝従来と同一挙動。
+   * `selections.energy` はこの pool への index（先頭 `my.energy.length` 件がエナゾーンそのもの）。
+   */
+  energyPool?: readonly EnergyPayEntry[],
 ): TrashActivatePayment | null {
   const cost = effect.cost;
   if (unsupportedTrashActivateCostKeys(cost).length > 0) return null;
