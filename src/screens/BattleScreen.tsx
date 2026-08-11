@@ -7190,10 +7190,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const actualId = lrigIdx >= 0 ? my.lrig_deck[lrigIdx] : cutinCard.CardNum;
         const newLrigDeck = lrigIdx === -1 ? my.lrig_deck
           : [...my.lrig_deck.slice(0, lrigIdx), ...my.lrig_deck.slice(lrigIdx + 1)];
-        cutinPaid = {
+        cutinPaid = cutinPay.applyTo({
           ...my,
           lrig_deck: newLrigDeck,
-          energy: newEnergy,
           lrig_trash: [...my.lrig_trash, actualId],
           trash: [...my.trash, ...paidNums],
           turn_arts_used: true,
