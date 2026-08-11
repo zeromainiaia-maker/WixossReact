@@ -12866,7 +12866,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     onBack();
   };
 
-  const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyTrashSubInfo, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions };
+  const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyPayPool, myEnergyTrashSubInfo, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions };
 
   return (
     <div style={{ height: '100vh', backgroundColor: C.bgApp, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
