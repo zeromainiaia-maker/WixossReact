@@ -10073,20 +10073,29 @@ test('§5c 自己パワー閾値(主語先行形): 「このシグニはパワ�
       `${num}: レイヤー内側能力もパワー${value}以上ゲート`);
   }
 });
-// §5d パターンA「能力を持たない〜シグニN体」＝対象を能力なしに絞る名詞句修飾（11効果）。
+// §5d パターンA「能力を持たない〜シグニN体」＝対象を能力なしに絞る名詞句修飾。
 // 従来は語彙が無く**能力持ちも対象にできる過剰効果**だった。
-test('§5d(A) noAbilities: 11効果に載る＋「として」形/条件節形には載らない', () => {
+test('§5d(A) noAbilities: 既存11効果＋対象修飾2効果に載る／別用法へ誤配線しない', () => {
   const has = (num: string) => JSON.stringify(effectsMap.get(num) ?? []).includes('"noAbilities":true');
   for (const num of ['WX12-040', 'WX14-023', 'WX19-022', 'WX19-050', 'WX20-Re20', 'WX25-P3-067',
     'WXDi-P03-024', 'WXK02-006', 'WXK09-006', 'WXK10-016', 'WXK10-022']) {
     ok(has(num), `${num}: 「能力を持たない」が filter に載る（無制限対象に戻っていない）`);
   }
+  for (const num of ['WXEX1-55', 'WX25-P3-014']) {
+    ok(has(num), `${num}: 所有者語の前の「能力を持たない」が対象 filter に載る`);
+  }
   // ⚠同じ語でも filter にしてはいけない3用法（誤爆すると原文と逆の過小実行になる）
   for (const num of ['WXDi-P03-034', 'WXDi-P07-005', 'WXDi-P13-042', 'WXDi-P15-046', 'WX16-Re20']) {
     ok(!has(num), `${num}: 「〜を能力を持たないシグニ**として**場に出す」は付与形＝filter にしない`);
   }
-  for (const num of ['WX25-P3-038', 'WX25-P3-069', 'WX25-P3-072', 'WX25-CP1-002']) {
-    ok(!has(num), `${num}: 「それが能力を持たない**場合**」は条件節＝filter にしない`);
+  // 条件節形は noAbilities を持つが、対象選択 filter ではなく LAST_PROCESSED_MATCHES にだけ載る。
+  for (const num of ['WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073']) {
+    const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
+    ok(j.includes('LAST_PROCESSED') && j.includes('"noAbilities":true'), `${num}: 条件節として評価する`);
+  }
+  for (const num of ['WX25-P3-038', 'WX25-CP1-002']) {
+    ok(JSON.stringify(cardMap.get(num)?.effects ?? []).includes('LAST_PROCESSED_HAS_NO_ABILITIES'),
+      `${num}: MANUAL の既存条件型で評価する`);
   }
 });
 test('§5d(A) noAbilities: engine 判定＝素のシグニのみ候補／能力持ちは除外／abilities_removed も「持たない」', () => withSavedCursor(() => {
@@ -24215,7 +24224,7 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
       '能力消去されたシグニも置換対象');
   });
 
-  test('task12(xcv) ABILITY_CHECK_ELSE_TRASH: 「それ」＝直前にバウンスした相手シグニ（効果元ではない）', () => {
+  test('task12(xcv) legacy ABILITY_CHECK_ELSE_TRASH: 「それ」＝直前にバウンスした相手シグニ（効果元ではない）', () => {
     const SRC = 'WX25-P3-073';
     const seq = (victim: string): EffectAction => ({
       type: 'SEQUENCE',
@@ -24246,13 +24255,88 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
     eq(JSON.stringify([bare.ownerState, bare.otherState]), before, '対象なしでは盤面を触らない');
   });
 
+  const whiteEnergyX = findCard(c => c.Color === '白');
+  const colorlessEnergyX = findCard(c => c.Color === '無');
+  const mazeX = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('迷宮') && c.CardNum !== 'WX25-P3-069');
+  const abledP3000X = findCard(c => isSigni(c) && Number(c.Power) <= 3000
+    && (c.EffectText ?? '').trim() !== '-' && (c.EffectText ?? '').trim() !== '');
+  const plainP8000X = findCard(c => isSigni(c) && Number(c.Power) <= 8000
+    && (c.EffectText ?? '').trim() === '-' && (c.BurstText ?? '').trim() === '-');
+  const abledP5000X = findCard(c => isSigni(c) && Number(c.Power) <= 5000
+    && (c.EffectText ?? '').trim() !== '-' && (c.EffectText ?? '').trim() !== '');
+  const plainL2X = findCard(c => isSigni(c) && c.Level === '2'
+    && (c.EffectText ?? '').trim() === '-' && (c.BurstText ?? '').trim() === '-');
+  const effectX = (cardNum: string, effectId: string) => {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    if (!e) throw new Error(`${effectId} not found`);
+    return e;
+  };
+  const paidX = (effect: CardEffect, ctx: ExecCtx, energy: string[]) => {
+    ctx.ownerState.energy = energy;
+    ctx.effectsMap = effectsMap;
+    return finishPayingCosts(executeEffect(effect, ctx), ctx);
+  };
+
+  test('能力なし動詞昇格 A1 WX25-P3-069-E1 E2E①: 能力を持つ対象は手札へ戻る', () => withSavedCursor(() => {
+    const ctx = mkCtx({ signi: ['WX25-P3-069', mazeX, null], energy: 0 }, { signi: [abledP3000X, null, null] }, 'WX25-P3-069');
+    const r = paidX(effectX('WX25-P3-069', 'WX25-P3-069-E1'), ctx, [whiteEnergyX]);
+    ok(r.otherState.hand.includes(abledP3000X), '能力持ちは base の手札戻し');
+    ok(!r.otherState.trash.includes(abledP3000X), '能力持ちはトラッシュへ昇格しない');
+  }));
+
+  test('能力なし動詞昇格 A2 WX25-P3-072-E1 E2E②: 印字で能力なしなら直接トラッシュ', () => withSavedCursor(() => {
+    const ctx = mkCtx({ energy: 0 }, { signi: [plainP8000X, null, null] }, 'WX25-P3-072');
+    const r = paidX(effectX('WX25-P3-072', 'WX25-P3-072-E1'), ctx, [whiteEnergyX, colorlessEnergyX]);
+    ok(r.otherState.trash.includes(plainP8000X), '能力なしはトラッシュへ昇格');
+    ok(!r.otherState.hand.includes(plainP8000X), '手札を経由しない');
+    ok(r.otherState.turn_signi_returned_to_hand !== true, '手札戻りフラグを誤って立てない');
+  }));
+
+  test('能力なし動詞昇格 A3 WX25-P3-073-E1 内側 E2E③: abilities_removed でも直接トラッシュ', () => withSavedCursor(() => {
+    const outer = effectX('WX25-P3-073', 'WX25-P3-073-E1');
+    const inner = (outer.action as { effect?: CardEffect }).effect;
+    if (!inner) throw new Error('WX25-P3-073-sub-E1 not found');
+    const ctx = mkCtx({}, { signi: [abledP5000X, null, null] }, 'WX25-P3-073');
+    ctx.otherState = { ...ctx.otherState, abilities_removed: [abledP5000X] };
+    ctx.effectsMap = effectsMap;
+    const r = run(inner.action, ctx);
+    ok(r.otherState.trash.includes(abledP5000X), '効果で能力を失った対象もトラッシュへ昇格');
+    ok(!r.otherState.hand.includes(abledP5000X), '手札を経由しない');
+    ok(r.otherState.turn_signi_returned_to_hand !== true, '手札戻りフラグを誤って立てない');
+  }));
+
+  test('能力なし対象 B1 WXEX1-55-E2 E2E④: 能力持ちは候補に出ず abilities_removed は候補になる', () => withSavedCursor(() => {
+    const ctx = mkCtx({ energy: 0 }, { signi: [abledP5000X, plainP8000X, null] }, 'WXEX1-55');
+    ctx.ownerState.energy = [whiteEnergyX];
+    ctx.otherState = { ...ctx.otherState, abilities_removed: [abledP5000X] };
+    ctx.effectsMap = effectsMap;
+    const first = executeEffect(effectX('WXEX1-55', 'WXEX1-55-E2'), ctx);
+    ok(!first.done && first.pending.type === 'SELECT_TARGET', '能力なし対象の選択へ進む');
+    if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+    ok(first.pending.candidates.includes(plainP8000X), '印字で能力なしは候補');
+    ok(first.pending.candidates.includes(abledP5000X), 'abilities_removed も候補');
+    const activeCtx = { ...ctx, otherState: { ...ctx.otherState, abilities_removed: [] } };
+    const active = executeEffect(effectX('WXEX1-55', 'WXEX1-55-E2'), activeCtx);
+    ok(!active.done && active.pending.type === 'SELECT_TARGET' && !active.pending.candidates.includes(abledP5000X),
+      '能力を持つ状態なら候補に出ない');
+  }));
+
+  test('能力なし対象＋レベル昇格 B2 WX25-P3-014-E1 E2E: Lv2能力なしだけを選び直接トラッシュ', () => withSavedCursor(() => {
+    const ctx = mkCtx({ signi: [mazeX, null, null], energy: 0 }, { signi: [plainL2X, abledP5000X, null] }, 'WX25-P3-014');
+    const r = paidX(effectX('WX25-P3-014', 'WX25-P3-014-E1'), ctx, [whiteEnergyX]);
+    ok(r.otherState.trash.includes(plainL2X), 'レベル2以下ならトラッシュへ昇格');
+    ok(!r.otherState.hand.includes(plainL2X), '手札を経由しない');
+    ok(r.otherState.field.signi.some(s => s?.at(-1) === abledP5000X), '能力持ちは対象外で場に残る');
+  }));
+
   test('task12(xcv) 母集団＝「能力を持たない」を読む live カードの内訳を固定', () => {
     // ⚠**merge 後（manualEffects 適用後）の実測**＝生 JSON では4枚が STUB を持つが、`WX25-P3-038` だけは
     //   MANUAL 上書きで `LAST_PROCESSED_HAS_NO_ABILITIES` の CONDITIONAL 形に置き換わっている。
     for (const num of ['WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073']) {
       const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
-      ok(j.includes('ABILITY_CHECK_ELSE_TRASH'), `${num} が ABILITY_CHECK_ELSE_TRASH を持つ`);
-      ok(j.includes('"BOUNCE"'), `${num} は BOUNCE の直後に判定する形（「それ」＝戻したシグニ）`);
+      ok(j.includes('LAST_PROCESSED_MATCHES') && j.includes('"noAbilities":true'), `${num} が対象決定後の能力なし条件を持つ`);
+      ok(j.includes('"targetsStored":true') && !j.includes('ABILITY_CHECK_ELSE_TRASH'),
+        `${num} は同じ固定対象へ TRASH/BOUNCE を排他的に適用する`);
     }
     for (const num of ['WX25-P3-038', 'WX25-CP1-002']) {
       const j = JSON.stringify(cardMap.get(num)?.effects ?? []);

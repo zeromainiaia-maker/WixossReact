@@ -2203,6 +2203,10 @@ const TARGET_PROPERTY_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 「それが感染状態の場合」（WXDi-P07-036-E1）＝【ウィルス】と同じゾーンのシグニ。
   [/(?:それ|そのシグニ)が感染状態(?:である)?の?場合/,
     () => ({ type: 'LAST_PROCESSED_MATCHES', filter: { infected: true } })],
+  // 「それが能力を持たない場合」（WX25-P3-069/072/073）＝印字だけでなく
+  // `abilities_removed` も含む。engine の LAST_PROCESSED_MATCHES が hasNoAbility へ一本化する。
+  [/(?:それ|そのシグニ)が能力を持たない場合/,
+    () => ({ type: 'LAST_PROCESSED_MATCHES', filter: { noAbilities: true } })],
 ];
 
 // 「代わりに」置換専用：先頭が対象プロパティ条件節なら Condition と残りを返す。
@@ -5352,6 +5356,14 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
   //   タスク12(lxiv) で executor 側を配線して追加した。
   const BINDABLE = ['BANISH', 'BOUNCE', 'TRASH', 'EXILE', 'SEND_TO_ENERGY', 'TRANSFER_TO_DECK', 'POWER_MODIFY', 'DOWN', 'FREEZE', 'UP', 'GRANT_KEYWORD'];
   if (a.type === 'SEQUENCE') return { ...a, steps: (a as SequenceAction).steps.map(s => bindToStoredTarget(s, desig)) };
+  if (a.type === 'CONDITIONAL') {
+    const c = a as import('../types/effects').ConditionalAction;
+    return {
+      ...c,
+      then: bindToStoredTarget(c.then, desig),
+      ...(c.else ? { else: bindToStoredTarget(c.else, desig) } : {}),
+    };
+  }
   if (!BINDABLE.includes(a.type)) return a;
   const withTgt = a as EffectAction & { target?: EffectTarget; source?: EffectTarget };
   const key = withTgt.target ? 'target' : withTgt.source ? 'source' : null;
@@ -5376,7 +5388,7 @@ function bindToStoredTarget(a: EffectAction, desig: EffectTarget): EffectAction 
 // ⚠ SELECT/STORE は**コストステップより前**に挿す。コストとゲートの間に挟むと execSequence の
 //   「そうした場合」did-it ゲート（前段の直後が CONDITIONAL{IS_MY_TURN} であることを見る）が外れ、
 //   コストを払わなくても本体が撃てる別のバグになる。コストステップを同定できない形は**触らない**。
-const DESIG_BEFORE_COST_RE = /((?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?てもよい。そうした場合、それ/;
+const DESIG_BEFORE_COST_RE = /((?:能力を持たない)?(?:対戦相手|あなた)の[^、。]*?シグニ(?:を)?[０-９\d]*体(?:まで)?)を?対象とし、[^。]*?てもよい。そうした場合、それ/;
 
 // else なし CONDITIONAL の中身を覗く（タスク12(lxiii) で条件に包まれたコストステップがあるため）
 function coreOfCondWrap(a: EffectAction | undefined): EffectAction | undefined {
@@ -5989,8 +6001,11 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   //   先頭一致に頼ると owner が反転し、bindToStoredTarget が**自分のシグニを撃つ**別物にしてしまう。
   const desig0 = m[1];
   const cut = Math.max(desig0.lastIndexOf('あなたの'), desig0.lastIndexOf('対戦相手の'));
-  const desig = cut > 0 ? desig0.slice(cut) : desig0;
-  const target = parseSigniTarget(desig, desig.startsWith('対戦相手') ? 'opponent' : 'self');
+  // 所有者語より前に付く対象修飾「能力を持たない」は切り落とさない。
+  // それ以外の前方所有者句（レベル比較の基準など）は従来どおり最後の所有者語から切る。
+  const keepLeadingNoAbilities = /^能力を持たない(?:対戦相手|あなた)の/.test(desig0);
+  const desig = cut > 0 && !keepLeadingNoAbilities ? desig0.slice(cut) : desig0;
+  const target = parseSigniTarget(desig, desig.includes('対戦相手の') ? 'opponent' : 'self');
   const extraKeys = Object.keys(target.filter ?? {}).filter(k => k !== 'cardType');
   // ⚠🔴**「フィルタが無いから脱落しても等価」は誤り**（続き423）。脱落するのは filter だけでなく
   //   **所有者と体数**も＝帰結は既定の `SIGNI{owner:'self', count:1}` に落ちる。素の
@@ -6011,8 +6026,17 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   if (gateIdx < 0) return action;
   const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
   // 帰結が「宣言フィルタを取りこぼした SIGNI 対象」でなければ触らない（既に正しい形は据置）
-  const thenTgt = (gate.then as EffectAction & { target?: EffectTarget; source?: EffectTarget }).target
-    ?? (gate.then as EffectAction & { source?: EffectTarget }).source;
+  const targetOf = (a: EffectAction): EffectTarget | undefined => {
+    const direct = (a as EffectAction & { target?: EffectTarget; source?: EffectTarget }).target
+      ?? (a as EffectAction & { source?: EffectTarget }).source;
+    if (direct) return direct;
+    if (a.type === 'CONDITIONAL') {
+      const c = a as import('../types/effects').ConditionalAction;
+      return targetOf(c.then) ?? (c.else ? targetOf(c.else) : undefined);
+    }
+    return undefined;
+  };
+  const thenTgt = targetOf(gate.then);
   if (!thenTgt || thenTgt.type !== 'SIGNI') return action;
   const got = (thenTgt.filter ?? {}) as Record<string, unknown>;
   const want = (target.filter ?? {}) as Record<string, unknown>;
@@ -6044,6 +6068,42 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
     ...steps.slice(gateIdx + 1),
   ];
   return { ...action, steps: rebuilt } as EffectAction;
+}
+
+// 「それを手札に戻す。それが〈対象プロパティ〉の場合、代わりにそれをトラッシュに置く」。
+// 任意コスト形では文単位 parser が後段を説明 STUB に落とすため、対象宣言の復元後の木を正準形へ畳む。
+// カード番号ではなく、原文の具体文型＋ SELECT/STORE＋支払いゲート＋末尾 STUB の全条件で限定する。
+function applySelectedTargetTrashReplacement(text: string, action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const noAbilities = /それを手札に戻す。それが能力を持たない場合、代わりにそれをトラッシュに置く/.test(text);
+  const level = text.match(/それを手札に戻す。それがレベル([０-９\d]+)(以上|以下)の場合、代わりにそれをトラッシュに置く/);
+  if (!noAbilities && !level) return action;
+  const steps = [...action.steps];
+  if (!steps.some(s => s.type === 'STUB' && (s as StubAction).id === 'SELECT_TARGET_ONLY')
+      || !steps.some(s => s.type === 'STUB' && (s as StubAction).id === 'STORE_LAST_PROCESSED_TARGETS')) return action;
+  const markerIdx = steps.findIndex(s => s.type === 'STUB'
+    && ['ABILITY_CHECK_ELSE_TRASH', 'RULE_REMINDER_TEXT'].includes((s as StubAction).id));
+  if (markerIdx < 1) return action;
+  const gateIdx = markerIdx - 1;
+  const gate = steps[gateIdx] as import('../types/effects').ConditionalAction;
+  if (!isDidItGate(gate) || gate.then.type !== 'BOUNCE'
+      || !(gate.then as import('../types/effects').BounceAction).targetsStored) return action;
+  const bounce = gate.then as import('../types/effects').BounceAction;
+  const trash: import('../types/effects').TrashAction = {
+    type: 'TRASH', target: JSON.parse(JSON.stringify(bounce.target)), targetsStored: true,
+  };
+  const condition: Condition = noAbilities
+    ? { type: 'LAST_PROCESSED_MATCHES', filter: { noAbilities: true } }
+    : { type: 'LAST_PROCESSED_MATCHES', filter: {
+      cardType: 'シグニ', level: level![2] === '以上'
+        ? { min: parseNum(level![1]) } : { max: parseNum(level![1]) },
+    } };
+  steps[gateIdx] = {
+    ...gate,
+    then: { type: 'CONDITIONAL', condition, then: trash, else: bounce },
+  };
+  steps.splice(markerIdx, 1);
+  return { ...action, steps };
 }
 
 // 「あなたの他の…を対象とし、任意コスト。そうした場合、それは【X】を得る」。
@@ -6635,7 +6695,7 @@ function parseActionText(text: string): EffectAction {
       ],
     } as SequenceAction;
   };
-  const parse = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
+  const parseBase = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
@@ -6643,6 +6703,7 @@ function parseActionText(text: string): EffectAction {
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))));
+  const parse = (source: string): EffectAction => applySelectedTargetTrashReplacement(source, parseBase(source));
   let parsed = parse(text);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
@@ -8264,13 +8325,28 @@ function parseActionTextInner(text: string): EffectAction {
                   const boundThen = bindToStoredTarget(then, desig);
                   const boundElse = bindToStoredTarget(baseCore, desig);
                   const wired = (a: EffectAction) => (a as unknown as { targetsStored?: boolean }).targetsStored === true;
-                  if (base === baseCore && desig?.type === 'SIGNI' && wired(boundThen) && wired(boundElse)) {
-                    steps[steps.length - 1] = { type: 'SEQUENCE', steps: [
+                  if (desig?.type === 'SIGNI' && wired(boundThen) && wired(boundElse)) {
+                    const replacement: EffectAction = {
+                      type: 'CONDITIONAL', condition: cm.condition, then: boundThen, else: boundElse,
+                    };
+                    if (base === baseCore) {
+                      steps[steps.length - 1] = { type: 'SEQUENCE', steps: [
                       { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: JSON.parse(JSON.stringify(desig)) } as EffectAction,
                       { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
-                      { type: 'CONDITIONAL', condition: cm.condition, then: boundThen, else: boundElse },
-                    ] };
-                    continue;
+                        replacement,
+                      ] };
+                      continue;
+                    }
+                    // 任意コスト形では base が「そうした場合」ゲート。ゲート自体を置換すると
+                    // 支払い前に本体が走るため、その then の内側だけを昇格条件へ差し替える。
+                    if (base.type === 'CONDITIONAL'
+                        && (base as import('../types/effects').ConditionalAction).condition.type === 'IS_MY_TURN'
+                        && (base as import('../types/effects').ConditionalAction).then === baseCore) {
+                      steps[steps.length - 1] = {
+                        ...(base as import('../types/effects').ConditionalAction), then: replacement,
+                      };
+                      continue;
+                    }
                   }
                   // 組み替えられない形は**据置**（盤面状態版へ流すと条件が対象決定より前に評価され、
                   //   「それ」の状態を見たつもりで別物になる）。

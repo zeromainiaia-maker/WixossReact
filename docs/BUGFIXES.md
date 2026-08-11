@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — 「能力を持たない」2軸配線：動詞昇格3効果＋対象限定2効果を是正（続き439）
+
+**採用5件**＝動詞昇格 `WX25-P3-069-E1`／`WX25-P3-072-E1`／`WX25-P3-073-E1`、対象限定 `WXEX1-55-E2`、両軸 `WX25-P3-014-E1`。前3件は「手札に戻す。それが能力を持たない場合、代わりにトラッシュ」を `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → CONDITIONAL{LAST_PROCESSED_MATCHES{noAbilities}, then:TRASH, else:BOUNCE}` へ畳み、`073` は `GRANT_EFFECT.effect.action` の内側を修正した。`014` は選択 filter に `noAbilities:true` を足し、昇格条件は原文どおり能力ではなく `level:{max:2}`。`WXEX1-55-E2` は対象 filter だけを直し、原文に無い昇格は加えていない。effectId 集合、同カードの他効果、`WX25-P3-073-BURST` は不変。
+
+parser は所有者語より前に付く具体修飾「能力を持たない（対戦相手／あなた）の…シグニN体を対象とし、任意コスト。そうした場合…」だけを `applyDroppedTargetDesignation` へ通す。動詞昇格はカード番号ではなく、原文の具体文型と既存木 `SELECT/STORE + 支払いゲート + 末尾 ABILITY_CHECK_ELSE_TRASH/RULE_REMINDER_TEXT` の双方を要求して支払いゲートの内側へ折り畳む。付与内側の単純形は既存の対象プロパティ正準形を再利用した。全カード生パース差分は採用5 effectId＋同文型だが MANUAL 温存の `WX25-P3-038-E1` だけ（想定外0）。live 差分は採用5 effectId だけ。`WX25-P3-038-E1` は MANUAL のため live バイト不変で対象外。
+
+**状態判定の罠も解消**：`LAST_PROCESSED_MATCHES` の `ZONE_STATE_KEYS` に `noAbilities` を追加し、同配列を読む `needsZoneState` → `findFieldZoneState` 経路から、場の holder を既存唯一判定 `hasNoAbility(cardNum, cardMap, holder, effects)` へ渡す。CardData だけの `matchesFilter` には `noAbilities` を外した filter を渡すため、印字能力を持つが `abilities_removed` に入ったシグニも正しく条件成立する。新しい action 型・timing・能力判定は追加していない。
+
+golden は対象効果ごとに実カード action を実行する5本を追加：①`069` 能力持ちは手札 ②`072` 印字能力なしは直接トラッシュ（手札戻りフラグなし）③`073` の付与内側は `abilities_removed` でも直接トラッシュ ④`WXEX1-55` は能力持ちを候補から外し、能力消失済みは候補に含む ⑤`014` は能力なしLv2だけを選び直接トラッシュ。**1816→1821 PASS**。smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz バグ0・SKIP 0、census **848/848**、census:stubs 無言 no-op 0、manual-fields 0、lint 0 errors／259 warnings。最終 build→heldReview は **107枚／47群**で基準と一致。
+
+既存 `noAbilities` 対照群11カードは HEAD 前後の entry JSON を機械比較して全件バイト不変（連結 SHA-256 ともに `c6af593f2bf6cf0c0cc365607867d0b8ddb9d9b25168aeff65b69ca1ab2649b9`）。全 effects JSON は1行・末尾改行なしを維持。
+
+⚠**投入時の見立てを2点訂正**：(a) A1〜A3 は「常に手札へ戻す」だけではなく、既存 `ABILITY_CHECK_ELSE_TRASH` が一度 BOUNCE した後に手札→トラッシュへ事後補正していた。ただし `turn_signi_returned_to_hand` が立つ過剰副作用を持つ近似なので、最初から TRASH/BOUNCE を排他選択する正準形への移行は必要だった。(b) PLAN §6.4 の `WX25-P3-014-E1 owner:'self'` は古く、投入前 live は既に `owner:'opponent'`。今回直したのは指定どおり `noAbilities` 対象限定とLv2昇格だけ。
+
 ## 2026-08-11 — 【マジックボックス】設置が live から丸ごと落ちていた3効果を是正（続き438）
 
 **採用3件**＝`WX24-P3-067-E1`／`WX24-P3-070-E1`／`WX24-P3-072-E1`。いずれも「デッキ上3枚を見る→カード1枚までを【マジックボックス】として設置→残りをデッキ下」だが、live は `LOOK_AND_REORDER` だけで設置が丸ごと欠落していた。最終 action を `REVEAL_AND_PICK{revealCount:3,pickCount:1,pickUpTo:true,pickNoun:'カード',then:STUB{PLACE_MAGIC_BOX},remainder:{deck,bottom}}` へ置換した。コスト・使用回数・各 BURST は不変。

@@ -2015,11 +2015,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // ゾーン状態フィルタ（hasCharm/isFrozen/infected 等）が指定された場合は、直前に処理したカードを
       // 場から探してゾーン状態も照合する（「それに【チャーム】が付いている場合」WX25-P2-102/107/109。
       // matchesFilter は CardData のみで hasCharm 等を黙って無視するため、この補助照合が要る）。
-      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide'] as const;
+      const ZONE_STATE_KEYS = ['hasCharm', 'hasAcce', 'infected', 'isDown', 'isFrozen', 'isAwakened', 'isUp', 'isArmored', 'inGateZone', 'centerZoneOnly', 'zoneSide', 'noAbilities'] as const;
       const needsZoneState = !!cond.filter && ZONE_STATE_KEYS.some(k => (cond.filter as Record<string, unknown>)[k] !== undefined);
       const matchedCards = procM.filter(cn => {
         const card = ctx.cardMap.get(getCardNum(cn));
-        if (!matchesFilter(card, cond.filter)) return false;
+        // noAbilities は CardData 単体ではなく場の `abilities_removed` も見るため、静的判定から外す。
+        // ZONE_STATE_KEYS が findFieldZoneState を起動し、唯一の判定 hasNoAbility へ渡す。
+        const cardFilter = cond.filter?.noAbilities !== undefined
+          ? { ...cond.filter, noAbilities: undefined }
+          : cond.filter;
+        if (!matchesFilter(card, cardFilter)) return false;
         if (cond.levelLteCenterLrig) {
           if (centerLevel === undefined || card?.Type !== 'シグニ') return false;
           const level = parseInt(card.Level ?? '', 10);
@@ -2027,7 +2032,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         }
         if (needsZoneState) {
           const loc = findFieldZoneState(cn, ctx);
-          if (!loc || !matchesStateFilter(loc.state, loc.zoneIdx, cond.filter)) return false;
+          if (!loc) return false;
+          if (cond.filter?.noAbilities !== undefined
+              && cond.filter.noAbilities !== hasNoAbility(cn, ctx.cardMap, loc.state,
+                ctx.effectsMap?.get(getCardNum(cn)))) return false;
+          if (!matchesStateFilter(loc.state, loc.zoneIdx, cardFilter)) return false;
         }
         return true;
       });
