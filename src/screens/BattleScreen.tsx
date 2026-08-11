@@ -6819,11 +6819,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const base = id.indexOf('#') > 0 ? id.slice(0, id.indexOf('#')) : id;
           return base === card.CardNum;
         }) ?? card.CardNum;
-        newMyState = {
+        newMyState = spellPay.applyTo({
           ...my,
           lrig_deck: my.lrig_deck.filter(id => id !== spellInstanceId),
           hand: my.hand.filter((_, i) => !discardSet.has(i)),
-          energy: newEnergy,
           trash: [...my.trash, ...paidNums, ...discardNums],
           turn_hand_discarded_count: discardNums.length > 0
             ? (my.turn_hand_discarded_count ?? 0) + discardNums.length : my.turn_hand_discarded_count,
