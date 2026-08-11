@@ -11608,7 +11608,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const payment = payTrashActivateCost(
         effect, my, op,
         { energy: costIndices, handDiscard: discardIndices, exceed: exceedIndices },
-        battleCardMap,
+        battleCardMap, myEnergyPayPool,
       );
       if (!payment) return; // 支払い不能（UI側でも無効化済み）
       const isGameOnce = effect.usageLimit === 'once_per_game';
