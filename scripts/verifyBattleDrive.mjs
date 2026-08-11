@@ -3044,11 +3044,11 @@ const scenarios = {
   //    flatten」の実機検証。「このカードが手札からトラッシュに置かれたとき」＝自己参照トリガー。
   //    原因＝WXK10-065（【出】：あなたは手札を1枚捨てる＝TRASH HAND_CARD self count1・SELECT_TARGET要）で
   //    手札に残った WDA-F02-17 自身を選んで捨てさせる。
-  //    ❌実機FAIL＝実バグ確認済み（2026-07-09・続き60・Sonnet・未修正・Opus引き継ぎ）＝ground truth（hHand 2→0・
-  //    hTrash 0→1）は正しいが watcher が一度も発火しない。原因＝WXK10-065 自身の TRASH HAND_CARD アクションが
-  //    SELECT_TARGET を要し resume 経路（handleEffectInteraction）で完結する＝続き58が確立した理論どおり
-  //    collectAnyZoneTrashSelfTriggers（resolveStackNext 中央diffのみ配線・resume側にinline版なし）が取りこぼす。
-  //    R43/R46/R39と同型の新規インスタンス（§6.3系統的懸念に追加）。既定 order からは除外（Opus修正待ち）。
+  //    ❌実機FAIL＝2026-07-09・続き60時点で実バグ確認（ground truthは正しいがwatcher不発火＝
+  //    collectAnyZoneTrashSelfTriggersがresume経路で取りこぼす・R43/R46/R39と同型）。
+  //    ✅2026-08-11（続き435・PLAN§7バッチ1検証中に再確認）＝現在はPASS。handleEffectInteractionが
+  //    collectBoardDiffTriggers経由でcollectAnyZoneTrashSelfTriggersを呼ぶようになっており、
+  //    別の一般化修正（BUGFIXES該当セッション不明）で解消済みだった＝既定orderに復帰。
   handDiscard: {
     title: 'WDA-F02-17→WXK10-065（ON_TRASH self・fromZones:hand＝このカードが手札から捨てられたとき）',
     spec: {
@@ -9825,6 +9825,697 @@ scenarios.effectPlacedOnPlay = {
   },
 };
 
+// PLAN §7 A1：通常ターンはアシストルリグにアタック操作を出さない。
+scenarios.assistAttackNoFlag = {
+  title: 'WX25-P1-048対照（assist_lrig_attack_min_level未設定ならアシストはアタック不可）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#1'],
+      'field.lrig_down': false,
+      'field.assist_lrig_l': ['WD01-003#1'],
+      'field.assist_lrig_r': ['WD03-003#1'],
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
+      'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'hand': [] },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    const results = [];
+    for (const name of ['半月の巫女　タマヨリヒメ', 'コード・ピルルク・Ｍ']) {
+      const img = page.getByAltText(name, { exact: false }).first();
+      if (!(await img.count()) || !(await img.isVisible().catch(() => false))) {
+        return { pass: false, detail: `アシスト画像が見つからず検証空振り: ${name}` };
+      }
+      await img.click({ force: true });
+      await page.waitForTimeout(400);
+      const attack = page.getByRole('button', { name: 'アタック', exact: true }).first();
+      const visible = (await attack.count()) > 0 && await attack.isVisible().catch(() => false);
+      results.push(`${name}:${visible ? '表示' : '非表示'}`);
+      await H.closeModals();
+    }
+    const after = await H.queryState();
+    const unchanged = JSON.stringify(after?.host?.assistDown) === JSON.stringify(before?.host?.assistDown)
+      && after?.host?.lrigDown === before?.host?.lrigDown;
+    return {
+      pass: results.every(x => x.endsWith(':非表示')) && unchanged,
+      detail: `フラグ未設定で左右アシストの「アタック」は非表示（${results.join('／')}）・ダウン状態不変=${unchanged}`,
+    };
+  },
+};
+
+// PLAN §7 A2：フラグが立つターンは左右アシストがそれぞれ1回アタックでき、センターを巻き込まない。
+scenarios.assistAttackBoth = {
+  title: 'WX25-P1-048（Lv1以上の左右アシストが順にアタック→各自ダウン・センター温存・各1クラッシュ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#1'],
+      'field.lrig_down': false,
+      'field.assist_lrig_l': ['WD01-003#1'],
+      'field.assist_lrig_r': ['WD03-003#1'],
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
+      'assist_lrig_attack_min_level': 1,
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'hand': [], // ガード候補を空にし、各アタックが1クラッシュまで到達することを決定化
+      'field.check': null,
+      'pending_crashed_cards': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    const attackers = [
+      { name: '半月の巫女　タマヨリヒメ', downIndex: 0 },
+      { name: 'コード・ピルルク・Ｍ', downIndex: 1 },
+    ];
+    let attackIndex = 0;
+    let attackButtonCount = 0;
+    let openedForIndex = -1;
+    for (let s = 0; s < 32; s++) {
+      await page.waitForTimeout(650);
+      await page.screenshot({ path: `${SHOT}/assistAttackBoth-${s}.png`, fullPage: true });
+      let did = null;
+      const st0 = await H.queryState();
+      const resolvedAttacks = (before?.guest?.life ?? 0) - (st0?.guest?.life ?? 0);
+      if (attackIndex < attackers.length && openedForIndex !== attackIndex
+          && resolvedAttacks >= attackIndex
+          && st0?.host?.assistDown?.[attackers[attackIndex].downIndex] !== true) {
+        const img = page.getByAltText(attackers[attackIndex].name, { exact: false }).first();
+        if (await img.count() && await img.isVisible().catch(() => false)) {
+          await img.click({ force: true }); did = `img:${attackers[attackIndex].name}`; openedForIndex = attackIndex;
+        }
+      }
+      if (!did) {
+        const attack = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
+          await attack.click(); did = 'btn:アタック'; attackButtonCount++;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'エナに送る', 'ライフバーストなし', 'OK', '決定']);
+      const st = await H.queryState();
+      if (attackIndex < attackers.length && st?.host?.assistDown?.[attackers[attackIndex].downIndex] === true) attackIndex++;
+      H.log(`  aab[${s}] -> ${did ?? 'なし'} | attackIndex=${attackIndex} assistDown=${JSON.stringify(st?.host?.assistDown)} centerDown=${st?.host?.lrigDown} gLife=${st?.guest?.life}(開始${before?.guest?.life})`);
+      if (attackIndex === 2 && (st?.guest?.life ?? 99) <= (before?.guest?.life ?? 0) - 2) {
+        const correct = attackButtonCount === 2 && st.host.assistDown?.[0] === true && st.host.assistDown?.[1] === true
+          && st.host.lrigDown === false && before.guest.life - st.guest.life === 2;
+        return {
+          pass: correct,
+          detail: `左右アシストで「アタック」を各1回クリック（${attackButtonCount}回）→assistDown=${JSON.stringify(st.host.assistDown)}／centerDown=${st.host.lrigDown}／相手life ${before.guest.life}→${st.guest.life}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `左右連続アタック未完了（buttons=${attackButtonCount} assistDown=${JSON.stringify(fin?.host?.assistDown)} centerDown=${fin?.host?.lrigDown} gLife=${fin?.guest?.life}）` };
+  },
+};
+
+// PLAN §7 A3(a)：未アタックの対象アシストが残るとエンド進行前に確認を出す。
+scenarios.assistAttackSkipConfirm = {
+  title: 'WX25-P1-048（未アタックのアシストを残して進むとスキップ確認が出る）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#1'], 'field.lrig_down': true,
+      'field.assist_lrig_l': ['WD01-003#1'], 'field.assist_lrig_r': [],
+      'field.assist_lrig_l_down': false, 'field.assist_lrig_r_down': false,
+      'assist_lrig_attack_min_level': 1,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let sawConfirm = false;
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(650);
+      let did = null;
+      const modal = page.getByText('まだルリグが攻撃していません', { exact: true }).first();
+      if (await modal.count() && await modal.isVisible().catch(() => false)) {
+        sawConfirm = true;
+        did = await H.clickBtn('このまま進む', { exact: true });
+      }
+      if (!did && !sawConfirm) did = await H.clickBtn('エンドフェイズへ', { exact: true });
+      const st = await H.queryState();
+      H.log(`  aasc[${s}] -> ${did ?? 'なし'} | sawConfirm=${sawConfirm} phase=${st?.turnPhase}`);
+      if (sawConfirm && st?.turnPhase === 'END') return { pass: true, detail: '未アタックの対象アシストを残した進行で確認モーダルを観測し、「このまま進む」でENDへ進行' };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `スキップ確認またはEND進行を確認できず（sawConfirm=${sawConfirm} phase=${fin?.turnPhase}）` };
+  },
+};
+
+// PLAN §7 A3(b)：CPUはセンターを先に処理し、その後アシストを左→右に1体ずつ攻撃する。
+scenarios.assistAttackCpuSequence = {
+  title: 'WX25-P1-048 CPU（センター→左アシスト→右アシストの順で自動アタック）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'], 'hand': [], 'field.check': null, 'pending_crashed_cards': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD04-001#2'], 'field.lrig_down': false,
+      'field.assist_lrig_l': ['WD01-003#2'], 'field.assist_lrig_r': ['WD03-003#2'],
+      'field.assist_lrig_l_down': false, 'field.assist_lrig_r_down': false,
+      'assist_lrig_attack_min_level': 1,
+      'blocked_actions': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let sawCenterOnly = false;
+    let sawLeftBeforeRight = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(650);
+      let did = await H.clickTextOrBtn(['ガードしない', 'しない', 'エナに送る', 'ライフバーストなし', 'OK', '決定']);
+      const st = await H.queryState();
+      const ad = st?.guest?.assistDown ?? [];
+      if (st?.guest?.lrigDown === true && ad[0] === false && ad[1] === false) sawCenterOnly = true;
+      if (st?.guest?.lrigDown === true && ad[0] === true && ad[1] === false) sawLeftBeforeRight = true;
+      H.log(`  aacs[${s}] -> ${did ?? 'なし'} | cpuCenter=${st?.guest?.lrigDown} cpuAssist=${JSON.stringify(ad)} hLife=${st?.host?.life}(開始${before?.host?.life}) centerOnly=${sawCenterOnly} leftFirst=${sawLeftBeforeRight}`);
+      if (st?.guest?.lrigDown === true && ad[0] === true && ad[1] === true && (st?.host?.life ?? 99) <= (before?.host?.life ?? 0) - 3) {
+        return {
+          pass: sawCenterOnly && sawLeftBeforeRight && before.host.life - st.host.life === 3,
+          detail: `CPU状態遷移を順次観測＝center-only=${sawCenterOnly}→left-before-right=${sawLeftBeforeRight}→全down、host.life ${before.host.life}→${st.host.life}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `CPU連続攻撃未完了（center=${fin?.guest?.lrigDown} assist=${JSON.stringify(fin?.guest?.assistDown)} hLife=${fin?.host?.life} centerOnly=${sawCenterOnly} leftFirst=${sawLeftBeforeRight}）` };
+  },
+};
+
+// PLAN §7 A3(c)：フラグがあってもレベル未達しか残っていなければ確認を出さず進める。
+scenarios.assistAttackNoEligibleAdvance = {
+  title: 'WX25-P1-048対照（レベル未達アシストだけなら確認なしでENDへ進みソフトロックしない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#1'], 'field.lrig_down': true,
+      'field.assist_lrig_l': ['WD01-003#1'], 'field.assist_lrig_r': ['WD03-003#1'],
+      'field.assist_lrig_l_down': false, 'field.assist_lrig_r_down': false,
+      'assist_lrig_attack_min_level': 3, // 両方Lv2なので対象外
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let sawConfirm = false;
+    for (let s = 0; s < 10; s++) {
+      await page.waitForTimeout(650);
+      const modal = page.getByText('まだルリグが攻撃していません', { exact: true }).first();
+      if (await modal.count() && await modal.isVisible().catch(() => false)) sawConfirm = true;
+      const did = await H.clickBtn('エンドフェイズへ', { exact: true });
+      const st = await H.queryState();
+      H.log(`  aanea[${s}] -> ${did ?? 'なし'} | sawConfirm=${sawConfirm} phase=${st?.turnPhase}`);
+      if (st?.turnPhase === 'END') return { pass: !sawConfirm, detail: `Lv2<minLevel3のアシストだけなので確認なしでENDへ進行（sawConfirm=${sawConfirm}）` };
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `ENDへ進めずソフトロック疑い（sawConfirm=${sawConfirm} phase=${fin?.turnPhase}）` };
+  },
+};
+
+// PLAN §7 B1(pay)：CONNECTスピニング④を選び、手札2枚を実際に捨てて相手ライフを1枚クラッシュする。
+scenarios.connectSpinningChoice4Pay = {
+  title: 'WXDi-P14-002-E1④（手札2枚の任意コストpay→相手ライフ1クラッシュ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#1'],
+      'field.assist_lrig_l': ['WD03-003#1'],
+      'field.assist_lrig_r': ['WD02-003#1'],
+      'lrig_deck': ['WXDi-P14-002#1'],
+      'hand': ['WD01-013#101', 'WD01-013#102'],
+      'energy': ['WD02-009#101', 'WD01-013#103', 'WD03-013#104'],
+      'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    await page.waitForTimeout(500);
+    H.log('ピース:', await H.clickTestId('zone-card-0') ?? '見つからず');
+    let pieceSet = false;
+    let chose4 = false;
+    let paid = false;
+    const picked = new Set();
+    const selectedEnergy = new Set();
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(650);
+      await page.screenshot({ path: `${SHOT}/connectSpinningChoice4Pay-${s}.png`, fullPage: true });
+      let did = null;
+      if (!pieceSet) did = await H.clickBtn('キーにセット', { exact: true });
+      if (!did && !pieceSet) {
+        for (const name of ['羅石　ヴォルカノ', '小剣　ククリ', 'コードアート　Ｓ・Ｃ']) {
+          if (selectedEnergy.has(name)) continue;
+          const img = page.getByAltText(name, { exact: false }).last();
+          if (await img.count() && await img.isVisible().catch(() => false)) { await img.click(); selectedEnergy.add(name); did = `energy:${name}`; break; }
+        }
+      }
+      if (!did && !pieceSet) {
+        const set = await H.clickBtn('セット', { exact: true });
+        if (set) { did = set; pieceSet = true; }
+      }
+      if (!did && pieceSet && !chose4) {
+        const c4 = await H.clickBtn('選択肢4', { exact: true });
+        if (c4) { did = c4; chose4 = true; }
+      }
+      if (!did && chose4 && !paid) {
+        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
+          await pay.click(); did = 'btn:支払う'; paid = true;
+        }
+      }
+      const st0 = await H.queryState();
+      if (!did && paid && Array.isArray(st0?.pendingCandidates)) {
+        for (let i = 0; i < st0.pendingCandidates.length; i++) {
+          if (picked.has(i)) continue;
+          const p = page.getByTestId(`pick-${i}`).first();
+          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); picked.add(i); did = `pick:${i}`; break; }
+        }
+      }
+      if (!did && paid) did = await H.clickTextOrBtn(['決定', 'エナに送る', 'ライフバーストなし', 'OK']);
+      const st = await H.queryState();
+      H.log(`  csp[${s}] -> ${did ?? 'なし'} | set=${pieceSet} c4=${chose4} paid=${paid} picked=${[...picked]} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} gLife=${st?.guest?.life}(開始${before?.guest?.life}) pEff=${st?.pendingEffect ?? '-'}`);
+      if (paid && st?.host?.hand === 0 && st?.guest?.life === before.guest.life - 1 && !st?.pendingEffect) {
+        return { pass: true, detail: `④pay成立＝host.hand ${before.host.hand}→0（2枚捨て）／guest.life ${before.guest.life}→${st.guest.life}（1クラッシュ）／ピースコスト後energy=${st.host.energy}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `④pay未完了（set=${pieceSet} chose4=${chose4} paid=${paid} hHand=${fin?.host?.hand} gLife=${fin?.guest?.life} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// PLAN §7 B1(不足)：手札1枚では「支払う」がdisabledで、skipしても相手ライフは減らない。
+scenarios.connectSpinningChoice4Insufficient = {
+  title: 'WXDi-P14-002-E1④対照（手札1枚ではpay disabled・ライフ不変）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-001#1'],
+      'field.assist_lrig_l': ['WD03-003#1'], 'field.assist_lrig_r': ['WD02-003#1'],
+      'lrig_deck': ['WXDi-P14-002#1'],
+      'hand': ['WD01-013#111'],
+      'energy': ['WD02-009#111', 'WD01-013#112', 'WD03-013#113'],
+      'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.check': null, 'pending_crashed_cards': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-dk'); await page.waitForTimeout(400); await H.clickTestId('zone-card-0');
+    let pieceSet = false; let chose4 = false; let sawDisabled = false; let skipped = false;
+    const energyNames = ['羅石　ヴォルカノ', '小剣　ククリ', 'コードアート　Ｓ・Ｃ'];
+    const selectedEnergy = new Set();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(650);
+      let did = null;
+      if (!pieceSet) did = await H.clickBtn('キーにセット', { exact: true });
+      if (!did && !pieceSet) {
+        for (const name of energyNames) {
+          if (selectedEnergy.has(name)) continue;
+          const img = page.getByAltText(name, { exact: false }).last();
+          if (await img.count() && await img.isVisible().catch(() => false)) { await img.click(); selectedEnergy.add(name); did = `energy:${name}`; break; }
+        }
+      }
+      if (!did && !pieceSet) { const set = await H.clickBtn('セット', { exact: true }); if (set) { did = set; pieceSet = true; } }
+      if (!did && pieceSet && !chose4) { const c4 = await H.clickBtn('選択肢4', { exact: true }); if (c4) { did = c4; chose4 = true; } }
+      if (!did && chose4 && !skipped) {
+        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        if (await pay.count() && await pay.isVisible().catch(() => false)) {
+          sawDisabled = !(await pay.isEnabled().catch(() => true));
+          if (!sawDisabled) return { pass: false, detail: '【回帰】手札1枚なのに④の「支払う」がenabled' };
+          const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
+          if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+        }
+      }
+      const st = await H.queryState();
+      H.log(`  csi[${s}] -> ${did ?? 'なし'} | disabled=${sawDisabled} skipped=${skipped} hHand=${st?.host?.hand} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+      if (sawDisabled && skipped && !st?.pendingEffect && s >= 5) {
+        const ok = st.host.hand === before.host.hand && st.guest.life === before.guest.life;
+        return { pass: ok, detail: `手札不足でpay disabled=${sawDisabled}→skip後もhost.hand ${before.host.hand}→${st.host.hand}・guest.life ${before.guest.life}→${st.guest.life}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `不足対照未完了（disabled=${sawDisabled} skipped=${skipped} hHand=${fin?.host?.hand} gLife=${fin?.guest?.life}）` };
+  },
+};
+
+// PLAN §7 B2(pay)：《青》1枚と手札2枚の複合コストを両方徴収し、対象をデッキ下へ送る。
+scenarios.fezoneDoubleCostPay = {
+  title: 'WXDi-P14-044-E1（アタックフェイズ開始時・青1＋手札2pay→対象をデッキ下）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-001#1'],
+      'field.assist_lrig_l': ['WD03-003#1'], 'field.assist_lrig_r': ['WD03-004#1'],
+      'field.signi': [['WXDi-P14-044#1'], null, null],
+      'hand': ['WD01-013#121', 'WD01-013#122'],
+      'energy': ['WD03-013#121'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WD01-013#123'], null, null],
+      'deck': ['WD01-013#124', 'WD01-013#125'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let paid = false; const picked = new Set();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(650);
+      let did = null;
+      if (!did) did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (!did && !paid) {
+        const e0 = page.getByTestId('optcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click(); did = 'tid:optcost-energy-0'; }
+      }
+      if (!did && !paid) {
+        const pay = page.getByTestId('optcost-pay').first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'tid:optcost-pay'; paid = true; }
+      }
+      const st0 = await H.queryState();
+      if (!did && paid && Array.isArray(st0?.pendingCandidates)) {
+        for (let i = 0; i < st0.pendingCandidates.length; i++) {
+          const cn = st0.pendingCandidates[i];
+          if (picked.has(`${cn}:${i}`)) continue;
+          const p = page.getByTestId(`pick-${i}`).first();
+          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); picked.add(`${cn}:${i}`); did = `pick:${cn}`; break; }
+        }
+      }
+      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  fdcp[${s}] -> ${did ?? 'なし'} | paid=${paid} hE=${st?.host?.energy}(開始${before?.host?.energy}) hH=${st?.host?.hand}(開始${before?.host?.hand}) gBottom=${st?.guest?.deckBottom} candidates=${JSON.stringify(st?.pendingCandidates)}`);
+      const targetGone = st?.guest?.fieldSigni?.[0] == null;
+      if (paid && targetGone && st?.guest?.deckBottom === 'WD01-013#123' && !st?.pendingEffect) {
+        const ok = before.host.energy - st.host.energy === 1 && before.host.hand - st.host.hand === 2;
+        return { pass: ok, detail: `複合pay＝energy ${before.host.energy}→${st.host.energy}（青1）＋hand ${before.host.hand}→${st.host.hand}（2枚）／対象をdeckBottom=${st.guest.deckBottom}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `複合pay未完了（hE=${fin?.host?.energy} hH=${fin?.host?.hand} gField=${JSON.stringify(fin?.guest?.fieldSigni)} bottom=${fin?.guest?.deckBottom} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// PLAN §7 B2(skip)：支払いを辞退すれば手札・エナ・対象は一切動かない。
+scenarios.fezoneDoubleCostSkip = {
+  title: 'WXDi-P14-044-E1対照（skipなら青・手札・対象すべて不変）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-001#1'], 'field.assist_lrig_l': ['WD03-003#1'], 'field.assist_lrig_r': ['WD03-004#1'],
+      'field.signi': [['WXDi-P14-044#1'], null, null],
+      'hand': ['WD01-013#131', 'WD01-013#132'], 'energy': ['WD03-013#131'], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.signi': [['WD01-013#133'], null, null], 'deck': ['WD01-013#134'] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let skipped = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(650);
+      let did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (!did && !skipped) {
+        const skip = page.getByTestId('optcost-skip').first();
+        if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'tid:optcost-skip'; skipped = true; }
+      }
+      const st = await H.queryState();
+      H.log(`  fdcs[${s}] -> ${did ?? 'なし'} | skipped=${skipped} hE=${st?.host?.energy} hH=${st?.host?.hand} gField=${JSON.stringify(st?.guest?.fieldSigni)} bottom=${st?.guest?.deckBottom} pEff=${st?.pendingEffect ?? '-'}`);
+      if (skipped && !st?.pendingEffect && s >= 4) {
+        const ok = st.host.energy === before.host.energy && st.host.hand === before.host.hand
+          && st.guest.fieldSigni?.[0]?.includes('WD01-013#133') && st.guest.deckBottom === before.guest.deckBottom;
+        return { pass: ok, detail: `skip後不変＝energy ${before.host.energy}→${st.host.energy}／hand ${before.host.hand}→${st.host.hand}／対象残存=${!!st.guest.fieldSigni?.[0]}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `skip対照未完了（skipped=${skipped} hE=${fin?.host?.energy} hH=${fin?.host?.hand} gField=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+  },
+};
+
+// PLAN §7 C1(pay)：選択肢②の手札コスト候補はスペルだけで、payしたときだけ相手手札を1枚落とす。
+scenarios.sYokusenkiSpellPay = {
+  title: 'WX24-P1-065-E1②（スペルだけが捨て候補→pay時だけ相手手札1枚減少）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-001#1'],
+      'field.signi': [['WX24-P1-065#1'], null, null],
+      'hand': ['WD05-018#1', 'WD01-013#161'], // スペル／シグニの対照
+      'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'hand': ['WD01-013#162', 'WD01-013#163'] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let chose2 = false; let paid = false; let filterChecked = false; let picked = false;
+    for (let s = 0; s < 28; s++) {
+      await page.waitForTimeout(650); let did = null;
+      if (!did) did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (!did && !chose2) { const c2 = await H.clickBtn('選択肢2', { exact: true }); if (c2) { did = c2; chose2 = true; } }
+      if (!did && chose2 && !paid) {
+        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'btn:支払う'; paid = true; }
+      }
+      const st0 = await H.queryState();
+      if (!did && paid && !picked && Array.isArray(st0?.pendingCandidates)) {
+        const cands = st0.pendingCandidates;
+        filterChecked = cands.length === 1 && cands[0] === 'WD05-018#1';
+        if (!filterChecked) return { pass: false, detail: `【限定漏れ】スペル捨て候補が ${JSON.stringify(cands)}（期待=['WD05-018#1']・シグニは候補外）` };
+        const p = page.getByTestId('pick-0').first();
+        if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); did = 'pick:spell'; picked = true; }
+      }
+      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  sysp[${s}] -> ${did ?? 'なし'} | c2=${chose2} paid=${paid} filter=${filterChecked} hHand=${st?.host?.hand} gHand=${st?.guest?.hand}(開始${before?.guest?.hand}) trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (filterChecked && (st?.host?.trashCards ?? []).includes('WD05-018#1') && st?.guest?.hand === before.guest.hand - 1 && !st?.pendingEffect) {
+        const signiStayed = (st?.host?.handCards ?? []).includes('WD01-013#161');
+        return { pass: signiStayed, detail: `候補はスペル1枚だけ→payでWD05-018をtrash、シグニ残存=${signiStayed}、guest.hand ${before.guest.hand}→${st.guest.hand}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `C1 pay未完了（filter=${filterChecked} hHand=${fin?.host?.hand} gHand=${fin?.guest?.hand} trash=${JSON.stringify(fin?.host?.trashCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// PLAN §7 C1(skip)：スペルを捨てなければ相手手札は減らない。
+scenarios.sYokusenkiSpellSkip = {
+  title: 'WX24-P1-065-E1②対照（skipなら自分のスペルも相手手札も不変）',
+  spec: {
+    hostSet: { 'field.lrig': ['WD03-001#1'], 'field.signi': [['WX24-P1-065#1'], null, null], 'hand': ['WD05-018#1', 'WD01-013#171'], 'actions_done': [] },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'hand': ['WD01-013#172', 'WD01-013#173'] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let chose2 = false; let skipped = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(650); let did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (!did && !chose2) { const c2 = await H.clickBtn('選択肢2', { exact: true }); if (c2) { did = c2; chose2 = true; } }
+      if (!did && chose2 && !skipped) {
+        const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
+        if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+      }
+      const st = await H.queryState();
+      H.log(`  syss[${s}] -> ${did ?? 'なし'} | skipped=${skipped} hHand=${st?.host?.hand} gHand=${st?.guest?.hand} pEff=${st?.pendingEffect ?? '-'}`);
+      if (skipped && !st?.pendingEffect && s >= 4) {
+        const ok = st.host.hand === before.host.hand && st.guest.hand === before.guest.hand && st.host.handCards.includes('WD05-018#1');
+        return { pass: ok, detail: `skip後はスペル残存・host.hand ${before.host.hand}→${st.host.hand}／guest.hand ${before.guest.hand}→${st.guest.hand}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `C1 skip未完了（skipped=${skipped} hHand=${fin?.host?.hand} gHand=${fin?.guest?.hand}）` };
+  },
+};
+
+// PLAN §7 C2(pay)：このシグニの下の＜ブルアカ＞3枚を支払い、エナチャージ1する。
+scenarios.kokonaUnderThreePay = {
+  title: 'WX25-CP1-091-E2（下のブルアカ3枚pay→3枚trash＋エナチャージ1）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1', 'WX25-CP1-091#1'], null, null],
+      'energy': [], 'trash': [], 'deck': ['WD01-013#181', 'WD01-013#182'], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'] },
+    top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let paid = false; const picked = new Set(); let candidateChecked = false;
+    const expected = ['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1'];
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(650); let did = await H.clickBtn('ターン終了', { exact: true });
+      if (!did && !paid) {
+        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'btn:支払う'; paid = true; }
+      }
+      const st0 = await H.queryState();
+      if (!did && paid && Array.isArray(st0?.pendingCandidates)) {
+        const cands = st0.pendingCandidates;
+        candidateChecked = expected.every(x => cands.includes(x)) && cands.length === 3;
+        if (!candidateChecked) return { pass: false, detail: `下カード候補が不正: ${JSON.stringify(cands)}（期待ブルアカ3枚のみ）` };
+        for (let i = 0; i < cands.length; i++) {
+          if (picked.has(i)) continue;
+          const p = page.getByTestId(`pick-${i}`).first();
+          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); picked.add(i); did = `pick:${i}`; break; }
+        }
+      }
+      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'OK']);
+      const st = await H.queryState();
+      const stack = st?.host?.fieldSigni?.[0] ?? [];
+      H.log(`  kutp[${s}] -> ${did ?? 'なし'} | paid=${paid} candidates=${candidateChecked} picked=${[...picked]} stack=${JSON.stringify(stack)} hTrash=${st?.host?.trash} hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) pEff=${st?.pendingEffect ?? '-'}`);
+      const paidCardsInTrash = expected.every(x => (st?.host?.trashCards ?? []).includes(x));
+      if (paidCardsInTrash && st?.host?.energy === before.host.energy + 1 && !st?.pendingEffect) {
+        const onlyHost = stack.length === 1 && stack[0] === 'WX25-CP1-091#1';
+        return { pass: candidateChecked && onlyHost, detail: `ブルアカ3枚を下からtrash（stack=${JSON.stringify(stack)}）→energy ${before.host.energy}→${st.host.energy}・候補限定=${candidateChecked}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `C2 pay未完了（paid=${paid} candidates=${candidateChecked} stack=${JSON.stringify(fin?.host?.fieldSigni?.[0])} trash=${JSON.stringify(fin?.host?.trashCards)} energy=${fin?.host?.energy}）` };
+  },
+};
+
+// PLAN §7 C2(skip)：3枚あっても置かなければエナチャージされない。
+scenarios.kokonaUnderThreeSkip = {
+  title: 'WX25-CP1-091-E2対照（3枚あってもskipなら下札・エナ不変）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1', 'WX25-CP1-091#1'], null, null],
+      'energy': [], 'trash': [], 'deck': ['WD01-013#191', 'WD01-013#192'], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'] },
+    top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let skipped = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(650); let did = await H.clickBtn('ターン終了', { exact: true });
+      if (!did && !skipped) {
+        const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
+        if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+      }
+      const st = await H.queryState(); const stack = st?.host?.fieldSigni?.[0] ?? [];
+      H.log(`  kuts[${s}] -> ${did ?? 'なし'} | skipped=${skipped} stack=${JSON.stringify(stack)} energy=${st?.host?.energy} trash=${st?.host?.trash} pEff=${st?.pendingEffect ?? '-'}`);
+      if (skipped && !st?.pendingEffect && s >= 4) {
+        const ok = stack.length === 4 && st.host.energy === before.host.energy && st.host.trash === before.host.trash;
+        return { pass: ok, detail: `skip後は下札4枚stack維持=${stack.length === 4}・energy ${before.host.energy}→${st.host.energy}・trash ${before.host.trash}→${st.host.trash}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `C2 skip未完了（skipped=${skipped} stack=${JSON.stringify(fin?.host?.fieldSigni?.[0])} energy=${fin?.host?.energy}）` };
+  },
+};
+
+// PLAN §7 C2(不足)：下にブルアカが2枚しかなければpay枝は利用不能で、効果本体も走らない。
+scenarios.kokonaUnderInsufficient = {
+  title: 'WX25-CP1-091-E2対照（下のブルアカ2枚ではpay不可・エナチャージなし）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WX25-CP1-091#1'], null, null],
+      'energy': [], 'trash': [], 'deck': ['WD01-013#201', 'WD01-013#202'], 'actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#2'] },
+    top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let sawUnavailable = false; let skipped = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(650); let did = await H.clickBtn('ターン終了', { exact: true });
+      if (!did && !skipped) {
+        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        const payVisible = (await pay.count()) > 0 && await pay.isVisible().catch(() => false);
+        if (payVisible) {
+          sawUnavailable = !(await pay.isEnabled().catch(() => true));
+          if (!sawUnavailable) return { pass: false, detail: '【回帰】下にブルアカ2枚しかないのにpayがenabled' };
+        } else {
+          sawUnavailable = true; // 枝そのものを隠す実装も正しい
+        }
+        const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
+        if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+      }
+      const st = await H.queryState();
+      H.log(`  kui[${s}] -> ${did ?? 'なし'} | unavailable=${sawUnavailable} skipped=${skipped} stack=${JSON.stringify(st?.host?.fieldSigni?.[0])} energy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+      if (sawUnavailable && skipped && !st?.pendingEffect && s >= 4) {
+        const ok = st.host.energy === before.host.energy && st.host.fieldSigni?.[0]?.length === 3;
+        return { pass: ok, detail: `ブルアカ2枚ではpay枝利用不能=${sawUnavailable}・skip後もenergy ${before.host.energy}→${st.host.energy}／stack長3維持` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `C2不足対照未完了（unavailable=${sawUnavailable} skipped=${skipped} stack=${JSON.stringify(fin?.host?.fieldSigni?.[0])} energy=${fin?.host?.energy}）` };
+  },
+};
+
+// PLAN §7 C3：カンニング付与能力を直接注入し、捨てたシグニと同レベルかつダウンだけを対象候補にする。
+scenarios.cheatingSameLevelDownFilter = {
+  title: 'WXEX2-20-sub-E1（相手シグニ攻撃時・シグニ1枚pay→同レベルかつダウンだけをエナへ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXEX2-20#1'],
+      'field.signi': [null, null, null],
+      'hand': ['WD01-013#211'], // Lv1＝動的比較元
+      'lrig_granted_auto_effects': [{
+        effectId: 'WXEX2-20-sub-E1', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+        action: { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', handDiscard: { count: 1, filter: { cardType: 'シグニ' } } },
+          { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', isDown: true, levelEqLastProcessed: true }, upToCount: false } },
+        ] },
+        duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO', triggerScope: 'any_opp',
+      }],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      // zone0=Lv2アップ（CPUの攻撃元。攻撃でダウンしてもレベル不一致）
+      // zone1=Lv1ダウン（唯一の正候補）／zone2=Lv1アップ（同レベルだが状態不一致）
+      'field.signi': [['WD01-012#211'], ['WD01-013#212'], ['WD01-014#213']],
+      'field.signi_down': [false, true, false],
+      'energy': [], 'blocked_actions': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState(); let paid = false; let discardPicked = false; let targetChecked = false; let targetPicked = false;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(650); let did = null;
+      if (!paid) {
+        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'btn:支払う'; paid = true; }
+      }
+      const st0 = await H.queryState();
+      if (!did && paid && !discardPicked && Array.isArray(st0?.pendingCandidates)) {
+        const cands = st0.pendingCandidates;
+        const idx = cands.indexOf('WD01-013#211');
+        if (idx >= 0) {
+          const p = page.getByTestId(`pick-${idx}`).first();
+          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); did = 'pick:discard-signi'; discardPicked = true; }
+        }
+      }
+      if (!did && discardPicked && !targetPicked && Array.isArray(st0?.pendingCandidates)
+          && st0.pendingCandidates.some(x => x.startsWith('WD01-'))) {
+        const cands = st0.pendingCandidates;
+        // 手札候補のラウンドは上で処理済み。相手場3体のいずれかが見えたラウンドだけ対象filterを判定する。
+        if (cands.some(x => ['WD01-012#211', 'WD01-013#212', 'WD01-014#213'].includes(x))) {
+          targetChecked = cands.length === 1 && cands[0] === 'WD01-013#212';
+          if (!targetChecked) return { pass: false, detail: `【限定漏れ】SEND_TO_ENERGY候補=${JSON.stringify(cands)}（期待＝Lv1かつdownのWD01-013#212のみ）` };
+          const p = page.getByTestId('pick-0').first();
+          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); did = 'pick:only-valid-target'; targetPicked = true; }
+        }
+      }
+      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'ガードしない', 'しない', 'エナに送る', 'OK']);
+      const st = await H.queryState();
+      const moved = (st?.guest?.energyCards ?? []).includes('WD01-013#212');
+      H.log(`  csld[${s}] -> ${did ?? 'なし'} | paid=${paid} discard=${discardPicked} filter=${targetChecked} picked=${targetPicked} candidates=${JSON.stringify(st?.pendingCandidates)} gDown=${JSON.stringify(st?.guest?.signiDown)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (moved && !st?.pendingEffect) {
+        const othersStayed = st.guest.fieldSigni?.[0]?.includes('WD01-012#211') && st.guest.fieldSigni?.[2]?.includes('WD01-014#213');
+        return { pass: targetChecked && othersStayed && st.host.hand === 0, detail: `候補を1体に限定=${targetChecked}→WD01-013#212だけguest.energyへ移動、別Lv攻撃元・同Lvアップは残存=${othersStayed}、hand ${before.host.hand}→${st.host.hand}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `C3未完了（paid=${paid} discard=${discardPicked} filter=${targetChecked} picked=${targetPicked} gField=${JSON.stringify(fin?.guest?.fieldSigni)} gEnergy=${JSON.stringify(fin?.guest?.energyCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
@@ -10123,6 +10814,14 @@ order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で
 // 無条件発火バグが再発していないことを確認・PASS）。各2回連続PASSで既定orderに追加。
 order.push('coinsPaidAttackFires');
 order.push('coinsPaidAttackSkipped');
+order.push(
+  'assistAttackNoFlag', 'assistAttackBoth', 'assistAttackSkipConfirm', 'assistAttackCpuSequence', 'assistAttackNoEligibleAdvance',
+  'connectSpinningChoice4Pay', 'connectSpinningChoice4Insufficient',
+  'fezoneDoubleCostPay', 'fezoneDoubleCostSkip',
+  'sYokusenkiSpellPay', 'sYokusenkiSpellSkip',
+  'kokonaUnderThreePay', 'kokonaUnderThreeSkip', 'kokonaUnderInsufficient',
+  'cheatingSameLevelDownFilter',
+);
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -10156,7 +10855,7 @@ console.log(`dev: ${url} / 実行シナリオ: ${runIds.join(', ')}`);
 let code = 0;
 const results = [];
 try {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {});
   // タスク12(xxvi)＝74件フルバッチでレンダラのメモリ蓄積により ~27件目で `Target crashed`＝バッチ停止。
   // 対策＝セッション（context+page+H＋console監視）を関数化し、(a) N件ごとに context を作り直して
   // ヒープ/DOM/Realtime購読の蓄積を解放、(b) クラッシュ検知時に再確立して当該シナリオを再試行する。
