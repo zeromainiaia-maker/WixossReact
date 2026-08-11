@@ -6,6 +6,7 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { matchesFilter } from '../../engine/effectExecutor';
+import { planEnergyPayment, type EnergyPayEntry } from './energyPaySource';
 import {
   activatedDiscardCostRecord, canPayExceed, exceedPoolOf, paySelectedExceed,
   fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni,
