@@ -11493,16 +11493,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     closeEnergyActivated();
     try {
-      const paidNums = [...costIndices].map(i => my.energy[i]);
       // アクセカードがエナから取り除かれるのはATTACH_ACCE実行時（effectExecutor側）
       // コストのみ先払い（緑×0の場合は何も消費しない）
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
-      const paid: PlayerState = {
+      const enaActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = enaActPay.paidNums;
+      const paid: PlayerState = enaActPay.applyTo({
         ...my,
-        energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         actions_done: [...(my.actions_done ?? []), effect.effectId],
-      };
+      });
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
