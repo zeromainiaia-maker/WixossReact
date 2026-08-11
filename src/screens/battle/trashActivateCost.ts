@@ -156,7 +156,10 @@ export const emptyTrashActivateSelections = (): TrashActivateSelections => ({
   energy: new Set(), handDiscard: new Set(), exceed: new Set(),
 });
 
-/** 選択が必要数そろっているか（フィルタ違反の混入も弾く）。エナの色充足は呼び出し側が別途判定する。 */
+/**
+ * 選択が必要数そろっているか（フィルタ違反の混入も弾く）。エナの色充足は呼び出し側が別途判定する。
+ * ⚠`selections.energy` は枚数しか見ないので pool 由来（エナゾーン外）でもそのまま通る。
+ */
 export function trashActivateSelectionsSatisfied(
   effect: CardEffect,
   my: PlayerState,
