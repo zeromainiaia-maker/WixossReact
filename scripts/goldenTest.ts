@@ -30797,6 +30797,209 @@ test('WXDi-P03-009-E3: 捨てた青2枚だけを数えて相手が2枚捨て、�
   eq(rz.otherState.hand.length, 4, '青0枚なら相手は0枚捨てる');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// 2026-08-11（続き441）$ref が消費側で黙って0に潰れる死角
+//
+// engine には数量解決関数が2つあり、`resolveCountRef` は $ref を解くのに対し
+// `resolveNum` は **typeof n === 'number' ? n : 0** ＝ $ref を**警告なく0**にする。
+// resolveNum 側へ流れた $ref は「その action が丸ごと不発」になるのに、
+// **逆翻訳は JSON を読むので「同じ枚数」と正しく描画される＝原理的に見えない偽陰性**。
+// ⇒ ここのテストは全て **盤面を組んで実行し「何枚動いたか」** を見る。JSON 構造 assert では無価値
+//    （$ref は修正前から入っていた）。各テストは「複数枚ケース」と「参照元0枚ケース」を両方固定する。
+// ══════════════════════════════════════════════════════════════════════════════
+
+test('WDK05-T07-E1: 戻した遊具2体と同数の相手シグニを戻す（execBounce の$ref）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WDK05-T07')?.find(e => e.effectId === 'WDK05-T07-E1');
+  if (!eff) throw new Error('WDK05-T07-E1 が存在');
+  const toys = [...cardMap.values()].filter(c => isSigni(c) && c.CardClass?.includes('遊具')).slice(0, 2).map(c => c.CardNum);
+  eq(toys.length, 2, '＜遊具＞のシグニ2体を確保');
+  const foes = [...cardMap.values()].filter(c => isSigni(c) && !toys.includes(c.CardNum)).slice(0, 3).map(c => c.CardNum);
+
+  const ctx = mkCtx({ signi: toys, hand: 0 }, { signi: foes, hand: 0 });
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.hand.length, 2, '自分の遊具2体が手札に戻る');
+  eq(r.otherState.field.signi.filter(Boolean).length, 1, '🔴修正前は0体（$ref→0）だった相手シグニが2体戻る');
+  eq(r.otherState.hand.length, 2, '戻した2体は相手の手札へ');
+
+  const zero = mkCtx({ signi: [null, null, null], hand: 0 }, { signi: foes, hand: 0 });
+  const rz = run(eff.action, zero);
+  ok(rz.done, '遊具0体でもクラッシュせず完走');
+  eq(rz.otherState.field.signi.filter(Boolean).length, 3, '0体なら相手シグニは1体も戻らない');
+}));
+
+test('WX24-P1-014-E2: 手札に加えた3枚と同数を相手エナから相手手札へ（ゾーン是正＋$ref）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX24-P1-014')?.find(e => e.effectId === 'WX24-P1-014-E2');
+  if (!eff) throw new Error('WX24-P1-014-E2 が存在');
+  // 原文「あなたのエナゾーンからカードを３枚まで対象とし、それらを手札に加える。その後、この方法で手札に
+  //   加えたカード１枚につき**対戦相手のエナゾーンから**カードを１枚まで対象とし、それらを**手札に戻す**」
+  // ⚠修正前は2段目が BOUNCE{SIGNI}＝**場のシグニ**を戻す別ゾーンの実装だった。
+  const ctx = mkCtx({ energy: 3, hand: 0 }, { energy: 5, hand: 0 });
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.energy.length, 0, '自分のエナ3枚を手札へ');
+  eq(r.ownerState.hand.length, 3, '自分の手札は3枚');
+  eq(r.otherState.energy.length, 2, '🔴修正前は0枚（$ref→0）だった相手エナが3枚減る');
+  eq(r.otherState.hand.length, 3, '⚠戻り先は「相手の手札」＝自分の手札ではない');
+
+  const zero = mkCtx({ energy: 0, hand: 0 }, { energy: 5, hand: 0 });
+  const rz = run(eff.action, zero);
+  ok(rz.done, '自分のエナ0枚でもクラッシュせず完走');
+  eq(rz.otherState.energy.length, 5, '0枚なら相手エナは減らない');
+}));
+
+test('WXDi-P10-008-E3: トラッシュした自エナ3枚と同数の相手エナを落とす（execTrash/ENERGY_CARD の$ref）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P10-008')?.find(e => e.effectId === 'WXDi-P10-008-E3');
+  if (!eff) throw new Error('WXDi-P10-008-E3 が存在');
+  const foes = [...cardMap.values()].filter(isSigni).slice(0, 3).map(c => c.CardNum);
+  const ctx = mkCtx({ energy: 3, hand: 0 }, { energy: 5, signi: foes, hand: 0 });
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.energy.length, 0, '自分のエナはすべてトラッシュ');
+  eq(r.otherState.energy.length, 2, '🔴修正前は0枚（$ref→0）だった相手エナが3枚落ちる');
+  eq(r.otherState.field.signi.filter(Boolean).length, 0, '相手シグニは全トラッシュ');
+
+  const zero = mkCtx({ energy: 0, hand: 0 }, { energy: 5, signi: foes, hand: 0 });
+  const rz = run(eff.action, zero);
+  ok(rz.done, '自分のエナ0枚でもクラッシュせず完走');
+  eq(rz.otherState.energy.length, 5, '0枚なら相手エナは落ちない');
+}));
+
+test('WXDi-P13-007-E3: 捨てたディソナ2枚だけを数えて相手エナを落とす（$refのfilter）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXDi-P13-007')?.find(e => e.effectId === 'WXDi-P13-007-E3');
+  if (!eff) throw new Error('WXDi-P13-007-E3 が存在');
+  // ⚠《ディソナアイコン》は CardClass ではなく CSV の Story==='Dissona'（filter は isDisona）。
+  const disona = [...cardMap.values()].filter(c => c.Story === 'Dissona').slice(0, 2).map(c => c.CardNum);
+  eq(disona.length, 2, 'ディソナ2枚を確保');
+  const plain = findCard(c => c.Story !== 'Dissona');
+  const ctx = mkCtx({ hand: 0 }, { energy: 5, hand: 0 }); ctx.ownerState.hand = [...disona, plain];
+  const r = run(eff.action, ctx);
+  eq(r.ownerState.hand.length, 0, '手札3枚をすべて捨てる');
+  eq(r.otherState.energy.length, 3, '🔴捨てた3枚ではなく「ディソナ2枚」だけを数えて相手エナが2枚落ちる');
+
+  const zero = mkCtx({ hand: 0 }, { energy: 5, hand: 0 }); zero.ownerState.hand = [plain];
+  const rz = run(eff.action, zero);
+  ok(rz.done, 'ディソナ0枚でもクラッシュせず完走');
+  eq(rz.otherState.energy.length, 5, 'ディソナ0枚なら相手エナは落ちない');
+}));
+
+test('WX24-P2-003-E1: 比例側は捨てた赤2枚・リコレクト側は固定2（2軸の入れ替わり是正）', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX24-P2-003')?.find(e => e.effectId === 'WX24-P2-003-E1');
+  if (!eff) throw new Error('WX24-P2-003-E1 が存在');
+  // 原文：前半「この効果で捨てた**赤の**カード１枚につき…１枚まで」＝動的／
+  //       後半《リコレクト》［４枚以上］「カードを**２枚まで**」＝固定。修正前は**両方が入れ替わっていた**。
+  const steps = (eff.action as SequenceAction).steps;
+  const proportional = steps.find(s => s.type === 'TRASH') as import('../src/types/effects').TrashAction;
+  const cond = steps.find(s => s.type === 'CONDITIONAL') as import('../src/types/effects').ConditionalAction;
+  const pc = proportional.target.count as { $ref?: string; filter?: { color?: string } };
+  eq(pc.$ref, 'last_processed_count', '前半＝動的な数え上げ');
+  eq(pc.filter?.color, '赤', '前半＝「赤の」カードだけを数える');
+  eq(((cond.then as import('../src/types/effects').TrashAction).target.count), 2, '後半＝固定2枚（$refではない）');
+
+  const reds = [...cardMap.values()].filter(c => c.Color?.includes('赤')).slice(0, 2).map(c => c.CardNum);
+  const notRed = findCard(c => !!c.Color && !c.Color.includes('赤'));
+  // 相手ルリグ無し＝colorNotMatchesLrig は制約が外れて全候補・LRIG_LEVEL gte 3 も不成立（後半は走らない）。
+  const ctx = mkCtx({ hand: 0 }, { energy: 5, hand: 0 }); ctx.ownerState.hand = [...reds, notRed];
+  const r = run(eff.action, ctx);
+  eq(r.otherState.energy.length, 3, '🔴捨てた赤2枚ぶんだけ相手エナが落ちる（修正前は固定1枚）');
+
+  const zero = mkCtx({ hand: 0 }, { energy: 5, hand: 0 }); zero.ownerState.hand = [notRed];
+  const rz = run(eff.action, zero);
+  ok(rz.done, '赤0枚でもクラッシュせず完走');
+  eq(rz.otherState.energy.length, 5, '赤0枚なら相手エナは落ちない');
+}));
+
+test('WXK01-038-sub-E1: トラッシュした自シグニ3体と同数を相手手札から落とす（blind経路の$ref）', () => withSavedCursor(() => {
+  const granted = findEffectDeep(effectsMap.get('WXK01-038') ?? [], 'WXK01-038-sub-E1');
+  if (!granted) throw new Error('WXK01-038-sub-E1 が存在');
+  // ⚠付与能力（GRANT_LRIG_ABILITY）の内側。かつ2段目は blind:true＝execTrash の**別分岐**を通る。
+  const mine = [...cardMap.values()].filter(isSigni).slice(0, 3).map(c => c.CardNum);
+  const ctx = mkCtx({ signi: mine, hand: 0 }, { hand: 5 });
+  const r = run(granted.action, ctx);
+  eq(r.ownerState.field.signi.filter(Boolean).length, 0, '自分のシグニ3体を場からトラッシュ');
+  eq(r.otherState.hand.length, 2, '🔴修正前は0枚（$ref→0）だった相手手札が3枚落ちる');
+
+  const zero = mkCtx({ signi: [null, null, null], hand: 0 }, { hand: 5 });
+  const rz = run(granted.action, zero);
+  ok(rz.done, 'シグニ0体でもクラッシュせず完走');
+  eq(rz.otherState.hand.length, 5, '0体なら相手手札は落ちない');
+}));
+
+// ── トリップワイヤ C1：live データ側 ──────────────────────────────────────────
+// parser が「$ref を解けない位置」へ動的枚数を吐いた瞬間に赤くする。
+// 位置＝(その $ref を包む最も内側の `type`).(キー)。ホワイトリストは**消費側が resolveCountRef であることを
+// 実コードで確認した位置だけ**を載せること（下の C2 が engine 側を同時に固定する）。
+test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が解ける位置にしか無い', () => {
+  const OK_POSITIONS = new Set([
+    'SIGNI.count',                     // BANISH(:931) / BOUNCE(:988) / TRASH-field(:1579) いずれも resolveCountRef
+    'HAND_CARD.count',                 // execTrash 通常(:1579) と blind(:1504) の両分岐とも resolveCountRef
+    'ENERGY_CARD.count',               // execTrash(:1646) / execTransferToHand(:2288) とも resolveCountRef
+    'TRASH_CARD.count',                // execAddToField / execTransferToHand の source
+    'ADD_TO_LIFE.count',               // execAddToLife(:2596)
+    'ENERGY_CHARGE_FROM_DECK.count',   // execEnergyChargeFromDeck(:1740)
+    'REVEAL_AND_PICK.revealCount',     // execRevealAndPick(:4986/:5081)
+    'SEARCH.maxCount',                 // execSearch(:3360)
+  ]);
+  const found = new Map<string, string[]>();
+  const walk = (node: unknown, types: string[], key: string, who: string): void => {
+    if (node === null || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(v => walk(v, types, key, who)); return; }
+    const rec = node as Record<string, unknown>;
+    const ts = typeof rec.type === 'string' ? [...types, rec.type] : types;
+    for (const [k, v] of Object.entries(rec)) {
+      if (k === '$ref') {
+        const pos = `${ts.at(-1) ?? '(root)'}.${key}`;
+        if (!found.has(pos)) found.set(pos, []);
+        found.get(pos)!.push(who);
+        continue;
+      }
+      walk(v, ts, k, who);
+    }
+  };
+  for (const [cardNum, effects] of effectsMap) {
+    for (const eff of effects) walk(eff, [], '(root)', `${cardNum}/${(eff as CardEffect).effectId}`);
+  }
+  const bad = [...found.entries()].filter(([pos]) => !OK_POSITIONS.has(pos));
+  ok(bad.length === 0,
+    '未検証の位置に$refが出た＝消費側が resolveNum なら**黙って0枚**になる。'
+    + '消費コードを読んで resolveCountRef なら OK_POSITIONS へ追加、resolveNum なら engine を直すこと: '
+    + bad.map(([pos, who]) => `${pos} <- ${who.slice(0, 3).join(',')}`).join(' / '));
+});
+
+// ── トリップワイヤ C2：engine ソース側 ────────────────────────────────────────
+// 「枚数キーを resolveNum に渡している関数」の集合を凍結する。新しく増えたり、
+// 今回直した4関数へ resolveNum が戻ったりしたら赤くなる。
+// ⚠残っている関数群は**live に $ref が1件も無い**ため今は無害＝予防的置換はしない（続き441 の判断）。
+//   ここに新しい名前が増えたら「その型に $ref が来ないか」を C1 と併せて確認すること。
+test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集合が凍結されている', () => {
+  const src = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8').split(/\r?\n/);
+  let fn = '(top)';
+  const hits = new Set<string>();
+  for (const ln of src) {
+    const m = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z0-9_]+)/.exec(ln);
+    if (m) fn = m[1];
+    if (/resolveNum\(\s*[A-Za-z0-9_.]*\b(?:count|maxCount|revealCount)\b/.test(ln)) hits.add(fn);
+  }
+  const FROZEN = ['execAttachCharm', 'execBlockAction', 'execDown', 'execExile', 'execFreeze', 'execGrantEffect',
+    'execGrantKeyword', 'execGrantProtection', 'execLevelModify', 'execLifeCrash', 'execLookAndReorder',
+    'execNegateAttack', 'execPowerModify', 'execPowerModifyByTargetLevel', 'execPowerModifyPerField',
+    'execPowerModifyPerHandCount', 'execPowerModifyPerLevelSum', 'execPowerModifyPerLifeCount',
+    'execPowerModifyPerLrigLevel', 'execPowerModifyPerTrashCount', 'execPowerMultiply', 'execPowerSet',
+    'execRemoveAbilities', 'execReveal', 'execRevealDeckTop', 'execStoryChange', 'execTransferToDeck',
+    'execTransferToHand', 'execTrash', 'execUp'];
+  eq([...hits].sort().join(','), FROZEN.join(','),
+    '枚数キーを resolveNum で解く関数集合が変化した（増＝新しい死角／減＝凍結リストの更新漏れ）');
+  // 今回直した4サイトは resolveCountRef であることを個別に固定する
+  // （execTrash / execTransferToHand は LIFE_CLOTH 分岐が残るので上の集合には出続ける＝ここで枝を名指しする）。
+  const whole = src.join('\n');
+  ok(/function execBounce[\s\S]*?const count = resolveCountRef\(tgt\.count, ctx, tgt\.countFromZone\)/.test(whole),
+    'execBounce の非ALL経路は resolveCountRef');
+  ok(/if \(tgt\.blind\) \{[\s\S]{0,200}?resolveCountRef\(tgt\.count, ctx, tgt\.countFromZone\)/.test(whole),
+    'execTrash の blind 経路は resolveCountRef');
+  ok(/opponentSelects: 「対戦相手は自分のエナから/.test(whole)
+    && /const count = resolveCountRef\(tgt\.count, ctx, tgt\.countFromZone\);\r?\n\s*\/\/ opponentSelects: 「対戦相手は自分のエナから/.test(whole),
+    'execTrash の ENERGY_CARD 経路は resolveCountRef');
+  ok(/const count = src\.count === 'ALL' \? cands\.length : resolveCountRef\(src\.count, ctx, src\.countFromZone\)/.test(whole),
+    'execTransferToHand の非ALL経路は resolveCountRef');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
