@@ -219,9 +219,8 @@ export function payTrashActivateCost(
     nextOp = { ...op, field: { ...op.field, signi_virus: virus } };
   }
 
-  let paid: PlayerState = {
+  let paid: PlayerState = energyPlan.applyTo({
     ...my,
-    energy: my.energy.filter((_, i) => !selections.energy.has(i)),
     hand: my.hand.filter((_, i) => !selections.handDiscard.has(i)),
     trash: [...my.trash, ...energyPaid, ...discardedCards],
     coins: coinPaid > 0 ? Math.max(0, (my.coins ?? 0) - coinPaid) : my.coins,
