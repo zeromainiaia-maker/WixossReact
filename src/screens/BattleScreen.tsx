@@ -7198,7 +7198,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_arts_used: true,
           turn_arts_used_names: [...(my.turn_arts_used_names ?? []), cutinCard.CardName],
           turn_arts_used_colors: [...(my.turn_arts_used_colors ?? []), ...((cutinCard.Color || '').match(/白|赤|青|緑|黒|無色/g) ?? [])],
-        };
+        });
       } else if (source === 'hand') {
         // 手札から自分を捨てる（discardSelfFromHand）
         const idx = handIdx ?? my.hand.indexOf(cutinCard.CardNum);
