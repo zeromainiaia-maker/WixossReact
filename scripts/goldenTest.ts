@@ -11,7 +11,7 @@
 import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
-import type { CardData, PlayerState, StackEntry } from '../src/types';
+import type { CardData, PlayerState, StackEntry, TurnPhase } from '../src/types';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
@@ -59,6 +59,7 @@ import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
+import { buildEnergyPayPool, energyPoolCardNums, offZonePayLimit, planEnergyPayment } from '../src/screens/battle/energyPaySource';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown } from '../src/screens/battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttackDamage';
@@ -29945,6 +29946,114 @@ test('§6.4 対象宣言の脱落: パワー制限が帰結に載る（過剰対
      'WX06-CB01-E1: 「パワー3000以下」が載る（従来は任意のシグニをバニッシュできた）');
   ok(declared('WXDi-P11-042', 'WXDi-P11-042-E1').includes('"max":10000'),
      'WXDi-P11-042-E1: 「パワー10000以下」が載る');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 エナ支払い元の一本化（`screens/battle/energyPaySource.ts`）
+// ⚠この funnel が壊れると「アーツには使えるが【起】には使えない」型の**無言の不整合**になる
+//   （census にも census:stubs にも出ない）。ここが唯一の見張り。
+// ══════════════════════════════════════════════════════════════════════════════
+const P10041 = 'WXDi-P10-041';
+const enaCtx = (turnPhase: TurnPhase, isMyTurn = true) =>
+  ({ turnPhase, isMyTurn, effectsMap: effectsMap as Map<string, CardEffect[]> });
+
+test('§6.4 エナ支払い元: 宣言が無ければ pool はエナゾーンそのもの（後方互換の index 空間）', () => {
+  const my = mkState({ energy: 4, signi: ['WX01-001', null, null] });
+  const pool = buildEnergyPayPool(my, enaCtx('ATTACK_SIGNI'));
+  eq(pool.length, my.energy.length, '追加元が無ければ枚数はエナゾーンと同じ');
+  eq(energyPoolCardNums(pool).join(','), my.energy.join(','), '並びもエナゾーンと同一（既存の costIndices がそのまま通る）');
+  ok(pool.every(e => e.origin === 'energy'), '全件がエナゾーン由来');
+});
+
+test('§6.4 エナ支払い元: UNDER_CARD_AS_ENERGY_COST は自分のアタックフェイズだけ支払い元になる', () => {
+  const eff = effectsMap.get(P10041)?.find(e => e.effectId === 'WXDi-P10-041-E1');
+  ok(!!eff, '前提：WXDi-P10-041-E1 が live に居る');
+  eq((eff!.action as StubAction).id, 'UNDER_CARD_AS_ENERGY_COST', '前提：明示 defer ではなく実装済み id');
+  const my = { ...mkState({ energy: 2 }), field: { ...mkState({}).field, signi: [['u1', 'u2', P10041], null, null] } } as PlayerState;
+  const atk = buildEnergyPayPool(my, enaCtx('ATTACK_SIGNI'));
+  eq(atk.length, 4, 'アタックフェイズ：エナ2＋下2枚');
+  eq(atk.filter(e => e.origin === 'under').map(e => e.cardNum).join(','), 'u1,u2', '最上段（シグニ本体）は支払い元にしない');
+  eq(buildEnergyPayPool(my, enaCtx('MAIN')).length, 2, 'メインフェイズでは支払い元にならない');
+  eq(buildEnergyPayPool(my, enaCtx('ATTACK_SIGNI', false)).length, 2, '相手のターンでは支払い元にならない（「あなたの」アタックフェイズ）');
+});
+
+test('§6.4 エナ支払い元: 「1ターンに3つまで」は候補生成の1点で止める', () => {
+  const base = { ...mkState({ energy: 1 }), field: { ...mkState({}).field, signi: [['u1', 'u2', 'u3', 'u4', P10041], null, null] } } as PlayerState;
+  eq(buildEnergyPayPool(base, enaCtx('ATTACK_LRIG')).filter(e => e.origin === 'under').length, 3,
+     '未使用なら上限3枚まで候補に出る（4枚あっても4枚目は出さない）');
+  const used2 = { ...base, turn_off_zone_energy_paid_count: 2 } as PlayerState;
+  eq(buildEnergyPayPool(used2, enaCtx('ATTACK_LRIG')).filter(e => e.origin === 'under').length, 1, '2枚払った後は残り1枚');
+  const used3 = { ...base, turn_off_zone_energy_paid_count: 3 } as PlayerState;
+  ok(buildEnergyPayPool(used3, enaCtx('ATTACK_LRIG')).every(e => e.origin === 'energy'), '3枚払ったらもう候補に出ない');
+  eq(offZonePayLimit(used2, enaCtx('ATTACK_LRIG')), 1, 'offZonePayLimit も残り枚数を返す');
+  eq(offZonePayLimit(base, enaCtx('MAIN')), 0, 'フェイズ外は0');
+});
+
+test('§6.4 エナ支払い元: planEnergyPayment はエナのみなら従来の手書き控除と一致する', () => {
+  const my = mkState({ energy: 5 });
+  const picked = new Set([1, 3]);
+  const plan = planEnergyPayment(my, buildEnergyPayPool(my, enaCtx('MAIN')), picked);
+  eq(plan.paidNums.join(','), [...picked].map(i => my.energy[i]).join(','), 'paidNums は従来と同じ');
+  eq(plan.applyTo({ ...my }).energy.join(','), my.energy.filter((_, i) => !picked.has(i)).join(','),
+     'applyTo の控除は従来の filter と同じ');
+  eq(plan.offZonePaidCount, 0, 'エナゾーンのみなら 1ターン計数は増えない');
+  eq(plan.applyTo({ ...my }).turn_off_zone_energy_paid_count, undefined, '計数フィールドも触らない');
+  eq(my.energy.length, 5, '入力 state は破壊しない');
+});
+
+test('§6.4 エナ支払い元: シグニの下から払うとスタックから抜けてトラッシュ計数が増える', () => {
+  const my = { ...mkState({ energy: 2 }), field: { ...mkState({}).field, signi: [['u1', 'u2', P10041], null, null] } } as PlayerState;
+  const pool = buildEnergyPayPool(my, enaCtx('ATTACK_ARTS'));
+  const underIdx = pool.findIndex(e => e.origin === 'under' && e.cardNum === 'u2');
+  const plan = planEnergyPayment(my, pool, new Set([0, underIdx]));
+  eq(plan.paidNums.join(','), `${my.energy[0]},u2`, 'エナ1枚＋下1枚を支払う');
+  eq(plan.offZonePaidCount, 1, 'エナゾーン外は1枚');
+  const after = plan.applyTo({ ...my, trash: [...my.trash, ...plan.paidNums] });
+  eq(after.energy.join(','), my.energy.slice(1).join(','), 'エナゾーンからは選んだ1枚だけ減る');
+  eq(after.field.signi[0]!.join(','), `u1,${P10041}`, '下の u2 だけがスタックから抜ける（最上段は残る）');
+  eq(after.turn_off_zone_energy_paid_count, 1, '1ターン計数が増える');
+  ok(after.trash.includes('u2'), '支払った下カードはトラッシュへ行く');
+  eq(my.field.signi[0]!.length, 3, '入力 state は破壊しない');
+});
+
+test('§6.4 エナ支払い元: applyTo はサイトが組み直した field の上に当たる（取りこぼしを構造的に防ぐ）', () => {
+  const my = { ...mkState({ energy: 1 }), field: { ...mkState({}).field, signi: [['u1', P10041], null, null] } } as PlayerState;
+  const pool = buildEnergyPayPool(my, enaCtx('ATTACK_SIGNI'));
+  const plan = planEnergyPayment(my, pool, new Set([pool.findIndex(e => e.origin === 'under')]));
+  // サイトが field を自前で組み直すケース（key_piece を落とす等）を模す
+  const built = { ...my, field: { ...my.field, key_piece: null }, trash: [...my.trash, ...plan.paidNums] };
+  eq(plan.applyTo(built).field.signi[0]!.join(','), P10041, 'サイトの field 組み直しに上書きされない');
+});
+
+test('§6.4 エナ支払い元: alsoRemoveEnergyIndices（energyTrash 等）は色コストと二重に積まない', () => {
+  const my = mkState({ energy: 4 });
+  const plan = planEnergyPayment(my, buildEnergyPayPool(my, enaCtx('MAIN')), new Set([0]), new Set([0, 2]));
+  eq(plan.paidNums.join(','), my.energy[0], '色コストは選んだ1枚');
+  eq(plan.extraEnergyNums.join(','), my.energy[2], '色コストで払った index は追加控除から除く');
+  eq(plan.energyAfter.join(','), [my.energy[1], my.energy[3]].join(','), '控除後のエナは2枚');
+});
+
+// トリップワイヤ①＝支払いサイトの取りこぼし検出（新しい支払い経路が funnel を迂回したら落ちる）
+test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も残っていない', () => {
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const hits = src.split('\n')
+    .map((line, i) => ({ line, n: i + 1 }))
+    .filter(x => /\.energy\.filter\(\(_, i\) => !/.test(x.line));
+  eq(hits.length, 0,
+     `色エナコストの控除は planEnergyPayment 一本。直控除が残っている: ${hits.map(h => h.n).join(',')}`);
+});
+
+// トリップワイヤ②＝同じスタックを2つのコスト機構が index で触ると必ずズレる（BattleScreen の cutin 経路）
+test('§6.4 エナ支払い元: UNDER_CARD_AS_ENERGY_COST と underSelfTrash を同じカードが持たない', () => {
+  const both: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    const declares = effs.some(e => e.effectType === 'CONTINUOUS'
+      && (e.action as StubAction)?.type === 'STUB'
+      && (e.action as StubAction)?.id === 'UNDER_CARD_AS_ENERGY_COST');
+    if (declares && effs.some(e => e.cost?.underSelfTrash)) both.push(cardNum);
+  }
+  eq(both.length, 0, `同居すると「下から払う」2機構が同じ index 空間を奪い合う: ${both.join(',')}`);
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

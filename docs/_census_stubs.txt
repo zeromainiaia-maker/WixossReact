@@ -5,12 +5,12 @@ live JSON の STUB id 種類 : 594（総ノード 2906 件）
 逆翻訳シートの [STUB:…] 総数: 848  うち生ID露出 272 箇所（187 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 15 種 / 17 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 15 種 / 17 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 14 種 / 16 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 14 種 / 16 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 18 種 / 61 件
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 62 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 259 箇所
-  D 健全（実装あり＋日本語表示）                          : 403 種
+  D 健全（実装あり＋日本語表示）                          : 404 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 312 種
 
 ==============================================================================
@@ -56,8 +56,6 @@ live JSON の STUB id 種類 : 594（総ノード 2906 件）
      1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
-     1件   1枚  DEFERRED_UNDER_CARD_AS_ENERGY_COST
-        カード: WXDi-P10-041
      1件   1枚  DEFERRED_UP_REARRANGED_MOVED_SIGNI
         カード: WX12-010
         生成: src\data\manualEffects.ts:1201
@@ -115,10 +113,13 @@ live JSON の STUB id 種類 : 594（総ノード 2906 件）
         消費: src\engine\effectExecutor.ts:3293
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:976 / src\screens\BattleScreen.tsx:9946
+        消費: src\screens\BattleScreen.tsx:977 / src\screens\BattleScreen.tsx:9963
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6523
+     1件   1枚  UNDER_CARD_AS_ENERGY_COST
+        カード: WXDi-P10-041
+        消費: src\screens\battle\energyPaySource.ts:43
 
 ==============================================================================
 【C】表示だけの穴＝engine は動くが逆翻訳に英語 ID が出る（decompileEffects.ts に語彙を足す案件）
