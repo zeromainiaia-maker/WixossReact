@@ -361,20 +361,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
-## +STUB -HAND_CARD -TRASH ［1枚］
-WXDi-P07-010
---- WXDi-P07-010
-  原文: 【自】：このルリグがアタックしたとき、対戦相手のデッキの一番上を公開する。それがレベル１のシグニの場合、①を行う。レベル２のシグニの場合、②を行う。レベル３のシグニの場合、①か②を行う。スペルの場合、①と②を行う。①カードを１枚引く。②対戦相手は手札を１枚捨てる。【起】《ゲーム１回》《青×0》：対戦相手のシグニ１体を対象とし、それを裏向きにする。各アタックフ
-  - [1].action.steps[1].target.type = "HAND_CARD"
-  - [1].action.steps[1].target.owner = "self"
-  - [1].action.steps[1].target.count = 2
-  - [1].action.steps[1].optional = true
-  ~ [1].action.steps[1].type : "TRASH" → "STUB"
-  + [1].action.steps[1].id = "OPPONENT_PAY_OPTIONAL"
-  + [1].action.steps[1].costColors[0] = "無"
-  + [1].action.steps[1].costColors[1] = "無"
-  + [1].action.steps[1].opponentHandDiscard = 2
-
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
@@ -446,24 +432,6 @@ WXDi-P12-073
   + [1].action.then.steps[0].target.count = 1
   + [1].action.then.steps[0].target.filter.cardType = "シグニ"
   …（他 7 行）
-
-## +FIELD_LRIG_COLOR_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CARD -HAND_CARD×2 -IS_MY_TURN -LRIG_LEVEL -SEQUENCE×2 -SIGNI -TRASH×3 ［1枚］
-WXDi-P14-002
---- WXDi-P14-002
-  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ以下の４つからあなたのセンタールリグのレベル１につき１つまで選ぶ。①対戦相手のシグニ１体を対象とし、それをバニッシュする。②対戦相手のセンタールリグがレベル３以上の場合、対戦相手は自分のエナゾーンからカード３枚を選びトラッシュに置く。③手札をすべて捨て、カードを４枚引く。④手札を２枚捨ててもよい。そうした
-  - [0].action.choose_count = 1
-  - [0].action.from_count = 4
-  - [0].action.choices[0].choiceId = "c0"
-  - [0].action.choices[0].label = "選択肢1"
-  - [0].action.choices[0].action.type = "BANISH"
-  - [0].action.choices[0].action.target.type = "SIGNI"
-  - [0].action.choices[0].action.target.owner = "opponent"
-  - [0].action.choices[0].action.target.count = 1
-  - [0].action.choices[0].action.target.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.target.upToCount = false
-  - [0].action.choices[1].choiceId = "c1"
-  - [0].action.choices[1].label = "選択肢2"
-  …（他 41 行）
 
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052
