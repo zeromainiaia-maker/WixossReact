@@ -11530,8 +11530,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     closeHandActivated();
     try {
       // エナコスト支払い
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const handActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = handActPay.paidNums;
       // 手札からこのカード自身を捨てる（self-discard from hand）
       const newHand = my.hand.filter((_, i) => i !== handIndex);
       const isGameOnce = effect.usageLimit === 'once_per_game';
