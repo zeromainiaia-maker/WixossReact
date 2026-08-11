@@ -621,6 +621,10 @@ export function hoistLeaveSubstituteAsks(
   return executeAction(makeLeaveSubAsk(queue, victimOwner, then, opts), ctx);
 }
 
+/** 何もしない action（ask チェーンの末端が空のとき用）。 */
+const noOpAction = (): EffectAction =>
+  ({ type: 'STUB', id: 'INTERNAL_LEAVE_SUB_NOOP' } as unknown as EffectAction);
+
 function makeLeaveSubAsk(
   queue: string[], victimOwner: Owner, then: EffectAction, opts?: { isBanish?: boolean },
 ): EffectAction {
