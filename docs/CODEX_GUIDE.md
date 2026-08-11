@@ -52,6 +52,7 @@ CODEX_HOME="C:/Users/zerom/.codex-work" codex exec -C "C:/Users/zerom/source/Wix
   - ⚠**Windows `0xC0000142`（`orchestrator_helper_exit_nonzero` / `-1073741502`）は続き400〜402 で3回連続発生**し、**codex 側が最終工程（`docs/BUGFIXES.md` 追記・`groupSimilar --all`・エンコーディング検査・`heldReview` 再測）を実行できなくなった**。実装とゲートは完了しているのに報告だけ書けない形で止まる。⇒ **指示書に「症状が出たら早めに BUGFIXES を書いて確定させ、残りは検証側へ渡す」と明記**し、**検証側が引き取る前提でスコープを切る**と成立する（§7 のチェックリストは元々それを検算する内容なので問題ない）。
   - ⚠**10分 kill 後も `codex.exe` は完走する**（続き400/401/402 で3回とも実証。ログは 4.6MB→17MB まで伸び、`-o` は後から出た）＝続き386 の記述どおり。待機は `until [ -f <-o> ] || ! tasklist | grep -qi codex.exe; do sleep 20; done` を `run_in_background: true` で回す。
 - **`run_in_background: true` で起動**する（数十分かかる）。ただしユーザーが `!` で起動した場合はタスク通知が来ないので、**Monitor ツールでログ末尾の `tokens used` 出現を待つ**（`while ...; do grep -q "tokens used" <log> && break; sleep 15; done`）。
+- 🆕**2026-08-11（続き435）＝Codex のサンドボックスは Supabase 等の外部ネットワークへの出口が塞がれている**（`net::ERR_NETWORK_ACCESS_DENIED`）。**`sandbox_mode = "danger-full-access"` はファイル書込を許可するだけでネットワークは別軸**＝`scripts/verifyBattleDrive.mjs` のような**実ブラウザ＋ライブ Supabase を要する検証系タスクは Codex 側では実行できない**（Playwright Chromium も既定インストールが無く、`PLAYWRIGHT_CHANNEL=chrome` に切り替えてもネットワーク遮断の方が先に効く）。**この種のタスクは「Codex にシナリオコードだけ書かせ、実行検証は必ず Claude 側（ネットワークアクセスあり）で行う」**という前提で指示書を書くこと（§1 の役割分担どおりだが、検証系タスクでは Codex 報告の「実行結果」欄が最初から空＝`BLOCKED` になる想定で読む）。
 - 進捗を見るときは `git status --porcelain` と `git diff --stat`、ログ末尾は Read ツールで直接（`awk`/`tail` パイプは classifier に弾かれやすい）。
 - ログは巨大（1〜10MB）。**全部読まない**。`grep -n "tokens used" <log>` で最終レポート位置を出してから Read で該当箇所を読む。
 
