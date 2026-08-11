@@ -11184,14 +11184,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     closeSigniActivated();
     setKeySubstituteEnabled(false);
     try {
-      // エナコストを支払う（色コスト + energyTrash指定コスト）
-      const allEnergyRemovedIdx = new Set([...costIndices, ...energyTrashIndices]);
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const energyTrashCards = [...energyTrashIndices].map(i => my.energy[i]);
-      const baseNewEnergy = my.energy.filter((_, i) => !allEnergyRemovedIdx.has(i));
+      // エナコストを支払う（色コスト + energyTrash指定コスト）＝支払い元は funnel 1本（§6.4）。
+      // ⚠energyTrash 系は**エナゾーン専用**のコストなので pool ではなく my.energy の index を渡す。
+      const signiActPay = planEnergyPayment(my, myEnergyPayPool, costIndices, energyTrashIndices);
+      const paidNums = signiActPay.paidNums;
+      const energyTrashCards = signiActPay.extraEnergyNums;
       // energyTrashAll: エナゾーンのカードをすべてトラッシュ（選択不要、自動）
-      const energyTrashAllCards = effect.cost?.energyTrashAll ? [...baseNewEnergy] : [];
-      const newEnergy = effect.cost?.energyTrashAll ? [] : baseNewEnergy;
+      const energyTrashAllCards = effect.cost?.energyTrashAll ? [...signiActPay.energyAfter] : [];
       // 手札捨てコストを支払う
       const discardedCards = [...discardCostIndices].map(i => my.hand[i]);
       const discardVarCards = discardVarIndices ? [...discardVarIndices].map(i => my.hand[i]) : [];
