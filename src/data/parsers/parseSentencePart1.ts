@@ -2956,6 +2956,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- デッキ上公開 / 見る（単独 or シャッフル付き）----
   // ⚠「N枚公開し、その中から〜」の1文畳み形は pick まで含めて part4 が REVEAL_AND_PICK に解く。
   //   ここで掴むと公開だけが残り **pick が丸ごと no-op** になる（タスク12(xlvi)(c)）。
+  if (/^あなたのデッキの上からこの方法でトラッシュに置いたシグニのレベルと同じ枚数のカードを見る$/.test(t)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: { $ref: 'last_processed_level' },
+      private: true,
+      reorder: false,
+      destination: { location: 'deck', owner: 'self', position: 'top' },
+    };
+  }
   const deckLookM = fusedLookPickSentence(t) ? null : t.match(/デッキの上からカードを([０-９\d]+)枚(?:公開する|見る|公開し)/);
   if (deckLookM) {
     return {

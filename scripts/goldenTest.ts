@@ -18,6 +18,7 @@ import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } fro
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
+import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec } from '../src/engine/execUtils';
 import {
@@ -3433,6 +3434,78 @@ test('REVEAL_AND_PICK remainder: 公開カードが消失しない（続き36 �
   const r = run({ type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 3, filter: { cardType: 'シグニ' }, pickCount: 1, then: { type: 'ADD_TO_HAND', owner: 'self' }, remainder: { location: 'deck', position: 'bottom' } } as unknown as EffectAction, ctx);
   eq(r.ownerState.deck.length + r.ownerState.hand.length, before, '公開カードの消失なし（旧実装は2枚ロスト）');
   eq(r.ownerState.hand.length, ctx.ownerState.hand.length + 1, 'ピック1枚が手札へ');
+});
+
+// PLAN §6.4 UNKNOWN 第6バッチ：公開/見る→pick→残り処理の記述子変形。
+test('UNKNOWN第6バッチ A1: 「すべての」が名詞より前でも天使だけを全件エナへ', () => {
+  const desc = parseRevealPickDescriptor('その中からすべての＜天使＞のシグニをエナゾーンに置き、残りを好きな順番でデッキの一番下に置く');
+  eq(`${desc?.pickCount}/${desc?.filter.story}/${desc?.filter.cardType}/${desc?.dest}`, 'ALL/天使/シグニ/energy', '前置ALL記述子');
+  // 未知の修飾を部分解釈して無制限pickへ落とさない（不成立側）。
+  eq(parseRevealPickDescriptor('その中からすべての能力を持たない＜天使＞のシグニをエナゾーンに置く'), null, '未知修飾は拒否');
+
+  const freshEff = parseCardEffects(cardMap.get('WX21-028')!).find(e => e.effectId === 'WX21-028-E1')!;
+  const rap = freshEff.action as import('../src/types/effects').RevealAndPickAction;
+  eq(`${rap.type}/${rap.revealCount}/${rap.pickCount}/${rap.filter?.story}/${rap.filter?.cardType}/${rap.then.type}/${rap.remainder?.location}/${rap.remainder?.position}`,
+    'REVEAL_AND_PICK/2/ALL/天使/シグニ/ENERGY_CHARGE/deck/bottom', 'A1 fresh構造');
+
+  const angel = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('天使'));
+  const nonAngel = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('天使'));
+  const untouched = findCard(c => c.CardNum !== angel && c.CardNum !== nonAngel);
+  const ctx = mkCtx({ deckTop: [angel, nonAngel, untouched] }, {}, 'WX21-028');
+  const energy0 = ctx.ownerState.energy.length;
+  const r = run(freshEff.action as EffectAction, ctx);
+  eq(r.ownerState.energy.length, energy0 + 1, '天使1枚だけエナへ');
+  ok(r.ownerState.energy.includes(angel), '天使がエナに入る');
+  ok(!r.ownerState.energy.includes(nonAngel), '非天使はエナに入らない');
+  eq(r.ownerState.deck[0], untouched, '非対象の公開札は下へ、未公開札がトップになる');
+  eq(r.ownerState.deck.at(-1), nonAngel, '残りはデッキの一番下');
+});
+
+test('UNKNOWN第6バッチ A2: トラッシュしたシグニのレベルを公開枚数へ解決してpickまでゲート内実行', () => {
+  const freshEff = parseCardEffects(cardMap.get('WDK13-022')!).find(e => e.effectId === 'WDK13-022-E1')!;
+  const choose = freshEff.action as import('../src/types/effects').ChooseAction;
+  const seq = choose.choices[0].action as SequenceAction;
+  eq(seq.steps.length, 2, 'TRASH + did-it CONDITIONAL の2段');
+  eq(seq.steps[0].type, 'TRASH', '前段トラッシュ');
+  const conditional = seq.steps[1] as import('../src/types/effects').ConditionalAction;
+  const rap = conditional.then as import('../src/types/effects').RevealAndPickAction;
+  eq(`${conditional.type}/${conditional.condition.type}/${rap.type}/${JSON.stringify(rap.revealCount)}/${rap.pickCount}/${rap.then.type}/${rap.remainder?.position}`,
+    'CONDITIONAL/IS_MY_TURN/REVEAL_AND_PICK/{"$ref":"last_processed_level"}/1/ADD_TO_HAND/bottom', 'A2 fresh構造');
+
+  const spaceL3 = findCard(c => isSigni(c) && c.Level === '3' && (c.CardClass ?? '').includes('宇宙'));
+  const p1 = findCard(c => c.CardNum !== spaceL3);
+  const p2 = findCard(c => c.CardNum !== spaceL3 && c.CardNum !== p1);
+  const p3 = findCard(c => ![spaceL3, p1, p2].includes(c.CardNum));
+  const untouched = findCard(c => ![spaceL3, p1, p2, p3].includes(c.CardNum));
+  const ctx = mkCtx({ signi: [spaceL3, null, null], deckTop: [p1, p2, p3, untouched] }, {}, 'WDK13-022');
+  const hand0 = ctx.ownerState.hand.length;
+  const trash0 = ctx.ownerState.trash.length;
+  const r = run(freshEff.action as EffectAction, ctx);
+  eq(r.ownerState.trash.length, trash0 + 1, '宇宙L3をトラッシュ');
+  eq(r.ownerState.hand.length, hand0 + 1, '公開3枚から1枚を手札へ');
+  eq(r.ownerState.deck[0], untouched, 'L3と同じ3枚を見たため4枚目がトップ');
+  ok(r.ownerState.deck.slice(-2).includes(p2) && r.ownerState.deck.slice(-2).includes(p3), '公開残り2枚はデッキ下');
+});
+
+test('UNKNOWN第6バッチ defer固定: A3/B1/C1 は未対応機構を既存語彙へ誤載せしない', () => {
+  const a3 = parseCardEffects(cardMap.get('WXK07-034')!).find(e => e.effectId === 'WXK07-034-E1')!;
+  const a3Json = JSON.stringify(a3.action);
+  ok(a3Json.includes('それらを手札に加え、残りをシャッフルしてデッキの一番下に置く'), 'A3 後段UNKNOWNを維持');
+  ok(!a3Json.includes('REVEAL_UNTIL_TO_HAND') && !a3Json.includes('REVEAL_UNTIL_TO_FIELD'), 'A3を1枚停止/場出し型へ近似しない');
+
+  const b1 = parseCardEffects(cardMap.get('WD23-024-E')!).find(e => e.effectId === 'WD23-024-E-E1')!;
+  const b1Json = JSON.stringify(b1.action);
+  ok(b1Json.includes('そのカードをデッキの一番上に置く'), 'B1 top配置UNKNOWNを維持');
+  ok(!b1Json.includes('INTERNAL_KEEP_ON_DECK_TOP'), 'SEARCH後shuffleで無効になるLPC専用マーカーを流用しない');
+
+  const c1Live = manualEffect('SP38-006', 'SP38-006-E1-G2');
+  const c1LiveJson = JSON.stringify(c1Live.action);
+  eq(c1Live.parseStatus, 'PARTIAL', 'C1 live は PARTIAL 温存');
+  ok(c1LiveJson.includes('対戦相手は自分のデッキの上からカードを３枚見て'), 'C1 live の相手pick文をUNKNOWNで維持');
+  const c1Fresh = findEffectDeep(parseCardEffects(cardMap.get('SP38-006')!), 'SP38-006-E1-G2')!;
+  const c1FreshJson = JSON.stringify(c1Fresh.action);
+  ok(!c1FreshJson.includes('"REVEAL_AND_PICK","owner":"opponent"') && !c1FreshJson.includes('LOOK_PICK_CHAIN'),
+    '相手応答不能の実行型へ載せない');
 });
 // タスク12(xlvi) 第1波：curated の LOOK_AND_REORDER が pick を丸ごと落としていた実カード。
 // 各 effectId を実際に executeEffect → SEARCH resume まで通し、手札増加と公開残りの保存を固定する。

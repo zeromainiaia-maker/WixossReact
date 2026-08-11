@@ -1,5 +1,22 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — §6.4 UNKNOWN 第6バッチ：公開／見る→振り分け→残り処理を2件是正
+
+**採用2件**＝`WX21-028-E1` と `WDK13-022-E1`。UNKNOWN は **30→28ノード／29→27カード**、全カード生パース差分もこの2 effectId だけ（outlier 0）。新しい action 型や engine 分岐は作らず、既存 `REVEAL_AND_PICK` と既存参照 `$ref:'last_processed_level'` に載せた。
+
+- `WX21-028-E1`：`parseRevealPickDescriptor` が従来の「名詞→N枚／すべて」だけでなく、**枚数語が前に来る**「すべての＜天使＞のシグニを…」を全消費できた場合だけ受けるようにした。`filter:{story:'天使',cardType:'シグニ'}`、`pickCount:'ALL'`、エナ送り、残り deck bottom を復元。公開2枚のうち天使だけがエナへ入り、非天使だけがデッキ下へ戻る実行E2Eを追加した。未知修飾を混ぜた不成立文は拒否する golden も固定。
+- `WDK13-022-E1`：既存 `resolveCountRef` が評価する `$ref:'last_processed_level'` を `revealCount` に使い、「この方法でトラッシュに置いたシグニのレベルと同じ枚数」を復元。直前の `TRASH` が記録するカードのレベルを解決し、look と後続 pick を同じ既存 conditional 内へ融合した。宇宙L3をトラッシュ→上3枚を見る→1枚を手札→残り2枚を下へ、まで実行E2Eで固定。
+
+**見送り3件（honest UNKNOWN/PARTIAL を維持）**：
+
+- `WXK07-034-E1`②：`REVEAL_UNTIL_TO_HAND` は**最初の1枚**で止まる型、repeat を持つ `REVEAL_UNTIL_TO_FIELD` は場出し型であり、「レベル4が2枚めくれるまで公開→2枚とも手札→残りをshuffleして下」を忠実に実行できない。①のデッキ内レベル上書きも指示どおり不変。
+- `WD23-024-E-E1`：`INTERNAL_KEEP_ON_DECK_TOP` は `LOOK_PICK_CHAIN` の内部マーカーで、通常 `SEARCH` の continuation では単体no-op。しかも SEARCH の `then` 後に `afterSearch` の shuffle が走るため、検索札をトップへ置く意味にならない。
+- `SP38-006-E1-G2`：`owner:'opponent'` は公開元こそ相手へ変えるが、SEARCH pending に相手応答フラグがなく、BattleScreen も SEARCH を相手へルーティングしない。さらに `resumeSearch` の残り処理が current owner 固定。載せると「自分が相手のデッキを見て選び、自分側へ残りを戻す」誤実装になるため引用能力の内側も据え置いた。
+
+**採用経路の罠への対処**：`WX21-028-E1` は live の `parseStatus` を `PARTIAL→AUTO` に戻してビルドした。兄弟 BURST が MANUAL の混在カードなので候補は `_held_fresh` ではなく `_partial_fresh` に出た（指示書の「heldへ落ちる公算」と異なる）。E1だけを effectId アンカーで外科採用し、兄弟2効果は不変。`WDK13-022-E1` は `_held_fresh` から `heldReview --adopt WDK13-022` で採用。effectId 集合は全対象で不変。途中で広すぎた規則がスコープ外 `WXK07-002` に載せた差分は採用せず規則を限定し、liveも基準へ戻したため最終 held は基準と同じ **107枚／47署名群**。
+
+逆翻訳は `WX21-028-E1` が「あなたのデッキ上2枚を公開し、その中から＜天使＞のシグニをすべてエナゾーンに置く、残りをデッキの一番下に置く」、`WDK13-022-E1`①が「宇宙のシグニ1体をトラッシュ。そうした場合、そのレベルと同じ枚数を見て1枚を手札、残りをデッキ下」で原文と一致。条件外の原文不一致は0件。golden は実行E2E 2本と不成立／defer 固定を加えて **1809→1812**。engine は調査のみで無変更。
+
 ## 2026-08-11 — PLAN §7 実機検証バッチ2：安定セレクタ整備（Codex実装→**Claude実機検証で3件がPASSへ反転**・続き436）
 
 **実機検証の結果（Claude・`node scripts/verifyBattleDrive.mjs`）＝8件中3件が2回連続PASSへ反転（従来0/8）。既定orderに追加した。**

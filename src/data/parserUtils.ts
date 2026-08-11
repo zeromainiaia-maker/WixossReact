@@ -862,15 +862,20 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   // 枚数トークン＝「N枚」は必ず「枚」を伴うが、「すべて」「好きな枚数」はそれ自体が枚数語なので「枚」を任意にする
   // （「宣言したカードをすべてエナゾーンに置く」WX13-054／「好きな枚数公開し手札に加えて…」WX24-P1-035）。
   // 名詞の直後の読点（「シグニを、好きな枚数…」）も許容する。
-  const m = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?、?(?:([０-９\d]+)枚|(すべて|好きな枚数)枚?)(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置|場に出)[^、。]*)/);
+  const suffixCount = t.match(/その中から([^、。枚]*?)(シグニ|スペル|カード)を?、?(?:([０-９\d]+)枚|(すべて|好きな枚数)枚?)(まで)?を?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置|場に出)[^、。]*)/);
+  // 「その中から**すべての**＜天使＞のシグニを…」＝枚数語が名詞句より前に来る形。
+  // 通常形の後置枚数と同じ記述子へ正規化するが、未知の名詞修飾は下の全消費規則で引き続き拒否する。
+  const prefixAll = suffixCount ? null
+    : t.match(/その中から(すべて)の((?:＜[^＞]+＞の?)+)(シグニ)を?、?(?:選び、それぞれ)?(?:公開し)?((?:手札に加え|エナゾーンに置|場に出)[^、。]*)/);
+  const m = suffixCount ?? prefixAll;
   if (!m || m.index === undefined) return null;
   // 後続にもう1つ pick 群がある形（「…を１枚までエナゾーンに置き、…を１枚まで手札に加え」）は
   // 単一 filter へ潰すと後段が丸ごと消える＝この規則では受けない。
   const tail = t.slice(m.index + m[0].length);
   if (/[０-９\d]+枚(?:まで)?を?(?:公開し)?(?:手札に加え|エナゾーンに置|場に出|トラッシュに置)/.test(tail)) return null;
 
-  const desc = m[1];
-  const noun = m[2] as 'シグニ' | 'スペル' | 'カード';
+  const desc = suffixCount ? m[1] : m[2];
+  const noun = (suffixCount ? m[2] : m[3]) as 'シグニ' | 'スペル' | 'カード';
   // ＜＞《》【】の内側を除いた「か」があれば OR 記述子（「青か黒のスペル」）として解く。
   const bare = desc.replace(/＜[^＞]*＞|《[^》]*》|【[^】]*】/g, '');
   let filter: TargetFilter | null;
@@ -885,11 +890,17 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   }
   if (!filter) return null;
 
-  const pickCount: number | 'ALL' = m[4] ? 'ALL' : parseNum(m[3]);
-  const destPhrase = m[6];
+  const pickCount: number | 'ALL' = prefixAll ? 'ALL' : m[4] ? 'ALL' : parseNum(m[3]);
+  const destPhrase = prefixAll ? m[4] : m[6];
   const toHand = destPhrase.includes('手札に加え');
   const toEnergy = destPhrase.includes('エナゾーンに置');
   const toField = destPhrase.includes('場に出');
   const dest: RevealPickDescriptor['dest'] = toHand && toEnergy ? 'hand_or_energy' : toField ? 'field' : toEnergy ? 'energy' : 'hand';
-  return { filter, pickCount, pickUpTo: m[5] === 'まで' || m[4] === '好きな枚数', noun: outNoun, dest };
+  return {
+    filter,
+    pickCount,
+    pickUpTo: prefixAll ? false : m[5] === 'まで' || m[4] === '好きな枚数',
+    noun: outNoun,
+    dest,
+  };
 }

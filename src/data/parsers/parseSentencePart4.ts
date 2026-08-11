@@ -21,12 +21,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/手札からカードを[１-９\d]*枚?まで【トラップ】として.*シグニゾーンに設置する/))
     return { type: 'STUB', id: 'TRAP_OP' } as StubAction;
 
-  // ---- その中から宣言した〈数字/クラス/カード名〉のカードをピック（タスク12(xlvi)(c)）----
+  // ---- 忠実に解ける「その中から…」の単一ピック記述子 ----
   // 「数字/カード名/クラス１つを宣言する。デッキの上からN枚公開する。その中から宣言した〜を手札に加え、…」の
   // 系統。従来はどの pick 規則にも掛からず **UNKNOWN＝pick が丸ごと no-op**（PR-434／WX11-037／WX24-P1-035）か、
   // filter だけ落ちた **どの公開札でも拾える過剰実行**（PR-431）だった。
   // ⚠記述子が**忠実に解けたときだけ**受ける（`parseRevealPickDescriptor` が null なら従来経路のまま）。
-  if (/^その中から宣言した/.test(t) && parseRevealPickDescriptor(t))
+  if (/^その中から(?:宣言した|すべての)/.test(t) && parseRevealPickDescriptor(t))
     return makeRevealPickStub(t);
 
   // ---- 「デッキの上からN枚公開し（見て）、その中から〜」＝1文に畳まれた look-pick（タスク12(xlvi)(c)）----

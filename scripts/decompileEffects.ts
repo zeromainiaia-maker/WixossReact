@@ -1236,7 +1236,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const filterStr = rapFilter?.anyOf && Object.keys(rapFilter).length === 1
         ? anyOfJa(rapFilter.anyOf)
         : rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
-      const revealJa = `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
+      const revealJa = rapCnt?.$ref === 'last_processed_level'
+        ? `${ownerJa(rapOwner)}デッキの上からこの方法でトラッシュに置いたシグニのレベルと同じ枚数のカードを見て`
+        : `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先
       const rem = a.remainder;
       // remainder.shuffle（「残りをシャッフルしてデッキの一番下に置く」PR-434）を落とさない

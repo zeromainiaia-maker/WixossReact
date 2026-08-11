@@ -8721,14 +8721,26 @@ function parseActionTextInner(text: string): EffectAction {
     for (let mi = 0; mi < steps.length; mi++) {
       const cur = steps[mi];
       const nxt = steps[mi + 1];
+      const directLook = cur?.type === 'LOOK_AND_REORDER' ? cur as LookAndReorderAction : undefined;
+      const gatedLookCandidate = cur?.type === 'CONDITIONAL' && cur.then.type === 'LOOK_AND_REORDER'
+        ? cur.then as LookAndReorderAction
+        : undefined;
+      // 条件境界を跨ぐ融合は、今回追加する「直前に処理したシグニのレベル」参照だけ。
+      // 数値固定の既存 conditional look-pick は後続文の意味が多様で、一般融合すると既存の honest STUB を
+      // 勝手に実行型へ昇格させるため触らない（WX14-037 の非採用 golden）。
+      const gatedLook = gatedLookCandidate
+        && typeof gatedLookCandidate.count === 'object'
+        && gatedLookCandidate.count.$ref === 'last_processed_level'
+        ? gatedLookCandidate
+        : undefined;
+      const lookCandidate = directLook ?? gatedLook;
       if (
-        cur?.type === 'LOOK_AND_REORDER' &&
-        typeof (cur as LookAndReorderAction).count === 'number' &&
-        ((cur as LookAndReorderAction).count as number) > 0 &&
+        lookCandidate &&
+        (typeof lookCandidate.count !== 'number' || lookCandidate.count > 0) &&
         nxt?.type === 'STUB' &&
         (nxt as StubAction).id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM'
       ) {
-        const look = cur as LookAndReorderAction;
+        const look = lookCandidate;
         const stub = nxt as StubAction;
         const rpp = stub.revealPickParams;
         const pickCount = rpp?.pickCount ?? 1;
@@ -8754,7 +8766,7 @@ function parseActionTextInner(text: string): EffectAction {
         }
         // filter/上限/名詞/手札orエナは pick 記述子から復元済み（makeRevealPickStub・タスク12(xlvi)(h)）。
         // 従来はここで一切運ばれず「どのカードでも拾える」過剰実行に退化していた。
-        merged.push({
+        const revealAndPick = {
           type: 'REVEAL_AND_PICK',
           owner: 'self',
           revealCount: look.count,
@@ -8765,7 +8777,12 @@ function parseActionTextInner(text: string): EffectAction {
           ...(rpp?.handOrEnergy ? { handOrEnergy: true } : {}),
           then: thenAction,
           remainder,
-        } as RevealAndPickAction);
+        } as RevealAndPickAction;
+        // 「そうした場合、N枚見る。その中から…」では did-it ゲートが look 文だけを包み、pick 文が
+        // 次の兄弟ステップになる。pick までゲート内へ畳まないと、前段が空振りでも選択だけ走る。
+        merged.push(gatedLook
+          ? { ...(cur as import('../types/effects').ConditionalAction), then: revealAndPick }
+          : revealAndPick);
         mi++;
       } else {
         merged.push(cur);
