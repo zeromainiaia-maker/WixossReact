@@ -58,6 +58,19 @@ export function CutinModal(p: CutinModalProps) {
   // （実測で条件つきにズレる札は `WXK05-004`／`WXK06-016`／`SP36-001`／`SP38-002` の4枚。
   //  うち `SP36-001` は「対戦相手がスペルを使用していた場合」＝**カットイン窓こそ効くべき場面**）。
   // ⚠`specificCardCostReductions` はこの経路だけが持っている軽減なので、最後に重ねて失わない。
+  // INCREASE_ACT_ABILITY_COST（`WXDi-P06-031`「対戦相手の、センタールリグとシグニの【起】能力の
+  // 使用コストは《無》増える」）＝**カットイン窓経由でも同じ【起】能力なので同じだけ増える**。
+  // ⚠従来この窓だけ素通りしていた＝「メインフェイズ経由だと増えるが、カットイン窓経由だと増えない」
+  //   という入口ごとの食い違い（このファイル上部のアーツ実効コストで既に一度踏んだ型）。
+  // ⚠対象は**センタールリグ（`lrig_field`）とシグニ（`signi_field`）だけ**＝原文がそう限定している。
+  //   `lrig_deck`（アーツ本体）／`hand`（手札から捨てて使う【起】）は対象外。
+  const actCostExtraOf = (source: string): number =>
+    (source === 'lrig_field' || source === 'signi_field')
+      ? collectIncreaseActCost(op, isMyTurn, effectsMap) : 0;
+  const withActCostExtra = (costStr: string, source: string): string => {
+    const n = actCostExtraOf(source);
+    return n > 0 ? `${costStr}《無》×${n}` : costStr;
+  };
   const myLrigCardCM = battleCardMap.get(my.field.lrig.at(-1) ?? '');
   const oppLrigColorCM = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
   const artsBaseCost = (card: CardData): string => {
