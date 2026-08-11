@@ -4514,12 +4514,34 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
       case 'WX24-P1-012-E2':
       case 'WXDi-P08-069-E1':
         lastOfType(e, 'ENERGY_CHARGE_FROM_DECK', o => { o.count = ref; }); break;
-      case 'WX24-P1-014-E2': lastOfType(e, 'BOUNCE', o => {
-        const t = o.target as Record<string, unknown>; t.count = ref; t.upToCount = true;
-      }); break;
+      case 'WX24-P1-014-E2':
+        if (e.action.type === 'SEQUENCE') {
+          const last = e.action.steps.at(-1);
+          if (last?.type === 'BOUNCE' && last.target.type === 'SIGNI' && last.target.owner === 'opponent') {
+            e.action.steps[e.action.steps.length - 1] = {
+              type: 'TRANSFER_TO_HAND',
+              source: { type: 'ENERGY_CARD', owner: 'opponent', count: ref, upToCount: true },
+            };
+          }
+        }
+        break;
       case 'WX24-P2-003-E1':
+        if (e.action.type === 'SEQUENCE') {
+          const proportional = e.action.steps.find((s): s is Extract<EffectAction, { type: 'TRASH' }> =>
+            s.type === 'TRASH' && s.target.type === 'ENERGY_CARD' && s.target.owner === 'opponent');
+          if (proportional) proportional.target.count = { $ref: 'last_processed_count', filter: { color: '赤' } };
+          const recollect = e.action.steps.find((s): s is Extract<EffectAction, { type: 'CONDITIONAL' }> =>
+            s.type === 'CONDITIONAL' && s.then.type === 'TRASH'
+            && s.then.target.type === 'ENERGY_CARD' && s.then.target.owner === 'opponent');
+          if (recollect && recollect.then.type === 'TRASH') recollect.then.target.count = 2;
+        }
+        break;
       case 'WXDi-P13-007-E3':
-        lastOfType(e, 'TRASH', o => { const t = o.target as Record<string, unknown>; if (t.type === 'ENERGY_CARD') t.count = ref; }); break;
+        lastOfType(e, 'TRASH', o => {
+          const t = o.target as Record<string, unknown>;
+          if (t.type === 'ENERGY_CARD') t.count = { $ref: 'last_processed_count', filter: { isDisona: true } };
+        });
+        break;
       case 'WXDi-P10-008-E3': {
         // Claude 検証是正（2026-07-23）: 最終 TRASH は「相手全シグニ」なので lastOfType では ENERGY ガードで
         // 不発だった（codex 申告漏れ）。中間の相手エナ TRASH を直接特定して比例化する。
@@ -4596,6 +4618,14 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
             target.count = { $ref: 'last_processed_count', filter: { color: '青' } };
           }
         });
+        break;
+      case 'WXEX1-44-E2':
+        if (e.action.type === 'SEQUENCE') {
+          const last = e.action.steps.at(-1);
+          if (last?.type === 'TRANSFER_TO_HAND' && last.source.type === 'ENERGY_CARD') {
+            last.source.count = ref;
+          }
+        }
         break;
 
       case 'WX26-CP1-009-E1':

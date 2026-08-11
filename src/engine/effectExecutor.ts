@@ -985,7 +985,7 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
       if (ask.queue.length > 0) return executeAction(makeLeaveSubAsk(ask.queue, 'opponent', a as EffectAction, { isBanish: ask.isBanish }), ctx); }
     return done({ ...applyBounce(moved, ctx), lastProcessedCards: moved });
   }
-  const count = resolveNum(tgt.count);
+  const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
   // opponentSelects: 「対戦相手は対象の自分のシグニ1体を手札に戻す」→ 対戦相手が選ぶ
   const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
   return selectOrInteract(cands, count, (a.optional ?? false) || (tgt.upToCount ?? false), scope, a, undefined, ctx, oppResponds, { selectionConstraint: tgt.selectionConstraint });
@@ -1501,7 +1501,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
 
   if (tgt.type === 'HAND_CARD') {
     if (tgt.blind) {
-      const count = tgt.count === 'ALL' ? state.hand.length : resolveNum(tgt.count);
+      const count = tgt.count === 'ALL' ? state.hand.length : resolveCountRef(tgt.count, ctx, tgt.countFromZone);
       const picked = shuffle([...state.hand]).slice(0, count);
       const newS: PlayerState = {
         ...state,
@@ -1643,7 +1643,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       }
       return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     }
-    const count = resolveNum(tgt.count);
+    const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
     // opponentSelects: 「対戦相手は自分のエナから1枚を対象とし、それをトラッシュに置く」→ 対戦相手が選ぶ（WX04-009）
     const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
     return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, oppResponds);
@@ -2285,7 +2285,7 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     };
   }
 
-  const count = src.count === 'ALL' ? cands.length : resolveNum(src.count);
+  const count = src.count === 'ALL' ? cands.length : resolveCountRef(src.count, ctx, src.countFromZone);
   if (src.count === 'ALL') return done(applyTransfer(cands, ctx));
   // thisCardOnly: 「このカードを手札に加える」は選択不要 → 即適用（候補なしはスキップ）
   if (src.type === 'TRASH_CARD' && src.filter?.thisCardOnly) {
