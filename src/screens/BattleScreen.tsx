@@ -6779,14 +6779,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     closeSpellCast();
     setBetAmount(0);
     try {
-      const paidNums = [...costIndices].map(i => my.energy[i]);
+      const spellPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = spellPay.paidNums;
       // 支払ったエナ1枚ごとの色配列（WX04-063「支払われたエナの色」参照用）。
       // マルチエナは全5色、無色エナは空配列として記録する。
       const paidEnergyColors = paidNums.map(num =>
         isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped)
           ? ['白', '赤', '青', '緑', '黒']
           : splitColors(battleCardMap.get(getCardNum(num))?.Color));
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
       // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。
       // タスク12(lxxxv) の「軽減」も支払い元が手札なら**同じ index 空間**で消す（別々に消すと index がずれる）。
       const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
