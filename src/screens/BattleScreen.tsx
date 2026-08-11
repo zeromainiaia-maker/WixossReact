@@ -11282,7 +11282,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         last_discarded_signi_class: discardedCards.length > 0
           ? (battleCardMap.get(discardedCards[0])?.CardClass ?? my.last_discarded_signi_class)
           : my.last_discarded_signi_class,
-      };
+      });
+      // energyTrashAll: エナゾーンを空にする（funnel の index 控除のあとに当てる）
+      if (effect.cost?.energyTrashAll) paid = { ...paid, energy: [] };
       // underSelfTrash: 効果元シグニの下から、UIで選んだカードだけをトラッシュへ置く。
       if (effect.cost?.underSelfTrash) {
         const zoneIdx = paid.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
