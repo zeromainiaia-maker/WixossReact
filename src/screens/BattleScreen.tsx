@@ -6849,7 +6849,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost, // COINS_PAID_THIS_TURN
           is_betting_this_effect: betCost > 0 ? true : undefined, // 非ベット時は明示的にクリア（前回ベットの持ち越し防止）
           bet_coins_paid: betCost > 0 ? betCost : undefined,
-        };
+        });
       }
       // 相手ウィルスを実際に取り除いたら ON_OPP_VIRUS_REMOVED / ON_OPP_VIRUS_CHANGED の
       // 監視フラグを立てる（既存のウィルス除去サイト＝execStubPart1 の6箇所と同じ規約。
