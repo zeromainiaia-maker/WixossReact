@@ -6080,19 +6080,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const instanceId = options.instanceId ?? (idx >= 0 ? growBase.lrig_deck[idx] : cardNum);
       const newLrigDeck = idx === -1 ? growBase.lrig_deck
         : [...growBase.lrig_deck.slice(0, idx), ...growBase.lrig_deck.slice(idx + 1)];
-      const paidNums = [...costIndices].map(i => growBase.energy[i]);
-      let newEnergy = growBase.energy.filter((_, i) => !costIndices.has(i));
+      // エナ支払いは funnel 1本（§6.4）。`baseState` 指定時はその state のプールを組む。
+      const growPool = growBase === my ? myEnergyPayPool : buildEnergyPayPool(growBase, energyPayCtx);
+      const growPay = planEnergyPayment(growBase, growPool, costIndices);
+      const paidNums = [...growPay.paidNums];
       // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
       const growSubInfoExec = wasFreeGrow ? null : collectGrowCostSubstitute(growBase, battleCardMap, effectsMap);
       const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap)));
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
+      let growSubSigniPaid: string | null = null;
       if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
-        const subSigni = newEnergy.find(cn => {
+        const subSigni = growPay.energyAfter.find(cn => {
           const c = battleCardMap.get(cn);
           return c?.Type === 'シグニ' && (c.CardClass ?? '').includes(growSubInfoExec.signiClass);
         });
         if (subSigni) {
-          newEnergy = newEnergy.filter(cn => cn !== subSigni);
+          growSubSigniPaid = subSigni;
           paidNums.push(subSigni);
         }
       }
