@@ -4619,14 +4619,16 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
           }
         });
         break;
-      case 'WXEX1-44-E2':
-        if (e.action.type === 'SEQUENCE') {
-          const last = e.action.steps.at(-1);
-          if (last?.type === 'TRANSFER_TO_HAND' && last.source.type === 'ENERGY_CARD') {
-            last.source.count = ref;
-          }
-        }
-        break;
+      // ⚠WXEX1-44-E2 は**採用しない**（2026-08-11 続き441 で実測して確定）。
+      // 原文「あなたの**手札から**《アクセアイコン》を持つシグニを２枚までエナゾーンに置く。その後、
+      // …**この方法でエナゾーンに置いたカードと同じ枚数の**＜調理＞のシグニを対象とし、それらを手札に加える」。
+      // 前段は STUB{PLACE_ACCE_SIGNI_TO_ENERGY} だが、engine の実装（execStubPart2.ts:1940）は
+      // **場のアクセゾーン**のカードを全部エナへ送る別機構（`allAcceCards(field.signi_acce)`＝utils/acce.ts:15）で、
+      // 手札からの任意2枚配置ではない。⇒ lastProcessedCards は**記録されるが原文と無関係な枚数**なので、
+      // ここに $ref を書くと「0枚」が「別の誤った枚数」に化けるだけで悪化する。
+      // 🔴PLAN §6.4 の「前段の STUB は枚数を記録するので resolveNum 側を直せば通る」は**誤った見立て**だった
+      // （resolveNum は続き441 で解消済みなので、残るブロッカーは STUB 側の機構違い）。
+      // 非採用は goldenTest の「WXEX1-44-E2 defer」で固定してある。
 
       case 'WX26-CP1-009-E1':
         lastOfType(e, 'TRASH', o => {
