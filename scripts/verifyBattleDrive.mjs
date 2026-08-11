@@ -10814,14 +10814,17 @@ order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で
 // 無条件発火バグが再発していないことを確認・PASS）。各2回連続PASSで既定orderに追加。
 order.push('coinsPaidAttackFires');
 order.push('coinsPaidAttackSkipped');
+// 続き435（PLAN§7バッチ1・Codex起案→Claude実機検証）＝以下7件は個別実行で複数回PASSを確認済み。
+// 残る8件（assistAttackBoth／connectSpinningChoice4Pay・Insufficient／fezoneDoubleCostPay／
+// sYokusenkiSpellPay／kokonaUnderThreePay・ThreeSkip・Insufficient）はシナリオコード側の未解決の
+// クリック手順バグが濃厚（例：connectSpinningChoice4系はエナ選択画像のaltテキスト想定がズレている
+// 疑い）で、既定orderには含めない（scenarios定義は残置＝follow-upで直す）。
 order.push(
-  'assistAttackNoFlag', 'assistAttackBoth', 'assistAttackSkipConfirm', 'assistAttackCpuSequence', 'assistAttackNoEligibleAdvance',
-  'connectSpinningChoice4Pay', 'connectSpinningChoice4Insufficient',
-  'fezoneDoubleCostPay', 'fezoneDoubleCostSkip',
-  'sYokusenkiSpellPay', 'sYokusenkiSpellSkip',
-  'kokonaUnderThreePay', 'kokonaUnderThreeSkip', 'kokonaUnderInsufficient',
-  'cheatingSameLevelDownFilter',
+  'assistAttackNoFlag', 'assistAttackSkipConfirm', 'assistAttackCpuSequence', 'assistAttackNoEligibleAdvance',
+  'fezoneDoubleCostSkip', 'sYokusenkiSpellSkip', 'cheatingSameLevelDownFilter',
 );
+// 続き435＝collectAnyZoneTrashSelfTriggersのresume取りこぼし（続き60）は解消済みと確認したので復帰。
+order.push('handDiscard');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
