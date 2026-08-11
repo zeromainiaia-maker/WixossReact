@@ -2981,10 +2981,19 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'SHUFFLE_DECK', owner };
   }
 
-  // ---- 手札からシグニをN枚捨てる（クラス指定なし）----
+  // ---- 手札から〈カード種別〉をN枚捨てる（クラス指定なし・「てもよい」形も含む）----
+  // ⚠**種別は「シグニ」だけではない**（続き434）＝「手札から**スペル**を１枚捨てる／捨ててもよい」が
+  //   規則に無く `UNKNOWN` へ落ちていた。**任意コスト（「てもよい」）で落ちると本体だけが無条件に走る**
+  //   ＝`WX24-P1-065-E1`② は**コストなしで相手の手札を1枚落とし**、`WXEX2-20-E3` も同型だった（過剰効果）。
+  // ⚠「てもよい」形はここで素の `TRASH{HAND_CARD}` を出すのが正解＝後段の `applyOptionalHandDiscardCost`
+  //   が「そうした場合」の隣接を見て `STUB{OPTIONAL_COST, handDiscard}` へ畳む（続き416 の設計）。
+  //   ここで直接 OPTIONAL_COST を作ると、その畳み込みの前提（素の TRASH を探す）を壊す。
   {
-    const m = t.match(/^手札からシグニを([０-９\d]+)枚捨てる$/);
-    if (m) return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[1]), filter: { cardType: 'シグニ' } } };
+    const m = t.match(/^手札から(シグニ|スペル|アーツ|カード)を([０-９\d]+)枚捨て(?:る|てもよい)$/);
+    if (m) {
+      const filter: TargetFilter | undefined = m[1] === 'カード' ? undefined : { cardType: m[1] as TargetFilter['cardType'] };
+      return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(m[2]), ...(filter ? { filter } : {}) } };
+    }
   }
 
   // ---- 手札から<X>のシグニを１枚捨てる（コスト・追加コスト）----
