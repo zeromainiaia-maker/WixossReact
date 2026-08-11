@@ -4626,6 +4626,10 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
       // **場のアクセゾーン**のカードを全部エナへ送る別機構（`allAcceCards(field.signi_acce)`＝utils/acce.ts:15）で、
       // 手札からの任意2枚配置ではない。⇒ lastProcessedCards は**記録されるが原文と無関係な枚数**なので、
       // ここに $ref を書くと「0枚」が「別の誤った枚数」に化けるだけで悪化する。
+      // ⚠**アクセは CardClass ではない**（〈遊具〉等のクラスとは別軸）＝《アクセアイコン》は専用フィルタ
+      // `hasIcon:'アクセ'`（parserUtils.ts で生成・matchesFilter が execUtils.ts:727 で消費）。
+      // ⇒ 正しい実装は「手札から `{cardType:'シグニ', hasIcon:'アクセ'}` を**２枚まで**選んでエナへ」であり、
+      //    **語彙は既に揃っている**。要るのは手札選択の機構だけ（＝この defer は「難しい」ではなく「未着手」）。
       // 🔴PLAN §6.4 の「前段の STUB は枚数を記録するので resolveNum 側を直せば通る」は**誤った見立て**だった
       // （resolveNum は続き441 で解消済みなので、残るブロッカーは STUB 側の機構違い）。
       // 非採用は goldenTest の「WXEX1-44-E2 defer」で固定してある。
