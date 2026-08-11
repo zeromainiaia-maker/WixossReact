@@ -6591,8 +6591,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     setLoading(true);
     closeKeyActivated();
     try {
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const keyActPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = keyActPay.paidNums;
       const discardNums = [...discardIndices].map(i => my.hand[i]);
       const newHand = my.hand.filter((_, i) => !discardIndices.has(i));
       // trash_key: このキーをルリグトラッシュに置く（コスト）
