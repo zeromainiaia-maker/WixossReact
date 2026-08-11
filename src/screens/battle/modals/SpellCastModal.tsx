@@ -7,6 +7,7 @@ import { C } from '../../../components/BoardComponents';
 import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied, applySpecificCardCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 import type { PendingSpellCast } from '../hooks/useSpellCast';
 
@@ -227,7 +228,7 @@ export function SpellCastModal(p: SpellCastModalProps) {
                           const isSel = selectedSpellCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i} data-testid={`spellcost-energy-${i}`} onClick={() => toggleSpellCostCard(i)}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} data-testid={`spellcost-energy-${i}`} onClick={() => toggleSpellCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                               onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                               onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}

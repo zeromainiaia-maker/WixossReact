@@ -8,6 +8,7 @@ import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { fmtDiscardFilterLabel, fmtHandDiscardSigniLabel, matchesHandDiscardSigni, canAffordGrowCost } from '../costs';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface LrigGrantedModalProps {
@@ -150,7 +151,7 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                           const c = battleCardMap.get(num);
                           const isSel = selectedLrigGrantedCost.has(i);
                           return (
-                            <div key={i}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => setSelectedLrigGrantedCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

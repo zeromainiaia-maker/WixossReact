@@ -5,6 +5,7 @@ import { getCardNum } from '../../../engine/effectExecutor';
 import { costSlotIsAny, formatCostSlot, energyMatchesCostSlot, canAddToSelection, satisfiesSelectionConstraint } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
 import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface EffectInteractionModalProps {
@@ -478,7 +479,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                           const card = battleCardMap.get(num);
                           const isSel = selectedOptCost.has(i);
                           return (
-                            <div key={i}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               data-testid={`optcost-energy-${i}`}
                               onClick={() => setSelectedOptCost(prev => {
                                 const next = new Set(prev);

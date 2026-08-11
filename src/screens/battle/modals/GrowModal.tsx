@@ -5,7 +5,7 @@ import type { CardData } from '../../../types';
 import { collectGrowCostReductions, collectGrowCostSubstitute } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { applyGrowCostReduction, parseCoinCost, canAffordGrowCost, parseGrowCost, isMultiEna } from '../costs';
-import { energyPoolCardNums } from '../energyPaySource';
+import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface GrowModalProps {
@@ -179,7 +179,7 @@ export function GrowModal(p: GrowModalProps) {
                       const isSel = selectedGrowCost.has(i);
                       const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                       return (
-                        <div key={i} onClick={() => toggleGrowCostCard(i)}
+                        <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => toggleGrowCostCard(i)}
                           onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                           onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                           onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}

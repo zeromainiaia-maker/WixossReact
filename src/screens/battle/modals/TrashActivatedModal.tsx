@@ -11,6 +11,7 @@ import {
   trashActivateAutoCostShortfall, trashActivateCostLabels, trashActivateEnergyTotal,
   trashActivateExceedPool, trashActivateHandDiscard, trashActivateSelectionsSatisfied,
 } from '../trashActivateCost';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface TrashActivatedModalProps {
@@ -130,7 +131,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                           const isSel = selectedTrashActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => setSelectedTrashActivatedCost(prev => toggleCapped(prev, i, energyTotal))}
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,

@@ -1600,7 +1600,13 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       // A2残4枚の誤パース是正で導入（虚偽の付与STUBの置換・原文を正直に表す）
       if (a.id === 'PLAY_MILLED_SIGNI_DELAYED_TRASH') return 'この方法でトラッシュに置かれたそのシグニを場に出す（ターン終了時、そのシグニを場からトラッシュに置く）';
-      if (a.id === 'DEFERRED_UNDER_CARD_AS_ENERGY_COST') return 'あなたのアタックフェイズの間、このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える（この方法で1ターンに3つまで）';
+      // §6.4「エナ支払い元の一本化」で実装済み（消費＝`screens/battle/energyPaySource.ts`）。
+      if (a.id === 'UNDER_CARD_AS_ENERGY_COST') {
+        const spec = a.underCardAsEnergyCost;
+        const phase = spec?.duringMyAttackPhase ? 'あなたのアタックフェイズの間、' : '';
+        const limit = spec?.perTurnLimit != null ? `（この方法で1ターンに${spec.perTurnLimit}つまで）` : '';
+        return `${phase}このシグニの下のカードをエナゾーンにあるかのようにトラッシュに置いてエナコストを支払える${limit}`;
+      }
       if (a.id === 'DEFERRED_FLIP_SELF_FACE_DOWN_UP') return 'このシグニを裏向きにし、表向きにする';
       // WXDi-P10-034: デッキ上N枚を見て1枚を裏向きでシグニゾーンに置き、残りをデッキ下→次の自メインフェイズ開始時に表向き分岐
       if (a.id === 'LOOK_PLACE_FACEDOWN_DELAYED') {

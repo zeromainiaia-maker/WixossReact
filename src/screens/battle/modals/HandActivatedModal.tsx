@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
 import { energyCostToString, canAffordGrowCost, isMultiEna } from '../costs';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface HandActivatedModalProps {
@@ -80,7 +81,7 @@ export function HandActivatedModal(p: HandActivatedModalProps) {
                           const isSel = selectedHandActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => {
                                 setSelectedHandActivatedCost(prev => {
                                   const next = new Set(prev);

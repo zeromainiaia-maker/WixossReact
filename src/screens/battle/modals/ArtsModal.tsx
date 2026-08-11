@@ -7,7 +7,7 @@ import { C } from '../../../components/BoardComponents';
 import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
-import { energyPoolCardNums } from '../energyPaySource';
+import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface ArtsModalProps {
@@ -380,7 +380,7 @@ export function ArtsModal(p: ArtsModalProps) {
                       const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
                       const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
                       return (
-                        <div key={i} data-testid={`artscost-energy-${i}`} onClick={() => toggleArtsCostCard(i)}
+                        <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} data-testid={`artscost-energy-${i}`} onClick={() => toggleArtsCostCard(i)}
                           onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                           onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                           onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}

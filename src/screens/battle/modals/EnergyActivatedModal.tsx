@@ -5,6 +5,7 @@ import type { CardEffect } from '../../../types/effects';
 import { collectAcceCostReduction } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, isMultiEna } from '../costs';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface EnergyActivatedModalProps {
@@ -95,7 +96,7 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
                           const isSel = selectedEnergyActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => setSelectedEnergyActivatedCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

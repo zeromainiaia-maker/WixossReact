@@ -7,7 +7,7 @@ import { canAffordWithExtraCost, parseGrowCost, isMultiEna, effectEnergyCostStr,
 import type { CardData } from '../../../types';
 import type { BattleModalCtx, CutinCandidate, EffectCutinCandidate } from './types';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
-import { energyPoolCardNums } from '../energyPaySource';
+import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
 
 // ベット宣言（タスク12(lxxxiv)）＝カットイン窓でもアーツ経路（ArtsModal）と同じベット枝を出す。
 // 対象は lrig_deck 由来＝アーツ本体のみ（場のルリグ/シグニの【起】は原文にベットを持たない）。
@@ -335,7 +335,7 @@ export function CutinModal(p: CutinModalProps) {
                           const isSel = selectedCutinCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i} onClick={() => toggleCutinCostCard(i)}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => toggleCutinCostCard(i)}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                               onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                               onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}

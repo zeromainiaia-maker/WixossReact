@@ -10,6 +10,7 @@ import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, isMul
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface SigniActivatedModalProps {
@@ -270,7 +271,7 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                           const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
                           const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
                           return (
-                            <div key={i}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => setSelectedSigniActivatedCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

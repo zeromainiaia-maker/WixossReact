@@ -4,6 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { C } from '../../../components/BoardComponents';
 import { canAffordGrowCost, isMultiEna } from '../costs';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface KeyActivatedModalProps {
@@ -64,7 +65,7 @@ export function KeyActivatedModal(p: KeyActivatedModalProps) {
                           const isSel = selectedKeyActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i} onClick={() => setSelectedKeyActivatedCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
+                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined} onClick={() => setSelectedKeyActivatedCost(prev => { const next = new Set(prev); if (next.has(i)) { next.delete(i); return next; } if (next.size >= energyTotal) return prev; next.add(i); return next; })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
                               onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
                               onPointerLeave={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
