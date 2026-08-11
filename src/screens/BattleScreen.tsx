@@ -6651,19 +6651,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const paidNums = [...costIndices].map(i => my.energy[i]);
-      const newEnergy = my.energy.filter((_, i) => !costIndices.has(i));
+      const assistGrowPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const paidNums = assistGrowPay.paidNums;
       const sideKey = side === 'l' ? 'assist_lrig_l' : 'assist_lrig_r';
       const currentStack = (side === 'l' ? my.field.assist_lrig_l : my.field.assist_lrig_r) ?? [];
       const assistCoinGain = parseInt(card.Coin) || 0;
-      const newMyState: PlayerState = {
+      const newMyState: PlayerState = assistGrowPay.applyTo({
         ...my,
         lrig_deck: newLrigDeck,
         field: { ...my.field, [sideKey]: [...currentStack, instanceId] },
-        energy: newEnergy,
         trash: [...my.trash, ...paidNums],
         coins: Math.min(5, my.coins + assistCoinGain),
-      };
+      });
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // 通常手順で配置したアシストルリグの【出】を共通 collector へ載せる。
       // 任意コスト/任意発動・条件・使用制限・【出】封じを効果配置経路と同じ規則で扱う。
