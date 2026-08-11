@@ -11547,14 +11547,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (removedV < removeVirusN) { setLoading(false); return; } // 支払い不能（ウィルス不足）
         newOpVirusState = { ...op, field: { ...op.field, signi_virus: newOppVirus } };
       }
-      let paid: PlayerState = {
+      let paid: PlayerState = handActPay.applyTo({
         ...my,
         hand: newHand,
-        energy: newEnergy,
         trash: [...my.trash, ...paidNums, cardNum],
         actions_done: [...(my.actions_done ?? []), effect.effectId],
         game_actions_done: isGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
-      };
+      });
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
