@@ -7205,12 +7205,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const newHand = idx >= 0
           ? [...my.hand.slice(0, idx), ...my.hand.slice(idx + 1)]
           : my.hand;
-        cutinPaid = {
+        cutinPaid = cutinPay.applyTo({
           ...my,
           hand: newHand,
-          energy: newEnergy,
           trash: [...my.trash, cutinCard.CardNum, ...paidNums],
-        };
+        });
       } else {
         // lrig_field / signi_field: エナコスト + エクシードコスト（選択カードをlrig_trashへ）
         const exceedCostH = candidate.effect.cost?.exceed ?? 0;
