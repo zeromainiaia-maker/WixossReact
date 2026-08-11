@@ -28,6 +28,7 @@ import {
   resumeLookAndReorder, resumeSelectZone, resumeSelectVirusZone, resumeSelectSigniZone, resumeRearrangeSigni,
   applyEffectLeaveLrigAbilitySubstitute, applyEffectLeaveReplaceBanishSubstitute,
   applyEffectLeaveNoAbilityDeckBottomSubstitute,
+  applyEffectLeaveSubstitutes, collectLeaveSubstituteOptions, autoChooseLeaveSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
@@ -30054,6 +30055,95 @@ test('§6.4 エナ支払い元: UNDER_CARD_AS_ENERGY_COST と underSelfTrash を
     if (declares && effs.some(e => e.cost?.underSelfTrash)) both.push(cardNum);
   }
   eq(both.length, 0, `同居すると「下から払う」2機構が同じ index 空間を奪い合う: ${both.join(',')}`);
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 離場置換の決定層（`collectLeaveSubstituteOptions` → `autoChooseLeaveSubstitute` → apply）
+// ⚠**この節の本体は「前提のロック」**＝どの軸が原文で「してもよい」なのかを live の原文から機械で
+//   固定する。強制の軸を「近似」として対話に出すと**ルール違反**になり、任意の軸を自動適用し続けると
+//   **プレイヤーの選択を奪う**。どちらも盤面には出ないので、原文からの検算がここにしか無い。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 離場置換: 強制2軸／任意3軸の分類が live の原文と一致する（前提のロック）', () => {
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  // STUB id ／ action.type から宣言カードを引き、原文の語尾で「してもよい」の有無を数える。
+  const declarers = (marker: string): string[] => {
+    const out: string[] = [];
+    for (const [, effs] of effectsMap) {
+      for (const e of effs) if (JSON.stringify(e).includes(`"${marker}"`) && srcText[e.effectId]) out.push(e.effectId);
+    }
+    return out;
+  };
+  const isOptional = (effectId: string) => /てもよい/.test(srcText[effectId] ?? '');
+  const mandatoryAxes = ['EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM'];
+  const optionalAxes = ['BANISH_SUBSTITUTE', 'EFFECT_LEAVE_REPLACE_BANISH'];
+  for (const axis of mandatoryAxes) {
+    const ids = declarers(axis);
+    ok(ids.length > 0, `${axis}: 宣言カードが live に居る`);
+    eq(ids.filter(isOptional).join(','), '',
+       `${axis} は原文に「してもよい」が無い＝自動適用が正しい（近似ではない）`);
+  }
+  for (const axis of optionalAxes) {
+    const ids = declarers(axis).filter(id => !/RISE_|ACCE_|COOKING_|RESONANCE_/.test(id));
+    ok(ids.length > 0, `${axis}: 宣言カードが live に居る`);
+    eq(ids.filter(id => !isOptional(id)).join(','), '',
+       `${axis} は全件が原文「してもよい」＝本来は被害側が選ぶ（対話が要る軸）`);
+  }
+});
+
+test('§6.4 離場置換: 決定層は列挙だけでは盤面を変えない（投機実行の不変性）', () => {
+  // WX12-024＝「このシグニがバニッシュされる場合、代わりにあなたの他の＜電機＞のシグニ１体をバニッシュしてもよい」
+  const victim = 'WX12-024';
+  const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
+  const ctx = mkCtx({}, { signi: [victim, sacrifice, null] });
+  const before = JSON.stringify({ o: ctx.ownerState, t: ctx.otherState });
+  const options = collectLeaveSubstituteOptions(victim, 'opponent', ctx, { isBanish: true });
+  ok(options.length > 0, '身代わり候補が列挙される');
+  eq(JSON.stringify({ o: ctx.ownerState, t: ctx.otherState }), before, '列挙しただけでは入力 ctx は変わらない');
+  eq(ctx.logs.length, 0, '採用しなかった候補のログが漏れない');
+  ok(options.every(o => o.axis === 'banishSubstitute'), 'この盤面で成立するのは F-3 身代わりだけ');
+  ok(options.every(o => o.kind === 'optional'), 'F-3 身代わりは任意軸');
+});
+
+test('§6.4 離場置換: autoChooseLeaveSubstitute は従来の「最初の1本」と一致する', () => {
+  const victim = 'WX12-024';
+  const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
+  const ctx = mkCtx({}, { signi: [victim, sacrifice, null] });
+  const options = collectLeaveSubstituteOptions(victim, 'opponent', ctx, { isBanish: true });
+  const chosen = autoChooseLeaveSubstitute(options);
+  ok(!!chosen, '自動 policy が1本選ぶ');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', ctx, { isBanish: true });
+  ok(applied.replaced, '従来の入口も置換する');
+  eq(JSON.stringify(applied.ctx.otherState), JSON.stringify(chosen!.resultCtx.otherState),
+     '入口の結果＝decision layer で選んだ候補の resultCtx（挙動が変わっていない）');
+  // 身代わりが成立したので victim は場に残り、犠牲側が消える
+  const after = applied.ctx.otherState.field.signi.map(z => z?.at(-1) ?? null);
+  ok(after.includes(victim), '身代わりで victim は場に残る');
+  ok(!after.includes(sacrifice), '代わりに犠牲シグニが場を離れる');
+});
+
+test('§6.4 離場置換: WX14-026 の lifeCrash は列挙されるが自動では選ばれない', () => {
+  // 原文「対戦相手のターンの間、このシグニがバニッシュされる場合、代わりにあなたのライフクロス１枚を
+  // クラッシュしてもよい」＝【ライフバースト】確認フローを同期的に差し込めないので engine は適用しない。
+  // ⚠従来は**列挙からも落として**いたので「対話 policy を入れても選択肢に出せない」状態だった。
+  const ctx = mkCtx({}, { signi: ['WX14-026', null, null] });
+  const options = collectLeaveSubstituteOptions('WX14-026', 'opponent', ctx, { isBanish: true });
+  const lifeCrash = options.filter(o => o.label.includes('ライフクロス'));
+  eq(lifeCrash.length, 1, 'lifeCrash が候補として列挙される（対話 policy 用）');
+  eq(lifeCrash[0].autoEligible, false, 'ただし自動 policy では選ばない');
+  eq(autoChooseLeaveSubstitute(options), null, 'lifeCrash しか無い盤面では置換しない（従来どおり）');
+  eq(applyEffectLeaveSubstitutes('WX14-026', 'opponent', ctx, { isBanish: true }).replaced, false,
+     '入口も置換しない＝挙動は従来のまま');
+});
+
+test('§6.4 離場置換: 強制軸は kind:mandatory で列挙される（対話の選択肢に出さないため）', () => {
+  // WXEX2-30「アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる」
+  const noAbility = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【'));
+  const ctx = { ...mkCtx({ signi: ['WXEX2-30', null, null] }, { signi: [noAbility, null, null] }), currentPhase: 'ATTACK_SIGNI' } as ExecCtx;
+  const options = collectLeaveSubstituteOptions(noAbility, 'opponent', ctx, {});
+  const axis = options.find(o => o.axis === 'noAbilityDeckBottom');
+  ok(!!axis, 'WXEX2-30 の置換が列挙される');
+  eq(axis!.kind, 'mandatory', '原文に「してもよい」が無い＝強制軸（対話の選択肢に出さない）');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -366,11 +366,8 @@ export function applyEffectBanishSubstituteChoice(
     const { state: dest, log } = banishDestination(
       removed, attackerState, chosen.sacrificeNum, banishRedirectOpts(ctx, state, chosen.sacrificeNum),
     );
-    return {
-      ctx: addLog(setOwnerState(victimOwner, dest, ctx),
-        `身代わり：${nameOf(victimNum)}の代わりに${nameOf(chosen.sacrificeNum)}${log}`),
-      replaced: true,
-    };
+    return addLog(setOwnerState(victimOwner, dest, ctx),
+      `身代わり：${nameOf(victimNum)}の代わりに${nameOf(chosen.sacrificeNum)}${log}`);
   }
 
   if (chosen.costType === 'discardSpell') {
@@ -379,12 +376,9 @@ export function applyEffectBanishSubstituteChoice(
     for (const h of state.hand) {
       if (picked.length < chosen.amount && isSpell(h)) picked.push(h); else restHand.push(h);
     }
-    return {
-      ctx: addLog(setOwnerState(victimOwner,
-        { ...state, hand: restHand, trash: [...state.trash, ...picked] }, ctx),
-        `身代わり：手札からスペル${picked.length}枚を捨てて${nameOf(victimNum)}のバニッシュを回避`),
-      replaced: true,
-    };
+    return addLog(setOwnerState(victimOwner,
+      { ...state, hand: restHand, trash: [...state.trash, ...picked] }, ctx),
+      `身代わり：手札からスペル${picked.length}枚を捨てて${nameOf(victimNum)}のバニッシュを回避`);
   }
 
   // trashStackSpell: 宣言者（sourceNum）の下からスペルを amount 枚トラッシュへ。トップと残りは維持。
@@ -398,12 +392,21 @@ export function applyEffectBanishSubstituteChoice(
   }
   const nextSigni = [...state.field.signi] as (string[] | null)[];
   if (srcZone >= 0 && top) nextSigni[srcZone] = [...keptUnder, top];
-  return {
-    ctx: addLog(setOwnerState(victimOwner,
-      { ...state, trash: [...state.trash, ...trashed], field: { ...state.field, signi: nextSigni } }, ctx),
-      `身代わり：${nameOf(chosen.sourceNum)}の下からスペル${trashed.length}枚をトラッシュして${nameOf(victimNum)}のバニッシュを回避`),
-    replaced: true,
-  };
+  return addLog(setOwnerState(victimOwner,
+    { ...state, trash: [...state.trash, ...trashed], field: { ...state.field, signi: nextSigni } }, ctx),
+    `身代わり：${nameOf(chosen.sourceNum)}の下からスペル${trashed.length}枚をトラッシュして${nameOf(victimNum)}のバニッシュを回避`);
+}
+
+/** 従来の入口（自動 policy で1本選んで適用する）。決定層の collect→choose→apply を束ねたもの。 */
+export function applyEffectBanishSubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  const chosen = collectEffectBanishSubstituteChoices(victimNum, victimOwner, ctx)
+    .find(banishSubstituteAutoEligible);
+  if (!chosen) return { ctx, replaced: false };
+  return { ctx: applyEffectBanishSubstituteChoice(victimNum, victimOwner, chosen, ctx), replaced: true };
 }
 
 /**
@@ -424,26 +427,111 @@ export function applyEffectBanishSubstituteChoice(
  * **エナ送りに対してだけ効かない**（原文は「場を離れる場合」＝エナ送りも当然含む）。
  * 置換手段が増えるたびに11箇所へ追記する形だと同じ漏れが再発するので、入口を1本に畳んで構造的に潰す。
  */
+
+/**
+ * 離場置換の「軸」。⚠**`kind` は原文の語尾で決まる**（実装の都合ではない）＝
+ * `mandatory` は原文に「してもよい」が**無い**＝プレイヤーに選択の余地が無く、**自動適用が正しい**
+ * （近似ではない）。`optional` は「〜してもよい」＝本来は被害側プレイヤーが選ぶ。
+ *
+ * 2026-08-11（続き429）の原文全数照合の結果：
+ * - `lrigAbility`（`EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY`＝`SPDi44-08`/`WX25-P1-018`）
+ *   「代わりにこのルリグはこの能力を失う」＝**強制**
+ * - `noAbilityDeckBottom`（`NO_ABILITY_SIGNI_TO_DECK_BOTTOM`＝`WXEX2-30`）
+ *   「代わりにデッキの一番下に置かれる」＝**強制**
+ * - `powerReduction`（`WX06-019`）／`banishSubstitute`（F-3 8枚）／`replaceBanish`（`WX25-P1-056`）＝**任意**
+ */
+export type LeaveSubstituteAxisId =
+  | 'lrigAbility' | 'powerReduction' | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
+
+export interface LeaveSubstituteOption {
+  axis: LeaveSubstituteAxisId;
+  /** 原文の語尾由来。`mandatory` は選択肢に出さず必ず適用する。 */
+  kind: 'mandatory' | 'optional';
+  /** 対話UI／ログ用の短い説明（この置換を選ぶと何が起きるか）。 */
+  label: string;
+  /**
+   * engine の自動 policy で選んでよいか。`false` は**対話が来るまで適用しない**もの
+   * （現状 `WX14-026` の `lifeCrash` だけ＝【ライフバースト】確認フローを同期的に差し込めない）。
+   */
+  autoEligible: boolean;
+  /**
+   * この置換を適用した後の ctx（**投機実行済み**）。`ExecCtx` は `setOwnerState`／`addLog` とも
+   * 不変なので、採用しなかった候補の ctx は捨てるだけで副作用は残らない（ログも漏れない）。
+   */
+  resultCtx: ExecCtx;
+}
+
+/**
+ * 離場置換の候補を**適用せずに**列挙する（決定層の enumerate 側・続き429）。
+ *
+ * 並びは従来の適用順そのまま＝①`lrigAbility`（強制）→②`powerReduction`→
+ * ③`isBanish` なら F-3 身代わり／そうでなければ `replaceBanish`→④`noAbilityDeckBottom`（強制）。
+ * ⚠**この並びを変えると `autoChooseLeaveSubstitute` の選択が変わる**＝挙動が変わる。
+ *
+ * ⚠③の2本が排他なのは原文の条件が排他だから（`replaceBanish`＝「その移動がバニッシュによるもので
+ * ないなら」／F-3＝「バニッシュされる場合」）。`isBanish` を1つのフラグにまとめてあるのは、
+ * 離場経路を新設した人が片方だけ書いて取りこぼすのを防ぐため。
+ */
+export function collectLeaveSubstituteOptions(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+  opts?: { isBanish?: boolean },
+): LeaveSubstituteOption[] {
+  const out: LeaveSubstituteOption[] = [];
+  const push = (
+    axis: LeaveSubstituteAxisId, kind: 'mandatory' | 'optional', label: string,
+    r: { ctx: ExecCtx; replaced: boolean },
+  ) => { if (r.replaced) out.push({ axis, kind, label, autoEligible: true, resultCtx: r.ctx }); };
+
+  push('lrigAbility', 'mandatory', '代わりにルリグがこの能力を失う',
+    applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx));
+  push('powerReduction', 'optional', '代わりに身代わりシグニのパワーを下げる',
+    applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx));
+  if (opts?.isBanish) {
+    for (const choice of collectEffectBanishSubstituteChoices(victimNum, victimOwner, ctx)) {
+      out.push({
+        axis: 'banishSubstitute', kind: 'optional',
+        label: choice.kind === 'sacrifice'
+          ? `代わりに${ctx.cardMap.get(getCardNum(choice.sacrificeNum))?.CardName ?? choice.sacrificeNum}をバニッシュする`
+          : choice.costType === 'discardSpell' ? `代わりに手札からスペル${choice.amount}枚を捨てる`
+          : choice.costType === 'trashStackSpell' ? `代わりにこのシグニの下からスペル${choice.amount}枚をトラッシュに置く`
+          : `代わりにライフクロス${choice.amount}枚をクラッシュする`,
+        autoEligible: banishSubstituteAutoEligible(choice),
+        resultCtx: applyEffectBanishSubstituteChoice(victimNum, victimOwner, choice, ctx),
+      });
+    }
+  } else {
+    push('replaceBanish', 'optional', '代わりにそのシグニをバニッシュする',
+      applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx));
+  }
+  push('noAbilityDeckBottom', 'mandatory', '代わりにデッキの一番下に置く',
+    applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx));
+  return out;
+}
+
+/**
+ * engine の現行 policy＝**成立した最初の1本を適用する**（決定論的近似）。
+ *
+ * ⚠`optional`（原文「してもよい」）を勝手に適用しているのはこの policy であって、列挙側ではない。
+ * **対話化はこの関数を差し替えるだけ**＝`collectLeaveSubstituteOptions` の結果を被害側プレイヤーへ
+ * `CHOOSE{opponentResponds:true}` で出し、選ばれた option の `resultCtx` を採る（§6.4 の残作業）。
+ * `mandatory` は選択肢に出さず必ず適用すること（原文に「してもよい」が無い）。
+ */
+export function autoChooseLeaveSubstitute(
+  options: readonly LeaveSubstituteOption[],
+): LeaveSubstituteOption | null {
+  return options.find(o => o.autoEligible) ?? null;
+}
+
 export function applyEffectLeaveSubstitutes(
   victimNum: string,
   victimOwner: Owner,
   ctx: ExecCtx,
   opts?: { isBanish?: boolean },
 ): { ctx: ExecCtx; replaced: boolean } {
-  const lrigSub = applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx);
-  if (lrigSub.replaced) return lrigSub;
-  const powerSub = applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx);
-  if (powerSub.replaced) return powerSub;
-  if (opts?.isBanish) {
-    const f3Sub = applyEffectBanishSubstitute(victimNum, victimOwner, ctx);
-    if (f3Sub.replaced) return f3Sub;
-  } else {
-    const banishSub = applyEffectLeaveReplaceBanishSubstitute(victimNum, victimOwner, ctx);
-    if (banishSub.replaced) return banishSub;
-  }
-  const noAbilitySub = applyEffectLeaveNoAbilityDeckBottomSubstitute(victimNum, victimOwner, ctx);
-  if (noAbilitySub.replaced) return noAbilitySub;
-  return { ctx, replaced: false };
+  const chosen = autoChooseLeaveSubstitute(collectLeaveSubstituteOptions(victimNum, victimOwner, ctx, opts));
+  return chosen ? { ctx: chosen.resultCtx, replaced: true } : { ctx, replaced: false };
 }
 
 /** 効果元シグニの正面（相手ゾーン 2-zi）にいる相手シグニを解決する。 */
