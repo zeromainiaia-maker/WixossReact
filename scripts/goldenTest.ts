@@ -30369,6 +30369,30 @@ test('§6.4 離場置換: 宣言走査は印字＋付与2ストアの3軸（付�
      'collectEffectBanishSubstituteChoices: 付与ストアも走査する');
 });
 
+
+test('§6.4 PR-470A: 入れ替え配置もパワー制限は通る（体数制限は不変なので掛からない）', () => {
+  const stub = { type: 'STUB', id: 'SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME', fetchCardName: '進化する筋肉　紗倉ひびき' } as EffectAction;
+  const fetched = 'PR-470B';
+  const fetchedCard = cardMap.get(fetched);
+  ok(!!fetchedCard, '前提：フェッチ先がカードデータにある');
+  const power = parseInt(fetchedCard?.Power ?? '', 10) || 0;
+  ok(power > 0, '前提：フェッチ先にパワーがある');
+
+  const base = mkCtx({ signi: ['PR-470A', null, null] }, {});
+  base.ownerState = { ...base.ownerState, lrig_deck: [fetched] };
+  base.sourceCardNum = 'PR-470A';
+
+  // 制限なし＝入れ替わる（体数は不変なので count 制限の対象にならないことも同時に確認）
+  const ok1 = run(stub, { ...base, ownerState: { ...base.ownerState, signi_deploy_count_limit: 1 } });
+  eq(ok1.ownerState.field.signi[0]?.at(-1), fetched, '体数制限1でも入れ替えは通る（場の数が増えないため）');
+
+  // パワー制限＝掛かる（従来はここだけ素通りしていた）
+  const blocked = run(stub, { ...base, ownerState: { ...base.ownerState, signi_deploy_power_limit: power } });
+  ok(blocked.ownerState.field.signi[0]?.at(-1) !== fetched,
+     '🔴パワー配置制限のときは場に出さない（配置制限 funnel を素通りしない）');
+  ok(blocked.logs.some(l => l.includes('配置パワー制限')), '理由がログに出る');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
