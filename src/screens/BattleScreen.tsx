@@ -6612,16 +6612,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newLrigTrashKey = [...my.lrig_trash, extraKeys[extraIdx]];
         }
       }
-      const paid: PlayerState = {
+      const paid: PlayerState = keyActPay.applyTo({
         ...my,
-        energy: newEnergy,
         hand: newHand,
         field: newField,
         lrig_trash: newLrigTrashKey,
         trash: [...my.trash, ...paidNums, ...discardNums],
         actions_done: (effect.usageLimit === 'once_per_turn' || effect.usageLimit === 'twice_per_turn')
           ? [...(my.actions_done ?? []), effect.effectId] : (my.actions_done ?? []),
-      };
+      });
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
