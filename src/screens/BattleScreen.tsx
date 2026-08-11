@@ -1115,6 +1115,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return map;
   }, [bs, battleCardMap, effectsMap, user.id]);
 
+  // エナコストの支払い元プール（§6.4「エナ支払い元の一本化」＝`screens/battle/energyPaySource.ts`）。
+  // 先頭 my.energy.length 件はエナゾーンそのもの＝既存の costIndices（エナ index）がそのまま通る。
+  // 追加元（`UNDER_CARD_AS_ENERGY_COST`＝シグニの下）が無ければ my.energy と完全に等価。
+  const energyPayCtx = useMemo(() => ({
+    turnPhase: bs?.turn_phase ?? 'MAIN',
+    isMyTurn: bs?.active_user_id === user.id,
+    effectsMap,
+  }), [bs?.turn_phase, bs?.active_user_id, effectsMap, user.id]);
+  const myEnergyPayPool = useMemo((): EnergyPayEntry[] => {
+    if (!bs || bs.global_phase !== 'PLAYING') return [];
+    const myS = user.id === bs.host_id ? bs.host_state : bs.guest_state;
+    return buildEnergyPayPool(myS, energyPayCtx);
+  }, [bs, energyPayCtx, user.id]);
+
   // COPY_LRIG_NAME_ABILITY (CONT): センタールリグの名前エイリアスリスト
   const myLrigNameAliases = useMemo((): string[] => {
     if (!bs || bs.global_phase !== 'PLAYING') return [];
