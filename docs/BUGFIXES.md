@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-11 — PLAN §7 実機検証バッチ2：安定セレクタ整備（Codex実装／実機未実行）
+
+続き435で個別実行でもFAILした8シナリオについて、カード名の`alt`や重複しうる可視ボタン文言ではなく、UI側の安定セレクタを使う形へ整備。`KeyUseModal`のエナ候補（`keycost-energy-*`）、自他を区別したルリグ行5スロット（`my/op-lrig-slot-*`）、カード詳細のアクションボタン（`card-action-*` + `data-action-label`）に`data-testid`を追加し、`assistAttackBoth`、`connectSpinningChoice4Pay`/`Insufficient`、`fezoneDoubleCostPay`、`sYokusenkiSpellPay`、`kokonaUnderThreePay`/`Skip`/`Insufficient`のドライバをそれらと既存の`pick-*`/`optcost-*`に寄せた。
+
+`optcost-pay`/`skip`はエナ色コスト用UIにしか付いておらず、手札捨て／下カードだけの任意コストは汎用`CHOOSE`ボタンへ流れる実装だったため、汎用側の`pay`/`skip`にも同じ既存testidを付与。不足時の`pay`は消えず`available:false`のdisabled枝として残るため、`kokonaUnderInsufficient`は`pendingOptions`と`isEnabled()`の両方で「有効なpay枝がない」ことをassertする。フェイズ進行ボタンは`BattleScreen.tsx`の共通ボタン1個だけが表示されるため、A4のtestid追加は不要と判定。
+
+Codex環境ではライブSupabaseへの外部ネットワークが使えないため、`node scripts/verifyBattleDrive.mjs <id>`は**未実行（Claude側で実行）**。UIの変更はDOM属性の追加だけで、engine/parser/effectsは変更なし。`npm run gates`は全緑：golden 1809/1809、smoke 10688/10688（CRASH/HANG/INVARIANT/SKIP 0）、census 852/852、census:stubs no-op 0、manual field loss 0、lint 0 errors/259 warnings。fuzzは不具合0・SKIP 0だが、並列gatesの distinct 2672（指定ベースライン2682）、単独再実行は7983手/distinct 2666と試行間で変動。既定`order`領域とPASS済7シナリオは編集前後のSHA-256が全件一致。全5変更ファイルのU+FFFD／3文字以上の`?`／先頭BOMはベースライン比の新規增0。
+
 ## 2026-08-11 — PLAN §7 実機検証バッチ1（Codex起案→Claude実機検証・続き435）
 
 続き427（アシストルリグアタック）／続き426（複合任意コスト）／続き434（UNKNOWN是正3件）が持ち込んだ計9件の未検証UI項目を、CODEX_GUIDE.mdの手順どおりCodexへ指示書（Claude作成）で投入。**Codexのサンドボックス環境はSupabaseへのネットワークアクセスが `net::ERR_NETWORK_ACCESS_DENIED` で遮断されており、`scripts/verifyBattleDrive.mjs` の実行検証が一切できなかった**（15シナリオのコードは書けたが全件`BLOCKED`）＝**新知見としてCODEX_GUIDE.md §2に追記**。

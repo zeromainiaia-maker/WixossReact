@@ -9892,8 +9892,8 @@ scenarios.assistAttackBoth = {
   async drive(page, H) {
     const before = await H.queryState();
     const attackers = [
-      { name: '半月の巫女　タマヨリヒメ', downIndex: 0 },
-      { name: 'コード・ピルルク・Ｍ', downIndex: 1 },
+      { slotId: 'my-lrig-slot-assist-l', downIndex: 0 },
+      { slotId: 'my-lrig-slot-assist-r', downIndex: 1 },
     ];
     let attackIndex = 0;
     let attackButtonCount = 0;
@@ -9907,15 +9907,13 @@ scenarios.assistAttackBoth = {
       if (attackIndex < attackers.length && openedForIndex !== attackIndex
           && resolvedAttacks >= attackIndex
           && st0?.host?.assistDown?.[attackers[attackIndex].downIndex] !== true) {
-        const img = page.getByAltText(attackers[attackIndex].name, { exact: false }).first();
-        if (await img.count() && await img.isVisible().catch(() => false)) {
-          await img.click({ force: true }); did = `img:${attackers[attackIndex].name}`; openedForIndex = attackIndex;
-        }
+        did = await H.clickTestId(attackers[attackIndex].slotId);
+        if (did) openedForIndex = attackIndex;
       }
       if (!did) {
-        const attack = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        const attack = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
         if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
-          await attack.click(); did = 'btn:アタック'; attackButtonCount++;
+          await attack.click(); did = 'tid:card-action-*[data-action-label="アタック"]'; attackButtonCount++;
         }
       }
       if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'エナに送る', 'ライフバーストなし', 'OK', '決定']);
@@ -10061,17 +10059,22 @@ scenarios.connectSpinningChoice4Pay = {
     let chose4 = false;
     let paid = false;
     const picked = new Set();
-    const selectedEnergy = new Set();
+    const selectedKeyEnergy = new Set();
     for (let s = 0; s < 34; s++) {
       await page.waitForTimeout(650);
       await page.screenshot({ path: `${SHOT}/connectSpinningChoice4Pay-${s}.png`, fullPage: true });
       let did = null;
-      if (!pieceSet) did = await H.clickBtn('キーにセット', { exact: true });
+      if (!pieceSet) {
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="キーにセット"]').first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click(); did = 'tid:card-action-*[data-action-label="キーにセット"]';
+        }
+      }
       if (!did && !pieceSet) {
-        for (const name of ['羅石　ヴォルカノ', '小剣　ククリ', 'コードアート　Ｓ・Ｃ']) {
-          if (selectedEnergy.has(name)) continue;
-          const img = page.getByAltText(name, { exact: false }).last();
-          if (await img.count() && await img.isVisible().catch(() => false)) { await img.click(); selectedEnergy.add(name); did = `energy:${name}`; break; }
+        for (const i of [0, 1, 2]) {
+          if (selectedKeyEnergy.has(i)) continue;
+          const selected = await H.clickTestId(`keycost-energy-${i}`);
+          if (selected) { selectedKeyEnergy.add(i); did = selected; break; }
         }
       }
       if (!did && !pieceSet) {
@@ -10083,20 +10086,19 @@ scenarios.connectSpinningChoice4Pay = {
         if (c4) { did = c4; chose4 = true; }
       }
       if (!did && chose4 && !paid) {
-        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
-        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) {
-          await pay.click(); did = 'btn:支払う'; paid = true;
-        }
+        const pay = await H.clickTestId('optcost-pay');
+        if (pay) { did = pay; paid = true; }
       }
       const st0 = await H.queryState();
       if (!did && paid && Array.isArray(st0?.pendingCandidates)) {
         for (let i = 0; i < st0.pendingCandidates.length; i++) {
           if (picked.has(i)) continue;
-          const p = page.getByTestId(`pick-${i}`).first();
-          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); picked.add(i); did = `pick:${i}`; break; }
+          const pick = await H.clickTestId(`pick-${i}`);
+          if (pick) { picked.add(i); did = pick; break; }
         }
       }
-      if (!did && paid) did = await H.clickTextOrBtn(['決定', 'エナに送る', 'ライフバーストなし', 'OK']);
+      if (!did && paid && picked.size >= 2) did = await H.clickBtn('決定');
+      if (!did && paid) did = await H.clickTextOrBtn(['エナに送る', 'ライフバーストなし', 'OK']);
       const st = await H.queryState();
       H.log(`  csp[${s}] -> ${did ?? 'なし'} | set=${pieceSet} c4=${chose4} paid=${paid} picked=${[...picked]} hHand=${st?.host?.hand} hEnergy=${st?.host?.energy} gLife=${st?.guest?.life}(開始${before?.guest?.life}) pEff=${st?.pendingEffect ?? '-'}`);
       if (paid && st?.host?.hand === 0 && st?.guest?.life === before.guest.life - 1 && !st?.pendingEffect) {
@@ -10125,30 +10127,36 @@ scenarios.connectSpinningChoice4Insufficient = {
   },
   async drive(page, H) {
     const before = await H.queryState();
-    await H.clickTestId('my-lrig-dk'); await page.waitForTimeout(400); await H.clickTestId('zone-card-0');
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    await page.waitForTimeout(400);
+    H.log('ピース:', await H.clickTestId('zone-card-0') ?? '見つからず');
     let pieceSet = false; let chose4 = false; let sawDisabled = false; let skipped = false;
-    const energyNames = ['羅石　ヴォルカノ', '小剣　ククリ', 'コードアート　Ｓ・Ｃ'];
-    const selectedEnergy = new Set();
+    const selectedKeyEnergy = new Set();
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(650);
       let did = null;
-      if (!pieceSet) did = await H.clickBtn('キーにセット', { exact: true });
+      if (!pieceSet) {
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="キーにセット"]').first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click(); did = 'tid:card-action-*[data-action-label="キーにセット"]';
+        }
+      }
       if (!did && !pieceSet) {
-        for (const name of energyNames) {
-          if (selectedEnergy.has(name)) continue;
-          const img = page.getByAltText(name, { exact: false }).last();
-          if (await img.count() && await img.isVisible().catch(() => false)) { await img.click(); selectedEnergy.add(name); did = `energy:${name}`; break; }
+        for (const i of [0, 1, 2]) {
+          if (selectedKeyEnergy.has(i)) continue;
+          const selected = await H.clickTestId(`keycost-energy-${i}`);
+          if (selected) { selectedKeyEnergy.add(i); did = selected; break; }
         }
       }
       if (!did && !pieceSet) { const set = await H.clickBtn('セット', { exact: true }); if (set) { did = set; pieceSet = true; } }
       if (!did && pieceSet && !chose4) { const c4 = await H.clickBtn('選択肢4', { exact: true }); if (c4) { did = c4; chose4 = true; } }
       if (!did && chose4 && !skipped) {
-        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
+        const pay = page.getByTestId('optcost-pay').first();
         if (await pay.count() && await pay.isVisible().catch(() => false)) {
-          sawDisabled = !(await pay.isEnabled().catch(() => true));
+          sawDisabled = !(await pay.isEnabled());
           if (!sawDisabled) return { pass: false, detail: '【回帰】手札1枚なのに④の「支払う」がenabled' };
-          const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
-          if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+          const skip = await H.clickTestId('optcost-skip');
+          if (skip) { did = skip; skipped = true; }
         }
       }
       const st = await H.queryState();
@@ -10184,29 +10192,32 @@ scenarios.fezoneDoubleCostPay = {
   },
   async drive(page, H) {
     const before = await H.queryState();
-    let paid = false; const picked = new Set();
+    let attackPhaseStarted = false; let optEnergySelected = false; let paid = false; const picked = new Set();
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(650);
       let did = null;
-      if (!did) did = await H.clickBtn('アタックフェイズへ', { exact: true });
-      if (!did && !paid) {
-        const e0 = page.getByTestId('optcost-energy-0').first();
-        if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click(); did = 'tid:optcost-energy-0'; }
+      if (!attackPhaseStarted) {
+        const advance = await H.clickBtn('アタックフェイズへ', { exact: true });
+        if (advance) { did = advance; attackPhaseStarted = true; }
+      }
+      if (!did && !paid && !optEnergySelected) {
+        const selected = await H.clickTestId('optcost-energy-0');
+        if (selected) { did = selected; optEnergySelected = true; }
       }
       if (!did && !paid) {
-        const pay = page.getByTestId('optcost-pay').first();
-        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'tid:optcost-pay'; paid = true; }
+        const pay = await H.clickTestId('optcost-pay');
+        if (pay) { did = pay; paid = true; }
       }
       const st0 = await H.queryState();
       if (!did && paid && Array.isArray(st0?.pendingCandidates)) {
         for (let i = 0; i < st0.pendingCandidates.length; i++) {
           const cn = st0.pendingCandidates[i];
           if (picked.has(`${cn}:${i}`)) continue;
-          const p = page.getByTestId(`pick-${i}`).first();
-          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); picked.add(`${cn}:${i}`); did = `pick:${cn}`; break; }
+          const pick = await H.clickTestId(`pick-${i}`);
+          if (pick) { picked.add(`${cn}:${i}`); did = `${pick}:${cn}`; break; }
         }
       }
-      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'OK']);
+      if (!did && paid) did = await H.clickBtn('決定');
       const st = await H.queryState();
       H.log(`  fdcp[${s}] -> ${did ?? 'なし'} | paid=${paid} hE=${st?.host?.energy}(開始${before?.host?.energy}) hH=${st?.host?.hand}(開始${before?.host?.hand}) gBottom=${st?.guest?.deckBottom} candidates=${JSON.stringify(st?.pendingCandidates)}`);
       const targetGone = st?.guest?.fieldSigni?.[0] == null;
@@ -10268,24 +10279,27 @@ scenarios.sYokusenkiSpellPay = {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   async drive(page, H) {
-    const before = await H.queryState(); let chose2 = false; let paid = false; let filterChecked = false; let picked = false;
+    const before = await H.queryState(); let attackPhaseStarted = false; let chose2 = false; let paid = false; let filterChecked = false; let picked = false;
     for (let s = 0; s < 28; s++) {
       await page.waitForTimeout(650); let did = null;
-      if (!did) did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (!attackPhaseStarted) {
+        const advance = await H.clickBtn('アタックフェイズへ', { exact: true });
+        if (advance) { did = advance; attackPhaseStarted = true; }
+      }
       if (!did && !chose2) { const c2 = await H.clickBtn('選択肢2', { exact: true }); if (c2) { did = c2; chose2 = true; } }
       if (!did && chose2 && !paid) {
-        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
-        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'btn:支払う'; paid = true; }
+        const pay = await H.clickTestId('optcost-pay');
+        if (pay) { did = pay; paid = true; }
       }
       const st0 = await H.queryState();
       if (!did && paid && !picked && Array.isArray(st0?.pendingCandidates)) {
         const cands = st0.pendingCandidates;
         filterChecked = cands.length === 1 && cands[0] === 'WD05-018#1';
         if (!filterChecked) return { pass: false, detail: `【限定漏れ】スペル捨て候補が ${JSON.stringify(cands)}（期待=['WD05-018#1']・シグニは候補外）` };
-        const p = page.getByTestId('pick-0').first();
-        if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); did = 'pick:spell'; picked = true; }
+        const pick = await H.clickTestId('pick-0');
+        if (pick) { did = `${pick}:spell`; picked = true; }
       }
-      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'OK']);
+      if (!did && paid && picked) did = await H.clickBtn('決定');
       const st = await H.queryState();
       H.log(`  sysp[${s}] -> ${did ?? 'なし'} | c2=${chose2} paid=${paid} filter=${filterChecked} hHand=${st?.host?.hand} gHand=${st?.guest?.hand}(開始${before?.guest?.hand}) trash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
       if (filterChecked && (st?.host?.trashCards ?? []).includes('WD05-018#1') && st?.guest?.hand === before.guest.hand - 1 && !st?.pendingEffect) {
@@ -10340,13 +10354,17 @@ scenarios.kokonaUnderThreePay = {
     top: { active: 'host', turn_phase: 'END', turn_count: 2 },
   },
   async drive(page, H) {
-    const before = await H.queryState(); let paid = false; const picked = new Set(); let candidateChecked = false;
+    const before = await H.queryState(); let turnEndClicked = false; let paid = false; const picked = new Set(); let candidateChecked = false;
     const expected = ['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1'];
     for (let s = 0; s < 30; s++) {
-      await page.waitForTimeout(650); let did = await H.clickBtn('ターン終了', { exact: true });
+      await page.waitForTimeout(650); let did = null;
+      if (!turnEndClicked) {
+        const advance = await H.clickBtn('ターン終了', { exact: true });
+        if (advance) { did = advance; turnEndClicked = true; }
+      }
       if (!did && !paid) {
-        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
-        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled().catch(() => false)) { await pay.click(); did = 'btn:支払う'; paid = true; }
+        const pay = await H.clickTestId('optcost-pay');
+        if (pay) { did = pay; paid = true; }
       }
       const st0 = await H.queryState();
       if (!did && paid && Array.isArray(st0?.pendingCandidates)) {
@@ -10355,11 +10373,11 @@ scenarios.kokonaUnderThreePay = {
         if (!candidateChecked) return { pass: false, detail: `下カード候補が不正: ${JSON.stringify(cands)}（期待ブルアカ3枚のみ）` };
         for (let i = 0; i < cands.length; i++) {
           if (picked.has(i)) continue;
-          const p = page.getByTestId(`pick-${i}`).first();
-          if (await p.count() && await p.isVisible().catch(() => false)) { await p.click(); picked.add(i); did = `pick:${i}`; break; }
+          const pick = await H.clickTestId(`pick-${i}`);
+          if (pick) { picked.add(i); did = pick; break; }
         }
       }
-      if (!did && paid) did = await H.clickTextOrBtn(['決定', '確定', 'OK']);
+      if (!did && paid && picked.size >= 3) did = await H.clickBtn('決定');
       const st = await H.queryState();
       const stack = st?.host?.fieldSigni?.[0] ?? [];
       H.log(`  kutp[${s}] -> ${did ?? 'なし'} | paid=${paid} candidates=${candidateChecked} picked=${[...picked]} stack=${JSON.stringify(stack)} hTrash=${st?.host?.trash} hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) pEff=${st?.pendingEffect ?? '-'}`);
@@ -10387,12 +10405,16 @@ scenarios.kokonaUnderThreeSkip = {
     top: { active: 'host', turn_phase: 'END', turn_count: 2 },
   },
   async drive(page, H) {
-    const before = await H.queryState(); let skipped = false;
+    const before = await H.queryState(); let turnEndClicked = false; let skipped = false;
     for (let s = 0; s < 20; s++) {
-      await page.waitForTimeout(650); let did = await H.clickBtn('ターン終了', { exact: true });
+      await page.waitForTimeout(650); let did = null;
+      if (!turnEndClicked) {
+        const advance = await H.clickBtn('ターン終了', { exact: true });
+        if (advance) { did = advance; turnEndClicked = true; }
+      }
       if (!did && !skipped) {
-        const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
-        if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+        const skip = await H.clickTestId('optcost-skip');
+        if (skip) { did = skip; skipped = true; }
       }
       const st = await H.queryState(); const stack = st?.host?.fieldSigni?.[0] ?? [];
       H.log(`  kuts[${s}] -> ${did ?? 'なし'} | skipped=${skipped} stack=${JSON.stringify(stack)} energy=${st?.host?.energy} trash=${st?.host?.trash} pEff=${st?.pendingEffect ?? '-'}`);
@@ -10419,23 +10441,29 @@ scenarios.kokonaUnderInsufficient = {
     top: { active: 'host', turn_phase: 'END', turn_count: 2 },
   },
   async drive(page, H) {
-    const before = await H.queryState(); let sawUnavailable = false; let skipped = false;
+    const before = await H.queryState(); let turnEndClicked = false; let sawUnavailable = false; let skipped = false;
     for (let s = 0; s < 20; s++) {
-      await page.waitForTimeout(650); let did = await H.clickBtn('ターン終了', { exact: true });
+      await page.waitForTimeout(650); let did = null;
+      if (!turnEndClicked) {
+        const advance = await H.clickBtn('ターン終了', { exact: true });
+        if (advance) { did = advance; turnEndClicked = true; }
+      }
       if (!did && !skipped) {
-        const pay = page.getByRole('button', { name: /支払う/, exact: false }).first();
-        const payVisible = (await pay.count()) > 0 && await pay.isVisible().catch(() => false);
-        if (payVisible) {
-          sawUnavailable = !(await pay.isEnabled().catch(() => true));
-          if (!sawUnavailable) return { pass: false, detail: '【回帰】下にブルアカ2枚しかないのにpayがenabled' };
-        } else {
-          sawUnavailable = true; // 枝そのものを隠す実装も正しい
+        const st0 = await H.queryState();
+        if (Array.isArray(st0?.pendingOptions)) {
+          const payOption = st0.pendingOptions.find(o => o.startsWith('pay:'));
+          sawUnavailable = payOption == null || payOption.endsWith('(disabled)');
+          if (!sawUnavailable) return { pass: false, detail: `【回帰】下にブルアカ2枚しかないのに有効なpay枝がある: ${JSON.stringify(st0.pendingOptions)}` };
         }
-        const skip = page.getByRole('button', { name: /スキップ/, exact: false }).first();
-        if (await skip.count() && await skip.isVisible().catch(() => false)) { await skip.click(); did = 'btn:スキップ'; skipped = true; }
+        const pay = page.getByTestId('optcost-pay').first();
+        if (await pay.count() && await pay.isVisible().catch(() => false) && await pay.isEnabled()) {
+          return { pass: false, detail: '【回帰】下にブルアカ2枚しかないのにoptcost-payがenabled' };
+        }
+        const skip = await H.clickTestId('optcost-skip');
+        if (skip) { did = skip; skipped = true; }
       }
       const st = await H.queryState();
-      H.log(`  kui[${s}] -> ${did ?? 'なし'} | unavailable=${sawUnavailable} skipped=${skipped} stack=${JSON.stringify(st?.host?.fieldSigni?.[0])} energy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
+      H.log(`  kui[${s}] -> ${did ?? 'なし'} | unavailable=${sawUnavailable} skipped=${skipped} options=${JSON.stringify(st?.pendingOptions)} stack=${JSON.stringify(st?.host?.fieldSigni?.[0])} energy=${st?.host?.energy} pEff=${st?.pendingEffect ?? '-'}`);
       if (sawUnavailable && skipped && !st?.pendingEffect && s >= 4) {
         const ok = st.host.energy === before.host.energy && st.host.fieldSigni?.[0]?.length === 3;
         return { pass: ok, detail: `ブルアカ2枚ではpay枝利用不能=${sawUnavailable}・skip後もenergy ${before.host.energy}→${st.host.energy}／stack長3維持` };
@@ -10815,14 +10843,30 @@ order.push('resonaMainWx08021'); // レゾナMAIN召喚UIは既定order末尾で
 order.push('coinsPaidAttackFires');
 order.push('coinsPaidAttackSkipped');
 // 続き435（PLAN§7バッチ1・Codex起案→Claude実機検証）＝以下7件は個別実行で複数回PASSを確認済み。
-// 残る8件（assistAttackBoth／connectSpinningChoice4Pay・Insufficient／fezoneDoubleCostPay／
-// sYokusenkiSpellPay／kokonaUnderThreePay・ThreeSkip・Insufficient）はシナリオコード側の未解決の
-// クリック手順バグが濃厚（例：connectSpinningChoice4系はエナ選択画像のaltテキスト想定がズレている
-// 疑い）で、既定orderには含めない（scenarios定義は残置＝follow-upで直す）。
 order.push(
   'assistAttackNoFlag', 'assistAttackSkipConfirm', 'assistAttackCpuSequence', 'assistAttackNoEligibleAdvance',
   'fezoneDoubleCostSkip', 'sYokusenkiSpellSkip', 'cheatingSameLevelDownFilter',
 );
+// 続き436（PLAN§7バッチ2・Codex起案→Claude実機検証）＝続き435 で残った8件の FAIL は「シナリオ側の
+// クリック手順バグ」ではなく**UI に安定セレクタが無い箇所をカード名の alt／可視ボタン文言で代用していた**
+// のが真因だった（`KeyUseModal` のエナ候補・ルリグ行5スロット・カード詳細のアクションボタンに testid が無く、
+// しかも自分と相手で label 文字列が同一）。`keycost-energy-*`／`my|op-lrig-slot-*`／`card-action-*`＋
+// `data-action-label` を新設して書き直したところ、**3件が2回連続PASSへ反転**＝既定orderに追加。
+//   assistAttackBoth  … 続き427「人間側のクリックで左右アシスト連続アタック」＝左右が各1回ずつアタックし
+//                        assistDown=[true,true]／centerDown=false（センター温存）／相手ライフ7→5の2クラッシュ。
+//   fezoneDoubleCostPay … 続き426 B2 pay側🔴＝《青》1＋手札2枚の**両方**が徴収される（energy 1→0・hand 2→0）
+//                        ＝「コスト句ごと脱落していた」旧実装への退化が無いことを実機で確定。
+//   sYokusenkiSpellPay  … 続き434 `WX24-P1-065`② pay側🔴＝候補が**スペル1枚だけ**に絞られ、払うと相手の手札が
+//                        2→1（払わなければ減らないことは既存 sYokusenkiSpellSkip が担保）。
+// ⚠残る5件は**セレクタ問題ではなくなった**（詳細は PLAN §7 と BUGFIXES 2026-08-11）＝
+//   connectSpinningChoice4Pay/Insufficient … KeyUseModal のエナ選択は完全に機能する（3枚選択→energy 3→0→セット
+//     成功）が、**セット後に効果が一切発火しない**（pEff=-）。`WXDi-P14-002-E1` は `effectType:'ACTIVATED'`
+//     `timing:['MAIN']` なのに `executeKeyPiece` は `queueCardEffects(..., ['AUTO'], ['ON_PLAY'], ...)` しか
+//     積まない＝ピースの効果は KEY スロットの【起】から別途起動する設計。しかも印刷 Cost《赤×1《無》×2》と
+//     E1 の `cost.energy`（赤1無2）が同一＝**セットで1回・起動でもう1回**請求される疑い＝PLAN §3 へ登録。
+//   kokonaUnderThreePay/ThreeSkip/Insufficient … 「ターン終了」ボタンは押せるが以後の盤面変化が観測されず
+//     ON_TURN_END の pay/skip UI が出ない（原因未確定＝シナリオ側かengine側か切り分け未了）。
+order.push('assistAttackBoth', 'fezoneDoubleCostPay', 'sYokusenkiSpellPay');
 // 続き435＝collectAnyZoneTrashSelfTriggersのresume取りこぼし（続き60）は解消済みと確認したので復帰。
 order.push('handDiscard');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);

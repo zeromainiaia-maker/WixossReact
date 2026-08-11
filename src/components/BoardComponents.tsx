@@ -94,7 +94,7 @@ export function CardModal({ card, onClose, actions }: { card: CardData; onClose:
           onTouchEnd={e => e.stopPropagation()}
           style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
           {actions.map((act, i) => (
-            <button key={i}
+            <button key={i} data-testid={`card-action-${i}`} data-action-label={act.label}
               onClick={() => { act.onClick(); onClose(); }}
               onTouchEnd={e => { e.preventDefault(); e.stopPropagation(); act.onClick(); onClose(); }}
               style={{
@@ -206,7 +206,7 @@ export function CardStackModal({ stack, cards, onClose, actions }: {
           onTouchEnd={e => e.stopPropagation()}
           style={{ display: 'flex', gap: 10, marginTop: 18, flexWrap: 'wrap', justifyContent: 'center' }}>
           {actions.map((act, i) => (
-            <button key={i}
+            <button key={i} data-testid={`card-action-${i}`} data-action-label={act.label}
               onClick={() => { act.onClick(); onClose(); }}
               onTouchEnd={e => { e.preventDefault(); e.stopPropagation(); act.onClick(); onClose(); }}
               style={{ padding: '10px 24px', borderRadius: 8, border: 'none',
@@ -234,9 +234,10 @@ export interface CardSlotProps {
   label?: string;
   faceDown?: boolean;
   actions?: CardAction[];
+  testId?: string;
 }
 
-export function CardSlot({ cardNum, cards, width = 60, height = 84, label, faceDown, actions }: CardSlotProps) {
+export function CardSlot({ cardNum, cards, width = 60, height = 84, label, faceDown, actions, testId }: CardSlotProps) {
   const [enlarged, setEnlarged] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
   const card = cardNum ? cards.find(c => c.CardNum === getCardNum(cardNum)) : null;
@@ -257,6 +258,7 @@ export function CardSlot({ cardNum, cards, width = 60, height = 84, label, faceD
   return (
     <>
       <div
+        data-testid={testId}
         style={{
           width, height, flexShrink: 0, borderRadius: 4, overflow: 'hidden',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -298,9 +300,10 @@ export interface StackSlotProps {
   actions?: CardAction[];
   isDown?: boolean;
   isFrozen?: boolean;
+  testId?: string;
 }
 
-export function StackSlot({ stack, cards, width = 60, height = 84, label, faceDown, actions, isDown = false, isFrozen = false }: StackSlotProps) {
+export function StackSlot({ stack, cards, width = 60, height = 84, label, faceDown, actions, isDown = false, isFrozen = false, testId }: StackSlotProps) {
   const [showModal, setShowModal] = useState(false);
   const touchPos = useRef<{ x: number; y: number } | null>(null);
 
@@ -322,7 +325,7 @@ export function StackSlot({ stack, cards, width = 60, height = 84, label, faceDo
 
   return (
     <>
-      <div style={{ position: 'relative', width, flexShrink: 0 }}>
+      <div data-testid={testId} style={{ position: 'relative', width, flexShrink: 0 }}>
         <div
           style={{
             width, height, borderRadius: 4, overflow: 'hidden',
@@ -1124,29 +1127,29 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
   const assist_r  = state.field.assist_lrig_r ?? [];
   const key_piece = state.field.key_piece ?? null;
 
-  type Slot = { label: string; w: number; h: number; cardNum?: string | null; stack?: string[] };
+  type Slot = { key: 'center' | 'assist-l' | 'assist-r' | 'key' | 'check'; label: string; w: number; h: number; cardNum?: string | null; stack?: string[] };
 
   // 【リミットアッパー】トークン（WX24-D1-TK1）はアシスト左の位置に配置する（1つまで）。
   // リミットアッパー有効時はアシストルリグ不在＝アシスト左ゾーンが空のため、その枠に表示する。
   const LIMIT_UPPER_CARD = 'WX24-D1-TK1';
   const assistLSlot: Slot = (state.limit_upper_token && assist_l.length === 0)
-    ? { cardNum: LIMIT_UPPER_CARD, label: 'Lアッパー', w: lowerW, h: lowerH }
-    : { stack: assist_l, label: 'アシスト左', w: lowerW, h: lowerH };
+    ? { key: 'assist-l', cardNum: LIMIT_UPPER_CARD, label: 'Lアッパー', w: lowerW, h: lowerH }
+    : { key: 'assist-l', stack: assist_l, label: 'アシスト左', w: lowerW, h: lowerH };
 
   const lowerSlots: Slot[] = isMe
     ? [
-        { cardNum: check,    label: 'CHECK',      w: lowerW, h: lowerH },
+        { key: 'check', cardNum: check,    label: 'CHECK',      w: lowerW, h: lowerH },
         assistLSlot,
-        { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
-        { stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
-        { cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
+        { key: 'center', stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
+        { key: 'assist-r', stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
+        { key: 'key', cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
       ]
     : [
-        { cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
-        { stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
-        { stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
+        { key: 'key', cardNum: key_piece,label: 'KEY',         w: lowerW, h: lowerH },
+        { key: 'assist-r', stack:   assist_r, label: 'アシスト右',  w: lowerW, h: lowerH },
+        { key: 'center', stack:   lrig,     label: 'LRIG',        w: lrigW,  h: lrigH  },
         assistLSlot,
-        { cardNum: check,    label: 'CHECK',       w: lowerW, h: lowerH },
+        { key: 'check', cardNum: check,    label: 'CHECK',       w: lowerW, h: lowerH },
       ];
 
   const lrig_down = state.field.lrig_down ?? false;
@@ -1156,7 +1159,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       {lowerSlots.map((slot, i) =>
         slot.stack !== undefined
           ? <StackSlot
-              key={i} stack={slot.stack} cards={cards} width={slot.w} height={slot.h} label={slot.label}
+              key={i} testId={`${isMe ? 'my' : 'op'}-lrig-slot-${slot.key}`} stack={slot.stack} cards={cards} width={slot.w} height={slot.h} label={slot.label}
               actions={
                 slot.label === 'LRIG'      && isMe && getLrigFieldActions ? getLrigFieldActions() :
                 slot.label === 'アシスト左' && isMe && getAssistLActions  ? getAssistLActions()  :
@@ -1170,7 +1173,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
                 : slot.label === 'アシスト左' ? (state.field.assist_lrig_l_frozen ?? false)
                 : slot.label === 'アシスト右' ? (state.field.assist_lrig_r_frozen ?? false) : false}
             />
-          : <CardSlot key={i} cardNum={slot.cardNum ?? null} cards={cards} width={slot.w} height={slot.h} label={slot.label}
+          : <CardSlot key={i} testId={`${isMe ? 'my' : 'op'}-lrig-slot-${slot.key}`} cardNum={slot.cardNum ?? null} cards={cards} width={slot.w} height={slot.h} label={slot.label}
               actions={slot.label === 'KEY' && isMe && getKeyPieceActions ? getKeyPieceActions() : undefined} />
       )}
     </div>

@@ -611,6 +611,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                 </p>
                 {inter.options.map(opt => (
                   <button key={opt.id}
+                    data-testid={opt.id === 'pay' ? 'optcost-pay' : opt.id === 'skip' ? 'optcost-skip' : undefined}
                     disabled={loading || !opt.available}
                     onClick={() => handleEffectInteraction([opt.id])}
                     style={{ padding: '12px 0', borderRadius: 8, border: 'none',
