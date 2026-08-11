@@ -1,8 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-11 — PLAN §7 実機検証バッチ2：安定セレクタ整備（Codex実装／実機未実行）
+## 2026-08-11 — PLAN §7 実機検証バッチ2：安定セレクタ整備（Codex実装→**Claude実機検証で3件がPASSへ反転**・続き436）
 
-続き435で個別実行でもFAILした8シナリオについて、カード名の`alt`や重複しうる可視ボタン文言ではなく、UI側の安定セレクタを使う形へ整備。`KeyUseModal`のエナ候補（`keycost-energy-*`）、自他を区別したルリグ行5スロット（`my/op-lrig-slot-*`）、カード詳細のアクションボタン（`card-action-*` + `data-action-label`）に`data-testid`を追加し、`assistAttackBoth`、`connectSpinningChoice4Pay`/`Insufficient`、`fezoneDoubleCostPay`、`sYokusenkiSpellPay`、`kokonaUnderThreePay`/`Skip`/`Insufficient`のドライバをそれらと既存の`pick-*`/`optcost-*`に寄せた。
+**実機検証の結果（Claude・`node scripts/verifyBattleDrive.mjs`）＝8件中3件が2回連続PASSへ反転（従来0/8）。既定orderに追加した。**
+
+- ✅**`assistAttackBoth`**（PLAN §7 続き427）＝人間側のクリックで左右アシストが各1回アタックし、`assistDown=[true,true]`／**センター温存**（`centerDown=false`）／相手ライフ 7→5 の2クラッシュ。
+- ✅**`fezoneDoubleCostPay`**（PLAN §7 続き426 B2・🔴回帰確認）＝`WXDi-P14-044` の複合コストで **`energy 1→0`（《青》1）と `hand 2→0`（2枚）の両方**が徴収される＝「コスト句ごと脱落」への退化なし。
+- ✅**`sYokusenkiSpellPay`**（PLAN §7 続き434・🔴回帰確認）＝`WX24-P1-065`② の候補が**スペル1枚だけ**に絞られ、払うと**相手の手札 2→1**。シグニ本体は場に残存。
+
+**残る5件は「セレクタ問題ではなくなった」＝別の壁で止まっている**（PLAN §3 に (cxxiii)(cxxiv) として新規登録）。
+
+- `connectSpinningChoice4Pay`/`Insufficient` … `KeyUseModal` のエナ選択は**完全に機能**（`keycost-energy-0/1/2` を選択→energy 3→0→セット成功）。**セット後に効果が一切発火しない**（`pEff=-`）ところで停止＝`WXDi-P14-002-E1` は `ACTIVATED`/`MAIN` なのに `executeKeyPiece` は `AUTO`/`ON_PLAY` しか積まない。しかも印刷 Cost と `cost.energy` が同一＝**二重請求の疑い**（→ §3 (cxxiii)）。
+- `kokonaUnderThreePay`/`ThreeSkip`/`Insufficient` … 「ターン終了」ボタンは押せるが以後の盤面変化が一切なく pay/skip UI が出ない＝**原因未確定**（→ §3 (cxxiv)）。
+
+**回帰確認**＝`optcost-pay`/`optcost-skip` を汎用CHOOSE側にも付けた影響を既存シナリオ4件で確認し `lxvGateTrueSkipNoBody`／`wxdip08007SkipRemovesAbilities`／`wxex225SkipAutoTrashesTrigger` はPASS。`oppPayEnergyInsufficient` はバッチ実行時のみFAILしたが**単独実行でPASS**＝既知の「ルーム再利用バッチの状態汚染」フレークであり本変更の回帰ではない。
+
+**⚠計器についての知見**＝**fuzz の `distinct効果` は乱択なので実行ごとに変動する**（同一ツリーで 2682／2672／2670／2666 を実測）。ゲート判定は「バグ0・SKIP 0」であり、**distinct を一致基準にしてはいけない**（指示書のベースライン表に書いたのは Claude 側の誤り＝Codex が正しく「一致扱いにしていない」と申告した）。
+
+〔以下は Codex 実装時の記録〕続き435で個別実行でもFAILした8シナリオについて、カード名の`alt`や重複しうる可視ボタン文言ではなく、UI側の安定セレクタを使う形へ整備。`KeyUseModal`のエナ候補（`keycost-energy-*`）、自他を区別したルリグ行5スロット（`my/op-lrig-slot-*`）、カード詳細のアクションボタン（`card-action-*` + `data-action-label`）に`data-testid`を追加し、`assistAttackBoth`、`connectSpinningChoice4Pay`/`Insufficient`、`fezoneDoubleCostPay`、`sYokusenkiSpellPay`、`kokonaUnderThreePay`/`Skip`/`Insufficient`のドライバをそれらと既存の`pick-*`/`optcost-*`に寄せた。
 
 `optcost-pay`/`skip`はエナ色コスト用UIにしか付いておらず、手札捨て／下カードだけの任意コストは汎用`CHOOSE`ボタンへ流れる実装だったため、汎用側の`pay`/`skip`にも同じ既存testidを付与。不足時の`pay`は消えず`available:false`のdisabled枝として残るため、`kokonaUnderInsufficient`は`pendingOptions`と`isEnabled()`の両方で「有効なpay枝がない」ことをassertする。フェイズ進行ボタンは`BattleScreen.tsx`の共通ボタン1個だけが表示されるため、A4のtestid追加は不要と判定。
 
