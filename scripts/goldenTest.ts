@@ -30164,6 +30164,71 @@ test('§6.4 離場置換: 強制軸は kind:mandatory で列挙される（対�
   eq(axis!.kind, 'mandatory', '原文に「してもよい」が無い＝強制軸（対話の選択肢に出さない）');
 });
 
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 離場置換の対話化（M2・続き430）
+// ⚠**壊れ方が無言**なので、ここが唯一の見張り＝(a) 問いが出ない (b) 問いが出ても答えが届かない
+//   (c) 辞退したのに置換される、のいずれも盤面ログには「置換した/しない」としか出ない。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 離場置換の対話: 任意置換があるときだけ問い、無い盤面では従来どおり同期的に解決する', () => {
+  const victim = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== 'WX12-024');
+  // 宣言者が居ない盤面＝問いは出ない（＝大多数の盤面でコードパスが変わらないことのロック）
+  const plain = mkCtx({}, { signi: [victim, null, null] });
+  const plainRes = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction }, plain);
+  ok(plainRes.done || plainRes.pending.type === 'SELECT_TARGET', '置換候補が無い盤面で余計な問いを出さない');
+});
+
+test('§6.4 離場置換の対話: 辞退すると本来の移動が通る（WX12-024 の犠牲型）', () => {
+  const victim = 'WX12-024';
+  const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
+  const ctx = mkCtx({}, { signi: [victim, sacrifice, null] });
+  let r = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction }, ctx);
+  const step = (x: typeof r) => ({ ...ctx, ownerState: x.ownerState, otherState: x.otherState, logs: x.logs });
+  if (!r.done && r.pending.type === 'SELECT_TARGET') r = resumeSelectTarget([victim], r.pending, step(r));
+  ok(!r.done && r.pending.type === 'CHOOSE', '身代わりの可否を問う');
+  const ask = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(ask.leaveSubstituteAsk, true,
+     '⚠`leaveSubstituteAsk` が無いと BattleScreen が resumeOpponentPayOptional へ流して無言で潰す');
+  eq(ask.opponentResponds, true, '答えるのは被害側');
+  ok(ask.options.some(o => o.id === 'none'), '「置換しない」が選べる（原文「してもよい」）');
+  const declined = resumeChoose('none', ask, step(r));
+  ok(declined.done, '辞退で解決が完了する');
+  const field = declined.otherState.field.signi.map(z => z?.at(-1) ?? null);
+  ok(!field.includes(victim), '辞退したので victim は普通にバニッシュされる');
+  ok(field.includes(sacrifice), '辞退したので犠牲シグニは場に残る');
+});
+
+test('§6.4 離場置換の対話: WX14-026 の lifeCrash は対話でなら選べる（自動では選ばれない）', () => {
+  // engine の自動 policy では適用できない（【ライフバースト】確認フローを同期的に差し込めない）が、
+  // **対話ならプレイヤーが選べる**。M1 で列挙側に載せた効き目がここで出る。
+  const ctx = { ...mkCtx({}, { signi: ['WX14-026', null, null] }), isOwnerTurn: true } as ExecCtx;
+  let r = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: ['WX14-026'] } as EffectAction }, ctx);
+  const step = (x: typeof r) => ({ ...ctx, ownerState: x.ownerState, otherState: x.otherState, logs: x.logs });
+  if (!r.done && r.pending.type === 'SELECT_TARGET') r = resumeSelectTarget(['WX14-026'], r.pending, step(r));
+  ok(!r.done && r.pending.type === 'CHOOSE', 'lifeCrash しか無くても問いは出る（自動適用しないだけ）');
+  const ask = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  ok(ask.options.some(o => o.label.includes('ライフクロス')), 'ライフクロスをクラッシュする選択肢が出る');
+});
+
+test('§6.4 離場置換の対話: 決定は再検証される（盤面が変わって成立しないなら通常の移動へ倒す）', () => {
+  const victim = 'WX12-024';
+  const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
+  // 犠牲シグニが既に居ない盤面へ「犠牲型の決定」を持ち込む＝存在しない身代わりで盤面を壊さない
+  const stale = {
+    ...mkCtx({}, { signi: [victim, null, null] }),
+  } as ExecCtx;
+  stale.otherState = {
+    ...stale.otherState,
+    leave_substitute_choices: { [victim]: `banishSubstitute:${victim}:${sacrifice}` },
+  };
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', stale, { isBanish: true });
+  eq(applied.replaced, false, '成立しない決定は置換に使わない');
+  eq(applied.ctx.otherState.leave_substitute_choices, undefined, '使った決定は消費して残さない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

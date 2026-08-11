@@ -3714,6 +3714,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           pending_lrig_attack: undefined,           // ルリグアタック解決待ちフラグをリセット
           pending_banish_substitute: undefined,     // F-3 身代わりバニッシュ待ちフラグをリセット
           banish_substitute_choice: undefined,      // F-3 身代わりバニッシュ決定をリセット
+          leave_substitute_choices: undefined,      // §6.4 離場置換の決定をリセット（解決が中断したまま残った分の持ち越し防止）
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
@@ -4085,7 +4086,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         life_crashed_by_signi_this_turn: undefined,
         energy_colorless_ability_loss_this_turn: undefined,
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, leave_substitute_choices: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
@@ -10560,7 +10561,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         energy_colorless_ability_loss_this_turn: undefined,
         signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）をクリア。予約(_next_turn)は残す
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, leave_substitute_choices: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
