@@ -179,7 +179,8 @@ export function planEnergyPayment(
     picked.filter((e): e is Extract<EnergyPayEntry, { origin: 'energy' }> => e.origin === 'energy')
       .map(e => e.energyIndex));
   const removedEnergyIdx = new Set([...energyIdxFromCost, ...alsoRemoveEnergyIndices]);
-  const extraEnergyNums = [...alsoRemoveEnergyIndices].map(i => my.energy[i]).filter(Boolean);
+  const extraEnergyNums = [...alsoRemoveEnergyIndices]
+    .filter(i => !energyIdxFromCost.has(i)).map(i => my.energy[i]).filter(Boolean);
   const energyAfter = my.energy.filter((_, i) => !removedEnergyIdx.has(i));
   const underPicked = picked.filter((e): e is Extract<EnergyPayEntry, { origin: 'under' }> => e.origin === 'under');
   const underKeys = new Set(underPicked.map(e => `${e.zone}:${e.underIndex}`));
