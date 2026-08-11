@@ -12,6 +12,18 @@ golden は採用効果ごとに実カード action を実行し、①選択札�
 
 ゲート全緑：golden **1812→1816**、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz バグ0・SKIP 0、census **851→848**（`BASELINE_HIGH` 更新）、census:stubs A群 no-op **0**、manual-fields 0、lint 0 errors／259 warnings。UNKNOWN は **28ノード／27カード**で不変。最終 `build:effects`→`heldReview` は **107枚／47群**で基準と同じ（対象4カードはいずれも held 外）。
 
+
+**⚙ 検証側（Claude）の独立検証**＝すべて申告と一致した。
+
+- **ゲート独立実行**＝全緑。golden **1816/1816**（+4）／smoke 10688 全OK／census **848**（851→848）／lint 0 errors・259 warnings（据置）。
+- **per-effect diff**（ベースライン `5ab463a25`）＝変化は `WX24-P3-067-E1`／`070-E1`／`072-E1` の**3効果のみ・outlier 0**。
+- **見本3枚＋見送り1枚の不変を独立検証**＝`WX24-P3-018`／`089`／`WX24-P4-064`／`WX24-P3-033` すべてバイト不変。
+- **held** 107枚/47群で増減なし。**`census:stubs` A群（無言の no-op）0 のまま**（`PLACE_MAGIC_BOX` は `execStubPart3.ts:1257` に消費地点があるので B/D 群側）。
+- **エンコーディング**＝変更8ファイルで新規増0。
+
+📋**残った制約（バグではない・将来の拡張時の注意）**＝追加した `resumeSearch` の `PLACE_MAGIC_BOX` 分岐は**`lastProcessedCards[0]`（＝1枚目）だけを設置する**。先例のトラップ分岐が `picked.map(cn => STUB{value: cn})` と**1枚ずつ展開している**のに対し、こちらは単一 STUB を積むだけなので、**将来「2枚以上を同時に設置する」カードが出たら1枚しか置かれない**。今回の3効果はいずれも原文が「1枚**まで**」なので実害はない。⚠拡張するときは**トラップ分岐と同じ per-card 展開**へ寄せること。
+
+⚠**指示書側の誤りが2つ**（どちらも Codex が訂正）＝(a) 指定 HEAD `fc2330157` は投入時点で `5ab463a25` へ進んでいた（**計器3ファイルの再生成が自動コミットされたため**＝続き437 と同じ原因で2回連続）。(b) 「専用分岐にしないと『残りをデッキ下』が落ちる」という説明は**現行コードには厳密には当たらない**＝`revealRemainder` の移動は専用分岐より**前**に実行される。**`lastProcessedCards` が設定されず設置が不発になる**という主要因の方は指示どおりだった。
 ## 2026-08-11 — §6.4 UNKNOWN 第6バッチ：公開／見る→振り分け→残り処理を2件是正
 
 **採用2件**＝`WX21-028-E1` と `WDK13-022-E1`。UNKNOWN は **30→28ノード／29→27カード**、全カード生パース差分もこの2 effectId だけ（outlier 0）。新しい action 型や engine 分岐は作らず、既存 `REVEAL_AND_PICK` と既存参照 `$ref:'last_processed_level'` に載せた。
