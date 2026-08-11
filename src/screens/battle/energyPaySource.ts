@@ -135,17 +135,6 @@ export function offZonePayLimit(my: PlayerState, ctx: EnergyPoolContext): number
   return remainingOffZonePayments(my, limit);
 }
 
-/** 選択がエナゾーン外の1ターン上限に収まっているか。 */
-export function energySelectionWithinOffZoneLimit(
-  my: PlayerState,
-  pool: readonly EnergyPayEntry[],
-  selected: ReadonlySet<number>,
-  ctx: EnergyPoolContext,
-): boolean {
-  const offZone = [...selected].filter(i => pool[i]?.origin === 'under').length;
-  return offZone === 0 || offZone <= offZonePayLimit(my, ctx);
-}
-
 export interface EnergyPaymentPlan {
   /** 色エナコストとして支払ったカード（＝トラッシュ行き。従来の `paidNums` と同じ並び）。 */
   paidNums: string[];
