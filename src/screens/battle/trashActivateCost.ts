@@ -111,9 +111,11 @@ export function canOfferTrashActivate(
   my: PlayerState,
   op: PlayerState,
   cardMap: Map<string, CardData>,
+  /** 支払い元プール（§6.4）。省略時はエナゾーンだけ＝従来と同一挙動。 */
+  energyPool?: readonly EnergyPayEntry[],
 ): boolean {
   if (unsupportedTrashActivateCostKeys(effect.cost).length > 0) return false;
-  if (my.energy.length < trashActivateEnergyTotal(effect.cost)) return false;
+  if ((energyPool?.length ?? my.energy.length) < trashActivateEnergyTotal(effect.cost)) return false;
   const hd = trashActivateHandDiscard(effect.cost);
   if (hd && my.hand.filter(num => hd.matches(cardMap.get(num))).length < hd.count) return false;
   return trashActivateAutoCostShortfall(effect, my, op, cardMap) === null;
