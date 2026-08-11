@@ -201,6 +201,12 @@ export interface PlayerState {
    */
   assist_lrig_attack_min_level?: number;
   /**
+   * このターンに「エナゾーン**以外**」からエナコストを支払った枚数（`UNDER_CARD_AS_ENERGY_COST`＝
+   * `WXDi-P10-041`「この方法でエナコストは１ターンに３つまでしか支払えない」の計数）。
+   * 集計も控除も `screens/battle/energyPaySource.ts` の funnel 1本を通す。
+   */
+  turn_off_zone_energy_paid_count?: number;
+  /**
    * いま宣言中のルリグアタックの**攻撃元カード**（`pending_lrig_attack` と対）。アシストルリグも
    * アタックしうる（続き427）ため「攻撃元＝センタールリグ」と決め打てなくなった。
    */
