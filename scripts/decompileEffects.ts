@@ -2038,6 +2038,8 @@ function actionJa(a?: Action, effectType?: string): string {
         const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン[０-９\d]*つを指定する/);
         if (m) return m[0];
       }
+      // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
+      if (a.id === 'RETURN_SUMMONED_RESONA_AT_TURN_END') return 'ターン終了時、この方法で場に出したレゾナをルリグデッキに戻す';
       // レゾナ場出し（SUMMON_RESONA_FROM_LRIG_DECK・engine実装済み）＝
       // 「あなたのルリグデッキから（…の）レゾナ（N枚）を（その）出現条件を無視して場に出す」。
       // レゾナの条件（レベル/色/クラス/枚数）はカードごとに異なるため currentCardText から抽出。

@@ -3692,6 +3692,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：このターン分は消滅・「次のターンの間」は1回だけ持ち越し
           damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
           life_crash_replacements: undefined, // §6.4 ライフクラッシュ置換の宣言をリセット（このターン限定）
+          turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined, // 一時レゾナ返却の残骸をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
           holograph_reveal_replace_this_turn: undefined,
@@ -10603,6 +10604,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, leave_substitute_choices: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         life_crash_replacements: undefined,
+        turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined,
         prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),

@@ -61,6 +61,7 @@ import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
 import { pickLifeCrashReplacement, applyMillReplacement } from '../src/screens/battle/lifeCrashReplace';
+import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
 import { buildEnergyPayPool, energyPoolCardNums, offZonePayLimit, planEnergyPayment } from '../src/screens/battle/energyPaySource';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown } from '../src/screens/battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
@@ -30391,6 +30392,51 @@ test('§6.4 PR-470A: 入れ替え配置もパワー制限は通る（体数制�
   ok(blocked.ownerState.field.signi[0]?.at(-1) !== fetched,
      '🔴パワー配置制限のときは場に出さない（配置制限 funnel を素通りしない）');
   ok(blocked.logs.some(l => l.includes('配置パワー制限')), '理由がログに出る');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 UNKNOWN 消化: 一時レゾナのターン終了時ルリグデッキ返却（WX07-050／WX16-Re18）
+// 🔴従来は返却の文が `action.type:'UNKNOWN'` に落ちており、**出したレゾナが場に居座り続ける過剰効果**だった
+//   （一時的に出す札が恒久展開になる）。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 一時レゾナ: 返却が UNKNOWN ではなく予約 STUB になっている', () => {
+  for (const [cardNum, effectId] of [['WX07-050', 'WX07-050-E1'], ['WX16-Re18', 'WX16-Re18-E1']]) {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live にある`);
+    const j = JSON.stringify(e);
+    ok(j.includes('SUMMON_RESONA_FROM_LRIG_DECK'), `${effectId}: レゾナを場に出す`);
+    ok(j.includes('RETURN_SUMMONED_RESONA_AT_TURN_END'), `${effectId}: ターン終了時の返却が載る`);
+    ok(!j.includes('"type":"UNKNOWN"'), `🔴${effectId}: 返却が UNKNOWN に戻っていない（レゾナが居座る過剰効果）`);
+  }
+});
+
+test('§6.4 一時レゾナ: ターン終了時にルリグデッキへ戻り、トラッシュには行かない', () => {
+  const resona = 'WX16-Re18';
+  const my: PlayerState = {
+    ...mkState({}),
+    field: { ...mkState({}).field, signi: [[resona], null, null] },
+    lrig_deck: [],
+    turn_end_return_to_lrig_deck: [resona],
+  };
+  const r = resolveTurnEndLrigDeckReturn(my);
+  eq(r.returned.join(','), resona, '返却対象を返す');
+  eq(r.state.field.signi[0], null, '場から取り除かれる');
+  ok(r.state.lrig_deck.includes(resona), '🔴戻し先はルリグデッキ');
+  ok(!r.state.trash.includes(resona), '🔴トラッシュには置かない（turn_end_field_trash_targets の流用は誤り）');
+  eq(r.state.turn_end_return_to_lrig_deck, undefined, '予約は消費する');
+  // 場に居ない（既に離れた）対象は黙って捨てる
+  const gone = resolveTurnEndLrigDeckReturn({ ...my, field: { ...my.field, signi: [null, null, null] } });
+  eq(gone.returned.length, 0, '既に場を離れていれば何もしない');
+  eq(gone.state.turn_end_return_to_lrig_deck, undefined, '予約は残さない');
+});
+
+test('§6.4 一時レゾナ: ターン終了処理2経路の両方で funnel を通す', () => {
+  // ⚠BattleScreen のターン終了処理は2経路ある（doPhaseAdvance と終了時ディスカード確定後）。
+  //   片方だけだと「手札が多いターンだけ戻らない」型の無言の不整合になる。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const calls = (src.match(/resolveTurnEndLrigDeckReturn\(/g) ?? []).length;
+  eq(calls, 2, `ターン終了処理2経路の両方から呼ぶ（現在 ${calls} 箇所）`);
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

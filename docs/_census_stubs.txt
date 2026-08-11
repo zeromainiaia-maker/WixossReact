@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 594（総ノード 2906 件）
+live JSON の STUB id 種類 : 595（総ノード 2908 件）
 逆翻訳シートの [STUB:…] 総数: 848  うち生ID露出 272 箇所（187 種）
 
 ■ 仕分け結果
@@ -10,7 +10,7 @@ live JSON の STUB id 種類 : 594（総ノード 2906 件）
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 62 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 259 箇所
-  D 健全（実装あり＋日本語表示）                          : 404 種
+  D 健全（実装あり＋日本語表示）                          : 405 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 312 種
 
 ==============================================================================
@@ -30,7 +30,7 @@ live JSON の STUB id 種類 : 594（総ノード 2906 件）
         生成: src\data\manualEffects.ts:4627
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:2855
+        生成: src\data\parsers\parseSentencePart1.ts:2865
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4818
@@ -113,7 +113,7 @@ live JSON の STUB id 種類 : 594（総ノード 2906 件）
         消費: src\engine\effectExecutor.ts:3617
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:978 / src\screens\BattleScreen.tsx:9981
+        消費: src\screens\BattleScreen.tsx:979 / src\screens\BattleScreen.tsx:10008
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6523
