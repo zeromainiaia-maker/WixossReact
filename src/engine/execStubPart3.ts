@@ -2861,6 +2861,20 @@ export function execStubPart3(
     }
     return done(curRTLR);
   }
+  // RETURN_SUMMONED_RESONA_AT_TURN_END: 「ターン終了時、（その）レゾナを場からルリグデッキに戻す」の予約。
+  // ⚠**直前の SUMMON が置いたレゾナ**を対象にする（`last_summoned_resonas`＝ゾーン選択の pause を
+  //   跨ぐので ctx ではなく state に置いてある）。解決は `screens/battle/turnEndLrigDeckReturn.ts`。
+  if (stub.id === 'RETURN_SUMMONED_RESONA_AT_TURN_END') {
+    const summoned = ctx.ownerState.last_summoned_resonas ?? [];
+    if (summoned.length === 0) return done(addLog(ctx, '戻す対象のレゾナがない'));
+    const newOwnerRSR: PlayerState = {
+      ...ctx.ownerState,
+      turn_end_return_to_lrig_deck: [...new Set([...(ctx.ownerState.turn_end_return_to_lrig_deck ?? []), ...summoned])],
+      last_summoned_resonas: undefined,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerRSR },
+      `ターン終了時に${summoned.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す（予約）`));
+  }
   // SUMMON_RESONA_FROM_LRIG_DECK: ルリグデッキからレゾナ1枚を出現条件を無視して場に出す（WX20-069等）
   if (stub.id === 'SUMMON_RESONA_FROM_LRIG_DECK') {
     const srcSRLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

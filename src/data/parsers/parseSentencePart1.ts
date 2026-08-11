@@ -1308,6 +1308,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'BANISH', target: parseSigniTarget(t, owner), ...(isOptional ? { optional: true } : {}), ...(oppSelects ? { opponentSelects: true } : {}) };
   }
 
+  // ---- ターン終了時に（出した）レゾナをルリグデッキへ戻す（§6.4・WX07-050／WX16-Re18）----
+  // ⚠**戻し先はトラッシュではなくルリグデッキ**。ここを拾えないと UNKNOWN に落ち、
+  //   出したレゾナが場に居座り続ける（＝一時的に出す札が恒久展開になる過剰効果）。
+  // ⚠先頭の「ターン終了時、」は文分割で剥がれて届くので**断片側でアンカーする**。
+  //   ⚠`それ**を**ルリグデッキに戻す`（単数）は別カード群＝アシストルリグを戻す【起】なので**除外**する
+  //     （`WXDi-D06-004-E3` 等）。原文全数を確認して、この2形だけが「出したレゾナの返却」だった。
+  if (/^(?:そのレゾナ|それら)を(?:場から)?ルリグデッキに戻す$/.test(t.trim())) {
+    return { type: 'STUB', id: 'RETURN_SUMMONED_RESONA_AT_TURN_END' } as StubAction;
+  }
+
   // ---- ライフクロスがクラッシュされる場合の置換（§6.4・WX24-P4-009／WX25-P3-004／WXDi-CP01-023）----
   // ⚠**下の deck-mill／LIFE_CRASH 規則より先に判定する**＝置換の宣言を即時実行に化けさせないため。
   //   実測の壊れ方＝`WX24-P4-009` は**その場で自分のデッキを10枚削り**、`WX25-P3-004` は

@@ -20,6 +20,7 @@ import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, hasAcceAt } from 
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
+import { resolveTurnEndLrigDeckReturn } from './battle/turnEndLrigDeckReturn';
 import { pickLifeCrashReplacement, applyMillReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
@@ -3551,6 +3552,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
           }
         }
+        let myLrigDeckReturned: string[] = [];
         // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
         if ((my.turn_end_field_trash_targets ?? []).length > 0) {
           const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
@@ -3565,6 +3567,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...trashedTEFT];
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newFieldSigniTEFT };
             appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
+          }
+        }
+        // turn_end_return_to_lrig_deck: 一時レゾナをルリグデッキへ戻す（§6.4 funnel＝2経路で同じ関数を通す）
+        {
+          const ret = resolveTurnEndLrigDeckReturn({ ...my, field: myFieldAfterCoinCheck });
+          if (ret.returned.length > 0) {
+            myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: ret.state.field.signi };
+            myLrigDeckReturned = ret.returned;
+            appendBattleLogs([`ターン終了時：${ret.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す`]);
           }
         }
         // game_turn_end_trash_to_hand: ターン終了時、トラッシュから特定クラスシグニを手札へ（GAIN_ABILITY_THIS_GAME）
@@ -3619,6 +3630,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ...myEndState,
               hand: myHandEND, deck: myDeckPreLimit,
               trash: myTrashAfterCoinCheck, field: myFieldAfterCoinCheck,
+              ...(myLrigDeckReturned.length > 0
+                ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned], turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined }
+                : {}),
               excluded: myExcludedEND, pending_exile_nums: undefined,
               turn_end_draw_count: undefined,
               turn_end_mill_count: undefined,
@@ -4016,6 +4030,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newSigniField };
         }
       }
+      let myLrigDeckReturned2: string[] = [];
       // turn_end_field_trash_targets
       if (!my.end_turn_effects_resolved && (my.turn_end_field_trash_targets ?? []).length > 0) {
         const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
@@ -4030,6 +4045,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           myTrashAfterCoinCheck = [...myTrashAfterCoinCheck, ...trashedTEFT];
           myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: newFieldSigniTEFT };
           appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
+        }
+      }
+      // turn_end_return_to_lrig_deck: 一時レゾナをルリグデッキへ戻す（§6.4 funnel・上と同じ関数）
+      if (!my.end_turn_effects_resolved) {
+        const ret = resolveTurnEndLrigDeckReturn({ ...my, field: myFieldAfterCoinCheck });
+        if (ret.returned.length > 0) {
+          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: ret.state.field.signi };
+          myLrigDeckReturned2 = ret.returned;
+          appendBattleLogs([`ターン終了時：${ret.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す`]);
         }
       }
       // game_turn_end_trash_to_hand（「このゲーム」持続なのでフラグは消さない。マーカーで二重適用を防ぐ）
@@ -4068,6 +4092,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
         field: myFieldAfterCoinCheck,
+        ...(myLrigDeckReturned2.length > 0
+          ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned2] } : {}),
         turn_end_draw_count: undefined,
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
