@@ -14,6 +14,15 @@ golden は対象効果ごとに実カード action を実行する5本を追加�
 
 ⚠**投入時の見立てを2点訂正**：(a) A1〜A3 は「常に手札へ戻す」だけではなく、既存 `ABILITY_CHECK_ELSE_TRASH` が一度 BOUNCE した後に手札→トラッシュへ事後補正していた。ただし `turn_signi_returned_to_hand` が立つ過剰副作用を持つ近似なので、最初から TRASH/BOUNCE を排他選択する正準形への移行は必要だった。(b) PLAN §6.4 の `WX25-P3-014-E1 owner:'self'` は古く、投入前 live は既に `owner:'opponent'`。今回直したのは指定どおり `noAbilities` 対象限定とLv2昇格だけ。
 
+
+**⚙ 検証側（Claude）の独立検証**＝全項目が申告と一致。**5/5 採用・defer 0 は本プロジェクト初**。
+
+- **ゲート独立実行**＝全緑。golden **1821/1821**（+5）／smoke 10688 全OK／census 848 据置／lint 0 errors・259 warnings 据置。
+- **per-effect diff**（ベースライン `285d10be4`）＝`WXEX1-55-E2`／`WX25-P3-014-E1`／`069-E1`／`072-E1`／`073-E1` の**5効果のみ・outlier 0**。
+- **対照群（既存 `noAbilities` 11カード）を独立検証＝全件バイト不変**。held 107枚/47群で増減なし。エンコーディング新規増0。
+- 🔴**副作用の追加検証（指示書に無かった観点）**＝`ZONE_STATE_KEYS` に `noAbilities` を足すと**「場にいないカード」では `findFieldZoneState` が null を返して常に偽**になる。既存の `LAST_PROCESSED_MATCHES{filter:{noAbilities}}` 利用者を live 全走査したところ**今回の新規3件だけ**で、**回帰対象は存在しない**ことを確認した（もし手札/トラッシュを見る既存効果があれば恒久 no-op 化していた）。
+
+**engine 変更の評価**＝`matchesFilter` から `noAbilities` を外して静的判定を回避し、`findFieldZoneState` で得た holder を**唯一の判定 `hasNoAbility(cn, cardMap, loc.state, effectsMap.get(...))`** へ渡す形。`matchesStateFilter` にも `noAbilities` を除いた filter を渡しており、既存キーの挙動は不変。**設計として正しい**。
 ## 2026-08-11 — 【マジックボックス】設置が live から丸ごと落ちていた3効果を是正（続き438）
 
 **採用3件**＝`WX24-P3-067-E1`／`WX24-P3-070-E1`／`WX24-P3-072-E1`。いずれも「デッキ上3枚を見る→カード1枚までを【マジックボックス】として設置→残りをデッキ下」だが、live は `LOOK_AND_REORDER` だけで設置が丸ごと欠落していた。最終 action を `REVEAL_AND_PICK{revealCount:3,pickCount:1,pickUpTo:true,pickNoun:'カード',then:STUB{PLACE_MAGIC_BOX},remainder:{deck,bottom}}` へ置換した。コスト・使用回数・各 BURST は不変。
