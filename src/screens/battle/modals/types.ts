@@ -50,6 +50,13 @@ export interface BattleModalCtx {
   setExpandedPickImgUrl: Dispatch<SetStateAction<string | null>>;
   activeCostMods: { forMy: ActiveCostMod[]; forOp: ActiveCostMod[] };
   myEnergyExtraColors: Map<string, string>;
+  /**
+   * エナコストの支払い元プール（§6.4「エナ支払い元の一本化」）。**先頭 `my.energy.length` 件が
+   * エナゾーンそのもの・同じ順**なので、既存の `Set<number>` 選択はそのまま通る。
+   * ⚠**候補描画も `canAfford*` への受け渡しも必ずこれを使う**（`my.energy` を直読みしない）。
+   * 片方だけ pool にすると「払えるのに候補に出ない／出るのに払えない」になる。
+   */
+  myEnergyPayPool: EnergyPayEntry[];
   myEnergyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
   myLrigNameAliases: string[];
   myArtsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
