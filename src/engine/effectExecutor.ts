@@ -7527,6 +7527,10 @@ export function resumeSelectSigniZone(
   signi[zoneIndex] = [pending.cardNum];
   let newS: PlayerState = recordPlacedBySource({ ...state, field: { ...state.field, signi } }, pending.cardNum, ctx.sourceCardNum);
   if (pending.fromNonHand) newS = recordNonHandPlacement(newS, pending.cardNum);
+  // 一時レゾナ（`WX07-050`／`WX16-Re18`）＝ゾーン選択の pause を跨いで「置いたレゾナ」を残す。
+  if (pending.recordSummonedResona) {
+    newS = { ...newS, last_summoned_resonas: [...(newS.last_summoned_resonas ?? []), pending.cardNum] };
+  }
   if (pending.asDown) {
     const newDown = [...(newS.field.signi_down ?? [false, false, false])] as boolean[];
     newDown[zoneIndex] = true;

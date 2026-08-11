@@ -256,6 +256,17 @@ export interface PlayerState {
    * シグニアタックの `crashOneLife` とルリグアタックの2つ）。ターン境界でクリアする。
    */
   life_crash_replacements?: LifeCrashReplacement[];
+  /**
+   * 「ターン終了時、（その）レゾナを場からルリグデッキに戻す」（`WX07-050`／`WX16-Re18`）の対象。
+   * ⚠**戻し先はトラッシュではなくルリグデッキ**＝`turn_end_field_trash_targets` を流用しない。
+   * 解決は `screens/battle/turnEndLrigDeckReturn.ts` の funnel 1本（ターン終了処理は2経路ある）。
+   */
+  turn_end_return_to_lrig_deck?: string[];
+  /**
+   * 直前に `SUMMON_RESONA_FROM_LRIG_DECK` が場に出したレゾナ（次のステップが参照する一時値）。
+   * ⚠**ctx ではなく state に置く**＝ゾーン選択の対話 pause を跨いで残す必要があるため。
+   */
+  last_summoned_resonas?: string[];
   // ダメージ無効ウィンドウ（PREVENT_DAMAGE 効果）。期間内は回数無制限で無効化する（prevent_next_damage の1回消費とは別）。
   // scope='ALL'＝あらゆるダメージ（crashOneLife 経路も含む）／'LRIG'＝ルリグアタックのダメージのみ。
   // expires='MY_TURN_END'＝自分のターン終了時に消滅／'NEXT_TURN_END'＝「次のターンの間」＝自ターン終了を1回だけ生き延び、
@@ -839,6 +850,8 @@ export type PendingInteractionDef =
       // 手札以外からの配置。ソース除去後に中断する特殊配置経路が resume 側へ出自を渡す。
       fromNonHand?: boolean;
       continuation?: EffectAction;
+      /** `SUMMON_RESONA_FROM_LRIG_DECK` 由来＝配置後に `last_summoned_resonas` へ記録する（一時レゾナの返却用）。 */
+      recordSummonedResona?: boolean;
       // REVEAL_UNTIL_TO_FIELD（WX04-093 等）でゾーン選択を跨いで「これまで場に出したシグニ」を維持するための蓄積。
       // 指定時、resumeSelectSigniZone は配置後に lastProcessedCards=[...placedSoFar, cardNum] を設定する（【出】発火の追跡用）。
       placedSoFar?: string[];

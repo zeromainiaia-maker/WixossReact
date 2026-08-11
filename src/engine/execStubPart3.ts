@@ -2878,7 +2878,10 @@ export function execStubPart3(
     const pickSRLD = candsSRLD[0];
     const ctxAfterSRLD = { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== pickSRLD) } };
     if (emptyZonesSRLD.length >= 2) {
-      return needsInteraction(ctxAfterSRLD, { type: 'SELECT_SIGNI_ZONE', cardNum: pickSRLD, owner: 'self', fromNonHand: true });
+      // ⚠一時レゾナ（`WX07-050`／`WX16-Re18`）の返却対象は**ゾーン選択の pause を跨ぐ**ので
+      //   pending にフラグを載せ、resume 側で `last_summoned_resonas` に記録する。
+      return needsInteraction(ctxAfterSRLD,
+        { type: 'SELECT_SIGNI_ZONE', cardNum: pickSRLD, owner: 'self', fromNonHand: true, recordSummonedResona: true });
     }
     const newSigniSRLD = ctxAfterSRLD.ownerState.field.signi.map((z, i) => (i === emptyZonesSRLD[0].i ? [...(z ?? []), pickSRLD] : z));
     const newOwnerSRLD: PlayerState = {
@@ -2887,6 +2890,8 @@ export function execStubPart3(
       signi_played_from_non_hand_this_turn: [
         ...(ctxAfterSRLD.ownerState.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== pickSRLD), pickSRLD,
       ],
+      // 「ターン終了時、そのレゾナをルリグデッキに戻す」が次のステップで参照する（state に置くのは pause 跨ぎのため）。
+      last_summoned_resonas: [...(ctxAfterSRLD.ownerState.last_summoned_resonas ?? []), pickSRLD],
     };
     return done(addLog({ ...ctxAfterSRLD, ownerState: newOwnerSRLD },
       `${ctx.cardMap.get(pickSRLD)?.CardName ?? pickSRLD}を出現条件を無視して場に出す`));
