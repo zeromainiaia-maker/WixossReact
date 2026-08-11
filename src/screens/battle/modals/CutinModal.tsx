@@ -214,7 +214,9 @@ export function CutinModal(p: CutinModalProps) {
               const cutinBaseCostStrModal = betReplacedCostModal ?? (pendingCutinCard.source === 'lrig_deck'
                 ? artsBaseCost(pendingCutinCard.card)
                 : effectEnergyCostStr(pendingCutinCard.effect.cost?.energy));
-              const cutinCostStrModal = `${cutinBaseCostStrModal}${pendingCutinCard.additionalColorlessCost ? `《無》×${pendingCutinCard.additionalColorlessCost}` : ''}`;
+              const cutinCostStrModal = withActCostExtra(
+                `${cutinBaseCostStrModal}${pendingCutinCard.additionalColorlessCost ? `《無》×${pendingCutinCard.additionalColorlessCost}` : ''}`,
+                pendingCutinCard.source);
               const exceedPartModal = exceedCostModal > 0 ? `エクシード${exceedCostModal}` : '';
               const energyPartModal = isHandDiscardModal ? '手札から自分を捨てる' : cutinCostStrModal || '';
               const cutinCostLabelModal = [exceedPartModal, energyPartModal].filter(Boolean).join('・') || 'なし';
