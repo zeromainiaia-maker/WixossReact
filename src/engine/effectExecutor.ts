@@ -5229,6 +5229,14 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
     // deck_top 段は「デッキに残す」ため、既に予約済みのカードを再度選ばせない
     if (stage.then === 'deck_top') cands = cands.filter(n => !topReserved.includes(n));
     if (cands.length === 0) { stages = stages.slice(1); prevPicks = []; continue; }
+    // 場出し段は選択上限を空きシグニゾーン数まで絞る（execRevealAndPick と同じ手当て）。
+    // ⚠絞らないと、超過分は applyDirectAction の「空きシグニゾーンなし」分岐へ落ちるが、
+    //   **その時点でカードは既にデッキから抜かれている**＝盤面にもデッキにも残らず消失する。
+    let stageMax = stage.pickCount === 'ALL' ? cands.length : stage.pickCount;
+    if (stage.then === 'field') {
+      stageMax = Math.min(stageMax, state.field.signi.filter(z => !z || z.length === 0).length);
+      if (stageMax === 0) { stages = stages.slice(1); prevPicks = []; continue; }
+    }
     const cont = { type: 'LOOK_PICK_CHAIN', owner, revealCount: a.revealCount, stages: stages.slice(1), remainder: a.remainder, _revealed: revealed,
       ...(topReserved.length > 0 ? { _topReserved: topReserved } : {}),
       ...(a.opponentResponds ? { opponentResponds: true } : {}),
