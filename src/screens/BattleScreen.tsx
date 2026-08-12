@@ -4951,9 +4951,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       if (!result.done) {
-        // continuationが発生した場合、次のインタラクションは効果オーナーが応答する（respondPlayerIdをリセット）
-        const nextOpponentResponds = (result.pending?.type === 'SELECT_TARGET' || result.pending?.type === 'CHOOSE') && result.pending.opponentResponds;
-        const nextRespondPlayerId = nextOpponentResponds ? pe.respondPlayerId : undefined;
+        // continuationが発生した場合、次のインタラクションは効果オーナーが応答する（respondPlayerIdをリセット）。
+        // ⚠次の pending 自身が「相手が応答する」型なら、**効果オーナーの対戦相手**を再計算して割り当てる。
+        //   `pe.respondPlayerId` の引き継ぎでは、相手応答でない対話（例 SEARCH）から相手応答の対話へ
+        //   移った1手目で undefined のままになり、効果オーナーが相手の代わりに選んでしまう（§6.4 O-2）。
+        const nextRespondPlayerId = pendingRespondsOpponent(result.pending)
+          ? (ownerIsHost ? bs.guest_id : bs.host_id)
+          : undefined;
         const { respondPlayerId: _drop, ...peBase } = pe;
         pendingAcc = {
           ...peBase,
