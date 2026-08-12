@@ -76,10 +76,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
 const IRREGULAR_TURN_SCOPED_STATE = {
-  // 強制アタック本体は、付与されたターンのフェイズ進行だけが参照する。
-  must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'forced signi attack for the current turn' },
+  // 強制アタックは「ターンが終わる側」だけ失効させる。相手 state に書かれた分は相手のターンで読まれる。
+  must_attack_signi: { boundaries: ['turn-end-active'], reset: undefined, reason: 'forced signi attack; opponent-side value must survive until the opponent turn ends' },
   // 感染限定は must_attack_signi の修飾子なので同じ期限で失効する。
-  must_attack_infected_only: { boundaries: ['turn-end'], reset: undefined, reason: 'modifier of the current-turn forced attack flag' },
+  must_attack_infected_only: { boundaries: ['turn-end-active'], reset: undefined, reason: 'modifier of the forced attack flag; same lifetime' },
   // アシストルリグの攻撃許可は、付与されたターンだけ通常ルールを上書きする。
   assist_lrig_attack_min_level: { boundaries: ['turn-end'], reset: undefined, reason: 'assist-lrig attack permission for the current turn' },
   // エナゾーン外支払い数は「1ターンに3つまで」の当該ターン累計。
