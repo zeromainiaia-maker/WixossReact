@@ -847,7 +847,7 @@ export type PendingInteractionDef =
        * ⚠`thenAction` は自前で `owner` を持つが、`revealRemainder`／`restDest`／`split_top_bottom` の
        *   デッキ操作は resumeSearch が直接行う＝ここが無いと **常に効果オーナーのデッキ**を掘る。
        */
-      deckOwner?: Owner;
+      deckOwner?: import('./effects').Owner;
       /**
        * true = **対戦相手自身**がこの公開札を選ぶ（「対戦相手は…その中から…」）。§6.4 O-2。
        * ⚠`deckOwner` とは独立＝`deckOwner` は「誰のデッキか」、こちらは「誰がクリックするか」
