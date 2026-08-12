@@ -120,13 +120,20 @@ function consumeField(state: PlayerState, field: TurnScopedPlayerStateField): Pl
 }
 
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
-export function clearTurnEndScopedState(state: PlayerState, opts?: { active?: boolean }): PlayerState {
+export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
-  let reset = resetBoundary(state, 'turn-end');
-  // `active` ＝この state の持ち主のターンが終わる側。'turn-end-active' はここでだけ失効させる。
-  if (opts?.active) reset = resetBoundary(reset, 'turn-end-active');
+  const reset = resetBoundary(state, 'turn-end');
   // safety は戻り値の最終段に置く。呼び出し側の古い値を spread し直して復活させない。
   return { ...reset, life_crashed_last_turn: lifeCrashedLastTurn };
+}
+
+/**
+ * ターンが終わる側の PlayerState 用。`clearTurnEndScopedState` に加えて 'turn-end-active' も失効させる。
+ * ⚠**次ターン側の state にこれを使ってはいけない**＝相手 state に置かれた強制アタック等を1ターン早く消し、
+ * 「次のターンの間、対戦相手の…」を完全な no-op にする（続き447 の検証で実測）。
+ */
+export function clearTurnEndScopedStateForEndingTurn(state: PlayerState): PlayerState {
+  return resetBoundary(clearTurnEndScopedState(state), 'turn-end-active');
 }
 
 /** 次ターン開始時の履歴切替と、FREE_GROW_NEXT_TURN の予約→active 昇格を一括する。 */
