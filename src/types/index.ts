@@ -842,6 +842,18 @@ export type PendingInteractionDef =
       // handOrEnergy: ピックしたカードを1枚ずつ「手札に加える or エナゾーンに置く」の対話選択で処理する（「手札に加えるかエナゾーンに置き」）
       handOrEnergy?: boolean;
       opponentChoosesPileToTrash?: boolean;
+      /**
+       * 公開元デッキ・残り札の行き先の**持ち主**（効果オーナー視点。省略時 'self'）。§6.4 O-2。
+       * ⚠`thenAction` は自前で `owner` を持つが、`revealRemainder`／`restDest`／`split_top_bottom` の
+       *   デッキ操作は resumeSearch が直接行う＝ここが無いと **常に効果オーナーのデッキ**を掘る。
+       */
+      deckOwner?: Owner;
+      /**
+       * true = **対戦相手自身**がこの公開札を選ぶ（「対戦相手は…その中から…」）。§6.4 O-2。
+       * ⚠`deckOwner` とは独立＝`deckOwner` は「誰のデッキか」、こちらは「誰がクリックするか」
+       *   （続き411 の教訓＝`opponentResponds` は ctx の視点を反転しない）。
+       */
+      opponentResponds?: boolean;
       continuation?: EffectAction;
       selectionConstraint?: SelectionConstraint;
     }
