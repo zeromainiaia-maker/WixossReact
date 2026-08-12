@@ -3742,7 +3742,9 @@ test('§6.4 E2E WXDi-P11-043-E1: 宣言数字一致のトップだけ手札、�
   eq((seq.steps[0] as StubAction).id, 'DECLARE_NUMBER_PLAIN', 'ガード制限を立てない数字宣言');
   const reveal = seq.steps[1] as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
   eq(`${reveal.revealCount}/${reveal.pickCount}/${reveal.pickUpTo}/${JSON.stringify(reveal.filter)}/${reveal.remainder?.position}`,
-    '1/1/true/{"cardType":"シグニ","levelEqDeclaredNumber":true}/top', 'トップ1枚・宣言値照合・不一致はtop');
+    // pickUpTo は false＝原文「〜の場合、そのカードを手札に加える」は強制（「1枚まで」ではない）。
+    // true だと辞退できて過少実行になる（続き443 の検証で是正）。
+    '1/1/false/{"cardType":"シグニ","levelEqDeclaredNumber":true}/top', 'トップ1枚・宣言値照合・不一致はtop');
 
   const match = findCard(c => isSigni(c) && c.Level === '1');
   const mismatch = findCard(c => isSigni(c) && c.Level !== '1');
