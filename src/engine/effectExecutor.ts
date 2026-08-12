@@ -7570,6 +7570,8 @@ export function resumeSearch(
       ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
       ...(after ? { afterAction: after } : {}),
       ...(pending.lastProcessedCardsAfter ? { lastProcessedCardsAfter: pending.lastProcessedCardsAfter } : {}),
+      // §6.4 O-2: 「対戦相手は…場に出し」＝公開札を選んだ相手が**ゾーンも選ぶ**。
+      ...(pending.opponentResponds ? { opponentSelectsZone: true } : {}),
     };
     return execPlaceSigniOnField(placeAll, cur);
   }
