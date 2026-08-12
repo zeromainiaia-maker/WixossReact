@@ -5160,7 +5160,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     ...(a.recordRevealed ? { lastProcessedCardsAfter: visible } : {}),
     // §6.4 O-2: 公開元／残り札の行き先の持ち主と、選ぶ人を pending へ引き継ぐ。
     // deckOwner を落とすと resumeSearch が**効果オーナーのデッキ**を掘る（相手の公開札が自分のデッキから消える）。
-    ...(a.owner === 'opponent' ? { deckOwner: 'opponent' as Owner } : {}),
+    ...(a.owner === 'opponent' ? { deckOwner: 'opponent' as const } : {}),
     ...(a.opponentResponds ? { opponentResponds: true } : {}),
   });
 }
