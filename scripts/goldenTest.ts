@@ -89,7 +89,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, clearTurnEndScopedStateForEndingTurn, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 
 // ── データ読み込み ──
 const root = process.cwd();
