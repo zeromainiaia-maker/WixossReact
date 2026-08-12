@@ -2363,12 +2363,14 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
     return a.afterAction ? executeAction(a.afterAction, completed) : done(completed);
   }
   const [head, ...rest] = a.cardNums;
-  const placeAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: a.owner, ...(a.asDown ? { asDown: a.asDown } : {}) };
+  const placeAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: a.owner, ...(a.asDown ? { asDown: a.asDown } : {}),
+    ...(a.opponentSelectsZone ? { opponentSelectsZone: true } : {}) };
   const cont: import('../types/effects').PlaceSigniOnFieldAction = {
     type: 'PLACE_SIGNI_ON_FIELD', owner: a.owner, cardNums: rest,
     ...(a.asDown ? { asDown: a.asDown } : {}),
     ...(a.afterAction ? { afterAction: a.afterAction } : {}),
     ...(a.lastProcessedCardsAfter ? { lastProcessedCardsAfter: a.lastProcessedCardsAfter } : {}),
+    ...(a.opponentSelectsZone ? { opponentSelectsZone: true } : {}),
   };
   const result = applyDirectAction(placeAction, head, ctx);
   if (!result.done) {
