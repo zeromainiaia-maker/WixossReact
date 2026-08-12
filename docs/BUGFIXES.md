@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き451） — `SEARCH` の相手応答ルーティング（PLAN §6.4 **O-2**・defer 3効果を解除）
+## 2026-08-13（続き452） — `SEARCH` の相手応答ルーティング（PLAN §6.4 **O-2**・defer 3効果を解除）
 
 **🔑 何が無かったか**＝`BattleScreen` は pending の応答者を `SELECT_TARGET` と `CHOOSE` の2型に**直接ベタ書き**で判定しており、`SEARCH` を相手へ回す経路が存在しなかった。そのため「**対戦相手は**（自分の）デッキの上からN枚を見て／公開して、その中から…」の文型は、`owner:'opponent'` を書くと「**自分が**相手のデッキを覗いて相手の場に出す札を選ぶ」別物になるため丸ごと defer されていた（`DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL`／`DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL`／`SP38-006-E1-G2` の `UNKNOWN`）。
 

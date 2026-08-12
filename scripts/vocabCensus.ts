@@ -93,7 +93,7 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 832; // 2026-08-13 §6.4 O-2＝SEARCH の相手応答ルーティングを新設し、「対戦相手は自分のデッキの上からN枚（見て／公開して）その中から…」の3効果（WXEX2-84-E2／WXDi-P01-026-E1／SP38-006-E1-G2）を defer 解除。pending に deckOwner（誰のデッキか）と opponentResponds（誰が選ぶか）を分離して持たせ、BattleScreen の応答者判定を pendingRespondsOpponent 1本へ集約。833→832。旧履歴は直下。
+const BASELINE_HIGH = 832; // 2026-08-13 続き452＝§6.4 O-2＝SEARCH の相手応答ルーティングを新設し、「対戦相手は自分のデッキの上からN枚（見て／公開して）その中から…」の3効果（WXEX2-84-E2／WXDi-P01-026-E1／SP38-006-E1-G2）を defer 解除。pending に deckOwner（誰のデッキか）と opponentResponds（誰が選ぶか）を分離して持たせ、BattleScreen の応答者判定を pendingRespondsOpponent 1本へ集約。833→832。旧履歴は直下。
 // 旧・続き450: 2026-08-12 §6.4 続き450＝「次のターンの間」の場レベル継続効果予約をキーワード／パワー共通で機構化。filter・ゾーン・動的正面チャーム条件・二重期間を保持し、8効果を採用。835→833。旧履歴は直下。
 // 旧・続き449: シグニの「場所を入れ替える」を13効果で機構化。843→835。
 // 旧・続き446: 2026-08-12 §6.4 続き446＝「【出】能力は発動しない」が engine 未参照の死アクション `BLOCK_ACTION{ON_PLAY_ABILITY}` のままで10効果が恒久 no-op（＝抑止されず【出】が発動する過剰実行）だったのを機構化。群A5件は `REARRANGE_SIGNI` が場内交換のみで新規配置を作らないと実測して死ブロック除去のみ／群B2件は PlayerState ターンフラグ＋ON_PLAY funnel／群C3件は CONTINUOUS 宣言走査（印字＋付与2ストア）＋レベル限定。845→843。旧履歴は直下。
