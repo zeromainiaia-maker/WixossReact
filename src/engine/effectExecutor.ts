@@ -7363,6 +7363,9 @@ export function resumeSearch(
     picked = accepted;
   }
   let cur = ctx;
+  // §6.4 O-2: 公開元デッキ／残り札の行き先の持ち主。既定 'self'＝従来挙動（live の公開系は全件 self）。
+  const dOwner: Owner = pending.deckOwner ?? 'self';
+  const deckState = (c: ExecCtx) => ownerState(dOwner, c);
   // thenAction 欠落データへの防御: ピックの既定義（手札に加える）にフォールバック
   // （REVEAL_AND_PICK の旧不正キー pickTo:'hand' 形＝then 無しで .type 参照クラッシュしていた）
   if (!pending.thenAction) {
