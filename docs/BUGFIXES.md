@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-12（続き444） — デッキ公開の「停止条件・行き先」を構造化し、engine の実行時原文再parseを一掃（9効果・PLAN §6.4）
+
+**🔴 バグの正体**＝`STUB{DECK_REVEAL_UNTIL}`（`execStubPart1.ts:3104`）と `STUB{REVEAL_PICK_PLAY}`（`:3037`）は**実行時にカード原文を正規表現で読んで**停止条件も行き先も決めていた。これが3通りの壊れ方を生んでいた。(1)**停止条件が regex に無いと `break` で先頭1枚だけ公開して終わる**（`:3149`）(2)**停止条件の「限定」だけが静かに落ちる**（`レベル４の＜宇宙＞` は `/レベル(\d+)を持つ/` に掛からずレベル指定が消える）(3)**ヒット札の行き先が `hitToHandRU`（手札）しか無い**ため、原文が「そのシグニを**場に出し**」の3枚はヒット札がデッキから抜かれたまま**どこにも置かれず消滅**し、後段の `REVEAL_PICK_PLAY` が**改めてデッキ上5枚を公開して別のシグニを場に出して**いた。⚠`txtRU` は**カード全文**なので別の効果文の語が停止条件に混入しうる＝原文 regex を engine に置く方式そのものが構造的に危うい。
+
+**新機構**＝停止条件と行き先を判別可能ユニオンで JSON に載せる `REVEAL_UNTIL` を新設（`RevealUntilStopCondition` = `signiCount` / `levelSum` / `declaredName`、`RevealUntilDestination` = `hand` / `field` / `trash` / `deck_bottom` / `deck_bottom_shuffled`）。engine 側は `revealUntilStopIndex`→`execRevealUntil`（`effectExecutor.ts` 約5246-5390）、場出しは `execPlaceSigniOnField`→`ADD_TO_FIELD`（配置制限 `deployLimitBlockReason` を通す）、per-signi の ON_PLAY 抑止は `hit.suppressOnPlay`→`BattleScreen.fieldPlacementOnPlayOpts`。**engine で原文を再parseしない**（`underCardAsEnergyCost` と同じ規約）。
+
+**採用9効果**＝**停止条件5件**＝`WDK13-011-E1`（levelSum 4）／`WXK07-054-CB-E2`（levelSum 5）／`WXK07-034-E1`②（レベル4シグニ2枚）＝前3件は続き443 の据置分で**裸 `REVEAL_AND_PICK`＝万能サーチ**だった／`WXK07-031-E2`（**レベル限定だけ脱落**して＜宇宙＞をレベル不問で4枚数え早期停止していた）／`WX17-039-E1`（**宣言レベルの照合が脱落**して＜宇宙＞の最初の1枚を無条件に手札へ入れていた。⚠**幻覚ステップ `STUB{LOOK_OPP_LIFE_TOP}` が混入**していたので除去し、「**３以外の**数字」制約も `DECLARE_NUMBER_PLAIN.numberChoices` で復元）。**行き先3件**＝`WX18-028-E1`／`WXDi-P14-039-E1`／`WXK01-037-E2`（上記(3)。⚠`WXDi-P14-039-E1` は加えて `BLOCK_ACTION{PLAYER, ON_PLAY_ABILITY, END_OF_TURN}` が**自分の全【出】能力をターン終了まで封じる**過剰だったので per-signi の `suppressOnPlay` へ）。**誤分類1件**＝`WX18-046-E1` は reveal-until ではなく「**センタールリグのレベルと同じ枚数**」の固定動的公開で、停止条件が読めず**最大5枚が1枚に潰れて**いた＝`$ref:'center_lrig_level'` を新設（`NumberOrRef` は元から対応）。
+
+**据置**＝正しく動いている7効果（`WDK04-006-E1-G`／`WDK13-017-E1`／`WX22-021-E2`／`WXK10-031-E1`／`WX04-050-E1`／`WX04-093-E1`／`WX17-038-E1`＝全て MANUAL）は**新ユニオンへ移行せず**、live action の E2E で挙動を固定した。`STUB{DECK_REVEAL_UNTIL}` は **10→4効果**（`REVEAL_PICK_PLAY` 11効果は別 family＝次の在庫）。
+
+**E2E で固定した実害**＝「公開札消滅ゼロ」（`trackedCardCount` 保存）／「別のシグニを改めて5枚公開しない」（`deck[0]` が未公開札のまま）／「**停止札が不在でも有限停止**する」（無限ループ・全デッキ公開の防止）／`WX18-046` は「ルリグレベル3なら3枚だけ公開し4枚目は触らない」。
+
+**🔴 検証側（Claude）が退化を1件検出して復元＝`WXK07-031-E1`（兄弟効果の巻き添え）**。`heldReview --adopt` は**カード単位**なので、`WXK07-031-E2` を採用した際に兄弟の E1 が **`STUB{PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH}`（AUTO）→ `UNKNOWN`** へ落ち、**【常】の移動保護が恒久 no-op**になっていた。この STUB は engine 5箇所で消費される**実装済み**（`effectEngine.ts:5089`／`:5166`／`execStubPart2.ts:4286`／`execUtils.ts:76`／`BattleScreen.tsx:4532`）。⚠**fresh parser は今も UNKNOWN を出す**＝`parseSentencePart2.ts:1093` の regex が「あなたのアタックフェイズの間」を同一文中に要求するのに対し、その句は先に `activeCondition:{DURING_ATTACK_PHASE}` へ切り出されるため掛からない。カードは E2 が MANUAL＝`PRESERVE_STATUSES` の対象なので **live 値が正**であり、effectId アンカーで復元した。**golden `§6.4 T3` を新設**して再発を止める。⭐**この退化は census の +1 でしか表に出なかった**（golden は緑・逆翻訳も「実装済みSTUBの説明文」から「原文そのまま」に変わるだけで一見改善に見える）＝**両方向計器の価値の実例**。
+
+**最終ゲート**＝`npm run gates` 全緑。golden **1847→1857**、census **845／ベースライン845**（Codex 報告時点は 846 で回帰していた＝上記 E1 の復元で解消）、census:stubs 無言no-op 0、同型★ 0（265群）、smoke 10688 OK（CRASH/HANG/INVARIANT 0）、fuzz 0、manual field loss 0、lint 0 errors／259 warnings（増減0）、held **107枚／47群**（開始時と同じ）。
+
+**Claude 側の独立検証**＝ベースライン `3a85a7479` との全 `effects_*.json` 機械diff（**変更 effectId は9件のみ・スコープ外0・新規/削除/parseStatus変化とも0・採用漏れ0**）、全変更22ファイルのエンコーディング検査（U+FFFD／3連続以上の `?`／先頭BOM の新規増0）、逆翻訳6件の原文照合、`npm run regen` 再生成。⚠**Codex は `0xC0000142`（既知の Windows 症状）で最終監査を完了できず**、census増分の特定・regen・held再測・エンコーディング検査・BUGFIXES 追記は検証側が引き取った（指示書がその前提でスコープを切ってあったので成立した）。
+
 ## 2026-08-12 — 裸 `STUB{REVEAL_AND_PICK}` の万能サーチ化を7→3件へ縮小＋同family 2件を是正（PLAN §6.4）
 
 **🔴 バグの正体**＝payload の無い `STUB{REVEAL_AND_PICK}` は engine が実行時に原文を再parseし、原文と無関係に「デッキ全体のシグニから好きな1枚を手札へ＋shuffle」を行う。対象7件のうち、既存語彙だけで正しく表せる5件と、同family の完全no-op 1件を採用した。T1 の既知集合は7→3件となり、残る3件は reveal-until の停止条件モデルが無いため非採用 golden で固定した。
