@@ -1,17 +1,17 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 593（総ノード 2894 件）
-逆翻訳シートの [STUB:…] 総数: 825  うち生ID露出 275 箇所（187 種）
+live JSON の STUB id 種類 : 595（総ノード 2886 件）
+逆翻訳シートの [STUB:…] 総数: 817  うち生ID露出 279 箇所（190 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 14 種 / 16 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 14 種 / 16 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 16 種 / 18 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 16 種 / 18 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 62 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 262 箇所
-  D 健全（実装あり＋日本語表示）                          : 403 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 314 種
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 177 種 / 264 箇所
+  D 健全（実装あり＋日本語表示）                          : 402 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 313 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -22,37 +22,43 @@ live JSON の STUB id 種類 : 593（総ノード 2894 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
         カード: WX25-P3-055, WXK01-002, WXK03-071
-        生成: src\data\manualEffects.ts:4641 / src\data\manualEffects.ts:4644
+        生成: src\data\manualEffects.ts:4648 / src\data\manualEffects.ts:4651
      1件   1枚  DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF
         カード: WX24-P4-016
      1件   1枚  DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS  [生ID露出 1]
         カード: WX09-Re01
-        生成: src\data\manualEffects.ts:4627
+        生成: src\data\manualEffects.ts:4634
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
         生成: src\data\parsers\parseSentencePart1.ts:2865
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4818
+        生成: src\data\manualEffects.ts:4825
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
+     1件   1枚  DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL  [生ID露出 1]
+        カード: WXDi-P01-026
+        生成: src\data\effectParser.ts:12199
      1件   1枚  DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT
         カード: WXDi-P07-010
-        生成: src\data\manualEffects.ts:4116
+        生成: src\data\manualEffects.ts:4123
      1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
      1件   1枚  DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY  [生ID露出 1]
         カード: WXDi-P16-062
-        生成: src\data\manualEffects.ts:3676
+        生成: src\data\manualEffects.ts:3683
      1件   1枚  DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
         カード: WXDi-P00-026
+     1件   1枚  DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL  [生ID露出 1]
+        カード: WXEX2-84
+        生成: src\data\effectParser.ts:12206
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        生成: src\data\manualEffects.ts:4638
+        生成: src\data\manualEffects.ts:4645
      1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
@@ -63,8 +69,8 @@ live JSON の STUB id 種類 : 593（総ノード 2894 件）
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
 ==============================================================================
-    19件  19枚  OPTIONAL_ACTIVATE
-        カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他13枚
+    20件  20枚  OPTIONAL_ACTIVATE
+        カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他14枚
         消費: src\engine\effectExecutor.ts:4180 / src\engine\effectExecutor.ts:4195 / src\engine\triggerCollect.ts:277
     14件  14枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX21-056 …他8枚
@@ -95,10 +101,10 @@ live JSON の STUB id 種類 : 593（総ノード 2894 件）
         消費: src\engine\effectExecutor.ts:252
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:6763
+        消費: src\engine\effectExecutor.ts:6766
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:6765
+        消費: src\engine\effectExecutor.ts:6768
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:65
@@ -202,6 +208,9 @@ live JSON の STUB id 種類 : 593（総ノード 2894 件）
   露出  2箇所 (live 2件/2枚)  HAND_REVEAL_CLASS_SIGNI  [execStubPart3]
         カード: WX05-030, WX06-019
         既存コメント: HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを選択して公開（SELECT_TARGET）
+  露出  2箇所 (live 2件/2枚)  INTERNAL_SEED_FROM_DECK_TOP_PLACE  [execStubPart2]
+        カード: WXK04-060, WXK10-059
+        既存コメント: INTERNAL_SEED_FROM_DECK_TOP_PLACE: デッキ上1枚をシードとして設置
   露出  2箇所 (live 2件/2枚)  LRIG_UNDER_TRASH_ANY  [execStubPart1]
         カード: WD21-009, PR-238
   露出  2箇所 (live 2件/2枚)  NEGATE_THAT_ATTACK  [execStubPart3]

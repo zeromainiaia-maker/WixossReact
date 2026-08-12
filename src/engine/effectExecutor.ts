@@ -5020,7 +5020,8 @@ function getLevelReferenceOverride(card: import('../types').CardData | undefined
 function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
   const count = resolveCountRef(a.revealCount, ctx);
-  const visible = state.deck.slice(0, count);
+  const fromBottom = a.from === 'deck_bottom';
+  const visible = fromBottom ? state.deck.slice(-count) : state.deck.slice(0, count);
   // colorMatchesLrig 等の動的フィルタを具体値へ解決（「センタールリグと共通する色を持つカード」G236）
   const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
   const otherSt = a.owner === 'self' ? ctx.otherState : ctx.ownerState;
@@ -5056,7 +5057,9 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     // ピック対象なし：残りを指定場所へ
     if (a.remainder) {
       const restOrdered = a.remainder.shuffle ? shuffle([...visible]) : visible;
-      const deckRest = state.deck.slice(visible.length);
+      const deckRest = fromBottom
+        ? state.deck.slice(0, Math.max(0, state.deck.length - visible.length))
+        : state.deck.slice(visible.length);
       // 行き先を実装していない location（hand/field/lrig_* 等）ではデッキから抜かない＝公開札の消失を防ぐ。
       const movesOutOfDeck = a.remainder.location === 'trash' || a.remainder.location === 'energy';
       const newS: PlayerState = {
@@ -5067,7 +5070,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
         ...(a.remainder.location === 'trash' ? { trash: [...state.trash, ...restOrdered] } : {}),
         ...(a.remainder.location === 'energy' ? { energy: [...state.energy, ...restOrdered] } : {}),
       };
-      const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ上${count}枚を確認`);
+      const unmatched = addLog(setOwnerState(a.owner, newS, ctx), `デッキ${fromBottom ? '下' : '上'}${count}枚を確認`);
       const recorded = { ...unmatched, lastProcessedCards: a.recordRevealed ? visible : [] };
       return a.elseAction ? executeAction(a.elseAction, recorded) : done(recorded);
     }
@@ -5161,7 +5164,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
     return needsInteraction(cur, {
       type: 'SEARCH',
       visibleCards: cands,
-      maxPick: stage.pickCount,
+      maxPick: stage.pickCount === 'ALL' ? cands.length : stage.pickCount,
       thenAction: lookPickThenAction(stage.then, owner),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),

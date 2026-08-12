@@ -12144,6 +12144,155 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
   } as RevealAndPickAction;
 }
 
+/**
+ * 旧 STUB{REVEAL_PICK_PLAY} を、公開元・枚数・filter・pick枚数・残り先が明示された木へ畳む。
+ * 文型判定はこの関数だけに集約し、適用対象は旧STUBを含む木に限定する。engine はカード原文を読まない。
+ */
+function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAction {
+  const hasStub = (node: unknown): boolean => {
+    if (!node || typeof node !== 'object') return false;
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'STUB' && obj.id === 'REVEAL_PICK_PLAY') return true;
+    return Object.values(obj).some(v => Array.isArray(v) ? v.some(hasStub) : hasStub(v));
+  };
+  if (!hasStub(action)) return action;
+
+  const isMatchingLook = (node: EffectAction | undefined, count: number): node is LookAndReorderAction =>
+    !!node && node.type === 'LOOK_AND_REORDER'
+      && node.source.location === 'deck' && node.source.owner === 'self' && node.count === count;
+
+  // 旧STUBを replacement へ置換する。直前（または任意コストの条件内）の同じ公開枚数の
+  // LOOK_AND_REORDER は、replacement 自身が公開を担うため除去する。
+  const replaceStub = (node: EffectAction, replacement: EffectAction, lookCount?: number): EffectAction => {
+    if (node.type === 'STUB' && node.id === 'REVEAL_PICK_PLAY') return replacement;
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(s => replaceStub(s, replacement, lookCount));
+      for (let i = 0; i < steps.length; i++) {
+        if (steps[i] !== replacement) continue;
+        const prev = steps[i - 1];
+        if (lookCount !== undefined && isMatchingLook(prev, lookCount)) {
+          steps.splice(i - 1, 1);
+          i--;
+          continue;
+        }
+        if (lookCount !== undefined && prev?.type === 'CONDITIONAL' && isMatchingLook(prev.then, lookCount)) {
+          // 「任意コスト。そうした場合、公開…」の公開/pickを同じ支払いゲート内へ戻す。
+          steps[i - 1] = { ...prev, then: replacement } as ConditionalAction;
+          steps.splice(i, 1);
+          i--;
+        }
+      }
+      return steps.length === 1 ? steps[0] : { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') {
+      return { ...node, then: replaceStub(node.then, replacement, lookCount),
+        ...(node.else ? { else: replaceStub(node.else, replacement, lookCount) } : {}) };
+    }
+    if (node.type === 'CHOOSE') {
+      return { ...node, choices: node.choices.map(c => ({ ...c, action: replaceStub(c.action, replacement, lookCount) })) };
+    }
+    return node;
+  };
+
+  // 各プレイヤーの全領域リセット＋各自選択は、相手 SEARCH の応答ルーティングが無い間は部分実装しない。
+  if (/各プレイヤーは自分のシグニゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルする。[\s\S]*各プレイヤーは自分のデッキの上からカードを[０-９\d]+枚見て/.test(sourceText)) {
+    return { type: 'STUB', id: 'DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL' } as StubAction;
+  }
+
+  // 相手のデッキから相手自身が選ぶ SEARCH も、BattleScreen が SEARCH を相手へルーティングしないため defer。
+  const opponentM = sourceText.match(/対戦相手はデッキの上からカードを([０-９\d]+)枚公開する。対戦相手はその中からシグニを([０-９\d]+)枚まで場に出し/);
+  if (opponentM) {
+    return replaceStub(action, {
+      type: 'STUB', id: 'DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL',
+    } as StubAction, parseNum(opponentM[1]));
+  }
+
+  // 任意shuffleを選んだ場合だけ、2枚ミル→次の4枚を見る→同名1枚までダウン場出し→残りデッキ下。
+  const shuffleMillM = sourceText.match(
+    /デッキをシャッフルしてもよい。そうした場合、(?:あなたの)?デッキの上から、?カードを([０-９\d]+)枚トラッシュに置きカードを([０-９\d]+)枚見る。その見たカードの中から《([^》]+)》を([０-９\d]+)枚までダウン状態で場に出し、残りを好きな順番でデッキの一番下に置く/,
+  );
+  if (shuffleMillM) {
+    return { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as StubAction,
+      { type: 'SHUFFLE_DECK', owner: 'self' },
+      { type: 'MILL', owner: 'self', count: parseNum(shuffleMillM[1]) },
+      {
+        type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(shuffleMillM[2]),
+        filter: { cardType: 'シグニ', cardName: shuffleMillM[3] },
+        pickCount: parseNum(shuffleMillM[4]), pickUpTo: true,
+        then: { type: 'ADD_TO_FIELD', owner: 'self', asDown: true },
+        remainder: { location: 'deck', position: 'bottom' },
+      } as RevealAndPickAction,
+    ] } as SequenceAction;
+  }
+
+  // 1度見た3枚を「好きな枚数場→好きな枚数手札→残りエナ」の順に振り分ける。
+  const multiM = sourceText.match(/デッキの上からカードを([０-９\d]+)枚見る。その中からシグニを好きな枚数場に出し、カードを好きな枚数手札に加え、残りをエナゾーンに置く/);
+  if (multiM) {
+    const count = parseNum(multiM[1]);
+    const replacement: EffectAction = {
+      type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: count,
+      stages: [
+        { filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field' },
+        { pickCount: 'ALL', pickNoun: 'カード', then: 'hand' },
+      ],
+      remainder: { location: 'energy', position: 'any' },
+    } as import('../types/effects').LookPickChainAction;
+    return replaceStub(action, replacement, count);
+  }
+
+  // デッキ一番下1枚は、公開札を選べば場・選ばなければ remainder のトラッシュへ送る。
+  // SEARCH は先に visibleCards を示すため、原文どおりカードを見てから二択でき、第三の no-op は生じない。
+  if (/デッキの一番下のカードを公開する。そのカードを場に出すかトラッシュに置く/.test(sourceText)) {
+    return {
+      type: 'REVEAL_AND_PICK', owner: 'self', from: 'deck_bottom', revealCount: 1,
+      pickCount: 1, pickUpTo: true,
+      then: { type: 'ADD_TO_FIELD', owner: 'self' },
+      remainder: { location: 'trash', position: 'any' },
+    } as RevealAndPickAction;
+  }
+
+  // デッキトップを見た後の【シード】分岐。既存の明示的な配置実行STUBだけを使い、カード全文判定を廃止する。
+  if (/デッキの一番上を見る。それを【シード】として(?:あなたの)?シグニゾーンに出してもよい/.test(sourceText)) {
+    return replaceStub(action, {
+      type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+        { choiceId: 'seed', label: '【シード】としてシグニゾーンに出す', action: { type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK_TOP_PLACE' } as StubAction },
+        { choiceId: 'skip', label: '出さない', action: { type: 'SEQUENCE', steps: [] } as SequenceAction },
+      ],
+    } as ChooseAction);
+  }
+  if (/デッキの一番上を見る。それを【シード】として(?:あなたの)?シグニゾーンに出すか、エナゾーンに置く/.test(sourceText)) {
+    return replaceStub(action, {
+      type: 'CHOOSE', choose_count: 1, from_count: 2, choices: [
+        { choiceId: 'seed', label: '【シード】としてシグニゾーンに出す', action: { type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK_TOP_PLACE' } as StubAction },
+        { choiceId: 'energy', label: 'エナゾーンに置く', action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 } },
+      ],
+    } as ChooseAction);
+  }
+
+  // デッキ上N枚公開→限定シグニを場→残りトラッシュ（固定枚数／N枚まで／好きな枚数）。
+  const simpleM = sourceText.match(
+    /デッキの上からカードを([０-９\d]+)枚公開する。その中から(好きな(?:枚数|数)の)?(?:(無色ではない)|([白赤青緑黒])の|＜([^＞]+)＞の)?シグニ(?:(?:を)?([０-９\d]+)枚(まで)?(?:を)?|を)?場に出し、残りをトラッシュに置く/,
+  );
+  if (simpleM) {
+    const filter: TargetFilter = { cardType: 'シグニ' };
+    if (simpleM[3]) filter.nonColorless = true;
+    if (simpleM[4]) filter.color = simpleM[4];
+    if (simpleM[5]) filter.story = simpleM[5];
+    const anyCount = !!simpleM[2];
+    const replacement: RevealAndPickAction = {
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: parseNum(simpleM[1]), filter,
+      pickCount: anyCount ? 'ALL' : (simpleM[6] ? parseNum(simpleM[6]) : 1),
+      pickUpTo: anyCount || simpleM[7] === 'まで',
+      then: { type: 'ADD_TO_FIELD', owner: 'self' },
+      remainder: { location: 'trash', position: 'any' },
+    };
+    return replaceStub(action, replacement, parseNum(simpleM[1]));
+  }
+
+  return action;
+}
+
 // 「手札から〈条件〉をN枚公開してもよい。そうした場合」の公開を OptionalCostSpec に載せる。
 // 対象は公開前に SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS で固定し、本体は
 // PAID_ADDITIONAL_COST の内側から同じ対象だけを処理する。
@@ -12670,6 +12819,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     let folded = foldDeckSearchToTop(e.action, card.EffectText ?? '');
     folded = foldDeclaredNumberTopReveal(folded, card.EffectText ?? '');
     folded = foldColorMatchAllToEnergy(folded, card.EffectText ?? '');
+    folded = foldRevealPickPlay(folded, card.EffectText ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     if (folded !== e.action) {

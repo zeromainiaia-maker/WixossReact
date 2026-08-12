@@ -3034,49 +3034,6 @@ export function execStubPart1(
     return done(addLog(setOwnerState(target, newSt, ctx),
       `シグニ${signiAll.length}体${keyCard ? '+キー' : ''}をトラッシュへ`));
   }
-  // デッキ公開してシグニを場に出す
-  if (stub.id === 'REVEAL_PICK_PLAY') {
-    const srcRPP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRPP = srcRPP ? (srcRPP.EffectText ?? '') + ' ' + (srcRPP.BurstText ?? '') : '';
-    // 【シード】として設置するパターン（「それを【シード】として...」等）
-    if (txtRPP.match(/【シード】として.*シグニゾーンに出してもよい/) || txtRPP.match(/【シード】として.*シグニゾーンに出すか/)) {
-      const topCardsRPPS = ctx.ownerState.deck.slice(0, 1);
-      if (topCardsRPPS.length === 0) return done(addLog(ctx, 'REVEAL_PICK_PLAY(SEED): デッキなし'));
-      return needsInteraction(addLog(ctx, '【シード】として設置するカードを選択（任意）'), {
-        type: 'SEARCH',
-        visibleCards: topCardsRPPS,
-        maxPick: 1,
-        thenAction: ({ type: 'SEQUENCE', steps: [] } as SequenceAction) as EffectAction,
-        continuation: ({ type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK' } as StubAction) as EffectAction,
-      });
-    }
-    const toHWR = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const revealCountM = txtRPP.match(/カードを([０-９\d]+)枚(?:見る|公開する)/);
-    const revealCount = revealCountM ? parseInt(toHWR(revealCountM[1])) : 5;
-    const deckCards = ctx.ownerState.deck.slice(0, Math.min(revealCount, ctx.ownerState.deck.length));
-    if (deckCards.length === 0) return done(addLog(ctx, 'デッキなし（REVEAL_PICK_PLAY）'));
-    // 場に出せるシグニをフィルタ（簡易：「シグニ」タイプ）
-    const signiCards = deckCards.filter(cn => ctx.cardMap.get(cn)?.Type === 'シグニ');
-    const pickCount = txtRPP.match(/シグニを([０-９\d]+)枚まで場に出/) ? parseInt(toHWR(RegExp.$1)) : 1;
-    const addFieldAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: 'self' };
-    const restToTrashAction: TrashAction = {
-      type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 'ALL' },
-    };
-    const pending: PendingInteractionDef = {
-      type: 'SEARCH',
-      visibleCards: deckCards,
-      maxPick: Math.min(pickCount, signiCards.length),
-      thenAction: addFieldAction,
-      restDest: 'trash',
-      continuation: restToTrashAction,
-    };
-    // デッキから公開した分を除去
-    const newOwnerDeck = ctx.ownerState.deck.slice(deckCards.length);
-    return needsInteraction(
-      addLog({ ...ctx, ownerState: { ...ctx.ownerState, deck: newOwnerDeck } }, `デッキ上${deckCards.length}枚公開（シグニを場に）`),
-      pending,
-    );
-  }
   // デッキから探してもよい（REVEAL_AND_PICK: シグニ検索→手札or場）
   if (stub.id === 'REVEAL_AND_PICK') {
     const srcRAP = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;

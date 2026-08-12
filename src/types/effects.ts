@@ -1523,7 +1523,7 @@ export interface AttachCharmAction {
 // G255「カード1枚までトラッシュ＋＜X＞シグニ2枚まで手札」など、1度の公開からの多段ピック）。
 export interface LookPickChainStage {
   filter?: TargetFilter;          // ピック対象フィルタ（省略=任意カード）
-  pickCount: number;              // 上限枚数（「N枚まで」）
+  pickCount: number | 'ALL';      // 上限枚数（「N枚まで」）。ALL＝公開札のうち好きな枚数
   // ピック先（手札／エナ／トラッシュ／場出し／【ビート】化／デッキの一番上へ戻す）。
   // 'deck_top'＝「その中から１枚をデッキの一番上に戻し、残りを（好きな順番で）デッキの一番下に置く」の中段。
   // このステージのピックは盤面を動かさず**デッキ内に留めたまま予約**し、remainder 処理時に一番上へ置く
@@ -1555,6 +1555,8 @@ export interface LookPickChainAction {
 export interface RevealAndPickAction {
   type: 'REVEAL_AND_PICK';
   owner: Owner;
+  /** 省略時は deck_top。デッキの一番下1枚を公開して処理する効果も同じ型で表す。 */
+  from?: 'deck_top' | 'deck_bottom';
   revealCount: NumberOrRef;
   filter?: TargetFilter;
   pickCount: number | 'ALL';

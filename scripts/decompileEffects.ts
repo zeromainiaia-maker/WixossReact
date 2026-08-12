@@ -1248,7 +1248,7 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'LOOK_PICK_CHAIN': {
       const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : 'トラッシュに置き';
-      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
+      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? '好きな枚数' : `${numJa(s.pickCount)}枚まで`}${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'
@@ -1274,7 +1274,9 @@ function actionJa(a?: Action, effectType?: string): string {
           ? `${ownerJa(rapOwner)}デッキの上からこの方法で処理したカードと同じ枚数のカードを公開し`
         : rapCnt?.$ref === 'center_lrig_level'
           ? `${ownerJa(rapOwner)}デッキの上からあなたのセンタールリグのレベルと同じ枚数のカードを公開し`
-        : `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
+        : a.from === 'deck_bottom'
+          ? `${ownerJa(rapOwner)}デッキの一番下のカードを公開し`
+          : `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先
       const rem = a.remainder;
       // remainder.shuffle（「残りをシャッフルしてデッキの一番下に置く」PR-434）を落とさない
@@ -1303,7 +1305,15 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.then?.type === 'BANISH' ? 'バニッシュする'
         : !a.then ? (a.pickTo === 'field' ? '場に出す' : a.pickTo === 'hand' ? '手札に加える' : null)
         : null;
-      if (placeVerb) return `${revealJa}、その中から${filterStr}を${pickN}${placeVerb}${remJa}`;
+      if (placeVerb) {
+        if (a.from === 'deck_bottom' && a.then?.type === 'ADD_TO_FIELD'
+            && a.pickCount === 1 && a.pickUpTo === true && rem?.location === 'trash') {
+          return `${revealJa}、そのカードを場に出すかトラッシュに置く`;
+        }
+        const suppress = a.then?.type === 'ADD_TO_FIELD' && a.then?.suppressOnPlay
+          ? '。それらのシグニの【出】能力は発動しない' : '';
+        return `${revealJa}、その中から${filterStr}を${pickN}${placeVerb}${remJa}${suppress}`;
+      }
       // 別効果系（公開カードが条件）＝「それが[filter]の場合、[then]」。1枚公開時は残り句を省く（原文も省く）。
       if (a.then) {
         const condRem = (rapCnt && rapCnt > 1) ? remJa : '';

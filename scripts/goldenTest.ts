@@ -4062,6 +4062,306 @@ test('§6.4 T3: WXK07-031-E1 の【常】移動保護が実装済みSTUBのま�
   eq(JSON.stringify(e1!.action), JSON.stringify({ type: 'STUB', id: 'PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH' }),
     'UNKNOWN へ退化していない（engine に消費がある実装済みSTUB）');
 });
+
+type RevealAndPickGolden = Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+type LookPickChainGolden = Extract<EffectAction, { type: 'LOOK_PICK_CHAIN' }>;
+
+function findActionByType<K extends EffectAction['type']>(node: unknown, type: K): Extract<EffectAction, { type: K }> | null {
+  if (!node || typeof node !== 'object') return null;
+  const obj = node as Record<string, unknown>;
+  if (obj.type === type) return node as Extract<EffectAction, { type: K }>;
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        const found = findActionByType(child, type);
+        if (found) return found;
+      }
+    } else {
+      const found = findActionByType(value, type);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+function exactDeckCtx(deck: string[], sourceCardNum: string): ExecCtx {
+  const ctx = mkCtx({ hand: 0, trash: 0, energy: 0, life: 0 }, { hand: 0, trash: 0, energy: 0, life: 0 }, sourceCardNum);
+  ctx.ownerState.deck = [...deck];
+  ctx.ownerState.hand = [];
+  ctx.ownerState.trash = [];
+  ctx.ownerState.energy = [];
+  ctx.ownerState.life_cloth = [];
+  ctx.ownerState.field.signi = [null, null, null];
+  ctx.ownerState.field.signi_down = [false, false, false];
+  ctx.otherState.deck = [];
+  ctx.otherState.hand = [];
+  ctx.otherState.trash = [];
+  ctx.otherState.energy = [];
+  ctx.otherState.life_cloth = [];
+  ctx.otherState.field.signi = [null, null, null];
+  return ctx;
+}
+
+function ctxAfter(result: ExecResult, base: ExecCtx): ExecCtx {
+  return {
+    ...base,
+    ownerState: result.ownerState,
+    otherState: result.otherState,
+    logs: result.logs,
+    lastProcessedCards: result.lastProcessedCards,
+    storedTargetCards: result.storedTargetCards ?? base.storedTargetCards,
+  };
+}
+
+function fieldTops(state: PlayerState): string[] {
+  return state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
+}
+
+function matchingCards(filter: NonNullable<RevealAndPickGolden['filter']>, count: number, wantMatch: boolean): string[] {
+  const cards: string[] = [];
+  for (const card of cardMap.values()) {
+    if (matchesFilter(card, filter) !== wantMatch || cards.includes(card.CardNum)) continue;
+    cards.push(card.CardNum);
+    if (cards.length === count) return cards;
+  }
+  throw new Error(`filter fixture shortage: ${JSON.stringify(filter)} match=${wantMatch} count=${count}`);
+}
+
+function trackedWithSeeds(state: PlayerState): number {
+  return trackedCardCount(state) + (state.field.signi_seeds ?? []).filter(Boolean).length;
+}
+
+test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse handler も存在しない', () => {
+  eq(cardsWithStub('REVEAL_PICK_PLAY').join('|'), '', '旧STUBの live 再混入を禁止');
+  const executor = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
+  ok(!executor.includes("stub.id === 'REVEAL_PICK_PLAY'"), 'カード全文を読む旧handlerを復活させない');
+});
+
+test('§6.4 reveal-pick 11効果: live JSON の公開元・枚数・filter・行き先・defer/二択を固定', () => {
+  const rap = (cardNum: string, effectId: string) => findActionByType(manualEffect(cardNum, effectId).action, 'REVEAL_AND_PICK')!;
+  const k01 = rap('WXK01-039', 'WXK01-039-E2');
+  eq(JSON.stringify([k01.revealCount, k01.pickCount, k01.pickUpTo, k01.filter, k01.remainder]),
+    JSON.stringify([5, 2, true, { cardType: 'シグニ', story: '悪魔' }, { location: 'trash', position: 'any' }]));
+  const k05 = rap('WXK05-022', 'WXK05-022-E2');
+  eq(JSON.stringify([k05.revealCount, k05.pickCount, k05.pickUpTo, k05.filter]),
+    JSON.stringify([3, 1, false, { cardType: 'シグニ', color: '赤' }]));
+  const wx13 = rap('WX13-002', 'WX13-002-E3');
+  eq(JSON.stringify([wx13.revealCount, wx13.pickCount, wx13.filter]),
+    JSON.stringify([3, 'ALL', { cardType: 'シグニ', story: '毒牙' }]));
+  const wda = rap('WDA-F01-08', 'WDA-F01-08-E1');
+  eq(JSON.stringify([wda.revealCount, wda.pickCount, wda.filter, (wda.then as AddToFieldAction).suppressOnPlay]),
+    JSON.stringify([3, 'ALL', { cardType: 'シグニ', nonColorless: true }, true]));
+  const di08 = rap('WXDi-P08-046', 'WXDi-P08-046-E2');
+  eq(JSON.stringify([di08.revealCount, di08.pickCount, di08.filter, di08.then, di08.remainder]), JSON.stringify([
+    4, 1, { cardType: 'シグニ', cardName: 'コードラビリンス　アト//メモリア' },
+    { type: 'ADD_TO_FIELD', owner: 'self', asDown: true }, { location: 'deck', position: 'bottom' },
+  ]));
+  const di08Steps = manualEffect('WXDi-P08-046', 'WXDi-P08-046-E2').action as SequenceAction;
+  eq(di08Steps.steps.map(step => step.type).join('|'), 'STUB|SHUFFLE_DECK|MILL|REVEAL_AND_PICK');
+  eq((di08Steps.steps[2] as Extract<EffectAction, { type: 'MILL' }>).count, 2);
+  const chain = findActionByType(manualEffect('WX24-P4-008', 'WX24-P4-008-E1').action, 'LOOK_PICK_CHAIN')!;
+  eq(JSON.stringify(chain), JSON.stringify({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 3,
+    stages: [
+      { filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field' },
+      { pickCount: 'ALL', pickNoun: 'カード', then: 'hand' },
+    ],
+    remainder: { location: 'energy', position: 'any' },
+  }));
+  const bottom = rap('WXDi-P07-084', 'WXDi-P07-084-E1');
+  eq(JSON.stringify([bottom.from, bottom.revealCount, bottom.pickCount, bottom.pickUpTo, bottom.remainder]),
+    JSON.stringify(['deck_bottom', 1, 1, true, { location: 'trash', position: 'any' }]));
+  eq(JSON.stringify(manualEffect('WXEX2-84', 'WXEX2-84-E2').action), JSON.stringify({ type: 'SEQUENCE', steps: [
+    { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } },
+    { type: 'STUB', id: 'DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL' },
+  ] }));
+  eq(JSON.stringify(manualEffect('WXDi-P01-026', 'WXDi-P01-026-E1').action),
+    JSON.stringify({ type: 'STUB', id: 'DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL' }));
+  for (const [cardNum, effectId, choices] of [
+    ['WXK04-060', 'WXK04-060-E1', 'seed|skip'],
+    ['WXK10-059', 'WXK10-059-E2', 'seed|energy'],
+  ] as const) {
+    const choose = findActionByType(manualEffect(cardNum, effectId).action, 'CHOOSE')!;
+    eq(choose.choices.map(choice => choice.choiceId).join('|'), choices, effectId);
+  }
+});
+
+for (const spec of [
+  { cardNum: 'WXK01-039', effectId: 'WXK01-039-E2', hitCount: 2 },
+  { cardNum: 'WXK05-022', effectId: 'WXK05-022-E2', hitCount: 1 },
+  { cardNum: 'WX13-002', effectId: 'WX13-002-E3', hitCount: 2 },
+  { cardNum: 'WDA-F01-08', effectId: 'WDA-F01-08-E1', hitCount: 2 },
+] as const) {
+  test(`§6.4 E2E ${spec.effectId}: 限定札だけ場へ、不成立時は0枚、公開札は消滅しない`, () => withSavedCursor(() => {
+    const reveal = findActionByType(manualEffect(spec.cardNum, spec.effectId).action, 'REVEAL_AND_PICK')!;
+    const revealCount = reveal.revealCount as number;
+    const hits = matchingCards(reveal.filter!, spec.hitCount, true);
+    const misses = matchingCards(reveal.filter!, revealCount - spec.hitCount, false);
+    const ctx = exactDeckCtx([...hits, ...misses], spec.cardNum);
+    const before = trackedCardCount(ctx.ownerState);
+    const result = run(reveal, ctx);
+    eq(trackedCardCount(result.ownerState), before, '公開札の消滅なし');
+    eq(fieldTops(result.ownerState).sort().join('|'), [...hits].sort().join('|'), '限定札だけ場へ');
+    eq([...result.ownerState.trash].sort().join('|'), [...misses].sort().join('|'), '非該当は残り先へ');
+
+    const allMisses = matchingCards(reveal.filter!, revealCount, false);
+    const missCtx = exactDeckCtx(allMisses, spec.cardNum);
+    const missBefore = trackedCardCount(missCtx.ownerState);
+    const missResult = run(reveal, missCtx);
+    eq(fieldTops(missResult.ownerState).length, 0, '該当0なら何も場に出さない');
+    eq(missResult.ownerState.trash.length, revealCount, '不成立札も残り先へ');
+    eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側も公開札の消滅なし');
+  }));
+}
+
+test('§6.4 E2E WXDi-P08-046-E2: 2枚ミル後の4枚だけを名前限定し、残りをデッキ下へ', () => withSavedCursor(() => {
+  const effect = manualEffect('WXDi-P08-046', 'WXDi-P08-046-E2');
+  const sequence = effect.action as SequenceAction;
+  const reveal = findActionByType(effect.action, 'REVEAL_AND_PICK')!;
+  const target = matchingCards(reveal.filter!, 1, true)[0];
+  const misses = matchingCards(reveal.filter!, 3, false);
+  const mill = matchingCards(reveal.filter!, 2, false).map((n, i) => `${n}#mill${i}`);
+  const untouched = findCard(card => ![target, ...misses].includes(card.CardNum));
+  const ctx = exactDeckCtx([...mill, target, ...misses, untouched], 'WXDi-P08-046');
+  const before = trackedCardCount(ctx.ownerState);
+  const result = run({ type: 'SEQUENCE', steps: sequence.steps.slice(2) } as SequenceAction, ctx);
+  eq(trackedCardCount(result.ownerState), before, 'ミル込みでカード消滅なし');
+  ok(fieldTops(result.ownerState).includes(target), '指定名だけ場へ');
+  ok(result.ownerState.field.signi_down.some(Boolean), 'ダウン状態で場へ');
+  eq(result.ownerState.trash.sort().join('|'), mill.sort().join('|'), '先頭2枚だけミル');
+  eq(result.ownerState.deck[0], untouched, '未公開札を維持');
+  eq(result.ownerState.deck.slice(-3).sort().join('|'), misses.sort().join('|'), '公開残り3枚をデッキ下へ');
+
+  const allMisses = matchingCards(reveal.filter!, 4, false);
+  const missCtx = exactDeckCtx(allMisses, 'WXDi-P08-046');
+  const missBefore = trackedCardCount(missCtx.ownerState);
+  const missResult = run(reveal, missCtx);
+  eq(fieldTops(missResult.ownerState).length, 0, '指定名0なら何も場に出さない');
+  eq(missResult.ownerState.deck.sort().join('|'), allMisses.sort().join('|'), '不成立札はすべてデッキ下に残る');
+  eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側もカード消滅なし');
+}));
+
+test('§6.4 E2E WX24-P4-008-E1: 場→手札→残りエナの3分岐を維持', () => withSavedCursor(() => {
+  const chain = findActionByType(manualEffect('WX24-P4-008', 'WX24-P4-008-E1').action, 'LOOK_PICK_CHAIN')! as LookPickChainGolden;
+  const signi = findCard(card => card.Type === 'シグニ');
+  const nonSigni = [...cardMap.values()].filter(card => card.Type !== 'シグニ').slice(0, 2).map(card => card.CardNum);
+  eq(nonSigni.length, 2, '非シグニfixture');
+  const ctx = exactDeckCtx([signi, ...nonSigni], 'WX24-P4-008');
+  const before = trackedCardCount(ctx.ownerState);
+  let result = executeAction(chain, ctx);
+  ok(!result.done && result.pending.type === 'SEARCH', '場へ出す段');
+  result = resumeSearch([signi], result.pending, ctxAfter(result, ctx));
+  if (!result.done && result.pending.type === 'SELECT_SIGNI_ZONE') {
+    result = resumeSelectSigniZone(0, result.pending, ctxAfter(result, ctx));
+  }
+  ok(!result.done && result.pending.type === 'SEARCH', '手札へ加える段');
+  result = resumeSearch([nonSigni[0]], result.pending, ctxAfter(result, ctx));
+  result = finish(result, ctx);
+  ok(fieldTops(result.ownerState).includes(signi), 'シグニを場へ');
+  ok(result.ownerState.hand.includes(nonSigni[0]), '次の段で手札へ');
+  ok(result.ownerState.energy.includes(nonSigni[1]), '未選択の残りをエナへ');
+  eq(trackedCardCount(result.ownerState), before, '3分岐後もカード消滅なし');
+
+  const missCtx = exactDeckCtx(nonSigni, 'WX24-P4-008');
+  const missBefore = trackedCardCount(missCtx.ownerState);
+  let missResult = executeAction(chain, missCtx);
+  ok(!missResult.done && missResult.pending.type === 'SEARCH'
+    && (missResult.pending.thenAction as EffectAction).type === 'ADD_TO_HAND', 'シグニ0なら場段を空振りして手札段へ');
+  missResult = resumeSearch([], missResult.pending, ctxAfter(missResult, missCtx));
+  missResult = finish(missResult, missCtx);
+  eq(fieldTops(missResult.ownerState).length, 0, '非シグニを場に出さない');
+  eq(missResult.ownerState.energy.length, nonSigni.length, '全辞退なら残りをエナへ');
+  eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側もカード消滅なし');
+}));
+
+test('§6.4 E2E WXDi-P07-084-E1: デッキ下1枚を見て場またはトラッシュへ', () => withSavedCursor(() => {
+  const reveal = findActionByType(manualEffect('WXDi-P07-084', 'WXDi-P07-084-E1').action, 'REVEAL_AND_PICK')!;
+  const top = findCard(card => card.Type !== 'ルリグ');
+  const bottom = findCard(card => card.Type === 'シグニ' && card.CardNum !== top);
+  const fieldCtx = exactDeckCtx([top, bottom], 'WXDi-P07-084');
+  const fieldBefore = trackedCardCount(fieldCtx.ownerState);
+  let fieldResult = executeAction(reveal, fieldCtx);
+  ok(!fieldResult.done && fieldResult.pending.type === 'SEARCH', '二択を提示');
+  eq(fieldResult.pending.visibleCards.join('|'), bottom, '一番下だけを公開');
+  fieldResult = resumeSearch([bottom], fieldResult.pending, ctxAfter(fieldResult, fieldCtx));
+  fieldResult = finish(fieldResult, fieldCtx);
+  ok(fieldTops(fieldResult.ownerState).includes(bottom), '選べば場へ');
+  eq(trackedCardCount(fieldResult.ownerState), fieldBefore, '場側もカード消滅なし');
+
+  const trashCtx = exactDeckCtx([top, bottom], 'WXDi-P07-084');
+  const trashBefore = trackedCardCount(trashCtx.ownerState);
+  let trashResult = executeAction(reveal, trashCtx);
+  trashResult = resumeSearch([], trashResult.pending, ctxAfter(trashResult, trashCtx));
+  trashResult = finish(trashResult, trashCtx);
+  ok(trashResult.ownerState.trash.includes(bottom), '選ばなければトラッシュへ');
+  eq(trashResult.ownerState.deck.join('|'), top, '上のカードは触らない');
+  eq(trackedCardCount(trashResult.ownerState), trashBefore, 'トラッシュ側もカード消滅なし');
+}));
+
+test('§6.4 E2E WXEX2-84-E2 defer: 相手一掃だけ実行し、自分のデッキ補充へ反転しない', () => withSavedCursor(() => {
+  const selfDeck = [findCard(card => card.Type === 'シグニ')];
+  const opponentDeck = [findCard(card => card.Type !== 'シグニ')];
+  const victim = findCard(card => card.Type === 'シグニ' && !selfDeck.includes(card.CardNum));
+  const ctx = exactDeckCtx(selfDeck, 'WXEX2-84');
+  ctx.otherState.deck = [...opponentDeck];
+  ctx.otherState.field.signi = [[victim], null, null];
+  const before = trackedCardCount(ctx.ownerState) + trackedCardCount(ctx.otherState);
+  const result = run(manualEffect('WXEX2-84', 'WXEX2-84-E2').action, ctx);
+  eq(result.ownerState.deck.join('|'), selfDeck.join('|'), '自分のデッキを誤って公開しない');
+  eq(result.otherState.deck.join('|'), opponentDeck.join('|'), '未実装の相手選択を自分が操作しない');
+  ok(result.otherState.trash.includes(victim), '実装済みの相手一掃は維持');
+  eq(trackedCardCount(result.ownerState) + trackedCardCount(result.otherState), before, 'defer前後でカード消滅なし');
+}));
+
+test('§6.4 E2E WXDi-P01-026-E1 defer: 各プレイヤー操作を部分実行せず盤面を維持', () => withSavedCursor(() => {
+  const ctx = exactDeckCtx([findCard(card => card.Type === 'シグニ')], 'WXDi-P01-026');
+  const selfSigni = findCard(card => card.Type === 'シグニ' && !ctx.ownerState.deck.includes(card.CardNum));
+  const otherSigni = findCard(card => card.Type === 'シグニ' && card.CardNum !== selfSigni);
+  ctx.ownerState.field.signi = [[selfSigni], null, null];
+  ctx.otherState.field.signi = [[otherSigni], null, null];
+  ctx.ownerState.trash = [findCard(card => card.Type !== 'シグニ')];
+  const before = JSON.stringify([ctx.ownerState.deck, ctx.ownerState.trash, ctx.ownerState.field, ctx.otherState.deck, ctx.otherState.trash, ctx.otherState.field]);
+  const countBefore = trackedCardCount(ctx.ownerState) + trackedCardCount(ctx.otherState);
+  const result = run(manualEffect('WXDi-P01-026', 'WXDi-P01-026-E1').action, ctx);
+  eq(JSON.stringify([result.ownerState.deck, result.ownerState.trash, result.ownerState.field, result.otherState.deck, result.otherState.trash, result.otherState.field]), before,
+    '各プレイヤーのSEARCH応答機構ができるまで全体を明示defer');
+  eq(trackedCardCount(result.ownerState) + trackedCardCount(result.otherState), countBefore, 'deferでカード消滅なし');
+}));
+
+function resolveSeedChoice(cardNum: string, effectId: string, choiceId: string, topCard: string): { result: ExecResult; before: number } {
+  const ctx = exactDeckCtx([topCard], cardNum);
+  const before = trackedWithSeeds(ctx.ownerState);
+  let result = executeEffect(manualEffect(cardNum, effectId), ctx);
+  ok(!result.done && result.pending.type === 'LOOK_AND_REORDER', `${effectId}: topを見る`);
+  result = resumeLookAndReorder(result.pending.cards, [], result.pending, ctxAfter(result, ctx));
+  ok(!result.done && result.pending.type === 'CHOOSE', `${effectId}: 二択を提示`);
+  ok(result.pending.options.some(option => option.id === choiceId), `${effectId}: ${choiceId}を持つ`);
+  result = resumeChoose(choiceId, result.pending, ctxAfter(result, ctx));
+  return { result: finish(result, ctx), before };
+}
+
+test('§6.4 E2E WXK04-060-E1: 任意SEEDは置く/置かないの両方でカードを保存', () => withSavedCursor(() => {
+  const topCard = findCard(card => card.Type !== 'ルリグ');
+  const seeded = resolveSeedChoice('WXK04-060', 'WXK04-060-E1', 'seed', topCard);
+  ok((seeded.result.ownerState.field.signi_seeds ?? []).includes(topCard), '選べばSEEDへ');
+  eq(trackedWithSeeds(seeded.result.ownerState), seeded.before, 'SEED側でカード消滅なし');
+  const skipped = resolveSeedChoice('WXK04-060', 'WXK04-060-E1', 'skip', topCard);
+  eq(skipped.result.ownerState.deck.join('|'), topCard, '辞退すればデッキトップに残る');
+  eq(trackedWithSeeds(skipped.result.ownerState), skipped.before, '辞退側でカード消滅なし');
+}));
+
+test('§6.4 E2E WXK10-059-E2: 強制二択SEED/エナにskipを混入しない', () => withSavedCursor(() => {
+  const topCard = findCard(card => card.Type !== 'ルリグ');
+  const effect = manualEffect('WXK10-059', 'WXK10-059-E2');
+  const choose = findActionByType(effect.action, 'CHOOSE')!;
+  eq(choose.choices.map(choice => choice.choiceId).sort().join('|'), 'energy|seed', '強制二択だけ');
+  const seeded = resolveSeedChoice('WXK10-059', 'WXK10-059-E2', 'seed', topCard);
+  ok((seeded.result.ownerState.field.signi_seeds ?? []).includes(topCard), 'SEED側');
+  eq(trackedWithSeeds(seeded.result.ownerState), seeded.before, 'SEED側でカード消滅なし');
+  const energized = resolveSeedChoice('WXK10-059', 'WXK10-059-E2', 'energy', topCard);
+  ok(energized.result.ownerState.energy.includes(topCard), 'エナ側');
+  eq(trackedWithSeeds(energized.result.ownerState), energized.before, 'エナ側でカード消滅なし');
+}));
 // タスク12(xlvi) 第1波：curated の LOOK_AND_REORDER が pick を丸ごと落としていた実カード。
 // 各 effectId を実際に executeEffect → SEARCH resume まで通し、手札増加と公開残りの保存を固定する。
 for (const [cardNum, effectId] of [
