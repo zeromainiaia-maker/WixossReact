@@ -5291,7 +5291,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       setRearrangeSlots([null, null, null]);
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP', hostState, guestState, settleStackOnDone: true,
-        pending: result.done ? null : ({ ...peBaseR, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
+        pending: result.done ? null : ({ ...peBaseR, interaction: result.pending, ...nextRespondPatch(result.pending, pe.sourcePlayerId, bs.host_id, bs.guest_id), ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
         effectStack: rearrangeEntries.length > 0
           ? (existingStack && !isStackDone(existingStack)
               ? pushToStack(existingStack, rearrangeEntries)
