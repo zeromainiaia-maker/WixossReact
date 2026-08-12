@@ -120,9 +120,11 @@ function consumeField(state: PlayerState, field: TurnScopedPlayerStateField): Pl
 }
 
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
-export function clearTurnEndScopedState(state: PlayerState): PlayerState {
+export function clearTurnEndScopedState(state: PlayerState, opts?: { active?: boolean }): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
-  const reset = resetBoundary(state, 'turn-end');
+  let reset = resetBoundary(state, 'turn-end');
+  // `active` ＝この state の持ち主のターンが終わる側。'turn-end-active' はここでだけ失効させる。
+  if (opts?.active) reset = resetBoundary(reset, 'turn-end-active');
   // safety は戻り値の最終段に置く。呼び出し側の古い値を spread し直して復活させない。
   return { ...reset, life_crashed_last_turn: lifeCrashedLastTurn };
 }
