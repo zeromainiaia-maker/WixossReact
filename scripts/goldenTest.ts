@@ -17463,51 +17463,38 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       triggerCtxFor(map), cardNum, state, other, 'host', { placedByEffect: true, sourceIsSigni: false },
     ).entries;
 
-  // この5効果の live REARRANGE_SIGNI は外部ゾーンを一切読まず、場の既存2体の位置だけを交換する。
-  // したがって配置検出は0件で、ON_PLAY collector の入口自体が発生しない。死 BLOCK だけを除去する。
-  const fieldOnlyRearranges: Array<[string, string, 'energy' | 'trash']> = [
-    ['WX25-P1-059', 'WX25-P1-059-E1', 'energy'],
-    ['WX25-P2-058', 'WX25-P2-058-E1', 'energy'],
-    ['WX26-CP1-085', 'WX26-CP1-085-SONG', 'energy'],
-    ['WXDi-P12-043', 'WXDi-P12-043-E2', 'energy'],
-    ['WXDi-P14-058', 'WXDi-P14-058-E2', 'trash'],
+  // 続き446 でここは「外部ゾーンを読まないので配置が起きず、消費されない suppressOnPlay を付けるな」と固定していた。
+  // 続き449 で**外部ゾーン交換を実装した**ため、その前提は4効果について成立しなくなった（＝テストを実態へ更新する）。
+  // ⚠**弱めてはいけない**＝残す不変条件は2つ。(1) 死 actionId 'ON_PLAY_ABILITY' は復活させない
+  // (2) **suppressOnPlay は消費経路とセットでしか置かない**＝外部ゾーン交換（swapSourceLocation が energy/trash）
+  //    のときだけ許す。消費経路は BattleScreen の REARRANGE resume が swapSourceLocation を見て
+  //    collectBoardDiffTriggers へ suppressOnPlay を渡す形（BattleScreen.tsx:5262 付近 → triggerCollect.ts:345）。
+  //    場内交換のままフラグだけ付けると、続き446 と同じ「消費されない死フラグ」に戻るのでここで落とす。
+  // 実際の移動（場外→場／押し出し→場外／総枚数保存）は「§6.4 zone swap E2E」側で固定している。
+  const rearrangeOnPlaySuppression: Array<[string, string, 'external' | 'field-only']> = [
+    ['WX25-P1-059', 'WX25-P1-059-E1', 'external'],
+    ['WX26-CP1-085', 'WX26-CP1-085-SONG', 'external'],
+    ['WXDi-P12-043', 'WXDi-P12-043-E2', 'external'],
+    ['WXDi-P14-058', 'WXDi-P14-058-E2', 'external'],
+    // 据置＝原文にはアタック終了時・《アイヤイ★クイーン》条件もあり、交換節だけの部分採用はしない（続き449）。
+    ['WX25-P2-058', 'WX25-P2-058-E1', 'field-only'],
   ];
-  for (const [cardNum, effectId, externalZone] of fieldOnlyRearranges) {
-    test(`§6.4 ${effectId}: 通常REARRANGE_SIGNIは外部配置もON_PLAY発火もせず死BLOCKだけ除去`, () => withSavedCursor(() => {
+  for (const [cardNum, effectId, mode] of rearrangeOnPlaySuppression) {
+    test(`§6.4 ${effectId}: 死BLOCKは復活させず、suppressOnPlay は消費経路とセットでのみ持つ`, () => withSavedCursor(() => {
       const effect = effectOfOnPlaySuppression(cardNum, effectId);
       const json = JSON.stringify(effect.action);
       ok(!json.includes('ON_PLAY_ABILITY'), `${effectId}: 死 BLOCK_ACTION が残存`);
-      ok(!json.includes('suppressOnPlay'), `${effectId}: 消費されないフラグへ置換してはいけない`);
-
-      const incoming = onPlaySigniAtLevel(1);
-      const first = fresh(), second = fresh();
-      const ctx = { ...mkCtx({ signi: [cardNum, first, second] }, {}, cardNum), isOwnerTurn: true } as ExecCtx;
-      ctx.ownerState.energy = [...cardMap.values()]
-        .filter(c => c.Color === '緑' && c.CardNum !== cardNum).slice(0, 3).map(c => c.CardNum);
-      ctx.otherState = mkState({ signi: [fresh(), fresh(), null] });
-      if (externalZone === 'energy') ctx.otherState.energy = [incoming];
-      else ctx.otherState.trash = [incoming];
-      const beforeOwner = ctx.ownerState;
-      const beforeOther = ctx.otherState;
-      let result = executeEffect(effect, ctx);
-      if (!result.done && result.pending.type === 'CHOOSE') {
-        const pay = result.pending.options.find(o => o.id === 'pay' && o.available !== false);
-        ok(!!pay, `${effectId}: 任意コストを支払える`);
-        result = resumeOptionalCost(pay!.id, result.ownerState.energy.slice(0, pay!.costColors?.length ?? 0), result.pending, {
-          ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
-        });
+      const hasSuppress = json.includes('"suppressOnPlay":true');
+      const hasExternal = json.includes('"swapSourceLocation":"energy"') || json.includes('"swapSourceLocation":"trash"');
+      if (mode === 'external') {
+        ok(hasExternal, `${effectId}: 外部ゾーン交換として構造化されている`);
+        ok(hasSuppress, `${effectId}: 原文の「この方法で場に出たシグニの【出】能力は発動しない」を保持`);
+      } else {
+        ok(!hasExternal, `${effectId}: 据置＝外部ゾーン交換にしない`);
+        ok(!hasSuppress, `${effectId}: 消費経路が無いのに抑止フラグを置かない`);
       }
-      if (!result.done) {
-        ok(result.pending.type === 'REARRANGE_SIGNI', `${effectId}: REARRANGE_SIGNI pending`);
-        if (result.pending.type !== 'REARRANGE_SIGNI') throw new Error('REARRANGE_SIGNI expected');
-        result = resumeRearrangeSigni([result.pending.signiNums[0]], result.pending, {
-          ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
-        });
-      }
-      eq(detectPlacedSigni(beforeOwner, result.ownerState).length, 0, `${effectId}: 自分側の新規配置0`);
-      eq(detectPlacedSigni(beforeOther, result.otherState).length, 0, `${effectId}: 相手側の新規配置0`);
-      const externalAfter = externalZone === 'energy' ? result.otherState.energy : result.otherState.trash;
-      ok(externalAfter.includes(incoming), `${effectId}: 外部ゾーン札は読まれず残る`);
+      // 不変条件：抑止フラグは消費経路（外部ゾーン交換）が無いところに現れてはいけない
+      ok(!hasSuppress || hasExternal, `${effectId}: 消費されない suppressOnPlay を置いてはいけない`);
     }));
   }
 
