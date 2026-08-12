@@ -8509,7 +8509,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       if (emptyZones.length >= 2 && (owner === 'self' || owner === 'opponent')) {
         const ctxAfterRemove = setOwnerState(owner, newS, ctx);
-        return needsInteraction(ctxAfterRemove, { type: 'SELECT_SIGNI_ZONE', cardNum, owner, ...(asDown ? { asDown } : {}) });
+        return needsInteraction(ctxAfterRemove, { type: 'SELECT_SIGNI_ZONE', cardNum, owner, ...(asDown ? { asDown } : {}),
+          // §6.4 O-2: 明示指定のときだけ相手応答（既定＝従来どおり効果オーナーがゾーンを選ぶ）
+          ...((action as AddToFieldAction).opponentSelectsZone ? { opponentResponds: true } : {}) });
       }
       // 空きゾーン1つのみ: 自動配置
       signi[emptyZones[0].i] = [cardNum];
