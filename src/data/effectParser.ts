@@ -35,6 +35,7 @@ import type {
   SearchAction,
   AddToFieldAction,
   DrawAction,
+  RevealUntilAction,
 } from '../types/effects';
 
 /**
@@ -3825,6 +3826,9 @@ function isOnPlayAbilityBlock(a: EffectAction): boolean {
 // 与えられたアクションが配置アンカーなら suppressOnPlay を立てて返す。アンカーでなければ null。
 function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
   if (a.type === 'ADD_TO_FIELD') return { ...(a as AddToFieldAction), suppressOnPlay: true };
+  if (a.type === 'REVEAL_UNTIL' && a.hit?.destination === 'field') {
+    return { ...a, hit: { ...a.hit, suppressOnPlay: true } };
+  }
   if (a.type === 'REVEAL_UNTIL_TO_FIELD') return { ...(a as import('../types/effects').RevealUntilToFieldAction), suppressOnPlay: true };
   if (a.type === 'LOOK_PICK_CHAIN') {
     const lpc = a as import('../types/effects').LookPickChainAction;
@@ -6756,6 +6760,168 @@ function applyResultConditionalWave3(cardNum: string, effects: CardEffect[]): vo
   }
 }
 
+type StructuredRevealFold = {
+  action: RevealUntilAction;
+  remove: 'pickHand' | 'pickField' | 'levelCountHand' | 'bottomOnly' | 'none';
+  removeOnPlayBlock?: boolean;
+};
+
+/**
+ * 「～まで公開」の停止条件と公開札の行き先を、限定を含めて一つの構造へ載せる。
+ * この関数だけが原文文型を読み、engine は生成済み JSON のみを消費する。
+ */
+function structuredRevealFoldForText(text: string): StructuredRevealFold | null {
+  const levelStory = text.match(/レベル([０-９\d]+)の＜([^＞]+)＞のシグニが([０-９\d]+)枚めくれるまで公開(してもよい|する)/);
+  if (levelStory) {
+    const filter: TargetFilter = { cardType: 'シグニ', level: parseNum(levelStory[1]), story: levelStory[2] };
+    return {
+      action: {
+        type: 'REVEAL_UNTIL', owner: 'self',
+        stopCondition: { kind: 'signiCount', count: parseNum(levelStory[3]), filter },
+        restDestination: 'trash', optional: levelStory[4] === 'してもよい',
+      },
+      remove: 'none',
+    };
+  }
+
+  const levelCount = text.match(/レベル([０-９\d]+)のシグニが([０-９\d]+)枚めくれるまで公開する/);
+  if (levelCount && /それらを手札に加え、残りをシャッフルしてデッキの一番下に置く/.test(text)) {
+    const filter: TargetFilter = { cardType: 'シグニ', level: parseNum(levelCount[1]) };
+    return {
+      action: {
+        type: 'REVEAL_UNTIL', owner: 'self',
+        stopCondition: { kind: 'signiCount', count: parseNum(levelCount[2]), filter },
+        hit: { filter, count: 'ALL', destination: 'hand' },
+        restDestination: 'deck_bottom_shuffled',
+      },
+      remove: 'levelCountHand',
+    };
+  }
+
+  const levelSum = text.match(/公開されたシグニのレベルの合計が([０-９\d]+)以上になるまで公開する/);
+  if (levelSum) {
+    const handPick = text.match(/その中からシグニを([０-９\d]+)枚まで手札に加え、残りをトラッシュに置く/);
+    const shuffledBottom = /公開したカードをシャッフルしてデッキの一番下に置く/.test(text);
+    return {
+      action: {
+        type: 'REVEAL_UNTIL', owner: 'self',
+        stopCondition: { kind: 'levelSum', threshold: parseNum(levelSum[1]), filter: { cardType: 'シグニ' } },
+        ...(handPick ? { hit: { filter: { cardType: 'シグニ' }, count: parseNum(handPick[1]), upToCount: true, destination: 'hand' as const } } : {}),
+        restDestination: handPick ? 'trash' : shuffledBottom ? 'deck_bottom_shuffled' : 'trash',
+      },
+      remove: handPick ? 'pickHand' : shuffledBottom ? 'bottomOnly' : 'none',
+    };
+  }
+
+  const declaredLevel = text.match(/宣言した数字と同じレベルを持つ＜([^＞]+)＞のシグニがめくれるまで公開し、それを手札に加える/);
+  if (declaredLevel) {
+    const filter: TargetFilter = { cardType: 'シグニ', story: declaredLevel[1], levelEqDeclaredNumber: true };
+    return {
+      action: {
+        type: 'REVEAL_UNTIL', owner: 'self',
+        stopCondition: { kind: 'signiCount', count: 1, filter },
+        hit: { filter, count: 'ALL', destination: 'hand' },
+        restDestination: 'deck_bottom_shuffled',
+      },
+      remove: 'bottomOnly',
+    };
+  }
+
+  if (/宣言したカードがめくれるまで公開する/.test(text)
+      && /そのシグニを場に出し、残りをトラッシュに置く/.test(text)) {
+    const suppressOnPlay = /この方法で場に出たシグニの【出】能力は発動しない/.test(text);
+    const filter: TargetFilter = { cardType: 'シグニ', nameEqDeclaredName: true };
+    return {
+      action: {
+        type: 'REVEAL_UNTIL', owner: 'self',
+        stopCondition: { kind: 'declaredName', filter: { cardType: 'シグニ' } },
+        hit: { filter, count: 'ALL', destination: 'field', ...(suppressOnPlay ? { suppressOnPlay: true } : {}) },
+        restDestination: 'trash',
+      },
+      remove: 'pickField', removeOnPlayBlock: suppressOnPlay,
+    };
+  }
+
+  if (/デッキの上からシグニがめくれるまで公開する/.test(text)
+      && /そのシグニを場に出し、この方法で公開されたカードをトラッシュに置く/.test(text)) {
+    const filter: TargetFilter = { cardType: 'シグニ' };
+    return {
+      action: {
+        type: 'REVEAL_UNTIL', owner: 'self',
+        stopCondition: { kind: 'signiCount', count: 1, filter },
+        hit: { filter, count: 'ALL', destination: 'field' },
+        restDestination: 'trash',
+      },
+      remove: 'pickField',
+    };
+  }
+  return null;
+}
+
+function countLegacyRevealNodes(action: EffectAction): number {
+  if (action.type === 'STUB' && (action.id === 'DECK_REVEAL_UNTIL' || action.id === 'REVEAL_AND_PICK')) return 1;
+  if (action.type === 'SEQUENCE') return action.steps.reduce((n, step) => n + countLegacyRevealNodes(step), 0);
+  if (action.type === 'CONDITIONAL') return countLegacyRevealNodes(action.then) + (action.else ? countLegacyRevealNodes(action.else) : 0);
+  if (action.type === 'CHOOSE') return action.choices.reduce((n, choice) => n + countLegacyRevealNodes(choice.action), 0);
+  return 0;
+}
+
+function replaceFirstLegacyReveal(action: EffectAction, replacement: RevealUntilAction, state: { done: boolean }): EffectAction {
+  if (!state.done && action.type === 'STUB' && (action.id === 'DECK_REVEAL_UNTIL' || action.id === 'REVEAL_AND_PICK')) {
+    state.done = true;
+    return replacement;
+  }
+  if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(step => replaceFirstLegacyReveal(step, replacement, state)) };
+  if (action.type === 'CONDITIONAL') return {
+    ...action,
+    then: replaceFirstLegacyReveal(action.then, replacement, state),
+    ...(action.else ? { else: replaceFirstLegacyReveal(action.else, replacement, state) } : {}),
+  };
+  if (action.type === 'CHOOSE') return {
+    ...action,
+    choices: action.choices.map(choice => ({ ...choice, action: replaceFirstLegacyReveal(choice.action, replacement, state) })),
+  };
+  return action;
+}
+
+function removeStructuredRevealConsequence(action: EffectAction, fold: StructuredRevealFold): EffectAction | null {
+  if (action.type === 'STUB') {
+    if (fold.remove === 'pickHand' && action.id === 'REVEAL_PICK_HAND_SHUFFLE_BOTTOM') return null;
+    if (fold.remove === 'pickField' && action.id === 'REVEAL_PICK_PLAY') return null;
+    if (fold.remove === 'bottomOnly' && action.id === 'LOOK_OPP_LIFE_TOP') return null;
+  }
+  if (fold.remove === 'levelCountHand' && action.type === 'UNKNOWN'
+      && /それらを手札に加え、残りをシャッフルしてデッキの一番下に置く/.test(action.raw)) return null;
+  if (fold.remove === 'bottomOnly' && action.type === 'LOOK_AND_REORDER'
+      && action.count === 0 && action.destination?.location === 'deck' && action.destination.position === 'bottom') return null;
+  if (fold.removeOnPlayBlock && isOnPlayAbilityBlock(action)) return null;
+  if (action.type === 'SEQUENCE') {
+    const steps = action.steps.map(step => removeStructuredRevealConsequence(step, fold)).filter((step): step is EffectAction => !!step);
+    return { ...action, steps };
+  }
+  if (action.type === 'CONDITIONAL') {
+    const then = removeStructuredRevealConsequence(action.then, fold) ?? { type: 'SEQUENCE', steps: [] };
+    const otherwise = action.else ? removeStructuredRevealConsequence(action.else, fold) : null;
+    return { ...action, then, ...(otherwise ? { else: otherwise } : {}) };
+  }
+  if (action.type === 'CHOOSE') return {
+    ...action,
+    choices: action.choices.map(choice => ({
+      ...choice,
+      action: removeStructuredRevealConsequence(choice.action, fold) ?? { type: 'SEQUENCE', steps: [] },
+    })),
+  };
+  return action;
+}
+
+function foldStructuredRevealUntil(text: string, parsed: EffectAction): EffectAction {
+  const fold = structuredRevealFoldForText(text);
+  // 木の形もガードに使う。対応する旧公開アンカーが一つだけの効果にしか一般化を適用しない。
+  if (!fold || countLegacyRevealNodes(parsed) !== 1) return parsed;
+  const replaced = replaceFirstLegacyReveal(parsed, fold.action, { done: false });
+  return removeStructuredRevealConsequence(replaced, fold) ?? parsed;
+}
+
 function parseActionText(text: string): EffectAction {
   // 引用内の複合【常】「あなたの他のシグニは<耐性節>、それらのパワーを±Nする」。
   // rawText は外側 GRANT_FIELD_SIGNI_ABILITY の組み立て後に parseBlock で単独再パースされるため、
@@ -6799,6 +6965,7 @@ function parseActionText(text: string): EffectAction {
             applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))));
   const parse = (source: string): EffectAction => applySelectedTargetTrashReplacement(source, parseBase(source));
   let parsed = parse(text);
+  parsed = foldStructuredRevealUntil(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {

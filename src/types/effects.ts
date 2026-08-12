@@ -152,6 +152,7 @@ export interface Variable {
 
 // 数値または変数参照。last_processed_count は、直前に処理したカードのうち
 // filter に一致する枚数だけを参照できる（例：「この方法で捨てた青のカードと同じ枚数」）。
+// center_lrig_level は自分のセンタールリグの現在の表記レベルを参照する。
 export type NumberOrRef = number | { $ref: string; filter?: TargetFilter };
 
 export interface CountFromZone {
@@ -860,6 +861,7 @@ export type EffectAction =
   | GrantAcceHostAbilityAction
   | GrantSoulHostAbilityAction
   | RevealUntilBanishSameLevelAction
+  | RevealUntilAction
   | RevealUntilToHandAction
   | RevealUntilToFieldAction
   | PlaceLrigsUnderCenterAction
@@ -1103,6 +1105,8 @@ export interface PlaceSigniOnFieldAction {
   cardNums: string[];        // 場に出すカード（デッキ/トラッシュ等から。applyDirectActionが現領域から除去）
   asDown?: boolean;          // ダウン状態で出す
   afterAction?: EffectAction; // 全カード配置後に実行（SHUFFLE_DECK 等）
+  /** 全配置完了後に復元する公開snapshot。配置対象だけの一時 lastProcessedCards と区別する。 */
+  lastProcessedCardsAfter?: string[];
 }
 
 // トラッシュ・エナ・ライフクロスなど任意の場所から手札へ移動
@@ -1387,11 +1391,53 @@ export interface RevealUntilBanishSameLevelAction {
   banishOwner: Owner;      // バニッシュ対象のオーナー（通常 opponent）
 }
 
+/**
+ * 「～がめくれるまで／公開されたレベル合計がN以上になるまで」の停止条件。
+ * engine はこの構造だけを読み、EffectText/BurstText を実行時に再parseしない。
+ */
+export type RevealUntilStopCondition =
+  | { kind: 'signiCount'; count: number; filter?: TargetFilter }
+  | { kind: 'levelSum'; threshold: number; filter?: TargetFilter }
+  | { kind: 'declaredName'; filter?: TargetFilter };
+
+export type RevealUntilDestination =
+  | 'hand'
+  | 'field'
+  | 'trash'
+  | 'deck_bottom'
+  | 'deck_bottom_shuffled';
+
+export interface RevealUntilHitSpec {
+  filter?: TargetFilter;
+  count: number | 'ALL';
+  upToCount?: boolean;
+  destination: RevealUntilDestination;
+  /** destination:'field' 限定。この方法で場に出たシグニ自身の【出】を抑止する。 */
+  suppressOnPlay?: boolean;
+}
+
+/**
+ * デッキを構造化された停止条件まで公開し、選んだ札と残りの行き先を明示して処理する。
+ * hit 省略時は公開札すべてを restDestination へ送る。lastProcessedCards は常に公開札全体。
+ */
+export interface RevealUntilAction {
+  type: 'REVEAL_UNTIL';
+  owner: Owner;
+  stopCondition: RevealUntilStopCondition;
+  hit?: RevealUntilHitSpec;
+  restDestination: RevealUntilDestination;
+  optional?: boolean;
+  /** optional の「公開しない」選択肢が使う実行時専用フラグ。生成JSONには出さない。 */
+  _skip?: boolean;
+}
+
 // デッキ上から指定クラスのシグニがめくれるまで公開し、そのシグニを手札に加え、公開した他のカードを処理する（WX04-050）。
 export interface RevealUntilToHandAction {
   type: 'REVEAL_UNTIL_TO_HAND';
   owner: Owner;            // 公開するデッキの持ち主（通常 self）
   revealClass?: string;    // めくり続ける対象シグニの＜クラス＞（省略=任意のシグニ）
+  // 新規データは stopCondition を使う。省略時は revealClass を signiCount{count:1} へ正規化して後方互換を保つ。
+  stopCondition?: RevealUntilStopCondition;
   restDest: 'deck_bottom_shuffled' | 'deck_bottom' | 'trash'; // 公開した他のカードの行き先
 }
 
@@ -2085,6 +2131,8 @@ export interface SetCardCostReplacementAction {
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
+  numberChoices?: number[];
   /** TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 能力選択CHOOSEを跨いで保持する発動元シグニ。 */
   eichiAbilitySourceCardNum?: string;
   /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */

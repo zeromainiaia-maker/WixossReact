@@ -143,6 +143,10 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   }
   if (n.$ref === 'last_processed_level') return maxCardLevel(ctx.lastProcessedCards, ctx);
   if (n.$ref === 'stored_target_level') return maxCardLevel(ctx.storedTargetCards, ctx);
+  if (n.$ref === 'center_lrig_level') {
+    const center = ctx.ownerState.field.lrig.at(-1);
+    return center ? (Number.parseInt(ctx.cardMap.get(getCardNum(center))?.Level ?? '0', 10) || 0) : 0;
+  }
   console.warn(`[effectExecutor] unknown numeric ref: ${n.$ref}`);
   return 0;
 }

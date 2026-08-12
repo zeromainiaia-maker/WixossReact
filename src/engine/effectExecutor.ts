@@ -2299,7 +2299,8 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
 // continuation にチェーンして順次解決する（複数枚の場出しでカードが消失しないようにする）。
 function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAction, ctx: ExecCtx): ExecResult {
   if (a.cardNums.length === 0) {
-    return a.afterAction ? executeAction(a.afterAction, ctx) : done(ctx);
+    const completed = a.lastProcessedCardsAfter ? { ...ctx, lastProcessedCards: a.lastProcessedCardsAfter } : ctx;
+    return a.afterAction ? executeAction(a.afterAction, completed) : done(completed);
   }
   const [head, ...rest] = a.cardNums;
   const placeAction: AddToFieldAction = { type: 'ADD_TO_FIELD', owner: a.owner, ...(a.asDown ? { asDown: a.asDown } : {}) };
@@ -2307,6 +2308,7 @@ function execPlaceSigniOnField(a: import('../types/effects').PlaceSigniOnFieldAc
     type: 'PLACE_SIGNI_ON_FIELD', owner: a.owner, cardNums: rest,
     ...(a.asDown ? { asDown: a.asDown } : {}),
     ...(a.afterAction ? { afterAction: a.afterAction } : {}),
+    ...(a.lastProcessedCardsAfter ? { lastProcessedCardsAfter: a.lastProcessedCardsAfter } : {}),
   };
   const result = applyDirectAction(placeAction, head, ctx);
   if (!result.done) {
@@ -5243,21 +5245,172 @@ function execRevealUntilBanishSameLevel(
   return selectOrInteract(cands, 1, false, scope, banishAction, undefined, logged);
 }
 
+function revealUntilStopIndex(
+  stop: import('../types/effects').RevealUntilStopCondition,
+  owner: Owner,
+  ctx: ExecCtx,
+): { endIndex: number; matched: boolean } {
+  const state = ownerState(owner, ctx);
+  const ownerSt = owner === 'self' ? ctx.ownerState : ctx.otherState;
+  const otherSt = owner === 'self' ? ctx.otherState : ctx.ownerState;
+  const resolvedFilter = resolveDynamicFilter(
+    stop.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards,
+    ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+  );
+  let matchingCount = 0;
+  let levelSum = 0;
+  for (let i = 0; i < state.deck.length; i++) {
+    const card = ctx.cardMap.get(getCardNum(state.deck[i]));
+    const filterOk = !resolvedFilter || matchesFilter(card, resolvedFilter);
+    if (stop.kind === 'declaredName') {
+      if (ownerSt.declared_card_name && card?.CardName === ownerSt.declared_card_name && filterOk) {
+        return { endIndex: i, matched: true };
+      }
+      continue;
+    }
+    if (card?.Type !== 'シグニ' || !filterOk) continue;
+    if (stop.kind === 'signiCount') {
+      matchingCount++;
+      if (matchingCount >= stop.count) return { endIndex: i, matched: true };
+    } else {
+      levelSum += Number.parseInt(card.Level ?? '0', 10) || 0;
+      if (levelSum >= stop.threshold) return { endIndex: i, matched: true };
+    }
+  }
+  return { endIndex: state.deck.length - 1, matched: false };
+}
+
+function moveRevealedDirect(
+  owner: Owner,
+  cards: string[],
+  destination: import('../types/effects').RevealUntilDestination,
+  ctx: ExecCtx,
+): ExecCtx {
+  if (cards.length === 0) return ctx;
+  const state = ownerState(owner, ctx);
+  // CardNum が同じテスト札も「公開した枚数分だけ」抜く。Set/filter だと未公開の同名札まで消える。
+  const deck = [...state.deck];
+  for (const cardNum of cards) {
+    const index = deck.indexOf(cardNum);
+    if (index >= 0) deck.splice(index, 1);
+  }
+  const ordered = destination === 'deck_bottom_shuffled' ? shuffle([...cards]) : cards;
+  if (destination === 'hand') return setOwnerState(owner, { ...state, deck, hand: [...state.hand, ...cards] }, ctx);
+  if (destination === 'trash') return setOwnerState(owner, { ...state, deck, trash: [...state.trash, ...cards] }, ctx);
+  if (destination === 'deck_bottom' || destination === 'deck_bottom_shuffled') {
+    return setOwnerState(owner, { ...state, deck: [...deck, ...ordered] }, ctx);
+  }
+  return ctx;
+}
+
+function revealUntilThenAction(
+  hit: import('../types/effects').RevealUntilHitSpec,
+  owner: Owner,
+): EffectAction | null {
+  if (hit.destination === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
+  if (hit.destination === 'field') {
+    return { type: 'ADD_TO_FIELD', owner, ...(hit.suppressOnPlay ? { suppressOnPlay: true } : {}) } as EffectAction;
+  }
+  if (hit.destination === 'trash') {
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner, count: 1 } } as EffectAction;
+  }
+  return null;
+}
+
+/**
+ * REVEAL_UNTIL: 停止条件・ヒット札・残りの行き先をJSONだけから解決する。
+ * EffectText/BurstText は参照しない。公開集合全体を lastProcessedCards に残す。
+ */
+function execRevealUntil(a: import('../types/effects').RevealUntilAction, ctx: ExecCtx): ExecResult {
+  if (a._skip) return done({ ...ctx, lastProcessedCards: [] });
+  if (a.optional) {
+    const perform = { ...a, optional: false } as import('../types/effects').RevealUntilAction;
+    return needsInteraction(addLog(ctx, 'デッキを公開するか選択'), {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'reveal', label: '公開する', action: perform, available: true },
+        { id: 'skip', label: '公開しない', action: { ...perform, _skip: true }, available: true },
+      ],
+    });
+  }
+  const state = ownerState(a.owner, ctx);
+  if (state.deck.length === 0) return done({ ...addLog(ctx, 'デッキが空のため公開しない'), lastProcessedCards: [] });
+  const stopResult = revealUntilStopIndex(a.stopCondition, a.owner, ctx);
+  const revealed = state.deck.slice(0, Math.max(0, stopResult.endIndex + 1));
+  const logged = addLog(ctx, `デッキ上${revealed.length}枚を公開`);
+  if (!a.hit) {
+    const moved = moveRevealedDirect(a.owner, revealed, a.restDestination, logged);
+    return done({ ...moved, lastProcessedCards: revealed });
+  }
+  const ownerSt = a.owner === 'self' ? ctx.ownerState : ctx.otherState;
+  const otherSt = a.owner === 'self' ? ctx.otherState : ctx.ownerState;
+  const resolvedHitFilter = resolveDynamicFilter(
+    a.hit.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards,
+    ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+  );
+  const candidates = resolvedHitFilter
+    ? revealed.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedHitFilter))
+    : [...revealed];
+  const maxPick = a.hit.count === 'ALL' ? candidates.length : Math.min(a.hit.count, candidates.length);
+  if (candidates.length === 0 || maxPick === 0) {
+    const moved = moveRevealedDirect(a.owner, revealed, a.restDestination, logged);
+    return done({ ...moved, lastProcessedCards: revealed });
+  }
+  const thenAction = revealUntilThenAction(a.hit, a.owner);
+  // デッキ下系は現在の採用効果では全件必須ALL。選択UIを挟まず、2束を構造どおり直接移動する。
+  if (!thenAction) {
+    if (a.hit.upToCount || a.hit.count !== 'ALL') {
+      return done(addLog(ctx, 'REVEAL_UNTIL: 選択式のデッキ下移動は未対応'));
+    }
+    const hitSet = new Set(candidates);
+    const rest = revealed.filter(n => !hitSet.has(n));
+    let moved = moveRevealedDirect(a.owner, rest, a.restDestination, logged);
+    moved = moveRevealedDirect(a.owner, candidates, a.hit.destination, moved);
+    return done({ ...moved, lastProcessedCards: revealed });
+  }
+  const remainder = a.restDestination === 'trash'
+    ? { location: 'trash' as const, position: 'bottom' as const }
+    : a.restDestination === 'deck_bottom' || a.restDestination === 'deck_bottom_shuffled'
+      ? { location: 'deck' as const, position: 'bottom' as const,
+          ...(a.restDestination === 'deck_bottom_shuffled' ? { shuffle: true } : {}) }
+      : null;
+  if (!remainder) return done(addLog(ctx, `REVEAL_UNTIL: 残りの行き先 ${a.restDestination} は選択式処理で未対応`));
+  let cappedPick = maxPick;
+  if (a.hit.destination === 'field') {
+    const emptyZones = state.field.signi.filter(zone => !zone || zone.length === 0).length;
+    cappedPick = Math.min(cappedPick, emptyZones);
+  }
+  if (cappedPick === 0) {
+    const moved = moveRevealedDirect(a.owner, revealed, a.restDestination, logged);
+    return done({ ...moved, lastProcessedCards: revealed });
+  }
+  return needsInteraction(logged, {
+    type: 'SEARCH', visibleCards: candidates, maxPick: cappedPick,
+    optional: a.hit.upToCount ?? false,
+    thenAction,
+    revealRemainder: { cards: revealed, ...remainder },
+    lastProcessedCardsAfter: revealed,
+  });
+}
+
 // REVEAL_UNTIL_TO_HAND: デッキ上から revealClass のシグニ（省略=任意シグニ）がめくれるまで公開し、
 // そのシグニを手札に加え、公開した他のカードを restDest（シャッフルしてデッキ下/デッキ下/トラッシュ）へ。
 function execRevealUntilToHand(a: import('../types/effects').RevealUntilToHandAction, ctx: ExecCtx): ExecResult {
   const state = ownerState(a.owner, ctx);
-  let foundIdx = -1;
-  for (let i = 0; i < state.deck.length; i++) {
-    const card = ctx.cardMap.get(state.deck[i]);
-    if (card?.Type === 'シグニ' && (!a.revealClass || (card.CardClass ?? '').includes(a.revealClass))) { foundIdx = i; break; }
-  }
-  if (foundIdx < 0) {
+  const legacyStop: import('../types/effects').RevealUntilStopCondition = {
+    kind: 'signiCount', count: 1,
+    ...(a.revealClass ? { filter: { cardType: 'シグニ', story: a.revealClass } } : {}),
+  };
+  const stop = a.stopCondition ?? legacyStop;
+  const stopResult = state.deck.length === 0
+    ? { endIndex: -1, matched: false }
+    : revealUntilStopIndex(stop, a.owner, ctx);
+  if (!stopResult.matched) {
     // 該当シグニなし：公開した全カード（=デッキ全体）を restDest へ（シャッフル）
     const newS: PlayerState = { ...state, deck: a.restDest === 'trash' ? [] : shuffle([...state.deck]),
       ...(a.restDest === 'trash' ? { trash: [...state.trash, ...state.deck] } : {}) };
     return done(addLog(setOwnerState(a.owner, newS, ctx), `デッキに${a.revealClass ? `＜${a.revealClass}＞の` : ''}シグニがなかった`));
   }
+  const foundIdx = stopResult.endIndex;
   const hit = state.deck[foundIdx];
   const revealedRest = state.deck.slice(0, foundIdx); // ヒット手前の公開カード
   const remaining = state.deck.slice(foundIdx + 1);   // 未公開の残りデッキ
@@ -6846,6 +6999,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'POWER_MODIFY_PER_TRASHED_LEVEL': return execPowerModifyPerTrashedLevel(action as import('../types/effects').PowerModifyPerTrashedLevelAction, ctx);
     case 'POWER_MODIFY_PER_CHARM':         return execPowerModifyPerCharm(action as import('../types/effects').PowerModifyPerCharmAction, ctx);
     case 'REVEAL_UNTIL_BANISH_SAME_LEVEL': return execRevealUntilBanishSameLevel(action as import('../types/effects').RevealUntilBanishSameLevelAction, ctx);
+    case 'REVEAL_UNTIL':                   return execRevealUntil(action as import('../types/effects').RevealUntilAction, ctx);
     case 'REVEAL_UNTIL_TO_HAND':           return execRevealUntilToHand(action as import('../types/effects').RevealUntilToHandAction, ctx);
     case 'REVEAL_UNTIL_TO_FIELD':          return execRevealUntilToField(action as import('../types/effects').RevealUntilToFieldAction, ctx);
     case 'GAIN_BOND':               return execGainBond(action as import('../types/effects').GainBondAction, ctx);
@@ -7332,6 +7486,7 @@ export function resumeSearch(
       cardNums: picked,
       ...((pending.thenAction as AddToFieldAction).asDown ? { asDown: true } : {}),
       ...(after ? { afterAction: after } : {}),
+      ...(pending.lastProcessedCardsAfter ? { lastProcessedCardsAfter: pending.lastProcessedCardsAfter } : {}),
     };
     return execPlaceSigniOnField(placeAll, cur);
   }

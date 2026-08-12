@@ -605,7 +605,8 @@ export function execStubPart1(
   // DECLARE_NUMBER を使うと declared_guard_restrict_level が立ち「相手がそのレベルでガードできない」
   // 過剰実行になる（GuardResponseDialog が参照する）。
   if (stub.id === 'DECLARE_NUMBER_PLAIN') {
-    const options = [1, 2, 3, 4, 5].map(n => ({
+    const choices = stub.numberChoices?.length ? [...new Set(stub.numberChoices)] : [1, 2, 3, 4, 5];
+    const options = choices.map(n => ({
       id: `numplain_${n}`, label: `${n}を宣言`,
       action: ({ type: 'STUB', id: 'SET_DECLARED_NUMBER_PLAIN', value: n } as StubAction) as EffectAction,
       available: true,

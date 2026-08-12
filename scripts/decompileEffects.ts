@@ -1272,6 +1272,8 @@ function actionJa(a?: Action, effectType?: string): string {
         ? `${ownerJa(rapOwner)}デッキの上からこの方法でトラッシュに置いたシグニのレベルと同じ枚数のカードを見て`
         : rapCnt?.$ref === 'last_processed_count'
           ? `${ownerJa(rapOwner)}デッキの上からこの方法で処理したカードと同じ枚数のカードを公開し`
+        : rapCnt?.$ref === 'center_lrig_level'
+          ? `${ownerJa(rapOwner)}デッキの上からあなたのセンタールリグのレベルと同じ枚数のカードを公開し`
         : `${ownerJa(rapOwner)}デッキ${rapCnt ? '上' + numJa(rapCnt) + '枚' : ''}を公開し`;
       // 残り（remainder）の行き先
       const rem = a.remainder;
@@ -1337,6 +1339,39 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'SET_BASE_LEVEL': {
       const thisOnlySBL = a.target?.count !== 'ALL' && (a.target?.owner === 'self' || !a.target?.owner);
       return `${a.until === 'END_OF_TURN' ? 'ターン終了時まで、' : ''}${thisOnlySBL ? 'このシグニ' : targetJa(a.target)}の基本レベルを${a.value}にする`;
+    }
+    case 'REVEAL_UNTIL': {
+      const stop = a.stopCondition;
+      const f = stop?.filter;
+      const signiJa = f?.levelEqDeclaredNumber && f?.story
+        ? `宣言した数字と同じレベルを持つ＜${f.story}＞のシグニ`
+        : typeof f?.level === 'number' && f?.story
+          ? `レベル${f.level}の＜${f.story}＞のシグニ`
+          : `${filterJa(f)}シグニ`;
+      const stopJa = stop?.kind === 'levelSum'
+        ? `公開されたシグニのレベルの合計が${stop.threshold}以上になるまで`
+        : stop?.kind === 'declaredName'
+          ? '宣言したカードがめくれるまで'
+          : `${signiJa}が${stop?.count === 1 ? '' : `${stop?.count}枚`}めくれるまで`;
+      const revealJa = `${ownerJa(a.owner)}デッキを上から${stopJa}公開${a.optional ? 'してもよい' : 'する'}`;
+      const restJa = a.restDestination === 'trash' ? 'トラッシュに置く'
+        : a.restDestination === 'deck_bottom_shuffled' ? 'シャッフルしてデッキの一番下に置く'
+        : a.restDestination === 'deck_bottom' ? 'デッキの一番下に置く'
+        : a.restDestination === 'hand' ? '手札に加える' : '場に出す';
+      if (!a.hit) return `${revealJa}。公開したカードを${restJa}`;
+      const hitFilter = a.hit.filter;
+      const hitNoun = hitFilter?.nameEqDeclaredName ? 'そのシグニ'
+        : hitFilter?.levelEqDeclaredNumber ? 'それ'
+        : a.hit.count === 'ALL' ? (stop?.kind === 'signiCount' && stop.count === 1 ? 'そのシグニ' : 'それら')
+        : `${filterJa(hitFilter)}シグニを${a.hit.count}枚${a.hit.upToCount ? 'まで' : ''}`;
+      const hitVerb = a.hit.destination === 'hand' ? '手札に加え'
+        : a.hit.destination === 'field' ? '場に出し'
+        : a.hit.destination === 'trash' ? 'トラッシュに置き'
+        : a.hit.destination === 'deck_bottom_shuffled' ? 'シャッフルしてデッキの一番下に置き'
+        : 'デッキの一番下に置き';
+      const lead = a.hit.count === 'ALL' || hitFilter?.nameEqDeclaredName || hitFilter?.levelEqDeclaredNumber
+        ? `${hitNoun}を${hitVerb}` : `その中から${hitNoun}${hitVerb}`;
+      return `${revealJa}。${lead}、残りを${restJa}${a.hit.suppressOnPlay ? '。この方法で場に出たシグニの【出】能力は発動しない' : ''}`;
     }
     case 'REVEAL_UNTIL_TO_HAND': {
       const restJa = a.restDest === 'trash' ? '残りをトラッシュに置く'
@@ -1962,7 +1997,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'DRAW_AT_TURN_END') return `このターン終了時、あなたのカードを${a.value ?? 1}枚引く（このシグニが場になくても引く）`;
       if (a.id === 'DECLARE_NUMBER') return '数字1つを宣言する';
       // DECLARE_NUMBER_PLAIN: ガード制限を伴わない汎用の数字宣言（タスク12(xlvi)(c)）
-      if (a.id === 'DECLARE_NUMBER_PLAIN') return '数字1つを宣言する';
+      if (a.id === 'DECLARE_NUMBER_PLAIN') return a.numberChoices?.length
+        ? `${[1, 2, 3, 4, 5].filter((n: number) => !a.numberChoices.includes(n)).join('・')}以外の数字1つを宣言する`
+        : '数字1つを宣言する';
       // DECLARE_PARITY_OPPONENT: 対戦相手が偶数/奇数を宣言する（declared_number に偶=0/奇=1。タスク12(l) WDK04-006）
       if (a.id === 'DECLARE_PARITY_OPPONENT') return '対戦相手は偶数か奇数かを宣言する';
       // DECK_TOP_CHECK_LEVEL_HAND: デッキトップ公開→宣言レベルのシグニなら手札へ（execStubPart2 で実装済み）

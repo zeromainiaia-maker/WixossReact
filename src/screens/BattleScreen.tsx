@@ -2846,6 +2846,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!value || typeof value !== 'object') return false;
       const action = value as Record<string, unknown>;
       if ((action.type === 'ADD_TO_FIELD' || action.type === 'REVEAL_UNTIL_TO_FIELD') && action.suppressOnPlay === true) return true;
+      if (action.type === 'REVEAL_UNTIL' && action.hit && typeof action.hit === 'object') {
+        const hit = action.hit as { destination?: unknown; suppressOnPlay?: unknown };
+        if (hit.destination === 'field' && hit.suppressOnPlay === true) return true;
+      }
       if (action.type === 'LOOK_PICK_CHAIN' && Array.isArray(action.stages)
           && action.stages.some(s => !!s && typeof s === 'object'
             && (s as { then?: string; suppressOnPlay?: boolean }).then === 'field'

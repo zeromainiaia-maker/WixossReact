@@ -1788,7 +1788,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
 
   // ---- デッキの上からN枚のカードを公開する（センタールリグレベル参照等）----
   if (t.match(/あなたのデッキの上からあなたのセンタールリグのレベルと同じ枚数のカードを公開する/)) {
-    return { type: 'STUB', id: 'DECK_REVEAL_UNTIL' } as StubAction;
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'deck', owner: 'self' },
+      count: { $ref: 'center_lrig_level' },
+      private: false,
+      reorder: false,
+      destination: { location: 'deck', owner: 'self', position: 'bottom' },
+    };
   }
 
   // ---- あなたのトラッシュからクラスのシグニを対象とし（コスト付き）手札に ----
@@ -2189,9 +2196,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
   // ---- N以外/0からNの数字を宣言する ----
-  if (t.match(/^[０0]から[０-９\d]+までの数字[１-９1-9０-９\d]*つを宣言する$/) ||
-      t.match(/^[０-９\d]+以外の数字[１-９1-9０-９\d]*つを宣言する$/))
+  if (t.match(/^[０0]から[０-９\d]+までの数字[１-９1-9０-９\d]*つを宣言する$/))
     return { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction;
+  {
+    const excluded = t.match(/^([０-９\d]+)以外の数字[１-９1-9０-９\d]*つを宣言する$/);
+    if (excluded) {
+      const denied = parseNum(excluded[1]);
+      return {
+        type: 'STUB', id: 'DECLARE_NUMBER_PLAIN',
+        numberChoices: [1, 2, 3, 4, 5].filter(n => n !== denied),
+      } as StubAction;
+    }
+  }
 
   // ---- 括弧で終わる注釈文（場合/含まれる/何もしない） ----
   if (t.match(/[）)）]$/) &&

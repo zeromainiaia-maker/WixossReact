@@ -5075,6 +5075,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P3-023": [
     {"effectId":"WX25-P3-023-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","duration":"UNTIL_OPP_TURN_END","rawText":"グロウフェイズ以外で対戦相手の効果１つによってカードが合計１枚以上対戦相手の手札に移動したとき、対戦相手の手札を１枚見ないで選び、捨てさせる。","abilities":[{"effectId":"WX25-P3-023-E2-GRANT","effectType":"AUTO","timing":["ON_HAND_ADDED"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"handOwner":"opponent","byOpponentEffect":true,"excludeGrowPhase":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"}
   ],
+  // §6.4 続き444: 公開停止を「レベル4の＜宇宙＞4枚」に限定し、任意公開と既存の4枚成立ゲートを共存させる。
+  // parser の一般文分割は「この方法で…4枚公開した場合」を IS_MY_TURN に誤解し、末尾の全公開札トラッシュも
+  // DECK_CARD 1枚へ縮退するため、この1効果だけは curated 全体を正として保持する。
+  "WXK07-031": [
+    {"effectId":"WXK07-031-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_UNTIL","owner":"self","stopCondition":{"kind":"signiCount","count":4,"filter":{"cardType":"シグニ","level":4,"story":"宇宙"}},"restDestination":"trash","optional":true},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"cardType":"シグニ","level":4,"story":"宇宙"},"operator":"eq","value":4},"then":{"type":"STUB","id":"REMOVE_SIGNI_ZONE"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
 };
 
 /**
