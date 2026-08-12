@@ -7486,7 +7486,7 @@ export function resumeSearch(
   if (pending.handOrField && picked.length > 0) {
     const ownerHF = (pending.thenAction as { owner?: Owner }).owner ?? 'self';
     const card = picked[0];
-    const hasEmptyHF = cur.ownerState.field.signi.some(z => !z || z.length === 0);
+    const hasEmptyHF = ownerState(ownerHF, cur).field.signi.some(z => !z || z.length === 0);
     const contPartsHF: EffectAction[] = [];
     for (const extra of picked.slice(1)) contPartsHF.push({ type: 'STUB', id: 'INTERNAL_PICK_TO_HAND', value: extra } as EffectAction);
     if (pending.afterAction) contPartsHF.push(pending.afterAction);
