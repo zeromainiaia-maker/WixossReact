@@ -1153,6 +1153,12 @@ export interface AddToFieldAction {
   // （engine 未参照の死アクション）を parser の foldSuppressOnPlay が配置アクションへ畳み込んだ忠実表現。
   // ADD_TO_FIELD の自身 ON_PLAY 収集経路が、このフラグを配置効果単位のゲートとして消費する。
   suppressOnPlay?: boolean;
+  /**
+   * true = 配置ゾーンの選択を**対戦相手自身**に行わせる（「対戦相手は…場に出し」）。§6.4 O-2。
+   * ⚠既定（未指定）は従来どおり効果オーナーが選ぶ。`owner:'opponent'` だけを条件に相手応答へ倒すと
+   *   既存の「相手の場に出す」効果の応答者まで変わるため、**明示フラグでのみ**切り替える。
+   */
+  opponentSelectsZone?: boolean;
 }
 
 export interface FreezeAction {
