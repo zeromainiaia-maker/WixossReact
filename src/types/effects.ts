@@ -1598,6 +1598,13 @@ export interface RevealAndPickAction {
   remainder?: { location: CardLocation; position: 'top' | 'bottom' | 'any' | 'split_top_bottom'; shuffle?: boolean };
   // 後段が「この方法で公開したカード」を参照する場合、選んで移動したカードではなく公開 snapshot 全体を残す。
   recordRevealed?: boolean;
+  /**
+   * true = 公開札を**対戦相手自身**が選ぶ（「対戦相手はデッキの上からN枚公開する。対戦相手はその中から…」）。§6.4 O-2。
+   * 通常は `owner:'opponent'` と併用する（＝相手のデッキを相手が掘る）が、両者は**独立**＝
+   * `owner` は「誰のデッキ／どこへ戻すか」、こちらは「誰がクリックするか」。
+   * ⚠engine の ExecCtx 視点は反転しない（続き411 の教訓）＝ownerState は常に効果オーナー。
+   */
+  opponentResponds?: boolean;
 }
 
 // コストなしでカードを使用する（手札・相手手札・相手トラッシュ・ルリグデッキから）
