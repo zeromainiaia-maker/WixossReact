@@ -11944,7 +11944,10 @@ function foldDeclaredNumberTopReveal(action: EffectAction, sourceText: string): 
   return { type: 'SEQUENCE', steps: [
     { type: 'STUB', id: 'DECLARE_NUMBER_PLAIN' } as StubAction,
     {
-      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, pickCount: 1, pickUpTo: true,
+      // 原文は「〜の場合、そのカードを手札に加える」＝条件が成立したら**強制**（「1枚まで」ではない）。
+      // pickUpTo:true にすると辞退できてしまい過少実行になる。不一致時は pickable=0 で
+      // execRevealAndPick の remainder 経路へ落ちるので、false でも安全（公開札はデッキ上に残る）。
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, pickCount: 1, pickUpTo: false,
       filter: { cardType: 'シグニ', levelEqDeclaredNumber: true },
       then: { type: 'ADD_TO_HAND', owner: 'self' },
       // 条件不一致なら公開しただけなので、そのカードはデッキの一番上に残る。
