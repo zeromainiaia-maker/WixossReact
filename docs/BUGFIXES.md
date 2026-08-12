@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-12（続き446） — 「【出】能力は発動しない」が engine 未参照の死アクションのままで10効果が恒久 no-op（PLAN §6.4）
+
+**🔴 バグの正体**＝原文「〜の【出】能力は発動しない」が live では `BLOCK_ACTION{target:{type:'PLAYER'}, actionId:'ON_PLAY_ABILITY'}` になっていたが、**`'ON_PLAY_ABILITY'` を読む消費地点が src に1つも無い**。リポジトリ自身が型コメントで「**engine 未参照の死アクション**」と明言していた（`types/effects.ts:1145`）。⇒ **10効果すべてが恒久 no-op＝原文が「発動しない」と書いているのに【出】が発動してしまう過剰実行**だった。⚠**既存ゲートに映らない死角**＝`npm run census:stubs` の「無言の no-op」検査は **STUB id しか見ない**ので `BLOCK_ACTION` の死 actionId は素通りし、**逆翻訳にも「【出】能力は発動しない」と正しく出る**ので原文照合でも気付けない（**逆翻訳の一致が動作の証明にならない**タイプ）。畳み込み `foldSuppressOnPlay`（`effectParser.ts:3875`）は既にあったが「配置アンカーが特定できない場合は据置」の設計で、この10効果には届いていなかった。
+
+**群A＝配置アンカーが `REARRANGE_SIGNI` の5効果**（`WX25-P1-059-E1`／`WX25-P2-058-E1`＝家族棚卸しで追加発見／`WX26-CP1-085-SONG`／`WXDi-P12-043-E2`／`WXDi-P14-058-E2`）。🔑**実測して「フラグを足さない」判断をした**＝現 live の `REARRANGE_SIGNI{swap:true}`（`swapWithLastProcessed` なし）は `execRearrangeSigni`（`effectExecutor.ts:7844`）で **`source = ctx.sourceCardNum`＝場の既存2体の位置を交換するだけ**でエナ/トラッシュを読まず新規配置を作らない＝**ON_PLAY collector に到達しない**。⇒ `suppressOnPlay` を足しても無意味なので**死 `BLOCK_ACTION` の除去のみ**（挙動不変）。📋**残る本体は別軸**＝原文「相手のシグニ1体**と相手のエナゾーン/トラッシュから**シグニ1枚を対象とし、**それらの**場所を入れ替える」に対し live は `target.count:1` の場内交換＝**入れ替え元・2対象・レベル一致条件がすべて未表現**（`WX25-P1-059`「それと同じレベルの」／`WXDi-P14-058`「それらのレベルが同じ場合」）。**二ゾーン選択・交換の新機構が要る**ため見送り（申告済み）。⭐**受け皿は既にある**＝`RearrangeSigniAction.swapWithLastProcessed`／`.suppressOnPlay` と pending の `swapSourceLocation:'deck'` は**元から存在**する（今回の型追加は `suppressSigniOnPlayThisTurn` 1つだけ）＝**外部ゾーン交換を実装すれば抑止の配線は既に通っている**。
+
+**群B＝プレイヤー全体・ターン限定2効果**（`WD14-010-E1`「アンコール－《黒》このターン、あなたのシグニの【出】能力は発動しない」／`WX11-048-E1`）。`PlayerState.suppress_signi_on_play_this_turn` を新設し、`execBlockAction`（`effectExecutor.ts:3067`）で付与、`isSigniOwnOnPlaySuppressed`（`triggerCollect.ts:397`）で消費。**配線は3経路**＝効果配置の ON_PLAY funnel（`triggerCollect.ts:353`）／人間の通常召喚（`BattleScreen.tsx:5738`）／CPU 召喚（`:10317`）。**ターン境界リセットは4箇所**（`BattleScreen.tsx:3691`／`:4123`／`:4846`／`:10617`）＝**golden にソース走査のトリップワイヤ**（`suppress_signi_on_play_this_turn: undefined` がちょうど4回）を設置。
+
+**群C＝CONTINUOUS・対戦相手・レベル限定3効果**（`WX14-023-E1` 限定なし／`WXK06-025-E1` レベル1以下／`WXDi-P16-084-E1` レベル2以下）。🔑**CONTINUOUS は `executeAction` を通らない**（続き424 の `FORCE_SIGNI_ATTACK`／続き431 の `WXDi-CP01-023` と同型の死角）ので**アクション型を直すだけでは永久に動かない**。`isSigniOnPlaySuppressedByContinuous`（`effectEngine.ts:4819`）を新設し、**印字＋付与2ストア（`granted_effects`／`granted_effects_until_opp_turn`）の3軸**を走査（続き432 の `declaredContinuousEffects` と同じ規約＝印字だけ見ると `GRANT_EFFECT` 付与時に無言で落ちる）。`matchesFilter` で**レベル限定を honor**し、`activeCondition` も評価する。⚠**`duration:'PERMANENT'` なのに action 側が `until:'END_OF_TURN'` という矛盾**も解消（原文は【常】＝恒久）。
+
+**E2E で固定した実害**＝「抑止あり＝ON_PLAY が発火しない／抑止なし＝発火する」を `collectOwnOnPlay` の実行で両方向固定。特に**レベル限定は「レベル1は抑止／レベル2は抑止されない」「レベル2は抑止／レベル3は抑止されない」**を明示（限定脱落の再発検知）。付与2ストア経由の走査も別テストで固定。
+
+**最終ゲート**＝`npm run gates` 全緑。golden **1870→1883**、census **845→843**（`BASELINE_HIGH` を843へ締め直し）、census:stubs 無言no-op 0、同型★ 0（265群）、smoke 10688 OK（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム異常0、manual field loss 0、lint 0 errors／259 warnings（増減0）、held **106枚／47群**（開始時と同じ。採用中は一時 114 まで増え、8カードをカードID単体で採用して復帰）。live の `BLOCK_ACTION{actionId:'ON_PLAY_ABILITY'}` は **14→9**（今回対象の死アクション 10→0。残9件は群B消費済み2＋群C宣言走査済み3＋スコープ外4）。
+
+**Claude 側の独立検証**＝ゲート再実行、ベースライン `eee38ea66` との全 `effects_*.json` 機械diff（**変更 effectId は10件のみ・スコープ外0・新規/削除/parseStatus変化とも0・採用漏れ0・兄弟効果の巻き添え0**）、`build:effects` 後のドリフト0、全変更24ファイルのエンコーディング検査（新規増0）、群Aの「新規配置を作らない」判断を `execRearrangeSigni` の実コードで裏取り、群Cの3軸走査とレベル限定 honor をコードで確認、リセット4箇所の実在確認。⚠**codex は `0xC0000142` で census ベースライン締め直し・held 再測・エンコーディング検査・BUGFIXES 追記を実行できず**、検証側が引き取った（**3回連続**）。
+
+**📋 副次的に見つけた要確認**＝ターン終了時の一括クリア（`BattleScreen.tsx:4846`＝`temp_power_mods`／`keyword_grants`／`blocked_actions`／`side_attack_empty_zone_damage_class` を消す経路）に **`assist_lrig_attack_min_level`（続き423）と `turn_off_zone_energy_paid_count`（続き428）が入っていない**。他3箇所には入っているので**この経路だけ取りこぼしている可能性**がある（未検証・別バッチ）。
+
 ## 2026-08-12（続き445） — `STUB{REVEAL_PICK_PLAY}` の実行時原文再parseを全廃（11効果・live 11→0・PLAN §6.4）
 
 **🔴 バグの正体**＝`STUB{REVEAL_PICK_PLAY}`（`execStubPart1.ts:3037`）は**実行時にカード全文を正規表現で読む**設計で、**live 11効果すべてが payload 空**＝構造に情報が1つも載っていなかった。ハンドラは**公開枚数（読めなければ5枚）／ピック数（読めなければ1枚）／フィルタ（「シグニなら何でも」固定）／残りの行き先（トラッシュ固定）／所有者（self 固定）の5要素すべてがハードコード**で、原文の限定は静かに落ちていた。⚠続き444 と同じく `txtRPP` は**カード全文**なので別の能力文の数字が混入しうる。**ハンドラごと削除**した。

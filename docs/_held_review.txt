@@ -15,33 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## -BLOCK_ACTION -PLAYER ［4枚］
-WX25-P1-059 WX26-CP1-085 WXDi-P12-043 WXDi-P14-058
---- WX25-P1-059
-  原文: 【起】《ターン１回》《緑×0》：対戦相手のシグニ１体と、対戦相手のエナゾーンからそれと同じレベルのシグニ１枚を対象とし、それらの場所を入れ替える。この方法で場に出たシグニの【出】能力は発動しない。【起】《緑》《無》：ターン終了時まで、このシグニは【アサシン】を得る。,-
-  - [0].action.steps[1].type = "BLOCK_ACTION"
-  - [0].action.steps[1].target.type = "PLAYER"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].actionId = "ON_PLAY_ABILITY"
-  - [0].action.steps[1].until = "END_OF_TURN"
---- WX26-CP1-085
-  原文: 【自】：あなたのターン終了時、あなたのデッキの一番上を公開する。そのカードがレベル２以下の＜プリオケ＞のシグニの場合、【エナチャージ１】をする。【歌のカケラ】：対戦相手のシグニ１体と、対戦相手のエナゾーンからシグニ１枚を対象とし、それらの場所を入れ替える。この方法で場に出たシグニの【出】能力は発動しない。,-
-  - [1].action.steps[1].type = "BLOCK_ACTION"
-  - [1].action.steps[1].target.type = "PLAYER"
-  - [1].action.steps[1].target.owner = "self"
-  - [1].action.steps[1].target.count = 1
-  - [1].action.steps[1].actionId = "ON_PLAY_ABILITY"
-  - [1].action.steps[1].until = "END_OF_TURN"
---- WXDi-P12-043
-  原文: 【出】：このターン、次にあなたがダメージを受ける場合、代わりにダメージを受けない。【出】《緑》《無》《無》：対戦相手のシグニ１体と対戦相手のエナゾーンからシグニ１枚を対象とし、それらの場所を入れ替える。この方法で場に出たシグニの【出】能力は発動しない。,-
-  - [1].action.steps[1].type = "BLOCK_ACTION"
-  - [1].action.steps[1].target.type = "PLAYER"
-  - [1].action.steps[1].target.owner = "self"
-  - [1].action.steps[1].target.count = 1
-  - [1].action.steps[1].actionId = "ON_PLAY_ABILITY"
-  - [1].action.steps[1].until = "END_OF_TURN"
-
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
@@ -92,29 +65,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.count = 1
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
-
-## +SIGNI -PLAYER ［3枚］
-WX14-023 WXDi-P16-084 WXK06-025
---- WX14-023
-  原文: 【常】：対戦相手のシグニの【出】能力は発動しない。【常】：対戦相手のシグニは、対戦相手の効果によって新たに能力を得られない。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《白》：能力を持たない対戦相手のシグニ１体を対象とし、それを手札に戻す。,：対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。
-  ~ [0].action.target.type : "PLAYER" → "SIGNI"
-  ~ [0].action.target.count : 1 → "ALL"
-  + [0].action.target.filter.cardType = "シグニ"
-  ~ [0].action.until : "END_OF_TURN" → "PERMANENT"
---- WXDi-P16-084
-  原文: 【常】：対戦相手のレベル２以下のシグニの【出】能力は発動しない。,：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
-  ~ [0].action.target.type : "PLAYER" → "SIGNI"
-  ~ [0].action.target.count : 1 → "ALL"
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.level.max = 2
-  ~ [0].action.until : "END_OF_TURN" → "PERMANENT"
---- WXK06-025
-  原文: 【常】：対戦相手のレベル１以下のシグニの【出】能力は発動しない。【自】：このシグニがアタックしたとき、正面のシグニ１体を対象とし、それをトラッシュに置いてもよい。そうした場合、対戦相手は手札からシグニ１枚を場に出してもよい。,：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
-  ~ [0].action.target.type : "PLAYER" → "SIGNI"
-  ~ [0].action.target.count : 1 → "ALL"
-  + [0].action.target.filter.cardType = "シグニ"
-  + [0].action.target.filter.level.max = 1
-  ~ [0].action.until : "END_OF_TURN" → "PERMANENT"
 
 ## -SEQUENCE ［3枚］
 WDK06-C08 WX25-P3-105 WXDi-P01-044
@@ -598,17 +548,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## -BLOCK_ACTION -SIGNI ［1枚］
-WX25-P2-058
---- WX25-P2-058
-  原文: 【自】：このシグニがアタックしたとき、そのアタック終了時、あなたの場に《アイヤイ★クイーン》がいる場合、あなたのエナゾーンからレベル２以下の＜遊具＞のシグニ１枚を対象とし、《緑》《緑》《無》を支払ってもよい。そうした場合、それと場にあるこのシグニの場所を入れ替える。それの【出】能力は発動しない。【出】：あなたの手札から＜遊具＞のシグニを２枚までエナゾーンに置
-  - [0].action.steps[2].type = "BLOCK_ACTION"
-  - [0].action.steps[2].target.type = "SIGNI"
-  - [0].action.steps[2].target.owner = "any"
-  - [0].action.steps[2].target.count = 1
-  - [0].action.steps[2].actionId = "ON_PLAY_ABILITY"
-  - [0].action.steps[2].until = "END_OF_TURN"
 
 ## +SEQUENCE +SIGNI +TRASH ［1枚］
 WXK02-022
