@@ -2298,7 +2298,10 @@ export function selectOrInteract(
       if (scope === 'both_field' && !ctx.otherState.field.signi.some(s => s?.at(-1) === n)) return true;
       if (sourceIsLrig && hasShadowLrig(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.keyword_grants_until_opp_turn)) return false;
       // シャドウ（スコープなし＝無条件、スコープ付き＝発生源カードの属性で判定。activeCondition無しのもの）
-      const scopes = getShadowScopes(n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds, ctx.otherState.keyword_grants_until_opp_turn);
+      const scopes = getShadowScopes(
+        n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds,
+        ctx.otherState.keyword_grants_until_opp_turn, ctx.otherState.field_keyword_grants_active,
+      );
       if (scopes.some(scope => evaluateShadowScope(scope, sourceCardForShadow, n, ctx.otherState, ctx.cardMap))) return false;
       // 場全体への継続シャドウ付与（GRANT_FIELD_SHADOW・同ゾーンゲート等）も評価
       const fieldScopes = getFieldGrantedShadowScopes(n, ctx.otherState, ctx.cardMap);

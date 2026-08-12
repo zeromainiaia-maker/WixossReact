@@ -37,7 +37,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -117,9 +117,10 @@ import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAtta
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
-import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, clearTurnEndScopedStateForEndingTurn, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
+import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
+import { isHandSigniPlayBlockedByPower } from '../engine/blockAction';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
@@ -3655,7 +3656,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
-        newMyState = clearTurnEndScopedStateForEndingTurn(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+        newMyState = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
           ...myEndState,
           hand: myHandEND,
           deck: myDeckPreLimit,
@@ -3667,9 +3668,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
           temp_level_mods:    [],   // UNTIL_END_OF_TURN レベル修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
-          field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
           granted_effects:    {},   // ターン内付与能力をリセット
-          blocked_actions:    [],   // ターン内封じ行動をリセット
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
           signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
@@ -3680,7 +3679,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
           prevent_next_damage_reservations: undefined,
           turn_end_mill_count: undefined,
-          prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：このターン分は消滅・「次のターンの間」は1回だけ持ち越し
           damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
           life_crash_replacements: undefined, // §6.4 ライフクラッシュ置換の宣言をリセット（このターン限定）
           turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined, // 一時レゾナ返却の残骸をリセット
@@ -3764,19 +3762,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const curAssistRFrozen = opState.field.assist_lrig_r_frozen ?? false;
         const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
         // ':NEXT_TURN' サフィックスのブロックを次のターン用に変換（サフィックス除去して残す）
-        const convertedOpBlocked = (opState.blocked_actions ?? [])
-          .filter(a => a.endsWith(':NEXT_TURN'))
-          .map(a => a.replace(':NEXT_TURN', ''));
         // UPKEEP_OR_NO_UP: 条件あり→次ターンのUPフェーズで条件未達としてルリグをアップしない
         const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
         const opNextTurnState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
-          blocked_actions: convertedOpBlocked,
-          // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
-          field_keyword_grants_active: opState.field_keyword_grants_next_turn,
-          field_keyword_grants_next_turn: undefined,
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
@@ -4064,7 +4055,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
-      let newMyState: typeof my = clearTurnEndScopedStateForEndingTurn(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      let newMyState: typeof my = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...myEndState,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
@@ -4076,14 +4067,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
         abilities_removed: [], // REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア
         keyword_abilities_removed: {}, // 指定キーワード喪失／新規獲得禁止も同じ期限でクリア
-        field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
-        blocked_actions: [], blocked_card_names: [], actions_done: [],
+        blocked_card_names: [], actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
-        prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
@@ -4123,19 +4112,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curAssistLFrozen = opState.field.assist_lrig_l_frozen ?? false;
       const curAssistRFrozen = opState.field.assist_lrig_r_frozen ?? false;
       const newSigniDown = curSigniDown.map((down, i) => down && curSigniFrozen[i]) as boolean[];
-      const convertedOpBlocked = (opState.blocked_actions ?? [])
-        .filter(a => a.endsWith(':NEXT_TURN'))
-        .map(a => a.replace(':NEXT_TURN', ''));
       const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
       const opFinalState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
-        blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
         keyword_abilities_removed: {},
-        field_keyword_grants_active: opState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
-        field_keyword_grants_next_turn: undefined,
         signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
         negate_coin_abilities: undefined,
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
@@ -4789,14 +4772,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const nextState   = activeIsHost ? guestState : hostState;
 
           // アクティブプレイヤーの一時状態をクリア
-          const clearedActive: typeof activeState = clearTurnEndScopedStateForEndingTurn({
+          const clearedActive: typeof activeState = clearTurnEndScopedState({
             ...activeState,
             temp_power_mods:    [],
             temp_level_mods:    [],
             keyword_grants:     {},
-            field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
             granted_effects:    {},
-            blocked_actions:    [],
             actions_done:       [],
             cost_modifiers: (activeState.cost_modifiers ?? []).filter((m: {until?: string}) => m.until !== 'END_OF_TURN'),
           });
@@ -4805,14 +4786,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const signiDown   = nextState.field.signi_down   ?? [false, false, false];
           const sIgniFrozen = nextState.field.signi_frozen  ?? [false, false, false];
           const newSigniDown = signiDown.map((d: boolean, i: number) => d && sIgniFrozen[i]) as boolean[];
-          const convertedBlocked = (nextState.blocked_actions ?? [])
-            .filter((a: string) => a.endsWith(':NEXT_TURN'))
-            .map((a: string) => a.replace(':NEXT_TURN', ''));
           const nextStateUpd = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
             ...nextState,
-            blocked_actions: convertedBlocked,
-            field_keyword_grants_active: nextState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
-            field_keyword_grants_next_turn: undefined,
             signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
             signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
             field: {
@@ -7343,7 +7318,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
         // Restriction チェック
         const restrictionOk = meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction);
-        if (levelOk && canFitSomewhere && restrictionOk) {
+        const printedPower = cardData.Power === '∞' ? Infinity : parseInt(cardData.Power ?? '', 10);
+        const powerBlockOk = !isHandSigniPlayBlockedByPower(my, printedPower);
+        if (levelOk && canFitSomewhere && restrictionOk && powerBlockOk) {
           actionList.push({
             label: '召喚',
             color: C.success,
@@ -7605,7 +7582,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   ): { newState: PlayerState; crashed: string | null; prevented?: boolean; crashOpponentInstead?: number } => {
     // PREVENT_DAMAGE の scope='ALL' ウィンドウ（「このターン、あなたはダメージを受けない」）＝期間内は回数無制限。
     // バリアトークンや prevent_next_damage を無駄に消費させないため、消費型の無効化より先に判定する。
-    if ((state.prevent_damage_windows ?? []).some(w => w.scope === 'ALL')) {
+    if (hasActivePreventDamageWindow(state, 'ALL')) {
       appendBattleLogs([`ダメージ無効（このターンダメージを受けない）`]);
       return { newState: state, crashed: null, prevented: true };
     }
@@ -10203,6 +10180,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const candidate = handSignis.find(({ id, card }) => {
           const lv = parseInt(card!.Level) || 0;
           if (lv > cpuLrigLevel || fieldTotal + lv > cpuLimit) return false;
+          const power = card!.Power === '∞' ? Infinity : parseInt(card!.Power ?? '', 10);
+          if (isHandSigniPlayBlockedByPower(newCpuSt, power)) return false;
           return deployLimitBlockReason({
             placingState: newCpuSt, opponentState: bs.host_state, cardNum: id,
             cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
@@ -10543,17 +10522,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
-      const cleanCpuSt: PlayerState = clearTurnEndScopedStateForEndingTurn(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      const cleanCpuSt: PlayerState = clearTurnEndScopedState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...cpuEndState,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
-        temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
+        temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, actions_done: [],
         signi_zone_blocks: undefined, // ゾーン配置禁止をクリア。トラッシュ移動ロックは funnel（予約は別フィールド）
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         life_crash_replacements: undefined,
         turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined,
-        prevent_damage_windows: advancePreventDamageWindows(cpuEndState.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(cpuEndState).lrig_granted_auto_effects,
@@ -10753,7 +10731,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opLrigHasTripleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('トリプルクラッシュ'));
         // PREVENT_DAMAGE ウィンドウ（scope='ALL' も 'LRIG' もルリグアタックのダメージを無効）＝期間内は回数無制限。
         // 消費型（バリア／prevent_next_damage／置換ミル）を無駄遣いさせないため最初に判定する。
-        if ((my.prevent_damage_windows ?? []).length > 0) {
+        if (hasActivePreventDamageWindow(my, 'LRIG')) {
           appendBattleLogs([`ルリグアタック：ダメージ無効（ダメージを受けない効果）`]);
           newMyState = { ...my, field: { ...my.field, lrig_attacked: false } };
         } else if (countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0) {

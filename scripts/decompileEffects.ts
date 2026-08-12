@@ -826,7 +826,9 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${targetJa(a.target)}を対象とし、${duration}それらは「【常】：あなたの他のシグニ${n}体を場からトラッシュに置かないかぎりアタックできない。」を得る`;
       }
       const ownerWord = a.target?.owner === 'opponent' ? '対戦相手' : a.target?.owner === 'self' ? 'あなた' : '';
-      const untilPre = a.until === 'END_OF_TURN' ? 'このターン、' : a.until === 'NEXT_TURN' ? '次のターンの間、' : a.until === 'END_OF_ATTACK' ? 'そのアタックの間、' : '';
+      const untilPre = a.until === 'END_OF_TURN' ? 'このターン、'
+        : a.until === 'NEXT_TURN' ? `次の${a.target?.owner === 'opponent' ? '対戦相手の' : 'あなたの'}ターンの間、`
+        : a.until === 'END_OF_ATTACK' ? 'そのアタックの間、' : '';
       // 完成文型（主語/肯定否定が特殊＝テンプレートを使わず直接返す）。許可系（〜できる）含む。
       const fullMap: Record<string, string> = {
         IGNORE_LRIG_TYPE: `${ownerWord}はレベル５のシグニの限定条件を無視して場に出すことができる`,
@@ -985,7 +987,8 @@ function actionJa(a?: Action, effectType?: string): string {
         ? `ランサー（パワー${a.keyword.slice('ランサー:'.length)}以下のシグニ）` : a.keyword;
       const kwBase = typeof a.keyword === 'string' ? a.keyword.replace(/^ランサー:.*/, 'ランサー') : String(a.keyword ?? '');
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
-        : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
+        : a.duration === 'NEXT_TURN'
+          ? `（次の${a.nextTurnOwner === 'opponent' ? '対戦相手の' : 'あなたの'}ターンの間）`
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）。
         // 【${kwBase}[^】]*】＝【アサシン（パワー3000以下のシグニ）】等の括弧付きキーワード変種も拾う。
@@ -1407,7 +1410,7 @@ function actionJa(a?: Action, effectType?: string): string {
     // ⚠所有者は `target.owner` ではなく `targetOwner`（型は ForceSigniAttackAction）。
     //   従来は `a.target?.owner` を見ていて常に空＝「誰のシグニが強制されるのか」が逆翻訳から落ちていた。
     case 'FORCE_SIGNI_ATTACK':
-      return `${ownerJa(a.targetOwner)}${a.infectedOnly ? '感染状態の' : ''}シグニは可能ならばアタックしなければならない`;
+      return `${a.duration === 'NEXT_TURN' ? `次の${a.targetOwner === 'opponent' ? '対戦相手の' : 'あなたの'}ターンの間、` : ''}${ownerJa(a.targetOwner)}${a.infectedOnly ? '感染状態の' : ''}シグニは可能ならばアタックしなければならない`;
     case 'COST_REDUCTION': {
       const red = Array.isArray(a.reduction) && a.reduction.length > 0
         ? a.reduction.map((e: any) => `《${e.color}×${e.count}》`).join('')
@@ -1555,8 +1558,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // 期間（このターン／次のターンの間）と範囲（あらゆるダメージ／ルリグアタックのみ）を原文どおり出す
       const whoPD = a.owner === 'opponent' ? '対戦相手' : 'あなた';
       if ((a.scope ?? (a.until === 'NEXT_TURN' ? 'LRIG' : 'ALL')) === 'LRIG')
-        return `${a.until === 'NEXT_TURN' ? '次のターンの間、' : 'このターン、'}対戦相手のルリグは${whoPD}にダメージを与えない`;
-      return `${a.until === 'NEXT_TURN' ? '次のターンの間、' : 'このターン、'}${whoPD}はダメージを受けない`;
+        return `${a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、'}対戦相手のルリグは${whoPD}にダメージを与えない`;
+      return `${a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、'}${whoPD}はダメージを受けない`;
     }
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';

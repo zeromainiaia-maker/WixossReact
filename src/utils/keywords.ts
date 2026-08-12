@@ -207,6 +207,7 @@ export function getShadowScopes(
   keywordGrants?: Record<string, string[]>,
   bonds?: string[],
   extraGrants?: Record<string, string[]>,
+  fieldKeywords?: string[],
 ): ShadowScope[] {
   const card = cardMap.get(cardNum);
   const scopes: ShadowScope[] = [];
@@ -224,6 +225,10 @@ export function getShadowScopes(
     if (scope) scopes.push(scope);
   }
   for (const kw of extraGrants?.[cardNum] ?? []) {
+    const scope = decodeShadowKeyword(kw);
+    if (scope) scopes.push(scope);
+  }
+  for (const kw of fieldKeywords ?? []) {
     const scope = decodeShadowKeyword(kw);
     if (scope) scopes.push(scope);
   }

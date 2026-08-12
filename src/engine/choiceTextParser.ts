@@ -173,9 +173,12 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
       target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', level: { min: 4 } } },
     } as TrashAction;
   }
-  // 「ルリグによってダメージを受けない」→ PREVENT_LRIG_DAMAGE_THIS_TURN
+  // 「ルリグによってダメージを受けない」→ 期間つき PREVENT_DAMAGE
   if (choiceTxt.match(/ルリグ.*ダメージを受けない|ダメージを受けない.*ルリグ/)) {
-    return ({ type: 'STUB', id: 'PREVENT_LRIG_DAMAGE_THIS_TURN' } as StubAction) as EffectAction;
+    return {
+      type: 'PREVENT_DAMAGE', owner: 'self', scope: 'LRIG',
+      until: choiceTxt.includes('次の対戦相手のターンの間') ? 'NEXT_TURN' : 'UNTIL_END_OF_TURN',
+    } as EffectAction;
   }
   // 「トラッシュから（対戦相手の選んだ）カードをライフクロスに加える」→ 近似（相手選択は省略）
   if (choiceTxt.match(/トラッシュから.*ライフクロスに加える/)) {

@@ -169,7 +169,9 @@ export interface PlayerState {
   allzone_burst_grant_until_opp_turn?: import('./effects').StubAction;
   // 次の自分のターンの間、自分の場の「すべて」のシグニ（その間に新たに出したシグニも含む）が得るキーワード（GRANT_KEYWORD duration:NEXT_TURN）
   field_keyword_grants_next_turn?: string[]; // 付与予約（発動時セット → 次の自分ターン開始時に active へ移動）
-  field_keyword_grants_active?: string[];    // 現在の自ターン中に全自シグニが得ているキーワード（自ターン終了時にクリア）
+  /** 次の対戦相手ターン用の場全体キーワード予約。現在ターン終了時に active へ移す。 */
+  field_keyword_grants_next_opp_turn?: string[];
+  field_keyword_grants_active?: string[];    // 現在のグローバルターン中に全自シグニが得ているキーワード
   // 《改造素材》がこの解決で使用された対象シグニ（instanceId）。MARK_MATERIAL_TARGET が記録し、
   // BattleScreen が ON_MATERIAL_USED（self/any_ally）発火後にクリアする（改造素材機構 Step3b）。
   material_used_targets?: string[];
@@ -193,8 +195,12 @@ export interface PlayerState {
   suppress_signi_on_play_this_turn?: boolean;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
+  // 次の自分のターン開始時に must_attack_signi へ昇格する予約
+  must_attack_signi_next_turn?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）
   must_attack_infected_only?: boolean;
+  // 次の自分のターン開始時に must_attack_infected_only へ昇格する予約
+  must_attack_infected_only_next_turn?: boolean;
   /**
    * このターン、レベルがこの値以上の**アシストルリグ**でアタックできる（`ASSIST_LRIG_ATTACK_THIS_TURN`。
    * `WX25-P1-048`「このターン、あなたはレベル１以上のアシストルリグでアタックできる」）。
@@ -271,9 +277,8 @@ export interface PlayerState {
   last_summoned_resonas?: string[];
   // ダメージ無効ウィンドウ（PREVENT_DAMAGE 効果）。期間内は回数無制限で無効化する（prevent_next_damage の1回消費とは別）。
   // scope='ALL'＝あらゆるダメージ（crashOneLife 経路も含む）／'LRIG'＝ルリグアタックのダメージのみ。
-  // expires='MY_TURN_END'＝自分のターン終了時に消滅／'NEXT_TURN_END'＝「次のターンの間」＝自ターン終了を1回だけ生き延び、
-  //   そこで 'MY_TURN_END' へ降格して相手ターンを丸ごとカバーする（相手ターン終了時は自分の状態をリセットしないため）。
-  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' }[];
+  // NEXT_TURN_START は予約（消費側は無視）→次のグローバルターン開始時に NEXT_TURN_END へ昇格→その終了時に消滅。
+  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' }[];
   // このターン、このプレイヤーのすべてのキーは能力を失う（WXK02-029 ビカム・ユー CONDITIONAL_GROW_AND_KEY_DISABLE）
   keys_abilities_disabled?: boolean;
   // このターン、次のライフバーストは2回発動する（LIFE_BURST_DOUBLE 効果）

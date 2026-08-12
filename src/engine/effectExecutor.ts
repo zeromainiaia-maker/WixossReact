@@ -19,6 +19,7 @@ export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSi
 import { collectBanishSubstitutes, collectMultiAcceLimits, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, type DeployBlockReason } from './deployLimit';
+import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
 import { hasBanishResist, decodeShadowKeyword, encodeShadowKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
@@ -3163,16 +3164,20 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}に「${a.keyword}」を付与`));
   }
   const tgt = a.target;
+  const fieldWideFilterOnly = !tgt.filter
+    || Object.keys(tgt.filter).every(key => key === 'cardType');
   // duration:NEXT_TURN かつ「あなたのすべてのシグニ」（クラス等の絞り込みなし）への付与
   // → 次の自分ターン中に存在する全シグニ（新たに出したシグニも含む）が得る場全体付与として予約する。
   // （keyword_grants へのスナップショット付与では次ターンに新規召喚したシグニに付かないため）
   if (a.duration === 'NEXT_TURN' && tgt.type === 'SIGNI' && tgt.owner === 'self' && tgt.count === 'ALL'
-      && (!tgt.filter || (!tgt.filter.story && !tgt.filter.cardClass && !tgt.filter.color
-          && !tgt.filter.level && !tgt.filter.powerRange && !tgt.filter.cardName))) {
-    const reserved = [...(ctx.ownerState.field_keyword_grants_next_turn ?? []), a.keyword];
+      && fieldWideFilterOnly) {
+    const reservationKey = a.nextTurnOwner === 'opponent'
+      ? 'field_keyword_grants_next_opp_turn'
+      : 'field_keyword_grants_next_turn';
+    const reserved = [...(ctx.ownerState[reservationKey] ?? []), a.keyword];
     return done(addLog(
-      { ...ctx, ownerState: { ...ctx.ownerState, field_keyword_grants_next_turn: reserved } },
-      `次の自分のターンの間、あなたのすべてのシグニが【${a.keyword}】を得る`));
+      { ...ctx, ownerState: { ...ctx.ownerState, [reservationKey]: reserved } },
+      `次の${a.nextTurnOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、あなたのすべてのシグニが【${a.keyword}】を得る`));
   }
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
@@ -6244,11 +6249,17 @@ function execRemoveCharm(a: RemoveCharmAction, ctx: ExecCtx): ExecResult {
 
 function execForceSigniAttack(a: ForceSigniAttackAction, ctx: ExecCtx): ExecResult {
   const s = ownerState(a.targetOwner, ctx);
-  const newS: PlayerState = { ...s, must_attack_signi: true, must_attack_infected_only: a.infectedOnly ?? false };
+  const newS: PlayerState = a.duration === 'NEXT_TURN'
+    ? {
+        ...s,
+        must_attack_signi_next_turn: true,
+        must_attack_infected_only_next_turn: a.infectedOnly ?? false,
+      }
+    : { ...s, must_attack_signi: true, must_attack_infected_only: a.infectedOnly ?? false };
   const ctx2 = setOwnerState(a.targetOwner, newS, ctx);
   const who = a.targetOwner === 'opponent' ? '対戦相手' : '自分';
   const scopeLabel = a.infectedOnly ? '感染状態の' : '';
-  return done(addLog(ctx2, `${who}の${scopeLabel}シグニは可能ならばアタックしなければならない`));
+  return done(addLog(ctx2, `${a.duration === 'NEXT_TURN' ? '次のターンの間、' : ''}${who}の${scopeLabel}シグニは可能ならばアタックしなければならない`));
 }
 
 function execPowerModifyPerTrashCount(a: PowerModifyPerTrashCountAction, ctx: ExecCtx): ExecResult {
@@ -6955,7 +6966,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // 期間中のダメージ無効ウィンドウを張る（回数無制限）。消費は BattleScreen の crashOneLife／ルリグアタック応答。
       const pd = action as import('../types/effects').PreventDamageAction;
       const scopePD = pd.scope ?? (pd.until === 'NEXT_TURN' ? 'LRIG' : 'ALL');
-      const expiresPD = pd.until === 'NEXT_TURN' ? 'NEXT_TURN_END' : 'MY_TURN_END';
+      const expiresPD = pd.until === 'NEXT_TURN' ? 'NEXT_TURN_START' : 'MY_TURN_END';
       const tgtOwnerPD: Owner = pd.owner === 'opponent' ? 'opponent' : 'self';
       const sPD = ownerState(tgtOwnerPD, ctx);
       const newSPD: PlayerState = {
@@ -8311,6 +8322,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const owner = (action as AddToFieldAction).owner;
       const asDown = (action as AddToFieldAction).asDown;
       const state = ownerState(owner, ctx);
+      const placedFromHand = state.hand.includes(cardNum);
+      if (placedFromHand) {
+        const printedPower = ctx.cardMap.get(getCardNum(cardNum))?.Power ?? '';
+        const power = printedPower === '∞' ? Infinity : parseInt(printedPower, 10);
+        if (isHandSigniPlayBlockedByPower(state, power)) {
+          return done(addLog(ctx, `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}は手札から場に出せない`));
+        }
+      }
       // 配置制限（「シグニをN体までしか場に出せない」）。⚠**元の領域から取り除く前**に弾く
       //   （取り除いてから弾くとカードが消失する）。
       {
@@ -8321,7 +8340,6 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       let newS = { ...state };
-      const placedFromHand = state.hand.includes(cardNum);
       const placedFromNonHand = state.deck.includes(cardNum) || state.trash.includes(cardNum) || state.energy.includes(cardNum);
       // 場に出すカードを現在の領域（デッキ/手札/トラッシュ/エナ）から除去する。
       // src 指定の有無に依らず、cardNum が存在する領域から取り除く（デッキ探索→場出しでデッキに残る不具合の修正）。

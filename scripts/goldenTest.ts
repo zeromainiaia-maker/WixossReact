@@ -39,7 +39,7 @@ import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNew
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
 import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
-import { applyRefresh, advancePreventDamageWindows, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
+import { applyRefresh, advancePreventDamageWindows, hasActivePreventDamageWindow, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, InstanceMap, canUseArtsCondition } from '../src/screens/battle/battleUtils';
 import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAllZoneBurstAction, hasNativeLifeBurst, resolveAllZoneBurstGrant, shouldAddGrantedAllZoneBurst } from '../src/screens/battle/allZoneBurst';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
@@ -89,7 +89,8 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, clearTurnEndScopedStateForEndingTurn, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { isHandSigniPlayBlockedByPower } from '../src/engine/blockAction';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -4139,8 +4140,8 @@ test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse 
 });
 
 // §6.4 ターン限定 PlayerState funnel（続き446の副次発見）。
-// フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外6件という集合性を固定する。
-test('§6.4 turn-scoped T1: PlayerState のターン限定30フィールドと funnel レジストリが一致', () => {
+// フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外7件という集合性を固定する。
+test('§6.4 turn-scoped T1: PlayerState のターン限定31フィールドと funnel レジストリが一致', () => {
   const typeSource = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
   const declared = [...typeSource.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map(m => m[1]);
   const convention = declared.filter(k => k.endsWith('_this_turn') || k.endsWith('_this_attack_phase'));
@@ -4149,8 +4150,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定30フィールドと f
   const irregular = registered.filter(field => !convention.includes(field));
   eq(convention.length, 24, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
-  eq(irregular.length, 6, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 30, '型由来24件＋命名規約外6件の母集団');
+  eq(irregular.length, 7, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 31, '型由来24件＋命名規約外7件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -4199,40 +4200,141 @@ test('§6.4 turn-scoped T3: PvP通常終了→次ターン開始で全turn-end�
   eq(started.signi_played_from_non_hand_this_turn, undefined, '次ターンの非手札出自は空');
 }));
 
-// §6.4 turn-scoped T5（続き447 の検証で新設）＝**相手 state に置いた強制アタックを1ターン早く消さない**。
-// `WX15-003-E3`「次のターンの間、…シグニは可能ならばアタックしなければならない」／
-// `WXDi-P08-010-E3`「次の対戦相手のターンの間、対戦相手のシグニは…」は、
-// `FORCE_SIGNI_ATTACK{targetOwner:'opponent'}` を**自分のターン中に相手 state へ即時に書き**、
-// 「自分のターン終了では消えない」ことで原文の「次のターン」を表している近似。
-// funnel を両プレイヤーへ一律に掛けると**この2効果が完全な no-op になる**ので、
-// 'turn-end-active'＝ターンが終わる側だけ失効、を固定する。
-// ⚠本来は `must_attack_signi_next_turn` 予約（`free_grow_next_turn` 等と同じ作法）へ移すべき（PLAN §6.4 に登録）。
-test('§6.4 turn-scoped T5: 強制アタックは「ターンが終わる側」だけ失効し相手側は残る', () => withSavedCursor(() => {
-  const forced = { ...mkState(), must_attack_signi: true, must_attack_infected_only: true } as PlayerState;
-  // 次ターン側（＝これから自分のターンが来る相手）の state には残さなければならない
-  const asNextTurnSide = clearTurnEndScopedState(forced);
-  eq(asNextTurnSide.must_attack_signi, true, '相手側の強制アタックは自分のターン終了で消えない');
-  eq(asNextTurnSide.must_attack_infected_only, true, '感染限定の修飾子も同じ寿命');
-  // ターンが終わる側では失効する（自分のターンが終わったら自分への強制は消える）
-  const asEndingSide = clearTurnEndScopedStateForEndingTurn(forced);
-  eq(asEndingSide.must_attack_signi, undefined, 'ターンが終わる側では失効');
-  eq(asEndingSide.must_attack_infected_only, undefined, 'ターンが終わる側では修飾子も失効');
-  // 'turn-end-active' 以外は両方の入口で同じに消える（分岐が広がっていないこと）
-  for (const [field, spec] of Object.entries(TURN_SCOPED_STATE_FIELDS)) {
-    if (!(spec.boundaries as readonly string[]).includes('turn-end')) continue;
-    eq(JSON.stringify((asNextTurnSide as unknown as Record<string, unknown>)[field]),
-      JSON.stringify((asEndingSide as unknown as Record<string, unknown>)[field]),
-      `${field}: turn-end は両入口で同じ`);
-  }
+test('§6.4 turn-scoped T5: 強制アタック予約はターン開始まで不活性で開始時に昇格する', () => withSavedCursor(() => {
+  const reserved = {
+    ...mkState(), must_attack_signi_next_turn: true, must_attack_infected_only_next_turn: true,
+  } as PlayerState;
+  const crossed = clearTurnEndScopedState(reserved);
+  eq(crossed.must_attack_signi, undefined, '発動ターン終了時点ではactiveにしない');
+  eq(crossed.must_attack_signi_next_turn, true, '予約は境界を越える');
+  const started = activateTurnStartScopedState(crossed);
+  eq(started.must_attack_signi, true, '対象ターン開始時にactiveへ昇格');
+  eq(started.must_attack_infected_only, true, '感染限定修飾子も同時に昇格');
+  eq(started.must_attack_signi_next_turn, undefined, '昇格後は予約を消費');
+  const ended = clearTurnEndScopedState(started);
+  eq(ended.must_attack_signi, undefined, '対象ターン終了時に通常のturn-endで失効');
+  eq(ended.must_attack_infected_only, undefined, '修飾子も同時に失効');
 }));
 
-// ソース走査＝'turn-end-active' に入れてよいのは、いま既知の2フィールドだけ（無自覚な追加を止める）。
-test('§6.4 turn-scoped T7: turn-end-active は既知2フィールドだけ', () => {
-  const active = Object.entries(TURN_SCOPED_STATE_FIELDS)
-    .filter(([, spec]) => (spec.boundaries as readonly string[]).includes('turn-end-active'))
-    .map(([field]) => field).sort();
-  eq(active.join('|'), ['must_attack_infected_only', 'must_attack_signi'].join('|'),
-    '寿命を延ばすのは強制アタックの2フィールドのみ');
+test('§6.4 turn-scoped T7: turn-end-active 暫定境界は完全に撤去', () => {
+  const source = fs.readFileSync(join(root, 'src/screens/battle/turnScopedState.ts'), 'utf8');
+  ok(!source.includes('turn-end-active'), '非対称近似の暫定境界を残さない');
+  for (const field of ['must_attack_signi', 'must_attack_infected_only'] as const) {
+    const spec = TURN_SCOPED_STATE_FIELDS[field];
+    ok((spec.boundaries as readonly string[]).includes('turn-end'), `${field} は通常のturn-endで失効`);
+  }
+});
+
+const nextTurnLiveAction = (cardNum: string, effectId: string): EffectAction => {
+  const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: live effect not found`);
+  return effect.action;
+};
+
+test('§6.4 NEXT_TURN WX12-Re05-E1: 発動ターンは場出し可／次相手ターンだけ12000以上を封じる', () => withSavedCursor(() => {
+  const action = nextTurnLiveAction('WX12-Re05', 'WX12-Re05-E1');
+  const applied = run(action, mkCtx({}, {}));
+  eq(JSON.stringify(applied.otherState.blocked_actions), '["PLAY_SIGNI_POWER_12000_OR_MORE:NEXT_TURN"]', '予約suffix');
+  ok(!isHandSigniPlayBlockedByPower(applied.otherState, 12000), '発動ターンには効かない');
+  const started = activateTurnStartScopedState(clearTurnEndScopedState(applied.otherState));
+  ok(isHandSigniPlayBlockedByPower(started, 12000), '次ターンは12000を封じる');
+  ok(isHandSigniPlayBlockedByPower(started, 15000), '閾値以上も封じる');
+  ok(!isHandSigniPlayBlockedByPower(started, 11999), '閾値未満は通す');
+  ok(!isHandSigniPlayBlockedByPower(clearTurnEndScopedState(started), 12000), '対象ターン終了で失効');
+  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const executorSource = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
+  eq((battleSource.match(/isHandSigniPlayBlockedByPower\(/g) ?? []).length, 2, '人間／CPUの手札召喚入口で消費');
+  eq((executorSource.match(/isHandSigniPlayBlockedByPower\(/g) ?? []).length, 1, '効果による手札場出し入口でも消費');
+  eq((battleSource.match(/blocked_actions:\s*\[\]/g) ?? []).length, 0, '予約をfunnel手前の手書きclearで落とさない');
+}));
+
+function assertNextOpponentShadow(cardNum: string, effectId: string, action: EffectAction): void {
+  const protectedSigni = SIGNI_P3000;
+  const applied = run(action, mkCtx({ signi: [protectedSigni, null, null] }, {}, cardNum));
+  eq(applied.ownerState.field_keyword_grants_active, undefined, `${effectId}: 発動ターンactiveなし`);
+  ok((applied.ownerState.field_keyword_grants_next_opp_turn ?? []).length === 1, `${effectId}: 次相手ターン予約`);
+  const targetNow = { ...mkCtx({}, {}, SIGNI), otherState: applied.ownerState } as ExecCtx;
+  const hitNow = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, targetNow);
+  eq(hitNow.otherState.field.signi[0], null, `${effectId}: 発動ターンにはシャドウが効かない`);
+  const activated = clearTurnEndScopedState(applied.ownerState);
+  ok((activated.field_keyword_grants_active ?? []).length === 1, `${effectId}: 次相手ターンにactive`);
+  const targetNext = { ...mkCtx({}, {}, SIGNI), otherState: activated } as ExecCtx;
+  const blockedNext = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, targetNext);
+  ok(blockedNext.otherState.field.signi[0] !== null, `${effectId}: 次相手ターンは対象効果をシャドウで拒否`);
+  eq(clearTurnEndScopedState(activated).field_keyword_grants_active, undefined, `${effectId}: 次相手ターン終了で失効`);
+}
+
+test('§6.4 NEXT_TURN WX15-004-E3: 全シグニのシャドウを次相手ターンだけ有効化', () => withSavedCursor(() => {
+  assertNextOpponentShadow('WX15-004', 'WX15-004-E3', nextTurnLiveAction('WX15-004', 'WX15-004-E3'));
+}));
+
+test('§6.4 NEXT_TURN WXDi-CP01-005-E3: シグニ限定シャドウを次相手ターンだけ有効化', () => withSavedCursor(() => {
+  const seq = nextTurnLiveAction('WXDi-CP01-005', 'WXDi-CP01-005-E3') as SequenceAction;
+  assertNextOpponentShadow('WXDi-CP01-005', 'WXDi-CP01-005-E3', seq.steps[1]);
+}));
+
+test('§6.4 NEXT_TURN WX26-CP1-007-E1: 選択肢3のルリグダメージ無効は次相手ターンだけ', () => withSavedCursor(() => {
+  const choose = nextTurnLiveAction('WX26-CP1-007', 'WX26-CP1-007-E1') as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const prevent = choose.choices[2].action;
+  const applied = run(prevent, mkCtx({}, {}));
+  ok(!hasActivePreventDamageWindow(applied.ownerState, 'LRIG'), '発動ターンは予約であり不活性');
+  const activated = clearTurnEndScopedState(applied.ownerState);
+  ok(hasActivePreventDamageWindow(activated, 'LRIG'), '次相手ターンに有効');
+  ok(!hasActivePreventDamageWindow(clearTurnEndScopedState(activated), 'LRIG'), '次相手ターン終了で失効');
+}));
+
+function assertNextTurnForcedAttack(cardNum: string, effectId: string, action: EffectAction): void {
+  const applied = run(action, mkCtx({}, {}, cardNum));
+  eq(applied.otherState.must_attack_signi, undefined, `${effectId}: 発動ターンactiveなし`);
+  eq(applied.otherState.must_attack_signi_next_turn, true, `${effectId}: 予約あり`);
+  const crossed = clearTurnEndScopedState(applied.otherState);
+  eq(crossed.must_attack_signi, undefined, `${effectId}: 境界直後も開始前は不活性`);
+  const activated = activateTurnStartScopedState(crossed);
+  eq(activated.must_attack_signi, true, `${effectId}: 次ターン開始時に昇格`);
+  eq(clearTurnEndScopedState(activated).must_attack_signi, undefined, `${effectId}: 次ターン終了で失効`);
+}
+
+test('§6.4 NEXT_TURN WX15-003-E3: 強制シグニアタックを次ターン開始時に昇格', () => withSavedCursor(() => {
+  assertNextTurnForcedAttack('WX15-003', 'WX15-003-E3', nextTurnLiveAction('WX15-003', 'WX15-003-E3'));
+}));
+
+test('§6.4 NEXT_TURN WXDi-P08-010-E3: 強制シグニアタックを次相手ターン開始時に昇格', () => withSavedCursor(() => {
+  const seq = nextTurnLiveAction('WXDi-P08-010', 'WXDi-P08-010-E3') as SequenceAction;
+  assertNextTurnForcedAttack('WXDi-P08-010', 'WXDi-P08-010-E3', seq.steps[0]);
+}));
+
+test('§6.4 NEXT_TURN 据置 WXDi-P11-005-E3: 無無支払い攻撃制限の受け皿なし', () => {
+  const a = nextTurnLiveAction('WXDi-P11-005', 'WXDi-P11-005-E3');
+  ok(a.type === 'BLOCK_ACTION' && a.until === 'END_OF_TURN' && a.attackCost === undefined, 'コスト付き制限を単純禁止として予約しない');
+});
+
+test('§6.4 NEXT_TURN 据置 WX05-034-BURST: 中央限定＋このターンと次ターンの二重期間', () => {
+  const a = nextTurnLiveAction('WX05-034', 'WX05-034-BURST');
+  ok(a.type === 'GRANT_KEYWORD' && a.duration === 'PERMANENT' && a.target.filter?.centerZoneOnly === true, '片側期間だけの予約を採用しない');
+});
+
+test('§6.4 NEXT_TURN 据置 WX10-036-BURST: 中央正面チャーム条件の受け皿なし', () => {
+  const a = nextTurnLiveAction('WX10-036', 'WX10-036-BURST');
+  ok(a.type === 'GRANT_KEYWORD' && a.keyword === 'チャーム' && a.duration === 'PERMANENT', '条件付きアサシンを単純予約と誤認しない');
+});
+
+test('§6.4 NEXT_TURN 据置 WXEX2-26-E3: 微菌限定＋このターンと次ターンの受け皿なし', () => {
+  const a = nextTurnLiveAction('WXEX2-26', 'WXEX2-26-E3');
+  ok(a.type === 'GRANT_KEYWORD' && a.target.count === 1 && a.target.filter?.story === '微菌', 'クラス限定二重期間を採用しない');
+});
+
+test('§6.4 NEXT_TURN 据置 WXDi-P14-070-E1: 電音部限定の場全体予約なし', () => {
+  const s = JSON.stringify(nextTurnLiveAction('WXDi-P14-070', 'WXDi-P14-070-E1'));
+  ok(s.includes('"duration":"UNTIL_OPP_TURN_END"') && !s.includes('"duration":"NEXT_TURN"'), 'filtered freshを採用しない');
+});
+
+test('§6.4 NEXT_TURN 据置 WXK05-052-E1: 相手2体＋同列シード条件の受け皿なし', () => {
+  const a = nextTurnLiveAction('WXK05-052', 'WXK05-052-E1');
+  ok(a.type === 'GRANT_KEYWORD' && a.keyword === 'シード' && a.target.owner === 'self', '誤パースをNEXT_TURN化して固定しない');
+});
+
+test('§6.4 NEXT_TURN 据置 WXDi-P16-002-E1: 複合保護を部分的ダメージ予約にしない', () => {
+  ok(!JSON.stringify(nextTurnLiveAction('WXDi-P16-002', 'WXDi-P16-002-E1')).includes('PREVENT_DAMAGE'), '複合節の一部だけ採用しない');
 });
 
 test('§6.4 turn-scoped T4: 手札調整確定後ルートで未消費free growが翌ターンへ残らない', () => withSavedCursor(() => {
@@ -10778,7 +10880,7 @@ test('COST_SUBSTITUTE: エナゾーンに無いカードには色オーバーラ
 // 「このターン、あなたはダメージを受けない」（scope=ALL）と「次のターンの間、対戦相手のルリグはあなたに
 // ダメージを与えない」（scope=LRIG・expires=NEXT_TURN_END）。従来は engine 未配線の完全no-opだった。
 // 消費側（crashOneLife／ルリグアタック応答）と境界の降格は BattleScreen 層＝実機検証対象。
-type PDWin = { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' };
+type PDWin = { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' };
 test('PREVENT_DAMAGE: ウィンドウが scope/expires つきで積まれる', () => {
   const act = { type: 'SEQUENCE', steps: [
     { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'ALL' },
@@ -10790,18 +10892,18 @@ test('PREVENT_DAMAGE: ウィンドウが scope/expires つきで積まれる', (
   eq(w[0].scope, 'ALL', '1件目はあらゆるダメージのはず');
   eq(w[0].expires, 'MY_TURN_END', '1件目は自ターン終了で消えるはず');
   eq(w[1].scope, 'LRIG', '2件目はルリグアタックのみのはず');
-  eq(w[1].expires, 'NEXT_TURN_END', '2件目は次のターンの間まで持ち越すはず');
+  eq(w[1].expires, 'NEXT_TURN_START', '2件目は次ターン開始前の予約であるはず');
 });
 
-test('PREVENT_DAMAGE: ターン境界で MY_TURN_END は消え NEXT_TURN_END は降格して残る', () => {
+test('PREVENT_DAMAGE: ターン境界で MY_TURN_END は消え NEXT_TURN_START はactiveへ昇格', () => {
   const before: PDWin[] = [
     { scope: 'ALL', expires: 'MY_TURN_END' },
-    { scope: 'LRIG', expires: 'NEXT_TURN_END' },
+    { scope: 'LRIG', expires: 'NEXT_TURN_START' },
   ];
   const after = advancePreventDamageWindows(before) ?? [];
   eq(after.length, 1, 'このターン分は消えて1件だけ残るはず');
   eq(after[0].scope, 'LRIG', '残るのはルリグ限定のウィンドウのはず');
-  eq(after[0].expires, 'MY_TURN_END', '相手ターンをカバーするため MY_TURN_END へ降格するはず');
+  eq(after[0].expires, 'NEXT_TURN_END', '次ターン中だけ消費側が読むactiveへ昇格するはず');
   eq(advancePreventDamageWindows(after), undefined, 'もう1周したら消滅するはず');
 });
 

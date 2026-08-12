@@ -148,17 +148,25 @@ export const toHalfWidth = (s: string) =>
   s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFF10 + 0x30));
 
 
-// PREVENT_DAMAGE ウィンドウのターン境界処理（自分＝ターン終了プレイヤーの状態に適用）。
-// 'MY_TURN_END'（このターンの間）は消滅し、'NEXT_TURN_END'（次のターンの間）は自ターン終了を1回だけ
-// 生き延びて 'MY_TURN_END' へ降格する＝続く相手ターンを丸ごとカバーし、その次の自ターン終了で消える。
-// （相手ターン終了時にはこちらの状態をリセットしないため、この2段構えで「次のターンの間」を表現する）
+// PREVENT_DAMAGE ウィンドウのグローバルターン境界処理（両 PlayerState に適用）。
+// NEXT_TURN_START は発動ターン中は消費側が無視する予約。境界で NEXT_TURN_END へ昇格し、
+// 続く1ターンを丸ごとカバーした次の境界で消滅する。MY_TURN_END は「このターン」なので消滅する。
 export function advancePreventDamageWindows(
-  windows: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' }[] | undefined,
-): { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_END' }[] | undefined {
+  windows: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' }[] | undefined,
+): { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' }[] | undefined {
   const next = (windows ?? [])
-    .filter(w => w.expires === 'NEXT_TURN_END')
-    .map(w => ({ ...w, expires: 'MY_TURN_END' as const }));
+    .filter(w => w.expires === 'NEXT_TURN_START')
+    .map(w => ({ ...w, expires: 'NEXT_TURN_END' as const }));
   return next.length > 0 ? next : undefined;
+}
+
+/** Reserved NEXT_TURN_START windows are inert until the turn boundary promotes them. */
+export function hasActivePreventDamageWindow(
+  state: PlayerState,
+  scope: 'ALL' | 'LRIG',
+): boolean {
+  return (state.prevent_damage_windows ?? []).some(w =>
+    w.expires !== 'NEXT_TURN_START' && (w.scope === 'ALL' || w.scope === scope));
 }
 
 /** 単体選択されたシグニに対する「パワー0以下による消滅だけ」バニッシュ先変更。 */

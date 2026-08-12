@@ -10,6 +10,7 @@ import type {
   DrawPerFieldCountAction,
   EnergyChargeFromDeckPerFieldCountAction,
   NegateAttackAction,
+  PreventDamageAction,
   PlaceUnderSigniAction,
   TakeFromUnderSigniAction,
   StubAction,
@@ -1836,6 +1837,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- センタールリグが〜の場合（汎用フォールバック）----
   if (t.match(/あなたのセンタールリグが.+の場合、(?:代わりに|追加で|この能力)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  }
+
+  // ---- 次の対戦相手のターン、対戦相手のルリグによるダメージを受けない ----
+  if (/^次の対戦相手のターンの間、あなたは対戦相手のルリグによってダメージを受けない/.test(t)) {
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'NEXT_TURN', scope: 'LRIG' } as PreventDamageAction;
   }
 
   // ---- 次の対戦相手のターン〜場に出せない（配置制限）----

@@ -1288,6 +1288,8 @@ export interface GrantKeywordAction {
   target: EffectTarget;
   keyword: string;
   duration: EffectDuration;
+  /** duration:NEXT_TURN の基準。省略時は従来どおり「次の自分のターン」。 */
+  nextTurnOwner?: 'self' | 'opponent';
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」等。選択UIを出さず同一対象に付与）
   targetsStored?: boolean;        // 対象宣言→任意コストを跨いで storedTargetCards の同一対象へ付与
   targetsTriggerSource?: boolean;  // 「このシグニ/それ」= トリガー元シグニ（ctx.triggeringCardNum → ctx.sourceCardNum）へ無選択付与（ON_ZONE_MOVED self 等）
@@ -2024,6 +2026,7 @@ export interface ForceSigniAttackAction {
   type: 'FORCE_SIGNI_ATTACK';
   targetOwner: Owner;
   infectedOnly?: boolean; // 感染状態のシグニのみを強制対象とする（WX16-047等）
+  duration?: 'NEXT_TURN'; // 省略時は即時（このターン）、NEXT_TURN は対象側 state へ予約
 }
 
 // このシグニの正面のシグニ（＝対戦相手の、このシグニと向かい合うゾーンのシグニ）は

@@ -2474,7 +2474,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (t.includes('可能ならばアタックしなければならない')) {
     const target: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const infectedOnly = t.includes('感染状態');
-    return { type: 'FORCE_SIGNI_ATTACK', targetOwner: target, ...(infectedOnly ? { infectedOnly: true } : {}) } as ForceSigniAttackAction;
+    const nextTurn = /次の(?:対戦相手の)?ターンの間/.test(t);
+    return {
+      type: 'FORCE_SIGNI_ATTACK', targetOwner: target,
+      ...(infectedOnly ? { infectedOnly: true } : {}),
+      ...(nextTurn ? { duration: 'NEXT_TURN' as const } : {}),
+    } as ForceSigniAttackAction;
   }
 
   // ---- チャーム除去 ----
@@ -2605,8 +2610,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           .find(k => !['常','出','起','自','ガード'].includes(k) && !isPossessionFilterKw(k))
       : kwM?.[1];
     if (kwM && kwGrantName && !['常','出','起','自','ガード'].includes(kwGrantName)) {
+      const nextOpponentTurn = t.includes('次の対戦相手のターンの間');
       const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
-        : (t.includes('次の対戦相手のターンの間') || t.includes('次の対戦相手のターン終了時まで')) ? 'UNTIL_OPP_TURN_END'
+        : nextOpponentTurn ? 'NEXT_TURN'
+        : t.includes('次の対戦相手のターン終了時まで') ? 'UNTIL_OPP_TURN_END'
         : 'PERMANENT';
       // ターゲット解決（エナゾーン → 全シグニ → 個別）
       const kwAllSelf = t.match(/あなたのシグニ(?:すべて|は|が)/) || t.includes('すべてのあなたのシグニ')
@@ -2722,11 +2729,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         if (runKw.length >= 2) {
           return {
             type: 'SEQUENCE',
-            steps: runKw.map(k => ({ type: 'GRANT_KEYWORD', target: kwTarget, keyword: k, duration: dur })),
+            steps: runKw.map(k => ({
+              type: 'GRANT_KEYWORD', target: kwTarget, keyword: k, duration: dur,
+              ...(nextOpponentTurn ? { nextTurnOwner: 'opponent' as const } : {}),
+            })),
           };
         }
       }
-      return { type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwGrantName, duration: dur };
+      return {
+        type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwGrantName, duration: dur,
+        ...(nextOpponentTurn ? { nextTurnOwner: 'opponent' as const } : {}),
+      };
     }
   }
 

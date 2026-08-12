@@ -1,12 +1,8 @@
 import type { PlayerState } from '../../types';
+import { advancePreventDamageWindows } from './battleUtils';
 
-// 'turn-end'        ＝いま終わるターンの終了時に、**両プレイヤー**の値を失効させる（「このターン」の素直な意味）。
-// 'turn-end-active' ＝**ターンが終わる側だけ**失効させ、相手側の値は次の（＝相手の）ターンまで残す。
-//   ⚠これは近似の受け皿＝原文「次のターンの間、対戦相手の…」を、相手 state へ即時に書いて
-//   「自分のターン終了では消えない」ことで表している効果がある（`WX15-003-E3`／`WXDi-P08-010-E3`）。
-//   両プレイヤーを消すと**その2効果が完全な no-op になる**（続き447 の検証で実測）。
-//   本来は `*_next_turn` 予約（`free_grow_next_turn` 等と同じ作法）へ移すべきで、それまでの生存期間の固定。
-type TurnScopedBoundary = 'turn-end' | 'turn-end-active' | 'turn-start' | 'attack-phase-start' | 'consume';
+// 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
+type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'consume';
 type TurnScopedResetValue = undefined | 0 | readonly [];
 type TurnScopedSpec = {
   readonly boundaries: readonly TurnScopedBoundary[];
@@ -76,10 +72,12 @@ const CONVENTION_TURN_SCOPED_STATE = {
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
 const IRREGULAR_TURN_SCOPED_STATE = {
-  // 強制アタックは「ターンが終わる側」だけ失効させる。相手 state に書かれた分は相手のターンで読まれる。
-  must_attack_signi: { boundaries: ['turn-end-active'], reset: undefined, reason: 'forced signi attack; opponent-side value must survive until the opponent turn ends' },
+  // 強制アタック active は現在ターンだけ。次ターン分は must_attack_signi_next_turn に予約する。
+  must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'active forced-signi-attack flag; next-turn value is reserved separately' },
   // 感染限定は must_attack_signi の修飾子なので同じ期限で失効する。
-  must_attack_infected_only: { boundaries: ['turn-end-active'], reset: undefined, reason: 'modifier of the forced attack flag; same lifetime' },
+  must_attack_infected_only: { boundaries: ['turn-end'], reset: undefined, reason: 'modifier of the active forced-attack flag; same lifetime' },
+  // 場全体キーワード active は現在のグローバルターンだけ。自/相手ターン予約は別フィールド。
+  field_keyword_grants_active: { boundaries: ['turn-end'], reset: undefined, reason: 'active global-turn field keyword grants; reservations are stored separately' },
   // アシストルリグの攻撃許可は、付与されたターンだけ通常ルールを上書きする。
   assist_lrig_attack_min_level: { boundaries: ['turn-end'], reset: undefined, reason: 'assist-lrig attack permission for the current turn' },
   // エナゾーン外支払い数は「1ターンに3つまで」の当該ターン累計。
@@ -123,26 +121,40 @@ function consumeField(state: PlayerState, field: TurnScopedPlayerStateField): Pl
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
   const reset = resetBoundary(state, 'turn-end');
+  const nextOpponentTurnKeywords = state.field_keyword_grants_next_opp_turn;
   // safety は戻り値の最終段に置く。呼び出し側の古い値を spread し直して復活させない。
-  return { ...reset, life_crashed_last_turn: lifeCrashedLastTurn };
-}
-
-/**
- * ターンが終わる側の PlayerState 用。`clearTurnEndScopedState` に加えて 'turn-end-active' も失効させる。
- * ⚠**次ターン側の state にこれを使ってはいけない**＝相手 state に置かれた強制アタック等を1ターン早く消し、
- * 「次のターンの間、対戦相手の…」を完全な no-op にする（続き447 の検証で実測）。
- */
-export function clearTurnEndScopedStateForEndingTurn(state: PlayerState): PlayerState {
-  return resetBoundary(clearTurnEndScopedState(state), 'turn-end-active');
-}
-
-/** 次ターン開始時の履歴切替と、FREE_GROW_NEXT_TURN の予約→active 昇格を一括する。 */
-export function activateTurnStartScopedState(state: PlayerState): PlayerState {
-  const reset = resetBoundary(state, 'turn-start');
   return {
     ...reset,
+    life_crashed_last_turn: lifeCrashedLastTurn,
+    // unsuffixed entries were active for the turn that just ended. Only explicit
+    // NEXT_TURN reservations cross the boundary; turn start removes the suffix.
+    blocked_actions: (state.blocked_actions ?? []).filter(actionId => actionId.endsWith(':NEXT_TURN')),
+    field_keyword_grants_active: nextOpponentTurnKeywords,
+    field_keyword_grants_next_opp_turn: undefined,
+    prevent_damage_windows: advancePreventDamageWindows(state.prevent_damage_windows),
+  };
+}
+
+/** 次の自分ターン開始時の履歴切替と、各予約→active 昇格を一括する。 */
+export function activateTurnStartScopedState(state: PlayerState): PlayerState {
+  const reset = resetBoundary(state, 'turn-start');
+  const activatedBlockedActions = (state.blocked_actions ?? []).map(actionId =>
+    actionId.endsWith(':NEXT_TURN') ? actionId.slice(0, -':NEXT_TURN'.length) : actionId);
+  return {
+    ...reset,
+    blocked_actions: activatedBlockedActions,
     free_grow_this_turn: state.free_grow_next_turn ? true : undefined,
     free_grow_next_turn: undefined,
+    must_attack_signi: state.must_attack_signi_next_turn ? true : undefined,
+    must_attack_signi_next_turn: undefined,
+    must_attack_infected_only: state.must_attack_signi_next_turn
+      ? (state.must_attack_infected_only_next_turn ?? false)
+      : undefined,
+    must_attack_infected_only_next_turn: undefined,
+    field_keyword_grants_active: (state.field_keyword_grants_next_turn || state.field_keyword_grants_active)
+      ? [...(state.field_keyword_grants_active ?? []), ...(state.field_keyword_grants_next_turn ?? [])]
+      : undefined,
+    field_keyword_grants_next_turn: undefined,
   };
 }
 

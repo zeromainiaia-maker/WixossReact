@@ -193,7 +193,7 @@ export function parseSentencePart2(t: string): EffectAction | null {
   {
     const blockPlayM = t.match(/対戦相手は手札からパワー([０-９\d]+)以上のシグニを場に出せない/);
     if (blockPlayM) {
-      const until = t.includes('次の対戦相手のターン') ? 'END_OF_TURN' : 'END_OF_TURN';
+      const until = t.includes('次の対戦相手のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
       return {
         type: 'BLOCK_ACTION',
         target: { type: 'PLAYER', owner: 'opponent', count: 1 },
