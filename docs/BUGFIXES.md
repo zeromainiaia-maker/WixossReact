@@ -1,5 +1,29 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き451） — `SEARCH` の相手応答ルーティング（PLAN §6.4 **O-2**・defer 3効果を解除）
+
+**🔑 何が無かったか**＝`BattleScreen` は pending の応答者を `SELECT_TARGET` と `CHOOSE` の2型に**直接ベタ書き**で判定しており、`SEARCH` を相手へ回す経路が存在しなかった。そのため「**対戦相手は**（自分の）デッキの上からN枚を見て／公開して、その中から…」の文型は、`owner:'opponent'` を書くと「**自分が**相手のデッキを覗いて相手の場に出す札を選ぶ」別物になるため丸ごと defer されていた（`DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL`／`DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL`／`SP38-006-E1-G2` の `UNKNOWN`）。
+
+**⭐ 設計＝2つの軸を分離した**。`owner`／新設 `deckOwner`＝**誰のカードか**（どのデッキを掘り、どこへ残りを送り、誰の場に出すか）／新設 `opponentResponds`＝**誰がクリックするか**。engine の ExecCtx 視点は従来どおり反転しない（続き411 の教訓）。片方だけだと「自分が相手のデッキを覗く」／「相手が自分のデッキを掘る」という**別々の間違い**になるので、parser は必ず両方を書き、golden がその組を固定する。
+
+**配線**＝①`PendingInteractionDef['SEARCH']` に `deckOwner` / `opponentResponds`、`SELECT_SIGNI_ZONE` に `opponentResponds` を追加。②応答者判定を新設 `pendingRespondsOpponent`（`execUtils.ts`）へ集約し、`BattleScreen` の**2箇所のベタ書きを置換**＝以後 pending 型を増やしたときの配線漏れがここ1本に閉じる。③`resumeSearch` の**デッキ操作4箇所**（`revealRemainder`／`restDest`／`split_top_bottom`／`handOrField` の空きゾーン判定）を `deckOwner` 相対へ。④「対戦相手は…場に出し」は**ゾーン選択まで相手が行う**＝`REVEAL_AND_PICK.opponentResponds` → SEARCH pending → `PLACE_SIGNI_ON_FIELD.opponentSelectsZone` → `SELECT_SIGNI_ZONE.opponentResponds` と落とす。
+
+**🔴 併せて見つけた既存バグ3件（いずれも live 実例0件＝この機構を開くまで到達不能だった潜在バグ）**
+- **`applyDirectAction` の `ADD_TO_HAND` / `ADD_TO_ENERGY` / `ADD_TO_BEAT` は `owner` を持つのに読んでいなかった**（常に `ctx.ownerState`）。`lookPickThenAction(then, owner)` は owner つきで組み立てるので、`owner:'opponent'` の公開ピックは**相手のデッキから抜いて自分の手札へ入れる**＝カードが盤面を跨いで移る。`ownerState`/`setOwnerState` 経由へ是正（`owner:'self'` の既存全効果は挙動不変）。
+- **`resume` 系ハンドラ4本（`SELECT_ZONE`／`SELECT_SIGNI_ZONE`／`REARRANGE_SIGNI`／`SELECT_VIRUS_ZONE`）は次の pending から `respondPlayerId` を一律に落としていた**。「相手が1回だけ応答する」型には正しいが、**次の pending 自身が相手応答型**のときは相手が選ぶべき対話を効果オーナーが操作する。1枚ずつゾーンを選ぶ配置チェーンの2枚目以降がこれに当たる。共通ヘルパー `nextRespondPatch` を通し、相手応答型でなければ空オブジェクト＝**従来挙動と厳密に同じ**。
+- **`execLookPickChain` は場出し段の選択上限を空きシグニゾーン数で絞っていなかった**（`execRevealAndPick` にはある手当て）。超過分は `applyDirectAction` の「空きシグニゾーンなし」分岐へ落ちるが、**その時点でカードは既にデッキから抜かれている**＝盤面にもデッキにも残らず消失する。7枚公開の `WXDi-P01-026-E1` で到達するため同じ形で cap を追加。
+- ⚠**`INTERNAL_SPLIT_REVEALED` は戻し先が `destOwner:'self'` 固定**だった。`deckOwner` を渡すよう是正（渡さないと相手デッキの札が自分のデッキへ増える複製バグになる）。
+
+**解除した3効果**＝`WXEX2-84-E2`（相手シグニ全一掃 → 相手が自分のデッキ上2枚から場を建て直す。旧 live は**所有者が真逆**で自分への補充に反転していたのを続き449 で除去済み＝今回その正しい相手側処理を実装）／`WXDi-P01-026-E1`（「各プレイヤーは」を**自分ぶんと相手ぶんの2本に割る**＝リセット4本を先に全部済ませてから公開2本。片側だけだと半分が恒久 no-op）／`SP38-006-E1-G2`（「見て」＝非公開なので `LOOK_PICK_CHAIN`。応答者にだけモーダルが出るので情報公開範囲も原文どおりになる）。
+
+**⚠採用経路**＝`WXEX2-84`／`WXDi-P01-026` は `heldReview --adopt`（カードID単体・per-effect diff で `added=0 / removed=0 / changed=2`）。`SP38-006` は **PARTIAL＝カード単位 PRESERVE で `_held_fresh` にも `_partial_fresh` にも載らない**ため effectId アンカーの外科パッチ。**`parseStatus` は PARTIAL のまま残した**＝同じ効果の1つ目の内側能力「対戦相手の場にあるキーとシグニは能力を失い、新たに得られない」が `REMOVE_ABILITIES{SIGNI, count:1, until:'PERMANENT'}`＝**対象種別・体数・期間の3軸とも未忠実**で、レビュー印を落とすべきでないため（別軸の在庫として PLAN §6.4 へ登録）。
+
+**逆翻訳**＝`owner` だけを描くと `opponentResponds` の有無で同じ文になり「相手のデッキを**自分が**覗く」との区別が消える（偽陰性）ので、両分岐に「対戦相手はその中から」を出し分ける枝を追加。
+
+**ゲート**＝golden **1934→1937**（旧 defer トリップワイヤ4件を新しい正へ反転＋機構テスト3本を新設＝応答者ルーティングの型網羅／`deckOwner` の領域分離／ゾーン選択の引き継ぎ）、census **833→832**、smoke 10688 全0（SKIP 0）、fuzz 全0、同型★ **0**（265群）、held **107→106枚 / 47群**、`census:stubs` A群 明示 defer **16→14種（16件）**・無言 no-op **0**、lint 0 errors。
+
+**⚠未検証（→§7 実機）**＝相手応答モーダルの実表示（PvP の相手側／CPU の自動応答）は golden では踏めない。CPU 自動応答は `SEARCH` を既に汎用処理しており `respondPlayerId` が CPU なら発火する配線だが、**実UI検証は未**。
+
 ## 2026-08-12（続き450） — 「次のターンの間」のキーワード／パワーを場レベル予約へ機構化（採用8／非採用2・PLAN §6.4）
 
 **🔴 バグの正体**＝旧 `field_keyword_grants_next_turn: string[]` はクラス／ゾーン／条件を運べず、パワーは `temp_power_mods` の cardNum スナップショットしか無かった。そのため「次のターンの間」が発動ターンに適用され、予約後に場へ出たシグニには効かなかった。特に `WX10-047-BURST` は相手ターン中のLB発動時に＋10000、自分の次ターンには失効とほぼ逆だった。
