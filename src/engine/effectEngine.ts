@@ -4813,6 +4813,52 @@ export function resolveForcedSigniAttack(
 }
 
 /**
+ * 場に出た viewerState のシグニ自身の【出】を、場の【常】が抑止するか。
+ * CONTINUOUS は executeAction を通らないため、印字＋付与2ストアを収集地点から宣言走査する。
+ */
+export function isSigniOnPlaySuppressedByContinuous(
+  placedInstanceId: string,
+  viewerState: PlayerState,
+  opponentState: PlayerState,
+  isViewerTurn: boolean,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const baseCardNum = (id: string): string => {
+    const hash = id.indexOf('#');
+    return hash > 0 ? id.slice(0, hash) : id;
+  };
+  const placedCard = cardMap.get(baseCardNum(placedInstanceId));
+  if (!placedCard) return false;
+
+  const scan = (holder: PlayerState, other: PlayerState, isHolderTurn: boolean, holderIsViewer: boolean): boolean => {
+    const wantOwner = holderIsViewer ? 'self' : 'opponent';
+    for (const stack of holder.field.signi) {
+      const top = stack?.at(-1);
+      if (!top) continue;
+      const base = baseCardNum(top);
+      const printed = effectsMap.get(top) ?? effectsMap.get(base) ?? [];
+      const granted = holder.granted_effects?.[top] ?? holder.granted_effects?.[base] ?? [];
+      const grantedLong = holder.granted_effects_until_opp_turn?.[top]
+        ?? holder.granted_effects_until_opp_turn?.[base] ?? [];
+      for (const eff of [...printed, ...granted, ...grantedLong]) {
+        if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'BLOCK_ACTION') continue;
+        const block = eff.action as import('../types/effects').BlockActionAction;
+        if (block.actionId !== 'ON_PLAY_ABILITY' || block.target.type !== 'SIGNI') continue;
+        if (block.target.owner !== wantOwner) continue;
+        if (!checkActiveCondition(eff.activeCondition, holder, other, isHolderTurn, cardMap, top)) continue;
+        if (!matchesFilter(placedCard, block.target.filter)) continue;
+        return true;
+      }
+    }
+    return false;
+  };
+
+  return scan(viewerState, opponentState, isViewerTurn, true)
+    || scan(opponentState, viewerState, !isViewerTurn, false);
+}
+
+/**
  * collectEffectImmuneSigni: 「対戦相手の、ルリグ／シグニ（等）の効果を受けない」完全効果耐性を持つシグニを返す。
  * GRANT_PROTECTION の from に source-type トークン（ルリグ/シグニ/スペル/アーツ）または 'any'、もしくは
  * fromAll(+exceptSource) を持つCONT効果を対象とし、いま解決中の効果のソースカード種別 `sourceCardType` が

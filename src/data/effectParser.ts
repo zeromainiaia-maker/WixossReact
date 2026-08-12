@@ -3872,6 +3872,22 @@ function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
   }
   return null;
 }
+// 旧 REARRANGE_SIGNI{swap:true} は場の既存シグニ同士を入れ替えるだけで、外部ゾーンから場へ出さず
+// ON_PLAY 収集にも入らない。この直後の BLOCK_ACTION{ON_PLAY_ABILITY} は効果が無いので除去する。
+// GRANT_EFFECT / GRANT_LRIG_ABILITY の引用内部へは降りず、トップレベルの木形状だけを扱う。
+function hasFieldOnlyRearrangeAnchor(a: EffectAction): boolean {
+  if (a.type === 'REARRANGE_SIGNI') {
+    const rs = a as import('../types/effects').RearrangeSigniAction;
+    return rs.swap === true && rs.swapWithLastProcessed !== true;
+  }
+  if (a.type === 'SEQUENCE') return (a as SequenceAction).steps.some(hasFieldOnlyRearrangeAnchor);
+  if (a.type === 'CONDITIONAL') {
+    const co = a as import('../types/effects').ConditionalAction;
+    return hasFieldOnlyRearrangeAnchor(co.then) || (!!co.else && hasFieldOnlyRearrangeAnchor(co.else));
+  }
+  if (a.type === 'CHOOSE') return (a as ChooseAction).choices.some(c => !!c.action && hasFieldOnlyRearrangeAnchor(c.action));
+  return false;
+}
 function foldSuppressOnPlay(action: EffectAction): EffectAction {
   if (action.type === 'SEQUENCE') {
     const seq = action as SequenceAction;
@@ -3882,6 +3898,7 @@ function foldSuppressOnPlay(action: EffectAction): EffectAction {
       for (let j = i - 1; j >= 0; j--) {
         const r = trySetSuppressOnPlay(steps[j]);
         if (r) { steps[j] = r; remove.add(i); break; }
+        if (hasFieldOnlyRearrangeAnchor(steps[j])) { remove.add(i); break; }
       }
     }
     if (remove.size > 0) steps = steps.filter((_, i) => !remove.has(i));
@@ -6882,6 +6899,33 @@ function replaceFirstLegacyReveal(action: EffectAction, replacement: RevealUntil
     choices: action.choices.map(choice => ({ ...choice, action: replaceFirstLegacyReveal(choice.action, replacement, state) })),
   };
   return action;
+}
+
+// プレイヤー全体・ターン限定と、相手シグニを恒久的に抑止する【常】を同じ死 actionId のまま
+// 混同しないよう構造化する。前者だけ executor が PlayerState へ書き、後者は collector が宣言走査する。
+function normalizeOnPlayAbilitySuppression(effect: CardEffect, rawText: string): void {
+  if (effect.action.type !== 'BLOCK_ACTION') return;
+  const block = effect.action as import('../types/effects').BlockActionAction;
+  if (block.actionId !== 'ON_PLAY_ABILITY') return;
+
+  if (effect.effectType !== 'CONTINUOUS'
+      && /このターン、あなたのシグニの【出】能力は発動しない/.test(rawText)) {
+    effect.action = { ...block, suppressSigniOnPlayThisTurn: true };
+    return;
+  }
+
+  if (effect.effectType !== 'CONTINUOUS') return;
+  const continuous = rawText.match(/【常】：対戦相手の(?:レベル([０-９0-9]+)以下の)?シグニの【出】能力は発動しない/);
+  if (!continuous) return;
+  const maxLevel = continuous[1] ? parseInt(toHalf(continuous[1]), 10) : undefined;
+  effect.action = {
+    ...block,
+    target: {
+      type: 'SIGNI', owner: 'opponent', count: 'ALL',
+      filter: { cardType: 'シグニ', ...(maxLevel !== undefined ? { level: { max: maxLevel } } : {}) },
+    },
+    until: 'PERMANENT',
+  };
 }
 
 function removeStructuredRevealConsequence(action: EffectAction, fold: StructuredRevealFold): EffectAction | null {
@@ -12856,7 +12900,10 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     };
     for (const e of effects) suppressPartialTrashRecovery(e.action);
   }
-  for (const e of effects) e.action = foldSuppressOnPlay(e.action);
+  for (const e of effects) {
+    e.action = foldSuppressOnPlay(e.action);
+    normalizeOnPlayAbilitySuppression(e, card.EffectText ?? '');
+  }
 
   // mandatory【出】先頭ゲート修復（2026-07-28）。
   // 一般化すると「場合」が後置条件・置換節である効果へ波及するため、CSV原文を全数照合した effectId のみ。

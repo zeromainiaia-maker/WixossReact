@@ -189,6 +189,8 @@ export interface PlayerState {
   life_crashed_by_signi_this_turn?: Record<string, number>;
   /** This turn, cards in this player's energy zone are colorless and have no abilities. */
   energy_colorless_ability_loss_this_turn?: boolean;
+  /** このターン、このプレイヤーのシグニ自身の【出】能力を収集しない。 */
+  suppress_signi_on_play_this_turn?: boolean;
   // 強制攻撃フラグ（このターン、このプレイヤーのシグニは可能ならばアタックしなければならない）
   must_attack_signi?: boolean;
   // 強制攻撃を感染状態のシグニのみに限定する（WX16-047等）

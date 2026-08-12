@@ -11,7 +11,7 @@
 import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
-import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, matchesStateFilter } from './effectEngine';
+import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
 import { grantedStoreWatchers } from './grantedStore';
 
@@ -342,12 +342,17 @@ export function collectPlacedSelfOnPlayTriggers(
   const entries: StackEntry[] = [];
   const usedHostIds: string[] = [];
   const usedGuestIds: string[] = [];
-  if (opts.suppressOnPlay) return { entries, usedHostIds, usedGuestIds };
+  if (opts.suppressOnPlay) {
+    return { entries, usedHostIds, usedGuestIds };
+  }
 
   const ownerIsHost = ownerId === ctx.hostId;
   const usedIds = ownerIsHost ? usedHostIds : usedGuestIds;
   const limitOk = mkLimitOk(controllerState.actions_done, usedIds);
   const isOwnerTurn = ownerId === ctx.activeUserId;
+  if (isSigniOwnOnPlaySuppressed(
+    placedInstanceId, controllerState, otherState, isOwnerTurn, ctx.effectsMap, ctx.cardMap,
+  )) return { entries, usedHostIds, usedGuestIds };
   const blocked = collectContinuousAbilitiesRemovedSigni(
     controllerState, otherState, isOwnerTurn, ctx.effectsMap, ctx.cardMap, '出',
   ).has(placedInstanceId);
@@ -386,6 +391,21 @@ export function collectPlacedSelfOnPlayTriggers(
     });
   }
   return { entries, usedHostIds, usedGuestIds };
+}
+
+/** 通常召喚・CPU召喚・効果配置の全経路で共有する、自身【出】のプレイヤー/【常】抑止判定。 */
+export function isSigniOwnOnPlaySuppressed(
+  placedInstanceId: string,
+  controllerState: PlayerState,
+  otherState: PlayerState,
+  isControllerTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): boolean {
+  return controllerState.suppress_signi_on_play_this_turn === true
+    || isSigniOnPlaySuppressedByContinuous(
+      placedInstanceId, controllerState, otherState, isControllerTurn, effectsMap, cardMap,
+    );
 }
 
 /**

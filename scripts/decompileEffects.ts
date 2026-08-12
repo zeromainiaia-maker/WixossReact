@@ -811,7 +811,14 @@ function actionJa(a?: Action, effectType?: string): string {
       return (a.source ? `${targetJa(a.source)}をコストを支払わず${a.asDown ? 'ダウン状態で' : 'に'}場に出す${a.optional ? '（してもよい）' : ''}` : (a.cardName ? `クラフト/トークンの《${a.cardName}》を場に出す` : '直前に選んだカードを場に出す')) + supAF;
     }
     case 'BLOCK_ACTION': {
-      if (a.actionId === 'ON_PLAY_ABILITY') return 'その【出】能力は発動しない';
+      if (a.actionId === 'ON_PLAY_ABILITY') {
+        if (a.suppressSigniOnPlayThisTurn) return 'このターン、あなたのシグニの【出】能力は発動しない';
+        if (a.target?.type === 'SIGNI' && a.target?.owner === 'opponent') {
+          const max = typeof a.target.filter?.level === 'object' ? a.target.filter.level.max : undefined;
+          return `対戦相手の${max !== undefined ? `レベル${max}以下の` : ''}シグニの【出】能力は発動しない`;
+        }
+        return 'その【出】能力は発動しない';
+      }
       if (a.actionId === 'FORCE_PLACE_FRONT') return '対戦相手がシグニを配置する場合、可能ならばこのシグニの正面に配置しなければならない';
       if (a.actionId === 'ATTACK' && a.attackCost?.fieldTrash) {
         const n = a.attackCost.fieldTrash.count;

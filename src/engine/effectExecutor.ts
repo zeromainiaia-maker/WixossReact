@@ -3063,6 +3063,11 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   }
 
   const state = ownerState(a.target.owner, ctx);
+  if (a.actionId === 'ON_PLAY_ABILITY' && a.suppressSigniOnPlayThisTurn) {
+    const newS: PlayerState = { ...state, suppress_signi_on_play_this_turn: true };
+    const who = a.target.owner === 'self' ? '自分' : '相手';
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${who}のシグニの【出】能力はこのターン発動しない`));
+  }
   // NEXT_TURN  ':NEXT_TURN'
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
   const blocked = [...(state.blocked_actions ?? []), id];

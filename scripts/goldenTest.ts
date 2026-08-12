@@ -32,7 +32,7 @@ import {
   applyEffectLeaveSubstitutes, collectLeaveSubstituteOptions, autoChooseLeaveSubstitute,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -16986,6 +16986,177 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ok(hasOnPlayBlock(a), 'アンカー無し＝ブロック据置のはず');
     ok(!hasSuppress(a), 'アンカー無しに suppressOnPlay を付けてはいけない');
   });
+}
+
+// ── §6.4: 【出】能力抑止の死 BLOCK_ACTION family ─────────────────────────────
+{
+  const effectOfOnPlaySuppression = (cardNum: string, effectId: string): CardEffect => {
+    const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    if (!effect) throw new Error(`${effectId} not found`);
+    return effect;
+  };
+  const triggerCtxFor = (map: Map<string, CardEffect[]> = effectsMap): TrigCtx => ({
+    hostId: 'host', guestId: 'guest', meId: 'host', activeUserId: 'host', turnPhase: 'MAIN',
+    effectsMap: map, cardMap, genId: () => `suppress-on-play-${Math.random()}`,
+  });
+  const onPlaySigniAtLevel = (level: number): string => {
+    for (const [cardNum, effects] of effectsMap) {
+      const card = cardMap.get(cardNum);
+      if (card?.Type !== 'シグニ' || parseInt(card.Level || '', 10) !== level) continue;
+      if (effects.some(e => e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')
+        && e.mandatory !== false && !e.condition && !e.activeCondition
+        && (e.triggerScope === undefined || e.triggerScope === 'self' || e.triggerScope === 'any')
+        && !e.triggerCondition?.byEffect && !e.triggerCondition?.bySigniEffect)) return cardNum;
+    }
+    throw new Error(`level ${level} の無条件 mandatory 【出】シグニがない`);
+  };
+  const collectOwnOnPlay = (cardNum: string, state: PlayerState, other: PlayerState,
+    map: Map<string, CardEffect[]> = effectsMap) => collectPlacedSelfOnPlayTriggers(
+      triggerCtxFor(map), cardNum, state, other, 'host', { placedByEffect: true, sourceIsSigni: false },
+    ).entries;
+
+  // この5効果の live REARRANGE_SIGNI は外部ゾーンを一切読まず、場の既存2体の位置だけを交換する。
+  // したがって配置検出は0件で、ON_PLAY collector の入口自体が発生しない。死 BLOCK だけを除去する。
+  const fieldOnlyRearranges: Array<[string, string, 'energy' | 'trash']> = [
+    ['WX25-P1-059', 'WX25-P1-059-E1', 'energy'],
+    ['WX25-P2-058', 'WX25-P2-058-E1', 'energy'],
+    ['WX26-CP1-085', 'WX26-CP1-085-SONG', 'energy'],
+    ['WXDi-P12-043', 'WXDi-P12-043-E2', 'energy'],
+    ['WXDi-P14-058', 'WXDi-P14-058-E2', 'trash'],
+  ];
+  for (const [cardNum, effectId, externalZone] of fieldOnlyRearranges) {
+    test(`§6.4 ${effectId}: 通常REARRANGE_SIGNIは外部配置もON_PLAY発火もせず死BLOCKだけ除去`, () => withSavedCursor(() => {
+      const effect = effectOfOnPlaySuppression(cardNum, effectId);
+      const json = JSON.stringify(effect.action);
+      ok(!json.includes('ON_PLAY_ABILITY'), `${effectId}: 死 BLOCK_ACTION が残存`);
+      ok(!json.includes('suppressOnPlay'), `${effectId}: 消費されないフラグへ置換してはいけない`);
+
+      const incoming = onPlaySigniAtLevel(1);
+      const first = fresh(), second = fresh();
+      const ctx = { ...mkCtx({ signi: [cardNum, first, second] }, {}, cardNum), isOwnerTurn: true } as ExecCtx;
+      ctx.ownerState.energy = [...cardMap.values()]
+        .filter(c => c.Color === '緑' && c.CardNum !== cardNum).slice(0, 3).map(c => c.CardNum);
+      ctx.otherState = mkState({ signi: [fresh(), fresh(), null] });
+      if (externalZone === 'energy') ctx.otherState.energy = [incoming];
+      else ctx.otherState.trash = [incoming];
+      const beforeOwner = ctx.ownerState;
+      const beforeOther = ctx.otherState;
+      let result = executeEffect(effect, ctx);
+      if (!result.done && result.pending.type === 'CHOOSE') {
+        const pay = result.pending.options.find(o => o.id === 'pay' && o.available !== false);
+        ok(!!pay, `${effectId}: 任意コストを支払える`);
+        result = resumeOptionalCost(pay!.id, result.ownerState.energy.slice(0, pay!.costColors?.length ?? 0), result.pending, {
+          ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+        });
+      }
+      if (!result.done) {
+        ok(result.pending.type === 'REARRANGE_SIGNI', `${effectId}: REARRANGE_SIGNI pending`);
+        if (result.pending.type !== 'REARRANGE_SIGNI') throw new Error('REARRANGE_SIGNI expected');
+        result = resumeRearrangeSigni([result.pending.signiNums[0]], result.pending, {
+          ...ctx, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs,
+        });
+      }
+      eq(detectPlacedSigni(beforeOwner, result.ownerState).length, 0, `${effectId}: 自分側の新規配置0`);
+      eq(detectPlacedSigni(beforeOther, result.otherState).length, 0, `${effectId}: 相手側の新規配置0`);
+      const externalAfter = externalZone === 'energy' ? result.otherState.energy : result.otherState.trash;
+      ok(externalAfter.includes(incoming), `${effectId}: 外部ゾーン札は読まれず残る`);
+    }));
+  }
+
+  for (const [cardNum, effectId] of [['WD14-010', 'WD14-010-E1'], ['WX11-048', 'WX11-048-E1']] as const) {
+    test(`§6.4 ${effectId}: ターン中の自シグニON_PLAYをPlayerState funnelで抑止`, () => withSavedCursor(() => {
+      const effect = effectOfOnPlaySuppression(cardNum, effectId);
+      const placed = onPlaySigniAtLevel(1);
+      const ctx = mkCtx({ signi: [placed, null, null] }, {}, cardNum);
+      const result = executeEffect(effect, ctx);
+      ok(result.done, `${effectId}: 即時完了`);
+      ok(result.ownerState.suppress_signi_on_play_this_turn === true, `${effectId}: ターンフラグを付与`);
+      ok(!(result.ownerState.blocked_actions ?? []).includes('ON_PLAY_ABILITY'), `${effectId}: 死 actionId は蓄積しない`);
+      eq(collectOwnOnPlay(placed, result.ownerState, result.otherState).length, 0,
+        `${effectId}: フラグありでは【出】0件`);
+      const without = { ...result.ownerState, suppress_signi_on_play_this_turn: undefined };
+      ok(collectOwnOnPlay(placed, without, result.otherState).length > 0,
+        `${effectId}: フラグなしでは同じ【出】が発火`);
+    }));
+  }
+
+  test('§6.4 群B: ターン境界4経路すべてがON_PLAY抑止フラグをリセット', () => {
+    const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+    eq(source.match(/suppress_signi_on_play_this_turn:\s*undefined/g)?.length ?? 0, 4,
+      '通常終了・確認後・別経路・CPUの4箇所');
+    eq(source.match(/isSigniOwnOnPlaySuppressed\(/g)?.length ?? 0, 2,
+      '人間の通常召喚とCPU召喚の両方が共通抑止判定を使う');
+  });
+
+  test('§6.4 共通召喚判定: ターンフラグと相手【常】の両軸を通常召喚でも消費', () => withSavedCursor(() => {
+    const placed = onPlaySigniAtLevel(1);
+    const base = mkState({ signi: [placed, null, null] });
+    ok(!isSigniOwnOnPlaySuppressed(placed, base, mkState(), true, effectsMap, cardMap),
+      '抑止なしでは通常召喚可');
+    ok(isSigniOwnOnPlaySuppressed(placed,
+      { ...base, suppress_signi_on_play_this_turn: true }, mkState(), true, effectsMap, cardMap),
+    '群Bターンフラグで通常召喚を抑止');
+    ok(isSigniOwnOnPlaySuppressed(placed, base,
+      mkState({ signi: ['WX14-023', null, null] }), true, effectsMap, cardMap),
+    '群Cの相手【常】で通常召喚を抑止');
+  }));
+
+  test('§6.4 WX14-023-E1: 相手シグニ全レベルのON_PLAYを宣言型CONTINUOUSで抑止', () => withSavedCursor(() => {
+    const effect = effectOfOnPlaySuppression('WX14-023', 'WX14-023-E1');
+    eq(JSON.stringify(effect.action), JSON.stringify({
+      type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } },
+      actionId: 'ON_PLAY_ABILITY', until: 'PERMANENT',
+    }), 'WX14-023-E1: 恒久・相手シグニ全体の構造');
+    const placed = onPlaySigniAtLevel(3);
+    const state = mkState({ signi: [placed, null, null] });
+    const blocker = mkState({ signi: ['WX14-023', null, null] });
+    eq(collectOwnOnPlay(placed, state, blocker).length, 0, 'blockerありは【出】0件');
+    ok(collectOwnOnPlay(placed, state, mkState()).length > 0, 'blockerなしは同じ【出】が発火');
+  }));
+
+  test('§6.4 WXK06-025-E1: 相手レベル1以下だけを抑止しレベル2は発火', () => withSavedCursor(() => {
+    const effect = effectOfOnPlaySuppression('WXK06-025', 'WXK06-025-E1');
+    const action = effect.action as Extract<EffectAction, { type: 'BLOCK_ACTION' }>;
+    eq(action.until, 'PERMANENT', '【常】は恒久');
+    eq(JSON.stringify(action.target), JSON.stringify({
+      type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', level: { max: 1 } },
+    }), 'レベル1以下の構造');
+    const blocker = mkState({ signi: ['WXK06-025', null, null] });
+    const lv1 = onPlaySigniAtLevel(1), lv2 = onPlaySigniAtLevel(2);
+    eq(collectOwnOnPlay(lv1, mkState({ signi: [lv1, null, null] }), blocker).length, 0,
+      'レベル1は抑止');
+    ok(collectOwnOnPlay(lv2, mkState({ signi: [lv2, null, null] }), blocker).length > 0,
+      'レベル2は抑止されない');
+  }));
+
+  test('§6.4 WXDi-P16-084-E1: 相手レベル2以下だけを抑止しレベル3は発火', () => withSavedCursor(() => {
+    const effect = effectOfOnPlaySuppression('WXDi-P16-084', 'WXDi-P16-084-E1');
+    const action = effect.action as Extract<EffectAction, { type: 'BLOCK_ACTION' }>;
+    eq(action.until, 'PERMANENT', '【常】は恒久');
+    eq(JSON.stringify(action.target), JSON.stringify({
+      type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', level: { max: 2 } },
+    }), 'レベル2以下の構造');
+    const blocker = mkState({ signi: ['WXDi-P16-084', null, null] });
+    const lv2 = onPlaySigniAtLevel(2), lv3 = onPlaySigniAtLevel(3);
+    eq(collectOwnOnPlay(lv2, mkState({ signi: [lv2, null, null] }), blocker).length, 0,
+      'レベル2は抑止');
+    ok(collectOwnOnPlay(lv3, mkState({ signi: [lv3, null, null] }), blocker).length > 0,
+      'レベル3は抑止されない');
+  }));
+
+  test('§6.4 群C: GRANT_EFFECTの付与2ストアからも宣言型ON_PLAY抑止を走査', () => withSavedCursor(() => {
+    const granted = effectOfOnPlaySuppression('WX14-023', 'WX14-023-E1');
+    const placed = onPlaySigniAtLevel(1);
+    const holder = findCard(c => c.Type === 'シグニ' && c.CardNum !== placed && c.CardNum !== 'WX14-023');
+    const map = new Map(effectsMap);
+    map.set(holder, []);
+    for (const store of ['granted_effects', 'granted_effects_until_opp_turn'] as const) {
+      const blocker = mkState({ signi: [holder, null, null] });
+      blocker[store] = { [holder]: [granted] };
+      eq(collectOwnOnPlay(placed, mkState({ signi: [placed, null, null] }), blocker, map).length, 0,
+        `${store}: 付与された【常】も抑止`);
+    }
+  }));
 }
 
 // ── 状態条件節持ち上げ バッチ①第1波 ──

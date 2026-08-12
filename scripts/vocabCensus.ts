@@ -93,7 +93,10 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 845; // 2026-08-12 §6.4 裸 REVEAL_AND_PICK 族6効果を原文どおり構造化し、万能サーチ化を解消。846→845。旧履歴は直下。
+const BASELINE_HIGH = 843; // 2026-08-12 §6.4 続き446＝「【出】能力は発動しない」が engine 未参照の死アクション `BLOCK_ACTION{ON_PLAY_ABILITY}` のままで10効果が恒久 no-op（＝抑止されず【出】が発動する過剰実行）だったのを機構化。群A5件は `REARRANGE_SIGNI` が場内交換のみで新規配置を作らないと実測して死ブロック除去のみ／群B2件は PlayerState ターンフラグ＋ON_PLAY funnel／群C3件は CONTINUOUS 宣言走査（印字＋付与2ストア）＋レベル限定。845→843。旧履歴は直下。
+// 旧・続き445: `STUB{REVEAL_PICK_PLAY}`（枚数/ピック/フィルタ/行き先/所有者が全部ハードコードの実行時原文再parse）を live 11→0。845 据置。
+// 旧・続き444: デッキ公開の停止条件・行き先を `REVEAL_UNTIL` へ構造化。845 据置。
+// 旧・続き443: §6.4 裸 REVEAL_AND_PICK 族6効果を原文どおり構造化し、万能サーチ化を解消。846→845。
 // 旧・続き441: `$ref` が engine の一部経路で黙って0へ潰れていた6効果と、関連するゾーン・filter・2軸取り違えを是正。847→846。
 /*
 // 続き441 で置き換え。
