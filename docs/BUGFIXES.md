@@ -12,7 +12,11 @@
 
 **E2E／波及検査**＝対象6効果ごとに盤面実行を追加し、万能サーチ不可、公開枚数、条件不成立、デッキtop/bottom、マジックボックス設置順、任意コスト不成立時の本体不発、支払時も手札不変、異名制約、対象ownerを固定した。既存 golden が `WXK05-027-E2` の誤った `IS_MY_TURN` 木を固定していたため、原文どおり保存対象への `SEND_TO_ENERGY` を探すassertへ修正。HEADとの全カード生パース比較は上記6 effectIdだけ、outlier 0。held は最終build直後107枚／47群で開始時と同じ（増減集合とも空）。
 
-**最終ゲート**＝`npm run gates` 全緑。golden **1847/1847**（+6）、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 不具合0、census **846→845**（`BASELINE_HIGH`を845へ更新）、census:stubs 無言no-op 0、manual field loss 0、lint 0 errors／259 warnings。同型★0（265群）。逆翻訳全10枚は `npm run regen` で再生成した。commit/pushおよび PLAN/PLAN_PROGRESS の簿記は行っていない。
+**最終ゲート**＝`npm run gates` 全緑。golden **1847/1847**（+6）、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 不具合0、census **846→845**（`BASELINE_HIGH`を845へ更新）、census:stubs 無言no-op 0、manual field loss 0、lint 0 errors／259 warnings。同型★0（265群）。逆翻訳全10枚は `npm run regen` で再生成した。
+
+**⚠検証側（Claude）で1点是正**＝`WXDi-P11-043-E1` の `pickUpTo` を **`true`→`false`** に直した。原文「そのカードが宣言した数字と同じレベルのシグニ**の場合、そのカードを手札に加える**」は条件成立時に**強制**で、「1枚まで」ではない。`pickUpTo:true` だと毎アタックフェイズ開始時に辞退できる選択が出る**過少実行**になる（実装側は指示書の概形どおりに書いており、報告でも自主申告されていた）。不一致時は `pickable=0` で `execRevealAndPick` の remainder 経路へ落ちるので `false` でも安全（公開札はデッキ上に残る）。parser を直し `heldReview --adopt WXDi-P11-043` で**カードID単体採用**（署名グループは無関係な52枚を含むため一括採用しない＝続き416 の巻き添え事故と同型を回避）。golden の構造assertも `1/1/false/…` へ更新。held は 107（開始時と同じ）。
+
+**Claude 側の独立検証**＝ゲート再実行（golden 1847／census 845/845／census:stubs 0／同型★0／lint 259 warnings）、ベースライン `b385fdb44` との全 `effects_*.json` 機械diff（**変更 effectId は6件のみ・新規/削除/parseStatus変化とも0**＝兄弟効果の巻き添えなし）、**fresh parser 出力と live の直接照合**（⚠`PR-457` は E2 が MANUAL＝`PRESERVE_STATUSES` で held にも build にも映らない死角なので個別に確認し一致を実測）、全変更21ファイルのエンコーディング検査（U+FFFD／3連続以上の `?`／先頭BOM の新規増0）、逆翻訳6件の原文照合。
 
 ## 2026-08-11（続き442） — デッキ全体サーチ後に選択札をshuffle後のtop/secondへ戻す4効果を機構化（PLAN §6.4）
 
