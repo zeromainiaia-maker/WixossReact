@@ -117,7 +117,7 @@ import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAtta
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
-import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
+import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, clearTurnEndScopedStateForEndingTurn, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 
@@ -3655,7 +3655,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
-        newMyState = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+        newMyState = clearTurnEndScopedStateForEndingTurn(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
           ...myEndState,
           hand: myHandEND,
           deck: myDeckPreLimit,
@@ -4064,7 +4064,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
-      let newMyState: typeof my = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      let newMyState: typeof my = clearTurnEndScopedStateForEndingTurn(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...myEndState,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
@@ -4789,7 +4789,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const nextState   = activeIsHost ? guestState : hostState;
 
           // アクティブプレイヤーの一時状態をクリア
-          const clearedActive: typeof activeState = clearTurnEndScopedState({
+          const clearedActive: typeof activeState = clearTurnEndScopedStateForEndingTurn({
             ...activeState,
             temp_power_mods:    [],
             temp_level_mods:    [],
@@ -10543,7 +10543,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
-      const cleanCpuSt: PlayerState = clearTurnEndScopedState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      const cleanCpuSt: PlayerState = clearTurnEndScopedStateForEndingTurn(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...cpuEndState,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],

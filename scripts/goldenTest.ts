@@ -4199,6 +4199,42 @@ test('§6.4 turn-scoped T3: PvP通常終了→次ターン開始で全turn-end�
   eq(started.signi_played_from_non_hand_this_turn, undefined, '次ターンの非手札出自は空');
 }));
 
+// §6.4 turn-scoped T5（続き447 の検証で新設）＝**相手 state に置いた強制アタックを1ターン早く消さない**。
+// `WX15-003-E3`「次のターンの間、…シグニは可能ならばアタックしなければならない」／
+// `WXDi-P08-010-E3`「次の対戦相手のターンの間、対戦相手のシグニは…」は、
+// `FORCE_SIGNI_ATTACK{targetOwner:'opponent'}` を**自分のターン中に相手 state へ即時に書き**、
+// 「自分のターン終了では消えない」ことで原文の「次のターン」を表している近似。
+// funnel を両プレイヤーへ一律に掛けると**この2効果が完全な no-op になる**ので、
+// 'turn-end-active'＝ターンが終わる側だけ失効、を固定する。
+// ⚠本来は `must_attack_signi_next_turn` 予約（`free_grow_next_turn` 等と同じ作法）へ移すべき（PLAN §6.4 に登録）。
+test('§6.4 turn-scoped T5: 強制アタックは「ターンが終わる側」だけ失効し相手側は残る', () => withSavedCursor(() => {
+  const forced = { ...mkState(), must_attack_signi: true, must_attack_infected_only: true } as PlayerState;
+  // 次ターン側（＝これから自分のターンが来る相手）の state には残さなければならない
+  const asNextTurnSide = clearTurnEndScopedState(forced);
+  eq(asNextTurnSide.must_attack_signi, true, '相手側の強制アタックは自分のターン終了で消えない');
+  eq(asNextTurnSide.must_attack_infected_only, true, '感染限定の修飾子も同じ寿命');
+  // ターンが終わる側では失効する（自分のターンが終わったら自分への強制は消える）
+  const asEndingSide = clearTurnEndScopedStateForEndingTurn(forced);
+  eq(asEndingSide.must_attack_signi, undefined, 'ターンが終わる側では失効');
+  eq(asEndingSide.must_attack_infected_only, undefined, 'ターンが終わる側では修飾子も失効');
+  // 'turn-end-active' 以外は両方の入口で同じに消える（分岐が広がっていないこと）
+  for (const [field, spec] of Object.entries(TURN_SCOPED_STATE_FIELDS)) {
+    if (!(spec.boundaries as readonly string[]).includes('turn-end')) continue;
+    eq(JSON.stringify((asNextTurnSide as unknown as Record<string, unknown>)[field]),
+      JSON.stringify((asEndingSide as unknown as Record<string, unknown>)[field]),
+      `${field}: turn-end は両入口で同じ`);
+  }
+}));
+
+// ソース走査＝'turn-end-active' に入れてよいのは、いま既知の2フィールドだけ（無自覚な追加を止める）。
+test('§6.4 turn-scoped T6: turn-end-active は既知2フィールドだけ', () => {
+  const active = Object.entries(TURN_SCOPED_STATE_FIELDS)
+    .filter(([, spec]) => (spec.boundaries as readonly string[]).includes('turn-end-active'))
+    .map(([field]) => field).sort();
+  eq(active.join('|'), ['must_attack_infected_only', 'must_attack_signi'].join('|'),
+    '寿命を延ばすのは強制アタックの2フィールドのみ');
+});
+
 test('§6.4 turn-scoped T4: 手札調整確定後ルートで未消費free growが翌ターンへ残らない', () => withSavedCursor(() => {
   const afterDiscard = clearTurnEndScopedState({
     ...mkState(), free_grow_this_turn: true, signi_banished_this_turn: 2,
