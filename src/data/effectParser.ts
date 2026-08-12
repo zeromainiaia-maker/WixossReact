@@ -12299,9 +12299,35 @@ function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAct
     return node;
   };
 
-  // 各プレイヤーの全領域リセット＋各自選択は、相手 SEARCH の応答ルーティングが無い間は部分実装しない。
-  if (/各プレイヤーは自分のシグニゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルする。[\s\S]*各プレイヤーは自分のデッキの上からカードを[０-９\d]+枚見て/.test(sourceText)) {
-    return { type: 'STUB', id: 'DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL' } as StubAction;
+  // 「各プレイヤーは自分のシグニゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルする。
+  //   その後、各プレイヤーは自分のデッキの上からカードをN枚見て、その中から好きな枚数のシグニを場に出し、
+  //   残りをトラッシュに置く。それらのシグニの【出】能力は発動しない。」（`WXDi-P01-026-E1`）
+  // §6.4 O-2 で SEARCH の相手応答ルーティングが入るまで defer していた文型（旧 DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL）。
+  // ⚠**「各プレイヤーは」は自分ぶんと相手ぶんの2本に割る**（片方だけ書くと半分が恒久 no-op）。
+  //   相手ぶんの pick は `owner:'opponent'` ＋ `opponentResponds` の**両方**が要る。
+  // ⚠リセットは**両者ぶんを先に全部済ませてから**公開する（原文の「その後、」）＝
+  //   自分の pick を先に解決すると、相手のリセット前のデッキを公開してしまう。
+  const eachResetM = sourceText.match(
+    /各プレイヤーは自分のシグニゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルする。[\s\S]*?各プレイヤーは自分のデッキの上からカードを([０-９\d]+)枚見て、その中から好きな枚数のシグニを場に出し、残りをトラッシュに置く。/,
+  );
+  if (eachResetM) {
+    const revealCount = parseNum(eachResetM[1]);
+    const suppress = /それらのシグニの【出】能力は発動しない/.test(sourceText);
+    const toDeck = (owner: 'self' | 'opponent', type: 'SIGNI' | 'TRASH_CARD'): EffectAction => ({
+      type: 'TRANSFER_TO_DECK', source: { type, owner, count: 'ALL' }, shuffle: true,
+    } as EffectAction);
+    const refill = (owner: 'self' | 'opponent'): EffectAction => ({
+      type: 'LOOK_PICK_CHAIN', owner, revealCount,
+      stages: [{ filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field',
+        ...(suppress ? { suppressOnPlay: true } : {}) }],
+      remainder: { location: 'trash', position: 'any' },
+      ...(owner === 'opponent' ? { opponentResponds: true } : {}),
+    } as unknown as EffectAction);
+    return { type: 'SEQUENCE', steps: [
+      toDeck('self', 'SIGNI'), toDeck('self', 'TRASH_CARD'),
+      toDeck('opponent', 'SIGNI'), toDeck('opponent', 'TRASH_CARD'),
+      refill('self'), refill('opponent'),
+    ] } as SequenceAction;
   }
 
   // 「対戦相手はデッキの上からN枚公開する。対戦相手はその中からシグニをM枚まで場に出し、残りをトラッシュに置く」。
