@@ -7427,7 +7427,7 @@ export function resumeSearch(
   if (pending.revealRemainder) {
     const rr = pending.revealRemainder;
     const rest = rr.cards.filter(n => !picked.includes(n));
-    let s = { ...cur.ownerState };
+    let s = { ...deckState(cur) };
     let deck = [...s.deck];
     const moved: string[] = [];
     for (const cn of rest) { const di = deck.indexOf(cn); if (di >= 0) { deck.splice(di, 1); moved.push(cn); } }
@@ -7438,7 +7438,8 @@ export function resumeSearch(
       ...(rr.location === 'trash' ? { trash: [...s.trash, ...moved] } : {}),
       ...(rr.location === 'energy' ? { energy: [...s.energy, ...moved] } : {}) };
     const destJa = rr.location === 'deck' ? (rr.position === 'bottom' ? 'デッキの一番下' : 'デッキの上') : rr.location === 'trash' ? 'トラッシュ' : 'エナゾーン';
-    cur = moved.length > 0 ? addLog({ ...cur, ownerState: s }, `残り${moved.length}枚を${destJa}へ`) : { ...cur, ownerState: s };
+    const movedCtx = setOwnerState(dOwner, s, cur);
+    cur = moved.length > 0 ? addLog(movedCtx, `残り${moved.length}枚を${destJa}へ`) : movedCtx;
   }
   // 「探す → シャッフル → 探したカードをデッキ上へ」の順序予約。
   // SEARCH の通常契約は thenAction → afterAction だが、この木の形だけは選択札をデッキに残したまま
