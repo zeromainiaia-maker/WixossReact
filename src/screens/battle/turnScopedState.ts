@@ -1,5 +1,6 @@
 import type { PlayerState } from '../../types';
 import { advancePreventDamageWindows } from './battleUtils';
+import { normalizeFieldGrants, optionalFieldGrants } from '../../utils/fieldGrants';
 
 // 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
 type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'consume';
@@ -78,6 +79,8 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   must_attack_infected_only: { boundaries: ['turn-end'], reset: undefined, reason: 'modifier of the active forced-attack flag; same lifetime' },
   // 場全体キーワード active は現在のグローバルターンだけ。自/相手ターン予約は別フィールド。
   field_keyword_grants_active: { boundaries: ['turn-end'], reset: undefined, reason: 'active global-turn field keyword grants; reservations are stored separately' },
+  // 統一場レベル grant active は現在のグローバルターンだけ。予約は別フィールド。
+  field_grants_active: { boundaries: ['turn-end'], reset: undefined, reason: 'active global-turn field grants; reservations are stored separately' },
   // アシストルリグの攻撃許可は、付与されたターンだけ通常ルールを上書きする。
   assist_lrig_attack_min_level: { boundaries: ['turn-end'], reset: undefined, reason: 'assist-lrig attack permission for the current turn' },
   // エナゾーン外支払い数は「1ターンに3つまで」の当該ターン累計。
@@ -121,7 +124,10 @@ function consumeField(state: PlayerState, field: TurnScopedPlayerStateField): Pl
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
   const reset = resetBoundary(state, 'turn-end');
-  const nextOpponentTurnKeywords = state.field_keyword_grants_next_opp_turn;
+  const nextOpponentTurnGrants = normalizeFieldGrants(
+    state.field_grants_next_opp_turn,
+    state.field_keyword_grants_next_opp_turn,
+  );
   // safety は戻り値の最終段に置く。呼び出し側の古い値を spread し直して復活させない。
   return {
     ...reset,
@@ -129,7 +135,9 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     // unsuffixed entries were active for the turn that just ended. Only explicit
     // NEXT_TURN reservations cross the boundary; turn start removes the suffix.
     blocked_actions: (state.blocked_actions ?? []).filter(actionId => actionId.endsWith(':NEXT_TURN')),
-    field_keyword_grants_active: nextOpponentTurnKeywords,
+    field_grants_active: optionalFieldGrants(nextOpponentTurnGrants),
+    field_grants_next_opp_turn: undefined,
+    field_keyword_grants_active: undefined,
     field_keyword_grants_next_opp_turn: undefined,
     prevent_damage_windows: advancePreventDamageWindows(state.prevent_damage_windows),
   };
@@ -138,6 +146,8 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
 /** 次の自分ターン開始時の履歴切替と、各予約→active 昇格を一括する。 */
 export function activateTurnStartScopedState(state: PlayerState): PlayerState {
   const reset = resetBoundary(state, 'turn-start');
+  const activeFieldGrants = normalizeFieldGrants(state.field_grants_active, state.field_keyword_grants_active);
+  const nextTurnFieldGrants = normalizeFieldGrants(state.field_grants_next_turn, state.field_keyword_grants_next_turn);
   const activatedBlockedActions = (state.blocked_actions ?? []).map(actionId =>
     actionId.endsWith(':NEXT_TURN') ? actionId.slice(0, -':NEXT_TURN'.length) : actionId);
   return {
@@ -151,9 +161,9 @@ export function activateTurnStartScopedState(state: PlayerState): PlayerState {
       ? (state.must_attack_infected_only_next_turn ?? false)
       : undefined,
     must_attack_infected_only_next_turn: undefined,
-    field_keyword_grants_active: (state.field_keyword_grants_next_turn || state.field_keyword_grants_active)
-      ? [...(state.field_keyword_grants_active ?? []), ...(state.field_keyword_grants_next_turn ?? [])]
-      : undefined,
+    field_grants_active: optionalFieldGrants([...activeFieldGrants, ...nextTurnFieldGrants]),
+    field_grants_next_turn: undefined,
+    field_keyword_grants_active: undefined,
     field_keyword_grants_next_turn: undefined,
   };
 }

@@ -1,4 +1,4 @@
-import type { PlayerState, CardData, TurnPhase } from '../types';
+import type { PlayerState, CardData, TurnPhase, FieldGrant } from '../types';
 import type {
   CardEffect,
   ActiveCondition,
@@ -33,6 +33,7 @@ import type {
 } from '../types/effects';
 import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, hasAcceAt } from '../utils/acce';
+import { normalizeFieldGrants } from '../utils/fieldGrants';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
@@ -452,7 +453,8 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return hasKeyword(sourceCardNum, cond.keyword, cardMap,
         ownerState.keyword_grants, undefined,
-        ownerState.keyword_grants_until_opp_turn, ownerState.field_keyword_grants_active,
+        ownerState.keyword_grants_until_opp_turn,
+        activeFieldGrantKeywordsForSigni(ownerState, otherState, sourceCardNum, cardMap),
         ownerState.abilities_removed, ownerState.keyword_abilities_removed);
 
     case 'HAS_BOND': {
@@ -771,6 +773,40 @@ export function matchesStateFilter(state: PlayerState, zoneIdx: number, filter: 
     if (zoneIdx !== (filter.zoneSide === 'left' ? 0 : 2)) return false;
   }
   return true;
+}
+
+/** active な場レベル grant のうち、現在そのシグニへ適用されるものを返す。filter/zone/condition は毎回評価する。 */
+export function activeFieldGrantsForSigni(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+): FieldGrant[] {
+  const zoneIdx = ownerState.field.signi.findIndex(stack => stack?.at(-1) === cardNum);
+  if (zoneIdx < 0) return [];
+  const baseNum = cardNum.includes('#') ? cardNum.slice(0, cardNum.indexOf('#')) : cardNum;
+  const card = cardMap.get(baseNum);
+  return normalizeFieldGrants(ownerState.field_grants_active, ownerState.field_keyword_grants_active)
+    .filter(grant => {
+      if (grant.zone !== undefined && grant.zone !== zoneIdx) return false;
+      if (!matchesFilter(card, grant.filter) || !matchesStateFilter(ownerState, zoneIdx, grant.filter)) return false;
+      if (grant.condition?.type === 'FRONT_SIGNI_HAS_CHARM') {
+        const frontZone = 2 - zoneIdx;
+        if (!otherState.field.signi[frontZone]?.at(-1)) return false;
+        if ((otherState.field.signi_charms?.[frontZone] ?? null) === null) return false;
+      }
+      return true;
+    });
+}
+
+export function activeFieldGrantKeywordsForSigni(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+): string[] {
+  return activeFieldGrantsForSigni(ownerState, otherState, cardNum, cardMap)
+    .flatMap(grant => grant.kind === 'keyword' ? [grant.keyword] : []);
 }
 
 // ===== CONTINUOUS BANISH / FREEZE / DOWN 状態変更計算 =====
@@ -2241,6 +2277,31 @@ export function calcFieldPowers(
   // 各プレイヤーのシグニへの負デルタは、その対戦相手が「このターン2倍－」を持つ場合に倍化する
   applyTempMods(myState, negateForOp, opState.double_power_minus_this_turn === true, opState.double_power_minus_sources);
   applyTempMods(opState, myState.replace_opp_power_plus ? opSigniNums : undefined, myState.double_power_minus_this_turn === true, myState.double_power_minus_sources);
+
+  // 場レベル power grant は active 中の盤面へ毎回適用する。cardNum スナップショットではないため、
+  // 予約後に場へ出たシグニも filter/zone/condition が一致すれば対象になる。
+  const applyActiveFieldPowerGrants = (state: PlayerState, otherState: PlayerState, negatePositive = false) => {
+    const targetDoublers = state.double_power_minus_targets ?? [];
+    const sourceDoublers = otherState.double_power_minus_sources ?? [];
+    for (const stack of state.field.signi) {
+      const cardNum = stack?.at(-1);
+      if (!cardNum || !powers.has(cardNum)) continue;
+      for (const grant of activeFieldGrantsForSigni(state, otherState, cardNum, cardMap)) {
+        if (grant.kind !== 'power') continue;
+        const fromSigni = grant.srcType === undefined || grant.srcType.includes('シグニ') || grant.srcType.includes('レゾナ');
+        const doubled = grant.delta < 0 && (
+          targetDoublers.includes(cardNum)
+          || (grant.srcCardNum != null && sourceDoublers.includes(grant.srcCardNum))
+          || (otherState.double_power_minus_this_turn === true && fromSigni)
+        );
+        const rawDelta = doubled ? grant.delta * 2 : grant.delta;
+        const delta = negatePositive && rawDelta > 0 ? -rawDelta : rawDelta;
+        powers.set(cardNum, (powers.get(cardNum) ?? 0) + delta);
+      }
+    }
+  };
+  applyActiveFieldPowerGrants(myState, opState, opState.replace_opp_power_plus === true);
+  applyActiveFieldPowerGrants(opState, myState, myState.replace_opp_power_plus === true);
 
   // field_power_mods（「そのシグニが場にあるかぎり＋N」の永続パワー修正・WXDi-P10-034 表向き +5000）。
   //   temp_power_mods と異なりターン境界でクリアしない。場に居る cardNum にのみ適用（powers.has で守る＝場を離れれば失効）。
@@ -3775,6 +3836,10 @@ export function collectContinuousGrantedKeywords(
   const abilitiesRemoved = collectContinuousAbilitiesRemovedSigni(ownerState, otherState, isOwnerTurn, effectsMap, cardMap, '常');
   // 発生源: 自分の場のシグニ＋センタールリグ
   const sources: string[] = [...signiTops];
+  // 予約から昇格した場レベル付与。UI・アタック判定が共用する result へ合流させる。
+  for (const num of signiTops) {
+    for (const keyword of activeFieldGrantKeywordsForSigni(ownerState, otherState, num, cardMap)) add(num, keyword);
+  }
   const lrigTop = ownerState.field.lrig.at(-1);
   if (lrigTop) sources.push(lrigTop);
   for (const srcNum of sources) {

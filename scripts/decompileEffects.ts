@@ -255,6 +255,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   if (t.filter?.thisCardOnly) {
     return 'このシグニ';
   }
+  if (t.zoneSource === 'designated') {
+    return `指定されたシグニゾーンにある${filterJa(t.filter)}${unit}`;
+  }
   // owner='any': count='ALL' は「すべてのシグニ」（両者・主語省略）、単体選択は「自分または対戦相手の」（どちらも選べる）
   const own = t.owner === 'any' ? (t.count === 'ALL' ? '' : '自分または対戦相手の') : ownerJa(t.owner);
   // 領域カード（手札/トラッシュ/エナ/デッキ等）はフィルタの cardType を名詞に反映（無ければ「カード」）
@@ -774,7 +777,15 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.deltaPerLastProcessedCount) {
         return `${pmSubj}のパワーをこの方法で捨てた手札1枚につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する`;
       }
-      return `${pmSubj}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : ''}`;
+      const pmDuration = a.duration === 'NEXT_TURN'
+        ? a.appliesThisTurn
+          ? '（このターンと次のターンの間）'
+          : a.nextTurnOwner === 'opponent'
+            ? '（次の対戦相手のターンの間）'
+            : '（次のターンの間）'
+        : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
+        : a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : '';
+      return `${pmSubj}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
     }
     case 'POWER_SET': {
       // CONTINUOUS の POWER_SET で count≠ALL は engine 上「このシグニのみ」に解決される（effectEngine 参照）
@@ -1013,7 +1024,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const kwBase = typeof a.keyword === 'string' ? a.keyword.replace(/^ランサー:.*/, 'ランサー') : String(a.keyword ?? '');
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.duration === 'NEXT_TURN'
-          ? `（次の${a.nextTurnOwner === 'opponent' ? '対戦相手の' : 'あなたの'}ターンの間）`
+          ? a.appliesThisTurn
+            ? '（このターンと次のターンの間）'
+            : a.nextTurnOwner === 'opponent'
+              ? '（次の対戦相手のターンの間）'
+              : '（次のターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）。
         // 【${kwBase}[^】]*】＝【アサシン（パワー3000以下のシグニ）】等の括弧付きキーワード変種も拾う。
@@ -1024,6 +1039,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.targetsLastProcessed) return `それは【${kw}】を得る${durJa}`;
       // targetsTriggerSource:「それ（トリガー元シグニ）」へ付与
       if (a.targetsTriggerSource) return `それ（トリガー元シグニ）は【${kw}】を得る${durJa}`;
+      if (a.fieldCondition?.type === 'FRONT_SIGNI_HAS_CHARM') {
+        return `${targetJa(a.target)}は、その正面のシグニに【チャーム】が付いているかぎり【${kw}】を得る${durJa}`;
+      }
       return `${targetJa(a.target)}に【${kw}】を与える${durJa}`;
     }
     case 'GRANT_EFFECT': {

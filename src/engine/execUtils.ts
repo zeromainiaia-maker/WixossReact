@@ -1,6 +1,6 @@
 import type { PlayerState, CardData, PendingInteractionDef, TargetScope, TurnPhase } from '../types';
 import { hasShadowLrig, getShadowScopes, getFieldGrantedShadowScopes, evaluateShadowScope, decodeShadowKeyword } from '../utils/keywords';
-import { checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, calcSigniLevels, type BanishedCardAttrs } from './effectEngine';
+import { activeFieldGrantKeywordsForSigni, checkBeatCondition, checkActiveCondition, fieldEffectBanishRedirectToTrash, computeBanishedAttrs, matchesStateFilter, calcSigniLevels, type BanishedCardAttrs } from './effectEngine';
 import type {
   CardEffect,
   EffectAction,
@@ -2300,7 +2300,8 @@ export function selectOrInteract(
       // シャドウ（スコープなし＝無条件、スコープ付き＝発生源カードの属性で判定。activeCondition無しのもの）
       const scopes = getShadowScopes(
         n, ctx.cardMap, ctx.otherState.keyword_grants, ctx.otherState.bonds,
-        ctx.otherState.keyword_grants_until_opp_turn, ctx.otherState.field_keyword_grants_active,
+        ctx.otherState.keyword_grants_until_opp_turn,
+        activeFieldGrantKeywordsForSigni(ctx.otherState, ctx.ownerState, n, ctx.cardMap),
       );
       if (scopes.some(scope => evaluateShadowScope(scope, sourceCardForShadow, n, ctx.otherState, ctx.cardMap))) return false;
       // 場全体への継続シャドウ付与（GRANT_FIELD_SHADOW・同ゾーンゲート等）も評価

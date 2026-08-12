@@ -1607,6 +1607,28 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // ---- 場レベルのパワー＋キーワード複合（同じ動的対象へ両方を付与）----
+  // 「中央ゾーンのシグニのパワーは＋Nされ、それは【K】を得る」。POWER_MODIFY が先に全文を
+  // 奪うと後半のキーワードが消えるため、木の形として SEQUENCE にする。
+  const centerPowerKeywordM = t.match(/あなたの中央のシグニゾーンにあるシグニのパワーは＋([０-９\d]+)され、それは【([^】]+)】を得る/);
+  if (centerPowerKeywordM) {
+    const target: EffectTarget = {
+      type: 'SIGNI', owner: 'self', count: 'ALL',
+      filter: { cardType: 'シグニ', centerZoneOnly: true },
+    };
+    const nextOpponentTurn = t.includes('次の対戦相手のターンの間');
+    const nextGlobalTurn = !nextOpponentTurn && t.includes('次のターンの間');
+    const duration: EffectDuration = nextOpponentTurn || nextGlobalTurn ? 'NEXT_TURN' : 'UNTIL_END_OF_TURN';
+    const nextTurnOwner = nextOpponentTurn ? 'opponent' as const : nextGlobalTurn ? 'next' as const : undefined;
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'POWER_MODIFY', target, delta: parseNum(centerPowerKeywordM[1]), duration, ...(nextTurnOwner ? { nextTurnOwner } : {}) },
+        { type: 'GRANT_KEYWORD', target, keyword: centerPowerKeywordM[2], duration, ...(nextTurnOwner ? { nextTurnOwner } : {}) },
+      ],
+    };
+  }
+
   // ---- パワーパンプ / デバフ ----
   const plusM = t.match(/パワーを＋([０-９\d]+)する/) ?? t.match(/パワーは＋([０-９\d]+)され/);
   const minusM = t.match(/パワーを－([０-９\d]+)する/) ?? t.match(/パワーは－([０-９\d]+)され/)
@@ -1661,6 +1683,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 「あなたの(すべての)レゾナのパワーを±N」＝自分のレゾナ全体への持続バフ（WX07-007/WX08-019）。
       // cardType:'レゾナ' で engine（card.Type==='レゾナ'）も decompiler もレゾナと認識する。
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'レゾナ' } };
+    } else if (t.match(/このターンと次のターンの間、指定されたシグニゾーンにあるシグニのパワーを/)) {
+      // DESIGNATE_SIGNI_ZONE が対象側 state に保存した固定ゾーン。count:ALL は選択対象の全体ではなく
+      // 「そのゾーンに現在／将来いるシグニ」への場レベル適用を表す。
+      target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' }, zoneSource: 'designated' };
     } else if (t.match(/あなたの中央のシグニゾーンにある.*?シグニのパワーを/)) {
       // 「あなたの中央のシグニゾーンにある[＜種族＞/《ディソナアイコン》]の?シグニのパワーを±N」＝中央ゾーン(index1)の該当シグニ全体。
       // engine matchesStateFilter（centerZoneOnly=zoneIdx1）・decompiler（「中央ゾーンの」）対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。
@@ -1739,6 +1765,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target, delta };
     if (isTriggerSource) pmAction.targetsTriggerSource = true;
     if (excludeSelf) pmAction.excludeSelf = true;
+    const nextOpponentTurn = t.includes('次の対戦相手のターンの間');
+    const nextGlobalTurn = !nextOpponentTurn && t.includes('次のターンの間');
+    if (nextOpponentTurn || nextGlobalTurn) {
+      pmAction.duration = 'NEXT_TURN';
+      pmAction.nextTurnOwner = nextOpponentTurn ? 'opponent' : 'next';
+      if (t.includes('このターンと次のターンの間')) pmAction.appliesThisTurn = true;
+    }
     return pmAction;
   }
 
@@ -2597,8 +2630,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // しかも条件節の ＜プリオケ＞ が対象フィルタへ紛れ込む（条件節を切り出すと今度はそれが消える＝(lxvi) の「両損」）。
     // ⚠**同じ文に本物の付与が同居する形**（「【ライフバースト】を持つシグニ…は【ランサー】を得る」）を殺さないため、
     //   保有条件として使われている keyword だけを飛ばし、残りに付与形があればそちらを採る。
-    const isPossessionFilterKw = (k: string) =>
-      new RegExp(`【${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}】を持つ(?:カード|シグニ|スペル|アーツ|ルリグ|ピース)`).test(t);
+    const isPossessionFilterKw = (k: string) => {
+      const escaped = k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`【${escaped}】を持つ(?:カード|シグニ|スペル|アーツ|ルリグ|ピース)`).test(t)
+        || new RegExp(`【${escaped}】が付いているかぎり`).test(t);
+    };
     // ⚠**「…を得る／を持つ」に隣接する【K】を優先する」一般化は入れてはいけない**（続き377l で A/B により却下）＝
     //   `t.match(/【K】…を(得る|持つ)/)` は文中の**最初の**一致を返すため、①`WX08-061`「【ダブルクラッシュ】を
     //   **持つ**シグニ１体を対象とし…【アサシン】を得る」の**保有フィルタ**に当たる ②`WXDi-P15-048`
@@ -2611,8 +2647,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       : kwM?.[1];
     if (kwM && kwGrantName && !['常','出','起','自','ガード'].includes(kwGrantName)) {
       const nextOpponentTurn = t.includes('次の対戦相手のターンの間');
-      const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
-        : nextOpponentTurn ? 'NEXT_TURN'
+      const escapedGrantName = kwGrantName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      // 条件節の【シード】などを付与キーワードと誤認した旧パースへ、
+      // 本文内の別節「次のターン」だけを結び付けない。実際の付与句がある場合のみ予約化する。
+      const hasDirectKeywordGrant = new RegExp(`【${escapedGrantName}】を(?:得る|持つ)`).test(t);
+      const nextGlobalTurn = !nextOpponentTurn && t.includes('次のターンの間') && hasDirectKeywordGrant;
+      const thisAndNextTurn = t.includes('このターンと次のターンの間');
+      const dur: EffectDuration = nextOpponentTurn || nextGlobalTurn ? 'NEXT_TURN'
+        : t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
         : t.includes('次の対戦相手のターン終了時まで') ? 'UNTIL_OPP_TURN_END'
         : 'PERMANENT';
       // ターゲット解決（エナゾーン → 全シグニ → 個別）
@@ -2715,9 +2757,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 「のうち最も…シグニ」等の超上級句が「シグニ」と「を対象とし」の間に挟まる形（WX25-CP1-051）も narrow に拾う。
       const kwExcludeSelf = hasOtherSelfSigniNoun(t) && (/シグニ[^。、]*を対象とし/.test(t) || !!kwAllSelf)
         || /(?:あなた|対戦相手)の他の[^。、]*シグニのうち最も[^。、]*を対象とし/.test(t);
-      const kwTarget: EffectTarget = kwExcludeSelf && targetWithSpec.type === 'SIGNI'
+      const kwTarget0: EffectTarget = kwExcludeSelf && targetWithSpec.type === 'SIGNI'
         ? { ...targetWithSpec, filter: { ...(targetWithSpec.filter ?? {}), excludeSelf: true } }
         : targetWithSpec;
+      // 「あなたの＜X＞のシグニは…」は個体選択でなく場全体への叙述。次ターン予約では
+      // 解決時点の1体へ固定せず、active 時の盤面へ毎回 filter を掛ける。
+      const kwTarget: EffectTarget = dur === 'NEXT_TURN' && kwTarget0.type === 'SIGNI'
+        && kwTarget0.owner === 'self' && kwTarget0.count === 1
+        && !/シグニ[０-９\d]+体/.test(t) && !/を対象とし/.test(t)
+        ? { ...kwTarget0, count: 'ALL' }
+        : kwTarget0;
+      const fieldCondition = /その正面のシグニに【[^】]+】が付いているかぎり/.test(t)
+        ? { type: 'FRONT_SIGNI_HAS_CHARM' as const }
+        : undefined;
+      const nextTurnOwner = nextOpponentTurn ? 'opponent' as const : nextGlobalTurn ? 'next' as const : undefined;
       // 「【X】と【Y】を得る」「【X】【Y】を持つ」複合付与 → SEQUENCE
       // 「を得る/を持つ」直前に隣接するキーワード連続（と/・接続のみ）に限定し、
       // 文境界を跨いだ無関係キーワードの巻き込みを防ぐ
@@ -2731,14 +2784,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
             type: 'SEQUENCE',
             steps: runKw.map(k => ({
               type: 'GRANT_KEYWORD', target: kwTarget, keyword: k, duration: dur,
-              ...(nextOpponentTurn ? { nextTurnOwner: 'opponent' as const } : {}),
+              ...(nextTurnOwner ? { nextTurnOwner } : {}),
+              ...(thisAndNextTurn ? { appliesThisTurn: true } : {}),
+              ...(fieldCondition ? { fieldCondition } : {}),
             })),
           };
         }
       }
       return {
         type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwGrantName, duration: dur,
-        ...(nextOpponentTurn ? { nextTurnOwner: 'opponent' as const } : {}),
+        ...(nextTurnOwner ? { nextTurnOwner } : {}),
+        ...(thisAndNextTurn ? { appliesThisTurn: true } : {}),
+        ...(fieldCondition ? { fieldCondition } : {}),
       };
     }
   }

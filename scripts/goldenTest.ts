@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
-import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { activeFieldGrantKeywordsForSigni, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -4150,8 +4150,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定31フィールドと f
   const irregular = registered.filter(field => !convention.includes(field));
   eq(convention.length, 24, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
-  eq(irregular.length, 7, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 31, '型由来24件＋命名規約外7件の母集団');
+  eq(irregular.length, 8, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 32, '型由来24件＋命名規約外8件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -4251,17 +4251,17 @@ test('§6.4 NEXT_TURN WX12-Re05-E1: 発動ターンは場出し可／次相手�
 function assertNextOpponentShadow(cardNum: string, effectId: string, action: EffectAction): void {
   const protectedSigni = SIGNI_P3000;
   const applied = run(action, mkCtx({ signi: [protectedSigni, null, null] }, {}, cardNum));
-  eq(applied.ownerState.field_keyword_grants_active, undefined, `${effectId}: 発動ターンactiveなし`);
-  ok((applied.ownerState.field_keyword_grants_next_opp_turn ?? []).length === 1, `${effectId}: 次相手ターン予約`);
+  eq(applied.ownerState.field_grants_active, undefined, `${effectId}: 発動ターンactiveなし`);
+  ok((applied.ownerState.field_grants_next_opp_turn ?? []).length === 1, `${effectId}: 次相手ターン予約`);
   const targetNow = { ...mkCtx({}, {}, SIGNI), otherState: applied.ownerState } as ExecCtx;
   const hitNow = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, targetNow);
   eq(hitNow.otherState.field.signi[0], null, `${effectId}: 発動ターンにはシャドウが効かない`);
   const activated = clearTurnEndScopedState(applied.ownerState);
-  ok((activated.field_keyword_grants_active ?? []).length === 1, `${effectId}: 次相手ターンにactive`);
+  ok((activated.field_grants_active ?? []).length === 1, `${effectId}: 次相手ターンにactive`);
   const targetNext = { ...mkCtx({}, {}, SIGNI), otherState: activated } as ExecCtx;
   const blockedNext = run({ type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }, targetNext);
   ok(blockedNext.otherState.field.signi[0] !== null, `${effectId}: 次相手ターンは対象効果をシャドウで拒否`);
-  eq(clearTurnEndScopedState(activated).field_keyword_grants_active, undefined, `${effectId}: 次相手ターン終了で失効`);
+  eq(clearTurnEndScopedState(activated).field_grants_active, undefined, `${effectId}: 次相手ターン終了で失効`);
 }
 
 test('§6.4 NEXT_TURN WX15-004-E3: 全シグニのシャドウを次相手ターンだけ有効化', () => withSavedCursor(() => {
@@ -4308,24 +4308,160 @@ test('§6.4 NEXT_TURN 据置 WXDi-P11-005-E3: 無無支払い攻撃制限の受�
   ok(a.type === 'BLOCK_ACTION' && a.until === 'END_OF_TURN' && a.attackCost === undefined, 'コスト付き制限を単純禁止として予約しない');
 });
 
-test('§6.4 NEXT_TURN 据置 WX05-034-BURST: 中央限定＋このターンと次ターンの二重期間', () => {
-  const a = nextTurnLiveAction('WX05-034', 'WX05-034-BURST');
-  ok(a.type === 'GRANT_KEYWORD' && a.duration === 'PERMANENT' && a.target.filter?.centerZoneOnly === true, '片側期間だけの予約を採用しない');
+test('§6.4 NEXT_TURN 採用JSON: 限定・二重期間・動的条件を予約actionに保持', () => {
+  const wx05 = nextTurnLiveAction('WX05-034', 'WX05-034-BURST');
+  ok(wx05.type === 'GRANT_KEYWORD' && wx05.duration === 'NEXT_TURN' && wx05.appliesThisTurn === true
+    && wx05.target.count === 'ALL' && wx05.target.filter?.centerZoneOnly === true, 'WX05-034-BURST');
+  const wx10 = nextTurnLiveAction('WX10-036', 'WX10-036-BURST');
+  ok(wx10.type === 'GRANT_KEYWORD' && wx10.keyword === 'アサシン' && wx10.duration === 'NEXT_TURN'
+    && wx10.fieldCondition?.type === 'FRONT_SIGNI_HAS_CHARM', 'WX10-036-BURST');
+  const ex2 = nextTurnLiveAction('WXEX2-26', 'WXEX2-26-E3');
+  ok(ex2.type === 'GRANT_KEYWORD' && ex2.target.count === 'ALL' && ex2.target.filter?.story === '微菌'
+    && ex2.duration === 'NEXT_TURN' && ex2.appliesThisTurn === true, 'WXEX2-26-E3');
+  const di = findActionByType(nextTurnLiveAction('WXDi-P14-070', 'WXDi-P14-070-E1'), 'GRANT_KEYWORD');
+  ok(di?.target.count === 'ALL' && di.target.filter?.story === '電音部'
+    && di.duration === 'NEXT_TURN' && di.nextTurnOwner === 'opponent', 'WXDi-P14-070-E1');
 });
 
-test('§6.4 NEXT_TURN 据置 WX10-036-BURST: 中央正面チャーム条件の受け皿なし', () => {
-  const a = nextTurnLiveAction('WX10-036', 'WX10-036-BURST');
-  ok(a.type === 'GRANT_KEYWORD' && a.keyword === 'チャーム' && a.duration === 'PERMANENT', '条件付きアサシンを単純予約と誤認しない');
+const withFieldSigni = (state: PlayerState, nums: Array<string | null>): PlayerState => ({
+  ...state,
+  field: { ...state.field, signi: nums.map(num => num ? [num] : null) },
 });
+const fieldGrantPrintedPower = (num: string): number => parseInt(cardMap.get(num.split('#')[0])?.Power || '0', 10);
+const fieldPower = (state: PlayerState, other: PlayerState, num: string): number | undefined =>
+  calcFieldPowers(state, other, true, new Map(), cardMap as Map<string, CardData>).get(num);
 
-test('§6.4 NEXT_TURN 据置 WXEX2-26-E3: 微菌限定＋このターンと次ターンの受け皿なし', () => {
-  const a = nextTurnLiveAction('WXEX2-26', 'WXEX2-26-E3');
-  ok(a.type === 'GRANT_KEYWORD' && a.target.count === 1 && a.target.filter?.story === '微菌', 'クラス限定二重期間を採用しない');
-});
+test('§6.4 field grant legacy: 旧string[]はactive/自ターン予約/相手ターン予約の全てを新形へ正規化', () => withSavedCursor(() => {
+  const signi = fresh();
+  const active = mkState({ signi: [signi, null, null] });
+  active.field_keyword_grants_active = ['ランサー'];
+  ok(getSigniAttackKeywordState(signi, active, mkState(), cardMap, new Map()).isLancer, '旧activeを消費');
 
-test('§6.4 NEXT_TURN 据置 WXDi-P14-070-E1: 電音部限定の場全体予約なし', () => {
-  const s = JSON.stringify(nextTurnLiveAction('WXDi-P14-070', 'WXDi-P14-070-E1'));
-  ok(s.includes('"duration":"UNTIL_OPP_TURN_END"') && !s.includes('"duration":"NEXT_TURN"'), 'filtered freshを採用しない');
+  const ownReserved = mkState({ signi: [signi, null, null] });
+  ownReserved.field_keyword_grants_next_turn = ['ダブルクラッシュ'];
+  const ownActivated = activateTurnStartScopedState(ownReserved);
+  eq(ownActivated.field_keyword_grants_next_turn, undefined, '旧自ターン予約を消費');
+  ok(ownActivated.field_grants_active?.[0]?.kind === 'keyword'
+    && ownActivated.field_grants_active[0].keyword === 'ダブルクラッシュ', '新active形へ正規化');
+
+  const oppReserved = mkState({ signi: [signi, null, null] });
+  oppReserved.field_keyword_grants_next_opp_turn = ['シャドウ'];
+  const oppActivated = clearTurnEndScopedState(oppReserved);
+  eq(oppActivated.field_keyword_grants_next_opp_turn, undefined, '旧相手ターン予約を消費');
+  ok(oppActivated.field_grants_active?.[0]?.kind === 'keyword'
+    && oppActivated.field_grants_active[0].keyword === 'シャドウ', '旧相手予約も新active形へ正規化');
+}));
+
+test('§6.4 E2E WX10-047-BURST: 発動した相手ターンには不発、次の自ターンの新規シグニへ＋10000', () => withSavedCursor(() => {
+  const action = nextTurnLiveAction('WX10-047', 'WX10-047-BURST');
+  const oldSigni = fresh();
+  const applied = run(action, { ...mkCtx({ signi: [oldSigni, null, null] }, {}, 'WX10-047'), isOwnerTurn: false });
+  eq(fieldPower(applied.ownerState, applied.otherState, oldSigni), fieldGrantPrintedPower(oldSigni), '発動ターンは素のパワー');
+  ok((applied.ownerState.field_grants_next_turn ?? []).some(g => g.kind === 'power' && g.delta === 10000), '次の自ターン予約');
+  const newcomer = fresh();
+  const staged = withFieldSigni(clearTurnEndScopedState(applied.ownerState), [newcomer, null, null]);
+  const active = activateTurnStartScopedState(staged);
+  eq(fieldPower(active, applied.otherState, newcomer), fieldGrantPrintedPower(newcomer) + 10000, '予約後に出たシグニも＋10000');
+  eq(fieldPower(clearTurnEndScopedState(active), applied.otherState, newcomer), fieldGrantPrintedPower(newcomer), '対象ターン終了で失効');
+}));
+
+test('§6.4 E2E WXEX2-26-E3: 微菌だけ現ターンと次ターンにシャドウ', () => withSavedCursor(() => {
+  const microbes = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('微菌')).slice(0, 2).map(c => c.CardNum);
+  ok(microbes.length === 2, '微菌テストカード2枚');
+  const miss = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('微菌'));
+  const action = nextTurnLiveAction('WXEX2-26', 'WXEX2-26-E3');
+  const applied = run(action, { ...mkCtx({ signi: [microbes[0], miss, null] }, {}, 'WXEX2-26'), isOwnerTurn: true });
+  ok(applied.ownerState.keyword_grants?.[microbes[0]]?.includes('シャドウ') === true, '現ターンの微菌に付与');
+  ok(!applied.ownerState.keyword_grants?.[miss]?.includes('シャドウ'), '現ターンの非微菌は非該当');
+  const staged = withFieldSigni(applied.ownerState, [microbes[1], miss, null]);
+  const active = activateTurnStartScopedState(clearTurnEndScopedState(staged));
+  ok(activeFieldGrantKeywordsForSigni(active, applied.otherState, microbes[1], cardMap).includes('シャドウ'), '次ターンの新規微菌');
+  ok(!activeFieldGrantKeywordsForSigni(active, applied.otherState, miss, cardMap).includes('シャドウ'), '次ターンの非微菌は非該当');
+}));
+
+test('§6.4 E2E WXDi-P14-070-E1: 発動ターンは不発、次相手ターンの新規電音部だけシャドウ', () => withSavedCursor(() => {
+  const denon = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電音部'));
+  const miss = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('電音部'));
+  const action = findActionByType(nextTurnLiveAction('WXDi-P14-070', 'WXDi-P14-070-E1'), 'GRANT_KEYWORD')!;
+  const applied = run(action, { ...mkCtx({ signi: [denon, miss, null] }, {}, 'WXDi-P14-070'), isOwnerTurn: true });
+  ok(!activeFieldGrantKeywordsForSigni(applied.ownerState, applied.otherState, denon, cardMap).includes('シャドウ'), '発動ターンは不発');
+  const active = activateTurnStartScopedState(clearTurnEndScopedState(withFieldSigni(applied.ownerState, [denon, miss, null])));
+  ok(activeFieldGrantKeywordsForSigni(active, applied.otherState, denon, cardMap).includes('シャドウ'), '新規電音部に付与');
+  ok(!activeFieldGrantKeywordsForSigni(active, applied.otherState, miss, cardMap).includes('シャドウ'), '非電音部は非該当');
+}));
+
+test('§6.4 E2E WX05-034-BURST: 中央だけ現ターンと次ターンにダブルクラッシュ', () => withSavedCursor(() => {
+  const side = fresh(), center = fresh(), nextCenter = fresh();
+  const action = nextTurnLiveAction('WX05-034', 'WX05-034-BURST');
+  const applied = run(action, { ...mkCtx({ signi: [side, center, null] }, {}, 'WX05-034'), isOwnerTurn: false });
+  ok(getSigniAttackKeywordState(center, applied.ownerState, applied.otherState, cardMap, new Map()).isDoubleCrush, '現ターン中央');
+  ok(!getSigniAttackKeywordState(side, applied.ownerState, applied.otherState, cardMap, new Map()).isDoubleCrush, '現ターン側面は非該当');
+  const active = activateTurnStartScopedState(withFieldSigni(clearTurnEndScopedState(applied.ownerState), [side, nextCenter, null]));
+  ok(getSigniAttackKeywordState(nextCenter, active, applied.otherState, cardMap, new Map()).isDoubleCrush, '次ターンの新規中央');
+  ok(!getSigniAttackKeywordState(side, active, applied.otherState, cardMap, new Map()).isDoubleCrush, '次ターン側面は非該当');
+  const uiKeywords = collectContinuousGrantedKeywords(active, applied.otherState, true, new Map(), cardMap);
+  ok((uiKeywords[nextCenter] ?? []).includes('ダブルクラッシュ'), 'BoardComponentsに渡すdynamicKeywordsへ合流');
+  ok(!(uiKeywords[side] ?? []).includes('ダブルクラッシュ'), 'UI合流でも側面は非該当');
+}));
+
+test('§6.4 E2E WX10-036-BURST: 次ターンの中央で正面チャーム条件を毎回再評価', () => withSavedCursor(() => {
+  const side = fresh(), center = fresh(), front = fresh();
+  const action = nextTurnLiveAction('WX10-036', 'WX10-036-BURST');
+  const applied = run(action, { ...mkCtx({ signi: [side, null, null] }, { signi: [null, front, null] }, 'WX10-036'), isOwnerTurn: false });
+  ok(!getSigniAttackKeywordState(side, applied.ownerState, applied.otherState, cardMap, new Map()).isAssassin, '発動ターンは不発');
+  const active = activateTurnStartScopedState(withFieldSigni(clearTurnEndScopedState(applied.ownerState), [side, center, null]));
+  const charmedFront = { ...applied.otherState, field: { ...applied.otherState.field, signi_charms: [null, 'CHARM', null] } };
+  ok(getSigniAttackKeywordState(center, active, charmedFront, cardMap, new Map()).isAssassin, '中央＋正面チャームでアサシン');
+  ok(!getSigniAttackKeywordState(side, active, charmedFront, cardMap, new Map()).isAssassin, '側面は非該当');
+  ok(!getSigniAttackKeywordState(center, active, applied.otherState, cardMap, new Map()).isAssassin, 'チャームを外すと即失効');
+}));
+
+test('§6.4 E2E WX11-031-BURST: 次ターンの新規中央に＋5000とランサーを同時付与', () => withSavedCursor(() => {
+  const oldCenter = fresh(), side = fresh(), nextCenter = fresh();
+  const action = nextTurnLiveAction('WX11-031', 'WX11-031-BURST');
+  const applied = run(action, { ...mkCtx({ signi: [side, oldCenter, null] }, {}, 'WX11-031'), isOwnerTurn: false });
+  eq(fieldPower(applied.ownerState, applied.otherState, oldCenter), fieldGrantPrintedPower(oldCenter), '発動ターンはパワー不発');
+  ok(!getSigniAttackKeywordState(oldCenter, applied.ownerState, applied.otherState, cardMap, new Map()).isLancer, '発動ターンはランサー不発');
+  const active = activateTurnStartScopedState(withFieldSigni(clearTurnEndScopedState(applied.ownerState), [side, nextCenter, null]));
+  eq(fieldPower(active, applied.otherState, nextCenter), fieldGrantPrintedPower(nextCenter) + 5000, '新規中央に＋5000');
+  eq(fieldPower(active, applied.otherState, side), fieldGrantPrintedPower(side), '側面はパワー非該当');
+  ok(getSigniAttackKeywordState(nextCenter, active, applied.otherState, cardMap, new Map()).isLancer, '新規中央にランサー');
+  ok(!getSigniAttackKeywordState(side, active, applied.otherState, cardMap, new Map()).isLancer, '側面はランサー非該当');
+}));
+
+test('§6.4 E2E SPDi43-23-E2: 発動ターンは不発、次相手ターンの新規シグニへ＋4000', () => withSavedCursor(() => {
+  const oldSigni = fresh(), newcomer = fresh();
+  const action = findActionByType(nextTurnLiveAction('SPDi43-23', 'SPDi43-23-E2'), 'POWER_MODIFY')!;
+  const applied = run(action, { ...mkCtx({ signi: [oldSigni, null, null] }, {}, 'SPDi43-23'), isOwnerTurn: true });
+  eq(fieldPower(applied.ownerState, applied.otherState, oldSigni), fieldGrantPrintedPower(oldSigni), '発動ターンは不発');
+  const active = activateTurnStartScopedState(clearTurnEndScopedState(withFieldSigni(applied.ownerState, [newcomer, null, null])));
+  eq(fieldPower(active, applied.otherState, newcomer), fieldGrantPrintedPower(newcomer) + 4000, '次相手ターンの新規シグニ');
+}));
+
+test('§6.4 E2E WX08-021-E1: 指定ゾーンだけ現ターンと次ターンに－7000', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const action = nextTurnLiveAction('WX08-021', 'WX08-021-E1');
+  const applied = run(action, { ...mkCtx({}, { signi: [a, b, c] }, 'WX08-021'), isOwnerTurn: true });
+  const zone = applied.otherState.designated_zone;
+  ok(zone !== undefined, 'ゾーン指定が実行される');
+  const currentNums = [a, b, c];
+  eq(fieldPower(applied.otherState, applied.ownerState, currentNums[zone!]), fieldGrantPrintedPower(currentNums[zone!]) - 7000, '現ターンの指定ゾーン');
+  const otherZone = zone === 0 ? 1 : 0;
+  eq(fieldPower(applied.otherState, applied.ownerState, currentNums[otherZone]), fieldGrantPrintedPower(currentNums[otherZone]), '現ターンの非指定ゾーン');
+  const newcomer = fresh(), miss = fresh();
+  const nextNums: Array<string | null> = [null, null, null];
+  nextNums[zone!] = newcomer;
+  nextNums[otherZone] = miss;
+  const active = activateTurnStartScopedState(withFieldSigni(clearTurnEndScopedState(applied.otherState), nextNums));
+  eq(fieldPower(active, applied.ownerState, newcomer), fieldGrantPrintedPower(newcomer) - 7000, '次ターンの指定ゾーンの新規シグニ');
+  eq(fieldPower(active, applied.ownerState, miss), fieldGrantPrintedPower(miss), '次ターンの非指定ゾーン');
+}));
+
+test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
+  const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
+  ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
+  const wxk = findActionByType(nextTurnLiveAction('WXK10-011', 'WXK10-011-E1'), 'POWER_MODIFY')!;
+  ok(wxk.delta === 5000 && wxk.duration !== 'NEXT_TURN' && wxk.nextTurnOwner === undefined, 'WXK10-011-E1の＋5000を予約しない');
 });
 
 test('§6.4 NEXT_TURN 据置 WXK05-052-E1: 相手2体＋同列シード条件の受け皿なし', () => {

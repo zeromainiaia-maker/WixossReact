@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-12（続き450） — 「次のターンの間」のキーワード／パワーを場レベル予約へ機構化（採用8／非採用2・PLAN §6.4）
+
+**🔴 バグの正体**＝旧 `field_keyword_grants_next_turn: string[]` はクラス／ゾーン／条件を運べず、パワーは `temp_power_mods` の cardNum スナップショットしか無かった。そのため「次のターンの間」が発動ターンに適用され、予約後に場へ出たシグニには効かなかった。特に `WX10-047-BURST` は相手ターン中のLB発動時に＋10000、自分の次ターンには失効とほぼ逆だった。
+
+**統一機構**＝ `FieldGrant` union（`kind:'keyword'|'power'`）に `filter` / 固定 `zone` / 動的 `condition` を持たせ、`field_grants_next_turn` / `field_grants_next_opp_turn` / `field_grants_active` の1系統で予約→昇格→失効を表す。昇格は既存 funnel `clearTurnEndScopedState` / `activateTurnStartScopedState` に集約。旧 `field_keyword_grants_*: string[]` は型に残し、`normalizeFieldGrants` が無条件の keyword grant へ正規化するため進行中セーブも読める。消費はパワーを `calcFieldPowers`、キーワードを `activeFieldGrantsForSigni` → `collectContinuousGrantedKeywords` / `getSigniAttackKeywordState` / `selectOrInteract` / `checkActiveCondition` へ合流し、UIは従来の `dynamicKeywords` 経由で `getSigniStatusKeywords` へ届く。
+
+**採用8効果**＝ `WXEX2-26-E3`（＜微菌＞シャドウ／現＋次）、`WXDi-P14-070-E1`（＜電音部＞シャドウ／次相手）、`WX05-034-BURST`（中央ダブルクラッシュ／現＋次）、`WX10-036-BURST`（中央＋正面チャームを毎回評価するアサシン）、`WX10-047-BURST`（次ターン＋10000）、`WX11-031-BURST`（中央＋5000＋ランサー）、`SPDi43-23-E2`（次相手＋4000）、`WX08-021-E1`（指定ゾーン－7000／現＋次）。`heldReview --adopt` は署名一括を使わずカードID単体で7回実行し、各カードの兄弟効果はHEADと完全一致を確認。`WX10-047` は pure improvement の自動採用。`WXDi-P14-070` は held から解消した。
+
+**非採用2効果＝指示書の再分類**。`WX24-P4-024-E3` の－3000は原文上「このターン」だけで、次ターンは指定ゾーンへの配置禁止節。`WXK10-011-E1` の＋5000も選択肢②の「ターン終了時まで」で、次相手ターンは選択肢③の攻撃制限。両者をパワー予約に入れると過剰実行になるため、非採用を golden で固定した。条件外の既存不一致も2件確認：`WX24-P4-024-E3` の現ターン－3000が指定ゾーンでなく `owner:any,count:1`、`WXK10-011-E1` の＋5000が選択肢②の外にも重複している。どちらも「同ターン内の修正」かつ別機構のため本バッチでは触らない。
+
+**E2E／波及検査**＝発動ターン不発→次ターン発動→対象ターン終了で失効の全周期、予約後に新たに場へ出たシグニ、クラス／中央／指定ゾーンの非該当側、現＋次の二重期間、チャーム取り外し時の動的失効、パワー＋キーワード複合、UI用 `dynamicKeywords`、旧string[]の3ストアを実行で固定。全カード生パースのHEAD比は上記8 effectIdだけ、added/removed 0、outlier 0。live 差分も同じ8 effectIdだけで兄弟巻き込み0。
+
+**最終ゲート**＝ `npm run gates` 全緑。golden **1927→1934 / FAIL 0**、census **835→833**（`BASELINE_HIGH` を833へ締め直し）、census:stubs 無言no-op 0、同型★ 0（265群）、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム異常0／SKIP 0、manual field loss 0、lint 0 errors／259 warnings（増減0）。最終 build 直後 held **106枚／47群**（開始107/47から−1枚／群増減0）。
+
 ## 2026-08-12（続き449） — シグニの「場所を入れ替える」が原文と無関係に「このシグニ ↔ 場の1体」へ潰れていた（13効果・PLAN §6.4）
 
 **🔴 バグの正体**＝`execRearrangeSigni`（`effectExecutor.ts:7844` 付近）は `source = ctx.sourceCardNum` 固定・相手は必ず場のシグニで、**「このシグニ ↔ 場のシグニ1体」しか表現できなかった**。原文には別の形が2種類あり、どちらも同じ JSON（`{swap:true, target:{owner:'any',count:1}}`）に潰れていた。⚠**逆翻訳ではどちらも「〜と場所を入れ替える」と出るので気付けない。**

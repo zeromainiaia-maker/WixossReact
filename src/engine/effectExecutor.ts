@@ -1,7 +1,7 @@
-import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
+import type { PlayerState, PendingInteractionDef, TargetScope, FieldGrant } from '../types';
 import { applyRefreshState } from './refresh';
 import type {
-  CardEffect, EffectAction, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
+  CardEffect, EffectAction, EffectTarget, Owner, DrawAction, BanishAction, BanishRedirectAction, BounceAction, SendToEnergyAction, PowerModifyAction, PowerSetAction, TrashAction, EnergyChargeAction, EnergyChargeFromDeckAction, LifeCrashAction, ShuffleDeckAction, TransferToHandAction, AddToFieldAction, AddToLifeAction, FreezeAction, DownAction, UpAction, BlockActionAction, StoryChangeAction, GrantKeywordAction, SearchAction, SequenceAction, RepeatAction, PreventRefreshAction, ChooseAction, ConditionalAction, LookAndReorderAction, TransferToDeckAction, GrantProtectionAction, AttachCharmAction, RevealAndPickAction, PlayFreeAction, PlayFreeFromTrashAction, CostIncreaseAction, PowerModifyPerFieldAction, PowerModifyPerLrigLevelAction, CharmProtectionAction, MutualDiscardAndDrawAction, VariableDiscardAndDrawAction, RemoveAbilitiesAction, ReturnAssistLrigToDeckAction, GainCoinAction, DiscardBothAction, RemoveCharmAction, ForceSigniAttackAction, PowerModifyPerTrashCountAction, PowerModifyPerLifeCountAction, PowerModifyByTargetLevelAction, PlaceVirusAction, AttachAcceAction, BloodCrystalArmorAction, GrantLrigAbilityAction, GrantEffectAction, StubAction, MILLAction, } from '../types/effects';
 import type { ExecCtx, ExecResult
 } from './execUtils';
 import {
@@ -33,6 +33,53 @@ export const attackingSigniOf = (state: PlayerState): string | undefined =>
   state.pending_signi_battle
     ? state.field.signi[state.pending_signi_battle.zoneIndex]?.at(-1)
     : undefined;
+
+function resolvedNextTurnOwner(
+  nextTurnOwner: 'self' | 'opponent' | 'next' | undefined,
+  ctx: ExecCtx,
+): 'self' | 'opponent' {
+  if (nextTurnOwner === 'next') {
+    // undefined は旧呼び出し互換で self。実対戦の ExecCtx は isOwnerTurn を持つ。
+    return ctx.isOwnerTurn === true ? 'opponent' : 'self';
+  }
+  return nextTurnOwner ?? 'self';
+}
+
+/** target 側の次の自ターン／次の相手ターンへ、場レベル grant を同じ契約で予約する。 */
+function reserveFieldGrant(
+  target: EffectTarget,
+  grant: FieldGrant,
+  nextTurnOwner: 'self' | 'opponent' | 'next' | undefined,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; reserved: boolean; activeOwner: 'self' | 'opponent' } {
+  const activeOwner = resolvedNextTurnOwner(nextTurnOwner, ctx);
+  if (target.type !== 'SIGNI' || target.count !== 'ALL' || target.owner === 'any') {
+    return { ctx, reserved: false, activeOwner };
+  }
+  const targetOwner = target.owner as Owner;
+  const state = ownerState(targetOwner, ctx);
+  const zone = target.zoneSource === 'designated' ? state.designated_zone : undefined;
+  if (target.zoneSource === 'designated' && zone === undefined) {
+    return { ctx, reserved: false, activeOwner };
+  }
+  const stored: FieldGrant = zone === undefined ? grant : { ...grant, zone };
+  const reservationKey = targetOwner === activeOwner
+    ? 'field_grants_next_turn'
+    : 'field_grants_next_opp_turn';
+  const nextState: PlayerState = {
+    ...state,
+    [reservationKey]: [...(state[reservationKey] ?? []), stored],
+  };
+  return { ctx: setOwnerState(targetOwner, nextState, ctx), reserved: true, activeOwner };
+}
+
+function filterCandidatesToTargetZone(cands: string[], target: EffectTarget, state: PlayerState): string[] {
+  if (target.zoneSource !== 'designated') return cands;
+  const zone = state.designated_zone;
+  if (zone === undefined) return [];
+  const top = state.field.signi[zone]?.at(-1);
+  return top && cands.includes(top) ? [top] : [];
+}
 
 const exceedPoolCountOf = (state: PlayerState): number =>
   state.field.lrig.slice(0, -1).length
@@ -1216,6 +1263,17 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     ? resolveNum(a.delta) * (ctx.lastProcessedCards?.length ?? 0)
     : resolveNum(a.delta);
   const srcType = srcTypeOf(ctx);
+  if (a.duration === 'NEXT_TURN') {
+    const reservation = reserveFieldGrant(a.target, {
+      kind: 'power', delta, filter: a.target.filter, condition: a.fieldCondition,
+      srcType, srcCardNum: ctx.sourceCardNum,
+    }, a.nextTurnOwner, ctx);
+    if (reservation.reserved) {
+      ctx = addLog(reservation.ctx,
+        `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニのパワー${delta > 0 ? '+' : ''}${delta}`);
+      if (!a.appliesThisTurn) return done(ctx);
+    }
+  }
   // owner:'any'（「対象のシグニ」）= 自分・対戦相手どちらのシグニも選べる
   const isAny = a.target.owner === 'any';
   const tgtOwner = isAny ? 'self' : a.target.owner as Owner;
@@ -1242,6 +1300,7 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
       cands = cands.filter(n => !ctx.otherEffectImmuneNums!.has(n));
     }
   }
+  cands = filterCandidatesToTargetZone(cands, a.target, state);
   // excludeSelf: 効果元シグニ自身を対象から除外（「あなたの他の＜地獣＞のシグニ」。WXDi-P15-093 / WX24-P1-076）
   if ((a.excludeSelf || a.target.filter?.excludeSelf) && ctx.sourceCardNum) {
     cands = cands.filter(n => n !== ctx.sourceCardNum);
@@ -3164,20 +3223,15 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
       `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}に「${a.keyword}」を付与`));
   }
   const tgt = a.target;
-  const fieldWideFilterOnly = !tgt.filter
-    || Object.keys(tgt.filter).every(key => key === 'cardType');
-  // duration:NEXT_TURN かつ「あなたのすべてのシグニ」（クラス等の絞り込みなし）への付与
-  // → 次の自分ターン中に存在する全シグニ（新たに出したシグニも含む）が得る場全体付与として予約する。
-  // （keyword_grants へのスナップショット付与では次ターンに新規召喚したシグニに付かないため）
-  if (a.duration === 'NEXT_TURN' && tgt.type === 'SIGNI' && tgt.owner === 'self' && tgt.count === 'ALL'
-      && fieldWideFilterOnly) {
-    const reservationKey = a.nextTurnOwner === 'opponent'
-      ? 'field_keyword_grants_next_opp_turn'
-      : 'field_keyword_grants_next_turn';
-    const reserved = [...(ctx.ownerState[reservationKey] ?? []), a.keyword];
-    return done(addLog(
-      { ...ctx, ownerState: { ...ctx.ownerState, [reservationKey]: reserved } },
-      `次の${a.nextTurnOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、あなたのすべてのシグニが【${a.keyword}】を得る`));
+  if (a.duration === 'NEXT_TURN') {
+    const reservation = reserveFieldGrant(tgt, {
+      kind: 'keyword', keyword: a.keyword, filter: tgt.filter, condition: a.fieldCondition,
+    }, a.nextTurnOwner, ctx);
+    if (reservation.reserved) {
+      ctx = addLog(reservation.ctx,
+        `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニが【${a.keyword}】を得る`);
+      if (!a.appliesThisTurn) return done(ctx);
+    }
   }
   const tgtOwner: Owner = tgt.owner === 'any' ? 'opponent' : tgt.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
@@ -3200,6 +3254,7 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
     const gkResolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
     cands = fieldCandidates(state, gkResolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors)
       .filter(n => !abilityGainBlocked.has(n));
+    cands = filterCandidatesToTargetZone(cands, tgt, state);
     // thisCardOnly: 効果元シグニ自身のみへ付与（「このシグニは【X】を得る」）
     if (tgt.filter?.thisCardOnly) {
       cands = (ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];

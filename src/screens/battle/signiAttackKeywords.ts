@@ -1,6 +1,7 @@
 import type { CardData, PlayerState } from '../../types';
 import type { GrantKeywordAction } from '../../types/effects';
 import { hasApplicableAssassin, hasKeyword, isKeywordAbilityRemoved } from '../../utils/keywords';
+import { activeFieldGrantKeywordsForSigni } from '../../engine/effectEngine';
 
 export interface SigniAttackKeywordState {
   isAssassin: boolean;
@@ -20,19 +21,20 @@ export function getSigniAttackKeywordState(
   effectivePowers: Map<string, number>,
   continuousKeywords: Iterable<string> = [],
 ): SigniAttackKeywordState {
+  const activeFieldKeywords = activeFieldGrantKeywordsForSigni(attacker, defender, cardNum, cardMap);
   const continuous = [...continuousKeywords]
     .filter(keyword => !isKeywordAbilityRemoved(cardNum, keyword, attacker.keyword_abilities_removed));
   const has = (keyword: string): boolean =>
     hasKeyword(cardNum, keyword, cardMap,
       attacker.keyword_grants, undefined,
-      attacker.keyword_grants_until_opp_turn, attacker.field_keyword_grants_active,
+      attacker.keyword_grants_until_opp_turn, activeFieldKeywords,
       attacker.abilities_removed, attacker.keyword_abilities_removed)
     || continuous.some(value => value === keyword || value.startsWith(`${keyword}:`));
 
   const assassinKeywords = new Set<string>([
     ...(attacker.keyword_grants?.[cardNum] ?? []),
     ...(attacker.keyword_grants_until_opp_turn?.[cardNum] ?? []),
-    ...(attacker.field_keyword_grants_active ?? []),
+    ...activeFieldKeywords,
     ...continuous,
     ...((cardMap.get(cardNum)?.effects ?? [])
       .filter(effect => effect.effectType === 'CONTINUOUS' && effect.action.type === 'GRANT_KEYWORD' && !effect.activeCondition)

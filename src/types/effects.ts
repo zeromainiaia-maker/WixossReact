@@ -719,6 +719,8 @@ export interface EffectTarget {
   addLastProcessedCount?: boolean;
   countFromZone?: CountFromZone;
   filter?: TargetFilter;
+  /** 直前の DESIGNATE_SIGNI_ZONE が保存した対象側のゾーンだけを場レベル効果の対象にする。 */
+  zoneSource?: 'designated';
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
   actingPlayerSelects?: boolean; // true = 手札を見て自分が選ぶ（「手札を見てN枚選び捨てさせる」）
@@ -1010,6 +1012,12 @@ export interface PowerModifyAction {
   deltaPerLastProcessedCount?: boolean;
   deltaFromOppPowerDecrease?: boolean; // 「減った値と同じだけ＋する」（毒牙 WX13-036/WXEX2-52）。delta を収集時に直前の対戦相手パワー減少量で動的に上書き（ON_OPP_POWER_DECREASED と併用）
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
+  /** NEXT_TURN の基準。next=解決中のグローバルターンの次（isOwnerTurn で self/opponent を確定）。 */
+  nextTurnOwner?: 'self' | 'opponent' | 'next';
+  /** 「このターンと次のターン」＝従来どおり現盤面へ適用し、同時に場レベル予約も作る。 */
+  appliesThisTurn?: boolean;
+  /** 場レベル active 中に毎回評価する条件。 */
+  fieldCondition?: import('./index').FieldGrantCondition;
 }
 
 export interface PowerSetAction {
@@ -1289,7 +1297,11 @@ export interface GrantKeywordAction {
   keyword: string;
   duration: EffectDuration;
   /** duration:NEXT_TURN の基準。省略時は従来どおり「次の自分のターン」。 */
-  nextTurnOwner?: 'self' | 'opponent';
+  nextTurnOwner?: 'self' | 'opponent' | 'next';
+  /** 「このターンと次のターン」＝現ターンのスナップショット付与＋次ターンの場レベル予約。 */
+  appliesThisTurn?: boolean;
+  /** 場レベル active 中に毎回評価する条件。 */
+  fieldCondition?: import('./index').FieldGrantCondition;
   targetsLastProcessed?: boolean; // 「それ」= 直前ステップで選択/処理したシグニ(lastProcessedCards)へ付与（WX03-046「打突」等。選択UIを出さず同一対象に付与）
   targetsStored?: boolean;        // 対象宣言→任意コストを跨いで storedTargetCards の同一対象へ付与
   targetsTriggerSource?: boolean;  // 「このシグニ/それ」= トリガー元シグニ（ctx.triggeringCardNum → ctx.sourceCardNum）へ無選択付与（ON_ZONE_MOVED self 等）

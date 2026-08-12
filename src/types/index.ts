@@ -2,6 +2,28 @@ export type ViewMode = 'LOGIN' | 'START' | 'DECK_LIST' | 'DECK_EDITOR' | 'MATCHM
 
 export * from './effects';
 
+/** 次のターンに有効化される、場のシグニへ動的に適用する継続効果。 */
+export type FieldGrantCondition =
+  | { type: 'FRONT_SIGNI_HAS_CHARM' };
+
+export type FieldGrant =
+  | {
+      kind: 'keyword';
+      keyword: string;
+      filter?: import('./effects').TargetFilter;
+      zone?: number;
+      condition?: FieldGrantCondition;
+    }
+  | {
+      kind: 'power';
+      delta: number;
+      filter?: import('./effects').TargetFilter;
+      zone?: number;
+      condition?: FieldGrantCondition;
+      srcType?: string;
+      srcCardNum?: string;
+    };
+
 export type TurnPhase =
   | 'UP' | 'DRAW' | 'ENERGY' | 'GROW' | 'MAIN'
   | 'ATTACK_ARTS' | 'ATTACK_ARTS_OP' | 'ATTACK_SIGNI' | 'ATTACK_LRIG'
@@ -167,11 +189,17 @@ export interface PlayerState {
   /** 次の対戦相手のターンの間だけ有効な全ゾーンLB付与（ディスペア）。
    * GRANT_ALL_ZONE_LIFEBURST 同型の StubAction を保持し、自分の次ターン開始時にクリアする。 */
   allzone_burst_grant_until_opp_turn?: import('./effects').StubAction;
-  // 次の自分のターンの間、自分の場の「すべて」のシグニ（その間に新たに出したシグニも含む）が得るキーワード（GRANT_KEYWORD duration:NEXT_TURN）
-  field_keyword_grants_next_turn?: string[]; // 付与予約（発動時セット → 次の自分ターン開始時に active へ移動）
-  /** 次の対戦相手ターン用の場全体キーワード予約。現在ターン終了時に active へ移す。 */
+  // 次の自分／対戦相手ターンに場のシグニへ動的適用する統一予約（キーワード・パワー）。
+  // filter/zone/condition は active 中も毎回評価するため、予約後に場へ出たシグニにも適用される。
+  field_grants_next_turn?: FieldGrant[];
+  field_grants_next_opp_turn?: FieldGrant[];
+  field_grants_active?: FieldGrant[];
+  /** @deprecated 旧セーブ互換。読み側で無条件 keyword FieldGrant へ正規化する。 */
+  field_keyword_grants_next_turn?: string[];
+  /** @deprecated 旧セーブ互換。読み側で無条件 keyword FieldGrant へ正規化する。 */
   field_keyword_grants_next_opp_turn?: string[];
-  field_keyword_grants_active?: string[];    // 現在のグローバルターン中に全自シグニが得ているキーワード
+  /** @deprecated 旧セーブ互換。読み側で無条件 keyword FieldGrant へ正規化する。 */
+  field_keyword_grants_active?: string[];
   // 《改造素材》がこの解決で使用された対象シグニ（instanceId）。MARK_MATERIAL_TARGET が記録し、
   // BattleScreen が ON_MATERIAL_USED（self/any_ally）発火後にクリアする（改造素材機構 Step3b）。
   material_used_targets?: string[];
