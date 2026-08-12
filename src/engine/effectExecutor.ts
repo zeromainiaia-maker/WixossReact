@@ -7416,7 +7416,8 @@ export function resumeSearch(
     for (const cn of restSplit) { const di = deckSplit.indexOf(cn); if (di >= 0) { deckSplit.splice(di, 1); movedSplit.push(cn); } }
     sSplit = { ...sSplit, deck: deckSplit };
     cur = setOwnerState(dOwner, sSplit, cur);
-    const splitStub: EffectAction = { type: 'STUB', id: 'INTERNAL_SPLIT_REVEALED', revealed: movedSplit } as StubAction as EffectAction;
+    // ⚠owner を渡さないと分割UI が **効果オーナーのデッキ**へ戻す（deckOwner:'opponent' で複製バグ）。
+    const splitStub: EffectAction = { type: 'STUB', id: 'INTERNAL_SPLIT_REVEALED', revealed: movedSplit, owner: dOwner } as StubAction as EffectAction;
     const contSplit: EffectAction = pending.continuation
       ? { type: 'SEQUENCE', steps: [splitStub, pending.continuation] } as SequenceAction
       : splitStub;
