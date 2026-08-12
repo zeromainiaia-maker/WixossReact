@@ -7410,12 +7410,12 @@ export function resumeSearch(
   if (pending.revealRemainder?.position === 'split_top_bottom') {
     const rrSplit = pending.revealRemainder;
     const restSplit = rrSplit.cards.filter(n => !picked.includes(n));
-    let sSplit = { ...cur.ownerState };
+    let sSplit = { ...deckState(cur) };
     const deckSplit = [...sSplit.deck];
     const movedSplit: string[] = [];
     for (const cn of restSplit) { const di = deckSplit.indexOf(cn); if (di >= 0) { deckSplit.splice(di, 1); movedSplit.push(cn); } }
     sSplit = { ...sSplit, deck: deckSplit };
-    cur = { ...cur, ownerState: sSplit };
+    cur = setOwnerState(dOwner, sSplit, cur);
     const splitStub: EffectAction = { type: 'STUB', id: 'INTERNAL_SPLIT_REVEALED', revealed: movedSplit } as StubAction as EffectAction;
     const contSplit: EffectAction = pending.continuation
       ? { type: 'SEQUENCE', steps: [splitStub, pending.continuation] } as SequenceAction
