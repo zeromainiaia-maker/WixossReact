@@ -4590,12 +4590,33 @@ test('§6.4 reveal-pick 11効果: live JSON の公開元・枚数・filter・行
   const bottom = rap('WXDi-P07-084', 'WXDi-P07-084-E1');
   eq(JSON.stringify([bottom.from, bottom.revealCount, bottom.pickCount, bottom.pickUpTo, bottom.remainder]),
     JSON.stringify(['deck_bottom', 1, 1, true, { location: 'trash', position: 'any' }]));
+  // §6.4 O-2＝旧 DEFERRED_* 2件を実行型へ。**主語が全部「対戦相手」**なので、公開元デッキ／場／
+  // 残りの行き先（owner）と、選ぶ人（opponentResponds）を**両方**持つことを固定する。
+  // 片方だけだと「自分が相手のデッキを覗く」／「相手が自分のデッキを掘る」という別物になる。
   eq(JSON.stringify(manualEffect('WXEX2-84', 'WXEX2-84-E2').action), JSON.stringify({ type: 'SEQUENCE', steps: [
     { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } },
-    { type: 'STUB', id: 'DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL' },
+    { type: 'REVEAL_AND_PICK', owner: 'opponent', revealCount: 2, filter: { cardType: 'シグニ' },
+      pickCount: 2, pickUpTo: true, opponentResponds: true,
+      then: { type: 'ADD_TO_FIELD', owner: 'opponent' },
+      remainder: { location: 'trash', position: 'any' } },
   ] }));
-  eq(JSON.stringify(manualEffect('WXDi-P01-026', 'WXDi-P01-026-E1').action),
-    JSON.stringify({ type: 'STUB', id: 'DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL' }));
+  // 「各プレイヤーは」は自分ぶんと相手ぶんの2本に割る（片方だけだと半分が恒久 no-op）。
+  // リセット4本を**先に全部**済ませてから公開する（原文の「その後、」＝相手のリセット前デッキを覗かない）。
+  const eachReset = manualEffect('WXDi-P01-026', 'WXDi-P01-026-E1').action as SequenceAction;
+  eq(eachReset.steps.map(s => s.type).join('|'),
+    'TRANSFER_TO_DECK|TRANSFER_TO_DECK|TRANSFER_TO_DECK|TRANSFER_TO_DECK|LOOK_PICK_CHAIN|LOOK_PICK_CHAIN',
+    'WXDi-P01-026-E1: リセット4本→公開2本');
+  eq(JSON.stringify(eachReset.steps.slice(0, 4)), JSON.stringify([
+    { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'self', count: 'ALL' }, shuffle: true },
+    { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL' }, shuffle: true },
+    { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, shuffle: true },
+    { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'opponent', count: 'ALL' }, shuffle: true },
+  ]), 'WXDi-P01-026-E1: 両者のシグニゾーン＋トラッシュをデッキへ');
+  const refillStage = { filter: { cardType: 'シグニ' }, pickCount: 'ALL', then: 'field', suppressOnPlay: true };
+  eq(JSON.stringify(eachReset.steps.slice(4)), JSON.stringify([
+    { type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 7, stages: [refillStage], remainder: { location: 'trash', position: 'any' } },
+    { type: 'LOOK_PICK_CHAIN', owner: 'opponent', revealCount: 7, stages: [refillStage], remainder: { location: 'trash', position: 'any' }, opponentResponds: true },
+  ]), 'WXDi-P01-026-E1: 各自が自分のデッキ上7枚から場出し（相手ぶんは相手が選ぶ）');
   for (const [cardNum, effectId, choices] of [
     ['WXK04-060', 'WXK04-060-E1', 'seed|skip'],
     ['WXK10-059', 'WXK10-059-E2', 'seed|energy'],
