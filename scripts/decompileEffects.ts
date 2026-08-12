@@ -1365,7 +1365,9 @@ function actionJa(a?: Action, effectType?: string): string {
         }
         const suppress = a.then?.type === 'ADD_TO_FIELD' && a.then?.suppressOnPlay
           ? '。それらのシグニの【出】能力は発動しない' : '';
-        return `${revealJa}、その中から${filterStr}を${pickN}${placeVerb}${remJa}${suppress}`;
+        // §6.4 O-2: 選ぶ主体を明示する。`owner` だけを描くと `opponentResponds` の有無で
+        // 逆翻訳が同じ文になり、「相手のデッキを**自分が**覗く」との区別が消える（偽陰性）。
+        return `${revealJa}、${a.opponentResponds ? '対戦相手はその中から' : 'その中から'}${filterStr}を${pickN}${placeVerb}${remJa}${suppress}`;
       }
       // 別効果系（公開カードが条件）＝「それが[filter]の場合、[then]」。1枚公開時は残り句を省く（原文も省く）。
       if (a.then) {
