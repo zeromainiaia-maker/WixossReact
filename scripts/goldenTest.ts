@@ -20,7 +20,7 @@ import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbility
 import { parseCardEffects } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
-import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec } from '../src/engine/execUtils';
+import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps } from '../src/engine/execUtils';
 import {
   executeEffect, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -2725,10 +2725,23 @@ test('「それをエナゾーンに置く」＝対象化した相手シグニ�
   for (const id of ['WXDi-P05-073-BURST', 'WX25-P2-026-E1', 'WX26-CP1-086-BURST', 'WXK05-027-E2', 'WXK05-070-E1', 'WXK10-048-BURST', 'WDK08-Y11-BURST']) {
     const card = id.replace(/-(BURST|E\d+|SONG)$/, '');
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === id);
-    const steps = (e?.action as { steps?: Array<{ type?: string; condition?: { type?: string }; then?: { type?: string; target?: { owner?: string } } }> })?.steps ?? [];
-    const cond = steps.find(s => s.type === 'CONDITIONAL' && s.condition?.type === 'IS_MY_TURN');
-    ok(cond?.then?.type === 'SEND_TO_ENERGY', `${id}: then が SEND_TO_ENERGY のはず（実際 ${cond?.then?.type}）`);
-    ok(cond?.then?.target?.owner === 'opponent', `${id}: 対象が相手シグニのはず（実際 owner=${cond?.then?.target?.owner}）`);
+    const findSendToEnergy = (action: unknown): { target?: { owner?: string; type?: string }; targetsStored?: boolean } | undefined => {
+      if (!action || typeof action !== 'object') return undefined;
+      const a = action as { type?: string; target?: { owner?: string; type?: string }; targetsStored?: boolean; steps?: unknown[]; then?: unknown; else?: unknown };
+      if (a.type === 'SEND_TO_ENERGY') return a;
+      for (const child of [...(a.steps ?? []), a.then, a.else]) {
+        const found = findSendToEnergy(child);
+        if (found) return found;
+      }
+      return undefined;
+    };
+    const send = findSendToEnergy(e?.action);
+    ok(!!send, `${id}: 対象化したシグニを SEND_TO_ENERGY する`);
+    if (id === 'WXK05-027-E2') {
+      ok(send?.targetsStored === true && send.target?.owner === 'opponent', `${id}: 任意コスト前に対象化した相手シグニを参照する`);
+    } else {
+      ok(send?.target?.owner === 'opponent', `${id}: 対象が相手シグニのはず（実際 owner=${send?.target?.owner}）`);
+    }
     const s = JSON.stringify(e?.action ?? {});
     ok(!s.includes('ENERGY_CHARGE'), `${id}: ENERGY_CHARGE（自分デッキチャージ）へ退化していないこと`);
   }
@@ -3542,18 +3555,45 @@ test('マジックボックス欠落是正 WX24-P3-070-E1: 設置・残り下・
   assertMagicBoxLookPick('WX24-P3-070-E1');
 });
 
-test('マジックボックス欠落見送り WX24-P3-033-E1: 2群を単一pickへ近似しない', () => {
+test('マジックボックス欠落是正 WX24-P3-033-E1: 設置→＜トリック＞手札の2段を順に実行', () => withSavedCursor(() => {
   const freshEff = parseCardEffects(cardMap.get('WX24-P3-033')!).find(e => e.effectId === 'WX24-P3-033-E1')!;
-  const actionJson = JSON.stringify(freshEff.action);
-  ok(actionJson.includes('"REVEAL_AND_PICK"') && actionJson.includes('"ADD_TO_HAND"'), '既存の＜トリック＞手札加えは維持');
-  ok(!actionJson.includes('PLACE_MAGIC_BOX'), '2群対応なしで設置だけを部分採用しない');
-});
+  const seq = freshEff.action as SequenceAction;
+  const chain = seq.steps[1] as Extract<EffectAction, { type: 'LOOK_PICK_CHAIN' }>;
+  eq(chain.type, 'LOOK_PICK_CHAIN', '1度見た5枚を2段で振り分ける');
+  eq(JSON.stringify(chain.stages), JSON.stringify([
+    { pickCount: 1, pickNoun: 'カード', then: 'magic_box' },
+    { filter: { cardType: 'シグニ', story: 'トリック' }, pickCount: 1, then: 'hand' },
+  ]), '設置が先、＜トリック＞手札が後');
 
-test('UNKNOWN第6バッチ defer固定: A3/C1 は未対応機構を既存語彙へ誤載せしない', () => {
+  const trick = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('トリック'));
+  const magicBox = findCard(c => c.CardNum !== trick && !(c.CardClass ?? '').includes('トリック'));
+  const victim = findCard(c => isSigni(c) && parseInt(c.Power || '0', 10) <= 10000);
+  const rest = findCard(c => ![trick, magicBox, victim].includes(c.CardNum));
+  const untouched = findCard(c => ![trick, magicBox, victim, rest].includes(c.CardNum));
+  const ctx = mkCtx({ deckTop: [magicBox, trick, rest, rest, rest, untouched] }, { signi: [victim, null, null] }, 'WX24-P3-033');
+  const hand0 = [...ctx.ownerState.hand];
+  const result = run(freshEff.action as EffectAction, ctx);
+  ok(result.done, '2段と設置ゾーン選択まで完了');
+  ok((result.ownerState.field.signi_magic_boxes ?? []).includes(magicBox), '1段目の選択札をマジックボックスとして設置');
+  ok(result.ownerState.hand.includes(trick), '2段目は＜トリック＞だけを手札へ');
+  eq(result.ownerState.hand.length, hand0.length + 1, 'デッキ全体から余計なカードを手札へ加えない');
+  ok(result.otherState.energy.includes(victim), '前段の対象シグニをバニッシュ');
+  eq(result.ownerState.deck[0], untouched, '見ていないカードがトップに残る');
+}));
+
+test('UNKNOWN第6バッチ defer固定: reveal-until 3効果/C1 は未対応機構を既存語彙へ誤載せしない', () => {
   const a3 = parseCardEffects(cardMap.get('WXK07-034')!).find(e => e.effectId === 'WXK07-034-E1')!;
   const a3Json = JSON.stringify(a3.action);
   ok(a3Json.includes('それらを手札に加え、残りをシャッフルしてデッキの一番下に置く'), 'A3 後段UNKNOWNを維持');
   ok(!a3Json.includes('REVEAL_UNTIL_TO_HAND') && !a3Json.includes('REVEAL_UNTIL_TO_FIELD'), 'A3を1枚停止/場出し型へ近似しない');
+
+  const levelSum4 = parseCardEffects(cardMap.get('WDK13-011')!).find(e => e.effectId === 'WDK13-011-E1')!;
+  const levelSum5 = parseCardEffects(cardMap.get('WXK07-054-CB')!).find(e => e.effectId === 'WXK07-054-CB-E2')!;
+  for (const [effectId, effect] of [['WDK13-011-E1', levelSum4], ['WXK07-054-CB-E2', levelSum5]] as const) {
+    const json = JSON.stringify(effect.action);
+    ok(json.includes('"id":"REVEAL_AND_PICK"'), `${effectId}: levelSum停止条件を固定枚数/最初の1枚へ近似しない`);
+    ok(!json.includes('"stopCondition"') && !json.includes('REVEAL_UNTIL_TO_HAND'), `${effectId}: 未実装の死フィールドを採用しない`);
+  }
 
   const c1Live = manualEffect('SP38-006', 'SP38-006-E1-G2');
   const c1LiveJson = JSON.stringify(c1Live.action);
@@ -3570,9 +3610,10 @@ const SEARCH_TOP_EFFECTS = [
   ['WXK02-070', 'WXK02-070-E1'],
   ['WXK03-049', 'WXK03-049-E1'],
   ['WD23-024-E', 'WD23-024-E-E1'],
+  ['WD23-013-A', 'WD23-013-A-E1'],
 ] as const;
 
-test('§6.4 デッキ全体サーチ→shuffle→top: 4効果の構造・filter・任意性', () => {
+test('§6.4 デッキ全体サーチ→shuffle→top: 5効果の構造・filter・任意性', () => {
   for (const [cardNum, effectId] of SEARCH_TOP_EFFECTS) {
     const fresh = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
     eq(fresh.parseStatus, 'AUTO', `${effectId}: parser が AUTO まで完結`);
@@ -3598,6 +3639,9 @@ test('§6.4 デッキ全体サーチ→shuffle→top: 4効果の構造・filter�
   const four = parseCardEffects(cardMap.get('WD23-024-E')!).find(e => e.effectId === 'WD23-024-E-E1')!.action as Extract<EffectAction, { type: 'SEARCH' }>;
   eq(JSON.stringify(four.filter), '{}', 'WD23-024-E-E1: 種別無制限のカード検索');
   eq(four.upToTarget, false, 'WD23-024-E-E1: 1枚必須');
+  const five = parseCardEffects(cardMap.get('WD23-013-A')!).find(e => e.effectId === 'WD23-013-A-E1')!.action as Extract<EffectAction, { type: 'SEARCH' }>;
+  eq(JSON.stringify(five.filter), '{}', 'WD23-013-A-E1: 種別無制限のカード検索');
+  eq(five.upToTarget, false, 'WD23-013-A-E1: 1枚必須');
 });
 
 function matchingCard(filter: Record<string, unknown>, include: (card: CardData) => boolean = () => true): string {
@@ -3683,6 +3727,126 @@ test('§6.4 E2E WD23-024-E-E1: 種別無制限カードをshuffle後top', () => 
   executeSearchTopE2E('WD23-024-E', 'WD23-024-E-E1', picked, 'top');
 });
 
+test('§6.4 E2E WD23-013-A-E1: 句点なし文型でも検索し、shuffle後top（旧TRANSFER no-op禁止）', () => {
+  const picked = matchingCard({}, c => c.Type !== 'シグニ');
+  const effect = parseCardEffects(cardMap.get('WD23-013-A')!).find(e => e.effectId === 'WD23-013-A-E1')!;
+  const ctx = mkCtx({ deckTop: [picked] }, {}, 'WD23-013-A');
+  const first = executeEffect(effect, ctx);
+  ok(!first.done && first.pending.type === 'SEARCH' && first.pending.visibleCards.includes(picked), 'SEARCH interaction が発生し全カードが候補');
+  executeSearchTopE2E('WD23-013-A', 'WD23-013-A-E1', picked, 'top');
+});
+
+test('§6.4 E2E WXDi-P11-043-E1: 宣言数字一致のトップだけ手札、不一致はトップに残す', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXDi-P11-043')!).find(e => e.effectId === 'WXDi-P11-043-E1')!;
+  const seq = effect.action as SequenceAction;
+  eq((seq.steps[0] as StubAction).id, 'DECLARE_NUMBER_PLAIN', 'ガード制限を立てない数字宣言');
+  const reveal = seq.steps[1] as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+  eq(`${reveal.revealCount}/${reveal.pickCount}/${reveal.pickUpTo}/${JSON.stringify(reveal.filter)}/${reveal.remainder?.position}`,
+    '1/1/true/{"cardType":"シグニ","levelEqDeclaredNumber":true}/top', 'トップ1枚・宣言値照合・不一致はtop');
+
+  const match = findCard(c => isSigni(c) && c.Level === '1');
+  const mismatch = findCard(c => isSigni(c) && c.Level !== '1');
+  const hit = mkCtx({ deckTop: [match, mismatch] }, {}, 'WXDi-P11-043');
+  const hitHand = hit.ownerState.hand.length;
+  const hitResult = run(effect.action as EffectAction, hit);
+  eq(hitResult.ownerState.hand.length, hitHand + 1, '宣言1と一致するトップだけ手札へ');
+  ok(hitResult.ownerState.hand.includes(match), '一致札を手札へ加える');
+  ok(!hitResult.ownerState.hand.includes(mismatch), 'デッキ全体の別シグニを万能サーチしない');
+
+  const miss = mkCtx({ deckTop: [mismatch, match] }, {}, 'WXDi-P11-043');
+  const missHand = miss.ownerState.hand.length;
+  const missResult = run(effect.action as EffectAction, miss);
+  eq(missResult.ownerState.hand.length, missHand, '不一致なら手札は増えない');
+  eq(missResult.ownerState.deck[0], mismatch, '公開した不一致札はデッキトップに残る');
+  eq(missResult.ownerState.declared_guard_restrict_level, undefined, '原文に無いガード制限を立てない');
+}));
+
+test('§6.4 E2E PR-457-E1: 上2枚の共通色カードをすべてエナ、残り下（余計なtop戻しなし）', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('PR-457')!).find(e => e.effectId === 'PR-457-E1')!;
+  const reveal = effect.action as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+  eq(`${reveal.revealCount}/${reveal.pickCount}/${JSON.stringify(reveal.filter)}/${reveal.then.type}/${reveal.remainder?.position}`,
+    '2/ALL/{"colorMatchesLrig":true}/ENERGY_CHARGE/bottom', '共通色ALLをエナへ');
+  const lrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤'));
+  const match = findCard(c => (c.Color ?? '').includes('赤') && c.CardNum !== lrig);
+  const mismatch = findCard(c => !(c.Color ?? '').includes('赤'));
+  const untouched = findCard(c => ![lrig, match, mismatch].includes(c.CardNum));
+  const ctx = mkCtx({ deckTop: [match, mismatch, untouched], lrig: [lrig] }, {}, 'PR-457');
+  const energy0 = ctx.ownerState.energy.length;
+  const hand0 = ctx.ownerState.hand.length;
+  const result = run(effect.action as EffectAction, ctx);
+  eq(result.ownerState.energy.length, energy0 + 1, '共通色1枚だけエナへ');
+  ok(result.ownerState.energy.includes(match), '共通色カードをエナへ置く');
+  ok(!result.ownerState.energy.includes(mismatch), '非共通色はエナへ置かない');
+  eq(result.ownerState.hand.length, hand0, '万能サーチで手札へ加えない');
+  eq(result.ownerState.deck[0], untouched, '未公開札がトップ');
+  eq(result.ownerState.deck.at(-1), mismatch, '残りはデッキ下');
+}));
+
+function waterSigniDistinctNames(count: number): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of cardMap.values()) {
+    if (!isSigni(c) || !(c.CardClass ?? '').includes('水獣') || seen.has(c.CardName)) continue;
+    seen.add(c.CardName); out.push(c.CardNum);
+    if (out.length === count) return out;
+  }
+  throw new Error(`名前の異なる＜水獣＞が${count}枚ない`);
+}
+
+test('§6.4 handReveal OptionalCostSpec: filter・枚数・distinct:name を支払可否と実選択の両方で守る', () => withSavedCursor(() => {
+  const waters = waterSigniDistinctNames(4);
+  const stub = { type: 'STUB', id: 'OPTIONAL_COST', handReveal: {
+    count: 4, filter: { cardType: 'シグニ', story: '水獣' }, selectionConstraint: { distinct: 'name' },
+  } } as unknown as Parameters<typeof resolveOptionalCostSpec>[0];
+  const distinctCtx = mkCtx({}, {}); distinctCtx.ownerState.hand = [...waters];
+  ok(canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, distinctCtx), distinctCtx), '名前の異なる水獣4枚なら支払える');
+  const duplicateCtx = mkCtx({}, {}); duplicateCtx.ownerState.hand = [waters[0], `${waters[0]}#2`, waters[1], waters[2]];
+  ok(!canAffordOptionalCostSpec(resolveOptionalCostSpec(stub, duplicateCtx), duplicateCtx), '同名を含む4枚では支払えない');
+  const pay = resolveOptionalCostSpec(stub, distinctCtx);
+  const step = optionalCostPaySteps(pay)[0] as Extract<EffectAction, { type: 'REVEAL' }>;
+  eq(step.type, 'REVEAL', '公開コストは手札を移動しない既存REVEAL');
+  eq(step.source?.selectionConstraint?.distinct, 'name', '実選択にも distinct:name を渡す');
+}));
+
+test('§6.4 E2E WXK05-027-E2: 緑AND異名水獣4枚を払えないとエナ送り不可、払うと手札を残して実行', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXK05-027')!).find(e => e.effectId === 'WXK05-027-E2')!;
+  const waters = waterSigniDistinctNames(4);
+  const green = findCard(c => (c.Color ?? '').includes('緑'));
+  const victim = findCard(c => isSigni(c));
+
+  const insufficient = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WXK05-027');
+  insufficient.ownerState.energy = [green]; insufficient.ownerState.hand = waters.slice(0, 3);
+  const skipped = finishPayingCosts(executeEffect(effect, insufficient), insufficient);
+  ok(!skipped.otherState.energy.includes(victim), '手札3枚では本体を実行しない');
+  ok(tops(skipped.otherState).includes(victim), '対象シグニは場に残る');
+
+  const paid = mkCtx({ energy: 0 }, { signi: [victim, null, null] }, 'WXK05-027');
+  paid.ownerState.energy = [green]; paid.ownerState.hand = [...waters];
+  const handBefore = [...paid.ownerState.hand];
+  const donePaid = finishPayingCosts(executeEffect(effect, paid), paid);
+  ok(donePaid.otherState.energy.includes(victim), '《緑》＋異名水獣4枚のAND支払い後だけ対象をエナへ');
+  eq(JSON.stringify(donePaid.ownerState.hand), JSON.stringify(handBefore), '公開した4枚は手札に残る');
+  ok(!(donePaid.ownerState.hand_revealed_just?.length), '今回は公開時timingを発火させない');
+}));
+
+test('§6.4 E2E WXK05-071-E1: 水獣3枚を払えないと付与不可、払うと自分の水獣だけにランサー', () => withSavedCursor(() => {
+  const effect = parseCardEffects(cardMap.get('WXK05-071')!).find(e => e.effectId === 'WXK05-071-E1')!;
+  const waters = waterSigniDistinctNames(3);
+  const target = waters[0];
+  const insufficient = mkCtx({ signi: [target, null, null] }, {}, 'WXK05-071');
+  insufficient.ownerState.hand = waters.slice(0, 2);
+  const skipped = finishPayingCosts(executeEffect(effect, insufficient), insufficient);
+  ok(!(skipped.ownerState.keyword_grants?.[target] ?? []).includes('ランサー'), '手札2枚ではランサーを付与しない');
+
+  const paid = mkCtx({ signi: [target, null, null] }, {}, 'WXK05-071');
+  paid.ownerState.hand = [...waters];
+  const handBefore = [...paid.ownerState.hand];
+  const donePaid = finishPayingCosts(executeEffect(effect, paid), paid);
+  ok((donePaid.ownerState.keyword_grants?.[target] ?? []).includes('ランサー'), '支払い後は選んだ自分の水獣にランサー');
+  eq(JSON.stringify(donePaid.ownerState.hand), JSON.stringify(handBefore), '公開した3枚は手札に残る');
+  ok(!(donePaid.ownerState.hand_revealed_just?.length), '今回は公開時timingを発火させない');
+}));
+
 function cardsWithStub(id: string, bareOnly = false): string[] {
   const cards: string[] = [];
   const walk = (node: unknown): boolean => {
@@ -3696,10 +3860,10 @@ function cardsWithStub(id: string, bareOnly = false): string[] {
   return cards.sort();
 }
 
-test('§6.4 T1: live の裸 REVEAL_AND_PICK は既知7枚だけ', () => {
+test('§6.4 T1: live の裸 REVEAL_AND_PICK は据置reveal-until 3枚だけ', () => {
   eq(cardsWithStub('REVEAL_AND_PICK', true).join('|'),
-    ['PR-457', 'WDK13-011', 'WXDi-P11-043', 'WXK05-027', 'WXK05-071', 'WXK07-034', 'WXK07-054-CB'].sort().join('|'),
-    '裸STUBの既知集合（増加も対象4件の残存も禁止）');
+    ['WDK13-011', 'WXK07-034', 'WXK07-054-CB'].sort().join('|'),
+    '裸STUBの既知集合（増加も採用4件の残存も禁止）');
 });
 
 test('§6.4 T2: live の DECK_TOP_TO_LIFE は原文にライフクロスがある既知2枚だけ', () => {

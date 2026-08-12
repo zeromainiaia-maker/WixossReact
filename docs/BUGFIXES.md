@@ -1,5 +1,19 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-12 — 裸 `STUB{REVEAL_AND_PICK}` の万能サーチ化を7→3件へ縮小＋同family 2件を是正（PLAN §6.4）
+
+**🔴 バグの正体**＝payload の無い `STUB{REVEAL_AND_PICK}` は engine が実行時に原文を再parseし、原文と無関係に「デッキ全体のシグニから好きな1枚を手札へ＋shuffle」を行う。対象7件のうち、既存語彙だけで正しく表せる5件と、同family の完全no-op 1件を採用した。T1 の既知集合は7→3件となり、残る3件は reveal-until の停止条件モデルが無いため非採用 golden で固定した。
+
+**parser専業4効果**＝`WD23-013-A-E1` は続き442の `foldDeckSearchToTop` の構造入口を `TRANSFER_TO_DECK{DECK_CARD,self,top,shuffle:true}` にも広げ、連続形「探してデッキをシャッフルし」を既存 `SEARCH→SHUFFLE→top配置` へ正準化した。`WXDi-P11-043-E1` は `DECLARE_NUMBER_PLAIN`＋デッキ上1枚の `REVEAL_AND_PICK{levelEqDeclaredNumber}` とし、不一致札はtopに残す。`PR-457-E1` は余計な `LOOK_AND_REORDER/top` を除き、上2枚から `colorMatchesLrig` の全カードを `ENERGY_CHARGE` 経路でエナへ、残りをbottomへ置く。`WX24-P3-033-E1` は `LOOK_PICK_CHAIN` の行き先に `magic_box` を1語追加し、設置→＜トリック＞手札の順で5枚を振り分ける。`PLACE_MAGIC_BOX` は既存の `resumeSearch` 専用分岐が `lastProcessedCards` とcontinuationを保持する。
+
+**任意手札公開コスト2効果**＝`OptionalCostSpec.handReveal` を型・支払可否・支払stepの3層へ追加した。公開は既存 `REVEAL{HAND_CARD}` を使うため手札から移動しない。`selectionConstraint:{distinct:'name'}` を affordability と実選択の双方へ渡し、`WXK05-027-E2` は《緑》とのANDコスト＋異名＜水獣＞4枚、`WXK05-071-E1` は＜水獣＞3枚を要求する。両効果とも `SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS→OPTIONAL_COST→PAID_ADDITIONAL_COST` へ組み直し、誤った `IS_MY_TURN` 条件を除去した。前者は対象化した相手シグニだけをエナへ、後者は対象を `owner:self/story:水獣` に狭めて【ランサー】を付与する。今回のコスト公開では `ON_SELF_REVEAL_FROM_HAND`／`ON_REVEALED_FROM_HAND` を発火させていない（現行維持、goldenで固定）。
+
+**据置3効果**＝`WDK13-011-E1`（公開シグニのレベル合計4以上まで）、`WXK07-054-CB-E2`（同5以上まで）、`WXK07-034-E1` のchoice②（レベル4のシグニが2枚めくれるまで）。既存 `RevealUntilToHandAction` は `revealClass` しか持たず、レベル合計／特定レベルの枚数を構造化できない。engineで原文を再parseする退化は避け、判別可能な停止条件unionを導入する将来バッチまで据置。`WXK07-034-E1` choice①と `POWER_MOD_PER_COUNT` はスコープ外で不変。
+
+**E2E／波及検査**＝対象6効果ごとに盤面実行を追加し、万能サーチ不可、公開枚数、条件不成立、デッキtop/bottom、マジックボックス設置順、任意コスト不成立時の本体不発、支払時も手札不変、異名制約、対象ownerを固定した。既存 golden が `WXK05-027-E2` の誤った `IS_MY_TURN` 木を固定していたため、原文どおり保存対象への `SEND_TO_ENERGY` を探すassertへ修正。HEADとの全カード生パース比較は上記6 effectIdだけ、outlier 0。held は最終build直後107枚／47群で開始時と同じ（増減集合とも空）。
+
+**最終ゲート**＝`npm run gates` 全緑。golden **1847/1847**（+6）、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 不具合0、census **846→845**（`BASELINE_HIGH`を845へ更新）、census:stubs 無言no-op 0、manual field loss 0、lint 0 errors／259 warnings。同型★0（265群）。逆翻訳全10枚は `npm run regen` で再生成した。commit/pushおよび PLAN/PLAN_PROGRESS の簿記は行っていない。
+
 ## 2026-08-11（続き442） — デッキ全体サーチ後に選択札をshuffle後のtop/secondへ戻す4効果を機構化（PLAN §6.4）
 
 **🔴 バグの正体**＝`WXK02-031-E2`／`WXK02-070-E1`／`WXK03-049-E1`／`WD23-024-E-E1` の「デッキから1枚探す→シャッフル→そのカードをデッキ上へ」が、裸 `STUB{REVEAL_AND_PICK}` に潰れていた。旧ハンドラは実行時にカード原文を再parseし、デッキ全体から無条件のシグニ1枚を**手札へ加える**ため、本来の「次のドローを仕込む」効果が万能サーチへ化ける過剰実行だった。さらに `WXK02-070`／`WXK03-049` は原文に無い `CONDITIONAL{IS_MY_TURN}→STUB{DECK_TOP_TO_LIFE}` が同居し、タダでライフクロスを1枚増やしていた。

@@ -1015,7 +1015,8 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
         ],
       });
     }
-    return selectOrInteract(cands, revealCount, src.upToCount ?? false, scope, { type: 'REVEAL' }, undefined, ctx);
+    return selectOrInteract(cands, revealCount, src.upToCount ?? false, scope, { type: 'REVEAL' }, undefined, ctx,
+      false, { selectionConstraint: src.selectionConstraint });
   }
   return done(addLog(ctx, 'カードを公開'));
 }
@@ -5088,11 +5089,12 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
   });
 }
 
-function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap', owner: Owner): EffectAction {
+function lookPickThenAction(then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'magic_box', owner: Owner): EffectAction {
   if (then === 'hand') return { type: 'ADD_TO_HAND', owner } as EffectAction;
   // 'trap': ゾーン選択の CHOOSE を挟むため applyDirectAction のループには載せられない
   // （そこで !done を返すと外側 continuation が落ちる）。resumeSearch が専用分岐で受ける。
   if (then === 'trap') return { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction;
+  if (then === 'magic_box') return { type: 'STUB', id: 'PLACE_MAGIC_BOX' } as EffectAction;
   // 'deck_top': 盤面は動かさない（デッキ内に残したまま）。execLookPickChain が remainder 処理時に
   // lastProcessedCards 経由で受け取った予約カードを一番上へ置く。
   if (then === 'deck_top') return { type: 'STUB', id: 'INTERNAL_KEEP_ON_DECK_TOP' } as EffectAction;

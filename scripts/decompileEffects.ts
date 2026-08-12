@@ -1247,7 +1247,7 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${subj}がバニッシュされる場合、代わりに${cost}もよい`;
     }
     case 'LOOK_PICK_CHAIN': {
-      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : 'トラッシュに置き';
+      const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : 'トラッシュに置き';
       const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${numJa(s.pickCount)}枚まで${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
@@ -1903,6 +1903,15 @@ function actionJa(a?: Action, effectType?: string): string {
             : scET?.distinct ? `それぞれ${scET.distinct === 'level' ? 'レベル' : scET.distinct === 'name' ? '名前' : 'クラス'}の異なる`
             : '';
           return `${headOC}あなたのエナゾーンから${cET}${fET}${nounET}${a.energyTrash.count}枚をトラッシュに置いてもよい`;
+        }
+        if (a.handReveal) {
+          const fHR = a.handReveal.filter ? filterJa(a.handReveal.filter) : '';
+          const nounHR = ([] as string[]).concat(a.handReveal.filter?.cardType ?? 'カード').join('か');
+          const scHR = a.handReveal.selectionConstraint;
+          const cHR = scHR?.distinct === 'name' ? 'それぞれ名前の異なる'
+            : scHR?.distinct === 'level' ? 'それぞれレベルの異なる'
+            : scHR?.distinct === 'class' ? 'それぞれクラスの異なる' : '';
+          return `${headOC}${costJaOC ? `${costJaOC}を支払い、` : ''}手札から${cHR}${fHR}${nounHR}を${a.handReveal.count}枚公開してもよい`;
         }
         // 自分のアップ状態シグニをダウンする任意コスト（続き417 新設 fieldDown）
         if (a.fieldDown) {

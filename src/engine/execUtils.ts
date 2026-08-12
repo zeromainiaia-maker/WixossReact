@@ -167,6 +167,7 @@ export function maxCardLevel(cardNums: string[] | undefined, ctx: ExecCtx): numb
 export interface OptionalCostSpec {
   costColors: string[];
   handDiscard?: { count: number; filter?: TargetFilter };
+  handReveal?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   handToEnergy?: { count: number; filter?: TargetFilter };
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
@@ -211,7 +212,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
       }
     : undefined;
   return {
-    costColors, handDiscard, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
+    costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     underAnySigniTrash: a.underAnySigniTrash,
     energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
     fieldToLrigTrash: a.fieldToLrigTrash, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self,
@@ -249,6 +250,12 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = ctx.ownerState.hand.filter(n =>
       !spec.handDiscard!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handDiscard!.filter));
     if (matching.length < spec.handDiscard.count) return false;
+  }
+  if (spec.handReveal) {
+    const matching = ctx.ownerState.hand.filter(n =>
+      !spec.handReveal!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handReveal!.filter));
+    if (matching.length < spec.handReveal.count) return false;
+    if (!hasValidConstrainedSelection(matching, spec.handReveal.count, spec.handReveal.selectionConstraint, ctx.cardMap)) return false;
   }
   if (spec.energyTrash) {
     const matching = ctx.ownerState.energy.filter(n =>
@@ -348,6 +355,13 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.handDiscard ? [{
       type: 'TRASH', asCost: true,
       target: { type: 'HAND_CARD', owner: 'self', count: spec.handDiscard.count, filter: spec.handDiscard.filter },
+    } as EffectAction] : []),
+    ...(spec.handReveal ? [{
+      type: 'REVEAL',
+      source: {
+        type: 'HAND_CARD', owner: 'self', count: spec.handReveal.count,
+        filter: spec.handReveal.filter, selectionConstraint: spec.handReveal.selectionConstraint,
+      },
     } as EffectAction] : []),
     ...(spec.energyTrash ? [{
       type: 'TRASH', asCost: true,

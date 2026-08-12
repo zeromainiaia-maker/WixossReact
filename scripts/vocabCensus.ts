@@ -93,7 +93,8 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 846; // 2026-08-11（続き441）$ref が消費側で黙って0に潰れる死角を一掃。engine の解決関数は2つあり resolveNum は $ref を警告なく 0 にする＝live 6効果が丸ごと不発だった（逆翻訳は JSON を読むので原理的に見えない偽陰性）。execBounce／execTrash の blind・ENERGY_CARD 分岐／execTransferToHand を resolveCountRef へ寄せ、併せて WX24-P1-014-E2 のゾーン違い（場のシグニ→相手エナ）・WXDi-P13-007-E3 のディソナ限定・WX24-P2-003-E1 の2軸入れ替わりを是正。847→846。旧履歴は直下。
+const BASELINE_HIGH = 845; // 2026-08-12 §6.4 裸 REVEAL_AND_PICK 族6効果を原文どおり構造化し、万能サーチ化を解消。846→845。旧履歴は直下。
+// 旧・続き441: `$ref` が engine の一部経路で黙って0へ潰れていた6効果と、関連するゾーン・filter・2軸取り違えを是正。847→846。
 /*
 // 続き441 で置き換え。
 const BASELINE_HIGH = 847; // 2026-08-11 「この方法で処理した枚数」4効果を実働化。A3/A5 の欠落解消と A2 の SEARCH 検出増を差し引き 848→847。

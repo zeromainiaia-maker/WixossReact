@@ -1484,7 +1484,7 @@ export interface LookPickChainStage {
   // （remainder より先に動かすと「残り」を下へ送る操作でその1枚まで巻き込まれるため）。
   // 'trap'＝「その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置し」（タスク12(xlvi)(g)）。
   // ピックしたカードをデッキから抜いて `field.signi_traps[zone]` へ裏向きに置く（ゾーンは対話選択）。
-  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap';
+  then: 'hand' | 'energy' | 'trash' | 'field' | 'beat' | 'deck_top' | 'trap' | 'magic_box';
   handOrEnergy?: boolean;         // 選んだ各カードを手札かエナへ（SEARCH continuation の既存対話を再利用）
   sharesClassWithPrev?: boolean;  // 直前ステージで選んだカードと共通するクラスを持つもののみ（G252）
   // 直前ステージで選んだカードと**共通するクラスを持たない**もののみ（「緑のシグニ1枚と、そのシグニと
@@ -2096,6 +2096,8 @@ export interface StubAction {
   /** Filter for a target-level-derived hand discard cost. */
   handDiscardFilter?: TargetFilter;
   handDiscard?: { count: number; filter?: TargetFilter };
+  /** OPTIONAL_COST: 手札から条件一致カードを選んで公開する（手札には残す）。 */
+  handReveal?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 手札からエナゾーンへ置く任意コスト。 */
   handToEnergy?: { count: number; filter?: TargetFilter };
   /** OPTIONAL_COST: 手札から効果元シグニの下へ置く任意コスト。 */

@@ -11909,15 +11909,128 @@ function foldMagicBoxFromLook(action: EffectAction, sourceText: string): EffectA
   } as RevealAndPickAction;
 }
 
+// 1度見た5枚を「【マジックボックス】設置→＜クラス＞シグニを公開して手札」の順に振り分ける形。
+// 適用入口は既に解析済みの SEQUENCE 内に同じ枚数の REVEAL_AND_PICK がある木だけに限定する。
+function foldMagicBoxLookPickChain(action: EffectAction, sourceText: string): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const m = sourceText.match(
+    /デッキの上からカードを([０-９\d]+)枚見る。その中からカードを([０-９\d]+)枚(まで)?【マジックボックス】として(?:あなたの)?シグニゾーンに設置し、＜([^＞]+)＞のシグニ([０-９\d]+)枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く/,
+  );
+  if (!m) return action;
+  const revealCount = parseNum(m[1]);
+  const idx = action.steps.findIndex(step => step.type === 'REVEAL_AND_PICK'
+    && step.owner === 'self' && step.revealCount === revealCount
+    && step.remainder?.location === 'deck' && step.remainder.position === 'bottom');
+  if (idx < 0) return action;
+  const steps = [...action.steps];
+  steps[idx] = {
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount,
+    stages: [
+      { pickCount: parseNum(m[2]), pickNoun: 'カード', then: 'magic_box' },
+      { filter: { cardType: 'シグニ', story: m[4] }, pickCount: parseNum(m[5]), then: 'hand' },
+    ],
+    remainder: { location: 'deck', position: 'bottom' },
+  } as import('../types/effects').LookPickChainAction;
+  return { ...action, steps };
+}
+
+// 数字宣言→デッキトップ1枚公開→宣言値と同レベルなら手札。旧木の裸 STUB は
+// デッキ全体から無条件にシグニを探すため、既存の宣言filterつき REVEAL_AND_PICK へ正準化する。
+function foldDeclaredNumberTopReveal(action: EffectAction, sourceText: string): EffectAction {
+  if (action.type !== 'SEQUENCE' || action.steps.length !== 2
+      || action.steps[0]?.type !== 'STUB' || action.steps[0].id !== 'DECLARE_NUMBER'
+      || action.steps[1]?.type !== 'STUB' || action.steps[1].id !== 'REVEAL_AND_PICK') return action;
+  if (!/数字[１1]つを宣言する。あなたのデッキの一番上のカードを公開し、そのカードが宣言した数字と同じレベルのシグニの場合、そのカードを手札に加える/.test(sourceText)) return action;
+  return { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'DECLARE_NUMBER_PLAIN' } as StubAction,
+    {
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, pickCount: 1, pickUpTo: true,
+      filter: { cardType: 'シグニ', levelEqDeclaredNumber: true },
+      then: { type: 'ADD_TO_HAND', owner: 'self' },
+      // 条件不一致なら公開しただけなので、そのカードはデッキの一番上に残る。
+      remainder: { location: 'deck', position: 'top' },
+    } as RevealAndPickAction,
+  ] } as SequenceAction;
+}
+
+// デッキ上N枚からセンタールリグ共通色の**全カード**をエナへ、残りをデッキ下。
+// 旧の LOOK_AND_REORDER/top や裸STUBは残さず、公開と振り分けを1つの REVEAL_AND_PICK が担う。
+function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(
+    /デッキの上からカードを([０-９\d]+)枚公開する。その中からあなたのセンタールリグと共通する色を持つすべてのカードをエナゾーンに置き、残りを好きな順番でデッキの一番下に置く/,
+  );
+  if (!m) return action;
+  const revealCount = parseNum(m[1]);
+  const structuralMatch = action.type === 'REVEAL_AND_PICK' && action.owner === 'self'
+    && action.revealCount === revealCount
+    || action.type === 'SEQUENCE'
+      && action.steps.some(step => step.type === 'STUB' && step.id === 'REVEAL_AND_PICK');
+  if (!structuralMatch) return action;
+  return {
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount,
+    filter: { colorMatchesLrig: true }, pickCount: 'ALL', pickNoun: 'カード',
+    then: { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+    remainder: { location: 'deck', position: 'bottom' },
+  } as RevealAndPickAction;
+}
+
+// 「手札から〈条件〉をN枚公開してもよい。そうした場合」の公開を OptionalCostSpec に載せる。
+// 対象は公開前に SELECT_TARGET_ONLY→STORE_LAST_PROCESSED_TARGETS で固定し、本体は
+// PAID_ADDITIONAL_COST の内側から同じ対象だけを処理する。
+function foldOptionalHandRevealCost(action: EffectAction, sourceText: string): EffectAction {
+  if (action.type !== 'SEQUENCE' || action.steps.length !== 2
+      || action.steps[0]?.type !== 'STUB' || action.steps[0].id !== 'REVEAL_AND_PICK'
+      || action.steps[1]?.type !== 'CONDITIONAL' || action.steps[1].condition.type !== 'IS_MY_TURN') return action;
+  const legacyBody = action.steps[1].then;
+
+  const attack = sourceText.match(
+    /対戦相手のシグニ([０-９\d]+)体を対象とし、((?:《[^》]+》)+)を支払い、手札から(それぞれ名前の異なる)?＜([^＞]+)＞のシグニを([０-９\d]+)枚公開してもよい。そうした場合、それをエナゾーンに置く/,
+  );
+  if (attack && legacyBody.type === 'SEND_TO_ENERGY' && legacyBody.target.owner === 'opponent') {
+    const target = { ...legacyBody.target, count: parseNum(attack[1]), filter: { ...(legacyBody.target.filter ?? {}), cardType: 'シグニ' } };
+    const colors = [...attack[2].matchAll(/《([^》]+)》/g)].map(mm => mm[1]);
+    return { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as StubAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      { type: 'STUB', id: 'OPTIONAL_COST', costColors: colors,
+        handReveal: { count: parseNum(attack[5]), filter: { cardType: 'シグニ', story: attack[4] },
+          ...(attack[3] ? { selectionConstraint: { distinct: 'name' as const } } : {}) } } as StubAction,
+      { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { ...legacyBody, target, targetsStored: true } },
+    ] } as SequenceAction;
+  }
+
+  const grant = sourceText.match(
+    /あなたの＜([^＞]+)＞のシグニ([０-９\d]+)体を対象とし、手札から＜([^＞]+)＞のシグニを([０-９\d]+)枚公開してもよい。そうした場合、ターン終了時まで、それは【([^】]+)】を得る/,
+  );
+  if (grant && legacyBody.type === 'GRANT_KEYWORD') {
+    const target = { type: 'SIGNI' as const, owner: 'self' as const, count: parseNum(grant[2]),
+      filter: { cardType: 'シグニ', story: grant[1] } };
+    return { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as StubAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      { type: 'STUB', id: 'OPTIONAL_COST',
+        handReveal: { count: parseNum(grant[4]), filter: { cardType: 'シグニ', story: grant[3] } } } as StubAction,
+      { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: { ...legacyBody, target, keyword: grant[5], targetsStored: true } },
+    ] } as SequenceAction;
+  }
+  return action;
+}
+
 // 「デッキ全体から1枚探す → シャッフル → 探したカードをデッキ上へ」の正準化。
 // 旧木は裸 REVEAL_AND_PICK（実行時に原文を再parseして手札へ入れる）＋無関係な後段へ崩れていた。
 // sourceText は文型の filter／任意性／公開／配置候補だけを読む。適用可否は action 木に裸STUBがあるかで
 // 決めるため、同じカードの別効果や、reveal-until／手札公開コストの REVEAL_AND_PICK は触らない。
 function foldDeckSearchToTop(action: EffectAction, sourceText: string): EffectAction {
-  if (action.type !== 'SEQUENCE'
-      || !action.steps.some(step => step.type === 'STUB' && step.id === 'REVEAL_AND_PICK')) return action;
+  const legacyStubSequence = action.type === 'SEQUENCE'
+    && action.steps.some(step => step.type === 'STUB' && step.id === 'REVEAL_AND_PICK');
+  const legacyDeckTransfer = action.type === 'TRANSFER_TO_DECK'
+    && action.source.type === 'DECK_CARD' && action.source.owner === 'self' && action.source.count === 1
+    && action.position === 'top' && action.shuffle === true;
+  if (!legacyStubSequence && !legacyDeckTransfer) return action;
   const m = sourceText.match(
-    /あなたのデッキから((?:レベル[０-９\d]+以下の|＜[^＞]+＞の)?)(シグニ|カード)[１1]枚を探(して公開する|してもよい|す)。(?:そうした場合、|その後、)?デッキをシャッフルし、(その(?:カード|シグニ)を公開し)?(?:その(?:カード|シグニ)を)?デッキの(一番上|上から一番目か[二ニ]番目)に置く/,
+    /あなたのデッキから((?:レベル[０-９\d]+以下の|＜[^＞]+＞の)?)(シグニ|カード)[１1]枚を探(して公開する|してもよい|す|して)(?:。(?:そうした場合、|その後、)?)?デッキをシャッフルし、(その(?:カード|シグニ)を公開し)?(?:その(?:カード|シグニ)を)?デッキの(一番上|上から一番目か[二ニ]番目)に置く/,
   );
   if (!m) return action;
 
@@ -12384,7 +12497,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyResultConditionalWave3(card.CardNum, effects);
 
   for (const e of effects) {
-    const folded = foldDeckSearchToTop(e.action, card.EffectText ?? '');
+    let folded = foldDeckSearchToTop(e.action, card.EffectText ?? '');
+    folded = foldDeclaredNumberTopReveal(folded, card.EffectText ?? '');
+    folded = foldColorMatchAllToEnergy(folded, card.EffectText ?? '');
+    folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
+    folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     if (folded !== e.action) {
       e.action = folded;
       e.parseStatus = 'AUTO';
