@@ -1310,7 +1310,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.remainder?.shuffle ? '残りをシャッフルしてデッキの一番下に置く'
         : '残りを好きな順番でデッキの一番下に置く';
       const supLPC = (a.stages || []).some((s: any) => s.then === 'field' && s.suppressOnPlay) ? '。その【出】能力は発動しない' : '';
-      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。その中から${(a.stages || []).map(stageJa).join('、')}、${remJa}${supLPC}`;
+      // §6.4 O-2: `opponentResponds` を落とすと「相手のデッキを**自分が**見て選ぶ」と同じ文になる（偽陰性）。
+      const pickerLPC = a.opponentResponds ? '対戦相手はその中から' : 'その中から';
+      return `${ownerJa(a.owner)}デッキの上からカードを${numJa(a.revealCount)}枚見る。${pickerLPC}${(a.stages || []).map(stageJa).join('、')}、${remJa}${supLPC}`;
     }
     case 'REVEAL_AND_PICK': {
       const rapOwner = a.owner ?? a.from?.owner;
