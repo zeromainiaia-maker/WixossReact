@@ -3853,6 +3853,11 @@ function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
     }
     return null;
   }
+  if (a.type === 'REARRANGE_SIGNI') {
+    const rs = a as import('../types/effects').RearrangeSigniAction;
+    if (rs.swap === true && !!rs.swapSourceLocation) return { ...rs, suppressOnPlay: true };
+    return null;
+  }
   if (a.type === 'CONDITIONAL') {
     // 「（自分のターンなら）場に出す。そうした場合その【出】は発動しない」＝配置が CONDITIONAL.then/else に埋没
     const co = a as import('../types/effects').ConditionalAction;
@@ -3878,7 +3883,7 @@ function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
 function hasFieldOnlyRearrangeAnchor(a: EffectAction): boolean {
   if (a.type === 'REARRANGE_SIGNI') {
     const rs = a as import('../types/effects').RearrangeSigniAction;
-    return rs.swap === true && rs.swapWithLastProcessed !== true;
+    return rs.swap === true && rs.swapWithLastProcessed !== true && !rs.swapSourceLocation && !rs.swapBetweenTargets;
   }
   if (a.type === 'SEQUENCE') return (a as SequenceAction).steps.some(hasFieldOnlyRearrangeAnchor);
   if (a.type === 'CONDITIONAL') {
@@ -3889,6 +3894,14 @@ function hasFieldOnlyRearrangeAnchor(a: EffectAction): boolean {
   return false;
 }
 function foldSuppressOnPlay(action: EffectAction): EffectAction {
+  if (action.type === 'GRANT_EFFECT') {
+    const ge = action as import('../types/effects').GrantEffectAction;
+    return ge.effect ? { ...ge, effect: { ...ge.effect, action: foldSuppressOnPlay(ge.effect.action) } } : ge;
+  }
+  if (action.type === 'GRANT_LRIG_ABILITY') {
+    const gl = action as import('../types/effects').GrantLrigAbilityAction;
+    return { ...gl, abilities: gl.abilities.map(ab => ({ ...ab, action: foldSuppressOnPlay(ab.action) })) };
+  }
   if (action.type === 'SEQUENCE') {
     const seq = action as SequenceAction;
     let steps = seq.steps.map(foldSuppressOnPlay); // 先に子を畳む

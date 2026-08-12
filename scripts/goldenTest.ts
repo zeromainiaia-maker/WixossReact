@@ -14692,6 +14692,181 @@ test('WXDi-P08-037-E2: 公開シグニとアップ状態シグニを任意交換
     ok(nonSigni.done && nonSigni.ownerState.deck[0] === spell, '非シグニ公開なら交換pendingなし・トップ復帰');
   } finally { cursor = savedCursor; }
 });
+
+type RearrangeSigniGolden = Extract<EffectAction, { type: 'REARRANGE_SIGNI' }>;
+const physicalCardCount = (st: PlayerState): number => [
+  st.deck, st.hand, st.trash, st.energy, st.life_cloth, st.lrig_deck, st.lrig_trash,
+  st.field.lrig, st.field.assist_lrig_l, st.field.assist_lrig_r, st.field.free_zone,
+].reduce((n, zone) => n + (zone?.length ?? 0), 0)
+  + st.field.signi.reduce((n, stack) => n + (stack?.length ?? 0), 0);
+const freshRearrange = (cardNum: string, effectId: string): RearrangeSigniGolden => {
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  const action = findActionByType(effect?.action, 'REARRANGE_SIGNI');
+  if (!action) throw new Error(`${effectId}: fresh REARRANGE_SIGNI not found`);
+  return action;
+};
+
+// §6.4 二ゾーン交換：指定10効果を実カードの fresh action で最後まで実行する。
+// 各テストで「場外-1／場の対象が交換元へ／場外カードが同じ場ゾーンへ／総枚数保存」を固定する。
+const externalSwapSpecs: Array<{
+  cardNum: string; effectId: string; location: 'energy' | 'trash'; owner: 'self' | 'opponent';
+  fieldMode: 'source' | 'battle' | 'selected'; suppress: boolean;
+}> = [
+  { cardNum: 'WX24-P2-082', effectId: 'WX24-P2-082-E2', location: 'energy', owner: 'self', fieldMode: 'source', suppress: false },
+  { cardNum: 'WX24-P2-085', effectId: 'WX24-P2-085-E2', location: 'energy', owner: 'self', fieldMode: 'source', suppress: false },
+  { cardNum: 'WXDi-P04-072', effectId: 'WXDi-P04-072-E1', location: 'energy', owner: 'self', fieldMode: 'source', suppress: false },
+  { cardNum: 'WXDi-D06-012', effectId: 'WXDi-D06-012-E2', location: 'energy', owner: 'self', fieldMode: 'source', suppress: false },
+  { cardNum: 'WXDi-P11-007', effectId: 'WXDi-P11-007-E3', location: 'energy', owner: 'self', fieldMode: 'source', suppress: true },
+  { cardNum: 'WXDi-P12-041', effectId: 'WXDi-P12-041-E1', location: 'energy', owner: 'self', fieldMode: 'battle', suppress: true },
+  { cardNum: 'WX25-P1-059', effectId: 'WX25-P1-059-E1', location: 'energy', owner: 'opponent', fieldMode: 'selected', suppress: true },
+  { cardNum: 'WX26-CP1-085', effectId: 'WX26-CP1-085-SONG', location: 'energy', owner: 'opponent', fieldMode: 'selected', suppress: true },
+  { cardNum: 'WXDi-P12-043', effectId: 'WXDi-P12-043-E2', location: 'energy', owner: 'opponent', fieldMode: 'selected', suppress: true },
+  { cardNum: 'WXDi-P14-058', effectId: 'WXDi-P14-058-E2', location: 'trash', owner: 'opponent', fieldMode: 'selected', suppress: true },
+];
+for (const spec of externalSwapSpecs) test(`§6.4 zone swap E2E ${spec.effectId}`, () => withSavedCursor(() => {
+  const action = freshRearrange(spec.cardNum, spec.effectId);
+  eq(action.swapSourceLocation, spec.location, `${spec.effectId}: 場外ゾーン`);
+  eq(action.suppressOnPlay === true, spec.suppress, `${spec.effectId}: 【出】抑止`);
+  const sourceTarget = action.swapSourceTarget!;
+  const external = findCard(c => isSigni(c) && matchesFilter(c, sourceTarget.filter));
+  const fieldCard = spec.fieldMode === 'source'
+    ? findCard(c => isSigni(c) && c.CardNum !== external)
+    : findCard(c => isSigni(c) && c.CardNum !== external
+      && (!(action.target.filter?.levelEqLastProcessed || action.swapIfSameLevel) || c.Level === cardMap.get(external)?.Level));
+  const spare = findCard(c => isSigni(c) && c.CardNum !== external && c.CardNum !== fieldCard);
+  const ownerField = spec.owner === 'self' ? [fieldCard, spare, null] : [spare, null, null];
+  const otherField = spec.owner === 'opponent' ? [fieldCard, spare, null] : [null, null, null];
+  const ctx = mkCtx({ signi: ownerField }, { signi: otherField }, spec.fieldMode === 'source' ? fieldCard : spec.cardNum);
+  if (spec.owner === 'self') ctx.ownerState[spec.location] = [external, fresh()];
+  else ctx.otherState[spec.location] = [external, fresh()];
+  if (spec.fieldMode === 'battle') ctx.battleAttackerCardNum = fieldCard;
+  const beforeOwner = physicalCardCount(ctx.ownerState);
+  const beforeOther = physicalCardCount(ctx.otherState);
+  const beforeZoneLength = (spec.owner === 'self' ? ctx.ownerState : ctx.otherState)[spec.location].length;
+
+  const pickExternal = executeAction(action, ctx);
+  ok(!pickExternal.done && pickExternal.pending.type === 'SELECT_TARGET', `${spec.effectId}: 場外側を選択`);
+  ok(pickExternal.pending.candidates.includes(external), `${spec.effectId}: 限定に合う場外シグニが候補`);
+  const c0: ExecCtx = { ...ctx, ownerState: pickExternal.ownerState, otherState: pickExternal.otherState, logs: pickExternal.logs };
+  const pickField = resumeSelectTarget([external], pickExternal.pending as never, c0);
+  ok(!pickField.done && pickField.pending.type === 'REARRANGE_SIGNI', `${spec.effectId}: 場側を選択`);
+  eq(pickField.pending.swapSourceLocation, spec.location, `${spec.effectId}: pendingへゾーン保持`);
+  eq(pickField.pending.suppressOnPlay === true, spec.suppress, `${spec.effectId}: pendingへ抑止保持`);
+  ok(pickField.pending.signiNums.includes(fieldCard), `${spec.effectId}: 原文の場側シグニが候補`);
+  const c1: ExecCtx = {
+    ...ctx, ownerState: pickField.ownerState, otherState: pickField.otherState, logs: pickField.logs,
+    lastProcessedCards: pickField.lastProcessedCards,
+  };
+  const swapped = resumeRearrangeSigni([fieldCard], pickField.pending as never, c1);
+  const after = spec.owner === 'self' ? swapped.ownerState : swapped.otherState;
+  eq(after[spec.location].length, beforeZoneLength, `${spec.effectId}: 場外枚数は交換で不変`);
+  ok(after[spec.location].includes(fieldCard), `${spec.effectId}: 押し出された場シグニが元ゾーンへ`);
+  eq(after.field.signi[0]?.at(-1), external, `${spec.effectId}: 場外シグニが対象と同じゾーンへ`);
+  eq(physicalCardCount(swapped.ownerState), beforeOwner, `${spec.effectId}: 自分の総枚数保存`);
+  eq(physicalCardCount(swapped.otherState), beforeOther, `${spec.effectId}: 相手の総枚数保存`);
+}));
+
+test('§6.4 zone swap: 同レベル限定は候補絞り込み、同レベル条件は不一致なら交換しない', () => withSavedCursor(() => {
+  const filtered = freshRearrange('WX25-P1-059', 'WX25-P1-059-E1');
+  const extL2 = findCard(c => isSigni(c) && c.Level === '2');
+  const fieldL1 = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== extL2);
+  const fieldL2 = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== extL2);
+  const ctx = mkCtx({}, { signi: [fieldL1, fieldL2, null] }, 'WX25-P1-059');
+  ctx.otherState.energy = [extL2];
+  const p0 = executeAction(filtered, ctx);
+  const p1 = resumeSelectTarget([extL2], p0.pending as never, { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs });
+  eq(JSON.stringify(p1.pending.signiNums), JSON.stringify([fieldL2]), '「それと同じレベル」は対象候補をレベル2だけに限定');
+
+  const conditional = freshRearrange('WXDi-P14-058', 'WXDi-P14-058-E2');
+  const c0 = mkCtx({}, { signi: [fieldL1, null, null] }, 'WXDi-P14-058');
+  c0.otherState.trash = [extL2];
+  const q0 = executeAction(conditional, c0);
+  const q1 = resumeSelectTarget([extL2], q0.pending as never, { ...c0, ownerState: q0.ownerState, otherState: q0.otherState, logs: q0.logs });
+  const q2 = resumeRearrangeSigni([fieldL1], q1.pending as never, { ...c0, ownerState: q1.ownerState, otherState: q1.otherState, logs: q1.logs, lastProcessedCards: q1.lastProcessedCards });
+  eq(q2.otherState.field.signi[0]?.at(-1), fieldL1, '「レベルが同じ場合」不成立なら場は不変');
+  ok(q2.otherState.trash.includes(extL2), '条件不成立ならトラッシュも不変');
+}));
+
+test('§6.4 zone swap: 配置数制限は入れ替え分を差し引き、配置パワー制限は遮断する', () => withSavedCursor(() => {
+  const action = freshRearrange('WXDi-P04-072', 'WXDi-P04-072-E1');
+  const external = findCard(c => isSigni(c) && c.Level === '2' && parseInt(c.Power ?? '0', 10) > 0);
+  const fieldCard = findCard(c => isSigni(c) && c.CardNum !== external);
+  const allowed = mkCtx({ signi: [fieldCard, null, null] }, {}, fieldCard);
+  allowed.ownerState.energy = [external];
+  allowed.ownerState.signi_deploy_count_limit = 1;
+  const a0 = executeAction(action, allowed);
+  const a1 = resumeSelectTarget([external], a0.pending as never, { ...allowed, ownerState: a0.ownerState, otherState: a0.otherState, logs: a0.logs });
+  const a2 = resumeRearrangeSigni([fieldCard], a1.pending as never, { ...allowed, ownerState: a1.ownerState, otherState: a1.otherState, logs: a1.logs, lastProcessedCards: a1.lastProcessedCards });
+  eq(a2.ownerState.field.signi[0]?.at(-1), external, '体数不変の交換はcount capを通る');
+
+  const blocked = mkCtx({ signi: [fieldCard, null, null] }, {}, fieldCard);
+  blocked.ownerState.energy = [external];
+  blocked.ownerState.signi_deploy_power_limit = parseInt(cardMap.get(external)?.Power ?? '0', 10);
+  const b0 = executeAction(action, blocked);
+  const b1 = resumeSelectTarget([external], b0.pending as never, { ...blocked, ownerState: b0.ownerState, otherState: b0.otherState, logs: b0.logs });
+  const b2 = resumeRearrangeSigni([fieldCard], b1.pending as never, { ...blocked, ownerState: b1.ownerState, otherState: b1.otherState, logs: b1.logs, lastProcessedCards: b1.lastProcessedCards });
+  eq(b2.ownerState.field.signi[0]?.at(-1), fieldCard, 'power limitなら場外シグニを出さない');
+  ok(b2.ownerState.energy.includes(external), 'power limitならエナも不変');
+}));
+
+const pairSwapSpecs = [
+  { cardNum: 'WXDi-P01-041', effectId: 'WXDi-P01-041-E1', owner: 'opponent' as const, optional: false },
+  { cardNum: 'WXDi-P05-071', effectId: 'WXDi-P05-071-E2', owner: 'opponent' as const, optional: false },
+  { cardNum: 'WXDi-P05-016', effectId: 'WXDi-P05-016-E1', owner: 'self' as const, optional: true },
+];
+for (const spec of pairSwapSpecs) test(`§6.4 pair swap E2E ${spec.effectId}`, () => withSavedCursor(() => {
+  const action = freshRearrange(spec.cardNum, spec.effectId);
+  ok(action.swapBetweenTargets === true && action.target.count === 2, `${spec.effectId}: 場の2体指定`);
+  eq(action.optional === true, spec.optional, `${spec.effectId}: 任意性`);
+  const source = findCard(c => isSigni(c));
+  const first = findCard(c => isSigni(c) && c.CardNum !== source);
+  const second = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== first);
+  const third = findCard(c => isSigni(c) && ![source, first, second].includes(c.CardNum));
+  const ctx = spec.owner === 'self'
+    ? mkCtx({ signi: [source, first, second] }, {}, source)
+    : mkCtx({ signi: [source, null, null] }, { signi: [first, second, third] }, source);
+  const p = executeAction(action, ctx);
+  ok(!p.done && p.pending.type === 'REARRANGE_SIGNI' && p.pending.mode === 'swap_pair', `${spec.effectId}: 2体選択pending`);
+  const donePair = resumeRearrangeSigni([first, second], p.pending as never, { ...ctx, ownerState: p.ownerState, otherState: p.otherState, logs: p.logs });
+  const state = spec.owner === 'self' ? donePair.ownerState : donePair.otherState;
+  if (spec.owner === 'self') eq(state.field.signi[0]?.at(-1), source, '選ばなかった効果元は動かない');
+  else eq(donePair.ownerState.field.signi[0]?.at(-1), source, '相手2体交換で自分の効果元は動かない');
+  const firstZone = spec.owner === 'self' ? 1 : 0;
+  eq(state.field.signi[firstZone]?.at(-1), second, '選んだ1体目の場所へ2体目');
+  eq(state.field.signi[firstZone + 1]?.at(-1), first, '選んだ2体目の場所へ1体目');
+  if (spec.optional) {
+    const skipped = resumeRearrangeSigni([], p.pending as never, { ...ctx, ownerState: p.ownerState, otherState: p.otherState, logs: p.logs });
+    eq(JSON.stringify(tops(skipped.ownerState)), JSON.stringify(tops(ctx.ownerState)), '任意交換を断れば場は不変');
+  }
+}));
+
+// 群Cのうち原文どおり「このシグニ↔場の1体」である7効果。WXDi-P08-037-E2は直前の専用E2Eで固定済み。
+for (const [cardNum, effectId] of [
+  ['SPDi43-20', 'SPDi43-20-E1'], ['WX04-061', 'WX04-061-E2'], ['WXDi-P00-063', 'WXDi-P00-063-E1'],
+  ['WXK03-042', 'WXK03-042-E1'], ['WXK03-043', 'WXK03-043-E1'], ['WXK03-072', 'WXK03-072-E2'], ['WXK10-078', 'WXK10-078-E3'],
+] as const) test(`§6.4 source swap baseline E2E ${effectId}`, () => withSavedCursor(() => {
+  const action = findActionByType(manualEffect(cardNum, effectId).action, 'REARRANGE_SIGNI')!;
+  ok(!action.swapSourceLocation && !action.swapBetweenTargets, `${effectId}: 従来の効果元固定形を維持`);
+  const source = cardNum;
+  const target = findCard(c => isSigni(c) && c.CardNum !== source
+    && matchesFilter(c, action.target.filter));
+  const third = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== target);
+  const ctx = mkCtx({ signi: [source, target, third] }, {}, source);
+  const p = executeAction(action, ctx);
+  ok(!p.done && p.pending.type === 'REARRANGE_SIGNI' && p.pending.mode === 'swap', `${effectId}: 従来swap pending`);
+  const swapped = resumeRearrangeSigni([target], p.pending as never, { ...ctx, ownerState: p.ownerState, otherState: p.otherState, logs: p.logs });
+  eq(swapped.ownerState.field.signi[0]?.at(-1), target, `${effectId}: 対象が効果元の場所へ`);
+  eq(swapped.ownerState.field.signi[1]?.at(-1), source, `${effectId}: 効果元が対象の場所へ`);
+}));
+
+test('§6.4 non-adoption: WX25-P2-058-E1は外部交換だが別欠落を伴うため部分採用しない', () => {
+  const live = manualEffect('WX25-P2-058', 'WX25-P2-058-E1');
+  const rearrange = findActionByType(live.action, 'REARRANGE_SIGNI')!;
+  ok(!rearrange.swapSourceLocation, '完全なタイミング/条件構造ができるまで旧liveを据置');
+  const sourceText = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'))['WX25-P2-058-E1'] as string;
+  ok(sourceText.includes('アタック終了時') && sourceText.includes('《アイヤイ★クイーン》') && sourceText.includes('エナゾーンから'),
+    '据置ブロッカー3軸を原文で固定');
+});
 test('applyContinuousBaseLevelOverride: CONTINUOUS SET_BASE_LEVELでcardMapのLevelを上書き（WX04-049・条件成立時のみ）', () => {
   const st = mkState({ signi: ['WX04-049', 'WD04-009', null] }); // WD04-009=空獣/地獣
   const overridden = applyContinuousBaseLevelOverride(cardMap as Map<string, CardData>, st, mkState({}), effectsMap, true);

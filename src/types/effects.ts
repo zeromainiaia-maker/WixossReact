@@ -1691,6 +1691,16 @@ export interface RearrangeSigniAction {
   target: EffectTarget;
   swap?: boolean; // true=このシグニと対象シグニの位置を交換
   swapWithLastProcessed?: boolean; // true=直前に公開・選択したシグニと対象シグニを交換
+  /** 場外カードとの交換元ゾーン。`swapSourceTarget` で1枚選び、場の `target` と交換する。 */
+  swapSourceLocation?: 'energy' | 'trash';
+  /** `swapSourceLocation` から選ぶ場外シグニ。owner/filter/upToCount をこの対象に保持する。 */
+  swapSourceTarget?: EffectTarget;
+  /** true=効果元を片側に固定せず、`target` から選んだ場の2体を交換する。 */
+  swapBetweenTargets?: boolean;
+  /** 「そのあなたのシグニ」＝バトルでバニッシュしたアタッカーを場側に固定する。 */
+  targetsBattleAttacker?: boolean;
+  /** true=2枚を対象に取った後、レベルが同じ場合だけ交換する。 */
+  swapIfSameLevel?: boolean;
   suppressOnPlay?: boolean; // swapWithLastProcessed で場に出たシグニの【出】を発火させない
   optional?: boolean; // true=「配置し直してもよい」（プレイヤーがスキップ可能）
 }

@@ -7854,15 +7854,56 @@ export function resumeSelectSigniZone(
 // REARRANGE_SIGNI: フィールドのシグニを好きなように配置し直す（count:'ALL'）。プレイヤーに配置選択を促す。
 function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, ctx: ExecCtx): ExecResult {
   if (a.swap) {
+    // エナ／トラッシュとの二ゾーン交換は、まず場外側の1枚を通常の SELECT_TARGET で選ぶ。
+    // 選択値は lastProcessedCards に載せ、既存 swapWithLastProcessed の受け渡しをそのまま再利用する。
+    if (a.swapSourceLocation && a.swapSourceTarget && !a.swapWithLastProcessed) {
+      const srcTarget = a.swapSourceTarget;
+      const srcOwner: Owner = srcTarget.owner === 'opponent' ? 'opponent' : 'self';
+      const srcState = ownerState(srcOwner, ctx);
+      const resolvedSourceFilter = resolveDynamicFilter(
+        srcTarget.filter, srcState, ctx.cardMap, srcOwner === 'self' ? ctx.otherState : ctx.ownerState,
+        ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+      );
+      const candidates = a.swapSourceLocation === 'energy'
+        ? energyCandidates(srcState, resolvedSourceFilter, ctx.cardMap, ctx.treatAsClassAllZones)
+        : movableTrashCandidates(srcOwner, srcState, resolvedSourceFilter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+      const scope: TargetScope = a.swapSourceLocation === 'energy'
+        ? (srcOwner === 'self' ? 'self_energy' : 'opp_energy')
+        : (srcOwner === 'self' ? 'self_trash' : 'opp_trash');
+      const continueSwap: import('../types/effects').RearrangeSigniAction = { ...a, swapWithLastProcessed: true };
+      return selectOrInteract(
+        candidates, 1, srcTarget.upToCount ?? false, scope,
+        { type: 'SEQUENCE', steps: [] }, continueSwap, ctx,
+      );
+    }
     const tgtOwner: Owner = a.target.owner === 'opponent' ? 'opponent' : 'self';
     const state = ownerState(tgtOwner, ctx);
+    if (a.swapBetweenTargets) {
+      const pairCandidates = state.field.signi
+        .map(s => s?.at(-1))
+        .filter((n): n is string => !!n && matchesFilter(ctx.cardMap.get(getCardNum(n)), a.target.filter));
+      if (pairCandidates.length < 2) return done(addLog(ctx, '入れ替え対象が2体未満のためスキップ'));
+      return needsInteraction(ctx, {
+        type: 'REARRANGE_SIGNI', owner: tgtOwner, signiNums: pairCandidates,
+        optional: a.optional ?? false, mode: 'swap_pair',
+      } as PendingInteractionDef);
+    }
     const external = a.swapWithLastProcessed ? ctx.lastProcessedCards?.[0] : undefined;
+    if (a.swapSourceLocation && !external) return done(addLog(ctx, '場外の交換元を選ばなかった'));
     const source = external ?? ctx.sourceCardNum;
+    const resolvedTargetFilter = resolveDynamicFilter(
+      a.target.filter, state, ctx.cardMap, tgtOwner === 'self' ? ctx.otherState : ctx.ownerState,
+      ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
+    );
+    const fixedFieldNum = a.targetsBattleAttacker
+      ? ctx.battleAttackerCardNum
+      : resolvedTargetFilter?.thisCardOnly ? ctx.sourceCardNum : undefined;
     const candidates = state.field.signi
       .map((s, zi) => ({ n: s?.at(-1), zi }))
       .filter(({ n, zi }) => !!n && n !== source
-        && (!a.target.filter?.isUp || !state.field.signi_down?.[zi])
-        && matchesFilter(ctx.cardMap.get(getCardNum(n!)), a.target.filter))
+        && (!fixedFieldNum || n === fixedFieldNum)
+        && (!resolvedTargetFilter?.isUp || !state.field.signi_down?.[zi])
+        && matchesFilter(ctx.cardMap.get(getCardNum(n!)), resolvedTargetFilter))
       .map(({ n }) => n!);
     if (!source || candidates.length === 0) return done(addLog(ctx, '入れ替え対象がないためスキップ'));
     return needsInteraction(ctx, {
@@ -7872,7 +7913,8 @@ function execRearrangeSigni(a: import('../types/effects').RearrangeSigniAction, 
       optional: a.optional ?? false,
       mode: 'swap',
       swapSourceNum: source,
-      swapSourceLocation: external ? 'deck' : 'field',
+      swapSourceLocation: a.swapSourceLocation ?? (external ? 'deck' : 'field'),
+      swapIfSameLevel: a.swapIfSameLevel,
       suppressOnPlay: a.suppressOnPlay,
     } as PendingInteractionDef);
   }
@@ -7901,6 +7943,21 @@ export function resumeRearrangeSigni(
 ): ExecResult {
   const state = ownerState(pending.owner, ctx);
   const f = state.field;
+  const continueAfterSwap = (cur: ExecCtx): ExecResult => pending.continuation
+    ? executeAction(pending.continuation, cur)
+    : done(cur);
+  if (pending.mode === 'swap_pair') {
+    const selected = [...new Set(newArrangement.filter(n => pending.signiNums.includes(n)))].slice(0, 2);
+    if (selected.length < 2) return continueAfterSwap(addLog(ctx, 'シグニ2体の入れ替えを行わなかった'));
+    const firstZone = f.signi.findIndex(s => s?.at(-1) === selected[0]);
+    const secondZone = f.signi.findIndex(s => s?.at(-1) === selected[1]);
+    if (firstZone < 0 || secondZone < 0 || firstZone === secondZone) {
+      return continueAfterSwap(addLog(ctx, '入れ替え対象が見つからないためスキップ'));
+    }
+    const arrangement = f.signi.map(s => s?.at(-1) ?? '');
+    [arrangement[firstZone], arrangement[secondZone]] = [arrangement[secondZone], arrangement[firstZone]];
+    return resumeRearrangeSigni(arrangement, { ...pending, mode: 'rearrange' }, ctx);
+  }
   if (pending.mode === 'swap') {
     const selected = newArrangement.find(n => pending.signiNums.includes(n));
     if (!selected) {
@@ -7909,26 +7966,43 @@ export function resumeRearrangeSigni(
     }
     const targetZone = f.signi.findIndex(s => s?.at(-1) === selected);
     if (targetZone < 0 || !pending.swapSourceNum) return done(addLog(ctx, '入れ替え対象が見つからないためスキップ'));
-    if (pending.swapSourceLocation === 'deck') {
-      const di = state.deck.indexOf(pending.swapSourceNum);
-      if (di < 0) return done(addLog(ctx, '公開したシグニがデッキにないためスキップ'));
+    if (pending.swapSourceLocation === 'deck' || pending.swapSourceLocation === 'energy' || pending.swapSourceLocation === 'trash') {
+      const sourceZone = pending.swapSourceLocation;
+      const sourceCards = state[sourceZone];
+      const sourceIndex = sourceCards.indexOf(pending.swapSourceNum);
+      if (sourceIndex < 0) return continueAfterSwap(addLog(ctx, '場外の交換元シグニが見つからないためスキップ'));
+      if (pending.swapIfSameLevel) {
+        const sourceLevel = parseInt(ctx.cardMap.get(getCardNum(pending.swapSourceNum))?.Level ?? '', 10);
+        const targetLevel = parseInt(ctx.cardMap.get(getCardNum(selected))?.Level ?? '', 10);
+        if (!Number.isFinite(sourceLevel) || sourceLevel !== targetLevel) {
+          return continueAfterSwap(addLog(ctx, '対象2枚のレベルが同じでないため入れ替えを行わなかった'));
+        }
+      }
+      const deployBlocked = deployLimitBlockedFor(pending.owner, pending.swapSourceNum, ctx, 1);
+      if (deployBlocked) {
+        const label = ctx.cardMap.get(getCardNum(pending.swapSourceNum))?.CardName ?? pending.swapSourceNum;
+        return continueAfterSwap(addLog(ctx, deployLimitLogMessage(deployBlocked, label)));
+      }
       // 場を離れる側は通常の removeFromField 規約に従う（下敷き/チャーム/アクセはトラッシュ、
       // ソウルはルリグトラッシュ、武装等は解除。ウィルスはシグニゾーンに残る）。
       const removed = removeFromField(selected, state);
-      const deck = [...removed.deck];
-      deck.splice(di, 1);
-      deck.unshift(selected);
+      const destination = [...removed[sourceZone]];
+      const removedSourceIndex = destination.indexOf(pending.swapSourceNum);
+      if (removedSourceIndex < 0) return continueAfterSwap(addLog(ctx, '場外の交換元シグニが移動済みのためスキップ'));
+      destination.splice(removedSourceIndex, 1);
+      if (sourceZone === 'deck') destination.unshift(selected); else destination.push(selected);
       const signi = [...removed.field.signi];
       signi[targetZone] = [pending.swapSourceNum];
       const newField: typeof f = {
         ...removed.field, signi,
       };
-      const newState: PlayerState = { ...removed, deck, field: newField,
+      const newState: PlayerState = { ...removed, [sourceZone]: destination, field: newField,
         signi_played_from_non_hand_this_turn: [
           ...(removed.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== pending.swapSourceNum), pending.swapSourceNum,
         ],
         zone_moved_just: [...(removed.zone_moved_just ?? []), pending.swapSourceNum, selected] };
-      return done({ ...addLog(setOwnerState(pending.owner, newState, ctx), '公開したシグニと場のシグニを入れ替えた'),
+      const zoneLabel = sourceZone === 'deck' ? 'デッキ' : sourceZone === 'energy' ? 'エナゾーン' : 'トラッシュ';
+      return continueAfterSwap({ ...addLog(setOwnerState(pending.owner, newState, ctx), `${zoneLabel}のシグニと場のシグニを入れ替えた`),
         lastProcessedCards: [pending.swapSourceNum] });
     }
     const sourceZone = f.signi.findIndex(s => s?.at(-1) === pending.swapSourceNum);

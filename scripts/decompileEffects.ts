@@ -669,6 +669,31 @@ function condJa(c?: any): string {
   }
 }
 
+function rearrangeSigniJa(a: any): string {
+  if (!a.swap) return `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
+  if (a.swapBetweenTargets) {
+    return `${targetJa(a.target)}を対象とし、それらの場所を入れ替える${a.optional ? '（してもよい）' : ''}`;
+  }
+  if (a.swapSourceLocation && a.swapSourceTarget) {
+    const src = a.swapSourceTarget;
+    const zone = a.swapSourceLocation === 'trash' ? 'トラッシュ' : 'エナゾーン';
+    const count = `${numJa(src.count ?? 1)}枚${src.upToCount ? 'まで' : ''}`;
+    const relationalLevel = a.target?.filter?.levelEqLastProcessed ? 'それと同じレベルの' : '';
+    const sourceText = `${ownerJa(src.owner)}${zone}から${relationalLevel}${filterJa(src.filter)}シグニ${count}`;
+    const fieldTarget = a.target?.filter?.levelEqLastProcessed
+      ? { ...a.target, filter: { ...a.target.filter, levelEqLastProcessed: undefined } }
+      : a.target;
+    const fieldText = a.targetsBattleAttacker
+      ? 'そのあなたのシグニ'
+      : a.target?.filter?.thisCardOnly ? '場にあるこのシグニ' : targetJa(fieldTarget);
+    const body = a.swapIfSameLevel
+      ? `${fieldText}と、${sourceText}を対象とし、それらのレベルが同じ場合、それらの場所を入れ替える`
+      : `${fieldText}と、${sourceText}を対象とし、それらの場所を入れ替える`;
+    return `${body}${a.suppressOnPlay ? '。この方法で場に出たシグニの【出】能力は発動しない' : ''}`;
+  }
+  return `${targetJa(a.target)}とこのシグニの場所を入れ替える${a.optional ? '（してもよい）' : ''}`;
+}
+
 function actionJa(a?: Action, effectType?: string): string {
   if (!a) return '';
   switch (a.type) {
@@ -1332,7 +1357,7 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       return `${revealJa}、その中から${filterStr}を${pickN}処理する${remJa}`;
     }
-    case 'REARRANGE_SIGNI': return a.swap ? `${targetJa(a.target)}とこのシグニの場所を入れ替える${a.optional ? '（してもよい）' : ''}` : `${targetJa(a.target)}を好きなように配置し直す${a.optional ? '（してもよい）' : ''}`;
+    case 'REARRANGE_SIGNI': return rearrangeSigniJa(a);
     case 'CHARM_PROTECTION':
       return `あなたの${filterJa(a.signiFilter)}シグニ1体がバニッシュされる場合、代わりにそのシグニに付いている【チャーム】1枚をトラッシュに置いて${a.optional ? 'もよい' : '置く'}`;
     case 'ATTACH_CHARM': {
@@ -2782,6 +2807,7 @@ function effJa(e: Eff): string {
   const scopeNoun = e.triggerFilter?.cardType && !Array.isArray(e.triggerFilter.cardType) ? e.triggerFilter.cardType : 'シグニ';
   const trig = (e.timing || []).map((t: string) => {
     let s = timingJa[t] ?? t;
+    if (t === 'ON_ATTACK_PHASE_START' && e.triggerScope === 'any') s = '各アタックフェイズ開始時';
     if (e.effectType === 'TRAP_ICON' && t === 'ON_TRAP_ACTIVATE') s = '';
     if (scopeSubj !== null && s.startsWith('このシグニ')) s = `${scopeSubj}${scopeNoun}${s.slice('このシグニ'.length)}`;
     // ON_TRASH/ON_LEAVE_FIELD 等「このカード」始まりも scope 主語に置換（any_opp→「対戦相手のシグニが…」）
@@ -3233,7 +3259,7 @@ function effJa(e: Eff): string {
     return s;
   }).filter(Boolean).join('/');
   // 主語に反映できなかった scope のみマーカー表示
-  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_TURN_END') && !(e.timing || []).includes('ON_TURN_START') && !(e.timing || []).includes('ON_LRIG_GROW') && !(e.timing || []).includes('ON_OPP_ARTS_USE') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
+  const scope = (e.triggerScope && e.triggerScope !== 'self' && !(e.timing || []).includes('ON_HAND_DISCARDED') && !(e.timing || []).includes('ON_SIGNI_POWER_ZERO_OR_LESS') && !(e.timing || []).includes('ON_SIGNI_FROZEN') && !(e.timing || []).includes('ON_CHARM_TO_TRASH') && !(e.timing || []).includes('ON_DRAW') && !(e.timing || []).includes('ON_MAIN_PHASE_START') && !(e.timing || []).includes('ON_ATTACK_PHASE_START') && !(e.timing || []).includes('ON_TURN_END') && !(e.timing || []).includes('ON_TURN_START') && !(e.timing || []).includes('ON_LRIG_GROW') && !(e.timing || []).includes('ON_OPP_ARTS_USE') && (scopeSubj === null || !(e.timing || []).some((t: string) => { const tj = timingJa[t] ?? ''; return tj.startsWith('このシグニ') || tj.startsWith('このカード'); }))) ? `〔範囲:${e.triggerScope}〕` : '';
   // 「〜の間」（ターン条件）は「場合、」を付けず「、」のみ。それ以外は「〜場合、」
   const condStr = e.condition ? condJa(e.condition) : '';
   const timingOwnsCondition = (e.timing || []).includes('ON_OPP_ENERGY_ADDED') && e.condition?.type === 'DURING_PHASE';

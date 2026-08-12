@@ -480,7 +480,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // REARRANGE_SIGNI は効果オーナーが応答（CPUの効果なら現状維持で自動確定）
     if (inter.type === 'REARRANGE_SIGNI') {
       if ((pe.respondPlayerId ?? pe.sourcePlayerId) !== CPU_PLAYER_ID) return;
-      const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(null); }, CPU_ACTION_DELAY);
+      const requiredChoice = inter.mode === 'swap_pair' && !inter.optional
+        ? inter.signiNums.slice(0, 2)
+        : inter.mode === 'swap' && !inter.optional
+          && (inter.swapSourceLocation === 'energy' || inter.swapSourceLocation === 'trash')
+          ? inter.signiNums.slice(0, 1)
+          : null;
+      const timerRS = setTimeout(() => { handleRearrangeSigniConfirm(requiredChoice); }, CPU_ACTION_DELAY);
       return () => clearTimeout(timerRS);
     }
     // SELECT_VIRUS_ZONE / SELECT_ZONE / SELECT_SIGNI_ZONE は効果オーナーが応答する（CPUの効果ならCPUがゾーンを自動選択）
@@ -5246,13 +5252,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       result = applyRefreshOnDone(result, battleCardMap);
       result = finalizePendingSpellPlacement(result, pe);
       if (result.logs.length > 0) appendBattleLogs(result.logs, { defer: true });
-      const hostState  = ownerIsHost ? result.ownerState : result.otherState;
-      const guestState = ownerIsHost ? result.otherState : result.ownerState;
+      let hostState  = ownerIsHost ? result.ownerState : result.otherState;
+      let guestState = ownerIsHost ? result.otherState : result.ownerState;
       const { respondPlayerId: _dropR, ...peBaseR } = pe;
+      const existingStack = bs.effect_stack ?? null;
+      let rearrangeEntries: StackEntry[] = [];
+      // エナ／トラッシュとの交換は「場外から場へ出る」実配置。配置制限は executor、
+      // 【出】と盤面差分トリガーは他の効果配置と同じ中央 funnel を通す。
+      if (inter.swapSourceLocation === 'energy' || inter.swapSourceLocation === 'trash') {
+        const bd = collectBoardDiffTriggers(hostState, guestState, {
+          causeOwnerId: pe.sourcePlayerId,
+          causeSourceCardNum: pe.sourceCardNum,
+          collectPlacedSelfOnPlay: true,
+          suppressOnPlay: inter.suppressOnPlay ?? false,
+        });
+        hostState = bd.hostState;
+        guestState = bd.guestState;
+        rearrangeEntries = bd.entries;
+      }
       setRearrangeSlots([null, null, null]);
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP', hostState, guestState, settleStackOnDone: true,
         pending: result.done ? null : ({ ...peBaseR, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
+        effectStack: rearrangeEntries.length > 0
+          ? (existingStack && !isStackDone(existingStack)
+              ? pushToStack(existingStack, rearrangeEntries)
+              : initStack(bs.active_user_id ?? user.id, rearrangeEntries))
+          : undefined,
       }));
       await flushBattleLogs();
     } finally {

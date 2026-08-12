@@ -890,9 +890,10 @@ export type PendingInteractionDef =
       owner: 'self' | 'opponent';  // 並び替えるシグニの持ち主（効果オーナー視点）
       signiNums: string[];         // 並び替え対象のシグニ（各ゾーンのトップ instance id）
       optional: boolean;           // true=スキップ可（「配置し直してもよい」）
-      mode?: 'rearrange' | 'swap';
+      mode?: 'rearrange' | 'swap' | 'swap_pair';
       swapSourceNum?: string;      // 場の交換元、またはデッキから場へ入る公開シグニ
-      swapSourceLocation?: 'field' | 'deck';
+      swapSourceLocation?: 'field' | 'deck' | 'energy' | 'trash';
+      swapIfSameLevel?: boolean;
       suppressOnPlay?: boolean;
       continuation?: EffectAction;
     };

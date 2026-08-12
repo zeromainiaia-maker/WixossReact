@@ -790,6 +790,54 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
         // REARRANGE_SIGNI：シグニを好きなように配置し直す（各シグニにゾーンを割り当て）
         if (inter.type === 'REARRANGE_SIGNI') {
           const ownerLabelRS = inter.owner === 'opponent' ? '相手の' : '自分の';
+          if (inter.mode === 'swap_pair') {
+            const selectedPair = effectSelectedNums.filter(n => inter.signiNums.includes(n)).slice(0, 2);
+            const togglePair = (n: string) => setEffectSelectedNums(prev => {
+              const current = prev.filter(x => inter.signiNums.includes(x));
+              if (current.includes(n)) return current.filter(x => x !== n);
+              return current.length < 2 ? [...current, n] : current;
+            });
+            return createPortal(
+              <div style={{ position: 'fixed', inset: 0, zIndex: 4000, backgroundColor: 'rgba(0,0,0,0.92)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12, padding: 16,
+                  width: 'min(95vw, 440px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    場所を入れ替える{ownerLabelRS}シグニを2体選択
+                  </p>
+                  <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap' }}>
+                    {inter.signiNums.map(n => {
+                      const c = battleCardMap.get(getCardNum(n));
+                      const selected = selectedPair.includes(n);
+                      return (
+                        <button key={n} onClick={() => togglePair(n)} disabled={loading}
+                          style={{ border: selected ? `2px solid ${C.success}` : C.borderCard, borderRadius: 7,
+                            background: C.bgButton, padding: 6, color: C.text, cursor: 'pointer' }}>
+                          <img src={c?.ImgURL} alt={c?.CardName} style={{ width: 70, height: 98, objectFit: 'cover', borderRadius: 4, display: 'block' }} />
+                          <span style={{ display: 'block', width: 70, fontSize: 10, marginTop: 4, overflow: 'hidden', textOverflow: 'ellipsis' }}>{c?.CardName ?? n}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    {inter.optional && (
+                      <button onClick={() => { setEffectSelectedNums([]); handleRearrangeSigniConfirm(null); }} disabled={loading}
+                        style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI, backgroundColor: 'transparent', color: C.textSub }}>
+                        入れ替えない
+                      </button>
+                    )}
+                    <button onClick={() => { if (selectedPair.length === 2) { setEffectSelectedNums([]); handleRearrangeSigniConfirm(selectedPair); } }}
+                      disabled={selectedPair.length !== 2 || loading}
+                      style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
+                        backgroundColor: selectedPair.length === 2 && !loading ? C.success : C.disabled, color: C.text }}>
+                      入れ替えを確定
+                    </button>
+                  </div>
+                </div>
+              </div>,
+              document.body,
+            );
+          }
           if (inter.mode === 'swap') {
             const sourceCardRS = inter.swapSourceNum ? battleCardMap.get(getCardNum(inter.swapSourceNum)) : undefined;
             return createPortal(

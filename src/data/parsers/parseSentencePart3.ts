@@ -152,6 +152,60 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 場所（ゾーン）を入れ替える → REARRANGE_SIGNI (swap) ----
+  // エナ／トラッシュのシグニと場のシグニを交換する二ゾーン形。
+  // 場外側の名詞句だけから filter を作り、条件節や場側のクラスを混ぜない。
+  if ((t.includes('場所を入れ替える') || t.includes('場所を入れ替えてもよい'))
+      && (t.includes('エナゾーン') || t.includes('トラッシュ'))) {
+    const sourceM = t.match(/((?:あなた|対戦相手)の)?(エナゾーン|トラッシュ)(?:から|にある)([^。]*?シグニ(?:を)?[０-９\d]+枚(?:まで)?)/);
+    if (sourceM) {
+      const sourceOwner: Owner = sourceM[1]?.includes('対戦相手') ? 'opponent' : 'self';
+      const sourceLocation = sourceM[2] === 'トラッシュ' ? 'trash' : 'energy';
+      const sourceSpan = sourceM[3];
+      const sourceFilter: TargetFilter = {
+        cardType: 'シグニ',
+        ...parseLevelFilter(sourceSpan),
+        ...parseStoryFilter(sourceSpan),
+      };
+      const targetsBattleAttacker = t.includes('そのあなたのシグニ');
+      const fieldOwner: Owner = /対戦相手のシグニ[１1]体と/.test(t) ? 'opponent' : 'self';
+      const fieldFilter: TargetFilter = targetsBattleAttacker
+        ? { cardType: 'シグニ' }
+        : fieldOwner === 'self'
+          ? { cardType: 'シグニ', thisCardOnly: true }
+          : {
+              cardType: 'シグニ',
+              ...(sourceSpan.includes('それと同じレベル') ? { levelEqLastProcessed: true } : {}),
+            };
+      return {
+        type: 'REARRANGE_SIGNI',
+        target: { type: 'SIGNI', owner: fieldOwner, count: 1, filter: fieldFilter },
+        swap: true,
+        swapSourceLocation: sourceLocation,
+        swapSourceTarget: {
+          type: sourceLocation === 'energy' ? 'ENERGY_CARD' : 'TRASH_CARD',
+          owner: sourceOwner,
+          count: 1,
+          filter: sourceFilter,
+          ...(sourceSpan.includes('まで') ? { upToCount: true } : {}),
+        },
+        ...(targetsBattleAttacker ? { targetsBattleAttacker: true } : {}),
+        ...(t.includes('それらのレベルが同じ場合') ? { swapIfSameLevel: true } : {}),
+      } as RearrangeSigniAction;
+    }
+  }
+  // 効果元を片側に固定しない場内2体指定形。
+  {
+    const pairM = t.match(/(対戦相手|あなた)のシグニ[２2]体を対象とし、それらの場所を入れ替え(る|てもよい)/);
+    if (pairM) {
+      return {
+        type: 'REARRANGE_SIGNI',
+        target: { type: 'SIGNI', owner: pairM[1] === '対戦相手' ? 'opponent' : 'self', count: 2, filter: { cardType: 'シグニ' } },
+        swap: true,
+        swapBetweenTargets: true,
+        ...(pairM[2] === 'てもよい' ? { optional: true } : {}),
+      } as RearrangeSigniAction;
+    }
+  }
   if (t.includes('場所を入れ替える') || t.includes('場所を入れ替えてもよい')) {
     return { type: 'REARRANGE_SIGNI', target: hasOtherSelfSigniNoun(t)
       ? parseSigniTarget(t, 'self')
