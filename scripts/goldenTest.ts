@@ -4738,34 +4738,48 @@ test('§6.4 E2E WXDi-P07-084-E1: デッキ下1枚を見て場またはトラッ�
   eq(trackedCardCount(trashResult.ownerState), trashBefore, 'トラッシュ側もカード消滅なし');
 }));
 
-test('§6.4 E2E WXEX2-84-E2 defer: 相手一掃だけ実行し、自分のデッキ補充へ反転しない', () => withSavedCursor(() => {
+// §6.4 O-2: 「対戦相手はデッキの上からN枚公開する。対戦相手はその中からシグニをM枚まで場に出し、残りをトラッシュに置く」。
+// ⚠ここで見るのは**どちらの領域が動いたか**＝相手のデッキが減り、相手の場と相手のトラッシュだけが増える。
+//   `owner` を落とすと自分のデッキが掘られ、自分の場に出る（＝真逆の効果）ので、盤面軸で固定する。
+test('§6.4 E2E WXEX2-84-E2: 相手一掃→相手が自分のデッキ2枚から場を建て直す', () => withSavedCursor(() => {
   const selfDeck = [findCard(card => card.Type === 'シグニ')];
-  const opponentDeck = [findCard(card => card.Type !== 'シグニ')];
-  const victim = findCard(card => card.Type === 'シグニ' && !selfDeck.includes(card.CardNum));
+  const oppSigni = findCard(card => card.Type === 'シグニ' && !selfDeck.includes(card.CardNum));
+  const oppNonSigni = findCard(card => card.Type !== 'シグニ' && card.Type !== 'ルリグ');
+  const victim = findCard(card => card.Type === 'シグニ' && ![...selfDeck, oppSigni].includes(card.CardNum));
   const ctx = exactDeckCtx(selfDeck, 'WXEX2-84');
-  ctx.otherState.deck = [...opponentDeck];
+  ctx.otherState.deck = [oppSigni, oppNonSigni];
   ctx.otherState.field.signi = [[victim], null, null];
   const before = trackedCardCount(ctx.ownerState) + trackedCardCount(ctx.otherState);
   const result = run(manualEffect('WXEX2-84', 'WXEX2-84-E2').action, ctx);
-  eq(result.ownerState.deck.join('|'), selfDeck.join('|'), '自分のデッキを誤って公開しない');
-  eq(result.otherState.deck.join('|'), opponentDeck.join('|'), '未実装の相手選択を自分が操作しない');
+  eq(result.ownerState.deck.join('|'), selfDeck.join('|'), '自分のデッキは1枚も動かない');
+  eq(result.otherState.deck.length, 0, '相手のデッキ上2枚を公開して捌ききる');
+  ok(result.otherState.field.signi.some(zone => zone?.at(-1) === oppSigni), '公開シグニは**相手の**場へ');
+  ok(result.ownerState.field.signi.every(zone => !zone?.includes(oppSigni)), '自分の場には出さない');
+  ok(result.otherState.trash.includes(oppNonSigni), '残り（非シグニ）は相手のトラッシュへ');
   ok(result.otherState.trash.includes(victim), '実装済みの相手一掃は維持');
-  eq(trackedCardCount(result.ownerState) + trackedCardCount(result.otherState), before, 'defer前後でカード消滅なし');
+  eq(trackedCardCount(result.ownerState) + trackedCardCount(result.otherState), before, 'カード消滅なし');
 }));
 
-test('§6.4 E2E WXDi-P01-026-E1 defer: 各プレイヤー操作を部分実行せず盤面を維持', () => withSavedCursor(() => {
+// §6.4 O-2: 「各プレイヤーは自分のシグニゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルする。
+//   その後、各プレイヤーは自分のデッキの上からカードを７枚見て、その中から好きな枚数のシグニを場に出し、残りをトラッシュに置く。」
+// ⚠**両者ぶんが動く**ことを固定する（「各プレイヤー」を片側だけ実装すると半分が恒久 no-op になる）。
+test('§6.4 E2E WXDi-P01-026-E1: 両者の場＋トラッシュをデッキへ戻し、各自が場を建て直す', () => withSavedCursor(() => {
   const ctx = exactDeckCtx([findCard(card => card.Type === 'シグニ')], 'WXDi-P01-026');
   const selfSigni = findCard(card => card.Type === 'シグニ' && !ctx.ownerState.deck.includes(card.CardNum));
   const otherSigni = findCard(card => card.Type === 'シグニ' && card.CardNum !== selfSigni);
+  const selfTrashed = findCard(card => card.Type !== 'シグニ' && card.Type !== 'ルリグ');
   ctx.ownerState.field.signi = [[selfSigni], null, null];
   ctx.otherState.field.signi = [[otherSigni], null, null];
-  ctx.ownerState.trash = [findCard(card => card.Type !== 'シグニ')];
-  const before = JSON.stringify([ctx.ownerState.deck, ctx.ownerState.trash, ctx.ownerState.field, ctx.otherState.deck, ctx.otherState.trash, ctx.otherState.field]);
+  ctx.otherState.deck = [otherSigni === ctx.otherState.deck[0] ? otherSigni : findCard(card => card.Type === 'シグニ' && card.CardNum !== selfSigni && card.CardNum !== otherSigni)];
+  ctx.ownerState.trash = [selfTrashed];
   const countBefore = trackedCardCount(ctx.ownerState) + trackedCardCount(ctx.otherState);
   const result = run(manualEffect('WXDi-P01-026', 'WXDi-P01-026-E1').action, ctx);
-  eq(JSON.stringify([result.ownerState.deck, result.ownerState.trash, result.ownerState.field, result.otherState.deck, result.otherState.trash, result.otherState.field]), before,
-    '各プレイヤーのSEARCH応答機構ができるまで全体を明示defer');
-  eq(trackedCardCount(result.ownerState) + trackedCardCount(result.otherState), countBefore, 'deferでカード消滅なし');
+  eq(result.ownerState.trash.includes(selfTrashed), false, '自分のトラッシュはいったんデッキへ戻る（同じ札が残らない）');
+  const selfPlaced = result.ownerState.field.signi.filter(zone => (zone?.length ?? 0) > 0).length;
+  const otherPlaced = result.otherState.field.signi.filter(zone => (zone?.length ?? 0) > 0).length;
+  ok(selfPlaced > 0, '自分ぶんの建て直しが走る');
+  ok(otherPlaced > 0, '相手ぶんの建て直しも走る（「各プレイヤー」を片側だけにしない）');
+  eq(trackedCardCount(result.ownerState) + trackedCardCount(result.otherState), countBefore, 'カード消滅なし');
 }));
 
 function resolveSeedChoice(cardNum: string, effectId: string, choiceId: string, topCard: string): { result: ExecResult; before: number } {
