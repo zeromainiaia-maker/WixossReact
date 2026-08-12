@@ -1574,6 +1574,12 @@ export interface LookPickChainAction {
   _revealed?: string[]; // 内部用: 段間 continuation で公開済みカードを引き継ぐ（JSONには書かない）
   _topReserved?: string[]; // 内部用: then:'deck_top' で確定済みの「一番上へ戻す」カード（JSONには書かない）
   _pendingTop?: boolean;   // 内部用: 直前ステージが then:'deck_top'（再入時に lastProcessedCards を予約へ移す）
+  /**
+   * true = 各ステージのピックを**対戦相手自身**が行う（「対戦相手は自分のデッキの上からN枚見て、その中から…」）。§6.4 O-2。
+   * 通常は `owner:'opponent'` と併用（＝相手のデッキを相手が見る）。「見る」は非公開なので、
+   * 応答者だけにモーダルが出る本経路がそのまま原文の情報公開範囲になる。
+   */
+  opponentResponds?: boolean;
 }
 
 export interface RevealAndPickAction {
