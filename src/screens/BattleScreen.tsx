@@ -130,6 +130,23 @@ function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): E
   };
 }
 
+/**
+ * 次の pending の応答者パッチ（§6.4 O-2）。
+ *
+ * ⚠resume 系ハンドラは一律に `respondPlayerId` を捨てて次の pending を作る（＝効果オーナーへ戻す）。
+ *   これは「相手が1回だけ応答する」型には正しいが、**次の pending 自身が相手応答型**のときは
+ *   相手が選ぶべき対話を効果オーナーが代わりに操作してしまう。1枚ずつゾーンを選ぶ配置チェーン
+ *   （「対戦相手はその中からシグニをN枚まで場に出し」）は2枚目以降がこれに当たる。
+ *   `pendingRespondsOpponent` が false のときは空オブジェクト＝**従来挙動と厳密に同じ**。
+ */
+function nextRespondPatch(
+  pending: PendingInteractionDef, sourcePlayerId: string, hostId: string, guestId: string,
+): { respondPlayerId?: string } {
+  return pendingRespondsOpponent(pending)
+    ? { respondPlayerId: sourcePlayerId === hostId ? guestId : hostId }
+    : {};
+}
+
 // ─── メインコンポーネント ────────────────────────────────────────────
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
   const [bs, setBs] = useState<BattleStateRow | null>(null);
