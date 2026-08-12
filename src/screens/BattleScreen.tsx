@@ -117,6 +117,7 @@ import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAtta
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
+import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 
@@ -3408,12 +3409,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             (e.action as import('../types/effects').StubAction).id === 'PREVENT_LIFE_REFRESH_TRASH',
           );
         });
-        // ターン開始時にリフレッシュ回数をリセット（ドローによるリフレッシュはこのターン分としてカウント）
+        // ターン開始時スコープを一括切替（リフレッシュ回数・出自履歴・次ターン無料グロウ予約）。
+        const turnStartState = activateTurnStartScopedState(my);
         newMyState = drawBlocked
-          ? { ...my, refresh_count_this_turn: 0, actions_done: [], draw_limit: undefined }
+          ? { ...turnStartState, actions_done: [], draw_limit: undefined }
           // ドローフェイズの通常ドローは「効果ドロー」ではないため last_effect_draw_source をクリアし、
           // 直後の collectDrawTriggers で drawBySourceStory トリガー（WX20-026-E3）が前ターンの残値で誤発火しないようにする。
-          : { ...drawCards({ ...my, refresh_count_this_turn: 0 }, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined, last_effect_draw_source: undefined };
+          : { ...drawCards(turnStartState, effectiveDrawCount, preventRefreshTrash), actions_done: ['DRAW'], draw_limit: undefined, last_effect_draw_source: undefined };
         // UPKEEP_OR_NO_UP: コストを支払ったらアップ、そうでなければダウンのままクリア
         if (newMyState.lrig_upkeep_condition) {
           if (upkeepPay) {
@@ -3653,7 +3655,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // 自分（ターン終了プレイヤー）のターン内一時状態をクリア
         // （ターン終了時に効果＝ドロー/コイン/場トラッシュ/トラッシュ→手札/フリップ復元 は上で解決済み）
-        newMyState = clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+        newMyState = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
           ...myEndState,
           hand: myHandEND,
           deck: myDeckPreLimit,
@@ -3670,26 +3672,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           blocked_actions:    [],   // ターン内封じ行動をリセット
           blocked_card_names: [],   // ターン内使用禁止カードをリセット
           signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
-          side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
-          cards_drawn_by_effect_this_turn: 0, // 効果ドロー累計をリセット
-          hand_trashed_by_opp_this_turn: 0,   // 相手効果による手札→トラッシュ累計をリセット（HAND_TRASHED_BY_OPP）
-          energy_trashed_by_opp_this_turn: 0, // 相手効果によるエナ→トラッシュ累計をリセット（ENERGY_TRASHED_BY_OPP）
-          upped_from_down_this_turn: undefined, // 効果でダウン→アップした自分のシグニをリセット（THIS_CARD_UPPED_FROM_DOWN_THIS_TURN。WX14-070）
-          opp_cards_moved_to_deck_this_turn: 0, // 相手カードをデッキに移動させた累計をリセット（OPP_CARDS_MOVED_TO_DECK_THIS_TURN。WXK06-071）
-          self_deck_to_energy_this_turn: 0,
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
-          life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
-          life_crashed_this_turn: undefined,  // このターンのライフクラッシュ枚数をリセット（LIFE_CRASHED_THIS_TURN）
-          life_crashed_by_signi_this_turn: undefined,  // 主体別の累計もリセット（ON_SIGNI_CRASHED_LIFE_TOTAL）
-          energy_colorless_ability_loss_this_turn: undefined,
           pending_crashed_cards: [],  // ダブルクラッシュ残数をリセット
           pending_crash_source_card_nums: [], crash_source_card_num: undefined,
-          must_attack_signi:  undefined,  // 強制攻撃フラグをリセット
-          assist_lrig_attack_min_level: undefined,  // アシストルリグのアタック許可をリセット（このターン限定）
-          turn_off_zone_energy_paid_count: undefined, // エナゾーン外からの支払い枚数をリセット（§6.4 UNDER_CARD_AS_ENERGY_COST）
-          suppress_signi_on_play_this_turn: undefined, // 自シグニの【出】抑止をリセット（このターン限定）
-          must_attack_infected_only: undefined,
           cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
           prevent_next_damage: undefined,  // ターン内ダメージ無効をリセット
           prevent_next_damage_reservations: undefined,
@@ -3700,7 +3686,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined, // 一時レゾナ返却の残骸をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
-          holograph_reveal_replace_this_turn: undefined,
           banish_redirect: undefined,           // バニッシュ先変更フラグをクリア
           banish_redirect_target_nums: undefined, // 選択対象限定のバニッシュ先変更をクリア
           banish_redirect_battle_target_nums: undefined, // 選択対象＋バトル限定のバニッシュ先変更をクリア
@@ -3710,7 +3695,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           banish_redirect_to_exile: undefined,  // バニッシュ先→ゲーム除外フラグをクリア
           power0_banish_to_trash: undefined,    // パワー0以下→トラッシュ（このターン）フラグをクリア
           power0_banish_to_trash_opp_only: undefined, // 同・対戦相手限定版（whenPowerZero）をクリア
-          double_power_minus_this_turn: undefined, double_power_minus_sources: undefined, // パワーマイナス2倍（このターン）をクリア
+          double_power_minus_sources: undefined, // パワーマイナス2倍の発生源をクリア（本体フラグは funnel）
           no_grow: undefined,                   // グロウ禁止フラグをリセット
           suppress_life_burst: undefined,       // ライフバースト抑制フラグをリセット
           prevent_lrig_damage: undefined,       // ルリグダメージ無効フラグをリセット
@@ -3721,11 +3706,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           hand_signi_guard_enabled: undefined,     // 手札シグニガードフラグをリセット
           lrig_limit_mod: undefined,               // ルリグリミット修正をリセット
           prevent_opp_guard: undefined,            // 相手ガード禁止フラグをリセット
-          opp_guard_extra_colorless_this_turn: undefined, // 相手ガード追加《無》をリセット
           draw_limit: undefined,                   // ドロー上限リセット（次ターン開始時にも解除）
           card_class_overrides: undefined,         // クラスオーバーライドリセット
           signi_color_overrides: undefined,        // シグニ色オーバーライドリセット
-          signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）リセット。予約(_next_turn)は残す
+          signi_zone_blocks: undefined, // ゾーン配置禁止をリセット。トラッシュ移動ロックは funnel（予約は別フィールド）
           attacked_signi_ids: undefined,            // アタック済みシグニIDリセット
           signi_attack_once_limit: undefined,       // シグニ1回アタック制限リセット
           signi_attack_cost: undefined,             // シグニアタックコストリセット
@@ -3736,7 +3720,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           pending_lrig_attack: undefined,           // ルリグアタック解決待ちフラグをリセット
           pending_banish_substitute: undefined,     // F-3 身代わりバニッシュ待ちフラグをリセット
           banish_substitute_choice: undefined,      // F-3 身代わりバニッシュ決定をリセット
-          leave_substitute_choices: undefined,      // §6.4 離場置換の決定をリセット（解決が中断したまま残った分の持ち越し防止）
           suppress_center_on_play: undefined,       // センタールリグ【出】抑制フラグをリセット
           crash_to_trash_instead: undefined,        // クラッシュ先トラッシュフラグをリセット
           life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
@@ -3745,23 +3728,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
-          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           banish_to_trash_by_self: undefined,        // バニッシュ→トラッシュ誘導フラグをリセット
           negate_coin_abilities: undefined,          // コイン能力無効化フラグをリセット
           coin_condition_signi_instances: undefined,  // コイン消費条件シグニをリセット
-          grid_reveal_plus_one_this_turn: undefined,  // グリッド公開+1フラグをリセット
           deck_signi_level_override: undefined,       // デッキシグニレベルオーバーライドをリセット
           reduce_next_on_play_cost: undefined,        // 【出】コスト軽減フラグをリセット
           optional_discard_guard_enabled: undefined,  // 任意捨てガードフラグをリセット
           flip_attack_signi_zones: undefined,         // フリップアタックゾーンをリセット
           turn_end_field_trash_targets: undefined,    // ターン終了時トラッシュ対象をリセット
-          spell_negated_this_turn: undefined,         // スペル打ち消しフラグをリセット
-          signi_banished_this_turn: undefined,        // タスク12(xciv): 「このターンにシグニがバニッシュされている」履歴をリセット
           next_spell_uncounterable: undefined,        // WX04-008: 次スペル打ち消し不可フラグをリセット
           next_spell_cost_reduction: undefined,       // WX04-008: 次スペルコスト軽減をリセット
           next_arts_cost_reduction: undefined,        // タスク12(xciii): 【チェイン】の次アーツコスト軽減をリセット
-          non_dissona_spell_played_this_turn: undefined, // DISONA_RESTRICTION: 非ディソナスペル使用フラグをリセット
-          dissona_only_spells_this_turn: undefined,   // DISONA_RESTRICTION: ディソナ制限フラグをリセット
           turn_trigger_3rd_plant_down: undefined,     // 植物3回目ダウントリガーをリセット
           turn_plant_down_count: undefined,           // 植物ダウン回数をリセット
           // WX25-CP1-003「次の対戦相手のターン終了時まで」: フラグ保持者(=相手の効果を受けた側)が
@@ -3772,7 +3750,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           last_discarded_signi_power: undefined,      // DISCARD_BY_POWER_MATCH: ターン終了時にクリア
           last_discarded_signi_level: undefined,      // levelLteDiscardSigni: ターン終了時にクリア
           cancel_current_signi_attack: undefined,     // NEGATE_ATTACK_ON_TRIGGER: ターン終了時にクリア
-        }));
+        })));
         // 次のターンプレイヤー（相手）のカードをアップフェイズ開始時点でアップ処理する。
         // 凍結中はアップせず凍結を解除。それ以外のダウンカードはアップ。
         const opKey = isHost ? 'guest_state' : 'host_state';
@@ -3793,23 +3771,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const upkeepLrigDown = ((opState.field.lrig_down ?? false) && curLrigFrozen)
           || (opState.lrig_upkeep_condition !== undefined);
         if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-        const opNextTurnState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+        const opNextTurnState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           blocked_actions: convertedOpBlocked,
           // NEXT_TURN場全体付与：予約（next_turn）を次の自分ターン開始時に active へ移動
           field_keyword_grants_active: opState.field_keyword_grants_next_turn,
           field_keyword_grants_next_turn: undefined,
-          // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
-          free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
-          free_grow_next_turn: undefined,
-          signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
+          signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
           life_crash_counter: undefined, // カウンタークラッシュ（防御側がセット）をターン終了時にクリア
-          life_crashed_last_turn: opState.life_crashed_this_turn ?? 0,
-          life_crashed_this_turn: undefined,         // このターンのライフクラッシュ枚数をリセット（次ターン開始＝相手分）
-          life_crashed_by_signi_this_turn: undefined,
-          energy_colorless_ability_loss_this_turn: undefined,
-          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
+          turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
           signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
           banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
           banish_redirect_battle_target_nums: undefined,
@@ -3824,7 +3795,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_l_frozen: false,
             assist_lrig_r_frozen: false,
           },
-        }, !my.extra_turn).state, !my.extra_turn));
+        }), !my.extra_turn).state, !my.extra_turn));
         // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
         //（＝ターンプレイヤーを交代しない＝`activeUserId` を渡さず `active_user_id` キー自体を書かない）
         const isExtraTurn = !!my.extra_turn;
@@ -3923,7 +3894,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_ATTACK_PHASE_START: MAIN→ATTACK_ARTS移行時（アタックフェイズ開始時）トリガー
         if (phase === 'MAIN') {
           // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
-          newMyState = { ...newMyState, signi_left_field_this_attack_phase: [] };
+          newMyState = clearAttackPhaseScopedState(newMyState);
           const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
           foldTurnUsed(apsRes);
           const apsEntries = apsRes.entries;
@@ -4093,7 +4064,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ターン終了時に効果（ドロー等）は doPhaseAdvance（ENDフェーズ①）で解決・永続化済み。
       // ここではフラグのクリアと最終クリーンアップのみ行う。
       // ターン内一時状態をクリアして newMyState を確定
-      let newMyState: typeof my = clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      let newMyState: typeof my = clearTurnEndScopedState(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...myEndState,
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
@@ -4107,54 +4078,41 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         keyword_abilities_removed: {}, // 指定キーワード喪失／新規獲得禁止も同じ期限でクリア
         field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
         blocked_actions: [], blocked_card_names: [], actions_done: [],
-        side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）
-        cards_drawn_by_effect_this_turn: 0,
-        hand_trashed_by_opp_this_turn: 0,   // HAND_TRASHED_BY_OPP
-        energy_trashed_by_opp_this_turn: 0, // ENERGY_TRASHED_BY_OPP
-        upped_from_down_this_turn: undefined, // THIS_CARD_UPPED_FROM_DOWN_THIS_TURN（WX14-070）
-        opp_cards_moved_to_deck_this_turn: 0, // OPP_CARDS_MOVED_TO_DECK_THIS_TURN（WXK06-071）
-        self_deck_to_energy_this_turn: 0,
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
-        life_crashed_last_turn: my.life_crashed_this_turn ?? 0,
-        life_crashed_this_turn: undefined,
-        life_crashed_by_signi_this_turn: undefined,
-        energy_colorless_ability_loss_this_turn: undefined,
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, suppress_signi_on_play_this_turn: undefined, leave_substitute_choices: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
         prevent_damage_windows: advancePreventDamageWindows(my.prevent_damage_windows), // PREVENT_DAMAGE：「次のターンの間」は1回だけ持ち越し
-        lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, holograph_reveal_replace_this_turn: undefined, banish_redirect: undefined,
+        lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, banish_redirect: undefined,
         banish_redirect_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined, power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined,
         banish_redirect_by_source_nums: undefined,
-        double_power_minus_this_turn: undefined, double_power_minus_sources: undefined, no_grow: undefined,
+        double_power_minus_sources: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
         prevent_defeat: undefined, declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined,
         declared_number: undefined,
         declared_class: undefined, hand_signi_guard_enabled: undefined,
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
-        opp_guard_extra_colorless_this_turn: undefined,
         draw_limit: undefined, card_class_overrides: undefined,
-        signi_color_overrides: undefined, signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined,
+        signi_color_overrides: undefined, signi_zone_blocks: undefined,
         attacked_signi_ids: undefined, signi_attack_once_limit: undefined,
         signi_attack_cost: undefined, lrig_riding_signi: undefined,
         lrig_attack_remaining: undefined, suppress_center_on_play: undefined,
         crash_to_trash_instead: undefined, negate_opp_attacks: undefined,
         all_cont_effects_negated: undefined, banish_to_trash_by_self: undefined,
         negate_coin_abilities: undefined, coin_condition_signi_instances: undefined,
-        grid_reveal_plus_one_this_turn: undefined, deck_signi_level_override: undefined,
+        deck_signi_level_override: undefined,
         reduce_next_on_play_cost: undefined, optional_discard_guard_enabled: undefined,
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
-        spell_negated_this_turn: undefined, turn_trigger_3rd_plant_down: undefined,
+        turn_trigger_3rd_plant_down: undefined,
         turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
-        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0,
+        turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
-        non_dissona_spell_played_this_turn: undefined, dissona_only_spells_this_turn: undefined,
         cancel_current_signi_attack: undefined,
-      }));
+      })));
       // 相手のアップ処理
       const opKey = isHost ? 'guest_state' : 'host_state';
       // 遅延自己除外は非ターンプレイヤー側にも適用（doPhaseAdvance 側と同じ。手札上限超過経由でも落とさない）
@@ -4171,20 +4129,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-      const opFinalState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+      const opFinalState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         blocked_actions: convertedOpBlocked,
         abilities_removed: [], // 相手に付与された REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア（WX05-001-E2 等）
         keyword_abilities_removed: {},
         field_keyword_grants_active: opState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
         field_keyword_grants_next_turn: undefined,
-        // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
-        free_grow_this_turn: opState.free_grow_next_turn ? true : opState.free_grow_this_turn,
-        free_grow_next_turn: undefined,
-        signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
+        signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
         negate_coin_abilities: undefined,
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
-        self_deck_to_energy_this_turn: 0,
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
         signi_deploy_count_limit: undefined,       // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
         banish_redirect_power0_target_nums: undefined, // 非ターンプレイヤーがこのターン中に設定した単体power0置換もクリア
         banish_redirect_battle_target_nums: undefined,
@@ -4199,7 +4153,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           assist_lrig_l_frozen: false,
           assist_lrig_r_frozen: false,
         },
-      }, !my.extra_turn).state, !my.extra_turn));
+      }), !my.extra_turn).state, !my.extra_turn));
       // 追加ターン / ターンプレイヤー交代
       // ⚠ 追加ターンは active_user_id を書かず据え置く（＝BEGIN_NEXT_TURN の activeUserId 省略）。
       let nextActiveUserId: string | undefined;
@@ -4835,7 +4789,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const nextState   = activeIsHost ? guestState : hostState;
 
           // アクティブプレイヤーの一時状態をクリア
-          const clearedActive: typeof activeState = {
+          const clearedActive: typeof activeState = clearTurnEndScopedState({
             ...activeState,
             temp_power_mods:    [],
             temp_level_mods:    [],
@@ -4843,12 +4797,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             field_keyword_grants_active: undefined, // NEXT_TURN場全体付与：自ターン終了時にクリア
             granted_effects:    {},
             blocked_actions:    [],
-            suppress_signi_on_play_this_turn: undefined,
             actions_done:       [],
-            side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）
-
             cost_modifiers: (activeState.cost_modifiers ?? []).filter((m: {until?: string}) => m.until !== 'END_OF_TURN'),
-          };
+          });
 
           // 次のターンプレイヤー（相手）のシグニをアップ（凍結中はアップせず凍結解除）
           const signiDown   = nextState.field.signi_down   ?? [false, false, false];
@@ -4857,17 +4808,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const convertedBlocked = (nextState.blocked_actions ?? [])
             .filter((a: string) => a.endsWith(':NEXT_TURN'))
             .map((a: string) => a.replace(':NEXT_TURN', ''));
-          const nextStateUpd = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+          const nextStateUpd = activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
             ...nextState,
             blocked_actions: convertedBlocked,
             field_keyword_grants_active: nextState.field_keyword_grants_next_turn, // NEXT_TURN場全体付与：予約→active
             field_keyword_grants_next_turn: undefined,
-            // FREE_GROW_NEXT_TURN: 次ターングロウ無料の予約→active（WX03-024-BURST）
-            free_grow_this_turn: nextState.free_grow_next_turn ? true : nextState.free_grow_this_turn,
-            free_grow_next_turn: undefined,
-            signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_played_from_non_hand_this_turn: undefined, signi_placed_by_source: undefined, // 出自マーカーをターン開始時にクリア
+            signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
             signi_deploy_count_limit: undefined, // 配置数制限（このターン・相手にかけられた分）を自分のターン開始時にリセット
-            self_deck_to_energy_this_turn: 0,
             field: {
               ...nextState.field,
               signi_down:   newSigniDown,
@@ -4879,7 +4826,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               assist_lrig_l_frozen: false,
               assist_lrig_r_frozen: false,
             },
-          }).state);
+          })).state);
 
           // ⚠ ターン強制終了は**それまでの累積を上書きする**（旧 `Object.assign` の後勝ち）。
           //   clearedActive / nextStateUpd は解決直後の hostState/guestState 由来＝累積側ではない。
@@ -6147,7 +6094,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const coinGain = parseInt(card.Coin) || 0;
       // フリーグロウ（ゲット・グロウ等）はグロウコストのコインを支払わず、通常グロウ枠も消費しない（横グロウ）
       const growCoinCost = wasFreeGrow ? 0 : parseCoinCost(card.GrowCost);
-      let newMyState: PlayerState = growPay.applyTo({
+      let newMyState: PlayerState = consumeFreeGrowThisTurn(growPay.applyTo({
         ...growBase,
         lrig_deck: newLrigDeck,
         field: { ...growBase.field, lrig: [...growBase.field.lrig, instanceId] },
@@ -6155,8 +6102,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
         coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
         coins_paid_this_turn: (growBase.coins_paid_this_turn ?? 0) + growCoinCost, // COINS_PAID_THIS_TURN（支払いのみ・coinGain は数えない）
-        free_grow_this_turn: undefined,
-      });
+      }));
       // 代替シグニ（GROW_COST_SUBSTITUTE_TRASH_SIGNI）はカード番号で除く＝funnel の index 控除のあとに当てる
       if (growSubSigniPaid) {
         newMyState = { ...newMyState, energy: newMyState.energy.filter(cn => cn !== growSubSigniPaid) };
@@ -6993,10 +6939,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const spellTotalCostNS = parseGrowCost(spellCard?.Cost ?? '').reduce((s, c) => s + c.count, 0);
         if (spellTotalCostNS <= 5) {
           const spellNameNS = spellCard?.CardName ?? card_num;
-          const negatedCasterState: PlayerState = {
-            ...placeUsedSpell(casterState),
-            spell_negated_this_turn: undefined,
-          };
+          const negatedCasterState = consumeSpellNegationThisTurn(placeUsedSpell(casterState));
           appendBattleLogs([`[スペル打ち消し] ${spellNameNS}（コスト${spellTotalCostNS}）が打ち消された`]);
           await persist.commit(reduceBattle(bs, {
             type: 'FINISH_SPELL',
@@ -9899,13 +9842,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         );
       });
       // ⚠人間経路（UP→DRAW）と**同じ前処理**に揃える（タスク12(xcviii)）：
-      //   ①`refresh_count_this_turn: 0`＝🔴**CPU 側はこの値を一度もリセットしていなかった**ので、
+      //   ①ターン開始スコープの funnel＝リフレッシュ回数・出自履歴・無料グロウ予約を一括切替。
+      //     従来 CPU 側は refresh_count を一度もリセットしていなかったため、
       //     ゲーム中に累計2回リフレッシュした以降は「ターンプレイヤーの2回目リフレッシュならターン終了」
       //     （`resolveStackNext` の判定）が**CPU ターンで毎回成立**してしまう。
       //   ②`last_effect_draw_source: undefined`＝ターンドローは「効果ドロー」ではないので、直後の ON_DRAW 収集で
       //     `drawBySourceStory` トリガー（`WX20-026-E3`）が前ターンの残値で誤発火しないようにする。
       let newCpuSt: PlayerState = {
-        ...drawCards({ ...cpuSt, refresh_count_this_turn: 0 }, drawCount, cpuPreventRefresh),
+        ...drawCards(activateTurnStartScopedState(cpuSt), drawCount, cpuPreventRefresh),
         actions_done: ['DRAW'], last_effect_draw_source: undefined,
       };
       // UPKEEP_OR_NO_UP: CPUは支払えるなら自動で支払いセンタールリグをアップする
@@ -10396,7 +10340,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       apsStackEntries.push(...apsCpu.entries);
       newCpuSt = apsCpu.cpuState;
       // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
-      newCpuSt = { ...newCpuSt, signi_left_field_this_attack_phase: [] };
+      newCpuSt = clearAttackPhaseScopedState(newCpuSt);
       let huStAfterAps: PlayerState | undefined = apsCpu.humanState;
 
       // HASTARLIQ: CPUのMAIN→ATTACK_ARTS移行時、相手(人間)の hastarliq_zones があれば発動。
@@ -10572,14 +10516,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const curHuAssistRFrozen = huEndState.field.assist_lrig_r_frozen ?? false;
       // CPUターン終了＝人間側から見た「次の相手ターン終了時」。PvP の doPhaseAdvance / confirmEndDiscard と同じく、
       // 次ターンプレイヤーが保持する UNTIL_OPP_TURN_END 状態をここで失効させる。
-      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit({
+      const nextHuSt = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(huEndState)),
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // CPUターン中のガード使用分をリセット（ARTS_USED_THIS_TURN）
         signi_deploy_count_limit: undefined, // 配置数制限（このターン・CPUにかけられた分）を人間のターン開始時にリセット
-        life_crashed_last_turn: huEndState.life_crashed_this_turn ?? 0,
-        life_crashed_this_turn: undefined,
-        life_crashed_by_signi_this_turn: undefined,
-        energy_colorless_ability_loss_this_turn: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
         field: {
@@ -10593,7 +10533,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         assist_lrig_r_down: (huEndState.field.assist_lrig_r_down ?? false) && curHuAssistRFrozen,
         assist_lrig_l_frozen: false,
         assist_lrig_r_frozen: false,
-      }}).state));
+      }})).state));
       // turn_end_draw_count: このターン終了時、カードをN枚引く（DRAW_AT_TURN_END。場を離れても引く）
       let cpuHandEND = cpuEndState.hand;
       let cpuDeckEND = cpuEndState.deck;
@@ -10603,18 +10543,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
-      const cleanCpuSt: PlayerState = resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
+      const cleanCpuSt: PlayerState = clearTurnEndScopedState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...cpuEndState,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, blocked_actions: [], actions_done: [],
-        side_attack_empty_zone_damage_class: undefined, // 空ゾーン側面アタックの正面扱い（WX16-021・このターン）
-        life_crashed_last_turn: cpuEndState.life_crashed_this_turn ?? 0,
-        life_crashed_this_turn: undefined,
-        life_crashed_by_signi_this_turn: undefined,
-        energy_colorless_ability_loss_this_turn: undefined,
-        signi_zone_blocks: undefined, lock_trash_move_this_turn: undefined, // ゾーン配置禁止／トラッシュ移動ロック（このターン分）をクリア。予約(_next_turn)は残す
+        signi_zone_blocks: undefined, // ゾーン配置禁止をクリア。トラッシュ移動ロックは funnel（予約は別フィールド）
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
-        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, must_attack_signi: undefined, must_attack_infected_only: undefined, assist_lrig_attack_min_level: undefined, turn_off_zone_energy_paid_count: undefined, suppress_signi_on_play_this_turn: undefined, leave_substitute_choices: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
+        pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         life_crash_replacements: undefined,
         turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined,
@@ -10622,17 +10557,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         attacked_signi_ids: undefined, // 共通アタック処理（performSigniAttack）が記録するためリセット
         cost_modifiers: (cpuEndState.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(cpuEndState).lrig_granted_auto_effects,
-        opp_guard_extra_colorless_this_turn: undefined,
-        holograph_reveal_replace_this_turn: undefined,
         banish_redirect: undefined, banish_redirect_to_hand: undefined, banish_redirect_to_exile: undefined,
         banish_redirect_power0_target_nums: undefined,
         banish_redirect_battle_target_nums: undefined,
-        power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined, double_power_minus_this_turn: undefined, double_power_minus_sources: undefined,
+        power0_banish_to_trash: undefined, power0_banish_to_trash_opp_only: undefined, double_power_minus_sources: undefined,
         lrig_has_attacked: undefined, // ルリグアタック済みフラグをリセット
         pending_signi_battle: undefined, // シグニバトル解決待ちフラグをリセット
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
-        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, coins_paid_this_turn: 0, // アーツ使用履歴をリセット
-      })), true);
+        turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
+      })), true));
       await persist.commit(reduceBattle(bs, {
         type: 'BEGIN_NEXT_TURN',
         activeUserId: user.id,

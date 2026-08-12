@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-12（続き447） — ターン限定 PlayerState 30フィールドのリセットを funnel 化（PLAN §6.4 基盤）
+
+**🔴 バグの正体**＝`PlayerState` の「このターン／このアタックフェイズ」状態30件が `BattleScreen.tsx` の終了経路へ手書きされ、フィールドごとのリセット代入数が1〜6（指示書推定では0〜6）に割れていた。通常PvP・手札調整確定後・強制終了・CPU終了のどれを通るか、また値がターンプレイヤー側／非ターンプレイヤー側のどちらへ載るかで翌ターンへ持ち越し得た。特に `free_grow_this_turn` はグロウ消費時の1件しか消えず、グロウしないターンを跨ぐと後続ターンも無料になり得た。`signi_banished_this_turn` も通常PvPの1件だけで、CPU・強制終了・非ターン側に穴があった。
+
+**funnel**＝`src/screens/battle/turnScopedState.ts` を新設。`*_this_turn`／`*_this_attack_phase` を型から抽出する24件は `satisfies Record<Extract<keyof PlayerState, ...>>` で登録漏れを typecheck エラーにし、命名規約外6件（`must_attack_signi`／`must_attack_infected_only`／`assist_lrig_attack_min_level`／`turn_off_zone_energy_paid_count`／`side_attack_empty_zone_damage_class`／`leave_substitute_choices`）も同じ実行時レジストリへ明示した。各フィールドは1回だけ定義し、scope・reset値・根拠を併記。純関数は `clearTurnEndScopedState`／`activateTurnStartScopedState`／`clearAttackPhaseScopedState` と消費2関数。既存の `clearEndOfTurnDelayedTriggers`／`clearTurnGrantedLrigAbilities`／`clearAllZoneBurstGrantUntilOppTurn` 等とは対象フィールドが重ならないため並行実装ではなく直交する。
+
+**全配線**＝ターン終了4経路（通常PvP／手札調整確定後／`FORCE_END_TURN`／CPU）で**ターンプレイヤーと非ターンプレイヤーの両 `PlayerState`**を funnel へ通す（計8呼び出し）。開始時は人間／CPUのUP開始2経路、アタックフェイズ開始は人間／CPUの2経路、消費は無料グロウ／スペル打ち消しの各1経路。⚠次ターン予約の `lock_trash_move_next_turn` は **turn-end clear → 既存 `activateNextTurnSigniZoneBlocks` で active 昇格**の順に固定し、昇格直後に funnel で消す退化を golden で防いだ。`safety` は各 funnel の戻り値最終段に置いた。
+
+**指示書の実測訂正**＝`signi_left_field_this_attack_phase` は0件ではなく、既に人間 `MAIN→ATTACK_ARTS` とCPU同遷移の**2経路**で `[]` へリセットされていた（指示書のsetter候補 `:3926`／`:10399` は実際にはreset）。この挙動を `clearAttackPhaseScopedState` へそのまま移した。`refresh_count_this_turn` も代入リテラルは4件だが、意味上は人間／CPUの開始2経路（人間の三項演算子が同じ代入を2回記述）だった。
+
+**挙動変更**＝取りこぼし是正のみ。30件のturn-end対象は終了4経路×両stateで必ず失効し、`life_crashed_this_turn` は各stateごとに `life_crashed_last_turn` へ写してから消す。`free_grow_this_turn` は消費時に加えて未消費でもturn-endで失効し、`free_grow_next_turn` がある場合だけ次のUP開始でactiveへ昇格。`signi_banished_this_turn` はCPU／強制終了／非ターン側も失効する。`signi_left_field_this_attack_phase`（attack-phase start）、`refresh_count_this_turn`／`signi_played_from_non_hand_this_turn`（turn-start）は既存scopeを維持した。
+
+**トリップワイヤ＋E2E**＝golden 6本追加（1883→**1889**）。(a) 型由来24＋明示例外6＝30件とfunnelレジストリの完全一致、(b) `src` 全走査でfunnel外の手書きclear 0件、(c) 通常PvP、(d) 手札調整確定後、(e) CPU終了の盤面遷移で「終了→次開始後にフラグ無し」を固定、(f) 4終了経路を区間別に各2呼び出し・開始/attack/消費経路を固定。既存の固定件数テスト2本（coin累計／【出】抑止）も手書き代入数ではなくレジストリ＋配線を検査する形へ更新した。
+
+**最終ゲート**＝`npm run gates` 全緑。golden **1889/1889**、census **843／ベースライン843**、census:stubs 無言no-op 0、manual field loss 0、smoke **10688/10688**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 200ゲーム異常0、lint 0 errors／259 warnings。held **106枚／47群**、同型★ **0（265群）**で不変。parser／CardData入力のHEAD比バイト差分0＝生パース差分0、`public/data/effects_*.json` のHEAD比blob差分0。
+
 ## 2026-08-12（続き446） — 「【出】能力は発動しない」が engine 未参照の死アクションのままで10効果が恒久 no-op（PLAN §6.4）
 
 **🔴 バグの正体**＝原文「〜の【出】能力は発動しない」が live では `BLOCK_ACTION{target:{type:'PLAYER'}, actionId:'ON_PLAY_ABILITY'}` になっていたが、**`'ON_PLAY_ABILITY'` を読む消費地点が src に1つも無い**。リポジトリ自身が型コメントで「**engine 未参照の死アクション**」と明言していた（`types/effects.ts:1145`）。⇒ **10効果すべてが恒久 no-op＝原文が「発動しない」と書いているのに【出】が発動してしまう過剰実行**だった。⚠**既存ゲートに映らない死角**＝`npm run census:stubs` の「無言の no-op」検査は **STUB id しか見ない**ので `BLOCK_ACTION` の死 actionId は素通りし、**逆翻訳にも「【出】能力は発動しない」と正しく出る**ので原文照合でも気付けない（**逆翻訳の一致が動作の証明にならない**タイプ）。畳み込み `foldSuppressOnPlay`（`effectParser.ts:3875`）は既にあったが「配置アンカーが特定できない場合は据置」の設計で、この10効果には届いていなかった。

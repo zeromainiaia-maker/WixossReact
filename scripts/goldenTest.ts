@@ -89,6 +89,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
+import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -4136,6 +4137,139 @@ test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse 
   const executor = fs.readFileSync(join(root, 'src/engine/execStubPart1.ts'), 'utf8');
   ok(!executor.includes("stub.id === 'REVEAL_PICK_PLAY'"), 'カード全文を読む旧handlerを復活させない');
 });
+
+// §6.4 ターン限定 PlayerState funnel（続き446の副次発見）。
+// フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外6件という集合性を固定する。
+test('§6.4 turn-scoped T1: PlayerState のターン限定30フィールドと funnel レジストリが一致', () => {
+  const typeSource = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
+  const declared = [...typeSource.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map(m => m[1]);
+  const convention = declared.filter(k => k.endsWith('_this_turn') || k.endsWith('_this_attack_phase'));
+  const registered = Object.keys(TURN_SCOPED_STATE_FIELDS).sort();
+  const missingConvention = convention.filter(field => !registered.includes(field));
+  const irregular = registered.filter(field => !convention.includes(field));
+  eq(convention.length, 24, 'PlayerState の命名規約由来フィールド数');
+  eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
+  eq(irregular.length, 6, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 30, '型由来24件＋命名規約外6件の母集団');
+});
+
+function tsSourceFiles(dir: string): string[] {
+  const files: string[] = [];
+  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) files.push(...tsSourceFiles(path));
+    else if (/\.tsx?$/.test(entry.name)) files.push(path);
+  }
+  return files;
+}
+
+test('§6.4 turn-scoped T2: funnel 外のターン限定フィールド手書きクリアは0件', () => {
+  const funnelPath = join(root, 'src/screens/battle/turnScopedState.ts');
+  const resetLiteral = '(?:undefined|0|false|null|\\[\\])';
+  const hits: string[] = [];
+  for (const path of tsSourceFiles(join(root, 'src'))) {
+    if (path === funnelPath) continue;
+    const source = fs.readFileSync(path, 'utf8');
+    for (const field of Object.keys(TURN_SCOPED_STATE_FIELDS)) {
+      const escaped = field.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const pattern = new RegExp(`(?:\\b${escaped}\\s*:|\\.${escaped}\\s*=)\\s*${resetLiteral}`, 'g');
+      for (const match of source.matchAll(pattern)) {
+        const line = source.slice(0, match.index).split('\n').length;
+        hits.push(`${path.replace(root, '')}:${line}:${match[0]}`);
+      }
+    }
+  }
+  eq(hits.join('\n'), '', 'リセットは turnScopedState.ts の戻り値だけで行う');
+});
+
+test('§6.4 turn-scoped T3: PvP通常終了→次ターン開始で全turn-end値が消える', () => withSavedCursor(() => {
+  const ending = mkState() as PlayerState & Record<string, unknown>;
+  for (const [field, spec] of Object.entries(TURN_SCOPED_STATE_FIELDS)) {
+    if ((spec.boundaries as readonly string[]).includes('turn-end')) ending[field] = spec.reset === 0 ? 9 : spec.reset instanceof Array ? ['stale'] : true;
+  }
+  ending.life_crashed_this_turn = 3;
+  const ended = clearTurnEndScopedState(ending);
+  for (const [field, spec] of Object.entries(TURN_SCOPED_STATE_FIELDS)) {
+    if (!(spec.boundaries as readonly string[]).includes('turn-end')) continue;
+    eq(JSON.stringify((ended as unknown as Record<string, unknown>)[field]), JSON.stringify(spec.reset), `${field} cleared`);
+  }
+  eq(ended.life_crashed_last_turn, 3, 'life_crashed_this_turn は last_turn へ写してから消す');
+  const started = activateTurnStartScopedState(ended);
+  eq(started.refresh_count_this_turn, 0, '次ターンのrefresh_countは0');
+  eq(started.signi_played_from_non_hand_this_turn, undefined, '次ターンの非手札出自は空');
+}));
+
+test('§6.4 turn-scoped T4: 手札調整確定後ルートで未消費free growが翌ターンへ残らない', () => withSavedCursor(() => {
+  const afterDiscard = clearTurnEndScopedState({
+    ...mkState(), free_grow_this_turn: true, signi_banished_this_turn: 2,
+    suppress_signi_on_play_this_turn: true,
+  });
+  const nextTurn = activateTurnStartScopedState(afterDiscard);
+  eq(nextTurn.free_grow_this_turn, undefined, '予約なしの未消費free growは失効');
+  eq(nextTurn.signi_banished_this_turn, undefined, 'banish履歴は失効');
+  eq(nextTurn.suppress_signi_on_play_this_turn, undefined, '【出】抑止は失効');
+  const reserved = activateTurnStartScopedState(clearTurnEndScopedState({
+    ...mkState(), free_grow_this_turn: true, free_grow_next_turn: true,
+  }));
+  eq(reserved.free_grow_this_turn, true, '明示された次ターン予約だけはactiveへ昇格');
+  eq(consumeFreeGrowThisTurn(reserved).free_grow_this_turn, undefined, 'グロウ時にも消費');
+  const lockStarted = activateNextTurnSigniZoneBlocks(clearTurnEndScopedState({
+    ...mkState(), lock_trash_move_this_turn: true, lock_trash_move_next_turn: true,
+  }));
+  eq(lockStarted.lock_trash_move_this_turn, true, 'turn-end clear後に次ターン予約を昇格して消さない');
+}));
+
+test('§6.4 turn-scoped T5: CPU終了ルートでCPU/人間双方のターン値を持ち越さない', () => withSavedCursor(() => {
+  const cpuEnded = clearTurnEndScopedState({
+    ...mkState(), signi_banished_this_turn: 1, assist_lrig_attack_min_level: 1,
+    turn_off_zone_energy_paid_count: 3,
+  });
+  const humanStarted = activateTurnStartScopedState(clearTurnEndScopedState({
+    ...mkState(), signi_banished_this_turn: 4, free_grow_this_turn: true,
+    signi_played_from_non_hand_this_turn: ['old'],
+  }));
+  eq(cpuEnded.signi_banished_this_turn, undefined, 'CPU側banish履歴');
+  eq(cpuEnded.assist_lrig_attack_min_level, undefined, 'CPU側assist attack許可');
+  eq(cpuEnded.turn_off_zone_energy_paid_count, undefined, 'CPU側off-zone支払い累計');
+  eq(humanStarted.signi_banished_this_turn, undefined, '非ターン側に載ったbanish履歴');
+  eq(humanStarted.free_grow_this_turn, undefined, '人間側の古いfree grow');
+  eq(humanStarted.signi_played_from_non_hand_this_turn, undefined, '人間の新ターン出自履歴');
+}));
+
+test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタックフェイズ経路を全配線', () => withSavedCursor(() => {
+  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const section = (start: string, end: string): string => {
+    const from = battleSource.indexOf(start);
+    const to = battleSource.indexOf(end, from + start.length);
+    ok(from >= 0 && to > from, `配線区間が存在する: ${start}`);
+    return battleSource.slice(from, to);
+  };
+  const routes = [
+    ['PvP通常終了', '// 自分（ターン終了プレイヤー）のターン内一時状態をクリア', '// GAIN_EXTRA_TURN: 追加ターン取得済みの場合'],
+    ['手札調整確定後', '// ターン内一時状態をクリアして newMyState を確定', '// 追加ターン / ターンプレイヤー交代'],
+    ['強制終了', '// FORCE_END_TURN: スタック・エフェクト解決後にターンを即座に終了する', 'stackAcc = null;'],
+    ['CPU終了', '// ─── ENDフェイズ：ターン終了処理 ───', 'cpuTurnRef.current = cpuTurnAction;'],
+  ] as const;
+  for (const [name, start, end] of routes) {
+    eq((section(start, end).match(/clearTurnEndScopedState\(/g) ?? []).length, 2,
+      `${name}: ターンプレイヤー/非ターンプレイヤーの双方をclear`);
+  }
+  eq((battleSource.match(/clearTurnEndScopedState\(/g) ?? []).length, 8,
+    'PvP通常・手札調整確定後・強制終了・CPUの各経路で両PlayerStateをclear');
+  eq((battleSource.match(/activateNextTurnSigniZoneBlocks\(activateNextTurnDeployCountLimit\(clearTurnEndScopedState\(/g) ?? []).length, 4,
+    '次ターン側4経路はclear後に既存予約を昇格する');
+  eq((battleSource.match(/activateTurnStartScopedState\(/g) ?? []).length, 2,
+    '人間/CPUのUP開始をfunnelへ');
+  eq((battleSource.match(/clearAttackPhaseScopedState\(/g) ?? []).length, 2,
+    '人間/CPUのアタックフェイズ開始をfunnelへ');
+  eq((battleSource.match(/consumeFreeGrowThisTurn\(/g) ?? []).length, 1, 'free grow消費をfunnelへ');
+  eq((battleSource.match(/consumeSpellNegationThisTurn\(/g) ?? []).length, 1, 'spell negate消費をfunnelへ');
+
+  const attack = clearAttackPhaseScopedState({ ...mkState(), signi_left_field_this_attack_phase: ['old'] });
+  eq(JSON.stringify(attack.signi_left_field_this_attack_phase), '[]', 'attack-phase履歴は開始時にclear');
+  const spell = consumeSpellNegationThisTurn({ ...mkState(), spell_negated_this_turn: true });
+  eq(spell.spell_negated_this_turn, undefined, 'spell negate予約は対象スペルで消費');
+}));
 
 test('§6.4 reveal-pick 11効果: live JSON の公開元・枚数・filter・行き先・defer/二択を固定', () => {
   const rap = (cardNum: string, effectId: string) => findActionByType(manualEffect(cardNum, effectId).action, 'REVEAL_AND_PICK')!;
@@ -11417,10 +11551,11 @@ test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所�
     if (!around.includes('coins_paid_this_turn')) missing.push(`L${i + 1}: ${ln.trim().slice(0, 90)}`);
   });
   eq(missing.length, 0, `coins_paid_this_turn の加算漏れ:\n${missing.join('\n')}`);
-  // ターン境界のリセットが turn_arts_used と同じ箇所に入っている（片方だけ増えると累計が持ち越す）
-  const resets = (src.match(/turn_arts_used: undefined/g) ?? []).length;
-  const paidResets = (src.match(/coins_paid_this_turn: 0,/g) ?? []).length;
-  eq(paidResets, resets, 'ターン境界リセットの箇所数が turn_arts_used と一致する');
+  // ターン境界リセットは手書き件数ではなく turnScopedState funnel の明示レジストリで守る。
+  const coinSpec = TURN_SCOPED_STATE_FIELDS.coins_paid_this_turn;
+  ok((coinSpec.boundaries as readonly string[]).includes('turn-end'), 'coins_paid_this_turn はturn-end scope');
+  eq(coinSpec.reset, 0, 'coins_paid_this_turn の次ターン初期値は0');
+  eq(src.match(/clearTurnEndScopedState\(/g)?.length ?? 0, 8, '4経路×両PlayerStateがfunnelを通る');
 });
 // §5c 文型バッチ「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（WXK09 ＜電機＞系）
 // 従来は条件節ごと落ちて無条件発火（WXK09-051 は then/else 両方を実行する二重発動）だった。
@@ -17082,8 +17217,12 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
 
   test('§6.4 群B: ターン境界4経路すべてがON_PLAY抑止フラグをリセット', () => {
     const source = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-    eq(source.match(/suppress_signi_on_play_this_turn:\s*undefined/g)?.length ?? 0, 4,
-      '通常終了・確認後・別経路・CPUの4箇所');
+    eq(source.match(/suppress_signi_on_play_this_turn:\s*undefined/g)?.length ?? 0, 0,
+      '呼び出し側の手書きクリアは0件');
+    ok((TURN_SCOPED_STATE_FIELDS.suppress_signi_on_play_this_turn.boundaries as readonly string[]).includes('turn-end'),
+      'ON_PLAY抑止はturn-end scope');
+    eq(source.match(/clearTurnEndScopedState\(/g)?.length ?? 0, 8,
+      '通常終了・確認後・強制終了・CPUの4経路×両PlayerState');
     eq(source.match(/isSigniOwnOnPlaySuppressed\(/g)?.length ?? 0, 2,
       '人間の通常召喚とCPU召喚の両方が共通抑止判定を使う');
   });
