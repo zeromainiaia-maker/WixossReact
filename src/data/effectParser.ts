@@ -12256,12 +12256,21 @@ function foldRevealPickPlay(action: EffectAction, sourceText: string): EffectAct
     return { type: 'STUB', id: 'DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL' } as StubAction;
   }
 
-  // 相手のデッキから相手自身が選ぶ SEARCH も、BattleScreen が SEARCH を相手へルーティングしないため defer。
-  const opponentM = sourceText.match(/対戦相手はデッキの上からカードを([０-９\d]+)枚公開する。対戦相手はその中からシグニを([０-９\d]+)枚まで場に出し/);
+  // 「対戦相手はデッキの上からN枚公開する。対戦相手はその中からシグニをM枚まで場に出し、残りをトラッシュに置く」。
+  // §6.4 O-2 で SEARCH の相手応答ルーティングが入るまで defer していた文型（旧 DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL）。
+  // ⚠**主語は全部「対戦相手」**＝公開元デッキも、選ぶ人も、出す場も、残りの行き先も相手側。
+  //   `owner:'opponent'` だけでは「自分が相手のデッキを覗いて相手の場に出す」別物になるので
+  //   `opponentResponds` と必ず併記する（前者＝誰のカードか／後者＝誰がクリックするか）。
+  const opponentM = sourceText.match(/対戦相手はデッキの上からカードを([０-９\d]+)枚公開する。対戦相手はその中からシグニを([０-９\d]+)枚まで場に出し、残りをトラッシュに置く/);
   if (opponentM) {
     return replaceStub(action, {
-      type: 'STUB', id: 'DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL',
-    } as StubAction, parseNum(opponentM[1]));
+      type: 'REVEAL_AND_PICK', owner: 'opponent', revealCount: parseNum(opponentM[1]),
+      filter: { cardType: 'シグニ' },
+      pickCount: parseNum(opponentM[2]), pickUpTo: true,
+      opponentResponds: true,
+      then: { type: 'ADD_TO_FIELD', owner: 'opponent' },
+      remainder: { location: 'trash', position: 'any' },
+    } as RevealAndPickAction, parseNum(opponentM[1]));
   }
 
   // 任意shuffleを選んだ場合だけ、2枚ミル→次の4枚を見る→同名1枚までダウン場出し→残りデッキ下。
