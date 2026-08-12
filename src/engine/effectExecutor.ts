@@ -8408,10 +8408,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const newSPMX: PlayerState = { ...sPMX, temp_power_mods: modsPMX };
       return done(addLog(setOwnerState(tgtOwnerPMX, newSPMX, ctx), `×${pmxAction.multiplier}（+${deltaPMX}）`));
     }
+    // ⚠この3つ（ADD_TO_HAND / ADD_TO_ENERGY / ADD_TO_BEAT）は **`owner` を持つのに読んでいなかった**＝
+    //   `lookPickThenAction(then, owner)` は owner つきで組み立てるので、`owner:'opponent'` の公開ピックは
+    //   **相手のデッキから抜いて自分の手札へ入れる**（＝カードが盤面を跨いで移る）。§6.4 O-2 で
+    //   「対戦相手が自分のデッキを掘る」経路を開くまでは live 実例0件だったため無害だった。
+    //   `owner:'self'` の既存全効果は `ownerState('self', ctx) === ctx.ownerState` で挙動不変。
     case 'ADD_TO_HAND': {
       // インスタンスIDで正確な1枚を特定しデッキ/トラッシュから除去して手札へ
       const cn = getCardNum(cardNum);
-      let s = { ...ctx.ownerState };
+      const ownerH = (action as { owner?: Owner }).owner ?? 'self';
+      let s = { ...ownerState(ownerH, ctx) };
       const di = s.deck.indexOf(cardNum);
       if (di >= 0) {
         const newDeck = [...s.deck]; newDeck.splice(di, 1);
@@ -8424,12 +8430,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const newS: PlayerState = { ...s, hand: [...s.hand, cardNum] };
-      return done(addLog({ ...ctx, ownerState: newS }, `${ctx.cardMap.get(cn)?.CardName ?? cn}を手札に加える`));
+      return done(addLog(setOwnerState(ownerH, newS, ctx), `${ctx.cardMap.get(cn)?.CardName ?? cn}を手札に加える`));
     }
     case 'ADD_TO_ENERGY': {
       // デッキ/トラッシュから除去してエナゾーンへ
       const cnE = getCardNum(cardNum);
-      let sE = { ...ctx.ownerState };
+      const ownerE = (action as { owner?: Owner }).owner ?? 'self';
+      let sE = { ...ownerState(ownerE, ctx) };
       const diE = sE.deck.indexOf(cardNum);
       if (diE >= 0) {
         const newDeck = [...sE.deck]; newDeck.splice(diE, 1);
@@ -8442,12 +8449,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         }
       }
       const newSE: PlayerState = { ...sE, energy: [...sE.energy, cardNum] };
-      return done(addLog({ ...ctx, ownerState: newSE }, `${ctx.cardMap.get(cnE)?.CardName ?? cnE}をエナゾーンへ`));
+      return done(addLog(setOwnerState(ownerE, newSE, ctx), `${ctx.cardMap.get(cnE)?.CardName ?? cnE}をエナゾーンへ`));
     }
     case 'ADD_TO_BEAT': {
       // 公開中のデッキ（またはトラッシュ/手札）のカードを【ビート】にする（beat_zone へ＋ON_BECOME_BEAT 用フラグ）。WDK14-008
       const cnB = getCardNum(cardNum);
-      let sB = { ...ctx.ownerState };
+      const ownerB = (action as { owner?: Owner }).owner ?? 'self';
+      let sB = { ...ownerState(ownerB, ctx) };
       const diB = sB.deck.indexOf(cardNum);
       if (diB >= 0) { const d = [...sB.deck]; d.splice(diB, 1); sB = { ...sB, deck: d }; }
       else {
@@ -8456,7 +8464,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         else { const hiB = sB.hand.indexOf(cardNum); if (hiB >= 0) { const h = [...sB.hand]; h.splice(hiB, 1); sB = { ...sB, hand: h }; } }
       }
       const newSB = addToBeatZone(sB, [cardNum]);
-      return done(addLog({ ...ctx, ownerState: newSB }, `${ctx.cardMap.get(cnB)?.CardName ?? cnB}を【ビート】にする`));
+      return done(addLog(setOwnerState(ownerB, newSB, ctx), `${ctx.cardMap.get(cnB)?.CardName ?? cnB}を【ビート】にする`));
     }
     case 'TRANSFER_TO_HAND': {
       const src = (action as TransferToHandAction).source;
