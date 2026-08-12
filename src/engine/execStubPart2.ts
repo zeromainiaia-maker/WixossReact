@@ -2991,7 +2991,7 @@ export function execStubPart2(
       canTrash: false,
       destLocation: 'deck',
       // §6.4 O-2: 戻し先は**公開元デッキの持ち主**（resumeSearch が deckOwner を渡す）。省略時 self＝従来挙動。
-      destOwner: stub.owner ?? 'self',
+      destOwner: stub.owner === 'opponent' ? 'opponent' : 'self',
       destPosition: 'split_top_bottom',
       private: true,
     });
