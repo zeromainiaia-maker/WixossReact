@@ -4738,6 +4738,78 @@ test('§6.4 E2E WXDi-P07-084-E1: デッキ下1枚を見て場またはトラッ�
   eq(trackedCardCount(trashResult.ownerState), trashBefore, 'トラッシュ側もカード消滅なし');
 }));
 
+// §6.4 O-2 の機構そのもの（カード非依存）。BattleScreen は `pendingRespondsOpponent` 1本で応答者を決めるので、
+// **どの pending 型が相手応答を表現できるか**をここで固定する。新しい型に `opponentResponds` を足したのに
+// ヘルパーへ登録し忘れると「相手が選ぶはずの対話を効果オーナーが黙って操作する」＝ゲートに映らない退化になる。
+test('§6.4 O-2 応答者ルーティング: opponentResponds を持つ pending が相手へ回る', () => {
+  const cases: Array<[Record<string, unknown>, boolean, string]> = [
+    [{ type: 'SEARCH', visibleCards: [], maxPick: 0, thenAction: { type: 'DRAW', owner: 'self', count: 1 }, opponentResponds: true }, true, 'SEARCH(相手応答)'],
+    [{ type: 'SEARCH', visibleCards: [], maxPick: 0, thenAction: { type: 'DRAW', owner: 'self', count: 1 } }, false, 'SEARCH(既定＝効果オーナー)'],
+    [{ type: 'SELECT_SIGNI_ZONE', cardNum: 'x', owner: 'opponent', opponentResponds: true }, true, 'SELECT_SIGNI_ZONE(相手応答)'],
+    // ⚠既定は従来どおり効果オーナー。`owner:'opponent'` だけで相手応答へ倒すと既存の「相手の場に出す」効果の
+    //   応答者まで変わるので、**明示フラグでのみ**切り替わることを固定する。
+    [{ type: 'SELECT_SIGNI_ZONE', cardNum: 'x', owner: 'opponent' }, false, 'SELECT_SIGNI_ZONE(owner だけでは変えない)'],
+    [{ type: 'CHOOSE', options: [], count: 1, opponentResponds: true }, true, 'CHOOSE(相手応答)'],
+    [{ type: 'SELECT_TARGET', candidates: [], count: 1, optional: false, targetScope: 'opp_field', thenAction: { type: 'DRAW', owner: 'self', count: 1 }, opponentResponds: true }, true, 'SELECT_TARGET(相手応答)'],
+    [{ type: 'LOOK_AND_REORDER', cards: [], canTrash: false, destLocation: 'deck', destOwner: 'self', destPosition: 'top', private: true }, false, 'LOOK_AND_REORDER(未対応型)'],
+  ];
+  for (const [pending, expected, label] of cases) {
+    eq(pendingRespondsOpponent(pending as never), expected, label);
+  }
+  eq(pendingRespondsOpponent(null), false, 'pending なし');
+});
+
+// §6.4 O-2: `deckOwner` を落とすと resumeSearch が**効果オーナーのデッキ**を掘る（相手の公開札が自分側から消える）。
+// 公開元と残り札の行き先が相手側であることを、盤面の増減で固定する。
+test('§6.4 O-2 deckOwner: 相手デッキの公開・残り処理が相手の領域だけを動かす', () => withSavedCursor(() => {
+  const hit = findCard(card => card.Type === 'シグニ');
+  const miss = findCard(card => card.Type !== 'シグニ' && card.Type !== 'ルリグ');
+  const ctx = exactDeckCtx([findCard(card => card.Type === 'シグニ' && card.CardNum !== hit)], 'WXEX2-84');
+  ctx.otherState.deck = [hit, miss];
+  const selfDeckBefore = [...ctx.ownerState.deck];
+  const action: EffectAction = {
+    type: 'REVEAL_AND_PICK', owner: 'opponent', revealCount: 2, filter: { cardType: 'シグニ' },
+    pickCount: 1, pickUpTo: true, opponentResponds: true,
+    then: { type: 'ADD_TO_HAND', owner: 'opponent' },
+    remainder: { location: 'trash', position: 'any' },
+  } as unknown as EffectAction;
+  const pendingResult = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!pendingResult.done && pendingResult.pending.type === 'SEARCH', '公開でSEARCHへ中断');
+  if (pendingResult.done || pendingResult.pending.type !== 'SEARCH') return;
+  eq(pendingResult.pending.deckOwner, 'opponent', 'pending が公開元デッキの持ち主を運ぶ');
+  eq(pendingResult.pending.opponentResponds, true, 'pending が「選ぶのは相手」を運ぶ');
+  const result = run(action, ctx);
+  eq(result.ownerState.deck.join('|'), selfDeckBefore.join('|'), '自分のデッキは動かない');
+  eq(result.ownerState.trash.length, 0, '残り札が自分のトラッシュへ落ちない');
+  ok(result.otherState.hand.includes(hit), 'ピック札は相手の手札へ');
+  ok(result.otherState.trash.includes(miss), '残りは相手のトラッシュへ');
+}));
+
+// §6.4 O-2: 「対戦相手は…場に出し」は**ゾーン選択まで相手が行う**。SEARCH の opponentResponds が
+// ADD_TO_FIELD→PLACE_SIGNI_ON_FIELD→SELECT_SIGNI_ZONE まで落ちることを固定する
+// （途中で落ちると2枚目以降のゾーンを効果オーナーが選ぶ＝相手の盤面を勝手に組む）。
+test('§6.4 O-2 ゾーン選択の引き継ぎ: 相手が選んだ札の配置先も相手が選ぶ', () => withSavedCursor(() => {
+  const a = findCard(card => card.Type === 'シグニ');
+  const b = findCard(card => card.Type === 'シグニ' && card.CardNum !== a);
+  const ctx = exactDeckCtx([], 'WXEX2-84');
+  ctx.otherState.deck = [a, b];
+  const action: EffectAction = {
+    type: 'REVEAL_AND_PICK', owner: 'opponent', revealCount: 2, filter: { cardType: 'シグニ' },
+    pickCount: 2, pickUpTo: true, opponentResponds: true,
+    then: { type: 'ADD_TO_FIELD', owner: 'opponent' },
+    remainder: { location: 'trash', position: 'any' },
+  } as unknown as EffectAction;
+  let result = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done && result.pending.type === 'SEARCH', 'SEARCHへ中断');
+  if (result.done || result.pending.type !== 'SEARCH') return;
+  result = resumeSearch([a, b], result.pending, ctxAfter(result, ctx));
+  ok(!result.done && result.pending.type === 'SELECT_SIGNI_ZONE', '配置ゾーン選択へ');
+  if (result.done || result.pending.type !== 'SELECT_SIGNI_ZONE') return;
+  eq(result.pending.owner, 'opponent', 'ゾーンは相手の場');
+  eq(result.pending.opponentResponds, true, 'ゾーンを選ぶのも相手');
+  eq(pendingRespondsOpponent(result.pending), true, 'ルーティングヘルパーも相手応答と判定');
+}));
+
 // §6.4 O-2: 「対戦相手はデッキの上からN枚公開する。対戦相手はその中からシグニをM枚まで場に出し、残りをトラッシュに置く」。
 // ⚠ここで見るのは**どちらの領域が動いたか**＝相手のデッキが減り、相手の場と相手のトラッシュだけが増える。
 //   `owner` を落とすと自分のデッキが掘られ、自分の場に出る（＝真逆の効果）ので、盤面軸で固定する。
