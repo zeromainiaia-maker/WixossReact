@@ -632,6 +632,7 @@
 - ✅**「次のターンの間」の予約化 第1波**（続き448）＝`must_attack_signi_next_turn` ほか。続き447 の暫定を畳んだ。
 - ✅**シグニの「場所を入れ替える」の二ゾーン交換**（続き449）＝13効果。場外→場は配置制限と中央 funnel を通す。
 - ✅**場レベルの継続効果予約**（続き450）＝`FieldGrant`（keyword/power 統一・filter/zone/condition つき）。8効果。
+- ✅**`SEARCH` の相手応答ルーティング＝O-2**（続き451）＝pending に **`deckOwner`（誰のカードか）と `opponentResponds`（誰がクリックするか）を分離**して持たせ、応答者判定を `pendingRespondsOpponent` 1本へ集約（`BattleScreen` のベタ書き2箇所を置換）。defer 3効果を解除。⚠**併せて潜在バグ4件**＝`applyDirectAction` の `ADD_TO_HAND`/`ADD_TO_ENERGY`/`ADD_TO_BEAT` が `owner` を無視（相手デッキから自分の手札へカードが跨ぐ）／resume 4本が次 pending の `respondPlayerId` を一律に落とす（配置チェーン2枚目以降を効果オーナーが操作）／`execLookPickChain` に場出し段の空きゾーン cap が無い（超過ピックがデッキからも盤面からも消失）／`INTERNAL_SPLIT_REVEALED` の戻し先が `self` 固定。
 
 
 ## 7. フェーズ3残作業：実機挙動（P3）
