@@ -5231,6 +5231,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
     if (cands.length === 0) { stages = stages.slice(1); prevPicks = []; continue; }
     const cont = { type: 'LOOK_PICK_CHAIN', owner, revealCount: a.revealCount, stages: stages.slice(1), remainder: a.remainder, _revealed: revealed,
       ...(topReserved.length > 0 ? { _topReserved: topReserved } : {}),
+      ...(a.opponentResponds ? { opponentResponds: true } : {}),
       ...(stage.then === 'deck_top' ? { _pendingTop: true } : {}) } as import('../types/effects').LookPickChainAction;
     return needsInteraction(cur, {
       type: 'SEARCH',
@@ -5239,6 +5240,9 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       thenAction: lookPickThenAction(stage.then, owner),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
+      // §6.4 O-2: 「対戦相手は自分のデッキの上から〜見て」＝相手のデッキを相手自身が掘る。
+      ...(owner === 'opponent' ? { deckOwner: 'opponent' as const } : {}),
+      ...(a.opponentResponds ? { opponentResponds: true } : {}),
     });
   }
   // 残り（公開してまだデッキにあるカード）を remainder へ。
