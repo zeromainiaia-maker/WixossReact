@@ -5244,7 +5244,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
     return needsInteraction(cur, {
       type: 'SEARCH',
       visibleCards: cands,
-      maxPick: stage.pickCount === 'ALL' ? cands.length : stage.pickCount,
+      maxPick: stageMax,
       thenAction: lookPickThenAction(stage.then, owner),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
