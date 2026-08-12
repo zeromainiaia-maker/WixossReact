@@ -904,6 +904,13 @@ export type PendingInteractionDef =
       // REVEAL_UNTIL_TO_FIELD（WX04-093 等）でゾーン選択を跨いで「これまで場に出したシグニ」を維持するための蓄積。
       // 指定時、resumeSelectSigniZone は配置後に lastProcessedCards=[...placedSoFar, cardNum] を設定する（【出】発火の追跡用）。
       placedSoFar?: string[];
+      /**
+       * true = **対戦相手自身**がゾーンを選ぶ。§6.4 O-2。
+       * ⚠**既定は従来どおり効果オーナーが選ぶ**（`owner:'opponent'` の配置は live に多数あり、
+       *   一括で相手応答へ倒すと既存効果の応答者が変わる）。「対戦相手は…場に出し」の系統だけが
+       *   `opponentResponds` 付きの SEARCH からこのフラグを引き継ぐ。
+       */
+      opponentResponds?: boolean;
     }
   | {
       type: 'SELECT_VIRUS_ZONE';
