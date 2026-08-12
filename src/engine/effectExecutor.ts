@@ -7582,19 +7582,20 @@ export function resumeSearch(
     const remaining = pending.visibleCards.filter(n => !picked.includes(n));
     let logMsg = '';
     for (const cardNum of remaining) {
-      const di = cur.ownerState.deck.indexOf(cardNum);
+      const st = deckState(cur);
+      const di = st.deck.indexOf(cardNum);
       if (di < 0) continue;
-      const newDeck = [...cur.ownerState.deck];
+      const newDeck = [...st.deck];
       newDeck.splice(di, 1);
       if (pending.restDest === 'deck_bottom') {
         newDeck.push(cardNum);
-        cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck } };
+        cur = setOwnerState(dOwner, { ...st, deck: newDeck }, cur);
         logMsg = '残りをデッキ下へ';
       } else if (pending.restDest === 'trash') {
-        cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck, trash: [...cur.ownerState.trash, cardNum] } };
+        cur = setOwnerState(dOwner, { ...st, deck: newDeck, trash: [...st.trash, cardNum] }, cur);
         logMsg = '残りをトラッシュへ';
       } else if (pending.restDest === 'energy') {
-        cur = { ...cur, ownerState: { ...cur.ownerState, deck: newDeck, energy: [...cur.ownerState.energy, cardNum] } };
+        cur = setOwnerState(dOwner, { ...st, deck: newDeck, energy: [...st.energy, cardNum] }, cur);
         logMsg = '残りをエナゾーンへ';
       }
     }
