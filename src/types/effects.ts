@@ -1115,6 +1115,10 @@ export interface PlaceSigniOnFieldAction {
   afterAction?: EffectAction; // 全カード配置後に実行（SHUFFLE_DECK 等）
   /** 全配置完了後に復元する公開snapshot。配置対象だけの一時 lastProcessedCards と区別する。 */
   lastProcessedCardsAfter?: string[];
+  /** 配置ゾーンの選択を対戦相手自身に行わせる（§6.4 O-2）。ADD_TO_FIELD の同名フラグへそのまま渡す。 */
+  opponentSelectsZone?: boolean;
+  /** 配置したシグニ自身の【出】能力を発動させない（ADD_TO_FIELD の同名フラグへ渡す）。 */
+  suppressOnPlay?: boolean;
 }
 
 // トラッシュ・エナ・ライフクロスなど任意の場所から手札へ移動
