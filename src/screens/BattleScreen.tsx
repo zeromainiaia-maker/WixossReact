@@ -5234,7 +5234,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
       await persist.commit(reduceBattle(bs, {
         type: 'RESOLVE_EFFECT_STEP', hostState: bd.hostState, guestState: bd.guestState, settleStackOnDone: true,
-        pending: result.done ? null : ({ ...peBaseS, interaction: result.pending, ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
+        pending: result.done ? null : ({ ...peBaseS, interaction: result.pending, ...nextRespondPatch(result.pending, pe.sourcePlayerId, bs.host_id, bs.guest_id), ...(result.storedTargetCards ? { storedTargetCards: result.storedTargetCards } : {}) } satisfies PendingEffect),
         effectStack: bd.entries.length > 0
           ? (existingStack && !isStackDone(existingStack)
               ? pushToStack(existingStack, bd.entries)
