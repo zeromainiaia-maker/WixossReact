@@ -2385,6 +2385,29 @@ export function satisfiesSelectionConstraint(
   return true;
 }
 
+/**
+ * この対話に応答する（＝UIをクリックする）のは**効果オーナーの対戦相手**か。§6.4 O-2。
+ *
+ * ⚠従来 `BattleScreen` は `SELECT_TARGET` と `CHOOSE` の2つだけを直接見ており、
+ *   **`SEARCH` を相手へ回す経路が無かった**（「対戦相手はデッキの上からN枚公開し、その中から選ぶ」が
+ *   defer されていた根本原因）。判定を1箇所に集約して、対応 pending 型を増やしたときに
+ *   **配線し忘れ（＝黙って効果オーナーが相手の代わりに選ぶ）**が起きないようにする。
+ * ⚠これは「誰がクリックするか」だけを決める＝engine の ExecCtx 視点は反転しない（続き411 の教訓）。
+ *   誰のデッキ／誰の場かは各 pending の `deckOwner` / `owner` が持つ。
+ */
+export function pendingRespondsOpponent(p: PendingInteractionDef | null | undefined): boolean {
+  if (!p) return false;
+  switch (p.type) {
+    case 'SELECT_TARGET':
+    case 'CHOOSE':
+    case 'SEARCH':
+    case 'SELECT_SIGNI_ZONE':
+      return p.opponentResponds === true;
+    default:
+      return false;
+  }
+}
+
 export function canAddToSelection(
   selected: string[],
   candidate: string,
