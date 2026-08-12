@@ -7653,6 +7653,54 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- 「**対戦相手は**（自分の）デッキの上からカードをN枚見て／公開し、その中から〔フィルタ〕シグニをM枚まで
+  //      場に出し、残りを…」＝§6.4 O-2。**主語が全部「対戦相手」**の公開→場出し（`SP38-006-E1-G2` ほか）。
+  //      ⚠この規則が無いと丸ごと `UNKNOWN` になる（下の `(?:あなたの)?` 版は主語を見ないので、
+  //        仮に掛かってしまうと**自分のデッキを掘って自分の場に出す**真逆の効果になる）＝先に置いて奪う。
+  //      ⚠`owner:'opponent'`（誰のカードか）と `opponentResponds`（誰が選ぶか）は**独立**なので必ず併記する。
+  //        前者だけだと「自分が相手のデッキを覗く」別物、後者だけだと「相手が自分のデッキを掘る」別物になる。
+  {
+    const op = text.match(/対戦相手は(?:自分の)?デッキの上からカードを([０-９\d]+)枚(?:見て|見る。|公開する。|公開し)、?\s*(?:対戦相手は)?その中から((?:(?!手札に加える)[^。])*?)シグニを?([０-９\d]+)枚(まで)?を?場に出し、残りを(?:好きな順番で)?(デッキの一番下|デッキの一番上|トラッシュ|エナゾーン)に置く。?/);
+    if (op && op.index !== undefined && !/「[^」]*」を得る/.test(text)) {
+      const remainderOp: { location: 'deck' | 'trash' | 'energy'; position: 'top' | 'bottom' | 'any' } =
+        op[5] === 'トラッシュ' ? { location: 'trash', position: 'any' }
+          : op[5] === 'エナゾーン' ? { location: 'energy', position: 'any' }
+            : { location: 'deck', position: op[5] === 'デッキの一番上' ? 'top' : 'bottom' };
+      const filterOp: TargetFilter = {
+        cardType: 'シグニ',
+        ...parseLevelFilter(op[2]), ...parseColorFilter(op[2]), ...parseStoryFilter(op[2]),
+      };
+      // 「見て」は非公開＝LOOK_PICK_CHAIN（応答者にだけモーダルが出るので情報公開範囲も原文どおり）。
+      // 「公開し」は両者公開＝REVEAL_AND_PICK。既存の自分側規則と同じ使い分けにそろえる。
+      const isRevealOp = /公開/.test(op[0]);
+      const nodeOp: EffectAction = isRevealOp
+        ? ({
+            type: 'REVEAL_AND_PICK', owner: 'opponent', revealCount: parseNum(op[1]),
+            filter: filterOp, pickCount: parseNum(op[3]), pickUpTo: !!op[4],
+            opponentResponds: true,
+            then: { type: 'ADD_TO_FIELD', owner: 'opponent' },
+            remainder: remainderOp,
+          } as RevealAndPickAction)
+        : ({
+            type: 'LOOK_PICK_CHAIN', owner: 'opponent', revealCount: parseNum(op[1]),
+            stages: [{ filter: filterOp, pickCount: parseNum(op[3]), then: 'field' }],
+            remainder: remainderOp,
+            opponentResponds: true,
+          } as unknown as EffectAction);
+      const beforeOp = text.slice(0, op.index).trim().replace(/。$/, '');
+      const afterOp = text.slice(op.index + op[0].length).trim();
+      const stepsOp: EffectAction[] = [];
+      const pushFlatOp = (a: EffectAction) => {
+        if (a.type === 'SEQUENCE') for (const st of (a as SequenceAction).steps) { if (st.type !== 'UNKNOWN') stepsOp.push(st); else markSilentFallback('相手公開場出し分割:UNKNOWNステップ除去'); }
+        else if (a.type !== 'UNKNOWN') stepsOp.push(a); else markSilentFallback('相手公開場出し分割:UNKNOWNアクション除去');
+      };
+      if (beforeOp) pushFlatOp(parseActionText(beforeOp));
+      stepsOp.push(nodeOp);
+      if (afterOp) pushFlatOp(parseActionText(afterOp));
+      return stepsOp.length === 1 ? stepsOp[0] : { type: 'SEQUENCE', steps: stepsOp } as SequenceAction;
+    }
+  }
+
   // ---- デッキ上N枚見て「その中から〔フィルタ〕シグニをM枚(まで)場に出し、残りを…」＝場出しのみの単段
   //      LOOK_PICK_CHAIN[field ステージ]（続き218c）。直前の dual-pick 規則は**手札段と場段の両方**を要求する
   //      ため、場出しだけの本形（16効果の系統）はどの規則にも掛からず bare LOOK_AND_REORDER へ縮退し、
