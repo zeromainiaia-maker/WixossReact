@@ -4227,7 +4227,7 @@ test('§6.4 turn-scoped T5: 強制アタックは「ターンが終わる側」�
 }));
 
 // ソース走査＝'turn-end-active' に入れてよいのは、いま既知の2フィールドだけ（無自覚な追加を止める）。
-test('§6.4 turn-scoped T6: turn-end-active は既知2フィールドだけ', () => {
+test('§6.4 turn-scoped T7: turn-end-active は既知2フィールドだけ', () => {
   const active = Object.entries(TURN_SCOPED_STATE_FIELDS)
     .filter(([, spec]) => (spec.boundaries as readonly string[]).includes('turn-end-active'))
     .map(([field]) => field).sort();
@@ -4287,10 +4287,10 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
     ['CPU終了', '// ─── ENDフェイズ：ターン終了処理 ───', 'cpuTurnRef.current = cpuTurnAction;'],
   ] as const;
   for (const [name, start, end] of routes) {
-    eq((section(start, end).match(/clearTurnEndScopedState\(/g) ?? []).length, 2,
+    eq((section(start, end).match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 2,
       `${name}: ターンプレイヤー/非ターンプレイヤーの双方をclear`);
   }
-  eq((battleSource.match(/clearTurnEndScopedState\(/g) ?? []).length, 8,
+  eq((battleSource.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g) ?? []).length, 8,
     'PvP通常・手札調整確定後・強制終了・CPUの各経路で両PlayerStateをclear');
   eq((battleSource.match(/activateNextTurnSigniZoneBlocks\(activateNextTurnDeployCountLimit\(clearTurnEndScopedState\(/g) ?? []).length, 4,
     '次ターン側4経路はclear後に既存予約を昇格する');
@@ -11591,7 +11591,7 @@ test('task12(cxvi) 支払い経路の網羅ガード: coins を減らす箇所�
   const coinSpec = TURN_SCOPED_STATE_FIELDS.coins_paid_this_turn;
   ok((coinSpec.boundaries as readonly string[]).includes('turn-end'), 'coins_paid_this_turn はturn-end scope');
   eq(coinSpec.reset, 0, 'coins_paid_this_turn の次ターン初期値は0');
-  eq(src.match(/clearTurnEndScopedState\(/g)?.length ?? 0, 8, '4経路×両PlayerStateがfunnelを通る');
+  eq(src.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 8, '4経路×両PlayerStateがfunnelを通る');
 });
 // §5c 文型バッチ「あなたのエナゾーンにレベルA～Bの＜X＞のシグニがそれぞれN枚以上ある場合」（WXK09 ＜電機＞系）
 // 従来は条件節ごと落ちて無条件発火（WXK09-051 は then/else 両方を実行する二重発動）だった。
@@ -17257,7 +17257,7 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       '呼び出し側の手書きクリアは0件');
     ok((TURN_SCOPED_STATE_FIELDS.suppress_signi_on_play_this_turn.boundaries as readonly string[]).includes('turn-end'),
       'ON_PLAY抑止はturn-end scope');
-    eq(source.match(/clearTurnEndScopedState\(/g)?.length ?? 0, 8,
+    eq(source.match(/clearTurnEndScopedState(?:ForEndingTurn)?\(/g)?.length ?? 0, 8,
       '通常終了・確認後・強制終了・CPUの4経路×両PlayerState');
     eq(source.match(/isSigniOwnOnPlaySuppressed\(/g)?.length ?? 0, 2,
       '人間の通常召喚とCPU召喚の両方が共通抑止判定を使う');
