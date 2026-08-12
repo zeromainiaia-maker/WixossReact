@@ -4570,10 +4570,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!result.done) {
         // opponentResponds=true の場合、相手プレイヤーがUIを操作する
         const oppId = ownerIsHost ? bs.guest_id : bs.host_id;
-        const respondPlayerId = (
-          (result.pending?.type === 'SELECT_TARGET' && result.pending.opponentResponds) ||
-          (result.pending?.type === 'CHOOSE' && result.pending.opponentResponds)
-        ) ? oppId : undefined;
+        const respondPlayerId = pendingRespondsOpponent(result.pending) ? oppId : undefined;
         pendingAcc = {
           sourcePlayerId: entry.playerId,
           ...(respondPlayerId ? { respondPlayerId } : {}),
