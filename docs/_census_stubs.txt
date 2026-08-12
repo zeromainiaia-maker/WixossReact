@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 595（総ノード 2885 件）
-逆翻訳シートの [STUB:…] 総数: 816  うち生ID露出 279 箇所（190 種）
+live JSON の STUB id 種類 : 593（総ノード 2883 件）
+逆翻訳シートの [STUB:…] 総数: 816  うち生ID露出 277 箇所（188 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 16 種 / 18 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 16 種 / 18 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 14 種 / 16 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 14 種 / 16 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 177 種 / 264 箇所
@@ -37,9 +37,6 @@ live JSON の STUB id 種類 : 595（総ノード 2885 件）
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
-     1件   1枚  DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL  [生ID露出 1]
-        カード: WXDi-P01-026
-        生成: src\data\effectParser.ts:12256
      1件   1枚  DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT
         カード: WXDi-P07-010
         生成: src\data\manualEffects.ts:4123
@@ -50,9 +47,6 @@ live JSON の STUB id 種類 : 595（総ノード 2885 件）
         生成: src\data\manualEffects.ts:3683
      1件   1枚  DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
         カード: WXDi-P00-026
-     1件   1枚  DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL  [生ID露出 1]
-        カード: WXEX2-84
-        生成: src\data\effectParser.ts:12263
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
@@ -101,10 +95,10 @@ live JSON の STUB id 種類 : 595（総ノード 2885 件）
         消費: src\engine\effectExecutor.ts:300
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:6843
+        消費: src\engine\effectExecutor.ts:6855
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:6845
+        消費: src\engine\effectExecutor.ts:6857
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:65

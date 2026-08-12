@@ -315,6 +315,23 @@ WXEX2-70
   + [0].action.steps[1].then.target.filter.level.max = 3
   + [0].action.steps[1].then.target.upToCount = false
 
+## +ADD_TO_FIELD +REVEAL_AND_PICK -STUB ［1枚］
+WXEX2-84
+--- WXEX2-84
+  原文: 【グロウ】あなたのルリグデッキから＜タマ＞か＜イオナ＞のルリグ１枚を公開し、それをあなたのセンタールリグの下に置く【出】：あなたのルリグトラッシュからすべてのルリグをこのカードの下に置き、対象のアーツを２枚までルリグデッキに加える。【起】エクシード２：対戦相手のすべてのシグニをトラッシュに置く。対戦相手はデッキの上からカードを２枚公開する。対戦相手はその中か
+  - [1].action.steps[1].id = "DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL"
+  ~ [1].action.steps[1].type : "STUB" → "REVEAL_AND_PICK"
+  + [1].action.steps[1].owner = "opponent"
+  + [1].action.steps[1].revealCount = 2
+  + [1].action.steps[1].filter.cardType = "シグニ"
+  + [1].action.steps[1].pickCount = 2
+  + [1].action.steps[1].pickUpTo = true
+  + [1].action.steps[1].opponentResponds = true
+  + [1].action.steps[1].then.type = "ADD_TO_FIELD"
+  + [1].action.steps[1].then.owner = "opponent"
+  + [1].action.steps[1].remainder.location = "trash"
+  + [1].action.steps[1].remainder.position = "any"
+
 ## +STUB -DOWN -SIGNI ［1枚］
 WXDi-D08-004
 --- WXDi-D08-004
@@ -342,6 +359,24 @@ WXDi-P00-040
   - [1].condition.filter.cardType = "シグニ"
   - [1].condition.minCount = 7
   - [1].condition.distinctClasses = true
+
+## +LOOK_PICK_CHAIN×2 +SEQUENCE +SIGNI×2 +TRANSFER_TO_DECK×4 +TRASH_CARD×2 -STUB ［1枚］
+WXDi-P01-026
+--- WXDi-P01-026
+  原文: 【出】：各プレイヤーは自分のシグニゾーンとトラッシュにあるすべてのカードをデッキに加えてシャッフルする。その後、各プレイヤーは自分のデッキの上からカードを７枚見て、その中から好きな枚数のシグニを場に出し、残りをトラッシュに置く。それらのシグニの【出】能力は発動しない。,-
+  - [0].action.id = "DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "TRANSFER_TO_DECK"
+  + [0].action.steps[0].source.type = "SIGNI"
+  + [0].action.steps[0].source.owner = "self"
+  + [0].action.steps[0].source.count = "ALL"
+  + [0].action.steps[0].shuffle = true
+  + [0].action.steps[1].type = "TRANSFER_TO_DECK"
+  + [0].action.steps[1].source.type = "TRASH_CARD"
+  + [0].action.steps[1].source.owner = "self"
+  + [0].action.steps[1].source.count = "ALL"
+  + [0].action.steps[1].shuffle = true
+  …（他 29 行）
 
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002

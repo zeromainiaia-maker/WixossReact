@@ -3636,14 +3636,25 @@ test('§6.4 reveal-until 9効果: 停止条件・ヒット先・残り先が liv
   eq(JSON.stringify((declared.steps[0] as StubAction).numberChoices), JSON.stringify([1, 2, 4, 5]), 'WX17-039-E1: 3を宣言候補から除外');
   eq((manualEffect('WXK07-031', 'WXK07-031-E2').action as SequenceAction).steps[0].type, 'REVEAL_UNTIL', 'WXK07-031-E2: MANUALでも構造化済み');
 
+  // §6.4 O-2＝SEARCH の相手応答ルーティングが入ったので、旧トリップワイヤ（UNKNOWN 維持＝相手応答不能）を
+  // **新しい正**へ反転させる。「対戦相手は自分のデッキの上から〜見て」は LOOK_PICK_CHAIN（非公開）で、
+  // `owner`（誰のデッキ／誰の場か）と `opponentResponds`（誰がクリックするか）を**必ず両方**持つ。
   const c1Live = manualEffect('SP38-006', 'SP38-006-E1-G2');
   const c1LiveJson = JSON.stringify(c1Live.action);
-  eq(c1Live.parseStatus, 'PARTIAL', 'C1 live は PARTIAL 温存');
-  ok(c1LiveJson.includes('対戦相手は自分のデッキの上からカードを３枚見て'), 'C1 live の相手pick文をUNKNOWNで維持');
+  ok(!c1LiveJson.includes('"UNKNOWN"'), 'C1 live の相手pick文が UNKNOWN でない');
+  const c1Pick = (c1Live.action as SequenceAction).steps[1] as unknown as LookPickChainAction;
+  eq(c1Pick.type, 'LOOK_PICK_CHAIN', 'C1 live: 「見て」は非公開の LOOK_PICK_CHAIN');
+  eq(c1Pick.owner, 'opponent', 'C1 live: 掘るのは相手のデッキ');
+  eq(c1Pick.opponentResponds, true, 'C1 live: 選ぶのは相手自身');
+  eq(JSON.stringify(c1Pick.stages), JSON.stringify([{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field' }]), 'C1 live: シグニ1枚まで場出し');
+  eq(JSON.stringify(c1Pick.remainder), JSON.stringify({ location: 'deck', position: 'bottom' }), 'C1 live: 残りはデッキの一番下');
+  // ⚠E1 は PARTIAL のまま＝同じ効果の1つ目の内側能力（「対戦相手の場にあるキーとシグニは能力を失い、
+  //   新たに得られない」→ REMOVE_ABILITIES{count:1, PERMANENT}）が別軸で未忠実なのでレビュー印を落とさない。
+  eq(manualEffect('SP38-006', 'SP38-006-E1').parseStatus, 'PARTIAL', 'C1 live: E1 は PARTIAL 温存（別軸の未忠実が残る）');
   const c1Fresh = findEffectDeep(parseCardEffects(cardMap.get('SP38-006')!), 'SP38-006-E1-G2')!;
-  const c1FreshJson = JSON.stringify(c1Fresh.action);
-  ok(!c1FreshJson.includes('"REVEAL_AND_PICK","owner":"opponent"') && !c1FreshJson.includes('LOOK_PICK_CHAIN'),
-    '相手応答不能の実行型へ載せない');
+  const c1FreshPick = (c1Fresh.action as SequenceAction).steps[1] as unknown as LookPickChainAction;
+  eq(c1FreshPick.type, 'LOOK_PICK_CHAIN', 'C1 fresh も同じ型（live 外科パッチと parser の一致）');
+  eq(c1FreshPick.opponentResponds, true, 'C1 fresh: opponentResponds');
 });
 
 test('§6.4 E2E WDK13-011-E1: levelSum=4で停止／未達なら全デッキ公開', () => withSavedCursor(() => {
