@@ -431,6 +431,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       && !/このターンと次のターン/.test(t);
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
       : nextTurnOnly ? 'NEXT_TURN'
+      // 「**このターン、**〜は能力を失い、新たに得られない」＝現ターン限定（§6.4 O-16(b)）。従来は期間語として
+      // 読まれず `PERMANENT` へ落ちていた。engine 側は PERMANENT をこの経路では現ターン扱いに丸めるので
+      // **挙動は変わらない**が、逆翻訳だけが「永続」に見えて原文照合で毎回引っかかっていた。
+      // ⚠読点を必須にする＝「このターン**と次のターンの間**」は別期間なので巻き込まない。
+      : /このターン[、,]/.test(t) ? 'UNTIL_END_OF_TURN'
       : 'PERMANENT';
     // §6.4 O-16:「（そこ|それらのシグニゾーン|指定されたシグニゾーン）にあるシグニは能力を失う」＝**ゾーン継続**。
     // ⚠per-card では「後からそのゾーンへ出たシグニ」に効かない＝「新たに得られない」が表せない。
