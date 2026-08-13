@@ -11703,6 +11703,318 @@ scenarios.optionalActivateSkipThenPay = {
   },
 };
 
+// ── 続き472：PLAN §7 V-04 エナ支払い元の一本化（候補・フェイズ/上限ゲート・控除） ──
+// 下カードは E2 の自動配置を待たず、既存表現 [下カード..., 場の本体] で直接注入する。
+// A1↔A2 は top.turn_phase だけ、A4 内蔵対照は turn_off_zone_energy_paid_count だけを変える。
+const V04_ARTS = 'WD15-010#5001';
+const V04_TANABATA = 'WXDi-P10-041#5002';
+const V04_UNDER_A = 'WD02-010#5003';
+const V04_UNDER_B = 'WD02-010#5004';
+const V04_UNDER_C = 'WD02-010#5005';
+const V04_ENERGY_A = 'WD02-010#5006';
+const V04_ENERGY_B = 'WD02-010#5007';
+const V04_UNDER_LABEL = '羅植姫　タナバタの下';
+
+const makeV04UnderArtsSpec = (turnPhase, underCards = [V04_UNDER_A, V04_UNDER_B], paidCount = 0) => ({
+  hostSet: {
+    'field.lrig': ['WD04-001#5008'],
+    'field.assist_lrig_l': ['WD03-003#5009'],
+    'field.assist_lrig_r': ['WD02-003#5010'],
+    'field.signi': [[...underCards, V04_TANABATA], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'lrig_deck': [V04_ARTS],
+    'hand': [],
+    'energy': [V04_ENERGY_A, V04_ENERGY_B],
+    'turn_off_zone_energy_paid_count': paidCount,
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#5011'],
+    'field.assist_lrig_l': [],
+    'field.assist_lrig_r': [],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'hand': [],
+    'energy': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: turnPhase, turn_count: 2 },
+});
+
+const V04_ATTACK_SPEC = makeV04UnderArtsSpec('ATTACK_ARTS');
+const V04_MAIN_SPEC = makeV04UnderArtsSpec('MAIN');
+const V04_LIMIT_BASE_SPEC = makeV04UnderArtsSpec('ATTACK_ARTS', [V04_UNDER_A, V04_UNDER_B, V04_UNDER_C], 0);
+const V04_LIMIT_PAID_TWO_SPEC = makeV04UnderArtsSpec('ATTACK_ARTS', [V04_UNDER_A, V04_UNDER_B, V04_UNDER_C], 2);
+
+async function clickV04VisibleLocator(page, locator, label) {
+  for (let k = 0; k < 20; k++) {
+    if (await locator.count() && await locator.isVisible().catch(() => false)
+        && await locator.isEnabled().catch(() => true)) {
+      await locator.click({ timeout: 2000 });
+      return label;
+    }
+    await page.waitForTimeout(150);
+  }
+  return null;
+}
+
+async function openV04LrigDeckAction(page, actionLabel) {
+  const deck = await clickV04VisibleLocator(page, page.getByTestId('my-lrig-dk').first(), 'tid:my-lrig-dk');
+  if (!deck) return { ok: false, detail: 'my-lrig-dk が3秒以内に描画されない' };
+  const card = await clickV04VisibleLocator(page, page.getByTestId('zone-card-0').first(), 'tid:zone-card-0');
+  if (!card) return { ok: false, detail: 'zone-card-0 が3秒以内に描画されない' };
+  const action = page.locator(`[data-testid^="card-action-"][data-action-label="${actionLabel}"]`).first();
+  const clicked = await clickV04VisibleLocator(page, action, `tid:card-action-*[data-action-label="${actionLabel}"]`);
+  if (!clicked) return { ok: false, detail: `${actionLabel} action が3秒以内に描画されない` };
+  return { ok: true, detail: `${deck}→${card}→${clicked}` };
+}
+
+async function inspectV04ArtsPool(page, expectedTotal, expectedUnder) {
+  const all = page.locator('[data-testid^="artscost-energy-"]');
+  const under = page.locator(`[data-testid^="artscost-energy-"][title="${V04_UNDER_LABEL}"]`);
+  const energy = page.locator('[data-testid^="artscost-energy-"]:not([title])');
+  let observed = { total: 0, under: 0, energy: 0, visible: false, ids: [], titles: [] };
+  for (let k = 0; k < 20; k++) {
+    const total = await all.count();
+    observed = {
+      total,
+      under: await under.count(),
+      energy: await energy.count(),
+      visible: total > 0 && await all.first().isVisible().catch(() => false),
+      ids: await all.evaluateAll(els => els.map(e => e.getAttribute('data-testid'))),
+      titles: await all.evaluateAll(els => els.map(e => e.getAttribute('title'))),
+    };
+    if (observed.visible && observed.total === expectedTotal && observed.under === expectedUnder
+        && observed.energy === expectedTotal - expectedUnder) {
+      return { pass: true, ...observed };
+    }
+    await page.waitForTimeout(150);
+  }
+  return { pass: false, ...observed };
+}
+
+async function driveV04ArtsPoolOffer(page, H, expectedTotal, expectedUnder, expectedStack) {
+  const before = await H.queryState();
+  if (JSON.stringify(before?.host?.fieldSigni?.[0]) !== JSON.stringify(expectedStack)) {
+    return { pass: false, detail: `下カードstack注入不成立=${JSON.stringify(before?.host?.fieldSigni?.[0])}（期待=${JSON.stringify(expectedStack)}）` };
+  }
+  const opened = await openV04LrigDeckAction(page, '使用');
+  if (!opened.ok) return { pass: false, detail: opened.detail };
+  const pool = await inspectV04ArtsPool(page, expectedTotal, expectedUnder);
+  return {
+    pass: pool.pass && pool.visible && pool.total > 0,
+    detail: `コストモーダル実描画=${pool.visible}・候補total=${pool.total}/${expectedTotal}・title「${V04_UNDER_LABEL}」=${pool.under}/${expectedUnder}・titleなしエナ=${pool.energy}/${expectedTotal - expectedUnder}・ids=${JSON.stringify(pool.ids)}・titles=${JSON.stringify(pool.titles)}・open=${opened.detail}`,
+  };
+}
+
+scenarios.underEnergyPayOfferedInAttackPhase = {
+  title: 'WXDi-P10-041-E1（ATTACK_ARTS＝エナ2＋タナバタの下2がアーツ支払い候補）',
+  spec: V04_ATTACK_SPEC,
+  async drive(page, H) {
+    return driveV04ArtsPoolOffer(
+      page, H, 4, 2, [V04_UNDER_A, V04_UNDER_B, V04_TANABATA],
+    );
+  },
+};
+
+scenarios.underEnergyPayNotOfferedInMainPhase = {
+  title: 'WXDi-P10-041-E1対照（同一盤面でMAINだけ＝下カードは候補外、エナ2だけ）',
+  spec: V04_MAIN_SPEC,
+  async drive(page, H) {
+    return driveV04ArtsPoolOffer(
+      page, H, 2, 0, [V04_UNDER_A, V04_UNDER_B, V04_TANABATA],
+    );
+  },
+};
+
+scenarios.underEnergyPayDeductsUnderCardOnly = {
+  title: 'WXDi-P10-041-E1（title付き下カード1枚だけでアーツ使用→下だけtrash・本体/エナ残存）',
+  spec: V04_ATTACK_SPEC,
+  async drive(page, H) {
+    const before = await H.queryState();
+    const expectedBeforeStack = [V04_UNDER_A, V04_UNDER_B, V04_TANABATA];
+    if (JSON.stringify(before?.host?.fieldSigni?.[0]) !== JSON.stringify(expectedBeforeStack)) {
+      return { pass: false, detail: `下カードstack注入不成立=${JSON.stringify(before?.host?.fieldSigni?.[0])}` };
+    }
+    const opened = await openV04LrigDeckAction(page, '使用');
+    if (!opened.ok) return { pass: false, detail: opened.detail };
+    const pool = await inspectV04ArtsPool(page, 4, 2);
+    if (!pool.pass) return { pass: false, detail: `支払い候補不一致=${JSON.stringify(pool)}` };
+    const under = page.locator(`[data-testid^="artscost-energy-"][title="${V04_UNDER_LABEL}"]`).first();
+    const pickedTestId = await under.getAttribute('data-testid');
+    if (pickedTestId !== 'artscost-energy-2') {
+      return { pass: false, detail: `pool順回帰＝最初の下カードtestid=${pickedTestId}（期待artscost-energy-2）` };
+    }
+    const picked = await clickV04VisibleLocator(page, under, `tid:${pickedTestId}[title="${V04_UNDER_LABEL}"]`);
+    if (!picked) return { pass: false, detail: 'title付き下カード候補を3秒以内にクリックできない' };
+    const used = await clickExactVisibleText(page, 'アーツ使用');
+    if (!used) return { pass: false, detail: '下カード選択後に「アーツ使用」が3秒以内にenabledにならない' };
+    let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(250);
+      const st = await H.queryState();
+      last = st;
+      const artUsed = st.host.lrigDeck === before.host.lrigDeck - 1;
+      if (!artUsed) continue;
+      const stackStayed = JSON.stringify(st.host.fieldSigni?.[0]) === JSON.stringify(expectedBeforeStack);
+      const energyStayed = JSON.stringify(st.host.energyCards) === JSON.stringify(before.host.energyCards);
+      if (stackStayed && energyStayed) {
+        return { pass: false, st, detail: `【applyTo呼び忘れ疑い】アーツは使用済みだがエナも下カードも1枚も減らない（stack=${JSON.stringify(st.host.fieldSigni?.[0])} energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）` };
+      }
+      const expectedAfterStack = [V04_UNDER_B, V04_TANABATA];
+      const underOnlyPaid = JSON.stringify(st.host.fieldSigni?.[0]) === JSON.stringify(expectedAfterStack)
+        && st.host.trashCards.includes(V04_UNDER_A) && !st.host.trashCards.includes(V04_UNDER_B);
+      const hostStayed = st.host.fieldSigni?.[0]?.at(-1) === V04_TANABATA;
+      const energyUnchanged = JSON.stringify(st.host.energyCards) === JSON.stringify(before.host.energyCards)
+        && !st.host.trashCards.includes(V04_ENERGY_A) && !st.host.trashCards.includes(V04_ENERGY_B);
+      return { pass: underOnlyPaid && hostStayed && energyUnchanged, st,
+        detail: `候補4/title付き2を実描画→${picked}→${used}。下Aだけstack→trash=${underOnlyPaid}・タナバタ本体残存=${hostStayed}・energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)} 不変=${energyUnchanged}` };
+    }
+    return { pass: false, st: last, detail: `アーツ使用後の控除を観測できない（lrigDeck=${last?.host?.lrigDeck} stack=${JSON.stringify(last?.host?.fieldSigni?.[0])} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}）` };
+  },
+};
+
+scenarios.underEnergyPayPerTurnLimit = {
+  title: 'WXDi-P10-041-E1（下3枚・paid 0→2だけ再注入＝title付き候補3→残り1）',
+  spec: V04_LIMIT_BASE_SPEC,
+  async drive(page, H) {
+    const expectedStack = [V04_UNDER_A, V04_UNDER_B, V04_UNDER_C, V04_TANABATA];
+    const baseline = await driveV04ArtsPoolOffer(page, H, 5, 3, expectedStack);
+    if (!baseline.pass) return { pass: false, detail: `paid=0基準が不成立：${baseline.detail}` };
+    await H.closeModals();
+    const reinjected = await injectScenario(page, V04_LIMIT_PAID_TWO_SPEC);
+    if (reinjected.error) return { pass: false, detail: `paid=2対照の再注入失敗=${reinjected.error}` };
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+    const limited = await driveV04ArtsPoolOffer(page, H, 3, 1, expectedStack);
+    return { pass: limited.pass,
+      detail: `同一盤面を再注入し変えたのは turn_off_zone_energy_paid_count 0→2 だけ。paid=0: ${baseline.detail}／paid=2: ${limited.detail}` };
+  },
+};
+
+const V04_REG_ENERGY_KEEP = 'WD02-010#5021';
+const V04_REG_ENERGY_PAY = 'WD02-010#5022';
+const V04_KEY_PIECE = 'WXDi-P11-004#5023';
+
+const makeV04RegressionSpec = (lrigDeckCard) => ({
+  hostSet: {
+    'field.lrig': ['WD04-001#5024'],
+    'field.assist_lrig_l': ['WD03-003#5025'],
+    'field.assist_lrig_r': ['WD02-003#5026'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'lrig_deck': [lrigDeckCard],
+    'hand': [],
+    'energy': [V04_REG_ENERGY_KEEP, V04_REG_ENERGY_PAY],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#5027'],
+    'field.assist_lrig_l': [],
+    'field.assist_lrig_r': [],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'hand': [],
+    'energy': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+scenarios.energyPayArtsDeductsSelectedOnly = {
+  title: 'V-04回帰：タナバタ不在・WD15-010アーツでindex1だけ支払い→選択エナだけtrash',
+  spec: makeV04RegressionSpec(V04_ARTS),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const opened = await openV04LrigDeckAction(page, '使用');
+    if (!opened.ok) return { pass: false, detail: opened.detail };
+    const pool = await inspectV04ArtsPool(page, 2, 0);
+    if (!pool.pass) return { pass: false, detail: `タナバタ不在のアーツpool不一致=${JSON.stringify(pool)}` };
+    const picked = await clickV04VisibleLocator(page, page.getByTestId('artscost-energy-1').first(), 'tid:artscost-energy-1');
+    if (!picked) return { pass: false, detail: 'artscost-energy-1を3秒以内にクリックできない' };
+    const used = await clickExactVisibleText(page, 'アーツ使用');
+    if (!used) return { pass: false, detail: 'index1選択後に「アーツ使用」が3秒以内にenabledにならない' };
+    let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(250);
+      const st = await H.queryState();
+      last = st;
+      const artUsed = st.host.lrigDeck === before.host.lrigDeck - 1;
+      if (!artUsed) continue;
+      if (JSON.stringify(st.host.energyCards) === JSON.stringify(before.host.energyCards)) {
+        return { pass: false, st, detail: `【applyTo呼び忘れ疑い＝ただでアーツ】アーツは使用済みだがエナが1枚も減らない（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）` };
+      }
+      const selectedOnly = JSON.stringify(st.host.energyCards) === JSON.stringify([V04_REG_ENERGY_KEEP])
+        && st.host.trashCards.includes(V04_REG_ENERGY_PAY) && !st.host.trashCards.includes(V04_REG_ENERGY_KEEP);
+      return { pass: selectedOnly, st,
+        detail: `タナバタ不在pool=2/title付き0→${picked}→${used}。energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)}・index1だけtrash=${selectedOnly}` };
+    }
+    return { pass: false, st: last, detail: `アーツ支払い完了を観測できない（lrigDeck=${last?.host?.lrigDeck} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}）` };
+  },
+};
+
+scenarios.energyPayKeyUseDeductsSelectedOnly = {
+  title: 'V-04別経路回帰：タナバタ不在・WXDi-P11-004ピース使用でkeycost index1だけtrash',
+  spec: makeV04RegressionSpec(V04_KEY_PIECE),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const opened = await openV04LrigDeckAction(page, 'キーにセット');
+    if (!opened.ok) return { pass: false, detail: opened.detail };
+    const entries = page.locator('[data-testid^="keycost-energy-"]');
+    const underEntries = page.locator(`[data-testid^="keycost-energy-"][title="${V04_UNDER_LABEL}"]`);
+    const energyEntries = page.locator('[data-testid^="keycost-energy-"]:not([title])');
+    let modalVisible = false; let count = 0; let underCount = 0; let energyCount = 0;
+    for (let k = 0; k < 20; k++) {
+      count = await entries.count();
+      underCount = await underEntries.count();
+      energyCount = await energyEntries.count();
+      modalVisible = count > 0 && await entries.first().isVisible().catch(() => false);
+      if (modalVisible && count === 2 && underCount === 0 && energyCount === 2) break;
+      await page.waitForTimeout(150);
+    }
+    if (!modalVisible || count !== 2 || underCount !== 0 || energyCount !== 2) {
+      return { pass: false, detail: `KeyUseModalの実描画/候補数不一致（visible=${modalVisible} keycost=${count}/2 title付き=${underCount}/0 titleなし=${energyCount}/2）` };
+    }
+    const picked = await clickV04VisibleLocator(page, page.getByTestId('keycost-energy-1').first(), 'tid:keycost-energy-1');
+    if (!picked) return { pass: false, detail: 'keycost-energy-1を3秒以内にクリックできない' };
+    const set = await clickExactVisibleText(page, 'セット');
+    if (!set) return { pass: false, detail: 'index1選択後に「セット」が3秒以内にenabledにならない' };
+    let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(250);
+      const st = await H.queryState();
+      last = st;
+      const pieceSet = st.host.keyPiece === V04_KEY_PIECE && st.host.lrigDeck === before.host.lrigDeck - 1;
+      if (!pieceSet) continue;
+      if (JSON.stringify(st.host.energyCards) === JSON.stringify(before.host.energyCards)) {
+        return { pass: false, st, detail: `【applyTo呼び忘れ疑い】ピースはセット済みだがエナが1枚も減らない（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）` };
+      }
+      const selectedOnly = JSON.stringify(st.host.energyCards) === JSON.stringify([V04_REG_ENERGY_KEEP])
+        && st.host.trashCards.includes(V04_REG_ENERGY_PAY) && !st.host.trashCards.includes(V04_REG_ENERGY_KEEP);
+      return { pass: selectedOnly, st,
+        detail: `KeyUseModal実描画=${modalVisible}・keycost=2/title付き0/titleなし2→${picked}→${set}・pieceSet=${pieceSet}・energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)}・index1だけtrash=${selectedOnly}` };
+    }
+    return { pass: false, st: last, detail: `ピース支払い完了を観測できない（keyPiece=${JSON.stringify(last?.host?.keyPiece)} lrigDeck=${last?.host?.lrigDeck} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}）` };
+  },
+};
+// ── /続き472：PLAN §7 V-04 ──
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14312,6 +14624,10 @@ order.push('handDiscardCostFiltersCandidates', 'handDiscardCostUnavailableWhenNo
 // 続き471：V-06①＋V-09残。U/D は各々「下カードの色1枚」「白シグニ1体」だけを変える対照、Oは同一spec再注入。
 order.push('underCostFiltersByColor', 'underCostUnavailableWhenNoRed', 'underCostFromThisOnly',
   'fieldDownCostRequiresThreeUpWhite', 'fieldDownCostPaysThreeAndWhite', 'optionalActivateSkipThenPay');
+// 続き472：V-04。A1/A2はturn_phaseだけ、A4はpaidCountだけの対照。Rはアーツ＋KeyUse代表経路。
+order.push('underEnergyPayOfferedInAttackPhase', 'underEnergyPayNotOfferedInMainPhase',
+  'underEnergyPayDeductsUnderCardOnly', 'underEnergyPayPerTurnLimit',
+  'energyPayArtsDeductsSelectedOnly', 'energyPayKeyUseDeductsSelectedOnly');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

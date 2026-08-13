@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き472・Codex起案→Claude実機検証待ち）— §7 **V-04 エナ支払い元の一本化** Playwrightシナリオ6本
+
+### 実行結果＝**`BLOCKED`**
+
+外部ネットワーク遮断のため `scripts/verifyBattleDrive.mjs` は**1回も実行していない**。
+実行・デバッグ・PASS/FAIL判定は検証側（Claude）が引き取る。engine/parser/live JSON/`src/` は変更していない。
+
+### 起案した6シナリオ
+
+| id | 注入と合格条件 |
+|---|---|
+| `underEnergyPayOfferedInAttackPhase` | `WXDi-P10-041` の stack を `[WD02-010#5003, WD02-010#5004, WXDi-P10-041#5002]`（下2＋末尾が本体）、エナを赤2枚、`ATTACK_ARTS` に注入。`WD15-010`（《赤》1・MAIN/ATTACK両対応）のコストモーダルが実描画され、`artscost-energy-*` 4件＝titleなし2＋`title="羅植姫　タナバタの下"` 2件なら合格。 |
+| `underEnergyPayNotOfferedInMainPhase` | A1 と**盤面を1バイトも変えず** `top.turn_phase` だけ `MAIN`。同じアーツのコストモーダルに titleなしエナ2件が出たうえで、title付き下カード0件（総数2）なら合格。 |
+| `underEnergyPayDeductsUnderCardOnly` | A1 と同じ下2＋エナ2。属性セレクタで最初のtitle付き候補（pool index2）だけ選び `アーツ使用`。下Aだけが stack→trash、本体と下Bは場、エナ2枚は不変なら合格。アーツが使用済みなのにエナもstackも不変なら **`applyTo` 呼び忘れ疑い**を明示してFAILする。 |
+| `underEnergyPayPerTurnLimit` | 下3＋エナ2、paid=0 で総数5/title付き3をまず必須化。同一盤面を再注入し **`turn_off_zone_energy_paid_count` だけ0→2** に変え、総数3＝titleなし2＋title付き1へ減れば合格。候補生成の1点で `perTurnLimit(3)-paid(2)` が効くことを見る。 |
+| `energyPayArtsDeductsSelectedOnly` | タナバタ不在、赤エナ `[keep#5021, pay#5022]`、`WD15-010`。`artscost-energy-1` だけ選び、アーツがルリグデッキを離れ、payだけtrash・keepだけenergyに残れば合格。エナ0枚減なら「ただでアーツ」を明示FAIL。 |
+| `energyPayKeyUseDeductsSelectedOnly` | R1 と同じ盤面・エナ順で、ルリグデッキだけ `WXDi-P11-004`（ピース《無》1）へ替える。`keycost-energy-1` だけ選び `セット`、ピースがkey枠へ移り、payだけtrash・keepだけenergyに残れば合格。 |
+
+### 設計判断
+
+- 下カードは E2 の `ON_ATTACK_PHASE_START` を待たず、既存state表現 `[下カード..., 場の本体]` で直接注入した。候補生成・控除だけを決定論的に観測し、E2の自動配置という別機構を混ぜないため。
+- A1/A2 は CSV `CardData_Sheet4.csv:438` の `WD15-010`（Timing=`メインフェイズアタックフェイズ`）を採用した。これによりアーツ経路のまま `turn_phase` 1項目だけの対照にできる。
+- R2 は提案idのシグニ【起】ではなく **KeyUse（ピース使用）**を採用した。`SigniActivatedModal.tsx:265-314` のエナ候補には既存testidが無く、同名カード2枚からindex1だけを安定選択できない。一方 `KeyUseModal.tsx:76` には `keycost-energy-N` があり、続き436の実機PASS済み入口を最小手順で再利用できる。
+- `WXDi-P11-004` のlive E1は `ACTIVATED/MAIN` で、`executeKeyPiece` は `AUTO/ON_PLAY` しか積まない既知の (cxxiii) 系設計差を含む。ただし本シナリオは**セット時コスト控除とkey枠移動だけ**を判定し、E1本体の発火を合格条件にしない。
+
+### クリック／セレクタのソース根拠（起案時）
+
+- `my-lrig-dk`＝`BoardComponents.tsx:1012`、`zone-card-0`＝同`:963`。
+- `[data-testid^="card-action-"][data-action-label="使用"]`／`キーにセット`＝testid/属性定義 `BoardComponents.tsx:98,210`、ラベル生成 `BattleScreen.tsx:7577`／`:7618`。
+- `artscost-energy-N` と title＝`ArtsModal.tsx:383`、`アーツ使用`＝`:471`。
+- `keycost-energy-N` と title＝`KeyUseModal.tsx:76`、`セット`＝`:102`。
+- title文字列 `羅植姫　タナバタの下`＝`energyPayEntryLabel`（`energyPaySource.ts:206-212`）＋カード名（`CardData_Sheet8.csv:167`）。エナ由来は titleなし（`:210`）。
+- pool順（先頭がenergy、underは末尾）＝`energyPaySource.ts:101-119`。控除／本体保護／paid加算＝`:164-200`。
+
+### スコープ外
+
+- V-04①の残り12経路（グロウ／スペル／キー【起】／アシスト各種／エナ・手札・トラッシュ【起】／ルリグ付与【起】／カットイン／【出】等）。代表のArts＋KeyUseだけを本バッチで固定した。
+- `WXDi-P10-041-E3` との噛み合わせ（V-04④）、相手ターン／カットイン窓、ターン跨ぎリセット。
+- 📋仕様として送る3件＝視覚マーカーがtitleだけ／残り上限より下カードが多いと選べない／CPUは下カードから払わない。
+- §3 (cxxiii)(cxxv)(cxxvi)(cxxvii)(cxxviii) の修正、既存シナリオ・既存order・既存testid・`queryState` の変更。
+
+### 静的検証（ゲート前に先行記録）
+
+driver差分は **312 additions / 0 deletions**。`node --check scripts/verifyBattleDrive.mjs`／`git diff --check` PASS。
+`npm run gates`／独立 `npm run golden`／live JSON effectId差分／既存範囲SHA-256／エンコーディング検査の最終値は、この記録を先に確定した後で追記する。
+
 ## 2026-08-13（続き471・Codex起案→Claude実機検証）— §7 **V-06①／V-09②③④(一部) 完了**＋🔴**実バグ1件を検出**（→PLAN §3 **(cxxviii)**）
 
 ### 実機結果＝**5/6 PASS**。FAIL 1本は**予告どおりの実バグ検出**（engine は1行も触っていない）
