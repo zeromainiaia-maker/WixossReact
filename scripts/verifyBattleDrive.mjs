@@ -10883,6 +10883,9 @@ scenarios.wxex166SpellLockPeriod = {
       'hand': [],
       'blocked_actions': [],
       'actions_done': [],
+      // ⚠`field.check` だけは injectScenario がリセットしない（CORE_FIELD_KEYS に含まれる）＝
+      //   前シナリオの未確認ライフクラッシュが「エナに送る」モーダルとして残り、全クリックを遮る。
+      'field.check': null,
     },
     guestSet: {
       'field.lrig': ['WD01-001#2'],
@@ -10890,6 +10893,7 @@ scenarios.wxex166SpellLockPeriod = {
       'field.signi_down': [false, false, false],
       'hand': [],
       'blocked_actions': [],
+      'field.check': null,
     },
     top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
   },
