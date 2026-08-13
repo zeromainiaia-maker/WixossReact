@@ -4013,8 +4013,7 @@ export function collectLrigNameAliases(
   }
 
   // key_piece の GAIN_ADDITIONAL_LRIG_TYPE: キー効果でルリグがタイプを得る
-  const keyPiece = ownerState.field.key_piece;
-  if (keyPiece) {
+  for (const keyPiece of activeKeyAbilitySources(ownerState)) {
     for (const eff of (effectsMap.get(keyPiece) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       const act = eff.action as import('../types/effects').StubAction;
