@@ -9145,8 +9145,8 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (tdA.shuffle) tdNew = { ...tdNew, deck: shuffle([...tdNew.deck, cardNum]) };
       else if (tdA.position === 'bottom') tdNew = { ...tdNew, deck: [...tdNew.deck, cardNum] };
       else tdNew = { ...tdNew, deck: [cardNum, ...tdNew.deck] };
-      return done(addLog(setOwnerState(tdOwner, tdNew, ctx),
-        `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキ${tdA.position === 'bottom' ? '下' : '上'}へ`));
+      return done(addLog(setOwnerState(tdOwner, tdNew, tdCtx),
+        `${tdCtx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキ${tdA.position === 'bottom' ? '下' : '上'}へ`));
     }
     case 'GRANT_PROTECTION': {
       // 外部SELECT_TARGET経由で選ばれた単一シグニへ効果耐性を付与（execGrantProtection の applyProtection と同じ）。
