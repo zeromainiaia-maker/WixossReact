@@ -9017,9 +9017,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'REMOVE_ABILITIES': {
       // SELECT_TARGET 解決後: 選ばれた1枚の能力を失わせる（abilities_removed に追加）。
+      // ⚠キー（§6.4 O-17）もここを通る＝**キー枠を見ないと持ち主が決まらず `done(ctx)` で無言の空振り**になる。
       let raOwner: Owner | null = null;
-      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.ownerState.field).includes(cardNum)) raOwner = 'self';
-      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.otherState.field).includes(cardNum)) raOwner = 'opponent';
+      if (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.ownerState.field).includes(cardNum)
+        || keySlotCardNums(ctx.ownerState).includes(cardNum)) raOwner = 'self';
+      else if (ctx.otherState.field.signi.some(s => s?.at(-1) === cardNum) || lrigZoneTops(ctx.otherState.field).includes(cardNum)
+        || keySlotCardNums(ctx.otherState).includes(cardNum)) raOwner = 'opponent';
       if (!raOwner) return done(ctx);
       const raS = ownerState(raOwner, ctx);
       const raNew = applyAbilitiesRemoval(action as RemoveAbilitiesAction, raS, [cardNum]);
