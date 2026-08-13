@@ -12057,7 +12057,7 @@ async function runEnergyTrashCostRound(page, H, { expectAffordable }) {
   const before = await H.queryState();
   const expectedCostCandidates = [ENERGY_TRASH_LV1_A, ENERGY_TRASH_LV1_B];
   let phaseStarted = false; let targetCandidatesSeen = false; let targetPicked = false; let targetConfirmed = false;
-  let prompted = false; let branchClicked = false; let costCandidatesSeen = false; let costConfirmed = false;
+  let prompted = false; let branchClicked = false; let costCandidatesSeen = false; let costConfirmed = false; let storedTargetPicked = false;
   const costPicked = new Set(); let last = before;
   for (let s = 0; s < 80; s++) {
     await page.waitForTimeout(250);
