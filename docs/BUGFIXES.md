@@ -1,5 +1,59 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き468・Codex起案）— §7「対戦相手は〈コスト〉てもよい」極性・主語の実機シナリオ6件
+
+`scripts/verifyBattleDrive.mjs` の既存末尾へ、続き425の未検証UIを3組の対照として追加した。
+外部ネットワーク遮断のため Codex 側の実ブラウザ実行は **`BLOCKED`**（1回も実行していない）。
+実行・デバッグ・PASS/FAIL判定は検証側（Claude）が引き取る。
+
+| pair | id | 注入差分と合格条件 |
+|---|---|---|
+| P | `oppPayNegateAttackWhenPaid` | `SPDi43-06` のアタック。guest.energy=2 → CPUが《無》《無》を実支払い（energy -2／trash +2）→無効化ログ＋guest.life不変 |
+| P | `oppPayAttackGoesThroughWhenUnpaid` | 対照は **guest.energyだけ0**。`pay` unavailable → skip → guest.life -1、クラッシュ札がguest.energyへ+1、無効化ログなし |
+| H | `oppHandDiscardIsOpponentSide` | `WXDi-P05-037` のアタック。guest.hand=2 → その2枚がguest.trashへ、host.handは指定2枚とも残存 → 無効化ログ＋life不変 |
+| H | `oppHandDiscardUnavailableWhenShort` | 対照は **guest.handだけ1**。`discard` unavailable → skip → 両手札不変、guest.life -1／energy +1、無効化ログなし |
+| D | `oppPlayDiscardThenOpponentDraws` | `WXDi-P09-064` を手札から召喚。guest.hand=2 → guest.trash +2かつguest.deck -2、guest.hand枚数は復帰。hostは召喚札1枚だけ減り、残り手札・deck・trash不変 |
+| D | `oppPlayDiscardSkippedWhenNoHand` | 対照は **guest.handだけ0**。`discard` unavailable → guest.hand/trash/deck不変。hostは召喚札1枚だけ減る |
+
+全specの host/guest に `'field.check':null`、guest の hand/energy を明示した。CPUの短い応答窓は必須にせず、
+捕捉できた場合だけ `pay`/`discard` の `(disabled)` と `skip` を照合する。主判定は同じ問いログを一度観測した後の
+資源差分・ライフ差分・無効化ログで、`pendingEffect`/stack/check がすべて解消してから return する。
+既存 `queryState` は変更していない。
+
+### ⚠ソース照合で判明した指示との差（実機結果ではなく静的見立て）
+
+- **`negatedAttacks` に残る、は現行実装と不一致**。進行中アタッカーの無効化は
+  `effectExecutor.ts:8822-8827` が `cancel_current_signi_attack` を立て、`BattleScreen.tsx:8118-8129` が
+  battle解決時に消去して「〜のアタックが無効になった」を記録する。よってシナリオは最終配列ではなく
+  **無効化ログ＋life不変**をground truthにした（transient配列はdetailに観測値だけ載せる）。
+- **D1/D2の「host手札不変」は手札から召喚する手順と両立しない**。正しくは host.hand が召喚札1枚だけ減り、
+  sentinel 2枚・host.deck・host.trashが不変。これを判定した。
+- **標準ペアの問いログ**は `effectExecutor.ts:4179` の `対戦相手：コストを支払いますか？`。
+  指示の例 `対戦相手：《無×2》を支払いますか？` は標準ペアには存在しない。
+- live全数は `OPPONENT_PAY_OPTIONAL` **75件**＝`thenOnPay:true` 3件／既定72件。
+  指示の「thenOnPayなし65効果」は現HEADと不一致。
+- 選択肢idの実行は `pay:4114`／`discard:4117`／`energyTrash:4126`／`signiTrash:4137`。
+  指示の `:4113/:4120/:4127/:4136` はコメント・action等の行を指しており、id行とは1〜3行ずれる。
+- 🔴**新たな静的懸念**：3効果の帰結 `NEGATE_ATTACK.target.owner` は live で `'opponent'` だが、
+  `execNegateAttack`（`effectExecutor.ts:5861-5893`）はその owner の `field.signi` を候補化する。
+  本シナリオの直接アタック盤面では guest.field.signi が空なので帰結が候補0で空振りし、P1/H1がFAILする可能性が高い。
+  engine/live JSONは指示どおり一切直さず、シナリオをこの疑いの実機トリップワイヤとして残した。
+
+📋未実施＝人間側が被害者になる `opponentResponds`、`WXDi-P05-037-E2`、`SPDi43-06-E2`、
+`opponentEnergyTrash` / `opponentSigniTrash` / `opponentSigniToDeckTop` / `opponentHandOrEnergyToDeckTop`、
+PLAN §3 (cxxv)/(cxxvi)、engine/parser/live JSON/`src`/testid/queryState変更。
+
+最終不変証明＝driver **275 additions / 0 deletions**。新規2ブロック（scenario定義／order追記）を除去して再構成した
+既存範囲のSHA-256は変更前と同一の
+`6567881A9C8900DC4F14AF15C977007C799B6E17B98092E2AA59D0D1129635B9`。
+`docs/BUGFIXES.md` も本節だけを除去した既存範囲が変更前SHA-256
+`E36F4345E64F90AF8AB090DB93A71A49A685E26E06BB63D3288D2CEA59996F4A` と一致した。
+
+**ゲート**：`npm run gates` 全緑（typecheck PASS／golden **1964 PASS / 0 FAIL**／smoke
+**10688 / SKIP 0**／fuzz 全異常0／census **831**／census-stubs PASS／manual field loss 0／lint
+**0 errors / 259 warnings**）。`npm run golden` 単独も **1964 PASS / 0 FAIL**。live JSON per-effect diff
+**changed 0**。変更2ファイルのエンコーディング比較は BOM 0／U+FFFD 0／`?`3連以上の**新規増0**。
+
 ## 2026-08-13（続き467・Codex起案→Claude実機検証）— §7 強制アタック enforcement＝**6/6 が2回連続PASS**（差し戻し0・是正0）
 
 ### 実機結果

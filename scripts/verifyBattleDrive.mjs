@@ -12765,6 +12765,277 @@ scenarios.forcedAttackFromResonaOnField = {
     st?.guest?.lrigTop === 'WD01-001#2' && st?.guest?.fieldSigni?.[0]?.at(-1) === 'WX12-010#2'),
 };
 
+// ── 続き425：対戦相手の任意支払い（極性・主語） ────────────────────────
+// CPU は CHOOSE の先頭 available を選ぶため、各対照は guest の資源枚数だけを変えて pay/discard と skip を撃ち分ける。
+// ⚠進行中アタックの NEGATE_ATTACK は negated_attacks へ残らず cancel_current_signi_attack を経て解決時に消えるため、
+//   ground truth は「支払い資源の差分＋ライフ不変＋無効化ログ」。負側は同じ発火ログを見てからライフ減少を待つ。
+const OPP_PAY_OPTIONAL_PROMPT = '対戦相手：コストを支払いますか？';
+const ATTACK_NEGATED_LOG_SUFFIXES = ['のアタックが無効になった', 'のアタックは無効化された'];
+
+const makeOpponentPayAttackSpec = ({ attackerNum, hostHand, guestHand, guestEnergy }) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#1'],
+    'field.signi': [[attackerNum], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': hostHand,
+    'energy': [],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#2'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': guestHand,
+    'energy': guestEnergy,
+    'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+const pendingOptionState = (st, choiceId) => {
+  const option = (st?.pendingOptions ?? []).find(o => o.startsWith(`${choiceId}:`));
+  return option ? { option, disabled: option.endsWith('(disabled)') } : null;
+};
+
+const attackNegatedInLog = (st, cardName) => (st?.logTail ?? []).some(line =>
+  ATTACK_NEGATED_LOG_SUFFIXES.some(suffix => line.includes(`${cardName}${suffix}`)));
+
+async function driveOpponentPayAttack(page, H, cfg) {
+  const before = await H.queryState();
+  const beforeAttacker = before?.host?.fieldSigni?.[0]?.at(-1);
+  if (before?.turnPhase !== 'ATTACK_SIGNI' || beforeAttacker !== cfg.attackerNum
+      || before?.host?.fieldCheck !== null || before?.guest?.fieldCheck !== null) {
+    return { pass: false, detail: `注入前提不成立（phase=${before?.turnPhase} attacker=${beforeAttacker} hCheck=${before?.host?.fieldCheck} gCheck=${before?.guest?.fieldCheck}）` };
+  }
+
+  let zoneOpened = false;
+  let attackClicked = false;
+  let sawPrompt = false;
+  let choiceSnapshot = null;
+  let choiceMismatch = null;
+  let sawNegatedState = false;
+  let last = before;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(350);
+    let did = null;
+    if (!zoneOpened) {
+      did = await H.clickTestId('my-signi-zone-0');
+      if (did) zoneOpened = true;
+    } else if (!attackClicked) {
+      const attack = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+      if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
+        await attack.click({ timeout: 2000 });
+        attackClicked = true;
+        did = 'action:アタック';
+      }
+    } else {
+      did = await H.clickBtn('発動順序を確定', { exact: true });
+      if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    }
+
+    const st = await H.queryState();
+    last = st;
+    sawPrompt ||= (st?.logTail ?? []).some(line => line.includes(OPP_PAY_OPTIONAL_PROMPT));
+    sawNegatedState ||= [...(st?.host?.negatedAttacks ?? []), ...(st?.guest?.negatedAttacks ?? [])]
+      .some(n => n === cfg.attackerNum);
+    if (!choiceSnapshot && st?.pendingEffect === 'CHOOSE') {
+      const snap = pendingOptionState(st, cfg.choiceId);
+      if (snap && (st.pendingOptions ?? []).some(o => o.startsWith('skip:'))) {
+        choiceSnapshot = st.pendingOptions;
+        if (snap.disabled !== cfg.expectChoiceDisabled) {
+          choiceMismatch = `${cfg.choiceId} の disabled=${snap.disabled}（期待=${cfg.expectChoiceDisabled}） options=${JSON.stringify(st.pendingOptions)}`;
+        }
+      }
+    }
+
+    const negatedLog = attackNegatedInLog(st, cfg.cardName);
+    const settled = sawPrompt && !st?.pendingEffect && (st?.stackLen ?? 0) === 0
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    const attackResolved = negatedLog || st?.guest?.life !== before?.guest?.life;
+    H.log(`  ${cfg.logTag}[${s}] -> ${did ?? 'なし'} | prompt=${sawPrompt} choice=${JSON.stringify(choiceSnapshot)} hHand=${st?.host?.hand} gHand=${st?.guest?.hand} gEnergy=${st?.guest?.energy} gTrash=${st?.guest?.trash} gLife=${st?.guest?.life}(開始${before?.guest?.life}) negatedLog=${negatedLog} negatedState=${sawNegatedState} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (settled && attackResolved) {
+      const verdict = cfg.evaluate(st, before, { negatedLog, sawNegatedState });
+      if (choiceMismatch) return { pass: false, detail: `【選択肢available不一致】${choiceMismatch}／${verdict.detail}` };
+      return { ...verdict, detail: `${verdict.detail}／prompt=${sawPrompt}／pendingOptions=${JSON.stringify(choiceSnapshot ?? 'CPU_ACTION_DELAY内で未捕捉')}／negatedAttacks transient=${sawNegatedState}` };
+    }
+  }
+  return { pass: false, detail: `完了タイムアウト（zone=${zoneOpened} attack=${attackClicked} prompt=${sawPrompt} choice=${JSON.stringify(choiceSnapshot)} hHand=${last?.host?.hand} gHand=${last?.guest?.hand} gEnergy=${last?.guest?.energy} gTrash=${last?.guest?.trash} gLife=${last?.guest?.life} stack=${last?.stackLen ?? '-'} pEff=${last?.pendingEffect ?? '-'} logTail=${JSON.stringify(last?.logTail ?? [])}）` };
+}
+
+const P_GUEST_ENERGY = ['WD01-013#4251', 'WD01-013#4252'];
+scenarios.oppPayNegateAttackWhenPaid = {
+  title: 'SPDi43-06-E1（CPUが《無》《無》を払ったときだけ、このアタックを無効にする）',
+  spec: makeOpponentPayAttackSpec({ attackerNum: 'SPDi43-06#4250', hostHand: [], guestHand: [], guestEnergy: P_GUEST_ENERGY }),
+  drive: (page, H) => driveOpponentPayAttack(page, H, {
+    attackerNum: 'SPDi43-06#4250', cardName: '大罠　Ｙリコーダーガン', choiceId: 'pay', expectChoiceDisabled: false, logTag: 'opnpay',
+    evaluate: (st, before, observed) => {
+      const paidCardsMoved = P_GUEST_ENERGY.every(n => st.guest.trashCards.includes(n));
+      const pass = st.guest.energy === before.guest.energy - 2 && st.guest.trash === before.guest.trash + 2
+        && paidCardsMoved && st.guest.life === before.guest.life && observed.negatedLog;
+      return { pass, detail: `CPU pay＝guest.energy ${before.guest.energy}→${st.guest.energy}／trash ${before.guest.trash}→${st.guest.trash}（指定2枚移動=${paidCardsMoved}）／life ${before.guest.life}→${st.guest.life}／無効化ログ=${observed.negatedLog}` };
+    },
+  }),
+};
+
+scenarios.oppPayAttackGoesThroughWhenUnpaid = {
+  title: 'SPDi43-06-E1対照（guest.energy=0ならpay不可→skipでアタックが通る）',
+  spec: makeOpponentPayAttackSpec({ attackerNum: 'SPDi43-06#4250', hostHand: [], guestHand: [], guestEnergy: [] }),
+  drive: (page, H) => driveOpponentPayAttack(page, H, {
+    attackerNum: 'SPDi43-06#4250', cardName: '大罠　Ｙリコーダーガン', choiceId: 'pay', expectChoiceDisabled: true, logTag: 'opnskip',
+    evaluate: (st, before, observed) => {
+      // 通ったアタックでクラッシュしたバニラのライフクロスは、CPUの「LBなし」自動応答後にエナへ行く。
+      const pass = st.guest.energy === before.guest.energy + 1 && st.guest.trash === before.guest.trash
+        && st.guest.life === before.guest.life - 1 && !observed.negatedLog;
+      return { pass, detail: `CPU skip＝guest.energy ${before.guest.energy}→${st.guest.energy}（クラッシュ札+1）／trash ${before.guest.trash}→${st.guest.trash}／life ${before.guest.life}→${st.guest.life}／無効化ログ=${observed.negatedLog}` };
+    },
+  }),
+};
+
+const H_HOST_HAND = ['WD01-013#4260', 'WD01-013#4261'];
+const H_GUEST_HAND_TWO = ['WD01-013#4262', 'WD01-013#4263'];
+scenarios.oppHandDiscardIsOpponentSide = {
+  title: 'WXDi-P05-037-E1（CPUが自分の手札2枚を捨て、host手札を傷つけずアタック無効）',
+  spec: makeOpponentPayAttackSpec({ attackerNum: 'WXDi-P05-037#4250', hostHand: H_HOST_HAND, guestHand: H_GUEST_HAND_TWO, guestEnergy: [] }),
+  drive: (page, H) => driveOpponentPayAttack(page, H, {
+    attackerNum: 'WXDi-P05-037#4250', cardName: '大罠　ハーメルン', choiceId: 'discard', expectChoiceDisabled: false, logTag: 'ophdisc',
+    evaluate: (st, before, observed) => {
+      const guestCardsMoved = H_GUEST_HAND_TWO.every(n => st.guest.trashCards.includes(n));
+      const hostCardsStayed = H_HOST_HAND.every(n => st.host.handCards.includes(n));
+      const pass = st.guest.hand === before.guest.hand - 2 && st.guest.trash === before.guest.trash + 2
+        && guestCardsMoved && st.host.hand === before.host.hand && hostCardsStayed
+        && st.guest.life === before.guest.life && observed.negatedLog;
+      return { pass, detail: `guest.hand ${before.guest.hand}→${st.guest.hand}／guest.trash ${before.guest.trash}→${st.guest.trash}（指定2枚移動=${guestCardsMoved}）／host.hand ${before.host.hand}→${st.host.hand}（指定2枚残存=${hostCardsStayed}）／life ${before.guest.life}→${st.guest.life}／無効化ログ=${observed.negatedLog}` };
+    },
+  }),
+};
+
+scenarios.oppHandDiscardUnavailableWhenShort = {
+  title: 'WXDi-P05-037-E1対照（CPU手札1枚ではdiscard不可→skipで両者の手札不変・アタック通過）',
+  spec: makeOpponentPayAttackSpec({ attackerNum: 'WXDi-P05-037#4250', hostHand: H_HOST_HAND, guestHand: [H_GUEST_HAND_TWO[0]], guestEnergy: [] }),
+  drive: (page, H) => driveOpponentPayAttack(page, H, {
+    attackerNum: 'WXDi-P05-037#4250', cardName: '大罠　ハーメルン', choiceId: 'discard', expectChoiceDisabled: true, logTag: 'ophskip',
+    evaluate: (st, before, observed) => {
+      const bothHandsStayed = st.host.hand === before.host.hand && st.guest.hand === before.guest.hand
+        && H_HOST_HAND.every(n => st.host.handCards.includes(n)) && st.guest.handCards.includes(H_GUEST_HAND_TWO[0]);
+      const pass = bothHandsStayed && st.guest.trash === before.guest.trash
+        && st.guest.energy === before.guest.energy + 1
+        && st.guest.life === before.guest.life - 1 && !observed.negatedLog;
+      return { pass, detail: `両手札不変=${bothHandsStayed}（host ${before.host.hand}→${st.host.hand}／guest ${before.guest.hand}→${st.guest.hand}）／guest.trash ${before.guest.trash}→${st.guest.trash}／guest.energy ${before.guest.energy}→${st.guest.energy}（クラッシュ札+1）／life ${before.guest.life}→${st.guest.life}／無効化ログ=${observed.negatedLog}` };
+    },
+  }),
+};
+
+const D_HOST_HAND = ['WXDi-P09-064#4270', 'WD01-013#4271', 'WD01-013#4272'];
+const D_HOST_SENTINELS = D_HOST_HAND.slice(1);
+const D_GUEST_HAND_TWO = ['WD01-013#4273', 'WD01-013#4274'];
+const makeOpponentDiscardOnPlaySpec = guestHand => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': D_HOST_HAND, 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#2'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': guestHand, 'energy': [], 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveOpponentDiscardOnPlay(page, H, cfg) {
+  const before = await H.queryState();
+  if (before?.turnPhase !== 'MAIN' || before?.host?.handCards?.[0] !== D_HOST_HAND[0]
+      || before?.host?.fieldCheck !== null || before?.guest?.fieldCheck !== null) {
+    return { pass: false, detail: `注入前提不成立（phase=${before?.turnPhase} hand0=${before?.host?.handCards?.[0]} hCheck=${before?.host?.fieldCheck} gCheck=${before?.guest?.fieldCheck}）` };
+  }
+  let handOpened = false;
+  let summonClicked = false;
+  let zoneClicked = false;
+  let sawPrompt = false;
+  let choiceSnapshot = null;
+  let choiceMismatch = null;
+  let last = before;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(350);
+    let did = null;
+    if (!handOpened) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) handOpened = true;
+    } else if (!summonClicked) {
+      const summon = page.locator('[data-testid^="card-action-"][data-action-label="召喚"]').first();
+      if (await summon.count() && await summon.isVisible().catch(() => false) && await summon.isEnabled().catch(() => false)) {
+        await summon.click({ timeout: 2000 });
+        summonClicked = true;
+        did = 'action:召喚';
+      }
+    } else if (!zoneClicked) {
+      did = await H.clickTestId('summon-zone-0');
+      if (did) zoneClicked = true;
+    } else {
+      did = await H.clickBtn('発動順序を確定', { exact: true });
+    }
+
+    const st = await H.queryState();
+    last = st;
+    sawPrompt ||= (st?.logTail ?? []).some(line => line.includes(OPP_PAY_OPTIONAL_PROMPT));
+    if (!choiceSnapshot && st?.pendingEffect === 'CHOOSE') {
+      const snap = pendingOptionState(st, 'discard');
+      if (snap && (st.pendingOptions ?? []).some(o => o.startsWith('skip:'))) {
+        choiceSnapshot = st.pendingOptions;
+        if (snap.disabled !== cfg.expectChoiceDisabled) {
+          choiceMismatch = `discard の disabled=${snap.disabled}（期待=${cfg.expectChoiceDisabled}） options=${JSON.stringify(st.pendingOptions)}`;
+        }
+      }
+    }
+    const placed = st?.host?.fieldSigni?.[0]?.at(-1) === D_HOST_HAND[0];
+    const settled = sawPrompt && placed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    H.log(`  ${cfg.logTag}[${s}] -> ${did ?? 'なし'} | opened=${handOpened}/${summonClicked}/${zoneClicked} placed=${placed} prompt=${sawPrompt} choice=${JSON.stringify(choiceSnapshot)} hHand=${st?.host?.hand} hDeck=${st?.host?.deck} gHand=${st?.guest?.hand} gDeck=${st?.guest?.deck} gTrash=${st?.guest?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+    if (settled) {
+      const verdict = cfg.evaluate(st, before);
+      if (choiceMismatch) return { pass: false, detail: `【選択肢available不一致】${choiceMismatch}／${verdict.detail}` };
+      return { ...verdict, detail: `${verdict.detail}／prompt=${sawPrompt}／pendingOptions=${JSON.stringify(choiceSnapshot ?? 'CPU_ACTION_DELAY内で未捕捉')}` };
+    }
+  }
+  return { pass: false, detail: `【出】完了タイムアウト（opened=${handOpened}/${summonClicked}/${zoneClicked} prompt=${sawPrompt} choice=${JSON.stringify(choiceSnapshot)} hHand=${last?.host?.hand} hDeck=${last?.host?.deck} gHand=${last?.guest?.hand} gDeck=${last?.guest?.deck} gTrash=${last?.guest?.trash} stack=${last?.stackLen ?? '-'} pEff=${last?.pendingEffect ?? '-'} logTail=${JSON.stringify(last?.logTail ?? [])}）` };
+}
+
+scenarios.oppPlayDiscardThenOpponentDraws = {
+  title: 'WXDi-P09-064-E1【出】（CPUが手札2枚を捨て、そのCPUが2枚引く）',
+  spec: makeOpponentDiscardOnPlaySpec(D_GUEST_HAND_TWO),
+  drive: (page, H) => driveOpponentDiscardOnPlay(page, H, {
+    expectChoiceDisabled: false, logTag: 'opddraw',
+    evaluate: (st, before) => {
+      const guestCardsMoved = D_GUEST_HAND_TWO.every(n => st.guest.trashCards.includes(n));
+      const hostSentinelsStayed = D_HOST_SENTINELS.every(n => st.host.handCards.includes(n));
+      const hostOnlySummoned = st.host.hand === before.host.hand - 1 && hostSentinelsStayed
+        && st.host.trash === before.host.trash && st.host.deck === before.host.deck;
+      const pass = guestCardsMoved && st.guest.trash === before.guest.trash + 2
+        && st.guest.deck === before.guest.deck - 2 && st.guest.hand === before.guest.hand
+        && hostOnlySummoned;
+      return { pass, detail: `guest.trash ${before.guest.trash}→${st.guest.trash}（指定2枚移動=${guestCardsMoved}）／guest.deck ${before.guest.deck}→${st.guest.deck}／guest.hand ${before.guest.hand}→${st.guest.hand}／hostは召喚札だけ減少=${hostOnlySummoned}（hand ${before.host.hand}→${st.host.hand}, deck ${before.host.deck}→${st.host.deck}）` };
+    },
+  }),
+};
+
+scenarios.oppPlayDiscardSkippedWhenNoHand = {
+  title: 'WXDi-P09-064-E1【出】対照（CPU手札0ならdiscard不可→捨てもドローも起きない）',
+  spec: makeOpponentDiscardOnPlaySpec([]),
+  drive: (page, H) => driveOpponentDiscardOnPlay(page, H, {
+    expectChoiceDisabled: true, logTag: 'opdskip',
+    evaluate: (st, before) => {
+      const hostSentinelsStayed = D_HOST_SENTINELS.every(n => st.host.handCards.includes(n));
+      const hostOnlySummoned = st.host.hand === before.host.hand - 1 && hostSentinelsStayed
+        && st.host.trash === before.host.trash && st.host.deck === before.host.deck;
+      const guestUnchanged = st.guest.hand === before.guest.hand && st.guest.trash === before.guest.trash
+        && st.guest.deck === before.guest.deck;
+      return { pass: guestUnchanged && hostOnlySummoned, detail: `CPU資源不変=${guestUnchanged}（hand ${before.guest.hand}→${st.guest.hand}／trash ${before.guest.trash}→${st.guest.trash}／deck ${before.guest.deck}→${st.guest.deck}）／hostは召喚札だけ減少=${hostOnlySummoned}（hand ${before.host.hand}→${st.host.hand}, deck ${before.host.deck}→${st.host.deck}）` };
+    },
+  }),
+};
+
+// ── /続き425 新規シナリオ境界 ─────────────────────────────────────────
+
 // ── /続き424 新規シナリオ境界 ─────────────────────────────────────────
 
 // ── /続き430 新規シナリオ境界 ─────────────────────────────────────────
@@ -12873,6 +13144,10 @@ order.push('leaveSubCpuAutoRespondsSubstitute', 'leaveSubAskDirectedToVictim',
 order.push('forcedAttackBlocksPhaseAdvance', 'forcedAttackControlAdvances',
   'forcedAttackAdvancesAfterAllAttacked', 'forcedAttackBannerOnMyTurn',
   'forcedAttackNoSoftlockWhenUnattackable', 'forcedAttackFromResonaOnField');
+// 続き425：OPPONENT_PAY_OPTIONAL の thenOnPay 極性と opponent 主語。各 pair は guest 資源枚数だけを変える。
+order.push('oppPayNegateAttackWhenPaid', 'oppPayAttackGoesThroughWhenUnpaid',
+  'oppHandDiscardIsOpponentSide', 'oppHandDiscardUnavailableWhenShort',
+  'oppPlayDiscardThenOpponentDraws', 'oppPlayDiscardSkippedWhenNoHand');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
