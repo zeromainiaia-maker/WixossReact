@@ -1301,6 +1301,22 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
       if (!a.appliesThisTurn) return done(ctx);
     }
   }
+  // §6.4 O-16:「このターン、（指定された）シグニゾーンにあるシグニのパワーを±N」＝**現ターンのゾーン継続**。
+  // per-card の temp_power_mods へ落とすと**後からそのゾーンへ出たシグニに効かない**（原文の
+  // 「このアーツの使用後にそこに置かれたシグニにも影響を与える」が死ぬ）ので、場レベル grant で表す。
+  // ⚠適用条件を `zoneSource:'designated'` に限定する＝ゾーン限定でない count:'ALL' のパワー修正は
+  //   従来どおり per-card（挙動不変）。ゾーンが未指定なら applied:false で下の通常経路へ落ちる。
+  if (a.target.zoneSource === 'designated' && a.target.count === 'ALL') {
+    const active = applyActiveFieldGrant(a.target, {
+      kind: 'power', delta, filter: a.target.filter, condition: a.fieldCondition,
+      srcType, srcCardNum: ctx.sourceCardNum,
+    }, ctx);
+    if (active.applied) {
+      return done(addLog(active.ctx,
+        `このターン、指定シグニゾーンのシグニのパワー${delta > 0 ? '+' : ''}${delta}`));
+    }
+    return done(addLog(ctx, '指定されたシグニゾーンがない'));
+  }
   // owner:'any'（「対象のシグニ」）= 自分・対戦相手どちらのシグニも選べる
   const isAny = a.target.owner === 'any';
   const tgtOwner = isAny ? 'self' : a.target.owner as Owner;
