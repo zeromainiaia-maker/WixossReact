@@ -4079,6 +4079,25 @@ test('§6.4 T3: WXK07-031-E1 の【常】移動保護が実装済みSTUBのま�
 type RevealAndPickGolden = Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
 type LookPickChainGolden = Extract<EffectAction, { type: 'LOOK_PICK_CHAIN' }>;
 
+/** 木の中から指定 id の STUB を1つ探す（§6.4 O-16 の「保存先と読み手の一致」検査用）。 */
+function findStubById(node: unknown, id: string): Record<string, unknown> | null {
+  if (!node || typeof node !== 'object') return null;
+  const obj = node as Record<string, unknown>;
+  if (obj.type === 'STUB' && obj.id === id) return obj;
+  for (const value of Object.values(obj)) {
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        const found = findStubById(child, id);
+        if (found) return found;
+      }
+    } else {
+      const found = findStubById(value, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
 function findActionByType<K extends EffectAction['type']>(node: unknown, type: K): Extract<EffectAction, { type: K }> | null {
   if (!node || typeof node !== 'object') return null;
   const obj = node as Record<string, unknown>;

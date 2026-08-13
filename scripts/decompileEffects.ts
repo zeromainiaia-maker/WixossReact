@@ -2189,8 +2189,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // シグニゾーン指定（DESIGNATE_SIGNI_ZONE・engine実装済み）＝「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」。
       // 「シグニのない」「対戦相手の」前置はカードごとに異なるため currentCardText から抽出。
       if (a.id === 'DESIGNATE_SIGNI_ZONE') {
+        // §6.4 O-16: **どちらのゾーンを指定したか**は JSON の `owner` が持つ（＝`designated_zone` の保存先）。
+        // 原文抜粋だけを返すと `owner:'self'` と既定（相手）が同じ文になり、逆翻訳が両者を区別できない。
+        const ownerJaDSZ = a.owner === 'self' ? 'あなたの' : '対戦相手の';
         const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン[０-９\d]*つを指定する/);
-        if (m) return m[0];
+        if (m) return /(?:あなた|対戦相手)の/.test(m[0]) ? m[0] : `${ownerJaDSZ}${m[0]}`;
       }
       // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
       if (a.id === 'RETURN_SUMMONED_RESONA_AT_TURN_END') return 'ターン終了時、この方法で場に出したレゾナをルリグデッキに戻す';
