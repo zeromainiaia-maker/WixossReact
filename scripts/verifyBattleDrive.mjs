@@ -12269,6 +12269,7 @@ const V10_SWT_NONSPELL = 'WD01-013#5206';
 const V10_LIFE_CRASH = 'WX14-026#5207';
 const V10_CCM_SUB_LOG = '身代わり：コードハート　†Ｃ・Ｃ・Ｍ†の代わりにコードアート　Ｓ・Ｃをバニッシュ';
 const V10_SWT_SUB_LOG = '身代わり：手札からスペル1枚を捨ててコードハート　Ｓ・Ｗ・Ｔのバニッシュを回避';
+const V10_CCM_NAME = 'コードハート　†Ｃ・Ｃ・Ｍ†';
 const V10_CCM_NORMAL_LOG = 'コードハート　†Ｃ・Ｃ・Ｍ†をバニッシュ';
 const V10_SWT_NORMAL_LOG = 'コードハート　Ｓ・Ｗ・Ｔをバニッシュ';
 const V10_LIFE_NORMAL_LOG = '羅石　スイカリンをバニッシュ';
