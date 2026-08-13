@@ -12251,7 +12251,7 @@ function makeLeaveSubSingleSpec({ decision, withSacrifice = true } = {}) {
 
 async function driveLeaveSubSingleBanish(page, H, id, evaluate) {
   await H.ensureMain();
-  const flow = { handOpened: false, summonChosen: false, zoneChosen: false, energyChosen: false, fired: false };
+  const flow = { handOpened: false, summonChosen: false, zoneChosen: false, energyChosen: false, fired: false, victimTargeted: false };
   // ⚠`leaveSubSettled`（pendingEffect==null && stackLen===0）は**効果の開始前と完了後の両方で true** になる。
   //   「発動」クリック直後は DB への書き込みがまだ届いておらず、そのまま判定すると
   //   「1回も解決していない盤面」を「解決後の盤面」として読む（続き466 の実測＝lsdni[4] で stack=0 のまま確定し
