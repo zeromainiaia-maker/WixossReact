@@ -11229,6 +11229,14 @@ async function runHandDiscardArtsRound(page, H, choiceLabel) {
       did = await H.clickTestId('my-lrig-dk'); if (did) deckOpened = true;
     } else if (!artsOpened) {
       did = await H.clickTestId('zone-card-0'); if (did) artsOpened = true;
+    } else if (!useClicked) {
+      // ⚠`zone-card-0` はカード詳細を開くだけ＝**「使用」アクションを押さないとコストモーダルが出ない**
+      //   （続き470 実測＝これが無いと `artscost-energy-*` が0件のままタイムアウトする。先例は続き465 の
+      //    `driveLifeCrashReplacementArts`）。
+      const use = page.locator('[data-testid^="card-action-"][data-action-label="使用"]').first();
+      if (await use.count() && await use.isVisible().catch(() => false)) {
+        await use.click({ timeout: 2000 }); did = 'act:使用'; useClicked = true;
+      }
     } else if (!artsUsed && energyPicked.size < 3) {
       const next = [0, 1, 2].find(i => !energyPicked.has(i));
       if (next !== undefined) { did = await H.clickTestId(`artscost-energy-${next}`); if (did) energyPicked.add(next); }
