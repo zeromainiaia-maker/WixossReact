@@ -41,10 +41,21 @@
 - 📋仕様として送る3件＝視覚マーカーがtitleだけ／残り上限より下カードが多いと選べない／CPUは下カードから払わない。
 - §3 (cxxiii)(cxxv)(cxxvi)(cxxvii)(cxxviii) の修正、既存シナリオ・既存order・既存testid・`queryState` の変更。
 
-### 静的検証（ゲート前に先行記録）
+### 静的検証・ゲート
 
-driver差分は **312 additions / 0 deletions**。`node --check scripts/verifyBattleDrive.mjs`／`git diff --check` PASS。
-`npm run gates`／独立 `npm run golden`／live JSON effectId差分／既存範囲SHA-256／エンコーディング検査の最終値は、この記録を先に確定した後で追記する。
+- 基準HEAD `50d2b1a334a98effa0076d887215692a6954cc78` からの driver 差分は **316 additions / 0 deletions**（シナリオブロック312行＋末尾order 4行）。`node --check scripts/verifyBattleDrive.mjs`／`git diff --check` PASS。
+- `npm run gates` 全緑：golden **1964 PASS / 0 FAIL**、smoke **10688 / CRASH 0 / HANG 0 / INVARIANT 0 / SKIP 0**、fuzz **200 games / 8000 actions / defects 0**、census **831**、manual field loss **0**、lint **0 errors / 259 warnings**。独立 `npm run golden` も **1964/0**、独立 `npm run typecheck` と `npm run lint` も exit 0（lint **0/259**）。
+- live JSON の effectId 単位差分は5ファイルで **added 0 / removed 0 / changed 0**。
+- 新規ブロック312行＋末尾order 4行を除いた既存 driver は基準HEADと完全一致。LF正規化 SHA-256 は双方 **`4a6be7fb365419149b678ee1350158ca2168a87efb20eb59f08c7e97d68fc916`**。
+- 変更2ファイルの UTF-8 検査は U+FFFD／3連続以上の `?`／先頭BOMの**新規増0**。
+- 実機 `scripts/verifyBattleDrive.mjs` は指示どおり未実行、結果は **`BLOCKED`**。
+
+### 指示との不一致・環境差
+
+- 起点HEADは指示どおり `50d2b1a33`・clean だったが、作業中に環境の自動保存が `cce6adaff`（`auto: docs/BUGFIXES.md, scripts/verifyBattleDrive.mjs`）を生成した。Codexから `git commit`／push は実行していない。現在のworktreeはclean。
+- 起案前の `injectScenario` のデッキ40／ライフ7再構築は指示どおり `:11886-11887`。本シナリオ312行の追記後は `:12198-12199` へ移動した。
+- R2の提案名はシグニ【起】だったが、実コードには安定選択用testidが無いため KeyUse 経路・`energyPayKeyUseDeductsSelectedOnly` に変更した（上記「設計判断」）。
+- 支払いサイト数の記述は funnel コメントが「17 modal sites」、PLAN §7 が「14コストモーダル」。静的参照数もラベル利用モーダル14ファイル／`planEnergyPayment` 呼出し13箇所で、文書上の数え方は一致していない。本バッチは代表2経路のみを対象とし、数の解釈で挙動判定していない。
 
 ## 2026-08-13（続き471・Codex起案→Claude実機検証）— §7 **V-06①／V-09②③④(一部) 完了**＋🔴**実バグ1件を検出**（→PLAN §3 **(cxxviii)**）
 
