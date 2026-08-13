@@ -1102,7 +1102,12 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'REMOVE_ABILITIES': {
       // action内 until が curated JSON で落ちている場合、原文の「能力を失い/失う」文から期間注記を復元（§5b・タスクA）
-      const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
+      // §6.4 O-3: `NEXT_TURN` / `UNTIL_OPP_TURN_END` を描かないと **PERMANENT と同じ文**になり、
+      //   期間が違う3つの JSON を逆翻訳が区別できない（＝engine を直しても計器に映らない偽陰性）。
+      const durRA = a.until === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
+        : a.until === 'NEXT_TURN' ? '（次のターンの間）'
+        : a.until === 'UNTIL_OPP_TURN_END' ? '（次の対戦相手のターン終了時まで）'
+        : restoreLeadDuration(/能力を(?:失い|失う|得られない)/);
       if (a.keywords?.length) {
         return `${targetJa(a.target)}は${a.keywords.map((keyword: string) => `【${keyword}】`).join('')}を失い、新たに得られない${durRA}`;
       }

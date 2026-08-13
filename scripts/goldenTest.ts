@@ -4293,7 +4293,7 @@ test('§6.4 O-3 live: 「次のあなたのターン」の能力喪失が NEXT_T
     ['WX05-019', 'WX05-019-BURST'],
     ['WX18-029', 'WX18-029-BURST'],
   ] as const) {
-    const ra = findActionByType(nextTurnLiveAction(cardNum, effectId), 'REMOVE_ABILITIES')!;
+    const ra = findActionByType(manualEffect(cardNum, effectId).action, 'REMOVE_ABILITIES')!;
     eq((ra as unknown as { until: string }).until, 'NEXT_TURN', `${effectId}: 次のターンだけ`);
   }
   // ⚠据置3件＝**期間だけ直すと誤った対象の効果が長持ちする**ので触らない（PLAN §6.4 O-3 に登録）。
@@ -4305,7 +4305,7 @@ test('§6.4 O-3 live: 「次のあなたのターン」の能力喪失が NEXT_T
     ['WXEX2-04', 'WXEX2-04-E3'],
     ['WX25-P3-014', 'WX25-P3-014-E2'],
   ] as const) {
-    const ra = findActionByType(nextTurnLiveAction(cardNum, effectId), 'REMOVE_ABILITIES')!;
+    const ra = findActionByType(manualEffect(cardNum, effectId).action, 'REMOVE_ABILITIES')!;
     eq((ra as unknown as { until: string }).until, 'PERMANENT', `${effectId}: 別軸が壊れているので期間も据置`);
   }
 });
