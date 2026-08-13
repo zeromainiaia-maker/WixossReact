@@ -421,7 +421,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- 能力消去 ----
   if (t.match(/能力を失[うい]/) || t.match(/能力を新たに得られない/)) {
-    const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+    // §6.4 O-3: 期間語を3値へ分ける。engine 側は `applyAbilitiesRemoval` がこの `until` を読む
+    // （長らく読まれない死フィールドで、全部「このターン終了時まで」に丸まっていた）。
+    // ⚠「次の…ターン**終了時まで**」はここでは拾わない＝後段の `applyUntilOppTurnEnd` が
+    //   `UNTIL_OPP_TURN_END`（現ターン＋次ターン）へ上げる担当。
+    // ⚠「このターンと次のターンの間」も除外＝**現ターンにも効く**ので `NEXT_TURN`（次ターンのみ）では表せない。
+    //   該当2枚（`WXEX2-04-E3`／`WX25-P3-014-E2`）は対象軸（指定ゾーン）も別途壊れているため据置。
+    const nextTurnOnly = /次の(?:あなたの|対戦相手の)?ターン(?:の間)?[、。]/.test(t)
+      && !/このターンと次のターン/.test(t);
+    const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
+      : nextTurnOnly ? 'NEXT_TURN'
+      : 'PERMANENT';
     // 「ルリグとシグニを合計N体まで対象とし、…それらは能力を失う」＝両種別を跨ぐ単一の候補プール。
     // SIGNI の「N体まで」規則へ落とすと、ルリグが消えたうえ count:1 になる（WX24-P2-032）。
     const lrigSigniRemoveM = t.match(/対戦相手のルリグとシグニを合計([０-９\d]+)体(まで)?対象とし/);
