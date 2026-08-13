@@ -454,7 +454,26 @@ export function collectEffectBanishSubstituteChoices(
   )].sort((a, b) => rank(a) - rank(b));
 }
 
-/** F-3 身代わり候補が engine の自動 policy で選べるか。`lifeCrash` だけ対話専用（上のコメント参照）。 */
+/**
+ * その身代わり候補のコストを **engine が実際に徴収できる**か（§3 (cxxix) の再発防止）。
+ *
+ * 🔴**ここに無い costType は列挙段階で落とす**＝`applyEffectBanishSubstituteChoice` の末尾は
+ * `trashStackSpell` 専用で、**在庫が0でも「0枚トラッシュ」で成立する**ため、未実装のものが
+ * そこへ落ちると**コスト0でバニッシュを回避できる**（(cxxix) の実体がこれだった）。
+ * **新しい costType を足すときは apply 側の分岐とこの集合を必ず対で更新する。**
+ */
+function isImplementedSubstituteCost(o: BanishSubstituteOption): boolean {
+  return o.kind !== 'pay_cost'
+    || o.costType === 'discardSpell' || o.costType === 'trashStackSpell' || o.costType === 'lifeCrash';
+}
+
+/**
+ * F-3 身代わり候補が engine の**自動 policy** で選べるか。`lifeCrash` だけ対話専用。
+ *
+ * ⚠**「実装が無い」からではない**（続き475b で apply 側を実装済み）＝**原文が「してもよい」**なので、
+ * **プレイヤーの同意なしにライフクロスを割ってはいけない**という理由で自動選択から外している。
+ * 対話（`leaveSubstituteAskOptions`）には従来どおり出る。
+ */
 export function banishSubstituteAutoEligible(o: BanishSubstituteOption): boolean {
   return !(o.kind === 'pay_cost' && o.costType === 'lifeCrash');
 }
