@@ -432,6 +432,24 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN'
       : nextTurnOnly ? 'NEXT_TURN'
       : 'PERMANENT';
+    // §6.4 O-16:「（そこ|それらのシグニゾーン|指定されたシグニゾーン）にあるシグニは能力を失う」＝**ゾーン継続**。
+    // ⚠per-card では「後からそのゾーンへ出たシグニ」に効かない＝「新たに得られない」が表せない。
+    //   `zoneSource:'designated'` + `count:'ALL'` を engine が `FieldGrant{kind:'abilityLoss'}` として受ける。
+    // ⚠「このターンと次のターンの間」は現ターン＋次ターン＝`UNTIL_OPP_TURN_END` と同じ2スロット寿命になる。
+    {
+      const zoneLossM = t.match(/(?:そこ|それらのシグニゾーン|指定されたシグニゾーン|そのシグニゾーン)にあるシグニは[^。]*能力を(?:失[うい]|新たに得られない)/);
+      if (zoneLossM) {
+        const spanBoth = /このターンと次のターン/.test(t);
+        return {
+          type: 'REMOVE_ABILITIES',
+          target: {
+            type: 'SIGNI', owner: 'opponent', count: 'ALL',
+            filter: { cardType: 'シグニ' }, zoneSource: 'designated',
+          },
+          until: spanBoth ? 'UNTIL_OPP_TURN_END' : dur,
+        } as RemoveAbilitiesAction;
+      }
+    }
     // 「ルリグとシグニを合計N体まで対象とし、…それらは能力を失う」＝両種別を跨ぐ単一の候補プール。
     // SIGNI の「N体まで」規則へ落とすと、ルリグが消えたうえ count:1 になる（WX24-P2-032）。
     const lrigSigniRemoveM = t.match(/対戦相手のルリグとシグニを合計([０-９\d]+)体(まで)?対象とし/);
