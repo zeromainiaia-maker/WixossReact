@@ -12,8 +12,37 @@
 各 `hostSet` / `guestSet` は `field.check:null` を明示し、クラッシュ確認は人間側を「エナに送る」で、CPU側を
 既存自動応答で最後まで消化してから合格する。`queryState.sideOf` への追加は許可された
 `lifeCrashReplacements` / `damageReplaceMill` の2項目だけ。engine・parser・live JSON・既存シナリオ・既存order・
-既存testidは変更していない。実ブラウザは外部ネットワーク遮断のため **BLOCKED（未実行）**；検証側が実行と
-PASS/FAIL判定を引き取る。
+既存testidは変更していない。Codex 側の実ブラウザ実行は外部ネットワーク遮断のため BLOCKED（＝起案のみ・想定内）で、
+**実行と PASS/FAIL 判定は検証側（Claude）が引き取った。**
+
+### 実機結果＝**7/7 が2回連続PASS**（差し戻し0・是正0）
+
+| id | 実測 |
+|---|---|
+| `lifeCrashReplDeclareNoSelfMill` | `WX24-P4-009` 使用後 deck **40→42**（自傷mill 10 なし。支払い2枚は step1 の `TRANSFER_TO_DECK{TRASH_CARD,ALL}` でデッキへ戻る）／宣言 `{mill,10,signi,optional}`・**`once` 無し**（原文「このターン」＝そのターン中は何度でも） |
+| `lifeCrashReplDeclareNoOppCrash` | `WX25-P3-004` 使用後 `guest.life` **7→7**（タダ割りなし）／宣言 `{crash_opponent,1,signi,once:true}`（原文「**次に**」） |
+| `lifeCrashReplGrantFromAssist` | `WXDi-CP01-023` をアシストグロウ後 deck **40→40**（付与時の即時mill なし＝旧・恒久 no-op でもない）／宣言 `{mill,5,signi,byAttack:true,optional}`・`once` 無し |
+| `lifeCrashReplMillOnSigniAttack` | CPUシグニアタックで `host.life` **7維持**・deck **40→30**・trash **0→10** |
+| `lifeCrashReplCrashOpponentInstead` | CPUシグニアタックで `host.life` **7維持**・**`guest.life` 7→6**（攻撃側のバースト確認は CPU が自動消化＝`guest.energy` 0→1） |
+| `lifeCrashReplNotOnLrigAttack` | `damageSource:'signi'` 限定＝CPU**ルリグ**アタックは置換されず `host.life` **7→6**・deck 40維持 |
+| `lifeCrashReplLrigAttackControl` | **対照**＝盤面・手順を1文字も変えず `damageSource` を `'lrig'` にするだけで**同じ攻撃が置換され** `host.life` 7維持・deck **40→35**・trash **0→5** |
+
+⭐**負方向テストの対照（CODEX_GUIDE §5-21）が効いた実例**＝`lifeCrashReplNotOnLrigAttack` は単独では
+「ルリグアタックのダメージ処理そのものが動いていない」場合も緑になる。**`damageSource` の1語だけを変えた対照**が
+反対向きに振れて初めて「置換されなかったのは限定由来」と確定する。
+
+⚠**`once` の有無・`byAttack` の有無が3枚で正しく描き分けられていること**を宣言の実値で確認した
+（原文「このターン」vs「次に」／「シグニの**アタック**によって」vs「シグニによって」）。
+
+ゲートは全て据置＝golden **1964**・census **831**・smoke 10688/SKIP 0・fuzz 全0・lint 0 errors/259 warnings・
+live JSON per-effect diff **changed 0**（engine/parser/JSON 不変＝driver のみ）。
+
+### 📋 このバッチで**やらなかったこと**（PLAN §7 に残す）
+
+- 「〜してもよい」の**辞退**（`optional:true` は現状**自動適用**の近似＝`lifeCrashReplace.ts:24-25`）。対話化は離場置換 §6.4 M2 と同じ枠組みで別バッチ。
+- **効果によるライフクラッシュ**（`damageSource` 無し）で `byAttack` が不成立になる側＝盤面構築コストが高く見送り。
+- `crash_opponent` × **ルリグアタック**＝`BattleScreen.tsx:10799` は `kind==='mill'` しか見ない**既知の未対応**（今回は触っていない）。
+- `WX25-P1-010` の実UI宣言＝`REPLACE_NEXT_DAMAGE_WITH_MILL` 経路。限定の消費側は B3/B4 で同じ funnel を通るため対照化済み。
 
 ## 2026-08-13 — runtime カード全文 regex 棚卸し：`GAIN_EXTRA_TURN` の主体反転を修正
 
