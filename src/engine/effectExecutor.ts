@@ -492,6 +492,41 @@ export function applyEffectBanishSubstituteChoice(
       `身代わり：手札からスペル${picked.length}枚を捨てて${nameOf(victimNum)}のバニッシュを回避`);
   }
 
+  if (chosen.costType === 'lifeCrash') {
+    // 🔴§3 (cxxix)＝**ここに分岐が無く末尾の trashStackSpell へ落ちていた**＝スペルが無いので
+    //   「0枚トラッシュ」で成立し、**ライフを払わずにバニッシュを回避**していた（実機で検出）。
+    //   engine 側でも `execLifeCrash` と同じ形で刻む＝**ライフクロスは裏向きで選べない**ので
+    //   一番上（配列末尾）から amount 枚、先頭1枚は `field.check` へ＝**【ライフバースト】確認フローへ
+    //   通常どおり乗る**（バトル経路の `crashOneLife` と同じ扱い）。
+    //   ⚠**ダメージではなく置換コスト**なので、ダメージ無効・ライフクラッシュ置換は通さない
+    //   （バトル経路が `crashOneLife` を通しているのとは別の判断＝ここは engine の同期経路）。
+    const life = [...state.life_cloth];
+    const crashed: string[] = [];
+    for (let i = 0; i < chosen.amount && life.length > 0; i++) crashed.push(life.pop()!);
+    const checkCard = crashed[0] ?? null;
+    const pending = crashed.slice(1);
+    return addLog(setOwnerState(victimOwner, {
+      ...state,
+      life_cloth: life,
+      life_crashed_this_turn: (state.life_crashed_this_turn ?? 0) + crashed.length,
+      field: { ...state.field, check: checkCard },
+      pending_crashed_cards: pending.length > 0
+        ? [...(state.pending_crashed_cards ?? []), ...pending] : state.pending_crashed_cards,
+      crash_source_card_num: checkCard ? victimNum : state.crash_source_card_num,
+      pending_crash_source_card_nums: pending.length > 0
+        ? [...(state.pending_crash_source_card_nums ?? []), ...pending.map(() => victimNum)]
+        : state.pending_crash_source_card_nums,
+    }, ctx),
+      `身代わり：ライフクロス${crashed.length}枚をクラッシュして${nameOf(victimNum)}のバニッシュを回避`);
+  }
+
+  // ⚠**未知の costType をここから下へ落とさない**（§3 (cxxix) の再発防止）＝下は trashStackSpell 専用で、
+  //   在庫が0でも「0枚トラッシュ」で**成立してしまう**＝コスト0の身代わりになる。
+  if (chosen.costType !== 'trashStackSpell') {
+    return addLog(ctx,
+      `⚠身代わりの未実装コスト（${chosen.costType}）＝置換せず本来の移動を行う：${nameOf(victimNum)}`);
+  }
+
   // trashStackSpell: 宣言者（sourceNum）の下からスペルを amount 枚トラッシュへ。トップと残りは維持。
   const srcZone = state.field.signi.findIndex(stack => stack?.at(-1) === chosen.sourceNum);
   const stack = srcZone >= 0 ? (state.field.signi[srcZone] ?? []) : [];
