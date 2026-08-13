@@ -1239,10 +1239,9 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
       // ⚠2026-08-06（タスク12(xcvii)）まで、ここだけ `…LrigAbility` を呼び落としていた＝
       //   「代わりにこの能力を失う」がエナ送りにだけ効かなかった。共通入口へ寄せて解消。
       const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur);
-      if (sub.replaced) {
-        cur = sub.ctx;
-        continue;
-      }
+      cur = sub.ctx;              // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+      if (sub.replaced) continue;
+      if (!isOnFieldTop(num, tgt.owner, cur)) continue;  // (cxxvi)
       const s = ownerState(tgt.owner, cur);
       const removed = removeFromField(num, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, num] };
