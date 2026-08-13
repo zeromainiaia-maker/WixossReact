@@ -12388,10 +12388,14 @@ async function runV10EffectBanishRound(page, H, id, victimInstance, evaluate) {
       && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
       && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
     if (settled) {
+      settledCount++;
       const verdict = evaluate(st, before, targetCandidateSnapshot);
-      if (verdict) return verdict;
+      if (verdict?.pass) return verdict;
+      if (verdict) lastVerdict = verdict;
+      if (settledCount >= V10_SETTLE_GRACE && lastVerdict) return lastVerdict;
     }
   }
+  if (lastVerdict) return lastVerdict;
   return { pass: false, st: last,
     detail: `${id}完走タイムアウト（flow=${JSON.stringify(flow)} started=${started} cands=${JSON.stringify(targetCandidateSnapshot)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gHand=${JSON.stringify(last?.guest?.handCards)} gEnergy=${JSON.stringify(last?.guest?.energyCards)} gTrash=${JSON.stringify(last?.guest?.trashCards)} gLife=${last?.guest?.life} subLogs=${JSON.stringify(v10SubstituteLogs(last))} asks=${v10AskLogs(last).length} checks=${last?.host?.fieldCheck ?? '-'}/${last?.guest?.fieldCheck ?? '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
 }
