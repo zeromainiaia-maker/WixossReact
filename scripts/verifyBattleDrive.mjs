@@ -11552,6 +11552,372 @@ scenarios.keysAbilityLossTurnEndWithDiscard = {
   },
 };
 
+// 続き457 E1：WDK10-009 はシグニではなくキー。キー枠の【起】から手札1枚を捨て、
+// DESIGNATE_SIGNI_ZONE の実CHOOSEで zone0 を指定する。field grant は temp_power_mods に載らないため、
+// designated_zones／field_grants_active を ground truth、op-signi-zone-* の表示パワーを実効値として独立観測する。
+scenarios.designatedZoneLevelScaledMinus = {
+  title: 'WDK10-009（指定zone0だけLv×-2000・他2ゾーン不変）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'WDK10-009#1',
+      'field.key_piece_extra': [],
+      'hand': ['WD01-014#91', 'WD01-016#92'],
+      'actions_done': [],
+      'designated_zones': [],
+      'field_grants_active': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      // CSV実値：WD01-010=Lv3/P10000、WD01-013=Lv1/P3000、WD01-012=Lv2/P7000。
+      'field.signi': [['WD01-010#1'], ['WD01-013#1'], ['WD01-012#1']],
+      'field.signi_down': [false, false, false],
+      'designated_zones': [],
+      'field_grants_active': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false;
+    let actOpened = false;
+    let discardSelected = false;
+    let fired = false;
+    let zoneChosen = false;
+    let grantStableTicks = 0;
+    let last = await H.queryState();
+    await H.closeModals();
+    await H.ensureMain();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const before = await H.queryState();
+      if (!zoneChosen && (before?.pendingOptions ?? []).some(o => o.startsWith('zone_0:ゾーン1を指定'))) {
+        did = await H.clickBtn('ゾーン1を指定', { exact: true });
+        if (did) zoneChosen = true;
+      }
+      if (!did && actOpened && !discardSelected) {
+        did = await H.clickModalImage('小弓　ボーニャ');
+        if (did) discardSelected = true;
+      }
+      if (!did && actOpened && discardSelected && !fired) {
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) fired = true;
+      }
+      if (!did && opened && !actOpened) {
+        // ⚠**`getByRole('button', { name: <RegExp>, exact: true })` は count() が常に 0 になる**
+        //   （Playwright の `exact` は文字列名にしか効かず、正規表現と併用すると一致しない）＝
+        //   続き462 の実測で3シナリオとも「モーダルも【起】ボタンも出ているのに did=なし」で30反復空振りした。
+        //   実ラベルは `【起】手札1枚（魅惑の冥者　ハナレ）`。**`data-action-label` の前方一致で取る**（続き461 と同じ型）。
+        did = await (async () => {
+          const actBtn = page.locator('[data-testid^="card-action-"][data-action-label^="【起】手札1枚"]').first();
+          if (!(await actBtn.count()) || !(await actBtn.isVisible().catch(() => false))) return null;
+          await actBtn.click({ timeout: 2000 }).catch(() => {});
+          return 'act:【起】手札1枚';
+        })();
+        if (did) actOpened = true;
+      }
+      if (!did && !opened) {
+        did = await H.clickTestId('my-lrig-slot-key');
+        if (did) opened = true;
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定']);
+
+      const st = await H.queryState();
+      last = st;
+      const grants = st?.guest?.fieldGrantsActive ?? [];
+      const perLvPower = grants.filter(g => g.startsWith('power:') && g.includes('/perLv'));
+      const zoneTexts = await Promise.all([0, 1, 2].map(i => page.getByTestId(`op-signi-zone-${i}`).innerText().catch(() => '')));
+      const domPowers = zoneTexts.map(t => t.split('\n').map(x => x.trim()).find(x => /^(?:0|\d{1,3}(?:,\d{3})+)$/.test(x)) ?? '-');
+      H.log(`  dzlsm[${s}] -> ${did ?? 'なし'} | active=${st?.activeUser ?? '-'} phase=${st?.turnPhase ?? '-'} designated=${JSON.stringify(st?.guest?.designatedZones ?? [])} grants=${JSON.stringify(grants)} domPower=${JSON.stringify(domPowers)} hand=${st?.host?.hand ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+
+      if (JSON.stringify(st?.guest?.designatedZones ?? []) === '[0]' && perLvPower.length === 1) {
+        grantStableTicks++;
+        const powerOk = domPowers[0] === '4,000';
+        const controlsOk = domPowers[1] === '3,000' && domPowers[2] === '7,000';
+        if (!powerOk || !controlsOk) {
+          // DBのground truthがDOM描画より先に届くことがあるため、3回連続で不一致になるまで待つ。
+          if (grantStableTicks < 3) continue;
+        }
+        return {
+          pass: powerOk && controlsOk,
+          detail: powerOk && controlsOk
+            ? 'guest.designatedZones=[0]・perLv power grant 1件・DOM zone0=4,000（Lv3×-2000）、対照zone1=3,000/zone2=7,000不変'
+            : `grantは積まれたがDOM適用が不正（designated=${JSON.stringify(st.guest.designatedZones)} grants=${JSON.stringify(grants)} domPower=${JSON.stringify(domPowers)}。期待=[4,000,3,000,7,000]）`,
+        };
+      } else grantStableTicks = 0;
+    }
+    const zoneTexts = await Promise.all([0, 1, 2].map(i => page.getByTestId(`op-signi-zone-${i}`).innerText().catch(() => '')));
+    return {
+      pass: false,
+      detail: `指定/grant成立タイムアウト（最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} designatedZones=${JSON.stringify(last?.guest?.designatedZones ?? [])} fieldGrantsActive=${JSON.stringify(last?.guest?.fieldGrantsActive ?? [])} DOM=${JSON.stringify(zoneTexts.map(t => t.slice(0, 80)))}）`,
+    };
+  },
+};
+
+// 続き457 E2：E1と同じ実経路でLv3への-6000を確認後、injectScenarioを再実行せず、
+// patchPlayerStateでfield.signiだけを差し替える。grantが残ったままLv1自身のレベルで-2000へ再計算されることが本題。
+scenarios.designatedZoneRecalcOnSwap = {
+  title: 'WDK10-009（指定ゾーン差し替え後は新シグニのLvで再計算）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'WDK10-009#1',
+      'field.key_piece_extra': [],
+      'hand': ['WD01-014#91', 'WD01-016#92'],
+      'actions_done': [],
+      'designated_zones': [],
+      'field_grants_active': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WD01-010#1'], ['WD01-013#1'], ['WD01-012#1']],
+      'field.signi_down': [false, false, false],
+      'designated_zones': [],
+      'field_grants_active': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false;
+    let actOpened = false;
+    let discardSelected = false;
+    let fired = false;
+    let zoneChosen = false;
+    let initialApplied = false;
+    let patched = false;
+    let last = await H.queryState();
+    await H.closeModals();
+    await H.ensureMain();
+    for (let s = 0; s < 36; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const before = await H.queryState();
+      if (!initialApplied) {
+        if (!zoneChosen && (before?.pendingOptions ?? []).some(o => o.startsWith('zone_0:ゾーン1を指定'))) {
+          did = await H.clickBtn('ゾーン1を指定', { exact: true });
+          if (did) zoneChosen = true;
+        }
+        if (!did && actOpened && !discardSelected) {
+          did = await H.clickModalImage('小弓　ボーニャ');
+          if (did) discardSelected = true;
+        }
+        if (!did && actOpened && discardSelected && !fired) {
+          did = await H.clickBtn('発動', { exact: true });
+          if (did) fired = true;
+        }
+        if (!did && opened && !actOpened) {
+          // ⚠**`getByRole('button', { name: <RegExp>, exact: true })` は count() が常に 0 になる**
+        //   （Playwright の `exact` は文字列名にしか効かず、正規表現と併用すると一致しない）＝
+        //   続き462 の実測で3シナリオとも「モーダルも【起】ボタンも出ているのに did=なし」で30反復空振りした。
+        //   実ラベルは `【起】手札1枚（魅惑の冥者　ハナレ）`。**`data-action-label` の前方一致で取る**（続き461 と同じ型）。
+        did = await (async () => {
+          const actBtn = page.locator('[data-testid^="card-action-"][data-action-label^="【起】手札1枚"]').first();
+          if (!(await actBtn.count()) || !(await actBtn.isVisible().catch(() => false))) return null;
+          await actBtn.click({ timeout: 2000 }).catch(() => {});
+          return 'act:【起】手札1枚';
+        })();
+          if (did) actOpened = true;
+        }
+        if (!did && !opened) {
+          did = await H.clickTestId('my-lrig-slot-key');
+          if (did) opened = true;
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定']);
+      }
+
+      const st = await H.queryState();
+      last = st;
+      const grants = st?.guest?.fieldGrantsActive ?? [];
+      const perLvPower = grants.filter(g => g.startsWith('power:') && g.includes('/perLv'));
+      const zone0Text = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+      const zone0Power = zone0Text.split('\n').map(x => x.trim()).find(x => /^(?:0|\d{1,3}(?:,\d{3})+)$/.test(x)) ?? '-';
+
+      if (!initialApplied && JSON.stringify(st?.guest?.designatedZones ?? []) === '[0]' && perLvPower.length === 1 && zone0Power === '4,000') {
+        initialApplied = true;
+        const patch = await H.patchPlayerState('guest', {
+          'field.signi': [['WD01-013#2'], ['WD01-013#1'], ['WD01-012#1']],
+        });
+        if (patch?.error) return { pass: false, detail: `patchPlayerState失敗: ${patch.error}` };
+        patched = true;
+        did = 'patch:guest.field.signi zone0 Lv3→Lv1';
+        await page.waitForTimeout(900);
+      }
+
+      const after = patched ? await H.queryState() : st;
+      last = after;
+      const afterGrants = after?.guest?.fieldGrantsActive ?? [];
+      const afterZone0Text = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+      const afterPower = afterZone0Text.split('\n').map(x => x.trim()).find(x => /^(?:0|\d{1,3}(?:,\d{3})+)$/.test(x)) ?? '-';
+      H.log(`  dzros[${s}] -> ${did ?? 'なし'} | initialApplied=${initialApplied} patched=${patched} designated=${JSON.stringify(after?.guest?.designatedZones ?? [])} grants=${JSON.stringify(afterGrants)} field=${JSON.stringify(after?.guest?.fieldSigni ?? [])} DOM.zone0=${afterPower} pEff=${after?.pendingEffect ?? '-'}`);
+
+      if (patched && (after?.guest?.fieldSigni?.[0] ?? []).at(-1) === 'WD01-013#2') {
+        const grantSurvived = afterGrants.filter(g => g.startsWith('power:') && g.includes('/perLv')).length === 1;
+        if (!grantSurvived) {
+          return { pass: false, detail: `差し替え後にfieldGrantsActiveが消失＝patchヘルパー側の削除/リセット疑い（grants=${JSON.stringify(afterGrants)} designated=${JSON.stringify(after?.guest?.designatedZones ?? [])} DOM=${afterPower}）` };
+        }
+        if (afterPower === '1,000') {
+          return { pass: true, detail: 'Lv3時DOM 4,000（-6000）確認後、field.signiだけをLv1/P3000へPATCH。grantを保持したままDOM 1,000（-2000）へ再計算' };
+        }
+        if (afterPower === '0') {
+          return { pass: false, detail: `【焼き込み退化】差し替え後もLv3時の-6000が居座り、Lv1/P3000がDOM 0（期待1,000）。grants=${JSON.stringify(afterGrants)}` };
+        }
+      }
+    }
+    const finalText = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+    return {
+      pass: false,
+      detail: `再計算観測タイムアウト（initialApplied=${initialApplied} patched=${patched} 最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} designatedZones=${JSON.stringify(last?.guest?.designatedZones ?? [])} fieldGrantsActive=${JSON.stringify(last?.guest?.fieldGrantsActive ?? [])} fieldSigni=${JSON.stringify(last?.guest?.fieldSigni ?? [])} DOM=${JSON.stringify(finalText.slice(0, 100))}）`,
+    };
+  },
+};
+
+// 続き457 E3：現ターンactiveと次の相手ターン予約の2スロット寿命を実ターン境界で確認する。
+// 自分の次ターンまで戻す長時間経路は要求外の余力枠なので、このシナリオはCPUターン中の継続までを固定する。
+scenarios.designatedZoneGrantSurvivesOppTurn = {
+  title: 'WDK10-009（指定ゾーンgrantは次の対戦相手ターン中も継続）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'WDK10-009#1',
+      'field.key_piece_extra': [],
+      'hand': ['WD01-014#91', 'WD01-016#92'],
+      'actions_done': [],
+      'designated_zones': [],
+      'field_grants_active': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [['WD01-010#1'], ['WD01-013#1'], ['WD01-012#1']],
+      'field.signi_down': [false, false, false],
+      'designated_zones': [],
+      'field_grants_active': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false;
+    let actOpened = false;
+    let discardSelected = false;
+    let fired = false;
+    let zoneChosen = false;
+    let initialApplied = false;
+    let turnEndClicked = false;
+    let cpuTurnTicks = 0;
+    let last = await H.queryState();
+    await H.closeModals();
+    await H.ensureMain();
+
+    for (let s = 0; s < 30 && !initialApplied; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const before = await H.queryState();
+      if (!zoneChosen && (before?.pendingOptions ?? []).some(o => o.startsWith('zone_0:ゾーン1を指定'))) {
+        did = await H.clickBtn('ゾーン1を指定', { exact: true });
+        if (did) zoneChosen = true;
+      }
+      if (!did && actOpened && !discardSelected) {
+        did = await H.clickModalImage('小弓　ボーニャ');
+        if (did) discardSelected = true;
+      }
+      if (!did && actOpened && discardSelected && !fired) {
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) fired = true;
+      }
+      if (!did && opened && !actOpened) {
+        // ⚠**`getByRole('button', { name: <RegExp>, exact: true })` は count() が常に 0 になる**
+        //   （Playwright の `exact` は文字列名にしか効かず、正規表現と併用すると一致しない）＝
+        //   続き462 の実測で3シナリオとも「モーダルも【起】ボタンも出ているのに did=なし」で30反復空振りした。
+        //   実ラベルは `【起】手札1枚（魅惑の冥者　ハナレ）`。**`data-action-label` の前方一致で取る**（続き461 と同じ型）。
+        did = await (async () => {
+          const actBtn = page.locator('[data-testid^="card-action-"][data-action-label^="【起】手札1枚"]').first();
+          if (!(await actBtn.count()) || !(await actBtn.isVisible().catch(() => false))) return null;
+          await actBtn.click({ timeout: 2000 }).catch(() => {});
+          return 'act:【起】手札1枚';
+        })();
+        if (did) actOpened = true;
+      }
+      if (!did && !opened) {
+        did = await H.clickTestId('my-lrig-slot-key');
+        if (did) opened = true;
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定']);
+
+      const st = await H.queryState();
+      last = st;
+      const grants = st?.guest?.fieldGrantsActive ?? [];
+      const zone0Text = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+      const zone0Power = zone0Text.split('\n').map(x => x.trim()).find(x => /^(?:0|\d{1,3}(?:,\d{3})+)$/.test(x)) ?? '-';
+      initialApplied = JSON.stringify(st?.guest?.designatedZones ?? []) === '[0]'
+        && grants.filter(g => g.startsWith('power:') && g.includes('/perLv')).length === 1
+        && zone0Power === '4,000';
+      H.log(`  dzgsot.activate[${s}] -> ${did ?? 'なし'} | initialApplied=${initialApplied} active=${st?.activeUser ?? '-'} phase=${st?.turnPhase ?? '-'} designated=${JSON.stringify(st?.guest?.designatedZones ?? [])} grants=${JSON.stringify(grants)} DOM.zone0=${zone0Power}`);
+    }
+    if (!initialApplied) {
+      return { pass: false, detail: `ターン継続検査の前提不成立（最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} designatedZones=${JSON.stringify(last?.guest?.designatedZones ?? [])} fieldGrantsActive=${JSON.stringify(last?.guest?.fieldGrantsActive ?? [])}）` };
+    }
+
+    await H.closeModals();
+    for (let s = 0; s < 48; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      const before = await H.queryState();
+      if (await page.getByTestId('card-detail-modal').first().isVisible().catch(() => false)) await H.closeModals();
+
+      if (before?.activeUser === before?.viewerUserId) {
+        did = await H.clickBtn('エナに送る', { exact: true });
+        if (!did) did = await H.clickBtn('ガードしない');
+        if (!did) did = await H.clickBtn('このまま進む', { exact: true });
+        if (!did && before?.turnPhase === 'MAIN') did = await H.clickBtn('アタックフェイズへ', { exact: true });
+        if (!did && before?.turnPhase === 'ATTACK_ARTS') did = await H.clickBtn('アーツ終了→相手へ', { exact: true });
+        if (!did && before?.turnPhase === 'ATTACK_SIGNI') did = await H.clickBtn('ルリグアタックへ', { exact: true });
+        if (!did && before?.turnPhase === 'ATTACK_LRIG') did = await H.clickBtn('エンドフェイズへ', { exact: true });
+        if (!did && before?.turnPhase === 'END') {
+          did = await H.clickBtn('ターン終了', { exact: true });
+          if (did) turnEndClicked = true;
+        }
+      } else {
+        did = await H.clickBtn('エナに送る', { exact: true });
+        if (!did) did = await H.clickBtn('ガードしない');
+        // ATTACK_ARTS_OP は非ターンプレイヤー（driver）が「アーツ終了」で進める。
+        if (!did && before?.turnPhase === 'ATTACK_ARTS_OP') did = await H.clickBtn('アーツ終了', { exact: true });
+      }
+
+      const st = await H.queryState();
+      last = st;
+      const grants = st?.guest?.fieldGrantsActive ?? [];
+      const zone0Text = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+      const zone0Power = zone0Text.split('\n').map(x => x.trim()).find(x => /^(?:0|\d{1,3}(?:,\d{3})+)$/.test(x)) ?? '-';
+      H.log(`  dzgsot.turn[${s}] -> ${did ?? 'なし'} | turnEndClicked=${turnEndClicked} active=${st?.activeUser ?? '-'} viewer=${st?.viewerUserId ?? '-'} phase=${st?.turnPhase ?? '-'} designated=${JSON.stringify(st?.guest?.designatedZones ?? [])} grants=${JSON.stringify(grants)} DOM.zone0=${zone0Power}`);
+
+      if (turnEndClicked && st?.activeUser && st.activeUser !== st.viewerUserId) {
+        cpuTurnTicks++;
+        const grantActive = grants.filter(g => g.startsWith('power:') && g.includes('/perLv')).length === 1;
+        const designated = JSON.stringify(st?.guest?.designatedZones ?? []) === '[0]';
+        if (grantActive && designated && zone0Power === '4,000') {
+          return { pass: true, detail: `hostのターン終了後、CPUターン（${st.turnPhase}）中もguestのperLv power grant 1件・designatedZones=[0]・DOM zone0=4,000（Lv3×-2000）が継続` };
+        }
+        if (cpuTurnTicks >= 3) {
+          return { pass: false, detail: `CPUターンへ移ったが3回連続でgrant/DOMが継続していない（activeUser=${st.activeUser} turnPhase=${st.turnPhase} designatedZones=${JSON.stringify(st?.guest?.designatedZones ?? [])} fieldGrantsActive=${JSON.stringify(grants)} DOM.zone0=${zone0Power}）` };
+        }
+      }
+    }
+    const finalText = await page.getByTestId('op-signi-zone-0').innerText().catch(() => '');
+    return {
+      pass: false,
+      detail: `相手ターン遷移タイムアウト（turnEndClicked=${turnEndClicked} 最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} designatedZones=${JSON.stringify(last?.guest?.designatedZones ?? [])} fieldGrantsActive=${JSON.stringify(last?.guest?.fieldGrantsActive ?? [])} DOM=${JSON.stringify(finalText.slice(0, 100))}）`,
+    };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11779,6 +12145,33 @@ try {
       await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, { method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify(upd) });
       return { ok: true };
     }, { SUPA_URL, ANON, CPU_PLAYER_ID, fields }),
+    /**
+     * grant を保ったまま盤面だけ差し替えるための最小 PATCH。
+     * 指定されたドットパスだけを上書きし、既存フィールドの削除・リセットは一切行わない。
+     */
+    patchPlayerState: (side, dotPathMap) => page.evaluate(async ({ SUPA_URL, ANON, side, dotPathMap }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+      const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state`, { headers: h });
+      const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
+      const stateKey = side === 'guest' ? 'guest_state' : 'host_state';
+      const state = row[stateKey] ?? {};
+      for (const [path, value] of Object.entries(dotPathMap ?? {})) {
+        const parts = path.split('.'); let target = state;
+        for (let i = 0; i < parts.length - 1; i++) {
+          target[parts[i]] = target[parts[i]] ?? {};
+          target = target[parts[i]];
+        }
+        target[parts.at(-1)] = value;
+      }
+      await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
+        method: 'PATCH', headers: { ...h, Prefer: 'return=minimal' }, body: JSON.stringify({ [stateKey]: state }),
+      });
+      return { ok: true };
+    }, { SUPA_URL, ANON, side, dotPathMap }),
     // GROW フェイズを再注入しつつグロウボタンを押す（注入後 GROW→MAIN ドリフトのレース対策）。
     // candidateRe にマッチするグロウ先候補が見えたら true を返す。
     openGrow: async (candidateRe) => {
@@ -11839,6 +12232,8 @@ try {
         signiBanishedThisTurn: s.signi_banished_this_turn ?? 0,
         abilitiesRemoved: s.abilities_removed ?? [],
         keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
+        designatedZones: s.designated_zones ?? [],
+        fieldGrantsActive: (s.field_grants_active ?? []).map(g => `${g.kind}:${g.delta ?? ''}${g.perTargetLevel ? '/perLv' : ''}`),
         lrigFrozen: s.field?.lrig_frozen ?? false,
         negatedAttacks: s.negated_attacks ?? [],
         blockedActions: s.blocked_actions ?? [],
