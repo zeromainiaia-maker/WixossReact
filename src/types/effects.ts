@@ -1010,6 +1010,13 @@ export interface PowerModifyAction {
   // 直前ステップで実際に処理した枚数**（lastProcessedCards.length）。delta は1枚あたりの値として扱う。
   // ⚠ 現在の手札枚数比例は別型 POWER_MODIFY_PER_HAND_COUNT（handOwner の手札を数える）。混同しないこと。
   deltaPerLastProcessedCount?: boolean;
+  /**
+   * 「そのシグニのレベル１につき±N」＝**対象シグニ自身のレベル**が倍率（§6.4 O-16(a)）。delta は
+   * レベル1あたりの単価として扱う。⚠現状の受け皿は**ゾーン継続の場レベル grant**（`FieldGrant{kind:'power',
+   * perTargetLevel:true}`）だけ＝`zoneSource:'designated'` + `count:'ALL'` の経路でのみ意味を持つ。
+   * ⚠`deltaPerLastProcessedCount`（直前ステップの処理枚数）とは倍率元が別物。
+   */
+  deltaPerTargetLevel?: boolean;
   deltaFromOppPowerDecrease?: boolean; // 「減った値と同じだけ＋する」（毒牙 WX13-036/WXEX2-52）。delta を収集時に直前の対戦相手パワー減少量で動的に上書き（ON_OPP_POWER_DECREASED と併用）
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
   /** NEXT_TURN の基準。next=解決中のグローバルターンの次（isOwnerTurn で self/opponent を確定）。 */
