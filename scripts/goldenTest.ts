@@ -4542,6 +4542,59 @@ test('§6.4 E2E WX08-021-E1: 指定ゾーンだけ現ターンと次ターンに
   eq(fieldPower(active, applied.ownerState, miss), fieldGrantPrintedPower(miss), '次ターンの非指定ゾーン');
 }));
 
+// §6.4 O-16: `DESIGNATE_SIGNI_ZONE` の CHOOSE は出るのに、その結果を読む消費者が居なかった。
+// 「このターン、そのシグニゾーンにあるシグニのパワーを－N」は `owner:'any'/count:1` へ落ちて
+// **好きなシグニ1体を選ぶ別物**になっており、原文の「このアーツの使用後にそこに置かれた
+// シグニにも影響を与える」（＝ゾーン継続）も丸ごと死んでいた。
+// ⚠ここで見るのは **①指定ゾーンだけに効く ②あとからそのゾーンへ出たシグニにも効く ③ターン終了で消える**。
+test('§6.4 O-16 E2E WX24-P2-030-E1: 指定ゾーンへの現ターン継続（後から出たシグニにも効く）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const applied = run(nextTurnLiveAction('WX24-P2-030', 'WX24-P2-030-E1'),
+    { ...mkCtx({}, { signi: [a, b, c] }, 'WX24-P2-030'), isOwnerTurn: true });
+  const zone = applied.otherState.designated_zone;
+  ok(zone !== undefined, 'ゾーン指定が実行される');
+  const nums = [a, b, c];
+  eq(fieldPower(applied.otherState, applied.ownerState, nums[zone!]),
+    fieldGrantPrintedPower(nums[zone!]) - 5000, '指定ゾーンの現住シグニに効く');
+  const otherZone = zone === 0 ? 1 : 0;
+  eq(fieldPower(applied.otherState, applied.ownerState, nums[otherZone]),
+    fieldGrantPrintedPower(nums[otherZone]), '非指定ゾーンには効かない');
+  // ⭐ここが per-card の temp_power_mods では表せない部分＝**入れ替わっても効く**。
+  const newcomer = fresh();
+  const swapped: Array<string | null> = [null, null, null];
+  swapped[zone!] = newcomer;
+  const after = withFieldSigni(applied.otherState, swapped);
+  eq(fieldPower(after, applied.ownerState, newcomer),
+    fieldGrantPrintedPower(newcomer) - 5000, '後からそのゾーンへ出たシグニにも効く');
+  // ターン終了で失効する（`field_grants_active` は turnScopedState の turn-end 登録済み）。
+  const ended = withFieldSigni(clearTurnEndScopedState(applied.otherState), swapped);
+  eq(fieldPower(ended, applied.ownerState, newcomer), fieldGrantPrintedPower(newcomer), 'ターン終了で失効');
+}));
+
+test('§6.4 O-16 live: 指定ゾーンを読む消費者が配線されている（保存先と読み手が一致）', () => {
+  // ⚠`owner`（保存先）と `target.owner`（読み手）が食い違うと、CHOOSE は出るのに結果がどこからも
+  //   見えない＝**無言の空振り**になる。live 6効果でその一致を固定する。
+  for (const [cardNum, effectId, owner, delta] of [
+    ['WX08-021', 'WX08-021-E1', 'opponent', -7000],
+    ['WX24-P2-030', 'WX24-P2-030-E1', 'opponent', -5000],
+    ['WX24-P2-039', 'WX24-P2-039-E1', 'opponent', -5000],
+    ['WX24-P2-094', 'WX24-P2-094-E1', 'opponent', -3000],
+    ['WX24-P4-024', 'WX24-P4-024-E3', 'opponent', -3000],
+    // ＋10000 は「自分のゾーン」＝保存先も読み手も self（符号でゾーンの持ち主が決まる唯一の例）。
+    ['WXK10-005', 'WXK10-005-E1', 'self', 10000],
+  ] as const) {
+    const action = nextTurnLiveAction(cardNum, effectId);
+    const pm = findActionByType(action, 'POWER_MODIFY')!;
+    eq(pm.delta, delta, `${effectId}: delta`);
+    eq(pm.target.owner, owner, `${effectId}: 読み手の owner`);
+    eq(pm.target.count, 'ALL', `${effectId}: ゾーン継続なので count は ALL`);
+    eq(pm.target.zoneSource, 'designated', `${effectId}: 指定ゾーンを読む`);
+    const designate = findStubById(action, 'DESIGNATE_SIGNI_ZONE');
+    ok(!!designate, `${effectId}: 指定ステップがある`);
+    eq((designate as { owner?: string }).owner, owner, `${effectId}: 保存先が読み手と一致`);
+  }
+});
+
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
   ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
