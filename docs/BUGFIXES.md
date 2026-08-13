@@ -1,5 +1,59 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き460） — 手札スペルの「発動」ボタンだけ**スペル封じのゲートが無かった**（PLAN §7・続き459 の実機検証で検出）
+
+**分担**＝§7 実機挙動（P3）を **Codex に委譲してシナリオを起案**させ（`docs/CODEX_GUIDE.md` の分担どおり
+Codex はネットワーク遮断で実行できないため**コードのみ**）、**実機実行・切り分け・修正・簿記は Claude 側**で実施。
+
+### 🔴 実バグ＝封じ中でもボタンが出て、押しても何も起きない（無言の no-op）
+
+`getMyHandCardActions`（`BattleScreen.tsx:7373`）の**手札スペル「発動」だけ `isActionBlocked('USE_SPELL')` を見ていなかった**。
+実行入口の `castSpell`（`:6769`）にはガードがあるので**ルール違反にはならない**が、
+「対戦相手はスペルを使用できない」を受けている側の画面に**発動ボタンが出たまま**になり、押すと**無反応**になる。
+⚠**ルリグデッキのスペル/クラフト（`:7508`）とアーツ（`:7529`）は最初から同じゲートを持っており、手札スペルだけが抜けていた**
+＝「同じ概念のゲートが入口ごとに散っている」型（PLAN §4 教訓 (i) と同型）。修正は条件1つの追加。
+
+### ⭐ 検出できた理由＝**負方向テストに対照を必ず付けた**
+
+「封じ中にボタンが出ないこと」だけを見るテストは**偽陽性の塊**＝アーツの「使用」は `costOk`/`condOk`
+（実効コストを払えるか・使用条件）でも消えるので、**非表示は封じの証明にならない**。
+そこで**盤面を1文字も変えず `blocked_actions` だけを空にした対照** `spellArtsUnblockedUiShowsUseButtons` を対で置いた。
+実測＝対照では `spell=["発動"] / arts=["使用"]` が出る → 負方向で消えたのは封じ由来と確定 → **修正後に負方向が PASS へ反転**。
+
+### 新規シナリオ4本（`scripts/verifyBattleDrive.mjs`・各2回連続PASS・既定 order 登録済み）
+
+| id | 何を固定したか |
+|---|---|
+| `prArtsSpellSplitIds` | `PR-427`＝CPU のアタック後 `host.blockedActions` に `USE_ARTS:NEXT_TURN` と `USE_SPELL:NEXT_TURN` の**両方**。**死 actionId `ARTS_AND_SPELL` が復活したら即FAIL**するトリップワイヤ付き |
+| `wxex166SpellLockPeriod` | `WXEX1-66`＝①予約 `USE_SPELL:NEXT_TURN`（この時点では効かない）→②CPUターン開始（DRAW）で **bare `USE_SPELL` へ昇格**→③CPUターン終了後に**消滅**の3段。**③が本題**＝残れば `PERMANENT`（恒久ロック）への退化 |
+| `spellArtsBlockedUiHidesUseButtons` | bare id 注入下でスペル/アーツとも使用アクションが**出ない**（上のバグを固定） |
+| `spellArtsUnblockedUiShowsUseButtons` | **対照**＝同じ盤面で `blocked_actions` だけ空にすると**出る** |
+
+⚠**文字列は完全一致で検査すること**＝`includes('USE_SPELL')` は `USE_SPELL:NEXT_TURN`（予約＝まだ効かない）にも当たり、
+「効いている」と誤読する。判定は `blockedActions` 配列の完全一致で行う（engine 側の寿命は
+`effectExecutor.ts:3208` でサフィックス付与 → `turnScopedState.ts:154` で予約だけ越冬 → `:168` で剥がして有効化、の2スロット式）。
+
+### ドライバ側の罠2件（どちらも「engine が壊れている」ように見える FAIL を出す）
+
+- 🔴**`field.check` だけは `injectScenario` がリセットしない**（`CORE_FIELD_KEYS` に含まれる）。
+  前シナリオの**未確認ライフクラッシュ**が残ると「ライフクロスクラッシュ（エナに送る）」モーダルが
+  **全画面オーバーレイとして残り、以後のクリックが1つも通らない**。実測＝24反復すべて空振りして
+  「アタックが発火しない」に見えた。⇒ **新規シナリオの spec に `'field.check': null` を明示する**。
+- 🔴**`ATTACK_ARTS_OP` は `NON_TURN_PLAYER_PHASES`**（`uiConstants.ts:30`）＝**進行ボタン「アーツ終了」を持つのは
+  非ターンプレイヤー＝driver 側**。ここを押さないと **CPU のターンが永久に終わらない**（実測＝段階②まで
+  到達したのに28反復ストール）。⇒ CPU ターンを跨ぐシナリオでは必ずこの1手を入れる。
+- 併せて、アタックのために開いたカード詳細モーダル（createPortal の全画面オーバーレイ）が残ると
+  ヘッダーのボタンは**可視なのに click が2秒タイムアウトし続ける**＝`H.closeModals()` を挟む。
+  切り分けには `scratchpad-verify/<id>-final.png` が決定的だった（**ログだけ見ていると原因を engine 側に誤診する**）。
+
+### 併せて
+
+- `src/components/BoardComponents.tsx` に `data-testid="card-detail-modal"` を追加（属性のみ）。
+  負方向テストが「モーダルが開かなかった」を「ボタンが無い」と誤認しないための前提確認に使う。
+- ⚠**未登録の同型**＝手札スペルのボタン生成は `PLAY_COLORLESS` / `BLOCK_NON_WHITE_SPELL` も見ていない
+  （`castSpell` 側にはある）＝同じ「押せるが無反応」になる。PLAN §6.4 に登録した。
+- ゲート＝golden 1956/0・census 831・smoke 10688 SKIP 0・fuzz 全0・lint 0 errors/259 warnings（すべて据置）。
+
 ## 2026-08-13（続き459） — `LRIG_GROW_RESTRICT` が**未パース節の名無しゴミ箱**になっていた（PLAN §6.4 **O-3**）
 
 **🔴 計器が嘘をついていた**。`census:stubs` の A群（＝engine に消費が無い真 no-op）は**0件**で緑だったが、
