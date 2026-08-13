@@ -686,6 +686,19 @@ export function applyEffectLeaveSubstitutes(
 }
 
 /**
+ * その instance がまだ**シグニゾーンの一番上**に居るか（§3 (cxxvi) の再処理ガード）。
+ *
+ * 🔑**離場の per-card ループは「選んだ時点の盤面」で回る**ので、ループ中に別の victim の身代わりが
+ * 成立して**先にこの instance が場を離れている**ことがある（相互身代わり＝A が B を、B が A を指定）。
+ * そのまま `removeFromField`（空振り）→移動先へ push すると、**同じ instance がエナ/トラッシュに2枚**現れる。
+ * ⚠**`at(-1)` で見る**＝下のカードは「場のシグニ」ではない（EXILE の下カード経路だけは別判定なので、
+ * このヘルパを使わないこと）。
+ */
+function isOnFieldTop(num: string, owner: Owner, ctx: ExecCtx): boolean {
+  return ownerState(owner, ctx).field.signi.some(st => st?.at(-1) === num);
+}
+
+/**
  * その victim について**被害側に問うべき任意置換**があるか（`hoistLeaveSubstituteAsks` の判定）。
  *
  * - 既に決定済みなら問わない（同じ問いを2回出さない）。
