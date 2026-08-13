@@ -2189,11 +2189,15 @@ function actionJa(a?: Action, effectType?: string): string {
       // シグニゾーン指定（DESIGNATE_SIGNI_ZONE・engine実装済み）＝「（シグニのない）（対戦相手の）シグニゾーン１つを指定する」。
       // 「シグニのない」「対戦相手の」前置はカードごとに異なるため currentCardText から抽出。
       if (a.id === 'DESIGNATE_SIGNI_ZONE') {
-        // §6.4 O-16: **どちらのゾーンを指定したか**は JSON の `owner` が持つ（＝`designated_zone` の保存先）。
-        // 原文抜粋だけを返すと `owner:'self'` と既定（相手）が同じ文になり、逆翻訳が両者を区別できない。
+        // §6.4 O-16: **どちらのゾーンを何個**指定したかは JSON の `owner` / `count` が持つ
+        // （＝`designated_zones` の保存先と個数）。原文抜粋だけを返すと `owner:'self'` と既定（相手）、
+        // 1ゾーンと2ゾーンが同じ文になり、逆翻訳が区別できない（＝engine を直しても計器に映らない）。
         const ownerJaDSZ = a.owner === 'self' ? 'あなたの' : '対戦相手の';
-        const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン[０-９\d]*つを指定する/);
+        const countDSZ = typeof a.count === 'number' && a.count > 1 ? a.count : 1;
+        // 語順が2通り＝「シグニゾーン１つを指定する」／「シグニゾーンを２つまで指定し」。
+        const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン(?:[０-９\d]+つを指定する|を[０-９\d]+つ(?:まで)?指定(?:する|し))/);
         if (m) return /(?:あなた|対戦相手)の/.test(m[0]) ? m[0] : `${ownerJaDSZ}${m[0]}`;
+        return `${ownerJaDSZ}シグニゾーンを${numJa(countDSZ)}つ${countDSZ > 1 ? 'まで' : ''}指定する`;
       }
       // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
       if (a.id === 'RETURN_SUMMONED_RESONA_AT_TURN_END') return 'ターン終了時、この方法で場に出したレゾナをルリグデッキに戻す';

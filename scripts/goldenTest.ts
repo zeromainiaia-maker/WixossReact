@@ -20,7 +20,7 @@ import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbility
 import { parseCardEffects } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { activeFieldGrantKeywordsForSigni, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
-import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent } from '../src/engine/execUtils';
+import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
   applyRefreshOnDone,
@@ -4315,17 +4315,22 @@ test('§6.4 O-3 live: 「次のあなたのターン」の能力喪失が NEXT_T
     const ra = findActionByType(manualEffect(cardNum, effectId).action, 'REMOVE_ABILITIES')!;
     eq((ra as unknown as { until: string }).until, 'NEXT_TURN', `${effectId}: 次のターンだけ`);
   }
-  // ⚠据置3件＝**期間だけ直すと誤った対象の効果が長持ちする**ので触らない（PLAN §6.4 O-3 に登録）。
-  //   `WX11-038-E2`＝「次のターンの**メインフェイズ**の間」＝フェイズ限定の受け皿が無い。
-  //   `WXEX2-04-E3` / `WX25-P3-014-E2`＝「このターンと次のターンの間」だが**指定ゾーン軸**が落ちている
-  //   （前者は owner が 'self' に化け、後者は2ゾーン指定で `designated_zone` が1つしか持てない）。
+  // ⚠据置1件＝**期間だけ直すと誤った対象の効果が長持ちする**ので触らない（PLAN §6.4 O-3 に登録）。
+  //   `WX11-038-E2`＝「次のターンの**メインフェイズ**の間」＝フェイズ限定の受け皿が無い
+  //   （全ターンへ丸めるとアタックフェイズまで能力を奪う過剰実行になる）。
+  {
+    const ra = findActionByType(manualEffect('WX11-038', 'WX11-038-E2').action, 'REMOVE_ABILITIES')!;
+    eq((ra as unknown as { until: string }).until, 'PERMANENT', 'WX11-038-E2: フェイズ限定の受け皿が無いので据置');
+  }
+  // 🏁続き455 で据置解除＝指定ゾーン軸が入ったので「このターンと次のターンの間」を2スロット寿命で表せる。
   for (const [cardNum, effectId] of [
-    ['WX11-038', 'WX11-038-E2'],
     ['WXEX2-04', 'WXEX2-04-E3'],
     ['WX25-P3-014', 'WX25-P3-014-E2'],
   ] as const) {
     const ra = findActionByType(manualEffect(cardNum, effectId).action, 'REMOVE_ABILITIES')!;
-    eq((ra as unknown as { until: string }).until, 'PERMANENT', `${effectId}: 別軸が壊れているので期間も据置`);
+    eq((ra as unknown as { until: string }).until, 'UNTIL_OPP_TURN_END', `${effectId}: 現ターン＋次ターン`);
+    eq(ra.target.zoneSource, 'designated', `${effectId}: 指定ゾーンに紐づく`);
+    eq(ra.target.count, 'ALL', `${effectId}: ゾーン継続なので count は ALL`);
   }
 });
 
@@ -4546,7 +4551,7 @@ test('§6.4 E2E WX08-021-E1: 指定ゾーンだけ現ターンと次ターンに
   const a = fresh(), b = fresh(), c = fresh();
   const action = nextTurnLiveAction('WX08-021', 'WX08-021-E1');
   const applied = run(action, { ...mkCtx({}, { signi: [a, b, c] }, 'WX08-021'), isOwnerTurn: true });
-  const zone = applied.otherState.designated_zone;
+  const zone = designatedZones(applied.otherState)[0];
   ok(zone !== undefined, 'ゾーン指定が実行される');
   const currentNums = [a, b, c];
   eq(fieldPower(applied.otherState, applied.ownerState, currentNums[zone!]), fieldGrantPrintedPower(currentNums[zone!]) - 7000, '現ターンの指定ゾーン');
@@ -4570,7 +4575,7 @@ test('§6.4 O-16 E2E WX24-P2-030-E1: 指定ゾーンへの現ターン継続（�
   const a = fresh(), b = fresh(), c = fresh();
   const applied = run(nextTurnLiveAction('WX24-P2-030', 'WX24-P2-030-E1'),
     { ...mkCtx({}, { signi: [a, b, c] }, 'WX24-P2-030'), isOwnerTurn: true });
-  const zone = applied.otherState.designated_zone;
+  const zone = designatedZones(applied.otherState)[0];
   ok(zone !== undefined, 'ゾーン指定が実行される');
   const nums = [a, b, c];
   eq(fieldPower(applied.otherState, applied.ownerState, nums[zone!]),
@@ -4613,6 +4618,59 @@ test('§6.4 O-16 live: 指定ゾーンを読む消費者が配線されている
     eq((designate as { owner?: string }).owner, owner, `${effectId}: 保存先が読み手と一致`);
   }
 });
+
+// §6.4 O-16（続き455）: 能力喪失の**ゾーン継続**。per-card の `abilities_removed` は適用時点の
+// instanceId を記録するので「後からそのゾーンへ出たシグニ」に効かず、原文の「新たに得られない」が死ぬ。
+test('§6.4 O-16 E2E WXEX2-04-E3: 指定ゾーンの能力喪失は入れ替わっても効く', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const applied = run(nextTurnLiveAction('WXEX2-04', 'WXEX2-04-E3'),
+    { ...mkCtx({}, { signi: [a, b, c] }, 'WXEX2-04'), isOwnerTurn: true });
+  const zones = designatedZones(applied.otherState);
+  eq(zones.length, 1, '1ゾーン指定');
+  const zone = zones[0];
+  const noAbility = (state: PlayerState, num: string) =>
+    collectContinuousAbilitiesRemovedSigni(state, applied.ownerState, false, effectsMap, cardMap).has(num);
+  const nums = [a, b, c];
+  ok(noAbility(applied.otherState, nums[zone]), '指定ゾーンの現住シグニは能力を失う');
+  const otherZone = zone === 0 ? 1 : 0;
+  eq(noAbility(applied.otherState, nums[otherZone]), false, '非指定ゾーンは失わない');
+  // ⭐per-card では表せない部分＝**入れ替わっても効く**（「新たに得られない」）。
+  const newcomer = fresh();
+  const swapped: Array<string | null> = [null, null, null];
+  swapped[zone] = newcomer;
+  ok(noAbility(withFieldSigni(applied.otherState, swapped), newcomer), '後からそのゾーンへ出たシグニも失う');
+  // 現ターン＋次ターンの2スロット寿命＝その次のターン終了時に消える。
+  const nextTurn = withFieldSigni(clearTurnEndScopedState(applied.otherState), swapped);
+  ok(noAbility(nextTurn, newcomer), '次のターンも継続');
+  const after = withFieldSigni(clearTurnEndScopedState(nextTurn), swapped);
+  eq(noAbility(after, newcomer), false, 'その次のターン終了時に失効');
+}));
+
+// §6.4 O-16（続き455）: 「シグニゾーンを**２つまで**指定し」＝`designated_zone` が1つしか持てず
+// 指定そのものが JSON から落ちていた札。**2ゾーンとも**効くことを固定する。
+test('§6.4 O-16 E2E WX25-P3-014-E2: 2ゾーン指定が両方に効く', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const action = nextTurnLiveAction('WX25-P3-014', 'WX25-P3-014-E2');
+  const designate = findStubById(action, 'DESIGNATE_SIGNI_ZONE');
+  eq((designate as { count?: number }).count, 2, '2ゾーンを指定する');
+  // ⚠autopilot（finish）の CHOOSE は先頭1つしか選ばないので、複数選択はここで明示的に駆動する。
+  const base = { ...mkCtx({}, { signi: [a, b, c] }, 'WX25-P3-014'), isOwnerTurn: true };
+  let result = executeEffect({ effectId: 't', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, base);
+  ok(!result.done && result.pending.type === 'CHOOSE', 'ゾーン選択で中断');
+  if (result.done || result.pending.type !== 'CHOOSE') return;
+  eq(result.pending.count, 2, '2つまで選べる');
+  eq(result.pending.multiSelect, true, '複数選択UI');
+  result = resumeChoose(['zone_0', 'zone_2'], result.pending, ctxAfter(result, base));
+  const applied = finish(result, base);
+  const zones = designatedZones(applied.otherState);
+  eq(zones.join(','), '0,2', '2ゾーンぶん記録される');
+  const nums = [a, b, c];
+  const removed = collectContinuousAbilitiesRemovedSigni(
+    applied.otherState, applied.ownerState, false, effectsMap, cardMap);
+  for (const z of zones) ok(removed.has(nums[z]), `ゾーン${z + 1}のシグニが能力を失う`);
+  const untouched = [0, 1, 2].filter(z => !zones.includes(z));
+  for (const z of untouched) eq(removed.has(nums[z]), false, `ゾーン${z + 1}は無傷`);
+}));
 
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
@@ -16352,7 +16410,7 @@ test('第10波 engine 実走：DESIGNATE→BLOCK が相手 state のこのター
   const ctx = mkCtx({}, { signi: [null, SIGNI_P3000, null] });
   const r = run(p11.action, ctx);
   ok(r.done, '解決が完了する');
-  eq(r.otherState.designated_zone, 0, 'CHOOSE の先頭＝ゾーン1を指定');
+  eq(designatedZones(r.otherState).join(','), '0', 'CHOOSE の先頭＝ゾーン1を指定');
   eq(JSON.stringify(r.otherState.signi_zone_blocks), JSON.stringify([{ zone: 0, colorless: 5 }]), 'このターン分＝《無》×5 の回避つき');
   eq(JSON.stringify(r.otherState.signi_zone_blocks_next_turn), JSON.stringify([{ zone: 0, colorless: 5 }]), '次のターン分も予約する');
   eq(r.ownerState.signi_zone_blocks, undefined, '自分側には掛からない');
