@@ -1326,11 +1326,11 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   if (a.target.zoneSource === 'designated' && a.target.count === 'ALL') {
     const active = applyActiveFieldGrant(a.target, {
       kind: 'power', delta, filter: a.target.filter, condition: a.fieldCondition,
+      ...(perLevel ? { perTargetLevel: true } : {}),
       srcType, srcCardNum: ctx.sourceCardNum,
     }, ctx);
     if (active.applied) {
-      return done(addLog(active.ctx,
-        `このターン、指定シグニゾーンのシグニのパワー${delta > 0 ? '+' : ''}${delta}`));
+      return done(addLog(active.ctx, `このターン、指定シグニゾーンのシグニのパワー${deltaJa}`));
     }
     return done(addLog(ctx, '指定されたシグニゾーンがない'));
   }
