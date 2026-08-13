@@ -536,7 +536,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         type: 'SIGNI', owner,
         count: all ? 'ALL' : (upToM ? parseNum(upToM[1]) : 1),
         ...(upToM ? { upToCount: true } : {}),
-        ...(allZones ? { allZones: true } : {}),
+        // ⚠`allZones` は手札／エナ／トラッシュも候補に足すので、**種別を明示しないと
+        //   スペルやアーツまで巻き込む**（場だけを見る既定経路では cardType が無くても実害が無かった）。
+        ...(allZones ? { allZones: true, filter: { cardType: 'シグニ' } } : {}),
       },
       until: dur,
       ...(keysAndSigni ? { alsoKeys: true } : {}),

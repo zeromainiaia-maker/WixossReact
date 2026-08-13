@@ -4813,6 +4813,13 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   //   「この方法でトラッシュに置いたシグニのレベルの合計と同じレベルを持つ」＝`last_cost_energy_trash_level_sum`。
   'WXK09-032-E2': { type: 'SEARCH', flag: 'levelEqualsVar', value: 'cost_energy_trash_level_sum' },
   'WXK10-053-BURST': { type: 'TRASH', flag: 'levelEqLrig', value: 'self' },
+  // §6.4 O-17: `WX24-P4-013-E3` の後段「その後、**そのシグニと同じレベルの**対戦相手のシグニ１体を対象とし、
+  //   それを手札に戻す」。「そのシグニ」＝直前に公開したデッキトップ＝`lastProcessedCards`。
+  // ⚠前段の `REMOVE_ABILITIES` は自分の候補で `lastProcessedCards` を上書きするが、**その候補は同じレベルで
+  //   絞られている**ので参照値は変わらない。候補0のときは上書きが起きず公開カードが残る＝どちらでも正しい。
+  // ⚠前段のレベル条件は parser の一般規則（「この方法で公開されたシグニと同じレベルの」）が付ける。
+  //   ここは「そのシグニ」という照応語だけの文で、一般規則にすると他カードの「その」を巻き込むため effectId 固定。
+  'WX24-P4-013-E3': { type: 'BOUNCE', flag: 'levelEqLastProcessed' },
 };
 function applyIdentityBatch5b(effects: CardEffect[]): void {
   const addFilter = (obj: Record<string, unknown>, spec: (typeof IDENTITY_BATCH5B)[string]): void => {
