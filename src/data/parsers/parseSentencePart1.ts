@@ -1693,10 +1693,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 「あなたの(すべての)レゾナのパワーを±N」＝自分のレゾナ全体への持続バフ（WX07-007/WX08-019）。
       // cardType:'レゾナ' で engine（card.Type==='レゾナ'）も decompiler もレゾナと認識する。
       target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'レゾナ' } };
-    } else if (t.match(/このターンと次のターンの間、指定されたシグニゾーンにあるシグニのパワーを/)) {
+    } else if (t.match(/(?:その|指定された)シグニゾーンにあるシグニのパワーを/)) {
       // DESIGNATE_SIGNI_ZONE が対象側 state に保存した固定ゾーン。count:ALL は選択対象の全体ではなく
-      // 「そのゾーンに現在／将来いるシグニ」への場レベル適用を表す。
-      target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' }, zoneSource: 'designated' };
+      // 「そのゾーンに現在／将来いるシグニ」への**場レベル適用**を表す（原文の
+      // 「このアーツの使用後にそこに置かれたシグニにも影響を与える」がまさにこれ）。§6.4 O-16。
+      // ⚠従来この規則は「このターンと次のターンの間、指定された…」という**1枚ぶんの語形にだけ**当たっており、
+      //   「このターン、**その**シグニゾーンにある…」の5効果は既定 else の `owner:'any'/count:1` へ落ちて
+      //   **好きなシグニ1体を選ぶ**別物になっていた（＝直前の DESIGNATE の選択が使われない）。
+      // ⚠**ゾーンの持ち主は符号で決める**＝マイナスは相手ゾーン、プラスは自分ゾーン。
+      //   文単位パースでは先行文の「対戦相手の」が見えず、live 6効果は
+      //   （－7000/－5000×2/－3000×2＝相手／＋10000＝自分）でこの規則と完全に一致する。
+      //   ⭐DESIGNATE 側の owner は下流の `alignDesignatedZoneOwner` が**この target から**揃えるので
+      //     2つが食い違うことはない（片方だけ直すと読み手と保存先がズレて空振りする）。
+      target = {
+        type: 'SIGNI', owner: delta < 0 ? 'opponent' : 'self', count: 'ALL',
+        filter: { cardType: 'シグニ' }, zoneSource: 'designated',
+      };
     } else if (t.match(/あなたの中央のシグニゾーンにある.*?シグニのパワーを/)) {
       // 「あなたの中央のシグニゾーンにある[＜種族＞/《ディソナアイコン》]の?シグニのパワーを±N」＝中央ゾーン(index1)の該当シグニ全体。
       // engine matchesStateFilter（centerZoneOnly=zoneIdx1）・decompiler（「中央ゾーンの」）対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。
