@@ -10549,6 +10549,428 @@ scenarios.cheatingSameLevelDownFilter = {
   },
 };
 
+// ── 続き469：PLAN §7 V-05 対象宣言の owner/count/power 制限＋V-07② 自己トラッシュ ──
+const AKINO_TARGET_GUEST = ['WD01-012#4692', 'WD01-013#4693', 'WD01-014#4694'];
+const AKINO_TARGET_SELF = 'WX06-CB01#4691';
+const AKINO_GUARD = 'WD01-017#4695';
+const AKINO_SELECTED_TWO = [AKINO_TARGET_GUEST[0], AKINO_TARGET_GUEST[2]];
+
+const akinoTargetDeclSpec = {
+  hostSet: {
+    'field.lrig': ['WXDi-P02-009#4690'],
+    'field.lrig_down': false,
+    'field.assist_lrig_l': ['WXDi-D02-07LT#4690'],
+    'field.assist_lrig_r': ['WXDi-D02-18AT#4690'],
+    'field.assist_lrig_l_down': false,
+    'field.assist_lrig_r_down': false,
+    'field.signi': [[AKINO_TARGET_SELF], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [AKINO_GUARD],
+    'energy': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4699'],
+    'field.signi': AKINO_TARGET_GUEST.map(n => [n]),
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [],
+    'energy': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const sameInstanceSet = (actual, expected) => Array.isArray(actual)
+  && actual.length === expected.length
+  && expected.every(n => actual.includes(n));
+
+async function clickExactVisibleText(page, text) {
+  for (let k = 0; k < 5; k++) {
+    const el = page.getByText(text, { exact: true }).first();
+    if (await el.count() && await el.isVisible().catch(() => false) && await el.isEnabled().catch(() => true)) {
+      await el.click({ timeout: 2000 });
+      return `text:${text}`;
+    }
+    await page.waitForTimeout(100);
+  }
+  return null;
+}
+
+async function clickPendingInstance(page, H, instanceId) {
+  const st = await H.queryState();
+  if (!Array.isArray(st?.pendingCandidates) || !st.pendingCandidates.includes(instanceId)) return null;
+  // EffectInteractionModal は opp_field の表示順だけ candidates を反転するため、DB配列の index を
+  // そのまま pick-N に使わない。instanceId を集合で検査した後、固有 cardNum の data-card-num で狙う。
+  const cardNum = instanceId.split('#')[0];
+  // ⚠**DB に候補が立った瞬間はまだモーダルが描画されていない**（続き469 実測＝`pendingCandidates` は
+  //   取れているのに `pick-*` が0件で、1体目のクリックが即 null になり FAIL した）。
+  //   `queryState` は Supabase を直接照会するので **DOM より先に真になる**＝**描画を待ってから掴む**。
+  const pick = page.locator(`[data-testid^="pick-"][data-card-num="${cardNum}"]`).first();
+  for (let w = 0; w < 20; w++) {
+    if (await pick.count() && await pick.isVisible().catch(() => false)) break;
+    await page.waitForTimeout(150);
+  }
+  if (!(await pick.count()) || !(await pick.isVisible().catch(() => false))) return null;
+  const testId = await pick.getAttribute('data-testid');
+  await pick.click({ timeout: 2000 });
+  return `tid:${testId ?? 'pick-*'}:${instanceId}`;
+}
+
+async function openAkinoTargetDeclaration(page, H, id) {
+  await H.ensureMain();
+  const flow = { lrigOpened: false, actionClicked: false, fired: false };
+  let last = await H.queryState();
+  for (let s = 0; s < 32; s++) {
+    await page.waitForTimeout(300);
+    let did = null;
+    if (!flow.lrigOpened) {
+      const img = page.getByAltText('勇気へ前進　アキノ', { exact: true }).first();
+      if (await img.count() && await img.isVisible().catch(() => false)) {
+        await img.click({ force: true, timeout: 2000 }); did = 'img:勇気へ前進 アキノ'; flow.lrigOpened = true;
+      }
+    } else if (!flow.actionClicked) {
+      const act = page.locator('[data-testid^="card-action-"][data-action-label="【起】アップ状態のレベル2のルリグ2体をダウン"]').first();
+      if (await act.count() && await act.isVisible().catch(() => false) && await act.isEnabled().catch(() => false)) {
+        await act.click({ timeout: 2000 }); did = 'action:【起】Lv2ルリグ2体ダウン'; flow.actionClicked = true;
+      }
+    } else if (!flow.fired) {
+      did = await H.clickBtn('発動', { exact: true });
+      if (did) flow.fired = true;
+    }
+    const st = await H.queryState();
+    last = st;
+    H.log(`  ${id}.open[${s}] -> ${did ?? 'なし'} | flow=${JSON.stringify(flow)} assistDown=${JSON.stringify(st?.host?.assistDown)} candidates=${JSON.stringify(st?.pendingCandidates)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (flow.fired && Array.isArray(st?.pendingCandidates)) {
+      if (st?.host?.assistDown?.[0] !== true || st?.host?.assistDown?.[1] !== true || st?.host?.lrigDown !== false) {
+        return { error: `Lv2ルリグ2体ダウン不成立（assistDown=${JSON.stringify(st?.host?.assistDown)} centerDown=${st?.host?.lrigDown}）`, st };
+      }
+      return { st };
+    }
+  }
+  return { error: `対象宣言が開かない（flow=${JSON.stringify(flow)} assistDown=${JSON.stringify(last?.host?.assistDown)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）`, st: last };
+}
+
+async function settleAkinoAfterZero(page, H, id, { payGuard }) {
+  let prompted = false; let payClicked = false; let guardPicked = false; let guardConfirmed = false; let last = await H.queryState();
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(300);
+    const st0 = await H.queryState();
+    let did = null;
+    if ((st0?.pendingOptions ?? []).some(o => o.startsWith('pay:'))) {
+      prompted = true;
+      did = await H.clickTestId(payGuard ? 'optcost-pay' : 'optcost-skip');
+      if (did && payGuard) payClicked = true;
+    } else if (payGuard && payClicked && !guardPicked && sameInstanceSet(st0?.pendingCandidates, [AKINO_GUARD])) {
+      did = await clickPendingInstance(page, H, AKINO_GUARD);
+      if (did) guardPicked = true;
+    } else if (payGuard && guardPicked && !guardConfirmed) {
+      did = await clickExactVisibleText(page, '決定 (1/1)');
+      if (did) guardConfirmed = true;
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
+    H.log(`  ${id}.zero[${s}] -> ${did ?? 'なし'} | prompted=${prompted} pay=${payClicked} guard=${guardPicked}/${guardConfirmed} hHand=${st?.host?.hand} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled && sameInstanceSet((st?.guest?.fieldSigni ?? []).flatMap(z => z ?? []), AKINO_TARGET_GUEST)) {
+      return { pass: true, st, prompted, payClicked, guardPicked, guardConfirmed };
+    }
+  }
+  return { pass: false, st: last, prompted, payClicked, guardPicked, guardConfirmed };
+}
+
+scenarios.targetDeclOpponentOnlyCandidates = {
+  title: 'WXDi-P02-009-E3（対象宣言owner＝候補は相手場3体だけ・自場を混ぜない）',
+  spec: akinoTargetDeclSpec,
+  async drive(page, H) {
+    const opened = await openAkinoTargetDeclaration(page, H, 'tdoc');
+    if (opened.error) return { pass: false, detail: opened.error };
+    const cands = opened.st.pendingCandidates;
+    if (!sameInstanceSet(cands, AKINO_TARGET_GUEST) || cands.includes(AKINO_TARGET_SELF)) {
+      return { pass: false, detail: `【owner回帰】候補=${JSON.stringify(cands)}（期待＝guest 3体のみ ${JSON.stringify(AKINO_TARGET_GUEST)}／self ${AKINO_TARGET_SELF} は不在）` };
+    }
+    const zero = await clickExactVisibleText(page, '決定 (0/2)');
+    if (!zero) return { pass: false, detail: `owner候補は正しいが0体確定ボタンを押せない（candidates=${JSON.stringify(cands)}）` };
+    const done = await settleAkinoAfterZero(page, H, 'tdoc', { payGuard: false });
+    return {
+      pass: done.pass,
+      detail: done.pass
+        ? `pendingCandidates=${JSON.stringify(cands)}＝guest 3体だけ／self ${AKINO_TARGET_SELF} 混入なし。観測後は0体確定＋任意コストskipで完走`
+        : `owner候補観測後の完走タイムアウト（gField=${JSON.stringify(done.st?.guest?.fieldSigni)} pEff=${done.st?.pendingEffect ?? '-'}）`,
+    };
+  },
+};
+
+scenarios.targetDeclUpToTwoSelectsBoth = {
+  title: 'WXDi-P02-009-E3（2体まで＝2体を対象確定しGuardを捨て、その2体だけ手札へ戻す）',
+  spec: akinoTargetDeclSpec,
+  async drive(page, H) {
+    const opened = await openAkinoTargetDeclaration(page, H, 'td2');
+    if (opened.error) return { pass: false, detail: opened.error };
+    if (!sameInstanceSet(opened.st.pendingCandidates, AKINO_TARGET_GUEST)) {
+      return { pass: false, detail: `対象宣言候補不一致=${JSON.stringify(opened.st.pendingCandidates)}` };
+    }
+    for (const id of AKINO_SELECTED_TWO) {
+      const picked = await clickPendingInstance(page, H, id);
+      if (!picked) return { pass: false, detail: `宣言対象 ${id} を選べない（candidates=${JSON.stringify((await H.queryState())?.pendingCandidates)}）` };
+    }
+    if (!(await clickExactVisibleText(page, '決定 (2/2)'))) return { pass: false, detail: '宣言2体を選んだが「決定 (2/2)」を押せない' };
+
+    let paid = false; let guardPicked = false; let guardConfirmed = false; const bouncePicked = new Set(); let bounceConfirmed = false;
+    let last = await H.queryState();
+    for (let s = 0; s < 54; s++) {
+      await page.waitForTimeout(300);
+      const st0 = await H.queryState();
+      let did = null;
+      if (!paid && (st0?.pendingOptions ?? []).some(o => o.startsWith('pay:'))) {
+        did = await H.clickTestId('optcost-pay'); if (did) paid = true;
+      } else if (paid && !guardPicked && sameInstanceSet(st0?.pendingCandidates, [AKINO_GUARD])) {
+        did = await clickPendingInstance(page, H, AKINO_GUARD); if (did) guardPicked = true;
+      } else if (guardPicked && !guardConfirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) guardConfirmed = true;
+      } else if (guardConfirmed && sameInstanceSet(st0?.pendingCandidates, AKINO_SELECTED_TWO)) {
+        const next = AKINO_SELECTED_TWO.find(n => !bouncePicked.has(n));
+        if (next) { did = await clickPendingInstance(page, H, next); if (did) bouncePicked.add(next); }
+        else if (!bounceConfirmed) { did = await clickExactVisibleText(page, '決定 (2/2)'); if (did) bounceConfirmed = true; }
+      } else if (guardConfirmed && Array.isArray(st0?.pendingCandidates)
+          && !sameInstanceSet(st0.pendingCandidates, AKINO_TARGET_GUEST)
+          && !sameInstanceSet(st0.pendingCandidates, [AKINO_GUARD])) {
+        return { pass: false, detail: `【stored対象回帰】BOUNCE再確認候補=${JSON.stringify(st0.pendingCandidates)}（期待=${JSON.stringify(AKINO_SELECTED_TWO)}）` };
+      }
+      if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+      const st = await H.queryState();
+      last = st;
+      const selectedReturned = AKINO_SELECTED_TWO.every(n => st?.guest?.handCards?.includes(n));
+      const thirdStayed = st?.guest?.fieldSigni?.[1]?.includes(AKINO_TARGET_GUEST[1]);
+      H.log(`  td2[${s}] -> ${did ?? 'なし'} | paid=${paid} guard=${guardPicked}/${guardConfirmed} bounce=${bouncePicked.size}/${bounceConfirmed} gHand=${JSON.stringify(st?.guest?.handCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (selectedReturned && thirdStayed && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0) {
+        const guardPaid = st.host.hand === 0 && st.host.trashCards.includes(AKINO_GUARD);
+        return { pass: paid && guardPaid, detail: `2体選択→${JSON.stringify(AKINO_SELECTED_TWO)}だけguest.handへ、未選択 ${AKINO_TARGET_GUEST[1]} はzone1残存=${thirdStayed}／Guard支払い=${guardPaid}` };
+      }
+    }
+    return { pass: false, detail: `2体bounce未完了（paid=${paid} guard=${guardPicked}/${guardConfirmed} bounce=${bouncePicked.size}/${bounceConfirmed} gHand=${JSON.stringify(last?.guest?.handCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.targetDeclUpToTwoAllowsZero = {
+  title: 'WXDi-P02-009-E3（2体まで＝0体で確定可・相手場不変、Guard任意コストの現状も記録）',
+  spec: akinoTargetDeclSpec,
+  async drive(page, H) {
+    const opened = await openAkinoTargetDeclaration(page, H, 'td0');
+    if (opened.error) return { pass: false, detail: opened.error };
+    if (!sameInstanceSet(opened.st.pendingCandidates, AKINO_TARGET_GUEST)) {
+      return { pass: false, detail: `0体対照の候補前提不一致=${JSON.stringify(opened.st.pendingCandidates)}` };
+    }
+    if (!(await clickExactVisibleText(page, '決定 (0/2)'))) return { pass: false, detail: '「決定 (0/2)」がenabledでなく0体確定できない' };
+    const done = await settleAkinoAfterZero(page, H, 'td0', { payGuard: true });
+    if (!done.pass) return { pass: false, detail: `0体確定後の完走タイムアウト（prompted=${done.prompted} pay=${done.payClicked} guard=${done.guardPicked}/${done.guardConfirmed} gField=${JSON.stringify(done.st?.guest?.fieldSigni)}）` };
+    const guardMoved = done.st.host.trashCards.includes(AKINO_GUARD) && !done.st.host.handCards.includes(AKINO_GUARD);
+    return { pass: true, detail: `0/2確定後もguest 3体すべて場に残存。Guardコスト現状＝提示=${done.prompted}・payクリック=${done.payClicked}・${AKINO_GUARD}手札→trash=${guardMoved}（仕様判断はしない）` };
+  },
+};
+
+const POWER_LOW = 'WD01-013#4701';       // 印字P3000
+const POWER_HIGH = 'WX01-053#4702';      // 印字P15000
+const POWER_HOST = 'WX06-CB01#4700';     // 羅石 キュア P2000
+const POWER_HOST_HAND = ['WD01-017#4703', 'WD01-014#4704'];
+
+const makeTargetDeclPowerSpec = (powerMods) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#4709'], 'field.signi': [[POWER_HOST], null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': POWER_HOST_HAND, 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4710'], 'field.signi': [[POWER_LOW], [POWER_HIGH], null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'temp_power_mods': powerMods, 'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function clickCureAttack(page, H) {
+  const zone = await H.clickTestId('my-signi-zone-0');
+  if (!zone) return null;
+  for (let k = 0; k < 12; k++) {
+    await page.waitForTimeout(200);
+    const attack = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+    if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
+      await attack.click({ timeout: 2000 }); return 'action:アタック';
+    }
+  }
+  return null;
+}
+
+async function finishCureSkip(page, H, id) {
+  let skipped = false; let last = await H.queryState();
+  for (let s = 0; s < 36; s++) {
+    await page.waitForTimeout(300);
+    let did = null;
+    const st0 = await H.queryState();
+    if (!skipped && (st0?.pendingOptions ?? []).some(o => o.startsWith('skip:'))) {
+      did = await H.clickTestId('optcost-skip'); if (did) skipped = true;
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = skipped && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.pendingSigniBattle == null
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    H.log(`  ${id}.skip[${s}] -> ${did ?? 'なし'} | skipped=${skipped} hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) return { pass: true, st };
+  }
+  return { pass: false, st: last };
+}
+
+scenarios.targetDeclPowerCapExcludesAbove = {
+  title: 'WX06-CB01-E1（powerRange max3000＝P3000だけ候補、P15000を除外）',
+  spec: makeTargetDeclPowerSpec([]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    if (!(await clickCureAttack(page, H))) return { pass: false, detail: 'WX06-CB01のアタックボタンを押せない' };
+    let cands = null;
+    for (let s = 0; s < 36; s++) {
+      await page.waitForTimeout(250);
+      const st = await H.queryState();
+      if (Array.isArray(st?.pendingCandidates)) { cands = st.pendingCandidates; break; }
+    }
+    if (!sameInstanceSet(cands, [POWER_LOW])) {
+      return { pass: false, detail: `【powerRange回帰】pendingCandidates=${JSON.stringify(cands)}（期待=${POWER_LOW}だけ、${POWER_HIGH}は除外）` };
+    }
+    if (!(await clickPendingInstance(page, H, POWER_LOW)) || !(await clickExactVisibleText(page, '決定 (1/1)'))) {
+      return { pass: false, detail: `正候補 ${POWER_LOW} の選択確定に失敗` };
+    }
+    const done = await finishCureSkip(page, H, 'tdpc');
+    const fieldsStayed = done.st?.host?.fieldSigni?.[0]?.includes(POWER_HOST)
+      && done.st?.guest?.fieldSigni?.[0]?.includes(POWER_LOW) && done.st?.guest?.fieldSigni?.[1]?.includes(POWER_HIGH);
+    return { pass: done.pass && fieldsStayed, detail: `候補=${JSON.stringify(cands)}＝P3000だけ（P15000除外）。OPTIONAL_TRASH_SELF skip後は両者の場不変=${fieldsStayed}、life ${before?.guest?.life}→${done.st?.guest?.life}` };
+  },
+};
+
+scenarios.targetDeclPowerCapUsesEffectivePower = {
+  title: 'WX06-CB01-E1（同一盤面でP3000へ+1000＝実効P4000になり候補0）',
+  spec: makeTargetDeclPowerSpec([{ cardNum: POWER_LOW, delta: 1000 }]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const modSeen = before?.guest?.powerMods?.includes(`${POWER_LOW}:1000`);
+    if (!modSeen) return { pass: false, detail: `temp_power_mods注入不成立（powerMods=${JSON.stringify(before?.guest?.powerMods)}）` };
+    if (!(await clickCureAttack(page, H))) return { pass: false, detail: 'WX06-CB01のアタックボタンを押せない' };
+    let sawPostTargetChoose = false; let sawNonEmptyCandidates = null; let skipped = false; let last = before;
+    for (let s = 0; s < 42; s++) {
+      await page.waitForTimeout(250);
+      const st0 = await H.queryState();
+      let did = null;
+      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length > 0) {
+        sawNonEmptyCandidates = [...st0.pendingCandidates];
+        return { pass: false, detail: `【印字パワー回帰】実効P4000の ${POWER_LOW} が候補に残った=${JSON.stringify(sawNonEmptyCandidates)}（powerMods=${JSON.stringify(st0?.guest?.powerMods)}）` };
+      }
+      if (!skipped && (st0?.pendingOptions ?? []).some(o => o.startsWith('skip:'))) {
+        sawPostTargetChoose = true;
+        did = await H.clickTestId('optcost-skip'); if (did) skipped = true;
+      }
+      if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+      if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      const st = await H.queryState();
+      last = st;
+      const settled = sawPostTargetChoose && skipped && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+        && st?.host?.pendingSigniBattle == null
+        && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+      H.log(`  tdpe[${s}] -> ${did ?? 'なし'} | mod=${modSeen} postTargetChoose=${sawPostTargetChoose} skipped=${skipped} candidates=${JSON.stringify(st?.pendingCandidates)} gPmods=${JSON.stringify(st?.guest?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (settled) {
+        const fieldsStayed = st.host.fieldSigni?.[0]?.includes(POWER_HOST)
+          && st.guest.fieldSigni?.[0]?.includes(POWER_LOW) && st.guest.fieldSigni?.[1]?.includes(POWER_HIGH);
+        return { pass: fieldsStayed, detail: `powerMods=${POWER_LOW}:1000（印字3000→実効4000）を先に確認。SELECT_TARGET候補は非空を一度も観測せず、後段OPTIONAL_TRASH_SELF到達=${sawPostTargetChoose}→skip完走、場不変=${fieldsStayed}` };
+      }
+    }
+    return { pass: false, detail: `実効パワー候補0の完走タイムアウト（mod=${modSeen} postTargetChoose=${sawPostTargetChoose} skipped=${skipped} candidates=${JSON.stringify(sawNonEmptyCandidates)} pEff=${last?.pendingEffect ?? '-'}）` };
+  },
+};
+
+const OPTIONAL_TRASH_SELF_SPEC = makeTargetDeclPowerSpec([]);
+
+async function runOptionalTrashSelfRound(page, H, branch) {
+  const before = await H.queryState();
+  if (!(await clickCureAttack(page, H))) return { pass: false, detail: `${branch}: WX06-CB01のアタックボタンを押せない` };
+  let phase = 'initialTarget'; let initialChecked = false; let targetPicked = false; let targetConfirmed = false;
+  let branchClicked = false; let selfPicked = false; let selfConfirmed = false; let banishPicked = false; let banishConfirmed = false;
+  let last = before;
+  for (let s = 0; s < 64; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (phase === 'initialTarget' && Array.isArray(st0?.pendingCandidates)) {
+      initialChecked = sameInstanceSet(st0.pendingCandidates, [POWER_LOW]);
+      if (!initialChecked) return { pass: false, detail: `${branch}: 初期候補限定漏れ=${JSON.stringify(st0.pendingCandidates)}` };
+      if (!targetPicked) { did = await clickPendingInstance(page, H, POWER_LOW); if (did) targetPicked = true; }
+      else if (!targetConfirmed) { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) { targetConfirmed = true; phase = 'choose'; } }
+    } else if (phase === 'choose' && (st0?.pendingOptions ?? []).some(o => o.startsWith('skip:'))) {
+      did = await H.clickTestId(branch === 'pay' ? 'optcost-pay' : 'optcost-skip');
+      if (did) { branchClicked = true; phase = branch === 'pay' ? 'selfTarget' : 'settle'; }
+    } else if (phase === 'selfTarget' && sameInstanceSet(st0?.pendingCandidates, [POWER_HOST])) {
+      if (!selfPicked) { did = await clickPendingInstance(page, H, POWER_HOST); if (did) selfPicked = true; }
+      else if (!selfConfirmed) { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) { selfConfirmed = true; phase = 'banishTarget'; } }
+    } else if (phase === 'banishTarget' && sameInstanceSet(st0?.pendingCandidates, [POWER_LOW])) {
+      if (!banishPicked) { did = await clickPendingInstance(page, H, POWER_LOW); if (did) banishPicked = true; }
+      else if (!banishConfirmed) { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) { banishConfirmed = true; phase = 'settle'; } }
+    } else if ((phase === 'selfTarget' || phase === 'banishTarget') && Array.isArray(st0?.pendingCandidates)) {
+      const expected = phase === 'selfTarget' ? [POWER_HOST] : [POWER_LOW];
+      // 直前interactionのDB反映待ちで一瞬残る旧候補は無視し、それ以外の集合だけを実回帰とする。
+      const stale = (phase === 'selfTarget' && sameInstanceSet(st0.pendingCandidates, [POWER_LOW]))
+        || (phase === 'banishTarget' && sameInstanceSet(st0.pendingCandidates, [POWER_HOST]));
+      if (!stale && !sameInstanceSet(st0.pendingCandidates, expected)) {
+        return { pass: false, detail: `${branch}: ${phase}候補不一致=${JSON.stringify(st0.pendingCandidates)}（期待=${JSON.stringify(expected)}）` };
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = phase === 'settle' && branchClicked && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.pendingSigniBattle == null
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    H.log(`  ots.${branch}[${s}] -> ${did ?? 'なし'} | phase=${phase} initial=${initialChecked}/${targetPicked}/${targetConfirmed} branch=${branchClicked} self=${selfPicked}/${selfConfirmed} banish=${banishPicked}/${banishConfirmed} hHand=${JSON.stringify(st?.host?.handCards)} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      const handUnchanged = sameInstanceSet(st.host.handCards, POWER_HOST_HAND);
+      if (branch === 'pay') {
+        const selfTrashed = st.host.fieldSigni?.[0] == null && st.host.trashCards.includes(POWER_HOST);
+        const targetBanished = st.guest.fieldSigni?.[0] == null && st.guest.energyCards.includes(POWER_LOW);
+        const highStayed = st.guest.fieldSigni?.[1]?.includes(POWER_HIGH);
+        return { pass: initialChecked && selfTrashed && targetBanished && highStayed && handUnchanged,
+          detail: `pay: selfTrash=${selfTrashed} targetBanish=${targetBanished} highStayed=${highStayed} handUnchanged=${handUnchanged}（${JSON.stringify(st.host.handCards)}）` };
+      }
+      const selfStayed = st.host.fieldSigni?.[0]?.includes(POWER_HOST);
+      const targetsStayed = st.guest.fieldSigni?.[0]?.includes(POWER_LOW) && st.guest.fieldSigni?.[1]?.includes(POWER_HIGH);
+      return { pass: initialChecked && selfStayed && targetsStayed && handUnchanged,
+        detail: `skip: selfStayed=${selfStayed} targetsStayed=${targetsStayed} handUnchanged=${handUnchanged}（${JSON.stringify(st.host.handCards)}）` };
+    }
+  }
+  return { pass: false, detail: `${branch}: 完走タイムアウト（phase=${phase} initial=${initialChecked}/${targetPicked}/${targetConfirmed} branch=${branchClicked} self=${selfPicked}/${selfConfirmed} banish=${banishPicked}/${banishConfirmed} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.optionalTrashSelfNoHandLoss = {
+  title: 'WX06-CB01-E1（OPTIONAL_TRASH_SELF pay/skip対照＝自己トラッシュ時も手札を失わない）',
+  spec: OPTIONAL_TRASH_SELF_SPEC,
+  async drive(page, H) {
+    const pay = await runOptionalTrashSelfRound(page, H, 'pay');
+    if (!pay.pass) return { pass: false, detail: pay.detail };
+    await H.closeModals();
+    const reinjected = await injectScenario(page, OPTIONAL_TRASH_SELF_SPEC);
+    if (reinjected.error) return { pass: false, detail: `skip対照の再注入失敗=${reinjected.error}` };
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+    const skip = await runOptionalTrashSelfRound(page, H, 'skip');
+    return { pass: skip.pass, detail: `同一specを再注入し、変えたのはOPTIONAL_TRASH_SELFの応答だけ。${pay.detail}／${skip.detail}` };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13148,6 +13570,9 @@ order.push('forcedAttackBlocksPhaseAdvance', 'forcedAttackControlAdvances',
 order.push('oppPayNegateAttackWhenPaid', 'oppPayAttackGoesThroughWhenUnpaid',
   'oppHandDiscardIsOpponentSide', 'oppHandDiscardUnavailableWhenShort',
   'oppPlayDiscardThenOpponentDraws', 'oppPlayDiscardSkippedWhenNoHand');
+// 続き469：V-05 owner/count/power と V-07② OPTIONAL_TRASH_SELF。既存orderは変更せず末尾追加。
+order.push('targetDeclOpponentOnlyCandidates', 'targetDeclUpToTwoSelectsBoth', 'targetDeclUpToTwoAllowsZero',
+  'targetDeclPowerCapExcludesAbove', 'targetDeclPowerCapUsesEffectivePower', 'optionalTrashSelfNoHandLoss');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -13401,6 +13826,8 @@ try {
         lifeCards: s.life_cloth ?? [],
         deck: (s.deck ?? []).length,
         lrigAttacked: s.field?.lrig_attacked ?? false,
+        // アタック時効果のstack解決後もバトル/ライフ処理が残る短い窓を区別し、check消化前returnを防ぐ。
+        pendingSigniBattle: s.pending_signi_battle ?? null,
         fieldCheck: s.field?.check ?? null,
         keyPiece: s.field?.key_piece ?? null,
         identityOverrides: s.card_identity_overrides ?? {},

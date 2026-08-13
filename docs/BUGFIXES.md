@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き469・Codex起案／実機はClaudeへ引継ぎ）— §7 V-05 対象宣言 owner/count/power＋V-07② 自己トラッシュ Playwright 6本
+
+`scripts/verifyBattleDrive.mjs` に次の6シナリオを追加し、既存 `order` は変更せず末尾 `order.push(...)` に登録した。
+
+| id | 静的に固定した観測点 |
+|---|---|
+| `targetDeclOpponentOnlyCandidates` | `WXDi-P02-009-E3` の `pendingCandidates` が guest の `WD01-012#4692`／`WD01-013#4693`／`WD01-014#4694` の集合だけで、host の `WX06-CB01#4691` を含まない |
+| `targetDeclUpToTwoSelectsBoth` | 上の3体から `WD01-012#4692` と `WD01-014#4694` を対象確定し、Guard=1 の `WD01-017#4695` を捨てると、その2体だけ guest.hand へ戻り `WD01-013#4693` は場に残る |
+| `targetDeclUpToTwoAllowsZero` | `決定 (0/2)` が押せ、guest 3体が全残存。0体時にも Guard コストが提示・徴収されるかは実測値を detail に記録するだけで仕様判定しない |
+| `targetDeclPowerCapExcludesAbove` | `WX06-CB01-E1` の候補が印字P3000の `WD01-013#4701` だけで、P15000の `WX01-053#4702` を除く |
+| `targetDeclPowerCapUsesEffectivePower` | P1と同じ盤面へ guest `temp_power_mods:[{cardNum:'WD01-013#4701',delta:1000}]` だけを足し、`powerMods` 注入確認後は非空候補が一度も出ず後段 `OPTIONAL_TRASH_SELF` へ進む |
+| `optionalTrashSelfNoHandLoss` | 同じspecを再注入して pay／skip の2周。pay は `WX06-CB01#4700` 自身だけがhost.trashへ、対象だけがバニッシュ、host.handの固定2枚は不変。skip は両シグニ残存・手札不変 |
+
+T群のコストは、Lv3センター `WXDi-P02-009#4690`（CSV Limit6）に、CSVで Type=`アシストルリグ`／Lv2 を確認した
+`WXDi-D02-07LT#4690` と `WXDi-D02-18AT#4690` をアップ状態で置いた。`field.assist_lrig_l_down/right_down:false` を明示し、
+起動後 `assistDown=[true,true]` かつ centerDown=false を候補判定より先に必須化した。手札は CSV Guard=`1` の
+`WD01-017#4695`。ゲーム1回の持越しは `hostSet.game_actions_done:[]`（併せて `actions_done:[]`）で毎シナリオ明示リセットした。
+
+全specの host／guest に `'field.check':null` を明示。候補は必ず `pendingCandidates` を instanceId の集合として検査してから押す。
+なお `EffectInteractionModal` は `opp_field` の表示だけ候補順を reverse するため、DB配列 index をそのまま `pick-N` に使う先例は
+複数候補で別カードを押しうる。そこで集合確認後、固有cardNumの `[data-testid^="pick-"][data-card-num="…"]` から実 `pick-N` を取る。
+P/C群はアタック後の `field.check` が両者nullになるまで `ガードしない（ライフクロスクラッシュ）`／`エナに送る` を消化する。
+
+対照差分は、P1↔P2＝guest `temp_power_mods` の空配列／上記+1000の1件だけ、T2↔T3＝同じ候補盤面で
+2体確定＋Guard支払い／0体確定＋Guard提示時は支払い、C1 pay↔skip＝同じspec再注入後の `optcost-pay`／`optcost-skip` だけ。
+
+📋未実施＝`SELECT_TARGET_ONLY` の残り116効果、`WXDi-P02-009-E1/E2`、PLAN §3 (cxxiii)/(cxxv)/(cxxvi)/(cxxvii) の修正、
+engine/parser/live JSON/`src/`/testid の変更。実ブラウザは外部ネットワーク遮断のため **BLOCKED**（1回も起動していない）。
+実行・デバッグ・PASS/FAIL判定は検証側（Claude）へ引き継ぐ。
+
+`queryState.sideOf` には例外的に `pendingSigniBattle` 1項目だけを追加した。理由＝ON_ATTACK_SIGNIの効果stackが空になった後も
+`pending_signi_battle` が残る短い窓があり、従来の `pendingEffect==null && stackLen==0` だけではライフ処理／`field.check` 消化前に
+returnしうるため。P/C群の合格条件はこれもnullになってから、とした。stateやUI/testid自体は変更していない。
+
+⚠指示との不一致＝指定HEAD `fc3c1e343` に対し着手時の実HEADは `e37bf46708d6939e4a7881cb330813eea7232383`、
+指示では `docs/PLAN.md` に未コミット変更ありだったが実作業ツリーはclean。対象母集団118効果、カード種別、live JSON、
+`temp_power_mods` の `{cardNum,delta}` 形式は実コードと一致した。
+
+ローカルゲートは全緑＝golden **1964 PASS / 0 FAIL**、smoke **10688 / SKIP 0**、census **831**、
+fuzz 全異常0、lint **0 errors / 259 warnings**。`npm run golden` 相当（Windows実行ポリシー回避で `npm.cmd run golden`）も
+独立実行して **1964 PASS / 0 FAIL**。live JSON全ファイルをHEADとeffectId単位比較して **changed 0**。
+driver は追加 **420**／削除 **0**、SHA-256 は HEAD
+`307dc2e51d322993f6901671c4a7c54ba1eb7076b7cd608129420eaf542b3b71` → working
+`c1ada4bf090c8843dc934e7b8fc2a19efd58f845ab91e286d43038a79f6dac11`。
+変更2ファイルの U+FFFD／3連続以上`?`／先頭BOMはHEAD比の新規増 **0 / 0 / 0**。`node --check`／`git diff --check` も通過。
+
 ## 2026-08-13（続き468・Codex起案→Claude実機検証）— §7「対戦相手は〈コスト〉てもよい」＝**主語・極性は是正済みと確認／`NEGATE_ATTACK` に実バグ1件**（→PLAN §3 **(cxxvii)**）
 
 ### 実機結果＝**4 PASS / 2 FAIL**。FAIL 2本は**実バグの検出**（→ engine は1行も直していない＝在庫化の運用どおり）
