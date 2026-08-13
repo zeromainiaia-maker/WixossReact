@@ -536,6 +536,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         type: 'SIGNI', owner,
         count: all ? 'ALL' : (upToM ? parseNum(upToM[1]) : 1),
         ...(upToM ? { upToCount: true } : {}),
+        ...(allZones ? { allZones: true } : {}),
       },
       until: dur,
       ...(keysAndSigni ? { alsoKeys: true } : {}),
