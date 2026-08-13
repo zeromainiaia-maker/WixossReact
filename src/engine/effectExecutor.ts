@@ -9129,12 +9129,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       const tdA = action as TransferToDeckAction;
       if (tdA.source.type === 'DECK_CARD') return transferSpecificDeckCard(tdA, cardNum, ctx);
       const tdOwner = tdA.source.owner;
+      let tdCtx = ctx;
       const tdS = ownerState(tdOwner, ctx);
       let tdNew = { ...tdS };
       if (tdS.field.signi.some(st => st?.at(-1) === cardNum)) {
         const sub = applyEffectLeaveSubstitutes(cardNum, tdOwner, ctx);
         if (sub.replaced) return done(sub.ctx);
-        tdNew = removeFromField(cardNum, tdNew);
+        tdCtx = sub.ctx;          // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+        tdNew = removeFromField(cardNum, ownerState(tdOwner, tdCtx));
       }
       else if (tdS.hand.includes(cardNum)) tdNew = { ...tdNew, hand: tdNew.hand.filter(x => x !== cardNum) };
       else if (tdS.trash.includes(cardNum)) tdNew = { ...tdNew, trash: tdNew.trash.filter(x => x !== cardNum) };
