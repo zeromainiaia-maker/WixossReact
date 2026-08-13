@@ -788,7 +788,8 @@
 3. 🔑**負方向テスト（「出ない」「起きない」）は必ず対照とセット**＝**単独では何も検証していなくても緑になる**。対照は**盤面を1文字も変えず原因だけを外す**（実例＝`damageSource` の1語／guest ルリグ1枚／相手資源の枚数）。
 4. 🔑**「盤面だけを見る判定」も偽陽性**＝**機構を1度も通らなくても同じ盤面になる**ことがある（続き466 の実例＝対話が出なくても身代わり成立と同じ絵）。**機構が動いた証拠（問いログ・`asks` 件数など）を必須条件に入れる**。
 5. 🔑**クリック前から成立している条件で判定しない**＝`pendingEffect==null && stackLen===0` は**効果の開始前と完了後の両方で true**。**効果が走り出したことを1度でも観測してから判定する**（さもないと単体で PASS・バッチで FAIL の位置依存 flakiness になる）。
-6. 🔑**候補が複数ある選択で `pick-0` を盲目に押さない**＝`pendingCandidates` から instanceId の index を引いて `pick-<idx>` を押す（先例 `cheatingSameLevelDownFilter`）。
+6. 🔑**候補が複数ある選択で `pick-0` を盲目に押さない**。⚠🔴**ただし `pendingCandidates` の index を `pick-<idx>` にそのまま使うのも誤り**（続き469 で判明）＝**相手の場が対象のときモーダルは候補を reverse して描画する**（`EffectInteractionModal.tsx:189-192`＝`targetScope==='opp_field'` なら `[...candidates].reverse()`）。`data-testid` は**表示順の index**（`:282`）。⇒ **集合として assert してから `[data-testid^="pick-"][data-card-num="<カード番号>"]` で狙う**（`clickPendingInstance`）。⚠**`data-card-num` はカード番号でインスタンスIDではない**＝**同名カードが複数並ぶ盤面では一意にならない**ので、そのときは表示順を自分で反転して index を出す。⚠先例 `cheatingSameLevelDownFilter` が index で動いていたのは**有効候補が1件しかなかったから**。
+7. 🔑**DOM の描画待ちを必ず入れる**（続き469 で2回踏んだ）＝`H.queryState()` は **Supabase を直接照会するので DOM より先に真になる**。`pendingCandidates` が立った瞬間に `pick-*` や `決定 (N/M)` を掴みにいくと**0件で即 null**。**待機予算は 3秒程度で全ヘルパに揃える**（`clickPendingInstance`／`clickExactVisibleText`）。⚠**500ms だと1回目 PASS・2回目 FAIL の位置依存フレークになる**。
 7. ⚠**`a?.x === a?.y` は `a` が null のとき `undefined===undefined` で true**＝1周目に誤検出して即 FAIL する。
 8. ⚠**`ATTACK_ARTS_OP` は非ターンプレイヤーが「アーツ終了」で進める**＝押さないと**CPU のターンが永久に終わらない**。
 9. ⚠**切り分けの決め手は `scratchpad-verify/<id>-final.png`**＝ログだけ見ていると原因を engine 側に誤診する。
