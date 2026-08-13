@@ -12338,7 +12338,7 @@ scenarios.leaveSubAskDirectedToVictim = {
         return { pass: false, detail: `【選択肢欠落】CPU応答窓の options=${JSON.stringify(pending.pendingOptions)}` };
       }
       const asks = leaveSubQuestionLogs(st);
-      if (flow.fired && leaveSubSettled(st) && asks.length === 1
+      if (flow.fired && observed.started && leaveSubSettled(st) && asks.length === 1
           && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
           && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE)) {
         return { pass: true, detail: `被害側CPUへの問いログ1件を確認。pending窓${pending ? `も捕捉（responder=${pending.pendingRespondPlayer}, options=${JSON.stringify(pending.pendingOptions)}）` : 'はCPU_ACTION_DELAY内のため未捕捉（主判定はログ）'}` };
