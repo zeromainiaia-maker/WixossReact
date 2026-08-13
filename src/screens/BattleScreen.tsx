@@ -4088,8 +4088,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_end_draw_count: undefined,
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
-        abilities_removed: [], // REMOVE_ABILITIES「ターン終了時まで」を自ターン終了時にクリア
-        keyword_abilities_removed: {}, // 指定キーワード喪失／新規獲得禁止も同じ期限でクリア
+        // abilities_removed / keyword_abilities_removed のクリアと「次のターン」予約の昇格は
+        // clearTurnEndScopedState に集約した（§6.4 O-3）。ここで個別に空へ倒すと予約を握り潰す。
         blocked_card_names: [], actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
