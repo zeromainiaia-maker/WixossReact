@@ -12,7 +12,7 @@ import {
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
   canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
-  movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops,
+  movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -6115,6 +6115,27 @@ function execReturnAssistLrigToDeck(a: ReturnAssistLrigToDeckAction, ctx: ExecCt
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
+  // §6.4 O-16:「（指定した）シグニゾーンにあるシグニは能力を失い、新たに得られない」＝**ゾーン継続**。
+  // per-card の abilities_removed は適用時点の instanceId を記録するので**後からそのゾーンへ出たシグニに
+  // 効かない**。POWER_MODIFY と同じ形で場レベル grant に載せる。
+  // ⚠`until` が次ターンまで及ぶ形（NEXT_TURN / UNTIL_OPP_TURN_END）は予約も併せて積む＝
+  //   現ターンだけ active、次ターンぶんは reserveFieldGrant（続き450 の2スロット式）。
+  if (a.target.zoneSource === 'designated' && a.target.count === 'ALL' && !a.keywords?.length) {
+    const grant: FieldGrant = { kind: 'abilityLoss', filter: a.target.filter };
+    let cur = ctx;
+    let touched = false;
+    if (a.until === 'NEXT_TURN' || a.until === 'UNTIL_OPP_TURN_END') {
+      const reservation = reserveFieldGrant(a.target, grant, undefined, cur);
+      cur = reservation.ctx;
+      touched ||= reservation.reserved;
+    }
+    if (a.until !== 'NEXT_TURN') {
+      const active = applyActiveFieldGrant(a.target, grant, cur);
+      cur = active.ctx;
+      touched ||= active.applied;
+    }
+    return done(addLog(cur, touched ? '指定シグニゾーンのシグニは能力を失う' : '指定されたシグニゾーンがない'));
+  }
   // targetsTriggerSource: 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ。WXK10-022 ON_PLAY any_opp）へ無選択で適用
   if (a.targetsTriggerSource) {
     const autoNum = ctx.triggeringCardNum ?? ctx.sourceCardNum;
