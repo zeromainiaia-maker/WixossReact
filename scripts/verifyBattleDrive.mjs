@@ -12256,6 +12256,305 @@ scenarios.revealOppHandPayDiscardsOpponentAndDraws = {
 };
 // ── /続き473：PLAN §7 V-07① ＋ V-06② ──
 
+// ── 続き474：PLAN §7 V-10 F-3 身代わりを効果バニッシュへ配線 ──
+// V-01（数値countの離場置換を対話化）とは別軸。本ブロックは現行policyどおり、効果バニッシュが
+// 問いを出さずに身代わりを自動適用し、`身代わり：...` のengineログを残すことを固定する。
+const V10_EFFECT_SOURCE = 'WX19-023#5201';
+const V10_EFFECT_ENERGY = 'WD01-013#5204';
+const V10_CCM = 'WX12-024#5202';
+const V10_CCM_SACRIFICE = 'WD03-013#5203';
+const V10_SWT = 'WX10-033#5205';
+const V10_SWT_SPELL = 'WD01-015#5206';
+const V10_SWT_NONSPELL = 'WD01-013#5206';
+const V10_LIFE_CRASH = 'WX14-026#5207';
+const V10_CCM_SUB_LOG = '身代わり：コードハート　†Ｃ・Ｃ・Ｍ†の代わりにコードアート　Ｓ・Ｃをバニッシュ';
+const V10_SWT_SUB_LOG = '身代わり：手札からスペル1枚を捨ててコードハート　Ｓ・Ｗ・Ｔのバニッシュを回避';
+const V10_CCM_NORMAL_LOG = 'コードハート　†Ｃ・Ｃ・Ｍ†をバニッシュ';
+const V10_SWT_NORMAL_LOG = 'コードハート　Ｓ・Ｗ・Ｔをバニッシュ';
+const V10_LIFE_NORMAL_LOG = '羅石　スイカリンをバニッシュ';
+const V10_EFFECT_ASK_LOG = 'の場離れを置換しますか？（対戦相手が選択）';
+
+function makeV10EffectSpec({ guestSigni, guestHand = [] }) {
+  return {
+    hostSet: {
+      // WX19-023 はタマ限定。手札から通常召喚する側だけは WD01-001（タマLv4/Limit11）に合わせる。
+      'field.lrig': ['WD01-001#5208'],
+      'field.signi': [null, null, null], 'field.check': null,
+      'hand': [V10_EFFECT_SOURCE], 'energy': [V10_EFFECT_ENERGY], 'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      // WX12-024 / WX10-033 はピルルク限定。場への直接注入でもカードの実所属に合わせる。
+      'field.lrig': ['WD03-001#5209'],
+      'field.signi': guestSigni, 'field.check': null,
+      'hand': guestHand, 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+const V10_CCM_WITH_SACRIFICE_SPEC = makeV10EffectSpec({
+  guestSigni: [[V10_CCM], [V10_CCM_SACRIFICE], null],
+});
+const V10_CCM_WITHOUT_SACRIFICE_SPEC = makeV10EffectSpec({
+  // S1との差は犠牲にできる他の＜電機＞1体の有無だけ。
+  guestSigni: [[V10_CCM], null, null],
+});
+const V10_SWT_WITH_SPELL_SPEC = makeV10EffectSpec({
+  guestSigni: [[V10_SWT], null, null], guestHand: [V10_SWT_SPELL],
+});
+const V10_SWT_WITHOUT_SPELL_SPEC = makeV10EffectSpec({
+  // 同一シナリオ内対照：枚数とinstance suffixを保ち、スペルだけをバニラシグニへ差し替える。
+  guestSigni: [[V10_SWT], null, null], guestHand: [V10_SWT_NONSPELL],
+});
+const V10_LIFE_CRASH_SPEC = makeV10EffectSpec({
+  guestSigni: [[V10_LIFE_CRASH], null, null],
+});
+
+const v10FieldHas = (stacks, instanceId) =>
+  (stacks ?? []).some(stack => (stack ?? []).includes(instanceId));
+const v10HasLog = (st, text) => (st?.logTail ?? []).some(line => line.includes(text));
+const v10SubstituteLogs = (st) => (st?.logTail ?? []).filter(line => line.includes('身代わり：'));
+const v10AskLogs = (st) => (st?.logTail ?? []).filter(line => line.includes(V10_EFFECT_ASK_LOG));
+
+async function runV10EffectBanishRound(page, H, id, victimInstance, evaluate) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  const startGuestBoard = JSON.stringify([
+    before?.guest?.fieldSigni ?? null,
+    before?.guest?.handCards ?? [],
+    before?.guest?.energyCards ?? [],
+    before?.guest?.trashCards ?? [],
+  ]);
+  const flow = {
+    handOpened: false, summonChosen: false, zoneChosen: false,
+    energyChosen: false, fired: false, victimPicked: false, targetConfirmed: false,
+  };
+  let started = false;
+  let targetCandidateSnapshot = null;
+  let last = before;
+  for (let s = 0; s < 64; s++) {
+    await page.waitForTimeout(200);
+    let did = null;
+    if (!flow.handOpened) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) flow.handOpened = true;
+    } else if (!flow.summonChosen) {
+      did = await H.clickBtn('召喚', { exact: true });
+      if (did) flow.summonChosen = true;
+    } else if (!flow.zoneChosen) {
+      did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (did) flow.zoneChosen = true;
+    } else if (!flow.energyChosen) {
+      did = await H.clickTestId('onplaycost-energy-0');
+      if (did) flow.energyChosen = true;
+    } else if (!flow.fired) {
+      did = await H.clickBtn('発動', { exact: true });
+      if (did) flow.fired = true;
+    } else if (!flow.victimPicked) {
+      const st0 = await H.queryState();
+      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(victimInstance)) {
+        targetCandidateSnapshot ??= [...st0.pendingCandidates];
+        did = await clickPendingInstance(page, H, victimInstance);
+        if (did) flow.victimPicked = true;
+      }
+    } else if (!flow.targetConfirmed) {
+      did = await clickExactVisibleText(page, '決定 (1/1)');
+      if (did) flow.targetConfirmed = true;
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    // 両者の field.check は注入時にnullへ戻す。万一のライフ確認も消化して残留させない。
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+
+    const st = await H.queryState();
+    last = st;
+    const guestBoard = JSON.stringify([
+      st?.guest?.fieldSigni ?? null,
+      st?.guest?.handCards ?? [],
+      st?.guest?.energyCards ?? [],
+      st?.guest?.trashCards ?? [],
+    ]);
+    if (flow.fired && ((st?.stackLen ?? 0) > 0 || st?.pendingEffect != null || guestBoard !== startGuestBoard)) started = true;
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | flow=${JSON.stringify(flow)} started=${started} cands=${JSON.stringify(targetCandidateSnapshot)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} gLife=${st?.guest?.life} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    const settled = flow.fired && flow.victimPicked && flow.targetConfirmed && started
+      && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    if (settled) {
+      const verdict = evaluate(st, before, targetCandidateSnapshot);
+      if (verdict) return verdict;
+    }
+  }
+  return { pass: false, st: last,
+    detail: `${id}完走タイムアウト（flow=${JSON.stringify(flow)} started=${started} cands=${JSON.stringify(targetCandidateSnapshot)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gHand=${JSON.stringify(last?.guest?.handCards)} gEnergy=${JSON.stringify(last?.guest?.energyCards)} gTrash=${JSON.stringify(last?.guest?.trashCards)} gLife=${last?.guest?.life} subLogs=${JSON.stringify(v10SubstituteLogs(last))} asks=${v10AskLogs(last).length} checks=${last?.host?.fieldCheck ?? '-'}/${last?.guest?.fieldCheck ?? '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.effectBanishSubstituteRunsAutomatically = {
+  title: 'WX12-024（効果バニッシュで問いなし自動身代わり→victim残存・他の＜電機＞をエナへ）',
+  spec: V10_CCM_WITH_SACRIFICE_SPEC,
+  async drive(page, H) {
+    return runV10EffectBanishRound(page, H, 'ebsra', V10_CCM, (st, _before, cands) => {
+      const candidateProof = Array.isArray(cands) && cands.includes(V10_CCM) && cands.includes(V10_CCM_SACRIFICE);
+      const victimStayed = v10FieldHas(st.guest.fieldSigni, V10_CCM);
+      const sacrificeLeft = !v10FieldHas(st.guest.fieldSigni, V10_CCM_SACRIFICE);
+      const sacrificeInEnergy = st.guest.energyCards.includes(V10_CCM_SACRIFICE);
+      const autoLog = v10HasLog(st, V10_CCM_SUB_LOG);
+      const noAsk = v10AskLogs(st).length === 0;
+      const pass = candidateProof && victimStayed && sacrificeLeft && sacrificeInEnergy && autoLog && noAsk;
+      return { pass, st,
+        detail: pass
+          ? `対象候補にvictim/sacrifice双方=${JSON.stringify(cands)}、victim残存・sacrificeをエナへ・問い0件・engineログ「${V10_CCM_SUB_LOG}」を確認`
+          : `【旧回帰/偽陽性防止】candidateProof=${candidateProof} victimStayed=${victimStayed} sacrificeLeft=${sacrificeLeft} sacrificeInEnergy=${sacrificeInEnergy} autoLog=${autoLog} asks=${v10AskLogs(st).length} subLogs=${JSON.stringify(v10SubstituteLogs(st))}` };
+    });
+  },
+};
+
+scenarios.effectBanishNoSubstituteWithoutSacrifice = {
+  title: 'WX12-024対照（他の＜電機＞だけを外す→通常バニッシュでvictim自身がエナへ）',
+  spec: V10_CCM_WITHOUT_SACRIFICE_SPEC,
+  async drive(page, H) {
+    return runV10EffectBanishRound(page, H, 'ebnsws', V10_CCM, (st, _before, cands) => {
+      const candidateProof = Array.isArray(cands) && cands.length === 1 && cands[0] === V10_CCM;
+      const victimLeft = !v10FieldHas(st.guest.fieldSigni, V10_CCM);
+      const victimInEnergy = st.guest.energyCards.includes(V10_CCM);
+      const normalLog = v10HasLog(st, V10_CCM_NORMAL_LOG);
+      const noSubstitute = v10SubstituteLogs(st).length === 0 && v10AskLogs(st).length === 0;
+      const pass = candidateProof && victimLeft && victimInEnergy && normalLog && noSubstitute;
+      return { pass, st,
+        detail: pass
+          ? `S1から犠牲シグニだけを外すと候補=${JSON.stringify(cands)}、victim自身がエナへ通常バニッシュ・ログ「${V10_CCM_NORMAL_LOG}」・身代わりログ/問い0件`
+          : `【対照不成立】candidateProof=${candidateProof} victimLeft=${victimLeft} victimInEnergy=${victimInEnergy} normalLog=${normalLog} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length}` };
+    });
+  },
+};
+
+scenarios.effectBanishSubstituteDiscardsSpell = {
+  title: 'WX10-033（手札スペル1枚で自動身代わり→同一シナリオ内の非スペル対照では通常バニッシュ）',
+  spec: V10_SWT_WITH_SPELL_SPEC,
+  async drive(page, H) {
+    const paid = await runV10EffectBanishRound(page, H, 'ebsds.pay', V10_SWT, (st, _before, cands) => {
+      const pass = Array.isArray(cands) && cands.includes(V10_SWT)
+        && v10FieldHas(st.guest.fieldSigni, V10_SWT)
+        && !st.guest.handCards.includes(V10_SWT_SPELL)
+        && st.guest.trashCards.includes(V10_SWT_SPELL)
+        && v10HasLog(st, V10_SWT_SUB_LOG) && v10AskLogs(st).length === 0;
+      return { pass, st,
+        detail: pass
+          ? `スペルあり：victim残存・${V10_SWT_SPELL} hand→trash・問い0件・engineログ「${V10_SWT_SUB_LOG}」`
+          : `スペルあり不成立（cands=${JSON.stringify(cands)} field=${JSON.stringify(st.guest.fieldSigni)} hand=${JSON.stringify(st.guest.handCards)} trash=${JSON.stringify(st.guest.trashCards)} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length}）` };
+    });
+    if (!paid.pass) return paid;
+    const reinjected = await injectScenario(page, V10_SWT_WITHOUT_SPELL_SPEC);
+    if (reinjected.error) return { pass: false, detail: `非スペル対照の再注入失敗=${reinjected.error}` };
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+    const unpaid = await runV10EffectBanishRound(page, H, 'ebsds.none', V10_SWT, (st, _before, cands) => {
+      const pass = Array.isArray(cands) && cands.includes(V10_SWT)
+        && !v10FieldHas(st.guest.fieldSigni, V10_SWT)
+        && st.guest.energyCards.includes(V10_SWT)
+        && st.guest.handCards.includes(V10_SWT_NONSPELL)
+        && !st.guest.trashCards.includes(V10_SWT_NONSPELL)
+        && v10HasLog(st, V10_SWT_NORMAL_LOG)
+        && v10SubstituteLogs(st).length === 0 && v10AskLogs(st).length === 0;
+      return { pass, st,
+        detail: pass
+          ? `非スペル対照：victim自身がエナへ、${V10_SWT_NONSPELL}は手札維持・ログ「${V10_SWT_NORMAL_LOG}」・身代わりログ/問い0件`
+          : `非スペル対照不成立（cands=${JSON.stringify(cands)} field=${JSON.stringify(st.guest.fieldSigni)} hand=${JSON.stringify(st.guest.handCards)} energy=${JSON.stringify(st.guest.energyCards)} trash=${JSON.stringify(st.guest.trashCards)} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length}）` };
+    });
+    return { pass: unpaid.pass, st: unpaid.st,
+      detail: `同一シナリオ内で手札1枚をスペル→非スペルへだけ差し替え。${paid.detail}／${unpaid.detail}` };
+  },
+};
+
+scenarios.effectBanishLifeCrashSubstituteNotOnEffect = {
+  title: 'WX14-026（hostのMAIN＝被害側には相手ターンだがlifeCrash型は効果バニッシュへ自動適用しない）',
+  spec: V10_LIFE_CRASH_SPEC,
+  async drive(page, H) {
+    return runV10EffectBanishRound(page, H, 'eblcsnoe', V10_LIFE_CRASH, (st, before, cands) => {
+      const victimLeft = !v10FieldHas(st.guest.fieldSigni, V10_LIFE_CRASH);
+      const victimInEnergy = st.guest.energyCards.includes(V10_LIFE_CRASH);
+      const lifeStayed = st.guest.life === before.guest.life && st.guest.life === 7;
+      const normalLog = v10HasLog(st, V10_LIFE_NORMAL_LOG);
+      const noSubstitute = v10SubstituteLogs(st).length === 0 && v10AskLogs(st).length === 0;
+      const pass = Array.isArray(cands) && cands.includes(V10_LIFE_CRASH)
+        && victimLeft && victimInEnergy && lifeStayed && normalLog && noSubstitute;
+      return { pass, st,
+        detail: pass
+          ? `host MAIN（被害側guestから見て相手ターン）でvictim自身がエナへ・guest.life 7維持・ログ「${V10_LIFE_NORMAL_LOG}」・身代わりログ/問い0件`
+          : `【lifeCrash自動適用範囲不一致】cands=${JSON.stringify(cands)} victimLeft=${victimLeft} victimInEnergy=${victimInEnergy} life=${before.guest.life}→${st.guest.life} normalLog=${normalLog} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length}` };
+    });
+  },
+};
+
+const V10_BATTLE_ATTACKER = 'WX01-053#5210'; // バニラP15000。zone0→正面zone2のWX12-024(P12000)へCPUがアタック。
+const V10_BATTLE_VICTIM = 'WX12-024#5211';
+const V10_BATTLE_SACRIFICE = 'WD03-013#5212';
+const V10_BATTLE_MODAL_TITLE = '身代わりバニッシュ';
+const V10_BATTLE_DECLINE = '身代わりしない（コードハート　†Ｃ・Ｃ・Ｍ†をバニッシュ）';
+const V10_BATTLE_WAIT_LOG = 'コードハート　†Ｃ・Ｃ・Ｍ†のバニッシュに身代わりの選択を待っています';
+
+async function v10ExactTextVisible(page, text) {
+  const el = page.getByText(text, { exact: true }).first();
+  for (let k = 0; k < 20; k++) {
+    if (await el.count() && await el.isVisible().catch(() => false)) return true;
+    await page.waitForTimeout(150);
+  }
+  return false;
+}
+
+scenarios.battleBanishSubstituteStillInteractive = {
+  title: 'WX12-024（CPUのP15000シグニとのバトルでpending_banish_substitute＋人間側モーダルを確認）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-001#5213'],
+      // engineの正面規約は 2-zone。CPU attacker zone0 の正面になる zone2 に victim を置く。
+      'field.signi': [[V10_BATTLE_SACRIFICE], null, [V10_BATTLE_VICTIM]],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#5214'], 'field.lrig_down': true,
+      'field.signi': [[V10_BATTLE_ATTACKER], null, null],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let sawPending = false; let sawModal = false; let sawWaitLog = false; let declined = false;
+    let last = await H.queryState();
+    for (let s = 0; s < 56; s++) {
+      await page.waitForTimeout(250);
+      let did = null;
+      const st0 = await H.queryState();
+      if (st0?.host?.pendingBanishSubstitute === V10_BATTLE_VICTIM) {
+        sawPending = true;
+        sawWaitLog ||= v10HasLog(st0, V10_BATTLE_WAIT_LOG);
+        if (!sawModal) sawModal = await v10ExactTextVisible(page, V10_BATTLE_MODAL_TITLE);
+      }
+      if (sawPending && sawModal && !declined) {
+        did = await clickExactVisibleText(page, V10_BATTLE_DECLINE);
+        if (did) declined = true;
+      }
+      // 通常バニッシュ後に想定外のライフ確認が立っても、両者nullへ戻してから判定する。
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      const st = await H.queryState();
+      last = st;
+      sawWaitLog ||= v10HasLog(st, V10_BATTLE_WAIT_LOG);
+      H.log(`  bbsinter[${s}] -> ${did ?? 'なし'} | pending=${sawPending} modal=${sawModal} waitLog=${sawWaitLog} declined=${declined} hPending=${st?.host?.pendingBanishSubstitute ?? '-'} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${JSON.stringify(st?.host?.energyCards)} gDown=${JSON.stringify(st?.guest?.signiDown)} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+      if (sawPending && sawModal && sawWaitLog && declined
+          && st?.host?.pendingBanishSubstitute == null
+          && st?.host?.energyCards.includes(V10_BATTLE_VICTIM)
+          && v10FieldHas(st?.host?.fieldSigni, V10_BATTLE_SACRIFICE)
+          && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null) {
+        return { pass: true, st,
+          detail: `battle側でpending=${V10_BATTLE_VICTIM}・モーダル「${V10_BATTLE_MODAL_TITLE}」・待機ログ「${V10_BATTLE_WAIT_LOG}」を確認後、「${V10_BATTLE_DECLINE}」で辞退しvictimをエナへ通常バニッシュ。両者field.check=null` };
+      }
+    }
+    return { pass: false, st: last,
+      detail: `バトル身代わり対話タイムアウト（pending=${sawPending} modal=${sawModal} waitLog=${sawWaitLog} declined=${declined} hPending=${last?.host?.pendingBanishSubstitute ?? '-'} hField=${JSON.stringify(last?.host?.fieldSigni)} hEnergy=${JSON.stringify(last?.host?.energyCards)} gDown=${JSON.stringify(last?.guest?.signiDown)} checks=${last?.host?.fieldCheck ?? '-'}/${last?.guest?.fieldCheck ?? '-'} phase=${last?.turnPhase}）` };
+  },
+};
+// ── /続き474：PLAN §7 V-10 ──
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14872,6 +15171,10 @@ order.push('underEnergyPayOfferedInAttackPhase', 'underEnergyPayNotOfferedInMain
 // 続き473：V-07① energyTrash（G1/G3統合＋G2）＋V-06② 捨てさせる向き。Hは同一specで応答だけを変える。
 order.push('energyTrashCostDeductsEnergyNotHand', 'energyTrashCostUnavailableWhenShort',
   'revealOppHandSkipKeepsOpponentHand', 'revealOppHandPayDiscardsOpponentAndDraws');
+// 続き474：V-10。効果バニッシュ自動身代わり3形＋候補なし対照＋バトル側対話を既存order末尾へ追加。
+order.push('effectBanishSubstituteRunsAutomatically', 'effectBanishNoSubstituteWithoutSacrifice',
+  'effectBanishSubstituteDiscardsSpell', 'effectBanishLifeCrashSubstituteNotOnEffect',
+  'battleBanishSubstituteStillInteractive');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

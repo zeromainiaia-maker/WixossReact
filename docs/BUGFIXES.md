@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き474・Codex起案→Claude実機検証待ち）— §7 **V-10 F-3 身代わりの効果バニッシュ配線** Playwrightシナリオ5本
+
+### 実行結果＝**`BLOCKED`**
+
+外部ネットワーク遮断のため `scripts/verifyBattleDrive.mjs` は**1回も実行していない**。
+実行・デバッグ・PASS/FAIL判定は検証側（Claude）が引き取る。engine/parser/live JSON/`src/` は変更していない。
+
+### 起案したシナリオ
+
+| id | 起案時の合格条件 |
+|---|---|
+| `effectBanishSubstituteRunsAutomatically` | `WX19-023#5201` の【出】で候補2体から `WX12-024#5202` を `clickPendingInstance` で名指し。victim残存、他の＜電機＞ `WD03-013#5203` がfield→energy、問い0件、`身代わり：コードハート　†Ｃ・Ｃ・Ｍ†の代わりにコードアート　Ｓ・Ｃをバニッシュ` ログあり。 |
+| `effectBanishNoSubstituteWithoutSacrifice` | S1から `WD03-013#5203` だけを外す対照。候補はvictim 1体、`WX12-024#5202` 自身がfield→energy、通常バニッシュログあり、身代わりログ/問い0件。 |
+| `effectBanishSubstituteDiscardsSpell` | `WX10-033#5205`＋手札スペル `WD01-015#5206` ではvictim残存・spell hand→trash・身代わりログあり。同一シナリオ内で手札1枚だけを非スペル `WD01-013#5206` へ差し替えるとvictim自身がfield→energy、手札/ trash不変、通常バニッシュログあり。 |
+| `effectBanishLifeCrashSubstituteNotOnEffect` | host MAIN（被害側guestから見て相手ターン）で `WX14-026#5207` を効果バニッシュ。victim自身がfield→energy、guest.life 7維持、通常バニッシュログあり、身代わりログ/問い0件。 |
+| `battleBanishSubstituteStillInteractive` | CPUの `WX01-053#5210`（P15000・zone0）をhostの `WX12-024#5211`（P12000・正面zone2）へアタックさせ、host側 `pending_banish_substitute`、`身代わりバニッシュ` モーダル、待機ログを同時確認。`身代わりしない（コードハート　†Ｃ・Ｃ・Ｍ†をバニッシュ）` で閉じ、victimがenergy、犠牲 `WD03-013#5212` が場、両者check=nullまで確認。 |
+
+### 静的根拠と設計判断
+
+- 効果経路は `execBanish` の選択確定後に `applyEffectLeaveSubstitutes(...,{isBanish:true})` を通る（`effectExecutor.ts:945-975`）。犠牲型／手札スペル型の適用ログは同`:474-492`、通常バニッシュログは同`:969-974`、既定移動先energyは `execUtils.ts:470-503`。
+- `lifeCrash` は候補列挙されるが `banishSubstituteAutoEligible` だけが false にする（`effectExecutor.ts:411-413,457-459`）。効果主hostのターンは被害側guest視点へ反転される（`:430-433`）ので、S4は `activeCondition:{TURN_OWNER,owner:'opponent'}` 自体を満たす配置。その上で「効果バニッシュでは自動適用しない」現行仕様だけを観測する。
+- バトル経路は人間防御側に `pending_banish_substitute` を書き、待機ログを出してreturnする（`BattleScreen.tsx:8297-8336`）。CPU攻撃は同`:10434-10464`、正面は `2-zone`（`:8145`）。モーダル描画・選択肢は `BanishSubstituteModal.tsx:16-53`。
+- クリック根拠：`my-hand-card-N`=`BoardComponents.tsx:886`、通常召喚ラベル=`BattleScreen.tsx:7361-7367`、`summon-zone-N`=`SigniSummonZoneModal.tsx:87`、`onplaycost-energy-N`=`SigniOnPlayCostModal.tsx:229-236`、`発動`=同`:705`、`pick-N`/`data-card-num`=`EffectInteractionModal.tsx:282-283`、`決定 (N/M)`=同`:373-374`、`発動順序を確定`=`StackOrderModal.tsx:95`、`エナに送る`=`LifeBurstCheckModal.tsx:97,114`、バトル身代わり文言=`BanishSubstituteModal.tsx:31-53`。
+- driver helperは `clickPendingInstance`（20×150ms、`verifyBattleDrive.mjs:10606-10623`）と `clickExactVisibleText`（20×150ms、`:10594-10603`）を再利用。S5の可視確認も同じ20×150ms。`openSigniAttack` は人間を攻撃側にしてCPU側モーダルを出さないため不使用とし、既存CPU攻撃先例を採った。
+- `injectScenario` は両者deck 40／life 7／trash空を毎回再構築（追加後 `verifyBattleDrive.mjs:12738-12739`）。全specで両者の `'field.check':null` を明示。`queryState` は既存の `fieldSigni`／`pendingBanishSubstitute`／`life`／`energyCards`／`handCards`／`trashCards`／`logTail` のみ使用（`:15392-15436`）。
+
+### スコープ外
+
+- V-01／§3 (cxxv)(cxxvi) の効果バニッシュ対話化、§3在庫バグの修正。
+- engine/parser/live JSON/`src/`、既存scenario/order/testid、`queryState` の変更。
+- `WX14-026` の効果バニッシュ時lifeCrashを実装する仕様変更（現行の対象外挙動を観測するだけ）。
+
+### 静的検査・ゲート
+
+- 開始時HEAD **`0e63fb8a772b4034a8c40583edd9bbf29114d796`**、worktree clean。`node --check scripts/verifyBattleDrive.mjs`／`git diff --check` PASS。driver **303追加 / 0削除**。
+- 独立 `npm run typecheck` PASS、独立 `npm run lint` **0 errors / 259 warnings**（増加0）。
+- `npm run gates`／独立 `npm run golden`／live JSON per-effect diff／変更ファイルのUTF-8検査は、この節を先に確定した後で実行して最終値を追記する。
+
+### 指示との不一致・見立て
+
+- カード番号・種別・クラス・Lv・Power・限定、live JSON構造は指示と一致。`WX12-024` は `コードハート　†Ｃ・Ｃ・Ｍ†`（精械：電機／黒／Lv4／P12000／ピルルク限定）で確認した。
+- 指示の既存資産 `openSigniAttack` はS5では利用不能。これを使うとhostが攻撃側・CPUが防御側になり、`BattleScreen.tsx:8318-8329` のCPUヒューリスティックへ入り、`pending_banish_substitute` と人間向けモーダルが立たない。S5は同`:8330-8336` を踏むためCPU攻撃にした。
+- S4はhostのターン（MAIN）で撃つ。被害側guestから見れば `owner:'opponent'` 条件は成立する見立てだが、実測結果の仕様裁定は行わず検証側へ渡す。
+
 ## 2026-08-14（続き473・Codex起案→Claude実機検証待ち）— §7 **V-07① energyTrash／V-06② 捨てさせる向き** Playwrightシナリオ4本
 
 ### 実行結果＝**`BLOCKED`**
