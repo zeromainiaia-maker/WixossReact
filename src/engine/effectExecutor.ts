@@ -6016,19 +6016,42 @@ function execVariableDiscardAndDraw(a: VariableDiscardAndDrawAction, ctx: ExecCt
   });
 }
 
+/**
+ * 「能力を失う」の書き込み。§6.4 O-3 で **`action.until` を読むようにした**。
+ *
+ * ⚠従来この関数は `until` を**一切見ておらず**、`PERMANENT` / `UNTIL_OPP_TURN_END` / `NEXT_TURN` が
+ *   すべて `abilities_removed`（＝このターン終了時まで）へ丸められていた＝型に値はあるのに engine に
+ *   消費地点が無い死フィールド。`UNTIL_OPP_TURN_END` の5効果は**次の相手ターンに効かない過少実行**、
+ *   「次のあなたのターンの間」の効果は**そもそも表せない**状態だった。
+ * ⚠`PERMANENT` は **CONTINUOUS 宣言（「【常】：〜は能力を失う」）でしか使われない**＝そちらは
+ *   `collectContinuousAbilitiesRemovedSigni` が毎回再評価するのでこの関数を通らない。ここに来る
+ *   `PERMANENT` は「このターン」の書き間違いなので、従来どおり現ターン扱いに寄せる（挙動不変）。
+ */
 function applyAbilitiesRemoval(
   action: RemoveAbilitiesAction,
   state: PlayerState,
   cardNums: string[],
 ): PlayerState {
   if (action.keywords?.length) {
+    // キーワード限定の喪失は現状「このターン」語彙しか live に無い＝期間分岐は持たせない。
     const removedKeywords = { ...(state.keyword_abilities_removed ?? {}) };
     for (const cardNum of cardNums) {
       removedKeywords[cardNum] = [...new Set([...(removedKeywords[cardNum] ?? []), ...action.keywords])];
     }
     return { ...state, keyword_abilities_removed: removedKeywords };
   }
-  return { ...state, abilities_removed: [...new Set([...(state.abilities_removed ?? []), ...cardNums])] };
+  // NEXT_TURN＝「次のターンの間」だけ＝現ターンには効かせない（予約のみ）。
+  const reservesNextTurn = action.until === 'NEXT_TURN' || action.until === 'UNTIL_OPP_TURN_END';
+  const appliesThisTurn = action.until !== 'NEXT_TURN';
+  return {
+    ...state,
+    ...(appliesThisTurn
+      ? { abilities_removed: [...new Set([...(state.abilities_removed ?? []), ...cardNums])] }
+      : {}),
+    ...(reservesNextTurn
+      ? { abilities_removed_next_turn: [...new Set([...(state.abilities_removed_next_turn ?? []), ...cardNums])] }
+      : {}),
+  };
 }
 
 function execReturnAssistLrigToDeck(a: ReturnAssistLrigToDeckAction, ctx: ExecCtx): ExecResult {
