@@ -5329,6 +5329,12 @@ export function collectContinuousAbilitiesRemovedSigni(
   // 一過性 REMOVE_ABILITIES（ACTIVATED/AUTO で「ターン終了時まで能力を失う」。WX05-001-E2/G085-E2 等）。
   // state.abilities_removed に記録された分も能力喪失として扱う（ターン終了時にクリアされる）。
   for (const cn of state.abilities_removed ?? []) removed.add(cn);
+  // 場／ゾーンレベルの能力喪失（§6.4 O-16）。instanceId ではなく**ゾーン**に紐づくので、
+  // このゾーンに後から出たシグニも毎回ここで拾われる（＝「新たに得られない」の忠実表現）。
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const top = state.field.signi[zi]?.at(-1);
+    if (top && fieldGrantRemovesAbilities(state, otherState, top, cardMap)) removed.add(top);
+  }
 
   // 自フィールドの CONTINUOUS REMOVE_ABILITIES(owner:'self') — 自分自身が能力を失う
   for (let zi = 0; zi < state.field.signi.length; zi++) {
