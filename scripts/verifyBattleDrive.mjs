@@ -11923,6 +11923,304 @@ scenarios.designatedZoneGrantSurvivesOppTurn = {
   },
 };
 
+// ── 続き431：ライフクラッシュ置換（Codex起案・実機未実行） ──────────────
+// 既存シナリオの不変証明用境界。新規7件は宣言側（実UI）と消費側（state注入）を分離する。
+async function driveLifeCrashReplacementArts(page, H, id, energyCount, evaluate) {
+  const before = await H.queryState();
+  let lrigDeckOpened = false;
+  let cardOpened = false;
+  let artsOpened = false;
+  let submitted = false;
+  const selectedEnergy = new Set();
+  let last = before;
+
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(600);
+    let did = null;
+    if (!lrigDeckOpened) {
+      did = await H.clickTestId('my-lrig-dk');
+      if (did) lrigDeckOpened = true;
+    } else if (!cardOpened) {
+      did = await H.clickTestId('zone-card-0');
+      if (did) cardOpened = true;
+    } else if (!artsOpened) {
+      const use = page.locator('[data-testid^="card-action-"][data-action-label="使用"]').first();
+      if (await use.count() && await use.isVisible().catch(() => false)) {
+        await use.click({ timeout: 2000 });
+        did = 'act:使用';
+        artsOpened = true;
+      }
+    } else if (!submitted) {
+      const nextEnergy = Array.from({ length: energyCount }, (_, i) => i).find(i => !selectedEnergy.has(i));
+      if (nextEnergy !== undefined) {
+        did = await H.clickTestId(`artscost-energy-${nextEnergy}`);
+        if (did) selectedEnergy.add(nextEnergy);
+      } else {
+        did = await H.clickBtn('アーツ使用', { exact: true });
+        if (did) submitted = true;
+      }
+    }
+
+    const st = await H.queryState();
+    last = st;
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | opened=${lrigDeckOpened}/${cardOpened}/${artsOpened} energy=${selectedEnergy.size}/${energyCount} submitted=${submitted} hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} gLife=${st?.guest?.life} repl=${JSON.stringify(st?.host?.lifeCrashReplacements ?? [])}`);
+    const verdict = evaluate(st, before);
+    if (verdict) return verdict;
+  }
+  return { pass: false, detail: `宣言確認タイムアウト（hDeck=${last?.host?.deck} hTrash=${last?.host?.trash} gLife=${last?.guest?.life} lrigDeck=${last?.host?.lrigDeck} repl=${JSON.stringify(last?.host?.lifeCrashReplacements ?? [])}）` };
+}
+
+scenarios.lifeCrashReplDeclareNoSelfMill = {
+  title: 'WX24-P4-009（使用時は自傷millせず、シグニ限定の10枚置換宣言だけを積む）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD04-003#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': ['WX24-P4-009#1'], 'energy': ['WD04-010#1', 'WD05-010#2'], 'hand': [], 'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': [], 'energy': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  },
+  async drive(page, H) {
+    return driveLifeCrashReplacementArts(page, H, 'lcrdnsm', 2, (st, before) => {
+      const repls = st?.host?.lifeCrashReplacements ?? [];
+      const repl = repls[0];
+      const declared = repls.length === 1 && repl?.kind === 'mill' && repl?.count === 10
+        && repl?.damageSource === 'signi' && repl?.optional === true && repl?.once === undefined;
+      if (declared && st.host.deck >= before.host.deck) {
+        return { pass: true, detail: `使用後もdeckは減らず（${before.host.deck}→${st.host.deck}。支払い2枚はTRANSFER_TO_DECKで戻る）、置換宣言1件=${JSON.stringify(repl)}` };
+      }
+      if ((st?.host?.lrigDeck ?? before.host.lrigDeck) < before.host.lrigDeck && st?.host?.deck < before.host.deck) {
+        return { pass: false, detail: `【旧回帰】アーツ使用直後に自分のdeckが減少（${before.host.deck}→${st.host.deck}）・repl=${JSON.stringify(repls)}` };
+      }
+      return null;
+    });
+  },
+};
+
+scenarios.lifeCrashReplDeclareNoOppCrash = {
+  title: 'WX25-P3-004（使用時は相手lifeを割らず、次のシグニクラッシュ置換だけを積む）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD02-003#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': ['WX25-P3-004#1'],
+      'energy': ['WD02-009#1', 'WD02-009#2', 'WD02-009#3', 'WD02-009#4'], 'hand': [], 'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': [], 'energy': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  },
+  async drive(page, H) {
+    return driveLifeCrashReplacementArts(page, H, 'lcrdnoc', 4, (st, before) => {
+      const repls = st?.host?.lifeCrashReplacements ?? [];
+      const repl = repls[0];
+      const declared = repls.length === 1 && repl?.kind === 'crash_opponent' && repl?.count === 1
+        && repl?.damageSource === 'signi' && repl?.once === true;
+      if (declared && st.guest.life === before.guest.life) {
+        return { pass: true, detail: `使用後もguest.life不変（${before.guest.life}→${st.guest.life}）、置換宣言1件=${JSON.stringify(repl)}` };
+      }
+      if (st?.guest?.life < before.guest.life && st?.guest?.fieldCheck == null) {
+        return { pass: false, detail: `【旧回帰】アーツ使用直後にguest.lifeが減少（${before.guest.life}→${st.guest.life}）・repl=${JSON.stringify(repls)}` };
+      }
+      return null;
+    });
+  },
+};
+
+scenarios.lifeCrashReplGrantFromAssist = {
+  title: 'WXDi-CP01-023（アシストグロウの【出】でbyAttack付き5枚置換宣言を積み、即時millしない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'field.assist_lrig_l': ['WXDi-CP01-020#1'], 'field.assist_lrig_r': [],
+      'lrig_deck': ['WXDi-CP01-023#1'],
+      'energy': ['WD01-013#31', 'WD01-014#32', 'WD01-016#33'], 'hand': [], 'trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_deck': [], 'energy': [], 'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    const energyNames = ['小剣　ククリ', '小弓　ボーニャ', 'サーバント　Ｄ'];
+    let slotOpened = false;
+    let growActionOpened = false;
+    let candidatePicked = false;
+    let submitted = false;
+    const selectedEnergy = new Set();
+    let last = before;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(600);
+      let did = null;
+      if (!slotOpened) {
+        did = await H.clickTestId('my-lrig-slot-assist-l');
+        if (did) slotOpened = true;
+      } else if (!growActionOpened) {
+        const grow = page.locator('[data-testid^="card-action-"][data-action-label="グロウ"]').first();
+        if (await grow.count() && await grow.isVisible().catch(() => false)) {
+          await grow.click({ timeout: 2000 });
+          did = 'act:グロウ';
+          growActionOpened = true;
+        }
+      } else if (!candidatePicked) {
+        did = await H.clickBtn('【アシスト】月ノ美兎　レベル２【隠蔽】');
+        if (did) candidatePicked = true;
+      } else if (!submitted) {
+        const nextEnergy = energyNames.find(name => !selectedEnergy.has(name));
+        if (nextEnergy) {
+          did = await H.clickModalImage(nextEnergy);
+          if (did) selectedEnergy.add(nextEnergy);
+        } else {
+          const submit = page.getByRole('button', { name: 'グロウ', exact: true }).last();
+          if (await submit.count() && await submit.isVisible().catch(() => false) && await submit.isEnabled().catch(() => false)) {
+            await submit.click({ timeout: 2000 });
+            did = 'btn:アシストグロウ';
+            submitted = true;
+          }
+        }
+      }
+      const st = await H.queryState();
+      last = st;
+      const repls = st?.host?.lifeCrashReplacements ?? [];
+      const repl = repls[0];
+      H.log(`  lcrgfa[${s}] -> ${did ?? 'なし'} | opened=${slotOpened}/${growActionOpened}/${candidatePicked} energy=${selectedEnergy.size}/3 submitted=${submitted} hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} lrigDeck=${st?.host?.lrigDeck} repl=${JSON.stringify(repls)}`);
+      const declared = repls.length === 1 && repl?.kind === 'mill' && repl?.count === 5
+        && repl?.damageSource === 'signi' && repl?.byAttack === true && repl?.optional === true
+        && repl?.once === undefined;
+      if (declared && st.host.deck === before.host.deck) {
+        return { pass: true, detail: `アシストグロウ後もdeck不変（${before.host.deck}→${st.host.deck}）、GRANT_LRIG_ABILITY由来の置換宣言1件=${JSON.stringify(repl)}` };
+      }
+      if ((st?.host?.lrigDeck ?? before.host.lrigDeck) < before.host.lrigDeck && st?.host?.deck < before.host.deck) {
+        return { pass: false, detail: `【旧回帰】付与時に即時mill（deck ${before.host.deck}→${st.host.deck}）・repl=${JSON.stringify(repls)}` };
+      }
+    }
+    return { pass: false, detail: `アシスト由来宣言の確認タイムアウト（hDeck=${last?.host?.deck} hTrash=${last?.host?.trash} lrigDeck=${last?.host?.lrigDeck} repl=${JSON.stringify(last?.host?.lifeCrashReplacements ?? [])}）` };
+  },
+};
+
+scenarios.lifeCrashReplMillOnSigniAttack = {
+  title: 'life_crash_replacements注入（CPUシグニアタックをlifeの代わりにdeck上10枚mill）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'life_crash_replacements': [{ kind: 'mill', count: 10, damageSource: 'signi' }],
+      'energy': [], 'hand': [], 'lrig_deck': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.lrig_down': true,
+      'field.signi': [['WD01-013#201'], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+      'energy': [], 'hand': [], 'lrig_deck': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let last = await H.queryState();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.clickBtn('エナに送る', { exact: true }); // 置換不発時のcheckを消化して次シナリオへ残さない
+      const st = await H.queryState();
+      last = st;
+      H.log(`  lcrmos[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+      if (st?.host?.life === 7 && st?.host?.deck === 30 && st?.host?.trash === 10 && st?.host?.fieldCheck == null) {
+        return { pass: true, detail: 'CPUシグニアタックでhost.life 7維持・deck 40→30・trash 0→10（置換成立、checkなし）' };
+      }
+      if ((st?.host?.life ?? 7) < 7 && st?.host?.fieldCheck == null) return { pass: false, detail: `【置換不発】host.life=${st.host.life}（期待7）・deck=${st.host.deck} trash=${st.host.trash}` };
+    }
+    return { pass: false, detail: `シグニアタック置換タイムアウト（hLife=${last?.host?.life} hDeck=${last?.host?.deck} hTrash=${last?.host?.trash} phase=${last?.turnPhase}）` };
+  },
+};
+
+scenarios.lifeCrashReplCrashOpponentInstead = {
+  title: 'life_crash_replacements注入（CPUシグニアタックで防御側lifeの代わりに攻撃側lifeを1枚クラッシュ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'life_crash_replacements': [{ kind: 'crash_opponent', count: 1, damageSource: 'signi', once: true }],
+      'energy': [], 'hand': [], 'lrig_deck': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.lrig_down': true,
+      'field.signi': [['WD01-013#201'], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+      'energy': [], 'hand': [], 'lrig_deck': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let last = await H.queryState();
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.clickBtn('エナに送る', { exact: true }); // 置換不発時のhost checkを消化。guest checkはCPUが自動消化する
+      const st = await H.queryState();
+      last = st;
+      H.log(`  lcrcoi[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} gLife=${st?.guest?.life} gEnergy=${st?.guest?.energy} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+      if (st?.host?.life === 7 && st?.guest?.life === 6 && st?.guest?.fieldCheck == null && st?.guest?.energy === 1) {
+        return { pass: true, detail: 'CPUシグニアタックでhost.life 7維持・guest.life 7→6。CPU側のバーストなし確認も自動消化されguest.energy 0→1' };
+      }
+      if ((st?.host?.life ?? 7) < 7 && st?.host?.fieldCheck == null) return { pass: false, detail: `【置換不発】防御側host.life=${st.host.life}（期待7）・guest.life=${st.guest.life}` };
+    }
+    return { pass: false, detail: `相手lifeクラッシュ置換タイムアウト（hLife=${last?.host?.life} gLife=${last?.guest?.life} gEnergy=${last?.guest?.energy} gCheck=${last?.guest?.fieldCheck ?? '-'} phase=${last?.turnPhase}）` };
+  },
+};
+
+function makeLifeCrashReplacementLrigScenario(damageSource, shouldReplace) {
+  return {
+    title: `life_crash_replacements注入（CPUルリグアタック・damageSource=${damageSource}・置換${shouldReplace ? '成立' : '不成立'}）`,
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+        'life_crash_replacements': [{ kind: 'mill', count: 5, damageSource, byAttack: true }],
+        'energy': [], 'hand': [], 'lrig_deck': [],
+      },
+      guestSet: {
+        'field.lrig': ['WD01-001#2'], 'field.lrig_down': false,
+        'field.signi': [null, null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+        'energy': [], 'hand': [], 'lrig_deck': [],
+      },
+      top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 3 },
+    },
+    async drive(page, H) {
+      let last = await H.queryState();
+      for (let s = 0; s < 34; s++) {
+        await page.waitForTimeout(500);
+        let did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+        if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+        const st = await H.queryState();
+        last = st;
+        H.log(`  lcrla.${damageSource}[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hDeck=${st?.host?.deck} hTrash=${st?.host?.trash} hEnergy=${st?.host?.energy} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+        if (shouldReplace && st?.host?.life === 7 && st?.host?.deck === 35 && st?.host?.trash === 5 && st?.host?.fieldCheck == null) {
+          return { pass: true, detail: 'damageSource=lrig対照：同じCPUルリグアタックが置換され、host.life 7維持・deck 40→35・trash 0→5' };
+        }
+        if (!shouldReplace && st?.host?.life === 6 && st?.host?.deck === 40 && st?.host?.trash === 0
+            && st?.host?.energy === 1 && st?.host?.fieldCheck == null) {
+          return { pass: true, detail: 'damageSource=signi限定：CPUルリグアタックは置換されずhost.life 7→6・deck 40維持。バーストなし確認も「エナに送る」で消化' };
+        }
+        if (shouldReplace && (st?.host?.life ?? 7) < 7 && st?.host?.fieldCheck == null) {
+          return { pass: false, detail: `【対照不成立】damageSource=lrigなのにhost.life=${st.host.life}・deck=${st.host.deck} trash=${st.host.trash}` };
+        }
+        if (!shouldReplace && (st?.host?.deck ?? 40) < 40) {
+          return { pass: false, detail: `【限定漏れ】damageSource=signiなのにルリグアタックをmill置換（life=${st.host.life} deck=${st.host.deck} trash=${st.host.trash}）` };
+        }
+      }
+      return { pass: false, detail: `ルリグアタック対照タイムアウト（source=${damageSource} hLife=${last?.host?.life} hDeck=${last?.host?.deck} hTrash=${last?.host?.trash} hEnergy=${last?.host?.energy} check=${last?.host?.fieldCheck ?? '-'} phase=${last?.turnPhase}）` };
+    },
+  };
+}
+
+// B3/B4 はこのfactoryで盤面・クリック手順を共有し、注入宣言の damageSource 1語だけを変える。
+scenarios.lifeCrashReplNotOnLrigAttack = makeLifeCrashReplacementLrigScenario('signi', false);
+scenarios.lifeCrashReplLrigAttackControl = makeLifeCrashReplacementLrigScenario('lrig', true);
+
+// ── /続き431 新規シナリオ境界 ─────────────────────────────────────────
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
@@ -12011,6 +12309,12 @@ order.push('designatedZoneLevelScaledMinus', 'designatedZoneRecalcOnSwap', 'desi
 // トリガーと誤読し、`ON_TURN_END` 効果を `any_opp` に書き換えて**自分側 collector から丸ごと落としていた**
 // （実測＝41効果/40カードが「あなたのターン終了時」なのに一度も発火しない無言バグ。golden も census も緑のまま）。
 order.push('kokonaUnderThreePay', 'kokonaUnderThreeSkip', 'kokonaUnderInsufficient');
+// 続き431（PLAN §7・Codex起案、実機はネットワーク遮断のため未実行）＝ライフクラッシュ置換の宣言3件＋消費4件。
+// ── 続き431 新規order追記境界（既存order不変証明用） ──
+order.push('lifeCrashReplDeclareNoSelfMill', 'lifeCrashReplDeclareNoOppCrash', 'lifeCrashReplGrantFromAssist',
+  'lifeCrashReplMillOnSigniAttack', 'lifeCrashReplCrashOpponentInstead',
+  'lifeCrashReplNotOnLrigAttack', 'lifeCrashReplLrigAttackControl');
+// ── /続き431 新規order追記境界 ──
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -12276,6 +12580,8 @@ try {
         // 使用時に消費されたかを決定論的に見る計器。
         nextArtsCostReduction: (s.next_arts_cost_reduction ?? []).map(r => `${r.color}x${r.count}`),
         assistDown: [s.field?.assist_lrig_l_down ?? false, s.field?.assist_lrig_r_down ?? false],
+        lifeCrashReplacements: s.life_crash_replacements ?? [],
+        damageReplaceMill: s.damage_replace_mill ?? [],
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
       });
       return {

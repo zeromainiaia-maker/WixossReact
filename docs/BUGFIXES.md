@@ -1,5 +1,20 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き465・Codex起案→Claude実機検証）— §7 ライフクラッシュ置換 UI シナリオ7件＝**7/7 が2回連続PASS**
+
+続き431で機構化したライフクラッシュ置換について、`scripts/verifyBattleDrive.mjs` に宣言側3件と
+消費側4件を追加した。宣言側は `WX24-P4-009` の使用時自傷mill、`WX25-P3-004` の使用時相手lifeクラッシュ、
+`WXDi-CP01-023` の付与時no-op／即時millへの退化を実UI経路で検出する。消費側は新形式
+`life_crash_replacements` を注入し、CPUシグニアタックでのmill／相手lifeクラッシュと、CPUルリグアタックに
+対する `damageSource:'signi'` 不成立＋`'lrig'` 成立の対照を固定した。B3/B4はfactoryを共有し、盤面とクリック手順を
+同一にしたまま注入宣言の `damageSource` 1語だけを変える。
+
+各 `hostSet` / `guestSet` は `field.check:null` を明示し、クラッシュ確認は人間側を「エナに送る」で、CPU側を
+既存自動応答で最後まで消化してから合格する。`queryState.sideOf` への追加は許可された
+`lifeCrashReplacements` / `damageReplaceMill` の2項目だけ。engine・parser・live JSON・既存シナリオ・既存order・
+既存testidは変更していない。実ブラウザは外部ネットワーク遮断のため **BLOCKED（未実行）**；検証側が実行と
+PASS/FAIL判定を引き取る。
+
 ## 2026-08-13 — runtime カード全文 regex 棚卸し：`GAIN_EXTRA_TURN` の主体反転を修正
 
 `EffectText` / `BurstText` の直接参照 298 箇所（下流の `match` / `test` / `includes` / `RegExp`
