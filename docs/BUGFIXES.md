@@ -1,6 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き471・Codex起案／実機 `BLOCKED`）— §7 V-06①＋V-09残の Playwright シナリオ6本
+## 2026-08-13（続き471・Codex起案→Claude実機検証）— §7 **V-06①／V-09②③④(一部) 完了**＋🔴**実バグ1件を検出**（→PLAN §3 **(cxxviii)**）
+
+### 実機結果＝**5/6 PASS**。FAIL 1本は**予告どおりの実バグ検出**（engine は1行も触っていない）
+
+| id | 実測 |
+|---|---|
+| `underCostFiltersByColor` | 下に「赤1枚＋非赤2枚」→ **候補は赤 `WD02-010#4901` だけ**／支払うと下 stack から trash、対象がバニッシュ（エナへ） |
+| `underCostUnavailableWhenNoRed` | **対照**＝下の1枚を白へ**交換するだけ** → **`pay` が `(disabled)`**・stack 不変・本体不発 |
+| `underCostFromThisOnly` | `fromThis` が効く＝**候補は自分の下の1枚だけ**・**別 stack の下カードは出ない**／対象に −3000 |
+| `fieldDownCostRequiresThreeUpWhite` | 白2体では **`pay` が `(disabled)`**・アタッカーだけ down（攻撃由来）・白エナ不徴収 |
+| `fieldDownCostPaysThreeAndWhite` | ❌ **(cxxviii) を検出**＝白3体を並べても `pay:発動する（コスト: 《白》）**(disabled)**`／`signiDown=[true,false,false]` |
+| `optionalActivateSkipThenPay` | **発動しない**で `host.life` 7→7（不変）／**発動する**で 7→6（確認フロー消化）＝同一 spec 再注入で応答だけ変更 |
+
+### ⭐ 続き421 の「死フィールド」が実UIまで届いたことの実機証明
+
+`WXDi-P11-042-E1` の `underAnySigniTrash.filter` は**続き421 時点で型にも無い死フィールド**で、
+**逆翻訳にだけ出て engine は無視していた**（続き422 で配線）。今回**赤だけが候補**になることを実機で確認した。
+⚠**runtime 型（`execUtils.ts:171-196`）と JSON payload 型は別物**＝
+**片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される**（`:177-179` の警告）。
+
+### 🔴 発見（(cxxviii)）＝`WXDi-P04-051-E1` は timing 誤りでコストが到達不能＝恒久 no-op
+
+原文は「**あなたのルリグ１体がアタックしたとき**…**そのルリグをアップし**…**そのルリグは能力を失う**」なのに、
+live は **`timing:['ON_ATTACK_SIGNI']`**／帰結も **`UP{SIGNI}`＋`REMOVE_ABILITIES{SIGNI}`**。
+**シグニアタック経路では攻撃者が先にダウンする**（`BattleScreen.tsx:7858` → `ON_ATTACK_SIGNI` 収集は `:7920`）ため、
+**3面しかない盤面ではアップの白シグニが最大2体**しか残らず `fieldDown:{count:3}` は**永久に成立しない**。
+⇒ **ルリグアタック時なら3体ともアップのまま**＝**timing の誤りがコストを到達不能にしている**。(cxxvii) と**同型の対象種別の取り違え**。
+
+⭐**codex が投入前の静的読解でこれを予告し、「skip で偽 PASS させず `canAfford極性不一致` で FAIL する」設計**にしたため、
+実機で一撃で確定した（§5-21 の「負方向を静かに緑にしない」の good practice）。
+
+### 🔑 codex が指示書を訂正した点（通算22回目）
+
+- **`injectScenario` のデッキ/ライフ張り直しは `:10730-10733` ではなく現在 `:11886-11887`**（シナリオ追加で行がずれている）。
+- `clickExactVisibleText` は**実コードでも 20×150ms＝3秒**（続き470 の検証側修正が効いている）／慣例の実位置も `:3745` で一致。
+
+### 📋 やらなかったこと
+
+- **V-06②**（`WXDi-P14-060-E1` の「捨てさせる向き」）＝`opponentResponds` の別軸。
+- `WX07-003-E1`（**PLAN の記述が誤り**＝ルリグの【自】でクロスアイコン持ちシグニの召喚が要る）。
+- `WXDi-P04-051-E1` の timing／帰結の修正＝**(cxxviii) として在庫化のみ**。
+- §3 (cxxiii)(cxxv)(cxxvi)(cxxvii) の修正／engine・parser・live JSON・`src/` の変更。
+
+### 以下は Codex 起案時点の記録（実行前）
+
+オ6本
 
 - `scripts/verifyBattleDrive.mjs` の既存末尾へ、`underAnySigniTrash` 3本（色filter／赤なし対照／`fromThis`）、`fieldDown` 2本（白2体／白3体対照）、`OPTIONAL_ACTIVATE` 1本（同一spec再注入で skip→pay）を追加した。既存シナリオ・既存order・`queryState` は変更せず、差分は **399 insertions / 0 deletions**。
 - 下カードは既存の state 表現どおり `field.signi: [[下カード..., 場の本体], ...]` で注入し、既存 `queryState.fieldSigni` の生スタックで候補集合・支払い後の残存を観測する。両者の `field.check` は全specで明示 `null`、アタック／自ライフクラッシュ後の確認フローも消化する。
