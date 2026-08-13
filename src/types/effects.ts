@@ -712,6 +712,13 @@ export interface EffectTarget {
      */
     | 'HAND_OR_ENERGY_CARD'
     | 'LIFE_CLOTH_CARD'
+    /**
+     * 場のキー（`field.key_piece` ＋ `field.key_piece_extra`）を1枚ずつ選ぶ（§6.4 O-17）。
+     * ⚠`RemoveAbilitiesAction.alsoKeys`（「すべてのキー」＝プレイヤー単位のフラグ）とは別物＝
+     *   こちらは**1枚を選んで** `abilities_removed` に積む。読みはどちらも
+     *   engine の `activeKeyAbilitySources` funnel が受ける。
+     */
+    | 'KEY'
     | 'PLAYER';
   owner: Owner;
   count: NumberOrRef | 'ALL'; // $ref='last_processed_count': 直前ステップでトラッシュ/処理した枚数（動的）

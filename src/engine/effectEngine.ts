@@ -835,6 +835,14 @@ export function fieldGrantRemovesAbilities(
  */
 export function activeKeyAbilitySources(state: PlayerState): string[] {
   if (state.keys_abilities_disabled) return [];
+  // 1枚単位の喪失（「対戦相手の**キー１枚**を対象とし、ターン終了時まで、それは能力を失う」＝§6.4 O-17）は
+  // シグニと同じ `abilities_removed`（cardNum のリスト）に載る。全キーのフラグとは別軸なので両方見る。
+  const removed = new Set(state.abilities_removed ?? []);
+  return keySlotCardNums(state).filter(n => !removed.has(n));
+}
+
+/** 場のキー枠（`key_piece` ＋ `key_piece_extra`）の実体。**能力喪失を考慮しない**＝選択候補の母集団。 */
+export function keySlotCardNums(state: PlayerState): string[] {
   return [state.field.key_piece, ...(state.field.key_piece_extra ?? [])]
     .filter((n): n is string => !!n);
 }

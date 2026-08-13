@@ -863,7 +863,9 @@ export type TargetScope =
   | 'self_hand_energy' | 'opp_hand_energy'
   | 'self_lrig_deck' | 'opp_lrig_deck'
   | 'self_lrig_under'
-  | 'self_assist_lrig';
+  | 'self_assist_lrig'
+  // 場のキー（`field.key_piece` ＋ `key_piece_extra`）。「対戦相手のキー１枚を対象とし」（§6.4 O-17）。
+  | 'self_key' | 'opp_key';
 
 import type { EffectAction, SelectionConstraint } from './effects';
 
