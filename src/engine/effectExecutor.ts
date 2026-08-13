@@ -6135,6 +6135,15 @@ function execReturnAssistLrigToDeck(a: ReturnAssistLrigToDeckAction, ctx: ExecCt
 
 function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult {
   const tgtOwner = a.target.owner === 'any' ? 'opponent' : a.target.owner as Owner;
+  // §6.4 O-16(b):「対戦相手の場にある**キーと**シグニは能力を失い、新たに得られない」＝キーは
+  // `field.signi` に居ないので per-card の `abilities_removed` では表せない。専用フラグへ倒し、
+  // 読みは `activeKeyAbilitySources` funnel（CONT／AUTO／【起】の全収集経路が通る）に任せる。
+  // ⚠シグニ側の候補が0でもキーは失わせる＝下の `cands.length === 0` の早期 return より前に置く。
+  if (a.alsoKeys) {
+    const keyState = ownerState(tgtOwner, ctx);
+    ctx = addLog(setOwnerState(tgtOwner, { ...keyState, keys_abilities_disabled: true }, ctx),
+      `${tgtOwner === 'self' ? 'あなた' : '対戦相手'}のすべてのキーは能力を失う`);
+  }
   const state = ownerState(tgtOwner, ctx);
   // §6.4 O-16:「（指定した）シグニゾーンにあるシグニは能力を失い、新たに得られない」＝**ゾーン継続**。
   // per-card の abilities_removed は適用時点の instanceId を記録するので**後からそのゾーンへ出たシグニに
