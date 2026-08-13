@@ -1,5 +1,44 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き463） — `WX25-CP1-091-E2` が runtime の `triggerScope:any_opp` 誤補完で自ターン終了 collector から脱落
+
+### 結論
+
+**engine 側の収集バグ**。live JSON の E2 自体は正しいが、実機だけが通る `buildEffectsMap` の
+`inferTriggerScope` がカード全文にある E1 の duration「次の対戦相手のターン終了時まで」を
+E2 の trigger と誤認し、scope 未指定の E2 を `any_opp` に書き換えていた。
+`collectTurnTriggers` の自分フィールド走査は `self` だけを拾うため、E2 は pay/skip 実行以前に脱落していた。
+
+### 再現と修正
+
+- `scripts/goldenTest.ts` に実機と同じ `buildEffectsMap + InstanceMap`、実測と同じ instanceId スタック
+  `['WXDi-CP02-063#1','WXDi-CP02-064#1','WXDi-CP02-065#1','WX25-CP1-091#1']` を組んだ。
+  修正前は追加3件すべて収集地点で FAIL（1956 PASS / 3 FAIL）。
+- `inferTriggerScope` のターン境界判定を、カード全文の単純 contains から
+  `【自】：あなた/対戦相手のターン開始時・終了時` という**トリガー句そのもの**の照合へ限定。
+  自/相手の両方を持つカードは、parser が明示した相手側 scope を温存し、未指定側を self に保つ。
+- 修正後は E2 が収集され、`OPTIONAL_COST` が pay/skip の `CHOOSE` を返すことを確認。
+  pay は下の＜ブルアカ＞3枚だけをトラッシュへ移してエナチャージ1、skip はスタック/エナ不変。
+  ＜ブルアカ＞2枚では AUTO 自体は収集されるが pay は `available:false`、skip のみ利用可能。
+
+### 同型走査
+
+同じ全文 scope 汚染は **ON_TURN_END 41効果/40カード**（対象を含む。ON_TURN_START は0件）に存在した。
+大半は「自ターン終了時」の効果内にある duration「次の対戦相手のターン終了時まで」を誤読したもの。
+さらに同じ `inferTriggerScope` の ON_PLAY 分岐にも **10効果/10カード**あり、別能力の
+any_ally/any_opp watcher や文を跨ぐ `.*` が自身の【出】を汚染していた。
+同じ補完地点で、明示 scope を持つ同 timing の sibling を優先し、正規表現を1能力文内へ閉じた。
+代表として `WX25-P1-070-E1`（duration 混同なし）、`WXDi-P08-042-E1/E2`（自/相手の両方向）、
+`WX14-025-E2`（self ON_PLAY）を実 collector で固定。`ON_BLOOD_CRYSTAL_ARMOR` の未指定3効果は
+すべて「このシグニが血晶武装状態になったとき」で、同型汚染0件。
+
+### ゲート
+
+- golden **1956→1962 PASS / 0 FAIL**（対象3件＋同型3件）
+- census **831**（BASELINE_HIGH 831）／smoke **10688 OK・SKIP 0**／fuzz 全0
+- lint **0 errors / 259 warnings**／typecheck・census-stubs・manual-fields PASS
+- `public/data/effects_*.json`、`scripts/verifyBattleDrive.mjs`、PLAN/PLAN_PROGRESS は変更なし。
+
 ## 2026-08-13（続き462） — §7 第3バッチ＝指定ゾーンのレベル比例パワー継続（`WDK10-009-E2`）。**engine の新バグ0／ドライバの罠を1つ潰した**
 
 **分担**＝続き460・461 と同じ（Codex 起案 → Claude 実機検証）。**新規シナリオ3本すべて2回連続PASS。**

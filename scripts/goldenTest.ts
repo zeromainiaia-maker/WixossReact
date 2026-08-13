@@ -17,7 +17,7 @@ import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
-import { parseCardEffects } from '../src/data/effectParser';
+import { buildEffectsMap, parseCardEffects } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones } from '../src/engine/execUtils';
@@ -10314,6 +10314,109 @@ test('Stage2 ON_TURN_END: self シグニが発火・timing 不一致は非発火
   eq(e.find(x => x.effectId === 'WX10-030-E1')?.playerId, HOST, 'playerId=自分');
   eq(has(cttEntries(trigCtx(HOST, HOST), 'ON_TURN_START', host, guest), 'WX10-030-E1'), false, 'timing不一致は非発火');
 });
+
+const kokonaTurnEndFixture = (allBlueArchive: boolean) => {
+  const source = 'WX25-CP1-091#1';
+  const under = allBlueArchive
+    ? ['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1']
+    : ['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WX10-030#1'];
+  const owner = mkState({});
+  owner.field = { ...owner.field, signi: [[...under, source], null, null] };
+  owner.actions_done = [];
+  const other = mkState({});
+  // 実機と同じ buildEffectsMap + InstanceMap を通す。素の live Map だけでは
+  // build 時の triggerScope 補完と instanceId フォールバックを再現できない。
+  const runtimeEffects = new InstanceMap(buildEffectsMap([cardMap.get('WX25-CP1-091')!]));
+  const runtimeCards = new InstanceMap(cardMap);
+  const collectCtx: TrigCtx = {
+    ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects, cardMap: runtimeCards,
+  };
+  const entries = collectTurnTriggers(collectCtx, 'ON_TURN_END', owner, other).entries;
+  const entry = entries.find(e => e.effectId === 'WX25-CP1-091-E2');
+  const execCtx: ExecCtx = {
+    ownerState: owner, otherState: other, cardMap: runtimeCards, logs: [],
+    sourceCardNum: source, triggeringCardNum: source, currentPhase: 'END', isOwnerTurn: true,
+  } as ExecCtx;
+  return { source, under, owner, other, entry, execCtx };
+};
+
+test('WX25-CP1-091-E2: 実機 map＋instanceId 盤面で自ターン終了 collector に載る（成立）', () => withSavedCursor(() => {
+  const { entry } = kokonaTurnEndFixture(true);
+  ok(!!entry, 'WX25-CP1-091-E2 が ON_TURN_END に収集されない');
+}));
+
+test('WX25-CP1-091-E2: ＜ブルアカ＞3枚なら pay/skip を提示し、pay だけ支払い＋エナチャージ1（成立/辞退）', () => withSavedCursor(() => {
+  const { source, under, owner, entry, execCtx } = kokonaTurnEndFixture(true);
+  ok(!!entry, '実行対象 entry が収集されない');
+  const offered = executeEffect(entry!.effect, execCtx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', 'OPTIONAL_COST が CHOOSE を返さない');
+  const choose = (offered as Extract<ExecResult, { done: false }>).pending as PendingInteractionDef & { type: 'CHOOSE' };
+  eq(choose.options.find(o => o.id === 'pay')?.available, true, '＜ブルアカ＞3枚で pay が available にならない');
+  eq(choose.options.find(o => o.id === 'skip')?.available, true, 'skip が available でない');
+
+  const offeredCtx: ExecCtx = {
+    ...execCtx, ownerState: offered.ownerState, otherState: offered.otherState, logs: offered.logs,
+  };
+  const paid = finish(resumeOptionalCost('pay', [], choose, offeredCtx), offeredCtx);
+  eq(paid.ownerState.field.signi[0]?.join(','), source, 'pay 後に本体以外がシグニ下へ残った');
+  ok(under.every(n => paid.ownerState.trash.includes(n)), 'pay した下3枚がトラッシュへ移らない');
+  eq(paid.ownerState.energy.length, owner.energy.length + 1, 'pay 後にエナチャージ1されない');
+
+  const skippedOffer = executeEffect(entry!.effect, execCtx);
+  ok(!skippedOffer.done && skippedOffer.pending.type === 'CHOOSE', 'skip 側の CHOOSE が出ない');
+  const skippedCtx: ExecCtx = {
+    ...execCtx, ownerState: skippedOffer.ownerState, otherState: skippedOffer.otherState, logs: skippedOffer.logs,
+  };
+  const skipped = finish(resumeOptionalCost('skip', [], skippedOffer.pending as never, skippedCtx), skippedCtx);
+  eq(skipped.ownerState.field.signi[0]?.join(','), [...under, source].join(','), 'skip でシグニ下が減った');
+  eq(skipped.ownerState.energy.length, owner.energy.length, 'skip でエナチャージされた');
+}));
+
+test('WX25-CP1-091-E2: ＜ブルアカ＞が2枚だけなら pay は unavailable（不成立）', () => withSavedCursor(() => {
+  const { entry, execCtx } = kokonaTurnEndFixture(false);
+  ok(!!entry, '支払い不能でも AUTO 自体は collector に載る');
+  const offered = executeEffect(entry!.effect, execCtx);
+  ok(!offered.done && offered.pending.type === 'CHOOSE', '支払い不能時に skip 用 CHOOSE が出ない');
+  const options = (offered as Extract<ExecResult, { done: false }>).pending.options;
+  eq(options.find(o => o.id === 'pay')?.available, false, '＜ブルアカ＞2枚で pay が有効になる');
+  eq(options.find(o => o.id === 'skip')?.available, true, '支払い不能時に skip できない');
+}));
+test('turn triggerScope 補完: duration の「次の対戦相手ターン終了時まで」は自ターン trigger を汚染しない', () => withSavedCursor(() => {
+  const runtimeEffects = new InstanceMap(buildEffectsMap([cardMap.get('WX25-P1-070')!]));
+  const runtimeCards = new InstanceMap(cardMap);
+  const host = mkState({ signi: ['WX25-P1-070#1', null, null] });
+  const entries = collectTurnTriggers({
+    ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects, cardMap: runtimeCards,
+  }, 'ON_TURN_END', host, mkState({})).entries;
+  ok(entries.some(e => e.effectId === 'WX25-P1-070-E1'), '自ターン終了時の全体+3000が収集されない');
+}));
+test('turn triggerScope 補完: 自/相手ターン終了時を併記したカードは各 effect の scope を混線しない', () => withSavedCursor(() => {
+  const runtimeEffects = new InstanceMap(buildEffectsMap([cardMap.get('WXDi-P08-042')!]));
+  const runtimeCards = new InstanceMap(cardMap);
+  const owner = mkState({ signi: ['WXDi-P08-042#1', null, null] });
+  const empty = mkState({});
+  const ownEnd = collectTurnTriggers({
+    ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects, cardMap: runtimeCards,
+  }, 'ON_TURN_END', owner, empty).entries;
+  ok(ownEnd.some(e => e.effectId === 'WXDi-P08-042-E1'), '自ターン終了時の1ドローが収集されない');
+  ok(!ownEnd.some(e => e.effectId === 'WXDi-P08-042-E2'), '相手ターン終了時の手札捨てが自ターンに過剰収集された');
+  const opponentEnd = collectTurnTriggers({
+    ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects, cardMap: runtimeCards,
+  }, 'ON_TURN_END', empty, owner).entries;
+  ok(!opponentEnd.some(e => e.effectId === 'WXDi-P08-042-E1'), '自ターン終了時の1ドローが相手ターンに過剰収集された');
+  ok(opponentEnd.some(e => e.effectId === 'WXDi-P08-042-E2'), '相手ターン終了時の手札捨てが収集されない');
+}));
+test('ON_PLAY triggerScope 補完: 別能力の opponent watcher は自身の【出】を汚染しない', () => withSavedCursor(() => {
+  const source = 'WX14-025#1';
+  const runtimeEffects = new InstanceMap(buildEffectsMap([cardMap.get('WX14-025')!]));
+  const runtimeCards = new InstanceMap(cardMap);
+  const owner = mkState({ signi: [source, null, null] });
+  const entries = collectPlacedSelfOnPlayTriggers({
+    ...trigCtx(HOST, HOST), effectsMap: runtimeEffects, cardMap: runtimeCards,
+  }, source, owner, mkState({}), HOST, { placedByEffect: false, sourceIsSigni: false }).entries;
+  ok(entries.some(e => e.effectId === 'WX14-025-E2'), '自身の【出】が self ON_PLAY collector に載らない');
+  ok(!entries.some(e => e.effectId === 'WX14-025-E1'), '相手シグニ watcher が自身の【出】として過剰収集された');
+}));
 test('ARTS_USED_THIS_TURN 条件: turn_arts_used で発火ゲート（WX25-P3-112-E1）', () => {
   // 「あなたのアタックフェイズ開始時、このターンにあなたがアーツを使用していた場合、…」＝ turn_arts_used が無ければ非発火
   const host = mkState({ signi: ['WX25-P3-112', null, null] }); const guest = mkState({});

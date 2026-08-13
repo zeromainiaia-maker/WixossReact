@@ -13130,7 +13130,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
  * Supabase 保存済みの effects には triggerScope が含まれていない場合があるため、
  * 実行時にカードテキストから動的に補完する。
  */
-function inferTriggerScope(effect: CardEffect, card: CardData): import('../types/effects').TriggerScope | undefined {
+function inferTriggerScope(
+  effect: CardEffect,
+  card: CardData,
+  siblingEffects: CardEffect[],
+): import('../types/effects').TriggerScope | undefined {
   if (effect.effectType !== 'AUTO') return undefined;
   const text = (card.EffectText ?? '') + (card.BurstText ?? '');
   if (effect.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) {
@@ -13140,16 +13144,36 @@ function inferTriggerScope(effect: CardEffect, card: CardData): import('../types
   }
   // 「対戦相手のターン開始時/終了時」→ 相手ターン中に自分のシグニが発動（any_opp）
   if (effect.timing?.includes('ON_TURN_START') || effect.timing?.includes('ON_TURN_END')) {
-    if (/対戦相手のターン(?:開始時|終了時)/.test(text)) return 'any_opp';
+    // ⚠カード全文中の「次の対戦相手のターン終了時まで」は効果の duration であり trigger ではない。
+    // 全文 contains だけで判定すると、自ターン終了時効果まで any_opp に化けて own-field collector から落ちる。
+    // 複数【自】で自/相手ターンの両方を持つカードは相手側 effect に parser が明示 scope を付けるため、
+    // 未指定 effect は保守的に self のままにする（WXDi-P08-042 / WX20-064-CB）。
+    const ownTurnTrigger = (effect.timing.includes('ON_TURN_START')
+      && /【(?:絆)?自】[^：:]*[：:]\s*あなたのターン開始時/.test(text))
+      || (effect.timing.includes('ON_TURN_END')
+        && /【(?:絆)?自】[^：:]*[：:]\s*あなたのターン終了時/.test(text));
+    const opponentTurnTrigger = (effect.timing.includes('ON_TURN_START')
+      && /【(?:絆)?自】[^：:]*[：:]\s*(?:次の)?対戦相手のターン開始時/.test(text))
+      || (effect.timing.includes('ON_TURN_END')
+        && /【(?:絆)?自】[^：:]*[：:]\s*(?:次の)?対戦相手のターン終了時/.test(text));
+    if (opponentTurnTrigger && !ownTurnTrigger) return 'any_opp';
   }
   if (!effect.timing?.includes('ON_PLAY')) return undefined;
+  // 同じカードの watcher 側に scope が明示済みなら、scope 未指定の ON_PLAY は自身の【出】。
+  // カード全文の別能力を再利用すると【出】まで any_ally/any_opp に化け、self collector から落ちる。
+  const hasExplicitOnPlayWatcher = siblingEffects.some(other => other !== effect
+    && other.effectType === 'AUTO'
+    && other.timing?.includes('ON_PLAY')
+    && (other.triggerScope === 'any_ally' || other.triggerScope === 'any_opp' || other.triggerScope === 'any'));
+  if (hasExplicitOnPlayWatcher) return undefined;
   // 「他のシグニが場に出たとき」「あなたのシグニが場に出たとき」→ 味方シグニ全体
-  if (/他の.*シグニ.*場に出たとき/.test(text) ||
-      /あなたのシグニが場に出たとき/.test(text)) {
+  // `[^。]*` で1能力文に閉じる。全文 `.*` は前能力の「対戦相手」から後続【出】の
+  // 「このシグニが場に出たとき」までを跨いで any_opp を捏造する（WD23-023-E / WX05-028）。
+  if (/【(?:絆)?自】[^：:]*[：:][^。]*(?:他の[^。]*シグニ|あなたの[^。]*シグニ)[^。]*場に出たとき/.test(text)) {
     return 'any_ally';
   }
   // 「対戦相手.*シグニ.*場に出たとき」→ 相手シグニ
-  if (/対戦相手.*シグニ.*場に出たとき/.test(text)) {
+  if (/【(?:絆)?自】[^：:]*[：:][^。]*対戦相手のシグニ[^。]*場に出たとき/.test(text)) {
     return 'any_opp';
   }
   return undefined; // 'self'（このカード自身が出たとき）
@@ -13168,7 +13192,7 @@ export function buildEffectsMap(cards: CardData[]): Map<string, CardEffect[]> {
     const effects = merged.map(e =>
       e.triggerScope !== undefined
         ? e
-        : { ...e, triggerScope: inferTriggerScope(e, card) },
+        : { ...e, triggerScope: inferTriggerScope(e, card, merged) },
     );
     if (effects.length > 0) map.set(card.CardNum, effects);
   }
