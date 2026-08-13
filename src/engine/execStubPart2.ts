@@ -3799,22 +3799,31 @@ export function execStubPart2(
   //   自分のゾーンを指定する。**保存先を間違えると読み手（target.owner 側の state）と食い違って空振りする。**
   if (stub.id === 'DESIGNATE_SIGNI_ZONE') {
     const ownerDSZ: Owner = stub.owner === 'self' ? 'self' : 'opponent';
+    // 「シグニゾーンを**２つまで**指定し」（`WX25-P3-014-E2`）＝複数選択。既定は1つ。
+    const countDSZ = Math.max(1, Math.min(3, stub.count ?? 1));
     const zoneOptsDSZ = [0, 1, 2].map(zi => ({
       id: `zone_${zi}`,
       label: `ゾーン${zi + 1}を指定`,
       action: ({ type: 'STUB', id: 'INTERNAL_DESIGNATE_ZONE', value: zi, owner: ownerDSZ } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, `指定する${ownerDSZ === 'self' ? '自分の' : '相手'}シグニゾーンを選択`), {
-      type: 'CHOOSE', options: zoneOptsDSZ, count: 1,
+    // ⚠**前回の指定を持ち越さない**＝同じカードを再使用したときに古いゾーンが混ざると、
+    //   指定していないゾーンにまで効果が乗る（`designated_zones` は追記式なので必ずここで空にする）。
+    const clearedDSZ = ownerDSZ === 'self'
+      ? { ...ctx, ownerState: { ...ctx.ownerState, designated_zones: [], designated_zone: undefined } }
+      : { ...ctx, otherState: { ...ctx.otherState, designated_zones: [], designated_zone: undefined } };
+    return needsInteraction(addLog(clearedDSZ, `指定する${ownerDSZ === 'self' ? '自分の' : '相手'}シグニゾーンを選択`), {
+      type: 'CHOOSE', options: zoneOptsDSZ, count: countDSZ,
+      ...(countDSZ > 1 ? { multiSelect: true, upTo: true } : {}),
     });
   }
-  // INTERNAL_DESIGNATE_ZONE: 選択したゾーンを対象側の State に保存
+  // INTERNAL_DESIGNATE_ZONE: 選択したゾーンを対象側の State へ**追記**する（複数指定に対応・§6.4 O-16）
   if (stub.id === 'INTERNAL_DESIGNATE_ZONE') {
     const zoneIdxIDZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     const ownerIDZ: Owner = stub.owner === 'self' ? 'self' : 'opponent';
     const stIDZ = ownerIDZ === 'self' ? ctx.ownerState : ctx.otherState;
-    const nextIDZ = { ...stIDZ, designated_zone: zoneIdxIDZ };
+    const zonesIDZ = [...new Set([...(stIDZ.designated_zones ?? []), zoneIdxIDZ])];
+    const nextIDZ = { ...stIDZ, designated_zones: zonesIDZ, designated_zone: undefined };
     const ctxIDZ = ownerIDZ === 'self' ? { ...ctx, ownerState: nextIDZ } : { ...ctx, otherState: nextIDZ };
     return done(addLog(ctxIDZ, `${ownerIDZ === 'self' ? '自分の' : '相手'}ゾーン${zoneIdxIDZ + 1}を指定`));
   }
