@@ -35,6 +35,20 @@ export type FieldGrant =
       filter?: import('./effects').TargetFilter;
       zone?: number;
       condition?: FieldGrantCondition;
+    }
+  | {
+      /**
+       * 場／ゾーンレベルの行動禁止（§6.4 O-16）。「対戦相手は**そのシグニゾーンにある**シグニでアタックできない」。
+       * ⚠per-signi の付与（`keyword_grants['アタックできない']`）は**その時点でそこにいたシグニ**にしか
+       *   効かない＝ゾーンを封じる原文の意図（後から出たシグニも撃てない）が表せない。
+       * 消費は `calcContinuousBlockedActions` の `cannotAttackSigni`＝**人間UI／共通実行経路／CPU の3箇所が
+       *   通る唯一の funnel**（`signiAttackGate.ts` 参照）。
+       */
+      kind: 'blockAction';
+      actionId: 'ATTACK';
+      filter?: import('./effects').TargetFilter;
+      zone?: number;
+      condition?: FieldGrantCondition;
     };
 
 export type TurnPhase =
