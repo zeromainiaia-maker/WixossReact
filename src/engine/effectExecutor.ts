@@ -104,20 +104,18 @@ function applyActiveFieldGrant(
   }
   const targetOwner = target.owner as Owner;
   const state = ownerState(targetOwner, ctx);
-  const zone = target.zoneSource === 'designated' ? state.designated_zone : undefined;
-  // 指定ゾーンが未確定（DESIGNATE が空振り）なら**何も起こさない**＝盤面全体へ広げない。
-  if (target.zoneSource === 'designated' && zone === undefined) return { ctx, applied: false };
-  const stored: FieldGrant = zone === undefined ? grant : { ...grant, zone };
-  const next: PlayerState = { ...state, field_grants_active: [...(state.field_grants_active ?? []), stored] };
+  const stored = fieldGrantsForTargetZones(target, grant, state);
+  if (stored === null) return { ctx, applied: false };
+  const next: PlayerState = { ...state, field_grants_active: [...(state.field_grants_active ?? []), ...stored] };
   return { ctx: setOwnerState(targetOwner, next, ctx), applied: true };
 }
 
 function filterCandidatesToTargetZone(cands: string[], target: EffectTarget, state: PlayerState): string[] {
   if (target.zoneSource !== 'designated') return cands;
-  const zone = state.designated_zone;
-  if (zone === undefined) return [];
-  const top = state.field.signi[zone]?.at(-1);
-  return top && cands.includes(top) ? [top] : [];
+  const zones = designatedZones(state);
+  if (zones.length === 0) return [];
+  const tops = zones.map(z => state.field.signi[z]?.at(-1)).filter((n): n is string => !!n);
+  return cands.filter(n => tops.includes(n));
 }
 
 const exceedPoolCountOf = (state: PlayerState): number =>
