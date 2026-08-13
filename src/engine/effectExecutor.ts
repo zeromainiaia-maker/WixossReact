@@ -8325,13 +8325,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx, { isBanish: true });
       if (sub.replaced) return done(sub.ctx);
-      const s = ownerState(found, ctx);
+      const c = sub.ctx;          // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+      const s = ownerState(found, c);
       const removed = removeFromField(cardNum, s);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
-      const opp = ownerState(found === 'self' ? 'opponent' : 'self', ctx);
-      const { state: withEnergy, log } = banishDestination(removed, opp, cardNum, banishRedirectOpts(ctx, s, cardNum));
-      return done(addLog(setOwnerState(found, withEnergy, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${log}`));
+      const opp = ownerState(found === 'self' ? 'opponent' : 'self', c);
+      const { state: withEnergy, log } = banishDestination(removed, opp, cardNum, banishRedirectOpts(c, s, cardNum));
+      return done(addLog(setOwnerState(found, withEnergy, c),
+        `${c.cardMap.get(cardNum)?.CardName ?? cardNum}${log}`));
     }
     case 'BOUNCE': {
       let found: Owner | null = null;
