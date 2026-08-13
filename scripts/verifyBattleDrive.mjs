@@ -12281,7 +12281,23 @@ async function driveLeaveSubSingleBanish(page, H, id, evaluate) {
       did = await H.clickBtn('発動', { exact: true });
       if (did) flow.fired = true;
     } else {
-      did = await H.stdStep(['発動順序を確定', '決定']);
+      // 🔴**バニッシュ対象は必ず victim を名指しで選ぶ**（続き466 実測の罠）。
+      //   `WX19-023-E3` は `BANISH{count:1, powerRange:{max:12000}}`＝候補は victim（P12000）と
+      //   犠牲（P3000）の**2体**あり、`H.stdStep` の盲目的な `pick-0` だと**犠牲の方を直接バニッシュ**しうる。
+      //   その結果の盤面（victim 残存・犠牲がエナへ）は**身代わり成立時と1バイトも変わらない**ため、
+      //   離場置換を1度も通らないまま「置換できた」ように見える偽陽性になる。
+      //   ⇒ `pendingCandidates` から victim の index を引いて `pick-<idx>` を押す（先例＝cheatingSameLevelDownFilter）。
+      const cands = (await H.queryState())?.pendingCandidates;
+      if (!flow.victimTargeted && Array.isArray(cands) && cands.includes(LEAVE_SUB_VICTIM)) {
+        const idx = cands.indexOf(LEAVE_SUB_VICTIM);
+        const p = page.getByTestId(`pick-${idx}`).first();
+        if (await p.count() && await p.isVisible().catch(() => false)) {
+          await p.click().catch(() => {});
+          did = `pick:victim(${idx}/${cands.length})`;
+          flow.victimTargeted = true;
+        }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '決定']);
     }
 
     const st = await H.queryState();
