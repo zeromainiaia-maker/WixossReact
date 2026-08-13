@@ -10588,8 +10588,11 @@ const sameInstanceSet = (actual, expected) => Array.isArray(actual)
   && actual.length === expected.length
   && expected.every(n => actual.includes(n));
 
+// ⚠待機予算は `clickPendingInstance` と揃える（3秒）。⚠**500ms では足りない**（続き469 実測＝
+//   `targetDeclUpToTwoAllowsZero` が1回目 PASS・2回目 FAIL の位置依存フレークになった）。
+//   `queryState` は Supabase 直照会なので **DB が真になってもモーダルはまだ描画されていない**。
 async function clickExactVisibleText(page, text) {
-  for (let k = 0; k < 5; k++) {
+  for (let k = 0; k < 20; k++) {
     const el = page.getByText(text, { exact: true }).first();
     if (await el.count() && await el.isVisible().catch(() => false) && await el.isEnabled().catch(() => true)) {
       await el.click({ timeout: 2000 });
