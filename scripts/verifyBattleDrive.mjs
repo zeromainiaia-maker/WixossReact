@@ -10914,7 +10914,13 @@ scenarios.wxex166SpellLockPeriod = {
         modalOpened = false;
         did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
       }
+      // 前面のライフバースト確認／ガード応答モーダルを先に解消する。残っているとカード詳細モーダルごと
+      // 覆われ「アタック」ボタンへ到達できない（続き460 実測＝24反復とも did=なしで空振りした）。
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      if (!did) did = await H.clickBtn('ガードしない');
       if (!did) did = await H.clickBtn('アタック', { exact: true });
+      // カード詳細モーダルが閉じられていたら開き直す（modalOpened を立てっぱなしにすると永久に空振りする）。
+      if (!did && modalOpened && !(await page.getByTestId('card-detail-modal').first().isVisible().catch(() => false))) modalOpened = false;
       if (!did && !modalOpened) {
         const opened = await H.clickTestId('my-signi-zone-0');
         if (opened) { did = opened; modalOpened = true; }
