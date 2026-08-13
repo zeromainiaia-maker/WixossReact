@@ -2052,6 +2052,22 @@ test('§6.3 H4 WXDi-P13-003B-E2: 追加ターンの配置数制限は自分側�
     cursor = savedCursor;
   }
 });
+test('GAIN_EXTRA_TURN: 同じ能力の「対戦相手は…追加ターン」で相手側へ付与する（成立方向）', () => withSavedCursor(() => {
+  const effect = effectsMap.get('SP26-006')!.find(e => e.effectId === 'SP26-006-E1')!;
+  const ctx = mkCtx({}, {}, 'SP26-006');
+  const r = finish(executeEffect(effect, ctx), ctx);
+  eq(r.otherState.extra_turn, true, '明示された対戦相手が追加ターンを得る');
+  eq(r.ownerState.extra_turn, undefined, '自分側へは付与しない');
+}));
+test('GAIN_EXTRA_TURN: 別能力の「対戦相手」を跨いで自分の追加ターンを反転しない（不成立方向）', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['WXK05-001', 'WXK05-001-E2'], ['SP38-006', 'SP38-006-E4']] as const) {
+    const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const ctx = mkCtx({}, {}, cardNum);
+    const r = finish(executeEffect(effect, ctx), ctx);
+    eq(r.ownerState.extra_turn, true, `${effectId}: 原文どおり自分が追加ターンを得る`);
+    eq(r.otherState.extra_turn, undefined, `${effectId}: 別能力の「対戦相手」で相手側へ反転しない`);
+  }
+}));
 test('§6.3 H4 配置数予約の有効化: cap移動・3体→1体トリム／予約なしは完全no-op', () => {
   const savedCursor = cursor;
   try {

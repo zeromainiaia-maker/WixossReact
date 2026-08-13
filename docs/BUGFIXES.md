@@ -1,5 +1,20 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13 — runtime カード全文 regex 棚卸し：`GAIN_EXTRA_TURN` の主体反転を修正
+
+`EffectText` / `BurstText` の直接参照 298 箇所（下流の `match` / `test` / `includes` / `RegExp`
+572 判定）を追跡し、能力ブロックの所属を無視することで live カードの実行結果が変わる箇所を抽出した。
+`GAIN_EXTRA_TURN` は `対戦相手は.*追加の…ターンを得る` が別能力まで横断し、
+`WXK05-001-E2` と `SP38-006-E4` の「自分が追加ターンを得る」を相手側へ反転していた。
+
+修正は相手が追加ターンを得る同一節の定型句だけに限定した。全効果の変更前後比較は
+**2 効果 / 2 カード**だけが変化し、全件が
+`owner.extra_turn=false; other.extra_turn=true` → `owner.extra_turn=true; other.extra_turn=false`。
+相手側が得る `SP26-006-E1`（成立方向）と、自分側が得る上記 2 効果（別能力横断の不成立方向）を
+実行 golden に追加した。ほかの危険箇所は同時修正せず、`PLAN.md` §6.4 への登録候補として報告する。
+ゲートは golden **1962→1964 PASS / 0 FAIL**、census **831**、smoke **10688 / SKIP 0**、
+fuzz 全 0、lint **0 errors / 259 warnings**、typecheck・census-stubs・manual-fields PASS。
+
 ## 2026-08-13（続き463） — `WX25-CP1-091-E2` が runtime の `triggerScope:any_opp` 誤補完で自ターン終了 collector から脱落
 
 ### 結論

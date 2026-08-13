@@ -1381,7 +1381,7 @@ export function execStubPart2(
     const srcET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtET = srcET ? (srcET.EffectText ?? '') + ' ' + (srcET.BurstText ?? '') : '';
     // SP26-006: 「対戦相手はこのターンの次に、追加の１ターンを得る」→ otherState に付与
-    if (txtET.match(/対戦相手は.*追加の[１-９\d０-９]*ターンを得る/)) {
+    if (txtET.match(/対戦相手は(?:このターンの次に、)?追加の[１-９\d０-９]*ターンを得る/)) {
       return done(addLog({ ...ctx, otherState: { ...ctx.otherState, extra_turn: true } }, '対戦相手が追加ターンを獲得'));
     }
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, extra_turn: true } }, '追加ターンを獲得'));
