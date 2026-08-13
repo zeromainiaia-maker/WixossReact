@@ -14420,13 +14420,20 @@ scenarios.leaveSubDecisionNoneIsHonored = {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
       if (!flow.fired || !flow.victimTargeted || !observed.started || !leaveSubSettled(st)) return null;
-      const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
+      const boardOk = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
-        && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM)
-        && st?.guest?.leaveSubstituteChoices == null;
-      return ok
-        ? { pass: true, detail: `none決定を問わず消費し、victimだけがエナへ通常バニッシュ（${leaveSubTimeout(st)}）` }
-        : { pass: false, detail: `【旧回帰】noneを無視して自動置換した、または決定が残留（${leaveSubTimeout(st)}）` };
+        && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM);
+      const consumed = st?.guest?.leaveSubstituteChoices == null;
+      if (boardOk && consumed) {
+        return { pass: true, detail: `none決定を問わず消費し、victimだけがエナへ通常バニッシュ（${leaveSubTimeout(st)}）` };
+      }
+      // 🔴続き475 実測＝**盤面は正しいのに決定が state に残る**（§3 (cxxx)）。置換しなかった側の経路で
+      //   `applyEffectLeaveSubstitutes` の戻り ctx（消費済み）を呼び出し側が捨てているため。
+      //   残ると `leaveSubstituteAskOptions` が「決定済み」と見なして**次回以降その instance に問わなくなる**。
+      if (boardOk) {
+        return { pass: false, detail: `🔴【決定が消費されない＝§3 (cxxx)】盤面は正しい（victimだけエナへ）が leave_substitute_choices が残留（${leaveSubTimeout(st)}）` };
+      }
+      return { pass: false, detail: `【旧回帰】noneを無視して自動置換した（${leaveSubTimeout(st)}）` };
     });
   },
 };
