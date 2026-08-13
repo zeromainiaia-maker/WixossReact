@@ -32753,14 +32753,16 @@ test('§3 (cxxvi) 離場置換: 身代わりで先に場を離れたカードを
     ...ctx.otherState,
     leave_substitute_choices: { [victim]: `banishSubstitute:${victim}:${sacrifice}` },
   };
+  const energyBefore = ctx.otherState.energy.length;
+  const sacrificeBefore = ctx.otherState.energy.filter(n => n === sacrifice).length;
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, ctx);
   ok(r.done, 'count:ALL のバニッシュが解決する');
   const field = r.otherState.field.signi.map(z => z?.at(-1) ?? null);
   ok(field.includes(victim), '身代わりが成立して victim は場に残る');
   ok(!field.includes(sacrifice), '犠牲シグニは場を離れる');
-  eq(r.otherState.energy.filter(n => n === sacrifice).length, 1,
-     '🔴犠牲シグニがエナに1枚だけ（2枚になったら instance 複製の回帰）');
-  eq(r.otherState.energy.length, 1, 'エナに増えたのは犠牲シグニ1枚だけ');
+  eq(r.otherState.energy.filter(n => n === sacrifice).length, sacrificeBefore + 1,
+     '🔴犠牲シグニがエナに増えるのは1枚だけ（2枚増えたら instance 複製の回帰）');
+  eq(r.otherState.energy.length, energyBefore + 1, 'エナ全体で増えたのも1枚だけ（保存則）');
 });
 
 
