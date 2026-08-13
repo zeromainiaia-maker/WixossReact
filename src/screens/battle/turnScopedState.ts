@@ -89,6 +89,11 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   side_attack_empty_zone_damage_class: { boundaries: ['turn-end'], reset: undefined, reason: 'side-attack empty-zone override for the current turn' },
   // 離場置換の選択は解決中に消費し、未消費の残骸もターンを跨がせない。
   leave_substitute_choices: { boundaries: ['turn-end'], reset: undefined, reason: 'unconsumed leave-replacement decisions must not cross turns' },
+  // 能力喪失 active は現在のグローバルターンだけ。次ターン分は abilities_removed_next_turn に予約する（§6.4 O-3）。
+  // ⚠登録前は turn-end 4経路のうち2経路でしか手書きクリアされておらず、普通にターンを終えると次ターン以降も残っていた。
+  abilities_removed: { boundaries: ['turn-end'], reset: [], reason: 'active ability loss for the current turn; next-turn value is reserved separately' },
+  // 指定キーワードの喪失／再取得禁止も abilities_removed と同じ期限。
+  keyword_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'keyword-scoped ability loss; same lifetime as abilities_removed' },
 } as const satisfies Partial<Record<keyof PlayerState, TurnScopedSpec>>;
 
 /** ターン限定フィールドの唯一の実行時レジストリ。各フィールドは上のどちらかに1回だけ現れる。 */
