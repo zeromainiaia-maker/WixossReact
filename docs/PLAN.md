@@ -781,7 +781,7 @@
   - [ ] **(cxviii) `WXDi-P15-071` のベット分岐**＝**ベットあり／なしで撃ち分け**、ベット時は【Ｓランサー】（無条件）、非ベット時は正面パワー8000以下ゲート付き【ランサー】＝**排他**になること。
 
 
-### 📌 実機シナリオを書くときの必読（続き460〜468 で実証した罠）
+### 📌 実機シナリオを書くときの必読（続き460〜469 で実証した罠）
 
 1. 🔴**`spec.hostSet`／`guestSet` の両方に `'field.check': null` を必ず入れる**＝`injectScenario` の `CORE_FIELD_KEYS` に `check` が含まれ**リセットされない**。前シナリオのライフクラッシュ確認モーダルが全画面を覆い**クリックが1つも通らない**（3回踏んだ）。
 2. 🔴**`getByRole('button', { name: <正規表現>, exact: true })` は `count()` が常に 0**（`exact` は文字列名にしか効かない）＝**モーダルもボタンも出ているのに30反復空振り**する。ラベル照合は `data-action-label` の前方一致か `H.clickBtn`/`clickTextOrBtn`/`clickTestId`。
@@ -790,10 +790,10 @@
 5. 🔑**クリック前から成立している条件で判定しない**＝`pendingEffect==null && stackLen===0` は**効果の開始前と完了後の両方で true**。**効果が走り出したことを1度でも観測してから判定する**（さもないと単体で PASS・バッチで FAIL の位置依存 flakiness になる）。
 6. 🔑**候補が複数ある選択で `pick-0` を盲目に押さない**。⚠🔴**ただし `pendingCandidates` の index を `pick-<idx>` にそのまま使うのも誤り**（続き469 で判明）＝**相手の場が対象のときモーダルは候補を reverse して描画する**（`EffectInteractionModal.tsx:189-192`＝`targetScope==='opp_field'` なら `[...candidates].reverse()`）。`data-testid` は**表示順の index**（`:282`）。⇒ **集合として assert してから `[data-testid^="pick-"][data-card-num="<カード番号>"]` で狙う**（`clickPendingInstance`）。⚠**`data-card-num` はカード番号でインスタンスIDではない**＝**同名カードが複数並ぶ盤面では一意にならない**ので、そのときは表示順を自分で反転して index を出す。⚠先例 `cheatingSameLevelDownFilter` が index で動いていたのは**有効候補が1件しかなかったから**。
 7. 🔑**DOM の描画待ちを必ず入れる**（続き469 で2回踏んだ）＝`H.queryState()` は **Supabase を直接照会するので DOM より先に真になる**。`pendingCandidates` が立った瞬間に `pick-*` や `決定 (N/M)` を掴みにいくと**0件で即 null**。**待機予算は 3秒程度で全ヘルパに揃える**（`clickPendingInstance`／`clickExactVisibleText`）。⚠**500ms だと1回目 PASS・2回目 FAIL の位置依存フレークになる**。
-7. ⚠**`a?.x === a?.y` は `a` が null のとき `undefined===undefined` で true**＝1周目に誤検出して即 FAIL する。
-8. ⚠**`ATTACK_ARTS_OP` は非ターンプレイヤーが「アーツ終了」で進める**＝押さないと**CPU のターンが永久に終わらない**。
-9. ⚠**切り分けの決め手は `scratchpad-verify/<id>-final.png`**＝ログだけ見ていると原因を engine 側に誤診する。
-10. ⚠**Codex は実行できない**（サンドボックスのネットワーク遮断）＝**起案だけさせて実行・判定は検証側**が引き取る。指示書の冒頭でそれを明言すると時間を溶かさない（CODEX_GUIDE §8 続き460〜468）。
+8. ⚠**`a?.x === a?.y` は `a` が null のとき `undefined===undefined` で true**＝1周目に誤検出して即 FAIL する。
+9. ⚠**`ATTACK_ARTS_OP` は非ターンプレイヤーが「アーツ終了」で進める**＝押さないと**CPU のターンが永久に終わらない**。
+10. ⚠**切り分けの決め手は `scratchpad-verify/<id>-final.png`**＝ログだけ見ていると原因を engine 側に誤診する。
+11. ⚠**Codex は実行できない**（サンドボックスのネットワーク遮断）＝**起案だけさせて実行・判定は検証側**が引き取る。指示書の冒頭でそれを明言すると時間を溶かさない（CODEX_GUIDE §8 続き460〜468）。
 
 - **✅ 実機検証クローズ済み（2026-07-30〜2026-08-07・17ブロック）＝詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-11 整理⑥」節へ退避**＝タスク16 残0クローズ3枚（`WXDi-P06-038`／`WX05-020`／`WXDi-P13-051`）／`WXDi-P11-063-E2`（aboveSelf）／タスク12 (lx)(lxi 第2波・第3波・第10波・第11波・本消化5件)(lxii)(lxiii)(lxiv)(lxv)(lxxiii)(lxxvi)／エクシード本体5件／§6.3 H・I′ の機構5件／ON_LRIG_GROW④／(xi) の skip 検証／(xxxvi) のグロウ支払いUI／lrigDown コストの限定（🏁完全クローズ）／コイン支払い累計。**この検証群で発見した実バグは Opusタスク12 (ci)(cii)(civ)(cv)(cvi)(cvii)(cviii) として登録済み・クローズ済み**。⚠**再検証したい場合はシナリオIDが退避先の原文に全部残っている**（`verifyBattleDrive.mjs`）。
 

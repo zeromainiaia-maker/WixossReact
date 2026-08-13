@@ -1,6 +1,53 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き469・Codex起案／実機はClaudeへ引継ぎ）— §7 V-05 対象宣言 owner/count/power＋V-07② 自己トラッシュ Playwright 6本
+## 2026-08-13（続き469・Codex起案→Claude実機検証）— §7 **V-05 完了／V-07② 完了**＝6/6 が2回連続PASS（engine バグ0）
+
+### 実機結果＝**6/6 PASS**（`docs/PLAN.md` §7 の V-05 と V-07② を ✅ 化）
+
+| id | 実測 |
+|---|---|
+| `targetDeclOpponentOnlyCandidates` | `pendingCandidates` が **guest 3体だけ**／自分の `WX06-CB01#4691` は**混入なし**（旧＝自分のシグニが対象になっていた） |
+| `targetDeclUpToTwoSelectsBoth` | **2体選べて**、選んだ2体だけが `guest.hand` へ・**未選択の1体は場に残存**（旧＝`count:1` 固定） |
+| `targetDeclUpToTwoAllowsZero` | **`決定 (0/2)` で0体確定でき**、guest 3体すべて残存（旧＝1体強制） |
+| `targetDeclPowerCapExcludesAbove` | 候補は **P3000 の1体だけ**・**P15000 は除外**（旧＝無差別） |
+| `targetDeclPowerCapUsesEffectivePower` | ⭐**対照**＝盤面のカードを1枚も変えず `temp_power_mods +1000`（印字3000→**実効4000**）を足すだけで**候補が一度も非空にならない** |
+| `optionalTrashSelfNoHandLoss` | **pay**＝自シグニがトラッシュ＋対象バニッシュ・🔑**手札は不変**／**skip**＝双方不変（旧＝**手札1枚とこのシグニを二重に失っていた**） |
+
+⭐**母集団を数え直した**＝この機構（`STUB{SELECT_TARGET_ONLY}`）は **live 118効果**が使う。
+PLAN の「16効果」は**続き423 で変更した数**であって母集団ではなかった（§3-1）。代表2枚で filter の enforce を固定した。
+
+⭐**実効パワー判定を実機で証明**＝`SELECT_TARGET_ONLY` は候補を
+`fieldCandidates(state, filter, cardMap, **ctx.effectivePowers**)`（`execStubPart1.ts:163`）で作る。
+**注入が効いたことを `powerMods` で先に確認してから**候補を見ている（効いていないのに「候補0」で PASS すると偽陽性）。
+
+### 🔑 codex が指示書を訂正した点（通算20回目・**今回は危険な誤りだった**）
+
+指示書は「`pendingCandidates` から index を引いて `pick-<idx>` を押せ」と書いたが、
+**相手の場が対象のときモーダルは候補を reverse して描画する**（`EffectInteractionModal.tsx:189-192`＝
+`targetScope==='opp_field'` なら `[...candidates].reverse()`）。`data-testid` は**表示順の index**（`:282`）。
+⇒ そのまま書いていれば **T2 が別のシグニを戻して偽陽性/偽陰性**になっていた。
+codex は**集合 assert 後に `[data-testid^="pick-"][data-card-num="<カード番号>"]` で狙う**方式へ差し替えた。
+⚠**`data-card-num` はカード番号でインスタンスIDではない**＝**同名カードが複数並ぶ盤面では一意にならない**（今回の盤面は全て別カード番号なので成立）。
+⚠先例 `cheatingSameLevelDownFilter` が index で動いていたのは**有効候補が1件しかなかったから**。
+
+### 🔴 検証側が直したドライバの罠（engine は1行も触っていない）
+
+**`H.queryState()` は Supabase を直接照会するので DOM より先に真になる**＝候補が DB に立った瞬間に
+`pick-*` や `決定 (N/M)` を掴みにいくと**0件で即 null**。**2回踏んだ**：
+
+1. `targetDeclUpToTwoSelectsBoth`＝1体目のクリックが即 null で FAIL → `clickPendingInstance` に**描画待ち（3秒）**を追加。
+2. `targetDeclUpToTwoAllowsZero`＝**1回目 PASS・2回目 FAIL の位置依存フレーク**。`clickExactVisibleText` の待機予算が
+   **5×100ms＝500ms しかなく**、`clickPendingInstance`（3秒）と揃っていなかった → **3秒へ統一**。
+
+⇒ **待機予算は全ヘルパで揃える**（PLAN §7 📌-7 に追加）。
+
+### 📋 やらなかったこと
+
+- 残り116件の `SELECT_TARGET_ONLY`（同じ入口の横展開）／`WXDi-P02-009-E1`・`E2`（別軸）。
+- **0体確定時に《ガードアイコン》の任意コストが提示され pay すると手札が動く**＝**現状を記録しただけで仕様判断はしていない**。
+- §3 (cxxiii)/(cxxv)/(cxxvi)/(cxxvii) の修正／engine・parser・live JSON・`src/` の変更。
+
+### 以下は Codex 起案時点の記録（実行前）
 
 `scripts/verifyBattleDrive.mjs` に次の6シナリオを追加し、既存 `order` は変更せず末尾 `order.push(...)` に登録した。
 
