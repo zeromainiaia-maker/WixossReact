@@ -14320,18 +14320,24 @@ async function driveLeaveSubSingleBanish(page, H, id, evaluate) {
       //   犠牲（P3000）の**2体**あり、`H.stdStep` の盲目的な `pick-0` だと**犠牲の方を直接バニッシュ**しうる。
       //   その結果の盤面（victim 残存・犠牲がエナへ）は**身代わり成立時と1バイトも変わらない**ため、
       //   離場置換を1度も通らないまま「置換できた」ように見える偽陽性になる。
-      //   ⇒ `pendingCandidates` から victim の index を引いて `pick-<idx>` を押す（先例＝cheatingSameLevelDownFilter）。
+      //   🔴**続き475 訂正**＝ここで `pendingCandidates` の index をそのまま `pick-<idx>` に使っていたのが
+      //   **誤り**だった（PLAN §7 📌6＝続き469 で判明した罠。この4シナリオは続き466 作＝罠の発見前）。
+      //   `EffectInteractionModal` は `targetScope==='opp_field'` のとき候補を **reverse して描画**するので
+      //   `pick-0` は DB の候補[0]（victim）ではなく**最後の候補＝犠牲シグニ**を指す。⇒ 犠牲を直接バニッシュ
+      //   していた＝victim は対象ですらないので**離場置換の問いが出なくて当然**（§3 (cxxv) の症状はこれ）。
+      //   ⇒ `data-card-num` で狙う `clickPendingInstance` に統一する。
       const cands = (await H.queryState())?.pendingCandidates;
       if (!flow.victimTargeted && Array.isArray(cands) && cands.includes(LEAVE_SUB_VICTIM)) {
-        const idx = cands.indexOf(LEAVE_SUB_VICTIM);
-        const p = page.getByTestId(`pick-${idx}`).first();
-        if (await p.count() && await p.isVisible().catch(() => false)) {
-          await p.click().catch(() => {});
-          did = `pick:victim(${idx}/${cands.length})`;
-          flow.victimTargeted = true;
-        }
+        did = await clickPendingInstance(page, H, LEAVE_SUB_VICTIM);
+        if (did) flow.victimTargeted = true;
       }
-      if (!did) did = await H.stdStep(['発動順序を確定', '決定']);
+      // ⚠victim を掴む前に `stdStep` を通すと盲目 `pick-0` が走って同じ取り違えを再発させる。
+      //   掴むまでは「発動順序を確定」だけ消化し、掴んだ後に定石チェーンへ進む。
+      if (!did) {
+        did = flow.victimTargeted
+          ? await H.stdStep(['発動順序を確定', '決定'])
+          : await H.clickBtn('発動順序を確定', { exact: true });
+      }
     }
 
     const st = await H.queryState();
