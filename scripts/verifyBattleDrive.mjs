@@ -12005,6 +12005,12 @@ order.push('removeAbilitiesOppKeyPicker', 'removedAbilitiesHidesTrashAct', 'inta
 //     -2000 へ**再計算**される（`effectEngine.ts` の `perTargetLevel` は適用のたびに掛ける）。-6000 のまま残れば退化。
 //   designatedZoneGrantSurvivesOppTurn … `nextTurnOwner:'opponent'` の寿命＝CPU のターン中も継続。
 order.push('designatedZoneLevelScaledMinus', 'designatedZoneRecalcOnSwap', 'designatedZoneGrantSurvivesOppTurn');
+// 続き463＝**意図的FAILからの反転**（続き435〜436 で「ターン終了ボタンは押せるのに何も起きない・原因未確定」
+// として既定order外に置かれていた3本）。真因は engine ではなく **parser の runtime scope 補完**で、
+// `inferTriggerScope` がカード全文の「次の対戦相手のターン終了時**まで**」（＝効果の**期間**）を
+// トリガーと誤読し、`ON_TURN_END` 効果を `any_opp` に書き換えて**自分側 collector から丸ごと落としていた**
+// （実測＝41効果/40カードが「あなたのターン終了時」なのに一度も発火しない無言バグ。golden も census も緑のまま）。
+order.push('kokonaUnderThreePay', 'kokonaUnderThreeSkip', 'kokonaUnderInsufficient');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
