@@ -8341,12 +8341,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx);
       if (sub.replaced) return done(sub.ctx);
-      const s = ownerState(found, ctx);
+      const c = sub.ctx;          // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+      const s = ownerState(found, c);
       const removed = removeFromField(cardNum, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
       const withHand: PlayerState = { ...removed, hand: [...removed.hand, cardNum], turn_signi_returned_to_hand: true };
-      return done(addLog(setOwnerState(found, withHand, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}`));
+      return done(addLog(setOwnerState(found, withHand, c),
+        `${c.cardMap.get(cardNum)?.CardName ?? cardNum}`));
     }
     case 'SEND_TO_ENERGY': {
       // エナ送り（バニッシュではない）: 場から除去して対象オーナーのエナゾーンへ
