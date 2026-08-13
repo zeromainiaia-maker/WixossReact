@@ -11063,9 +11063,8 @@ scenarios.spellArtsBlockedUiHidesUseButtons = {
     const spellLabels = await spellModal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
     const spellUseLabels = spellLabels.filter(label => label === '発動' || label === '使用');
     H.log(`  UI spell: blocked=${JSON.stringify(blocked)} actions=${JSON.stringify(spellLabels)} forbidden=${JSON.stringify(spellUseLabels)}`);
-    if (spellUseLabels.length > 0) {
-      return { pass: false, detail: `USE_SPELLがbareで有効なのに手札スペルの使用アクションが表示された（data-action-label=${JSON.stringify(spellUseLabels)} / 全action=${JSON.stringify(spellLabels)}）` };
-    }
+    // ⚠ここで早期returnすると**アーツ側を一度も検査しないまま終わる**（続き460 実測＝スペル側だけが漏れて
+    //   アーツ側の可否が不明のままだった）。2軸を独立に測ってから合否を決める。
 
     await H.closeModals();
     const dkClick = await H.clickTestId('my-lrig-dk');
