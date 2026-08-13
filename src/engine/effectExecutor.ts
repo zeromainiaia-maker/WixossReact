@@ -8374,14 +8374,16 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(stack => stack?.at(-1) === cardNum)) {
           const sub = applyEffectLeaveSubstitutes(cardNum, owner, ctx);
           if (sub.replaced) return done(sub.ctx);
-          const wasPuppet = (s.field.puppet_signi ?? []).includes(cardNum);
-          const trashedLevel = parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
-          const removed = removeFromField(cardNum, s);
+          const c = sub.ctx;      // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+          const s2 = ownerState(owner, c);
+          const wasPuppet = (s2.field.puppet_signi ?? []).includes(cardNum);
+          const trashedLevel = parseInt(c.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
+          const removed = removeFromField(cardNum, s2);
           const destination = trashAction.destination ?? 'trash';
           const newS: PlayerState = destination === 'lrig_trash'
             ? { ...removed, lrig_trash: [...removed.lrig_trash, cardNum] }
             : { ...removed, trash: [...removed.trash, cardNum] };
-          const movedCtx = setOwnerState(owner, newS, ctx);
+          const movedCtx = setOwnerState(owner, newS, c);
           const causeCtx = trashAction.asCost
             ? {
                 ...movedCtx,
