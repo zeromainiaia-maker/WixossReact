@@ -13,6 +13,7 @@ import {
   isOwnTrashMoveLocked,
   matchesFilter,
   hasNoAbility,
+  designatedZones,
   buildFrontPowerGatedKeywordGrant,
 } from './execUtils';
 import { allAcceCards, countAcce } from '../utils/acce';
