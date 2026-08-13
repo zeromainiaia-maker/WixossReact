@@ -1,6 +1,52 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き470・Codex起案）— §7 V-08＋V-09① `OPTIONAL_COST{handDiscard}` 実UIシナリオ6件（実行 `BLOCKED`）
+## 2026-08-13（続き470・Codex起案→Claude実機検証）— §7 **V-08 完了／V-09① 完了**＝6/6 が2回連続PASS（engine バグ0）
+
+### 実機結果＝**6/6 PASS**（初回 3/6 → **FAIL 3件はすべてシナリオ側**と切り分けて修正）
+
+| id | 実測 |
+|---|---|
+| `handDiscardCostFiltersCandidates` | 手札「＜天使＞1枚＋非該当2枚」で pay → **候補は該当1枚だけ**／支払い後に本体が走り**相手の手札 2→1**（旧＝末尾の1枚が問答無用で落ちた） |
+| `handDiscardCostUnavailableWhenNoMatch` | **対照**＝該当札を非該当へ**交換するだけ** → **`pay` が `(disabled)`**・`skip` のみ・本体不発 |
+| `handDiscardSkipBlocksBody` | 🔴 skip すると**本体（相手シグニを手札に戻す）が走らず**自分の手札も減らない |
+| `handDiscardPayRunsBody` | **対照**＝pay すると**《ガードアイコン》持ちだけが候補**→ trash、相手シグニが手札へ戻る |
+| `handDiscardOptionTwoDownsOpponentLrig` | 🔴**②だけ選ぶと guest の lrig だけ down**・両者の signi は全て up（旧＝自分のシグニがダウン） |
+| `handDiscardOptionThreeDownsOpponentSigni` | **対照**＝**③だけ選ぶと guest の signi だけ down**・guest lrig は up ⇒ **②③で対象が入れ替わっていない** |
+
+### 🔴 検証側が切り分けたシナリオ側の欠陥2件（engine は1行も触っていない）
+
+1. **アーツ経路に「使用」クリックが欠けていた**（L1/L2）＝`arts=true/true/**0**/false` が示すとおり
+   **`zone-card-0` はカード詳細を開くだけ**で、**`[data-action-label="使用"]` を押さないとコストモーダルが出ない**。
+   `artscost-energy-*` が0件のままタイムアウトしていた。**先例は続き465 の `driveLifeCrashReplacementArts`**（そこには有る）。
+2. **F1 は単体では PASS・バッチ先頭でだけ FAIL**（順序依存フレーク）＝単独実行で 9秒 PASS。
+   ⚠**切り分けの決め手は `scratchpad-verify/handDiscardCostFiltersCandidates-final.png`**＝
+   **モーダルが1つも出ていないのに `stack=1` のまま**という絵が見えて初めて「engine ではない」と判断できた。
+
+### 🔑 codex が指示書を訂正した点（通算21回目）
+
+- **待機予算がまだ不揃いだった**＝指示書は「両ヘルパとも3秒」と書いたが、実コードは
+  `clickExactVisibleText` が **20×100ms＝2秒**、`clickPendingInstance` が 20×150ms＝3秒。
+  **続き469 で Claude がループ回数だけ 5→20 に変え、待機間隔を 100ms のまま残していた**のが原因。
+  ⭐**codex は既存ヘルパを勝手に変更せず**（削除0・既存範囲不変を優先）**不一致として報告**し、新規 runner 側で再試行した＝判断も報告も正しい。検証側で `150ms` に統一した。
+- **`CONDITIONAL{IS_MY_TURN}` 慣例の実位置は `effectExecutor.ts:3745`**（指示書の `:2709-2714` は現 HEAD では別処理）。
+- 手札候補は `targetScope==='opp_field'` ではないので **reverse 対象外**（続き469 の罠は手札には効かない）。
+
+### ⭐ カード選定（codex の判断が良かった点）
+
+**`WX18-001-E3` ではなく `WXK09-041` を選んだ**＝同じ `handDiscard.filter`／`canAfford` 経路を**シグニの【自】アタックだけ**で踏める。
+`WX18-001` はルリグ Lv4・GrowCost《黒》×3・《コインアイコン》起動が要り、しかも
+**原文「捨て**る**」（強制）なのに live は `OPTIONAL_COST`（任意）**という既知差もある＝**そもそも踏まない**選択にした。
+「タマ限定」は無視せず **host センタールリグをタマ `WD01-001` に明示**（`growLogic.ts:213` を根拠に）。
+
+### 📋 やらなかったこと
+
+- V-09 の残り2件（`OPTIONAL_ACTIVATE`／`fieldDown`）＝別 STUB。V-09② は続き469 で消化済み。
+- `WX25-CP1-004` の選択肢①④／リコレクトの3択分岐／`WX18-001-E3` 本体。
+- §3 (cxxiii)/(cxxv)/(cxxvi)/(cxxvii) の修正／engine・parser・live JSON・`src/` の変更。
+
+### 以下は Codex 起案時点の記録（実行前）
+
+実行 `BLOCKED`）
 
 続き420で旧「手札末尾を無言で捨てる」経路から移行した任意手札コストについて、
 `scripts/verifyBattleDrive.mjs` の既存 order 末尾へ3つの対照ペアを追加した。外部ネットワーク遮断のため
