@@ -1,5 +1,14 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き471・Codex起案／実機 `BLOCKED`）— §7 V-06①＋V-09残の Playwright シナリオ6本
+
+- `scripts/verifyBattleDrive.mjs` の既存末尾へ、`underAnySigniTrash` 3本（色filter／赤なし対照／`fromThis`）、`fieldDown` 2本（白2体／白3体対照）、`OPTIONAL_ACTIVATE` 1本（同一spec再注入で skip→pay）を追加した。既存シナリオ・既存order・`queryState` は変更せず、差分は **399 insertions / 0 deletions**。
+- 下カードは既存の state 表現どおり `field.signi: [[下カード..., 場の本体], ...]` で注入し、既存 `queryState.fieldSigni` の生スタックで候補集合・支払い後の残存を観測する。両者の `field.check` は全specで明示 `null`、アタック／自ライフクラッシュ後の確認フローも消化する。
+- `WXDi-P04-051-E1` は live JSON の `ON_ATTACK_SIGNI` と `UP/REMOVE_ABILITIES { SIGNI }` を修正せず観測対象にした。ただし静的には、シグニ攻撃処理がアタッカーを先にdownしてから `ON_ATTACK_SIGNI` を収集するため、3面上限で「アップ白シグニ3体」を要求する pay は到達不能に見える。D2 はこの極性不一致を黙ってskipせず FAIL 詳細として返す。実機での発火・帰結観測は検証側へ引き継ぐ。
+- `OPTIONAL_ACTIVATE` は、通常召喚の【出】で単独観測できる `WXDi-P02-037-E3` を採用した。`WX07-003-E1` はルリグかつクロスアイコン持ちシグニの別トリガーを要するためスコープ外。
+- 検証：`node --check`／`git diff --check` PASS、`npm run gates` 全緑（golden **1964/0**、smoke **10688 / SKIP 0**、census **831**、lint **0 errors / 259 warnings**）、単独 `npm run golden` **1964/0**。live JSON **added 0 / removed 0 / changed 0**。実機 `verifyBattleDrive.mjs` は外部ネットワーク遮断条件により **BLOCKED（未実行、PASS/FAIL判定なし）**。
+- 既存範囲 SHA-256 は不変：prefix `2535d89f...d0bca`、共通infra `c73b7ee3...45c8`、既存実行/order `f73fa51b...adfd`。
+
 ## 2026-08-13（続き470・Codex起案→Claude実機検証）— §7 **V-08 完了／V-09① 完了**＝6/6 が2回連続PASS（engine バグ0）
 
 ### 実機結果＝**6/6 PASS**（初回 3/6 → **FAIL 3件はすべてシナリオ側**と切り分けて修正）

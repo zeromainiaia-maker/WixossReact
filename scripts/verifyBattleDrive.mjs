@@ -11307,6 +11307,402 @@ scenarios.handDiscardOptionThreeDownsOpponentSigni = {
   async drive(page, H) { return runHandDiscardArtsRound(page, H, '選択肢3'); },
 };
 
+// ── 続き471：PLAN §7 V-06①＋V-09 残（underAnySigniTrash / fieldDown / OPTIONAL_ACTIVATE） ──
+// `field.signi` の各要素は [下カード..., 場のシグニ本体]（末尾が本体）。queryState.fieldSigni はこの配列を
+// そのまま返すため、下カード用の観測フィールドを追加せず注入前提・支払い後の残存を直接検査する。
+const UNDER_FILTER_RED = 'WD02-010#4901';
+const UNDER_FILTER_NONRED_A = 'WD01-013#4902';
+const UNDER_FILTER_NONRED_B = 'WD01-017#4903';
+const UNDER_FILTER_NO_RED_REPLACEMENT = 'WD01-014#4901';
+const UNDER_FILTER_SOURCE = 'WXDi-P11-042#4904';
+const UNDER_FILTER_TARGET = 'WD01-013#4905';
+
+const makeUnderFilterSpec = (firstUnder) => ({
+  hostSet: {
+    'field.lrig': ['WD02-001#4906'],
+    // U1↔U2 は先頭の下カード1枚だけを赤シグニ↔白シグニへ交換する。
+    'field.signi': [[firstUnder, UNDER_FILTER_NONRED_A, UNDER_FILTER_NONRED_B, UNDER_FILTER_SOURCE], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4907'],
+    'field.signi': [[UNDER_FILTER_TARGET], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function runUnderFilterRound(page, H, { expectAffordable }) {
+  const before = await H.queryState();
+  const expectedBeforeStack = expectAffordable
+    ? [UNDER_FILTER_RED, UNDER_FILTER_NONRED_A, UNDER_FILTER_NONRED_B, UNDER_FILTER_SOURCE]
+    : [UNDER_FILTER_NO_RED_REPLACEMENT, UNDER_FILTER_NONRED_A, UNDER_FILTER_NONRED_B, UNDER_FILTER_SOURCE];
+  if (JSON.stringify(before?.host?.fieldSigni?.[0]) !== JSON.stringify(expectedBeforeStack)) {
+    return { pass: false, detail: `下カードstack注入不成立=${JSON.stringify(before?.host?.fieldSigni?.[0])}（期待=${JSON.stringify(expectedBeforeStack)}）` };
+  }
+  let phaseStarted = false; let targetPicked = false; let targetConfirmed = false;
+  let prompted = false; let branchClicked = false; let costPicked = false; let costConfirmed = false;
+  let banishPicked = false; let banishConfirmed = false; let last = before;
+  for (let s = 0; s < 72; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!phaseStarted) {
+      did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (did) phaseStarted = true;
+    } else if (!targetConfirmed && sameInstanceSet(st0?.pendingCandidates, [UNDER_FILTER_TARGET])) {
+      if (!targetPicked) { did = await clickPendingInstance(page, H, UNDER_FILTER_TARGET); if (did) targetPicked = true; }
+      else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) targetConfirmed = true; }
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        const disabled = opts.pay.endsWith('(disabled)');
+        if (disabled === expectAffordable) {
+          return { pass: false, detail: `under canAfford極性不一致（expectAffordable=${expectAffordable} options=${JSON.stringify(st0.pendingOptions)} stack=${JSON.stringify(st0.host.fieldSigni?.[0])}）` };
+        }
+        did = await H.clickTestId(expectAffordable ? 'optcost-pay' : 'optcost-skip');
+        if (did) branchClicked = true;
+      } else if (expectAffordable && branchClicked && !costConfirmed && Array.isArray(st0?.pendingCandidates)) {
+        if (!sameInstanceSet(st0.pendingCandidates, [UNDER_FILTER_RED])) {
+          return { pass: false, detail: `【under filter回帰】候補=${JSON.stringify(st0.pendingCandidates)}（期待=${UNDER_FILTER_RED}だけ）` };
+        }
+        if (!costPicked) { did = await clickPendingInstance(page, H, UNDER_FILTER_RED); if (did) costPicked = true; }
+        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) costConfirmed = true; }
+      } else if (expectAffordable && costConfirmed && !banishConfirmed
+          && sameInstanceSet(st0?.pendingCandidates, [UNDER_FILTER_TARGET])) {
+        if (!banishPicked) { did = await clickPendingInstance(page, H, UNDER_FILTER_TARGET); if (did) banishPicked = true; }
+        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) banishConfirmed = true; }
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = phaseStarted && targetConfirmed && prompted && branchClicked
+      && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
+    H.log(`  underFilter.${expectAffordable ? 'pay' : 'unavailable'}[${s}] -> ${did ?? 'なし'} | target=${targetPicked}/${targetConfirmed} prompted=${prompted} branch=${branchClicked} cost=${costPicked}/${costConfirmed} banish=${banishPicked}/${banishConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hStack=${JSON.stringify(st?.host?.fieldSigni?.[0])} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      if (!expectAffordable) {
+        const stackStayed = JSON.stringify(st.host.fieldSigni?.[0]) === JSON.stringify(expectedBeforeStack);
+        const bodyBlocked = st.guest.fieldSigni?.[0]?.includes(UNDER_FILTER_TARGET)
+          && !st.guest.energyCards.includes(UNDER_FILTER_TARGET);
+        return { pass: prompted && stackStayed && bodyBlocked,
+          detail: `pay disabled＋skip提示=${prompted}・赤なしstack不変=${stackStayed}・本体BANISH不発=${bodyBlocked}` };
+      }
+      const expectedAfterStack = [UNDER_FILTER_NONRED_A, UNDER_FILTER_NONRED_B, UNDER_FILTER_SOURCE];
+      const onlyRedPaid = st.host.trashCards.includes(UNDER_FILTER_RED)
+        && JSON.stringify(st.host.fieldSigni?.[0]) === JSON.stringify(expectedAfterStack);
+      const bodyRan = st.guest.fieldSigni?.[0] == null && st.guest.energyCards.includes(UNDER_FILTER_TARGET);
+      return { pass: prompted && costPicked && costConfirmed && banishPicked && banishConfirmed && onlyRedPaid && bodyRan,
+        detail: `pay/skip提示=${prompted}・候補は赤 ${UNDER_FILTER_RED} だけ・下stackからtrash=${onlyRedPaid}・対象BANISH（field→energy）=${bodyRan}` };
+    }
+  }
+  return { pass: false, detail: `under filter完走タイムアウト（target=${targetPicked}/${targetConfirmed} prompted=${prompted} branch=${branchClicked} cost=${costPicked}/${costConfirmed} banish=${banishPicked}/${banishConfirmed} hStack=${JSON.stringify(last?.host?.fieldSigni?.[0])} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.underCostFiltersByColor = {
+  title: 'WXDi-P11-042-E1（このシグニの下の赤シグニだけがOPTIONAL_COST候補→支払い後BANISH）',
+  spec: makeUnderFilterSpec(UNDER_FILTER_RED),
+  async drive(page, H) { return runUnderFilterRound(page, H, { expectAffordable: true }); },
+};
+
+scenarios.underCostUnavailableWhenNoRed = {
+  title: 'WXDi-P11-042-E1対照（下3枚のうち赤1枚だけ白へ交換→pay disabled・BANISH不発）',
+  spec: makeUnderFilterSpec(UNDER_FILTER_NO_RED_REPLACEMENT),
+  async drive(page, H) { return runUnderFilterRound(page, H, { expectAffordable: false }); },
+};
+
+const UNDER_THIS_CARD = 'WD01-017#4911';
+const UNDER_OTHER_CARD = 'WD02-010#4912';
+const UNDER_THIS_SOURCE = 'WXK08-052#4913';
+const UNDER_OTHER_TOP = 'WD01-013#4914';
+const UNDER_POWER_TARGET = 'WX01-035#4915';
+const UNDER_FROM_THIS_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD05-001#4916'],
+    // zone0=[このシグニの下, 本体]／zone1=[別シグニの下, 別シグニ本体]。
+    'field.signi': [[UNDER_THIS_CARD, UNDER_THIS_SOURCE], [UNDER_OTHER_CARD, UNDER_OTHER_TOP], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4917'],
+    // host zone0 の正面（guest zone2）は空け、効果対象だけzone1へ置く＝アタック後はlife確認を消化する。
+    'field.signi': [null, [UNDER_POWER_TARGET], null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+};
+
+scenarios.underCostFromThisOnly = {
+  title: 'WXK08-052-E1（fromThis＝別シグニの下を候補外にし、このシグニの下1枚だけ支払い→相手-3000）',
+  spec: UNDER_FROM_THIS_SPEC,
+  async drive(page, H) {
+    const before = await H.queryState();
+    const injected = JSON.stringify(before?.host?.fieldSigni?.[0]) === JSON.stringify([UNDER_THIS_CARD, UNDER_THIS_SOURCE])
+      && JSON.stringify(before?.host?.fieldSigni?.[1]) === JSON.stringify([UNDER_OTHER_CARD, UNDER_OTHER_TOP]);
+    if (!injected) return { pass: false, detail: `fromThis stack注入不成立=${JSON.stringify(before?.host?.fieldSigni)}` };
+    let attacked = false; let prompted = false; let paid = false; let costPicked = false; let costConfirmed = false;
+    let targetPicked = false; let targetConfirmed = false; let last = before;
+    for (let s = 0; s < 72; s++) {
+      await page.waitForTimeout(250);
+      const st0 = await H.queryState();
+      let did = null;
+      if (!attacked) {
+        did = await openSigniAttack(page, H, 0); if (did) attacked = true;
+      } else {
+        const opts = pendingPaySkip(st0);
+        if (!paid && opts.pay && opts.skip) {
+          prompted = true;
+          if (opts.pay.endsWith('(disabled)')) return { pass: false, detail: `このシグニの下に1枚あるのにpay disabled=${JSON.stringify(st0.pendingOptions)}` };
+          did = await H.clickTestId('optcost-pay'); if (did) paid = true;
+        } else if (paid && !costConfirmed && Array.isArray(st0?.pendingCandidates)) {
+          if (!sameInstanceSet(st0.pendingCandidates, [UNDER_THIS_CARD])) {
+            return { pass: false, detail: `【fromThis回帰】候補=${JSON.stringify(st0.pendingCandidates)}（期待=${UNDER_THIS_CARD}だけ・別stack ${UNDER_OTHER_CARD} は除外）` };
+          }
+          if (!costPicked) { did = await clickPendingInstance(page, H, UNDER_THIS_CARD); if (did) costPicked = true; }
+          else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) costConfirmed = true; }
+        } else if (costConfirmed && !targetConfirmed && sameInstanceSet(st0?.pendingCandidates, [UNDER_POWER_TARGET])) {
+          if (!targetPicked) { did = await clickPendingInstance(page, H, UNDER_POWER_TARGET); if (did) targetPicked = true; }
+          else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) targetConfirmed = true; }
+        }
+      }
+      if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+      if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+      if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      const st = await H.queryState();
+      last = st;
+      const settled = attacked && prompted && paid && costConfirmed && targetConfirmed
+        && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0 && st?.host?.pendingSigniBattle == null
+        && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null && st?.guest?.life === before.guest.life - 1;
+      H.log(`  underThis[${s}] -> ${did ?? 'なし'} | attacked=${attacked} prompted=${prompted} paid=${paid} cost=${costPicked}/${costConfirmed} target=${targetPicked}/${targetConfirmed} cands=${JSON.stringify(st?.pendingCandidates)} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} gPower=${JSON.stringify(st?.guest?.powerMods)} gLife=${st?.guest?.life} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (settled) {
+        const thisPaid = JSON.stringify(st.host.fieldSigni?.[0]) === JSON.stringify([UNDER_THIS_SOURCE])
+          && st.host.trashCards.includes(UNDER_THIS_CARD);
+        const otherStayed = JSON.stringify(st.host.fieldSigni?.[1]) === JSON.stringify([UNDER_OTHER_CARD, UNDER_OTHER_TOP])
+          && !st.host.trashCards.includes(UNDER_OTHER_CARD);
+        const minusApplied = st.guest.powerMods.includes(`${UNDER_POWER_TARGET}:-3000`)
+          && st.guest.fieldSigni?.[1]?.includes(UNDER_POWER_TARGET);
+        return { pass: prompted && thisPaid && otherStayed && minusApplied,
+          detail: `pay/skip提示=${prompted}・候補=${UNDER_THIS_CARD}だけ・このstackからtrash=${thisPaid}・別stack不変=${otherStayed}・対象-3000=${minusApplied}・life確認消化済み` };
+      }
+    }
+    return { pass: false, detail: `fromThis完走タイムアウト（prompted=${prompted} paid=${paid} cost=${costPicked}/${costConfirmed} target=${targetPicked}/${targetConfirmed} hField=${JSON.stringify(last?.host?.fieldSigni)} gPower=${JSON.stringify(last?.guest?.powerMods)} gLife=${last?.guest?.life} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+  },
+};
+
+const FIELD_DOWN_SOURCE = 'WXDi-P04-051#4921';
+const FIELD_DOWN_WHITE_B = 'WD01-013#4922';
+const FIELD_DOWN_WHITE_C = 'WD01-014#4923';
+const FIELD_DOWN_ENERGY = 'WD01-013#4924';
+
+const makeFieldDownSpec = (thirdWhite) => ({
+  hostSet: {
+    'field.lrig': ['WD01-002#4925'],
+    'field.lrig_down': false,
+    // D1↔D2 は zone2 の白シグニ1体（null↔1枚）だけを変える。
+    'field.signi': [[FIELD_DOWN_SOURCE], [FIELD_DOWN_WHITE_B], thirdWhite ? [thirdWhite] : null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [FIELD_DOWN_ENERGY], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4926'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function runFieldDownRound(page, H, { expectAffordable }) {
+  const before = await H.queryState();
+  let attacked = false; let prompted = false; let branchClicked = false; let energyPicked = false;
+  const downPicked = new Set(); let downConfirmed = false; let sawAllThreeDown = false;
+  let upPicked = false; let upConfirmed = false; let removePicked = false; let removeConfirmed = false; let last = before;
+  for (let s = 0; s < 88; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    if ((st0?.host?.signiDown ?? []).slice(0, 3).every(v => v === true)) sawAllThreeDown = true;
+    let did = null;
+    if (!attacked) {
+      did = await openSigniAttack(page, H, 0); if (did) attacked = true;
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        const disabled = opts.pay.endsWith('(disabled)');
+        if (disabled === expectAffordable) {
+          return { pass: false, detail: `fieldDown canAfford極性不一致（expectAffordable=${expectAffordable} options=${JSON.stringify(st0.pendingOptions)} signiDown=${JSON.stringify(st0.host.signiDown)}）。live timing=ON_ATTACK_SIGNIではアタッカーが先にdownする経路` };
+        }
+        if (!expectAffordable) {
+          did = await H.clickTestId('optcost-skip'); if (did) branchClicked = true;
+        }
+      }
+      if (!did && expectAffordable && prompted && !energyPicked) {
+        did = await H.clickTestId('optcost-energy-0'); if (did) energyPicked = true;
+      }
+      if (!did && expectAffordable && prompted && energyPicked && !branchClicked) {
+        did = await H.clickTestId('optcost-pay'); if (did) branchClicked = true;
+      }
+      if (!did && expectAffordable && branchClicked && !downConfirmed && Array.isArray(st0?.pendingCandidates)) {
+        const expected = [FIELD_DOWN_SOURCE, FIELD_DOWN_WHITE_B, FIELD_DOWN_WHITE_C];
+        if (!sameInstanceSet(st0.pendingCandidates, expected)) {
+          return { pass: false, detail: `fieldDown候補不一致=${JSON.stringify(st0.pendingCandidates)}（期待=${JSON.stringify(expected)}）` };
+        }
+        const next = expected.find(n => !downPicked.has(n));
+        if (next) { did = await clickPendingInstance(page, H, next); if (did) downPicked.add(next); }
+        else { did = await clickExactVisibleText(page, '決定 (3/3)'); if (did) downConfirmed = true; }
+      } else if (!did && expectAffordable && downConfirmed && !upConfirmed
+          && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(FIELD_DOWN_SOURCE)) {
+        if (!upPicked) { did = await clickPendingInstance(page, H, FIELD_DOWN_SOURCE); if (did) upPicked = true; }
+        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) upConfirmed = true; }
+      } else if (!did && expectAffordable && upConfirmed && !removeConfirmed
+          && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(FIELD_DOWN_SOURCE)) {
+        if (!removePicked) { did = await clickPendingInstance(page, H, FIELD_DOWN_SOURCE); if (did) removePicked = true; }
+        else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) removeConfirmed = true; }
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    if ((st?.host?.signiDown ?? []).slice(0, 3).every(v => v === true)) sawAllThreeDown = true;
+    const settled = attacked && prompted && branchClicked && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.pendingSigniBattle == null && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null
+      && st?.guest?.life === before.guest.life - 1;
+    H.log(`  fieldDown.${expectAffordable ? 'pay' : 'unavailable'}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} prompted=${prompted} branch=${branchClicked} energy=${energyPicked} down=${downPicked.size}/${downConfirmed}/all3=${sawAllThreeDown} up=${upPicked}/${upConfirmed} remove=${removePicked}/${removeConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hEnergy=${JSON.stringify(st?.host?.energyCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} hDown=${JSON.stringify(st?.host?.signiDown)} hLrigDown=${st?.host?.lrigDown} abilitiesRemoved=${JSON.stringify(st?.host?.abilitiesRemoved)} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      if (!expectAffordable) {
+        const noCostDown = st.host.signiDown?.[0] === true && st.host.signiDown?.[1] === false && st.host.signiDown?.[2] === false;
+        const resourcesStayed = st.host.energyCards.includes(FIELD_DOWN_ENERGY) && st.host.trashCards.length === 0;
+        return { pass: prompted && noCostDown && resourcesStayed,
+          detail: `pay disabled＋skip提示=${prompted}・アタッカーだけdown（攻撃由来）=${noCostDown}・白エナ不徴収=${resourcesStayed}・life確認消化済み` };
+      }
+      const whitePaid = !st.host.energyCards.includes(FIELD_DOWN_ENERGY) && st.host.trashCards.includes(FIELD_DOWN_ENERGY);
+      // 帰結はpass条件外。live JSONどおり source SIGNI を明示選択し、ルリグではなくそのシグニがup＋能力喪失したかを記録する。
+      const observedOutcome = `sourceSigniUp=${st.host.signiDown?.[0] === false} sourceSigniAbilitiesRemoved=${st.host.abilitiesRemoved.includes(FIELD_DOWN_SOURCE)} lrigDown=${st.host.lrigDown}`;
+      return { pass: prompted && energyPicked && downConfirmed && sawAllThreeDown && whitePaid,
+        detail: `pay/skip提示=${prompted}・3体選択確定=${downConfirmed}・3体同時down観測=${sawAllThreeDown}・白エナ→trash=${whitePaid}。帰結観測（pass外）=${observedOutcome}` };
+    }
+  }
+  return { pass: false, detail: `fieldDown完走タイムアウト（expectAffordable=${expectAffordable} prompted=${prompted} branch=${branchClicked} energy=${energyPicked} down=${downPicked.size}/${downConfirmed}/all3=${sawAllThreeDown} up=${upPicked}/${upConfirmed} remove=${removePicked}/${removeConfirmed} hEnergy=${JSON.stringify(last?.host?.energyCards)} hDown=${JSON.stringify(last?.host?.signiDown)} abilitiesRemoved=${JSON.stringify(last?.host?.abilitiesRemoved)} gLife=${last?.guest?.life} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.fieldDownCostRequiresThreeUpWhite = {
+  title: 'WXDi-P04-051-E1（白シグニ2体だけ＝fieldDown3体を払えずpay disabled・skip）',
+  spec: makeFieldDownSpec(null),
+  async drive(page, H) { return runFieldDownRound(page, H, { expectAffordable: false }); },
+};
+
+scenarios.fieldDownCostPaysThreeAndWhite = {
+  title: 'WXDi-P04-051-E1対照（白シグニを3体へ増やすだけ＝3体down＋白エナ徴収、帰結対象は観測のみ）',
+  spec: makeFieldDownSpec(FIELD_DOWN_WHITE_C),
+  async drive(page, H) { return runFieldDownRound(page, H, { expectAffordable: true }); },
+};
+
+const OPTIONAL_ACTIVATE_SOURCE = 'WXDi-P02-037#4931';
+const OPTIONAL_ACTIVATE_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD02-002#4932'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [OPTIONAL_ACTIVATE_SOURCE],
+    'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4933'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function runOptionalActivateRound(page, H, branch) {
+  const before = await H.queryState();
+  let handOpened = false; let summonClicked = false; let zoneClicked = false;
+  let prompted = false; let branchClicked = false; let sawLifeCrash = false; let sawHostCheck = false; let last = before;
+  for (let s = 0; s < 72; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    if ((st0?.host?.life ?? before.host.life) < before.host.life) sawLifeCrash = true;
+    if (st0?.host?.fieldCheck != null) sawHostCheck = true;
+    let did = null;
+    if (!handOpened) {
+      did = await H.clickTestId('my-hand-card-0'); if (did) handOpened = true;
+    } else if (!summonClicked) {
+      const summon = page.locator('[data-testid^="card-action-"][data-action-label="召喚"]').first();
+      for (let w = 0; w < 20; w++) {
+        if (await summon.count() && await summon.isVisible().catch(() => false) && await summon.isEnabled().catch(() => false)) break;
+        await page.waitForTimeout(150);
+      }
+      if (await summon.count() && await summon.isVisible().catch(() => false) && await summon.isEnabled().catch(() => false)) {
+        await summon.click({ timeout: 2000 }); did = 'tid:card-action-*[data-action-label="召喚"]'; summonClicked = true;
+      }
+    } else if (!zoneClicked) {
+      did = await H.clickTestId('summon-zone-0'); if (did) zoneClicked = true;
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        if (opts.pay !== 'pay:発動する' || opts.skip !== 'skip:発動しない') {
+          return { pass: false, detail: `OPTIONAL_ACTIVATE文言不一致=${JSON.stringify(st0.pendingOptions)}（期待 pay:発動する / skip:発動しない）` };
+        }
+        did = await H.clickTestId(branch === 'pay' ? 'optcost-pay' : 'optcost-skip');
+        if (did) branchClicked = true;
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    // pay側は自分のライフを割るので、host側のチェックゾーン確認を必ず消化する。
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    if ((st?.host?.life ?? before.host.life) < before.host.life) sawLifeCrash = true;
+    if (st?.host?.fieldCheck != null) sawHostCheck = true;
+    const settled = zoneClicked && prompted && branchClicked && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    H.log(`  optionalActivate.${branch}[${s}] -> ${did ?? 'なし'} | summon=${handOpened}/${summonClicked}/${zoneClicked} prompted=${prompted} branch=${branchClicked} life=${st?.host?.life} sawCrash=${sawLifeCrash} sawHostCheck=${sawHostCheck} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${JSON.stringify(st?.host?.energyCards)} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} options=${JSON.stringify(st?.pendingOptions)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      const summoned = st.host.fieldSigni?.[0]?.includes(OPTIONAL_ACTIVATE_SOURCE) && !st.host.handCards.includes(OPTIONAL_ACTIVATE_SOURCE);
+      if (branch === 'skip') {
+        return { pass: prompted && summoned && st.host.life === before.host.life && !sawLifeCrash,
+          detail: `発動する/しない提示=${prompted}・通常召喚=${summoned}・発動しないでlife ${before.host.life}→${st.host.life}（不変）` };
+      }
+      return { pass: prompted && summoned && sawLifeCrash && st.host.life === before.host.life - 1 && st.host.fieldCheck === null,
+        detail: `発動する/しない提示=${prompted}・通常召喚=${summoned}・発動するでlife ${before.host.life}→${st.host.life}・host確認フロー消化=${st.host.fieldCheck === null}（check観測=${sawHostCheck}）` };
+    }
+  }
+  return { pass: false, detail: `OPTIONAL_ACTIVATE ${branch}完走タイムアウト（summon=${handOpened}/${summonClicked}/${zoneClicked} prompted=${prompted} branch=${branchClicked} life=${last?.host?.life} sawCrash=${sawLifeCrash} sawHostCheck=${sawHostCheck} hField=${JSON.stringify(last?.host?.fieldSigni)} check=${last?.host?.fieldCheck ?? '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.optionalActivateSkipThenPay = {
+  title: 'WXDi-P02-037-E3（通常召喚OPTIONAL_ACTIVATE＝同一specで発動しない→再注入→発動する、life 7→7 / 7→6）',
+  spec: OPTIONAL_ACTIVATE_SPEC,
+  async drive(page, H) {
+    const skip = await runOptionalActivateRound(page, H, 'skip');
+    if (!skip.pass) return { pass: false, detail: skip.detail };
+    await H.closeModals();
+    const reinjected = await injectScenario(page, OPTIONAL_ACTIVATE_SPEC);
+    if (reinjected.error) return { pass: false, detail: `pay対照の再注入失敗=${reinjected.error}` };
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(2000);
+    const pay = await runOptionalActivateRound(page, H, 'pay');
+    return { pass: pay.pass, detail: `同一specを再注入し、変えたのはOPTIONAL_ACTIVATEの応答だけ。${skip.detail}／${pay.detail}` };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13913,6 +14309,9 @@ order.push('targetDeclOpponentOnlyCandidates', 'targetDeclUpToTwoSelectsBoth', '
 order.push('handDiscardCostFiltersCandidates', 'handDiscardCostUnavailableWhenNoMatch',
   'handDiscardSkipBlocksBody', 'handDiscardPayRunsBody',
   'handDiscardOptionTwoDownsOpponentLrig', 'handDiscardOptionThreeDownsOpponentSigni');
+// 続き471：V-06①＋V-09残。U/D は各々「下カードの色1枚」「白シグニ1体」だけを変える対照、Oは同一spec再注入。
+order.push('underCostFiltersByColor', 'underCostUnavailableWhenNoRed', 'underCostFromThisOnly',
+  'fieldDownCostRequiresThreeUpWhite', 'fieldDownCostPaysThreeAndWhite', 'optionalActivateSkipThenPay');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
