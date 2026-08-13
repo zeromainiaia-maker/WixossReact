@@ -1373,6 +1373,9 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 |---|---|---|---|---|
 | ~~9~~ | ~~PARTIAL 刻印 151件のトリアージ~~ | — | — | **✅完了（続き138）＝152件全件を3分類・実害144件を Opusタスク12 (xxii)(xxiii)(xxiv) へ登録**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)・成果物 `docs/_partial_triage.txt` |
 
+> **PLAN §4 恒久指標から退避（2026-08-14 続き474）**
+- **🆕 2026-08-13 続き460〜464（Codex 委譲5連投＝§7 実機検証＋全文regex層の棚卸し）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1964（1956→+8＝`ON_TURN_END` の scope 誤補完 6本〔続き463〕＋追加ターンの所有者 2本〔続き464〕）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。🆕**実機シナリオ（`verifyBattleDrive.mjs`）＝既定 order に +16本**（続き460 の4／461 の6／462 の3／463 の反転3）。🆕**実行時の全文 regex 読取 298箇所＝A 18／B 258／🔴C 22**（C の残21件は §6.4 **O-20** の個票）。live JSON の変更は**0**（続き460〜464 は engine/parser/driver のみ）。
+
 ## 2026-08-13 整理⑬：PLAN §7 実機検証の**完了ブロック**退避（続き460〜468 で決着した分）
 
 > PLAN §7 は「未消化の worklist」だけを持つ規約なので、**チェックが全部埋まったブロックの原文をここへ退避**した。

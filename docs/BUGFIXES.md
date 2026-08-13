@@ -1,11 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-14（続き474・Codex起案→Claude実機検証待ち）— §7 **V-10 F-3 身代わりの効果バニッシュ配線** Playwrightシナリオ5本
+## 2026-08-14（続き474・Codex起案→Claude実機検証）— §7 **V-10 F-3 身代わりの効果バニッシュ配線**＝**1 PASS / 4 FAIL**（🔴実バグ1件＝§3 **(cxxix)**）
 
-### 実行結果＝**`BLOCKED`**
+### 実機結果
 
-外部ネットワーク遮断のため `scripts/verifyBattleDrive.mjs` は**1回も実行していない**。
-実行・デバッグ・PASS/FAIL判定は検証側（Claude）が引き取る。engine/parser/live JSON/`src/` は変更していない。
+| id | 実測 |
+|---|---|
+| `battleBanishSubstituteStillInteractive` | ✅ **バトル側は従来どおり対話**＝`pending_banish_substitute` が立ち、モーダル「身代わりバニッシュ」と待機ログを確認（**自動適用に化けていない**） |
+| `effectBanishSubstituteRunsAutomatically` | **盤面は全て期待どおり**（victim 残存／犠牲が field→energy／ログ `身代わり：コードハート　†Ｃ・Ｃ・Ｍ†の代わりにコードアート　Ｓ・Ｃをバニッシュ`）。**`asks=0` を要求したが実測 `asks=1`** で FAIL |
+| `effectBanishNoSubstituteWithoutSacrifice` | **盤面は正しい**（victim 自身が energy へ・身代わりログ0・`asks=0`）。**期待したログ文言が実装と違う**（`normalLog=false`）だけで FAIL |
+| `effectBanishSubstituteDiscardsSpell` | **盤面は正しい**（victim 残存／spell が hand→trash／`身代わり：手札からスペル1枚を捨てて…回避`）。付随条件で FAIL |
+| `effectBanishLifeCrashSubstituteNotOnEffect` | 🔴 **(cxxix) を検出**（下記） |
+
+### 🔴 発見（(cxxix)）＝F-3 身代わりが「コスト0」で成立する疑い
+
+`WX14-026`（羅石　スイカリン）の `substituteCost` は **`{lifeCrash:1}`** なのに、効果バニッシュで実機ログが
+
+```
+身代わり：羅石　スイカリンの下からスペル0枚をトラッシュして羅石　スイカリンのバニッシュを回避
+victimLeft=false   guest.life 7→7
+```
+
+を出し、**ライフを払わずシグニが場に残る**。原文は「代わりにあなたのライフクロス１枚をクラッシュしてもよい」なので**過剰効果**。
+⚠**機構は未確定**＝`collectBanishSubstitutes`（`effectEngine.ts:5720-5722`）の `trashStackSpell` 枝は
+**`cost.trashStackSpell` が真かつ在庫充足**を要求するので、**`amount:0` の選択肢が作られる経路が静的に説明できない**。
+調査順は PLAN §3 (cxxix) に記載（①ログ生成箇所から逆引き ②`banishSubstituteAutoEligible` の前提 ③effects フォールバック）。
+
+### ⚠ 次に触る人へ（**engine の問題ではない3本**）
+
+`effectBanishSubstituteRunsAutomatically` / `effectBanishNoSubstituteWithoutSacrifice` / `effectBanishSubstituteDiscardsSpell` は、
+**「ログ文言を実装から取る」「`asks` の期待値を実測に合わせる」だけで緑にできる見込み**。
+⚠**`asks=1` が出た点は要確認**＝続き466 の (cxxv) は「`BANISH{count:数値}` 経路では問いが出ない」だったので、**条件が違う可能性がある**。
+
+### Codex 側の実行は `BLOCKED`（＋`0xC0000142` で最終工程が実行不能・通算8回目）
+
+⚠**ハーネスの10分 kill も発生したが `codex.exe` は生存して完走**し、レポートは約9分後に出力された（CODEX_GUIDE §2 の既知挙動どおり）。
+**BUGFIXES への追記は事故前に確定済み**で、**ゲート（全緑）・削除0・SHA・エンコーディング検査は検証側が引き取った**。
+engine/parser/live JSON/`src/` は変更していない。
 
 ### 起案したシナリオ
 
