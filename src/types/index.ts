@@ -22,6 +22,19 @@ export type FieldGrant =
       condition?: FieldGrantCondition;
       srcType?: string;
       srcCardNum?: string;
+    }
+  | {
+      /**
+       * 場／ゾーンレベルの能力喪失（§6.4 O-16）。「（指定した）シグニゾーンにあるシグニは能力を失い、
+       * 新たに得られない」＝**そのゾーンに現在／将来いるシグニ**が対象。
+       * ⚠per-card の `abilities_removed` とは別物＝あちらは「適用時点でそこにいたシグニ」を instanceId で
+       *   記録するので、**後からそのゾーンへ出たシグニには効かない**。原文が
+       *   「このアーツの使用後に場に出たシグニはこの効果の影響を受けない」と明記する札は per-card 側が正しい。
+       */
+      kind: 'abilityLoss';
+      filter?: import('./effects').TargetFilter;
+      zone?: number;
+      condition?: FieldGrantCondition;
     };
 
 export type TurnPhase =
