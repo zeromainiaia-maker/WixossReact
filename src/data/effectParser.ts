@@ -3919,10 +3919,24 @@ function alignDesignatedZoneOwner(action: EffectAction): EffectAction {
       const steps = seq.steps.map(walk);
       const owner = steps.map(consumerOwner).find((o): o is 'self' | 'opponent' => o !== null);
       if (!owner) return { ...seq, steps };
-      return { ...seq, steps: steps.map(s =>
-        s.type === 'STUB' && (s as StubAction).id === 'DESIGNATE_SIGNI_ZONE'
-          ? ({ ...(s as StubAction), owner } as StubAction as EffectAction)
-          : s) };
+      // ⚠指定ステップは条件節や選択肢の**中**にも入る（`WXDi-P11-055-E1` は
+      //   `CONDITIONAL{IS_MY_TURN} → DESIGNATE`）。直下の step だけ書き換えると、
+      //   そこだけ既定 owner のまま残り「たまたま合っている」状態になる＝構造で保証する。
+      const setOwner = (n: EffectAction): EffectAction => {
+        if (n.type === 'STUB' && (n as StubAction).id === 'DESIGNATE_SIGNI_ZONE') {
+          return { ...(n as StubAction), owner } as StubAction as EffectAction;
+        }
+        if (n.type === 'CONDITIONAL') {
+          const c = n as ConditionalAction;
+          return { ...c, then: setOwner(c.then), ...(c.else ? { else: setOwner(c.else) } : {}) };
+        }
+        if (n.type === 'CHOOSE') {
+          const c = n as ChooseAction;
+          return { ...c, choices: c.choices.map(x => (x.action ? { ...x, action: setOwner(x.action) } : x)) };
+        }
+        return n;
+      };
+      return { ...seq, steps: steps.map(setOwner) };
     }
     if (node.type === 'CHOOSE') {
       const ch = node as ChooseAction;
