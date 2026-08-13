@@ -6200,11 +6200,17 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   }
   const signiCands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
   const lrigTop = state.field.lrig.at(-1);
+  // §6.4 O-17:「対戦相手の**キー**１枚を対象とし、ターン終了時まで、それは能力を失う」（`WXK05-010-E2`）。
+  // ⚠候補は `keySlotCardNums`（喪失を考慮しない母集団）＝既に能力を失っているキーを候補から隠すと
+  //   「対象がない」と「もう効いている」を UI が区別できない。適用側は cardNum なので既存の
+  //   `abilities_removed` にそのまま載り、読みは `activeKeyAbilitySources` funnel が受ける。
   let cands = a.target.type === 'CENTER_LRIG_OR_SIGNI'
     ? [...(lrigTop ? [lrigTop] : []), ...signiCands]
     : a.target.type === 'LRIG'
       ? (lrigTop ? [lrigTop] : [])
-      : signiCands;
+      : a.target.type === 'KEY'
+        ? keySlotCardNums(state)
+        : signiCands;
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (cands.length === 0) return done(ctx);
@@ -6212,7 +6218,9 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   // count が数値（「対戦相手のシグニ1体を対象とし」等。G085）は選択して該当数だけに適用する。
   if (a.target.count !== 'ALL' && thisCardRestrict === null && frontRestrict === null) {
     const count = resolveNum(a.target.count);
-    const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+    const scope: TargetScope = a.target.type === 'KEY'
+      ? (tgtOwner === 'self' ? 'self_key' : 'opp_key')
+      : tgtOwner === 'self' ? 'self_field' : 'opp_field';
     return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
   }
   const newS = applyAbilitiesRemoval(a, state, cands);
