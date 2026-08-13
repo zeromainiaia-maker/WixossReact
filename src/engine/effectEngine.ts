@@ -809,6 +809,21 @@ export function activeFieldGrantKeywordsForSigni(
     .flatMap(grant => grant.kind === 'keyword' ? [grant.keyword] : []);
 }
 
+/**
+ * そのシグニが**場レベルの能力喪失**（`FieldGrant{kind:'abilityLoss'}`）の下にあるか（§6.4 O-16）。
+ * ⚠per-card の `abilities_removed` と違い、**ゾーンに紐づく**ので後からそこへ出たシグニにも効く
+ *   （「（指定した）シグニゾーンにあるシグニは能力を失い、新たに得られない」の忠実表現）。
+ */
+export function fieldGrantRemovesAbilities(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  cardNum: string,
+  cardMap: Map<string, CardData>,
+): boolean {
+  return activeFieldGrantsForSigni(ownerState, otherState, cardNum, cardMap)
+    .some(grant => grant.kind === 'abilityLoss');
+}
+
 // ===== CONTINUOUS BANISH / FREEZE / DOWN 状態変更計算 =====
 
 export interface ContSigniMutation {
