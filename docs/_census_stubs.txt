@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 593（総ノード 2882 件）
-逆翻訳シートの [STUB:…] 総数: 813  うち生ID露出 277 箇所（188 種）
+逆翻訳シートの [STUB:…] 総数: 812  うち生ID露出 277 箇所（188 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 14 種 / 16 件
@@ -30,7 +30,7 @@ live JSON の STUB id 種類 : 593（総ノード 2882 件）
         生成: src\data\manualEffects.ts:4634
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3014
+        生成: src\data\parsers\parseSentencePart1.ts:3024
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4825
@@ -71,10 +71,10 @@ live JSON の STUB id 種類 : 593（総ノード 2882 件）
         消費: src\engine\effectExecutor.ts:3974 / src\engine\effectExecutor.ts:3979
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP  [生ID露出 5]
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-        消費(ペイロードキー): src\engine\effectEngine.ts:1544
+        消費(ペイロードキー): src\engine\effectEngine.ts:1559
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:4637
+        消費: src\engine\effectEngine.ts:4651
      3件   3枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036
         消費: src\screens\battle\allZoneBurst.ts:25
@@ -95,10 +95,10 @@ live JSON の STUB id 種類 : 593（総ノード 2882 件）
         消費: src\engine\effectExecutor.ts:337
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:6973
+        消費: src\engine\effectExecutor.ts:6982
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:6975
+        消費: src\engine\effectExecutor.ts:6984
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:65
@@ -113,10 +113,10 @@ live JSON の STUB id 種類 : 593（総ノード 2882 件）
         消費: src\engine\effectExecutor.ts:3763
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1004 / src\screens\BattleScreen.tsx:9982
+        消費: src\screens\BattleScreen.tsx:1004 / src\screens\BattleScreen.tsx:9981
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:6685
+        消費: src\engine\effectEngine.ts:6699
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:43

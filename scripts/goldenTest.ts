@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { parseCardEffects } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
-import { activeFieldGrantKeywordsForSigni, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -4807,7 +4807,7 @@ test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され�
     eq(livePower(ended, r.ownerState, a), fieldGrantPrintedPower(a) + 1000, 'ターン終了でキーの能力が戻る');
   }));
 
-  test('§6.4 O-16(b) funnel: keys_abilities_disabled は key_piece_extra も止める', () => {
+  test('§6.4 O-16(b) funnel: keys_abilities_disabled は key_piece_extra も止める', () => withSavedCursor(() => {
     const st = mkState();
     st.field.key_piece = POWER_KEY;
     st.field.key_piece_extra = ['EXTRA_KEY'];
@@ -4815,7 +4815,7 @@ test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され�
     // ⚠従来 `keys_abilities_disabled` は CONT 収集8箇所でしか見られておらず、`key_piece_extra` と
     //   `triggerCollect` の AUTO は素通りしていた（「すべてのキー」が半分しか効いていない）。
     eq(JSON.stringify(activeKeyAbilitySources({ ...st, keys_abilities_disabled: true })), '[]', '喪失中はどちらも能力源にならない');
-  });
+  }));
 
   test('§6.4 O-16(b) live SP38-006-E1-G: 3軸（キー／すべて／このターン）が保存されている', () => {
     const ra = innerAbility('SP38-006', 'SP38-006-E1-G') as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }>;

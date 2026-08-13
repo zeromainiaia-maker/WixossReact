@@ -1,5 +1,29 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-13 整理⑪：PLAN §6.4 `O-16`「指定したシグニゾーン」の消化記録（続き454〜457）
+
+> PLAN §6.4 の worklist から `O-16` の行を落とした（**クローズ**）。一次記録は [BUGFIXES.md](./BUGFIXES.md) の続き454／455／456／457。
+
+**`O-16`＝「（指定した）シグニゾーンにある○○は…」＝ゾーンに紐づく継続効果**。per-card（instanceId 記録）では
+「**後からそのゾーンへ出たシグニ**」に効かず、原文の「新たに得られない」「このアーツの使用後にそこに置かれた
+シグニにも影響を与える」が丸ごと死ぬ、という共通の穴。**受け皿は `FieldGrant`（ゾーンに紐づく場レベル grant）**で、
+4波かけて型が出そろった。
+
+| 波 | 続き | 何を機構化したか | 効果数 |
+|---|---|---|---|
+| 第1波 | 454 | `FieldGrant{kind:'power'}`＝ゾーン継続のパワー修正。`applyActiveFieldGrant`（現ターン）と `reserveFieldGrant`（次ターン）の2スロット式。`alignDesignatedZoneOwner`（保存先と読み手の owner 一致を**木の形**で保証） | 6 |
+| 第2波 | 455 | `FieldGrant{kind:'abilityLoss'}`＋**複数ゾーン指定**（`designated_zone?: number` → `designated_zones?: number[]`／読みは `designatedZones()` 1本へ集約）。`BLOCK_OPP_ZONE_PLACEMENT` の `?? 0` 過剰実行も是正。**O-3 の据置2件を同時に解除** | 2 |
+| 第3波 | 456 | `FieldGrant{kind:'blockAction'}`＝ゾーンのアタック禁止。消費は既存 funnel `calcContinuousBlockedActions.cannotAttackSigni`（人間UI／`performSigniAttack`／CPU の3経路が通る唯一の場所）。`alignDesignatedZoneOwner` を CONDITIONAL/CHOOSE の枝へも降ろした | 3 |
+| 第4波 | 457 | (a)`FieldGrant{kind:'power'}` に **`perTargetLevel`（動的 delta＝対象シグニ自身のレベル倍率）**＝`WDK10-009-E2` の真 no-op を解消 (b)**別軸**の `SP38-006-E1` 内側能力＝`RemoveAbilitiesAction.alsoKeys` と `activeKeyAbilitySources` funnel（キー能力喪失フラグの「AUTO 素通り」「turn-end で戻らない」2バグも同時に修正） | 2 |
+
+**⚠残さなかった判断**＝除数つき（「レベル**２**につき」）は live 0件なので、Part4 の
+`STUB{POWER_MOD_PER_COUNT}` 規則を**フォールバックとして残した**（将来出たときに黙って誤パースさせない）。
+**⚠計器の注意**＝`zoneSource` キーの有無だけで数えると `BLOCK_OPP_ZONE_PLACEMENT`（`zoneBlockSource:'designated'`
+で自前に読む）を**偽陽性**に拾う。
+
+**続き457 の隣接発見2件は `O-17` として PLAN §6.4 に登録**（`WXK05-010-E2` のキー対象取り違え／`WX24-P4-013-E3` の
+レベル・領域脱落）＝**ゾーン軸ではないので O-16 には戻さない**。
+
 ## 2026-08-13 整理⑩：PLAN §4 恒久指標の旧行を退避（続き435〜455）
 
 > §4「📊 恒久指標」は**最新1件だけ**を置く節（同節の運用ルール）。積み上がった旧行をここへ移した。
