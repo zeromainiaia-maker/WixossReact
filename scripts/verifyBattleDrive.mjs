@@ -11075,6 +11075,73 @@ scenarios.spellArtsBlockedUiHidesUseButtons = {
   },
 };
 
+// 続き460（Claude・検証側で追加）＝上の負方向テストの**対照**。
+// ⚠アーツの「使用」ボタンは `isActionBlocked('USE_ARTS')` 以外に `condOk`／`costOk`（実効コストを払えるか）でも消える
+//   （`BattleScreen.tsx:7569`）。**同じ盤面で blocked_actions だけを空にして「出ること」を確かめない限り、
+//   spellArtsBlockedUiHidesUseButtons の PASS は「封じが効いた」証拠にならない**（コスト不足でも同じ絵になる）。
+// 盤面は上と1文字も変えず、`blocked_actions` だけを [] にする。
+scenarios.spellArtsUnblockedUiShowsUseButtons = {
+  title: '対照：blocked_actions空なら手札スペル「発動」とアーツ「使用」が出る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#1'],
+      'field.signi': [null, null, null],
+      'hand': ['WX02-060#1'],
+      'lrig_deck': ['WX09-005#1'],
+      'energy': ['WD04-009#1'],
+      'blocked_actions': [],
+      'actions_done': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.signi': [null, null, null],
+      'blocked_actions': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.closeModals();
+    await H.ensureMain();
+    const before = await H.queryState();
+    const blocked = before?.host?.blockedActions ?? [];
+    if (blocked.includes('USE_ARTS') || blocked.includes('USE_SPELL')) {
+      return { pass: false, detail: `対照の前提が不成立（host.blockedActions=${JSON.stringify(blocked)}＝空であるべき）` };
+    }
+
+    const spellClick = await H.clickTestId('my-hand-card-0');
+    await page.waitForTimeout(500);
+    const spellModal = page.getByTestId('card-detail-modal').first();
+    if (!spellClick || !(await spellModal.isVisible().catch(() => false))) {
+      return { pass: false, detail: `スペルCardModalが開かなかった（click=${spellClick ?? 'なし'}）` };
+    }
+    const spellLabels = await spellModal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    const spellUseLabels = spellLabels.filter(label => label === '発動' || label === '使用');
+    H.log(`  対照 spell: actions=${JSON.stringify(spellLabels)} use=${JSON.stringify(spellUseLabels)}`);
+
+    await H.closeModals();
+    const dkClick = await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(400);
+    const artsCardClick = await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(500);
+    const artsModal = page.getByTestId('card-detail-modal').first();
+    if (!dkClick || !artsCardClick || !(await artsModal.isVisible().catch(() => false))) {
+      return { pass: false, detail: `アーツCardModalが開かなかった（lrigDK=${dkClick ?? 'なし'} zoneCard=${artsCardClick ?? 'なし'}）` };
+    }
+    const artsLabels = await artsModal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    const artsUseLabels = artsLabels.filter(label => label === '使用' || label === 'アーツ使用');
+    H.log(`  対照 arts: actions=${JSON.stringify(artsLabels)} use=${JSON.stringify(artsUseLabels)}`);
+
+    const ok = spellUseLabels.length > 0 && artsUseLabels.length > 0;
+    return {
+      pass: ok,
+      detail: ok
+        ? `対照成立：封じが無ければスペル${JSON.stringify(spellUseLabels)}／アーツ${JSON.stringify(artsUseLabels)}が出る＝負方向テストの非表示は封じ由来と確定できる`
+        : `対照不成立＝この盤面では封じが無くてもボタンが出ない（spell=${JSON.stringify(spellLabels)} arts=${JSON.stringify(artsLabels)}）。負方向テストの非表示を「封じが効いた」と読んではいけない`,
+    };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
