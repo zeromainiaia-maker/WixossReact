@@ -737,6 +737,24 @@ WDK08-Y08
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "その差の分だけ手札からカードをエナゾーンに置く"
 
+## +POWER_MODIFY +SIGNI -STUB ［1枚］
+WDK10-009
+--- WDK10-009
+  原文: 【出】：あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加える。あなたのセンタールリグが＜ウリス＞の場合、追加で黒のシグニ１枚を対象とし、それを手札に加える。【起】《ターン１回》手札を１枚捨てる：対戦相手のシグニゾーン１つを指定する。次のあなたのターンまで、指定されたシグニゾーンにあるシ
+  - [1].action.steps[1].id = "POWER_MOD_PER_COUNT"
+  + [1].action.steps[0].owner = "opponent"
+  ~ [1].action.steps[1].type : "STUB" → "POWER_MODIFY"
+  + [1].action.steps[1].target.type = "SIGNI"
+  + [1].action.steps[1].target.owner = "opponent"
+  + [1].action.steps[1].target.count = "ALL"
+  + [1].action.steps[1].target.filter.cardType = "シグニ"
+  + [1].action.steps[1].target.zoneSource = "designated"
+  + [1].action.steps[1].delta = -2000
+  + [1].action.steps[1].deltaPerTargetLevel = true
+  + [1].action.steps[1].duration = "NEXT_TURN"
+  + [1].action.steps[1].nextTurnOwner = "opponent"
+  …（他 1 行）
+
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007
 --- WDK12-007

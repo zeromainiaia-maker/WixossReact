@@ -4720,6 +4720,54 @@ test('§6.4 O-16 live: ゾーン限定のアタック禁止3効果が指定ゾ�
   }
 });
 
+// §6.4 O-16(a): ゾーン継続の**動的 delta**。「指定されたシグニゾーンにあるシグニのパワーを
+// **そのシグニのレベル１につき**－2000する」＝`FieldGrant{kind:'power'}` は固定 delta しか持てず、
+// この語形は `STUB{POWER_MOD_PER_COUNT}`（ACTIVATED 経路に消費地点なし＝真 no-op）へ落ちていた。
+// ⚠ここで見るのは **①レベル倍率が乗る ②入れ替わったら新しいシグニ自身のレベルで再計算される
+//   （適用時に固定 delta へ焼き込んでいない） ③次の相手ターンまで生き、その終了で切れる**。
+test('§6.4 O-16 E2E WDK10-009-E2: 指定ゾーンのパワーがレベル比例で下がる', () => withSavedCursor(() => {
+  const action = nextTurnLiveAction('WDK10-009', 'WDK10-009-E2');
+  const lv3 = SIGNI_L3, lv1 = SIGNI_L1;
+  const applied = run(action, { ...mkCtx({}, { signi: [lv3, lv3, lv3] }, 'WDK10-009'), isOwnerTurn: true });
+  const zone = designatedZones(applied.otherState)[0];
+  ok(zone !== undefined, 'ゾーン指定が実行される');
+  const only = <T>(nums: Array<T | null>, v: T): Array<T | null> =>
+    nums.map((_, i) => (i === zone ? v : null));
+  const lv3Only = withFieldSigni(applied.otherState, only([null, null, null], lv3));
+  eq(fieldPower(lv3Only, applied.ownerState, lv3),
+    fieldGrantPrintedPower(lv3) - 2000 * 3, 'レベル3なら－6000');
+  // ⭐固定 delta へ焼き込んでいたら、ここも－6000のままになる。
+  const lv1Only = withFieldSigni(applied.otherState, only([null, null, null], lv1));
+  eq(fieldPower(lv1Only, applied.ownerState, lv1),
+    fieldGrantPrintedPower(lv1) - 2000 * 1, '入れ替わったらそのシグニのレベルで再計算（－2000）');
+  const otherZone = zone === 0 ? 1 : 0;
+  const offZone: Array<string | null> = [null, null, null];
+  offZone[otherZone] = lv3;
+  eq(fieldPower(withFieldSigni(applied.otherState, offZone), applied.ownerState, lv3),
+    fieldGrantPrintedPower(lv3), '非指定ゾーンには効かない');
+  // 「次のあなたのターンまで」＝このターン＋次の相手ターン。相手ターン開始で予約が昇格する。
+  const oppTurn = activateTurnStartScopedState(
+    withFieldSigni(clearTurnEndScopedState(applied.otherState), only([null, null, null], lv3)));
+  eq(fieldPower(oppTurn, applied.ownerState, lv3),
+    fieldGrantPrintedPower(lv3) - 2000 * 3, '次の相手ターンでも効く');
+  eq(fieldPower(clearTurnEndScopedState(oppTurn), applied.ownerState, lv3),
+    fieldGrantPrintedPower(lv3), '相手ターン終了（＝自分の次のターン）で失効');
+}));
+
+test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され指定ゾーンに紐づく', () => {
+  const action = nextTurnLiveAction('WDK10-009', 'WDK10-009-E2');
+  const pm = findActionByType(action, 'POWER_MODIFY')!;
+  eq(pm.delta, -2000, 'delta はレベル1あたりの単価');
+  eq((pm as { deltaPerTargetLevel?: boolean }).deltaPerTargetLevel, true, '倍率は対象シグニ自身のレベル');
+  eq(pm.target.zoneSource, 'designated', '指定ゾーンを読む');
+  eq(pm.target.count, 'ALL', 'ゾーン継続なので count は ALL');
+  eq(pm.duration, 'NEXT_TURN', '「次のあなたのターンまで」＝次ターンへも予約する');
+  eq(pm.nextTurnOwner, 'opponent', '次のターン＝相手のターン');
+  eq((pm as { appliesThisTurn?: boolean }).appliesThisTurn, true, 'このターンにも効く');
+  const designate = findStubById(action, 'DESIGNATE_SIGNI_ZONE');
+  eq((designate as { owner?: string }).owner, pm.target.owner, '保存先が読み手と一致');
+});
+
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
   ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
