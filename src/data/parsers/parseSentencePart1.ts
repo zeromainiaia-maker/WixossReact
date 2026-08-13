@@ -515,6 +515,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         ...(upToM ? { upToCount: true } : {}),
       },
       until: dur,
+      ...(keysAndSigni ? { alsoKeys: true } : {}),
     } as RemoveAbilitiesAction;
     // 「この方法でダウンしたルリグと同じレベルの対戦相手のすべてのシグニは能力を失う」（WX25-P1-112）＝
     // レベル条件が丸ごと落ち、相手シグニ**全体**から能力を奪う過剰効果になっていた（タスク12(cix)）。
