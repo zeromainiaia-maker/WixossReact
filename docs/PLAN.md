@@ -672,7 +672,8 @@
 
 ### 🅰 §3 の実バグ待ち（シナリオ作成済み・**赤のまま既定 order に置いてある**）
 
-- **V-01 🔴 離場置換の対話（→§3 (cxxv)/(cxxvi)）**＝`leaveSubCpuAutoRespondsSubstitute`／`leaveSubAskDirectedToVictim`／`leaveSubDecisionNoneIsHonored`／`leaveSubDecisionKeyIsHonored` の**4本が FAIL**。**`BANISH{count:数値}` 経路では問いが1度も出ず engine が自動適用**し、注入した決定も honor されず消費もされない。⚠**`count:'ALL'` 経路は完全に正しい**（`leaveSubAllTargetsAskedPerVictim` PASS）＝**同じ機構が入口で割れている**。⚠**相互身代わりでインスタンスがエナに複製**される件も同時検出（(cxxvi)）。**engine が直ったら4本を回すだけ。**
+- **🔶 V-01 離場置換の対話（→§3 (cxxvi)/(cxxx)）＝2026-08-14 続き475 で再検証し 4/6 が緑へ反転**。⭐**(cxxv)「数値 count では問いが出ない」は取り下げ＝シナリオ偽陽性だった**（`pendingCandidates` の index を `pick-<idx>` に使っており、`opp_field` は reverse 描画なので**犠牲シグニを直接バニッシュしていた**＝victim は対象ですらないので問いが出ないのは当然。**結果の盤面は身代わり成立時と同一**＝§7 📌4 の実例）。`clickPendingInstance` へ差し替えて **`leaveSubCpuAutoRespondsSubstitute`／`leaveSubAskDirectedToVictim`／`leaveSubDecisionKeyIsHonored`／`leaveSubNoOptionMeansNoAsk` が PASS**（`asks=1`・`responder=CPU`・options＝`banishSubstitute…`／`none:置換しない`）。**数値 count の hoist（`resumeSelectTarget`＝`effectExecutor.ts:7412`）は正しく効いている。**
+  - [ ] 🔴**残る赤2本＝engine の実バグ**。①`leaveSubDecisionNoneIsHonored`＝**盤面は完全に正しいのに `leave_substitute_choices` が残留**（→§3 **(cxxx)**＝置換不成立時に消費済み ctx を捨てている）②`leaveSubAllTargetsAskedPerVictim`＝**同一 instance がエナに複製**（→§3 **(cxxvi)**。**続き475 で複製検査を必須条件に追加**したので、従来「複製したまま緑」だったものが**赤のトリップワイヤ**になった）。⚠**2件は同じ1手で直る**（`applyBanish` 系ループの「場に居ない num は skip」＋`sub.ctx` の無条件採用）。
   - [ ] 📋**人間側モーダル（`場離れの置換`）の描画確認は defer**＝`leaveSubstituteAskQueue`（`effectExecutor.ts:740-743`）は victim を `ctx.otherState.field.signi` に限定するので、**問いは常に「効果を撃った側の対戦相手」にしか飛ばない**＝host vs CPU のドライバでは **host を victim にする決定論的手段が無い**。将来案＝(a) CPU 側に効果バニッシュを撃たせる経路を作る (b) `pending_effect` を直接注入する。
   - [ ] 📋**未実装として送る（バグではない）**＝(a) **CPU は常に先頭の選択肢（＝最も安い置換）を選ぶ**＝盤面評価はしない近似 (b) `WX14-026` の**ライフクラッシュは選択肢に出るが engine の自動適用はしない**。
 
