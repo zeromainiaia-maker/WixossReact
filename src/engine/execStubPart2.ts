@@ -3793,23 +3793,30 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: newOtherIRSZ },
       `相手ゾーン${zoneIdxIRSZ + 1}を削除（${oppStackIRSZ.length}体トラッシュ）`));
   }
-  // DESIGNATE_SIGNI_ZONE: 相手シグニゾーンを1つ指定する
+  // DESIGNATE_SIGNI_ZONE: シグニゾーンを1つ指定する。
+  // ⚠`owner` 省略時は従来どおり**相手のゾーン**（原文の大半が「対戦相手のシグニゾーン１つを指定する」）。
+  //   `owner:'self'` は「シグニゾーン１つを指定する。…そこにあるシグニのパワーを＋N」型（§6.4 O-16）＝
+  //   自分のゾーンを指定する。**保存先を間違えると読み手（target.owner 側の state）と食い違って空振りする。**
   if (stub.id === 'DESIGNATE_SIGNI_ZONE') {
+    const ownerDSZ: Owner = stub.owner === 'self' ? 'self' : 'opponent';
     const zoneOptsDSZ = [0, 1, 2].map(zi => ({
       id: `zone_${zi}`,
       label: `ゾーン${zi + 1}を指定`,
-      action: ({ type: 'STUB', id: 'INTERNAL_DESIGNATE_ZONE', value: zi } as StubAction) as EffectAction,
+      action: ({ type: 'STUB', id: 'INTERNAL_DESIGNATE_ZONE', value: zi, owner: ownerDSZ } as StubAction) as EffectAction,
       available: true,
     }));
-    return needsInteraction(addLog(ctx, '指定する相手シグニゾーンを選択'), {
+    return needsInteraction(addLog(ctx, `指定する${ownerDSZ === 'self' ? '自分の' : '相手'}シグニゾーンを選択`), {
       type: 'CHOOSE', options: zoneOptsDSZ, count: 1,
     });
   }
-  // INTERNAL_DESIGNATE_ZONE: 選択したゾーンを相手Stateに保存
+  // INTERNAL_DESIGNATE_ZONE: 選択したゾーンを対象側の State に保存
   if (stub.id === 'INTERNAL_DESIGNATE_ZONE') {
     const zoneIdxIDZ = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
-    const newOtherIDZ = { ...ctx.otherState, designated_zone: zoneIdxIDZ };
-    return done(addLog({ ...ctx, otherState: newOtherIDZ }, `相手ゾーン${zoneIdxIDZ + 1}を指定`));
+    const ownerIDZ: Owner = stub.owner === 'self' ? 'self' : 'opponent';
+    const stIDZ = ownerIDZ === 'self' ? ctx.ownerState : ctx.otherState;
+    const nextIDZ = { ...stIDZ, designated_zone: zoneIdxIDZ };
+    const ctxIDZ = ownerIDZ === 'self' ? { ...ctx, ownerState: nextIDZ } : { ...ctx, otherState: nextIDZ };
+    return done(addLog(ctxIDZ, `${ownerIDZ === 'self' ? '自分の' : '相手'}ゾーン${zoneIdxIDZ + 1}を指定`));
   }
   // BLOCK_OPP_ZONE_PLACEMENT: 対戦相手のシグニゾーンへの新規配置を禁止する。禁止するゾーンの供給源は
   // parser が `zoneBlockSource` で渡す3種類＝指定ゾーン（DESIGNATE_SIGNI_ZONE）／直前に空いたゾーン／
