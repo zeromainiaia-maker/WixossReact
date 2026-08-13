@@ -7370,7 +7370,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
-      if (cardData?.Type === 'スペル' && meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction) &&
+      // ⚠`isActionBlocked('USE_SPELL')`（＝「対戦相手はスペルを使用できない」の封じ）を**ここで見る**。
+      //   実行入口の `castSpell`（:6769）にはガードがあるが、**ボタン生成側には無かった**＝封じ中でも
+      //   「発動」が出て、押しても何も起きない**無言の no-op** になっていた（続き460 の実機検証で検出＝
+      //   `spellArtsBlockedUiHidesUseButtons`）。ルリグデッキ側のスペル/クラフト（:7508）とアーツ（:7529）は
+      //   最初から同じゲートを持っており、手札スペルだけが抜けていた。
+      if (cardData?.Type === 'スペル' && !isActionBlocked('USE_SPELL') &&
+          meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction) &&
           !my.blocked_card_names?.includes(cardData.CardName) &&
           !my.blocked_card_names_game?.includes(cardData.CardName)) {
         // pending_spell がある間は新たにスペルを発動できない
