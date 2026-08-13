@@ -1584,10 +1584,9 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       let cur = c;
       for (const num of selected) {
         const sub = applyEffectLeaveSubstitutes(num, tgt.owner, cur);
-        if (sub.replaced) {
-          cur = sub.ctx;
-          continue;
-        }
+        cur = sub.ctx;            // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+        if (sub.replaced) continue;
+        if (!isOnFieldTop(num, tgt.owner, cur)) continue;  // (cxxvi)
         const s = ownerState(tgt.owner, cur);
         const removed = removeFromField(num, s);
         const destination = a.destination ?? 'trash';
