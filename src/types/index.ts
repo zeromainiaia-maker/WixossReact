@@ -262,8 +262,22 @@ export interface PlayerState {
    * 空文字＝クラス不問。ターン終了時にリセットする。
    */
   side_attack_empty_zone_damage_class?: string;
-  // 能力消去されたシグニのCardNum一覧
+  // 能力消去されたシグニのCardNum一覧（**現在のターンだけ**有効。ターン終了時にクリア）
   abilities_removed?: string[];
+  /**
+   * 「次のターンの間」能力を失うシグニの**予約**（§6.4 O-3）。
+   *
+   * ⚠`RemoveAbilitiesAction.until` は長らく engine から**一切読まれない死フィールド**で、
+   *   `PERMANENT` も `UNTIL_OPP_TURN_END` も `NEXT_TURN` も全部「このターン終了時まで」に丸まっていた。
+   *   受け皿はこの1フィールドだけでよい＝**ターン終了時に `abilities_removed` へ昇格させる**と、
+   *   - `NEXT_TURN`（「次のあなたのターンの間」）＝予約だけ書く → 次ターン中だけ有効
+   *   - `UNTIL_OPP_TURN_END`（「次の対戦相手のターン終了時まで」）＝現ターン＋予約の両方を書く
+   *     → 残りの現ターン＋次ターンで有効になり、その次のターン終了時に消える
+   *   の2語彙が同じ機構で表せる（`field_grants_next_turn` の2スロット式と同じ考え方）。
+   * ⚠**昇格は turn-end の全経路**（PvP 通常終了・PvP 確認後・CPU・強制終了）で行うこと。
+   *   1つでも `abilities_removed: []` のまま残すとその経路だけ予約が消える。
+   */
+  abilities_removed_next_turn?: string[];
   // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
   keyword_abilities_removed?: Record<string, string[]>;
   // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
