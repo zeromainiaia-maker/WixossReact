@@ -12436,19 +12436,24 @@ scenarios.effectBanishNoSubstituteWithoutSacrifice = {
 };
 
 scenarios.effectBanishSubstituteDiscardsSpell = {
-  title: 'WX10-033（手札スペル1枚で自動身代わり→同一シナリオ内の非スペル対照では通常バニッシュ）',
+  // ⚠pay 側の `asks` 期待値は 2026-08-14（続き475）に実装へ合わせた（0件→victim1体ぶんの1件）。
+  //   理由は `effectBanishSubstituteRunsAutomatically` の注記と同じ。**非スペル対照側の `asks===0`
+  //   はそのまま**＝置換候補が1本も無いので問い自体が立たないのが正（対照の意味を保つ）。
+  title: 'WX10-033（手札スペル1枚＝被害側へ問い1件→身代わり成立／同一シナリオ内の非スペル対照では問いも出ず通常バニッシュ）',
   spec: V10_SWT_WITH_SPELL_SPEC,
   async drive(page, H) {
     const paid = await runV10EffectBanishRound(page, H, 'ebsds.pay', V10_SWT, (st, _before, cands) => {
+      const askLogs = v10AskLogs(st);
+      const askedVictimOnce = askLogs.length === 1 && askLogs[0].includes(V10_SWT_NAME);
       const pass = Array.isArray(cands) && cands.includes(V10_SWT)
         && v10FieldHas(st.guest.fieldSigni, V10_SWT)
         && !st.guest.handCards.includes(V10_SWT_SPELL)
         && st.guest.trashCards.includes(V10_SWT_SPELL)
-        && v10HasLog(st, V10_SWT_SUB_LOG) && v10AskLogs(st).length === 0;
+        && v10HasLog(st, V10_SWT_SUB_LOG) && askedVictimOnce;
       return { pass, st,
         detail: pass
-          ? `スペルあり：victim残存・${V10_SWT_SPELL} hand→trash・問い0件・engineログ「${V10_SWT_SUB_LOG}」`
-          : `スペルあり不成立（cands=${JSON.stringify(cands)} field=${JSON.stringify(st.guest.fieldSigni)} hand=${JSON.stringify(st.guest.handCards)} trash=${JSON.stringify(st.guest.trashCards)} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length}）` };
+          ? `スペルあり：被害側へ問い1件「${askLogs[0]}」→victim残存・${V10_SWT_SPELL} hand→trash・engineログ「${V10_SWT_SUB_LOG}」`
+          : `スペルあり不成立（cands=${JSON.stringify(cands)} field=${JSON.stringify(st.guest.fieldSigni)} hand=${JSON.stringify(st.guest.handCards)} trash=${JSON.stringify(st.guest.trashCards)} subLogs=${JSON.stringify(v10SubstituteLogs(st))} askedVictimOnce=${askedVictimOnce} asks=${JSON.stringify(askLogs)}）` };
     });
     if (!paid.pass) return paid;
     const reinjected = await injectScenario(page, V10_SWT_WITHOUT_SPELL_SPEC);
