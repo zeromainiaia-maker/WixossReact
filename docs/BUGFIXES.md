@@ -1,5 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き462） — §7 第3バッチ＝指定ゾーンのレベル比例パワー継続（`WDK10-009-E2`）。**engine の新バグ0／ドライバの罠を1つ潰した**
+
+**分担**＝続き460・461 と同じ（Codex 起案 → Claude 実機検証）。**新規シナリオ3本すべて2回連続PASS。**
+
+### 実機で確定したこと（続き457 O-16(a) の実装が正しい）
+
+- 指定ゾーンのシグニだけ **10,000 → 4,000**（Lv3×−2000）。**他2ゾーンは不変**＝盤面全体へ広がる過剰効果になっていない。
+- ⭐**焼き込みではない**＝grant を保ったまま**そのゾーンのシグニを Lv1（P3000）へ差し替えると −2000 へ再計算**され 1,000 になる。
+  （`effectEngine.ts` の `applyActiveFieldPowerGrants` が `grant.perTargetLevel ? grant.delta * effectiveSigniLevel(...)` を
+  **適用のたびに**掛けているため。grant はゾーン単位で cardNum のスナップショットではない。）
+- `nextTurnOwner:'opponent'` の寿命どおり **CPU のターン中も継続**（CSV 原文は「次の**あなたの**ターンまで」＝
+  相手のターンを挟んで自分の次のターンが来るまで＝実装の2スロット寿命と一致することを `reserveFieldGrant` で確認）。
+
+### 🔴 ドライバの罠＝**`getByRole('button', { name: <RegExp>, exact: true })` は count() が常に 0**
+
+Playwright の `exact` は**文字列名にしか効かず、正規表現と併用すると一致しない**。
+実測＝**モーダルも【起】ボタンも実際に出ているのに**（スクリーンショットで確認）3シナリオとも30反復すべて `did=なし` で空振りし、
+**「効果が発火しない」＝engine 側の疑い**に見えた。⇒ **ラベル照合は `card-action-*` の `data-action-label` 前方一致で行う**
+（続き461 で実績のある形）。⚠**全角スペースの取り違えでも同じ壊れ方をする**ので、そもそも**ラベル全文一致に依存しない**のが正しい。
+
+### 観測上の注意（次に同種を書く人へ）
+
+- 🔴**この delta は `temp_power_mods` に載らない純計算値**（`calcFieldPowers` の中でだけ足される）＝
+  **`queryState().powerMods` を見て「効いていない」と判定したら誤り**。**DOM のパワー表示で見る**（先例＝`wxdip03057DownUnderRed`）。
+  ⚠`aboveSelfSelfBuffStopped` は DOM ではなく `powerMods` を見ている（**先例として引くと間違える**＝Codex の指摘で訂正）。
+- ⚠**`injectScenario` は「盤面の物理配置」以外のトップレベル全フィールドを削除する**＝`field_grants_active` も `designated_zones` も消える。
+  **grant を保ったまま盤面だけ差し替える**ために `H.patchPlayerState(side, dotPathMap)` を新設した
+  （**削除・ホワイトリスト・既定値の張り直しを一切しない最小 PATCH**。継続性の検証に汎用に使える）。
+- `queryState` の `sideOf()` に `designatedZones` / `fieldGrantsActive` を追加（DOM 表示とは独立に「grant が積まれたか」を見る）。
+
+### 併せて
+
+- ⚠**指示書（Claude）の誤りを Codex が3件訂正**＝(a)**`WDK10-009` はシグニではなくキー**（`my-lrig-slot-key` から【起】を開く）
+  (b)`aboveSelfSelfBuffStopped` は DOM を読んでいない (c)原文は「次のあなたのターンまで」。**3バッチ連続で指示書側の誤りが出ている**＝
+  報告項目に「指示書との不一致」を置き続ける価値がまた確認された。
+- ゲート＝golden 1956/0・census 831・smoke 10688 SKIP 0・fuzz 全0・lint 0 errors/259 warnings（すべて据置）。
+
 ## 2026-08-13（続き461） — §7 第2バッチ＝「能力喪失」3軸を実UIで固定（新バグ0・**続き457〜458 の実装が実機で効いていることを確定**）
 
 **分担**＝続き460 と同じ（Codex がシナリオ起案・実行はネットワーク遮断で不可 → Claude が実機検証・簿記）。
