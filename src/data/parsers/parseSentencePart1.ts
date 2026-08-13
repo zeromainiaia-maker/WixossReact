@@ -468,6 +468,24 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         until: dur,
       } as RemoveAbilitiesAction;
     }
+    // §6.4 O-17:「（対戦相手の）キーN枚を対象とし、ターン終了時まで、それは能力を失う」（`WXK05-010-E2`）。
+    // ⚠汎用枝は対象種別を SIGNI 固定で組むため、live は**キーではなく相手シグニ1体**を選ぶ別物になっていた。
+    // ⚠`alsoKeys`（「場にあるキーとシグニ」＝そのプレイヤーの全キー）とは別軸＝こちらは**1枚を選ぶ**。
+    {
+      const keyTargetM = t.match(/(あなた|対戦相手)のキーを?([０-９\d]*)枚(まで)?対象とし/);
+      if (keyTargetM) {
+        return {
+          type: 'REMOVE_ABILITIES',
+          target: {
+            type: 'KEY',
+            owner: keyTargetM[1] === 'あなた' ? 'self' : 'opponent',
+            count: keyTargetM[2] ? parseNum(keyTargetM[2]) : 1,
+            ...(keyTargetM[3] ? { upToCount: true } : {}),
+          },
+          until: dur,
+        } as RemoveAbilitiesAction;
+      }
+    }
     // 「対戦相手のセンタールリグは能力を失う」（WX20-003②）。汎用枝は能力喪失を
     // SIGNI 固定で組むため、対象種別を明示してからそちらへ渡さない。
     if (/対戦相手のセンタールリグは能力を失/.test(t)) {
