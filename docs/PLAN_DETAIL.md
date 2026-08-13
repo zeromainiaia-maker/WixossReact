@@ -1372,3 +1372,61 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 | # | タスク | 種別 | 規模 | 内容（原文） |
 |---|---|---|---|---|
 | ~~9~~ | ~~PARTIAL 刻印 151件のトリアージ~~ | — | — | **✅完了（続き138）＝152件全件を3分類・実害144件を Opusタスク12 (xxii)(xxiii)(xxiv) へ登録**。詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)・成果物 `docs/_partial_triage.txt` |
+
+## 2026-08-13 整理⑬：PLAN §7 実機検証の**完了ブロック**退避（続き460〜468 で決着した分）
+
+> PLAN §7 は「未消化の worklist」だけを持つ規約なので、**チェックが全部埋まったブロックの原文をここへ退避**した。
+> PLAN 側には 1行✅サマリだけを残し、**残作業は `V-01`〜 の採番 worklist へ移した**。
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) の続き460〜468 各エントリ。**再検証したい場合はシナリオ ID が下記原文に全部残っている**（`scripts/verifyBattleDrive.mjs`）。
+
+### 決着したブロック一覧
+
+| 元ブロック | 決着 | シナリオ |
+|---|---|---|
+| 続き459（使用禁止の期間と合成 actionId） | 続き460 | `wxex166SpellLockPeriod` ほか4本（**実バグ1件を修正**＝手札スペルの封じゲート欠落） |
+| 続き458（能力喪失の対象軸） | 続き461 | `removeAbilitiesOppKeyPicker` ほか |
+| 続き457（動的 delta のゾーン grant／キーの能力喪失） | 続き461〜462 | `designatedZone*` 3本ほか6本 |
+| 続き427（アシストルリグのアタック機構） | 続き435〜436 | `assistAttack*` 5本 |
+| 続き434（任意コストの落ち） | 続き436／**続き463** | `sYokusenkiSpellPay`／`cheatingSameLevelDownFilter`／`kokonaUnder*` 3本（**§3 (cxxiv) の解決で反転**） |
+| 続き431（ライフクラッシュ置換） | 続き465 | `lifeCrashRepl*` 7本（**2回連続PASS**） |
+| 続き424（強制アタック機構） | 続き467 | `forcedAttack*` 6本（**2回連続PASS**） |
+| 続き425（相手側 CHOOSE の主語・極性） | 続き468 | `oppPay*`／`oppHandDiscard*`／`oppPlayDiscard*` 6本（**主語・極性は是正済みと確認／`NEGATE_ATTACK` に (cxxvii) を検出**） |
+
+### 退避した原文
+
+- **✅ 続き459（§6.4 O-3＝使用禁止の期間と合成 actionId）が持ち込んだ未検証UI 2件＝2026-08-13 続き460 で決着**（Codex 起案→Claude 実機検証・各2回連続PASS・既定 order 登録済み）。
+  - [x] 🔴**スペル封じが次の相手ターンで解けるか**（`WXEX1-66`）＝**実機PASS**（`wxex166SpellLockPeriod`）。`guest.blockedActions` で3段を**完全一致**観測＝①アタック直後は予約 `USE_SPELL:NEXT_TURN`（この時点では効かない）②CPUターン開始（DRAWフェイズ）で **bare `USE_SPELL` へ昇格**③CPUターン終了後に**消滅**。⚠**恒久ロック（`PERMANENT`）への退化なし**。
+  - [x] **アーツとスペルが両方止まるか**（`PR-427`）＝**実機PASS**（`prArtsSpellSplitIds`）。CPU のアタック後 `host.blockedActions` に `USE_ARTS:NEXT_TURN` と `USE_SPELL:NEXT_TURN` の**両方**が積まれ、**死 actionId `ARTS_AND_SPELL` は0件**（復活したら即FAILするトリップワイヤ入り）。
+  - [x] 🔴**封じが実際にUIを止めるか**（続き460 で追加した軸）＝**実バグを検出して修正**。**手札スペルの「発動」ボタンだけ `isActionBlocked('USE_SPELL')` ゲートが無く**、封じ中でもボタンが出て押しても何も起きない**無言の no-op** だった（実行入口 `castSpell`〔`BattleScreen.tsx:6769`〕にはガードがあるので実害はUX層）。ルリグデッキのスペル/クラフト〔`:7508`〕とアーツ〔`:7529`〕は最初から同じゲートを持っており**手札スペルだけが抜けていた**。⚠**負方向テスト単独では証明にならない**（アーツの「使用」は `costOk`/`condOk` でも消える）＝**同じ盤面で `blocked_actions` だけを空にする対照** `spellArtsUnblockedUiShowsUseButtons` を対で置いた。
+- **✅ 続き458（§6.4 O-17 完了＝能力喪失の対象軸）が持ち込んだ未検証UI 2件＝2026-08-13 続き461 で決着**（Codex 起案→Claude 実機検証・各2回連続PASS・既定 order 登録済み）。
+  - [x] 🔴**キー選択モーダルに相手のキーが出るか**（`WXK05-010-E2`）＝**実機PASS**（`removeAbilitiesOppKeyPicker`）。`opp_key` の SELECT_TARGET が開き、**候補は対戦相手のキー2枚だけ**（自分のキーは混ざらない）。選んだ1枚だけが `guest.abilitiesRemoved` に入り、**もう1枚は無傷**／`keysAbilitiesDisabled` は **false のまま**＝**cardNum 軸とフラグ軸（`alsoKeys` の全キー喪失）を取り違えていない**ことを確定。
+  - [x] 🔴**領域跨ぎの能力喪失がトラッシュ起動を止めるか**＝**実機PASS**（`removedAbilitiesHidesTrashAct` ＋ 対照 `intactAbilitiesShowsTrashAct`）。能力喪失中は支払い可能な盤面でもトラッシュ【起】が**surface しない**／同じ盤面で `abilities_removed` を空にすると**出る**＝続き458 で足した消費地点が実UIに届いている。⚠**負方向単独では「コスト不足で出ないだけ」と区別できない**ので対照が必須（CODEX_GUIDE §5-21）。⚠観測は **`host.abilities_removed` を直接注入**して行う＝トラッシュ起動ゲートは**画面の持ち主側**を見るので、`SPDi47-01` を自分で撃つ形では原理的に観測できない。
+- **✅ 続き457（§6.4 O-16 完了＝動的 delta のゾーン grant／キーの能力喪失）が持ち込んだ未検証UI 3件＝2026-08-13 続き461〜462 で全件決着**
+  - [x] **レベル比例のゾーン継続**（`WDK10-009-E2`＝キーの【起】《ターン1回》・手札1枚を捨てて相手のシグニゾーン1つを指定）＝**実機PASS 3本**（`designatedZoneLevelScaledMinus` ／ `designatedZoneRecalcOnSwap` ／ `designatedZoneGrantSurvivesOppTurn`・2026-08-13 続き462）。①指定ゾーンのシグニだけ **10,000→4,000**（Lv3×−2000）で**他2ゾーンは不変**（過剰適用なし） ②⭐**そのゾーンのシグニを Lv1 に差し替えると −2000 へ再計算**＝**固定 delta の焼き込みではない**（`effectEngine.ts` の `perTargetLevel` は適用のたびに掛ける） ③`nextTurnOwner:'opponent'` の寿命どおり **CPU のターン中も継続**。⚠**この delta は `temp_power_mods` に載らない純計算値**＝`powerMods` を見て「効いていない」と判断してはいけない（**DOM 表示で見る**）。⚠「自分の次のターンで戻る」までは未観測（2ターン跨ぎ＝低優先）。
+  - [x] 🔴**キーの能力喪失が【常】だけでなく【自】も止めるか**（`SP38-006` の内側【起】＝エクシード1）＝**実機PASS**（`removeAbilitiesAlsoKeysFlag`）。`guest.keysAbilitiesDisabled=true` が立ち、**`abilitiesRemoved` にはキーの cardNum が入らない**（＝フラグ軸で正しく倒れている）。読みは `activeKeyAbilitySources` funnel が受けるので **CONT／AUTO／【起】の全収集経路**に届く。⚠**シグニ候補0でもフラグは立つ**ことを同時に確認した。
+  - [x] 🔴**キー能力喪失がターン終了で戻るか**＝**実機PASS 2経路**（`keysAbilityLossTurnEndNoDiscard` ／ `WithDiscard`）。①**手札上限の捨て札なし**でターンを終える ②**捨て札あり**（手札7→6）で終える＝どちらも CPU ターンへ実際に遷移したうえで `keysAbilitiesDisabled` が **false へ復帰**。⚠**①が本題**＝続き457 で `turnScopedState` へ登録するまで、この経路だけ**永久に戻らなかった**（手書きクリアが捨て札側の2経路にしか無かった）。残り2経路（CPU のターン終了／自分のターン終了の別入口）は同じレジストリを通るため低優先で未実施。
+- **続き427（アシストルリグのアタック機構）が持ち込んだ未検証UI 3件**＝**engine 側は golden で固定したが、アタック宣言・ガード応答・CPU は `BattleScreen` にしかなく golden では原理的に踏めない**。前提＝`WX25-P1-048`（ピース）を使う＝**場にルリグ3体で合計3色以上**が要る。**✅2026-08-11（続き435）＝`scripts/verifyBattleDrive.mjs` に4シナリオ新設し実機ヘッドレス検証で以下を確認**（`assistAttackNoFlag`／`assistAttackSkipConfirm`／`assistAttackCpuSequence`／`assistAttackNoEligibleAdvance`、いずれもPASS・既定order登録済み）：
+  - [x] 🔴**ピースを使う前はアタックできない**＝`assist_lrig_attack_min_level` 未設定の盤面でアシストの「アタック」ボタンが非表示であることを確認（回帰なし）。
+  - [x] **使った後にアタックできる**＝CPU側（`assistAttackCpuSequence`）はセンター→左アシスト→右アシストの順で自動アタックし、各ダウン・ライフ3クラッシュまで確認**PASS**。**✅2026-08-11（続き436）＝人間側のクリックによる左右連続アタックも実機PASS**（`assistAttackBoth`・2回連続）＝左右が各1回ずつアタックして `assistDown=[true,true]`／**センターは温存**（`centerDown=false`）／相手ライフ 7→5 の2クラッシュを確認。⚠**続き435 が「ドライバのクリック手順バグ」と記録していたのは表層で、真因は「ルリグ行スロットに `data-testid` が無く、自分と相手で label 文字列が同一だったため右アシストを特定できなかった」こと**＝`my|op-lrig-slot-*` と `card-action-*`＋`data-action-label` の新設で解消（続き436）。
+  - [x] **フェイズ進行の確認とCPU**＝未アタックのアシストが残っている状態で「次へ」→スキップ確認モーダル→「このまま進む」→ENDへ進行を確認（`assistAttackSkipConfirm`）。CPUのセンター→左→右の順序も確認（`assistAttackCpuSequence`）。レベル未達アシストだけの場合は確認なしでENDへ進みソフトロックしないことも確認（`assistAttackNoEligibleAdvance`）。
+- **続き434（§6.4 UNKNOWN＝任意コストの落ち）が持ち込んだ未検証UI 3件**＝**3枚とも従来「タダで撃てた」**ので、**まず支払いを要求されることの確認**から見る。**⚠2026-08-11（続き435）＝`verifyBattleDrive.mjs`にシナリオ試作。`WXEX2-20`は完全PASS。✅続き436＝testid 新設で書き直し `WX24-P1-065`②の pay側も PASS＝この2枚は決着。`WX25-CP1-091` は3パターンとも依然FAIL（セレクタではなくターン終了後に何も起きない＝下記）**。
+  - [x] 🔴**`WX24-P1-065`②＝コストを払わないと相手の手札が落ちないか**（回帰確認）＝自分のアタックフェイズ開始時に「①／②」の選択が出て、**②を選ぶと「手札からスペルを1枚捨てる／捨てない」の pay/skip が出る**。**捨てなければ相手の手札は減らない**。⚠**支払いを聞かれずに相手の手札が減ったら回帰**。⚠候補に**スペルだけ**が出ること（シグニが選べたら限定漏れ）。**skip側は確認済みPASS（`sYokusenkiSpellSkip`＝自分のスペル・相手手札とも不変）。✅2026-08-11（続き436）＝pay側も実機PASS**（`sYokusenkiSpellPay`・2回連続）＝**候補はスペル1枚だけ**（シグニは出ない＝限定が効いている）／払うと自分のスペルがトラッシュへ行き**相手の手札 2→1**／シグニ本体は場に残存。
+  - [ ] 🔴**`WX25-CP1-091`＝コストを払わないとエナチャージされないか**（回帰確認）＝自分のターン終了時に「このシグニの下から＜ブルアカ＞のカードを3枚トラッシュに置く／置かない」の pay/skip が出て、**置かなければエナチャージされない**。⚠下に＜ブルアカ＞が3枚無いときは**支払い枝が出ない**こと（部分払いで撃てたら抜け穴）。**⚠2026-08-11（続き436）＝セレクタは testid 化したが依然FAIL**（`kokonaUnderThreePay`/`ThreeSkip`/`Insufficient`）＝**「ターン終了」ボタン自体は押せている**（`btn:ターン終了` を実測）が、**以後の盤面変化が一切観測されず**（スタック・エナ・トラッシュ不変、`pEff=-`）ON_TURN_END の pay/skip UI が出ない。**原因未確定＝シナリオ側（ターンが実際に終わっていない）か engine 側（`ON_TURN_END` watcher がこの盤面で収集されない）かの切り分けが未了**＝次回はまずターン進行そのものを `queryState` の phase で観測すること。
+  - [x] **`WXEX2-20`（カンニング）＝対象が絞られるか**＝ルリグに付いた【自】が相手シグニのアタック時に発火し、手札からシグニを1枚捨てると**「そのシグニと同じレベル」かつ「ダウン状態」の相手シグニだけ**が対象候補に出る。⚠**アップ状態や別レベルが選べたら限定漏れ**（従来は本体が丸ごと不発だった）。**✅実機PASS確認済み**（`cheatingSameLevelDownFilter`＝別Lv/同Lvアップの2体は残存し、同Lv・ダウンの1体だけがエナへ移動することを確認）。
+- **✅ 続き431（§6.4 ライフクラッシュ置換）が持ち込んだ未検証UI 3件＝2026-08-13 続き465 で決着**（Codex 起案→Claude 実機検証・**7シナリオが2回連続PASS**・既定 order 登録済み・差し戻し0/是正0）。engine は golden で固定していたが、**ダメージ解決の分岐**は実機でしか踏めなかった。⚠**3枚とも従来「生きた過剰効果／自傷」だった**ので、**まず退化していないこと**から見た。
+  - [x] 🔴**`WX24-P4-009` を使った瞬間に自分のデッキが減らないか**（回帰確認）＝**実機PASS**（`lifeCrashReplDeclareNoSelfMill`＋消費側 `lifeCrashReplMillOnSigniAttack`）。使用後 deck **40→42**（⚠**42 が正しい**＝step1 の `TRANSFER_TO_DECK{TRASH_CARD,ALL}` がアーツコストで払った2枚をデッキへ戻すため。`deck===40` で固定すると誤FAILする）／宣言は `{mill,10,signi,optional}` で **`once` 無し**（原文「このターン」）。CPUシグニアタックでは `host.life` **7維持**・deck **40→30**・trash **0→10**。
+  - [x] 🔴**`WX25-P3-004` を使った瞬間に相手のライフが減らないか**（回帰確認）＝**実機PASS**（`lifeCrashReplDeclareNoOppCrash`＋`lifeCrashReplCrashOpponentInstead`）。使用後 `guest.life` **7→7**／宣言は `{crash_opponent,1,signi,once:true}`（原文「**次に**」）。CPUシグニアタックで `host.life` **7維持**・**`guest.life` 7→6**（攻撃側のライフバースト確認は CPU が自動消化＝`guest.energy` 0→1）。
+  - [x] **`WXDi-CP01-023`（月ノ美兎）と限定の効き**＝**実機PASS**（`lifeCrashReplGrantFromAssist`／`lifeCrashReplNotOnLrigAttack`＋対照 `lifeCrashReplLrigAttackControl`）。アシストグロウ後 deck **40→40**（付与時の即時mill なし＝旧・恒久 no-op でもない）／宣言 `{mill,5,signi,byAttack:true,optional}`。**ルリグアタックでは置換されない**（`host.life` 7→6・deck 40維持）ことを確認。⚠**負方向単独では証明にならない**（ダメージ処理自体が動いていなくても同じ絵になる）＝**盤面・手順を1文字も変えず `damageSource` を `'lrig'` にするだけの対照**を対で置き、同じ攻撃が置換される（life 7維持・deck 40→35・trash 0→5）ことで限定由来と確定した（CODEX_GUIDE §5-21）。⚠**残**＝「**効果による**ライフクラッシュでも置換されない」（`byAttack` の負側）は盤面構築コストが高く未実施／`WX25-P1-010` の実UI宣言も未実施（限定の消費側は同じ funnel を通るため B3/B4 で対照化済み）。
+- **🔴 続き425（「対戦相手は〈コスト〉てもよい」の主語・極性是正）＝2026-08-13 続き468 で実機検証し、**主語・極性・【出】経路は全部正しいと確認／`NEGATE_ATTACK` の対象所有者に実バグ1件**（→§3 **(cxxvii)**。ルールどおり engine は触らず在庫化）**。シナリオ6本（3対照ペア）を新設＝**4 PASS／2 FAIL（FAIL は (cxxvii) の検出）**。
+  - [x] 🔴**極性が正しいか**＝**実機PASS（片方向）**。**支払わなければアタックは通る**側は `oppPayAttackGoesThroughWhenUnpaid`／`oppHandDiscardUnavailableWhenShort` で確認（`pay`/`discard` 枝が `available:false` → CPU は `skip` → `guest.life 7→6`・資源不変）。⚠**旧実装の「相手が何もしないと自分のアタックが無効化される」真逆の挙動は再現しない**＝回帰なし。**支払いも実際に徴収されている**（`SPDi43-06`＝エナ2枚がトラッシュへ／`WXDi-P05-037`＝手札2枚がトラッシュへ）＝`thenOnPay` の分岐自体は動いている。
+  - [x] 🔴**捨てる側が相手か**＝**実機PASS**（`oppHandDiscardIsOpponentSide`）。**`guest.hand 2→0`／`guest.trash 0→2`／🔑`host.hand 2→2`（指定2枚が残存）**＝**主語の回帰は完全に解消している**（旧実装は自分が2枚捨てて自分のアタックを無効化していた）。
+  - [x] **`WXDi-P09-064` の【出】**＝**実機PASS 2本**（`oppPlayDiscardThenOpponentDraws`／対照 `oppPlayDiscardSkippedWhenNoHand`）。CPU が2枚捨てて2枚引く＝**`guest.trash 0→2` かつ `guest.deck 40→38`**／host は**召喚札1枚が減るだけ**。⚠🔑**手札の枚数で見てはいけない**（捨て2・引き2で `guest.hand 2→2` に戻る）＝**trash と deck で見る**。手札0の対照では `discard` が `(disabled)` になり**捨ても引きも起きない**。⚠「2枚**まで**」は現状 0枚か2枚の二択に丸めてある（1枚だけの選択肢が出なくて正しい）。
+  - ⚠**観測の注意**＝進行中アタックのキャンセルは **`negatedAttacks` には載らない**（一時フラグ＝`effectExecutor.ts:8822` で立て `BattleScreen.tsx:8119` で消去）。**ライフが減ったかどうかで見る**。
+  - 📋**やらなかったこと**＝人間側が応答者になる形（CPU に該当効果を撃たせる決定論的手段が無い＝続き466 と同じ理由）／`WXDi-P05-037-E2`・`SPDi43-06-E2`（別軸）／`opponentEnergyTrash`・`opponentSigniTrash`・`opponentSigniToDeckTop`・`opponentHandOrEnergyToDeckTop` の各枝（同じ入口の別枝）。
+- **✅ 続き424（§6.4 強制アタック機構の配線）が持ち込んだ未検証UI 3件＝2026-08-13 続き467 で決着**（Codex 起案→Claude 実機検証・**6シナリオが2回連続PASS**・既定 order 登録済み・**差し戻し0／是正0**）。engine 側は golden で固定していたが、**enforcement は `BattleScreen` のフェイズ進行ゲートにしかなく golden では原理的に踏めなかった**。
+  - [x] 🔴**相手の印字【常】で自分がフェイズを進められないか**＝**実機PASS**（`forcedAttackBlocksPhaseAdvance` ＋ 対照 `forcedAttackControlAdvances` ＋ `forcedAttackAdvancesAfterAllAttacked`）。guest のセンタールリグに `WD07-004` を置くと `ルリグアタックへ` で **`⚠ アタックしなければなりません`** が出て **`turnPhase` は `ATTACK_SIGNI` のまま**／`OK` で閉じる。⚠**対照が決定的**＝**guest ルリグ1枚だけを非強制（`WD01-001`）に差し替える**と警告は出ず `ATTACK_LRIG` へ進む＝ブロックが**印字【常】由来**だと確定（従来この【常】は完全に無視されていた）。**全部アタックすれば進める**ことも別シナリオで確認（zone0 をアタック→`signiDown[0]=true` 観測→進行）＝**永久ブロックではない**。
+  - [x] **強制アタックバナー**＝**実機PASS**（`forcedAttackBannerOnMyTurn`・**対照内蔵**）。`WD07-004` 時に **`⚠ あなたのシグニは可能ならばアタックしなければなりません`** が出て、**guest の `field.lrig` だけを PATCH** で非強制へ差し替えると**消える**。⚠**相手ターン側の緑バナー**（`対戦相手のシグニは〜`／`BattleScreen.tsx:12979`）は未実施＝**同じ `resolveForcedSigniAttack` の結果を表示するだけ**なので低優先。
+  - [x] 🔴**アタックできないシグニでソフトロックしないか**＝**実機PASS**（`forcedAttackNoSoftlockWhenUnattackable`）。**アタック追加コスト1・エナ0**の盤面で**アタックボタンが出ないこと**を先に観測してから進行 → **警告は出ず**通常のスキップ確認だけで `ATTACK_LRIG` へ。⇒ `mustAttackRemainingZones` が**アタックボタンが出るゾーンだけを数える**（`BattleScreen.tsx:4224`）実装が実機で効いている。⚠🔑**「凍結」ではアタック不可にならない**（現行の `signiAttackBlockReason` に含まれない＝codex が実測で訂正）。**アタック不可を作るなら `signi_attack_cost` × エナ不足**（`screens/battle/signiAttackGate.ts:71-72` の `ENERGY_COST`）。
+  - [x] 🆕**レゾナ（`field.signi` 走査）でも強制がかかるか**＝**実機PASS**（`forcedAttackFromResonaOnField`）。`WX12-010`（**シグニではなくレゾナ**）を guest の `field.signi` に置いても同じくブロックする＝`resolveForcedSigniAttack` の**2つの走査ブランチ**（`lrigZoneTops` 側と `field.signi` 側）が両方とも実UIまで届いている。
+  - 📋**同じルリグ走査の重複なので実施しなかった**＝`WX14-018`／`WX20-Re07〜09`（`WD07-004` と同一の `CONTINUOUS/FORCE_SIGNI_ATTACK/targetOwner:'opponent'`・条件なし）。⚠**`WX20-Re08` は Lv3/Limit7、`Re09` は Lv2/Limit4**（「Re07〜09 は Lv4/Limit11」は **Re07 だけ**＝codex が実データで訂正）。
+  - 📋**軸が違うので別バッチ**＝`WX16-047`（`AUTO` ＋ `infectedOnly:true`）／正面強制（`forcedFrontAttackZones`）。
