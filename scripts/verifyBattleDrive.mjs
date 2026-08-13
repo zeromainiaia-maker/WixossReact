@@ -12219,6 +12219,266 @@ function makeLifeCrashReplacementLrigScenario(damageSource, shouldReplace) {
 scenarios.lifeCrashReplNotOnLrigAttack = makeLifeCrashReplacementLrigScenario('signi', false);
 scenarios.lifeCrashReplLrigAttackControl = makeLifeCrashReplacementLrigScenario('lrig', true);
 
+// ── 続き430：離場置換の対話化（Codex起案・実機未実行）─────────────
+const LEAVE_SUB_QUESTION = 'の場離れを置換しますか？（対戦相手が選択）';
+const leaveSubHas = (fieldSigni, instanceId) =>
+  (fieldSigni ?? []).some(stack => (stack ?? []).includes(instanceId));
+const leaveSubQuestionLogs = (st) =>
+  (st?.logTail ?? []).filter(line => line.includes(LEAVE_SUB_QUESTION));
+const leaveSubSettled = (st) => st?.pendingEffect == null && st?.stackLen === 0;
+const leaveSubTimeout = (st, extra = '') =>
+  `${extra}${extra ? ' / ' : ''}pendingEffect=${st?.pendingEffect ?? '-'} pendingRespondPlayer=${st?.pendingRespondPlayer ?? '-'} stackLen=${st?.stackLen ?? '-'} turnPhase=${st?.turnPhase ?? '-'} gField=${JSON.stringify(st?.guest?.fieldSigni ?? null)} gEnergy=${JSON.stringify(st?.guest?.energyCards ?? [])} gTrash=${JSON.stringify(st?.guest?.trashCards ?? [])} choices=${JSON.stringify(st?.guest?.leaveSubstituteChoices ?? null)}`;
+
+const LEAVE_SUB_VICTIM = 'WX12-024#5';
+const LEAVE_SUB_SACRIFICE = 'WD03-013#6';
+const LEAVE_SUB_DECISION_KEY = `banishSubstitute:${LEAVE_SUB_VICTIM}:${LEAVE_SUB_SACRIFICE}`;
+
+function makeLeaveSubSingleSpec({ decision, withSacrifice = true } = {}) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': ['WX19-023#4'], 'energy': ['WD01-013#7'], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-001#2'],
+      'field.signi': [[LEAVE_SUB_VICTIM], withSacrifice ? [LEAVE_SUB_SACRIFICE] : null, null],
+      'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+      ...(decision === undefined ? {} : { 'leave_substitute_choices': { [LEAVE_SUB_VICTIM]: decision } }),
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+async function driveLeaveSubSingleBanish(page, H, id, evaluate) {
+  await H.ensureMain();
+  const flow = { handOpened: false, summonChosen: false, zoneChosen: false, energyChosen: false, fired: false };
+  // ⚠`leaveSubSettled`（pendingEffect==null && stackLen===0）は**効果の開始前と完了後の両方で true** になる。
+  //   「発動」クリック直後は DB への書き込みがまだ届いておらず、そのまま判定すると
+  //   「1回も解決していない盤面」を「解決後の盤面」として読む（続き466 の実測＝lsdni[4] で stack=0 のまま確定し
+  //   4シナリオが誤 FAIL。単体実行だと stack=1 が間に合って PASS する**位置依存 flakiness** になる）。
+  //   ⇒ **効果が実際に走り出したことを1度でも観測するまで判定させない**ゲートを噛ませる。
+  const startSnapshot = await H.queryState();
+  const observed = { pending: null, started: false };
+  const guestBoardKey = (st) => JSON.stringify([st?.guest?.fieldSigni ?? null, st?.guest?.energyCards ?? [], st?.guest?.trashCards ?? []]);
+  const startKey = guestBoardKey(startSnapshot);
+  let last = startSnapshot;
+  for (let s = 0; s < 64; s++) {
+    await page.waitForTimeout(200);
+    let did = null;
+    if (!flow.handOpened) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) flow.handOpened = true;
+    } else if (!flow.summonChosen) {
+      did = await H.clickBtn('召喚', { exact: true });
+      if (did) flow.summonChosen = true;
+    } else if (!flow.zoneChosen) {
+      did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (did) flow.zoneChosen = true;
+    } else if (!flow.energyChosen) {
+      did = await H.clickTestId('onplaycost-energy-0');
+      if (did) flow.energyChosen = true;
+    } else if (!flow.fired) {
+      did = await H.clickBtn('発動', { exact: true });
+      if (did) flow.fired = true;
+    } else {
+      did = await H.stdStep(['発動順序を確定', '決定']);
+    }
+
+    const st = await H.queryState();
+    last = st;
+    const isLeavePending = (st?.pendingOptions ?? []).some(o => o.startsWith('none:置換しない'));
+    if (isLeavePending && !observed.pending) {
+      observed.pending = {
+        pendingRespondPlayer: st.pendingRespondPlayer,
+        viewerUserId: st.viewerUserId,
+        pendingOptions: st.pendingOptions,
+        fieldSigni: st.guest?.fieldSigni,
+      };
+    }
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | flow=${Object.values(flow).map(Boolean).filter(Boolean).length}/5 pEff=${st?.pendingEffect ?? '-'} responder=${st?.pendingRespondPlayer ?? '-'} stack=${st?.stackLen ?? '-'} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${JSON.stringify(st?.guest?.energyCards ?? [])} choices=${JSON.stringify(st?.guest?.leaveSubstituteChoices ?? null)} asks=${leaveSubQuestionLogs(st).length}`);
+    const verdict = evaluate(st, observed, flow);
+    if (verdict) return verdict;
+  }
+  return { pass: false, detail: `効果バニッシュ解決タイムアウト（${leaveSubTimeout(last, `flow=${JSON.stringify(flow)}`)}）` };
+}
+
+scenarios.leaveSubCpuAutoRespondsSubstitute = {
+  title: 'WX19-023効果バニッシュ（CPU被害側が離場置換へ自動応答しソフトロックしない）',
+  spec: makeLeaveSubSingleSpec(),
+  async drive(page, H) {
+    return driveLeaveSubSingleBanish(page, H, 'lscars', (st, _observed, flow) => {
+      if (!flow.fired || !leaveSubSettled(st)) return null;
+      const victimStayed = leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM);
+      const sacrificeLeft = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE);
+      const sacrificeBanished = (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE);
+      if (victimStayed && sacrificeLeft && sacrificeBanished) {
+        return { pass: true, detail: `CPUが先頭の身代わりを自動選択し解決完了（victim残存・sacrificeは通常バニッシュ先のエナへ・${leaveSubTimeout(st)}）` };
+      }
+      return { pass: false, detail: `【旧回帰/置換不発】CPU応答後の盤面が不正（${leaveSubTimeout(st)}）` };
+    });
+  },
+};
+
+scenarios.leaveSubAskDirectedToVictim = {
+  title: 'WX19-023効果バニッシュ（離場置換の問いが被害側CPUへ向く）',
+  spec: makeLeaveSubSingleSpec(),
+  async drive(page, H) {
+    return driveLeaveSubSingleBanish(page, H, 'lsadtv', (st, observed, flow) => {
+      const pending = observed.pending;
+      if (pending?.pendingRespondPlayer === pending?.viewerUserId) {
+        return { pass: false, detail: `【応答者反転】離場置換の応答者がhost viewerになっている（${JSON.stringify(pending)}）` };
+      }
+      if (pending && (!pending.pendingOptions.some(o => o.includes('代わりに') && o.includes('をバニッシュする'))
+          || !pending.pendingOptions.some(o => o.startsWith('none:置換しない')))) {
+        return { pass: false, detail: `【選択肢欠落】CPU応答窓の options=${JSON.stringify(pending.pendingOptions)}` };
+      }
+      const asks = leaveSubQuestionLogs(st);
+      if (flow.fired && leaveSubSettled(st) && asks.length === 1
+          && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
+          && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE)) {
+        return { pass: true, detail: `被害側CPUへの問いログ1件を確認。pending窓${pending ? `も捕捉（responder=${pending.pendingRespondPlayer}, options=${JSON.stringify(pending.pendingOptions)}）` : 'はCPU_ACTION_DELAY内のため未捕捉（主判定はログ）'}` };
+      }
+      if (asks.length > 1) return { pass: false, detail: `【二重質問】単一victimで問いが${asks.length}件：${JSON.stringify(asks)}` };
+      return null;
+    });
+  },
+};
+
+scenarios.leaveSubDecisionNoneIsHonored = {
+  title: 'leave_substitute_choices注入（noneを消費し、問わずvictimを通常バニッシュ）',
+  spec: makeLeaveSubSingleSpec({ decision: 'none' }),
+  async drive(page, H) {
+    return driveLeaveSubSingleBanish(page, H, 'lsdni', (st, _observed, flow) => {
+      const asks = leaveSubQuestionLogs(st);
+      if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
+      if (!flow.fired || !leaveSubSettled(st)) return null;
+      const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
+        && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
+        && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM)
+        && st?.guest?.leaveSubstituteChoices == null;
+      return ok
+        ? { pass: true, detail: `none決定を問わず消費し、victimだけがエナへ通常バニッシュ（${leaveSubTimeout(st)}）` }
+        : { pass: false, detail: `【旧回帰】noneを無視して自動置換した、または決定が残留（${leaveSubTimeout(st)}）` };
+    });
+  },
+};
+
+scenarios.leaveSubDecisionKeyIsHonored = {
+  title: 'leave_substitute_choices注入（instanceIdのbanishSubstitute keyを消費して身代わり）',
+  spec: makeLeaveSubSingleSpec({ decision: LEAVE_SUB_DECISION_KEY }),
+  async drive(page, H) {
+    return driveLeaveSubSingleBanish(page, H, 'lsdki', (st, _observed, flow) => {
+      const asks = leaveSubQuestionLogs(st);
+      if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
+      if (!flow.fired || !leaveSubSettled(st)) return null;
+      const ok = leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
+        && !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
+        && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE)
+        && st?.guest?.leaveSubstituteChoices == null;
+      return ok
+        ? { pass: true, detail: `実instanceId key「${LEAVE_SUB_DECISION_KEY}」を消費しvictim残存・sacrificeをエナへバニッシュ（${leaveSubTimeout(st)}）` }
+        : { pass: false, detail: `【決定key不発】none対照と反対の盤面に分岐しない（${leaveSubTimeout(st)}）` };
+    });
+  },
+};
+
+scenarios.leaveSubNoOptionMeansNoAsk = {
+  title: 'WX19-023効果バニッシュ（他の＜電機＞が無ければ問わず通常バニッシュ）',
+  spec: makeLeaveSubSingleSpec({ withSacrifice: false }),
+  async drive(page, H) {
+    return driveLeaveSubSingleBanish(page, H, 'lsnoma', (st, _observed, flow) => {
+      const asks = leaveSubQuestionLogs(st);
+      if (asks.length > 0) return { pass: false, detail: `【候補なしで誤質問】${JSON.stringify(asks)}` };
+      if (!flow.fired || !leaveSubSettled(st)) return null;
+      const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
+        && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM);
+      return ok
+        ? { pass: true, detail: `犠牲候補を外すと問いなしでvictimがエナへ通常バニッシュ（A1との対照・${leaveSubTimeout(st)}）` }
+        : { pass: false, detail: `候補なしの通常バニッシュ未確認（${leaveSubTimeout(st)}）` };
+    });
+  },
+};
+
+scenarios.leaveSubAllTargetsAskedPerVictim = {
+  title: 'WX14-025【出】count:ALL（victimごとに先に問い、全応答後にまとめて移動）',
+  spec: {
+    hostSet: {
+      // WX14-009＝花代Lv5/Limit12。召喚後のLv合計は 2+1+5=8。
+      'field.lrig': ['WX14-009#41'],
+      'field.signi': [['WX14-057#42'], ['WX14-058#43'], null], 'field.check': null,
+      'hand': ['WX14-025#44'], 'energy': ['WD02-009#45', 'WD02-009#46', 'WD02-009#47'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-001#48'],
+      'field.signi': [['WX12-024#51'], ['WX12-024#52'], ['WD03-013#53']], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const initialGuest = ['WX12-024#51', 'WX12-024#52', 'WD03-013#53'];
+    const flow = { handOpened: false, summonChosen: false, zoneChosen: false, fired: false };
+    const selectedEnergy = new Set();
+    let preApplySnapshot = null;
+    let last = await H.queryState();
+    for (let s = 0; s < 90; s++) {
+      await page.waitForTimeout(200);
+      let did = null;
+      if (!flow.handOpened) {
+        did = await H.clickTestId('my-hand-card-0');
+        if (did) flow.handOpened = true;
+      } else if (!flow.summonChosen) {
+        did = await H.clickBtn('召喚', { exact: true });
+        if (did) flow.summonChosen = true;
+      } else if (!flow.zoneChosen) {
+        did = await H.clickTestId('summon-zone-2');
+        if (did) flow.zoneChosen = true;
+      } else if (selectedEnergy.size < 3) {
+        const next = [0, 1, 2].find(i => !selectedEnergy.has(i));
+        did = await H.clickTestId(`onplaycost-energy-${next}`);
+        if (did) selectedEnergy.add(next);
+      } else if (!flow.fired) {
+        did = await H.clickBtn('発動', { exact: true });
+        if (did) flow.fired = true;
+      } else {
+        did = await H.stdStep(['発動順序を確定', '決定']);
+      }
+
+      const st = await H.queryState();
+      last = st;
+      const asks = leaveSubQuestionLogs(st);
+      const isLeavePending = (st?.pendingOptions ?? []).some(o => o.startsWith('none:置換しない'));
+      const choiceKeys = Object.keys(st?.guest?.leaveSubstituteChoices ?? {});
+      const allStillOnField = initialGuest.every(n => leaveSubHas(st?.guest?.fieldSigni, n));
+      if (isLeavePending && st?.pendingRespondPlayer === st?.viewerUserId) {
+        return { pass: false, detail: `【応答者反転】ALL経路の離場置換がhost viewerへ出た（${leaveSubTimeout(st)}）` };
+      }
+      if (isLeavePending && choiceKeys.length === 1) {
+        if (!allStillOnField) {
+          return { pass: false, detail: `【途中移動回帰】1体目の応答後・2体目の問いの途中で対象が場を離れた（${leaveSubTimeout(st)}）` };
+        }
+        preApplySnapshot ??= { choices: st.guest.leaveSubstituteChoices, fieldSigni: st.guest.fieldSigni, pendingOptions: st.pendingOptions };
+      }
+      H.log(`  lsatapv[${s}] -> ${did ?? 'なし'} | flow=${JSON.stringify(flow)} energy=${selectedEnergy.size}/3 asks=${asks.length} pEff=${st?.pendingEffect ?? '-'} responder=${st?.pendingRespondPlayer ?? '-'} choices=${JSON.stringify(st?.guest?.leaveSubstituteChoices ?? null)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${JSON.stringify(st?.guest?.energyCards ?? [])}`);
+
+      if (asks.length > 2) return { pass: false, detail: `【二重質問】2 victimsに対し問いが${asks.length}件：${JSON.stringify(asks)}` };
+      if (flow.fired && leaveSubSettled(st) && asks.length === 2 && preApplySnapshot) {
+        const movedAfterAllAnswers = !initialGuest.every(n => leaveSubHas(st?.guest?.fieldSigni, n))
+          && (st?.guest?.energyCards ?? []).length > 0;
+        if (movedAfterAllAnswers) {
+          return { pass: true, detail: `victimごとの問い2件、1件目決定後も全3体が場に残る中間snapshot=${JSON.stringify(preApplySnapshot)}、全応答後に移動・解決完了（${leaveSubTimeout(st)}）` };
+        }
+        return { pass: false, detail: `2回問いは出たが、全応答後の移動が未確認（${leaveSubTimeout(st)}）` };
+      }
+    }
+    return { pass: false, detail: `count:ALL離場置換タイムアウト（preApply=${JSON.stringify(preApplySnapshot)} / ${leaveSubTimeout(last)}）` };
+  },
+};
+
+// ── /続き430 新規シナリオ境界 ─────────────────────────────────────────
+
 // ── /続き431 新規シナリオ境界 ─────────────────────────────────────────
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -12315,6 +12575,10 @@ order.push('lifeCrashReplDeclareNoSelfMill', 'lifeCrashReplDeclareNoOppCrash', '
   'lifeCrashReplMillOnSigniAttack', 'lifeCrashReplCrashOpponentInstead',
   'lifeCrashReplNotOnLrigAttack', 'lifeCrashReplLrigAttackControl');
 // ── /続き431 新規order追記境界 ──
+// 続き430：離場置換対話のCPU応答・決定消費・ALL先聞きを末尾に追加。
+order.push('leaveSubCpuAutoRespondsSubstitute', 'leaveSubAskDirectedToVictim',
+  'leaveSubDecisionNoneIsHonored', 'leaveSubDecisionKeyIsHonored', 'leaveSubNoOptionMeansNoAsk',
+  'leaveSubAllTargetsAskedPerVictim');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -12582,6 +12846,7 @@ try {
         assistDown: [s.field?.assist_lrig_l_down ?? false, s.field?.assist_lrig_r_down ?? false],
         lifeCrashReplacements: s.life_crash_replacements ?? [],
         damageReplaceMill: s.damage_replace_mill ?? [],
+        leaveSubstituteChoices: s.leave_substitute_choices ?? null,
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
       });
       return {

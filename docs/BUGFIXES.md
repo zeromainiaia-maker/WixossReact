@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き466・Codex起案）— §7 離場置換の対話化 UI シナリオ6件（実行は `BLOCKED`）
+
+続き430で対話化した効果による離場置換について、`scripts/verifyBattleDrive.mjs` の既存末尾へ
+6シナリオを追加した。単体経路は `WX19-023#4` の【出】で CPU 場の `WX12-024#5` を効果バニッシュし、
+`WD03-013#6` の有無と `leave_substitute_choices` の値だけを変える同一factoryに固定した。
+CPU自動応答の完走、被害側への問いログ、`none` と実キー
+`banishSubstitute:WX12-024#5:WD03-013#6` の結果分岐、候補なし時の無質問をそれぞれ判定する。
+タイムアウト detail は `pendingEffect` / `pendingRespondPlayer` / `stackLen` / `turnPhase` を必ず含む。
+
+`count:'ALL'` は `WX14-009`（花代Lv5・Limit12）上で Lv2+Lv1 のフレイスロ2体を先置きし、
+`WX14-025#44`（Lv5・花代限定）を召喚して合計Lv8に収めた。CPU場の `WX12-024` 2体＋＜電機＞1体に対し、
+問いログ2件だけでなく、1件目の決定が `leave_substitute_choices` に入り2件目が pending の間も全3体が場に残る
+中間snapshotを必須にした。全応答後に pending/stack が消えて初めて合格する。
+
+⚠指示書の「身代わり／通常バニッシュされたシグニがトラッシュへ」は実コードと不一致。
+`banishDestination` の既定先はエナ（`src/engine/execUtils.ts:503`）なので、固定instanceIdがエナへ移ったことを判定する。
+engine・parser・live JSON・`src/`・既存シナリオ・既存order・既存testidは変更していない。
+`queryState.sideOf` への追加は許可された `leaveSubstituteChoices` 1項目だけで、driver差分の削除行は0。
+
+📋未実施＝人間側「場離れの置換」モーダル（CPUに任意の効果バニッシュを撃たせる決定論的経路がない。
+将来案は CPU 効果バニッシュ経路または `pending_effect` 直接注入）、`WX14-026` lifeCrash軸、
+バトルバニッシュの別機構、UI/engine/parser/live JSON修正。実ブラウザは外部ネットワーク遮断のため
+**`BLOCKED`（1回も実行せず、PASS/FAIL判定は検証側へ引き継ぎ）**。
+
+ローカルゲートは全緑＝golden **1964 PASS / 0 FAIL**（独立再実行も同値）、census **831**、
+smoke **10688 / SKIP 0**、fuzz 全異常0、lint **0 errors / 259 warnings**。live JSON per-effect diff **changed 0**。
+
 ## 2026-08-13（続き465・Codex起案→Claude実機検証）— §7 ライフクラッシュ置換 UI シナリオ7件＝**7/7 が2回連続PASS**
 
 続き431で機構化したライフクラッシュ置換について、`scripts/verifyBattleDrive.mjs` に宣言側3件と
