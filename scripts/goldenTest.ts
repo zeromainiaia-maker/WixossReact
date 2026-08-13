@@ -4151,8 +4151,8 @@ test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse 
 });
 
 // §6.4 ターン限定 PlayerState funnel（続き446の副次発見）。
-// フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外7件という集合性を固定する。
-test('§6.4 turn-scoped T1: PlayerState のターン限定31フィールドと funnel レジストリが一致', () => {
+// フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外10件という集合性を固定する。
+test('§6.4 turn-scoped T1: PlayerState のターン限定34フィールドと funnel レジストリが一致', () => {
   const typeSource = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
   const declared = [...typeSource.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map(m => m[1]);
   const convention = declared.filter(k => k.endsWith('_this_turn') || k.endsWith('_this_attack_phase'));
@@ -4163,7 +4163,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定31フィールドと f
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   eq(irregular.length, 10, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 32, '型由来24件＋命名規約外8件の母集団');
+  eq(registered.length, 34, '型由来24件＋命名規約外10件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -4234,6 +4234,79 @@ test('§6.4 turn-scoped T7: turn-end-active 暫定境界は完全に撤去', () 
   for (const field of ['must_attack_signi', 'must_attack_infected_only'] as const) {
     const spec = TURN_SCOPED_STATE_FIELDS[field];
     ok((spec.boundaries as readonly string[]).includes('turn-end'), `${field} は通常のturn-endで失効`);
+  }
+});
+
+// §6.4 O-3: `RemoveAbilitiesAction.until` は長らく engine から**一切読まれない死フィールド**で、
+// `PERMANENT` / `UNTIL_OPP_TURN_END` / `NEXT_TURN` が全部「このターン終了時まで」に丸まっていた。
+// ⚠ここで固定するのは **3語彙が別々の寿命になること**＝「型に値がある＝動く」ではないので、
+//   書き込み先（現ターン／予約）と、ターン境界を跨いだあとの生死の両方を見る。
+test('§6.4 O-3 REMOVE_ABILITIES: until が現ターン／次ターン予約を書き分ける', () => withSavedCursor(() => {
+  const victim = findCard(c => c.Type === 'シグニ');
+  const mkCase = (until: string) => {
+    const ctx = mkCtx({}, {}, 'WX05-019');
+    ctx.otherState.field.signi = [[victim], null, null];
+    const action = {
+      type: 'REMOVE_ABILITIES',
+      target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' },
+      until,
+    } as unknown as EffectAction;
+    return run(action, ctx).otherState;
+  };
+  const eot = mkCase('UNTIL_END_OF_TURN');
+  ok(eot.abilities_removed?.includes(victim), 'UNTIL_END_OF_TURN: 現ターンに効く');
+  eq(eot.abilities_removed_next_turn, undefined, 'UNTIL_END_OF_TURN: 次ターン予約はしない');
+
+  const next = mkCase('NEXT_TURN');
+  eq((next.abilities_removed ?? []).includes(victim), false, 'NEXT_TURN: **現ターンには効かない**');
+  ok(next.abilities_removed_next_turn?.includes(victim), 'NEXT_TURN: 次ターンへ予約する');
+
+  const untilOpp = mkCase('UNTIL_OPP_TURN_END');
+  ok(untilOpp.abilities_removed?.includes(victim), 'UNTIL_OPP_TURN_END: 残りの現ターンに効く');
+  ok(untilOpp.abilities_removed_next_turn?.includes(victim), 'UNTIL_OPP_TURN_END: 次ターンにも効く');
+
+  // PERMANENT は CONTINUOUS 宣言でしか使われない（そちらは collectContinuousAbilitiesRemovedSigni が
+  // 毎回再評価するのでこの経路を通らない）＝ここへ来る PERMANENT は「このターン」の書き間違い。
+  const perm = mkCase('PERMANENT');
+  ok(perm.abilities_removed?.includes(victim), 'PERMANENT: 現ターン扱い（従来と同じ）');
+  eq(perm.abilities_removed_next_turn, undefined, 'PERMANENT: 予約はしない');
+}));
+
+test('§6.4 O-3 ターン境界: 予約は1ターンだけ生きて次の境界で消える', () => withSavedCursor(() => {
+  const victim = 'VICTIM-1';
+  const reserved = { ...mkState(), abilities_removed_next_turn: [victim] } as PlayerState;
+  const ended = clearTurnEndScopedState(reserved);
+  eq(JSON.stringify(ended.abilities_removed), JSON.stringify([victim]), '境界で予約が active へ昇格');
+  eq(ended.abilities_removed_next_turn, undefined, '昇格後は予約を消費');
+  const ended2 = clearTurnEndScopedState(ended);
+  eq(JSON.stringify(ended2.abilities_removed), JSON.stringify([]), '次の境界で失効（2スロット式）');
+  // ⚠旧実装は turn-end 経路のうち2本でしか手書きクリアしておらず、普通にターンを終えると
+  //   「ターン終了時まで能力を失う」が次のターン以降も残っていた。funnel 化がその再発防止。
+  const stale = { ...mkState(), abilities_removed: [victim], keyword_abilities_removed: { [victim]: ['ランサー'] } } as PlayerState;
+  const cleaned = clearTurnEndScopedState(stale);
+  eq(JSON.stringify(cleaned.abilities_removed), JSON.stringify([]), '予約が無ければ境界で空になる');
+  eq(cleaned.keyword_abilities_removed, undefined, 'キーワード限定の喪失も同じ期限で失効');
+}));
+
+test('§6.4 O-3 live: 「次のあなたのターン」の能力喪失が NEXT_TURN で表されている', () => {
+  for (const [cardNum, effectId] of [
+    ['WX05-019', 'WX05-019-BURST'],
+    ['WX18-029', 'WX18-029-BURST'],
+  ] as const) {
+    const ra = findActionByType(nextTurnLiveAction(cardNum, effectId), 'REMOVE_ABILITIES')!;
+    eq((ra as unknown as { until: string }).until, 'NEXT_TURN', `${effectId}: 次のターンだけ`);
+  }
+  // ⚠据置3件＝**期間だけ直すと誤った対象の効果が長持ちする**ので触らない（PLAN §6.4 O-3 に登録）。
+  //   `WX11-038-E2`＝「次のターンの**メインフェイズ**の間」＝フェイズ限定の受け皿が無い。
+  //   `WXEX2-04-E3` / `WX25-P3-014-E2`＝「このターンと次のターンの間」だが**指定ゾーン軸**が落ちている
+  //   （前者は owner が 'self' に化け、後者は2ゾーン指定で `designated_zone` が1つしか持てない）。
+  for (const [cardNum, effectId] of [
+    ['WX11-038', 'WX11-038-E2'],
+    ['WXEX2-04', 'WXEX2-04-E3'],
+    ['WX25-P3-014', 'WX25-P3-014-E2'],
+  ] as const) {
+    const ra = findActionByType(nextTurnLiveAction(cardNum, effectId), 'REMOVE_ABILITIES')!;
+    eq((ra as unknown as { until: string }).until, 'PERMANENT', `${effectId}: 別軸が壊れているので期間も据置`);
   }
 });
 
