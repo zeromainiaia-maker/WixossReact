@@ -32718,6 +32718,51 @@ test('§6.4 離場置換の対話: 決定は再検証される（盤面が変わ
   eq(applied.ctx.otherState.leave_substitute_choices, undefined, '使った決定は消費して残さない');
 });
 
+test('§3 (cxxx) 離場置換の対話: 置換しなかったときも決定は消費される（呼び出し側が ctx を捨てない）', () => {
+  // 🔴実機で発見（続き475 `leaveSubDecisionNoneIsHonored`）＝**盤面は完全に正しいのに決定が残留**していた。
+  //   `applyEffectLeaveSubstitutes` は消費済み ctx を返すが、**`replaced:false` の側で呼び出し側が
+  //   それを捨てて**いたため。残ると `leaveSubstituteAskOptions` が「決定済み」と見なし、
+  //   **以後その instance には二度と問わない**（トラッシュから戻した等で再登場すると無言で辞退扱い）。
+  //   ⚠上のテストは関数を直接呼ぶので通ってしまう＝**executeEffect の端から端で見るのがこの見張りの要点**。
+  const victim = 'WX12-024';
+  const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
+  const ctx = mkCtx({}, { signi: [victim, sacrifice, null] });
+  ctx.otherState = { ...ctx.otherState, leave_substitute_choices: { [victim]: 'none' } };
+  let r = executeEffect({ effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, fixedCardNums: [victim] } as EffectAction }, ctx);
+  const step = (x: typeof r) => ({ ...ctx, ownerState: x.ownerState, otherState: x.otherState, logs: x.logs });
+  if (!r.done && r.pending.type === 'SELECT_TARGET') r = resumeSelectTarget([victim], r.pending, step(r));
+  ok(r.done, '決定済みなので問い直さずそのまま解決する');
+  const field = r.otherState.field.signi.map(z => z?.at(-1) ?? null);
+  ok(!field.includes(victim), '「置換しない」の決定どおり victim が場を離れる');
+  ok(field.includes(sacrifice), '犠牲シグニは巻き添えにならない');
+  eq(r.otherState.leave_substitute_choices, undefined,
+     '🔴決定を消費して残さない（残ると同じ instance に二度と問わなくなる）');
+});
+
+test('§3 (cxxvi) 離場置換: 身代わりで先に場を離れたカードを、同じループがもう一度動かさない', () => {
+  // 🔴実機で発見（続き475 `leaveSubAllTargetsAskedPerVictim`）＝エナに**同一 instance が2枚**現れていた。
+  //   離場の per-card ループは「選んだ時点の盤面」で回るので、**先行する victim の身代わりで
+  //   犠牲になったカードが、自分の番でもう一度処理される**。`removeFromField` は空振りするのに
+  //   `banishDestination` が移動先へ push するため、**カードが増える**（保存則が壊れる）。
+  const victim = 'WX12-024';
+  const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
+  const ctx = mkCtx({}, { signi: [victim, sacrifice, null] });
+  // victim の決定を先に刻んでおく＝問いを挟まずに `applyBanish` のループ自体を見る。
+  ctx.otherState = {
+    ...ctx.otherState,
+    leave_substitute_choices: { [victim]: `banishSubstitute:${victim}:${sacrifice}` },
+  };
+  const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, ctx);
+  ok(r.done, 'count:ALL のバニッシュが解決する');
+  const field = r.otherState.field.signi.map(z => z?.at(-1) ?? null);
+  ok(field.includes(victim), '身代わりが成立して victim は場に残る');
+  ok(!field.includes(sacrifice), '犠牲シグニは場を離れる');
+  eq(r.otherState.energy.filter(n => n === sacrifice).length, 1,
+     '🔴犠牲シグニがエナに1枚だけ（2枚になったら instance 複製の回帰）');
+  eq(r.otherState.energy.length, 1, 'エナに増えたのは犠牲シグニ1枚だけ');
+});
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // §6.4 ライフクラッシュの置換（`screens/battle/lifeCrashReplace.ts`）
