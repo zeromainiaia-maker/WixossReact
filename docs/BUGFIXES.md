@@ -1,6 +1,46 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き466・Codex起案）— §7 離場置換の対話化 UI シナリオ6件（実行は `BLOCKED`）
+## 2026-08-13（続き466・Codex起案→Claude実機検証）— §7 離場置換の対話化＝**実バグ2件を検出**（→PLAN §3 **(cxxv)**／**(cxxvi)**）
+
+### 実機結果＝**2 PASS / 4 FAIL**。FAIL 4本は**実バグの検出**であり、シナリオの不備ではない
+
+⚠**ルールどおり engine は1行も修正していない**（発見したバグは即修正せず Opus タスク12 の在庫へ登録する運用）。
+FAIL の4本は**既定 order に残す**＝(cxxv) が直れば緑へ反転する生きたトリップワイヤになる。
+
+| id | 結果 |
+|---|---|
+| `leaveSubAllTargetsAskedPerVictim` | ✅**PASS**＝`count:'ALL'` 経路は**完全に正しい**。問い**2件**（victim ごと1回）／応答者は**被害側 CPU**／選択肢 `[banishSubstitute:…:代わりに<カード名>をバニッシュする, none:置換しない]`／**1体目の決定後も全3体が場に残る**（＝「適用前に全部聞く」設計が実機で効いている）／全応答後にまとめて移動 |
+| `leaveSubNoOptionMeansNoAsk` | ✅**PASS**＝犠牲＜電機＞を外すと**問いなし**で victim が通常バニッシュ（エナへ）。**A1 の対照として必須** |
+| `leaveSubCpuAutoRespondsSubstitute` | ❌**FAIL＝(cxxv) を検出**（`asks=0` のまま身代わりが自動適用） |
+| `leaveSubAskDirectedToVictim` | ❌**FAIL＝(cxxv)**（問いログが1件も出ずタイムアウト） |
+| `leaveSubDecisionNoneIsHonored` | ❌**FAIL＝(cxxv)**（`'none'` を注入しても身代わりが適用され、決定も**消費されず残留**） |
+| `leaveSubDecisionKeyIsHonored` | ❌**FAIL＝(cxxv)**（実キー注入でも `none` と**同じ盤面**＝決定が結果を分岐させていない） |
+
+### 🔴 発見①（(cxxv)）＝離場置換の対話が「普通の効果バニッシュ」で発火していない
+
+`BANISH{count:数値}`（`selectOrInteract`→SELECT_TARGET→resume）では**問いを1度も出さず engine が自動適用**する。
+一方 **`count:'ALL'` 経路は完全に動く**＝**同じ機構なのに入口で挙動が割れている**。
+hoist は `execBanish` の `count:'ALL'` ブランチ（`effectExecutor.ts:1011`）にしかなく、数値 count は `:1021` へ抜ける。
+⚠**盤面は自動適用時と完全に同一**なので golden も census も緑のまま（§7 の「無言」の壊れ方）。
+
+### 🔴 発見②（(cxxvi)）＝相互身代わりでインスタンスがエナに複製される
+
+`count:'ALL'` で victim A が B を、B が A を身代わりに指定すると
+`gEnergy=["WX12-024#52","WX12-024#52","WD03-013#53"]`＝**`#52` が2枚**。決定も1件残留。
+
+### ⚠ この検証で潰した「シナリオ側の偽陽性」3種＋1（次に書く人へ）
+
+1. **`pendingEffect==null && stackLen===0` は効果の開始前と完了後の両方で true**＝発動直後に判定すると
+   「1度も解決していない盤面」を「解決後」として読む。**単体だと `stack=1` が間に合って PASS する位置依存 flakiness** になる。
+   ⇒ **効果が走り出したことを1度でも観測するまで判定させないゲート**を噛ませる。
+2. **`pending?.a === pending?.b` は pending が null のとき `undefined===undefined` で true**＝1周目に誤検出して即 FAIL。
+3. 🔑**`H.stdStep` の盲目的な `pick-0` で対象を選ばない**＝`WX19-023-E3` は候補が2体（victim P12000／犠牲 P3000）あり、
+   **犠牲の方を直接バニッシュした盤面は身代わり成立時と1バイトも変わらない**。
+   ⇒ `pendingCandidates` から instanceId の index を引いて `pick-<idx>` を押す（先例 `cheatingSameLevelDownFilter`）。
+4. **「盤面だけを見る判定」自体が偽陽性**＝**対話が1度も出なくても同じ盤面になる**ので、
+   機構の検査には **`asks===1`（問いログ）を必須条件に入れる**。これを入れるまで A1 は緑だった。
+
+### 以下は Codex 起案時点の記録（実行前）
 
 続き430で対話化した効果による離場置換について、`scripts/verifyBattleDrive.mjs` の既存末尾へ
 6シナリオを追加した。単体経路は `WX19-023#4` の【出】で CPU 場の `WX12-024#5` を効果バニッシュし、
