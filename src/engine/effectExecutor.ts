@@ -1300,14 +1300,21 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
     ? resolveNum(a.delta) * (ctx.lastProcessedCards?.length ?? 0)
     : resolveNum(a.delta);
   const srcType = srcTypeOf(ctx);
+  // 「そのシグニのレベル１につき±N」（§6.4 O-16(a)）＝delta はレベル1あたりの単価。**ここで数値へ
+  // 焼き込まない**＝倍率は grant の適用時に対象シグニ自身のレベルから毎回決まる。
+  const perLevel = a.deltaPerTargetLevel === true;
+  const deltaJa = perLevel
+    ? `そのシグニのレベル1につき${delta > 0 ? '+' : ''}${delta}`
+    : `${delta > 0 ? '+' : ''}${delta}`;
   if (a.duration === 'NEXT_TURN') {
     const reservation = reserveFieldGrant(a.target, {
       kind: 'power', delta, filter: a.target.filter, condition: a.fieldCondition,
+      ...(perLevel ? { perTargetLevel: true } : {}),
       srcType, srcCardNum: ctx.sourceCardNum,
     }, a.nextTurnOwner, ctx);
     if (reservation.reserved) {
       ctx = addLog(reservation.ctx,
-        `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニのパワー${delta > 0 ? '+' : ''}${delta}`);
+        `次の${reservation.activeOwner === 'opponent' ? '対戦相手の' : '自分の'}ターンの間、場のシグニのパワー${deltaJa}`);
       if (!a.appliesThisTurn) return done(ctx);
     }
   }
