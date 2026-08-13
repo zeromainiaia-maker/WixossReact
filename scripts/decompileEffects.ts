@@ -2196,7 +2196,11 @@ function actionJa(a?: Action, effectType?: string): string {
         const countDSZ = typeof a.count === 'number' && a.count > 1 ? a.count : 1;
         // 語順が2通り＝「シグニゾーン１つを指定する」／「シグニゾーンを２つまで指定し」。
         const m = currentCardText.match(/(?:シグニのない)?(?:対戦相手の)?シグニゾーン(?:[０-９\d]+つを指定する|を[０-９\d]+つ(?:まで)?指定(?:する|し))/);
-        if (m) return /(?:あなた|対戦相手)の/.test(m[0]) ? m[0] : `${ownerJaDSZ}${m[0]}`;
+        // 原文が連用形（「指定し、」）でも逆翻訳は文として閉じる。
+        if (m) {
+          const bodyDSZ = m[0].replace(/指定し$/, '指定する');
+          return /(?:あなた|対戦相手)の/.test(bodyDSZ) ? bodyDSZ : `${ownerJaDSZ}${bodyDSZ}`;
+        }
         return `${ownerJaDSZ}シグニゾーンを${numJa(countDSZ)}つ${countDSZ > 1 ? 'まで' : ''}指定する`;
       }
       // 一時レゾナの返却（RETURN_SUMMONED_RESONA_AT_TURN_END・§6.4 続き433）。
