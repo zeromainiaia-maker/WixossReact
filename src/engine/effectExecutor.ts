@@ -3131,18 +3131,11 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
     // POWER_MODIFY / REMOVE_ABILITIES と同じ形で場レベル grant に載せる。
     if (a.target.zoneSource === 'designated' && a.target.count === 'ALL') {
       const grantBA: FieldGrant = { kind: 'blockAction', actionId: 'ATTACK', filter: a.target.filter };
-      let curBA = ctx;
-      let touchedBA = false;
-      if (a.until === 'NEXT_TURN') {
-        // 「次の対戦相手のターンの間」＝**対象（相手）自身の次のターン**に有効化する。
-        const reservationBA = reserveFieldGrant(a.target, grantBA, tgtOwner === 'self' ? 'self' : 'opponent', curBA);
-        curBA = reservationBA.ctx;
-        touchedBA = reservationBA.reserved;
-      } else {
-        const activeBA = applyActiveFieldGrant(a.target, grantBA, curBA);
-        curBA = activeBA.ctx;
-        touchedBA = activeBA.applied;
-      }
+      // 「次の対戦相手のターンの間」＝**対象（相手）自身の次のターン**に有効化する予約。
+      // それ以外（「このターン」）は現ターンの active grant。
+      const { ctx: curBA, touched: touchedBA } = a.until === 'NEXT_TURN'
+        ? (() => { const r = reserveFieldGrant(a.target, grantBA, tgtOwner, ctx); return { ctx: r.ctx, touched: r.reserved }; })()
+        : (() => { const r = applyActiveFieldGrant(a.target, grantBA, ctx); return { ctx: r.ctx, touched: r.applied }; })();
       return done(addLog(curBA, touchedBA
         ? `指定シグニゾーンのシグニはアタックできない${a.until === 'NEXT_TURN' ? '（次のターンの間）' : '（このターン）'}`
         : '指定されたシグニゾーンがない'));
