@@ -1,5 +1,8 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+> **2026-08-13 続き464 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-13 続き459（§6.4 O-3＝`LRIG_GROW_RESTRICT` ゴミ箱の解体）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1956（+2＝合成 actionId が live に0件／期間3値／`LRIG_GROW_RESTRICT` は本来のグロウ制限文にだけ付く、を live 全走査で固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件（14種16件から可視化＝隠れていた26効果を worklist へ）**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。live effect 単位 diff **33効果・effectId 増減 0/0**。
+
 ## 2026-08-13 整理⑫：PLAN §6.4 `O-17`「能力喪失の対象軸」の消化記録（続き458）
 
 > PLAN §6.4 の worklist から `O-17` の行を落とした（**クローズ**）。一次記録は [BUGFIXES.md](./BUGFIXES.md) の続き458。
