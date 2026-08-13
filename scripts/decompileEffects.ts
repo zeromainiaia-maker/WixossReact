@@ -1136,6 +1136,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const subjRA = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
       // alsoKeys: 「場にある**キーと**シグニ」＝シグニに加えてそのプレイヤーの全キーも失う（§6.4 O-16(b)）。
       // 落とすと「シグニだけ」に見えて、キー側の実装が入ったことが計器に映らない。
+      // allZones: 場だけでなく手札／エナ／トラッシュも対象（§6.4 O-17）。落とすと場限定と同じ文になり、
+      // 領域を跨いだことが計器に映らない。
+      if (a.target?.allZones) {
+        return `${ownerJa(a.target?.owner)}手札と場とエナゾーンとトラッシュにある${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
+      }
       if (a.alsoKeys) {
         return `${ownerJa(a.target?.owner)}場にあるすべてのキーと${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
       }

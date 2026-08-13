@@ -4827,6 +4827,66 @@ test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され�
   });
 }
 
+// §6.4 O-17（続き458）: 能力喪失の**対象軸**が落ちていた2件。O-16 とは別軸（ゾーンではなく対象種別・領域）。
+{
+  test('§6.4 O-17 E2E WXK05-010-E2: キー1枚を選んで能力を失わせる（シグニではない）', () => withSavedCursor(() => {
+    const KEY_A = 'WDK08-Y09', KEY_B = 'WDK08-L09';
+    const signi = fresh();
+    const ctx = mkCtx({}, { signi: [signi, null, null] }, 'WXK05-010');
+    ctx.otherState.field.key_piece = KEY_A;
+    ctx.otherState.field.key_piece_extra = [KEY_B];
+    const r = run(nextTurnLiveAction('WXK05-010', 'WXK05-010-E2'), ctx);
+    const removed = r.otherState.abilities_removed ?? [];
+    // オートパイロットは候補の先頭を選ぶ＝1枚だけ落ちる（「すべてのキー」ではない）。
+    eq(removed.length, 1, '選んだ1枚だけが能力を失う');
+    ok([KEY_A, KEY_B].includes(removed[0]), '対象はキー（シグニではない）');
+    ok(!removed.includes(signi), '相手シグニは巻き込まない');
+    // ⭐funnel が per-key の喪失も読む＝選ばれたキーだけが能力源から外れる。
+    const sources = activeKeyAbilitySources(r.otherState);
+    eq(sources.length, 1, '残り1枚のキーだけが能力源');
+    ok(!sources.includes(removed[0]), '能力を失ったキーは能力源から外れる');
+  }));
+
+  test('§6.4 O-17 E2E SPDi47-01-E2: 手札・エナ・トラッシュのシグニも能力を失う', () => withSavedCursor(() => {
+    const onField = fresh();
+    const ctx = mkCtx({ trash: 4 }, { signi: [onField, null, null], hand: 3, energy: 3, trash: 3 }, 'SPDi47-01');
+    // リコレクト条件（ルリグトラッシュのアーツ4枚以上）を満たす。
+    (ctx.ownerState as { lrig_trash: string[] }).lrig_trash =
+      [...cardMap.values()].filter(c => c.Type === 'アーツ').slice(0, 4).map(c => c.CardNum);
+    const r = run(nextTurnLiveAction('SPDi47-01', 'SPDi47-01-E2'), ctx);
+    const removed = new Set(r.otherState.abilities_removed ?? []);
+    ok(removed.has(onField), '場のシグニ');
+    const zoneSigni = [...r.otherState.hand, ...r.otherState.energy, ...r.otherState.trash]
+      .filter(n => cardMap.get(getCardNum(n))?.Type === 'シグニ');
+    ok(zoneSigni.length > 0, '前提: 場以外の領域にシグニがある');
+    // ⭐ここが「場だけ」実装との差＝旧 live は count:1 で場のシグニ1体しか対象にできなかった。
+    ok(zoneSigni.every(n => removed.has(n)), '手札・エナ・トラッシュのシグニも全部対象');
+    // ⚠シグニ以外（スペル等）は巻き込まない＝allZones は cardType を明示しないと領域ごと全部さらう。
+    const nonSigni = [...r.otherState.hand, ...r.otherState.energy, ...r.otherState.trash]
+      .filter(n => cardMap.get(getCardNum(n))?.Type !== 'シグニ');
+    ok(nonSigni.every(n => !removed.has(n)), 'シグニ以外は対象外');
+  }));
+
+  test('§6.4 O-17 live: 対象軸の3点（KEY／allZones／レベル等値）が保存されている', () => {
+    const key = findActionByType(nextTurnLiveAction('WXK05-010', 'WXK05-010-E2'), 'REMOVE_ABILITIES')!;
+    eq(key.target.type, 'KEY', 'WXK05-010-E2: 対象種別はキー');
+    eq(key.target.count, 1, 'WXK05-010-E2: 1枚を選ぶ（全キーではない）');
+
+    const spdi = findActionByType(nextTurnLiveAction('SPDi47-01', 'SPDi47-01-E2'), 'REMOVE_ABILITIES')!;
+    eq((spdi.target as { allZones?: boolean }).allZones, true, 'SPDi47-01-E2: 領域を跨ぐ');
+    eq(spdi.target.count, 'ALL', 'SPDi47-01-E2: すべて（旧 live は count:1 の過少）');
+    eq(spdi.target.filter?.cardType, 'シグニ', 'SPDi47-01-E2: シグニ限定');
+
+    // 「この方法で公開されたシグニと同じレベルの」＝レベル条件が落ちると相手シグニ全体を奪う過剰効果。
+    const wx24 = nextTurnLiveAction('WX24-P4-013', 'WX24-P4-013-E3');
+    const ra = findActionByType(wx24, 'REMOVE_ABILITIES')!;
+    eq(ra.target.filter?.levelEqLastProcessed, true, 'WX24-P4-013-E3: 公開シグニと同じレベル限定');
+    eq((ra.target as { allZones?: boolean }).allZones, true, 'WX24-P4-013-E3: すべての領域');
+    const bounce = findActionByType(wx24, 'BOUNCE')!;
+    eq(bounce.target.filter?.levelEqLastProcessed, true, 'WX24-P4-013-E3: 後段の手札戻しも同じレベル限定');
+  });
+}
+
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
   ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
