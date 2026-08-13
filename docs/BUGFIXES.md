@@ -1,5 +1,35 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き453） — `REMOVE_ABILITIES.until` が engine から読まれない死フィールドだった（PLAN §6.4 **O-3**）
+
+**🔴 バグの正体＝「型に値がある＝動く」ではなかった**。`RemoveAbilitiesAction.until` は `EffectDuration` を宣言しているのに、書き込み側 `applyAbilitiesRemoval`（`effectExecutor.ts`）が**その値を1度も読んでいなかった**。`PERMANENT` も `UNTIL_OPP_TURN_END` も `NEXT_TURN` も、すべて `abilities_removed`（＝このターン終了時まで）へ丸められていた。live 144効果のうち **`UNTIL_END_OF_TURN` 125件だけが偶然正しく**、それ以外は全部ズレていた。
+
+**🔴 併せて見つけた既存リーク＝turn-end 4経路のうち2本でしか消していなかった**。`abilities_removed` / `keyword_abilities_removed` を空に倒していたのは **`confirmEndDiscard`（手札上限の捨て札を挟む）側の2本だけ**で、**最も普通の経路（捨て札なしでターンが終わる）では消えていなかった**＝「ターン終了時まで能力を失う」が次のターン以降も残り続けていた。⚠同じ literal で `temp_power_mods` / `keyword_grants` / `granted_effects` は消していたのに**この2フィールドだけ抜けていた**（＝1箇所ずつ手書きする形の典型的な取りこぼし）。`effectEngine.ts` の離場置換ロックは「ターン境界の `abilities_removed` リセット」を前提にコメントしており、そのロックも解除されないままだった。
+
+**⭐ 機構＝予約1フィールドで3語彙を表す**。`PlayerState.abilities_removed_next_turn` を新設し、`clearTurnEndScopedState` で **`abilities_removed` へ昇格**させる2スロット式にした（`field_grants_next_turn` と同じ考え方）。
+- `NEXT_TURN`（「次のあなたのターンの間」）＝**予約だけ**書く → 現ターンには効かず、次ターン中だけ有効
+- `UNTIL_OPP_TURN_END`（「次の対戦相手のターン終了時まで」）＝**現ターン＋予約**を書く → 残りの現ターン＋次ターンで有効
+- `UNTIL_END_OF_TURN` / `PERMANENT`＝現ターンのみ（従来と厳密に同じ）。⚠**`PERMANENT` は CONTINUOUS 宣言（「【常】：〜は能力を失う」）でしか使われない**＝そちらは `collectContinuousAbilitiesRemovedSigni` が毎回再評価するのでこの経路を通らない。
+
+**funnel 化**＝クリアと昇格を `clearTurnEndScopedState` の1箇所へ集約し、`abilities_removed` / `keyword_abilities_removed` を `turnScopedState.ts` のレジストリへ登録した。**既存の T2 トリップワイヤ（funnel 外の手書きクリアは0件）がそのまま再発防止になる**＝これが最初の取りこぼしを捕まえられなかった理由も「未登録だったから」に尽きる。
+
+**直った効果＝7件**
+- **engine 側だけで直る 5件**（JSON は元から `UNTIL_OPP_TURN_END` で正しく、消費が無かっただけ）＝`WX24-P4-002-E1`／`WX25-CP1-093-E1`／`WX26-CP1-028-E2`／`WXDi-P02-055-E1`／`WXDi-P10-005-E3`。いずれも**次の相手ターンに効かない過少実行**だった。
+- **parser 側で `NEXT_TURN` へ 2件**＝`WX05-019-BURST`／`WX18-029-BURST`（「次のあなたのターン（の間）、対戦相手の場にあるシグニは能力を失う」）。⚠この2件は**現ターンには効かせてはいけない**（LB は相手ターン中に発動する）。
+
+**📋 据置3件＝期間だけ直すと「誤った対象の効果」が長持ちする**（非採用を golden で固定）
+- `WX11-038-E2`＝「次のターンの**メインフェイズ**の間」＝フェイズ限定の受け皿が無い。全ターンへ丸めるとアタックフェイズまで能力を奪う過剰実行になる。
+- `WXEX2-04-E3`＝「シグニゾーン１つを指定する。このターンと次のターンの間、**そこにある**シグニは…」なのに target が `owner:'self'` かつ `zoneSource` 無し＝**指定ゾーン軸が落ちている**。
+- `WX25-P3-014-E2`＝同上に加えて**2ゾーン指定**で、`designated_zone` は1つしか持てない。
+
+**parser 規則の当たり幅**＝「次の…ターン**終了時まで**」（別語彙 `UNTIL_OPP_TURN_END` の担当）と「このターンと次のターンの間」（現ターンにも効く）を明示的に除外したので、fresh 再パースで `NEXT_TURN` になったのは**狙った2件だけ**（live per-effect diff も `changed=2 / added=0 / removed=0`）。
+
+**逆翻訳**＝`NEXT_TURN` / `UNTIL_OPP_TURN_END` を描く枝を追加。落とすと `PERMANENT` と**同じ文**になり、期間の違う3つの JSON を逆翻訳が区別できない（engine を直しても計器に映らない偽陰性）。
+
+**ゲート**＝golden **1937→1940**（`until` 3語彙の書き分け／ターン境界の2スロット寿命＋既存リークの回帰／live 2件の `NEXT_TURN` と据置3件の固定）、smoke 10688 全0（SKIP 0）、fuzz 全0、census **832 据置**、同型★ **0**（265群）、held **106枚 / 47群**、lint 0 errors。
+
+**⚠未検証（→§7 実機）**＝ターン境界を跨いだ能力喪失の実挙動（次ターンでの発火抑止／2ターン後の復帰）はヘッドレスの golden までで、実機シナリオは未。
+
 ## 2026-08-13（続き452） — `SEARCH` の相手応答ルーティング（PLAN §6.4 **O-2**・defer 3効果を解除）
 
 **🔑 何が無かったか**＝`BattleScreen` は pending の応答者を `SELECT_TARGET` と `CHOOSE` の2型に**直接ベタ書き**で判定しており、`SEARCH` を相手へ回す経路が存在しなかった。そのため「**対戦相手は**（自分の）デッキの上からN枚を見て／公開して、その中から…」の文型は、`owner:'opponent'` を書くと「**自分が**相手のデッキを覗いて相手の場に出す札を選ぶ」別物になるため丸ごと defer されていた（`DEFERRED_OPPONENT_DECK_REVEAL_FIELD_REFILL`／`DEFERRED_EACH_PLAYER_ZONE_RESET_AND_DECK_REFILL`／`SP38-006-E1-G2` の `UNKNOWN`）。
