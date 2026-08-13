@@ -12505,6 +12505,268 @@ scenarios.leaveSubAllTargetsAskedPerVictim = {
   },
 };
 
+// ── 続き424：強制アタック enforcement（実機はネットワーク遮断環境のため検証側へ引き渡す） ──
+const FORCED_ATTACK_WARNING = '⚠ アタックしなければなりません';
+const FORCED_ATTACK_BANNER = '⚠ あなたのシグニは可能ならばアタックしなければなりません';
+const SIGNI_SKIP_CONFIRM = 'まだ攻撃していないシグニがいます';
+
+const makeForcedAttackSpec = ({ guestLrig = 'WD07-004#2', guestSigni = [null, null, null], hostExtra = {} } = {}) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#1'],
+    'field.signi': [['WD01-013#1'], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [],
+    ...hostExtra,
+  },
+  guestSet: {
+    'field.lrig': [guestLrig],
+    'field.signi': guestSigni,
+    'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveForcedAttackBlock(page, H, sourceCheck) {
+  const initial = await H.queryState();
+  if (initial?.turnPhase !== 'ATTACK_SIGNI' || !sourceCheck(initial)) {
+    return { pass: false, detail: `注入前提不成立（phase=${initial?.turnPhase} guestLrig=${initial?.guest?.lrigTop} guestField=${JSON.stringify(initial?.guest?.fieldSigni)}）` };
+  }
+  let phaseClicked = false;
+  let sawWarning = false;
+  let last = initial;
+  for (let s = 0; s < 12; s++) {
+    await page.waitForTimeout(350);
+    const warning = page.getByText(FORCED_ATTACK_WARNING, { exact: true }).first();
+    if (await warning.count() && await warning.isVisible().catch(() => false)) {
+      sawWarning = true;
+      const blocked = await H.queryState();
+      const closed = await H.clickBtn('OK', { exact: true });
+      await page.waitForTimeout(250);
+      const stillVisible = await warning.isVisible().catch(() => false);
+      const afterClose = await H.queryState();
+      const pass = phaseClicked && blocked?.turnPhase === 'ATTACK_SIGNI'
+        && !!closed && !stillVisible && afterClose?.turnPhase === 'ATTACK_SIGNI';
+      return {
+        pass,
+        detail: `進行click=${phaseClicked}→警告観測=${sawWarning}／警告時phase=${blocked?.turnPhase}／OK=${closed ?? 'なし'}／閉じた後phase=${afterClose?.turnPhase} visible=${stillVisible}`,
+      };
+    }
+    if (!phaseClicked) {
+      const did = await H.clickBtn('ルリグアタックへ', { exact: true });
+      if (did) phaseClicked = true;
+    }
+    last = await H.queryState();
+    H.log(`  fab[${s}] phaseClick=${phaseClicked} warning=${sawWarning} phase=${last?.turnPhase}`);
+    if (phaseClicked && last?.turnPhase === 'ATTACK_LRIG') {
+      return { pass: false, detail: '【強制無視回帰】進行ボタン押下後、警告なしでATTACK_LRIGへ素通り' };
+    }
+  }
+  return { pass: false, detail: `強制警告を観測できず（click=${phaseClicked} phase=${last?.turnPhase}）` };
+}
+
+scenarios.forcedAttackBlocksPhaseAdvance = {
+  title: 'WD07-004【常】（未アタックの対象が残る間はシグニアタックフェイズから進めない）',
+  spec: makeForcedAttackSpec(),
+  drive: (page, H) => driveForcedAttackBlock(page, H, st => st?.guest?.lrigTop === 'WD07-004#2'),
+};
+
+scenarios.forcedAttackControlAdvances = {
+  title: 'WD07-004対照（非強制ルリグへ1点だけ差し替えるとATTACK_LRIGへ進める）',
+  spec: makeForcedAttackSpec({ guestLrig: 'WD01-001#2' }),
+  async drive(page, H) {
+    const initial = await H.queryState();
+    if (initial?.turnPhase !== 'ATTACK_SIGNI' || initial?.guest?.lrigTop !== 'WD01-001#2') {
+      return { pass: false, detail: `対照の注入前提不成立（phase=${initial?.turnPhase} guestLrig=${initial?.guest?.lrigTop}）` };
+    }
+    let phaseClicked = false;
+    let sawSkip = false;
+    let sawWarning = false;
+    let last = initial;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(350);
+      const warning = page.getByText(FORCED_ATTACK_WARNING, { exact: true }).first();
+      if (await warning.count() && await warning.isVisible().catch(() => false)) {
+        sawWarning = true;
+        await H.clickBtn('OK', { exact: true });
+        return { pass: false, detail: '【対照汚染】非強制ルリグ盤面で強制警告が出た（OKで閉鎖済み）' };
+      }
+      const skip = page.getByText(SIGNI_SKIP_CONFIRM, { exact: true }).first();
+      if (await skip.count() && await skip.isVisible().catch(() => false)) {
+        sawSkip = true;
+        await H.clickBtn('このまま進む', { exact: true });
+      } else if (!phaseClicked) {
+        const did = await H.clickBtn('ルリグアタックへ', { exact: true });
+        if (did) phaseClicked = true;
+      }
+      last = await H.queryState();
+      H.log(`  faca[${s}] phaseClick=${phaseClicked} skip=${sawSkip} warning=${sawWarning} phase=${last?.turnPhase}`);
+      if (last?.turnPhase === 'ATTACK_LRIG') {
+        return {
+          pass: phaseClicked && sawSkip && !sawWarning,
+          detail: `非強制対照で進行click=${phaseClicked}→通常スキップ確認=${sawSkip}→phase=${last.turnPhase}（強制警告=${sawWarning}）`,
+        };
+      }
+    }
+    return { pass: false, detail: `対照がATTACK_LRIGへ進まず（click=${phaseClicked} skip=${sawSkip} warning=${sawWarning} phase=${last?.turnPhase}）` };
+  },
+};
+
+scenarios.forcedAttackAdvancesAfterAllAttacked = {
+  title: 'WD07-004【常】（対象シグニが実際にアタックしてダウンした後は進める）',
+  spec: makeForcedAttackSpec(),
+  async drive(page, H) {
+    const initial = await H.queryState();
+    if (initial?.turnPhase !== 'ATTACK_SIGNI' || initial?.guest?.lrigTop !== 'WD07-004#2'
+        || initial?.host?.signiDown?.[0] !== false) {
+      return { pass: false, detail: `注入前提不成立（phase=${initial?.turnPhase} guestLrig=${initial?.guest?.lrigTop} down=${JSON.stringify(initial?.host?.signiDown)}）` };
+    }
+    let zoneOpened = false;
+    let attackClicked = false;
+    let attackLabel = null;
+    let sawDownAfterClick = false;
+    let phaseClicked = false;
+    let sawWarning = false;
+    let last = initial;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(350);
+      let did = null;
+      const warning = page.getByText(FORCED_ATTACK_WARNING, { exact: true }).first();
+      if (await warning.count() && await warning.isVisible().catch(() => false)) {
+        sawWarning = true;
+        await H.clickBtn('OK', { exact: true });
+        return { pass: false, detail: `【永久ブロック回帰】全対象ダウン後も強制警告（downObserved=${sawDownAfterClick}、OKで閉鎖済み）` };
+      }
+      if (!zoneOpened) {
+        did = await H.clickTestId('my-signi-zone-0');
+        if (did) zoneOpened = true;
+      } else if (!attackClicked) {
+        const attack = page.locator('[data-testid^="card-action-"][data-action-label*="アタック"]').first();
+        if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
+          attackLabel = await attack.getAttribute('data-action-label');
+          await attack.click();
+          attackClicked = true;
+          did = `action:${attackLabel}`;
+        }
+      } else {
+        last = await H.queryState();
+        if (last?.host?.signiDown?.[0] === true) sawDownAfterClick = true;
+        if (!phaseClicked && sawDownAfterClick && last?.host?.fieldCheck === null && last?.guest?.fieldCheck === null) {
+          did = await H.clickBtn('ルリグアタックへ', { exact: true });
+          if (did) phaseClicked = true;
+        }
+        if (!did) did = await H.clickTextOrBtn(['エナに送る', 'ライフバーストなし', 'ガードしない', 'OK']);
+      }
+      last = await H.queryState();
+      if (attackClicked && last?.host?.signiDown?.[0] === true) sawDownAfterClick = true;
+      H.log(`  faaa[${s}] -> ${did ?? 'なし'} | zone=${zoneOpened} attack=${attackClicked}:${attackLabel ?? '-'} downAfter=${sawDownAfterClick} phaseClick=${phaseClicked} warning=${sawWarning} phase=${last?.turnPhase}`);
+      if (phaseClicked && last?.turnPhase === 'ATTACK_LRIG') {
+        return {
+          pass: zoneOpened && attackClicked && typeof attackLabel === 'string' && attackLabel.includes('アタック')
+            && sawDownAfterClick && !sawWarning,
+          detail: `zone0を特定→data-action-label=${attackLabel}をクリック→down=true観測→進行click=${phaseClicked}→${last.turnPhase}`,
+        };
+      }
+    }
+    return { pass: false, detail: `全アタック後進行タイムアウト（zone=${zoneOpened} attack=${attackClicked}:${attackLabel ?? '-'} down=${sawDownAfterClick} phaseClick=${phaseClicked} phase=${last?.turnPhase}）` };
+  },
+};
+
+scenarios.forcedAttackBannerOnMyTurn = {
+  title: 'WD07-004【常】（自分ターンの赤バナー表示＋非強制ルリグへの差し替え対照）',
+  spec: makeForcedAttackSpec(),
+  async drive(page, H) {
+    const initial = await H.queryState();
+    const banner = page.getByText(FORCED_ATTACK_BANNER, { exact: true }).first();
+    let sawForcedBanner = false;
+    for (let s = 0; s < 8; s++) {
+      await page.waitForTimeout(300);
+      if (await banner.count() && await banner.isVisible().catch(() => false)) { sawForcedBanner = true; break; }
+    }
+    if (!sawForcedBanner || initial?.turnPhase !== 'ATTACK_SIGNI' || initial?.guest?.lrigTop !== 'WD07-004#2') {
+      return { pass: false, detail: `強制盤面の赤バナー未確認（banner=${sawForcedBanner} phase=${initial?.turnPhase} guestLrig=${initial?.guest?.lrigTop}）` };
+    }
+    const patched = await H.patchPlayerState('guest', { 'field.lrig': ['WD01-001#2'] });
+    if (patched?.error) return { pass: false, detail: `対照PATCH失敗: ${patched.error}` };
+    let controlObserved = false;
+    let bannerGone = false;
+    let last = initial;
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(350);
+      last = await H.queryState();
+      if (last?.guest?.lrigTop === 'WD01-001#2') {
+        controlObserved = true;
+        bannerGone = !(await banner.isVisible().catch(() => false));
+        if (bannerGone) break;
+      }
+    }
+    return {
+      pass: sawForcedBanner && controlObserved && bannerGone && last?.turnPhase === 'ATTACK_SIGNI',
+      detail: `WD07-004時banner=${sawForcedBanner}→guest.field.lrigだけWD01-001へPATCH観測=${controlObserved}→bannerGone=${bannerGone}／phase=${last?.turnPhase}`,
+    };
+  },
+};
+
+scenarios.forcedAttackNoSoftlockWhenUnattackable = {
+  title: 'WD07-004【常】（アタック追加コストを払えないシグニだけなら警告せず進める）',
+  spec: makeForcedAttackSpec({ hostExtra: { 'signi_attack_cost': 1, 'energy': [] } }),
+  async drive(page, H) {
+    const initial = await H.queryState();
+    if (initial?.turnPhase !== 'ATTACK_SIGNI' || initial?.guest?.lrigTop !== 'WD07-004#2'
+        || initial?.host?.energy !== 0 || initial?.host?.signiDown?.[0] !== false) {
+      return { pass: false, detail: `注入前提不成立（phase=${initial?.turnPhase} guestLrig=${initial?.guest?.lrigTop} energy=${initial?.host?.energy} down=${JSON.stringify(initial?.host?.signiDown)}）` };
+    }
+    const opened = await H.clickTestId('my-signi-zone-0');
+    await page.waitForTimeout(250);
+    const attack = page.locator('[data-testid^="card-action-"][data-action-label*="アタック"]').first();
+    const attackAbsent = !(await attack.count()) || !(await attack.isVisible().catch(() => false));
+    await H.closeModals();
+    if (!opened || !attackAbsent) {
+      return { pass: false, detail: `アタック不可のUI前提不成立（zoneOpened=${!!opened} attackAbsent=${attackAbsent}）` };
+    }
+    let phaseClicked = false;
+    let sawSkip = false;
+    let sawWarning = false;
+    let last = initial;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(350);
+      const warning = page.getByText(FORCED_ATTACK_WARNING, { exact: true }).first();
+      if (await warning.count() && await warning.isVisible().catch(() => false)) {
+        sawWarning = true;
+        await H.clickBtn('OK', { exact: true });
+        return { pass: false, detail: '【ソフトロック回帰】アタックボタンが無い対象で強制警告が出た（OKで閉鎖済み）' };
+      }
+      const skip = page.getByText(SIGNI_SKIP_CONFIRM, { exact: true }).first();
+      if (await skip.count() && await skip.isVisible().catch(() => false)) {
+        sawSkip = true;
+        await H.clickBtn('このまま進む', { exact: true });
+      } else if (!phaseClicked) {
+        const did = await H.clickBtn('ルリグアタックへ', { exact: true });
+        if (did) phaseClicked = true;
+      }
+      last = await H.queryState();
+      H.log(`  fanswu[${s}] attackAbsent=${attackAbsent} phaseClick=${phaseClicked} skip=${sawSkip} warning=${sawWarning} phase=${last?.turnPhase}`);
+      if (last?.turnPhase === 'ATTACK_LRIG') {
+        return {
+          pass: attackAbsent && phaseClicked && sawSkip && !sawWarning,
+          detail: `追加コスト1・energy0でアタックボタン無し=${attackAbsent}→進行click=${phaseClicked}→通常スキップ確認=${sawSkip}→${last.turnPhase}`,
+        };
+      }
+    }
+    return { pass: false, detail: `アタック不可時にATTACK_LRIGへ進めず（attackAbsent=${attackAbsent} click=${phaseClicked} skip=${sawSkip} warning=${sawWarning} phase=${last?.turnPhase}）` };
+  },
+};
+
+scenarios.forcedAttackFromResonaOnField = {
+  title: 'WX12-010レゾナ【常】（guest field.signi走査でも未アタック対象が残る間は進めない）',
+  spec: makeForcedAttackSpec({ guestLrig: 'WD01-001#2', guestSigni: [['WX12-010#2'], null, null] }),
+  drive: (page, H) => driveForcedAttackBlock(page, H, st =>
+    st?.guest?.lrigTop === 'WD01-001#2' && st?.guest?.fieldSigni?.[0]?.at(-1) === 'WX12-010#2'),
+};
+
+// ── /続き424 新規シナリオ境界 ─────────────────────────────────────────
+
 // ── /続き430 新規シナリオ境界 ─────────────────────────────────────────
 
 // ── /続き431 新規シナリオ境界 ─────────────────────────────────────────
@@ -12607,6 +12869,10 @@ order.push('lifeCrashReplDeclareNoSelfMill', 'lifeCrashReplDeclareNoOppCrash', '
 order.push('leaveSubCpuAutoRespondsSubstitute', 'leaveSubAskDirectedToVictim',
   'leaveSubDecisionNoneIsHonored', 'leaveSubDecisionKeyIsHonored', 'leaveSubNoOptionMeansNoAsk',
   'leaveSubAllTargetsAskedPerVictim');
+// 続き424：強制アタック enforcement。F1/F6 は警告を必ず OK で閉じ、F1/F2 は負方向＋対照の対。
+order.push('forcedAttackBlocksPhaseAdvance', 'forcedAttackControlAdvances',
+  'forcedAttackAdvancesAfterAllAttacked', 'forcedAttackBannerOnMyTurn',
+  'forcedAttackNoSoftlockWhenUnattackable', 'forcedAttackFromResonaOnField');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

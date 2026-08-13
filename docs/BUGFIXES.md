@@ -1,5 +1,24 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き424・Codex起案）— §7 強制アタック enforcement の Playwright シナリオ6本
+
+### 実行結果＝**BLOCKED**
+
+外部ネットワーク遮断のため `scripts/verifyBattleDrive.mjs`（実ログイン／live Supabase／実ブラウザ）は未実行。実行・デバッグ・PASS/FAIL 判定は検証側へ引き渡す。engine／parser／`src/`／live JSON は変更していない。
+
+`scripts/verifyBattleDrive.mjs` へ次の6本を既定 `order` 末尾に追加した。
+
+- `forcedAttackBlocksPhaseAdvance`：guest の `WD07-004`【常】により、未アタックの host シグニが残る間は警告を出して `ATTACK_SIGNI` に留まる。警告は `OK` で閉じる。
+- `forcedAttackControlAdvances`：盤面を保ち guest センタールリグだけ非強制 `WD01-001` に差し替え、通常の未アタックスキップ確認を経て `ATTACK_LRIG` へ進む対照。
+- `forcedAttackAdvancesAfterAllAttacked`：`my-signi-zone-0` を開き、`data-action-label` に「アタック」を含む `card-action-*` を名指しで押す。クリック後の `signiDown[0]===true` を観測してから進行し、永久ブロックしないことを見る。
+- `forcedAttackBannerOnMyTurn`：`WD07-004` 盤面で赤バナーを確認後、guest の `field.lrig` だけ `WD01-001` へ PATCH。DB 状態の差し替え観測後にバナーが消える対照まで同一シナリオで見る。
+- `forcedAttackNoSoftlockWhenUnattackable`：host に `signi_attack_cost:1`、energy 0枚を注入。`signiAttackGate` のエナ不足分岐でアタックボタンが無いことを先に確認し、強制警告なしで通常スキップ確認を経て `ATTACK_LRIG` へ進むことを見る。凍結はアタック拒否条件ではないため採用していない。
+- `forcedAttackFromResonaOnField`：guest の非強制ルリグ＋`field.signi[0]` の `WX12-010` レゾナで、`resolveForcedSigniAttack` の field.signi 走査から同じブロックが掛かることを見る。
+
+全specの host／guest に `'field.check': null` を明示。負方向 F1 は対照 F2 と対にし、全クリック後は結果状態を別途観測してから判定する。F1／F6、および想定外に警告が出た失敗経路は必ず `OK` で閉じる。
+
+**ゲート**：`npm run gates` 全緑（golden **1964 PASS / 0 FAIL**、smoke **10688 / SKIP 0**、census **831**、lint **0 errors / 259 warnings**）。`npm run golden` 単独も **1964 PASS / 0 FAIL**。live JSON per-effect diff **changed 0**。
+
 ## 2026-08-13（続き466・Codex起案→Claude実機検証）— §7 離場置換の対話化＝**実バグ2件を検出**（→PLAN §3 **(cxxv)**／**(cxxvi)**）
 
 ### 実機結果＝**2 PASS / 4 FAIL**。FAIL 4本は**実バグの検出**であり、シナリオの不備ではない
