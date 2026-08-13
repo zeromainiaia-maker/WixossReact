@@ -70,6 +70,7 @@ export interface CardAction {
 export function CardModal({ card, onClose, actions }: { card: CardData; onClose: () => void; actions?: CardAction[] }) {
   return createPortal(
     <div
+      data-testid="card-detail-modal"
       onClick={onClose}
       onTouchEnd={e => { e.preventDefault(); onClose(); }}
       style={{

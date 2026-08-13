@@ -10815,6 +10815,254 @@ function startDev() {
   });
 }
 
+// 続き459 S1：PR-427 の「アーツとスペルを使用できない」が、死んだ合成 actionId ではなく
+// 2本の NEXT_TURN 予約として target.owner:'opponent'（CPUから見たhost）へ積まれることを固定する。
+// UIログは「使用禁止」を1行出すだけで2種類を区別できないため、host.blockedActions の完全一致だけを ground truth にする。
+scenarios.prArtsSpellSplitIds = {
+  title: 'PR-427（USE_ARTS/USE_SPELLの分割NEXT_TURN予約・合成actionId退行ガード）',
+  spec: {
+    hostSet: {
+      'field.signi': [null, null, null],
+      'hand': [],
+      'blocked_actions': [], // 前シナリオの残留で「両方ある」ように見える偽陽性を封じる
+      // ⚠`field.check` は injectScenario の CORE_FIELD_KEYS に含まれる＝**注入でリセットされない唯一の
+      //   ステータス系フィールド**。前シナリオのライフクラッシュが未確認のまま残ると
+      //   「ライフクロスクラッシュ（エナに送る）」モーダルが全画面を覆い、以後のクリックが一切通らない
+      //   （続き460 の実測＝wxex166SpellLockPeriod が24反復とも「アタック」ボタンを見つけられず FAIL）。
+      'field.check': null,
+    },
+    guestSet: {
+      'field.signi': [['PR-427#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'hand': [],
+      'blocked_actions': [],
+      'field.check': null,
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let last = await H.queryState();
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(900);
+      const st = await H.queryState();
+      last = st;
+      const blocked = st?.host?.blockedActions ?? [];
+      const artsReserved = blocked.includes('USE_ARTS:NEXT_TURN');
+      const spellReserved = blocked.includes('USE_SPELL:NEXT_TURN');
+      const deadComposite = blocked.filter(id => id.includes('ARTS_AND_SPELL'));
+      H.log(`  passplit[${s}] active=${st?.activeUser ?? '-'} phase=${st?.turnPhase ?? '-'} host.blocked=${JSON.stringify(blocked)} artsReserved=${artsReserved} spellReserved=${spellReserved} deadComposite=${JSON.stringify(deadComposite)}`);
+
+      if (deadComposite.length > 0) {
+        return { pass: false, detail: `【死actionId退行】host.blockedActions に ARTS_AND_SPELL 系が復活: ${JSON.stringify(blocked)}` };
+      }
+      // SEQUENCE は対話なしで1回の解決に閉じるため、片方だけ永続化された状態は中間状態ではなく配線漏れ。
+      if (artsReserved !== spellReserved) {
+        return { pass: false, detail: `【片側だけ】NEXT_TURN予約が不揃い（USE_ARTS=${artsReserved} / USE_SPELL=${spellReserved}）: ${JSON.stringify(blocked)}` };
+      }
+      if (artsReserved && spellReserved) {
+        return { pass: true, detail: `CPUのPR-427アタック後、host.blockedActions に USE_ARTS:NEXT_TURN / USE_SPELL:NEXT_TURN の両方を確認し、ARTS_AND_SPELL系は0件` };
+      }
+    }
+    return {
+      pass: false,
+      detail: `PR-427の分割予約を確認できず（最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} host.blockedActions=${JSON.stringify(last?.host?.blockedActions ?? [])}）`,
+    };
+  },
+};
+
+// 続き459 S2：WXEX1-66 の NEXT_TURN は「付与ターン中の予約」→「次ターン開始時のbare昇格」→
+// 「そのターン終了時の失効」という2スロット寿命。可視ログでは昇格/失効を判別できないため、3段とも
+// guest.blockedActions を完全一致で観測する（USE_SPELL:NEXT_TURN を USE_SPELL の部分一致で数えない）。
+scenarios.wxex166SpellLockPeriod = {
+  title: 'WXEX1-66（スペル封じの予約→昇格→次ターン終了時失効）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [['WXEX1-66#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'hand': [],
+      'blocked_actions': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'hand': [],
+      'blocked_actions': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let modalOpened = false;
+    let reservationState = null;
+    let last = await H.queryState();
+
+    // wxk10068banish と同じく、アタックボタン完全一致＋フェイズ巻き戻り時の再アサートで発火まで運ぶ。
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(900);
+      let did = null;
+      const phaseChk = await H.queryState();
+      if (phaseChk?.turnPhase && phaseChk.turnPhase !== 'ATTACK_SIGNI' && !phaseChk?.pendingEffect && !(phaseChk?.stackLen > 0)) {
+        await H.closeModals();
+        await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+        await page.waitForTimeout(600);
+        modalOpened = false;
+        did = `repatch:ATTACK_SIGNI(was ${phaseChk.turnPhase})`;
+      }
+      if (!did) did = await H.clickBtn('アタック', { exact: true });
+      if (!did && !modalOpened) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) { did = opened; modalOpened = true; }
+      }
+      const st = await H.queryState();
+      last = st;
+      const blocked = st?.guest?.blockedActions ?? [];
+      const reserved = blocked.includes('USE_SPELL:NEXT_TURN');
+      const bare = blocked.includes('USE_SPELL');
+      H.log(`  wxex166.attack[${s}] -> ${did ?? 'なし'} | active=${st?.activeUser ?? '-'} phase=${st?.turnPhase ?? '-'} guest.blocked=${JSON.stringify(blocked)} reserved=${reserved} bare=${bare}`);
+      if (bare && !reserved) {
+        return { pass: false, detail: `段階①FAIL：アタック直後なのに予約ではなくbare USE_SPELL（activeUser=${st?.activeUser ?? '-'} turnPhase=${st?.turnPhase ?? '-'} blocked=${JSON.stringify(blocked)}）` };
+      }
+      if (reserved && !bare) {
+        reservationState = st;
+        H.log(`  段階①PASS 予約確認: active=${st.activeUser} phase=${st.turnPhase} guest.blocked=${JSON.stringify(blocked)}`);
+        break;
+      }
+      if (reserved && bare) {
+        return { pass: false, detail: `段階①FAIL：予約とbareが同時存在（blocked=${JSON.stringify(blocked)}）` };
+      }
+    }
+    if (!reservationState) {
+      return { pass: false, detail: `段階①FAIL：USE_SPELL:NEXT_TURN予約を確認できず（最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} blocked=${JSON.stringify(last?.guest?.blockedActions ?? [])}）` };
+    }
+
+    let turnEndClicked = false;
+    let sawCpuTurn = false;
+    let activated = false;
+    // ターン境界は環境依存で最も遅い。40×900msを使い、毎回 activeUser/turnPhase/blockedActions を残す。
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(900);
+      let did = null;
+      const before = await H.queryState();
+
+      // hostターン中だけ正規のフェイズ進行ボタンでENDまで運び、実際の「ターン終了」を押す。
+      // モーダル（ライフ処理・スキップ確認）が前面にあれば先に拒否/確定方向で解消する。
+      if (!turnEndClicked && before?.activeUser === before?.viewerUserId) {
+        did = await H.clickBtn('ガードしない');
+        if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+        if (!did) did = await H.clickBtn('このまま進む', { exact: true });
+        if (!did && before?.turnPhase === 'ATTACK_SIGNI') did = await H.clickBtn('ルリグアタックへ', { exact: true });
+        if (!did && before?.turnPhase === 'ATTACK_LRIG') did = await H.clickBtn('エンドフェイズへ', { exact: true });
+        if (!did && before?.turnPhase === 'END') {
+          did = await H.clickBtn('ターン終了', { exact: true });
+          if (did) turnEndClicked = true;
+        }
+      } else {
+        // CPUターンのルリグアタック等でhost応答が出ても、待ちを止めない。
+        did = await H.clickBtn('ガードしない');
+        if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+      }
+
+      const st = await H.queryState();
+      last = st;
+      const blocked = st?.guest?.blockedActions ?? [];
+      const reserved = blocked.includes('USE_SPELL:NEXT_TURN');
+      const bare = blocked.includes('USE_SPELL');
+      H.log(`  wxex166.turn[${s}] -> ${did ?? 'なし'} | turnEndClicked=${turnEndClicked} active=${st?.activeUser ?? '-'} viewer=${st?.viewerUserId ?? '-'} phase=${st?.turnPhase ?? '-'} guest.blocked=${JSON.stringify(blocked)} reserved=${reserved} bare=${bare}`);
+
+      if (turnEndClicked && st?.activeUser && st.activeUser !== st.viewerUserId) {
+        sawCpuTurn = true;
+        if (bare && reserved) {
+          return { pass: false, detail: `段階②FAIL：CPUターン開始後も予約とbareが同時存在（activeUser=${st.activeUser} turnPhase=${st.turnPhase} blocked=${JSON.stringify(blocked)}）` };
+        }
+        if (bare && !reserved && !activated) {
+          activated = true;
+          H.log(`  段階②PASS bare昇格確認: active=${st.activeUser} phase=${st.turnPhase} guest.blocked=${JSON.stringify(blocked)}`);
+        }
+      }
+
+      if (turnEndClicked && sawCpuTurn && st?.activeUser === st?.viewerUserId) {
+        if (!activated) {
+          return { pass: false, detail: `段階②FAIL：CPUターンは進んだがbare USE_SPELL昇格を一度も観測できず（activeUser=${st.activeUser} turnPhase=${st.turnPhase} blocked=${JSON.stringify(blocked)}）` };
+        }
+        const spellLocks = blocked.filter(id => id === 'USE_SPELL' || id === 'USE_SPELL:NEXT_TURN');
+        if (spellLocks.length > 0) {
+          return { pass: false, detail: `段階③FAIL【恒久ロックへの退化兆候】：CPUターン終了後もUSE_SPELL系が残存（activeUser=${st.activeUser} turnPhase=${st.turnPhase} blocked=${JSON.stringify(blocked)}）` };
+        }
+        H.log(`  段階③PASS 失効確認: active=${st.activeUser} phase=${st.turnPhase} guest.blocked=${JSON.stringify(blocked)}`);
+        return { pass: true, detail: 'guest.blockedActionsで①USE_SPELL:NEXT_TURN予約→②CPUターン中bare USE_SPELL昇格→③CPUターン終了後消滅、の3段を完全一致で確認' };
+      }
+    }
+    return {
+      pass: false,
+      detail: `ターン遷移タイムアウト（turnEndClicked=${turnEndClicked} sawCpuTurn=${sawCpuTurn} activated=${activated} 最後 activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} guest.blockedActions=${JSON.stringify(last?.guest?.blockedActions ?? [])}）`,
+    };
+  },
+};
+
+// 続き459 S3：S2の予約/昇格機構とは分離し、bare actionId を直接注入したときのUIゲートだけを見る。
+// 負方向テストなので card-detail-modal が実際に開いたことを先に確認し、「モーダル未表示」を「使用ボタンなし」と誤認しない。
+// 通常スペルの実ラベルは「発動」、アーツ詳細の実ラベルは「使用」。entry guardだけで止まる状態もUI PASSにはしない。
+scenarios.spellArtsBlockedUiHidesUseButtons = {
+  title: 'bare USE_SPELL/USE_ARTS（手札スペルとルリグデッキアーツの使用アクション非表示）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#1'],
+      'field.signi': [null, null, null],
+      'hand': ['WX02-060#1'],                    // deckshufflespell で実使用済みの SEARCHER
+      'lrig_deck': ['WX09-005#1'],               // artsUseGreenFilter で実使用済みの 森羅万象
+      'energy': ['WD04-009#1'],                  // 緑×1：封じ以外の使用条件を満たす
+      'blocked_actions': ['USE_ARTS', 'USE_SPELL'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [null, null, null],
+      'blocked_actions': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.closeModals();
+    await H.ensureMain();
+    const before = await H.queryState();
+    const blocked = before?.host?.blockedActions ?? [];
+    if (!blocked.includes('USE_ARTS') || !blocked.includes('USE_SPELL')) {
+      return { pass: false, detail: `UI検査の注入前提が不成立（host.blockedActions=${JSON.stringify(blocked)}）` };
+    }
+
+    const spellClick = await H.clickTestId('my-hand-card-0');
+    await page.waitForTimeout(500);
+    const spellModal = page.getByTestId('card-detail-modal').first();
+    if (!spellClick || !(await spellModal.count()) || !(await spellModal.isVisible().catch(() => false))) {
+      return { pass: false, detail: `スペルCardModalが開かなかった（click=${spellClick ?? 'なし'}）＝ボタン非表示とは判定しない` };
+    }
+    const spellLabels = await spellModal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    const spellUseLabels = spellLabels.filter(label => label === '発動' || label === '使用');
+    H.log(`  UI spell: blocked=${JSON.stringify(blocked)} actions=${JSON.stringify(spellLabels)} forbidden=${JSON.stringify(spellUseLabels)}`);
+    if (spellUseLabels.length > 0) {
+      return { pass: false, detail: `USE_SPELLがbareで有効なのに手札スペルの使用アクションが表示された（data-action-label=${JSON.stringify(spellUseLabels)} / 全action=${JSON.stringify(spellLabels)}）` };
+    }
+
+    await H.closeModals();
+    const dkClick = await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(400);
+    const artsCardClick = await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(500);
+    const artsModal = page.getByTestId('card-detail-modal').first();
+    if (!dkClick || !artsCardClick || !(await artsModal.count()) || !(await artsModal.isVisible().catch(() => false))) {
+      return { pass: false, detail: `アーツCardModalが開かなかった（lrigDK=${dkClick ?? 'なし'} zoneCard=${artsCardClick ?? 'なし'}）＝ボタン非表示とは判定しない` };
+    }
+    const artsLabels = await artsModal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    const artsUseLabels = artsLabels.filter(label => label === '使用' || label === 'アーツ使用');
+    H.log(`  UI arts: blocked=${JSON.stringify(blocked)} actions=${JSON.stringify(artsLabels)} forbidden=${JSON.stringify(artsUseLabels)}`);
+    if (artsUseLabels.length > 0) {
+      return { pass: false, detail: `USE_ARTSがbareで有効なのにアーツ使用アクションが表示された（data-action-label=${JSON.stringify(artsUseLabels)} / 全action=${JSON.stringify(artsLabels)}）` };
+    }
+    return { pass: true, detail: `bare USE_SPELL/USE_ARTS注入下で、手札スペル（発動/使用）とルリグデッキアーツ（使用/アーツ使用）のcard-actionがともに非表示` };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
