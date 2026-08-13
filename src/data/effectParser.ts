@@ -3893,6 +3893,45 @@ function hasFieldOnlyRearrangeAnchor(a: EffectAction): boolean {
   if (a.type === 'CHOOSE') return (a as ChooseAction).choices.some(c => !!c.action && hasFieldOnlyRearrangeAnchor(c.action));
   return false;
 }
+/**
+ * `STUB{DESIGNATE_SIGNI_ZONE}` の **owner を、同じ木の中でその指定を読むアクションから揃える**（§6.4 O-16）。
+ *
+ * ⚠指定の**保存先**（`designated_zone` を書く PlayerState）と**読み手**（`target.owner` 側の PlayerState）が
+ *   食い違うと、CHOOSE は出るのに結果がどこからも見えない＝**無言の空振り**になる。
+ *   保存先は engine 側の既定が 'opponent' なので、読み手が `owner:'self'` のときだけ 'self' を明記する。
+ * ⚠判定は**木の形**（同じ SEQUENCE / CHOOSE 枝に `zoneSource:'designated'` の消費者がいるか）だけで、
+ *   カード固有の原文 regex は使わない。
+ */
+function alignDesignatedZoneOwner(action: EffectAction): EffectAction {
+  const consumerOwner = (node: EffectAction): 'self' | 'opponent' | null => {
+    const tgt = (node as { target?: { zoneSource?: string; owner?: string } }).target;
+    if (tgt?.zoneSource === 'designated' && (tgt.owner === 'self' || tgt.owner === 'opponent')) return tgt.owner;
+    return null;
+  };
+  const walk = (node: EffectAction): EffectAction => {
+    if (node.type === 'SEQUENCE') {
+      const seq = node as SequenceAction;
+      const steps = seq.steps.map(walk);
+      const owner = steps.map(consumerOwner).find((o): o is 'self' | 'opponent' => o !== null);
+      if (!owner) return { ...seq, steps };
+      return { ...seq, steps: steps.map(s =>
+        s.type === 'STUB' && (s as StubAction).id === 'DESIGNATE_SIGNI_ZONE'
+          ? ({ ...(s as StubAction), owner } as StubAction as EffectAction)
+          : s) };
+    }
+    if (node.type === 'CHOOSE') {
+      const ch = node as ChooseAction;
+      return { ...ch, choices: ch.choices.map(c => (c.action ? { ...c, action: walk(c.action) } : c)) };
+    }
+    if (node.type === 'CONDITIONAL') {
+      const co = node as ConditionalAction;
+      return { ...co, then: walk(co.then), ...(co.else ? { else: walk(co.else) } : {}) };
+    }
+    return node;
+  };
+  return walk(action);
+}
+
 function foldSuppressOnPlay(action: EffectAction): EffectAction {
   if (action.type === 'GRANT_EFFECT') {
     const ge = action as import('../types/effects').GrantEffectAction;
