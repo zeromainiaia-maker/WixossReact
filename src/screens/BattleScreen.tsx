@@ -4092,7 +4092,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // clearTurnEndScopedState に集約した（§6.4 O-3）。ここで個別に空へ倒すと予約を握り潰す。
         blocked_card_names: [], actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
-        keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
         prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined, damage_replace_mill: undefined, life_crash_replacements: undefined, life_burst_double_next: undefined,
@@ -10570,7 +10569,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, actions_done: [],
         signi_zone_blocks: undefined, // ゾーン配置禁止をクリア。トラッシュ移動ロックは funnel（予約は別フィールド）
-        keys_abilities_disabled: undefined, // CONDITIONAL_GROW_AND_KEY_DISABLE「このターン」キー能力喪失をクリア
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined, prevent_next_damage: undefined, prevent_next_damage_reservations: undefined, turn_end_mill_count: undefined,
         damage_replace_mill: undefined, // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
         life_crash_replacements: undefined,

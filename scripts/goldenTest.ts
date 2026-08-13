@@ -4171,7 +4171,7 @@ test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse 
 
 // §6.4 ターン限定 PlayerState funnel（続き446の副次発見）。
 // フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外10件という集合性を固定する。
-test('§6.4 turn-scoped T1: PlayerState のターン限定34フィールドと funnel レジストリが一致', () => {
+test('§6.4 turn-scoped T1: PlayerState のターン限定35フィールドと funnel レジストリが一致', () => {
   const typeSource = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
   const declared = [...typeSource.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map(m => m[1]);
   const convention = declared.filter(k => k.endsWith('_this_turn') || k.endsWith('_this_attack_phase'));
@@ -4181,8 +4181,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定34フィールドと f
   eq(convention.length, 24, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
-  eq(irregular.length, 10, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 34, '型由来24件＋命名規約外10件の母集団');
+  eq(irregular.length, 11, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 35, '型由来24件＋命名規約外11件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {

@@ -1778,6 +1778,15 @@ export interface RemoveAbilitiesAction {
   keywords?: string[];
   type: 'REMOVE_ABILITIES';
   target: EffectTarget;
+  /**
+   * 「対戦相手の場にある**キーと**シグニは能力を失い、新たに得られない」（§6.4 O-16(b)）＝シグニに加えて
+   * そのプレイヤーの**すべてのキー**も対象。キーは `field.signi` に居ないので per-card の
+   * `abilities_removed` では表せず、専用フラグ `keys_abilities_disabled` へ倒す
+   * （読みは engine の `activeKeyAbilitySources` funnel に一本化）。
+   * ⚠フラグはターン限定（`turnScopedState` の turn-end 登録）＝**`until` は「このターン」しか表せない**。
+   *   永続／次ターン限定のキー能力喪失が出たら、フラグを2スロット式へ広げること。
+   */
+  alsoKeys?: boolean;
   until: EffectDuration;
   targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
