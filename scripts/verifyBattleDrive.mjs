@@ -11217,7 +11217,7 @@ const HAND_DISCARD_ARTS_SPEC = {
 
 async function runHandDiscardArtsRound(page, H, choiceLabel) {
   const before = await H.queryState();
-  let deckOpened = false; let artsOpened = false; const energyPicked = new Set(); let artsUsed = false;
+  let deckOpened = false; let artsOpened = false; let useClicked = false; const energyPicked = new Set(); let artsUsed = false;
   let choosePrompted = false; let choiceClicked = false; let choiceConfirmed = false;
   let costPrompted = false; let payClicked = false; let costPicked = false; let costConfirmed = false;
   let targetPicked = false; let targetConfirmed = false; let last = before;
