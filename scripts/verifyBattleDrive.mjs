@@ -11211,6 +11211,14 @@ order.push(
 order.push('assistAttackBoth', 'fezoneDoubleCostPay', 'sYokusenkiSpellPay');
 // 続き435＝collectAnyZoneTrashSelfTriggersのresume取りこぼし（続き60）は解消済みと確認したので復帰。
 order.push('handDiscard');
+// 続き460（PLAN §7・Codex起案→Claude実機検証）＝続き459 の「使用禁止の期間と合成 actionId」を実UIで固定。
+//   prArtsSpellSplitIds … PR-427 の合成 actionId 退行ガード（`ARTS_AND_SPELL` が復活したら即FAIL）。
+//   wxex166SpellLockPeriod … 予約(`USE_SPELL:NEXT_TURN`)→CPUターン開始で bare 昇格→そのターン終了で失効の3段。
+//                            **③が本題**＝残っていたら `until:'PERMANENT'`（恒久ロック）への退化。
+//   spellArtsBlockedUiHidesUseButtons ＋ spellArtsUnblockedUiShowsUseButtons … 負方向と**対照**の対。
+//     ⚠対照が要るのはアーツの「使用」が `costOk`/`condOk` でも消えるため＝非表示だけでは封じの証明にならない。
+//     この対が続き460 の実バグ（手札スペルの「発動」だけ封じゲートが無く無言 no-op）を検出して固定した。
+order.push('prArtsSpellSplitIds', 'wxex166SpellLockPeriod', 'spellArtsBlockedUiHidesUseButtons', 'spellArtsUnblockedUiShowsUseButtons');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
