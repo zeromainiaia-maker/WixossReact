@@ -962,14 +962,14 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       }
       // バニッシュ経路＝`ReplaceBanish` は対象外／代わりに F-3 身代わり（BANISH_SUBSTITUTE）が乗る
       const sub = applyEffectLeaveSubstitutes(num, own, cur, { isBanish: true });
-      if (sub.replaced) {
-        cur = sub.ctx;
-        continue;
-      }
-      const removed = removeFromField(num, s);
+      cur = sub.ctx;              // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+      if (sub.replaced) continue;
+      if (!isOnFieldTop(num, own, cur)) continue;  // (cxxvi)＝もう場に居ないものは二度と動かさない
+      const s2 = ownerState(own, cur);             // ⚠`cur` を更新したので取り直す
+      const removed = removeFromField(num, s2);
       // バニッシュ先リダイレクト（トラッシュ/手札/デッキ下＋効果経路の【常】置換走査）を適用
       const opp = ownerState(own === 'self' ? 'opponent' : 'self', cur);
-      const { state: dest, log } = banishDestination(removed, opp, num, banishRedirectOpts(cur, s, num));
+      const { state: dest, log } = banishDestination(removed, opp, num, banishRedirectOpts(cur, s2, num));
       cur = addLog(setOwnerState(own, dest, cur),
         `${cur.cardMap.get(num)?.CardName ?? num}${log}`);
     }
