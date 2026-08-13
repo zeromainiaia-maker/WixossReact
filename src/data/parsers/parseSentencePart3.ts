@@ -1534,8 +1534,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- このターンと次のターンの間〜（二ターン効果）----
+  // ⚠これは**未パース節の受け皿**であって特定の機構ではない（§6.4 O-3 続き459）。
+  //   従来 `LRIG_GROW_RESTRICT` へ落としていたが、その id は「このルリグは〜のルリグにしかグロウできない」
+  //   専用のはずで、**まったく無関係な文が同じ名前で溜まる**ため `census:stubs` が「D 健全」と誤分類し、
+  //   真 no-op が計器から消えていた。id を分けて A群（明示 defer）に出す。
   if (t.match(/このターンと次のターンの間/)) {
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE' } as StubAction;
   }
 
   // ---- このゲームの間、あなたのセンタールリグは〜を得る ----
@@ -1932,8 +1936,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 次の対戦相手のターン〜（一時的制限）----
+  // ⚠未パース節の受け皿（上と同じ理由で id を分けた・§6.4 O-3 続き459）。
   if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/)) {
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE' } as StubAction;
   }
 
   // ---- このターン、対戦相手が場に出せない（配置制限）----
@@ -1942,8 +1947,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- このターン、対戦相手が〜（アタック制限・コスト条件）----
+  // ⚠未パース節の受け皿（上と同じ理由で id を分けた・§6.4 O-3 続き459）。
   if (t.match(/^このターン、対戦相手(?:が|は)/)) {
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE' } as StubAction;
   }
 
   // ---- 対戦相手のアタックしているシグニのアタックを一度無効にする ----

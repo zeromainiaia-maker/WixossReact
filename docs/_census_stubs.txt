@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 593（総ノード 2882 件）
-逆翻訳シートの [STUB:…] 総数: 812  うち生ID露出 277 箇所（188 種）
+live JSON の STUB id 種類 : 603（総ノード 2881 件）
+逆翻訳シートの [STUB:…] 総数: 785  うち生ID露出 277 箇所（188 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 14 種 / 16 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 14 種 / 16 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 24 種 / 42 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 24 種 / 42 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 177 種 / 264 箇所
@@ -20,11 +20,32 @@ live JSON の STUB id 種類 : 593（総ノード 2882 件）
 -- 無言の no-op（要対応）--
 
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
+     7件   7枚  DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE
+        カード: SP38-003, WX10-024, WXEX2-09, WX24-P2-014, WX24-P4-039, WX25-P2-010 …他1枚
+        生成: src\data\parsers\parseSentencePart3.ts:1952
+     5件   5枚  DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE
+        カード: WDK17-008, PR-K046, WXEX2-19, WX25-CP1-016, WX26-CP1-066
+        生成: src\data\parsers\parseSentencePart3.ts:1941
+     4件   4枚  DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE
+        カード: WX25-P3-001, WX25-P3-009, WXK10-004, WXK10-019
+        生成: src\data\parsers\parseSentencePart3.ts:1542
      3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
         カード: WX25-P3-055, WXK01-002, WXK03-071
         生成: src\data\manualEffects.ts:4648 / src\data\manualEffects.ts:4651
+     2件   2枚  DEFERRED_EXTRA_ATTACK_PHASE
+        カード: WX22-010, WXK06-026
+        生成: src\data\parsers\parseSentencePart4.ts:150
+     2件   2枚  DEFERRED_NEXT_OPP_ATTACK_PHASE_START
+        カード: SPDi43-24, WX24-P3-014
+        生成: src\data\parsers\parseSentencePart4.ts:555
+     2件   2枚  DEFERRED_SELF_RESTRICT_THIS_TURN
+        カード: SPK01-10, WXDi-P07-050
+        生成: src\data\parsers\parseSentencePart4.ts:642
      1件   1枚  DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF
         カード: WX24-P4-016
+     1件   1枚  DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH
+        カード: WDK06-R09
+        生成: src\data\parsers\parseSentencePart4.ts:1308
      1件   1枚  DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS  [生ID露出 1]
         カード: WX09-Re01
         生成: src\data\manualEffects.ts:4634
@@ -50,12 +71,21 @@ live JSON の STUB id 種類 : 593（総ノード 2882 件）
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
+     1件   1枚  DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT
+        カード: WDK07-Y07
+        生成: src\data\parsers\parseSentencePart4.ts:1317
+     1件   1枚  DEFERRED_SKIP_NEXT_TURN
+        カード: WD20-006
+        生成: src\data\parsers\parseSentencePart4.ts:1261
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
         生成: src\data\manualEffects.ts:4645
      1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
+     1件   1枚  DEFERRED_UNTIL_NEXT_MAIN_PHASE_CLAUSE
+        カード: WXK01-002
+        生成: src\data\parsers\parseSentencePart4.ts:276
      1件   1枚  DEFERRED_UP_REARRANGED_MOVED_SIGNI
         カード: WX12-010
         生成: src\data\manualEffects.ts:1201

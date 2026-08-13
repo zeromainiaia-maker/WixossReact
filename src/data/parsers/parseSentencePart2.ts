@@ -37,6 +37,7 @@ import type {
   EffectDuration,
 } from '../../types/effects';
 import {
+  blockUntilFromText,
   parseNum, parseSigniTarget, parseStoryFilter, parseEnergyCosts,
   parsePowerFilter, parseLevelFilter, parseStateFilter, parseColorFilter,
   parseCardTypeFilter, parseGuardFilter, parseIconFilter, signiClauseIconFilter,
@@ -399,11 +400,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN' };
   }
 
-  // ---- アーツとスペル使用禁止 ----
-  if (t.match(/アーツとスペルを使用できない/)) {
+  // ---- アーツとスペル使用禁止（§6.4 O-3 続き459）----
+  // 🔴従来は `actionId:'ARTS_AND_SPELL'` という**合成 ID 1本**を積んでいたが、封じ判定
+  //   （`BattleScreen` の `isActionBlocked`）は **actionId の完全一致**なので、`USE_ARTS` / `USE_SPELL`
+  //   のどちらのチェックにも当たらない＝**誰も読まない死 actionId**（live 5効果が真 no-op）。
+  //   `USE_ARTS` と `USE_SPELL` の**2本に割る**＝どちらも live に消費地点がある。
+  // ⚠語順は両方ある（「アーツとスペル」／「スペルとアーツ」）。
+  if (t.match(/(?:アーツとスペル|スペルとアーツ)を使用できない/)) {
     const owner: Owner = (t.includes('あなたはアーツ') || (t.includes('あなたは') && !t.includes('対戦相手'))) ? 'self' : 'opponent';
-    const until: BlockActionAction['until'] = t.includes('次のあなたのターン') ? 'NEXT_TURN' : t.includes('次の対戦相手のターン') ? 'NEXT_TURN' : 'END_OF_TURN';
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner, count: 1 }, actionId: 'ARTS_AND_SPELL', until };
+    const until = blockUntilFromText(t);
+    const tgt = { type: 'PLAYER' as const, owner, count: 1 };
+    return { type: 'SEQUENCE', steps: [
+      { type: 'BLOCK_ACTION', target: tgt, actionId: 'USE_ARTS', until },
+      { type: 'BLOCK_ACTION', target: tgt, actionId: 'USE_SPELL', until },
+    ] };
   }
 
   // ---- センタールリグのリミット増減 ----

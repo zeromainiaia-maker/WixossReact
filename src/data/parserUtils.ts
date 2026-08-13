@@ -904,3 +904,17 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
     dest,
   };
 }
+
+/**
+ * 「〜を使用できない」系の封じ期間を原文から決める唯一の判定（§6.4 O-3 続き459）。
+ *
+ * ⚠**「次のあなたのターン**まで**」を落とすと `PERMANENT` へ倒れて恒久ロックになる**＝
+ *   `WXEX1-66-E1`「次のあなたのターンまで、対戦相手はスペルを使用できない」が実際にそれで、
+ *   一度アタックすると**そのゲーム中ずっと相手がスペルを使えない**状態になっていた。
+ * ⚠期間語が1つも無い文だけが `PERMANENT`＝【常】宣言（「【常】：対戦相手はスペルを使用できない」）。
+ */
+export function blockUntilFromText(t: string): 'END_OF_TURN' | 'NEXT_TURN' | 'PERMANENT' {
+  if (/次の(?:あなたの|自分の|対戦相手の)?ターン/.test(t)) return 'NEXT_TURN';
+  if (t.includes('このターン')) return 'END_OF_TURN';
+  return 'PERMANENT';
+}

@@ -55,6 +55,7 @@ import type {
   InstallDelayedTriggerAction,
 } from '../../types/effects';
 import {
+  blockUntilFromText,
   parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
 } from '../parserUtils';
 
@@ -2927,19 +2928,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- アーツ使用禁止 ----
+  // ⚠期間判定は `blockUntilFromText` に一本化した（§6.4 O-3 続き459）＝ここの旧実装は
+  //   `次のターン` しか見ておらず、**「次の**あなたの**ターンまで」が `PERMANENT` へ倒れて恒久ロック**
+  //   になっていた（`WXEX1-66-E1`＝一度アタックするとそのゲーム中ずっと相手がスペルを使えない）。
   if (t.match(/対戦相手はアーツを使用できない/)) {
-    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN'
-      : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_ARTS', until };
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_ARTS', until: blockUntilFromText(t) };
   }
 
   // ---- スペル使用禁止（対戦相手 or 自分）----
   if (t.match(/対戦相手はスペルを使用できない/)) {
     // ⚠「このターン、」の判定が抜けており **恒久のスペルロック**（PERMANENT）に化けていた（WXK10-002②）。
-    //   すぐ上の USE_ARTS 側と同じ3分岐に揃える。
-    const until: BlockActionAction['until'] = t.includes('次のターン') ? 'NEXT_TURN'
-      : t.includes('このターン') ? 'END_OF_TURN' : 'PERMANENT';
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_SPELL', until };
+    //   すぐ上の USE_ARTS 側と同じ判定関数に揃える。
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'USE_SPELL', until: blockUntilFromText(t) };
   }
   if (t.match(/このターン、あなたはスペルを使用できない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'USE_SPELL', until: 'END_OF_TURN' };

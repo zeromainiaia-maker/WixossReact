@@ -145,8 +145,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
   // ---- 追加のアタックフェイズを加える ----
+  // ⚠追加アタックフェイズの機構が無い（§6.4 O-3 続き459）。旧 id `LRIG_GROW_RESTRICT` は無関係。
   if (t.match(/追加のアタックフェイズを加える/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_EXTRA_ATTACK_PHASE' } as StubAction;
 
   // ---- この方法でN枚以上公開/トラッシュした場合 ----
   if (t.match(/この方法でカードが[１-９\d０-９]+枚以上公開された場合/) ||
@@ -269,9 +270,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
   // ---- 次のメインフェイズまでリミットが変わり〜 ----
+  // ⚠「次のあなたのメインフェイズまで」＝フェイズ境界の受け皿が無い（§6.4 O-3 の据置理由と同型）。
   if (t.match(/次のあなたのメインフェイズまで.*リミットは/) ||
       t.match(/次のあなたのメインフェイズまで.*ダメージを受けない/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_UNTIL_NEXT_MAIN_PHASE_CLAUSE' } as StubAction;
 
   // ---- 手札がN枚以下の場合にしか使用できない ----
   if (t.match(/手札が[１-９\d０-９]+枚以下の場合にしか使用できない/))
@@ -548,8 +550,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- 次の対戦相手のアタックフェイズ開始時〜 ----
+  // ⚠ターンを跨いだ「次の相手アタックフェイズ開始時」の遅延トリガーが要る（§6.4 O-3 続き459）。
   if (t.match(/次の対戦相手のアタックフェイズ開始時/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_NEXT_OPP_ATTACK_PHASE_START' } as StubAction;
 
   // ---- 各プレイヤーは自分のデッキの一番上を公開する ----
   if (t.match(/各プレイヤーは自分のデッキの一番上のカードを公開する/))
@@ -631,9 +634,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
 
   // ---- このターン、あなたは他のシグニを場に出せない ----
+  // ⚠自分側の配置禁止／エナコスト支払い禁止は受け皿が無い（§6.4 O-3 続き459）。
+  //   `DEPLOY_RESTRICT` は **CONTINUOUS 宣言専用**（engine が原文を再パースする）ので、
+  //   ACTIVATED からこのターンだけ倒す経路にはならない。
   if (t.match(/このターン、あなたは他のシグニを場に出せない/) ||
       t.match(/このターン、あなたは[１以上０-９\d０-９]+のエナコストを支払えない/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SELF_RESTRICT_THIS_TURN' } as StubAction;
 
   // ---- このシグニのパワーを自身の下にあるシグニのパワーの合計と同じだけ ----
   if (t.match(/このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ/))
@@ -1250,8 +1256,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
 
   // ---- ベットしていなかった場合、次のターンをスキップする ----
+  // ⚠ターンそのもののスキップは受け皿が無い（§6.4 O-3 続き459）。
   if (t.match(/ベットしていなかった場合.*ターンをスキップする/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SKIP_NEXT_TURN' } as StubAction;
 
   // ---- 対象のシグニは選んだ能力を得る ----
   if (t.match(/対象のシグニ.*選んだ能力を得る/))
@@ -1296,16 +1303,18 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CENTER_ZONE_CONDITION' } as StubAction;
 
   // ---- このターンにアタックしたシグニを対象とし、キーをルリグトラッシュに置いてもよい ----
+  // ⚠「このターンにアタックしたシグニ」の絞り込み＋キー自壊コストの任意性が未実装（§6.4 O-3 続き459）。
   if (t.match(/このターンにアタックしたシグニを.*対象とし.*ルリグトラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH' } as StubAction;
 
   // ---- トラッシュにある〈X〉のシグニN枚につき±Nする ----
   if (t.match(/トラッシュにある.*のシグニ[１-９\d０-９]+枚につき/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
   // ---- シグニゾーンにシグニがある場合、手札に戻してから開花する ----
+  // ⚠【シード】開花の置換（そのゾーンに居るシグニを先に手札へ戻す）が未実装（§6.4 O-3 続き459）。
   if (t.match(/シグニゾーンにシグニがある場合.*手札に戻してから開花する/))
-    return { type: 'STUB', id: 'LRIG_GROW_RESTRICT' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT' } as StubAction;
 
   // ---- それぞれレベルの異なるシグニN枚が公開された場合、追加で ----
   if (t.match(/それぞれレベルの異なるシグニ[１-９\d０-９]+枚が公開された場合/))

@@ -2700,6 +2700,19 @@ function actionJa(a?: Action, effectType?: string): string {
         // 明示 defer（§6.4・続き425）＝「各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
         // 対戦相手は〈コスト〉を支払ってもよい。そうした場合、それを表向きにする」＝**繰り返す遅延ゲート**。
         DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT: '【未実装】各アタックフェイズ開始時、同じ場所にシグニがない場合、対戦相手はコストを支払って裏向きのそれを表向きにできる',
+        // 明示 defer（§6.4 O-3・続き459）＝parser の**未パース節の受け皿**。旧 id `LRIG_GROW_RESTRICT`
+        // （＝原文と無関係な「グロウ制限」）に相乗りしていたため、`census:stubs` が「実装あり」と誤分類し
+        // 真 no-op が計器から消えていた。日本語表示にして逆翻訳でも「何が落ちているか」が読めるようにする。
+        DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE: '【未実装】「このターン、対戦相手は…」の制限節（アタック制限・支払い条件など）',
+        DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE: '【未実装】「次の対戦相手のターン…」の制限節',
+        DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE: '【未実装】「このターンと次のターンの間…」の制限節',
+        DEFERRED_EXTRA_ATTACK_PHASE: '【未実装】追加のアタックフェイズを加える',
+        DEFERRED_UNTIL_NEXT_MAIN_PHASE_CLAUSE: '【未実装】「次のあなたのメインフェイズまで」のリミット変更／ダメージ無効',
+        DEFERRED_NEXT_OPP_ATTACK_PHASE_START: '【未実装】次の対戦相手のアタックフェイズ開始時に解決する遅延効果',
+        DEFERRED_SELF_RESTRICT_THIS_TURN: '【未実装】このターン、あなたは他のシグニを場に出せない／エナコストを支払えない',
+        DEFERRED_SKIP_NEXT_TURN: '【未実装】次のあなたのターンをスキップする',
+        DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH: '【未実装】このターンにアタックしたシグニを対象とし、このキーをルリグトラッシュに置いてもよい',
+        DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT: '【未実装】そのシグニゾーンにシグニがある場合、手札に戻してから開花する',
         FACE_DOWN_OPP_SIGNI: '対戦相手のシグニ１体を対象とし、それを裏向きにする',
         SIGNI_FLIP_FACEDOWN: '対象としたシグニを裏向きにする',
         FLIP_FACE_DOWN_SIGNI: 'このターン終了時、この方法で裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする',

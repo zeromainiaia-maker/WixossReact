@@ -4887,6 +4887,44 @@ test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され�
   });
 }
 
+// §6.4 O-3（続き459）: 「〜を使用できない」の**期間**と**合成 actionId** が2つとも死んでいた。
+test('§6.4 O-3 live: アーツ／スペル使用禁止の期間と actionId（合成IDは誰も読まない）', () => {
+  // 🔴`ARTS_AND_SPELL` は封じ判定（actionId の完全一致）のどちらにも当たらない死 ID だった。
+  //   live に1件でも残っていたらまた真 no-op が生えている。
+  for (const [cardNum, effs] of effectsMap) {
+    ok(!JSON.stringify(effs).includes('ARTS_AND_SPELL'), `${cardNum}: 合成 actionId は使わない`);
+  }
+  // 🔴「次の**あなたの**ターンまで」を読めず PERMANENT へ倒れて**恒久スペルロック**になっていた。
+  const ex166 = nextTurnLiveAction('WXEX1-66', 'WXEX1-66-E1') as Extract<EffectAction, { type: 'BLOCK_ACTION' }>;
+  eq(ex166.actionId, 'USE_SPELL', 'WXEX1-66-E1: スペル封じ');
+  eq(ex166.until, 'NEXT_TURN', 'WXEX1-66-E1: 恒久ロックではなく次ターンまで');
+  // 合成IDを割った2本＝どちらも live に消費地点がある actionId。
+  const pr427 = nextTurnLiveAction('PR-427', 'PR-427-E1');
+  eq(pr427.type, 'SEQUENCE', 'PR-427-E1: 2本に割る');
+  const ids = (pr427 as Extract<EffectAction, { type: 'SEQUENCE' }>).steps
+    .map(st => (st as { actionId?: string }).actionId).sort();
+  eq(JSON.stringify(ids), JSON.stringify(['USE_ARTS', 'USE_SPELL']), 'PR-427-E1: USE_ARTS と USE_SPELL');
+  for (const st of (pr427 as Extract<EffectAction, { type: 'SEQUENCE' }>).steps) {
+    eq((st as { until?: string }).until, 'NEXT_TURN', 'PR-427-E1: 期間は両方とも次ターンまで');
+  }
+});
+
+test('§6.4 O-3 live: 未パース節の受け皿が honest な id を名乗る（LRIG_GROW_RESTRICT の乗っ取り解消）', () => {
+  // 🔴`LRIG_GROW_RESTRICT` は本来「このルリグは〜のルリグにしかグロウできない」専用の id なのに、
+  //   parser の8箇所が**まったく無関係な未パース節**を同じ名前で捨てていた。ハンドラは log を1行出すだけの
+  //   no-op なので、`census:stubs` は「D 健全（実装あり）」と誤分類し、**27効果の真 no-op が計器から消えて**いた。
+  const growOnly: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    if (JSON.stringify(effs).includes('"LRIG_GROW_RESTRICT"')) growOnly.push(cardNum);
+  }
+  // 残ってよいのは本来の用法（【常】：このルリグは〜のルリグにしかグロウできない）だけ。
+  for (const cardNum of growOnly) {
+    ok(/このルリグは.+のルリグにしかグロウできない/.test(cardMap.get(cardNum)?.EffectText ?? ''),
+      `${cardNum}: LRIG_GROW_RESTRICT は本来のグロウ制限文にだけ付く`);
+  }
+  ok(growOnly.length > 0, '本来の用法は live に残っている（規則ごと消していない）');
+});
+
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
   ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
@@ -30717,9 +30755,12 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
     eq(live.condition, undefined, `${cardNum}: action退化を飲まずconditionも据置`);
     eq(live.action.type, 'SEQUENCE', `${cardNum}: 既存の具体SEQUENCEを温存`);
   }
+  // ⚠id は続き459 で `LRIG_GROW_RESTRICT`（＝原文と無関係な「グロウ制限」の名前）から
+  //   `DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE`（＝未パース節であることを名乗る honest な no-op）へ改名した。
+  //   **据置の理由は変わっていない**＝raw は「次の対戦相手のターン…」節を構造化できず丸ごと落とす。
   const p16Raw = parseCardEffects(cardMap.get('WXDi-P16-002')!)[0];
-  ok(JSON.stringify(p16Raw.action).includes('LRIG_GROW_RESTRICT'), 'P16 raw は原文と無関係な実働STUBへ退化する');
-  ok(!JSON.stringify(effectsMap.get('WXDi-P16-002')![0].action).includes('LRIG_GROW_RESTRICT'), 'P16 live は実働STUBを採用しない');
+  ok(JSON.stringify(p16Raw.action).includes('DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE'), 'P16 raw は未パース節へ退化する');
+  ok(!JSON.stringify(effectsMap.get('WXDi-P16-002')![0].action).includes('DEFERRED_'), 'P16 live は退化形を採用しない');
 
   const d04RawIds = parseCardEffects(cardMap.get('WXDi-D04-011')!).map(effect => effect.effectId);
   const d04LiveIds = effectsMap.get('WXDi-D04-011')!.map(effect => effect.effectId);
