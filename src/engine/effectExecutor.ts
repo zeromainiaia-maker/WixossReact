@@ -6211,6 +6211,15 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
       : a.target.type === 'KEY'
         ? keySlotCardNums(state)
         : signiCands;
+  // §6.4 O-17:「対戦相手の**すべての領域にある**シグニは能力を失う」（`WX24-P4-013-E3`）／
+  // 「対戦相手の**手札と場とエナゾーンとトラッシュにある**シグニは能力を失う」（`SPDi47-01-E2`）。
+  // `abilities_removed` は cardNum のリストでゾーンに依存しないので、候補プールを広げるだけで載る。
+  // ⚠デッキ／ライフは足さない＝消費地点が無く「実装したように見えるだけ」になる。
+  if (a.target.allZones) {
+    const zoneCards = [...state.hand, ...state.energy, ...state.trash]
+      .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedFilter));
+    cands = [...new Set([...cands, ...zoneCards])];
+  }
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
   if (cands.length === 0) return done(ctx);

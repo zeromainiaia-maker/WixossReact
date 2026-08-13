@@ -728,6 +728,14 @@ export interface EffectTarget {
   filter?: TargetFilter;
   /** 直前の DESIGNATE_SIGNI_ZONE が保存した対象側のゾーンだけを場レベル効果の対象にする。 */
   zoneSource?: 'designated';
+  /**
+   * 「対戦相手の**すべての領域にある**シグニ」「対戦相手の**手札と場とエナゾーンとトラッシュにある**シグニ」
+   * ＝場だけでなく手札・エナ・トラッシュも候補に含める（§6.4 O-17）。
+   * ⚠デッキ／ライフは含めない＝この engine には**デッキ/ライフのカードの能力を参照する経路が無い**ので、
+   *   含めても消費地点のない見せかけの実装になる。原文の「すべての領域」との差はここだけ。
+   * ⚠現状の受け皿は `REMOVE_ABILITIES` だけ（`abilities_removed` は cardNum のリストでゾーン非依存）。
+   */
+  allZones?: boolean;
   upToCount?: boolean;   // count > 1 のとき「以上」を許容するか
   blind?: boolean;       // true = 対戦相手の手札を見ないで選ぶ（ランダム選択）
   actingPlayerSelects?: boolean; // true = 手札を見て自分が選ぶ（「手札を見てN枚選び捨てさせる」）
