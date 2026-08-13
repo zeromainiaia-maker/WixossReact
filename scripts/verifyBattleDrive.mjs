@@ -10978,6 +10978,11 @@ scenarios.wxex166SpellLockPeriod = {
         // CPUターンのルリグアタック等でhost応答が出ても、待ちを止めない。
         did = await H.clickBtn('ガードしない');
         if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+        // ⚠`ATTACK_ARTS_OP`（相手ターンのアーツステップ）は **NON_TURN_PLAYER_PHASES**＝
+        //   進行ボタン（`PHASE_BTN.ATTACK_ARTS_OP`＝「アーツ終了」）を持つのは**非ターンプレイヤー＝host 側**
+        //   （`uiConstants.ts:30` / `BattleScreen.tsx:2365`）。ここを押さないと CPU のターンは永久に終わらない
+        //   （続き460 実測＝段階②まで到達したのに ATTACK_ARTS_OP で28反復ストールした）。
+        if (!did && before?.turnPhase === 'ATTACK_ARTS_OP') did = await H.clickBtn('アーツ終了', { exact: true });
       }
 
       const st = await H.queryState();
