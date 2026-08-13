@@ -546,6 +546,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (/この方法でダウンしたルリグと同じレベルの/.test(t)) {
       ra.target.filter = { ...(ra.target.filter ?? {}), levelEqLastDownedLrig: true };
     }
+    // §6.4 O-17: 兄弟形「この方法で**公開された**シグニと同じレベルの、対戦相手の…シグニは能力を失う」
+    // （`WX24-P4-013-E3`）。⚠これが無いとレベル条件が丸ごと落ちて**相手シグニ全体**から能力を奪う過剰効果になる。
+    // 参照元は直前の公開ステップ＝`resumeLookAndReorder` が `lastProcessedCards` に載せる（`levelEqLastProcessed`）。
+    if (/この方法で公開された(?:カード|シグニ)と同じレベルの/.test(t)) {
+      ra.target.filter = { ...(ra.target.filter ?? {}), cardType: 'シグニ', levelEqLastProcessed: true };
+    }
     // §3タスク6 E: 「それは能力を失い、それのパワーを－Nする」＝**同一対象**への能力消去＋パワー修正の複文。
     // 従来はここで能力消去だけを返し **パワー修正が丸ごと脱落**していた（WX26-CP1-009-E1 の－30000）。
     // REMOVE_ABILITIES が対象を lastProcessedCards に記録するので、後段は targetsLastProcessed で同一対象に載る。
