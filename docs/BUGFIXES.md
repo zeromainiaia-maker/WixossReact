@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き461） — §7 第2バッチ＝「能力喪失」3軸を実UIで固定（新バグ0・**続き457〜458 の実装が実機で効いていることを確定**）
+
+**分担**＝続き460 と同じ（Codex がシナリオ起案・実行はネットワーク遮断で不可 → Claude が実機検証・簿記）。
+**新規シナリオ6本すべて2回連続PASS・既定 order 登録済み。実バグの検出は0**（＝continuing 457/458 の実装が実UIまで届いていた）。
+
+### 何を固定したか（軸を混同しないことが主眼）
+
+**能力喪失は2つの軸に分かれている**。ここを取り違えると「実装したのに効かない」「効きすぎる」が無言で起きる：
+
+| 軸 | 実体 | 立てる側 | 読む側 |
+|---|---|---|---|
+| **cardNum 軸** | `abilities_removed`（cardNum のリスト） | `execRemoveAbilities` の通常経路（`target.type:'KEY'` を含む） | `activeKeyAbilitySources`（`effectEngine.ts:840-841`）がキー枠から除外／シグニは各収集経路 |
+| **フラグ軸** | `keys_abilities_disabled`（プレイヤー単位の boolean） | `alsoKeys:true`（`effectExecutor.ts:6141-6145`・**シグニ候補0でも先に立てる**） | `activeKeyAbilitySources`（`:837`）が**空配列を返す**＝全キーが黙る |
+
+- `removeAbilitiesOppKeyPicker`（`WXK05-010-E2`）＝**キー枠の SELECT_TARGET（`opp_key`）は既存UIが扱ったことのないゾーン**だったが、実機で**候補が相手のキー2枚だけ**に並び、選んだ1枚だけが cardNum 軸に載り**もう1枚は無傷**、フラグ軸は false のまま。⚠候補は `keySlotCardNums`（**喪失を考慮しない母集団**）＝**既に能力を失ったキーも候補に出るのが正しい**（「対象がない」と「もう効いている」をUIで区別するため）。
+- `removeAbilitiesAlsoKeysFlag`（`SP38-006` の内側【起】・エクシード1）＝フラグ軸が立ち、**cardNum 軸は空のまま**。
+- `keysAbilityLossTurnEndNoDiscard` / `WithDiscard`＝🔴**捨て札なしでターンを終える経路が本題**。続き457 で `turnScopedState.ts:99` へ登録するまで、**この経路だけキー能力喪失が永久に戻らなかった**（手書きクリアが `confirmEndDiscard` 側の2経路にしか無かった）。両経路とも **CPU ターンへ実際に遷移したうえで** false へ復帰することを確認（フラグが消えただけの中間状態を PASS にしない）。
+
+### ⭐ 観測設計の教訓＝**ゲートが「画面の持ち主」を見るなら、自分で撃っても観測できない**
+
+続き458 が足したトラッシュ起動の消費地点は `my.abilities_removed`（＝**画面の持ち主**）を見る。
+`SPDi47-01-E2` は `owner:'opponent'` なので、**自分で撃つと喪失するのは相手側**＝**その画面は driver に無い**。
+⇒ **engine 側（候補が hand/energy/trash に広がるか）と UI 側（ゲートが効くか）を2本に割り、UI 側は
+`host.abilities_removed` を直接注入して見る**形にした。**「1つのシナリオで機構と表示を同時に見ようとすると観測不能になる」**型。
+
+### 併せて
+
+- `queryState` の `sideOf()` に **`keysAbilitiesDisabled` の1行だけ追加**（フラグ軸はこれ無しでは観測できない）。
+- `src/components/BoardComponents.tsx` の トラッシュ `Stat` に `testId={isMe ? 'my-trash' : undefined}`（**属性のみ**。`Stat` は元から `testId` を受ける設計）。
+- **負方向テストには対照**（`intactAbilitiesShowsTrashAct`）＝続き460 で立てた規約を2バッチ連続で適用。
+- ⚠**指示書（Claude）の誤りを Codex が3件訂正**＝(a)`SP38-006` は**センタールリグではなくキー**（`GRANT_LRIG_ABILITY` を付与する側） (b)「続き403 のトラッシュ起動シナリオ」は**ドライバに存在しない**（BUGFIXES 続き403 にも「対象14枚の実発動は未検証」と明記）＝**トラッシュ起動の実UI発動は本バッチが初** (c)トラッシュ入口に既存 testid が無い。
+- ゲート＝golden 1956/0・census 831・smoke 10688 SKIP 0・fuzz 全0・lint 0 errors/259 warnings（すべて据置）。
+
 ## 2026-08-13（続き460） — 手札スペルの「発動」ボタンだけ**スペル封じのゲートが無かった**（PLAN §7・続き459 の実機検証で検出）
 
 **分担**＝§7 実機挙動（P3）を **Codex に委譲してシナリオを起案**させ（`docs/CODEX_GUIDE.md` の分担どおり
