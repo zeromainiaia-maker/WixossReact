@@ -11157,6 +11157,401 @@ scenarios.spellArtsUnblockedUiShowsUseButtons = {
   },
 };
 
+// 続き458 A：WXK05-010-E2 の REMOVE_ABILITIES{target:{type:'KEY',owner:'opponent',count:1}} は、
+// keySlotCardNums(guest) の2枚を `opp_key` SELECT_TARGETへ渡す。キー枠は従来のSELECT_TARGET UIが
+// 扱っていないため、結果だけでなく pendingCandidates／respondPlayer／viewer を先に固定する。
+// さらに1枚選択後は cardNum軸（abilities_removed）だけが変わり、全キー軸のフラグは立たないことを見る。
+scenarios.removeAbilitiesOppKeyPicker = {
+  title: 'WXK05-010（相手キー2枚だけをopp_key候補に出し、選んだ1枚だけ能力喪失）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'WXK05-010#1',
+      'field.key_piece_extra': [],
+      'lrig_trash': [],
+      'abilities_removed': [],
+      'keys_abilities_disabled': false,
+      'actions_done': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-003#2'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'SP38-006#2',
+      'field.key_piece_extra': ['WXK05-010#2'],
+      'abilities_removed': [],
+      'keys_abilities_disabled': false,
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const expected = ['SP38-006#2', 'WXK05-010#2'];
+    const source = 'WXK05-010#1';
+    const chosen = 'SP38-006#2';
+    const untouched = 'WXK05-010#2';
+    let opened = false;
+    let activated = false;
+    let candidatesChecked = false;
+    let selected = false;
+    let last = await H.queryState();
+    await H.closeModals();
+    await H.ensureMain();
+    for (let s = 0; s < 28; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const before = await H.queryState();
+      last = before;
+
+      if (Array.isArray(before?.pendingCandidates)) {
+        const cands = before.pendingCandidates;
+        const exactGuestKeys = cands.length === expected.length && expected.every(n => cands.includes(n));
+        const sourceLeaked = cands.includes(source);
+        const responderVisible = before.pendingRespondPlayer === before.viewerUserId;
+        if (!exactGuestKeys || sourceLeaked || !responderVisible) {
+          return {
+            pass: false,
+            detail: `opp_key候補/描画先が不正（candidates=${JSON.stringify(cands)} pendingRespondPlayer=${before.pendingRespondPlayer ?? '-'} viewerUserId=${before.viewerUserId ?? '-'} sourceLeaked=${sourceLeaked} activeUser=${before.activeUser ?? '-'} turnPhase=${before.turnPhase ?? '-'} guest.abilitiesRemoved=${JSON.stringify(before.guest?.abilitiesRemoved ?? [])} guest.keysAbilitiesDisabled=${before.guest?.keysAbilitiesDisabled ?? false}）`,
+          };
+        }
+        candidatesChecked = true;
+        if (!selected) {
+          const idx = cands.indexOf(chosen);
+          did = await H.clickTestId(`pick-${idx}`);
+          if (did) selected = true;
+        }
+      }
+
+      if (!did && selected) did = await H.clickBtn('決定', { exact: false });
+      if (!did && !activated) {
+        const fire = await H.clickBtn('発動', { exact: true });
+        if (fire) { did = fire; activated = true; }
+      }
+      if (!did && opened) {
+        const act = await H.clickBtn('【起】このキーをルリグトラッシュ（時雨の調　ゆきめ）', { exact: true });
+        if (act) did = act;
+      }
+      if (!did && !opened) {
+        const keyClick = await H.clickTestId('my-lrig-slot-key');
+        if (keyClick) { did = keyClick; opened = true; }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '決定']);
+
+      const st = await H.queryState();
+      last = st;
+      const removed = st?.guest?.abilitiesRemoved ?? [];
+      const flag = st?.guest?.keysAbilitiesDisabled ?? false;
+      H.log(`  rakp[${s}] -> ${did ?? 'なし'} | candidatesChecked=${candidatesChecked} selected=${selected} candidates=${JSON.stringify(st?.pendingCandidates)} respond=${st?.pendingRespondPlayer ?? '-'} viewer=${st?.viewerUserId ?? '-'} removed=${JSON.stringify(removed)} keyFlag=${flag}`);
+      if (candidatesChecked && removed.includes(chosen)) {
+        const onlyChosen = !removed.includes(untouched) && !removed.includes(source);
+        return {
+          pass: onlyChosen && !flag,
+          detail: onlyChosen && !flag
+            ? `opp_key候補はguestの2枚だけ→${chosen}を選択し、その1枚だけguest.abilitiesRemovedへ追加。${untouched}は無傷、guest.keysAbilitiesDisabled=false`
+            : `cardNum軸と全キー軸を取り違え（guest.abilitiesRemoved=${JSON.stringify(removed)} guest.keysAbilitiesDisabled=${flag}）`,
+        };
+      }
+    }
+    return {
+      pass: false,
+      detail: `キー選択/解決タイムアウト（activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} guest.abilitiesRemoved=${JSON.stringify(last?.guest?.abilitiesRemoved ?? [])} guest.keysAbilitiesDisabled=${last?.guest?.keysAbilitiesDisabled ?? false} pendingCandidates=${JSON.stringify(last?.pendingCandidates)} pendingRespondPlayer=${last?.pendingRespondPlayer ?? '-'} viewerUserId=${last?.viewerUserId ?? '-'}）`,
+    };
+  },
+};
+
+// 続き458 B2：BattleScreenのトラッシュ起動入口だけが読む `my.abilities_removed` を直接注入する。
+// WXDi-P04-042-E2 は続き403で修正対象になった既知の trashActivated カードだが、当時の記録どおり
+// 実機シナリオは未作成だった。コストを払える同一盤面を用意し、CardModalが開いたことを確認してから
+// 完全一致ラベルが「無い」ことを見る。モーダル未表示やコスト不足をPASSに倒さない。
+scenarios.removedAbilitiesHidesTrashAct = {
+  title: 'abilities_removed中のWXDi-P04-042はトラッシュ【起】をsurfaceしない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#1'],
+      'field.assist_lrig_l': ['WD03-003#1'],
+      'field.assist_lrig_r': [],
+      'field.lrig_down': false,
+      'field.assist_lrig_l_down': false,
+      'field.signi': [null, null, null],
+      'trash': ['WXDi-P04-042#1'],
+      'abilities_removed': ['WXDi-P04-042#1'],
+      'actions_done': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.signi': [null, null, null],
+      'abilities_removed': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const expectedLabel = '【起】トラッシュから出す（アップ状態のレベル2のルリグ2体をダウン）';
+    await H.closeModals();
+    await H.ensureMain();
+    const before = await H.queryState();
+    if (!(before?.host?.abilitiesRemoved ?? []).includes('WXDi-P04-042#1')) {
+      return { pass: false, detail: `負方向の注入前提が不成立（host.abilitiesRemoved=${JSON.stringify(before?.host?.abilitiesRemoved ?? [])}）` };
+    }
+    const trashClick = await H.clickTestId('my-trash');
+    await page.waitForTimeout(350);
+    const cardClick = await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(500);
+    const modal = page.getByTestId('card-detail-modal').first();
+    if (!trashClick || !cardClick || !(await modal.count()) || !(await modal.isVisible().catch(() => false))) {
+      return { pass: false, detail: `トラッシュのCardModalが開かなかった（my-trash=${trashClick ?? 'なし'} zone-card=${cardClick ?? 'なし'}）＝【起】非表示とは判定しない` };
+    }
+    const labels = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    const leaked = labels.includes(expectedLabel);
+    return {
+      pass: !leaked,
+      detail: leaked
+        ? `能力喪失中なのにトラッシュ【起】がsurfaceした（actions=${JSON.stringify(labels)} host.abilitiesRemoved=${JSON.stringify(before.host.abilitiesRemoved)}）`
+        : `CardModal表示済み・支払い可能盤面で、能力喪失中は完全一致ラベルが非表示（actions=${JSON.stringify(labels)}）`,
+    };
+  },
+};
+
+// B3（必須対照）：上と盤面を1文字も変えず abilities_removed だけ空にする。
+// ここで同じラベルが出て初めて、B2の非表示がコスト不足やtrashActivated未配線ではなく能力喪失由来と確定する。
+scenarios.intactAbilitiesShowsTrashAct = {
+  title: '対照：abilities_removed空ならWXDi-P04-042のトラッシュ【起】がsurfaceする',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#1'],
+      'field.assist_lrig_l': ['WD03-003#1'],
+      'field.assist_lrig_r': [],
+      'field.lrig_down': false,
+      'field.assist_lrig_l_down': false,
+      'field.signi': [null, null, null],
+      'trash': ['WXDi-P04-042#1'],
+      'abilities_removed': [],
+      'actions_done': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.signi': [null, null, null],
+      'abilities_removed': [],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const expectedLabel = '【起】トラッシュから出す（アップ状態のレベル2のルリグ2体をダウン）';
+    await H.closeModals();
+    await H.ensureMain();
+    const before = await H.queryState();
+    if ((before?.host?.abilitiesRemoved ?? []).length !== 0) {
+      return { pass: false, detail: `対照の注入前提が不成立（host.abilitiesRemoved=${JSON.stringify(before?.host?.abilitiesRemoved ?? [])}）` };
+    }
+    const trashClick = await H.clickTestId('my-trash');
+    await page.waitForTimeout(350);
+    const cardClick = await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(500);
+    const modal = page.getByTestId('card-detail-modal').first();
+    if (!trashClick || !cardClick || !(await modal.count()) || !(await modal.isVisible().catch(() => false))) {
+      return { pass: false, detail: `対照のトラッシュCardModalが開かなかった（my-trash=${trashClick ?? 'なし'} zone-card=${cardClick ?? 'なし'}）` };
+    }
+    const labels = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    const shown = labels.includes(expectedLabel);
+    return {
+      pass: shown,
+      detail: shown
+        ? `対照成立：abilities_removed空なら支払い可能なトラッシュ【起】がsurface（${expectedLabel}）`
+        : `対照不成立＝能力喪失が無くても【起】が出ないため、B2の非表示を能力喪失由来と読めない（actions=${JSON.stringify(labels)}）`,
+    };
+  },
+};
+
+// 続き457 C：SP38-006は「センタールリグ」ではなくキー。field.key_pieceに置くとCONTINUOUS
+// GRANT_LRIG_ABILITYがactiveKeyAbilitySources経由でセンタールリグへ内側【起】を付与する。
+// エクシード1を支払っても相手場シグニは0体のままにし、早期returnより先に全キー軸のフラグが立つこと、
+// cardNum軸の abilities_removed に相手キーが混ざらないことを同時に見る。
+scenarios.removeAbilitiesAlsoKeysFlag = {
+  title: 'SP38-006付与【起】（エクシード1）で全キー能力喪失フラグだけが立つ',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1', 'WD03-003#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'SP38-006#1',
+      'field.key_piece_extra': [],
+      'lrig_trash': [],
+      'actions_done': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-003#2'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'WXK05-010#2',
+      'field.key_piece_extra': [],
+      'abilities_removed': [],
+      'keys_abilities_disabled': false,
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false;
+    let actClicked = false;
+    let last = await H.queryState();
+    await H.closeModals();
+    await H.ensureMain();
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      if (!actClicked && opened) {
+        const act = await H.clickBtn('【起】エクシード1', { exact: true });
+        if (act) { did = act; actClicked = true; }
+      }
+      if (!did && !opened) {
+        const slot = await H.clickTestId('my-lrig-slot-center');
+        if (slot) { did = slot; opened = true; }
+      }
+      if (!did && actClicked) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '決定']);
+
+      const st = await H.queryState();
+      last = st;
+      const flag = st?.guest?.keysAbilitiesDisabled ?? false;
+      const removed = st?.guest?.abilitiesRemoved ?? [];
+      H.log(`  rakf[${s}] -> ${did ?? 'なし'} | opened=${opened} actClicked=${actClicked} gKeyFlag=${flag} gRemoved=${JSON.stringify(removed)} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      if (flag) {
+        const keyStayedOffCardAxis = !removed.includes('WXK05-010#2');
+        return {
+          pass: keyStayedOffCardAxis,
+          detail: keyStayedOffCardAxis
+            ? `SP38-006の内側【起】をエクシード1で発動→guest.keysAbilitiesDisabled=true、guest.abilitiesRemovedにはキーcardNumなし（${JSON.stringify(removed)}）`
+            : `全キーのフラグ軸なのにキーcardNumもabilitiesRemovedへ混入（${JSON.stringify(removed)}）`,
+        };
+      }
+    }
+    return {
+      pass: false,
+      detail: `全キー能力喪失フラグ未確認（activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} guest.abilitiesRemoved=${JSON.stringify(last?.guest?.abilitiesRemoved ?? [])} guest.keysAbilitiesDisabled=${last?.guest?.keysAbilitiesDisabled ?? false} pendingCandidates=${JSON.stringify(last?.pendingCandidates)}）`,
+    };
+  },
+};
+
+// 続き457 D1：手札上限調整へ入らない通常のEND経路。旧手書きクリアはこの経路を通らず、
+// keys_abilities_disabledが永久に残ったため、activeUserがCPUへ渡ったこととfalse復帰を必ず対で見る。
+scenarios.keysAbilityLossTurnEndNoDiscard = {
+  title: 'keys_abilities_disabledは捨て札なしのターン終了で戻る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'SP38-006#1',
+      'hand': [],
+      'keys_abilities_disabled': true,
+      'abilities_removed': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-003#2'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let clicked = false;
+    let last = await H.queryState();
+    await H.closeModals();
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const before = await H.queryState();
+      if (!clicked && before?.activeUser === before?.viewerUserId && before?.turnPhase === 'END') {
+        did = await H.clickBtn('ターン終了', { exact: true });
+        if (did) clicked = true;
+      }
+      const st = await H.queryState();
+      last = st;
+      H.log(`  katend0[${s}] -> ${did ?? 'なし'} | clicked=${clicked} active=${st?.activeUser ?? '-'} viewer=${st?.viewerUserId ?? '-'} phase=${st?.turnPhase ?? '-'} keyFlag=${st?.host?.keysAbilitiesDisabled ?? false}`);
+      if (clicked && st?.activeUser && st.activeUser !== st.viewerUserId) {
+        return {
+          pass: st?.host?.keysAbilitiesDisabled === false,
+          detail: st?.host?.keysAbilitiesDisabled === false
+            ? '捨て札なしで実際にCPUターンへ遷移し、host.keysAbilitiesDisabled=falseへ復帰'
+            : `【旧回帰】CPUターンへ遷移したのにhost.keysAbilitiesDisabledが残存（${st.host.keysAbilitiesDisabled}）`,
+        };
+      }
+    }
+    return {
+      pass: false,
+      detail: `捨て札なしターン終了タイムアウト（activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} host.abilitiesRemoved=${JSON.stringify(last?.host?.abilitiesRemoved ?? [])} host.keysAbilitiesDisabled=${last?.host?.keysAbilitiesDisabled ?? false} pendingCandidates=${JSON.stringify(last?.pendingCandidates)}）`,
+    };
+  },
+};
+
+// D2：同じ寿命を、手札7枚→上限6枚のconfirmEndDiscard経路でも固定する。
+// 「1枚捨てて終了」を押す前の中間状態ではフラグが残っていてよく、CPUへターンが渡った後だけfalseを要求する。
+scenarios.keysAbilityLossTurnEndWithDiscard = {
+  title: 'keys_abilities_disabledは手札上限の捨て札を経るターン終了でも戻る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, null, null],
+      'field.key_piece': 'SP38-006#1',
+      'hand': ['WD01-013#301', 'WD01-013#302', 'WD01-013#303', 'WD01-013#304', 'WD01-013#305', 'WD01-013#306', 'WD01-013#307'],
+      'keys_abilities_disabled': true,
+      'abilities_removed': [],
+      'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-003#2'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let endClicked = false;
+    let discardPicked = false;
+    let discardConfirmed = false;
+    let last = await H.queryState();
+    await H.closeModals();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const before = await H.queryState();
+      if (!endClicked && before?.activeUser === before?.viewerUserId && before?.turnPhase === 'END') {
+        did = await H.clickBtn('ターン終了', { exact: true });
+        if (did) endClicked = true;
+      }
+      if (!did && endClicked && !discardPicked) {
+        const over = page.getByText('手札上限超過', { exact: true }).first();
+        if (await over.count() && await over.isVisible().catch(() => false)) {
+          did = await H.clickModalImage('小剣　ククリ');
+          if (did) discardPicked = true;
+        }
+      }
+      if (!did && discardPicked && !discardConfirmed) {
+        const confirm = await H.clickBtn('1枚捨てて終了', { exact: true });
+        if (confirm) { did = confirm; discardConfirmed = true; }
+      }
+      const st = await H.queryState();
+      last = st;
+      H.log(`  katend1[${s}] -> ${did ?? 'なし'} | end=${endClicked} picked=${discardPicked} confirmed=${discardConfirmed} active=${st?.activeUser ?? '-'} viewer=${st?.viewerUserId ?? '-'} phase=${st?.turnPhase ?? '-'} hand=${st?.host?.hand ?? '-'} keyFlag=${st?.host?.keysAbilitiesDisabled ?? false}`);
+      if (discardConfirmed && st?.activeUser && st.activeUser !== st.viewerUserId) {
+        const restored = st?.host?.keysAbilitiesDisabled === false;
+        const discardedExactlyOne = st?.host?.hand === 6;
+        return {
+          pass: restored && discardedExactlyOne,
+          detail: restored && discardedExactlyOne
+            ? '手札7→6の捨て札を確定してCPUターンへ遷移し、host.keysAbilitiesDisabled=falseへ復帰'
+            : `捨て札経路の終了後状態が不正（hand=${st?.host?.hand} host.keysAbilitiesDisabled=${st?.host?.keysAbilitiesDisabled}）`,
+        };
+      }
+    }
+    return {
+      pass: false,
+      detail: `捨て札ありターン終了タイムアウト（endClicked=${endClicked} discardPicked=${discardPicked} discardConfirmed=${discardConfirmed} activeUser=${last?.activeUser ?? '-'} turnPhase=${last?.turnPhase ?? '-'} host.abilitiesRemoved=${JSON.stringify(last?.host?.abilitiesRemoved ?? [])} host.keysAbilitiesDisabled=${last?.host?.keysAbilitiesDisabled ?? false} pendingCandidates=${JSON.stringify(last?.pendingCandidates)}）`,
+    };
+  },
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
@@ -11219,6 +11614,18 @@ order.push('handDiscard');
 //     ⚠対照が要るのはアーツの「使用」が `costOk`/`condOk` でも消えるため＝非表示だけでは封じの証明にならない。
 //     この対が続き460 の実バグ（手札スペルの「発動」だけ封じゲートが無く無言 no-op）を検出して固定した。
 order.push('prArtsSpellSplitIds', 'wxex166SpellLockPeriod', 'spellArtsBlockedUiHidesUseButtons', 'spellArtsUnblockedUiShowsUseButtons');
+// 続き461（PLAN §7 第2バッチ・Codex起案→Claude実機検証）＝続き457〜458 の「能力喪失」3軸を実UIで固定。
+//   removeAbilitiesOppKeyPicker … `WXK05-010-E2`＝**キー枠の SELECT_TARGET（`opp_key`）**。候補は guest の2枚だけで、
+//     選んだ1枚だけが `abilitiesRemoved` に入り**もう1枚は無傷**・`keysAbilitiesDisabled` は false のまま。
+//     ⚠**cardNum 軸（`abilities_removed`）とフラグ軸（`keys_abilities_disabled`）の取り違えを検出する**のが主目的。
+//   removedAbilitiesHidesTrashAct ＋ intactAbilitiesShowsTrashAct … 続き458 で足した消費地点
+//     （`BattleScreen.tsx` のトラッシュ起動ゲート）が実UIに届くか。**負方向＋対照の対**（§CODEX_GUIDE 5-21）＝
+//     対照が無いと「コスト不足でボタンが出ないだけ」と区別できない。
+//   removeAbilitiesAlsoKeysFlag … `SP38-006` の内側【起】（エクシード1）で `alsoKeys` がフラグ軸に立つこと。
+//   keysAbilityLossTurnEndNoDiscard ／ WithDiscard … 🔴**捨て札なしの経路が本題**＝続き457 で
+//     `turnScopedState` へ登録するまで、この経路だけキー能力喪失が**永久に戻らなかった**。
+order.push('removeAbilitiesOppKeyPicker', 'removedAbilitiesHidesTrashAct', 'intactAbilitiesShowsTrashAct',
+  'removeAbilitiesAlsoKeysFlag', 'keysAbilityLossTurnEndNoDiscard', 'keysAbilityLossTurnEndWithDiscard');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -11431,6 +11838,7 @@ try {
         // 「このターンにシグニがバニッシュされている」履歴（タスク12(xciv) の `WX13-026` コスト軽減が読む）
         signiBanishedThisTurn: s.signi_banished_this_turn ?? 0,
         abilitiesRemoved: s.abilities_removed ?? [],
+        keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
         lrigFrozen: s.field?.lrig_frozen ?? false,
         negatedAttacks: s.negated_attacks ?? [],
         blockedActions: s.blocked_actions ?? [],

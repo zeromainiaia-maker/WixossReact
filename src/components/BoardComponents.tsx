@@ -1014,7 +1014,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
       }
       <Stat label="ライフ"      value={state.life_cloth.length} color="#bb3333" />
       <Stat label="エナ"        value={state.energy.length}     onClick={() => showZone('エナゾーン', state.energy)} />
-      <Stat label="トラッシュ"  value={state.trash.length}      onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: isMe })} />
+      <Stat label="トラッシュ"  value={state.trash.length}      testId={isMe ? 'my-trash' : undefined} onClick={() => setZoneModal({ title: 'トラッシュ', cardNums: state.trash, isTrash: isMe })} />
       <Stat label="Lトラッシュ" value={state.lrig_trash.length} onClick={() => showZone('ルリグトラッシュ', state.lrig_trash)} />
       <Stat label="コイン"      value={state.coins} color="#cc8800" />
     </div>
