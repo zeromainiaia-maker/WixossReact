@@ -1,6 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き468・Codex起案）— §7「対戦相手は〈コスト〉てもよい」極性・主語の実機シナリオ6件
+## 2026-08-13（続き468・Codex起案→Claude実機検証）— §7「対戦相手は〈コスト〉てもよい」＝**主語・極性は是正済みと確認／`NEGATE_ATTACK` に実バグ1件**（→PLAN §3 **(cxxvii)**）
+
+### 実機結果＝**4 PASS / 2 FAIL**。FAIL 2本は**実バグの検出**（→ engine は1行も直していない＝在庫化の運用どおり）
+
+| id | 実測 |
+|---|---|
+| `oppPayAttackGoesThroughWhenUnpaid` | ✅ `guest.energy=0` で `pay` が `(disabled)` → CPU は `skip` → **アタックが通り `life 7→6`**・資源不変 |
+| `oppHandDiscardUnavailableWhenShort` | ✅ `guest.hand=1` で `discard` が `(disabled)` → **両者の手札不変**・`life 7→6` |
+| `oppHandDiscardIsOpponentSide` | ✅（主語）**`guest.hand 2→0`／`guest.trash 0→2`／🔑`host.hand 2→2`** ＝**捨てるのは相手**で確定／❌（無効化）`life 7→6` |
+| `oppPlayDiscardThenOpponentDraws` | ✅ CPU が2枚捨て2枚引く＝**`guest.trash 0→2` かつ `guest.deck 40→38`**・`guest.hand 2→2`／host は召喚札1枚だけ減少 |
+| `oppPlayDiscardSkippedWhenNoHand` | ✅ `guest.hand=0` で `discard` が `(disabled)` → **捨ても引きも起きない** |
+| `oppPayNegateAttackWhenPaid` | ❌ **CPU がエナ2枚を実際に払った**（`trash 0→2`）**のにアタックが通り `life 7→6`** |
+
+### ✅ 旧回帰は完全に解消していた
+
+- **主語**＝`host.hand` は 2→2 のまま、減ったのは `guest.hand`（旧実装は**自分が2枚捨てて自分のアタックを無効化**していた）。
+- **極性**＝「払わなければ通る」側は両方の対照で成立（旧実装は**相手が何もしないと自分のアタックが無効化**されていた）。
+- **支払いも実際に徴収されている**＝`thenOnPay` の分岐自体は動作している。
+- **【出】経路**（`WXDi-P09-064`）は対照込みで完全に正しい。
+
+### 🔴 発見（(cxxvii)）＝「このアタックを無効にする」が自分のアタックに効かない
+
+`SPDi43-06-E1`／`WXDi-P05-037-E1` の帰結 `NEGATE_ATTACK{target:{owner:'opponent'}}` は、
+`execNegateAttack`（`effectExecutor.ts:5861-5863`）が **`ownerState(tgtOwner)` の場から候補を作る**ため、
+**効果主自身のアタッカーを候補にできない**。直接アタック盤面では相手の場が空＝**候補0で無言に終わる**。
+
+**live 全数実測＝`NEGATE_ATTACK` は 73件すべて `owner:'opponent'`**（`self` は語彙に無い）。
+**「自分のアタック時に発火」するのはこの2効果だけ**なので、**残り71件は `opponent` が正しい**＝修正対象は2件に限定できる。
+既存の **`attackingOnly`**（`:5879`＝`attackingSigniOf(state)` で宣言中のアタッカーに絞る）との併用が有力。
+
+⭐**codex が投入前の静的読解でこの空振りを予告し、「指示どおり修正せずトリップワイヤとして残した」**＝実機で予告どおり再現した。
+
+### ⚠ 観測の注意（次に書く人へ）
+
+**進行中アタックのキャンセルは `negatedAttacks` に載らない**＝一時フラグ（`effectExecutor.ts:8822` で立て
+`BattleScreen.tsx:8119` で消去）。**無効化されたかは「ライフが減ったか」で見る。**
+
+### 🔑 codex が指示書を訂正した点（通算19回目）
+
+- `negatedAttacks` では観測できない（上記）。
+- **標準ペアの問いログは `対戦相手：コストを支払いますか？`**（指示書が例示した《無×2》入りは `execStubPart1.ts` の**フォールバック経路**の文言）。
+- **live 全数＝`OPPONENT_PAY_OPTIONAL` 75件／`thenOnPay:true` 3件／既定72件**（指示書の「既定65効果」はコード内コメント由来の stale 値）。
+- D1/D2 の host 手札は**召喚札1枚が必ず減る**＝「不変」は残りの札・deck・trash について判定した。
+
+### 以下は Codex 起案時点の記録（実行前）
 
 `scripts/verifyBattleDrive.mjs` の既存末尾へ、続き425の未検証UIを3組の対照として追加した。
 外部ネットワーク遮断のため Codex 側の実ブラウザ実行は **`BLOCKED`**（1回も実行していない）。
