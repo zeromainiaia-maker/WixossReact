@@ -132,6 +132,16 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   return {
     ...reset,
     life_crashed_last_turn: lifeCrashedLastTurn,
+    // §6.4 O-3: 能力喪失の期限をここへ集約した。
+    // ⚠**旧実装は turn-end 経路のうち2本（手札上限の捨て札を挟む confirmEndDiscard 側）でしか
+    //   `abilities_removed` を空にしておらず**、最も普通の経路（捨て札なしでターンが終わる）では
+    //   「ターン終了時まで能力を失う」が**次のターン以降も残り続けていた**（`temp_power_mods` /
+    //   `keyword_grants` は同じ literal で消していたのにこの2つだけ抜けていた）。
+    // ⚠`abilities_removed_next_turn`（「次のターンの間」の予約）はここで **`abilities_removed` へ昇格**する。
+    //   予約は次のターン中だけ生き、そのターンの終了時に同じ行が空へ戻す＝2スロット式の寿命になる。
+    abilities_removed: state.abilities_removed_next_turn ?? [],
+    abilities_removed_next_turn: undefined,
+    keyword_abilities_removed: {},
     // unsuffixed entries were active for the turn that just ended. Only explicit
     // NEXT_TURN reservations cross the boundary; turn start removes the suffix.
     blocked_actions: (state.blocked_actions ?? []).filter(actionId => actionId.endsWith(':NEXT_TURN')),
