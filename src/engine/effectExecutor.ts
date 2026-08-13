@@ -8397,7 +8397,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
               }
             : movedCtx;
           return done(addLog(causeCtx,
-            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}を${destination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`));
+            `${c.cardMap.get(cardNum)?.CardName ?? cardNum}を${destination === 'lrig_trash' ? 'ルリグトラッシュ' : 'トラッシュ'}へ`));
         }
         return done(ctx);
       }
