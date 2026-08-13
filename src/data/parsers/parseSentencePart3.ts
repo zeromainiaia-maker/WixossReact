@@ -1160,8 +1160,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- シグニゾーンを指定する ----
-  if (t.match(/(?:あなたの|対戦相手の)?シグニゾーン[０-９\d]*つ?を指定する/)) {
-    return { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE' } as StubAction;
+  {
+    // §6.4 O-16: 語順が2通りある＝「シグニゾーン**１つを**指定する」／「シグニゾーン**を２つまで**指定する」。
+    // 枚数を読まないと 2ゾーン指定が1つに潰れる（`WX25-P3-014-E2`）。
+    const dszM = t.match(/(?:あなたの|対戦相手の)?シグニゾーン(?:([０-９\d]+)つを|を([０-９\d]+)つ(?:まで)?)指定する/);
+    if (dszM) {
+      const countDsz = parseNum(dszM[1] ?? dszM[2] ?? '1');
+      return { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE', ...(countDsz > 1 ? { count: countDsz } : {}) } as StubAction;
+    }
+    if (t.match(/(?:あなたの|対戦相手の)?シグニゾーンを指定する/)) {
+      return { type: 'STUB', id: 'DESIGNATE_SIGNI_ZONE' } as StubAction;
+    }
   }
 
   // ---- この効果で公開したカードを好きな順番でデッキの一番上に戻す ----
