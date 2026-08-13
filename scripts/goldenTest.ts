@@ -4768,6 +4768,65 @@ test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され�
   eq((designate as { owner?: string }).owner, pm.target.owner, '保存先が読み手と一致');
 });
 
+// §6.4 O-16(b): 「このターン、対戦相手の場に**ある キーと**シグニは能力を失い、新たに得られない」
+// （`SP38-006-E1` の1つ目の内側能力）。旧 live は `SIGNI / count:1 / until:PERMANENT`＝
+// **対象種別（キーが丸ごと落ちる）・体数（1体だけ）・期間（永続）の3軸とも別物**だった。
+// ⚠キーは `field.signi` に居ないので per-card の `abilities_removed` では表せない＝
+//   `keys_abilities_disabled` ＋ `activeKeyAbilitySources` funnel で表す。
+{
+  // 【常】：あなたのすべてのシグニのパワーを＋1000する、を持つキー。喪失の可視化に使う。
+  const POWER_KEY = 'WDK08-Y09';
+  const livePower = (state: PlayerState, other: PlayerState, num: string): number | undefined =>
+    calcFieldPowers(state, other, true, effectsMap, cardMap as Map<string, CardData>).get(num);
+  const innerAbility = (cardNum: string, innerId: string): EffectAction => {
+    const grant = (effectsMap.get(cardNum) ?? [])
+      .map(e => e.action).find(a => a.type === 'GRANT_LRIG_ABILITY') as { abilities: CardEffect[] } | undefined;
+    const inner = grant?.abilities.find(ab => ab.effectId === innerId);
+    if (!inner) throw new Error(`${innerId}: live inner ability not found`);
+    return inner.action;
+  };
+
+  test('§6.4 O-16(b) E2E SP38-006-E1-G: 相手の場のキーとシグニがこのターンだけ能力を失う', () => withSavedCursor(() => {
+    const a = fresh(), b = fresh();
+    const ctx = mkCtx({}, { signi: [a, b, null] }, 'SP38-006');
+    ctx.otherState.field.key_piece = POWER_KEY;
+    eq(livePower(ctx.otherState, ctx.ownerState, a), fieldGrantPrintedPower(a) + 1000, '喪失前はキーの＋1000が乗る');
+
+    const r = run(innerAbility('SP38-006', 'SP38-006-E1-G'), ctx);
+    eq((r.otherState as { keys_abilities_disabled?: boolean }).keys_abilities_disabled, true, '相手のキーが能力を失う');
+    ok((r.otherState.abilities_removed ?? []).includes(a)
+      && (r.otherState.abilities_removed ?? []).includes(b), 'シグニは1体ではなく全体が対象');
+    eq((r.ownerState as { keys_abilities_disabled?: boolean }).keys_abilities_disabled, undefined, '自分のキーは巻き込まない');
+    // ⭐ここが「キーの能力が実際に消える」ことの確認＝フラグを立てただけでは足りない。
+    eq(livePower(r.otherState, r.ownerState, a), fieldGrantPrintedPower(a), 'キーの＋1000が消える');
+
+    // 「このターン」＝ターン終了で戻る。⚠登録前は BattleScreen の turn-end 4経路のうち2経路でしか
+    //   手書きクリアされておらず、普通にターンを終えるとキー能力が永久に戻らなかった。
+    const ended = clearTurnEndScopedState(r.otherState);
+    eq((ended as { keys_abilities_disabled?: boolean }).keys_abilities_disabled, undefined, 'ターン終了でフラグが落ちる');
+    eq(livePower(ended, r.ownerState, a), fieldGrantPrintedPower(a) + 1000, 'ターン終了でキーの能力が戻る');
+  }));
+
+  test('§6.4 O-16(b) funnel: keys_abilities_disabled は key_piece_extra も止める', () => {
+    const st = mkState();
+    st.field.key_piece = POWER_KEY;
+    st.field.key_piece_extra = ['EXTRA_KEY'];
+    eq(JSON.stringify(activeKeyAbilitySources(st)), JSON.stringify([POWER_KEY, 'EXTRA_KEY']), '通常時は両方が能力源');
+    // ⚠従来 `keys_abilities_disabled` は CONT 収集8箇所でしか見られておらず、`key_piece_extra` と
+    //   `triggerCollect` の AUTO は素通りしていた（「すべてのキー」が半分しか効いていない）。
+    eq(JSON.stringify(activeKeyAbilitySources({ ...st, keys_abilities_disabled: true })), '[]', '喪失中はどちらも能力源にならない');
+  });
+
+  test('§6.4 O-16(b) live SP38-006-E1-G: 3軸（キー／すべて／このターン）が保存されている', () => {
+    const ra = innerAbility('SP38-006', 'SP38-006-E1-G') as Extract<EffectAction, { type: 'REMOVE_ABILITIES' }>;
+    eq(ra.type, 'REMOVE_ABILITIES', 'REMOVE_ABILITIES のまま');
+    eq((ra as { alsoKeys?: boolean }).alsoKeys, true, '対象種別＝キーも含む');
+    eq(ra.target.count, 'ALL', '体数＝すべて');
+    eq(ra.target.owner, 'opponent', '対戦相手の場');
+    eq(ra.until, 'UNTIL_END_OF_TURN', '期間＝このターン');
+  });
+}
+
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
   ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
