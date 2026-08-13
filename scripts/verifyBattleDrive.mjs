@@ -12015,6 +12015,247 @@ scenarios.energyPayKeyUseDeductsSelectedOnly = {
 };
 // ── /続き472：PLAN §7 V-04 ──
 
+// ── 続き473：PLAN §7 V-07① energyTrash ＋ V-06② 「捨てさせる」owner/任意性 ──
+// G1/G3 は同一盤面で候補filterと徴収先の両方を連続観測する。G2 は2枚目の Lv1 シグニを
+// Lv2 シグニへ差し替えるだけ。H1/H2 は同一 spec を再注入し、OPTIONAL_ACTIVATE の応答だけを変える。
+const ENERGY_TRASH_SOURCE = 'WX24-P1-047#5101';
+const ENERGY_TRASH_TARGET = 'WD02-010#5102';       // Lv3 シグニ P10000＝対象
+const ENERGY_TRASH_LV1_A = 'WD01-013#5103';        // Lv1 シグニ＝該当
+const ENERGY_TRASH_LV1_B = 'WD03-013#5104';        // Lv1 シグニ＝該当
+const ENERGY_TRASH_SHORT_REPLACEMENT = 'WD01-016#5104'; // Lv2 シグニ＝G2 の差し替え
+const ENERGY_TRASH_LV2 = 'WD01-012#5105';          // Lv2 シグニ＝非該当
+const ENERGY_TRASH_SPELL = 'WD01-015#5106';        // スペル＝非該当
+const ENERGY_TRASH_HOST_HAND = ['WD01-014#5107', 'WD01-017#5108'];
+const ENERGY_TRASH_GUEST_HAND = ['WD01-013#5109'];
+
+const makeEnergyTrashCostSpec = (secondEnergy) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#5110'],
+    'field.signi': [[ENERGY_TRASH_SOURCE], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ENERGY_TRASH_HOST_HAND,
+    'energy': [ENERGY_TRASH_LV1_A, secondEnergy, ENERGY_TRASH_LV2, ENERGY_TRASH_SPELL],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#5111'],
+    'field.signi': [[ENERGY_TRASH_TARGET], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ENERGY_TRASH_GUEST_HAND,
+    'energy': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const ENERGY_TRASH_AFFORDABLE_SPEC = makeEnergyTrashCostSpec(ENERGY_TRASH_LV1_B);
+const ENERGY_TRASH_SHORT_SPEC = makeEnergyTrashCostSpec(ENERGY_TRASH_SHORT_REPLACEMENT);
+
+async function runEnergyTrashCostRound(page, H, { expectAffordable }) {
+  const before = await H.queryState();
+  const expectedCostCandidates = [ENERGY_TRASH_LV1_A, ENERGY_TRASH_LV1_B];
+  let phaseStarted = false; let targetCandidatesSeen = false; let targetPicked = false; let targetConfirmed = false;
+  let prompted = false; let branchClicked = false; let costCandidatesSeen = false; let costConfirmed = false;
+  const costPicked = new Set(); let last = before;
+  for (let s = 0; s < 80; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!phaseStarted) {
+      did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (did) phaseStarted = true;
+    } else if (!targetConfirmed && Array.isArray(st0?.pendingCandidates)) {
+      if (!sameInstanceSet(st0.pendingCandidates, [ENERGY_TRASH_TARGET])) {
+        return { pass: false, detail: `対象宣言候補不一致=${JSON.stringify(st0.pendingCandidates)}（期待=${ENERGY_TRASH_TARGET}だけ）`, st: st0 };
+      }
+      targetCandidatesSeen = true;
+      if (!targetPicked) {
+        did = await clickPendingInstance(page, H, ENERGY_TRASH_TARGET);
+        if (did) targetPicked = true;
+      } else {
+        did = await clickExactVisibleText(page, '決定 (1/1)');
+        if (did) targetConfirmed = true;
+      }
+    } else if (targetConfirmed) {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        if (!opts.pay.startsWith('pay:発動する') || opts.skip !== 'skip:スキップ') {
+          return { pass: false, detail: `energyTrash 任意コスト文言不一致=${JSON.stringify(st0.pendingOptions)}`, st: st0 };
+        }
+        const disabled = opts.pay.endsWith('(disabled)');
+        if (disabled === expectAffordable) {
+          return { pass: false, detail: `energyTrash canAfford極性不一致（expectAffordable=${expectAffordable} options=${JSON.stringify(st0.pendingOptions)}）`, st: st0 };
+        }
+        did = await H.clickTestId(expectAffordable ? 'optcost-pay' : 'optcost-skip');
+        if (did) branchClicked = true;
+      } else if (expectAffordable && branchClicked && !costConfirmed && Array.isArray(st0?.pendingCandidates)) {
+        if (!sameInstanceSet(st0.pendingCandidates, expectedCostCandidates)) {
+          return { pass: false, detail: `【energyTrash filter回帰】候補=${JSON.stringify(st0.pendingCandidates)}（期待=${JSON.stringify(expectedCostCandidates)}だけ／Lv2・スペルは除外）`, st: st0 };
+        }
+        costCandidatesSeen = true;
+        const next = expectedCostCandidates.find(n => !costPicked.has(n));
+        if (next) {
+          did = await clickPendingInstance(page, H, next);
+          if (did) costPicked.add(next);
+        } else {
+          did = await clickExactVisibleText(page, '決定 (2/2)');
+          if (did) costConfirmed = true;
+        }
+      } else if (expectAffordable && costConfirmed && Array.isArray(st0?.pendingCandidates)) {
+        // ⚠**支払い後に BANISH{targetsStored} がもう一度 SELECT_TARGET を開く**（候補は宣言済み対象に限定）。
+        //   続き469 の `targetDeclUpToTwoSelectsBoth` と同じ挙動で、ここに応答しないと `pEff=SELECT_TARGET`
+        //   のままタイムアウトする（続き473 実測＝支払い自体は正しく完了していた）。
+        if (!sameInstanceSet(st0.pendingCandidates, [ENERGY_TRASH_TARGET])) {
+          return { pass: false, detail: `【stored対象回帰】支払い後のBANISH候補=${JSON.stringify(st0.pendingCandidates)}（期待=${ENERGY_TRASH_TARGET}だけ）`, st: st0 };
+        }
+        if (!storedTargetPicked) {
+          did = await clickPendingInstance(page, H, ENERGY_TRASH_TARGET);
+          if (did) storedTargetPicked = true;
+        } else {
+          did = await clickExactVisibleText(page, '決定 (1/1)');
+        }
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    // 前シナリオの check 残留を spec で null にした上で、想定外に確認が出た経路も消化する。
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = phaseStarted && targetCandidatesSeen && targetConfirmed && prompted && branchClicked
+      && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    H.log(`  energyTrash.${expectAffordable ? 'pay' : 'short'}[${s}] -> ${did ?? 'なし'} | target=${targetCandidatesSeen}/${targetPicked}/${targetConfirmed} prompted=${prompted} branch=${branchClicked} cost=${costCandidatesSeen}/${costPicked.size}/${costConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hEnergy=${JSON.stringify(st?.host?.energyCards)} hHand=${JSON.stringify(st?.host?.handCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      const hostHandStayed = sameInstanceSet(st.host.handCards, before.host.handCards);
+      if (!expectAffordable) {
+        const energyStayed = sameInstanceSet(st.host.energyCards, before.host.energyCards);
+        const targetStayed = st.guest.fieldSigni?.[0]?.includes(ENERGY_TRASH_TARGET)
+          && sameInstanceSet(st.guest.energyCards, before.guest.energyCards);
+        const trashStayed = sameInstanceSet(st.host.trashCards, before.host.trashCards);
+        return { pass: prompted && hostHandStayed && energyStayed && trashStayed && targetStayed, st,
+          detail: `pay disabled＋skip提示=${prompted}・host energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)} 不変=${energyStayed}・host hand ${JSON.stringify(before.host.handCards)}→${JSON.stringify(st.host.handCards)} 不変=${hostHandStayed}・対象不変=${targetStayed}` };
+      }
+      const energyDeducted = sameInstanceSet(st.host.energyCards, [ENERGY_TRASH_LV2, ENERGY_TRASH_SPELL]);
+      const eligibleToTrash = st.host.trashCards.includes(ENERGY_TRASH_LV1_A)
+        && st.host.trashCards.includes(ENERGY_TRASH_LV1_B)
+        && !st.host.trashCards.includes(ENERGY_TRASH_LV2) && !st.host.trashCards.includes(ENERGY_TRASH_SPELL);
+      const targetBanished = !(st.guest.fieldSigni ?? []).flatMap(z => z ?? []).includes(ENERGY_TRASH_TARGET)
+        && st.guest.energyCards.includes(ENERGY_TRASH_TARGET);
+      return { pass: prompted && costCandidatesSeen && costPicked.size === 2 && costConfirmed
+          && energyDeducted && eligibleToTrash && hostHandStayed && targetBanished, st,
+        detail: `pay/skip提示=${prompted}・energyTrash候補=${JSON.stringify(expectedCostCandidates)}だけ=${costCandidatesSeen}・energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)}・Lv1シグニ2枚totrash=${eligibleToTrash}・host hand ${JSON.stringify(before.host.handCards)}→${JSON.stringify(st.host.handCards)} 不変=${hostHandStayed}・対象banish→guest.energy=${targetBanished}` };
+    }
+  }
+  return { pass: false, st: last,
+    detail: `energyTrash完走タイムアウト（expectAffordable=${expectAffordable} target=${targetCandidatesSeen}/${targetPicked}/${targetConfirmed} prompted=${prompted} branch=${branchClicked} cost=${costCandidatesSeen}/${costPicked.size}/${costConfirmed} hEnergy=${JSON.stringify(last?.host?.energyCards)} hHand=${JSON.stringify(last?.host?.handCards)} hTrash=${JSON.stringify(last?.host?.trashCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.energyTrashCostDeductsEnergyNotHand = {
+  title: 'WX24-P1-047-E1（G1/G3：energyTrash候補はLv1シグニ2枚だけ→エナから徴収・手札不変）',
+  spec: ENERGY_TRASH_AFFORDABLE_SPEC,
+  async drive(page, H) { return runEnergyTrashCostRound(page, H, { expectAffordable: true }); },
+};
+
+scenarios.energyTrashCostUnavailableWhenShort = {
+  title: 'WX24-P1-047-E1対照（G2：Lv1シグニを1枚だけへ→pay disabled・skipで本体不発）',
+  spec: ENERGY_TRASH_SHORT_SPEC,
+  async drive(page, H) { return runEnergyTrashCostRound(page, H, { expectAffordable: false }); },
+};
+
+const REVEAL_OPP_SOURCE = 'WXDi-P14-060#5121';
+const REVEAL_OPP_HOST_HAND = ['WD01-013#5122', 'WD01-014#5123'];
+const REVEAL_OPP_GUEST_HAND = ['WD01-013#5124', 'WD01-014#5125', 'WD01-017#5126'];
+const REVEAL_OPP_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD01-001#5127'],
+    'field.signi': [[REVEAL_OPP_SOURCE], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': REVEAL_OPP_HOST_HAND,
+    'energy': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#5128'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': REVEAL_OPP_GUEST_HAND,
+    'energy': [],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function runRevealOppHandRound(page, H, branch) {
+  const before = await H.queryState();
+  let phaseStarted = false; let prompted = false; let branchClicked = false; let last = before;
+  for (let s = 0; s < 64; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!phaseStarted) {
+      did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (did) phaseStarted = true;
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        if (opts.pay !== 'pay:発動する' || opts.skip !== 'skip:発動しない') {
+          return { pass: false, detail: `OPTIONAL_ACTIVATE文言不一致=${JSON.stringify(st0.pendingOptions)}（期待 pay:発動する / skip:発動しない）`, st: st0 };
+        }
+        did = await H.clickTestId(branch === 'pay' ? 'optcost-pay' : 'optcost-skip');
+        if (did) branchClicked = true;
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = phaseStarted && prompted && branchClicked
+      && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
+    H.log(`  revealOppHand.${branch}[${s}] -> ${did ?? 'なし'} | prompted=${prompted} branch=${branchClicked} options=${JSON.stringify(st?.pendingOptions)} hHand=${JSON.stringify(st?.host?.handCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} gHand=${JSON.stringify(st?.guest?.handCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} gDeck=${st?.guest?.deck} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      const hostHandStayed = sameInstanceSet(st.host.handCards, before.host.handCards);
+      if (branch === 'skip') {
+        const guestHandStayed = sameInstanceSet(st.guest.handCards, before.guest.handCards);
+        const guestTrashStayed = sameInstanceSet(st.guest.trashCards, before.guest.trashCards);
+        const guestDeckStayed = st.guest.deck === before.guest.deck;
+        return { pass: prompted && hostHandStayed && guestHandStayed && guestTrashStayed && guestDeckStayed, st,
+          detail: `発動する/しない提示=${prompted}・skip後 host.hand ${before.host.hand}→${st.host.hand} 不変=${hostHandStayed}・guest.hand ${before.guest.hand}→${st.guest.hand} 不変=${guestHandStayed}・guest.trash ${before.guest.trash}→${st.guest.trash} 不変=${guestTrashStayed}・guest.deck ${before.guest.deck}→${st.guest.deck} 不変=${guestDeckStayed}` };
+      }
+      const guestTrashPlusOne = st.guest.trash === before.guest.trash + 1;
+      const guestDeckMinusOne = st.guest.deck === before.guest.deck - 1;
+      const guestHandCountRestored = st.guest.hand === before.guest.hand;
+      const discardedOriginals = before.guest.handCards.filter(n => st.guest.trashCards.includes(n));
+      const drawnCards = st.guest.handCards.filter(n => !before.guest.handCards.includes(n));
+      const guestDiscardThenDraw = guestTrashPlusOne && guestDeckMinusOne && guestHandCountRestored
+        && discardedOriginals.length === 1 && drawnCards.length === 1;
+      return { pass: prompted && hostHandStayed && guestDiscardThenDraw, st,
+        detail: `発動する/しない提示=${prompted}・host.hand ${before.host.hand}→${st.host.hand} 不変=${hostHandStayed}・guestの破棄=${JSON.stringify(discardedOriginals)}・ドロー=${JSON.stringify(drawnCards)}・guest.trash ${before.guest.trash}→${st.guest.trash}・guest.deck ${before.guest.deck}→${st.guest.deck}・guest.hand ${before.guest.hand}→${st.guest.hand} 差し引き復帰=${guestHandCountRestored}` };
+    }
+  }
+  return { pass: false, st: last,
+    detail: `revealOppHand ${branch}完走タイムアウト（prompted=${prompted} branch=${branchClicked} hHand=${JSON.stringify(last?.host?.handCards)} gHand=${JSON.stringify(last?.guest?.handCards)} gTrash=${JSON.stringify(last?.guest?.trashCards)} gDeck=${last?.guest?.deck} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.revealOppHandSkipKeepsOpponentHand = {
+  title: 'WXDi-P14-060-E1（H1：発動しない→両者手札・guest trash/deck不変）',
+  spec: REVEAL_OPP_SPEC,
+  async drive(page, H) { return runRevealOppHandRound(page, H, 'skip'); },
+};
+
+scenarios.revealOppHandPayDiscardsOpponentAndDraws = {
+  title: 'WXDi-P14-060-E1対照（H2：発動する→guest手札1枚totrash＋guest deckから1枚draw・host手札不変）',
+  spec: REVEAL_OPP_SPEC,
+  async drive(page, H) { return runRevealOppHandRound(page, H, 'pay'); },
+};
+// ── /続き473：PLAN §7 V-07① ＋ V-06② ──
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 共通インフラ
 // ─────────────────────────────────────────────────────────────────────────────
@@ -14628,6 +14869,9 @@ order.push('underCostFiltersByColor', 'underCostUnavailableWhenNoRed', 'underCos
 order.push('underEnergyPayOfferedInAttackPhase', 'underEnergyPayNotOfferedInMainPhase',
   'underEnergyPayDeductsUnderCardOnly', 'underEnergyPayPerTurnLimit',
   'energyPayArtsDeductsSelectedOnly', 'energyPayKeyUseDeductsSelectedOnly');
+// 続き473：V-07① energyTrash（G1/G3統合＋G2）＋V-06② 捨てさせる向き。Hは同一specで応答だけを変える。
+order.push('energyTrashCostDeductsEnergyNotHand', 'energyTrashCostUnavailableWhenShort',
+  'revealOppHandSkipKeepsOpponentHand', 'revealOppHandPayDiscardsOpponentAndDraws');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

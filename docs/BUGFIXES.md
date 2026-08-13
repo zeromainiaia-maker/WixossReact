@@ -1,5 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き473・Codex起案→Claude実機検証待ち）— §7 **V-07① energyTrash／V-06② 捨てさせる向き** Playwrightシナリオ4本
+
+### 実行結果＝**`BLOCKED`**
+
+外部ネットワーク遮断のため `scripts/verifyBattleDrive.mjs` は**1回も実行していない**。
+実行・デバッグ・PASS/FAIL判定は検証側（Claude）が引き取る。engine/parser/live JSON/`src/` は変更していない。
+
+### 起案したシナリオ
+
+| id | 起案時の合格条件 |
+|---|---|
+| `energyTrashCostDeductsEnergyNotHand` | G1/G3統合。`WX24-P1-047-E1` で pay/skip 提示後、エナ候補が Lv1シグニ `WD01-013#5103` / `WD03-013#5104` だけ。2枚を払うとそれらが energy→trash、Lv2シグニ `WD01-012#5105` とスペル `WD01-015#5106` は energy 残存、host.hand 不変、対象 `WD02-010#5102` が guest.field→energy。 |
+| `energyTrashCostUnavailableWhenShort` | G2。G1/G3 の2枚目だけを Lv2シグニ `WD01-016#5104` へ差し替える。`pay:発動する(disabled)` ＋ `skip:スキップ` を必須証拠にし、skip後は energy/hand/trash/対象が全て不変。 |
+| `revealOppHandSkipKeepsOpponentHand` | H1。`WXDi-P14-060-E1` で `pay:発動する` / `skip:発動しない` 提示を確認して skip。host.hand / guest.hand / guest.trash / guest.deck が全て不変。guest.hand が減ったら指示書の懸念を実バグとして FAIL させる。 |
+| `revealOppHandPayDiscardsOpponentAndDraws` | H2。H1と同一 spec で pay クリックだけを変える。guest.trash +1 / guest.deck -1 / guest.hand 枚数は差し引き不変、実際に元guest.handの1枚がtotrash・deck由来の1枚がhandへ入る、host.hand不変。 |
+
+### 設計判断と静的見込み
+
+- `ON_ATTACK_PHASE_START` は続き470の `runHandDiscardFrenRound` と同じく、`top.turn_phase:'MAIN'` で注入し `アタックフェイズへ` を押した瞬間に発火させる。両者の `'field.check':null` を全specで明示し、想定外の確認は `エナに送る` で消化してから判定する。
+- G1/G3↔G2 で変えるのはエナ2枚目の `WD03-013#5104`（Lv1シグニ）→`WD01-016#5104`（Lv2シグニ）だけ。H1↔H2 で変えるのは同一specに対する `optcost-skip`↔`optcost-pay` のクリックだけ。
+- `WXDi-P14-060-E1` は JSON 上 `OPTIONAL_ACTIVATE` と `CONDITIONAL` の間に `TRASH{HAND_CARD, opponent}` がある。ただし現 HEAD の Pattern ⑤は後続 `TRASH＋CONDITIONAL` 全体を pay 側 `cont5`に包み、skip 側は `noopAction5` にする（`effectExecutor.ts:4314-4341,4412-4431`）。よって**静的には辞退時に TRASH は走らない見込み**。「STUBと直後CONDITIONALを対にする」 Pattern は `:3745-3755` だが、本JSONは直後が TRASH のためその分岐には入らず Pattern ⑤へ進む。H1 はこの見立てが実UIで成立するかを検出する。
+- `REVEAL_OPP_HAND_CARD` の公開表示そのもの、V-07② `OPTIONAL_TRASH_SELF`、§3在庫バグ修正、engine/parser/live JSON/`src/`変更はスコープ外。
+
+### 静的検査・ゲート
+
+- 起案直後：`node --check scripts/verifyBattleDrive.mjs` / `git diff --check` PASS。driver **231追加 / 0削除**。
+- `npm run typecheck` PASS、`npm run lint` **0 errors / 259 warnings**（基準から増加0）。
+- `npm run gates` 全緑：golden **1964 PASS / 0 FAIL**、smoke **10688 / CRASH 0 / HANG 0 / INVARIANT 0 / SKIP 0**、fuzz **200 games / 8000 actions / defects 0**、census **831**、census-stubs PASS、manual field loss **0**、lint **0 errors / 259 warnings**。独立 `npm run golden` も **1964/0**。
+- live JSON 5ファイルの effectId 単位差分は **added 0 / removed 0 / changed 0**。変更全体は `docs/BUGFIXES.md` **37追加/0削除**＋driver **231追加/0削除**。既存driverは削除・置換なしで、基準 HEAD の LF正規化 SHA-256 は **`837b7f51e376f3211b5f8de27e69226737a5ce1fa496e99e0b675b17e557c266`**。
+- 変更2ファイルの UTF-8 検査は BOM 0、U+FFFD 0→0、3連続以上の `?` 新規増0（driver 0→0、BUGFIXES 既存26→26）。`verifyBattleDrive.mjs` は指示どおり未実行で **`BLOCKED`**。
+
+### 指示との不一致・起点
+
+- 開始時 HEAD は **`f6b3fd6004627ef1b016c7c65f9542f71e601ed0`**、worktree clean。指示に固定HEADの提示は無く、この点に不一致なし。
+- `injectScenario` の40枚deck/7枚life/trash空再構築は起案前 `:12198-12199`、本ブロック追加後 **`:12426-12427`**。
+- 指示の H1 懸念は「TRASH が CONDITIONAL の外なので辞退時も走る可能性」だが、現 HEAD の Pattern ⑤は上記のとおり後続全体を pay 側だけに包むため、静的見立ては**辞退時 TRASH なし**。その他、行番号を除きカード種別・Lv・限定・live JSON構造は指示と一致。
+
 ## 2026-08-14（続き472・Codex起案→Claude実機検証待ち）— §7 **V-04 エナ支払い元の一本化** Playwrightシナリオ6本
 
 ### 実行結果＝**`BLOCKED`**
