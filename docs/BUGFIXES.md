@@ -1,5 +1,33 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き454） — 「指定したシグニゾーン」が対象に配線されていなかった（PLAN §6.4 **O-16**）
+
+**🔴 バグの正体＝`DESIGNATE_SIGNI_ZONE` の CHOOSE は出るのに、その結果を読む消費者が居なかった**。原文が「シグニゾーン…を指定」する効果は **live 14件**あるが、指定ゾーンをアクションの対象へ渡せていたのは **`WX08-021-E1` の1件だけ**だった。残りは主に `POWER_MODIFY{owner:'any', count:1}` へ落ちており、**「そのシグニゾーンにあるシグニ」が「好きなシグニ1体を選ぶ」に化けていた**（自分のシグニも選べる／ゾーンが空でも必ず1体選べる）。ユーザーはゾーン選択モーダルを操作させられたうえで、その選択がどこにも使われていなかった。
+
+**🔴 併せて死んでいたのが原文の括弧書き**＝「（このアーツの使用後にそこに置かれたシグニにも影響を与える）」＝**ゾーン継続**。per-card の `temp_power_mods` では現住シグニにしか効かないので、**後からそのゾーンへ出たシグニに効かない過少実行**でもあった。
+
+**⭐ 機構＝続き450 の `FieldGrant` を「現ターン」へ延長した**。`field_grants_active` は**予約からの昇格でしか埋まらず**、「このターンの間のゾーン継続」を書く先が無かった。`applyActiveFieldGrant` を新設し、`POWER_MODIFY` が `count:'ALL'` かつ `zoneSource:'designated'` のとき per-card ではなく**場レベル grant** を書くようにした。失効は `field_grants_active` の turn-end 登録（既存）がそのまま担う。⚠適用条件を `zoneSource:'designated'` に限定＝ゾーン限定でない `count:'ALL'` のパワー修正は従来どおり per-card（挙動不変）。
+
+**⭐ 保存先と読み手の一致を構造で担保した**＝`designated_zone` は**対象側の PlayerState** に保存されるので、保存先（`DESIGNATE_SIGNI_ZONE` の `owner`）と読み手（`target.owner`）が食い違うと **CHOOSE は出るのに結果がどこからも見えない無言の空振り**になる。`DESIGNATE_SIGNI_ZONE` に `owner` を追加し（既定は従来どおり相手）、parser の後処理 `alignDesignatedZoneOwner` が**同じ木の中の消費者から owner を揃える**。判定は木の形（同じ SEQUENCE/CHOOSE 枝に `zoneSource:'designated'` の消費者がいるか）だけで、カード固有の原文 regex は使わない。
+
+**直った6効果**＝`WX24-P2-030-E1`／`WX24-P2-039-E1`／`WX24-P2-094-E1`／`WX24-P4-024-E3`（いずれも「このターン、そのシグニゾーンにあるシグニのパワーを－N」）／`WXK10-005-E1`（＋10000）／`WX08-021-E1`（既に配線済みだったが、現ターン分が per-card だったのがゾーン継続になった＋`owner` が明示された）。
+
+**⚠ゾーンの持ち主は符号で決めた**＝文単位パースでは先行文の「対戦相手の」が見えないため、**マイナス＝相手ゾーン／プラス＝自分ゾーン**とした。live 6効果（－7000／－5000×2／－3000×2＝相手、＋10000＝自分）は原文と完全に一致する。`WXK10-005-E1` が唯一のプラス側で、これが `owner:'self'` の実例。
+
+**📋 据置7効果＝別機構が要る**（PLAN §6.4 O-16 に登録）
+- `WXEX2-04-E3`／`WX25-P3-014-E2`＝**能力喪失のゾーン継続**。`FieldGrant` に `kind:'abilityLoss'` が要る（今回のパワー版が先例）。後者はさらに**2ゾーン指定**で `designated_zone` が1つしか持てない。
+- `WXDi-P11-046-E2`／`WXDi-P11-055-E1`＝**アタック禁止のゾーン継続**（`BLOCK_ACTION{ATTACK}` が per-signi）。
+- `WDK10-009-E2`＝`STUB{POWER_MOD_PER_COUNT}`（レベル比例）が指定ゾーンを読まない。
+- `WXDi-D09-P13-E1`＝**そもそも別物**にパースされている（`STUB{LRIG_GROW_RESTRICT}`＝原文は「そのシグニゾーンにあるシグニでアタックできない」）。
+- ⚠`WX10-051-E1`／`WXDi-P11-009-E3` は**偽陽性**＝`BLOCK_OPP_ZONE_PLACEMENT` が `zoneBlockSource:'designated'` で `designated_zone` を自前で読んでおり、既に配線済み。**`zoneSource` キーの有無だけで数えると誤検出する**。
+
+**逆翻訳**＝`DESIGNATE_SIGNI_ZONE` に持ち主を出すようにした（原文抜粋だけを返すと `owner:'self'` と既定が同じ文になり区別できない）。
+
+**ゲート**＝golden **1940→1942**（指定ゾーンの現ターン継続 E2E＝①指定ゾーンだけ②後から出たシグニにも効く③ターン終了で失効／live 6効果の「保存先と読み手の一致」）、smoke 10688 全0（SKIP 0）、fuzz 全0、census **832 据置**、同型★ **0**（265群）、held **106枚 / 47群 据置**、lint 0 errors。live effect 単位 diff **6効果・effectId 増減 0/0**。
+
+**⚠未検証（→§7 実機）**＝ゾーン選択モーダルからの実挙動（指定→そのゾーンへ後から配置→パワーが乗る）。
+
+
 ## 2026-08-13（続き453） — `REMOVE_ABILITIES.until` が engine から読まれない死フィールドだった（PLAN §6.4 **O-3**）
 
 **🔴 バグの正体＝「型に値がある＝動く」ではなかった**。`RemoveAbilitiesAction.until` は `EffectDuration` を宣言しているのに、書き込み側 `applyAbilitiesRemoval`（`effectExecutor.ts`）が**その値を1度も読んでいなかった**。`PERMANENT` も `UNTIL_OPP_TURN_END` も `NEXT_TURN` も、すべて `abilities_removed`（＝このターン終了時まで）へ丸められていた。live 144効果のうち **`UNTIL_END_OF_TURN` 125件だけが偶然正しく**、それ以外は全部ズレていた。
