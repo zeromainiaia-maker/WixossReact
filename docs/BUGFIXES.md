@@ -1,5 +1,61 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き475・Opus 5）— §7 実機検証の続き：**V-10 を決着**し、**V-01 の在庫バグ (cxxv) を「シナリオ偽陽性」として取り下げ**
+
+**engine / parser / live JSON / `src/` は1行も変更していない**（変更は `scripts/verifyBattleDrive.mjs` と docs のみ）。ゲート全緑・数値据置。
+
+### 1. V-10（F-3 身代わりを効果バニッシュへ配線）＝赤3本を緑へ
+
+続き474 は「効果バニッシュ＝**問いなし**で身代わりを自動適用する」を前提に `asks===0` を要求していたが、**これが誤り**だった。
+`BANISH{count:1}` は `selectOrInteract` → `resumeSelectTarget` の hoist（`src/engine/effectExecutor.ts:7412`）を通るので、**被害側へ離場置換の問いが1件出るのが現行の正**（§6.4 M2・続き430 の対話化）。CPU が先頭の選択肢を選び、決定が honor されて身代わりが成立する。
+
+| id | 修正内容 | 実測 |
+|---|---|---|
+| `effectBanishSubstituteRunsAutomatically` | `asks===0` → **`asks===1` かつ問いログが victim 名を含む** | ✅ 問い `コードハート　†Ｃ・Ｃ・Ｍ†の場離れを置換しますか？（対戦相手が選択）` 1件 → victim 残存・sacrifice がエナへ・`身代わり：…の代わりにコードアート　Ｓ・Ｃをバニッシュ` |
+| `effectBanishSubstituteDiscardsSpell`（pay 側） | 同上（**非スペル対照側の `asks===0` は据置**＝候補が無いので問いが立たないのが正） | ✅ pay＝スペルが hand→trash・victim 残存／対照＝問い0件で victim 自身がエナへ |
+| `effectBanishNoSubstituteWithoutSacrifice` | 判定は無変更（**driver 側の race を修正**） | ✅ victim 自身がエナへ・`コードハート　†Ｃ・Ｃ・Ｍ†をバニッシュ`・身代わりログ/問い0件 |
+
+**機構が動いた証拠（§7 📌4）は「問いログ＋身代わりログ」の2本立て**にしたので、盤面だけ一致する偽陽性は通らない。
+
+### 2. 🔴 §3 (cxxv) を取り下げ＝**在庫バグではなくシナリオ偽陽性だった**
+
+症状「離場置換の対話が `BANISH{count:数値}` 経路で発火しない」の正体は、**シナリオが `pendingCandidates` の index をそのまま `pick-<idx>` に使っていた**こと。
+`EffectInteractionModal` は `targetScope==='opp_field'` のとき候補を **reverse して描画**する（`src/screens/battle/modals/EffectInteractionModal.tsx:189-192`）ので、**`pick-0` は victim ではなく犠牲シグニ**を指す。⇒ **犠牲を直接バニッシュしていた**＝victim は対象ですらないので問いが出なくて当然で、**結果の盤面は身代わり成立時と1バイトも変わらない**（§7 📌4 の実例そのもの）。
+
+`driveLeaveSubSingleBanish` を **`clickPendingInstance`（`data-card-num` で狙う）** へ差し替え、**victim を掴むまで `H.stdStep` を呼ばない**（盲目 `pick-0` の再発防止）ようにしたところ：
+
+| id | 結果 |
+|---|---|
+| `leaveSubCpuAutoRespondsSubstitute` | ✅ PASS（`asks=1`・victim 残存・sacrifice がエナへ） |
+| `leaveSubAskDirectedToVictim` | ✅ PASS（`responder=CPU`・options=`["banishSubstitute:WX12-024#5:WD03-013#6:…","none:置換しない"]`） |
+| `leaveSubDecisionKeyIsHonored` | ✅ PASS（注入 key を消費して身代わり） |
+| `leaveSubNoOptionMeansNoAsk` | ✅ PASS（据置） |
+| `leaveSubDecisionNoneIsHonored` | ❌ **盤面は正しいが決定が残留**＝新規 §3 **(cxxx)** |
+| `leaveSubAllTargetsAskedPerVictim` | ❌ **複製検査を足して赤へ**＝§3 **(cxxvi)** |
+
+🔑**教訓＝新しく見つかった罠は、既存の赤在庫へ遡って適用する**（罠6 が判明したのは続き469 で、この4本を書いた続き466 より後だった）。§7 📌12 に恒久化。
+
+### 3. 🔴 残った実バグ3件は真因を file:line まで確定（engine は未修正＝在庫）
+
+- **(cxxx)【新規】離場置換の「決定」が消費されずに `PlayerState` に残る**＝`applyEffectLeaveSubstitutes`（`effectExecutor.ts:671-686`）は先頭で決定を取り除いた ctx を作るが、**置換不成立（`replaced:false`）のとき呼び出し側がその ctx を捨てている**。**11経路すべて同じ形**（`:964`/`:1048`/`:1229`/`:1575`/`:4931`/`:8317`/`:8332`/`:8347`/`:8363`/`:8469`/`:9119`）。残ると `leaveSubstituteAskOptions`（`:702`）が「決定済み」と見なし**以後その instance に二度と問わない**。
+- **(cxxvi) 相互身代わりで同一 instance がエナに複製**＝真因は **`applyBanish` のループが「もう場に居ない num」を再処理する**こと。`#51` の身代わりで `#52` が先にエナへ移った後、`#52` の番で `removeFromField` が空振りしたまま `banishDestination` が**エナへ2枚目を push** する（`:969-974`）。**(cxxx) と同じ1手で直る**（ループ先頭で「場に居ない num は skip」＋`sub.ctx` の無条件採用）。
+- **(cxxix) `WX14-026` が「コスト0」で身代わり成立**＝`lifeCrash` は `autoEligible:false` なのに、**`leaveSubstituteAskOptions` が `kind==='optional'` だけで絞るため選択肢には出る**（`:705`）→CPU が選ぶ→`applyEffectBanishSubstituteChoice`（`:463-509`）に **`lifeCrash` 分岐が無く末尾の `trashStackSpell` へフォールスルー**＝**0枚トラッシュで成立**。実機ログ `身代わり：羅石　スイカリンの下からスペル0枚をトラッシュして羅石　スイカリンのバニッシュを回避` と完全一致。
+
+### 4. driver の位置依存フレークを2件つぶした（`runV10EffectBanishRound`）
+
+- **「盤面は正しいのに `normalLog=false`」**＝`H.queryState()` の盤面は Supabase 直照会で先に真になるが、`game_logs` の行は数百ms遅れる。**settled になった最初の1回で FAIL を確定していた**ため、単体 PASS・3件バッチ FAIL の位置依存フレークになっていた。⇒ **PASS しない間は最大12反復ぶん（≒2〜3秒）待ってから確定**する（§7 📌13）。
+- **`決定 (1/1)` が出ず 64反復×3秒＝211秒溶ける**（実測1回）＝pick のクリックが React に載らなかったとき。⇒ **`SELECT_TARGET` が続いている間は pick からやり直す**自己回復を追加。
+
+### 5. 「今は緑」のシナリオが写り込んだバグを見ていなかった
+
+`leaveSubAllTargetsAskedPerVictim` は**問いの回数だけ**を見ていたので、最終盤面に `gEnergy=["WX12-024#52","WX12-024#52","WD03-013#53"]`（`#52` の複製）が写っていても緑だった。**エナの重複 instance を必須条件に追加**して (cxxvi) のトリップワイヤにした。§7 📌14 に恒久化。
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / golden 1964 / smoke 10688 SKIP 0 / fuzz 全0 / census 831 / census:stubs / manual-fields 0 / lint 0 errors・259 warnings）。
+
+---
+
 ## 2026-08-14（続き474・Codex起案→Claude実機検証）— §7 **V-10 F-3 身代わりの効果バニッシュ配線**＝**1 PASS / 4 FAIL**（🔴実バグ1件＝§3 **(cxxix)**）
 
 ### 実機結果
