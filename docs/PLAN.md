@@ -725,7 +725,12 @@
   - [x] **`underAnySigniTrash{fromThis}` が「このシグニの下」だけに絞るか**＝**実機PASS**（`underCostFromThisOnly`・`WXK08-052`）。**このシグニの下1枚**と**別シグニの下1枚**を同時に置くと、**候補は自分の下の1枚だけ**／支払うと相手シグニに **−3000**、**別 stack は不変**。
   - [ ] 🔴**新設 `fieldDown`（アップ状態の自シグニをダウン＋色）**＝`WXDi-P04-051`。①**アップ白シグニが3体そろっていないと「支払う」が選べない**＝**実機PASS**（`fieldDownCostRequiresThreeUpWhite`）。②**3体そろえても支払えない**＝🔴**実バグを検出**（→§3 **(cxxviii)**）＝`fieldDownCostPaysThreeAndWhite` が **FAIL**（`pay:…(disabled)`／`signiDown=[true,false,false]`）。**シグニアタック経路では攻撃者が先にダウンする**（`BattleScreen.tsx:7858` → 収集は `:7920`）ため**3面盤面では最大2体しかアップで残らず**、`fieldDown:{count:3}` は**永久に成立しない**＝**恒久 no-op**。⇒ ③「そのあとルリグがアップし能力を失う」は**到達不能で未観測**。**engine が直れば緑に反転する**。
 
-- **V-10 🔴 F-3 身代わりを効果バニッシュへ配線（続き406）1件**
+- **🔶 V-10 F-3 身代わりを効果バニッシュへ配線（続き406）＝2026-08-14 続き474 で実機検証**（Codex 起案→Claude 実行・シナリオ5本を既定 order へ登録）。⚠**Codex は `0xC0000142`（通算8回目）で最終工程が実行できず、ゲート・SHA・エンコーディング検査は検証側が引き取った**（全緑・削除0・BOMなし）。
+  - [x] **バトルバニッシュは従来どおり対話モーダルが出る**（＝自動適用に化けていない）＝**実機PASS**（`battleBanishSubstituteStillInteractive`）。`pending_banish_substitute` が立ち、モーダル「身代わりバニッシュ」と待機ログを確認。
+  - [x] **効果バニッシュで身代わりが自動で走る**こと自体は**実測できた**＝`effectBanishSubstituteRunsAutomatically` の実測は `victimStayed=true／sacrificeLeft=true／sacrificeInEnergy=true`＋ログ `身代わり：コードハート　†Ｃ・Ｃ・Ｍ†の代わりにコードアート　Ｓ・Ｃをバニッシュ`＝**挙動は期待どおり**。`effectBanishSubstituteDiscardsSpell` も `victim 残存／spell が hand→trash／身代わりログ` を実測。
+  - [ ] 🔴**(cxxix)＝`WX14-026` が「コスト0」で身代わり成立**（→§3）。`effectBanishLifeCrashSubstituteNotOnEffect` が **FAIL**＝**ライフを払わずシグニが場に残る**。
+  - [ ] ⚠**シナリオ側の判定が厳しすぎて FAIL している3本を要修正**（**engine の問題ではない**）＝①`effectBanishSubstituteRunsAutomatically` は `asks=0` を要求するが実測 `asks=1`（**続き466 の (cxxv) は「問いが出ない」だったので、ここで `asks=1` が出るのは要確認**）②`effectBanishNoSubstituteWithoutSacrifice` は**盤面は正しい**（victim がエナへ・身代わり0）が `normalLog=false`＝**期待したログ文言が実装と違う** ③`effectBanishSubstituteDiscardsSpell` も**盤面は正しい**が付随条件で FAIL。⇒ **次に触る人は「ログ文言を実装から取る」「`asks` の期待値を実測に合わせる」だけで緑にできる見込み**。
+  - 📋**参考（旧記述）**＝下の項目が当初の検証内容。
   - [ ] **効果でバニッシュされたときに身代わりが自動で走るか**＝相手の場に `WX12-024`（＋他の＜電機＞）を置き、**バトルではなく効果**で `WX12-024` を狙う → **`WX12-024` が残り、代わりに他の＜電機＞がバニッシュされてログに「身代わり：〜」が出る**こと。あわせて①`WX10-033`（手札のスペル1枚が自動で捨てられる）②**バトルバニッシュは従来どおり対話モーダルが出る**こと③`WX14-026`（ライフクラッシュ型）は**効果バニッシュでは身代わりされない**ことを確認する。⚠**V-01 と同じカードを使うが軸が違う**（V-01 は対話化・こちらは自動適用の配線）。
 
 - **V-11 🔴 配置制限ゲートの一本化（続き405）2件**＝engine 側は golden で固定したが、**実UIの ExecCtx 経由（`fillDeployCaps`）と CPU 召喚は golden では踏めない**。
