@@ -12334,6 +12334,13 @@ async function runV10EffectBanishRound(page, H, id, victimInstance, evaluate) {
   let started = false;
   let targetCandidateSnapshot = null;
   let last = before;
+  // 続き475：`H.queryState()` の盤面は Supabase 直照会で先に真になるが、`game_logs` の行が載るのは
+  //   数百ms遅れる（PLAN §7 📌7 と同型の race）＝**最初の settled で即FAILにすると
+  //   「盤面は正しいのに normalLog=false」で位置依存フレークになる**（実測：単体PASS・3件バッチFAIL）。
+  //   ⇒ settled 後も PASS しない間は最大 V10_SETTLE_GRACE 反復ぶん（≒2〜3秒）ログの到着を待ってから確定する。
+  const V10_SETTLE_GRACE = 12;
+  let settledCount = 0;
+  let lastVerdict = null;
   for (let s = 0; s < 64; s++) {
     await page.waitForTimeout(200);
     let did = null;
