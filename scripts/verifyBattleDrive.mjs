@@ -11992,6 +11992,14 @@ order.push('prArtsSpellSplitIds', 'wxex166SpellLockPeriod', 'spellArtsBlockedUiH
 //     `turnScopedState` へ登録するまで、この経路だけキー能力喪失が**永久に戻らなかった**。
 order.push('removeAbilitiesOppKeyPicker', 'removedAbilitiesHidesTrashAct', 'intactAbilitiesShowsTrashAct',
   'removeAbilitiesAlsoKeysFlag', 'keysAbilityLossTurnEndNoDiscard', 'keysAbilityLossTurnEndWithDiscard');
+// 続き462（PLAN §7 第3バッチ・Codex起案→Claude実機検証）＝`WDK10-009-E2`（指定ゾーンのレベル比例パワー継続）。
+//   ⚠**この delta は `temp_power_mods` に載らない純計算値**（`calcFieldPowers` の中でだけ足される）＝
+//     `powerMods` を見て「効いていない」と判定したら誤り。**DOM のパワー表示で見る**（先例 `wxdip03057DownUnderRed`）。
+//   designatedZoneLevelScaledMinus … 指定ゾーンだけ Lv×-2000（Lv3→-6000）。**他2ゾーン不変**が過剰適用の対照。
+//   designatedZoneRecalcOnSwap … 🔴**焼き込み検出**＝grant を保ったままゾーンのシグニを Lv1 へ差し替えると
+//     -2000 へ**再計算**される（`effectEngine.ts` の `perTargetLevel` は適用のたびに掛ける）。-6000 のまま残れば退化。
+//   designatedZoneGrantSurvivesOppTurn … `nextTurnOwner:'opponent'` の寿命＝CPU のターン中も継続。
+order.push('designatedZoneLevelScaledMinus', 'designatedZoneRecalcOnSwap', 'designatedZoneGrantSurvivesOppTurn');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
