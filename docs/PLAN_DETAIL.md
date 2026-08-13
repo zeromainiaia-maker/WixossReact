@@ -1,5 +1,19 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-13 整理⑩：PLAN §4 恒久指標の旧行を退避（続き435〜455）
+
+> §4「📊 恒久指標」は**最新1件だけ**を置く節（同節の運用ルール）。積み上がった旧行をここへ移した。
+> ⚠退避時に各行の「（本行が直近の正）」という但し書きを外した＝**旧行に付いたままだと、
+> どれが直近の正か分からなくなる**（機械的に接頭辞だけ付け替えると残る種類の矛盾）。
+
+- **旧行（2026-08-13 続き455・§6.4 O-16 第2波＝能力喪失のゾーン継続＋複数ゾーン指定）後の計測値**：census **832 据置**（`BASELINE_HIGH` 832）、golden **1944（+2＝ゾーン能力喪失の E2E／2ゾーン指定の E2E）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 34フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 14種 16件**（据置）。live effect 単位 diff **2効果・effectId 増減 0/0**。
+- **旧行（2026-08-13 続き454・§6.4 O-16＝指定シグニゾーンの配線）後の計測値**：census **832 据置**（`BASELINE_HIGH` 832）、golden **1942（+2＝指定ゾーンの現ターン継続 E2E／live 6効果の「保存先と読み手の一致」）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 34フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 14種 16件**（据置）。live effect 単位 diff **6効果・effectId 増減 0/0**。
+- **旧行（2026-08-13 続き453・§6.4 O-3＝`REMOVE_ABILITIES.until` の死フィールド解消）後の計測値**：census **832 据置**（`BASELINE_HIGH` 832）、golden **1940（+3＝`until` 3語彙の書き分け／ターン境界の2スロット寿命＋既存リークの回帰／live 2件の `NEXT_TURN` と据置3件の固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 34フィールド**（32→34＝`abilities_removed`／`keyword_abilities_removed` を登録）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 14種 16件**（据置）。live effect 単位 diff **2効果・effectId 増減 0/0**。
+- **旧行（2026-08-13 続き452・§6.4 O-2＝`SEARCH` の相手応答ルーティング）後の計測値**：census **832**（833→832・`BASELINE_HIGH` 832）、golden **1937（+3＝応答者ルーティングの型網羅／`deckOwner` の領域分離／ゾーン選択の引き継ぎ。ほか旧 defer トリップワイヤ4件を新しい正へ反転）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（107→106）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（27/26→25/25）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 14種 16件**（16種→14種）。live effect 単位 diff **3効果・effectId 増減 0/0**。
+- **旧行（2026-08-11 続き442）**：census **846**（据置・`BASELINE_HIGH` 846）、golden **1841（+7＝E2E 4本＋構造検査＋T1/T2）**、smoke **10688 / SKIP 0**、**同型★ 0**（グループ265）、held（parserWorklist）**107枚 / 署名グループ 47件**（増減0）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 27ノード / 26カード**（28/27→27/26）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群（無言 no-op）**0**、**live の裸 `STUB{REVEAL_AND_PICK}` 7カード**（T1 が固定・11→7）、**`DECK_TOP_TO_LIFE` 2カード**（T2 が固定・4→2）、**live の `TRANSFER_TO_DECK{DECK_CARD}` 6箇所**（うち `WD23-013-A-E1` は SEARCH 欠落で no-op＝未着手）。live effect 単位 diff **4効果・outlier 0・effectId 増減 0/0**。
+- **旧行（2026-08-11 続き441）**：census **846**（847→846）、golden **1834（+8）**、held **107枚 / 47件**、**UNKNOWN 28ノード / 27カード**、**live の `$ref` 26箇所＝全て `resolveCountRef` が解ける位置**（C1 が固定）、**枚数を `resolveNum` で解く関数 30個**（C2 が凍結・live に `$ref` 無しで無害）。
+- **旧行（2026-08-11 続き435〜440）**：census **847**（852→847）、golden **1826（+17）**、smoke **10688 / SKIP 0**、**同型★ 0**、held（parserWorklist）**107枚 / 署名グループ 47件**（全バッチで増減0）、lint **0 errors / 259 warnings**、**UNKNOWN 28ノード / 27カード**（30→28）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群（無言 no-op）**0**、`live で noAbilities を持つカード` **11→16**、`verifyBattleDrive` 既定 order **+3**（`assistAttackBoth`／`fezoneDoubleCostPay`／`sYokusenkiSpellPay`）。⚠**`fuzz` の `distinct効果` は乱択で毎回変動する**（同一ツリーで 2682/2674/2670/2666 を実測）＝**指標にも一致基準にも使わない**（見るのは「バグ0・SKIP 0」だけ）。
+
 ## 2026-08-13 整理⑨：PLAN §6.4 の「消化済み」1行サマリ欄を退避（続き403〜453）
 
 > §6.4 は**未消化 worklist だけ**を置く節にした（2026-08-13）。消化済みの1行サマリはここへ移す。
