@@ -657,7 +657,10 @@ export function collectLeaveSubstituteOptions(
   push('powerReduction', 'optional', '代わりに身代わりシグニのパワーを下げる',
     applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
-    for (const choice of collectEffectBanishSubstituteChoices(victimNum, victimOwner, ctx)) {
+    // ⚠**engine が徴収できないコストは列挙しない**（§3 (cxxix)＝落とすと apply 側の末尾へ流れて
+    //   「0枚トラッシュ」で成立し、コスト0でバニッシュを回避できてしまう）。
+    for (const choice of collectEffectBanishSubstituteChoices(victimNum, victimOwner, ctx)
+      .filter(isImplementedSubstituteCost)) {
       out.push({
         axis: 'banishSubstitute',
         key: `banishSubstitute:${choice.sourceNum}:${choice.kind === 'sacrifice' ? choice.sacrificeNum : `${choice.costType}${choice.amount}`}`,
