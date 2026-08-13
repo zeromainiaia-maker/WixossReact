@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き456） — アタック禁止のゾーン継続（PLAN §6.4 **O-16** 第3波）
+
+**🔴 直した3効果**（原文はいずれも「対戦相手は**そのシグニゾーンにある**シグニでアタックできない」）
+- `WXDi-P11-046-E2`／`WXDi-P11-055-E1`＝ live は `BLOCK_ACTION{SIGNI, opponent, count:1, ATTACK}`＝**指定ゾーンではなく相手シグニ1体を選ぶ**別物。
+- `WXDi-D09-P13-E1`＝ live は `STUB{LRIG_GROW_RESTRICT}`＝**そもそも別のアクション**（グロウ制限）に化けており、アタック禁止が丸ごと無かった。
+
+**⭐ 機構＝`FieldGrant` に `kind:'blockAction'`**（`kind:'power'`＝続き454／`kind:'abilityLoss'`＝続き455 に続く3つ目の型）。per-signi 付与（`keyword_grants['アタックできない']`）は**その時点でそこにいたシグニ**にしか効かず、ゾーンを封じる原文の意図（後から出たシグニも撃てない）が表せない。
+
+**⭐ 消費地点は既存の唯一の funnel**＝`calcContinuousBlockedActions` の `cannotAttackSigni`。ここは `signiAttackGate.ts` 経由で**人間のアタックボタン生成／共通実行経路 `performSigniAttack`／CPU のアタック候補フィルタの3箇所**が通る唯一の場所なので、1行足すだけで3経路すべてに届く。⚠**golden も `signiAttackBlockReason` 越しに検証する**＝engine 内部の集合を直接見ると「3経路に届いているか」を測れない。
+
+**⚠期間の解決**＝「次の対戦相手のターンの間」は `reserveFieldGrant(target, grant, tgtOwner, ctx)`＝**対象（相手）自身の次のターン**に有効化する予約（`field_grants_next_turn` に入り、相手のターン開始時に `field_grants_active` へ昇格）。「このターン」は `applyActiveFieldGrant`。
+
+**⚠parser の後処理を構造で保証した**＝`WXDi-P11-055-E1` は指定ステップが `CONDITIONAL{IS_MY_TURN}` の**中**にあり、`alignDesignatedZoneOwner`（続き454）が SEQUENCE 直下の step しか書き換えていなかったため**既定 owner のまま「たまたま合っている」**状態だった。CONDITIONAL / CHOOSE の枝へも降りるようにして、保存先と読み手の一致を構造で担保した。
+
+**逆翻訳**＝`BLOCK_ACTION` の主語に `zoneSource:'designated'` を描くようにした。落とすと「対戦相手のシグニはアタックできない」＝**全体禁止と同じ文**になり、ゾーン継続と区別できない。
+
+**ゲート**＝golden **1944→1946**（ゾーンアタック禁止の E2E＝①指定ゾーンだけ②入れ替わっても封じられる③ターン終了で失効／live 3効果のゾーン紐づけと「保存先と読み手の一致」）、smoke 10688 全0（SKIP 0）、fuzz 全0、census **832 据置**、同型★ **0**（265群）、held **106枚 / 47群 据置**、lint 0 errors。live effect 単位 diff **3効果・effectId 増減 0/0**。
+
+**📋 O-16 の残2**＝`WDK10-009-E2`（`STUB{POWER_MOD_PER_COUNT}` がレベル比例で指定ゾーンを読まない）／`SP38-006-E1` の1つ目の内側能力（対象種別・体数・期間の3軸）。**ゾーン継続の3型（power／abilityLoss／blockAction）は出そろった**。
+
+**⚠未検証（→§7 実機）**＝ゾーン封じの実挙動（指定ゾーンのシグニでアタックできない／そこへ後から出したシグニも撃てない）。
+
+
 ## 2026-08-13（続き455） — 能力喪失のゾーン継続と複数ゾーン指定（PLAN §6.4 **O-16** 第2波・**O-3 の据置2件も同時に解除**）
 
 **🔴 直した2効果はどちらも「ゾーンに紐づく能力喪失」**
