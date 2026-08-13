@@ -12271,6 +12271,7 @@ const V10_CCM_SUB_LOG = '身代わり：コードハート　†Ｃ・Ｃ・Ｍ�
 const V10_SWT_SUB_LOG = '身代わり：手札からスペル1枚を捨ててコードハート　Ｓ・Ｗ・Ｔのバニッシュを回避';
 const V10_CCM_NAME = 'コードハート　†Ｃ・Ｃ・Ｍ†';
 const V10_CCM_NORMAL_LOG = 'コードハート　†Ｃ・Ｃ・Ｍ†をバニッシュ';
+const V10_SWT_NAME = 'コードハート　Ｓ・Ｗ・Ｔ';
 const V10_SWT_NORMAL_LOG = 'コードハート　Ｓ・Ｗ・Ｔをバニッシュ';
 const V10_LIFE_NORMAL_LOG = '羅石　スイカリンをバニッシュ';
 const V10_EFFECT_ASK_LOG = 'の場離れを置換しますか？（対戦相手が選択）';
