@@ -1,5 +1,31 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-13 整理⑨：PLAN §6.4 の「消化済み」1行サマリ欄を退避（続き403〜453）
+
+> §6.4 は**未消化 worklist だけ**を置く節にした（2026-08-13）。消化済みの1行サマリはここへ移す。
+> 各行の一次記録は [BUGFIXES.md](./BUGFIXES.md) の該当日付、実装詳細は「2026-08-12 整理⑧」節。
+
+**■ 消化済み（1行サマリ・詳細は PLAN_DETAIL「2026-08-12 整理⑧」と BUGFIXES 各日付）**
+- ✅**任意性脱落の系統消化**（続き408/416/417/425/426/431）＝`MANDATORY_SUSPICIOUS` 33→0。`OPTIONAL_COST` の受け皿を `handDiscard`/`fieldDown`/`underAnySigniTrash.fromThis`/`OPTIONAL_ACTIVATE`/`OPTIONAL_TRASH_SELF`/`MILL{optional}` へ拡張。
+- ✅**STUB 仕分け計器の新設と A群残0**（続き409〜413/427）＝`npm run census:stubs` を新設しゲート化。無言 no-op を実装6件＋明示 defer 化。
+- ✅**UNKNOWN の系統消化 第1〜6波**（続き414/415/418/433/434/437）＝43→28ノード。
+- ✅**強制アタック機構**（続き424）＝CONTINUOUS 側が engine から読まれず印字【常】6カードが恒久 no-op だった。
+- ✅**`manualEffects.ts` の新規 effectId が live へ届かない第4の死角**（続き424）＝手書き効果3件が長期欠落。
+- ✅**「対戦相手は〈コスト〉てもよい」の主語・極性反転**（続き425）＝自傷2件＋アタック無効の真逆2件。
+- ✅**エナ支払い元の一本化**（続き428）＝`energyPaySource.ts` funnel＋`UNDER_CARD_AS_ENERGY_COST`。支払い14サイト／候補14モーダル／可否7箇所。
+- ✅**離場置換の対話化 M1/M2**（続き429/430/432）＝列挙→policy→採用の3段に分離し、10カードが実際に選べるように。
+- ✅**ライフクラッシュ置換の funnel**（続き431）＝`lifeCrashReplace.ts`。自傷・過剰・恒久no-op の3枚を是正。
+- ✅**デッキ全体サーチ→シャッフル→デッキ上**（続き442/443）＝裸 `STUB{REVEAL_AND_PICK}` の**万能サーチ化**を残0に。
+- ✅**デッキ公開の停止条件・行き先の構造化**（続き444）＝`REVEAL_UNTIL` 新設。`DECK_REVEAL_UNTIL` 10→4。
+- ✅**`REVEAL_PICK_PLAY` の実行時原文再parse全廃**（続き445）＝live 11→0・engine ハンドラごと削除。
+- ✅**【出】抑止が engine 未参照の死アクション**（続き446）＝10効果が恒久 no-op。`suppressOnPlay`／ターンフラグ／CONTINUOUS 宣言走査の3機構へ。
+- ✅**ターン限定 PlayerState 30フィールドの funnel 化**（続き447）＝`turnScopedState.ts`。型で登録漏れを止める。
+- ✅**「次のターンの間」の予約化 第1波**（続き448）＝`must_attack_signi_next_turn` ほか。続き447 の暫定を畳んだ。
+- ✅**シグニの「場所を入れ替える」の二ゾーン交換**（続き449）＝13効果。場外→場は配置制限と中央 funnel を通す。
+- ✅**場レベルの継続効果予約**（続き450）＝`FieldGrant`（keyword/power 統一・filter/zone/condition つき）。8効果。
+- ✅**`SEARCH` の相手応答ルーティング＝O-2**（続き452）＝pending に **`deckOwner`（誰のカードか）と `opponentResponds`（誰がクリックするか）を分離**して持たせ、応答者判定を `pendingRespondsOpponent` 1本へ集約（`BattleScreen` のベタ書き2箇所を置換）。defer 3効果を解除。⚠**併せて潜在バグ4件**＝`applyDirectAction` の `ADD_TO_HAND`/`ADD_TO_ENERGY`/`ADD_TO_BEAT` が `owner` を無視（相手デッキから自分の手札へカードが跨ぐ）／resume 4本が次 pending の `respondPlayerId` を一律に落とす（配置チェーン2枚目以降を効果オーナーが操作）／`execLookPickChain` に場出し段の空きゾーン cap が無い（超過ピックがデッキからも盤面からも消失）／`INTERNAL_SPLIT_REVEALED` の戻し先が `self` 固定。
+
+
 ## 2026-08-12 整理⑧：PLAN §6.4 の消化済み項目を退避（続き403〜450）
 
 > §6.4 が176行／90KB まで肥大したので、**消化済みバッチの詳細記録をここへ全文退避**した（2026-08-12）。
