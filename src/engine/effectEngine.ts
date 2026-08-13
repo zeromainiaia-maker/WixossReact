@@ -2303,13 +2303,20 @@ export function calcFieldPowers(
       if (!cardNum || !powers.has(cardNum)) continue;
       for (const grant of activeFieldGrantsForSigni(state, otherState, cardNum, cardMap)) {
         if (grant.kind !== 'power') continue;
+        // 動的 delta（§6.4 O-16(a)）＝「そのシグニのレベル１につき±N」。倍率は**今そのゾーンにいる
+        // シグニ自身**の実効レベルなので、grant を積んだ時点ではなく**適用のたびに**掛ける。
+        // レベルの取り方は `computeBanishedAttrs` と同じ（表記レベル＋temp_level_mods）。
+        const scaledDelta = grant.perTargetLevel
+          ? grant.delta * effectiveSigniLevel(state, cardNum, cardMap)
+          : grant.delta;
+        if (scaledDelta === 0) continue;
         const fromSigni = grant.srcType === undefined || grant.srcType.includes('シグニ') || grant.srcType.includes('レゾナ');
-        const doubled = grant.delta < 0 && (
+        const doubled = scaledDelta < 0 && (
           targetDoublers.includes(cardNum)
           || (grant.srcCardNum != null && sourceDoublers.includes(grant.srcCardNum))
           || (otherState.double_power_minus_this_turn === true && fromSigni)
         );
-        const rawDelta = doubled ? grant.delta * 2 : grant.delta;
+        const rawDelta = doubled ? scaledDelta * 2 : scaledDelta;
         const delta = negatePositive && rawDelta > 0 ? -rawDelta : rawDelta;
         powers.set(cardNum, (powers.get(cardNum) ?? 0) + delta);
       }
