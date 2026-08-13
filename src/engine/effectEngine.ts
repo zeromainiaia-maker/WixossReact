@@ -1303,6 +1303,23 @@ export function banishRedirectFrontMatches(
 }
 
 /**
+ * 場のシグニ1体の**実効レベル**（表記レベル＋`temp_level_mods`）。レベル不明・場に居ないは 0。
+ * ⚠`calcSigniLevels` は【常】の動的レベル（`LEVEL_MOD_PER_COUNT` 等）まで見る重い版で、
+ *   `calcFieldPowers` の中から呼ぶと計算順が絡む。パワー計算中の倍率にはこちらの軽い版を使う
+ *   （`computeBanishedAttrs` の level と同じ取り方＝engine 内で同一の意味になる）。
+ */
+export function effectiveSigniLevel(
+  state: PlayerState,
+  num: string,
+  cardMap: Map<string, CardData>,
+): number {
+  const baseNum = num.includes('#') ? num.slice(0, num.indexOf('#')) : num;
+  const base = parseInt(cardMap.get(baseNum)?.Level ?? '', 10);
+  if (isNaN(base)) return 0;
+  return base + (state.temp_level_mods ?? []).filter(m => m.cardNum === num).reduce((s, m) => s + m.delta, 0);
+}
+
+/**
  * 被バニッシュシグニの属性（レベル/凍結/チャーム/感染）を除去前の盤面から取得する（タスク12(xliv)）。
  * `banishRedirectFilterMatches` の target.filter 属性限定を評価するのに使う。
  * removeFromField 前の state と対象 num を渡すこと（除去後はゾーン添字状態が失われる）。
