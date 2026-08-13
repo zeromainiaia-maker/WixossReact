@@ -12286,6 +12286,8 @@ async function driveLeaveSubSingleBanish(page, H, id, evaluate) {
 
     const st = await H.queryState();
     last = st;
+    // 効果が走り出した証拠＝スタック/pending に載った、または guest 盤面が動いた。
+    if (flow.fired && (st?.stackLen > 0 || st?.pendingEffect != null || guestBoardKey(st) !== startKey)) observed.started = true;
     const isLeavePending = (st?.pendingOptions ?? []).some(o => o.startsWith('none:置換しない'));
     if (isLeavePending && !observed.pending) {
       observed.pending = {
