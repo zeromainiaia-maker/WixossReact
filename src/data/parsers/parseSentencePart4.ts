@@ -1324,6 +1324,8 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
 
   // ---- 指定されたシグニゾーンにあるシグニのパワーをそのシグニのレベルにつきNする ----
+  // ⚠「レベル**１**につき」は Part1 の `POWER_MODIFY{deltaPerTargetLevel}` が先に取る（§6.4 O-16(a)）。
+  //   ここへ残るのは**除数つき**（「レベル２につき」等・live 0件）＝受け皿が無いので STUB のまま見える化する。
   if (t.match(/指定されたシグニゾーンにあるシグニのパワーを.*レベル.*につき/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
