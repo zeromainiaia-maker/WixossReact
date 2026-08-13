@@ -443,8 +443,17 @@ export interface PlayerState {
   declared_class?: string;
   // DECLARE_COLORS で同時に宣言した色（WX11-074）。選択順を LOOK_PICK_CHAIN の固定段へ対応付ける。
   declared_colors?: string[];
-  // このターン指定された相手シグニゾーン番号（DESIGNATE_SIGNI_ZONE効果）
+  /**
+   * @deprecated 単一ゾーンだけを持てた旧フィールド。読みは `designatedZones()` に一本化する（§6.4 O-16）。
+   * 進行中セーブ互換のため残す。書き込みは `designated_zones` 側だけ行う。
+   */
   designated_zone?: number;
+  /**
+   * DESIGNATE_SIGNI_ZONE で指定されたシグニゾーン番号（§6.4 O-16 で複数対応）。
+   * ⚠原文「シグニゾーンを**２つまで**指定し」（`WX25-P3-014-E2`）は1つしか持てない旧フィールドでは表せず、
+   *   指定そのものが JSON から落ちていた。**指定のたびに置き換える**（前回の指定を持ち越さない）。
+   */
+  designated_zones?: number[];
   // 直前に removeFromField でシグニが離れたシグニゾーン番号（タスク12(lxxvi)）。
   // 「それがあったシグニゾーン」の解決にだけ使う使い捨てマーカー＝**直後の1ステップでのみ有効**。
   signi_zone_vacated_just?: number[];
