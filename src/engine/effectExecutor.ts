@@ -520,13 +520,10 @@ export function applyEffectBanishSubstituteChoice(
       `身代わり：ライフクロス${crashed.length}枚をクラッシュして${nameOf(victimNum)}のバニッシュを回避`);
   }
 
-  // ⚠**未知の costType をここから下へ落とさない**（§3 (cxxix) の再発防止）＝下は trashStackSpell 専用で、
-  //   在庫が0でも「0枚トラッシュ」で**成立してしまう**＝コスト0の身代わりになる。
-  if (chosen.costType !== 'trashStackSpell') {
-    return addLog(ctx,
-      `⚠身代わりの未実装コスト（${chosen.costType}）＝置換せず本来の移動を行う：${nameOf(victimNum)}`);
-  }
-
+  // ⚠**ここから下は `trashStackSpell` 専用**＝在庫0でも「0枚トラッシュ」で**成立してしまう**ので、
+  //   未実装 costType を落とし込むと**コスト0の身代わり**になる（§3 (cxxix) がまさにこれだった）。
+  //   ⇒ **新しい costType を足したら、まず `isImplementedSubstituteCost` に登録すること**
+  //      （登録しないものは列挙側で落ちるので、そもそもここへ来ない）。
   // trashStackSpell: 宣言者（sourceNum）の下からスペルを amount 枚トラッシュへ。トップと残りは維持。
   const srcZone = state.field.signi.findIndex(stack => stack?.at(-1) === chosen.sourceNum);
   const stack = srcZone >= 0 ? (state.field.signi[srcZone] ?? []) : [];
