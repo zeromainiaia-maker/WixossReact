@@ -10950,11 +10950,17 @@ scenarios.wxex166SpellLockPeriod = {
     let turnEndClicked = false;
     let sawCpuTurn = false;
     let activated = false;
+    // ⚠アタックのために開いたカード詳細モーダル（createPortal の全画面オーバーレイ）が残っていると、
+    //   ヘッダーの「ルリグアタックへ」はDOM上は可視なのに click が2秒タイムアウトし続ける
+    //   （続き460 実測＝40反復とも `click失敗: Timeout 2000ms exceeded` でフェイズが1歩も進まなかった）。
+    await H.closeModals();
     // ターン境界は環境依存で最も遅い。40×900msを使い、毎回 activeUser/turnPhase/blockedActions を残す。
     for (let s = 0; s < 40; s++) {
       await page.waitForTimeout(900);
       let did = null;
       const before = await H.queryState();
+      // 途中で開いたモーダル（カード詳細）も同じ理由で必ず閉じてから進行ボタンを押す。
+      if (await page.getByTestId('card-detail-modal').first().isVisible().catch(() => false)) await H.closeModals();
 
       // hostターン中だけ正規のフェイズ進行ボタンでENDまで運び、実際の「ターン終了」を押す。
       // モーダル（ライフ処理・スキップ確認）が前面にあれば先に拒否/確定方向で解消する。
