@@ -16,7 +16,16 @@ export type FieldGrant =
     }
   | {
       kind: 'power';
+      /** 固定 delta。`perTargetLevel` を付けたときは**レベル１につきの単価**になる。 */
       delta: number;
+      /**
+       * 動的 delta（§6.4 O-16(a)）＝「指定されたシグニゾーンにあるシグニのパワーを**そのシグニの
+       * レベル１につき**±N」。適用のたびに**その時点でそのゾーンにいるシグニ自身**の実効レベル
+       * （表記レベル＋`temp_level_mods`）を `delta` に掛ける。
+       * ⚠**適用時に固定 delta へ焼き込んではいけない**＝ゾーン継続なので、後からそのゾーンへ出た
+       *   別レベルのシグニには**そのシグニのレベル**が効く（焼き込むと最初の1体のレベルが居座る）。
+       */
+      perTargetLevel?: boolean;
       filter?: import('./effects').TargetFilter;
       zone?: number;
       condition?: FieldGrantCondition;
