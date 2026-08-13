@@ -1,5 +1,47 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き475b・Opus 5）— 🏁 §3 **(cxxvi)＋(cxxx) を残0クローズ**（離場置換の instance 複製と決定の消費漏れ）
+
+続き475 の実機検証で局在が確定した2件を engine で修正。**同じ funnel（`applyEffectLeaveSubstitutes` の呼び出し規約）に起因する**ので1手で直した。**live JSON は変更なし。**
+
+### (cxxvi) 身代わりで先に場を離れた instance が、同じループでもう一度動かされる
+
+**症状**＝相互身代わり（A が B を、B が A を指定）で **エナに同一 instance が2枚**（実機 `gEnergy=["WX12-024#52","WX12-024#52","WD03-013#53"]`）。
+
+**真因**＝離場の per-card ループは**選んだ時点の盤面**で回る。`#51` の身代わりで `#52` が先にエナへ移った後、ループが `#52` 自身の番を処理し、`removeFromField` は**空振り**するのに `banishDestination` が移動先へ **2枚目を push** する（`src/engine/effectExecutor.ts:969-974`）＝**カードが増える（保存則が壊れる）**。
+
+**修正**＝`isOnFieldTop(num, owner, ctx)` を新設し、**ループ5経路**（`execBanish` / `execBounce` / `execSendToEnergy` / `execTrash(SIGNI)` / `TRANSFER_TO_DECK`）の先頭でガード。
+⚠**`applyDirectAction` 側の6経路には不要**＝あちらは1枚ずつ `ctx` から所在を引き直すので、既に安全。
+⚠**EXILE の場経路だけは `includes`（下のカードも対象）**なので `isOnFieldTop` を使わない旨をコメントで固定した。
+
+### (cxxx) 置換しなかったときに「決定」が消費されない
+
+**症状**＝`leave_substitute_choices` に `none` を注入すると**盤面は完全に正しい**（victim だけがエナへ・問い0件）のに、**解決後も決定が state に残る**。残ると `leaveSubstituteAskOptions`（`:702`）が「決定済み」と見なし、**以後その instance には二度と問わない**。
+
+**真因**＝`applyEffectLeaveSubstitutes`（`:671-686`）は先頭で `consumeLeaveSubstituteDecision` を通した ctx を返すが、**11経路すべてが `if (sub.replaced)` の側でしか `sub.ctx` を採っていなかった**＝置換不成立だと消費が丸ごと捨てられる。
+
+**修正**＝**11経路すべてで `sub.ctx` を無条件に採る**。ループ5経路は `cur = sub.ctx;` を1行、`applyDirectAction` の6経路は局所別名 `c`（`TRANSFER_TO_DECK` は `tdCtx`）へ寄せて以降の `ctx` 参照を差し替えた。
+⚠**`execBanish` は `s = ownerState(own, cur)` を sub 呼び出しより先に取っていた**ので、`cur` 更新後に `s2` として取り直している（ここを直し忘れると消費が再び消える）。
+
+### golden トリップワイヤ2本（1964 → 1966）
+
+| テスト | 見張るもの | 外したときの実測 |
+|---|---|---|
+| `§3 (cxxvi) 離場置換: 身代わりで先に場を離れたカードを、同じループがもう一度動かさない` | **エナの保存則**（犠牲シグニが増えるのは1枚だけ） | `expected=1 got=2` で FAIL |
+| `§3 (cxxx) 離場置換の対話: 置換しなかったときも決定は消費される（呼び出し側が ctx を捨てない）` | **`executeEffect` の端から端**で決定が消えること | `expected=undefined got=[object Object]` で FAIL |
+
+⚠**既存の `決定は再検証される` テストは `applyEffectLeaveSubstitutes` を直接呼ぶので (cxxx) では落ちない**＝**呼び出し側の規約違反は end-to-end でしか見えない**。これが2本目を足した理由。
+
+### 実機（`verifyBattleDrive.mjs`）
+
+**V-01 の6シナリオが全て緑**（`leaveSubDecisionNoneIsHonored` は `choices=null`／`leaveSubAllTargetsAskedPerVictim` は `gEnergy=["WX12-024#52","WD03-013#53"]` で複製消滅）。V-10 の4本も緑のまま（`effectBanishLifeCrashSubstituteNotOnEffect` は **(cxxix) の赤トリップワイヤとして据置**）。
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / **golden 1966** / smoke 10688 SKIP 0 / fuzz 全0 / census 831 / census:stubs / manual-fields 0 / lint 0 errors・259 warnings）。
+
+---
+
 ## 2026-08-14（続き475・Opus 5）— §7 実機検証の続き：**V-10 を決着**し、**V-01 の在庫バグ (cxxv) を「シナリオ偽陽性」として取り下げ**
 
 **engine / parser / live JSON / `src/` は1行も変更していない**（変更は `scripts/verifyBattleDrive.mjs` と docs のみ）。ゲート全緑・数値据置。
