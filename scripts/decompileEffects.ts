@@ -1132,6 +1132,11 @@ function actionJa(a?: Action, effectType?: string): string {
           : `このシグニの正面のシグニは能力を失い、新たに得られない${durRA}`;
       }
       const subjRA = a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.target?.thisCardOnly ? 'このシグニ' : targetJa(a.target);
+      // alsoKeys: 「場にある**キーと**シグニ」＝シグニに加えてそのプレイヤーの全キーも失う（§6.4 O-16(b)）。
+      // 落とすと「シグニだけ」に見えて、キー側の実装が入ったことが計器に映らない。
+      if (a.alsoKeys) {
+        return `${ownerJa(a.target?.owner)}の場にあるすべてのキーと${filterJa(a.target?.filter)}シグニは能力を失い、新たに得られない${durRA}`;
+      }
       return `${subjRA}は能力を失い、新たに得られない${a.frontOfSelf ? '（正面）' : ''}${durRA}`;
     }
     case 'GRANT_PROTECTION': {
