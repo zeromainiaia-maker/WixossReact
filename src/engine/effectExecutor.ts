@@ -8482,9 +8482,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (s.field.signi.some(st => st?.includes(cardNum))) {
           const sub = applyEffectLeaveSubstitutes(cardNum, o, ctx);
           if (sub.replaced) return done(sub.ctx);
-          const removed = removeFromField(cardNum, s);
-          return done(addLog(setOwnerState(o, { ...removed, excluded: [...(removed.excluded ?? []), cardNum] }, ctx),
-            `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
+          const c = sub.ctx;      // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+          // ⚠ここは `includes`（下のカードも除外対象）なので `isOnFieldTop` は使わない。
+          const removed = removeFromField(cardNum, ownerState(o, c));
+          return done(addLog(setOwnerState(o, { ...removed, excluded: [...(removed.excluded ?? []), cardNum] }, c),
+            `${c.cardMap.get(cardNum)?.CardName ?? cardNum}をゲームから除外`));
         }
       }
       // トラッシュからの除外（owner優先、なければ両者を探索）
