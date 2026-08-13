@@ -1059,10 +1059,9 @@ function execBounce(a: BounceAction, ctx: ExecCtx): ExecResult {
     for (const num of selected) {
       const own: Owner = tgt.owner === 'any' ? sideOfFieldCard(num, cur) : tgt.owner;
       const sub = applyEffectLeaveSubstitutes(num, own, cur);
-      if (sub.replaced) {
-        cur = sub.ctx;
-        continue;
-      }
+      cur = sub.ctx;              // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+      if (sub.replaced) continue;
+      if (!isOnFieldTop(num, own, cur)) continue;  // (cxxvi)
       const s = ownerState(own, cur);
       const removed = removeFromField(num, s);
       // turn_signi_returned_to_hand: このターンにシグニが場から手札に戻ったフラグ（G087）
