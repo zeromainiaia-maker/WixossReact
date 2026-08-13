@@ -824,6 +824,21 @@ export function fieldGrantRemovesAbilities(
     .some(grant => grant.kind === 'abilityLoss');
 }
 
+/**
+ * キーを**能力の発生源として**列挙する唯一の funnel（§6.4 O-16(b)）。
+ *
+ * `keys_abilities_disabled`（「（この）ターン、そのプレイヤーのすべてのキーは能力を失い、新たに得られない」）が
+ * 立っているあいだは空を返す＝CONT 収集・AUTO トリガー収集・【起】候補のどこから見てもキーの能力が消える。
+ * ⚠従来このフラグは `effectEngine` の CONT 収集8箇所でしか見られておらず、**`triggerCollect` の AUTO と
+ *   `key_piece_extra` は素通り**していた（＝「すべてのキーが能力を失う」が半分しか効いていない）。
+ * ⚠**「キーが場にあるか」の判定には使わない**＝色・枚数・配置可否・トラッシュ移動は能力喪失と無関係。
+ */
+export function activeKeyAbilitySources(state: PlayerState): string[] {
+  if (state.keys_abilities_disabled) return [];
+  return [state.field.key_piece, ...(state.field.key_piece_extra ?? [])]
+    .filter((n): n is string => !!n);
+}
+
 // ===== CONTINUOUS BANISH / FREEZE / DOWN 状態変更計算 =====
 
 export interface ContSigniMutation {
