@@ -12374,7 +12374,7 @@ async function runV10EffectBanishRound(page, H, id, victimInstance, evaluate) {
       st?.guest?.trashCards ?? [],
     ]);
     if (flow.fired && ((st?.stackLen ?? 0) > 0 || st?.pendingEffect != null || guestBoard !== startGuestBoard)) started = true;
-    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | flow=${JSON.stringify(flow)} started=${started} cands=${JSON.stringify(targetCandidateSnapshot)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} gLife=${st?.guest?.life} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | flow=${JSON.stringify(flow)} started=${started} cands=${JSON.stringify(targetCandidateSnapshot)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} gLife=${st?.guest?.life} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length} checks=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} tail=${JSON.stringify((st?.logTail ?? []).slice(-8))}`);
     const settled = flow.fired && flow.victimPicked && flow.targetConfirmed && started
       && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
       && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null;
