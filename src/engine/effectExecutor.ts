@@ -3126,6 +3126,27 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   if (a.target.type === 'SIGNI' && a.actionId === 'ATTACK') {
     const tgtOwner: Owner = a.target.owner === 'self' ? 'self' : 'opponent';
     const tgtState = ownerState(tgtOwner, ctx);
+    // §6.4 O-16:「（指定した）そのシグニゾーンにあるシグニでアタックできない」＝**ゾーン継続**。
+    // per-signi 付与では**そのゾーンに後から出たシグニ**に効かない（ゾーンを封じる原文の意図が死ぬ）。
+    // POWER_MODIFY / REMOVE_ABILITIES と同じ形で場レベル grant に載せる。
+    if (a.target.zoneSource === 'designated' && a.target.count === 'ALL') {
+      const grantBA: FieldGrant = { kind: 'blockAction', actionId: 'ATTACK', filter: a.target.filter };
+      let curBA = ctx;
+      let touchedBA = false;
+      if (a.until === 'NEXT_TURN') {
+        // 「次の対戦相手のターンの間」＝**対象（相手）自身の次のターン**に有効化する。
+        const reservationBA = reserveFieldGrant(a.target, grantBA, tgtOwner === 'self' ? 'self' : 'opponent', curBA);
+        curBA = reservationBA.ctx;
+        touchedBA = reservationBA.reserved;
+      } else {
+        const activeBA = applyActiveFieldGrant(a.target, grantBA, curBA);
+        curBA = activeBA.ctx;
+        touchedBA = activeBA.applied;
+      }
+      return done(addLog(curBA, touchedBA
+        ? `指定シグニゾーンのシグニはアタックできない${a.until === 'NEXT_TURN' ? '（次のターンの間）' : '（このターン）'}`
+        : '指定されたシグニゾーンがない'));
+    }
     const untilLbl = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
     // 解除コストつき制限は対象側 state の per-signi 予約へ格納する。
     // keyword_grants の「アタックできない」は UI の継続判定しか見ないため、共通実行経路と CPU に届かない。
