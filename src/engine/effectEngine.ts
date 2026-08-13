@@ -2882,6 +2882,12 @@ export function calcContinuousBlockedActions(
         (otherState.keyword_grants_until_opp_turn?.[topNum] ?? []).includes('アタックできない')) {
       cannotAttackSigni.add(topNum);
     }
+    // 場／ゾーンレベルのアタック禁止（§6.4 O-16）。**ゾーンに紐づく**ので、そのゾーンへ後から
+    // 出たシグニも毎回ここで拾われる（per-signi 付与では表せない部分）。
+    if (activeFieldGrantsForSigni(ownerState, otherState, topNum, cardMap)
+      .some(grant => grant.kind === 'blockAction' && grant.actionId === 'ATTACK')) {
+      cannotAttackSigni.add(topNum);
+    }
   }
 
   // BLOCK_NON_WHITE_SPELL: どちらかのフィールドにあれば両者の白以外スペル使用を封じる
