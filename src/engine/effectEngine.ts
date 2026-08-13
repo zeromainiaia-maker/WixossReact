@@ -1539,7 +1539,7 @@ export function calcFieldPowers(
     const lrig = otherState.field.lrig.at(-1); if (lrig) protectionHosts.push(lrig);
     const assistL = otherState.field.assist_lrig_l?.at(-1); if (assistL) protectionHosts.push(assistL);
     const assistR = otherState.field.assist_lrig_r?.at(-1); if (assistR) protectionHosts.push(assistR);
-    if (otherState.field.key_piece) protectionHosts.push(otherState.field.key_piece);
+    protectionHosts.push(...activeKeyAbilitySources(otherState));
     const addMatching = (state: PlayerState, set: Set<string>, filter?: TargetFilter, only?: string) => {
       for (let zi = 0; zi < state.field.signi.length; zi++) {
         const top = state.field.signi[zi]?.at(-1);
@@ -1688,7 +1688,7 @@ export function calcFieldPowers(
     const ar = ownerState.field.assist_lrig_r ?? [];
     if (ar.length > 0) candidates.push(ar[ar.length - 1]);
     // キーピース
-    if (ownerState.field.key_piece && !ownerState.keys_abilities_disabled) candidates.push(ownerState.field.key_piece);
+    candidates.push(...activeKeyAbilitySources(ownerState));
 
     // アクセカードのCONTINUOUS効果（パワー修正のみ）をホストシグニに適用
     // 例: 「これにアクセされているシグニはパワー+3000を得る」
@@ -2588,7 +2588,7 @@ export function collectLrigGrantedEffects(
   for (const stack of ownerState.field.signi) {
     if (stack && stack.length > 0) candidates.push(stack[stack.length - 1]);
   }
-  if (ownerState.field.key_piece && !ownerState.keys_abilities_disabled) candidates.push(ownerState.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(ownerState));
 
   for (const cardNum of candidates) {
     const effects = effectsMap.get(cardNum) ?? [];
@@ -3081,7 +3081,7 @@ export function collectDrawLimits(
     ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...opponentState.field.lrig.slice(-1),
   ];
-  if (opponentState.field.key_piece && !opponentState.keys_abilities_disabled) candidates.push(opponentState.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(opponentState));
   for (const cn of candidates) {
     const effs = effectsMap.get(cn) ?? [];
     for (const eff of effs) {
@@ -3116,7 +3116,7 @@ export function collectProtectedZones(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(state));
   // ルリグフィールドも対象（WXEX2-22等のルリグ常時効果）
   if (state.field.lrig.length) candidates.push(state.field.lrig[state.field.lrig.length - 1]);
   for (const cn of candidates) {
@@ -3205,7 +3205,7 @@ export function collectEnergyColorSubs(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(state));
   if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
   for (const cn of candidates) {
     const effs = effectsMap.get(cn) ?? [];
@@ -3279,8 +3279,7 @@ export function collectEnergyTrashSubstituteInfo(
   }
 
   // キーピースのCONTINUOUS効果チェック（ENERGY_SUBSTITUTE_TRASH_KEY）
-  const keyPiece = state.field.key_piece;
-  if (keyPiece) {
+  for (const keyPiece of activeKeyAbilitySources(state)) {
     const effs = effectsMap.get(keyPiece) ?? [];
     for (const eff of effs) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -3290,6 +3289,7 @@ export function collectEnergyTrashSubstituteInfo(
         break;
       }
     }
+    if (keySubInstId) break;
   }
 
   // エナゾーンの各カードを判定
@@ -4231,7 +4231,7 @@ export function collectHandGuardIconClasses(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(state));
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -4291,7 +4291,7 @@ export function collectArtsThresholdCostReductions(
     if (top) candidates.push(top);
   }
   if (state.field.lrig.length > 0) candidates.push(state.field.lrig.at(-1)!);
-  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(state));
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -4367,7 +4367,7 @@ export function collectLrigColorAndLimitMods(
     const top = stack?.at(-1);
     if (top) candidates.push(top);
   }
-  if (state.field.key_piece && !state.keys_abilities_disabled) candidates.push(state.field.key_piece);
+  candidates.push(...activeKeyAbilitySources(state));
 
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -6184,7 +6184,7 @@ export function collectFrozenBanishOverrides(
   const candidates: string[] = [
     ...state.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
-    ...(state.field.key_piece ? [state.field.key_piece] : []),
+    ...activeKeyAbilitySources(state),
   ];
   for (const cn of candidates) {
     for (const eff of (effectsMap.get(cn) ?? [])) {
@@ -6232,7 +6232,7 @@ export function collectFirstSpellCostUp(
   const candidates: string[] = [
     ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
-    ...(opponentState.field.key_piece ? [opponentState.field.key_piece] : []),
+    ...activeKeyAbilitySources(opponentState),
   ];
   let extra = 0;
   for (const cn of candidates) {
@@ -6260,7 +6260,7 @@ export function collectIncreaseActCost(
   const candidates: string[] = [
     ...opponentState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []),
     ...(opponentState.field.lrig.at(-1) ? [opponentState.field.lrig.at(-1)!] : []),
-    ...(opponentState.field.key_piece ? [opponentState.field.key_piece] : []),
+    ...activeKeyAbilitySources(opponentState),
   ];
   // lrig_opp_act_cost_plus: GRANT_ABILITY_INNER_TEXT で付与されたコスト増加
   let extra = opponentState.lrig_opp_act_cost_plus ?? 0;
