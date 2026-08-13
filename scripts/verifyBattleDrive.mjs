@@ -14542,8 +14542,17 @@ scenarios.leaveSubAllTargetsAskedPerVictim = {
       if (flow.fired && leaveSubSettled(st) && asks.length === 2 && preApplySnapshot) {
         const movedAfterAllAnswers = !initialGuest.every(n => leaveSubHas(st?.guest?.fieldSigni, n))
           && (st?.guest?.energyCards ?? []).length > 0;
+        // 🔴続き475 追加＝**同一 instance がエナに複製されていないこと**（§3 (cxxvi)）。従来この判定が無く、
+        //   複製が起きたまま緑になっていた（実測 gEnergy=["WX12-024#52","WX12-024#52","WD03-013#53"]）。
+        //   原因＝身代わりで既に場を離れた instance を `applyBanish` のループが**もう一度**処理し、
+        //   `removeFromField` が空振りしたまま移動先へ push するため。
+        const energyCards = st?.guest?.energyCards ?? [];
+        const duplicated = energyCards.filter((n, i) => energyCards.indexOf(n) !== i);
+        if (movedAfterAllAnswers && duplicated.length > 0) {
+          return { pass: false, detail: `🔴【instance複製＝§3 (cxxvi)】問い2件・移動は起きたが同一instanceがエナに重複=${JSON.stringify(duplicated)}（${leaveSubTimeout(st)}）` };
+        }
         if (movedAfterAllAnswers) {
-          return { pass: true, detail: `victimごとの問い2件、1件目決定後も全3体が場に残る中間snapshot=${JSON.stringify(preApplySnapshot)}、全応答後に移動・解決完了（${leaveSubTimeout(st)}）` };
+          return { pass: true, detail: `victimごとの問い2件、1件目決定後も全3体が場に残る中間snapshot=${JSON.stringify(preApplySnapshot)}、全応答後に移動・解決完了・エナに重複instanceなし（${leaveSubTimeout(st)}）` };
         }
         return { pass: false, detail: `2回問いは出たが、全応答後の移動が未確認（${leaveSubTimeout(st)}）` };
       }
