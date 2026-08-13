@@ -472,7 +472,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // ⚠汎用枝は対象種別を SIGNI 固定で組むため、live は**キーではなく相手シグニ1体**を選ぶ別物になっていた。
     // ⚠`alsoKeys`（「場にあるキーとシグニ」＝そのプレイヤーの全キー）とは別軸＝こちらは**1枚を選ぶ**。
     {
-      const keyTargetM = t.match(/(あなた|対戦相手)のキーを?([０-９\d]*)枚(まで)?対象とし/);
+      const keyTargetM = t.match(/(あなた|対戦相手)のキー([０-９\d]*)枚(まで)?を?対象とし/);
       if (keyTargetM) {
         return {
           type: 'REMOVE_ABILITIES',

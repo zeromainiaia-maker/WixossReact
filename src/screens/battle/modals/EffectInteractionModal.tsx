@@ -137,6 +137,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               self_assist_lrig: '自分のアシストルリグから',
               self_trash:  'トラッシュから',
               opp_trash:   '相手のトラッシュから',
+              // 場のキー枠（§6.4 O-17・`WXK05-010-E2`「対戦相手のキー１枚を対象とし」）
+              self_key:    '自分のキーから',
+              opp_key:     '相手のキーから',
             };
             // opp_hand は viewer が持ち主なら「あなたの手札から」（タスク12(cv)）
             // 同型＝`opp_lrig_deck` × `opponentResponds:true`（「対戦相手は自分のルリグデッキから…」WX24-P4-014）は

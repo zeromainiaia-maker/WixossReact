@@ -267,6 +267,8 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   let u: string;
   if (t.type === 'LRIG') u = 'ルリグ';
   else if (t.type === 'CENTER_LRIG_OR_SIGNI') u = t.count === 'ALL' ? 'ルリグとシグニ' : 'センタールリグかシグニ';
+  // 場のキー（§6.4 O-17）。数詞は下の `counter` が `loc` 無し＝「体」になるので、ここで「枚」へ寄せる。
+  else if (t.type === 'KEY') u = 'キー';
   else if (t.type === 'PLAYER') u = '';
   else if (loc) {
     const ct = t.filter?.cardType;
@@ -283,7 +285,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     const mPick = typeof t.count === 'number' ? `${t.count}体まで` : '好きな数';
     return `${own}${filterJa(t.filter)}${u}をレベルの合計が${t.totalLevelMax}以下になるように${mPick}`.trim();
   }
-  const counter = loc ? '枚' : '体';
+  const counter = (loc || t.type === 'KEY') ? '枚' : '体';
   const setConstraint = t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
