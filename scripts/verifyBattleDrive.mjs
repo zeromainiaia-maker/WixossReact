@@ -12325,14 +12325,21 @@ scenarios.leaveSubCpuAutoRespondsSubstitute = {
   spec: makeLeaveSubSingleSpec(),
   async drive(page, H) {
     return driveLeaveSubSingleBanish(page, H, 'lscars', (st, observed, flow) => {
-      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !flow.victimTargeted || !observed.started || !leaveSubSettled(st)) return null;
       const victimStayed = leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM);
       const sacrificeLeft = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE);
       const sacrificeBanished = (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE);
-      if (victimStayed && sacrificeLeft && sacrificeBanished) {
-        return { pass: true, detail: `CPUが先頭の身代わりを自動選択し解決完了（victim残存・sacrificeは通常バニッシュ先のエナへ・${leaveSubTimeout(st)}）` };
+      // 🔴**盤面だけを見てはいけない**（続き466 実測）＝「対話が1度も出ず engine が自動適用した」場合の盤面は
+      //   「CPU が問いに答えて身代わりを選んだ」場合と**完全に同一**になる。機構を検査するには
+      //   **問いが実際に出たこと**（`asks===1`）を必須にする。これを入れる前は偽陽性で緑だった。
+      const asks = leaveSubQuestionLogs(st);
+      if (victimStayed && sacrificeLeft && sacrificeBanished && asks.length === 1) {
+        return { pass: true, detail: `被害側CPUへ問いが出て自動応答し解決完了（victim残存・sacrificeは通常バニッシュ先のエナへ・${leaveSubTimeout(st)}）` };
       }
-      return { pass: false, detail: `【旧回帰/置換不発】CPU応答後の盤面が不正（${leaveSubTimeout(st)}）` };
+      if (victimStayed && sacrificeLeft && sacrificeBanished && asks.length === 0) {
+        return { pass: false, detail: `🔴【対話未発火】盤面は身代わり成立と同じだが、離場置換の問いが1度も出ていない＝engine が従来どおり自動適用している（${leaveSubTimeout(st)}）` };
+      }
+      return { pass: false, detail: `【旧回帰/置換不発】CPU応答後の盤面が不正（asks=${asks.length} ${leaveSubTimeout(st)}）` };
     });
   },
 };
@@ -12354,7 +12361,7 @@ scenarios.leaveSubAskDirectedToVictim = {
         return { pass: false, detail: `【選択肢欠落】CPU応答窓の options=${JSON.stringify(pending.pendingOptions)}` };
       }
       const asks = leaveSubQuestionLogs(st);
-      if (flow.fired && observed.started && leaveSubSettled(st) && asks.length === 1
+      if (flow.fired && flow.victimTargeted && observed.started && leaveSubSettled(st) && asks.length === 1
           && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
           && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE)) {
         return { pass: true, detail: `被害側CPUへの問いログ1件を確認。pending窓${pending ? `も捕捉（responder=${pending.pendingRespondPlayer}, options=${JSON.stringify(pending.pendingOptions)}）` : 'はCPU_ACTION_DELAY内のため未捕捉（主判定はログ）'}` };
@@ -12372,7 +12379,7 @@ scenarios.leaveSubDecisionNoneIsHonored = {
     return driveLeaveSubSingleBanish(page, H, 'lsdni', (st, observed, flow) => {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
-      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !flow.victimTargeted || !observed.started || !leaveSubSettled(st)) return null;
       const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
         && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM)
@@ -12391,7 +12398,7 @@ scenarios.leaveSubDecisionKeyIsHonored = {
     return driveLeaveSubSingleBanish(page, H, 'lsdki', (st, observed, flow) => {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
-      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !flow.victimTargeted || !observed.started || !leaveSubSettled(st)) return null;
       const ok = leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
         && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE)
@@ -12410,7 +12417,7 @@ scenarios.leaveSubNoOptionMeansNoAsk = {
     return driveLeaveSubSingleBanish(page, H, 'lsnoma', (st, observed, flow) => {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【候補なしで誤質問】${JSON.stringify(asks)}` };
-      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !flow.victimTargeted || !observed.started || !leaveSubSettled(st)) return null;
       const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM);
       return ok
