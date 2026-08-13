@@ -1,10 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-13（続き424・Codex起案）— §7 強制アタック enforcement の Playwright シナリオ6本
+## 2026-08-13（続き467・Codex起案→Claude実機検証）— §7 強制アタック enforcement＝**6/6 が2回連続PASS**（差し戻し0・是正0）
 
-### 実行結果＝**BLOCKED**
+### 実機結果
 
-外部ネットワーク遮断のため `scripts/verifyBattleDrive.mjs`（実ログイン／live Supabase／実ブラウザ）は未実行。実行・デバッグ・PASS/FAIL 判定は検証側へ引き渡す。engine／parser／`src/`／live JSON は変更していない。
+| id | 実測 |
+|---|---|
+| `forcedAttackBlocksPhaseAdvance` | guest ルリグ `WD07-004` で `ルリグアタックへ` → **`⚠ アタックしなければなりません`**／`turnPhase` は **`ATTACK_SIGNI` のまま**／`OK` で閉じる |
+| `forcedAttackControlAdvances` | **対照**＝**guest ルリグ1枚だけ**を非強制 `WD01-001` へ差し替え → 強制警告は出ず、通常のスキップ確認だけで **`ATTACK_LRIG` へ進む** |
+| `forcedAttackAdvancesAfterAllAttacked` | zone0 を `data-action-label=アタック` で攻撃 → **`signiDown[0]=true` を観測してから**進行 → `ATTACK_LRIG`（**永久ブロックではない**） |
+| `forcedAttackBannerOnMyTurn` | 赤バナー **`⚠ あなたのシグニは可能ならばアタックしなければなりません`** 表示 → **guest の `field.lrig` だけを PATCH** → **バナー消失**（対照内蔵） |
+| `forcedAttackNoSoftlockWhenUnattackable` | 🔴**最優先**＝**アタック追加コスト1・エナ0**で**アタックボタンが出ないことを先に観測** → 進行しても**警告は出ず** `ATTACK_LRIG` へ（**ソフトロックなし**） |
+| `forcedAttackFromResonaOnField` | `WX12-010`（**レゾナ**）を guest の `field.signi` に置いても同じくブロック＝`resolveForcedSigniAttack` の**2走査ブランチ**（`lrigZoneTops` 側／`field.signi` 側）が両方とも実UIまで届く |
+
+⭐**対照が決定的だった**＝guest のセンタールリグ1枚の差し替えだけで警告の有無が反転する ⇒ ブロックが**印字【常】由来**だと確定。
+**従来この【常】は完全に無視されていた**（CONTINUOUS は `executeAction` を通らず `must_attack_signi` が永久に立たない）ので、これがそのまま回帰検出になる。
+
+### 🔑 codex が指示書を実コードで訂正した点（通算18回目）
+
+- **「凍結」ではアタック不可にならない**＝現行の `signiAttackBlockReason` に凍結は含まれず**アタックボタンを消さない**。
+  指示書は F5 の手段として凍結を例示していたが、codex は**ソース確認に従って `signi_attack_cost` × エナ不足**
+  （`src/screens/battle/signiAttackGate.ts:71-72` の `ENERGY_COST`）を採用した。**凍結のまま書いていれば
+  「強制が効いていない」ように見えて誤 FAIL していた。**
+- **`WX20-Re08` は Lv3/Limit7、`Re09` は Lv2/Limit4**（指示書の「Re07〜09＝Lv4/Limit11」は **Re07 だけ**）。
+- 行番号の微ズレ3件（`lrig_abilities_disabled` は `:4930`／`field.signi` 走査は `:4919-4926`／`OK` は `:230`）。
+
+### 📋 やらなかったこと
+
+- `WX12-010` の【出】（`REARRANGE_SIGNI` ＋辞退）＝**別機構**なので混ぜない（§3-4）。
+- `WX16-047`（`AUTO`＋`infectedOnly`）／正面強制（`forcedFrontAttackZones`）＝**軸が違う**。
+- 相手ターン側の**緑バナー**＝同じ `resolveForcedSigniAttack` の結果を表示するだけなので低優先。
+- `WX14-018`／`WX20-Re07〜09` の個別シナリオ＝`WD07-004` と**同一の走査ブランチ・同一構造**の重複。
+
+engine／parser／`src/`／live JSON は変更していない（**PLAN §3 (cxxv)/(cxxvi) にも触れていない**）。
+
+### 以下は Codex 起案時点の記録（実行前）
+
+外部ネットワーク遮断のため codex 側では未実行（`BLOCKED`）。実行・デバッグ・PASS/FAIL 判定は検証側が引き取った。
 
 `scripts/verifyBattleDrive.mjs` へ次の6本を既定 `order` 末尾に追加した。
 
