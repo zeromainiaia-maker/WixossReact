@@ -498,7 +498,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       return { type: 'REMOVE_ABILITIES', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, until: dur } as RemoveAbilitiesAction;
     }
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
-    const all = t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
+    // §6.4 O-16(b):「（対戦相手の）場にある**キーと**シグニは能力を失い、新たに得られない」＝
+    // キーとシグニの**両方**が、しかも**すべて**対象。従来は「キーと」が挟まるせいで下の `all` 判定が
+    // 外れて `count:1`（＝**シグニ1体だけを選ぶ**）に潰れ、さらにキー側は表現手段が無く丸ごと落ちていた。
+    const keysAndSigni = /場にあるキーとシグニは[^。]*?能力を(?:失[うい]|新たに得られない)/.test(t);
+    const all = keysAndSigni || t.match(/すべての.*シグニ/) || t.match(/場にあるシグニは能力を失/);
     // 「対戦相手のシグニを**N体まで**対象とし、…能力を失う」＝上限選択。従来は枚数を読まず常に count:1 で、
     // 2体まで消せる効果が1体しか消せない**過小実行**だった（WXDi-P03-024-E1／WXDi-P13-043-E1／WXK10-016-E3 ほか）。
     // ⚠「すべての」側は別枝なので触らない（count:'ALL' を維持）。
