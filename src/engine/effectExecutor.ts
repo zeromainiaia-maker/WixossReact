@@ -8357,11 +8357,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       if (!found) return done(ctx);
       const sub = applyEffectLeaveSubstitutes(cardNum, found, ctx);
       if (sub.replaced) return done(sub.ctx);
-      const s = ownerState(found, ctx);
+      const c = sub.ctx;          // ⚠(cxxx)＝置換不成立でも「決定の消費」は必ず反映する
+      const s = ownerState(found, c);
       const removed = removeFromField(cardNum, s);
       const withEnergy: PlayerState = { ...removed, energy: [...removed.energy, cardNum] };
-      return done(addLog(setOwnerState(found, withEnergy, ctx),
-        `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}をエナゾーンに置く`));
+      return done(addLog(setOwnerState(found, withEnergy, c),
+        `${c.cardMap.get(cardNum)?.CardName ?? cardNum}をエナゾーンに置く`));
     }
     case 'TRASH': {
       const trashAction = action as TrashAction;
