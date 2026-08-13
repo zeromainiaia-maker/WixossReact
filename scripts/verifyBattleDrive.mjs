@@ -12308,8 +12308,8 @@ scenarios.leaveSubCpuAutoRespondsSubstitute = {
   title: 'WX19-023効果バニッシュ（CPU被害側が離場置換へ自動応答しソフトロックしない）',
   spec: makeLeaveSubSingleSpec(),
   async drive(page, H) {
-    return driveLeaveSubSingleBanish(page, H, 'lscars', (st, _observed, flow) => {
-      if (!flow.fired || !leaveSubSettled(st)) return null;
+    return driveLeaveSubSingleBanish(page, H, 'lscars', (st, observed, flow) => {
+      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
       const victimStayed = leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM);
       const sacrificeLeft = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE);
       const sacrificeBanished = (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE);
@@ -12327,7 +12327,10 @@ scenarios.leaveSubAskDirectedToVictim = {
   async drive(page, H) {
     return driveLeaveSubSingleBanish(page, H, 'lsadtv', (st, observed, flow) => {
       const pending = observed.pending;
-      if (pending?.pendingRespondPlayer === pending?.viewerUserId) {
+      // ⚠`pending?.a === pending?.b` は **pending が null のとき undefined === undefined ＝ true** になり、
+      //   1周目（まだ何も起きていない時点）で「応答者反転」を誤検出して即 FAIL する（続き466 実測）。
+      //   捕捉できたときだけ判定する。
+      if (pending && pending.pendingRespondPlayer === pending.viewerUserId) {
         return { pass: false, detail: `【応答者反転】離場置換の応答者がhost viewerになっている（${JSON.stringify(pending)}）` };
       }
       if (pending && (!pending.pendingOptions.some(o => o.includes('代わりに') && o.includes('をバニッシュする'))
@@ -12350,10 +12353,10 @@ scenarios.leaveSubDecisionNoneIsHonored = {
   title: 'leave_substitute_choices注入（noneを消費し、問わずvictimを通常バニッシュ）',
   spec: makeLeaveSubSingleSpec({ decision: 'none' }),
   async drive(page, H) {
-    return driveLeaveSubSingleBanish(page, H, 'lsdni', (st, _observed, flow) => {
+    return driveLeaveSubSingleBanish(page, H, 'lsdni', (st, observed, flow) => {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
-      if (!flow.fired || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
       const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
         && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM)
@@ -12369,10 +12372,10 @@ scenarios.leaveSubDecisionKeyIsHonored = {
   title: 'leave_substitute_choices注入（instanceIdのbanishSubstitute keyを消費して身代わり）',
   spec: makeLeaveSubSingleSpec({ decision: LEAVE_SUB_DECISION_KEY }),
   async drive(page, H) {
-    return driveLeaveSubSingleBanish(page, H, 'lsdki', (st, _observed, flow) => {
+    return driveLeaveSubSingleBanish(page, H, 'lsdki', (st, observed, flow) => {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【決定済みなのに再質問】${JSON.stringify(asks)}` };
-      if (!flow.fired || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
       const ok = leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_SACRIFICE)
         && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_SACRIFICE)
@@ -12388,10 +12391,10 @@ scenarios.leaveSubNoOptionMeansNoAsk = {
   title: 'WX19-023効果バニッシュ（他の＜電機＞が無ければ問わず通常バニッシュ）',
   spec: makeLeaveSubSingleSpec({ withSacrifice: false }),
   async drive(page, H) {
-    return driveLeaveSubSingleBanish(page, H, 'lsnoma', (st, _observed, flow) => {
+    return driveLeaveSubSingleBanish(page, H, 'lsnoma', (st, observed, flow) => {
       const asks = leaveSubQuestionLogs(st);
       if (asks.length > 0) return { pass: false, detail: `【候補なしで誤質問】${JSON.stringify(asks)}` };
-      if (!flow.fired || !leaveSubSettled(st)) return null;
+      if (!flow.fired || !observed.started || !leaveSubSettled(st)) return null;
       const ok = !leaveSubHas(st?.guest?.fieldSigni, LEAVE_SUB_VICTIM)
         && (st?.guest?.energyCards ?? []).includes(LEAVE_SUB_VICTIM);
       return ok
