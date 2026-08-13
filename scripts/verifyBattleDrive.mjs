@@ -10598,7 +10598,7 @@ async function clickExactVisibleText(page, text) {
       await el.click({ timeout: 2000 });
       return `text:${text}`;
     }
-    await page.waitForTimeout(100);
+    await page.waitForTimeout(150); // ⚠`clickPendingInstance` と同じ 20×150ms＝3秒に揃える（続き470 で codex が不揃いを指摘）
   }
   return null;
 }
@@ -10972,6 +10972,331 @@ scenarios.optionalTrashSelfNoHandLoss = {
     const skip = await runOptionalTrashSelfRound(page, H, 'skip');
     return { pass: skip.pass, detail: `同一specを再注入し、変えたのはOPTIONAL_TRASH_SELFの応答だけ。${pay.detail}／${skip.detail}` };
   },
+};
+
+// ── 続き470：PLAN §7 V-08＋V-09① OPTIONAL_COST{handDiscard} 実UI ───────────
+// F群は WXK09-041（タマ限定）を WD01-001（タマ）上でアタックさせる。WX18-001 は Lv4＋黒3＋コイン1に加え、
+// 原文が強制なのに live は任意という別の仕様差を含むため、handDiscard filter/canAfford の単独検証には使わない。
+const HAND_COST_ANGEL = 'WX01-035#4801';
+const HAND_COST_NONMATCH_A = 'WD01-013#4802';
+const HAND_COST_NONMATCH_B = 'WD01-017#4803';
+const HAND_COST_NONMATCH_REPLACEMENT = 'WD01-014#4801';
+const HAND_COST_ATTACKER = 'WXK09-041#4804';
+const HAND_COST_GUEST_HAND = ['WD01-013#4805', 'WD01-014#4806'];
+
+const makeHandDiscardFilterSpec = (matchingCard) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#4807'],
+    'field.signi': [[HAND_COST_ATTACKER], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    // F1↔F2 は先頭1枚だけを「天使シグニ」↔「非天使シグニ」に差し替える（枚数・残り2枚は同一）。
+    'hand': [matchingCard, HAND_COST_NONMATCH_A, HAND_COST_NONMATCH_B],
+    'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4808'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': HAND_COST_GUEST_HAND,
+    'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+const pendingPaySkip = (st) => ({
+  pay: (st?.pendingOptions ?? []).find(o => o.startsWith('pay:')),
+  skip: (st?.pendingOptions ?? []).find(o => o.startsWith('skip:')),
+});
+
+async function openSigniAttack(page, H, zoneIndex) {
+  if (!(await H.clickTestId(`my-signi-zone-${zoneIndex}`))) return null;
+  const attack = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+  for (let k = 0; k < 20; k++) {
+    if (await attack.count() && await attack.isVisible().catch(() => false) && await attack.isEnabled().catch(() => false)) {
+      await attack.click({ timeout: 2000 });
+      return 'tid:card-action-*[data-action-label="アタック"]';
+    }
+    await page.waitForTimeout(150);
+  }
+  return null;
+}
+
+async function runHandDiscardFilterRound(page, H, { expectAffordable }) {
+  const before = await H.queryState();
+  let attacked = false; let prompted = false; let branchClicked = false;
+  let costPicked = false; let costConfirmed = false; let last = before;
+  for (let s = 0; s < 64; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!attacked) {
+      did = await openSigniAttack(page, H, 0);
+      if (did) attacked = true;
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        const disabled = opts.pay.endsWith('(disabled)');
+        if (disabled === expectAffordable) {
+          return { pass: false, detail: `canAfford極性不一致（expectAffordable=${expectAffordable} options=${JSON.stringify(st0.pendingOptions)}）`, st: st0 };
+        }
+        did = await H.clickTestId(expectAffordable ? 'optcost-pay' : 'optcost-skip');
+        if (did) branchClicked = true;
+      } else if (expectAffordable && branchClicked && !costPicked && Array.isArray(st0?.pendingCandidates)) {
+        if (!sameInstanceSet(st0.pendingCandidates, [HAND_COST_ANGEL])) {
+          return { pass: false, detail: `【filter回帰】手札捨て候補=${JSON.stringify(st0.pendingCandidates)}（期待=${HAND_COST_ANGEL}だけ）`, st: st0 };
+        }
+        did = await clickPendingInstance(page, H, HAND_COST_ANGEL);
+        if (did) costPicked = true;
+      } else if (expectAffordable && costPicked && !costConfirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)');
+        if (did) costConfirmed = true;
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    // 正面空きへのアタックを最後まで消化する。host が応答者になる異常経路でもモーダルを残さない。
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = attacked && prompted && branchClicked && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0
+      && st?.host?.pendingSigniBattle == null && st?.host?.fieldCheck === null && st?.guest?.fieldCheck === null
+      && st?.host?.signiDown?.[0] === true && st?.guest?.life === before.guest.life - 1;
+    H.log(`  hdcf.${expectAffordable ? 'pay' : 'unavailable'}[${s}] -> ${did ?? 'なし'} | prompted=${prompted} branch=${branchClicked} cost=${costPicked}/${costConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hHand=${JSON.stringify(st?.host?.handCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} gHand=${JSON.stringify(st?.guest?.handCards)} gLife=${st?.guest?.life} check=${st?.host?.fieldCheck ?? '-'}/${st?.guest?.fieldCheck ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      if (expectAffordable) {
+        const paid = st.host.trashCards.includes(HAND_COST_ANGEL)
+          && !st.host.handCards.includes(HAND_COST_ANGEL)
+          && st.host.handCards.includes(HAND_COST_NONMATCH_A) && st.host.handCards.includes(HAND_COST_NONMATCH_B);
+        const bodyRan = st.guest.hand === before.guest.hand - 1;
+        return { pass: prompted && costPicked && costConfirmed && paid && bodyRan, st,
+          detail: `pay/skip提示=${prompted}・候補=${HAND_COST_ANGEL}だけ・天使をtrash=${paid}・本体の相手blind discard ${before.guest.hand}→${st.guest.hand}=${bodyRan}・アタック後life ${before.guest.life}→${st.guest.life}` };
+      }
+      const handStayed = sameInstanceSet(st.host.handCards, before.host.handCards);
+      const bodyBlocked = sameInstanceSet(st.guest.handCards, before.guest.handCards);
+      return { pass: prompted && handStayed && bodyBlocked, st,
+        detail: `pay disabled＋skip提示=${prompted}・host手札不変=${handStayed}・本体不発でguest手札不変=${bodyBlocked}・アタック自体はlife ${before.guest.life}→${st.guest.life}` };
+    }
+  }
+  return { pass: false, st: last, detail: `filter/canAfford完走タイムアウト（prompted=${prompted} branch=${branchClicked} cost=${costPicked}/${costConfirmed} hHand=${JSON.stringify(last?.host?.handCards)} gHand=${JSON.stringify(last?.guest?.handCards)} gLife=${last?.guest?.life} check=${last?.host?.fieldCheck ?? '-'}/${last?.guest?.fieldCheck ?? '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.handDiscardCostFiltersCandidates = {
+  title: 'WXK09-041-E1（OPTIONAL_COST handDiscard＝天使シグニ1枚だけ候補→支払い後に相手手札discard）',
+  spec: makeHandDiscardFilterSpec(HAND_COST_ANGEL),
+  async drive(page, H) { return runHandDiscardFilterRound(page, H, { expectAffordable: true }); },
+};
+
+scenarios.handDiscardCostUnavailableWhenNoMatch = {
+  title: 'WXK09-041-E1対照（手札3枚のまま天使だけ外す→pay disabled・skipで本体不発）',
+  spec: makeHandDiscardFilterSpec(HAND_COST_NONMATCH_REPLACEMENT),
+  async drive(page, H) { return runHandDiscardFilterRound(page, H, { expectAffordable: false }); },
+};
+
+const HAND_COST_GUARD = 'WD01-017#4811';
+const HAND_COST_FREN_NONMATCH = ['WD01-013#4812', 'WD01-014#4813'];
+const HAND_COST_FREN = 'WXDi-CP01-027#4814';
+const HAND_COST_BOUNCE_TARGET = 'WD01-013#4815';
+const HAND_DISCARD_FREN_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD01-001#4816'],
+    'field.signi': [[HAND_COST_FREN], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [HAND_COST_GUARD, ...HAND_COST_FREN_NONMATCH],
+    'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4817'],
+    'field.signi': [[HAND_COST_BOUNCE_TARGET], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WD01-014#4818'],
+    'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function runHandDiscardFrenRound(page, H, branch) {
+  const before = await H.queryState();
+  let phaseStarted = false; let prompted = false; let branchClicked = false;
+  let guardPicked = false; let guardConfirmed = false; let targetPicked = false; let targetConfirmed = false;
+  let last = before;
+  for (let s = 0; s < 60; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!phaseStarted) {
+      did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (did) phaseStarted = true;
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!branchClicked && opts.pay && opts.skip) {
+        prompted = true;
+        if (opts.pay.endsWith('(disabled)')) return { pass: false, detail: `Guard所持なのにpay disabled: ${JSON.stringify(st0.pendingOptions)}` };
+        did = await H.clickTestId(branch === 'pay' ? 'optcost-pay' : 'optcost-skip');
+        if (did) branchClicked = true;
+      } else if (branch === 'pay' && branchClicked && !guardPicked && Array.isArray(st0?.pendingCandidates)) {
+        if (!sameInstanceSet(st0.pendingCandidates, [HAND_COST_GUARD])) {
+          return { pass: false, detail: `【Guard filter回帰】候補=${JSON.stringify(st0.pendingCandidates)}（期待=${HAND_COST_GUARD}だけ）` };
+        }
+        did = await clickPendingInstance(page, H, HAND_COST_GUARD);
+        if (did) guardPicked = true;
+      } else if (branch === 'pay' && guardPicked && !guardConfirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)');
+        if (did) guardConfirmed = true;
+      } else if (branch === 'pay' && guardConfirmed && !targetPicked && sameInstanceSet(st0?.pendingCandidates, [HAND_COST_BOUNCE_TARGET])) {
+        did = await clickPendingInstance(page, H, HAND_COST_BOUNCE_TARGET);
+        if (did) targetPicked = true;
+      } else if (branch === 'pay' && targetPicked && !targetConfirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)');
+        if (did) targetConfirmed = true;
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const settled = phaseStarted && prompted && branchClicked && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
+    H.log(`  hdfr.${branch}[${s}] -> ${did ?? 'なし'} | prompted=${prompted} branch=${branchClicked} guard=${guardPicked}/${guardConfirmed} target=${targetPicked}/${targetConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hHand=${JSON.stringify(st?.host?.handCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      if (branch === 'skip') {
+        const handStayed = sameInstanceSet(st.host.handCards, before.host.handCards);
+        const targetStayed = st.guest.fieldSigni?.[0]?.includes(HAND_COST_BOUNCE_TARGET)
+          && sameInstanceSet(st.guest.handCards, before.guest.handCards);
+        return { pass: prompted && handStayed && targetStayed, detail: `pay/skip提示=${prompted}・skip後host手札不変=${handStayed}・対象field残存かつguest手札不変=${targetStayed}` };
+      }
+      const guardPaid = st.host.trashCards.includes(HAND_COST_GUARD) && !st.host.handCards.includes(HAND_COST_GUARD)
+        && HAND_COST_FREN_NONMATCH.every(n => st.host.handCards.includes(n));
+      const bounced = st.guest.fieldSigni?.[0] == null && st.guest.handCards.includes(HAND_COST_BOUNCE_TARGET);
+      return { pass: prompted && guardPicked && guardConfirmed && targetPicked && targetConfirmed && guardPaid && bounced,
+        detail: `pay/skip提示=${prompted}・Guardだけ候補→trash=${guardPaid}・P3000対象をguest.field→hand=${bounced}` };
+    }
+  }
+  return { pass: false, detail: `${branch}完走タイムアウト（prompted=${prompted} branch=${branchClicked} guard=${guardPicked}/${guardConfirmed} target=${targetPicked}/${targetConfirmed} hHand=${JSON.stringify(last?.host?.handCards)} gField=${JSON.stringify(last?.guest?.fieldSigni)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.handDiscardSkipBlocksBody = {
+  title: 'WXDi-CP01-027-E3（アタックフェイズ開始時のhandDiscard skip＝手札も対象も不変）',
+  spec: HAND_DISCARD_FREN_SPEC,
+  async drive(page, H) { return runHandDiscardFrenRound(page, H, 'skip'); },
+};
+
+scenarios.handDiscardPayRunsBody = {
+  title: 'WXDi-CP01-027-E3対照（クリックだけpay＝Guardだけ候補→trash後に相手P10000以下をbounce）',
+  spec: HAND_DISCARD_FREN_SPEC,
+  async drive(page, H) { return runHandDiscardFrenRound(page, H, 'pay'); },
+};
+
+const HAND_COST_BLUE_ARCHIVE = 'WXDi-CP02-063#4821';
+const HAND_COST_ARTS_SELF_SIGNI = 'WD01-013#4822';
+const HAND_COST_ARTS_OPP_SIGNI = 'WD01-013#4823';
+const HAND_DISCARD_ARTS_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD03-001#4824'],
+    'field.signi': [[HAND_COST_ARTS_SELF_SIGNI], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': ['WX25-CP1-004#4825'],
+    'hand': [HAND_COST_BLUE_ARCHIVE],
+    // 《青》×1＋《無》×2。青の WD03-013 が色枠、白2枚が無色枠を支払う。
+    'energy': ['WD03-013#4826', 'WD01-013#4827', 'WD01-014#4828'],
+    'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#4829'],
+    'field.lrig_down': false,
+    'field.signi': [[HAND_COST_ARTS_OPP_SIGNI], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+};
+
+async function runHandDiscardArtsRound(page, H, choiceLabel) {
+  const before = await H.queryState();
+  let deckOpened = false; let artsOpened = false; const energyPicked = new Set(); let artsUsed = false;
+  let choosePrompted = false; let choiceClicked = false; let choiceConfirmed = false;
+  let costPrompted = false; let payClicked = false; let costPicked = false; let costConfirmed = false;
+  let targetPicked = false; let targetConfirmed = false; let last = before;
+  for (let s = 0; s < 80; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!deckOpened) {
+      did = await H.clickTestId('my-lrig-dk'); if (did) deckOpened = true;
+    } else if (!artsOpened) {
+      did = await H.clickTestId('zone-card-0'); if (did) artsOpened = true;
+    } else if (!artsUsed && energyPicked.size < 3) {
+      const next = [0, 1, 2].find(i => !energyPicked.has(i));
+      if (next !== undefined) { did = await H.clickTestId(`artscost-energy-${next}`); if (did) energyPicked.add(next); }
+    } else if (!artsUsed) {
+      did = await clickExactVisibleText(page, 'アーツ使用'); if (did) artsUsed = true;
+    } else if (!choiceConfirmed && (st0?.pendingOptions ?? []).some(o => o.startsWith('c0:選択肢1'))) {
+      const allFour = ['c0:選択肢1', 'c1:選択肢2', 'c2:選択肢3', 'c3:選択肢4']
+        .every(prefix => (st0.pendingOptions ?? []).some(o => o.startsWith(prefix)));
+      if (!allFour) return { pass: false, detail: `4択UI不一致=${JSON.stringify(st0.pendingOptions)}` };
+      choosePrompted = true;
+      if (!choiceClicked) {
+        did = await clickExactVisibleText(page, choiceLabel); if (did) choiceClicked = true;
+      } else {
+        // CHOOSE は multiSelect＋upTo:true。1つ選んだ時点で「決定」が enabled（2つ目の穴埋め不要）。
+        did = await clickExactVisibleText(page, '決定'); if (did) choiceConfirmed = true;
+      }
+    } else {
+      const opts = pendingPaySkip(st0);
+      if (!payClicked && opts.pay && opts.skip) {
+        costPrompted = true;
+        if (opts.pay.endsWith('(disabled)')) return { pass: false, detail: `ブルアカ所持なのにpay disabled=${JSON.stringify(st0.pendingOptions)}` };
+        did = await H.clickTestId('optcost-pay'); if (did) payClicked = true;
+      } else if (payClicked && !costPicked && Array.isArray(st0?.pendingCandidates)) {
+        if (!sameInstanceSet(st0.pendingCandidates, [HAND_COST_BLUE_ARCHIVE])) {
+          return { pass: false, detail: `【ブルアカfilter回帰】候補=${JSON.stringify(st0.pendingCandidates)}（期待=${HAND_COST_BLUE_ARCHIVE}だけ）` };
+        }
+        did = await clickPendingInstance(page, H, HAND_COST_BLUE_ARCHIVE); if (did) costPicked = true;
+      } else if (costPicked && !costConfirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) costConfirmed = true;
+      } else if (choiceLabel === '選択肢3' && costConfirmed && !targetPicked
+          && sameInstanceSet(st0?.pendingCandidates, [HAND_COST_ARTS_OPP_SIGNI])) {
+        did = await clickPendingInstance(page, H, HAND_COST_ARTS_OPP_SIGNI); if (did) targetPicked = true;
+      } else if (choiceLabel === '選択肢3' && targetPicked && !targetConfirmed) {
+        did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) targetConfirmed = true;
+      }
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    const st = await H.queryState();
+    last = st;
+    const paid = st.host.energy === 0 && st.host.trashCards.includes(HAND_COST_BLUE_ARCHIVE)
+      && !st.host.handCards.includes(HAND_COST_BLUE_ARCHIVE);
+    const settled = artsUsed && choosePrompted && choiceConfirmed && costPrompted && payClicked && costPicked && costConfirmed
+      && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
+    H.log(`  hdarts.${choiceLabel}[${s}] -> ${did ?? 'なし'} | arts=${deckOpened}/${artsOpened}/${energyPicked.size}/${artsUsed} choose=${choosePrompted}/${choiceClicked}/${choiceConfirmed} cost=${costPrompted}/${payClicked}/${costPicked}/${costConfirmed} target=${targetPicked}/${targetConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hE=${st?.host?.energy} hLrigDown=${st?.host?.lrigDown} hSigniDown=${JSON.stringify(st?.host?.signiDown)} gLrigDown=${st?.guest?.lrigDown} gSigniDown=${JSON.stringify(st?.guest?.signiDown)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (settled) {
+      const hostAllUp = st.host.lrigDown === false && (st.host.signiDown ?? []).every(v => v === false);
+      if (choiceLabel === '選択肢2') {
+        const correct = st.guest.lrigDown === true && (st.guest.signiDown ?? []).every(v => v === false);
+        return { pass: paid && hostAllUp && correct, detail: `②を1つだけ選択→決定。energy ${before.host.energy}→${st.host.energy}・ブルアカtrash=${paid}／host lrigDown=${st.host.lrigDown} signiDown=${JSON.stringify(st.host.signiDown)}／guest lrigDown=${st.guest.lrigDown} signiDown=${JSON.stringify(st.guest.signiDown)}` };
+      }
+      const correct = st.guest.lrigDown === false && st.guest.signiDown?.[0] === true
+        && st.guest.signiDown?.slice(1).every(v => v === false);
+      return { pass: paid && targetPicked && targetConfirmed && hostAllUp && correct, detail: `③を1つだけ選択→決定。energy ${before.host.energy}→${st.host.energy}・ブルアカtrash=${paid}／host lrigDown=${st.host.lrigDown} signiDown=${JSON.stringify(st.host.signiDown)}／guest lrigDown=${st.guest.lrigDown} signiDown=${JSON.stringify(st.guest.signiDown)}` };
+    }
+  }
+  return { pass: false, detail: `${choiceLabel}完走タイムアウト（arts=${deckOpened}/${artsOpened}/${energyPicked.size}/${artsUsed} choose=${choosePrompted}/${choiceClicked}/${choiceConfirmed} cost=${costPrompted}/${payClicked}/${costPicked}/${costConfirmed} target=${targetPicked}/${targetConfirmed} hE=${last?.host?.energy} hDown=${last?.host?.lrigDown}/${JSON.stringify(last?.host?.signiDown)} gDown=${last?.guest?.lrigDown}/${JSON.stringify(last?.guest?.signiDown)} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.handDiscardOptionTwoDownsOpponentLrig = {
+  title: 'WX25-CP1-004-E1②（4つから2つまで＝②だけ確定→ブルアカdiscard後に相手ルリグだけdown）',
+  spec: HAND_DISCARD_ARTS_SPEC,
+  async drive(page, H) { return runHandDiscardArtsRound(page, H, '選択肢2'); },
+};
+
+scenarios.handDiscardOptionThreeDownsOpponentSigni = {
+  title: 'WX25-CP1-004-E1③対照（同一盤面で③だけ確定→相手シグニだけdown）',
+  spec: HAND_DISCARD_ARTS_SPEC,
+  async drive(page, H) { return runHandDiscardArtsRound(page, H, '選択肢3'); },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13576,6 +13901,10 @@ order.push('oppPayNegateAttackWhenPaid', 'oppPayAttackGoesThroughWhenUnpaid',
 // 続き469：V-05 owner/count/power と V-07② OPTIONAL_TRASH_SELF。既存orderは変更せず末尾追加。
 order.push('targetDeclOpponentOnlyCandidates', 'targetDeclUpToTwoSelectsBoth', 'targetDeclUpToTwoAllowsZero',
   'targetDeclPowerCapExcludesAbove', 'targetDeclPowerCapUsesEffectivePower', 'optionalTrashSelfNoHandLoss');
+// 続き470：V-08＋V-09① OPTIONAL_COST{handDiscard}。F/S/L は各々、手札1枚・pay/skip・選択肢②/③だけを変える対照。
+order.push('handDiscardCostFiltersCandidates', 'handDiscardCostUnavailableWhenNoMatch',
+  'handDiscardSkipBlocksBody', 'handDiscardPayRunsBody',
+  'handDiscardOptionTwoDownsOpponentLrig', 'handDiscardOptionThreeDownsOpponentSigni');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

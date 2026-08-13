@@ -1,5 +1,43 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-13（続き470・Codex起案）— §7 V-08＋V-09① `OPTIONAL_COST{handDiscard}` 実UIシナリオ6件（実行 `BLOCKED`）
+
+続き420で旧「手札末尾を無言で捨てる」経路から移行した任意手札コストについて、
+`scripts/verifyBattleDrive.mjs` の既存 order 末尾へ3つの対照ペアを追加した。外部ネットワーク遮断のため
+実ブラウザは**1回も実行していない**。実行・デバッグ・PASS/FAIL判定は検証側（Claude）が引き取る。
+
+| id | 起案した検査 |
+|---|---|
+| `handDiscardCostFiltersCandidates` | `WXK09-041-E1`。手札 `[WX01-035#4801（天使シグニ）, WD01-013#4802, WD01-017#4803]` で pay/skip 提示を必須証拠にし、pay後の `pendingCandidates` が天使1枚だけ、支払い後に相手手札が2→1になることを見る。正面空きアタックはライフクラッシュ確認まで完走させる。 |
+| `handDiscardCostUnavailableWhenNoMatch` | F1の先頭だけを `WD01-014#4801`（非天使）へ交換。手札3枚を保ち、`pay:…(disabled)`＋`skip:` を観測してskip後も双方の手札が不変であることを見る。 |
+| `handDiscardSkipBlocksBody` | `WXDi-CP01-027-E3`。アタックフェイズ開始時の pay/skip を観測してskipし、Guardを含む自手札3枚と相手P3000シグニが不変であることを見る。 |
+| `handDiscardPayRunsBody` | S1と完全に同じspecでクリックだけpayへ。候補が `WD01-017#4811`（Guard）だけ→trash、その後 `WD01-013#4815` を選んで相手field→handへ戻ることを見る。 |
+| `handDiscardOptionTwoDownsOpponentLrig` | `WX25-CP1-004-E1`。アーツコスト《青》1《無》2を払い、4択multiSelectで②だけを選び「決定」。ブルアカ1枚を捨てた後、guestルリグだけdownし、両者signiとhostルリグはupのままかを見る。 |
+| `handDiscardOptionThreeDownsOpponentSigni` | L1と完全に同じspecで選択肢だけ③へ。guestシグニだけdownし、guestルリグとhost側はupのままかを見る。 |
+
+F群は PLAN 例示の `WX18-001` ではなく `WXK09-041` を選んだ。後者はシグニのアタックだけで同じ
+`handDiscard.filter`／`canAffordOptionalCostSpec` を踏めるうえ、センタールリグを `WD01-001`（タマ）にして
+「タマ限定」も正面から満たせる。`WX18-001` は Lv4・GrowCost《黒》×3・コイン1に加え、原文が強制なのに
+liveが任意という別の仕様差を含むため、今回のfilter軸には混ぜなかった。
+
+`WX25-CP1-004` の `CHOOSE` は `choose_count:2, upTo:true` から `multiSelect:true` になり、UIは
+`upTo` のとき0〜2個で「決定」が常にenabledになる。そのため②／③を各1つだけ選んで `決定` し、
+無害な2択目は足していない。全specでhost/guest双方の `field.check:null` を明示し、候補クリックは
+続き469の `clickPendingInstance` と `clickExactVisibleText` を再利用した。⚠指示書は両方3秒待機としているが、
+実HEADの後者は `20回×100ms`＝約2秒（前者は `20回×150ms`＝約3秒）。既存ヘルパー変更禁止・削除0行を優先し、
+新シナリオ外側の反復から再呼び出す形にした。この不一致は検証側へ明示して引き継ぐ。
+`queryState` 追加なし。driver差分はシナリオ・共通小ヘルパー・末尾orderの追加だけで削除0行。
+
+📋スコープ外＝V-09の `OPTIONAL_ACTIVATE`／`fieldDown`（`OPTIONAL_TRASH_SELF` は続き469で消化済み）、
+`WX25-CP1-004` ①④／リコレクト3択、`WX18-001` の原文強制/live任意の裁定、PLAN §3在庫バグ、
+engine/parser/UI/live JSON修正。ゲート・不変性・エンコーディングの最終数値は本エントリ末尾へ追記する。
+
+**静的ゲート**：`npm.cmd run gates` 全緑（golden **1964 PASS / 0 FAIL**、smoke **10688 / SKIP 0**、
+census **831**、lint **0 errors / 259 warnings**、typecheck・fuzz・census-stubs・manual-fields PASS）。
+`npm.cmd run golden` 独立再実行も **1964 PASS / 0 FAIL**。live JSON per-effect diff **changed 0**。
+変更は driver **329追加/0削除**＋本記録だけ。既存driver 3区間の正規化SHA-256は変更前後一致。
+変更ファイルの BOM/U+FFFD 新規0、追加行の `U+003F×3`（半角疑問符3連続以上）0。実機結果は **`BLOCKED`**。
+
 ## 2026-08-13（続き469・Codex起案→Claude実機検証）— §7 **V-05 完了／V-07② 完了**＝6/6 が2回連続PASS（engine バグ0）
 
 ### 実機結果＝**6/6 PASS**（`docs/PLAN.md` §7 の V-05 と V-07② を ✅ 化）
