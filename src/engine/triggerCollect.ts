@@ -11,7 +11,7 @@
 import type { PlayerState, CardData, StackEntry, TurnPhase } from '../types';
 import type { CardEffect, Condition, GrantAcceHostAbilityAction, TargetFilter, PowerModifyAction, AddToFieldAction, StubAction, Owner } from '../types/effects';
 import { evalUseCondition, matchesFilter, getCardNum } from './execUtils';
-import { checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
+import { activeKeyAbilitySources, checkActiveCondition, collectContinuousAbilitiesRemovedSigni, isCrossZoneActive, isKizunaActive, isSigniOnPlaySuppressedByContinuous, matchesStateFilter } from './effectEngine';
 import { acceCardsAt } from '../utils/acce';
 import { grantedStoreWatchers } from './grantedStore';
 
@@ -595,7 +595,7 @@ export function collectLrigGrowTriggers(
     const limitOk = mkLimitOk(watcherState.actions_done, watcherId === ctx.hostId ? usedHostIds : usedGuestIds);
     const watcherCardNums: string[] = [];
     for (const stack of watcherState.field.signi) { if (stack?.length) watcherCardNums.push(stack[stack.length - 1]); }
-    if (watcherState.field.key_piece) watcherCardNums.push(watcherState.field.key_piece);
+    watcherCardNums.push(...activeKeyAbilitySources(watcherState));
     const lrigTop = watcherState.field.lrig?.at(-1);
     if (lrigTop) watcherCardNums.push(lrigTop);
     for (const topNum of watcherCardNums) {
@@ -2287,8 +2287,7 @@ export function collectSigniDownUpTriggers(
     const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
     const sources = [
       ...ownFieldSources(watcherState),
-      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
-      ...(watcherState.field.key_piece_extra ?? []),
+      ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
       for (const eff of effsOf(ctx, topNum)) {
@@ -2383,8 +2382,7 @@ export function collectHandAddedTriggers(
     if (!watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
       const sources = [
         ...ownFieldSources(watcherState),
-        ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
-        ...(watcherState.field.key_piece_extra ?? []),
+        ...activeKeyAbilitySources(watcherState),
       ];
       for (const topNum of sources) {
         for (const eff of effsOf(ctx, topNum)) {
@@ -2550,8 +2548,7 @@ export function collectEnergyToFieldTriggers(
     const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
     const sources = [
       ...ownFieldSources(watcherState),
-      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
-      ...(watcherState.field.key_piece_extra ?? []),
+      ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
       for (const eff of effsOf(ctx, topNum)) {
@@ -2610,8 +2607,7 @@ export function collectLifeClothAddedTriggers(
     const watcherIsTurn = watcherId === ctx.activeUserId;
     const sources = [
       ...ownFieldSources(watcherState),
-      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
-      ...(watcherState.field.key_piece_extra ?? []),
+      ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
       const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
@@ -2737,8 +2733,7 @@ export function collectLifeClothMovedTriggers(
     const watcherIsTurn = watcherId === ctx.activeUserId;
     const sources = [
       ...ownFieldSources(watcherState),
-      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
-      ...(watcherState.field.key_piece_extra ?? []),
+      ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
       const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
@@ -2797,8 +2792,7 @@ export function collectOppEnergyAddedTriggers(
     const watcherIsTurn = watcherId === ctx.activeUserId;
     const sources = [
       ...ownFieldSources(watcherState),
-      ...(watcherState.field.key_piece ? [watcherState.field.key_piece] : []),
-      ...(watcherState.field.key_piece_extra ?? []),
+      ...activeKeyAbilitySources(watcherState),
     ];
     for (const topNum of sources) {
       const isSigni = watcherState.field.signi.some(s => s?.at(-1) === topNum);
@@ -2888,8 +2882,7 @@ export function collectSelfEventTriggers(
     myState.field.lrig.at(-1),
     myState.field.assist_lrig_l?.at(-1),
     myState.field.assist_lrig_r?.at(-1),
-    myState.field.key_piece,
-    ...(myState.field.key_piece_extra ?? []),
+    ...activeKeyAbilitySources(myState),
   ].filter((n): n is string => !!n);
   const selfEventLrigTop = myState.field.lrig.at(-1);
   for (const srcNum of nonSigniSources) {
@@ -3208,7 +3201,7 @@ export function collectOppLifeCrashedTriggers(
   const limitOk = mkLimitOk(crasherState.actions_done, usedLimitIds);
   const sources = [...crasherState.field.signi.map(s => s?.at(-1)), crasherState.field.lrig.at(-1),
     crasherState.field.assist_lrig_l?.at(-1), crasherState.field.assist_lrig_r?.at(-1),
-    crasherState.field.key_piece, ...(crasherState.field.key_piece_extra ?? [])]
+    ...activeKeyAbilitySources(crasherState)]
     .filter((n): n is string => !!n);
   // センタールリグには付与ストア（effectsMap 非搭載）を合流させる（WXDi-CP02-050-E1）。
   const crasherLrigTop = crasherState.field.lrig.at(-1);

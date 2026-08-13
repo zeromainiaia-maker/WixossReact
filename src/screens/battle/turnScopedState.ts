@@ -94,6 +94,9 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   abilities_removed: { boundaries: ['turn-end'], reset: [], reason: 'active ability loss for the current turn; next-turn value is reserved separately' },
   // 指定キーワードの喪失／再取得禁止も abilities_removed と同じ期限。
   keyword_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'keyword-scoped ability loss; same lifetime as abilities_removed' },
+  // キーの能力喪失（§6.4 O-16(b)）も「このターン」限定。⚠登録前は BattleScreen の turn-end 4経路のうち
+  //   2経路でしか手書きクリアされておらず、普通にターンを終えるとキー能力が**永久に**戻らなかった。
+  keys_abilities_disabled: { boundaries: ['turn-end'], reset: undefined, reason: 'all-keys ability loss for the current turn' },
 } as const satisfies Partial<Record<keyof PlayerState, TurnScopedSpec>>;
 
 /** ターン限定フィールドの唯一の実行時レジストリ。各フィールドは上のどちらかに1回だけ現れる。 */
