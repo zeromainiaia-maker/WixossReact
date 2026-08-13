@@ -4857,13 +4857,13 @@ test('§6.4 O-16 live WDK10-009-E2: 動的 delta が単価のまま保存され�
     const removed = new Set(r.otherState.abilities_removed ?? []);
     ok(removed.has(onField), '場のシグニ');
     const zoneSigni = [...r.otherState.hand, ...r.otherState.energy, ...r.otherState.trash]
-      .filter(n => cardMap.get(getCardNum(n))?.Type === 'シグニ');
+      .filter(n => cardMap.get(getCardNumG(n))?.Type === 'シグニ');
     ok(zoneSigni.length > 0, '前提: 場以外の領域にシグニがある');
     // ⭐ここが「場だけ」実装との差＝旧 live は count:1 で場のシグニ1体しか対象にできなかった。
     ok(zoneSigni.every(n => removed.has(n)), '手札・エナ・トラッシュのシグニも全部対象');
     // ⚠シグニ以外（スペル等）は巻き込まない＝allZones は cardType を明示しないと領域ごと全部さらう。
     const nonSigni = [...r.otherState.hand, ...r.otherState.energy, ...r.otherState.trash]
-      .filter(n => cardMap.get(getCardNum(n))?.Type !== 'シグニ');
+      .filter(n => cardMap.get(getCardNumG(n))?.Type !== 'シグニ');
     ok(nonSigni.every(n => !removed.has(n)), 'シグニ以外は対象外');
   }));
 

@@ -59,3 +59,6 @@ docs/behavior_audit/
 
 # 検証用デッキ定義（生成物）
 /verify-deck.json
+
+# eslint --cache の出力（gates 高速化用・毎回書き換わる作業ファイル）。node_modules/.cache/eslint/ と同じ扱い。
+.eslintcache
