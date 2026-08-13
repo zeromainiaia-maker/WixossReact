@@ -11025,10 +11025,12 @@ scenarios.spellArtsBlockedUiHidesUseButtons = {
       'energy': ['WD04-009#1'],                  // 緑×1：封じ以外の使用条件を満たす
       'blocked_actions': ['USE_ARTS', 'USE_SPELL'],
       'actions_done': [],
+      'field.check': null, // 前シナリオの未確認ライフクラッシュ（エナに送るモーダル）で全クリックが止まるのを防ぐ
     },
     guestSet: {
       'field.signi': [null, null, null],
       'blocked_actions': [],
+      'field.check': null,
     },
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
