@@ -10349,8 +10349,12 @@ scenarios.kokonaUnderThreePay = {
       'field.lrig': ['WD01-001#1'],
       'field.signi': [['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1', 'WX25-CP1-091#1'], null, null],
       'energy': [], 'trash': [], 'deck': ['WD01-013#181', 'WD01-013#182'], 'actions_done': [],
+      // ⚠続き462 で判明＝`field.check` だけは injectScenario がリセットしない（CORE_FIELD_KEYS）。
+      //   前シナリオの未確認ライフクラッシュが残ると「エナに送る」モーダルが全画面を覆い、
+      //   ターン終了後の処理が一切進まない＝続き436 の「ボタンは押せるのに何も起きない」の候補。
+      'field.check': null,
     },
-    guestSet: { 'field.lrig': ['WD01-001#2'] },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.check': null },
     top: { active: 'host', turn_phase: 'END', turn_count: 2 },
   },
   async drive(page, H) {
@@ -10400,8 +10404,9 @@ scenarios.kokonaUnderThreeSkip = {
       'field.lrig': ['WD01-001#1'],
       'field.signi': [['WXDi-CP02-063#1', 'WXDi-CP02-064#1', 'WXDi-CP02-065#1', 'WX25-CP1-091#1'], null, null],
       'energy': [], 'trash': [], 'deck': ['WD01-013#191', 'WD01-013#192'], 'actions_done': [],
+      'field.check': null, // 同上（続き462）
     },
-    guestSet: { 'field.lrig': ['WD01-001#2'] },
+    guestSet: { 'field.lrig': ['WD01-001#2'], 'field.check': null },
     top: { active: 'host', turn_phase: 'END', turn_count: 2 },
   },
   async drive(page, H) {
