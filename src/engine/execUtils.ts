@@ -569,6 +569,16 @@ export function lrigZoneTops(field: PlayerState['field']): (string | undefined)[
   return [field.lrig?.at(-1), field.assist_lrig_l?.at(-1), field.assist_lrig_r?.at(-1)];
 }
 
+/**
+ * `DESIGNATE_SIGNI_ZONE` で指定されたゾーン番号（§6.4 O-16）。
+ * **読みはこの1本に集約する**＝複数対応の `designated_zones` と、進行中セーブに残る旧 `designated_zone`
+ * （単一）の両方をここで吸収する。片方だけ見る読み手を作ると、2ゾーン指定の札で片方が無言で落ちる。
+ */
+export function designatedZones(state: PlayerState): number[] {
+  if (state.designated_zones?.length) return state.designated_zones;
+  return state.designated_zone === undefined ? [] : [state.designated_zone];
+}
+
 export function ownerState(owner: Owner, ctx: ExecCtx): PlayerState {
   return owner === 'self' ? ctx.ownerState : ctx.otherState;
 }
