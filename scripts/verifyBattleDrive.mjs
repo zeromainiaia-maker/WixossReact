@@ -12369,6 +12369,9 @@ async function runV10EffectBanishRound(page, H, id, victimInstance, evaluate) {
     } else if (!flow.targetConfirmed) {
       did = await clickExactVisibleText(page, '決定 (1/1)');
       if (did) flow.targetConfirmed = true;
+      // 続き475：pick のクリックが React 側に載らないと「決定 (1/1)」が永久に出ず 64反復×3秒＝211秒
+      //   溶かす（実測1回）。SELECT_TARGET が続いているうちは pick からやり直す（自己回復）。
+      else if ((await H.queryState())?.pendingEffect === 'SELECT_TARGET') flow.victimPicked = false;
     }
     if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
     // 両者の field.check は注入時にnullへ戻す。万一のライフ確認も消化して残留させない。
