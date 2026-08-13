@@ -1315,7 +1315,26 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'LOOK_AND_REORDER', source: { location: 'hand', owner: 'self' }, count: m ? parseNum(m[1]) : 1, private: true, reorder: false, destination: { location: 'deck', owner: 'self', position: 'bottom' } };
   }
 
-  // ---- 次の対戦相手のターンの間、特定ゾーンのシグニでアタックできない ----
+  // ---- 「（その｜指定された）シグニゾーンにあるシグニでアタックできない」＝**ゾーン継続**（§6.4 O-16 第3波）----
+  // ⚠従来は `count:1` へ落ちており、直前の DESIGNATE で選んだゾーンではなく**相手シグニ1体を選ぶ**別物だった。
+  //   ゾーンに紐づけないと「そのゾーンに後から出たシグニ」に効かない（＝ゾーンを封じる原文の意図が死ぬ）。
+  // ⚠期間は2通り＝「次の対戦相手のターンの間」（次ターンだけ）／「このターン」（現ターンだけ）。
+  {
+    const zoneAtkM = t.match(/(?:その|指定された|それらの)シグニゾーンにあるシグニで?アタックできない/);
+    if (zoneAtkM) {
+      const nextTurnZA = /次の(?:あなたの|対戦相手の)?ターン/.test(t);
+      return {
+        type: 'BLOCK_ACTION',
+        target: {
+          type: 'SIGNI', owner: 'opponent', count: 'ALL',
+          filter: { cardType: 'シグニ' }, zoneSource: 'designated',
+        },
+        actionId: 'ATTACK',
+        until: nextTurnZA ? 'NEXT_TURN' : 'END_OF_TURN',
+      } as BlockActionAction;
+    }
+  }
+  // ---- 次の対戦相手のターンの間、特定ゾーンのシグニでアタックできない（ゾーン指定を伴わない残り）----
   if (t.match(/次の対戦相手のターン.*アタックできない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, actionId: 'ATTACK', until: 'NEXT_TURN' } as BlockActionAction;
   }
