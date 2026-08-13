@@ -779,12 +779,20 @@ function actionJa(a?: Action, effectType?: string): string {
       }
       const pmDuration = a.duration === 'NEXT_TURN'
         ? a.appliesThisTurn
-          ? '（このターンと次のターンの間）'
+          // 「このターン＋次の対戦相手のターン」＝原文の「次のあなたのターンまで」（§6.4 O-16(a)）。
+          // 相手ターン限定であることを落とすと「このターンと次のターンの間」に見えて別の期間になる。
+          ? a.nextTurnOwner === 'opponent'
+            ? '（このターンと次の対戦相手のターンの間）'
+            : '（このターンと次のターンの間）'
           : a.nextTurnOwner === 'opponent'
             ? '（次の対戦相手のターンの間）'
             : '（次のターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
         : a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）' : '';
+      // deltaPerTargetLevel: 倍率は「対象シグニ自身のレベル」＝delta はレベル1あたりの単価（§6.4 O-16(a)）
+      if (a.deltaPerTargetLevel) {
+        return `${pmSubj}のパワーをそのシグニのレベル1につき${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
+      }
       return `${pmSubj}のパワーを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta)}する${pmDuration}`;
     }
     case 'POWER_SET': {
