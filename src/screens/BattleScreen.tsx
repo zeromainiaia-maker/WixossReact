@@ -7428,6 +7428,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const trashTiming: import('../types/effects').EffectTiming | null =
       phase === 'MAIN' ? 'MAIN' : phase === 'ATTACK_ARTS' ? 'ATTACK_ARTS' : null;
     if (!isMyTurn || !trashTiming) return actions;
+    // §6.4 O-17:「対戦相手の（すべての領域／手札と場とエナゾーンとトラッシュに）あるシグニは能力を失う」は
+    // トラッシュのカードにも `abilities_removed` を積む。⚠ここで見ないと**トラッシュ起動だけが素通り**して、
+    // 領域を跨いだ能力喪失が「候補を広げただけの見せかけ」になる。
+    if (my.abilities_removed?.includes(cardNum)) return actions;
     const effs = effectsMap.get(cardNum) ?? [];
     for (const eff of effs) {
       if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
