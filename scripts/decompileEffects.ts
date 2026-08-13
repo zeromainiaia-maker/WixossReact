@@ -904,8 +904,12 @@ function actionJa(a?: Action, effectType?: string): string {
         SIGNI_ATTACK: 'シグニでアタックできない',
       };
       const pred = predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
+      // §6.4 O-16: ゾーン限定（`zoneSource:'designated'`）を落とすと**「相手のシグニは全部アタックできない」
+      // と同じ文**になり、逆翻訳がゾーン継続と全体禁止を区別できない（engine を直しても計器に映らない）。
       const subj = a.target?.type === 'SIGNI'
-        ? `${ownerWord ? ownerWord + 'の' : ''}${filterJa(a.target?.filter)}シグニ`
+        ? (a.target?.zoneSource === 'designated'
+            ? `${ownerWord ? ownerWord + 'の' : ''}指定されたシグニゾーンにある${filterJa(a.target?.filter)}シグニ`
+            : `${ownerWord ? ownerWord + 'の' : ''}${filterJa(a.target?.filter)}シグニ`)
         : (ownerWord || 'すべてのプレイヤー');
       return `${untilPre}${subj}は${pred}`;
     }

@@ -4672,6 +4672,54 @@ test('§6.4 O-16 E2E WX25-P3-014-E2: 2ゾーン指定が両方に効く', () => 
   for (const z of untouched) eq(removed.has(nums[z]), false, `ゾーン${z + 1}は無傷`);
 }));
 
+// §6.4 O-16 第3波: アタック禁止の**ゾーン継続**。per-signi 付与では「そのゾーンに後から出たシグニ」に
+// 効かず、ゾーンを封じる原文の意図が死ぬ。⚠検証は必ず `signiAttackBlockReason`（人間UI／共通実行経路／
+// CPU の3箇所が通る唯一の funnel）越しに行う＝engine 内部の集合を直接見ると「3経路に届いているか」を測れない。
+test('§6.4 O-16 E2E WXDi-D09-P13-E1: 指定ゾーンはアタックできない（入れ替わっても）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const applied = run(nextTurnLiveAction('WXDi-D09-P13', 'WXDi-D09-P13-E1'),
+    { ...mkCtx({}, { signi: [a, b, c] }, 'WXDi-D09-P13'), isOwnerTurn: true });
+  const zones = designatedZones(applied.otherState);
+  eq(zones.length, 1, '1ゾーン指定');
+  const zone = zones[0];
+  const blocked = (state: PlayerState, num: string) => signiAttackBlockReason({
+    attacker: state, defender: applied.ownerState, attackerNum: num, effectsMap, cardMap,
+  });
+  const nums = [a, b, c];
+  eq(blocked(applied.otherState, nums[zone]), 'CONTINUOUS_CANNOT_ATTACK', '指定ゾーンのシグニはアタック不可');
+  const otherZone = zone === 0 ? 1 : 0;
+  eq(blocked(applied.otherState, nums[otherZone]), null, '非指定ゾーンはアタックできる');
+  // ⭐per-signi 付与では表せない部分＝**入れ替わっても封じられている**。
+  const newcomer = fresh();
+  const swapped: Array<string | null> = [null, null, null];
+  swapped[zone] = newcomer;
+  eq(blocked(withFieldSigni(applied.otherState, swapped), newcomer), 'CONTINUOUS_CANNOT_ATTACK',
+    '後からそのゾーンへ出たシグニも封じられる');
+  // 「このターン」なのでターン終了で失効する。
+  eq(blocked(withFieldSigni(clearTurnEndScopedState(applied.otherState), swapped), newcomer), null,
+    'ターン終了で失効');
+}));
+
+test('§6.4 O-16 live: ゾーン限定のアタック禁止3効果が指定ゾーンに紐づく', () => {
+  for (const [cardNum, effectId, until] of [
+    ['WXDi-D09-P13', 'WXDi-D09-P13-E1', 'END_OF_TURN'],
+    ['WXDi-P11-046', 'WXDi-P11-046-E2', 'NEXT_TURN'],
+    ['WXDi-P11-055', 'WXDi-P11-055-E1', 'NEXT_TURN'],
+  ] as const) {
+    const action = nextTurnLiveAction(cardNum, effectId);
+    const ba = findActionByType(action, 'BLOCK_ACTION')!;
+    eq(ba.actionId, 'ATTACK', `${effectId}: アタック禁止`);
+    eq(ba.until, until, `${effectId}: 期間`);
+    eq(ba.target.count, 'ALL', `${effectId}: ゾーン継続なので count は ALL`);
+    eq(ba.target.zoneSource, 'designated', `${effectId}: 指定ゾーンに紐づく`);
+    // 保存先（DESIGNATE の owner）と読み手（target.owner）の一致。⚠`WXDi-P11-055-E1` は指定が
+    //   CONDITIONAL の**中**にあるので、直下 step だけを見る実装では既定 owner のまま残る。
+    const designate = findStubById(action, 'DESIGNATE_SIGNI_ZONE');
+    ok(!!designate, `${effectId}: 指定ステップがある`);
+    eq((designate as { owner?: string }).owner, ba.target.owner, `${effectId}: 保存先が読み手と一致`);
+  }
+});
+
 test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は現ターン限定', () => {
   const wx24 = findActionByType(nextTurnLiveAction('WX24-P4-024', 'WX24-P4-024-E3'), 'POWER_MODIFY')!;
   ok(wx24.delta === -3000 && wx24.duration !== 'NEXT_TURN' && wx24.nextTurnOwner === undefined, 'WX24-P4-024-E3の－3000を予約しない');
