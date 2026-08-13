@@ -11078,8 +11078,13 @@ scenarios.spellArtsBlockedUiHidesUseButtons = {
     const artsLabels = await artsModal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
     const artsUseLabels = artsLabels.filter(label => label === '使用' || label === 'アーツ使用');
     H.log(`  UI arts: blocked=${JSON.stringify(blocked)} actions=${JSON.stringify(artsLabels)} forbidden=${JSON.stringify(artsUseLabels)}`);
-    if (artsUseLabels.length > 0) {
-      return { pass: false, detail: `USE_ARTSがbareで有効なのにアーツ使用アクションが表示された（data-action-label=${JSON.stringify(artsUseLabels)} / 全action=${JSON.stringify(artsLabels)}）` };
+
+    const leaks = [
+      ...(spellUseLabels.length > 0 ? [`スペル${JSON.stringify(spellUseLabels)}`] : []),
+      ...(artsUseLabels.length > 0 ? [`アーツ${JSON.stringify(artsUseLabels)}`] : []),
+    ];
+    if (leaks.length > 0) {
+      return { pass: false, detail: `封じが有効なのに使用アクションが出た：${leaks.join('／')}（全action spell=${JSON.stringify(spellLabels)} arts=${JSON.stringify(artsLabels)}）` };
     }
     return { pass: true, detail: `bare USE_SPELL/USE_ARTS注入下で、手札スペル（発動/使用）とルリグデッキアーツ（使用/アーツ使用）のcard-actionがともに非表示` };
   },
