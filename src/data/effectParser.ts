@@ -13037,6 +13037,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
   for (const e of effects) {
     e.action = foldSuppressOnPlay(e.action);
+    // §6.4 O-16: 指定ゾーンの保存先を読み手（zoneSource:'designated' の target.owner）へ揃える。
+    e.action = alignDesignatedZoneOwner(e.action);
     normalizeOnPlayAbilitySuppression(e, card.EffectText ?? '');
   }
 
