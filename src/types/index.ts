@@ -275,7 +275,7 @@ export interface PlayerState {
    *     → 残りの現ターン＋次ターンで有効になり、その次のターン終了時に消える
    *   の2語彙が同じ機構で表せる（`field_grants_next_turn` の2スロット式と同じ考え方）。
    * ⚠**昇格は turn-end の全経路**（PvP 通常終了・PvP 確認後・CPU・強制終了）で行うこと。
-   *   1つでも `abilities_removed: []` のまま残すとその経路だけ予約が消える。
+   *   経路ごとに手書きで空へ倒すと、その経路だけ予約を握り潰す＝`clearTurnEndScopedState` に集約する。
    */
   abilities_removed_next_turn?: string[];
   // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
