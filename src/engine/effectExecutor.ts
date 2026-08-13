@@ -73,6 +73,33 @@ function reserveFieldGrant(
   return { ctx: setOwnerState(targetOwner, nextState, ctx), reserved: true, activeOwner };
 }
 
+/**
+ * **このターンの間**の場レベル grant を `field_grants_active` へ直接書く（§6.4 O-16）。
+ *
+ * ⚠従来 `field_grants_active` は**予約からの昇格でしか埋まらず**、「このターン、指定したシグニゾーンに
+ *   あるシグニのパワーを－N（このアーツの使用後にそこに置かれたシグニにも影響を与える）」という
+ *   **現ターンのゾーン継続**を書く先が無かった。そのため該当効果は per-card の `temp_power_mods` へ
+ *   落ちるしかなく、**後からそのゾーンへ出たシグニに効かない**（原文の括弧書きが丸ごと死ぬ）。
+ * ⚠`field_grants_active` は `turnScopedState` に turn-end 登録済み＝失効は既存の funnel が担う。
+ */
+function applyActiveFieldGrant(
+  target: EffectTarget,
+  grant: FieldGrant,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; applied: boolean } {
+  if (target.type !== 'SIGNI' || target.count !== 'ALL' || target.owner === 'any') {
+    return { ctx, applied: false };
+  }
+  const targetOwner = target.owner as Owner;
+  const state = ownerState(targetOwner, ctx);
+  const zone = target.zoneSource === 'designated' ? state.designated_zone : undefined;
+  // 指定ゾーンが未確定（DESIGNATE が空振り）なら**何も起こさない**＝盤面全体へ広げない。
+  if (target.zoneSource === 'designated' && zone === undefined) return { ctx, applied: false };
+  const stored: FieldGrant = zone === undefined ? grant : { ...grant, zone };
+  const next: PlayerState = { ...state, field_grants_active: [...(state.field_grants_active ?? []), stored] };
+  return { ctx: setOwnerState(targetOwner, next, ctx), applied: true };
+}
+
 function filterCandidatesToTargetZone(cands: string[], target: EffectTarget, state: PlayerState): string[] {
   if (target.zoneSource !== 'designated') return cands;
   const zone = state.designated_zone;
