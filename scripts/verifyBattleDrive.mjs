@@ -12388,7 +12388,12 @@ async function runV10EffectBanishRound(page, H, id, victimInstance, evaluate) {
 }
 
 scenarios.effectBanishSubstituteRunsAutomatically = {
-  title: 'WX12-024（効果バニッシュで問いなし自動身代わり→victim残存・他の＜電機＞をエナへ）',
+  // ⚠2026-08-14（続き475）に期待値を実装へ合わせた。当初は「効果バニッシュ＝問いなし自動適用」を
+  //   前提に `asks===0` を要求していたが、`BANISH{count:1}` は `resumeSelectTarget` の
+  //   hoist（`effectExecutor.ts:7412`）を通るので**被害側（CPU）へ問いが1件出る**のが現行の正。
+  //   ⇒ §3 (cxxv)「数値count経路では問いが出ない」は**この入口には当てはまらない**（PLAN §7 V-01 参照）。
+  //   機構が動いた証拠（trap#4）は「問い1件＋victim名を含む」＋「身代わりログ」の両方で取る。
+  title: 'WX12-024（効果バニッシュ＝被害側CPUへ問い1件→CPUが身代わりを選択→victim残存・他の＜電機＞をエナへ）',
   spec: V10_CCM_WITH_SACRIFICE_SPEC,
   async drive(page, H) {
     return runV10EffectBanishRound(page, H, 'ebsra', V10_CCM, (st, _before, cands) => {
@@ -12397,12 +12402,14 @@ scenarios.effectBanishSubstituteRunsAutomatically = {
       const sacrificeLeft = !v10FieldHas(st.guest.fieldSigni, V10_CCM_SACRIFICE);
       const sacrificeInEnergy = st.guest.energyCards.includes(V10_CCM_SACRIFICE);
       const autoLog = v10HasLog(st, V10_CCM_SUB_LOG);
-      const noAsk = v10AskLogs(st).length === 0;
-      const pass = candidateProof && victimStayed && sacrificeLeft && sacrificeInEnergy && autoLog && noAsk;
+      const askLogs = v10AskLogs(st);
+      // 問いは victim ちょうど1体ぶん。victim名を含むことまで見て「別カードへの問い」と取り違えない。
+      const askedVictimOnce = askLogs.length === 1 && askLogs[0].includes(V10_CCM_NAME);
+      const pass = candidateProof && victimStayed && sacrificeLeft && sacrificeInEnergy && autoLog && askedVictimOnce;
       return { pass, st,
         detail: pass
-          ? `対象候補にvictim/sacrifice双方=${JSON.stringify(cands)}、victim残存・sacrificeをエナへ・問い0件・engineログ「${V10_CCM_SUB_LOG}」を確認`
-          : `【旧回帰/偽陽性防止】candidateProof=${candidateProof} victimStayed=${victimStayed} sacrificeLeft=${sacrificeLeft} sacrificeInEnergy=${sacrificeInEnergy} autoLog=${autoLog} asks=${v10AskLogs(st).length} subLogs=${JSON.stringify(v10SubstituteLogs(st))}` };
+          ? `対象候補にvictim/sacrifice双方=${JSON.stringify(cands)}、被害側へ問い1件「${askLogs[0]}」→CPUが身代わりを選択しvictim残存・sacrificeをエナへ・engineログ「${V10_CCM_SUB_LOG}」を確認`
+          : `【旧回帰/偽陽性防止】candidateProof=${candidateProof} victimStayed=${victimStayed} sacrificeLeft=${sacrificeLeft} sacrificeInEnergy=${sacrificeInEnergy} autoLog=${autoLog} askedVictimOnce=${askedVictimOnce} asks=${JSON.stringify(askLogs)} subLogs=${JSON.stringify(v10SubstituteLogs(st))}` };
     });
   },
 };
