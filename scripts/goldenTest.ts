@@ -4161,7 +4161,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定31フィールドと f
   const irregular = registered.filter(field => !convention.includes(field));
   eq(convention.length, 24, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
-  eq(irregular.length, 8, '命名規約外のターン限定フィールド数');
+  // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
+  eq(irregular.length, 10, '命名規約外のターン限定フィールド数');
   eq(registered.length, 32, '型由来24件＋命名規約外8件の母集団');
 });
 
