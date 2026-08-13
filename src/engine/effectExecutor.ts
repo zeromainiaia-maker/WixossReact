@@ -58,19 +58,31 @@ function reserveFieldGrant(
   }
   const targetOwner = target.owner as Owner;
   const state = ownerState(targetOwner, ctx);
-  const zone = target.zoneSource === 'designated' ? state.designated_zone : undefined;
-  if (target.zoneSource === 'designated' && zone === undefined) {
-    return { ctx, reserved: false, activeOwner };
-  }
-  const stored: FieldGrant = zone === undefined ? grant : { ...grant, zone };
+  // 指定ゾーンは**複数ありうる**（「シグニゾーンを２つまで指定し」）＝ゾーンごとに1件ずつ grant を積む。
+  const stored = fieldGrantsForTargetZones(target, grant, state);
+  if (stored === null) return { ctx, reserved: false, activeOwner };
   const reservationKey = targetOwner === activeOwner
     ? 'field_grants_next_turn'
     : 'field_grants_next_opp_turn';
   const nextState: PlayerState = {
     ...state,
-    [reservationKey]: [...(state[reservationKey] ?? []), stored],
+    [reservationKey]: [...(state[reservationKey] ?? []), ...stored],
   };
   return { ctx: setOwnerState(targetOwner, nextState, ctx), reserved: true, activeOwner };
+}
+
+/**
+ * target のゾーン限定を解決して、実際に積む FieldGrant の配列を返す（§6.4 O-16）。
+ * ゾーン限定なし＝grant 1件そのまま／指定ゾーン＝**ゾーンごとに1件**。
+ * 指定が空（DESIGNATE が空振り）なら `null`＝**何も積まない**（盤面全体へ広げない）。
+ */
+function fieldGrantsForTargetZones(
+  target: EffectTarget, grant: FieldGrant, state: PlayerState,
+): FieldGrant[] | null {
+  if (target.zoneSource !== 'designated') return [grant];
+  const zones = designatedZones(state);
+  if (zones.length === 0) return null;
+  return zones.map(zone => ({ ...grant, zone }));
 }
 
 /**
