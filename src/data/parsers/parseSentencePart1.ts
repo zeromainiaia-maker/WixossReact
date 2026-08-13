@@ -1657,6 +1657,45 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     };
   }
 
+  // ---- 指定シグニゾーンの**動的**パワー修正（そのシグニのレベル１につき±N）----
+  // 「次のあなたのターンまで、指定されたシグニゾーンにあるシグニのパワーをそのシグニのレベル１につき－2000する」
+  // （`WDK10-009-E2`・§6.4 O-16(a)）。⚠下の「パワーパンプ / デバフ」は `パワーを＋N` の**隣接**を要求する
+  //   ので、あいだに「そのシグニのレベル１につき」が挟まるこの語形には当たらず、Part4 の
+  //   `STUB{POWER_MOD_PER_COUNT}` へ落ちていた（＝ACTIVATED 経路には消費地点が無く真 no-op）。
+  // ⚠**delta を数値へ焼き込まない**＝ゾーン継続なので倍率は「その時点でそこにいるシグニ自身のレベル」。
+  //   engine 側は `FieldGrant{kind:'power', perTargetLevel:true}` が適用のたびに掛ける。
+  // ⚠ゾーンの持ち主は既存の指定ゾーン規則と同じく**符号で決める**（マイナス＝相手ゾーン）。
+  //   DESIGNATE 側の owner は下流の `alignDesignatedZoneOwner` がこの target から揃える。
+  // ⚠「レベル**１**につき」以外（除数つき）は受け皿が無いので、意図的にこの規則へ当てず STUB のまま残す。
+  const designatedPerLevelM = t.match(
+    /指定されたシグニゾーンにあるシグニのパワーを(?:その)?シグニのレベル[１1]につき([＋－])([０-９\d]+)する/,
+  );
+  if (designatedPerLevelM) {
+    const perLevelDelta = designatedPerLevelM[1] === '＋'
+      ? parseNum(designatedPerLevelM[2])
+      : -parseNum(designatedPerLevelM[2]);
+    const pmDesig: PowerModifyAction = {
+      type: 'POWER_MODIFY',
+      target: {
+        type: 'SIGNI', owner: perLevelDelta < 0 ? 'opponent' : 'self', count: 'ALL',
+        filter: { cardType: 'シグニ' }, zoneSource: 'designated',
+      },
+      delta: perLevelDelta,
+      deltaPerTargetLevel: true,
+    };
+    // 「次のあなたのターンまで」＝このターンの残り＋**次の対戦相手のターン**（自分の次のターンが始まると切れる）。
+    // 期間句が無ければ従来どおりこのターン限り。
+    const nextOwnTurnUntil = t.includes('次のあなたのターンまで') || t.includes('次の自分のターンまで');
+    const nextOpponentTurn = t.includes('次の対戦相手のターンの間');
+    const nextGlobalTurn = !nextOpponentTurn && t.includes('次のターンの間');
+    if (nextOwnTurnUntil || nextOpponentTurn || nextGlobalTurn) {
+      pmDesig.duration = 'NEXT_TURN';
+      pmDesig.nextTurnOwner = nextGlobalTurn && !nextOwnTurnUntil ? 'next' : 'opponent';
+      if (nextOwnTurnUntil || t.includes('このターンと次のターンの間')) pmDesig.appliesThisTurn = true;
+    }
+    return pmDesig;
+  }
+
   // ---- パワーパンプ / デバフ ----
   const plusM = t.match(/パワーを＋([０-９\d]+)する/) ?? t.match(/パワーは＋([０-９\d]+)され/);
   const minusM = t.match(/パワーを－([０-９\d]+)する/) ?? t.match(/パワーは－([０-９\d]+)され/)
