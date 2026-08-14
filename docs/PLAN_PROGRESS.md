@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-15・続き484・Opus 5）＝§6.4 **O-22（(a)(b)(c) 全部）／O-23／O-24 完了＝5効果の挙動是正**（**恒久 no-op 4件＋過剰実行1件**）。ゲート全緑（**golden 1985**＝+5・census 833＝良性 +2・lint 0/259）。
+  - **✅① engine の新機構は1つだけ**＝残り4件は既存語彙で着地した。(a)`CHARM_CONDITIONAL_POWER`＝「代わりに－N」の置換 fixup（`CONDITIONAL + POWER_MODIFY{targetsLastProcessed}` の**加算モデル**）が**既にあり**、regex が完全形「それに…**それのパワーを**－M」しか取れず短縮形「代わりに－Mする」が外れていただけ。**主語2形 × 帰結2形**を1本にまとめ、`それ`→`LAST_PROCESSED_MATCHES{hasCharm}`／`あなたのシグニ`→`CHARM_COUNT{self,gte,1}` を出し分ける。(O-24) `TRASH{SIGNI}`／`TRASH{ENERGY_CARD}` は既に `opponentSelects` を備えていたので **parser だけ**で直った。(O-23) `ctx.triggeringCardNum ?? ctx.sourceCardNum` の1行。
+  - **🔴② 恒久 no-op の直し方が3通りに割れた**＝(a)は**主語の取り違え**（delta を効果元＝場に無いライフバーストへ当てていた）／(b)は**そもそも別の効果**（`CONDITIONAL_PER_TRASH`＝「トラッシュN枚以上ならドロー」を、条件句の無い「繰り返してもよい」に当てていた）／(c)は**綴り違い**（`TOKEN_SETS` のキーワードが `'ダークアーツ'`＝**全 CSV に0件**。原文は「ヤミノアーツ」）。**同じ「no-op」でも層が違う**ので、必ず原文とハンドラを1行ずつ突き合わせる。
+  - **🔑③ 在庫の症状記述が (b)(c) とも stale だった**＝(c)「クラフト5種が CSV に無い＝データ側の欠落」は誤りで `WX25-P1-TK1`〜`TK5` は**実在**し、`BattleScreen` の cardMap 事前ロードにも登録済みだった。(b)「別機構」も既存の CHOOSE＋継続で書けた。**§3-1 の「着手前に実測」が3セッション連続で効いている。**
+  - **⭐④ (b) の畳み込みが必須な理由**＝新 `STUB{MILL_EACH_REPEAT_ON_NAME}` は**ミルのステップごと**1つにまとめる。条件が見るのは「この方法で」置いた**両プレイヤー分**だが、`SEQUENCE` は **step ごとに `lastProcessedCards` を上書きする**ので前段を残すと**相手の5枚しか見えず過少発火**する。繰り返しは既存 `CHOOSE` ＋**同じ STUB の再入**（新ループ機構なし）。
+  - **📋⑤ 隣接発見（未着手・スコープ外）**＝`WXDi-CP01-033-E1` も「この効果を繰り返す」札だが**別の壊れ方**（デッキ**一番下**からのミルが丸ごと欠落し、パワー＋5000が無条件）。`WX25-P2-103` ②の**倍率**形は `double_power_minus_targets` が2倍固定なので `DEFERRED_CHARM_POWER_MINUS_MULTIPLIER` へ分離（O-10 が 14→15 id）。
+  - **▶ 次の一手**＝**O-19**（watcher の `triggerScope` を parser が書く恒久解＝**計器に映らない事故を起こす層**）→ **O-3** の残26（`npm run census:stubs` の A群が常時の在庫表）→ **O-4**（UNKNOWN 25ノード/25カード）。
+
 - **セッション（2026-08-15・続き483・Opus 5）＝§6.4 **O-21 完了＝到達不能な二番手 STUB ハンドラの解体**（19 id / 21ブロック）。**うち1件は「本物の実装が no-op に潰されていた」live バグ**。ゲート全緑（**golden 1980**＝+2・census 831 据置・lint 0/259）。
   - **✅① 在庫を数え直した**＝続き482 の簿記「58 id」は `uniq -d` の生数字で**入れ子分岐（`if (A||B) { … if (A) {…} }`）を重複と誤検出**していた。ブロック範囲を取って仕分けた実測＝**A：後発が到達不能 19 id / 21ブロック**（死コード）・**B：先着が素通りしうる 16 id**（`&& targetsStored` 等の追加ガード＝**意図的で正当**）・**C：`effectExecutor` の `execSequence` 内 7 id**（SEQUENCE/CONDITIONAL 専用経路＝**両方 live**）。
   - **🔴② live バグ＝`BET_CONDITION`（`WDK01-010-E1`）**＝`execStubPart3` に「ベットしていた場合の追加効果」の**実装があるのに**、`execStubPart1` の**3行 no-op**（`BET_ALTERNATIVE` に相乗り）が先着で潰していた。原文は「３枚の代わりに４枚まで対象とし」＝**ベット時に1枚多く拾えるはずが、ずっと拾えていなかった**。先着から外して実装を生かした。
