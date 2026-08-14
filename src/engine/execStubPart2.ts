@@ -316,8 +316,8 @@ export function execStubPart2(
       }
     }
     const varietyPMCV = colorSetPMCV.size;
-    const srcPMCV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMCV = srcPMCV ? (srcPMCV.EffectText ?? '') + ' ' + (srcPMCV.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の「〜につき－N」を拾いうるのでブロックだけを読む。
+    const txtPMCV = sourceAbilityText(ctx);
     const mPMCV = txtPMCV.match(/色の種類([０-９\d]*)つにつき([－＋][０-９\d]+)/);
     const divisorPMCV = mPMCV ? parseInt(toHWPMCV(mPMCV[1] || '1')) || 1 : 1;
     const deltaPMCV = mPMCV ? parseInt(toHWPMCV(mPMCV[2]).replace('－', '-').replace('＋', '+')) : -3000;
