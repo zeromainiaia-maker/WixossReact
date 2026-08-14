@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 603（総ノード 2881 件）
+live JSON の STUB id 種類 : 603（総ノード 2883 件）
 逆翻訳シートの [STUB:…] 総数: 785  うち生ID露出 277 箇所（188 種）
 
 ■ 仕分け結果
@@ -22,13 +22,13 @@ live JSON の STUB id 種類 : 603（総ノード 2881 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      7件   7枚  DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE
         カード: SP38-003, WX10-024, WXEX2-09, WX24-P2-014, WX24-P4-039, WX25-P2-010 …他1枚
-        生成: src\data\parsers\parseSentencePart3.ts:1952
+        生成: src\data\parsers\parseSentencePart3.ts:1964
      5件   5枚  DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE
         カード: WDK17-008, PR-K046, WXEX2-19, WX25-CP1-016, WX26-CP1-066
-        生成: src\data\parsers\parseSentencePart3.ts:1941
+        生成: src\data\parsers\parseSentencePart3.ts:1953
      4件   4枚  DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE
         カード: WX25-P3-001, WX25-P3-009, WXK10-004, WXK10-019
-        生成: src\data\parsers\parseSentencePart3.ts:1542
+        生成: src\data\parsers\parseSentencePart3.ts:1554
      3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
         カード: WX25-P3-055, WXK01-002, WXK03-071
         生成: src\data\manualEffects.ts:4648 / src\data\manualEffects.ts:4651
@@ -51,7 +51,7 @@ live JSON の STUB id 種類 : 603（総ノード 2881 件）
         生成: src\data\manualEffects.ts:4634
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3056
+        生成: src\data\parsers\parseSentencePart1.ts:3067
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4825
@@ -143,7 +143,7 @@ live JSON の STUB id 種類 : 603（総ノード 2881 件）
         消費: src\engine\effectExecutor.ts:3827
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1004 / src\screens\BattleScreen.tsx:9991
+        消費: src\screens\BattleScreen.tsx:1004 / src\screens\BattleScreen.tsx:10002
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6707
@@ -202,8 +202,8 @@ live JSON の STUB id 種類 : 603（総ノード 2881 件）
   露出  3箇所 (live 3件/3枚)  REVEAL_TOP_CONDITIONAL_ROUTE  [execStubPart3]
         カード: WX08-025, WX10-030, WXK05-021
         既存コメント: REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
-  露出  3箇所 (live 3件/3枚)  SET_CANCEL_ATTACK_FLAG  [execStubPart3]
-        カード: WX24-P3-050, WX24-P3-069, WX24-P4-067
+  露出  3箇所 (live 5件/5枚)  SET_CANCEL_ATTACK_FLAG  [execStubPart3]
+        カード: SPDi43-06, WX24-P3-050, WX24-P3-069, WX24-P4-067, WXDi-P05-037
         既存コメント: SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
   露出  3箇所 (live 3件/3枚)  TRIGGER_LIFE_BURST  [execStubPart3]
         カード: WX13-032, WXEX1-11, WXEX2-13

@@ -7987,8 +7987,34 @@ export function resumeOptionalCost(
     { ...ctx, otherState: { ...ctx.otherState, energy: newOppEnergy, trash: newOppTrash } },
     `コスト支払い: ${(payOpt?.costColors ?? []).map(c => `《${c}》`).join('')}`,
   );
-  if (pending.continuation) return executeAction(pending.continuation, cur);
-  return done(cur);
+  // 🔴**支払い枝のアクションを実行する**（§3 (cxxvii)・続き475d）。
+  //   `thenOnPay`（原文「〈コスト〉を支払ってもよい。**そうした場合**、X」）のとき、帰結 X は
+  //   `payOpt.action` に入っている（`effectExecutor.ts:4157` の `payBranch`）。
+  //   従来ここはエナを引くだけで `payOpt.action` を**一度も実行していなかった**ため、
+  //   **エナ払いの `thenOnPay` 効果は帰結が丸ごと落ちて**いた（実測＝`SPDi43-06-E1` は
+  //   CPU がコストを払ったのにアタックが無効にならずライフが減った）。
+  //   ⚠既定極性（回避ゲート）の pay 枝は `noopAction` なので実行しても無害＝両極性で同じ形になる。
+  //   ⚠`choiceId !== 'pay'`（discard/energyTrash 等）は上の分岐が既に `selectedOpt.action` を
+  //     実行しており、**エナ払い枝だけが取り残されていた**。
+  const paid = payOpt?.action ? executeAction(payOpt.action, cur) : done(cur);
+  if (!paid.done) {
+    if (pending.continuation) {
+      const merged: EffectAction = paid.pending.continuation
+        ? { type: 'SEQUENCE', steps: [paid.pending.continuation, pending.continuation] } as SequenceAction
+        : pending.continuation;
+      return { ...paid, pending: { ...paid.pending, continuation: merged } };
+    }
+    return paid;
+  }
+  if (pending.continuation) {
+    return executeAction(pending.continuation, {
+      ...cur, ownerState: paid.ownerState, otherState: paid.otherState, logs: paid.logs,
+      fieldTrashCostCards: paid.fieldTrashCostCards ?? cur.fieldTrashCostCards,
+      trapActivated: paid.trapActivated ?? cur.trapActivated,
+      trapSetOwners: paid.trapSetOwners ?? cur.trapSetOwners,
+    });
+  }
+  return paid;
 }
 
 // LOOK_AND_REORDER: reordered[] =export
