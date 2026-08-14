@@ -2400,6 +2400,16 @@ export interface StubAction {
   // 実際に置いた枚数と同レベルの相手シグニをバウンス。resolve=true はコスト選択後の内部継続。
   variableEnergyTrashLevelBounce?: { story: string; maxCount: number; resolve?: boolean };
   fetchCardName?: string; // SELF_TO_LRIG_DECK_AND_FETCH_SAME_NAME: 名指しフェッチ先（省略時は自身と同名。PR-470A→《進化する筋肉 紗倉ひびき》）
+  /**
+   * MILL_EACH_REPEAT_ON_NAME（§6.4 O-22(b)・`WX12-037-E2`）＝「各プレイヤーは自分のデッキの上から
+   * カードをN枚トラッシュに置く。この方法でトラッシュに置いたカードの中にカード名に《X》を含む
+   * カードがある場合、あなたはこの効果を繰り返してもよい。」
+   * ⚠**ミルもこの STUB が行う**（前段の TRASH{DECK_CARD} ステップごと畳み込む）＝条件が見るのは
+   *   「この方法で」置いた**両プレイヤー分**なので、SEQUENCE の step ごとに上書きされる
+   *   `lastProcessedCards` では**相手の分しか見えず過少発火**する。
+   * ⚠リフレッシュはこの効果の処理中には起こさない（原文の但し書き）＝デッキが尽きたら取れる分だけ取る。
+   */
+  millEachRepeatOnName?: { count: number; name: string };
   type: 'STUB';
   id: string;
   /** 実行時に設定するターン持続 state の寿命。省略時は宣言型／既存 no-op のまま。 */
