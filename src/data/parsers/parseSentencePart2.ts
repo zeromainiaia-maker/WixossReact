@@ -723,6 +723,22 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手がシグニとエナゾーンのカードをトラッシュ ----
+  // §6.4 O-24：旧 `STUB{OPP_TRASH_FIELD_SIGNI_AND_ENERGY}` は**相手の場のシグニ全部＋エナ全部**を流す
+  // 過剰実行だった（原文は `WXK06-030-E2`「シグニ**１体**と…カード**１枚**を対象とし」）。
+  // ⚠`owner:'opponent'`（誰のカードか）と `opponentSelects`（誰が選ぶか）は**独立**なので必ず併記する
+  //   ＝原文の主語が「対戦相手は、自分の…を対象とし」なので選ぶのは相手（続き411 の教訓）。
+  {
+    const oppTrashM = t.match(/対戦相手は[、,]?自分の場からシグニ([０-９\d一二三四五六七八九十]+)体と自分のエナゾーンからカード([０-９\d一二三四五六七八九十]+)枚を対象とし[、,]?.*トラッシュに置く/);
+    if (oppTrashM) {
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(oppTrashM[1]), filter: { cardType: 'シグニ' } }, opponentSelects: true },
+          { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: parseNum(oppTrashM[2]) }, opponentSelects: true },
+        ],
+      } as SequenceAction;
+    }
+  }
   if (t.match(/対戦相手は.*自分の場からシグニ.*自分のエナゾーンからカード.*トラッシュに置く/)) {
     return { type: 'STUB', id: 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY' } as StubAction;
   }
