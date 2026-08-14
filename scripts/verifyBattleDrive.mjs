@@ -15191,9 +15191,6 @@ scenarios.v11EffectDeployCountFlagBlocked = {
       } else if (!abilityClicked) {
         did = await H.clickBtn('【起】コストなし', { nth: 1 });
         if (did) abilityClicked = true;
-        // ⚠通常召喚モーダルを開閉した直後は、ルリグスロットのクリックがオーバーレイに吸われて
-        //   モーダルが開かないことがある（このシナリオだけが持つ前段）。開き直して自己回復する。
-        else if (s % 4 === 3) { lrigOpened = false; await H.closeModals(); }
       }
       if (!did) did = await H.clickBtn('発動', { exact: true });
       if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
@@ -15207,12 +15204,42 @@ scenarios.v11EffectDeployCountFlagBlocked = {
       //   ⇒ 走行証拠は【起】効果の実ログで取る。
       const actLog = (st?.logTail ?? []).some(l => l.includes('混沌の鍵主') && l.includes('【起】効果'));
       const settled = abilityClicked && actLog && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
-      H.log(`  v11a1[${s}] -> ${did ?? 'なし'} | normalSummonGated=${normalSummonGated} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} actLog=${actLog} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
-      if (settled && groundBlocked && exactLog) {
-        return { pass: true, detail: `通常召喚は召喚先ゾーンが全disabled＋効果配置不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」` };
-      }
+      H.log(`  v11a1[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} actLog=${actLog} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (settled && groundBlocked && exactLog) { blocked = true; break; }
     }
-    return { pass: false, detail: `フラグ版配置制限を確定できず（hField=${JSON.stringify(last?.host?.fieldSigni)} hTrash=${JSON.stringify(last?.host?.trashCards)} lrigDown=${last?.host?.lrigDown} logTail=${JSON.stringify(last?.logTail ?? [])} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+    if (!blocked) {
+      return { pass: false, detail: `フラグ版配置制限を確定できず（hField=${JSON.stringify(last?.host?.fieldSigni)} hTrash=${JSON.stringify(last?.host?.trashCards)} logTail=${JSON.stringify(last?.logTail ?? [])} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+    }
+
+    // 同じ cap で通常召喚も閉じることを、このシナリオ内の追加assertで見る。
+    // ⚠実測（続き476）＝配置数制限は **CardModal の「召喚」ボタンでは見ていない**。ゲートは
+    //   `SigniSummonZoneModal.tsx:72`（ゾーンボタンの disabled）と `handleSummonSigni`（BattleScreen.tsx:5551）
+    //   にある＝「召喚ボタンが出ない」ではなく「**召喚先ゾーンが1つも選べない**」が現行の正しい絵。
+    await H.closeModals();
+    await page.waitForTimeout(400);
+    const handOpened = await H.clickTestId('my-hand-card-0');
+    if (!handOpened) return { pass: false, detail: '効果配置ブロックは確認できたが、通常召喚ゲート確認用の手札WD01-013を開けない' };
+    await page.waitForTimeout(400);
+    const summon = page.getByRole('button', { name: '召喚', exact: true }).first();
+    let normalSummonGate = 'ボタン非表示/disabled';
+    if (!!(await summon.count()) && await summon.isVisible().catch(() => false)
+        && await summon.isEnabled().catch(() => false)) {
+      await summon.click().catch(() => {});
+      await page.waitForTimeout(600);
+      const zoneEnabled = [];
+      for (const zi of [0, 1, 2]) {
+        const z = page.getByTestId(`summon-zone-${zi}`).first();
+        if (await z.count() && await z.isVisible().catch(() => false)) {
+          zoneEnabled.push(`z${zi}=${await z.isEnabled().catch(() => false)}`);
+        }
+      }
+      H.log(`  v11a1 通常召喚ゾーン: ${zoneEnabled.join(' ') || '（ゾーンボタンなし）'}`);
+      if (!(zoneEnabled.length > 0 && zoneEnabled.every(x => x.endsWith('=false')))) {
+        return { pass: false, detail: `効果配置は正しく弾いたが、通常召喚の召喚先ゾーンが選べる（ゲート破れ・${zoneEnabled.join(' ')}）` };
+      }
+      normalSummonGate = `召喚先ゾーン全disabled（${zoneEnabled.join(' ')}）`;
+    }
+    return { pass: true, detail: `効果配置が不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」／通常召喚も${normalSummonGate}` };
   },
 };
 
