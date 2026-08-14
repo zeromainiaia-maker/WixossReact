@@ -7631,11 +7631,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (e.action as import('../types/effects').StubAction)?.id === 'UNLIMITED_KEYS',
       )
     );
-    if ((cardData.Type === 'キー' || cardData.Type === 'ピース') && (!my.field.key_piece || hasUnlimitedKeys)) {
+    // 🔴**ピースはキーゾーンを占有しない**（§3 (cxxiii)・続き475g）＝`!my.field.key_piece` ゲートを掛けない。
+    //   従来はここで一緒に絞っていたため、**キーを1枚出しているだけで全ピースが使えなくなって**いた。
+    const isPieceCard = cardData.Type === 'ピース';
+    if ((cardData.Type === 'キー' || isPieceCard) && (isPieceCard || !my.field.key_piece || hasUnlimitedKeys)) {
       const timing = cardData.Timing ?? '';
       const canUse =
         (phase === 'MAIN' && isMyTurn && (timing.includes('メインフェイズ') || !timing)) ||
-        (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ'));
+        (phase === 'GROW' && isMyTurn && timing.includes('グロウフェイズ')) ||
+        // 🔴CSV Timing が「アタックフェイズ」のピース14枚は、従来 MAIN/GROW しか許していないため
+        //   **永久に使えなかった**（メイン+アタック11／アタックのみ3）。
+        (isPieceCard && isMyTurn && timing.includes('アタックフェイズ')
+          && (phase === 'ATTACK_SIGNI' || phase === 'ATTACK_LRIG' || phase === 'ATTACK_ARTS'));
       const coinNeeded = parseCoinCost(cardData.Cost) + parseCoinCost(cardData.GrowCost);
       // ⚠ピースにも EffectText 由来の条件つきコスト軽減がある（`WXDi-P16-003`〜`007`＝「場に〔色〕のルリグが
       //   2体以上いるかぎり、1体につき《色×1》減る」＝タスク12(xciv) α）。ここと `KeyUseModal` の両方で
