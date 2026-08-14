@@ -33742,6 +33742,21 @@ test('§6.4 O-23: 「アタックしたそのシグニのレベル」は trigger
     '🔴アタッカー L4 → －4000（効果元 L3 を使うと －3000 になる）');
 }));
 
+test('§6.4 O-22(c): ヤミノアーツのクラフト5種がルリグデッキ候補に出る（綴り違いの恒久 no-op に戻さない）', () => {
+  // ⚠在庫の「クラフト5種が CSV に無い＝データ側の欠落」は **stale** だった＝実在する。
+  //   真因は `TOKEN_SETS` のキーワードが 'ダークアーツ'（**全 CSV に0件**）だったこと。
+  for (const n of ['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5']) {
+    ok(cardMap.has(n), `${n} は CSV に実在する（データ欠落ではない）`);
+  }
+  const base = mkCtx({}, {}, 'WX25-P1-034');
+  const ctx = { ...base, sourceCardNum: 'WX25-P1-034', sourceEffectId: 'WX25-P1-034-E2' } as ExecCtx;
+  ctx.ownerState = { ...ctx.ownerState, lrig_deck: [] };
+  const r = executeEffect({ effectId: 'WX25-P1-034-E2', effectType: 'ACTIVATED', action: { type: 'STUB', id: 'CRAFT_TO_LRIG_DECK' } as unknown as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  const pending = (r as { pending?: { count?: number; options?: Array<{ label?: string }> } }).pending;
+  eq(pending?.options?.length, 5, '🔴5種類すべてが候補に出る（キーワード不一致だと候補0＝無言 no-op）');
+  eq(pending?.count, 2, '原文「２種類を１枚ずつ」＝2つ選ぶ');
+});
+
 test('§6.4 O-24: WXK06-030-E2 は「シグニ1体＋エナ1枚を対戦相手が選ぶ」（全体を流さない）', () => {
   const eff = (effectsMap.get('WXK06-030') ?? []).find(e => e.effectId === 'WXK06-030-E2');
   ok(!!eff, 'WXK06-030-E2 が live に存在する');
