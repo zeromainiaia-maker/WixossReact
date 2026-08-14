@@ -15233,7 +15233,7 @@ order.push('energyTrashCostDeductsEnergyNotHand', 'energyTrashCostUnavailableWhe
   'revealOppHandSkipKeepsOpponentHand', 'revealOppHandPayDiscardsOpponentAndDraws');
 // 続き474：V-10。効果バニッシュ自動身代わり3形＋候補なし対照＋バトル側対話を既存order末尾へ追加。
 order.push('effectBanishSubstituteRunsAutomatically', 'effectBanishNoSubstituteWithoutSacrifice',
-  'effectBanishSubstituteDiscardsSpell', 'effectBanishLifeCrashSubstituteNotOnEffect',
+  'effectBanishSubstituteDiscardsSpell', 'effectBanishLifeCrashSubstitutePaysLife',
   'battleBanishSubstituteStillInteractive');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
