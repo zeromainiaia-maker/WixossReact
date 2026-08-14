@@ -16025,6 +16025,7 @@ scenarios.v12GrantedEnergyChargeThirdBlocked = {
     let grantReady = false;
     let spellState = { opened: false, use: false, cast: false };
     let completed = 0;
+    let upWait = 0;
     let last = await H.queryState();
     for (let s = 0; s < 180; s++) {
       await page.waitForTimeout(250);
@@ -16574,7 +16575,10 @@ scenarios.v13TrashActDisonaDiscardFilter = {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   drive: (page, H) => driveV13TrashAct(page, H, {
-    phase: 'MAIN', expectAction: true, actionIncludes: 'ディソナ',
+    // ⚠アクションのラベルは `【起】トラッシュから出す（手札2枚を捨てる）`＝**《ディソナアイコン》の限定は
+    //   ラベルに現れない**（実測。旧 `actionIncludes:'ディソナ'` は永久に一致せず偽陰性だった）。
+    //   ディソナ限定が効いているかは下の domChecks（`data-selectable`）で見る＝そちらが本題。
+    phase: 'MAIN', expectAction: true, actionIncludes: 'トラッシュから出す',
     sourceId: 'WXDi-P12-053#7502', effectId: 'WXDi-P12-053-E2',
     handPicks: ['trashact-hand-0', 'trashact-hand-1'],
     paidCardIds: ['WXDi-P12-044#7503', 'WXDi-P12-045#7504'],
