@@ -11502,6 +11502,7 @@ const FIELD_DOWN_SOURCE = 'WXDi-P04-051#4921';
 const FIELD_DOWN_WHITE_B = 'WD01-013#4922';
 const FIELD_DOWN_WHITE_C = 'WD01-014#4923';
 const FIELD_DOWN_ENERGY = 'WD01-013#4924';
+const FIELD_DOWN_LRIG = 'WD01-002#4925';
 
 // 🔴続き475d でシグニアタック → **ルリグアタック**経路へ作り直した（§3 (cxxviii)）。
 //   原文は「あなたのルリグ１体がアタックしたとき」なのに live timing が `ON_ATTACK_SIGNI` だったため、
