@@ -1513,6 +1513,47 @@ function logSourceText(effectId: string | undefined, text: string): void {
   if (!_sourceTextLog.has(effectId)) _sourceTextLog.set(effectId, text.trim());
 }
 
+// ===== 能力ブロック原文の実行時解決（§6.4 O-20 の source 配線） =====
+// engine のハンドラが `cardMap.get(sourceCardNum).EffectText` の**カード全文**を regex で読むと、
+// **その効果を生んだ能力ブロックを知らない**ため別能力の文に一致して意味が決まる事故が起きる
+// （PLAN §6.4 O-20＝棚卸し済み21件。golden も census も緑のまま素通りする層）。
+// 上の `_sourceTextLog` は既に「effectId → 生成元ブロック原文」を全構築サイトで記録しているので、
+// それを実行時にカード単位で引けるようにする＝ハンドラは全文ではなくブロックだけを読める。
+//
+// ⚠effects.json へ焼かない理由＝`buildEffectsJson.ts` の `PRESERVE_STATUSES` が MANUAL/PARTIAL の
+//   カードを丸ごと温存するため、JSON に足しても**手修正カードには永久に載らない**（＝穴が残る）。
+//   ここで都度パースすればデータ由来に関係なく効く（カード単位キャッシュで実質1回）。
+const _abilityBlockCache = new Map<string, ReadonlyMap<string, string>>();
+
+/**
+ * カードの「effectId → その効果を生んだ能力ブロックの原文」対応表を返す（カード単位でキャッシュ）。
+ * 合成 effectId（付与展開・後処理で増える効果など）は含まれないので、呼び出し側は
+ * 取得できなかった場合にカード全文へフォールバックすること（＝従来動作のまま＝退化しない）。
+ */
+export function getAbilityBlockTexts(card: CardData): ReadonlyMap<string, string> {
+  const cached = _abilityBlockCache.get(card.CardNum);
+  if (cached) return cached;
+  // 収集フラグと既存ログは呼び出し前の状態へ必ず戻す
+  // （build:effects が全カード分を貯めている最中に呼ばれても壊さない）。
+  const prevFlag = _collectSourceText;
+  const prevEntries = [..._sourceTextLog];
+  let map = new Map<string, string>();
+  _collectSourceText = true;
+  _sourceTextLog.clear();
+  try {
+    parseCardEffects(card);
+    map = new Map(_sourceTextLog);
+  } catch {
+    map = new Map();
+  } finally {
+    _sourceTextLog.clear();
+    for (const [k, v] of prevEntries) _sourceTextLog.set(k, v);
+    _collectSourceText = prevFlag;
+  }
+  _abilityBlockCache.set(card.CardNum, map);
+  return map;
+}
+
 // 後置条件節の前段 recorder 検出でラッパーを貫通する（§3 タスク12(xxii)）。
 // 直前ステップが「先頭ガード条件で丸ごと gate された CONDITIONAL（else なし）」や「連文 SEQUENCE の末尾」で
 // あっても、実際に lastProcessedCards を残すのはその内側の末尾アクション。engine 上も：
