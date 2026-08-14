@@ -7598,6 +7598,62 @@ test('collectLrigAttackDefenderTriggers: 防御側の付与AUTO を any_opp/any 
   const disabled = { ...mkDef([mkGranted('any_opp')]), lrig_abilities_disabled: true } as unknown as PlayerState;
   eq(run1(disabled).entries.length, 0, 'lrig_abilities_disabled 時は拾わない');
 });
+// ── §3 (cxxviii)・続き475d: 「**あなたの**ルリグがアタックしたとき」＝アタック側の味方カードを拾う経路。
+// 🔴従来この収集経路が丸ごと無く（BattleScreen はルリグ自身の能力4ソースしか見ない）、parser も
+//   `ON_ATTACK_SIGNI` へ倒すしかなかった＝**シグニのアタックで誤発火**していた。
+test('collectAllyLrigAttackTriggers: アタック側の味方カードを any_ally/any だけ拾う', () => {
+  const mkEff = (id: string, scope: string | undefined, usageLimit?: string): CardEffect => ({
+    effectId: id, effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+    ...(scope ? { triggerScope: scope } : {}), ...(usageLimit ? { usageLimit } : {}),
+  } as unknown as CardEffect);
+  const LRIG = 'L#1', S1 = 'S#1';
+  const mkAtk = (actionsDone: string[] = []): PlayerState =>
+    ({ ...mkState({}), actions_done: actionsDone,
+       field: { ...mkState({}).field, lrig: [LRIG], signi: [[S1], null, null] } } as unknown as PlayerState);
+  const runWith = (effs: CardEffect[], actionsDone: string[] = []) => {
+    const em = new Map<string, CardEffect[]>([[S1, effs]]);
+    return collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, mkAtk(actionsDone), HOST, LRIG);
+  };
+  eq(runWith([mkEff('a1', 'any_ally')]).entries.length, 1, 'any_ally は拾う（これが本体の是正）');
+  eq(runWith([mkEff('a1', 'any')]).entries.length, 1, 'any は拾う');
+  // 🔴scope 未設定（＝既定 self＝「**この**ルリグがアタックしたとき」）は拾わない
+  //   ＝BattleScreen の `lrigCardEffects` が担当。拾うと**二重発火**する。
+  eq(runWith([mkEff('a1', undefined)]).entries.length, 0, 'scope 未設定(self) は拾わない');
+  eq(runWith([mkEff('a1', 'any_opp')]).entries.length, 0, 'any_opp は拾わない（防御側コレクタの担当）');
+  eq(runWith([mkEff('a1', 'any_ally')]).entries[0].playerId, HOST, 'playerId はアタック側');
+  eq(runWith([mkEff('a1', 'any_ally', 'once_per_turn')], ['a1']).entries.length, 0, '《ターン1回》消費済みは拾わない');
+  eq(runWith([mkEff('a1', 'any_ally', 'once_per_turn')]).usedIds.join(','), 'a1', '初回は usedIds を返す');
+  // 🔴アタックしたルリグ自身は除外する（BattleScreen が既に積んでいるので二重発火になる）
+  {
+    const em = new Map<string, CardEffect[]>([[LRIG, [mkEff('a1', 'any_ally')]]]);
+    const st = ({ ...mkState({}), field: { ...mkState({}).field, lrig: [LRIG], signi: [null, null, null],
+      assist_lrig_l: [LRIG] } } as unknown as PlayerState);
+    eq(collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, st, HOST, LRIG).entries.length, 0,
+       '🔴アタックしたルリグ自身は除外（二重発火の防止）');
+  }
+});
+
+test('§3 (cxxviii) parser: 「あなたのルリグがアタックしたとき」は ON_ATTACK_LRIG＋any_ally／帰結は LRIG 対象', () => {
+  // 🔴`WXDi-P04-051-E1` は実機で **恒久 no-op** だった＝timing が ON_ATTACK_SIGNI なので
+  //   「シグニのアタック時」に発火し、そのときは攻撃者が先にダウンするため
+  //   `fieldDown:{count:3}`（アップの白シグニ3体）が**構造的に成立しない**。
+  const e = effectsMap.get('WXDi-P04-051')!.find(x => x.effectId === 'WXDi-P04-051-E1')!;
+  eq((e.timing ?? []).join(','), 'ON_ATTACK_LRIG', '🔴ルリグアタックで発火する（ON_ATTACK_SIGNI に戻ったら回帰）');
+  eq(e.triggerScope, 'any_ally', '🔴味方カードが自陣のルリグアタックを見る（self へ潰れると engine が拾えない）');
+  const json = JSON.stringify(e.action);
+  ok(json.includes('"type":"UP","target":{"type":"LRIG"'), '「そのルリグをアップし」は LRIG 対象');
+  ok(json.includes('"type":"REMOVE_ABILITIES","target":{"type":"LRIG"'), '「そのルリグは能力を失う」も LRIG 対象');
+  ok(!json.includes('"type":"UP","target":{"type":"SIGNI"'), '🔴シグニをアップする幻覚に戻っていない');
+  // 母集団（同じ主語の他カード）も同じ timing になっていること＝1件だけ直して取り残さない
+  for (const [cardNum, effId] of [['WX19-021', 'WX19-021-E2'], ['WXDi-P12-044', 'WXDi-P12-044-E2'],
+                                  ['WXDi-P16-088', 'WXDi-P16-088-E1'], ['WX25-P2-050', 'WX25-P2-050-E1']] as const) {
+    const x = effectsMap.get(cardNum)!.find(y => y.effectId === effId)!;
+    eq((x.timing ?? []).join(','), 'ON_ATTACK_LRIG', `${effId}: 同じ主語なので ON_ATTACK_LRIG`);
+    eq(x.triggerScope, 'any_ally', `${effId}: any_ally`);
+  }
+});
+
 // 「対戦相手の（センター）ルリグがアタックしたとき」の timing/scope（parser 側・続き218j）
 test('parser: 「対戦相手のルリグがアタックしたとき」は ON_ATTACK_LRIG／「シグニかルリグ」は両 timing', () => {
   const innerOf = (cardNum: string): { timing: string[]; scope?: string }[] => {
