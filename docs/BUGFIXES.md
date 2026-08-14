@@ -1,5 +1,88 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き475d・Opus 5）— 🏁 §3 **(cxxvii)＋(cxxviii) を残0クローズ**（アタック無効の主語取り違えと、ルリグアタック収集経路の欠落）
+
+これで §7 の **V-01／V-02／V-09④／V-10 が全シナリオ緑（10本）**、§3 在庫は **8件→3件**。
+
+### (cxxvii)「このアタックを無効にする」が自分のアタックに効かない — **真因は2つあった**
+
+**① parser の主語取り違え**＝「**この**アタックを無効にする」（＝自分のアタック）が汎用規則へ落ちて
+`NEGATE_ATTACK{target:{owner:'opponent'}}` になっていた。`execNegateAttack` は**対戦相手の場**から候補を作るので、
+**自分のアタッカーは候補に入らず無言で空振り**する。
+⇒ **`STUB{SET_CANCEL_ATTACK_FLAG}`**（攻撃側＝効果オーナーの `cancel_current_signi_attack` を立てる）へ是正。
+🔑**これはマジックボックス系4枚の MANUAL 定義が既に使っていた正しい表現**で、**AUTO 側だけが取り残されていた**。
+⚠**「この」と「その」で主語が逆**（「その」＝相手のアタック）なので同じ規則に載せてはいけない。原文で 6効果／全件 `ON_ATTACK_SIGNI`＋`scope:self` を確認済み。
+
+**② `resumeOpponentPayOptional` の `pay` 枝が `payOpt.action` を一度も実行していなかった**
+（`effectExecutor.ts`）。`thenOnPay`（原文「〈コスト〉を支払ってもよい。**そうした場合**、X」）の帰結 X は
+`payOpt.action` に入る（`:4157` の `payBranch`）のに、pay 枝はエナを引いて `pending.continuation` へ進むだけだった。
+⇒ **`thenOnPay` の帰結がエナ払いのときだけ丸ごと落ちる**。
+🔑**`discard`／`energyTrash` 枝は `choiceId !== 'pay'` の分岐が `selectedOpt.action` を実行するので動いており、
+エナ払い枝だけが取り残されていた**＝**同じ効果でもコスト種別で挙動が割れる**無言バグ。
+⚠これは (cxxvii) の2枚に限らず **`thenOnPay`＋エナコスト**の全効果に効く横断的な修正。
+
+**実機**＝`oppPayNegateAttackWhenPaid`（CPU が2エナ払う→**life 7→7**・無効化ログ）／
+`oppPayAttackGoesThroughWhenUnpaid`（対照＝pay が `(disabled)`→skip→life 7→6）／
+`oppHandDiscardIsOpponentSide` の**3本とも PASS**。
+
+### (cxxviii) `WXDi-P04-051-E1` が恒久 no-op — **engine に収集経路が無いのが根**
+
+原文「【自】：**あなたのルリグ１体がアタックしたとき**、あなたのアップ状態の白のシグニ３体をダウンし《白》を支払ってもよい。
+そうした場合、**そのルリグをアップ**し、ターン終了時まで、**そのルリグは能力を失う**」。
+
+**真因の順序が逆だった**＝PLAN は「timing を直せばよい」と見立てていたが、**先に engine 側の穴を塞ぐ必要があった**：
+
+1. 🔴**`ON_ATTACK_LRIG` をアタック側で拾う経路が「ルリグ自身の能力」4ソースしか無かった**
+   （`effectsMap.get(lrigNum)`／付与ストア／コピー／CONTINUOUS `GRANT_LRIG_ABILITY`）＝
+   **場のシグニが持つ「あなたのルリグがアタックしたとき」を拾う手段が存在しない**。
+   だから parser も `ON_ATTACK_SIGNI` へ倒すしかなく、**シグニのアタックで誤発火**していた。
+   そしてシグニアタック経路では**攻撃者が先にダウンする**ので、3面盤面では**アップの白シグニが最大2体**＝
+   `fieldDown:{count:3}` が**永久に成立しない＝恒久 no-op**。
+   ⇒ **`collectAllyLrigAttackTriggers` を新設**（アタック側の場のシグニ＋アシストルリグを走査／
+   `any_ally`・`any` scope だけ／**アタックしたルリグ自身は除外**＝BattleScreen の既存収集と二重発火しない）。
+2. parser の timing＝「あなたの（センター）ルリグ（N体）がアタックしたとき」→ **`ON_ATTACK_LRIG`＋`triggerScope:'any_ally'`**。
+3. parser の帰結＝「そのルリグをアップし」→ **`UP{LRIG}`**／「そのルリグは能力を失う」→ **`REMOVE_ABILITIES{LRIG}`**
+   （従来は SIGNI 既定へ落ちて**シグニをアップする幻覚**だった。原文照合で live 9件／6件とも効果主自身のルリグを指すことを確認）。
+
+**母集団＝18効果**（17枚がシグニ・1枚がアシストルリグ）。**live 17枚を採用**＝
+「差分が今回の3種の是正だけか」を正規化して機械照合し（`triggerScope` を落とし `ON_ATTACK_LRIG`→`ON_ATTACK_SIGNI`・`LRIG`→`SIGNI` に戻して比較）、
+**17枚すべてが純粋な是正であることを確認してから** `heldReview --adopt` した。
+
+**実機**＝`fieldDownCostPaysThreeAndWhite` を**ルリグアタック経路へ書き換え**て PASS＝
+3体down＋白エナ徴収 → 🔑**ルリグがアップ（`lrigDown=false`）・ルリグが能力喪失（`abilitiesRemoved=[lrig]`）・シグニは対象外**。
+対照 `fieldDownCostRequiresThreeUpWhite` も PASS（白2体では `pay` が `(disabled)`／**自シグニは1体もダウンしない**＝
+ここが true に戻ったら timing が `ON_ATTACK_SIGNI` へ逆戻りした合図）。
+
+### golden トリップワイヤ4本（1968 → 1972）
+
+| テスト | 見張るもの |
+|---|---|
+| `§3 (cxxvii) parser: 「このアタックを無効にする」は SET_CANCEL_ATTACK_FLAG` | 相手対象の `NEGATE_ATTACK` に戻っていない |
+| `§3 (cxxvii) engine: thenOnPay のエナ払い枝でも帰結が実行される` | `payOpt.action` を捨てない（DRAW が走る） |
+| `collectAllyLrigAttackTriggers: アタック側の味方カードを any_ally/any だけ拾う` | scope の切り分けと**アタックしたルリグ自身の除外**（二重発火） |
+| `§3 (cxxviii) parser: …ON_ATTACK_LRIG＋any_ally／帰結は LRIG 対象` | timing/scope/対象の3点＋**母集団4枚も同じ timing** |
+
+### ⚠ 今回踏んだ罠
+
+- 🔴**golden の共有 `cursor`**＝`mkCtx`／`mkState` は `fill` でカードを消費するので、**テストを途中に挿すと後続テストの盤面がずれる**
+  （実測2回＝`(xlvi) wave17 WXDi-P15-005-E1` と `続き392 WX24-D4-08-E1` が落ちた）。
+  ⇒ **`const savedCursor = cursor; try { … } finally { cursor = savedCursor; }` で挟む**（既存テストがやっているのと同じ）。
+- 🔴**実機シナリオはライフ枚数を spec で固定する**＝`settled` が `guest.life === before-1` を見るので、
+  **ルーム再利用で前シナリオのクラッシュが残ると `before` がずれて完走タイムアウト**になる（単体PASS・2件バッチFAIL）。
+
+### 残（副産物 worklist）
+
+- 「あなたの**白の**ルリグ１体がアタックしたとき」（`WXDi-P03-035-E1`）は**色修飾が triggerFilter に載らない**ので timing は据置
+  （帰結の LRIG 化だけ入った）。同型に `SPDi43-28-E1`（「あなたの《335　アキノ》１体がアタックしたとき」＝MANUAL）。
+  **主語修飾を triggerFilter へ載せる語彙**が要る＝PLAN §4「次の一手」へ登録。
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / **golden 1972** / smoke 10688 SKIP 0 / fuzz 全0 / census **831 据置** / census:stubs / manual-fields 0 / lint 0 errors・259 warnings）。
+同型★ **0**（265群）・held **106枚/47群 据置**・`npm run regen` 済み。実機は **10本すべて PASS**。
+
+---
+
 ## 2026-08-14（続き475c・Opus 5）— 🏁 §3 **(cxxix) を残0クローズ**（`lifeCrash` の身代わりが「コスト0」で成立していた）
 
 **live JSON は変更なし。** これで §7 の **V-01（6本）と V-10（5本）が全シナリオ緑**になった。
