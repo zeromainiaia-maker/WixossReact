@@ -6624,6 +6624,24 @@ function applyThisWayTrashOutcomeGuards(text: string, action: EffectAction): Eff
     return { ...action, steps: [steps[0], { type: 'CONDITIONAL', condition: levelClauses[0].condition, then: steps[1] }] };
   }
 
+  // 🆕§6.4 O-22(b)：「各プレイヤーは自分のデッキの上からカードをN枚トラッシュに置く。この方法で
+  // トラッシュに置いたカードの中にカード名に《X》を含むカードがある場合、あなたはこの効果を
+  // 繰り返してもよい。」＝**トラッシュ枚数条件ではない**（旧 `STUB{CONDITIONAL_PER_TRASH}` は
+  // 「トラッシュがN枚以上ならドロー」の別物で、`WX12-037-E2` では条件句が無く no-op になっていた）。
+  // ⭐**ミルごと1つの STUB へ畳み込む**＝条件が見るのは「この方法で」置いた**両プレイヤー分**だが、
+  //   SEQUENCE は step ごとに `lastProcessedCards` を上書きするので前段を残すと相手の分しか見えない。
+  {
+    const repeatM = text.match(/各プレイヤーは自分のデッキの上からカードを([０-９\d]+)枚トラッシュに置く。この方法でトラッシュに置いたカードの中にカード名に《([^》]+)》を含むカードがある場合、あなたはこの効果を繰り返してもよい/);
+    const inner = steps[0] as SequenceAction | undefined;
+    if (repeatM && steps.length === 2 && inner?.type === 'SEQUENCE' && inner.steps.length === 2
+        && isDeckTrash(inner.steps[0], 'self', parseNum(repeatM[1]))
+        && isDeckTrash(inner.steps[1], 'opponent', parseNum(repeatM[1]))
+        && steps[1]?.type === 'STUB' && steps[1].id === 'CONDITIONAL_PER_TRASH') {
+      return { type: 'STUB', id: 'MILL_EACH_REPEAT_ON_NAME',
+        millEachRepeatOnName: { count: parseNum(repeatM[1]), name: repeatM[2] } } as StubAction;
+    }
+  }
+
   // 「共通するクラスを持つカードがN枚以上」。shareClass は一致カード全体の共通集合ではなく、
   // 各クラスの最大出現枚数を operator/value と比較する。選んだクラスを後段 filter へ渡す機構は無いため
   // 条件ゲートだけを正し、PARTIAL 刻印を残す。
