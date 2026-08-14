@@ -991,19 +991,10 @@ export function execStubPart2(
       ? `複数色シグニ${banishedBMCS}体をバニッシュ`
       : '複数色シグニなし（BANISH_MULTI_COLOR_SIGNI）'));
   }
-  // 相手フィールドシグニとエナゾーンをすべてトラッシュ
-  if (stub.id === 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY') {
-    let newOtherOTFSAE = { ...ctx.otherState };
-    for (let zi = 0; zi < 3; zi++) {
-      const top = newOtherOTFSAE.field.signi[zi]?.at(-1);
-      if (!top) continue;
-      const removedOTFSAE = removeFromField(top, newOtherOTFSAE);
-      newOtherOTFSAE = { ...removedOTFSAE, trash: [...removedOTFSAE.trash, top] };
-    }
-    const extraTrashOTFSAE = [...newOtherOTFSAE.energy];
-    newOtherOTFSAE = { ...newOtherOTFSAE, energy: [], trash: [...newOtherOTFSAE.trash, ...extraTrashOTFSAE] };
-    return done(addLog({ ...ctx, otherState: newOtherOTFSAE }, '相手フィールドシグニとエナゾーンをすべてトラッシュ'));
-  }
+  // §6.4 O-24：`OPP_TRASH_FIELD_SIGNI_AND_ENERGY` は**削除した**（相手の場のシグニ全部＋エナ全部を流す
+  // 過剰実行だった）。原文どおり「シグニ1体＋エナ1枚を**対戦相手が**選ぶ」は parser が
+  // `SEQUENCE[TRASH{SIGNI opponent,opponentSelects}, TRASH{ENERGY_CARD opponent,opponentSelects}]` を組む
+  // （`parseSentencePart2.ts` の「対戦相手がシグニとエナゾーンのカードをトラッシュ」規則）。
   // 自シグニをフィールドから退場させてデッキ下へ
   if (stub.id === 'LEAVE_FIELD_TO_DECK_BOTTOM') {
     const srcCnLFDB = ctx.sourceCardNum;
