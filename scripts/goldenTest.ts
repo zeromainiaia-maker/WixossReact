@@ -33909,7 +33909,7 @@ test('§6.4 O-25: 自己付与は問いを出さずに granted_effects へ入る
   const eff = (effectsMap.get('WX25-CP1-048') ?? []).find(e => e.effectId === 'WX25-CP1-048-E1');
   ok(!!eff, 'WX25-CP1-048-E1 が live に存在する');
   const src = 'WX25-CP1-048';
-  const ctx = mkCtx({ field: { signi: [[src], null, null] } } as never, {}, src);
+  const ctx = mkCtx({ signi: [src, null, null] } as never, {}, src);
   const r = executeEffect(eff!, ctx);
   eq(r.done, true, '🔴対話待ちにならない（thisCardOnly の自動付与）');
   const granted = (r.ownerState as unknown as { granted_effects?: Record<string, unknown[]> }).granted_effects ?? {};
