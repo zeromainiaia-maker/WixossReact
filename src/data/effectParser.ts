@@ -9602,7 +9602,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              //   「攻撃者が先にダウンするのでアップの自シグニが3体そろわない」＝**恒久 no-op** だった。
              //   ⚠**engine 側の収集経路が要る**＝`collectAllyLrigAttackTriggers`（アタック側の味方カードを走査）を
              //     続き475d で新設済み。**これが無いと timing を直すと逆に丸ごと不発になる**（配線→表現の順）。
-             : /あなたの(?:センター)?ルリグ(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_LRIG']
+             //   ⚠**主語の修飾（「あなたの**白の**ルリグ」等）は `parseAllyLrigAttackSubject` が語彙化できたときだけ**
+             //     ここへ来る＝未知の修飾は null を返して timing を触らない（過小実行を過剰発火へ付け替えない）。
+             : parseAllyLrigAttackSubject(trigText) ? ['ON_ATTACK_LRIG']
              // 「対戦相手の〔シグニかルリグ／ルリグかシグニ〕がアタックしたとき」＝**両方**のアタックで発火する
              // 複合主語。従来は下の総称フォールバックで ON_ATTACK_SIGNI だけになり**ルリグ側が丸ごと落ちて**いた
              // （続き218i で silent fallback として刻んだ分・タスク12(xlvii)）。engine は両 timing とも
