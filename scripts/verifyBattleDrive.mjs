@@ -17360,6 +17360,8 @@ async function driveV15AttackPhaseEndCentral(page, H, leaveToy) {
     let did = null;
     const before = await v15cQueryBattleState(page);
     if (leaveToy && !attacked) { did = await H.clickBtn('アタック', { exact: true }); if (did) attacked = true; }
+    // ⚠同上＝決定が押せるなら候補の再クリック（＝トグル解除）より先に押す。
+    if (!did && leaveToy && attacked) did = await clickDecideNofM(page);
     if (!did && leaveToy && attacked && (before?.pendingCandidates ?? []).includes(V15_PHASE_TOY)) did = await clickPendingInstance(page, H, V15_PHASE_TOY);
     if (!did && leaveToy && attacked) did = await H.clickBtn('発動する', { exact: true });
     leftSeen ||= (before?.host?.leftThisAttackPhase ?? []).includes('WDK05-T15') || (before?.host?.leftThisAttackPhase ?? []).includes(V15_PHASE_TOY);
@@ -17369,7 +17371,12 @@ async function driveV15AttackPhaseEndCentral(page, H, leaveToy) {
     if (!did && phaseSigniClicked && before?.turnPhase === 'ATTACK_LRIG') {
       did = await H.clickBtn('エンドフェイズへ', { exact: true }); if (did) phaseLrigClicked = true;
     }
-    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動する', '発動しない', 'スキップ', '決定', '確定', 'OK', 'はい']);
+    // ⚠**未アタックのシグニが残っているとフェイズ進行に確認モーダルが出る**
+    //   （「まだ攻撃していないシグニがいます／このままルリグアタックステップへ進みますか？」）＝
+    //   **「このまま進む」を候補に入れていないとここで永久に止まる**（続き479 実測＝316秒溶かした）。
+    //   ⚠「戻る」は絶対に押さない（フェイズが戻る）。
+    if (!did) did = await clickDecideNofM(page);
+    if (!did) did = await H.clickTextOrBtn(['このまま進む', '発動順序を確定', '発動する', '発動しない', 'スキップ', '決定', '確定', 'OK', 'はい']);
     const st = await v15cQueryBattleState(page); last = st;
     leftSeen ||= (st?.host?.leftThisAttackPhase ?? []).includes('WDK05-T15') || (st?.host?.leftThisAttackPhase ?? []).includes(V15_PHASE_TOY);
     phaseEndSeen ||= phaseLrigClicked && st?.turnPhase !== 'ATTACK_LRIG';
@@ -17455,6 +17462,23 @@ const v16AbilitySpec = twoSources => ({
   top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
 });
 
+/**
+ * 「決定 (N/M)」ボタンを押す。⚠**ラベルは `決定` ではなく `決定 (1/1)`** なので、
+ * `clickTextOrBtn(['決定'])` のような完全一致リストには**永久に掛からない**（📌2 と同型・続き479 実測＝
+ * カードは選択済み・ボタンは緑で押せる状態のままドライバだけが止まっていた）。前方一致で掴む。
+ */
+async function clickDecideNofM(page) {
+  const dec = page.getByRole('button', { name: /^決定/ }).first();
+  if (!(await dec.count())) return null;
+  if (!(await dec.isVisible().catch(() => false))) return null;
+  if (!(await dec.isEnabled().catch(() => false))) return null;
+  // 🔴**必ず短い timeout を渡す。** Playwright の click は既定 30 秒待つので、
+  //   「存在するが操作不能（他要素に覆われている）」ボタンを毎ティック押しにいくと
+  //   **1ティック30秒 × ループ回数**でドライバが実質ハングする（続き479 実測＝120ティックで**57分**停止した）。
+  const clicked = await dec.click({ timeout: 1200 }).then(() => true).catch(() => false);
+  return clicked ? 'btn:決定(N/M)' : null;
+}
+
 async function driveV16AbilityWatcher(page, H, twoSources) {
   await H.ensureMain();
   const sources = twoSources ? [V16_SOURCE_A, V16_SOURCE_B] : [V16_SOURCE_A];
@@ -17477,6 +17501,9 @@ async function driveV16AbilityWatcher(page, H, twoSources) {
     if (!did && summonClicked && !zonePicked) {
       did = await H.clickTestId(`summon-zone-${summonIndex}`); if (did) { zonePicked = true; started = true; }
     }
+    // ⚠**「決定 (N/M)」が押せる状態なら候補クリックより先に押す**＝必要枚数が既に選ばれているのに
+    //   候補をもう一度クリックすると**選択が外れて（トグル）永久に決定へ到達しない**（続き479 実測）。
+    if (!did) did = await clickDecideNofM(page);
     if (!did && (pre?.pendingCandidates ?? []).includes(currentSource)) did = await clickPendingInstance(page, H, currentSource);
     const discardTarget = discards.find(id => (pre?.pendingCandidates ?? []).includes(id));
     if (!did && discardTarget) did = await clickPendingInstance(page, H, discardTarget);
@@ -17484,7 +17511,7 @@ async function driveV16AbilityWatcher(page, H, twoSources) {
     const st = await v15cQueryBattleState(page); last = st;
     const currentSettled = currentSource && (st?.host?.fieldSigni?.[summonIndex] ?? []).includes(currentSource)
       && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
-    if (currentSettled && summonIndex < sources.length) { summonIndex++; handOpened = false; zonePicked = false; }
+    if (currentSettled && summonIndex < sources.length) { summonIndex++; handOpened = false; summonClicked = false; zonePicked = false; }
     const sourceLogs = (st?.logs ?? []).filter(line => /羅石\s*ガーネット.*【出】/.test(line));
     const watcherLogs = (st?.logs ?? []).filter(line => /アイン＝シュミット.*能力発動時/.test(line));
     const sourceAt = (st?.logs ?? []).findIndex(line => /羅石\s*ガーネット.*【出】/.test(line));
