@@ -33742,6 +33742,37 @@ test('§6.4 O-23: 「アタックしたそのシグニのレベル」は trigger
     '🔴アタッカー L4 → －4000（効果元 L3 を使うと －3000 になる）');
 }));
 
+test('§6.4 O-22(b): WX12-037-E2 は「両者5枚ミル→《メツム》があれば繰り返してもよい」', () => withSavedCursor(() => {
+  // ⚠旧 `STUB{CONDITIONAL_PER_TRASH}`（トラッシュ枚数条件でドロー）は**別物**で、この効果には
+  //   条件句が無いため恒久 no-op だった。ミルごと1 STUB へ畳み込むのは、条件が見るのが
+  //   「この方法で」置いた**両プレイヤー分**だから（SEQUENCE は step ごとに lastProcessedCards を上書きする）。
+  const eff = (effectsMap.get('WX12-037') ?? []).find(e => e.effectId === 'WX12-037-E2');
+  const a = eff!.action as unknown as { type: string; id?: string; millEachRepeatOnName?: { count: number; name: string } };
+  eq(a.type, 'STUB'); eq(a.id, 'MILL_EACH_REPEAT_ON_NAME');
+  eq(a.millEachRepeatOnName?.count, 5, '各プレイヤー5枚');
+  eq(a.millEachRepeatOnName?.name, 'メツム', '名前は《メツム》（この効果元《メツミ》ではない）');
+  const metsumu = [...cardMap.values()].find(c => (c.CardName ?? '').includes('メツム'));
+  ok(!!metsumu, '前提：カード名に「メツム」を含むカードが実在する');
+  const plain = [...cardMap.values()].filter(c => c.Type === 'シグニ' && !(c.CardName ?? '').includes('メツム')).map(c => c.CardNum);
+  const runMill = (myTop: string[]) => {
+    const ctx = mkCtx({ deckTop: myTop }, { deckTop: plain.slice(0, 6) }, 'WX12-037');
+    return run(a as unknown as EffectAction, ctx);
+  };
+  // ① ヒットなし＝繰り返しを問わずに終わる（10枚だけトラッシュへ）
+  const miss = runMill(plain.slice(6, 12));
+  ok(miss.done, 'ヒットなしなら対話は出ない');
+  eq(miss.ownerState.trash.length - 3, 5, '自分のデッキから5枚がトラッシュへ（初期trash 3枚ぶんを差し引く）');
+  eq(miss.otherState.trash.length - 3, 5, '相手のデッキからも5枚');
+  ok(miss.logs.some(l => l.includes('繰り返さない')), '繰り返さないログ');
+  // ② ヒットあり＝「繰り返す／繰り返さない」を問う（autopilot は先頭＝繰り返すを選ぶので raw で見る）
+  const hitCtx = mkCtx({ deckTop: [metsumu!.CardNum, ...plain.slice(12, 16)] }, { deckTop: plain.slice(16, 22) }, 'WX12-037');
+  const raw = executeEffect({ effectId: 'WX12-037-E2', effectType: 'AUTO', action: a as unknown as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, hitCtx);
+  const pend = (raw as { pending?: { type?: string; options?: Array<{ id?: string; action?: { id?: string } }> } }).pending;
+  eq(pend?.type, 'CHOOSE', '🔴《メツム》が落ちたら繰り返しを問う（旧実装は無言 no-op）');
+  eq(pend?.options?.[0]?.action?.id, 'MILL_EACH_REPEAT_ON_NAME', '「繰り返す」は同じ STUB の再入＝任意回ループできる');
+  eq(pend?.options?.[1]?.id, 'stop', '辞退の枝がある（原文は「繰り返しても**よい**」）');
+}));
+
 test('§6.4 O-22(c): ヤミノアーツのクラフト5種がルリグデッキ候補に出る（綴り違いの恒久 no-op に戻さない）', () => {
   // ⚠在庫の「クラフト5種が CSV に無い＝データ側の欠落」は **stale** だった＝実在する。
   //   真因は `TOKEN_SETS` のキーワードが 'ダークアーツ'（**全 CSV に0件**）だったこと。
