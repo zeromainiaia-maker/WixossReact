@@ -17721,6 +17721,438 @@ order.push('v15AttackEndBlockedFiresAndUpsOther', 'v15AttackEndDirectDamageDoesN
   'v17CoinGainedEffectCentralDiffFires', 'v17CoinPaymentDoesNotFire');
 // ── V-15/V-16/V-17 Part C END ──
 
+// ── V-18/V-19 Part D BEGIN（§6.3 J-2／一時レゾナ。実機は検証側で実行） ──
+const v18v19Life = base => ['WD02-009', 'WD03-010', 'WD04-011', 'WD05-013', 'WD06-013', 'WD07-013', 'WD01-016']
+  .map((num, i) => `${num}#${base + i}`);
+const v18v19Deck = base => ['WD01-014', 'WD01-015', 'WD01-017', 'WD01-018', 'WX01-053', 'WX01-064']
+  .map((num, i) => `${num}#${base + i}`);
+const v19DiscardHand = base => ['WD01-013', 'WX01-075', 'WX01-086', 'WX02-067', 'WX04-039', 'WX04-042', 'WX04-045']
+  .map((num, i) => `${num}#${base + i}`);
+
+/** v15cQueryBattleState に無い付与先と一時レゾナ予約だけを補助観測する。既存helperは変更しない。 */
+async function v18v19QueryExtras(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return { error: 'no room' };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state`, { headers: h });
+    const row = (await r2.json())?.[0];
+    if (!row) return { error: 'no row' };
+    const side = s => ({
+      fieldAcce: s.field?.signi_acce ?? [null, null, null],
+      fieldSoul: s.field?.signi_soul ?? [null, null, null],
+      returnToLrigDeck: s.turn_end_return_to_lrig_deck ?? [],
+      lastSummonedResonas: s.last_summoned_resonas ?? [],
+    });
+    return { host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}) };
+  }, { SUPA_URL, ANON });
+}
+
+function v18v19CountInstance(side, extra, instanceId) {
+  const acce = (extra?.fieldAcce ?? []).flatMap(value => typeof value === 'string' ? [value] : (value ?? []));
+  const soul = (extra?.fieldSoul ?? []).filter(Boolean);
+  const field = (side?.fieldSigni ?? []).flatMap(stack => stack ?? []);
+  return [
+    ...(side?.hand ?? []), ...(side?.trash ?? []), ...(side?.energy ?? []), ...(side?.deck ?? []),
+    ...(side?.life ?? []), ...(side?.lrig ?? []), ...(side?.lrigDeck ?? []), ...(side?.lrigTrash ?? []),
+    ...field, ...acce, ...soul,
+  ].filter(id => id === instanceId).length;
+}
+
+function v18v19CountBoth(st, extra, instanceId) {
+  return v18v19CountInstance(st?.host, extra?.host, instanceId)
+    + v18v19CountInstance(st?.guest, extra?.guest, instanceId);
+}
+
+async function v18PickPendingOnce(page, H, st, instanceId, flow, key) {
+  const pickedKey = `${key}Picked`; const decidedKey = `${key}Decided`;
+  // 🔑 選択済みなら候補を再クリックせず「決定 (N/M)」を先に押す（再クリックはトグル解除になる）。
+  if (flow[pickedKey] && !flow[decidedKey]) {
+    const did = await clickDecideNofM(page);
+    if (did) flow[decidedKey] = true;
+    return did;
+  }
+  if (!flow[pickedKey] && (st?.pendingCandidates ?? []).includes(instanceId)) {
+    const did = await clickPendingInstance(page, H, instanceId);
+    if (did) flow[pickedKey] = true;
+    return did;
+  }
+  return null;
+}
+
+const V18_SOUL_CARD = 'WD02-001#9001';
+const V18_SOUL_SELF = 'WXDi-D07-019#9002';
+const V18_SOUL_OTHER = 'WD01-013#9003';
+const V18_SOUL_SPEC = {
+  hostSet: {
+    'field.lrig': [V18_SOUL_CARD, 'WXDi-D07-004#9000'],
+    'field.signi': [[V18_SOUL_SELF], [V18_SOUL_OTHER], null], 'field.signi_soul': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9010), 'life_cloth': v18v19Life(9020), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9090'], 'field.signi': [null, null, null], 'field.signi_soul': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9040), 'life_cloth': v18v19Life(9050), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function driveV18SoulAttached(page, H, targetInstance, expectSelf) {
+  await H.ensureMain();
+  const before = await v15cQueryBattleState(page);
+  const beforeExtra = await v18v19QueryExtras(page);
+  if (v18v19CountBoth(before, beforeExtra, V18_SOUL_CARD) !== 1) {
+    return { pass: false, detail: `ソウル元カードの初期instance保存不成立=${v18v19CountBoth(before, beforeExtra, V18_SOUL_CARD)}` };
+  }
+  const flow = { lrigOpened: false, abilityClicked: false, targetPicked: false, targetDecided: false, selfChoice: false, selfChoiceDecided: false };
+  let last = before; let finalTicks = 0;
+  for (let s = 0; s < 120; s++) {
+    await page.waitForTimeout(250);
+    const pre = await v15cQueryBattleState(page); let did = null;
+    if (!flow.lrigOpened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) flow.lrigOpened = true; }
+    else if (!flow.abilityClicked) { did = await H.clickBtn('【起】コストなし'); if (did) flow.abilityClicked = true; }
+    if (!did) did = await v18PickPendingOnce(page, H, pre, targetInstance, flow, 'target');
+    if (!did) did = await H.clickBtn('発動順序を確定');
+    if (!did) did = await H.clickTestId('optcost-skip');
+    if (!did && expectSelf && !flow.selfChoice) {
+      did = await H.clickBtn(/あなたのデッキの上から\s*2枚.*トラッシュ/);
+      if (did) flow.selfChoice = true;
+    }
+    if (!did && flow.selfChoice && !flow.selfChoiceDecided) {
+      did = await H.clickBtn('決定'); if (did) flow.selfChoiceDecided = true;
+    }
+    if (!did) did = await H.clickBtn('発動');
+    const st = await v15cQueryBattleState(page); last = st;
+    const attachedLog = v15cLog(st, /【ソウル】に付与/);
+    const lrigLog = v15cLog(st, /エクス.*スリー.*ソウル付与時/);
+    const selfLog = v15cLog(st, /コードアンチ.*オベリスク.*ソウル付与時/);
+    const selfDelta = before.host.deck.length - st.host.deck.length;
+    const settled = flow.abilityClicked && attachedLog && lrigLog && !st.pendingEffect && st.stackLen === 0;
+    finalTicks = settled ? finalTicks + 1 : 0;
+    H.log(`  v18.soul[${s}] -> ${did ?? 'なし'} | target=${targetInstance} attached=${attachedLog} lrig=${lrigLog} self=${selfLog} deckDelta=${selfDelta} pEff=${st.pendingEffect ?? '-'} stack=${st.stackLen}`);
+    if (finalTicks >= 3) {
+      const extra = await v18v19QueryExtras(page);
+      const zi = targetInstance === V18_SOUL_SELF ? 0 : 1;
+      const placed = extra?.host?.fieldSoul?.[zi] === V18_SOUL_CARD;
+      const conserved = [V18_SOUL_CARD, V18_SOUL_SELF, V18_SOUL_OTHER].every(id => v18v19CountBoth(st, extra, id) === 1);
+      const polarity = expectSelf ? selfLog && selfDelta === 2 : !selfLog && selfDelta === 0;
+      return { pass: placed && conserved && polarity,
+        detail: placed && conserved && polarity
+          ? `1枚ずつ付与：${targetInstance}にソウル実装着、ルリグany_ally発火、self=${expectSelf ? '発火して自デッキ2枚トラッシュ' : '非発火'}、全instance1枚`
+          : `ソウル付与極性不一致（placed=${placed} conserved=${conserved} selfLog=${selfLog} deckDelta=${selfDelta} soul=${JSON.stringify(extra?.host?.fieldSoul)}）` };
+    }
+  }
+  return { pass: false, detail: `ソウル付与判定未完了（flow=${JSON.stringify(flow)} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v18SoulAttachedSelfAndLrigFire = {
+  title: 'V-18① 1枚ずつ付与：D07-019自身へ【ソウル】→selfとルリグany_allyが発火',
+  spec: V18_SOUL_SPEC,
+  drive: (page, H) => driveV18SoulAttached(page, H, V18_SOUL_SELF, true),
+};
+scenarios.v18SoulAttachedOtherOnlyLrigFires = {
+  title: 'V-18① 1枚ずつ付与の対照：同一盤面で付与先だけ別シグニ→self非発火・ルリグany_allyのみ発火',
+  spec: V18_SOUL_SPEC,
+  drive: (page, H) => driveV18SoulAttached(page, H, V18_SOUL_OTHER, false),
+};
+
+const V18_ACCE_CARD = 'WXK05-041#9101';
+const V18_ACCE_OWN_TARGET = 'WX16-045#9102';
+const V18_ACCE_OPP_TARGET = 'WX01-053#9103';
+const V18_ACCE_SPELL = 'WD18-018#9104';
+const v18AcceTrashSpec = ownAcce => ({
+  hostSet: {
+    'field.lrig': ['WXEX2-19#9100'], 'field.signi': [[V18_ACCE_OWN_TARGET], null, null],
+    'field.signi_acce': [ownAcce ? [V18_ACCE_CARD] : null, null, null], 'field.check': null,
+    'hand': [V18_ACCE_SPELL], 'energy': [], 'trash': [], 'deck': v18v19Deck(9110), 'life_cloth': v18v19Life(9120), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9190'], 'field.signi': [[V18_ACCE_OPP_TARGET], null, null],
+    'field.signi_acce': [ownAcce ? null : [V18_ACCE_CARD], null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9140), 'life_cloth': v18v19Life(9150), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV18AcceToTrash(page, H, expectFire) {
+  await H.ensureMain();
+  const before = await v15cQueryBattleState(page);
+  const beforeExtra = await v18v19QueryExtras(page);
+  const flow = { handOpened: false, spellAction: false, spellCast: false, choice: false, choiceDecided: false,
+    ownPicked: false, ownDecided: false, oppPicked: false, oppDecided: false, accePicked: false, acceDecided: false };
+  if (v18v19CountBoth(before, beforeExtra, V18_ACCE_CARD) !== 1) return { pass: false, detail: 'アクセinstance初期保存不成立' };
+  let last = before; let finalTicks = 0;
+  for (let s = 0; s < 140; s++) {
+    await page.waitForTimeout(250);
+    const pre = await v15cQueryBattleState(page); let did = null;
+    if (!flow.handOpened) { did = await H.clickTestId('my-hand-card-0'); if (did) flow.handOpened = true; }
+    else if (!flow.spellAction) { did = await H.clickBtn('発動'); if (did) flow.spellAction = true; }
+    else if (!flow.spellCast) { did = await H.clickBtn('発動する'); if (did) flow.spellCast = true; }
+    if (!did && !flow.choice) { did = await H.clickBtn('選択肢2'); if (did) flow.choice = true; }
+    if (!did && flow.choice && !flow.choiceDecided) { did = await H.clickBtn('決定'); if (did) flow.choiceDecided = true; }
+    if (!did) did = await v18PickPendingOnce(page, H, pre, V18_ACCE_OWN_TARGET, flow, 'own');
+    if (!did) did = await v18PickPendingOnce(page, H, pre, V18_ACCE_OPP_TARGET, flow, 'opp');
+    if (!did && expectFire) did = await v18PickPendingOnce(page, H, pre, V18_ACCE_CARD, flow, 'acce');
+    if (!did) did = await H.clickBtn('発動順序を確定');
+    const st = await v15cQueryBattleState(page); last = st;
+    const sourceRan = st.host.trash.includes(V18_ACCE_SPELL)
+      && st.host.energy.includes(V18_ACCE_OWN_TARGET) && st.guest.energy.includes(V18_ACCE_OPP_TARGET);
+    const watcherLog = v15cLog(st, /メル.*ミントビア.*アクセトラッシュ時/);
+    const watcherDone = v15cEffectCount(st.host, 'WXEX2-19-E1');
+    const acceDestination = expectFire ? st.host.energy.includes(V18_ACCE_CARD) : st.guest.trash.includes(V18_ACCE_CARD);
+    const settled = flow.spellCast && sourceRan && acceDestination && !st.pendingEffect && st.stackLen === 0;
+    finalTicks = settled ? finalTicks + 1 : 0;
+    H.log(`  v18.acceTrash[${s}] -> ${did ?? 'なし'} | fire=${expectFire} source=${sourceRan} watcher=${watcherLog}/${watcherDone} dest=${acceDestination} pEff=${st.pendingEffect ?? '-'} stack=${st.stackLen}`);
+    if (finalTicks >= 3) {
+      const extra = await v18v19QueryExtras(page);
+      const conserved = [V18_ACCE_CARD, V18_ACCE_OWN_TARGET, V18_ACCE_OPP_TARGET, V18_ACCE_SPELL]
+        .every(id => v18v19CountBoth(st, extra, id) === 1);
+      const polarity = expectFire ? watcherLog && watcherDone === 1 : !watcherLog && watcherDone === 0;
+      return { pass: sourceRan && acceDestination && conserved && polarity,
+        detail: sourceRan && acceDestination && conserved && polarity
+          ? `WD18-018選択肢2で両軍ホストを同時バニッシュ、${expectFire ? '自分アクセだけWXEX2-19が回収してエナ化' : '相手アクセはguestトラッシュのまま・WXEX2-19非発火'}、全instance1枚`
+          : `アクセ離脱極性不一致（source=${sourceRan} dest=${acceDestination} conserved=${conserved} watcher=${watcherLog}/${watcherDone}）` };
+    }
+  }
+  return { pass: false, detail: `アクセ離脱判定未完了（flow=${JSON.stringify(flow)} host=${JSON.stringify(last?.host)} guest=${JSON.stringify(last?.guest)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v18OwnAcceToTrashFires = {
+  title: 'V-18② 自分アクセ離脱：同一スペルで両軍をバニッシュし自分側アクセだけWXEX2-19発火',
+  spec: v18AcceTrashSpec(true),
+  drive: (page, H) => driveV18AcceToTrash(page, H, true),
+};
+scenarios.v18OppAcceToTrashDoesNotFire = {
+  title: 'V-18② 相手アクセ離脱の対照：カード集合不変でアクセ付与先だけ相手側→WXEX2-19非発火',
+  spec: v18AcceTrashSpec(false),
+  drive: (page, H) => driveV18AcceToTrash(page, H, false),
+};
+
+const V18_LANCER_SOURCE = 'WXK10-049#9201';
+const V18_LANCER_OTHER = 'WX16-045#9202';
+const V18_LANCER_ACCE = 'WXK05-041#9203';
+const v18LancerSpec = attachedToSource => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9200'], 'field.signi': [[V18_LANCER_SOURCE], [V18_LANCER_OTHER], null],
+    'field.signi_acce': attachedToSource ? [[V18_LANCER_ACCE], null, null] : [null, [V18_LANCER_ACCE], null],
+    'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9210),
+    'life_cloth': v18v19Life(9220), 'actions_done': ['WXK10-049-E1'],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9290'], 'field.signi': [null, null, ['WD01-013#9291']],
+    'field.signi_acce': [null, null, null], 'field.check': null, 'hand': [], 'energy': [], 'trash': [],
+    'deck': v18v19Deck(9240), 'life_cloth': v18v19Life(9250), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveV18LancerAttachedCondition(page, H, expectLancer) {
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const before = await v15cQueryBattleState(page);
+  const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+  const attackLabel = opened.labels.find(label => label === 'アタック');
+  if (!opened.modalVisible || !attackLabel) return { pass: false, detail: `アタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
+  let attacked = false; let last = before; let finalTicks = 0;
+  for (let s = 0; s < 100; s++) {
+    await page.waitForTimeout(250); let did = null;
+    // ⚠**ラベルを読んだ時点では開いていた StackModal が、クリック時には閉じていることがある**
+    //   （`did=なし` が100ティック続く形で出る＝続き480 実測）。⇒ **掴めなければ開き直す自己回復**を入れる。
+    if (!attacked) {
+      did = await H.clickBtn(attackLabel, { exact: true });
+      if (!did) { await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0'); did = await H.clickBtn(attackLabel, { exact: true }); }
+      if (did) attacked = true;
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定');
+    const st = await v15cQueryBattleState(page); const rich = await H.queryState(); last = st;
+    const attackLog = v15cLog(st, /食菌.*イースト.*シグニアタック時/);
+    const grants = rich?.host?.keywordGrants ?? [];
+    const hasLancer = grants.some(g => g.startsWith(`${V18_LANCER_SOURCE}:`) && g.includes('ランサー'));
+    const settled = attacked && attackLog && !st.pendingEffect && st.stackLen === 0;
+    finalTicks = settled ? finalTicks + 1 : 0;
+    H.log(`  v18.lancer[${s}] -> ${did ?? 'なし'} | expect=${expectLancer} attackLog=${attackLog} lancer=${hasLancer} pEff=${st.pendingEffect ?? '-'} stack=${st.stackLen}`);
+    if (finalTicks >= 3) {
+      const extra = await v18v19QueryExtras(page);
+      const conserved = [V18_LANCER_SOURCE, V18_LANCER_OTHER, V18_LANCER_ACCE]
+        .every(id => v18v19CountBoth(st, extra, id) === 1);
+      return { pass: conserved && hasLancer === expectLancer,
+        detail: conserved && hasLancer === expectLancer
+          ? `アタック実ログ後、同一アクセを${expectLancer ? 'WXK10-049自身' : '別シグニ'}に付けた場合だけランサー=${hasLancer}、全instance1枚`
+          : `付与条件極性不一致（expect=${expectLancer} lancer=${hasLancer} conserved=${conserved} grants=${JSON.stringify(grants)}）` };
+    }
+  }
+  return { pass: false, detail: `ランサー条件判定未完了（attacked=${attacked} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v18Wxk10049AttachedGetsLancer = {
+  title: 'V-18② WXK10-049付与条件の正対照：自身にアクセあり→アタック時ランサー付与',
+  spec: v18LancerSpec(true),
+  drive: (page, H) => driveV18LancerAttachedCondition(page, H, true),
+};
+scenarios.v18Wxk10049UnattachedNoLancer = {
+  title: 'V-18② WXK10-049付与条件の負対照：カード集合不変でアクセを別シグニへ移す→ランサーなし',
+  spec: v18LancerSpec(false),
+  drive: (page, H) => driveV18LancerAttachedCondition(page, H, false),
+};
+
+const V19_WX07_SOURCE = 'WX07-050#9301';
+const V19_WX07_COST = 'WX07-052#9302';
+const V19_WX07_RESONA = 'WX10-008#9303';
+const V19_ARTS = 'WX16-Re18#9401';
+const V19_ARTS_RESONA = 'WX07-006#9402';
+
+const v19Wx07Spec = withDiscard => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9300'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': [V19_WX07_RESONA], 'lrig_trash': [],
+    'hand': [V19_WX07_SOURCE, V19_WX07_COST, ...(withDiscard ? v19DiscardHand(9310) : [])],
+    'energy': [], 'trash': [], 'deck': v18v19Deck(9320), 'life_cloth': v18v19Life(9330), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9390'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9350),
+    'life_cloth': v18v19Life(9360), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const v19ArtsSpec = withDiscard => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9400'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': [V19_ARTS_RESONA, V19_ARTS], 'lrig_trash': [],
+    'hand': withDiscard ? v19DiscardHand(9410) : [],
+    'energy': ['WD01-013#9420', 'WD01-014#9421', 'WD01-016#9422'], 'trash': [],
+    'deck': v18v19Deck(9430), 'life_cloth': v18v19Life(9440), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9490'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': [], 'lrig_trash': [], 'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9460),
+    'life_cloth': v18v19Life(9470), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV19ReturnAtTurnEnd(page, H, { source, resona, withDiscard }) {
+  await H.ensureMain();
+  const before = await v15cQueryBattleState(page);
+  const isArts = source === V19_ARTS;
+  const flow = { opened: false, cardOpened: false, actionClicked: false, cast: false, discardPicked: false,
+    costFired: false, zonePicked: false, endClicked: false, endDiscardPicked: false, endDiscardConfirmed: false };
+  const artsEnergy = new Set(); let placed = null; let placedExtra = null; let last = before;
+  for (let s = 0; s < 160 && !placed; s++) {
+    await page.waitForTimeout(250); let did = null;
+    if (isArts) {
+      if (!flow.opened) { did = await H.clickTestId('my-lrig-dk'); if (did) flow.opened = true; }
+      else if (!flow.cardOpened) {
+        const card = page.locator(`[data-testid^="zone-card-"][data-card-num="WX16-Re18"]`).first();
+        if (await card.count() && await card.isVisible().catch(() => false)) {
+          await card.click({ timeout: 1200 }).then(() => { flow.cardOpened = true; did = 'zone-card:WX16-Re18'; }).catch(() => {});
+        }
+      } else if (!flow.actionClicked) {
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="使用"]').first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click({ timeout: 1200 }).then(() => { flow.actionClicked = true; did = 'action:使用'; }).catch(() => {});
+        }
+      } else if (!flow.cast && artsEnergy.size < 3) {
+        const next = [0, 1, 2].find(i => !artsEnergy.has(i));
+        did = await H.clickTestId(`artscost-energy-${next}`); if (did) artsEnergy.add(next);
+      } else if (!flow.cast) { did = await H.clickBtn('アーツ使用'); if (did) flow.cast = true; }
+    } else {
+      if (!flow.opened) { did = await H.clickTestId('my-hand-card-0'); if (did) flow.opened = true; }
+      else if (!flow.actionClicked) { did = await H.clickBtn('召喚'); if (did) flow.actionClicked = true; }
+      else if (!flow.zonePicked) { did = await H.clickTestId('summon-zone-0'); if (did) flow.zonePicked = true; }
+      if (!did && flow.zonePicked && !flow.discardPicked) {
+        did = await H.clickModalImage('羅星　ハダル'); if (did) flow.discardPicked = true;
+      }
+      if (!did && flow.discardPicked && !flow.costFired) { did = await H.clickBtn('発動'); if (did) flow.costFired = true; }
+    }
+    // 🔑**レゾナの配置先は `SELECT_SIGNI_ZONE`＝`EffectInteractionModal.tsx:911` の「ゾーンN」ボタン**であって、
+    //   通常召喚の `summon-zone-{zi}`（`SigniSummonZoneModal`）**ではない**（続き480 実測＝ここで `zonePicked` が
+    //   永久に立たず配置に到達しなかった）。既存 `H.clickZone()` が「^ゾーンN」を走査するので**そちらを先に試す**。
+    if (!did) { did = await H.clickZone(); if (did) flow.zonePicked = true; }
+    if (!did) { did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2'); if (did) flow.zonePicked = true; }
+    if (!did) did = await H.clickBtn('発動順序を確定');
+    if (!did) did = await H.clickBtn('スキップ');
+    const st = await v15cQueryBattleState(page); const extra = await v18v19QueryExtras(page); last = st;
+    const onField = st.host.fieldSigni.some(stack => stack?.includes(resona));
+    const reserved = extra?.host?.returnToLrigDeck?.includes(resona);
+    const reserveLog = v15cLog(st, /ターン終了時に.*ルリグデッキへ戻す（予約）/);
+    const sourceMoved = isArts ? st.host.lrigTrash.includes(source) : st.host.fieldSigni.some(stack => stack?.includes(source));
+    const settled = onField && reserved && reserveLog && sourceMoved && !st.pendingEffect && st.stackLen === 0;
+    H.log(`  v19.place[${s}] -> ${did ?? 'なし'} | source=${source} field=${onField} reserved=${reserved} log=${reserveLog} sourceMoved=${sourceMoved} pEff=${st.pendingEffect ?? '-'} stack=${st.stackLen}`);
+    if (settled) { placed = st; placedExtra = extra; }
+  }
+  if (!placed) return { pass: false, detail: `一時レゾナ配置・予約未完了（source=${source} flow=${JSON.stringify(flow)} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+  if (v18v19CountBoth(placed, placedExtra, resona) !== 1 || placed.host.lrigDeck.includes(resona)) {
+    return { pass: false, detail: `終了前の一時レゾナinstance/置き場所不成立（field=${JSON.stringify(placed.host.fieldSigni)} lrigDeck=${JSON.stringify(placed.host.lrigDeck)}）` };
+  }
+
+  await page.keyboard.press('Escape').catch(() => {});
+  await H.repatchTop({ active: 'host', turn_phase: 'END', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  let finalTicks = 0;
+  for (let s = 0; s < 120; s++) {
+    await page.waitForTimeout(250); let did = null;
+    if (!flow.endClicked) { did = await H.clickBtn('ターン終了'); if (did) flow.endClicked = true; }
+    if (!did && withDiscard && flow.endClicked && !flow.endDiscardPicked) {
+      did = await H.clickModalImage('小剣　ククリ'); if (did) flow.endDiscardPicked = true;
+    }
+    if (!did && withDiscard && flow.endDiscardPicked && !flow.endDiscardConfirmed) {
+      did = await H.clickBtn('1枚捨てて終了'); if (did) flow.endDiscardConfirmed = true;
+    }
+    const st = await v15cQueryBattleState(page); last = st;
+    const returned = st.host.lrigDeck.includes(resona) && st.host.lrigDeck.length === placed.host.lrigDeck.length + 1;
+    const leftField = !st.host.fieldSigni.some(stack => stack?.includes(resona));
+    const notTrash = !st.host.trash.includes(resona) && !st.host.lrigTrash.includes(resona);
+    const trashDelta = st.host.trash.length - placed.host.trash.length;
+    const returnLog = v15cLog(st, /ターン終了時：.*ルリグデッキへ戻す/);
+    const pathDone = flow.endClicked && (!withDiscard || flow.endDiscardConfirmed);
+    const settled = pathDone && returned && leftField && notTrash && returnLog && !st.pendingEffect && st.stackLen === 0;
+    finalTicks = settled ? finalTicks + 1 : 0;
+    H.log(`  v19.end[${s}] -> ${did ?? 'なし'} | discard=${withDiscard} returned=${returned} fieldGone=${leftField} notTrash=${notTrash} trashDelta=${trashDelta} log=${returnLog}`);
+    if (finalTicks >= 3) {
+      const extra = await v18v19QueryExtras(page);
+      const conserved = v18v19CountBoth(st, extra, resona) === 1;
+      const trashOk = trashDelta === (withDiscard ? 1 : 0);
+      return { pass: conserved && trashOk,
+        detail: conserved && trashOk
+          ? `${isArts ? 'WX16-Re18（実装どおり1枚）' : 'WX07-050'}：${withDiscard ? 'doPhaseAdvance→confirmEndDiscard' : 'doPhaseAdvance（手札上限内）'}で場から消滅・ルリグデッキ+1・両トラッシュへ移動なし・instance1枚`
+          : `返却後保存不一致（conserved=${conserved} trashDelta=${trashDelta} expected=${withDiscard ? 1 : 0} lrigDeck=${JSON.stringify(st.host.lrigDeck)}）` };
+    }
+  }
+  return { pass: false, detail: `ターン終了返却未完了（source=${source} discard=${withDiscard} flow=${JSON.stringify(flow)} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v19Wx07050NoDiscardDoPhaseAdvanceReturns = {
+  title: 'V-19① WX07-050：doPhaseAdvance手札上限内経路で一時レゾナをルリグデッキへ返却',
+  spec: v19Wx07Spec(false),
+  drive: (page, H) => driveV19ReturnAtTurnEnd(page, H, { source: V19_WX07_SOURCE, resona: V19_WX07_RESONA, withDiscard: false }),
+};
+scenarios.v19Wx16Re18NoDiscardDoPhaseAdvanceReturns = {
+  title: 'V-19① WX16-Re18：doPhaseAdvance手札上限内経路で実装上の1枚をルリグデッキへ返却',
+  spec: v19ArtsSpec(false),
+  drive: (page, H) => driveV19ReturnAtTurnEnd(page, H, { source: V19_ARTS, resona: V19_ARTS_RESONA, withDiscard: false }),
+};
+scenarios.v19Wx07050WithDiscardDoPhaseAdvanceThenConfirmReturns = {
+  title: 'V-19② WX07-050：doPhaseAdvance→confirmEndDiscard手札上限超過経路でも返却',
+  spec: v19Wx07Spec(true),
+  drive: (page, H) => driveV19ReturnAtTurnEnd(page, H, { source: V19_WX07_SOURCE, resona: V19_WX07_RESONA, withDiscard: true }),
+};
+scenarios.v19Wx16Re18WithDiscardDoPhaseAdvanceThenConfirmReturns = {
+  title: 'V-19② WX16-Re18：doPhaseAdvance→confirmEndDiscard手札上限超過経路でも実装上の1枚を返却',
+  spec: v19ArtsSpec(true),
+  drive: (page, H) => driveV19ReturnAtTurnEnd(page, H, { source: V19_ARTS, resona: V19_ARTS_RESONA, withDiscard: true }),
+};
+
+order.push('v18SoulAttachedSelfAndLrigFire', 'v18SoulAttachedOtherOnlyLrigFires',
+  'v18OwnAcceToTrashFires', 'v18OppAcceToTrashDoesNotFire',
+  'v18Wxk10049AttachedGetsLancer', 'v18Wxk10049UnattachedNoLancer',
+  'v19Wx07050NoDiscardDoPhaseAdvanceReturns', 'v19Wx16Re18NoDiscardDoPhaseAdvanceReturns',
+  'v19Wx07050WithDiscardDoPhaseAdvanceThenConfirmReturns', 'v19Wx16Re18WithDiscardDoPhaseAdvanceThenConfirmReturns');
+// ── V-18/V-19 Part D END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
