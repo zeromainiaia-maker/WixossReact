@@ -11579,13 +11579,14 @@ async function runFieldDownRound(page, H, { expectAffordable }) {
         const next = expected.find(n => !downPicked.has(n));
         if (next) { did = await clickPendingInstance(page, H, next); if (did) downPicked.add(next); }
         else { did = await clickExactVisibleText(page, '決定 (3/3)'); if (did) downConfirmed = true; }
+      // 🔑帰結の対象は**ルリグ**（続き475d で live を LRIG 対象へ是正）。旧は source シグニを掴んでいた。
       } else if (!did && expectAffordable && downConfirmed && !upConfirmed
-          && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(FIELD_DOWN_SOURCE)) {
-        if (!upPicked) { did = await clickPendingInstance(page, H, FIELD_DOWN_SOURCE); if (did) upPicked = true; }
+          && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(FIELD_DOWN_LRIG)) {
+        if (!upPicked) { did = await clickPendingInstance(page, H, FIELD_DOWN_LRIG); if (did) upPicked = true; }
         else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) upConfirmed = true; }
       } else if (!did && expectAffordable && upConfirmed && !removeConfirmed
-          && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(FIELD_DOWN_SOURCE)) {
-        if (!removePicked) { did = await clickPendingInstance(page, H, FIELD_DOWN_SOURCE); if (did) removePicked = true; }
+          && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.includes(FIELD_DOWN_LRIG)) {
+        if (!removePicked) { did = await clickPendingInstance(page, H, FIELD_DOWN_LRIG); if (did) removePicked = true; }
         else { did = await clickExactVisibleText(page, '決定 (1/1)'); if (did) removeConfirmed = true; }
       }
     }
