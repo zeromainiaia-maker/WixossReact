@@ -15181,6 +15181,7 @@ scenarios.v11EffectDeployCountFlagBlocked = {
     //   オーバーレイに吸われて【起】モーダルが二度と開かず、40反復を空振りする。
     let lrigOpened = false;
     let abilityClicked = false;
+    let blocked = false;
     let last = before;
     for (let s = 0; s < 40; s++) {
       await page.waitForTimeout(300);
