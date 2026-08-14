@@ -15870,6 +15870,7 @@ scenarios.v12GrantedEnergyChargeTwice = {
     let grantReady = false;
     let spellState = { opened: false, use: false, cast: false };
     let completed = 0;
+    let upWait = 0;
     let last = await H.queryState();
     for (let s = 0; s < 140; s++) {
       await page.waitForTimeout(250);
@@ -15880,13 +15881,25 @@ scenarios.v12GrantedEnergyChargeTwice = {
         await H.closeModals();
       }
       if (grantReady && (pre?.host?.energy ?? 0) > completed
-          && !pre?.pendingEffect && (pre?.stackLen ?? 0) === 0) {
+          && !pre?.pendingEffect && (pre?.stackLen ?? 0) === 0
+          && (pre?.host?.lrigDown !== false || true)) {
         if (pre.host.energy !== completed + 1) {
           return { pass: false, detail: `エナが1枚ずつ増えていない（${completed}→${pre.host.energy}）＝ON_ENERGY_CHARGEの観測前提違反` };
         }
+        // 🔑📌13／📌5＝**settled になった最初の1回で確定させない**。盤面（battle_states）はエナ増加で
+        //   先に真になるが、付与ストアの ON_ENERGY_CHARGE watcher は「effect_stack / pending_effect が
+        //   空になった**あとの** useEffect」で初めて走る（`BattleScreen.tsx:1734` の early return）ので、
+        //   最初の settled 観測では必ず lrig_down=true のまま＝ここで即 FAIL すると**engine が正しくても赤**になる。
+        //   ⇒ アップするまで最大 20 周期（約5秒）待ってから FAIL を確定する。
+        //   ⚠**対照（`v12PrintedEnergyChargeControl`）は最初からポーリング型**だったので緑になっていた＝
+        //     2本の非対称が「付与ストア側だけ死んでいる」という誤診の原因だった（続き478 で是正）。
         if (pre?.host?.lrigDown !== false) {
-          return { pass: false, detail: `${completed + 1}回目のエナチャージ後にルリグがアップしない（energy=${pre.host.energy} lrigDown=${pre.host.lrigDown}）` };
-        }
+          upWait++;
+          if (upWait > 20) {
+            return { pass: false, detail: `${completed + 1}回目のエナチャージ後、約5秒待ってもルリグがアップしない（energy=${pre.host.energy} lrigDown=${pre.host.lrigDown}）` };
+          }
+        } else {
+        upWait = 0;
         completed = pre.host.energy;
         spellState = { opened: false, use: false, cast: false };
         if (completed < 2) {
@@ -16318,6 +16331,280 @@ order.push('effectBanishSubstituteRunsAutomatically', 'effectBanishNoSubstituteW
   'effectBanishSubstituteDiscardsSpell', 'effectBanishLifeCrashSubstitutePaysLife',
   'battleBanishSubstituteStillInteractive');
 order.push('pieceUseResolvesAndGoesToLrigTrash');
+
+// ── V-13 BEGIN（既存シナリオ／既存 helper／既存 order 要素は変更せず末尾追記） ──
+const v13Life = (base) => Array.from({ length: 7 }, (_, i) => `WD01-013#${base + i}`);
+const v13CountInPlayerZones = (side, instanceId) => [
+  ...(side?.handCards ?? []),
+  ...(side?.trashCards ?? []),
+  ...(side?.energyCards ?? []),
+  ...(side?.fieldSigni ?? []).flatMap(stack => stack ?? []),
+].filter(id => id === instanceId).length;
+
+async function v13CoinsPaidThisTurn(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return null;
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
+    return (await r2.json())?.[0]?.host_state?.coins_paid_this_turn ?? 0;
+  }, { SUPA_URL, ANON });
+}
+
+async function driveV13TrashAct(page, H, opts) {
+  await H.closeModals();
+  if (opts.phase === 'MAIN') await H.ensureMain();
+  else {
+    await H.repatchTop({ active: 'host', turn_phase: opts.phase, effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(600);
+  }
+  const before = await H.queryState();
+  const openedTrash = await H.clickTestId('my-trash');
+  await page.waitForTimeout(350);
+  const openedCard = await H.clickTestId('zone-card-0');
+  const cardModal = page.getByTestId('card-detail-modal').first();
+  let labels = [];
+  let actionLabel = null;
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    if (await cardModal.count() && await cardModal.isVisible().catch(() => false)) {
+      labels = await cardModal.locator('[data-testid^="card-action-"]:visible')
+        .evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+      actionLabel = labels.find(label => label.startsWith('【起】トラッシュから出す（')
+        && (!opts.actionIncludes || label.includes(opts.actionIncludes))) ?? null;
+      if (actionLabel) break;
+    }
+  }
+  const modalVisible = !!(await cardModal.count()) && await cardModal.isVisible().catch(() => false);
+  if (!openedTrash || !openedCard || !modalVisible) {
+    return { pass: false, detail: `CardModal未表示（my-trash=${openedTrash ?? 'なし'} zone-card-0=${openedCard ?? 'なし'}）` };
+  }
+  if (!opts.expectAction) {
+    return {
+      pass: !actionLabel,
+      detail: !actionLabel
+        ? `CardModal表示済み・原因だけ外した盤面で対象【起】なし（actions=${JSON.stringify(labels)}）`
+        : `負方向なのに対象【起】がsurface（${actionLabel}）`,
+    };
+  }
+  if (!actionLabel) return { pass: false, detail: `支払い可能な対照で対象【起】なし（actions=${JSON.stringify(labels)}）` };
+  const actionClicked = await H.clickBtn(actionLabel, { exact: true });
+  const payModal = page.getByTestId('trashact-modal').first();
+  let payModalVisible = false;
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    if (await payModal.count() && await payModal.isVisible().catch(() => false)) { payModalVisible = true; break; }
+  }
+  if (!actionClicked || !payModalVisible) {
+    return { pass: false, detail: `【起】クリック後にコストUI未表示（action=${actionClicked ?? 'なし'} modal=${payModalVisible}）` };
+  }
+  for (const check of opts.domChecks ?? []) {
+    const el = page.getByTestId(check.testId).first();
+    const visible = !!(await el.count()) && await el.isVisible().catch(() => false);
+    const actual = visible ? await el.getAttribute(check.attr) : null;
+    if (!visible || actual !== String(check.value)) {
+      return { pass: false, detail: `${check.testId} ${check.attr}=${actual ?? '未表示'}（期待=${check.value}）` };
+    }
+  }
+  for (const testId of opts.energyPicks ?? []) {
+    if (!(await H.clickTestId(testId))) return { pass: false, detail: `エナ候補を選べず（${testId}）` };
+  }
+  for (const testId of opts.handPicks ?? []) {
+    if (!(await H.clickTestId(testId))) return { pass: false, detail: `手札候補を選べず（${testId}）` };
+  }
+  for (const testId of opts.exceedPicks ?? []) {
+    if (!(await H.clickTestId(testId))) return { pass: false, detail: `エクシード候補を選べず（${testId}）` };
+  }
+  const paid = await H.clickTestId('trashact-pay');
+  if (!paid) return { pass: false, detail: 'trashact-payをクリックできず' };
+
+  let last = before;
+  let mechanismSeen = false;
+  let stackSeen = false;
+  let consecutiveFinal = 0;
+  for (let s = 0; s < 120; s++) {
+    await page.waitForTimeout(250);
+    let did = await H.clickZone();
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    last = st;
+    mechanismSeen ||= (st?.host?.actionsDone ?? []).includes(opts.effectId);
+    stackSeen ||= (st?.stackLen ?? 0) > 0 || (st?.stackPending ?? []).includes(opts.effectId)
+      || (st?.stackQueue ?? []).includes(opts.effectId);
+    const sourceCount = v13CountInPlayerZones(st?.host, opts.sourceId);
+    const sourceField = (st?.host?.fieldSigni ?? []).some(stack => (stack ?? []).includes(opts.sourceId));
+    const sourceLeftTrash = !(st?.host?.trashCards ?? []).includes(opts.sourceId);
+    const paidCardsOk = (opts.paidCardIds ?? []).every(id =>
+      (st?.host?.trashCards ?? []).includes(id) && v13CountInPlayerZones(st?.host, id) === 1);
+    const specific = await opts.finalCheck(st, page);
+    const settled = mechanismSeen && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
+    const finalOk = settled && sourceCount === 1 && sourceField && sourceLeftTrash && paidCardsOk && specific.ok;
+    consecutiveFinal = finalOk ? consecutiveFinal + 1 : 0;
+    H.log(`  v13[${s}] -> ${did ?? 'なし'} | effect=${opts.effectId} mechanism=${mechanismSeen} stackSeen=${stackSeen} sourceCount=${sourceCount} sourceField=${sourceField} paidCards=${paidCardsOk} specific=${specific.ok} settled=${settled}`);
+    if (consecutiveFinal >= 2) {
+      return {
+        pass: true,
+        detail: `【起】表示・コストUI表示・actions_done=${opts.effectId}・本体trash→field（全対象zone合計1枚）・${specific.detail}${stackSeen ? '・stack観測済み' : ''}`,
+      };
+    }
+  }
+  const specific = await opts.finalCheck(last, page);
+  return { pass: false, detail: `完走タイムアウト（mechanism=${mechanismSeen} stackSeen=${stackSeen} sourceCount=${v13CountInPlayerZones(last?.host, opts.sourceId)} trash=${JSON.stringify(last?.host?.trashCards)} field=${JSON.stringify(last?.host?.fieldSigni)} specific=${specific.detail} pending=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+}
+
+scenarios.v13TrashActLrigDownTwo = {
+  title: 'V-13 WXDi-P04-042：レベル2ルリグ2体ダウンでトラッシュ起動し本体を場へ移す',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#7301'], 'field.assist_lrig_l': ['WD03-003#7302'], 'field.assist_lrig_r': [],
+      'field.lrig_down': false, 'field.assist_lrig_l_down': false, 'field.assist_lrig_r_down': false,
+      'field.signi': [null, null, null], 'field.check': null,
+      'trash': ['WXDi-P04-042#7303'], 'hand': [], 'energy': [], 'life_cloth': v13Life(7310),
+      'actions_done': [], 'game_actions_done': [], 'coins': 0,
+    },
+    guestSet: { 'field.lrig': ['WD01-004#7390'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v13Life(7391) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  drive: (page, H) => driveV13TrashAct(page, H, {
+    phase: 'MAIN', expectAction: true, actionIncludes: 'レベル2のルリグ2体',
+    sourceId: 'WXDi-P04-042#7303', effectId: 'WXDi-P04-042-E2',
+    domChecks: [
+      { testId: 'trashact-cost-summary', attr: 'data-lrig-down-count', value: 2 },
+      { testId: 'trashact-cost-summary', attr: 'data-lrig-down-level', value: 2 },
+    ],
+    finalCheck: async st => ({
+      ok: st?.host?.lrigDown === true && st?.host?.assistDown?.[0] === true && st?.host?.assistDown?.[1] === false,
+      detail: `センター→アシストLの順でdown=${JSON.stringify([st?.host?.lrigDown, ...(st?.host?.assistDown ?? [])])}`,
+    }),
+  }),
+};
+
+scenarios.v13TrashActLrigDownTwoNoUpLv2 = {
+  title: 'V-13 対照：アップ状態がレベル1だけならWXDi-P04-042のトラッシュ【起】は出ない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-004#7301'], 'field.assist_lrig_l': ['WD03-004#7302'], 'field.assist_lrig_r': [],
+      'field.lrig_down': false, 'field.assist_lrig_l_down': false, 'field.assist_lrig_r_down': false,
+      'field.signi': [null, null, null], 'field.check': null,
+      'trash': ['WXDi-P04-042#7303'], 'hand': [], 'energy': [], 'life_cloth': v13Life(7310),
+      'actions_done': [], 'game_actions_done': [], 'coins': 0,
+    },
+    guestSet: { 'field.lrig': ['WD01-004#7390'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v13Life(7391) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  drive: (page, H) => driveV13TrashAct(page, H, {
+    phase: 'MAIN', expectAction: false, actionIncludes: 'レベル2のルリグ2体',
+  }),
+};
+
+const makeV13AttackTrashSpec = (shortHand) => ({
+  hostSet: {
+    'field.lrig': ['WX18-002#7401'], 'field.lrig_down': false,
+    'field.signi': [null, null, null], 'field.check': null,
+    'trash': ['WX19-029#7402'],
+    'hand': shortHand ? ['WX10-082#7403', 'WD01-013#7404'] : ['WX10-082#7403', 'WX10-083#7404'],
+    'energy': ['WD05-009#7405', 'WXDi-P16-082#7406'], 'life_cloth': v13Life(7410),
+    'actions_done': [], 'game_actions_done': [], 'coins': 0,
+  },
+  guestSet: { 'field.lrig': ['WD01-004#7490'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v13Life(7491) },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+scenarios.v13TrashActAttackPhaseCombo = {
+  title: 'V-13 WX19-029：アタックフェイズに黒2＋＜遊具＞2枚でダウン状態登場',
+  spec: makeV13AttackTrashSpec(false),
+  drive: (page, H) => driveV13TrashAct(page, H, {
+    phase: 'ATTACK_ARTS', expectAction: true, actionIncludes: '遊具',
+    sourceId: 'WX19-029#7402', effectId: 'WX19-029-E2',
+    energyPicks: ['trashact-energy-0', 'trashact-energy-1'],
+    handPicks: ['trashact-hand-0', 'trashact-hand-1'],
+    paidCardIds: ['WD05-009#7405', 'WXDi-P16-082#7406', 'WX10-082#7403', 'WX10-083#7404'],
+    domChecks: [
+      { testId: 'trashact-energy-0', attr: 'data-card-num', value: 'WD05-009' },
+      { testId: 'trashact-energy-1', attr: 'data-card-num', value: 'WXDi-P16-082' },
+      { testId: 'trashact-hand-0', attr: 'data-selectable', value: 'true' },
+      { testId: 'trashact-hand-1', attr: 'data-selectable', value: 'true' },
+    ],
+    finalCheck: async st => {
+      const zi = (st?.host?.fieldSigni ?? []).findIndex(stack => (stack ?? []).includes('WX19-029#7402'));
+      return { ok: zi >= 0 && st?.host?.signiDown?.[zi] === true && st?.host?.hand === 0 && st?.host?.energy === 0,
+        detail: `エナ/手札各2枚がtrashへ移動・本体zone${zi + 1} down=${st?.host?.signiDown?.[zi]}` };
+    },
+  }),
+};
+
+scenarios.v13TrashActAttackPhaseComboShortHand = {
+  title: 'V-13 対照：手札総数を保って＜遊具＞だけ1枚ならWX19-029の【起】は出ない',
+  spec: makeV13AttackTrashSpec(true),
+  drive: (page, H) => driveV13TrashAct(page, H, {
+    phase: 'ATTACK_ARTS', expectAction: false, actionIncludes: '遊具',
+  }),
+};
+
+scenarios.v13TrashActDisonaDiscardFilter = {
+  title: 'V-13 WXDi-P12-053：ディソナだけ2枚捨ててトラッシュ起動',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX18-023#7501'], 'field.lrig_down': false,
+      'field.signi': [null, null, null], 'field.check': null,
+      'trash': ['WXDi-P12-053#7502'],
+      'hand': ['WXDi-P12-044#7503', 'WXDi-P12-045#7504', 'WD01-013#7505'],
+      'energy': [], 'life_cloth': v13Life(7510), 'actions_done': [], 'game_actions_done': [], 'coins': 0,
+    },
+    guestSet: { 'field.lrig': ['WD01-004#7590'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v13Life(7591) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  drive: (page, H) => driveV13TrashAct(page, H, {
+    phase: 'MAIN', expectAction: true, actionIncludes: 'ディソナ',
+    sourceId: 'WXDi-P12-053#7502', effectId: 'WXDi-P12-053-E2',
+    handPicks: ['trashact-hand-0', 'trashact-hand-1'],
+    paidCardIds: ['WXDi-P12-044#7503', 'WXDi-P12-045#7504'],
+    domChecks: [
+      { testId: 'trashact-hand-0', attr: 'data-selectable', value: 'true' },
+      { testId: 'trashact-hand-1', attr: 'data-selectable', value: 'true' },
+      { testId: 'trashact-hand-2', attr: 'data-selectable', value: 'false' },
+      { testId: 'trashact-hand-2', attr: 'data-card-num', value: 'WD01-013' },
+    ],
+    finalCheck: async st => ({
+      ok: st?.host?.hand === 1 && (st?.host?.handCards ?? []).includes('WD01-013#7505'),
+      detail: 'ディソナ2枚だけtrashへ移動・非ディソナ1枚はhand残留',
+    }),
+  }),
+};
+
+scenarios.v13TrashActCoinChain = {
+  title: 'V-13 WXDi-P16-082：コイン2支払いからON_COIN_PAIDを積み本体を場へ移す',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX18-023#7601'], 'field.lrig_down': false,
+      'field.signi': [['WXDi-P15-069#7602'], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+      'trash': ['WXDi-P16-082#7603'], 'hand': [], 'energy': [], 'life_cloth': v13Life(7610),
+      'actions_done': [], 'game_actions_done': [], 'coins': 2, 'coins_paid_this_turn': 0, 'temp_power_mods': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-004#7690'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v13Life(7691) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  drive: (page, H) => driveV13TrashAct(page, H, {
+    phase: 'MAIN', expectAction: true, actionIncludes: 'コイン',
+    sourceId: 'WXDi-P16-082#7603', effectId: 'WXDi-P16-082-E2',
+    domChecks: [{ testId: 'trashact-cost-summary', attr: 'data-coin-cost', value: 2 }],
+    finalCheck: async (st, page) => {
+      const coinsPaid = await v13CoinsPaidThisTurn(page);
+      const watcherUsed = (st?.host?.actionsDone ?? []).includes('WXDi-P15-069-E1');
+      const watcherBuff = (st?.host?.powerMods ?? []).includes('WXDi-P15-069#7602:2000');
+      return { ok: st?.host?.coins === 0 && coinsPaid === 2 && watcherUsed && watcherBuff,
+        detail: `coins 2→${st?.host?.coins}・coins_paid_this_turn=${coinsPaid}・ON_COIN_PAID actions_done=${watcherUsed}・+2000=${watcherBuff}` };
+    },
+  }),
+};
+
+order.push('v13TrashActLrigDownTwo', 'v13TrashActLrigDownTwoNoUpLv2',
+  'v13TrashActAttackPhaseCombo', 'v13TrashActAttackPhaseComboShortHand',
+  'v13TrashActDisonaDiscardFilter', 'v13TrashActCoinChain');
+// ── V-13 END ──
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

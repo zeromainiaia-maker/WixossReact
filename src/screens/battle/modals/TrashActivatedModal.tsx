@@ -57,7 +57,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
   return (
     <>
       {pendingTrashActivated && createPortal(
-        <div onClick={closeAll}
+        <div data-testid="trashact-modal" onClick={closeAll}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
@@ -89,7 +89,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <button onClick={closeAll}
+                    <button data-testid="trashact-cancel" onClick={closeAll}
                       style={{ padding: '4px 10px', borderRadius: 6, border: C.borderUI,
                         backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 12 }}>
                       ← キャンセル
@@ -107,7 +107,11 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                       <p style={{ color: C.textDim, fontSize: 11, margin: 0 }}>
                         このシグニをトラッシュから場に出す
                       </p>
-                      <p style={{ color: C.textFaint, fontSize: 11, margin: '2px 0 0' }}>
+                      <p data-testid="trashact-cost-summary"
+                        data-coin-cost={taEffect.cost?.coin ?? 0}
+                        data-lrig-down-count={taEffect.cost?.lrigDown?.count ?? 0}
+                        data-lrig-down-level={taEffect.cost?.lrigDown?.level ?? 0}
+                        style={{ color: C.textFaint, fontSize: 11, margin: '2px 0 0' }}>
                         コスト: {costLabels.join('・') || 'なし'}
                       </p>
                       {shortfall && (
@@ -131,7 +135,8 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                           const isSel = selectedTrashActivatedCost.has(i);
                           const isWild = isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped);
                           return (
-                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
+                            <div key={i} data-testid={`trashact-energy-${i}`} data-card-num={getCardNum(num)}
+                              title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => setSelectedTrashActivatedCost(prev => toggleCapped(prev, i, energyTotal))}
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 52, height: 73, borderRadius: 4,
@@ -172,7 +177,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                           const canPick = handDiscard.matches(card);
                           const isSel = selectedTrashActivatedDiscard.has(i);
                           return (
-                            <div key={i}
+                            <div key={i} data-testid={`trashact-hand-${i}`} data-card-num={getCardNum(num)} data-selectable={canPick}
                               onClick={() => canPick && setSelectedTrashActivatedDiscard(prev => toggleCapped(prev, i, handDiscard.count))}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(card?.ImgURL ?? null); }, 500); }}
                               onPointerUp={() => { if (pickLongPressTimer.current) { clearTimeout(pickLongPressTimer.current); pickLongPressTimer.current = null; } }}
@@ -216,7 +221,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                           const card = battleCardMap.get(getCardNum(num));
                           const isSel = selectedTrashActivatedExceed.has(i);
                           return (
-                            <div key={i}
+                            <div key={i} data-testid={`trashact-exceed-${i}`} data-card-num={getCardNum(num)}
                               onClick={() => setSelectedTrashActivatedExceed(prev => toggleCapped(prev, i, exceedCost))}
                               onContextMenu={e => e.preventDefault()}
                               style={{ position: 'relative', width: 44, height: 62, borderRadius: 3, flexShrink: 0,
@@ -244,7 +249,7 @@ export function TrashActivatedModal(p: TrashActivatedModalProps) {
                     </>
                   )}
 
-                  <button
+                  <button data-testid="trashact-pay"
                     onClick={() => executeTrashActivated(
                       pendingTrashActivated.cardNum, taEffect,
                       selectedTrashActivatedCost, selectedTrashActivatedDiscard, selectedTrashActivatedExceed,

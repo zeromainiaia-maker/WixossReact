@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（Codex・§7 V-12残り／V-13起案）— 付与 `ON_ENERGY_CHARGE` の回数記録とトラッシュ起動UIの決定論的観測点
+
+### V-12：確定した真因と、確定しなかった主張を分離
+
+- 投入時の本命だった「`StackEntry.effect` が解決側で無視される」は**誤り**。`resolveStackNext` は
+  `executeEffect(entry.effect, ctx)` を直接呼び、`effectsMap` を再照会しない。
+- `grantedStoreWatchers(..., 'ON_ENERGY_CHARGE', ...)` の収集経路は存在し、付与効果も受理条件を満たす。
+  ただし固定シナリオ `v12GrantedEnergyChargeTwice` / `ThirdBlocked` は、エナ増加直後の**最初の settled 状態で即 FAIL**し、
+  後続 React useEffect の収集を待たない。PLAN §7 の必読13（settled 最初の1回で確定しない）に反するため、
+  この2本の赤だけから「発火経路が no-op」とは確定できない。固定物の変更禁止に従い、シナリオは変更していない。
+- 実コード上で確定した欠落は、付与 watcher が `usageLimit:'twice_per_turn'` を判定せず、`actions_done` にも記録しない点。
+  `reserveGrantedAutoUsage` を追加し、**付与ルリグの `ON_ENERGY_CHARGE` 経路だけ**で同一収集内予約＋永続済み回数を数え、
+  許可した effectId を `WRITE_STATES` で `actions_done` へ書き戻すようにした。直下の印刷能力走査は無変更。
+- golden に `SPDi43-13-sub-E1` の1回目／2回目許可、3回目拒否、永続済み2件拒否を追加（1975→1976）。
+  React useEffect の発火タイミングそのものは golden で踏めないため、1-a の実機反転は検証側へ委ねる。
+
+### V-13：安定セレクタとシナリオ（ソース起案のみ・実機未実行）
+
+- 現行 `BoardComponents.tsx` には既に `my-trash`、`zone-card-{i}`＋`data-card-num`、
+  `card-detail-modal`、`card-action-{i}`＋`data-action-label` が存在していた。前提の「トラッシュ経路に testid が0件」は現行HEADと不一致。
+- `TrashActivatedModal` に属性だけを追加：`trashact-modal` / `trashact-cancel` / `trashact-cost-summary`、
+  `trashact-energy-{i}` / `trashact-hand-{i}` / `trashact-exceed-{i}`、`trashact-pay`。
+  カード候補は `data-card-num`、手札候補は `data-selectable`、自動支払いのコイン／ルリグダウンは summary の data 属性で観測する。
+- 既存シナリオ・既存 helper・既存 order 要素を変更せず、V-13 正方向4本＋負方向2本を末尾追記。
+  全正方向で【起】表示、コストUI、`actions_done`、本体 trash→field、全対象zone合計1枚、支払いカードのtrash移動を確認する。
+  コインは `coins_paid_this_turn` と `WXDi-P15-069-E1` の actions_done / +2000 まで見る。
+- Codex 環境では live Supabase＋実ブラウザへ接続できないため、`verifyBattleDrive.mjs` は**起動していない**。
+  シナリオの PASS/FAIL と実機デバッグは検証側の担当。
+
 ## 2026-08-14（続き476〜477・Opus 5）— §7 **V-11 決着 / V-12 は6/8 緑**：実機シナリオ14本の追加と、そこで確定した「実装の事実」5点
 
 **engine / parser / effects JSON は1行も触っていない。** 成果物は `scripts/verifyBattleDrive.mjs` の実機シナリオ14本と、

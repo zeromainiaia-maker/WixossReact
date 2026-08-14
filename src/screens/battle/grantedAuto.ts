@@ -13,6 +13,24 @@ export function clearTurnGrantedLrigAbilities(state: PlayerState): PlayerState {
   };
 }
 
+/**
+ * 実行時付与 AUTO の《ターン1回/2回》を、永続済み actions_done と同じ収集内の予約分で判定する。
+ * 許可したときだけ reservedIds に effectId を1件積み、呼び出し側が actions_done へ書き戻す。
+ */
+export function reserveGrantedAutoUsage(
+  state: PlayerState,
+  effect: CardEffect,
+  reservedIds: string[],
+): boolean {
+  if (effect.usageLimit !== 'once_per_turn' && effect.usageLimit !== 'twice_per_turn') return true;
+  const max = effect.usageLimit === 'once_per_turn' ? 1 : 2;
+  const used = (state.actions_done ?? []).filter(id => id === effect.effectId).length
+    + reservedIds.filter(id => id === effect.effectId).length;
+  if (used >= max) return false;
+  reservedIds.push(effect.effectId);
+  return true;
+}
+
 /** 攻撃側ルリグに実行時付与された ON_ATTACK_LRIG AUTO を収集し、usageLimit の消費IDを返す。 */
 export function collectAttackingLrigGrantedAutos(
   state: PlayerState,

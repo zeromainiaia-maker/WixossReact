@@ -80,7 +80,7 @@ import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
-import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from '../src/screens/battle/grantedAuto';
+import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
@@ -33530,6 +33530,19 @@ test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集�
     'execTrash の ENERGY_CARD 経路は resolveCountRef');
   ok(/const count = src\.count === 'ALL' \? cands\.length : resolveCountRef\(src\.count, ctx, src\.countFromZone\)/.test(whole),
     'execTransferToHand の非ALL経路は resolveCountRef');
+});
+
+test('SPDi43-13-sub-E1: 付与ON_ENERGY_CHARGEの《ターン2回》を2件だけ予約する', () => {
+  const effect = findEffectDeep(effectsMap.get('SPDi43-13') ?? [], 'SPDi43-13-sub-E1');
+  if (!effect) throw new Error('SPDi43-13-sub-E1 が存在');
+  const state = mkState({});
+  const reserved: string[] = [];
+  ok(reserveGrantedAutoUsage(state, effect, reserved), '1回目は発火可能');
+  ok(reserveGrantedAutoUsage(state, effect, reserved), '2回目は発火可能');
+  ok(!reserveGrantedAutoUsage(state, effect, reserved), '3回目は同じ収集内でも発火不可');
+  eq(reserved.filter(id => id === effect.effectId).length, 2, 'actions_doneへ書き戻すIDは2件だけ');
+  ok(!reserveGrantedAutoUsage({ ...state, actions_done: [effect.effectId, effect.effectId] }, effect, []),
+    '永続済みactions_doneが2件なら次の収集でも発火不可');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

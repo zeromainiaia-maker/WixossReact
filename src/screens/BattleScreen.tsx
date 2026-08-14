@@ -104,7 +104,7 @@ import { reduceBattle, type PlayerStateKey } from './battle/controller/battleCon
 import { canCardGuard } from './battle/guard';
 import { getSigniAttackKeywordState } from './battle/signiAttackKeywords';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from './battle/attackDuration';
-import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos } from './battle/grantedAuto';
+import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from './battle/grantedAuto';
 import { getResonaSummonCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, resonaCombinedOptions, resonaPaymentOptions, type ResonaPaymentItem, type ResonaPaymentSelection, type ResonaSummonCandidate } from './battle/resonaSummon';
 import { finalizeUsedCardPlacement, type UsedCardPlacement } from './battle/spellPlacement';
 import { pendingEffectCardNums } from './battle/pendingEffectCards';
@@ -1753,14 +1753,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       { key: 'guest', st: guestState, op: hostState,  ownerId: bs.guest_id, prevE: prevEnergy.guest },
     ];
     const entries: StackEntry[] = [];
-    for (const { st, op, ownerId, prevE } of sides) {
+    const grantedUsedByKey: Record<'host' | 'guest', string[]> = { host: [], guest: [] };
+    for (const { key, st, op, ownerId, prevE } of sides) {
       const isOwnerActiveTurn = ownerId === bs.active_user_id;
       // ON_ENERGY_CHARGE: エナがちょうど1枚増えたとき（差分の新規カードが1枚）
       const addedToEnergy = st.energy.filter(n => !prevE.includes(n));
       // センタールリグの付与ストア（effectsMap 非搭載）の ON_ENERGY_CHARGE watcher（SPDi43-13-E2＝
       // 「ターン終了時まで、このルリグは『【自】あなたのエナゾーンにカードが置かれたとき…』を得る」）。
-      // 下の走査は場のシグニしか見ないため、ルリグ host の付与能力は構造どおりでも恒久 no-op だった。
-      // ⚠この経路は entries を積むだけで actions_done へ書き戻さない＝usageLimit は既存シグニ側と同じく未管理。
+      // 下の走査は場のシグニしか見ないため、ルリグ host の付与能力は付与ストアから別途収集する。
+      // 《ターン1回/2回》はこの付与 watcher 経路だけで予約し、下の印刷能力走査には影響させない。
       const ecLrigTop = st.field.lrig.at(-1);
       if (ecLrigTop && addedToEnergy.length === 1) {
         for (const w of grantedStoreWatchers(st, 'ON_ENERGY_CHARGE', ['self', 'any_ally', 'any'])) {
@@ -1769,6 +1770,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
           if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
               && !evalUseCondition(eff.condition, st, op, battleCardMap, ecLrigTop, bs.turn_phase, curPowers)) continue;
+          if (!reserveGrantedAutoUsage(st, eff, grantedUsedByKey[key])) continue;
           entries.push({ id: generateUUID(), playerId: ownerId, cardNum: ecLrigTop, effectId: eff.effectId,
             label: `${battleCardMap.get(ecLrigTop)?.CardName ?? ecLrigTop} の【自】効果（エナチャージ時・付与能力）`, effect: eff });
         }
@@ -1807,7 +1809,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       try {
         const existingStack = bs.effect_stack ?? null;
         const newStack = existingStack ? pushToStack(existingStack, entries) : initStack(bs.active_user_id ?? user.id, entries);
-        await persist.commit(reduceBattle(bs, { type: 'SET_STACK', stack: newStack }));
+        const states: Partial<Record<PlayerStateKey, PlayerState>> = {};
+        if (grantedUsedByKey.host.length > 0) {
+          states.host_state = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...grantedUsedByKey.host] };
+        }
+        if (grantedUsedByKey.guest.length > 0) {
+          states.guest_state = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...grantedUsedByKey.guest] };
+        }
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATES', states, effectStack: newStack }));
         snapshot();
       } finally {
         setLoading(false);
