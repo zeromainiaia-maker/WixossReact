@@ -11624,7 +11624,7 @@ async function runFieldDownRound(page, H, { expectAffordable }) {
           + `／🔑帰結＝ルリグがアップ=${lrigUpped}・ルリグが能力喪失=${lrigAbilitiesRemoved}・シグニは対象外=${signiNotTargeted}` };
     }
   }
-  return { pass: false, detail: `fieldDown完走タイムアウト（expectAffordable=${expectAffordable} prompted=${prompted} branch=${branchClicked} energy=${energyPicked} down=${downPicked.size}/${downConfirmed}/all3=${sawAllThreeDown} up=${upPicked}/${upConfirmed} remove=${removePicked}/${removeConfirmed} hEnergy=${JSON.stringify(last?.host?.energyCards)} hDown=${JSON.stringify(last?.host?.signiDown)} abilitiesRemoved=${JSON.stringify(last?.host?.abilitiesRemoved)} gLife=${last?.guest?.life} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+  return { pass: false, detail: `fieldDown完走タイムアウト（expectAffordable=${expectAffordable} attacked=${attacked} prompted=${prompted} branch=${branchClicked} energy=${energyPicked} down=${downPicked.size}/${downConfirmed}/all3=${sawAllThreeDown} up=${upPicked}/${upConfirmed} remove=${removePicked}/${removeConfirmed} hEnergy=${JSON.stringify(last?.host?.energyCards)} hDown=${JSON.stringify(last?.host?.signiDown)} abilitiesRemoved=${JSON.stringify(last?.host?.abilitiesRemoved)} gLife=${last?.guest?.life} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
 }
 
 scenarios.fieldDownCostRequiresThreeUpWhite = {
