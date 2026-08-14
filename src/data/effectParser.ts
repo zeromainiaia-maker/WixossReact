@@ -10491,11 +10491,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 「**あなたの**（センター）ルリグ（N体）がアタックしたとき」＝味方カードが自陣のルリグアタックを見る
         // （§3 (cxxviii)・続き475d）。scope を `any_ally` にしないと既定 `self` へ潰れ、
         // engine の `collectAllyLrigAttackTriggers` が拾えず**丸ごと不発**になる。
-        const allyLrigAttM = actionText.match(/^あなたの(?:センター)?ルリグ(?:[０-９\d]+体)?がアタックしたとき[、,]/);
+        // ⚠主語の修飾（色・カード名）は `triggerFilter` へ載せる＝**アタックしたルリグ**を engine 側で照合する
+        //   （`collectAllyLrigAttackTriggers`）。載せ忘れると「白のルリグ」限定が落ちて過剰発火する。
+        const allyLrigSubj = parseAllyLrigAttackSubject(actionText);
         if (selfAttM) {
           extractedTriggerScope = 'self';
-        } else if (allyLrigAttM) {
+        } else if (allyLrigSubj) {
           extractedTriggerScope = 'any_ally';
+          const tfL = { ...(extractedTriggerFilter ?? {}), ...allyLrigSubj.filter };
+          if (Object.keys(tfL).length) extractedTriggerFilter = tfL;
         } else {
           // 「対戦相手の〔シグニ／ルリグ／シグニかルリグ／ルリグかシグニ／センタールリグ…〕がアタックしたとき」。
           // 続き218j で**ルリグ単独主語も対象化**した（engine に防御側収集経路 collectLrigAttackDefenderTriggers を
