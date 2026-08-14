@@ -7679,6 +7679,20 @@ test('collectAllyLrigAttackTriggers: アタック側の味方カードを any_al
     eq(collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, st, HOST, LRIG).entries.length, 0,
        '🔴アタックしたルリグ自身は除外（二重発火の防止）');
   }
+  // 🔴主語の修飾（「あなたの**白の**ルリグ」）＝`triggerFilter` を**アタックしたルリグ**へ照合する（続き475e）。
+  //   見ないと限定が黙って落ちて「どのルリグのアタックでも発火する」過剰発火になる。
+  {
+    const whiteLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '') === '白');
+    const nonWhiteLrig = findCard(c => c.Type === 'ルリグ' && !(c.Color ?? '').includes('白'));
+    const filtered = { ...mkEff('a1', 'any_ally'), triggerFilter: { color: '白' } } as unknown as CardEffect;
+    const em = new Map<string, CardEffect[]>([[S1, [filtered]]]);
+    const stFor = (lrigNum: string) => ({ ...mkState({}),
+      field: { ...mkState({}).field, lrig: [lrigNum], signi: [[S1], null, null] } } as unknown as PlayerState);
+    eq(collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, stFor(whiteLrig), HOST, whiteLrig).entries.length, 1,
+       '白のルリグがアタックしたときは発火する');
+    eq(collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, stFor(nonWhiteLrig), HOST, nonWhiteLrig).entries.length, 0,
+       '🔴白でないルリグのアタックでは発火しない（triggerFilter を見ないと過剰発火）');
+  }
   } finally { cursor = savedCursor; }
 });
 
