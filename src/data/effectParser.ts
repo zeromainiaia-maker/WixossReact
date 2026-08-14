@@ -1554,6 +1554,18 @@ export function getAbilityBlockTexts(card: CardData): ReadonlyMap<string, string
   return map;
 }
 
+/**
+ * 指定効果を生んだ能力ブロックの原文を返す。特定できなければカード全文（＝従来動作）。
+ * engine 側の入口は `execUtils.sourceAbilityText(ctx)`。ctx を持たない走査
+ * （CONTINUOUS の収集など・effectsMap を舐めて効果ごとに判定する箇所）はこちらを直接使う。
+ */
+export function abilityBlockTextOf(card: CardData | undefined, effectId: string | undefined): string {
+  if (!card) return '';
+  const fullText = (card.EffectText ?? '') + ' ' + (card.BurstText ?? '');
+  if (!effectId) return fullText;
+  return getAbilityBlockTexts(card).get(effectId) ?? fullText;
+}
+
 // 後置条件節の前段 recorder 検出でラッパーを貫通する（§3 タスク12(xxii)）。
 // 直前ステップが「先頭ガード条件で丸ごと gate された CONDITIONAL（else なし）」や「連文 SEQUENCE の末尾」で
 // あっても、実際に lastProcessedCards を残すのはその内側の末尾アクション。engine 上も：
