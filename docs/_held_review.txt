@@ -165,24 +165,6 @@ WXEX2-09 WXK08-048
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
-## -DECK_CARD×2 -SEQUENCE×2 -TRASH×2 ［1枚］
-WX12-037
---- WX12-037
-  原文: 【常】：あなたのトラッシュにカードが２５枚以上あるかぎり、このシグニの基本パワーは12000になり、このシグニはバニッシュされない。【出】：各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。この方法でトラッシュに置いたカードの中にカード名に《メツム》を含むカードがある場合、あなたはこの効果を繰り返してもよい。,-
-  - [1].action.steps[0].type = "SEQUENCE"
-  - [1].action.steps[0].steps[0].type = "TRASH"
-  - [1].action.steps[0].steps[0].target.type = "DECK_CARD"
-  - [1].action.steps[0].steps[0].target.owner = "self"
-  - [1].action.steps[0].steps[0].target.count = 5
-  - [1].action.steps[0].steps[1].type = "TRASH"
-  - [1].action.steps[0].steps[1].target.type = "DECK_CARD"
-  - [1].action.steps[0].steps[1].target.owner = "opponent"
-  - [1].action.steps[0].steps[1].target.count = 5
-  - [1].action.steps[1].type = "STUB"
-  - [1].action.steps[1].id = "CONDITIONAL_PER_TRASH"
-  ~ [1].action.type : "SEQUENCE" → "STUB"
-  …（他 3 行）
-
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
