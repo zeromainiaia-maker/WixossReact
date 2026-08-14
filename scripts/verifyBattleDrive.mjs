@@ -15898,14 +15898,15 @@ scenarios.v12GrantedEnergyChargeTwice = {
             return { pass: false, detail: `${completed + 1}回目のエナチャージ後、約5秒待ってもルリグがアップしない（energy=${pre.host.energy} lrigDown=${pre.host.lrigDown}）` };
           }
         } else {
-        upWait = 0;
-        completed = pre.host.energy;
-        spellState = { opened: false, use: false, cast: false };
-        if (completed < 2) {
-          const patched = await H.patchPlayerState('host', { 'field.lrig_down': true });
-          if (patched?.error) return { pass: false, detail: `次イベント準備のlrig_down PATCH失敗: ${patched.error}` };
-          await H.closeModals();
-          await page.waitForTimeout(500);
+          upWait = 0;
+          completed = pre.host.energy;
+          spellState = { opened: false, use: false, cast: false };
+          if (completed < 2) {
+            const patched = await H.patchPlayerState('host', { 'field.lrig_down': true });
+            if (patched?.error) return { pass: false, detail: `次イベント準備のlrig_down PATCH失敗: ${patched.error}` };
+            await H.closeModals();
+            await page.waitForTimeout(500);
+          }
         }
       }
       if (completed === 2) {
