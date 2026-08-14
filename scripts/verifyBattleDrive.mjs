@@ -15991,7 +15991,9 @@ scenarios.v12PrintedEnergyChargeControl = {
       const buffed = (st?.host?.powerMods ?? []).some(m => m.startsWith('WXDi-P11-073#6272:'));
       H.log(`  v12b3ctrl[${s}] -> ${did ?? 'なし'} | energy=${st?.host?.energy} mods=${JSON.stringify(st?.host?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
       if ((st?.host?.energy ?? 0) >= 1 && buffed) {
-        return { pass: true, detail: `印刷能力のON_ENERGY_CHARGEは同じスペル経路で発火（WXDi-P11-073に+2000・energy=${st.host.energy}）＝経路は生きており、付与ストア側だけが拾われていない` };
+        // ⚠**この detail は続き477 時点で「付与ストア側だけが拾われていない」と書いていたが誤りだった**＝
+        //   付与側も発火していて、赤かったのは本命シナリオが即FAIL型だったから（続き478・PLAN §7 📌16）。
+        return { pass: true, detail: `印刷能力のON_ENERGY_CHARGEは同じスペル経路で発火（WXDi-P11-073に+2000・energy=${st.host.energy}）＝この timing の経路が生きていることの対照` };
       }
       if ((st?.host?.energy ?? 0) >= 1 && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && s > 24) {
         return { pass: false, detail: `印刷能力のON_ENERGY_CHARGEも発火しない（energy=${st?.host?.energy} mods=${JSON.stringify(st?.host?.powerMods)}）＝ON_ENERGY_CHARGE の中央diffがCHOOSE解決を跨げていない疑い` };
