@@ -3134,8 +3134,11 @@ export function collectProtectedZones(
       const act = eff.action as import('../types/effects').StubAction;
       if (act.type !== 'STUB') continue;
       if (act.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
+        // §6.4 O-20: カード全文だと**別能力**の保護ゾーンまで拾う
+        // （`WXK10-083-E1` はエナ限定なのに E2 の「手札」を拾って手札まで保護していた）。
+        // ここは ctx を持たない走査側なので、効果ごとにその効果を生んだブロックだけを読む。
         const card = cardMap.get(cn);
-        const txt = (card?.EffectText ?? '') + ' ' + (card?.BurstText ?? '');
+        const txt = card ? abilityBlockTextOf(card, eff.effectId) : '';
         if (txt.includes('エナゾーン') && txt.includes('トラッシュに移動しない')) result.add('energy');
         if (txt.includes('手札') && txt.includes('トラッシュに移動しない')) result.add('hand');
       }
