@@ -10736,7 +10736,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         // 「傀儡状態の」修飾＝placedPuppet（WDK17-001）。「他の」「＜X＞の」と同様にあなたのシグニ全体（any_ally）の一種。
         // クラス部は「＜X＞の」「＜X＞か＜Y＞の」の両形（WXEX1-53「＜アーム＞か＜ウェポン＞の」＝従来この形が
         // 落ちて scope 既定 self（自身が場に出たとき）へ退化していた）。
-        const allyPlayM = actionText.match(/^あなたの(他の)?(傀儡状態の)?(?:＜([^＞]+)＞(?:か＜([^＞]+)＞)?の)?シグニ(?:[０-９\d]+体)?が(効果によって)?場に出たとき[、,]\s*(.+)/s);
+        // 🆕由来句「トラッシュから」＝`triggerCondition.placedFromTrash`（§6.4 O-19）。従来は主語と「場に出たとき」の
+        //   間に由来句が挟まると `^` 規則が外れ、scope 既定 self（＝自身が場に出たとき）へ退化していた
+        //   （`WX25-P1-061-E1`＝「あなたのシグニ１体がトラッシュから場に出たとき」が一度も原文どおりに発火しない）。
+        //   ⚠**「エナゾーンから」は入れない**＝engine に由来ゾーン語彙が無く、限定を落とすと過剰発火になる
+        //     （下の watcherScopeRepairIds 側も unsupportedOrigin として安全停止させている）。
+        const allyPlayM = actionText.match(/^あなたの(他の)?(傀儡状態の)?(?:＜([^＞]+)＞(?:か＜([^＞]+)＞)?の)?シグニ(?:[０-９\d]+体)?が(効果によって)?(トラッシュから)?場に出たとき[、,]\s*(.+)/s);
         // 「あなたのレゾナ[N体]が場に出たとき」= any_ally＋cardType:レゾナ（レゾナは効果でのみ場に出る。G148）
         const allyResonaPlayM = !allyPlayM && actionText.match(/^あなたのレゾナ(?:[０-９\d]+体)?が場に出たとき[、,]\s*(.+)/s);
         // 所有者指定なしの「シグニ[N体]が場に出たとき」= any（両者のシグニ。自身も含む。G085「（このシグニが場に出たときも発動する）」）。
