@@ -176,30 +176,6 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
-  // ---- 引用能力付与（自己付与形）: 「(期間、)この(シグニ|ルリグ)は「【自/出/起】…」を得る」→ GRANT_EFFECT{thisCardOnly} ----
-  // 上の対象付与形（「それは…を得る」）の兄弟規則（§6.4 O-25・2026-08-15）。
-  // ⚠**CONTINUOUS（【常】能力そのもの）はここへ来ない**＝effectParser の CONTINUOUS 分岐が
-  //   `parseContinuousQuotedGrant`（GRANT_FIELD_SIGNI_ABILITY）を先に試す。ここは【自】/【起】の durational 付与専用。
-  // 従来この形はどの付与規則にも掛からず、**引用の中身が即時実行へ平坦化**していた：
-  //   `WX25-P1-061-E1`／`WX25-CP1-048-E1`＝「アタックしたとき－8000」が**場に出た瞬間に－8000**（過剰実行）、
-  //   `WXDi-P09-038-E1`＝付与節が丸ごと落ちて **SEQUENCE[コスト支払いだけ] の恒久 no-op**。
-  //   残りは `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ち、engine 側が**実行時にカード原文を regex で読み直して**
-  //   付与を再現していた（O-20 で潰した「実行時に原文で意味を決める層」の生き残り）。
-  // 引用内は effectParser の expandGrantEffectRawTexts が parseBlock で CardEffect へ展開する（展開不能なら
-  // rawText 温存＋PARTIAL＝engine は effect 無し GRANT_EFFECT を no-op ガードするので過剰実行にはならない）。
-  // 期間の無い「このシグニは「Q」を得る」（＝【常】の恒久付与）は対象外＝GRANT_FIELD_SIGNI_ABILITY の領分。
-  {
-    const qsM = t.match(/^(ターン終了時まで、|次の対戦相手のターン終了時まで、)この(シグニ|ルリグ)は「(【[自出起]】.+)」を得る。?$/s);
-    if (qsM && !/」と「|」か「/.test(qsM[3])) {
-      const dur: EffectDuration = qsM[1].startsWith('次の対戦相手') ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
-      // thisCardOnly＝効果元自身へ付与（execGrantEffect がシグニ／センタールリグ／アシストルリグを解決する）
-      const target: EffectTarget = qsM[2] === 'ルリグ'
-        ? { type: 'LRIG', owner: 'self', count: 1, filter: { thisCardOnly: true } }
-        : { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
-      return { type: 'GRANT_EFFECT', target, duration: dur, rawText: qsM[3] } as EffectAction;
-    }
-  }
-
   // ---- 条件かぎり、代わりに＋Nされる/する（条件付き代替パワー修正）----
   if (t.match(/^[^。]+かぎり、代わりに[＋+][０-９\d]+(?:される|する)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_ALT_POWER_BOOST' } as StubAction;
