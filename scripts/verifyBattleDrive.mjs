@@ -16651,6 +16651,545 @@ order.push('v13TrashActLrigDownTwo', 'v13TrashActLrigDownTwoNoUpLv2',
   'v13TrashActAttackPhaseCombo', 'v13TrashActAttackPhaseComboShortHand',
   'v13TrashActDisonaDiscardFilter', 'v13TrashActCoinChain');
 // ── V-13 END ──
+
+// ── V-14 BEGIN（§6.3 C 第4波／E。実機は検証側で実行） ──
+const v14Life = (base) => Array.from({ length: 7 }, (_, i) => `WD01-013#${base + i}`);
+
+/** V-14 が必要とする長期ストア／裏向き予約を、H.queryState の既存観測面を変えず直接読む。 */
+async function v14QueryBattleState(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return { error: 'no room' };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_effect,game_logs,turn_phase,active_user_id`, { headers: h });
+    const row = (await r2.json())?.[0];
+    if (!row) return { error: 'no row' };
+    const side = s => ({
+      fieldSigni: s.field?.signi ?? [null, null, null],
+      facedownSigni: s.field?.facedown_signi ?? [null, null, null],
+      fieldAcce: s.field?.signi_acce ?? [null, null, null],
+      signiDown: s.field?.signi_down ?? [false, false, false],
+      turnEndFacedownReturns: s.turn_end_facedown_signi_returns ?? [],
+      attackFieldTrashCosts: s.signi_attack_field_trash_costs ?? {},
+      hand: s.hand ?? [], trash: s.trash ?? [], energy: s.energy ?? [], deck: s.deck ?? [], life: s.life_cloth ?? [],
+      lrig: s.field?.lrig ?? [], lrigDeck: s.lrig_deck ?? [], lrigTrash: s.lrig_trash ?? [],
+      actionsDone: s.actions_done ?? [], gameActionsDone: s.game_actions_done ?? [],
+      lrigGranted: (s.lrig_granted_auto_effects ?? []).map(e => ({ effectId: e.effectId, permanentGrant: e.permanentGrant === true })),
+      gameGranted: (s.game_granted_effects ?? []).map(e => e.effectId),
+      powerUntilOpp: (s.power_mods_until_opp_turn ?? []).map(m => `${m.cardNum}:${m.delta}`),
+      keywordUntilOpp: s.keyword_grants_until_opp_turn ?? null,
+      grantedUntilOpp: s.granted_effects_until_opp_turn ?? null,
+      lrigGrantedUntilOpp: (s.lrig_granted_auto_effects_until_opp_turn ?? []).map(e => e.effectId),
+    });
+    const stack = row.effect_stack;
+    const stackLen = !stack ? 0
+      : (stack.orderTurnDone && stack.orderOppDone)
+        ? (stack.queue?.length ?? 0)
+        : ((stack.pendingTurn?.length ?? 0) + (stack.pendingOpp?.length ?? 0));
+    return {
+      host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}),
+      activeUser: row.active_user_id, viewerUserId: sess.user?.id, turnPhase: row.turn_phase,
+      pendingEffect: row.pending_effect?.interaction?.type ?? null,
+      pendingCandidates: row.pending_effect?.interaction?.candidates ?? null,
+      stackLen,
+      logs: (row.game_logs ?? []).slice(-80).map(l => [l.action, l.detail].filter(Boolean).join(' ')),
+    };
+  }, { SUPA_URL, ANON });
+}
+
+function v14AcceCardsAt(side, zoneIndex) {
+  const value = side?.fieldAcce?.[zoneIndex];
+  return typeof value === 'string' ? [value] : (value ?? []);
+}
+
+function v14CountInstance(side, instanceId) {
+  const acce = (side?.fieldAcce ?? []).flatMap(value => typeof value === 'string' ? [value] : (value ?? []));
+  const field = (side?.fieldSigni ?? []).flatMap(stack => stack ?? []);
+  const facedown = (side?.facedownSigni ?? []).filter(Boolean);
+  return [
+    ...(side?.hand ?? []), ...(side?.trash ?? []), ...(side?.energy ?? []), ...(side?.deck ?? []),
+    ...(side?.life ?? []), ...(side?.lrig ?? []), ...(side?.lrigDeck ?? []), ...(side?.lrigTrash ?? []),
+    ...field, ...facedown, ...acce,
+  ].filter(id => id === instanceId).length;
+}
+
+async function v14OpenSigniActionLabels(page, H, testId = 'my-signi-zone-0') {
+  await H.closeModals();
+  const opened = await H.clickTestId(testId);
+  const modal = page.getByTestId('card-detail-modal').first();
+  let labels = [];
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    if (await modal.count() && await modal.isVisible().catch(() => false)) {
+      labels = await modal.locator('[data-testid^="card-action-"]:visible')
+        .evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+    }
+  }
+  return { opened: !!opened, modalVisible: !!(await modal.count()) && await modal.isVisible().catch(() => false), labels };
+}
+
+async function v14FinishHumanEndNoDiscard(page, H) {
+  await H.closeModals();
+  await H.repatchTop({ active: 'host', turn_phase: 'END', effect_stack: null, pending_effect: null });
+  let clicked = false; let last = await v14QueryBattleState(page);
+  for (let i = 0; i < 40; i++) {
+    await page.waitForTimeout(300);
+    let did = null;
+    const before = await v14QueryBattleState(page);
+    if (!clicked && before?.activeUser === before?.viewerUserId && before?.turnPhase === 'END') {
+      did = await H.clickBtn('ターン終了', { exact: true });
+      if (did) clicked = true;
+    }
+    last = await v14QueryBattleState(page);
+    H.log(`  v14.end[${i}] -> ${did ?? 'なし'} | clicked=${clicked} active=${last?.activeUser ?? '-'} phase=${last?.turnPhase ?? '-'}`);
+    if (clicked && last?.activeUser && last.activeUser !== last.viewerUserId) return { clicked, state: last };
+  }
+  return { clicked, state: last };
+}
+
+async function driveV14FacedownLifecycle(page, H, opts) {
+  await H.closeModals();
+  await H.ensureMain();
+  let phaseClicked = false; let activateClicked = false; let costPaid = false; let targetPicked = false;
+  let immediate = null; let mechanismSeen = false; let last = await v14QueryBattleState(page);
+  for (let s = 0; s < 100; s++) {
+    await page.waitForTimeout(250);
+    let did = null;
+    if (!phaseClicked) {
+      did = await H.clickBtn('アタックフェイズへ', { exact: true });
+      if (did) phaseClicked = true;
+    } else if (opts.optionalActivate && !activateClicked) {
+      did = await H.clickBtn('発動する', { exact: true });
+      if (did) activateClicked = true;
+    } else if (opts.energyCost && !costPaid) {
+      let allPicked = true;
+      for (let i = 0; i < opts.energyCost; i++) {
+        const picked = await H.clickTestId(`optcost-energy-${i}`);
+        if (!picked) { allPicked = false; break; }
+        did = picked;
+      }
+      if (allPicked) {
+        const paid = await H.clickTestId('optcost-pay');
+        if (paid) { did = paid; costPaid = true; }
+      }
+    }
+    const pre = await v14QueryBattleState(page);
+    if (!did && opts.pickTarget && !targetPicked && (pre?.pendingCandidates ?? []).includes(opts.targetId)) {
+      did = await clickPendingInstance(page, H, opts.targetId);
+      if (did) targetPicked = true;
+    }
+    if (!did && targetPicked) did = await clickExactVisibleText(page, opts.confirmText ?? '決定 (1/2)');
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await v14QueryBattleState(page);
+    last = st;
+    const owner = opts.targetSide === 'host' ? st?.host : st?.guest;
+    const reservation = (owner?.turnEndFacedownReturns ?? []).find(r => r.cardNum === opts.targetId && r.zoneIndex === opts.zoneIndex);
+    const logSeen = (st?.logs ?? []).some(l => l.includes('ターン終了時復帰を予約'));
+    mechanismSeen ||= !!reservation && logSeen;
+    const resolvedFacedown = owner?.facedownSigni?.[opts.zoneIndex] === opts.targetId
+      && !(owner?.fieldSigni?.[opts.zoneIndex] ?? []).includes(opts.targetId);
+    const settled = mechanismSeen && resolvedFacedown && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    H.log(`  v14.fd[${s}] -> ${did ?? 'なし'} | phase=${phaseClicked} activate=${activateClicked} paid=${costPaid} picked=${targetPicked} facedown=${resolvedFacedown} reserved=${!!reservation} log=${logSeen} settled=${settled}`);
+    if (settled) { immediate = st; break; }
+  }
+  if (!immediate) return { pass: false, detail: `裏向き解決を観測できず（mechanism=${mechanismSeen} target=${opts.targetId} last=${JSON.stringify(last)}）` };
+
+  if (opts.occupantId) {
+    const side = opts.targetSide === 'host' ? immediate.host : immediate.guest;
+    const signi = [...side.fieldSigni]; signi[opts.zoneIndex] = [opts.occupantId];
+    const patched = await H.patchPlayerState(opts.targetSide, { 'field.signi': signi });
+    if (patched?.error) return { pass: false, detail: `元ゾーン占有PATCH失敗: ${patched.error}` };
+  }
+  const ended = await v14FinishHumanEndNoDiscard(page, H);
+  const final = ended.state;
+  const owner = opts.targetSide === 'host' ? final?.host : final?.guest;
+  const facedownCleared = owner?.facedownSigni?.[opts.zoneIndex] == null;
+  const reservationCleared = !(owner?.turnEndFacedownReturns ?? []).some(r => r.cardNum === opts.targetId);
+  const returned = (owner?.fieldSigni?.[opts.zoneIndex] ?? []).includes(opts.targetId) && !(owner?.trash ?? []).includes(opts.targetId);
+  const trashed = (owner?.trash ?? []).includes(opts.targetId) && !(owner?.fieldSigni?.[opts.zoneIndex] ?? []).includes(opts.targetId);
+  const expected = opts.occupantId ? trashed : returned;
+  const occupantStayed = !opts.occupantId || (owner?.fieldSigni?.[opts.zoneIndex] ?? []).includes(opts.occupantId);
+  const unique = v14CountInstance(owner, opts.targetId) === 1 && (!opts.occupantId || v14CountInstance(owner, opts.occupantId) === 1);
+  const pass = ended.clicked && expected && facedownCleared && reservationCleared && occupantStayed && unique;
+  return {
+    pass,
+    detail: pass
+      ? `解決直後 facedown_signi[${opts.zoneIndex}]=${opts.targetId}・予約＋実ログを確認後、human END(no-discard)で${opts.occupantId ? '元ゾーン占有のためトラッシュ' : '同じゾーンへ表向き復帰'}（各instance全ゾーン合計1枚）`
+      : `裏向き終了処理不一致（clicked=${ended.clicked} expected=${expected} facedownCleared=${facedownCleared} reservationCleared=${reservationCleared} occupantStayed=${occupantStayed} unique=${unique} field=${JSON.stringify(owner?.fieldSigni)} facedown=${JSON.stringify(owner?.facedownSigni)} trash=${JSON.stringify(owner?.trash)}）`,
+  };
+}
+
+const V14_FD_OWN = 'WD01-013#8003';
+const V14_FD_OPP = 'WX01-083#8023';
+const V14_FD_OCCUPANT = 'WD01-013#8033';
+
+scenarios.v14FacedownOwnReturnsHumanEndNoDiscard = {
+  title: 'V-14 B-1 WXDi-P01-040自己裏向き：解決直後はinert、human END(no-discard)で同じゾーンへ復帰',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXDi-P09-009#8000'], 'field.signi': [['WXDi-P01-040#8001'], [V14_FD_OWN], null],
+      'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8010), 'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: { 'field.lrig': ['WD01-001#8090'], 'field.signi': [['WX01-053#8091'], ['WX01-053#8092'], ['WX01-053#8093']], 'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null, 'life_cloth': v14Life(8040) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  drive: (page, H) => driveV14FacedownLifecycle(page, H, { targetSide: 'host', targetId: V14_FD_OWN, zoneIndex: 1, optionalActivate: true, pickTarget: true, confirmText: '決定 (1/2)' }),
+};
+
+const V14_FD_OPP_BASE = {
+  hostSet: {
+    'field.lrig': ['WD03-003#8020'], 'field.signi': [['WXDi-P05-037#8021'], null, null],
+    'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null,
+    'hand': [], 'energy': ['WX01-083#8024', 'WX01-083#8025'], 'trash': [], 'life_cloth': v14Life(8050), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8022'], 'field.signi': [null, null, [V14_FD_OPP]],
+    'field.facedown_signi': [null, null, null], 'turn_end_facedown_signi_returns': [], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8060), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v14FacedownOpponentReturnsHumanEndNoDiscard = {
+  title: 'V-14 B-1 WXDi-P05-037相手裏向き：解決直後はinert、human END(no-discard)で同じゾーンへ復帰',
+  spec: V14_FD_OPP_BASE,
+  drive: (page, H) => driveV14FacedownLifecycle(page, H, { targetSide: 'guest', targetId: V14_FD_OPP, zoneIndex: 2, energyCost: 2 }),
+};
+
+scenarios.v14FacedownOpponentOccupiedTrashesHumanEndNoDiscard = {
+  title: 'V-14 B-1 WXDi-P05-037相手裏向き：human END(no-discard)で元ゾーン占有時は対象だけトラッシュ',
+  spec: V14_FD_OPP_BASE,
+  drive: (page, H) => driveV14FacedownLifecycle(page, H, { targetSide: 'guest', targetId: V14_FD_OPP, zoneIndex: 2, energyCost: 2, occupantId: V14_FD_OCCUPANT }),
+};
+
+const V14_ATK = 'WX01-053#8101';
+const V14_ATK_PAY_A = 'WD01-013#8102';
+const V14_ATK_PAY_B = 'WX01-083#8103';
+const V14_ATK_DEFENDERS = ['WX01-053#8121', 'WX01-053#8122', 'WX01-053#8123'];
+const V14_ATK_POS_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8100'], 'field.signi': [[V14_ATK], [V14_ATK_PAY_A], [V14_ATK_PAY_B]],
+    'field.signi_down': [false, false, false], 'field.check': null, 'signi_attack_field_trash_costs': { [V14_ATK]: 2 },
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8110), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8190'], 'field.signi': [['WX01-053#8121'], ['WX01-053#8122'], ['WX01-053#8123']],
+    'temp_power_mods': [{ cardNum: 'WX01-053#8123', delta: 20000 }], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8130), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+};
+const V14_ATK_NEG_SPEC = {
+  ...V14_ATK_POS_SPEC,
+  hostSet: { ...V14_ATK_POS_SPEC.hostSet, 'field.signi': [[V14_ATK], [V14_ATK_PAY_A], null] },
+};
+
+async function driveV14AttackFieldTrashHuman(page, H, expectAction) {
+  // ⚠**`spec.top.turn_phase` の注入だけではアタックフェイズに留まらない**（ターン遷移のリアルタイム処理が
+  //   フェイズを上書きし、CardModal が開かない＝`modalVisible=false / labels=[]` になる。続き478 実測）。
+  //   `driveV13TrashAct` の非MAIN経路と同じく **`repatchTop` でフェイズを固定してから**開く。
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const opened = await v14OpenSigniActionLabels(page, H);
+  const label = opened.labels.find(x => x.startsWith('アタック（') && x.includes('他のシグニ2体トラッシュ')) ?? null;
+  const pre = await v14QueryBattleState(page);
+  if (!opened.opened || !opened.modalVisible || pre?.host?.attackFieldTrashCosts?.[V14_ATK] !== 2) {
+    return { pass: false, detail: `CardModal/制限注入前提不成立（opened=${opened.opened}/${opened.modalVisible} costs=${JSON.stringify(pre?.host?.attackFieldTrashCosts)}）` };
+  }
+  if (!expectAction) {
+    return { pass: !label, detail: !label ? `他シグニ1体だけの同盤面でアタックaction非表示（labels=${JSON.stringify(opened.labels)}）` : `支払い不能なのにアタックactionが表示（${label}）` };
+  }
+  if (!label) return { pass: false, detail: `他シグニ2体の対照でアタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
+  if (!(await H.clickBtn(label, { exact: true }))) return { pass: false, detail: `アタックactionをクリックできず（${label}）` };
+  await page.waitForTimeout(350);
+  const pickA = await H.clickModalImage('小剣　ククリ');
+  const pickB = await H.clickModalImage('幻水　クマノミン');
+  const pay = await H.clickBtn('2体をトラッシュに置いてアタックする', { exact: true });
+  if (!pickA || !pickB || !pay) return { pass: false, detail: `解除コストUIを完走できず（A=${pickA} B=${pickB} pay=${pay}）` };
+  let last = pre; let finalTicks = 0;
+  for (let s = 0; s < 80; s++) {
+    await page.waitForTimeout(250);
+    const st = await v14QueryBattleState(page); last = st;
+    const logSeen = (st?.logs ?? []).some(l => l.includes('場からトラッシュに置き、アタック制限を解除'));
+    const paid = [V14_ATK_PAY_A, V14_ATK_PAY_B].every(id => (st?.host?.trash ?? []).includes(id) && v14CountInstance(st.host, id) === 1);
+    const attackerStarted = st?.host?.signiDown?.[0] === true;
+    const settled = attackerStarted && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    const conserved = v14CountInstance(st.host, V14_ATK) === 1
+      && V14_ATK_DEFENDERS.every(id => v14CountInstance(st.guest, id) === 1);
+    const ok = logSeen && paid && settled && conserved;
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v14.atkpay[${s}] | log=${logSeen} paid=${paid} down=${attackerStarted} settled=${settled}`);
+    if (finalTicks >= 2) return { pass: true, detail: 'アタックaction→2体選択→実ログ→2体だけ場からtrash（各instance1枚）→アタッカーdownを確認' };
+  }
+  return { pass: false, detail: `解除コスト完走タイムアウト（field=${JSON.stringify(last?.host?.fieldSigni)} trash=${JSON.stringify(last?.host?.trash)} down=${JSON.stringify(last?.host?.signiDown)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v14AttackFieldTrashPayTwoHuman = {
+  title: 'V-14 B-2 WX24-P2-010由来：他シグニ2体を場からトラッシュして人間シグニがアタック',
+  spec: V14_ATK_POS_SPEC,
+  drive: (page, H) => driveV14AttackFieldTrashHuman(page, H, true),
+};
+scenarios.v14AttackFieldTrashOneHidesAction = {
+  title: 'V-14 B-2 WX24-P2-010由来：他シグニ1体だけならアタックaction非表示（2体対照と同じ観測待ち）',
+  spec: V14_ATK_NEG_SPEC,
+  drive: (page, H) => driveV14AttackFieldTrashHuman(page, H, false),
+};
+
+const V14_CPU_ATK = 'WX01-053#8141';
+const V14_CPU_PAY_A = 'WD01-013#8142';
+const V14_CPU_PAY_B = 'WX01-083#8143';
+const V14_CPU_DEFENDERS = ['WX01-053#8151', 'WX01-053#8152', 'WX01-053#8153'];
+const V14_CPU_ATK_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8140'], 'field.signi': [['WX01-053#8151'], ['WX01-053#8152'], ['WX01-053#8153']],
+    'temp_power_mods': [{ cardNum: 'WX01-053#8153', delta: 20000 }], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8160),
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8191'], 'field.signi': [[V14_CPU_ATK], [V14_CPU_PAY_A], [V14_CPU_PAY_B]],
+    'field.signi_down': [false, false, false], 'field.check': null, 'signi_attack_field_trash_costs': { [V14_CPU_ATK]: 2 },
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8170), 'actions_done': [],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+};
+
+scenarios.v14AttackFieldTrashCpuDeterministic = {
+  title: 'V-14 B-2 WX24-P2-010由来：CPU ATTACK_SIGNI経路が左から決定論的に他2体を支払う',
+  spec: V14_CPU_ATK_SPEC,
+  async drive(page, H) {
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(1200);
+    await injectScenario(page, V14_CPU_ATK_SPEC);
+    let last = await v14QueryBattleState(page); let finalTicks = 0;
+    for (let s = 0; s < 100; s++) {
+      await page.waitForTimeout(200);
+      const st = await v14QueryBattleState(page); last = st;
+      const logSeen = (st?.logs ?? []).some(l => l.includes('場からトラッシュに置き、アタック制限を解除'));
+      const cpuAttackLog = (st?.logs ?? []).some(l => l.includes('[CPU]') && l.includes('極剣　ゴッドイーター') && l.includes('アタック'));
+      const paid = [V14_CPU_PAY_A, V14_CPU_PAY_B].every(id => (st?.guest?.trash ?? []).includes(id) && v14CountInstance(st.guest, id) === 1);
+      const attackerStarted = st?.guest?.signiDown?.[0] === true;
+      const conserved = v14CountInstance(st.guest, V14_CPU_ATK) === 1
+        && V14_CPU_DEFENDERS.every(id => v14CountInstance(st.host, id) === 1);
+      const ok = logSeen && cpuAttackLog && paid && attackerStarted && conserved;
+      finalTicks = ok ? finalTicks + 1 : 0;
+      H.log(`  v14.cpuAtk[${s}] | log=${logSeen}/${cpuAttackLog} paid=${paid} down=${attackerStarted} phase=${st?.turnPhase}`);
+      if (finalTicks >= 2) return { pass: true, detail: 'CPUアタック実ログ＋解除実ログを観測し、左から候補zone1/2の2体だけをtrash（各instance1枚）してzone0がdown' };
+    }
+    return { pass: false, detail: `CPU解除コスト未完走（phase=${last?.turnPhase} field=${JSON.stringify(last?.guest?.fieldSigni)} trash=${JSON.stringify(last?.guest?.trash)} logs=${JSON.stringify(last?.logs)}）` };
+  },
+};
+
+const V14_MULTI_HOST = 'WX20-028#8201';
+const V14_ACCE_A = 'WD18-013#8202';
+const V14_ACCE_B = 'WD18-015#8203';
+const V14_ACCE_C = 'WX15-058#8204';
+const V14_MULTI_OPP_SIGNI = ['WX01-053#8221', 'WX01-053#8222', 'WX01-053#8223'];
+const V14_MULTI_OPP_ENERGY = ['WD01-013#8224', 'WX01-083#8225'];
+const v14MultiAcceSpec = acceValue => ({
+  hostSet: {
+    'field.lrig': ['WXK03-001#8200'], 'field.signi': [[V14_MULTI_HOST], null, null],
+    'field.signi_acce': [acceValue, null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8210), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8290'], 'field.signi': [['WX01-053#8221'], ['WX01-053#8222'], ['WX01-053#8223']],
+    'temp_power_mods': [{ cardNum: 'WX01-053#8223', delta: 20000 }], 'field.check': null,
+    'hand': [], 'energy': ['WD01-013#8224', 'WX01-083#8225'], 'trash': [], 'life_cloth': v14Life(8230), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveV14MultiAcceAttack(page, H, expectedCount, expectTrigger) {
+  const opened = await v14OpenSigniActionLabels(page, H);
+  const label = opened.labels.find(x => x === 'アタック') ?? null;
+  if (!opened.modalVisible || !label) return { pass: false, detail: `アタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
+  if (!(await H.clickBtn(label, { exact: true }))) return { pass: false, detail: 'アタックをクリックできず' };
+  let attackSeen = false; let last = await v14QueryBattleState(page); let finalTicks = 0;
+  for (let s = 0; s < 100; s++) {
+    await page.waitForTimeout(250);
+    if (!(await H.clickBtn('発動順序を確定', { exact: true }))) await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    const st = await v14QueryBattleState(page); last = st;
+    attackSeen ||= st?.host?.signiDown?.[0] === true || (st?.logs ?? []).some(l => l.includes('コードデリシャス　ビューフェ') && l.includes('アタック'));
+    const logicalAcce = v14AcceCardsAt(st?.host, 0);
+    const allOppTrashed = (st?.guest?.fieldSigni ?? []).every(stack => !stack?.length) && (st?.guest?.energy ?? []).length === 0;
+    const oppConservedInTrash = [...V14_MULTI_OPP_SIGNI, ...V14_MULTI_OPP_ENERGY]
+      .every(id => (st?.guest?.trash ?? []).includes(id) && v14CountInstance(st.guest, id) === 1);
+    const selfAcceTrashed = [V14_ACCE_A, V14_ACCE_B, V14_ACCE_C].slice(0, expectedCount)
+      .every(id => (st?.host?.trash ?? []).includes(id) && v14CountInstance(st.host, id) === 1);
+    const untouched = logicalAcce.length === expectedCount && (st?.guest?.fieldSigni ?? []).every(stack => !!stack?.length)
+      && (st?.guest?.energy ?? []).length === 2
+      && [...V14_MULTI_OPP_SIGNI, ...V14_MULTI_OPP_ENERGY].every(id => v14CountInstance(st.guest, id) === 1);
+    const settled = attackSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    const ok = settled && (expectTrigger ? (allOppTrashed && oppConservedInTrash && selfAcceTrashed) : untouched);
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v14.multi[${s}] | attack=${attackSeen} logicalAcce=${logicalAcce.length} oppAllTrash=${allOppTrashed} selfAcceTrash=${selfAcceTrashed} untouched=${untouched} settled=${settled}`);
+    if (finalTicks >= 2) return { pass: true, detail: expectTrigger ? `${expectedCount}枚アクセでアタック後、自己アクセ全枚＋相手エナ/シグニ全てtrash（全instance1枚）` : `${expectedCount}枚アクセで実際にアタック・同じ待機後もE2不発（アクセ/相手エナ/相手3面を保存）` };
+  }
+  return { pass: false, detail: `多重アクセ判定不一致（expectedCount=${expectedCount} expectTrigger=${expectTrigger} hAcce=${JSON.stringify(last?.host?.fieldAcce)} hTrash=${JSON.stringify(last?.host?.trash)} gField=${JSON.stringify(last?.guest?.fieldSigni)} gEnergy=${JSON.stringify(last?.guest?.energy)}）` };
+}
+
+scenarios.v14MultiAcceTwoDoesNotTrigger = {
+  title: 'V-14 B-3 WX20-028：2枚アクセではアタック時E2が発動しない（3枚対照と同じ待機）',
+  spec: v14MultiAcceSpec([V14_ACCE_A, V14_ACCE_B]),
+  drive: (page, H) => driveV14MultiAcceAttack(page, H, 2, false),
+};
+scenarios.v14MultiAcceThreeTriggers = {
+  title: 'V-14 B-3 WX20-028対照：3枚アクセで初めてアタック時E2が発動',
+  spec: v14MultiAcceSpec([V14_ACCE_A, V14_ACCE_B, V14_ACCE_C]),
+  drive: (page, H) => driveV14MultiAcceAttack(page, H, 3, true),
+};
+scenarios.v14MultiAcceLegacyStringOneLoads = {
+  title: 'V-14 B-3 途中局面ロード：旧signi_acce string 1枚を1枚として読み、アタック時E2は不発',
+  spec: v14MultiAcceSpec(V14_ACCE_A),
+  drive: (page, H) => driveV14MultiAcceAttack(page, H, 1, false),
+};
+
+const V14_ACCE_AVAIL_BASE = {
+  hostSet: {
+    'field.lrig': ['WXK03-001#8240'], 'field.signi': [['WX01-053#8241'], null, null],
+    'field.signi_acce': [[V14_ACCE_A], null, null], 'field.check': null,
+    'hand': [], 'energy': ['WD18-015#8242'], 'trash': [], 'life_cloth': v14Life(8250), 'actions_done': [],
+  },
+  guestSet: { 'field.lrig': ['WD01-001#8291'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v14Life(8260) },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function driveV14SecondAcceAvailability(page, H, expectEnabled) {
+  await H.ensureMain();
+  let found = false; let enabled = false;
+  for (let i = 0; i < 12; i++) {
+    await page.waitForTimeout(250);
+    const button = page.getByRole('button', { name: /コードイート　マヨ【アクセ】/ }).first();
+    found = !!(await button.count()) && await button.isVisible().catch(() => false);
+    enabled = found && await button.isEnabled().catch(() => false);
+  }
+  const st = await v14QueryBattleState(page);
+  const oneAttached = v14AcceCardsAt(st?.host, 0).length === 1 && v14CountInstance(st?.host, V14_ACCE_A) === 1;
+  const pass = found && enabled === expectEnabled && oneAttached;
+  return { pass, detail: pass ? `既装着1枚を保ったまま2枚目【アクセ】button=${expectEnabled ? 'enabled（WX20-028）' : 'disabled（通常シグニ）'}` : `2枚目【アクセ】UI不一致（found=${found} enabled=${enabled} expect=${expectEnabled} acce=${JSON.stringify(st?.host?.fieldAcce)}）` };
+}
+
+scenarios.v14NormalSigniSecondAcceDisabled = {
+  title: 'V-14 B-3 通常シグニ：1枚装着済みなら2枚目アクセbuttonはdisabled',
+  spec: V14_ACCE_AVAIL_BASE,
+  drive: (page, H) => driveV14SecondAcceAvailability(page, H, false),
+};
+scenarios.v14Wx20028SecondAcceEnabledControl = {
+  title: 'V-14 B-3 WX20-028対照：通常シグニと同一盤面でhostだけ替えると2枚目アクセbuttonがenabled',
+  spec: { ...V14_ACCE_AVAIL_BASE, hostSet: { ...V14_ACCE_AVAIL_BASE.hostSet, 'field.signi': [[V14_MULTI_HOST], null, null] } },
+  drive: (page, H) => driveV14SecondAcceAvailability(page, H, true),
+};
+
+scenarios.v14PermanentLrigGrantSurvivesHumanEndNoDiscard = {
+  title: 'V-14 B-4 WXK03-001-E3：このゲームの間の相手ルリグ付与がhuman END(no-discard)を跨いで残る',
+  spec: {
+    hostSet: { 'field.lrig': ['WXK03-001#8301'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8310), 'actions_done': [], 'game_actions_done': [] },
+    guestSet: { 'field.lrig': ['WD01-001#8302'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'life_cloth': v14Life(8320), 'lrig_granted_auto_effects': [] },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let clicked = false; let ready = null; let last = await v14QueryBattleState(page);
+    for (let s = 0; s < 60; s++) {
+      await page.waitForTimeout(250);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      else if (!clicked) { did = await H.clickBtn('【起】コストなし', { exact: true, nth: 1 }); if (did) clicked = true; }
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await v14QueryBattleState(page); last = st;
+      const ids = st?.guest?.lrigGranted ?? [];
+      const granted = ['WXK03-001-E3-GRANT-DRAW', 'WXK03-001-E3-GRANT-END'].every(id => ids.some(e => e.effectId === id && e.permanentGrant));
+      const logSeen = (st?.logs ?? []).some(l => l.includes('ルリグ付与能力（このゲームの間）'));
+      if (clicked && granted && logSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) { ready = st; break; }
+    }
+    if (!ready) return { pass: false, detail: `永続ルリグ付与の成立前提を観測できず（clicked=${clicked} grants=${JSON.stringify(last?.guest?.lrigGranted)} logs=${JSON.stringify(last?.logs)}）` };
+    const ended = await v14FinishHumanEndNoDiscard(page, H); const ids = ended.state?.guest?.lrigGranted ?? [];
+    const remains = ['WXK03-001-E3-GRANT-DRAW', 'WXK03-001-E3-GRANT-END'].every(id => ids.some(e => e.effectId === id && e.permanentGrant));
+    return { pass: ended.clicked && remains, detail: ended.clicked && remains ? '付与実ログ＋permanentGrant=true×2を観測後、human END(no-discard)でCPUターンへ移っても2能力が残存' : `ターン跨ぎで永続ルリグ付与が消失（clicked=${ended.clicked} grants=${JSON.stringify(ids)}）` };
+  },
+};
+
+scenarios.v14PermanentPlayerGrantSurvivesHumanEndNoDiscard = {
+  title: 'V-14 B-4 WXDi-P03-003-E1：このゲームの間のplayer付与がhuman END(no-discard)を跨いで残る',
+  spec: {
+    hostSet: { 'field.lrig': ['WD03-003#8341'], 'field.signi': [['WD01-013#8342'], null, null], 'field.check': null, 'lrig_deck': ['WXDi-P03-003#8343'], 'lrig_trash': [], 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8350), 'game_granted_effects': [] },
+    guestSet: { 'field.lrig': ['WD01-001#8344'], 'field.signi': [null, null, null], 'field.check': null, 'life_cloth': v14Life(8360) },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let deckOpened = false; let cardOpened = false; let actionClicked = false; let ready = null; let last = await v14QueryBattleState(page);
+    for (let s = 0; s < 70; s++) {
+      await page.waitForTimeout(250);
+      let did = null;
+      if (!deckOpened) { did = await H.clickTestId('my-lrig-dk'); if (did) deckOpened = true; }
+      else if (!cardOpened) { did = await H.clickTestId('zone-card-0'); if (did) cardOpened = true; }
+      else if (!actionClicked) { did = await H.clickBtn('ピースを使用', { exact: true }); if (did) actionClicked = true; }
+      if (!did) did = await H.clickBtn('使用', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await v14QueryBattleState(page); last = st;
+      const granted = (st?.host?.gameGranted ?? []).includes('WXDi-P03-003-E1-GRANT');
+      const moved = (st?.host?.lrigTrash ?? []).includes('WXDi-P03-003#8343');
+      const logSeen = (st?.logs ?? []).some(l => l.includes('プレイヤー付与能力（このゲームの間）'));
+      if (actionClicked && granted && moved && logSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) { ready = st; break; }
+    }
+    if (!ready) return { pass: false, detail: `player付与の成立前提を観測できず（action=${actionClicked} grants=${JSON.stringify(last?.host?.gameGranted)} lrigTrash=${JSON.stringify(last?.host?.lrigTrash)} logs=${JSON.stringify(last?.logs)}）` };
+    const ended = await v14FinishHumanEndNoDiscard(page, H);
+    const remains = (ended.state?.host?.gameGranted ?? []).includes('WXDi-P03-003-E1-GRANT');
+    return { pass: ended.clicked && remains, detail: ended.clicked && remains ? 'ピース使用実ログ＋game_granted_effects格納＋ルリグトラッシュ移動を観測後、human END(no-discard)を跨いで残存' : `ターン跨ぎでplayer付与が消失（clicked=${ended.clicked} grants=${JSON.stringify(ended.state?.host?.gameGranted)}）` };
+  },
+};
+
+const V14_UNTIL_CPU_END_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8381'], 'field.signi': [['WD01-013#8382'], null, null], 'field.check': null,
+    'power_mods_until_opp_turn': [{ cardNum: 'WD01-013#8382', delta: 4000 }],
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v14Life(8390),
+  },
+  guestSet: { 'field.lrig': ['WD03-003#8383'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'life_cloth': v14Life(8400), 'actions_done': ['__TURN_END__'] },
+  top: { active: 'cpu', turn_phase: 'END', turn_count: 3 },
+};
+
+scenarios.v14UntilOppTurnPowerExpiresCpuEnd = {
+  title: 'V-14 B-4 UNTIL_OPP_TURN_END：CPU END経路でpower_mods_until_opp_turnが失効',
+  spec: V14_UNTIL_CPU_END_SPEC,
+  async drive(page, H) {
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(1200);
+    await injectScenario(page, { ...V14_UNTIL_CPU_END_SPEC, top: { active: 'host', turn_phase: 'MAIN', turn_count: 3 } });
+    const before = await v14QueryBattleState(page);
+    const seeded = (before?.host?.powerUntilOpp ?? []).includes('WD01-013#8382:4000')
+      && before?.activeUser === before?.viewerUserId && before?.turnPhase === 'MAIN';
+    if (!seeded) return { pass: false, detail: `CPU END前に長期ストアを安全に観測できず（active=${before?.activeUser} phase=${before?.turnPhase} untilOpp=${JSON.stringify(before?.host?.powerUntilOpp)}）` };
+    await H.repatchTop({ active: 'cpu', turn_phase: 'END', effect_stack: null, pending_effect: null });
+    let last = before; let finalTicks = 0;
+    for (let s = 0; s < 80; s++) {
+      await page.waitForTimeout(250);
+      const st = await v14QueryBattleState(page); last = st;
+      const returnedToHuman = st?.activeUser === st?.viewerUserId;
+      const cleared = (st?.host?.powerUntilOpp ?? []).length === 0;
+      const ok = returnedToHuman && cleared;
+      finalTicks = ok ? finalTicks + 1 : 0;
+      H.log(`  v14.untilCpuEnd[${s}] | humanTurn=${returnedToHuman} cleared=${cleared} phase=${st?.turnPhase}`);
+      if (finalTicks >= 2) return { pass: true, detail: 'CPU END直前に長期ストア+4000を直接観測し、CPU→humanターン遷移後2回連続でpower_mods_until_opp_turn消滅を確認' };
+    }
+    return { pass: false, detail: `CPU END失効タイムアウト（active=${last?.activeUser} phase=${last?.turnPhase} untilOpp=${JSON.stringify(last?.host?.powerUntilOpp)}）` };
+  },
+};
+
+order.push('v14FacedownOwnReturnsHumanEndNoDiscard',
+  'v14FacedownOpponentReturnsHumanEndNoDiscard', 'v14FacedownOpponentOccupiedTrashesHumanEndNoDiscard',
+  'v14AttackFieldTrashPayTwoHuman', 'v14AttackFieldTrashOneHidesAction', 'v14AttackFieldTrashCpuDeterministic',
+  'v14MultiAcceTwoDoesNotTrigger', 'v14MultiAcceThreeTriggers', 'v14MultiAcceLegacyStringOneLoads',
+  'v14NormalSigniSecondAcceDisabled', 'v14Wx20028SecondAcceEnabledControl',
+  'v14PermanentLrigGrantSurvivesHumanEndNoDiscard', 'v14PermanentPlayerGrantSurvivesHumanEndNoDiscard',
+  'v14UntilOppTurnPowerExpiresCpuEnd');
+// ── V-14 END ──
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（Codex・§7 V-14起案）— 裏向き復帰／解除コストアタック／多重アクセ／永続付与の実機シナリオ14本
+
+**実機は未実行**（Codex 環境は live Supabase＋実ブラウザへ接続不可）。`scripts/verifyBattleDrive.mjs` の既存シナリオ・既存 helper・既存 `order` 要素は変えず、V-13 末尾へ V-14 の14本と専用 helper だけを追記した。
+
+- B-1＝`WXDi-P01-040-E2` の自己裏向き復帰、`WXDi-P05-037-E2` の相手裏向き復帰／元ゾーン占有時トラッシュ。いずれも**解決完了後に** `field.facedown_signi` と `turn_end_facedown_signi_returns`＋実ログを確認してから human END（捨て札なし）へ進み、最終盤面の重複なし・枚数保存まで見る。
+- B-2＝`WX24-P2-010` 由来の `signi_attack_field_trash_costs` を直接注入し、人間側の「他2体支払い／他1体ではaction非表示」対照と、CPU `ATTACK_SIGNI` の決定論的支払いを分離。解除実ログ、2体のtrash移動、アタッカーdownを必須条件にした。
+- B-3＝`WX20-028` の2枚不発／3枚発火、通常シグニの2枚目アクセdisabled／同一盤面のWX20-028だけenabled、旧 `signi_acce` string途中局面ロードを追加。負方向は正方向と同じポーリング予算で判定する。
+- B-4＝`WXK03-001-E3` の `permanentGrant:true` と `WXDi-P03-003-E1` の `game_granted_effects` が human END（捨て札なし）を跨ぐ2経路、`power_mods_until_opp_turn` が CPU END で消える経路を個別 id/title にした。長期パワーは既存 `H.queryState().powerMods` ではなく battle state の専用フィールドを直接照会する。
+
+### 🔴 ソース読解で確定した旧 `signi_acce` 形式の互換バグ疑い（修正せず）
+
+進行中 `battle_states` に旧形式（各ゾーンが素の `string`）を注入すること自体は可能で、ロード時の正規化処理は見当たらない。`acceCardsAt` は値をそのまま返し（`src/utils/acce.ts`）、`THIS_CARD_IS_ACCED` はその `.length` を枚数として比較する（`src/engine/execUtils.ts`）。したがって旧1枚 `"WD18-013#8202"` は文字列長が3以上なので、`WX20-028-E2` の「3枚以上」を誤って満たす。盤面バッジも文字列長を `ACE×N` と表示する。`v14MultiAcceLegacyStringOneLoads` は**正しい期待（旧1枚＝1枚、不発）**で書いたため、現行ソースどおりなら実機で赤になる見込み。engine／型／ロード処理は今回のスコープ外なので直していない。
+
 ## 2026-08-14（続き478・Opus 5）— §7 **V-12 完全決着（8/8 緑）／V-13 決着（6/6 緑）**：在庫バグ (cxxxiii) は**取り下げ**＝シナリオ偽陰性だった
 
 **Codex 起案（上の節）→ Claude 実機検証**の分業。**engine の実バグは 1件（回数制限）だけで、発火側は元から動いていた。**
