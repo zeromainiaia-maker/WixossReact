@@ -146,6 +146,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
       } as NegateAttackAction;
     }
   }
+  // ---- 「**この**アタックを無効にする」＝**効果主自身のアタック**を止める（§3 (cxxvii)）----
+  // 🔴下の汎用規則へ落とすと `NEGATE_ATTACK{owner:'opponent'}` になり、`execNegateAttack` は
+  //   **対戦相手の場**から候補を作るので**自分のアタッカーが候補に入らず無言で空振り**する
+  //   （実機実測＝CPU がコストを払ったのにアタックが通ってライフが減った）。
+  //   ⚠**「この」と「その」で主語が逆**＝「その」は相手のアタック（下の :133 と :150）、
+  //   「この」は【自】「**この**シグニがアタックしたとき」の自分のアタック。
+  //   ⇒ 攻撃側＝効果オーナーのフラグを立てる `SET_CANCEL_ATTACK_FLAG` が正しい表現
+  //     （`execStubPart3.ts:5343`＝`cancel_current_signi_attack`。マジックボックス系4枚の
+  //      MANUAL 定義が既にこれを使っている＝**AUTO 側だけが取り残されていた**）。
+  if (/この(?:シグニの)?アタックを無効にする/.test(t)) {
+    return { type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' } as StubAction;
+  }
   // ---- アタックを無効にする（一度・汎用） ----
   if (t.includes('アタックを無効') && !t.includes('無効にし')) {
     return { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as NegateAttackAction;
