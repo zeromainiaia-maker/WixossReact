@@ -17204,6 +17204,493 @@ order.push('v14FacedownOwnReturnsHumanEndNoDiscard',
   'v14PermanentLrigGrantSurvivesHumanEndNoDiscard', 'v14PermanentPlayerGrantSurvivesHumanEndNoDiscard',
   'v14UntilOppTurnPowerExpiresCpuEnd');
 // ── V-14 END ──
+
+// ── V-15/V-16/V-17 Part C BEGIN（§6.3 J-1/J-4/J-5。実機は検証側で実行） ──
+const v15cLife = base => Array.from({ length: 7 }, (_, i) => `WD01-013#${base + i}`);
+
+/** Part C で必要な履歴・コイン・全ゾーンinstanceを、実 battle_states から読む。 */
+async function v15cQueryBattleState(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return { error: 'no room' };
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_effect,game_logs,turn_phase,active_user_id`, { headers: h });
+    const row = (await r2.json())?.[0];
+    if (!row) return { error: 'no row' };
+    const side = s => ({
+      fieldSigni: s.field?.signi ?? [null, null, null],
+      signiDown: s.field?.signi_down ?? [false, false, false],
+      hand: s.hand ?? [], trash: s.trash ?? [], energy: s.energy ?? [], deck: s.deck ?? [], life: s.life_cloth ?? [],
+      lrig: s.field?.lrig ?? [], lrigDeck: s.lrig_deck ?? [], lrigTrash: s.lrig_trash ?? [],
+      actionsDone: s.actions_done ?? [], gameActionsDone: s.game_actions_done ?? [], coins: s.coins ?? 0,
+      leftThisAttackPhase: s.signi_left_field_this_attack_phase ?? [],
+      check: s.field?.check ?? null,
+    });
+    const stack = row.effect_stack;
+    const stackLen = !stack ? 0 : (stack.orderTurnDone && stack.orderOppDone)
+      ? (stack.queue?.length ?? 0)
+      : ((stack.pendingTurn?.length ?? 0) + (stack.pendingOpp?.length ?? 0));
+    return {
+      host: side(row.host_state ?? {}), guest: side(row.guest_state ?? {}),
+      activeUser: row.active_user_id, viewerUserId: sess.user?.id, turnPhase: row.turn_phase,
+      pendingEffect: row.pending_effect?.interaction?.type ?? null,
+      pendingCandidates: row.pending_effect?.interaction?.candidates ?? [], stackLen,
+      logs: (row.game_logs ?? []).slice(-140).map(l => [l.action, l.detail].filter(Boolean).join(' ')),
+    };
+  }, { SUPA_URL, ANON });
+}
+
+const v15cLog = (st, re) => (st?.logs ?? []).some(line => re.test(line));
+const v15cEffectCount = (side, effectId) => (side?.actionsDone ?? []).filter(id => id === effectId).length;
+
+const V15_ATTACKER = 'WXK11-018#8501';
+const V15_UP_TARGET = 'WD01-013#8502';
+const V15_BLOCKER = 'WX01-083#8503';
+const v15AttackEndSpec = ({ direct = false, consumed = false } = {}) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8500'], 'field.signi': [[V15_ATTACKER], [V15_UP_TARGET], null],
+    'field.signi_down': [false, true, false], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8510),
+    'actions_done': consumed ? ['WXK11-018-E2'] : [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#8590'], 'field.signi': [null, null, direct ? null : [V15_BLOCKER]],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8530), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+async function driveV15AttackEnd(page, H, { direct = false, consumed = false } = {}) {
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+  const attackLabel = opened.labels.find(label => label === 'アタック') ?? null;
+  if (!opened.modalVisible || !attackLabel) return { pass: false, detail: `アタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
+  let attacked = false; let targetPicked = false; let attackSeen = false; let mechanismSeen = false;
+  let last = await v15cQueryBattleState(page); let finalTicks = 0;
+  for (let s = 0; s < 100; s++) {
+    await page.waitForTimeout(250);
+    let did = null;
+    if (!attacked) { did = await H.clickBtn(attackLabel, { exact: true }); if (did) attacked = true; }
+    const pre = await v15cQueryBattleState(page);
+    if (!did && !targetPicked && (pre?.pendingCandidates ?? []).includes(V15_UP_TARGET)) {
+      did = await clickPendingInstance(page, H, V15_UP_TARGET); if (did) targetPicked = true;
+    }
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動する', '決定', '確定', 'OK', 'はい']);
+    const st = await v15cQueryBattleState(page); last = st;
+    attackSeen ||= st?.host?.signiDown?.[0] === true || v15cLog(st, /健屋花那.*アタック/);
+    const triggerLog = v15cLog(st, /健屋花那.*アタック終了時/);
+    const lifeResolved = direct ? st?.guest?.life?.length === 6 && st?.guest?.check == null : (st?.guest?.energy ?? []).includes(V15_BLOCKER);
+    mechanismSeen ||= attackSeen && lifeResolved;
+    const targetUp = st?.host?.signiDown?.[1] === false;
+    const doneCount = v15cEffectCount(st?.host, 'WXK11-018-E2');
+    const conserved = v14CountInstance(st?.host, V15_ATTACKER) === 1
+      && v14CountInstance(st?.host, V15_UP_TARGET) === 1
+      && (direct || v14CountInstance(st?.guest, V15_BLOCKER) === 1)
+      && (st?.host?.fieldSigni ?? []).flatMap(x => x ?? []).length === 2;
+    const settled = mechanismSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    const ok = direct
+      ? settled && !triggerLog && doneCount === 0 && !targetUp && conserved
+      : consumed
+        ? settled && !triggerLog && doneCount === 1 && !targetUp && conserved
+        : settled && triggerLog && doneCount === 1 && targetUp && conserved;
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v15.attackEnd[${s}] -> ${did ?? 'なし'} | attack=${attackSeen} mech=${mechanismSeen} trigger=${triggerLog} done=${doneCount} targetUp=${targetUp} life=${st?.guest?.life?.length} settled=${settled}`);
+    if (finalTicks >= 2) return { pass: true, detail: direct
+      ? '正面だけ空の対照で実アタック→life 7→6・確認フロー消化を観測し、E2ログ/actions_doneなし・別シグニdown維持・全instance1枚'
+      : consumed
+        ? '正面あり実バトル後も事前消化済みE2は再発火せず、対象down維持・actions_doneは1件・全instance1枚'
+        : '正面あり実バトル終了後にE2ログ→別の低Lvシグニだけup・actions_doneへ1件永続化・全instance1枚' };
+  }
+  return { pass: false, detail: `ON_ATTACK_END判定未完了（direct=${direct} consumed=${consumed} attacked=${attackSeen} host=${JSON.stringify(last?.host)} guest=${JSON.stringify(last?.guest)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v15AttackEndBlockedFiresAndUpsOther = {
+  title: 'V-15① WXK11-018-E2：正面あり実バトルのアタック終了時に発火し、別の低Lvシグニをアップ',
+  spec: v15AttackEndSpec(),
+  drive: (page, H) => driveV15AttackEnd(page, H),
+};
+scenarios.v15AttackEndDirectDamageDoesNotFire = {
+  title: 'V-15① 対照：正面だけ空にした直接ダメージではE2非発火（ライフ確認フローも消化）',
+  spec: v15AttackEndSpec({ direct: true }),
+  drive: (page, H) => driveV15AttackEnd(page, H, { direct: true }),
+};
+scenarios.v15AttackEndOncePerTurnConsumed = {
+  title: 'V-15① 《ターン1回》対照：同じ正面あり実バトルでもE2消化済みなら再発火しない',
+  spec: v15AttackEndSpec({ consumed: true }),
+  drive: (page, H) => driveV15AttackEnd(page, H, { consumed: true }),
+};
+
+const V15_PHASE_WATCHER = 'WX24-P2-075#8601';
+const V15_PHASE_TOY = 'WDK05-T15#8602';
+const V15_PHASE_DRAW = 'WD01-001#8603';
+const V15_PHASE_BLOCKER = 'WX01-083#8604';
+const V15_PHASE_SPEC = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8600'], 'field.signi': [[V15_PHASE_TOY], [V15_PHASE_WATCHER], null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': [V15_PHASE_DRAW], 'life_cloth': v15cLife(8610),
+    'actions_done': [], 'signi_left_field_this_attack_phase': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-002#8690'], 'field.signi': [null, null, [V15_PHASE_BLOCKER]],
+    'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8630),
+    'actions_done': [], 'signi_left_field_this_attack_phase': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+};
+
+async function driveV15AttackPhaseEndCentral(page, H, leaveToy) {
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  let attacked = false; let phaseSigniClicked = false; let phaseLrigClicked = false;
+  if (leaveToy) {
+    const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+    if (!opened.modalVisible || !opened.labels.includes('アタック')) return { pass: false, detail: `遊具のアタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
+  }
+  let leftSeen = false; let phaseEndSeen = false; let triggerSeen = false; let last = await v15cQueryBattleState(page); let finalTicks = 0;
+  for (let s = 0; s < 120; s++) {
+    await page.waitForTimeout(250);
+    let did = null;
+    const before = await v15cQueryBattleState(page);
+    if (leaveToy && !attacked) { did = await H.clickBtn('アタック', { exact: true }); if (did) attacked = true; }
+    if (!did && leaveToy && attacked && (before?.pendingCandidates ?? []).includes(V15_PHASE_TOY)) did = await clickPendingInstance(page, H, V15_PHASE_TOY);
+    if (!did && leaveToy && attacked) did = await H.clickBtn('発動する', { exact: true });
+    leftSeen ||= (before?.host?.leftThisAttackPhase ?? []).includes('WDK05-T15') || (before?.host?.leftThisAttackPhase ?? []).includes(V15_PHASE_TOY);
+    if (!did && (!leaveToy || leftSeen) && before?.turnPhase === 'ATTACK_SIGNI') {
+      did = await H.clickBtn('ルリグアタックへ', { exact: true }); if (did) phaseSigniClicked = true;
+    }
+    if (!did && phaseSigniClicked && before?.turnPhase === 'ATTACK_LRIG') {
+      did = await H.clickBtn('エンドフェイズへ', { exact: true }); if (did) phaseLrigClicked = true;
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '発動する', '発動しない', 'スキップ', '決定', '確定', 'OK', 'はい']);
+    const st = await v15cQueryBattleState(page); last = st;
+    leftSeen ||= (st?.host?.leftThisAttackPhase ?? []).includes('WDK05-T15') || (st?.host?.leftThisAttackPhase ?? []).includes(V15_PHASE_TOY);
+    phaseEndSeen ||= phaseLrigClicked && st?.turnPhase !== 'ATTACK_LRIG';
+    triggerSeen ||= v15cLog(st, /キンギョスクイ.*アタックフェイズ終了時/);
+    const watcherInDeck = (st?.host?.deck ?? []).includes(V15_PHASE_WATCHER);
+    const drawSeen = (st?.host?.hand ?? []).includes(V15_PHASE_DRAW);
+    const watcherStayed = (st?.host?.fieldSigni?.[1] ?? []).includes(V15_PHASE_WATCHER);
+    const markerStayed = (st?.host?.deck ?? []).includes(V15_PHASE_DRAW);
+    const conserved = [V15_PHASE_WATCHER, V15_PHASE_TOY, V15_PHASE_DRAW].every(id => v14CountInstance(st?.host, id) === 1)
+      && v14CountInstance(st?.guest, V15_PHASE_BLOCKER) === 1;
+    const settled = phaseEndSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    const ok = leaveToy
+      ? settled && leftSeen && triggerSeen && watcherInDeck && drawSeen && conserved
+      : settled && !leftSeen && !triggerSeen && watcherStayed && markerStayed && conserved;
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v15.phaseEnd[${s}] -> ${did ?? 'なし'} | leave=${leaveToy} left=${leftSeen} phaseEnd=${phaseEndSeen} trigger=${triggerSeen} watcherDeck=${watcherInDeck} draw=${drawSeen} settled=${settled}`);
+    if (finalTicks >= 2) return { pass: true, detail: leaveToy
+      ? '中央diff経路：WDK05-T15の自己バウンスを履歴で観測→ATTACK_LRIG→ENDでE1ログ、watcherをdeck bottomへ移動＋draw（全instance1枚）'
+      : '同一盤面でアタックせずATTACK_LRIG→ENDだけを通過：離場履歴なし・E1ログなし・watcher/marker不変（同じ待機、全instance1枚）' };
+  }
+  return { pass: false, detail: `ON_ATTACK_PHASE_END中央diff判定未完了（leave=${leaveToy} left=${leftSeen} phaseEnd=${phaseEndSeen} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v15AttackPhaseEndCentralDiffToyLeftFires = {
+  title: 'V-15② 中央diff経路：＜遊具＞自己バウンス後のアタックフェイズ終了でWX24-P2-075-E1発火',
+  spec: V15_PHASE_SPEC,
+  drive: (page, H) => driveV15AttackPhaseEndCentral(page, H, true),
+};
+scenarios.v15AttackPhaseEndNoToyLeftDoesNotFire = {
+  title: 'V-15② 中央diff対照：同一盤面で＜遊具＞を離場させずフェイズ終了するとE1非発火',
+  spec: V15_PHASE_SPEC,
+  drive: (page, H) => driveV15AttackPhaseEndCentral(page, H, false),
+};
+
+const V15_BATTLE_ATTACKER = 'WX01-053#8661';
+const V15_BATTLE_TOY = 'WDK05-T15#8662';
+scenarios.v15AttackPhaseEndBattlePathRecordsOpponentToy = {
+  title: 'V-15② バトル経路：実バトルで相手＜遊具＞が離場履歴へ記録される（収集経路単体）',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#8660'], 'field.signi': [[V15_BATTLE_ATTACKER], null, null], 'field.signi_down': [false, false, false], 'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8670), 'signi_left_field_this_attack_phase': [] },
+    guestSet: { 'field.lrig': ['WD01-001#8691'], 'field.signi': [null, null, [V15_BATTLE_TOY]], 'field.signi_down': [false, false, false], 'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8680), 'signi_left_field_this_attack_phase': [] },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(600);
+    const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+    if (!opened.modalVisible || !opened.labels.includes('アタック')) return { pass: false, detail: `バトル用アタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
+    let attacked = false; let last = await v15cQueryBattleState(page); let finalTicks = 0;
+    for (let s = 0; s < 80; s++) {
+      await page.waitForTimeout(250); let did = null;
+      if (!attacked) { did = await H.clickBtn('アタック', { exact: true }); if (did) attacked = true; }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await v15cQueryBattleState(page); last = st;
+      const recorded = (st?.guest?.leftThisAttackPhase ?? []).some(x => x === 'WDK05-T15' || x === V15_BATTLE_TOY);
+      const moved = (st?.guest?.energy ?? []).includes(V15_BATTLE_TOY);
+      const battleLog = v15cLog(st, /ゴッドイーター.*カマクラ|カマクラ.*バニッシュ|バトル.*バニッシュ/);
+      const conserved = v14CountInstance(st?.host, V15_BATTLE_ATTACKER) === 1 && v14CountInstance(st?.guest, V15_BATTLE_TOY) === 1;
+      const ok = attacked && recorded && moved && battleLog && conserved && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      finalTicks = ok ? finalTicks + 1 : 0;
+      H.log(`  v15.battleHistory[${s}] -> ${did ?? 'なし'} | recorded=${recorded} moved=${moved} log=${battleLog} settled=${!st?.pendingEffect && (st?.stackLen ?? 0) === 0}`);
+      if (finalTicks >= 2) return { pass: true, detail: 'resolvePendingSigniBattleFor経路の実バトルログ＋相手＜遊具＞energy移動＋guest離場履歴を観測（両instance1枚）' };
+    }
+    return { pass: false, detail: `バトル離場履歴を観測できず（guest=${JSON.stringify(last?.guest)} logs=${JSON.stringify(last?.logs)}）` };
+  },
+};
+
+const V16_WATCHER = 'WXEX1-77#8701';
+const V16_SOURCE_A = 'WD02-011#8702';
+const V16_SOURCE_B = 'WD02-011#8703';
+const V16_DISCARD_A = 'WD01-013#8704';
+const V16_DISCARD_B = 'WD01-013#8705';
+const v16AbilitySpec = twoSources => ({
+  hostSet: {
+    'field.lrig': ['WD02-001#8700'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': twoSources ? [V16_SOURCE_A, V16_SOURCE_B, V16_DISCARD_A, V16_DISCARD_B] : [V16_SOURCE_A, V16_DISCARD_A],
+    'energy': [], 'trash': [], 'deck': [], 'life_cloth': v15cLife(8710), 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WX13-002#8790'], 'field.signi': [[V16_WATCHER], null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': [], 'life_cloth': v15cLife(8730), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+async function driveV16AbilityWatcher(page, H, twoSources) {
+  await H.ensureMain();
+  const sources = twoSources ? [V16_SOURCE_A, V16_SOURCE_B] : [V16_SOURCE_A];
+  const discards = twoSources ? [V16_DISCARD_A, V16_DISCARD_B] : [V16_DISCARD_A];
+  // ⚠**召喚は3手**＝`my-hand-card-{i}` →**「召喚」ボタン**→ `summon-zone-{zi}`（`VERIFY_BROWSER.md` の確定クリック列）。
+  //   「召喚」を挟まないと CardModal が開いたまま止まる（続き479 実測＝final.png に未押下の「召喚」が写っていた）。
+  let summonIndex = 0; let handOpened = false; let summonClicked = false; let zonePicked = false; let started = false;
+  let last = await v15cQueryBattleState(page); let finalTicks = 0;
+  for (let s = 0; s < 140; s++) {
+    await page.waitForTimeout(250); let did = null;
+    const pre = await v15cQueryBattleState(page);
+    const currentSource = sources[summonIndex];
+    if (summonIndex < sources.length && !handOpened) {
+      const handIdx = (pre?.host?.hand ?? []).indexOf(currentSource);
+      if (handIdx >= 0) { did = await H.clickTestId(`my-hand-card-${handIdx}`); if (did) handOpened = true; }
+    }
+    if (!did && handOpened && !zonePicked) {
+      did = await H.clickTestId(`summon-zone-${summonIndex}`); if (did) { zonePicked = true; started = true; }
+    }
+    if (!did && (pre?.pendingCandidates ?? []).includes(currentSource)) did = await clickPendingInstance(page, H, currentSource);
+    const discardTarget = discards.find(id => (pre?.pendingCandidates ?? []).includes(id));
+    if (!did && discardTarget) did = await clickPendingInstance(page, H, discardTarget);
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+    const st = await v15cQueryBattleState(page); last = st;
+    const currentSettled = currentSource && (st?.host?.fieldSigni?.[summonIndex] ?? []).includes(currentSource)
+      && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    if (currentSettled && summonIndex < sources.length) { summonIndex++; handOpened = false; zonePicked = false; }
+    const sourceLogs = (st?.logs ?? []).filter(line => /羅石\s*ガーネット.*【出】/.test(line));
+    const watcherLogs = (st?.logs ?? []).filter(line => /アイン＝シュミット.*能力発動時/.test(line));
+    const sourceAt = (st?.logs ?? []).findIndex(line => /羅石\s*ガーネット.*【出】/.test(line));
+    const watcherAt = (st?.logs ?? []).findIndex(line => /アイン＝シュミット.*能力発動時/.test(line));
+    const orderOk = sourceAt >= 0 && watcherAt > sourceAt;
+    const doneCount = v15cEffectCount(st?.guest, 'WXEX1-77-E1');
+    const expectedTrash = twoSources ? 1 : 1;
+    const trashedFillers = discards.filter(id => (st?.host?.trash ?? []).includes(id)).length;
+    const allSummoned = summonIndex >= sources.length;
+    const conserved = [V16_WATCHER, ...sources, ...discards].every(id => v14CountInstance(id === V16_WATCHER ? st?.guest : st?.host, id) === 1);
+    const ok = started && allSummoned && sourceLogs.length >= sources.length && watcherLogs.length === 1
+      && orderOk && doneCount === 1 && trashedFillers === expectedTrash && conserved
+      && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v16.ability[${s}] -> ${did ?? 'なし'} | summoned=${summonIndex}/${sources.length} sourceLogs=${sourceLogs.length} watcherLogs=${watcherLogs.length} order=${orderOk} done=${doneCount} discarded=${trashedFillers}`);
+    if (finalTicks >= 2) return { pass: true, detail: twoSources
+      ? '同一ターンにmandatory ON_PLAYを2回実解決：sourceログ2件に対しwatcherログ/捨札/actions_doneは各1件だけ（全instance1枚）'
+      : 'mandatory ON_PLAYの解決開始ログ後にwatcherログ→相手手札1枚trash、actions_doneへ1件永続化（全instance1枚）' };
+  }
+  return { pass: false, detail: `ON_ABILITY_ACTIVATED判定未完了（two=${twoSources} host=${JSON.stringify(last?.host)} guest=${JSON.stringify(last?.guest)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v16AbilityWatcherImmediatelyAfterOpponentOnPlay = {
+  title: 'V-16 WXEX1-77-E1：相手の場シグニmandatory ON_PLAY解決開始の直後に監視側が解決',
+  spec: v16AbilitySpec(false),
+  drive: (page, H) => driveV16AbilityWatcher(page, H, false),
+};
+scenarios.v16AbilityWatcherOncePerTurnSecondOnPlayIgnored = {
+  title: 'V-16 《ターン1回》：同一ターン2回目の相手ON_PLAYでは監視側を再収集しない',
+  spec: v16AbilitySpec(true),
+  drive: (page, H) => driveV16AbilityWatcher(page, H, true),
+};
+
+const V17_WATCHER = 'SP27-007#8801';
+const V17_GROW_TARGET = 'WXK07-006#8802';
+const V17_GROW_ENERGY = 'WD02-009#8803';
+const V17_DRAW = 'WD01-013#8804';
+const v17HumanGrowSpec = coins => ({
+  hostSet: {
+    'field.lrig': ['WD02-004#8800'], 'lrig_deck': [V17_GROW_TARGET], 'field.signi': [[V17_WATCHER], null, null],
+    'field.check': null, 'hand': [], 'energy': [V17_GROW_ENERGY], 'trash': [], 'deck': [V17_DRAW],
+    'life_cloth': v15cLife(8810), 'coins': coins, 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: { 'field.lrig': ['WD03-002#8890'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8830), 'coins': 0, 'actions_done': [] },
+  top: { active: 'host', turn_phase: 'GROW', turn_count: 2 },
+});
+
+async function driveV17HumanGrowCoin(page, H, capped) {
+  const opened = await H.openGrow(/華代・爾彩焔/);
+  if (!opened) return { pass: false, detail: '華代・爾彩焔のグロウ候補を開けず' };
+  let energyPicked = false; let growClicked = false; let growSeen = false; let last = await v15cQueryBattleState(page); let finalTicks = 0;
+  for (let s = 0; s < 100; s++) {
+    await page.waitForTimeout(250); let did = null;
+    if (!energyPicked) { did = await H.clickModalImage('羅石　ヴォルカノ'); if (did) energyPicked = true; }
+    if (!did && energyPicked && !growClicked) { did = await H.clickBtn('グロウ実行', { exact: true }); if (did) growClicked = true; }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await v15cQueryBattleState(page); last = st;
+    growSeen ||= st?.host?.lrig?.at(-1) === V17_GROW_TARGET && (st?.host?.trash ?? []).includes(V17_GROW_ENERGY);
+    const triggerLog = v15cLog(st, /美濃の油蝮.*コイン獲得時/);
+    const drawn = (st?.host?.hand ?? []).includes(V17_DRAW);
+    const markerInDeck = (st?.host?.deck ?? []).includes(V17_DRAW);
+    const doneCount = v15cEffectCount(st?.host, 'SP27-007-E1');
+    const expectedCoins = capped ? 5 : 2;
+    const conserved = [V17_WATCHER, V17_GROW_TARGET, V17_GROW_ENERGY, V17_DRAW].every(id => v14CountInstance(st?.host, id) === 1);
+    const settled = growSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    const ok = capped
+      ? settled && st?.host?.coins === expectedCoins && !triggerLog && !drawn && markerInDeck && doneCount === 0 && conserved
+      : settled && st?.host?.coins === expectedCoins && triggerLog && drawn && doneCount === 1 && conserved;
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v17.hGrow[${s}] -> ${did ?? 'なし'} | grow=${growSeen} coins=${st?.host?.coins} trigger=${triggerLog} drawn=${drawn} done=${doneCount}`);
+    if (finalTicks >= 2) return { pass: true, detail: capped
+      ? '所持コインだけ5枚にした同一盤面で実グロウ：上限クランプ後5（実増加0）、E1ログ/actions_done/drawなし・全instance1枚'
+      : '人間executeGrow経路でCoin欄2枚を実獲得→E1ログ・draw・actions_done1件、coins 0→2・全instance1枚' };
+  }
+  return { pass: false, detail: `人間グロウコイン判定未完了（capped=${capped} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v17CoinGainedHumanGrowFires = {
+  title: 'V-17① 人間グロウ経路：Coin欄ぶん実増加するとSP27-007-E1発火',
+  spec: v17HumanGrowSpec(0),
+  drive: (page, H) => driveV17HumanGrowCoin(page, H, false),
+};
+scenarios.v17CoinGainedHumanGrowAtCapDoesNotFire = {
+  title: 'V-17① 人間グロウ対照：所持コインだけ5枚なら上限クランプ実増加0で非発火',
+  spec: v17HumanGrowSpec(5),
+  drive: (page, H) => driveV17HumanGrowCoin(page, H, true),
+};
+
+const V17_CPU_WATCHER = 'SP27-007#8851';
+const V17_CPU_TARGET = 'WXK07-006#8852';
+const V17_CPU_ENERGY = 'WD02-009#8853';
+const V17_CPU_DRAW = 'WD01-013#8854';
+scenarios.v17CoinGainedCpuGrowAnyScopeFires = {
+  title: 'V-17① CPUグロウ経路：対戦相手のCoin欄獲得にもscope anyのSP27-007-E1が発火',
+  spec: {
+    hostSet: { 'field.lrig': ['WD01-001#8850'], 'field.signi': [[V17_CPU_WATCHER], null, null], 'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'deck': [V17_CPU_DRAW], 'life_cloth': v15cLife(8860), 'coins': 0, 'actions_done': [] },
+    guestSet: { 'field.lrig': ['WD02-004#8891'], 'lrig_deck': [V17_CPU_TARGET], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [V17_CPU_ENERGY], 'trash': [], 'deck': [], 'life_cloth': v15cLife(8870), 'coins': 0, 'actions_done': [] },
+    top: { active: 'cpu', turn_phase: 'GROW', turn_count: 3 },
+  },
+  async drive(page, H) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+      await page.waitForTimeout(1200);
+      await injectScenario(page, scenarios.v17CoinGainedCpuGrowAnyScopeFires.spec);
+      let last = await v15cQueryBattleState(page); let finalTicks = 0; let growSeen = false;
+      for (let s = 0; s < 120; s++) {
+        await page.waitForTimeout(250); let did = null;
+        const pre = await v15cQueryBattleState(page);
+        if (pre?.turnPhase === 'ATTACK_ARTS_OP') did = await H.clickBtn('アーツ終了', { exact: true });
+        const st = await v15cQueryBattleState(page); last = st;
+        growSeen ||= st?.guest?.lrig?.at(-1) === V17_CPU_TARGET && v15cLog(st, /CPU.*華代・爾彩焔|CPU.*グロウ/);
+        const triggerLog = v15cLog(st, /美濃の油蝮.*コイン獲得時/);
+        const drawn = (st?.host?.hand ?? []).includes(V17_CPU_DRAW);
+        const doneCount = v15cEffectCount(st?.host, 'SP27-007-E1');
+        const conserved = [V17_CPU_WATCHER, V17_CPU_DRAW].every(id => v14CountInstance(st?.host, id) === 1)
+          && [V17_CPU_TARGET, V17_CPU_ENERGY].every(id => v14CountInstance(st?.guest, id) === 1);
+        const ok = growSeen && st?.guest?.coins === 2 && triggerLog && drawn && doneCount === 1 && conserved && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+        finalTicks = ok ? finalTicks + 1 : 0;
+        H.log(`  v17.cpuGrow[a${attempt}.${s}] -> ${did ?? 'なし'} | grow=${growSeen} coins=${st?.guest?.coins} trigger=${triggerLog} drawn=${drawn} done=${doneCount} phase=${st?.turnPhase}`);
+        if (finalTicks >= 2) return { pass: true, detail: 'cpuTurnAction GROW経路でguest coins 0→2、hostのscope any watcherがE1ログ→draw・actions_done1件（ATTACK_ARTS_OPも明示消化、全instance1枚）' };
+        if (st?.guest?.lrig?.at(-1) && /#g/.test(st.guest.lrig.at(-1))) break;
+      }
+      if (last?.guest?.lrig?.at(-1) !== V17_CPU_TARGET) continue;
+      return { pass: false, detail: `CPUグロウ後のコイン監視不一致（guest=${JSON.stringify(last?.guest)} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+    }
+    return { pass: false, detail: 'CPU自然ターン上書き後も3回の再注入で対象グロウを観測できず' };
+  },
+};
+
+const V17_PAY_SIGNI = 'WXDi-P15-069#8901';
+const V17_EFFECT_WATCHER = 'SP27-007#8902';
+const V17_EFFECT_ENERGY = ['WD02-009#8903', 'WD02-010#8904', 'WD02-013#8905'];
+const V17_EFFECT_DRAW = 'WD01-013#8906';
+const V17_EFFECT_SPEC = {
+  hostSet: {
+    'field.lrig': ['WXK07-006#8900'], 'lrig_deck': [], 'field.signi': [[V17_PAY_SIGNI], [V17_EFFECT_WATCHER], null],
+    'field.check': null, 'hand': [], 'energy': V17_EFFECT_ENERGY, 'trash': [], 'deck': [V17_EFFECT_DRAW],
+    'life_cloth': v15cLife(8910), 'coins': 2, 'actions_done': [], 'game_actions_done': [],
+  },
+  guestSet: { 'field.lrig': ['WD03-002#8990'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [], 'trash': [], 'life_cloth': v15cLife(8930), 'coins': 0, 'actions_done': [] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function driveV17EffectGainOrPayment(page, H, payment) {
+  await H.ensureMain();
+  let opened = false; let actionClicked = false; let paidEnergy = 0; let started = false;
+  let last = await v15cQueryBattleState(page); let finalTicks = 0;
+  for (let s = 0; s < 120; s++) {
+    await page.waitForTimeout(250); let did = null;
+    if (!opened) {
+      if (payment) {
+        const modal = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+        opened = modal.modalVisible;
+      } else {
+        did = await H.clickTestId('my-lrig-slot-center'); opened = !!did;
+      }
+    }
+    if (!did && opened && !actionClicked) {
+      did = payment ? await H.clickBtn('【起】コイン2', { exact: true }) : await H.clickBtn('【起】エナ3', { exact: true });
+      if (did) actionClicked = true;
+    }
+    if (!did && actionClicked && !payment && paidEnergy < V17_EFFECT_ENERGY.length) {
+      const names = ['羅石　ヴォルカノ', '羅石　シルバン', '羅石　アイロン'];
+      did = await H.clickModalImage(names[paidEnergy]); if (did) paidEnergy++;
+    }
+    if (!did && actionClicked) { did = await H.clickBtn('発動', { exact: true }); if (did) started = true; }
+    const pre = await v15cQueryBattleState(page);
+    if (!did && (pre?.pendingCandidates ?? []).includes(V17_PAY_SIGNI)) did = await clickPendingInstance(page, H, V17_PAY_SIGNI);
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '決定', '確定', 'OK', 'はい']);
+    const st = await v15cQueryBattleState(page); last = st;
+    const sourceLog = payment ? v15cLog(st, /THE DOOR.*【起】|コイン支払時/) : v15cLog(st, /華代・爾彩焔.*【起】|コイン2枚獲得/);
+    started ||= sourceLog;
+    const triggerLog = v15cLog(st, /美濃の油蝮.*コイン獲得時/);
+    const drawn = (st?.host?.hand ?? []).includes(V17_EFFECT_DRAW);
+    const markerInDeck = (st?.host?.deck ?? []).includes(V17_EFFECT_DRAW);
+    const doneCount = v15cEffectCount(st?.host, 'SP27-007-E1');
+    const coinsOk = st?.host?.coins === (payment ? 0 : 4);
+    const conserved = [V17_PAY_SIGNI, V17_EFFECT_WATCHER, ...V17_EFFECT_ENERGY, V17_EFFECT_DRAW].every(id => v14CountInstance(st?.host, id) === 1);
+    const settled = started && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    const ok = payment
+      ? settled && coinsOk && !triggerLog && !drawn && markerInDeck && doneCount === 0 && conserved
+      : settled && coinsOk && triggerLog && drawn && doneCount === 1 && conserved;
+    finalTicks = ok ? finalTicks + 1 : 0;
+    H.log(`  v17.effectCoin[${s}] -> ${did ?? 'なし'} | payment=${payment} source=${sourceLog} coins=${st?.host?.coins} trigger=${triggerLog} drawn=${drawn} done=${doneCount}`);
+    if (finalTicks >= 2) return { pass: true, detail: payment
+      ? '獲得対照と同一盤面で押す能力だけコイン2支払いへ変更：coins 2→0の実起動後もSP27ログ/actions_done/drawなし・全instance1枚'
+      : '効果解決中央diff経路：WXK07-006-E3実解決でcoins 2→4、SP27ログ→draw・actions_done1件・全instance1枚' };
+  }
+  return { pass: false, detail: `効果獲得/支払い判定未完了（payment=${payment} started=${started} host=${JSON.stringify(last?.host)} logs=${JSON.stringify(last?.logs)}）` };
+}
+
+scenarios.v17CoinGainedEffectCentralDiffFires = {
+  title: 'V-17① 効果解決中央diff経路：WXK07-006-E3の実獲得でSP27-007-E1発火',
+  spec: V17_EFFECT_SPEC,
+  drive: (page, H) => driveV17EffectGainOrPayment(page, H, false),
+};
+scenarios.v17CoinPaymentDoesNotFire = {
+  title: 'V-17① 支払い対照：同一盤面でWXDi-P15-069-E2のコイン支払いだけ行ってもSP27-007-E1非発火',
+  spec: V17_EFFECT_SPEC,
+  drive: (page, H) => driveV17EffectGainOrPayment(page, H, true),
+};
+
+order.push('v15AttackEndBlockedFiresAndUpsOther', 'v15AttackEndDirectDamageDoesNotFire', 'v15AttackEndOncePerTurnConsumed',
+  'v15AttackPhaseEndCentralDiffToyLeftFires', 'v15AttackPhaseEndNoToyLeftDoesNotFire', 'v15AttackPhaseEndBattlePathRecordsOpponentToy',
+  'v16AbilityWatcherImmediatelyAfterOpponentOnPlay', 'v16AbilityWatcherOncePerTurnSecondOnPlayIgnored',
+  'v17CoinGainedHumanGrowFires', 'v17CoinGainedHumanGrowAtCapDoesNotFire', 'v17CoinGainedCpuGrowAnyScopeFires',
+  'v17CoinGainedEffectCentralDiffFires', 'v17CoinPaymentDoesNotFire');
+// ── V-15/V-16/V-17 Part C END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
