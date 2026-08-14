@@ -7335,9 +7335,12 @@ export function executeEffect(effect: CardEffect, ctx: ExecCtx): ExecResult {
   // ホログラフ効果が付与した能力へも伝播させる）で行う。effectId のハードコード表は使わない
   // ＝共有関数にカード固有テーブルを埋めると parser の採番変更で静かに死ぬ（CODEX_GUIDE §5-18）。
   const holographEffect = !!effect.holograph;
+  // §6.4 O-20 の source 配線＝「いま解決中の効果がカードのどの能力ブロックから来たか」を
+  // ハンドラが引けるようにする（`sourceAbilityText(ctx)`）。呼び出し側が既に入れていれば尊重する。
+  const idCtx = ctx.sourceEffectId ? ctx : { ...ctx, sourceEffectId: effect.effectId };
   const markedCtx = holographEffect
-    ? { ...ctx, ownerState: { ...ctx.ownerState, is_holograph_this_effect: true } }
-    : ctx;
+    ? { ...idCtx, ownerState: { ...idCtx.ownerState, is_holograph_this_effect: true } }
+    : idCtx;
   const result = executeAction(effect.action, markedCtx);
   if (!result.done || !holographEffect) return result;
   return { ...result, ownerState: { ...result.ownerState, is_holograph_this_effect: undefined } };
