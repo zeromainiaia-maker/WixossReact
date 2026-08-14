@@ -1,5 +1,48 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き475e・Opus 5）— 「あなたの〜ルリグがアタックしたとき」族の**主語修飾**を語彙化（(cxxviii) の残り）
+
+続き475d は主語が無修飾のものだけを `ON_ATTACK_LRIG` へ移した。**修飾つきの主語**（「あなたの**白の**ルリグ１体が」）は
+`triggerFilter` に載せる語彙が無かったため据置にしていた分を消化する。
+
+### 変更
+
+- parser に **`parseAllyLrigAttackSubject`** を新設（シグニ版 `parseAllyAttackSubject` と同型）。
+  対応する修飾＝**色**／**カード名《X》**。⚠**未知の修飾が1文字でも残ったら null を返して timing を触らない**
+  ＝これが安全弁。機械的に `ON_ATTACK_LRIG` へ倒すと「白のルリグ限定」が黙って落ち、
+  **どのルリグのアタックでも発火する過剰発火**に化ける（＝過小実行を過剰発火へ付け替えるだけ）。
+- engine `collectAllyLrigAttackTriggers` が **`triggerFilter` を「アタックしたルリグ」へ照合**するようにした。
+  ⚠parser 側だけ直して engine が見ないと、限定が載っているのに素通りして同じ過剰発火になる。
+- **live 1枚を採用**＝`WXDi-P03-035-E1`（差分は `timing: ON_ATTACK_SIGNI→ON_ATTACK_LRIG` ＋ `triggerFilter:{color:'白'}` ＋
+  `triggerScope:'any_ally'` の3行だけであることを diff で確認してから採用）。
+  🔑**この効果は no-op ではなく「誤ったタイミングで撃てる」過剰発火**だった（コストは自シグニ2体ダウンなので、
+  シグニアタック経路でも攻撃者1体が落ちたうえで2体そろい**支払えてしまう**）。
+
+### 据置（正しく据置）
+
+`SPDi43-28-E1`「あなたの**《335　アキノ》**１体がアタックしたとき」＝**「ルリグ」という語すら無い指示語主語**。
+`parseAllyLrigAttackSubject` は null を返すので timing は `ON_ATTACK_SIGNI` のまま。**これが正しい**
+（語彙化できない主語で timing を触ると、カード名限定が落ちて過剰発火する）。golden にその据置を固定するテストを置いた。
+
+### golden（1972 → 1973）
+
+- `collectAllyLrigAttackTriggers` のテストに **triggerFilter 照合**を追加＝白ルリグで発火／非白ルリグで**発火しない**。
+  **照合を外すと `expected=0 got=1` で FAIL することを確認済み。**
+- `§3 (cxxviii) parser: 語彙化できない主語修飾は timing を触らない` を新設（`SPDi43-28-E1` の据置を固定）。
+
+### ⚠ driver の低頻度フレーク（未解明・記録のみ）
+
+`fieldDownCostRequiresThreeUpWhite` が1度だけ「アタックは通ったのにトリガーが 88反復ぶん解決しない」
+（`prompted=false stack=1`）で落ちた。**単体2回・ペア2回は PASS**。`npm run regen`＋live 更新直後の初回だったので
+dist 再ビルドとの競合が疑われる。⇒ タイムアウト詳細に `attacked` を出すようにして次回の切り分けを楽にした。
+
+### ゲート
+
+`npm run gates` 全緑（**golden 1973** / smoke 10688 SKIP 0 / fuzz 全0 / census **831 据置** / lint 0 errors）。
+同型★ **0**（265群）・held **106枚/47群 据置**・`npm run regen` 済み。
+
+---
+
 ## 2026-08-14（続き475d・Opus 5）— 🏁 §3 **(cxxvii)＋(cxxviii) を残0クローズ**（アタック無効の主語取り違えと、ルリグアタック収集経路の欠落）
 
 これで §7 の **V-01／V-02／V-09④／V-10 が全シナリオ緑（10本）**、§3 在庫は **8件→3件**。
