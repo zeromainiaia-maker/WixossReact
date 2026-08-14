@@ -2817,11 +2817,15 @@ export function execStubPart2(
   }
   // CONDITIONAL_PER_TRASH: トラッシュ枚数による条件（N枚以上でX）
   if (stub.id === 'CONDITIONAL_PER_TRASH') {
-    const srcCPT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCPT = srcCPT ? (srcCPT.EffectText ?? '') + ' ' + (srcCPT.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の閾値（`WX12-037` は E1 の「25枚以上」）を拾うのでブロックだけを読む。
+    const txtCPT = sourceAbilityText(ctx);
     const toHWCPT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const mCPT = txtCPT.match(/トラッシュに(?:カードが)?([０-９\d]+)枚以上/);
-    const threshold = mCPT ? parseInt(toHWCPT(mCPT[1])) : 5;
+    // ⚠既定値を発明しない。自分のブロックに閾値が無いなら「この効果はトラッシュ枚数条件ではない」
+    //   （`WX12-037-E2` は本当は「《メツム》を落としたら効果を繰り返す」＝別機構）。
+    //   ここで 5 を仮置きすると**無害な空振りが余分な1ドローに化ける**ので黙って何もしない。
+    if (!mCPT) return done(addLog(ctx, '[CONDITIONAL_PER_TRASH: この能力にトラッシュ枚数条件なし＝未実装]'));
+    const threshold = parseInt(toHWCPT(mCPT[1]));
     const trashCountCPT = ctx.ownerState.trash.length;
     if (trashCountCPT < threshold) return done(addLog(ctx, `トラッシュ${trashCountCPT}枚（閾値${threshold}枚に未達）`));
     // 条件達成→1枚ドロー
