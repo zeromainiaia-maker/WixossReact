@@ -2578,8 +2578,8 @@ export function execStubPart2(
     const lrigLevelSumPMBLLS = ctx.ownerState.field.lrig.reduce((sum, cn) => {
       return sum + (parseInt(toHWPMBLLS(ctx.cardMap.get(cn)?.Level ?? '0')) || 0);
     }, 0);
-    const srcPMBLLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMBLLS = srcPMBLLS ? (srcPMBLLS.EffectText ?? '') + ' ' + (srcPMBLLS.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の数値（`WXDi-P05-055` は E1 の ＋7000）を拾うのでブロックだけを読む。
+    const txtPMBLLS = sourceAbilityText(ctx);
     const mPMBLLS = txtPMBLLS.match(/([＋+－-][０-９\d]+)/);
     if (!mPMBLLS) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_LRIG_LEVEL_SUM）'));
     const singleDeltaPMBLLS = parseInt(toHWPMBLLS(mPMBLLS[1]).replace('＋', '+').replace('－', '-'));
