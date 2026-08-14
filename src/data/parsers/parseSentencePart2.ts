@@ -739,9 +739,9 @@ export function parseSentencePart2(t: string): EffectAction | null {
       } as SequenceAction;
     }
   }
-  if (t.match(/対戦相手は.*自分の場からシグニ.*自分のエナゾーンからカード.*トラッシュに置く/)) {
-    return { type: 'STUB', id: 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY' } as StubAction;
-  }
+  // ⚠旧フォールバック（`STUB{OPP_TRASH_FIELD_SIGNI_AND_ENERGY}`）は**削除した**＝全 CSV 走査で上の
+  //   明示規則が母集団（`WXK06-030-E2` の1件）を完全に覆い、フォールバックの live 利用は0件。
+  //   残すと「体数/枚数を書き忘れた変種」が黙って全流しへ落ちるので、無配線のまま計器に残すほうがよい。
 
   // ---- 対戦相手のターン中、このシグニがバニッシュされたとき相手が手札をデッキ上に ----
   if (t.match(/対戦相手のターンの間.*このシグニがバニッシュされたとき.*対戦相手は手札.*デッキの一番上に置く/)) {
