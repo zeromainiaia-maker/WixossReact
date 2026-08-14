@@ -1,5 +1,79 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き475g・Opus 5）— 🏁 §3 **(cxxiii) を残0クローズ**：ピースは「使用＝1回払って即解決→ルリグトラッシュ」
+
+**live JSON は1バイトも変えていない**（壊れていたのは実行経路のほう）。§7 **V-03 の赤2本が緑へ反転**。
+
+### 症状と真因
+
+`executeKeyPiece` は キー と ピース の**共通経路**で、①ルリグデッキから抜き ②**印刷 Cost を徴収**し
+③**`field.key_piece` へ置き** ④`queueCardEffects(..., ['AUTO'], ['ON_PLAY'])` **しか積まない**。
+
+キーはそれで正しい（セットして後から【起】を撃つ）。しかし**ピースは118/119枚が `ACTIVATED`＋印刷 Cost と同額の
+`cost.energy`** なので、この経路では：
+
+- **効果が一切走らない**（`ACTIVATED` が積まれない）
+- 取り返すには KEY スロットの【起】を起動＝**同額をもう一度**払う（＝二重請求）
+- おまけに**キーゾーンを1枚占有**する
+
+### 母集団の実測（設計を一意に決めた根拠）
+
+| 観点 | 実測 |
+|---|---|
+| Type='ピース' | **119枚**（キーは80枚） |
+| `ACTIVATED`＋印刷 Cost 同額の `cost.energy` | **118枚** |
+| CSV Timing | メインのみ104／メイン+アタック11／アタックのみ3／メイン+スペルカットイン1 |
+| `KEY` を対象に取る**非キー**カード | **0件**（＝誰もピースの居場所を見ていない） |
+| CONTINUOUS を持つピース | **1枚だけ**（`WXDi-P15-003`） |
+
+原文も「（この**ピースの後に**場に出たシグニは影響を受けない）」等、**一回解決**の表現。
+
+### 修正（すべて `card.Type === 'ピース'` で厳密にゲート＝キーは1行も変わらない）
+
+1. **キーゾーンを占有しない**（`field` を触らない）／**ルリグトラッシュへ置く**。
+2. **`['AUTO','ACTIVATED']` × `['ON_PLAY','MAIN','ATTACK','SPELL_CUTIN']` を積む**。
+   🔑`queueCardEffects` は **`effect.cost` を徴収しない**（コスト徴収は UI 経路の担当）ので、**印刷 Cost の1回払いだけ**になる。
+3. 入口ゲートから **`!my.field.key_piece` を外した**＝従来は**キーを1枚出しているだけで全ピースが使えなかった**（過少実行）。
+4. **Timing が「アタックフェイズ」の14枚**をアタックフェイズで使えるようにした（従来 MAIN/GROW だけ＝**永久に使えなかった**）。
+5. UI ラベルを **「ピースを使用」／確定ボタン「使用」** へ（`KeyUseModal` も `card.Type` で出し分け）。
+
+### 例外1枚の扱い（ユーザー裁定 A）
+
+`WXDi-P15-003-E2` は **`CONTINUOUS` `GRANT_LRIG_ABILITY` / `duration:'PERMANENT'`**（「このゲームの間、あなたのセンタールリグは…を得る」）。
+**キーゾーンに居ることで読まれていた**ので、ルリグトラッシュへ送ると失効する。
+⇒ **解決時に `lrig_granted_auto_effects` へ載せ替える**（engine の `GRANT_LRIG_ABILITY` 実行と同じ形。
+`duration:'PERMANENT'` のときだけ `permanentGrant` を刻む＝ターン境界リセットで残す条件）。
+規則は**カード名決め打ちではなく「CONTINUOUS GRANT_LRIG_ABILITY を持つピース」**なので、将来同型が増えても自動で乗る。
+
+### 実機
+
+| id | 結果 |
+|---|---|
+| 🆕`pieceUseResolvesAndGoesToLrigTrash` | ✅ エナ **1→0（1回払い）**／候補は《ディソナアイコン》**2枚だけ**／2枚を手札へ回収／非ディソナはトラッシュ残存／**keyPiece=null・ピースはルリグトラッシュ** |
+| `connectSpinningChoice4Pay` | ✅ **赤→緑**（④pay＝host.hand 2→0・guest.life 7→6） |
+| `connectSpinningChoice4Insufficient` | ✅ **赤→緑**（手札不足で pay が `(disabled)`） |
+| `energyPayKeyUseDeductsSelectedOnly` | ✅（判定を「ルリグトラッシュへ入った」へ更新。主題の V-04 エナ funnel は不変） |
+| `mayuEncounterFreeGrow` | ✅ 据置（`WXDi-P13-003A` の特例分岐は触っていない） |
+
+🔑**新シナリオは旧実装なら必ず落ちる**＝旧は hand が1枚も増えず keyPiece にピースが載る。
+
+### golden（1973 → 1975）
+
+実行経路は `BattleScreen`（React）なので golden では踏めない。代わりに**実装が前提にしている live データの形**を固定した：
+`ピース母集団の形（ACTIVATED＋印刷Cost同額）`／`CONTINUOUS を持つピースは1枚だけ・PERMANENT・GRANT_LRIG_ABILITY`。
+崩れると実機が無言で壊れるので、ここが唯一の見張り。
+
+### driver 側の追加
+
+`queryState` に **`lrigTrashCards`**（ピースの行き先）と **`grantedLrigAutoIds`**（載せ替えた付与）を追加。
+既存のピース系シナリオは**ラベルを「キーにセット／セット」と「ピースを使用／使用」の両方受け**に直した（キー用と共用のため）。
+
+### ゲート
+
+`npm run gates` 全緑（**golden 1975** / smoke 10688 SKIP 0 / fuzz 全0 / census **831 据置** / lint 0 errors）。
+
+---
+
 ## 2026-08-14（続き475e・Opus 5）— 「あなたの〜ルリグがアタックしたとき」族の**主語修飾**を語彙化（(cxxviii) の残り）
 
 続き475d は主語が無修飾のものだけを `ON_ATTACK_LRIG` へ移した。**修飾つきの主語**（「あなたの**白の**ルリグ１体が」）は
