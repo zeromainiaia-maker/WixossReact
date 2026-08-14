@@ -1193,7 +1193,8 @@ export function execStubPart1(
         const ownerSigniTops = new Set(ctx.ownerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])));
         const selfTargets = targetCardNums.filter(cn => ownerSigniTops.has(cn));
         if (selfTargets.length > 0) {
-          const synthCard = { ...(srcGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').CardData;
+          const srcCardGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+          const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').CardData;
           let parsedEffs: import('../types/effects').CardEffect[];
           try { parsedEffs = parseCardEffects(synthCard); } catch { parsedEffs = []; }
           const usable = parsedEffs.filter(e => e.action && e.action.type !== 'STUB');
