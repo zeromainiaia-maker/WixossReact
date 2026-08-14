@@ -11540,14 +11540,25 @@ async function runFieldDownRound(page, H, { expectAffordable }) {
     if ((st0?.host?.signiDown ?? []).slice(0, 3).every(v => v === true)) sawAllThreeDown = true;
     let did = null;
     if (!attacked) {
-      did = await openSigniAttack(page, H, 0); if (did) attacked = true;
+      // ルリグアタック＝センタースロットを開いて「アタック」（assistAttackBoth と同じ型）。
+      did = await H.clickTestId('my-lrig-slot-center');
+      if (did) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+        for (let k = 0; k < 20; k++) {
+          if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) break;
+          await page.waitForTimeout(150);
+        }
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+          await atk.click({ timeout: 2000 }); attacked = true; did = 'action:ルリグアタック';
+        }
+      }
     } else {
       const opts = pendingPaySkip(st0);
       if (!branchClicked && opts.pay && opts.skip) {
         prompted = true;
         const disabled = opts.pay.endsWith('(disabled)');
         if (disabled === expectAffordable) {
-          return { pass: false, detail: `fieldDown canAfford極性不一致（expectAffordable=${expectAffordable} options=${JSON.stringify(st0.pendingOptions)} signiDown=${JSON.stringify(st0.host.signiDown)}）。live timing=ON_ATTACK_SIGNIではアタッカーが先にdownする経路` };
+          return { pass: false, detail: `fieldDown canAfford極性不一致（expectAffordable=${expectAffordable} options=${JSON.stringify(st0.pendingOptions)} signiDown=${JSON.stringify(st0.host.signiDown)}）。⚠timing が ON_ATTACK_SIGNI へ戻っていると攻撃者が先に down して3体そろわない` };
         }
         if (!expectAffordable) {
           did = await H.clickTestId('optcost-skip'); if (did) branchClicked = true;
