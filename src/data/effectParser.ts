@@ -13277,7 +13277,14 @@ function inferTriggerScope(
   siblingEffects: CardEffect[],
 ): import('../types/effects').TriggerScope | undefined {
   if (effect.effectType !== 'AUTO') return undefined;
-  const text = (card.EffectText ?? '') + (card.BurstText ?? '');
+  // 🔑**その効果を生んだ能力ブロックだけを読む**（§6.4 O-19・2026-08-15）。
+  //   従来はカード**全文**（EffectText＋BurstText）を読んでいたため「どの文からこの effect が生まれたか」を
+  //   知らず、【自】…場に出たとき（watcher）と【出】が同居するカードで**自身の【出】に watcher の scope が付く**
+  //   事故を起こしていた（続き463 で実測5枚）。当時は「カードが【出】を持つなら ON_PLAY 推論をしない」という
+  //   暫定 guard で止めていたが、その副作用で **watcher 側が self のまま残る**（＝過小発火）カードが出ていた。
+  //   ブロック限定読みにすると両方向とも構造的に消える＝暫定 guard は不要になったので撤去した。
+  //   ⚠`abilityBlockTextOf` は effectId がブロック表に無ければカード全文へフォールバックする＝従来挙動が既定。
+  const text = abilityBlockTextOf(card, effect.effectId);
   if (effect.timing?.includes('ON_BLOOD_CRYSTAL_ARMOR')) {
     // 「あなたの（＜紅蓮＞の）シグニ１体が血晶武装状態になったとき」→ 味方シグニ全体
     if (/あなたの(?:＜[^＞]*＞の)?シグニ[１-９\d０-９]*体?が血晶武装状態になったとき/.test(text)) return 'any_ally';
