@@ -1537,7 +1537,7 @@ export function getAbilityBlockTexts(card: CardData): ReadonlyMap<string, string
   // （build:effects が全カード分を貯めている最中に呼ばれても壊さない）。
   const prevFlag = _collectSourceText;
   const prevEntries = [..._sourceTextLog];
-  let map = new Map<string, string>();
+  let map: Map<string, string>;
   _collectSourceText = true;
   _sourceTextLog.clear();
   try {
