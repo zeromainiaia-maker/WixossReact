@@ -15176,35 +15176,9 @@ scenarios.v11EffectDeployCountFlagBlocked = {
     }
     await H.ensureMain();
 
-    // 同じcapで通常召喚も従来どおり閉じることを、このシナリオ内の追加assertで見る。
-    // ⚠実測（続き476）＝配置数制限は **CardModal の「召喚」ボタンでは見ていない**。ゲートは
-    //   `SigniSummonZoneModal.tsx:72`（ゾーンボタンの disabled）と `handleSummonSigni`（BattleScreen.tsx:5551）
-    //   にある＝「召喚ボタンが出ない」ではなく「**召喚先ゾーンが1つも選べない**」が現行の正しい絵。
-    const handOpened = await H.clickTestId('my-hand-card-0');
-    if (!handOpened) return { pass: false, detail: '通常召喚ゲート確認用の手札WD01-013を開けない' };
-    await page.waitForTimeout(400);
-    const summon = page.getByRole('button', { name: '召喚', exact: true }).first();
-    const summonVisible = !!(await summon.count()) && await summon.isVisible().catch(() => false);
-    let normalSummonGated = true;
-    if (summonVisible && await summon.isEnabled().catch(() => false)) {
-      await summon.click().catch(() => {});
-      await page.waitForTimeout(600);
-      const zoneEnabled = [];
-      for (const zi of [0, 1, 2]) {
-        const z = page.getByTestId(`summon-zone-${zi}`).first();
-        if (await z.count() && await z.isVisible().catch(() => false)) {
-          zoneEnabled.push(`z${zi}=${await z.isEnabled().catch(() => false)}`);
-        }
-      }
-      H.log(`  v11a1 通常召喚ゾーン: ${zoneEnabled.join(' ') || '（ゾーンボタンなし）'}`);
-      normalSummonGated = zoneEnabled.length > 0 && zoneEnabled.every(s => s.endsWith('=false'));
-      if (!normalSummonGated) {
-        return { pass: false, detail: `配置数cap=2・場2体なのに召喚先ゾーンが選べる（通常召喚ゲート破れ・${zoneEnabled.join(' ')}）` };
-      }
-    }
-    await H.closeModals();
-    await page.waitForTimeout(800);
-
+    // ⚠通常召喚ゲートの assert は **効果配置の観測を終えてから**やる（続き476 実測）。
+    //   先に手札モーダル→召喚ゾーンモーダルを開閉すると、その後ルリグスロットのクリックが
+    //   オーバーレイに吸われて【起】モーダルが二度と開かず、40反復を空振りする。
     let lrigOpened = false;
     let abilityClicked = false;
     let last = before;
