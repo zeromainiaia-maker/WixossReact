@@ -33590,7 +33590,9 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
   // 減ったら「全文読みへ差し戻された」＝無言で別能力の文に従い始めるので赤にする。
   const FROZEN: Record<string, number> = {
     'src/engine/execStubPart1.ts': 7,
-    'src/engine/execStubPart2.ts': 9,
+    // 9 → 8（2026-08-15 §6.4 O-22(a)）＝`CHARM_CONDITIONAL_POWER` ハンドラを削除したぶん。
+    // 差し戻しではなく**サイトごと消えた**（帰結は parser の「代わりに」置換 fixup が構造で持つ）。
+    'src/engine/execStubPart2.ts': 8,
     'src/engine/execStubPart3.ts': 3,
     'src/engine/effectExecutor.ts': 2,
   };
