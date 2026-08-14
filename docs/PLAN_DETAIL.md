@@ -3,6 +3,19 @@
 > **2026-08-13 続き464 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-13 続き459（§6.4 O-3＝`LRIG_GROW_RESTRICT` ゴミ箱の解体）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1956（+2＝合成 actionId が live に0件／期間3値／`LRIG_GROW_RESTRICT` は本来のグロウ制限文にだけ付く、を live 全走査で固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件（14種16件から可視化＝隠れていた26効果を worklist へ）**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。live effect 単位 diff **33効果・effectId 増減 0/0**。
 
+## 2026-08-14 整理⑭：PLAN §7 の決着済みブロック `V-11` を退避（続き476）
+
+> `V-11`（配置制限ゲートの一本化）は6シナリオすべて緑で決着。PLAN §7 には1行✅サマリだけを残し、経緯・罠・未カバーの明細をここへ移した。
+
+- **✅ V-11 配置制限ゲートの一本化（続き405）＝2026-08-14 続き476 で決着＝6シナリオすべて緑**（Codex 起案→Claude 実機検証・**6本まとめて2回連続 ALL PASS**・既定 order 登録済み・**engine バグ0**）。`v11EffectDeployCountFlagBlocked`／`v11EffectDeployNoLimitControl`／`v11EffectDeployContinuousBlocked`／`v11CpuDeployCountContinuousBlocked`／`v11CpuDeployCountNoLimitControl`／`v11CpuDeployPowerLimitWithControl`。
+  - [x] **相手に配置数制限を掛けた状態で「効果で」シグニを場に出せないか**＝**実機PASS 3本**。効果元は `WD08-001-E3`（【起】《ダウン》：自トラッシュのシグニ1枚を場に出す）で、場2体＋空き1面＋トラッシュ候補1枚に固定して対象選択とゾーン選択の曖昧さを消した。①**フラグ版**（`signi_deploy_count_limit:2` を直接注入）で不発＋**完全一致ログ**「`配置数制限のため小剣　ククリを場に出せない`」②**対照**＝flag だけ外すと同じ操作で `trash→場`（場2→3・ログ「`小剣　ククリを場に出す`」）③**CONTINUOUS 版**＝相手の場に `WX07-006`（【常】シグニ2体まで）を注入するだけで同じく不発＝**`fillDeployCaps`→`ctx.deployCountCapSelf` 経路が実UIで生きている**ことを確認。
+    - ⭐**「通常召喚は従来どおりボタンが出ない」は PLAN の記述が実装と食い違っていた**＝配置数制限は **CardModal の「召喚」ボタンでは見ていない**。ゲートは `SigniSummonZoneModal.tsx:72`（**召喚先ゾーンボタンの disabled**）と `handleSummonSigni`（`BattleScreen.tsx:5551`）にある。⇒ シナリオは「**召喚先ゾーンが1つも選べない**（z0/z1/z2 すべて disabled）」を assert する形にした（実機で確認済み）。
+    - ⚠**この追加 assert は効果配置の観測が終わってからやること**＝先に手札→召喚ゾーンのモーダルを開閉すると、**その後ルリグスロットのクリックがオーバーレイに吸われて【起】モーダルが二度と開かない**（40反復を空振りして FAIL する。実測で1回踏んだ）。
+  - [x] **CPU が配置制限・パワー制限を守って召喚するか**＝**実機PASS 3本**。①**配置数**＝host 場に `WX07-006` を置くと CPU は場2体で止まり3体目が手札に残る／**対照**＝`WX07-006` だけ外すと `[CPU] シグニ配置: 小剣　ククリ（ゾーン3）` で3体目を出す ②**パワー**＝`signi_deploy_power_limit:5000` で CPU 手札の P3000 だけが出て P7000 は残る／**対照**＝flag だけ落とすと同じ2枚が両方出る。
+    - 🔑**配置数フラグ版は CPU 検証に使えない**＝`signi_deploy_count_limit` は**ターン開始時にリセットされる**（`BattleScreen.tsx` 3802/4150/4814/10605 が「次のターンプレイヤー」の分を消す）ので、注入して CPU ターンへ進めると消える。**CPU 側の配置数は CONTINUOUS 版で撃つ**のが正解。一方 **`signi_deploy_power_limit` はどこでもリセットされない**（→§3 **(cxxxii)** に登録）ので直接注入で撃てる。
+  - 📋**未カバー（申告）＝`deployCountCapOpponent` 経路**（自分の効果で**相手の場に**シグニを出す＝`fillDeployCaps` の2本目）。`WXEX2-50-E3` 型は2段 SEQUENCE で単一原因の対照を維持できないため見送った。**踏むなら V-25 として別立てする**。
+  - 📋**スコープ外で見つけた実装の疑い2件**＝→§3 **(cxxxi)**（ルリグ【起】の《ダウン》が誰もダウンさせない）／**(cxxxii)**（パワー制限がリセットされない）。
+
 ## 2026-08-13 整理⑫：PLAN §6.4 `O-17`「能力喪失の対象軸」の消化記録（続き458）
 
 > PLAN §6.4 の worklist から `O-17` の行を落とした（**クローズ**）。一次記録は [BUGFIXES.md](./BUGFIXES.md) の続き458。
@@ -55,6 +68,8 @@
 レベル・領域脱落）＝**ゾーン軸ではないので O-16 には戻さない**。
 
 ## 2026-08-13 整理⑩：PLAN §4 恒久指標の旧行を退避（続き435〜455）
+
+- **🆕 2026-08-14 続き475〜475g（§7 V-01・V-02・V-03・V-09④・V-10 決着＋§3 実バグ6件クローズ）後 最新値（本行が直近の正）**：census **831 据置**、**golden 1975**（**1964→+11**）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件**。🆕**live JSON changed 19枚**（(cxxvii) 2＋(cxxviii) 17。**(cxxiii) は live 不変＝実行経路の修正のみ**）。🆕**実機シナリオ＝+1本**（`pieceUseResolvesAndGoesToLrigTrash`）・**判定/経路を直したのが13本**・**id を1本 rename**。**緑/赤の内訳が 45緑12赤 → 60緑0赤**。🆕**Opusタスク12 の在庫＝2件**。
 
 > §4「📊 恒久指標」は**最新1件だけ**を置く節（同節の運用ルール）。積み上がった旧行をここへ移した。
 > ⚠退避時に各行の「（本行が直近の正）」という但し書きを外した＝**旧行に付いたままだと、

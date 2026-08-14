@@ -1,5 +1,39 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き476〜477・Opus 5）— §7 **V-11 決着 / V-12 は6/8 緑**：実機シナリオ14本の追加と、そこで確定した「実装の事実」5点
+
+**engine / parser / effects JSON は1行も触っていない。** 成果物は `scripts/verifyBattleDrive.mjs` の実機シナリオ14本と、
+実バグ3件の登録（→ PLAN §3 **(cxxxi)(cxxxii)(cxxxiii)**）。ゲートは全て据置（golden 1975・census 831・lint 0/259）。
+
+### 実機で確定した「実装の事実」＝ドキュメント側が間違っていたもの
+
+1. **配置数制限は通常召喚の「召喚」ボタンでは見ていない。** ゲートは `SigniSummonZoneModal.tsx:72`（**召喚先ゾーンボタンの disabled**）と
+   `handleSummonSigni`（`BattleScreen.tsx:5551`）にある。PLAN §7 の「通常召喚はボタンが出ない」は誤りだった。
+2. **手札スペルの CardModal のボタンは「発動」**。`BattleScreen.tsx:7559` の「使用」は**ルリグデッキの スペル/クラフト 用**。
+3. **`REARRANGE_SIGNI{mode:'swap'}` はカード画像を1回クリックすると即確定**（`EffectInteractionModal.tsx:842` 付近＝確定ボタンが無い）。
+   押さないと `pending_effect` が `REARRANGE_SIGNI` のまま残り、**watcher は発火しているのに盤面が動かない**絵になる。
+4. **`ON_ENERGY_CHARGE` の付与 watcher は発火しないが、同じ経路の印刷能力は発火する**（対照 `v12PrintedEnergyChargeControl` が緑）。
+   ⇒ 中央 diff（`BattleScreen.tsx:1766` の useEffect）は生きており、**同ブロック内の `grantedStoreWatchers()` 側だけが効いていない**。→ §3 (cxxxiii)
+5. **ルリグの【起】《ダウン》は誰もダウンさせない**（`down_self` の可否判定・支払いとも `field.signi` しか探す実装が無く、ルリグでは `findIndex` が常に -1）。
+   副作用として**同カード内の別の【起】と「【起】コストなし」ラベルが衝突**する（`SPDi43-13` の E1/E2）。→ §3 (cxxxi)
+
+### シナリオ側で潰した罠（次に実機シナリオを書く人向け）
+
+- **アタッカーの正面（index i ↔ 2-i）が空だとライフクラッシュ確認モーダルで停止する。** CPU の観測系は**防御側3ゾーンを埋めて正面を塞ぐ**。
+  V-12 の対照2本と V-12 B-1 が最初これで FAIL した。
+- **モーダルを開閉した直後は次のクリックがオーバーレイに吸われる。** 本命ではない追加 assert（通常召喚ゲート等）は**本命の観測を終えてから**並べる。
+  V-11 A-1 はこれで40反復を空振りした。
+- **場に同名シグニが2体いると、選択モーダルで意図しない側を掴む**（V-12 B-1 の swap で非アタッカーが入れ替わった）。カード名で狙う操作は**同名を作らない**。
+- **同カード内に複数の【起】があるとラベルが衝突する**＝`H.clickBtn(..., { nth })` を明示する。
+
+### 再現
+
+```
+node scripts/verifyBattleDrive.mjs v11EffectDeployCountFlagBlocked v11EffectDeployNoLimitControl v11EffectDeployContinuousBlocked   v11CpuDeployCountContinuousBlocked v11CpuDeployCountNoLimitControl v11CpuDeployPowerLimitWithControl        # 6本とも緑
+node scripts/verifyBattleDrive.mjs v12CpuCannotAttackGranted v12CpuCannotAttackGrantedControl v12CpuPowerCapWithControl   v12GrantedBattleBanishOnce v12GrantedSpellUseMinus4000 v12PrintedEnergyChargeControl                        # 6本とも緑
+node scripts/verifyBattleDrive.mjs v12GrantedEnergyChargeTwice v12GrantedEnergyChargeThirdBlocked             # 赤＝§3 (cxxxiii) 待ち
+```
+
 ## 2026-08-14（続き475g・Opus 5）— 🏁 §3 **(cxxiii) を残0クローズ**：ピースは「使用＝1回払って即解決→ルリグトラッシュ」
 
 **live JSON は1バイトも変えていない**（壊れていたのは実行経路のほう）。§7 **V-03 の赤2本が緑へ反転**。
