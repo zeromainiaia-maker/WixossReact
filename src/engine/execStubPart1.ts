@@ -985,8 +985,9 @@ export function execStubPart1(
   // 引用符付き能力付与（キーワード → keyword_grants、複合能力 → granted_effects）
   if (stub.id === 'GRANT_QUOTED_AUTO_ABILITY' || stub.id === 'GRANT_QUOTED_ABILITY' ||
       stub.id === 'GRANT_ABILITY_INNER_TEXT') {
-    const srcGQ = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtGQ = srcGQ ? (srcGQ.EffectText ?? '') + ' ' + (srcGQ.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の引用を拾って余計な能力まで付与する
+    // （`WXK03-042-E1` は E2 の耐性引用を拾い、相手シグニ効果耐性まで付けていた）のでブロックだけを読む。
+    const txtGQ = sourceAbilityText(ctx);
     // 付与するキーワードを抽出（ランサー、ダブルクラッシュ等）
     const knownKeywords = ['Sランサー', 'ランサー', 'ダブルクラッシュ', '貫通', 'マルチエナ', 'アサシン', 'バニッシュ無効', 'ライフバースト無効', '影', 'チャーム', 'シャドウ', 'ガードアイコン', 'アタックできない', 'フリーズ', 'ドライブ'];
     // 引用符内のテキストを抽出
@@ -1554,8 +1555,9 @@ export function execStubPart1(
   }
   // 条件付きパワーボーナス
   if (stub.id === 'CONDITIONAL_POWER_BONUS') {
-    const srcCB = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCB = srcCB ? (srcCB.EffectText ?? '') + ' ' + (srcCB.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の条件・数値を実行してしまう
+    // （`WX26-CP1-057-E2`／`WX25-CP1-056-E1`＝相手をトラッシュする効果が自己バフ化）のでブロックだけを読む。
+    const txtCB = sourceAbilityText(ctx);
     const toHWC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const toSignedC = (s: string) => parseInt(toHWC(s).replace('－', '-').replace('＋', '+'));
     // 共通ユーティリティ：対象シグニ全体にパワー修正を適用
@@ -3018,8 +3020,9 @@ export function execStubPart1(
   }
   if (stub.id === 'TRASH_ALL_SIGNI_AND_KEY') {
     // 自分のシグニ全体 + キーをトラッシュ/ルリグトラッシュへ
-    const srcTAK = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtTAK = srcTAK ? (srcTAK.EffectText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の「対戦相手」を拾って相手側だけ処理する
+    // （`WXEX2-21-E3` の原文は「すべてのシグニ」なのに E1 の「対戦相手」に引きずられていた）。
+    const txtTAK = sourceAbilityText(ctx);
     const isSelfTarget = !txtTAK.match(/対戦相手/);
     const target = isSelfTarget ? 'self' : 'opponent';
     const st = ownerState(target, ctx);
@@ -3774,7 +3777,8 @@ export function execStubPart1(
   // ソウル/ルリグデッキ操作
   if (stub.id === 'SOUL_OP') {
     const srcSO = ctx.sourceCardNum;
-    const effSOtxt = srcSO ? (ctx.cardMap.get(srcSO)?.EffectText ?? '') + ' ' + (ctx.cardMap.get(srcSO)?.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力のコスト句を拾い、ソウルではなくルリグトラッシュへ行っていた（`SPDi43-03/04/05-E1`）。
+    const effSOtxt = sourceAbilityText(ctx);
     const processed = ctx.lastProcessedCards ?? [];
     const toHWSO = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 「それをルリグデッキに加える」→ sourceCardNumをlrig_deckへ
@@ -4352,8 +4356,9 @@ export function execStubPart1(
   }
   // トラッシュからシグニをフィールドシグニの下に置く（ライズ補充）
   if (stub.id === 'TRASH_SIGNI_UNDER_FIELD_SIGNI') {
-    const srcCardT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtT = srcCardT ? (srcCardT.EffectText ?? '') + ' ' + (srcCardT.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の制限（枚数/レベル/クラス）を採用する
+    // （`WXEX2-61-E1`／`WXK08-048-E2`＝レベル3以下が2以下になる等）のでブロックだけを読む。
+    const txtT = sourceAbilityText(ctx);
     const toHWT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 枚数（"N枚まで" or デフォルト1）
     const countMT = txtT.match(/シグニ([０-９\d]+)枚(?:まで)?を対象とし.*の下に置く/);
@@ -4444,8 +4449,8 @@ export function execStubPart1(
   }
   // ルリグリミット修正（エナフェイズ終了まで）
   if (stub.id === 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END') {
-    const srcL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtL = srcL ? (srcL.EffectText ?? '') + ' ' + (srcL.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の「対戦相手」を横断し、自分の＋2が相手の＋2になっていた（`WXDi-P13-004B-E3`）。
+    const txtL = sourceAbilityText(ctx);
     const toHWL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     let newCtxL = ctx;
     const logs: string[] = [];
@@ -4493,8 +4498,8 @@ export function execStubPart1(
   if (stub.id === 'POWER_MOD_BY_DISCARD_COUNT_HIGH') {
     const count = (ctx.lastProcessedCards ?? []).length;
     if (count === 0) return done(addLog(ctx, 'パワー修正（捨てた0枚）'));
-    const srcPH = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPH = srcPH ? (srcPH.EffectText ?? '') + ' ' + (srcPH.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の値を拾い効果量が変わる（`WX24-P3-052-E2` は E1 の －2000＝本来 －8000 の1/4）。
+    const txtPH = sourceAbilityText(ctx);
     const toHWPH = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const mPH = txtPH.match(/枚につき([－＋][０-９\d]+)/);
     const deltaPerCard = mPH ? parseInt(toHWPH(mPH[1]).replace('－', '-').replace('＋', '+')) : -3000;
