@@ -13314,19 +13314,12 @@ function inferTriggerScope(
     && other.timing?.includes('ON_PLAY')
     && (other.triggerScope === 'any_ally' || other.triggerScope === 'any_opp' || other.triggerScope === 'any'));
   if (hasExplicitOnPlayWatcher) return undefined;
-  // 🔴**カードが【出】を持つなら、scope 未指定の ON_PLAY 効果を watcher 文から推論してはいけない**（続き463 検証）。
-  // 理由＝この関数はカード**全文**しか見ておらず、「どの文からこの effect が生まれたか」を知らない。
-  //   【自】…場に出たとき（watcher）と【出】（自身の登場）が同居するカードでは、**自身の【出】に
-  //   watcher 文の scope が付く**＝「味方シグニが場に出るたびに自分の【出】が発動する」過剰効果になる。
-  // 実測（`tmp_scopeAB.ts` の全カード A/B）＝この guard 無しでは `WXDi-P11-007-E2`（エナのシグニを手札へ）／
-  //   `WXEX1-15-E2`（デッキ4枚見る）／`WDK12-001-E1`（エナチャージ2）など**自身の【出】が any_ally に化けた**。
-  // ⚠watcher 側が self のままになる（＝従来どおりの過小発火）カードは残るが、**それは既存の状態**であり
-  //   新たな退化ではない。恒久解は parser 側が watcher 文の parse 時に `triggerScope` を明示すること（§6.4 へ登録）。
-  const hasOnPlayAbilityMarker = /【出】/.test(text);
-  if (hasOnPlayAbilityMarker) return undefined;
+  // ⚠**続き463 の【出】guard は撤去済み**（§6.4 O-19）＝`text` がブロック限定になったので、
+  //   「同じカードの別ブロックにある【出】」がここへ混ざることはもう無い。guard を残すと逆に
+  //   `WX25-P1-061-E1`（watcher と【出】が同居する札）の watcher 側が self へ潰れたままになる。
   // 「他のシグニが場に出たとき」「あなたのシグニが場に出たとき」→ 味方シグニ全体
-  // `[^。]*` で1能力文に閉じる。全文 `.*` は前能力の「対戦相手」から後続【出】の
-  // 「このシグニが場に出たとき」までを跨いで any_opp を捏造する（WD23-023-E / WX05-028）。
+  // `[^。]*` で1能力文に閉じる（ブロック内でも複文はありうる）。全文 `.*` は前能力の「対戦相手」から
+  // 後続【出】の「このシグニが場に出たとき」までを跨いで any_opp を捏造していた（WD23-023-E / WX05-028）。
   if (/【(?:絆)?自】[^：:]*[：:][^。]*(?:他の[^。]*シグニ|あなたの[^。]*シグニ)[^。]*場に出たとき/.test(text)) {
     return 'any_ally';
   }
