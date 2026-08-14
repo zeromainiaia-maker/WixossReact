@@ -1,5 +1,54 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き478・Opus 5）— §7 **V-12 完全決着（8/8 緑）／V-13 決着（6/6 緑）**：在庫バグ (cxxxiii) は**取り下げ**＝シナリオ偽陰性だった
+
+**Codex 起案（上の節）→ Claude 実機検証**の分業。**engine の実バグは 1件（回数制限）だけで、発火側は元から動いていた。**
+
+### 🔴 (cxxxiii)「付与ストアの `ON_ENERGY_CHARGE` watcher が恒久 no-op」は**存在しなかった**
+
+- **実機で発火を確認**＝`v12GrantedEnergyChargeTwice` が緑。ログで `energy 0→1` の直後に
+  `actions_done` へ `SPDi43-13-sub-E1` が入り、`lrig_down` が false になる。2回目も同様。
+- 🔑**codex が追加したのは `reserveGrantedAutoUsage`＝「阻止しかできないゲート」なので、これで発火が直ることは原理的にあり得ない。**
+  ⇒ **発火経路は続き477 の時点でも生きていた**＝(cxxxiii) は**シナリオ側の偽陰性**（PLAN §7 📌12 の型・通算2例目）。
+- **偽陰性の機序**＝付与ストアの watcher は `BattleScreen.tsx:1734` の early return により
+  **`effect_stack` / `pending_effect` が空になった「あと」の useEffect** で初めて走る。
+  ところが旧シナリオは**エナ増加後の最初の settled 観測で `lrigDown !== false` なら即 `return { pass:false }`** していた
+  ＝**engine が正しくても必ず赤**。⇒ 📌13 準拠に是正（正方向は約5秒待ってから FAIL 確定）。
+- ⚠**なぜ気付けなかったか**＝切り分けの対照 `v12PrintedEnergyChargeControl` は**最初からポーリング型**で、
+  成立するまで回してから判定していた。**2本の観測方式が非対称**だったため「付与ストア側だけ死んでいる」という
+  もっともらしい結論が出た。**対照は盤面だけでなく「判定の待ち方」まで揃える。**
+
+### ✅ 実在した engine バグ＝付与 watcher の《ターン2回》未管理（実装は Codex）
+
+`grantedStoreWatchers` 経由で積む付与 AUTO は `usageLimit` を一切見ず `actions_done` にも書き戻していなかった。
+`reserveGrantedAutoUsage`（`src/screens/battle/grantedAuto.ts`）を新設し、**同一収集内の予約分＋永続済み `actions_done`** を数えて
+`once_per_turn` / `twice_per_turn` を判定、許可した effectId だけを `WRITE_STATES` で書き戻す。
+**印刷能力（場のシグニ）の走査ループは無変更**（diff 実査で確認）。golden にトリップワイヤ1本（1975→**1976**）。
+
+- **実機で確定**＝`v12GrantedEnergyChargeThirdBlocked` が緑。`actions_done` に `SPDi43-13-sub-E1` が**2件だけ**積まれ、
+  3回目のエナチャージ（`energy 2→3`）では**約5秒待ってもアップしない**。
+- ⚠**負方向側の待機も必須**＝「3回目はアップしない」を**その瞬間の絵**で確定すると「まだ発火していないだけ」と区別できない
+  ＝正方向と同じ待機予算（約5秒）を置いてから確定するよう是正した。
+
+### V-13＝トラッシュ起動のコストUI 6本すべて緑（**engine バグ0**）
+
+`v13TrashActLrigDownTwo`（センター→アシストL の順に自動ダウン）／`v13TrashActAttackPhaseCombo`（エナ黒2＋＜遊具＞手札2でダウン状態で場へ）／
+`v13TrashActDisonaDiscardFilter`（《ディソナアイコン》だけ選択可）／`v13TrashActCoinChain`（コイン2→`ON_COIN_PAID` 連鎖）＋**負方向2本**
+（アップ Lv2 ルリグ不足／＜遊具＞1枚だけ＝どちらも**盤面を1文字も変えず原因だけを外した対照**）。
+共通で **①【起】ボタンが出る ②本体が trash→field で全ゾーン合計1枚（＝複製していない） ③払ったカードが正しいゾーンから減る** を assert。
+
+### 🔑 実機シナリオの新しい罠2つ（どちらも「engine バグに見える偽陰性」）
+
+1. 🔴**`H.queryState().powerMods` は `temp_power_mods` しか写していない**（`verifyBattleDrive.mjs:16847`）。
+   `duration:'UNTIL_OPP_TURN_END'` の POWER_MODIFY は **`power_mods_until_opp_turn` へ書かれる**（`effectExecutor.ts:1456`）ので、
+   `powerMods` を見ると**永久に false**＝「発火したのにバフが乗らない」という**engine バグそっくりの絵**になる。
+   実際 `v13TrashActCoinChain` は `coins 2→0`・`coins_paid_this_turn=2`・`ON_COIN_PAID` の `actions_done` まで全部成立していて
+   `+2000` だけが false だった。⇒ 長期ストアを直接照会する `v13PowerModsUntilOpp` を追加して観測面を合わせた。
+2. ⚠**カードアクションのラベルには効果の限定が現れない**。`WXDi-P12-053` のラベルは
+   `【起】トラッシュから出す（手札2枚を捨てる）`で、**《ディソナアイコン》限定はどこにも出ない**。
+   `actionIncludes:'ディソナ'` は永久に一致せず、FAIL 文言も「対象【起】なし（actions=[…【起】…]）」という自己矛盾になる。
+   ⇒ **限定が効いているかは DOM 属性（`data-selectable`）で見る**のが正しい観測面。
+
 ## 2026-08-14（Codex・§7 V-12残り／V-13起案）— 付与 `ON_ENERGY_CHARGE` の回数記録とトラッシュ起動UIの決定論的観測点
 
 ### V-12：確定した真因と、確定しなかった主張を分離
