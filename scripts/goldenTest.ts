@@ -7598,6 +7598,54 @@ test('collectLrigAttackDefenderTriggers: 防御側の付与AUTO を any_opp/any 
   const disabled = { ...mkDef([mkGranted('any_opp')]), lrig_abilities_disabled: true } as unknown as PlayerState;
   eq(run1(disabled).entries.length, 0, 'lrig_abilities_disabled 時は拾わない');
 });
+// ── §3 (cxxiii)・続き475g: ピースは「使用＝1回払って即解決→ルリグトラッシュ」。
+// ⚠実行経路は `BattleScreen.executeKeyPiece`（React）なので golden では踏めない。ここで固定するのは
+//   **その実装が前提にしている live データの形**＝崩れると実機が無言で壊れる。
+test('§3 (cxxiii) ピース: 母集団の形（ACTIVATED＋印刷Cost と同額の cost.energy）が崩れていない', () => {
+  const pieces = [...cardMap.values()].filter(c => (c.Type ?? '').trim() === 'ピース');
+  ok(pieces.length >= 110, `ピースの母集団が取れている（実測 ${pieces.length} 枚）`);
+  const parseCost = (s: string | undefined): Map<string, number> => {
+    const m = new Map<string, number>();
+    for (const mm of (s ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+      const n = parseInt(mm[2].replace(/[０-９]/g, d => String('０１２３４５６７８９'.indexOf(d))), 10);
+      m.set(mm[1], (m.get(mm[1]) ?? 0) + n);
+    }
+    return m;
+  };
+  let activatedWithPrintedCost = 0;
+  for (const c of pieces) {
+    const effs = effectsMap.get(c.CardNum) ?? [];
+    const printed = parseCost(c.Cost);
+    const hit = effs.some(e => e.effectType === 'ACTIVATED'
+      && [...parseCost(c.Cost).keys()].length >= 0
+      && JSON.stringify([...(e.cost?.energy ?? [])].map(x => [x.color, x.count]).sort())
+         === JSON.stringify([...printed.entries()].sort()));
+    if (hit) activatedWithPrintedCost++;
+  }
+  // 🔴この比率が崩れる＝「使用時に印刷 Cost を1回払えば ACTIVATED を積んでよい」という前提が壊れる。
+  ok(activatedWithPrintedCost >= pieces.length - 3,
+     `ピースの大半が ACTIVATED＋印刷Cost 同額（${activatedWithPrintedCost}/${pieces.length}）`);
+});
+
+test('§3 (cxxiii) ピース: CONTINUOUS を持つ唯一の例外は付与ストアへ載せ替えられる形をしている', () => {
+  // `WXDi-P15-003-E2` はキーゾーンに居ることで読まれていた `CONTINUOUS GRANT_LRIG_ABILITY`。
+  // ルリグトラッシュへ送る新経路では**解決時に `lrig_granted_auto_effects` へ載せ替える**ので、
+  // ①CONTINUOUS ②action.type が GRANT_LRIG_ABILITY ③duration が PERMANENT（＝permanentGrant を刻む条件）
+  // の3点が前提。崩れると「このゲームの間」の付与が黙って失効する。
+  const e = effectsMap.get('WXDi-P15-003')!.find(x => x.effectId === 'WXDi-P15-003-E2')!;
+  eq(e.effectType, 'CONTINUOUS', 'CONTINUOUS である');
+  eq((e.action as { type?: string }).type, 'GRANT_LRIG_ABILITY', 'GRANT_LRIG_ABILITY である');
+  eq(e.duration, 'PERMANENT', '🔴PERMANENT（＝permanentGrant を刻んでターン境界で落とさない条件）');
+  const abilities = (e.action as unknown as { abilities?: unknown[] }).abilities ?? [];
+  eq(abilities.length, 2, '付与される【起】は2本');
+  // CONTINUOUS を持つピースが他に増えていないこと（増えたら同じ載せ替えが要る）
+  const contPieces = [...cardMap.values()]
+    .filter(c => (c.Type ?? '').trim() === 'ピース')
+    .filter(c => (effectsMap.get(c.CardNum) ?? []).some(x => x.effectType === 'CONTINUOUS'))
+    .map(c => c.CardNum);
+  eq(contPieces.join(','), 'WXDi-P15-003', '🔴CONTINUOUS を持つピースは1枚だけ（増えたら載せ替え規則を見直す）');
+});
+
 // ── §3 (cxxvii)・続き475d: 「**この**アタックを無効にする」＝効果主自身のアタックを止める。
 test('§3 (cxxvii) parser: 「このアタックを無効にする」は SET_CANCEL_ATTACK_FLAG（相手対象の NEGATE_ATTACK ではない）', () => {
   // 🔴実機で検出＝`NEGATE_ATTACK{owner:'opponent'}` だと `execNegateAttack` が**対戦相手の場**から
