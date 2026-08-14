@@ -152,6 +152,7 @@ export function CardStackModal({ stack, cards, onClose, actions }: {
 
   return createPortal(
     <div
+      data-testid="stack-detail-modal"
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
       onClick={onClose}
