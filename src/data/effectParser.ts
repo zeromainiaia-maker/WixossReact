@@ -5519,7 +5519,7 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   // 「代わりに」置換は前段/後段の二重 power-modify/除去へ平坦化される別系統（タスク6）。findTail が末尾だけ
   // 補正すると片方が誤 owner のまま残るため丸ごと据置する（WX24-P3-076 等）。
   if (/代わりに/.test(text)) return action;
-  const desigM = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
+  const desigM = scan.match(/(対戦相手の[^、。]*?シグニ[０-９\d]*体)を対象とし、/);
   if (!desigM) return action;
   // ⚠任意コスト STUB `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` を持つケースも補正対象に含める。engine の
   // fixOwnerTOSOC は実行時 owner を opponent へ寄せるが、JSON を先に opponent へ直しても fixOwner は冪等
