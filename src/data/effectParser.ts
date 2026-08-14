@@ -9568,6 +9568,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // 「他のシグニゾーンに移動したとき」は付与能力の引用内「アタックしたとき」より優先（WXK10-079 等）。
              : trigText.match(/他のシグニゾーンに移動したとき/) ? ['ON_ZONE_MOVED']
              : trigText.includes('このルリグがアタックしたとき') ? ['ON_ATTACK_LRIG']
+             // 🔴「**あなたの**（センター）ルリグ（N体）がアタックしたとき」＝**ルリグアタック**（§3 (cxxviii)・続き475d）。
+             //   従来は下の総称フォールバックで `ON_ATTACK_SIGNI` になり、**シグニのアタックで誤発火**していた
+             //   （実測18効果＝17枚がシグニ・1枚がアシストルリグ）。`WXDi-P04-051-E1` はそのせいで
+             //   「攻撃者が先にダウンするのでアップの自シグニが3体そろわない」＝**恒久 no-op** だった。
+             //   ⚠**engine 側の収集経路が要る**＝`collectAllyLrigAttackTriggers`（アタック側の味方カードを走査）を
+             //     続き475d で新設済み。**これが無いと timing を直すと逆に丸ごと不発になる**（配線→表現の順）。
+             : /あなたの(?:センター)?ルリグ(?:[０-９\d]+体)?がアタックしたとき/.test(trigText) ? ['ON_ATTACK_LRIG']
              // 「対戦相手の〔シグニかルリグ／ルリグかシグニ〕がアタックしたとき」＝**両方**のアタックで発火する
              // 複合主語。従来は下の総称フォールバックで ON_ATTACK_SIGNI だけになり**ルリグ側が丸ごと落ちて**いた
              // （続き218i で silent fallback として刻んだ分・タスク12(xlvii)）。engine は両 timing とも
