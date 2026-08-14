@@ -17,7 +17,7 @@ import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
-import { buildEffectsMap, parseCardEffects } from '../src/data/effectParser';
+import { buildEffectsMap, parseCardEffects, abilityBlockTextOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones } from '../src/engine/execUtils';
@@ -33543,6 +33543,70 @@ test('SPDi43-13-sub-E1: 付与ON_ENERGY_CHARGEの《ターン2回》を2件だ�
   eq(reserved.filter(id => id === effect.effectId).length, 2, 'actions_doneへ書き戻すIDは2件だけ');
   ok(!reserveGrantedAutoUsage({ ...state, actions_done: [effect.effectId, effect.effectId] }, effect, []),
     '永続済みactions_doneが2件なら次の収集でも発火不可');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-20: 実行時に「カード全文」を regex で読む層（別能力の文で意味が決まる）
+// 🔴**この層の事故は golden も census も緑のまま素通りする**（続き459 の LRIG_GROW_RESTRICT／
+//   続き463 の inferTriggerScope はどちらも全ゲート緑だった）＝計器に映らないので、
+//   ここで「ブロック限定読みが効いていること」を明示的に固定する。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 O-20: 能力ブロック解決が根拠カードで効いている（全文なら別能力の文を拾う）', () => {
+  const blk = (num: string, effId: string): string => abilityBlockTextOf(cardMap.get(num), effId);
+  const full = (num: string): string =>
+    (cardMap.get(num)?.EffectText ?? '') + ' ' + (cardMap.get(num)?.BurstText ?? '');
+
+  // ① 奇偶2能力の同居（対象が反転する）
+  ok(/レベルが奇数の対戦相手/.test(blk('WXK10-084', 'WXK10-084-E2')),
+    '🔴WXK10-084-E2 のブロックは「奇数の対戦相手」を対象にする');
+  eq(full('WXK10-084').match(/レベルが(奇数|偶数)の対戦相手/)?.[1], '偶数',
+    '全文だと先頭 E1 の「偶数」に一致する＝ブロックを読まないと対象が反転する');
+
+  // ② 保護ゾーン（E2 の「手札」を拾って過剰保護）
+  const tmb = blk('WXK10-083', 'WXK10-083-E1');
+  ok(tmb.includes('エナゾーン') && !tmb.includes('手札'),
+    '🔴WXK10-083-E1 はエナ限定＝手札を含まない');
+  ok(full('WXK10-083').includes('手札'), '全文には別能力の「手札」がある');
+
+  // ③ ドロー枚数（E2 の「２枚引く」を拾って余分な2ドロー）
+  ok(!/カードを[０-９\d]+枚引く/.test(blk('WXDi-P10-006', 'WXDi-P10-006-E3')),
+    '🔴WXDi-P10-006-E3 のブロックに「N枚引く」は無い');
+  ok(/カードを２枚引く/.test(full('WXDi-P10-006')), '全文には別能力の「２枚引く」がある');
+
+  // ④ 付与対象のクラス（E2 の＜紅蓮＞で無指定の対象が限定される）
+  ok(!blk('WXK04-002', 'WXK04-002-E3').includes('紅蓮'),
+    '🔴WXK04-002-E3 のブロックにクラス限定は無い');
+  ok(full('WXK04-002').includes('紅蓮'), '全文には別能力の＜紅蓮＞がある');
+
+  // ⑤ 配置替えの側（別能力の「対戦相手のシグニ」で自シグニ対象が相手化）
+  ok(!blk('WXDi-P00-015', 'WXDi-P00-015-E1').includes('対戦相手'),
+    '🔴WXDi-P00-015-E1 のブロックに「対戦相手」は無い＝自分のシグニを配置替えする');
+  ok(full('WXDi-P00-015').includes('対戦相手のシグニ'), '全文には別能力の「対戦相手のシグニ」がある');
+});
+
+test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全文」読みへ戻っていない', () => {
+  // 各ファイルで sourceAbilityText を使っている箇所数を凍結する。
+  // 減ったら「全文読みへ差し戻された」＝無言で別能力の文に従い始めるので赤にする。
+  const FROZEN: Record<string, number> = {
+    'src/engine/execStubPart1.ts': 7,
+    'src/engine/execStubPart2.ts': 11,
+    'src/engine/execStubPart3.ts': 2,
+    'src/engine/effectExecutor.ts': 2,
+  };
+  for (const [f, n] of Object.entries(FROZEN)) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    const hits = (src.match(/sourceAbilityText\(/g) ?? []).length;
+    eq(hits, n, `${f} の sourceAbilityText 使用箇所（増＝新規変換なら期待値を更新／減＝全文読みへの差し戻し）`);
+  }
+  // ctx を持たない走査側（CONTINUOUS 収集）も同様にブロックを読む
+  const eng = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8');
+  ok(/PREVENT_ZONE_MOVE_BY_OPP'\) \{[\s\S]{0,400}?abilityBlockTextOf\(card, eff\.effectId\)/.test(eng),
+    'collectProtectedZones は効果ごとのブロックを読む（execStubPart2 側と二重配線なので必ず対で保つ）');
+  // 実アプリと同じく解決中の effectId が ctx に載ることを固定する（載らないとブロックを特定できず全文へ落ちる）
+  const exe = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
+  ok(/ctx\.sourceEffectId \? ctx : \{ \.\.\.ctx, sourceEffectId: effect\.effectId \}/.test(exe),
+    'executeEffect が sourceEffectId を補完する（O-20 の source 配線の入口）');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
