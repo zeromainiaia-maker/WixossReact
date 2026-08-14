@@ -2465,6 +2465,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const collectLrigAttackDefenderTriggers = (defenderState: PlayerState, attackerState: PlayerState, defenderId: string): { entries: StackEntry[]; usedIds: string[] } =>
     pureCollectLrigAttackDefenderTriggers(mkTrigCtx(), defenderState, defenderId,
       collectLrigGrantedEffects(defenderState, attackerState, false, effectsMap, battleCardMap));
+  // 「**あなたの**ルリグがアタックしたとき」＝**アタック側の味方カード**（場のシグニ／アシストルリグ）の
+  // AUTO を収集（§3 (cxxviii)・続き475d）。上の防御側コレクタとは主語も playerId も違う。
+  const collectAllyLrigAttackTriggers = (attackerState: PlayerState, attackerId: string, attackingLrigNum: string): { entries: StackEntry[]; usedIds: string[] } =>
+    pureCollectAllyLrigAttackTriggers(mkTrigCtx(), attackerState, attackerId, attackingLrigNum);
   // ON_COIN_PAID の usedIds（《ターン1回/2回》消化）を payer 状態の actions_done へ書き戻すヘルパー（続き106）。
   const applyCoinPaidUsed = (st: PlayerState, coin: { usedIds: string[] }): PlayerState =>
     coin.usedIds.length > 0 ? { ...st, actions_done: [...(st.actions_done ?? []), ...coin.usedIds] } : st;
