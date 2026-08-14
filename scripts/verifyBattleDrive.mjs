@@ -16719,16 +16719,24 @@ function v14CountInstance(side, instanceId) {
 async function v14OpenSigniActionLabels(page, H, testId = 'my-signi-zone-0') {
   await H.closeModals();
   const opened = await H.clickTestId(testId);
-  const modal = page.getByTestId('card-detail-modal').first();
+  // 🔑**場のシグニをタップして開くのは `CardModal` ではなく `StackModal`**（ライズ用の複数枚ビュー）。
+  //   `card-detail-modal`（`BoardComponents.tsx:73`）は CardModal 専用なので、場のシグニでは**永久に不可視**
+  //   ＝`modalVisible=false / labels=[]` になる（続き478 実測）。⇒ StackModal 側に `stack-detail-modal` を
+  //   足したうえで、**どちらのモーダルでも読める**ようにする（アクションボタンの `card-action-{i}` と
+  //   `data-action-label` は両モーダル共通＝`:98` と `:210`）。
+  const modal = page.locator('[data-testid="card-detail-modal"], [data-testid="stack-detail-modal"]').first();
   let labels = [];
+  let modalVisible = false;
   for (let i = 0; i < 12; i++) {
     await page.waitForTimeout(250);
     if (await modal.count() && await modal.isVisible().catch(() => false)) {
+      modalVisible = true;
       labels = await modal.locator('[data-testid^="card-action-"]:visible')
         .evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+      if (labels.length > 0) break;
     }
   }
-  return { opened: !!opened, modalVisible: !!(await modal.count()) && await modal.isVisible().catch(() => false), labels };
+  return { opened: !!opened, modalVisible, labels };
 }
 
 async function v14FinishHumanEndNoDiscard(page, H) {
