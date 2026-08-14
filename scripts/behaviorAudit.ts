@@ -330,6 +330,10 @@ function buildScenario(sourceNum: string, eff: CardEffect): { ctx: ExecCtx; labe
   const ctx = {
     ownerState, otherState, cardMap: cardMap as Map<string, CardData>,
     logs: [] as string[], sourceCardNum: sourceNum, triggeringCardNum: sourceNum, currentPhase: 'MAIN',
+    // 実アプリ（BattleScreen）は AUTO 収集も pending 再開も effectId を ctx に載せる。
+    // ここで落とすと resume 経路だけ「どの能力ブロックから来たか」を見失い、
+    // §6.4 O-20 のブロック限定読みがカード全文へフォールバックする＝ハーネスだけ旧挙動になる。
+    sourceEffectId: eff.effectId,
   } as unknown as ExecCtx;
   return { ctx, labels };
 }
