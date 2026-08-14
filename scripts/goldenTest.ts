@@ -7714,6 +7714,24 @@ test('§3 (cxxviii) parser: 「あなたのルリグがアタックしたとき�
     eq((x.timing ?? []).join(','), 'ON_ATTACK_LRIG', `${effId}: 同じ主語なので ON_ATTACK_LRIG`);
     eq(x.triggerScope, 'any_ally', `${effId}: any_ally`);
   }
+  // 🆕続き475e＝主語に修飾が付く形（「あなたの**白の**ルリグ１体が」）も語彙化できたので同じ扱い。
+  //   ⚠**修飾を落として any_ally にしてはいけない**＝「白のルリグ限定」が消えて過剰発火になる。
+  {
+    const w = effectsMap.get('WXDi-P03-035')!.find(y => y.effectId === 'WXDi-P03-035-E1')!;
+    eq((w.timing ?? []).join(','), 'ON_ATTACK_LRIG', 'WXDi-P03-035-E1: 修飾つき主語でも ON_ATTACK_LRIG');
+    eq(w.triggerScope, 'any_ally', 'WXDi-P03-035-E1: any_ally');
+    eq(JSON.stringify(w.triggerFilter), '{"color":"白"}', '🔴「白の」限定が triggerFilter に載る（落とすと過剰発火）');
+  }
+});
+
+test('§3 (cxxviii) parser: 語彙化できない主語修飾は timing を触らない（過小実行を過剰発火へ付け替えない）', () => {
+  // 「あなたの《335　アキノ》１体がアタックしたとき」（`SPDi43-28-E1`）は**ルリグという語すら無い**指示語主語。
+  // `parseAllyLrigAttackSubject` は未知修飾で null を返すので timing は据置＝**据置が正しい**（配線しない）。
+  // ⚠ここが ON_ATTACK_LRIG へ倒れたら、カード名限定が落ちて「どのルリグでも」発火する回帰。
+  const e = effectsMap.get('SPDi43-28')!.find(x => x.effectId === 'SPDi43-28-E1');
+  ok(!!e, 'SPDi43-28-E1 が live にある');
+  ok(!(e!.timing ?? []).includes('ON_ATTACK_LRIG') || e!.triggerFilter?.cardName !== undefined,
+     '🔴語彙化できない主語は timing を触らない（触るなら cardName 限定を必ず載せる）');
 });
 
 // 「対戦相手の（センター）ルリグがアタックしたとき」の timing/scope（parser 側・続き218j）
