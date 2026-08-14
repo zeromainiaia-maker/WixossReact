@@ -39,6 +39,8 @@ const root = process.cwd();
 const args = process.argv.slice(2);
 const argVal = (k: string) => { const i = args.indexOf(k); return i >= 0 ? args[i + 1] : undefined; };
 const ONLY_ID = argVal('--id');
+// カンマ区切りで複数カードを一括トレースする（O-20 の変換前後を2プロセスで比較するため）。
+const ONLY_IDS = argVal('--ids')?.split(',').map(s => s.trim()).filter(Boolean);
 const SET = argVal('--set');
 const LIMIT = argVal('--limit') ? parseInt(argVal('--limit')!) : Infinity;
 const QUEUE = args.includes('--queue');
@@ -674,7 +676,8 @@ if (HTML) {
 } else {
   // トレース表示（--id / --set / デフォルトはサンプル）
   let targets: string[];
-  if (ONLY_ID) targets = [ONLY_ID];
+  if (ONLY_IDS) targets = ONLY_IDS;
+  else if (ONLY_ID) targets = [ONLY_ID];
   else if (SET) targets = [...effectsMap.keys()].filter(n => n.startsWith(SET));
   else targets = ['WX25-P2-030', 'WXDi-D06-011', 'WX01-001']; // 試作サンプル
   let shown = 0;

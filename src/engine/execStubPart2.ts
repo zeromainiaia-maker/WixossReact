@@ -4448,8 +4448,9 @@ export function execStubPart2(
   // ※ SIGNI_GRANT_CHOSEN_ABILITY（WXK09-050＝表記パワー比較＋DOWN/BOUNCE 保護）は execStubPart1 の
   //   カード固有ハンドラが先取りするためここには到達しない（generic は power 比較/保護を扱えない・タスク12(iii)）。
   if (stub.id === 'GRANT_CHOSEN_ABILITY' || stub.id === 'GRANT_CHOSEN_ABILITY_SELF') {
-    const srcGCA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtGCA = srcGCA ? (srcGCA.EffectText ?? '') + ' ' + (srcGCA.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力のクラス限定を拾う（`WXK04-002-E3` は E2 の＜紅蓮＞を拾い、
+    // **クラス無指定の対象が＜紅蓮＞へ限定**されていた）のでブロックだけを読む。
+    const txtGCA = sourceAbilityText(ctx);
     const toHWGCA = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // _SELF は「このシグニは選んだ能力を得る」＝対象選択なしで効果元自身（WXK08-026。
     // 従来は自シグニ全体から SELECT_TARGET していた＝対象の過剰許容・続き77 Opusタスク12(e)）

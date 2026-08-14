@@ -13,6 +13,7 @@ import {
   canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
+  sourceAbilityText,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -3978,8 +3979,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
 
         // OPTIONAL_TRASH_ENERGY_CLASS: エナゾーンから特定クラスのカードを任意でトラッシュ/手札へ
         if (stub.id === 'OPTIONAL_TRASH_ENERGY_CLASS') {
-          const srcOTEC = cur.sourceCardNum ? cur.cardMap.get(cur.sourceCardNum) : undefined;
-          const txtOTEC = srcOTEC ? (srcOTEC.EffectText ?? '') + ' ' + (srcOTEC.BurstText ?? '') : '';
+          // §6.4 O-20: 全文だと別能力の行先を拾う（`WX25-CP1-049-E1` は E3 の「それを手札に加える」を拾い、
+          // **払ったエナがトラッシュではなく手札へ**行き、さらに後続の帰結まで省略されていた）。
+          const txtOTEC = sourceAbilityText(cur);
           const toHWOTEC = (s: string) => s.replace(/[\uFF01-\uFF5E]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
           // クラス・トラッシュ枚数は「エナゾーンから＜X＞の(シグニ|カード)N枚をトラッシュ」句から取る。
           // （同カード内の「N体を対象」＝バニッシュ対象数 や 別記述＝場出し記述 の誤マッチを避ける。

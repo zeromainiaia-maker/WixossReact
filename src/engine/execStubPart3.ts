@@ -10,6 +10,7 @@ import {
   LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, addBarrierTokens,
   isOwnTrashMoveLocked,
   matchesFilter,
+  sourceAbilityText,
 } from './execUtils';
 import { collectMultiAcceLimits, LRIG_ALL_NAMES_SENTINEL } from './effectEngine';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
@@ -1133,8 +1134,9 @@ export function execStubPart3(
   }
   // COLLAB: コラボ効果
   if (stub.id === 'COLLAB') {
-    const srcCL = ctx.sourceCardNum ? ctx.cardMap.get(getCardNum(ctx.sourceCardNum)) : undefined;
-    const txtCL = (srcCL?.EffectText ?? '') + ' ' + (srcCL?.BurstText ?? '');
+    // §6.4 O-20: 全文だと別能力の人数を拾う（`WXDi-CP01-005-E1` は「1人とコラボ」なのに
+    // E2 の「2人を呼ぶ」で 2人 call になっていた）のでブロックだけを読む。
+    const txtCL = sourceAbilityText(ctx);
     // 「コラボライバーN人を呼ぶ」= ルリグデッキからアシストルリグをアシストゾーンに配置
     const callM = txtCL.match(/コラボライバー([２2])人を呼ぶ/);
     const callCount = callM ? 2 : txtCL.includes('コラボライバー') && txtCL.includes('呼ぶ') ? 1 : 0;
@@ -3700,8 +3702,9 @@ export function execStubPart3(
   // SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体）
   // MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）
   if (stub.id === 'SIGNI_REPOSITION' || stub.id === 'SWAP_OPTIONAL' || stub.id === 'MOVE_TARGET_SIGNI_TO_OTHER_ZONE') {
-    const srcCardSR = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSR = srcCardSR ? (srcCardSR.EffectText ?? '') + ' ' + (srcCardSR.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力/Burst の「対戦相手のシグニ」を拾い、**自シグニの配置替えが相手対象化**する
+    // （`WXEX2-04-E1`／`WXDi-P00-015-E1`／`WXDi-P00-068-E1`）のでブロックだけを読む。
+    const txtSR = sourceAbilityText(ctx);
     const isOppSR = txtSR.includes('対戦相手のシグニ');
     const isAllSR = txtSR.includes('すべてのシグニを') && !isOppSR;
     const targetStateSR = isOppSR ? ctx.otherState : ctx.ownerState;
