@@ -1063,7 +1063,8 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.duration === 'NEXT_TURN' ? '（次のあなたのターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）' : '';
       const subjGE = a.targetsLastProcessed ? 'それ'
-        : a.target?.filter?.thisCardOnly ? 'このシグニ'
+        // thisCardOnly の主語はホストの種別で変わる（§6.4 O-25 で LRIG 自己付与が parser から出るようになった）
+        : a.target?.filter?.thisCardOnly ? (a.target?.type === 'LRIG' ? 'このルリグ' : 'このシグニ')
         : targetJa(a.target);
       const bodyGE0 = a.effect ? effJa(a.effect) : (a.rawText ?? '');
       // levelLtSelf/levelGtSelf（「自身より低い/高いレベル」）は付与先の種別で読みが変わる＝engine は host 基準で解決
