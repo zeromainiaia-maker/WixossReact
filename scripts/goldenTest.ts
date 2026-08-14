@@ -7636,6 +7636,7 @@ test('collectAllyLrigAttackTriggers: アタック側の味方カードを any_al
     eq(collectAllyLrigAttackTriggers({ ...trigCtx(HOST), effectsMap: em }, st, HOST, LRIG).entries.length, 0,
        '🔴アタックしたルリグ自身は除外（二重発火の防止）');
   }
+  } finally { cursor = savedCursor; }
 });
 
 test('§3 (cxxviii) parser: 「あなたのルリグがアタックしたとき」は ON_ATTACK_LRIG＋any_ally／帰結は LRIG 対象', () => {
