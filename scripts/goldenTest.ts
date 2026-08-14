@@ -23415,7 +23415,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // `triggerScope:'any_ally'` ＋ `triggerCondition.placedFromTrash` を書くようになったので
     // **予告どおりこの集合から抜けた**（＝自身の【出】ではなく味方シグニ登場の watcher に確定）。
     eq(eligible.length, 1454, '段階2 mandatory集合');
-    eq(eligible.length - conditional.length, 1404, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    // 1404→1403＝上と同じ WX25-P1-061-E1 の1件（`condition` を持たない側だったので同数だけ減る）
+    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
     eq(conditional.length, 51, '段階2 condition/activeConditionあり（クラス種類数ゲートを含む）');
     eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
