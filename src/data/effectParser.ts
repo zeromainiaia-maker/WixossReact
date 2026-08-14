@@ -10765,7 +10765,8 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           if (Object.keys(tf).length) extractedTriggerFilter = tf;
           if (allyPlayM[2]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedPuppet: true }; // 「傀儡状態の」
           if (allyPlayM[5]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byEffect: true };
-          actionText = allyPlayM[6];
+          if (allyPlayM[6]) extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), placedFromTrash: true }; // 「トラッシュから」
+          actionText = allyPlayM[7];
         } else if (allyResonaPlayM) {
           extractedTriggerScope = 'any_ally';
           extractedTriggerFilter = { cardType: 'レゾナ' };
