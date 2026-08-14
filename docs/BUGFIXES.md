@@ -1,5 +1,57 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き475c・Opus 5）— 🏁 §3 **(cxxix) を残0クローズ**（`lifeCrash` の身代わりが「コスト0」で成立していた）
+
+**live JSON は変更なし。** これで §7 の **V-01（6本）と V-10（5本）が全シナリオ緑**になった。
+
+### 症状と真因
+
+`WX14-026`（羅石　スイカリン）＝原文「対戦相手のターンの間、このシグニがバニッシュされる場合、代わりに**あなたのライフクロス１枚をクラッシュしてもよい**」。
+実機では **`guest.life 7→7`（1枚も払わず）シグニが場に残り**、ログは `身代わり：羅石　スイカリンの下からスペル0枚をトラッシュして羅石　スイカリンのバニッシュを回避` だった。
+
+真因は**3段**：
+
+1. `lifeCrash` は `autoEligible:false`（自動 policy では選ばない）だが、**`leaveSubstituteAskOptions` は `kind==='optional'` だけで絞る**ので**対話の選択肢には出る**（`effectExecutor.ts:705`）。
+2. `applyEffectLeaveSubstitutes` が決定を採る側（`:682`）も **`autoEligible` を見ない**。
+3. `applyEffectBanishSubstituteChoice`（`:463-`）は `sacrifice` と `discardSpell` しか分岐せず、**`lifeCrash` は末尾の `trashStackSpell` へフォールスルー**。そこは**在庫が0でも「0枚トラッシュ」で成立する**ので、**コスト0でバニッシュを回避**できていた。
+
+### 修正
+
+- **`lifeCrash` を apply 側に実装**＝`execLifeCrash` と同じ形で、ライフクロス（裏向き＝選べないので配列末尾）から `amount` 枚を取り、**先頭1枚を `field.check` へ**・残りを `pending_crashed_cards` へ積む＝**【ライフバースト】確認フローへ通常どおり乗る**。ログは バトル経路（`BattleScreen.tsx:8401`）と同じ `身代わり：ライフクロスN枚をクラッシュして<victim>のバニッシュを回避`。
+- **`isImplementedSubstituteCost` を新設**し、**engine が徴収できない costType は列挙段階で落とす**。⚠これが唯一の安全弁＝apply 側の末尾は `trashStackSpell` 専用なので、**新しい costType を足すときは apply の分岐とこの集合を対で更新する**こと。
+- `banishSubstituteAutoEligible` は **`lifeCrash` を自動 policy から外したまま**にした。⚠理由が変わった＝**「実装が無いから」ではなく「原文が『してもよい』だからプレイヤーの同意なしにライフを割ってはいけない」**。コメントを更新済み。
+
+### ⭐ 旧コメントの前提が誤りだった
+
+`:411-413` は「`lifeCrash` は【ライフバースト】確認フロー（`field.check`）を伴うため**効果解決の途中で同期的に差し込めない**」としていたが、**実機で通しで動いた**：
+
+```
+身代わり：ライフクロス1枚をクラッシュして羅石　スイカリンのバニッシュを回避
+[CPU] ライフクロスをオープン: 小剣　ククリ（ライフバーストなし）
+```
+
+`field.check` を立てるのは engine の `execLifeCrash` が普段からやっていることで、確認フローは BattleScreen が非同期に回収する。**「同期的に差し込めない」のは適用ではなく“結果の待ち合わせ”だけ**だった。
+
+### 実機シナリオ（id を rename）
+
+`effectBanishLifeCrashSubstituteNotOnEffect` → **`effectBanishLifeCrashSubstitutePaysLife`**（旧 id は期待値が逆で誤解を招くため）。
+判定は **①ライフが実際に1枚減る ②victim が場に残る ③`身代わり：ライフクロス1枚をクラッシュ…` のログ ④`スペル0枚` のログが出ない ⑤問いが victim1体ぶん**の5点。
+🔑**「シグニが残った」だけでは (cxxix) の回帰を検出できない**（コスト0でも同じ絵になる）ので、**ライフ差分を必須条件**にしている。
+
+### golden トリップワイヤ2本（1966 → 1968）
+
+| テスト | 見張るもの | 外したときの実測 |
+|---|---|---|
+| `§3 (cxxix) 離場置換: lifeCrash を選んだら本当にライフを払う（0枚トラッシュで成立しない）` | ライフが1枚減る／`field.check` が立つ／`スペル0枚` ログが出ない | `expected=6 got=7` で FAIL |
+| `§3 (cxxix) 離場置換: engine が徴収できないコストは選択肢に出さない（0枚成立の再発防止）` | 列挙されるのは apply 側に分岐がある種別だけ | （将来 costType 追加時の見張り） |
+
+### ゲート
+
+`npm run gates` 全緑（typecheck / **golden 1968** / smoke 10688 SKIP 0 / fuzz 全0 / census 831 / census:stubs / manual-fields 0 / lint 0 errors・259 warnings）。
+実機は **V-01 の6本＋V-10 の5本＝11本すべて PASS**。
+
+---
+
 ## 2026-08-14（続き475b・Opus 5）— 🏁 §3 **(cxxvi)＋(cxxx) を残0クローズ**（離場置換の instance 複製と決定の消費漏れ）
 
 続き475 の実機検証で局在が確定した2件を engine で修正。**同じ funnel（`applyEffectLeaveSubstitutes` の呼び出し規約）に起因する**ので1手で直した。**live JSON は変更なし。**
