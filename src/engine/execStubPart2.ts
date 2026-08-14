@@ -2629,6 +2629,7 @@ export function execStubPart2(
       `シグニ下${underCountPMBUC}枚×${singleDeltaPMBUC}→パワー${totalDeltaPMBUC}`));
   }
   // POWER_MOD_BY_COLOR_VARIETY: 色の種類数×deltaをパワー修正
+  // ⚠**到達不能**＝同じ id を同ファイル上方（:308）が先に受ける（§6.4 O-21）。実際に効くのは :308 側。
   if (stub.id === 'POWER_MOD_BY_COLOR_VARIETY') {
     const toHWPMBCV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // §6.4 O-20: 全文だと別能力の数値（`WXDi-D06-016` は E1 の －10000）を拾うのでブロックだけを読む。
