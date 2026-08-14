@@ -7616,6 +7616,9 @@ test('§3 (cxxvii) engine: thenOnPay のエナ払い枝でも帰結が実行さ�
   //   いなかった**＝`thenOnPay`（「支払ってもよい。**そうした場合**、X」）の X が丸ごと落ちていた。
   //   ⚠`discard`/`energyTrash` 枝は `choiceId !== 'pay'` の分岐が `selectedOpt.action` を実行するので
   //     動いており、**エナ払い枝だけが取り残されていた**（同じ効果でもコスト種別で挙動が割れる）。
+  // ⚠`mkCtx` は共有 `cursor` から `fill` するので復元しないと後続テストの盤面がずれる（続き475d 実測）。
+  const savedCursor = cursor;
+  try {
   const eff = {
     effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
     action: { type: 'SEQUENCE', steps: [
