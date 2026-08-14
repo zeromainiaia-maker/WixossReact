@@ -15881,8 +15881,7 @@ scenarios.v12GrantedEnergyChargeTwice = {
         await H.closeModals();
       }
       if (grantReady && (pre?.host?.energy ?? 0) > completed
-          && !pre?.pendingEffect && (pre?.stackLen ?? 0) === 0
-          && (pre?.host?.lrigDown !== false || true)) {
+          && !pre?.pendingEffect && (pre?.stackLen ?? 0) === 0) {
         if (pre.host.energy !== completed + 1) {
           return { pass: false, detail: `エナが1枚ずつ増えていない（${completed}→${pre.host.energy}）＝ON_ENERGY_CHARGEの観測前提違反` };
         }
