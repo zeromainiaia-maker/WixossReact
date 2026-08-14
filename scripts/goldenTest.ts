@@ -33902,6 +33902,22 @@ test('§6.4 O-25: WX24-P2-007-E1 の全体付与は「あなたの」全シグ�
   ok(owners.every(o => o === 'self'), `🔴付与先が opponent に戻っている: ${owners.join(',')}`);
 });
 
+test('§6.4 O-25: 自己付与は問いを出さずに granted_effects へ入る（engine 側の thisCardOnly 自動付与）', () => {
+  // parser が `GRANT_EFFECT{target:{filter:{thisCardOnly}}}` を作り始めたので、engine 側にも
+  // execGrantKeyword と同じ「候補1件でも選択UIを出さない」分岐が要る。無いと
+  // `selectOrInteract` が**自分自身を選べという無意味なモーダル**を挟む（＝解決が止まる）。
+  const eff = (effectsMap.get('WX25-CP1-048') ?? []).find(e => e.effectId === 'WX25-CP1-048-E1');
+  ok(!!eff, 'WX25-CP1-048-E1 が live に存在する');
+  const src = 'WX25-CP1-048';
+  const ctx = mkCtx({ field: { signi: [[src], null, null] } } as never, {}, src);
+  const r = executeEffect(eff!, ctx);
+  eq(r.done, true, '🔴対話待ちにならない（thisCardOnly の自動付与）');
+  const granted = (r.ownerState as unknown as { granted_effects?: Record<string, unknown[]> }).granted_effects ?? {};
+  eq((granted[src] ?? []).length, 1, `🔴自分自身に引用能力が1つ付く（実際: ${JSON.stringify(Object.keys(granted))}）`);
+  const inner = (granted[src] ?? [])[0] as { timing?: string[] };
+  eq(inner?.timing?.[0], 'ON_ATTACK_PHASE_START', '付いたのは引用の【自】（即時実行に戻っていない）');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
