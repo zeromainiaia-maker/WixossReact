@@ -6571,13 +6571,41 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (e.action as import('../types/effects').StubAction)?.id === 'UNLIMITED_KEYS',
         )
       );
-      const newField = (hasUnlimitedKeysEKP && my.field.key_piece)
-        ? { ...my.field, key_piece_extra: [...(my.field.key_piece_extra ?? []), instanceId] }
-        : { ...my.field, key_piece: instanceId };
+      // 🔴**ピースはキーではない**（§3 (cxxiii)・続き475g）。
+      //   ルール上ピースは「**使用**＝コストを1回払って効果を解決し、ルリグトラッシュへ置く」もので、
+      //   キーゾーンを占有しない。従来は キー と同じ経路で **①印刷 Cost を徴収 ②`key_piece` へ置き
+      //   ③`AUTO`/`ON_PLAY` しか積まない** だったため、**118枚（Type='ピース' 119枚中）が
+      //   `ACTIVATED`＋印刷 Cost 同額の `cost.energy` を持つのに効果が一切走らず**、
+      //   KEY スロットの【起】から起動して**同額をもう一度**払う羽目になっていた（＝二重請求）。
+      //   ⚠**分岐は `card.Type === 'ピース'` だけ**＝キー側は1行も変えない（共通経路の事故を構造的に避ける）。
+      const isPiece = card.Type === 'ピース';
+      const newField = isPiece
+        ? my.field                                     // ピースはキーゾーンを占有しない
+        : (hasUnlimitedKeysEKP && my.field.key_piece)
+          ? { ...my.field, key_piece_extra: [...(my.field.key_piece_extra ?? []), instanceId] }
+          : { ...my.field, key_piece: instanceId };
+      // 「このゲームの間、あなたのセンタールリグは『…』を得る」型（`WXDi-P15-003-E2`＝CONTINUOUS
+      // `GRANT_LRIG_ABILITY`）は、**カードがキーゾーンに居ることで読まれていた**。ルリグトラッシュへ送ると
+      // 失効するので、**解決時に付与ストアへ載せ替える**（engine の `GRANT_LRIG_ABILITY` 実行と同じ形）。
+      // ⚠`duration:'PERMANENT'` のときだけ `permanentGrant` を刻む＝ターン境界リセットで残す条件。
+      const pieceContGrants = isPiece
+        ? (effectsMap.get(instanceId) ?? []).filter(e =>
+            e.effectType === 'CONTINUOUS'
+            && (e.action as { type?: string })?.type === 'GRANT_LRIG_ABILITY')
+        : [];
+      const pieceGrantedAbilities = pieceContGrants.flatMap(e => {
+        const abilities = (e.action as unknown as import('../types/effects').GrantLrigAbilityAction).abilities ?? [];
+        return e.duration === 'PERMANENT' ? abilities.map(ab => ({ ...ab, permanentGrant: true })) : abilities;
+      });
       const paid: PlayerState = keyPay.applyTo({
         ...my,
         lrig_deck: newLrigDeck,
         field: newField,
+        // ピースは解決後ルリグトラッシュへ（キーは場に残るので触らない）。
+        lrig_trash: isPiece ? [...my.lrig_trash, instanceId] : my.lrig_trash,
+        ...(pieceGrantedAbilities.length > 0
+          ? { lrig_granted_auto_effects: [...(my.lrig_granted_auto_effects ?? []), ...pieceGrantedAbilities] }
+          : {}),
         trash: [...my.trash, ...paidNums],
         coins: Math.max(0, my.coins - coinCost),
         coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + coinCost, // COINS_PAID_THIS_TURN
@@ -6586,7 +6614,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const keyCoin = coinCost > 0 ? collectCoinPaidTriggers(user.id, paid, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const keyCoinPaidEntries = keyCoin.entries;
       const paidWithCoin = applyCoinPaidUsed(paid, keyCoin); // 《ターン1回/2回》消化を永続化（続き106）
-      const fired = await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries);
+      // ⚠**ピースは `ACTIVATED` も積む**＝118枚の本体がここに入っている。`queueCardEffects` は
+      //   `effect.cost` を**徴収しない**（コスト徴収は UI 経路の担当）ので、印刷 Cost の1回払いだけになる。
+      const fired = isPiece
+        ? await queueCardEffects(instanceId, ['AUTO', 'ACTIVATED'],
+            ['ON_PLAY', 'MAIN', 'ATTACK', 'SPELL_CUTIN'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries)
+        : await queueCardEffects(instanceId, ['AUTO'], ['ON_PLAY'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries);
       if (!fired) {
         const stateKey = isHost ? 'host_state' : 'guest_state';
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paidWithCoin }));
