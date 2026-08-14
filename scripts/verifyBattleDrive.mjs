@@ -16635,9 +16635,12 @@ scenarios.v13TrashActCoinChain = {
     finalCheck: async (st, page) => {
       const coinsPaid = await v13CoinsPaidThisTurn(page);
       const watcherUsed = (st?.host?.actionsDone ?? []).includes('WXDi-P15-069-E1');
-      const watcherBuff = (st?.host?.powerMods ?? []).includes('WXDi-P15-069#7602:2000');
+      // 🔑`WXDi-P15-069-E1` は `duration:'UNTIL_OPP_TURN_END'`＝**長期ストアへ書かれる**ので
+      //   `powerMods`（＝temp_power_mods）ではなく `power_mods_until_opp_turn` を見る（上のヘルパ参照）。
+      const longMods = (await v13PowerModsUntilOpp(page)) ?? [];
+      const watcherBuff = longMods.includes('WXDi-P15-069#7602:2000');
       return { ok: st?.host?.coins === 0 && coinsPaid === 2 && watcherUsed && watcherBuff,
-        detail: `coins 2→${st?.host?.coins}・coins_paid_this_turn=${coinsPaid}・ON_COIN_PAID actions_done=${watcherUsed}・+2000=${watcherBuff}` };
+        detail: `coins 2→${st?.host?.coins}・coins_paid_this_turn=${coinsPaid}・ON_COIN_PAID actions_done=${watcherUsed}・+2000=${watcherBuff}（untilOpp=${JSON.stringify(longMods)}）` };
     },
   }),
 };
