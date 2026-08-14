@@ -33757,7 +33757,7 @@ test('§6.4 O-24: WXK06-030-E2 は「シグニ1体＋エナ1枚を対戦相手�
   eq(en?.opponentSelects, true, 'エナ側も対戦相手が選ぶ');
   // 過剰実行していたハンドラ／STUB id が復活していない
   const part2 = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
-  ok(!part2.includes('OPP_TRASH_FIELD_SIGNI_AND_ENERGY'), '旧ハンドラは削除済み');
+  ok(!/stub\.id === 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY'/.test(part2), '旧ハンドラは削除済み（残るのは経緯コメントのみ）');
   for (const [, effs] of effectsMap) {
     ok(!JSON.stringify(effs).includes('OPP_TRASH_FIELD_SIGNI_AND_ENERGY'), 'live に旧 STUB id が残っていない');
   }
