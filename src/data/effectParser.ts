@@ -3324,6 +3324,30 @@ function parseSingleSentenceInner(text: string): EffectAction {
         duration: 'UNTIL_END_OF_TURN', rawText: m[4] } as EffectAction;
     }
   }
+  // 🆕「(ターン終了時まで|次の対戦相手のターン終了時まで)、この(シグニ|ルリグ)は「【自/出/起】…」を得る」
+  //   → GRANT_EFFECT{target.filter.thisCardOnly}（§6.4 O-25・2026-08-15）。**期間プレフィックス除去より前**に
+  //   置くこと（下の strip が「ターン終了時まで、」を落とすと duration を復元できない＝上の count:'ALL' 規則と同じ理由）。
+  // 従来この自己付与形はどの付与規則にも掛からず、**引用の中身が即時実行へ平坦化**していた：
+  //   `WX25-P1-061-E1`／`WX25-CP1-048-E1`＝「アタックしたとき－8000/－15000」が**付与した瞬間に**発動（過剰実行）、
+  //   `WXDi-P09-038-E1`＝付与節が丸ごと落ちて **SEQUENCE[コスト支払いだけ] の恒久 no-op**。
+  //   残りは `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ち、engine が**実行時にカード原文を regex で読み直して**
+  //   付与を再現していた（§6.4 O-20 で潰した「実行時に原文で意味を決める層」の生き残り）。
+  // 引用内は expandGrantEffectRawTexts が parseBlock で CardEffect へ展開する（展開不能なら rawText 温存＋
+  // PARTIAL＝engine は effect 無し GRANT_EFFECT を no-op ガードするので、過剰実行側へは倒れない）。
+  // ⚠期間の無い「このシグニは「Q」を得る」（＝【常】の恒久付与）は対象外＝`parseContinuousQuotedGrant`
+  //   （GRANT_FIELD_SIGNI_ABILITY）の領分。ここで拾うとターン終了時に消える別物になる。
+  {
+    const m = text.trim().replace(/。$/, '')
+      .match(/^(ターン終了時まで|次の対戦相手のターン終了時まで)、この(シグニ|ルリグ)は「(【[自出起]】.+)」を得る$/s);
+    if (m && !/」と「|」か「/.test(m[3])) {
+      const dur: EffectDuration = m[1].startsWith('次の対戦相手') ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+      // thisCardOnly＝効果元自身へ付与（execGrantEffect がシグニ／センタールリグ／アシストルリグを解決する）
+      const target: EffectTarget = m[2] === 'ルリグ'
+        ? { type: 'LRIG', owner: 'self', count: 1, filter: { thisCardOnly: true } }
+        : { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
+      return { type: 'GRANT_EFFECT', target, duration: dur, rawText: m[3] } as EffectAction;
+    }
+  }
   // タイミング・期間プレフィックスを除去（既にパースブロックで処理済み）
   const t = text.trim().replace(/。$/, '')
     .replace(/^ターン終了時まで、/, '')
