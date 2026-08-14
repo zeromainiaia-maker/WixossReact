@@ -100,6 +100,34 @@ function parseAllyAttackSubject(text: string): { filter: TargetFilter } | null {
   return { filter };
 }
 
+/**
+ * 「あなたの[修飾群][センター]ルリグ[N体]がアタックしたとき、」＝**ON_ATTACK_LRIG の味方側主語**を
+ * `triggerScope:'any_ally'` ＋ `triggerFilter` へ落とす唯一の入口（§3 (cxxviii)・続き475d/475e）。
+ *
+ * ⚠**シグニ版（`parseAllyAttackSubject`）と同じ安全弁**＝未知の修飾語が1文字でも残ったら null を返し、
+ *   呼び出し側は timing を触らない。機械的に `ON_ATTACK_LRIG` へ倒すと、
+ *   「白のルリグ」限定が黙って落ちて**どのルリグのアタックでも発火する過剰発火**になる。
+ * ⚠**「対戦相手の…」は別経路**（`:9578` の any_opp 判定）。ここは「あなたの」始まり限定。
+ *
+ * 対応する修飾＝色／カード名《X》。修飾なし（「あなたのルリグ１体が」）も可。
+ */
+function parseAllyLrigAttackSubject(text: string): { filter: TargetFilter } | null {
+  const m = text.match(/^あなたの(.{0,24}?)(?:センター)?ルリグ(?:[０-９\d一二三四五六七八九]+体)?がアタックしたとき[、,]/);
+  if (!m) return null;
+  let rest = m[1];
+  const filter: TargetFilter = {};
+  const take = (re: RegExp, apply: (mm: RegExpMatchArray) => void): void => {
+    const mm = rest.match(re);
+    if (!mm) return;
+    apply(mm);
+    rest = rest.replace(re, '');
+  };
+  take(/《([^》]+)》/, mm => { filter.cardName = mm[1]; });
+  take(/([白赤青緑黒])の/, mm => { filter.color = mm[1]; });
+  if (rest.length > 0) return null; // 未知の修飾語が残る＝語彙化されていない＝配線しない
+  return { filter };
+}
+
 function isBatch1OnlyClause(re: RegExp): boolean {
   // ⚠「対戦相手のライフクロス〜があなたより多い場合」族はカードゲートを外した（タスク12(lxiii)）。
   //   全CSVで4枚（WX15-033／WX17-040／WX18-032／WXK11-031）しかなく、いずれもゲートに載っておらず
