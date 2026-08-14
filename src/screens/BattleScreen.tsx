@@ -7659,7 +7659,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       );
       if (canUse && canAfford && condOk) {
         actions.push({
-          label: 'キーにセット',
+          // ピースは「セット」ではなく**使用**（1回払って即解決→ルリグトラッシュ）。
+          label: isPieceCard ? 'ピースを使用' : 'キーにセット',
           color: '#cc8800',
           onClick: () => { openKeyModal(cardData); },
         });
