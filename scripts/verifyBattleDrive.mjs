@@ -15347,8 +15347,9 @@ scenarios.v11EffectDeployContinuousBlocked = {
       const groundBlocked = countSigni(st?.host?.fieldSigni) === 2
         && !hasTarget(st?.host?.fieldSigni) && (st?.host?.trashCards ?? []).includes(target);
       const exactLog = (st?.logTail ?? []).includes(expectedLog);
-      const settled = abilityClicked && st?.host?.lrigDown === true && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
-      H.log(`  v11a3[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDown=${st?.host?.lrigDown} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      const actLog = (st?.logTail ?? []).some(l => l.includes('混沌の鍵主') && l.includes('【起】効果'));
+      const settled = abilityClicked && actLog && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      H.log(`  v11a3[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} actLog=${actLog} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
       if (settled && groundBlocked && exactLog) {
         return { pass: true, detail: `guest場のWX07-006 CONTだけで効果配置不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」` };
       }
