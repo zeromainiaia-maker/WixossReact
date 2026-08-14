@@ -3023,20 +3023,32 @@ export function execStubPart1(
     // §6.4 O-20: 全文だと別能力の「対戦相手」を拾って相手側だけ処理する
     // （`WXEX2-21-E3` の原文は「すべてのシグニ」なのに E1 の「対戦相手」に引きずられていた）。
     const txtTAK = sourceAbilityText(ctx);
-    const isSelfTarget = !txtTAK.match(/対戦相手/);
-    const target = isSelfTarget ? 'self' : 'opponent';
-    const st = ownerState(target, ctx);
-    const signiAll = st.field.signi.flatMap(s => s ?? []);
-    const keyCard = st.field.key_piece;
-    const newField: PlayerState['field'] = { ...st.field, signi: [null, null, null], key_piece: null };
-    const newSt: PlayerState = {
-      ...st,
-      trash: [...st.trash, ...signiAll],
-      lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
-      field: newField,
-    };
-    return done(addLog(setOwnerState(target, newSt, ctx),
-      `シグニ${signiAll.length}体${keyCard ? '+キー' : ''}をトラッシュへ`));
+    // 「すべてのシグニ」「各プレイヤーは…すべて」＝**両者**が対象（live 2効果はどちらもこの形）。
+    // 片側だけに倒すと、相手の場だけ／自分の場だけ流す別物になる。
+    const bothSidesTAK = /各プレイヤー|すべてのシグニ/.test(txtTAK);
+    const targetsTAK: ('self' | 'opponent')[] = bothSidesTAK
+      ? ['self', 'opponent']
+      : [txtTAK.match(/対戦相手/) ? 'opponent' : 'self'];
+    let ctxTAK = ctx;
+    let trashedTAK = 0;
+    let keysTAK = 0;
+    for (const target of targetsTAK) {
+      const st = ownerState(target, ctxTAK);
+      const signiAll = st.field.signi.flatMap(s => s ?? []);
+      const keyCard = st.field.key_piece;
+      const newField: PlayerState['field'] = { ...st.field, signi: [null, null, null], key_piece: null };
+      const newSt: PlayerState = {
+        ...st,
+        trash: [...st.trash, ...signiAll],
+        lrig_trash: keyCard ? [...st.lrig_trash, keyCard] : st.lrig_trash,
+        field: newField,
+      };
+      trashedTAK += signiAll.length;
+      if (keyCard) keysTAK++;
+      ctxTAK = setOwnerState(target, newSt, ctxTAK);
+    }
+    return done(addLog(ctxTAK,
+      `シグニ${trashedTAK}体${keysTAK > 0 ? `+キー${keysTAK}` : ''}をトラッシュへ`));
   }
   // デッキから探してもよい（REVEAL_AND_PICK: シグニ検索→手札or場）
   if (stub.id === 'REVEAL_AND_PICK') {
