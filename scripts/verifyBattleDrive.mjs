@@ -16371,6 +16371,27 @@ async function v13CoinsPaidThisTurn(page) {
   }, { SUPA_URL, ANON });
 }
 
+/**
+ * `power_mods_until_opp_turn`（UNTIL_OPP_TURN_END のパワー修正）を `cardNum:delta` の配列で返す。
+ * ⚠**`H.queryState().powerMods` は `temp_power_mods` しか写さない**（`:16847` 付近）ので、
+ *   `duration:'UNTIL_OPP_TURN_END'` の効果（`WXDi-P15-069-E1` 等）は**そちらには絶対に出ない**
+ *   （書き分けは `effectExecutor.ts:1456`）。powerMods だけを見ると「発火したのに乗っていない」
+ *   という**engine バグに見える偽陰性**になる（続き478 で実際に踏んだ）。
+ */
+async function v13PowerModsUntilOpp(page) {
+  return page.evaluate(async ({ SUPA_URL, ANON }) => {
+    const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+    const sess = JSON.parse(localStorage.getItem(key));
+    const h = { apikey: ANON, Authorization: `Bearer ${sess.access_token}` };
+    const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${sess.user?.id}&status=eq.PLAYING&select=id`, { headers: h });
+    const roomId = (await r1.json())?.[0]?.id;
+    if (!roomId) return null;
+    const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
+    const mods = (await r2.json())?.[0]?.host_state?.power_mods_until_opp_turn ?? [];
+    return mods.map(m => `${m.cardNum}:${m.delta}`);
+  }, { SUPA_URL, ANON });
+}
+
 async function driveV13TrashAct(page, H, opts) {
   await H.closeModals();
   if (opts.phase === 'MAIN') await H.ensureMain();
