@@ -2573,6 +2573,8 @@ export function execStubPart2(
       `ルリグLv${lrigLevelPMBLL}×${singleDeltaPMBLL}→相手シグニパワー${totalDeltaPMBLL}`));
   }
   // POWER_MOD_BY_LRIG_LEVEL_SUM: 全ルリグレベル合計×deltaを相手シグニに
+  // ⚠**到達不能**＝同じ id を同ファイル上方（:244）が先に受けるのでここには来ない（§6.4 O-21 の重複ハンドラ棚卸し）。
+  //   実際に効くのは :244 側。ここを直しても挙動は変わらないので、直すときは必ず先着側も見ること。
   if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
     const toHWPMBLLS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const lrigLevelSumPMBLLS = ctx.ownerState.field.lrig.reduce((sum, cn) => {
