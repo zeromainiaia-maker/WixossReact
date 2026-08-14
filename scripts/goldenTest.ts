@@ -33680,6 +33680,89 @@ test('§6.4 O-21: BET_CONDITION がベット時に追加対象を出す（先着
   ok((noBet as { logs: string[] }).logs.some(l => l.includes('ベットなし')), '非ベット時は素通りログ');
 });
 
+// ─── §6.4 O-22(a) / O-23 / O-24（2026-08-15 続き484）────────────────────────
+// いずれも「STUB のハンドラが原文と別のものを実行していた」型。live JSON の形と engine の主語を固定する。
+
+test('§6.4 O-22(a): 「代わりに－N」の置換が加算モデルで live に載っている（恒久 no-op に戻さない）', () => {
+  // ⚠加算モデル＝base の POWER_MODIFY はそのまま、条件成立時に**差分だけ**を
+  //   `POWER_MODIFY{targetsLastProcessed}` で同じ対象へ足す。else 置換にすると
+  //   `LAST_PROCESSED_MATCHES` が対象選択**前**に評価されて常に偽＝恒久 no-op になる。
+  const stepsOf = (cardNum: string, effectId: string) => {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!eff, `${effectId} が live に存在する`);
+    const a = eff!.action as unknown as { type: string; steps?: Array<Record<string, unknown>> };
+    eq(a.type, 'SEQUENCE', `${effectId} は SEQUENCE`);
+    return a.steps ?? [];
+  };
+  // ① 主語「あなたのシグニに」＝自分の場のチャーム総数（CHARM_COUNT）
+  const s1 = stepsOf('WX07-031', 'WX07-031-BURST');
+  eq((s1[0] as { delta?: number }).delta, -10000, 'base は原文どおり －10000');
+  const c1 = s1[1] as { type: string; condition?: { type?: string; owner?: string; value?: number }; then?: { delta?: number; targetsLastProcessed?: boolean } };
+  eq(c1.type, 'CONDITIONAL', '🔴置換側は STUB ではなく CONDITIONAL（STUB は効果元＝場に無い LB へ delta を当てて恒久 no-op だった）');
+  eq(c1.condition?.type, 'CHARM_COUNT', '「あなたのシグニに」＝自分の場のチャーム枚数で判定');
+  eq(c1.condition?.owner, 'self', '主語はあなた');
+  eq(c1.then?.delta, -10000, '合計 －20000 になるよう差分 －10000 を足す');
+  eq(c1.then?.targetsLastProcessed, true, '「それ」＝直前 POWER_MODIFY で選んだ同じ相手シグニ');
+  // ② 主語「それに」＝直前対象そのもののゾーン（LAST_PROCESSED_MATCHES{hasCharm}）
+  const s2 = stepsOf('WX08-032', 'WX08-032-BURST');
+  eq((s2[0] as { delta?: number }).delta, -8000, 'base は原文どおり －8000');
+  const c2 = s2[1] as { type: string; condition?: { type?: string; filter?: { hasCharm?: boolean } }; then?: { delta?: number; targetsLastProcessed?: boolean } };
+  eq(c2.condition?.type, 'LAST_PROCESSED_MATCHES', '「それに」＝対象自身のゾーン状態');
+  eq(c2.condition?.filter?.hasCharm, true, 'hasCharm で判定');
+  eq(c2.then?.delta, -7000, '合計 －15000 になるよう差分 －7000 を足す');
+  eq(c2.then?.targetsLastProcessed, true, '同じ対象へ足す');
+  // ③ 削除したハンドラ／STUB id が復活していない
+  const part2 = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
+  ok(!/stub\.id === 'CHARM_CONDITIONAL_POWER'/.test(part2),
+    '🔴CHARM_CONDITIONAL_POWER のハンドラは削除済み（効果元へ delta を当てる誤実装）');
+  // ④ 倍率形（WX25-P2-103②）は honest defer として分離されている
+  const p2103 = (effectsMap.get('WX25-P2-103') ?? []).find(e => e.effectId === 'WX25-P2-103-E1');
+  const txt = JSON.stringify(p2103?.action ?? {});
+  ok(txt.includes('DEFERRED_CHARM_POWER_MINUS_MULTIPLIER'),
+    '「代わりに３倍－される」は倍率の別機構＝DEFERRED_ で未実装を宣言する（double_power_minus_targets は2倍固定）');
+  ok(!txt.includes('CHARM_CONDITIONAL_POWER'), '旧 id は残っていない');
+});
+
+test('§6.4 O-23: 「アタックしたそのシグニのレベル」は triggeringCardNum で解く（効果元で代用しない）', () => withSavedCursor(() => {
+  // `WXK10-084`（Level 3）は `triggerScope:'any_ally'`＝**別の味方がアタックしても発火する**ので、
+  // 効果元の Level を使うと倍率が常に 3 に固定される（＝アタッカーが L1 でも L4 でも －3000）。
+  const src = 'WXK10-084';
+  eq(cardMap.get(src)?.Level, '3', '前提：効果元は Level 3（旧実装はこの値に固定されていた）');
+  const modOf = (effectId: string, attacker: string, oppTarget: string) => {
+    const base = mkCtx({ signi: [src, attacker, null] }, { signi: [oppTarget, null, null] }, src);
+    const ctx = { ...base, sourceCardNum: src, sourceEffectId: effectId, triggeringCardNum: attacker } as ExecCtx;
+    const r = run({ type: 'STUB', id: 'POWER_MOD_BY_ATTACKER_LEVEL' } as unknown as EffectAction, ctx);
+    return (r.otherState.temp_power_mods ?? []).find(m => m.cardNum === oppTarget)?.delta;
+  };
+  // E1＝奇数アタッカー→偶数の相手シグニが対象。L1 のアタッカーなら 1×－1000。
+  eq(modOf('WXK10-084-E1', SIGNI_L1, SIGNI_L2), -1000,
+    '🔴アタッカー L1 → －1000（効果元 L3 を使うと －3000 になる）');
+  // E2＝偶数アタッカー→奇数の相手シグニが対象。L4 のアタッカーなら 4×－1000。
+  eq(modOf('WXK10-084-E2', SIGNI_L4, SIGNI_L3), -4000,
+    '🔴アタッカー L4 → －4000（効果元 L3 を使うと －3000 になる）');
+}));
+
+test('§6.4 O-24: WXK06-030-E2 は「シグニ1体＋エナ1枚を対戦相手が選ぶ」（全体を流さない）', () => {
+  const eff = (effectsMap.get('WXK06-030') ?? []).find(e => e.effectId === 'WXK06-030-E2');
+  ok(!!eff, 'WXK06-030-E2 が live に存在する');
+  const a = eff!.action as unknown as { type: string; steps?: Array<Record<string, unknown>> };
+  eq(a.type, 'SEQUENCE', '🔴STUB{OPP_TRASH_FIELD_SIGNI_AND_ENERGY}（場のシグニ全部＋エナ全部）に戻っていない');
+  const [sg, en] = (a.steps ?? []) as Array<{ type?: string; opponentSelects?: boolean; target?: { type?: string; owner?: string; count?: unknown } }>;
+  eq(sg?.type, 'TRASH'); eq(sg?.target?.type, 'SIGNI');
+  eq(sg?.target?.owner, 'opponent', '誰のカードか＝対戦相手のシグニ');
+  eq(sg?.target?.count, 1, '🔴原文は「シグニ１体」＝全体ではない');
+  eq(sg?.opponentSelects, true, '誰が選ぶか＝対戦相手（owner とは独立の軸）');
+  eq(en?.type, 'TRASH'); eq(en?.target?.type, 'ENERGY_CARD');
+  eq(en?.target?.owner, 'opponent'); eq(en?.target?.count, 1, '🔴原文は「カード１枚」');
+  eq(en?.opponentSelects, true, 'エナ側も対戦相手が選ぶ');
+  // 過剰実行していたハンドラ／STUB id が復活していない
+  const part2 = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
+  ok(!part2.includes('OPP_TRASH_FIELD_SIGNI_AND_ENERGY'), '旧ハンドラは削除済み');
+  for (const [, effs] of effectsMap) {
+    ok(!JSON.stringify(effs).includes('OPP_TRASH_FIELD_SIGNI_AND_ENERGY'), 'live に旧 STUB id が残っていない');
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
