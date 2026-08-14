@@ -2763,6 +2763,11 @@ function actionJa(a?: Action, effectType?: string): string {
         ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 'このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える',
         MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC: 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る',
       };
+      // §6.4 O-22(b)：枚数と名前はペイロードにあるので原文どおりに描画する（固定文にしない）。
+      if (a.id === 'MILL_EACH_REPEAT_ON_NAME' && a.millEachRepeatOnName) {
+        const mer = a.millEachRepeatOnName;
+        return `各プレイヤーは自分のデッキの上からカードを${mer.count}枚トラッシュに置く（この方法でトラッシュに置いたカードの中にカード名に《${mer.name}》を含むカードがある場合、この効果を繰り返してもよい）`;
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。
