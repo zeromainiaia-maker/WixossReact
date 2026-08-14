@@ -4180,8 +4180,9 @@ export function execStubPart2(
   }
   // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置
   if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
-    const srcPZM = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPZM = srcPZM ? (srcPZM.EffectText ?? '') : '';
+    // §6.4 O-20（effectEngine 側の collectProtectedZones と**二重配線**なので必ず一緒に直す）:
+    // 全文だと別能力の保護ゾーンを拾う（`WXK10-083-E1` はエナ限定なのに E2 の「手札」まで保護していた）。
+    const txtPZM = sourceAbilityText(ctx);
     const zones: ('hand' | 'energy')[] = [];
     if (txtPZM.includes('エナゾーン') && txtPZM.includes('トラッシュに移動しない')) zones.push('energy');
     if (txtPZM.includes('手札') && txtPZM.includes('トラッシュに移動しない')) zones.push('hand');
