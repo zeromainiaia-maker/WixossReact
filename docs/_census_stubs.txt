@@ -2,14 +2,14 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 603（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 785  うち生ID露出 277 箇所（188 種）
+逆翻訳シートの [STUB:…] 総数: 787  うち生ID露出 279 箇所（188 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 24 種 / 42 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 24 種 / 42 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 177 種 / 264 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 177 種 / 266 箇所
   D 健全（実装あり＋日本語表示）                          : 402 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 313 種
 
@@ -166,6 +166,9 @@ live JSON の STUB id 種類 : 603（総ノード 2883 件）
         既存コメント: RETURN_SELF_ARTS_TO_LRIG_DECK: 使用後の自身をルリグデッキに戻す。 アーツは lrig_trash、アシストルリグは左右いずれかのアシストルリグスタックにある。
   露出  5箇所 (live 5件/5枚)  PREVENT_POWER_MODIFY_BY_OPP  [engine別経路]
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
+  露出  5箇所 (live 5件/5枚)  SET_CANCEL_ATTACK_FLAG  [execStubPart3]
+        カード: SPDi43-06, WX24-P3-050, WX24-P3-069, WX24-P4-067, WXDi-P05-037
+        既存コメント: SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
   露出  4箇所 (live 4件/4枚)  CHOOSE_HAND_OR_ENERGY  [execStubPart3]
         カード: WX24-P1-025, WX24-P2-042, WXDi-CP01-004, WXDi-CP02-003
         既存コメント: CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
@@ -202,9 +205,6 @@ live JSON の STUB id 種類 : 603（総ノード 2883 件）
   露出  3箇所 (live 3件/3枚)  REVEAL_TOP_CONDITIONAL_ROUTE  [execStubPart3]
         カード: WX08-025, WX10-030, WXK05-021
         既存コメント: REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
-  露出  3箇所 (live 5件/5枚)  SET_CANCEL_ATTACK_FLAG  [execStubPart3]
-        カード: SPDi43-06, WX24-P3-050, WX24-P3-069, WX24-P4-067, WXDi-P05-037
-        既存コメント: SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
   露出  3箇所 (live 3件/3枚)  TRIGGER_LIFE_BURST  [execStubPart3]
         カード: WX13-032, WXEX1-11, WXEX2-13
         既存コメント: TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）
