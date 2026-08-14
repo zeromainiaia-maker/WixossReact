@@ -12492,22 +12492,31 @@ scenarios.effectBanishSubstituteDiscardsSpell = {
   },
 };
 
-scenarios.effectBanishLifeCrashSubstituteNotOnEffect = {
-  title: 'WX14-026（hostのMAIN＝被害側には相手ターンだがlifeCrash型は効果バニッシュへ自動適用しない）',
+// 🔴続き475b で期待値を反転（旧 id＝`effectBanishLifeCrashSubstituteNotOnEffect`）。
+//   旧シナリオは「lifeCrash 型は効果バニッシュへ**適用されない**」を確認するつもりだったが、実測は
+//   **ライフを1枚も払わずシグニが場に残る**＝§3 (cxxix)＝apply 側に `lifeCrash` 分岐が無く
+//   末尾の `trashStackSpell` へフォールスルーして「下からスペル**0枚**」で成立していた。
+//   engine を直したので、いまの正は **CPU が lifeCrash を選び、ライフを1枚払ってシグニが残る**。
+scenarios.effectBanishLifeCrashSubstitutePaysLife = {
+  title: 'WX14-026（被害側CPUがlifeCrashの身代わりを選択→ライフ1枚を実際に払ってシグニが場に残る）',
   spec: V10_LIFE_CRASH_SPEC,
   async drive(page, H) {
-    return runV10EffectBanishRound(page, H, 'eblcsnoe', V10_LIFE_CRASH, (st, before, cands) => {
-      const victimLeft = !v10FieldHas(st.guest.fieldSigni, V10_LIFE_CRASH);
-      const victimInEnergy = st.guest.energyCards.includes(V10_LIFE_CRASH);
-      const lifeStayed = st.guest.life === before.guest.life && st.guest.life === 7;
-      const normalLog = v10HasLog(st, V10_LIFE_NORMAL_LOG);
-      const noSubstitute = v10SubstituteLogs(st).length === 0 && v10AskLogs(st).length === 0;
+    return runV10EffectBanishRound(page, H, 'eblcspl', V10_LIFE_CRASH, (st, before, cands) => {
+      const victimStayed = v10FieldHas(st.guest.fieldSigni, V10_LIFE_CRASH);
+      const notInEnergy = !st.guest.energyCards.includes(V10_LIFE_CRASH);
+      // 🔑**「シグニが残った」だけでは (cxxix) の回帰を検出できない**（コスト0でも同じ絵になる）＝
+      //   **ライフが実際に1枚減ったこと**を必須にする。
+      const lifePaid = st.guest.life === before.guest.life - 1;
+      const crashLog = v10HasLog(st, V10_LIFE_CRASH_SUB_LOG);
+      const noFreeRide = !v10SubstituteLogs(st).some(l => l.includes('スペル0枚'));
+      const askLogs = v10AskLogs(st);
+      const askedVictimOnce = askLogs.length === 1 && askLogs[0].includes(V10_LIFE_CRASH_NAME);
       const pass = Array.isArray(cands) && cands.includes(V10_LIFE_CRASH)
-        && victimLeft && victimInEnergy && lifeStayed && normalLog && noSubstitute;
+        && victimStayed && notInEnergy && lifePaid && crashLog && noFreeRide && askedVictimOnce;
       return { pass, st,
         detail: pass
-          ? `host MAIN（被害側guestから見て相手ターン）でvictim自身がエナへ・guest.life 7維持・ログ「${V10_LIFE_NORMAL_LOG}」・身代わりログ/問い0件`
-          : `【lifeCrash自動適用範囲不一致】cands=${JSON.stringify(cands)} victimLeft=${victimLeft} victimInEnergy=${victimInEnergy} life=${before.guest.life}→${st.guest.life} normalLog=${normalLog} subLogs=${JSON.stringify(v10SubstituteLogs(st))} asks=${v10AskLogs(st).length}` };
+          ? `被害側へ問い1件→CPUがlifeCrashを選択し guest.life ${before.guest.life}→${st.guest.life}（1枚実払い）・victimは場に残存・ログ「${V10_LIFE_CRASH_SUB_LOG}」`
+          : `【(cxxix)回帰/不成立】cands=${JSON.stringify(cands)} victimStayed=${victimStayed} notInEnergy=${notInEnergy} life=${before.guest.life}→${st.guest.life} lifePaid=${lifePaid} crashLog=${crashLog} noFreeRide=${noFreeRide} askedVictimOnce=${askedVictimOnce} subLogs=${JSON.stringify(v10SubstituteLogs(st))}` };
     });
   },
 };
