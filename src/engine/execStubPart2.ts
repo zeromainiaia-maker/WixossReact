@@ -2646,6 +2646,44 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...sCPT, deck: sCPT.deck.slice(1), hand: [...sCPT.hand, drawnCPT] } },
       `トラッシュ${trashCountCPT}枚条件達成→1枚ドロー`));
   }
+  // 🆕§6.4 O-22(b) MILL_EACH_REPEAT_ON_NAME（`WX12-037-E2`）＝「各プレイヤーは自分のデッキの上から
+  // カードをN枚トラッシュに置く。この方法でトラッシュに置いたカードの中にカード名に《X》を含む
+  // カードがある場合、あなたはこの効果を繰り返してもよい。（リフレッシュはこの効果をすべて処理してから行う）」
+  // ⚠**ミルもここで行う**（parser が前段の TRASH{DECK_CARD} ごと畳み込む）＝条件が見るのは
+  //   「この方法で」置いた**両プレイヤー分**で、SEQUENCE の step ごとに上書きされる
+  //   `lastProcessedCards` には相手の分しか残らない（＝分けると過少発火する）。
+  // ⚠リフレッシュはこの効果の**処理中には起こさない**（原文の但し書き）＝デッキが尽きたら取れる分だけ取り、
+  //   リフレッシュは BattleScreen の通常経路に任せる。デッキが尽きれば繰り返しも自然に止まる。
+  if (stub.id === 'MILL_EACH_REPEAT_ON_NAME') {
+    const specMER = stub.millEachRepeatOnName;
+    if (!specMER) return done(addLog(ctx, '[MILL_EACH_REPEAT_ON_NAME: パラメータなし＝未実装]'));
+    const millMER = (state: typeof ctx.ownerState) => {
+      const took = state.deck.slice(0, specMER.count);
+      return { state: { ...state, deck: state.deck.slice(took.length), trash: [...state.trash, ...took] }, took };
+    };
+    const selfMER = millMER(ctx.ownerState);
+    const oppMER = millMER(ctx.otherState);
+    const milledMER = [...selfMER.took, ...oppMER.took];
+    let curMER = addLog({ ...ctx, ownerState: selfMER.state, otherState: oppMER.state },
+      `各プレイヤーがデッキの上から${specMER.count}枚トラッシュへ（自分${selfMER.took.length}／相手${oppMER.took.length}）`);
+    // 「カード名に《X》を含む」＝部分一致（《メツム》は《堕落の砲娘 メツミ》には含まれない＝名前そのものを見る）。
+    const hitMER = milledMER.some(cn => (curMER.cardMap.get(getCardNum(cn))?.CardName ?? '').includes(specMER.name));
+    if (!hitMER || milledMER.length === 0) {
+      return done(addLog(curMER, `《${specMER.name}》を含むカードなし（繰り返さない）`));
+    }
+    // 両者ともデッキが尽きていたら、繰り返しても何も起きないので問わない（無限ループ防止も兼ねる）。
+    if (curMER.ownerState.deck.length === 0 && curMER.otherState.deck.length === 0) {
+      return done(addLog(curMER, `《${specMER.name}》あり（両者のデッキが尽きたので繰り返さない）`));
+    }
+    curMER = addLog(curMER, `《${specMER.name}》を含むカードをトラッシュに置いた＝この効果を繰り返せる`);
+    return needsInteraction(curMER, {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'repeat', label: 'この効果を繰り返す', action: stub as EffectAction, available: true },
+        { id: 'stop', label: '繰り返さない', action: ({ type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction) as EffectAction, available: true },
+      ],
+    });
+  }
   // REVEALED_CARD_COLOR_DISCARD: 公開カードの色と同じ色の手札カードを捨てる
   if (stub.id === 'REVEALED_CARD_COLOR_DISCARD') {
     const revCardRCCD = ctx.lastProcessedCards?.[0];
