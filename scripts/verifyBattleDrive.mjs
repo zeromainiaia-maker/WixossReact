@@ -11503,6 +11503,11 @@ const FIELD_DOWN_WHITE_B = 'WD01-013#4922';
 const FIELD_DOWN_WHITE_C = 'WD01-014#4923';
 const FIELD_DOWN_ENERGY = 'WD01-013#4924';
 
+// 🔴続き475d でシグニアタック → **ルリグアタック**経路へ作り直した（§3 (cxxviii)）。
+//   原文は「あなたのルリグ１体がアタックしたとき」なのに live timing が `ON_ATTACK_SIGNI` だったため、
+//   **シグニのアタックで発火→攻撃者が先にダウン→アップの白シグニが3体そろわない＝恒久 no-op** だった。
+//   timing を `ON_ATTACK_LRIG` へ直した今は、**ルリグがアタックしても自分のシグニは1体もダウンしない**ので
+//   3体そろい、帰結（ルリグをアップ＋能力喪失）まで到達する。
 const makeFieldDownSpec = (thirdWhite) => ({
   hostSet: {
     'field.lrig': ['WD01-002#4925'],
@@ -11518,9 +11523,10 @@ const makeFieldDownSpec = (thirdWhite) => ({
     'field.signi': [null, null, null],
     'field.signi_down': [false, false, false],
     'field.check': null,
+    // ⚠ガード候補を空にしてアタックが1クラッシュまで決定的に進むようにする（assistAttackBoth と同じ手）。
     'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
   },
-  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
 });
 
 async function runFieldDownRound(page, H, { expectAffordable }) {
