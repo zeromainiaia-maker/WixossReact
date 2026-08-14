@@ -15,6 +15,7 @@ import {
   hasNoAbility,
   designatedZones,
   buildFrontPowerGatedKeywordGrant,
+  sourceAbilityText,
 } from './execUtils';
 import { allAcceCards, countAcce } from '../utils/acce';
 import {
