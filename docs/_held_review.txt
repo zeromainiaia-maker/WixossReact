@@ -809,3 +809,13 @@ PR-K072
   + [0].action.choices[0].action.steps[0].target.filter.cardType = "シグニ"
   …（他 24 行）
 
+## +STUB -NEGATE_ATTACK -SIGNI ［1枚］
+SPDi43-06
+--- SPDi43-06
+  原文: 【自】：このシグニがアタックしたとき、対戦相手は《無》《無》を支払ってもよい。そうした場合、このアタックを無効にする。【起】アップ状態の他のシグニ１体をダウンする：あなたの場に《ゆかゆか☆さんさんきらきら》がいる場合、次の対戦相手のターン終了時まで、このシグニは【アサシン】か【シャドウ】を得る。,-
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  ~ [0].action.steps[1].then.type : "NEGATE_ATTACK" → "STUB"
+  + [0].action.steps[1].then.id = "SET_CANCEL_ATTACK_FLAG"
+
