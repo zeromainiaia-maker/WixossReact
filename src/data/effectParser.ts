@@ -1562,9 +1562,15 @@ export function getAbilityBlockTexts(card: CardData): ReadonlyMap<string, string
 export function abilityBlockTextOf(card: CardData | undefined, effectId: string | undefined): string {
   if (!card) return '';
   const fullText = (card.EffectText ?? '') + ' ' + (card.BurstText ?? '');
-  if (!effectId) return fullText;
+  if (!effectId || !_abilityBlockScoping) return fullText;
   return getAbilityBlockTexts(card).get(effectId) ?? fullText;
 }
+
+// ブロック限定読みを一時的に切って**変換前（カード全文）の挙動**を再現するための計器フック。
+// O-20 の各サイトを変換するたびに「前後で盤面差分が変わる効果」を機械で洗い出すのに使う
+// （`tmp_o20diff.ts`）。既定は有効＝アプリ・ゲートは常にブロック限定で動く。
+let _abilityBlockScoping = true;
+export function setAbilityBlockScoping(enabled: boolean): void { _abilityBlockScoping = enabled; }
 
 // 後置条件節の前段 recorder 検出でラッパーを貫通する（§3 タスク12(xxii)）。
 // 直前ステップが「先頭ガード条件で丸ごと gate された CONDITIONAL（else なし）」や「連文 SEQUENCE の末尾」で
