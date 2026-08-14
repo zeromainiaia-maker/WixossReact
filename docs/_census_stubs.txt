@@ -2,7 +2,7 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 602（総ノード 2880 件）
-逆翻訳シートの [STUB:…] 総数: 787  うち生ID露出 276 箇所（187 種）
+逆翻訳シートの [STUB:…] 総数: 783  うち生ID露出 276 箇所（187 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 25 種 / 43 件
@@ -49,7 +49,7 @@ live JSON の STUB id 種類 : 602（総ノード 2880 件）
      1件   1枚  DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS  [生ID露出 1]
         カード: WX09-Re01
         生成: src\data\manualEffects.ts:4634
-     1件   1枚  DEFERRED_CHARM_POWER_MINUS_MULTIPLIER
+     1件   1枚  DEFERRED_CHARM_POWER_MINUS_MULTIPLIER  [生ID露出 1]
         カード: WX25-P2-103
         生成: src\data\parsers\parseSentencePart4.ts:1756
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
