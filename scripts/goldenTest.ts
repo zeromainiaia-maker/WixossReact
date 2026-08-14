@@ -7598,6 +7598,45 @@ test('collectLrigAttackDefenderTriggers: 防御側の付与AUTO を any_opp/any 
   const disabled = { ...mkDef([mkGranted('any_opp')]), lrig_abilities_disabled: true } as unknown as PlayerState;
   eq(run1(disabled).entries.length, 0, 'lrig_abilities_disabled 時は拾わない');
 });
+// ── §3 (cxxvii)・続き475d: 「**この**アタックを無効にする」＝効果主自身のアタックを止める。
+test('§3 (cxxvii) parser: 「このアタックを無効にする」は SET_CANCEL_ATTACK_FLAG（相手対象の NEGATE_ATTACK ではない）', () => {
+  // 🔴実機で検出＝`NEGATE_ATTACK{owner:'opponent'}` だと `execNegateAttack` が**対戦相手の場**から
+  //   候補を作るので**自分のアタッカーが候補に入らず無言で空振り**する（CPU が払ったのにライフが減った）。
+  //   ⚠「この」＝自分のアタック／「その」＝相手のアタック。**主語が逆**なので同じ規則に載せない。
+  for (const [cardNum, effId] of [['SPDi43-06', 'SPDi43-06-E1'], ['WXDi-P05-037', 'WXDi-P05-037-E1']] as const) {
+    const e = effectsMap.get(cardNum)!.find(x => x.effectId === effId)!;
+    const json = JSON.stringify(e.action);
+    ok(json.includes('"id":"SET_CANCEL_ATTACK_FLAG"'), `${effId}: 攻撃側のキャンセルフラグを立てる`);
+    ok(!json.includes('"type":"NEGATE_ATTACK"'), `🔴${effId}: 相手対象の NEGATE_ATTACK に戻っていない`);
+  }
+});
+
+test('§3 (cxxvii) engine: thenOnPay のエナ払い枝でも帰結が実行される（payOpt.action を捨てない）', () => {
+  // 🔴`resumeOpponentPayOptional` の `pay` 枝はエナを引くだけで `payOpt.action` を**一度も実行して
+  //   いなかった**＝`thenOnPay`（「支払ってもよい。**そうした場合**、X」）の X が丸ごと落ちていた。
+  //   ⚠`discard`/`energyTrash` 枝は `choiceId !== 'pay'` の分岐が `selectedOpt.action` を実行するので
+  //     動いており、**エナ払い枝だけが取り残されていた**（同じ効果でもコスト種別で挙動が割れる）。
+  const eff = {
+    effectId: 't', effectType: 'AUTO', duration: 'INSTANT', mandatory: true,
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors: ['無', '無'], thenOnPay: true },
+      { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+    ] },
+  } as unknown as CardEffect;
+  const ctx = { ...mkCtx({}, { energy: 2 }), isOwnerTurn: true } as ExecCtx;
+  const r = executeEffect(eff, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE', '対戦相手へ支払いを問う');
+  const ask = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  ok(ask.options.some(o => o.id === 'pay'), 'エナ払い枝が出る');
+  const payEnergy = ctx.otherState.energy.slice(0, 2);
+  const c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+  const paid = resumeOpponentPayOptional('pay', payEnergy, ask, c);
+  ok(paid.done, '支払い後に解決が完了する');
+  eq(paid.otherState.energy.length, ctx.otherState.energy.length - 2, 'エナ2枚が支払われる');
+  eq(paid.ownerState.hand.length, ctx.ownerState.hand.length + 1,
+     '🔴そうした場合の帰結（DRAW）が実行される（実行されないと thenOnPay が無言で落ちる回帰）');
+});
+
 // ── §3 (cxxviii)・続き475d: 「**あなたの**ルリグがアタックしたとき」＝アタック側の味方カードを拾う経路。
 // 🔴従来この収集経路が丸ごと無く（BattleScreen はルリグ自身の能力4ソースしか見ない）、parser も
 //   `ON_ATTACK_SIGNI` へ倒すしかなかった＝**シグニのアタックで誤発火**していた。
