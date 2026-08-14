@@ -15225,10 +15225,14 @@ scenarios.v11EffectDeployCountFlagBlocked = {
       const groundBlocked = countSigni(st?.host?.fieldSigni) === 2
         && !hasTarget(st?.host?.fieldSigni) && (st?.host?.trashCards ?? []).includes(target);
       const exactLog = (st?.logTail ?? []).includes(expectedLog);
-      const settled = abilityClicked && st?.host?.lrigDown === true && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
-      H.log(`  v11a1[${s}] -> ${did ?? 'なし'} | normalSummonEnabled=${summonEnabled} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDown=${st?.host?.lrigDown} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      // ⚠「効果が実際に走った」証拠はルリグのダウンでは取れない＝ルリグ【起】の《ダウン》コストは
+      //   `executeSigniActivated` が **シグニゾーンしか** ダウンさせず lrig_down は常に false のまま（続き476 実測）。
+      //   ⇒ 走行証拠は【起】効果の実ログで取る。
+      const actLog = (st?.logTail ?? []).some(l => l.includes('混沌の鍵主') && l.includes('【起】効果'));
+      const settled = abilityClicked && actLog && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      H.log(`  v11a1[${s}] -> ${did ?? 'なし'} | normalSummonGated=${normalSummonGated} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} actLog=${actLog} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
       if (settled && groundBlocked && exactLog) {
-        return { pass: true, detail: `通常召喚disabled/非表示＋効果配置不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」` };
+        return { pass: true, detail: `通常召喚は召喚先ゾーンが全disabled＋効果配置不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」` };
       }
     }
     return { pass: false, detail: `フラグ版配置制限を確定できず（hField=${JSON.stringify(last?.host?.fieldSigni)} hTrash=${JSON.stringify(last?.host?.trashCards)} lrigDown=${last?.host?.lrigDown} logTail=${JSON.stringify(last?.logTail ?? [])} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
