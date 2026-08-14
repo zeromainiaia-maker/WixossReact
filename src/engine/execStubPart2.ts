@@ -2671,8 +2671,9 @@ export function execStubPart2(
   // 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。
   // （旧実装は sourceCardNum＝本体カード自身を加える誤りだった。WXK01-042/WXK09-015/WXDi-P16-009）
   if (stub.id === 'CRAFT_TO_LRIG_DECK' || stub.id === 'ADD_CRAFT_TO_LRIG_DECK') {
-    const srcCTLD2 = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtCTLD2 = srcCTLD2 ? (srcCTLD2.EffectText ?? '') + ' ' + (srcCTLD2.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力が名指すクラフトを拾う（`WX25-P1-034-E2` は E1 の《幻怪　ヤミノザンシ》＝
+    // 本来は**場に出す**クラフトをルリグデッキへ加えていた）のでブロックだけを読む。
+    const txtCTLD2 = sourceAbilityText(ctx);
     // 固定トークンセットから「N種類を選んでルリグデッキに加える」型（フェゾーネマジック/ダークアーツ）。
     // これらは原文に個別クラフト名を持たず「○○のクラフトからN種類を…加える(○○は5種類から)」と書かれる。
     const TOKEN_SETS: { keyword: string; nums: string[] }[] = [
