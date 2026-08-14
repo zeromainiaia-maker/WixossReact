@@ -2482,7 +2482,13 @@ export function execStubPart2(
     // これらは原文に個別クラフト名を持たず「○○のクラフトからN種類を…加える(○○は5種類から)」と書かれる。
     const TOKEN_SETS: { keyword: string; nums: string[] }[] = [
       { keyword: 'フェゾーネマジック', nums: ['WXDi-P14-TK01', 'WXDi-P14-TK02', 'WXDi-P14-TK03', 'WXDi-P14-TK04', 'WXDi-P14-TK05'] },
-      { keyword: 'ダークアーツ',       nums: ['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5'] },
+      // 🆕§6.4 O-22(c) 是正＝キーワードは **'ヤミノアーツ'**。'ダークアーツ' は**全 CSV に1件も出ない**綴りで、
+      //   `WX25-P1-034-E2`「**ヤミノアーツ**のクラフトから２種類を１枚ずつ…」に一致せず恒久 no-op だった。
+      //   ⚠在庫の「クラフト5種が CSV に無い＝データ側の欠落」は **stale**＝実測では `WX25-P1-TK1`〜`TK5`
+      //   （ダーク・バウンダリー／背闇之陣／ダーク・アナライズ／闇気揚々／ダーク・アウト＝いずれも
+      //   Type『アーツ/クラフト』）が実在する。**カード名だけ見て綴りを決めない**（名前は「ダーク・○○」だが
+      //   束の呼称は「ヤミノアーツ」）。
+      { keyword: 'ヤミノアーツ',       nums: ['WX25-P1-TK1', 'WX25-P1-TK2', 'WX25-P1-TK3', 'WX25-P1-TK4', 'WX25-P1-TK5'] },
     ];
     const setCTLD = TOKEN_SETS.find(s => txtCTLD2.includes(s.keyword));
     if (setCTLD) {
