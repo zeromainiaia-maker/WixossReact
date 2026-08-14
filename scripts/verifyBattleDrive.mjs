@@ -15490,6 +15490,7 @@ try {
         keywordGrants: Object.entries(s.keyword_grants ?? {}).map(([id, kws]) => `${id}:${(kws || []).join('/')}`),
         actionsDone: s.actions_done ?? [],
         lrigTrash: (s.lrig_trash ?? []).length,
+        lrigTrashCards: s.lrig_trash ?? [],   // 続き475g：ピースが「使用後ルリグトラッシュへ」行くことの観測用
         lrigUnder: Math.max(0, (s.field?.lrig ?? []).length - 1),
         lrigTop: (s.field?.lrig ?? []).at(-1) ?? null,
         lrigDeck: (s.lrig_deck ?? []).length,

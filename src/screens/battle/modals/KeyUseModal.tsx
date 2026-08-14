@@ -49,8 +49,9 @@ export function KeyUseModal(p: KeyUseModalProps) {
               const canAfford = energyOk && my.coins >= coinNeeded;
               return (
                 <>
+                  {/* ピースは「セット」ではなく**使用**（1回払って即解決→ルリグトラッシュ。§3 (cxxiii)・続き475g）。 */}
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                    キーにセット
+                    {card.Type === 'ピース' ? 'ピースを使用' : 'キーにセット'}
                   </p>
                   <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
                     <img src={card.ImgURL} alt={card.CardName}
@@ -99,7 +100,7 @@ export function KeyUseModal(p: KeyUseModalProps) {
                       style={{ flex: 2, padding: '10px 0', borderRadius: 8, border: 'none',
                         backgroundColor: (loading || !canAfford) ? C.disabled : '#cc8800',
                         color: C.text, fontSize: 14, fontWeight: 'bold', cursor: (loading || !canAfford) ? 'default' : 'pointer' }}>
-                      セット
+                      {card.Type === 'ピース' ? '使用' : 'セット'}
                     </button>
                   </div>
                 </>
