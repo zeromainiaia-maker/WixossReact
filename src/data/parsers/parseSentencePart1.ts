@@ -2065,7 +2065,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     // 「このルリグ/あなたの（センター/すべての）ルリグをアップする」＝ルリグアップ（WX19-014/WX10-009 等）。
     // する/し 必須＝「ルリグがアップ状態の場合」等の状態参照には不マッチ
-    if (t.match(/(この|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
+    // 🆕**「その」＝トリガー節の「あなたのルリグ１体がアタックしたとき」への照応**（§3 (cxxviii)・続き475d）。
+    //   従来これが無く、下の裸 SIGNI フォールバックへ落ちて **`UP{SIGNI}`＝シグニをアップ**に化けていた
+    //   （実測9効果。原文「そのルリグをアップし」）。⚠**live 全9件とも効果主自身のルリグ**を指す
+    //   （相手のルリグを指す用例は0件＝原文照合済み）ので owner:'self' で正しい。
+    if (t.match(/(この|その(?:センター)?|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
       return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
     }
     if (hasOtherSelfSigniNoun(t)) return { type: 'UP', target: parseSigniTarget(t, 'self') };
