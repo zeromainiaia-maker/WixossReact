@@ -137,18 +137,6 @@ export function sourceAbilityText(ctx: ExecCtx): string {
   return abilityBlockTextOf(card, ctx.sourceEffectId);
 }
 
-/**
- * `sourceAbilityText` のカード＋effectId 直指定版。
- * ctx を持たない走査側（CONTINUOUS の収集など・effectsMap を舐めて効果ごとに判定する箇所）で使う。
- */
-export function abilityBlockTextOf(card: CardData | undefined, effectId: string | undefined): string {
-  if (!card) return '';
-  const fullText = (card.EffectText ?? '') + ' ' + (card.BurstText ?? '');
-  if (!effectId) return fullText;
-  const block = getAbilityBlockTexts(card).get(effectId);
-  return block ?? fullText;
-}
-
 export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFromZone): number {
   if (fromZone) {
     const state = ownerState(fromZone.owner, ctx);
