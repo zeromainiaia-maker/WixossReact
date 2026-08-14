@@ -3,6 +3,22 @@
 > **2026-08-13 続き464 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-13 続き459（§6.4 O-3＝`LRIG_GROW_RESTRICT` ゴミ箱の解体）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1956（+2＝合成 actionId が live に0件／期間3値／`LRIG_GROW_RESTRICT` は本来のグロウ制限文にだけ付く、を live 全走査で固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件（14種16件から可視化＝隠れていた26効果を worklist へ）**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。live effect 単位 diff **33効果・effectId 増減 0/0**。
 
+## 2026-08-15 整理⑮：PLAN §6.4 `O-20`／`O-21` の消化記録（続き482〜483）
+
+> PLAN §6.4 には1行✅サマリだけを残し、個票と仕分けの明細をここへ移した。一次記録は BUGFIXES.md 2026-08-15 の2本。
+
+**■ O-21（STUB ハンドラの id 重複）＝✅2026-08-15 続き483 で完了**
+> 実測＝**A：後発が到達不能 19 id / 21ブロック**（死コード）・**B：先着が素通りしうる 16 id**（`&& targetsStored` 等の追加ガードつき＝**意図的で正当**）・**C：`effectExecutor` の `execSequence` 内 7 id**（SEQUENCE/CONDITIONAL ペア専用経路＝**両方 live**）。
+> ⚠続き482 の簿記「58 id」は `uniq -d` の生数字で、**入れ子分岐を重複と誤検出**していた（着手時に必ず数え直す＝§3-1）。
+> 🔴**A のうち1件は live バグ**＝`BET_CONDITION`（`WDK01-010-E1`）は `execStubPart3` に実装があるのに `execStubPart1` の3行 no-op が潰していた（**ベット時に1枚多く拾えるはずが拾えていなかった**）→ 先着から外して実装を生かした。残り18 id（20ブロック）は**旧版の死コード**として削除（−352行）。
+> 🔑**再発防止**＝golden `§6.4 O-21: 同じ STUB id の後発ハンドラが到達不能になっていない`＝**重複の存在ではなく到達可能性**を不変条件にした（重複自体は正当なので、先着が「必ず return」かつ後発があるときだけ赤）。
+
+**■ O-20 の個票（2026-08-13 続き464 の棚卸し・✅2026-08-15 続き482 で完了）**
+> ✅**20コードサイトすべてを source 配線へ変換済み**（機構・個票・実測差分は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15、および PLAN_DETAIL）。
+> 残っていた1行（`effectParser` の `inferTriggerScope`）は**過小発火側で O-19 と同根**なので **O-19 に統合**した。
+> 🔑**再発防止**＝golden に契約テスト2件（根拠5カードのブロック解決／変換済みサイトの使用箇所凍結）。
+> 🔑**新しいハンドラを書くときの規則**＝`cardMap.get(sourceCardNum).EffectText` を直接読まず **`sourceAbilityText(ctx)`**（ctx が無い走査は `abilityBlockTextOf(card, effectId)`）を使う。
+
 ## 2026-08-14 整理⑭：PLAN §7 の決着済みブロック `V-11` を退避（続き476）
 
 > `V-11`（配置制限ゲートの一本化）は6シナリオすべて緑で決着。PLAN §7 には1行✅サマリだけを残し、経緯・罠・未カバーの明細をここへ移した。
