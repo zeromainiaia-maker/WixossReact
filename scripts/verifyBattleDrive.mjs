@@ -15203,7 +15203,7 @@ scenarios.v11EffectDeployCountFlagBlocked = {
       }
     }
     await H.closeModals();
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(800);
 
     let lrigOpened = false;
     let abilityClicked = false;
@@ -15217,6 +15217,9 @@ scenarios.v11EffectDeployCountFlagBlocked = {
       } else if (!abilityClicked) {
         did = await H.clickBtn('【起】コストなし', { nth: 1 });
         if (did) abilityClicked = true;
+        // ⚠通常召喚モーダルを開閉した直後は、ルリグスロットのクリックがオーバーレイに吸われて
+        //   モーダルが開かないことがある（このシナリオだけが持つ前段）。開き直して自己回復する。
+        else if (s % 4 === 3) { lrigOpened = false; await H.closeModals(); }
       }
       if (!did) did = await H.clickBtn('発動', { exact: true });
       if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
