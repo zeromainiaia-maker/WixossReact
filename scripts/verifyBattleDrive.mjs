@@ -6302,7 +6302,8 @@ const scenarios = {
         // 「セット」確定ボタンを先に試す（KeyUseModal 開後は見出し文言「キーにセット」がテキストとして残留し、
         // clickTextOrBtn の getByText フォールバックがそれを誤って再クリックし続けるレースを回避するため）。
         if (!did) did = await H.clickBtn('セット', { exact: true });
-        if (!did) did = await H.clickTextOrBtn(['キーにセット']);
+        if (!did) did = await H.clickBtn('使用', { exact: true });
+        if (!did) did = await H.clickTextOrBtn(['キーにセット', 'ピースを使用']);
         if (!did) did = await H.stdStep();
         const st = await H.queryState();
         const flipped = st?.host?.lrigTop && st?.host?.identityOverrides?.[st.host.lrigTop] === 'WXDi-P13-003B';
@@ -10065,9 +10066,10 @@ scenarios.connectSpinningChoice4Pay = {
       await page.screenshot({ path: `${SHOT}/connectSpinningChoice4Pay-${s}.png`, fullPage: true });
       let did = null;
       if (!pieceSet) {
-        const use = page.locator('[data-testid^="card-action-"][data-action-label="キーにセット"]').first();
+        // 続き475g：ピースは「ピースを使用」ラベルへ（§3 (cxxiii)）。両方を受ける。
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="キーにセット"], [data-testid^="card-action-"][data-action-label="ピースを使用"]').first();
         if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
-          await use.click(); did = 'tid:card-action-*[data-action-label="キーにセット"]';
+          await use.click(); did = 'tid:card-action-*[キーにセット|ピースを使用]';
         }
       }
       if (!did && !pieceSet) {
@@ -10078,7 +10080,7 @@ scenarios.connectSpinningChoice4Pay = {
         }
       }
       if (!did && !pieceSet) {
-        const set = await H.clickBtn('セット', { exact: true });
+        const set = await H.clickBtn('セット', { exact: true }) || await H.clickBtn('使用', { exact: true });
         if (set) { did = set; pieceSet = true; }
       }
       if (!did && pieceSet && !chose4) {
@@ -10136,9 +10138,10 @@ scenarios.connectSpinningChoice4Insufficient = {
       await page.waitForTimeout(650);
       let did = null;
       if (!pieceSet) {
-        const use = page.locator('[data-testid^="card-action-"][data-action-label="キーにセット"]').first();
+        // 続き475g：ピースは「ピースを使用」ラベルへ（§3 (cxxiii)）。両方を受ける。
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="キーにセット"], [data-testid^="card-action-"][data-action-label="ピースを使用"]').first();
         if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
-          await use.click(); did = 'tid:card-action-*[data-action-label="キーにセット"]';
+          await use.click(); did = 'tid:card-action-*[キーにセット|ピースを使用]';
         }
       }
       if (!did && !pieceSet) {
@@ -10148,7 +10151,7 @@ scenarios.connectSpinningChoice4Insufficient = {
           if (selected) { selectedKeyEnergy.add(i); did = selected; break; }
         }
       }
-      if (!did && !pieceSet) { const set = await H.clickBtn('セット', { exact: true }); if (set) { did = set; pieceSet = true; } }
+      if (!did && !pieceSet) { const set = await H.clickBtn('セット', { exact: true }) || await H.clickBtn('使用', { exact: true }); if (set) { did = set; pieceSet = true; } }
       if (!did && pieceSet && !chose4) { const c4 = await H.clickBtn('選択肢4', { exact: true }); if (c4) { did = c4; chose4 = true; } }
       if (!did && chose4 && !skipped) {
         const pay = page.getByTestId('optcost-pay').first();
@@ -11800,8 +11803,12 @@ async function openV04LrigDeckAction(page, actionLabel) {
   if (!deck) return { ok: false, detail: 'my-lrig-dk が3秒以内に描画されない' };
   const card = await clickV04VisibleLocator(page, page.getByTestId('zone-card-0').first(), 'tid:zone-card-0');
   if (!card) return { ok: false, detail: 'zone-card-0 が3秒以内に描画されない' };
-  const action = page.locator(`[data-testid^="card-action-"][data-action-label="${actionLabel}"]`).first();
-  const clicked = await clickV04VisibleLocator(page, action, `tid:card-action-*[data-action-label="${actionLabel}"]`);
+  // 続き475g：ピースのラベルは「キーにセット」→「ピースを使用」へ変わった（§3 (cxxiii)）。
+  //   ⚠**両方を受ける**＝キー用シナリオと共用のヘルパなのでどちらか一方に固定しない。
+  const labels = Array.isArray(actionLabel) ? actionLabel : [actionLabel];
+  const sel = labels.map(l => `[data-testid^="card-action-"][data-action-label="${l}"]`).join(', ');
+  const action = page.locator(sel).first();
+  const clicked = await clickV04VisibleLocator(page, action, `tid:card-action-*[${labels.join('|')}]`);
   if (!clicked) return { ok: false, detail: `${actionLabel} action が3秒以内に描画されない` };
   return { ok: true, detail: `${deck}→${card}→${clicked}` };
 }
@@ -12003,7 +12010,7 @@ scenarios.energyPayKeyUseDeductsSelectedOnly = {
   spec: makeV04RegressionSpec(V04_KEY_PIECE),
   async drive(page, H) {
     const before = await H.queryState();
-    const opened = await openV04LrigDeckAction(page, 'キーにセット');
+    const opened = await openV04LrigDeckAction(page, ['キーにセット', 'ピースを使用']);
     if (!opened.ok) return { pass: false, detail: opened.detail };
     const entries = page.locator('[data-testid^="keycost-energy-"]');
     const underEntries = page.locator(`[data-testid^="keycost-energy-"][title="${V04_UNDER_LABEL}"]`);
@@ -12022,24 +12029,30 @@ scenarios.energyPayKeyUseDeductsSelectedOnly = {
     }
     const picked = await clickV04VisibleLocator(page, page.getByTestId('keycost-energy-1').first(), 'tid:keycost-energy-1');
     if (!picked) return { pass: false, detail: 'keycost-energy-1を3秒以内にクリックできない' };
-    const set = await clickExactVisibleText(page, 'セット');
-    if (!set) return { pass: false, detail: 'index1選択後に「セット」が3秒以内にenabledにならない' };
+    // 続き475g：ピースの確定ボタンは「セット」→「使用」へ（§3 (cxxiii)）。両方を受ける。
+    const set = await clickExactVisibleText(page, '使用') || await clickExactVisibleText(page, 'セット');
+    if (!set) return { pass: false, detail: 'index1選択後に「使用/セット」が3秒以内にenabledにならない' };
     let last = before;
     for (let s = 0; s < 40; s++) {
       await page.waitForTimeout(250);
       const st = await H.queryState();
       last = st;
-      const pieceSet = st.host.keyPiece === V04_KEY_PIECE && st.host.lrigDeck === before.host.lrigDeck - 1;
+      // 続き475g：**ピースはキーゾーンへ行かない**（§3 (cxxiii)＝使用＝即解決→ルリグトラッシュ）。
+      //   旧判定 `keyPiece === V04_KEY_PIECE` は新実装では永久に false になるので、
+      //   「ルリグデッキを離れてルリグトラッシュへ入った」で観測する。本シナリオの主題は
+      //   **V-04 のエナ支払い funnel（選んだ1枚だけが trash へ）**なのでそこは変えない。
+      const pieceSet = st.host.lrigDeck === before.host.lrigDeck - 1
+        && (st.host.lrigTrashCards ?? []).includes(V04_KEY_PIECE);
       if (!pieceSet) continue;
       if (JSON.stringify(st.host.energyCards) === JSON.stringify(before.host.energyCards)) {
-        return { pass: false, st, detail: `【applyTo呼び忘れ疑い】ピースはセット済みだがエナが1枚も減らない（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）` };
+        return { pass: false, st, detail: `【applyTo呼び忘れ疑い】ピースは使用済みだがエナが1枚も減らない（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）` };
       }
       const selectedOnly = JSON.stringify(st.host.energyCards) === JSON.stringify([V04_REG_ENERGY_KEEP])
         && st.host.trashCards.includes(V04_REG_ENERGY_PAY) && !st.host.trashCards.includes(V04_REG_ENERGY_KEEP);
       return { pass: selectedOnly, st,
-        detail: `KeyUseModal実描画=${modalVisible}・keycost=2/title付き0/titleなし2→${picked}→${set}・pieceSet=${pieceSet}・energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)}・index1だけtrash=${selectedOnly}` };
+        detail: `KeyUseModal実描画=${modalVisible}・keycost=2/title付き0/titleなし2→${picked}→${set}・ピース使用（ルリグトラッシュへ）=${pieceSet}・energy ${JSON.stringify(before.host.energyCards)}→${JSON.stringify(st.host.energyCards)}・index1だけtrash=${selectedOnly}` };
     }
-    return { pass: false, st: last, detail: `ピース支払い完了を観測できない（keyPiece=${JSON.stringify(last?.host?.keyPiece)} lrigDeck=${last?.host?.lrigDeck} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}）` };
+    return { pass: false, st: last, detail: `ピース支払い完了を観測できない（lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} keyPiece=${JSON.stringify(last?.host?.keyPiece)} lrigDeck=${last?.host?.lrigDeck} energy=${JSON.stringify(last?.host?.energyCards)} trash=${JSON.stringify(last?.host?.trashCards)}）` };
   },
 };
 // ── /続き472：PLAN §7 V-04 ──
@@ -15261,9 +15274,108 @@ order.push('underEnergyPayOfferedInAttackPhase', 'underEnergyPayNotOfferedInMain
 order.push('energyTrashCostDeductsEnergyNotHand', 'energyTrashCostUnavailableWhenShort',
   'revealOppHandSkipKeepsOpponentHand', 'revealOppHandPayDiscardsOpponentAndDraws');
 // 続き474：V-10。効果バニッシュ自動身代わり3形＋候補なし対照＋バトル側対話を既存order末尾へ追加。
+
+// ── 続き475g：§3 (cxxiii) ピースは「使用＝1回払って即解決→ルリグトラッシュ」 ──
+// 🔴従来は キー と同じ経路で **①印刷 Cost を徴収 ②`field.key_piece` へ置き ③AUTO/ON_PLAY しか積まない**
+//   だったため、ピース119枚中118枚（＝ACTIVATED＋印刷Cost同額）は**効果が一切走らず**、
+//   KEY スロットの【起】から**同額をもう一度**払う羽目になっていた（＝二重請求）。
+//   ⇒ 本シナリオは**旧実装なら必ず落ちる**＝旧は hand が1枚も増えず keyPiece にピースが載る。
+const PIECE_USE_CARD = 'WXDi-P12-004#7001';          // ディソナンス（《無》×1・メインフェイズ・使用条件なし）
+const PIECE_USE_DISONA_A = 'WXDi-P12-044#7002';      // 《ディソナアイコン》のシグニ（回収対象）
+const PIECE_USE_DISONA_B = 'WXDi-P12-046#7003';      // 同上
+const PIECE_USE_PLAIN = 'WD01-013#7004';             // 非ディソナ＝候補に入らない対照
+const PIECE_USE_ENERGY = 'WD01-013#7005';
+
+scenarios.pieceUseResolvesAndGoesToLrigTrash = {
+  title: 'WXDi-P12-004（ピース使用＝エナ1枚を1回だけ払って効果が即解決し、キーゾーンではなくルリグトラッシュへ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#7000'],
+      'field.signi': [null, null, null], 'field.check': null,
+      'field.key_piece': null, 'field.key_piece_extra': [],
+      'lrig_deck': [PIECE_USE_CARD],
+      'lrig_trash': [],
+      'hand': [],
+      'energy': [PIECE_USE_ENERGY],
+      // ⚠回収対象2枚＋**非ディソナ1枚**を置く＝filter が効いていることを同時に見る。
+      'trash': [PIECE_USE_DISONA_A, PIECE_USE_DISONA_B, PIECE_USE_PLAIN],
+      'actions_done': [], 'game_actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-001#7010'],
+      'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    if (before?.host?.energy !== 1 || (before?.host?.lrigDeckCards ?? []).length !== 1) {
+      return { pass: false, detail: `注入前提不成立（energy=${before?.host?.energy} lrigDeck=${JSON.stringify(before?.host?.lrigDeckCards)}）` };
+    }
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    await page.waitForTimeout(500);
+    H.log('ピース:', await H.clickTestId('zone-card-0') ?? '見つからず');
+    let actionClicked = false; let energyPicked = false; let used = false;
+    const picked = new Set(); let confirmed = false;
+    let candSnapshot = null; let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      let did = null;
+      if (!actionClicked) {
+        // 🔑ラベルが「キーにセット」のままなら**この時点で分かる**（旧実装の検出）。
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="ピースを使用"]').first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click({ timeout: 2000 }); actionClicked = true; did = 'action:ピースを使用';
+        }
+      } else if (!energyPicked) {
+        did = await H.clickTestId('keycost-energy-0'); if (did) energyPicked = true;
+      } else if (!used) {
+        did = await H.clickBtn('使用', { exact: true }); if (did) used = true;
+      } else if (!confirmed) {
+        const st0 = await H.queryState();
+        if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length > 0) {
+          candSnapshot ??= [...st0.pendingCandidates];
+          const next = [PIECE_USE_DISONA_A, PIECE_USE_DISONA_B].find(n => !picked.has(n));
+          if (next && st0.pendingCandidates.includes(next)) {
+            did = await clickPendingInstance(page, H, next); if (did) picked.add(next);
+          } else if (picked.size >= 2) {
+            did = await clickExactVisibleText(page, '決定 (2/2)'); if (did) confirmed = true;
+          }
+        }
+      }
+      if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+      const st = await H.queryState();
+      last = st;
+      H.log(`  pieceUse[${s}] -> ${did ?? 'なし'} | action=${actionClicked} energy=${energyPicked} used=${used} picked=${picked.size}/${confirmed} cands=${JSON.stringify(candSnapshot)} hHand=${JSON.stringify(st?.host?.handCards)} hEnergy=${st?.host?.energy} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)} lrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} keyPiece=${st?.host?.keyPiece ?? '-'} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      const settled = used && confirmed && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0;
+      if (settled) {
+        // 🔑**候補は《ディソナアイコン》の2枚だけ**（非ディソナが混ざったら filter 脱落）
+        const candOk = Array.isArray(candSnapshot) && candSnapshot.length === 2
+          && candSnapshot.includes(PIECE_USE_DISONA_A) && candSnapshot.includes(PIECE_USE_DISONA_B);
+        const recovered = (st.host.handCards ?? []).includes(PIECE_USE_DISONA_A)
+          && (st.host.handCards ?? []).includes(PIECE_USE_DISONA_B);
+        const plainStayed = (st.host.trashCards ?? []).includes(PIECE_USE_PLAIN);
+        // 🔴**エナは1回だけ**＝1→0。旧実装でも 1→0 になるが、その場合は効果が走らない（recovered=false）。
+        const paidOnce = st.host.energy === 0;
+        const inLrigTrash = (st.host.lrigTrashCards ?? []).includes(PIECE_USE_CARD);
+        const notInKeyZone = !st.host.keyPiece;
+        const leftLrigDeck = !(st.host.lrigDeckCards ?? []).includes(PIECE_USE_CARD);
+        const pass = candOk && recovered && plainStayed && paidOnce && inLrigTrash && notInKeyZone && leftLrigDeck;
+        return { pass, st,
+          detail: pass
+            ? `ピース使用＝エナ 1→0（1回払い）・候補は《ディソナアイコン》2枚だけ=${JSON.stringify(candSnapshot)}・2枚を手札へ回収・非ディソナはトラッシュ残存・**ピースはルリグトラッシュへ**（keyPiece=${st.host.keyPiece ?? 'null'}）`
+            : `【(cxxiii)回帰】candOk=${candOk} recovered=${recovered} plainStayed=${plainStayed} paidOnce=${paidOnce}(energy=${st.host.energy}) inLrigTrash=${inLrigTrash} notInKeyZone=${notInKeyZone}(keyPiece=${st.host.keyPiece ?? 'null'}) leftLrigDeck=${leftLrigDeck} hand=${JSON.stringify(st.host.handCards)}` };
+      }
+    }
+    return { pass: false, detail: `ピース使用 完走タイムアウト（action=${actionClicked} energy=${energyPicked} used=${used} picked=${picked.size}/${confirmed} hHand=${JSON.stringify(last?.host?.handCards)} hEnergy=${last?.host?.energy} lrigTrash=${JSON.stringify(last?.host?.lrigTrashCards)} keyPiece=${last?.host?.keyPiece ?? '-'} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+  },
+};
+
 order.push('effectBanishSubstituteRunsAutomatically', 'effectBanishNoSubstituteWithoutSacrifice',
   'effectBanishSubstituteDiscardsSpell', 'effectBanishLifeCrashSubstitutePaysLife',
   'battleBanishSubstituteStillInteractive');
+order.push('pieceUseResolvesAndGoesToLrigTrash');
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
