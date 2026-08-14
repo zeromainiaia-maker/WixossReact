@@ -17004,6 +17004,9 @@ const v14MultiAcceSpec = acceValue => ({
 });
 
 async function driveV14MultiAcceAttack(page, H, expectedCount, expectTrigger) {
+  // ⚠上の `driveV14AttackFieldTrashHuman` と同じ理由でフェイズを固定してから開く（続き478 実測）。
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
   const opened = await v14OpenSigniActionLabels(page, H);
   const label = opened.labels.find(x => x === 'アタック') ?? null;
   if (!opened.modalVisible || !label) return { pass: false, detail: `アタックactionなし（labels=${JSON.stringify(opened.labels)}）` };
