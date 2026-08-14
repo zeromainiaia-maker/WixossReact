@@ -33812,6 +33812,96 @@ test('§6.4 O-24: WXK06-030-E2 は「シグニ1体＋エナ1枚を対戦相手�
   }
 });
 
+// ─────────────────────────────────────────────────────────────────────────────
+// §6.4 O-19 / O-25（2026-08-15）＝**推論の層と引用付与の層**。どちらも「計器に映らない事故」を
+//   起こす層なので、直した瞬間の値をトリップワイヤで固定する。
+// ─────────────────────────────────────────────────────────────────────────────
+
+test('§6.4 O-19: ON_PLAY watcher の主語が「この…」でないのに triggerScope 未指定＝0件（データ不変条件）', () => {
+  // 🔑**この計器が本体**＝1枚直すより「二度と溜まらない形」を残す。
+  //   `triggerScope` 未指定の ON_PLAY は engine で **self（＝このカード自身が場に出たとき）** に落ちる。
+  //   原文の主語が「あなたの（他の）シグニ」等なら、それは watcher＝**一度も原文どおりに発火しない**。
+  //   parser 規則が生えるまで気付けなかった（続き463 の暫定 guard も同じ穴を残していた）ので、
+  //   **新カード追加でこのクラスが増えた瞬間に赤くなる**ようにしておく。
+  const offenders: string[] = [];
+  for (const [cardNum, effs] of effectsMap) {
+    const card = cardMap.get(cardNum);
+    if (!card) continue;
+    for (const e of effs) {
+      if (e.effectType !== 'AUTO' || !e.timing?.includes('ON_PLAY')) continue;
+      if (e.triggerScope !== undefined) continue;
+      const block = abilityBlockTextOf(card, e.effectId);
+      if (!/場に出たとき/.test(block)) continue;
+      const m = block.match(/(.{0,24})が(?:[^。]{0,12})場に出たとき/);
+      // 主語が「この（シグニ|カード|レゾナ|アシスト）」＝自身の【出】＝scope 未指定（self 既定）で正しい
+      if (m && /この(シグニ|カード|レゾナ|アシスト)/.test(m[1])) continue;
+      offenders.push(e.effectId ?? cardNum);
+    }
+  }
+  eq(offenders.length, 0, `🔴watcher なのに scope 未指定（self へ潰れる）: ${offenders.join(' ')}`);
+});
+
+test('§6.4 O-19: WX25-P1-061-E1 は「味方シグニがトラッシュから場に出たとき」の watcher', () => {
+  const e = (effectsMap.get('WX25-P1-061') ?? []).find(x => x.effectId === 'WX25-P1-061-E1');
+  ok(!!e, 'WX25-P1-061-E1 が live に存在する');
+  eq(e!.timing?.[0], 'ON_PLAY');
+  eq(e!.triggerScope, 'any_ally', '🔴self に戻ると「自身が場に出たとき」＝原文と別物（恒久 no-op 側）');
+  eq(e!.triggerCondition?.placedFromTrash, true, '🔴由来句「トラッシュから」を落とすと過剰発火する');
+});
+
+test('§6.4 O-25: 「このシグニ/ルリグは「【自】…」を得る」は付与であって即時実行ではない', () => {
+  // 平坦化していると「アタックしたとき－N」が**付与した瞬間に**発動する（過剰実行）か、
+  // 付与節ごと落ちて**恒久 no-op** になる。3枚とも当時の実測症状つきで固定する。
+  const cases: Array<[string, string, string, string]> = [
+    // [cardNum, effectId, 内側 timing, 直す前の症状]
+    ['WX25-P1-061', 'WX25-P1-061-E1', 'ON_ATTACK_SIGNI', '即時 POWER_MODIFY -8000（過剰実行）'],
+    ['WX25-CP1-048', 'WX25-CP1-048-E1', 'ON_ATTACK_PHASE_START', '即時 POWER_MODIFY -15000（過剰実行）'],
+    ['WXDi-P09-038', 'WXDi-P09-038-E1', 'ON_ATTACK_SIGNI', '付与節が丸ごと落ちて恒久 no-op'],
+  ];
+  for (const [cardNum, effectId, innerTiming, symptom] of cases) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在する`);
+    // GRANT_EFFECT は CONDITIONAL/SEQUENCE の内側にも居るので木を走査する
+    const grants: Array<Record<string, unknown>> = [];
+    const walk = (o: unknown): void => {
+      if (!o || typeof o !== 'object') return;
+      if (Array.isArray(o)) { o.forEach(walk); return; }
+      const rec = o as Record<string, unknown>;
+      if (rec.type === 'GRANT_EFFECT') grants.push(rec);
+      Object.values(rec).forEach(walk);
+    };
+    walk(e!.action);
+    eq(grants.length, 1, `${effectId}: GRANT_EFFECT が1つある（旧症状＝${symptom}）`);
+    const g = grants[0];
+    const tgt = g.target as { owner?: string; filter?: { thisCardOnly?: boolean } } | undefined;
+    eq(tgt?.owner, 'self', `${effectId}: 付与先は自分（引用内の「対戦相手の…を対象とし」に引きずられない）`);
+    eq(tgt?.filter?.thisCardOnly, true, `${effectId}: 付与先は効果元自身`);
+    const inner = g.effect as { timing?: string[] } | undefined;
+    eq(inner?.timing?.[0], innerTiming, `${effectId}: 引用能力の timing（即時実行なら timing 自体が無い）`);
+  }
+});
+
+test('§6.4 O-25: WX24-P2-007-E1 の全体付与は「あなたの」全シグニ（相手側に付けない）', () => {
+  // 引用の中の「対戦相手のシグニ１体を対象とし」を外側の照応と誤読して owner が反転していた
+  // （＝自分に付くはずの能力が**相手の全シグニ**に付く）。`applyLeadingOpponentDesignation` の引用伏せ字ガード。
+  const e = (effectsMap.get('WX24-P2-007') ?? []).find(x => x.effectId === 'WX24-P2-007-E1');
+  ok(!!e, 'WX24-P2-007-E1 が live に存在する');
+  const owners: string[] = [];
+  const walk = (o: unknown): void => {
+    if (!o || typeof o !== 'object') return;
+    if (Array.isArray(o)) { o.forEach(walk); return; }
+    const rec = o as Record<string, unknown>;
+    if (rec.type === 'GRANT_EFFECT') {
+      const t = rec.target as { owner?: string; count?: unknown } | undefined;
+      if (t?.count === 'ALL') owners.push(String(t?.owner));
+    }
+    Object.values(rec).forEach(walk);
+  };
+  walk(e!.action);
+  eq(owners.length, 2, '全体付与は2箇所（本体＋リコレクト追加）');
+  ok(owners.every(o => o === 'self'), `🔴付与先が opponent に戻っている: ${owners.join(',')}`);
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
