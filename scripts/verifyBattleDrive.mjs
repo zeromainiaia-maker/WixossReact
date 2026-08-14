@@ -11600,16 +11600,23 @@ async function runFieldDownRound(page, H, { expectAffordable }) {
     H.log(`  fieldDown.${expectAffordable ? 'pay' : 'unavailable'}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} prompted=${prompted} branch=${branchClicked} energy=${energyPicked} down=${downPicked.size}/${downConfirmed}/all3=${sawAllThreeDown} up=${upPicked}/${upConfirmed} remove=${removePicked}/${removeConfirmed} options=${JSON.stringify(st?.pendingOptions)} cands=${JSON.stringify(st?.pendingCandidates)} hEnergy=${JSON.stringify(st?.host?.energyCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} hDown=${JSON.stringify(st?.host?.signiDown)} hLrigDown=${st?.host?.lrigDown} abilitiesRemoved=${JSON.stringify(st?.host?.abilitiesRemoved)} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
     if (settled) {
       if (!expectAffordable) {
-        const noCostDown = st.host.signiDown?.[0] === true && st.host.signiDown?.[1] === false && st.host.signiDown?.[2] === false;
+        // ⚠**ルリグアタックなので自分のシグニは1体もダウンしない**（旧＝シグニアタック経路では
+        //   アタッカーだけ down していた）。ここが true に戻ったら timing が ON_ATTACK_SIGNI へ逆戻り。
+        const noCostDown = (st.host.signiDown ?? []).slice(0, 3).every(v => v === false);
         const resourcesStayed = st.host.energyCards.includes(FIELD_DOWN_ENERGY) && st.host.trashCards.length === 0;
         return { pass: prompted && noCostDown && resourcesStayed,
-          detail: `pay disabled＋skip提示=${prompted}・アタッカーだけdown（攻撃由来）=${noCostDown}・白エナ不徴収=${resourcesStayed}・life確認消化済み` };
+          detail: `pay disabled＋skip提示=${prompted}・自シグニは1体もdownしない（ルリグアタック）=${noCostDown}・白エナ不徴収=${resourcesStayed}・life確認消化済み` };
       }
       const whitePaid = !st.host.energyCards.includes(FIELD_DOWN_ENERGY) && st.host.trashCards.includes(FIELD_DOWN_ENERGY);
-      // 帰結はpass条件外。live JSONどおり source SIGNI を明示選択し、ルリグではなくそのシグニがup＋能力喪失したかを記録する。
-      const observedOutcome = `sourceSigniUp=${st.host.signiDown?.[0] === false} sourceSigniAbilitiesRemoved=${st.host.abilitiesRemoved.includes(FIELD_DOWN_SOURCE)} lrigDown=${st.host.lrigDown}`;
-      return { pass: prompted && energyPicked && downConfirmed && sawAllThreeDown && whitePaid,
-        detail: `pay/skip提示=${prompted}・3体選択確定=${downConfirmed}・3体同時down観測=${sawAllThreeDown}・白エナ→trash=${whitePaid}。帰結観測（pass外）=${observedOutcome}` };
+      // 🔑**帰結まで pass 条件に入れる**（§3 (cxxviii) の本体）＝「そのルリグをアップし、能力を失う」。
+      //   ⚠旧 live は対象が SIGNI だったので、ここが**シグニ側**に効いていたら回帰。
+      const lrigUpped = st.host.lrigDown === false;
+      const lrigAbilitiesRemoved = (st.host.abilitiesRemoved ?? []).includes(FIELD_DOWN_LRIG);
+      const signiNotTargeted = !(st.host.abilitiesRemoved ?? []).includes(FIELD_DOWN_SOURCE);
+      return { pass: prompted && energyPicked && downConfirmed && sawAllThreeDown && whitePaid
+        && lrigUpped && lrigAbilitiesRemoved && signiNotTargeted,
+        detail: `pay/skip提示=${prompted}・3体選択確定=${downConfirmed}・3体同時down観測=${sawAllThreeDown}・白エナ→trash=${whitePaid}`
+          + `／🔑帰結＝ルリグがアップ=${lrigUpped}・ルリグが能力喪失=${lrigAbilitiesRemoved}・シグニは対象外=${signiNotTargeted}` };
     }
   }
   return { pass: false, detail: `fieldDown完走タイムアウト（expectAffordable=${expectAffordable} prompted=${prompted} branch=${branchClicked} energy=${energyPicked} down=${downPicked.size}/${downConfirmed}/all3=${sawAllThreeDown} up=${upPicked}/${upConfirmed} remove=${removePicked}/${removeConfirmed} hEnergy=${JSON.stringify(last?.host?.energyCards)} hDown=${JSON.stringify(last?.host?.signiDown)} abilitiesRemoved=${JSON.stringify(last?.host?.abilitiesRemoved)} gLife=${last?.guest?.life} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
