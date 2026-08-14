@@ -18,7 +18,7 @@ import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCos
 import { fieldTrashGroupsAffordable } from '../screens/battle/fieldLimit';
 import { underAnySigniCostCandidates } from '../screens/battle/underAnySigniCost';
 import { acceCardsAt, cloneAcceSlots, hasAcceAt } from '../utils/acce';
-import { getAbilityBlockTexts } from '../data/effectParser';
+import { abilityBlockTextOf } from '../data/effectParser';
 
 // ===== 実行コンテキスト & 結果型 =====
 
