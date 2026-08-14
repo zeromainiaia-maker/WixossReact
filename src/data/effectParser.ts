@@ -8667,13 +8667,21 @@ function parseActionTextInner(text: string): EffectAction {
       // 差分だけを同一対象へ加算する（加算モデル＝WXDi-P07-079 の LAST_PROCESSED_MATCHES + targetsLastProcessed と同型）。
       // 従来は「それ」の先行詞が失われ owner:any の別対象へ二重適用する過剰効果だった（WX25-P2-102/107/109）。
       {
-        const tpm = clean.match(/^それに【チャーム】が付いている場合、代わりに(?:ターン終了時まで、)?それのパワーを([－-])([０-９\d]+)する。?$/);
+        // 🆕§6.4 O-22(a)＝主語と帰結にそれぞれ2形ある。従来はこの1形しか取れず、外れた分は
+        //   `STUB{CHARM_CONDITIONAL_POWER}` へ落ちていた。その STUB は delta を**効果元カード自身**へ
+        //   適用するので、`WX07-031-BURST`／`WX08-032-BURST`（ライフバースト＝場に無い）では
+        //   `hasCharm` が常に偽＝**恒久 no-op** だった。
+        //   ・主語「それに」＝直前 POWER_MODIFY で選んだ対象自身のゾーン（`LAST_PROCESSED_MATCHES{hasCharm}`）
+        //   ・主語「あなたのシグニに」＝自分の場に【チャーム】が1枚でもある（`CHARM_COUNT{self,gte,1}`）
+        //   ・帰結は完全形「それのパワーを－M」と、動詞句を省いた短縮形「－Mする」の両方
+        //   ⚠「代わりにN倍－される」（`WX25-P2-103` ②）は倍率の別機構なので**取らない**（数値の直指定のみ）。
+        const tpm = clean.match(/^(それ|あなたのシグニ)に【チャーム】が付いている場合、代わりに(?:ターン終了時まで、)?(?:それのパワーを)?([－-])([０-９\d]+)する。?$/);
         const baseStep = steps[steps.length - 1];
         const coreBase = baseStep?.type === 'CONDITIONAL' ? (baseStep as import('../types/effects').ConditionalAction).then : baseStep;
         if (tpm && coreBase?.type === 'POWER_MODIFY' &&
             typeof (coreBase as import('../types/effects').PowerModifyAction).delta === 'number') {
           const basePM = coreBase as import('../types/effects').PowerModifyAction;
-          const enhancedDelta = ((tpm[1] === '－' || tpm[1] === '-') ? -1 : 1) * parseNum(tpm[2]);
+          const enhancedDelta = ((tpm[2] === '－' || tpm[2] === '-') ? -1 : 1) * parseNum(tpm[3]);
           const extra = enhancedDelta - (basePM.delta as number); // 差分だけを追加（-8000 −(-5000)= -3000）
           const thenPM: import('../types/effects').PowerModifyAction = {
             type: 'POWER_MODIFY',
@@ -8681,7 +8689,10 @@ function parseActionTextInner(text: string): EffectAction {
             delta: extra,
             targetsLastProcessed: true,
           };
-          steps.push({ type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { hasCharm: true } }, then: thenPM });
+          const charmCond: Condition = tpm[1] === 'それ'
+            ? { type: 'LAST_PROCESSED_MATCHES', filter: { hasCharm: true } }
+            : { type: 'CHARM_COUNT', owner: 'self', operator: 'gte', value: 1 };
+          steps.push({ type: 'CONDITIONAL', condition: charmCond, then: thenPM });
           continue;
         }
       }
