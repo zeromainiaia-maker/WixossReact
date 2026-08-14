@@ -33590,8 +33590,8 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
   // 減ったら「全文読みへ差し戻された」＝無言で別能力の文に従い始めるので赤にする。
   const FROZEN: Record<string, number> = {
     'src/engine/execStubPart1.ts': 7,
-    'src/engine/execStubPart2.ts': 11,
-    'src/engine/execStubPart3.ts': 2,
+    'src/engine/execStubPart2.ts': 9,
+    'src/engine/execStubPart3.ts': 3,
     'src/engine/effectExecutor.ts': 2,
   };
   for (const [f, n] of Object.entries(FROZEN)) {
@@ -33607,6 +33607,75 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
   const exe = fs.readFileSync(join(root, 'src/engine/effectExecutor.ts'), 'utf8');
   ok(/ctx\.sourceEffectId \? ctx : \{ \.\.\.ctx, sourceEffectId: effect\.effectId \}/.test(exe),
     'executeEffect が sourceEffectId を補完する（O-20 の source 配線の入口）');
+});
+
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-21: 同じ STUB id を受けるハンドラの重複（dispatch は part1 → part2 → part3 の先着勝ち）
+// 🔴**二番手は永久に呼ばれない**ので、(a)そこを直しても何も起きない (b)本物の実装がそこに居ると
+//   先着の no-op に潰される。実際 `BET_CONDITION` は execStubPart3 に実装があるのに
+//   execStubPart1 の3行 no-op が先着で潰していた（根拠＝`WDK01-010-E1`）。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 O-21: 同じ STUB id の後発ハンドラが到達不能になっていない', () => {
+  // 同じ id を受けるトップレベル分岐が複数あること自体は正当（「特定形を先に処理して素通り→一般形」）。
+  // 🔴**駄目なのは先着が必ず return する形**＝後発は永久に呼ばれない。
+  //   意図的な素通りは「条件に追加ガードがある（`&& targetsStored` 等）」か「ブロックが return で終わらない」。
+  type Site = { at: string; alwaysReturns: boolean };
+  const seen = new Map<string, Site[]>();
+  for (const f of ['src/engine/execStubPart1.ts', 'src/engine/execStubPart2.ts', 'src/engine/execStubPart3.ts']) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    const lines = src.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const ln = lines[i];
+      if (!/^ {2}if \(.*stub\.id === '/.test(ln)) continue;
+      const guarded = ln.includes('&&');
+      let alwaysReturns: boolean;
+      if (/\{\s*$/.test(ln)) {
+        // 対応する閉じ波括弧まで降りて、ブロック末尾の実文が return かを見る
+        let depth = 0, endLine = i;
+        for (let j = i; j < lines.length; j++) {
+          for (const ch of lines[j]) { if (ch === '{') depth++; else if (ch === '}') depth--; }
+          if (depth === 0 && j > i) { endLine = j; break; }
+        }
+        const body = lines.slice(i + 1, endLine).map(l => l.trim()).filter(l => l && !l.startsWith('//'));
+        alwaysReturns = /^\}?\s*return\b/.test(body[body.length - 1] ?? '');
+      } else {
+        alwaysReturns = /\)\s*return\b/.test(ln);
+      }
+      if (guarded) alwaysReturns = false; // 追加ガードつき＝素通りしうる
+      for (const m of ln.matchAll(/stub\.id === '([A-Z_0-9]+)'/g)) {
+        if (!seen.has(m[1])) seen.set(m[1], []);
+        seen.get(m[1])!.push({ at: `${f.split('/').pop()}:${i + 1}`, alwaysReturns });
+      }
+    }
+  }
+  const dead = [...seen]
+    .filter(([, sites]) => sites.length > 1 && sites[0].alwaysReturns)
+    .map(([id, sites]) => `${id}(先着 ${sites[0].at} が必ず return → ${sites.slice(1).map(x => x.at).join(',')} が到達不能)`);
+  eq(dead.join(' '), '',
+    `後発ハンドラが到達不能になっている（先着を素通りさせるか、後発を消すこと）: ${dead.join(' ')}`);
+});
+
+test('§6.4 O-21: BET_CONDITION がベット時に追加対象を出す（先着 no-op に潰されていない）', () => {
+  // `WDK01-010`「…シグニを３枚まで対象とし、それらを手札に加える。あなたがベットしていた場合、
+  //  ３枚の代わりに４枚まで対象とし、それらを手札に加える。」＝差分1枚を追加で選ばせる。
+  const src = 'WDK01-010';
+  const signiInTrash = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
+  const mk = (betting: boolean): ExecCtx => {
+    const c = mkCtx({}, {});
+    c.sourceCardNum = src;
+    c.sourceEffectId = 'WDK01-010-E1';
+    c.ownerState = { ...c.ownerState, trash: [...signiInTrash] };
+    (c.ownerState as unknown as { is_betting_this_effect?: boolean }).is_betting_this_effect = betting;
+    return c;
+  };
+  const act = { type: 'STUB', id: 'BET_CONDITION' } as unknown as EffectAction;
+  const bet = executeEffect({ effectId: 'WDK01-010-E1', effectType: 'ACTIVATED', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, mk(true));
+  eq((bet as { pending?: { count?: number } }).pending?.count, 1,
+    '🔴ベット時は「４枚まで」との差分1枚をトラッシュから追加で選べる（先着 no-op に潰されていた）');
+  const noBet = executeEffect({ effectId: 'WDK01-010-E1', effectType: 'ACTIVATED', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, mk(false));
+  ok((noBet as { pending?: unknown }).pending === undefined, '非ベット時は追加対象を出さない');
+  ok((noBet as { logs: string[] }).logs.some(l => l.includes('ベットなし')), '非ベット時は素通りログ');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
