@@ -5507,10 +5507,15 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   // さらに任意コスト文を挟んで「そうした場合、（ターン終了時まで、／カードを１枚引き、）それの/それは/それら…」
   // と割れる power-down/付与の照応（タスク12(xxix)(b)・続き226）も同一構造。介在節（読点まで）と
   // 「それの／それは／それら」を許容して照応先の相手シグニを取り戻す（22効果の owner:self+targetsTriggerSource 化）。
-  const hasAnaphora = /そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/.test(text)
-    || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(text);
+  // ⚠**引用能力（「…」の中身）は「別のカードの文」であって、この文の照応先ではない**（§6.4 O-25）。
+  //   引用の中に「対戦相手の…シグニ１体を対象とし」があると、外側の「そうした場合、…このシグニは「Q」を得る」の
+  //   付与先（`GRANT_EFFECT{thisCardOnly}`）が **相手シグニへの付与に化ける**（`WXDi-P07-063`＝自分に付けるはずの
+  //   「アタック時バニッシュ」が相手シグニへ付いた）。走査は引用を伏せ字にしたテキストで行う。
+  const scan = text.replace(/「[^」]*」/g, '「」');
+  const hasAnaphora = /そうした場合、(?:[^。]*?、)?それ(?:ら)?[をのは]/.test(scan)
+    || /この方法で[^。]*?場合、[^。]*?それ[をの]/.test(scan);
   if (!hasAnaphora) return action;
-  if ((text.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
+  if ((scan.match(/を対象とし/g)?.length ?? 0) !== 1) return action;
   // 「代わりに」置換は前段/後段の二重 power-modify/除去へ平坦化される別系統（タスク6）。findTail が末尾だけ
   // 補正すると片方が誤 owner のまま残るため丸ごと据置する（WX24-P3-076 等）。
   if (/代わりに/.test(text)) return action;
