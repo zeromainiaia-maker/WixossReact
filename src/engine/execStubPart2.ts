@@ -242,8 +242,8 @@ export function execStubPart2(
   }
   // ルリグレベル合計に基づくパワー修正（自分のルリグ全体のレベル合計を参照）
   if (stub.id === 'POWER_MOD_BY_LRIG_LEVEL_SUM') {
-    const srcPMLS = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMLS = srcPMLS ? (srcPMLS.EffectText ?? '') + ' ' + (srcPMLS.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の「レベルの合計〜につき＋N」を拾いうるのでブロックだけを読む。
+    const txtPMLS = sourceAbilityText(ctx);
     const toHWPMLS = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const lrigLvSum = (ctx.ownerState.field.lrig ?? []).reduce((acc, cn) => {
       const lv = parseInt(ctx.cardMap.get(cn)?.Level ?? '0');
