@@ -3523,6 +3523,12 @@ function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
   // LRIG は選択UIを出さず自動付与（execGrantKeyword と同様）
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   if (tgt.count === 'ALL') return done(applyGrant(cands, ctx));
+  // 「このシグニは「Q」を得る」＝thisCardOnly は**選択UIを出さず自動付与**（execGrantKeyword:3448 と同ロジック）。
+  // ⚠ここが無いと `selectOrInteract` が候補1件でも必ず問いを出す＝「自分自身を選べ」という無意味な
+  //   モーダルが挟まる（§6.4 O-25 で parser が GRANT_EFFECT{thisCardOnly} を作り始めたので必要になった）。
+  if (tgt.filter?.thisCardOnly && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+    return done(applyGrant([ctx.sourceCardNum], ctx));
+  }
   const count = resolveNum(tgt.count);
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
   return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
