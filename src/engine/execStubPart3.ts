@@ -3452,22 +3452,6 @@ export function execStubPart3(
       targetScope: 'opp_field', thenAction: banishTSAOTE as EffectAction,
     });
   }
-  // MULTI_SIGNI_TO_ENERGY: 自分の複数シグニをエナに
-  if (stub.id === 'MULTI_SIGNI_TO_ENERGY') {
-    const toHWMSTE = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcMSTE = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtMSTE = srcMSTE ? (srcMSTE.EffectText ?? '') + ' ' + (srcMSTE.BurstText ?? '') : '';
-    const mMSTE = txtMSTE.match(/([０-９\d]+)体/);
-    const countMSTE = mMSTE ? parseInt(toHWMSTE(mMSTE[1])) : 2;
-    const candsMSTE = (ctx.ownerState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
-    if (candsMSTE.length === 0) return done(addLog(ctx, 'シグニなし'));
-    const banishMSTE: BanishAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'any', count: 1 } };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: candsMSTE,
-      count: Math.min(countMSTE, candsMSTE.length), optional: false,
-      targetScope: 'self_field', thenAction: banishMSTE as EffectAction,
-    });
-  }
   // MULTI_SIGNI_POWER_UP_5000: 複数シグニに+5000パワー
   if (stub.id === 'MULTI_SIGNI_POWER_UP_5000') {
     const toHWMSPU5 = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
@@ -3487,36 +3471,6 @@ export function execStubPart3(
       count: Math.min(countMSPU5, candsMSPU5.length), optional: false,
       targetScope: 'self_field', thenAction: pmMSPU5 as EffectAction,
     });
-  }
-  // TRASHED_CARD_TO_HAND_OR_ENERGY: トラッシュカード→手札かエナ選択
-  // OPP_TRASH_FIELD_SIGNI_AND_ENERGY: 相手のシグニとエナをトラッシュ
-  if (stub.id === 'OPP_TRASH_FIELD_SIGNI_AND_ENERGY') {
-    const candidatesOTFSE = (ctx.otherState.field.signi ?? []).flatMap(s => s && s.length > 0 ? [s[s.length - 1]] : []);
-    let otherOTFSE = ctx.otherState;
-    // 相手フィールドシグニを全てトラッシュ
-    for (const cn of candidatesOTFSE) {
-      const removed = removeFromField(cn, otherOTFSE);
-      otherOTFSE = { ...removed, trash: [...removed.trash, cn] };
-    }
-    // 相手エナを全てトラッシュ
-    otherOTFSE = { ...otherOTFSE, trash: [...otherOTFSE.trash, ...otherOTFSE.energy], energy: [] };
-    return done(addLog({ ...ctx, otherState: otherOTFSE },
-      `相手シグニ${candidatesOTFSE.length}体+全エナをトラッシュ`));
-  }
-  // NON_GUARD_DISCARD_TO_ENERGY: 非ガード捨て牌をエナゾーンへ
-  if (stub.id === 'NON_GUARD_DISCARD_TO_ENERGY') {
-    const cnNGDTE = ctx.lastProcessedCards?.[0];
-    if (!cnNGDTE) return done(addLog(ctx, '対象なし'));
-    const cardNGDTE = ctx.cardMap.get(cnNGDTE);
-    // Guard列は '1'/'0' 形式（'○'判定は常にfalseだった）
-    const hasGuardNGDTE = cardNGDTE?.Guard === '1' || (cardNGDTE?.EffectText ?? '').includes('【ガード】');
-    if (hasGuardNGDTE) return done(addLog(ctx, 'ガードカードなのでエナ移動なし'));
-    const newSNGDTE: PlayerState = {
-      ...ctx.ownerState,
-      trash: ctx.ownerState.trash.filter(c => c !== cnNGDTE),
-      energy: [...ctx.ownerState.energy, cnNGDTE],
-    };
-    return done(addLog({ ...ctx, ownerState: newSNGDTE }, `非ガード捨て牌→エナゾーンへ`));
   }
   // === バッチ13: エナ操作・カウント・条件分岐系 ===
   // ENERGY_TO_HAND_ON_DECK: エナゾーンの末尾→手札（デッキ経由を省略）
@@ -3911,33 +3865,6 @@ export function execStubPart3(
       trash: [...sETT.trash, lastEnaETT],
     };
     return done(addLog({ ...ctx, ownerState: newSETT }, `${ctx.cardMap.get(lastEnaETT)?.CardName ?? lastEnaETT}をエナ→トラッシュ`));
-  }
-  // EACH_PLAYER_DRAW_DISCARD は上位ハンドラ（line 1031）で処理済み
-  // DRAW_DISCARD_COUNT_PLUS_N: N枚引いてM枚捨てる
-  if (stub.id === 'DRAW_DISCARD_COUNT_PLUS_N') {
-    const toHWDDCPN = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcDDCPN = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDDCPN = srcDDCPN ? (srcDDCPN.EffectText ?? '') + ' ' + (srcDDCPN.BurstText ?? '') : '';
-    const mDrawDDCPN = txtDDCPN.match(/([０-９\d]+)枚引く/);
-    const mDiscDDCPN = txtDDCPN.match(/([０-９\d]+)枚捨てる/);
-    const drawNDDCPN = mDrawDDCPN ? parseInt(toHWDDCPN(mDrawDDCPN[1] ?? '1')) : 1;
-    const discNDDCPN = mDiscDDCPN ? parseInt(toHWDDCPN(mDiscDDCPN[1] ?? '1')) : 1;
-    let sDDCPN = ctx.ownerState;
-    const canDrawDDCPN = Math.min(drawNDDCPN, sDDCPN.deck.length);
-    sDDCPN = { ...sDDCPN, hand: [...sDDCPN.hand, ...sDDCPN.deck.slice(0, canDrawDDCPN)], deck: sDDCPN.deck.slice(canDrawDDCPN) };
-    const newCtxDDCPN = { ...ctx, ownerState: sDDCPN };
-    if (discNDDCPN > 0 && sDDCPN.hand.length > 0) {
-      const thenDDCPN: StubAction = { type: 'STUB', id: 'INTERNAL_TRASH_CARD' };
-      return needsInteraction(addLog(newCtxDDCPN, `${drawNDDCPN}枚ドロー→${discNDDCPN}枚捨て選択`), {
-        type: 'SELECT_TARGET',
-        candidates: sDDCPN.hand,
-        count: Math.min(discNDDCPN, sDDCPN.hand.length),
-        optional: false,
-        targetScope: 'self_hand',
-        thenAction: thenDDCPN as EffectAction,
-      });
-    }
-    return done(addLog(newCtxDDCPN, `${drawNDDCPN}枚ドロー`));
   }
   // PLACE_LIMIT_UPPER: 【リミットアッパー】トークンをルリグゾーンに置く（1つまで）
   // トークン効果（ルリグ1体かつレベル3以上でリミット+2）はBattleScreenのリミット計算側で適用
@@ -4340,50 +4267,8 @@ export function execStubPart3(
       'このターン、植物シグニが3回目ダウンになったときの効果を付与'));
   }
 
-  // RETURN_ANGEL_SIGNI_TO_DECK: トラッシュの天使シグニ7枚をデッキ下へ（WX06-001）
-  // 条件達成時に lastProcessedCards を設定 → 後続の conditional:true BANISH が発動
-  if (stub.id === 'RETURN_ANGEL_SIGNI_TO_DECK') {
-    const angelNums = ctx.ownerState.trash.filter(cn =>
-      ctx.cardMap.get(cn)?.CardClass?.includes('天使'),
-    );
-    if (angelNums.length < 7) {
-      return done(addLog({ ...ctx, lastProcessedCards: [] },
-        `天使シグニが${angelNums.length}枚（7枚必要）→ 効果なし`));
-    }
-    const toBottom = angelNums.slice(0, 7);
-    const newTrash = ctx.ownerState.trash.filter(cn => !toBottom.includes(cn));
-    const newDeck = [...ctx.ownerState.deck, ...toBottom];
-    const newOwner = { ...ctx.ownerState, trash: newTrash, deck: newDeck };
-    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: toBottom },
-      `トラッシュの天使シグニ${toBottom.length}枚をデッキ下へ`));
-  }
 
-  // RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK: 名前の異なる天使シグニ7枚をデッキ下へ（WX06-001）
-  if (stub.id === 'RETURN_UNIQUE_ANGEL_SIGNI_TO_DECK') {
-    const angelByName = new Map<string, string>(); // name → first instance ID
-    for (const cn of ctx.ownerState.trash) {
-      const card = ctx.cardMap.get(cn);
-      if (!card?.CardClass?.includes('天使')) continue;
-      const name = card.CardName;
-      if (!angelByName.has(name)) angelByName.set(name, cn);
-    }
-    if (angelByName.size < 7) {
-      return done(addLog({ ...ctx, lastProcessedCards: [] },
-        `名前の異なる天使シグニが${angelByName.size}種（7種必要）→ 効果なし`));
-    }
-    const toBottom = [...angelByName.values()].slice(0, 7);
-    const newTrash = ctx.ownerState.trash.filter(cn => !toBottom.includes(cn));
-    const newDeck = [...ctx.ownerState.deck, ...toBottom];
-    const newOwner = { ...ctx.ownerState, trash: newTrash, deck: newDeck };
-    return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: toBottom },
-      `名前の異なる天使シグニ${toBottom.length}枚をデッキ下へ`));
-  }
 
-  // FROZEN_LOSES_ABILITIES: 対戦相手の凍結状態シグニは能力を失う（WX09-Re01 CONTINUOUS）
-  // applyEffects(effectEngine)でCONTINUOUSパワー修正をスキップ済み。execStub経由では no-op。
-  if (stub.id === 'FROZEN_LOSES_ABILITIES') {
-    return done(addLog(ctx, '対戦相手の凍結シグニは能力を失う（常在効果・effectEngineで適用）'));
-  }
 
   // DECLARE_NUMBER: 数字を宣言する（DECLARE_AND_MILLの分離STUBとして使用）
   // → execStub.tsではDECLARE_NUMBERが既に実装済み（docs/STUBS.md ✅）のため不要

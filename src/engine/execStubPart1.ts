@@ -820,7 +820,10 @@ export function execStubPart1(
     });
   }
   // BET_ALTERNATIVE: ベット強化済みなのでスキップ（BET_MECHANICで処理済み）
-  if (stub.id === 'BET_ALTERNATIVE' || stub.id === 'BET_CONDITION') {
+  // ⚠**`BET_CONDITION` をここに入れてはいけない**（§6.4 O-21）＝`execStubPart3` に
+  //   「ベットしていた場合の追加効果」の**実装がある**のに、この3行の no-op が先着で潰していた
+  //   （dispatch は part1 → part2 → part3 の先着勝ち。根拠カード＝`WDK01-010-E1`）。
+  if (stub.id === 'BET_ALTERNATIVE') {
     return done(addLog(ctx, 'ベット強化（BET_MECHANICで処理済み）'));
   }
   // GRANT_QUOTED_ACTIVATE_ABILITY: 「【起】...」付与（effectEngineのCONTINUOUS処理で対応）
