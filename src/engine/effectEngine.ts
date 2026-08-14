@@ -34,6 +34,7 @@ import type {
 import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, hasAcceAt } from '../utils/acce';
 import { normalizeFieldGrants } from '../utils/fieldGrants';
+import { abilityBlockTextOf } from '../data/effectParser';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
