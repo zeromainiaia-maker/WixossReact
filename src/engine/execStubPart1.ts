@@ -12,6 +12,7 @@ import {
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked, buildFrontPowerGatedKeywordGrant,
+  sourceAbilityText,
 } from './execUtils';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
