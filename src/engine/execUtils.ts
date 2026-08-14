@@ -119,6 +119,35 @@ export function resolveNum(n: NumberOrRef): number {
   return typeof n === 'number' ? n : 0;
 }
 
+/**
+ * 解決中の効果を生んだ**能力ブロックの原文**を返す（§6.4 O-20 の source 配線）。
+ *
+ * ハンドラが `cardMap.get(sourceCardNum).EffectText` の**カード全文**を regex で読むと、
+ * 同じカードの**別の能力の文**に一致して枚数・対象・行き先が決まってしまう
+ * （例＝`WXDi-P10-006-E3` が E2 の「２枚引く」を拾って余分にドローする）。
+ * この層の事故は golden も census も緑のまま素通りするので、**全文ではなくブロックを読む**。
+ *
+ * ブロックを特定できない場合（合成 effectId・付与展開・`sourceEffectId` 未設定の経路）は
+ * 従来どおりカード全文を返す＝**フォールバックは現行動作そのまま**で退化しない。
+ */
+export function sourceAbilityText(ctx: ExecCtx): string {
+  const card = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
+  if (!card) return '';
+  return abilityBlockTextOf(card, ctx.sourceEffectId);
+}
+
+/**
+ * `sourceAbilityText` のカード＋effectId 直指定版。
+ * ctx を持たない走査側（CONTINUOUS の収集など・effectsMap を舐めて効果ごとに判定する箇所）で使う。
+ */
+export function abilityBlockTextOf(card: CardData | undefined, effectId: string | undefined): string {
+  if (!card) return '';
+  const fullText = (card.EffectText ?? '') + ' ' + (card.BurstText ?? '');
+  if (!effectId) return fullText;
+  const block = getAbilityBlockTexts(card).get(effectId);
+  return block ?? fullText;
+}
+
 export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFromZone): number {
   if (fromZone) {
     const state = ownerState(fromZone.owner, ctx);
