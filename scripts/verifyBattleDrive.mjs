@@ -15142,6 +15142,347 @@ scenarios.oppPlayDiscardSkippedWhenNoHand = {
   }),
 };
 
+// ── §7 V-11 配置制限ゲートの一本化（Codex起案・実機採否はClaude側） ─────────────
+// 効果配置は、既存 installByEffectFreeze でクリック列が確立している WD08-001-E3
+// 【起】《ダウン》→ ADD_TO_FIELD(TRASH_CARD,self,1) を使う。host は常に2面＋空き1面、
+// トラッシュ候補も1枚だけに固定し、SELECT_SIGNI_ZONE と候補順の曖昧さを避ける。
+scenarios.v11EffectDeployCountFlagBlocked = {
+  title: 'V-11 A-1 フラグ版cap=2（効果配置不発＋完全一致ログ＋通常召喚ゲート）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD08-001#6100'],
+      'field.signi': [['WD01-012#6101'], ['WD01-012#6102'], null],
+      'field.lrig_down': false,
+      'trash': ['WD01-013#6103'],
+      'hand': [],
+      'signi_deploy_count_limit': 2,
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#6105'],
+      'field.signi': [null, null, null],
+    },
+    handPrepend: ['WD01-013#6104'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const target = 'WD01-013#6103';
+    const expectedLog = '配置数制限のため小剣　ククリを場に出せない';
+    const countSigni = fs => (fs ?? []).filter(stack => stack?.length).length;
+    const hasTarget = fs => (fs ?? []).some(stack => (stack ?? []).includes(target));
+    const before = await H.queryState();
+    if (countSigni(before?.host?.fieldSigni) !== 2 || !(before?.host?.trashCards ?? []).includes(target)) {
+      return { pass: false, detail: `注入前提不成立（hField=${JSON.stringify(before?.host?.fieldSigni)} hTrash=${JSON.stringify(before?.host?.trashCards)}）` };
+    }
+    await H.ensureMain();
+
+    // 同じcapで通常召喚も従来どおり閉じることを、このシナリオ内の追加assertで見る。
+    const handOpened = await H.clickTestId('my-hand-card-0');
+    if (!handOpened) return { pass: false, detail: '通常召喚ゲート確認用の手札WD01-013を開けない' };
+    await page.waitForTimeout(300);
+    const summon = page.getByRole('button', { name: '召喚', exact: true }).first();
+    const summonVisible = !!(await summon.count()) && await summon.isVisible();
+    const summonEnabled = summonVisible && await summon.isEnabled();
+    if (summonEnabled) return { pass: false, detail: '配置数cap=2・場2体なのに通常召喚ボタンがenabled（通常召喚ゲート破れ）' };
+    await H.closeModals();
+
+    let lrigOpened = false;
+    let abilityClicked = false;
+    let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      let did = null;
+      if (!lrigOpened) {
+        did = await H.clickTestId('my-lrig-slot-center');
+        if (did) lrigOpened = true;
+      } else if (!abilityClicked) {
+        did = await H.clickBtn('【起】コストなし', { nth: 1 });
+        if (did) abilityClicked = true;
+      }
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      last = st;
+      const groundBlocked = countSigni(st?.host?.fieldSigni) === 2
+        && !hasTarget(st?.host?.fieldSigni) && (st?.host?.trashCards ?? []).includes(target);
+      const exactLog = (st?.logTail ?? []).includes(expectedLog);
+      const settled = abilityClicked && st?.host?.lrigDown === true && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      H.log(`  v11a1[${s}] -> ${did ?? 'なし'} | normalSummonEnabled=${summonEnabled} hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDown=${st?.host?.lrigDown} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (settled && groundBlocked && exactLog) {
+        return { pass: true, detail: `通常召喚disabled/非表示＋効果配置不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」` };
+      }
+    }
+    return { pass: false, detail: `フラグ版配置制限を確定できず（hField=${JSON.stringify(last?.host?.fieldSigni)} hTrash=${JSON.stringify(last?.host?.trashCards)} lrigDown=${last?.host?.lrigDown} logTail=${JSON.stringify(last?.logTail ?? [])} pEff=${last?.pendingEffect ?? '-'} stack=${last?.stackLen ?? '-'}）` };
+  },
+};
+
+scenarios.v11EffectDeployNoLimitControl = {
+  title: 'V-11 A-2 対照（同一盤面からcount flagだけ外すと効果配置成功）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD08-001#6110'],
+      'field.signi': [['WD01-012#6111'], ['WD01-012#6112'], null],
+      'field.lrig_down': false,
+      'trash': ['WD01-013#6113'],
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#6115'],
+      'field.signi': [null, null, null],
+    },
+    handPrepend: ['WD01-013#6114'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const target = 'WD01-013#6113';
+    const placedLog = '小剣　ククリをフィールドに出す';
+    const blockedLog = '配置数制限のため小剣　ククリを場に出せない';
+    const countSigni = fs => (fs ?? []).filter(stack => stack?.length).length;
+    const hasTarget = fs => (fs ?? []).some(stack => (stack ?? []).includes(target));
+    const before = await H.queryState();
+    await H.ensureMain();
+    let lrigOpened = false;
+    let abilityClicked = false;
+    let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      let did = null;
+      if (!lrigOpened) {
+        did = await H.clickTestId('my-lrig-slot-center');
+        if (did) lrigOpened = true;
+      } else if (!abilityClicked) {
+        did = await H.clickBtn('【起】コストなし', { nth: 1 });
+        if (did) abilityClicked = true;
+      }
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      last = st;
+      const groundPlaced = countSigni(st?.host?.fieldSigni) === 3
+        && hasTarget(st?.host?.fieldSigni) && !(st?.host?.trashCards ?? []).includes(target);
+      const exactPlacedLog = (st?.logTail ?? []).includes(placedLog);
+      const noBlockLog = !(st?.logTail ?? []).includes(blockedLog);
+      const settled = abilityClicked && st?.host?.lrigDown === true && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      H.log(`  v11a2[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDown=${st?.host?.lrigDown} placedLog=${exactPlacedLog} noBlock=${noBlockLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (settled && groundPlaced && exactPlacedLog && noBlockLog) {
+        return { pass: true, detail: `count flagだけ外すと${target}がtrash→空き1面へ移動（場2→3）＋完全一致ログ「${placedLog}」` };
+      }
+    }
+    return { pass: false, detail: `対照の効果配置成功を確定できず（before=${JSON.stringify(before?.host?.fieldSigni)} hField=${JSON.stringify(last?.host?.fieldSigni)} hTrash=${JSON.stringify(last?.host?.trashCards)} logTail=${JSON.stringify(last?.logTail ?? [])}）` };
+  },
+};
+
+scenarios.v11EffectDeployContinuousBlocked = {
+  title: 'V-11 A-3 CONTINUOUS版WX07-006（fillDeployCaps経由で効果配置不発）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD08-001#6120'],
+      'field.signi': [['WD01-012#6121'], ['WD01-012#6122'], null],
+      'field.lrig_down': false,
+      'trash': ['WD01-013#6123'],
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#6125'],
+      'field.signi': [['WX07-006#6126'], null, null],
+    },
+    handPrepend: ['WD01-013#6124'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const target = 'WD01-013#6123';
+    const expectedLog = '配置数制限のため小剣　ククリを場に出せない';
+    const countSigni = fs => (fs ?? []).filter(stack => stack?.length).length;
+    const hasTarget = fs => (fs ?? []).some(stack => (stack ?? []).includes(target));
+    const before = await H.queryState();
+    if (!(before?.guest?.fieldSigni ?? []).some(stack => (stack ?? []).includes('WX07-006#6126'))) {
+      return { pass: false, detail: `CONT制限源WX07-006の注入前提不成立（gField=${JSON.stringify(before?.guest?.fieldSigni)}）` };
+    }
+    await H.ensureMain();
+    let lrigOpened = false;
+    let abilityClicked = false;
+    let last = before;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      let did = null;
+      if (!lrigOpened) {
+        did = await H.clickTestId('my-lrig-slot-center');
+        if (did) lrigOpened = true;
+      } else if (!abilityClicked) {
+        did = await H.clickBtn('【起】コストなし', { nth: 1 });
+        if (did) abilityClicked = true;
+      }
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      last = st;
+      const groundBlocked = countSigni(st?.host?.fieldSigni) === 2
+        && !hasTarget(st?.host?.fieldSigni) && (st?.host?.trashCards ?? []).includes(target);
+      const exactLog = (st?.logTail ?? []).includes(expectedLog);
+      const settled = abilityClicked && st?.host?.lrigDown === true && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      H.log(`  v11a3[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDown=${st?.host?.lrigDown} exactLog=${exactLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (settled && groundBlocked && exactLog) {
+        return { pass: true, detail: `guest場のWX07-006 CONTだけで効果配置不発（場2体・${target}はtrash残留）＋完全一致ログ「${expectedLog}」` };
+      }
+    }
+    return { pass: false, detail: `CONT版配置制限を確定できず（hField=${JSON.stringify(last?.host?.fieldSigni)} gField=${JSON.stringify(last?.guest?.fieldSigni)} hTrash=${JSON.stringify(last?.host?.trashCards)} logTail=${JSON.stringify(last?.logTail ?? [])}）` };
+  },
+};
+
+scenarios.v11CpuDeployCountContinuousBlocked = {
+  title: 'V-11 B-1 CPU配置数上限（host場WX07-006・2面到達済みなら3体目を召喚しない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#6130'],
+      'field.signi': [['WX07-006#6131'], null, null],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#6132'],
+      'field.signi': [['WD03-013#6133'], ['WD03-013#6134'], null],
+      'hand': ['WD01-013#6135'],
+      'energy': [],
+      'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const countSigni = fs => (fs ?? []).filter(stack => stack?.length).length;
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(2500);
+    await injectScenario(page, scenarios.v11CpuDeployCountContinuousBlocked.spec);
+    let last = null;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      const st = await H.queryState();
+      last = st;
+      const count = countSigni(st?.guest?.fieldSigni);
+      const candidateStayed = (st?.guest?.handCards ?? []).includes('WD01-013#6135');
+      const attempted = st?.turnPhase !== 'MAIN' && st?.turnPhase !== 'GROW';
+      const cpuPlaced = (st?.logTail ?? []).some(line => line.includes('[CPU] シグニ配置: 小剣　ククリ'));
+      H.log(`  v11b1n[${s}] | phase=${st?.turnPhase} gCount=${count} gHand=${JSON.stringify(st?.guest?.handCards)} cpuPlaced=${cpuPlaced}`);
+      if (count > 2 || cpuPlaced) return { pass: false, detail: `WX07-006のcap=2を超えてCPUが召喚（gField=${JSON.stringify(st?.guest?.fieldSigni)} logTail=${JSON.stringify(st?.logTail ?? [])}）` };
+      if (attempted && count === 2 && candidateStayed) {
+        return { pass: true, detail: `CPUがMAINの召喚判断を通過しても場2体のまま・3体目WD01-013は手札残留（phase=${st.turnPhase}）` };
+      }
+    }
+    return { pass: false, detail: `CPUの配置数制限判定がinconclusive（phase=${last?.turnPhase} gField=${JSON.stringify(last?.guest?.fieldSigni)} gHand=${JSON.stringify(last?.guest?.handCards)}）` };
+  },
+};
+
+scenarios.v11CpuDeployCountNoLimitControl = {
+  title: 'V-11 B-1 対照（host場のWX07-006だけ外すとCPUが3体目を召喚）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#6140'],
+      'field.signi': [null, null, null],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#6142'],
+      'field.signi': [['WD03-013#6143'], ['WD03-013#6144'], null],
+      'hand': ['WD01-013#6145'],
+      'energy': [],
+      'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const countSigni = fs => (fs ?? []).filter(stack => stack?.length).length;
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(2500);
+    await injectScenario(page, scenarios.v11CpuDeployCountNoLimitControl.spec);
+    let last = null;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      const st = await H.queryState();
+      last = st;
+      const count = countSigni(st?.guest?.fieldSigni);
+      const candidatePlaced = (st?.guest?.fieldSigni ?? []).some(stack => (stack ?? []).includes('WD01-013#6145'));
+      const candidateLeftHand = !(st?.guest?.handCards ?? []).includes('WD01-013#6145');
+      const exactCpuLog = (st?.logTail ?? []).includes('[CPU] シグニ配置: 小剣　ククリ（ゾーン3）');
+      H.log(`  v11b1p[${s}] | phase=${st?.turnPhase} gCount=${count} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)} exactLog=${exactCpuLog}`);
+      if (count === 3 && candidatePlaced && candidateLeftHand && exactCpuLog) {
+        return { pass: true, detail: '制限源WX07-006だけ外すとCPUがWD01-013を手札→zone3へ召喚し、場2→3' };
+      }
+    }
+    return { pass: false, detail: `対照でCPUの3体目召喚を確認できず（phase=${last?.turnPhase} gField=${JSON.stringify(last?.guest?.fieldSigni)} gHand=${JSON.stringify(last?.guest?.handCards)} logTail=${JSON.stringify(last?.logTail ?? [])}）` };
+  },
+};
+
+scenarios.v11CpuDeployPowerLimitWithControl = {
+  title: 'V-11 B-2 CPU配置パワー上限（5000以上だけ拒否）＋同一id内のflag除去対照',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#6150'],
+      'field.signi': [null, null, null],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-003#6151'],
+      'field.signi': [null, null, null],
+      'hand': ['WD01-013#6152', 'WD01-012#6153'], // P3000(<5000)＋P7000(>=5000)
+      'energy': [],
+      'signi_deploy_power_limit': 5000,
+      'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const low = 'WD01-013#6152';
+    const high = 'WD01-012#6153';
+    const fieldHas = (st, n) => (st?.guest?.fieldSigni ?? []).some(stack => (stack ?? []).includes(n));
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(2500);
+    await injectScenario(page, scenarios.v11CpuDeployPowerLimitWithControl.spec);
+    let restricted = null;
+    let last = null;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      const st = await H.queryState();
+      last = st;
+      const advanced = st?.turnPhase !== 'MAIN' && st?.turnPhase !== 'GROW';
+      const lowPlaced = fieldHas(st, low) && !(st?.guest?.handCards ?? []).includes(low);
+      const highStayed = !fieldHas(st, high) && (st?.guest?.handCards ?? []).includes(high);
+      H.log(`  v11b2.limit[${s}] | phase=${st?.turnPhase} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)}`);
+      if (fieldHas(st, high)) return { pass: false, detail: `power limit=5000なのにCPUがP7000を召喚（gField=${JSON.stringify(st?.guest?.fieldSigni)}）` };
+      if (advanced && lowPlaced && highStayed) { restricted = st; break; }
+    }
+    if (!restricted) {
+      return { pass: false, detail: `制限側inconclusive（phase=${last?.turnPhase} gField=${JSON.stringify(last?.guest?.fieldSigni)} gHand=${JSON.stringify(last?.guest?.handCards)}）` };
+    }
+
+    // 対照＝手札・ルリグ・場・active/phaseを同じ初期値へ戻し、power flagだけを落とす。
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(600);
+    await injectScenario(page, {
+      hostSet: {
+        'field.lrig': ['WD01-001#6150'],
+        'field.signi': [null, null, null],
+      },
+      guestSet: {
+        'field.lrig': ['WD03-003#6151'],
+        'field.signi': [null, null, null],
+        'hand': [low, high],
+        'energy': [],
+        'actions_done': [],
+      },
+      top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+    });
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(300);
+      const st = await H.queryState();
+      last = st;
+      const bothPlaced = fieldHas(st, low) && fieldHas(st, high)
+        && !(st?.guest?.handCards ?? []).includes(low) && !(st?.guest?.handCards ?? []).includes(high);
+      H.log(`  v11b2.control[${s}] | phase=${st?.turnPhase} gField=${JSON.stringify(st?.guest?.fieldSigni)} gHand=${JSON.stringify(st?.guest?.handCards)}`);
+      if (bothPlaced) {
+        return { pass: true, detail: `制限側はP3000だけ召喚・P7000は手札残留、power flagだけ外した対照は同じ2枚を両方召喚（restricted=${JSON.stringify(restricted.guest.fieldSigni)} control=${JSON.stringify(st.guest.fieldSigni)}）` };
+      }
+    }
+    return { pass: false, detail: `power flag除去対照でP7000が召喚されず、負方向判定がinconclusive（gField=${JSON.stringify(last?.guest?.fieldSigni)} gHand=${JSON.stringify(last?.guest?.handCards)}）` };
+  },
+};
+
 // ── /続き425 新規シナリオ境界 ─────────────────────────────────────────
 
 // ── /続き424 新規シナリオ境界 ─────────────────────────────────────────
