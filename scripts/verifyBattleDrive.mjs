@@ -16040,9 +16040,16 @@ scenarios.v12GrantedEnergyChargeThirdBlocked = {
           return { pass: false, detail: `エナが1枚ずつ増えていない（${completed}→${pre.host.energy}）＝ON_ENERGY_CHARGEの観測前提違反` };
         }
         const ordinal = completed + 1;
+        // 🔑📌13／📌5＝**settled になった最初の1回で確定させない**（正方向側）。付与ストアの watcher は
+        //   effect_stack/pending_effect が空になった**あとの** useEffect で走る（`BattleScreen.tsx:1734`）ので、
+        //   最初の settled 観測では必ず lrig_down=true のまま＝即 FAIL すると engine が正しくても赤になる。
         if (ordinal <= 2 && pre?.host?.lrigDown !== false) {
-          return { pass: false, detail: `${ordinal}回目（正方向）のエナチャージでアップしない（energy=${pre.host.energy} lrigDown=${pre.host.lrigDown}）` };
-        }
+          upWait++;
+          if (upWait > 20) {
+            return { pass: false, detail: `${ordinal}回目（正方向）のエナチャージで約5秒待ってもアップしない（energy=${pre.host.energy} lrigDown=${pre.host.lrigDown}）` };
+          }
+        } else {
+        upWait = 0;
         completed = pre.host.energy;
         spellState = { opened: false, use: false, cast: false };
         if (completed < 3) {
@@ -16051,13 +16058,22 @@ scenarios.v12GrantedEnergyChargeThirdBlocked = {
           await H.closeModals();
           await page.waitForTimeout(500);
         } else {
-          const thirdBlocked = pre?.host?.lrigDown === true;
+          // 🔑**負方向側も「その瞬間の絵」で確定させない**＝3回目は「まだ発火していないだけ」と
+          //   区別が付かないので、**正方向と同じ待機予算（約5秒）を置いてもアップしないこと**を要求する。
+          let stillDown = pre?.host?.lrigDown === true;
+          let watch = pre;
+          for (let w = 0; stillDown && w < 20; w++) {
+            await page.waitForTimeout(250);
+            watch = await H.queryState();
+            stillDown = watch?.host?.lrigDown === true;
+          }
           return {
-            pass: thirdBlocked,
-            detail: thirdBlocked
-              ? '1・2回目は各回アップ、3回目はenergy 2→3でもlrig_down=true維持＝《ターン2回》正常'
-              : `実バグ候補＝3回目もアップした（energy=3 lrig_down=${pre?.host?.lrigDown}）。ON_ENERGY_CHARGE付与経路がactions_doneへ書き戻さない疑いと一致`,
+            pass: stillDown,
+            detail: stillDown
+              ? '1・2回目は各回アップ、3回目はenergy 2→3で約5秒待ってもlrig_down=true維持＝《ターン2回》正常'
+              : `実バグ候補＝3回目もアップした（energy=${watch?.host?.energy} lrig_down=${watch?.host?.lrigDown}）。ON_ENERGY_CHARGE付与経路がactions_doneへ書き戻さない疑いと一致`,
           };
+        }
         }
       }
       let did = null;
