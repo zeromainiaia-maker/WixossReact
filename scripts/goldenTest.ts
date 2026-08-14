@@ -7638,6 +7638,7 @@ test('§3 (cxxvii) engine: thenOnPay のエナ払い枝でも帰結が実行さ�
   eq(paid.otherState.energy.length, ctx.otherState.energy.length - 2, 'エナ2枚が支払われる');
   eq(paid.ownerState.hand.length, ctx.ownerState.hand.length + 1,
      '🔴そうした場合の帰結（DRAW）が実行される（実行されないと thenOnPay が無言で落ちる回帰）');
+  } finally { cursor = savedCursor; }
 });
 
 // ── §3 (cxxviii)・続き475d: 「**あなたの**ルリグがアタックしたとき」＝アタック側の味方カードを拾う経路。
