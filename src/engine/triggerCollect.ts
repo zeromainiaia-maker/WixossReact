@@ -570,6 +570,52 @@ export function collectLrigAttackDefenderTriggers(
 }
 
 /**
+ * ルリグアタック時に「**アタック側の味方カード**」が持つ `ON_ATTACK_LRIG` を収集する（§3 (cxxviii)・続き475d）。
+ *
+ * 🔴**この経路が丸ごと無かった**＝BattleScreen のルリグアタック収集は
+ * ①アタックしたルリグカード自身（`effectsMap.get(lrigNum)`）②ルリグへの付与ストア
+ * ③コピー由来 ④CONTINUOUS `GRANT_LRIG_ABILITY` の4本しか見ておらず、
+ * **場のシグニが持つ「あなたのルリグ１体がアタックしたとき」を拾う手段が存在しなかった**。
+ * そのため parser もこの語彙を `ON_ATTACK_SIGNI` へ倒すしかなく（＝**シグニのアタックで誤発火**）、
+ * `WXDi-P04-051-E1` は「攻撃者が先にダウンするのでアップの自シグニが3体そろわない」＝**恒久 no-op** になっていた。
+ *
+ * - 母集団＝**18効果**（`あなたの(センター)ルリグ(N体)がアタックしたとき`）。17枚がシグニ・1枚がアシストルリグ。
+ * - `attackingLrigNum` は**除外する**＝そのカード自身の `ON_ATTACK_LRIG` は BattleScreen の
+ *   `lrigCardEffects` が既に積んでいるので、ここで拾うと**二重発火**する。
+ * - scope は `any_ally`（＝「**あなたの**ルリグがアタックしたとき」を見る味方カード）と `any` だけ。
+ *   `self`（＝「**この**ルリグがアタックしたとき」）は上記①が担当する。
+ */
+export function collectAllyLrigAttackTriggers(
+  ctx: TrigCtx,
+  attackerState: PlayerState,
+  attackerId: string,
+  attackingLrigNum: string,
+): { entries: StackEntry[]; usedIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedIds: string[] = [];
+  const limitOk = mkLimitOk(attackerState.actions_done, usedIds);
+  const sources = [
+    ...attackerState.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
+    ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
+    ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
+  ].filter(n => n !== attackingLrigNum);
+  for (const num of sources) {
+    for (const eff of effsOf(ctx, num)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_ally' && scope !== 'any') continue;
+      if (!limitOk(eff)) continue;
+      entries.push({
+        id: ctx.genId(), playerId: attackerId, cardNum: num, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(num))?.CardName ?? num} の【自】効果（あなたのルリグのアタック時）`,
+        effect: eff,
+      });
+    }
+  }
+  return { entries, usedIds };
+}
+
+/**
  * ON_LRIG_GROW（「（センター）ルリグがグロウしたとき」）のトリガーを収集する。
  * grownOwnerId=グロウしたプレイヤー（センターグロウの実行者）。両プレイヤーの場（シグニ＋キー＋ルリグ上）から収集。
  *   any_ally: watcher 自分側のルリグがグロウ ／ any_opp: 対戦相手のルリグがグロウ ／ self: グロウ先自身（ON_PLAY 経路で処理）＝除外。
