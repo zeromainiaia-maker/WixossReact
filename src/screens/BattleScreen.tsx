@@ -9448,11 +9448,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // アタック側の**味方カード**（場のシグニ／アシストルリグ）が持つ「あなたのルリグがアタックしたとき」
       // ＝§3 (cxxviii)・続き475d で新設。上の4本はいずれも「ルリグ自身の能力」しか見ないので、
       // この経路が無いと 18効果（17枚がシグニ）が丸ごと拾われない。
-      const allyRes = collectAllyLrigAttackTriggers(
-        { hostId: bs.host_id, guestId: bs.guest_id, activeUserId: bs.active_user_id, turnPhase: bs.turn_phase,
-          effectsMap, cardMap: battleCardMap, genId: generateUUID },
-        newMyState, attackerId, lrigNum,
-      );
+      const allyRes = collectAllyLrigAttackTriggers(newMyState, attackerId, lrigNum);
       if (allyRes.usedIds.length > 0) {
         newMyState = { ...newMyState, actions_done: [...(newMyState.actions_done ?? []), ...allyRes.usedIds] };
       }
