@@ -15259,7 +15259,9 @@ scenarios.v11EffectDeployNoLimitControl = {
   },
   async drive(page, H) {
     const target = 'WD01-013#6113';
-    const placedLog = '小剣　ククリをフィールドに出す';
+    // ⚠実測（続き476）＝この経路の成功ログは `…を場に出す`（`effectExecutor.ts:8784` 側）。
+    //   `…をフィールドに出す`（同 2772）は別分岐で、本シナリオでは出ない。
+    const placedLog = '小剣　ククリを場に出す';
     const blockedLog = '配置数制限のため小剣　ククリを場に出せない';
     const countSigni = fs => (fs ?? []).filter(stack => stack?.length).length;
     const hasTarget = fs => (fs ?? []).some(stack => (stack ?? []).includes(target));
