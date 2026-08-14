@@ -599,11 +599,15 @@ export function collectAllyLrigAttackTriggers(
     ...(attackerState.field.assist_lrig_l?.at(-1) ? [attackerState.field.assist_lrig_l.at(-1)!] : []),
     ...(attackerState.field.assist_lrig_r?.at(-1) ? [attackerState.field.assist_lrig_r.at(-1)!] : []),
   ].filter(n => n !== attackingLrigNum);
+  // 主語の修飾（「あなたの**白の**ルリグ」等）は `triggerFilter` に載っている＝**アタックしたルリグ**を照合する。
+  // ⚠ここを見ないと限定が黙って落ちて「どのルリグのアタックでも発火する」過剰発火になる（続き475e）。
+  const attackingLrigCard = ctx.cardMap.get(getCardNum(attackingLrigNum));
   for (const num of sources) {
     for (const eff of effsOf(ctx, num)) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_ATTACK_LRIG')) continue;
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any_ally' && scope !== 'any') continue;
+      if (eff.triggerFilter && !matchesFilter(attackingLrigCard, eff.triggerFilter)) continue;
       if (!limitOk(eff)) continue;
       entries.push({
         id: ctx.genId(), playerId: attackerId, cardNum: num, effectId: eff.effectId,
