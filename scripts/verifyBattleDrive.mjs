@@ -15505,6 +15505,8 @@ try {
         signiBanishedThisTurn: s.signi_banished_this_turn ?? 0,
         abilitiesRemoved: s.abilities_removed ?? [],
         keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
+        // 続き475g：ピース解決時に載せ替える「このゲームの間」付与（`WXDi-P15-003-E2`）の観測用
+        grantedLrigAutoIds: (s.lrig_granted_auto_effects ?? []).map(e => e.effectId),
         designatedZones: s.designated_zones ?? [],
         fieldGrantsActive: (s.field_grants_active ?? []).map(g => `${g.kind}:${g.delta ?? ''}${g.perTargetLevel ? '/perLv' : ''}`),
         lrigFrozen: s.field?.lrig_frozen ?? false,
