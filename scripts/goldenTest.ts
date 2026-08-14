@@ -32702,6 +32702,43 @@ test('§6.4 離場置換の対話: WX14-026 の lifeCrash は対話でなら選�
   ok(ask.options.some(o => o.label.includes('ライフクロス')), 'ライフクロスをクラッシュする選択肢が出る');
 });
 
+test('§3 (cxxix) 離場置換: lifeCrash を選んだら本当にライフを払う（0枚トラッシュで成立しない）', () => {
+  // 🔴実機で発見（続き475 `effectBanishLifeCrashSubstituteNotOnEffect`）＝**ライフを1枚も払わずに
+  //   シグニが場に残って**いた。真因は `applyEffectBanishSubstituteChoice` に `lifeCrash` 分岐が無く、
+  //   **末尾の `trashStackSpell` へフォールスルー**して「下からスペル**0枚**をトラッシュ」で成立していたこと。
+  //   ⇒ 見張るのは「①ライフが実際に減る ②【ライフバースト】確認へ乗る ③0枚トラッシュのログが出ない」。
+  const victim = 'WX14-026';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  const options = collectLeaveSubstituteOptions(victim, 'opponent', ctx, { isBanish: true });
+  const lifeCrash = options.find(o => o.label.includes('ライフクロス'));
+  ok(!!lifeCrash, 'lifeCrash が選択肢として列挙される');
+  const lifeBefore = ctx.otherState.life_cloth.length;
+  const applied = applyEffectBanishSubstituteChoice(victim, 'opponent',
+    collectEffectBanishSubstituteChoices(victim, 'opponent', ctx).find(c => c.kind === 'pay_cost' && c.costType === 'lifeCrash')!,
+    ctx);
+  eq(applied.otherState.life_cloth.length, lifeBefore - 1,
+     '🔴ライフクロスが1枚減る（減らないなら 0枚コストの回帰）');
+  ok(!!applied.otherState.field.check, '割ったライフは check ゾーンへ＝【ライフバースト】確認フローに乗る');
+  const field = applied.otherState.field.signi.map(z => z?.at(-1) ?? null);
+  ok(field.includes(victim), '払ったのでシグニは場に残る');
+  const log = applied.logs.join('\n');
+  ok(log.includes('身代わり：ライフクロス1枚をクラッシュ'), 'ライフクラッシュのログが出る');
+  ok(!log.includes('スペル0枚'), '🔴trashStackSpell へフォールスルーしていない');
+});
+
+test('§3 (cxxix) 離場置換: engine が徴収できないコストは選択肢に出さない（0枚成立の再発防止）', () => {
+  // `applyEffectBanishSubstituteChoice` の末尾は trashStackSpell 専用で、在庫0でも「0枚」で成立する。
+  // ⇒ **未実装 costType は列挙側で落とす**のが唯一の安全弁。新しい costType を足したら
+  //    `isImplementedSubstituteCost` と apply 側の分岐を**対で**更新すること。
+  const victim = 'WX14-026';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  const options = collectLeaveSubstituteOptions(victim, 'opponent', ctx, { isBanish: true });
+  for (const o of options.filter(x => x.axis === 'banishSubstitute')) {
+    ok(/ライフクロス|スペル|をバニッシュする/.test(o.label),
+       `列挙された身代わりは apply 側に分岐がある種別だけ（${o.label}）`);
+  }
+});
+
 test('§6.4 離場置換の対話: 決定は再検証される（盤面が変わって成立しないなら通常の移動へ倒す）', () => {
   const victim = 'WX12-024';
   const sacrifice = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('電機') && c.CardNum !== victim);
