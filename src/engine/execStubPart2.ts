@@ -471,8 +471,8 @@ export function execStubPart2(
   }
   // アタックしたシグニのレベルに基づくパワー修正
   if (stub.id === 'POWER_MOD_BY_ATTACKER_LEVEL') {
-    const srcPMAL = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMAL = srcPMAL ? (srcPMAL.EffectText ?? '') + ' ' + (srcPMAL.BurstText ?? '') : '';
+    // §6.4 O-20: `WXK10-084` は奇偶2能力が同居し、全文だと E2（奇数対象）も先頭 E1 の「偶数」を拾って**対象が反転**する。
+    const txtPMAL = sourceAbilityText(ctx);
     const toHWPMAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const attackerLvPMAL = parseInt(toHWPMAL(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Level ?? '0')) || 0;
     const perMPMAL = txtPMAL.match(/レベル([０-９\d]*)につき([－＋][０-９\d]+)/);
