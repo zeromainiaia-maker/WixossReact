@@ -474,7 +474,13 @@ export function execStubPart2(
     // §6.4 O-20: `WXK10-084` は奇偶2能力が同居し、全文だと E2（奇数対象）も先頭 E1 の「偶数」を拾って**対象が反転**する。
     const txtPMAL = sourceAbilityText(ctx);
     const toHWPMAL = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const attackerLvPMAL = parseInt(toHWPMAL(ctx.cardMap.get(ctx.sourceCardNum ?? '')?.Level ?? '0')) || 0;
+    // §6.4 O-23: 原文は「**アタックしたその**シグニのレベル１につき」＝倍率はアタッカーのレベル。
+    // `WXK10-084-E1/E2` は `triggerScope:'any_ally'` なので**能力の持ち主（sourceCardNum）と
+    // アタッカーは別物になりうる**（別の＜トリック＞シグニがアタックしても発火する）。
+    // ⚠自身がアタックした場合は両コレクタとも `triggeringCardNum === attacker === source` を積むので挙動不変
+    //   （`collectAttackerSelfTriggers`＝`triggerCollect.ts:3534`／`collectFieldTriggers` の any_ally＝`:3649`）。
+    const attackerNumPMAL = ctx.triggeringCardNum ?? ctx.sourceCardNum;
+    const attackerLvPMAL = parseInt(toHWPMAL(ctx.cardMap.get(getCardNum(attackerNumPMAL ?? ''))?.Level ?? '0')) || 0;
     const perMPMAL = txtPMAL.match(/レベル([０-９\d]*)につき([－＋][０-９\d]+)/);
     if (!perMPMAL || attackerLvPMAL === 0) return done(addLog(ctx, `パワー修正（アタッカーLv${attackerLvPMAL}）`));
     const divisorPMAL = parseInt(toHWPMAL(perMPMAL[1] || '1')) || 1;
