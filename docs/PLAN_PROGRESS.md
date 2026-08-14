@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-14・続き478・Opus 5）＝**§7 実機検証 V-12 を完全決着・V-13 を決着**＝**実機シナリオ 9本すべてが2回連続 ALL PASS**（`v12*` 3本＋`v13TrashAct*` 6本）。**在庫バグ (cxxxiii) は取り下げ**（シナリオ偽陰性）・**実在した engine バグは《ターン2回》未管理の1件だけ**。ゲート全緑（golden **1975→1976**・census 831 据置・lint 0/259 据置）。
+  - **✅① V-12 が完全決着＝8/8 緑**＝赤で待機していた `v12GrantedEnergyChargeTwice`／`ThirdBlocked` が緑へ反転。付与ストアの `ON_ENERGY_CHARGE` watcher は**発火していた**（`actions_done` へ `SPDi43-13-sub-E1` が入り `lrig_down` が false になる）。
+  - **🔴② (cxxxiii) は engine バグではなかった**＝**シナリオが「エナ増加後の最初の settled 観測」で即 FAIL していた**（📌13 違反）。付与 watcher は `BattleScreen.tsx:1734` の early return で **stack/pending が空になった「あと」の useEffect** で走るので、最初の settled では必ず未発火。🔑**決め手＝Codex が足したのは「阻止しかできないゲート」なので、それで発火が直ることは原理的にあり得ない**という論法（コードの性質から遡って結論を否定できた）。
+  - **✅③ 実在した実バグ＝付与 watcher の《ターン2回》未管理**（`usageLimit` を見ず `actions_done` にも書き戻さない）。`reserveGrantedAutoUsage` を新設して**この経路だけ**で判定・予約（**印刷能力の走査ループは無変更**＝diff 実査で確認）。golden にトリップワイヤ1本。
+  - **✅④ V-13 トラッシュ起動が決着＝6/6 緑・engine バグ0**（正方向4＋対照2）。前提として `TrashActivatedModal` に安定セレクタ7種を**属性だけ**追加した（コイン/ルリグダウンは自動支払いで候補要素が無いので summary の data 属性で観測）。
+  - **🔑⑤ 赤2本はどちらも「観測面の取り違え」だった**＝(a)`queryState().powerMods` は `temp_power_mods` しか写さないので `UNTIL_OPP_TURN_END` のバフは**永久に false**（→`v13PowerModsUntilOpp` を追加）(b)アクションのラベルに**効果の限定は現れない**ので `actionIncludes:'ディソナ'` は永久不一致（→限定は `data-selectable` で見る）。**どちらも engine バグそっくりの偽陰性**＝📌15・16 として登録。
+  - **🔑⑥ Codex 委譲の所見**＝実行できない相手でも**「ソースから答えが決まる作業」は高品質**（セレクタ整備・シナリオ起案とも一発で通った）。今回は**指示書の見立て（`StackEntry.effect` が無視される）を実コードで訂正**し、**固定シナリオの変更禁止も遵守**して「確定できない主張」を分離して報告した＝**通算13回目の的確な訂正**。⚠環境事故 `0xC0000142` で最終計測（SHA-256・エンコーディング）が未了になったが、**検証側が全部引き取れた**（BUGFIXES 先行追記の指示が効いた）。
+  - **▶ 次の一手**＝**V-14〜V-19 の Codex 指示書3本は作成済み**（`codex_taskB.md`＝V-14／`codex_taskC.md`＝V-15〜17／`codex_taskD.md`＝V-18〜19。scratchpad）。**再開時はベースライン数値と HEAD を取り直すだけで投入できる**。§3 の在庫は **4件**（(cxxxi)(cxxxii)＋続き404・408 の2件）。
+
 - **セッション（2026-08-14・続き476〜477・Opus 5）＝**§7 実機検証を Codex 委譲で2ブロック消化**＝**V-11 完全決着・V-12 は8本中6本緑**。engine/parser/JSON は**1行も触っていない**（成果物は実機シナリオ14本と、実バグ3件の登録）。ゲート据置（golden 1975・census 831・lint 0 errors/259 warnings）。
   - **✅① V-11 配置制限ゲートが決着＝6シナリオすべて緑**（`v11EffectDeployCountFlagBlocked`／`…NoLimitControl`／`…ContinuousBlocked`／`v11CpuDeployCountContinuousBlocked`／`…NoLimitControl`／`v11CpuDeployPowerLimitWithControl`）。**フラグ版・CONTINUOUS 版（`fillDeployCaps`→`ctx.deployCountCapSelf`）・CPU 召喚の3経路がすべて実UIで効いている**ことを確認。⭐**PLAN の記述が実装と食い違っていた**＝「通常召喚はボタンが出ない」ではなく**召喚先ゾーンが全 disabled** が現行の正。📋未カバー＝`deployCountCapOpponent`（自分の効果で相手の場に出す）。
   - **🔶② V-12 は6本緑・2本赤**＝**アタック可否ゲートは CPU 側で完全に効いている**（付与「アタックできない」でスキップ・**無限ループしない**／`opp_signi_attack_power_cap` も同様／各々に対照）。**付与ストア走査は ON_SPELL_USE と ON_SIGNI_BANISH_OPPONENT が実機 PASS**（エクシード4の実付与→-4000／バトルバニッシュで swap＋《ターン1回》）。**`ON_ENERGY_CHARGE` だけ発火せず**＝→§3 **(cxxxiii)**。

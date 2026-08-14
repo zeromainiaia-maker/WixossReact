@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-14（続き479・Opus 5）— §7 **V-14 決着＝13/14 緑**（Codex 起案14本→Claude 実機検証）。赤1本は**旧 `signi_acce` 互換の実バグを再現する意図的な赤**
+
+**engine / parser / effects JSON は1行も触っていない。** 追加は実機シナリオ14本と、**UI の安定セレクタ1つ**（`stack-detail-modal`）。
+ゲート据置（golden 1976・census 831・lint 0/259）。13本は**2回連続 ALL PASS**。
+
+### ✅ 緑13本の内訳
+
+- **B-1 裏向きフリップバック 3本**＝解決直後は `facedown_signi[i]` に居る（**まだ裏向き**）→ human END で**同じゾーンへ表向き復帰**／
+  **相手のシグニを裏返した場合も戻る**／**元ゾーンが埋まっていればトラッシュ**（`trashIfOccupied`）。全件で「各 instance が全ゾーン合計1枚」も assert。
+- **B-2 解除コストつきアタック制限 3本**＝他シグニ2体を払ってアタック（**2体だけが場→trash**・アタッカー down）／
+  **他シグニ1体だけの同一盤面ではアタック action 非表示**（対照）／**CPU は左から決定論的に2体**を払う。
+- **B-3 多重アクセ 4本**＝**2枚では E2 不発**（アクセ・相手エナ・相手3面を保存）／**3枚で初めて発火**／
+  通常シグニは**2枚目の【アクセ】ボタンが disabled**／**host だけ WX20-028 に替えると enabled**（対照）。
+- **B-4 付与の寿命 3本**＝`permanentGrant` のルリグ付与2件が human END→CPU ターンを跨いで残存／
+  `GRANT_PLAYER_ABILITY` が `game_granted_effects` に入り END を跨いで残存／
+  **`UNTIL_OPP_TURN_END` は CPU END で失効**（直前に長期ストアの +4000 を観測してから消滅を2回連続で確認）。
+
+### 🔴 実バグ（未修正・PLAN §3 (cxxxiv) へ登録）＝旧 `signi_acce`（配列化前の素の string）が残っていると壊れる
+
+`src/utils/acce.ts:6` の `acceCardsAt` は `field.signi_acce?.[zoneIdx] ?? []` を**そのまま返す**ので、旧形式では **string が返る**。
+`src/engine/execUtils.ts:1667`（`THIS_CARD_IS_ACCED`）は `.length >= minCount` で数えるため、**1枚しか付いていなくても
+`"WD18-013#8202".length === 13` で「3枚以上」が真**になる（盤面バッジも `BoardComponents.tsx:732-739` で文字列長を表示）。
+
+🔴**実機で確認した実害は「枚数の誤判定」だけではなかった**＝`v14MultiAcceLegacyStringOneLoads` の失敗ダンプが
+
+```
+hTrash=["W","D","1","8","-","0","1","3","#","8","2","0","2"]
+```
+
+＝**トラッシュへ1文字ずつ展開された**（string を配列として反復したため）。**ゾーンのデータ破壊**まで及ぶ。
+⇒ シナリオは**赤のまま既定 order に置く**（engine が直れば緑へ反転する）。
+
+### 🔑 実機シナリオの新しい罠2つ（どちらも「画面には出ているのに掴めない」型）
+
+1. 🔴**Playwright の accessible name は空白を正規化する**＝**カード名の全角スペース（U+3000）が ASCII スペースへ畳まれる**ため、
+   原文どおり全角で書いた `getByRole('button', { name: /コードイート　マヨ【アクセ】/ })` は**永久に一致しない**。
+   ⚠**データ側と regex はコードポイントまで一致していた**（両方 U+3000）のに `found=false` になる＝
+   静的照合では絶対に気付けない。⇒ **`\s*` で吸収する**。既存の 📌2（`exact:true` は正規表現に効かない）と同族。
+   **切り分けの決め手は `scratchpad-verify/<id>-final.png`**＝スクリーンショットにボタンがはっきり写っていた（📌10 の実例がまた1つ）。
+2. 🔴**場のシグニをタップして開くのは `CardModal` ではなく `StackModal`**（ライズ用の複数枚ビュー）。
+   `card-detail-modal`（`BoardComponents.tsx:73`）は **CardModal 専用**なので、場のシグニでは**永久に不可視**
+   ＝`modalVisible=false / labels=[]` になる。⚠**アクションボタン側（`card-action-{i}` / `data-action-label`）は
+   両モーダル共通**（`:98` と `:210`）なので、**スコープにした親だけが取れない**という分かりにくい形で出る。
+   ⇒ StackModal に **`stack-detail-modal` を属性だけ追加**し、ヘルパーは**どちらのモーダルでも読める**ようにした。
+
+### ⚠ 検証側で足したドライバ修正（3点）
+
+- `v14OpenSigniActionLabels`＝上記②の両モーダル対応 ＋ **ラベルが取れた時点で break**（従来は12周回して**最後の観測で上書き**する形＝
+  一時的に消えると false になる）。
+- `driveV14SecondAcceAvailability`＝上記①の `\s*` 化 ＋ **見つかった時点で break**。
+- `driveV14AttackFieldTrashHuman` / `driveV14MultiAcceAttack`＝**`repatchTop` でアタックフェイズを固定してから開く**
+  （`spec.top.turn_phase` の注入だけでは留まらない既知の罠。⚠**今回の赤の主因ではなかった**が、非 MAIN シナリオの決定論性として正しい形）。
+
 ## 2026-08-14（Codex・§7 V-14起案）— 裏向き復帰／解除コストアタック／多重アクセ／永続付与の実機シナリオ14本
 
 **実機は未実行**（Codex 環境は live Supabase＋実ブラウザへ接続不可）。`scripts/verifyBattleDrive.mjs` の既存シナリオ・既存 helper・既存 `order` 要素は変えず、V-13 末尾へ V-14 の14本と専用 helper だけを追記した。
