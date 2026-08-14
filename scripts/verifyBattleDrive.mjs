@@ -15288,8 +15288,9 @@ scenarios.v11EffectDeployNoLimitControl = {
         && hasTarget(st?.host?.fieldSigni) && !(st?.host?.trashCards ?? []).includes(target);
       const exactPlacedLog = (st?.logTail ?? []).includes(placedLog);
       const noBlockLog = !(st?.logTail ?? []).includes(blockedLog);
-      const settled = abilityClicked && st?.host?.lrigDown === true && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
-      H.log(`  v11a2[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} lrigDown=${st?.host?.lrigDown} placedLog=${exactPlacedLog} noBlock=${noBlockLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      const actLog = (st?.logTail ?? []).some(l => l.includes('混沌の鍵主') && l.includes('【起】効果'));
+      const settled = abilityClicked && actLog && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+      H.log(`  v11a2[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hTrash=${JSON.stringify(st?.host?.trashCards)} actLog=${actLog} placedLog=${exactPlacedLog} noBlock=${noBlockLog} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
       if (settled && groundPlaced && exactPlacedLog && noBlockLog) {
         return { pass: true, detail: `count flagだけ外すと${target}がtrash→空き1面へ移動（場2→3）＋完全一致ログ「${placedLog}」` };
       }
