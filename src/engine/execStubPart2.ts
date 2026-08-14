@@ -2064,28 +2064,11 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsPCFD } },
       `ダウンシグニパワー+${targetPowerPCFD}`));
   }
-  // CHARM_CONDITIONAL_POWER: チャームがある場合パワー修正
-  if (stub.id === 'CHARM_CONDITIONAL_POWER') {
-    if (!ctx.sourceCardNum) return done(ctx);
-    // §6.4 O-20: 全文だと別能力の符号付き数値（`WX07-031` は E2 の ＋2000）を拾うのでブロックだけを読む。
-    const txtCCP = sourceAbilityText(ctx);
-    const toHWCCP = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    // この STUB が担うのは「…－10000する。【チャーム】が付いている場合、**代わりに**－20000する」の置換側だけ
-    // （基の －10000 は同じ SEQUENCE の POWER_MODIFY が既に適用している）。
-    // ブロック先頭の数値を取ると基の値になるので「代わりに」側を優先する。
-    const mCCP = txtCCP.match(/代わりに([＋+－-][０-９\d]+)/) ?? txtCCP.match(/([＋+－-][０-９\d]+)/);
-    if (!mCCP) return done(addLog(ctx, 'パワー値解析失敗（CHARM_CONDITIONAL_POWER）'));
-    const deltaCCP = parseInt(toHWCCP(mCCP[1]).replace('＋', '+').replace('－', '-'));
-    let selfZoneCCP = -1;
-    for (let zi = 0; zi < 3; zi++) {
-      if (ctx.ownerState.field.signi[zi]?.at(-1) === ctx.sourceCardNum) { selfZoneCCP = zi; break; }
-    }
-    const hasCharmCCP = selfZoneCCP >= 0 && (ctx.ownerState.field.signi_charms?.[selfZoneCCP] ?? null) !== null;
-    if (!hasCharmCCP) return done(addLog(ctx, 'チャームなし（CHARM_CONDITIONAL_POWER）'));
-    const modsCCP = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: ctx.sourceCardNum, delta: deltaCCP }];
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsCCP } },
-      `チャームあり→パワー${deltaCCP > 0 ? '+' : ''}${deltaCCP}`));
-  }
+  // §6.4 O-22(a)：`CHARM_CONDITIONAL_POWER` は**削除した**。delta を**効果元カード自身**（`sourceCardNum`）へ
+  // 適用していたが、母集団2枚（`WX07-031-BURST`／`WX08-032-BURST`）はライフバースト＝場に無いので
+  // `hasCharm` が常に偽＝**恒久 no-op** だった。本来は「同じ SEQUENCE で既に －N された**相手シグニ**へ
+  // 差分を追加」＝parser の「代わりに」置換 fixup（`effectParser.ts` の target-property 置換）が担う。
+  // 倍率形（`WX25-P2-103` ②）は `DEFERRED_CHARM_POWER_MINUS_MULTIPLIER` へ分離済み。
   // POWER_BOOST_PER_SIGNI_WITH_ICON: キーワード持ちシグニ1体につきパワー修正
   if (stub.id === 'POWER_BOOST_PER_SIGNI_WITH_ICON') {
     const srcPBPSWI = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
