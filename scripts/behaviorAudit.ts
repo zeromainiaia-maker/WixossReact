@@ -41,6 +41,10 @@ const ONLY_ID = argVal('--id');
 const SET = argVal('--set');
 const LIMIT = argVal('--limit') ? parseInt(argVal('--limit')!) : Infinity;
 const QUEUE = args.includes('--queue');
+// §6.4 O-20 の変換前後を比較するための計器フラグ。付けると engine が
+// 「その効果を生んだ能力ブロック」ではなく**カード全文**を読む旧挙動に戻る。
+// 同じ --id を付/無しで2回流して差分を取ると、変換で挙動が変わった効果だけが出る。
+if (args.includes('--o20-fulltext')) setAbilityBlockScoping(false);
 const HTML = args.includes('--html');
 const HTML_OUT = argVal('--html-out') ?? 'docs/behavior_audit';
 const STEP_CAP = 200;
