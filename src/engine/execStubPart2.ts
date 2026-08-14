@@ -1650,8 +1650,8 @@ export function execStubPart2(
   // === バッチ4: デッキ/手札/エナ操作 ===
   // DRAW: N枚ドロー
   if (stub.id === 'DRAW') {
-    const srcDRW = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtDRW = srcDRW ? (srcDRW.EffectText ?? '') + ' ' + (srcDRW.BurstText ?? '') : '';
+    // §6.4 O-20: カード全文だと別能力の「カードを２枚引く」を拾う（`WXDi-P10-006` は E2 の枚数が E3 に載っていた）。
+    const txtDRW = sourceAbilityText(ctx);
     const toHWDRW = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const mDRW = txtDRW.match(/カードを([０-９\d]+)枚引く/);
     const drawCountDRW = mDRW ? parseInt(toHWDRW(mDRW[1])) : 1;
