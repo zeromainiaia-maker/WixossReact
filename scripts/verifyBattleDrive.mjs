@@ -11526,6 +11526,9 @@ const makeFieldDownSpec = (thirdWhite) => ({
     'field.check': null,
     // ⚠ガード候補を空にしてアタックが1クラッシュまで決定的に進むようにする（assistAttackBoth と同じ手）。
     'hand': [], 'energy': [], 'actions_done': [], 'game_actions_done': [],
+    // 🔴ライフを固定する＝`settled` が `guest.life === before-1` を見るので、**ルーム再利用で前シナリオの
+    //   クラッシュ結果が残っていると before がずれて完走タイムアウトになる**（実測＝単体PASS・2件バッチFAIL）。
+    'life_cloth': ['WD01-013#4927', 'WD01-013#4928'],
   },
   top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
 });
