@@ -17074,9 +17074,12 @@ async function driveV14SecondAcceAvailability(page, H, expectEnabled) {
   let found = false; let enabled = false;
   for (let i = 0; i < 12; i++) {
     await page.waitForTimeout(250);
-    const button = page.getByRole('button', { name: /コードイート　マヨ【アクセ】/ }).first();
-    found = !!(await button.count()) && await button.isVisible().catch(() => false);
-    enabled = found && await button.isEnabled().catch(() => false);
+    // 🔑**Playwright の accessible name は空白を正規化する**＝カード名の**全角スペース（U+3000）は
+    //   ASCII スペースへ畳まれる**ので、原文どおり全角で書いた regex は**永久に一致しない**（続き478 実測。
+    //   データ側と regex はコードポイントまで一致していたのに `found=false` になった）。⇒ `\s*` で吸収する。
+    const button = page.getByRole('button', { name: /コードイート\s*マヨ【アクセ】/ }).first();
+    const vis = !!(await button.count()) && await button.isVisible().catch(() => false);
+    if (vis) { found = true; enabled = await button.isEnabled().catch(() => false); break; }
   }
   const st = await v14QueryBattleState(page);
   const oneAttached = v14AcceCardsAt(st?.host, 0).length === 1 && v14CountInstance(st?.host, V14_ACCE_A) === 1;
