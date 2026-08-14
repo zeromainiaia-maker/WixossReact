@@ -17471,7 +17471,10 @@ async function driveV16AbilityWatcher(page, H, twoSources) {
       const handIdx = (pre?.host?.hand ?? []).indexOf(currentSource);
       if (handIdx >= 0) { did = await H.clickTestId(`my-hand-card-${handIdx}`); if (did) handOpened = true; }
     }
-    if (!did && handOpened && !zonePicked) {
+    if (!did && handOpened && !summonClicked) {
+      did = await H.clickBtn('召喚', { exact: true }); if (did) summonClicked = true;
+    }
+    if (!did && summonClicked && !zonePicked) {
       did = await H.clickTestId(`summon-zone-${summonIndex}`); if (did) { zonePicked = true; started = true; }
     }
     if (!did && (pre?.pendingCandidates ?? []).includes(currentSource)) did = await clickPendingInstance(page, H, currentSource);
