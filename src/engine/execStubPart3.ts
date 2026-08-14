@@ -2197,8 +2197,8 @@ export function execStubPart3(
     if (!ctx.ownerState.is_betting_this_effect) {
       return done(addLog(ctx, 'ベットなし：BET_CONDITION スキップ'));
     }
-    const srcBET = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtBET = srcBET ? (srcBET.EffectText ?? '') : '';
+    // §6.4 O-20 の作法＝カード全文ではなくこの効果を生んだ能力ブロックを読む。
+    const txtBET = sourceAbilityText(ctx);
     const toHWBET = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     // 「さらにカードをN枚引く」パターン
     const drawBET = txtBET.match(/あなたがベットしていた場合[^。]*さらに(?:カードを)?([１-９\d０-９]+)枚引く/);
