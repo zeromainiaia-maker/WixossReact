@@ -2693,6 +2693,9 @@ function actionJa(a?: Action, effectType?: string): string {
         // 「〜してもよい」の任意性そのものを表す制御 STUB（effectExecutor Pattern⑤）。
         // 生 id が逆翻訳に漏れると原文照合で「何が任意なのか」が読めない（続き422）。
         OPTIONAL_ACTIVATE: '次の効果を行ってもよい（行わない場合、以降は実行しない）',
+        // §6.4 O-22(b)＝ミルと「繰り返してもよい」を1つに畳み込んだ STUB（`WX12-037-E2`）。
+        // 枚数と名前はペイロード（`millEachRepeatOnName`）にあるので、下の個別分岐が原文どおりに描画する。
+        MILL_EACH_REPEAT_ON_NAME: '各プレイヤーは自分のデッキの上からカードをトラッシュに置く（指定名を含むカードが落ちたら繰り返してもよい）',
         // 明示 defer（§6.4・続き424）＝「この方法で他のシグニゾーンに移動したシグニをアップしてもよい」。
         // `resumeRearrangeSigni` は移動したシグニ（rearrMoved）を既に把握しているが、
         // 「どれをアップするか」を選ぶインタラクションが無いため未実装のまま明示保留。
