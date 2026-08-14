@@ -3,6 +3,76 @@
 > **2026-08-13 続き464 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-13 続き459（§6.4 O-3＝`LRIG_GROW_RESTRICT` ゴミ箱の解体）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1956（+2＝合成 actionId が live に0件／期間3値／`LRIG_GROW_RESTRICT` は本来のグロウ制限文にだけ付く、を live 全走査で固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件（14種16件から可視化＝隠れていた26効果を worklist へ）**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。live effect 単位 diff **33効果・effectId 増減 0/0**。
 
+## 2026-08-15 整理⑯：PLAN §6.4 `O-22`／`O-23`／`O-24` の消化記録（続き484）
+
+> PLAN §6.4 には1行✅サマリだけを残す。一次記録は BUGFIXES.md 2026-08-15（3本目）。
+> **5効果の挙動是正＝恒久 no-op 4件＋過剰実行 1件。live JSON は 5カード（4ファイル中3ファイル）を更新。**
+
+**■ O-22(a) `CHARM_CONDITIONAL_POWER`（`WX07-031-BURST`／`WX08-032-BURST`）＝恒久 no-op**
+- 原文は「…－10000する。**あなたのシグニに**【チャーム】が付いている場合、代わりに－20000する」（`WX07-031`）と
+  「…－8000する。**それに**【チャーム】が付いている場合、代わりに－15000する」（`WX08-032`）。
+- 🔴旧ハンドラは delta を **`sourceCardNum`（＝効果元カード自身）** へ当てていた。両方**ライフバースト**＝場に無いので
+  `hasCharm` の判定に使うゾーンが引けず**常に偽＝一度も発火しない**。
+- ⭐**機構は既にあった**＝`effectParser.ts` の「代わりに」置換 fixup が `CONDITIONAL + POWER_MODIFY{targetsLastProcessed}` の
+  **加算モデル**（base はそのまま、条件成立時に**差分**を同じ対象へ足す）を組む。regex が
+  「それに…**それのパワーを**－M」の完全形しか取れず、この2枚の短縮形（「代わりに－Mする」）が外れていただけ。
+  **主語2形 × 帰結2形**を1本の regex にまとめて解決＝`それ`→`LAST_PROCESSED_MATCHES{hasCharm}`／
+  `あなたのシグニ`→`CHARM_COUNT{self,gte,1}`。engine 変更ゼロ（新語彙0・新 action 型0）。
+- ⚠**加算モデルにする理由**＝else 置換にすると `LAST_PROCESSED_MATCHES` が**対象選択より前**に評価され常に偽になる（既知）。
+- ⚠**倍率形は別機構**＝`WX25-P2-103` ②「代わりに**３倍**－される」は `double_power_minus_targets` が**2倍固定のフラグ集合**
+  （`effectEngine.ts:2322`）なので表せない → `DEFERRED_CHARM_POWER_MINUS_MULTIPLIER` へ分離（§6.4 O-10 が 14→15 id）。
+- 旧ハンドラは**削除**（残すと「新しい綴りの変種」が黙って誤実装へ落ちる）。
+
+**■ O-22(b) `CONDITIONAL_PER_TRASH`（`WX12-037-E2`）＝恒久 no-op → 新機構**
+- 原文「各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。この方法でトラッシュに置いたカードの中に
+  カード名に《メツム》を含むカードがある場合、あなたはこの効果を繰り返してもよい。（リフレッシュはこの効果を
+  すべて処理してから行う）」＝**トラッシュ枚数条件ではない**（旧 STUB は「トラッシュN枚以上ならドロー」の別物で、
+  この効果には条件句が無いため何も起きなかった）。
+- 新 `STUB{MILL_EACH_REPEAT_ON_NAME}`（ペイロード `millEachRepeatOnName:{count,name}`）を parser の
+  `applyThisWayTrashOutcomeGuards` で**ミルごと1つに畳み込む**。
+- 🔑**畳み込みが必須な理由**＝条件が見るのは「この方法で」置いた**両プレイヤー分**だが、`SEQUENCE` は
+  **step ごとに `lastProcessedCards` を上書きする**ので前段を残すと**相手の5枚しか見えず過少発火**する。
+- 繰り返しは既存の `CHOOSE` ＋ **同じ STUB の再入**で表す（新しいループ機構は作っていない）。
+  終了条件＝①名前ヒット無し ②両者のデッキが尽きた（無限ループ防止も兼ねる）。
+  リフレッシュは処理中に起こさない＝デッキが尽きたら取れる分だけ取り、通常経路（BattleScreen）へ委ねる＝原文の但し書きどおり。
+- ⚠**同じ「繰り返す」語彙のもう1枚 `WXDi-CP01-033-E1` は別の壊れ方**（デッキ**一番下**からのミルが丸ごと欠落し、
+  パワー＋5000が無条件になっている）＝本バッチのスコープ外。着手時はこの行を根拠に。
+
+**■ O-22(c) `CRAFT_TO_LRIG_DECK`（`WX25-P1-034-E2`）＝在庫の症状記述が stale**
+- 🔴在庫は「＜ヤミノアーツ＞のクラフト5種が CSV に無い＝**データ側の欠落**」と書いていたが、**実測すると全部ある**
+  （`WX25-P1-TK1`〜`TK5`＝ダーク・バウンダリー／背闇之陣／ダーク・アナライズ／闇気揚々／ダーク・アウト。Type『アーツ/クラフト』）。
+  `BattleScreen.tsx` の cardMap 事前ロードにも5枚とも既に登録済みだった。
+- 真因は `TOKEN_SETS` のキーワードが **`'ダークアーツ'`**（**全 CSV に1件も出ない綴り**）で、原文の
+  「**ヤミノアーツ**のクラフトから２種類を…」に一致せず候補0＝無言 no-op。**1語の修正**で5種類の選択が出るようになった。
+- 🔑**教訓＝束の呼称をカード名から推測しない**（名前は「ダーク・○○」だが束は「ヤミノアーツ」）。
+
+**■ O-23 `POWER_MOD_BY_ATTACKER_LEVEL`（`WXK10-084-E1/E2`）＝倍率の主語違い**
+- 原文「それのパワーを**アタックしたその**シグニのレベル１につき－1000する」なのに、engine は
+  `ctx.sourceCardNum`（＝能力の持ち主＝Level 3 固定）の Level を使っていた。`triggerScope:'any_ally'` なので
+  **別の味方＜トリック＞がアタックすると倍率が誤る**（L1 でも L4 でも一律 −3000）。
+- `ctx.triggeringCardNum ?? ctx.sourceCardNum` へ。⚠**自身がアタックした場合は挙動不変**＝両コレクタとも
+  `triggeringCardNum === attacker === source` を積む（`collectAttackerSelfTriggers`＝`triggerCollect.ts:3534`／
+  `collectFieldTriggers` の any_ally＝`:3649`）。
+
+**■ O-24 `OPP_TRASH_FIELD_SIGNI_AND_ENERGY`（`WXK06-030-E2`）＝過剰実行**
+- 原文「対戦相手は、自分の場からシグニ**１体**と自分のエナゾーンからカード**１枚**を対象とし、それらをトラッシュに置く」
+  に対し、engine は**相手の場のシグニ全部＋エナ全部**を流していた。
+- ⭐**engine 変更ゼロ**＝`TRASH{SIGNI}`／`TRASH{ENERGY_CARD}` は既に `opponentSelects`（相手が選ぶ）を備えていた
+  （`effectExecutor.ts:1683`／`:1834`）。parser を `SEQUENCE[TRASH{SIGNI opponent,count:1,opponentSelects}, TRASH{ENERGY_CARD opponent,count:1,opponentSelects}]` に直しただけ。
+- ⚠**`owner`（誰のカードか）と `opponentSelects`（誰が選ぶか）は独立**＝必ず併記する（続き411 の教訓）。
+- 旧ハンドラと旧フォールバック regex は**削除**（全 CSV 走査で明示規則が母集団を完全に覆い、フォールバックの live 利用は0件）。
+
+**■ ゲート／計器**
+- golden **1980 → 1985**（+5＝O-22(a)(b)(c)／O-23／O-24 の各トリップワイヤ。O-23 は revert で赤くなることを実測確認）。
+- **O-20 トリップワイヤの凍結値を 9→8 へ更新**（`execStubPart2.ts` の `sourceAbilityText` 使用箇所）
+  ＝**差し戻しではなくサイトごと消えた**（`CHARM_CONDITIONAL_POWER` ハンドラ削除）ぶん。
+- census **831 → 833**（`BASELINE_HIGH` を実数更新）。⚠**+2 は既知の良性クラス**＝加算モデルは原文の**合計値**
+  （20000／15000）を JSON に literal で持たないので「数値不一致」節が拾う。先行の同型（`WX25-P2-102/107/109`／
+  `WX15-027-E1`／`WX15-040-BURST`）も同じ理由で既にベースラインに入っている＝**実質は 831 据置**。
+  2効果は「STUB 格納」バケットから高シグナル側へ**移っただけ**で、挙動は恒久 no-op → 原文どおりへ是正されている。
+- `census:stubs` A群＝**無言 no-op 0 据置**（明示 defer が 24→25 種）。C群は **+0**（新 STUB は逆翻訳へ日本語で描画するようにした）。
+- held **106 → 107枚**（+5 して 5枚を採用 → 元の 106 に対し `WX25-P2-103` の id 変更ぶんが1枚残る形で 107。全5枚とも diff は意図した変更のみを実測確認してから採用）。
+
 ## 2026-08-15 整理⑮：PLAN §6.4 `O-20`／`O-21` の消化記録（続き482〜483）
 
 > PLAN §6.4 には1行✅サマリだけを残し、個票と仕分けの明細をここへ移した。一次記録は BUGFIXES.md 2026-08-15 の2本。
