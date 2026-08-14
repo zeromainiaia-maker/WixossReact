@@ -2629,8 +2629,8 @@ export function execStubPart2(
   // POWER_MOD_BY_COLOR_VARIETY: 色の種類数×deltaをパワー修正
   if (stub.id === 'POWER_MOD_BY_COLOR_VARIETY') {
     const toHWPMBCV = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const srcPMBCV = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtPMBCV = srcPMBCV ? (srcPMBCV.EffectText ?? '') + ' ' + (srcPMBCV.BurstText ?? '') : '';
+    // §6.4 O-20: 全文だと別能力の数値（`WXDi-D06-016` は E1 の －10000）を拾うのでブロックだけを読む。
+    const txtPMBCV = sourceAbilityText(ctx);
     const mPMBCV = txtPMBCV.match(/([＋+－-][０-９\d]+)/);
     if (!mPMBCV) return done(addLog(ctx, 'パワー修正値解析失敗（POWER_MOD_BY_COLOR_VARIETY）'));
     const singleDeltaPMBCV = parseInt(toHWPMBCV(mPMBCV[1]).replace('＋', '+').replace('－', '-'));
