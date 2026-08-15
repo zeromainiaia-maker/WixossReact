@@ -111,7 +111,11 @@ export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason |
   // 名前／出自／パワーによる配置禁止（「このターンと次のターンの間、〜を新たに場に出せない」）。
   // ⚠**ライズ（上乗せ）も「場に出す」**なので対象にする（数制限だけが非対称）。
   const ban = matchedDeployBan(p);
-  if (ban) return ban.cardNames ? 'NAME_BAN' : ban.bySource ? 'SOURCE_BAN' : 'POWER_LIMIT';
+  if (ban) {
+    if (ban.cardNames) return 'NAME_BAN';
+    if (ban.bySource) return 'SOURCE_BAN';
+    return ban.powerGte !== undefined ? 'POWER_LIMIT' : 'ALL_BAN';
+  }
 
   if (p.onExistingStack) return null; // ライズは新規配置でないので数制限の対象外
 
