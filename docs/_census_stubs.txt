@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 2868 件）
+live JSON の STUB id 種類 : 598（総ノード 2871 件）
 逆翻訳シートの [STUB:…] 総数: 775  うち生ID露出 273 箇所（186 種）
 
 ■ 仕分け結果
@@ -48,7 +48,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         生成: src\data\manualEffects.ts:21
      1件   1枚  DEFERRED_DECLARED_SPELL_NAME_LOCK
         カード: PR-K046
-        生成: src\data\parsers\parseSentencePart3.ts:2017
+        生成: src\data\parsers\parseSentencePart3.ts:2022
      1件   1枚  DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT
         カード: WXDi-P07-010
         生成: src\data\manualEffects.ts:4123
@@ -59,7 +59,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         カード: WX25-CP1-060
      1件   1枚  DEFERRED_GAIN_OPP_LRIG_TYPE
         カード: WDK17-008
-        生成: src\data\parsers\parseSentencePart3.ts:2021
+        生成: src\data\parsers\parseSentencePart3.ts:2026
      1件   1枚  DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY  [生ID露出 1]
         カード: WXDi-P16-062
         生成: src\data\manualEffects.ts:3683
@@ -67,10 +67,10 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         カード: WXDi-P00-026
      1件   1枚  DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK
         カード: WXDi-P08-030
-        生成: src\data\parsers\parseSentencePart3.ts:2122
+        生成: src\data\parsers\parseSentencePart3.ts:2127
      1件   1枚  DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK
         カード: WXEX2-09
-        生成: src\data\parsers\parseSentencePart3.ts:2118
+        生成: src\data\parsers\parseSentencePart3.ts:2123
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
@@ -101,7 +101,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         消費(ペイロードキー): src\engine\effectEngine.ts:1568
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:4685
+        消費: src\engine\effectEngine.ts:4706
      3件   3枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036
         消費: src\screens\battle\allZoneBurst.ts:25
@@ -140,10 +140,10 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         消費: src\engine\effectExecutor.ts:3842
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1011 / src\screens\BattleScreen.tsx:10239
+        消費: src\screens\BattleScreen.tsx:1011 / src\screens\BattleScreen.tsx:10243
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:6733
+        消費: src\engine\effectEngine.ts:6754
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:43

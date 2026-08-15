@@ -63,7 +63,7 @@ import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeS
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
-import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
+import { signiAttackBlockReason, signiAttackColorlessCost } from '../src/screens/battle/signiAttackGate';
 import { lrigAttackBanCost } from '../src/screens/battle/signiAttackBan';
 import { pickLifeCrashReplacement, applyMillReplacement } from '../src/screens/battle/lifeCrashReplace';
 import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
@@ -16488,9 +16488,11 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   // 73/38/35＝2026-08-15 続き495（§6.4 O-30）後。⚠**減った2件は払う側の是正**＝`WX24-P2-044-E1/E2` の
   //   引用付与の内側は「付与された側が払う」＝`ownerState` 払い（`OPTIONAL_COST{unlessPay}`）が正しく、
   //   `OPPONENT_PAY_OPTIONAL`（otherState 払い）は**払う側が逆**だった。回避枝そのものは残っている。
-  eq(stubs.length, 73, 'OPPONENT_PAY_OPTIONAL の live 出現数');
-  eq(withCost.length, 38, 'エナコストを持つ（＝pay 枝が出る）STUB');
-  eq(noCost.length, 35, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
+  // 76/40/36＝2026-08-15 続き496（§6.4 O-31）後。**増えた3件はいずれも回避クローズの復元**
+  //   （`WXDi-P05-023-E1/E2`＝付与を止める支払い／`WXDi-P07-007-E3`＝手札1枚 or 《無》の2枝）。
+  eq(stubs.length, 76, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  eq(withCost.length, 40, 'エナコストを持つ（＝pay 枝が出る）STUB');
+  eq(noCost.length, 36, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
      'エナコスト非搭載の STUB はすべて別の回避手段（手札捨て/エナトラッシュ等）を持つ');
@@ -29547,6 +29549,49 @@ test('アタック税（《無》×N）5カードの live 形（§6.4 O-28）', 
   // 「ルリグかシグニ1体」は対象種別を狭めない（狭めるとルリグを縛れない）
   ok(act('WX24-P1-041', 'WX24-P1-041-E2').includes('CENTER_LRIG_OR_SIGNI'),
     'WX24-P1-041 の対象がシグニ限定に戻っている');
+});
+// ── §6.4 O-31「対戦相手が〈コスト〉を支払わないかぎり、X」の残り ──
+test('BLOCK_FRONT_SIGNI_ATTACK: 《無》を払えば正面のシグニもアタックできる（§6.4 O-31）', () => withSavedCursor(() => {
+  // 🔴従来は支払い句が条件剥がしで消え、STUB だけが残って**払っても正面は永久にアタック不可**だった。
+  const FRONT = 'WXDi-P16-047';
+  const blocker: CardEffect[] = [{
+    effectId: 'fsa', effectType: 'CONTINUOUS', mandatory: true, duration: 'PERMANENT',
+    action: { type: 'STUB', id: 'BLOCK_FRONT_SIGNI_ATTACK', value: 1 },
+  } as unknown as CardEffect];
+  const em = new Map(effectsMap);
+  em.set(FRONT, blocker);
+  const attacker = (energy: number): PlayerState => mkState({ signi: [SIGNI_P3000, null, null], energy });
+  const defender = { ...mkState({}), field: { ...mkState({}).field, signi: [[FRONT], null, null] } } as PlayerState;
+  const reason = (energy: number) => signiAttackBlockReason({
+    attacker: attacker(energy), defender, attackerNum: SIGNI_P3000,
+    effectsMap: em, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(reason(3), null, 'エナが足りるのに正面がアタックできない（払えば通る形が絶対禁止に化けている）');
+  eq(reason(0), 'ATTACK_BAN_COST', 'エナ0でも正面がアタックできてしまう');
+  // 引き落とし地点と同じ関数で同じ額が出る（判定と課金がズレるとタダでアタックできる）
+  eq(signiAttackColorlessCost({
+    attacker: attacker(3), defender, attackerNum: SIGNI_P3000,
+    effectsMap: em, cardMap: cardMap as Map<string, CardData>,
+  }), 1, '前払い額が1にならない');
+  // 値が無い（＝支払いで解除できない）形は従来どおり無条件禁止
+  em.set(FRONT, [{ ...blocker[0], action: { type: 'STUB', id: 'BLOCK_FRONT_SIGNI_ATTACK' } } as unknown as CardEffect]);
+  eq(reason(9), 'CONTINUOUS_CANNOT_ATTACK', '支払い額の無い禁止が支払いで抜けられている');
+}));
+test('live データ不変条件: 「対戦相手が〜を支払わないかぎり」の回避クローズが落ちていない（§6.4 O-31）', () => {
+  const act = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  // 付与そのものを止める支払い（一発の判断）＝標準ペアで表す
+  ok(act('WXDi-P05-023', 'WXDi-P05-023-E1').includes('"opponentHandDiscard":3'), 'WXDi-P05-023-E1 の手札3枚回避が落ちている');
+  ok(act('WXDi-P05-023', 'WXDi-P05-023-E2').includes('"costColors":["無","無","無"]'), 'WXDi-P05-023-E2 の《無》×3 回避が落ちている');
+  for (const id of ['WXDi-P05-023-E1', 'WXDi-P05-023-E2']) {
+    ok(act('WXDi-P05-023', id).includes('OPPONENT_PAY_OPTIONAL'), `${id} の回避ゲートが無い`);
+  }
+  // 手札 or エナの**2枝**（片方だけにすると「もう一方では回避できない」過剰実行）
+  const p07 = act('WXDi-P07-007', 'WXDi-P07-007-E3');
+  ok(p07.includes('"opponentHandDiscard":1'), 'WXDi-P07-007-E3 の手札1枚回避が落ちている');
+  ok(p07.includes('"costColors":["無"]'), 'WXDi-P07-007-E3 の《無》回避が落ちている');
+  // 【常】の正面アタック禁止は**支払い額つき**（額が無いと払っても通らない）
+  ok(act('WXDi-P16-047', 'WXDi-P16-047-E1').includes('"value":1'), 'WXDi-P16-047-E1 の支払い額が落ちている');
 });
 // ── §6.4 O-30「〈コスト〉を支払わないかぎり、X」＝**能力の持ち主自身**が払って X を回避する形 ──
 test('OPTIONAL_COST{unlessPay}: 払えば X は起きず、払わなければ X が起きる（§6.4 O-30）', () => withSavedCursor(() => {

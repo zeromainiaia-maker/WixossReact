@@ -361,24 +361,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
-## +CONDITIONAL +IS_MY_TURN +SEQUENCE +STUB ［1枚］
-WXDi-P07-007
---- WXDi-P07-007
-  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手は以下の２つから１つを選び、あなたはそれを行う。①対戦相手のデッキの上からカードを４枚トラッシュに置く。②あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。【出】：あなたのトラッシュからシグニ１枚を対象とし、それを場に出す。【起】《ゲーム１回》《黒×0》：以下を３回行う。「対戦相手は手札を１枚捨て
-  - [2].action.steps[1].target.type = "DECK_CARD"
-  - [2].action.steps[1].target.owner = "opponent"
-  - [2].action.steps[1].target.count = 4
-  ~ [2].action.steps[1].type : "TRASH" → "SEQUENCE"
-  + [2].action.steps[1].steps[0].type = "STUB"
-  + [2].action.steps[1].steps[0].id = "OPPONENT_PAY_OPTIONAL"
-  + [2].action.steps[1].steps[0].opponentHandDiscard = 1
-  + [2].action.steps[1].steps[0].costColors[0] = "無"
-  + [2].action.steps[1].steps[1].type = "CONDITIONAL"
-  + [2].action.steps[1].steps[1].condition.type = "IS_MY_TURN"
-  + [2].action.steps[1].steps[1].then.type = "TRASH"
-  + [2].action.steps[1].steps[1].then.target.type = "DECK_CARD"
-  …（他 2 行）
-
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
