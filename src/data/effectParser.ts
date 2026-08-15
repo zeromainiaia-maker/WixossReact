@@ -13240,6 +13240,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   const baseType = card.Type?.split('/')[0] ?? '';
   _parsingCardNum = card.CardNum;
+  _parsingCardText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
   _parsingBaseType = baseType;
   if (baseType === 'アーツ' || baseType === 'ピース' || baseType === 'リレーピース') {
     // 「」『』外側にある【自】：セクションを分離してパース（ARTS_SELF_RECYCLE_ON_TRIGGER等）
