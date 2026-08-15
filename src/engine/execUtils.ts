@@ -1673,6 +1673,18 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const cntLTC = lrigNumsLTC.filter(n => (ctx.cardMap.get(getCardNum(n))?.Team ?? '').includes(cond.team)).length;
       return cmp(cntLTC, cond.operator, cond.value);
     }
+    case 'LRIG_ANY_TEAM_COUNT': {
+      // 【使用条件】【チーム】いずれかのチーム＝場のルリグ（センター＋アシストL/R）のうち
+      // **同じ1つのチーム**に属する体数が value 以上。⚠`Team` は「A・B」のような複数所属表記が
+      // あるため、チーム名ごとに数えて最大値を見る（`LRIG_TEAM_COUNT` の名指し版と同じ照合基準）。
+      const fLATC = st(cond.owner).field;
+      const teamsLATC = [fLATC.lrig.at(-1), fLATC.assist_lrig_l?.at(-1), fLATC.assist_lrig_r?.at(-1)]
+        .filter((n): n is string => !!n)
+        .map(n => (ctx.cardMap.get(getCardNum(n))?.Team ?? '').split(/[・･]/).map(s => s.trim()).filter(Boolean));
+      const tallyLATC = new Map<string, number>();
+      for (const ts of teamsLATC) for (const t of new Set(ts)) tallyLATC.set(t, (tallyLATC.get(t) ?? 0) + 1);
+      return Math.max(0, ...tallyLATC.values()) >= cond.value;
+    }
     case 'THIS_CARD_IN_LOCATION': {
       const src = ctx.sourceCardNum;
       if (!src) return false;
