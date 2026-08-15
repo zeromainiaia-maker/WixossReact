@@ -575,9 +575,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
       t.match(/^あなたのデッキの一番上を公開し、そのカードが宣言した.*場合.*手札に加える$/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- 対戦相手は手札をすべてルリグゾーンに裏向きで置く ----
+  // ---- 対戦相手は手札をすべてルリグゾーンに裏向きで置く（§6.4 O-3）----
+  // ⚠🔴旧 `TARGET_AND_DISCARD_HAND` は「対戦相手のシグニを対象とし**自分の**手札を1枚トラッシュ」する
+  //   別文型のハンドラで、置く側・行き先・枚数のすべてが原文と違っていた（`SPDi43-02-E2`）。
+  //   しかも「ターン終了時、対戦相手はそれらのカードを手札に加える」側が `RULE_REMINDER_TEXT` に落ちて
+  //   いたので、**相手の手札が1枚減ったまま戻らない**という片側採用でもあった。
   if (t.match(/対戦相手は手札をすべてルリグゾーンに裏向きで置く/))
-    return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
+    return { type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'hand', count: 1, all: true, owner: 'opponent' } as EffectAction;
 
   // ---- 対戦相手はそれらのカードを手札に加える ----
   if (t.match(/^対戦相手はそれらのカードを手札に加える$/))
