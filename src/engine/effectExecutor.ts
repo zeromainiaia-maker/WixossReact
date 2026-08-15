@@ -7307,6 +7307,23 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         `${sdb.turns >= 2 ? 'このターンと次のターンの間' : 'このターン'}、`
         + `${sdbOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeSdb}シグニを新たに場に出せない`));
     }
+    case 'ADD_EXTRA_ATTACK_PHASE': {
+      // 「（このターンの最初の／次の）アタックフェイズの後に、追加のアタックフェイズを加える」（§6.4 O-3）。
+      // ⚠キューに積むだけ＝`onStart` は**追加したフェイズの開始時**に走る（ここでは実行しない）。
+      const eap = action as import('../types/effects').AddExtraAttackPhaseAction;
+      const nEap = Math.max(1, eap.count ?? 1);
+      const queuedEap = Array.from({ length: nEap }, () => ({
+        ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}),
+        ...(eap.onStart ? { onStart: eap.onStart } : {}),
+      }));
+      return done(addLog({
+        ...ctx,
+        ownerState: {
+          ...ctx.ownerState,
+          extra_attack_phases_this_turn: [...(ctx.ownerState.extra_attack_phases_this_turn ?? []), ...queuedEap],
+        },
+      }, `このアタックフェイズの後に追加のアタックフェイズを${nEap}回加える`));
+    }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
       const restricted = !!(pnd.damageSource || pnd.sourceLevelLtLastProcessed || pnd.millAtTurnEndPerPrevented);
