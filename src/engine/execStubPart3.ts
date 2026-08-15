@@ -5044,6 +5044,19 @@ export function execStubPart3(
     } }, `${ctx.cardMap.get(getCardNum(src))?.CardName ?? src}を遅延除外対象に登録`));
   }
 
+  // MARK_PLACED_DELAYED_EXILE: この解決で**場に出したカード**（lastProcessedCards）を遅延除外対象にする
+  // （「この方法で場に出た《X》が場を離れる場合、代わりにゲームから除外される」＝§6.4 O-4・`WXDi-P13-004A-E1`）。
+  // ⚠`MARK_SELF_DELAYED_EXILE` は**効果元自身**を見る別軸＝ここは「出したカード」なので流用できない。
+  if (stub.id === 'MARK_PLACED_DELAYED_EXILE') {
+    const placedMPDE = (ctx.lastProcessedCards ?? [])
+      .filter(n => ctx.ownerState.field.signi.some(stack => stack?.includes(n)));
+    if (placedMPDE.length === 0) return done(addLog(ctx, '遅延除外マーク対象なし（場に出たカードがない）'));
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState,
+      pending_exile_nums: [...new Set([...(ctx.ownerState.pending_exile_nums ?? []), ...placedMPDE])],
+    } }, `${placedMPDE.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を遅延除外対象に登録`));
+  }
+
   // ATTACH_SEARCHED_AS_ACCE: サーチしたカードを対象シグニのアクセとして付ける（手札経由近似）
   if (stub.id === 'ATTACH_SEARCHED_AS_ACCE') {
     const searchedASAA = (ctx.lastProcessedCards ?? [])[0];
