@@ -3950,8 +3950,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             oppWrite = { key: opKeyT, state: { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...res.usedOpIds] } };
           }
         };
-        // ON_GROW_PHASE_START: ENERGY→GROW移行時（グロウフェイズ開始時）トリガー。
-        if (phase === 'ENERGY') {
+        // ON_GROW_PHASE_START: →GROW移行時（グロウフェイズ開始時）トリガー。
+        if (nextPhase === 'GROW') {
           const gpsRes = collectTurnTriggers('ON_GROW_PHASE_START', newMyState, op);
           foldTurnUsed(gpsRes);
           if (gpsRes.entries.length > 0) {
