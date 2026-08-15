@@ -1726,6 +1726,8 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REVEAL_FACEDOWN_LRIG_ZONE': return 'そのカードを表向きにしてトラッシュに置く';
     case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND':
       return `裏向きでルリグゾーンに置いたカードを${a.owner === 'opponent' ? '対戦相手の' : ''}手札に加える`;
+    case 'GAIN_LRIG_TYPE':
+      return `${a.turns === 2 ? '次の対戦相手のターン終了時まで、' : 'ターン終了時まで、'}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る`;
     case 'FIELD_SIGNI_TO_CHECK_ZONE':
       // ⚠往復を1アクションに畳んであるので**戻す側まで出す**（片方だけだと脱落が逆翻訳に映らない）。
       return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを場に出す`;
