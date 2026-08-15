@@ -186,7 +186,7 @@ export function execStubPart1(
     const count = typeof tgt.count === 'number' ? tgt.count
       : tgt.count === 'ALL' ? cands.length
       : 1;
-    const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+    const scope: TargetScope = anySTO ? anySTO.scope : tgt.owner === 'self' ? 'self_field' : 'opp_field';
     // ⚠「**対戦相手は**自分のシグニを〜選ぶ」＝選ぶのは相手＝`opponentResponds`
     //   （落とすと効果の使用者が相手の代わりに選ぶ＝有利な取り違えになる）。
     return selectOrInteract(cands, count, tgt.upToCount ?? false, scope,
