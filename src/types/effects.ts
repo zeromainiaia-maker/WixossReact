@@ -2167,6 +2167,22 @@ export interface ReturnFacedownLrigZoneToHandAction {
   owner?: Owner;
 }
 
+/**
+ * 「あなたのすべての〈条件〉のシグニをチェックゾーンに置く。**その後、それらを場に出し**、〜」（§6.4 O-3）。
+ *
+ * 🔑**チェックゾーンは経由地なので往復を1アクションに畳む**＝原文は2文だが、置く側と戻す側を
+ *   別アクションに割ると「それら」の照応先（＝チェックゾーンに置いたシグニ）を運ぶ器が要る。
+ *   実際、従来は戻す側の文が**丸ごと脱落**していて、置く側も受け皿 STUB＝no-op だった。
+ *
+ * 意味は「場を離れて出直す」＝**アップ状態の新しいシグニとして場に出る**（アタック済みの記録も落ちる）。
+ * ⚠**近似**＝チャーム／アクセ／ソウル等の付随物は場を離れた扱いにせず維持する（§7）。
+ */
+export interface FieldSigniToCheckZoneAction {
+  type: 'FIELD_SIGNI_TO_CHECK_ZONE';
+  /** 往復させるシグニ（`owner:'self'` ＋ `filter`）。 */
+  target: EffectTarget;
+}
+
 // このゲームの間、対戦相手は同名カードを使用できない
 export interface NameBanAction {
   type: 'NAME_BAN';
