@@ -29528,6 +29528,33 @@ test('アタック税（《無》×N）5カードの live 形（§6.4 O-28）', 
   ok(act('WX24-P1-041', 'WX24-P1-041-E2').includes('CENTER_LRIG_OR_SIGNI'),
     'WX24-P1-041 の対象がシグニ限定に戻っている');
 });
+test('アタック税（《無》×N）: live の action を通しで実行すると ban が相手に載る（§6.4 O-28）', () => withSavedCursor(() => {
+  // ⚠**live 形の assert だけでは足りない**＝`SELECT_TARGET_ONLY` がルリグ対象を扱えないと
+  //   `lastProcessedCards` が空→ STORE が空→ 本体が「対象が確定していない」で降りる**丸ごと no-op**になる
+  //   （STUB ですらないので census にも映らない）。ここは対象宣言→焼き込みまで通しで見る。
+  const LRIG = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const bansOf = (num: string, effectId: string) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === effectId)!;
+    const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null], lrig: [LRIG] }, SIGNI);
+    const r = finish(executeEffect(e, ctx), ctx);
+    return ((r.otherState as PlayerState).signi_attack_bans_this_turn ?? []);
+  };
+  const cases: [string, string, number, 'LRIG' | 'SIGNI'][] = [
+    ['WX11-012', 'WX11-012-E1', 3, 'SIGNI'],          // センタールリグが＜タマ＞でないので else 枝＝×3
+    ['WX24-P1-041', 'WX24-P1-041-E2', 1, 'LRIG'],     // ルリグかシグニ＝候補先頭がセンタールリグ
+    ['WX24-P4-001', 'WX24-P4-001-E1', 4, 'LRIG'],
+    ['WXDi-P03-036', 'WXDi-P03-036-E1', 2, 'LRIG'],
+    ['WXDi-P05-033', 'WXDi-P05-033-E2', 1, 'SIGNI'],
+  ];
+  for (const [num, effectId, cost, kind] of cases) {
+    const bans = bansOf(num, effectId);
+    eq(bans.length >= 1, true, `${num} の実行で ban が1件も載らない（対象宣言が空振りしている）`);
+    const ban = bans.find(b => (b.appliesTo === 'LRIG') === (kind === 'LRIG'));
+    ok(!!ban, `${num} の ban が${kind === 'LRIG' ? 'ルリグ' : 'シグニ'}軸で載らない`);
+    eq(ban?.unlessPayColorless, cost, `${num} の《無》×${cost} が ban に載らない`);
+    eq(ban?.cardNums?.length, 1, `${num} の対象が1体に確定していない`);
+  }
+}));
 test('SIGNI_ATTACK_BAN levelFromLastProcessed: 公開カードのレベルを焼き込む', () => withSavedCursor(() => {
   const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] }, SIGNI);
   const lv = parseInt(cardMap.get(SIGNI_P3000)?.Level ?? '', 10);
