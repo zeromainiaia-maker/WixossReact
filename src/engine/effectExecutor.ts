@@ -7490,6 +7490,17 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const typesGLT = gainedGLT.split(/[/／]/).map(s => s.trim()).filter(Boolean);
       if (typesGLT.length === 0) return done(addLog(ctx, 'ルリグタイプ追加：対戦相手のセンタールリグが無い'));
       const stGLT = ownerState(gltOwner, ctx);
+      // 「このゲームの間」＝恒久側へ積む（`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` と同じ器）。
+      // ⚠🔴`WDK17-001-E2` は【起】なのに CONTINUOUS 専用の `STUB{INHERIT_OPP_LRIG_TYPE}` へ落ちており、
+      //   `collectLrigNameAliases` が CONTINUOUS しか走査しないため**恒久 no-op** だった（続き498）。
+      if (glt.turns === 'GAME') {
+        const permGLT = stGLT.lrig_gained_types ?? [];
+        const addPerm = typesGLT.filter(t => !permGLT.includes(t));
+        if (addPerm.length === 0) return done(addLog(ctx, `ルリグタイプ追加：既に＜${typesGLT.join('/')}＞を得ている`));
+        return done(addLog(setOwnerState(gltOwner, {
+          ...stGLT, lrig_gained_types: [...permGLT, ...addPerm],
+        }, ctx), `このゲームの間、センタールリグが＜${addPerm.join('/')}＞を追加で得た`));
+      }
       const prevGLT = stGLT.lrig_gained_types_timed ?? [];
       const addGLT = typesGLT
         .filter(t => !prevGLT.some(p => p.lrigType === t))
