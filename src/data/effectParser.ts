@@ -2628,6 +2628,32 @@ function matchNextBattleBanishDelayedInstall(t: string): EffectAction | undefine
   return { type: 'SEQUENCE', steps: [prefix, install] } as SequenceAction;
 }
 
+/** action 木のどこかの `target` が `filter` を持つか（§6.4 O-31 の純加算チェック緩和用）。 */
+function hasTargetFilter(a: EffectAction): boolean {
+  let found = false;
+  JSON.stringify(a, (_k, v) => {
+    const o = v as { type?: unknown; owner?: unknown; count?: unknown; filter?: unknown } | null;
+    if (o && typeof o === 'object' && 'owner' in o && 'count' in o && o.filter !== undefined) found = true;
+    return v;
+  });
+  return found;
+}
+
+/** `target` の `filter`/`upToCount` を無視して2つの action 木が一致するか（§6.4 O-31）。 */
+function sameIgnoringTargetFilter(a: EffectAction, b: EffectAction): boolean {
+  const strip = (x: EffectAction): string => JSON.stringify(x, (_k, v) => {
+    const o = v as Record<string, unknown> | null;
+    if (o && typeof o === 'object' && 'owner' in o && 'count' in o) {
+      const clone = { ...o };
+      delete clone.filter;
+      delete clone.upToCount;
+      return clone;
+    }
+    return v;
+  });
+  return strip(a) === strip(b);
+}
+
 function findOpponentUnlessGate(t: string):
   { index: number; length: number; cost: NonNullable<ReturnType<typeof parseOpponentUnlessCost>> } | undefined {
   for (const re of [/対戦相手が([^。、「」]{2,40}?)ないかぎり[、,]?/, /対戦相手が([^。「」]{2,70}?)ないかぎり[、,]?/]) {
