@@ -711,7 +711,10 @@ const PATTERNS: Pattern[] = [
     extraOk: replacementClauseExtraOk },
   {
     name: '制限「できない」', re: /(場に出すことができない|使用できない|アタックできない|ガードできない|支払うことができない|選べない|引けない|出せない)/,
-    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block'],
+    // `ATTACK_BAN`＝§6.4 O-3 の `SIGNI_ATTACK_BAN`（「このターン、対戦相手は〈条件〉のシグニで
+    // アタックできない」）。**この型で正しく表現した札が「アタックできない」だけを理由に高シグナルへ
+    // 落ちていた**（続き486 で追加）。
+    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN'],
     // 「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition・eff.condition で表現）は
     // BLOCK/PREVENT ではなく condition で正しく表現される（extractUseCondition→parseUseCondition が LRIG_STORY／
     // SELF_POWER_GTE／HAS_CARD_IN_FIELD 等へ解析済み）。使用制限のみ（アタック/ガード/場に出せない等の効果制限を
