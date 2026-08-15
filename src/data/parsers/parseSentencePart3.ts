@@ -1546,6 +1546,23 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
+  // ---- （このターンと次のターンの間、）対戦相手は〈条件〉のシグニを新たに場に出せない（§6.4 O-3）----
+  // 判定は `deployLimitBlockReason`（通常召喚UI／召喚ゾーンモーダル／CPU 召喚／engine の効果配置が共有する funnel）。
+  // ⚠ここで拾えない条件は下の受け皿へ落とす＝**条件を落として拾うと全シグニ配置禁止になる**（致命的な過剰効果）。
+  {
+    const twoTurns = /このターンと次のターンの間/.test(t);
+    if (twoTurns && /新たに場に出せない/.test(t)) {
+      // 「（この方法で〜置いた）シグニと同じ名前の」「それと同じ名前の」＝直前の対象と同名を禁止。
+      if (/と同じ名前のシグニを新たに場に出せない/.test(t)) {
+        return { type: 'SIGNI_DEPLOY_BAN', owner: 'opponent', turns: 2, namesFromTargets: true } as SigniDeployBanAction;
+      }
+      // 「自分の、シグニとスペルの効果によって」＝出自限定（通常召喚とアーツ/ルリグ/キーの効果は禁止されない）。
+      if (/自分の、?シグニとスペルの効果によってシグニを新たに場に出せない/.test(t)) {
+        return { type: 'SIGNI_DEPLOY_BAN', owner: 'opponent', turns: 2, bySource: 'signi_or_spell_effect' } as SigniDeployBanAction;
+      }
+    }
+  }
+
   // ---- このターンと次のターンの間〜（二ターン効果）----
   // ⚠これは**未パース節の受け皿**であって特定の機構ではない（§6.4 O-3 続き459）。
   //   従来 `LRIG_GROW_RESTRICT` へ落としていたが、その id は「このルリグは〜のルリグにしかグロウできない」

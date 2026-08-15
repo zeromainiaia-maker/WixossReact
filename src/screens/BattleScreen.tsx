@@ -5563,6 +5563,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
         onExistingStack: !!riseFilter || existingZoneStack.length > 0,
         fieldCountAdjust: paidFieldCount,
+        placementSource: 'normal_summon',
       });
       if (blockedDeploy) return;
     }
@@ -10302,6 +10303,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return deployLimitBlockReason({
             placingState: newCpuSt, opponentState: bs.host_state, cardNum: id,
             cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: true,
+            placementSource: 'normal_summon',
           }) === null;
         });
         if (!candidate) break;

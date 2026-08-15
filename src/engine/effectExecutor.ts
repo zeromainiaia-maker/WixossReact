@@ -19,7 +19,7 @@ export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
 import { collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
-import { deployLimitBlockReason, deployLimitLogMessage, type DeployBlockReason } from './deployLimit';
+import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
 import { parseEnergyCosts } from '../data/parserUtils';
 import { execStub } from './execStub';
@@ -2564,6 +2564,8 @@ function deployLimitBlockedFor(
       ? undefined
       : (placingIsSelf ? ctx.isOwnerTurn : !ctx.isOwnerTurn),
     fieldCountAdjust,
+    // engine 経路＝**効果による配置**。出自は効果元カードの Type で決める（§6.4 O-3 続き487）。
+    placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
   });
 }
 

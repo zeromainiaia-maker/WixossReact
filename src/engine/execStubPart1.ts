@@ -1,7 +1,7 @@
 import type { PlayerState, PendingInteractionDef, TargetScope } from '../types';
 import { parseCardEffects } from '../data/effectParser';
 import { parseEnergyCosts } from '../data/parserUtils';
-import { deployLimitBlockReason, deployLimitLogMessage } from './deployLimit';
+import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource } from './deployLimit';
 import type {
   EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
@@ -194,6 +194,7 @@ export function execStubPart1(
       cardNum: fetched, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
       contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
       fieldCountAdjust: 1,
+      placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
     }) : null;
     if (fetched && !deployBlocked) {
       const idx = nextLrigDeck.indexOf(fetched);
@@ -2540,6 +2541,7 @@ export function execStubPart1(
     const blockedPM = deployLimitBlockReason({
       placingState: ctx.ownerState, opponentState: ctx.otherState,
       cardNum: milledPM, cardMap: ctx.cardMap, contCountCap: ctx.deployCountCapSelf,
+      placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
     });
     if (blockedPM) return done(addLog({ ...ctx, lastProcessedCards: [] }, deployLimitLogMessage(blockedPM, namePM)));
     signiPM[zonePM] = [milledPM];

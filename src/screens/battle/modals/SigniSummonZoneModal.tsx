@@ -73,6 +73,7 @@ export function SigniSummonZoneModal(p: SigniSummonZoneModalProps) {
                   placingState: my, opponentState: op, cardNum: pendingSigniSummon.cardNum,
                   cardMap: battleCardMap, effectsMap, isPlacingOwnerTurn: isMyTurn,
                   onExistingStack: !!pendingRiseFilter,
+                  placementSource: 'normal_summon',
                 });
                 const overPowerLimit = deployBlock === 'POWER_LIMIT';
                 const overCountLimit = deployBlock === 'COUNT_LIMIT';
