@@ -1918,7 +1918,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
         type: 'FIELD_SIGNI_TO_CHECK_ZONE',
         target: {
           type: 'SIGNI', owner: 'self', count: 'ALL',
-          filter: { cardType: 'シグニ', ...(chkM[1] ? { class: chkM[1] } : {}) },
+          filter: { cardType: 'シグニ', ...(chkM[1] ? { cardClass: chkM[1] } : {}) },
         },
       } as EffectAction;
     }
