@@ -10008,7 +10008,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS_OP', huSt) }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS_OP', huSt, contBlocked.forSelf) }));
       return;
     }
 
@@ -10635,7 +10635,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
     if (phase === 'ATTACK_ARTS') {
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS', cpuSt) }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: cpuNextPhase('ATTACK_ARTS') }));
       return;
     }
 
@@ -10676,7 +10676,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 全シグニアタック完了 → ATTACK_LRIGへ
       // ON_LRIG_ATTACK_STEP_START（タスク12(lxvii)）＝人間ターンの ATTACK_SIGNI→ATTACK_LRIG と同じ位置。
       // ⚠**移行先が ATTACK_LRIG のときだけ**収集する（ステップ封じで飛ばされる場合は開始しない）。
-      const nextAfterSigni = resolveNextPhaseWithSkips('ATTACK_SIGNI', cpuSt);
+      const nextAfterSigni = cpuNextPhase('ATTACK_SIGNI');
       if (nextAfterSigni !== 'ATTACK_LRIG') {
         await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: nextAfterSigni }));
         return;
@@ -10724,7 +10724,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   どちらも CPU が能動使用しない（§6.4 O-1）ので CPU 側にキューは積まれず、積まれても
       //   `extra_attack_phases_this_turn` はターン終了で失効する＝安全側の近似。
       //   CPU AI が【起】/スペルを使うようになったら（O-1）ここも state 込みのコミットへ揃えること。
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_LRIG', cpuSt) }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: cpuNextPhase('ATTACK_LRIG') }));
       return;
     }
 

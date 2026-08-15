@@ -186,8 +186,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- シグニアタックフェイズをスキップ ----
+  // ⚠🔴**綴りが1つズレていて engine に届いていなかった**（§6.4 O-3 続き491）＝
+  //   スキップ機構が消費するのは `SIGNI_ATTACK_STEP`（「シグニアタック**ステップ**」の綴り）だけで、
+  //   ここが吐く `SIGNI_ATTACK_PHASE` はどこにも消費地点が無く `WX16-001-E3`（コイン3の【起】）は
+  //   **一度も効いていなかった**。「シグニアタックフェイズ」と「シグニアタックステップ」は同じもの。
   if (t.match(/シグニアタックフェイズをスキップする/)) {
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'SIGNI_ATTACK_PHASE', until: 'END_OF_TURN' };
+    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'SIGNI_ATTACK_STEP', until: 'END_OF_TURN' };
   }
 
   // ---- 手札からパワーN以上のシグニを場に出せない ----
