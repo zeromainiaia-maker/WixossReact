@@ -14985,8 +14985,9 @@ test('PAY_ENERGY_COST 封じ: 支払い元 pool が空になる（《色×0》�
   const free: PlayerState = { ...blocked, blocked_actions: [] };
   eq(buildEnergyPayPool(free, poolCtx).length, 2, '封じなしでは従来どおり');
   // 🔑pool が空でも「エナ0枚のコスト」は支払える＝原文の「１以上の」がそのまま出る
-  eq(canAffordGrowCost([], battleCards, '《白×0》'), true, '《色×0》は封じ中でも支払える');
-  eq(canAffordGrowCost([], battleCards, '《白》'), false, 'エナ1以上は封じ中に支払えない');
+  const allCards = [...cardMap.values()] as CardData[];
+  eq(canAffordGrowCost([], allCards, '《白×0》'), true, '《色×0》は封じ中でも支払える');
+  eq(canAffordGrowCost([], allCards, '《白》'), false, 'エナ1以上は封じ中に支払えない');
   // 接尾辞なしの blocked_actions はターン終了で失効する（＝「このターン」）
   eq(clearTurnEndScopedState(blocked).blocked_actions?.length, 0, 'ターン終了で封じが解ける');
 });
