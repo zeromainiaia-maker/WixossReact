@@ -44,7 +44,7 @@ export function computeEffectiveLrigLimit(
     otherState, state, cardMap, effectsMap, !isOwnerTurn,
   );
 
-  return (basicOverride ?? copiedLimit ?? parseLimit(center?.Limit))
+  return (selfBaseOverride ?? basicOverride ?? copiedLimit ?? parseLimit(center?.Limit))
     + ((state.field.assist_lrig_l ?? []).length > 0 ? 1 : 0)
     + ((state.field.assist_lrig_r ?? []).length > 0 ? 1 : 0)
     + (state.lrig_limit_mod ?? 0)
