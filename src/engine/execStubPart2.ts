@@ -3334,7 +3334,10 @@ export function execStubPart2(
       return {
         id: `bloom_zone_${zi}`,
         label: `ゾーン${zi + 1}（${seedName}）を開花`,
-        action: ({ type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: zi } as StubAction) as EffectAction,
+        // ⚠「代わりにそのシグニを手札に戻してから開花する」の置換フラグを**選択の向こう側まで運ぶ**
+        //   （落とすと選んだ瞬間に素の「シグニあり＝開花不可」へ戻る＝§6.4 O-3）。
+        action: ({ type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: zi,
+          ...(stub.bounceOccupant ? { bounceOccupant: true } : {}) } as StubAction) as EffectAction,
         available: true,
       };
     });
