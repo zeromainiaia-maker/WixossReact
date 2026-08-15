@@ -3692,10 +3692,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
                 ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned], turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined }
                 : {}),
               excluded: myExcludedEND, pending_exile_nums: undefined,
+              energy: myEnergyEND,
               turn_end_draw_count: undefined,
               turn_end_mill_count: undefined,
               coin_condition_signi_instances: undefined,
               turn_end_field_trash_targets: undefined,
+              turn_end_energy_trash_targets: undefined,
               flip_attack_signi_zones: undefined,
               end_turn_effects_resolved: true,
             },
