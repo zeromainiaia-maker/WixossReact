@@ -8,6 +8,8 @@ import type {
   ConditionalAction,
   BlockCardUseAction,
   PlaceVirusAction,
+  SigniDeployBanAction,
+  BlockActionAction,
 } from '../../types/effects';
 import {
   parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence, tradeOptionalCost,
