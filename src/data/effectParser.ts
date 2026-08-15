@@ -13213,6 +13213,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = foldRevealPickPlay(folded, card.EffectText ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
+    folded = demoteDeclareNumberForAttackBan(folded);
     if (folded !== e.action) {
       e.action = folded;
       e.parseStatus = 'AUTO';
