@@ -29,6 +29,7 @@ import type {
   PowerModifyPerCharmAction,
   PowerModifyPerEnergyAction,
   PreventDamageAction,
+  ReserveDrawPhaseReplacementAction,
   EqualizeEnergyAction,
   VariableDiscardAndDrawAction,
   BanishSubstituteAction,

@@ -1416,8 +1416,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- ルリグアタックでダメージ受けない（対戦相手レベル以下）----
-  if (t.match(/あなたは対戦相手のレベル[０-９\d]+以下のルリグによってダメージを受けない/)) {
-    return { type: 'STUB', id: 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' } as StubAction;
+  // ⚠🔴レベル上限を `value` に載せる（§6.4 O-3 続き492）＝従来は落としており、判定側が
+  //   限定を読めないので「**すべての**ルリグによってダメージを受けない」の過剰効果になりうる。
+  //   判定は `isLrigDamagePrevented`（アタックしてきたルリグのレベルと突き合わせる）。
+  {
+    const lowLvM = t.match(/あなたは対戦相手のレベル([０-９\d]+)以下のルリグによってダメージを受けない/);
+    if (lowLvM) return { type: 'STUB', id: 'PREVENT_LOW_LEVEL_LRIG_DAMAGE', value: parseNum(lowLvM[1]) } as StubAction;
   }
 
   // ---- 日付制限（このカードは場に出せない）----
