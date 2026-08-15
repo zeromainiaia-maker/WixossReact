@@ -496,8 +496,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 正面シグニのアタック禁止 ----
+  // ⚠**「《無》×Nを支払わないかぎり」を落とさない**（§6.4 O-31）＝落とすと「払っても正面はアタックできない」
+  //   過剰実行になる（live 母集団1効果＝`WXDi-P16-047-E1` は**まさにその支払い形**だった）。
+  //   枚数はここで焼き込む＝engine 側がカード全文 regex を読み直さない（§6.4 O-20 の再発防止）。
   if (t.match(/このシグニの正面にあるシグニでアタックできない/)) {
-    return { type: 'STUB', id: 'BLOCK_FRONT_SIGNI_ATTACK' } as StubAction;
+    const payFSA = t.match(/((?:《[白赤青緑黒無]》)+)を支払わないかぎり/);
+    const nFSA = payFSA ? (payFSA[1].match(/《/g) ?? []).length : 0;
+    return { type: 'STUB', id: 'BLOCK_FRONT_SIGNI_ATTACK', ...(nFSA > 0 ? { value: nFSA } : {}) } as StubAction;
   }
 
   // ---- 対戦相手のシグニを複数エナゾーンに置く（セレクト） ----
