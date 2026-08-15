@@ -3458,9 +3458,17 @@ export function execStubPart1(
     if (logsGA.length > 0) return done(addLog(ctxGA, logsGA.join('・')));
     return done(addLog(ctx, 'このゲームの間：能力付与'));
   }
-  // メインフェイズ終了
+  // 「このメインフェイズを終了する」（`WXK06-078-E1`・§6.4 O-3 続き491）。
+  // ⚠🔴従来は**ログを1行出すだけ**で state を一切書いていなかった＝`census:stubs` は「ハンドラがある」
+  //   ことをもって実装済みと判定するため、A群にも出ない**無言 no-op** だった（続き459 の教訓の実例）。
+  // 🔑消費地点は「メインフェイズを封じる」1点（`MAIN_PHASE`＝`PHASE_SKIP_BLOCK_IDS` と同じ語彙）。
+  //   人間側は `BattleScreen` の自動進行 effect が、CPU 側は召喚ループのガードが読む。
+  //   ⚠`:NEXT_TURN` を付けない＝**このターン限り**（ターン終了時に unsuffixed なぶんが落ちる）。
   if (stub.id === 'SKIP_MAIN_PHASE') {
-    return done(addLog(ctx, 'メインフェイズ終了（BattleScreen側処理）'));
+    const blockedSMP = ctx.ownerState.blocked_actions ?? [];
+    if (blockedSMP.includes('MAIN_PHASE')) return done(addLog(ctx, 'メインフェイズは既に終了予約済み'));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: [...blockedSMP, 'MAIN_PHASE'] } },
+      'このメインフェイズを終了する'));
   }
   // ライフクロスの一番上を手札に加える
   if (stub.id === 'CRASH_LIFE_TO_HAND') {
