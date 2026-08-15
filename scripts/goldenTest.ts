@@ -15128,6 +15128,38 @@ test('GAIN_BOND source:last_found: 直前選択カードとの絆を bonds へ�
   const r = run({ type: 'GAIN_BOND', source: 'last_found' } as EffectAction, ctx);
   ok((r.ownerState.bonds ?? []).includes(name!), `bonds (${JSON.stringify(r.ownerState.bonds)})`);
 });
+// ── PER_OWN_LRIG_COLOR_SCALE（§6.4 O-34(d)「あなたの場にいる〈色〉のルリグ１体につき〈効果〉」）──
+// 🔴回帰ガード＝従来は「1体につき」が丸ごと落ち、`WX25-P3-050-E1` はバニッシュ／ドロー3／
+//    エナチャージ3／相手デッキ10枚ミルが**ルリグの色に関係なく無条件で1回ずつ**走っていた。
+//    **負方向（該当色0体＝何も起きない）＋対照（2体＝2回）の対**で固定する。
+test('PER_OWN_LRIG_COLOR_SCALE: 該当色のルリグ体数だけ本体が走る（0体/1体/2体の対）', () => withSavedCursor(() => {
+  const blueLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('青'));
+  const redLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤') && !(c.Color ?? '').includes('青'));
+  const scale = { type: 'STUB', id: 'PER_OWN_LRIG_COLOR_SCALE', scaleColor: '青',
+    scaleAction: { type: 'DRAW', owner: 'self', count: 3 } } as EffectAction;
+  // 0体＝一度も走らない（＝「無条件で1回」への退行ガード）
+  const none = mkCtx({ lrig: [redLrig] }, {});
+  const h0 = none.ownerState.hand.length;
+  eq(run(scale, none).ownerState.hand.length, h0, '青ルリグ0体では引かない');
+  // 1体＝1回
+  const one = mkCtx({ lrig: [blueLrig] }, {});
+  eq(run(scale, one).ownerState.hand.length, one.ownerState.hand.length + 3, '青ルリグ1体で3枚');
+  // 2体（センター＋アシスト）＝2回
+  const two = mkCtx({ lrig: [blueLrig], assistL: [blueLrig] }, {});
+  eq(run(scale, two).ownerState.hand.length, two.ownerState.hand.length + 6, '青ルリグ2体で6枚');
+}));
+// live 不変条件＝`WX25-P3-050-E1` の5色すべてがスケール節として載り、赤節が合計パワーゲートを持つこと。
+// 🔴従来は【使用条件】節がゴミ `GRANT_KEYWORD{使用条件}` に化けて**白節ごと消えて**おり、
+//    赤節は `totalPowerMax` が落ちて**パワー無制限で2体バニッシュ**だった。
+test('WX25-P3-050-E1 live: 5色ぶんのスケール節＋赤節の合計パワーゲート＋チーム使用条件', () => {
+  const eff = (effectsMap.get('WX25-P3-050') ?? []).find(e => e.effectId === 'WX25-P3-050-E1')!;
+  const steps = (eff.action as unknown as { steps: { id?: string; scaleColor?: string; scaleAction?: unknown }[] }).steps;
+  eq(steps.map(s => s.scaleColor ?? '').join(''), '白赤青緑黒', '5色ぶんのスケール節');
+  eq((eff.condition as { type?: string } | undefined)?.type ?? '', 'LRIG_ANY_TEAM_COUNT', '【チーム】いずれかのチームが使用条件へ');
+  const red = steps.find(s => s.scaleColor === '赤')!.scaleAction as { target: { totalPowerMax?: number; count?: number } };
+  eq(red.target.totalPowerMax ?? 0, 12000, '赤節の合計パワーゲート');
+  eq(red.target.count ?? 0, 2, '赤節は2体まで');
+});
 // ── DECK_SIGNI_LEVEL_OVERRIDE_ALL（§6.4 O-34(c)「このターン、あなたのデッキにあるシグニのレベルは4になる」）──
 // 🔴回帰ガード＝`deck_signi_level_override` は**setter だけあって読み手が1つも無い死フィールド**だった。
 //    `WXK07-034-E1` は①でレベルを上書きし②で「レベル4のシグニが2枚めくれるまで公開」する自己完結の
