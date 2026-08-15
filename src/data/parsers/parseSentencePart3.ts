@@ -2146,9 +2146,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
     if (/宣言したカード名以外の/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK' } as StubAction;
     }
-    // 相手が選んだシグニだけが強制アタックし、他はアタックできない（WXDi-P08-030）＝相手の複数選択UI＋強制アタック集合。
+    // 相手が選んだシグニだけが強制アタックし、他はアタックできない（`WXDi-P08-030-E1`・§6.4 O-3 続き498）。
+    // 前文の `SELECT_TARGET_ONLY`＋`STORE_LAST_PROCESSED_TARGETS` が固定した集合の**補集合**を止める。
+    // ⚠**近似**＝「可能ならばアタックしなければならず」（強制アタック）は未実装（§7）＝禁止側だけ効く。
+    //   禁止と強制は別軸で、禁止側だけでもこのカードの主眼（アタッカーを絞る）は成立する。
     if (/選んだシグニで可能ならばアタックしなければならず/.test(t)) {
-      return { type: 'STUB', id: 'DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK' } as StubAction;
+      return { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', exceptTargetsStored: true } as EffectAction;
     }
     return { type: 'STUB', id: 'DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE' } as StubAction;
   }
