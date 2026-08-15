@@ -25,7 +25,7 @@ export interface GuardResponsesState {
   pendingGuardBarrierAct: boolean;
   selectedBarrierGuardCard: number | null;
   // G154 BURST: アタック無効化を「手札N枚捨て」で回避するか選択（NEGATE_ATTACK escapeDiscard）
-  negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number; attackFieldTrashAlreadyPaid?: boolean } | null;
+  negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number; attackFieldTrashAlreadyPaid?: boolean; attackHandDiscardAlreadyPaid?: boolean } | null;
   selectedNegateEscape: Set<number>;
   // 解除コストつきアタック制限：アタック宣言前に「他のシグニ」を選んでトラッシュする
   attackFieldTrashPayment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;

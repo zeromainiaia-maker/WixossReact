@@ -9376,7 +9376,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // G154 BURST: アタック無効化を「手札N枚捨て」で回避してアタックを通す
   const resolveNegateEscapeDiscard = async () => {
     if (!negateEscape || selectedNegateEscape.size !== negateEscape.count || loading) return;
-    const { zoneIndex, targetOpZone, cardNum, attackFieldTrashAlreadyPaid } = negateEscape;
+    const { zoneIndex, targetOpZone, cardNum, attackFieldTrashAlreadyPaid, attackHandDiscardAlreadyPaid } = negateEscape;
     const escaped = resolveNegateEscapeChoice(my, op, 'discard', cardNum, zoneIndex, selectedNegateEscape);
     appendBattleLogs([`手札${negateEscape.count}枚を捨ててアタックを通した`]);
     closeNegateEscape();

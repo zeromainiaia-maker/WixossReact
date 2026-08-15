@@ -6,7 +6,7 @@ import type { BattleModalCtx } from './types';
 
 interface NegateEscapeModalProps {
   ctx: BattleModalCtx;
-  negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number; attackFieldTrashAlreadyPaid?: boolean } | null;
+  negateEscape: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number; attackFieldTrashAlreadyPaid?: boolean; attackHandDiscardAlreadyPaid?: boolean } | null;
   selectedNegateEscape: Set<number>;
   setSelectedNegateEscape: Dispatch<SetStateAction<Set<number>>>;
   resolveNegateEscapeDiscard: () => void;
