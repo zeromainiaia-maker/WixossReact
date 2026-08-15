@@ -1988,9 +1988,37 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
   }
 
+  // ---- 次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない（§6.4 O-3）----
+  // `blocked_actions` の `:NEXT_TURN` 予約に乗せる（ターン終了時に温存→相手のターン開始時に有効化）。
+  // ⚠既存の `USE_ACT` は**シグニ・キー・付与も含む全【起】**を止めるので使えない（過剰）。
+  if (/^次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない/.test(t)) {
+    return {
+      type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+      actionId: 'USE_LRIG_ACT', until: 'NEXT_TURN',
+    } as BlockActionAction;
+  }
+
   // ---- 次の対戦相手のターン〜（一時的制限）----
   // ⚠未パース節の受け皿（上と同じ理由で id を分けた・§6.4 O-3 続き459）。
+  // ⚠**機構ごとに id を分ける**＝混ぜると census:stubs の A群から在庫が読めない（続き486 と同じ運用）。
   if (t.match(/^次の対戦相手のターン(?:終了時まで|の間|、)/)) {
+    // 「次の対戦相手のターン、メインフェイズをスキップする」（`WXEX2-19-E3`）＝フェイズ飛ばしの予約。
+    // 🔑実装レシピ＝`BLOCK_ACTION{actionId:'MAIN_PHASE', until:'NEXT_TURN'}` ＋
+    //   `resolveNextPhaseWithAttackStepBlocks`（`attackStepPhase.ts`）に MAIN の分岐を足す。
+    //   ⚠CPU 側は `BattleScreen.tsx` の `ADVANCE_TURN_WITH_STATE ... phase:'MAIN'` が**直書き**で、
+    //   同じ場所で `ON_MAIN_PHASE_START` も収集している＝スキップ時はトリガー収集ごと外す必要がある。
+    if (/メインフェイズをスキップする/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_NEXT_OPP_TURN_MAIN_PHASE_SKIP' } as StubAction;
+    }
+    // 「対戦相手は宣言されたカード名のスペルを使用できない」（`PR-K046-E1`）＝**スペル名の宣言UI**が要る。
+    // ⚠既存 `DECLARE_CARD_NAME` は**自分の手札のカード名**から選ぶ形なので、相手のスペルを狙う本文には使えない。
+    if (/宣言されたカード名のスペルを使用できない/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_DECLARED_SPELL_NAME_LOCK' } as StubAction;
+    }
+    // 「あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る」（`WDK17-008` choice①）。
+    if (/ルリグタイプを追加で得る/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_GAIN_OPP_LRIG_TYPE' } as StubAction;
+    }
     return { type: 'STUB', id: 'DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE' } as StubAction;
   }
 
