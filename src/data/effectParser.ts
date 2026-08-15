@@ -9700,6 +9700,24 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // STUB(SEED_BLOOM) + STUB(SEED_BLOOM_BOUNCE_OCCUPANT) → STUB(SEED_BLOOM){bounceOccupant}（§6.4 O-3 続き498）。
+  // 原文「それを開花する。**そのシグニゾーンにシグニがある場合、代わりにそのシグニを手札に戻してから開花する**」は
+  // 開花そのものの**置換**なので、後続ステップとして並べても間に合わない（開花は既に「シグニあり＝不発」で終わる）。
+  // 🔑置換は必ず**被置換アクションのペイロード**へ畳む（後段に置くと先に素の失敗が確定する）。
+  {
+    const bounceIdx = steps.findIndex(st =>
+      st?.type === 'STUB' && (st as StubAction).id === 'SEED_BLOOM_BOUNCE_OCCUPANT');
+    const bloomIdx = steps.findIndex(st =>
+      st?.type === 'STUB' && ((st as StubAction).id === 'SEED_BLOOM' || (st as StubAction).id === 'SEED_BLOOM_OPTIONAL'));
+    if (bounceIdx >= 0 && bloomIdx >= 0 && bloomIdx < bounceIdx) {
+      const folded = steps
+        .map((st, i) => (i === bloomIdx ? { ...(st as StubAction), bounceOccupant: true } as EffectAction : st))
+        .filter((_, i) => i !== bounceIdx);
+      steps.length = 0;
+      steps.push(...folded);
+    }
+  }
+
   // LOOK_AND_REORDER(reveal) + STUB(REVEAL_PICK_HAND_SHUFFLE_BOTTOM) → REVEAL_AND_PICK
   {
     const merged: EffectAction[] = [];
