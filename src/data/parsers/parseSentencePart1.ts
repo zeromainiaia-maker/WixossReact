@@ -1210,6 +1210,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (m) return { type: 'STUB', id: 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW', value: parseNum(m[1]) } as StubAction;
   }
 
+  // 「あなたが（次のあなたの）ドローフェイズにカードをN枚引く場合、代わりに（カードを）M枚引く」
+  // （`WXK01-002-E2`・§6.4 O-3 続き492）＝**ドロー枚数の置換予約**。
+  // ⚠🔴汎用 DRAW より**前**に置く＝先取りされると「使った瞬間に1枚引く」過剰実行に化ける
+  //   （置換の `fromCount` 側を即時ドローとして読んでしまう）。読みは `applyLrigDrawPhaseReplacement`。
+  {
+    const dprM = t.match(/^あなたが(?:次のあなたの)?ドローフェイズに(?:カードを)?([０-９\d]+)枚引く場合、代わりに(?:カードを)?([０-９\d]+)枚引く$/);
+    if (dprM) {
+      return {
+        type: 'RESERVE_DRAW_PHASE_REPLACEMENT', owner: 'self',
+        fromCount: parseNum(dprM[1]), toCount: parseNum(dprM[2]),
+      } as ReserveDrawPhaseReplacementAction;
+    }
+  }
+
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
