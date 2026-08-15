@@ -118,10 +118,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   `DEFERRED_*` にしておけば A群の worklist に並び、前提が揃ったときに着手できる。
 
 
-  // 「それをコストを支払わずに使用するかトラッシュに置く」（`WX20-077-E2`）＝**サーチしたスペルをその場で使う**
-  //   経路（使用宣言・カットイン窓・解決）が無い。既存 `PLAY_SPELL_FROM_HAND_FREE` は手札からの別軸。
-  if (/^それをコストを支払わずに使用するかトラッシュに置く$/.test(t))
-    return { type: 'STUB', id: 'DEFERRED_USE_SEARCHED_SPELL_OR_TRASH' } as StubAction;
+  // 「それをコストを支払わずに使用するかトラッシュに置く」（`WX20-077-E2`・§6.4 O-34(b)）＝
+  // シャッフル節と分かれて単独文で来た場合の受け口（本体は `parseSentencePart3` の
+  // 「デッキをシャッフルし、〜使用するかトラッシュに置く」規則）。
+  if (/^(?:その後、)?(?:それ|そのカード)をコストを支払わずに使用するかトラッシュに置く$/.test(t))
+    return { type: 'STUB', id: 'USE_SEARCHED_SPELL_OR_TRASH' } as StubAction;
 
   // 「このターン、あなたのデッキにあるシグニのレベルはNになる」（`WXK07-034-E1` 選択肢①・§6.4 O-34(c)）。
   // 🔑クラス指定なし＝**全シグニ**なので `deck_signi_level_override.class` に `'*'` を入れる。
