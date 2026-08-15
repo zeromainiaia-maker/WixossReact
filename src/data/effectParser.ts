@@ -2839,6 +2839,11 @@ function parseOpponentWaUnlessCost(phrase: string, targetPrefix: string):
   // 「無色のカードをN枚捨て」＝捨てられる手札に色制約がつく形
   m = p.match(/^(無色|[白赤青緑黒])のカードを([０-９\d一二三四五六七八九十]+)枚捨て$/);
   if (m) return { opponentHandDiscard: parseNum(m[2]), opponentHandDiscardFilter: { color: m[1] === '無色' ? '無' : m[1] } };
+  // 「手札をN枚捨てるか《無》…を支払わ」＝**手札とエナのどちらでも回避できる**形（§6.4 O-31・`WXDi-P07-007-E3`）。
+  // ⚠2枝を両方載せる（片方だけにすると「もう一方では回避できない」過剰実行になる）＝
+  //   `OPPONENT_PAY_OPTIONAL` は `costColors` と `opponentHandDiscard` を**別々の選択肢**として出す。
+  m = p.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚捨てるか[、,]?((?:《[白赤青緑黒無]》)+)を支払わ$/);
+  if (m) return { opponentHandDiscard: parseNum(m[1]), costColors: colorsOf(m[2]) };
   m = p.match(/^(?:自分の)?手札を([０-９\d一二三四五六七八九十]+)枚捨て$/);
   if (m) return { opponentHandDiscard: parseNum(m[1]) };
   const signiTarget = targetPrefix.match(/^自分のシグニ([０-９\d一二三四五六七八九十]+)体を対象とし[、,]$/);
