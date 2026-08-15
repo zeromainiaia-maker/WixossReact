@@ -4442,9 +4442,14 @@ test('§6.4 NEXT_TURN WXDi-P08-010-E3: 強制シグニアタックを次相手�
   assertNextTurnForcedAttack('WXDi-P08-010', 'WXDi-P08-010-E3', seq.steps[0]);
 }));
 
-test('§6.4 NEXT_TURN 据置 WXDi-P11-005-E3: 無無支払い攻撃制限の受け皿なし', () => {
+test('§6.4 O-4 WXDi-P11-005-E3: 支払い回避つき攻撃制限を期間ごと表現する', () => {
+  // 🔴続き499 以前は `BLOCK_ACTION{ATTACK, owner:'any', until:END_OF_TURN}`＝支払い回避も期間も所有者も
+  //   落ちて**両プレイヤーのシグニが無条件でアタック不可**だった（受け皿が無いので据置していた形）。
   const a = nextTurnLiveAction('WXDi-P11-005', 'WXDi-P11-005-E3');
-  ok(a.type === 'BLOCK_ACTION' && a.until === 'END_OF_TURN' && a.attackCost === undefined, 'コスト付き制限を単純禁止として予約しない');
+  eq(a.type, 'SIGNI_ATTACK_BAN', '支払い回避つき制限が単純禁止のまま');
+  eq(a.owner, 'opponent', '禁止対象が相手に限定されていない');
+  eq(a.unlessPayColorless, 2, '《無》×2 の回避が落ちている');
+  eq(a.turns, 2, '「次の対戦相手のターンの間」がターン数に載っていない');
 });
 
 test('§6.4 NEXT_TURN 採用JSON: 限定・二重期間・動的条件を予約actionに保持', () => {
@@ -29580,6 +29585,56 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   eq((r.ownerState as PlayerState).facedown_lrig_zone_cards, undefined, '戻した後も裏向き保持が残っている');
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
+}));
+test('REVEAL_BOTH_DECK_TOPS: 両者公開の【ライフバースト】一致でだけ帰結が走る（§6.4 O-4）', () => withSavedCursor(() => {
+  // 🔴続き499 以前は公開と比較が UNKNOWN に落ち、帰結（アタック無効）だけが残って**必ず無効化**していた。
+  const LB = findCard(c => isSigni(c) && !!c.BurstText && c.BurstText !== '-');
+  const NOLB = findCard(c => isSigni(c) && (!c.BurstText || c.BurstText === '-'));
+  const mk = (mine: string, theirs: string) => {
+    const base = mkCtx({ deckTop: [mine] }, { deckTop: [theirs] }, SIGNI);
+    return run({ type: 'REVEAL_BOTH_DECK_TOPS',
+      matchAction: { type: 'DRAW', owner: 'self', count: 2 } } as unknown as EffectAction, base);
+  };
+  // 一致（どちらもLBあり）→ 帰結が走る
+  const hitHand = mkCtx({ deckTop: [LB] }, { deckTop: [LB] }, SIGNI).ownerState.hand.length;
+  eq((mk(LB, LB).ownerState as PlayerState).hand.length, hitHand + 2, '一致なのに帰結が走らない');
+  // 不一致 → 帰結は走らない
+  eq((mk(LB, NOLB).ownerState as PlayerState).hand.length, hitHand, '不一致なのに帰結が走っている');
+  // 公開したカードは各自のデッキの一番下へ（山札は減らない）
+  const r = mk(LB, NOLB);
+  eq((r.ownerState as PlayerState).deck.at(-1), LB, '公開札がデッキの一番下へ行っていない');
+  eq((r.otherState as PlayerState).deck.at(-1), NOLB, '相手の公開札がデッキの一番下へ行っていない');
+}));
+test('DECLARE_DECK_TOP_ICON: 宣言が外れたときだけ帰結が走る（§6.4 O-4）', () => withSavedCursor(() => {
+  // 🔴続き499 以前は宣言と照合が UNKNOWN に落ち、帰結（ダメージ無効）だけが残って**必ず無効**だった。
+  const TRAP = findCard(c => (c.EffectText ?? '').includes('《トラップアイコン》：'));
+  const PLAIN = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('《トラップアイコン》'));
+  const declare = (top: string, declaredHas: boolean) => {
+    const ctx = mkCtx({ deckTop: [top] }, {}, SIGNI);
+    return run({ type: 'STUB', id: 'INTERNAL_DECLARE_DECK_TOP_ICON', value: declaredHas ? 1 : 0,
+      deckTopIcon: { icon: 'トラップ', deckOwner: 'self',
+        onWrongAction: { type: 'DRAW', owner: 'self', count: 3 } },
+    } as unknown as EffectAction, ctx);
+  };
+  const baseHand = mkCtx({ deckTop: [PLAIN] }, {}, SIGNI).ownerState.hand.length;
+  eq((declare(PLAIN, false).ownerState as PlayerState).hand.length, baseHand, '的中なのに帰結が走っている');
+  eq((declare(PLAIN, true).ownerState as PlayerState).hand.length, baseHand + 3, '外れなのに帰結が走らない');
+  eq((declare(TRAP, true).ownerState as PlayerState).hand.length, baseHand, 'アイコンありの的中で帰結が走っている');
+  eq((declare(TRAP, false).ownerState as PlayerState).hand.length, baseHand + 3, 'アイコンありの外れで帰結が走らない');
+}));
+test('SigniAttackBan.turnsRemaining: 「次の対戦相手のターン」を1点だけで減らす（§6.4 O-4）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, SIGNI);
+  const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', unlessPayColorless: 2, turns: 2 } as unknown as EffectAction, ctx);
+  const bans = (r.otherState as PlayerState).signi_attack_bans_this_turn ?? [];
+  eq(bans[0]?.turnsRemaining, 2, 'ターン数が ban に載らない');
+  eq(bans[0]?.unlessPayColorless, 2, '支払い回避が落ちている');
+  // ⚠減算は clearTurnEndScopedState の1点だけ（レジストリの一括クリアで消えてはいけない）
+  const after1 = clearTurnEndScopedState({ ...mkState({}), signi_attack_bans_this_turn: bans });
+  eq(after1.signi_attack_bans_this_turn?.[0]?.turnsRemaining, 1, '次の相手ターンまで持たずに消えている');
+  eq(clearTurnEndScopedState(after1).signi_attack_bans_this_turn, undefined, '次の相手ターン終了で失効しない');
+  // ⚠turnsRemaining を持たない ban は従来どおりそのターンだけ
+  eq(clearTurnEndScopedState({ ...mkState({}), signi_attack_bans_this_turn: [{}] }).signi_attack_bans_this_turn,
+    undefined, '期間指定なしの ban が持ち越されている');
 }));
 test('DECLARE_CARD_NAME_LOCK: 宣言名の blacklist／whitelist が使用ゲートに効く（§6.4 O-3）', () => withSavedCursor(() => {
   const SPELL = findCard(c => c.Type === 'スペル');

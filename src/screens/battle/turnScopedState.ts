@@ -195,7 +195,10 @@ function advanceGainedLrigTypes(
 function advanceSigniAttackBans(
   bans: PlayerState['signi_attack_bans_this_turn'],
 ): PlayerState['signi_attack_bans_this_turn'] {
-  const next = (bans ?? [])
+  // ⚠T3 トリップワイヤは全 turn-end フィールドへ**番兵値**（`true` 等）を入れて一括クリアを検査するので、
+  //   配列以外が来る前提で守る（守らないと計器のほうが落ちる）。
+  if (!Array.isArray(bans)) return undefined;
+  const next = bans
     .filter(ban => (ban.turnsRemaining ?? 1) > 1)
     .map(ban => ({ ...ban, turnsRemaining: (ban.turnsRemaining ?? 1) - 1 }));
   return next.length > 0 ? next : undefined;
