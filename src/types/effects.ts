@@ -817,6 +817,8 @@ export type EffectAction =
   | PowerModifyPerCharmAction
   | PowerModifyPerEnergyAction
   | PreventDamageAction
+  | SetLrigBaseLimitAction
+  | ReserveDrawPhaseReplacementAction
   | EqualizeEnergyAction
   | VariableDiscardAndDrawAction
   | BanishSubstituteAction
