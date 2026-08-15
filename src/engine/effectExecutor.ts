@@ -7438,6 +7438,25 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return selectOrInteract(
         ctx.ownerState.hand, Math.max(1, pfl.count), pfl.upToCount ?? false, 'self_hand', action, undefined, ctx);
     }
+    case 'GAIN_LRIG_TYPE': {
+      // 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る」（§6.4 O-3）。
+      // ⚠**タイプ名はここで焼き込む**（判定地点＝グロウ候補／使用制限からは相手の state が見えない）。
+      const glt = action as import('../types/effects').GainLrigTypeAction;
+      const gltOwner: Owner = glt.owner === 'opponent' ? 'opponent' : 'self';
+      const srcLrigGLT = (gltOwner === 'self' ? ctx.otherState : ctx.ownerState).field.lrig.at(-1);
+      const gainedGLT = srcLrigGLT ? (ctx.cardMap.get(getCardNum(srcLrigGLT))?.CardClass ?? '') : '';
+      const typesGLT = gainedGLT.split(/[/／]/).map(s => s.trim()).filter(Boolean);
+      if (typesGLT.length === 0) return done(addLog(ctx, 'ルリグタイプ追加：対戦相手のセンタールリグが無い'));
+      const stGLT = ownerState(gltOwner, ctx);
+      const prevGLT = stGLT.lrig_gained_types_timed ?? [];
+      const addGLT = typesGLT
+        .filter(t => !prevGLT.some(p => p.lrigType === t))
+        .map(t => ({ lrigType: t, turnsRemaining: Math.max(1, glt.turns) }));
+      if (addGLT.length === 0) return done(addLog(ctx, `ルリグタイプ追加：既に＜${typesGLT.join('/')}＞を得ている`));
+      return done(addLog(setOwnerState(gltOwner, {
+        ...stGLT, lrig_gained_types_timed: [...prevGLT, ...addGLT],
+      }, ctx), `センタールリグが＜${addGLT.map(a => a.lrigType).join('/')}＞を追加で得た`));
+    }
     case 'FIELD_SIGNI_TO_CHECK_ZONE': {
       // 「あなたのすべての〈条件〉のシグニをチェックゾーンに置く。その後、それらを場に出す」（§6.4 O-3）。
       // 🔑チェックゾーンは**経由地**なので往復を1アクションに畳む（型コメント参照）。意味は
