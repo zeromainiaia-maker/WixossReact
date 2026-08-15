@@ -34330,7 +34330,10 @@ test('§6.4 O-20 トリップワイヤ: 変換済みサイトが「カード全�
     'src/engine/execStubPart1.ts': 7,
     // 9 → 8（2026-08-15 §6.4 O-22(a)）＝`CHARM_CONDITIONAL_POWER` ハンドラを削除したぶん。
     // 差し戻しではなく**サイトごと消えた**（帰結は parser の「代わりに」置換 fixup が構造で持つ）。
-    'src/engine/execStubPart2.ts': 8,
+    // 8 → 7（2026-08-15 §6.4 O-3 続き493）＝`PREVENT_ZONE_MOVE_BY_OPP` の実行時ゾーン判定を廃止。
+    // 期間つきは `ZONE_MOVE_IMMUNITY`（zones を構造で持つ）へ、【常】は `collectProtectedZones` 側の
+    // ブロック読みへ寄せたので、**実行時に原文を読む必要がなくなった**（差し戻しではない）。
+    'src/engine/execStubPart2.ts': 7,
     'src/engine/execStubPart3.ts': 3,
     'src/engine/effectExecutor.ts': 2,
   };
