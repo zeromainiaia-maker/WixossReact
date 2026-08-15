@@ -8774,6 +8774,23 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       }
       return done(ctx);
     }
+    case 'PLACE_FACEDOWN_LRIG_ZONE': {
+      // 手札から選んだ1枚を裏向きでルリグゾーンへ（§6.4 O-3）。デッキトップ版は選択を挟まない。
+      const sPFL = ctx.ownerState;
+      const hi = sPFL.hand.indexOf(cardNum);
+      if (hi < 0) return done(ctx);
+      return done({
+        ...addLog({
+          ...ctx,
+          ownerState: {
+            ...sPFL,
+            hand: sPFL.hand.filter((_, i) => i !== hi),
+            facedown_lrig_zone_cards: [...(sPFL.facedown_lrig_zone_cards ?? []), cardNum],
+          },
+        }, `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を裏向きでルリグゾーンへ`),
+        lastProcessedCards: [cardNum],
+      });
+    }
     case 'LEVEL_MODIFY': {
       const lmAction = action as import('../types/effects').LevelModifyAction;
       const tgtOwner: Owner = lmAction.target.owner === 'any'
