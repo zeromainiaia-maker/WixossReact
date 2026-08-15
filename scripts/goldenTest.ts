@@ -29577,6 +29577,29 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
 }));
+test('SIGNI_ATTACK_BAN exceptTargetsStored: 選んだシグニ「以外」を止める（§6.4 O-3）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] }, SIGNI);
+  const withStored = { ...ctx, storedTargetCards: [SIGNI] } as ExecCtx;
+  const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', exceptTargetsStored: true } as unknown as EffectAction, withStored);
+  const bans = (r.otherState as PlayerState).signi_attack_bans_this_turn ?? [];
+  eq(JSON.stringify(bans[0]?.exceptCardNums), JSON.stringify([SIGNI]), '選んだシグニが除外リストに載らない');
+  const gate = (num: string) => signiAttackBlockReason({
+    attacker: { ...mkState({ signi: [SIGNI, SIGNI_P3000, null] }), signi_attack_bans_this_turn: bans },
+    defender: mkState({}), attackerNum: num,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(gate(SIGNI), null, '選んだシグニがアタックできない');
+  eq(gate(SIGNI_P3000), 'ATTACK_BAN', '選ばなかったシグニが素通りしている');
+  // ⚠1体も選ばなかった場合は**全シグニ**が止まる（`targetsStored` の空集合とは逆向き）
+  const none = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', exceptTargetsStored: true } as unknown as EffectAction, ctx);
+  const noneBans = (none.otherState as PlayerState).signi_attack_bans_this_turn ?? [];
+  eq(noneBans.length, 1, '0体選択で ban が張られていない');
+  eq(signiAttackBlockReason({
+    attacker: { ...mkState({ signi: [SIGNI, null, null] }), signi_attack_bans_this_turn: noneBans },
+    defender: mkState({}), attackerNum: SIGNI,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  }), 'ATTACK_BAN', '0体選択なのにアタックできている');
+}));
 test('GAIN_LRIG_TYPE: 相手のルリグタイプを追加で得てグロウ互換／使用制限に効く（§6.4 O-3）', () => withSavedCursor(() => {
   const myLrig = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '') === 'タマ');
   const opLrig = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '') === '花代');
