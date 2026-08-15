@@ -1650,6 +1650,11 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${periodPD}${whoPD}は対戦相手のルリグによってダメージを受けない`;
       return `${periodPD}${whoPD}はダメージを受けない`;
     }
+    case 'ZONE_MOVE_IMMUNITY': {
+      const zonesJa = a.zones.map((z: string) => (z === 'hand' ? '手札' : 'エナゾーン')).join('と');
+      const periodJa = a.turns >= 2 ? 'このターンと次のターンの間、' : 'このターン、';
+      return `${periodJa}対戦相手の効果によって${a.owner === 'opponent' ? '対戦相手' : 'あなた'}の${zonesJa}にあるカードは移動しない`;
+    }
     case 'SET_LRIG_BASE_LIMIT':
       return `${a.untilNextMainPhase ? '次のあなたのメインフェイズまで、' : ''}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のルリグの基本リミットは${a.value}になる`;
     case 'RESERVE_DRAW_PHASE_REPLACEMENT':
