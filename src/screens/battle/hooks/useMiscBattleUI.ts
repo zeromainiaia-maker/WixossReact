@@ -30,6 +30,10 @@ export interface GuardResponsesState {
   // 解除コストつきアタック制限：アタック宣言前に「他のシグニ」を選んでトラッシュする
   attackFieldTrashPayment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;
   selectedAttackFieldTrashZones: Set<number>;
+  // 解除コストつきアタック制限（手札版・§6.4 O-3）：「手札をN枚捨てないかぎりアタックできない」。
+  // ⚠`negateEscape`（1回きりの無効化回避）とは**別機構**＝こちらはアタックするごとに払う。
+  attackHandDiscardPayment: { zoneIndex: number; targetOpZone?: number; cardNum: string; count: number } | null;
+  selectedAttackHandDiscard: Set<number>;
 }
 
 export function useGuardResponses() {
