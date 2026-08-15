@@ -4037,6 +4037,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // WXDi-P00-034）は op の場シグニで発火＝collectTurnTriggers の相手フィールド分岐が拾う。
         // ⚠メインフェイズがスキップされたら**開始時トリガーごと外れる**（`WXEX2-19-E3`）。
         if (nextPhase === 'MAIN') {
+          // §6.4 O-3: 「次のあなたのメインフェイズまで」の予約はここで失効させる（唯一の失効地点）。
+          newMyState = clearMainPhaseScopedState(newMyState);
           const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op);
           foldTurnUsed(mpsRes);
           const mpsEntries = mpsRes.entries;
