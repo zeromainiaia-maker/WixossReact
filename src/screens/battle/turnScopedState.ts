@@ -170,13 +170,9 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     field_keyword_grants_active: undefined,
     field_keyword_grants_next_opp_turn: undefined,
     prevent_damage_windows: advancePreventDamageWindows(state.prevent_damage_windows),
+    // ⚠パワー配置制限（旧 `signi_deploy_power_limit`）もここへ統合した＝原文は「このターンと次のターン」なのに
+    //   **どこでもクリアされておらず永続していた**（§6.4 O-3 続き487 で発見）。
     signi_deploy_bans: advanceSigniDeployBans(state.signi_deploy_bans),
-    // ⚠パワー配置制限は原文が「このターンと次のターン」なのに**どこでもクリアされておらず永続していた**
-    //   （§6.4 O-3 続き487 で発見）。ban と同じ境界で落とす＝2ターン目のターン終了で失効。
-    signi_deploy_power_limit: state.signi_deploy_power_limit_carried
-      ? state.signi_deploy_power_limit
-      : undefined,
-    signi_deploy_power_limit_carried: state.signi_deploy_power_limit_carried ? undefined : state.signi_deploy_power_limit_carried,
   };
 }
 
