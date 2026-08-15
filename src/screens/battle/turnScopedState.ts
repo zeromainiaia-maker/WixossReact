@@ -222,6 +222,20 @@ export function clearAttackPhaseScopedState(state: PlayerState): PlayerState {
   return resetBoundary(state, 'attack-phase-start');
 }
 
+/**
+ * 「次のあなたのメインフェイズまで」（§6.4 O-3 続き492）の予約を、**そのプレイヤーがメインフェイズへ
+ * 入る1点**で失効させる。`ON_MAIN_PHASE_START` の収集と同じ場所（人間 / CPU の2経路）で呼ぶ。
+ *
+ * 🔑**ターン境界（`clearTurnEndScopedState`）では消さない**＝原文は相手のターンを丸ごと跨ぐ。
+ * 「期間つき」と書いたフィールドは失効地点を1つに固定する（続き487/489 で2回、失効地点が
+ * 1つも無いフィールドが永続していた）。
+ */
+export function clearMainPhaseScopedState(state: PlayerState): PlayerState {
+  const reset = resetBoundary(state, 'main-phase-start');
+  const windows = (state.prevent_damage_windows ?? []).filter(w => w.expires !== 'MY_NEXT_MAIN_PHASE');
+  return { ...reset, prevent_damage_windows: windows.length > 0 ? windows : undefined };
+}
+
 /** 無料グロウを実行した時点で権利を消費する。未消費でも clearTurnEndScopedState が安全に失効させる。 */
 export function consumeFreeGrowThisTurn(state: PlayerState): PlayerState {
   return consumeField(state, 'free_grow_this_turn');
