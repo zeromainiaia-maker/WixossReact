@@ -10353,7 +10353,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_MAIN_PHASE_START（タスク12(lxvii)）＝人間ターンの GROW→MAIN と同じ位置で収集する。
       // `triggerScope:any_opp`（「対戦相手のメインフェイズ開始時」）は人間側の場から拾われる＝
       // **CPU ターンだけ人間の【自】が不発**という非対称もここで解消する。
-      const mpsCpu = collectCpuTurnTriggers('ON_MAIN_PHASE_START', cpuSt, huSt);
+      // ⚠§6.4 O-3: メインフェイズがスキップされているなら**開始時トリガーごと収集しない**
+      //   （人間側は「遷移先で判定する」ことで同じ結果になる）。
+      const mpsCpu = isPhaseSkipped('MAIN', cpuSt, cpuContBlockedSelf)
+        ? { cpuState: cpuSt, humanState: undefined as PlayerState | undefined, entries: [] as StackEntry[] }
+        : collectCpuTurnTriggers('ON_MAIN_PHASE_START', cpuSt, huSt);
       await persist.commit(reduceBattle(bs, {
         type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: mpsCpu.cpuState, phase: 'MAIN',
         opp: mpsCpu.humanState ? { key: 'host_state', state: mpsCpu.humanState } : undefined,
