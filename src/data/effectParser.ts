@@ -3180,6 +3180,24 @@ function parseSingleSentenceInner(text: string): EffectAction {
   if (/^ターン終了時、それら?を(?:あなたの)?エナゾーンからトラッシュに置く。?$/.test(text.trim())) {
     return { type: 'STUB', id: 'TRASH_ENERGY_AT_TURN_END' } as StubAction;
   }
+  // 同型の「一時的に取り上げたものをターン終了時に返す」形（§6.4 O-3 続き498・`SPDi43-02-E2`）。
+  // 「ターン終了時、対戦相手はそれらのカードを手札に加える」＝裏向きでルリグゾーンに置いたカードの返却。
+  // 🔑**トリガー句の除去（下の `^ターン終了時、` strip）より前に置く**＝strip 後だと宣言が消えて
+  //   本文だけが残り、その場で即時に返す（＝取り上げが無意味になる）過剰実行に化ける。
+  // ⚠🔴従来は本文側が `RULE_REMINDER_TEXT`＝丸ごと no-op で、**取り上げたまま返らなかった**。
+  {
+    const fdBackM = text.trim().match(/^ターン終了時、(対戦相手|あなた)?は?それらのカードを手札に加える。?$/);
+    if (fdBackM) {
+      return {
+        type: 'INSTALL_DELAYED_TRIGGER',
+        duration: 'THIS_TURN',
+        once: true,
+        trigger: { timing: 'ON_TURN_END' },
+        effect: { type: 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND',
+          owner: fdBackM[1] === '対戦相手' ? 'opponent' : 'self' },
+      } as unknown as EffectAction;
+    }
+  }
   // 「あなたのトラッシュにカードがN枚以上/以下ある場合、〜」→ CONDITIONAL(TRASH_COUNT)
   {
     const m = text.trim().match(/^あなたのトラッシュにカードが([０-９\d]+)枚(以上|以下)ある場合、(.+)/s);
