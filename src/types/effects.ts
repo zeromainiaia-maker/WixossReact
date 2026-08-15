@@ -2221,8 +2221,8 @@ export interface DeclareCardNameLockAction {
   type: 'DECLARE_CARD_NAME_LOCK';
   /** 宣言する側。'opponent'＝「対戦相手はカード名1つを宣言する」。 */
   declarer: Owner;
-  /** 使用を封じられる側。 */
-  target: Owner;
+  /** 使用を封じられる側。⚠`target` という名前は使わない（この型系では `EffectTarget` の予約語）。 */
+  lockedPlayer: Owner;
   /** 封じる対象のカード種別。 */
   cardType: 'スペル' | 'アーツ';
   /** 'blacklist'＝宣言名を使えない／'whitelist'＝宣言名**以外**を使えない。 */
@@ -2524,7 +2524,7 @@ export interface StubAction {
    * INTERNAL_APPLY_CARD_NAME_LOCK（`DECLARE_CARD_NAME_LOCK` の宣言後段）。
    * ⚠**engine 内部専用**（parser は生成しない・逆翻訳にも出さない）。
    */
-  cardNameLock?: { target: Owner; mode: 'blacklist' | 'whitelist'; until: 'THIS_TURN' | 'NEXT_TURN' };
+  cardNameLock?: { lockedPlayer: Owner; mode: 'blacklist' | 'whitelist'; until: 'THIS_TURN' | 'NEXT_TURN' };
   /** EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY: 守るシグニの条件。 */
   leaveVictimFilter?: TargetFilter;
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */

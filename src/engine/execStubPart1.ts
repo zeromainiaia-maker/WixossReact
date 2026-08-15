@@ -708,10 +708,10 @@ export function execStubPart1(
     const specACNL = stub.cardNameLock;
     const nameACNL = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
     if (!specACNL || !nameACNL) return done(addLog(ctx, 'カード名宣言：宣言が取れない'));
-    const stACNL = ownerState(specACNL.target, ctx);
-    const whoACNL = specACNL.target === 'self' ? 'あなた' : '対戦相手';
+    const stACNL = ownerState(specACNL.lockedPlayer, ctx);
+    const whoACNL = specACNL.lockedPlayer === 'self' ? 'あなた' : '対戦相手';
     if (specACNL.mode === 'whitelist') {
-      return done(addLog(setOwnerState(specACNL.target, {
+      return done(addLog(setOwnerState(specACNL.lockedPlayer, {
         ...stACNL, arts_name_whitelist_this_turn: [nameACNL],
       }, ctx), `このターン、${whoACNL}は「${nameACNL}」以外のアーツを使用できない`));
     }
@@ -719,7 +719,7 @@ export function execStubPart1(
     const keyACNL = specACNL.until === 'NEXT_TURN' ? 'blocked_card_names_next_turn' : 'blocked_card_names';
     const prevACNL = stACNL[keyACNL] ?? [];
     if (prevACNL.includes(nameACNL)) return done(addLog(ctx, `「${nameACNL}」は既に使用禁止`));
-    return done(addLog(setOwnerState(specACNL.target, {
+    return done(addLog(setOwnerState(specACNL.lockedPlayer, {
       ...stACNL, [keyACNL]: [...prevACNL, nameACNL],
     }, ctx), `${specACNL.until === 'NEXT_TURN' ? '次の' : 'この'}ターン、${whoACNL}は「${nameACNL}」を使用できない`));
   }

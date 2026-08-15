@@ -1728,6 +1728,13 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REVEAL_FACEDOWN_LRIG_ZONE': return 'そのカードを表向きにしてトラッシュに置く';
     case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND':
       return `裏向きでルリグゾーンに置いたカードを${a.owner === 'opponent' ? '対戦相手の' : ''}手札に加える`;
+    case 'DECLARE_CARD_NAME_LOCK': {
+      const whoD = a.declarer === 'opponent' ? '対戦相手' : 'あなた';
+      const whoT = a.lockedPlayer === 'opponent' ? '対戦相手' : 'あなた';
+      const spanD = a.until === 'NEXT_TURN' ? `次の${whoT}のターンの間、` : 'このターン、';
+      return `${whoD}は${a.cardType}のカード名1つを宣言する。${spanD}${whoT}は宣言したカード名`
+        + (a.mode === 'whitelist' ? `以外の${a.cardType}を使用できない` : `の${a.cardType}を使用できない`);
+    }
     case 'GAIN_LRIG_TYPE':
       return `${a.turns === 2 ? '次の対戦相手のターン終了時まで、' : 'ターン終了時まで、'}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る`;
     case 'FIELD_SIGNI_TO_CHECK_ZONE':

@@ -2022,7 +2022,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
     //   宣言の候補作りは `DECLARE_CARD_NAME_LOCK` が禁止対象と同じ軸で行う。
     if (/宣言されたカード名のスペルを使用できない/.test(t)) {
       return {
-        type: 'DECLARE_CARD_NAME_LOCK', declarer: 'self', target: 'opponent',
+        type: 'DECLARE_CARD_NAME_LOCK', declarer: 'self', lockedPlayer: 'opponent',
         cardType: 'スペル', mode: 'blacklist', until: 'NEXT_TURN',
       } as EffectAction;
     }
@@ -2152,7 +2152,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
     //   このアクションに畳む（既存 `DECLARE_CARD_NAME` は自分の手札から選ぶ別機構）。
     if (/宣言したカード名以外のアーツを使用できない/.test(t)) {
       return {
-        type: 'DECLARE_CARD_NAME_LOCK', declarer: 'opponent', target: 'opponent',
+        type: 'DECLARE_CARD_NAME_LOCK', declarer: 'opponent', lockedPlayer: 'opponent',
         cardType: 'アーツ', mode: 'whitelist', until: 'THIS_TURN',
       } as EffectAction;
     }

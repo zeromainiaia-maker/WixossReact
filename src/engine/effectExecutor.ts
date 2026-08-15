@@ -7450,7 +7450,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // 「カード名1つを宣言する。〈期間〉、その名前（以外）の〈種別〉を使用できない」（§6.4 O-3）。
       const dcl = action as import('../types/effects').DeclareCardNameLockAction;
       const declarerSt = ownerState(dcl.declarer, ctx);
-      const targetSt = ownerState(dcl.target, ctx);
+      const targetSt = ownerState(dcl.lockedPlayer, ctx);
       // ⚠候補は**宣言者が実際に知りうる領域**からしか作らない（隠された手札／デッキは覗かない）。
       //   blacklist＝封じる相手の公開領域／whitelist＝宣言者自身のルリグデッキ。
       const poolDCL = dcl.mode === 'whitelist'
@@ -7465,7 +7465,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         return done(addLog(ctx, `宣言できる${dcl.cardType}のカード名が無い`));
       }
       const applyDCL: EffectAction = { type: 'STUB', id: 'INTERNAL_APPLY_CARD_NAME_LOCK',
-        cardNameLock: { target: dcl.target, mode: dcl.mode, until: dcl.until } } as unknown as EffectAction;
+        cardNameLock: { lockedPlayer: dcl.lockedPlayer, mode: dcl.mode, until: dcl.until } } as unknown as EffectAction;
       const optsDCL = namesDCL.slice(0, 8).map(name => ({
         id: `dcl_${name}`,
         label: name,
