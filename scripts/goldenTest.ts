@@ -64,6 +64,7 @@ import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, t
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
 import { pickLifeCrashReplacement, applyMillReplacement } from '../src/screens/battle/lifeCrashReplace';
 import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
+import { resolveTurnEndEnergyTrash } from '../src/screens/battle/turnEndEnergyTrash';
 import { buildEnergyPayPool, energyPoolCardNums, isEnergyPayBlocked, offZonePayLimit, planEnergyPayment } from '../src/screens/battle/energyPaySource';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown } from '../src/screens/battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDamageGate';
