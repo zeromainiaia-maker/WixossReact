@@ -259,6 +259,15 @@ export function activateTurnStartScopedState(state: PlayerState): PlayerState {
     // 「次の対戦相手のターンの間、〜のスペルを使用できない」の予約→active 昇格（§6.4 O-3・`PR-K046-E1`）。
     blocked_card_names: [...(state.blocked_card_names ?? []), ...(state.blocked_card_names_next_turn ?? [])],
     blocked_card_names_next_turn: undefined,
+    // 「次のあなたのターン終了時、〜」の予約→active 昇格（§6.4 O-4）。
+    // ⚠ここで昇格させないと `ON_TURN_END` が**予約したそのターン**で拾ってしまう。
+    pending_own_turn_end_effects: [
+      ...(state.pending_own_turn_end_effects ?? []),
+      ...(state.pending_next_own_turn_end_effects ?? []),
+    ].length > 0
+      ? [...(state.pending_own_turn_end_effects ?? []), ...(state.pending_next_own_turn_end_effects ?? [])]
+      : undefined,
+    pending_next_own_turn_end_effects: undefined,
     free_grow_this_turn: state.free_grow_next_turn ? true : undefined,
     free_grow_next_turn: undefined,
     must_attack_signi: state.must_attack_signi_next_turn ? true : undefined,

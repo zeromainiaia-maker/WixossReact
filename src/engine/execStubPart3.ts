@@ -4282,6 +4282,18 @@ export function execStubPart3(
     return exec(headRN.action, addLog(ctxRN, '次の対戦相手のアタックフェイズ開始時の効果'));
   }
 
+  // RESOLVE_OWN_TURN_END_EFFECT（§6.4 O-4）: 「次の**あなたの**ターン終了時、〜」の本文を1件取り出して実行する。
+  if (stub.id === 'RESOLVE_OWN_TURN_END_EFFECT') {
+    const pendingOT = ctx.ownerState.pending_own_turn_end_effects ?? [];
+    if (pendingOT.length === 0) return done(addLog(ctx, 'あなたのターン終了時の予約効果なし'));
+    const [headOT, ...restOT] = pendingOT;
+    const ctxOT: ExecCtx = {
+      ...ctx,
+      ownerState: { ...ctx.ownerState, pending_own_turn_end_effects: restOT.length > 0 ? restOT : undefined },
+      ...(headOT.sourceCardNum ? { sourceCardNum: headOT.sourceCardNum } : {}),
+    };
+    return exec(headOT.action, addLog(ctxOT, 'あなたのターン終了時の予約効果'));
+  }
   // RESOLVE_NEXT_OPP_TURN_END_EFFECT（§6.4 O-3）: 「次の対戦相手のターン終了時、〜」の本文を
   // 1件取り出して実行する（アタックフェイズ版と同型＝collector が予約1件につき1エントリを積む）。
   if (stub.id === 'RESOLVE_NEXT_OPP_TURN_END_EFFECT') {

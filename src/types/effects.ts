@@ -840,6 +840,7 @@ export type EffectAction =
   | AddExtraAttackPhaseAction
   | DelayToNextOppAttackPhaseAction
   | DelayToNextOppTurnEndAction
+  | DelayToNextOwnTurnEndAction
   | PlaceFacedownLrigZoneAction
   | RevealFacedownLrigZoneAction
   | ReturnFacedownLrigZoneToHandAction
@@ -2141,6 +2142,18 @@ export interface DelayToNextOppAttackPhaseAction {
  */
 export interface DelayToNextOppTurnEndAction {
   type: 'DELAY_TO_NEXT_OPP_TURN_END';
+  action: EffectAction;
+}
+
+/**
+ * 「次の**あなたの**ターン終了時、〈本文〉」（§6.4 O-4）。上の相手ターン版の兄弟。
+ *
+ * ⚠**2スロット式**＝予約は `pending_next_own_turn_end_effects` に積み、**自分の次のターン開始時**に
+ *   `pending_own_turn_end_effects`（active）へ昇格する。1スロットだと `ON_TURN_END` の collector が
+ *   **予約したそのターンの終了時**に拾ってしまい「次の」が消える（`abilities_removed_next_turn` と同じ規約）。
+ */
+export interface DelayToNextOwnTurnEndAction {
+  type: 'DELAY_TO_NEXT_OWN_TURN_END';
   action: EffectAction;
 }
 

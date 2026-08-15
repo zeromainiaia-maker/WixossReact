@@ -847,6 +847,12 @@ export interface PlayerState {
   //   `ON_TURN_END` の collector が opState 側を読んで発火する。消化は発火時に1件ずつ。
   // ⚠ターン境界を跨ぐので turnScopedState にも delayed_triggers（THIS_TURN 限定）にも載せない。
   pending_next_opp_turn_end_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
+  // DELAY_TO_NEXT_OWN_TURN_END（§6.4 O-4）: 「次の**あなたの**ターン終了時、〜」の予約。
+  // ⚠**2スロット式**＝ここは予約（不活性）。自分の次のターン開始時に下の active へ昇格する。
+  //   1スロットだと `ON_TURN_END` の collector が予約したそのターンの終了時に拾って「次の」が消える。
+  pending_next_own_turn_end_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
+  /** 上の予約が昇格したもの。`ON_TURN_END` の collector が**ターンプレイヤー側**で読む。 */
+  pending_own_turn_end_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
   // PLACE_FACEDOWN_LRIG_ZONE（§6.4 O-3）: 裏向きでルリグゾーンに置いたカード（元ゾーンからは取り除く）。
   // REVEAL_FACEDOWN_LRIG_ZONE が表向きにしてトラッシュへ送り lastProcessedCards に載せる。
   // ⚠ターン境界を跨ぐ（置くのは自分のターン・公開は次の相手ターン）ので turn-scoped にしない。

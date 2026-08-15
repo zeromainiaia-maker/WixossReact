@@ -121,6 +121,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (/^次の対戦相手のターン終了時[、,]/.test(t)) {
     return { type: 'STUB', id: 'DEFERRED_NEXT_OPP_TURN_END_BODY' } as StubAction;
   }
+  // ---- 「次の**あなたの**ターン終了時、〜」＝遅延タイミング宣言（§6.4 O-4 続き499・上の兄弟）----
+  // ⚠「次のあなたのターン終了時**まで**」は**持続期間**であってトリガーではない（読点必須で除外される）。
+  if (/^次のあなたのターン終了時[、,]/.test(t)) {
+    return { type: 'STUB', id: 'DEFERRED_NEXT_OWN_TURN_END_BODY' } as StubAction;
+  }
 
   // 同じ相手シグニを2回対象化する二段除去。先にエナへ移すため、後段の手札戻しでは
   // 1体目が候補から外れ、必ず別のシグニを選ぶ（WXK03-070）。

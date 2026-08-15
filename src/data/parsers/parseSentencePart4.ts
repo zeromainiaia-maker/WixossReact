@@ -113,6 +113,26 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (/^この方法で場に出た《[^》]*》が場を離れる場合、代わりにゲームから除外される$/.test(t))
     return { type: 'STUB', id: 'MARK_PLACED_DELAYED_EXILE' } as StubAction;
 
+  // ---- 明示 defer（§6.4 O-4 続き499）＝機構が無いことを宣言して UNKNOWN から出す ----
+  // 🔑UNKNOWN のままだと計器（`census:stubs`）に映らず、**周囲のステップが無条件で走る**リスクだけが残る。
+  //   `DEFERRED_*` にしておけば A群の worklist に並び、前提が揃ったときに着手できる。
+
+  // 「シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く」
+  // （`WX19-064-E1` 選択肢③）＝**対象シグニの付随物（チャーム／アクセ／ソウル）と下カードを剥がす**機構が無い
+  //   （既存 `LRIG_UNDER_CARD_OP` は「このシグニ」＝自身専用のカード全文 regex ハンドラで流用できない）。
+  if (/^シグニ[１1]体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く$/.test(t))
+    return { type: 'STUB', id: 'DEFERRED_STRIP_ATTACHED_AND_UNDER' } as StubAction;
+
+  // 「それをコストを支払わずに使用するかトラッシュに置く」（`WX20-077-E2`）＝**サーチしたスペルをその場で使う**
+  //   経路（使用宣言・カットイン窓・解決）が無い。既存 `PLAY_SPELL_FROM_HAND_FREE` は手札からの別軸。
+  if (/^それをコストを支払わずに使用するかトラッシュに置く$/.test(t))
+    return { type: 'STUB', id: 'DEFERRED_USE_SEARCHED_SPELL_OR_TRASH' } as StubAction;
+
+  // 「このターン、あなたのデッキにあるシグニのレベルはNになる」（`WXK07-034-E1` 選択肢①）＝
+  //   `deck_signi_level_override` は state に**あるが読み手が1つも無い**（デッキ探索/公開のフィルタが見ない）。
+  if (/^このターン、あなたのデッキにあるシグニのレベルは[０-９\d]+になる$/.test(t))
+    return { type: 'STUB', id: 'DEFERRED_DECK_SIGNI_LEVEL_OVERRIDE_ALL' } as StubAction;
+
   // ---- 「このピースはあなたの場にルリグが３体いなくても使用できる」（`WXDi-P16-TK01-E1`）----
   // ⚠**緩和の対象になっているルール（ピースはルリグ3体でなければ使えない）自体が engine 未実装**
   //   ＝緩和も no-op でよい。ルール注記として明示し、UNKNOWN のままにしない（前置文が UNKNOWN だと

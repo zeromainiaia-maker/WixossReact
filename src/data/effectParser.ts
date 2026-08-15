@@ -3041,11 +3041,28 @@ function rewriteNextOppTurnEndBody(action: EffectAction, text: string): EffectAc
   return { type: 'DELAY_TO_NEXT_OPP_TURN_END', action: inner } as EffectAction;
 }
 
+/**
+ * 「次の**あなたの**ターン終了時、〈本文〉」の受け皿 STUB を予約 `DELAY_TO_NEXT_OWN_TURN_END` へ格上げする
+ * （§6.4 O-4 続き499・相手ターン版 `rewriteNextOppTurnEndBody` の兄弟）。
+ * ⚠**本文が解けないときは受け皿のまま残す**（予約だけ積んで中身が空だと無言 no-op になる）。
+ */
+function rewriteNextOwnTurnEndBody(action: EffectAction, text: string): EffectAction {
+  const st = action as StubAction;
+  if (st?.type !== 'STUB' || st.id !== 'DEFERRED_NEXT_OWN_TURN_END_BODY') return action;
+  const body = text.trim().replace(/^次のあなたのターン終了時[、,]/, '').replace(/。$/, '').trim();
+  if (!body || /^(?:その|それ)/.test(body)) return action;
+  const inner = parseSingleSentence(body);
+  const s = JSON.stringify(inner);
+  if (s.includes('"UNKNOWN"') || s.includes('DEFERRED_')) return action;
+  return { type: 'DELAY_TO_NEXT_OWN_TURN_END', action: inner } as EffectAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
   action = rewriteNextOppTurnEndBody(action, text);
+  action = rewriteNextOwnTurnEndBody(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
@@ -7793,6 +7810,26 @@ function scanQuotedGrant(text: string, open: number): string | null {
 }
 
 function parseActionTextInner(text: string): EffectAction {
+  // ═══ §6.4 O-4 続き499：効果**全体**を明示 defer にする（周囲の無条件実行を止める）═══
+  // 🔑UNKNOWN のままだと計器に映らないうえ、同じ SEQUENCE の他ステップが**ゲート抜きで走る**。
+  //   効果丸ごとを `DEFERRED_*` に落として「何も起きない（過少）」へ倒す。
+
+  // 「あなたの場にいる〈色〉のルリグ１体につき〈効果〉」を色ごとに並べる**倍率スケール**（`WX25-P3-050-E1`）。
+  // 🔴従来は「1体につき」が全部落ちて、バニッシュ／エナチャージ３／相手デッキ10枚ミルが**無条件**で走り、
+  //   【ルリグバリア】だけが消えていた。⚠同じ言い回しの**使用コスト減**（9効果中8）は別軸なので触らない。
+  if (/使用コストは/.test(text) === false
+      && (text.match(/あなたの場にいる[白赤青緑黒]のルリグ[１1]体につき/g) ?? []).length >= 2) {
+    return { type: 'STUB', id: 'DEFERRED_PER_OWN_LRIG_COLOR_SCALE' } as StubAction;
+  }
+
+  // 「対象の相手シグニ＋自分の手札1枚を選ぶ→相手がアイコンを宣言→捨てたカードがそれを持たなければバニッシュ」
+  // （`WXDi-P12-055-E1`）。🔴従来は条件・対象・手札選択が UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`
+  //   （外れると**相手の全シグニをトラッシュ**する別カード用の分岐）と `BANISH{owner:'self'}`
+  //   （＝**自分のシグニをバニッシュ**）だけが残っていた。
+  if (/そのカードが宣言されたアイコンを持たない場合/.test(text)) {
+    return { type: 'STUB', id: 'DEFERRED_DECLARED_ICON_HAND_DISCARD_BANISH' } as StubAction;
+  }
+
   // 「以下のNつを行う。①…②…③…」＝選択肢から選ぶのではなく①②③を順に処理する（タスク12(lxxiv)）。
   // ⚠**必ずここ＝先頭で判定する**。②以降に引用能力（「…は「【自】：…」を得る」）を含む形
   //   （`WXDi-P05-052`）は、後段の引用能力抽出が全文を GRANT_LRIG_ABILITY として奪ってしまい
@@ -8118,6 +8155,61 @@ function parseActionTextInner(text: string): EffectAction {
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
+  // ---- 「以下の効果をN回行う。（ベット時は代わりにM回。）デッキの一番上をトラッシュ→奇数/偶数で分岐」----
+  // （§6.4 O-4 続き499・`WXK07-106-E1`）。🔴従来は回数宣言が UNKNOWN に落ち、**奇数枝と偶数枝が両方**
+  //   毎回走っていた（場出しとパワー－12000が同時に起きる過剰実行）。
+  // ⚠回数は `REPEAT` に載せる。ベット差し替えは `CONDITIONAL{IS_BETTING}` の2枝で表す
+  //   （`REPEAT.count` は静的なので `betChoose` 相当のキーが無い）。
+  // ⚠**近似**＝「それをトラッシュから場に出す」の「それ」は直前にミルした1枚だが、
+  //   `ADD_TO_FIELD{TRASH_CARD}` は候補をトラッシュ全体から選ばせる（既存の共通近似・§7）。
+  {
+    const millParityM = text.match(
+      /以下の効果を([０-９\d]+)回行う。(?:あなたがベットしていた場合、代わりに([０-９\d]+)回行う。)?あなたのデッキの一番上のカードをトラッシュに置く。その後、この方法でトラッシュに置かれたカードがレベルが奇数のシグニの場合、それをトラッシュから場に出す。レベルが偶数のシグニの場合、対戦相手のシグニ[１1]体を対象とし、ターン終了時まで、それのパワーを－([０-９\d,，]+)する/);
+    if (millParityM) {
+      const mkBody = (): EffectAction => ({ type: 'SEQUENCE', steps: [
+        { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+        { type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'odd' }, minCount: 1 },
+          then: { type: 'ADD_TO_FIELD', owner: 'self',
+            source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } },
+        { type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', levelParity: 'even' }, minCount: 1 },
+          then: { type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+            delta: -parseNum(millParityM[3].replace(/[,，]/g, '')) } },
+      ] } as unknown as EffectAction);
+      const baseN = parseNum(millParityM[1]);
+      const wrap = (n: number): EffectAction => (n <= 1 ? mkBody() : ({ type: 'REPEAT', count: n, action: mkBody() } as unknown as EffectAction));
+      if (!millParityM[2]) return wrap(baseN);
+      return { type: 'CONDITIONAL', condition: { type: 'IS_BETTING' },
+        then: wrap(parseNum(millParityM[2])), else: wrap(baseN) } as unknown as EffectAction;
+    }
+  }
+
+  // ---- 「対戦相手はあなたと握手をしてもよい。握手をした場合〜。握手をしなかった場合〜」（§6.4 O-4 続き499）----
+  // 物理的な握手は実装できないので**相手の二択**に落とす。🔴従来は分岐句が UNKNOWN に落ち、
+  //   両方の帰結（3枚ドローと1枚ドロー＋エナチャージ）が**同時に走って**いた（`PR-Di007-E1`）。
+  // ⚠コスト無しの相手応答なので `costlessOpponentChoice` が要る（無いと支払いフローで無言に潰れる）。
+  {
+    const shakeM = text.match(
+      /^対戦相手はあなたと握手をしてもよい。握手をした場合、各プレイヤーはカードを([０-９\d]+)枚引く。握手をしなかった場合、あなたはカードを([０-９\d]+)枚引き【エナチャージ([０-９\d]+)】をする。?$/);
+    if (shakeM) {
+      return {
+        type: 'CHOOSE', choose_count: 1, from_count: 2, opponentResponds: true, costlessOpponentChoice: true,
+        choices: [
+          { choiceId: 'c0', label: '握手する', action: { type: 'SEQUENCE', steps: [
+            { type: 'DRAW', owner: 'self', count: parseNum(shakeM[1]) },
+            { type: 'DRAW', owner: 'opponent', count: parseNum(shakeM[1]) },
+          ] } },
+          { choiceId: 'c1', label: '握手しない', action: { type: 'SEQUENCE', steps: [
+            { type: 'DRAW', owner: 'self', count: parseNum(shakeM[2]) },
+            { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(shakeM[3]) },
+          ] } },
+        ],
+      } as unknown as EffectAction;
+    }
+  }
+
   // ---- 「あなたと対戦相手は自分のデッキの一番上を公開し…どちらも【ライフバースト】を持って…場合、そのアタックを無効にする」----
   // （§6.4 O-4 続き499・`WXDi-P09-036-E1` の引用【自】内側）。公開・比較・帰結を1アクションに畳む。
   // 🔴従来は公開と比較が UNKNOWN に落ち、`NEGATE_ATTACK` だけが残って**必ず無効化**していた。

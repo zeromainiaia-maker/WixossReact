@@ -17913,7 +17913,9 @@ test('続き386 群B WXDi-P03-001-E1: 青アシストで使用可、場に青ル
   ok(canUseArtsCondition([e], withBlueAssist, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), 'ピース実使用ゲートも通る');
   ok(!evalUseCondition(condition, withoutBlue, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), '場に青ルリグがなければ使用不可');
   ok(!canUseArtsCondition([e], withoutBlue, mkState({}), cardMap, 'WXDi-P03-001', 'MAIN'), 'ピース実使用ゲートも拒否する');
-  ok(JSON.stringify(e.action).includes('次のあなたのターン終了時、手札を２枚捨てる'), '遅延効果UNKNOWNは温存');
+  // 🆕続き499＝遅延（「次のあなたのターン終了時」）を予約機構へ格上げした（旧: UNKNOWN 温存）。
+  ok(JSON.stringify(e.action).includes('DELAY_TO_NEXT_OWN_TURN_END'), '次の自分ターン終了時の予約になっていない');
+  ok(!JSON.stringify(e.action).includes('UNKNOWN'), '遅延本体が UNKNOWN のまま残っている');
 }));
 
 test('WDK13-008-E1: 選択肢2だけが相手key_piece条件付きで、HAS_CARD_IN_FIELDがキーを走査', () => {
@@ -29585,6 +29587,28 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   eq((r.ownerState as PlayerState).facedown_lrig_zone_cards, undefined, '戻した後も裏向き保持が残っている');
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
+}));
+test('DELAY_TO_NEXT_OWN_TURN_END: 2スロットで「次の」自分ターン終了時に回す（§6.4 O-4）', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const handBefore = ctx.ownerState.hand.length;
+  const body = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 2 } } as unknown as EffectAction;
+  const r = run({ type: 'DELAY_TO_NEXT_OWN_TURN_END', action: body } as unknown as EffectAction, ctx);
+  const st = r.ownerState as PlayerState;
+  eq(st.pending_next_own_turn_end_effects?.length, 1, '予約スロットに載らない');
+  eq(st.pending_own_turn_end_effects, undefined, '予約なのに active スロットへ積んでいる');
+  eq(st.hand.length, handBefore, '本文がこの時点で実行されている');
+  // 🔑**2スロット式**＝予約したそのターンの終了時には拾わない。自分の次のターン開始時に昇格する。
+  const ended = clearTurnEndScopedState(st);
+  eq(ended.pending_own_turn_end_effects, undefined, '昇格前に active へ入っている');
+  eq(ended.pending_next_own_turn_end_effects?.length, 1, '予約がターン境界で消えている');
+  const started = activateTurnStartScopedState(ended);
+  eq(started.pending_own_turn_end_effects?.length, 1, '自分のターン開始時に昇格していない');
+  eq(started.pending_next_own_turn_end_effects, undefined, '昇格後も予約スロットに残っている');
+  // 取り出して実行
+  const fired = run({ type: 'STUB', id: 'RESOLVE_OWN_TURN_END_EFFECT' } as EffectAction,
+    { ...ctx, ownerState: started } as ExecCtx);
+  eq((fired.ownerState as PlayerState).hand.length, started.hand.length - 2, '予約した本文が実行されない');
+  eq((fired.ownerState as PlayerState).pending_own_turn_end_effects, undefined, '実行した予約が消えていない');
 }));
 test('REVEAL_BOTH_DECK_TOPS: 両者公開の【ライフバースト】一致でだけ帰結が走る（§6.4 O-4）', () => withSavedCursor(() => {
   // 🔴続き499 以前は公開と比較が UNKNOWN に落ち、帰結（アタック無効）だけが残って**必ず無効化**していた。

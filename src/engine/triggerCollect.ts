@@ -3893,6 +3893,25 @@ export function collectTurnTriggers(
   // ⚠**予約は非ターンプレイヤー（opState）側にある**＝いま終わろうとしているのは「対戦相手のターン」なので、
   //   予約した側はそのターンの非ターンプレイヤー。上のアタックフェイズ版と同じ走査軸
   //   （myState を見ると**自分のターン終了時に誤発火**する）。
+  // 「次の**あなたの**ターン終了時、〜」（§6.4 O-4）。⚠こちらは**ターンプレイヤー側**（myState）を読む
+  //   ＝予約した本人のターンが終わる瞬間。予約は自分のターン開始時に active スロットへ昇格済み。
+  if (timing === 'ON_TURN_END') {
+    for (const po of myState.pending_own_turn_end_effects ?? []) {
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: po.sourceCardNum ?? '',
+        effectId: `OWN_TURN_END:${po.sourceCardNum ?? ''}`,
+        label: '次のあなたのターン終了時の効果',
+        effect: {
+          effectId: `OWN_TURN_END:${po.sourceCardNum ?? ''}`,
+          effectType: 'AUTO',
+          timing: ['ON_TURN_END'],
+          action: { type: 'STUB', id: 'RESOLVE_OWN_TURN_END_EFFECT' } as StubAction,
+          duration: 'INSTANT',
+          mandatory: true,
+        } as CardEffect,
+      });
+    }
+  }
   if (timing === 'ON_TURN_END') {
     for (const pt of opState.pending_next_opp_turn_end_effects ?? []) {
       entries.push({
