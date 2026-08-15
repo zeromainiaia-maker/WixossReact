@@ -632,16 +632,33 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
   // ---- 他のすべてのシグニをトラッシュに置く ----
+  // ⚠所有者句が無い「すべてのシグニ」は**両者の場**（`WXEX2-51-E2`／`WX17-046-E3` の BANISH と同じ扱い）。
+  //   旧実装は `owner:'self'` かつ `excludeSelf` 無しで、**自分の盤面だけを自分ごと**流していた
+  //   （`WXDi-P07-050-E3`＝相手の盤面が一切減らない過少実行＋自己トラッシュの過剰実行）。
+  // ⚠`execTrash` は `owner:'any'` を `otherState` に潰す（BANISH と違い両側走査が無い）ので、
+  //   `WX04-043-E1`（MANUAL）と同じく**自分側／相手側の2ステップ**に分ける。
   if (t.match(/^他のすべてのシグニをトラッシュに置く$/))
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } };
+    return { type: 'SEQUENCE', steps: [
+      { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', excludeSelf: true } } },
+      { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' } } },
+    ] };
 
-  // ---- このターン、あなたは他のシグニを場に出せない ----
-  // ⚠自分側の配置禁止／エナコスト支払い禁止は受け皿が無い（§6.4 O-3 続き459）。
-  //   `DEPLOY_RESTRICT` は **CONTINUOUS 宣言専用**（engine が原文を再パースする）ので、
-  //   ACTIVATED からこのターンだけ倒す経路にはならない。
-  if (t.match(/このターン、あなたは他のシグニを場に出せない/) ||
-      t.match(/このターン、あなたは[１以上０-９\d０-９]+のエナコストを支払えない/))
-    return { type: 'STUB', id: 'DEFERRED_SELF_RESTRICT_THIS_TURN' } as StubAction;
+  // ---- このターン、あなたは他のシグニを場に出せない（§6.4 O-3）----
+  // 配置禁止は「課した側」ではなく**場に出す側**の `signi_deploy_bans` に載せる＝判定は既存の
+  // `deployLimitBlockReason` 1本（通常召喚UI／召喚ゾーンモーダル／CPU 召喚／engine の効果配置の4経路）。
+  // 絞り込みキー無し＝**すべてのシグニ**（「他の」＝このシグニ自身は既に場にいるので新規配置は全部「他の」）。
+  // `turns:1`＝このターンのみ（`clearTurnEndScopedState` のカウントダウンで失効）。
+  if (t.match(/^このターン、あなたは他のシグニを場に出せない/))
+    return { type: 'SIGNI_DEPLOY_BAN', owner: 'self', turns: 1 } as SigniDeployBanAction;
+
+  // ---- このターン、あなたは１以上のエナコストを支払えない（§6.4 O-3）----
+  // 支払い元 funnel（`buildEnergyPayPool`）を空にする＝**《色×0》のコストは通り、1以上は通らない**。
+  // `blocked_actions` の接尾辞なしエントリはターン終了時に失効する（`clearTurnEndScopedState`）。
+  if (t.match(/^このターン、あなたは[１以上０-９\d]+のエナコストを支払えない/))
+    return {
+      type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 },
+      actionId: 'PAY_ENERGY_COST',
+    } as BlockActionAction;
 
   // ---- このシグニのパワーを自身の下にあるシグニのパワーの合計と同じだけ ----
   if (t.match(/このシグニのパワーを自身の下にあるすべてのシグニのパワーの合計と同じだけ/))
