@@ -719,6 +719,8 @@ export function matchesFilter(
   if (filter.hasRiseIcon && !(card.EffectText?.includes('【ライズ】'))) return false;
   // 《ライズアイコン》を持たない（hasRiseIcon の否定）
   if (filter.noRiseIcon && (card.EffectText?.includes('【ライズ】'))) return false;
+  // 出現条件アイコンを持たない（`WXDi-P07-041-E2`）＝【ライズ】／【ハーモニー】／【出現条件】のいずれも無い。
+  if (filter.noDeployConditionIcon && /【(?:ライズ|ハーモニー|出現条件)】/.test(card.EffectText ?? '')) return false;
   if (filter.story) {
     const stories = Array.isArray(filter.story) ? filter.story : [filter.story];
     // card_class_overridesによるクラス上書き、次にTREAT_AS_CLASS_ALL_ZONESオーバーライドを考慮
