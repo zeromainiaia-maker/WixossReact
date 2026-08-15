@@ -175,10 +175,16 @@ export function execStubPart1(
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
     }
-    const count = typeof tgt.count === 'number' ? tgt.count : 1;
+    // `count:'ALL'`＋`upToCount`＝「好きな数」（0体〜全体）＝候補数を上限にする（§6.4 O-3）。
+    const count = typeof tgt.count === 'number' ? tgt.count
+      : tgt.count === 'ALL' ? cands.length
+      : 1;
     const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
+    // ⚠「**対戦相手は**自分のシグニを〜選ぶ」＝選ぶのは相手＝`opponentResponds`
+    //   （落とすと効果の使用者が相手の代わりに選ぶ＝有利な取り違えになる）。
     return selectOrInteract(cands, count, tgt.upToCount ?? false, scope,
-      { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx);
+      { type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction, undefined, ctx,
+      !!stub.opponentSelects && tgt.owner === 'opponent');
   }
   // 盤面を変えない内部マーカー（SELECT_TARGET_ONLY の thenAction 等）。
   if (stub.id === 'INTERNAL_NOOP') return done(ctx);
