@@ -2573,6 +2573,11 @@ export interface StubAction {
    * ⚠**engine 内部専用**（parser は生成しない・逆翻訳にも出さない）。
    */
   cardNameLock?: { lockedPlayer: Owner; mode: 'blacklist' | 'whitelist'; until: 'THIS_TURN' | 'NEXT_TURN' };
+  /**
+   * INTERNAL_DECLARE_DECK_TOP_ICON（`DECLARE_DECK_TOP_ICON` の宣言後段）。
+   * ⚠**engine 内部専用**（parser は生成しない・逆翻訳にも出さない）。
+   */
+  deckTopIcon?: { icon: 'トラップ' | 'ライズ' | 'クロス' | 'アクセ'; deckOwner: Owner; onWrongAction: EffectAction };
   /** EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY: 守るシグニの条件。 */
   leaveVictimFilter?: TargetFilter;
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */

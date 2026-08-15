@@ -702,6 +702,22 @@ export function execStubPart1(
     const pendingDCN: PendingInteractionDef = { type: 'CHOOSE', options: optsDCN, count: 1 };
     return needsInteraction(addLog(ctx, 'カード名を宣言（手札のカード名から選択）'), pendingDCN);
   }
+  // INTERNAL_DECLARE_DECK_TOP_ICON: 宣言後にデッキの一番上を公開し、外れていたら帰結を実行する（§6.4 O-4）。
+  // ⚠公開しても**デッキの順番は変えない**（原文は「公開する」だけで移動を書いていない）。
+  if (stub.id === 'INTERNAL_DECLARE_DECK_TOP_ICON') {
+    const specDDT = stub.deckTopIcon;
+    if (!specDDT) return done(addLog(ctx, 'デッキトップ宣言：宣言内容が取れない'));
+    const stDDT = ownerState(specDDT.deckOwner, ctx);
+    const topDDT = stDDT.deck[0];
+    if (!topDDT) return done(addLog(ctx, 'デッキが空で公開できない'));
+    const cardDDT = ctx.cardMap.get(getCardNum(topDDT));
+    const actualDDT = (cardDDT?.EffectText ?? '').includes(`《${specDDT.icon}アイコン》：`);
+    const declaredDDT = stub.value === 1;
+    const loggedDDT = addLog(ctx,
+      `公開: ${cardDDT?.CardName ?? topDDT}（《${specDDT.icon}アイコン》${actualDDT ? 'あり' : 'なし'}）`
+      + ` / 宣言: ${declaredDDT ? 'あり' : 'なし'} → ${declaredDDT === actualDDT ? '的中' : '外れ'}`);
+    return declaredDDT === actualDDT ? done(loggedDDT) : exec(specDDT.onWrongAction, loggedDDT);
+  }
   // INTERNAL_APPLY_CARD_NAME_LOCK: 宣言されたカード名を使用禁止（blacklist）／許可（whitelist）へ書き込む。
   // ⚠**封じられる側の state に載せる**（判定 `cardNameUseBlocked` は使う側の state だけを見る）。
   if (stub.id === 'INTERNAL_APPLY_CARD_NAME_LOCK') {
