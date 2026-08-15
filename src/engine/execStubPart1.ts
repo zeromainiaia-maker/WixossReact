@@ -215,6 +215,15 @@ export function execStubPart1(
       ],
     });
   }
+  // INTERNAL_USE_SEARCHED_SPELL: `USE_SEARCHED_SPELL_OR_TRASH` の「使う」枝。
+  // ⚠**`lastProcessedCards` を CHOOSE 跨ぎで当てにしない**（resume 経路によっては失われる）＝
+  //   `value` で束縛した1枚を明示的に復元してからフリープレイ機構へ渡す。
+  if (stub.id === 'INTERNAL_USE_SEARCHED_SPELL') {
+    const cnIUSS = typeof stub.value === 'string' ? stub.value : ctx.lastProcessedCards?.[0];
+    if (!cnIUSS) return done(addLog(ctx, '使用するカードが無い'));
+    return exec({ type: 'STUB', id: 'PLAY_SPELL_FROM_HAND_FREE' } as StubAction as EffectAction,
+      { ...ctx, lastProcessedCards: [cnIUSS] });
+  }
   // INTERNAL_TRASH_SEARCHED_CARD: `USE_SEARCHED_SPELL_OR_TRASH` の「使わない」枝。
   // ⚠CHOOSE を跨ぐと `lastProcessedCards` が残らない経路があるため、対象は `value` で束縛して運ぶ。
   if (stub.id === 'INTERNAL_TRASH_SEARCHED_CARD') {
