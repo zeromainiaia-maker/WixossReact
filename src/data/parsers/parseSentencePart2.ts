@@ -963,19 +963,25 @@ export function parseSentencePart2(t: string): EffectAction | null {
     return { type: 'STUB', id: 'GRANT_CONDITIONAL_ASSASSIN_ABILITY' } as StubAction;
   }
 
-  // ---- ルリグによってダメージを受けない ----
+  // ---- ルリグによってダメージを受けない（【常】＝期間なし）----
+  // ⚠**期間つき（下の2規則）とは別の層**＝【常】は場にあるかぎり有効なので予約ではなく宣言で表す。
+  //   判定は `isLrigDamagePrevented`（`screens/battle/lrigDamageShield.ts`）＝シグニ／ルリグ／
+  //   アシスト／キーを走査する（§6.4 O-3 続き492 で走査軸を広げた）。
   if (t.match(/あなたはルリグによってダメージを受けない/)) {
     return { type: 'STUB', id: 'PREVENT_LRIG_DAMAGE' } as StubAction;
   }
 
-  // ---- 次のターンまでルリグダメージを受けない ----
+  // ---- 期間つき「対戦相手のルリグによってダメージを受けない」（§6.4 O-3 続き492）----
+  // 🔑**期間軸は `PREVENT_DAMAGE{scope:'LRIG'}` の1本にまとめる**＝`prevent_damage_windows` は
+  //   ターン境界の昇格まで含めて実装済みで、期間内は**回数無制限**（原文どおり）。
+  // ⚠🔴旧 `STUB{PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN}` は `prevent_lrig_damage` フラグを立てるだけで、
+  //   そのフラグは**ターン終了時にクリアされる**＝「次のターンの間」が一度も効かない恒久 no-op だった
+  //   （`WXK10-019-E2`）。旧 `_THIS_TURN` も**1回で消費**していたので、同一ターンの2回目以降を防げなかった。
   if (t.match(/次のターンの間.*あなたは対戦相手のルリグによってダメージを受けない/)) {
-    return { type: 'STUB', id: 'PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN' } as StubAction;
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'NEXT_TURN', scope: 'LRIG' } as PreventDamageAction;
   }
-
-  // ---- 今ターンだけルリグダメージを受けない ----
   if (t.match(/このターン.*あなたは対戦相手のルリグによってダメージを受けない/)) {
-    return { type: 'STUB', id: 'PREVENT_LRIG_DAMAGE_THIS_TURN' } as StubAction;
+    return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'LRIG' } as PreventDamageAction;
   }
 
   // ---- 対戦相手のエナゾーンのカードがマルチエナを失う ----
