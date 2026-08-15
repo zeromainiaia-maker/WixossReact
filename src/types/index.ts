@@ -407,7 +407,22 @@ export interface PlayerState {
   // ダメージ無効ウィンドウ（PREVENT_DAMAGE 効果）。期間内は回数無制限で無効化する（prevent_next_damage の1回消費とは別）。
   // scope='ALL'＝あらゆるダメージ（crashOneLife 経路も含む）／'LRIG'＝ルリグアタックのダメージのみ。
   // NEXT_TURN_START は予約（消費側は無視）→次のグローバルターン開始時に NEXT_TURN_END へ昇格→その終了時に消滅。
-  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' }[];
+  // MY_NEXT_MAIN_PHASE（§6.4 O-3 続き492）＝「次のあなたのメインフェイズまで」＝ターン境界を**跨いで**残り、
+  //   自分が次にメインフェイズへ入る1点（`clearMainPhaseScopedState`）で消える。相手ターン中も有効。
+  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE' }[];
+  /**
+   * 「次のあなたのメインフェイズまで、このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3）。
+   * 印刷リミットを**置き換える**（`lrig_limit_mod` の加算とは別軸）＝`computeEffectiveLrigLimit` の
+   * `basicOverride` と同じ層。失効は `clearMainPhaseScopedState` 1点。
+   */
+  lrig_base_limit_override?: number;
+  /**
+   * 「あなたが次のあなたのドローフェイズにカードを N 枚引く場合、代わりに M 枚引く」（`WXK01-002-E2`）。
+   * ⚠既存の `DRAW_PHASE_REPLACEMENT` は**付与された【常】能力**（`lrig_granted_auto_effects`）としてしか
+   *   置けず、期間つきの自己予約を表せなかった。読みは `applyLrigDrawPhaseReplacement` の同じ1関数。
+   * 失効は `clearMainPhaseScopedState` 1点（次のドローフェイズは次のメインフェイズより前なので必ず1回使える）。
+   */
+  draw_phase_replacement?: { fromCount: number; toCount: number };
   // このターン、このプレイヤーのすべてのキーは能力を失う（WXK02-029 ビカム・ユー CONDITIONAL_GROW_AND_KEY_DISABLE）
   keys_abilities_disabled?: boolean;
   // このターン、次のライフバーストは2回発動する（LIFE_BURST_DOUBLE 効果）
