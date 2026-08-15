@@ -29534,6 +29534,66 @@ test('アタック税（《無》×N）5カードの live 形（§6.4 O-28）', 
   ok(act('WX24-P1-041', 'WX24-P1-041-E2').includes('CENTER_LRIG_OR_SIGNI'),
     'WX24-P1-041 の対象がシグニ限定に戻っている');
 });
+// ── §6.4 O-30「〈コスト〉を支払わないかぎり、X」＝**能力の持ち主自身**が払って X を回避する形 ──
+test('OPTIONAL_COST{unlessPay}: 払えば X は起きず、払わなければ X が起きる（§6.4 O-30）', () => withSavedCursor(() => {
+  const gate = (): EffectAction => ({ type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無'], unlessPay: true },
+    { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+      then: { type: 'SEQUENCE', steps: [] },
+      else: { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } } },
+  ] } as unknown as EffectAction);
+  const mk = (energy: number) => {
+    const c = mkCtx({ signi: [SIGNI_P3000, null, null], energy }, {}, SIGNI_P3000);
+    return c;
+  };
+  // 🔑**払うのは ownerState**（付与された側）＝`otherState` から引かない。取り違えると払う側が逆になる。
+  const ctxPay = mk(5);
+  const paid = finishPayingCosts(executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: gate(), duration: 'INSTANT', mandatory: true } as CardEffect, ctxPay), ctxPay);
+  eq((paid.ownerState as PlayerState).field.signi[0]?.at(-1), SIGNI_P3000, '支払ったのにバニッシュされている');
+  eq((paid.ownerState as PlayerState).energy.length, 3, '支払い分のエナが ownerState から引かれていない');
+  eq((paid.otherState as PlayerState).energy.length, 5, '相手のエナが減っている（払う側が逆）');
+  // 選択肢の文言＝「発動する／スキップ」では実機で判断できない（払う＝自分のシグニが助かる場面）
+  const offer = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: gate(), duration: 'INSTANT', mandatory: true } as CardEffect, mk(5));
+  ok(!offer.done && offer.pending.type === 'CHOOSE', '任意コストの CHOOSE が出ない');
+  const opts = (offer as Extract<ExecResult, { done: false }>).pending as { options: { id: string; label: string }[] };
+  ok(opts.options.some(o => o.id === 'pay' && o.label.startsWith('支払う')), `pay の文言が「支払う」でない: ${opts.options.map(o => o.label).join('/')}`);
+  ok(opts.options.some(o => o.id === 'skip' && o.label === '支払わない'), 'skip の文言が「支払わない」でない');
+  // 払わない＝X が起きる
+  const ctxSkip = mk(5);
+  const skipped = finish(resumeOptionalCost('skip', [],
+    (offer as Extract<ExecResult, { done: false }>).pending as never, ctxSkip), ctxSkip);
+  eq((skipped.ownerState as PlayerState).field.signi[0]?.length ?? 0, 0, '支払わなかったのにバニッシュされていない');
+  // エナが足りなければ支払い枝は選べない（払えないのに「回避できた」ことにしない）
+  const poor = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: gate(), duration: 'INSTANT', mandatory: true } as CardEffect, mk(1));
+  const poorOpts = (poor as Extract<ExecResult, { done: false }>).pending as { options: { id: string; available?: boolean }[] };
+  eq(poorOpts.options.find(o => o.id === 'pay')?.available, false, 'エナ不足でも支払い枝が選べる');
+}));
+test('live データ不変条件: 「〜を支払わないかぎり、X」の回避ゲートが落ちていない（§6.4 O-30）', () => {
+  // 🔴前置きが落ちると下流の汎用規則が X（バニッシュ等）だけを拾い、**無条件実行**の過剰実行になる。
+  // 引用付与の内側に埋まるので、live 走査は `effect.action` の入れ子まで見る。
+  const cases: [string, string, number][] = [
+    ['WXDi-P02-041', 'WXDi-P02-041-E1', 2],
+    ['WXDi-P05-017', 'WXDi-P05-017-E1', 3],
+    ['WXDi-P08-058', 'WXDi-P08-058-E1', 1],
+    ['WX24-P2-004', 'WX24-P2-004-E1', 4],
+    ['WX24-P2-044', 'WX24-P2-044-E1', 3],
+    ['WX24-P2-044', 'WX24-P2-044-E2', 3],
+    ['WX24-P4-001', 'WX24-P4-001-E1', 4],
+    ['WX24-P4-029', 'WX24-P4-029-E1', 4],
+    ['WX25-P2-004', 'WX25-P2-004-E1', 3],
+    ['WX25-P2-038', 'WX25-P2-038-E1', 4],
+  ];
+  for (const [num, effectId, cost] of cases) {
+    const a = JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+    ok(a.includes('"unlessPay":true'), `${num}/${effectId} の回避ゲートが落ちている（無条件実行）`);
+    ok(a.includes(`"costColors":[${Array(cost).fill('"無"').join(',')}]`), `${num}/${effectId} の《無》×${cost} が合わない`);
+    // ⚠**払う側は ownerState**＝`OPPONENT_PAY_OPTIONAL`（otherState 払い）に戻ると払う側が逆になる
+    ok(!a.includes('OPPONENT_PAY_OPTIONAL'), `${num}/${effectId} が相手払いに戻っている`);
+  }
+});
 test('live データ不変条件: 「同じ選択肢を複数回選ぶ」ループを1効果に2つ置かない（§6.4 O-29）', () => {
   // `CHOOSE_SAME_OPTION_TWICE` と `CHOOSE_SAME_OPTION_MULTIPLE` は engine では**同じハンドラ**で、
   // 回数はカード全文から読む。2つ並ぶと選択ループが2周する＝最大回数の**倍**選べる過剰実行になる
