@@ -26,6 +26,7 @@ import type {
   AltCostOppTurnAction,
   ConditionalAction,
   SigniAttackBanAction,
+  SigniDeployBanAction,
 } from '../../types/effects';
 import {
   parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost,
