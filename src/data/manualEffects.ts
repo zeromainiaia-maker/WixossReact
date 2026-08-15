@@ -4410,7 +4410,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: {
         type: 'SEQUENCE',
         steps: [
-          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無', '無'] },
+          // `unlessPay`＝「支払わないかぎり」形の文言・逆翻訳（§6.4 O-30・2026-08-15 続き495）。
+          // 機構は不変（pay→then／skip→else）で、選択肢が「支払う／支払わない」になるだけ。
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無', '無'], unlessPay: true },
           {
             type: 'CONDITIONAL',
             condition: { type: 'PAID_ADDITIONAL_COST' },
