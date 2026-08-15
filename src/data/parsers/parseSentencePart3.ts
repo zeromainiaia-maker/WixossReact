@@ -1726,6 +1726,8 @@ export function parseSentencePart3(t: string): EffectAction | null {
           from: { location: 'deck', owner: 'self' },
           filter: { cardName: m[2] },
           maxCount: parseNum(m[3]),
+          // 原文「その後、デッキをシャッフルし、」＝サーチ族の共通形（`afterSearch`）で持つ。
+          afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
         },
       } as ConditionalAction;
     }
