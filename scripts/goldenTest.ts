@@ -4188,7 +4188,7 @@ test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse 
 
 // §6.4 ターン限定 PlayerState funnel（続き446の副次発見）。
 // フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外10件という集合性を固定する。
-test('§6.4 turn-scoped T1: PlayerState のターン限定36フィールドと funnel レジストリが一致', () => {
+test('§6.4 turn-scoped T1: PlayerState のターン限定38フィールドと funnel レジストリが一致', () => {
   const typeSource = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
   const declared = [...typeSource.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map(m => m[1]);
   const convention = declared.filter(k => k.endsWith('_this_turn') || k.endsWith('_this_attack_phase'));
