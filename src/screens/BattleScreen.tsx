@@ -4005,10 +4005,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               : initStack(bs.active_user_id ?? user.id, lasEntries);
           }
         }
-        // ON_MAIN_PHASE_START: GROW→MAIN移行時（メインフェイズ開始時）トリガー。
+        // ON_MAIN_PHASE_START: →MAIN移行時（メインフェイズ開始時）トリガー。
         // newMyState=ターンプレイヤー／op=非ターンプレイヤー。triggerScope:any_opp（「対戦相手のメインフェイズ開始時」
         // WXDi-P00-034）は op の場シグニで発火＝collectTurnTriggers の相手フィールド分岐が拾う。
-        if (phase === 'GROW') {
+        // ⚠メインフェイズがスキップされたら**開始時トリガーごと外れる**（`WXEX2-19-E3`）。
+        if (nextPhase === 'MAIN') {
           const mpsRes = collectTurnTriggers('ON_MAIN_PHASE_START', newMyState, op);
           foldTurnUsed(mpsRes);
           const mpsEntries = mpsRes.entries;
