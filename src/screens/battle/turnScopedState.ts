@@ -81,6 +81,10 @@ const CONVENTION_TURN_SCOPED_STATE = {
 const IRREGULAR_TURN_SCOPED_STATE = {
   // 強制アタック active は現在ターンだけ。次ターン分は must_attack_signi_next_turn に予約する。
   must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'active forced-signi-attack flag; next-turn value is reserved separately' },
+  // 「このターン使用禁止のカード名」は課されたグローバルターンだけ有効（§6.4 O-3 続き498 で登録）。
+  // ⚠登録前は BattleScreen の turn-end で**ターンプレイヤー側だけ**手書きクリアしており、相手に課した分は
+  //   「相手の次のターンが終わるまで」＝1ターン長く残っていた。次ターン予約は別フィールド。
+  blocked_card_names: { boundaries: ['turn-end'], reset: [], reason: 'card-name use ban for the current turn; next-turn reservation is stored separately' },
   // 感染限定は must_attack_signi の修飾子なので同じ期限で失効する。
   must_attack_infected_only: { boundaries: ['turn-end'], reset: undefined, reason: 'modifier of the active forced-attack flag; same lifetime' },
   // 場全体キーワード active は現在のグローバルターンだけ。自/相手ターン予約は別フィールド。
