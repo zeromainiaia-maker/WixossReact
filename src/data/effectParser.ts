@@ -2706,8 +2706,13 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
   if (/を?対象とし[、,]$/.test(prefix)) {
     const unlessThen = parseSingleSentence(prefix + thenText);
     if (JSON.stringify(unlessThen).includes('"UNKNOWN"')) return undefined;
-    // 純加算チェック＝分割で読みが変わったら分割が解決を狂わせた合図なので据置
-    if (baselineS !== JSON.stringify(unlessThen)) return undefined;
+    // 純加算チェック＝分割で読みが変わったら分割が解決を狂わせた合図なので据置。
+    // ⚠**例外＝差が「対象フィルタが増えただけ」のとき**（§6.4 O-31）。回避クローズを挟んだ全文では
+    //   対象解析が `filter` を落とすことがあり（`WXDi-P05-023-E2`＝`{cardType:'シグニ'}` が消える）、
+    //   厳密一致だと**分割後のほうが正しいのに据置**になる。**情報が増える向きだけ**を許す
+    //   （基準読み側が filter を持っていたら従来どおり据置＝「別の対象に化けた」可能性を残さない）。
+    if (baselineS !== JSON.stringify(unlessThen)
+        && !(!hasTargetFilter(baseline) && sameIgnoringTargetFilter(baseline, unlessThen))) return undefined;
     return seq(unlessThen);
   }
 
