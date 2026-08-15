@@ -29534,6 +29534,23 @@ test('アタック税（《無》×N）5カードの live 形（§6.4 O-28）', 
   ok(act('WX24-P1-041', 'WX24-P1-041-E2').includes('CENTER_LRIG_OR_SIGNI'),
     'WX24-P1-041 の対象がシグニ限定に戻っている');
 });
+test('execSequence: 入れ子 SEQUENCE の continuation を外側で上書きしない（§6.4 O-28）', () => withSavedCursor(() => {
+  // 🔴内側 SEQUENCE が対話に入ると、内側の残りステップが continuation に載る。外側がそこへ
+  //   自分の残りステップを**代入**すると内側の残りが無言で消える＝盤面が半分しか動かない。
+  const inner = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+    { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', targetsStored: true, unlessPayColorless: 1 },
+  ] };
+  const outer = { type: 'SEQUENCE', steps: [inner, { type: 'DRAW', owner: 'self', count: 1 }] };
+  const ctx = mkCtx({}, { signi: [SIGNI_P3000, SIGNI, null] }, SIGNI);
+  const before = ctx.ownerState.hand.length;
+  const r = run(outer as unknown as EffectAction, ctx);
+  const bans = (r.otherState as PlayerState).signi_attack_bans_this_turn ?? [];
+  eq(bans.length, 1, '内側の残りステップ（STORE→ban）が落ちている');
+  eq(bans[0]?.cardNums?.length, 1, '対象の焼き込みが落ちている');
+  eq((r.ownerState as PlayerState).hand.length, before + 1, '外側の残りステップ（DRAW）が落ちている');
+}));
 test('アタック税（《無》×N）: live の action を通しで実行すると ban が相手に載る（§6.4 O-28）', () => withSavedCursor(() => {
   // ⚠**live 形の assert だけでは足りない**＝`SELECT_TARGET_ONLY` がルリグ対象を扱えないと
   //   `lastProcessedCards` が空→ STORE が空→ 本体が「対象が確定していない」で降りる**丸ごと no-op**になる
