@@ -13236,6 +13236,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);
+    folded = resolveForcedAttackThatTurn(folded, abilityBlockTextOf(card, e.effectId));
     if (folded !== e.action) {
       e.action = folded;
       e.parseStatus = 'AUTO';
