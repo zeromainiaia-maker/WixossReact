@@ -845,6 +845,7 @@ export type EffectAction =
   | ReturnFacedownLrigZoneToHandAction
   | FieldSigniToCheckZoneAction
   | GainLrigTypeAction
+  | DeclareCardNameLockAction
   | PlayFreeFromTrashAction
   | PowerThresholdTrashAction
   | PowerFlipAction
