@@ -157,6 +157,18 @@ function advanceSigniDeployBans(bans: PlayerState['signi_deploy_bans']): PlayerS
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * 「このターンと次のターンの間、対戦相手の効果によって〈ゾーン〉のカードは移動しない」を
+ * グローバルターン終了ごとに1つ減らす（§6.4 O-3 続き493・`signi_deploy_bans` と同じ形）。
+ * ⚠🔴旧 `prevent_opp_trash_from` は**失効地点が1つも無く永続していた**（`WXK10-083-E1`）。
+ */
+function advanceOppMoveImmunity(entries: PlayerState['opp_move_immunity']): PlayerState['opp_move_immunity'] {
+  const next = (entries ?? [])
+    .map(entry => ({ ...entry, turnsRemaining: entry.turnsRemaining - 1 }))
+    .filter(entry => entry.turnsRemaining > 0);
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
