@@ -36,6 +36,7 @@ import type {
   AddToFieldAction,
   DrawAction,
   RevealUntilAction,
+  SigniAttackBanAction,
 } from '../types/effects';
 
 /**
