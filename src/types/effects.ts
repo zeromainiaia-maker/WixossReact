@@ -1951,6 +1951,28 @@ export interface GrowCostReductionAction {
   perCount?: { filter: TargetFilter; count: number };
 }
 
+/**
+ * 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）。
+ * 実体は `PlayerState.signi_attack_bans_this_turn` への1件追加＝判定は `signiAttackGate`。
+ *
+ * ⚠絞り込みキーを1つも指定しない＝**すべてのシグニ**が対象（原文にその形がある）。
+ * ⚠`levelFromDeclaredNumber` は**実行時に**宣言値（宣言した側の `declared_number`）を焼き込む。
+ *   ban 側に「宣言参照」を残すと、判定地点（アタッカー側 state）から宣言者の state が見えない。
+ */
+export interface SigniAttackBanAction {
+  type: 'SIGNI_ATTACK_BAN';
+  /** 禁止を受ける側。'opponent'＝対戦相手のシグニがアタックできない。 */
+  owner: Owner;
+  /** 宣言済みの数字と同じレベルのシグニに限定する（未宣言なら ban を張らない）。 */
+  levelFromDeclaredNumber?: boolean;
+  /** 実効パワーが表記パワーと異なるシグニに限定する。 */
+  powerDiffersFromPrinted?: boolean;
+  /** 直前に対象化したシグニに限定する（「それはアタックできない」）。 */
+  targetsStored?: boolean;
+  /** 《無》×N を支払えばアタックできる（払えないときだけ禁止）。 */
+  unlessPayColorless?: number;
+}
+
 // このゲームの間、対戦相手は同名カードを使用できない
 export interface NameBanAction {
   type: 'NAME_BAN';
