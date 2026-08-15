@@ -169,6 +169,19 @@ function advanceOppMoveImmunity(entries: PlayerState['opp_move_immunity']): Play
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * 「〈期間〉、あなたのセンタールリグは〈タイプ〉を追加で得る」をグローバルターン終了ごとに1つ減らす
+ * （§6.4 O-3 続き498・上2つと同じ形）。⚠恒久版 `lrig_gained_types` はここでは触らない。
+ */
+function advanceGainedLrigTypes(
+  entries: PlayerState['lrig_gained_types_timed'],
+): PlayerState['lrig_gained_types_timed'] {
+  const next = (entries ?? [])
+    .map(entry => ({ ...entry, turnsRemaining: entry.turnsRemaining - 1 }))
+    .filter(entry => entry.turnsRemaining > 0);
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
