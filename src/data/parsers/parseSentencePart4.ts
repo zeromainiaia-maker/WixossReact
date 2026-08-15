@@ -1820,6 +1820,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/その中から.*チェックゾーンに置き.*残り.*手札に加える/))
     return { type: 'STUB', id: 'TRAP_OPERATION' } as StubAction;
 
+  // ---- 場のシグニをチェックゾーンに置く（§6.4 O-3・`WX22-010-E3` 1件）----
+  // ⚠下の `TRAP_OPERATION` に落としてはいけない＝あちらは**デッキ／手札の1枚**を `field.check` へ置く
+  //   別機構で、しかも実行時に**カード全文 regex**で分岐する（§6.4 O-20 の生き残り）。
+  //   「あなたのすべての＜遊具＞のシグニを」＝場の複数体を一時退避して戻す機構は未実装なので明示 defer。
+  if (/シグニを(?:すべて)?チェックゾーンに置く/.test(t))
+    return { type: 'STUB', id: 'DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE' } as StubAction;
+
   // ---- トラップ/チェックゾーン操作 ----
   if (t.match(/【トラップ】として.*設置/) || t.match(/チェックゾーン(?:に?置|から|を離れ|のライフ|置いた)/) ||
       t.match(/トラップ能力を得て/))
