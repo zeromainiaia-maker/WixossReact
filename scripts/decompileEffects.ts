@@ -916,6 +916,11 @@ function actionJa(a?: Action, effectType?: string): string {
         USE_LRIG_ACT: 'ルリグの【起】能力を使用できない',
         PAY_ENERGY_COST: '１以上のエナコストを支払えない',
         SIGNI_ATTACK: 'シグニでアタックできない',
+        // §6.4 O-3（続き491）: フェイズスキップ機構（`PHASE_SKIP_BLOCK_IDS`）の語彙。
+        // ⚠`ENERGY`（エナチャージ封じ）と `ENERGY_PHASE`（フェイズごとスキップ）は別物。
+        ENERGY_PHASE: 'エナフェイズをスキップする',
+        MAIN_PHASE: 'メインフェイズをスキップする',
+        ATTACK_PHASE: 'アタックフェイズをスキップする',
       };
       const pred = predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
       // §6.4 O-16: ゾーン限定（`zoneSource:'designated'`）を落とすと**「相手のシグニは全部アタックできない」
