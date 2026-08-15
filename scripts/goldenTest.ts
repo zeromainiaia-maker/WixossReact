@@ -29032,7 +29032,7 @@ test('ADD_EXTRA_ATTACK_PHASE: キューに積むだけで onStart は即時実�
   eq(JSON.stringify((r.ownerState as PlayerState).field.signi_down), JSON.stringify([true, true, true]),
     'onStart はこの時点で実行してはいけない');
 }));
-test('resolveNextPhaseAfterAttack: ATTACK_LRIG の次を END ではなく ATTACK_ARTS に戻し、キューを1件消費する', () => {
+test('resolveNextPhaseAfterAttack: ATTACK_LRIG の次を END ではなく ATTACK_ARTS に戻し、キューを1件消費する', () => withSavedCursor(() => {
   const base = mkState({});
   const noQueue = resolveNextPhaseAfterAttack('ATTACK_LRIG', base);
   eq(noQueue.next, 'END', '予約が無ければ従来どおり END');
