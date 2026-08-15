@@ -3986,19 +3986,14 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, lock_trash_move_next_turn: true } },
       '次の対戦相手のメイン／アタックフェイズの間、対戦相手は自分のトラッシュのカードを動かせない'));
   }
-  // PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置
-  if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP') {
-    // §6.4 O-20（effectEngine 側の collectProtectedZones と**二重配線**なので必ず一緒に直す）:
-    // 全文だと別能力の保護ゾーンを拾う（`WXK10-083-E1` はエナ限定なのに E2 の「手札」まで保護していた）。
-    const txtPZM = sourceAbilityText(ctx);
-    const zones: ('hand' | 'energy')[] = [];
-    if (txtPZM.includes('エナゾーン') && txtPZM.includes('トラッシュに移動しない')) zones.push('energy');
-    if (txtPZM.includes('手札') && txtPZM.includes('トラッシュに移動しない')) zones.push('hand');
-    if (zones.length === 0) return done(addLog(ctx, '[PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUSで動的処理中]'));
-    const existing = ctx.ownerState.prevent_opp_trash_from ?? [];
-    const merged = [...new Set([...existing, ...zones])] as ('hand' | 'energy')[];
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_opp_trash_from: merged } },
-      `相手効果によるトラッシュ移動禁止設置: ${zones.join(',')}`));
+  // PREVENT_ZONE_MOVE_BY_OPP / PREVENT_NON_FIELD_MOVE_BY_OPP: **【常】の宣言型**（§6.4 O-3 続き493）。
+  // ⚠🔴期間つきの札は `ZONE_MOVE_IMMUNITY`（typed action）へ移行済み＝ここで state を書かない。
+  //   旧実装は `prevent_opp_trash_from` を立てるだけで**失効地点が1つも無く永続していた**
+  //   （`WXK10-083-E1` の原文は「このターンと次のターンの間」なのにゲーム終了まで効いていた）。
+  // 判定は `collectProtectedZones`（effectsMap から【常】宣言を読む）＋
+  //   `activeOppMoveImmunityZones`（期間つき予約）の合成。
+  if (stub.id === 'PREVENT_ZONE_MOVE_BY_OPP' || stub.id === 'PREVENT_NON_FIELD_MOVE_BY_OPP') {
+    return done(addLog(ctx, '相手効果による移動禁止（【常】宣言・判定は collectProtectedZones）'));
   }
   // PREVENT_SIGNI_DOWN_BY_OPP_ALL / PREVENT_SELF_DOWN_BY_OPP / PREVENT_SIGNI_DOWN_BY_OPP: 相手によるシグニダウン防止
   if (stub.id === 'PREVENT_SIGNI_DOWN_BY_OPP_ALL' || stub.id === 'PREVENT_SELF_DOWN_BY_OPP'
