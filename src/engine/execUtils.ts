@@ -200,6 +200,11 @@ export interface OptionalCostSpec {
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
   fieldToLrigTrash?: { count: number; filter?: TargetFilter };
+  /**
+   * 「このキーを場からルリグトラッシュに置く」（§6.4 O-3・`WDK06-R09-E1`）。
+   * ⚠**キーゾーンはシグニゾーンと別**なので `fieldToLrigTrash`（シグニ／レゾナ用）では払えない。
+   */
+  trashOwnKey?: boolean;
   fieldDown?: { count: number; filter?: TargetFilter };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   down_self?: boolean;
@@ -237,7 +242,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     underAnySigniTrash: a.underAnySigniTrash,
     energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
-    fieldToLrigTrash: a.fieldToLrigTrash, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self,
+    fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     deckTrash: a.deckTrash, charmTrash: a.charmTrash,
@@ -328,6 +333,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const matching = fieldCandidates(ctx.ownerState, spec.fieldToLrigTrash.filter, ctx.cardMap);
     if (matching.length < spec.fieldToLrigTrash.count) return false;
   }
+  // キーを場に持っていなければ払えない（＝「そうした場合」の帰結も起きない）
+  if (spec.trashOwnKey && !ctx.ownerState.field.key_piece) return false;
   if (spec.fieldDown) {
     // アップ状態の自分シグニがN体そろっているか（`isUp` はフィルタ側で判定される）
     const matching = fieldCandidates(ctx.ownerState, { ...(spec.fieldDown.filter ?? {}), isUp: true }, ctx.cardMap);
@@ -433,6 +440,8 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       type: 'TRASH', asCost: true, destination: 'lrig_trash',
       target: { type: 'SIGNI', owner: 'self', count: spec.fieldToLrigTrash.count, filter: spec.fieldToLrigTrash.filter },
     } as EffectAction] : []),
+    // キーは既存の内部ハンドラ（`INTERNAL_TRASH_OWN_KEY`）で場→ルリグトラッシュへ移す。
+    ...(spec.trashOwnKey ? [{ type: 'STUB', id: 'INTERNAL_TRASH_OWN_KEY' } as EffectAction] : []),
     ...(spec.fieldDown ? [{
       type: 'DOWN',
       target: { type: 'SIGNI', owner: 'self', count: spec.fieldDown.count, upToCount: false,
@@ -1182,6 +1191,13 @@ export function fieldCandidates(
     if (filter?.isPuppet !== undefined) {
       const isPuppet = (state.field.puppet_signi ?? []).includes(cardNum);
       if (filter.isPuppet !== isPuppet) return [];
+    }
+    // 「このターンにアタックしたシグニ」（§6.4 O-3・`WDK06-R09-E1`）。
+    // ⚠`attacked_signi_ids` は**アタックした側の state** に積まれる＝候補を作る `state` と同じ側なので
+    //   ここで判定できる（`matchesFilter` は card 単体しか見られないので state を持つこの層で扱う）。
+    if (filter?.attackedThisTurn !== undefined) {
+      const attacked = (state.attacked_signi_ids ?? []).includes(cardNum);
+      if (filter.attackedThisTurn !== attacked) return [];
     }
     if (filter?.crossState !== undefined) {
       const isCross = state.field.cross_state?.[zoneIdx] ?? false;

@@ -4282,6 +4282,23 @@ export function execStubPart3(
     return exec(headRN.action, addLog(ctxRN, '次の対戦相手のアタックフェイズ開始時の効果'));
   }
 
+  // RESOLVE_NEXT_OPP_TURN_END_EFFECT（§6.4 O-3）: 「次の対戦相手のターン終了時、〜」の本文を
+  // 1件取り出して実行する（アタックフェイズ版と同型＝collector が予約1件につき1エントリを積む）。
+  if (stub.id === 'RESOLVE_NEXT_OPP_TURN_END_EFFECT') {
+    const pendingRT = ctx.ownerState.pending_next_opp_turn_end_effects ?? [];
+    if (pendingRT.length === 0) return done(addLog(ctx, '次の対戦相手のターン終了時の効果なし'));
+    const [headRT, ...restRT] = pendingRT;
+    const ctxRT: ExecCtx = {
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        pending_next_opp_turn_end_effects: restRT.length > 0 ? restRT : undefined,
+      },
+      ...(headRT.sourceCardNum ? { sourceCardNum: headRT.sourceCardNum } : {}),
+    };
+    return exec(headRT.action, addLog(ctxRT, '次の対戦相手のターン終了時の効果'));
+  }
+
   // TRASH_ENERGY_AT_TURN_END: ターン終了時に lastProcessedCards を**エナゾーンから**トラッシュへ（SPK01-10）。
   // ⚠`ENERGY_CHARGE_FROM_DECK` は置いたカードを `lastProcessedCards` に残すので、そのまま予約に使える。
   if (stub.id === 'TRASH_ENERGY_AT_TURN_END') {

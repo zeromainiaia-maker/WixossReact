@@ -2994,10 +2994,37 @@ function rewriteAttackTaxKeywordGrant(action: EffectAction): EffectAction {
   ] } as SequenceAction;
 }
 
+/**
+ * 「次の対戦相手のターン終了時、〈本文〉」の受け皿 STUB を、本文つきの予約
+ * `DELAY_TO_NEXT_OPP_TURN_END` へ格上げする（§6.4 O-3・続き497）。
+ *
+ * 宣言の検出そのものは `parseSentencePart1` の**先頭**に置いてある（本文側の汎用規則に
+ * 先取りされないため）。この層では文パーサを再帰できないので、詰め替えだけをここで行う。
+ *
+ * ⚠**本文が解けないときは受け皿のまま残す**＝予約だけ積んで中身が空だと
+ *   「予約されたのに何も起きない」無言 no-op になり、計器からも消える。
+ */
+function rewriteNextOppTurnEndBody(action: EffectAction, text: string): EffectAction {
+  const st = action as StubAction;
+  if (st?.type !== 'STUB' || st.id !== 'DEFERRED_NEXT_OPP_TURN_END_BODY') return action;
+  const body = text.trim().replace(/^次の対戦相手のターン終了時[、,]/, '').replace(/。$/, '').trim();
+  if (!body) return action;
+  // ⚠**「そのカード」「それら」＝遅延を跨いだ照応は予約できない**（予約が運ぶのは action だけで
+  //   参照先を束縛しない）。単独文として読むと別物に化ける＝`WXDi-P09-066-E1` の
+  //   「そのカードを手札に加える」（＝裏向きでルリグゾーンに置いたカード）は
+  //   `TRANSFER_TO_HAND{DECK_CARD}`＝**デッキから引く**へ誤解決した。受け皿のまま残す。
+  if (/^(?:その|それ)/.test(body)) return action;
+  const inner = parseSingleSentence(body);
+  const s = JSON.stringify(inner);
+  if (s.includes('"UNKNOWN"') || s.includes('DEFERRED_')) return action;
+  return { type: 'DELAY_TO_NEXT_OPP_TURN_END', action: inner } as EffectAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
+  action = rewriteNextOppTurnEndBody(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
@@ -4479,6 +4506,17 @@ function dropRedundantStepAfterTargetOppSigniOnly(effects: CardEffect[]): void {
         if (cur.type === 'STUB' && cur.id === 'TARGET_OPP_SIGNI_ONLY' && nxt.type === 'TRANSFER_TO_DECK') {
           seq.steps.splice(i + 1, 1);
           i--;
+          continue;
+        }
+        // 「…置いてもよい。**そうした場合、それらをバニッシュする**。」（§6.4 O-3・`WDK06-R09-E1`）。
+        // 前段の正準形（対象宣言→STORE→任意コスト→`PAID_ADDITIONAL_COST` ゲート）が帰結まで含んでいるので、
+        // 次文が生む素の `CONDITIONAL{IS_MY_TURN}` は**二重実行**になる（しかも owner が self へ化けている）。
+        if (cur.type === 'SEQUENCE' && JSON.stringify(cur).includes('"trashOwnKey":true')
+            && nxt.type === 'CONDITIONAL'
+            && (nxt as unknown as ConditionalAction).condition?.type === 'IS_MY_TURN') {
+          seq.steps.splice(i + 1, 1);
+          i--;
+          continue;
         }
       }
       for (const s of seq.steps) walk(s);

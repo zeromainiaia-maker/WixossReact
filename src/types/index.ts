@@ -815,6 +815,11 @@ export interface PlayerState {
   //   予約は**予約した側**（＝次のアタックフェイズでは非ターンプレイヤー）に積み、
   //   `ON_ATTACK_PHASE_START` の collector が opState 側を読んで発火する。消化は発火時に1件ずつ。
   pending_next_opp_attack_phase_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
+  // DELAY_TO_NEXT_OPP_TURN_END（§6.4 O-3）: 「次の対戦相手のターン終了時、〜」の予約。
+  // ⚠上と**同じ走査軸**＝予約は**予約した側**（＝そのターンの非ターンプレイヤー）に積み、
+  //   `ON_TURN_END` の collector が opState 側を読んで発火する。消化は発火時に1件ずつ。
+  // ⚠ターン境界を跨ぐので turnScopedState にも delayed_triggers（THIS_TURN 限定）にも載せない。
+  pending_next_opp_turn_end_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
   // PLACE_FACEDOWN_LRIG_ZONE（§6.4 O-3）: 裏向きでルリグゾーンに置いたカード（元ゾーンからは取り除く）。
   // REVEAL_FACEDOWN_LRIG_ZONE が表向きにしてトラッシュへ送り lastProcessedCards に載せる。
   // ⚠ターン境界を跨ぐ（置くのは自分のターン・公開は次の相手ターン）ので turn-scoped にしない。

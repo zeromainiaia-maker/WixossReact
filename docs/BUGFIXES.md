@@ -1,5 +1,70 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き497・Opus 5）— §6.4 **O-3「次のターンの間」系統＝遅延予約機構の新設と `WDK06-R09` の是正（2効果）**
+
+O-3 の受け皿8種のうち **2種を解体**（`NEXT_OPP_TURN_END_BODY` 2件→1件／`ATTACKED_SIGNI_TARGET_BY_KEY_TRASH` 残0）。
+ゲート全緑（**golden 2050**＝+6・**census 830 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・lint 0 errors / 260 warnings）。
+live JSON changed **2効果 / 2カード**（`WXDi-P16-002`／`WDK06-R09`。CSV 非改変）。
+`census:stubs` A群＝**23種/26件 → 22種/24件**（無言 no-op は 0 のまま）。
+
+### ① 「次の対戦相手のターン終了時、〜」の遅延予約（`DELAY_TO_NEXT_OPP_TURN_END`）
+
+続き493 は予約機構が無いので明示 defer で**即時実行を止める**ところまでだった。機構を入れて本文を実行させる。
+
+- **続き489 の `DELAY_TO_NEXT_OPP_ATTACK_PHASE` と同型**＝予約は**予約した側**（そのターンの非ターンプレイヤー）の
+  `pending_next_opp_turn_end_effects` に積み、`ON_TURN_END` の collector が **`opState` 側**を読む。
+  🔑**`myState` を読むと自分のターン終了時に誤発火する**（golden にトリップワイヤ＝軸を裏返すと FAIL する）。
+- ⚠**ターン境界を跨ぐ**ので `turnScopedState` にも `delayed_triggers`（THIS_TURN 限定）にも載せない。
+- parser は**宣言の検出を `parseSentencePart1` の先頭に置いたまま**（本文側の汎用規則に先取りされないため）、
+  本文の parse と詰め替えだけを `parseSingleSentence` の後処理（`rewriteNextOppTurnEndBody`）で行う。
+- 🔴**遅延を跨いだ照応は予約できない**＝`WXDi-P09-066-E1` の本文「**その**カードを手札に加える」
+  （＝裏向きでルリグゾーンに置いたカード）は単独文として読むと `TRANSFER_TO_HAND{DECK_CARD}`＝
+  **デッキから引く**へ化ける。`^(その|それ)` の本文は**受け皿のまま残す**（過少側に倒す）。
+  ⇒ 予約へ格上げできたのは `WXDi-P16-002-E1`（「カードを１枚引き【エナチャージ１】をする」）だけ。
+
+### ② 🔴 `WDK06-R09-E1`＝**相手のターン終了時に自分のシグニを1体タダでバニッシュ**していた
+
+原文「【自】：対戦相手のターン終了時、**このターンにアタックしたシグニ**を２体まで対象とし、
+**このキーを場からルリグトラッシュに置いてもよい**。そうした場合、それらをバニッシュする。」
+
+live は `SEQUENCE[STUB{DEFERRED_…}, CONDITIONAL{IS_MY_TURN, then: BANISH{SIGNI owner:'self'}}]` で、
+受け皿 STUB が no-op のまま **execSequence の任意コスト Pattern が pay/skip を出し、pay を選ぶと
+`BANISH{owner:'self'}` が走る**＝**自分のシグニが1体消える**（実測で確認）。対象・コスト・所有者の3点すべてが誤り。
+
+新設した語彙は2つだけ：
+
+- **`TargetFilter.attackedThisTurn`**＝「このターンにアタックしたシグニ」。判定は `fieldCandidates`
+  （state を持つ層）＝`matchesFilter` は card 単体しか見られない。⚠`attacked_signi_ids` は
+  **アタックした側の state** に積まれるので、候補を作る `state` と同じ側で読める。
+- **`OptionalCostSpec.trashOwnKey`**＝「このキーを場からルリグトラッシュに置く」。
+  ⚠**キーゾーンはシグニゾーンと別**なので既存の `fieldToLrigTrash`（レゾナ用）では払えない。
+  支払いは既存の内部ハンドラ `INTERNAL_TRASH_OWN_KEY` を再利用し、`canAfford` は「キーが場にあるか」だけを見る。
+
+正準形＝`SEQUENCE[SELECT_TARGET_ONLY{opponent SIGNI 2まで, attackedThisTurn}, STORE_LAST_PROCESSED_TARGETS,
+OPTIONAL_COST{trashOwnKey}, CONDITIONAL{PAID_ADDITIONAL_COST, then: BANISH{targetsStored}}]`。
+
+⚠**後続文が二重実行になる**＝「そうした場合、それらをバニッシュする。」は別文なので
+`CONDITIONAL{IS_MY_TURN, then: BANISH{owner:'self'}}` が後ろに残る。
+`dropRedundantStepAfterTargetOppSigniOnly` に「前段が `trashOwnKey` の正準形なら次の素の
+`CONDITIONAL{IS_MY_TURN}` を落とす」規則を追加した（golden で `BANISH` がちょうど1回であることを固定）。
+
+⚠**カード単位 PRESERVE で held に載らない**＝同居の `WDK06-R09-E2b` が MANUAL なのでカード丸ごと温存される。
+§3 のとおり **effectId をアンカーにした外科パッチ**で live を訂正した（fresh parser の出力をそのまま書き戻す＝fresh==live）。
+
+### 逆翻訳
+
+`attackedThisTurn`（「このターンにアタックした」）と `trashOwnKey`（「このキーを場からルリグトラッシュに置いてもよい」）を
+逆翻訳に足した。⚠出さないと「コストを支払ってもよい」に潰れて**原文照合でコスト取り違えを見つけられない**。
+
+### 残り（O-3 の受け皿6種）
+
+`SEED_BLOOM_BOUNCE_OCCUPANT`（`WDK07-Y07`）／`OPP_DECLARED_ARTS_NAME_LOCK`（`WXEX2-09`）／
+`OPP_CHOSEN_SIGNI_ATTACK_LOCK`（`WXDi-P08-030`）／`DECLARED_SPELL_NAME_LOCK`（`PR-K046`）／
+`GAIN_OPP_LRIG_TYPE`（`WDK17-008`）／`FIELD_SIGNI_TO_CHECK_ZONE`（`WX22-010`）／
+`NEXT_OPP_TURN_END_BODY` 残1（`WXDi-P09-066`＝上の照応問題）。
+⚠`PR-K046` は**スペル名の宣言UI**（自分の手札からではなく任意のカード名）＋`blocked_card_names` の
+**次の相手ターン**への期間延長が要る＝既存 `DECLARE_CARD_NAME`（手札から選ぶ）は流用できない。
+
 ## 2026-08-15（続き496・Opus 5）— §6.4 **O-31「対戦相手が〈コスト〉を支払わないかぎり、X」の残り＝4効果の挙動是正**
 
 続き495 で「自分が払う」側を消化した残り＝**「対戦相手が払う」側で据置になっていた形**を効果単位で数え直し、

@@ -7385,6 +7385,21 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         },
       }, '次の対戦相手のアタックフェイズ開始時の効果を予約'));
     }
+    case 'DELAY_TO_NEXT_OPP_TURN_END': {
+      // 「次の対戦相手のターン終了時、〈本文〉」（§6.4 O-3）＝予約するだけ。
+      // ⚠本文はここで実行しない（続き493 で明示 defer に落として止めた即時実行が、機構が入って予約になった）。
+      const dnt = action as import('../types/effects').DelayToNextOppTurnEndAction;
+      return done(addLog({
+        ...ctx,
+        ownerState: {
+          ...ctx.ownerState,
+          pending_next_opp_turn_end_effects: [
+            ...(ctx.ownerState.pending_next_opp_turn_end_effects ?? []),
+            { ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}), action: dnt.action },
+          ],
+        },
+      }, '次の対戦相手のターン終了時の効果を予約'));
+    }
     case 'PLACE_FACEDOWN_LRIG_ZONE': {
       // 「デッキの一番上／手札のカードN枚まで を裏向きでルリグゾーンに置く」（§6.4 O-3）。
       const pfl = action as import('../types/effects').PlaceFacedownLrigZoneAction;

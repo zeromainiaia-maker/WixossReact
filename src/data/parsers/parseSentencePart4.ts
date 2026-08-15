@@ -1365,9 +1365,27 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'CENTER_ZONE_CONDITION' } as StubAction;
 
   // ---- このターンにアタックしたシグニを対象とし、キーをルリグトラッシュに置いてもよい ----
-  // ⚠「このターンにアタックしたシグニ」の絞り込み＋キー自壊コストの任意性が未実装（§6.4 O-3 続き459）。
-  if (t.match(/このターンにアタックしたシグニを.*対象とし.*ルリグトラッシュに置いてもよい/))
-    return { type: 'STUB', id: 'DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH' } as StubAction;
+  // 🆕**機構が入った（§6.4 O-3・続き497）**＝`attackedThisTurn` フィルタ＋`OPTIONAL_COST{trashOwnKey}`。
+  // 🔴従来は受け皿 STUB のまま後続が汎用の `BANISH{owner:'self'}` に落ち、
+  //   **相手のターン終了時に自分のシグニを1体タダでバニッシュする**過剰実行＋対象取り違えだった（実測）。
+  // ⚠対象は**対戦相手**（原文は「対戦相手のターン終了時」＝そのターンにアタックしたのは相手）。
+  {
+    const atkKeyM = t.match(/このターンにアタックしたシグニを([０-９\d一二三四五六七八九十]+)体(まで)?対象とし[、,].*?ルリグトラッシュに置いてもよい/);
+    if (atkKeyM) {
+      const target = {
+        type: 'SIGNI', owner: 'opponent', count: parseNum(atkKeyM[1]),
+        ...(atkKeyM[2] ? { upToCount: true } : {}),
+        filter: { cardType: 'シグニ', attackedThisTurn: true },
+      } as const;
+      return { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+        { type: 'STUB', id: 'OPTIONAL_COST', trashOwnKey: true } as EffectAction,
+        { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+          then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, targetsStored: true } } as EffectAction,
+      ] } as EffectAction;
+    }
+  }
 
   // ---- トラッシュにある〈X〉のシグニN枚につき±Nする ----
   if (t.match(/トラッシュにある.*のシグニ[１-９\d０-９]+枚につき/))

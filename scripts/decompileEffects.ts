@@ -131,6 +131,7 @@ function filterJa(f?: any): string {
   if (f.zoneSide) parts.push(f.zoneSide === 'left' ? '左ゾーンの' : '右ゾーンの');
   if (f.isFrozen) parts.push('凍結状態の');
   if (f.isPuppet) parts.push('傀儡状態の');
+  if (f.attackedThisTurn) parts.push('このターンにアタックした');
   if (f.eachDistinctLevel) parts.push('それぞれレベルの異なる');
   if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
   if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
@@ -1712,6 +1713,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「次の対戦相手のアタックフェイズ開始時、〈本文〉」（§6.4 O-3）
       // ⚠本文を落とすと「予約した」だけの文になり、遅延本体の脱落が逆翻訳に映らない。
       return `次の対戦相手のアタックフェイズ開始時、${actionJa(a.action)}`;
+    case 'DELAY_TO_NEXT_OPP_TURN_END':
+      // 「次の対戦相手のターン終了時、〈本文〉」（§6.4 O-3・上の兄弟）
+      return `次の対戦相手のターン終了時、${actionJa(a.action)}`;
     case 'PLACE_FACEDOWN_LRIG_ZONE': {
       const nPF = a.count ?? 1;
       return a.source === 'deck_top'
@@ -2096,6 +2100,10 @@ function actionJa(a?: Action, effectType?: string): string {
         // 手札捨てコスト（続き416）。従来は spec を見ずに「コストを支払ってもよい」へ潰れており、
         // 原文の枚数・クラス指定が逆翻訳から丸ごと消えていた（handDiscard を持つ既存 MANUAL も同様）。
         // シグニの下からトラッシュする任意コスト（`fromThis`＝このシグニの下から）
+        // キー払いの任意コスト（§6.4 O-3・`WDK06-R09-E1`）＝出さないと「コストを支払ってもよい」に潰れる。
+        if (a.trashOwnKey) {
+          return `${headOC}このキーを場からルリグトラッシュに置いてもよい`;
+        }
         if (a.underAnySigniTrash) {
           const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）

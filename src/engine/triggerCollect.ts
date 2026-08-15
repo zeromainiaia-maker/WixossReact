@@ -3889,6 +3889,28 @@ export function collectTurnTriggers(
     }
   }
 
+  // 「次の対戦相手のターン終了時、〜」（§6.4 O-3）。
+  // ⚠**予約は非ターンプレイヤー（opState）側にある**＝いま終わろうとしているのは「対戦相手のターン」なので、
+  //   予約した側はそのターンの非ターンプレイヤー。上のアタックフェイズ版と同じ走査軸
+  //   （myState を見ると**自分のターン終了時に誤発火**する）。
+  if (timing === 'ON_TURN_END') {
+    for (const pt of opState.pending_next_opp_turn_end_effects ?? []) {
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: pt.sourceCardNum ?? '',
+        effectId: `NEXT_OPP_TURN_END:${pt.sourceCardNum ?? ''}`,
+        label: '次の対戦相手のターン終了時の効果',
+        effect: {
+          effectId: `NEXT_OPP_TURN_END:${pt.sourceCardNum ?? ''}`,
+          effectType: 'AUTO',
+          timing: ['ON_TURN_END'],
+          action: { type: 'STUB', id: 'RESOLVE_NEXT_OPP_TURN_END_EFFECT' } as StubAction,
+          duration: 'INSTANT',
+          mandatory: true,
+        } as CardEffect,
+      });
+    }
+  }
+
   const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   // collectTurnTriggers はターンプレイヤー=自分が主体（isOwnerTurn: my=true / op=false）
   const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap, '自');

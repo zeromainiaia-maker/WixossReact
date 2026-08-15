@@ -115,6 +115,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   エナチャージしていた（過剰実行）／`WXDi-P09-066-E1` は無関係な汎用 `STUB{LOOK_AND_REORDER}`
   //   に落ちて計器にも映らなかった。**この関数の先頭に置く**＝本文側の汎用規則（DRAW 等）に
   //   先取りされないため（規則を後ろに置くと本文だけが拾われて宣言が消える）。
+  // 🆕**予約機構が入った（続き497）**＝ここは宣言を食い止めるだけで、本文の parse と
+  //   `DELAY_TO_NEXT_OPP_TURN_END` への詰め替えは `parseSingleSentence` の後処理
+  //   （`rewriteNextOppTurnEndBody`）が行う（この層からは文パーサを再帰呼び出しできないため）。
   if (/^次の対戦相手のターン終了時[、,]/.test(t)) {
     return { type: 'STUB', id: 'DEFERRED_NEXT_OPP_TURN_END_BODY' } as StubAction;
   }

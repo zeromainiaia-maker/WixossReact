@@ -1,17 +1,17 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 2871 件）
+live JSON の STUB id 種類 : 597（総ノード 2872 件）
 逆翻訳シートの [STUB:…] 総数: 775  うち生ID露出 273 箇所（186 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 23 種 / 26 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 23 種 / 26 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 22 種 / 24 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 22 種 / 24 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 258 箇所
   D 健全（実装あり＋日本語表示）                          : 402 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 321 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 322 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -23,23 +23,17 @@ live JSON の STUB id 種類 : 598（総ノード 2871 件）
      3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
         カード: WX25-P3-055, WXK01-002, WXK03-071
         生成: src\data\manualEffects.ts:4650 / src\data\manualEffects.ts:4653
-     2件   2枚  DEFERRED_NEXT_OPP_TURN_END_BODY
-        カード: WXDi-P09-066, WXDi-P16-002
-        生成: src\data\parsers\parseSentencePart1.ts:119
      1件   1枚  DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF
         カード: WX24-P4-016
-     1件   1枚  DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH
-        カード: WDK06-R09
-        生成: src\data\parsers\parseSentencePart4.ts:1370
      1件   1枚  DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS  [生ID露出 1]
         カード: WX09-Re01
         生成: src\data\manualEffects.ts:4636
      1件   1枚  DEFERRED_CHARM_POWER_MINUS_MULTIPLIER  [生ID露出 1]
         カード: WX25-P2-103
-        生成: src\data\parsers\parseSentencePart4.ts:1828
+        生成: src\data\parsers\parseSentencePart4.ts:1846
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3117
+        生成: src\data\parsers\parseSentencePart1.ts:3120
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4832
@@ -54,7 +48,7 @@ live JSON の STUB id 種類 : 598（総ノード 2871 件）
         生成: src\data\manualEffects.ts:4123
      1件   1枚  DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE  [生ID露出 1]
         カード: WX22-010
-        生成: src\data\parsers\parseSentencePart4.ts:1879
+        生成: src\data\parsers\parseSentencePart4.ts:1897
      1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
      1件   1枚  DEFERRED_GAIN_OPP_LRIG_TYPE
@@ -65,6 +59,9 @@ live JSON の STUB id 種類 : 598（総ノード 2871 件）
         生成: src\data\manualEffects.ts:3683
      1件   1枚  DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
         カード: WXDi-P00-026
+     1件   1枚  DEFERRED_NEXT_OPP_TURN_END_BODY
+        カード: WXDi-P09-066
+        生成: src\data\effectParser.ts:3009 / src\data\parsers\parseSentencePart1.ts:122
      1件   1枚  DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK
         カード: WXDi-P08-030
         生成: src\data\parsers\parseSentencePart3.ts:2127
@@ -76,7 +73,7 @@ live JSON の STUB id 種類 : 598（総ノード 2871 件）
         生成: src\data\manualEffects.ts:92
      1件   1枚  DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT
         カード: WDK07-Y07
-        生成: src\data\parsers\parseSentencePart4.ts:1379
+        生成: src\data\parsers\parseSentencePart4.ts:1397
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
         生成: src\data\manualEffects.ts:4647

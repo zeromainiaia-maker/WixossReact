@@ -585,6 +585,12 @@ export interface TargetFilter {
   isFrozen?:  boolean;
   isAwakened?: boolean; // 覚醒状態のシグニ（ownerState.awakened_signi にCardNumが含まれる）。「レベルNの覚醒状態のシグニがある場合」等。matchesStateFilter/execUtils HAS_CARD_IN_FIELD で判定（WXDi-P14-054/058/066）
   isPuppet?: boolean; // 傀儡状態のシグニ（field.puppet_signi にインスタンスIDが含まれる）
+  /**
+   * このターンにアタックしたシグニ（§6.4 O-3・`WDK06-R09-E1`）。
+   * ⚠判定は `fieldCandidates`（state を持つ層）＝`matchesFilter` は card 単体しか見られない。
+   *   参照する `attacked_signi_ids` は**アタックした側の state** に積まれる。
+   */
+  attackedThisTurn?: boolean;
   crossState?: boolean; // クロス状態のシグニ（field.cross_state[zone]）。イノセンス等（G159）
   hasCharm?:  boolean;
   levelEqDiscardLevelSum?: boolean; // レベルがlast_activated_discard_level_sumと一致するか（WDK13-011用）
@@ -833,6 +839,7 @@ export type EffectAction =
   | SigniDeployBanAction
   | AddExtraAttackPhaseAction
   | DelayToNextOppAttackPhaseAction
+  | DelayToNextOppTurnEndAction
   | PlaceFacedownLrigZoneAction
   | RevealFacedownLrigZoneAction
   | PlayFreeFromTrashAction
@@ -2100,6 +2107,25 @@ export interface DelayToNextOppAttackPhaseAction {
 }
 
 /**
+ * 「次の対戦相手のターン終了時、〈本文〉」（§6.4 O-3）。上の アタックフェイズ版と**同じ型の兄弟**。
+ *
+ * 実体は**予約した側**の `PlayerState.pending_next_opp_turn_end_effects` への1件追加。
+ * 発火は `ON_TURN_END` の collector が**非ターンプレイヤー側（＝予約した側）の予約**を読む
+ * ＝相手のターンが終わる瞬間、ターンプレイヤーは相手なので予約は `opState` にある。
+ *
+ * ⚠**ターン境界を跨ぐ**ので `delayed_triggers`（THIS_TURN 限定）にも `turnScopedState` にも載せない。
+ *   消化は発火時の1件ずつ（`RESOLVE_NEXT_OPP_TURN_END_EFFECT`）。
+ * ⚠本文は**その時点で実行**する＝予約時に走らせてはいけない
+ *   （続き493 で明示 defer に落として即時実行を止めた形の、機構が入ったぶん）。
+ * ⚠**相手のターン中に予約した場合**は「いま終わろうとしている相手ターン」ではなく**次の**相手ターン終了時に
+ *   なるのが原文の意味だが、現状の母集団2効果はどちらも自分のメインフェイズ限定の【起】なので差は出ない。
+ */
+export interface DelayToNextOppTurnEndAction {
+  type: 'DELAY_TO_NEXT_OPP_TURN_END';
+  action: EffectAction;
+}
+
+/**
  * 「〈デッキの一番上／手札のカードN枚まで〉を裏向きでルリグゾーンに置く」（§6.4 O-3）。
  *
  * 実体は `PlayerState.facedown_lrig_zone_cards` への追加＝**元のゾーンからは取り除く**。
@@ -2494,6 +2520,11 @@ export interface StubAction {
   energyTrashSameLevelAsTarget?: boolean;
   /** SELECT_TARGET_ONLY: 盤面を変えずに対象だけを選ばせ lastProcessedCards に記録する対象宣言。 */
   selectTarget?: EffectTarget;
+  /**
+   * OPTIONAL_COST: 「このキーを場からルリグトラッシュに置く」（§6.4 O-3・`WDK06-R09-E1`）。
+   * ⚠キーゾーンはシグニゾーンと別なので `fieldToLrigTrash` では払えない。
+   */
+  trashOwnKey?: boolean;
   /**
    * OPTIONAL_COST: 「〈コスト〉を**支払わないかぎり**、X」の回避ゲート（§6.4 O-30）。
    * 機構は通常の任意コストと同じ（pay＝`then`／skip＝`else`）だが、**選択肢の文言だけ**を

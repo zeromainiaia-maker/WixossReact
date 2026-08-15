@@ -29327,15 +29327,24 @@ test('§6.4 O-3: `WXK10-004-E1`（場以外の領域）と `WXEX2-06-E3`（ダ�
 test('§6.4 O-3: 「次の対戦相手のターン終了時、〜」の本体を即時実行しない', () => {
   // 🔴`WXDi-P16-002-E1` は**使った瞬間に**1枚引き【エナチャージ１】していた（過剰実行）。
   //   `WXDi-P09-066-E1` は無関係な汎用 `STUB{LOOK_AND_REORDER}` に落ちて計器にも映らなかった。
-  for (const [cardNum, effectId] of [['WXDi-P16-002', 'WXDi-P16-002-E1'], ['WXDi-P09-066', 'WXDi-P09-066-E1']] as const) {
+  // 🆕続き497 で予約機構（`DELAY_TO_NEXT_OPP_TURN_END`）が入ったので、**本文が解ける側は予約へ格上げ**した。
+  //   ⚠`WXDi-P09-066-E1` は本文が「**その**カードを手札に加える」＝遅延を跨いだ照応で、単独文として読むと
+  //     `TRANSFER_TO_HAND{DECK_CARD}`（デッキから引く）へ化けるため**受け皿のまま**（過少側に倒す）。
+  for (const [cardNum, effectId, shape] of [
+    ['WXDi-P16-002', 'WXDi-P16-002-E1', 'DELAY_TO_NEXT_OPP_TURN_END'],
+    ['WXDi-P09-066', 'WXDi-P09-066-E1', 'DEFERRED_NEXT_OPP_TURN_END_BODY'],
+  ] as const) {
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
     const json = JSON.stringify(eff.action);
-    ok(json.includes('DEFERRED_NEXT_OPP_TURN_END_BODY'), `${cardNum}: 遅延本体を受け皿へ落とす`);
+    ok(json.includes(shape), `${cardNum}: 遅延本体の扱いが ${shape} でない`);
     const ctx = mkCtx({}, {}, cardNum);
     const handBefore = (ctx.ownerState as PlayerState).hand.length;
     const r = finish(executeEffect(eff, ctx), ctx);
     eq((r.ownerState as PlayerState).hand.length, handBefore, `${cardNum}: 即時に手札が増えない`);
   }
+  // 予約された本体は「引く＋エナチャージ」のセット（片方だけ落ちていないこと）
+  const reserved = JSON.stringify(effectsMap.get('WXDi-P16-002')!.find(e => e.effectId === 'WXDi-P16-002-E1')!.action);
+  ok(reserved.includes('"DRAW"') && reserved.includes('ENERGY_CHARGE_FROM_DECK'), '予約された本体が欠けている');
   // `WXDi-P16-002-E1` は【使用条件】ヘッダが `GRANT_KEYWORD{keyword:"使用条件"}` に化けていた（続き490 と同じクラス）。
   const piece = effectsMap.get('WXDi-P16-002')!.find(e => e.effectId === 'WXDi-P16-002-E1')!;
   ok(!JSON.stringify(piece.action).includes('使用条件'), 'ゴミ keyword 付与が消えている');
@@ -29432,6 +29441,97 @@ test('RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT: 予約を1件取り出して実行�
     { ...ctx, ownerState: withPending } as ExecCtx);
   eq((r.otherState as PlayerState).field.signi_down?.[0], true, '予約した本文が実行されない');
   eq((r.ownerState as PlayerState).pending_next_opp_attack_phase_effects, undefined, '実行した予約は消える');
+}));
+// ── attackedThisTurn ＋ OPTIONAL_COST{trashOwnKey}（§6.4 O-3・`WDK06-R09-E1`・続き497）──
+test('attackedThisTurn: 「このターンにアタックしたシグニ」だけが候補になる', () => withSavedCursor(() => {
+  const state: PlayerState = {
+    ...mkState({ signi: [SIGNI, SIGNI_P3000, null] }),
+    attacked_signi_ids: [SIGNI_P3000],
+  };
+  eq(fieldCandidates(state, { cardType: 'シグニ', attackedThisTurn: true }, cardMap as Map<string, CardData>).join('|'),
+    SIGNI_P3000, 'アタックしたシグニだけに絞れていない');
+  eq(fieldCandidates(state, { cardType: 'シグニ', attackedThisTurn: false }, cardMap as Map<string, CardData>).join('|'),
+    SIGNI, '否定側が効いていない');
+  // ⚠`attacked_signi_ids` は**アタックした側の state** に積まれる＝候補を作る state と同じ側で読む
+  eq(fieldCandidates(mkState({ signi: [SIGNI, SIGNI_P3000, null] }), { cardType: 'シグニ', attackedThisTurn: true },
+    cardMap as Map<string, CardData>).length, 0, '誰もアタックしていないのに候補が出る');
+}));
+test('OPTIONAL_COST{trashOwnKey}: キーが無ければ払えず、払えば場→ルリグトラッシュ（§6.4 O-3）', () => withSavedCursor(() => {
+  const KEY = 'WDK06-R09';
+  const gate = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'OPTIONAL_COST', trashOwnKey: true },
+    { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+      then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as unknown as EffectAction;
+  const withKey = (key: string | null): ExecCtx => {
+    const c = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+    c.ownerState = { ...c.ownerState, field: { ...c.ownerState.field, key_piece: key } } as PlayerState;
+    return c;
+  };
+  // キーがあれば pay 枝が選べ、支払うとキーがルリグトラッシュへ移る
+  const ctxKey = withKey(KEY);
+  const before = ctxKey.ownerState.hand.length;
+  const paid = finishPayingCosts(executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: gate, duration: 'INSTANT', mandatory: true } as CardEffect, ctxKey), ctxKey);
+  eq((paid.ownerState as PlayerState).field.key_piece, null, 'キーが場から離れていない');
+  ok((paid.ownerState as PlayerState).lrig_trash.includes(KEY), 'キーがルリグトラッシュへ行っていない');
+  eq((paid.ownerState as PlayerState).hand.length, before + 1, '支払ったのに帰結が起きない');
+  // キーが無ければ pay 枝は選べない（＝「そうした場合」の帰結も起きない）
+  const poor = executeEffect(
+    { effectId: 't', effectType: 'AUTO', action: gate, duration: 'INSTANT', mandatory: true } as CardEffect, withKey(null));
+  const opts = (poor as Extract<ExecResult, { done: false }>).pending as { options: { id: string; available?: boolean }[] };
+  eq(opts.options.find(o => o.id === 'pay')?.available, false, 'キーが無いのに支払える');
+}));
+test('live データ不変条件: WDK06-R09-E1 は相手のアタック済みシグニをキー払いでバニッシュする（§6.4 O-3）', () => {
+  // 🔴従来は受け皿 STUB のあと汎用 `BANISH{owner:'self'}` が走り、**相手のターン終了時に自分のシグニを
+  //   1体タダでバニッシュ**していた（実測）。対象・コスト・二重実行の3点を固定する。
+  const a = JSON.stringify(effectsMap.get('WDK06-R09')!.find(e => e.effectId === 'WDK06-R09-E1')!.action);
+  ok(a.includes('"attackedThisTurn":true'), 'このターンにアタックしたシグニの限定が落ちている');
+  ok(a.includes('"trashOwnKey":true'), 'キー払いの任意コストが落ちている');
+  ok(!a.includes('DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH'), '受け皿 STUB が残っている');
+  ok(!a.includes('"owner":"self"'), '対象が自分のシグニに戻っている');
+  eq((a.match(/"BANISH"/g) ?? []).length, 1, 'バニッシュが二重になっている（後続文の重複ステップ）');
+});
+// ── DELAY_TO_NEXT_OPP_TURN_END（§6.4 O-3「次の対戦相手のターン終了時、〜」・続き497）──
+test('DELAY_TO_NEXT_OPP_TURN_END: 予約するだけで本文は即時実行しない', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const handBefore = ctx.ownerState.hand.length;
+  const body = { type: 'DRAW', owner: 'self', count: 1 } as unknown as EffectAction;
+  const r = run({ type: 'DELAY_TO_NEXT_OPP_TURN_END', action: body } as unknown as EffectAction, ctx);
+  const pending = (r.ownerState as PlayerState).pending_next_opp_turn_end_effects ?? [];
+  eq(pending.length, 1, '予約が1件載る');
+  eq(pending[0].sourceCardNum, SIGNI, '効果元が記録される');
+  // 🔴続き493 以前は本文が素通りで「使った瞬間に1枚引く」過剰実行だった。
+  eq((r.ownerState as PlayerState).hand.length, handBefore, '本文はこの時点で実行してはいけない');
+  // ⚠ターン境界を跨ぐ予約なので turn-end で消してはいけない（相手のターンが終わるまで生きる）
+  eq(clearTurnEndScopedState(r.ownerState as PlayerState).pending_next_opp_turn_end_effects?.length, 1,
+    '予約がターン終了で消えている');
+}));
+test('RESOLVE_NEXT_OPP_TURN_END_EFFECT: 予約を1件取り出して実行する', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const body = { type: 'DRAW', owner: 'self', count: 2 } as unknown as EffectAction;
+  const withPending: PlayerState = {
+    ...ctx.ownerState,
+    pending_next_opp_turn_end_effects: [{ sourceCardNum: SIGNI, action: body }],
+  };
+  const before = withPending.hand.length;
+  const r = run({ type: 'STUB', id: 'RESOLVE_NEXT_OPP_TURN_END_EFFECT' } as EffectAction,
+    { ...ctx, ownerState: withPending } as ExecCtx);
+  eq((r.ownerState as PlayerState).hand.length, before + 2, '予約した本文が実行されない');
+  eq((r.ownerState as PlayerState).pending_next_opp_turn_end_effects, undefined, '実行した予約は消える');
+}));
+test('collectTurnTriggers(ON_TURN_END): 予約は非ターンプレイヤー側だけを読む（§6.4 O-3）', () => withSavedCursor(() => {
+  // ⚠**myState を見ると自分のターン終了時に誤発火する**（アタックフェイズ版と同じ走査軸）。
+  const body = { type: 'DRAW', owner: 'self', count: 1 } as unknown as EffectAction;
+  const reserved: PlayerState = { ...mkState({}), pending_next_opp_turn_end_effects: [{ sourceCardNum: SIGNI, action: body }] };
+  const plain = mkState({});
+  const collect = (turnPlayer: PlayerState, other: PlayerState) =>
+    cttEntries(trigCtx(HOST), 'ON_TURN_END', turnPlayer, other)
+      .filter(e => e.effectId.startsWith('NEXT_OPP_TURN_END:'));
+  // 予約した側が非ターンプレイヤー＝相手のターンが終わる瞬間 → 発火する
+  eq(collect(plain, reserved).length, 1, '相手のターン終了時に予約が発火しない');
+  // 予約した側がターンプレイヤー＝自分のターン終了時 → 発火しない
+  eq(collect(reserved, plain).length, 0, '自分のターン終了時に誤発火している');
 }));
 test('裏向きルリグゾーン: 置く→公開してトラッシュ→レベル参照（§6.4 O-3）', () => withSavedCursor(() => {
   const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
