@@ -152,11 +152,13 @@ export const toHalfWidth = (s: string) =>
 // NEXT_TURN_START は発動ターン中は消費側が無視する予約。境界で NEXT_TURN_END へ昇格し、
 // 続く1ターンを丸ごとカバーした次の境界で消滅する。MY_TURN_END は「このターン」なので消滅する。
 export function advancePreventDamageWindows(
-  windows: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' }[] | undefined,
-): { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' }[] | undefined {
+  windows: PlayerState['prevent_damage_windows'],
+): PlayerState['prevent_damage_windows'] {
   const next = (windows ?? [])
-    .filter(w => w.expires === 'NEXT_TURN_START')
-    .map(w => ({ ...w, expires: 'NEXT_TURN_END' as const }));
+    .filter(w => w.expires === 'NEXT_TURN_START' || w.expires === 'MY_NEXT_MAIN_PHASE')
+    // ⚠`MY_NEXT_MAIN_PHASE` は**ターン境界では消えない**（失効は自分が次にメインフェイズへ入る1点）＝
+    //   ここで昇格させず、そのまま持ち越す（§6.4 O-3 続き492）。
+    .map(w => w.expires === 'NEXT_TURN_START' ? { ...w, expires: 'NEXT_TURN_END' as const } : w);
   return next.length > 0 ? next : undefined;
 }
 
