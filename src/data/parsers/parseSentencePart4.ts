@@ -1282,7 +1282,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   「ベットしていても自分のターンでも必ず次のターンを飛ばす」**過剰実行**になる。
   //   ベット判定は `IS_BETTING{negate:true}`／ターン判定は `TURN_OWNER{owner:'opponent'}`（`ctx.isOwnerTurn`）。
   if (t.match(/ベットしていなかった場合.*ターンをスキップする/)) {
-    const conditions: import('../../types/effects').EffectCondition[] = [];
+    const conditions: import('../../types/effects').Condition[] = [];
     if (/この(?:ターン|とき)が対戦相手のターンで/.test(t)) conditions.push({ type: 'TURN_OWNER', owner: 'opponent' });
     conditions.push({ type: 'IS_BETTING', negate: true });
     return {
