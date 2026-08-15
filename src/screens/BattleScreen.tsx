@@ -10389,8 +10389,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const mpsCpu = isPhaseSkipped('MAIN', cpuSt, cpuContBlockedSelf)
         ? { cpuState: cpuSt, humanState: undefined as PlayerState | undefined, entries: [] as StackEntry[] }
         : collectCpuTurnTriggers('ON_MAIN_PHASE_START', cpuSt, huSt);
+      // §6.4 O-3: 「次のあなたのメインフェイズまで」の予約はここで失効させる（人間経路と同じ1点）。
+      const cpuAtMainStart = clearMainPhaseScopedState(mpsCpu.cpuState);
       await persist.commit(reduceBattle(bs, {
-        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: mpsCpu.cpuState, phase: 'MAIN',
+        type: 'ADVANCE_TURN_WITH_STATE', playerKey: 'guest_state', playerState: cpuAtMainStart, phase: 'MAIN',
         opp: mpsCpu.humanState ? { key: 'host_state', state: mpsCpu.humanState } : undefined,
         effectStack: mpsCpu.entries.length > 0
           ? (bs.effect_stack ? pushToStack(bs.effect_stack, mpsCpu.entries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, mpsCpu.entries))
