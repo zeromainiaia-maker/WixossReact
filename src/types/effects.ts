@@ -1979,6 +1979,12 @@ export interface SigniAttackBanAction {
   owner: Owner;
   /** 宣言済みの数字と同じレベルのシグニに限定する（未宣言なら ban を張らない）。 */
   levelFromDeclaredNumber?: boolean;
+  /**
+   * 直前に処理したカードと同じレベルのシグニに限定する（「そのカードと同じレベルのシグニ」）。
+   * ⚠**実行時にレベルを焼き込む**＝判定地点（アタッカー側 state）から `lastProcessedCards` は見えない。
+   *   直前カードが無い／レベルが取れないときは ban を張らない（過少側に倒す）。
+   */
+  levelFromLastProcessed?: boolean;
   /** 実効パワーが表記パワーと異なるシグニに限定する。 */
   powerDiffersFromPrinted?: boolean;
   /** 直前に対象化したシグニに限定する（「それはアタックできない」）。 */
