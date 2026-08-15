@@ -1,5 +1,130 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き485・Opus 5）— §6.4 **O-19 完了＋新設 O-25（自己引用付与）＝5効果の挙動是正**
+
+**恒久 no-op 1件＋過剰実行3件＋所有者反転1件**。engine の新機構は**1分岐だけ**（残りは parser／既存語彙）。
+ゲート全緑（**golden 1990**＝+5・**census 833→831**・smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors）。
+live JSON changed **9カード**（CSV 非改変）。
+
+---
+
+### 🔴 (1) O-19＝watcher の `triggerScope` が推論任せで self に潰れていた（`WX25-P1-061-E1`）
+
+原文＝「【自】《ターン１回》：**あなたのシグニ１体がトラッシュから場に出たとき**、あなたの場に
+《冒険の鍵主　ウムル＝トレ》がいる場合、ターン終了時まで、このシグニは「【自】：このシグニが
+アタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。」を得る。」
+
+live は `triggerScope` **未指定**＝engine では `self`（＝**このシグニ自身が場に出たとき**）に落ちる。
+つまり**一度も原文どおりに発火しない**。しかも本体は下の (2) で即時 `POWER_MODIFY −8000` に潰れていた。
+
+**2層で直した：**
+
+1. **`inferTriggerScope` を能力ブロック限定にする**（`effectParser.ts:13268`）
+   従来は `card.EffectText + card.BurstText`（**カード全文**）を読んでおり、「どの文からこの effect が
+   生まれたか」を知らなかった。続き463 はその副作用（【出】に watcher の scope が付く）を
+   **「カードが【出】を持つなら ON_PLAY の推論をしない」**という暫定 guard で止めていたが、
+   その guard は**逆向きの穴**（watcher 側が self のまま残る）を残していた。
+   読むテキストを `abilityBlockTextOf(card, effect.effectId)` に変えると**両方向が構造的に消える**ので、
+   暫定 guard は撤去した。⚠`abilityBlockTextOf` は effectId がブロック表に無ければ全文へフォールバック
+   ＝従来挙動が既定。**全カード A/B の差分はこの1件のみ**。
+
+2. **parser が parse 時に書く**（`effectParser.ts:10739` の `allyPlayM`）
+   由来句「**トラッシュから**」を主語と「場に出たとき」の間に許し、
+   `triggerScope:'any_ally'` ＋ `triggerCondition.placedFromTrash` を出す。
+   ⚠**「エナゾーンから」は入れない**＝engine に由来ゾーン語彙が無く、限定を落とすと過剰発火する
+   （既存の `watcherScopeRepairIds` 側も `unsupportedOrigin` として `timing=[]` で安全停止している）。
+
+**🔑 本命は1枚の修正ではなく計器**＝golden に**データ不変条件**を新設した：
+
+> 「ON_PLAY の AUTO 効果で、**能力ブロックの主語が『この（シグニ|カード|レゾナ|アシスト）』でない**のに
+> `triggerScope` 未指定＝**0件**」
+
+scope 未指定は engine で self に落ちるので、watcher なら**一度も発火しない**。それなのに
+census にも smoke にも映らなかった（＝「計器に映らない事故を起こす層」）。これで**新カード追加で
+このクラスが増えた瞬間に赤くなる**。既存 golden の期待値 1455→1454 も、当時のコメントが
+「scope を足したら 1454 に戻る」と予告していたとおりに戻した。
+
+---
+
+### 🔴 (2) O-25＝引用能力の付与が「即時実行」へ平坦化していた（新設）
+
+原文「（ターン終了時まで、）**この(シグニ|ルリグ)は「【自】…」を得る**」を parser が
+**どの付与規則でも拾えず**、引用の**中身をその場で実行**していた。実測3件の症状：
+
+| 効果 | 直す前の live | 症状 |
+|---|---|---|
+| `WX25-P1-061-E1` | `POWER_MODIFY{opponent,−8000}` | 「アタックしたとき−8000」が**付与した瞬間に**発動（過剰実行） |
+| `WX25-CP1-048-E1` | `CONDITIONAL→POWER_MODIFY{−15000}` | 同上（−15000） |
+| `WXDi-P09-038-E1` | `SEQUENCE[CONDITIONAL→OPTIONAL_COST]` | 付与節が丸ごと落ちて**コストを払うだけの恒久 no-op** |
+
+残りは `STUB{GRANT_ABILITY_INNER_TEXT}` へ落ち、engine（`execStubPart1:1191` の B4 経路）が
+**実行時にカード原文を regex で読み直して** `parseCardEffects` し直すことで付与を再現していた。
+これは §6.4 **O-20 で潰した「実行時に原文で意味を決める層」の生き残り**。
+
+**直し方＝既存の兄弟規則と対になる自己付与規則を1本足すだけ**（`effectParser.ts`・count:'ALL' 版の隣）：
+
+```
+^(ターン終了時まで|次の対戦相手のターン終了時まで)、この(シグニ|ルリグ)は「(【[自出起]】.+)」を得る$
+  → GRANT_EFFECT{ target:{type:SIGNI|LRIG, owner:'self', count:1, filter:{thisCardOnly:true}},
+                  duration: UNTIL_END_OF_TURN | UNTIL_OPP_TURN_END, rawText:<引用> }
+```
+
+引用の中身は既存の `expandGrantEffectRawTexts` が `parseBlock` で `CardEffect` へ展開する
+（展開不能なら rawText 温存＋PARTIAL＝engine は `effect` 無し `GRANT_EFFECT` を no-op ガードするので
+**過剰実行側へは倒れない**）。**engine の新機構はゼロ**（`granted_effects` と
+`GRANT_EFFECT{thisCardOnly}` は既にあり、BattleScreen の augmented effectsMap にも合流済み）。
+
+**⚠ 置き場所を1回間違えた（恒久ルールとして記録）**
+最初 `parseSentencePart1.ts` の兄弟規則（「それは「Q」を得る」）の直後に足したが**発火しなかった**。
+`parseActionText` は先頭の「ターン終了時まで、」を**除去してから**各 part を呼ぶため、
+**期間プレフィックスを要求する規則は除去より前**に置く必要がある（既存の count:'ALL' 版が
+同じ理由でそこに居た）。兄弟規則が動いていたのは、そちらの期間句が**文中**（「…を対象とし、
+ターン終了時まで、それは…」）にあって strip の `^` アンカーに掛からないから。
+
+**engine 側の追加は1分岐**（`effectExecutor.ts` `execGrantEffect`）＝
+`execGrantKeyword` にあった「`thisCardOnly` は選択UIを出さず自動付与」が `execGrantEffect` に**無く**、
+候補1件でも `selectOrInteract` が**「自分自身を選べ」という無意味なモーダル**を挟んで解決が止まっていた。
+
+**⚠ 【常】引用は対象外**＝`parseContinuousQuotedGrant`（`GRANT_FIELD_SIGNI_ABILITY`＝CONTINUOUS 収集専用）
+の領分。期間の無い「このシグニは「Q」を得る」を巻き込むと**ターン終了時に消える別物**になる。
+
+---
+
+### 🔴 (3) 引用を「外側の文」として読んでいた照応補正（`WXDi-P07-063`／`WX24-P2-007-E1`）
+
+(2) の A/B で露出。`applyLeadingOpponentDesignation`（`effectParser.ts:5504`＝「そうした場合、それを〜」の
+照応先を相手シグニへ戻す補正）が、**引用能力の中の「対戦相手のシグニ１体を対象とし」を
+外側の文の照応と誤読**していた。結果：
+
+- `WXDi-P07-063-E1`＝自分に付けるはずの「アタック時バニッシュ」が **`owner:'opponent'` + powerRange 付き**
+  ＝**相手シグニへの付与**に化けた（今回の変更で新たに露出した側）
+- `WX24-P2-007-E1`＝原文「**あなたの**すべてのシグニは「…」を得る」が **`owner:'opponent'`, count:'ALL'**
+  ＝**相手の全シグニに付いて自分には付かない**。**これは今回の変更前から live に入っていた実バグ**
+
+**修正＝走査するテキストで引用を伏せ字にする**（`text.replace(/「[^」]*」/g,'「」')` を
+anaphora 判定・「を対象とし」の個数カウント・designation 抽出の3箇所に適用）。
+全カード A/B ＝ 差分2件・どちらも是正方向。
+
+> 🔑**恒久ルール**＝**引用（「…」）は「別のカードの文」**。文単位の照応補正・主語推定・語彙カウントは
+> **引用を伏せ字にしてから走査する**。同型は `parseSentencePart` 群にも潜んでいる可能性がある。
+
+---
+
+### 採用と計器
+
+- `node scripts/heldReview.mjs --adopt` で **9カード**採用
+  （`WX24-P2-007`／`WX25-P1-056`／`WX25-P1-061`／`WX25-P2-030`／`WX25-P3-056`／`WX25-P3-059`／
+  `WX25-CP1-048`／`WXK10-079`／`WXDi-P07-063`）。**いずれもカードあたり1効果だけの差分**であることを
+  採用前に確認（heldReview は**カード単位で fresh を丸ごと置く**ので、他効果の巻き添えを必ず見る）。
+- golden **+5**＝①データ不変条件（O-19）②`WX25-P1-061-E1` の watcher 契約
+  ③3枚の「付与であって即時実行ではない」④`WX24-P2-007-E1` の付与先 owner
+  ⑤engine の自動付与（`granted_effects` に入る／対話待ちにならない）。
+  **5本とも、直した箇所を戻すと FAIL することを実測で確認済み**。
+- census **833→831**（`BASELINE_HIGH` 実数更新）＝引用の中身が外側効果の語彙として数えられなくなった分。
+- **残り**は PLAN §6.4 の `O-25` 行（`WXDi-P13-065-E2` の未パース条件節／`WXDi-P15-055-E3` の MANUAL 不可侵／
+  `SPDi43-05-E2` の PARTIAL ／【常】引用クラス36箇所）。
+
+
 ## 2026-08-15（続き484・Opus 5）— §6.4 **O-22（(a)(b)(c) 全部）／O-23／O-24 完了＝5効果の挙動是正**（恒久 no-op 4件＋過剰実行1件）
 
 いずれも「STUB のハンドラが**原文と別のもの**を実行していた」型。**engine の新機構は1つだけ**で、残り4件は

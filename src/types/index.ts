@@ -505,6 +505,10 @@ export interface PlayerState {
   prevent_signi_down_by_opp?: boolean;
   // 相手シグニがアタック時に適用するパワー制限（OPP_SIGNI_ATTACK_POWER_RESTRICT）
   opp_signi_attack_power_cap?: number;
+  // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」＝**禁止を受ける側**（アタッカー）に載る条件束。
+  // ⚠`opp_signi_attack_power_cap` は逆に**課した側**に載る（歴史的経緯）。新規はこちらに寄せる＝
+  //   signiAttackGate が attacker 側だけを見れば済み、`_this_turn` 命名で turn-end 失効も自動登録になる。
+  signi_attack_bans_this_turn?: SigniAttackBan[];
   // 裏向きシグニのCardNum一覧（SIGNI_FLIP_FACEDOWN / FACE_DOWN_OPP_SIGNI）
   face_down_signi?: string[];
   // このターン、自分の効果による特定シグニへのパワー-を2倍にする（DOUBLE_OWN_POWER_MINUS）
