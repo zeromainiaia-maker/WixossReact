@@ -42,6 +42,21 @@ export type EnergyPayEntry =
 /** `UNDER_CARD_AS_ENERGY_COST` の宣言（live JSON に載せる。engine で原文を再パースしない）。 */
 export const UNDER_CARD_AS_ENERGY_STUB_ID = 'UNDER_CARD_AS_ENERGY_COST';
 
+/**
+ * 「このターン、あなたは１以上のエナコストを支払えない」（`SPK01-10-E1`・§6.4 O-3）の `blocked_actions` id。
+ *
+ * 🔑**判定は「コストを比較する側」ではなく「支払い元を作る側」に載せる**＝pool が空なら
+ * `canAffordGrowCost` / `canAffordWithExtraCost` はエナ1以上のコストで自動的に false になり、
+ * 《色×0》のコスト（＝エナ0枚）は従来どおり通る＝原文の「１以上の」がそのまま表現できる。
+ * 各モーダル・各 affordability 呼び出しに検算を撒かないので、支払いUIが増えても穴が開かない。
+ */
+export const ENERGY_PAY_BLOCK_ACTION_ID = 'PAY_ENERGY_COST';
+
+/** このプレイヤーがいまエナコストを支払えない状態か。 */
+export function isEnergyPayBlocked(my: PlayerState): boolean {
+  return (my.blocked_actions ?? []).includes(ENERGY_PAY_BLOCK_ACTION_ID);
+}
+
 const ATTACK_PHASES: TurnPhase[] = ['ATTACK_ARTS', 'ATTACK_ARTS_OP', 'ATTACK_SIGNI', 'ATTACK_LRIG'];
 
 export interface EnergyPoolContext {
