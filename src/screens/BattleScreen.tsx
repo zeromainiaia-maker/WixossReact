@@ -210,8 +210,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pendingGuardBarrierAct, setPendingGuardBarrierAct, selectedBarrierGuardCard, setSelectedBarrierGuardCard,
     negateEscape, selectedNegateEscape, setSelectedNegateEscape,
     attackFieldTrashPayment, selectedAttackFieldTrashZones, setSelectedAttackFieldTrashZones,
+    attackHandDiscardPayment, selectedAttackHandDiscard, setSelectedAttackHandDiscard,
     openGuardBarrierAct, closeGuardBarrierAct, openNegateEscape, closeNegateEscape,
     openAttackFieldTrashPayment, closeAttackFieldTrashPayment,
+    openAttackHandDiscardPayment, closeAttackHandDiscardPayment,
   } = useGuardResponses();
   const {
     pendingCutinCard, setPendingCutinCard, selectedCutinCost, setSelectedCutinCost,
