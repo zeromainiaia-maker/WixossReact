@@ -1716,6 +1716,25 @@ export function parseSentencePart3(t: string): EffectAction | null {
       } as ConditionalAction;
     }
   }
+  // ---- トラッシュ条件 ＋ デッキから名指しサーチ（§6.4 O-34(b)・`WX20-077-E2`）----
+  // 🔴従来は下の catch-all（`CONDITIONAL_POWER_BONUS`）が**サーチ節ごと**飲み込んでいた＝
+  //   「デッキから《バイオレンス・スプラッシュ》を探す」が一度も走らず、後続の「それを使う」も
+  //   参照先を失う（＝丸ごと no-op）。⚠catch-all の**前**に置くこと。
+  {
+    const m = t.match(/^あなたのトラッシュにカード名に《(.+?)》を含むカードがある場合、あなたのデッキから《(.+?)》([０-９\d]+)枚を探す$/);
+    if (m) {
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardName: m[1] } },
+        then: {
+          type: 'SEARCH',
+          from: { location: 'deck', owner: 'self' },
+          filter: { cardName: m[2] },
+          maxCount: parseNum(m[3]),
+        },
+      } as ConditionalAction;
+    }
+  }
   // ---- トラッシュ条件（パワー修正なし）→ STUB フォールバック ----
   if (t.match(/あなたのトラッシュにカード名に.+を含むカードがある場合/)) {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
