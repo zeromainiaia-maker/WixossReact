@@ -7293,6 +7293,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         else if (lrigNums.length > 0) ban.cardNums = [];   // シグニ側は空＝下で積まない
         else return done(addLog(ctx, 'アタック制限: 対象が確定していない'));
       }
+      // 「選んだシグニ**以外**のシグニでアタックできない」（`WXDi-P08-030-E1`・§6.4 O-3）。
+      // ⚠**0体選択でも ban を張る**＝「1体も選ばなかった＝どのシグニでもアタックできない」が原文の意味。
+      //   `targetsStored`（選んだものを禁止）とは逆向きなので、空集合の扱いも逆になる。
+      if (sab.exceptTargetsStored) ban.exceptCardNums = [...(ctx.storedTargetCards ?? [])];
       for (const b of [ban, lrigBan]) {
         if (!b) continue;
         if (sab.unlessPayColorless) b.unlessPayColorless = sab.unlessPayColorless;
