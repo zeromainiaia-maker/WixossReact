@@ -1498,9 +1498,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/《ガードアイコン》を持たないカード.*デッキの一番下に置いてもよい/))
     return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
 
-  // ---- 手札〜ルリグゾーンに裏向きで置く ----
-  if (t.match(/手札.*ルリグゾーンに裏向きで置く/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+  // ---- 手札〜ルリグゾーンに裏向きで置く（§6.4 O-3）----
+  // ⚠旧 `SOUL_OP` は**カード全文 regex で分岐する別機構**（ルリグの下／ルリグトラッシュ操作）で、
+  //   この文型に該当する分岐が1つも無く**丸ごと no-op** だった（`WXDi-P09-066-E1`）。
+  //   ＝後続の「次の対戦相手のターン終了時、そのカードを手札に加える」も参照先を失う。
+  {
+    const fdHandM = t.match(/^(?:あなたの)?手札を([１-９\d０-９]+)枚(まで)?ルリグゾーンに裏向きで置く$/);
+    if (fdHandM) {
+      return {
+        type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'hand',
+        count: parseNum(fdHandM[1]),
+        ...(fdHandM[2] ? { upToCount: true } : {}),
+      } as EffectAction;
+    }
+  }
 
   // ---- 次の対戦相手のターン終了時、そのカードを手札に加える ----
   if (t.match(/次の対戦相手のターン終了時、そのカードを手札に加える/))
