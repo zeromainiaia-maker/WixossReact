@@ -1897,6 +1897,36 @@ export interface PreventDamageAction {
   owner: Owner;
   until: EffectDuration;
   scope?: 'ALL' | 'LRIG';
+  /**
+   * 「次のあなたのメインフェイズまで」（`WXK01-002-E2`・§6.4 O-3 続き492）＝**ターン境界を跨ぐ**期間。
+   * `EffectDuration` にはこの長さが無いので専用フラグで表し、`until` より優先する。
+   * 失効は `clearMainPhaseScopedState` 1点（自分が次にメインフェイズへ入るとき）。
+   */
+  untilNextMainPhase?: boolean;
+}
+
+/**
+ * 「このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3 続き492）。
+ * ⚠**加算ではなく置換**＝`LRIG_LIMIT_MODIFY`（`delta`）とは別軸。消費は `computeEffectiveLrigLimit` 1点。
+ */
+export interface SetLrigBaseLimitAction {
+  type: 'SET_LRIG_BASE_LIMIT';
+  owner: Owner;
+  value: number;
+  /** 「次のあなたのメインフェイズまで」。省略時は場にあるかぎり（＝【常】想定）。 */
+  untilNextMainPhase?: boolean;
+}
+
+/**
+ * 「あなたが（次のあなたの）ドローフェイズにカードを N 枚引く場合、代わりに M 枚引く」。
+ * 既存の `DRAW_PHASE_REPLACEMENT` は**付与された【常】能力**としてしか置けなかったので、
+ * 期間つきの自己予約を表すためにトップレベルでも実行できるようにした（§6.4 O-3 続き492）。
+ */
+export interface ReserveDrawPhaseReplacementAction {
+  type: 'RESERVE_DRAW_PHASE_REPLACEMENT';
+  owner: Owner;
+  fromCount: number;
+  toCount: number;
 }
 
 // 各プレイヤーのエナゾーンをN枚に均等化する
