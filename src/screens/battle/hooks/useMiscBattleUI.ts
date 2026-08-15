@@ -69,6 +69,12 @@ export function useGuardResponses() {
       patch({ attackFieldTrashPayment: v, selectedAttackFieldTrashZones: new Set() }),
     /** 解除コスト支払いUIを閉じる */
     closeAttackFieldTrashPayment: () => patch({ attackFieldTrashPayment: null, selectedAttackFieldTrashZones: new Set() }),
+    setSelectedAttackHandDiscard: set.selectedAttackHandDiscard,
+    /** 解除コスト（手札N枚捨て）支払いUIを開く（捨て札選択は白紙化） */
+    openAttackHandDiscardPayment: (v: NonNullable<GuardResponsesState['attackHandDiscardPayment']>) =>
+      patch({ attackHandDiscardPayment: v, selectedAttackHandDiscard: new Set() }),
+    /** 同・閉じる */
+    closeAttackHandDiscardPayment: () => patch({ attackHandDiscardPayment: null, selectedAttackHandDiscard: new Set() }),
   };
 }
 
