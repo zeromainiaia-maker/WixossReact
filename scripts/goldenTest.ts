@@ -29579,10 +29579,12 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
 }));
 test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから開花する（§6.4 O-3）', () => withSavedCursor(() => {
   // 🔑これは**開花そのものの置換**＝後続ステップに置くと素の「シグニあり＝開花不可」が先に確定する。
-  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const LRIG5 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const SEED_LV1 = findCard(c => isSigni(c) && c.Level === '1');
+  const ctx = mkCtx({ signi: [SIGNI, null, null], lrig: [LRIG5] }, {}, SIGNI);
   const seeded: PlayerState = {
     ...ctx.ownerState,
-    field: { ...ctx.ownerState.field, signi_seeds: [SIGNI_P3000, null, null] },
+    field: { ...ctx.ownerState.field, signi_seeds: [SEED_LV1, null, null] },
   };
   const handBefore = seeded.hand.length;
   const bloom = (bounce: boolean) => run(
