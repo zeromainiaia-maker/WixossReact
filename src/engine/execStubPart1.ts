@@ -12,8 +12,9 @@ import {
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked, buildFrontPowerGatedKeywordGrant,
-  sourceAbilityText,
+  sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard,
 } from './execUtils';
+import { cloneAcceSlots } from '../utils/acce';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
 import { matchesTrashArtsFromLrigDeckCost } from '../screens/battle/artsTrashCost';
