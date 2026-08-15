@@ -35,6 +35,8 @@ import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, hasAcceAt } from '../utils/acce';
 import { normalizeFieldGrants } from '../utils/fieldGrants';
 import { abilityBlockTextOf } from '../data/effectParser';
+// ルリグタイプの「印刷＋追加で得た分」は growLogic 側に funnel がある（グロウ互換／使用制限と同じ1本）。
+import { activeGainedLrigTypes } from '../screens/battle/growLogic';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
