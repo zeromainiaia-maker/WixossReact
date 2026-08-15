@@ -2494,6 +2494,13 @@ export interface StubAction {
   energyTrashSameLevelAsTarget?: boolean;
   /** SELECT_TARGET_ONLY: 盤面を変えずに対象だけを選ばせ lastProcessedCards に記録する対象宣言。 */
   selectTarget?: EffectTarget;
+  /**
+   * OPTIONAL_COST: 「〈コスト〉を**支払わないかぎり**、X」の回避ゲート（§6.4 O-30）。
+   * 機構は通常の任意コストと同じ（pay＝`then`／skip＝`else`）だが、**選択肢の文言だけ**を
+   * 「支払う／支払わない」へ変える。⚠既定の「発動する／スキップ」のままだと、
+   * 「払うと自分のシグニが助かる」場面で**払わない方が得に見える**表示になり実機で判断できない。
+   */
+  unlessPay?: boolean;
   handDiscardGroups?: { count: number; filter?: TargetFilter }[];
   /** OPPONENT_PAY_OPTIONAL: energy payment alternative may instead be paid by discarding this many hand cards ('ALL' = whole hand). */
   opponentHandDiscard?: number | 'ALL';
