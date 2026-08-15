@@ -1,13 +1,13 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-11T10:25:13.525Z
-manualEffects エントリ 450 カード / 乖離 44 カード・48 効果
+生成: 2026-08-15T00:48:38.687Z
+manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。
 
 ## 区分ごとの件数
-  CHANGED        20 効果  （manual定義 8 / parser由来 12）
+  CHANGED        21 効果  （manual定義 8 / parser由来 13）
   FRESH_ONLY     18 効果  （manual定義 0 / parser由来 18）
   LIVE_ONLY       5 効果  （manual定義 0 / parser由来 5）
   FRESH_GAIN      3 効果  （manual定義 2 / parser由来 1）
@@ -15,9 +15,10 @@ manualEffects エントリ 450 カード / 乖離 44 カード・48 効果
 
 ## 強シグナル別（原文照合の着手順）
   STUB増                     5 効果 : SP27-015-E1 WD07-012-E2 WX13-040-E1 WDK17-009-E2 WX25-P3-062-E1
-  STUB減                     2 効果 : WXK05-030-E1 WXDi-P02-039-E1
+  STUB減                     3 効果 : WXK05-030-E1 WXDi-P02-039-E1 WXK07-031-E1
+  fresh_UNKNOWN退化           1 効果 : WXK07-031-E1
 
-## CHANGED（20 効果）
+## CHANGED（21 効果）
 --- WXK05-025-E1 (parser由来)
   live : {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":2,"private":true,"reorder":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"
   fresh: {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":1,"private":true,"reorder":false,"destination":{"location":"deck","owner":"self","position":"bottom"}}]},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","
@@ -78,6 +79,9 @@ manualEffects エントリ 450 カード / 乖離 44 カード・48 効果
 --- WXEX1-66-E2 (manual定義)
   live : {"effectId":"WXEX1-66-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"REVEAL_DECK_TOP","owner":"self","count":4},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_MATCHES","filter":{"car
   fresh: {"effectId":"WXEX1-66-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"SELECT_TARGET_ONLY","selectTarget":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":4,"private":false,"reorder":false,"canTrash":false,"sh
+--- WXK07-031-E1 (parser由来) ⚠fresh_UNKNOWN退化/STUB減
+  live : {"effectId":"WXK07-031-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+  fresh: {"effectId":"WXK07-031-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE","owner":"self"},"action":{"type":"UNKNOWN","raw":"対戦相手の効果はバニッシュ以外であなたの＜宇宙＞のシグニを場から移動させない"},"duration":"PERMANENT","mandatory":true,"parseStatus":"UNKNOWN"}
 
 ## FRESH_ONLY（18 効果）
 --- WD01-016-E2 (parser由来)

@@ -987,6 +987,22 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_COST', coinCost: (t.match(/《コインアイコン》/g) ?? []).length } as StubAction;
   }
 
+  // ---- （使用コストとして）追加でエクシードN を支払ってもよい → OPTIONAL_COST with exceed ----
+  //   engine（`effectExecutor` の OPTIONAL_COST 分岐・`exceed` 参照）は実装済みで、**live の12枚は
+  //   すべて手で MANUAL 化して `exceed` を書いていた**＝parser が一度も生成していなかった穴（§6.4 O-6 と同型）。
+  //   規則を足すと、その12枚が AUTO で同じ形に到達できる（＝以後の parser 改善が届くようになる）。
+  //   ⚠素の `OPTIONAL_COST`（payload 無し）はコスト0＝**タダで強い方の効果が撃てる**過剰効果になる。
+  {
+    const m = t.match(/^(?:その後、)?(?:使用コストとして)?追加でエクシード([０-９\d]+)を支払ってもよい$/);
+    if (m) {
+      return {
+        type: 'STUB', id: 'OPTIONAL_COST',
+        costText: t.replace(/^その後、/, ''),
+        exceed: parseNum(m[1]),
+      } as StubAction;
+    }
+  }
+
   // ---- あなたのルリグゾーンに【リミットアッパー】を置く ----
   if (t.match(/ルリグゾーンに【リミットアッパー】[０-９\d]*つを置く/)) {
     return { type: 'STUB', id: 'PLACE_LIMIT_UPPER' } as StubAction;
