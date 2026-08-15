@@ -226,6 +226,10 @@ export type Condition =
   | { type: 'CENTER_LRIG_NOT_GROWN_THIS_TURN'; owner: Owner }
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'FIELD_LRIG_COLOR_COUNT'; owner: Owner; operator: CompareOp; value: number; minLrigs?: number }
+  // 【使用条件】【チーム】**いずれかのチーム**（`WX25-P3-050`・§6.4 O-34(d)）＝チーム名を指定せず
+  // 「場のルリグ value 体が**同じ1つのチーム**に属する」ことだけを要求する。`LRIG_TEAM_COUNT` は
+  // チーム名を名指しする兄弟で、`team:''` で代用すると `includes('')` が常に真＝**無条件で通る**。
+  | { type: 'LRIG_ANY_TEAM_COUNT'; owner: Owner; value: number }
   | { type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }
   | { type: 'OR'; conditions: Condition[] }
   | { type: 'TURN_OWNER'; owner: 'self' | 'opponent' }
