@@ -2120,6 +2120,20 @@ export function parseSentencePart3(t: string): EffectAction | null {
     }
   }
 
+  // ---- 「対戦相手は自分のシグニを好きな数選ぶ」（`WXDi-P08-030-E1`・§6.4 O-3 続き498）----
+  // 選択そのものは盤面を変えない＝`SELECT_TARGET_ONLY` で選ばせて `STORE_LAST_PROCESSED_TARGETS` に固定し、
+  // 次文の「それら以外のシグニでアタックできない」が `exceptTargetsStored` で受ける。
+  // ⚠🔴旧 `CHOOSE_N_FROM_LIST` は**①②③…の効果選択肢**を出す別機構＝この文には該当が無く丸ごと no-op だった。
+  // ⚠選ぶのは**相手**（`opponentSelects`）＝落とすと使用者が相手の代わりに選ぶ有利な取り違えになる。
+  if (/^対戦相手は自分のシグニを好きな数選ぶ$/.test(t)) {
+    return { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'SELECT_TARGET_ONLY', opponentSelects: true,
+        selectTarget: { type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true, filter: { cardType: 'シグニ' } },
+      } as EffectAction,
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+    ] } as EffectAction;
+  }
+
   // ---- このターン、対戦相手が〜（アタック制限・コスト条件）----
   // ⚠未パース節の受け皿（上と同じ理由で id を分けた・§6.4 O-3 続き459）。
   // ⚠**機構ごとに id を分ける**＝1つの受け皿に混ぜると「何が残っているか」が census:stubs から読めなくなる。
