@@ -21,7 +21,9 @@ export type SigniAttackBlockReason =
   | 'OPP_POWER_CAP'            // OPP_SIGNI_ATTACK_POWER_RESTRICT（相手が課したパワー上限以下はアタック不可）
   | 'ONCE_PER_TURN_LIMIT'      // signi_attack_once_limit（このターンのシグニアタックは合計1回）
   | 'ENERGY_COST'              // OPP_SIGNI_ATTACK_COST のエナが払えない
-  | 'FIELD_TRASH_COST';        // 「他のシグニN体をトラッシュしないかぎりアタックできない」が払えない
+  | 'FIELD_TRASH_COST'         // 「他のシグニN体をトラッシュしないかぎりアタックできない」が払えない
+  | 'ATTACK_BAN'               // signi_attack_bans_this_turn（「〈条件〉のシグニでアタックできない」）
+  | 'ATTACK_BAN_COST';         // 同・「《無》×N を支払わないかぎり」の分が払えない
 
 export interface SigniAttackGateInput {
   attacker: PlayerState;
