@@ -625,7 +625,14 @@
 - `STUB{REVEAL_PICK_HAND_SHUFFLE_BOTTOM}` 5効果＝2026-08-12 に実測したところ**全件 `revealPickParams` が完備**（枚数・行き先・filter・二段ピック）で、`REVEAL_PICK_PLAY` のような原文再parse依存ではない。**対象外。**
 
 **■ 消化済み**
-> ✅**O-3 の `DEFERRED_ATTACK_TAX_HAND_DISCARD`（1）＝2026-08-15 続き490 で解体**（O-3 自体は継続）。**2効果の挙動是正**（恒久 no-op 2＝うち1件は計器に映らない無言 no-op）。
+> ✅**O-3 のフェイズ／ターンのスキップ系統＝2026-08-15 続き491 で解体**（O-3 自体は継続）。**6効果の挙動是正**（無言 no-op 4＋恒久 no-op 2）＋**PvP 限定の波及是正4効果**＋**CPU の追加ターン**。
+> 🔑**「STUB の在庫」を数えても半分しか見えない**＝原文 regex（「〜フェイズ／ステップ／ターンをスキップする」13効果）で数え直すと壊れていたのは6効果で、**うち4件は STUB ですらなかった**＝`BLOCK_ACTION{ENERGY_PHASE}`（消費地点ゼロ）／`BLOCK_ACTION{SIGNI_ATTACK_PHASE}`（消費側は `SIGNI_ATTACK_STEP`＝**綴りが1つズレて不発**）／`STUB{SKIP_MAIN_PHASE}`（**ログを1行出すだけのハンドラ**＝`census:stubs` は「実装済み」と誤判定）／`SP38-006-E4`（アタック側が丸ごと脱落＋グロウ側は `END_OF_TURN`＝スキップ対象でないターンを封じていた）。
+> 🔑**進行そのものの制限は funnel を1本だけ作る**＝`PHASE_SKIP_BLOCK_IDS`（フェイズ→封じ id の表）＋`resolveNextPhaseWithSkips`（旧 `resolveNextPhaseWithAttackStepBlocks` の一般化）。フェイズ内の個別アクションを1つずつ封じると封じ漏れが無言ですり抜ける（続き488 の `PAY_ENERGY_COST` と同じ設計）。⚠**CONTINUOUS 由来の封じは `blocked_actions` に載らない**＝`calcContinuousBlockedActions(...).forSelf` を渡し忘れると【常】が丸ごと no-op。⚠**`GROW` はこの表に載せない**（既存7効果の `ON_GROW_PHASE_START` を巻き込むため行動封じ近似のまま＝golden で固定）。
+> 🔑**「◯◯フェイズ開始時」フックは遷移元（`phase`）ではなく遷移先（`nextPhase`）で判定する**＝①飛ばしたフェイズの開始時処理は走らない ②次に実際に入るフェイズの開始時処理はちゃんと走る、を1つの書き換えで満たす（通常進行では挙動不変）。
+> 🔑**ターンプレイヤー交代の判定も1関数へ**（`resolveTurnHandover`）＝`extra_turn` と新設 `skip_next_turn` は**結果が同じ**（交代しない）。ターン終了は3経路あり、🔴**CPU 経路は交代判定を一切持たず `activeUserId: user.id` 直書きだった**＝CPU の追加ターンも人間のターンスキップ予約も効かなかった。golden にソース走査のトリップワイヤ（BattleScreen に**ちょうど3回**）。
+> 🔴**条件節を落としたまま機構だけ足すと過剰実行になる**＝`WD20-006-E1` の受け皿 STUB は「このターンが対戦相手のターンで」「あなたがベットしていなかった場合」の**2条件とも捨てていた**。`CONDITIONAL{AND[TURN_OWNER{opponent}, IS_BETTING{negate:true}]}` へ組み替え（`IS_BETTING.negate` 新設）、golden は3通りの対で固定。
+> 🔴**PvP 限定バグ**＝`ATTACK_ARTS_OP` は `NON_TURN_PLAYER_PHASES`＝進行ボタンを持つのが非ターンプレイヤーなのに、`doPhaseAdvance` は `my.blocked_actions` でスキップ判定していた＝「相手のシグニアタックステップを飛ばす」札4効果（`WX09-Re02-E1`／`WXK01-007`／`WXDi-P09-031`／`WXK11-001`）が PvP で無言ですり抜けていた（CPU 戦は専用経路なので影響なし）。
+> **一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15（続き491）。**> ✅**O-3 の `DEFERRED_ATTACK_TAX_HAND_DISCARD`（1）＝2026-08-15 続き490 で解体**（O-3 自体は継続）。**2効果の挙動是正**（恒久 no-op 2＝うち1件は計器に映らない無言 no-op）。
 > 🔑**「支払えば通る」制限は軸ごとに別関数を生やさない**＝`signiAttackBanCost` が `{colorless, handDiscard}` を**まとめて返す**（解除不能な ban が1つでもあれば `null`）。軸ごとに関数を分けると「片方の軸だけ見る gate」が生まれて無言ですり抜ける。⚠支払い軸を足すときはこの1関数に足す。
 > 🔴**引用文が丸ごと `GRANT_KEYWORD.keyword` に入る形は無言 no-op**＝`WXDi-P05-022-E1`「それは「【常】：手札を１枚捨てないかぎりアタックできない。」を得る」は keyword が**文そのもの**になり、`hasKeyword` は正式名でしか照合しないので**一度も効かない**（狙われたシグニが無条件でアタックできる）。**STUB ですらないので `census:stubs` にも映らない。** 正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈ban〉{targetsStored}` へ組み替えた（`WX10-024-E2` の《無》×N 版と同じ組み立て）。
 > ⚠**「アタックするごとに払う」と「1回きりの回避」は別機構**＝`SigniAttackBan.unlessPayHandDiscard`（毎回・ban は消費しない）と `NegateAttackAction.escapeDiscard`（1回きり・消費する）。原文の括弧書き「（アタックするごとに捨てる）」が両者を分ける。
