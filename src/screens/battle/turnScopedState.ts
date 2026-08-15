@@ -130,6 +130,17 @@ function consumeField(state: PlayerState, field: TurnScopedPlayerStateField): Pl
   return { ...state, [field]: freshResetValue(spec.reset) };
 }
 
+/**
+ * 「このターンと次のターンの間」の配置禁止をグローバルターン終了ごとに1つ減らす（§6.4 O-3）。
+ * ⚠固定リセット値のレジストリ（`resetBoundary`）では表せない**カウントダウン**なので個別に扱う。
+ */
+function advanceSigniDeployBans(bans: PlayerState['signi_deploy_bans']): PlayerState['signi_deploy_bans'] {
+  const next = (bans ?? [])
+    .map(ban => ({ ...ban, turnsRemaining: ban.turnsRemaining - 1 }))
+    .filter(ban => ban.turnsRemaining > 0);
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;

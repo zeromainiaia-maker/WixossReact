@@ -1,4 +1,4 @@
-import type { CardData, PlayerState } from '../types';
+import type { CardData, PlayerState, SigniDeployBan } from '../types';
 import type { CardEffect } from '../types/effects';
 import { collectDeployCountLimit } from './effectEngine';
 
@@ -18,7 +18,29 @@ import { collectDeployCountLimit } from './effectEngine';
  */
 export type DeployBlockReason =
   | 'COUNT_LIMIT'  // 「シグニをN体までしか場に出すことができない」（AUTO フラグ or CONTINUOUS）
-  | 'POWER_LIMIT'; // 「パワーN以上のシグニを新たに場に出せない」
+  | 'POWER_LIMIT'  // 「パワーN以上のシグニを新たに場に出せない」
+  | 'NAME_BAN'     // 「それと同じ名前のシグニを新たに場に出せない」（signi_deploy_bans）
+  | 'SOURCE_BAN';  // 「自分の、シグニとスペルの効果によってシグニを新たに場に出せない」（同上）
+
+/**
+ * その配置が「どうやって場に出されるか」。`signi_deploy_bans.bySource` の判定だけに使う。
+ *
+ * ⚠**すべての呼び出し元が明示する**（省略＝出自不明＝ bySource つき ban は掛からない＝過少側に倒す）。
+ * ⚠`'signi_or_spell_effect'` は**効果元カードの Type がシグニ／スペル**のときだけ＝アーツ／ルリグ／キーの
+ *   効果による配置は原文の対象外（`WX25-P3-009`）。
+ */
+export type DeployPlacementSource = 'normal_summon' | 'signi_or_spell_effect' | 'other_effect';
+
+/** 効果元カード番号から `DeployPlacementSource` を決める（engine 側の共通ヘルパー）。 */
+export function effectPlacementSource(
+  sourceCardNum: string | undefined,
+  cardMap: Map<string, CardData>,
+): DeployPlacementSource {
+  const type = cardMap.get(sourceCardNum ?? '')?.Type
+    ?? cardMap.get((sourceCardNum ?? '').split('#')[0])?.Type
+    ?? '';
+  return /シグニ|スペル/.test(type) ? 'signi_or_spell_effect' : 'other_effect';
+}
 
 export interface DeployLimitInput {
   /** シグニを場に出す側。 */
@@ -38,6 +60,22 @@ export interface DeployLimitInput {
   onExistingStack?: boolean;
   /** 場のシグニ数から差し引く枚数（レゾナの出現条件で場から払う分など、この配置と同時に場を空ける数）。 */
   fieldCountAdjust?: number;
+  /** どうやって場に出すか。`signi_deploy_bans.bySource` の判定にだけ使う（省略＝出自不明）。 */
+  placementSource?: DeployPlacementSource;
+}
+
+/** いまの配置に掛かっている `signi_deploy_bans` の1件（無ければ null）。 */
+function matchedDeployBan(p: DeployLimitInput): SigniDeployBan | null {
+  const bans = p.placingState.signi_deploy_bans ?? [];
+  if (bans.length === 0) return null;
+  const name = p.cardMap.get(p.cardNum)?.CardName
+    ?? p.cardMap.get(p.cardNum.split('#')[0])?.CardName;
+  return bans.find(ban => {
+    if (ban.turnsRemaining <= 0) return false;
+    if (ban.cardNames && !(name && ban.cardNames.includes(name))) return false;
+    if (ban.bySource && p.placementSource !== ban.bySource) return false;
+    return true;
+  }) ?? null;
 }
 
 /** 配置数上限（AUTO フラグと CONTINUOUS の小さい方）。undefined なら制限なし。 */
@@ -62,6 +100,10 @@ export function deployCountCap(p: {
 
 /** 配置できない理由。null なら配置可能。 */
 export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason | null {
+  // 名前／出自による配置禁止（「このターンと次のターンの間、〜を新たに場に出せない」）。
+  // ⚠**ライズ（上乗せ）も「場に出す」**なのでパワー制限と同じく対象にする（数制限だけが非対称）。
+  const ban = matchedDeployBan(p);
+  if (ban) return ban.cardNames ? 'NAME_BAN' : 'SOURCE_BAN';
   // パワー制限（「パワーN以上のシグニを新たに場に出せない」）＝ライズにも適用する。
   const powerLimit = p.placingState.signi_deploy_power_limit;
   if (powerLimit !== undefined) {
@@ -81,7 +123,8 @@ export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason |
 
 /** ログ用の理由文（engine のログ・逆翻訳と語彙を揃える）。 */
 export function deployLimitLogMessage(reason: DeployBlockReason, cardLabel: string): string {
-  return reason === 'COUNT_LIMIT'
-    ? `配置数制限のため${cardLabel}を場に出せない`
-    : `配置パワー制限のため${cardLabel}を場に出せない`;
+  if (reason === 'COUNT_LIMIT') return `配置数制限のため${cardLabel}を場に出せない`;
+  if (reason === 'NAME_BAN') return `同じ名前のシグニを新たに場に出せないため${cardLabel}を場に出せない`;
+  if (reason === 'SOURCE_BAN') return `シグニとスペルの効果では新たに場に出せないため${cardLabel}を場に出せない`;
+  return `配置パワー制限のため${cardLabel}を場に出せない`;
 }
