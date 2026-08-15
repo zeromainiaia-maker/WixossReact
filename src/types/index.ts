@@ -760,6 +760,12 @@ export interface PlayerState {
   // delayed_triggers はターン境界で消えるため、二重遅延の1段目／2段目を専用の永続フィールドで持つ。
   turn_end_facedown_all?: Array<{ sourceCardNum: string; returnTiming: 'NEXT_OPP_ATTACK_PHASE_START' }>;
   pending_opponent_attack_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string }>;
+  // ADD_EXTRA_ATTACK_PHASE（§6.4 O-3）: このターンのアタックフェイズの後に追加するアタックフェイズのキュー。
+  // ATTACK_LRIG の次を決める1点（resolveNextPhaseAfterAttack）で1件ずつ消化し、END の代わりに ATTACK_ARTS へ戻す。
+  extra_attack_phases_this_turn?: Array<{ sourceCardNum?: string; onStart?: import('./effects').EffectAction }>;
+  // 上のキューを消化して追加フェイズへ入る際に、その開始時本文をここへ移す。
+  // ON_ATTACK_PHASE_START の collector が合成エントリとして積み、STUB ハンドラが1件ずつ取り出して実行する。
+  pending_extra_attack_phase_start_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
   // TRASH_AT_TURN_END: ターン終了時にフィールドからトラッシュに置くカードのインスタンスID一覧
   turn_end_field_trash_targets?: string[];
   // TRASH_ENERGY_AT_TURN_END: ターン終了時に**エナゾーンから**トラッシュに置くカードのインスタンスID一覧
