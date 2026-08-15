@@ -10562,6 +10562,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //    フェイズを ATTACK_ARTS へ進めながら積む（MAIN に留まると再実行で無限収集になるため）。
       const cpuTurnPlayerId = bs.active_user_id ?? CPU_PLAYER_ID;
       const apsStackEntries: StackEntry[] = [];
+      // §6.4 O-3: アタックフェイズ自体がスキップされていれば遷移先は END になる＝
+      // **開始時トリガー（`ON_ATTACK_PHASE_START`・【ハスターリク】）も収集しない**。
+      const cpuPhaseAfterMain = cpuNextPhase('MAIN');
+      const cpuAttackPhaseSkipped = cpuPhaseAfterMain !== 'ATTACK_ARTS';
+      if (cpuAttackPhaseSkipped) appendBattleLogs(['[CPU] アタックフェイズをスキップする']);
 
       // ON_ATTACK_PHASE_START（タスク12(lxvii)）＝人間ターンと**同じ pure collector** に統一する。
       // ⚠🔴従来ここは**手書きの部分再実装**で、CPU 自身の場の `triggerScope:'self'` しか拾っていなかった＝
