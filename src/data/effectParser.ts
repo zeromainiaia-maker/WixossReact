@@ -3017,6 +3017,14 @@ function rewriteNextOppTurnEndBody(action: EffectAction, text: string): EffectAc
   if (st?.type !== 'STUB' || st.id !== 'DEFERRED_NEXT_OPP_TURN_END_BODY') return action;
   const body = text.trim().replace(/^次の対戦相手のターン終了時[、,]/, '').replace(/。$/, '').trim();
   if (!body) return action;
+  // 🆕**照応先が state に永続化されている形だけは解ける**（続き498）＝「そのカード」＝
+  //   同じ効果が裏向きでルリグゾーンに置いたカードなら、発火時に `facedown_lrig_zone_cards` を
+  //   読めば参照先が復元できる（`WXDi-P09-066-E1`）。⚠カード全文は**ガードにしか使わない**。
+  if (/^(?:その|それら)(?:の)?カードを(?:あなたの)?手札に加える$/.test(body)
+      && /ルリグゾーンに裏向きで置く/.test(_parsingCardText)) {
+    return { type: 'DELAY_TO_NEXT_OPP_TURN_END',
+      action: { type: 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND' } as EffectAction } as EffectAction;
+  }
   // ⚠**「そのカード」「それら」＝遅延を跨いだ照応は予約できない**（予約が運ぶのは action だけで
   //   参照先を束縛しない）。単独文として読むと別物に化ける＝`WXDi-P09-066-E1` の
   //   「そのカードを手札に加える」（＝裏向きでルリグゾーンに置いたカード）は
