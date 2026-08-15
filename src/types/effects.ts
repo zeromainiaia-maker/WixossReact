@@ -1908,6 +1908,20 @@ export interface PreventDamageAction {
 }
 
 /**
+ * 「（このターンと次のターンの間、）対戦相手の効果によって〈ゾーン〉のカードは移動しない」
+ * の**期間つき**予約（§6.4 O-3 続き493）。
+ * ⚠【常】版（場にあるかぎり）は宣言型 STUB のまま＝こちらは**アーツ/【出】で張る**ぶん。
+ * 消費は `oppMoveProtectedZones`／`activeOppMoveImmunityZones`（`engine/effectEngine.ts`）。
+ */
+export interface ZoneMoveImmunityAction {
+  type: 'ZONE_MOVE_IMMUNITY';
+  owner: Owner;
+  zones: ('hand' | 'energy')[];
+  /** 有効なグローバルターン数。「このターンと次のターンの間」＝2。 */
+  turns: number;
+}
+
+/**
  * 「このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3 続き492）。
  * ⚠**加算ではなく置換**＝`LRIG_LIMIT_MODIFY`（`delta`）とは別軸。消費は `computeEffectiveLrigLimit` 1点。
  */

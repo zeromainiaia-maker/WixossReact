@@ -17,7 +17,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
-import { collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeOppMoveImmunityZones, collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
@@ -1714,7 +1714,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     function applyTrashHand(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
-      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || c.otherState.prevent_opp_trash_from?.includes('hand'))) {
+      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('hand') || activeOppMoveImmunityZones(c.otherState).includes('hand'))) {
         return addLog(c, '手札保護により効果なし');
       }
       const remaining = [...s.hand];
@@ -1793,7 +1793,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     function applyTrashEnergy(selected: string[], c: ExecCtx): ExecCtx {
       const s = ownerState(tgt.owner, c);
       // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（動的計算版 + AUTO設置フラグ）
-      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || c.otherState.prevent_opp_trash_from?.includes('energy'))) {
+      if (tgt.owner === 'opponent' && (c.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(c.otherState).includes('energy'))) {
         return addLog(c, 'エナ保護により効果なし');
       }
       const newS: PlayerState = {
@@ -8699,7 +8699,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
           const ei = s.energy.indexOf(cardNum);
           if (ei >= 0) {
             // PREVENT_ZONE_MOVE_BY_OPP: 相手効果でエナをトラッシュに移動させない（inline版と同じ保護）
-            if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('energy') || ctx.otherState.prevent_opp_trash_from?.includes('energy'))) {
+            if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('energy') || activeOppMoveImmunityZones(ctx.otherState).includes('energy'))) {
               return done(addLog(ctx, 'エナ保護により効果なし'));
             }
             const newEnergy = [...s.energy]; newEnergy.splice(ei, 1);
@@ -8730,7 +8730,7 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const hi = s.hand.indexOf(cardNum);
         if (hi >= 0) {
           // PREVENT_ZONE_MOVE_BY_OPP: 相手効果で手札をトラッシュに移動させない（即時適用パスと同じ保護）
-          if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('hand') || ctx.otherState.prevent_opp_trash_from?.includes('hand'))) {
+          if (owner === 'opponent' && (ctx.otherProtectedZones?.includes('hand') || activeOppMoveImmunityZones(ctx.otherState).includes('hand'))) {
             return done(addLog(ctx, '手札保護により効果なし'));
           }
           const newHand = [...s.hand];
