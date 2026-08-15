@@ -8722,7 +8722,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     }
     case 'POWER_MODIFY': {
       const pmAction = action as PowerModifyAction;
-      const delta = resolveNum(pmAction.delta);
+      // ⚠**対象選択を挟む経路（`applyDirectAction`）でも `deltaFromZone` を解く**（§6.4 O-3）。
+      //   `execPowerModify` 側だけ直すと、選択UIを通る対象（thisCardOnly を含む）では delta が
+      //   `resolveNum(0)` に潰れて**無言でパワー±0**になる（初回実装でこれを踏んだ）。
+      const delta = pmAction.deltaFromZone
+        ? resolveCountRef(pmAction.delta, ctx, pmAction.deltaFromZone)
+        : resolveNum(pmAction.delta);
       // owner:'any' は選ばれたカードの所属フィールドを判定して該当プレイヤーへ適用
       const tgtOwner: Owner = pmAction.target.owner === 'any'
         ? (ctx.ownerState.field.signi.some(s => s?.at(-1) === cardNum) ? 'self' : 'opponent')
