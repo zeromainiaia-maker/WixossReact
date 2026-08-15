@@ -29107,6 +29107,19 @@ test('RESOLVE_EXTRA_ATTACK_PHASE_START: pending を1件取り出して実行す�
   eq((r.ownerState as PlayerState).field.signi_down?.[0], false, '追加フェイズ開始時に onStart が走る');
   eq((r.ownerState as PlayerState).pending_extra_attack_phase_start_effects, undefined, '実行した予約は消える');
 }));
+test('DEFERRED_NEXT_OPP_ATTACK_PHASE_START: 遅延本体を即時実行しない（§6.4 O-3）', () => {
+  const act = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  // 🔴従来は `SEQUENCE[STUB{DEFERRED…}, NEGATE_ATTACK]`＝使った瞬間に相手のアタックを1回無効化していた。
+  //   原文は「次の相手アタックフェイズ開始時に対象を取り、そのターンそれがアタックしたとき、
+  //   相手が手札3枚を捨てないかぎり無効」＝タイミングも条件も別物。
+  ok(!act('SPDi43-24', 'SPDi43-24-E2').includes('NEGATE_ATTACK'),
+    'SPDi43-24 の遅延本体が即時実行に戻っている');
+  ok(act('SPDi43-24', 'SPDi43-24-E2').includes('DEFERRED_NEXT_OPP_ATTACK_PHASE_START'),
+    'SPDi43-24 の明示 defer が消えている（在庫が census:stubs から見えなくなる）');
+  ok(act('WX24-P3-014', 'WX24-P3-014-E2').includes('DEFERRED_NEXT_OPP_ATTACK_PHASE_START'),
+    'WX24-P3-014 の明示 defer が消えている');
+});
 test('ADD_EXTRA_ATTACK_PHASE: 2カードの live 形（§6.4 O-3）', () => {
   const act = (num: string, effectId: string) =>
     ((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {}) as Record<string, unknown>;
