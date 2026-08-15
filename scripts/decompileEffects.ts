@@ -1726,6 +1726,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'REVEAL_FACEDOWN_LRIG_ZONE': return 'そのカードを表向きにしてトラッシュに置く';
     case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND':
       return `裏向きでルリグゾーンに置いたカードを${a.owner === 'opponent' ? '対戦相手の' : ''}手札に加える`;
+    case 'FIELD_SIGNI_TO_CHECK_ZONE':
+      // ⚠往復を1アクションに畳んであるので**戻す側まで出す**（片方だけだと脱落が逆翻訳に映らない）。
+      return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを場に出す`;
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
