@@ -32557,12 +32557,35 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
   ok(!!d04Live.condition, 'D04-011: 使用条件は採用したまま');
 });
 
-test('続き389 群D: カットイン条件／チーム名不問条件は通常の同一チーム使用ゲートへ誤昇格しない', () => {
-  for (const cardNum of ['WXDi-P05-006', 'WX25-P3-050']) {
-    const raw = parseCardEffects(cardMap.get(cardNum)!).find(effect => effect.effectId === `${cardNum}-E1`)!;
-    eq(raw.condition, undefined, `${cardNum}: 別述語待ちのためcondition据置`);
-  }
+test('続き389 群D: カットイン条件は通常の同一チーム使用ゲートへ誤昇格しない', () => {
+  // ⚠`WXDi-P05-006` は「このピースは、対戦相手が【使用条件】…」＝**カットイン可能条件**で、
+  //   通常使用ゲートではない（`＜チーム名＞` パターンの否定先読みで除外されている）。
+  const raw = parseCardEffects(cardMap.get('WXDi-P05-006')!).find(effect => effect.effectId === 'WXDi-P05-006-E1')!;
+  eq(raw.condition, undefined, 'WXDi-P05-006: 別述語待ちのためcondition据置');
+  // 🔑`WX25-P3-050`（【チーム】**いずれかのチーム**）は §6.4 O-34(d) で専用条件を実装した＝
+  //   ここは**据置ではなく正方向**が正しい。従来この行は「壊れた形（先頭節が本文へ流れ込んで
+  //   白節ごと消える）」を据置として固定していた。
+  const anyTeam = parseCardEffects(cardMap.get('WX25-P3-050')!).find(effect => effect.effectId === 'WX25-P3-050-E1')!;
+  eq((anyTeam.condition as { type?: string } | undefined)?.type ?? '', 'LRIG_ANY_TEAM_COUNT',
+    'WX25-P3-050: チーム名不問の使用条件が専用条件へ載る');
 });
+// LRIG_ANY_TEAM_COUNT の評価＝**同じ1つのチーム**に3体が揃うこと（`team:''` 代用だと常に真になる罠）。
+test('LRIG_ANY_TEAM_COUNT: 3体が同一チームなら真／バラバラなら偽（対照）', () => withSavedCursor(() => {
+  const teamOf = (n: string) => (cardMap.get(n)?.Team ?? '').trim();
+  const teamLrigs = [...cardMap.values()].filter(c => c.Type === 'ルリグ' && teamOf(c.CardNum));
+  const byTeam = new Map<string, string[]>();
+  for (const c of teamLrigs) {
+    const t = teamOf(c.CardNum);
+    byTeam.set(t, [...(byTeam.get(t) ?? []), c.CardNum]);
+  }
+  const same = [...byTeam.values()].find(v => v.length >= 3)!;
+  const otherTeam = [...byTeam.entries()].find(([t, v]) => t !== teamOf(same[0]) && v.length >= 1)![1];
+  const cond = { type: 'LRIG_ANY_TEAM_COUNT', owner: 'self', value: 3 } as unknown as Condition;
+  const okCtx = mkCtx({ lrig: [same[0]], assistL: [same[1]], assistR: [same[2]] }, {});
+  ok(evalCondition(cond, okCtx), '同一チーム3体で真');
+  const ngCtx = mkCtx({ lrig: [same[0]], assistL: [same[1]], assistR: [otherTeam[0]] }, {});
+  ok(!evalCondition(cond, ngCtx), '1体だけ別チームなら偽');
+}));
 
 // ── 続き390：対象ルリグへ付与する【自】をピース使用時に平坦実行しない ──
 const batch390Cases = [
