@@ -2720,6 +2720,11 @@ function actionJa(a?: Action, effectType?: string): string {
         // （＝原文と無関係な「グロウ制限」）に相乗りしていたため、`census:stubs` が「実装あり」と誤分類し
         // 真 no-op が計器から消えていた。日本語表示にして逆翻訳でも「何が落ちているか」が読めるようにする。
         DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE: '【未実装】「このターン、対戦相手は…」の制限節（アタック制限・支払い条件など）',
+        // 明示 defer（§6.4 O-3）＝上の受け皿から**機構ごとに切り出した**残り3件。
+        // ⚠1つの受け皿に混ぜると census:stubs から「何が残っているか」が読めない（続き459 と同じ理由）。
+        DEFERRED_ATTACK_TAX_HAND_DISCARD: '【未実装】このターン、対戦相手はアタックするごとに手札を捨てないかぎりシグニでアタックできない',
+        DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK: '【未実装】このターン、対戦相手は自分が宣言したカード名以外のアーツを使用できない',
+        DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK: '【未実装】このターン、対戦相手は自分で選んだシグニで強制アタックし、それら以外ではアタックできない',
         DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE: '【未実装】「次の対戦相手のターン…」の制限節',
         DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE: '【未実装】「このターンと次のターンの間…」の制限節',
         DEFERRED_EXTRA_ATTACK_PHASE: '【未実装】追加のアタックフェイズを加える',
