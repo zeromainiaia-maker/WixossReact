@@ -3,6 +3,32 @@
 > **2026-08-13 続き464 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-13 続き459（§6.4 O-3＝`LRIG_GROW_RESTRICT` ゴミ箱の解体）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1956（+2＝合成 actionId が live に0件／期間3値／`LRIG_GROW_RESTRICT` は本来のグロウ制限文にだけ付く、を live 全走査で固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件（14種16件から可視化＝隠れていた26効果を worklist へ）**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。live effect 単位 diff **33効果・effectId 増減 0/0**。
 
+## 2026-08-15 整理⑲：§6.4 `O-3`「次のターンの間」系統の全記録（続き486〜498）
+
+> **`O-3` は 2026-08-15 続き498 で完了**（受け皿7種を残0）。PLAN §6.4 には1行✅サマリだけ残し、各セッションの機構・教訓はここへ退避した。**通算13セッション・約70効果の挙動是正**。
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) の続き486〜498。
+
+### 退避した PLAN §6.4 の O-3 行（続き497 時点の原文）
+
+| **O-3** | **「次のターンの間」系統の残り** | 7効果（受け皿6種＋照応1） | 🏁**続き497＝受け皿2種を解体**（`NEXT_OPP_TURN_END_BODY` 2件→1件／`ATTACKED_SIGNI_TARGET_BY_KEY_TRASH` 残0）＝新機構 `DELAY_TO_NEXT_OPP_TURN_END`（続き489 のアタックフェイズ版と同型＝予約は**予約した側**に積み `ON_TURN_END` の collector が `opState` を読む）／`TargetFilter.attackedThisTurn`／`OptionalCostSpec.trashOwnKey`。🔴`WDK06-R09-E1` は**相手のターン終了時に自分のシグニを1体タダでバニッシュ**していた（対象・コスト・所有者の3点とも誤り）。⚠**遅延を跨いだ照応は予約できない**（予約が運ぶのは action だけで参照先を束縛しない）＝`WXDi-P09-066-E1` の「そのカードを手札に加える」は受け皿のまま。⚠`PR-K046` は**スペル名の宣言UI**（手札からではなく任意のカード名）＋`blocked_card_names` の**次の相手ターン**への期間延長が要る＝既存 `DECLARE_CARD_NAME` は流用できない。以下は旧記録＝🏁**続き493＝`NON_FIELD_ZONE_MOVE_IMMUNITY`（1）を解体＝「対戦相手の効果によって移動しない」の期間軸を1本化＝5効果の挙動是正**（永続化バグ 1／恒久 no-op 1／片側採用 1／過剰実行 1／汎用 STUB 誤配 1）。新機構＝`opp_move_immunity{zones, turnsRemaining}`＋`activeOppMoveImmunityZones`（`signi_deploy_bans` と同じターン数カウントダウン・減算は `clearTurnEndScopedState` の1点）／`ZONE_MOVE_IMMUNITY` アクション／🆕`DEFERRED_NEXT_OPP_TURN_END_BODY`（「次の対戦相手のターン終了時、〜」の遅延本体＝**予約機構が無いので明示 defer で即時実行を止めた**・2効果）。**残り**は `ATTACKED_SIGNI_TARGET_BY_KEY_TRASH` 1（`WDK06-R09`＝「このターンにアタックしたシグニ」の対象化＋キー自己トラッシュの任意コスト。`attacked_signi_ids` は既存）／`SEED_BLOOM_BOUNCE_OCCUPANT` 1（`WDK07-Y07`）／`OPP_DECLARED_ARTS_NAME_LOCK` 1（`WXEX2-09`＝**相手が宣言**＋宣言名**以外**のアーツを封じる whitelist）／`OPP_CHOSEN_SIGNI_ATTACK_LOCK` 1（`WXDi-P08-030`）／`DECLARED_SPELL_NAME_LOCK` 1（`PR-K046`＝宣言名のスペルを次の相手ターン封じる blacklist）／`GAIN_OPP_LRIG_TYPE` 1（`WDK17-008`）／`FIELD_SIGNI_TO_CHECK_ZONE` 1（`WX22-010`）／🆕`NEXT_OPP_TURN_END_BODY` 2。**在庫は `npm run census:stubs` の A群で常時見える**／**機構ごとに独立して着手できる**。⚠**続き493 の残した近似**＝移動不可の保護は **hand / energy → トラッシュ**だけ（原文の「場以外のあなたの領域」「デッキとトラッシュに移動しない」が指すデッキ／トラッシュ／ライフ側は**移動地点の funnel が無い**）。🔑**続き493 の教訓**＝①**期間つきフィールドの失効地点は grep で実測する**（`prevent_opp_trash_from` は set 1箇所・clear 0箇所で永続していた＝続き487/489 に続く3回目）②**消費側は「ctx 側の集合 ∪ state 直読み」で判定する**（`ExecCtx` を組み立てない経路が実在する）③**複合節を片側だけ採用しない**（「…ダメージを受けず、…移動しない」の後半が無言で落ちていた）④**遅延タイミング宣言の受け皿は parser の先頭に置く**（本文側の汎用規則が先に食うと宣言が消えて本文だけ残る＝過剰実行）。以下は旧記録＝🏁**続き492＝`UNTIL_NEXT_MAIN_PHASE_CLAUSE`（1）を解体＝9効果の挙動是正**（「ルリグによってダメージを受けない」の期間軸＝`PREVENT_DAMAGE{scope:'LRIG'}` と走査軸＝`isLrigDamagePrevented` を1本ずつに集約＋新期間 `MY_NEXT_MAIN_PHASE`）。🔑**教訓**＝「期間中ずっと」の防御は回数フラグではなくウィンドウで持つ／【常】宣言の走査軸はシグニだけでは足りない／回数無制限の防御は消費型より先に判定する。🏁**続き491＝フェイズ／ターンのスキップ系統を解体＝6効果の挙動是正**（新機構 `PHASE_SKIP_BLOCK_IDS`＋`resolveNextPhaseWithSkips`／`resolveTurnHandover`）。🔑**教訓**＝**「STUB の在庫」を数えても半分しか見えない**（未消費の `BLOCK_ACTION` id・綴りズレ・ログだけのハンドラは計器に映らない）。🏁**続き490＝`ATTACK_TAX_HAND_DISCARD`（1）＝`SigniAttackBan.unlessPayHandDiscard` を新設**（隣接の無言 no-op `WXDi-P05-022-E1` も同時に是正）。🔑**教訓**＝「支払えば通る」制限は軸ごとに別関数を生やさない。🏁**続き489＝`NEXT_OPP_ATTACK_PHASE_START`（2）＝遅延予約 `DELAY_TO_NEXT_OPP_ATTACK_PHASE` を新設＝5効果是正**。🔴`negated_attacks` が永続していた。🔑**教訓**＝受け皿 id は母集団の一部しか映さない＝原文 regex で数え直す。🏁**続き488＝`EXTRA_ATTACK_PHASE`（2）／`SELF_RESTRICT_THIS_TURN`（2）／`UNPARSED_NEXT_OPP_TURN_CLAUSE`（1）＝新機構 `ADD_EXTRA_ATTACK_PHASE` ほかで8効果是正**。🔑**教訓**＝遅延タイミング宣言の後続文は絶対に即時実行しない。🏁続き486＝`_THIS_TURN_OPP_CLAUSE`（7）＝新機構 `SIGNI_ATTACK_BAN` で5効果の恒久 no-op を解消。🏁**続き487＝`_NEXT_OPP_TURN_CLAUSE`（5）／`_THIS_AND_NEXT_TURN_CLAUSE`（4）＝新機構 `SIGNI_DEPLOY_BAN` ほかで7効果是正**。⚠**期間だけ直すと「誤った対象の効果」が長持ちする**＝対象軸が壊れている札は据置（`WX11-038-E2`）。🔑**続き486/487 の教訓**＝①受け皿 id の件数だけ見て設計しない②STUB を実装で置き換えると census が +N する（毎回「較正漏れ」か「本物の穴」かを仕分ける） |
+
+### 続き498（クローズ）で解体した残り7種
+
+| 受け皿 id | カード | 直したもの | 新機構 |
+|---|---|---|---|
+| `NEXT_OPP_TURN_END_BODY` | `WXDi-P09-066-E1` | 置く側が `STUB{SOUL_OP}`＝丸ごと no-op／遅延本体が不発 | `RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`（照応先を `facedown_lrig_zone_cards` から復元）＋`PLACE_FACEDOWN_LRIG_ZONE{source:hand}` |
+| （隣接） | `SPDi43-02-E2` | 🔴**自分の**手札を1枚トラッシュ（`TARGET_AND_DISCARD_HAND`）＋返却が `RULE_REMINDER_TEXT`＝取り上げたまま戻らない | `PLACE_FACEDOWN_LRIG_ZONE{owner:opponent, all}`＋`INSTALL_DELAYED_TRIGGER{ON_TURN_END}` |
+| `FIELD_SIGNI_TO_CHECK_ZONE` | `WX22-010-E3` | 往復ごと no-op（戻す側の文も丸ごと脱落） | `FIELD_SIGNI_TO_CHECK_ZONE`（往復を1アクションに畳む＋`dropDanglingDeckTopPlacement` の gate 拡張） |
+| `SEED_BLOOM_BOUNCE_OCCUPANT` | `WDK07-Y07-E1` | 開花の**置換**が後続ステップにあり間に合わない | `SEED_BLOOM.bounceOccupant`（選択の向こう側まで運ぶ） |
+| `GAIN_OPP_LRIG_TYPE` | `WDK17-008-E1` | no-op | `GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`（グロウ互換と「〇〇限定」の2軸を1本に） |
+| （隣接） | `WDK17-001-E2` | 🔴【起】なのに CONTINUOUS 専用 `STUB{INHERIT_OPP_LRIG_TYPE}`＝**恒久 no-op** | `GAIN_LRIG_TYPE{turns:GAME}` |
+| `OPP_CHOSEN_SIGNI_ATTACK_LOCK` | `WXDi-P08-030-E1` | 🔴`CHOOSE_N_FROM_LIST`（①②③の効果選択肢を出す別機構）＝丸ごと no-op | `SigniAttackBan.exceptCardNums`＋`SIGNI_ATTACK_BAN{exceptTargetsStored}`＋`SELECT_TARGET_ONLY{opponentSelects}` |
+| `DECLARED_SPELL_NAME_LOCK` | `PR-K046-E1` | no-op | `DECLARE_CARD_NAME_LOCK{blacklist, NEXT_TURN}`＋`blocked_card_names_next_turn` |
+| `OPP_DECLARED_ARTS_NAME_LOCK` | `WXEX2-09-E3` | no-op | `DECLARE_CARD_NAME_LOCK{whitelist, THIS_TURN}`＋`arts_name_whitelist_this_turn` |
+| （波及） | 全カード | 🔴カード名の使用封じが `artsCandidates`／`executeArts` を素通り／`blocked_card_names` の失効が片側だけ | `cardNameUseBlocked` へ判定集約＋turn-scoped レジストリ登録 |
+
+**教訓**：①遅延を跨いだ照応は「参照先が state に永続化されている形」なら解ける。②受け皿 STUB を実装で置き換えると `DEFERRED_` 前提の gate（`dropDanglingDeckTopPlacement`）と census のキー表が両方外れる。③置換は被置換アクションのペイロードへ畳む（後続ステップでは間に合わない）。④原文 regex で母集団を数え直すと隣接の恒久 no-op が出る（`WDK17-001-E2`）。⑤`heldReview --adopt` はカード単位なので採用後に**カード全効果を diff**して巻き添えを戻す（`WXEX2-09-E1` が `UNKNOWN` へ退化していた）。⑥コスト無しの相手応答 CHOOSE は `opponentResponds` だけだと支払いフローで無言に潰れる（`costlessOpponentChoice`）。
+
 ## 2026-08-15 整理⑱：PLAN §6.4「消化済み」の教訓行を退避（続き482〜487）
 
 > PLAN §6.4 は**生きている worklist だけ**を置く運用。ここは退避した原文（PLAN 側には1行✅サマリだけ残した）。

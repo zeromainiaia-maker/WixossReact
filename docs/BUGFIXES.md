@@ -1,5 +1,122 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き498・Opus 5）— §6.4 **O-3 クローズ＝「次のターンの間」系統の受け皿7種をすべて解体（9効果の挙動是正）**
+
+O-3 の残り **7種（受け皿6＋照応1）を全部解体して O-3 を閉じた**。
+ゲート全緑（**golden 2057**＝+7・**census 830 据置**＝新語彙のキー較正込み・smoke 10688 / SKIP 0・fuzz 全0・
+同型★0（265群）・lint 0 errors / 260 warnings・UNKNOWN 25ノード/25カード 据置）。
+live JSON changed **9効果 / 9カード**（CSV 非改変）。`census:stubs` A群＝**22種/24件 → 15種/17件**（無言 no-op は 0 のまま）。
+
+新機構は5つ＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`
+（＋`lrig_gained_types_timed`・`effectiveLrigClass`）／`DECLARE_CARD_NAME_LOCK`（＋`cardNameUseBlocked`）／
+`SigniAttackBan.exceptCardNums`。付随して `StubAction.bounceOccupant`・`StubAction.opponentSelects`・
+`PendingInteractionDef.CHOOSE.costlessOpponentChoice` を新設した。
+
+### ① `NEXT_OPP_TURN_END_BODY`（`WXDi-P09-066-E1`）＝**遅延を跨いだ照応**を state 経由で解いた
+
+続き497 は「予約が運ぶのは action だけで参照先を束縛しない」ので受け皿のままだった。
+🔑**参照先が state に永続化されている形だけは解ける**＝「そのカード」＝この方法でルリグゾーンに裏向きで置いたカードは
+`facedown_lrig_zone_cards` に残っているので、発火時にそこを読めばよい（`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`）。
+⚠`REVEAL_FACEDOWN_LRIG_ZONE`（表向きにして**トラッシュ**へ）とは別アクションにする。
+
+置く側も壊れていた＝🔴「あなたの手札を１枚ルリグゾーンに裏向きで置く」が `STUB{SOUL_OP}` に落ちており、
+`SOUL_OP` は**カード全文 regex で分岐する別機構**（ルリグの下／ルリグトラッシュ操作）でこの文の分岐が1つも無く**丸ごと no-op**。
+`PLACE_FACEDOWN_LRIG_ZONE{source:'hand'}` へ振り替えた。
+
+**隣接の 🔴 2重バグ**＝`SPDi43-02-E2`「対戦相手は手札をすべてルリグゾーンに裏向きで置く。ターン終了時、対戦相手はそれらのカードを手札に加える。」
+- 置く側が `STUB{TARGET_AND_DISCARD_HAND}`＝**自分の**手札を1枚トラッシュして相手シグニを対象化する別文型のハンドラ
+  （置く側・行き先・枚数・所有者のすべてが原文と別物）。
+- 返す側が `STUB{RULE_REMINDER_TEXT}`＝丸ごと no-op＝**取り上げた手札が戻らない**片側採用。
+⇒ `PLACE_FACEDOWN_LRIG_ZONE{owner:'opponent', all:true}` ＋
+`INSTALL_DELAYED_TRIGGER{THIS_TURN, ON_TURN_END, once, RETURN_FACEDOWN_LRIG_ZONE_TO_HAND{opponent}}` へ。
+⚠**返却の宣言は `^ターン終了時、` の strip より前に置く**（strip 後だと宣言が消えて本文だけ残り、その場で即返す＝取り上げが無意味になる）。
+
+### ② `FIELD_SIGNI_TO_CHECK_ZONE`（`WX22-010-E3`）＝チェックゾーン往復を1アクションに畳んだ
+
+原文「あなたのすべての＜遊具＞のシグニをチェックゾーンに置く。**その後、それらを場に出し**、このルリグをアップする。」
+チェックゾーンは**経由地**なので置く側と戻す側を別アクションに割ると「それら」を運ぶ器が要る。1アクションに畳んだ。
+意味は「場を離れて出直す」＝**アップし直し＋`attacked_signi_ids` から落ちる**（追加アタックフェイズでもう一度アタックできる）＋
+`lastProcessedCards` に載せて【出】を再発火（`ADD_TO_FIELD` と同じ受け渡し）。
+
+⚠**畳んだ後は後続文を必ず落とす**＝「それらを場に出し」が残ると `ADD_TO_FIELD{source なし}` になり、
+engine の source 無し分岐は**デッキの一番上を場に出す**＝原文に無いシグニが増える過剰実行。
+既存の `dropDanglingDeckTopPlacement`（`DEFERRED_` があるときだけ働く gate）を `FIELD_SIGNI_TO_CHECK_ZONE` にも広げた。
+🔑**受け皿 STUB を実装で置き換えると `DEFERRED_` 前提の gate が外れる**＝置き換えと同時に gate 側も見直すこと。
+
+### ③ `SEED_BLOOM_BOUNCE_OCCUPANT`（`WDK07-Y07-E1`）＝**置換は被置換アクションのペイロードへ畳む**
+
+原文「それを開花する。**そのシグニゾーンにシグニがある場合、代わりにそのシグニを手札に戻してから開花する。**」
+🔑後続ステップとして並べても間に合わない＝素の開花が先に「シグニあり＝開花不可」で終わる。
+`SEED_BLOOM.bounceOccupant` に畳み、`INTERNAL_BLOOM_SEED`（選択の向こう側）までフラグを運ぶ
+（落とすと選んだ瞬間に素の失敗へ戻る）。
+
+### ④ `GAIN_OPP_LRIG_TYPE`（`WDK17-008-E1`）＝ルリグタイプの**実効値 funnel** を作った
+
+新アクション `GAIN_LRIG_TYPE`（タイプ名は実行時に焼き込む＝判定地点から相手 state は見えない）。
+寿命は `lrig_gained_types_timed{turnsRemaining}`＝`signi_deploy_bans` / `opp_move_immunity` と同じ
+**カウントダウン方式で、減算は `clearTurnEndScopedState` の1点だけ**（続き487/489/493 で3回踏んだ「失効地点が無い期間つきフィールド」を作らない）。
+
+得たタイプの実利は**グロウ互換**（`lrigClassesCompatible`）と**「〇〇限定」の使用制限**（`meetsRestriction`）で、
+どちらも `/` 区切りを split する実装なので `effectiveLrigClass(state, printedClass)`（印刷クラス＋得たタイプを `/` 連結）
+の1本で両方に効かせた。恒久版 `lrig_gained_types` も同じ funnel（`activeGainedLrigTypes`）へ合流させている。
+
+**隣接の 🔴 恒久 no-op**＝`WDK17-001-E2`「【起】《ゲーム１回》…このゲームの間、このルリグは対戦相手のセンタールリグのルリグタイプを追加で得る」
+は `STUB{INHERIT_OPP_LRIG_TYPE}` に落ちていたが、この STUB を消費する `collectLrigNameAliases` は
+**センタールリグの CONTINUOUS 効果しか走査しない**＝【起】に載ると誰も読まない（executor 側のハンドラはログを出すだけ）。
+`GAIN_LRIG_TYPE{turns:'GAME'}`（恒久側の器へ積む）へ振り替えた。
+🔑**原文 regex で母集団を数え直したから見つかった**（「ルリグタイプを追加で得る」は3効果で、うち1つが【起】だった）。
+
+### ⑤ `OPP_CHOSEN_SIGNI_ATTACK_LOCK`（`WXDi-P08-030-E1`）＝`SigniAttackBan` に**補集合**の軸を足した
+
+原文「対戦相手は自分のシグニを好きな数選ぶ。このターン、対戦相手は選んだシグニで可能ならばアタックしなければならず、**それら以外の**シグニでアタックできない。」
+- 🔴旧 `STUB{CHOOSE_N_FROM_LIST}` は**①②③…の効果選択肢**を出す別機構＝この文には該当が無く丸ごと no-op。
+- `SELECT_TARGET_ONLY{opponentSelects, count:'ALL', upToCount}` ＋ `STORE_LAST_PROCESSED_TARGETS` ＋
+  `SIGNI_ATTACK_BAN{exceptTargetsStored}` の正準形へ。`SigniAttackBan.exceptCardNums` を新設し `banMatches` で否定側を見る。
+- ⚠`targetsStored`（選んだものを禁止）と**空集合の扱いが逆**＝1体も選ばなければ**全シグニ**がアタック不可（原文どおり）。
+- ⚠`SELECT_TARGET_ONLY` に `opponentSelects` を足した＝落とすと**効果の使用者が相手の代わりに選ぶ**有利な取り違えになる。
+
+### ⑥⑦ `DECLARED_SPELL_NAME_LOCK`（`PR-K046-E1`）／`OPP_DECLARED_ARTS_NAME_LOCK`（`WXEX2-09-E3`）
+
+宣言と禁止を1アクション `DECLARE_CARD_NAME_LOCK` に畳んだ（4軸＝宣言者／被封じ者／blacklist・whitelist／THIS_TURN・NEXT_TURN）。
+既存 `STUB{DECLARE_CARD_NAME}` は**自分の手札のカード名**から選ぶ別機構で、相手のスペル／アーツには届かない
+（候補作りが禁止対象と同じ軸でないと成立しない）。宣言の候補は**宣言者が知りうる領域**だけから作る
+（blacklist＝封じる相手の公開領域＝トラッシュ／エナ／ルリグデッキ、whitelist＝宣言者自身のルリグデッキ）。
+
+🔴**カード名の使用封じは実は主要経路を素通りしていた**＝`blocked_card_names` / `blocked_card_names_game` は
+手札スペルとルリグデッキのタップ経路でしか読まれておらず、**アーツ一覧（`artsCandidates`）と実行入口（`executeArts`）は
+判定していなかった**＝名指しで封じたアーツが一覧からは普通に使えた（既存の `BLOCK_CARD_USE` / `NAME_BAN` 全体に波及するバグ）。
+判定を `cardNameUseBlocked`（blacklist 2軸＋whitelist 1軸）へ集約し、5か所すべてをこの1関数に通した。
+
+🔴**`blocked_card_names` の失効が片側だけだった**＝turn-end で**ターンプレイヤー側しか**手書きクリアしておらず、
+相手に課した分は「相手の次のターンが終わるまで」＝1ターン長く残っていた。
+turn-scoped レジストリへ登録して**両プレイヤー**を同じ規約で失効させ、手書きクリア2か所を撤去した。
+「次の対戦相手のターンの間」は `blocked_card_names_next_turn` に予約し `activateTurnStartScopedState` で昇格する
+（`blocked_card_names` に直接積むと**課したその場**で効いてしまう）。
+
+⚠**コスト無しの相手応答 CHOOSE は `opponentResponds` だけでは潰れる**＝BattleScreen は `opponentResponds` の CHOOSE を
+`resumeOpponentPayOptional`（支払いフロー）へ固定ルートしており、「エナ不足」で即終了する。
+`leaveSubstituteAsk` と同じ escape hatch を一般化した `costlessOpponentChoice` を新設した。
+
+### 計器の較正
+
+`DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加した。
+🔑**受け皿 STUB を実装で置き換えると、その効果が STUB バケツから出て高シグナルへ昇格する**（今回 +3）。
+毎回「較正漏れ」か「本物の穴」かを仕分ける＝今回は3件とも較正漏れで、キー追加後は 830 据置に戻った。
+
+⚠**`heldReview --adopt` はカード単位**＝`WXEX2-09` を採用したら**同居の `WXEX2-09-E1`（実装済み STUB
+`RISE_LEAVE_DISCARD_STACK`）が `UNKNOWN` へ退化**していた。採用後は必ず**カードの全効果を diff して巻き添えを戻す**
+（今回は E1 だけ curated 値へ外科的に復元した）。
+
+### 残した近似（§7・すべて実機未検証）
+
+- `WXDi-P09-066-E1` の「あなたは『【起】…この方法で置いたカードをルリグゾーンから手札に加える。』を得る」＝
+  **プレイヤーへの引用【起】付与**は未実装（`GRANT_QUOTED_ACTIVATE_ABILITY` はログのみ）。早期回収ができないだけで、
+  次の対戦相手のターン終了時の返却は動く。
+- `WXDi-P08-030-E1` の「可能ならばアタックしなければならず」＝**強制アタック**は未実装（禁止側だけ効く）。
+  既存の `must_attack_signi` は「全シグニ強制」なので、選んだ集合に限定する軸が別に要る。
+- `FIELD_SIGNI_TO_CHECK_ZONE` はチャーム／アクセ／ソウル等の付随物を「場を離れた」扱いにせず維持する。
+- `DECLARE_CARD_NAME_LOCK` の宣言候補は公開領域から作る（原文は任意のカード名）。
+
 ## 2026-08-15（続き497・Opus 5）— §6.4 **O-3「次のターンの間」系統＝遅延予約機構の新設と `WDK06-R09` の是正（2効果）**
 
 O-3 の受け皿8種のうち **2種を解体**（`NEXT_OPP_TURN_END_BODY` 2件→1件／`ATTACKED_SIGNI_TARGET_BY_KEY_TRASH` 残0）。

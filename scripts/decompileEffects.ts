@@ -1735,8 +1735,12 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${whoD}は${a.cardType}のカード名1つを宣言する。${spanD}${whoT}は宣言したカード名`
         + (a.mode === 'whitelist' ? `以外の${a.cardType}を使用できない` : `の${a.cardType}を使用できない`);
     }
-    case 'GAIN_LRIG_TYPE':
-      return `${a.turns === 2 ? '次の対戦相手のターン終了時まで、' : 'ターン終了時まで、'}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る`;
+    case 'GAIN_LRIG_TYPE': {
+      const spanGL = a.turns === 'GAME' ? 'このゲームの間、'
+        : a.turns === 2 ? '次の対戦相手のターン終了時まで、'
+        : 'ターン終了時まで、';
+      return `${spanGL}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る`;
+    }
     case 'FIELD_SIGNI_TO_CHECK_ZONE':
       // ⚠往復を1アクションに畳んであるので**戻す側まで出す**（片方だけだと脱落が逆翻訳に映らない）。
       return `${targetJa(a.target)}をチェックゾーンに置き、その後それらを場に出す`;

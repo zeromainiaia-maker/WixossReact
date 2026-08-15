@@ -1,15 +1,15 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 590（総ノード 2861 件）
-逆翻訳シートの [STUB:…] 総数: 775  うち生ID露出 272 箇所（185 種）
+live JSON の STUB id 種類 : 590（総ノード 2860 件）
+逆翻訳シートの [STUB:…] 総数: 769  うち生ID露出 271 箇所（185 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 15 種 / 17 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 15 種 / 17 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 258 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 257 箇所
   D 健全（実装あり＋日本語表示）                          : 402 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 323 種
 
@@ -145,9 +145,6 @@ live JSON の STUB id 種類 : 590（総ノード 2861 件）
   露出  4箇所 (live 4件/4枚)  CHOOSE_HAND_OR_ENERGY  [execStubPart3]
         カード: WX24-P1-025, WX24-P2-042, WXDi-CP01-004, WXDi-CP02-003
         既存コメント: CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
-  露出  4箇所 (live 3件/3枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
-        カード: WX13-003, WXEX2-44, WXK06-028
-        既存コメント: CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
   露出  4箇所 (live 4件/3枚)  EXILE_SELF_AFTER_USE  [execStubPart3]
         カード: PR-378, SP36-001, WXK11-070
         既存コメント: EXILE_SELF_AFTER_USE: 使用後の既定配置を excluded に置換する。 使用中スペルは解決中どのゾーンにもいないため、未配置なら探索せず直接置換を記録する。 既に使用済みゾーンへ置かれるアーツ等は
@@ -163,6 +160,9 @@ live JSON の STUB id 種類 : 590（総ノード 2861 件）
   露出  4箇所 (live 4件/4枚)  UNKNOWN_NESTED  [execStubPart1]
         カード: WX24-P2-060, WX24-P3-018, WXDi-P04-033, WXDi-P12-061
         既存コメント: UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動）
+  露出  3箇所 (live 3件/3枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
+        カード: WX13-003, WXEX2-44, WXK06-028
+        既存コメント: CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
   露出  3箇所 (live 3件/2枚)  GATE  [execStubPart3]
         カード: WDK09-001, WDK09-006
         既存コメント: GATE: ゲート効果（ログのみ） GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）

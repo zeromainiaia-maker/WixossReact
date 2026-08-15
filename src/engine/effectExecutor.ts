@@ -7504,7 +7504,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const prevGLT = stGLT.lrig_gained_types_timed ?? [];
       const addGLT = typesGLT
         .filter(t => !prevGLT.some(p => p.lrigType === t))
-        .map(t => ({ lrigType: t, turnsRemaining: Math.max(1, glt.turns) }));
+        .map(t => ({ lrigType: t, turnsRemaining: Math.max(1, typeof glt.turns === 'number' ? glt.turns : 1) }));
       if (addGLT.length === 0) return done(addLog(ctx, `ルリグタイプ追加：既に＜${typesGLT.join('/')}＞を得ている`));
       return done(addLog(setOwnerState(gltOwner, {
         ...stGLT, lrig_gained_types_timed: [...prevGLT, ...addGLT],

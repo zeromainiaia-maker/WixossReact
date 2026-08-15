@@ -29647,6 +29647,15 @@ test('GAIN_LRIG_TYPE: 相手のルリグタイプを追加で得てグロウ互�
   const after1 = clearTurnEndScopedState(st);
   eq(after1.lrig_gained_types_timed?.[0]?.turnsRemaining, 1, '1ターン目で消えている（次の相手ターンまで持たない）');
   eq(clearTurnEndScopedState(after1).lrig_gained_types_timed, undefined, '次の対戦相手のターン終了時に失効しない');
+  // 「このゲームの間」＝恒久側へ積む。🔴`WDK17-001-E2` は【起】なのに CONTINUOUS 専用 STUB へ落ちて
+  //   `collectLrigNameAliases`（CONTINUOUS しか走査しない）から見えず**恒久 no-op** だった（続き498）。
+  const rGame = run({ type: 'GAIN_LRIG_TYPE', owner: 'self', from: 'opponent_center_lrig', turns: 'GAME' } as unknown as EffectAction, ctx);
+  const stGame = rGame.ownerState as PlayerState;
+  eq(JSON.stringify(stGame.lrig_gained_types), JSON.stringify(['花代']), 'ゲーム中恒久の器へ積まれていない');
+  eq(stGame.lrig_gained_types_timed, undefined, '恒久指定なのに期間つき側へ積んでいる');
+  eq(JSON.stringify(clearTurnEndScopedState(stGame).lrig_gained_types), JSON.stringify(['花代']),
+    'ゲーム中恒久がターン終了で消えている');
+  eq(effectiveLrigClass(stGame, 'タマ'), 'タマ/花代', '恒久側が実効クラスに合流していない');
 }));
 test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから開花する（§6.4 O-3）', () => withSavedCursor(() => {
   // 🔑これは**開花そのものの置換**＝後続ステップに置くと素の「シグニあり＝開花不可」が先に確定する。
