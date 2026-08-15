@@ -29548,6 +29548,36 @@ test('裏向きルリグゾーン: 置く→公開してトラッシュ→レベ
   ok((revealed.ownerState as PlayerState).trash.includes(top), 'トラッシュへ行っていない');
   eq(JSON.stringify(revealed.lastProcessedCards), JSON.stringify([top]), 'lastProcessedCards に載らない');
 }));
+test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」を state から復元する（§6.4 O-3）', () => withSavedCursor(() => {
+  // 🔑予約（`DELAY_TO_NEXT_OPP_TURN_END`）が運ぶのは action だけで参照先を束縛しない。
+  //   参照先を `facedown_lrig_zone_cards` に永続化してあるので、発火時にそこを読めば照応が解ける。
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const kept = ctx.ownerState.hand.slice(0, 2);
+  const withFacedown: PlayerState = {
+    ...ctx.ownerState,
+    hand: ctx.ownerState.hand.slice(2),
+    facedown_lrig_zone_cards: kept,
+  };
+  const handBefore = withFacedown.hand.length;
+  const r = run({ type: 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND' } as unknown as EffectAction,
+    { ...ctx, ownerState: withFacedown } as ExecCtx);
+  eq((r.ownerState as PlayerState).hand.length, handBefore + kept.length, '裏向きのカードが手札へ戻らない');
+  eq((r.ownerState as PlayerState).facedown_lrig_zone_cards, undefined, '戻した後も裏向き保持が残っている');
+  // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
+  eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
+}));
+test('PLACE_FACEDOWN_LRIG_ZONE owner/all: 「対戦相手は手札をすべて」は相手の手札を動かす（§6.4 O-3）', () => withSavedCursor(() => {
+  // 🔴旧実装は `TARGET_AND_DISCARD_HAND`＝**自分の**手札を1枚トラッシュしていた（置く側も行き先も別物）。
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const myHandBefore = ctx.ownerState.hand.length;
+  const oppHandBefore = ctx.otherState.hand.length;
+  ok(oppHandBefore > 0, '前提: 相手の手札がある');
+  const r = run({ type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'hand', count: 1, all: true, owner: 'opponent' } as unknown as EffectAction, ctx);
+  eq((r.otherState as PlayerState).hand.length, 0, '相手の手札がすべて移っていない');
+  eq((r.otherState as PlayerState).facedown_lrig_zone_cards?.length, oppHandBefore, '裏向き保持へ移っていない');
+  eq((r.ownerState as PlayerState).hand.length, myHandBefore, '自分の手札を巻き込んでいる');
+  eq((r.otherState as PlayerState).trash.length, ctx.otherState.trash.length, 'トラッシュへ送っている（取り上げではない）');
+}));
 test('SIGNI_ATTACK_BAN unlessPayHandDiscard: 手札が足りるかで gate が分かれる（§6.4 O-3）', () => withSavedCursor(() => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, SIGNI_P3000);
   const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', unlessPayHandDiscard: 3 } as unknown as EffectAction, ctx);
