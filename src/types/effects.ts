@@ -826,6 +826,7 @@ export type EffectAction =
   | LookAtDeckAndLifeAction
   | GrowCostReductionAction
   | NameBanAction
+  | SigniAttackBanAction
   | PlayFreeFromTrashAction
   | PowerThresholdTrashAction
   | PowerFlipAction
