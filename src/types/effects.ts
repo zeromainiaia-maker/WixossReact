@@ -2445,6 +2445,13 @@ export interface SetCardCostReplacementAction {
 // パーサーが解釈できなかった効果（手動対応が必要）
 export interface StubAction {
   owner?: Owner; // owner-sensitive STUB の対象（省略時は self）
+  /**
+   * SEED_BLOOM / SEED_BLOOM_OPTIONAL: 「そのシグニゾーンにシグニがある場合、**代わりにそのシグニを
+   * 手札に戻してから**開花する」（`WDK07-Y07-E1`・§6.4 O-3）。
+   * ⚠**開花の置換**なので後続ステップでは間に合わない（素の開花は「シグニあり＝不発」で先に終わる）＝
+   *   parser の SEQUENCE 畳み込みがここへ移す。
+   */
+  bounceOccupant?: boolean;
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
   /** TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 能力選択CHOOSEを跨いで保持する発動元シグニ。 */
