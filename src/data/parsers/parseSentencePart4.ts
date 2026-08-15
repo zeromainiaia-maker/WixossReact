@@ -93,6 +93,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
     } } as EffectAction;
   }
 
+  // ---- 「このピースはあなたの場にルリグが３体いなくても使用できる」（`WXDi-P16-TK01-E1`）----
+  // ⚠**緩和の対象になっているルール（ピースはルリグ3体でなければ使えない）自体が engine 未実装**
+  //   ＝緩和も no-op でよい。ルール注記として明示し、UNKNOWN のままにしない（前置文が UNKNOWN だと
+  //   後続の CHOOSE 組み立てが成立せず①②③が全部その場で走る）。
+  if (/^このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる$/.test(t))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
   // ---- 手札からカードを【トラップ】として設置する ----
   if (t.match(/手札からカードを[１-９\d]*枚?まで【トラップ】として.*シグニゾーンに設置する/))
     return { type: 'STUB', id: 'TRAP_OP' } as StubAction;

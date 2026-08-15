@@ -8577,7 +8577,9 @@ function parseActionTextInner(text: string): EffectAction {
   // ＝WXK11-003）。従来はヘッダが text 先頭でないため CHOOSE が組まれず、①②行が文フィルタで落ちて
   // 選択構造ごと消え、①内の後続文が単独 mis-parse する幻覚が出ていた。前置文はこの1文型に限定（過剰マッチ防止）。
   {
-    const preHeadM = text.trim().match(/^(このアーツは対戦相手のターンにしか使用できない。)(以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
+    // 🆕§6.4 O-4 続き499＝「このピースはあなたの場にルリグが３体いなくても使用できる。」も同型の前置文。
+    //   🔴放置すると CHOOSE が組まれず①②③が**全部その場で実行**される（`WXDi-P16-TK01-E1`）。
+    const preHeadM = text.trim().match(/^((?:このアーツは対戦相手のターンにしか使用できない|このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる)。)(以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
     if (preHeadM && /[①②③④⑤]/.test(preHeadM[2]) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const preAct = parseSingleSentence(preHeadM[1].replace(/。$/, ''));
       const chosenPre = buildChoose(preHeadM[2], parseNum(preHeadM[3]), !!preHeadM[4]);
@@ -9967,6 +9969,26 @@ function parseActionTextInner(text: string): EffectAction {
       });
       steps.length = 0;
       steps.push(...deduped);
+    }
+  }
+
+  // `CHOOSE_SAME_OPTION_*` は**選択肢の中身まで engine 側が組み立てる**（カード全文 regex を読む古い機構）。
+  // したがって同じ SEQUENCE に①②③由来の即時アクションや見出し文の `UNKNOWN` が並んで残っていると、
+  // 選択の結果とは無関係にそれが**必ず走る二重実行**になる（§6.4 O-4 続き499）。
+  // 🔴`WX17-003-E1` は①の後半「手札を１枚捨てる」が、①を選んでいなくても毎回走っていた。
+  // ⚠選択ループ本体（CSO を含む枝）とベット差し替え宣言だけを残す。
+  {
+    const CSO_RE2 = /"id":"CHOOSE_SAME_OPTION_(?:TWICE|MULTIPLE)"/;
+    const KEEP_IDS = /"id":"(?:BET_ALTERNATIVE|CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE)"/;
+    if (steps.some(st => CSO_RE2.test(JSON.stringify(st))) && /[①②③]/.test(text)) {
+      const kept = steps.filter(st => {
+        const js = JSON.stringify(st);
+        return CSO_RE2.test(js) || KEEP_IDS.test(js);
+      });
+      if (kept.length > 0 && kept.length !== steps.length) {
+        steps.length = 0;
+        steps.push(...kept);
+      }
     }
   }
 
