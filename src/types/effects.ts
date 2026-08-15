@@ -2046,6 +2046,12 @@ export interface SigniAttackBanAction {
   powerDiffersFromPrinted?: boolean;
   /** 直前に対象化したシグニに限定する（「それはアタックできない」）。 */
   targetsStored?: boolean;
+  /**
+   * 直前に**選ばれたシグニ以外**を禁止する（「それら以外のシグニでアタックできない」＝
+   * `WXDi-P08-030-E1`・§6.4 O-3）。⚠`targetsStored` の逆向きなので**0体選択でも ban を張る**
+   *   （1体も選ばなければ全シグニがアタック不可＝原文どおり）。
+   */
+  exceptTargetsStored?: boolean;
   /** 《無》×N を支払えばアタックできる（払えないときだけ禁止）。 */
   unlessPayColorless?: number;
   /**
