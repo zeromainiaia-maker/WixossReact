@@ -4036,6 +4036,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ＝手札上限超過でここに来たケースは常に解決済み。未解決の防御として個別ガードを付ける。
       let myFieldAfterCoinCheck = { ...myEndState.field, beat_zone: [] as string[] };
       let myTrashAfterCoinCheck = myTrashEND;
+      let myEnergyEND2 = myEndState.energy;
       // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
       if (!my.end_turn_effects_resolved && (my.coin_condition_signi_instances ?? []).length > 0) {
         const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
