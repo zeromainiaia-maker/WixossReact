@@ -210,6 +210,24 @@ WX15-003
   - [1].action.steps[0].destination.position = "top"
   …（他 20 行）
 
+## -BANISH -CONDITIONAL -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE -SIGNI×2 ［1枚］
+WX15-053
+--- WX15-053
+  原文: カードを３枚引き、手札を１枚捨てる。【トラップアイコン】：対戦相手のシグニ１体を対象とし、あなたの場にある他の【トラップ】１枚をトラッシュに置き、《青》を支払ってもよい。そうした場合、それをバニッシュする。,：どちらか１つを選ぶ。①カードを１枚引く。②あなたのデッキの上からカードを２枚見て好きな枚数を【トラップ】として設置し、残りをトラッシュに置く。
+  - [0].action.steps[0].steps[0].type = "DRAW"
+  - [0].action.steps[0].steps[0].owner = "self"
+  - [0].action.steps[0].steps[0].count = 3
+  - [0].action.steps[0].steps[1].type = "TRASH"
+  - [0].action.steps[0].steps[1].target.type = "HAND_CARD"
+  - [0].action.steps[0].steps[1].target.owner = "self"
+  - [0].action.steps[0].steps[1].target.count = 1
+  - [0].action.steps[1].keyword = "トラップアイコン"
+  - [0].action.steps[1].duration = "PERMANENT"
+  - [0].action.steps[2].type = "CONDITIONAL"
+  - [0].action.steps[2].condition.type = "IS_MY_TURN"
+  - [0].action.steps[2].then.type = "BANISH"
+  …（他 10 行）
+
 ## +ADD_TO_FIELD +ADD_TO_LIFE +BANISH +CHOOSE +CONDITIONAL +IS_MY_TURN +SEQUENCE×2 +SIGNI +TRASH_CARD ［1枚］
 WX16-005
 --- WX16-005
@@ -261,6 +279,60 @@ WX17-029
   ~ [0].action.steps[0].target.owner : "opponent" → "self"
   …（他 1 行）
 
+## -CONDITIONAL×2 -GRANT_KEYWORD -IS_MY_TURN -LIFE_COUNT -PREVENT_NEXT_DAMAGE -SIGNI ［1枚］
+WX17-044
+--- WX17-044
+  原文: あなたのデッキの上からカードを５枚見て好きな枚数を【トラップ】としてあなたのシグニゾーンに設置し、残りをトラッシュに置く。【起】《メインフェイズアイコン》《アタックフェイズアイコン》《青》《無》：あなたの【トラップ】１つを対象とし、トラッシュにあるこのカードをゲームから除外する。そうした場合、それを表向きにし《トラップアイコン》を発動させる。【トラップアイコ
+  - [0].action.steps[3].type = "CONDITIONAL"
+  - [0].action.steps[3].condition.type = "LIFE_COUNT"
+  - [0].action.steps[3].condition.owner = "self"
+  - [0].action.steps[3].condition.operator = "lte"
+  - [0].action.steps[3].condition.value = 2
+  - [0].action.steps[3].then.type = "GRANT_KEYWORD"
+  - [0].action.steps[3].then.target.type = "SIGNI"
+  - [0].action.steps[3].then.target.owner = "self"
+  - [0].action.steps[3].then.target.count = 1
+  - [0].action.steps[3].then.keyword = "トラップアイコン"
+  - [0].action.steps[3].then.duration = "PERMANENT"
+  - [0].action.steps[4].type = "CONDITIONAL"
+  …（他 3 行）
+
+## -GRANT_KEYWORD -SEQUENCE -SIGNI ［1枚］
+WX17-071
+--- WX17-071
+  原文: 対戦相手の＜精元＞のシグニ１体を対象とし、それをデッキの一番上に置く。【トラップアイコン】：どちらか１つを選ぶ。①あなたのトラッシュから無色のカード１枚を対象とし、それを手札に加える。②対戦相手の手札を見て無色のカードを１枚選び、捨てさせる。,：どちらか１つを選ぶ。①あなたのトラッシュから無色のカード１枚を対象とし、それを手札に加える。②対戦相手の手札を見て
+  - [0].action.steps[0].type = "TRANSFER_TO_DECK"
+  - [0].action.steps[0].source.type = "SIGNI"
+  - [0].action.steps[0].source.owner = "opponent"
+  - [0].action.steps[0].source.count = 1
+  - [0].action.steps[0].source.filter.cardType = "シグニ"
+  - [0].action.steps[0].shuffle = false
+  - [0].action.steps[0].position = "top"
+  - [0].action.steps[1].type = "GRANT_KEYWORD"
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].keyword = "トラップアイコン"
+  …（他 8 行）
+
+## +SEQUENCE +STUB×3 -TRASH ［1枚］
+WX18-029
+--- WX18-029
+  原文: 【出】：対戦相手のシグニ１体に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く。【起】《アタックフェイズアイコン》《白》手札からこのカードを捨てる：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失い、新たに得られない。この能力はあなたのセンタールリグが＜ドーナ＞の場合しか使用できない。,：カードを１枚引く。次のあな
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.upToCount = false
+  ~ [0].action.type : "TRASH" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  + [0].action.steps[0].selectTarget.owner = "opponent"
+  + [0].action.steps[0].selectTarget.count = 1
+  + [0].action.steps[0].selectTarget.upToCount = false
+  …（他 5 行）
+
 ## +BANISH +CHOOSE +CONDITIONAL +DRAW +ENERGY_CARD +ENERGY_COUNT +LIFE_CRASH +SEQUENCE +SIGNI +TRASH ［1枚］
 WX19-005
 --- WX19-005
@@ -296,6 +368,22 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
+
+## +SIGNI +STUB -DRAW ［1枚］
+WX19-064
+--- WX19-064
+  原文: 以下の３つから１つを選ぶ。①【ウィルス】１つを取り除く。②【トラップ】１つを対象とし、それをトラッシュに置く。③シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く。【トラップアイコン】：カードを１枚引く。その後、あなたの【トラップ】１つを対象とし、それを表向きにし《トラップアイコン》を発動させる。,：あな
+  - [0].action.choices[2].action.steps[1].owner = "self"
+  - [0].action.choices[2].action.steps[1].count = 1
+  ~ [0].action.choices[2].action.steps[0].id : "DEFERRED_STRIP_ATTACHED_AND_UNDER" → "SELECT_TARGET_ONLY"
+  + [0].action.choices[2].action.steps[0].selectTarget.type = "SIGNI"
+  + [0].action.choices[2].action.steps[0].selectTarget.owner = "any"
+  + [0].action.choices[2].action.steps[0].selectTarget.count = 1
+  + [0].action.choices[2].action.steps[0].selectTarget.upToCount = false
+  + [0].action.choices[2].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  ~ [0].action.choices[2].action.steps[1].type : "DRAW" → "STUB"
+  + [0].action.choices[2].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  ~ [0].action.choices[2].action.steps[2].id : "ACTIVATE_TRAP" → "STRIP_ATTACHED_AND_UNDER"
 
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
@@ -360,6 +448,24 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+
+## +STUB -GRANT_KEYWORD ［1枚］
+WXDi-P07-041
+--- WXDi-P07-041
+  原文: 【出】《赤》《コインアイコン》《コインアイコン》《コインアイコン》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それを《サーバントＺＥＲＯ》にする。【起】《ターン１回》《赤×0》：【　　】icon_txt_frame_nullアイコンを持たないシグニ１体を対象とする。このシグニに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置
+  - [1].action.steps[0].target.type = "SIGNI"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 1
+  - [1].action.steps[0].keyword = "　　"
+  - [1].action.steps[0].duration = "PERMANENT"
+  ~ [1].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [1].action.steps[0].id = "SELECT_TARGET_ONLY"
+  + [1].action.steps[0].selectTarget.type = "SIGNI"
+  + [1].action.steps[0].selectTarget.owner = "any"
+  + [1].action.steps[0].selectTarget.count = 1
+  + [1].action.steps[0].selectTarget.upToCount = false
+  + [1].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  …（他 4 行）
 
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054

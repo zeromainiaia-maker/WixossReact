@@ -15128,6 +15128,62 @@ test('GAIN_BOND source:last_found: 直前選択カードとの絆を bonds へ�
   const r = run({ type: 'GAIN_BOND', source: 'last_found' } as EffectAction, ctx);
   ok((r.ownerState.bonds ?? []).includes(name!), `bonds (${JSON.stringify(r.ownerState.bonds)})`);
 });
+// ── STRIP_ATTACHED_AND_UNDER（§6.4 O-34(a)「それに付いているすべてのカードと、下に置かれている
+//    すべてのカードをトラッシュに置く」＝原文 regex の母集団3効果）──
+// 🔴回帰ガード＝`WX18-029-E1` は従来 `TRASH{SIGNI opponent}`＝**相手シグニ本体をトラッシュに置いて**
+//    いた（【出】でノーコストの除去＝重い過剰実行）。**シグニが場に残ること**まで assert する。
+test('STRIP_ATTACHED_AND_UNDER: 付随物と下カードだけ剥がしシグニは場に残る（WX18-029-E1 live）', () => withSavedCursor(() => {
+  const host = fresh(), charm = fresh(), acce = fresh(), soul = fresh(), under = fresh();
+  const ctx = mkCtx({}, {});
+  ctx.otherState.field.signi = [[under, host], null, null];
+  ctx.otherState.field.signi_charms = [charm, null, null];
+  ctx.otherState.field.signi_acce = [[acce], null, null];
+  ctx.otherState.field.signi_soul = [soul, null, null];
+  const trash0 = ctx.otherState.trash.length, lrigTrash0 = ctx.otherState.lrig_trash.length;
+  const eff = (effectsMap.get('WX18-029') ?? []).find(e => e.effectId === 'WX18-029-E1')!;
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq(r.otherState.field.signi[0]?.join(',') ?? '', host, 'シグニ本体は場に残り下カードだけ消える');
+  eq(r.otherState.field.signi_charms?.[0] ?? null, null, 'チャーム除去');
+  eq(r.otherState.field.signi_acce?.[0] ?? null, null, 'アクセ除去');
+  eq(r.otherState.field.signi_soul?.[0] ?? null, null, 'ソウル除去');
+  // チャーム＋アクセ＋下カード＝3枚がトラッシュへ、ソウルだけルリグトラッシュへ（removeFromField と同規約）
+  eq(r.otherState.trash.length, trash0 + 3, 'トラッシュ+3');
+  eq(r.otherState.lrig_trash.length, lrigTrash0 + 1, 'ルリグトラッシュ+1（ソウル）');
+}));
+// 対照＝何も付いていないシグニでは盤面が動かない（＝「本体を巻き込む」退行の逆方向ガード）。
+test('STRIP_ATTACHED_AND_UNDER: 付随物なしの相手シグニでは盤面が一切動かない（対照）', () => withSavedCursor(() => {
+  const host = fresh();
+  const ctx = mkCtx({}, { signi: [host, null, null] });
+  const trash0 = ctx.otherState.trash.length;
+  const eff = (effectsMap.get('WX18-029') ?? []).find(e => e.effectId === 'WX18-029-E1')!;
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq(r.otherState.field.signi[0]?.join(',') ?? '', host, 'シグニはそのまま');
+  eq(r.otherState.trash.length, trash0, 'トラッシュ不変');
+}));
+// `stripSelf`＝「**この**シグニに付いているすべてのカードと〜」（`WXDi-P07-041-E2`）＝剥がすのは発生源。
+// ⚠対象（コピー元）の付随物には触らない。触ると「相手のチャームを剥がすカード」に化ける。
+test('STRIP_ATTACHED_AND_UNDER stripSelf: 剥がすのは発生源で、対象シグニの付随物は残る', () => withSavedCursor(() => {
+  const self = fresh(), selfCharm = fresh(), opp = fresh(), oppCharm = fresh();
+  const ctx = mkCtx({ signi: [self, null, null] }, { signi: [opp, null, null] }, self);
+  ctx.ownerState.field.signi_charms = [selfCharm, null, null];
+  ctx.otherState.field.signi_charms = [oppCharm, null, null];
+  const r = run({ type: 'STUB', id: 'STRIP_ATTACHED_AND_UNDER', stripSelf: true } as EffectAction,
+    { ...ctx, storedTargetCards: [opp] } as ExecCtx);
+  eq(r.ownerState.field.signi_charms?.[0] ?? null, null, '発生源のチャームは剥がれる');
+  eq(r.otherState.field.signi_charms?.[0] ?? null, oppCharm, '対象のチャームは残る');
+}));
+// 🔴live 不変条件＝【トラップアイコン】節がスペル本体へ tail-splice されていないこと（§6.4 O-34(a)）。
+// 従来はシグニ側にしか除去が無く、**スペル5枚中4枚**で「唱えた瞬間にトラップ本体まで走る」過剰実行だった。
+test('【トラップアイコン】節: スペル本体（E1）へ混入していない（live 5枚）', () => {
+  for (const cardNum of ['WX15-053', 'WX17-044', 'WX17-071', 'WX19-039', 'WX19-064']) {
+    const effs = effectsMap.get(cardNum) ?? [];
+    const main = effs.filter(e => e.effectType !== 'TRAP_ICON' && e.effectType !== 'LIFE_BURST');
+    const s = JSON.stringify(main);
+    ok(!s.includes('ACTIVATE_TRAP'), `${cardNum}: 本体にトラップ発動が混入`);
+    ok(!s.includes('"keyword":"トラップアイコン"'), `${cardNum}: 本体にゴミ keyword が混入`);
+    ok(effs.some(e => e.effectType === 'TRAP_ICON'), `${cardNum}: TRAP effect が別立てで存在`);
+  }
+});
 test('REMOVE_CHARM 相手シグニのチャーム1枚: signi_charms を除去しトラッシュへ', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, null, null] });
   ctx.otherState.field.signi_charms = ['CHARM-X', null, null];
