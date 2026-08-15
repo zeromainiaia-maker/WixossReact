@@ -1,5 +1,83 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き489・Opus 5）— §6.4 **O-3 `NEXT_OPP_ATTACK_PHASE_START`（2効果）を解体＝5効果の挙動是正**
+
+**過剰実行3件＋対象取り違え1件＋永続化バグ1件**。ゲート全緑（**golden 2017**＝+5・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0・lint 0 errors / 259 warnings）。
+live JSON changed **4カード**（`SPDi43-24`／`WX24-P3-014`／`WX25-P2-051`／`WXK01-003`。CSV 非改変）。
+`census:stubs` A群＝**無言 no-op 0 据置**、明示 defer **28種/31件 → 27種/29件**。
+
+### 在庫の実測（着手前）— 🔴受け皿 id は母集団の一部しか映さなかった
+
+A群に出ていたのは `DEFERRED_NEXT_OPP_ATTACK_PHASE_START` の**2件**だが、原文
+「次の対戦相手のアタックフェイズ開始時」を regex で数えると**5効果**あった。
+
+| カード | 修正前の live | 実害 |
+|---|---|---|
+| `SPDi43-24-E2` | `SEQUENCE[STUB{DEFERRED…}]`（続き488 で即時実行だけ停止） | 効果が丸ごと不発 |
+| `WX24-P3-014-E2` | `SEQUENCE[STUB{SOUL_OP}, STUB{DEFERRED…}]` | 同上（`SOUL_OP` も該当分岐なしで no-op） |
+| `WX25-P2-051-E2` | `SEQUENCE[STUB{SOUL_OP}, DOWN{SIGNI opponent ALL}]` | 🔴**即時に相手の全シグニをレベル無制限でダウン** |
+| `WXK01-003-E3` | `STUB{PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE}` | 🔴対象が解決できず**自分のルリグ**をアタック不可にしていた（しかもターン終了で失効） |
+| `WXDi-P09-009-E3` | 専用機構で実装済み（対象外） | — |
+
+⚠**A群に出ていなかった2件のほうが壊れていた**＝`SOUL_OP`／`PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE` は
+**ハンドラを持つ汎用 id** なので `census:stubs` の「実装の穴」に映らない（続き488 ④と同じクラス）。
+**着手時は受け皿 id の件数ではなく原文 regex で母集団を数え直すこと。**
+
+### ① 新機構 `DELAY_TO_NEXT_OPP_ATTACK_PHASE`（遅延予約）
+
+- 状態＝`pending_next_opp_attack_phase_effects`（**予約した側**に積む）。
+- 🔑**collector は `opState` 側を読む**＝`ON_ATTACK_PHASE_START` は**自分のアタックフェイズでも走る**ので、
+  `myState` を見ると同一ターン内で即発火する。走査軸は既存 `pending_opponent_attack_facedown_returns` と同じで、
+  `playerId: opId` の合成エントリを積み、STUB `RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT` が1件ずつ取り出して実行する。
+- ⚠**ターン境界を跨ぐ**ので `turnScopedState` にも `delayed_triggers`（THIS_TURN 限定）にも載せない。
+- 🔑**本文は `splitSentences` の前に全文で切り出す**＝`SPDi43-24-E2` の本文は
+  「…1体を対象とする。このターン、それがアタックしたとき、…」の**2文**。文単位に切ると本文が後続ステップとして
+  並び、予約した瞬間に走る（続き488 と同じ壊れ方）。句より前は**いま実行する**ので `SEQUENCE[prefix, DELAY{body}]`。
+
+### ② 新機構 裏向きルリグゾーン（`WX24-P3-014-E2`／`WX25-P2-051-E2`）
+
+- `PLACE_FACEDOWN_LRIG_ZONE{source:'deck_top'|'hand'}` → `facedown_lrig_zone_cards` に保持（元ゾーンからは取り除く）。
+- `REVEAL_FACEDOWN_LRIG_ZONE` → 表向きにしてトラッシュへ送り、**`lastProcessedCards` に載せる**。
+  これで後続の「そのカードと同じレベルの〜」が既存語彙で解ける
+  （`WX25-P2-051` は `levelEqLastProcessed`／`WX24-P3-014` は新設 `SIGNI_ATTACK_BAN.levelFromLastProcessed`）。
+- ⚠**ルリグゾーンの裏向き表示そのものは未実装**（機能上は「取り除いて保持する」だけで足りる）＝§7 送り。
+
+### ③ 🟢 本体の機構はほぼ既存で足りた
+
+- `SPDi43-24-E2`＝`NEGATE_ATTACK{target:CENTER_LRIG_OR_SIGNI, escapeDiscard:3}`。
+  「ルリグかシグニ1体」も「手札3枚を捨てないかぎり」の**回避モーダル**（`openNegateEscape`）も実装済みだった。
+- `WXK01-003-E3`＝`GRANT_KEYWORD{CENTER_LRIG_OR_SIGNI, 'アタックできない', UNTIL_END_OF_TURN}`。
+  ⚠原文は「センタールリグ**1体と**シグニ**1体**」なのに `count:2` の同一候補集合＝**シグニ2体も選べる近似**
+  （旧実装が自分のルリグを封じていたのに比べれば大幅に改善）。
+
+**在庫を開く前に「既存語彙で書けないか」を先に確かめると新機構が半分で済む。**
+
+### ④ 🔴 `negated_attacks` が永続していた（続き487 の教訓の再発）
+
+型コメントに「このターン次にアタックしたとき無効にされる」と書いてあるのに**失効地点が1つも無かった**
+（`signi_deploy_power_limit` と同じクラス）。消費は「そのカードがアタックしたとき」だけなので、
+**狙われた側がアタックしなければゲーム終了まで残る**。`SPDi43-24-E2` は防御札＝相手は狙われたユニットで
+アタックしなければよいので**必ず踏む**。`negated_attacks`／`negated_attacks_escape` を `turnScopedState`
+（`IRREGULAR_TURN_SCOPED_STATE`）へ登録して解消し、golden にトリップワイヤを置いた。
+
+**「期間つき」と型コメントに書いてあるフィールドは失効地点を grep して実測すること。**
+
+### ⑤ ⚠ 計器の較正は narrow なキーで行う（census 835 → 831）
+
+STUB を実装で置き換えたことで4効果が「STUB/MANUAL格納」から高シグナルへ昇格した（既知クラス）。
+4クラスタを較正したが、「トリガー:アタックしたとき」に **`NEGATE_ATTACK` を鍵として足すと既存の
+高シグナル11件を丸ごと隠す**ことを実測で確認したため、`escapeDiscard`（live 15件・うち当該クラスタの
+高シグナルは対象1件のみ）へ絞った。**較正キーは追加前に「何件を消すか」を数える。**
+
+- `トリガー:アタックフェイズ開始時` ← `DELAY_TO_NEXT_OPP_ATTACK_PHASE`
+- `同一性(〜と同じ色/レベル/名前)` ← `levelFromLastProcessed`
+- `トリガー:アタックしたとき` ／ `遅延トリガー(このターン〜したとき)` ← `escapeDiscard`
+
+### 残（PLAN §6.4 O-3 の worklist へ）
+
+受け皿8種8効果。次点は `ATTACK_TAX_HAND_DISCARD`（`SP38-003`＝**アタックするごとに**手札3枚捨て）。
+⚠今回入れた `escapeDiscard` は**1回きりの回避**なので流用できない（原文の括弧書き「（アタックするごとに捨てる）」が別機構）。
+
 ## 2026-08-15（続き488・Opus 5）— §6.4 **O-3 の3クラスタ（5効果）を解体＝8効果の挙動是正**
 
 **過剰実行4件＋恒久 no-op 2件＋対象取り違え2件**。ゲート全緑（**golden 2012**＝+11・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0・lint 0 errors / 259 warnings）。
