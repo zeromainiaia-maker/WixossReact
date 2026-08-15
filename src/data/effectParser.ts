@@ -9682,12 +9682,14 @@ function parseActionTextInner(text: string): EffectAction {
   // （`WX17-003-E1`＝原文は最大4回なのに 4+4＝8回選べる過剰実行。§6.4 O-29）。
   // ⚠2つの id は engine では**同じハンドラ**（回数はカード全文から読む）なので、後続を落とすだけでよい。
   {
-    const isCso = (st: EffectAction | undefined) =>
-      st?.type === 'STUB' && ['CHOOSE_SAME_OPTION_TWICE', 'CHOOSE_SAME_OPTION_MULTIPLE'].includes((st as StubAction).id);
-    if (steps.filter(isCso).length > 1) {
+    // ⚠**条件分岐の中に入っている形もある**（`CONDITIONAL{IS_BETTING, else: CHOOSE_SAME_OPTION_TWICE}`）ので、
+    //   数えるのは部分木全体・落とすのは**直下ステップ**だけ（分岐の中身は触らない）。
+    const CSO_RE = /"id":"CHOOSE_SAME_OPTION_(?:TWICE|MULTIPLE)"/;
+    const hasCso = (st: EffectAction | undefined) => !!st && CSO_RE.test(JSON.stringify(st));
+    if (steps.filter(hasCso).length > 1) {
       let seen = false;
       const deduped = steps.filter(st => {
-        if (!isCso(st)) return true;
+        if (!hasCso(st)) return true;
         if (seen) return false;
         seen = true;
         return true;
