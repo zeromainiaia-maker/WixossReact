@@ -14888,6 +14888,73 @@ test('EXILE_CRAFTS_RESET_ZONES_AND_DRAW: 両プレイヤーの4ゾーンをデ�
     eq(after.deck.length + after.hand.length, totalBefore - 1, `${label}の総枚数（クラフト1枚だけ減る）`);
   }
 }));
+// ── SIGNI_DEPLOY_BAN（§6.4 O-3「このターンと次のターンの間、〜シグニを新たに場に出せない」）──
+test('SIGNI_DEPLOY_BAN: 同名限定／出自限定が ban ストアに載る（宣言時にカード名を焼き込む）', () => withSavedCursor(() => {
+  const base = mkCtx({}, {});
+  const run1 = (act: Record<string, unknown>, ctxOpts: Partial<ExecCtx> = {}) => {
+    const r = run({ type: 'SIGNI_DEPLOY_BAN', owner: 'opponent', turns: 2, ...act } as unknown as EffectAction,
+      { ...base, ...ctxOpts } as ExecCtx);
+    return ((r.otherState as PlayerState).signi_deploy_bans ?? []);
+  };
+  const named = run1({ namesFromTargets: true }, { storedTargetCards: [SIGNI_P3000] });
+  eq(named.length, 1, '対象があれば ban が載る');
+  eq(named[0].turnsRemaining, 2, 'このターンと次のターン＝2ターン');
+  eq(JSON.stringify(named[0].cardNames), JSON.stringify([cardMap.get(SIGNI_P3000)?.CardName]), 'カード名が焼き込まれる');
+  eq(run1({ namesFromTargets: true }).length, 0, '対象未確定なら ban を張らない（全シグニ禁止にしない）');
+  // lastProcessedCards へのフォールバック（対象宣言ステップが無い文型）
+  const viaLast = run1({ namesFromTargets: true }, { lastProcessedCards: [SIGNI_P3000] });
+  eq(viaLast.length, 1, 'lastProcessedCards からも解決できる');
+  const bySrc = run1({ bySource: 'signi_or_spell_effect' });
+  eq(bySrc[0]?.bySource, 'signi_or_spell_effect', '出自限定が載る');
+  eq(bySrc[0]?.cardNames, undefined, '出自限定に名前条件は付かない');
+}));
+test('deployLimitBlockReason: 名前／出自／パワーの配置禁止（§6.4 O-3 続き487）', () => withSavedCursor(() => {
+  const name3000 = cardMap.get(SIGNI_P3000)?.CardName ?? '';
+  const reason = (bans: PlayerState['signi_deploy_bans'], cardNum: string, src?: 'normal_summon' | 'signi_or_spell_effect' | 'other_effect') =>
+    deployLimitBlockReason({
+      placingState: { ...mkState({ signi: [null, null, null] }), signi_deploy_bans: bans },
+      opponentState: mkState({}), cardNum, cardMap: cardMap as Map<string, CardData>,
+      placementSource: src,
+    });
+  // 名前限定
+  eq(reason([{ turnsRemaining: 2, cardNames: [name3000] }], SIGNI_P3000), 'NAME_BAN', '同名シグニは出せない');
+  eq(reason([{ turnsRemaining: 2, cardNames: [name3000] }], SIGNI_P12000), null, '別名シグニは出せる');
+  // 出自限定＝通常召喚とアーツ/ルリグ/キー効果は原文の対象外
+  const srcBan: PlayerState['signi_deploy_bans'] = [{ turnsRemaining: 2, bySource: 'signi_or_spell_effect' }];
+  eq(reason(srcBan, SIGNI, 'signi_or_spell_effect'), 'SOURCE_BAN', 'シグニ／スペルの効果では出せない');
+  eq(reason(srcBan, SIGNI, 'normal_summon'), null, '通常召喚は禁止されない');
+  eq(reason(srcBan, SIGNI, 'other_effect'), null, 'アーツ／ルリグ／キーの効果は禁止されない');
+  eq(reason(srcBan, SIGNI), null, '出自不明なら掛けない（過少側に倒す）');
+  // 期限切れ（turnsRemaining 0）は掛からない
+  eq(reason([{ turnsRemaining: 0, cardNames: [name3000] }], SIGNI_P3000), null, '失効した ban は掛からない');
+}));
+test('SIGNI_DEPLOY_BAN: ターン終了ごとに1減り、2ターン目の終了で失効する', () => withSavedCursor(() => {
+  // ⚠旧 `signi_deploy_power_limit` は**どこでもクリアされておらず永続していた**（続き487 で統合して解消）。
+  const t0: PlayerState = { ...mkState({}), signi_deploy_bans: [{ turnsRemaining: 2, powerGte: 12000 }] };
+  const t1 = clearTurnEndScopedState(t0);
+  eq(t1.signi_deploy_bans?.[0]?.turnsRemaining, 1, '1ターン目の終了では残る（次のターンも有効）');
+  eq(clearTurnEndScopedState(t1).signi_deploy_bans, undefined, '2ターン目の終了で失効する');
+}));
+test('SIGNI_DEPLOY_BAN / BLOCK_ACTION: 5カードの live 形（§6.4 O-3 続き487）', () => withSavedCursor(() => {
+  const step = (num: string, effectId: string, path: (string | number)[]) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === effectId);
+    let cur: unknown = e?.action;
+    for (const k of path) cur = (cur as Record<string, unknown>)?.[k];
+    return (cur ?? {}) as Record<string, unknown>;
+  };
+  eq(step('WXK10-019', 'WXK10-019-E3', ['steps', 1]).namesFromTargets, true, 'WXK10-019 の同名配置禁止');
+  eq(step('WX25-P3-001', 'WX25-P3-001-E1', ['steps', 4]).namesFromTargets, true, 'WX25-P3-001 の同名配置禁止');
+  eq(step('WX25-P3-009', 'WX25-P3-009-E1', ['steps', 4]).bySource, 'signi_or_spell_effect', 'WX25-P3-009 の出自限定配置禁止');
+  // ⚠MANUAL 不可侵で live に届いていなかった2枚（§6.4 O-6 同型）＝エクシード任意コストを parser 化して AUTO 化した。
+  eq(step('WX25-P3-001', 'WX25-P3-001-E1', ['steps', 2]).exceed, 3, 'WX25-P3-001 のエクシード任意コストが落ちている');
+  eq(step('WX25-P3-009', 'WX25-P3-009-E1', ['steps', 2]).exceed, 3, 'WX25-P3-009 のエクシード任意コストが落ちている');
+  // 「次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない」
+  eq(step('WX25-CP1-016', 'WX25-CP1-016-E2', ['steps', 1]).actionId, 'USE_LRIG_ACT', 'WX25-CP1-016 のルリグ【起】封じ');
+  eq(step('WX25-CP1-016', 'WX25-CP1-016-E2', ['steps', 1]).until, 'NEXT_TURN', '次の相手ターン予約になっていない');
+  // 「次の対戦相手のターン、…。そのターンの間、シグニは可能ならばアタックしなければならない」＝文跨ぎの照応
+  eq(step('WXEX2-19', 'WXEX2-19-E3', ['steps', 1]).targetOwner, 'opponent', 'WXEX2-19 の強制アタックが自分向きに戻っている');
+  eq(step('WXEX2-19', 'WXEX2-19-E3', ['steps', 1]).duration, 'NEXT_TURN', 'WXEX2-19 の強制アタックが即時に戻っている');
+}));
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);

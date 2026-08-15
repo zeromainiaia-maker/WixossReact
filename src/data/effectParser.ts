@@ -8060,7 +8060,15 @@ function parseActionTextInner(text: string): EffectAction {
     // 「どちらか/以下のN/から選ぶ」などCHOOSEヘッダ文はスキップ
     if (/^(?:どちらか|以下の?[０-９\d２-４]+つから)/.test(c) && c.includes('選ぶ')) return false;
     return true;
-  });
+  })
+    // 「そのターンの間、…」＝**直前の文が定めたターン**を指す照応。文単位パーサは前の文を見られないので、
+    // ここで明示形へ書き換えてから各文を解析する（`WXEX2-19-E3`＝「次の対戦相手のターン、メインフェイズを
+    // スキップする。**そのターンの間**、シグニは可能ならばアタックしなければならない」）。
+    // ⚠書き換えないと期間も所有者も既定に落ちる＝**自分のシグニをこのターン強制アタック**という真逆の効果になる。
+    .map((s, i, all) => {
+      if (i === 0 || !/^そのターンの間[、,]/.test(s.trim())) return s;
+      return /次の対戦相手のターン/.test(all[i - 1]) ? s.replace(/^そのターンの間/, '次の対戦相手のターンの間') : s;
+    });
   // CHOOSEパターン共通ヘルパー
   // ⚠ヘッダの「Mつ**まで**選ぶ」は upTo=true（1〜M個選択可）。従来は全呼び出し元が「まで」を
   //   捨てて choose_count=M の**丁度M個必須**に潰しており、選べる数が原文より狭まっていた
@@ -12480,27 +12488,6 @@ function demoteDeclareNumberForAttackBan(action: EffectAction): EffectAction {
   return { ...action, steps };
 }
 
-/**
- * 「次の対戦相手のターン、〜。**そのターンの間**、シグニは可能ならばアタックしなければならない」（`WXEX2-19-E3`）。
- *
- * 文単位パーサは**前の文を見られない**ので「そのターン」を解決できず、所有者も期間も既定に落ちて
- * `FORCE_SIGNI_ATTACK{targetOwner:'self'}`＝**自分のシグニをこのターン強制アタックさせる**という
- * 真逆の効果になっていた。能力ブロック内の照応をここで解決する。
- * ⚠読むのは**能力ブロック**であってカード全文ではない（§6.4 O-20 の恒久ルール）。
- */
-function resolveForcedAttackThatTurn(action: EffectAction, blockText: string): EffectAction {
-  if (!/次の対戦相手のターン/.test(blockText)) return action;
-  if (!/そのターンの間、(?:対戦相手の)?シグニは可能ならばアタックしなければならない/.test(blockText)) return action;
-  const fix = (a: EffectAction): EffectAction => {
-    if (a.type === 'FORCE_SIGNI_ATTACK') {
-      return { ...a, targetOwner: 'opponent', duration: 'NEXT_TURN' } as EffectAction;
-    }
-    if (a.type === 'SEQUENCE') return { ...a, steps: a.steps.map(fix) } as EffectAction;
-    return a;
-  };
-  return fix(action);
-}
-
 // デッキ上N枚からセンタールリグ共通色の**全カード**をエナへ、残りをデッキ下。
 // 旧の LOOK_AND_REORDER/top や裸STUBは残さず、公開と振り分けを1つの REVEAL_AND_PICK が担う。
 function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): EffectAction {
@@ -13236,7 +13223,6 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
     folded = foldMagicBoxLookPickChain(folded, card.EffectText ?? '');
     folded = demoteDeclareNumberForAttackBan(folded);
-    folded = resolveForcedAttackThatTurn(folded, abilityBlockTextOf(card, e.effectId));
     if (folded !== e.action) {
       e.action = folded;
       e.parseStatus = 'AUTO';

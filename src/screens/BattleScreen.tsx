@@ -2378,6 +2378,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const isActionBlocked = (actionId: string) =>
     (my.blocked_actions?.some(a => a === actionId) ?? false) || contBlocked.forSelf.has(actionId);
 
+  // 「対戦相手はルリグの【起】能力を使用できない」（`USE_LRIG_ACT`・§6.4 O-3 続き487）＝**ルリグ／アシストルリグ
+  // の【起】だけ**を封じる。⚠既存の `USE_ACT` はシグニ・キー・付与も含む全【起】を止めるので流用できない。
+  const isLrigActBlocked = () => isActionBlocked('USE_ACT') || isActionBlocked('USE_LRIG_ACT');
+
   // ドロー枚数（先攻1ターン目=1枚、それ以外=2枚）
   const drawCount = bs.turn_count === 1 && bs.active_user_id === bs.first_player_id ? 1 : 2;
 
@@ -12573,7 +12577,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const lrigActionsMA: CardAction[] = [];
 
       // センタールリグ本来のACTIVATED効果（SONG_FRAGMENT等）
-      if (lrigTopMA && !isActionBlocked('USE_ACT')) {
+      if (lrigTopMA && !isLrigActBlocked()) {
         const lrigEffsMA = collectCenterLrigActivatedEffects(my, effectsMap, 'MAIN');
         for (const eff of lrigEffsMA) {
           // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
@@ -12664,7 +12668,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
-          !isActionBlocked('USE_ACT') &&
+          !isLrigActBlocked() &&
           (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopMA, 'MAIN', effectivePowers)),
         )
         .map(eff => {
@@ -12715,7 +12719,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return parts.join('・') || 'コストなし';
       };
       // センタールリグ本来のACTIVATED効果（timing ATTACK_ARTS）
-      if (lrigTopAA && !isActionBlocked('USE_ACT')) {
+      if (lrigTopAA && !isLrigActBlocked()) {
         for (const eff of collectCenterLrigActivatedEffects(my, effectsMap, 'ATTACK_ARTS')) {
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
@@ -12740,7 +12744,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
-          !isActionBlocked('USE_ACT') &&
+          !isLrigActBlocked() &&
           (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopAA, 'ATTACK_ARTS', effectivePowers)),
         )
         .map(eff => ({
@@ -12855,7 +12859,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
-        !isActionBlocked('USE_ACT') &&
+        !isLrigActBlocked() &&
         (phase === 'MAIN' || phase === 'ATTACK_ARTS' || phase === 'ATTACK_ARTS_OP') &&
         (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, phase, effectivePowers)),
       );

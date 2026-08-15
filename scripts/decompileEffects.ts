@@ -1650,6 +1650,15 @@ function actionJa(a?: Action, effectType?: string): string {
       return `このターン、${whoAB}は${scopeAB}シグニでアタックできない`
         + (a.unlessPayColorless ? `（《無》×${a.unlessPayColorless}を支払えばアタックできる）` : '');
     }
+    case 'SIGNI_DEPLOY_BAN': {
+      // 「このターンと次のターンの間、対戦相手は〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）
+      const whoDB = a.owner === 'opponent' ? '対戦相手' : 'あなた';
+      const whenDB = (a.turns ?? 1) >= 2 ? 'このターンと次のターンの間' : 'このターン';
+      const scopeDB = a.namesFromTargets ? 'それと同じ名前の'
+        : a.bySource === 'signi_or_spell_effect' ? '自分の、シグニとスペルの効果によって'
+        : '';
+      return `${whenDB}、${whoDB}は${scopeDB}シグニを新たに場に出せない`;
+    }
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
@@ -2723,6 +2732,10 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE: '【未実装】「このターン、対戦相手は…」の制限節（アタック制限・支払い条件など）',
         // 明示 defer（§6.4 O-3）＝上の受け皿から**機構ごとに切り出した**残り3件。
         // ⚠1つの受け皿に混ぜると census:stubs から「何が残っているか」が読めない（続き459 と同じ理由）。
+        DEFERRED_NON_FIELD_ZONE_MOVE_IMMUNITY: '【未実装】このターンと次のターンの間、場以外のあなたの領域にあるカードは対戦相手の効果によって他の領域に移動しない',
+        DEFERRED_NEXT_OPP_TURN_MAIN_PHASE_SKIP: '【未実装】次の対戦相手のターン、メインフェイズをスキップする',
+        DEFERRED_DECLARED_SPELL_NAME_LOCK: '【未実装】次の対戦相手のターンの間、対戦相手は宣言されたカード名のスペルを使用できない',
+        DEFERRED_GAIN_OPP_LRIG_TYPE: '【未実装】次の対戦相手のターン終了時まで、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る',
         DEFERRED_ATTACK_TAX_HAND_DISCARD: '【未実装】このターン、対戦相手はアタックするごとに手札を捨てないかぎりシグニでアタックできない',
         DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK: '【未実装】このターン、対戦相手は自分が宣言したカード名以外のアーツを使用できない',
         DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK: '【未実装】このターン、対戦相手は自分で選んだシグニで強制アタックし、それら以外ではアタックできない',
