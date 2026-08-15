@@ -494,7 +494,9 @@ function condJa(c?: any): string {
     case 'ENERGY_TRASHED_BY_OPP': return `このターンに対戦相手の効果によってあなたのエナゾーンからカードが${numJa(c.value)}枚以上トラッシュに移動していた`;
     case 'IS_MY_TURN': return '自分のターンの間';
     case 'IS_OPPONENT_TURN': return '対戦相手のターンの間';
-    case 'IS_BETTING': return c.minCoins != null ? `あなたが《コイン》${c.minCoins}枚以上ベットしていた` : 'あなたがベットしていた';
+    case 'IS_BETTING': return c.minCoins != null
+      ? `あなたが《コイン》${c.minCoins}枚以上ベットしてい${c.negate ? 'なかった' : 'た'}`
+      : `あなたがベットしてい${c.negate ? 'なかった' : 'た'}`;
     case 'DECK_TOP_MATCHES': return `${ownerJa(c.owner)}デッキの一番上が${filterJa(c.filter)}${typeof c.filter?.cardType === 'string' ? c.filter.cardType : 'カード'}`;
     case 'DECK_TOP_SHARES_COLOR_WITH_LRIG': return `${ownerJa(c.owner)}場にそのカードと共通する色を持つルリグがいる`;
     case 'THIS_CARD_PLACED_BY_CLASS': return c.cardClass ? `このシグニが＜${c.cardClass}＞のシグニの効果によって場に出ていた` : 'このターンにあなたの効果によってこのシグニが場に出ていた';
