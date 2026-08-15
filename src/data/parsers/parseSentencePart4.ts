@@ -273,11 +273,37 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対戦相手はその中からシグニを[１-９\d０-９]+枚まで場に出し、残りをトラッシュに置く/))
     return { type: 'STUB', id: 'REVEAL_PICK_PLAY' } as StubAction;
 
-  // ---- 次のメインフェイズまでリミットが変わり〜 ----
-  // ⚠「次のあなたのメインフェイズまで」＝フェイズ境界の受け皿が無い（§6.4 O-3 の据置理由と同型）。
+  // ---- 「次のあなたのメインフェイズまで、このルリグの基本リミットはNになり〜ダメージを受けない」----
+  // `WXK01-002-E2`。✅続き492 で実装＝期間は `clearMainPhaseScopedState` の1点で失効する
+  // （`untilNextMainPhase`／`prevent_damage_windows.expires:'MY_NEXT_MAIN_PHASE'`）。
+  // ⚠**ターン境界では消さない**＝原文は相手のターンを丸ごと跨ぐ。
+  if (/^次のあなたのメインフェイズまで/.test(t)) {
+    const steps: EffectAction[] = [];
+    const limitM = t.match(/この(?:ルリグ|カード)の基本リミットは([０-９\d]+)になり/);
+    if (limitM) steps.push({ type: 'SET_LRIG_BASE_LIMIT', owner: 'self', value: parseNum(limitM[1]), untilNextMainPhase: true } as SetLrigBaseLimitAction);
+    if (/あなたは対戦相手のルリグによってダメージを受けない/.test(t)) {
+      steps.push({ type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'LRIG', untilNextMainPhase: true } as PreventDamageAction);
+    }
+    // ⚠句のどれか1つでも拾えなければ**部分採用しない**（落ちた節が無言で消えるより受け皿のほうがよい）。
+    const clauseCount = (limitM ? 1 : 0) + (/ダメージを受けない/.test(t) ? 1 : 0);
+    if (steps.length > 0 && steps.length === clauseCount) {
+      return steps.length === 1 ? steps[0] : ({ type: 'SEQUENCE', steps } as SequenceAction);
+    }
+    return { type: 'STUB', id: 'DEFERRED_UNTIL_NEXT_MAIN_PHASE_CLAUSE' } as StubAction;
+  }
   if (t.match(/次のあなたのメインフェイズまで.*リミットは/) ||
       t.match(/次のあなたのメインフェイズまで.*ダメージを受けない/))
     return { type: 'STUB', id: 'DEFERRED_UNTIL_NEXT_MAIN_PHASE_CLAUSE' } as StubAction;
+
+  // ---- 「あなたが（次のあなたの）ドローフェイズにカードをN枚引く場合、代わりにカードをM枚引く」----
+  // `WXK01-002-E2` の3文目。⚠🔴従来ここは規則が無く、後段の汎用ドロー規則に落ちて
+  // **使った瞬間に1枚引く**（`DRAW{count:1}`）過剰実行になっていた（原文には即時ドローは無い）。
+  {
+    const dpr = t.match(/^あなたが(?:次のあなたの)?ドローフェイズに(?:カードを)?([０-９\d]+)枚引く場合、代わりに(?:カードを)?([０-９\d]+)枚引く$/);
+    if (dpr) {
+      return { type: 'RESERVE_DRAW_PHASE_REPLACEMENT', owner: 'self', fromCount: parseNum(dpr[1]), toCount: parseNum(dpr[2]) } as ReserveDrawPhaseReplacementAction;
+    }
+  }
 
   // ---- 手札がN枚以下の場合にしか使用できない ----
   if (t.match(/手札が[１-９\d０-９]+枚以下の場合にしか使用できない/))
