@@ -14977,7 +14977,7 @@ test('SIGNI_DEPLOY_BAN(絞り込みキー無し): 全シグニの配置を1タ�
   eq(clearTurnEndScopedState({ ...mkState({}), signi_deploy_bans: bans }).signi_deploy_bans, undefined,
     'このターンの終了で失効する');
 }));
-test('PAY_ENERGY_COST 封じ: 支払い元 pool が空になる（《色×0》は通る）', () => {
+test('PAY_ENERGY_COST 封じ: 支払い元 pool が空になる（《色×0》は通る）', () => withSavedCursor(() => {
   const blocked: PlayerState = { ...mkState({}), energy: ['E1', 'E2'], blocked_actions: ['PAY_ENERGY_COST'] };
   const poolCtx = { turnPhase: 'MAIN' as const, isMyTurn: true, effectsMap };
   eq(isEnergyPayBlocked(blocked), true, '封じを検出できていない');
