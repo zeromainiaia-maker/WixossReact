@@ -157,11 +157,21 @@ export function execStubPart1(
   // 直後に STORE_LAST_PROCESSED_TARGETS を置いて storedTargetCards へ固定し、OPTIONAL_COST が
   // そのレベルを倍率に使い、支払い後の本体は targetsStored で同じ対象を撃つ、という組で使う。
   // 選択後の適用アクションは INTERNAL_NOOP＝resumeSelectTarget が lastProcessedCards だけを残す。
+  // ⚠**対象型を1つでも取りこぼすと丸ごと no-op になる**（`lastProcessedCards: []`→STORE が空→本体が
+  //   「対象が確定していない」で降りる＝STUB ですらないので census にも映らない）。
+  //   ルリグ対象／「ルリグかシグニ1体」（§6.4 O-28 のアタック税5効果）は候補の作り方だけが違う。
   if (stub.id === 'SELECT_TARGET_ONLY') {
     const tgt = stub.selectTarget;
-    if (!tgt || tgt.type !== 'SIGNI') return done({ ...ctx, lastProcessedCards: [] });
+    if (!tgt || (tgt.type !== 'SIGNI' && tgt.type !== 'LRIG' && tgt.type !== 'CENTER_LRIG_OR_SIGNI')) {
+      return done({ ...ctx, lastProcessedCards: [] });
+    }
     const state = ownerState(tgt.owner, ctx);
-    let cands = fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+    // ⚠センタールリグだけを候補にする（`GRANT_KEYWORD` の同型分岐と同じ近似＝アシストは対象外）。
+    const lrigTopSTO = state.field.lrig.at(-1);
+    let cands = tgt.type === 'LRIG'
+      ? (lrigTopSTO ? [lrigTopSTO] : [])
+      : fieldCandidates(state, tgt.filter, ctx.cardMap, ctx.effectivePowers);
+    if (tgt.type === 'CENTER_LRIG_OR_SIGNI' && lrigTopSTO) cands = [lrigTopSTO, ...cands];
     if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
       cands = cands.filter(n => n !== ctx.sourceCardNum);
     }
