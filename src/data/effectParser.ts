@@ -7756,10 +7756,22 @@ function bindTargetedCountAndDoubleMinus(text: string, action: EffectAction): Ef
  * @returns 引用の中身（`を得る` で閉じている場合のみ）。見つからなければ null。
  */
 function extractQuotedGrant(text: string, head: RegExp): string | null {
-  const m = text.match(head);
-  if (!m || m.index === undefined) return null;
-  let i = m.index + m[0].length;
-  if (text[i] !== '「' && text[i] !== '『') return null;
+  // ⚠**主語句は複数回現れる**（「センタールリグは〈引用でない本文〉。…センタールリグは「…」を得る。」
+  //   ＝`WXK01-038-E1`）。最初の1件で諦めると付与が丸ごと落ちるので、引用が続く出現を探す。
+  const re = new RegExp(head.source, head.flags.includes('g') ? head.flags : head.flags + 'g');
+  for (const m of text.matchAll(re)) {
+    if (m.index === undefined) continue;
+    const at = m.index + m[0].length;
+    if (text[at] !== '「' && text[at] !== '『') continue;
+    const found = scanQuotedGrant(text, at);
+    if (found !== null) return found;
+  }
+  return null;
+}
+
+/** `extractQuotedGrant` の本体＝開き括弧位置から入れ子対応で「…」を得る の範囲を切り出す。 */
+function scanQuotedGrant(text: string, open: number): string | null {
+  let i = open;
   let depth = 0;
   const start = i + 1;
   for (; i < text.length; i++) {
@@ -7768,9 +7780,12 @@ function extractQuotedGrant(text: string, head: RegExp): string | null {
     else if (ch === '」' || ch === '』') {
       depth--;
       if (depth === 0) {
-        // 閉じ括弧の直後が「を得る」でなければ引用付与ではない（既存の regex と同じ条件）。
-        if (!text.startsWith('を得る', i + 1)) return null;
-        return text.slice(start, i).trim();
+        if (text.startsWith('を得る', i + 1)) return text.slice(start, i).trim();
+        // ⚠🔴**ここで諦めない**＝「「A」「B」「C」を得る」の**並列引用**は途中で depth が 0 に戻る。
+        //   非貪欲 regex は最後の `」を得る` まで飲み込んで `A」「B」C` を返し、下流の
+        //   `expandGrantLrigAbilities` が `」「` で分割する前提になっている。ここで null を返すと
+        //   `GRANT_LRIG_ABILITY` ごと消える（続き499 の実測で `PR-257`/`PR-258`/`PR-317`/
+        //   `WXEX2-03`/`WXK01-038` の付与が丸ごと落ちた）。区切りとみなして走査を続ける。
       }
     }
   }
@@ -7876,7 +7891,7 @@ function parseActionTextInner(text: string): EffectAction {
   // ⚠「以下から…選ぶ。同じ選択肢を2回以上選んでもよい」（WX17-003 の CHOOSE_SAME_OPTION 型）は
   //   「以下のN個から」で始まらないため未マッチ＝据置（repeat 選択は別機構）。
   {
-    const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+    const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから(?:まだ選んでいないもの)?([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
     const chooseBetM = text.match(/あなたがベットしていた場合、代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
     if (chooseHeadM && chooseBetM && /[①②③④⑤]/.test(text)) {
       const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
@@ -7909,7 +7924,7 @@ function parseActionTextInner(text: string): EffectAction {
     if (head) {
       // 選択数変更型: 「以下のN個からMつ(まで)選ぶ。《リコレクトアイコン》［X］代わりにKつ(まで)選ぶ。①…②…」
       // → CHOOSE(choose_count=M) に recollectArts(thenChooseCount=K) を付与（条件達成で選択数が増える）。
-      const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+      const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから(?:まだ選んでいないもの)?([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
       const chooseRecoM = text.match(/《リコレクトアイコン》［([０-９\d]+)枚以上］代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
       if (chooseHeadM && chooseRecoM && /[①②③④⑤]/.test(text)) {
         const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
@@ -8028,10 +8043,13 @@ function parseActionTextInner(text: string): EffectAction {
   //   ＝主体もタイミングも裏返る（`WXDi-P11-002-E1`＝自分が手札2枚捨てる／エナ2枚トラッシュ／自シグニ1体トラッシュ）。
   // ⚠**近似**＝原文の「まだ選んでいないもの１つを選ぶ」（選択済みを除外する累積制約）は未実装＝毎回3択から選べる（§7）。
   {
-    const playerGrantM = text.match(/このゲームの間、(あなた|対戦相手)は以下の能力を得る。?[『「]([\s\S]+)[』」]/);
+    // ⚠**「対戦相手は」だけを受ける**＝「あなたは以下の能力を得る」は既存経路（多くは MANUAL の curated 形）
+    //   が扱っており、ここで奪うと先行するコスト節（「＜悪魔＞のシグニ2体を場からトラッシュに置く。
+    //   そうした場合、」＝`WXDi-P04-006-E1`）や使用条件が丸ごと落ちる（実測で10枚が held へ落ちた）。
+    const playerGrantM = text.match(/このゲームの間、対戦相手は以下の能力を得る。?[『「]([\s\S]+)[』」]/);
     if (playerGrantM) {
-      return { type: 'GRANT_PLAYER_ABILITY', abilities: [], rawText: playerGrantM[2].trim(), permanent: true,
-        ...(playerGrantM[1] === '対戦相手' ? { targetOwner: 'opponent' as const } : {}) } as unknown as EffectAction;
+      return { type: 'GRANT_PLAYER_ABILITY', abilities: [], rawText: playerGrantM[1].trim(), permanent: true,
+        targetOwner: 'opponent' } as unknown as EffectAction;
     }
   }
 
@@ -8484,7 +8502,7 @@ function parseActionTextInner(text: string): EffectAction {
   // カード本文やカード番号ではなく既存 action tree の形で絞り、単一の条件付きコストや
   // 追加コストを伴う別文型は各々の専用機構へ残す。
   {
-    const embeddedHead = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
+    const embeddedHead = text.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
     if (embeddedHead?.index && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const prefixText = text.slice(0, embeddedHead.index).trim();
       const prefixAction = parseActionText(prefixText);
@@ -8538,7 +8556,7 @@ function parseActionTextInner(text: string): EffectAction {
   // ⚠選択数変更型「〜の場合、代わりにNつまで選ぶ」（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済み
   // STUB・リコレクトの選択数変更を含む）は選択数の条件分岐が要る＝素の CHOOSE に退化させない（据置）。
   {
-    const headM = text.trim().match(/^以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
+    const headM = text.trim().match(/^以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
     if (headM && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       // ⚠「…それは**選んだ能力を得る**。①【アサシン】②【ランサー】」型（WXK10-018）は、選択肢が
       //   **付与される能力名**であって実行するアクションではない＝素の CHOOSE に組むと「②【ランサー】」が
@@ -8572,7 +8590,7 @@ function parseActionTextInner(text: string): EffectAction {
     const g = findOpponentUnlessGate(t0);
     if (g && g.index === 0) {
       const rest = t0.slice(g.length);
-      const headM2 = rest.match(/^(?:あなたは)?以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
+      const headM2 = rest.match(/^(?:あなたは)?以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
       if (headM2 && /[①②③④⑤]/.test(rest) && !/代わりに[^。①②③④⑤]*選ぶ/.test(rest) && !/選んだ能力を得る/.test(rest)) {
         const chosenG = buildChoose(rest, parseNum(headM2[1]), !!headM2[2]);
         if (chosenG) {
@@ -8591,7 +8609,7 @@ function parseActionTextInner(text: string): EffectAction {
   {
     // 🆕§6.4 O-4 続き499＝「このピースはあなたの場にルリグが３体いなくても使用できる。」も同型の前置文。
     //   🔴放置すると CHOOSE が組まれず①②③が**全部その場で実行**される（`WXDi-P16-TK01-E1`）。
-    const preHeadM = text.trim().match(/^((?:このアーツは対戦相手のターンにしか使用できない|このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる)。)(以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
+    const preHeadM = text.trim().match(/^((?:このアーツは対戦相手のターンにしか使用できない|このピースはあなたの場にルリグが[０-９\d]体いなくても使用できる)。)(以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。[\s\S]+)$/);
     if (preHeadM && /[①②③④⑤]/.test(preHeadM[2]) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       const preAct = parseSingleSentence(preHeadM[1].replace(/。$/, ''));
       const chosenPre = buildChoose(preHeadM[2], parseNum(preHeadM[3]), !!preHeadM[4]);
@@ -8605,7 +8623,7 @@ function parseActionTextInner(text: string): EffectAction {
     // CHOOSEパターン: フィルタで全文が除去された場合、①②③④付き選択肢を解析
     // ⚠旧 `つまで?を?選ぶ` は「ま」が必須で「２つ選ぶ」（まで無し）にマッチせず、
     //   choose_count が既定値 1 に落ちていた（タスク12(lxxxii) 第6波で是正）。
-    const chooseCountM = text.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ/);
+    const chooseCountM = text.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
     const chosen = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
     if (chosen) return chosen;
@@ -8614,8 +8632,8 @@ function parseActionTextInner(text: string): EffectAction {
   if (sentences.length === 1) {
     const s = sentences[0];
     // ---- 「以下のN個から選ぶ」を含む1文の場合、元textから①②③④を解析 ----
-    if (s.match(/以下の[０-９\d２-９]+つから[０-９\d１-９]+つ(?:まで)?を?選ぶ/)) {
-      const chooseCountM = s.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ/);
+    if (s.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?[０-９\d１-９]+つ(?:まで)?を?選ぶ/)) {
+      const chooseCountM = s.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
       const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
       const chosen = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
       if (chosen) return chosen;
@@ -8659,7 +8677,7 @@ function parseActionTextInner(text: string): EffectAction {
     const chooseIdx = sentences.findIndex(s => s.match(/以下の[０-９\d２-９]+つから.*選ぶ/));
     if (chooseIdx >= 0) {
       const chooseSentence = sentences[chooseIdx];
-      const chooseCountM = chooseSentence.match(/以下の[０-９\d２-９]+つから([０-９\d１-９]+)つ(まで)?を?選ぶ/);
+      const chooseCountM = chooseSentence.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
       const chooseCount = chooseCountM ? parseNum(chooseCountM[1]) : 1;
       const chooseAction = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
       if (chooseAction) {
@@ -12453,7 +12471,9 @@ function grantLrigAbilityNodes(action: EffectAction): GrantLrigAbilityAction[] {
 function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolean {
   let hasUnknownSub = false;
   const walk = (a: EffectAction) => {
-    if (a.type === 'GRANT_LRIG_ABILITY') {
+    // 🆕`GRANT_PLAYER_ABILITY`（「対戦相手は以下の能力を得る」＝§6.4 O-4）も同じ `abilities`/`rawText` 形なので
+    //   同じ展開に載せる。⚠載せないと `abilities:[]` のまま＝**付与したのに中身が空**の無言 no-op になる。
+    if (a.type === 'GRANT_LRIG_ABILITY' || a.type === 'GRANT_PLAYER_ABILITY') {
       const gla = a as GrantLrigAbilityAction;
       if (gla.rawText && (!gla.abilities || gla.abilities.length === 0)) {
         const cleanRaw = gla.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');

@@ -379,7 +379,7 @@ WXDi-P09-054
   - [0].action.steps[1].then.choices[0].action.target.upToCount = false
   …（他 21 行）
 
-## +FIELD_LRIG_COLOR_COUNT -CHOOSE -GRANT_KEYWORD -HAND_CARD -SEQUENCE -SIGNI -TRASH -UNKNOWN ［1枚］
+## +FIELD_LRIG_COLOR_COUNT +GRANT_PLAYER_ABILITY +TRASH -GRANT_KEYWORD -SEQUENCE -UNKNOWN ［1枚］
 WXDi-P11-002
 --- WXDi-P11-002
   原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つこのゲームの間、対戦相手は以下の能力を得る。『【自】：あなたのターン終了時、以下の３つからまだ選んでいないもの１つを選ぶ。①あなたは手札を２枚捨てる。②あなたのエナゾーンからカード２枚を選びトラッシュに置く。③あなたは自分のシグニ１体を選びトラッシュに置く。』,-
@@ -395,7 +395,7 @@ WXDi-P11-002
   - [0].action.steps[1].choices[0].choiceId = "c0"
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "TRASH"
-  …（他 18 行）
+  …（他 46 行）
 
 ## +FIELD_LRIG_COLOR_COUNT +STUB -CHOOSE -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -SEQUENCE -SIGNI×2 -TRANSFER_TO_DECK ［1枚］
 WXDi-P11-003
@@ -643,6 +643,23 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
+
+## +HAND_CARD +SEQUENCE +TRANSFER_TO_HAND +TRASH +TRASH_CARD -UNKNOWN ［1枚］
+WD21-008
+--- WD21-008
+  原文: このアーツを使用する際、手札から＜宇宙＞のシグニを１枚捨ててもよい。そうした場合、このアーツの使用コストは《赤×2》減る。以下の３つから１つを選ぶ。①カードを２枚引く。②あなたのデッキの上からカードを２枚エナゾーンに置く。③あなたのトラッシュからシグニを２枚まで対象とし、それらを手札に加え、手札を１枚捨てる。,-
+  - [0].action.steps[1].choices[2].action.raw = "あなたのトラッシュからシグニを２枚まで対象とし、それらを手札に加え、手札を１枚捨てる"
+  ~ [0].action.steps[1].choices[2].action.type : "UNKNOWN" → "SEQUENCE"
+  + [0].action.steps[1].choices[2].action.steps[0].type = "TRANSFER_TO_HAND"
+  + [0].action.steps[1].choices[2].action.steps[0].source.type = "TRASH_CARD"
+  + [0].action.steps[1].choices[2].action.steps[0].source.owner = "self"
+  + [0].action.steps[1].choices[2].action.steps[0].source.count = 2
+  + [0].action.steps[1].choices[2].action.steps[0].source.upToCount = true
+  + [0].action.steps[1].choices[2].action.steps[0].source.filter.cardType = "シグニ"
+  + [0].action.steps[1].choices[2].action.steps[1].type = "TRASH"
+  + [0].action.steps[1].choices[2].action.steps[1].target.type = "HAND_CARD"
+  + [0].action.steps[1].choices[2].action.steps[1].target.owner = "self"
+  + [0].action.steps[1].choices[2].action.steps[1].target.count = 1
 
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009
