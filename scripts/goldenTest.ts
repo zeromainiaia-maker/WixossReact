@@ -29062,6 +29062,107 @@ test('task12 lxxiv: アタックステップ封じを実行時のフェイズ遷
   eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP', 'LRIG_ATTACK_STEP'] }), 'END', '両方を飛ばす');
 });
 
+// ── §6.4 O-3（続き491）: フェイズスキップ機構を1つの表（`PHASE_SKIP_BLOCK_IDS`）に集約 ──
+test('§6.4 O-3: エナ/メイン/アタックフェイズのスキップを遷移の1点で解決する', () => {
+  const none = { blocked_actions: [] };
+  // 通常進行（回帰トリップワイヤ）＝表を触っても素の遷移は変わらない。
+  eq(resolveNextPhaseWithSkips('DRAW', none), 'ENERGY', '封じなし: エナへ');
+  eq(resolveNextPhaseWithSkips('GROW', none), 'MAIN', '封じなし: メインへ');
+  eq(resolveNextPhaseWithSkips('MAIN', none), 'ATTACK_ARTS', '封じなし: アタックへ');
+  // エナフェイズスキップ（`WX05-018-E1`＝【常】なので `blocked_actions` ではなく CONTINUOUS 側に載る）。
+  eq(resolveNextPhaseWithSkips('DRAW', none, new Set(['ENERGY_PHASE'])), 'GROW', 'エナフェイズを飛ばす（CONTINUOUS 由来）');
+  eq(resolveNextPhaseWithSkips('DRAW', { blocked_actions: ['ENERGY_PHASE'] }), 'GROW', 'エナフェイズを飛ばす（blocked_actions 由来）');
+  // 🔴CONTINUOUS 由来の封じを渡さないと丸ごと no-op になる（`WX05-018-E1` が一度も効かなかった原因）。
+  eq(resolveNextPhaseWithSkips('DRAW', none), 'ENERGY', 'contBlocked 未指定なら飛ばさない（渡し忘れの検出）');
+  // メインフェイズスキップ（`WXEX2-19-E3`＝`:NEXT_TURN` 予約が turn-start で unsuffixed になる）。
+  eq(resolveNextPhaseWithSkips('GROW', { blocked_actions: ['MAIN_PHASE'] }), 'ATTACK_ARTS', 'メインフェイズを飛ばす');
+  // アタックフェイズ丸ごとスキップ（`SP38-006-E4`）＝4フェイズを連続で飛ばして END まで抜ける。
+  eq(resolveNextPhaseWithSkips('MAIN', { blocked_actions: ['ATTACK_PHASE'] }), 'END', 'アタックフェイズを丸ごと飛ばす');
+  eq(resolveNextPhaseWithSkips('GROW', { blocked_actions: ['MAIN_PHASE', 'ATTACK_PHASE'] }), 'END', 'メイン＋アタックの複合');
+  // 「シグニアタックフェイズ」は「シグニアタックステップ」の別綴り（`WX16-001-E3`）。
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_PHASE'] }), 'ATTACK_LRIG', '別綴りも同じ機構で飛ばす');
+  // ⚠GROW はこの表に載せない（8効果の `ON_GROW_PHASE_START` を巻き込まないため＝従来の行動封じ近似のまま）。
+  eq(resolveNextPhaseWithSkips('ENERGY', { blocked_actions: ['GROW'] }), 'GROW', 'グロウは行動封じ近似のまま（フェイズは飛ばさない）');
+});
+
+test('§6.4 O-3: `WX16-001-E3` の「シグニアタックフェイズをスキップ」が engine に届く', () => {
+  const eff = effectsMap.get('WX16-001')!.find(e => e.effectId === 'WX16-001-E3')!;
+  const ctx = mkCtx({}, {}, 'WX16-001');
+  const r = finish(executeEffect(eff, ctx), ctx);
+  const blocked = r.ownerState.blocked_actions ?? [];
+  // 🔴従来は `SIGNI_ATTACK_PHASE` を吐いており、消費地点（`SIGNI_ATTACK_STEP`）と綴りが1つズレていた。
+  ok(blocked.includes('SIGNI_ATTACK_STEP'), '消費される綴りで封じる');
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', r.ownerState), 'ATTACK_LRIG', '実 state でシグニアタックを飛ばす');
+});
+
+test('§6.4 O-3: `WXEX2-19-E3` は次の相手ターンのメインフェイズを予約でスキップする', () => {
+  const eff = effectsMap.get('WXEX2-19')!.find(e => e.effectId === 'WXEX2-19-E3')!;
+  const ctx = mkCtx({}, {}, 'WXEX2-19');
+  const r = finish(executeEffect(eff, ctx), ctx);
+  const oppBlocked = r.otherState.blocked_actions ?? [];
+  ok(oppBlocked.includes('MAIN_PHASE:NEXT_TURN'), '相手側へ :NEXT_TURN 予約として積む');
+  ok(!(r.ownerState.blocked_actions ?? []).includes('MAIN_PHASE:NEXT_TURN'), '使用者側は封じない');
+  // 予約は「相手のターン開始時」に unsuffixed へ昇格して初めて効く（このターンは効かない）。
+  eq(resolveNextPhaseWithSkips('GROW', r.otherState), 'MAIN', '予約のままではまだ飛ばさない');
+  eq(resolveNextPhaseWithSkips('GROW', activateTurnStartScopedState(r.otherState as PlayerState)), 'ATTACK_ARTS', 'ターン開始で有効化されて飛ぶ');
+});
+
+test('§6.4 O-3: `SP38-006-E4` は追加ターンのアタック/グロウフェイズを予約でスキップする', () => {
+  const eff = effectsMap.get('SP38-006')!.find(e => e.effectId === 'SP38-006-E4')!;
+  const ctx = mkCtx({}, {}, 'SP38-006');
+  const r = finish(executeEffect(eff, ctx), ctx);
+  eq((r.ownerState as PlayerState).extra_turn, true, '追加ターンを得る');
+  const blocked = r.ownerState.blocked_actions ?? [];
+  // 🔴従来は①アタックフェイズ側が丸ごと脱落し ②グロウ側も END_OF_TURN＝**スキップ対象でないターン**を封じていた。
+  ok(blocked.includes('ATTACK_PHASE:NEXT_TURN'), 'アタックフェイズを次ターンぶんで予約する');
+  ok(blocked.includes('GROW:NEXT_TURN'), 'グロウも次ターンぶんで予約する');
+  const nextTurn = activateTurnStartScopedState(r.ownerState as PlayerState);
+  eq(resolveNextPhaseWithSkips('MAIN', nextTurn), 'END', '追加ターンではアタックフェイズを飛ばす');
+});
+
+test('§6.4 O-3: `WXK06-078-E1` の「このメインフェイズを終了する」が state を書く', () => {
+  const eff = effectsMap.get('WXK06-078')!.find(e => e.effectId === 'WXK06-078-E1')!;
+  const ctx = mkCtx({}, {}, 'WXK06-078');
+  const r = finish(executeEffect(eff, ctx), ctx);
+  // 🔴従来は「ログを1行出すだけ」のハンドラで state を一切書かず、`census:stubs` にも映らない無言 no-op だった。
+  ok((r.ownerState.blocked_actions ?? []).includes('MAIN_PHASE'), 'メインフェイズ終了を state に書く');
+  ok(!(r.ownerState.blocked_actions ?? []).includes('MAIN_PHASE:NEXT_TURN'), 'このターン限り（次ターン予約にしない）');
+});
+
+// ── §6.4 O-3（続き491）: ターンプレイヤー交代の判定を1関数へ集約 ──
+test('§6.4 O-3: resolveTurnHandover が追加ターンと次ターンスキップを同じ1点で解決する', () => {
+  const base = mkCtx({}, {}, SIGNI).ownerState as PlayerState;
+  const plain = resolveTurnHandover(base, base);
+  eq(plain.keepTurn, false, '予約なしなら普通に交代する');
+  const extra = resolveTurnHandover({ ...base, extra_turn: true }, base);
+  eq(extra.keepTurn, true, '追加ターンなら交代しない');
+  eq(extra.consumeTurnEnder({ ...base, extra_turn: true }).extra_turn, undefined, '予約を消費する（無限ループにしない）');
+  const skip = resolveTurnHandover(base, { ...base, skip_next_turn: true });
+  eq(skip.keepTurn, true, '次のターンプレイヤーがスキップ予約を持つなら交代しない');
+  eq(skip.consumeOpponent({ ...base, skip_next_turn: true }).skip_next_turn, undefined, 'スキップ予約を消費する');
+  // ⚠両方立っている場合は追加ターンが先＝スキップ予約は次の交代機会まで残す。
+  const both = resolveTurnHandover({ ...base, extra_turn: true }, { ...base, skip_next_turn: true });
+  eq(both.consumeOpponent({ ...base, skip_next_turn: true }).skip_next_turn, true, '追加ターン優先＝スキップ予約は残る');
+});
+
+test('§6.4 O-3: `WD20-006-E1` の次ターンスキップは「相手ターン かつ 非ベット」でだけ発火する', () => {
+  const eff = effectsMap.get('WD20-006')!.find(e => e.effectId === 'WD20-006-E1')!;
+  const mk = (isOwnerTurn: boolean, betting: boolean) => {
+    const ctx = mkCtx({}, { signi: [SIGNI, SIGNI, null] }, 'WD20-006');
+    return { ...ctx, isOwnerTurn, ownerState: { ...ctx.ownerState, is_betting_this_effect: betting || undefined } } as ExecCtx;
+  };
+  const oppTurnNoBet = mk(false, false);
+  eq((finish(executeEffect(eff, oppTurnNoBet), oppTurnNoBet).ownerState as PlayerState).skip_next_turn, true,
+    '相手ターン＋非ベット＝次の自分のターンをスキップ');
+  // 🔴条件節を落として実装すると、以下の2つも常にスキップになる（過剰実行）。
+  const oppTurnBet = mk(false, true);
+  eq((finish(executeEffect(eff, oppTurnBet), oppTurnBet).ownerState as PlayerState).skip_next_turn, undefined,
+    'ベットしていればスキップしない');
+  const myTurnNoBet = mk(true, false);
+  eq((finish(executeEffect(eff, myTurnNoBet), myTurnNoBet).ownerState as PlayerState).skip_next_turn, undefined,
+    '自分のターンに撃った場合はスキップしない');
+});
+
 // ── ADD_EXTRA_ATTACK_PHASE（§6.4 O-3「追加のアタックフェイズを加える」）──
 test('ADD_EXTRA_ATTACK_PHASE: キューに積むだけで onStart は即時実行しない', () => withSavedCursor(() => {
   const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
