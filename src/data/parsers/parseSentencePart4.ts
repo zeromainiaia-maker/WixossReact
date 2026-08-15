@@ -1593,9 +1593,17 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/のシグニ[１-９\d０-９]*体を対象とし、以下の[１-９\d０-９]*つから[１-９\d０-９]*つを選ぶ/))
     return { type: 'STUB', id: 'TARGET_SIGNI_CHOOSE' } as StubAction;
 
-  // ---- 手札からカードをN枚まで裏向きでルリグゾーンに置く ----
-  if (t.match(/手札からカードを[１-９\d０-９]*枚まで裏向きでルリグゾーンに置く/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+  // ---- 手札からカードをN枚まで裏向きでルリグゾーンに置く（§6.4 O-3）----
+  {
+    const facedownHandM = t.match(/手札からカードを([１-９\d０-９]*)枚(まで)?裏向きでルリグゾーンに置く/);
+    if (facedownHandM) {
+      return {
+        type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'hand',
+        count: facedownHandM[1] ? parseNum(facedownHandM[1]) : 1,
+        ...(facedownHandM[2] ? { upToCount: true } : {}),
+      } as EffectAction;
+    }
+  }
 
   // ---- この方法でダウンしたルリグのレベルの合計に〜カードをトラッシュに置く ----
   if (t.match(/この方法でダウンしたルリグのレベルの合計に.*枚数のカードをトラッシュに置く/))
