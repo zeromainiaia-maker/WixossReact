@@ -1077,6 +1077,12 @@ export type PendingInteractionDef =
        *   問いをそこへ流すと「エナ不足」で即終了＝**無言で潰れる**。このフラグで素の `resumeChoose` へ分ける。
        */
       leaveSubstituteAsk?: boolean;
+      /**
+       * `leaveSubstituteAsk` と同じ理由の一般版（§6.4 O-3 続き498）＝**コストを伴わない**
+       * 相手応答の CHOOSE（「対戦相手はカード名1つを宣言する」等）。
+       * ⚠これが無いと `resumeOpponentPayOptional`（支払いフロー）へ流れて「エナ不足」で即終了＝無言で潰れる。
+       */
+      costlessOpponentChoice?: boolean;
       multiSelect?: boolean;       // true = count > 1 の複数選択UI
       upTo?: boolean;              // true = 「N個まで」選択可（0個も可）
     }

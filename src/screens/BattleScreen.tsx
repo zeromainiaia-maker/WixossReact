@@ -3749,7 +3749,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           temp_level_mods:    [],   // UNTIL_END_OF_TURN レベル修正をリセット
           keyword_grants:     {},   // ターン内付与キーワードをリセット
           granted_effects:    {},   // ターン内付与能力をリセット
-          blocked_card_names: [],   // ターン内使用禁止カードをリセット
+          // blocked_card_names のリセットは clearTurnEndScopedState のレジストリへ集約した（§6.4 O-3 続き498）。
+          //   ⚠ここで個別に空へ倒すと `blocked_card_names_next_turn` の昇格結果まで握り潰しうる。
           signi_deploy_count_limit: undefined, // 配置数制限（このターン）をリセット
           actions_done:       [],   // ターン内行動履歴をリセット
           last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
@@ -4194,7 +4195,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
         // abilities_removed / keyword_abilities_removed のクリアと「次のターン」予約の昇格は
         // clearTurnEndScopedState に集約した（§6.4 O-3）。ここで個別に空へ倒すと予約を握り潰す。
-        blocked_card_names: [], actions_done: [],
+        actions_done: [],
         last_effect_draw_source: undefined, // 効果ドローの原因カードをリセット（drawBySourceStory）
         pending_crashed_cards: [], pending_crash_source_card_nums: [], crash_source_card_num: undefined,
         cost_modifiers: (my.cost_modifiers ?? []).filter(m => m.until !== 'END_OF_TURN'),
