@@ -4573,11 +4573,16 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     const ctxBeforeStep = cur;
     const result = executeAction(step, cur);
     if (!result.done) {
-      // インタラクション必要：残りのステップをcontinuationに入れる
-      const remaining = a.steps.slice(i + 1);
-      const cont: EffectAction | undefined = remaining.length > 0
-        ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining })
-        : undefined;
+      // インタラクション必要：残りのステップをcontinuationに入れる。
+      // 🔴**入れ子 SEQUENCE では合成する**＝内側が既に continuation（内側の残りステップ）を積んでいるのに
+      //   外側が上書きすると、内側の残りが**無言で消える**（§6.4 O-28 で発見＝`WX24-P4-001-E1` は
+      //   SEQUENCE[SEQUENCE[対象宣言,STORE,ban], GRANT_EFFECT] で、対象宣言の対話に入った瞬間
+      //   STORE と ban が落ちて**丸ごと no-op**になっていた。STUB ですらないので計器にも映らない）。
+      const innerCont = result.pending.continuation;
+      const chain: EffectAction[] = [...(innerCont ? [innerCont] : []), ...a.steps.slice(i + 1)];
+      const cont: EffectAction | undefined = chain.length === 0 ? undefined
+        : chain.length === 1 ? chain[0]
+        : { type: 'SEQUENCE', steps: chain };
       const pending: PendingInteractionDef = cont
         ? { ...result.pending, continuation: cont }
         : result.pending;
