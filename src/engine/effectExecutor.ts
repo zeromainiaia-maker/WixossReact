@@ -7258,6 +7258,15 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (declared === undefined) return done(addLog(ctx, 'アタック制限: 数字が宣言されていない'));
         ban.level = declared;
       }
+      // 「そのカードと同じレベルのシグニ」＝直前に処理したカード（＝公開した裏向きカード）のレベル。
+      // ⚠取れないときは ban を張らない（全シグニ禁止へ広げない＝過少側に倒す）。
+      if (sab.levelFromLastProcessed) {
+        const refLv = (ctx.lastProcessedCards ?? [])
+          .map(n => parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '', 10))
+          .find(lv => Number.isFinite(lv));
+        if (refLv === undefined) return done(addLog(ctx, 'アタック制限: 参照するカードのレベルが取れない'));
+        ban.level = refLv;
+      }
       if (sab.powerDiffersFromPrinted) ban.powerDiffersFromPrinted = true;
       if (sab.targetsStored) {
         const stored = ctx.storedTargetCards ?? [];
