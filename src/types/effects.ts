@@ -828,6 +828,7 @@ export type EffectAction =
   | NameBanAction
   | SigniAttackBanAction
   | SigniDeployBanAction
+  | AddExtraAttackPhaseAction
   | PlayFreeFromTrashAction
   | PowerThresholdTrashAction
   | PowerFlipAction
