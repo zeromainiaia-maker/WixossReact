@@ -3848,18 +3848,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             assist_lrig_l_frozen: false,
             assist_lrig_r_frozen: false,
           },
-        }), !my.extra_turn).state, !my.extra_turn));
-        // GAIN_EXTRA_TURN: 追加ターン取得済みの場合は同プレイヤーの追加ターン
-        //（＝ターンプレイヤーを交代しない＝`activeUserId` を渡さず `active_user_id` キー自体を書かない）
-        const isExtraTurn = !!my.extra_turn;
-        if (isExtraTurn) {
+        }), !handover.keepTurn).state, !handover.keepTurn)));
+        // ターンプレイヤーを交代しない場合（追加ターン／相手のターンスキップ）は
+        // `activeUserId` を渡さず `active_user_id` キー自体を書かない。
+        if (handover.keepTurn) {
           newMyState = activateNextTurnSigniZoneBlocks(
-            activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state);
-          appendBattleLogs(['追加ターン取得！']);
+            activateNextTurnDeployCountLimit(handover.consumeTurnEnder(newMyState)).state);
+          if (handover.log) appendBattleLogs([handover.log]);
         }
         await persist.commit(reduceBattle(bs, {
           type: 'BEGIN_NEXT_TURN',
-          activeUserId: isExtraTurn ? undefined : ((isHost ? bs.guest_id : bs.host_id) as string),
+          activeUserId: handover.keepTurn ? undefined : ((isHost ? bs.guest_id : bs.host_id) as string),
           myKey: stateKey, myState: newMyState,
           opp: { key: opKey, state: opNextTurnState },
         }));
