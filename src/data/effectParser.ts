@@ -3536,6 +3536,34 @@ function parseSingleSentenceInner(text: string): EffectAction {
     if (gate) return gate;
   }
 
+  // 「（あなたが）《…》…を支払わないかぎり、X」＝**能力の持ち主自身**が任意コストを払えば X を回避できる形（§6.4 O-30）。
+  // 上の2規則（`対戦相手が/は`）の self 版で、母集団の大半は**引用付与の内側**
+  //   「それは『【自】：このシグニがアタックしたとき、《無》×Nを支払わないかぎり、このシグニをバニッシュする。』を得る」。
+  // 🔴従来はこの前置きが丸ごと落ち、下流の汎用規則が X（バニッシュ）だけを拾って**無条件バニッシュ**になっていた。
+  //
+  // ⚠**払うのは「付与された側」＝ownerState**（`OPPONENT_PAY_OPTIONAL` ではない）。
+  //   `granted_effects` は**付与先の持ち主の state** に積まれ、`collectAttackerSelfTriggers` は
+  //   `playerId: attackerId`（＝そのシグニの持ち主）でスタックに積むので、解決時の `ownerState` は
+  //   付与された側になる。ここを取り違えると**払う側が逆になる**（`WX24-P2-044` の MANUAL が該当）。
+  // ⚠極性は `then`（払った）＝何もしない／`else`（払わない）＝X。隣接 `STUB+CONDITIONAL` の
+  //   Pattern は skip 枝に `conditional.else` を使うので、この形でそのまま動く（`WXDi-P04-040-E1` が既存の手本）。
+  // ⚠「〜を支払わないかぎり**アタックできない**」（読点なし＝制限型）は §6.4 O-28 の領分＝ここでは拾わない。
+  {
+    const m = t.match(/^(?:あなたが)?((?:《[^》]+》)+)を支払わないかぎり[、,](.+)$/s);
+    if (m) {
+      const costColors = [...m[1].matchAll(/《([^》]+)》/g)].map(x => x[1]);
+      const body = parseSingleSentence(m[2]);
+      // 本体が解けないときは据置（前置きだけ食って X を落とすと今度は過少実行になる）。
+      if (!JSON.stringify(body).includes('"UNKNOWN"')) {
+        return { type: 'SEQUENCE', steps: [
+          { type: 'STUB', id: 'OPTIONAL_COST', costColors, unlessPay: true } as EffectAction,
+          { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+            then: { type: 'SEQUENCE', steps: [] } as SequenceAction, else: body } as EffectAction,
+        ] } as SequenceAction;
+      }
+    }
+  }
+
   // 「[<トリガー句>、]このシグニをアップし、<残り>」＝2動作の複合文（「アップ＋ターン終了時まで能力を失う」＝
   // 再攻撃コンボの定番・6枚）。従来は先頭の「アップ」が無言脱落し、残り（能力喪失）だけが実行されていた＝
   // **デメリットだけ適用される**過少パース（WX24-P1-017 の引用付与の内側／WXDi-P15-056／WXDi-CP02-051 等）。
