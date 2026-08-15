@@ -188,6 +188,52 @@ export function execStubPart1(
   }
   // 盤面を変えない内部マーカー（SELECT_TARGET_ONLY の thenAction 等）。
   if (stub.id === 'INTERNAL_NOOP') return done(ctx);
+  // STRIP_ATTACHED_AND_UNDER（§6.4 O-34(a)・`WX19-064-E1` 選択肢③）:
+  // 「シグニ１体を対象とし、**それに付いているすべてのカード**と、**下に置かれているすべてのカード**を
+  //  トラッシュに置く」＝対象シグニ自身は場に残したまま、付随物と下カードだけを剥がす。
+  // ⚠既存の `LRIG_UNDER_CARD_OP` は「このシグニ」＝自身専用のカード全文 regex ハンドラなので流用できない。
+  // 🔑**剥がし方は `removeFromField` の付随物処理と同じ規約に揃える**＝チャーム／アクセ／下カードは
+  //   そのシグニの持ち主のトラッシュへ、**ソウルだけはルリグトラッシュへ**（ソウルはルリグ側のカード）。
+  //   ここだけ独自規約にすると同じカードがゾーン往復で別トラッシュへ散る。
+  // ⚠**ウィルス／貯菌カウンターはゾーンに属する**ので剥がさない（`removeFromField` と同じ扱い）。
+  //   【トラップ】／【マジックボックス】／【シード】も「そのシグニに付いているカード」ではなく
+  //   ゾーンに設置された裏向きカードなので対象外。
+  if (stub.id === 'STRIP_ATTACHED_AND_UNDER') {
+    const targetSAU = (ctx.storedTargetCards ?? ctx.lastProcessedCards ?? [])[0];
+    if (!targetSAU) return done(addLog(ctx, '付随物を剥がす対象なし'));
+    const sideSAU = sideOfFieldCard(targetSAU, ctx);
+    const stateSAU = ownerState(sideSAU, ctx);
+    const zoneSAU = stateSAU.field.signi.findIndex(s => s?.at(-1) === targetSAU);
+    if (zoneSAU < 0) return done(addLog(ctx, '対象シグニが場にいない'));
+    const charmsSAU = [...(stateSAU.field.signi_charms ?? [null, null, null])];
+    const acceSAU = cloneAcceSlots(stateSAU.field);
+    const soulSAU = [...(stateSAU.field.signi_soul ?? [null, null, null])];
+    const stackSAU = stateSAU.field.signi[zoneSAU] ?? [];
+    const toTrashSAU: string[] = [];
+    const toLrigTrashSAU: string[] = [];
+    if (charmsSAU[zoneSAU]) { toTrashSAU.push(charmsSAU[zoneSAU]!); charmsSAU[zoneSAU] = null; }
+    if (acceSAU[zoneSAU]) { toTrashSAU.push(...acceSAU[zoneSAU]!); acceSAU[zoneSAU] = null; }
+    if (soulSAU[zoneSAU]) { toLrigTrashSAU.push(soulSAU[zoneSAU]!); soulSAU[zoneSAU] = null; }
+    if (stackSAU.length > 1) toTrashSAU.push(...stackSAU.slice(0, -1));
+    if (toTrashSAU.length === 0 && toLrigTrashSAU.length === 0) {
+      return done(addLog(ctx, `${ctx.cardMap.get(getCardNum(targetSAU))?.CardName ?? targetSAU}には剥がすカードが無い`));
+    }
+    const newSigniSAU = stateSAU.field.signi.map((st, i) => (i === zoneSAU && st ? [st[st.length - 1]] : st)) as (string[] | null)[];
+    const nextStateSAU: PlayerState = {
+      ...stateSAU,
+      trash: toTrashSAU.length > 0 ? [...stateSAU.trash, ...toTrashSAU] : stateSAU.trash,
+      lrig_trash: toLrigTrashSAU.length > 0 ? [...stateSAU.lrig_trash, ...toLrigTrashSAU] : stateSAU.lrig_trash,
+      field: {
+        ...stateSAU.field,
+        signi: newSigniSAU,
+        signi_charms: charmsSAU,
+        signi_acce: acceSAU,
+        signi_soul: soulSAU as (string | null)[],
+      },
+    };
+    return done(addLog(setOwnerState(sideSAU, nextStateSAU, ctx),
+      `${ctx.cardMap.get(getCardNum(targetSAU))?.CardName ?? targetSAU}に付いているカードと下のカード${toTrashSAU.length + toLrigTrashSAU.length}枚をトラッシュに置いた`));
+  }
   // 自身を場→ルリグデッキへ戻し、ルリグデッキから fetchCardName（省略時は同名）のカードを同じゾーンへ出す。
   // PR-470A《現実からの逃避 タマ》→《進化する筋肉 紗倉ひびき》（PR-470B）＝**別名カード**なので
   // fetchCardName の名指しが必須（検証是正＝旧・同名フェッチは常に不発で自シグニが消えるだけだった）。
