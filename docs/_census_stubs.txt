@@ -143,7 +143,7 @@ live JSON の STUB id 種類 : 603（総ノード 2858 件）
         消費: src\engine\effectExecutor.ts:3842
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1010 / src\screens\BattleScreen.tsx:10208
+        消費: src\screens\BattleScreen.tsx:1010 / src\screens\BattleScreen.tsx:10209
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6711

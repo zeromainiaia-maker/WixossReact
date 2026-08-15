@@ -29091,6 +29091,19 @@ test('§6.4 O-3: エナ/メイン/アタックフェイズのスキップを遷�
   eq(resolveNextPhaseWithSkips('ENERGY', { blocked_actions: ['GROW'] }), 'GROW', 'グロウは行動封じ近似のまま（フェイズは飛ばさない）');
 });
 
+test('§6.4 O-3: `WX05-018-E1`（【常】相手のエナフェイズをスキップ）が CONTINUOUS 経路で届く', () => {
+  // 🔴従来 `ENERGY_PHASE` は engine のどこにも消費地点が無く**一度も効いていなかった**
+  //   （`BLOCK_ACTION` なので `census:stubs` の A群にも出ない＝計器に映らないクラス）。
+  const foe = mkState({ signi: ['WX05-018', null, null] });
+  const me = mkState({});
+  const r = calcContinuousBlockedActions(me, foe, true, effectsMap, cardMap as Map<string, CardData>);
+  ok(r.forSelf.has('ENERGY_PHASE'), '相手フィールドの常在が自分側の封じとして立つ');
+  eq(resolveNextPhaseWithSkips('DRAW', me, r.forSelf), 'GROW', 'ドロー→（エナを飛ばして）グロウ');
+  // 対照＝そのシグニが居なければ普通にエナフェイズへ入る。
+  const none = calcContinuousBlockedActions(me, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(resolveNextPhaseWithSkips('DRAW', me, none.forSelf), 'ENERGY', '対照: 居なければ飛ばさない');
+});
+
 test('§6.4 O-3: `WX16-001-E3` の「シグニアタックフェイズをスキップ」が engine に届く', () => {
   const eff = effectsMap.get('WX16-001')!.find(e => e.effectId === 'WX16-001-E3')!;
   const ctx = mkCtx({}, {}, 'WX16-001');
