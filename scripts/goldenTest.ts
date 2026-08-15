@@ -29150,6 +29150,37 @@ test('裏向きルリグゾーン: 置く→公開してトラッシュ→レベ
   ok((revealed.ownerState as PlayerState).trash.includes(top), 'トラッシュへ行っていない');
   eq(JSON.stringify(revealed.lastProcessedCards), JSON.stringify([top]), 'lastProcessedCards に載らない');
 }));
+test('SIGNI_ATTACK_BAN unlessPayHandDiscard: 手札が足りるかで gate が分かれる（§6.4 O-3）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, { signi: [SIGNI, null, null] }, SIGNI_P3000);
+  const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', unlessPayHandDiscard: 3 } as unknown as EffectAction, ctx);
+  const bans = (r.otherState as PlayerState).signi_attack_bans_this_turn ?? [];
+  eq(bans[0]?.unlessPayHandDiscard, 3, '手札捨てコストが ban に載らない');
+  eq(bans[0]?.cardNums, undefined, '限定なし＝すべてのシグニが対象');
+  const gate = (handCount: number) => signiAttackBlockReason({
+    attacker: { ...mkState({ signi: [SIGNI, null, null], hand: handCount }), signi_attack_bans_this_turn: bans },
+    defender: mkState({}), attackerNum: SIGNI,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  // 🔑支払いで解除できる ban なので「払えるなら通す・払えないときだけ止める」
+  eq(gate(3), null, '手札が足りればアタックできる');
+  eq(gate(2), 'ATTACK_BAN_HAND_COST', '手札が足りないときは止まる');
+  // ⚠支払い軸を1つも持たない ban が混ざったら、いくら払ってもアタック不可（合算しない）
+  const hardBan = signiAttackBlockReason({
+    attacker: { ...mkState({ signi: [SIGNI, null, null], hand: 9 }), signi_attack_bans_this_turn: [...bans, {}] },
+    defender: mkState({}), attackerNum: SIGNI,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(hardBan, 'ATTACK_BAN', '解除不能な ban が支払いで抜けられている');
+  // ⚠アタックするごとに払う＝ban は消費されない（ターン終了で失効）
+  eq(clearTurnEndScopedState({ ...mkState({}), signi_attack_bans_this_turn: bans }).signi_attack_bans_this_turn,
+    undefined, 'ターン終了で失効しない');
+}));
+test('SP38-003-E1 の live 形（§6.4 O-3）', () => {
+  const act = JSON.stringify((effectsMap.get('SP38-003') ?? [])
+    .find(e => e.effectId === 'SP38-003-E1')?.action ?? {});
+  ok(act.includes('"unlessPayHandDiscard":3'), 'SP38-003 のアタック税が明示 defer に戻っている');
+  ok(!act.includes('DEFERRED_ATTACK_TAX_HAND_DISCARD'), '受け皿 STUB が残っている');
+});
 test('SIGNI_ATTACK_BAN levelFromLastProcessed: 公開カードのレベルを焼き込む', () => withSavedCursor(() => {
   const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] }, SIGNI);
   const lv = parseInt(cardMap.get(SIGNI_P3000)?.Level ?? '', 10);
