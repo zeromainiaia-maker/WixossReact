@@ -15028,14 +15028,12 @@ test('SPK01-10 / WXDi-P07-050 の live 形（§6.4 O-3）', () => {
 test('POWER_MODIFY deltaFromZone: エナゾーンの該当枚数×per をパワーに乗せる', () => withSavedCursor(() => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
-  const story = cardMap.get(src)?.CardClass ?? '';
-  // 効果元と同じクラスのカードを2枚エナに置く＝2×1000＝+2000
   const withEnergy: PlayerState = { ...ctx.ownerState, energy: [src, src] };
   const act = {
     type: 'POWER_MODIFY',
     target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
     delta: 0,
-    deltaFromZone: { zone: 'energy', owner: 'self', filter: { story }, per: 1000 },
+    deltaFromZone: { zone: 'energy', owner: 'self', per: 1000 },
     duration: 'UNTIL_OPP_TURN_END',
   } as unknown as EffectAction;
   const r = run(act, { ...ctx, ownerState: withEnergy } as ExecCtx);
