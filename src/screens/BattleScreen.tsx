@@ -10590,7 +10590,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   `cpuTurnAction` の他の全箇所と同じく **人間＝host 固定**へ揃える（タスク12(lxvii)）。
       const huStForHL = huSt;
       const huKeyForHL: PlayerStateKey = 'host_state';
-      const hlZonesCpu = huStForHL.hastarliq_zones ?? [];
+      const hlZonesCpu = cpuAttackPhaseSkipped ? [] : (huStForHL.hastarliq_zones ?? []);
       // ハスターリク発動時のみ人間側の予約ゾーンをクリアする（発動が無ければ状態は書かない）
       let huWrite: { key: PlayerStateKey; state: PlayerState } | undefined;
       if (hlZonesCpu.length > 0) {
