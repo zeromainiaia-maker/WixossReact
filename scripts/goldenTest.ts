@@ -15043,6 +15043,12 @@ test('POWER_MODIFY deltaFromZone: エナゾーンの該当枚数×per をパワ�
   // 🔴`delta` の `{$ref}` は `resolveNum` が 0 に潰す＝動的値は必ず deltaFromZone 側で解く
   const empty = run(act, { ...ctx, ownerState: { ...ctx.ownerState, energy: [] } } as ExecCtx);
   eq(((empty.ownerState as PlayerState).power_mods_until_opp_turn ?? [])[0]?.delta, 0, 'エナ0枚なら±0');
+  // filter を付ければ該当しないカードは数えない（＝クラス限定が効いている）
+  const filtered = run(
+    { ...(act as unknown as Record<string, unknown>),
+      deltaFromZone: { zone: 'energy', owner: 'self', filter: { story: '存在しないクラス' }, per: 1000 } } as unknown as EffectAction,
+    { ...ctx, ownerState: withEnergy } as ExecCtx);
+  eq(((filtered.ownerState as PlayerState).power_mods_until_opp_turn ?? [])[0]?.delta, 0, 'filter 不一致は数えない');
 }));
 test('「このシグニを場からトラッシュに置き、〜」＝自己トラッシュ＋後続（§6.4 O-3）', () => {
   const tree = (num: string, effectId: string) =>
