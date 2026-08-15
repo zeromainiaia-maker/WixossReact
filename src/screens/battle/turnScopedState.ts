@@ -188,6 +188,19 @@ function advanceGainedLrigTypes(
   return next.length > 0 ? next : undefined;
 }
 
+/**
+ * 「次の対戦相手のターン（終了時まで）、〜シグニでアタックできない」を1つ減らす（§6.4 O-4 続き499）。
+ * ⚠`turnsRemaining` を持たない ban は**そのターンだけ**＝ここで消える（従来どおり）。
+ */
+function advanceSigniAttackBans(
+  bans: PlayerState['signi_attack_bans_this_turn'],
+): PlayerState['signi_attack_bans_this_turn'] {
+  const next = (bans ?? [])
+    .filter(ban => (ban.turnsRemaining ?? 1) > 1)
+    .map(ban => ({ ...ban, turnsRemaining: (ban.turnsRemaining ?? 1) - 1 }));
+  return next.length > 0 ? next : undefined;
+}
+
 /** 現在のグローバルターン終了時に、どちらの PlayerState に載った値でも同じ規約で失効させる。 */
 export function clearTurnEndScopedState(state: PlayerState): PlayerState {
   const lifeCrashedLastTurn = state.life_crashed_this_turn ?? 0;
@@ -224,6 +237,9 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     opp_move_immunity: advanceOppMoveImmunity(state.opp_move_immunity),
     // ⚠**期間つきで得たルリグタイプもここでしか減らない**（§6.4 O-3 続き498＝上2つと同じ規約）。
     lrig_gained_types_timed: advanceGainedLrigTypes(state.lrig_gained_types_timed),
+    // ⚠アタック禁止も**期間つきの分だけ**持ち越す（§6.4 O-4 続き499）。
+    //   レジストリの一括リセットは「そのターンだけ」の分を消す役割なので、ここで復元する。
+    signi_attack_bans_this_turn: advanceSigniAttackBans(state.signi_attack_bans_this_turn),
   };
 }
 

@@ -193,6 +193,14 @@ export interface SigniAttackBan {
    * ⚠**アタックするごとに**払う（1回きりの `negated_attacks_escape` とは別物）＝ban は消費しない。
    */
   unlessPayHandDiscard?: number;
+  /**
+   * 残りグローバルターン数（§6.4 O-4／O-33）。省略＝**そのターンだけ**（従来どおり turn-end で消える）。
+   * 2＝「次の対戦相手のターン（終了時まで）」＝`SigniDeployBan` と同じカウントダウン規約で、
+   * 減算は `clearTurnEndScopedState` の1点だけ。
+   * ⚠🔴この軸が無かったので「次の対戦相手のターンの間」の3効果は期間ごと落ち、
+   *   支払い回避も落ちて**両プレイヤーのシグニが無条件でアタック不可**になっていた。
+   */
+  turnsRemaining?: number;
   /** ログ・アタックボタンに出す由来表示。 */
   label?: string;
 }

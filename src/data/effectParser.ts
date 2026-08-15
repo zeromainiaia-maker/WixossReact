@@ -8038,6 +8038,25 @@ function parseActionTextInner(text: string): EffectAction {
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
+  // ---- 「〈期間〉、〈ルリグ/相手〉は「【常】：〈誰か〉は《無》×Nを支払わないかぎりシグニでアタックできない。」を得る」----
+  // （§6.4 O-4 続き499・母集団3効果）。引用の【常】は付与先に載せても engine の走査軸に届かないので、
+  // **期間つきの `SIGNI_ATTACK_BAN` へ平坦化する**（禁止は必ずアタッカー側の state に載る）。
+  // 🔴従来は3効果とも `BLOCK_ACTION{ATTACK, owner:'any', until:END_OF_TURN}` ＝支払い回避も期間も所有者も
+  //   落ちて**両プレイヤーのシグニが無条件でアタック不可**になっていた（`WXDi-P11-005-E3`／`WXDi-P16-034-E2`）。
+  {
+    const atkTaxGrantM = text.match(
+      /^(ターン終了時まで|次の対戦相手のターン終了時まで|次の対戦相手のターンの間)、(?:このルリグ|対戦相手)は[「『]【常】：(?:対戦相手|あなた)は((?:《無》)+)を支払わないかぎりシグニでアタックできない。?[」』]を得る。?$/);
+    if (atkTaxGrantM) {
+      return {
+        type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
+        unlessPayColorless: (atkTaxGrantM[2].match(/《無》/g) ?? []).length,
+        // 「次の対戦相手の〜」＝このターン＋次のターンの2ターン分（`SIGNI_DEPLOY_BAN` と同じ規約）。
+        // ⚠自分のターンに張っても相手はアタックしないので、この重なりは挙動に出ない。
+        ...(atkTaxGrantM[1] === 'ターン終了時まで' ? {} : { turns: 2 }),
+      } as unknown as EffectAction;
+    }
+  }
+
   // ---- 「このゲームの間、対戦相手は以下の能力を得る。『…』」＝**プレイヤー**への能力付与（§6.4 O-4 続き499）----
   // 🔴放置すると引用の【自】本文（＝相手が毎ターン払う不利益）が**使った側にその場で1回だけ走る**
   //   ＝主体もタイミングも裏返る（`WXDi-P11-002-E1`＝自分が手札2枚捨てる／エナ2枚トラッシュ／自シグニ1体トラッシュ）。
