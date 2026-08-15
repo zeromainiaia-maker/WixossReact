@@ -1718,11 +1718,14 @@ function actionJa(a?: Action, effectType?: string): string {
       return `次の対戦相手のターン終了時、${actionJa(a.action)}`;
     case 'PLACE_FACEDOWN_LRIG_ZONE': {
       const nPF = a.count ?? 1;
+      const whoPF = a.owner === 'opponent' ? '対戦相手' : 'あなた';
       return a.source === 'deck_top'
         ? 'あなたのデッキの一番上を見て、そのカードを裏向きでルリグゾーンに置く'
-        : `あなたの手札からカードを${nPF}枚${a.upToCount ? 'まで' : ''}裏向きでルリグゾーンに置く`;
+        : `${whoPF}の手札からカードを${a.all ? 'すべて' : `${nPF}枚${a.upToCount ? 'まで' : ''}`}裏向きでルリグゾーンに置く`;
     }
     case 'REVEAL_FACEDOWN_LRIG_ZONE': return 'そのカードを表向きにしてトラッシュに置く';
+    case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND':
+      return `裏向きでルリグゾーンに置いたカードを${a.owner === 'opponent' ? '対戦相手の' : ''}手札に加える`;
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
