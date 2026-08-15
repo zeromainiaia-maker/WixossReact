@@ -46,6 +46,7 @@ import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscap
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
+import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
