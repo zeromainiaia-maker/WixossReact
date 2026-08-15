@@ -3883,8 +3883,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const opKey = isHost ? 'guest_state' : 'host_state';
           oppWrite = { key: opKey, state: clearEndOfAttackPhaseDelayedTriggers(op) };
         }
-        // ENERGY→GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
-        if (phase === 'ENERGY' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
+        // ⚠**以下の「◯◯フェイズ開始時」フックは遷移元（`phase`）ではなく遷移先（`nextPhase`）で判定する**
+        //   （§6.4 O-3・フェイズスキップ機構）＝エナ/メインフェイズが飛ばされたとき、
+        //   ①**飛ばされたフェイズ**の開始時処理は走らず ②**その次に実際に入るフェイズ**の
+        //   開始時処理はちゃんと走る、の両方をこの1つの書き換えで満たす。
+        //   スキップが無い通常進行では `nextPhase === PHASE_NEXT[phase]` なので挙動は従来と同じ。
+        // →GROW（グロウフェイズ開始時）: game_grow_phase_limit_plus で game_lrig_limit_bonus を累積
+        if (nextPhase === 'GROW' && (newMyState.game_grow_phase_limit_plus ?? 0) > 0) {
           const glp = newMyState.game_grow_phase_limit_plus!;
           newMyState = { ...newMyState, game_lrig_limit_bonus: (newMyState.game_lrig_limit_bonus ?? 0) + glp };
           appendBattleLogs([`グロウフェイズ開始：リミット+${glp}（このゲーム・累積${newMyState.game_lrig_limit_bonus}）`]);
