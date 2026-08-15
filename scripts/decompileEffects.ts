@@ -1661,6 +1661,15 @@ function actionJa(a?: Action, effectType?: string): string {
         : '';
       return `${whenDB}、${whoDB}は${scopeDB}シグニを新たに場に出せない`;
     }
+    case 'ADD_EXTRA_ATTACK_PHASE': {
+      // 「（このターンの最初の／次の）アタックフェイズの後に、追加のアタックフェイズを加える」（§6.4 O-3）
+      const nEAP = (a.count ?? 1) > 1 ? `${a.count}回` : '';
+      const headEAP = `次のアタックフェイズの後に、追加のアタックフェイズを${nEAP}加える`;
+      // ⚠`onStart` を落とすと「加えるだけ」と同じ文になり、開始時本文の脱落が逆翻訳に映らない。
+      return a.onStart
+        ? `${headEAP}。この方法で加えたアタックフェイズの開始時、${actionJa(a.onStart)}`
+        : headEAP;
+    }
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
