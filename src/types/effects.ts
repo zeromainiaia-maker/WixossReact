@@ -846,6 +846,8 @@ export type EffectAction =
   | FieldSigniToCheckZoneAction
   | GainLrigTypeAction
   | DeclareCardNameLockAction
+  | RevealBothDeckTopsAction
+  | DeclareDeckTopIconAction
   | PlayFreeFromTrashAction
   | PowerThresholdTrashAction
   | PowerFlipAction

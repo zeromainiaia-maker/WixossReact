@@ -7457,6 +7457,51 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return selectOrInteract(
         ctx.ownerState.hand, Math.max(1, pfl.count), pfl.upToCount ?? false, 'self_hand', action, undefined, ctx);
     }
+    case 'REVEAL_BOTH_DECK_TOPS': {
+      // 「あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。
+      //   どちらも【ライフバースト】を持っている／どちらも持っていない場合、〈帰結〉」（§6.4 O-4）。
+      // 🔑公開・比較・帰結は1つの判定なので畳んである（分けると帰結だけが無条件に走る）。
+      const rbd = action as import('../types/effects').RevealBothDeckTopsAction;
+      const myTopRB = ctx.ownerState.deck[0];
+      const opTopRB = ctx.otherState.deck[0];
+      if (!myTopRB || !opTopRB) return done(addLog(ctx, '両者公開：どちらかのデッキが空'));
+      const hasBurstRB = (n: string) => {
+        const c = ctx.cardMap.get(getCardNum(n));
+        return !!c?.BurstText && c.BurstText !== '-';
+      };
+      const nameRB = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+      const rotated: ExecCtx = {
+        ...ctx,
+        ownerState: { ...ctx.ownerState, deck: [...ctx.ownerState.deck.slice(1), myTopRB] },
+        otherState: { ...ctx.otherState, deck: [...ctx.otherState.deck.slice(1), opTopRB] },
+      };
+      const matchRB = hasBurstRB(myTopRB) === hasBurstRB(opTopRB);
+      const loggedRB = addLog(rotated,
+        `両者がデッキの一番上を公開（あなた: ${nameRB(myTopRB)}${hasBurstRB(myTopRB) ? '/LBあり' : '/LBなし'}・`
+        + `対戦相手: ${nameRB(opTopRB)}${hasBurstRB(opTopRB) ? '/LBあり' : '/LBなし'}）→ ${matchRB ? '一致' : '不一致'}`);
+      return matchRB ? executeAction(rbd.matchAction, loggedRB) : done(loggedRB);
+    }
+    case 'DECLARE_DECK_TOP_ICON': {
+      // 「対戦相手はあなたのデッキの一番上のカードが《X アイコン》を持つか持たないかを宣言する。
+      //   公開する。宣言が外れた場合、〈帰結〉」（§6.4 O-4）。
+      // ⚠宣言するのは**相手**＝コスト無しの相手応答 CHOOSE（`costlessOpponentChoice` が無いと
+      //   支払いフローへ流れて「エナ不足」で無言に潰れる）。
+      const ddt = action as import('../types/effects').DeclareDeckTopIconAction;
+      const deckStateDDT = ownerState(ddt.deckOwner, ctx);
+      if (deckStateDDT.deck.length === 0) return done(addLog(ctx, 'デッキが空で宣言できない'));
+      const mkOptDDT = (declaredHas: boolean) => ({
+        id: `ddt_${declaredHas ? 'has' : 'not'}`,
+        label: `《${ddt.icon}アイコン》を${declaredHas ? '持つ' : '持たない'}と宣言`,
+        action: { type: 'STUB', id: 'INTERNAL_DECLARE_DECK_TOP_ICON',
+          value: declaredHas ? 1 : 0, deckTopIcon: { icon: ddt.icon, deckOwner: ddt.deckOwner, onWrongAction: ddt.onWrongAction },
+        } as unknown as EffectAction,
+        available: true,
+      });
+      return needsInteraction(addLog(ctx, `対戦相手がデッキの一番上の《${ddt.icon}アイコン》の有無を宣言`), {
+        type: 'CHOOSE', options: [mkOptDDT(true), mkOptDDT(false)], count: 1,
+        opponentResponds: true, costlessOpponentChoice: true,
+      });
+    }
     case 'DECLARE_CARD_NAME_LOCK': {
       // 「カード名1つを宣言する。〈期間〉、その名前（以外）の〈種別〉を使用できない」（§6.4 O-3）。
       const dcl = action as import('../types/effects').DeclareCardNameLockAction;
