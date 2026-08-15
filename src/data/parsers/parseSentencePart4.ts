@@ -10,6 +10,10 @@ import type {
   PlaceVirusAction,
   SigniDeployBanAction,
   BlockActionAction,
+  SequenceAction,
+  PreventDamageAction,
+  SetLrigBaseLimitAction,
+  ReserveDrawPhaseReplacementAction,
 } from '../../types/effects';
 import {
   parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence, tradeOptionalCost,
