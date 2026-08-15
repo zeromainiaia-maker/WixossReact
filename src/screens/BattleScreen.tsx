@@ -12518,7 +12518,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         effectsMap, cardMap: battleCardMap,
         contBlocked, effectivePowers, turnPhase: bs.turn_phase,
       })) return [];
-      const signiAtkCost = my.signi_attack_cost ?? 0;
+      const signiAtkCost = (my.signi_attack_cost ?? 0)
+        + (signiAttackBanColorlessCost(my, topNum, battleCardMap, effectivePowers.get(topNum)) ?? 0);
       const fieldTrashAtkCost = attackFieldTrashCost(my, topNum);
       const atkCosts = [
         ...(signiAtkCost > 0 ? [`《無》×${signiAtkCost}`] : []),
