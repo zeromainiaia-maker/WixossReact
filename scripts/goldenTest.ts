@@ -11,7 +11,7 @@
 import fs from 'fs';
 import { join } from 'path';
 import Papa from 'papaparse';
-import type { CardData, PlayerState, StackEntry, TurnPhase, PendingInteractionDef } from '../src/types';
+import type { CardData, PlayerState, SigniAttackBan, StackEntry, TurnPhase, PendingInteractionDef } from '../src/types';
 import type { CardEffect, Condition, EffectAction, SequenceAction, AddToFieldAction, ActiveCondition, StubAction, GrantProtectionAction } from '../src/types/effects';
 import { ACTIVE_CONDITION_TYPES, CONDITION_TYPES } from '../src/types/effects';
 import { initStack, confirmTurnOrder, pushToStack, shiftQueue, isStackDone } from '../src/engine/effectStack';
