@@ -1991,6 +1991,11 @@ export interface SigniAttackBanAction {
   targetsStored?: boolean;
   /** 《無》×N を支払えばアタックできる（払えないときだけ禁止）。 */
   unlessPayColorless?: number;
+  /**
+   * 手札をN枚捨てればアタックできる（`SP38-003-E1`「（アタックするごとに捨てる）」）。
+   * ⚠**アタックのたびに**支払う＝1回きりの `NegateAttackAction.escapeDiscard` とは別機構。
+   */
+  unlessPayHandDiscard?: number;
 }
 
 /**
