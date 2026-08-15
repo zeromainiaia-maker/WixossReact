@@ -7841,11 +7841,18 @@ function parseActionTextInner(text: string): EffectAction {
   //   効果丸ごとを `DEFERRED_*` に落として「何も起きない（過少）」へ倒す。
 
   // 「対象の相手シグニ＋自分の手札1枚を選ぶ→相手がアイコンを宣言→捨てたカードがそれを持たなければバニッシュ」
-  // （`WXDi-P12-055-E1`）。🔴従来は条件・対象・手札選択が UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`
+  // （`WXDi-P12-055-E1`・§6.4 O-34(e)）。engine 側は4段の対話（`DECLARED_ICON_HAND_DISCARD_BANISH`）。
+  // 🔴従来は条件・対象・手札選択が UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`
   //   （外れると**相手の全シグニをトラッシュ**する別カード用の分岐）と `BANISH{owner:'self'}`
   //   （＝**自分のシグニをバニッシュ**）だけが残っていた。
-  if (/そのカードが宣言されたアイコンを持たない場合/.test(text)) {
-    return { type: 'STUB', id: 'DEFERRED_DECLARED_ICON_HAND_DISCARD_BANISH' } as StubAction;
+  // ⚠**同族の4効果**（`WX05-006-E3`／`PR-K060-E2`(-G)／`WX16-Re17-E1`）は「全シグニをトラッシュ」型で
+  //   帰結が別なので巻き込まない＝「それをバニッシュする」まで含む本文だけを条件にする。
+  if (/そのカードが宣言されたアイコンを持たない場合、それをバニッシュする/.test(text)) {
+    const upGate = /このシグニがアップ状態の場合/.test(text);
+    const body = { type: 'STUB', id: 'DECLARED_ICON_HAND_DISCARD_BANISH' } as StubAction as EffectAction;
+    return upGate
+      ? { type: 'CONDITIONAL', condition: { type: 'THIS_CARD_IS_UP' }, then: body } as EffectAction
+      : body;
   }
 
   // 「以下のNつを行う。①…②…③…」＝選択肢から選ぶのではなく①②③を順に処理する（タスク12(lxxiv)）。
