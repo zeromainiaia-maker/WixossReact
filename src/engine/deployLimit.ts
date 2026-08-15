@@ -131,5 +131,6 @@ export function deployLimitLogMessage(reason: DeployBlockReason, cardLabel: stri
   if (reason === 'COUNT_LIMIT') return `配置数制限のため${cardLabel}を場に出せない`;
   if (reason === 'NAME_BAN') return `同じ名前のシグニを新たに場に出せないため${cardLabel}を場に出せない`;
   if (reason === 'SOURCE_BAN') return `シグニとスペルの効果では新たに場に出せないため${cardLabel}を場に出せない`;
+  if (reason === 'ALL_BAN') return `このターンは他のシグニを場に出せないため${cardLabel}を場に出せない`;
   return `配置パワー制限のため${cardLabel}を場に出せない`;
 }
