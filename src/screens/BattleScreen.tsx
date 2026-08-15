@@ -3908,8 +3908,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
           appendBattleLogs(['メインフェイズ開始ドロー（このゲーム）']);
         }
-        // DRAW→ENERGY（エナフェイズ開始時）: game_energy_phase_draw
-        if (phase === 'DRAW' && newMyState.game_energy_phase_draw && newMyState.deck.length > 0) {
+        // →ENERGY（エナフェイズ開始時）: game_energy_phase_draw
+        if (nextPhase === 'ENERGY' && newMyState.game_energy_phase_draw && newMyState.deck.length > 0) {
           const drawCard = newMyState.deck[0];
           newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
           appendBattleLogs(['エナフェイズ開始ドロー（このゲーム）']);
