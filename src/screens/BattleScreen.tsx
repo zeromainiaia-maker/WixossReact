@@ -4125,6 +4125,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         hand: myHandEND,
         trash: myTrashAfterCoinCheck,
         field: myFieldAfterCoinCheck,
+        energy: myEnergyEND2,
+        turn_end_energy_trash_targets: undefined,
         ...(myLrigDeckReturned2.length > 0
           ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned2] } : {}),
         turn_end_draw_count: undefined,
