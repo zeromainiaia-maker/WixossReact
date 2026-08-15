@@ -2209,7 +2209,8 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_LRIG_DAMAGE: 'あなたは対戦相手のルリグによってダメージを受けない',
         PREVENT_LRIG_DAMAGE_THIS_TURN: 'このターン、あなたは対戦相手のルリグによってダメージを受けない',
         PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN: '次のターンの間、あなたは対戦相手のルリグによってダメージを受けない',
-        PREVENT_LOW_LEVEL_LRIG_DAMAGE: 'あなたは対戦相手のレベル２以下のルリグによってダメージを受けない',
+        // ⚠レベル上限は宣言の `value` に載っている（続き492）＝固定文にすると限定の脱落を見逃す。
+        PREVENT_LOW_LEVEL_LRIG_DAMAGE: `あなたは対戦相手のレベル${a.value ?? '?'}以下のルリグによってダメージを受けない`,
         PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: '対戦相手の効果によって、あなたはダメージを受けず、あなたのライフクロスは他の領域に移動しない',
       };
       if (preventDmgMap[a.id]) return preventDmgMap[a.id];
