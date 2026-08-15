@@ -4234,14 +4234,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           assist_lrig_l_frozen: false,
           assist_lrig_r_frozen: false,
         },
-      }), !my.extra_turn).state, !my.extra_turn));
-      // 追加ターン / ターンプレイヤー交代
-      // ⚠ 追加ターンは active_user_id を書かず据え置く（＝BEGIN_NEXT_TURN の activeUserId 省略）。
+      }), !handoverED.keepTurn).state, !handoverED.keepTurn)));
+      // 追加ターン / 相手のターンスキップ / ターンプレイヤー交代
+      // ⚠ 交代しない場合は active_user_id を書かず据え置く（＝BEGIN_NEXT_TURN の activeUserId 省略）。
       let nextActiveUserId: string | undefined;
-      if (my.extra_turn) {
+      if (handoverED.keepTurn) {
         newMyState = activateNextTurnSigniZoneBlocks(
-          activateNextTurnDeployCountLimit({ ...newMyState, extra_turn: undefined }).state);
-        appendBattleLogs(['追加ターン取得！']);
+          activateNextTurnDeployCountLimit(handoverED.consumeTurnEnder(newMyState)).state);
+        if (handoverED.log) appendBattleLogs([handoverED.log]);
       } else {
         nextActiveUserId = (isHost ? bs.guest_id : bs.host_id) as string;
       }
