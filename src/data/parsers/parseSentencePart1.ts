@@ -122,24 +122,6 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'STUB', id: 'DEFERRED_NEXT_OPP_TURN_END_BODY' } as StubAction;
   }
 
-  // ---- 「ターン終了時、（対戦相手は）それらのカードを手札に加える」＝裏向きルリグゾーンの返却（§6.4 O-3 続き498）----
-  // 🔑遅延タイミング宣言なので**ここ（先頭）に置く**（本文側の汎用規則が先に食うと宣言が消えて本文だけ残る）。
-  // ⚠🔴従来は `RULE_REMINDER_TEXT`＝丸ごと no-op で、`SPDi43-02-E2` は**置いた手札が戻らなかった**
-  //   （置く側の文も別文型の `TARGET_AND_DISCARD_HAND` に落ちていたので、両側とも原文と別物だった）。
-  {
-    const fdBackM = t.match(/^ターン終了時[、,](対戦相手|あなた)?は?それらのカードを手札に加える$/);
-    if (fdBackM) {
-      return {
-        type: 'INSTALL_DELAYED_TRIGGER',
-        duration: 'THIS_TURN',
-        once: true,
-        trigger: { timing: 'ON_TURN_END' },
-        effect: { type: 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND',
-          owner: fdBackM[1] === '対戦相手' ? 'opponent' : 'self' },
-      } as unknown as EffectAction;
-    }
-  }
-
   // 同じ相手シグニを2回対象化する二段除去。先にエナへ移すため、後段の手札戻しでは
   // 1体目が候補から外れ、必ず別のシグニを選ぶ（WXK03-070）。
   if (/対象の対戦相手のシグニ[１1]体をエナゾーンに置き、対象の対戦相手のシグニ[１1]体を手札に戻す/.test(t)) {
