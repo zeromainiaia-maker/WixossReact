@@ -13539,6 +13539,18 @@ function nestCenterLrigGrantBlocks(
 
 // ===== メインエクスポート =====
 
+/**
+ * 【トラップアイコン】：〜 の節を本文から取り除く（§6.4 O-34(a)）。
+ *
+ * この節は「そのカードを【トラップ】として設置し、めくれて発動したとき」だけ解決する別能力で、
+ * 下段（`-TRAP` effect）で独立に解析される。本文へ残すと**直前の能力へ tail-splice** され、
+ * カードを使った瞬間にトラップ本体まで走る（＝過剰実行）。
+ * ⚠**シグニ側とスペル側で同じ1本を通す**（従来はシグニ側にしか除去が無く、スペル5枚中4枚が漏れていた）。
+ */
+function stripTrapIconClause(text: string): string {
+  return text.replace(/【トラップアイコン】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
