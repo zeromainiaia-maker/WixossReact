@@ -702,6 +702,27 @@ export function execStubPart1(
     const pendingDCN: PendingInteractionDef = { type: 'CHOOSE', options: optsDCN, count: 1 };
     return needsInteraction(addLog(ctx, 'カード名を宣言（手札のカード名から選択）'), pendingDCN);
   }
+  // INTERNAL_APPLY_CARD_NAME_LOCK: 宣言されたカード名を使用禁止（blacklist）／許可（whitelist）へ書き込む。
+  // ⚠**封じられる側の state に載せる**（判定 `cardNameUseBlocked` は使う側の state だけを見る）。
+  if (stub.id === 'INTERNAL_APPLY_CARD_NAME_LOCK') {
+    const specACNL = stub.cardNameLock;
+    const nameACNL = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
+    if (!specACNL || !nameACNL) return done(addLog(ctx, 'カード名宣言：宣言が取れない'));
+    const stACNL = ownerState(specACNL.target, ctx);
+    const whoACNL = specACNL.target === 'self' ? 'あなた' : '対戦相手';
+    if (specACNL.mode === 'whitelist') {
+      return done(addLog(setOwnerState(specACNL.target, {
+        ...stACNL, arts_name_whitelist_this_turn: [nameACNL],
+      }, ctx), `このターン、${whoACNL}は「${nameACNL}」以外のアーツを使用できない`));
+    }
+    // blacklist。「次のターンの間」は予約フィールドへ（自ターン開始時に昇格する）。
+    const keyACNL = specACNL.until === 'NEXT_TURN' ? 'blocked_card_names_next_turn' : 'blocked_card_names';
+    const prevACNL = stACNL[keyACNL] ?? [];
+    if (prevACNL.includes(nameACNL)) return done(addLog(ctx, `「${nameACNL}」は既に使用禁止`));
+    return done(addLog(setOwnerState(specACNL.target, {
+      ...stACNL, [keyACNL]: [...prevACNL, nameACNL],
+    }, ctx), `${specACNL.until === 'NEXT_TURN' ? '次の' : 'この'}ターン、${whoACNL}は「${nameACNL}」を使用できない`));
+  }
   if (stub.id === 'INTERNAL_DECLARE_CARD_NAME') {
     const nameDCN = typeof stub.value === 'string' ? stub.value : String(stub.value ?? '');
     const newOwnerIDCN = { ...ctx.ownerState, declared_card_name: nameDCN };
