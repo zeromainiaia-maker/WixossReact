@@ -3434,6 +3434,34 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
 
+  // 「そのカードを表向きにしてトラッシュに置き、〈残り〉」＝裏向きルリグゾーンのカードを公開＋トラッシュ
+  // ＋後続（§6.4 O-3）。公開したカードは `lastProcessedCards` に載るので、残りの「そのカードと同じレベルの〜」は
+  // 既存の `levelEqLastProcessed` / `levelFromLastProcessed` でそのまま解ける。
+  {
+    const revealFacedownLead = t.match(/^そのカードを表向きにしてトラッシュに置き、(.+)$/s);
+    if (revealFacedownLead) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'REVEAL_FACEDOWN_LRIG_ZONE' },
+        parseSingleSentence(revealFacedownLead[1]),
+      ] } as SequenceAction;
+    }
+  }
+
+  // 「そのカードと同じレベルの対戦相手のすべてのシグニをダウンする」（§6.4 O-3・`WX25-P2-051-E2`）。
+  // ⚠レベル限定を落とすと**相手の全シグニを無条件でダウン**する過剰実行になる（旧 live がこれ）。
+  {
+    const sameLevelDownM = t.match(/^そのカードと同じレベルの(あなた|対戦相手)のすべてのシグニをダウンする$/);
+    if (sameLevelDownM) {
+      return {
+        type: 'DOWN',
+        target: {
+          type: 'SIGNI', owner: sameLevelDownM[1] === '対戦相手' ? 'opponent' : 'self', count: 'ALL',
+          filter: { cardType: 'シグニ', levelEqLastProcessed: true },
+        },
+      } as EffectAction;
+    }
+  }
+
   // 「手札がN枚より少ない場合、その差の分だけカードを引く」。
   // 固定1枚DRAWへ落とすと手札が N-2 枚以下のとき過小実行になるため、
   // 既存の untilHandCount で差分ドローを直接表す。
