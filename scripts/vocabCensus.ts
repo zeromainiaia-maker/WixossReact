@@ -596,7 +596,10 @@ const PATTERNS: Pattern[] = [
     keys: ['usageLimit', '"GAME"'],
   },
   // ---- 2026-07-04 続き18 追加分・第2弾（トリガー種別/コスト/ゾーン/基本パワー。PLAN.md §4 続き18）----
-  { name: 'トリガー:アタックしたとき', re: /がアタックしたとき/, keys: ['ON_ATTACK', 'ATTACK_ARTS'], src: 'eff' },
+  // ⚠`escapeDiscard` は「〜がアタックしたとき、〈相手が手札N枚を捨てないかぎり〉そのアタックを無効にする」の
+  //   **事前登録型**（`NEGATE_ATTACK`＝アタック宣言時に消費される）＝この構文の正表現。
+  //   ⚠`NEGATE_ATTACK` そのものを鍵にすると既存の高シグナル11件を丸ごと隠すので**narrow なキーにする**（続き489）。
+  { name: 'トリガー:アタックしたとき', re: /がアタックしたとき/, keys: ['ON_ATTACK', 'ATTACK_ARTS', 'escapeDiscard'], src: 'eff' },
   { name: 'トリガー:場に出たとき', re: /場に出たとき/, keys: ['ON_PLAY', 'ON_ZONE_MOVED', 'ADD_TO_FIELD'], src: 'eff' },
   { name: 'トリガー:バニッシュされたとき', re: /バニッシュされたとき/, keys: ['ON_BANISH'], src: 'eff' },
   // ⚠`ADD_EXTRA_ATTACK_PHASE`＝「この方法で加えたアタックフェイズ**開始時**、〜」（§6.4 O-3）。
