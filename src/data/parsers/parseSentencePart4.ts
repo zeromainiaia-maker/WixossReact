@@ -1395,10 +1395,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/トラッシュにある.*のシグニ[１-９\d０-９]+枚につき/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
-  // ---- シグニゾーンにシグニがある場合、手札に戻してから開花する ----
-  // ⚠【シード】開花の置換（そのゾーンに居るシグニを先に手札へ戻す）が未実装（§6.4 O-3 続き459）。
+  // ---- シグニゾーンにシグニがある場合、手札に戻してから開花する（§6.4 O-3 続き498）----
+  // ⚠これは**開花そのものの置換**なので、後続ステップのままだと間に合わない（開花は「シグニあり＝不発」で
+  //   先に終わる）。`parseActionTextInner` の SEQUENCE 畳み込みが直前の `SEED_BLOOM` の
+  //   `bounceOccupant` へ移す＝ここではマーカーを返すだけ（`DEFERRED_` は付けない＝機構は実装済み）。
   if (t.match(/シグニゾーンにシグニがある場合.*手札に戻してから開花する/))
-    return { type: 'STUB', id: 'DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT' } as StubAction;
+    return { type: 'STUB', id: 'SEED_BLOOM_BOUNCE_OCCUPANT' } as StubAction;
 
   // ---- それぞれレベルの異なるシグニN枚が公開された場合、追加で ----
   if (t.match(/それぞれレベルの異なるシグニ[１-９\d０-９]+枚が公開された場合/))
