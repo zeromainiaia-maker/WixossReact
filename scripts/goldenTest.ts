@@ -28951,6 +28951,68 @@ test('task12 lxxiv: アタックステップ封じを実行時のフェイズ遷
   eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP', 'LRIG_ATTACK_STEP'] }), 'END', '両方を飛ばす');
 });
 
+// ── ADD_EXTRA_ATTACK_PHASE（§6.4 O-3「追加のアタックフェイズを加える」）──
+test('ADD_EXTRA_ATTACK_PHASE: キューに積むだけで onStart は即時実行しない', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const down = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_down: [true, true, true] as boolean[] } };
+  const r = run(
+    { type: 'ADD_EXTRA_ATTACK_PHASE', onStart: { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } } } as unknown as EffectAction,
+    { ...ctx, ownerState: down } as ExecCtx);
+  const queued = (r.ownerState as PlayerState).extra_attack_phases_this_turn ?? [];
+  eq(queued.length, 1, '追加フェイズが1件キューに載る');
+  eq(queued[0].sourceCardNum, SIGNI, '効果元が記録される');
+  // 🔴従来は後続文が即時実行され、メインフェイズ中に全シグニがアップしていた（過剰実行）。
+  eq(JSON.stringify((r.ownerState as PlayerState).field.signi_down), JSON.stringify([true, true, true]),
+    'onStart はこの時点で実行してはいけない');
+}));
+test('resolveNextPhaseAfterAttack: ATTACK_LRIG の次を END ではなく ATTACK_ARTS に戻し、キューを1件消費する', () => {
+  const base = mkState({});
+  const noQueue = resolveNextPhaseAfterAttack('ATTACK_LRIG', base);
+  eq(noQueue.next, 'END', '予約が無ければ従来どおり END');
+  eq(noQueue.addedExtraPhase, false, '予約が無ければ追加しない');
+  const onStart = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } } as unknown as EffectAction;
+  const queued: PlayerState = { ...base, extra_attack_phases_this_turn: [{ sourceCardNum: SIGNI, onStart }] };
+  const first = resolveNextPhaseAfterAttack('ATTACK_LRIG', queued);
+  eq(first.next, 'ATTACK_ARTS', '予約があればアタックフェイズへ戻る');
+  eq(first.state.extra_attack_phases_this_turn, undefined, 'キューを消費する（無限ループにしない）');
+  eq(first.state.pending_extra_attack_phase_start_effects?.length, 1, '開始時本文を pending へ移す');
+  // 2周目は予約が空なので END へ抜ける＝ループしない
+  eq(resolveNextPhaseAfterAttack('ATTACK_LRIG', first.state).next, 'END', '2周目は END へ抜ける');
+  // ⚠ATTACK_SIGNI 等の途中ステップでは消費しない（END へ向かう遷移だけが対象）
+  eq(resolveNextPhaseAfterAttack('ATTACK_SIGNI', queued).next, 'ATTACK_LRIG', '途中ステップでは消費しない');
+  eq(resolveNextPhaseAfterAttack('ATTACK_SIGNI', queued).addedExtraPhase, false, '途中ステップでは追加しない');
+  // 未消化のキューはターンを跨がない
+  eq(clearTurnEndScopedState(queued).extra_attack_phases_this_turn, undefined, '未消化キューはターン終了で失効');
+});
+test('RESOLVE_EXTRA_ATTACK_PHASE_START: pending を1件取り出して実行する', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const onStart = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } } as unknown as EffectAction;
+  const pendingState: PlayerState = {
+    ...ctx.ownerState,
+    field: { ...ctx.ownerState.field, signi_down: [true, true, true] as boolean[] },
+    pending_extra_attack_phase_start_effects: [{ sourceCardNum: SIGNI, action: onStart }],
+  };
+  const r = run({ type: 'STUB', id: 'RESOLVE_EXTRA_ATTACK_PHASE_START' } as EffectAction,
+    { ...ctx, ownerState: pendingState } as ExecCtx);
+  eq((r.ownerState as PlayerState).field.signi_down?.[0], false, '追加フェイズ開始時に onStart が走る');
+  eq((r.ownerState as PlayerState).pending_extra_attack_phase_start_effects, undefined, '実行した予約は消える');
+}));
+test('ADD_EXTRA_ATTACK_PHASE: 2カードの live 形（§6.4 O-3）', () => {
+  const act = (num: string, effectId: string) =>
+    ((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {}) as Record<string, unknown>;
+  const wxk = act('WXK06-026', 'WXK06-026-E1');
+  eq(wxk.type, 'ADD_EXTRA_ATTACK_PHASE', 'WXK06-026 が追加アタックフェイズになっていない');
+  eq((wxk.onStart as Record<string, unknown>)?.type, 'UP', '「すべてのシグニをアップする」が onStart に入っていない');
+  const wx22 = act('WX22-010', 'WX22-010-E3');
+  eq(wx22.type, 'ADD_EXTRA_ATTACK_PHASE', 'WX22-010 が追加アタックフェイズになっていない');
+  // ⚠「それらを場に出し」は参照先（チェックゾーンへ移したシグニ）が明示 defer なので落としてある。
+  //   残さないと `ADD_TO_FIELD{source なし}` が**デッキの一番上**を場に出す過剰実行になる。
+  eq(JSON.stringify(wx22.onStart).includes('ADD_TO_FIELD'), false,
+    '参照先の無い ADD_TO_FIELD（＝デッキトップ配置）が残っている');
+  eq(JSON.stringify(wx22.onStart).includes('DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE'), true,
+    'チェックゾーン移動の明示 defer が消えている');
+});
+
 test('task12 lxxiv: WXK11-001①は相手のアーツ/スペル使用で相手ルリグステップだけを封じる', () => {
   const effect = effectsMap.get('WXK11-001')!.find(e => e.effectId === 'WXK11-001-E1')!;
   const noUseCtx = mkCtx({}, {}, 'WXK11-001');
