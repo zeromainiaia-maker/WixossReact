@@ -1644,6 +1644,7 @@ function actionJa(a?: Action, effectType?: string): string {
       // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）
       const whoAB = a.owner === 'opponent' ? '対戦相手' : 'あなた';
       const scopeAB = a.levelFromDeclaredNumber ? '宣言された数字と同じレベルの'
+        : a.levelFromLastProcessed ? 'そのカードと同じレベルの'
         : a.powerDiffersFromPrinted ? '表記されているパワーと異なるパワーの'
         : '';
       if (a.targetsStored) {
