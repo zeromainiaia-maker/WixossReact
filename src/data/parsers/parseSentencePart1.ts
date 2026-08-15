@@ -1078,6 +1078,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'PLAY_FREE', source: 'opp_trash', filter: { cardType: 'スペル' }, ignoreCost: true, ignoreRestrictions: true, optional: true } as PlayFreeAction;
   }
 
+  // ---- 「あなたの次のアタックフェイズとグロウフェイズをスキップする」（§6.4 O-3 続き491）----
+  // `SP38-006-E4`＝直前の文で追加ターンを得る札。**スキップされるのはこのターンではなく「次のターン」＝
+  // その追加ターン**なので `until:'NEXT_TURN'`（`:NEXT_TURN` 予約）に載せる。
+  // ⚠🔴従来は「グロウフェイズをスキップ」の一般規則に落ちて **①アタックフェイズ側が丸ごと脱落**
+  //   **②グロウ側も `END_OF_TURN`＝使ったターン（＝スキップ対象ではないターン）を封じていた**。
+  // ⚠アタック側は `ATTACK_PHASE`＝**ステップ単位ではなくフェイズ丸ごと**（`PHASE_SKIP_BLOCK_IDS`）。
+  if (/^あなたの次の(?:アタックフェイズとグロウフェイズ|グロウフェイズとアタックフェイズ)をスキップする$/.test(t)) {
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'ATTACK_PHASE', until: 'NEXT_TURN' },
+        { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'GROW', until: 'NEXT_TURN' },
+      ],
+    };
+  }
+
   // ---- グロウフェイズスキップ ----
   if (t.includes('グロウフェイズをスキップする')) {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'GROW', until: 'END_OF_TURN' };
