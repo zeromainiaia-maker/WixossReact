@@ -1641,12 +1641,19 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${when}${whoCI}が使用する${a.targetCardType ?? 'カード'}のコストは${inc}増える`;
     }
     case 'PREVENT_DAMAGE': {
-      // 期間（このターン／次のターンの間）と範囲（あらゆるダメージ／ルリグアタックのみ）を原文どおり出す
+      // 期間（このターン／次のターンの間／次のあなたのメインフェイズまで）と
+      // 範囲（あらゆるダメージ／ルリグアタックのみ）を原文どおり出す
       const whoPD = a.owner === 'opponent' ? '対戦相手' : 'あなた';
+      const periodPD = a.untilNextMainPhase ? '次のあなたのメインフェイズまで、'
+        : a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、';
       if ((a.scope ?? (a.until === 'NEXT_TURN' ? 'LRIG' : 'ALL')) === 'LRIG')
-        return `${a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、'}対戦相手のルリグは${whoPD}にダメージを与えない`;
-      return `${a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、'}${whoPD}はダメージを受けない`;
+        return `${periodPD}${whoPD}は対戦相手のルリグによってダメージを受けない`;
+      return `${periodPD}${whoPD}はダメージを受けない`;
     }
+    case 'SET_LRIG_BASE_LIMIT':
+      return `${a.untilNextMainPhase ? '次のあなたのメインフェイズまで、' : ''}${a.owner === 'opponent' ? '対戦相手' : 'あなた'}のルリグの基本リミットは${a.value}になる`;
+    case 'RESERVE_DRAW_PHASE_REPLACEMENT':
+      return `${a.owner === 'opponent' ? '対戦相手' : 'あなた'}が次のドローフェイズにカードを${a.fromCount}枚引く場合、代わりに${a.toCount}枚引く`;
     case 'SIGNI_ATTACK_BAN': {
       // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）
       const whoAB = a.owner === 'opponent' ? '対戦相手' : 'あなた';
