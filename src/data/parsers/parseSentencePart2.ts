@@ -11,6 +11,7 @@ import type {
   GrowFreeAction,
   BlockActionAction,
   PreventDamageAction,
+  ZoneMoveImmunityAction,
   EnergyChargeByFieldCountAction,
   LookAtDeckAndLifeAction,
   GrowCostReductionAction,
@@ -1684,7 +1685,20 @@ export function parseSentencePart2(t: string): EffectAction | null {
         const turns = /このターンと次のターンの間|次の対戦相手のターン/.test(t) ? 2
           : /このターン/.test(t) ? 1 : 0;
         if (turns > 0) {
-          return { type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones, turns } as ZoneMoveImmunityAction;
+          const immunity = { type: 'ZONE_MOVE_IMMUNITY', owner: 'self', zones, turns } as ZoneMoveImmunityAction;
+          // ⚠🔴同じ文に「あなたは対戦相手のルリグによってダメージを受けず、」が並ぶ形
+          //   （`WXEX2-06-E3`／`WXDi-P16-002-E1`）＝**片方だけ拾うと残りが無言で落ちる**。
+          //   ダメージ側は続き492 で整えた期間軸（`PREVENT_DAMAGE{scope:'LRIG'}`）へ載せる。
+          if (/あなたは対戦相手の(?:レベル[０-９\d]+以下の)?ルリグによってダメージを受けず/.test(t)) {
+            return {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'PREVENT_DAMAGE', owner: 'self', until: turns >= 2 ? 'NEXT_TURN' : 'UNTIL_END_OF_TURN', scope: 'LRIG' } as PreventDamageAction,
+                immunity,
+              ],
+            } as SequenceAction;
+          }
+          return immunity;
         }
         // 期間の指定が無い＝【常】（場にあるかぎり）＝宣言型のまま。
         return { type: 'STUB', id: 'PREVENT_ZONE_MOVE_BY_OPP' } as StubAction;
