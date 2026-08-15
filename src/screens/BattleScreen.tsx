@@ -3945,8 +3945,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               : initStack(bs.active_user_id ?? user.id, gpsRes.entries);
           }
         }
-        // ON_ATTACK_PHASE_START: MAIN→ATTACK_ARTS移行時（アタックフェイズ開始時）トリガー
-        if (phase === 'MAIN') {
+        // ON_ATTACK_PHASE_START: →ATTACK_ARTS 移行時（アタックフェイズ開始時）トリガー。
+        // ⚠従来は `phase === 'MAIN'` で判定していたが、§6.4 O-3 の「追加のアタックフェイズ」は
+        //   ATTACK_LRIG→ATTACK_ARTS で入る＝**遷移先**で判定しないと2周目の開始時トリガーが1つも走らない。
+        if (nextPhase === 'ATTACK_ARTS') {
           // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
           newMyState = clearAttackPhaseScopedState(newMyState);
           const apsRes = collectTurnTriggers('ON_ATTACK_PHASE_START', newMyState, op);
