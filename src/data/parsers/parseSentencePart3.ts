@@ -2016,10 +2016,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
         actionId: 'MAIN_PHASE', until: 'NEXT_TURN',
       } as BlockActionAction;
     }
-    // 「対戦相手は宣言されたカード名のスペルを使用できない」（`PR-K046-E1`）＝**スペル名の宣言UI**が要る。
-    // ⚠既存 `DECLARE_CARD_NAME` は**自分の手札のカード名**から選ぶ形なので、相手のスペルを狙う本文には使えない。
+    // 「対戦相手は宣言されたカード名のスペルを使用できない」（`PR-K046-E1`・§6.4 O-3 続き498）。
+    // ⚠宣言と禁止を**1アクションに畳む**＝前文の「スペルのカード名1つを宣言する」は既存
+    //   `DECLARE_CARD_NAME`（自分の**手札**のカード名から選ぶ別機構）に落ちて、相手のスペルには届かない。
+    //   宣言の候補作りは `DECLARE_CARD_NAME_LOCK` が禁止対象と同じ軸で行う。
     if (/宣言されたカード名のスペルを使用できない/.test(t)) {
-      return { type: 'STUB', id: 'DEFERRED_DECLARED_SPELL_NAME_LOCK' } as StubAction;
+      return {
+        type: 'DECLARE_CARD_NAME_LOCK', declarer: 'self', target: 'opponent',
+        cardType: 'スペル', mode: 'blacklist', until: 'NEXT_TURN',
+      } as EffectAction;
     }
     // 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る」
     // （`WDK17-008` choice①・§6.4 O-3 続き498）。
