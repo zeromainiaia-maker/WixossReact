@@ -2238,6 +2238,36 @@ export interface DeclareCardNameLockAction {
   until: 'THIS_TURN' | 'NEXT_TURN';
 }
 
+/**
+ * 「あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。この方法で公開された
+ * カードが**どちらも**【ライフバースト】を持っているか、**どちらも**持っていない場合、〈帰結〉」（§6.4 O-4）。
+ *
+ * 🔴従来は公開・比較が丸ごと `UNKNOWN` に落ち、帰結（アタック無効）だけが残って**必ず無効化**していた
+ *   （`WXDi-P09-036-E1`）。公開と比較と帰結は1つの判定なので**1アクションに畳む**。
+ */
+export interface RevealBothDeckTopsAction {
+  type: 'REVEAL_BOTH_DECK_TOPS';
+  /** 一致（どちらも持つ／どちらも持たない）のときだけ実行する帰結。 */
+  matchAction: EffectAction;
+}
+
+/**
+ * 「対戦相手はあなたのデッキの一番上のカードが《X アイコン》を持つか持たないかを宣言する。
+ * あなたのデッキの一番上を公開する。宣言が外れた場合、〈帰結〉」（§6.4 O-4）。
+ *
+ * 🔴従来は宣言と照合が `UNKNOWN` に落ち、帰結（ダメージを受けない）だけが残って**必ず無効**になっていた
+ *   （`WX15-002-E2`）。⚠宣言するのは**相手**＝`opponentResponds` のコスト無し CHOOSE。
+ */
+export interface DeclareDeckTopIconAction {
+  type: 'DECLARE_DECK_TOP_ICON';
+  /** 判定するアイコン（`TargetFilter.hasIcon` と同じ語彙）。 */
+  icon: 'トラップ' | 'ライズ' | 'クロス' | 'アクセ';
+  /** 公開されるデッキの持ち主（＝宣言される側）。 */
+  deckOwner: Owner;
+  /** 宣言が外れたときだけ実行する帰結。 */
+  onWrongAction: EffectAction;
+}
+
 export interface GainLrigTypeAction {
   type: 'GAIN_LRIG_TYPE';
   /** タイプを得る側（現母集団は 'self' のみ）。 */
