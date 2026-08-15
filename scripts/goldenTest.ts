@@ -15024,6 +15024,45 @@ test('SPK01-10 / WXDi-P07-050 の live 形（§6.4 O-3）', () => {
   eq((wipe.steps?.[1]?.target as Record<string, unknown>)?.owner, 'opponent', '2段目は相手側');
 });
 
+// ── §6.4 O-3「次の対戦相手のターン終了時まで、…エナゾーンにある＜X＞のカード1枚につき＋N」──
+test('POWER_MODIFY deltaFromZone: エナゾーンの該当枚数×per をパワーに乗せる', () => withSavedCursor(() => {
+  const src = SIGNI;
+  const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
+  const story = cardMap.get(src)?.CardClass ?? '';
+  // 効果元と同じクラスのカードを2枚エナに置く＝2×1000＝+2000
+  const withEnergy: PlayerState = { ...ctx.ownerState, energy: [src, src] };
+  const act = {
+    type: 'POWER_MODIFY',
+    target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+    delta: 0,
+    deltaFromZone: { zone: 'energy', owner: 'self', filter: { story }, per: 1000 },
+    duration: 'UNTIL_OPP_TURN_END',
+  } as unknown as EffectAction;
+  const r = run(act, { ...ctx, ownerState: withEnergy } as ExecCtx);
+  const mods = (r.ownerState as PlayerState).power_mods_until_opp_turn ?? [];
+  eq(mods.length, 1, '次の相手ターン終了時までの長期ストアへ入る');
+  eq(mods[0].delta, 2000, 'エナ2枚×1000');
+  // 🔴`delta` の `{$ref}` は `resolveNum` が 0 に潰す＝動的値は必ず deltaFromZone 側で解く
+  const empty = run(act, { ...ctx, ownerState: { ...ctx.ownerState, energy: [] } } as ExecCtx);
+  eq(((empty.ownerState as PlayerState).power_mods_until_opp_turn ?? [])[0]?.delta, 0, 'エナ0枚なら±0');
+}));
+test('「このシグニを場からトラッシュに置き、〜」＝自己トラッシュ＋後続（§6.4 O-3）', () => {
+  const tree = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  // 🔴従来は自己トラッシュが丸ごと落ちていた（対価なしでサーチが走る過剰実行）
+  ok(tree('WX20-049', 'WX20-049-E1').includes('"thisCardOnly":true'),
+    'WX20-049 の自己トラッシュが落ちている');
+  // 🔴従来は `TRASH{SIGNI self 1}`＝好きなシグニを選ぶUIに化けていた
+  ok(tree('PR-422', 'PR-422-E2').includes('"thisCardOnly":true'),
+    'PR-422 の自己トラッシュが「好きなシグニ」に戻っている');
+  const wx26 = tree('WX26-CP1-066', 'WX26-CP1-066-E1');
+  ok(wx26.includes('"deltaFromZone"'), 'WX26-CP1-066 のエナ枚数比例パワーが落ちている');
+  ok(wx26.includes('"GAIN_LRIG_BARRIER"'),
+    '【ルリグバリア】が GRANT_KEYWORD（no-op）に戻っている');
+  ok(wx26.includes('"HAS_CARD_IN_FIELD"'),
+    '「あなたの場に他の＜プリオケ＞のシグニがある場合」の条件が落ちている');
+});
+
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);

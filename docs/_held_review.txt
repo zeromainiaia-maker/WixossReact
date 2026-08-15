@@ -147,6 +147,38 @@ WX06-017 WX19-029
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 12 行）
 
+## +SEQUENCE +SIGNI +TRASH ［2枚］
+WX20-049 WXK02-022
+--- WX20-049
+  原文: 【自】：このシグニがアタックしたとき、《黒》を支払ってもよい。そうした場合、このシグニを場からトラッシュに置き、あなたのデッキからカード名に《ニホニンギョ》を含むシグニを１枚探して場に出し、デッキをシャッフルする。【出】：対戦相手のシグニ１体を対象とし、あなたのトラッシュにカード名に《ニホニンギョ》を含むカードがある場合、ターン終了時まで、それの基本パワーを
+  - [0].action.steps[1].then.from.location = "deck"
+  - [0].action.steps[1].then.from.owner = "self"
+  - [0].action.steps[1].then.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.filter.cardName = "ニホニンギョ"
+  - [0].action.steps[1].then.maxCount = 1
+  - [0].action.steps[1].then.then.type = "ADD_TO_FIELD"
+  - [0].action.steps[1].then.then.owner = "self"
+  - [0].action.steps[1].then.afterSearch.type = "SHUFFLE_DECK"
+  - [0].action.steps[1].then.afterSearch.owner = "self"
+  ~ [0].action.steps[1].then.type : "SEARCH" → "SEQUENCE"
+  + [0].action.steps[1].then.steps[0].type = "TRASH"
+  + [0].action.steps[1].then.steps[0].target.type = "SIGNI"
+  …（他 13 行）
+--- WXK02-022
+  原文: 【常】：あなたのエナゾーンにあるカードは【マルチエナ】を得る。【起】《アタックフェイズアイコン》《白》《赤》《青》《緑》《黒》このキーを場からルリグトラッシュに置く：対戦相手のシグニ１体を対象とし、それをトラッシュに置き、カードを２枚引く。このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
+  - [1].action.steps[0].owner = "self"
+  - [1].action.steps[0].count = 2
+  ~ [1].action.steps[0].type : "DRAW" → "SEQUENCE"
+  + [1].action.steps[0].steps[0].type = "TRASH"
+  + [1].action.steps[0].steps[0].target.type = "SIGNI"
+  + [1].action.steps[0].steps[0].target.owner = "opponent"
+  + [1].action.steps[0].steps[0].target.count = 1
+  + [1].action.steps[0].steps[0].target.filter.cardType = "シグニ"
+  + [1].action.steps[0].steps[0].target.upToCount = false
+  + [1].action.steps[0].steps[1].type = "DRAW"
+  + [1].action.steps[0].steps[1].owner = "self"
+  + [1].action.steps[0].steps[1].count = 2
+
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［2枚］
 WXEX2-09 WXK08-048
 --- WXEX2-09
@@ -297,24 +329,6 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
-## +ADD_EXTRA_ATTACK_PHASE -ADD_TO_FIELD -SEQUENCE -STUB ［1枚］
-WX22-010
---- WX22-010
-  原文: 【自】：各アタックフェイズ開始時、あなたのルリグデッキから＜遊具＞のレゾナ１枚を出現条件を無視して場に出す。【起】《ターン１回》《緑》：あなたのエナゾーンからシグニを３枚まで対象とし、それらを手札に加える。【起】《ターン１回》エクシード２：このターンの最初のアタックフェイズの後に、追加のアタックフェイズを加える。この方法で加えたアタックフェイズの開始時、あな
-  - [2].action.steps[0].type = "STUB"
-  - [2].action.steps[0].id = "DEFERRED_EXTRA_ATTACK_PHASE"
-  - [2].action.steps[1].type = "STUB"
-  - [2].action.steps[1].id = "RULE_REMINDER_TEXT"
-  - [2].action.steps[2].type = "SEQUENCE"
-  - [2].action.steps[2].steps[0].type = "ADD_TO_FIELD"
-  - [2].action.steps[2].steps[0].owner = "self"
-  - [2].action.steps[2].steps[1].type = "UP"
-  - [2].action.steps[2].steps[1].target.type = "LRIG"
-  - [2].action.steps[2].steps[1].target.owner = "self"
-  - [2].action.steps[2].steps[1].target.count = 1
-  ~ [2].action.type : "SEQUENCE" → "ADD_EXTRA_ATTACK_PHASE"
-  …（他 7 行）
-
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
 --- WXEX2-30
@@ -378,24 +392,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
-
-## +SEQUENCE +SIGNI +SIGNI_DEPLOY_BAN +TRASH -STUB ［1枚］
-WXDi-P07-050
---- WXDi-P07-050
-  原文: 【常】：【マルチエナ】【常】：このシグニは対戦相手の効果によって場から他の領域に移動しない。【起】エクシード４：他のすべてのシグニをトラッシュに置く。このターン、あなたは他のシグニを場に出せない。,-
-  - [2].action.steps[0].target.type = "SIGNI"
-  - [2].action.steps[0].target.owner = "self"
-  - [2].action.steps[0].target.count = "ALL"
-  - [2].action.steps[1].id = "DEFERRED_SELF_RESTRICT_THIS_TURN"
-  ~ [2].action.steps[0].type : "TRASH" → "SEQUENCE"
-  + [2].action.steps[0].steps[0].type = "TRASH"
-  + [2].action.steps[0].steps[0].target.type = "SIGNI"
-  + [2].action.steps[0].steps[0].target.owner = "self"
-  + [2].action.steps[0].steps[0].target.count = "ALL"
-  + [2].action.steps[0].steps[0].target.filter.cardType = "シグニ"
-  + [2].action.steps[0].steps[0].target.filter.excludeSelf = true
-  + [2].action.steps[0].steps[1].type = "TRASH"
-  …（他 7 行）
 
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
@@ -585,22 +581,23 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
-## +SEQUENCE +SIGNI +TRASH ［1枚］
-WXK02-022
---- WXK02-022
-  原文: 【常】：あなたのエナゾーンにあるカードは【マルチエナ】を得る。【起】《アタックフェイズアイコン》《白》《赤》《青》《緑》《黒》このキーを場からルリグトラッシュに置く：対戦相手のシグニ１体を対象とし、それをトラッシュに置き、カードを２枚引く。このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
-  - [1].action.steps[0].owner = "self"
-  - [1].action.steps[0].count = 2
-  ~ [1].action.steps[0].type : "DRAW" → "SEQUENCE"
-  + [1].action.steps[0].steps[0].type = "TRASH"
-  + [1].action.steps[0].steps[0].target.type = "SIGNI"
-  + [1].action.steps[0].steps[0].target.owner = "opponent"
-  + [1].action.steps[0].steps[0].target.count = 1
-  + [1].action.steps[0].steps[0].target.filter.cardType = "シグニ"
-  + [1].action.steps[0].steps[0].target.upToCount = false
-  + [1].action.steps[0].steps[1].type = "DRAW"
-  + [1].action.steps[0].steps[1].owner = "self"
-  + [1].action.steps[0].steps[1].count = 2
+## +CONDITIONAL +HAS_CARD_IN_FIELD +POWER_MODIFY +SEQUENCE +SIGNI +TRASH -GRANT_KEYWORD ［1枚］
+WX26-CP1-066
+--- WX26-CP1-066
+  原文: 【自】：あなたのターン終了時、次の対戦相手のターン終了時まで、このシグニのパワーをあなたのエナゾーンにある＜プリオケ＞のカード１枚につき＋1000する。その後、このシグニのパワーが15000以上の場合、このシグニを場からトラッシュに置き、あなたの場に他の＜プリオケ＞のシグニがある場合、【ルリグバリア】１つを得る。,：対戦相手のシグニ１体を対象とし、ターン終了
+  - [0].action.steps[0].id = "DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.keyword = "ルリグバリア"
+  - [0].action.steps[1].then.duration = "PERMANENT"
+  ~ [0].action.steps[0].type : "STUB" → "POWER_MODIFY"
+  + [0].action.steps[0].target.type = "SIGNI"
+  + [0].action.steps[0].target.owner = "self"
+  + [0].action.steps[0].target.count = 1
+  + [0].action.steps[0].target.filter.thisCardOnly = true
+  + [0].action.steps[0].delta = 0
+  …（他 19 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
@@ -651,22 +648,6 @@ WXK04-014
   + [0].action.choices[0].action.steps[1].type = "STUB"
   + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
   …（他 13 行）
-
-## +ADD_EXTRA_ATTACK_PHASE -SEQUENCE -STUB ［1枚］
-WXK06-026
---- WXK06-026
-  原文: 次のアタックフェイズの後に、追加のアタックフェイズを加える。この方法で加えたアタックフェイズ開始時、あなたのすべてのシグニをアップする。,：どちらか１つを選ぶ。①カードを１枚引く。②対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "DEFERRED_EXTRA_ATTACK_PHASE"
-  - [0].action.steps[1].type = "UP"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = "ALL"
-  ~ [0].action.type : "SEQUENCE" → "ADD_EXTRA_ATTACK_PHASE"
-  + [0].action.onStart.type = "UP"
-  + [0].action.onStart.target.type = "SIGNI"
-  + [0].action.onStart.target.owner = "self"
-  + [0].action.onStart.target.count = "ALL"
 
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028
@@ -806,18 +787,6 @@ WDK12-007
   + [0].action.choices[0].action.steps[0].charm.count = 1
   + [0].action.choices[0].action.steps[0].charm.filter.story = "微菌"
   …（他 20 行）
-
-## +BLOCK_ACTION +PLAYER -STUB ［1枚］
-SPK01-10
---- SPK01-10
-  原文: 【出】：あなたのデッキの上からカードを２枚エナゾーンに置く。ターン終了時、それらをあなたのエナゾーンからトラッシュに置く。このターン、あなたは１以上のエナコストを支払えない。,：【エナチャージ１】
-  - [0].action.steps[2].id = "DEFERRED_SELF_RESTRICT_THIS_TURN"
-  ~ [0].action.steps[1].id : "OPTIONAL_COST" → "TRASH_ENERGY_AT_TURN_END"
-  ~ [0].action.steps[2].type : "STUB" → "BLOCK_ACTION"
-  + [0].action.steps[2].target.type = "PLAYER"
-  + [0].action.steps[2].target.owner = "self"
-  + [0].action.steps[2].target.count = 1
-  + [0].action.steps[2].actionId = "PAY_ENERGY_COST"
 
 ## +BANISH +CHOOSE +DRAW +SEQUENCE×2 +SIGNI ［1枚］
 SPK01-14
