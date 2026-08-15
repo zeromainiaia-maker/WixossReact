@@ -73,6 +73,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   signi_attack_bans_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'attack bans imposed on the attacker for the current turn' },
   // 追加アタックフェイズのキューは、加えたターンの中で消化する（未消化でもターンを跨がせない）。
   extra_attack_phases_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'extra attack phases queued for the current turn' },
+  // 「宣言したカード名以外のアーツを使用できない」の whitelist は、課されたターンだけ有効（§6.4 O-3）。
+  arts_name_whitelist_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'declared-arts-name whitelist imposed for the current turn' },
 } as const satisfies Record<ConventionTurnScopedField, TurnScopedSpec>;
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
