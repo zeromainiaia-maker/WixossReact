@@ -9501,6 +9501,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
+  /**
+   * ルリグアタックの《無》前払いコストと可否を**1か所で**返す（§6.4 O-28）。
+   *
+   * ⚠**コスト軸をまとめる**＝`OPP_LRIG_ATTACK_COST`（相手フィールドの【常】）と
+   *   `signi_attack_bans_this_turn` の `appliesTo:'LRIG'`（付与された「《無》×Nを支払わないかぎり
+   *   アタックできない」）はどちらも同じ前払いなので、判定地点（ボタン生成）と引き落とし地点
+   *   （`performLrigAttack`）が**同じ数**を見る。軸ごとに関数を分けると片方だけ見る gate ができる。
+   * 🔴従来は引き落としだけがあり、**払えないときは黙って0枚払いでアタックできていた**
+   *   （`my.energy.length >= cost` の else が素通り）。
+   */
+  const lrigAttackCostInfo = (
+    my: PlayerState, op: PlayerState, lrigNum: string | null | undefined,
+  ): { blocked: boolean; colorless: number } => {
+    const banCost = lrigAttackBanCost(my, lrigNum, battleCardMap);
+    // 解除できない ban（「アタックできない」だけ）が掛かっている＝どれだけ払っても不可。
+    if (banCost === null) return { blocked: true, colorless: 0 };
+    const colorless = collectOppLrigAttackExtraCost(op, my, battleCardMap, effectsMap, false) + banCost.colorless;
+    // 「手札をN枚捨てないかぎり」のルリグ版は**母集団0**（原文はいずれもシグニ）。
+    // 万一生えたら支払いUIが無いので過少側（アタック不可）に倒す＝無言で無視しない。
+    const blocked = banCost.handDiscard > 0 || my.energy.length < colorless;
+    return { blocked, colorless };
+  };
+
   // ルリグアタックの実行（人間・CPU共通）: アタッカーのルリグをダウンし防御側にガード応答を要求。
   // アタック不可（ドライブ状態・無効化等）の場合は状態を変えずに false を返す
   const performLrigAttack = async (p: {
