@@ -2075,6 +2075,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
       if (/^表記されているパワーと異なるパワーの$/.test(banBody)) {
         return { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', powerDiffersFromPrinted: true } as SigniAttackBanAction;
       }
+      // 「そのカードと同じレベルのシグニ」＝直前に公開したカード（裏向きルリグゾーン）のレベル（§6.4 O-3）。
+      if (/^そのカードと同じレベルの$/.test(banBody)) {
+        return { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', levelFromLastProcessed: true } as SigniAttackBanAction;
+      }
     }
   }
 
