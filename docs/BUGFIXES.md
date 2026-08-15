@@ -1,6 +1,101 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-15（続き493・Opus 5）— §6.4 **O-3 `NON_FIELD_ZONE_MOVE_IMMUNITY` を解体＝5効果の挙動是正**
+## 2026-08-15（続き494・Opus 5）— §6.4 **O-28 の「《無》×Nを支払わないかぎりアタックできない」5効果＋ engine の continuation 取りこぼし**
+
+「引用文が丸ごと `GRANT_KEYWORD.keyword` に入って一度も効かない」クラス（続き490 で1件だけ見つけた形）の
+**《無》×N 版 5効果**を正準形へ組み替え、途中で見つかった**engine の一般バグ2件**も直した。
+**恒久 no-op 5／丸ごと no-op 1（engine の continuation 取りこぼし）／過剰実行 1（選択ループ二重）／対象の過少 1**。
+ゲート全緑（**golden 2040**＝+6・**census 831 据置**・smoke **10688 / SKIP 0**・fuzz 全0・同型★0（265群）・lint 0 errors / 260 warnings）。
+live JSON changed **6効果 / 6カード**（`WX11-012`／`WX24-P1-041`／`WX24-P4-001`／`WXDi-P03-036`／`WXDi-P05-033`／`WX17-003`。CSV 非改変）。
+held **109枚/45群 → 104枚/45群**（5枚採用）。`census:stubs` A群＝**無言 no-op 0・明示 defer 23種/26件**（据置）。
+
+### 母集団の実測（着手前・PLAN の「5効果」を live 走査で数え直した）
+
+`GRANT_KEYWORD.keyword` の全値を機械走査（`keyword` に《無》を含むもの）＝**6ノード / 5効果**。
+
+| カード | 原文 | 修正前 |
+|---|---|---|
+| `WX11-012-E1` | それは「【常】：あなたが《無》×3（＜タマ＞なら×4）を支払わないかぎりアタックできない。」を得る | `GRANT_KEYWORD{keyword:"あなたが《無》…"}`＝**恒久 no-op** |
+| `WX24-P1-041-E2` | 対戦相手の**ルリグかシグニ**1体…《無》×1 | 同上＋**対象が SIGNI に狭まっていた**（ルリグを縛れない） |
+| `WX24-P4-001-E1` | 対戦相手の**ルリグ**1体…《無》×4 | 同上 |
+| `WXDi-P03-036-E1` | 対戦相手の**ルリグ**1体…《無》×2 | 同上 |
+| `WXDi-P05-033-E2` | 対戦相手のシグニ1体…《無》×1 | 同上 |
+
+🔴**`hasKeyword` は正式キーワード名でしか照合しない**ので、文が `keyword` に入った5効果は**一度も効かず**、
+**STUB ですらないので `census:stubs` にも映らない**（続き490 と同じクラス＝計器の死角）。
+
+### ① parser＝続き490 の fixup を《無》×N へ一般化
+
+`rewriteHandTaxKeywordGrant` → **`rewriteAttackTaxKeywordGrant`**（`effectParser.ts`）。
+`^(?:あなたが)?(?:手札をN枚捨てないかぎり|《無》…を支払わないかぎり)アタックできない$` を
+正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → SIGNI_ATTACK_BAN{targetsStored, unlessPay…}` へ組み替える。
+
+- ⚠**コスト句の無い `keyword:"アタックできない"`（live 132件）は対象外**＝regex がコスト句を必須にしている。
+- ⚠`WX11-012-E1` は **`STATE_COND_BATCH4_ACTIONS` の action リテラル**で丸ごと差し替えられるため
+  `parseSingleSentence` の後処理が**届かない**。リテラル側に正準形を直接書いた（同型の落とし穴＝
+  「table でリテラルを固定しているカードは parser 規則を足しても変わらない」）。
+
+### ② engine＝`SELECT_TARGET_ONLY` がルリグ対象を扱えず**丸ごと no-op** だった
+
+`execStubPart1.ts` の `SELECT_TARGET_ONLY` は **`tgt.type !== 'SIGNI'` なら `lastProcessedCards: []` で降りる**。
+→ STORE が空 → 本体が「対象が確定していない」で降りる＝**3効果（ルリグ／ルリグかシグニ）が丸ごと不発**。
+`LRIG`（センタールリグトップ）／`CENTER_LRIG_OR_SIGNI`（センタールリグ＋シグニ候補）を追加した
+（`GRANT_KEYWORD` の同型分岐と同じ近似＝アシストルリグは候補に入れない）。
+
+🔑**live の形を assert するだけでは足りない**＝golden に**通しで実行して ban が載るか**を見るテストを足した
+（これが無ければ「JSON は正しいのに一度も効かない」を緑のまま見逃していた）。
+
+### ③ 🔴 engine＝入れ子 SEQUENCE で内側の continuation が**上書きされて消えていた**（一般バグ）
+
+`execSequence` はステップが対話に入ると**残りステップを `pending.continuation` に代入**していた。
+内側 SEQUENCE（や `LOOK_PICK_CHAIN` のように**自前の continuation を積む** action）が先に continuation を
+持っていると、外側の代入で**内側の残りが無言で消える**。
+
+- `WX24-P4-001-E1`＝`SEQUENCE[SEQUENCE[対象宣言, STORE, ban], GRANT_EFFECT]` で、対象宣言の対話に入った瞬間
+  **STORE と ban が落ちて丸ごと no-op**。
+- `WXDi-P01-026-E1`（【常】盤面リセット）＝`LOOK_PICK_CHAIN` の**「残りをトラッシュに置く」が落ちていた**
+  （golden の旧 assert がこの壊れた挙動を写していたので**正方向へ書き換えた**）。
+- 直し方＝**合成する**（`continuation: SEQUENCE[内側の残り, 外側の残り]`）。同じ規約は
+  `resumeOpponentPayOptional`（`:8167`）等**他4サイトでは既に合成**しており、`execSequence` の2箇所だけが outlier だった。
+- 母集団＝**入れ子 SEQUENCE ＋後続ステップ 47効果／内部 continuation を積みうる型が中間ステップ 147効果**
+  （すべて「落ちていた残りが動くようになる」側の変化。smoke/fuzz/golden とも緑）。
+
+### ④ engine/UI＝**ルリグのアタック税**（新軸）と、既存の「払えないのに素通り」バグ
+
+`SigniAttackBan.appliesTo:'LRIG'` を新設。**置き場は増やさない**（`signi_attack_bans_this_turn` を共用＝
+turn-end 失効の登録が1つで済む＝続き487/489/493 で3回再発した「失効地点が無い」クラスを招かない）。
+
+- 仕分けは**実行時**＝`storedTargetCards` の各カードの `Type` で「ルリグ／シグニ」に分けて**軸ごとに別 ban**を積む
+  （`CENTER_LRIG_OR_SIGNI` は選ばれるまでどちらか決まらないので静的には決められない）。
+- ⚠**両方向にガードする**＝`signiAttackGate` は `appliesTo==='LRIG'` を除外し、新設 `lrigAttackBanCost` は
+  それだけを見る。`cardNums` 一致だけに頼ると**キーを持たない広域 ban（「シグニでアタックできない」）が
+  ルリグにも掛かる**（golden にトリップワイヤ＝外すと FAIL することを確認済み）。
+- 🔴**既存バグの同時是正**＝`performLrigAttack` の `OPP_LRIG_ATTACK_COST` 支払いは
+  `if (cost > 0 && energy.length >= cost)` で、**払えないときは else で素通り＝タダでアタックできていた**。
+  `lrigAttackCostInfo`（判定と引き落としが同じ数を見る1関数）へまとめ、払えなければアタック不成立にした。
+- ボタン生成も同じ関数を通す（`アタック（《無》×N）`／`アタック不可（《無》×N）`）＝O-18 の「押せるが無反応」を作らない。
+
+### ⑤ 過剰実行＝「同じ選択肢を複数回選ぶ」ループが二重に積まれていた（③の副産物で顕在化）
+
+`WX17-003-E1`（ベット―《コイン》《コイン》以下から2つ（ベット時4つ）まで選ぶ）は
+`CHOOSE_SAME_OPTION_TWICE` と `CHOOSE_SAME_OPTION_MULTIPLE` が**別ステップで2つ**あり、
+engine では**同じハンドラ**（回数はカード全文から読む）なので **4回＋4回＝8回**選べていた。
+③以前は2周目が continuation ごと捨てられて表に出ていなかった（smoke SKIP 0→1 で発覚）。
+
+- live は `parseStatus:'PARTIAL'`（PRESERVE）なので **effectId をアンカーにした外科パッチ**で重複を落とし、
+  parser 側にも同じ dedup を入れた（⚠**片方は `CONDITIONAL{IS_BETTING}` の中に入る形もある**ので
+  「数えるのは部分木・落とすのは直下ステップ」）。live 走査で**該当は1効果だけ**。
+- golden に「1効果に選択ループを2つ置かない」データ不変条件を追加。
+
+### 残した近似・積み残し
+
+- **アシストルリグは `CENTER_LRIG_OR_SIGNI` の候補に入れない**（既存 `GRANT_KEYWORD` と同じ近似）。
+- **`WX24-P4-001-E1` の後半**「このシグニがアタックしたとき、《無》×4を支払わないかぎり、このシグニをバニッシュする」＝
+  **支払いによる回避が丸ごと落ちて無条件バニッシュ**（過剰実行）。§6.4 O-30 へ登録。
+- **ルリグ版の「手札をN枚捨てないかぎり」は母集団0**＝支払いUIが無いので、生えたら**アタック不可**に倒す（過少側）。
+- **4経路とも実機未検証**（§7 送り）。
+
+
 
 「対戦相手の効果によってカードが移動しない」の**期間軸**を1本にし、あわせて
 **「次の対戦相手のターン終了時、〜」の遅延本体が即時実行されていた**過剰実行を止めた。
