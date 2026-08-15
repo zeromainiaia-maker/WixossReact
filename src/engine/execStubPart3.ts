@@ -1504,13 +1504,19 @@ export function execStubPart3(
         otherState: otherApplied?.state ?? ctx.otherState,
       }, `${subjectLabel}はシグニを${cap}体までしか場に出せない${trashedN > 0 ? `（超過${trashedN}体をトラッシュ）` : ''}`));
     }
-    // 「パワーN以上のシグニを新たに場に出せない」→ 相手に配置パワー上限を設定
+    // 「パワーN以上のシグニを新たに場に出せない」→ 相手に配置パワー禁止を設定（このターンと次のターン）。
+    // ⚠旧実装は専用フィールド `signi_deploy_power_limit` に書いていたが、**どこでもクリアされておらず
+    //   「このターンと次のターン」が永続していた**（§6.4 O-3 続き487）。寿命つきの ban ストアへ統合した。
     const powerCapM = txtDR.match(/パワー([０-９\d万]+)以上.*(?:新たに)?場に出せない/);
     if (powerCapM) {
       const cap = parseInt(toHWDR(powerCapM[1]).replace('万', '0000'));
-      const newOtherDR = { ...ctx.otherState, signi_deploy_power_limit: cap };
+      const newOtherDR: PlayerState = {
+        ...ctx.otherState,
+        signi_deploy_bans: [...(ctx.otherState.signi_deploy_bans ?? []),
+          { turnsRemaining: 2, powerGte: cap, label: `パワー${cap}以上` }],
+      };
       return done(addLog({ ...ctx, otherState: newOtherDR },
-        `対戦相手はパワー${cap}以上のシグニを場に出せない（次ターンまで）`));
+        `対戦相手はパワー${cap}以上のシグニを場に出せない（このターンと次のターン）`));
     }
     // 「〜の効果によってしか新たに場に出せない」→ 自分シグニへの配置制限（ログのみ）
     if (txtDR.includes('効果によってしか') || txtDR.includes('効果以外')) {

@@ -64,6 +64,12 @@ export interface DeployLimitInput {
   placementSource?: DeployPlacementSource;
 }
 
+/** 出そうとしているシグニの表記パワー（∞は Infinity）。 */
+function deployPower(p: DeployLimitInput): number {
+  const raw = p.cardMap.get(p.cardNum)?.Power ?? p.cardMap.get(p.cardNum.split('#')[0])?.Power;
+  return raw === '∞' ? Infinity : (parseInt(raw ?? '', 10) || 0);
+}
+
 /** いまの配置に掛かっている `signi_deploy_bans` の1件（無ければ null）。 */
 function matchedDeployBan(p: DeployLimitInput): SigniDeployBan | null {
   const bans = p.placingState.signi_deploy_bans ?? [];
@@ -74,6 +80,7 @@ function matchedDeployBan(p: DeployLimitInput): SigniDeployBan | null {
     if (ban.turnsRemaining <= 0) return false;
     if (ban.cardNames && !(name && ban.cardNames.includes(name))) return false;
     if (ban.bySource && p.placementSource !== ban.bySource) return false;
+    if (ban.powerGte !== undefined && deployPower(p) < ban.powerGte) return false;
     return true;
   }) ?? null;
 }
@@ -100,17 +107,10 @@ export function deployCountCap(p: {
 
 /** 配置できない理由。null なら配置可能。 */
 export function deployLimitBlockReason(p: DeployLimitInput): DeployBlockReason | null {
-  // 名前／出自による配置禁止（「このターンと次のターンの間、〜を新たに場に出せない」）。
-  // ⚠**ライズ（上乗せ）も「場に出す」**なのでパワー制限と同じく対象にする（数制限だけが非対称）。
+  // 名前／出自／パワーによる配置禁止（「このターンと次のターンの間、〜を新たに場に出せない」）。
+  // ⚠**ライズ（上乗せ）も「場に出す」**なので対象にする（数制限だけが非対称）。
   const ban = matchedDeployBan(p);
-  if (ban) return ban.cardNames ? 'NAME_BAN' : 'SOURCE_BAN';
-  // パワー制限（「パワーN以上のシグニを新たに場に出せない」）＝ライズにも適用する。
-  const powerLimit = p.placingState.signi_deploy_power_limit;
-  if (powerLimit !== undefined) {
-    const raw = p.cardMap.get(p.cardNum)?.Power ?? p.cardMap.get(p.cardNum.split('#')[0])?.Power;
-    const power = raw === '∞' ? Infinity : (parseInt(raw ?? '', 10) || 0);
-    if (power >= powerLimit) return 'POWER_LIMIT';
-  }
+  if (ban) return ban.cardNames ? 'NAME_BAN' : ban.bySource ? 'SOURCE_BAN' : 'POWER_LIMIT';
 
   if (p.onExistingStack) return null; // ライズは新規配置でないので数制限の対象外
 

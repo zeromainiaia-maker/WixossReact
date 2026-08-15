@@ -143,6 +143,8 @@ export interface SigniDeployBan {
   turnsRemaining: number;
   /** このカード名のシグニだけを禁止する（「それと同じ名前のシグニ」＝名前は生成時に焼き込む）。 */
   cardNames?: string[];
+  /** このパワー以上のシグニだけを禁止する（「パワーN以上のシグニを新たに場に出せない」）。 */
+  powerGte?: number;
   /** この出自の配置だけを禁止する。'signi_or_spell_effect'＝「自分の、シグニとスペルの効果によって」。 */
   bySource?: 'signi_or_spell_effect';
   /** ログ表示用の由来。 */
@@ -569,10 +571,10 @@ export interface PlayerState {
   eichi_level_options?: Record<string, number[]>;
   // COPY_SIGNI: このターン、フィールドシグニが別のカードとして扱われる（field_cardNum → copy_source_cardNum）
   card_identity_overrides?: Record<string, string>;
-  // DEPLOY_RESTRICT: このターンと次のターン、このパワー以上のシグニを場に出せない（自ターン基準）
-  signi_deploy_power_limit?: number;
-  // SIGNI_DEPLOY_BAN: 「このターンと次のターンの間、〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
-  // ⚠パワー制限（上）と同じく**場に出す側**に載る。寿命は turnsRemaining のカウントダウン。
+  // 「このターンと次のターンの間、〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
+  // ⚠**場に出す側**に載る。寿命は turnsRemaining のカウントダウン（`clearTurnEndScopedState`）。
+  // ⚠旧 `signi_deploy_power_limit`（DEPLOY_RESTRICT のパワー版）もここへ統合した＝旧フィールドは
+  //   **どこでもクリアされておらず「このターンと次のターン」が永続していた**（続き487）。
   signi_deploy_bans?: SigniDeployBan[];
   // DEPLOY_RESTRICT（配置数制限）: このターン、このプレイヤーはシグニをこの数までしか場に出せない
   // （「対戦相手はシグニをN体までしか場に出せない」＝WXK11-074等・AUTO時のフラグ。超過分は設置時に即トラッシュ）。
