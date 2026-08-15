@@ -7280,16 +7280,20 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         ban.powerDiffersFromPrinted ? '表記と異なるパワーの' : '',
         ban.cardNums ? ban.cardNums.map(n => ctx.cardMap.get(n)?.CardName ?? n).join('・') + 'は' : 'シグニでは',
       ].join('');
-      ban.label = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}` : 'アタック不可';
+      ban.label = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}`
+        : ban.unlessPayHandDiscard ? `手札${ban.unlessPayHandDiscard}枚`
+        : 'アタック不可';
       const banOwner: Owner = sab.owner === 'opponent' ? 'opponent' : 'self';
       const banState = ownerState(banOwner, ctx);
       const newBanState: PlayerState = {
         ...banState,
         signi_attack_bans_this_turn: [...(banState.signi_attack_bans_this_turn ?? []), ban],
       };
+      const costLabel = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}を支払わないかぎりアタックできない`
+        : ban.unlessPayHandDiscard ? `手札を${ban.unlessPayHandDiscard}枚捨てないかぎりアタックできない（アタックするごとに捨てる）`
+        : 'アタックできない';
       return done(addLog(setOwnerState(banOwner, newBanState, ctx),
-        `このターン、${banOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeLabel}`
-        + (ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}を支払わないかぎりアタックできない` : 'アタックできない')));
+        `このターン、${banOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeLabel}${costLabel}`));
     }
     case 'SIGNI_DEPLOY_BAN': {
       // 「このターンと次のターンの間、対戦相手は〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
