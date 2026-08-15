@@ -1384,6 +1384,12 @@ export function execStubPart2(
     }
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, extra_turn: true } }, '追加ターンを獲得'));
   }
+  // SKIP_NEXT_TURN: 次の自分のターンを丸ごと飛ばす（`WD20-006-E1`・§6.4 O-3 続き491）。
+  // ⚠`GAIN_EXTRA_TURN` の裏返し＝消費は `resolveTurnHandover` の1点だけ。
+  //   原文の母集団は「次のあなたのターンをスキップする」1件なので owner は self 固定でよい。
+  if (stub.id === 'SKIP_NEXT_TURN') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, skip_next_turn: true } }, '次の自分のターンをスキップする'));
+  }
   // ガードアイコン付与（手札のシグニに付与: フラグ設定）
   if (stub.id === 'HAND_SIGNI_HAS_GUARD_ICON') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, hand_signi_guard_enabled: true } },
