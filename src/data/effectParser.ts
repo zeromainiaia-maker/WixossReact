@@ -3057,12 +3057,38 @@ function rewriteNextOwnTurnEndBody(action: EffectAction, text: string): EffectAc
   return { type: 'DELAY_TO_NEXT_OWN_TURN_END', action: inner } as EffectAction;
 }
 
+/**
+ * 「あなたの場にいる〈色〉のルリグ１体につき、〈効果〉」＝**倍率スケール**（§6.4 O-34(d)）。
+ *
+ * 本文を単独文として解いてから `PER_OWN_LRIG_COLOR_SCALE` で包み、engine が「その色のルリグ体数」だけ
+ * 繰り返す。⚠**本文が解けないときは包まない**（無言で回数だけ増える no-op になる）。
+ * 🔴従来は「1体につき」が丸ごと落ちて、`WX25-P3-050-E1` はバニッシュ／ドロー3／エナチャージ3／
+ *   相手デッキ10枚ミルが**ルリグの色に関係なく無条件で1回ずつ走り**、【ルリグバリア】だけが消えていた。
+ *   `WXDi-P08-064-E1` は「青のルリグ1体につき相手シグニ1体まで凍結」が
+ *   `FREEZE{filter:{color:'青'}}`＝**青いシグニを1体凍結**に化けていた（色の掛かり先の取り違え）。
+ * ⚠**「使用コストは〜減る」は別軸**（`WXDi-P16-003〜007` の5効果）＝コスト計算側が持つので包まない。
+ * ⚠**パワー±の「1体につき」も別軸**（`POWER_MODIFY_PER_FIELD` が既に持つ）＝本文が解けた結果が
+ *   その型なら二重スケールになるので包まない。
+ */
+function rewritePerOwnLrigColorScale(action: EffectAction, text: string): EffectAction {
+  const t = text.trim().replace(/。$/, '');
+  const m = t.match(/^あなたの場にいる([白赤青緑黒])のルリグ[１1]体につき(.+)$/s);
+  if (!m || /使用コストは/.test(t)) return action;
+  const inner = parseSingleSentence(m[2]);
+  const s = JSON.stringify(inner);
+  if (s.includes('"UNKNOWN"') || s.includes('DEFERRED_')) return action;
+  // 既に「1体につき」を自前で数える型（パワー修正系）は包まない＝二重スケールになる。
+  if (/POWER_MODIFY_PER_|POWER_MOD_PER_COUNT/.test(s)) return action;
+  return { type: 'STUB', id: 'PER_OWN_LRIG_COLOR_SCALE', scaleColor: m[1], scaleAction: inner } as EffectAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
   action = rewriteNextOppTurnEndBody(action, text);
   action = rewriteNextOwnTurnEndBody(action, text);
+  action = rewritePerOwnLrigColorScale(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
