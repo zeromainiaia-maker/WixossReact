@@ -23,6 +23,74 @@ import { parseSentencePart2 } from './parseSentencePart2';
 
 
 export function parseSentencePart4(t: string): EffectAction | null {
+  // ═══ §6.4 O-4：UNKNOWN で落ちていた単発文（続き499）═══
+  // ⚠**UNKNOWN は「そのノードが no-op」で済まないことが多い**＝直前/直後のステップを束ねる
+  //   ゲート（条件・対象・選択肢）を飲み込んでいると、周囲が無条件で走る過剰実行になる。
+  //   ここに足す規則はどれも「原文にある絞り込みを必ず載せる」こと。
+
+  // ---- 「対戦相手の効果によってダウンしない」（引用能力の中身・主語は付与先自身）----
+  // ⚠`【常】：このシグニは対戦相手の効果によってダウンしない` の形は既に解けるが、
+  //   引用付与の中身は主語が剥がれて素の述部だけになるため別規則が要る（`WXDi-P03-060-E1`）。
+  if (/^対戦相手の効果によってダウンしない$/.test(t)) {
+    return {
+      type: 'GRANT_PROTECTION',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      from: ['DOWN'], sourceOwner: 'opponent', duration: 'PERMANENT',
+    } as EffectAction;
+  }
+
+  // ---- 「あなたは自分のシグニ１体を選びトラッシュに置く」（`WXDi-P11-002-E1` 選択肢③）----
+  // ⚠選択肢の1枝が丸ごと no-op だと**CPU/人間がその枝を選んだときだけ何も起きない**＝
+  //   3択のうち1つが空振りする（他の2枝は動くので気付きにくい）。
+  if (/^あなたは自分のシグニ[１1]体を選びトラッシュに置く$/.test(t)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction;
+  }
+
+  // ---- 「あなたのトラッシュからシグニをN枚まで対象とし、それらを手札に加え、手札をM枚捨てる」----
+  // （`WD21-008-E1` 選択肢③）。連用中止でつながる後段（手札捨て）まで含めて SEQUENCE にする。
+  {
+    const trashToHandDiscardM = t.match(
+      /^あなたのトラッシュからシグニを([０-９\d]+)枚(まで)?対象とし、それらを手札に加え、手札を([０-９\d]+)枚捨てる$/);
+    if (trashToHandDiscardM) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'TRANSFER_TO_HAND', source: {
+          type: 'TRASH_CARD', owner: 'self', count: parseNum(trashToHandDiscardM[1]),
+          upToCount: !!trashToHandDiscardM[2], filter: { cardType: 'シグニ' },
+        } } as EffectAction,
+        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(trashToHandDiscardM[3]) } } as EffectAction,
+      ] } as EffectAction;
+    }
+  }
+
+  // ---- 「（その後、）あなたのすべてのライフクロスを見て、好きな順番で並び替える」（`WX05-010-E1`）----
+  if (/^(?:その後、)?あなたのすべてのライフクロスを見て、好きな順番で並び替える$/.test(t)) {
+    return {
+      type: 'LOOK_AND_REORDER',
+      source: { location: 'life', owner: 'self' },
+      count: 'ALL', private: true, reorder: true,
+      destination: { location: 'life', owner: 'self', position: 'any' },
+    } as EffectAction;
+  }
+
+  // ---- 「このシグニがパワーN以上のシグニとバトルしたとき、そのシグニをトラッシュに置く」（`WXDi-P14-062-E1`）----
+  // ⚠timing（`ON_SIGNI_BATTLE`）と `triggerFilter` は上流が既に付けているが、**action 側はトリガー句が
+  //   剥がれずに残る**ので、文全体を受ける規則にする（「そのシグニをトラッシュに置く」単体は
+  //   `RULE_REMINDER_TEXT`＝no-op へ落ちる）。「その」＝バトル相手＝トリガー元。
+  if (/^このシグニがパワー[０-９\d]+以上のシグニとバトルしたとき、そのシグニをトラッシュに置く$/.test(t)) {
+    return { type: 'TRASH', target: {
+      type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', isTriggerSource: true },
+    } } as EffectAction;
+  }
+
+  // ---- 「（対戦相手のターンの間、）このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい」----
+  // （`WX17-052-LAYER` の《レイヤーアイコン》能力）。バニッシュ先はエナなので、そこから自分自身を拾う。
+  // ⚠「してもよい」は `upToCount` で表す（`TRANSFER_TO_HAND` に optional キーは無い）。
+  if (/^(?:対戦相手のターンの間、)?このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい$/.test(t)) {
+    return { type: 'TRANSFER_TO_HAND', source: {
+      type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { thisCardOnly: true },
+    } } as EffectAction;
+  }
+
   // ---- 手札からカードを【トラップ】として設置する ----
   if (t.match(/手札からカードを[１-９\d]*枚?まで【トラップ】として.*シグニゾーンに設置する/))
     return { type: 'STUB', id: 'TRAP_OP' } as StubAction;

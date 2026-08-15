@@ -8030,7 +8030,9 @@ function parseActionTextInner(text: string): EffectAction {
   }
   // ---- センタールリグへの能力付与（引用符形式: 「（ターン終了時まで、）あなたのセンタールリグは「...」を得る」）----
   {
-    const quotedLrigM = text.match(/あなたのセンタールリグは[「『]([\s\S]+?)[」』]を得る/);
+    // ⚠**入れ子の引用に対応した抽出**（§6.4 O-4）＝非貪欲 regex は内側の「」で止まり本文が切れる。
+    const quotedLrigInner = extractQuotedGrant(text, /あなたのセンタールリグは/);
+    const quotedLrigM = quotedLrigInner !== null ? [text, quotedLrigInner] as RegExpMatchArray : null;
     if (quotedLrigM) {
       // abilities は parseBlock / parseSpellEffect で rawText から埋められる
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedLrigM[1].trim(),
@@ -8042,7 +8044,8 @@ function parseActionTextInner(text: string): EffectAction {
   // ---- センタールリグ自身への能力付与（「(ターン終了時まで、)このルリグは「...」を得る」＝ルリグ【起】/【出】の自己付与・§5c 続き30）----
   // GRANT_LRIG_ABILITY の省略デフォルト＝ターン終了時まで。「次の対戦相手のターン終了時まで」は表現語彙が無いため据置。
   {
-    const quotedSelfLrigM = text.match(/(?:ターン終了時まで、)?このルリグは[「『]([\s\S]+?)[」』]を得る/);
+    const quotedSelfInner = extractQuotedGrant(text, /(?:ターン終了時まで、)?このルリグは/);
+    const quotedSelfLrigM = quotedSelfInner !== null ? [text, quotedSelfInner] as RegExpMatchArray : null;
     if (quotedSelfLrigM && (!text.includes('次の対戦相手のターン終了時まで、このルリグは')
         || /クロス状態のシグニ[１1]体が対戦相手の効果によって場を離れる場合/.test(quotedSelfLrigM[1]))) {
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: quotedSelfLrigM[1].trim(),
