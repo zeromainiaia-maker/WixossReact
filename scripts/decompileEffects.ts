@@ -1685,6 +1685,8 @@ function actionJa(a?: Action, effectType?: string): string {
         return `このターン、${whoAB}が${payAB}それはアタックできない`
           + (a.unlessPayHandDiscard ? '（アタックするごとに捨てる）' : '');
       }
+      // 「選んだシグニ以外のシグニでアタックできない」（§6.4 O-3）＝`targetsStored` の逆向き。
+      if (a.exceptTargetsStored) return `このターン、${whoAB}は選んだシグニ以外のシグニでアタックできない`;
       if (a.unlessPayHandDiscard) {
         return `このターン、${whoAB}は手札を${a.unlessPayHandDiscard}枚捨てないかぎり${scopeAB}シグニでアタックできない（アタックするごとに捨てる）`;
       }
