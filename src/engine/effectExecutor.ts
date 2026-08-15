@@ -5613,7 +5613,11 @@ function execRevealUntil(a: import('../types/effects').RevealUntilAction, ctx: E
     ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum,
   );
   const candidates = resolvedHitFilter
-    ? revealed.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), resolvedHitFilter))
+    ? revealed.filter(n => {
+        const c = ctx.cardMap.get(getCardNum(n));
+        // ⚠公開した束はまだデッキ由来なので、停止条件と同じレベル上書きを適用する（§6.4 O-34(c)）。
+        return matchesFilter(c, resolvedHitFilter, undefined, undefined, undefined, deckSigniOverrideLevel(state, c));
+      })
     : [...revealed];
   const maxPick = a.hit.count === 'ALL' ? candidates.length : Math.min(a.hit.count, candidates.length);
   if (candidates.length === 0 || maxPick === 0) {
