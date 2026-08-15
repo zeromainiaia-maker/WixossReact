@@ -1,5 +1,97 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き486・Opus 5）— §6.4 **O-3 の最大クラスタ「このターン、対戦相手は…」7効果を解体＝5効果の挙動是正**
+
+**恒久 no-op 5件**（うち1件は「6枚引くだけ」に潰れていた**盤面リセット**）。残り2形は**機構ごとに固有 `DEFERRED_*` へ分割**して在庫を可視化。
+ゲート全緑（**golden 1997**＝+7・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors / 259 warnings）。
+live JSON changed **7カード**（CSV 非改変）。
+
+### 在庫の実測（着手前）
+
+`DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE` ＝ O-3 の**最大クラスタ 7効果 / 7枚**（続き459 で `LRIG_GROW_RESTRICT`
+ゴミ箱から切り出した受け皿）。原文を並べると **1つの機構ではなく5機構**が混ざっていた：
+アタック制限（レベル／パワー条件）・アタック税（エナ／手札）・ダメージ無効・アーツ名ロック・強制アタック集合。
+
+### 🔴 (1) 新機構＝`SIGNI_ATTACK_BAN`（「このターン、対戦相手は〈条件〉のシグニでアタックできない」）
+
+**判定は既存の `signiAttackGate` に1本足すだけ**（人間のアタックボタン生成／共通実行経路 `performSigniAttack`／
+CPU のアタック候補フィルタの3箇所が同じ関数を呼ぶ設計なので、ここに足せば3経路に同時に効く）。
+
+- `PlayerState.signi_attack_bans_this_turn`（`SigniAttackBan[]`）＝**禁止を受ける側（アタッカー）に載せる**。
+  ⚠既存の `opp_signi_attack_power_cap` は逆に**課した側**に載っており、gate が defender を引き回していた。
+  新規はアタッカー側に寄せることで (a) gate が attacker だけを見れば済む (b) `_this_turn` 命名で
+  `turnScopedState` の turn-end 失効レジストリに**自動登録**（未登録なら typecheck が落ちる）。
+- 絞り込みキーは AND で、**指定されたキーだけ**を見る＝キーが1つも無い ban＝「すべてのシグニ」。
+- `unlessPayColorless`＝「《無》×N を支払わないかぎり」＝**払えないときだけ禁止**。
+  引き落としは `performSigniAttack` の既存 `signi_attack_cost` 自動支払いに**合算**する。
+  ⚠gate 側も**合算で**残高を見る（片方だけ見ると「払えたことになって足りない」が起きる）。
+- ⚠**`powerDiffersFromPrinted` と `unlessPayColorless` を同居させない**＝引き落とし地点は実効パワーを
+  持っていないので表記パワーへフォールバックし、**判定と課金がずれる**。golden のデータ不変条件で固定。
+
+**直った3枚：**
+
+| カード | 原文 | 旧挙動 | 新挙動 |
+|---|---|---|---|
+| `WX24-P4-039-E1` | 数字１つを宣言する。このターン、対戦相手は**宣言された数字と同じレベル**のシグニでアタックできない | 宣言するだけ（＋**過剰実行**＝下記(2)） | 宣言レベルのシグニがアタック不可 |
+| `WX25-P2-010-E1` | 《リコレクト》追加で、このターン、対戦相手は**表記されているパワーと異なるパワー**のシグニでアタックできない | 何も起きない | 実効パワー≠表記パワーのシグニがアタック不可 |
+| `WX10-024-E2` | …それの【チャーム】にする。このターン、対戦相手が《無》《無》《無》を支払わないかぎり**それは**アタックできない | 何も起きない | そのシグニは《無》×3 を払わないとアタック不可 |
+
+🔑**「それ」の解決**＝`execAttachCharm` が**チャームを付けた対象**を `storedTargetCards` に残すようにした。
+⚠`lastProcessedCards` ではなく `storedTargetCards` に置く＝後者は後続が `targetsStored` を**明示した時だけ**
+読む軸なので、既存の ATTACH_CHARM 後続3件（`WX07-046`／`WX11-034`／`WXK07-050`＝いずれも新規対象の
+POWER_MODIFY / GRANT_KEYWORD）に影響しない（実測4件を全部確認してから決めた）。
+
+### 🔴 (2) `WX24-P4-039-E1` の数字宣言が**ガード制限つき**だった（過剰実行）
+
+裸の `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる専用 STUB＝原文に無い
+「対戦相手はそのレベルのシグニで**ガードできない**」まで付いていた（PR-434 と同型）。
+宣言値を読むだけの `SIGNI_ATTACK_BAN` が後続にあるなら `DECLARE_NUMBER_PLAIN` へ落とす
+post-pass（`demoteDeclareNumberForAttackBan`）を足した。golden で live 形を固定。
+
+### 🔴 (3) `WX24-P2-014-E2` が「自分が6枚引くだけ」に潰れていた（恒久 no-op ＋ 過少実行）
+
+原文＝「対戦相手のセンタールリグがレベル３以上の場合、**各プレイヤーは**自分の手札とシグニゾーンと
+エナゾーンとトラッシュにある、**すべてのクラフトをゲームから除外し、すべてのカードをデッキに加えて
+シャッフルし**、カードを６枚引く。**このターン、対戦相手はダメージを受けない。**」
+
+live は `CONDITIONAL{…, then: DRAW{self,6}}` だけ＝**盤面リセットも相手側の処理もダメージ無効も丸ごと脱落**。
+⚠原因は**汎用 `カードをN枚引く` 規則が文末を先取りしていた**こと。新規則は part1 の汎用 DRAW より**前**に置く。
+
+- `STUB{EXILE_CRAFTS_RESET_ZONES_AND_DRAW}`＝両プレイヤーの手札／シグニゾーン（スタック＋チャーム＋アクセ）／
+  エナ／トラッシュを集め、クラフト（`Type` に「クラフト」を含む＝レゾナクラフト等も該当）を除外、
+  残りをデッキへ入れてシャッフルし N 枚引く。⚠ライフクロス／ルリグ／ルリグトラッシュ／デッキは原文の対象外。
+- 「このターン、対戦相手はダメージを受けない」＝既存 `PREVENT_DAMAGE{owner:'opponent', until:'UNTIL_END_OF_TURN'}`
+  で表せた（`prevent_damage_windows` は `MY_TURN_END` で turn-end に失効する）。**engine の新規実装ゼロ。**
+
+### 🟡 (4) 残り3形は固有 `DEFERRED_*` へ分割（在庫の可視化）
+
+| 新 id | カード | 要る機構 |
+|---|---|---|
+| `DEFERRED_ATTACK_TAX_HAND_DISCARD` | `SP38-003` | **アタックごと**の手札3枚捨てコストUI（エナ税と違い選択が要る） |
+| `DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK` | `WXEX2-09-E3` | **対戦相手による**カード名宣言UI（既存 `DECLARE_CARD_NAME` は自分の手札名から選ぶ形） |
+| `DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK` | `WXDi-P08-030-E1` | 相手の複数選択UI＋**強制アタック集合**（§6.4 O-8(a) と同じ層） |
+
+⚠**1つの受け皿に混ぜない**＝混ぜると `census:stubs` の A群から「何が残っているか」が読めなくなる（続き459 の教訓）。
+⚠`WXEX2-09` は**カード単位で採用すると E1 が `RISE_LEAVE_DISCARD_STACK`→`UNKNOWN` に退化する**ので、
+E3 の STUB id だけを手パッチした（parser が同じ値を出すので held drift にはならない）。
+
+### 計器の較正
+
+- `vocabCensus` の「制限『できない』」キーに **`ATTACK_BAN`** を追加。追加前は
+  **正しく `SIGNI_ATTACK_BAN` で表現した札が「アタックできない」だけを理由に高シグナルへ落ちて** census が +1 していた。
+- ⚠**STUB を外すと census のバケツが変わる**＝`vocabCensus` は STUB を含む効果を「STUB/MANUAL格納（要個別確認）」へ
+  逃がしているので、**STUB を実装で置き換えた瞬間に、その効果の他の未表現語彙が高シグナルへ昇格する**。
+  今回の +2 の内訳は「計器の較正漏れ1件」＋「(3) の除外節＝**本物の穴**1件」で、後者は実装して解消した。
+- `census:stubs` A群＝**25種/43件 → 27種/39件**（受け皿1種が消えて固有3種が出た。無言 no-op は 0 のまま）。
+
+**変更ファイル**＝`src/types/index.ts`（`SigniAttackBan`）／`src/types/effects.ts`（`SigniAttackBanAction`）／
+`src/screens/battle/signiAttackBan.ts`（新規）／`signiAttackGate.ts`／`turnScopedState.ts`／`BattleScreen.tsx`（支払い2地点）／
+`src/engine/effectExecutor.ts`（`SIGNI_ATTACK_BAN` case ＋ `execAttachCharm` の `storedTargetCards`）／
+`src/engine/execStubPart3.ts`（リセット STUB）／`parseSentencePart1.ts`／`parseSentencePart3.ts`／`effectParser.ts`／
+`scripts/decompileEffects.ts`／`scripts/vocabCensus.ts`／`scripts/goldenTest.ts`。
+
+---
+
 ## 2026-08-15（続き485・Opus 5）— §6.4 **O-19 完了＋新設 O-25（自己引用付与）＝5効果の挙動是正**
 
 **恒久 no-op 1件＋過剰実行3件＋所有者反転1件**。engine の新機構は**1分岐だけ**（残りは parser／既存語彙）。

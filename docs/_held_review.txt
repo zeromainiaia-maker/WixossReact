@@ -531,16 +531,6 @@ WX24-P1-041
   - [1].action.target.upToCount = false
   ~ [1].action.target.type : "SIGNI" → "CENTER_LRIG_OR_SIGNI"
 
-## +STUB -DRAW ［1枚］
-WX24-P2-014
---- WX24-P2-014
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に＜悪魔＞のシグニがある場合、カードを１枚引く。＜天使＞のシグニがある場合、【エナチャージ１】をする。【起】《ゲーム１回》夢限の理《ダウン》：対戦相手のセンタールリグがレベル３以上の場合、各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにある、すべてのクラフトをゲームから除外し、すべてのカードを
-  - [1].action.steps[0].then.owner = "self"
-  - [1].action.steps[0].then.count = 6
-  ~ [1].action.steps[0].then.type : "DRAW" → "STUB"
-  + [1].action.steps[0].then.id = "EXILE_CRAFTS_RESET_ZONES_AND_DRAW"
-  + [1].action.steps[0].then.value = 6
-
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
 --- WX24-P2-055
