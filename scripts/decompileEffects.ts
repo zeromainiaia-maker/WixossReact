@@ -1650,6 +1650,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.targetsStored) {
         return `このターン、${whoAB}が《無》×${a.unlessPayColorless ?? 0}を支払わないかぎりそれはアタックできない`;
       }
+      if (a.unlessPayHandDiscard) {
+        return `このターン、${whoAB}は手札を${a.unlessPayHandDiscard}枚捨てないかぎり${scopeAB}シグニでアタックできない（アタックするごとに捨てる）`;
+      }
       return `このターン、${whoAB}は${scopeAB}シグニでアタックできない`
         + (a.unlessPayColorless ? `（《無》×${a.unlessPayColorless}を支払えばアタックできる）` : '');
     }
