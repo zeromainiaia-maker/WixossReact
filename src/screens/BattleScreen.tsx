@@ -3894,8 +3894,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newMyState = { ...newMyState, game_lrig_limit_bonus: (newMyState.game_lrig_limit_bonus ?? 0) + glp };
           appendBattleLogs([`グロウフェイズ開始：リミット+${glp}（このゲーム・累積${newMyState.game_lrig_limit_bonus}）`]);
         }
-        // GROW→MAIN移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
-        if (phase === 'GROW' && my.pending_lrig_limit_mod !== undefined) {
+        // →MAIN 移行時: pending_lrig_limit_modをlrig_limit_modに適用（OPP_MAIN_PHASE_LIMIT_DOWN）
+        if (nextPhase === 'MAIN' && my.pending_lrig_limit_mod !== undefined) {
           newMyState = {
             ...newMyState,
             lrig_limit_mod: (newMyState.lrig_limit_mod ?? 0) + my.pending_lrig_limit_mod,
