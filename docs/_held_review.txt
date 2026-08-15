@@ -297,24 +297,6 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
-## +CONDITIONAL +SEARCH +SHUFFLE_DECK +TRASH_HAS_CARD -STUB ［1枚］
-WX20-077
---- WX20-077
-  原文: 【自】：このシグニがアタックしたとき、ターン終了時まで、対戦相手のすべてのシグニのパワーを－1000する。あなたの場にカード名に《リカブト》を含むシグニがある場合、代わりに－3000する。【出】：あなたのトラッシュにカード名に《リカブト》を含むカードがある場合、あなたのデッキから《バイオレンス・スプラッシュ》１枚を探す。その後、デッキをシャッフルし、それをコ
-  - [1].action.steps[0].id = "CONDITIONAL_POWER_BONUS"
-  ~ [1].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [1].action.steps[0].condition.type = "TRASH_HAS_CARD"
-  + [1].action.steps[0].condition.owner = "self"
-  + [1].action.steps[0].condition.filter.cardName = "リカブト"
-  + [1].action.steps[0].then.type = "SEARCH"
-  + [1].action.steps[0].then.from.location = "deck"
-  + [1].action.steps[0].then.from.owner = "self"
-  + [1].action.steps[0].then.filter.cardName = "バイオレンス・スプラッシュ"
-  + [1].action.steps[0].then.maxCount = 1
-  + [1].action.steps[0].then.afterSearch.type = "SHUFFLE_DECK"
-  + [1].action.steps[0].then.afterSearch.owner = "self"
-  …（他 1 行）
-
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
 --- WXEX2-30
@@ -414,6 +396,16 @@ WXDi-P11-003
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "DRAW"
   …（他 22 行）
+
+## +CONDITIONAL +THIS_CARD_IS_UP ［1枚］
+WXDi-P12-055
+--- WXDi-P12-055
+  原文: 【ハーモニー】ルリグ２体【自】：あなたのアタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手は《白2》2《赤2》2《青2》2《緑2》2《黒2》2《無2》2から１つを宣言する。あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする
+  - [0].action.id = "DEFERRED_DECLARED_ICON_HAND_DISCARD_BANISH"
+  ~ [0].action.type : "STUB" → "CONDITIONAL"
+  + [0].action.condition.type = "THIS_CARD_IS_UP"
+  + [0].action.then.type = "STUB"
+  + [0].action.then.id = "DECLARED_ICON_HAND_DISCARD_BANISH"
 
 ## +FREEZE +SEQUENCE +SIGNI ［1枚］
 WXDi-P12-073

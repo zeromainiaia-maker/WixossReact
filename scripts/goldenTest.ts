@@ -15128,6 +15128,45 @@ test('GAIN_BOND source:last_found: 直前選択カードとの絆を bonds へ�
   const r = run({ type: 'GAIN_BOND', source: 'last_found' } as EffectAction, ctx);
   ok((r.ownerState.bonds ?? []).includes(name!), `bonds (${JSON.stringify(r.ownerState.bonds)})`);
 });
+// ── DECLARED_ICON_HAND_DISCARD_BANISH（§6.4 O-34(e)・`WXDi-P12-055-E1`）──
+// 🔴回帰ガード＝従来は効果が丸ごと UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`（外れると**相手の
+//    全シグニをトラッシュ**する別カード用）と `BANISH{owner:'self'}`（＝**自分のシグニ**）だけが残っていた。
+//    **外れ（バニッシュされる）／当たり（されない）の対**＋「捨てる処理は必ず走る」を固定する。
+test('DECLARED_ICON_HAND_DISCARD_BANISH: 宣言色と手札の色が外れたときだけ対象をバニッシュ（対の検証）', () => withSavedCursor(() => {
+  const whiteCard = findCard(c => c.Type === 'シグニ' && (c.Color ?? '') === '白');
+  const oppSigni = findCard(c => c.Type === 'シグニ' && (c.Color ?? '') === '赤');
+  const eff = (effectsMap.get('WXDi-P12-055') ?? []).find(e => e.effectId === 'WXDi-P12-055-E1')!;
+  const source = 'WXDi-P12-055';
+  const play = (declared: string) => {
+    const ctx = mkCtx({ signi: [source, null, null] }, { signi: [oppSigni, null, null] }, source);
+    ctx.ownerState.hand = [whiteCard];
+    let r = executeEffect(eff, ctx);
+    // ① 相手シグニの対象選択
+    ok(!r.done && r.pending.type === 'SELECT_TARGET', '相手シグニの対象選択');
+    let c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+    r = resumeSelectTarget([oppSigni], r.pending as never, c);
+    // ② 手札1枚の選択（任意）
+    ok(!r.done && r.pending.type === 'SELECT_TARGET', '手札の選択');
+    c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+    r = resumeSelectTarget([whiteCard], r.pending as never, c);
+    // ③ 相手のアイコン宣言（6択＝《無》を含む）
+    ok(!r.done && r.pending.type === 'CHOOSE', '相手のアイコン宣言');
+    eq((r.pending as { options: unknown[] }).options.length, 6, '白/赤/青/緑/黒/無の6択');
+    c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+    return finish(resumeChoose(`declared_icon_${declared}`, r.pending as never, c), c);
+  };
+  // 外れ（手札は白／宣言は赤）＝対象がバニッシュされる。手札は必ず捨てる。
+  const miss = play('赤');
+  ok(!miss.otherState.field.signi.some(s => s?.at(-1) === oppSigni), '外れ＝対象をバニッシュ');
+  ok(miss.ownerState.trash.includes(whiteCard), '外れでも選んだカードは捨てる');
+  ok(!miss.ownerState.hand.includes(whiteCard), '手札に残らない');
+  // 当たり（手札は白／宣言も白）＝バニッシュされない。捨てる処理は同じく走る。
+  const hit = play('白');
+  ok(hit.otherState.field.signi.some(s => s?.at(-1) === oppSigni), '当たり＝対象は場に残る');
+  ok(hit.ownerState.trash.includes(whiteCard), '当たりでも選んだカードは捨てる');
+  // 🔴自分のシグニは一切減らない（旧実装は `BANISH{owner:'self'}` で自分を撃っていた）
+  ok(miss.ownerState.field.signi.some(s => s?.at(-1) === source), '自分のシグニは減らない');
+}));
 // ── USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)「それをコストを支払わずに使用するかトラッシュに置く」）──
 // 🔴回帰ガード＝従来は先頭の「トラッシュに《リカブト》がある場合、デッキから《バイオレンス・スプラッシュ》
 //    を探す」節ごと catch-all `STUB{CONDITIONAL_POWER_BONUS}` に飲まれ、**サーチも使用も一度も走らなかった**。
