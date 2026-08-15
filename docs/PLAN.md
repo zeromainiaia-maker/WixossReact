@@ -637,6 +637,14 @@
 - `STUB{REVEAL_PICK_HAND_SHUFFLE_BOTTOM}` 5効果＝2026-08-12 に実測したところ**全件 `revealPickParams` が完備**（枚数・行き先・filter・二段ピック）で、`REVEAL_PICK_PLAY` のような原文再parse依存ではない。**対象外。**
 
 **■ 消化済み**
+> ✅**O-3 の `DEFERRED_EXTRA_ATTACK_PHASE`（2）／`_SELF_RESTRICT_THIS_TURN`（2）／`_UNPARSED_NEXT_OPP_TURN_CLAUSE`（1）＝2026-08-15 続き488 で解体**（O-3 自体は継続）。**8効果の挙動是正**（過剰実行4＋恒久 no-op2＋対象取り違え2）。
+> 🔑**「遅延タイミング宣言」の後続文を即時実行しない**＝「追加のアタックフェイズを加える。**この方法で加えたアタックフェイズの開始時**、〜」「**次の対戦相手のアタックフェイズ開始時**、〜」は、文単位に切ると本文が後続ステップとして並び**宣言した瞬間に走る**。`ADD_EXTRA_ATTACK_PHASE.onStart` へ畳み込む（機構あり）か、後続ステップを落とす（機構なし＝過少側）。
+> 🔑**フェイズを増やす機構は「次のフェイズを決める1点」に置く**＝`resolveNextPhaseAfterAttack` が遷移先の決定と**キューの減算**を同じ戻り値で返す（別分岐にすると減らし忘れ＝無限ループ／減るのに進まない＝不発のどちらかになる）。⚠CPU 経路は `SET_TURN_PHASE` しか commit できず state を書けないので**通さない**（母集団2枚とも CPU は能動使用しない＝安全側の近似・O-1 で解消）。
+> 🔑**「支払えない」系は「支払い元を作る側」に載せる**＝`buildEnergyPayPool` が空配列を返せば、`canAffordGrowCost`／`canAffordWithExtraCost` は**エナ1以上のコストだけ**が false になり《色×0》は通る＝原文の「１以上のエナコストを支払えない」がそのまま出る。14本のモーダルに検算を撒かない。
+> 🔴**`ADD_TO_FIELD` は `source` が無いと engine で「デッキの一番上」を場に出す**（`execAddToField` の `!src` 分岐）＝「それらを場に出し」の参照先が明示 defer なら、この配置は**無関係なシグニを増やす過剰実行**にしかならない（`WX22-010-E3`）。
+> 🔴**対象選択を挟む経路（`applyDirectAction`）にも同じ delta 解決を入れる**＝`execPowerModify` 側だけ `deltaFromZone` を解くと、選択UIを通る対象では `resolveNum(0)` に潰れて**無言でパワー±0**になる（実装中に踏んだ）。
+> 🔑**`STUB{OPTIONAL_COST}` のような「ハンドラ持ちの汎用 id」に落ちた文は `census:stubs` に映らない**＝`SPK01-10-E1` の「ターン終了時、それらをエナゾーンからトラッシュに置く」は**丸ごと no-op** なのに A群に出ていなかった。専用 id（`TRASH_ENERGY_AT_TURN_END`）へ寄せて実装した。
+> **一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15（続き488）。**
 > ✅**O-3 の `DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE`（5効果）／`_THIS_AND_NEXT_TURN_CLAUSE`（4効果）＝2026-08-15 続き487 で解体**（O-3 自体は継続＝上の worklist 行）。**7効果の挙動是正**（恒久 no-op 5＋所有者/期間の取り違え1＋永続化バグ1）。
 > 🔑**配置禁止も「課した側」ではなく「場に出す側」の state に載せる**＝`signi_deploy_bans`。判定は既存 `deployLimitBlockReason` の1本（通常召喚UI／召喚ゾーンモーダル／CPU 召喚／engine の効果配置の**4経路すべてが通る** funnel）＝1行足すだけで全経路に効く。**寿命は `turnsRemaining` のカウントダウン**（`_this_turn` の1ターン失効レジストリでは「このターンと次のターン」を表せない）。
 > 🔴**`signi_deploy_power_limit` は「このターンと次のターン」と型に書いてあるのに、リセット地点が1つも無く永続していた**＝一度掛かるとゲーム終了までパワーN以上を出せない。ban ストアへ `powerGte` として統合して解消。**「期間つき」と書いてあるフィールドは必ず失効地点を実測すること。**
