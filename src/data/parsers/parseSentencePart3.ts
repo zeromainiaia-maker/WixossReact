@@ -2019,6 +2019,33 @@ export function parseSentencePart3(t: string): EffectAction | null {
     if (/ルリグタイプを追加で得る/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_GAIN_OPP_LRIG_TYPE' } as StubAction;
     }
+    // 「この(シグニ|ルリグ)のパワーを〈あなた|対戦相手〉のエナゾーンにある〈＜X＞の〉カード１枚につき＋N する」
+    // （`WX26-CP1-066-E1`・§6.4 O-3）＝枚数比例の**期間つき**パワー修正。
+    // ⚠常在の `POWER_MODIFY_PER_ENERGY` は使えない（CONTINUOUS 専用・クラス filter 無し・期間なし）。
+    //   `deltaFromZone`（`resolveCountRef` の枚数×per）で表す。期間は下流の `upgradeToOppTurnEnd` が
+    //   `UNTIL_OPP_TURN_END` へ上げるが、意図を明示するためここで直接書く。
+    {
+      const perEnergy = t.match(
+        /^次の対戦相手のターン終了時まで、この(シグニ|ルリグ)のパワーを(あなた|対戦相手)のエナゾーンにある(?:＜([^＞]+)＞の)?カード[１1]枚につき([＋－+-])([０-９\d]+)する$/);
+      if (perEnergy) {
+        const [, kind, whose, story, sign, amount] = perEnergy;
+        const per = (sign === '＋' || sign === '+' ? 1 : -1) * parseNum(amount);
+        return {
+          type: 'POWER_MODIFY',
+          target: kind === 'ルリグ'
+            ? { type: 'LRIG', owner: 'self', count: 1, filter: { thisCardOnly: true } }
+            : { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+          delta: 0,
+          deltaFromZone: {
+            zone: 'energy',
+            owner: whose === '対戦相手' ? 'opponent' : 'self',
+            ...(story ? { filter: { story } } : {}),
+            per,
+          },
+          duration: 'UNTIL_OPP_TURN_END',
+        } as EffectAction;
+      }
+    }
     return { type: 'STUB', id: 'DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE' } as StubAction;
   }
 
