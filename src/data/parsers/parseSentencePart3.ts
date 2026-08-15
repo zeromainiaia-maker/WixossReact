@@ -1684,14 +1684,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ---- その後、デッキをシャッフルし、それをコストを支払わずに使用する**か**トラッシュに置く ----
   // （§6.4 O-34(b)・`WX20-077-E2`）＝**使うか捨てるかの二択**。⚠下の強制版より**先**に置く
   //   （下の regex は前方一致なのでこの文も食い、選択肢なしで必ず使用してしまう）。
+  // ⚠シャッフル自体は直前の `SEARCH.afterSearch` が持つ（サーチ族の共通形）ので、ここでは二重に積まない。
   if (t.match(/デッキをシャッフルし、(?:それ|そのカード)をコストを支払わずに使用するかトラッシュに置く/)) {
-    return {
-      type: 'SEQUENCE',
-      steps: [
-        { type: 'SHUFFLE_DECK', owner: 'self' } as EffectAction,
-        { type: 'STUB', id: 'USE_SEARCHED_SPELL_OR_TRASH' } as StubAction,
-      ],
-    } as SequenceAction;
+    return { type: 'STUB', id: 'USE_SEARCHED_SPELL_OR_TRASH' } as StubAction;
   }
   // ---- その後、デッキをシャッフルし、それをコストを支払わずに使用する ----
   if (t.match(/デッキをシャッフルし、(?:それ|そのカード)をコストを支払わずに使用する/)) {
