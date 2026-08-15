@@ -20,7 +20,8 @@ export type DeployBlockReason =
   | 'COUNT_LIMIT'  // 「シグニをN体までしか場に出すことができない」（AUTO フラグ or CONTINUOUS）
   | 'POWER_LIMIT'  // 「パワーN以上のシグニを新たに場に出せない」
   | 'NAME_BAN'     // 「それと同じ名前のシグニを新たに場に出せない」（signi_deploy_bans）
-  | 'SOURCE_BAN';  // 「自分の、シグニとスペルの効果によってシグニを新たに場に出せない」（同上）
+  | 'SOURCE_BAN'   // 「自分の、シグニとスペルの効果によってシグニを新たに場に出せない」（同上）
+  | 'ALL_BAN';     // 「このターン、あなたは他のシグニを場に出せない」＝絞り込みキー無しの ban（同上）
 
 /**
  * その配置が「どうやって場に出されるか」。`signi_deploy_bans.bySource` の判定だけに使う。
