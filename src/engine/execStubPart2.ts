@@ -1004,9 +1004,15 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...removedLFDB, deck: [...removedLFDB.deck, srcCnLFDB] } },
       `${ctx.cardMap.get(srcCnLFDB)?.CardName ?? srcCnLFDB}をデッキ下へ`));
   }
-  // ルリグダメージ無効フラグを設定
-  if (stub.id === 'PREVENT_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_UNTIL_OPP_TURN_END'
-      || stub.id === 'PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN') {
+  // 「あなたはルリグによってダメージを受けない」の**宣言型**（§6.4 O-3 続き492）。
+  // ⚠🔴これは【常】＝場にあるかぎり有効なので、**state に1回きりのフラグを書いてはいけない**
+  //   （書くと1回防いだ時点で消え、以後は素通りする）。判定は `isLrigDamagePrevented` が
+  //   effectsMap から宣言を読む（シグニ／ルリグ／アシスト／キーを走査する）。
+  if (stub.id === 'PREVENT_LRIG_DAMAGE') {
+    return done(addLog(ctx, 'ルリグダメージ無効（【常】宣言・判定は isLrigDamagePrevented）'));
+  }
+  // 期間つき版は `PREVENT_DAMAGE{scope:'LRIG'}` へ移行済み（続き492）。旧 id は手パッチ JSON 互換で残す。
+  if (stub.id === 'PREVENT_DAMAGE_UNTIL_OPP_TURN_END' || stub.id === 'PREVENT_LRIG_DAMAGE_UNTIL_NEXT_TURN') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_lrig_damage: true } },
       'このターンルリグダメージ無効'));
   }
