@@ -3914,8 +3914,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
           appendBattleLogs(['エナフェイズ開始ドロー（このゲーム）']);
         }
-        // HASTARLIQ: MAIN→ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
-        if (phase === 'MAIN' && (op.hastarliq_zones ?? []).length > 0) {
+        // HASTARLIQ: →ATTACK_ARTS移行時、相手の hastarliq_zones があれば発動
+        // ⚠`phase !== 'ATTACK_LRIG'` で「追加のアタックフェイズ」の2周目を除外する
+        //   （従来の `phase === 'MAIN'` 判定と等価。メインフェイズがスキップされた場合だけ挙動が変わる）。
+        if (nextPhase === 'ATTACK_ARTS' && phase !== 'ATTACK_LRIG' && (op.hastarliq_zones ?? []).length > 0) {
           const opKey = isHost ? 'guest_state' : 'host_state';
           const turnPlayerId = bs.active_user_id ?? user.id;
           const hlEntries: StackEntry[] = (op.hastarliq_zones ?? []).map(zi => ({
