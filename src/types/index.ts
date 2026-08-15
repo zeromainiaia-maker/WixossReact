@@ -172,6 +172,11 @@ export interface SigniAttackBan {
   cardNums?: string[];
   /** 《無》×N を支払えばアタックできる。払えないときだけ禁止になる。 */
   unlessPayColorless?: number;
+  /**
+   * 手札をN枚捨てればアタックできる（「手札をN枚捨てないかぎりアタックできない」）。
+   * ⚠**アタックするごとに**払う（1回きりの `negated_attacks_escape` とは別物）＝ban は消費しない。
+   */
+  unlessPayHandDiscard?: number;
   /** ログ・アタックボタンに出す由来表示。 */
   label?: string;
 }
