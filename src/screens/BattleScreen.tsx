@@ -4997,9 +4997,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else if (inter.type === 'CHOOSE') {
         const choiceId = selectedOrChoiceId[0] ?? '';
         const opt = inter.options.find(o => o.id === choiceId);
-        if (inter.leaveSubstituteAsk) {
-          // §6.4 離場置換の可否（コスト無し）＝素の resumeChoose。⚠下の opponentResponds 分岐へ
-          //   落とすと `resumeOpponentPayOptional` が「エナ不足」で即終了し**無言で潰れる**。
+        if (inter.leaveSubstituteAsk || inter.costlessOpponentChoice) {
+          // §6.4 離場置換の可否／カード名の宣言（どちらもコスト無し）＝素の resumeChoose。
+          //   ⚠下の opponentResponds 分岐へ落とすと `resumeOpponentPayOptional` が「エナ不足」で
+          //   即終了し**無言で潰れる**。
           result = resumeChoose(choiceId, inter, ctx);
         } else if (inter.opponentResponds) {
           // 対戦相手払い選択: resumeOpponentPayOptional で otherState のエナを消費
