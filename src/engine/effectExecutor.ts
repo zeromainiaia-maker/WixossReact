@@ -7417,7 +7417,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // 期間中のダメージ無効ウィンドウを張る（回数無制限）。消費は BattleScreen の crashOneLife／ルリグアタック応答。
       const pd = action as import('../types/effects').PreventDamageAction;
       const scopePD = pd.scope ?? (pd.until === 'NEXT_TURN' ? 'LRIG' : 'ALL');
-      const expiresPD = pd.until === 'NEXT_TURN' ? 'NEXT_TURN_START' : 'MY_TURN_END';
+      // §6.4 O-3 続き492: 「次のあなたのメインフェイズまで」はターン境界を跨ぐ（相手のターンを丸ごと含む）。
+      const expiresPD = pd.untilNextMainPhase ? 'MY_NEXT_MAIN_PHASE'
+        : pd.until === 'NEXT_TURN' ? 'NEXT_TURN_START' : 'MY_TURN_END';
       const tgtOwnerPD: Owner = pd.owner === 'opponent' ? 'opponent' : 'self';
       const sPD = ownerState(tgtOwnerPD, ctx);
       const newSPD: PlayerState = {
