@@ -17,6 +17,8 @@ function banMatches(
   effectivePower: number | undefined,
 ): boolean {
   if (ban.cardNums && !ban.cardNums.includes(attackerNum)) return false;
+  // 「選んだシグニ**以外**でアタックできない」＝除外リストに載っていないものだけ止める（§6.4 O-3）。
+  if (ban.exceptCardNums && ban.exceptCardNums.includes(attackerNum)) return false;
   if (ban.level !== undefined) {
     const lv = parseInt(cardMap.get(attackerNum)?.Level ?? '', 10);
     if (!Number.isFinite(lv) || lv !== ban.level) return false;
