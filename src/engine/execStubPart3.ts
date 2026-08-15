@@ -4247,6 +4247,20 @@ export function execStubPart3(
       `ターン終了時にトラッシュ予定: ${targets.map(n => ctx.cardMap.get(n)?.CardName ?? n).join(', ')}`));
   }
 
+  // TRASH_ENERGY_AT_TURN_END: ターン終了時に lastProcessedCards を**エナゾーンから**トラッシュへ（SPK01-10）。
+  // ⚠`ENERGY_CHARGE_FROM_DECK` は置いたカードを `lastProcessedCards` に残すので、そのまま予約に使える。
+  if (stub.id === 'TRASH_ENERGY_AT_TURN_END') {
+    const targetsTEATE = ctx.lastProcessedCards ?? [];
+    if (targetsTEATE.length === 0) return done(addLog(ctx, 'ターン終了時エナトラッシュ対象なし'));
+    const existingTEATE = ctx.ownerState.turn_end_energy_trash_targets ?? [];
+    const newOwnerTEATE = {
+      ...ctx.ownerState,
+      turn_end_energy_trash_targets: [...new Set([...existingTEATE, ...targetsTEATE])],
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerTEATE },
+      `ターン終了時にエナゾーンからトラッシュ予定: ${targetsTEATE.map(n => ctx.cardMap.get(n)?.CardName ?? n).join(', ')}`));
+  }
+
   // DRAW_AT_TURN_END: このターン終了時にカードをN枚引く予約（場を離れても引く。WXK01-054/089）
   if (stub.id === 'DRAW_AT_TURN_END') {
     const nDATE = typeof stub.value === 'number' ? stub.value : 1;
