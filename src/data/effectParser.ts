@@ -9573,6 +9573,22 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 遅延タイミング宣言（「次の対戦相手のアタックフェイズ開始時、〜」）が**明示 defer** のとき、
+  // その後ろの文は**すべてその時点で起きる本文**なので、いま実行してはいけない（§6.4 O-3）。
+  // 🔴`SPDi43-24-E2` は `SEQUENCE[STUB{DEFERRED…}, NEGATE_ATTACK]` で、**使った瞬間に相手のアタックを
+  //   1回無効化**していた（原文は「次の相手アタックフェイズ開始時に対象を取り、そのターンそれがアタック
+  //   したとき、相手が手札3枚を捨てないかぎり無効」＝タイミングも条件も別物）。
+  // ⚠機構が入ったら `onStart` 相当のペイロードへ移すこと（`ADD_EXTRA_ATTACK_PHASE` と同じ形）。
+  {
+    const shiftIdx = steps.findIndex(st =>
+      st?.type === 'STUB' && (st as StubAction).id === 'DEFERRED_NEXT_OPP_ATTACK_PHASE_START');
+    if (shiftIdx >= 0 && shiftIdx < steps.length - 1) {
+      const kept = steps.slice(0, shiftIdx + 1);
+      steps.length = 0;
+      steps.push(...kept);
+    }
+  }
+
   if (steps.length === 1) return steps[0];
   return { type: 'SEQUENCE', steps };
 }
