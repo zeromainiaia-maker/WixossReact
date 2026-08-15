@@ -2719,6 +2719,7 @@ function actionJa(a?: Action, effectType?: string): string {
         // 明示 defer（§6.4 O-3・続き459）＝parser の**未パース節の受け皿**。旧 id `LRIG_GROW_RESTRICT`
         // （＝原文と無関係な「グロウ制限」）に相乗りしていたため、`census:stubs` が「実装あり」と誤分類し
         // 真 no-op が計器から消えていた。日本語表示にして逆翻訳でも「何が落ちているか」が読めるようにする。
+        EXILE_CRAFTS_RESET_ZONES_AND_DRAW: '各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにあるすべてのクラフトをゲームから除外し、残りをすべてデッキに加えてシャッフルし、カードを引く',
         DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE: '【未実装】「このターン、対戦相手は…」の制限節（アタック制限・支払い条件など）',
         // 明示 defer（§6.4 O-3）＝上の受け皿から**機構ごとに切り出した**残り3件。
         // ⚠1つの受け皿に混ぜると census:stubs から「何が残っているか」が読めない（続き459 と同じ理由）。

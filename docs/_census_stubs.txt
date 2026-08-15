@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 604（総ノード 2870 件）
+live JSON の STUB id 種類 : 605（総ノード 2871 件）
 逆翻訳シートの [STUB:…] 総数: 783  うち生ID露出 276 箇所（187 種）
 
 ■ 仕分け結果
@@ -10,7 +10,7 @@ live JSON の STUB id 種類 : 604（総ノード 2870 件）
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 175 種 / 262 箇所
-  D 健全（実装あり＋日本語表示）                          : 402 種
+  D 健全（実装あり＋日本語表示）                          : 403 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 314 種
 
 ==============================================================================
@@ -54,7 +54,7 @@ live JSON の STUB id 種類 : 604（総ノード 2870 件）
         生成: src\data\parsers\parseSentencePart4.ts:1756
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3067
+        生成: src\data\parsers\parseSentencePart1.ts:3076
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4825
