@@ -1690,7 +1690,8 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.unlessPayHandDiscard) {
         return `このターン、${whoAB}は手札を${a.unlessPayHandDiscard}枚捨てないかぎり${scopeAB}シグニでアタックできない（アタックするごとに捨てる）`;
       }
-      return `このターン、${whoAB}は${scopeAB}シグニでアタックできない`
+      // ⚠期間（`turns:2`＝次の対戦相手のターン）まで出す（§6.4 O-4）。
+      return `${a.turns === 2 ? '次の対戦相手のターンの間、' : 'このターン、'}${whoAB}は${scopeAB}シグニでアタックできない`
         + (a.unlessPayColorless ? `（《無》×${a.unlessPayColorless}を支払えばアタックできる）` : '');
     }
     case 'SIGNI_DEPLOY_BAN': {
@@ -1718,6 +1719,17 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'DELAY_TO_NEXT_OPP_TURN_END':
       // 「次の対戦相手のターン終了時、〈本文〉」（§6.4 O-3・上の兄弟）
       return `次の対戦相手のターン終了時、${actionJa(a.action)}`;
+    case 'DELAY_TO_NEXT_OWN_TURN_END':
+      // 「次のあなたのターン終了時、〈本文〉」（§6.4 O-4）
+      return `次のあなたのターン終了時、${actionJa(a.action)}`;
+    case 'REVEAL_BOTH_DECK_TOPS':
+      // ⚠比較の帰結まで出す（片方だけだと「必ず起きる」との違いが逆翻訳に映らない）。
+      return 'あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。'
+        + `どちらも【ライフバースト】を持っているかどちらも持っていない場合、${actionJa(a.matchAction)}`;
+    case 'DECLARE_DECK_TOP_ICON':
+      return `対戦相手は${a.deckOwner === 'opponent' ? '対戦相手' : 'あなた'}のデッキの一番上のカードが`
+        + `《${a.icon}アイコン》を持つか持たないかを宣言する。デッキの一番上を公開する。`
+        + `宣言が外れた場合、${actionJa(a.onWrongAction)}`;
     case 'PLACE_FACEDOWN_LRIG_ZONE': {
       const nPF = a.count ?? 1;
       const whoPF = a.owner === 'opponent' ? '対戦相手' : 'あなた';

@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 596（総ノード 2867 件）
-逆翻訳シートの [STUB:…] 総数: 769  うち生ID露出 271 箇所（185 種）
+逆翻訳シートの [STUB:…] 総数: 774  うち生ID露出 276 箇所（191 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 20 種 / 22 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 20 種 / 22 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 257 箇所
-  D 健全（実装あり＋日本語表示）                          : 403 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 174 種 / 257 箇所
+  D 健全（実装あり＋日本語表示）                          : 402 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 325 種
 
 ==============================================================================
@@ -37,13 +37,13 @@ live JSON の STUB id 種類 : 596（総ノード 2867 件）
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4832
-     1件   1枚  DEFERRED_DECK_SIGNI_LEVEL_OVERRIDE_ALL
+     1件   1枚  DEFERRED_DECK_SIGNI_LEVEL_OVERRIDE_ALL  [生ID露出 1]
         カード: WXK07-034
         生成: src\data\parsers\parseSentencePart4.ts:134
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
-     1件   1枚  DEFERRED_DECLARED_ICON_HAND_DISCARD_BANISH
+     1件   1枚  DEFERRED_DECLARED_ICON_HAND_DISCARD_BANISH  [生ID露出 1]
         カード: WXDi-P12-055
         生成: src\data\effectParser.ts:7830
      1件   1枚  DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT
@@ -56,13 +56,13 @@ live JSON の STUB id 種類 : 596（総ノード 2867 件）
         生成: src\data\manualEffects.ts:3683
      1件   1枚  DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
         カード: WXDi-P00-026
-     1件   1枚  DEFERRED_PER_OWN_LRIG_COLOR_SCALE
+     1件   1枚  DEFERRED_PER_OWN_LRIG_COLOR_SCALE  [生ID露出 1]
         カード: WX25-P3-050
         生成: src\data\effectParser.ts:7822
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
-     1件   1枚  DEFERRED_STRIP_ATTACHED_AND_UNDER
+     1件   1枚  DEFERRED_STRIP_ATTACHED_AND_UNDER  [生ID露出 1]
         カード: WX19-064
         生成: src\data\parsers\parseSentencePart4.ts:124
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
@@ -74,7 +74,7 @@ live JSON の STUB id 種類 : 596（総ノード 2867 件）
      1件   1枚  DEFERRED_UP_REARRANGED_MOVED_SIGNI
         カード: WX12-010
         生成: src\data\manualEffects.ts:1201
-     1件   1枚  DEFERRED_USE_SEARCHED_SPELL_OR_TRASH
+     1件   1枚  DEFERRED_USE_SEARCHED_SPELL_OR_TRASH  [生ID露出 1]
         カード: WX20-077
         生成: src\data\parsers\parseSentencePart4.ts:129
 
@@ -163,9 +163,6 @@ live JSON の STUB id 種類 : 596（総ノード 2867 件）
   露出  4箇所 (live 4件/3枚)  EXILE_SELF_AFTER_USE  [execStubPart3]
         カード: PR-378, SP36-001, WXK11-070
         既存コメント: EXILE_SELF_AFTER_USE: 使用後の既定配置を excluded に置換する。 使用中スペルは解決中どのゾーンにもいないため、未配置なら探索せず直接置換を記録する。 既に使用済みゾーンへ置かれるアーツ等は
-  露出  4箇所 (live 3件/3枚)  OPP_DECLARE_CHOICE  [execStubPart3]
-        カード: PR-K060, WX05-006, WX16-Re17
-        既存コメント: OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
   露出  4箇所 (live 6件/6枚)  PLACE_MAGIC_BOX  [execStubPart3]
         カード: WX24-P3-018, WX24-P3-067, WX24-P3-070, WX24-P3-072, WX24-P3-089, WX24-P4-064
         既存コメント: PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
@@ -184,6 +181,9 @@ live JSON の STUB id 種類 : 596（総ノード 2867 件）
   露出  3箇所 (live 3件/3枚)  MARK_SELF_DELAYED_EXILE  [execStubPart3]
         カード: WD22-035-G, WX16-040, WX21-Re06
         既存コメント: MARK_SELF_DELAYED_EXILE: この解決で実際に場へ戻った自身だけを遅延除外対象にする。
+  露出  3箇所 (live 3件/3枚)  OPP_DECLARE_CHOICE  [execStubPart3]
+        カード: PR-K060, WX05-006, WX16-Re17
+        既存コメント: OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
   露出  3箇所 (live 3件/3枚)  REVEAL_TOP_CONDITIONAL_ROUTE  [execStubPart3]
         カード: WX08-025, WX10-030, WXK05-021
         既存コメント: REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
@@ -463,6 +463,9 @@ live JSON の STUB id 種類 : 596（総ノード 2867 件）
   露出  1箇所 (live 1件/1枚)  LRIG_TRASH_KEY_TO_CENTER_UNDER  [execStubPart2]
         カード: WXK09-005
         既存コメント: LRIG_TRASH_KEY_TO_CENTER_UNDER: ルリグトラッシュのキーをセンタールリグの下に
+  露出  1箇所 (live 1件/1枚)  MARK_PLACED_DELAYED_EXILE  [execStubPart3]
+        カード: WXDi-P13-004A
+        既存コメント: MARK_PLACED_DELAYED_EXILE: この解決で**場に出したカード**（lastProcessedCards）を遅延除外対象にする （「この方法で場に出た《X》が場を離れる場合、代わりにゲームから除外さ
   露出  1箇所 (live 1件/1枚)  MAYU_ENCOUNTER_FLIP_AND_GROW  [engine別経路]
         カード: WXDi-P13-003A
   露出  1箇所 (live 1件/1枚)  MOVE_ACCE_TO_SIGNI  [execStubPart3]
