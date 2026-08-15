@@ -1,17 +1,17 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 597（総ノード 2872 件）
-逆翻訳シートの [STUB:…] 総数: 775  うち生ID露出 273 箇所（186 種）
+live JSON の STUB id 種類 : 589（総ノード 2860 件）
+逆翻訳シートの [STUB:…] 総数: 775  うち生ID露出 272 箇所（185 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 22 種 / 24 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 22 種 / 24 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 15 種 / 17 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 15 種 / 17 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 258 箇所
-  D 健全（実装あり＋日本語表示）                          : 402 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 322 種
+  D 健全（実装あり＋日本語表示）                          : 401 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 324 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -30,7 +30,7 @@ live JSON の STUB id 種類 : 597（総ノード 2872 件）
         生成: src\data\manualEffects.ts:4636
      1件   1枚  DEFERRED_CHARM_POWER_MINUS_MULTIPLIER  [生ID露出 1]
         カード: WX25-P2-103
-        生成: src\data\parsers\parseSentencePart4.ts:1846
+        生成: src\data\parsers\parseSentencePart4.ts:1863
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
         生成: src\data\parsers\parseSentencePart1.ts:3120
@@ -40,40 +40,19 @@ live JSON の STUB id 種類 : 597（総ノード 2872 件）
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
-     1件   1枚  DEFERRED_DECLARED_SPELL_NAME_LOCK
-        カード: PR-K046
-        生成: src\data\parsers\parseSentencePart3.ts:2022
      1件   1枚  DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT
         カード: WXDi-P07-010
         生成: src\data\manualEffects.ts:4123
-     1件   1枚  DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE  [生ID露出 1]
-        カード: WX22-010
-        生成: src\data\parsers\parseSentencePart4.ts:1897
      1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
-     1件   1枚  DEFERRED_GAIN_OPP_LRIG_TYPE
-        カード: WDK17-008
-        生成: src\data\parsers\parseSentencePart3.ts:2026
      1件   1枚  DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY  [生ID露出 1]
         カード: WXDi-P16-062
         生成: src\data\manualEffects.ts:3683
      1件   1枚  DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
         カード: WXDi-P00-026
-     1件   1枚  DEFERRED_NEXT_OPP_TURN_END_BODY
-        カード: WXDi-P09-066
-        生成: src\data\effectParser.ts:3009 / src\data\parsers\parseSentencePart1.ts:122
-     1件   1枚  DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK
-        カード: WXDi-P08-030
-        生成: src\data\parsers\parseSentencePart3.ts:2127
-     1件   1枚  DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK
-        カード: WXEX2-09
-        生成: src\data\parsers\parseSentencePart3.ts:2123
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
-     1件   1枚  DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT
-        カード: WDK07-Y07
-        生成: src\data\parsers\parseSentencePart4.ts:1397
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
         生成: src\data\manualEffects.ts:4647
@@ -95,10 +74,10 @@ live JSON の STUB id 種類 : 597（総ノード 2872 件）
         消費: src\engine\effectExecutor.ts:4054 / src\engine\effectExecutor.ts:4059
      5件   5枚  PREVENT_POWER_MODIFY_BY_OPP  [生ID露出 5]
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-        消費(ペイロードキー): src\engine\effectEngine.ts:1568
+        消費(ペイロードキー): src\engine\effectEngine.ts:1570
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:4706
+        消費: src\engine\effectEngine.ts:4709
      3件   3枚  GRANT_ALL_ZONE_LIFEBURST
         カード: WD14-001, WX02-002, WX17-036
         消費: src\screens\battle\allZoneBurst.ts:25
@@ -137,10 +116,10 @@ live JSON の STUB id 種類 : 597（総ノード 2872 件）
         消費: src\engine\effectExecutor.ts:3842
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1011 / src\screens\BattleScreen.tsx:10243
+        消費: src\screens\BattleScreen.tsx:1012 / src\screens\BattleScreen.tsx:10252
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:6754
+        消費: src\engine\effectEngine.ts:6757
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:43
@@ -166,8 +145,8 @@ live JSON の STUB id 種類 : 597（総ノード 2872 件）
   露出  4箇所 (live 4件/4枚)  CHOOSE_HAND_OR_ENERGY  [execStubPart3]
         カード: WX24-P1-025, WX24-P2-042, WXDi-CP01-004, WXDi-CP02-003
         既存コメント: CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
-  露出  4箇所 (live 4件/4枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
-        カード: WX13-003, WXEX2-44, WXDi-P08-030, WXK06-028
+  露出  4箇所 (live 3件/3枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
+        カード: WX13-003, WXEX2-44, WXK06-028
         既存コメント: CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
   露出  4箇所 (live 4件/3枚)  EXILE_SELF_AFTER_USE  [execStubPart3]
         カード: PR-378, SP36-001, WXK11-070

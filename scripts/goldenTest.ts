@@ -77,6 +77,7 @@ import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimi
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
+import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
 interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onExistingStack: boolean; fieldCountAdjust: number }
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
@@ -4200,15 +4201,18 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   const missingConvention = convention.filter(field => !registered.includes(field));
   const irregular = registered.filter(field => !convention.includes(field));
   // 25 → 26（§6.4 O-3 で extra_attack_phases_this_turn を追加）
-  eq(convention.length, 26, 'PlayerState の命名規約由来フィールド数');
+  // 26 → 27（§6.4 O-3 続き498 で arts_name_whitelist_this_turn を追加）
+  eq(convention.length, 27, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
   // 12 → 14（§6.4 O-3 続き489 で negated_attacks / negated_attacks_escape を追加＝永続バグの解消）
   // 14 → 16（§6.4 O-3 続き492 で lrig_base_limit_override / draw_phase_replacement を追加＝
   //          境界は turn-end ではなく **main-phase-start**＝「次のあなたのメインフェイズまで」）
-  eq(irregular.length, 16, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 42, '型由来26件＋命名規約外16件の母集団');
+  // 16 → 17（§6.4 O-3 続き498 で blocked_card_names を登録＝turn-end で**両プレイヤー**失効。
+  //          登録前はターンプレイヤー側しか手書きクリアされず、相手に課した分が1ターン長く残っていた）
+  eq(irregular.length, 17, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 44, '型由来27件＋命名規約外17件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {

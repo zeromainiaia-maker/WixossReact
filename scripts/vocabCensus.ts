@@ -734,7 +734,10 @@ const PATTERNS: Pattern[] = [
     // `ATTACK_BAN`＝§6.4 O-3 の `SIGNI_ATTACK_BAN`（「このターン、対戦相手は〈条件〉のシグニで
     // アタックできない」）。**この型で正しく表現した札が「アタックできない」だけを理由に高シグナルへ
     // 落ちていた**（続き486 で追加）。
-    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN'],
+    // `CARD_NAME_LOCK`＝§6.4 O-3 続き498 の `DECLARE_CARD_NAME_LOCK`（「宣言されたカード名のスペルを
+    // 使用できない」／「宣言したカード名以外のアーツを使用できない」）。受け皿 STUB を実装で置き換えると
+    // その効果が STUB バケツから出るので、**同時にここへキーを足さないと較正漏れで +N する**。
+    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN', 'CARD_NAME_LOCK'],
     // 「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition・eff.condition で表現）は
     // BLOCK/PREVENT ではなく condition で正しく表現される（extractUseCondition→parseUseCondition が LRIG_STORY／
     // SELF_POWER_GTE／HAS_CARD_IN_FIELD 等へ解析済み）。使用制限のみ（アタック/ガード/場に出せない等の効果制限を
