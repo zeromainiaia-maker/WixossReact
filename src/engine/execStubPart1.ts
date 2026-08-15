@@ -206,7 +206,9 @@ export function execStubPart1(
   //   【トラップ】／【マジックボックス】／【シード】も「そのシグニに付いているカード」ではなく
   //   ゾーンに設置された裏向きカードなので対象外。
   if (stub.id === 'STRIP_ATTACHED_AND_UNDER') {
-    const targetSAU = (ctx.storedTargetCards ?? ctx.lastProcessedCards ?? [])[0];
+    const targetSAU = stub.stripSelf
+      ? ctx.sourceCardNum
+      : (ctx.storedTargetCards ?? ctx.lastProcessedCards ?? [])[0];
     if (!targetSAU) return done(addLog(ctx, '付随物を剥がす対象なし'));
     const sideSAU = sideOfFieldCard(targetSAU, ctx);
     const stateSAU = ownerState(sideSAU, ctx);
