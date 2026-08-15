@@ -1888,8 +1888,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'IS_OPPONENT_TURN':      return true;
     // IS_BETTING: このアーツ/スペルでベットを宣言していたか（is_betting_this_effect）。
     // 「あなたがベットしていた場合、代わりに」の択一に使う（CONDITIONAL then=強化 / else=基本）。
-    case 'IS_BETTING':            return !!ctx.ownerState.is_betting_this_effect &&
-      (cond.minCoins == null || (ctx.ownerState.bet_coins_paid ?? 0) >= cond.minCoins);
+    case 'IS_BETTING': {
+      // negate=true は「ベットしていなかった場合」（`WD20-006-E1` の「次のあなたのターンをスキップする」）。
+      const betting = !!ctx.ownerState.is_betting_this_effect &&
+        (cond.minCoins == null || (ctx.ownerState.bet_coins_paid ?? 0) >= cond.minCoins);
+      return cond.negate ? !betting : betting;
+    }
     case 'IS_BOOSTING':           return !!ctx.ownerState.is_boosting_this_effect;
     case 'ANY_PLAYER_REFRESHED_THIS_TURN':
       return (ctx.ownerState.refresh_count_this_turn ?? 0) > 0
