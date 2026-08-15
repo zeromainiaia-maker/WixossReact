@@ -2572,6 +2572,12 @@ export interface StubAction {
   bounceOccupant?: boolean;
   /** DECLARE_NUMBER_PLAIN で提示する数字。省略時は従来どおり1～5。 */
   numberChoices?: number[];
+  /**
+   * STRIP_ATTACHED_AND_UNDER: 剥がす相手が**発生源シグニ自身**（「このシグニに付いているすべての
+   * カードと、下に置かれているすべてのカードを〜」＝`WXDi-P07-041-E2`）。省略時は
+   * `storedTargetCards`（＝直前の `SELECT_TARGET_ONLY` が確定した対象）を剥がす。
+   */
+  stripSelf?: boolean;
   /** TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 能力選択CHOOSEを跨いで保持する発動元シグニ。 */
   eichiAbilitySourceCardNum?: string;
   /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */
