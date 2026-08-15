@@ -7311,7 +7311,11 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         sab.targetsStored
           ? [...(ban.cardNums ?? []), ...(lrigBan?.cardNums ?? [])]
               .map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・') + 'は'
-          : 'シグニでは',
+          : sab.exceptTargetsStored
+            ? (ban.exceptCardNums?.length
+                ? ban.exceptCardNums.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・') + '以外のシグニでは'
+                : 'シグニでは')
+            : 'シグニでは',
       ].join('');
       const banOwner: Owner = sab.owner === 'opponent' ? 'opponent' : 'self';
       const banState = ownerState(banOwner, ctx);
