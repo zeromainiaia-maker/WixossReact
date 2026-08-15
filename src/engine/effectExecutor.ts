@@ -4634,10 +4634,12 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         if (elseDI) {
           const resElse = executeAction(elseDI, cur);
           if (!resElse.done) {
-            const remainingElse = a.steps.slice(i + 1);
-            const contElse: EffectAction | undefined = remainingElse.length > 0
-              ? (remainingElse.length === 1 ? remainingElse[0] : { type: 'SEQUENCE', steps: remainingElse })
-              : undefined;
+            // ⚠上と同じ規約＝内側が既に持っている continuation は**合成する**（上書きすると無言で消える）。
+            const innerElse = resElse.pending.continuation;
+            const chainElse: EffectAction[] = [...(innerElse ? [innerElse] : []), ...a.steps.slice(i + 1)];
+            const contElse: EffectAction | undefined = chainElse.length === 0 ? undefined
+              : chainElse.length === 1 ? chainElse[0]
+              : { type: 'SEQUENCE', steps: chainElse };
             return { ...resElse, pending: contElse ? { ...resElse.pending, continuation: contElse } : resElse.pending };
           }
           cur = { ...cur, ownerState: resElse.ownerState, otherState: resElse.otherState, logs: resElse.logs, lastProcessedCards: resElse.lastProcessedCards };
