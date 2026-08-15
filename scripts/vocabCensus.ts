@@ -458,6 +458,9 @@ const PATTERNS: Pattern[] = [
       'levelEqualsVar', 'SAME_', 'nameEq', 'nameMatchesAnyFieldSigni', 'fetchCardName',
       // namesFromTargets＝§6.4 O-3 の `SIGNI_DEPLOY_BAN`（「それと同じ名前のシグニを新たに場に出せない」）。
       // 対象のカード名を**実行時に焼き込む**指定で、同一性をこの型で正しく表現している（続き487 で追加）。
+      // levelFromLastProcessed＝§6.4 O-3 の `SIGNI_ATTACK_BAN`（「そのカードと同じレベルのシグニでアタックできない」）。
+      // 公開したカードのレベルを**実行時に焼き込む**指定（続き489 で追加）。`levelEq*` とは別綴り。
+      'levelFromLastProcessed',
       'namesFromTargets'], // nameEq*=バッチ5b（nameEqLastProcessed）・field name集合=第14波・fetchCardName=PR-470A 名指しフェッチ
   },
   {
