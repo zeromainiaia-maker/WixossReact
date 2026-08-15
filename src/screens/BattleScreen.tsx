@@ -40,7 +40,7 @@ interface Props {
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
-import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction } from './battle/growLogic';
+import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
@@ -5961,7 +5961,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           (e.action as import('../types/effects').StubAction).id === 'GROW_FROM_LEVEL0',
         ))) &&
       // CardClass 互換チェック
-      (!currentLrig || lrigClassesCompatible(currentLrig.CardClass, c.CardClass)) &&
+      // ⚠実効クラス＝印刷クラス＋**追加で得たルリグタイプ**（§6.4 O-3）。素の CardClass を見ると
+      //   「対戦相手のルリグタイプを得た」が**グロウ互換に一切効かない**無言 no-op になる。
+      (!currentLrig || lrigClassesCompatible(effectiveLrigClass(my, currentLrig.CardClass), c.CardClass)) &&
       // 【グロウ】条件チェック（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
       checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, battleCardMap) &&
       // グロウ色制限チェック（「青かつ黒のルリグにしかグロウできない」等）
@@ -5973,7 +5975,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     );
 
   // ルリグのクラス（制限チェック共通）
-  const lrigClass = currentLrig?.CardClass ?? '';
+  // ⚠「〇〇限定」の使用制限も**実効クラス**で見る（追加で得たルリグタイプを含む・§6.4 O-3）。
+  const lrigClass = effectiveLrigClass(my, currentLrig?.CardClass);
   const ignoreRestriction = (my.lrig_gained_types?.includes('__ignore_lrig_restriction__') ?? false) ||
     [my.field.lrig.at(-1), my.field.key_piece].filter(Boolean).some(cn =>
       (effectsMap.get(cn!) ?? []).some(e =>
@@ -10252,7 +10255,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (!c || c.Type !== 'ルリグ') return false;
           if (parseInt(c.Level) !== currentLevel + 1) return false;
           // CardClass 互換チェック（人間グロウ候補フィルタと同じ）: グロウ元と共通クラスが無ければ不可
-          if (currentLrigCard && !lrigClassesCompatible(currentLrigCard.CardClass, c.CardClass)) return false;
+          if (currentLrigCard && !lrigClassesCompatible(effectiveLrigClass(cpuSt, currentLrigCard.CardClass), c.CardClass)) return false;
           // 【グロウ】条件チェック（人間グロウと同じ）: ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限
           if (!checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard ?? undefined, battleCardMap)) return false;
           // 「このターン、あなたは１以上のエナコストを支払えない」（§6.4 O-3）＝CPU は `buildEnergyPayPool` を

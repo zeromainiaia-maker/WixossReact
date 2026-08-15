@@ -4105,8 +4105,9 @@ export function collectLrigNameAliases(
     }
   }
 
-  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム中全センタールリグが得たタイプ（PR-471等）
-  for (const t of (ownerState.lrig_gained_types ?? [])) {
+  // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE（恒久）／GAIN_LRIG_TYPE（期間つき・§6.4 O-3）で得たタイプ。
+  // ⚠2軸を別々に読まない＝`activeGainedLrigTypes` の1本にまとめてある。
+  for (const t of activeGainedLrigTypes(ownerState)) {
     if (!aliases.includes(t)) aliases.push(t);
   }
 
