@@ -51,6 +51,7 @@ import { resolveTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack, isPhaseSkipped } from './battle/attackStepPhase';
 import { resolveTurnHandover } from './battle/turnHandover';
+import { isLrigDamagePrevented } from './battle/lrigDamageShield';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
 import { GrowModal } from './battle/modals/GrowModal';
