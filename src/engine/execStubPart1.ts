@@ -195,6 +195,40 @@ export function execStubPart1(
   }
   // 盤面を変えない内部マーカー（SELECT_TARGET_ONLY の thenAction 等）。
   if (stub.id === 'INTERNAL_NOOP') return done(ctx);
+  // USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)・`WX20-077-E2`）:
+  // 「その後、デッキをシャッフルし、**それをコストを支払わずに使用するかトラッシュに置く**」＝
+  // 直前のサーチで見つけたカードを「タダで使う／トラッシュに置く」の二択にする。
+  // ⚠**近似**＝サーチ既定の `ADD_TO_HAND` で一度手札を経由する（「探して手に持つ」段階の専用ゾーンが無い）。
+  //   どちらを選んでも手札には残らない（使用＝トラッシュへ／不使用＝トラッシュへ）ので最終盤面は正しい。
+  // ⚠**「使わない」側は手札に残さない**＝残すと事実上の無条件サーチになる（原文より強い）。
+  if (stub.id === 'USE_SEARCHED_SPELL_OR_TRASH') {
+    const cnUSST = ctx.lastProcessedCards?.[0];
+    if (!cnUSST) return done(addLog(ctx, '探し当てたカードが無いため何も起きない'));
+    const nameUSST = ctx.cardMap.get(getCardNum(cnUSST))?.CardName ?? cnUSST;
+    return needsInteraction(ctx, {
+      type: 'CHOOSE', count: 1,
+      options: [
+        { id: 'use', label: `${nameUSST}をコストを支払わずに使用する`, available: true,
+          action: { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND_FREE', value: cnUSST } as StubAction as EffectAction },
+        { id: 'trash', label: `${nameUSST}をトラッシュに置く`, available: true,
+          action: { type: 'STUB', id: 'INTERNAL_TRASH_SEARCHED_CARD', value: cnUSST } as StubAction as EffectAction },
+      ],
+    });
+  }
+  // INTERNAL_TRASH_SEARCHED_CARD: `USE_SEARCHED_SPELL_OR_TRASH` の「使わない」枝。
+  // ⚠CHOOSE を跨ぐと `lastProcessedCards` が残らない経路があるため、対象は `value` で束縛して運ぶ。
+  if (stub.id === 'INTERNAL_TRASH_SEARCHED_CARD') {
+    const cnITSC = typeof stub.value === 'string' ? stub.value : ctx.lastProcessedCards?.[0];
+    if (!cnITSC) return done(addLog(ctx, 'トラッシュに置くカードが無い'));
+    const sITSC: PlayerState = {
+      ...ctx.ownerState,
+      hand: ctx.ownerState.hand.filter(n => n !== cnITSC),
+      deck: ctx.ownerState.deck.filter(n => n !== cnITSC),
+      trash: ctx.ownerState.trash.includes(cnITSC) ? ctx.ownerState.trash : [...ctx.ownerState.trash, cnITSC],
+    };
+    return done(addLog({ ...ctx, ownerState: sITSC, lastProcessedCards: [cnITSC] },
+      `${ctx.cardMap.get(getCardNum(cnITSC))?.CardName ?? cnITSC}をトラッシュに置いた`));
+  }
   // PER_OWN_LRIG_COLOR_SCALE（§6.4 O-34(d)）:「あなたの場にいる〈色〉のルリグ１体につき〈効果〉」＝
   // その色の自ルリグ体数だけ本体を繰り返す。
   // 🔑**数える対象はセンター＋アシスト2枠の最前面**（`lrigZoneTops`）＝「場にいるルリグ」の定義に揃える。
