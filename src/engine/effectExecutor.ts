@@ -7431,6 +7431,21 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return done(addLog(setOwnerState(tgtOwnerPD, newSPD, ctx),
         `${periodJaPD}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
     }
+    case 'ZONE_MOVE_IMMUNITY': {
+      // 「（このターンと次のターンの間、）対戦相手の効果によって〈ゾーン〉のカードは移動しない」
+      // （§6.4 O-3 続き493）。⚠**ターン数カウントダウン式**（`signi_deploy_bans` と同じ）＝
+      //   減算は `clearTurnEndScopedState` の1点だけ。旧実装は失効地点が無く永続していた。
+      const zmi = action as import('../types/effects').ZoneMoveImmunityAction;
+      const tgtOwnerZMI: Owner = zmi.owner === 'opponent' ? 'opponent' : 'self';
+      const sZMI = ownerState(tgtOwnerZMI, ctx);
+      const newZMI: PlayerState = {
+        ...sZMI,
+        opp_move_immunity: [...(sZMI.opp_move_immunity ?? []), { zones: zmi.zones, turnsRemaining: zmi.turns }],
+      };
+      const zonesJaZMI = zmi.zones.map(z => (z === 'hand' ? '手札' : 'エナゾーン')).join('と');
+      return done(addLog(setOwnerState(tgtOwnerZMI, newZMI, ctx),
+        `${zmi.turns >= 2 ? 'このターンと次のターンの間' : 'このターン'}、対戦相手の効果によって${zonesJaZMI}のカードは移動しない`));
+    }
     case 'SET_LRIG_BASE_LIMIT': {
       // 「（次のあなたのメインフェイズまで、）このルリグの基本リミットは N になる」（§6.4 O-3 続き492）。
       // ⚠**置換**なので `lrig_limit_mod`（加算）へ書かない＝`computeEffectiveLrigLimit` の basicOverride 層。
