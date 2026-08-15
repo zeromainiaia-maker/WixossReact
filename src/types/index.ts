@@ -762,6 +762,10 @@ export interface PlayerState {
   pending_opponent_attack_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string }>;
   // TRASH_AT_TURN_END: ターン終了時にフィールドからトラッシュに置くカードのインスタンスID一覧
   turn_end_field_trash_targets?: string[];
+  // TRASH_ENERGY_AT_TURN_END: ターン終了時に**エナゾーンから**トラッシュに置くカードのインスタンスID一覧
+  // （「ターン終了時、それらをあなたのエナゾーンからトラッシュに置く」＝`SPK01-10-E1`）。
+  // ⚠場トラッシュとはゾーンが違うだけなので消化地点は同じ turn-end funnel に並べる。
+  turn_end_energy_trash_targets?: string[];
   // DRAW_AT_TURN_END: このターン終了時に引くカード枚数（場を離れても引く。WXK01-054/089）。ターン終了時に消化してクリア
   turn_end_draw_count?: number;
   // エンドフェイズの「ターン終了時に」効果（①）を doPhaseAdvance で解決済みであることを示す一時マーカー。
