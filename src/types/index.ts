@@ -465,6 +465,14 @@ export interface PlayerState {
   lrig_name_aliases?: string[];
   // GAIN_EXTRA_TURN: 追加ターンフラグ（BattleScreen側でターン終了時にチェック）
   extra_turn?: boolean;
+  /**
+   * `SKIP_NEXT_TURN`: **このプレイヤーの次のターンを丸ごと飛ばす**予約（`WD20-006-E1`・§6.4 O-3）。
+   * 消費は `resolveTurnHandover`（`src/screens/battle/turnHandover.ts`）1点＝ターン終了時に
+   * 「次のターンプレイヤーがこのフラグを持っていたら交代しない」で表す（`extra_turn` の裏返し）。
+   * ⚠**ターン境界を跨ぐ予約なので `turnScopedState` のリセット対象に入れない**
+   *   （入れると立てた次の瞬間に消える）。消費は上記1点だけ。
+   */
+  skip_next_turn?: boolean;
   // HAND_SIZE_INCREASE: 手札上限数（未設定 = デフォルト∞）
   hand_limit?: number;
   // このターン、手札のすべてのシグニが【ガード】を得る（GRANT_GUARD_ICON_HAND_SIGNI）
