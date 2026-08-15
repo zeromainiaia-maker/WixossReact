@@ -3845,6 +3845,28 @@ export function collectTurnTriggers(
     });
   }
 
+  // 追加のアタックフェイズ（§6.4 O-3）：「この方法で加えたアタックフェイズの開始時、〜」の本文。
+  // 予約はターンプレイヤー（myState）側にあり、`resolveNextPhaseAfterAttack` がフェイズ突入時に移している。
+  // ⚠**この timing は通常のアタックフェイズ開始でも走る**ので、`pending_*` が空なら何も積まない
+  //   （＝「追加したフェイズでだけ発火する」を予約の有無だけで表現する）。取り出しは STUB ハンドラ側。
+  if (timing === 'ON_ATTACK_PHASE_START') {
+    for (const pe of myState.pending_extra_attack_phase_start_effects ?? []) {
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: pe.sourceCardNum ?? '',
+        effectId: `EXTRA_ATTACK_PHASE_START:${pe.sourceCardNum ?? ''}`,
+        label: 'この方法で加えたアタックフェイズの開始時の効果',
+        effect: {
+          effectId: `EXTRA_ATTACK_PHASE_START:${pe.sourceCardNum ?? ''}`,
+          effectType: 'AUTO',
+          timing: ['ON_ATTACK_PHASE_START'],
+          action: { type: 'STUB', id: 'RESOLVE_EXTRA_ATTACK_PHASE_START' } as StubAction,
+          duration: 'INSTANT',
+          mandatory: true,
+        } as CardEffect,
+      });
+    }
+  }
+
   const ownAutoBlockedTurn = myState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO');
   // collectTurnTriggers はターンプレイヤー=自分が主体（isOwnerTurn: my=true / op=false）
   const myAbilitiesRemovedTurn = collectContinuousAbilitiesRemovedSigni(myState, opState, true, ctx.effectsMap, ctx.cardMap, '自');
