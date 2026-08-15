@@ -842,6 +842,7 @@ export type EffectAction =
   | DelayToNextOppTurnEndAction
   | PlaceFacedownLrigZoneAction
   | RevealFacedownLrigZoneAction
+  | ReturnFacedownLrigZoneToHandAction
   | PlayFreeFromTrashAction
   | PowerThresholdTrashAction
   | PowerFlipAction
