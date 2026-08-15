@@ -2204,6 +2204,32 @@ export interface FieldSigniToCheckZoneAction {
  *   （`meetsRestriction`）＝どちらも `/` 区切りを split する実装なので、
  *   `effectiveLrigClass` が印刷クラスと得たタイプを `/` で連結して両方に効かせる。
  */
+/**
+ * 「〈誰か〉がカード名1つを宣言し、〈期間〉その名前（か、その名前**以外**）のカードを使用できない」
+ * （§6.4 O-3）。母集団2枚を1語彙にまとめてある：
+ *  - `PR-K046-E1`＝自分がスペル名を宣言 → **次の対戦相手のターンの間**その名前のスペルを使えない（blacklist）
+ *  - `WXEX2-09-E3`＝**対戦相手が**カード名を宣言 → このターンその名前**以外**のアーツを使えない（whitelist）
+ *
+ * 判定は `cardNameUseBlocked` の1点（blacklist／whitelist の両軸をそこで合流させる）。
+ *
+ * ⚠**近似**＝宣言の候補は「宣言者が実際に知りうるカード名」に絞る（原文は任意のカード名）。
+ *   blacklist は封じられる側の**公開領域**（トラッシュ／エナ／ルリグデッキ）、
+ *   whitelist は宣言者**自身のルリグデッキ**から作る。隠された領域は覗かない。
+ */
+export interface DeclareCardNameLockAction {
+  type: 'DECLARE_CARD_NAME_LOCK';
+  /** 宣言する側。'opponent'＝「対戦相手はカード名1つを宣言する」。 */
+  declarer: Owner;
+  /** 使用を封じられる側。 */
+  target: Owner;
+  /** 封じる対象のカード種別。 */
+  cardType: 'スペル' | 'アーツ';
+  /** 'blacklist'＝宣言名を使えない／'whitelist'＝宣言名**以外**を使えない。 */
+  mode: 'blacklist' | 'whitelist';
+  /** 'THIS_TURN'／'NEXT_TURN'＝次の（封じられる側の）ターンの間。 */
+  until: 'THIS_TURN' | 'NEXT_TURN';
+}
+
 export interface GainLrigTypeAction {
   type: 'GAIN_LRIG_TYPE';
   /** タイプを得る側（現母集団は 'self' のみ）。 */
