@@ -1907,7 +1907,22 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 場のシグニをチェックゾーンに置く（§6.4 O-3・`WX22-010-E3` 1件）----
   // ⚠下の `TRAP_OPERATION` に落としてはいけない＝あちらは**デッキ／手札の1枚**を `field.check` へ置く
   //   別機構で、しかも実行時に**カード全文 regex**で分岐する（§6.4 O-20 の生き残り）。
-  //   「あなたのすべての＜遊具＞のシグニを」＝場の複数体を一時退避して戻す機構は未実装なので明示 defer。
+  // 🆕続き498＝`FIELD_SIGNI_TO_CHECK_ZONE` で往復（置く→場に出し直す）を1アクションに畳む。
+  //   ⚠原文の次文「その後、それらを場に出し、」は**この規則が飲み込む**＝チェックゾーンは経由地で、
+  //     置く側と戻す側を別アクションに割ると「それら」の照応先を運ぶ器が要る。
+  //     🔴従来は戻す側の文が**丸ごと脱落**したうえ置く側も受け皿 STUB だった＝往復ごと no-op。
+  {
+    const chkM = t.match(/^あなたの(?:すべての)?(?:＜([^＞]+)＞の)?シグニを(?:すべて)?チェックゾーンに置く$/);
+    if (chkM) {
+      return {
+        type: 'FIELD_SIGNI_TO_CHECK_ZONE',
+        target: {
+          type: 'SIGNI', owner: 'self', count: 'ALL',
+          filter: { cardType: 'シグニ', ...(chkM[1] ? { class: chkM[1] } : {}) },
+        },
+      } as EffectAction;
+    }
+  }
   if (/シグニを(?:すべて)?チェックゾーンに置く/.test(t))
     return { type: 'STUB', id: 'DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE' } as StubAction;
 
