@@ -1,5 +1,117 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き488・Opus 5）— §6.4 **O-3 の3クラスタ（5効果）を解体＝8効果の挙動是正**
+
+**過剰実行4件＋恒久 no-op 2件＋対象取り違え2件**。ゲート全緑（**golden 2012**＝+11・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0・lint 0 errors / 259 warnings）。
+live JSON changed **8カード**（`SPK01-10`／`PR-422`／`SPDi43-24`／`WX20-049`／`WX22-010`／`WX26-CP1-066`／`WXDi-P07-050`／`WXK06-026`。CSV 非改変）。
+`census:stubs` A群＝**無言 no-op 0 据置**、明示 defer **30種/35件 → 28種/31件**。
+
+### 在庫の実測（着手前）
+
+`DEFERRED_EXTRA_ATTACK_PHASE` 2／`DEFERRED_SELF_RESTRICT_THIS_TURN` 2／`DEFERRED_NEXT_OPP_ATTACK_PHASE_START` 2／
+`DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE` 1。続き486/487 と同じく**原文を並べてから設計**した。
+
+🔴**受け皿 id の件数では見えない壊れ方が主犯だった**＝STUB 自体は no-op でも、
+**同じ効果の「後続の文」が即時実行**されていた（下記①）。在庫表の件数だけを見ていると気付けない。
+
+### ① 「遅延タイミング宣言」の後続文が全部その場で走っていた（過剰実行3件）
+
+| カード | 原文の意図 | 修正前の live の挙動 |
+|---|---|---|
+| `WXK06-026-E1` | 追加アタックフェイズの**開始時**に全シグニをアップ | **メインフェイズ中に**全シグニがアップ（実質フリー再アタック） |
+| `WX22-010-E3` | 同上（＜遊具＞をチェックゾーンへ→場に出す→ルリグアップ） | 場出し（＝デッキトップ1枚）とルリグアップが**即時** |
+| `SPDi43-24-E2` | **次の相手アタックフェイズ開始時**に対象を取り、そのターンそれがアタックしたとき手札3枚を払わなければ無効 | 使った瞬間に相手シグニのアタックを1回無効化（タイミングも条件も別物） |
+
+原因＝文単位パーサが「この方法で加えたアタックフェイズの開始時、」「次の対戦相手のアタックフェイズ開始時、」を
+**ただのトリガー句として捨て**、本文を SEQUENCE の後続ステップとして並べていた。
+
+- 機構がある側（追加アタックフェイズ）＝`ADD_EXTRA_ATTACK_PHASE.onStart` へ**畳み込む**。
+- 機構が無い側（次の相手アタックフェイズ開始時）＝後続ステップを**落とす**（過少側に倒す）。
+  ⚠機構を入れるときは `onStart` と同じ形のペイロードへ移すこと。
+
+### ② 新機構 `ADD_EXTRA_ATTACK_PHASE`（「追加のアタックフェイズを加える」2枚）
+
+- 状態＝`extra_attack_phases_this_turn`（キュー）＋`pending_extra_attack_phase_start_effects`（開始時本文）。
+  どちらも `turnScopedState` に登録済み＝**ターンを跨がない**（未登録なら typecheck が落ちる）。
+- 🔑**遷移先の決定とキューの減算を同じ戻り値で返す**＝`resolveNextPhaseAfterAttack`（`attackStepPhase.ts`）。
+  別分岐にすると「減らし忘れ＝**無限ループ**」か「減るのに進まない＝不発」のどちらかになる。
+- 🔑`ON_ATTACK_PHASE_START` の収集判定を **`phase === 'MAIN'` → `nextPhase === 'ATTACK_ARTS'`** に変更。
+  変えないと**2周目の開始時トリガーが1つも走らない**。`ON_ATTACK_PHASE_END` は `phase === 'ATTACK_LRIG'` へ緩めた
+  （追加フェイズへ入る場合も、そのアタックフェイズは終了している）。
+- 開始時本文は collector が合成エントリを積み、STUB `RESOLVE_EXTRA_ATTACK_PHASE_START` が1件ずつ取り出して実行する
+  （`RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS` と同じ形）。
+- ⚠**CPU 経路は通していない**＝CPU の ATTACK_LRIG 遷移は `SET_TURN_PHASE` しか commit できず state を書けないため、
+  通すとキューが減らず**無限ループ**になる。母集団2枚（ルリグ【起】／スペル）は CPU が能動使用しない（§6.4 O-1）ので
+  現状は観測不能な近似。O-1 で CPU AI が拡張されたら state 込みのコミットへ揃える。
+
+### ③ 「このターン、あなたは〜できない」2件（`WXDi-P07-050-E3`／`SPK01-10-E1`）
+
+- **配置禁止**は続き487 の `SIGNI_DEPLOY_BAN` に**絞り込みキー無し**（＝全シグニ）で乗った。
+  `deployLimitBlockReason` に理由コード `ALL_BAN` を追加（`POWER_LIMIT` に潰すとログが嘘になる）。
+- **エナコスト支払い禁止**は新 `blocked_actions:'PAY_ENERGY_COST'`。
+  🔑**判定は「コストを比較する側」ではなく「支払い元を作る側」に載せる**＝`buildEnergyPayPool` が空配列を返せば
+  `canAffordGrowCost`／`canAffordWithExtraCost` は**エナ1以上のコストだけ** false になり《色×0》は通る
+  ＝原文の「**１以上の**エナコスト」がそのまま出る。14本の支払いモーダルに検算を撒かない。
+  CPU は pool を通らず `cpuSt.energy` を直読みするので、グロウ判定にだけ同じ関数（`isEnergyPayBlocked`）を当てた。
+- 🔴**併せて `WXDi-P07-050-E3` の盤面リセットも是正**＝所有者句の無い「**他のすべての**シグニをトラッシュに置く」は
+  **両者の場**（`WXEX2-51-E2`／`WX17-046-E3` の BANISH と同じ扱い）なのに `owner:'self'` かつ `excludeSelf` 無しで、
+  **自分の盤面だけを自分ごと**流していた。⚠`execTrash` は `owner:'any'` を `otherState` に潰す（BANISH と違い両側走査が無い）
+  ので、`WX04-043-E1`（MANUAL）と同じく**自分側／相手側の2ステップ**に分けた。
+
+### ④ 🔴「ハンドラ持ちの汎用 id」に落ちた文は `census:stubs` に映らない（`SPK01-10-E1`）
+
+「ターン終了時、それらを**あなたのエナゾーンから**トラッシュに置く」は、既存規則（「場から」しか見ない）に外れて
+`STUB{OPTIONAL_COST}` へ落ちていた＝**丸ごと no-op**（デッキから2枚エナチャージという利得だけが残り、対価が消えていた）。
+`OPTIONAL_COST` はハンドラを持つ id なので **A群（実装の穴）にも出ない**。
+専用 id `TRASH_ENERGY_AT_TURN_END` ＋ 新ストア `turn_end_energy_trash_targets` ＋ 純関数
+`resolveTurnEndEnergyTrash`（人間の turn-end 2経路＋CPU 1経路で共有）で実装した。
+
+### ⑤ `POWER_MODIFY.deltaFromZone` 新設（`WX26-CP1-066-E1`）
+
+「次の対戦相手のターン終了時まで、このシグニのパワーを**あなたのエナゾーンにある＜プリオケ＞のカード１枚につき**＋1000する」。
+常在の `POWER_MODIFY_PER_ENERGY` は CONTINUOUS 専用・クラス filter 無し・期間なしで使えないので、
+既存の `CountFromZone`（`resolveCountRef` の枚数×`per`）を `delta` の解決元として使えるようにした。
+
+- 🔴**対象選択を挟む経路にも同じ解決を入れる**＝`execPowerModify` だけに足したところ、選択UIを通る対象
+  （`thisCardOnly` を含む）では `applyDirectAction` 側の `resolveNum` が 0 に潰し**無言でパワー±0**になった。
+  **同じ値を2箇所で解いているなら両方直す。**
+
+### ⑥ 副産物＝「このシグニを場からトラッシュに置き、〜」の連用中止形（3効果）
+
+先頭動作が3通りに壊れていた（実測3効果）：
+
+- 🔴`WX20-049-E1`＝自己トラッシュが**丸ごと脱落**（対価なしでデッキサーチが走る過剰実行）。
+- 🔴`PR-422-E2`／`WX26-CP1-066-E1`＝`TRASH{SIGNI self 1}`（`thisCardOnly` 無し）＝
+  **自分の好きなシグニを選んで捨てる**選択UIに化けていた（原文は「このシグニ」固定）。
+
+前置を剥がして残りを再帰パースする規則1本で3件とも是正。副次的に `WX26-CP1-066-E1` は
+入れ子条件（「あなたの場に他の＜プリオケ＞のシグニがある場合」＝`HAS_CARD_IN_FIELD`）と
+`GAIN_LRIG_BARRIER`（従来は no-op の `GRANT_KEYWORD{keyword:'ルリグバリア'}`）まで正しく載った。
+⚠コスト節（【起】…：）は `：` の前で切られるのでこの規則には来ない（`WX25-P3-100`／`WXDi-CP02-099` は無関係）。
+
+### ⑦ 🔴`ADD_TO_FIELD` は `source` が無いと「デッキの一番上」を場に出す
+
+`execAddToField` の `!src` 分岐。`WX22-010-E3` の「その後、**それら**を場に出し」は参照先
+（チェックゾーンへ移したシグニ＝新設の明示 defer `DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE`）が作れないので、
+残すと**無関係なシグニが1体増える**。畳み込み時に `source` の無い `ADD_TO_FIELD` だけを落とした
+（同じ文の他の動作＝「このルリグをアップする」は残す）。
+
+### ⑧ 計器の較正（census 832 → 831）
+
+`ADD_EXTRA_ATTACK_PHASE` を「トリガー:アタックフェイズ開始時」の対応語彙に追加。
+STUB を実装で置き換えると `vocabCensus` が効果を別バケツから戻すため、その効果の他の語彙が高シグナルへ昇格する
+（続き486 以来の既知クラス）。本物の穴は無し。
+
+### 残（PLAN §6.4 O-3 の worklist へ）
+
+`NEXT_OPP_ATTACK_PHASE_START` 2（**即時実行は停止済み・遅延予約の機構だけが未実装**。受け皿は
+`pending_opponent_attack_facedown_returns`＋`ON_ATTACK_PHASE_START` collector と同じ形で作れる）／
+🆕`FIELD_SIGNI_TO_CHECK_ZONE` 1（場の複数シグニを一時退避して戻す機構）／その他8種。
+
+⚠**別件で見つけたが本セッションでは触っていない**＝`WX25-P3-100-E1`／`WXDi-CP02-099-E1` の
+**コスト節「このシグニを場からトラッシュに置き、」が live の cost に載っていない**（`energyTrash` だけ）。
+コスト側パーサの穴＝実質**無料で起動できる**。O-3 とは別系統なので在庫として記録する。
+
 ## 2026-08-15（続き487・Opus 5）— §6.4 **O-3 の「次の対戦相手のターン」「このターンと次のターン」2クラスタ（9効果）を解体＝7効果の挙動是正**
 
 **恒久 no-op 5件＋所有者/期間の取り違え1件＋永続化バグ1件**。ゲート全緑（**golden 2001**＝+4・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors）。

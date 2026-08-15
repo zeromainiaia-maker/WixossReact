@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-15・続き487・Opus 5）＝§6.4 **O-3 の「次の対戦相手のターン」「このターンと次のターン」2クラスタ（9効果）を解体＝7効果の挙動是正**（**恒久 no-op 5＋所有者/期間の取り違え1＋永続化バグ1**）。ゲート全緑（**golden 2001**＝+4・**census 831 据置**・lint 0/259）。
+  - **✅① 9件に7機構**＝続き486 と同じく**原文を並べてから設計**したところ、「〈条件〉のシグニを新たに場に出せない」3件が**既存 funnel にそのまま乗る**と分かった。新機構 `SIGNI_DEPLOY_BAN` は `deployLimitBlockReason`（通常召喚UI／召喚ゾーンモーダル／CPU 召喚／engine の効果配置の**4経路すべてが通る**）に1本足しただけ。⚠出自限定（「自分の、シグニとスペルの効果によって」）のため `placementSource` を**6箇所すべてで明示**した（省略＝出自不明＝掛けない＝過少側に倒す）。
+  - **🔴② 「期間つき」と書いてあるフィールドの失効地点を実測したら1つも無かった**＝`signi_deploy_power_limit`（「このターンと次のターン、パワーN以上のシグニを新たに場に出せない」）は**どの turn-end 経路でもクリアされておらず永続**していた。ban ストアへ `powerGte` として統合し寿命を一本化（専用フィールド削除）。**型コメントの期間を信用せず、失効地点を grep すること。**
+  - **🔴③ 文跨ぎ照応は `splitSentences` の直後で解決する**＝`WXEX2-19-E3`「次の対戦相手のターン、…。**そのターンの間**、シグニは可能ならばアタックしなければならない」が `FORCE_SIGNI_ATTACK{targetOwner:'self'}`＝**自分のシグニをこのターン強制アタック**という真逆になっていた。先行文が定めたターンを見て `^そのターンの間` を明示形へ書き換える1手で、既存規則がそのまま正しい木を出す。
+  - **⚠④ `parseCardEffects` の内側から `abilityBlockTextOf` を呼ぶと無限再帰する（新しい教訓）**＝③を最初「効果ごとの post-pass」で書いたところ **`build:effects` がハングした**。`getAbilityBlockTexts()` は内部で `parseCardEffects()` を呼び、**キャッシュは戻り値確定後に入る**ので再帰が止まらない。`inferTriggerScope` が安全なのは `buildEffectsMap`＝**parseCardEffects の外**から呼ばれているから。
+  - **🔑⑤ `USE_ACT` は流用しない**＝「対戦相手はルリグの【起】能力を使用できない」（`WX25-CP1-016-E2`）に既存 `USE_ACT` を使うと**シグニ・キー・付与も全部止まる**（過剰）。新 actionId `USE_LRIG_ACT` を足し、BattleScreen の**ルリグ【起】5サイト**だけで見る。期間は `blocked_actions` の `:NEXT_TURN` 予約にそのまま乗った。
+  - **🟡⑥ O-6（MANUAL 不可侵）を2枚ぶん解消**＝「追加でエクシードN を支払ってもよい」は engine 実装済みなのに **parser が一度も生成せず、live の12枚は全部手で MANUAL 化**されていた。規則1本で `WX25-P3-001`／`WX25-P3-009` を AUTO へ戻して採用。**残り10枚は通常の held フロー。**
+  - **📋⑦ 残り4形は固有 `DEFERRED_*` へ分割**＝`NEXT_OPP_TURN_MAIN_PHASE_SKIP`（`WXEX2-19`・**実装レシピを parser コメントに記載**）／`DECLARED_SPELL_NAME_LOCK`（`PR-K046`）／`GAIN_OPP_LRIG_TYPE`（`WDK17-008`①）／`NON_FIELD_ZONE_MOVE_IMMUNITY`（`WXK10-004`）。
+  - **▶ 次の一手**＝**O-3** の残13（A群が常時の在庫表。次は `EXTRA_ATTACK_PHASE` 2／`NEXT_OPP_ATTACK_PHASE_START` 2／`SELF_RESTRICT_THIS_TURN` 2＝**同じやり方で原文を並べてから設計する**）→ **O-4**（UNKNOWN 25ノード/25カード）→ **O-25 の残**。
+
 - **セッション（2026-08-15・続き486・Opus 5）＝§6.4 **O-3 の最大クラスタ「このターン、対戦相手は…」7効果を解体＝5効果の挙動是正**（**恒久 no-op 5件**・うち1件は数字宣言の**過剰実行**も同時是正）。ゲート全緑（**golden 1997**＝+7・**census 831 据置**・lint 0/259）。
   - **✅① 受け皿1つに5機構が混ざっていた**＝`DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE`（O-3 最大クラスタ・7効果/7枚）の原文を並べると、アタック制限（レベル／パワー条件）・アタック税（エナ／手札）・ダメージ無効・アーツ名ロック・強制アタック集合の**5機構**だった。**在庫の「件数」ではなく原文を読んでから設計する**と、4件は既存の土台に乗り、残り3件だけが本当に新UIを要るとわかる。
   - **🔑② 新機構 `SIGNI_ATTACK_BAN` は「禁止を受ける側」の state に載せた**＝`signi_attack_bans_this_turn`。既存 `opp_signi_attack_power_cap` は**課した側**に載っていて gate が defender を引き回していた。アタッカー側に寄せると (a)`signiAttackGate` が attacker だけを見れば済み、**人間ボタン／`performSigniAttack`／CPU 候補の3経路に同時に効く** (b)`_this_turn` 命名で `turnScopedState` の失効レジストリに**自動登録**（未登録なら typecheck が落ちる）。直った3枚＝`WX24-P4-039`（宣言レベル）／`WX25-P2-010`（表記外パワー）／`WX10-024`（《無》×3 を払わないかぎり「それ」はアタック不可）。
