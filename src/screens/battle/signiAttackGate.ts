@@ -3,7 +3,7 @@ import type { CardEffect } from '../../types/effects';
 import { calcContinuousBlockedActions, calcFieldPowers, type ContinuousBlockResult } from '../../engine/effectEngine';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost } from './attackFieldTrashCost';
 import { parsePowerVal } from './battleUtils';
-import { signiAttackBanColorlessCost, signiAttackBansNeedPower } from './signiAttackBan';
+import { signiAttackBanCost, signiAttackBansNeedPower } from './signiAttackBan';
 
 /**
  * シグニアタックの可否（ルール由来の軸だけ）を1か所で判定する純関数。
