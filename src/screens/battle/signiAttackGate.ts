@@ -78,7 +78,7 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   }
 
   // signi_attack_bans_this_turn: 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）
-  if ((attacker.signi_attack_bans_this_turn?.length ?? 0) > 0) {
+  if ((attacker.signi_attack_bans_this_turn?.length ?? 0) > 0 || contPay > 0) {
     // 実効パワー参照の ban が無ければパワー計算そのものを省く（毎ゾーン呼ばれる関数なので）。
     const banPower = signiAttackBansNeedPower(attacker)
       ? ((p.effectivePowers ?? calcFieldPowers(attacker, defender, true, effectsMap, cardMap, p.turnPhase)).get(attackerNum)
@@ -86,7 +86,8 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
       : undefined;
     const banCost = signiAttackBanCost(attacker, attackerNum, cardMap, banPower);
     if (banCost === null) return 'ATTACK_BAN';
-    if (banCost.colorless > 0 && attacker.energy.length < banCost.colorless + (attacker.signi_attack_cost ?? 0)) return 'ATTACK_BAN_COST';
+    const colorless = banCost.colorless + contPay;
+    if (colorless > 0 && attacker.energy.length < colorless + (attacker.signi_attack_cost ?? 0)) return 'ATTACK_BAN_COST';
     // 「手札をN枚捨てないかぎり」＝**アタックするごとに**払うので、毎回いまの手札で判定する。
     if (banCost.handDiscard > 0 && attacker.hand.length < banCost.handDiscard) return 'ATTACK_BAN_HAND_COST';
   }
@@ -106,4 +107,20 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
 
 export function canSigniAttack(p: SigniAttackGateInput): boolean {
   return signiAttackBlockReason(p) === null;
+}
+
+/**
+ * アタック宣言時に前払いする《無》の総額（`signi_attack_bans_this_turn` 由来 ＋ 【常】由来）。
+ * `null` なら解除できない禁止が掛かっている（＝どれだけ払っても不可）。
+ *
+ * ⚠**判定（`signiAttackBlockReason`）と引き落とし（`performSigniAttack`）は必ずこの1関数を見る**。
+ *   軸ごとに別々に足すと「判定は通るのに引き落としが0」＝タダでアタックできる穴になる
+ *   （続き494 でルリグ側の同じ穴を実際に踏んだ）。⚠支払い軸を増やすときもここに足す。
+ */
+export function signiAttackColorlessCost(p: SigniAttackGateInput): number | null {
+  const contBlocked = p.contBlocked
+    ?? calcContinuousBlockedActions(p.attacker, p.defender, true, p.effectsMap, p.cardMap);
+  const ban = signiAttackBanCost(p.attacker, p.attackerNum, p.cardMap, p.effectivePowers?.get(p.attackerNum));
+  if (ban === null) return null;
+  return ban.colorless + (contBlocked.cannotAttackSigniUnlessPayColorless.get(p.attackerNum) ?? 0);
 }
