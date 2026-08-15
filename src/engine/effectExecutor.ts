@@ -7135,13 +7135,15 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
     case 'GRANT_PLAYER_ABILITY': {
       const gp = action as import('../types/effects').GrantPlayerAbilityAction;
       if (!gp.abilities?.length) return done(ctx);
-      const existing = ctx.ownerState.game_granted_effects ?? [];
+      // ⚠**得る側は効果のオーナーとは限らない**（「対戦相手は以下の能力を得る」＝§6.4 O-4）。
+      //   落とすと相手に課すはずの不利益を自分が背負う裏返しになる。
+      const gpOwner: Owner = gp.targetOwner === 'opponent' ? 'opponent' : 'self';
+      const gpState = ownerState(gpOwner, ctx);
+      const existing = gpState.game_granted_effects ?? [];
       const existingIds = new Set(existing.map(e => e.effectId));
       const additions = gp.abilities.filter(e => !existingIds.has(e.effectId));
-      return done(addLog({
-        ...ctx,
-        ownerState: { ...ctx.ownerState, game_granted_effects: [...existing, ...additions] },
-      }, `プレイヤー付与能力（このゲームの間）: ${gp.rawText ?? additions.map(e => e.effectId).join(',')}`));
+      return done(addLog(setOwnerState(gpOwner, { ...gpState, game_granted_effects: [...existing, ...additions] }, ctx),
+        `${gpOwner === 'self' ? 'あなた' : '対戦相手'}のプレイヤー付与能力（このゲームの間）: ${gp.rawText ?? additions.map(e => e.effectId).join(',')}`));
     }
     case 'DRAW_PHASE_REPLACEMENT':
       return done(addLog(ctx, 'ドローフェイズの通常ドロー置換（フェイズ進行時に適用）'));

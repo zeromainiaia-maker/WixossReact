@@ -8023,6 +8023,18 @@ function parseActionTextInner(text: string): EffectAction {
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
+  // ---- 「このゲームの間、対戦相手は以下の能力を得る。『…』」＝**プレイヤー**への能力付与（§6.4 O-4 続き499）----
+  // 🔴放置すると引用の【自】本文（＝相手が毎ターン払う不利益）が**使った側にその場で1回だけ走る**
+  //   ＝主体もタイミングも裏返る（`WXDi-P11-002-E1`＝自分が手札2枚捨てる／エナ2枚トラッシュ／自シグニ1体トラッシュ）。
+  // ⚠**近似**＝原文の「まだ選んでいないもの１つを選ぶ」（選択済みを除外する累積制約）は未実装＝毎回3択から選べる（§7）。
+  {
+    const playerGrantM = text.match(/このゲームの間、(あなた|対戦相手)は以下の能力を得る。?[『「]([\s\S]+)[』」]/);
+    if (playerGrantM) {
+      return { type: 'GRANT_PLAYER_ABILITY', abilities: [], rawText: playerGrantM[2].trim(), permanent: true,
+        ...(playerGrantM[1] === '対戦相手' ? { targetOwner: 'opponent' as const } : {}) } as unknown as EffectAction;
+    }
+  }
+
   // ---- 「あなたのすべてのルリグは以下の能力を得る」（§6.4 O-4 続き499）----
   // 🔴放置すると引用の【起】が**即時実行**され、使った瞬間にトラッシュからの場出し＋相手シグニの
   //   バニッシュが走っていた（`WX24-P4-038-E1`＝引用付与の漏出。姉妹の `WXDi-P15-004-E1` は

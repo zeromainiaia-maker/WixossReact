@@ -2372,6 +2372,12 @@ export interface GrantPlayerAbilityAction {
   abilities: CardEffect[];
   rawText?: string;
   permanent: true;
+  /**
+   * 能力を得るプレイヤー（省略＝効果のオーナー）。'opponent'＝「対戦相手は以下の能力を得る」
+   * （`WXDi-P11-002-E1`・§6.4 O-4）。
+   * ⚠**落とすと能力が自分に付く**＝相手に課すはずの不利益を自分が背負う裏返しになる。
+   */
+  targetOwner?: Owner;
 }
 
 /** ドローフェイズで「1枚引く場合、代わりに2枚引く」置換。ルリグのCONTINUOUS能力として収集する。 */
