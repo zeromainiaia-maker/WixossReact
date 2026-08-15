@@ -3618,6 +3618,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             appendBattleLogs([`ターン終了時：${trashedTEFT.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}をトラッシュへ`]);
           }
         }
+        // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（TRASH_ENERGY_AT_TURN_END）
+        {
+          const et = resolveTurnEndEnergyTrash({ ...my, energy: myEnergyEND, trash: myTrashAfterCoinCheck });
+          if (et.trashed.length > 0) {
+            myEnergyEND = et.state.energy;
+            myTrashAfterCoinCheck = et.state.trash;
+            appendBattleLogs([`ターン終了時：${et.trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をエナゾーンからトラッシュへ`]);
+          }
+        }
         // turn_end_return_to_lrig_deck: 一時レゾナをルリグデッキへ戻す（§6.4 funnel＝2経路で同じ関数を通す）
         {
           const ret = resolveTurnEndLrigDeckReturn({ ...my, field: myFieldAfterCoinCheck });
