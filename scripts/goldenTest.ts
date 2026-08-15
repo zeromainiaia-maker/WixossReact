@@ -4195,11 +4195,13 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定38フィールドと f
   const registered = Object.keys(TURN_SCOPED_STATE_FIELDS).sort();
   const missingConvention = convention.filter(field => !registered.includes(field));
   const irregular = registered.filter(field => !convention.includes(field));
-  eq(convention.length, 25, 'PlayerState の命名規約由来フィールド数');
+  // 25 → 26（§6.4 O-3 で extra_attack_phases_this_turn を追加）
+  eq(convention.length, 26, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
-  eq(irregular.length, 11, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 36, '型由来25件＋命名規約外11件の母集団');
+  // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
+  eq(irregular.length, 12, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 38, '型由来26件＋命名規約外12件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
