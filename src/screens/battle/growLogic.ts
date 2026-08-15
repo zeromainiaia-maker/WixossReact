@@ -204,6 +204,37 @@ export function applyGrowEffect(
   return { state, log: null };
 }
 
+/**
+ * いま有効な「追加で得たルリグタイプ」（§6.4 O-3）。
+ *
+ * 恒久版（`lrig_gained_types`＝`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`）と期間つき版
+ * （`lrig_gained_types_timed`＝`GAIN_LRIG_TYPE`）を**1つの funnel** にまとめる。
+ * ⚠軸ごとに読み手を増やさない＝「片方の軸しか見ないゲート」が生まれて無言ですり抜ける。
+ */
+export function activeGainedLrigTypes(state: Pick<PlayerState, 'lrig_gained_types' | 'lrig_gained_types_timed'>): string[] {
+  const out = [...(state.lrig_gained_types ?? [])];
+  for (const g of state.lrig_gained_types_timed ?? []) {
+    if (g.turnsRemaining > 0 && !out.includes(g.lrigType)) out.push(g.lrigType);
+  }
+  return out;
+}
+
+/**
+ * センタールリグの**実効ルリグタイプ**＝印刷 CardClass ＋ 追加で得たタイプ（`/` 連結）。
+ * ⚠`lrigClassesCompatible` も `meetsRestriction` も `/` で split するので、この1本で両方に効く。
+ */
+export function effectiveLrigClass(
+  state: Pick<PlayerState, 'lrig_gained_types' | 'lrig_gained_types_timed'>,
+  printedClass: string | undefined,
+): string {
+  const gained = activeGainedLrigTypes(state).filter(t => !t.startsWith('__'));
+  const base = (printedClass ?? '').trim();
+  if (gained.length === 0) return base;
+  const parts = base ? base.split(/[/／]/).map(s => s.trim()).filter(Boolean) : [];
+  for (const g of gained) if (!parts.includes(g)) parts.push(g);
+  return parts.join('/');
+}
+
 // ルリグのグロウ互換性チェック: CardClass に共通する名前（"/"区切り、全角"／"もあり）が1つでもあれば true
 export function lrigClassesCompatible(fromClass: string, toClass: string): boolean {
   const fromSet = new Set(fromClass.split(/[/／]/).map(s => s.trim()).filter(Boolean));
