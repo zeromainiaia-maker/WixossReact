@@ -2021,7 +2021,17 @@ export function parseSentencePart3(t: string): EffectAction | null {
     if (/宣言されたカード名のスペルを使用できない/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_DECLARED_SPELL_NAME_LOCK' } as StubAction;
     }
-    // 「あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る」（`WDK17-008` choice①）。
+    // 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る」
+    // （`WDK17-008` choice①・§6.4 O-3 続き498）。
+    // ⚠期間は**この規則で焼き込む**＝下流の `upgradeToOppTurnEnd` は `duration` を持つ action 語彙
+    //   （POWER_MODIFY / GRANT_* 等）にしか効かず、この語彙は turnsRemaining 方式なので届かない。
+    //   2＝「次の対戦相手のターン終了時まで」（このターン終了＋相手ターン終了の2回で失効）。
+    if (/対戦相手のセンタールリグのルリグタイプを追加で得る/.test(t)) {
+      return {
+        type: 'GAIN_LRIG_TYPE', owner: 'self', from: 'opponent_center_lrig',
+        turns: /次の対戦相手のターン終了時まで/.test(t) ? 2 : 1,
+      } as EffectAction;
+    }
     if (/ルリグタイプを追加で得る/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_GAIN_OPP_LRIG_TYPE' } as StubAction;
     }
