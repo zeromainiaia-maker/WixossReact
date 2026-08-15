@@ -3964,7 +3964,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ON_ATTACK_PHASE_END（§6.3 J-4）: ATTACK_LRIG→END 移行時（アタックフェイズ終了時）トリガー。
         // ⚠`signi_left_field_this_attack_phase` はアタックフェイズ**開始時**にクリアするので、ここではまだ
         //   このアタックフェイズぶんの離場履歴が残っている＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` 条件が読める。
-        if (phase === 'ATTACK_LRIG' && nextPhase === 'END') {
+        // ⚠追加のアタックフェイズ（§6.4 O-3）へ入る場合も**そのアタックフェイズは終了している**ので、
+        //   遷移先ではなく `phase === 'ATTACK_LRIG'` で判定する（`PHASE_NEXT` 上の次は常に END）。
+        if (phase === 'ATTACK_LRIG') {
           const apeRes = collectTurnTriggers('ON_ATTACK_PHASE_END', newMyState, op);
           foldTurnUsed(apeRes);
           if (apeRes.entries.length > 0) {
