@@ -195,6 +195,21 @@ export function execStubPart1(
   }
   // 盤面を変えない内部マーカー（SELECT_TARGET_ONLY の thenAction 等）。
   if (stub.id === 'INTERNAL_NOOP') return done(ctx);
+  // PER_OWN_LRIG_COLOR_SCALE（§6.4 O-34(d)）:「あなたの場にいる〈色〉のルリグ１体につき〈効果〉」＝
+  // その色の自ルリグ体数だけ本体を繰り返す。
+  // 🔑**数える対象はセンター＋アシスト2枠の最前面**（`lrigZoneTops`）＝「場にいるルリグ」の定義に揃える。
+  // ⚠**0体なら本体を一度も実行しない**（従来はスケール節が丸ごと落ちて**無条件で1回**走っていた）。
+  // ⚠多色ルリグは色文字列の部分一致で数える（`Color` が「白緑」等の連結表記のため）。
+  if (stub.id === 'PER_OWN_LRIG_COLOR_SCALE') {
+    const inner = stub.scaleAction;
+    const color = stub.scaleColor;
+    if (!inner || !color) return done(addLog(ctx, 'PER_OWN_LRIG_COLOR_SCALE: 本体または色が無い'));
+    const nPOLCS = lrigZoneTops(ctx.ownerState.field)
+      .filter(n => !!n && (ctx.cardMap.get(getCardNum(n))?.Color ?? '').includes(color)).length;
+    if (nPOLCS === 0) return done(addLog(ctx, `場に${color}のルリグがいないため何も起きない`));
+    const logged = addLog(ctx, `${color}のルリグ${nPOLCS}体ぶん実行`);
+    return exec({ type: 'SEQUENCE', steps: Array.from({ length: nPOLCS }, () => inner) } as SequenceAction, logged);
+  }
   // STRIP_ATTACHED_AND_UNDER（§6.4 O-34(a)・`WX19-064-E1` 選択肢③）:
   // 「シグニ１体を対象とし、**それに付いているすべてのカード**と、**下に置かれているすべてのカード**を
   //  トラッシュに置く」＝対象シグニ自身は場に残したまま、付随物と下カードだけを剥がす。
