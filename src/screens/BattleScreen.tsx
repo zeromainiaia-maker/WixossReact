@@ -10822,12 +10822,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         pending_lrig_attack: undefined,  // ルリグアタック解決待ちフラグをリセット
         turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
       })), true));
+      // §6.4 O-3: CPU のターン終了も人間の2経路と**同じ `resolveTurnHandover`** を通す。
+      // ⚠🔴従来ここは無条件で `activeUserId: user.id`＝**CPU が取った追加ターンも、人間が予約した
+      //   「次の自分のターンをスキップ」（`WD20-006-E1`＝相手ターン中に撃つアーツ）も効かなかった**。
+      //   `WD20-006` の母集団はまさに「このターンが対戦相手のターンで」＝この経路が本命。
+      const handoverCpu = resolveTurnHandover(cleanCpuSt, nextHuSt);
+      if (handoverCpu.log) appendBattleLogs([`[CPU] ${handoverCpu.log}`]);
       await persist.commit(reduceBattle(bs, {
         type: 'BEGIN_NEXT_TURN',
-        activeUserId: user.id,
-        myKey: 'guest_state', myState: cleanCpuSt,
+        activeUserId: handoverCpu.keepTurn ? undefined : user.id,
+        myKey: 'guest_state', myState: handoverCpu.consumeTurnEnder(cleanCpuSt),
         // 遅延自己除外は非ターンプレイヤー（人間）側にも適用（WX16-040 等はCPUターン中に蘇生→そのターン終了時に除外）
-        opp: { key: 'host_state', state: resolvePendingExiles(nextHuSt, true) },
+        opp: { key: 'host_state', state: handoverCpu.consumeOpponent(resolvePendingExiles(nextHuSt, true)) },
       }));
     }
   };
