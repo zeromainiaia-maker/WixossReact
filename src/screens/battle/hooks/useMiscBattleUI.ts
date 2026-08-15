@@ -44,6 +44,8 @@ export function useGuardResponses() {
     selectedNegateEscape: new Set(),
     attackFieldTrashPayment: null,
     selectedAttackFieldTrashZones: new Set(),
+    attackHandDiscardPayment: null,
+    selectedAttackHandDiscard: new Set(),
   });
   return {
     ...state,
