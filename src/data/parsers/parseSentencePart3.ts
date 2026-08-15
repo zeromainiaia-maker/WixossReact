@@ -1958,9 +1958,58 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
   }
 
+  // ---- このターン、対戦相手はダメージを受けない ----
+  // 期間つきダメージ無効ウィンドウ（`prevent_damage_windows`）を**相手側**に張る。
+  // ⚠part1 の「あなたはダメージを受けない」は所有者句が違うのでここまで落ちてくる。
+  if (/^このターン、対戦相手は(?:.{0,8}によって)?ダメージを受けない/.test(t)) {
+    return { type: 'PREVENT_DAMAGE', owner: 'opponent', until: 'UNTIL_END_OF_TURN', scope: 'ALL' } as PreventDamageAction;
+  }
+
+  // ---- このターン、対戦相手は〈条件〉のシグニでアタックできない（§6.4 O-3）----
+  // 判定は `signiAttackGate`（人間ボタン／performSigniAttack／CPU 候補の3箇所共通）。
+  // ⚠ここで拾えないものは下の受け皿へ落とす＝**部分的に拾って条件を落とすと過剰効果になる**。
+  {
+    const banBody = t.match(/^このターン、対戦相手は(.+?)シグニでアタックできない/)?.[1];
+    if (banBody !== undefined) {
+      // 「宣言された数字と同じレベルのシグニ」＝直前の数字宣言を参照する（宣言値は実行時に焼き込む）。
+      if (/^宣言(?:された|した)数字と同じレベルの$/.test(banBody)) {
+        return { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', levelFromDeclaredNumber: true } as SigniAttackBanAction;
+      }
+      // 「表記されているパワーと異なるパワーのシグニ」＝実効パワー≠表記パワー。
+      if (/^表記されているパワーと異なるパワーの$/.test(banBody)) {
+        return { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', powerDiffersFromPrinted: true } as SigniAttackBanAction;
+      }
+    }
+  }
+
+  // ---- このターン、対戦相手が《無》×N を支払わないかぎりそれはアタックできない ----
+  // 「それ」＝直前に【チャーム】を付けた対象シグニ（`storedTargetCards`）。支払えばアタックできる。
+  {
+    const m = t.match(/^このターン、対戦相手が((?:《無》)+)を支払わないかぎりそれはアタックできない/);
+    if (m) {
+      return {
+        type: 'SIGNI_ATTACK_BAN', owner: 'opponent', targetsStored: true,
+        unlessPayColorless: (m[1].match(/《無》/g) ?? []).length,
+      } as SigniAttackBanAction;
+    }
+  }
+
   // ---- このターン、対戦相手が〜（アタック制限・コスト条件）----
   // ⚠未パース節の受け皿（上と同じ理由で id を分けた・§6.4 O-3 続き459）。
+  // ⚠**機構ごとに id を分ける**＝1つの受け皿に混ぜると「何が残っているか」が census:stubs から読めなくなる。
   if (t.match(/^このターン、対戦相手(?:が|は)/)) {
+    // アタックのたびに手札を捨てる「支払わないかぎり」型（SP38-003）＝毎アタックの手札コストUIが要る。
+    if (/手札を[０-９\d]+枚捨てないかぎり/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_ATTACK_TAX_HAND_DISCARD' } as StubAction;
+    }
+    // 相手が宣言したカード名以外のアーツを使用できない（WXEX2-09）＝相手によるカード名宣言UIが要る。
+    if (/宣言したカード名以外の/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK' } as StubAction;
+    }
+    // 相手が選んだシグニだけが強制アタックし、他はアタックできない（WXDi-P08-030）＝相手の複数選択UI＋強制アタック集合。
+    if (/選んだシグニで可能ならばアタックしなければならず/.test(t)) {
+      return { type: 'STUB', id: 'DEFERRED_OPP_CHOSEN_SIGNI_ATTACK_LOCK' } as StubAction;
+    }
     return { type: 'STUB', id: 'DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE' } as StubAction;
   }
 
