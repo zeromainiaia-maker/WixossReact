@@ -96,6 +96,31 @@ export function signiAttackBanHandDiscardCost(
   return signiAttackBanCost(attacker, attackerNum, cardMap, effectivePower)?.handDiscard ?? 0;
 }
 
+/**
+ * ルリグのアタックに掛かっている ban の解除コスト（§6.4 O-28）。
+ * 戻り値の意味はシグニ版と同じ＝`null` なら**どれだけ払ってもアタック不可**。
+ *
+ * ⚠**同じ `signi_attack_bans_this_turn` を読む**（ban の置き場を増やすと turn-end 失効の登録も
+ *   `turnScopedState` へ二重に要る＝続き487/489 で3回再発した「失効地点が無い」クラスを招く）。
+ *   軸の分離は `appliesTo:'LRIG'` の1キーだけで行う。
+ * ⚠ルリグは `cardNums` で名指しされた ban だけが掛かる（レベル／パワー条件はシグニ専用の語彙）。
+ */
+export function lrigAttackBanCost(
+  attacker: PlayerState,
+  lrigNum: string | null | undefined,
+  cardMap: Map<string, CardData>,
+): SigniAttackBanCost | null {
+  if (!lrigNum) return { colorless: 0, handDiscard: 0 };
+  const bans = (attacker.signi_attack_bans_this_turn ?? [])
+    .filter(ban => ban.appliesTo === 'LRIG' && banMatches(ban, lrigNum, cardMap, undefined));
+  if (bans.length === 0) return { colorless: 0, handDiscard: 0 };
+  if (bans.some(ban => !ban.unlessPayColorless && !ban.unlessPayHandDiscard)) return null;
+  return {
+    colorless: bans.reduce((sum, ban) => sum + (ban.unlessPayColorless ?? 0), 0),
+    handDiscard: bans.reduce((sum, ban) => sum + (ban.unlessPayHandDiscard ?? 0), 0),
+  };
+}
+
 /** 掛かっている ban の表示ラベル（アタックボタンの注記用）。 */
 export function signiAttackBanLabels(
   attacker: PlayerState,
