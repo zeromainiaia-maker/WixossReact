@@ -10622,6 +10622,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (attackedAssist) return;   // 次の useEffect で残りのアシストへ
       }
       // ルリグアタック済み → ENDへ
+      // ⚠**追加のアタックフェイズ（§6.4 O-3）は CPU 経路では発生しない**＝ここは `SET_TURN_PHASE` しか
+      //   コミットできず（state を書けない）、`resolveNextPhaseAfterAttack` を通すとキューを減らせないまま
+      //   ATTACK_ARTS へ戻り**無限ループ**になる。母集団2枚（`WX22-010`＝ルリグ【起】／`WXK06-026`＝スペル）は
+      //   どちらも CPU が能動使用しない（§6.4 O-1）ので CPU 側にキューは積まれず、積まれても
+      //   `extra_attack_phases_this_turn` はターン終了で失効する＝安全側の近似。
+      //   CPU AI が【起】/スペルを使うようになったら（O-1）ここも state 込みのコミットへ揃えること。
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_LRIG', cpuSt) }));
       return;
     }
