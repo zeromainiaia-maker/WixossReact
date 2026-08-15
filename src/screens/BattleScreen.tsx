@@ -7915,7 +7915,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // OPP_SIGNI_ATTACK_COST: アタックにエナコストが必要な場合、エナを消費
       // ⚠ここは**選択のない自動支払い**（末尾から削る近似）なので §6.4 のエナ支払い元 funnel は通さない
       //   ＝「エナゾーン以外を支払い元にする」語彙の対象外（原文は「支払う際」＝選んで払う場面を指す）。
-      const signiAtkCostSA = my.signi_attack_cost ?? 0;
+      // signi_attack_bans_this_turn の「《無》×N を支払わないかぎり」分も同じ自動支払いに乗せる（§6.4 O-3）。
+      // ⚠払えるかどうかの判定は signiAttackGate 側（ATTACK_BAN_COST）。ここは引き落としだけ。
+      const banCostSA = signiAttackBanColorlessCost(my, myTopNum, battleCardMap) ?? 0;
+      const signiAtkCostSA = (my.signi_attack_cost ?? 0) + banCostSA;
       const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(0, -signiAtkCostSA) : my.energy;
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
       const newOpState = op;
