@@ -8038,6 +8038,31 @@ function parseActionTextInner(text: string): EffectAction {
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
     }
   }
+  // ---- 「あなたと対戦相手は自分のデッキの一番上を公開し…どちらも【ライフバースト】を持って…場合、そのアタックを無効にする」----
+  // （§6.4 O-4 続き499・`WXDi-P09-036-E1` の引用【自】内側）。公開・比較・帰結を1アクションに畳む。
+  // 🔴従来は公開と比較が UNKNOWN に落ち、`NEGATE_ATTACK` だけが残って**必ず無効化**していた。
+  if (/あなたと対戦相手は自分のデッキの一番上を公開し/.test(text)
+      && /どちらも【ライフバースト】を持っている/.test(text) && /アタックを無効にする/.test(text)) {
+    return {
+      type: 'REVEAL_BOTH_DECK_TOPS',
+      matchAction: { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, attackingOnly: true },
+    } as unknown as EffectAction;
+  }
+
+  // ---- 「対戦相手はあなたのデッキの一番上のカードが《X アイコン》を持つか持たないかを宣言する。…宣言が外れた場合、そのアタックであなたはダメージを受けない」----
+  // （§6.4 O-4 続き499・`WX15-002-E2` の引用【自】内側）。🔴従来は宣言と照合が UNKNOWN に落ち、
+  //   `PREVENT_DAMAGE` だけが残って**必ずダメージ無効**になっていた。
+  {
+    const declTopM = text.match(
+      /対戦相手はあなたのデッキの一番上のカードが《([^》]+)アイコン》を持つか持たないかを宣言する。[\s\S]*宣言が外れた場合、そのアタックであなたはダメージを受けない/);
+    if (declTopM && (['トラップ', 'ライズ', 'クロス', 'アクセ'] as const).some(i => i === declTopM[1])) {
+      return {
+        type: 'DECLARE_DECK_TOP_ICON', icon: declTopM[1], deckOwner: 'self',
+        onWrongAction: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'ALL' },
+      } as unknown as EffectAction;
+    }
+  }
+
   // ---- 「〈期間〉、〈ルリグ/相手〉は「【常】：〈誰か〉は《無》×Nを支払わないかぎりシグニでアタックできない。」を得る」----
   // （§6.4 O-4 続き499・母集団3効果）。引用の【常】は付与先に載せても engine の走査軸に届かないので、
   // **期間つきの `SIGNI_ATTACK_BAN` へ平坦化する**（禁止は必ずアタッカー側の state に載る）。
