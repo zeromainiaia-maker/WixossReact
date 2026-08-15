@@ -29050,7 +29050,7 @@ test('resolveNextPhaseAfterAttack: ATTACK_LRIG の次を END ではなく ATTACK
   eq(resolveNextPhaseAfterAttack('ATTACK_SIGNI', queued).addedExtraPhase, false, '途中ステップでは追加しない');
   // 未消化のキューはターンを跨がない
   eq(clearTurnEndScopedState(queued).extra_attack_phases_this_turn, undefined, '未消化キューはターン終了で失効');
-});
+}));
 test('RESOLVE_EXTRA_ATTACK_PHASE_START: pending を1件取り出して実行する', () => withSavedCursor(() => {
   const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
   const onStart = { type: 'UP', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } } as unknown as EffectAction;
