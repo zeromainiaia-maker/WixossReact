@@ -9353,6 +9353,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       openAttackFieldTrashPayment({ zoneIndex, targetOpZone, cardNum, count: fieldTrashCount });
       return;
     }
+    const handTaxCountSide = cardNum ? signiAttackBanHandDiscardCost(my, cardNum, battleCardMap) : 0;
+    if (cardNum && handTaxCountSide > 0) {
+      if (my.hand.length < handTaxCountSide) return;
+      openAttackHandDiscardPayment({ zoneIndex, targetOpZone, cardNum, count: handTaxCountSide });
+      return;
+    }
     await performSigniAttack(zoneIndex, {
       attacker: my,
       defender: op,
