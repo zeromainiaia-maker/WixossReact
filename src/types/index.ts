@@ -130,6 +130,31 @@ export interface SigniZoneBlock {
   colorless?: number;
 }
 
+/**
+ * 「このターン、対戦相手は〈条件〉のシグニでアタックできない」1件（§6.4 O-3）。
+ *
+ * 絞り込みキーは **AND** で、**指定されたキーだけ**を見る＝キーを1つも持たない ban は
+ * 「すべてのシグニがアタックできない」を意味する（原文にその形がある）。
+ *
+ * ⚠`unlessPayColorless` は「支払えばアタックできる」＝**払えないときだけ禁止**。
+ *   支払いは `performSigniAttack` が実際に引き落とす（判定と引き落としを別軸にしない）。
+ * ⚠`powerDiffersFromPrinted` と `unlessPayColorless` を同時に持たせない
+ *   （引き落とし地点は実効パワーを持っていないので、表記パワーへフォールバックして誤課金になる）。
+ *   golden のトリップワイヤで固定してある。
+ */
+export interface SigniAttackBan {
+  /** このレベルのシグニだけを禁止する（「宣言された数字と同じレベルのシグニ」＝宣言値は生成時に解決して焼き込む）。 */
+  level?: number;
+  /** 実効パワーが表記パワーと異なるシグニだけを禁止する。 */
+  powerDiffersFromPrinted?: boolean;
+  /** この CardNum のシグニだけを禁止する（「それはアタックできない」）。 */
+  cardNums?: string[];
+  /** 《無》×N を支払えばアタックできる。払えないときだけ禁止になる。 */
+  unlessPayColorless?: number;
+  /** ログ・アタックボタンに出す由来表示。 */
+  label?: string;
+}
+
 export interface PlayerState {
   deck: string[];
   lrig_deck: string[];
