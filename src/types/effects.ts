@@ -1974,6 +1974,25 @@ export interface SigniAttackBanAction {
   unlessPayColorless?: number;
 }
 
+/**
+ * 「このターンと次のターンの間、対戦相手は〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
+ * 実体は `PlayerState.signi_deploy_bans` への1件追加＝判定は `deployLimitBlockReason`。
+ *
+ * ⚠`namesFromTargets` は**実行時に**カード名を焼き込む（判定地点から「それ」は見えない）。
+ * ⚠絞り込みキーを1つも指定しない＝**すべてのシグニ**が対象。
+ */
+export interface SigniDeployBanAction {
+  type: 'SIGNI_DEPLOY_BAN';
+  /** 禁止を受ける側（＝場に出す側）。 */
+  owner: Owner;
+  /** 有効なグローバルターン数。2＝「このターンと次のターンの間」。 */
+  turns: number;
+  /** 直前に対象化／処理したカードと**同じ名前**のシグニに限定する（「それと同じ名前のシグニ」）。 */
+  namesFromTargets?: boolean;
+  /** 配置の出自で限定する（「自分の、シグニとスペルの効果によって」）。 */
+  bySource?: 'signi_or_spell_effect';
+}
+
 // このゲームの間、対戦相手は同名カードを使用できない
 export interface NameBanAction {
   type: 'NAME_BAN';
