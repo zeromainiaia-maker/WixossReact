@@ -14769,6 +14769,102 @@ test('signiAttackGate: 場トラッシュコストは支払い済み再入で再
   };
   eq(signiAttackBlockReason({ ...common, attacker: payable }), null, '他のシグニ2体を払えるならアタック可能');
 }));
+// ── SIGNI_ATTACK_BAN（§6.4 O-3「このターン、対戦相手は〈条件〉のシグニでアタックできない」）──
+test('SIGNI_ATTACK_BAN: 宣言数字レベル／表記外パワー／対象限定＋支払いの3形が ban ストアに載る', () => withSavedCursor(() => {
+  const ban = (act: Record<string, unknown>, ctxOpts: Partial<ExecCtx> = {}) => {
+    const base = mkCtx({}, { signi: [SIGNI_P3000, null, null] });
+    const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', ...act } as unknown as EffectAction,
+      { ...base, ...ctxOpts } as ExecCtx);
+    return ((r.otherState as PlayerState).signi_attack_bans_this_turn ?? []);
+  };
+  // 宣言値は**実行時に焼き込む**（判定地点からは宣言者側の state が見えない）
+  const declared = ban({ levelFromDeclaredNumber: true },
+    { ownerState: { ...mkState({}), declared_number: 3 } as PlayerState });
+  eq(declared.length, 1, '宣言済みなら ban が1件載る');
+  eq(declared[0].level, 3, '宣言値がレベル条件へ焼き込まれる');
+  eq(ban({ levelFromDeclaredNumber: true }).length, 0, '未宣言なら ban を張らない（全シグニ禁止にしない）');
+  // 表記外パワー
+  const powerBan = ban({ powerDiffersFromPrinted: true });
+  eq(powerBan[0]?.powerDiffersFromPrinted, true, '表記外パワー条件が載る');
+  eq(powerBan[0]?.level, undefined, 'レベル条件は付かない');
+  // 「それ」＝直前の対象（storedTargetCards）＋《無》×3 で解除できる
+  const stored = ban({ targetsStored: true, unlessPayColorless: 3 }, { storedTargetCards: [SIGNI_P3000] });
+  eq(JSON.stringify(stored[0]?.cardNums), JSON.stringify([SIGNI_P3000]), '対象がカード限定として焼き込まれる');
+  eq(stored[0]?.unlessPayColorless, 3, '支払いで解除できる額が載る');
+  eq(ban({ targetsStored: true, unlessPayColorless: 3 }).length, 0, '対象未確定なら ban を張らない');
+}));
+test('signiAttackGate: signi_attack_bans_this_turn の3条件と「支払えばアタックできる」（§6.4 O-3）', () => withSavedCursor(() => {
+  const LV_SIGNI = findCard(c => isSigni(c) && c.Level === '3' && c.Power === '5000');
+  const def = mkState({});
+  const reason = (attacker: PlayerState, num: string, powers?: Map<string, number>) =>
+    signiAttackBlockReason({
+      attacker, defender: def, attackerNum: num,
+      effectsMap, cardMap: cardMap as Map<string, CardData>, effectivePowers: powers,
+    });
+  const withBans = (bans: SigniAttackBan[], o: Partial<PlayerState> = {}): PlayerState =>
+    ({ ...mkState({ signi: [LV_SIGNI, SIGNI_P3000, null], energy: 5 }), signi_attack_bans_this_turn: bans, ...o });
+  // レベル条件＝一致するシグニだけ止まる
+  eq(reason(withBans([{ level: 3 }]), LV_SIGNI), 'ATTACK_BAN', '宣言レベルと同じシグニはアタック不可');
+  eq(reason(withBans([{ level: 3 }]), SIGNI_P3000), null, 'レベルが違うシグニは通る');
+  // 表記外パワー条件＝**実効パワー**で判定する（表記どおりなら通る）
+  const powerBan = withBans([{ powerDiffersFromPrinted: true }]);
+  eq(reason(powerBan, SIGNI_P3000, new Map([[SIGNI_P3000, 8000]])), 'ATTACK_BAN', '強化されたシグニはアタック不可');
+  eq(reason(powerBan, SIGNI_P3000, new Map([[SIGNI_P3000, 3000]])), null, '表記どおりのパワーなら通る');
+  // 支払いで解除できる ban＝払えるかどうかで反転する
+  const payBan: SigniAttackBan[] = [{ cardNums: [SIGNI_P3000], unlessPayColorless: 3 }];
+  eq(reason(withBans(payBan), SIGNI_P3000), null, 'エナが足りれば支払ってアタックできる');
+  eq(reason(withBans(payBan, { energy: [] }), SIGNI_P3000), 'ATTACK_BAN_COST', 'エナが足りなければアタック不可');
+  eq(reason(withBans(payBan), LV_SIGNI), null, '対象外のシグニには掛からない');
+  // 既存の signi_attack_cost と**加算**で要求する（片方だけ見て払えたことにしない）
+  eq(reason(withBans(payBan, { energy: fill(3), signi_attack_cost: 2 }), SIGNI_P3000), 'ATTACK_BAN_COST',
+    'ban コストとアタックコストは合算して払えるか見る');
+}));
+test('SIGNI_ATTACK_BAN: live データ不変条件＝支払い解除つき ban に実効パワー条件を混ぜない', () => withSavedCursor(() => {
+  // 引き落とし地点（performSigniAttack）は実効パワーを持たないので、両方を持つ ban は
+  // 表記パワーへフォールバックして**判定と課金がずれる**。混ざった瞬間にここが赤くなる。
+  const bad: string[] = [];
+  for (const [num, effs] of effectsMap) {
+    for (const e of effs) {
+      JSON.stringify(e.action ?? {}, (_k, v) => {
+        if (v && typeof v === 'object' && (v as { type?: string }).type === 'SIGNI_ATTACK_BAN') {
+          const a = v as { powerDiffersFromPrinted?: boolean; unlessPayColorless?: number };
+          if (a.powerDiffersFromPrinted && a.unlessPayColorless) bad.push(`${num}/${e.effectId}`);
+        }
+        return v;
+      });
+    }
+  }
+  eq(bad.length, 0, `実効パワー条件と支払い解除が同居した ban: ${bad.join(', ')}`);
+}));
+test('SIGNI_ATTACK_BAN: 4カードの live 形（§6.4 O-3 続き486）', () => withSavedCursor(() => {
+  const step = (num: string, effectId: string, idx: number) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === effectId);
+    return ((e?.action as { steps?: Record<string, unknown>[] })?.steps ?? [])[idx] ?? {};
+  };
+  // 数字宣言はガード制限を伴わない DECLARE_NUMBER_PLAIN でなければならない
+  // （裸の DECLARE_NUMBER は「そのレベルではガードできない」まで付く過剰実行）。
+  eq(step('WX24-P4-039', 'WX24-P4-039-E1', 0).id, 'DECLARE_NUMBER_PLAIN', 'WX24-P4-039 の宣言がガード制限つきに戻っている');
+  eq(step('WX24-P4-039', 'WX24-P4-039-E1', 1).levelFromDeclaredNumber, true, 'WX24-P4-039 のアタック制限');
+  eq(step('WX25-P2-010', 'WX25-P2-010-E1', 3).powerDiffersFromPrinted, true, 'WX25-P2-010 のアタック制限');
+  eq(step('WX10-024', 'WX10-024-E2', 1).unlessPayColorless, 3, 'WX10-024 の《無》×3 アタック税');
+  eq(step('WX10-024', 'WX10-024-E2', 1).targetsStored, true, 'WX10-024 の「それ」＝チャームを付けた対象');
+  // 「このターン、対戦相手はダメージを受けない」（相手側にウィンドウを張る）
+  eq(step('WX24-P2-014', 'WX24-P2-014-E2', 1).type, 'PREVENT_DAMAGE', 'WX24-P2-014 のダメージ無効');
+  eq(step('WX24-P2-014', 'WX24-P2-014-E2', 1).owner, 'opponent', 'ダメージ無効の対象が自分になっている');
+}));
+test('SIGNI_ATTACK_BAN: ターン終了時に失効する（turnScopedState 登録）', () => withSavedCursor(() => {
+  const st: PlayerState = { ...mkState({}), signi_attack_bans_this_turn: [{ level: 3 }] };
+  eq(clearTurnEndScopedState(st).signi_attack_bans_this_turn, undefined, 'ターンを跨いでアタック制限が残っている');
+}));
+test('ATTACH_CHARM: チャームを付けた対象が storedTargetCards に残る（「それはアタックできない」の解決元）', () => withSavedCursor(() => {
+  const ctx = mkCtx({ deckTop: [SIGNI] }, { signi: [SIGNI_P3000, null, null] });
+  const r = run({
+    type: 'ATTACH_CHARM',
+    charm: { type: 'DECK_CARD', owner: 'self', count: 1 },
+    to: { type: 'SIGNI', owner: 'opponent', count: 1 },
+  } as unknown as EffectAction, ctx);
+  eq(JSON.stringify(r.storedTargetCards), JSON.stringify([SIGNI_P3000]), 'チャーム付与先が「それ」として残らない');
+}));
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
