@@ -29921,12 +29921,14 @@ test('ADD_EXTRA_ATTACK_PHASE: 2カードの live 形（§6.4 O-3）', () => {
   eq((wxk.onStart as Record<string, unknown>)?.type, 'UP', '「すべてのシグニをアップする」が onStart に入っていない');
   const wx22 = act('WX22-010', 'WX22-010-E3');
   eq(wx22.type, 'ADD_EXTRA_ATTACK_PHASE', 'WX22-010 が追加アタックフェイズになっていない');
-  // ⚠「それらを場に出し」は参照先（チェックゾーンへ移したシグニ）が明示 defer なので落としてある。
-  //   残さないと `ADD_TO_FIELD{source なし}` が**デッキの一番上**を場に出す過剰実行になる。
+  // ⚠「その後、それらを場に出し」は `FIELD_SIGNI_TO_CHECK_ZONE` に**畳み込んである**ので落とす。
+  //   残すと `ADD_TO_FIELD{source なし}` が**デッキの一番上**を場に出す過剰実行になる（続き498）。
   eq(JSON.stringify(wx22.onStart).includes('ADD_TO_FIELD'), false,
     '参照先の無い ADD_TO_FIELD（＝デッキトップ配置）が残っている');
-  eq(JSON.stringify(wx22.onStart).includes('DEFERRED_FIELD_SIGNI_TO_CHECK_ZONE'), true,
-    'チェックゾーン移動の明示 defer が消えている');
+  eq(JSON.stringify(wx22.onStart).includes('FIELD_SIGNI_TO_CHECK_ZONE'), true,
+    'チェックゾーン往復が落ちている');
+  eq(JSON.stringify(wx22.onStart).includes('DEFERRED_'), false, '受け皿 STUB が残っている');
+  ok(JSON.stringify(wx22.onStart).includes('"cardClass":"遊具"'), '＜遊具＞限定が落ちて全シグニに掛かっている');
 });
 
 test('task12 lxxiv: WXK11-001①は相手のアーツ/スペル使用で相手ルリグステップだけを封じる', () => {
