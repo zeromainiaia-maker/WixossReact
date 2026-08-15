@@ -324,6 +324,16 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerCC2 },
       `${ctx.cardMap.get(srcCC)?.CardName ?? srcCC}が${ctx.cardMap.get(targetCC)?.CardName ?? targetCC}のコピーになる`));
   }
+  // DECK_SIGNI_LEVEL_OVERRIDE_ALL: 「このターン、あなたのデッキにある**シグニ**のレベルはNになる」
+  // （クラス指定なし＝全シグニ・`WXK07-034-E1`①・§6.4 O-34(c)）。
+  // ⚠クラス版（下の `DECK_SIGNI_LEVEL_OVERRIDE`）とは**同じ state フィールドを共有**する＝
+  //   `class:'*'` が「全シグニ」の目印。読み手は `deckSigniOverrideLevel` の1点。
+  if (stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE_ALL') {
+    const levelDSLOA = typeof stub.value === 'number' ? stub.value : 4;
+    const newOwnerDSLOA: PlayerState = { ...ctx.ownerState, deck_signi_level_override: { class: '*', level: levelDSLOA } };
+    return done(addLog({ ...ctx, ownerState: newOwnerDSLOA },
+      `このターン、デッキ内のシグニのレベルをLv${levelDSLOA}として扱う`));
+  }
   // DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）
   if (stub.id === 'DECK_SIGNI_LEVEL_OVERRIDE') {
     const srcDSLO = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
