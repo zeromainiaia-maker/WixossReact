@@ -29244,6 +29244,59 @@ test('§6.4 O-3: `WXK01-002-E2`（次のあなたのメインフェイズまで�
   eq(atMain.draw_phase_replacement, undefined, 'ドロー置換も失効する');
 });
 
+// ── §6.4 O-3（続き493）: 「対戦相手の効果によって移動しない」の期間軸 ──
+test('§6.4 O-3: 期間つき移動不可はターン数カウントダウンで失効する', () => {
+  const runEff = (cardNum: string, effectId: string) => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, cardNum);
+    return finish(executeEffect(eff, ctx), ctx);
+  };
+  // 🔴従来は `prevent_opp_trash_from` を立てるだけで**失効地点が1つも無く永続していた**
+  //   （`WXK10-083-E1` の原文は「このターンと次のターンの間」）。
+  const r = runEff('WXK10-083', 'WXK10-083-E1');
+  const s0 = r.ownerState as PlayerState;
+  eq(JSON.stringify(s0.opp_move_immunity), JSON.stringify([{ zones: ['energy'], turnsRemaining: 2 }]), '2ターンぶん積む');
+  eq(JSON.stringify(activeOppMoveImmunityZones(s0)), JSON.stringify(['energy']), '張ったターンから有効');
+  const s1 = clearTurnEndScopedState(s0);
+  eq(JSON.stringify(activeOppMoveImmunityZones(s1)), JSON.stringify(['energy']), '次のターンも有効');
+  const s2 = clearTurnEndScopedState(s1);
+  eq(s2.opp_move_immunity, undefined, '2つ目の境界で消える（永続しない）');
+  eq(JSON.stringify(activeOppMoveImmunityZones(s2)), JSON.stringify([]), '失効後は保護しない');
+});
+
+test('§6.4 O-3: `WXK10-004-E1`（場以外の領域）と `WXEX2-06-E3`（ダメージ＋移動不可の複文）', () => {
+  const run1 = (cardNum: string, effectId: string) => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const ctx = mkCtx({}, {}, cardNum);
+    return finish(executeEffect(eff, ctx), ctx);
+  };
+  // 受け皿 STUB（恒久 no-op）だった `WXK10-004-E1`。⚠保護できるのは hand/energy だけ（既存と同じ近似）。
+  const a = run1('WXK10-004', 'WXK10-004-E1').ownerState as PlayerState;
+  eq(JSON.stringify(activeOppMoveImmunityZones(a).sort()), JSON.stringify(['energy', 'hand']), '手札とエナを保護');
+  // 🔴`WXEX2-06-E3` は「ダメージを受けず」だけ拾われ**移動不可が丸ごと落ちていた**（片側採用）。
+  const b = run1('WXEX2-06', 'WXEX2-06-E3').ownerState as PlayerState;
+  eq(JSON.stringify(activeOppMoveImmunityZones(b).sort()), JSON.stringify(['energy', 'hand']), '移動不可の半分も効く');
+  eq(hasActivePreventDamageWindow(clearTurnEndScopedState(b), 'LRIG'), true, 'ダメージ側は次の相手ターンに有効');
+});
+
+test('§6.4 O-3: 「次の対戦相手のターン終了時、〜」の本体を即時実行しない', () => {
+  // 🔴`WXDi-P16-002-E1` は**使った瞬間に**1枚引き【エナチャージ１】していた（過剰実行）。
+  //   `WXDi-P09-066-E1` は無関係な汎用 `STUB{LOOK_AND_REORDER}` に落ちて計器にも映らなかった。
+  for (const [cardNum, effectId] of [['WXDi-P16-002', 'WXDi-P16-002-E1'], ['WXDi-P09-066', 'WXDi-P09-066-E1']] as const) {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const json = JSON.stringify(eff.action);
+    ok(json.includes('DEFERRED_NEXT_OPP_TURN_END_BODY'), `${cardNum}: 遅延本体を受け皿へ落とす`);
+    const ctx = mkCtx({}, {}, cardNum);
+    const handBefore = (ctx.ownerState as PlayerState).hand.length;
+    const r = finish(executeEffect(eff, ctx), ctx);
+    eq((r.ownerState as PlayerState).hand.length, handBefore, `${cardNum}: 即時に手札が増えない`);
+  }
+  // `WXDi-P16-002-E1` は【使用条件】ヘッダが `GRANT_KEYWORD{keyword:"使用条件"}` に化けていた（続き490 と同じクラス）。
+  const piece = effectsMap.get('WXDi-P16-002')!.find(e => e.effectId === 'WXDi-P16-002-E1')!;
+  ok(!JSON.stringify(piece.action).includes('使用条件'), 'ゴミ keyword 付与が消えている');
+  eq(piece.condition?.type, 'AND', '使用条件は condition として載る');
+});
+
 test('§6.4 O-3: `WD20-006-E1` の次ターンスキップは「相手ターン かつ 非ベット」でだけ発火する', () => {
   const eff = effectsMap.get('WD20-006')!.find(e => e.effectId === 'WD20-006-E1')!;
   const mk = (isOwnerTurn: boolean, betting: boolean) => {
