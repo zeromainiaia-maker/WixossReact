@@ -1,5 +1,101 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き492・Opus 5）— §6.4 **O-3 `UNTIL_NEXT_MAIN_PHASE_CLAUSE` を解体＝9効果の挙動是正**
+
+「ルリグによってダメージを受けない」の**期間軸と走査軸**を1本ずつに集約し、あわせて
+「次のあなたのメインフェイズまで」という**ターン境界を跨ぐ期間**を新設した。
+**恒久 no-op 2／無言 no-op 2／1回で消費されていた 5／過剰実行 1／過少実行 1**（重複あり・実カード9効果）。
+ゲート全緑（**golden 2030**＝+3・**census 831 据置**〔+1 は較正で解消〕・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・lint 0 errors / 260 warnings）。
+live JSON changed **7カード**（`WXK01-002`／`WXK10-019`／`PR-K019`／`WX26-CP1-004`／`WX26-CP1-023`／`WX26-CP1-073`／`WXK02-022`。CSV 非改変）。
+`census:stubs` A群＝**無言 no-op 0 据置**、明示 defer **24種/26件 → 23種/25件**。
+
+### 母集団の実測（着手前・受け皿 id ではなく原文 regex で数え直した）
+
+「（対戦相手の）ルリグによってダメージを受けない」は原文 **12効果**。**壊れていたのは8効果**：
+
+| カード | 原文の期間・限定 | 修正前 |
+|---|---|---|
+| `WXK01-002-E2` | 次のあなたのメインフェイズまで（基本リミット12＋ダメージ無効＋次ドロー置換） | `STUB{DEFERRED_UNTIL_NEXT_MAIN_PHASE_CLAUSE}`＝3機構が恒久 no-op ＋🔴**原文に無い即時ドロー1枚** |
+| `WXK10-019-E2` | 次のターンの間 | 🔴`prevent_lrig_damage` フラグは**ターン終了時にクリア**＝次のターンに一度も効かない恒久 no-op |
+| `WXK03-001-E1` | 【常】手札0枚のかぎり | 🔴判定が**自分のシグニしか走査せず**、この**ルリグ本体**の宣言を読んでいなかった＝無言 no-op |
+| `WXK11-012-E2` | 【常】レベル２以下のルリグによって | 🔴**キーが走査対象外**（無言 no-op）＋parser がレベル上限を落としていた（読めれば全レベルに効く過剰効果） |
+| `PR-K019-E3`／`WX26-CP1-004-E1`／`WX26-CP1-023-E1`／`WX26-CP1-073-BURST`／`WXK02-022-E2` | このターン | 🔴フラグが**1回防いだ時点で消える**＝同一ターンの2回目以降が素通り（原文は回数無制限） |
+| `WXK02-022-E2` | ＋前段の「対戦相手のシグニ１体を対象とし、それをトラッシュに置き」 | 🔴この節が **live から丸ごと脱落**していた（過少実行）。今回の再parseで復元 |
+| `WX24-P3-003-E1`／`WXK04-014-E1` | 引用能力／選択肢の中 | 別系統（`GRANT_ABILITY_INNER_TEXT`／CHOOSE 内の未表現）＝**据置**（PLAN §6.4 に登録） |
+
+### ① 期間軸＝`PREVENT_DAMAGE{scope:'LRIG'}` 1本に集約
+
+`prevent_damage_windows` は**ターン境界の昇格まで含めて実装済み**で、期間内は**回数無制限**。
+「このターン」「次のターンの間」の受け皿 STUB（`PREVENT_LRIG_DAMAGE_THIS_TURN`／`_UNTIL_NEXT_TURN`）は
+どちらも `prevent_lrig_damage`（**1回で消費される boolean**）を立てるだけだったので、
+①「次のターンの間」は turn-end で消えて**一度も効かず** ②「このターン」は**2回目以降が素通り**していた。
+
+🔑**「N回まで」ではなく「期間中ずっと」の防御は、回数フラグではなくウィンドウで持つ。**
+
+### ② 走査軸＝`isLrigDamagePrevented` 1本に集約（新設 `screens/battle/lrigDamageShield.ts`）
+
+- 🔴**従来の【常】判定は `defender.field.signi` しか見ていなかった**＝ルリグ本体・アシスト・キーに
+  載った宣言が丸ごと無視されていた（`WXK03-001-E1` はルリグ、`WXK11-012-E2` はキー）。
+- 🔑**「回数無制限の防御」は消費型より先に判定する**＝従来この判定は**バリア／`prevent_next_damage`／
+  置換ミルより後ろ**にあり、無制限に防げる盤面でも限りある資源が先に減っていた。
+- ⚠**レベル限定は宣言の `value` から読む**（`PREVENT_LOW_LEVEL_LRIG_DAMAGE`）＝parser が落とすと
+  「**すべての**ルリグによってダメージを受けない」の過剰効果になる。parser 側で `value` を載せた。
+- ⚠**宣言型の【常】は state にフラグを書かない**＝`execStub` の該当ハンドラを no-op ログへ変更した
+  （書くと「1回防いだら消える」に化けるうえ、レベル限定を state では表せない）。
+
+### ③ 新期間「次のあなたのメインフェイズまで」（`MY_NEXT_MAIN_PHASE`）
+
+`WXK01-002-E2` の3機構はすべてこの期間。**相手のターンを丸ごと跨ぎ、自分が次にメインフェイズへ
+入った瞬間に切れる**＝`UNTIL_OPP_TURN_END` では短すぎる（**次のドローフェイズが範囲外になる**）。
+
+- `turnScopedState.ts` に境界 `main-phase-start` と `clearMainPhaseScopedState()` を新設し、
+  **失効地点をこの1関数だけ**にした（`prevent_damage_windows` の該当エントリ／
+  `lrig_base_limit_override`／`draw_phase_replacement` を同時に落とす）。
+- 呼び出しは `ON_MAIN_PHASE_START` の収集と同じ**人間/CPU の2箇所**。golden にソース走査の
+  トリップワイヤ（`clearMainPhaseScopedState(` が BattleScreen に**ちょうど2回**）。
+- ⚠`advancePreventDamageWindows`（turn-end）は `MY_NEXT_MAIN_PHASE` を**昇格も破棄もせず持ち越す**。
+  🔑**「期間つき」と書いたフィールドは失効地点を1つに固定する**（続き487/489 で2回、失効地点が
+  1つも無いフィールドが永続していた）。
+
+### ④ 3機構の内訳（`WXK01-002-E2`）
+
+| 原文 | 表現 | 消費地点 |
+|---|---|---|
+| このルリグの基本リミットは１２になり | 🆕`SET_LRIG_BASE_LIMIT{value:12, untilNextMainPhase}` | `computeEffectiveLrigLimit` の `basicOverride` 層（**加算ではなく置換**） |
+| あなたは対戦相手のルリグによってダメージを受けない | `PREVENT_DAMAGE{scope:'LRIG', untilNextMainPhase}` | `isLrigDamagePrevented` |
+| 次のドローフェイズに１枚引く場合、代わりに２枚引く | 🆕`RESERVE_DRAW_PHASE_REPLACEMENT{1→2}` | `applyLrigDrawPhaseReplacement`（既存の付与【常】版と同じ1関数） |
+
+🔴**「〜引く場合、代わりに〜引く」を汎用ドロー規則に食わせない**＝置換の `fromCount` 側が実ドローと
+読まれ、**使った瞬間に1枚引く**過剰実行になっていた（parser の汎用 `DRAW` より**前**に規則を置く）。
+
+### ⑤ census +1 の仕分け
+
+`WXK01-002-E2` が「条件節(〜の場合)」バケツで STUB 格納 → 高シグナルへ昇格した（**実装で置き換えると
++N する**既知のパターン）。原文の「１枚引く場合」は `RESERVE_DRAW_PHASE_REPLACEMENT.fromCount` が
+内包する正表現なので**較正**。⚠キーは narrow に取った（`DRAW` を鍵にするとドロー系の高シグナルを
+丸ごと隠す）。
+
+### 変更ファイル
+
+- `src/screens/battle/lrigDamageShield.ts`（新規）＝`isLrigDamagePrevented`
+- `src/screens/battle/turnScopedState.ts`＝境界 `main-phase-start` ／ `clearMainPhaseScopedState`
+- `src/screens/battle/battleUtils.ts`＝`advancePreventDamageWindows` が `MY_NEXT_MAIN_PHASE` を持ち越す
+- `src/screens/battle/lrigLimit.ts`＝`lrig_base_limit_override` を `basicOverride` 層で読む
+- `src/engine/effectEngine.ts`＝`applyLrigDrawPhaseReplacement` が自己予約も読む
+- `src/screens/BattleScreen.tsx`＝ルリグダメージ判定の funnel 化・順序是正／メインフェイズ開始2経路
+- `src/data/parsers/parseSentencePart1.ts`（ドロー置換を汎用 DRAW の前へ）／`Part2.ts`（期間軸・レベル `value`）／`Part4.ts`（`WXK01-002-E2` の3機構）
+- `src/engine/effectExecutor.ts`（`SET_LRIG_BASE_LIMIT`／`RESERVE_DRAW_PHASE_REPLACEMENT`／`untilNextMainPhase`）
+- `src/engine/execStubPart2.ts`（宣言型【常】を no-op ログへ）
+- `src/types/index.ts`／`src/types/effects.ts`／`scripts/decompileEffects.ts`／`scripts/vocabCensus.ts`（較正）／`scripts/goldenTest.ts`（+3）
+
+### ⚠ 実機未検証（§7 送り）
+
+(a) `WXK01-002-E2`＝相手ターンを跨いで①ルリグダメージが通らない②自分の次のドローで**2枚**引く
+③自分のメインフェイズに入った瞬間にリミットが12から戻る、の3点。
+(b) `WXK10-019-E2`＝張ったターンには効かず、次の相手ターンに効く**負方向＋対照の対**。
+(c) `WXK03-001-E1`（ルリグ本体の【常】）／`WXK11-012-E2`（キーの【常】・レベル境界の対）。
+(d) 「このターン」版でルリグアタックを**2回**受けたときに2回とも防ぐか（`lrig_attack_remaining` 併用）。
+
 ## 2026-08-15（続き491・Opus 5）— §6.4 **O-3 のフェイズ／ターンのスキップ系統を解体＝6効果の挙動是正**
 
 **新機構2つ**＝①「フェイズをスキップする」を**遷移の1点**に集約（`PHASE_SKIP_BLOCK_IDS` ＋ `resolveNextPhaseWithSkips`）
