@@ -76,7 +76,7 @@ import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstS
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
-import { findGrowFreeAction } from '../src/screens/battle/growLogic';
+import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
 interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onExistingStack: boolean; fieldCountAdjust: number }
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
