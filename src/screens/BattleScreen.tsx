@@ -9589,10 +9589,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const myKey = p.attackerKey;
       const lrigNum = myLrigNumLA ?? '';
       const lrigName = battleCardMap.get(lrigNum)?.CardName ?? 'ルリグ';
-      // OPP_LRIG_ATTACK_COST: 相手フィールドの効果による追加コスト支払い（アタッカーは常にターンプレイヤー）
-      const lrigAttackExtraCost = collectOppLrigAttackExtraCost(op, my, battleCardMap, effectsMap, false);
+      // 《無》の前払い（OPP_LRIG_ATTACK_COST＋付与された ban）＝可否は上の `lrigAttackCostInfo` で判定済み。
+      // ⚠ここは引き落としだけ（続き490 の「判定と引き落としを別軸にしない」と同じ規約）。
+      const lrigAttackExtraCost = lrigCostLA.colorless;
       let myEnergyAfterAttack = my.energy;
-      if (lrigAttackExtraCost > 0 && my.energy.length >= lrigAttackExtraCost) {
+      if (lrigAttackExtraCost > 0) {
         const removed = myEnergyAfterAttack.slice(-lrigAttackExtraCost);
         myEnergyAfterAttack = myEnergyAfterAttack.slice(0, -lrigAttackExtraCost);
         appendBattleLogs([`ルリグアタック追加コスト（《無》×${lrigAttackExtraCost}）消費：${removed.map(n=>battleCardMap.get(n)?.CardName??n).join('、')}`]);
