@@ -823,16 +823,3 @@ SPDi43-05
   + [1].action.rawText = "【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする。"
   ~ [1].parseStatus : "AUTO" → "PARTIAL"
 
-## -NEGATE_ATTACK -SEQUENCE -SIGNI ［1枚］
-SPDi43-24
---- SPDi43-24
-  原文: 【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の青のシグニを２体までダウンし、以下の２つから１つを選ぶ。①この方法でダウンしたシグニ１体につきカードを１枚引く。②この方法でダウンしたシグニ１体につき対戦相手は手札を１枚捨てる。【起】《ゲーム１回》行こう、てっぺん！《青×0》：次の対戦相手のアタックフェイズ開始時、対戦相手のルリグかシグニ１体を対象
-  - [1].action.steps[0].type = "STUB"
-  - [1].action.steps[0].id = "DEFERRED_NEXT_OPP_ATTACK_PHASE_START"
-  - [1].action.steps[1].type = "NEGATE_ATTACK"
-  - [1].action.steps[1].target.type = "SIGNI"
-  - [1].action.steps[1].target.owner = "opponent"
-  - [1].action.steps[1].target.count = 1
-  ~ [1].action.type : "SEQUENCE" → "STUB"
-  + [1].action.id = "DEFERRED_NEXT_OPP_ATTACK_PHASE_START"
-
