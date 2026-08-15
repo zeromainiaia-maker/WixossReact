@@ -632,6 +632,12 @@
 - `STUB{REVEAL_PICK_HAND_SHUFFLE_BOTTOM}` 5効果＝2026-08-12 に実測したところ**全件 `revealPickParams` が完備**（枚数・行き先・filter・二段ピック）で、`REVEAL_PICK_PLAY` のような原文再parse依存ではない。**対象外。**
 
 **■ 消化済み**
+> ✅**O-3 の最大クラスタ `DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE`（7効果/7枚）＝2026-08-15 続き486 で解体**（O-3 自体は継続＝上の worklist 行を参照）。**5効果の恒久 no-op を解消**（`WX24-P4-039`／`WX25-P2-010`／`WX10-024`＝アタック制限、`WX24-P2-014`＝盤面リセット＋相手ダメージ無効、うち `WX24-P4-039` は数字宣言が**ガード制限つき**だった過剰実行も同時是正）。
+> 🔑**アタック制限は「課した側」ではなく「禁止を受ける側」の state に載せる**＝`signi_attack_bans_this_turn`。既存 `opp_signi_attack_power_cap` は課した側に載っていて gate が defender を引き回していた。アタッカー側に寄せると (a) `signiAttackGate` が attacker だけを見れば済み（**人間ボタン／`performSigniAttack`／CPU 候補の3経路に同時に効く**）(b) `_this_turn` 命名で `turnScopedState` の失効レジストリに**自動登録**（未登録なら typecheck が落ちる）。
+> 🔑**「支払わないかぎり」型は判定と引き落としを別軸にしない**＝gate は既存 `signi_attack_cost` と**合算**で残高を見て、引き落としも同じ1地点に合算する。⚠**実効パワー条件と支払い解除を同居させない**（引き落とし地点は実効パワーを持たず表記パワーへフォールバックする＝判定と課金がずれる）。golden のデータ不変条件で固定済み。
+> 🔑**「それ」の解決は `storedTargetCards`**（`lastProcessedCards` ではない）＝後者は多くのアクションが暗黙に読むが、前者は `targetsStored` を**明示した後続だけ**が読む。`execAttachCharm` に足しても既存の後続3件に影響しないことを実測してから決めた。
+> ⚠**STUB を実装で置き換えると census が +N する**＝`vocabCensus` は STUB を含む効果を「STUB/MANUAL格納（要個別確認）」へ逃がしているので、STUB が消えた瞬間に**その効果の他の未表現語彙が高シグナルへ昇格する**。続き486 の +2 は「計器の較正漏れ1（`ATTACK_BAN` キー追加）」＋「**本物の穴**1（`WX24-P2-014-E2` の除外節＝実装して解消）」だった。
+> **一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15（続き486）。**
 > ✅**O-19＝watcher 文の `triggerScope` を推論に頼っていた層**（`inferTriggerScope` を能力ブロック限定にし、続き463 の暫定【出】guard を撤去。parser 側は由来句「トラッシュから」を読んで `any_ally`＋`placedFromTrash` を parse 時に書く）＝2026-08-15 続き485 で完了。**実測在庫は1効果**（`WX25-P1-061-E1`）だったが、**本命は golden のデータ不変条件**＝「ON_PLAY AUTO で**能力ブロックの主語が『この…』でない**のに `triggerScope` 未指定＝0件」を新設し、**このクラスが増えた瞬間に赤くなる**ようにした（scope 未指定は engine で self に落ちる＝watcher なら一度も原文どおりに発火しないのに、どの計器にも映らなかった）。
 > ✅**O-25（本体）＝引用能力の自己付与が即時実行へ平坦化**（「（ターン終了時まで、）この(シグニ|ルリグ)は「【自/起/出】…」を得る」）＝2026-08-15 続き485 で parser 規則1本を追加し9カード採用。**engine の新機構ゼロ**（`GRANT_EFFECT{thisCardOnly}`／`granted_effects` は既存。足したのは `execGrantEffect` の「thisCardOnly は選択UIを出さない」1分岐＝`execGrantKeyword` と同ロジック）。**残りは上の worklist O-25 行**。
 > 🔑**規則の置き場所（恒久ルール）**＝**期間プレフィックス（「ターン終了時まで、」）を要求する規則は `parseActionText` の strip より前**（`effectParser.ts` の count:'ALL' 版の隣）に置く。`parseSentencePart*` は strip 後のテキストしか見ないので、そこに置くと**永久に発火しない**。
