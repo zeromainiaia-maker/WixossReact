@@ -10675,8 +10675,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         cpuHandEND = [...cpuHandEND, ...drawnCPU];
         appendBattleLogs([`ターン終了時：CPUがカードを${drawnCPU.length}枚引く`]);
       }
+      // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（人間側と同じ funnel）。
+      // CPU も 【出】でこの予約を積む札（`SPK01-10`）を召喚しうるので、人間の2経路と同じ関数を通す。
+      const cpuEnergyTrashEND = resolveTurnEndEnergyTrash(cpuEndState);
+      if (cpuEnergyTrashEND.trashed.length > 0) {
+        appendBattleLogs([`ターン終了時：CPUの${cpuEnergyTrashEND.trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をエナゾーンからトラッシュへ`]);
+      }
       const cleanCpuSt: PlayerState = clearTurnEndScopedState(resolvePendingExiles(clearAttackFieldTrashCosts(clearEndOfTurnDelayedTriggers({
         ...cpuEndState,
+        energy: cpuEnergyTrashEND.state.energy,
+        trash: cpuEnergyTrashEND.state.trash,
+        turn_end_energy_trash_targets: undefined,
         hand: cpuHandEND, deck: cpuDeckEND, turn_end_draw_count: undefined,
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {}, actions_done: [],
         signi_zone_blocks: undefined, // ゾーン配置禁止をクリア。トラッシュ移動ロックは funnel（予約は別フィールド）
