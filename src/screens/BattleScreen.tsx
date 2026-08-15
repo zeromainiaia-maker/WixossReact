@@ -3859,7 +3859,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }));
         return;
       } else {
-        nextPhase = resolveNextPhaseWithAttackStepBlocks(phase, newMyState);
+        // §6.4 O-3: ATTACK_LRIG の次は通常 END だが、「追加のアタックフェイズ」の予約があれば
+        // ATTACK_ARTS へ戻す（消化＝キューの減算と開始時本文の移送も同じ1点で行う）。
+        {
+          const nextRes = resolveNextPhaseAfterAttack(phase, newMyState);
+          nextPhase = nextRes.next;
+          newMyState = nextRes.state;
+          if (nextRes.addedExtraPhase) appendBattleLogs(['追加のアタックフェイズを開始する']);
+        }
         // 「このアタックフェイズの間」の遅延 watcher は ATTACK_LRIG→END で両者から消滅。
         // collector 側にもフェイズ判定を持たせ、stale state が残ってもフェイズ外発火しない。
         if (phase === 'ATTACK_LRIG') {
