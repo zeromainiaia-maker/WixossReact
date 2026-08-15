@@ -5522,7 +5522,11 @@ function revealUntilStopIndex(
   let levelSum = 0;
   for (let i = 0; i < state.deck.length; i++) {
     const card = ctx.cardMap.get(getCardNum(state.deck[i]));
-    const filterOk = !resolvedFilter || matchesFilter(card, resolvedFilter);
+    // 🔑デッキ内シグニのレベル上書き（§6.4 O-34(c)）＝`WXK07-034-E1`① で全シグニを Lv4 にしてから
+    //   ② の「レベル4のシグニが2枚めくれるまで」を判定する。**停止条件と当たり札判定の両方**に通す
+    //   （片方だけだと「止まるのに当たらない／当たるのに止まらない」でズレる）。
+    const filterOk = !resolvedFilter
+      || matchesFilter(card, resolvedFilter, undefined, undefined, undefined, deckSigniOverrideLevel(state, card));
     if (stop.kind === 'declaredName') {
       if (ownerSt.declared_card_name && card?.CardName === ownerSt.declared_card_name && filterOk) {
         return { endIndex: i, matched: true };
