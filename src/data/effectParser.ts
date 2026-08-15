@@ -64,6 +64,14 @@ const LOOK_PICK_CHAIN_WAVE2_CARDS = new Set([
 ]);
 let _parsingCardNum = '';
 /**
+ * いま parse 中のカードの全文（`EffectText`＋`BurstText`）。
+ *
+ * ⚠**判定の材料に使わない**（§6.4 O-20＝全文 regex は別能力の句を拾う）。用途は
+ * 「この文の照応先がこのカードのどこかに存在するか」という**ガード**だけ＝存在しなければ
+ * 詰め替えを諦めて受け皿のまま残す（過少側に倒す）方向にしか効かせない。
+ */
+let _parsingCardText = '';
+/**
  * 「[レベルが奇数/偶数の]あなたの[他の][修飾群]シグニ[N体]がアタックしたとき、」＝ON_ATTACK_SIGNI の**味方側主語**を
  * `triggerScope:'any_ally'` ＋ `triggerFilter` へ落とす唯一の入口（続き377f で3箇所の regex を統合）。
  *
