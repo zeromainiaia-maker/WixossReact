@@ -7438,6 +7438,38 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return selectOrInteract(
         ctx.ownerState.hand, Math.max(1, pfl.count), pfl.upToCount ?? false, 'self_hand', action, undefined, ctx);
     }
+    case 'FIELD_SIGNI_TO_CHECK_ZONE': {
+      // 「あなたのすべての〈条件〉のシグニをチェックゾーンに置く。その後、それらを場に出す」（§6.4 O-3）。
+      // 🔑チェックゾーンは**経由地**なので往復を1アクションに畳む（型コメント参照）。意味は
+      //   「場を離れて出直す」＝アップした新しいシグニとして場に出る＝アタック済みの記録も落ちる。
+      // ⚠`lastProcessedCards` に載せる＝呼び出し側（BattleScreen）がここから【出】を発火する
+      //   （`ADD_TO_FIELD` と同じ受け渡し）。
+      const fsc = action as import('../types/effects').FieldSigniToCheckZoneAction;
+      const fscOwner: Owner = (fsc.target?.owner === 'opponent') ? 'opponent' : 'self';
+      const fscState = ownerState(fscOwner, ctx);
+      const zonesFSC = [0, 1, 2].filter(zi => {
+        const top = fscState.field.signi[zi]?.at(-1);
+        if (!top) return false;
+        return !fsc.target?.filter || matchesFilter(ctx.cardMap.get(getCardNum(top)), fsc.target.filter);
+      });
+      if (zonesFSC.length === 0) return done(addLog(ctx, 'チェックゾーンに置くシグニなし'));
+      const topsFSC = zonesFSC.map(zi => fscState.field.signi[zi]!.at(-1)!);
+      const downFSC = [...(fscState.field.signi_down ?? [false, false, false])];
+      const frozenFSC = [...(fscState.field.signi_frozen ?? [false, false, false])];
+      for (const zi of zonesFSC) { downFSC[zi] = false; frozenFSC[zi] = false; }
+      const newFSC: PlayerState = {
+        ...fscState,
+        field: { ...fscState.field, signi_down: downFSC, signi_frozen: frozenFSC },
+        // 場を離れて出直すので「このターンにアタックした」記録は落ちる（＝再びアタックできる）。
+        attacked_signi_ids: (fscState.attacked_signi_ids ?? []).filter(id => !topsFSC.includes(id)),
+      };
+      const namesFSC = topsFSC.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・');
+      return done({
+        ...addLog(setOwnerState(fscOwner, newFSC, ctx),
+          `${namesFSC}をチェックゾーンに置き、場に出し直す`),
+        lastProcessedCards: [...(ctx.lastProcessedCards ?? []), ...topsFSC],
+      });
+    }
     case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND': {
       // 「そのカードを手札に加える」＝裏向きでルリグゾーンに置いたカードを手札へ（§6.4 O-3）。
       // ⚠遅延（`DELAY_TO_NEXT_OPP_TURN_END` / `INSTALL_DELAYED_TRIGGER`）を跨いで発火するので、
