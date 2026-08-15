@@ -2750,6 +2750,9 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §6.4 O-3（続き491）＝ターン/メインフェイズのスキップ（どちらも engine 実装済み）。
+        SKIP_NEXT_TURN: '次のあなたのターンをスキップする',
+        SKIP_MAIN_PHASE: 'このメインフェイズを終了する',
         // 「〜してもよい」の任意性そのものを表す制御 STUB（effectExecutor Pattern⑤）。
         // 生 id が逆翻訳に漏れると原文照合で「何が任意なのか」が読めない（続き422）。
         OPTIONAL_ACTIVATE: '次の効果を行ってもよい（行わない場合、以降は実行しない）',
