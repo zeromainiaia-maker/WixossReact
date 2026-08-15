@@ -69,6 +69,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   signi_banished_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'banished signi total for the current turn' },
   // 自分のデッキからエナへ置いた累計は、ターン単位の条件カウンタ。
   self_deck_to_energy_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'own deck-to-energy total for the current turn' },
+  // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」は、課されたターンだけ有効。
+  signi_attack_bans_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'attack bans imposed on the attacker for the current turn' },
 } as const satisfies Record<ConventionTurnScopedField, TurnScopedSpec>;
 
 /** 命名規約外だがターン限定であることを型コメント・setter・readerから確認したフィールド。 */
