@@ -17191,7 +17191,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 44, 'ActiveCondition の型数（増えたら union に足した合図。44＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
-  eq(Object.keys(C_TYPES).length, 116, 'Condition の型数（増えたら union に足した合図。116＝§6.4 の CHARM_COUNT 追加後）');
+  eq(Object.keys(C_TYPES).length, 117, 'Condition の型数（増えたら union に足した合図。117＝§6.4 O-34(d) の LRIG_ANY_TEAM_COUNT 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
