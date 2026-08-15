@@ -110,6 +110,11 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   // キーの能力喪失（§6.4 O-16(b)）も「このターン」限定。⚠登録前は BattleScreen の turn-end 4経路のうち
   //   2経路でしか手書きクリアされておらず、普通にターンを終えるとキー能力が**永久に**戻らなかった。
   keys_abilities_disabled: { boundaries: ['turn-end'], reset: undefined, reason: 'all-keys ability loss for the current turn' },
+  // 「次のあなたのメインフェイズまで」の基本リミット上書き（§6.4 O-3 続き492・`WXK01-002-E2`）。
+  // ⚠**ターン終了では消えない**＝相手のターンを丸ごと跨ぐのが原文どおり。失効は main-phase-start の1点。
+  lrig_base_limit_override: { boundaries: ['main-phase-start'], reset: undefined, reason: 'base lrig limit override lasting until the owner next enters MAIN' },
+  // 同じ期間のドローフェイズ置換（次のドローフェイズは次のメインフェイズより前なので必ず1回使える）。
+  draw_phase_replacement: { boundaries: ['main-phase-start'], reset: undefined, reason: 'draw-phase replacement lasting until the owner next enters MAIN' },
 } as const satisfies Partial<Record<keyof PlayerState, TurnScopedSpec>>;
 
 /** ターン限定フィールドの唯一の実行時レジストリ。各フィールドは上のどちらかに1回だけ現れる。 */
