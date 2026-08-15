@@ -3154,7 +3154,25 @@ export function collectProtectedZones(
       }
     }
   }
+  // 期間つき予約（`ZONE_MOVE_IMMUNITY`＝アーツ/【出】で張るぶん）も同じ集合に合流させる。
+  for (const zone of activeOppMoveImmunityZones(state)) result.add(zone);
   return [...result];
+}
+
+/**
+ * 期間つき「対戦相手の効果によって〈ゾーン〉のカードは移動しない」（`opp_move_immunity`）の
+ * **いま有効なゾーン**（§6.4 O-3 続き493）。
+ *
+ * 🔑**`ExecCtx.otherProtectedZones` が未設定の経路でも効くように、state だけで読めるようにする**＝
+ * 消費側は「ctx 側の集合 ∪ この関数」で判定する（ctx を組み立てない経路が実在するため）。
+ */
+export function activeOppMoveImmunityZones(state: PlayerState): ('hand' | 'energy')[] {
+  const out = new Set<'hand' | 'energy'>();
+  for (const entry of state.opp_move_immunity ?? []) {
+    if (entry.turnsRemaining <= 0) continue;
+    for (const z of entry.zones) out.add(z);
+  }
+  return [...out];
 }
 
 /**
