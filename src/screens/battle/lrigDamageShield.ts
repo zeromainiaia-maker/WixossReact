@@ -47,7 +47,12 @@ export function isLrigDamagePrevented(args: {
       if (id !== 'PREVENT_LRIG_DAMAGE' && id !== 'PREVENT_LOW_LEVEL_LRIG_DAMAGE') continue;
       // ⚠防御側は常に非ターンプレイヤー（ルリグアタックは相手のターン中）＝`isOwnerTurn=false`。
       if (!checkActiveCondition(eff.activeCondition, defender, attacker, false, cardMap, num)) continue;
-      if (id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' && !(!isNaN(attackerLevel) && attackerLevel <= 2)) continue;
+      if (id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE') {
+        // ⚠上限は宣言の `value` から読む（parser が落としていると全レベルに効く過剰効果になる）。
+        const maxLevel = typeof (eff.action as StubAction).value === 'number'
+          ? (eff.action as StubAction).value as number : undefined;
+        if (maxLevel === undefined || isNaN(attackerLevel) || attackerLevel > maxLevel) continue;
+      }
       return true;
     }
   }
