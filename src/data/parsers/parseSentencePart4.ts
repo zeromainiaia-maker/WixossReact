@@ -93,6 +93,26 @@ export function parseSentencePart4(t: string): EffectAction | null {
     } } as EffectAction;
   }
 
+  // ---- 「（その後、）対戦相手の手札を見て、宣言したカードをすべて捨てさせる」（`PR-257-E1`）----
+  // 直前の `DECLARE_CARD_NAME` が置いた `declared_card_name` を `nameEqDeclaredName` で参照する。
+  // ⚠未宣言なら空ヒット＝「宣言していないのに全部捨てさせる」過剰実行にはならない。
+  if (/^(?:その後、)?対戦相手の手札を見て、宣言したカードをすべて捨てさせる$/.test(t)) {
+    return { type: 'TRASH', target: {
+      type: 'HAND_CARD', owner: 'opponent', count: 'ALL', filter: { nameEqDeclaredName: true },
+    } } as EffectAction;
+  }
+
+  // ---- 「あなたの手札から〈修飾〉スペル１枚を使用してもよい」（`WX11-043-E2`）----
+  // ⚠既存規則は「コストを支払って使用する」「コストを支払わずに使用してもよい」の2形しか受けず、
+  //   素の「使用してもよい」が UNKNOWN に落ちていた（コスト軽減は後続文の別ステップが持つ）。
+  if (/^あなたの手札から[^。]{0,20}スペル[１1]枚を使用してもよい$/.test(t))
+    return { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND' } as StubAction;
+
+  // ---- 「この方法で場に出た《X》が場を離れる場合、代わりにゲームから除外される」（`WXDi-P13-004A-E1`）----
+  // 直前の `ADD_TO_FIELD` が場に出したカード（`lastProcessedCards`）を遅延除外マークへ登録する。
+  if (/^この方法で場に出た《[^》]*》が場を離れる場合、代わりにゲームから除外される$/.test(t))
+    return { type: 'STUB', id: 'MARK_PLACED_DELAYED_EXILE' } as StubAction;
+
   // ---- 「このピースはあなたの場にルリグが３体いなくても使用できる」（`WXDi-P16-TK01-E1`）----
   // ⚠**緩和の対象になっているルール（ピースはルリグ3体でなければ使えない）自体が engine 未実装**
   //   ＝緩和も no-op でよい。ルール注記として明示し、UNKNOWN のままにしない（前置文が UNKNOWN だと

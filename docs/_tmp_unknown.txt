@@ -9,118 +9,58 @@ live: {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"PR-257-sub-E1","eff
   UNKNOWN@action.steps[0] :: 対戦相手はあなたと握手をしてもよい
 live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"対戦相手はあなたと握手をしてもよい"},{"type":"DRAW","owner":"self","count":3},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}]}
 ==========================================================================================
-#3 WD21-008-E1  [parseStatus=AUTO]
-原文: このアーツを使用する際、手札から＜宇宙＞のシグニを１枚捨ててもよい。そうした場合、このアーツの使用コストは《赤×2》減る。以下の３つから１つを選ぶ。①カードを２枚引く。②あなたのデッキの上からカードを２枚エナゾーンに置く。③あなたのトラッシュからシグニを２枚まで対象とし、それらを手札に加え、手札を１枚捨てる。
-  UNKNOWN@action.steps[1].choices[2].action :: あなたのトラッシュからシグニを２枚まで対象とし、それらを手札に加え、手札を１枚捨てる
-live: {"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}},{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":2}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2}},{"choiceId":"c2","label":"選択肢3","action":{"type":"UNKNOWN","raw":"あなたのトラッシュからシグニを２枚まで対象とし、それらを手札に加え、手札を１枚捨てる"}}]}]}
-==========================================================================================
-#4 WX05-010-E1  [parseStatus=PARTIAL]
-原文: 【出】：あなたのすべてのライフクロスを見て、その中から好きな枚数をトラッシュに置き、その枚数と同じ枚数のカードをデッキの上からライフクロスに加える。その後、あなたのすべてのライフクロスを見て、好きな順番で並び替える。
-  UNKNOWN@action.steps[1] :: その後、あなたのすべてのライフクロスを見て、好きな順番で並び替える
-live: {"type":"SEQUENCE","steps":[{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true},{"type":"UNKNOWN","raw":"その後、あなたのすべてのライフクロスを見て、好きな順番で並び替える"}]}
-==========================================================================================
-#5 WX11-043-E2  [parseStatus=PARTIAL]
+#3 WX11-043-E2  [parseStatus=PARTIAL]
 原文: 【クロス自】《ターン１回》：このシグニが《ヘブン》したとき、あなたの手札から青のスペル１枚を使用してもよい。それの使用コストは《青×2》減る。
   UNKNOWN@action.steps[0] :: あなたの手札から青のスペル１枚を使用してもよい
 live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"あなたの手札から青のスペル１枚を使用してもよい"},{"type":"STUB","id":"ARTS_COST_REDUCTION_BY_EFFECT"}]}
 ==========================================================================================
-#6 WX15-002-E2  [parseStatus=AUTO]
+#4 WX15-002-E2  [parseStatus=AUTO]
 原文: 【出】ホログラフ《コインアイコン》《コインアイコン》：このゲームの間、このルリグは「【自】：対戦相手のセンタールリグ１体がアタックしたとき、対戦相手はあなたのデッキの一番上のカードが《トラップアイコン》を持つか持たないかを宣言する。あなたのデッキの一番上を公開する。宣言が外れた場合、そのアタックであなたはダメージを受けない。」を得る。
   UNKNOWN@action.abilities[0].action.steps[0] :: 対戦相手はあなたのデッキの一番上のカードが《トラップアイコン》を持つか持たないかを宣言する
 live: {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WX15-002-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"対戦相手はあなたのデッキの一番上のカードが《トラップアイコン》を持つか持たないかを宣言する"},{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":1,"private":false,"reorder":false,"destination":{"location":"deck","owner":"self","position":"top"}},{"type":"PREVENT_DAMAGE","owner":"self","until":"UNTIL_END_OF_TURN","scope":"ALL"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"any_opp","holograph":true}],"rawText":"【自】：対戦相手のセンタールリグ１体がアタックしたとき、対戦相手はあなたのデッキの一番上のカードが《トラップアイコン》を持つか持たないかを宣言する。あなたのデッキの一番上を公開する。宣言が外れた場合、そのアタックであなたはダメージを受けない。","permanent":true}
 ==========================================================================================
-#7 WX17-003-E1  [parseStatus=PARTIAL]
-原文: ベット―《コインアイコン》《コインアイコン》以下から２つまで選ぶ。同じ選択肢を２回選んでもよい。あなたがベットしていた場合、代わりに４つまで選ぶ。同じ選択肢を２回以上選んでもよい。①対戦相手のシグニ１体を対象とし、それを手札に戻す。手札を１枚捨てる。②対戦相手のセンタールリグ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。③あなたのデッキからレベルの異なる＜怪異＞のシグニ２枚を探して公開し手札に加え、デッキをシャッフルする。
-  UNKNOWN@action.steps[0] :: 以下から２つまで選ぶ
-live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"以下から２つまで選ぶ"},{"type":"STUB","id":"CHOOSE_SAME_OPTION_TWICE"},{"type":"STUB","id":"BET_ALTERNATIVE"},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]}
-==========================================================================================
-#8 WX17-052-LAYER  [parseStatus=PARTIAL]
-原文: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る 《レイヤーアイコン》【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい。
-  UNKNOWN@action.abilities[0].action :: 対戦相手のターンの間、このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい
-live: {"type":"GRANT_FIELD_SIGNI_ABILITY","filter":{"cardType":"シグニ","story":"怪異"},"abilities":[{"effectId":"WX17-052-LAYER-E1","effectType":"AUTO","timing":["ON_BANISH"],"action":{"type":"UNKNOWN","raw":"対戦相手のターンの間、このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい"},"duration":"INSTANT","mandatory":true,"parseStatus":"UNKNOWN"}]}
-==========================================================================================
-#9 WX19-064-E1  [parseStatus=AUTO]
+#5 WX19-064-E1  [parseStatus=AUTO]
 原文: 以下の３つから１つを選ぶ。①【ウィルス】１つを取り除く。②【トラップ】１つを対象とし、それをトラッシュに置く。③シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く。【トラップアイコン】：カードを１枚引く。その後、あなたの【トラップ】１つを対象とし、それを表向きにし《トラップアイコン》を発動させる。
   UNKNOWN@action.choices[2].action.steps[0] :: シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く
 live: {"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ウィルス","duration":"PERMANENT"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"トラップ","duration":"PERMANENT"}},{"choiceId":"c2","label":"選択肢3","action":{"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く"},{"type":"DRAW","owner":"self","count":1},{"type":"STUB","id":"ACTIVATE_TRAP"}]}}]}
 ==========================================================================================
-#10 WX20-077-E2  [parseStatus=PARTIAL]
+#6 WX20-077-E2  [parseStatus=PARTIAL]
 原文: 【出】：あなたのトラッシュにカード名に《リカブト》を含むカードがある場合、あなたのデッキから《バイオレンス・スプラッシュ》１枚を探す。その後、デッキをシャッフルし、それをコストを支払わずに使用するかトラッシュに置く。
   UNKNOWN@action.steps[1] :: それをコストを支払わずに使用するかトラッシュに置く
 live: {"type":"SEQUENCE","steps":[{"type":"STUB","id":"CONDITIONAL_POWER_BONUS"},{"type":"UNKNOWN","raw":"それをコストを支払わずに使用するかトラッシュに置く"}]}
 ==========================================================================================
-#11 WX21-Re19-E2  [parseStatus=PARTIAL]
-原文: 【自】：あなたのターン終了時、このシグニを場からトラッシュに置いてもよい。そうした場合、次のあなたのターンまで、あなたのセンタールリグは「【起】《ターン１回》《アタックフェイズアイコン》《白×0》：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。」を得る。
-  UNKNOWN@action.abilities[0].action :: 対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない
-live: {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WX21-Re19-sub-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"UNKNOWN","raw":"対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"UNKNOWN","usageLimit":"once_per_turn"}],"rawText":"【起】《ターン１回》《アタックフェイズアイコン》《白×0》：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。"}
-==========================================================================================
-#12 WX24-P4-038-E1  [parseStatus=PARTIAL]
-原文: ターン終了時まで、あなたのすべてのルリグは以下の能力を得る。『【起】《ターン１回》《ダウン》：あなたのトラッシュからこのルリグと共通する色を持つシグニ１枚を対象とし、それを場に出す。【起】《ターン１回》《ダウン》：このルリグと同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。』
-  UNKNOWN@action.steps[0] :: あなたのすべてのルリグは以下の能力を得る
-live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"あなたのすべてのルリグは以下の能力を得る"},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]}
-==========================================================================================
-#13 WX25-P3-050-E1  [parseStatus=PARTIAL]
+#7 WX25-P3-050-E1  [parseStatus=PARTIAL]
 原文: 【使用条件】【チーム】いずれかのチームあなたの場にいる白のルリグ１体につき【ルリグバリア】１つを得る。あなたの場にいる赤のルリグ１体につき対戦相手のシグニを２体まで対象とし、それらのパワーの合計が12000以下の場合、それらをバニッシュする。あなたの場にいる青のルリグ１体につきカードを３枚引く。あなたの場にいる緑のルリグ１体につき【エナチャージ３】をする。あなたの場にいる黒のルリグ１体につき対戦相手のデッキの上からカードを１０枚トラッシュに置く。
   UNKNOWN@action.steps[2] :: あなたの場にいる青のルリグ１体につきカードを３枚引く
 live: {"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"使用条件","duration":"PERMANENT"},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":2,"filter":{"cardType":"シグニ","color":"赤"},"upToCount":true}},{"type":"UNKNOWN","raw":"あなたの場にいる青のルリグ１体につきカードを３枚引く"},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":3},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":10}}]}
 ==========================================================================================
-#14 WXDi-D03-011-E1  [parseStatus=PARTIAL]
-原文: 【使用条件】【チーム】＜NoLimit＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【常】：【ダブルクラッシュ】（アタックによるダメージでライフクロスを２枚クラッシュする）【常】：対戦相手は【ガード】ができない。』
-  UNKNOWN@action.steps[0] :: あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る
-live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る"},{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"}]}
-==========================================================================================
-#15 WXDi-P03-001-E1  [parseStatus=PARTIAL]
+#8 WXDi-P03-001-E1  [parseStatus=PARTIAL]
 原文: 【使用条件】あなたの場に青のルリグがいるカードを３枚引く。次のあなたのターン終了時、手札を２枚捨てる。
   UNKNOWN@action.steps[1] :: 次のあなたのターン終了時、手札を２枚捨てる
 live: {"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":3},{"type":"UNKNOWN","raw":"次のあなたのターン終了時、手札を２枚捨てる"}]}
 ==========================================================================================
-#16 WXDi-P03-060-E1  [parseStatus=PARTIAL]
-原文: 【常】：このシグニはパワーが12000以上であるかぎり、「【常】：対戦相手の効果によってダウンしない。」を得る。
-  UNKNOWN@action.abilities[0].action :: 対戦相手の効果によってダウンしない
-live: {"type":"GRANT_FIELD_SIGNI_ABILITY","thisCardOnly":true,"abilities":[{"effectId":"WXDi-P03-060-E1-G","effectType":"CONTINUOUS","action":{"type":"UNKNOWN","raw":"対戦相手の効果によってダウンしない"},"duration":"PERMANENT","mandatory":true,"parseStatus":"UNKNOWN"}]}
-==========================================================================================
-#17 WXDi-P09-036-E1  [parseStatus=AUTO]
+#9 WXDi-P09-036-E1  [parseStatus=AUTO]
 原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のシグニかルリグ１体がアタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。この方法で公開されたカードがどちらも【ライフバースト】を持っているか、どちらも【ライフバースト】を持っていない場合、そのアタックを無効にする。」を得る。
   UNKNOWN@action.abilities[0].action.steps[0] :: あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く
 live: {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-P09-036-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI","ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く"},{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"PARTIAL","triggerScope":"any_opp"}],"rawText":"【自】：対戦相手のシグニかルリグ１体がアタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。この方法で公開されたカードがどちらも【ライフバースト】を持っているか、どちらも【ライフバースト】を持っていない場合、そのアタックを無効にする。"}
 ==========================================================================================
-#18 WXDi-P11-002-E1  [parseStatus=AUTO]
-原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ（あなたの場にいるルリグ３体がこの条件を満たす）このゲームの間、対戦相手は以下の能力を得る。『【自】：あなたのターン終了時、以下の３つからまだ選んでいないもの１つを選ぶ。①あなたは手札を２枚捨てる。②あなたのエナゾーンからカード２枚を選びトラッシュに置く。③あなたは自分のシグニ１体を選びトラッシュに置く。』
-  UNKNOWN@action.steps[1].choices[2].action :: あなたは自分のシグニ１体を選びトラッシュに置く
-live: {"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"使用条件","duration":"PERMANENT"},{"type":"CHOOSE","choose_count":1,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":2}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"STUB","id":"ENERGY_TO_TRASH"}},{"choiceId":"c2","label":"選択肢3","action":{"type":"UNKNOWN","raw":"あなたは自分のシグニ１体を選びトラッシュに置く"}}]}]}
-==========================================================================================
-#19 WXDi-P12-055-E1  [parseStatus=PARTIAL]
+#10 WXDi-P12-055-E1  [parseStatus=PARTIAL]
 原文: 【自】：あなたのアタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手は《白2》2《赤2》2《青2》2《緑2》2《黒2》2《無2》2から１つを宣言する。あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする。
   UNKNOWN@action.steps[0] :: このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい
 live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"OPP_DECLARE_CHOICE"}},{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]}
 ==========================================================================================
-#20 WXDi-P13-004A-E1  [parseStatus=PARTIAL]
+#11 WXDi-P13-004A-E1  [parseStatus=PARTIAL]
 原文: チェックゾーンにあるこのカードを裏返して《UNKNOWN-CODE-RU-》を場に出す。この方法で場に出た《UNKNOWN-CODE-RU-》が場を離れる場合、代わりにゲームから除外される。
   UNKNOWN@action.steps[1] :: この方法で場に出た《UNKNOWN-CODE-RU-》が場を離れる場合、代わりにゲームから除外される
 live: {"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self"},{"type":"UNKNOWN","raw":"この方法で場に出た《UNKNOWN-CODE-RU-》が場を離れる場合、代わりにゲームから除外される"}]}
 ==========================================================================================
-#21 WXDi-P13-031-E1  [parseStatus=PARTIAL]
-原文: 【出】：ターン終了時まで、このルリグは「【常】：対戦相手は《無》《無》《無》を支払わないかぎりシグニでアタックできない。」を得る。
-  UNKNOWN@action.abilities[0].action :: 対戦相手は《無》《無》《無》を支払わないかぎりシグニでアタックできない
-live: {"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-P13-031-sub-E1","effectType":"CONTINUOUS","action":{"type":"UNKNOWN","raw":"対戦相手は《無》《無》《無》を支払わないかぎりシグニでアタックできない"},"duration":"PERMANENT","mandatory":true,"parseStatus":"UNKNOWN"}],"rawText":"【常】：対戦相手は《無》《無》《無》を支払わないかぎりシグニでアタックできない。"}
-==========================================================================================
-#22 WXDi-P14-062-E1  [parseStatus=PARTIAL]
-原文: 【常】：あなたの場にレベル３の覚醒状態のシグニがあるかぎり、このシグニは「【自】：このシグニがパワー10000以上のシグニとバトルしたとき、そのシグニをトラッシュに置く。」を得る。
-  UNKNOWN@action.abilities[0].action :: このシグニがパワー10000以上のシグニとバトルしたとき、そのシグニをトラッシュに置く
-live: {"type":"GRANT_FIELD_SIGNI_ABILITY","thisCardOnly":true,"abilities":[{"effectId":"WXDi-P14-062-E1-G","effectType":"AUTO","timing":["ON_SIGNI_BATTLE"],"action":{"type":"UNKNOWN","raw":"このシグニがパワー10000以上のシグニとバトルしたとき、そのシグニをトラッシュに置く"},"duration":"INSTANT","mandatory":true,"parseStatus":"UNKNOWN","triggerFilter":{"powerRange":{"min":10000}}}]}
-==========================================================================================
-#23 WXDi-P16-TK01-E1  [parseStatus=PARTIAL]
-原文: このピースはあなたの場にルリグが３体いなくても使用できる。以下の３つから２つまで選ぶ。同じ選択肢を２回選んでもよい。①《白》を支払ってもよい。そうした場合、【ルリグバリア】１つを得る。②対戦相手のシグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする。③《青》を支払ってもよい。そうした場合、カードを３枚引く。
-  UNKNOWN@action.steps[0] :: このピースはあなたの場にルリグが３体いなくても使用できる
-live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"このピースはあなたの場にルリグが３体いなくても使用できる"},{"type":"STUB","id":"CHOOSE_SAME_OPTION_TWICE"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"GAIN_LRIG_BARRIER"}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"DRAW","owner":"self","count":3}}]}
-==========================================================================================
-#24 WXK07-034-E1  [parseStatus=AUTO]
+#12 WXK07-034-E1  [parseStatus=AUTO]
 原文: 以下の２つから２つまで選ぶ。①このターン、あなたのデッキにあるシグニのレベルは４になる。②あなたのデッキを上からレベル４のシグニが２枚めくれるまで公開する。それらを手札に加え、残りをシャッフルしてデッキの一番下に置く。
   UNKNOWN@action.choices[0].action :: このターン、あなたのデッキにあるシグニのレベルは４になる
 live: {"type":"CHOOSE","choose_count":2,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"UNKNOWN","raw":"このターン、あなたのデッキにあるシグニのレベルは４になる"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"REVEAL_UNTIL","owner":"self","stopCondition":{"kind":"signiCount","count":2,"filter":{"cardType":"シグニ","level":4}},"hit":{"filter":{"cardType":"シグニ","level":4},"count":"ALL","destination":"hand"},"restDestination":"deck_bottom_shuffled"}]}}],"upTo":true}
 ==========================================================================================
-#25 WXK07-106-E1  [parseStatus=PARTIAL]
+#13 WXK07-106-E1  [parseStatus=PARTIAL]
 原文: ベット―《コインアイコン》《コインアイコン》以下の効果を１回行う。あなたがベットしていた場合、代わりに２回行う。あなたのデッキの一番上のカードをトラッシュに置く。その後、この方法でトラッシュに置かれたカードがレベルが奇数のシグニの場合、それをトラッシュから場に出す。レベルが偶数のシグニの場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。
   UNKNOWN@action.steps[0] :: 以下の効果を１回行う
 live: {"type":"SEQUENCE","steps":[{"type":"UNKNOWN","raw":"以下の効果を１回行う"},{"type":"STUB","id":"BET_ALTERNATIVE"},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-12000}]}
-total 25
+total 13

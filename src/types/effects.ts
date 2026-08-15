@@ -2061,6 +2061,12 @@ export interface SigniAttackBanAction {
    * ⚠**アタックのたびに**支払う＝1回きりの `NegateAttackAction.escapeDiscard` とは別機構。
    */
   unlessPayHandDiscard?: number;
+  /**
+   * 有効なグローバルターン数（2＝「次の対戦相手のターン（終了時まで）」＝§6.4 O-4）。
+   * 省略＝そのターンだけ。`SigniDeployBan` と同じカウントダウン規約で
+   * `clearTurnEndScopedState` の1点だけが減らす。
+   */
+  turns?: number;
 }
 
 /**

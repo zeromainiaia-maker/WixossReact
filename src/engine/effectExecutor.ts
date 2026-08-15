@@ -7310,6 +7310,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         if (!b) continue;
         if (sab.unlessPayColorless) b.unlessPayColorless = sab.unlessPayColorless;
         if (sab.unlessPayHandDiscard) b.unlessPayHandDiscard = sab.unlessPayHandDiscard;
+        // 「次の対戦相手のターン（終了時まで）」＝ターン数カウントダウン（§6.4 O-4）。
+        if (sab.turns && sab.turns > 1) b.turnsRemaining = sab.turns;
         b.label = b.unlessPayColorless ? `《無》×${b.unlessPayColorless}`
           : b.unlessPayHandDiscard ? `手札${b.unlessPayHandDiscard}枚`
           : 'アタック不可';
