@@ -27,7 +27,7 @@ import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
-import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './battle/energyPaySource';
+import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, isEnergyPayBlocked, type EnergyPayEntry } from './battle/energyPaySource';
 
 interface Props {
   user: User;
