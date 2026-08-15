@@ -29328,19 +29328,30 @@ test('§6.4 O-3: 「次の対戦相手のターン終了時、〜」の本体を
   // 🔴`WXDi-P16-002-E1` は**使った瞬間に**1枚引き【エナチャージ１】していた（過剰実行）。
   //   `WXDi-P09-066-E1` は無関係な汎用 `STUB{LOOK_AND_REORDER}` に落ちて計器にも映らなかった。
   // 🆕続き497 で予約機構（`DELAY_TO_NEXT_OPP_TURN_END`）が入ったので、**本文が解ける側は予約へ格上げ**した。
-  //   ⚠`WXDi-P09-066-E1` は本文が「**その**カードを手札に加える」＝遅延を跨いだ照応で、単独文として読むと
-  //     `TRANSFER_TO_HAND{DECK_CARD}`（デッキから引く）へ化けるため**受け皿のまま**（過少側に倒す）。
-  for (const [cardNum, effectId, shape] of [
-    ['WXDi-P16-002', 'WXDi-P16-002-E1', 'DELAY_TO_NEXT_OPP_TURN_END'],
-    ['WXDi-P09-066', 'WXDi-P09-066-E1', 'DEFERRED_NEXT_OPP_TURN_END_BODY'],
+  // 🆕続き498 で `WXDi-P09-066-E1` の照応（「**その**カードを手札に加える」）も解けた＝参照先を
+  //   `facedown_lrig_zone_cards` に永続化してあるので、発火時に state から復元する
+  //   （`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`）。⚠単独文として読むと `TRANSFER_TO_HAND{DECK_CARD}`
+  //   ＝デッキから引く、へ化けるので**照応先が state にある形だけ**を格上げしている。
+  for (const [cardNum, effectId] of [
+    ['WXDi-P16-002', 'WXDi-P16-002-E1'],
+    ['WXDi-P09-066', 'WXDi-P09-066-E1'],
   ] as const) {
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
     const json = JSON.stringify(eff.action);
-    ok(json.includes(shape), `${cardNum}: 遅延本体の扱いが ${shape} でない`);
+    ok(json.includes('DELAY_TO_NEXT_OPP_TURN_END'), `${cardNum}: 遅延本体が予約へ格上げされていない`);
+    ok(!json.includes('DEFERRED_NEXT_OPP_TURN_END_BODY'), `${cardNum}: 受け皿 STUB が残っている`);
     const ctx = mkCtx({}, {}, cardNum);
     const handBefore = (ctx.ownerState as PlayerState).hand.length;
     const r = finish(executeEffect(eff, ctx), ctx);
-    eq((r.ownerState as PlayerState).hand.length, handBefore, `${cardNum}: 即時に手札が増えない`);
+    // 予約の本文（ドロー／手札戻し）はこの時点で走ってはいけない＝手札は増えない。
+    ok((r.ownerState as PlayerState).hand.length <= handBefore, `${cardNum}: 即時に手札が増えている`);
+  }
+  // `WXDi-P09-066-E1` の照応先＝この方法で裏向きに置いたカードが state に残ること（予約の解決材料）。
+  {
+    const eff = effectsMap.get('WXDi-P09-066')!.find(e => e.effectId === 'WXDi-P09-066-E1')!;
+    const json = JSON.stringify(eff.action);
+    ok(json.includes('PLACE_FACEDOWN_LRIG_ZONE'), '裏向きで置く側が no-op STUB のまま');
+    ok(json.includes('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND'), '予約された本文が「そのカードを手札に加える」でない');
   }
   // 予約された本体は「引く＋エナチャージ」のセット（片方だけ落ちていないこと）
   const reserved = JSON.stringify(effectsMap.get('WXDi-P16-002')!.find(e => e.effectId === 'WXDi-P16-002-E1')!.action);
