@@ -8008,7 +8008,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // escapeDiscard（G154 BURST）: アタック側が手札をN枚捨てれば無効化を回避できる。手札が足りればモーダルで選択させる。
         const escapeCount = my.negated_attacks_escape?.[myTopNum];
         if (escapeCount && my.hand.length >= escapeCount) {
-          openNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount, attackFieldTrashAlreadyPaid: true });
+          // ⚠解除コストは**この時点で支払い済み**（上のブロック）＝再入時に二重請求しない。
+          openNegateEscape({ zoneIndex, targetOpZone: p.targetOpZone, cardNum: myTopNum, count: escapeCount, attackFieldTrashAlreadyPaid: true, attackHandDiscardAlreadyPaid: true });
           const paymentStack = attackFieldTrashTriggerEntries.length > 0
             ? (bs.effect_stack ? pushToStack(bs.effect_stack, attackFieldTrashTriggerEntries) : initStack(bs.active_user_id ?? attackerId, attackFieldTrashTriggerEntries))
             : undefined;
