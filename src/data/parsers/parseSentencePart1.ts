@@ -134,12 +134,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   （【出】でノーコストの除去＝重い過剰実行。`DEFERRED_*` ですらないので `census:stubs` に映らない）。
   // ⚠**この関数の先頭寄りに置く**＝後段の汎用「〜をトラッシュに置く」ビルダーに先取りされるため。
   {
-    const stripM = t.match(/^(?:(対戦相手の)?シグニ[１1]体を対象とし、それ|(この)シグニ)に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く$/);
+    // 3形＝①「シグニ１体を対象とし、それに付いている〜」②「対戦相手のシグニ１体に付いている〜」
+    //       ③「このシグニに付いている〜」（＝発生源自身）
+    const stripM = t.match(/^(?:(この)シグニ|(対戦相手の|あなたの)?シグニ[１1]体(?:を対象とし、それ)?)に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く$/);
     if (stripM) {
       // 「このシグニ」＝発生源自身（`WXDi-P07-041-E2`）＝対象宣言を挟まない。
-      if (stripM[2]) return { type: 'STUB', id: 'STRIP_ATTACHED_AND_UNDER', stripSelf: true } as StubAction;
+      if (stripM[1]) return { type: 'STUB', id: 'STRIP_ATTACHED_AND_UNDER', stripSelf: true } as StubAction;
       // 修飾語なし「シグニ１体」は `owner:'any'`（どちらの場のシグニでもよい）。
-      const stripOwner: Owner = stripM[1] ? 'opponent' : 'any';
+      const stripOwner: Owner = stripM[2] === '対戦相手の' ? 'opponent' : stripM[2] === 'あなたの' ? 'self' : 'any';
       return {
         type: 'SEQUENCE',
         steps: [
