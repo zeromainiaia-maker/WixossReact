@@ -203,6 +203,8 @@ export function clearTurnEndScopedState(state: PlayerState): PlayerState {
     signi_deploy_bans: advanceSigniDeployBans(state.signi_deploy_bans),
     // ⚠**移動不可の期間つき予約もここでしか減らない**（旧 `prevent_opp_trash_from` は永続していた）。
     opp_move_immunity: advanceOppMoveImmunity(state.opp_move_immunity),
+    // ⚠**期間つきで得たルリグタイプもここでしか減らない**（§6.4 O-3 続き498＝上2つと同じ規約）。
+    lrig_gained_types_timed: advanceGainedLrigTypes(state.lrig_gained_types_timed),
   };
 }
 
