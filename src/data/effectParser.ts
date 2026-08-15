@@ -13627,8 +13627,9 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         effects.push(autoEffect);
       }
     } else {
-      const e = parseSpellEffect(card);
-      if (e) { logSourceText(e.effectId, card.EffectText ?? ''); effects.push(e); }
+      // ⚠**`card` をそのまま渡さない**＝`rawSp` の【トラップアイコン】除去が効かなくなる（実測で4枚漏れた）。
+      const e = parseSpellEffect({ ...card, EffectText: rawSp });
+      if (e) { logSourceText(e.effectId, rawSp); effects.push(e); }
     }
   } else {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
