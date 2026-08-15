@@ -14957,6 +14957,71 @@ test('SIGNI_DEPLOY_BAN / BLOCK_ACTION: 5カードの live 形（§6.4 O-3 続き
   eq(step('WXEX2-19', 'WXEX2-19-E3', ['steps', 1]).targetOwner, 'opponent', 'WXEX2-19 の強制アタックが自分向きに戻っている');
   eq(step('WXEX2-19', 'WXEX2-19-E3', ['steps', 1]).duration, 'NEXT_TURN', 'WXEX2-19 の強制アタックが即時に戻っている');
 }));
+// ── §6.4 O-3「このターン、あなたは他のシグニを場に出せない／１以上のエナコストを支払えない」──
+test('SIGNI_DEPLOY_BAN(絞り込みキー無し): 全シグニの配置を1ターンだけ止める', () => withSavedCursor(() => {
+  const r = run({ type: 'SIGNI_DEPLOY_BAN', owner: 'self', turns: 1 } as unknown as EffectAction, mkCtx({}, {}));
+  const bans = (r.ownerState as PlayerState).signi_deploy_bans ?? [];
+  eq(bans.length, 1, 'ban が載る');
+  eq(bans[0].turnsRemaining, 1, 'このターンのみ＝1');
+  eq(bans[0].cardNames, undefined, '名前限定は付かない');
+  eq(bans[0].powerGte, undefined, 'パワー限定は付かない');
+  const reason = (cardNum: string) => deployLimitBlockReason({
+    placingState: { ...mkState({ signi: [null, null, null] }), signi_deploy_bans: bans },
+    opponentState: mkState({}), cardNum, cardMap: cardMap as Map<string, CardData>,
+    placementSource: 'normal_summon',
+  });
+  // ⚠キー無し ban は**どのシグニでも**止める。理由コードを POWER_LIMIT に潰すとログが嘘になる。
+  eq(reason(SIGNI_P3000), 'ALL_BAN', '低パワーのシグニも出せない');
+  eq(reason(SIGNI_P12000), 'ALL_BAN', '高パワーのシグニも出せない');
+  eq(clearTurnEndScopedState({ ...mkState({}), signi_deploy_bans: bans }).signi_deploy_bans, undefined,
+    'このターンの終了で失効する');
+}));
+test('PAY_ENERGY_COST 封じ: 支払い元 pool が空になる（《色×0》は通る）', () => {
+  const blocked: PlayerState = { ...mkState({}), energy: ['E1', 'E2'], blocked_actions: ['PAY_ENERGY_COST'] };
+  const poolCtx = { turnPhase: 'MAIN' as const, isMyTurn: true, effectsMap };
+  eq(isEnergyPayBlocked(blocked), true, '封じを検出できていない');
+  eq(buildEnergyPayPool(blocked, poolCtx).length, 0, '封じ中は支払い元が0件');
+  // 対照＝封じが無ければエナゾーンがそのまま pool になる（後方互換の index 空間）
+  const free: PlayerState = { ...blocked, blocked_actions: [] };
+  eq(buildEnergyPayPool(free, poolCtx).length, 2, '封じなしでは従来どおり');
+  // 🔑pool が空でも「エナ0枚のコスト」は支払える＝原文の「１以上の」がそのまま出る
+  eq(canAffordGrowCost([], battleCards, '《白×0》'), true, '《色×0》は封じ中でも支払える');
+  eq(canAffordGrowCost([], battleCards, '《白》'), false, 'エナ1以上は封じ中に支払えない');
+  // 接尾辞なしの blocked_actions はターン終了で失効する（＝「このターン」）
+  eq(clearTurnEndScopedState(blocked).blocked_actions?.length, 0, 'ターン終了で封じが解ける');
+});
+test('TRASH_ENERGY_AT_TURN_END: エナに置いた分をターン終了時に返す（SPK01-10）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {}, SIGNI);
+  const r = run({ type: 'STUB', id: 'TRASH_ENERGY_AT_TURN_END' } as EffectAction,
+    { ...ctx, lastProcessedCards: ['E1', 'E2'] } as ExecCtx);
+  const reserved = (r.ownerState as PlayerState).turn_end_energy_trash_targets ?? [];
+  eq(JSON.stringify(reserved), JSON.stringify(['E1', 'E2']), 'ターン終了時のエナトラッシュ予約');
+  const before: PlayerState = { ...mkState({}), energy: ['E1', 'E2', 'E3'], trash: [], turn_end_energy_trash_targets: ['E1', 'E2'] };
+  const after = resolveTurnEndEnergyTrash(before);
+  eq(JSON.stringify(after.state.energy), JSON.stringify(['E3']), '予約分だけエナから抜ける');
+  eq(JSON.stringify(after.state.trash), JSON.stringify(['E1', 'E2']), '抜いた分がトラッシュへ');
+  eq(after.state.turn_end_energy_trash_targets, undefined, '予約は消化後にクリアされる');
+  // 🔴場トラッシュ（turn_end_field_trash_targets）を流用すると1枚も落ちない＝別ストアである必要がある
+  eq(resolveTurnEndEnergyTrash({ ...mkState({}), energy: ['E1'] }).trashed.length, 0, '予約が無ければ何もしない');
+}));
+test('SPK01-10 / WXDi-P07-050 の live 形（§6.4 O-3）', () => {
+  const steps = (num: string, effectId: string) =>
+    ((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action as { steps?: Record<string, unknown>[] })?.steps ?? [];
+  const spk = steps('SPK01-10', 'SPK01-10-E1');
+  eq(spk[1]?.id, 'TRASH_ENERGY_AT_TURN_END', 'SPK01-10 のエナ返却が落ちている（旧: STUB{OPTIONAL_COST} の無言 no-op）');
+  eq(spk[2]?.actionId, 'PAY_ENERGY_COST', 'SPK01-10 のエナコスト支払い封じが落ちている');
+  const wxdi = steps('WXDi-P07-050', 'WXDi-P07-050-E3');
+  eq(wxdi[1]?.type, 'SIGNI_DEPLOY_BAN', 'WXDi-P07-050 の配置禁止が落ちている');
+  eq(wxdi[1]?.owner, 'self', '配置禁止は自分側（場に出す側）に載る');
+  // ⚠所有者句の無い「他のすべてのシグニ」は**両者の場**。旧 live は owner:'self' で相手の盤面が減らなかった。
+  const wipe = wxdi[0] as { steps?: Record<string, unknown>[] };
+  eq(wipe.steps?.length, 2, '自分側／相手側の2ステップになっていない');
+  eq((wipe.steps?.[0]?.target as Record<string, unknown>)?.owner, 'self', '1段目は自分側');
+  eq(((wipe.steps?.[0]?.target as Record<string, unknown>)?.filter as Record<string, unknown>)?.excludeSelf, true,
+    '「他の」＝効果元自身を除外していない');
+  eq((wipe.steps?.[1]?.target as Record<string, unknown>)?.owner, 'opponent', '2段目は相手側');
+});
+
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
