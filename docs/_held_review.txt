@@ -114,54 +114,6 @@ WDK06-C08 WX25-P3-105 WXDi-P01-044
   - [1].action.steps[1].condition.value = 20
   …（他 24 行）
 
-## +SEQUENCE +SIGNI_ATTACK_BAN +STUB×2 -GRANT_KEYWORD ［3枚］
-WX24-P4-001 WXDi-P03-036 WXDi-P05-033
---- WX24-P4-001
-  原文: 対戦相手のルリグ１体を対象とし、ターン終了時まで、それは「【常】：《無》《無》《無》《無》を支払わないかぎりアタックできない。」を得る。対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、《無》《無》《無》《無》を支払わないかぎり、このシグニをバニッシュする。」を得る。,-
-  - [0].action.steps[0].target.type = "LRIG"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].keyword = "《無》《無》《無》《無》を支払わないかぎりアタックできない"
-  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "SEQUENCE"
-  + [0].action.steps[0].steps[0].type = "STUB"
-  + [0].action.steps[0].steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].steps[0].selectTarget.type = "LRIG"
-  + [0].action.steps[0].steps[0].selectTarget.owner = "opponent"
-  + [0].action.steps[0].steps[0].selectTarget.count = 1
-  + [0].action.steps[0].steps[1].type = "STUB"
-  …（他 5 行）
---- WXDi-P03-036
-  原文: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のルリグ１体を対象とし、ターン終了時まで、それは「【常】：《無》《無》を支払わないかぎりアタックできない。」を得る。【自】：あなたのターン終了時、このターンにあなたがスペルを使用していた場合、次の対戦相手のターン終了時まで、このシグニは【シャドウ】を得る。,：どちらか１つを選ぶ。①カードを１枚引く。②対戦相手
-  - [0].action.target.type = "LRIG"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "《無》《無》を支払わないかぎりアタックできない"
-  - [0].action.duration = "UNTIL_END_OF_TURN"
-  ~ [0].action.type : "GRANT_KEYWORD" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].selectTarget.type = "LRIG"
-  + [0].action.steps[0].selectTarget.owner = "opponent"
-  + [0].action.steps[0].selectTarget.count = 1
-  + [0].action.steps[1].type = "STUB"
-  …（他 5 行）
---- WXDi-P05-033
-  原文: 【ライズ】あなたのシグニ１体の上に置く【常】《相手ターン》：このシグニは【シャドウ】を得る。【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：《無》を支払わないかぎりアタックできない。」を得る。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。②カードを１枚引く。
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  - [1].action.keyword = "《無》を支払わないかぎりアタックできない"
-  - [1].action.duration = "UNTIL_END_OF_TURN"
-  ~ [1].action.type : "GRANT_KEYWORD" → "SEQUENCE"
-  + [1].action.steps[0].type = "STUB"
-  + [1].action.steps[0].id = "SELECT_TARGET_ONLY"
-  + [1].action.steps[0].selectTarget.type = "SIGNI"
-  + [1].action.steps[0].selectTarget.owner = "opponent"
-  …（他 9 行）
-
 ## +CHOOSE +SIGNI +UP ［2枚］
 WX06-017 WX19-029
 --- WX06-017
@@ -212,24 +164,6 @@ WXEX2-09 WXK08-048
   ~ [0].action.type : "STUB" → "UNKNOWN"
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
-
-## +SEQUENCE×2 +SIGNI_ATTACK_BAN×2 +STUB×4 -GRANT_KEYWORD×2 ［1枚］
-WX11-012
---- WX11-012
-  原文: 対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：あなたが《無》《無》《無》を支払わないかぎりアタックできない。」を得る。あなたのセンタールリグが＜タマ＞の場合、代わりにターン終了時まで、それは「【常】：あなたが《無》《無》《無》《無》を支払わないかぎりアタックできない。」を得る。,-
-  - [0].action.then.target.type = "SIGNI"
-  - [0].action.then.target.owner = "opponent"
-  - [0].action.then.target.count = 1
-  - [0].action.then.target.filter.cardType = "シグニ"
-  - [0].action.then.target.upToCount = false
-  - [0].action.then.keyword = "あなたが《無》《無》《無》《無》を支払わないかぎりアタックできない"
-  - [0].action.then.duration = "UNTIL_END_OF_TURN"
-  - [0].action.else.target.type = "SIGNI"
-  - [0].action.else.target.owner = "opponent"
-  - [0].action.else.target.count = 1
-  - [0].action.else.target.filter.cardType = "シグニ"
-  - [0].action.else.target.upToCount = false
-  …（他 30 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -570,24 +504,6 @@ WXDi-CP01-042
   + [0].action.steps[1].then.id = "OPTIONAL_COST"
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
-
-## +CENTER_LRIG_OR_SIGNI +SEQUENCE +SIGNI_ATTACK_BAN +STUB×2 -GRANT_KEYWORD -SIGNI ［1枚］
-WX24-P1-041
---- WX24-P1-041
-  原文: 【常】《相手ターン》：このシグニのパワーは＋3000される。【自】：対戦相手のアタックフェイズ開始時、対戦相手のルリグかシグニ１体を対象とし、ターン終了時まで、それは「【常】：《無》を支払わないかぎりアタックできない。」を得る。【起】《白》《無》《ダウン》：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。,：対戦相手の
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "opponent"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  - [1].action.keyword = "《無》を支払わないかぎりアタックできない"
-  - [1].action.duration = "UNTIL_END_OF_TURN"
-  ~ [1].action.type : "GRANT_KEYWORD" → "SEQUENCE"
-  + [1].action.steps[0].type = "STUB"
-  + [1].action.steps[0].id = "SELECT_TARGET_ONLY"
-  + [1].action.steps[0].selectTarget.type = "CENTER_LRIG_OR_SIGNI"
-  + [1].action.steps[0].selectTarget.owner = "opponent"
-  …（他 7 行）
 
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055

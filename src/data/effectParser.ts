@@ -9677,6 +9677,26 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 「同じ選択肢を２回選んでもよい」「（ベット時は）同じ選択肢を２回以上選んでもよい」は
+  // **1つの選択ループの言い換え**なのに、文ごとに STUB が立って**選択ループが2回**回っていた
+  // （`WX17-003-E1`＝原文は最大4回なのに 4+4＝8回選べる過剰実行。§6.4 O-29）。
+  // ⚠2つの id は engine では**同じハンドラ**（回数はカード全文から読む）なので、後続を落とすだけでよい。
+  {
+    const isCso = (st: EffectAction | undefined) =>
+      st?.type === 'STUB' && ['CHOOSE_SAME_OPTION_TWICE', 'CHOOSE_SAME_OPTION_MULTIPLE'].includes((st as StubAction).id);
+    if (steps.filter(isCso).length > 1) {
+      let seen = false;
+      const deduped = steps.filter(st => {
+        if (!isCso(st)) return true;
+        if (seen) return false;
+        seen = true;
+        return true;
+      });
+      steps.length = 0;
+      steps.push(...deduped);
+    }
+  }
+
   if (steps.length === 1) return steps[0];
   return { type: 'SEQUENCE', steps };
 }
