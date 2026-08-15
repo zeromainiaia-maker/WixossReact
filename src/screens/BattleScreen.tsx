@@ -48,7 +48,7 @@ import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscap
 import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
 import { resolveTurnEndFacedownReturns } from '../engine/facedownSigni';
-import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
+import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, PHASE_NEXT, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from './battle/attackStepPhase';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
