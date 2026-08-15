@@ -2879,25 +2879,36 @@ function matchOpponentWaUnlessGate(t: string): EffectAction | undefined {
 }
 
 /**
- * 引用文が丸ごと `GRANT_KEYWORD.keyword` へ流れ込んだ「手札をN枚捨てないかぎりアタックできない」を
- * `SIGNI_ATTACK_BAN{targetsStored, unlessPayHandDiscard}` へ組み替える（§6.4 O-3・`WXDi-P05-022-E1`）。
+ * 引用文が丸ごと `GRANT_KEYWORD.keyword` へ流れ込んだ「〈コスト〉を払わないかぎりアタックできない」を
+ * `SIGNI_ATTACK_BAN{targetsStored, unlessPay…}` へ組み替える
+ * （§6.4 O-3＝手札捨て版・`WXDi-P05-022-E1`／§6.4 O-28＝《無》×N 版・5効果）。
  *
  * 🔴`keyword` は**正式名でしか照合されない**ので、文がそのまま入ると**一度も効かない無言 no-op**
- *   （狙われたシグニが無条件でアタックできる）。`hasKeyword` の照合外なのでどの計器にも映らない。
+ *   （狙われたシグニ／ルリグが無条件でアタックできる）。`hasKeyword` の照合外なのでどの計器にも映らない。
  * 正準形は `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈ban〉{targetsStored}`
  *   （`WX10-024-E2` の《無》×N 版と同じ組み立て）。
+ *
+ * ⚠**コスト句の無い「アタックできない」（live 132件）は対象外**＝`keyword_grants` の正規語彙なので
+ *   regex はコスト句を必須にする。
+ * ⚠対象がルリグでも**同じ形**を作る（シグニ／ルリグの仕分けは engine が確定した対象の Type で行う＝
+ *   「対戦相手のルリグかシグニ1体」は選ばれるまでどちらか決まらない）。
  */
-function rewriteHandTaxKeywordGrant(action: EffectAction): EffectAction {
+function rewriteAttackTaxKeywordGrant(action: EffectAction): EffectAction {
   const gk = action as { type?: string; keyword?: string; target?: EffectTarget };
   if (gk.type !== 'GRANT_KEYWORD' || !gk.keyword || !gk.target) return action;
-  const m = gk.keyword.match(/^手札を([０-９\d]+)枚捨てないかぎりアタックできない$/);
-  if (!m) return action;
+  // 「あなたが」＝付与先の持ち主（＝アタックする側）を指す自明の主語なので落としてよい。
+  const kw = gk.keyword.replace(/^あなたが/, '');
+  const hand = kw.match(/^手札を([０-９\d]+)枚捨てないかぎりアタックできない$/);
+  const colorless = kw.match(/^((?:《無》)+)を支払わないかぎりアタックできない$/);
+  if (!hand && !colorless) return action;
   const banOwner: Owner = gk.target.owner === 'self' ? 'self' : 'opponent';
   return { type: 'SEQUENCE', steps: [
     { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: gk.target } as EffectAction,
     { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
     { type: 'SIGNI_ATTACK_BAN', owner: banOwner, targetsStored: true,
-      unlessPayHandDiscard: parseNum(m[1]) } as EffectAction,
+      ...(hand ? { unlessPayHandDiscard: parseNum(hand[1]) } : {}),
+      ...(colorless ? { unlessPayColorless: (colorless[1].match(/《無》/g) ?? []).length } : {}),
+    } as EffectAction,
   ] } as SequenceAction;
 }
 
