@@ -2025,6 +2025,44 @@ export interface AddExtraAttackPhaseAction {
   onStart?: EffectAction;
 }
 
+/**
+ * 「次の対戦相手のアタックフェイズ開始時、〈本文〉」（§6.4 O-3）。
+ *
+ * 実体は**予約した側**の `PlayerState.pending_next_opp_attack_phase_effects` への1件追加。
+ * 発火は `ON_ATTACK_PHASE_START` の collector が**非ターンプレイヤー側（＝予約した側）の予約**を読む
+ * （`pending_opponent_attack_facedown_returns` と同じ走査軸）＝自分のアタックフェイズでは発火しない。
+ *
+ * ⚠**ターン境界を跨ぐ**ので `delayed_triggers`（THIS_TURN 限定）にも `turnScopedState` にも載せない。
+ *   消化は発火時の1件ずつ（`RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT`）。
+ * ⚠本文は**その時点で実行**する＝予約時に走らせてはいけない（従来は後続文が即時実行されていた）。
+ */
+export interface DelayToNextOppAttackPhaseAction {
+  type: 'DELAY_TO_NEXT_OPP_ATTACK_PHASE';
+  action: EffectAction;
+}
+
+/**
+ * 「〈デッキの一番上／手札のカードN枚まで〉を裏向きでルリグゾーンに置く」（§6.4 O-3）。
+ *
+ * 実体は `PlayerState.facedown_lrig_zone_cards` への追加＝**元のゾーンからは取り除く**。
+ * 後で `REVEAL_FACEDOWN_LRIG_ZONE` が表向きにしてトラッシュへ送り、そのカードを `lastProcessedCards`
+ * に載せる（「そのカードと同じレベルの〜」が既存の `levelEqLastProcessed` で解ける）。
+ *
+ * ⚠**ルリグゾーンの裏向き表示そのものは未実装**（機能上は「取り除いて保持する」だけで足りる）＝§7 送り。
+ */
+export interface PlaceFacedownLrigZoneAction {
+  type: 'PLACE_FACEDOWN_LRIG_ZONE';
+  source: 'deck_top' | 'hand';
+  count: number;
+  /** 「N枚**まで**」＝0枚可。 */
+  upToCount?: boolean;
+}
+
+/** 「そのカードを表向きにしてトラッシュに置き、」＝上の裏向きカードを公開してトラッシュへ。 */
+export interface RevealFacedownLrigZoneAction {
+  type: 'REVEAL_FACEDOWN_LRIG_ZONE';
+}
+
 // このゲームの間、対戦相手は同名カードを使用できない
 export interface NameBanAction {
   type: 'NAME_BAN';
