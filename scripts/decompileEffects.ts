@@ -2223,6 +2223,9 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_INFECTED_SIGNI_ACTIVATE: '対戦相手は感染状態のシグニの【起】能力を使用できない',
         PREVENT_LIFE_REFRESH_TRASH: 'あなたのライフクロスはリフレッシュによってトラッシュに移動しない',
         PREVENT_NON_FIELD_MOVE_BY_OPP: '場以外のあなたの領域にあるカードは、クラッシュ以外の対戦相手の効果によって他の領域に移動しない',
+        PREVENT_ZONE_MOVE_BY_OPP: '対戦相手の効果によって、あなたの手札／エナゾーンにあるカードはトラッシュに移動しない',
+        // §6.4 O-3 続き493 の明示 defer＝「次の対戦相手のターン終了時、〜」の**遅延本体**（予約機構が未実装）。
+        DEFERRED_NEXT_OPP_TURN_END_BODY: '［未実装：次の対戦相手のターン終了時に行う本文の予約］',
         PREVENT_OPP_POWER_PLUS: '対戦相手の【常】能力の効果によって、シグニのパワーは＋（プラス）されない',
         PREVENT_OPP_SIGNI_ABILITY_GAIN: '対戦相手のシグニは、対戦相手の効果によって新たに能力を得られない',
         PREVENT_SELF_MOVE_BY_OPP: 'このシグニは対戦相手の効果によって場から他の領域に移動しない',

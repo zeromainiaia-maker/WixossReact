@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［51枚］
-PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［52枚］
+PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-066 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -165,6 +165,24 @@ WXEX2-09 WXK08-048
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
+## +ZONE_MOVE_IMMUNITY -STUB ［2枚］
+WXK10-004 WXK10-083
+--- WXK10-004
+  原文: あなたのセンタールリグのレベル１につきカードを１枚引くか、あなたのセンタールリグのレベル１につき【エナチャージ１】をする。あなたのデッキの一番上のカードをライフクロスに加える。このターンと次のターンの間、場以外のあなたの領域にあるカードは、対戦相手の効果によって他の領域に移動しない。,-
+  - [0].action.steps[2].id = "DEFERRED_NON_FIELD_ZONE_MOVE_IMMUNITY"
+  ~ [0].action.steps[2].type : "STUB" → "ZONE_MOVE_IMMUNITY"
+  + [0].action.steps[2].owner = "self"
+  + [0].action.steps[2].zones[0] = "hand"
+  + [0].action.steps[2].zones[1] = "energy"
+  + [0].action.steps[2].turns = 2
+--- WXK10-083
+  原文: 【出】：このターンと次のターンの間、対戦相手の効果によって、あなたのエナゾーンにあるカードはトラッシュに移動しない。【出】：あなたの手札から無色ではないカードを１枚までエナゾーンに置く。,-
+  - [0].action.id = "PREVENT_ZONE_MOVE_BY_OPP"
+  ~ [0].action.type : "STUB" → "ZONE_MOVE_IMMUNITY"
+  + [0].action.owner = "self"
+  + [0].action.zones[0] = "energy"
+  + [0].action.turns = 2
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -296,6 +314,22 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
+
+## +PREVENT_DAMAGE +SEQUENCE +ZONE_MOVE_IMMUNITY -STUB ［1枚］
+WXEX2-06
+--- WXEX2-06
+  原文: 【自】：各アタックフェイズ開始時、シグニ１体を対象とし、ターン終了時まで、それはクラスを失い、＜怪異＞を得る。【自】：＜怪異＞のシグニ１体がアタックしたとき、あなたのトラッシュからそのシグニと同じレベルの無色ではないシグニ１枚を対象とし、それを手札に加える。【起】エスケープ《コインアイコン》：次の対戦相手のターン終了時まで、あなたは対戦相手のルリグによってダ
+  - [2].action.id = "PREVENT_DAMAGE_UNTIL_OPP_TURN_END"
+  ~ [2].action.type : "STUB" → "SEQUENCE"
+  + [2].action.steps[0].type = "PREVENT_DAMAGE"
+  + [2].action.steps[0].owner = "self"
+  + [2].action.steps[0].until = "NEXT_TURN"
+  + [2].action.steps[0].scope = "LRIG"
+  + [2].action.steps[1].type = "ZONE_MOVE_IMMUNITY"
+  + [2].action.steps[1].owner = "self"
+  + [2].action.steps[1].zones[0] = "energy"
+  + [2].action.steps[1].zones[1] = "hand"
+  + [2].action.steps[1].turns = 2
 
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
@@ -487,7 +521,7 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
-## +AND +LRIG_LEVEL +LRIG_TEAM_COUNT +STUB -GRANT_KEYWORD -SIGNI ［1枚］
+## +AND +LRIG_LEVEL +LRIG_TEAM_COUNT +PREVENT_DAMAGE +STUB +ZONE_MOVE_IMMUNITY -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -SIGNI ［1枚］
 WXDi-P16-002
 --- WXDi-P16-002
   原文: 【使用条件】【チーム】＜夢限少女＞＆全員レベル１以上次の対戦相手のターンの間、あなたは対戦相手のルリグによってダメージを受けず、グロウフェイズ以外であなたのデッキと手札とエナゾーンにあるカードは対戦相手の効果によってトラッシュに移動しない。次の対戦相手のターン終了時、カードを１枚引き【エナチャージ１】をする。あなたのセンタールリグがレベル２以上の場合、次のあ
@@ -496,14 +530,14 @@ WXDi-P16-002
   - [0].action.steps[0].target.count = 1
   - [0].action.steps[0].keyword = "使用条件"
   - [0].action.steps[0].duration = "UNTIL_OPP_TURN_END"
+  - [0].action.steps[1].steps[0].type = "DRAW"
+  - [0].action.steps[1].steps[0].owner = "self"
+  - [0].action.steps[1].steps[0].count = 1
+  - [0].action.steps[1].steps[1].type = "ENERGY_CHARGE_FROM_DECK"
+  - [0].action.steps[1].steps[1].owner = "self"
+  - [0].action.steps[1].steps[1].count = 1
   + [0].condition.type = "AND"
-  + [0].condition.conditions[0].type = "LRIG_TEAM_COUNT"
-  + [0].condition.conditions[0].owner = "self"
-  + [0].condition.conditions[0].team = "夢限少女"
-  + [0].condition.conditions[0].operator = "gte"
-  + [0].condition.conditions[0].value = 3
-  + [0].condition.conditions[1].type = "LRIG_LEVEL"
-  …（他 5 行）
+  …（他 21 行）
 
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
