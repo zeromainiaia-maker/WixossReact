@@ -15139,7 +15139,9 @@ test('DECK_SIGNI_LEVEL_OVERRIDE_ALL: ①のレベル上書きを②の REVEAL_UN
   const setLevel = choose.choices[0].action;   // ①「デッキにあるシグニのレベルは4になる」
   const reveal = choose.choices[1].action;     // ②「レベル4のシグニが2枚めくれるまで公開」
   // 対照＝上書きが無いとき（Lv1/2/3 しかないデッキ）は当たりが1枚も出ない。
-  const plain = mkCtx({ deckTop: [lv1a, lv1b, lv1c] }, {});
+  const plain = mkCtx({}, {});
+  // ⚠デッキは**明示的に Lv4 を含まない3枚だけ**にする（`mkState` の詰め物には Lv4 が混ざる）。
+  plain.ownerState.deck = [lv1a, lv1b, lv1c];
   const hand0 = plain.ownerState.hand.length;
   const rPlain = finish(executeEffect({ ...eff, action: reveal } as CardEffect, plain), plain);
   eq(rPlain.ownerState.hand.length, hand0, '上書き前は Lv4 が無く手札は増えない');
