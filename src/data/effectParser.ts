@@ -7744,6 +7744,39 @@ function bindTargetedCountAndDoubleMinus(text: string, action: EffectAction): Ef
   return action;
 }
 
+/**
+ * 「〈主語〉は「〈引用能力〉」を得る」の引用範囲を**入れ子対応**で切り出す（§6.4 O-4）。
+ *
+ * ⚠🔴非貪欲の `[「『]([\s\S]+?)[」』]を得る` は**内側の「」で止まる**＝引用能力の中にさらに
+ *   引用がある札で本文が途中で切れ、内側が丸ごと `UNKNOWN` に落ちる
+ *   （`WX21-Re19-E2`「…あなたのセンタールリグは「【起】…それは「【常】：アタックできない。」を得る。」を得る」）。
+ * ⚠**入れ子が無いときは非貪欲版と同じ結果**を返す（既存札の挙動は変えない）。
+ *
+ * @param head 引用の直前までにマッチする正規表現（末尾が主語句・`g` フラグ不要）。
+ * @returns 引用の中身（`を得る` で閉じている場合のみ）。見つからなければ null。
+ */
+function extractQuotedGrant(text: string, head: RegExp): string | null {
+  const m = text.match(head);
+  if (!m || m.index === undefined) return null;
+  let i = m.index + m[0].length;
+  if (text[i] !== '「' && text[i] !== '『') return null;
+  let depth = 0;
+  const start = i + 1;
+  for (; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '「' || ch === '『') depth++;
+    else if (ch === '」' || ch === '』') {
+      depth--;
+      if (depth === 0) {
+        // 閉じ括弧の直後が「を得る」でなければ引用付与ではない（既存の regex と同じ条件）。
+        if (!text.startsWith('を得る', i + 1)) return null;
+        return text.slice(start, i).trim();
+      }
+    }
+  }
+  return null;
+}
+
 function parseActionTextInner(text: string): EffectAction {
   // 「以下のNつを行う。①…②…③…」＝選択肢から選ぶのではなく①②③を順に処理する（タスク12(lxxiv)）。
   // ⚠**必ずここ＝先頭で判定する**。②以降に引用能力（「…は「【自】：…」を得る」）を含む形
