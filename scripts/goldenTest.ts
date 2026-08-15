@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
-import { activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -4962,8 +4962,12 @@ test('§6.4 NEXT_TURN 据置 WXK05-052-E1: 相手2体＋同列シード条件の
   ok(a.type === 'GRANT_KEYWORD' && a.keyword === 'シード' && a.target.owner === 'self', '誤パースをNEXT_TURN化して固定しない');
 });
 
-test('§6.4 NEXT_TURN 据置 WXDi-P16-002-E1: 複合保護を部分的ダメージ予約にしない', () => {
-  ok(!JSON.stringify(nextTurnLiveAction('WXDi-P16-002', 'WXDi-P16-002-E1')).includes('PREVENT_DAMAGE'), '複合節の一部だけ採用しない');
+test('§6.4 O-3 続き493 WXDi-P16-002-E1: 複合保護は「両方」載せる（片側だけ採用しない）', () => {
+  // 旧トリップワイヤ＝「ダメージ側だけ採用するな」（据置期の守り）。続き493 で**両方**表現できたので
+  // 正方向の固定へ置き換える。⚠片方だけになったらここで落ちる。
+  const json = JSON.stringify(nextTurnLiveAction('WXDi-P16-002', 'WXDi-P16-002-E1'));
+  ok(json.includes('PREVENT_DAMAGE'), 'ダメージ無効を載せる');
+  ok(json.includes('ZONE_MOVE_IMMUNITY'), '移動不可も載せる');
 });
 
 test('§6.4 turn-scoped T4: 手札調整確定後ルートで未消費free growが翌ターンへ残らない', () => withSavedCursor(() => {
