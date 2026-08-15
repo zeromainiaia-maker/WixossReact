@@ -14991,7 +14991,7 @@ test('PAY_ENERGY_COST 封じ: 支払い元 pool が空になる（《色×0》�
   eq(canAffordGrowCost([], allCards, '《白》×1'), false, 'エナ1以上は封じ中に支払えない');
   // 接尾辞なしの blocked_actions はターン終了で失効する（＝「このターン」）
   eq(clearTurnEndScopedState(blocked).blocked_actions?.length, 0, 'ターン終了で封じが解ける');
-});
+}));
 test('TRASH_ENERGY_AT_TURN_END: エナに置いた分をターン終了時に返す（SPK01-10）', () => withSavedCursor(() => {
   const ctx = mkCtx({}, {}, SIGNI);
   const r = run({ type: 'STUB', id: 'TRASH_ENERGY_AT_TURN_END' } as EffectAction,
