@@ -8045,6 +8045,28 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ---- 「次の対戦相手のアタックフェイズ開始時、〈本文〉」＝遅延予約（§6.4 O-3）----
+  // ⚠**splitSentences 前に全文で切る**＝本文が複数文にまたがる（`SPDi43-24-E2` は
+  //   「…1体を対象とする。このターン、それがアタックしたとき、…」の2文で1つの効果）。
+  //   文単位に切ると本文が後続ステップとして並び、**予約した瞬間に実行**される過剰実行になっていた。
+  // ⚠句より前（`WX24-P3-014-E2`／`WX25-P2-051-E2` の「裏向きでルリグゾーンに置く」）は**いま実行する**。
+  // ⚠`次の**あなたの**アタックフェイズ開始時` は別機構（既存の delayed_triggers）なので巻き込まない。
+  {
+    const delayIdx = text.indexOf('次の対戦相手のアタックフェイズ開始時、');
+    if (delayIdx >= 0) {
+      const prefix = text.slice(0, delayIdx).replace(/。\s*$/, '').trim();
+      const body = text.slice(delayIdx + '次の対戦相手のアタックフェイズ開始時、'.length).trim();
+      if (body) {
+        const delayed = {
+          type: 'DELAY_TO_NEXT_OPP_ATTACK_PHASE', action: parseActionText(body),
+        } as EffectAction;
+        return prefix
+          ? { type: 'SEQUENCE', steps: [parseActionText(prefix), delayed] } as SequenceAction
+          : delayed;
+      }
+    }
+  }
+
   // ---- 公開句と名前 filter pick が読点で続く1文型 ----
   // 「公開し、その中からカード名に《X》を含むシグニN枚を手札に加える。残りを…」を splitSentences 前に捕捉する。
   // 公開だけが先に単文解析され LOOK_AND_REORDER へ縮退し、後続 pick が消えるのを防ぐ（PR-370-E2）。
