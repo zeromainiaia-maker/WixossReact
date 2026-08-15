@@ -7928,6 +7928,22 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         appendBattleLogs([`${paid.trashedSigniNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を場からトラッシュに置き、アタック制限を解除`]);
       }
 
+      // 「手札をN枚捨てないかぎりアタックできない」（§6.4 O-3）＝**アタックするごとに**払う。
+      // ⚠払えるかどうかの判定は signiAttackGate 側（ATTACK_BAN_HAND_COST）。ここは引き落としだけ。
+      // ⚠`newMyState` を組み立てる**前**に `my` を差し替える（後だと手札が減らないまま確定する）。
+      if (!p.attackHandDiscardAlreadyPaid) {
+        const handTaxSA = signiAttackBanHandDiscardCost(my, myTopNum, battleCardMap);
+        if (handTaxSA > 0) {
+          const idxSA = p.attackHandDiscardIndices
+            ?? (attackerId === CPU_PLAYER_ID ? my.hand.map((_, i) => i).slice(0, handTaxSA) : []);
+          if (idxSA.length !== handTaxSA) return;
+          const discardSet = new Set(idxSA);
+          const discardedSA = my.hand.filter((_, i) => discardSet.has(i));
+          my = { ...my, hand: my.hand.filter((_, i) => !discardSet.has(i)), trash: [...my.trash, ...discardedSA] };
+          appendBattleLogs([`手札${discardedSA.length}枚を捨ててアタック制限を解除`]);
+        }
+      }
+
       const myCardName = battleCardMap.get(myTopNum)?.CardName ?? myTopNum;
       const isSideAttack = p.targetOpZone !== undefined; // 【側面アタック】
       let opZoneIndex = p.targetOpZone ?? (2 - zoneIndex); // 正面ゾーン（表示反転を考慮）／側面アタックは指定ゾーン
