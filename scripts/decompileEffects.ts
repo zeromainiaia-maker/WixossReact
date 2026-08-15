@@ -1670,6 +1670,17 @@ function actionJa(a?: Action, effectType?: string): string {
         ? `${headEAP}。この方法で加えたアタックフェイズの開始時、${actionJa(a.onStart)}`
         : headEAP;
     }
+    case 'DELAY_TO_NEXT_OPP_ATTACK_PHASE':
+      // 「次の対戦相手のアタックフェイズ開始時、〈本文〉」（§6.4 O-3）
+      // ⚠本文を落とすと「予約した」だけの文になり、遅延本体の脱落が逆翻訳に映らない。
+      return `次の対戦相手のアタックフェイズ開始時、${actionJa(a.action)}`;
+    case 'PLACE_FACEDOWN_LRIG_ZONE': {
+      const nPF = a.count ?? 1;
+      return a.source === 'deck_top'
+        ? 'あなたのデッキの一番上を見て、そのカードを裏向きでルリグゾーンに置く'
+        : `あなたの手札からカードを${nPF}枚${a.upToCount ? 'まで' : ''}裏向きでルリグゾーンに置く`;
+    }
+    case 'REVEAL_FACEDOWN_LRIG_ZONE': return 'そのカードを表向きにしてトラッシュに置く';
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
