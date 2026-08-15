@@ -3902,8 +3902,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             pending_lrig_limit_mod: undefined,
           };
         }
-        // GROW→MAIN（メインフェイズ開始時）: game_main_draw（手札5枚以下ならドロー）
-        if (phase === 'GROW' && newMyState.game_main_draw && newMyState.hand.length <= 5 && newMyState.deck.length > 0) {
+        // →MAIN（メインフェイズ開始時）: game_main_draw（手札5枚以下ならドロー）
+        if (nextPhase === 'MAIN' && newMyState.game_main_draw && newMyState.hand.length <= 5 && newMyState.deck.length > 0) {
           const drawCard = newMyState.deck[0];
           newMyState = { ...newMyState, deck: newMyState.deck.slice(1), hand: [...newMyState.hand, drawCard] };
           appendBattleLogs(['メインフェイズ開始ドロー（このゲーム）']);
