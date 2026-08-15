@@ -9326,6 +9326,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       openAttackFieldTrashPayment({ zoneIndex, cardNum, count: fieldTrashCount });
       return;
     }
+    // 「手札をN枚捨てないかぎりアタックできない」（§6.4 O-3）＝どの手札を捨てるかを選ばせる。
+    const handTaxCount = cardNum ? signiAttackBanHandDiscardCost(my, cardNum, battleCardMap) : 0;
+    if (cardNum && handTaxCount > 0) {
+      if (my.hand.length < handTaxCount) return;
+      openAttackHandDiscardPayment({ zoneIndex, cardNum, count: handTaxCount });
+      return;
+    }
     await performSigniAttack(zoneIndex, {
       attacker: my,
       defender: op,
