@@ -1638,6 +1638,18 @@ function actionJa(a?: Action, effectType?: string): string {
         return `${a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、'}対戦相手のルリグは${whoPD}にダメージを与えない`;
       return `${a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、'}${whoPD}はダメージを受けない`;
     }
+    case 'SIGNI_ATTACK_BAN': {
+      // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）
+      const whoAB = a.owner === 'opponent' ? '対戦相手' : 'あなた';
+      const scopeAB = a.levelFromDeclaredNumber ? '宣言された数字と同じレベルの'
+        : a.powerDiffersFromPrinted ? '表記されているパワーと異なるパワーの'
+        : '';
+      if (a.targetsStored) {
+        return `このターン、${whoAB}が《無》×${a.unlessPayColorless ?? 0}を支払わないかぎりそれはアタックできない`;
+      }
+      return `このターン、${whoAB}は${scopeAB}シグニでアタックできない`
+        + (a.unlessPayColorless ? `（《無》×${a.unlessPayColorless}を支払えばアタックできる）` : '');
+    }
     case 'LEVEL_MODIFY': return `${targetJa(a.target)}のレベルを${a.delta >= 0 ? '＋' : '－'}${Math.abs(a.delta ?? 0)}する`;
     case 'FORCE_END_TURN': return 'ターンを終了する';
     case 'POWER_MULTIPLY': return `${targetJa(a.target)}のパワーを${a.factor ?? ''}倍にする`;
