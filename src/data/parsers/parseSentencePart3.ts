@@ -1586,12 +1586,10 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   専用のはずで、**まったく無関係な文が同じ名前で溜まる**ため `census:stubs` が「D 健全」と誤分類し、
   //   真 no-op が計器から消えていた。id を分けて A群（明示 defer）に出す。
   if (t.match(/このターンと次のターンの間/)) {
-    // 「場以外のあなたの領域にあるカードは、対戦相手の効果によって他の領域に移動しない」＝
-    // **手札/エナ/トラッシュ/デッキ/ライフを横断する移動耐性**（`WXK10-004`）。移動地点が engine 中に散っており
-    // 1か所の funnel が無いので機構ごと defer する（受け皿に混ぜず id を分ける）。
-    if (/場以外の.*領域にあるカードは.*他の領域に移動しない/.test(t)) {
-      return { type: 'STUB', id: 'DEFERRED_NON_FIELD_ZONE_MOVE_IMMUNITY' } as StubAction;
-    }
+    // ✅「場以外のあなたの領域にあるカードは、対戦相手の効果によって他の領域に移動しない」（`WXK10-004`）は
+    //   続き493 で `ZONE_MOVE_IMMUNITY`（part2・ターン数カウントダウン）へ移行した＝ここには落ちてこない。
+    //   ⚠保護できるのは現状 hand / energy だけ（既存 `PREVENT_NON_FIELD_MOVE_BY_OPP` と同じ近似）＝
+    //   デッキ／トラッシュ／ライフ側の移動地点はまだ funnel が無い（PLAN §6.4 O-3 に記載）。
     return { type: 'STUB', id: 'DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE' } as StubAction;
   }
 
