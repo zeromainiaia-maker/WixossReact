@@ -556,8 +556,20 @@ export interface PlayerState {
   signi_zone_vacated_just?: number[];
   // 全ゾーンで色を失うカードのCardNum一覧（LOSE_COLOR_ALL_ZONES: チームルリグ3体未満時）
   colorless_card_overrides?: string[];
-  // 対戦相手の効果でトラッシュに移動できないゾーン（PREVENT_ZONE_MOVE_BY_OPP等）
-  prevent_opp_trash_from?: ('hand' | 'energy')[];
+  /**
+   * 「（このターンと次のターンの間、）対戦相手の効果によって〈ゾーン〉にあるカードは
+   * （他の領域／トラッシュへ）移動しない」の**期間つき**予約（§6.4 O-3 続き493）。
+   *
+   * ⚠🔴旧 `prevent_opp_trash_from`（`('hand'|'energy')[]`）は**失効地点が1つも無く永続していた**＝
+   *   `WXK10-083-E1` の原文は「このターンと次のターンの間」なのに、一度張ると**ゲーム終了まで**
+   *   エナがトラッシュに落ちなくなっていた（`signi_deploy_power_limit`／`negated_attacks` と同じクラス）。
+   *   `signi_deploy_bans` と同じ**ターン数カウントダウン**式にし、減算は `clearTurnEndScopedState` の1点だけ。
+   * ⚠**【常】宣言（`PREVENT_ZONE_MOVE_BY_OPP` / `PREVENT_NON_FIELD_MOVE_BY_OPP`）はここに載せない**＝
+   *   場にあるかぎり有効なので `collectProtectedZones` が effectsMap から読む。両方の合成は
+   *   `oppMoveProtectedZones`（`engine/effectEngine.ts`）1本。
+   * ⚠現行の保護は **hand / energy → トラッシュ**の移動だけ（既存 `PREVENT_NON_FIELD_MOVE_BY_OPP` と同じ近似）。
+   */
+  opp_move_immunity?: { zones: ('hand' | 'energy')[]; turnsRemaining: number }[];
   // このターンのメインフェイズ／アタックフェイズの間、**自分の効果では**自分のトラッシュにある
   // カードを他の領域へ移動できない（LOCK_OPP_TRASH_MOVE＝タスク12(lxxiii)）。
   // ⚠止めるのは所有者**自身**の効果だけ＝相手の効果によるトラッシュ回収（STEAL_OPP_TRASH_PUPPET 等）は通す。
