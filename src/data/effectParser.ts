@@ -2990,6 +2990,13 @@ function parseSingleSentenceInner(text: string): EffectAction {
   if (/^ターン終了時、(?:それら?|そのシグニ)を(?:場から)?トラッシュに置く。?$/.test(text.trim())) {
     return { type: 'STUB', id: 'TRASH_AT_TURN_END' } as StubAction;
   }
+  // 同じ「一時的に得たものをターン終了時に手放す」型で、**行き先ゾーンがエナ**の形（`SPK01-10-E1`）。
+  // ⚠上の場トラッシュ規則は「場から」しか見ないので、この文は従来どの規則にも掛からず
+  //   `STUB{OPTIONAL_COST}` へ落ちて**丸ごと no-op**＝「デッキから2枚エナチャージ」だけが残る過剰実行だった
+  //   （しかも `OPTIONAL_COST` はハンドラを持つ id なので `census:stubs` の A群にも映らない・§6.4 O-3）。
+  if (/^ターン終了時、それら?を(?:あなたの)?エナゾーンからトラッシュに置く。?$/.test(text.trim())) {
+    return { type: 'STUB', id: 'TRASH_ENERGY_AT_TURN_END' } as StubAction;
+  }
   // 「あなたのトラッシュにカードがN枚以上/以下ある場合、〜」→ CONDITIONAL(TRASH_COUNT)
   {
     const m = text.trim().match(/^あなたのトラッシュにカードが([０-９\d]+)枚(以上|以下)ある場合、(.+)/s);
