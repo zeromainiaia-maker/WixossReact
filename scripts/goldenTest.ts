@@ -5026,6 +5026,11 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
     '人間/CPUのUP開始をfunnelへ');
   eq((battleSource.match(/clearAttackPhaseScopedState\(/g) ?? []).length, 2,
     '人間/CPUのアタックフェイズ開始をfunnelへ');
+  // §6.4 O-3（続き491）: ターンプレイヤー交代の判定は3経路とも `resolveTurnHandover` を通す。
+  // ⚠🔴CPU 経路は従来この判定を持たず `activeUserId: user.id` 直書きだった＝**CPU の追加ターンも
+  //   人間の「次の自分のターンをスキップ」（`WD20-006-E1`）も効かなかった**。経路を足したらここも +1。
+  eq((battleSource.match(/resolveTurnHandover\(/g) ?? []).length, 3,
+    'PvP通常・手札調整確定後・CPU の3経路すべてが交代判定funnelを通る');
   eq((battleSource.match(/consumeFreeGrowThisTurn\(/g) ?? []).length, 1, 'free grow消費をfunnelへ');
   eq((battleSource.match(/consumeSpellNegationThisTurn\(/g) ?? []).length, 1, 'spell negate消費をfunnelへ');
 
