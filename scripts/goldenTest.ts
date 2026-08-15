@@ -29577,6 +29577,30 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
 }));
+test('FIELD_SIGNI_TO_CHECK_ZONE: チェックゾーン往復でアップし直しアタック済みが落ちる（§6.4 O-3）', () => withSavedCursor(() => {
+  // 🔑「場を離れて出直す」＝追加アタックフェイズでもう一度アタックできるのがこのカードの主眼。
+  const ctx = mkCtx({ signi: [SIGNI, SIGNI_P3000, null] }, {}, SIGNI);
+  const attacked: PlayerState = {
+    ...ctx.ownerState,
+    field: { ...ctx.ownerState.field, signi_down: [true, true, false], signi_frozen: [false, true, false] },
+    attacked_signi_ids: [SIGNI, SIGNI_P3000],
+  };
+  const cls = (cardMap.get(SIGNI) as CardData)?.CardClass ?? '';
+  const r = run({
+    type: 'FIELD_SIGNI_TO_CHECK_ZONE',
+    target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } },
+  } as unknown as EffectAction, { ...ctx, ownerState: attacked } as ExecCtx);
+  const after = r.ownerState as PlayerState;
+  eq(after.field.signi_down?.[0], false, 'ダウンのまま＝アップし直していない');
+  eq(after.field.signi_down?.[1], false, 'ダウンのまま＝アップし直していない');
+  eq(after.field.signi_frozen?.[1], false, '凍結が解けていない');
+  eq(after.attacked_signi_ids?.length, 0, 'アタック済みの記録が落ちていない＝再アタックできない');
+  // シグニは場に残る（往復なので消えない）
+  eq(after.field.signi[0]?.at(-1), SIGNI, 'シグニが場から消えている');
+  // 【出】の再発火キー＝lastProcessedCards（`ADD_TO_FIELD` と同じ受け渡し）
+  eq(r.lastProcessedCards?.length, 2, '場に出し直したシグニが lastProcessedCards に載らない');
+  ok(cls !== undefined, '前提: クラス列が読める');
+}));
 test('PLACE_FACEDOWN_LRIG_ZONE owner/all: 「対戦相手は手札をすべて」は相手の手札を動かす（§6.4 O-3）', () => withSavedCursor(() => {
   // 🔴旧実装は `TARGET_AND_DISCARD_HAND`＝**自分の**手札を1枚トラッシュしていた（置く側も行き先も別物）。
   const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
