@@ -1559,9 +1559,11 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/このアーツを使用する際.*手札からパワー[０-９\d]+以上のシグニを.*枚まで捨てる/))
     return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
 
-  // ---- デッキの一番上を見て、裏向きでルリグゾーンに置く ----
+  // ---- デッキの一番上を見て、裏向きでルリグゾーンに置く（§6.4 O-3）----
+  // ⚠旧 `SOUL_OP` は**カード全文 regex で分岐する別機構**（ルリグの下／ルリグトラッシュ操作）で、
+  //   この文には該当分岐が無く**丸ごと no-op** だった＝後で「そのカードを表向きにして…」が空振りする。
   if (t.match(/デッキの一番上を見て.*裏向きでルリグゾーンに置く/))
-    return { type: 'STUB', id: 'SOUL_OP' } as StubAction;
+    return { type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'deck_top', count: 1 } as EffectAction;
 
   // ---- 場に〈X〉のシグニがある場合、カードを引き、対戦相手のデッキの一番上を公開する ----
   if (t.match(/場に.*のシグニがある場合.*カードを.*引き.*対戦相手のデッキの一番上を公開する/))
