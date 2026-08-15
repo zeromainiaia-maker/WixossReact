@@ -5029,6 +5029,10 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
     '人間/CPUのUP開始をfunnelへ');
   eq((battleSource.match(/clearAttackPhaseScopedState\(/g) ?? []).length, 2,
     '人間/CPUのアタックフェイズ開始をfunnelへ');
+  // §6.4 O-3（続き492）: 「次のあなたのメインフェイズまで」の**唯一の失効地点**＝人間/CPU の
+  // `ON_MAIN_PHASE_START` 収集と同じ2箇所。⚠1箇所でも欠けると予約が永続する（続き487/489 の再発）。
+  eq((battleSource.match(/clearMainPhaseScopedState\(/g) ?? []).length, 2,
+    '人間/CPUのメインフェイズ開始をfunnelへ');
   // §6.4 O-3（続き491）: ターンプレイヤー交代の判定は3経路とも `resolveTurnHandover` を通す。
   // ⚠🔴CPU 経路は従来この判定を持たず `activeUserId: user.id` 直書きだった＝**CPU の追加ターンも
   //   人間の「次の自分のターンをスキップ」（`WD20-006-E1`）も効かなかった**。経路を足したらここも +1。
