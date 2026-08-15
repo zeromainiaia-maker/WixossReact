@@ -260,7 +260,15 @@ export interface PlayerState {
   last_cost_energy_trash_count?: number; // 直前の指定 energyTrash コストで実際にトラッシュへ置いた枚数
   blocked_actions?: string[]; // カード効果で封じられたアクション
   blocked_card_names?: string[]; // このターン使用禁止のカード名（BLOCK_CARD_USE 効果）
+  // 「**次の**対戦相手のターンの間、〜宣言されたカード名のスペルを使用できない」（§6.4 O-3・`PR-K046-E1`）。
+  // ⚠自分のターン開始時に `blocked_card_names` へ昇格する（`activateTurnStartScopedState` の1点）。
+  //   ⚠`blocked_card_names` に直接積むと**課したその場**（＝相手ターンではない）で効いてしまう。
+  blocked_card_names_next_turn?: string[];
   blocked_card_names_game?: string[]; // このゲームの間使用禁止のカード名（NAME_BAN 効果。ターン境界でリセットしない）
+  // 「このターン、対戦相手は宣言したカード名**以外**のアーツを使用できない」（§6.4 O-3・`WXEX2-09-E3`）。
+  // ⚠blacklist ではなく **whitelist**＝空配列は「すべてのアーツが使えない」（undefined＝制限なしと区別する）。
+  // 読みは `cardNameUseBlocked` の1点。
+  arts_name_whitelist_this_turn?: string[];
   story_overrides?: Record<string, string>; // CardNum -> ゲーム中に変更されたStory（大本のCardDataは変えない）
   acce_choice?: Record<string, number>;     // アクセCardNum -> 装着時に選んだ付与能力のインデックス（SPK01-11 ラズベリー）
   // DECLARE_ZONE_FOR_CLASS_CHANGE: このプレイヤーが指定した領域（相手シグニがクラス/色を失い＜精元＞を得る）

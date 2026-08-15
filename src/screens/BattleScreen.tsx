@@ -41,6 +41,7 @@ interface Props {
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
+import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
@@ -6002,6 +6003,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     .filter((num, i, arr) => arr.indexOf(num) === i)
     .map(num => battleCardMap.get(num))
     .filter((c): c is CardData => !!c && (c.Type === 'アーツ' || c.Type === 'アーツ/クラフト'))
+    // ⚠**カード名の使用封じはここにも要る**＝従来この一覧だけ素通りで、名指しで封じたアーツが普通に使えた（§6.4 O-3）
+    .filter(c => !cardNameUseBlocked(my, c.CardName, c.Type))
     .filter(c => canUseArtsCondition(
       effectsMap.get(c.CardNum) ?? [], my, op, battleCardMap, c.CardNum, bs.turn_phase, effectivePowers));
 
@@ -6460,6 +6463,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set()) => {
     if (loading) return;
     if (isActionBlocked('USE_ARTS')) return;
+    // ⚠実行入口にも同じゲートを置く（UI 側だけだと別経路＝カットイン等から素通りする・§6.4 O-3）
+    if (cardNameUseBlocked(my, card.CardName, card.Type)) return;
     if (!canUseArtsCondition(
       effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, effectivePowers)) return;
     setLoading(true);
@@ -7519,8 +7524,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   最初から同じゲートを持っており、手札スペルだけが抜けていた。
       if (cardData?.Type === 'スペル' && !isActionBlocked('USE_SPELL') &&
           meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction) &&
-          !my.blocked_card_names?.includes(cardData.CardName) &&
-          !my.blocked_card_names_game?.includes(cardData.CardName)) {
+          !cardNameUseBlocked(my, cardData.CardName, cardData.Type)) {
         // pending_spell がある間は新たにスペルを発動できない
         const spellBlocked = !!bs.pending_spell;
         const spellEff = effectsMap.get(cardNum)?.find(e => e.effectType === 'ACTIVATED');
@@ -7650,7 +7654,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ── スペル/クラフト（フェゾーネマジック）── メインフェイズに手札スペルと同様に使用可能
     if (cardData.Type === 'スペル/クラフト') {
-      if (my.blocked_card_names?.includes(cardData.CardName) || my.blocked_card_names_game?.includes(cardData.CardName)) return actions;
+      if (cardNameUseBlocked(my, cardData.CardName, cardData.Type)) return actions;
       // pending_spell がある間は新たにスペルを発動できない
       const spellBlocked = !!bs.pending_spell;
       const canUse = !isActionBlocked('USE_SPELL') && phase === 'MAIN' && isMyTurn && !spellBlocked;
@@ -7671,8 +7675,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ── アーツ（'アーツ/クラフト'＝改造素材等8枚も同経路で使用可能）──
     if (cardData.Type === 'アーツ' || cardData.Type === 'アーツ/クラフト') {
-      // blocked_card_names チェック（ターン内＋ゲーム内 NAME_BAN）
-      if (my.blocked_card_names?.includes(cardData.CardName) || my.blocked_card_names_game?.includes(cardData.CardName)) return actions;
+      // カード名指定の使用封じ（ターン内 blacklist ／ゲーム内 NAME_BAN ／アーツ名 whitelist）は1関数に集約（§6.4 O-3）
+      if (cardNameUseBlocked(my, cardData.CardName, cardData.Type)) return actions;
       const canUse =
         !isActionBlocked('USE_ARTS') && (
           (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
