@@ -7268,26 +7268,44 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         ban.level = refLv;
       }
       if (sab.powerDiffersFromPrinted) ban.powerDiffersFromPrinted = true;
+      // 対象がルリグだった分は**別の ban**として積む（判定軸が違う＝§6.4 O-28）。
+      // 「対戦相手のルリグかシグニ1体」（`CENTER_LRIG_OR_SIGNI`）は選ばれた側で決まるので、
+      // 静的な type ではなく**実際に確定した対象の Type**で仕分ける。
+      let lrigBan: import('../types').SigniAttackBan | undefined;
       if (sab.targetsStored) {
         const stored = ctx.storedTargetCards ?? [];
         if (stored.length === 0) return done(addLog(ctx, 'アタック制限: 対象が確定していない'));
-        ban.cardNums = [...stored];
+        const isLrigNum = (n: string) => (ctx.cardMap.get(getCardNum(n))?.Type ?? '').includes('ルリグ');
+        const lrigNums = stored.filter(isLrigNum);
+        const signiNums = stored.filter(n => !isLrigNum(n));
+        if (lrigNums.length > 0) lrigBan = { ...ban, appliesTo: 'LRIG', cardNums: lrigNums };
+        if (signiNums.length > 0) ban.cardNums = signiNums;
+        else if (lrigNums.length > 0) ban.cardNums = [];   // シグニ側は空＝下で積まない
+        else return done(addLog(ctx, 'アタック制限: 対象が確定していない'));
       }
-      if (sab.unlessPayColorless) ban.unlessPayColorless = sab.unlessPayColorless;
-      if (sab.unlessPayHandDiscard) ban.unlessPayHandDiscard = sab.unlessPayHandDiscard;
+      for (const b of [ban, lrigBan]) {
+        if (!b) continue;
+        if (sab.unlessPayColorless) b.unlessPayColorless = sab.unlessPayColorless;
+        if (sab.unlessPayHandDiscard) b.unlessPayHandDiscard = sab.unlessPayHandDiscard;
+        b.label = b.unlessPayColorless ? `《無》×${b.unlessPayColorless}`
+          : b.unlessPayHandDiscard ? `手札${b.unlessPayHandDiscard}枚`
+          : 'アタック不可';
+      }
       const scopeLabel = [
         ban.level !== undefined ? `レベル${ban.level}の` : '',
         ban.powerDiffersFromPrinted ? '表記と異なるパワーの' : '',
-        ban.cardNums ? ban.cardNums.map(n => ctx.cardMap.get(n)?.CardName ?? n).join('・') + 'は' : 'シグニでは',
+        sab.targetsStored
+          ? [...(ban.cardNums ?? []), ...(lrigBan?.cardNums ?? [])]
+              .map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・') + 'は'
+          : 'シグニでは',
       ].join('');
-      ban.label = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}`
-        : ban.unlessPayHandDiscard ? `手札${ban.unlessPayHandDiscard}枚`
-        : 'アタック不可';
       const banOwner: Owner = sab.owner === 'opponent' ? 'opponent' : 'self';
       const banState = ownerState(banOwner, ctx);
+      const addedBans = [ban, lrigBan]
+        .filter((b): b is import('../types').SigniAttackBan => !!b && (b.cardNums?.length !== 0));
       const newBanState: PlayerState = {
         ...banState,
-        signi_attack_bans_this_turn: [...(banState.signi_attack_bans_this_turn ?? []), ban],
+        signi_attack_bans_this_turn: [...(banState.signi_attack_bans_this_turn ?? []), ...addedBans],
       };
       const costLabel = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}を支払わないかぎりアタックできない`
         : ban.unlessPayHandDiscard ? `手札を${ban.unlessPayHandDiscard}枚捨てないかぎりアタックできない（アタックするごとに捨てる）`
