@@ -3716,6 +3716,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           trash: myTrashAfterCoinCheck,
           field: myFieldAfterCoinCheck,
           excluded: myExcludedEND,
+          energy: myEnergyEND,
+          turn_end_energy_trash_targets: undefined,
           pending_exile_nums: undefined,
           turn_end_draw_count: undefined,
           temp_power_mods:    [],   // UNTIL_END_OF_TURN パワー修正をリセット
