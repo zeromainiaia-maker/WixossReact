@@ -10,6 +10,7 @@ import type {
   GrantKeywordAction,
   GrowFreeAction,
   BlockActionAction,
+  PreventDamageAction,
   EnergyChargeByFieldCountAction,
   LookAtDeckAndLifeAction,
   GrowCostReductionAction,
