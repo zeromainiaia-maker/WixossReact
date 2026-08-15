@@ -11042,9 +11042,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ));
         // トリプルクラッシュ（WD21-009 の付与【自】＝ルリグアタックで3枚クラッシュ。検証是正＝シグニアタック側だけでなくルリグアタック経路も消費する）
         const opLrigHasTripleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('トリプルクラッシュ'));
-        // PREVENT_DAMAGE ウィンドウ（scope='ALL' も 'LRIG' もルリグアタックのダメージを無効）＝期間内は回数無制限。
+        // 「あなたは対戦相手の（レベルN以下の）ルリグによってダメージを受けない」＝**回数無制限**の防御。
         // 消費型（バリア／prevent_next_damage／置換ミル）を無駄遣いさせないため最初に判定する。
-        if (hasActivePreventDamageWindow(my, 'LRIG')) {
+        // §6.4 O-3 続き492: 判定は `isLrigDamagePrevented` 1本（期間ウィンドウ＋【常】宣言をまとめて見る）。
+        // ⚠🔴従来ここは期間ウィンドウだけで、【常】版は**消費型のさらに後ろ**かつ**自分のシグニしか
+        //   走査しない**インライン判定だった（ルリグ本体・アシスト・キーの宣言が丸ごと無視されていた）。
+        if (isLrigDamagePrevented({
+          defender: my, attacker: op, cardMap: battleCardMap, effectsMap,
+          attackingLrigNum: opLrigNum ?? undefined,
+        })) {
           appendBattleLogs([`ルリグアタック：ダメージ無効（ダメージを受けない効果）`]);
           newMyState = { ...my, field: { ...my.field, lrig_attacked: false } };
         } else if (countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0) {
