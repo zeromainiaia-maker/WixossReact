@@ -1,5 +1,93 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き493・Opus 5）— §6.4 **O-3 `NON_FIELD_ZONE_MOVE_IMMUNITY` を解体＝5効果の挙動是正**
+
+「対戦相手の効果によってカードが移動しない」の**期間軸**を1本にし、あわせて
+**「次の対戦相手のターン終了時、〜」の遅延本体が即時実行されていた**過剰実行を止めた。
+**永続化バグ 1／恒久 no-op 1／片側採用（半分脱落）1／過剰実行 1／汎用 STUB 誤配 1**。
+ゲート全緑（**golden 2034**＝+4・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・lint 0 errors / 260 warnings）。
+live JSON changed **5カード**（`WXK10-004`／`WXK10-083`／`WXEX2-06`／`WXDi-P16-002`／`WXDi-P09-066`。CSV 非改変）。
+`census:stubs` A群＝**無言 no-op 0 据置**、明示 defer **23種/25件 → 23種/26件**
+（`NON_FIELD_ZONE_MOVE_IMMUNITY` −1／新設 `NEXT_OPP_TURN_END_BODY` +2＝**隠れていた2件を明示 defer へ可視化**）。
+
+### 母集団の実測（着手前・受け皿 id ではなく原文 regex で数え直した）
+
+「（他の領域／トラッシュ／デッキに）移動しない」は原文 **19効果**。うち**期間つきは4効果**で、**全部壊れていた**：
+
+| カード | 原文の期間 | 修正前 |
+|---|---|---|
+| `WXK10-083-E1` | このターンと次のターンの間（エナ） | 🔴`prevent_opp_trash_from` に**失効地点が1つも無く永続**＝一度張るとゲーム終了までエナが落ちない |
+| `WXK10-004-E1` | このターンと次のターンの間（場以外の領域） | `STUB{DEFERRED_NON_FIELD_ZONE_MOVE_IMMUNITY}`＝恒久 no-op（O-3 受け皿） |
+| `WXEX2-06-E3` | 次の対戦相手のターン終了時まで（ダメージ＋手札/エナ） | 🔴**移動不可が丸ごと脱落**（`STUB{PREVENT_DAMAGE_UNTIL_OPP_TURN_END}` だけ）＋ダメージ側も1回消費 |
+| `WXDi-P16-002-E1` | 次の対戦相手のターンの間（ダメージ＋デッキ/手札/エナ） | 🔴**3つ同時に壊れていた**（下記） |
+
+【常】の7効果（`WX19-047-E1/E2`／`WXEX2-22-E1` ほか）は既存の宣言型で動いており**据置**。
+
+### ① 🔴 期間つき予約に失効地点が無く永続していた（3回目の再発）
+
+`prevent_opp_trash_from`（`('hand'|'energy')[]`）は **set が1箇所・clear が0箇所**だった。
+`signi_deploy_power_limit`（続き487）／`negated_attacks`（続き489）と**まったく同じクラス**。
+
+- `opp_move_immunity?: { zones; turnsRemaining }[]` へ置き換え、`signi_deploy_bans` と同じ
+  **ターン数カウントダウン**にした。減算は `clearTurnEndScopedState` の1点だけ。
+- 読みは `activeOppMoveImmunityZones(state)`（state 直読み）＋`collectProtectedZones`（【常】宣言）の合成。
+  ⚠**`ExecCtx.otherProtectedZones` を組み立てない経路が実在する**ので、消費側4サイトは
+  「ctx 側の集合 ∪ state 直読み」で判定する（片方だけにすると経路によって無言で素通りする）。
+- 新アクション `ZONE_MOVE_IMMUNITY{owner, zones, turns}`。**【常】は宣言型 STUB のまま**
+  （場にあるかぎり有効なので state に書くと「1回で消える」に化ける＝続き492 と同じ規律）。
+
+🔑**「期間つき」と書いてあるフィールドは失効地点を grep して実測する。**
+
+### ② 🔴 複合節を片側だけ採用すると残りが無言で落ちる
+
+`WXEX2-06-E3`／`WXDi-P16-002-E1` は「…**ダメージを受けず**、…**移動しない**」の複文。
+従来は前半だけが `STUB{PREVENT_DAMAGE_UNTIL_OPP_TURN_END}` に落ち、後半が消えていた。
+両方を `SEQUENCE[PREVENT_DAMAGE{scope:'LRIG'}, ZONE_MOVE_IMMUNITY]` で載せた
+（ダメージ側は続き492 で整えた期間ウィンドウ＝**1回消費されない**）。
+⚠golden にあった「片側だけ採用するな」の据置トリップワイヤは、**正方向（両方載る）**の固定へ置き換えた。
+
+### ③ 🔴 `WXDi-P16-002-E1` は3つ同時に壊れていた
+
+1. **【使用条件】ヘッダが `GRANT_KEYWORD{keyword:"使用条件"}` に化けていた**（続き490 の
+   「引用文が丸ごと keyword に入る」クラス）＝`hasKeyword` の照合外で**一度も効かない**うえ、
+   本来の使用条件（【チーム】＜夢限少女＞＆全員レベル１以上）が条件として載っていなかった。
+   → `condition: AND[LRIG_TEAM_COUNT, LRIG_LEVEL]` へ。
+2. 複合節（②）の両方が脱落。
+3. **「次の対戦相手のターン終了時、カードを１枚引き【エナチャージ１】をする」を使った瞬間に実行**していた。
+
+### ④ 🔑 遅延タイミング宣言の本体は即時実行しない（続き488 の再適用）
+
+「次の対戦相手のターン終了時、〜」は原文 **2効果**。予約機構が無いので**明示 defer**
+（`DEFERRED_NEXT_OPP_TURN_END_BODY`）へ落として後続を実行させない＝**過少側に倒す**。
+
+- ⚠**規則は `parseSentencePart1` の先頭に置く**＝本文側の汎用規則（`カードをN枚引く` 等）が
+  先に食うと、宣言が消えて本文だけが残る（＝過剰実行）。
+- `WXDi-P09-066-E1` は無関係な汎用 `STUB{LOOK_AND_REORDER}` に落ちており**計器に映っていなかった**
+  （「ハンドラ持ちの汎用 id」クラス）。明示 defer にしたことで A群に出る。
+
+### 現行の近似（引き継ぎ）
+
+保護できるのは **hand / energy → トラッシュ**の移動だけ（既存 `PREVENT_NON_FIELD_MOVE_BY_OPP` と同じ）。
+原文の「場以外のあなたの領域」「デッキとトラッシュに移動しない」が指すデッキ／トラッシュ／ライフ側は
+**移動地点の funnel が無い**ので未保護。PLAN §6.4 O-3 に残件として記載。
+
+### 変更ファイル
+
+- `src/types/index.ts`（`opp_move_immunity`＝旧 `prevent_opp_trash_from` を置換）／`src/types/effects.ts`（`ZoneMoveImmunityAction`）
+- `src/engine/effectEngine.ts`（`activeOppMoveImmunityZones` 新設・`collectProtectedZones` が合流）
+- `src/engine/effectExecutor.ts`（`ZONE_MOVE_IMMUNITY` 実行＋消費4サイトの読み替え）
+- `src/engine/execStubPart2.ts`（`PREVENT_ZONE_MOVE_BY_OPP`／`PREVENT_NON_FIELD_MOVE_BY_OPP` を宣言型 no-op へ）
+- `src/screens/battle/turnScopedState.ts`（`advanceOppMoveImmunity`＝turn-end の1点で減算）
+- `src/data/parsers/parseSentencePart1.ts`（遅延宣言の受け皿を関数先頭へ）／`Part2.ts`（期間つき／【常】の分岐・複合節）／`Part3.ts`（旧 defer の除去）
+- `scripts/decompileEffects.ts`（`ZONE_MOVE_IMMUNITY`・2語彙）／`scripts/goldenTest.ts`（+4／据置トリップワイヤ3件を正方向へ更新）
+
+### ⚠ 実機未検証（§7 送り）
+
+(a) `WXK10-083-E1`＝張ったターンと次のターンはエナが落ちず、**その次のターンでは落ちる**（負方向＋対照の対）。
+(b) `WXK10-004-E1`＝手札とエナの両方が守られるか。
+(c) `WXEX2-06-E3`／`WXDi-P16-002-E1`＝ダメージ無効と移動不可が**同時に**効くか。
+(d) `WXDi-P16-002-E1` の使用条件（【チーム】＜夢限少女＞3体＋全員レベル１以上）が満たせないとき**使えない**か。
+
 ## 2026-08-15（続き492・Opus 5）— §6.4 **O-3 `UNTIL_NEXT_MAIN_PHASE_CLAUSE` を解体＝9効果の挙動是正**
 
 「ルリグによってダメージを受けない」の**期間軸と走査軸**を1本ずつに集約し、あわせて
