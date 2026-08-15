@@ -8908,8 +8908,8 @@ WX19-047  大盾　ランタン  [シグニ 精武：アーム]
   
 
 【JSON 逆翻訳】
-  WX19-047-E1: 【常】[STUB:PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置]
-  WX19-047-E2: 【常】[STUB:PREVENT_ZONE_MOVE_BY_OPP: CONTINUOUS→collectProtectedZones動的計算 / AUTO→prevent_opp_trash_fromフラグ設置]
+  WX19-047-E1: 【常】対戦相手の効果によって、あなたの手札／エナゾーンにあるカードはトラッシュに移動しない
+  WX19-047-E2: 【常】対戦相手の効果によって、あなたの手札／エナゾーンにあるカードはトラッシュに移動しない
 
 ==============================================================================
 WX19-048  中盾　ティンベー  [シグニ 精武：アーム]

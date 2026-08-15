@@ -29268,6 +29268,24 @@ test('§6.4 O-3: 期間つき移動不可はターン数カウントダウンで
   eq(JSON.stringify(activeOppMoveImmunityZones(s2)), JSON.stringify([]), '失効後は保護しない');
 });
 
+test('§6.4 O-3: 期間つき移動不可が実際に相手効果のトラッシュを止める', () => withSavedCursor(() => {
+  // ⚠**state だけの検査では「読まれているか」が分からない**＝実際の消費地点（`applyTrashEnergy` /
+  //   `applyTrashHand`）を通す。`ExecCtx.otherProtectedZones` を渡さない経路でも効くこと（state 直読み）。
+  const base = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const guarded: ExecCtx = {
+    ...base,
+    otherState: { ...base.otherState, energy: [SIGNI, SIGNI], hand: [SIGNI], opp_move_immunity: [{ zones: ['energy'], turnsRemaining: 2 }] },
+  };
+  const trashEnergy = { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  eq((run(trashEnergy, guarded).otherState as PlayerState).energy.length, 2, 'エナは保護され1枚も落ちない');
+  // 対照＝予約が切れていれば通る（保護が「常に true」になっていないことの確認）。
+  const expired: ExecCtx = { ...guarded, otherState: { ...guarded.otherState, opp_move_immunity: undefined } };
+  eq((run(trashEnergy, expired).otherState as PlayerState).energy.length, 1, '対照: 予約なしなら落ちる');
+  // 手札は宣言していないので保護されない（ゾーン限定を落としていないことの確認）。
+  const trashHand = { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  eq((run(trashHand, guarded).otherState as PlayerState).hand.length, 0, 'エナ限定の宣言で手札まで守らない');
+}));
+
 test('§6.4 O-3: `WXK10-004-E1`（場以外の領域）と `WXEX2-06-E3`（ダメージ＋移動不可の複文）', () => {
   const run1 = (cardNum: string, effectId: string) => {
     const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
