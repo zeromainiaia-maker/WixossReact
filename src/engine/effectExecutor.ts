@@ -7426,8 +7426,30 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         ...sPD,
         prevent_damage_windows: [...(sPD.prevent_damage_windows ?? []), { scope: scopePD, expires: expiresPD }],
       };
+      const periodJaPD = pd.untilNextMainPhase ? '次のあなたのメインフェイズまで'
+        : pd.until === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
       return done(addLog(setOwnerState(tgtOwnerPD, newSPD, ctx),
-        `${pd.until === 'NEXT_TURN' ? '次のターンの間' : 'このターン'}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
+        `${periodJaPD}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
+    }
+    case 'SET_LRIG_BASE_LIMIT': {
+      // 「（次のあなたのメインフェイズまで、）このルリグの基本リミットは N になる」（§6.4 O-3 続き492）。
+      // ⚠**置換**なので `lrig_limit_mod`（加算）へ書かない＝`computeEffectiveLrigLimit` の basicOverride 層。
+      const sbl = action as import('../types/effects').SetLrigBaseLimitAction;
+      const tgtOwnerSBL: Owner = sbl.owner === 'opponent' ? 'opponent' : 'self';
+      const sSBL = ownerState(tgtOwnerSBL, ctx);
+      return done(addLog(
+        setOwnerState(tgtOwnerSBL, { ...sSBL, lrig_base_limit_override: sbl.value }, ctx),
+        `${sbl.untilNextMainPhase ? '次のあなたのメインフェイズまで、' : ''}${tgtOwnerSBL === 'self' ? 'あなた' : '対戦相手'}のルリグの基本リミットは${sbl.value}になる`));
+    }
+    case 'RESERVE_DRAW_PHASE_REPLACEMENT': {
+      // 「あなたが次のあなたのドローフェイズにカードを N 枚引く場合、代わりに M 枚引く」（§6.4 O-3 続き492）。
+      // 読みは `applyLrigDrawPhaseReplacement` 1本／失効は `clearMainPhaseScopedState` 1点。
+      const rdp = action as import('../types/effects').ReserveDrawPhaseReplacementAction;
+      const tgtOwnerRDP: Owner = rdp.owner === 'opponent' ? 'opponent' : 'self';
+      const sRDP = ownerState(tgtOwnerRDP, ctx);
+      return done(addLog(
+        setOwnerState(tgtOwnerRDP, { ...sRDP, draw_phase_replacement: { fromCount: rdp.fromCount, toCount: rdp.toCount } }, ctx),
+        `次のドローフェイズに${rdp.fromCount}枚引く場合、代わりに${rdp.toCount}枚引く`));
     }
     case 'REPLACE_NEXT_DAMAGE_WITH_MILL': {
       // 「次にダメージを受ける場合、代わりにデッキ上N枚をトラッシュ」の予約
