@@ -15128,6 +15128,31 @@ test('GAIN_BOND source:last_found: 直前選択カードとの絆を bonds へ�
   const r = run({ type: 'GAIN_BOND', source: 'last_found' } as EffectAction, ctx);
   ok((r.ownerState.bonds ?? []).includes(name!), `bonds (${JSON.stringify(r.ownerState.bonds)})`);
 });
+// ── DECK_SIGNI_LEVEL_OVERRIDE_ALL（§6.4 O-34(c)「このターン、あなたのデッキにあるシグニのレベルは4になる」）──
+// 🔴回帰ガード＝`deck_signi_level_override` は**setter だけあって読み手が1つも無い死フィールド**だった。
+//    `WXK07-034-E1` は①でレベルを上書きし②で「レベル4のシグニが2枚めくれるまで公開」する自己完結の
+//    コンボなので、読み手が無いと②が本来の当たり札を素通りする（＝過少）。**負方向＋対照の対**で固定する。
+test('DECK_SIGNI_LEVEL_OVERRIDE_ALL: ①のレベル上書きを②の REVEAL_UNTIL が読む（WXK07-034-E1 live）', () => withSavedCursor(() => {
+  const lv1a = SIGNI_L1, lv1b = SIGNI_L2, lv1c = SIGNI_L3;
+  const eff = (effectsMap.get('WXK07-034') ?? []).find(e => e.effectId === 'WXK07-034-E1')!;
+  const choose = eff.action as unknown as { choices: { action: EffectAction }[] };
+  const setLevel = choose.choices[0].action;   // ①「デッキにあるシグニのレベルは4になる」
+  const reveal = choose.choices[1].action;     // ②「レベル4のシグニが2枚めくれるまで公開」
+  // 対照＝上書きが無いとき（Lv1/2/3 しかないデッキ）は当たりが1枚も出ない。
+  const plain = mkCtx({ deckTop: [lv1a, lv1b, lv1c] }, {});
+  const hand0 = plain.ownerState.hand.length;
+  const rPlain = finish(executeEffect({ ...eff, action: reveal } as CardEffect, plain), plain);
+  eq(rPlain.ownerState.hand.length, hand0, '上書き前は Lv4 が無く手札は増えない');
+  // 本命＝①を先に解決すると同じデッキで2枚が Lv4 として当たる。
+  const boosted = mkCtx({ deckTop: [lv1a, lv1b, lv1c] }, {});
+  const afterSet = run(setLevel, boosted);
+  eq(afterSet.ownerState.deck_signi_level_override?.level ?? 0, 4, 'override が載る');
+  eq(afterSet.ownerState.deck_signi_level_override?.class ?? '', '*', 'クラス指定なし＝全シグニ');
+  const ctx2 = { ...boosted, ownerState: afterSet.ownerState } as ExecCtx;
+  const hand1 = ctx2.ownerState.hand.length;
+  const r2 = finish(executeEffect({ ...eff, action: reveal } as CardEffect, ctx2), ctx2);
+  eq(r2.ownerState.hand.length, hand1 + 2, '上書き後は Lv4 扱いのシグニ2枚が手札へ');
+}));
 // ── STRIP_ATTACHED_AND_UNDER（§6.4 O-34(a)「それに付いているすべてのカードと、下に置かれている
 //    すべてのカードをトラッシュに置く」＝原文 regex の母集団3効果）──
 // 🔴回帰ガード＝`WX18-029-E1` は従来 `TRASH{SIGNI opponent}`＝**相手シグニ本体をトラッシュに置いて**
