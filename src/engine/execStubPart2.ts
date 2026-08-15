@@ -1893,8 +1893,14 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: [...ctx.ownerState.lrig_deck, instIGT] } },
       `ルリグデッキに加えた: ${ctx.cardMap.get(baseIGT)?.CardName ?? baseIGT}`));
   }
-  // PREVENT_LOW_LEVEL_LRIG_DAMAGE / PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
-  if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE' || stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
+  // 「あなたは対戦相手のレベルN以下のルリグによってダメージを受けない」の**宣言型**（§6.4 O-3 続き492）。
+  // ⚠上の `PREVENT_LRIG_DAMAGE` と同じ理由でフラグを書かない＝**レベル限定を state では表せない**
+  //   （書くとレベル無制限の1回無効に化ける）。判定は `isLrigDamagePrevented` が `value` を読む。
+  if (stub.id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE') {
+    return done(addLog(ctx, `ルリグダメージ無効（レベル${stub.value ?? '?'}以下・【常】宣言）`));
+  }
+  // PREVENT_DAMAGE_FROM_OPP_EFFECTS / PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP: ルリグダメージ無効フラグ
+  if (stub.id === 'PREVENT_DAMAGE_FROM_OPP_EFFECTS' || stub.id === 'PREVENT_DAMAGE_AND_LIFE_MOVE_BY_OPP') {
     const newSPLLD: PlayerState = { ...ctx.ownerState, prevent_lrig_damage: true };
     return done(addLog({ ...ctx, ownerState: newSPLLD }, 'ルリグダメージ無効'));
   }
