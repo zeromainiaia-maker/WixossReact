@@ -64,6 +64,7 @@ import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason } from '../src/screens/battle/signiAttackGate';
+import { lrigAttackBanCost } from '../src/screens/battle/signiAttackBan';
 import { pickLifeCrashReplacement, applyMillReplacement } from '../src/screens/battle/lifeCrashReplace';
 import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
 import { resolveTurnEndEnergyTrash } from '../src/screens/battle/turnEndEnergyTrash';
