@@ -335,7 +335,7 @@ export type Condition =
   | { type: 'AND'; conditions: Condition[] }
   | { type: 'IS_MY_TURN' }
   | { type: 'IS_OPPONENT_TURN' }
-  | { type: 'IS_BETTING'; minCoins?: number }                  // このアーツ/スペルでベットを宣言していた場合（is_betting_this_effect）。minCoins 指定時は支払ったコイン枚数（bet_coins_paid）がN以上の段階ベット判定（WX16-004）。「あなたがベットしていた場合、代わりに」の択一に使う
+  | { type: 'IS_BETTING'; minCoins?: number; negate?: boolean } // このアーツ/スペルでベットを宣言していた場合（is_betting_this_effect）。minCoins 指定時は支払ったコイン枚数（bet_coins_paid）がN以上の段階ベット判定（WX16-004）。「あなたがベットしていた場合、代わりに」の択一に使う。negate=true は「ベットしていなかった場合」（`WD20-006-E1` のデメリット節）
   | { type: 'IS_BOOSTING' }                                    // このアーツでブースト追加エナを支払っていた場合
   | { type: 'PAID_ADDITIONAL_COST' }
   | { type: 'ANY_PLAYER_REFRESHED_THIS_TURN' }                  // このターンにいずれかのプレイヤーがリフレッシュしていた場合
