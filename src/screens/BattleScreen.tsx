@@ -9386,6 +9386,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     });
   };
 
+  /** 「手札をN枚捨てないかぎりアタックできない」の支払いを確定してアタックする（§6.4 O-3）。 */
+  const resolveAttackHandDiscardPayment = async () => {
+    if (!attackHandDiscardPayment || loading) return;
+    if (selectedAttackHandDiscard.size !== attackHandDiscardPayment.count) return;
+    const pending = attackHandDiscardPayment;
+    const indices = [...selectedAttackHandDiscard].sort((a, b) => a - b);
+    closeAttackHandDiscardPayment();
+    await performSigniAttack(pending.zoneIndex, {
+      attacker: my,
+      defender: op,
+      attackerId: user.id,
+      defenderId: isHost ? bs.guest_id : bs.host_id,
+      attackerKey: isHost ? 'host_state' : 'guest_state',
+      targetOpZone: pending.targetOpZone,
+      attackHandDiscardIndices: indices,
+    });
+  };
+
   // G154 BURST: アタック無効化を「手札N枚捨て」で回避してアタックを通す
   const resolveNegateEscapeDiscard = async () => {
     if (!negateEscape || selectedNegateEscape.size !== negateEscape.count || loading) return;
