@@ -2587,6 +2587,10 @@ export interface StubAction {
    * `storedTargetCards`（＝直前の `SELECT_TARGET_ONLY` が確定した対象）を剥がす。
    */
   stripSelf?: boolean;
+  /** PER_OWN_LRIG_COLOR_SCALE: 数える自ルリグの色（「あなたの場にいる〈色〉のルリグ１体につき」）。 */
+  scaleColor?: string;
+  /** PER_OWN_LRIG_COLOR_SCALE: その色のルリグ体数だけ繰り返す本体。 */
+  scaleAction?: EffectAction;
   /** TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 能力選択CHOOSEを跨いで保持する発動元シグニ。 */
   eichiAbilitySourceCardNum?: string;
   /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */
