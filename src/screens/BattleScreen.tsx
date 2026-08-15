@@ -10573,7 +10573,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ①`any`／`any_opp`（「相手のアタックフェイズ開始時」等＝実測 **57効果**）が CPU ターンだけ不発
       //   ②`usageLimit`（《ターン1回》）を `actions_done` に記録しないので同一ターンに再発火しうる
       //   ③人間側の場のシグニを一切見ない、という3点で人間ターンと挙動が食い違っていた。
-      const apsCpu = collectCpuTurnTriggers('ON_ATTACK_PHASE_START', newCpuSt, huSt);
+      const apsCpu = cpuAttackPhaseSkipped
+        ? { cpuState: newCpuSt, humanState: undefined as PlayerState | undefined, entries: [] as StackEntry[] }
+        : collectCpuTurnTriggers('ON_ATTACK_PHASE_START', newCpuSt, huSt);
       apsStackEntries.push(...apsCpu.entries);
       newCpuSt = apsCpu.cpuState;
       // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセットする（`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の母集団）。
