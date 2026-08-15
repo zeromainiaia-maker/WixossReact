@@ -1513,9 +1513,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
     }
   }
 
-  // ---- 次の対戦相手のターン終了時、そのカードを手札に加える ----
-  if (t.match(/次の対戦相手のターン終了時、そのカードを手札に加える/))
-    return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
+  // 「次の対戦相手のターン終了時、そのカードを手札に加える」の旧規則（汎用 `LOOK_AND_REORDER`）は削除した
+  // （§6.4 O-3 続き498）。`parseSentencePart1` 冒頭の遅延タイミング宣言が先に食うので**到達不能**であり、
+  // 本文の解決は `rewriteNextOppTurnEndBody`（＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND` への詰め替え）が行う。
 
   // ---- メインフェイズの間、デッキからシグニがトラッシュに置かれたとき、場に出す ----
   if (t.match(/メインフェイズの間.*デッキから.*シグニ.*がトラッシュに置かれたとき.*場に出す/))
