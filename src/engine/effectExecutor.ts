@@ -4281,14 +4281,17 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         const payAction: EffectAction = costActions.length > 0
           ? { type: 'SEQUENCE', steps: [...costActions, paidAction] }
           : paidAction;
+        // ⚠**「支払わないかぎり」形は文言だけ反転する**（§6.4 O-30）＝機構は同じ（pay→then／skip→else）だが、
+        //   「発動する／スキップ」のままだと**払わない方が得に見える**表示になり実機で判断できない。
+        const unlessPay = stub.unlessPay === true;
         const payLabel = payColors.length > 0
-          ? `発動する（コスト: ${payColors.map(c => `《${c}》`).join('')}）`
-          : '発動する';
+          ? `${unlessPay ? '支払う' : '発動する'}（コスト: ${payColors.map(c => `《${c}》`).join('')}）`
+          : (unlessPay ? '支払う' : '発動する');
         const options = [
           { id: 'pay', label: payLabel, action: payAction, available: canAfford, ...(payColors.length ? { costColors: payColors } : {}) },
           // skip 側（else）も凍結する＝storedTargetCards は resume を跨いで生存しないため、
           // else に targetsStored があると未払い経路で候補が空になり空振りする（WXDi-D08-012 の未払いBANISH）
-          { id: 'skip', label: 'スキップ', action: freezeStoredTargets((conditional.else ?? noopAction) as EffectAction, cur), available: true },
+          { id: 'skip', label: unlessPay ? '支払わない' : 'スキップ', action: freezeStoredTargets((conditional.else ?? noopAction) as EffectAction, cur), available: true },
         ];
         const pending: PendingInteractionDef = {
           type: 'CHOOSE',
