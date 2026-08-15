@@ -146,10 +146,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/そのカードが【ライフバースト】を持たない場合、それをトラッシュに置く/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- 追加のアタックフェイズを加える ----
-  // ⚠追加アタックフェイズの機構が無い（§6.4 O-3 続き459）。旧 id `LRIG_GROW_RESTRICT` は無関係。
+  // ---- 追加のアタックフェイズを加える（§6.4 O-3）----
+  // 消化は `resolveNextPhaseAfterAttack`＝ATTACK_LRIG の次を END ではなく ATTACK_ARTS にする1点。
+  // ⚠「この方法で加えたアタックフェイズの開始時、〜」の本文は**後続の文**にあるので、
+  //   `parseActionText` の SEQUENCE 畳み込みで `onStart` へ移す（ここでは空のまま返す）。
   if (t.match(/追加のアタックフェイズを加える/))
-    return { type: 'STUB', id: 'DEFERRED_EXTRA_ATTACK_PHASE' } as StubAction;
+    return { type: 'ADD_EXTRA_ATTACK_PHASE' } as EffectAction;
 
   // ---- この方法でN枚以上公開/トラッシュした場合 ----
   if (t.match(/この方法でカードが[１-９\d０-９]+枚以上公開された場合/) ||
