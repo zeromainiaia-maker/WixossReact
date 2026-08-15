@@ -596,7 +596,10 @@ const PATTERNS: Pattern[] = [
   { name: 'トリガー:アタックしたとき', re: /がアタックしたとき/, keys: ['ON_ATTACK', 'ATTACK_ARTS'], src: 'eff' },
   { name: 'トリガー:場に出たとき', re: /場に出たとき/, keys: ['ON_PLAY', 'ON_ZONE_MOVED', 'ADD_TO_FIELD'], src: 'eff' },
   { name: 'トリガー:バニッシュされたとき', re: /バニッシュされたとき/, keys: ['ON_BANISH'], src: 'eff' },
-  { name: 'トリガー:アタックフェイズ開始時', re: /アタックフェイズ開始時/, keys: ['ON_ATTACK_PHASE_START'], src: 'eff' },
+  // ⚠`ADD_EXTRA_ATTACK_PHASE`＝「この方法で加えたアタックフェイズ**開始時**、〜」（§6.4 O-3）。
+  //   本文は `onStart` に載る＝timing キーは付かないので、これを対応語彙に入れないと
+  //   STUB を実装で置き換えた瞬間に高シグナルへ昇格する（計器の較正漏れ）。
+  { name: 'トリガー:アタックフェイズ開始時', re: /アタックフェイズ開始時/, keys: ['ON_ATTACK_PHASE_START', 'ADD_EXTRA_ATTACK_PHASE'], src: 'eff' },
   { name: 'トリガー:ターン終了時に', re: /ターン終了時[、に]/, keys: ['ON_TURN_END', 'TURN_END', 'turn_end'], src: 'eff' },
   { name: 'トリガー:トラッシュに置かれたとき', re: /トラッシュに置かれたとき/, keys: ['ON_TRASH', 'ON_CHARM_TO_TRASH', 'ON_ENERGY_TO_TRASH', 'ON_EXCEED_COST'], src: 'eff' },
   { name: 'トリガー:場を離れたとき', re: /場を離れ(たとき|るとき)/, keys: ['ON_LEAVE_FIELD'], src: 'eff' },
