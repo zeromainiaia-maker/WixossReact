@@ -114,6 +114,8 @@ export function remainingOffZonePayments(my: PlayerState, perTurnLimit: number):
  * 追加元が無ければエナゾーンだけの pool を返す＝従来と完全に同じ挙動。
  */
 export function buildEnergyPayPool(my: PlayerState, ctx: EnergyPoolContext): EnergyPayEntry[] {
+  // 「１以上のエナコストを支払えない」＝支払い元が1枚も無い状態と等価（エナゾーン外の支払い元も含めて封じる）。
+  if (isEnergyPayBlocked(my)) return [];
   const pool: EnergyPayEntry[] = my.energy.map((cardNum, energyIndex) => ({
     origin: 'energy' as const, cardNum, energyIndex,
   }));
