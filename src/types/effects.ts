@@ -2140,11 +2140,30 @@ export interface PlaceFacedownLrigZoneAction {
   count: number;
   /** 「N枚**まで**」＝0枚可。 */
   upToCount?: boolean;
+  /** 置く側（省略＝効果のオーナー）。'opponent'＝「対戦相手は〜置く」（`SPDi43-02-E2`）。 */
+  owner?: Owner;
+  /** 「手札を**すべて**」＝枚数指定ではなく全部。指定時 `count` は無視する。 */
+  all?: boolean;
 }
 
 /** 「そのカードを表向きにしてトラッシュに置き、」＝上の裏向きカードを公開してトラッシュへ。 */
 export interface RevealFacedownLrigZoneAction {
   type: 'REVEAL_FACEDOWN_LRIG_ZONE';
+}
+
+/**
+ * 「（次の対戦相手のターン終了時、）そのカードを手札に加える」＝上で裏向きにルリグゾーンへ置いた
+ * カードを手札へ戻す（§6.4 O-3）。
+ *
+ * 🔑**遅延を跨いだ照応の受け皿**＝`DELAY_TO_NEXT_OPP_TURN_END` が運べるのは action だけで
+ *   「そのカード」の参照先は束縛できない。**参照先を state 側（`facedown_lrig_zone_cards`）に
+ *   永続化してある**ので、発火時にそこを読めば照応が解ける（原文の「この方法で置いたカード」と
+ *   同じ集合）。⚠だから `REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）とは**別アクション**にする。
+ */
+export interface ReturnFacedownLrigZoneToHandAction {
+  type: 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND';
+  /** 戻す側（省略＝効果のオーナー）。 */
+  owner?: Owner;
 }
 
 // このゲームの間、対戦相手は同名カードを使用できない
