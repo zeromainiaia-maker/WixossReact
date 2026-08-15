@@ -98,6 +98,13 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   abilities_removed: { boundaries: ['turn-end'], reset: [], reason: 'active ability loss for the current turn; next-turn value is reserved separately' },
   // 指定キーワードの喪失／再取得禁止も abilities_removed と同じ期限。
   keyword_abilities_removed: { boundaries: ['turn-end'], reset: undefined, reason: 'keyword-scoped ability loss; same lifetime as abilities_removed' },
+  // 🔴「このターン次にアタックしたとき無効にされる」＝型コメントに期間が書いてあるのに**失効地点が1つも
+  //   無く永続していた**（§6.4 O-3 続き489 で発見。`signi_deploy_power_limit` と同じクラス）。
+  //   消費は「そのカードがアタックしたとき」だけなので、**アタックしなければゲーム終了まで残る**＝
+  //   `SPDi43-24-E2` のような防御札（相手は狙われたユニットでアタックしなければよい）で必ず踏む。
+  negated_attacks: { boundaries: ['turn-end'], reset: undefined, reason: 'attack negations registered for the current turn; consumed on attack or expired here' },
+  // 上の回避コスト（手札N枚捨て）は同じ寿命。
+  negated_attacks_escape: { boundaries: ['turn-end'], reset: undefined, reason: 'escape cost of negated_attacks; same lifetime' },
   // 追加アタックフェイズ開始時の本文は、そのフェイズで消化する。未消化の残骸をターンを跨がせない。
   pending_extra_attack_phase_start_effects: { boundaries: ['turn-end'], reset: undefined, reason: 'extra attack phase start effects are consumed in that phase; no carry-over' },
   // キーの能力喪失（§6.4 O-16(b)）も「このターン」限定。⚠登録前は BattleScreen の turn-end 4経路のうち
