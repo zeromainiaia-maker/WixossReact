@@ -24,6 +24,10 @@ export function computeEffectiveLrigLimit(
       && effect.action.type === 'STUB'
       && effect.action.id === 'OPP_CENTER_LRIG_LIMIT_SET_5');
   }) ? 5 : undefined;
+  // 「次のあなたのメインフェイズまで、このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3 続き492）。
+  // ⚠**加算（`lrig_limit_mod`）ではなく置換**なので `basicOverride` と同じ層に置く。相手からの
+  //   `OPP_CENTER_LRIG_LIMIT_SET_5` より自分の宣言を優先する（原文は「このルリグの基本リミットは12になる」）。
+  const selfBaseOverride = state.lrig_base_limit_override;
   const copiedLimit = state.lrig_copy_opp_level_limit ? parseLimit(otherCenter?.Limit) : undefined;
   const centerLevel = parseInt(center?.Level ?? '0', 10) || 0;
   const limitUpperBonus = state.limit_upper_token
