@@ -803,6 +803,47 @@ export function execStubPart3(
     const newOtherSAC: PlayerState = { ...ctx.otherState, signi_attack_cost: 2 };
     return done(addLog({ ...ctx, otherState: newOtherSAC }, 'ターン終了時まで、対戦相手シグニアタックに《無》×2コスト'));
   }
+  // EXILE_CRAFTS_RESET_ZONES_AND_DRAW（WX24-P2-014-E2）:
+  //   「各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにある、すべてのクラフトを
+  //     ゲームから除外し、すべてのカードをデッキに加えてシャッフルし、カードをN枚引く」
+  // ⚠**両プレイヤーに同じ処理をする**（従来は自分の DRAW 6 だけが残り、盤面リセットが丸ごと落ちていた）。
+  // ⚠除外ゾーンは未実装なので、クラフトは「どこにも置かず取り除く」＝既存 EXILE と同じ近似。
+  // ⚠ライフクロス／ルリグ／ルリグトラッシュ／デッキは原文の対象外なので触らない。
+  if (stub.id === 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW') {
+    const drawN = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '6'), 10);
+    const isCraft = (n: string) => /クラフト/.test(ctx.cardMap.get(getCardNum(n))?.Type ?? '');
+    const resetOne = (s: PlayerState): { state: PlayerState; exiled: number } => {
+      const fieldCards = s.field.signi.flatMap(stack => stack ?? []);
+      const charmCards = (s.field.signi_charms ?? []).filter((c): c is string => !!c);
+      const acceCards = (s.field.signi_acce ?? []).flatMap(a => a ?? []);
+      const gathered = [...s.hand, ...fieldCards, ...charmCards, ...acceCards, ...s.energy, ...s.trash];
+      const toDeck = gathered.filter(n => !isCraft(n));
+      const shuffled = shuffle([...s.deck, ...toDeck]);
+      return {
+        state: {
+          ...s,
+          hand: shuffled.slice(0, drawN),
+          deck: shuffled.slice(drawN),
+          energy: [], trash: [],
+          field: {
+            ...s.field,
+            signi: [null, null, null],
+            signi_down: [false, false, false],
+            signi_frozen: [false, false, false],
+            signi_charms: [null, null, null],
+            signi_acce: [null, null, null],
+          },
+          deck_shuffled_count: (s.deck_shuffled_count ?? 0) + 1,
+        },
+        exiled: gathered.length - toDeck.length,
+      };
+    };
+    const own = resetOne(ctx.ownerState);
+    const other = resetOne(ctx.otherState);
+    return done(addLog({ ...ctx, ownerState: own.state, otherState: other.state },
+      `各プレイヤーはクラフト${own.exiled + other.exiled}枚をゲームから除外し、`
+      + `手札・シグニゾーン・エナゾーン・トラッシュをデッキに加えてシャッフルし、カードを${drawN}枚引いた`));
+  }
   // OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定）
   if (stub.id === 'OPP_ZONE_PLACEMENT_RESTRICT') {
     return done(addLog(ctx, '[配置制限: OPP_ZONE_PLACEMENT_RESTRICT（CONTINUOUS）]'));
