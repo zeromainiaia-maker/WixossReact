@@ -12480,6 +12480,27 @@ function demoteDeclareNumberForAttackBan(action: EffectAction): EffectAction {
   return { ...action, steps };
 }
 
+/**
+ * 「次の対戦相手のターン、〜。**そのターンの間**、シグニは可能ならばアタックしなければならない」（`WXEX2-19-E3`）。
+ *
+ * 文単位パーサは**前の文を見られない**ので「そのターン」を解決できず、所有者も期間も既定に落ちて
+ * `FORCE_SIGNI_ATTACK{targetOwner:'self'}`＝**自分のシグニをこのターン強制アタックさせる**という
+ * 真逆の効果になっていた。能力ブロック内の照応をここで解決する。
+ * ⚠読むのは**能力ブロック**であってカード全文ではない（§6.4 O-20 の恒久ルール）。
+ */
+function resolveForcedAttackThatTurn(action: EffectAction, blockText: string): EffectAction {
+  if (!/次の対戦相手のターン/.test(blockText)) return action;
+  if (!/そのターンの間、(?:対戦相手の)?シグニは可能ならばアタックしなければならない/.test(blockText)) return action;
+  const fix = (a: EffectAction): EffectAction => {
+    if (a.type === 'FORCE_SIGNI_ATTACK') {
+      return { ...a, targetOwner: 'opponent', duration: 'NEXT_TURN' } as EffectAction;
+    }
+    if (a.type === 'SEQUENCE') return { ...a, steps: a.steps.map(fix) } as EffectAction;
+    return a;
+  };
+  return fix(action);
+}
+
 // デッキ上N枚からセンタールリグ共通色の**全カード**をエナへ、残りをデッキ下。
 // 旧の LOOK_AND_REORDER/top や裸STUBは残さず、公開と振り分けを1つの REVEAL_AND_PICK が担う。
 function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): EffectAction {

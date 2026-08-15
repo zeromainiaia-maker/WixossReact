@@ -14333,7 +14333,7 @@ test('配置制限ゲート: 配置数上限（フラグ版）は体数で弾き
   eq(reason({ placingState: mkState({ signi: [SIGNI, SIGNI_P3000, null] }) }), null, '制限なしなら配置可');
 }));
 test('配置制限ゲート: パワー上限はライズにも適用される（続き405）', () => withSavedCursor(() => {
-  const base = { ...mkState({ signi: [null, null, null] }), signi_deploy_power_limit: 12000 };
+  const base = { ...mkState({ signi: [null, null, null] }), signi_deploy_bans: [{ turnsRemaining: 2, powerGte: 12000 }] };
   const reason = (num: string, onExistingStack = false) => deployLimitBlockReason({
     placingState: base, opponentState: mkState({}), cardNum: num,
     cardMap: cardMap as Map<string, CardData>, onExistingStack,
@@ -14372,7 +14372,7 @@ test('配置制限ゲート: engine の効果配置（execAddToField）が上限
 }));
 test('配置制限ゲート: engine のパワー上限も効果配置に効く（続き405）', () => withSavedCursor(() => {
   const ctx = mkCtx({ signi: [null, null, null], trash: 0 }, {});
-  ctx.ownerState = { ...ctx.ownerState, trash: [SIGNI_P12000], signi_deploy_power_limit: 12000 };
+  ctx.ownerState = { ...ctx.ownerState, trash: [SIGNI_P12000], signi_deploy_bans: [{ turnsRemaining: 2, powerGte: 12000 }] };
   const r = run({ type: 'ADD_TO_FIELD', owner: 'self',
     source: { type: 'TRASH_CARD', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as EffectAction, ctx);
   eq((r.ownerState as PlayerState).field.signi.some(z => z?.includes(SIGNI_P12000)), false, 'パワー上限以上は効果でも場に出せない');
@@ -15935,7 +15935,7 @@ test('§6.4 zone swap: 配置数制限は入れ替え分を差し引き、配置
 
   const blocked = mkCtx({ signi: [fieldCard, null, null] }, {}, fieldCard);
   blocked.ownerState.energy = [external];
-  blocked.ownerState.signi_deploy_power_limit = parseInt(cardMap.get(external)?.Power ?? '0', 10);
+  blocked.ownerState.signi_deploy_bans = [{ turnsRemaining: 2, powerGte: parseInt(cardMap.get(external)?.Power ?? '0', 10) }];
   const b0 = executeAction(action, blocked);
   const b1 = resumeSelectTarget([external], b0.pending as never, { ...blocked, ownerState: b0.ownerState, otherState: b0.otherState, logs: b0.logs });
   const b2 = resumeRearrangeSigni([fieldCard], b1.pending as never, { ...blocked, ownerState: b1.ownerState, otherState: b1.otherState, logs: b1.logs, lastProcessedCards: b1.lastProcessedCards });
@@ -33261,7 +33261,7 @@ test('§6.4 PR-470A: 入れ替え配置もパワー制限は通る（体数制�
   eq(ok1.ownerState.field.signi[0]?.at(-1), fetched, '体数制限1でも入れ替えは通る（場の数が増えないため）');
 
   // パワー制限＝掛かる（従来はここだけ素通りしていた）
-  const blocked = run(stub, { ...base, ownerState: { ...base.ownerState, signi_deploy_power_limit: power } });
+  const blocked = run(stub, { ...base, ownerState: { ...base.ownerState, signi_deploy_bans: [{ turnsRemaining: 2, powerGte: power }] } });
   ok(blocked.ownerState.field.signi[0]?.at(-1) !== fetched,
      '🔴パワー配置制限のときは場に出さない（配置制限 funnel を素通りしない）');
   ok(blocked.logs.some(l => l.includes('配置パワー制限')), '理由がログに出る');
