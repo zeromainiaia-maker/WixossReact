@@ -29164,6 +29164,79 @@ test('§6.4 O-3: resolveTurnHandover が追加ターンと次ターンスキッ�
   eq(both.consumeOpponent({ ...base, skip_next_turn: true }).skip_next_turn, true, '追加ターン優先＝スキップ予約は残る');
 });
 
+// ── §6.4 O-3（続き492）: 「ルリグによってダメージを受けない」の期間軸・走査軸 ──
+test('§6.4 O-3: 期間つきルリグダメージ無効を `PREVENT_DAMAGE{scope:LRIG}` 1本に集約する', () => {
+  const runEff = (cardNum: string, effectId: string) => {
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+    const ctx = mkCtx({ signi: [SIGNI, SIGNI, null] }, { signi: [SIGNI, null, null] }, cardNum);
+    return finish(executeEffect(eff, ctx), ctx);
+  };
+  // 🔴従来は `prevent_lrig_damage` フラグ＝**ターン終了時にクリアされる**ので「次のターンの間」が
+  //   一度も効かず（`WXK10-019-E2`）、「このターン」も1回防いだ時点で消えていた。
+  const nextTurn = runEff('WXK10-019', 'WXK10-019-E2');
+  const winN = (nextTurn.ownerState as PlayerState).prevent_damage_windows ?? [];
+  eq(JSON.stringify(winN), JSON.stringify([{ scope: 'LRIG', expires: 'NEXT_TURN_START' }]), '次のターン予約として積む');
+  eq(hasActivePreventDamageWindow(nextTurn.ownerState as PlayerState, 'LRIG'), false, '予約は張ったターンには効かない');
+  const promoted = clearTurnEndScopedState(nextTurn.ownerState as PlayerState);
+  eq(hasActivePreventDamageWindow(promoted, 'LRIG'), true, 'ターン境界で昇格して次のターンを丸ごと守る');
+  eq(hasActivePreventDamageWindow(clearTurnEndScopedState(promoted), 'LRIG'), false, 'その次の境界で消える');
+
+  const thisTurn = runEff('PR-K019', 'PR-K019-E3');
+  eq(hasActivePreventDamageWindow(thisTurn.ownerState as PlayerState, 'LRIG'), true, 'このターン版は即座に有効');
+  // ⚠期間内は**回数無制限**（旧フラグは1回で消費されていた）。
+  eq(hasActivePreventDamageWindow(thisTurn.ownerState as PlayerState, 'LRIG'), true, '同一ターンの2回目も防ぐ');
+  eq(hasActivePreventDamageWindow(clearTurnEndScopedState(thisTurn.ownerState as PlayerState), 'LRIG'), false, 'ターン終了で消える');
+});
+
+test('§6.4 O-3: ルリグダメージ無効の走査軸はシグニだけでは足りない', () => {
+  const cm = cardMap as Map<string, CardData>;
+  // `WXK03-001-E1`＝**ルリグ本体**の【常】（手札0枚のかぎり）。🔴従来の判定は自分のシグニしか
+  //   走査しておらず、この宣言は一度も読まれていなかった。
+  const lrigDeclarer = { ...mkState({ signi: [SIGNI, null, null] }), hand: [] as string[] };
+  lrigDeclarer.field.lrig = ['WXK03-001'];
+  const attacker = mkState({});
+  ok(isLrigDamagePrevented({ defender: lrigDeclarer, attacker, cardMap: cm, effectsMap }), 'ルリグ本体の【常】を読む');
+  // 対照＝activeCondition（手札0枚）を満たさなければ効かない。
+  ok(!isLrigDamagePrevented({ defender: { ...lrigDeclarer, hand: [SIGNI] }, attacker, cardMap: cm, effectsMap }),
+    '条件を満たさなければ防がない');
+  // `WXK11-012-E2`＝**キー**の【常】かつ「レベル2以下のルリグによって」限定。
+  const keyDeclarer = mkState({ signi: [SIGNI, null, null] });
+  keyDeclarer.field.key_piece = 'WXK11-012';
+  const lowLv = [...cm.entries()].find(([, c]) => c.Type === 'ルリグ' && parseInt(c.Level ?? '', 10) <= 2)?.[0];
+  const highLv = [...cm.entries()].find(([, c]) => c.Type === 'ルリグ' && parseInt(c.Level ?? '', 10) >= 4)?.[0];
+  ok(!!lowLv && !!highLv, 'レベル比較用のルリグが見つかる');
+  ok(isLrigDamagePrevented({ defender: keyDeclarer, attacker, cardMap: cm, effectsMap, attackingLrigNum: lowLv }),
+    'レベル2以下のルリグからは守る');
+  // 🔴限定を落とすと「すべてのルリグからのダメージを無効」の過剰効果になる。
+  ok(!isLrigDamagePrevented({ defender: keyDeclarer, attacker, cardMap: cm, effectsMap, attackingLrigNum: highLv }),
+    'レベル上限を超えるルリグからは守らない');
+});
+
+test('§6.4 O-3: `WXK01-002-E2`（次のあなたのメインフェイズまで）の3機構と即時ドローの脱落', () => {
+  const eff = effectsMap.get('WXK01-002')!.find(e => e.effectId === 'WXK01-002-E2')!;
+  const ctx = mkCtx({}, {}, 'WXK01-002');
+  const handBefore = (ctx.ownerState as PlayerState).hand.length;
+  const r = finish(executeEffect(eff, ctx), ctx);
+  const s = r.ownerState as PlayerState;
+  // 🔴従来は受け皿 STUB（3機構が丸ごと no-op）＋**原文に無い即時ドロー1枚**（過剰実行）だった。
+  eq(s.hand.length, handBefore, '即時ドローしない（置換の fromCount を実ドローに読まない）');
+  eq(s.lrig_base_limit_override, 12, '基本リミットを12に置き換える');
+  eq(JSON.stringify(s.draw_phase_replacement), JSON.stringify({ fromCount: 1, toCount: 2 }), 'ドローフェイズ置換を予約する');
+  eq(applyLrigDrawPhaseReplacement(s, 1), 2, '1枚引く場合は2枚になる');
+  eq(applyLrigDrawPhaseReplacement(s, 2), 2, '2枚引く場合は変えない（fromCount 一致のみ）');
+  eq(hasActivePreventDamageWindow(s, 'LRIG'), true, 'ルリグダメージ無効が即座に有効');
+  // 🔑期間は**ターン境界を跨ぐ**（相手のターンを丸ごと含む）＝turn-end で消してはいけない。
+  const afterTurnEnd = clearTurnEndScopedState(s);
+  eq(hasActivePreventDamageWindow(afterTurnEnd, 'LRIG'), true, 'ターン終了では消えない');
+  eq(afterTurnEnd.lrig_base_limit_override, 12, '基本リミット上書きもターン終了では消えない');
+  eq(afterTurnEnd.draw_phase_replacement?.toCount, 2, 'ドロー置換もターン終了では消えない');
+  // 失効は「自分が次にメインフェイズへ入る」1点だけ。
+  const atMain = clearMainPhaseScopedState(clearTurnEndScopedState(afterTurnEnd));
+  eq(hasActivePreventDamageWindow(atMain, 'LRIG'), false, '次のメインフェイズで失効する');
+  eq(atMain.lrig_base_limit_override, undefined, '基本リミット上書きも失効する');
+  eq(atMain.draw_phase_replacement, undefined, 'ドロー置換も失効する');
+});
+
 test('§6.4 O-3: `WD20-006-E1` の次ターンスキップは「相手ターン かつ 非ベット」でだけ発火する', () => {
   const eff = effectsMap.get('WD20-006')!.find(e => e.effectId === 'WD20-006-E1')!;
   const mk = (isOwnerTurn: boolean, betting: boolean) => {
