@@ -7446,6 +7446,40 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return selectOrInteract(
         ctx.ownerState.hand, Math.max(1, pfl.count), pfl.upToCount ?? false, 'self_hand', action, undefined, ctx);
     }
+    case 'DECLARE_CARD_NAME_LOCK': {
+      // 「カード名1つを宣言する。〈期間〉、その名前（以外）の〈種別〉を使用できない」（§6.4 O-3）。
+      const dcl = action as import('../types/effects').DeclareCardNameLockAction;
+      const declarerSt = ownerState(dcl.declarer, ctx);
+      const targetSt = ownerState(dcl.target, ctx);
+      // ⚠候補は**宣言者が実際に知りうる領域**からしか作らない（隠された手札／デッキは覗かない）。
+      //   blacklist＝封じる相手の公開領域／whitelist＝宣言者自身のルリグデッキ。
+      const poolDCL = dcl.mode === 'whitelist'
+        ? declarerSt.lrig_deck
+        : [...targetSt.trash, ...targetSt.energy, ...targetSt.lrig_deck];
+      const namesDCL = [...new Set(poolDCL
+        .map(cn => ctx.cardMap.get(getCardNum(cn)))
+        .filter(c => (c?.Type ?? '').startsWith(dcl.cardType))
+        .map(c => c!.CardName)
+        .filter((n): n is string => !!n))];
+      if (namesDCL.length === 0) {
+        return done(addLog(ctx, `宣言できる${dcl.cardType}のカード名が無い`));
+      }
+      const applyDCL: EffectAction = { type: 'STUB', id: 'INTERNAL_APPLY_CARD_NAME_LOCK',
+        cardNameLock: { target: dcl.target, mode: dcl.mode, until: dcl.until } } as unknown as EffectAction;
+      const optsDCL = namesDCL.slice(0, 8).map(name => ({
+        id: `dcl_${name}`,
+        label: name,
+        action: { ...(applyDCL as StubAction), value: name } as unknown as EffectAction,
+        available: true,
+      }));
+      // ⚠相手が宣言する形は**コストの無い相手応答**＝`costlessOpponentChoice` を立てないと
+      //   支払いフロー（`resumeOpponentPayOptional`）へ流れて「エナ不足」で無言に潰れる。
+      const oppDeclares = dcl.declarer === 'opponent';
+      return needsInteraction(
+        addLog(ctx, `${oppDeclares ? '対戦相手が' : ''}${dcl.cardType}のカード名を宣言`),
+        { type: 'CHOOSE', options: optsDCL, count: 1,
+          ...(oppDeclares ? { opponentResponds: true, costlessOpponentChoice: true } : {}) });
+    }
     case 'GAIN_LRIG_TYPE': {
       // 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを追加で得る」（§6.4 O-3）。
       // ⚠**タイプ名はここで焼き込む**（判定地点＝グロウ候補／使用制限からは相手の state が見えない）。
