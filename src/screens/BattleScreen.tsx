@@ -13102,6 +13102,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         selectedZones={selectedAttackFieldTrashZones} setSelectedZones={setSelectedAttackFieldTrashZones}
         onPay={resolveAttackFieldTrashPayment} onCancel={closeAttackFieldTrashPayment} />
 
+      {/* 解除コストつきアタック制限（手札版・§6.4 O-3）：「手札をN枚捨てないかぎりアタックできない」 */}
+      <AttackHandDiscardCostModal ctx={modalCtx} payment={attackHandDiscardPayment}
+        selected={selectedAttackHandDiscard} setSelected={setSelectedAttackHandDiscard}
+        onPay={resolveAttackHandDiscardPayment} onCancel={closeAttackHandDiscardPayment} />
+
       {/* スペルカットイン カード拡大＋スペル発動待機中（発動側） */}
       <SpellCutinOverlays ctx={modalCtx} cutinSpellZoomed={cutinSpellZoomed} setCutinSpellZoomed={setCutinSpellZoomed} />
 
