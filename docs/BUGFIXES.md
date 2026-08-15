@@ -1,5 +1,95 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き487・Opus 5）— §6.4 **O-3 の「次の対戦相手のターン」「このターンと次のターン」2クラスタ（9効果）を解体＝7効果の挙動是正**
+
+**恒久 no-op 5件＋所有者/期間の取り違え1件＋永続化バグ1件**。ゲート全緑（**golden 2001**＝+4・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors）。
+live JSON changed **8カード**（CSV 非改変）。
+
+### 在庫の実測（着手前）
+
+`DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE` 5効果 ＋ `DEFERRED_UNPARSED_THIS_AND_NEXT_TURN_CLAUSE` 4効果。
+続き486 と同じく**原文を並べてから設計**したところ、9件に**7機構**が混ざっており、
+そのうち**「〈条件〉のシグニを新たに場に出せない」3件が既存 funnel に乗る**とわかった。
+
+### 🔴 (1) 新機構 `SIGNI_DEPLOY_BAN`（「このターンと次のターンの間、〜シグニを新たに場に出せない」）
+
+判定は既存の **`deployLimitBlockReason`**（通常召喚UI／召喚ゾーンモーダル／CPU 召喚／engine の効果配置の
+**4経路すべてが通る** funnel）に1本足しただけ。
+
+- `PlayerState.signi_deploy_bans`（`SigniDeployBan[]`）＝**禁止を受ける側（場に出す側）**に載せる。
+- 寿命は**グローバルターン数のカウントダウン**（`turnsRemaining`）＝`clearTurnEndScopedState` が両者分を1減らし0で捨てる。
+  ⚠`_this_turn` 命名の1ターン失効レジストリでは「このターンと次のターン」を表せない。
+- 出自限定（`bySource`）のために `deployLimitBlockReason` に **`placementSource`** を足し、**6箇所すべてで明示**した
+  （engine 3箇所＝効果元カードの Type から `effectPlacementSource()` で決定／UI・CPU 3箇所＝`'normal_summon'`）。
+  ⚠省略＝出自不明＝ `bySource` つき ban は掛からない（**過少側に倒す**）。
+
+**直った3枚：**
+
+| カード | 原文 | 旧挙動 |
+|---|---|---|
+| `WXK10-019-E3` | このターンと次のターンの間、対戦相手は**この方法でエナゾーンに置いたシグニと同じ名前**のシグニを新たに場に出せない | 何も起きない |
+| `WX25-P3-001-E1` | 同・「**それと同じ名前**のシグニ」 | 何も起きない |
+| `WX25-P3-009-E1` | 同・「**自分の、シグニとスペルの効果によって**シグニを新たに場に出せない」 | 何も起きない |
+
+### 🔴 (2) `signi_deploy_power_limit` が**どこでもクリアされず永続していた**
+
+「パワーN以上のシグニを新たに場に出せない」（`DEPLOY_RESTRICT` のパワー版）は型定義に
+「このターンと次のターン」と書かれているのに、**リセットする地点が1つも無かった**（全 turn-end 経路を実測）。
+＝一度掛かると**ゲーム終了までパワーN以上のシグニを出せない**。
+ban ストアへ `powerGte` として統合し、寿命を (1) と同じカウントダウンに一本化した（専用フィールドは削除）。
+
+### 🔴 (3) `WXEX2-19-E3` の強制アタックが**所有者も期間も真逆**（文跨ぎ照応の未解決）
+
+原文＝「次の対戦相手のターン、メインフェイズをスキップする。**そのターンの間**、シグニは可能ならばアタックしなければならない。」
+live は `FORCE_SIGNI_ATTACK{targetOwner:'self'}`（期間なし）＝**自分のシグニをこのターン強制アタックさせる**。
+
+🔑**直し方＝文分割の直後で照応を解決する**。文単位パーサは前の文を見られないので、
+`parseActionText` の `splitSentences` 直後に「先行文が『次の対戦相手のターン』を定めていれば
+`^そのターンの間` を `次の対戦相手のターンの間` へ書き換える」1手を挟んだ。既存の 強制アタック 規則が
+そのまま `targetOwner:'opponent'` ＋ `duration:'NEXT_TURN'` を出す。
+
+⚠**最初は「効果ごとの post-pass で `abilityBlockTextOf` を読む」形で書いて `build:effects` が無限ループした**＝
+`getAbilityBlockTexts()` は内部で **`parseCardEffects()` を呼ぶ**（キャッシュは戻り値確定後に入る）ので、
+**`parseCardEffects` の内側から呼ぶと再帰が終わらない**。`inferTriggerScope` が安全なのは
+`buildEffectsMap`（＝`parseCardEffects` の**外**）から呼ばれているから。**この非対称は恒久ルールとして記憶する。**
+
+### 🔴 (4) `WX25-CP1-016-E2`＝「次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない」
+
+`blocked_actions` の `:NEXT_TURN` 予約（ターン終了時に温存→相手のターン開始時に有効化）にそのまま乗った。
+新 actionId **`USE_LRIG_ACT`** を追加し、BattleScreen の**ルリグ【起】5サイト**（センタールリグ MAIN／同 ATTACK_ARTS／
+付与ルリグ能力2つ／アシストルリグ）で `isLrigActBlocked()` を見るようにした。
+⚠既存の `USE_ACT` は**シグニ・キー・付与も含む全【起】**を止めるので流用できない（過剰）。
+
+### 🟡 (5) `OPTIONAL_COST` のエクシード任意コストを parser 化（§6.4 O-6 の同型を2枚解消）
+
+「（使用コストとして）追加でエクシードN を支払ってもよい」は engine 実装済みなのに **parser が一度も生成しておらず、
+live の12枚はすべて手で `MANUAL` 化して `exceed` を書いていた**（＝以後の parser 改善が永久に届かない）。
+規則を1本足したので、`WX25-P3-001` / `WX25-P3-009` は fresh が live と**完全一致＋ban 追加**になり、
+**MANUAL → AUTO へ戻して採用**できた（残り10枚は通常の held フローで扱う）。
+⚠素の `OPTIONAL_COST`（payload 無し）は**コスト0＝タダで強い方の効果が撃てる**過剰効果になる。
+
+### 🟡 (6) 残り4形は固有 `DEFERRED_*` へ分割（在庫の可視化）
+
+| 新 id | カード | 要る機構 |
+|---|---|---|
+| `DEFERRED_NEXT_OPP_TURN_MAIN_PHASE_SKIP` | `WXEX2-19-E3` | フェイズ飛ばし。**レシピは実装コメントに記載**＝`BLOCK_ACTION{'MAIN_PHASE', until:'NEXT_TURN'}` ＋ `resolveNextPhaseWithAttackStepBlocks` に MAIN 分岐。⚠CPU 側は `ADVANCE_TURN_WITH_STATE ... phase:'MAIN'` が直書きで `ON_MAIN_PHASE_START` 収集も同じ場所 |
+| `DEFERRED_DECLARED_SPELL_NAME_LOCK` | `PR-K046-E1` | **スペル名の宣言UI**。既存 `DECLARE_CARD_NAME` は自分の手札名から選ぶ形なので流用不可 |
+| `DEFERRED_GAIN_OPP_LRIG_TYPE` | `WDK17-008` ① | 「対戦相手のセンタールリグのルリグタイプを追加で得る」 |
+| `DEFERRED_NON_FIELD_ZONE_MOVE_IMMUNITY` | `WXK10-004-E1` | 手札/エナ/トラッシュ/デッキ/ライフを**横断する**移動耐性。移動地点が engine 中に散っており funnel が無い |
+
+### 計器の較正
+
+- `vocabCensus`：「制限『できない』」へ **`DEPLOY_BAN`**、「同一性(〜と同じ色/レベル/名前)」へ **`namesFromTargets`** を追加。
+  どちらも**正しく型で表現した札が高シグナルへ落ちていた**分（続き486 と同じクラス）。
+- `census:stubs` A群＝**27種/39件 → 30種/35件**（受け皿2種が消えて固有4種が出た。無言 no-op は 0 のまま）。
+
+**変更ファイル**＝`src/types/index.ts`／`src/types/effects.ts`／`src/engine/deployLimit.ts`／`effectExecutor.ts`／
+`execStubPart1.ts`／`execStubPart3.ts`／`src/screens/battle/turnScopedState.ts`／`BattleScreen.tsx`／
+`modals/SigniSummonZoneModal.tsx`／`parseSentencePart3.ts`／`effectParser.ts`／
+`scripts/decompileEffects.ts`／`scripts/vocabCensus.ts`／`scripts/goldenTest.ts`。
+
+---
+
 ## 2026-08-15（続き486・Opus 5）— §6.4 **O-3 の最大クラスタ「このターン、対戦相手は…」7効果を解体＝5効果の挙動是正**
 
 **恒久 no-op 5件**（うち1件は「6枚引くだけ」に潰れていた**盤面リセット**）。残り2形は**機構ごとに固有 `DEFERRED_*` へ分割**して在庫を可視化。

@@ -911,6 +911,7 @@ function actionJa(a?: Action, effectType?: string): string {
         DRAW: 'カードを引けない',
         ENERGY: 'エナチャージできない',
         USE_ACT: '【起】能力を使用できない',
+        USE_LRIG_ACT: 'ルリグの【起】能力を使用できない',
         SIGNI_ATTACK: 'シグニでアタックできない',
       };
       const pred = predMap[a.actionId] ?? `「${a.actionId}」を行えない`;

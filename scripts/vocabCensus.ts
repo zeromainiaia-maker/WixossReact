@@ -455,7 +455,10 @@ const PATTERNS: Pattern[] = [
     name: '同一性(〜と同じ色/レベル/名前)',
     re: /と同じ(色|レベル|カード名|名前|クラス)/,
     keys: ['levelEq', 'colorMatchesLrig', 'sameAs', '"same"', 'sameLevel', 'sameName', 'sameColor',
-      'levelEqualsVar', 'SAME_', 'nameEq', 'nameMatchesAnyFieldSigni', 'fetchCardName'], // nameEq*=バッチ5b（nameEqLastProcessed）・field name集合=第14波・fetchCardName=PR-470A 名指しフェッチ
+      'levelEqualsVar', 'SAME_', 'nameEq', 'nameMatchesAnyFieldSigni', 'fetchCardName',
+      // namesFromTargets＝§6.4 O-3 の `SIGNI_DEPLOY_BAN`（「それと同じ名前のシグニを新たに場に出せない」）。
+      // 対象のカード名を**実行時に焼き込む**指定で、同一性をこの型で正しく表現している（続き487 で追加）。
+      'namesFromTargets'], // nameEq*=バッチ5b（nameEqLastProcessed）・field name集合=第14波・fetchCardName=PR-470A 名指しフェッチ
   },
   {
     name: '共通する色',
@@ -714,7 +717,7 @@ const PATTERNS: Pattern[] = [
     // `ATTACK_BAN`＝§6.4 O-3 の `SIGNI_ATTACK_BAN`（「このターン、対戦相手は〈条件〉のシグニで
     // アタックできない」）。**この型で正しく表現した札が「アタックできない」だけを理由に高シグナルへ
     // 落ちていた**（続き486 で追加）。
-    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN'],
+    keys: ['BLOCK', 'できない', 'PREVENT', 'NEGATE', 'COST_INCREASE', 'Block', 'ATTACK_BAN', 'DEPLOY_BAN'],
     // 「この能力は〔条件〕の場合にしか使用/発動できない」＝使用条件（useCondition・eff.condition で表現）は
     // BLOCK/PREVENT ではなく condition で正しく表現される（extractUseCondition→parseUseCondition が LRIG_STORY／
     // SELF_POWER_GTE／HAS_CARD_IN_FIELD 等へ解析済み）。使用制限のみ（アタック/ガード/場に出せない等の効果制限を
