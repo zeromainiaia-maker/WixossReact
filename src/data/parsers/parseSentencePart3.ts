@@ -2079,6 +2079,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
       if (/^そのカードと同じレベルの$/.test(banBody)) {
         return { type: 'SIGNI_ATTACK_BAN', owner: 'opponent', levelFromLastProcessed: true } as SigniAttackBanAction;
       }
+      // 「手札をN枚捨てないかぎりシグニでアタックできない」（`SP38-003-E1`・§6.4 O-3）＝**アタックするごとに**払う。
+      // ⚠1回きりの `NegateAttackAction.escapeDiscard`（アタック無効の回避）とは別機構＝流用しない。
+      {
+        const handTax = banBody.match(/^手札を([０-９\d]+)枚捨てないかぎり$/);
+        if (handTax) {
+          return {
+            type: 'SIGNI_ATTACK_BAN', owner: 'opponent', unlessPayHandDiscard: parseNum(handTax[1]),
+          } as SigniAttackBanAction;
+        }
+      }
     }
   }
 
