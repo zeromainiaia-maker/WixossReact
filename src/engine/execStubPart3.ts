@@ -4247,6 +4247,24 @@ export function execStubPart3(
       `ターン終了時にトラッシュ予定: ${targets.map(n => ctx.cardMap.get(n)?.CardName ?? n).join(', ')}`));
   }
 
+  // RESOLVE_EXTRA_ATTACK_PHASE_START（§6.4 O-3）: 追加したアタックフェイズの開始時本文を1件取り出して実行する。
+  // ⚠**取り出しと実行を同じハンドラで行う**＝collector は予約1件につき1エントリを積むので、
+  //   ここで先頭から1件ずつ消化すれば複数予約でも取りこぼさない。
+  if (stub.id === 'RESOLVE_EXTRA_ATTACK_PHASE_START') {
+    const pendingREAPS = ctx.ownerState.pending_extra_attack_phase_start_effects ?? [];
+    if (pendingREAPS.length === 0) return done(addLog(ctx, '追加アタックフェイズ開始時の効果なし'));
+    const [headREAPS, ...restREAPS] = pendingREAPS;
+    const ctxREAPS: ExecCtx = {
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        pending_extra_attack_phase_start_effects: restREAPS.length > 0 ? restREAPS : undefined,
+      },
+      ...(headREAPS.sourceCardNum ? { sourceCardNum: headREAPS.sourceCardNum } : {}),
+    };
+    return exec(headREAPS.action, addLog(ctxREAPS, '追加したアタックフェイズの開始時の効果'));
+  }
+
   // TRASH_ENERGY_AT_TURN_END: ターン終了時に lastProcessedCards を**エナゾーンから**トラッシュへ（SPK01-10）。
   // ⚠`ENERGY_CHARGE_FROM_DECK` は置いたカードを `lastProcessedCards` に残すので、そのまま予約に使える。
   if (stub.id === 'TRASH_ENERGY_AT_TURN_END') {
