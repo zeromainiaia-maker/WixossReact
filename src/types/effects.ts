@@ -2595,6 +2595,14 @@ export interface StubAction {
   scaleColor?: string;
   /** PER_OWN_LRIG_COLOR_SCALE: その色のルリグ体数だけ繰り返す本体。 */
   scaleAction?: EffectAction;
+  /**
+   * 多段対話を跨いで運ぶカード（§6.4 O-34(e)＝手札から選んだ1枚）。
+   * ⚠`lastProcessedCards` は CHOOSE/SELECT_TARGET の resume を跨いで生存しないので、
+   *   宣言をまたぐ参照はここへ**焼き込んで**運ぶ（`fixedCardNums` と同じ理由）。
+   */
+  carriedCardNum?: string;
+  /** 多段対話を跨いで運ぶ対象シグニ（§6.4 O-34(e)＝先に宣言した相手シグニ1体）。 */
+  carriedTargetNum?: string;
   /** TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 能力選択CHOOSEを跨いで保持する発動元シグニ。 */
   eichiAbilitySourceCardNum?: string;
   /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */
