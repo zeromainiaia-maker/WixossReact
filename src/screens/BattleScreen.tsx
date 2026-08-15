@@ -12988,7 +12988,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         (e.action as import('../types/effects').StubAction).id === 'ALLOW_ATTACK_WHILE_DRIVE',
       ));
       if ((my.lrig_riding_signi?.length ?? 0) > 0 && !driveCanAttack) return [{ label: 'ドライブ中（攻撃不可）', color: C.textDim, onClick: () => {} }];
-      return [{ label: 'アタック', color: C.danger, onClick: handleLrigAttack }];
+      // 《無》の前払い（§6.4 O-28）＝`performLrigAttack` と**同じ関数**で判定する。
+      // ⚠押せるのに無反応（O-18）にしない＝払えないことをボタンに出す。
+      const lrigCostALK = lrigAttackCostInfo(my, op, lrigTopALK);
+      if (lrigCostALK.blocked) {
+        return [{ label: lrigCostALK.colorless > 0 ? `アタック不可（《無》×${lrigCostALK.colorless}）` : 'アタック不可', color: C.textDim, onClick: () => {} }];
+      }
+      return [{
+        label: lrigCostALK.colorless > 0 ? `アタック（《無》×${lrigCostALK.colorless}）` : 'アタック',
+        color: C.danger, onClick: handleLrigAttack,
+      }];
     }
 
     return [];
