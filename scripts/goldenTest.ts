@@ -47,6 +47,7 @@ import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResp
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
 import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
+import { isLrigDamagePrevented } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
@@ -92,7 +93,7 @@ import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
-import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { isHandSigniPlayBlockedByPower } from '../src/engine/blockAction';
 
 // ── データ読み込み ──
@@ -4203,8 +4204,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
   // 12 → 14（§6.4 O-3 続き489 で negated_attacks / negated_attacks_escape を追加＝永続バグの解消）
-  eq(irregular.length, 14, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 40, '型由来26件＋命名規約外14件の母集団');
+  // 14 → 16（§6.4 O-3 続き492 で lrig_base_limit_override / draw_phase_replacement を追加＝
+  //          境界は turn-end ではなく **main-phase-start**＝「次のあなたのメインフェイズまで」）
+  eq(irregular.length, 16, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 42, '型由来26件＋命名規約外16件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
