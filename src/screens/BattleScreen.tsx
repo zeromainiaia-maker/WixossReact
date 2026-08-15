@@ -9555,6 +9555,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (isCenterAttack && (my.lrig_riding_signi?.length ?? 0) > 0 && !allowDriveAttack) return false; // ドライブ状態：ルリグはアタックできない
     // keyword_grants で「アタックできない」が付与されている場合アタック不可
     if (myLrigNumLA && (my.keyword_grants?.[myLrigNumLA] ?? []).includes('アタックできない')) return false;
+    // 《無》×N の前払い（§6.4 O-28）＝払えないならアタックそのものが成立しない。
+    const lrigCostLA = lrigAttackCostInfo(my, op, myLrigNumLA);
+    if (lrigCostLA.blocked) return false;
     // NEGATE_ATTACK: ルリグもアタック宣言時に無効化。escapeDiscard があり手札を払える場合は既存回避UIへ。
     // （旧 PREVENT_TARGET_LRIG_ATTACK_THIS_TURN の判定を統合＝同じ negated_attacks を見る）
     // ⚠回避モーダルを開けるのは自分のアタックのときだけ。CPU/リモート側のアタックは払わず無効化を受け入れる。
