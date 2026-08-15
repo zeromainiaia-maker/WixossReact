@@ -2147,7 +2147,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
     if (/手札を[０-９\d]+枚捨てないかぎり/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_ATTACK_TAX_HAND_DISCARD' } as StubAction;
     }
-    // 相手が宣言したカード名以外のアーツを使用できない（WXEX2-09）＝相手によるカード名宣言UIが要る。
+    // 相手が宣言したカード名**以外**のアーツを使用できない（`WXEX2-09-E3`・§6.4 O-3 続き498）。
+    // ⚠宣言するのは**相手**（`declarer:'opponent'`）＝前文「対戦相手はカード名1つを宣言する」も
+    //   このアクションに畳む（既存 `DECLARE_CARD_NAME` は自分の手札から選ぶ別機構）。
+    if (/宣言したカード名以外のアーツを使用できない/.test(t)) {
+      return {
+        type: 'DECLARE_CARD_NAME_LOCK', declarer: 'opponent', target: 'opponent',
+        cardType: 'アーツ', mode: 'whitelist', until: 'THIS_TURN',
+      } as EffectAction;
+    }
     if (/宣言したカード名以外の/.test(t)) {
       return { type: 'STUB', id: 'DEFERRED_OPP_DECLARED_ARTS_NAME_LOCK' } as StubAction;
     }
