@@ -4381,22 +4381,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     doPhaseAdvance();
   };
 
-  // 「このメインフェイズを終了する」（`SKIP_MAIN_PHASE`＝`WXK06-078-E1`・§6.4 O-3 続き491）。
-  // ⚠🔴従来は**ログを1行出すだけのハンドラ**で、`census:stubs` は「ハンドラがある＝実装済み」と
-  //   判定するため計器にも映らない無言 no-op だった（続き459 の教訓の実例）。
-  // 🔑消費は「メインフェイズを封じる」1点（`MAIN_PHASE`＝`PHASE_SKIP_BLOCK_IDS` と同じ語彙）＝
-  //   ①CPU 側は召喚ループが止まり ②人間側はここで**自動でアタックフェイズへ送る**。
-  //   確認ダイアログ（`handlePhaseAdvance`）は通さない＝ルール上の強制終了なので選択肢が無い。
-  useEffect(() => {
-    if (!bs || bs.global_phase !== 'PLAYING' || bs.turn_phase !== 'MAIN') return;
-    if (!isMyTurn || loading) return;
-    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
-    if (my.field.check || op.field.check) return;
-    if (!(my.blocked_actions ?? []).includes('MAIN_PHASE')) return;
-    appendBattleLogs(['このメインフェイズを終了する']);
-    doPhaseAdvance();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state, loading]);
+  doPhaseAdvanceRef.current = doPhaseAdvance;
 
   // エナチャージ（手札のカードをエナゾーンへ）
   const handleEnergyChargeFromHand = async (handIndex: number) => {
