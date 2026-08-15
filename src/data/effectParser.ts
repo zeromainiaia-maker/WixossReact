@@ -2915,7 +2915,7 @@ function rewriteAttackTaxKeywordGrant(action: EffectAction): EffectAction {
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
-  action = rewriteHandTaxKeywordGrant(action);
+  action = rewriteAttackTaxKeywordGrant(action);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
