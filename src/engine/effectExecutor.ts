@@ -7273,6 +7273,36 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         `このターン、${banOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeLabel}`
         + (ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}を支払わないかぎりアタックできない` : 'アタックできない')));
     }
+    case 'SIGNI_DEPLOY_BAN': {
+      // 「このターンと次のターンの間、対戦相手は〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
+      // ⚠**禁止を受ける側（場に出す側）の state に積む**＝判定は `deployLimitBlockReason` の1本。
+      // ⚠「それと同じ名前」はここでカード名を焼き込む（判定地点には対象宣言が残っていない）。
+      const sdb = action as import('../types/effects').SigniDeployBanAction;
+      const ban: import('../types').SigniDeployBan = { turnsRemaining: Math.max(1, sdb.turns) };
+      if (sdb.namesFromTargets) {
+        const refs = (ctx.storedTargetCards ?? []).length > 0
+          ? (ctx.storedTargetCards ?? [])
+          : (ctx.lastProcessedCards ?? []);
+        const names = [...new Set(refs
+          .map(n => ctx.cardMap.get(getCardNum(n))?.CardName)
+          .filter((s): s is string => !!s))];
+        if (names.length === 0) return done(addLog(ctx, '配置制限: 対象が確定していない'));
+        ban.cardNames = names;
+        ban.label = names.join('・');
+      }
+      if (sdb.bySource) ban.bySource = sdb.bySource;
+      const sdbOwner: Owner = sdb.owner === 'opponent' ? 'opponent' : 'self';
+      const sdbState = ownerState(sdbOwner, ctx);
+      const newSdbState: PlayerState = {
+        ...sdbState,
+        signi_deploy_bans: [...(sdbState.signi_deploy_bans ?? []), ban],
+      };
+      const scopeSdb = ban.cardNames ? `《${ban.cardNames.join('》《')}》と同じ名前の`
+        : ban.bySource ? 'シグニとスペルの効果では' : '';
+      return done(addLog(setOwnerState(sdbOwner, newSdbState, ctx),
+        `${sdb.turns >= 2 ? 'このターンと次のターンの間' : 'このターン'}、`
+        + `${sdbOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeSdb}シグニを新たに場に出せない`));
+    }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
       const restricted = !!(pnd.damageSource || pnd.sourceLevelLtLastProcessed || pnd.millAtTurnEndPerPrevented);
