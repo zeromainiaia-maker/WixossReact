@@ -12463,6 +12463,22 @@ function foldDeclaredNumberTopReveal(action: EffectAction, sourceText: string): 
   ] } as SequenceAction;
 }
 
+// 「数字１つを宣言する。このターン、対戦相手は宣言された数字と同じレベルのシグニでアタックできない」（WX24-P4-039）。
+// 裸の `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる専用 STUB＝そのままだと原文に無い
+// 「対戦相手はそのレベルのシグニでガードできない」まで付く過剰実行になる（PR-434 と同型）。
+// 宣言値を読むだけの `SIGNI_ATTACK_BAN` が後続にあるなら、ガード制限を伴わない版へ落とす。
+function demoteDeclareNumberForAttackBan(action: EffectAction): EffectAction {
+  if (action.type !== 'SEQUENCE') return action;
+  const usesDeclared = action.steps.some(s =>
+    s?.type === 'SIGNI_ATTACK_BAN' && (s as SigniAttackBanAction).levelFromDeclaredNumber);
+  if (!usesDeclared) return action;
+  const idx = action.steps.findIndex(s => s?.type === 'STUB' && (s as StubAction).id === 'DECLARE_NUMBER');
+  if (idx < 0) return action;
+  const steps = [...action.steps];
+  steps[idx] = { type: 'STUB', id: 'DECLARE_NUMBER_PLAIN' } as StubAction;
+  return { ...action, steps };
+}
+
 // デッキ上N枚からセンタールリグ共通色の**全カード**をエナへ、残りをデッキ下。
 // 旧の LOOK_AND_REORDER/top や裸STUBは残さず、公開と振り分けを1つの REVEAL_AND_PICK が担う。
 function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): EffectAction {
