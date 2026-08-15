@@ -1667,7 +1667,12 @@ function actionJa(a?: Action, effectType?: string): string {
         : a.powerDiffersFromPrinted ? '表記されているパワーと異なるパワーの'
         : '';
       if (a.targetsStored) {
-        return `このターン、${whoAB}が《無》×${a.unlessPayColorless ?? 0}を支払わないかぎりそれはアタックできない`;
+        // ⚠支払い軸は《無》だけではない（`unlessPayHandDiscard` を見ないと《無》×0 と描いてしまう）。
+        const payAB = a.unlessPayHandDiscard
+          ? `手札を${a.unlessPayHandDiscard}枚捨てないかぎり`
+          : `《無》×${a.unlessPayColorless ?? 0}を支払わないかぎり`;
+        return `このターン、${whoAB}が${payAB}それはアタックできない`
+          + (a.unlessPayHandDiscard ? '（アタックするごとに捨てる）' : '');
       }
       if (a.unlessPayHandDiscard) {
         return `このターン、${whoAB}は手札を${a.unlessPayHandDiscard}枚捨てないかぎり${scopeAB}シグニでアタックできない（アタックするごとに捨てる）`;
