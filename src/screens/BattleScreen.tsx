@@ -10036,6 +10036,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     const phase = bs.turn_phase;
 
+    // §6.4 O-3（フェイズスキップ）＝CPU 側も人間と同じ `PHASE_SKIP_BLOCK_IDS` 表で判定する。
+    // ⚠**CONTINUOUS 由来の封じ（`WX05-018-E1` の「対戦相手は自分のエナフェイズをスキップする」等）は
+    //   `blocked_actions` に載らない**ので、`calcContinuousBlockedActions(...).forSelf` を必ず渡す。
+    const cpuContBlockedSelf = calcContinuousBlockedActions(cpuSt, huSt, true, effectsMap, battleCardMap).forSelf;
+    /** CPU 視点の遷移先（スキップされるフェイズを飛ばす）。 */
+    const cpuNextPhase = (from: TurnPhase) => resolveNextPhaseWithSkips(from, cpuSt, cpuContBlockedSelf);
+
     // ─── UPフェイズ（ドロー）───
     if (phase === 'UP') {
       appendBattleLogs([`[CPU] ${drawCount}枚ドロー`]);
