@@ -4201,8 +4201,9 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定38フィールドと f
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
-  eq(irregular.length, 12, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 38, '型由来26件＋命名規約外12件の母集団');
+  // 12 → 14（§6.4 O-3 続き489 で negated_attacks / negated_attacks_escape を追加＝永続バグの解消）
+  eq(irregular.length, 14, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 40, '型由来26件＋命名規約外14件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
