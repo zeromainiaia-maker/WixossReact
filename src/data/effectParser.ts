@@ -2628,6 +2628,23 @@ function matchNextBattleBanishDelayedInstall(t: string): EffectAction | undefine
   return { type: 'SEQUENCE', steps: [prefix, install] } as SequenceAction;
 }
 
+/**
+ * 文全体が1つの引用（「…」）で包まれているときだけ、その括りを外す（§6.4 O-31）。
+ *
+ * 「以下を３回行う。**「**対戦相手は…ないかぎり、…トラッシュに置く。**」**」のように、
+ * 繰り返し宣言の本文が丸ごと引用で括られる形があり、この括りが付いたままだと
+ * 回避クローズが `isInsideQuote`（除外⑥＝**引用の内側にある支払い句は別機構**）で弾かれて
+ * **回避そのものが落ちる**（＝帰結が無条件実行になる）。
+ *
+ * ⚠外してよいのは**文全体が1つの引用**のときだけ＝内側に別の「」がある形は
+ *   「引用能力の付与」など別の構造なので触らない。
+ */
+function stripFullSentenceQuote(t: string): string {
+  const trimmed = t.trim().replace(/。$/, '');
+  const m = trimmed.match(/^「([^「」]+)」$/);
+  return m ? m[1] : t;
+}
+
 /** action 木のどこかの `target` が `filter` を持つか（§6.4 O-31 の純加算チェック緩和用）。 */
 function hasTargetFilter(a: EffectAction): boolean {
   let found = false;

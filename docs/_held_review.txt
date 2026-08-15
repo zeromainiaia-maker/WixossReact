@@ -361,6 +361,24 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +CONDITIONAL×2 +IS_MY_TURN×2 +SEQUENCE×2 +STUB×2 ［1枚］
+WXDi-P05-023
+--- WXDi-P05-023
+  原文: 【出】：対戦相手のシグニ１体を対象とし、対戦相手が手札を３枚捨てないかぎり、ターン終了時まで、それは「【常】：アタックできない。」を得る。【出】：対戦相手のシグニ１体を対象とし、対戦相手が《無》《無》《無》を支払わないかぎり、ターン終了時まで、それは「【常】：アタックできない。」を得る。【出】《白》《無》《無》：対戦相手のシグニ１体を対象とし、ターン終了時ま
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  - [0].action.keyword = "アタックできない"
+  - [0].action.duration = "UNTIL_END_OF_TURN"
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "opponent"
+  - [1].action.target.count = 1
+  - [1].action.keyword = "アタックできない"
+  - [1].action.duration = "UNTIL_END_OF_TURN"
+  ~ [0].action.type : "GRANT_KEYWORD" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  …（他 28 行）
+
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
