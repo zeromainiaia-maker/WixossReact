@@ -3356,11 +3356,26 @@ export function execStubPart2(
     const newSeedsIBS = [...(ctx.ownerState.field.signi_seeds ?? [null, null, null])] as (string | null)[];
     newSeedsIBS[zoneIdxIBS] = null;
     // 同ゾーンにシグニがある場合は開花しない
-    const signiStackIBS = ctx.ownerState.field.signi[zoneIdxIBS];
-    if (signiStackIBS?.length) {
-      const newOwnerSkip = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
-      return done(addLog({ ...ctx, ownerState: newOwnerSkip }, `開花：ゾーン${zoneIdxIBS + 1}にシグニあり（開花不可）`));
+    // 🆕`bounceOccupant`＝「代わりにそのシグニを手札に戻してから開花する」（§6.4 O-3・`WDK07-Y07-E1`）。
+    //   ⚠戻すのは**スタックの最上段だけ**ではなくそのゾーンのシグニ全体（下のカードも場を離れる）。
+    let ctxIBS = ctx;
+    const signiStackIBS = ctxIBS.ownerState.field.signi[zoneIdxIBS];
+    if (signiStackIBS?.length && stub.bounceOccupant) {
+      const newSigniBO = [...ctxIBS.ownerState.field.signi] as (string[] | null)[];
+      newSigniBO[zoneIdxIBS] = null;
+      ctxIBS = addLog({
+        ...ctxIBS,
+        ownerState: {
+          ...ctxIBS.ownerState,
+          hand: [...ctxIBS.ownerState.hand, ...signiStackIBS],
+          field: { ...ctxIBS.ownerState.field, signi: newSigniBO },
+        },
+      }, `${signiStackIBS.map(n => ctxIBS.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を手札に戻してから開花`);
+    } else if (signiStackIBS?.length) {
+      const newOwnerSkip = { ...ctxIBS.ownerState, field: { ...ctxIBS.ownerState.field, signi_seeds: newSeedsIBS } };
+      return done(addLog({ ...ctxIBS, ownerState: newOwnerSkip }, `開花：ゾーン${zoneIdxIBS + 1}にシグニあり（開花不可）`));
     }
+    ctx = ctxIBS;
     const seedCardDataIBS = ctx.cardMap.get(seedCardIBS);
     // シグニ以外はトラッシュへ
     if (!seedCardDataIBS || seedCardDataIBS.Type !== 'シグニ') {
