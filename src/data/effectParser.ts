@@ -9521,7 +9521,7 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const eapIdx = steps.findIndex(st => st?.type === 'ADD_EXTRA_ATTACK_PHASE');
     if (eapIdx >= 0 && eapIdx < steps.length - 1 && /この方法で加えたアタックフェイズ/.test(text)) {
-      const body = steps.slice(eapIdx + 1);
+      const body = dropDanglingDeckTopPlacement(steps.slice(eapIdx + 1));
       const onStart: EffectAction = body.length === 1
         ? body[0]
         : { type: 'SEQUENCE', steps: body } as SequenceAction;
