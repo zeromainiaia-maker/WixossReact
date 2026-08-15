@@ -164,6 +164,16 @@ export interface SigniDeployBan {
  *   golden のトリップワイヤで固定してある。
  */
 export interface SigniAttackBan {
+  /**
+   * 'LRIG'＝**ルリグのアタック**に掛かる ban（「それは「【常】：《無》×Nを支払わないかぎりアタックできない。」を得る」
+   * の対象がルリグだった場合＝§6.4 O-28）。省略＝シグニのアタックに掛かる。
+   *
+   * ⚠**両方向にガードする**＝`signiAttackGate` は `appliesTo==='LRIG'` を**除外**し、
+   *   `lrigAttackBanCost` は `appliesTo==='LRIG'` **だけ**を見る。
+   *   `cardNums` の一致だけに頼ると、キーを持たない広域 ban（「シグニでアタックできない」）が
+   *   ルリグにも掛かる無言の過剰実行になる。
+   */
+  appliesTo?: 'LRIG';
   /** このレベルのシグニだけを禁止する（「宣言された数字と同じレベルのシグニ」＝宣言値は生成時に解決して焼き込む）。 */
   level?: number;
   /** 実効パワーが表記パワーと異なるシグニだけを禁止する。 */
