@@ -1185,6 +1185,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 「各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにある、すべてのクラフトをゲームから
+  //   除外し、すべてのカードをデッキに加えてシャッフルし、カードをN枚引く」（WX24-P2-014-E2）。
+  // ⚠汎用 DRAW より**前**に置く＝下の `カードをN枚引く` が先取りすると、盤面リセットが丸ごと落ちて
+  //   「自分が6枚引くだけ」の別カードになる（§6.4 O-3 続き486 で実測）。
+  {
+    const m = t.match(/各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにある、?すべてのクラフトをゲームから除外し、すべてのカードをデッキに加えてシャッフルし、カードを?([０-９\d]+)枚引く/);
+    if (m) return { type: 'STUB', id: 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW', value: parseNum(m[1]) } as StubAction;
+  }
+
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
