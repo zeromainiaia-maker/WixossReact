@@ -15146,7 +15146,8 @@ test('DECK_SIGNI_LEVEL_OVERRIDE_ALL: ①のレベル上書きを②の REVEAL_UN
   const rPlain = finish(executeEffect({ ...eff, action: reveal } as CardEffect, plain), plain);
   eq(rPlain.ownerState.hand.length, hand0, '上書き前は Lv4 が無く手札は増えない');
   // 本命＝①を先に解決すると同じデッキで2枚が Lv4 として当たる。
-  const boosted = mkCtx({ deckTop: [lv1a, lv1b, lv1c] }, {});
+  const boosted = mkCtx({}, {});
+  boosted.ownerState.deck = [lv1a, lv1b, lv1c];
   const afterSet = run(setLevel, boosted);
   eq(afterSet.ownerState.deck_signi_level_override?.level ?? 0, 4, 'override が載る');
   eq(afterSet.ownerState.deck_signi_level_override?.class ?? '', '*', 'クラス指定なし＝全シグニ');
