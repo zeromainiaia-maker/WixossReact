@@ -14865,6 +14865,29 @@ test('ATTACH_CHARM: チャームを付けた対象が storedTargetCards に残�
   } as unknown as EffectAction, ctx);
   eq(JSON.stringify(r.storedTargetCards), JSON.stringify([SIGNI_P3000]), 'チャーム付与先が「それ」として残らない');
 }));
+test('EXILE_CRAFTS_RESET_ZONES_AND_DRAW: 両プレイヤーの4ゾーンをデッキへ戻し、クラフトだけ除外して引く', () => withSavedCursor(() => {
+  // ⚠従来は「自分がカードを6枚引く」だけに潰れていた（盤面リセットも相手側の処理も丸ごと脱落）。
+  const CRAFT = findCard(c => (c.Type ?? '').includes('クラフト'));
+  const ctx = mkCtx({ hand: 3, trash: 2, energy: 4, signi: [SIGNI, null, null] },
+                    { hand: 2, trash: 1, energy: 3, signi: [SIGNI_P3000, null, null] });
+  const withCraft = (s: PlayerState): PlayerState => ({ ...s, hand: [...s.hand, CRAFT] });
+  const ctx2 = { ...ctx, ownerState: withCraft(ctx.ownerState), otherState: withCraft(ctx.otherState) };
+  const r = run({ type: 'STUB', id: 'EXILE_CRAFTS_RESET_ZONES_AND_DRAW', value: 6 } as unknown as EffectAction, ctx2);
+  for (const [label, before, after] of [
+    ['自分', ctx2.ownerState, r.ownerState as PlayerState],
+    ['相手', ctx2.otherState, r.otherState as PlayerState],
+  ] as [string, PlayerState, PlayerState][]) {
+    eq(after.hand.length, 6, `${label}の引いた枚数`);
+    eq(after.energy.length, 0, `${label}のエナゾーンが残っている`);
+    eq(after.trash.length, 0, `${label}のトラッシュが残っている`);
+    eq(after.field.signi.filter(Boolean).length, 0, `${label}のシグニゾーンが残っている`);
+    ok(!after.hand.includes(CRAFT) && !after.deck.includes(CRAFT), `${label}のクラフトが除外されていない`);
+    // 除外されたクラフト1枚を除き、母集団は保存される（引いた6枚は hand に移っただけ）
+    const totalBefore = before.deck.length + before.hand.length + before.energy.length + before.trash.length
+      + before.field.signi.flatMap(s => s ?? []).length;
+    eq(after.deck.length + after.hand.length, totalBefore - 1, `${label}の総枚数（クラフト1枚だけ減る）`);
+  }
+}));
 test('AWAKEN_SIGNI: 効果元シグニが覚醒状態になる（awakened_signi）', () => {
   const src = SIGNI;
   const ctx = mkCtx({ signi: [src, null, null] }, {}, src);
