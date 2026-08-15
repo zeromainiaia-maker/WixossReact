@@ -769,6 +769,11 @@ export interface PlayerState {
   lrig_extra_colors?: string[];
   // ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: このゲーム中全センタールリグが得たタイプ
   lrig_gained_types?: string[];
+  // GAIN_LRIG_TYPE（§6.4 O-3）: 期間つきで**追加で**得たルリグタイプ。
+  // ⚠寿命は turnsRemaining のカウントダウン（減算は `clearTurnEndScopedState` の1点＝
+  //   `signi_deploy_bans` / `opp_move_immunity` と同じ規約。失効地点を増やさない）。
+  // 読みは `effectiveLrigClass`（グロウ互換・「〇〇限定」）と `collectLrigNameAliases`。
+  lrig_gained_types_timed?: Array<{ lrigType: string; turnsRemaining: number }>;
   // GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1できる
   grid_reveal_plus_one_this_turn?: boolean;
   // DECK_SIGNI_LEVEL_OVERRIDE: このターン、指定クラスのデッキシグニのレベルをN扱い
