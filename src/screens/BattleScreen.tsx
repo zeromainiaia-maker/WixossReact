@@ -116,8 +116,8 @@ import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
-import { canSigniAttack } from './battle/signiAttackGate';
-import { signiAttackBanHandDiscardCost, signiAttackBanColorlessCost, lrigAttackBanCost } from './battle/signiAttackBan';
+import { canSigniAttack, signiAttackColorlessCost } from './battle/signiAttackGate';
+import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
@@ -8029,7 +8029,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ＝「エナゾーン以外を支払い元にする」語彙の対象外（原文は「支払う際」＝選んで払う場面を指す）。
       // signi_attack_bans_this_turn の「《無》×N を支払わないかぎり」分も同じ自動支払いに乗せる（§6.4 O-3）。
       // ⚠払えるかどうかの判定は signiAttackGate 側（ATTACK_BAN_COST）。ここは引き落としだけ。
-      const banCostSA = signiAttackBanColorlessCost(my, myTopNum, battleCardMap) ?? 0;
+      // ⚠**判定と同じ1関数を見る**（§6.4 O-31）＝`signi_attack_bans_this_turn` 由来だけを足すと、
+      //   【常】由来の「《無》を支払わないかぎりアタックできない」がタダで通る穴になる。
+      const banCostSA = signiAttackColorlessCost({
+        attacker: my, defender: op, attackerNum: myTopNum, effectsMap, cardMap: battleCardMap,
+      }) ?? 0;
       const signiAtkCostSA = (my.signi_attack_cost ?? 0) + banCostSA;
       const newEnergySA = signiAtkCostSA > 0 ? my.energy.slice(0, -signiAtkCostSA) : my.energy;
       const newMyState: PlayerState = { ...my, field: { ...my.field, signi_down: newSigniDown }, attacked_signi_ids: newAttackedIds, energy: newEnergySA };
@@ -12742,7 +12746,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         contBlocked, effectivePowers, turnPhase: bs.turn_phase,
       })) return [];
       const signiAtkCost = (my.signi_attack_cost ?? 0)
-        + (signiAttackBanColorlessCost(my, topNum, battleCardMap, effectivePowers.get(topNum)) ?? 0);
+        + (signiAttackColorlessCost({
+            attacker: my, defender: op, attackerNum: topNum, effectsMap, cardMap: battleCardMap,
+            contBlocked, effectivePowers,
+          }) ?? 0);
       const fieldTrashAtkCost = attackFieldTrashCost(my, topNum);
       // 「手札をN枚捨てないかぎりアタックできない」（§6.4 O-3）＝ボタンにも解除コストを出す
       // （出さないと「押したら知らないモーダルが開く」になる）。

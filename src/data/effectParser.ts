@@ -2940,6 +2940,16 @@ function matchOpponentWaUnlessGate(tRaw: string): EffectAction | undefined {
   if (tp) { targetPrefix = tp[1].replace(/^[、,]/, ''); costPart = tp[2]; }
   const cost = parseOpponentWaUnlessCost(costPart, targetPrefix);
   if (!cost) return undefined;
+  // 「対戦相手は《無》×Nを支払わないかぎり、このシグニの正面にあるシグニでアタックできない」（§6.4 O-31）。
+  // 🔴帰結側の専用 STUB は**アタックのたびに判定する**別軸なので汎用の一発ゲートでは表せないが、
+  //   支払い枚数をここで STUB に焼き込めば engine 側（`calcContinuousBlockedActions`）が
+  //   「払えば通る」集合へ振り分けられる。**枚数を落とすと払っても通らない過剰実行になる。**
+  // ⚠engine が実行時にカード全文 regex を読み直さないよう、値は**parse 時に焼き込む**（§6.4 O-20）。
+  if (/このシグニの正面にあるシグニでアタックできない/.test(thenText)
+      && (cost.costColors?.length ?? 0) > 0
+      && cost.opponentHandDiscard === undefined && cost.opponentEnergyTrash === undefined) {
+    return { type: 'STUB', id: 'BLOCK_FRONT_SIGNI_ATTACK', value: cost.costColors!.length } as StubAction;
+  }
   if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)) return undefined;
 
   const then = parseOpponentWaExplicitConsequent(targetPrefix, thenText);
