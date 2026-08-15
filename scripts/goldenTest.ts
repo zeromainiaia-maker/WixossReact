@@ -29107,18 +29107,83 @@ test('RESOLVE_EXTRA_ATTACK_PHASE_START: pending を1件取り出して実行す�
   eq((r.ownerState as PlayerState).field.signi_down?.[0], false, '追加フェイズ開始時に onStart が走る');
   eq((r.ownerState as PlayerState).pending_extra_attack_phase_start_effects, undefined, '実行した予約は消える');
 }));
-test('DEFERRED_NEXT_OPP_ATTACK_PHASE_START: 遅延本体を即時実行しない（§6.4 O-3）', () => {
+// ── DELAY_TO_NEXT_OPP_ATTACK_PHASE（§6.4 O-3「次の対戦相手のアタックフェイズ開始時、〜」）──
+test('DELAY_TO_NEXT_OPP_ATTACK_PHASE: 予約するだけで本文は即時実行しない', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, { signi: [SIGNI_P3000, null, null] }, SIGNI);
+  const body = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as unknown as EffectAction;
+  const r = run({ type: 'DELAY_TO_NEXT_OPP_ATTACK_PHASE', action: body } as unknown as EffectAction, ctx);
+  const pending = (r.ownerState as PlayerState).pending_next_opp_attack_phase_effects ?? [];
+  eq(pending.length, 1, '予約が1件載る');
+  eq(pending[0].sourceCardNum, SIGNI, '効果元が記録される');
+  // 🔴従来は本文が後続ステップとして並び、**予約した瞬間に**走っていた（過剰実行）。
+  eq(JSON.stringify((r.otherState as PlayerState).field.signi_down), JSON.stringify([false, false, false]),
+    '本文はこの時点で実行してはいけない');
+  // ⚠ターン境界を跨ぐ予約なので turn-end で消してはいけない
+  eq(clearTurnEndScopedState(r.ownerState as PlayerState).pending_next_opp_attack_phase_effects?.length, 1,
+    '予約がターン終了で消えている（次の相手ターンまで生きる必要がある）');
+}));
+test('RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT: 予約を1件取り出して実行する', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, { signi: [SIGNI_P3000, null, null] }, SIGNI);
+  const body = { type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as unknown as EffectAction;
+  const withPending: PlayerState = {
+    ...ctx.ownerState,
+    pending_next_opp_attack_phase_effects: [{ sourceCardNum: SIGNI, action: body }],
+  };
+  const r = run({ type: 'STUB', id: 'RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT' } as EffectAction,
+    { ...ctx, ownerState: withPending } as ExecCtx);
+  eq((r.otherState as PlayerState).field.signi_down?.[0], true, '予約した本文が実行されない');
+  eq((r.ownerState as PlayerState).pending_next_opp_attack_phase_effects, undefined, '実行した予約は消える');
+}));
+test('裏向きルリグゾーン: 置く→公開してトラッシュ→レベル参照（§6.4 O-3）', () => withSavedCursor(() => {
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  // デッキトップ版＝選択なし
+  const placed = run({ type: 'PLACE_FACEDOWN_LRIG_ZONE', source: 'deck_top', count: 1 } as unknown as EffectAction, ctx);
+  const top = ctx.ownerState.deck[0];
+  eq(JSON.stringify((placed.ownerState as PlayerState).facedown_lrig_zone_cards), JSON.stringify([top]),
+    'デッキの一番上が裏向き保持に移らない');
+  eq((placed.ownerState as PlayerState).deck[0] === top, false, 'デッキから取り除かれていない');
+  // 公開＝トラッシュへ移り lastProcessedCards に載る（後続の「そのカードと同じレベルの〜」が解ける）
+  const revealed = run({ type: 'REVEAL_FACEDOWN_LRIG_ZONE' } as unknown as EffectAction,
+    { ...ctx, ownerState: placed.ownerState as PlayerState } as ExecCtx);
+  eq((revealed.ownerState as PlayerState).facedown_lrig_zone_cards, undefined, '公開後も裏向き保持が残っている');
+  ok((revealed.ownerState as PlayerState).trash.includes(top), 'トラッシュへ行っていない');
+  eq(JSON.stringify(revealed.lastProcessedCards), JSON.stringify([top]), 'lastProcessedCards に載らない');
+}));
+test('SIGNI_ATTACK_BAN levelFromLastProcessed: 公開カードのレベルを焼き込む', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] }, SIGNI);
+  const lv = parseInt(cardMap.get(SIGNI_P3000)?.Level ?? '', 10);
+  const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', levelFromLastProcessed: true } as unknown as EffectAction,
+    { ...ctx, lastProcessedCards: [SIGNI_P3000] } as ExecCtx);
+  eq(((r.otherState as PlayerState).signi_attack_bans_this_turn ?? [])[0]?.level, lv, '公開カードのレベルが載らない');
+  // ⚠参照が無いときは ban を張らない（全シグニ禁止へ広げない＝過少側）
+  const noRef = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', levelFromLastProcessed: true } as unknown as EffectAction, ctx);
+  eq((noRef.otherState as PlayerState).signi_attack_bans_this_turn, undefined, '参照が無いのに ban を張っている');
+}));
+test('negated_attacks はターン終了で失効する（§6.4 O-3 続き489）', () => withSavedCursor(() => {
+  // 🔴型コメントに「このターン」と書いてありながら**失効地点が1つも無く永続**していた。
+  //   消費は「そのカードがアタックしたとき」だけ＝アタックしなければゲーム終了まで残る。
+  const s: PlayerState = { ...mkState({}), negated_attacks: [SIGNI], negated_attacks_escape: { [SIGNI]: 3 } };
+  const after = clearTurnEndScopedState(s);
+  eq(after.negated_attacks, undefined, 'アタック無効予約がターンを跨いでいる');
+  eq(after.negated_attacks_escape, undefined, '回避コストがターンを跨いでいる');
+}));
+test('遅延予約 4カードの live 形（§6.4 O-3）', () => {
   const act = (num: string, effectId: string) =>
     JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
-  // 🔴従来は `SEQUENCE[STUB{DEFERRED…}, NEGATE_ATTACK]`＝使った瞬間に相手のアタックを1回無効化していた。
-  //   原文は「次の相手アタックフェイズ開始時に対象を取り、そのターンそれがアタックしたとき、
-  //   相手が手札3枚を捨てないかぎり無効」＝タイミングも条件も別物。
-  ok(!act('SPDi43-24', 'SPDi43-24-E2').includes('NEGATE_ATTACK'),
-    'SPDi43-24 の遅延本体が即時実行に戻っている');
-  ok(act('SPDi43-24', 'SPDi43-24-E2').includes('DEFERRED_NEXT_OPP_ATTACK_PHASE_START'),
-    'SPDi43-24 の明示 defer が消えている（在庫が census:stubs から見えなくなる）');
-  ok(act('WX24-P3-014', 'WX24-P3-014-E2').includes('DEFERRED_NEXT_OPP_ATTACK_PHASE_START'),
-    'WX24-P3-014 の明示 defer が消えている');
+  const spdi = act('SPDi43-24', 'SPDi43-24-E2');
+  ok(spdi.includes('"DELAY_TO_NEXT_OPP_ATTACK_PHASE"'), 'SPDi43-24 の遅延予約が消えている');
+  ok(spdi.includes('"CENTER_LRIG_OR_SIGNI"'), '「ルリグかシグニ」がシグニ限定に戻っている');
+  ok(spdi.includes('"escapeDiscard":3'), '「手札を3枚捨てないかぎり」の回避コストが落ちている');
+  const wx24 = act('WX24-P3-014', 'WX24-P3-014-E2');
+  ok(wx24.includes('"PLACE_FACEDOWN_LRIG_ZONE"'), 'WX24-P3-014 の裏向き設置が STUB のまま');
+  ok(wx24.includes('"levelFromLastProcessed":true'), '「そのカードと同じレベルの」が落ちている');
+  const wx25 = act('WX25-P2-051', 'WX25-P2-051-E2');
+  // 🔴従来は `SEQUENCE[STUB{SOUL_OP}, DOWN{SIGNI opponent ALL}]`＝**即時に相手の全シグニをダウン**していた。
+  ok(wx25.includes('"DELAY_TO_NEXT_OPP_ATTACK_PHASE"'), 'WX25-P2-051 のダウンが即時実行に戻っている');
+  ok(wx25.includes('"levelEqLastProcessed":true'), 'WX25-P2-051 のレベル限定が落ちている（全シグニダウン）');
+  // 🔴従来は `PREVENT_ATTACK_UNTIL_OPP_ATTACK_PHASE`＝対象が解決できず**自分のルリグ**を封じていた。
+  ok(act('WXK01-003', 'WXK01-003-E3').includes('"DELAY_TO_NEXT_OPP_ATTACK_PHASE"'),
+    'WXK01-003 が旧 STUB に戻っている');
 });
 test('ADD_EXTRA_ATTACK_PHASE: 2カードの live 形（§6.4 O-3）', () => {
   const act = (num: string, effectId: string) =>
