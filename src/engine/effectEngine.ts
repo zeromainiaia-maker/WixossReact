@@ -3063,6 +3063,10 @@ export function collectEichiStubEffects(
  */
 export function applyLrigDrawPhaseReplacement(state: PlayerState, drawCount: number): number {
   let result = drawCount;
+  // 「あなたが次のあなたのドローフェイズにカードを N 枚引く場合、代わりに M 枚引く」（`WXK01-002-E2`）＝
+  // 付与された【常】能力ではなく**自己予約**の形（§6.4 O-3 続き492）。読みはこの1関数に集約する。
+  const reserved = state.draw_phase_replacement;
+  if (reserved && result === reserved.fromCount) result = reserved.toCount;
   for (const eff of [
     ...(state.lrig_granted_auto_effects ?? []),
     ...(state.lrig_granted_auto_effects_until_opp_turn ?? []),
