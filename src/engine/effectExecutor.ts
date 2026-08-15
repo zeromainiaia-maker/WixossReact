@@ -5203,8 +5203,13 @@ function execAttachCharm(a: AttachCharmAction, ctx: ExecCtx): ExecResult {
   ctx2 = setOwnerState(toOwner, newToState, ctx2);
 
   const nameOf = (n: string) => ctx.cardMap.get(n)?.CardName ?? n;
-  return done(addLog(ctx2, charmNums
-    .map((c, i) => `${nameOf(c)}を${nameOf(targetNums[i])}にチャームとして付与`).join('／')));
+  // 「〜をそれの【チャーム】にする。…それはアタックできない」の「それ」＝**チャームを付けた側のシグニ**。
+  // ⚠`lastProcessedCards` ではなく `storedTargetCards` に置く＝後続が `targetsStored` を明示した時だけ読む軸なので、
+  //   既存の ATTACH_CHARM 後続3件（POWER_MODIFY / GRANT_KEYWORD＝いずれも新規対象）に影響しない。
+  return done({
+    ...addLog(ctx2, charmNums.map((c, i) => `${nameOf(c)}を${nameOf(targetNums[i])}にチャームとして付与`).join('／')),
+    storedTargetCards: [...targetNums],
+  });
 }
 
 /** LEVEL_REFERENCE_OVERRIDE: カードテキストから許容レベル範囲を解析して返す。
