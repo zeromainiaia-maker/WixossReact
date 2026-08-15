@@ -117,11 +117,6 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // 🔑UNKNOWN のままだと計器（`census:stubs`）に映らず、**周囲のステップが無条件で走る**リスクだけが残る。
   //   `DEFERRED_*` にしておけば A群の worklist に並び、前提が揃ったときに着手できる。
 
-  // 「シグニ１体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く」
-  // （`WX19-064-E1` 選択肢③）＝**対象シグニの付随物（チャーム／アクセ／ソウル）と下カードを剥がす**機構が無い
-  //   （既存 `LRIG_UNDER_CARD_OP` は「このシグニ」＝自身専用のカード全文 regex ハンドラで流用できない）。
-  if (/^シグニ[１1]体を対象とし、それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く$/.test(t))
-    return { type: 'STUB', id: 'DEFERRED_STRIP_ATTACHED_AND_UNDER' } as StubAction;
 
   // 「それをコストを支払わずに使用するかトラッシュに置く」（`WX20-077-E2`）＝**サーチしたスペルをその場で使う**
   //   経路（使用宣言・カットイン窓・解決）が無い。既存 `PLAY_SPELL_FROM_HAND_FREE` は手札からの別軸。
