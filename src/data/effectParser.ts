@@ -2647,7 +2647,15 @@ function matchOpponentUnlessGate(t: string): EffectAction | undefined {
   if (isInsideQuote(t, gateM.index)) return undefined;             // 除外⑥
   const prefix = t.slice(0, gateM.index);
   const thenText = t.slice(gateM.index + gateM.length);
-  if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)) return undefined; // 除外④
+  // 除外④＝帰結が「制限そのもの」の形。これらは**一度払えば終わり**ではなく
+  // 「毎回の宣言時に判定する」等の別軸が要るので、汎用の一発ゲートで包むと意味が変わる。
+  // ⚠**例外＝帰結が「〜を得る」（能力の付与）の形**（§6.4 O-31・`WXDi-P05-023-E2`
+  //   「対戦相手が《無》×3を支払わないかぎり、ターン終了時まで、それは『【常】：アタックできない。』を得る」）。
+  //   ここでの支払いは**付与そのものを止める一発の判断**なので、この family の標準ペアで正しく表せる
+  //   （付与の中身は基準読みが `GRANT_KEYWORD` として既に正しく読んでいる）。
+  //   ⚠引用の**内側**に支払い句がある形（`WXDi-P05-022-E1`＝毎アタックの税）は上の `isInsideQuote`（除外⑥）の領分。
+  if (/【ガード】ができない|アタックできない|アタックを無効|アップしない|新たに配置できない/.test(thenText)
+      && !/」を得る/.test(thenText)) return undefined; // 除外④
   const seq = (then: EffectAction): SequenceAction => ({ type: 'SEQUENCE', steps: [
     { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', ...cost } as StubAction,
     { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then } as EffectAction,
