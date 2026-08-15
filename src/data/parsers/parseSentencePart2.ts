@@ -865,6 +865,13 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- あなたのルリグは対戦相手のセンタールリグのタイプを追加で得る ----
+  // ⚠🔴`INHERIT_OPP_LRIG_TYPE` は **CONTINUOUS 専用**＝`collectLrigNameAliases` が
+  //   「センタールリグの CONTINUOUS 効果」しか走査しないので、**【起】に載ると恒久 no-op** になる
+  //   （`WDK17-001-E2`「このゲームの間、〜」＝executor 側のハンドラはログを出すだけ・§6.4 O-3 続き498）。
+  //   期間つきの実体を持つ `GAIN_LRIG_TYPE` へ振り替える。【常】側は従来どおり alias 走査に任せる。
+  if (/^このゲームの間、この(?:ルリグ|カード)は対戦相手のセンタールリグのルリグタイプを追加で得る$/.test(t)) {
+    return { type: 'GAIN_LRIG_TYPE', owner: 'self', from: 'opponent_center_lrig', turns: 'GAME' } as EffectAction;
+  }
   if (t.match(/このルリグは対戦相手のセンタールリグのルリグタイプを追加で得る/)) {
     return { type: 'STUB', id: 'INHERIT_OPP_LRIG_TYPE' } as StubAction;
   }
