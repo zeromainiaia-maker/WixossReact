@@ -10117,7 +10117,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (phase === 'ENERGY') {
       let cpuAtGrowStart = cpuSt;
       const used    = cpuSt.actions_done?.includes('ENERGY') ?? false;
-      const blocked = cpuSt.blocked_actions?.includes('ENERGY') ?? false;
+      // §6.4 O-3: 「エナフェイズをスキップする」（`WX05-018-E1`）＝人間側はフェイズごと飛ばすが、
+      // CPU 経路はフェイズ内の唯一の行動（エナチャージ）を行わないことで同じ結果にする
+      // （`ON_GROW_PHASE_START` の収集はこのハンドラ内にあるため、飛ばすと開始時トリガーごと落ちる）。
+      const blocked = (cpuSt.blocked_actions?.includes('ENERGY') ?? false)
+        || isPhaseSkipped('ENERGY', cpuSt, cpuContBlockedSelf);
+      if (blocked) appendBattleLogs(['[CPU] エナフェイズをスキップする']);
       if (!used && !blocked && cpuSt.hand.length > 0) {
         const charged = cpuSt.hand[0];
         const chargedCard = battleCardMap.get(charged);
