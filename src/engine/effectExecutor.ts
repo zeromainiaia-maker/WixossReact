@@ -7234,6 +7234,40 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
         `このゲームの間、${nb.targetSelf ? 'あなた' : '対戦相手'}は${names.join('・')}を使用できない`));
     }
+    case 'SIGNI_ATTACK_BAN': {
+      // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）。
+      // ⚠**禁止を受ける側の state に積む**（判定は signiAttackGate が attacker 側だけを見る）。
+      // ⚠宣言値・「それ」の解決は**ここで焼き込む**＝判定地点からは宣言者側の state も対象宣言も見えない。
+      const sab = action as import('../types/effects').SigniAttackBanAction;
+      const ban: import('../types').SigniAttackBan = {};
+      if (sab.levelFromDeclaredNumber) {
+        const declared = ctx.ownerState.declared_number;
+        if (declared === undefined) return done(addLog(ctx, 'アタック制限: 数字が宣言されていない'));
+        ban.level = declared;
+      }
+      if (sab.powerDiffersFromPrinted) ban.powerDiffersFromPrinted = true;
+      if (sab.targetsStored) {
+        const stored = ctx.storedTargetCards ?? [];
+        if (stored.length === 0) return done(addLog(ctx, 'アタック制限: 対象が確定していない'));
+        ban.cardNums = [...stored];
+      }
+      if (sab.unlessPayColorless) ban.unlessPayColorless = sab.unlessPayColorless;
+      const scopeLabel = [
+        ban.level !== undefined ? `レベル${ban.level}の` : '',
+        ban.powerDiffersFromPrinted ? '表記と異なるパワーの' : '',
+        ban.cardNums ? ban.cardNums.map(n => ctx.cardMap.get(n)?.CardName ?? n).join('・') + 'は' : 'シグニでは',
+      ].join('');
+      ban.label = ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}` : 'アタック不可';
+      const banOwner: Owner = sab.owner === 'opponent' ? 'opponent' : 'self';
+      const banState = ownerState(banOwner, ctx);
+      const newBanState: PlayerState = {
+        ...banState,
+        signi_attack_bans_this_turn: [...(banState.signi_attack_bans_this_turn ?? []), ban],
+      };
+      return done(addLog(setOwnerState(banOwner, newBanState, ctx),
+        `このターン、${banOwner === 'self' ? 'あなた' : '対戦相手'}は${scopeLabel}`
+        + (ban.unlessPayColorless ? `《無》×${ban.unlessPayColorless}を支払わないかぎりアタックできない` : 'アタックできない')));
+    }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
       const restricted = !!(pnd.damageSource || pnd.sourceLevelLtLastProcessed || pnd.millAtTurnEndPerPrevented);
