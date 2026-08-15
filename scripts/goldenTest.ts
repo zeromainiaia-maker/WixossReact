@@ -29577,6 +29577,32 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
 }));
+test('DECLARE_CARD_NAME_LOCK: 宣言名の blacklist／whitelist が使用ゲートに効く（§6.4 O-3）', () => withSavedCursor(() => {
+  const SPELL = findCard(c => c.Type === 'スペル');
+  const ARTS = findCard(c => c.Type === 'アーツ');
+  // ① blacklist（`PR-K046-E1`）＝自分が宣言し、**次の**相手ターンに相手がそのスペルを使えない。
+  const ctxB = mkCtx({}, {}, SPELL);
+  const oppWithSpell: PlayerState = { ...ctxB.otherState, trash: [SPELL, ...ctxB.otherState.trash] };
+  const rB = run({ type: 'DECLARE_CARD_NAME_LOCK', declarer: 'self', lockedPlayer: 'opponent',
+    cardType: 'スペル', mode: 'blacklist', until: 'NEXT_TURN' } as unknown as EffectAction,
+    { ...ctxB, otherState: oppWithSpell } as ExecCtx);
+  const lockedB = rB.otherState as PlayerState;
+  const spellName = (cardMap.get(SPELL) as CardData).CardName;
+  eq(JSON.stringify(lockedB.blocked_card_names_next_turn), JSON.stringify([spellName]), '次ターン予約に載らない');
+  // ⚠**課したその場では効かない**（原文は「次の対戦相手のターンの間」）
+  eq(cardNameUseBlocked(lockedB, spellName, 'スペル'), false, '予約なのに即時に効いている');
+  const activated = activateTurnStartScopedState(lockedB);
+  eq(cardNameUseBlocked(activated, spellName, 'スペル'), true, '相手のターン開始で昇格していない');
+  // ⚠期間つき＝そのターンの終了で失効する（失効地点はレジストリの1点）
+  eq(cardNameUseBlocked(clearTurnEndScopedState(activated), spellName, 'スペル'), false, 'ターンを跨いで残っている');
+  // ② whitelist（`WXEX2-09-E3`）＝宣言名**以外**のアーツが使えない。
+  const artsName = (cardMap.get(ARTS) as CardData).CardName;
+  const whitelisted: PlayerState = { ...mkState({}), arts_name_whitelist_this_turn: [artsName] };
+  eq(cardNameUseBlocked(whitelisted, artsName, 'アーツ'), false, '宣言したアーツまで止めている');
+  eq(cardNameUseBlocked(whitelisted, artsName + '＋', 'アーツ'), true, '宣言名以外のアーツが素通りしている');
+  // ⚠whitelist はアーツ限定＝スペルには掛からない
+  eq(cardNameUseBlocked(whitelisted, spellName, 'スペル'), false, 'アーツ限定の whitelist がスペルに掛かっている');
+}));
 test('SIGNI_ATTACK_BAN exceptTargetsStored: 選んだシグニ「以外」を止める（§6.4 O-3）', () => withSavedCursor(() => {
   const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, null] }, SIGNI);
   const withStored = { ...ctx, storedTargetCards: [SIGNI] } as ExecCtx;
