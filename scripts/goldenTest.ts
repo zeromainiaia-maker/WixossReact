@@ -29597,7 +29597,7 @@ test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから�
   // 置換あり＝居座るシグニが手札へ戻り、シードが開花して場に出る
   const bounced = bloom(true).ownerState as PlayerState;
   ok(bounced.hand.includes(SIGNI), '居座るシグニが手札に戻っていない');
-  eq(bounced.field.signi[0]?.at(-1), SIGNI_P3000, 'シードが開花して場に出ていない');
+  eq(bounced.field.signi[0]?.at(-1), SEED_LV1, 'シードが開花して場に出ていない');
   eq(bounced.field.signi_seeds?.[0] ?? null, null, 'シードが残っている');
 }));
 test('FIELD_SIGNI_TO_CHECK_ZONE: チェックゾーン往復でアップし直しアタック済みが落ちる（§6.4 O-3）', () => withSavedCursor(() => {

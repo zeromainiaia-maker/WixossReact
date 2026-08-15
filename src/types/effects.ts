@@ -2184,6 +2184,29 @@ export interface FieldSigniToCheckZoneAction {
   target: EffectTarget;
 }
 
+/**
+ * 「〈期間〉、あなたのセンタールリグは対戦相手のセンタールリグのルリグタイプを**追加で**得る」
+ * （`WDK17-008-E1` 選択肢①・§6.4 O-3）。
+ *
+ * 実体は `PlayerState.lrig_gained_types_timed` への1件追加。既存の**恒久**版
+ * （`lrig_gained_types`＝`ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE`）と読み口を揃え、
+ * 寿命だけ `SigniDeployBan` と同じターン数カウントダウンで持つ。
+ *
+ * ⚠**「追加で」＝置換ではない**（`card_class_overrides` は上書きなので使えない）。
+ * ⚠得たタイプの実利は**グロウ互換**（`lrigClassesCompatible`）と**「〇〇限定」の使用制限**
+ *   （`meetsRestriction`）＝どちらも `/` 区切りを split する実装なので、
+ *   `effectiveLrigClass` が印刷クラスと得たタイプを `/` で連結して両方に効かせる。
+ */
+export interface GainLrigTypeAction {
+  type: 'GAIN_LRIG_TYPE';
+  /** タイプを得る側（現母集団は 'self' のみ）。 */
+  owner: Owner;
+  /** タイプの出どころ。実行時に解決して**タイプ名を焼き込む**（判定地点から相手 state は見えない）。 */
+  from: 'opponent_center_lrig';
+  /** 有効なグローバルターン数（2＝「次の対戦相手のターン終了時まで」）。 */
+  turns: number;
+}
+
 // このゲームの間、対戦相手は同名カードを使用できない
 export interface NameBanAction {
   type: 'NAME_BAN';
