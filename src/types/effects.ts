@@ -843,6 +843,7 @@ export type EffectAction =
   | PlaceFacedownLrigZoneAction
   | RevealFacedownLrigZoneAction
   | ReturnFacedownLrigZoneToHandAction
+  | FieldSigniToCheckZoneAction
   | PlayFreeFromTrashAction
   | PowerThresholdTrashAction
   | PowerFlipAction
