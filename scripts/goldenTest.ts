@@ -5342,7 +5342,13 @@ test('§6.4 E2E WXDi-P01-026-E1: 両者の場＋トラッシュをデッキへ�
   ctx.ownerState.trash = [selfTrashed];
   const countBefore = trackedCardCount(ctx.ownerState) + trackedCardCount(ctx.otherState);
   const result = run(manualEffect('WXDi-P01-026', 'WXDi-P01-026-E1').action, ctx);
-  eq(result.ownerState.trash.includes(selfTrashed), false, '自分のトラッシュはいったんデッキへ戻る（同じ札が残らない）');
+  // 🔑**「残りをトラッシュに置く」まで走る**（原文の後半）＝旧 assert は「トラッシュに同じ札が残らない」
+  //   だったが、これは `execSequence` が LOOK_PICK_CHAIN 自身の continuation を**外側の残りステップで
+  //   上書きして捨てていた**ときの挙動を写していた（§6.4 O-28 で是正・continuation は合成する）。
+  //   検査盤面はデッキが7枚に満たないので、いったんデッキへ戻った非シグニがそのまま remainder として戻る。
+  ok(result.ownerState.trash.includes(selfTrashed), '公開の残りがトラッシュへ置かれない（continuation が落ちている）');
+  eq(result.ownerState.trash.every(num => cardMap.get(num)?.Type !== 'シグニ'), true,
+    'シグニは場に出す＝トラッシュへ落ちてはいけない');
   const selfPlaced = result.ownerState.field.signi.filter(zone => (zone?.length ?? 0) > 0).length;
   const otherPlaced = result.otherState.field.signi.filter(zone => (zone?.length ?? 0) > 0).length;
   ok(selfPlaced > 0, '自分ぶんの建て直しが走る');
