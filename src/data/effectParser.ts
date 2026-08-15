@@ -3041,33 +3041,6 @@ function rewriteNextOppTurnEndBody(action: EffectAction, text: string): EffectAc
   return { type: 'DELAY_TO_NEXT_OPP_TURN_END', action: inner } as EffectAction;
 }
 
-/**
- * 「〈シグニ〉をチェックゾーンに置く。**その後、それらを場に出し**、〜」の後半を落とす（§6.4 O-3 続き498）。
- *
- * 往復は `FIELD_SIGNI_TO_CHECK_ZONE` の1アクションに畳んであるので、後続文の「それらを場に出し」は
- * **重複**になる。⚠🔴放置できない＝この文は `ADD_TO_FIELD{owner:'self'}`（source 無し）に化け、
- * engine の source 無し分岐は**デッキの一番上を場に出す**＝原文に無いシグニが増える過剰実行になる。
- */
-function dropFoldedReturnAfterCheckZone(action: EffectAction): EffectAction {
-  const has = (node: EffectAction): boolean => {
-    if (!node || typeof node !== 'object') return false;
-    if (node.type === 'FIELD_SIGNI_TO_CHECK_ZONE') return true;
-    if (node.type === 'SEQUENCE') return (node as SequenceAction).steps.some(has);
-    return false;
-  };
-  if (!has(action)) return action;
-  const strip = (node: EffectAction): EffectAction => {
-    if (node?.type !== 'SEQUENCE') return node;
-    const steps = (node as SequenceAction).steps
-      .filter(s => !(s?.type === 'ADD_TO_FIELD'
-        && !(s as import('../types/effects').AddToFieldAction).source
-        && !(s as import('../types/effects').AddToFieldAction).cardName))
-      .map(strip);
-    return { ...(node as SequenceAction), steps } as EffectAction;
-  };
-  return strip(action);
-}
-
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
