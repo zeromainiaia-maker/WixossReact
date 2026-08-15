@@ -45,7 +45,7 @@ import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAl
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
-import { resolveNextPhaseWithAttackStepBlocks, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
+import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
@@ -29054,12 +29054,12 @@ test('task12 lxxii: ターン終了クリアは lxxi の once 消費結果を壊
 
 test('task12 lxxiv: アタックステップ封じを実行時のフェイズ遷移で解決する', () => {
   const none = { blocked_actions: [] };
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', none), 'ATTACK_SIGNI', '封じなし: シグニへ');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', none), 'ATTACK_LRIG', '封じなし: ルリグへ');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_LRIG', none), 'END', '封じなし: ENDへ');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP'] }), 'ATTACK_LRIG', 'シグニを飛ばす');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', { blocked_actions: ['LRIG_ATTACK_STEP'] }), 'END', 'ルリグを飛ばす');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP', 'LRIG_ATTACK_STEP'] }), 'END', '両方を飛ばす');
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', none), 'ATTACK_SIGNI', '封じなし: シグニへ');
+  eq(resolveNextPhaseWithSkips('ATTACK_SIGNI', none), 'ATTACK_LRIG', '封じなし: ルリグへ');
+  eq(resolveNextPhaseWithSkips('ATTACK_LRIG', none), 'END', '封じなし: ENDへ');
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP'] }), 'ATTACK_LRIG', 'シグニを飛ばす');
+  eq(resolveNextPhaseWithSkips('ATTACK_SIGNI', { blocked_actions: ['LRIG_ATTACK_STEP'] }), 'END', 'ルリグを飛ばす');
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', { blocked_actions: ['SIGNI_ATTACK_STEP', 'LRIG_ATTACK_STEP'] }), 'END', '両方を飛ばす');
 });
 
 // ── ADD_EXTRA_ATTACK_PHASE（§6.4 O-3「追加のアタックフェイズを加える」）──
@@ -29325,12 +29325,12 @@ test('task12 lxxiv残: WX09-Re02は選んだ相手アタックステップを実
   const signi = runIdolDefense('c0');
   eq(signi.otherState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, true, '①は相手stateへシグニステップ封じを積む');
   eq(signi.ownerState.blocked_actions?.includes('SIGNI_ATTACK_STEP') ?? false, false, '①は使用者stateへ積まない');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', signi.otherState), 'ATTACK_LRIG', '①の実stateでシグニステップを飛ばす');
+  eq(resolveNextPhaseWithSkips('ATTACK_ARTS_OP', signi.otherState), 'ATTACK_LRIG', '①の実stateでシグニステップを飛ばす');
 
   const lrig = runIdolDefense('c1');
   eq(lrig.otherState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, true, '②は相手stateへルリグステップ封じを積む');
   eq(lrig.ownerState.blocked_actions?.includes('LRIG_ATTACK_STEP') ?? false, false, '②は使用者stateへ積まない');
-  eq(resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', lrig.otherState), 'END', '②の実stateでルリグステップを飛ばす');
+  eq(resolveNextPhaseWithSkips('ATTACK_SIGNI', lrig.otherState), 'END', '②の実stateでルリグステップを飛ばす');
 
   const control = effectsMap.get('WXDi-P09-031')!.find(e => e.effectId === 'WXDi-P09-031-E1')!;
   const controlCtx = mkCtx({}, {}, 'WXDi-P09-031');

@@ -49,7 +49,7 @@ import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
 import { resolveTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
-import { resolveNextPhaseWithAttackStepBlocks, resolveNextPhaseAfterAttack } from './battle/attackStepPhase';
+import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from './battle/attackStepPhase';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
 import { GrowModal } from './battle/modals/GrowModal';
@@ -3864,11 +3864,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       } else {
         // §6.4 O-3: ATTACK_LRIG の次は通常 END だが、「追加のアタックフェイズ」の予約があれば
         // ATTACK_ARTS へ戻す（消化＝キューの減算と開始時本文の移送も同じ1点で行う）。
+        // ⚠**`contBlocked.forSelf` を渡す**＝「【常】：対戦相手は自分のエナフェイズをスキップする」
+        //   （`WX05-018-E1`）のような CONTINUOUS 由来の封じは `blocked_actions` に載らないので、
+        //   渡さないとフェイズスキップが丸ごと無言 no-op になる。
         {
-          const nextRes = resolveNextPhaseAfterAttack(phase, newMyState);
+          const nextRes = resolveNextPhaseAfterAttack(phase, newMyState, contBlocked.forSelf);
           nextPhase = nextRes.next;
           newMyState = nextRes.state;
           if (nextRes.addedExtraPhase) appendBattleLogs(['追加のアタックフェイズを開始する']);
+          if (nextPhase !== PHASE_NEXT[phase] && !nextRes.addedExtraPhase) {
+            appendBattleLogs([`${PHASE_LABEL[PHASE_NEXT[phase]] ?? PHASE_NEXT[phase]}フェイズをスキップする`]);
+          }
         }
         // 「このアタックフェイズの間」の遅延 watcher は ATTACK_LRIG→END で両者から消滅。
         // collector 側にもフェイズ判定を持たせ、stale state が残ってもフェイズ外発火しない。
@@ -9994,7 +10000,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS_OP', huSt) }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS_OP', huSt) }));
       return;
     }
 
@@ -10594,7 +10600,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
     if (phase === 'ATTACK_ARTS') {
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_ARTS', cpuSt) }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS', cpuSt) }));
       return;
     }
 
@@ -10635,7 +10641,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 全シグニアタック完了 → ATTACK_LRIGへ
       // ON_LRIG_ATTACK_STEP_START（タスク12(lxvii)）＝人間ターンの ATTACK_SIGNI→ATTACK_LRIG と同じ位置。
       // ⚠**移行先が ATTACK_LRIG のときだけ**収集する（ステップ封じで飛ばされる場合は開始しない）。
-      const nextAfterSigni = resolveNextPhaseWithAttackStepBlocks('ATTACK_SIGNI', cpuSt);
+      const nextAfterSigni = resolveNextPhaseWithSkips('ATTACK_SIGNI', cpuSt);
       if (nextAfterSigni !== 'ATTACK_LRIG') {
         await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: nextAfterSigni }));
         return;
@@ -10683,7 +10689,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   どちらも CPU が能動使用しない（§6.4 O-1）ので CPU 側にキューは積まれず、積まれても
       //   `extra_attack_phases_this_turn` はターン終了で失効する＝安全側の近似。
       //   CPU AI が【起】/スペルを使うようになったら（O-1）ここも state 込みのコミットへ揃えること。
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithAttackStepBlocks('ATTACK_LRIG', cpuSt) }));
+      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_LRIG', cpuSt) }));
       return;
     }
 
