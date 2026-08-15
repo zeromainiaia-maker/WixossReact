@@ -1108,6 +1108,26 @@ export function addBarrierTokens(freeZone: string[] | undefined, base: string, c
   return fz;
 }
 
+/**
+ * `deck_signi_level_override`（「このターン、あなたのデッキにある〈クラス〉のシグニのレベルは N になる」）を
+ * 適用した**デッキ内シグニの実効レベル**。該当しなければ `undefined`（＝素の `card.Level` を使う）。
+ *
+ * 🔴**この関数が入るまで `deck_signi_level_override` は setter しか無い死フィールドだった**（§6.4 O-34(c)）＝
+ *   3枚のカードが書き込むのに読み手が1つも無く、デッキ探索/公開のレベルフィルタが一切見ていなかった。
+ *   `WXK07-034-E1` は①でレベルを4にしてから②で「レベル4のシグニが2枚めくれるまで公開」する**自己完結の
+ *   コンボ**なので、読み手が無いと②が本来の当たり札を素通りする（＝過少）。
+ * ⚠**クラス `'*'` は全シグニ**（`WXK07-034-E1`＝クラス指定なし）。それ以外は `CardClass` の部分一致で、
+ *   `card_class_overrides`（場のカード向け）はデッキ内カードには効かないので見ない。
+ * ⚠適用先は**そのプレイヤーのデッキにあるシグニだけ**＝場・手札・トラッシュのレベル参照には効かない
+ *   （原文が「デッキにある」と限定しているため）。呼び出し側は必ず deck 由来のカードで呼ぶこと。
+ */
+export function deckSigniOverrideLevel(state: PlayerState, card: CardData | undefined): number | undefined {
+  const ov = state.deck_signi_level_override;
+  if (!ov || !card || card.Type !== 'シグニ') return undefined;
+  if (ov.class !== '*' && !(card.CardClass ?? '').includes(ov.class)) return undefined;
+  return ov.level;
+}
+
 // フリーゾーンからバリアトークンを1個取り除く（先頭の該当インスタンス）。
 export function removeOneBarrierToken(freeZone: string[] | undefined, base: string): string[] {
   const fz = [...(freeZone ?? [])];
