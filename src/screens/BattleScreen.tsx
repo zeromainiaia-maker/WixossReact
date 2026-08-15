@@ -10626,7 +10626,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   once_per_turn 記録で **CPU 側の state も書く必要がある**ため両側書ける action へ移す。
       const huWriteAps = huWrite ?? (huStAfterAps ? { key: huKeyForHL, state: huStAfterAps } : undefined);
       await persist.commit(reduceBattle(bs, {
-        type: 'ADVANCE_TURN_WITH_STATE', phase: 'ATTACK_ARTS',
+        type: 'ADVANCE_TURN_WITH_STATE', phase: cpuPhaseAfterMain,
         playerKey: 'guest_state', playerState: newCpuSt,
         opp: huWriteAps, effectStack: apsStack,
       }));
