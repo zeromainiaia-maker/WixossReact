@@ -8007,8 +8007,10 @@ function parseActionTextInner(text: string): EffectAction {
   {
     // ピースの「あなたのレベル3のルリグ1体を対象とし、ターン終了時まで、それは以下の【自】を得る」。
     // 引用の【自】を親の即時 action として平坦化すると、ピース使用時に帰結が走るため、付与能力へ入れ子化する。
-    // 【自】開始に限定し、【常】を併記する別文型（WXDi-D03-011 / D04-011）は従来の curated 形を維持する。
-    const targetedLevel3LrigGrantM = text.match(/(?:あなたの)?レベル[３3]のルリグ[１1]体を対象とし[、,](?:ターン終了時まで[、,])?それは以下の能力を得る。?[『「](【自】[\s\S]+)[』」]/);
+    // 🆕§6.4 O-4 続き499＝**【常】開始も受ける**。🔴`WXDi-D03-011-E1` は付与句が UNKNOWN のまま
+    //   後続の `BLOCK_ACTION{GUARD}` だけが残り、**対象も期間も無しに相手のガードを無条件で封じ**、
+    //   さらに【ダブルクラッシュ】が丸ごと落ちていた（`D04-011` は MANUAL の curated 形なので不可侵）。
+    const targetedLevel3LrigGrantM = text.match(/(?:あなたの)?レベル[３3]のルリグ[１1]体を対象とし[、,](?:ターン終了時まで[、,])?それは以下の能力を得る。?[『「](【[自常]】[\s\S]+)[』」]/);
     if (targetedLevel3LrigGrantM) {
       return {
         type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: targetedLevel3LrigGrantM[1].trim(),
@@ -8019,6 +8021,20 @@ function parseActionTextInner(text: string): EffectAction {
     if (targetGrantM) {
       return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: targetGrantM[1].trim(), targetedCenter: true,
         ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
+    }
+  }
+  // ---- 「あなたのすべてのルリグは以下の能力を得る」（§6.4 O-4 続き499）----
+  // 🔴放置すると引用の【起】が**即時実行**され、使った瞬間にトラッシュからの場出し＋相手シグニの
+  //   バニッシュが走っていた（`WX24-P4-038-E1`＝引用付与の漏出。姉妹の `WXDi-P15-004-E1` は
+  //   安全網で `STUB{GRANT_ABILITY_INNER_TEXT}` に落ちていて no-op）。
+  // ⚠**近似**＝engine の付与先はセンタールリグ（`collectLrigGrantedEffects` はアシストを区別しない）。
+  //   原文の「すべてのルリグ」はアシストも含むので、アシストぶんの使用回数は落ちる（§7）。
+  {
+    const allLrigGrantM = text.match(/あなたのすべてのルリグは以下の能力を得る。?[『「]([\s\S]+)[』」]/);
+    if (allLrigGrantM) {
+      return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: allLrigGrantM[1].trim(),
+        ...(text.includes('このゲームの間') ? { permanent: true } : { duration: 'UNTIL_END_OF_TURN' as const }),
+      } as GrantLrigAbilityAction;
     }
   }
   // ---- センタールリグへの能力付与 ----

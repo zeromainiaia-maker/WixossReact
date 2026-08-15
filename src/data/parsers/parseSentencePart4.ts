@@ -85,7 +85,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 「（対戦相手のターンの間、）このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい」----
   // （`WX17-052-LAYER` の《レイヤーアイコン》能力）。バニッシュ先はエナなので、そこから自分自身を拾う。
   // ⚠「してもよい」は `upToCount` で表す（`TRANSFER_TO_HAND` に optional キーは無い）。
-  if (/^(?:対戦相手のターンの間、)?このシグニがバニッシュされたとき、このシグニをエナゾーンから手札に加えてもよい$/.test(t)) {
+  // ⚠トリガー句が剥がれる経路と剥がれない経路の**両方**がある（付与能力の展開はトリガー句を除去して
+  //   `activeCondition:{TURN_OWNER}` へ落とす）＝どちらでも受かる形にする。
+  if (/^(?:対戦相手のターンの間、)?(?:このシグニがバニッシュされたとき、)?このシグニをエナゾーンから手札に加えてもよい$/.test(t)) {
     return { type: 'TRANSFER_TO_HAND', source: {
       type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: true, filter: { thisCardOnly: true },
     } } as EffectAction;
