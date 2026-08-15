@@ -16485,8 +16485,11 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   // 75/40/35＝2026-08-11 続き425（「対戦相手は〈コスト〉てもよい」の所有者反転を是正）後。
   //   増えた2件（`WXDi-P05-037-E1`／`WXDi-P09-064-E1`）はどちらも **opponentHandDiscard 搭載**＝
   //   costColors は無いが回避枝を持つので、下の安全弁（回避枝なし＝0）は不変。
-  eq(stubs.length, 75, 'OPPONENT_PAY_OPTIONAL の live 出現数');
-  eq(withCost.length, 40, 'エナコストを持つ（＝pay 枝が出る）STUB');
+  // 73/38/35＝2026-08-15 続き495（§6.4 O-30）後。⚠**減った2件は払う側の是正**＝`WX24-P2-044-E1/E2` の
+  //   引用付与の内側は「付与された側が払う」＝`ownerState` 払い（`OPTIONAL_COST{unlessPay}`）が正しく、
+  //   `OPPONENT_PAY_OPTIONAL`（otherState 払い）は**払う側が逆**だった。回避枝そのものは残っている。
+  eq(stubs.length, 73, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  eq(withCost.length, 38, 'エナコストを持つ（＝pay 枝が出る）STUB');
   eq(noCost.length, 35, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,
@@ -21232,16 +21235,27 @@ test('BANISH_REDIRECT frontOnly: 正面だけを置換し、感染・アタッ�
   ok(unknownZone.energy.includes(VICTIM) && !unknownZone.trash.includes(VICTIM), 'zoneIdx不明: 保守的にエナ');
 });
 
-test('PLAN 6.3 batch 8 B-1: granted attack trigger is banished unless opponent pays 3', () => {
+// ⚠**払うのは「付与された側」＝`ownerState`**（§6.4 O-30・2026-08-15 続き495 で是正）。
+//   旧 assert は `otherState`（このカードを使った側）が払う形を固定していたが、`granted_effects` は
+//   付与先の持ち主の state に積まれ、`collectAttackerSelfTriggers` が `playerId: attackerId`
+//   （＝そのシグニの持ち主）で積むので、解決時の `ownerState` は**付与された側**になる。
+//   同じ action の `BANISH{owner:'self', thisCardOnly}` が成立している時点でそれが確定する
+//   （＝ownerState が使った側なら、そもそも対象のシグニが見つからず no-op になるはず）。
+// ⚠**`withSavedCursor` で包まない**＝この直後の `(xlvi) wave17 WXDi-P15-005-E1` は
+//   フィクスチャ割り当てカーソルの位置に依存しており、包むと候補カードがズレて落ちる（既知の結合）。
+test('PLAN 6.3 batch 8 B-1: 付与された側が《無》×3 を払わないかぎりアタッカーがバニッシュされる', () => {
   const outer = mergeManualEffects('WX24-P2-044', effectsMap.get('WX24-P2-044') ?? []).find(e => e.effectId === 'WX24-P2-044-E1')!.action as Extract<EffectAction, { type: 'GRANT_EFFECT' }>;
   const action = outer.effect.action;
   const attacker = SIGNI_L3;
-  const unpaidCtx = mkCtx({ signi: [attacker, null, null] }, { energy: 0 }, attacker);
+  // 払えない（エナ0）＝バニッシュされる
+  const unpaidCtx = mkCtx({ signi: [attacker, null, null], energy: 0 }, {}, attacker);
   ok(!run(action, unpaidCtx).ownerState.field.signi[0], 'unpaid attacker is banished');
-  const paidCtx = mkCtx({ signi: [attacker, null, null] }, { energy: 3 }, attacker);
+  // 払える＝残り、**ownerState から**ちょうど3枚引かれる
+  const paidCtx = mkCtx({ signi: [attacker, null, null], energy: 3 }, {}, attacker);
   const paid = finishPayingCosts(executeEffect({ effectId: 'b1', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true }, paidCtx), paidCtx);
   eq(paid.ownerState.field.signi[0]?.at(-1), attacker, 'paid attacker remains');
-  eq(paid.otherState.energy.length, paidCtx.otherState.energy.length - 3, 'opponent pays exactly 3 energy');
+  eq(paid.ownerState.energy.length, 0, '付与された側がちょうど3枚払う');
+  eq(paid.otherState.energy.length, paidCtx.otherState.energy.length, '使った側のエナが減っている（払う側が逆）');
 });
 
 test('PLAN 6.3 batch 8 B-2: named discard plus green-green-any-any gates banish', () => {

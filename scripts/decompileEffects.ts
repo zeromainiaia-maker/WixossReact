@@ -1225,6 +1225,16 @@ function actionJa(a?: Action, effectType?: string): string {
       if (!a.steps || a.steps.length === 0) return '何もしない';
       // 対象12件の追加コスト2形。内部では OPTIONAL_COST と PAID_ADDITIONAL_COST を
       // 分けて持つが、逆翻訳は原文の「この方法で支払った/捨てた場合」に戻す。
+      // 「〈コスト〉を支払わないかぎり、X」（§6.4 O-30）＝機構は任意コストと同じだが原文の語順が逆。
+      // ⚠汎用の「支払ってもよい。そして（コストを支払った場合）なら、何もしない、そうでなければ X」に
+      //   潰すと原文照合が通らない（意味は合っていても文が別物）。
+      if (a.steps.length === 2 && a.steps[0]?.type === 'STUB' && a.steps[0].id === 'OPTIONAL_COST'
+          && a.steps[0].unlessPay === true
+          && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1].condition?.type === 'PAID_ADDITIONAL_COST'
+          && a.steps[1].else) {
+        const costJa = (a.steps[0].costColors ?? []).map((c: string) => `《${c}》`).join('');
+        return `${costJa}を支払わないかぎり、${actionJa(a.steps[1].else)}`;
+      }
       if (a.steps.length === 2 && a.steps[0]?.type === 'STUB' && a.steps[0].id === 'OPTIONAL_COST'
           && a.steps[1]?.type === 'CONDITIONAL' && a.steps[1].condition?.type === 'PAID_ADDITIONAL_COST') {
         const cost = actionJa(a.steps[0]);

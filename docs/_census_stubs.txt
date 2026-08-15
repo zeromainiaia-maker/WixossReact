@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 2860 件）
+live JSON の STUB id 種類 : 598（総ノード 2868 件）
 逆翻訳シートの [STUB:…] 総数: 775  うち生ID露出 273 箇所（186 種）
 
 ■ 仕分け結果
@@ -42,7 +42,7 @@ live JSON の STUB id 種類 : 598（総ノード 2860 件）
         生成: src\data\parsers\parseSentencePart1.ts:3117
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4825
+        生成: src\data\manualEffects.ts:4830
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
@@ -92,7 +92,7 @@ live JSON の STUB id 種類 : 598（総ノード 2860 件）
 ==============================================================================
     20件  20枚  OPTIONAL_ACTIVATE
         カード: WD10-001, SPDi43-21, WX02-003, WX07-003, WX08-046, WX08-078 …他14枚
-        消費: src\engine\effectExecutor.ts:4401 / src\engine\effectExecutor.ts:4416 / src\engine\triggerCollect.ts:277
+        消費: src\engine\effectExecutor.ts:4404 / src\engine\effectExecutor.ts:4419 / src\engine\triggerCollect.ts:277
     14件  14枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX21-056 …他8枚
         消費: src\engine\effectExecutor.ts:4054 / src\engine\effectExecutor.ts:4059
@@ -122,10 +122,10 @@ live JSON の STUB id 種類 : 598（総ノード 2860 件）
         消費: src\engine\effectExecutor.ts:338
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:7090
+        消費: src\engine\effectExecutor.ts:7093
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:7092
+        消費: src\engine\effectExecutor.ts:7095
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:65
