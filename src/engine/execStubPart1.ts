@@ -209,7 +209,7 @@ export function execStubPart1(
       type: 'CHOOSE', count: 1,
       options: [
         { id: 'use', label: `${nameUSST}をコストを支払わずに使用する`, available: true,
-          action: { type: 'STUB', id: 'PLAY_SPELL_FROM_HAND_FREE', value: cnUSST } as StubAction as EffectAction },
+          action: { type: 'STUB', id: 'INTERNAL_USE_SEARCHED_SPELL', value: cnUSST } as StubAction as EffectAction },
         { id: 'trash', label: `${nameUSST}をトラッシュに置く`, available: true,
           action: { type: 'STUB', id: 'INTERNAL_TRASH_SEARCHED_CARD', value: cnUSST } as StubAction as EffectAction },
       ],
