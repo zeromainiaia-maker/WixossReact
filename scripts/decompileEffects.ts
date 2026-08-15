@@ -2282,6 +2282,11 @@ function actionJa(a?: Action, effectType?: string): string {
         if (m) return m[0];
         return 'ターン終了時、それを場からトラッシュに置く';
       }
+      // ターン終了時エナトラッシュ（TRASH_ENERGY_AT_TURN_END・engine実装済み・§6.4 O-3）＝
+      // 「ターン終了時、それらをあなたのエナゾーンからトラッシュに置く」。
+      if (a.id === 'TRASH_ENERGY_AT_TURN_END') {
+        return 'ターン終了時、それらをあなたのエナゾーンからトラッシュに置く';
+      }
       // 色選択（CHOOSE_COLOR_FROM_LIST・engine実装済み）＝「エナゾーンにあるカードが持つ色から最大N色まで選ぶ」
       // または「白、赤、青、黒からNつを選ぶ」。表現がカードごとに異なるため currentCardText から抽出。
       if (a.id === 'CHOOSE_COLOR_FROM_LIST') {
