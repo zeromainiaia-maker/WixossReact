@@ -1276,10 +1276,21 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/使用コストは.*センタールリグのレベル.*減る/))
     return { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' } as StubAction;
 
-  // ---- ベットしていなかった場合、次のターンをスキップする ----
-  // ⚠ターンそのもののスキップは受け皿が無い（§6.4 O-3 続き459）。
-  if (t.match(/ベットしていなかった場合.*ターンをスキップする/))
-    return { type: 'STUB', id: 'DEFERRED_SKIP_NEXT_TURN' } as StubAction;
+  // ---- 「このターンが対戦相手のターンで、あなたがベットしていなかった場合、次のあなたのターンをスキップする」----
+  // `WD20-006-E1`（ベット アーツ）のデメリット節。✅続き491 で実装＝`SKIP_NEXT_TURN`（`skip_next_turn` 予約）。
+  // ⚠🔴**条件節（2つとも）を落とさない**＝従来の受け皿 STUB は条件ごと消えていたので、実装だけ足すと
+  //   「ベットしていても自分のターンでも必ず次のターンを飛ばす」**過剰実行**になる。
+  //   ベット判定は `IS_BETTING{negate:true}`／ターン判定は `TURN_OWNER{owner:'opponent'}`（`ctx.isOwnerTurn`）。
+  if (t.match(/ベットしていなかった場合.*ターンをスキップする/)) {
+    const conditions: import('../../types/effects').EffectCondition[] = [];
+    if (/この(?:ターン|とき)が対戦相手のターンで/.test(t)) conditions.push({ type: 'TURN_OWNER', owner: 'opponent' });
+    conditions.push({ type: 'IS_BETTING', negate: true });
+    return {
+      type: 'CONDITIONAL',
+      condition: conditions.length === 1 ? conditions[0] : { type: 'AND', conditions },
+      then: { type: 'STUB', id: 'SKIP_NEXT_TURN' } as StubAction,
+    } as import('../../types/effects').ConditionalAction;
+  }
 
   // ---- 対象のシグニは選んだ能力を得る ----
   if (t.match(/対象のシグニ.*選んだ能力を得る/))
