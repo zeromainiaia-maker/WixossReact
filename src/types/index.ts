@@ -760,6 +760,15 @@ export interface PlayerState {
   // delayed_triggers はターン境界で消えるため、二重遅延の1段目／2段目を専用の永続フィールドで持つ。
   turn_end_facedown_all?: Array<{ sourceCardNum: string; returnTiming: 'NEXT_OPP_ATTACK_PHASE_START' }>;
   pending_opponent_attack_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string }>;
+  // DELAY_TO_NEXT_OPP_ATTACK_PHASE（§6.4 O-3）: 「次の対戦相手のアタックフェイズ開始時、〜」の予約。
+  // ⚠**ターン境界を跨ぐ**ので turnScopedState にも delayed_triggers（THIS_TURN 限定）にも載せない。
+  //   予約は**予約した側**（＝次のアタックフェイズでは非ターンプレイヤー）に積み、
+  //   `ON_ATTACK_PHASE_START` の collector が opState 側を読んで発火する。消化は発火時に1件ずつ。
+  pending_next_opp_attack_phase_effects?: Array<{ sourceCardNum?: string; action: import('./effects').EffectAction }>;
+  // PLACE_FACEDOWN_LRIG_ZONE（§6.4 O-3）: 裏向きでルリグゾーンに置いたカード（元ゾーンからは取り除く）。
+  // REVEAL_FACEDOWN_LRIG_ZONE が表向きにしてトラッシュへ送り lastProcessedCards に載せる。
+  // ⚠ターン境界を跨ぐ（置くのは自分のターン・公開は次の相手ターン）ので turn-scoped にしない。
+  facedown_lrig_zone_cards?: string[];
   // ADD_EXTRA_ATTACK_PHASE（§6.4 O-3）: このターンのアタックフェイズの後に追加するアタックフェイズのキュー。
   // ATTACK_LRIG の次を決める1点（resolveNextPhaseAfterAttack）で1件ずつ消化し、END の代わりに ATTACK_ARTS へ戻す。
   extra_attack_phases_this_turn?: Array<{ sourceCardNum?: string; onStart?: import('./effects').EffectAction }>;
