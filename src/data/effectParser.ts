@@ -7547,6 +7547,7 @@ function parseActionText(text: string): EffectAction {
   const parse = (source: string): EffectAction => applySelectedTargetTrashReplacement(source, parseBase(source));
   let parsed = parse(text);
   parsed = foldStructuredRevealUntil(text, parsed);
+  parsed = dropFoldedReturnAfterCheckZone(parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {
