@@ -127,6 +127,31 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'STUB', id: 'DEFERRED_NEXT_OWN_TURN_END_BODY' } as StubAction;
   }
 
+  // ---- 「〈シグニ〉に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く」----
+  // （§6.4 O-34(a)・母集団は原文 regex で**3効果**＝`WX19-064-E1`③／`WX18-029-E1`／`WXDi-P07-041-E2`）
+  // 🔑**シグニ自身は場に残る**＝剥がすのは付随物（チャーム／アクセ／ソウル）と下カードだけ。
+  // 🔴従来 `WX18-029-E1` は `TRASH{SIGNI opponent}` に落ちて**相手シグニ本体をトラッシュに置いていた**
+  //   （【出】でノーコストの除去＝重い過剰実行。`DEFERRED_*` ですらないので `census:stubs` に映らない）。
+  // ⚠**この関数の先頭寄りに置く**＝後段の汎用「〜をトラッシュに置く」ビルダーに先取りされるため。
+  {
+    const stripM = t.match(/^(?:(対戦相手の)?シグニ[１1]体を対象とし、それ|(この)シグニ)に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く$/);
+    if (stripM) {
+      // 「このシグニ」＝発生源自身（`WXDi-P07-041-E2`）＝対象宣言を挟まない。
+      if (stripM[2]) return { type: 'STUB', id: 'STRIP_ATTACHED_AND_UNDER', stripSelf: true } as StubAction;
+      // 修飾語なし「シグニ１体」は `owner:'any'`（どちらの場のシグニでもよい）。
+      const stripOwner: Owner = stripM[1] ? 'opponent' : 'any';
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: { type: 'SIGNI', owner: stripOwner, count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } as StubAction,
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+          { type: 'STUB', id: 'STRIP_ATTACHED_AND_UNDER' } as StubAction,
+        ],
+      } as SequenceAction;
+    }
+  }
+
   // 同じ相手シグニを2回対象化する二段除去。先にエナへ移すため、後段の手札戻しでは
   // 1体目が候補から外れ、必ず別のシグニを選ぶ（WXK03-070）。
   if (/対象の対戦相手のシグニ[１1]体をエナゾーンに置き、対象の対戦相手のシグニ[１1]体を手札に戻す/.test(t)) {
