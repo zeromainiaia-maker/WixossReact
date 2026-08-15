@@ -571,6 +571,9 @@ export interface PlayerState {
   card_identity_overrides?: Record<string, string>;
   // DEPLOY_RESTRICT: このターンと次のターン、このパワー以上のシグニを場に出せない（自ターン基準）
   signi_deploy_power_limit?: number;
+  // SIGNI_DEPLOY_BAN: 「このターンと次のターンの間、〈条件〉のシグニを新たに場に出せない」（§6.4 O-3）。
+  // ⚠パワー制限（上）と同じく**場に出す側**に載る。寿命は turnsRemaining のカウントダウン。
+  signi_deploy_bans?: SigniDeployBan[];
   // DEPLOY_RESTRICT（配置数制限）: このターン、このプレイヤーはシグニをこの数までしか場に出せない
   // （「対戦相手はシグニをN体までしか場に出せない」＝WXK11-074等・AUTO時のフラグ。超過分は設置時に即トラッシュ）。
   signi_deploy_count_limit?: number;
