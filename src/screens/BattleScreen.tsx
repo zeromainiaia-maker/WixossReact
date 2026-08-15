@@ -3568,6 +3568,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         let myFieldAfterCoinCheck = { ...myEndState.field, beat_zone: myBeatEND };
         let myTrashAfterCoinCheck = myTrashBeat;
         let myExcludedEND = myEndState.excluded;
+        let myEnergyEND = myEndState.energy;
         if ((my.turn_end_mill_count ?? 0) > 0) {
           const resolved = resolveTurnEndPreventionMill({ ...my, deck: myDeckPreLimit, trash: myTrashAfterCoinCheck });
           myDeckPreLimit = resolved.state.deck;
