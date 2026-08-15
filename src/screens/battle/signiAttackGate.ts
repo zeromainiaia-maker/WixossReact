@@ -70,6 +70,18 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
     return 'ONCE_PER_TURN_LIMIT';
   }
 
+  // signi_attack_bans_this_turn: 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）
+  if ((attacker.signi_attack_bans_this_turn?.length ?? 0) > 0) {
+    // 実効パワー参照の ban が無ければパワー計算そのものを省く（毎ゾーン呼ばれる関数なので）。
+    const banPower = signiAttackBansNeedPower(attacker)
+      ? ((p.effectivePowers ?? calcFieldPowers(attacker, defender, true, effectsMap, cardMap, p.turnPhase)).get(attackerNum)
+          ?? parsePowerVal(cardMap.get(attackerNum)?.Power))
+      : undefined;
+    const banCost = signiAttackBanColorlessCost(attacker, attackerNum, cardMap, banPower);
+    if (banCost === null) return 'ATTACK_BAN';
+    if (banCost > 0 && attacker.energy.length < banCost + (attacker.signi_attack_cost ?? 0)) return 'ATTACK_BAN_COST';
+  }
+
   // OPP_SIGNI_ATTACK_COST: アタック自体にエナコストが必要（performSigniAttack が実際に引き落とす）
   const signiAtkCost = attacker.signi_attack_cost ?? 0;
   if (signiAtkCost > 0 && attacker.energy.length < signiAtkCost) return 'ENERGY_COST';
