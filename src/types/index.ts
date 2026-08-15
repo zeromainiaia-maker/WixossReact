@@ -180,6 +180,12 @@ export interface SigniAttackBan {
   powerDiffersFromPrinted?: boolean;
   /** この CardNum のシグニだけを禁止する（「それはアタックできない」）。 */
   cardNums?: string[];
+  /**
+   * この CardNum のシグニ**以外**を禁止する（「選んだシグニ以外のシグニでアタックできない」＝
+   * `WXDi-P08-030-E1`・§6.4 O-3）。⚠`cardNums` の否定＝**新しく場に出たシグニにも掛かる**
+   *   （選ばれていないので除外リストに載らない）＝原文どおり。
+   */
+  exceptCardNums?: string[];
   /** 《無》×N を支払えばアタックできる。払えないときだけ禁止になる。 */
   unlessPayColorless?: number;
   /**
