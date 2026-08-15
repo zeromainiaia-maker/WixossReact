@@ -9390,7 +9390,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       await performSigniAttack(zoneIndex, {
         attacker: escaped.attacker, defender: escaped.defender,
         attackerId: user.id, defenderId: isHost ? bs.guest_id : bs.host_id,
-        attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone, attackFieldTrashAlreadyPaid,
+        attackerKey: isHost ? 'host_state' : 'guest_state', targetOpZone,
+        attackFieldTrashAlreadyPaid, attackHandDiscardAlreadyPaid,
       });
     }
   };
