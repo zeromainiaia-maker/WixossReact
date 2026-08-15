@@ -7328,6 +7328,61 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         },
       }, `このアタックフェイズの後に追加のアタックフェイズを${nEap}回加える`));
     }
+    case 'DELAY_TO_NEXT_OPP_ATTACK_PHASE': {
+      // 「次の対戦相手のアタックフェイズ開始時、〈本文〉」（§6.4 O-3）＝予約するだけ。
+      // ⚠本文はここで実行しない（従来は後続文が即時実行されていた＝過剰実行）。
+      const dna = action as import('../types/effects').DelayToNextOppAttackPhaseAction;
+      return done(addLog({
+        ...ctx,
+        ownerState: {
+          ...ctx.ownerState,
+          pending_next_opp_attack_phase_effects: [
+            ...(ctx.ownerState.pending_next_opp_attack_phase_effects ?? []),
+            { ...(ctx.sourceCardNum ? { sourceCardNum: ctx.sourceCardNum } : {}), action: dna.action },
+          ],
+        },
+      }, '次の対戦相手のアタックフェイズ開始時の効果を予約'));
+    }
+    case 'PLACE_FACEDOWN_LRIG_ZONE': {
+      // 「デッキの一番上／手札のカードN枚まで を裏向きでルリグゾーンに置く」（§6.4 O-3）。
+      const pfl = action as import('../types/effects').PlaceFacedownLrigZoneAction;
+      if (pfl.source === 'deck_top') {
+        const n = Math.max(1, pfl.count);
+        const took = ctx.ownerState.deck.slice(0, n);
+        if (took.length === 0) return done(addLog(ctx, 'デッキが空で裏向きに置けない'));
+        return done(addLog({
+          ...ctx,
+          ownerState: {
+            ...ctx.ownerState,
+            deck: ctx.ownerState.deck.slice(took.length),
+            facedown_lrig_zone_cards: [...(ctx.ownerState.facedown_lrig_zone_cards ?? []), ...took],
+          },
+          lastProcessedCards: took,
+        }, `デッキの一番上${took.length}枚を裏向きでルリグゾーンへ`));
+      }
+      // 手札からは選択させる（「N枚まで」＝0枚可）。選択後は下の applyDirectAction 側で確定する。
+      if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札が無く裏向きに置けない'));
+      return selectOrInteract(
+        ctx.ownerState.hand, Math.max(1, pfl.count), pfl.upToCount ?? false, 'self_hand', action, undefined, ctx);
+    }
+    case 'REVEAL_FACEDOWN_LRIG_ZONE': {
+      // 「そのカードを表向きにしてトラッシュに置き、」＝裏向きカードを公開してトラッシュへ。
+      // ⚠**`lastProcessedCards` に載せる**＝後続の「そのカードと同じレベルの〜」が
+      //   既存の `levelEqLastProcessed` / `levelFromLastProcessed` でそのまま解ける。
+      const facedown = ctx.ownerState.facedown_lrig_zone_cards ?? [];
+      if (facedown.length === 0) return done(addLog(ctx, '裏向きのカードが無い'));
+      return done({
+        ...addLog({
+          ...ctx,
+          ownerState: {
+            ...ctx.ownerState,
+            facedown_lrig_zone_cards: undefined,
+            trash: [...ctx.ownerState.trash, ...facedown],
+          },
+        }, `${facedown.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を表向きにしてトラッシュへ`),
+        lastProcessedCards: facedown,
+      });
+    }
     case 'PREVENT_NEXT_DAMAGE': {
       const pnd = action as import('../types/effects').PreventNextDamageAction;
       const restricted = !!(pnd.damageSource || pnd.sourceLevelLtLastProcessed || pnd.millAtTurnEndPerPrevented);
