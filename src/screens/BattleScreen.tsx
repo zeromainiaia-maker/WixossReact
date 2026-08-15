@@ -4212,7 +4212,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const upkeepLrigDown2 = ((opState.field.lrig_down ?? false) && curLrigFrozen)
         || (opState.lrig_upkeep_condition !== undefined);
       if (opState.lrig_upkeep_condition) appendBattleLogs([`相手のセンタールリグはアップ条件あり（${opState.lrig_upkeep_condition}）`]);
-      const opFinalState = clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
+      // §6.4 O-3: 交代判定は `doPhaseAdvance` 側と**同じ1関数**（軸を足すときもここではなく関数へ）。
+      const handoverED = resolveTurnHandover(my, opState);
+      const opFinalState = handoverED.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
         ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
         // 相手側も同じく clearTurnEndScopedState に集約（§6.4 O-3）。
         signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
