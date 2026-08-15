@@ -21,6 +21,7 @@ import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
 import { resolveTurnEndLrigDeckReturn } from './battle/turnEndLrigDeckReturn';
+import { resolveTurnEndEnergyTrash } from './battle/turnEndEnergyTrash';
 import { pickLifeCrashReplacement, applyMillReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
