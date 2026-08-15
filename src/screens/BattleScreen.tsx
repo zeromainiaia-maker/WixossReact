@@ -3828,6 +3828,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // §6.4 O-3: 「ターンプレイヤーを交代するか」は `resolveTurnHandover` 1点で決める
         // （追加ターン＝`extra_turn` と 次ターンスキップ＝`skip_next_turn` の両方をここで見る）。
         const handover = resolveTurnHandover(my, opState);
+        const opNextTurnState = handover.consumeOpponent(clearEndOfTurnDelayedTriggers(activateNextTurnSigniZoneBlocks(activateNextTurnDeployCountLimit(clearTurnEndScopedState({
           ...clearUntilOppTurnEffects(clearAllZoneBurstGrantUntilOppTurn(opState)),
           signi_played_from_trash: undefined, signi_played_from_deck: undefined, signi_placed_by_source: undefined, // 出自マーカー本体はUP開始時の funnel でクリア
           negate_coin_abilities: undefined, // NEGATE_COIN_ABILITY: このターン限定→ターン終了時にクリア
