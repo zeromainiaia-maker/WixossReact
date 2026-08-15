@@ -10073,7 +10073,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (currentLrigCard && !lrigClassesCompatible(currentLrigCard.CardClass, c.CardClass)) return false;
           // 【グロウ】条件チェック（人間グロウと同じ）: ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限
           if (!checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard ?? undefined, battleCardMap)) return false;
-          return canAffordGrowCost(cpuSt.energy, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed), undefined, undefined, cpuEnaMultiStripped);
+          // 「このターン、あなたは１以上のエナコストを支払えない」（§6.4 O-3）＝CPU は `buildEnergyPayPool` を
+          // 通らず `cpuSt.energy` を直接読むので、ここで同じ funnel の判定を当てる（人間側は pool が空になる）。
+          const cpuPayable = isEnergyPayBlocked(cpuSt) ? [] : cpuSt.energy;
+          return canAffordGrowCost(cpuPayable, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed), undefined, undefined, cpuEnaMultiStripped);
         });
 
         if (growTargetId) {
