@@ -11854,6 +11854,18 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     else activeCondition = { type: 'AND', conditions: parsedConds };
     // CONTINUOUS 限定の引用能力付与（このシグニは/場全体「Q」を得る）を先に試す（GRANT_FIELD_SIGNI_ABILITY）
     resolvedAction = parseContinuousQuotedGrant(remaining || actionText) ?? parseActionText(remaining || actionText);
+    // 「対戦相手は《無》×Nを支払わないかぎり、このシグニの正面にあるシグニでアタックできない」（§6.4 O-31）。
+    // 🔴支払い句は**この条件剥がしのループで消える**（条件にならないまま落ちる）ので、帰結の STUB だけが残り
+    //   「払っても正面はアタックできない」過剰実行になっていた。**剥がす前のブロック本文**から枚数を復元する。
+    // ⚠読むのは**この能力ブロックの本文**（カード全文ではない＝§6.4 O-20 の全文 regex 読みとは別物）。
+    if ((resolvedAction as StubAction)?.type === 'STUB'
+        && (resolvedAction as StubAction).id === 'BLOCK_FRONT_SIGNI_ATTACK'
+        && (resolvedAction as StubAction).value === undefined) {
+      const payFSA = actionText.match(/((?:《[白赤青緑黒無]》)+)を支払わないかぎり/);
+      if (payFSA) {
+        resolvedAction = { ...(resolvedAction as StubAction), value: (payFSA[1].match(/《/g) ?? []).length } as EffectAction;
+      }
+    }
     // 一部条件が解析済みで残りが未解析の場合のみPARTIAL
     // 全条件がundefinedの場合はAUTO（activeCondition=undefinedで動作は同じ）
     if (anyFound && anyFailed && parsedConds.length > 0) parseStatus = 'PARTIAL';
