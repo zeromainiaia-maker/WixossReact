@@ -31788,7 +31788,9 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
     ok(!!live?.condition, `${cardNum}: 採用済みlive condition`);
   }
 
-  const deferred = ['WXDi-P04-002', 'WXDi-P16-002'] as const;
+  // ⚠`WXDi-P16-002` は続き493 で採用済み（【使用条件】ヘッダが `GRANT_KEYWORD{"使用条件"}` に化けていた
+  //   ゴミ付与を除去し、ダメージ無効＋移動不可＋遅延本体の受け皿を載せた）＝据置リストから外す。
+  const deferred = ['WXDi-P04-002'] as const;
   for (const cardNum of deferred) {
     const live = (effectsMap.get(cardNum) ?? []).find(effect => effect.effectId === `${cardNum}-E1`);
     if (!live) throw new Error(`${cardNum}: live effect exists`);
