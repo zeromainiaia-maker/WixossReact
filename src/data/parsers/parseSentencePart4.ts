@@ -123,10 +123,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (/^それをコストを支払わずに使用するかトラッシュに置く$/.test(t))
     return { type: 'STUB', id: 'DEFERRED_USE_SEARCHED_SPELL_OR_TRASH' } as StubAction;
 
-  // 「このターン、あなたのデッキにあるシグニのレベルはNになる」（`WXK07-034-E1` 選択肢①）＝
-  //   `deck_signi_level_override` は state に**あるが読み手が1つも無い**（デッキ探索/公開のフィルタが見ない）。
-  if (/^このターン、あなたのデッキにあるシグニのレベルは[０-９\d]+になる$/.test(t))
-    return { type: 'STUB', id: 'DEFERRED_DECK_SIGNI_LEVEL_OVERRIDE_ALL' } as StubAction;
+  // 「このターン、あなたのデッキにあるシグニのレベルはNになる」（`WXK07-034-E1` 選択肢①・§6.4 O-34(c)）。
+  // 🔑クラス指定なし＝**全シグニ**なので `deck_signi_level_override.class` に `'*'` を入れる。
+  //   読み手は `deckSigniOverrideLevel`（デッキ探索＝`execSearch`／デッキ公開＝`execRevealUntil`）。
+  {
+    const deckLvAllM = t.match(/^このターン、あなたのデッキにあるシグニのレベルは([０-９\d]+)になる$/);
+    if (deckLvAllM) {
+      return { type: 'STUB', id: 'DECK_SIGNI_LEVEL_OVERRIDE_ALL', value: parseNum(deckLvAllM[1]) } as StubAction;
+    }
+  }
 
   // ---- 「このピースはあなたの場にルリグが３体いなくても使用できる」（`WXDi-P16-TK01-E1`）----
   // ⚠**緩和の対象になっているルール（ピースはルリグ3体でなければ使えない）自体が engine 未実装**
