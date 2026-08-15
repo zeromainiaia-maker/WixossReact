@@ -45,7 +45,7 @@ import { allZoneBurstGrantMatches, clearAllZoneBurstGrantUntilOppTurn, grantedAl
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from '../src/screens/battle/attackNegation';
 import { collectOppSigniAttackResponses } from '../src/screens/battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from '../src/screens/battle/delayedTrigger';
-import { resolveNextPhaseWithAttackStepBlocks } from '../src/screens/battle/attackStepPhase';
+import { resolveNextPhaseWithAttackStepBlocks, resolveNextPhaseAfterAttack } from '../src/screens/battle/attackStepPhase';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
 import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
