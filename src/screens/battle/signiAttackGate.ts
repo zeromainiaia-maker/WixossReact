@@ -58,6 +58,11 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   const contBlocked = p.contBlocked
     ?? calcContinuousBlockedActions(attacker, defender, true, effectsMap, cardMap);
   if (contBlocked.cannotAttackSigni.has(attackerNum)) return 'CONTINUOUS_CANNOT_ATTACK';
+  // 【常】由来の「〈コスト〉を支払わないかぎりアタックできない」は**払えば通る**（§6.4 O-31）。
+  // ⚠`cannotAttackSigni` と同じ扱いにすると「絶対に通らない」に化ける。
+  //   ⚠**同じ加算を `signiAttackColorlessCost` にも入れる**＝判定と引き落としが別の数を見ると
+  //     「判定は通るのに引き落としが0」＝タダでアタックできる穴になる（続き494 のルリグ側と同じ罠）。
+  const contPay = contBlocked.cannotAttackSigniUnlessPayColorless.get(attackerNum) ?? 0;
 
   // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手側が設定したパワー上限「以下」のシグニはアタック不可
   const oppPowerCap = defender.opp_signi_attack_power_cap;

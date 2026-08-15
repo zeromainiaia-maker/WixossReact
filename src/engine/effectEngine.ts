@@ -2679,6 +2679,13 @@ export interface ContinuousBlockResult {
   forSelf: Set<string>;           // ownerState に対してブロックされるアクションID
   forOther: Set<string>;          // otherState に対してブロックされるアクションID
   cannotAttackSigni: Set<string>; // ownerState のフィールド上で攻撃不可のCardNum
+  /**
+   * 「〈コスト〉を**支払わないかぎり**アタックできない」＝**払えば通る**シグニ（CardNum → 《無》の枚数）。
+   * ⚠`cannotAttackSigni`（無条件禁止）とは**別の集合**にする（§6.4 O-31）。同じ集合に入れると
+   *   「払えば通る」が「絶対に通らない」に化ける＝過剰実行。判定と引き落としは
+   *   `signiAttackBanCost`／`signiAttackBlockReason` の1本にまとめて合算する。
+   */
+  cannotAttackSigniUnlessPayColorless: Map<string, number>;
 }
 
 function extractBlockActions(action: EffectAction): BlockActionAction[] {
@@ -2703,6 +2710,7 @@ export function calcContinuousBlockedActions(
   const forSelf = new Set<string>();
   const forOther = new Set<string>();
   const cannotAttackSigni = new Set<string>();
+  const cannotAttackSigniUnlessPayColorless = new Map<string, number>();
 
   function scanField(fieldOwner: PlayerState, fieldOther: PlayerState, isFieldOwnerTurn: boolean, isMe: boolean) {
     for (const stack of fieldOwner.field.signi) {
@@ -2799,7 +2807,20 @@ export function calcContinuousBlockedActions(
     );
     if (!hasEffect) continue;
     const myFrontTop = ownerState.field.signi[zi]?.at(-1);
-    if (myFrontTop) cannotAttackSigni.add(myFrontTop);
+    if (!myFrontTop) continue;
+    // 「《無》×Nを支払わないかぎり」形は**払えば通る**＝別の集合へ（§6.4 O-31）。
+    // 枚数は parser が焼き込んだ `value` から読む（カード全文 regex を実行時に読まない）。
+    const payFSA = (effectsMap.get(oppTop) ?? []).reduce((acc, eff) => {
+      const act = eff.action as import('../types/effects').StubAction;
+      if (eff.effectType !== 'CONTINUOUS' || act.type !== 'STUB' || act.id !== 'BLOCK_FRONT_SIGNI_ATTACK') return acc;
+      return Math.max(acc, typeof act.value === 'number' ? act.value : 0);
+    }, 0);
+    if (payFSA > 0) {
+      cannotAttackSigniUnlessPayColorless.set(myFrontTop,
+        Math.max(cannotAttackSigniUnlessPayColorless.get(myFrontTop) ?? 0, payFSA));
+    } else {
+      cannotAttackSigni.add(myFrontTop);
+    }
   }
 
   // BLOCK_OPP_ENCORE_AND_BET: 自フィールドにあれば相手のアンコール/ベットを封じる
@@ -2950,7 +2971,7 @@ export function calcContinuousBlockedActions(
   });
   if (hasNonWhiteSpellBlock) { forSelf.add('BLOCK_NON_WHITE_SPELL'); forOther.add('BLOCK_NON_WHITE_SPELL'); }
 
-  return { forSelf, forOther, cannotAttackSigni };
+  return { forSelf, forOther, cannotAttackSigni, cannotAttackSigniUnlessPayColorless };
 }
 
 /**
