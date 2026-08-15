@@ -2469,6 +2469,74 @@ export function execStubPart3(
     }
     return done(addLog(ctx, logMsg));
   }
+  // ═══ DECLARED_ICON_HAND_DISCARD_BANISH（§6.4 O-34(e)・`WXDi-P12-055-E1`）═══
+  // 「対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手は
+  //  《白》〜《無》から１つを宣言する。あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを
+  //  持たない場合、それをバニッシュする。」＝**対象宣言→手札選択（任意）→相手の色宣言→捨てて判定**の4段。
+  // 🔴従来はこの効果が丸ごと UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`（外れると**相手の全シグニを
+  //   トラッシュ**する別カード用の分岐）と `BANISH{owner:'self'}`（＝**自分のシグニをバニッシュ**）
+  //   だけが残っていた＝対象・手札選択・捨てる処理がすべて欠落した別物。
+  // 🔑**段を跨ぐ参照は `carried*` に焼き込む**＝`lastProcessedCards` は resume を跨いで生存しない。
+  if (stub.id === 'DECLARED_ICON_HAND_DISCARD_BANISH') {
+    const candsDIHD = fieldCandidates(ctx.otherState, { cardType: 'シグニ' }, ctx.cardMap, ctx.effectivePowers);
+    if (candsDIHD.length === 0) return done(addLog(ctx, '対象にできる対戦相手のシグニがいない'));
+    return selectOrInteract(candsDIHD, 1, false, 'opp_field',
+      { type: 'STUB', id: 'INTERNAL_DECLARED_ICON_PICK_HAND' } as StubAction as EffectAction, undefined, ctx);
+  }
+  if (stub.id === 'INTERNAL_DECLARED_ICON_PICK_HAND') {
+    const targetDIPH = ctx.lastProcessedCards?.[0];
+    if (!targetDIPH) return done(addLog(ctx, '対象が確定していない'));
+    if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札が無いため何も起きない'));
+    // ⚠**任意**（「選んでもよい」）＝選ばなければ後段（宣言・捨てる・バニッシュ）は一切走らない。
+    return needsInteraction(addLog(ctx, '手札を1枚選ぶ（選ばなければ何も起きない）'), {
+      type: 'SELECT_TARGET', candidates: [...ctx.ownerState.hand], count: 1, optional: true,
+      targetScope: 'self_hand',
+      thenAction: { type: 'STUB', id: 'INTERNAL_DECLARED_ICON_DECLARE', carriedTargetNum: targetDIPH } as StubAction as EffectAction,
+    });
+  }
+  if (stub.id === 'INTERNAL_DECLARED_ICON_DECLARE') {
+    const handDIDD = ctx.lastProcessedCards?.[0];
+    const targetDIDD = stub.carriedTargetNum;
+    if (!handDIDD || !targetDIDD) return done(addLog(ctx, 'アイコン宣言の前提が揃っていない'));
+    // ⚠《無》を含む6択（既存の `OPP_DECLARE_COLOR` は5色＝無が無い）。原文の候補は
+    //   《白》《赤》《青》《緑》《黒》《無》の6つ。
+    const colorsDIDD = ['白', '赤', '青', '緑', '黒', '無'];
+    return needsInteraction(addLog(ctx, '対戦相手がアイコンを宣言する（白/赤/青/緑/黒/無）'), {
+      type: 'CHOOSE', count: 1, opponentResponds: true,
+      options: colorsDIDD.map(c => ({
+        id: `declared_icon_${c}`, label: `《${c}》を宣言`, available: true,
+        action: { type: 'STUB', id: 'INTERNAL_DECLARED_ICON_RESOLVE',
+          value: c, carriedCardNum: handDIDD, carriedTargetNum: targetDIDD } as StubAction as EffectAction,
+      })),
+    });
+  }
+  if (stub.id === 'INTERNAL_DECLARED_ICON_RESOLVE') {
+    const declaredDIR = typeof stub.value === 'string' ? stub.value : '';
+    const handDIR = stub.carriedCardNum;
+    const targetDIR = stub.carriedTargetNum;
+    if (!handDIR || !targetDIR) return done(addLog(ctx, 'アイコン判定の前提が揃っていない'));
+    const cardDIR = ctx.cardMap.get(getCardNum(handDIR));
+    const nameDIR = cardDIR?.CardName ?? handDIR;
+    // 「あなたはその選んだカードを捨て」＝判定の**前**に必ず捨てる（外れても当たっても捨てる）。
+    let cDIR = addLog({
+      ...ctx,
+      ownerState: {
+        ...ctx.ownerState,
+        hand: ctx.ownerState.hand.filter(n => n !== handDIR),
+        trash: [...ctx.ownerState.trash, handDIR],
+      },
+    }, `${nameDIR}を捨てた（宣言《${declaredDIR}》）`);
+    // 「そのカードが宣言されたアイコンを持たない場合」＝**色アイコン**の照合（多色は部分一致）。
+    if ((cardDIR?.Color ?? '').includes(declaredDIR)) {
+      return done(addLog(cDIR, `${nameDIR}は《${declaredDIR}》を持つためバニッシュされない`));
+    }
+    cDIR = addLog(cDIR, `${nameDIR}は《${declaredDIR}》を持たない`);
+    return exec({
+      type: 'BANISH',
+      target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } },
+      fixedCardNums: [targetDIR],
+    } as unknown as EffectAction, cDIR);
+  }
   // OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
   if (stub.id === 'OPP_DECLARE_CHOICE' || stub.id === 'OPP_CHOOSE_EFFECT' || stub.id === 'OPP_CHOOSES_FOR_YOU') {
     const srcODC = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
