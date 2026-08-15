@@ -3418,6 +3418,22 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // ①のプレフィックス許可リストに無いトリガー句（「ターン終了時、」等）直後の条件は、1668 除去で t 先頭へ来る。
   { const _w = tryWrapLeadingStateCond(t); if (_w) return _w; }
 
+  // 「このシグニを場からトラッシュに置き、〈残り〉」＝**自己トラッシュ＋後続**（§6.4 O-3）。
+  // 連用中止形の先頭動作が、既存規則では次の3通りに壊れていた（実測3効果）：
+  //   🔴`WX20-049-E1`＝自己トラッシュが**丸ごと脱落**（対価なしでデッキサーチが走る過剰実行）
+  //   🔴`PR-422-E2`／`WX26-CP1-066-E1`＝`TRASH{SIGNI self 1}`（`thisCardOnly` 無し）＝
+  //      **自分の好きなシグニを選んで捨てる**選択UIに化けていた（原文は「このシグニ」固定）。
+  // ⚠コスト節（【起】…：）はここへ来ない（`：` の前で切られる）＝`WX25-P3-100`／`WXDi-CP02-099` は無関係。
+  {
+    const selfTrashLead = t.match(/^この(?:シグニ|カード)を場からトラッシュに置き、(.+)$/s);
+    if (selfTrashLead) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } } },
+        parseSingleSentence(selfTrashLead[1]),
+      ] } as SequenceAction;
+    }
+  }
+
   // 「手札がN枚より少ない場合、その差の分だけカードを引く」。
   // 固定1枚DRAWへ落とすと手札が N-2 枚以下のとき過小実行になるため、
   // 既存の untilHandCount で差分ドローを直接表す。
