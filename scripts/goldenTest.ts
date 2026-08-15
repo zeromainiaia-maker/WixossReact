@@ -29462,6 +29462,71 @@ test('アタック税（手札N枚捨て）2カードの live 形（§6.4 O-3）
   ok(!wxdi.includes('捨てないかぎりアタックできない'), '引用文が keyword に残っている（照合されない no-op）');
   ok(wxdi.includes('"targetsStored":true'), '対象限定が落ちて全シグニに掛かっている');
 });
+// ── §6.4 O-28「《無》×Nを支払わないかぎりアタックできない」の付与（ルリグ軸を含む）──
+test('SIGNI_ATTACK_BAN: 対象がルリグなら appliesTo:LRIG の別 ban として積む（§6.4 O-28）', () => withSavedCursor(() => {
+  const LRIG = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const banOf = (stored: string[]) => {
+    const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null], lrig: [LRIG] }, SIGNI);
+    const r = run({ type: 'SIGNI_ATTACK_BAN', owner: 'opponent', targetsStored: true, unlessPayColorless: 2 } as unknown as EffectAction,
+      { ...ctx, storedTargetCards: stored } as ExecCtx);
+    return ((r.otherState as PlayerState).signi_attack_bans_this_turn ?? []);
+  };
+  // ルリグ1体だけ＝ルリグ軸の ban が1件（シグニ側には積まない＝空 ban を残すと全シグニ禁止に化ける）
+  const lrigOnly = banOf([LRIG]);
+  eq(lrigOnly.length, 1, 'ルリグ対象で ban が1件にならない');
+  eq(lrigOnly[0]?.appliesTo, 'LRIG', 'ルリグ対象なのにシグニ軸の ban になっている');
+  eq(JSON.stringify(lrigOnly[0]?.cardNums), JSON.stringify([LRIG]), '対象ルリグが焼き込まれない');
+  // シグニ1体だけ＝従来どおり（appliesTo は付けない）
+  const signiOnly = banOf([SIGNI_P3000]);
+  eq(signiOnly.length, 1, 'シグニ対象で ban が1件にならない');
+  eq(signiOnly[0]?.appliesTo, undefined, 'シグニ対象に LRIG 印が付いている');
+  // 「ルリグかシグニ」で両方確定した場合は**軸ごとに2件**（1件に混ぜると判定側でどちらかが漏れる）
+  const both = banOf([LRIG, SIGNI_P3000]);
+  eq(both.length, 2, 'ルリグとシグニが混ざった対象で ban が2件にならない');
+  eq(both.filter(b => b.appliesTo === 'LRIG').length, 1, 'ルリグ軸の ban が無い');
+  eq(both.every(b => b.unlessPayColorless === 2), true, '解除コストが両方の ban に載らない');
+}));
+test('lrigAttackBanCost / signiAttackGate: ルリグ軸とシグニ軸が互いに漏れない（§6.4 O-28）', () => withSavedCursor(() => {
+  const LRIG = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const lrigBan: SigniAttackBan = { appliesTo: 'LRIG', cardNums: [LRIG], unlessPayColorless: 2 };
+  const st = (bans: SigniAttackBan[], o: Partial<PlayerState> = {}): PlayerState =>
+    ({ ...mkState({ signi: [SIGNI_P3000, null, null], lrig: [LRIG], energy: 5 }), signi_attack_bans_this_turn: bans, ...o });
+  // ルリグ軸＝ルリグにだけ掛かる
+  eq(lrigAttackBanCost(st([lrigBan]), LRIG, cardMap as Map<string, CardData>)?.colorless, 2, 'ルリグの解除コストが取れない');
+  eq(signiAttackBlockReason({
+    attacker: st([lrigBan]), defender: mkState({}), attackerNum: SIGNI_P3000,
+    effectsMap, cardMap: cardMap as Map<string, CardData>,
+  }), null, 'ルリグ軸の ban がシグニのアタックを止めている');
+  // シグニ軸（広域 ban＝キーなし）はルリグへ**漏らさない**。cardNums 一致だけに頼るとここが赤くなる。
+  eq(lrigAttackBanCost(st([{}]), LRIG, cardMap as Map<string, CardData>)?.colorless, 0,
+    'シグニ側の広域 ban がルリグにも掛かっている');
+  // 解除不能なルリグ ban（支払い軸なし）＝いくら払っても不可
+  eq(lrigAttackBanCost(st([{ appliesTo: 'LRIG', cardNums: [LRIG] }]), LRIG, cardMap as Map<string, CardData>), null,
+    '解除不能なルリグ ban が支払いで抜けられている');
+  // ターン終了で失効する（登録は signi 版と同じ1フィールド＝失効地点を増やさない）
+  eq(clearTurnEndScopedState(st([lrigBan])).signi_attack_bans_this_turn, undefined, 'ターン終了でルリグ ban が失効しない');
+}));
+test('アタック税（《無》×N）5カードの live 形（§6.4 O-28）', () => {
+  const act = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  // 🔴引用文が丸ごと `GRANT_KEYWORD.keyword` に入ると `hasKeyword` の照合外＝**無言 no-op**（計器にも映らない）。
+  const cases: [string, string, number[]][] = [
+    ['WX11-012', 'WX11-012-E1', [3, 4]],      // センタールリグ＜タマ＞で ×4 へ差し替わる CONDITIONAL
+    ['WX24-P1-041', 'WX24-P1-041-E2', [1]],
+    ['WX24-P4-001', 'WX24-P4-001-E1', [4]],
+    ['WXDi-P03-036', 'WXDi-P03-036-E1', [2]],
+    ['WXDi-P05-033', 'WXDi-P05-033-E2', [1]],
+  ];
+  for (const [num, effectId, costs] of cases) {
+    const a = act(num, effectId);
+    ok(!a.includes('を支払わないかぎりアタックできない'), `${num} の引用文が keyword に残っている（照合されない no-op）`);
+    ok(a.includes('"targetsStored":true'), `${num} の対象限定が落ちている`);
+    for (const c of costs) ok(a.includes(`"unlessPayColorless":${c}`), `${num} の《無》×${c} アタック税が落ちている`);
+  }
+  // 「ルリグかシグニ1体」は対象種別を狭めない（狭めるとルリグを縛れない）
+  ok(act('WX24-P1-041', 'WX24-P1-041-E2').includes('CENTER_LRIG_OR_SIGNI'),
+    'WX24-P1-041 の対象がシグニ限定に戻っている');
+});
 test('SIGNI_ATTACK_BAN levelFromLastProcessed: 公開カードのレベルを焼き込む', () => withSavedCursor(() => {
   const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] }, SIGNI);
   const lv = parseInt(cardMap.get(SIGNI_P3000)?.Level ?? '', 10);
