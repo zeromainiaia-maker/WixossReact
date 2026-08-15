@@ -7274,6 +7274,7 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         ban.cardNums = [...stored];
       }
       if (sab.unlessPayColorless) ban.unlessPayColorless = sab.unlessPayColorless;
+      if (sab.unlessPayHandDiscard) ban.unlessPayHandDiscard = sab.unlessPayHandDiscard;
       const scopeLabel = [
         ban.level !== undefined ? `レベル${ban.level}の` : '',
         ban.powerDiffersFromPrinted ? '表記と異なるパワーの' : '',
