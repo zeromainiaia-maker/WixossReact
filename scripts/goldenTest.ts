@@ -29534,6 +29534,20 @@ test('アタック税（《無》×N）5カードの live 形（§6.4 O-28）', 
   ok(act('WX24-P1-041', 'WX24-P1-041-E2').includes('CENTER_LRIG_OR_SIGNI'),
     'WX24-P1-041 の対象がシグニ限定に戻っている');
 });
+test('live データ不変条件: 「同じ選択肢を複数回選ぶ」ループを1効果に2つ置かない（§6.4 O-29）', () => {
+  // `CHOOSE_SAME_OPTION_TWICE` と `CHOOSE_SAME_OPTION_MULTIPLE` は engine では**同じハンドラ**で、
+  // 回数はカード全文から読む。2つ並ぶと選択ループが2周する＝最大回数の**倍**選べる過剰実行になる
+  // （`WX17-003-E1`＝原文「最大4つまで」に対し 4+4）。旧 execSequence が内側 continuation を捨てていた
+  // 間は2周目が届かず表に出ていなかった。
+  const bad: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      const hits = (JSON.stringify(e.action ?? {}).match(/"id":"CHOOSE_SAME_OPTION_(?:TWICE|MULTIPLE)"/g) ?? []).length;
+      if (hits > 1) bad.push(e.effectId);
+    }
+  }
+  eq(bad.length, 0, `選択ループが二重になっている効果: ${bad.join(', ')}`);
+});
 test('execSequence: 入れ子 SEQUENCE の continuation を外側で上書きしない（§6.4 O-28）', () => withSavedCursor(() => {
   // 🔴内側 SEQUENCE が対話に入ると、内側の残りステップが continuation に載る。外側がそこへ
   //   自分の残りステップを**代入**すると内側の残りが無言で消える＝盤面が半分しか動かない。
