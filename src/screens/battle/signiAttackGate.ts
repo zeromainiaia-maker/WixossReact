@@ -24,7 +24,8 @@ export type SigniAttackBlockReason =
   | 'ENERGY_COST'              // OPP_SIGNI_ATTACK_COST のエナが払えない
   | 'FIELD_TRASH_COST'         // 「他のシグニN体をトラッシュしないかぎりアタックできない」が払えない
   | 'ATTACK_BAN'               // signi_attack_bans_this_turn（「〈条件〉のシグニでアタックできない」）
-  | 'ATTACK_BAN_COST';         // 同・「《無》×N を支払わないかぎり」の分が払えない
+  | 'ATTACK_BAN_COST'          // 同・「《無》×N を支払わないかぎり」の分が払えない
+  | 'ATTACK_BAN_HAND_COST';    // 同・「手札をN枚捨てないかぎり」の分が払えない（手札不足）
 
 export interface SigniAttackGateInput {
   attacker: PlayerState;
