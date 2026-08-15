@@ -29577,6 +29577,24 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
 }));
+test('GAIN_LRIG_TYPE: 相手のルリグタイプを追加で得てグロウ互換／使用制限に効く（§6.4 O-3）', () => withSavedCursor(() => {
+  const myLrig = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '') === 'タマ');
+  const opLrig = findCard(c => c.Type === 'ルリグ' && (c.CardClass ?? '') === '花代');
+  const ctx = mkCtx({ lrig: [myLrig] }, { lrig: [opLrig] }, myLrig);
+  const r = run({ type: 'GAIN_LRIG_TYPE', owner: 'self', from: 'opponent_center_lrig', turns: 2 } as unknown as EffectAction, ctx);
+  const st = r.ownerState as PlayerState;
+  eq(JSON.stringify(st.lrig_gained_types_timed), JSON.stringify([{ lrigType: '花代', turnsRemaining: 2 }]),
+    '相手のルリグタイプが焼き込まれていない');
+  // 🔑実利＝グロウ互換と「〇〇限定」の使用制限の**両方**に効く（軸ごとに別実装にしない）
+  eq(effectiveLrigClass(st, 'タマ'), 'タマ/花代', '実効クラスが印刷クラスのままになっている');
+  eq(lrigClassesCompatible(effectiveLrigClass(st, 'タマ'), '花代'), true, '得たタイプへグロウできない');
+  eq(meetsRestriction('花代限定', effectiveLrigClass(st, 'タマ')), true, '得たタイプの限定カードが使えない');
+  eq(meetsRestriction('花代限定', effectiveLrigClass(mkState({}), 'タマ')), false, '得ていないのに限定が通っている');
+  // ⚠期間つき＝失効地点は `clearTurnEndScopedState` の1点だけ（続き487/489/493 の永続化バグ対策）
+  const after1 = clearTurnEndScopedState(st);
+  eq(after1.lrig_gained_types_timed?.[0]?.turnsRemaining, 1, '1ターン目で消えている（次の相手ターンまで持たない）');
+  eq(clearTurnEndScopedState(after1).lrig_gained_types_timed, undefined, '次の対戦相手のターン終了時に失効しない');
+}));
 test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから開花する（§6.4 O-3）', () => withSavedCursor(() => {
   // 🔑これは**開花そのものの置換**＝後続ステップに置くと素の「シグニあり＝開花不可」が先に確定する。
   const LRIG5 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
