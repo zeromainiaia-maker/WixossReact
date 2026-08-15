@@ -3584,6 +3584,20 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     }
     searchCardMap = overrides;
   }
+  // deck_signi_level_override:「このターン、あなたのデッキにある〈クラス〉のシグニのレベルは N になる」（§6.4 O-34(c)）。
+  // ⚠**デッキ探索は `searchCardMap` 差し替えで読む**＝上の `deckTrashLevel1Nums` と同じ規約に揃える
+  //   （`matchesFilter` の `effectiveLevel` 引数はここでは1枚ずつ渡せないため）。
+  // ⚠トラッシュ探索には効かない（原文が「デッキにある」と限定している）。
+  if (fromDeck && state.deck_signi_level_override) {
+    const lvOverrides = new Map(searchCardMap);
+    for (const n of pool) {
+      const cn = getCardNum(n);
+      const card = searchCardMap.get(cn);
+      const lv = deckSigniOverrideLevel(state, card);
+      if (card && lv !== undefined) lvOverrides.set(cn, { ...card, Level: String(lv) });
+    }
+    searchCardMap = lvOverrides;
+  }
 
   // maxCount の解決（{$ref:'last_processed_count'} = 直前にバニッシュ/トラッシュした枚数。「同じ枚数」）
   const maxPick = resolveCountRef(a.maxCount, ctx);
