@@ -7891,6 +7891,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     targetOpZone?: number; // 【側面アタック】: 正面(2-zoneIndex)ではなく指定した相手シグニゾーンを攻撃。シグニ無ければ何も起きない・ライフダメージなし
     attackFieldTrashZones?: number[];
     attackFieldTrashAlreadyPaid?: boolean;
+    /** 「手札をN枚捨てないかぎりアタックできない」の支払い（手札 index・§6.4 O-3）。 */
+    attackHandDiscardIndices?: number[];
+    attackHandDiscardAlreadyPaid?: boolean;
   }) => {
     let my = p.attacker;
     let op = p.defender;
