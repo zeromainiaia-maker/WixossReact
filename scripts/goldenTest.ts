@@ -29577,6 +29577,27 @@ test('RETURN_FACEDOWN_LRIG_ZONE_TO_HAND: 遅延を跨いだ「そのカード」
   // ⚠`REVEAL_FACEDOWN_LRIG_ZONE`（トラッシュ送り）と取り違えない
   eq((r.ownerState as PlayerState).trash.length, withFacedown.trash.length, 'トラッシュへ送っている');
 }));
+test('SEED_BLOOM bounceOccupant: 居座るシグニを手札に戻してから開花する（§6.4 O-3）', () => withSavedCursor(() => {
+  // 🔑これは**開花そのものの置換**＝後続ステップに置くと素の「シグニあり＝開花不可」が先に確定する。
+  const ctx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const seeded: PlayerState = {
+    ...ctx.ownerState,
+    field: { ...ctx.ownerState.field, signi_seeds: [SIGNI_P3000, null, null] },
+  };
+  const handBefore = seeded.hand.length;
+  const bloom = (bounce: boolean) => run(
+    { type: 'STUB', id: 'INTERNAL_BLOOM_SEED', value: 0, ...(bounce ? { bounceOccupant: true } : {}) } as EffectAction,
+    { ...ctx, ownerState: seeded } as ExecCtx);
+  // 置換なし＝従来どおり開花不可（シードだけ失われる）
+  const plain = bloom(false).ownerState as PlayerState;
+  eq(plain.field.signi[0]?.at(-1), SIGNI, '置換なしでシグニが入れ替わっている');
+  eq(plain.hand.length, handBefore, '置換なしで手札が増えている');
+  // 置換あり＝居座るシグニが手札へ戻り、シードが開花して場に出る
+  const bounced = bloom(true).ownerState as PlayerState;
+  ok(bounced.hand.includes(SIGNI), '居座るシグニが手札に戻っていない');
+  eq(bounced.field.signi[0]?.at(-1), SIGNI_P3000, 'シードが開花して場に出ていない');
+  eq(bounced.field.signi_seeds?.[0] ?? null, null, 'シードが残っている');
+}));
 test('FIELD_SIGNI_TO_CHECK_ZONE: チェックゾーン往復でアップし直しアタック済みが落ちる（§6.4 O-3）', () => withSavedCursor(() => {
   // 🔑「場を離れて出直す」＝追加アタックフェイズでもう一度アタックできるのがこのカードの主眼。
   const ctx = mkCtx({ signi: [SIGNI, SIGNI_P3000, null] }, {}, SIGNI);

@@ -3375,39 +3375,38 @@ export function execStubPart2(
       const newOwnerSkip = { ...ctxIBS.ownerState, field: { ...ctxIBS.ownerState.field, signi_seeds: newSeedsIBS } };
       return done(addLog({ ...ctxIBS, ownerState: newOwnerSkip }, `開花：ゾーン${zoneIdxIBS + 1}にシグニあり（開花不可）`));
     }
-    ctx = ctxIBS;
-    const seedCardDataIBS = ctx.cardMap.get(seedCardIBS);
+    const seedCardDataIBS = ctxIBS.cardMap.get(seedCardIBS);
     // シグニ以外はトラッシュへ
     if (!seedCardDataIBS || seedCardDataIBS.Type !== 'シグニ') {
-      const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
-      return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：シグニでないためトラッシュへ`));
+      const newOwnerIBS = { ...ctxIBS.ownerState, trash: [...ctxIBS.ownerState.trash, seedCardIBS], field: { ...ctxIBS.ownerState.field, signi_seeds: newSeedsIBS } };
+      return done(addLog({ ...ctxIBS, ownerState: newOwnerIBS }, `開花：シグニでないためトラッシュへ`));
     }
     // ルリグレベルチェック
-    const lrigInstIBS = ctx.ownerState.field.lrig.at(-1);
-    const lrigCardIBS = lrigInstIBS ? ctx.cardMap.get(lrigInstIBS) : null;
+    const lrigInstIBS = ctxIBS.ownerState.field.lrig.at(-1);
+    const lrigCardIBS = lrigInstIBS ? ctxIBS.cardMap.get(lrigInstIBS) : null;
     const lrigLevelIBS = parseInt(lrigCardIBS?.Level ?? '0', 10);
     const signiLevelIBS = parseInt(seedCardDataIBS.Level ?? '0', 10);
     if (signiLevelIBS > lrigLevelIBS) {
-      const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
-      return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}レベル${signiLevelIBS}超過でトラッシュへ`));
+      const newOwnerIBS = { ...ctxIBS.ownerState, trash: [...ctxIBS.ownerState.trash, seedCardIBS], field: { ...ctxIBS.ownerState.field, signi_seeds: newSeedsIBS } };
+      return done(addLog({ ...ctxIBS, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}レベル${signiLevelIBS}超過でトラッシュへ`));
     }
     // リミットチェック（他ゾーンのシグニレベル合計 + このシグニのレベル > ルリグのリミット）
     const lrigLimitIBS = lrigCardIBS?.Limit === '∞' ? Infinity : (parseInt(lrigCardIBS?.Limit ?? '0', 10) || 0);
     let usedLimitIBS = 0;
     for (let zi = 0; zi < 3; zi++) {
       if (zi === zoneIdxIBS) continue;
-      const topInstZI = ctx.ownerState.field.signi[zi]?.at(-1);
-      if (topInstZI) usedLimitIBS += parseInt(ctx.cardMap.get(topInstZI)?.Level ?? '0', 10);
+      const topInstZI = ctxIBS.ownerState.field.signi[zi]?.at(-1);
+      if (topInstZI) usedLimitIBS += parseInt(ctxIBS.cardMap.get(topInstZI)?.Level ?? '0', 10);
     }
     if (usedLimitIBS + signiLevelIBS > lrigLimitIBS) {
-      const newOwnerIBS = { ...ctx.ownerState, trash: [...ctx.ownerState.trash, seedCardIBS], field: { ...ctx.ownerState.field, signi_seeds: newSeedsIBS } };
-      return done(addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}リミット超過でトラッシュへ`));
+      const newOwnerIBS = { ...ctxIBS.ownerState, trash: [...ctxIBS.ownerState.trash, seedCardIBS], field: { ...ctxIBS.ownerState.field, signi_seeds: newSeedsIBS } };
+      return done(addLog({ ...ctxIBS, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}リミット超過でトラッシュへ`));
     }
     // 場に出す。lastProcessedCards にセットし BattleScreen が ON_PLAY 効果を積む
-    const newSigniIBS = [...ctx.ownerState.field.signi] as (string[] | null)[];
+    const newSigniIBS = [...ctxIBS.ownerState.field.signi] as (string[] | null)[];
     newSigniIBS[zoneIdxIBS] = [seedCardIBS];
-    const newOwnerIBS = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigniIBS, signi_seeds: newSeedsIBS } };
-    const doneCtxIBS = addLog({ ...ctx, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}がゾーン${zoneIdxIBS + 1}に出た`);
+    const newOwnerIBS = { ...ctxIBS.ownerState, field: { ...ctxIBS.ownerState.field, signi: newSigniIBS, signi_seeds: newSeedsIBS } };
+    const doneCtxIBS = addLog({ ...ctxIBS, ownerState: newOwnerIBS }, `開花：${seedCardDataIBS.CardName}がゾーン${zoneIdxIBS + 1}に出た`);
     return { ...(done(doneCtxIBS) as { done: true; ownerState: PlayerState; otherState: PlayerState; logs: string[] }), lastProcessedCards: [seedCardIBS] };
   }
   // SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シード1枚を手札に加え、デッキ上をシード設置
