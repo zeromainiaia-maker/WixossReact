@@ -2378,8 +2378,13 @@ function restoreLeadUntilEndOfTurn(a: EffectAction | undefined): void {
  * ⚠落とすのは `source` の無い `ADD_TO_FIELD` **だけ**＝同じ文の他の動作（「このルリグをアップする」等）は残す。
  */
 function dropDanglingDeckTopPlacement(steps: EffectAction[]): EffectAction[] {
+  // 🆕続き498＝受け皿 STUB を実装で置き換えると「本文が丸ごと defer 中」という gate が外れるので、
+  //   **往復を1アクションに畳んだ語彙**も同じ gate に載せる（`FIELD_SIGNI_TO_CHECK_ZONE` は
+  //   「その後、それらを場に出し」まで含む）。⚠外すと source 無し `ADD_TO_FIELD` が残り、
+  //   engine の source 無し分岐＝**デッキの一番上を場に出す**過剰実行になる。
   const deferredSeen = steps.some(st =>
-    st?.type === 'STUB' && (st as StubAction).id?.startsWith('DEFERRED_'));
+    (st?.type === 'STUB' && (st as StubAction).id?.startsWith('DEFERRED_'))
+    || st?.type === 'FIELD_SIGNI_TO_CHECK_ZONE');
   if (!deferredSeen) return steps;
   const strip = (a: EffectAction): EffectAction | null => {
     if (a?.type === 'ADD_TO_FIELD' && !(a as AddToFieldAction).source && !(a as AddToFieldAction).cardName) return null;
