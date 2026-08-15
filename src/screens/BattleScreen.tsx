@@ -10415,7 +10415,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
       const cpuFieldSigniLimit = cpuDeployCap !== undefined ? Math.min(cpuFieldSigniLimitBase, cpuDeployCap) : cpuFieldSigniLimitBase;
 
-      for (let zone = 0; zone < 3; zone++) {
+      for (let zone = 0; !cpuMainSkipped && zone < 3; zone++) {
         if ((newCpuSt.field.signi[zone] ?? []).length > 0) continue; // ゾーン埋まってる
         if (handSignis.length === 0) break;
         // 場出し数上限に達していたら召喚しない
