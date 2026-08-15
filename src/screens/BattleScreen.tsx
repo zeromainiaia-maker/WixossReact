@@ -3870,8 +3870,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ⚠**`contBlocked.forSelf` を渡す**＝「【常】：対戦相手は自分のエナフェイズをスキップする」
         //   （`WX05-018-E1`）のような CONTINUOUS 由来の封じは `blocked_actions` に載らないので、
         //   渡さないとフェイズスキップが丸ごと無言 no-op になる。
+        // ⚠🔴`ATTACK_ARTS_OP` だけは**進行ボタンを持つのが非ターンプレイヤー**（`NON_TURN_PLAYER_PHASES`）＝
+        //   `my` はターンプレイヤーではない。スキップ判定は必ず**ターンプレイヤー側の state**で見る
+        //   （従来ここは `my` を見ており、PvP では「相手のシグニアタックステップを飛ばす」札
+        //   〔`WX09-Re02-E1` 等4枚〕が**自分に掛かっているかで判定**されて無言ですり抜けていた）。
         {
-          const nextRes = resolveNextPhaseAfterAttack(phase, newMyState, contBlocked.forSelf);
+          const nextRes = NON_TURN_PLAYER_PHASES.includes(phase)
+            ? { next: resolveNextPhaseWithSkips(phase, op, contBlocked.forOther), state: newMyState, addedExtraPhase: false }
+            : resolveNextPhaseAfterAttack(phase, newMyState, contBlocked.forSelf);
           nextPhase = nextRes.next;
           newMyState = nextRes.state;
           if (nextRes.addedExtraPhase) appendBattleLogs(['追加のアタックフェイズを開始する']);
