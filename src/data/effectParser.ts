@@ -13628,7 +13628,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       effectText = effectText.replace(/【歌のカケラ】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
       // 【トラップアイコン】も下段で独立した TRAP effect として解析する。
       // 通常能力へ残すと直前の【自】へトラップ本体が tail-splice され、発動のたび二重実行される。
-      effectText = effectText.replace(/【トラップアイコン】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
+      effectText = stripTrapIconClause(effectText);
       // クロスアイコン prefix の検出と除去
       if (effectText.startsWith('《クロスアイコン》')) {
         card.hasCrossIcon = true;
