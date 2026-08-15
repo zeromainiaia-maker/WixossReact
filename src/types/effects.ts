@@ -2237,8 +2237,11 @@ export interface GainLrigTypeAction {
   owner: Owner;
   /** タイプの出どころ。実行時に解決して**タイプ名を焼き込む**（判定地点から相手 state は見えない）。 */
   from: 'opponent_center_lrig';
-  /** 有効なグローバルターン数（2＝「次の対戦相手のターン終了時まで」）。 */
-  turns: number;
+  /**
+   * 有効なグローバルターン数（2＝「次の対戦相手のターン終了時まで」）。
+   * `'GAME'`＝「このゲームの間」＝恒久側（`lrig_gained_types`）へ積む。
+   */
+  turns: number | 'GAME';
 }
 
 // このゲームの間、対戦相手は同名カードを使用できない

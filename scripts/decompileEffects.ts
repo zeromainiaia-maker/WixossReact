@@ -2401,9 +2401,11 @@ function actionJa(a?: Action, effectType?: string): string {
       // シード開花（SEED_BLOOM/SEED_BLOOM_OPTIONAL・engine実装済み）＝「（あなたの）【シード】（N枚/好きな枚数）を（対象とし）開花する」。
       // 対象数/語順がカードごとに異なるため currentCardText から【シード】を含む開花クレーズを抽出（コスト句 : はまたがない）。
       if (a.id === 'SEED_BLOOM' || a.id === 'SEED_BLOOM_OPTIONAL') {
+        // ⚠`bounceOccupant`（開花の置換）まで描く＝落とすと「居座るシグニを手札に戻す」の脱落が逆翻訳に映らない。
+        const bounceSB = a.bounceOccupant ? '。そのシグニゾーンにシグニがある場合、代わりにそのシグニを手札に戻してから開花する' : '';
         const m = currentCardText.match(/(?:あなたの)?[^。：]*【シード】[^。：]*?開花する/);
-        if (m) return m[0];
-        return 'あなたの【シード】を開花する';
+        if (m) return m[0] + bounceSB;
+        return 'あなたの【シード】を開花する' + bounceSB;
       }
       // 公開からシード設置（PLACE_SEED_FROM_REVEALED・engine実装済み）＝LOOK/シャッフルは別描画され、
       // 本体は「その中からカードN枚を【シード】としてあなたのシグニゾーンに出す（してもよい）」。currentCardText から抽出。
@@ -2844,7 +2846,7 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_SELF_RESTRICT_THIS_TURN: '【未実装】このターン、あなたは他のシグニを場に出せない／エナコストを支払えない',
         DEFERRED_SKIP_NEXT_TURN: '【未実装】次のあなたのターンをスキップする',
         DEFERRED_ATTACKED_SIGNI_TARGET_BY_KEY_TRASH: '【未実装】このターンにアタックしたシグニを対象とし、このキーをルリグトラッシュに置いてもよい',
-        DEFERRED_SEED_BLOOM_BOUNCE_OCCUPANT: '【未実装】そのシグニゾーンにシグニがある場合、手札に戻してから開花する',
+        SEED_BLOOM_BOUNCE_OCCUPANT: 'そのシグニゾーンにシグニがある場合、代わりにそのシグニを手札に戻してから開花する',
         FACE_DOWN_OPP_SIGNI: '対戦相手のシグニ１体を対象とし、それを裏向きにする',
         SIGNI_FLIP_FACEDOWN: '対象としたシグニを裏向きにする',
         FLIP_FACE_DOWN_SIGNI: 'このターン終了時、この方法で裏向きにしたシグニを、同じ場所にシグニがない場合、表向きにする',
