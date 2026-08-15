@@ -1036,6 +1036,14 @@ export interface PowerModifyAction {
    */
   deltaPerTargetLevel?: boolean;
   deltaFromOppPowerDecrease?: boolean; // 「減った値と同じだけ＋する」（毒牙 WX13-036/WXEX2-52）。delta を収集時に直前の対戦相手パワー減少量で動的に上書き（ON_OPP_POWER_DECREASED と併用）
+  /**
+   * 「〈ゾーン〉にある〈filter〉のカード１枚につき±N」（§6.4 O-3・`WX26-CP1-066-E1`）。
+   * `CountFromZone.per` に1枚あたりの値を入れ、`resolveCountRef` が枚数×per を返す＝delta は無視される。
+   * ⚠**`delta` に `{$ref}` を書いてはいけない**＝`execPowerModify` の既定は `resolveNum` で、
+   *   `resolveNum` は `{$ref}` を問答無用で 0 にする（＝無言でパワー±0 になる）。
+   * ⚠常在の `POWER_MODIFY_PER_ENERGY` とは別物（あちらは CONTINUOUS 専用・filter 無し・期間なし）。
+   */
+  deltaFromZone?: CountFromZone;
   duration?: EffectDuration; // 'UNTIL_OPP_TURN_END' のとき power_mods_until_opp_turn へ（省略時はターン終了まで＝temp_power_mods）
   /** NEXT_TURN の基準。next=解決中のグローバルターンの次（isOwnerTurn で self/opponent を確定）。 */
   nextTurnOwner?: 'self' | 'opponent' | 'next';
