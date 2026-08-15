@@ -337,9 +337,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const doPhaseAdvanceRef                = useRef<(() => Promise<void>) | null>(null);
   const triggerPendingCrashRef           = useRef<(() => Promise<void>) | null>(null);
   const resolveStackNextRef              = useRef<(() => Promise<void>) | null>(null);
-  // §6.4 O-3（続き491）: 「このメインフェイズを終了する」の自動進行から呼ぶ（早期 return より前で
-  // hook を宣言する必要があるため、実体は下で ref へ代入する＝`resolveStackNextRef` と同じ形）。
-  const doPhaseAdvanceRef                = useRef<(() => Promise<void>) | null>(null);
   const handleCutinPassRef               = useRef<(() => Promise<void>) | null>(null);
   const checkPowerZeroBanishRef          = useRef<(() => Promise<void>) | null>(null);
   const checkContMutationsRef            = useRef<(() => Promise<void>) | null>(null);
