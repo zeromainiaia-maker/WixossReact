@@ -1995,6 +1995,25 @@ export interface SigniDeployBanAction {
   bySource?: 'signi_or_spell_effect';
 }
 
+/**
+ * 「（このターンの最初の／次の）アタックフェイズの後に、追加のアタックフェイズを加える」（§6.4 O-3）。
+ *
+ * 実体は `PlayerState.extra_attack_phases_this_turn` へのキュー1件追加。消化は
+ * `resolveNextPhaseAfterAttack`（ATTACK_LRIG の次を決める1点）で、`END` の代わりに `ATTACK_ARTS` へ戻す。
+ *
+ * ⚠`onStart`＝「この方法で加えたアタックフェイズ（の）開始時、〜」の本文。**追加した瞬間ではなく
+ *   追加したフェイズの開始時に走る**（従来は後続文が即時実行され、メインフェイズ中に全シグニがアップする
+ *   等の過剰実行になっていた）。フェイズ突入時に `pending_extra_attack_phase_start_effects` へ移し、
+ *   `ON_ATTACK_PHASE_START` の collector が合成エントリとして積む。
+ */
+export interface AddExtraAttackPhaseAction {
+  type: 'ADD_EXTRA_ATTACK_PHASE';
+  /** 追加する数（現状の母集団はすべて1）。 */
+  count?: number;
+  /** 「この方法で加えたアタックフェイズの開始時、」に実行する本文。 */
+  onStart?: EffectAction;
+}
+
 // このゲームの間、対戦相手は同名カードを使用できない
 export interface NameBanAction {
   type: 'NAME_BAN';
