@@ -15128,6 +15128,21 @@ test('GAIN_BOND source:last_found: 直前選択カードとの絆を bonds へ�
   const r = run({ type: 'GAIN_BOND', source: 'last_found' } as EffectAction, ctx);
   ok((r.ownerState.bonds ?? []).includes(name!), `bonds (${JSON.stringify(r.ownerState.bonds)})`);
 });
+// ── `census:goldentypes` の未カバー2型（続き492 で新設・当時から未カバー・§6.4 O-34 の巡回で消化）──
+// どちらも `WXK01-002-E2` 由来。**置換系は「加算層に書かない」ことまで見る**（混ぜると別軸に化ける）。
+test('SET_LRIG_BASE_LIMIT / RESERVE_DRAW_PHASE_REPLACEMENT: 予約先フィールドへ載る（型カバレッジ）', () => withSavedCursor(() => {
+  const ctx = mkCtx({}, {});
+  const rLimit = run({ type: 'SET_LRIG_BASE_LIMIT', owner: 'self', value: 12, untilNextMainPhase: true } as EffectAction, ctx);
+  eq(rLimit.ownerState.lrig_base_limit_override ?? 0, 12, '基本リミットは置換層へ');
+  eq(rLimit.ownerState.lrig_limit_mod ?? 0, 0, '⚠加算層（lrig_limit_mod）には書かない');
+  const rDraw = run({ type: 'RESERVE_DRAW_PHASE_REPLACEMENT', owner: 'self', fromCount: 1, toCount: 2 } as EffectAction, ctx);
+  eq(rDraw.ownerState.draw_phase_replacement?.fromCount ?? 0, 1, 'ドロー置換の from');
+  eq(rDraw.ownerState.draw_phase_replacement?.toCount ?? 0, 2, 'ドロー置換の to');
+  // 相手側に撃つと相手の state に載る（owner の取り違えガード）
+  const rOpp = run({ type: 'SET_LRIG_BASE_LIMIT', owner: 'opponent', value: 3 } as EffectAction, ctx);
+  eq(rOpp.otherState.lrig_base_limit_override ?? 0, 3, 'owner:opponent は相手側へ');
+  eq(rOpp.ownerState.lrig_base_limit_override ?? 0, 0, '自分側には載らない');
+}));
 // ── DECLARED_ICON_HAND_DISCARD_BANISH（§6.4 O-34(e)・`WXDi-P12-055-E1`）──
 // 🔴回帰ガード＝従来は効果が丸ごと UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`（外れると**相手の
 //    全シグニをトラッシュ**する別カード用）と `BANISH{owner:'self'}`（＝**自分のシグニ**）だけが残っていた。
