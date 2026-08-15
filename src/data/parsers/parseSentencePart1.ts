@@ -127,6 +127,24 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'STUB', id: 'DEFERRED_NEXT_OWN_TURN_END_BODY' } as StubAction;
   }
 
+  // ---- 「【　　】icon_txt_frame_null アイコンを持たないシグニ１体を対象とする」（`WXDi-P07-041-E2`）----
+  // 🔴従来は `GRANT_KEYWORD{target: 自分のシグニ, keyword:'　　'}`＝**対象宣言が付与に化けて**いた
+  //   （§6.4 O-28 のゴミ keyword クラス）＝後続の「それと同じカードになる」が参照先を失う。
+  // ⚠CSV のアイコンはレンダリング欠落（`icon_txt_frame_null`）＝同カードの注記
+  //   「（【ライズ】と【ハーモニー】は【　　】に含まれる）」から**出現条件アイコン**と判定する。
+  if (/^【[　\s]*】icon_txt_frame_nullアイコンを持たないシグニ[１1]体を対象とする$/.test(t)) {
+    return {
+      type: 'STUB', id: 'SELECT_TARGET_ONLY',
+      selectTarget: { type: 'SIGNI', owner: 'any', count: 1, upToCount: false, filter: { cardType: 'シグニ', noDeployConditionIcon: true } },
+    } as StubAction;
+  }
+  // ---- 「ターン終了時まで、このシグニはそれと同じカードになる」（`WXDi-P07-041-E2`）----
+  // 既存の `COPY_CARD`（`card_identity_overrides`）がそのまま使える形。🔴従来は無関係な
+  // `STUB{POWER_MOD_PER_COUNT}` に落ちていた（＝コピーが一度も起きない無言 no-op）。
+  if (/^(?:ターン終了時まで、)?この(?:シグニ|カード)はそれと同じカードになる$/.test(t)) {
+    return { type: 'STUB', id: 'COPY_CARD' } as StubAction;
+  }
+
   // ---- 「〈シグニ〉に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く」----
   // （§6.4 O-34(a)・母集団は原文 regex で**3効果**＝`WX19-064-E1`③／`WX18-029-E1`／`WXDi-P07-041-E2`）
   // 🔑**シグニ自身は場に残る**＝剥がすのは付随物（チャーム／アクセ／ソウル）と下カードだけ。
