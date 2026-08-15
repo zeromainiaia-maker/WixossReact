@@ -1,5 +1,58 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き490・Opus 5）— §6.4 **O-3 `ATTACK_TAX_HAND_DISCARD`（1効果）を解体＝2効果の挙動是正**
+
+**恒久 no-op 2件**（うち1件は**どの計器にも映らない無言 no-op**）。ゲート全緑（**golden 2019**＝+2・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0・lint 0 errors / 259 warnings）。
+live JSON changed **2カード**（`SP38-003`／`WXDi-P05-022`。CSV 非改変）。
+`census:stubs` A群＝**無言 no-op 0 据置**、明示 defer **27種/29件 → 26種/28件**。
+
+### 母集団の実測（着手前）
+
+「〜しないかぎりアタックできない」は原文 **24件**あるが、**手札捨て版は3件**：
+
+| カード | 原文 | 修正前 |
+|---|---|---|
+| `SP38-003-E1` | このターン、対戦相手は手札を３枚捨てないかぎりシグニでアタックできない（アタックするごとに捨てる） | `STUB{DEFERRED_ATTACK_TAX_HAND_DISCARD}`＝恒久 no-op |
+| `WXDi-P05-022-E1` | 対戦相手のシグニ１体に「【常】：手札を１枚捨てないかぎりアタックできない。」を付与 | 🔴`GRANT_KEYWORD{keyword:"手札を１枚捨てないかぎりアタックできない"}`＝**無言 no-op** |
+| `WXDi-P05-023-E1` | 対戦相手が手札を３枚捨てないかぎり…「【常】：アタックできない。」 | 既存 `OPPONENT_PAY_OPTIONAL`（1回きりの支払い）で表現済み＝対象外 |
+
+**受け皿 id の1件だけを見て設計すると、隣の無言 no-op を取り逃す。**
+
+### ① 新機構 `SigniAttackBan.unlessPayHandDiscard`
+
+- 「手札をN枚捨てないかぎりアタックできない」＝**アタックするごとに**払う（ban は消費しない）。
+- 🔑**支払い軸ごとに別関数を生やさない**＝`signiAttackBanColorlessCost` を `signiAttackBanCost` へ一般化し、
+  **`{colorless, handDiscard}` をまとめて返す**（解除不能な ban が1つでも掛かっていれば `null`）。
+  軸ごとに関数を分けると「片方の軸だけ見る gate」が生まれて**無言ですり抜ける**。
+- 判定＝既存 `signiAttackGate`（新 reason `ATTACK_BAN_HAND_COST`）＝人間ボタン／`performSigniAttack`／CPU 候補の3経路共通。
+- 引き落とし＝`performSigniAttack` の中（`newMyState` を組む**前**に `my` を差し替える）。CPU は手札の先頭から決定論的に。
+- 選択UI＝新モーダル `AttackHandDiscardCostModal`。**アタックボタンのラベルにも解除コストを出す**
+  （出さないと「押したら知らないモーダルが開く」になる）。
+- ⚠**再入経路で二重請求しない**＝`negateEscape`（アタック無効化の回避）からアタックを再実行する経路に
+  `attackHandDiscardAlreadyPaid` を追加し、既存 `attackFieldTrashAlreadyPaid` と同じ場所で立てた。
+
+### ② 🔴 引用文が丸ごと `GRANT_KEYWORD.keyword` に入る形は「無言 no-op」
+
+`WXDi-P05-022-E1` は `keyword` が**文そのもの**（「手札を１枚捨てないかぎりアタックできない」）になっており、
+`hasKeyword` は**正式名でしか照合しない**ので**一度も効かなかった**（狙われたシグニが無条件でアタックできる）。
+
+- **STUB ですらないので `census:stubs` の A群に出ない**＝受け皿 id を数えても永遠に見つからないクラス。
+- 直し方＝正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈ban〉{targetsStored}`
+  （`WX10-024-E2` の《無》×N 版と同じ組み立て）へ **post-pass** で組み替え。
+  判定条件は「`keyword` が正式名でない（この文型に一致する）」なので、カード番号を焼き込まずに済む。
+
+### ⚠ 「アタックするごとに払う」と「1回きりの回避」は別機構
+
+- `SigniAttackBan.unlessPayHandDiscard`＝**毎回**払う。ban は消費しない（ターン終了で失効）。
+- `NegateAttackAction.escapeDiscard`＝**1回きり**。支払い/不払いのどちらでも `negated_attacks` から消える。
+
+原文の括弧書き「（アタックするごとに捨てる）」が両者を分ける。流用すると片方が必ず壊れる。
+
+### 未検証
+
+新モーダル `AttackHandDiscardCostModal` は**実機未検証**（§7 送り）。
+負方向＋対照の対（手札が足りるとき／足りないとき）で書くこと。
+
 ## 2026-08-15（続き489・Opus 5）— §6.4 **O-3 `NEXT_OPP_ATTACK_PHASE_START`（2効果）を解体＝5効果の挙動是正**
 
 **過剰実行3件＋対象取り違え1件＋永続化バグ1件**。ゲート全緑（**golden 2017**＝+5・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0・lint 0 errors / 259 warnings）。
