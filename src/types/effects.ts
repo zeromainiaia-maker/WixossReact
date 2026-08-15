@@ -2488,6 +2488,11 @@ export interface StubAction {
   eichiAbilitySourceCardNum?: string;
   /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */
   optionalCostTarget?: EffectTarget;
+  /**
+   * SELECT_TARGET_ONLY: 「**対戦相手は**自分のシグニを〜選ぶ」＝選ぶのは相手側（§6.4 O-3）。
+   * ⚠落とすと効果の使用者が相手の代わりに選ぶ＝有利な取り違えになる。
+   */
+  opponentSelects?: boolean;
   /** EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY: 守るシグニの条件。 */
   leaveVictimFilter?: TargetFilter;
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */
