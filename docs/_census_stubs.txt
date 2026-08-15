@@ -22,7 +22,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      3件   3枚  DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY  [生ID露出 3]
         カード: WX25-P3-055, WXK01-002, WXK03-071
-        生成: src\data\manualEffects.ts:4648 / src\data\manualEffects.ts:4651
+        生成: src\data\manualEffects.ts:4650 / src\data\manualEffects.ts:4653
      2件   2枚  DEFERRED_NEXT_OPP_TURN_END_BODY
         カード: WXDi-P09-066, WXDi-P16-002
         生成: src\data\parsers\parseSentencePart1.ts:119
@@ -33,7 +33,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         生成: src\data\parsers\parseSentencePart4.ts:1370
      1件   1枚  DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS  [生ID露出 1]
         カード: WX09-Re01
-        生成: src\data\manualEffects.ts:4634
+        生成: src\data\manualEffects.ts:4636
      1件   1枚  DEFERRED_CHARM_POWER_MINUS_MULTIPLIER  [生ID露出 1]
         カード: WX25-P2-103
         生成: src\data\parsers\parseSentencePart4.ts:1828
@@ -42,7 +42,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         生成: src\data\parsers\parseSentencePart1.ts:3117
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4830
+        生成: src\data\manualEffects.ts:4832
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
@@ -79,7 +79,7 @@ live JSON の STUB id 種類 : 598（総ノード 2868 件）
         生成: src\data\parsers\parseSentencePart4.ts:1379
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        生成: src\data\manualEffects.ts:4645
+        生成: src\data\manualEffects.ts:4647
      1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
