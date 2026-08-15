@@ -45,20 +45,55 @@ export function signiAttackBansNeedPower(attacker: PlayerState): boolean {
   return (attacker.signi_attack_bans_this_turn ?? []).some(ban => ban.powerDiffersFromPrinted);
 }
 
+/** ban 由来のアタック解除コスト。軸ごとに**合算**する（複数 ban が重なれば全部払う）。 */
+export interface SigniAttackBanCost {
+  /** エナ（《無》×N）。 */
+  colorless: number;
+  /** 手札を捨てる枚数（「手札をN枚捨てないかぎり」＝**アタックするごとに**払う）。 */
+  handDiscard: number;
+}
+
 /**
- * ban 由来のアタックコスト（《無》×N）の合計。
+ * 掛かっている ban の解除コスト。
  * 支払いで解除できない ban が1つでも掛かっていれば `null`（＝どれだけ払ってもアタック不可）。
+ *
+ * ⚠**支払い軸が増えたらここに足す**＝呼び出し元（gate／引き落とし）は戻り値の形だけを見る。
+ *   軸ごとに別関数を生やすと「片方の軸だけ見る gate」が生まれて無言ですり抜ける。
  */
+export function signiAttackBanCost(
+  attacker: PlayerState,
+  attackerNum: string,
+  cardMap: Map<string, CardData>,
+  effectivePower?: number,
+): SigniAttackBanCost | null {
+  const bans = matchedSigniAttackBans(attacker, attackerNum, cardMap, effectivePower);
+  if (bans.length === 0) return { colorless: 0, handDiscard: 0 };
+  if (bans.some(ban => !ban.unlessPayColorless && !ban.unlessPayHandDiscard)) return null;
+  return {
+    colorless: bans.reduce((sum, ban) => sum + (ban.unlessPayColorless ?? 0), 0),
+    handDiscard: bans.reduce((sum, ban) => sum + (ban.unlessPayHandDiscard ?? 0), 0),
+  };
+}
+
+/** ban 由来のエナコスト（《無》×N）だけを取り出す薄いラッパ（引き落とし地点用）。 */
 export function signiAttackBanColorlessCost(
   attacker: PlayerState,
   attackerNum: string,
   cardMap: Map<string, CardData>,
   effectivePower?: number,
 ): number | null {
-  const bans = matchedSigniAttackBans(attacker, attackerNum, cardMap, effectivePower);
-  if (bans.length === 0) return 0;
-  if (bans.some(ban => !ban.unlessPayColorless)) return null;
-  return bans.reduce((sum, ban) => sum + (ban.unlessPayColorless ?? 0), 0);
+  const cost = signiAttackBanCost(attacker, attackerNum, cardMap, effectivePower);
+  return cost === null ? null : cost.colorless;
+}
+
+/** ban 由来の手札捨てコスト（掛かっていない／解除不能なら 0）。 */
+export function signiAttackBanHandDiscardCost(
+  attacker: PlayerState,
+  attackerNum: string,
+  cardMap: Map<string, CardData>,
+  effectivePower?: number,
+): number {
+  return signiAttackBanCost(attacker, attackerNum, cardMap, effectivePower)?.handDiscard ?? 0;
 }
 
 /** 掛かっている ban の表示ラベル（アタックボタンの注記用）。 */
