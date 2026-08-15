@@ -79,9 +79,11 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
       ? ((p.effectivePowers ?? calcFieldPowers(attacker, defender, true, effectsMap, cardMap, p.turnPhase)).get(attackerNum)
           ?? parsePowerVal(cardMap.get(attackerNum)?.Power))
       : undefined;
-    const banCost = signiAttackBanColorlessCost(attacker, attackerNum, cardMap, banPower);
+    const banCost = signiAttackBanCost(attacker, attackerNum, cardMap, banPower);
     if (banCost === null) return 'ATTACK_BAN';
-    if (banCost > 0 && attacker.energy.length < banCost + (attacker.signi_attack_cost ?? 0)) return 'ATTACK_BAN_COST';
+    if (banCost.colorless > 0 && attacker.energy.length < banCost.colorless + (attacker.signi_attack_cost ?? 0)) return 'ATTACK_BAN_COST';
+    // 「手札をN枚捨てないかぎり」＝**アタックするごとに**払うので、毎回いまの手札で判定する。
+    if (banCost.handDiscard > 0 && attacker.hand.length < banCost.handDiscard) return 'ATTACK_BAN_HAND_COST';
   }
 
   // OPP_SIGNI_ATTACK_COST: アタック自体にエナコストが必要（performSigniAttack が実際に引き落とす）
