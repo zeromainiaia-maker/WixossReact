@@ -12,7 +12,7 @@ import {
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked, buildFrontPowerGatedKeywordGrant,
-  sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard,
+  sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
 } from './execUtils';
 import { cloneAcceSlots } from '../utils/acce';
 import { parseChoiceOptionsFromText } from './choiceTextParser';
