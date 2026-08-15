@@ -1,5 +1,120 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-15（続き491・Opus 5）— §6.4 **O-3 のフェイズ／ターンのスキップ系統を解体＝6効果の挙動是正**
+
+**新機構2つ**＝①「フェイズをスキップする」を**遷移の1点**に集約（`PHASE_SKIP_BLOCK_IDS` ＋ `resolveNextPhaseWithSkips`）
+②「ターンプレイヤーを交代するか」の判定を**1関数**に集約（`resolveTurnHandover`）。
+**無言 no-op 4／恒久 no-op 2**。あわせて **PvP のアタックステップ封じ（4効果）** と **CPU の追加ターン**も是正。
+ゲート全緑（**golden 2027**＝+8・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・lint 0 errors / 260 warnings）。
+live JSON changed **4カード**（`WXEX2-19`／`WX16-001`／`SP38-006`／`WD20-006`。CSV 非改変）。
+`census:stubs` A群＝**無言 no-op 0 据置**、明示 defer **26種/28件 → 24種/26件**。
+
+### 母集団の実測（着手前・受け皿 id ではなく原文 regex で数え直した）
+
+「〜フェイズ／ステップ／ターンをスキップする」は原文 **13効果**。うち**壊れていたのが6効果**だった：
+
+| カード | 原文 | 修正前 |
+|---|---|---|
+| `WXEX2-19-E3` | 次の対戦相手のターン、メインフェイズをスキップする | `STUB{DEFERRED_NEXT_OPP_TURN_MAIN_PHASE_SKIP}`＝恒久 no-op |
+| `WD20-006-E1` | …あなたがベットしていなかった場合、次のあなたのターンをスキップする | `STUB{DEFERRED_SKIP_NEXT_TURN}`＝恒久 no-op（**条件節2つも脱落**） |
+| `WX05-018-E1` | 【常】：対戦相手は自分のエナフェイズをスキップする | 🔴`BLOCK_ACTION{ENERGY_PHASE}`＝**消費地点ゼロ＝無言 no-op** |
+| `WX16-001-E3` | このターン、シグニアタックフェイズをスキップする | 🔴`BLOCK_ACTION{SIGNI_ATTACK_PHASE}`＝**綴りが1つズレて無言 no-op** |
+| `SP38-006-E4` | 追加の１ターンを得る。あなたの次のアタックフェイズとグロウフェイズをスキップする | 🔴アタック側が**丸ごと脱落**／グロウ側も `END_OF_TURN`＝**スキップ対象でないターン**を封じていた |
+| `WXK06-078-E1` | そうした場合、このメインフェイズを終了する | 🔴`STUB{SKIP_MAIN_PHASE}`＝**ログを1行出すだけのハンドラ**＝無言 no-op |
+| グロウフェイズスキップ 7効果 | 【常】：あなたのグロウフェイズをスキップする | 既存の「グロウという行動を封じる」近似で可（**据置**） |
+
+🔑**「STUB の在庫」を数えても半分しか見えない**＝この系統は6件のうち**4件が STUB ですらなかった**
+（`BLOCK_ACTION` の未消費 id／綴りズレ／ログだけのハンドラ）。`census:stubs` は前2つを構造的に見ないし、
+3つ目は「ハンドラがある＝実装済み」と判定する（続き459 の教訓の実例）。
+
+### ① 新機構＝フェイズスキップを「次のフェイズを決める1点」に集約
+
+`src/screens/battle/attackStepPhase.ts` の `resolveNextPhaseWithAttackStepBlocks` を
+**表駆動の `resolveNextPhaseWithSkips`** へ一般化した（旧名は全呼び出し元・golden ごと改名）。
+
+| フェイズ | 封じ id |
+|---|---|
+| `ENERGY` | `ENERGY_PHASE` |
+| `MAIN` | `MAIN_PHASE` |
+| `ATTACK_ARTS` / `ATTACK_ARTS_OP` | `ATTACK_PHASE` |
+| `ATTACK_SIGNI` | `ATTACK_PHASE` / `SIGNI_ATTACK_STEP` / `SIGNI_ATTACK_PHASE` |
+| `ATTACK_LRIG` | `ATTACK_PHASE` / `LRIG_ATTACK_STEP` |
+
+- 🔑**フェイズ内の個別アクションを1つずつ封じない**＝封じ漏れが1つでもあると無言ですり抜ける
+  （続き488 の `PAY_ENERGY_COST` と同じ設計＝判定を funnel に1本だけ置く）。
+- 🔑**「◯◯フェイズ開始時」フックを遷移元（`phase`）から遷移先（`nextPhase`）へ全部付け替えた**
+  （`ON_GROW_PHASE_START` / `ON_MAIN_PHASE_START` / `game_energy_phase_draw` / `game_main_draw` /
+  `game_grow_phase_limit_plus` / `pending_lrig_limit_mod` / 【ハスターリク】）。
+  ①**飛ばしたフェイズの開始時処理は走らない** ②**次に実際に入るフェイズの開始時処理はちゃんと走る**
+  の両方をこの1つの書き換えで満たす。スキップが無い通常進行では `nextPhase === PHASE_NEXT[phase]` ＝挙動不変。
+- ⚠**CONTINUOUS 由来の封じは `blocked_actions` に載らない**＝`calcContinuousBlockedActions(...).forSelf` を
+  引数で渡す。渡し忘れると `WX05-018-E1` のような【常】が丸ごと no-op になる（golden にトリップワイヤ）。
+- ⚠**`GROW` はこの表に載せない**＝「グロウフェイズをスキップする」7効果は従来どおり「グロウという行動を封じる」
+  近似のまま（フェイズごと飛ばすと `ON_GROW_PHASE_START` の発火が7効果ぶん同時に変わる）。golden で固定。
+- CPU 経路＝`cpuNextPhase()` で同じ関数を通す。ただし**エナフェイズだけはフェイズ内の唯一の行動
+  （エナチャージ）を行わない形**で表す（`ON_GROW_PHASE_START` の収集が ENERGY ハンドラ内にあるため）。
+
+### ② 新機構＝ターンプレイヤー交代の判定を1関数へ（`resolveTurnHandover`）
+
+- 🔑**「ターンが普通に回らない」理由を軸ごとに別分岐にしない**＝`extra_turn`（追加ターン）と
+  新設 `skip_next_turn`（次のターンプレイヤーが自分のターンを飛ばす）は**結果が同じ**（交代しない）。
+  ターン終了は**3経路**（人間の通常／手札上限の捨て札あり／CPU）あり、軸ごとに書くと必ずどれかで漏れる。
+- 🔴**実際に漏れていた**＝CPU のターン終了は `activeUserId: user.id` 直書きで交代判定を一切持たず、
+  **CPU が取った追加ターンも、人間が `WD20-006` で予約した「次の自分のターンをスキップ」も効かなかった**。
+  `WD20-006` の原文は「**このターンが対戦相手のターンで**」＝この経路こそが本命。
+- ⚠**予約の消費と判定を同じ戻り値で返す**（`resolveNextPhaseAfterAttack` と同じ形）＝別分岐にすると
+  「消さないまま交代しない＝永久ループ」か「消したのに交代する＝不発」になる。
+- golden にソース走査のトリップワイヤ（`resolveTurnHandover(` が BattleScreen に**ちょうど3回**）。
+
+### ③ 🔴 条件節を落としたまま機構だけ足すと「過剰実行」になる
+
+`WD20-006-E1` の受け皿 STUB は「このターンが対戦相手のターンで、あなたがベットしていなかった場合、」を
+**丸ごと捨てていた**。ここに実装だけ足すと**ベットしていても自分のターンでも必ず次のターンを飛ばす**。
+`CONDITIONAL{AND[TURN_OWNER{opponent}, IS_BETTING{negate:true}]}` へ組み替えた
+（`IS_BETTING` に `negate` を新設。`TURN_OWNER` は `ctx.isOwnerTurn` を読む既存条件）。
+golden は**3通り（相手ターン×非ベット／相手ターン×ベット／自分ターン×非ベット）**の対で固定した。
+
+### ④ 🔴 綴りが1つズレた `BLOCK_ACTION` はどの計器にも映らない
+
+`WX16-001-E3`（コイン3の【起】）は `SIGNI_ATTACK_PHASE` を吐いていたが、消費側は
+`SIGNI_ATTACK_STEP` しか見ていなかった。**「シグニアタックフェイズ」と「シグニアタックステップ」は同じもの**。
+parser を正準の綴りへ寄せ、engine 側の表は**両方受ける**ようにした（過去 JSON の手パッチ対策）。
+🔑**同じ概念に2つのキー綴りが併存していないか先に確かめる**（§4 罠 (h) の再来）。
+
+### ⑤ 🔴 PvP の `ATTACK_ARTS_OP` はスキップ判定を**非ターンプレイヤー**の state で見ていた
+
+`ATTACK_ARTS_OP` は `NON_TURN_PLAYER_PHASES`＝**進行ボタンを持つのが非ターンプレイヤー**なので、
+`doPhaseAdvance` の `my` はターンプレイヤーではない。従来ここは `my.blocked_actions` を見ており、
+PvP では「相手のシグニアタックステップを飛ばす」札（`WX09-Re02-E1`／`WXK01-007`／`WXDi-P09-031`／
+`WXK11-001` の4効果）が**自分に掛かっているかで判定**されて無言ですり抜けていた。
+CPU 戦は専用の `huSt` 経路を通るので影響なし＝**PvP だけで壊れる**クラス。
+
+### ⑥ 「このメインフェイズを終了する」の消費地点
+
+`SKIP_MAIN_PHASE` は `blocked_actions` に `MAIN_PHASE`（`:NEXT_TURN` 無し＝このターン限り）を積む。
+①CPU は召喚ループのガードが読み ②人間は `doPhaseAdvanceRef` 経由の自動進行 effect が読む
+（確認ダイアログは通さない＝ルール上の強制終了なので選択肢が無い）。
+⚠自動進行 effect は**早期 return より前**に置く（`useEffect` を後ろに足すと `rules-of-hooks` で赤くなる）＝
+既存の「ターン終了の自動進行」と同じ位置・同じ `doPhaseAdvanceRef` を使う。
+
+### 変更ファイル
+
+- `src/screens/battle/attackStepPhase.ts`＝`PHASE_SKIP_BLOCK_IDS` / `isPhaseSkipped` / `resolveNextPhaseWithSkips`（改名）
+- `src/screens/battle/turnHandover.ts`（新規）＝`resolveTurnHandover`
+- `src/screens/BattleScreen.tsx`＝フェイズ開始時フックの `nextPhase` 化／CPU 3分岐／ターン終了3経路／自動進行 effect
+- `src/data/parsers/parseSentencePart1.ts`（`SP38-006-E4`）／`Part2.ts`（綴り正規化）／`Part3.ts`（`MAIN_PHASE` 予約）／`Part4.ts`（`WD20-006-E1` の条件付き `SKIP_NEXT_TURN`）
+- `src/engine/execStubPart1.ts`（`SKIP_MAIN_PHASE`）／`execStubPart2.ts`（`SKIP_NEXT_TURN`）／`execUtils.ts`（`IS_BETTING.negate`）
+- `src/types/index.ts`（`skip_next_turn`）／`src/types/effects.ts`（`IS_BETTING.negate`）
+- `scripts/decompileEffects.ts`（`predMap` 3語彙・`miscStubMap` 2語彙・`IS_BETTING` の否定表示）
+- `scripts/goldenTest.ts`（+8）
+
+### ⚠ 実機未検証（§7 送り）
+
+**フェイズスキップは全経路がヘッドレスでは検証できない**＝(a) メインフェイズスキップ（`WXEX2-19`＝
+相手のターンで GROW→ATTACK_ARTS へ飛ぶか・`ON_MAIN_PHASE_START` が走らないか）(b) エナフェイズスキップ
+（`WX05-018`＝DRAW→GROW・`ON_GROW_PHASE_START` は走るか）(c) ターンスキップ（`WD20-006`＝
+CPU ターン終了後に**もう一度 CPU のターン**が来るか）(d) 「このメインフェイズを終了する」の自動進行。
+
 ## 2026-08-15（続き490・Opus 5）— §6.4 **O-3 `ATTACK_TAX_HAND_DISCARD`（1効果）を解体＝2効果の挙動是正**
 
 **恒久 no-op 2件**（うち1件は**どの計器にも映らない無言 no-op**）。ゲート全緑（**golden 2019**＝+2・**census 831 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0・lint 0 errors / 259 warnings）。
