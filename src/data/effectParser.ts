@@ -9700,6 +9700,20 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // STUB(DECLARE_CARD_NAME) + DECLARE_CARD_NAME_LOCK → 後者だけ（§6.4 O-3 続き498）。
+  // 宣言と禁止は1アクションに畳んである（候補作りが禁止対象と同じ軸でないと成立しないため）。
+  // ⚠残すと既存 `DECLARE_CARD_NAME`（**自分の手札**のカード名から選ぶ別機構）の余計なダイアログが出る。
+  {
+    const lockIdx = steps.findIndex(st => st?.type === 'DECLARE_CARD_NAME_LOCK');
+    const declIdx = steps.findIndex(st =>
+      st?.type === 'STUB' && (st as StubAction).id === 'DECLARE_CARD_NAME');
+    if (lockIdx >= 0 && declIdx >= 0 && declIdx < lockIdx) {
+      const kept = steps.filter((_, i) => i !== declIdx);
+      steps.length = 0;
+      steps.push(...kept);
+    }
+  }
+
   // STUB(SEED_BLOOM) + STUB(SEED_BLOOM_BOUNCE_OCCUPANT) → STUB(SEED_BLOOM){bounceOccupant}（§6.4 O-3 続き498）。
   // 原文「それを開花する。**そのシグニゾーンにシグニがある場合、代わりにそのシグニを手札に戻してから開花する**」は
   // 開花そのものの**置換**なので、後続ステップとして並べても間に合わない（開花は既に「シグニあり＝不発」で終わる）。
