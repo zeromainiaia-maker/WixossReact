@@ -7417,10 +7417,44 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
           lastProcessedCards: took,
         }, `デッキの一番上${took.length}枚を裏向きでルリグゾーンへ`));
       }
+      // 「対戦相手は手札を**すべて**〜置く」＝選択の余地が無いので一括で動かす（`SPDi43-02-E2`）。
+      // ⚠置く側は効果のオーナーとは限らない＝`owner` を見る（旧実装は自分の手札を1枚捨てていた）。
+      const pflOwner: Owner = pfl.owner ?? 'self';
+      const pflState = ownerState(pflOwner, ctx);
+      if (pfl.all || pflOwner === 'opponent') {
+        const movedPFL = pfl.all ? [...pflState.hand] : pflState.hand.slice(0, Math.max(1, pfl.count));
+        if (movedPFL.length === 0) return done(addLog(ctx, '手札が無く裏向きに置けない'));
+        return done({
+          ...addLog(setOwnerState(pflOwner, {
+            ...pflState,
+            hand: pflState.hand.filter(cn => !movedPFL.includes(cn)),
+            facedown_lrig_zone_cards: [...(pflState.facedown_lrig_zone_cards ?? []), ...movedPFL],
+          }, ctx), `${pflOwner === 'self' ? 'あなた' : '対戦相手'}の手札${movedPFL.length}枚を裏向きでルリグゾーンへ`),
+          lastProcessedCards: movedPFL,
+        });
+      }
       // 手札からは選択させる（「N枚まで」＝0枚可）。選択後は下の applyDirectAction 側で確定する。
       if (ctx.ownerState.hand.length === 0) return done(addLog(ctx, '手札が無く裏向きに置けない'));
       return selectOrInteract(
         ctx.ownerState.hand, Math.max(1, pfl.count), pfl.upToCount ?? false, 'self_hand', action, undefined, ctx);
+    }
+    case 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND': {
+      // 「そのカードを手札に加える」＝裏向きでルリグゾーンに置いたカードを手札へ（§6.4 O-3）。
+      // ⚠遅延（`DELAY_TO_NEXT_OPP_TURN_END` / `INSTALL_DELAYED_TRIGGER`）を跨いで発火するので、
+      //   参照先は `lastProcessedCards` ではなく **state に残っている `facedown_lrig_zone_cards`** を読む。
+      const rfl = action as import('../types/effects').ReturnFacedownLrigZoneToHandAction;
+      const rflOwner: Owner = rfl.owner ?? 'self';
+      const rflState = ownerState(rflOwner, ctx);
+      const backRFL = rflState.facedown_lrig_zone_cards ?? [];
+      if (backRFL.length === 0) return done(addLog(ctx, 'ルリグゾーンに裏向きのカードが無い'));
+      return done({
+        ...addLog(setOwnerState(rflOwner, {
+          ...rflState,
+          facedown_lrig_zone_cards: undefined,
+          hand: [...rflState.hand, ...backRFL],
+        }, ctx), `裏向きのカード${backRFL.length}枚を${rflOwner === 'self' ? 'あなた' : '対戦相手'}の手札へ`),
+        lastProcessedCards: backRFL,
+      });
     }
     case 'REVEAL_FACEDOWN_LRIG_ZONE': {
       // 「そのカードを表向きにしてトラッシュに置き、」＝裏向きカードを公開してトラッシュへ。
