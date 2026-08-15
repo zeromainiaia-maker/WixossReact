@@ -3,7 +3,7 @@ import { advancePreventDamageWindows } from './battleUtils';
 import { normalizeFieldGrants, optionalFieldGrants } from '../../utils/fieldGrants';
 
 // 'turn-end' ＝いま終わるグローバルターンの終了時に、**両プレイヤー**の値を失効させる。
-type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'consume';
+type TurnScopedBoundary = 'turn-end' | 'turn-start' | 'attack-phase-start' | 'main-phase-start' | 'consume';
 type TurnScopedResetValue = undefined | 0 | readonly [];
 type TurnScopedSpec = {
   readonly boundaries: readonly TurnScopedBoundary[];
