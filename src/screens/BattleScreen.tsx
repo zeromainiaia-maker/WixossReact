@@ -49,7 +49,7 @@ import { collectOppSigniAttackResponses } from './battle/attackResponse';
 import { clearEndOfTurnDelayedTriggers, consumeBattleBanishDelayedTriggers } from './battle/delayedTrigger';
 import { resolveTurnEndFacedownReturns } from '../engine/facedownSigni';
 import { JANKEN_LABEL, PHASE_LABEL, PHASE_BTN, NON_TURN_PLAYER_PHASES, WAITING_MSG, setupWrap, primaryBtn } from './battle/uiConstants';
-import { resolveNextPhaseWithAttackStepBlocks } from './battle/attackStepPhase';
+import { resolveNextPhaseWithAttackStepBlocks, resolveNextPhaseAfterAttack } from './battle/attackStepPhase';
 import { MulliganCard } from './battle/MulliganCard';
 import type { BattleModalCtx, CutinCandidate } from './battle/modals/types';
 import { GrowModal } from './battle/modals/GrowModal';
