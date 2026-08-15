@@ -10375,6 +10375,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: 'END' }));
         return;
       }
+      // §6.4 O-3: メインフェイズがスキップされている（`WXEX2-19-E3`）なら**召喚を1体も行わず**
+      // 下の MAIN→アタックフェイズ遷移へ落ちる（`ON_ATTACK_PHASE_START` の収集はそちらが行う）。
+      const cpuMainSkipped = isPhaseSkipped('MAIN', cpuSt, cpuContBlockedSelf);
+      if (cpuMainSkipped) appendBattleLogs(['[CPU] メインフェイズをスキップする']);
       const cpuLrigId = cpuSt.field.lrig.at(-1) ?? null;
       const cpuLrigNum = cpuLrigId ? getCardNum(cpuLrigId) : null;
       const cpuLrigCard = cpuLrigNum ? cards.find(c => c.CardNum === cpuLrigNum) : null;
