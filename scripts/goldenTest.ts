@@ -31797,12 +31797,16 @@ test('続き389 採用5効果と据置4効果: live の採否を action 退化�
     eq(live.condition, undefined, `${cardNum}: action退化を飲まずconditionも据置`);
     eq(live.action.type, 'SEQUENCE', `${cardNum}: 既存の具体SEQUENCEを温存`);
   }
-  // ⚠id は続き459 で `LRIG_GROW_RESTRICT`（＝原文と無関係な「グロウ制限」の名前）から
-  //   `DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE`（＝未パース節であることを名乗る honest な no-op）へ改名した。
-  //   **据置の理由は変わっていない**＝raw は「次の対戦相手のターン…」節を構造化できず丸ごと落とす。
+  // ⚠**続き493 で据置を解除**＝「次の対戦相手のターンの間、〜ダメージを受けず、〜移動しない」を
+  //   `PREVENT_DAMAGE{scope:'LRIG'}`＋`ZONE_MOVE_IMMUNITY` の両方で構造化できたので、
+  //   raw も live も未パース節（`DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE`）へは落ちない。
+  //   ⚠残る `DEFERRED_NEXT_OPP_TURN_END_BODY` は**別物**＝「次の対戦相手のターン終了時、〜」の
+  //   遅延本体（予約機構が未実装なので即時実行させないための明示 defer）。
   const p16Raw = parseCardEffects(cardMap.get('WXDi-P16-002')!)[0];
-  ok(JSON.stringify(p16Raw.action).includes('DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE'), 'P16 raw は未パース節へ退化する');
-  ok(!JSON.stringify(effectsMap.get('WXDi-P16-002')![0].action).includes('DEFERRED_'), 'P16 live は退化形を採用しない');
+  const p16RawJson = JSON.stringify(p16Raw.action);
+  ok(!p16RawJson.includes('DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE'), 'P16 raw はもう未パース節へ落ちない');
+  ok(p16RawJson.includes('ZONE_MOVE_IMMUNITY') && p16RawJson.includes('PREVENT_DAMAGE'), 'P16 raw が複合節を両方構造化する');
+  ok(!p16RawJson.includes('使用条件'), 'P16 raw に【使用条件】ヘッダ由来のゴミ keyword が残らない');
 
   const d04RawIds = parseCardEffects(cardMap.get('WXDi-D04-011')!).map(effect => effect.effectId);
   const d04LiveIds = effectsMap.get('WXDi-D04-011')!.map(effect => effect.effectId);
