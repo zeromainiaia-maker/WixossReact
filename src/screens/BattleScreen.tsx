@@ -1261,6 +1261,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.effect_stack, bs?.pending_effect, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 「このメインフェイズを終了する」（`SKIP_MAIN_PHASE`＝`WXK06-078-E1`・§6.4 O-3 続き491）。
+  // ⚠🔴従来は**ログを1行出すだけのハンドラ**で、`census:stubs` は「ハンドラがある＝実装済み」と
+  //   判定するため計器にも映らない無言 no-op だった（続き459 の教訓の実例）。
+  // 🔑消費は「メインフェイズを封じる」1点（`MAIN_PHASE`＝`PHASE_SKIP_BLOCK_IDS` と同じ語彙）＝
+  //   ①CPU 側は召喚ループが止まり ②人間側はここで**自動でアタックフェイズへ送る**。
+  //   確認ダイアログ（`handlePhaseAdvance`）は通さない＝ルール上の強制終了なので選択肢が無い。
+  useEffect(() => {
+    if (!bs || bs.global_phase !== 'PLAYING' || bs.turn_phase !== 'MAIN') return;
+    if (bs.active_user_id !== user.id) return;         // ターンプレイヤーだけが進める
+    if (bs.effect_stack || bs.pending_effect || bs.pending_spell) return;
+    const meState = user.id === bs.host_id ? bs.host_state : bs.guest_state;
+    const foeState = user.id === bs.host_id ? bs.guest_state : bs.host_state;
+    if (meState.field?.check || foeState.field?.check) return;
+    if (!(meState.blocked_actions ?? []).includes('MAIN_PHASE')) return;
+    doPhaseAdvanceRef.current?.();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.pending_spell, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // SPELL_CUTINレゾナの支払い・配置・ON_PLAYスタックが完了したら、同じ応答者が元スペルを継続する。
   useEffect(() => {
     if (!bs?.pending_spell?.cutin_response_complete || !user) return;
