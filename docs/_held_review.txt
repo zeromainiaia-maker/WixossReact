@@ -297,6 +297,24 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
+## +CONDITIONAL +SEARCH +SHUFFLE_DECK +TRASH_HAS_CARD -STUB ［1枚］
+WX20-077
+--- WX20-077
+  原文: 【自】：このシグニがアタックしたとき、ターン終了時まで、対戦相手のすべてのシグニのパワーを－1000する。あなたの場にカード名に《リカブト》を含むシグニがある場合、代わりに－3000する。【出】：あなたのトラッシュにカード名に《リカブト》を含むカードがある場合、あなたのデッキから《バイオレンス・スプラッシュ》１枚を探す。その後、デッキをシャッフルし、それをコ
+  - [1].action.steps[0].id = "CONDITIONAL_POWER_BONUS"
+  ~ [1].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [1].action.steps[0].condition.type = "TRASH_HAS_CARD"
+  + [1].action.steps[0].condition.owner = "self"
+  + [1].action.steps[0].condition.filter.cardName = "リカブト"
+  + [1].action.steps[0].then.type = "SEARCH"
+  + [1].action.steps[0].then.from.location = "deck"
+  + [1].action.steps[0].then.from.owner = "self"
+  + [1].action.steps[0].then.filter.cardName = "バイオレンス・スプラッシュ"
+  + [1].action.steps[0].then.maxCount = 1
+  + [1].action.steps[0].then.afterSearch.type = "SHUFFLE_DECK"
+  + [1].action.steps[0].then.afterSearch.owner = "self"
+  …（他 1 行）
+
 ## +DURING_ATTACK_PHASE ［1枚］
 WXEX2-30
 --- WXEX2-30
@@ -360,24 +378,6 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
-
-## +STUB ［1枚］
-WXDi-P08-064
---- WXDi-P08-064
-  原文: 【出】：あなたの場にいる青のルリグ１体につき対戦相手のシグニを１体まで対象とし、それらを凍結する。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.filter.color = "青"
-  - [0].action.target.upToCount = true
-  ~ [0].action.type : "FREEZE" → "STUB"
-  + [0].action.id = "PER_OWN_LRIG_COLOR_SCALE"
-  + [0].action.scaleColor = "青"
-  + [0].action.scaleAction.type = "FREEZE"
-  + [0].action.scaleAction.target.type = "SIGNI"
-  + [0].action.scaleAction.target.owner = "opponent"
-  …（他 3 行）
 
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
@@ -522,24 +522,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## +BANISH +DECK_CARD +DRAW +ENERGY_CHARGE_FROM_DECK +LRIG_ANY_TEAM_COUNT +SEQUENCE +SIGNI +STUB×5 +TRASH ［1枚］
-WX25-P3-050
---- WX25-P3-050
-  原文: 【使用条件】【チーム】いずれかのチームあなたの場にいる白のルリグ１体につき【ルリグバリア】１つを得る。あなたの場にいる赤のルリグ１体につき対戦相手のシグニを２体まで対象とし、それらのパワーの合計が12000以下の場合、それらをバニッシュする。あなたの場にいる青のルリグ１体につきカードを３枚引く。あなたの場にいる緑のルリグ１体につき【エナチャージ３】をする。あ
-  - [0].action.id = "DEFERRED_PER_OWN_LRIG_COLOR_SCALE"
-  + [0].condition.type = "LRIG_ANY_TEAM_COUNT"
-  + [0].condition.owner = "self"
-  + [0].condition.value = 3
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "PER_OWN_LRIG_COLOR_SCALE"
-  + [0].action.steps[0].scaleColor = "白"
-  + [0].action.steps[0].scaleAction.type = "STUB"
-  + [0].action.steps[0].scaleAction.id = "GAIN_LRIG_BARRIER"
-  + [0].action.steps[1].type = "STUB"
-  + [0].action.steps[1].id = "PER_OWN_LRIG_COLOR_SCALE"
-  …（他 27 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069

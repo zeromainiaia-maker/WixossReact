@@ -15128,6 +15128,40 @@ test('GAIN_BOND source:last_found: 直前選択カードとの絆を bonds へ�
   const r = run({ type: 'GAIN_BOND', source: 'last_found' } as EffectAction, ctx);
   ok((r.ownerState.bonds ?? []).includes(name!), `bonds (${JSON.stringify(r.ownerState.bonds)})`);
 });
+// ── USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)「それをコストを支払わずに使用するかトラッシュに置く」）──
+// 🔴回帰ガード＝従来は先頭の「トラッシュに《リカブト》がある場合、デッキから《バイオレンス・スプラッシュ》
+//    を探す」節ごと catch-all `STUB{CONDITIONAL_POWER_BONUS}` に飲まれ、**サーチも使用も一度も走らなかった**。
+test('USE_SEARCHED_SPELL_OR_TRASH: サーチ→「使う/トラッシュ」の二択（WX20-077-E2 live・両枝の対）', () => withSavedCursor(() => {
+  const target = findCard(c => c.CardName === 'バイオレンス・スプラッシュ');
+  const rikabuto = findCard(c => (c.CardName ?? '').includes('リカブト'));
+  const eff = (effectsMap.get('WX20-077') ?? []).find(e => e.effectId === 'WX20-077-E2')!;
+  const mk = () => {
+    const c = mkCtx({}, {});
+    c.ownerState.deck = [target, ...c.ownerState.deck];
+    c.ownerState.trash = [rikabuto];
+    return c;
+  };
+  // ① SEARCH で当たり札が見える／② 「トラッシュに置く」枝＝手札にもデッキにも残らない
+  const c1 = mk();
+  let r = executeEffect(eff, c1);
+  ok(!r.done && r.pending.type === 'SEARCH', 'デッキサーチが走る');
+  eq(r.pending.visibleCards.join('|'), target, '名指しの1枚だけ候補');
+  let cc = { ...c1, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+  r = resumeSearch([target], r.pending, cc);
+  ok(!r.done && r.pending.type === 'CHOOSE', '使う/トラッシュの二択が出る');
+  cc = { ...c1, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs,
+    lastProcessedCards: r.lastProcessedCards } as ExecCtx;
+  const trashed = finish(resumeChoose('trash', r.pending, cc), cc);
+  ok(trashed.ownerState.trash.includes(target), 'トラッシュ枝＝トラッシュへ');
+  ok(!trashed.ownerState.hand.includes(target), 'トラッシュ枝＝手札に残さない');
+  ok(!trashed.ownerState.deck.includes(target), 'トラッシュ枝＝デッキに残さない');
+  // ③ 対照＝トラッシュに《リカブト》が無ければサーチ自体が走らない
+  const c3 = mkCtx({}, {});
+  c3.ownerState.deck = [target, ...c3.ownerState.deck];
+  c3.ownerState.trash = [];
+  const r3 = finish(executeEffect(eff, c3), c3);
+  ok(r3.ownerState.deck.includes(target), '条件を満たさなければデッキから動かない');
+}));
 // ── PER_OWN_LRIG_COLOR_SCALE（§6.4 O-34(d)「あなたの場にいる〈色〉のルリグ１体につき〈効果〉」）──
 // 🔴回帰ガード＝従来は「1体につき」が丸ごと落ち、`WX25-P3-050-E1` はバニッシュ／ドロー3／
 //    エナチャージ3／相手デッキ10枚ミルが**ルリグの色に関係なく無条件で1回ずつ**走っていた。
