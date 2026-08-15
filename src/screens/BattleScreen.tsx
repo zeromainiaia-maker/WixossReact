@@ -4399,8 +4399,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     doPhaseAdvance();
   };
 
-  doPhaseAdvanceRef.current = doPhaseAdvance;
-
   // エナチャージ（手札のカードをエナゾーンへ）
   const handleEnergyChargeFromHand = async (handIndex: number) => {
     if (!isMyTurn || loading) return;
