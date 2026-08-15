@@ -15,30 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 WD07-006 WX05-025 WX07-029 WX10-062 WX13
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +PREVENT_DAMAGE -STUB ［5枚］
-PR-K019 WX26-CP1-004 WX26-CP1-023 WX26-CP1-073 WXK10-019
---- PR-K019
-  原文: 【常】：あなたの＜精元＞のシグニのパワーを＋2000する。【出】：あなたのトラッシュから＜精元＞のシグニを２枚まで対象とし、それらを手札に加える。【起】《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
-  - [2].action.id = "PREVENT_LRIG_DAMAGE_THIS_TURN"
-  ~ [2].action.type : "STUB" → "PREVENT_DAMAGE"
-  + [2].action.owner = "self"
-  + [2].action.until = "UNTIL_END_OF_TURN"
-  + [2].action.scope = "LRIG"
---- WX26-CP1-004
-  原文: 対戦相手のパワー12000以下のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。あなたの手札が２枚より少ない場合、その差の分だけカードを引く。《リコレクトアイコン》［４枚以上］追加で手札から＜プリオケ＞のカードを１枚捨ててもよい。そうした場合、このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
-  - [0].action.steps[4].then.id = "PREVENT_LRIG_DAMAGE_THIS_TURN"
-  ~ [0].action.steps[4].then.type : "STUB" → "PREVENT_DAMAGE"
-  + [0].action.steps[4].then.owner = "self"
-  + [0].action.steps[4].then.until = "UNTIL_END_OF_TURN"
-  + [0].action.steps[4].then.scope = "LRIG"
---- WX26-CP1-023
-  原文: 以下の２つから１つを選ぶ。①あなたの場にシグニがない場合、あなたの手札から＜プリオケ＞のシグニ１枚を場に出す。この方法で場に出たシグニの【出】能力は発動しない。②あなたの場に＜プリオケ＞のシグニがある場合、このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
-  - [0].action.choices[1].action.id = "PREVENT_LRIG_DAMAGE_THIS_TURN"
-  ~ [0].action.choices[1].action.type : "STUB" → "PREVENT_DAMAGE"
-  + [0].action.choices[1].action.owner = "self"
-  + [0].action.choices[1].action.until = "UNTIL_END_OF_TURN"
-  + [0].action.choices[1].action.scope = "LRIG"
-
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
@@ -572,24 +548,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## +PREVENT_DAMAGE +SEQUENCE +SIGNI +TRASH -STUB ［1枚］
-WXK02-022
---- WXK02-022
-  原文: 【常】：あなたのエナゾーンにあるカードは【マルチエナ】を得る。【起】《アタックフェイズアイコン》《白》《赤》《青》《緑》《黒》このキーを場からルリグトラッシュに置く：対戦相手のシグニ１体を対象とし、それをトラッシュに置き、カードを２枚引く。このターン、あなたは対戦相手のルリグによってダメージを受けない。,-
-  - [1].action.steps[0].owner = "self"
-  - [1].action.steps[0].count = 2
-  - [1].action.steps[1].id = "PREVENT_LRIG_DAMAGE_THIS_TURN"
-  ~ [1].action.steps[0].type : "DRAW" → "SEQUENCE"
-  + [1].action.steps[0].steps[0].type = "TRASH"
-  + [1].action.steps[0].steps[0].target.type = "SIGNI"
-  + [1].action.steps[0].steps[0].target.owner = "opponent"
-  + [1].action.steps[0].steps[0].target.count = 1
-  + [1].action.steps[0].steps[0].target.filter.cardType = "シグニ"
-  + [1].action.steps[0].steps[0].target.upToCount = false
-  + [1].action.steps[0].steps[1].type = "DRAW"
-  + [1].action.steps[0].steps[1].owner = "self"
-  …（他 5 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
