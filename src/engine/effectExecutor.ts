@@ -1362,9 +1362,13 @@ function execLevelModify(a: import('../types/effects').LevelModifyAction, ctx: E
 function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
   // deltaPerLastProcessedCount: 「この方法で捨てた手札1枚につき－N」＝直前ステップで実際に処理した枚数が倍率
   // （WX12-020-E3・タスク12(lx)②）。現在の手札枚数を数える POWER_MODIFY_PER_HAND_COUNT とは別物。
-  const delta = a.deltaPerLastProcessedCount
-    ? resolveNum(a.delta) * (ctx.lastProcessedCards?.length ?? 0)
-    : resolveNum(a.delta);
+  // deltaFromZone:「〈ゾーン〉にある〈filter〉のカード1枚につき±N」＝枚数×per（§6.4 O-3）。
+  // ⚠`resolveNum` は `{$ref}` を 0 に潰すので、動的値は必ず `resolveCountRef` 側で解決する。
+  const delta = a.deltaFromZone
+    ? resolveCountRef(a.delta, ctx, a.deltaFromZone)
+    : a.deltaPerLastProcessedCount
+      ? resolveNum(a.delta) * (ctx.lastProcessedCards?.length ?? 0)
+      : resolveNum(a.delta);
   const srcType = srcTypeOf(ctx);
   // 「そのシグニのレベル１につき±N」（§6.4 O-16(a)）＝delta はレベル1あたりの単価。**ここで数値へ
   // 焼き込まない**＝倍率は grant の適用時に対象シグニ自身のレベルから毎回決まる。
