@@ -2824,6 +2824,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §6.4 O-34（続き500）＝明示 defer 5件を解体して実装した機構。生 id を漏らさない。
+        STRIP_ATTACHED_AND_UNDER: 'それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く',
+        USE_SEARCHED_SPELL_OR_TRASH: 'それをコストを支払わずに使用するかトラッシュに置く',
+        DECK_SIGNI_LEVEL_OVERRIDE_ALL: 'このターン、あなたのデッキにあるシグニのレベルは指定値になる',
+        PER_OWN_LRIG_COLOR_SCALE: 'あなたの場にいる指定色のルリグ１体につき、以下を繰り返す',
+        DECLARED_ICON_HAND_DISCARD_BANISH: '対戦相手のシグニ１体を対象とし、あなたの手札を１枚選んでもよい。そうした場合、対戦相手がアイコンを１つ宣言し、あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする',
         // §6.4 O-3（続き491）＝ターン/メインフェイズのスキップ（どちらも engine 実装済み）。
         SKIP_NEXT_TURN: '次のあなたのターンをスキップする',
         SKIP_MAIN_PHASE: 'このメインフェイズを終了する',
