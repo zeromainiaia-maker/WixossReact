@@ -1464,6 +1464,22 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         ],
       };
     }
+    // 「〈相手の〉シグニをN体まで対象とし、**それらのパワーの合計がM以下の場合**、それらをバニッシュする」
+    // （§6.4 O-34(d)・`WX25-P3-050-E1` 赤節・母集団1効果）。
+    // 🔴従来はこの合計パワーゲートが丸ごと落ちて `BANISH{count:2, upTo}`＝**パワー無制限で2体バニッシュ**
+    //   になっていた。既存の `totalPowerMax`（選択制約として engine 実装済み）に載せる。
+    // ⚠下の「合計がM以下になるように好きな数」とは**体数上限の有無**だけが違う兄弟。
+    const sumGateBanishM = t.match(/シグニを([０-９\d]+)体まで対象とし、それらのパワーの合計が([０-９\d]+)以下の場合、それらをバニッシュする/);
+    if (sumGateBanishM) {
+      return {
+        type: 'BANISH',
+        target: {
+          type: 'SIGNI', owner: signiClauseOwner(t), count: parseNum(sumGateBanishM[1]), upToCount: true,
+          filter: { cardType: 'シグニ', ...parseStoryFilter(t) },
+          totalPowerMax: parseNum(sumGateBanishM[2]),
+        },
+      };
+    }
     // 「パワーの合計がN以下になるように好きな数対象とし、それらをバニッシュする」（合計パワー制限の複数選択）
     const sumBanishM = t.match(/パワーの合計が([０-９\d]+)以下になるように好きな数/);
     if (sumBanishM) {
