@@ -81,6 +81,7 @@ import { TrashActivatedModal } from './battle/modals/TrashActivatedModal';
 import { GuardBarrierActModal } from './battle/modals/GuardBarrierActModal';
 import { NegateEscapeModal } from './battle/modals/NegateEscapeModal';
 import { AttackFieldTrashCostModal } from './battle/modals/AttackFieldTrashCostModal';
+import { AttackHandDiscardCostModal } from './battle/modals/AttackHandDiscardCostModal';
 import { SpellCutinOverlays } from './battle/modals/SpellCutinOverlays';
 import { EndConfirmModal } from './battle/modals/EndConfirmModal';
 import { FinishedPopup } from './battle/modals/FinishedPopup';
@@ -114,7 +115,7 @@ import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './ba
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack } from './battle/signiAttackGate';
-import { signiAttackBanColorlessCost } from './battle/signiAttackBan';
+import { signiAttackBanHandDiscardCost, signiAttackBanColorlessCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
@@ -12638,9 +12639,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const signiAtkCost = (my.signi_attack_cost ?? 0)
         + (signiAttackBanColorlessCost(my, topNum, battleCardMap, effectivePowers.get(topNum)) ?? 0);
       const fieldTrashAtkCost = attackFieldTrashCost(my, topNum);
+      // 「手札をN枚捨てないかぎりアタックできない」（§6.4 O-3）＝ボタンにも解除コストを出す
+      // （出さないと「押したら知らないモーダルが開く」になる）。
+      const handTaxAtkCost = signiAttackBanHandDiscardCost(my, topNum, battleCardMap, effectivePowers.get(topNum));
       const atkCosts = [
         ...(signiAtkCost > 0 ? [`《無》×${signiAtkCost}`] : []),
         ...(fieldTrashAtkCost > 0 ? [`他のシグニ${fieldTrashAtkCost}体トラッシュ`] : []),
+        ...(handTaxAtkCost > 0 ? [`手札${handTaxAtkCost}枚捨て`] : []),
       ];
       const atkLabel = atkCosts.length > 0 ? `アタック（${atkCosts.join('・')}）` : 'アタック';
       const actions: CardAction[] = [{ label: atkLabel, color: C.danger, onClick: () => handleSigniAttack(rawZoneIdx) }];
