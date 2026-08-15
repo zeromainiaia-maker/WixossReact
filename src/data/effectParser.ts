@@ -9512,6 +9512,28 @@ function parseActionTextInner(text: string): EffectAction {
     } as import('../types/effects').ConditionalAction;
   }
 
+  // 追加のアタックフェイズ（§6.4 O-3）：「〜追加のアタックフェイズを加える。**この方法で加えた
+  // アタックフェイズ（の）開始時**、〈本文〉」の〈本文〉は**追加したフェイズの開始時**に走る。
+  // ⚠文単位に切ると本文が後続ステップとして並び、**加えた瞬間に実行**される過剰実行になっていた
+  //   （`WXK06-026-E1`＝メインフェイズ中に全シグニがアップ／`WX22-010-E3`＝場出し＋ルリグアップが即時）。
+  // ⚠畳み込むのは原文に「この方法で加えたアタックフェイズ」がある場合だけ＝後続文が追加フェイズと
+  //   無関係なカードを巻き込まない（現母集団は2枚とも後続文すべてが追加フェイズの記述）。
+  {
+    const eapIdx = steps.findIndex(st => st?.type === 'ADD_EXTRA_ATTACK_PHASE');
+    if (eapIdx >= 0 && eapIdx < steps.length - 1 && /この方法で加えたアタックフェイズ/.test(text)) {
+      const body = steps.slice(eapIdx + 1);
+      const onStart: EffectAction = body.length === 1
+        ? body[0]
+        : { type: 'SEQUENCE', steps: body } as SequenceAction;
+      const folded: EffectAction[] = [
+        ...steps.slice(0, eapIdx),
+        { ...(steps[eapIdx] as import('../types/effects').AddExtraAttackPhaseAction), onStart },
+      ];
+      steps.length = 0;
+      steps.push(...folded);
+    }
+  }
+
   if (steps.length === 1) return steps[0];
   return { type: 'SEQUENCE', steps };
 }
