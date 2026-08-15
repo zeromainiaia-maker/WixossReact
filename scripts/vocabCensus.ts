@@ -746,7 +746,8 @@ const PATTERNS: Pattern[] = [
   //   「手札から＜X＞のシグニN枚をこのシグニの下に置く：」を cost で忠実表現している札が欠落判定されていた（§5c で較正）。
   { name: 'シグニの下に置く', re: /の下に置/, keys: ['UNDER', 'under', 'Under'] },
   { name: 'ゲームから除外', re: /ゲームから除外/, keys: ['EXILE', 'exile'] },
-  { name: '遅延トリガー(このターン〜したとき)', re: /このターン、[^。]{0,40}したとき/, keys: ['DELAYED', 'delayed', 'this_turn', 'turn_end', 'ON_'] },
+  // `escapeDiscard`＝上と同じ事前登録型（「このターン、それがアタックしたとき、…無効にする」）。
+  { name: '遅延トリガー(このターン〜したとき)', re: /このターン、[^。]{0,40}したとき/, keys: ['DELAYED', 'delayed', 'this_turn', 'turn_end', 'ON_', 'escapeDiscard'] },
   { name: '機構:ライズ', re: /【ライズ】/, keys: ['RISE', 'ise'] },
   { name: '機構:クロス', re: /【クロス/, keys: ['cross', 'CROSS', 'crossOnly'] },
   { name: '機構:ハーモニー', re: /【ハーモニー/, keys: ['HARMONY', 'harmony'] },
