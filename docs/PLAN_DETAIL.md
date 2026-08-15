@@ -3,6 +3,63 @@
 > **2026-08-13 続き464 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-13 続き459（§6.4 O-3＝`LRIG_GROW_RESTRICT` ゴミ箱の解体）後 最新値（本行が直近の正）**：census **831 据置**（`BASELINE_HIGH` 831）、golden **1956（+2＝合成 actionId が live に0件／期間3値／`LRIG_GROW_RESTRICT` は本来のグロウ制限文にだけ付く、を live 全走査で固定）**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（グループ265）、held（parserWorklist）**106枚 / 署名グループ 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**ターン限定 PlayerState レジストリ 35フィールド**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`MANDATORY_SUSPICIOUS` **0**、`census:stubs` A群＝**無言 no-op 0**／**明示 defer 24種 42件（14種16件から可視化＝隠れていた26効果を worklist へ）**、**`FieldGrant` の kind 3種**（`power`〔`perTargetLevel`〕／`abilityLoss`／`blockAction`）。live effect 単位 diff **33効果・effectId 増減 0/0**。
 
+## 2026-08-15 整理⑱：PLAN §6.4「消化済み」の教訓行を退避（続き482〜487）
+
+> PLAN §6.4 は**生きている worklist だけ**を置く運用。ここは退避した原文（PLAN 側には1行✅サマリだけ残した）。
+
+> ✅**O-3 の `DEFERRED_UNPARSED_NEXT_OPP_TURN_CLAUSE`（5効果）／`_THIS_AND_NEXT_TURN_CLAUSE`（4効果）＝2026-08-15 続き487 で解体**（O-3 自体は継続＝上の worklist 行）。**7効果の挙動是正**（恒久 no-op 5＋所有者/期間の取り違え1＋永続化バグ1）。
+> 🔑**配置禁止も「課した側」ではなく「場に出す側」の state に載せる**＝`signi_deploy_bans`。判定は既存 `deployLimitBlockReason` の1本（通常召喚UI／召喚ゾーンモーダル／CPU 召喚／engine の効果配置の**4経路すべてが通る** funnel）＝1行足すだけで全経路に効く。**寿命は `turnsRemaining` のカウントダウン**（`_this_turn` の1ターン失効レジストリでは「このターンと次のターン」を表せない）。
+> 🔴**`signi_deploy_power_limit` は「このターンと次のターン」と型に書いてあるのに、リセット地点が1つも無く永続していた**＝一度掛かるとゲーム終了までパワーN以上を出せない。ban ストアへ `powerGte` として統合して解消。**「期間つき」と書いてあるフィールドは必ず失効地点を実測すること。**
+> 🔑**文跨ぎ照応（「そのターンの間、」）は `splitSentences` の直後で解決する**＝文単位パーサは前の文を見られない。`WXEX2-19-E3` は所有者も期間も真逆（自分のシグニをこのターン強制アタック）になっていた。
+> ⚠**`parseCardEffects` の内側から `abilityBlockTextOf`／`getAbilityBlockTexts` を呼んではいけない**（後者が `parseCardEffects` を呼ぶ＝**無限再帰**。キャッシュは戻り値確定後に入るので効かない）。`inferTriggerScope` が安全なのは `buildEffectsMap`＝**parseCardEffects の外**から呼ばれているから。続き487 で `build:effects` が実際にハングして発見した。
+> 🔑**`OPTIONAL_COST` の「追加でエクシードN」を parser 化**＝engine は実装済みなのに parser が一度も生成せず、**live の12枚は全部手で MANUAL 化されていた**（＝parser 改善が永久に届かない O-6 の同型）。規則1本で2枚を AUTO へ戻した。**残り10枚は通常の held フローで扱う。**
+> **一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15（続き487）。**
+> ✅**O-3 の最大クラスタ `DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE`（7効果/7枚）＝2026-08-15 続き486 で解体**（O-3 自体は継続＝上の worklist 行を参照）。**5効果の恒久 no-op を解消**（`WX24-P4-039`／`WX25-P2-010`／`WX10-024`＝アタック制限、`WX24-P2-014`＝盤面リセット＋相手ダメージ無効、うち `WX24-P4-039` は数字宣言が**ガード制限つき**だった過剰実行も同時是正）。
+> 🔑**アタック制限は「課した側」ではなく「禁止を受ける側」の state に載せる**＝`signi_attack_bans_this_turn`。既存 `opp_signi_attack_power_cap` は課した側に載っていて gate が defender を引き回していた。アタッカー側に寄せると (a) `signiAttackGate` が attacker だけを見れば済み（**人間ボタン／`performSigniAttack`／CPU 候補の3経路に同時に効く**）(b) `_this_turn` 命名で `turnScopedState` の失効レジストリに**自動登録**（未登録なら typecheck が落ちる）。
+> 🔑**「支払わないかぎり」型は判定と引き落としを別軸にしない**＝gate は既存 `signi_attack_cost` と**合算**で残高を見て、引き落としも同じ1地点に合算する。⚠**実効パワー条件と支払い解除を同居させない**（引き落とし地点は実効パワーを持たず表記パワーへフォールバックする＝判定と課金がずれる）。golden のデータ不変条件で固定済み。
+> 🔑**「それ」の解決は `storedTargetCards`**（`lastProcessedCards` ではない）＝後者は多くのアクションが暗黙に読むが、前者は `targetsStored` を**明示した後続だけ**が読む。`execAttachCharm` に足しても既存の後続3件に影響しないことを実測してから決めた。
+> ⚠**STUB を実装で置き換えると census が +N する**＝`vocabCensus` は STUB を含む効果を「STUB/MANUAL格納（要個別確認）」へ逃がしているので、STUB が消えた瞬間に**その効果の他の未表現語彙が高シグナルへ昇格する**。続き486 の +2 は「計器の較正漏れ1（`ATTACK_BAN` キー追加）」＋「**本物の穴**1（`WX24-P2-014-E2` の除外節＝実装して解消）」だった。
+> **一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15（続き486）。**
+> ✅**O-19＝watcher 文の `triggerScope` を推論に頼っていた層**（`inferTriggerScope` を能力ブロック限定にし、続き463 の暫定【出】guard を撤去。parser 側は由来句「トラッシュから」を読んで `any_ally`＋`placedFromTrash` を parse 時に書く）＝2026-08-15 続き485 で完了。**実測在庫は1効果**（`WX25-P1-061-E1`）だったが、**本命は golden のデータ不変条件**＝「ON_PLAY AUTO で**能力ブロックの主語が『この…』でない**のに `triggerScope` 未指定＝0件」を新設し、**このクラスが増えた瞬間に赤くなる**ようにした（scope 未指定は engine で self に落ちる＝watcher なら一度も原文どおりに発火しないのに、どの計器にも映らなかった）。
+> ✅**O-25（本体）＝引用能力の自己付与が即時実行へ平坦化**（「（ターン終了時まで、）この(シグニ|ルリグ)は「【自/起/出】…」を得る」）＝2026-08-15 続き485 で parser 規則1本を追加し9カード採用。**engine の新機構ゼロ**（`GRANT_EFFECT{thisCardOnly}`／`granted_effects` は既存。足したのは `execGrantEffect` の「thisCardOnly は選択UIを出さない」1分岐＝`execGrantKeyword` と同ロジック）。**残りは上の worklist O-25 行**。
+> 🔑**規則の置き場所（恒久ルール）**＝**期間プレフィックス（「ターン終了時まで、」）を要求する規則は `parseActionText` の strip より前**（`effectParser.ts` の count:'ALL' 版の隣）に置く。`parseSentencePart*` は strip 後のテキストしか見ないので、そこに置くと**永久に発火しない**。
+> 🔑**引用（「…」）は「別のカードの文」**＝文単位の照応補正・主語推定は**引用を伏せ字にしてから走査する**。`applyLeadingOpponentDesignation` が引用内の「対戦相手のシグニ１体を対象とし」を外側の照応と誤読し、`WXDi-P07-063`（自分に付ける能力が相手シグニへ）／`WX24-P2-007-E1`（「**あなたの**すべてのシグニ」が `owner:'opponent'`）の2件を live に入れていた。
+> **一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15。**
+> ✅**O-20＝実行時にカード全文 regex で意味を決める層**（20コードサイト・挙動是正14効果）＝2026-08-15 続き482 で完了。
+> ✅**O-21＝到達不能な二番手 STUB ハンドラ**（19 id / 21ブロック・うち1件は本物の実装が no-op に潰されていた live バグ）＝2026-08-15 続き483 で完了。
+> ✅**O-22（(a)(b)(c) 全部）／O-23／O-24＝2026-08-15 続き484 で完了**（5効果の挙動是正・うち4件は**恒久 no-op**、1件は**過剰実行**）。
+> 🔑**在庫の症状記述が (b)(c) とも stale だった**＝(c)「クラフト5種が CSV に無い＝データ側の欠落」は誤りで、`WX25-P1-TK1`〜`TK5` は**実在**し、真因は `TOKEN_SETS` の綴りが `'ダークアーツ'`（**全 CSV に0件**）だったこと（原文は「**ヤミノアーツ**」＝カード名は「ダーク・○○」でも束の呼称は別）。(b) も「別機構＝実装不可」ではなく、既存の CHOOSE＋継続で書けた。**§3-1 のとおり着手前に実測すること**が3セッション連続で効いている。
+> **詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-15 整理⑮」／一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-15 の3本。**
+> 🔑**以後の規則（両方から出た恒久ルール）**＝①ハンドラは `cardMap.get(sourceCardNum).EffectText` を直接読まず **`sourceAbilityText(ctx)`**（ctx が無い走査は `abilityBlockTextOf(card, effectId)`）②同じ STUB id の分岐を足すときは**先着が素通りする形**にする（先着が必ず return すると後発は永久に呼ばれない）。どちらも golden のトリップワイヤで固定済み。
+
+## 2026-08-15 整理⑰：PLAN §4 恒久指標の旧行を退避（続き478〜489）
+
+> PLAN §4「📊 恒久指標」は**最新1件だけ**を置く運用。ここは退避した旧行の原文（新しい順）。
+
+- **2026-08-15 続き489（§6.4 O-3 `NEXT_OPP_ATTACK_PHASE_START` 解体）後 最新値**：census **831 据置**（⚠一度 835 まで増えたが計器較正4件で戻した＝`DELAY_TO_NEXT_OPP_ATTACK_PHASE`／`levelFromLastProcessed`／`escapeDiscard`×2。**`NEGATE_ATTACK` を鍵にすると既存11件を隠すので narrow なキーに絞った**）、**golden 2017**（+5＝新機構3・live 形1・永続化バグのトリップワイヤ1）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **107枚 / 48群**、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**（据置。明示 defer は **28種/31件 → 27種/29件**）。🆕**live JSON changed 4カード**（`SPDi43-24`／`WX24-P3-014`／`WX25-P2-051`／`WXK01-003`。CSV 非改変）。🆕**挙動是正 5効果**（過剰実行3＋対象取り違え1＋永続化バグ1）。🆕**新機構＝`DELAY_TO_NEXT_OPP_ATTACK_PHASE`／`PLACE_FACEDOWN_LRIG_ZONE`／`REVEAL_FACEDOWN_LRIG_ZONE`／`SIGNI_ATTACK_BAN.levelFromLastProcessed`**。🆕**`negated_attacks`／`negated_attacks_escape` を turnScopedState へ登録**（永続バグ解消）。
+
+- **2026-08-15 続き488（§6.4 O-3 の3クラスタ解体）後 最新値**：census **831 据置**（⚠一度 832 まで増えたが計器較正1件で戻した＝`ADD_EXTRA_ATTACK_PHASE` を「トリガー:アタックフェイズ開始時」の対応語彙に追加）、**golden 2012**（+11＝新機構3・live 形3・データ不変条件/トリップワイヤ5）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **108枚 / 48群**、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**（据置。明示 defer は **30種/35件 → 28種/31件**）。🆕**live JSON changed 8カード**（`SPK01-10`／`PR-422`／`SPDi43-24`／`WX20-049`／`WX22-010`／`WX26-CP1-066`／`WXDi-P07-050`／`WXK06-026`。CSV 非改変）。🆕**挙動是正 8効果**（過剰実行4＋恒久 no-op2＋対象取り違え2）。🆕**新機構＝`ADD_EXTRA_ATTACK_PHASE`／`blocked_actions:'PAY_ENERGY_COST'`／`TRASH_ENERGY_AT_TURN_END`／`POWER_MODIFY.deltaFromZone`／`DeployBlockReason:'ALL_BAN'`**。
+
+- **2026-08-15 続き487（§6.4 O-3 の2クラスタ解体）後 最新値**：census **831 据置**（⚠一度 832 まで増えたが計器較正2件で戻した＝`DEPLOY_BAN`／`namesFromTargets` キー追加）、**golden 2001**（+4＝executor 1・funnel 1・寿命1・live 形1）、smoke **10688 / SKIP 0**、fuzz 全0、held **112枚 / 48群**（うち採用済み5枚はレビュー対象外）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**（据置。明示 defer は **27種/39件 → 30種/35件**＝受け皿2種が消えて固有4種が出た）。🆕**live JSON changed 8カード**（`WXK10-019`／`WX25-P3-001`／`WX25-P3-009`／`WX25-CP1-016`／`WXEX2-19`／`WXK10-004`／`WDK17-008`／`PR-K046`。CSV 非改変）。🆕**挙動是正 7効果**（恒久 no-op 5＋所有者/期間の取り違え1＋永続化バグ1）。🆕**`signi_deploy_power_limit` 廃止**（`signi_deploy_bans` へ統合）。
+
+- **2026-08-15 続き486（§6.4 O-3 最大クラスタ解体）後 最新値**：census **831 据置**（⚠一度 833 まで増えたが、計器較正1＋実装1で戻した＝④参照）、**golden 1997**（+7＝executor 3・gate 1・データ不変条件1・live 形1・盤面リセット1）、smoke **10688 / SKIP 0**、fuzz 全0、held **108枚 / 48群**、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**（据置。明示 defer は **25種/43件 → 27種/39件**＝受け皿1種が消えて固有3種が出た）。🆕**live JSON changed 7カード**（`WX10-024`／`WX24-P2-014`／`WX24-P4-039`／`WX25-P2-010`／`SP38-003`／`WXDi-P08-030`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 5効果**（恒久 no-op 5＋うち1件は過剰実行も同時是正）。
+
+- **2026-08-15 続き485（§6.4 O-19 完了＋新設 O-25 消化）後 最新値**：census **831**（`BASELINE_HIGH` 実数更新＝**−2**。引用能力を `GRANT_EFFECT` へ構造化した結果、引用の中身が外側効果の語彙として数えられなくなった分）、**golden 1990**（+5＝データ不変条件1＋トリップワイヤ4）、smoke **10688 / SKIP 0**、fuzz 全0、held **116枚 / 48群**（うち採用済み9枚はレビュー対象外＝**実質 107枚**。純増は `SPDi43-05` の1枚＝PARTIAL 保留）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**（据置）。🆕**live JSON changed 9カード**（`WX24-P2-007`／`WX25-P1-056`／`WX25-P1-061`／`WX25-P2-030`／`WX25-P3-056`／`WX25-P3-059`／`WX25-CP1-048`／`WXK10-079`／`WXDi-P07-063`。CSV 非改変）。🆕**挙動是正 5効果**（恒久 no-op 1＋過剰実行3＋所有者反転1）。
+
+- **2026-08-15 続き484（§6.4 O-22/O-23/O-24 完了）後 最新値**：census **833**（`BASELINE_HIGH` 実数更新。⚠**+2 は既知の良性クラス**＝加算モデルは原文の合計値を JSON に literal で持たない＝**実質 831 据置**）、**golden 1985**（+5＝5件それぞれのトリップワイヤ）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47群**（増えた5枚を全部採用して元に戻した）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**（明示 defer 24→25 種）。🆕**live JSON changed 5カード**（`WX07-031`／`WX08-032`／`WX12-037`／`WX25-P2-103`／`WXK06-030`。CSV 非改変）。🆕**挙動是正 5効果**（恒久 no-op 4＋過剰実行1）。
+
+- **2026-08-15 続き483（§6.4 O-21 完了）後 最新値**：census **831 据置**、**golden 1980**（+2＝O-21 の到達可能性トリップワイヤ／`BET_CONDITION` の両方向）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**。🆕**live JSON changed 0**（effects JSON・CSV 非改変）。🆕**engine −352行**（死コード20ブロック削除）。🆕**到達不能ハンドラ 19 id → 0**。
+
+- **2026-08-15 続き482（§6.4 O-20 完了）後 最新値**：census **831 据置**、**golden 1978**（+2＝O-20 の契約テスト／トリップワイヤ）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**。🆕**live JSON changed 0**（effects JSON・CSV は非改変。変更は engine 5ファイル＋`effectParser` ＋ `behaviorAudit`／`goldenTest`）。🆕**O-20 変換＝20サイト・挙動是正14効果**。🆕**重複 STUB ハンドラ 58 id を検出（O-21）**。
+
+- **2026-08-14 続き481（§7 V-18 決着・V-19 要追試）後 最新値**：census **831 据置**、**golden 1976 据置**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**。🆕**live JSON changed 0**（engine/parser/JSON/React 非改変）。🆕**実機シナリオ＝+10本**（V-18/19）＝**緑/赤の内訳が 101緑6赤 → 107緑10赤**（赤10＝(cxxxiv) 再現1・V-15/16/17 未完5・**V-19 要追試4**）。🆕**Opusタスク12 の在庫＝5件**（据置）。
+
+- **2026-08-14 続き480（§7 V-15/16/17 消化）後 最新値**：census **831 据置**、**golden 1976 据置**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**。🆕**live JSON changed 0**（engine/parser/JSON 非改変）。🆕**実機シナリオ＝+13本**（V-15/16/17）＝**緑/赤の内訳が 93緑1赤 → 101緑6赤**（赤6本＝(cxxxiv) 待ち1本＋**シナリオ側の未完5本**）。🆕**Opusタスク12 の在庫＝5件**（据置）。
+
+- **2026-08-14 続き479（§7 V-14 決着）後 最新値**：census **831 据置**、**golden 1976 据置**、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**。🆕**live JSON changed 0**（engine/parser/JSON 非改変。UI は `stack-detail-modal` の属性追加のみ）。🆕**実機シナリオ＝+14本**（V-14）＝**緑/赤の内訳が 80緑0赤 → 93緑1赤**（赤1本は §3 (cxxxiv) 待ちで既定 order に置いてある）。🆕**Opusタスク12 の在庫＝5件**（(cxxxiv) を登録）。
+
+- **2026-08-14 続き478（§7 V-12 完全決着・V-13 決着）後 最新値**：census **831 据置**、**golden 1976**（+1＝`reserveGrantedAutoUsage` のトリップワイヤ）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**、held **106枚 / 47件**（据置）、lint **0 errors / 259 warnings**（据置）、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**無言 no-op 0**。🆕**live JSON changed 0**（parser/effects JSON 非改変。engine 側は `BattleScreen.tsx` と `grantedAuto.ts` のみ）。🆕**実機シナリオ＝+6本**（V-13）＝**緑/赤の内訳が 72緑2赤 → 80緑0赤**（V-12 の赤2本が緑へ反転）。🆕**Opusタスク12 の在庫＝4件**（(cxxxiii) を取り下げ）。
+
 ## 2026-08-15 整理⑯：PLAN §6.4 `O-22`／`O-23`／`O-24` の消化記録（続き484）
 
 > PLAN §6.4 には1行✅サマリだけを残す。一次記録は BUGFIXES.md 2026-08-15（3本目）。
