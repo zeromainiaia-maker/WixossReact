@@ -2682,8 +2682,10 @@ function findOpponentUnlessGate(t: string):
   return undefined;
 }
 
-function matchOpponentUnlessGate(t: string): EffectAction | undefined {
+function matchOpponentUnlessGate(tRaw: string): EffectAction | undefined {
   if (_unlessGateBaselinePass) return undefined;   // 基準読み計算中は自分を無効化
+  // 文全体が引用で括られた形の括りを外す（§6.4 O-31・上の `stripFullSentenceQuote` の注記）。
+  const t = stripFullSentenceQuote(tRaw);
   const gateM = findOpponentUnlessGate(t);
   if (!gateM) return undefined;                                    // 除外⑤（engine に無い回避手段を含む）
   const cost = gateM.cost;
@@ -2903,14 +2905,23 @@ function parseOpponentWaExplicitConsequent(targetPrefix: string, thenText: strin
       source: { type: 'HAND_CARD', owner: 'opponent', count: parseNum(hbM[1]) },
       shuffle: false, position: 'bottom' } as EffectAction;
   }
+  // 相手が自分のデッキの上からN枚トラッシュに置く（§6.4 O-31・`WXDi-P07-007-E3`）。
+  // ⚠従来 live は `TRASH{DECK_CARD opponent 4}` **単体**＝回避クローズが丸ごと落ちて
+  //   「払っても必ず4枚落ちる」過剰実行だった（しかも原文は3回繰り返す）。
+  const dkM = th.match(/^(?:自分の)?デッキの(?:一番)?上からカードを([０-９\d一二三四五六七八九十]+)枚トラッシュに置く$/);
+  if (dkM) {
+    return { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'opponent', count: parseNum(dkM[1]) } } as EffectAction;
+  }
   // 「それをデッキの一番下に置く」（WXDi-P01-028）は**扱わない**＝直前文の STUB{TARGET_OPP_SIGNI_ONLY} が
   // 対象選択からデッキ下移動まで自己完結で持っており、ここで包むと相手に2回 CHOOSE が出る。
   // 冗長な後続ステップの除去は dropRedundantStepAfterTargetOppSigniOnly が行う。
   return undefined;
 }
 
-function matchOpponentWaUnlessGate(t: string): EffectAction | undefined {
+function matchOpponentWaUnlessGate(tRaw: string): EffectAction | undefined {
   if (_unlessGateBaselinePass) return undefined;
+  // 文全体が引用で括られた形（「以下をN回行う。「対戦相手は…ないかぎり、…」」）の括りを外す（§6.4 O-31）。
+  const t = stripFullSentenceQuote(tRaw);
   const waM = t.match(/^(?:その後[、,])?対戦相手は(.*?)ないかぎり[、,]?(.+)$/s);
   if (!waM) return undefined;
   let costPart = waM[1];
