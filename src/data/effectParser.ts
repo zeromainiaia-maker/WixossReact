@@ -2361,6 +2361,29 @@ function restoreLeadUntilEndOfTurn(a: EffectAction | undefined): void {
   if (ra.type === 'SEQUENCE') ra.steps?.forEach(restoreLeadUntilEndOfTurn);
 }
 
+/**
+ * 参照先が明示 defer された「それらを場に出し」を落とす（§6.4 O-3）。
+ *
+ * 🔴`ADD_TO_FIELD` は **`source` が無いと engine で「デッキの一番上」を場に出す**（`execAddToField` の
+ * `!src` 分岐）。原文の「それら」＝直前ステップが作った集合を指すので、その直前ステップが
+ * `DEFERRED_*`（＝機構が無く何も産まない）なら、この配置は**無関係なシグニを1体増やす過剰実行**にしかならない。
+ * ⚠落とすのは `source` の無い `ADD_TO_FIELD` **だけ**＝同じ文の他の動作（「このルリグをアップする」等）は残す。
+ */
+function dropDanglingDeckTopPlacement(steps: EffectAction[]): EffectAction[] {
+  const deferredSeen = steps.some(st =>
+    st?.type === 'STUB' && (st as StubAction).id?.startsWith('DEFERRED_'));
+  if (!deferredSeen) return steps;
+  const strip = (a: EffectAction): EffectAction | null => {
+    if (a?.type === 'ADD_TO_FIELD' && !(a as AddToFieldAction).source && !(a as AddToFieldAction).cardName) return null;
+    if (a?.type === 'SEQUENCE') {
+      const inner = (a as SequenceAction).steps.map(strip).filter((s): s is EffectAction => s !== null);
+      return inner.length === 0 ? null : inner.length === 1 ? inner[0] : { ...a, steps: inner } as SequenceAction;
+    }
+    return a;
+  };
+  return steps.map(strip).filter((s): s is EffectAction => s !== null);
+}
+
 // 「次の対戦相手のターン終了時まで／の間」（＝次の相手ターン終了時まで）は UNTIL_OPP_TURN_END。
 // 汎用パーサは substring 一致で先に「ターン終了時まで」を拾い UNTIL_END_OF_TURN に潰し（`次の対戦相手の
 // ターン終了時まで` は `ターン終了時まで` を内包するため）、先頭句剥がしでは PERMANENT に化ける。engine は
