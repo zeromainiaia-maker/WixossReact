@@ -11071,18 +11071,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const appliedL = applyMillReplacement(my, pickedL.index, pickedL.repl.count);
           appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(pickedL.repl)}`]);
           newMyState = { ...appliedL.state, field: { ...my.field, lrig_attacked: false } };
-        } else if (my.prevent_lrig_damage || (() => {
-          // PREVENT_LRIG_DAMAGE (条件付き): activeCondition を正確に評価
-          return my.field.signi.some((stack) => {
-            const top = stack?.at(-1); if (!top) return false;
-            return (effectsMap.get(top) ?? []).some(eff =>
-              eff.effectType === 'CONTINUOUS' &&
-              (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-              (eff.action as import('../types/effects').StubAction).id === 'PREVENT_LRIG_DAMAGE' &&
-              checkActiveCondition(eff.activeCondition, my, op, false, battleCardMap, top),
-            );
-          });
-        })()) {
+        } else if (my.prevent_lrig_damage) {
+          // 1回消費型の残り（「対戦相手の効果によってダメージを受けない」等・`PREVENT_DAMAGE_FROM_OPP_EFFECTS`）。
+          // ⚠期間つきの「ルリグによってダメージを受けない」は上の funnel が先に拾う＝ここには落ちてこない。
           appendBattleLogs([`ルリグアタック：ルリグダメージ無効`]);
           newMyState = { ...my, prevent_lrig_damage: undefined, field: { ...my.field, lrig_attacked: false } };
         } else if (my.life_cloth.length > 0) {
