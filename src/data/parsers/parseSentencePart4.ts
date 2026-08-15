@@ -66,9 +66,9 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (/^(?:その後、)?あなたのすべてのライフクロスを見て、好きな順番で並び替える$/.test(t)) {
     return {
       type: 'LOOK_AND_REORDER',
-      source: { location: 'life', owner: 'self' },
+      source: { location: 'life_cloth', owner: 'self' },
       count: 'ALL', private: true, reorder: true,
-      destination: { location: 'life', owner: 'self', position: 'any' },
+      destination: { location: 'life_cloth', owner: 'self', position: 'any' },
     } as EffectAction;
   }
 

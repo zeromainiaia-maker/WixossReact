@@ -1334,7 +1334,8 @@ export interface ConditionalAction {
 export interface LookAndReorderAction {
   type: 'LOOK_AND_REORDER';
   source: { location: CardLocation; owner: Owner };
-  count: NumberOrRef;
+  /** `'ALL'`＝そのゾーンの全部（「あなたの**すべての**ライフクロスを見て」＝`WX05-010-E1`・§6.4 O-4）。 */
+  count: NumberOrRef | 'ALL';
   private: boolean;   // true = 自分だけ確認（相手に見せない）
   reorder: boolean;   // true = 順番を自由に決められる
   canTrash?: boolean; // true = 一部をトラッシュに置ける（残りをデッキに戻す）

@@ -2450,8 +2450,14 @@ function execTransferToHand(a: TransferToHandAction, ctx: ExecCtx): ExecResult {
     }
     scope = tgtOwner === 'self' ? 'self_trash' : 'opp_trash';
   } else if (src.type === 'ENERGY_CARD') {
-    const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
-    cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    // thisCardOnly: 効果元カード自身のみ（「このシグニをエナゾーンから手札に加える」＝バニッシュで
+    // エナへ行った自分自身を拾う。`WX17-052-LAYER`・§6.4 O-4）。⚠TRASH_CARD 側と同じ規約。
+    if (src.filter?.thisCardOnly) {
+      cands = (ctx.sourceCardNum && state.energy.includes(ctx.sourceCardNum)) ? [ctx.sourceCardNum] : [];
+    } else {
+      const resolvedFilter = resolveDynamicFilter(src.filter, ownerSt, ctx.cardMap, otherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+      cands = energyCandidates(state, resolvedFilter, ctx.cardMap, ctx.treatAsClassAllZones);
+    }
     scope = tgtOwner === 'self' ? 'self_energy' : 'opp_energy';
   } else {
     return done(ctx);
@@ -4770,8 +4776,9 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
     }, ctx);
   }
   const state = ownerState(a.source.owner as Owner, ctx);
-  const count = resolveNum(a.count);
   const sourceCards = a.source.location === 'life_cloth' ? state.life_cloth : state.deck;
+  // `'ALL'`＝そのゾーンの全部（「あなたのすべてのライフクロスを見て」＝§6.4 O-4）。
+  const count = a.count === 'ALL' ? sourceCards.length : resolveNum(a.count);
   const cards = a.source.location === 'life_cloth'
     ? sourceCards.slice(Math.max(0, sourceCards.length - count))
     : sourceCards.slice(0, count);
