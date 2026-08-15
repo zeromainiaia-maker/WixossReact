@@ -29175,11 +29175,17 @@ test('SIGNI_ATTACK_BAN unlessPayHandDiscard: 手札が足りるかで gate が�
   eq(clearTurnEndScopedState({ ...mkState({}), signi_attack_bans_this_turn: bans }).signi_attack_bans_this_turn,
     undefined, 'ターン終了で失効しない');
 }));
-test('SP38-003-E1 の live 形（§6.4 O-3）', () => {
-  const act = JSON.stringify((effectsMap.get('SP38-003') ?? [])
-    .find(e => e.effectId === 'SP38-003-E1')?.action ?? {});
-  ok(act.includes('"unlessPayHandDiscard":3'), 'SP38-003 のアタック税が明示 defer に戻っている');
-  ok(!act.includes('DEFERRED_ATTACK_TAX_HAND_DISCARD'), '受け皿 STUB が残っている');
+test('アタック税（手札N枚捨て）2カードの live 形（§6.4 O-3）', () => {
+  const act = (num: string, effectId: string) =>
+    JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === effectId)?.action ?? {});
+  const sp38 = act('SP38-003', 'SP38-003-E1');
+  ok(sp38.includes('"unlessPayHandDiscard":3'), 'SP38-003 のアタック税が明示 defer に戻っている');
+  ok(!sp38.includes('DEFERRED_ATTACK_TAX_HAND_DISCARD'), '受け皿 STUB が残っている');
+  // 🔴引用文が丸ごと `GRANT_KEYWORD.keyword` に入ると `hasKeyword` の照合外＝**無言 no-op**（計器にも映らない）。
+  const wxdi = act('WXDi-P05-022', 'WXDi-P05-022-E1');
+  ok(wxdi.includes('"unlessPayHandDiscard":1'), 'WXDi-P05-022 のアタック税が落ちている');
+  ok(!wxdi.includes('捨てないかぎりアタックできない'), '引用文が keyword に残っている（照合されない no-op）');
+  ok(wxdi.includes('"targetsStored":true'), '対象限定が落ちて全シグニに掛かっている');
 });
 test('SIGNI_ATTACK_BAN levelFromLastProcessed: 公開カードのレベルを焼き込む', () => withSavedCursor(() => {
   const ctx = mkCtx({}, { signi: [SIGNI_P3000, null, null] }, SIGNI);
