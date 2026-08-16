@@ -3232,7 +3232,9 @@ function recoverDroppedConjClauses(t: string, result: EffectAction): EffectActio
  */
 function rewritePerLastProcessedCount(action: EffectAction, text: string): EffectAction {
   const t = text.trim();
-  if (!/^この方法で(?:捨てた|トラッシュに置いた|公開した)[^。]{0,12}?[１1]枚につき/.test(t)) return action;
+  // ⚠**「その後、」の前置きを許すこと**＝`^` アンカーだけだと同型が黙って落ちる
+  //   （このセッションだけで3度踏んだ型＝「規則はあるのに前置きで当たらない」）。
+  if (!/^(?:その後、)?この方法で(?:捨てた|トラッシュに置いた|公開した)[^。]{0,12}?[１1]枚につき/.test(t)) return action;
   if (/同じ(?:レベル|色|名前)/.test(t)) return action;
   const a = action as unknown as { target?: { count?: unknown } };
   if (!a.target || a.target.count !== 1) return action;
