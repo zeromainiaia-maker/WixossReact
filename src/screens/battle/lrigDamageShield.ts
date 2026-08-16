@@ -41,11 +41,12 @@ export function resolveLrigDamageShield(args: {
   effectsMap: Map<string, CardEffect[]>;
   /** 実際にアタックしたルリグ（アシストを含む）。レベル限定の判定に使う。 */
   attackingLrigNum?: string;
-}): boolean {
+}): { prevented: boolean; loseEffectId?: string } {
   const { defender, attacker, cardMap, effectsMap, attackingLrigNum } = args;
   // 期間つきウィンドウ（`PREVENT_DAMAGE{scope:'LRIG'}`）＝「このターン」「次のターンの間」
   // 「次のあなたのメインフェイズまで」を1本で表す。
-  if (hasActivePreventDamageWindow(defender, 'LRIG')) return true;
+  if (hasActivePreventDamageWindow(defender, 'LRIG')) return { prevented: true };
+  const lostThisTurn = defender.lost_ability_effect_ids_this_turn ?? [];
 
   const attackerLevel = attackingLrigNum
     ? parseInt(cardMap.get(baseCardNum(attackingLrigNum))?.Level ?? '', 10)
