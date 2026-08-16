@@ -271,6 +271,9 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   CONDITIONAL_ALTERNATE_EFFECT: ['SEARCH', 'ADD_TO_HAND', 'TRANSFER_TO_HAND'],
   // エナのトラッシュ枚数（レベル）に応じて BOUNCE（execStubPart1.ts:120）
   VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: ['BOUNCE', 'TRASH'],
+  // 裏向き設置→次の自メインで表向き選択。表にすると field_power_mods で +powerBonus、しなければ手札へ
+  // （execStubPart2.ts:3548 → PLACE_FACEDOWN_SIGNI → RESOLVE_FACEDOWN_FLIP → FACEDOWN_FLIP_UP）
+  LOOK_PLACE_FACEDOWN_DELAYED: ['POWER_MODIFY', 'ADD_TO_HAND', 'TRANSFER_TO_HAND'],
 };
 
 // ======= 計器の較正（2026-08-16・§6.4 O-11） =======
