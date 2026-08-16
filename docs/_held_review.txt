@@ -228,18 +228,6 @@ WX16-005
   + [0].action.choices[0].action.target.upToCount = false
   …（他 24 行）
 
-## -STUB ［1枚］
-WX16-Re18
---- WX16-Re18
-  原文: あなたのルリグデッキからレゾナを２枚まで出現条件を無視して場に出す。この方法で場に出たレゾナの【出】能力は発動しない。ターン終了時、それらをルリグデッキに戻す。,-
-  - [0].action.steps[2].type = "STUB"
-  - [0].action.steps[2].id = "RETURN_SUMMONED_RESONA_AT_TURN_END"
-  + [0].action.steps[0].placesToField = true
-  + [0].action.steps[0].resonaSummon.count = 2
-  + [0].action.steps[0].resonaSummon.upTo = true
-  + [0].action.steps[0].suppressOnPlay = true
-  ~ [0].action.steps[1].id : "RULE_REMINDER_TEXT" → "RETURN_SUMMONED_RESONA_AT_TURN_END"
-
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005
 --- WX17-005
