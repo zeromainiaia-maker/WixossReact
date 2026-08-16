@@ -4429,6 +4429,21 @@ function normalizeGrantKeywordSpelling(node: unknown): void {
   const rec = node as Record<string, unknown>;
   if (rec.type === 'GRANT_KEYWORD' && typeof rec.keyword === 'string') {
     rec.keyword = normalizeKeywordName(rec.keyword);
+    // 🔴文がまるごと `keyword` に入っている形は `hasKeyword`（正式名の完全一致）に**一度も当たらない**
+    //   無言 no-op。しかも `GRANT_KEYWORD` は実装済みアクションなので `census:stubs` にも映らない。
+    //   判定は**形**で行う（キーワード名に句読点・入れ子の【】は現れず長くもない。スコープ付き
+    //   `シャドウ:{…}` は `:` より前だけを見る）。宣言済みの穴（`GRANT_ABILITY_INNER_TEXT`）へ落とす。
+    // ⚠**この後処理はカード単位の最終段でだけ掛ける**＝文単位や `parseActionText` の途中で落とすと、
+    //   この GRANT_KEYWORD を**入力として**正準形へ組み替える後段の rewriter
+    //   （`rewriteAttackTaxKeywordGrant` の7効果／`applyDroppedTargetDesignation` 族の2効果）が
+    //   丸ごと消える（実測で held +9）。
+    const name = (rec.keyword as string).split(':')[0];
+    if (/[、。]/.test(name) || /[【】]/.test(name) || name.length > 14) {
+      for (const k of Object.keys(rec)) delete rec[k];
+      rec.type = 'STUB';
+      rec.id = 'GRANT_ABILITY_INNER_TEXT';
+      return;
+    }
   }
   for (const v of Object.values(rec)) normalizeGrantKeywordSpelling(v);
 }
