@@ -3087,6 +3087,113 @@ function rewritePerOwnLrigColorScale(action: EffectAction, text: string): Effect
   return { type: 'STUB', id: 'PER_OWN_LRIG_COLOR_SCALE', scaleColor: m[1], scaleAction: inner } as EffectAction;
 }
 
+// ===== 連用中止形チェーン（「Aし、Bし、Cする」）の共通語彙 =====
+// ⚠**分割動詞の語彙はここ1箇所だけ**に置く。従来は「終止形への正規化表」と「分割用の選択肢列挙」が
+//   別々に書かれており、片方だけ育つとズレる（実際 §6.4 O-11 の調査で気付いた）。
+// ⚠包括的な「し$」では割らない（名詞の「〜し」を巻き込む）。枚数は [０-９\d]+ で一般化してよいが、
+//   **特定カードの本文を埋め込まない**（決め打ちにすると次の同型カードが黙って落ちる）。
+const CONJ_FIN: Array<[RegExp, string]> = [
+  [/バニッシュし$/, 'バニッシュする'], [/ダウンし$/, 'ダウンする'], [/アップし$/, 'アップする'],
+  [/凍結し$/, '凍結する'], [/捨て$/, '捨てる'], [/場に出し$/, '場に出す'],
+  [/^(.*デッキの上からカードを[０-９\d]+枚トラッシュに)置き$/, '$1置く'],
+  [/^(.*すべてのシグニをエナゾーンに)置き$/, '$1置く'],
+  [/^(.*【エナチャージ[０-９\d]+】)をし$/, '$1をする'],
+  [/^(.*デッキの一番上のカードをライフクロスに)加え$/, '$1加える'],
+  [/^(カードを[０-９\d]+枚)引き$/, '$1引く'],
+  // §6.4 O-16:「シグニゾーンをNつまで指定し」→「…指定する」（下の DESIGNATE 規則が枚数を読む）。
+  [/^(.*シグニゾーンを?[０-９\d]+つ(?:まで)?)指定し$/, '$1指定する'],
+  [/^(.*自分のシグニ[０-９\d]+体を選びトラッシュに)置き$/, '$1置く'],
+  [/^(.*自分のエナゾーンからカード[０-９\d]+枚を選びトラッシュに)置き$/, '$1置く'],
+  // 「〜を場からトラッシュに置き、X」＝自己/自シグニの場→トラッシュ（コスト/デメリット）が先頭脱落していた
+  // （続き107・タスク3(c)＝PR-422「このシグニをトラッシュに置き、3枚引く」・SP24-009 等）。
+  [/場からトラッシュに置き$/, '場からトラッシュに置く'],
+  // 「デッキの一番上のカードをエナゾーンに置き、X」＝先頭のエナチャージが後続（ドロー/場出し）を飲み込んで
+  //   丸ごと脱落していた（タスク3・WX19-030／WX15-098／WX20-071 は3項）。
+  [/デッキの一番上のカードをエナゾーンに置き$/, 'デッキの一番上のカードをエナゾーンに置く'],
+];
+
+/** 連用中止形で「左、右」に割るための左半分の語彙（`CONJ_FIN` と対で育てる）。 */
+const CONJ_VERB_ALT =
+  '(?:バニッシュし|ダウンし|アップし|凍結し|手札を[^、。]{0,6}捨て|場に出し|場からトラッシュに置き'
+  + '|シグニゾーンを?[０-９\\d]+つ(?:まで)?指定し|デッキの一番上のカードをエナゾーンに置き'
+  + '|デッキの上からカードを[０-９\\d]+枚トラッシュに置き|すべてのシグニをエナゾーンに置き'
+  + '|【エナチャージ[０-９\\d]+】をし|デッキの一番上のカードをライフクロスに加え|カードを[０-９\\d]+枚引き'
+  + '|自分のシグニ[０-９\\d]+体を選びトラッシュに置き|自分のエナゾーンからカード[０-９\\d]+枚を選びトラッシュに置き)';
+const CONJ_SPLIT_RE = new RegExp(`^(.*?${CONJ_VERB_ALT})、(.+)$`, 's');
+
+/** 左半分（連用形）を終止形へ正規化する。各規則（終止形前提）に当てるために必須。 */
+function toFiniteForm(seg: string): string {
+  for (const [re, fin] of CONJ_FIN) { if (re.test(seg)) return seg.replace(re, fin); }
+  return seg;
+}
+
+/**
+ * 「Aし、Bし、Cする」を全節に割って終止形へ正規化する。分割できなければ null。
+ * ⚠`CONJ_SPLIT_RE` は非貪欲なので**最も短い左半分**から順に剥がれる＝原文の語順が保たれる。
+ */
+function splitConjChain(text: string): string[] | null {
+  const segs: string[] = [];
+  let rest = text;
+  for (let guard = 0; guard < 8; guard++) {
+    const m = rest.match(CONJ_SPLIT_RE);
+    if (!m) break;
+    segs.push(m[1]);
+    rest = m[2];
+  }
+  if (segs.length === 0) return null;
+  segs.push(rest);
+  return segs.map(toFiniteForm);
+}
+
+/** action ツリーに現れるアクション型名をすべて集める（脱落補完の重複判定用）。 */
+function collectActionTypeSet(a: unknown, out: Set<string> = new Set()): Set<string> {
+  if (Array.isArray(a)) { a.forEach(x => collectActionTypeSet(x, out)); return out; }
+  if (!a || typeof a !== 'object') return out;
+  const o = a as Record<string, unknown>;
+  if (typeof o.type === 'string') out.add(o.type);
+  Object.values(o).forEach(v => collectActionTypeSet(v, out));
+  return out;
+}
+
+/**
+ * 🔴**条件節つきの連用形チェーンで節が無言脱落するのを補う**（§6.4 O-11・2026-08-16）。
+ *
+ * 上の連用中止 splitter は「とき」「場合」「代わりに」「対象とし、」を含む文には**一切触らない**
+ * （条件/トリガー構造を壊さないため）。その結果、**条件節が付いた瞬間にチェーンの分割が丸ごと無効化**され、
+ * たまたま単発規則が食いついた1節だけが残って**他の節が黙って消えていた**。しかも消えるのは後半とは限らない：
+ *   - 「〜場合、カードを１枚引き、デッキの上からカードを３枚トラッシュに置く」→ **DRAW が消えて TRASH だけ**
+ *   - 「〜場合、【エナチャージ１】をし、デッキの上からカードを３枚トラッシュに置く」→ **TRASH が消えて CHARGE だけ**
+ *
+ * ここでは**取りこぼした節だけを足す**（既にある結果は一切書き換えない）＝安全側の補完に徹する。
+ * ⚠`result` が `CONDITIONAL` のときは **`then` の中へ入れる**。外側に足すと条件を無視して走る＝過剰実行になる。
+ * ⚠照応（「それ」「その」）や「対象とし」を含む帰結は、節を単独 parse すると参照先を失うので触らない。
+ */
+function recoverDroppedConjClauses(t: string, result: EffectAction): EffectAction | null {
+  if (result.type === 'UNKNOWN' || result.type === 'STUB') return null;
+  const condM = t.match(/^(?:.*(?:場合|とき|かぎり)、)(.+)$/s);
+  if (!condM) return null;
+  const consequent = condM[1];
+  // 条件が二重に残る／照応がある／探索文（1アクションで表す）は対象外。
+  if (/場合|とき|かぎり|代わりに|対象とし|それ|その|探して|残りを|公開し|手札に加え/.test(consequent)) return null;
+  const segs = splitConjChain(consequent);
+  if (!segs || segs.length < 2) return null;
+  const parsed = segs.map(s => parseSingleSentence(s));
+  if (!parsed.every(p => p.type !== 'UNKNOWN' && p.type !== 'STUB' && p.type !== 'SEQUENCE')) return null;
+  const have = collectActionTypeSet(result);
+  const presentIdx = parsed.map((p, i) => (have.has(p.type) ? i : -1)).filter(i => i >= 0);
+  // 1つも対応が取れない＝この result はチェーンとは別物を表している（触らない）。
+  // 全部揃っている＝脱落なし。
+  if (presentIdx.length === 0 || presentIdx.length === parsed.length) return null;
+  const before = parsed.slice(0, presentIdx[0]);
+  const after = parsed.slice(presentIdx[presentIdx.length - 1] + 1);
+  if (before.length + after.length === 0) return null; // 抜けが中間だけ＝対応関係が不明なので触らない
+  if (result.type === 'CONDITIONAL') {
+    const c = result as ConditionalAction;
+    return { ...c, then: { type: 'SEQUENCE', steps: [...before, c.then, ...after] } as SequenceAction };
+  }
+  return { type: 'SEQUENCE', steps: [...before, result, ...after] } as SequenceAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
