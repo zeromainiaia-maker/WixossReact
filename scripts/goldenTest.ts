@@ -21681,10 +21681,18 @@ test('WXEX1-02: frozen opponent loses CONT/AUTO only', () => {
     const removeAbilityCards = [...effectsMap.keys()].filter(cardNum =>
       mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).some(e =>
         e.effectType === 'CONTINUOUS' && (e.action as { type: string }).type === 'REMOVE_ABILITIES'));
-    eq(removeAbilityCards.sort().join(','), ['WX05-019','WX18-038','WXEX1-02','WXK11-029'].sort().join(','),
-      'active CONTINUOUS REMOVE_ABILITIES universe is the reviewed family minus deferred WX09');
+    // §6.4 O-10（続き507）＝`WX09-Re01` が defer から実装へ移った（旧 defer 理由は原文の誤読で、
+    // 「【グロウ】あなたのセンタールリグがカード名に《リメンバ》を含む」は**グロウ条件**＝E1 の
+    // 「かぎり」条件ではない）。⇒ 同文の `WXEX1-02-E1` と同じ形になり、ルリグ由来の走査も2枚になる。
+    eq(removeAbilityCards.sort().join(','), ['WX05-019','WX09-Re01','WX18-038','WXEX1-02','WXK11-029'].sort().join(','),
+      'active CONTINUOUS REMOVE_ABILITIES universe is the reviewed family (WX09 no longer deferred)');
     eq(removeAbilityCards.filter(n => cardMap.get(n)?.Type === 'ルリグ').sort().join(','),
-      'WXEX1-02', 'only unconditional WXEX1-02 remains an active LRIG source');
+      'WX09-Re01,WXEX1-02', 'both unconditional LRIG sources are active');
+    // 🔑原文の差＝`WXEX1-02` は「【常】能力と【自】能力を失う」（`abilityTypes` あり）／
+    //   `WX09-Re01` は「能力を失う」＝**全能力**（`abilityTypes` なし＝【起】も失う）。
+    const wx09Act = mergeManualEffects('WX09-Re01', effectsMap.get('WX09-Re01') ?? [])
+      .find(e => e.effectId === 'WX09-Re01-E1')!.action as { abilityTypes?: string[] };
+    eq(wx09Act.abilityTypes, undefined, 'WX09-Re01 は全能力を失う（abilityTypes を付けない）');
     eq(['WX05-019','WXK11-029','WX18-038'].filter(n => cardMap.get(n)?.Type === 'シグニ').length, 3,
       'reviewed family has exactly three SIGNI cards');
     eq(['WX09-Re01','WXEX1-02'].filter(n => cardMap.get(n)?.Type === 'ルリグ').length, 2,
