@@ -12736,7 +12736,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     if (bs.turn_phase === 'ATTACK_SIGNI') {
       if (!stack || stack.length === 0) return []; // シグニなし
-      if (my.field.signi_down?.[rawZoneIdx]) return []; // すでにダウン
+      // ⚠「すでにダウン」は **gate（`ALREADY_DOWN`）** が見る（§6.4 O-10）＝ここに写経すると
+      //   【常】「このシグニはダウン状態でもアタックできる」の例外が人間側にだけ効かない。
       if (op.field.check) return []; // 相手のライフバースト処理待ち
       if (my.pending_signi_battle) return []; // 別シグニのアタック解決中は操作不可
       if (loading) return []; // 処理中は操作不可
