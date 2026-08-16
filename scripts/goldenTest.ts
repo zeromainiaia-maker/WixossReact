@@ -5237,6 +5237,48 @@ test('§6.4 E2E WXDi-P08-046-E2: 2枚ミル後の4枚だけを名前限定し、
   eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側もカード消滅なし');
 }));
 
+test('§6.4 O-11: 可変枚数の手札捨てが正準形になり、帰結が枚数に追従する', () => {
+  const act = (cardNum: string, effectId: string) => {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在`);
+    return e!.action as Record<string, unknown>;
+  };
+  const steps = (a: Record<string, unknown>) => (a.steps ?? []) as Record<string, unknown>[];
+
+  // 🔴従来は bare `STUB{OPTIONAL_COST}`＝**1枚も捨てないのに帰結だけ走る**過剰実行だった。
+  const wx22 = steps(act('WX22-037', 'WX22-037-E1'));
+  const d0 = wx22[0].target as Record<string, unknown>;
+  eq(d0.count, 'ALL', 'WX22-037: 「好きな枚数」は count:ALL');
+  eq(d0.upToCount, true, 'WX22-037: 0枚も選べる');
+  // 「それぞれ異なる色を持つ」は**選択集合どうしの相互制約**＝落とすと同色を複数捨てられて原文より緩い。
+  eq((d0.selectionConstraint as Record<string, unknown>).sharedColor, 'none', 'WX22-037: 色の相互制約');
+  eq(wx22[1].count, 0, 'WX22-037: ドローは固定枚数を持たない');
+  eq(wx22[1].addLastProcessedCount, true, 'WX22-037: 捨てた枚数だけ引く');
+
+  // 「N枚まで」＋「1枚につき相手が1枚捨てる」＝対象数も枚数に追従する。
+  const wx26 = steps(act('WX26-CP1-053', 'WX26-CP1-053-E1'));
+  eq((wx26[0].target as Record<string, unknown>).upToCount, true, 'WX26-CP1-053: N枚まで');
+  eq(JSON.stringify((wx26[1].target as Record<string, unknown>).count), '{"$ref":"last_processed_count"}',
+    'WX26-CP1-053: 相手の手札捨ては捨てた枚数に追従');
+
+  // 「それぞれレベルの異なる」＝distinct:'level'（旧実装は `STUB{TRASH}` がアーツ自身を捨てていた）。
+  const wda = steps(act('WDA-F02-07', 'WDA-F02-07-E1'));
+  eq((( wda[0].target as Record<string, unknown>).selectionConstraint as Record<string, unknown>).distinct, 'level',
+    'WDA-F02-07: レベルの相互制約');
+
+  // 🔴負方向＝**「同じレベル」のペア付け機構が無いうちは対象数を増やさない**（増やすと対応づかない
+  //   相手シグニをまとめて処理できる過剰実行になる）。機構が入るまでこの1が正しい保守側。
+  for (const [c, id] of [['WDA-F02-07', 'WDA-F02-07-E1'], ['WX24-P2-036', 'WX24-P2-036-E1']] as const) {
+    const last = steps(act(c, id)).at(-1)!;
+    eq((last.target as Record<string, unknown>).count, 1, `${id}: ペア付け未実装のあいだは対象1体に据置`);
+  }
+
+  // 🔴「そのシグニと同じレベル」でも**基準が違う文は書き換えない**＝`WX09-014-E2` はトリガー元基準
+  //   （`levelEqTrigger`）。「この方法で」の連鎖に限定しないと別カード扱いになる（実際に踏んだ）。
+  const wx09 = (act('WX09-014', 'WX09-014-E2').target as Record<string, unknown>).filter as Record<string, unknown>;
+  eq(wx09.levelEqTrigger, true, 'WX09-014-E2: トリガー元基準のまま');
+  eq(wx09.levelEqLastProcessed, undefined, 'WX09-014-E2: 直前処理基準を混ぜない');
+});
 test('§6.4 O-11: 「追加でエクシードNを支払ってもよい」が実際にルリグの下を払う', () => withSavedCursor(() => {
   const SRC = 'PR-Di013';
   const effect = effectsMap.get(SRC)?.find(e => e.effectId === 'PR-Di013-E1');
