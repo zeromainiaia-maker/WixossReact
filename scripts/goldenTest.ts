@@ -5291,7 +5291,7 @@ test('§6.4 O-11 E2E: デッキから探した札を【アクセ】にする（�
   ok((r.ownerState.field.signi_acce?.[zi] ?? []).includes(acceCard), '探した札がホストの【アクセ】になる');
   // 🔴既存 `ATTACH_ACCE` はエナ／手札からしか抜けない＝デッキ由来だと**デッキに残ったまま**アクセにも現れる。
   ok(!r.ownerState.deck.includes(acceCard), 'アクセにした札はデッキから抜ける（複製しない）');
-  eq(trackedCardCount(r.ownerState), before, 'カード総数が変わらない');
+  eq(total(r.ownerState), before, 'カード総数が変わらない');
 }));
 test('§6.4 E2E WX24-P4-008-E1: 場→手札→残りエナの3分岐を維持', () => withSavedCursor(() => {
   const chain = findActionByType(manualEffect('WX24-P4-008', 'WX24-P4-008-E1').action, 'LOOK_PICK_CHAIN')! as LookPickChainGolden;
