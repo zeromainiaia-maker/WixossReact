@@ -305,6 +305,30 @@ const DEST_TO_ACTION: Record<string, string[]> = {
   deck:   ['TRANSFER_TO_DECK'],
 };
 
+/**
+ * 任意コスト STUB（`OPTIONAL_COST` 一族）が**実際に何を支払うか**はペイロードのキーで決まる
+ * （`resolveOptionalCostSpec`＝`src/engine/execUtils.ts`）。id だけを STUB_EQUIVALENTS に登録すると
+ * **ペイロードが空＝何も支払わない個体まで「実装済み」に見えてしまう**ので、キー単位で派生させる。
+ * ⚠ここに無いキーは何も派生しない＝**ペイロードが空の `OPTIONAL_COST` は正しく穴として報告される**。
+ */
+const COST_KEY_TO_ACTION: Record<string, string[]> = {
+  handDiscard:      ['HAND_DISCARD', 'TRASH'],
+  handDiscardCountFromTargetLevel: ['HAND_DISCARD', 'TRASH'],
+  handToEnergy:     ['SEND_TO_ENERGY'],
+  selfToEnergy:     ['SEND_TO_ENERGY'],
+  deckTrash:        ['MILL', 'TRASH'],
+  life_crash:       ['LIFE_CRASH'],
+  lifeToHand:       ['TRANSFER_TO_HAND'],
+  energyTrash:      ['TRASH'],
+  fieldTrash:       ['TRASH'],
+  fieldTrashGroups: ['TRASH'],
+  charmTrash:       ['TRASH'],
+  lifeTrash:        ['TRASH'],
+  fieldToLrigTrash: ['TRASH'],
+  trashOwnKey:      ['TRASH'],
+  fieldToDeckBottom: ['TRANSFER_TO_DECK'],
+};
+
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
   const found = new Set<string>();
   const addDest = (dest: unknown) => {
