@@ -7346,6 +7346,10 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // ⚠**0体選択でも ban を張る**＝「1体も選ばなかった＝どのシグニでもアタックできない」が原文の意味。
       //   `targetsStored`（選んだものを禁止）とは逆向きなので、空集合の扱いも逆になる。
       if (sab.exceptTargetsStored) ban.exceptCardNums = [...(ctx.storedTargetCards ?? [])];
+      // ゾーン限定（「中央のシグニゾーンにあるシグニでアタックできない」＝§6.4 O-33）。
+      // ⚠**ルリグ側 ban には載せない**＝ルリグにシグニゾーンは無く、載せると判定地点でゾーンが取れず
+      //   「掛からない」に倒れる（`zones` 付き ban は `appliesTo:'LRIG'` と両立しない）。
+      if (sab.zones?.length) ban.zones = [...sab.zones];
       for (const b of [ban, lrigBan]) {
         if (!b) continue;
         if (sab.unlessPayColorless) b.unlessPayColorless = sab.unlessPayColorless;
