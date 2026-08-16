@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-16・続き503・Opus 5）＝§6.4 **O-28 クローズ**＝`GRANT_KEYWORD.keyword` のゴミ**残0**。ゲート全緑（**golden 2088**＝+6・**census 825→823**＝`BASELINE_HIGH` 実数更新・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・lint 0/260・held **103→102枚 / 44群**）。live changed **38効果 / 37カード**。`census:stubs` A群 **15種/17件 → 18種/22件**（+3種＝**明示 defer にした分**。無言 no-op は 0 のまま）。新機構＝`normalizeKeywordName`／`textHasKeyword`（綴り funnel）／`AssassinScope.selfHandLte`／明示 defer 3種。
+  - **🔴① 在庫は「engine が実際に読む形」で数え直す**＝PLAN の「23綴り」は `effects_*.json` を直接数えた値で、**MANUAL 上書き済みのカードを worklist に載せていた**（`WXEX2-71-E3` は既に正しい MANUAL がある）。`mergeManualEffects` を通して数えると **engine 消費0 の綴りは 8種/8効果**だった。
+  - **🔴② 代わりに PLAN が数えていなかった 26効果が丸ごと死んでいた**＝原文（CSV）は**全角**【Ｓランサー】、engine コードは**半角** `'Sランサー'`。`hasKeyword` は完全一致でしか照合しないので `GRANT_KEYWORD{'Ｓランサー'}` **26効果が一度も効かない**。さらに原文を `includes('Sランサー')` で嗅ぐ実行時ハンドラ5箇所は全角原文に当たらず、**「Ｓランサー」に含まれる「ランサー」へフォールバック**して**弱い方（通常ランサー）へ格下げ**していた。
+  - **🔑③ 綴りズレは「両方向」に壊れる**＝**state 照合は半角が正／原文照合（`filter.keyword`）は全角が正**で**正が逆**。片方だけ直すともう片方が壊れる＝`normalizeKeywordName`／`textHasKeyword` の1本に集約して**両側を正準化**した。
+  - **🔴④ 引用【常】の中身が丸ごと `keyword` に入る形は「二重に見えない」**＝`hasKeyword` に当たらない無言 no-op でありながら、`GRANT_KEYWORD` は実装済みアクションなので `census:stubs` にも映らない。「キーワード名の**形**でない綴り（句読点・入れ子の【】・15文字以上）」を宣言済みの穴へ落とし、解けるものは機構へ載せた（`アサシン:{selfHandLte}`／`GRANT_PROTECTION`／`DOUBLE_OWN_POWER_MINUS`）。
+  - **🔴⑤ ゴミを落とす後処理は「カード単位の最終段」でだけ掛ける**＝この壊れた `GRANT_KEYWORD` を**入力として**正準形へ組み替える rewriter が後段に2種（`rewriteAttackTaxKeywordGrant` の7効果／`applyDroppedTargetDesignation` 族の2効果）あり、文単位や `parseActionText` の途中で落とすと**その正準形ごと消える**（実装中に held +7 → +2 と2回踏んだ）。
+  - **🔴⑥ 使われていないハンドラは壊れている**＝`DOUBLE_OWN_POWER_MINUS` は live 利用者0で、相手シグニを選ばせておきながら**自分の state** へフラグを積んでいた（`applyTempMods` は**そのシグニを持つ側**の state を読む）＝繋ぐ前に owner を是正した。
+  - **▶ 次の一手【Opus 側】**＝`O-25` の残3件＋【常】引用クラス → `O-26` → `O-27` → `O-29`（`WX22-016-E1` の `REPEAT_EFFECT` が続き501 で合流）→ `O-31` の残2 → `O-10`（明示 defer **18 id/22件**の前提再判定。🆕続き503 で +3＝`DEFERRED_CONVERT_ENERGY_COLOR`／`_ATTACK_WHILE_DOWN`／`_LEAVE_FIELD_REPLACE_WITH_DOWN`）。⚠`O-33` の据置分＝`WDK09-001-E2`（動的ゾーン）も残っている。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**。🆕**続き503 の4経路**＝(a)**Sランサー26効果**（バトルに勝つとライフを追加クラッシュし、**ライフが無ければ相手が敗北**＝通常ランサーとの**対**で見る。旧実装は格下げ／不発）(b)`WX24-P1-064-E1`（手札2枚以下のときだけ【アサシン】が乗る＝**負方向＋対照の対**）(c)`WXK07-029-E1`（相手の効果でバニッシュ／手札戻しの**両方**が効かない）(d)`WXK08-049-E2`（対象の相手シグニだけパワー－が2倍）。⚠**すべて実機未検証**。
+
+
 - **🆕 セッション（2026-08-16・続き502・Opus 5）＝§6.4 **O-33 クローズ**＝アタック禁止の**ゾーン限定軸（残0）**。ゲート全緑（**golden 2082**＝+3・**census 825 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・lint 0/260・held **104→103枚 / 44群**）。live changed **9効果 / 9カード**。`census:stubs` A群 **15種/17件 据置**（無言 no-op 0 のまま）。新機構＝`SigniAttackBan.zones`＋`SigniAttackBanAction.zones`（`turnsRemaining` は続き499 で導入済み＝これで O-33 の2キーが揃った）／`signiZoneIndexJa`（ゾーン語の対応表を1本に集約）。
   - **🔑① ゾーンは「掛けた時点の1枚」ではなく判定地点で引く**＝`banMatches` がアタッカー側 state からゾーン添字を引くので、掛けたあとにシグニが入れ替わっても**いまそのゾーンにいるシグニ**に掛かる（原文はゾーンに掛かる制限）。golden に入れ替えの対を置いた。あわせて **PLAN の見積り（「`matchedSigniAttackBans` の署名変更が全呼び出し元に及ぶ」）は不要だった**＝`banMatches` には既に `attacker` が渡っており、外向き API は一切変えずに済んだ。
   - **🔴② 規則の挿入位置は「先に飲む catch-all」を実測してから決める**＝ゾーン規則を `parseSentencePart3` の後半に置いたら、同ファイル前半の `/次の対戦相手のターン.*アタックできない/`（`BLOCK_ACTION`）が先に飲んでいた。⚠**単独文の parse では通るのに効果全体では通らない**という形で出る（whole-text 層 `parseActionText` と文層 `parseSingleSentence` で到達順が違う）＝**両方の入口で確認する**。
