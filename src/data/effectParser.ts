@@ -3169,29 +3169,36 @@ function collectActionTypeSet(a: unknown, out: Set<string> = new Set()): Set<str
  * ⚠照応（「それ」「その」）や「対象とし」を含む帰結は、節を単独 parse すると参照先を失うので触らない。
  */
 function recoverDroppedConjClauses(t: string, result: EffectAction): EffectAction | null {
-  if (result.type === 'UNKNOWN' || result.type === 'STUB') return null;
-  const condM = t.match(/^(?:.*(?:場合|とき|かぎり)、)(.+)$/s);
+  if (result.type === 'UNKNOWN') return null; // UNKNOWN は悪化させない（従来動作を据置）
+  // 条件/トリガー前置きは**最後の marker まで**を prefix にする（入れ子条件を帰結側へ漏らさない）。
+  const condM = t.match(/^(.*(?:場合|とき|かぎり)、)(.+)$/s);
   if (!condM) return null;
-  const consequent = condM[1];
-  // 条件が二重に残る／照応がある／探索文（1アクションで表す）は対象外。
-  if (/場合|とき|かぎり|代わりに|対象とし|それ|その|探して|残りを|公開し|手札に加え/.test(consequent)) return null;
+  const prefix = condM[1];
+  const consequent = condM[2];
+  if (/場合|とき|かぎり|代わりに/.test(consequent)) return null;
+  // 探索・公開系は「1つのアクション」で表す文型なので割ってはいけない（SEARCH が壊れる）。
+  if (/探して|残りを|その中から|公開し|手札に加え/.test(consequent)) return null;
   const segs = splitConjChain(consequent);
   if (!segs || segs.length < 2) return null;
-  const parsed = segs.map(s => parseSingleSentence(s));
-  if (!parsed.every(p => p.type !== 'UNKNOWN' && p.type !== 'STUB' && p.type !== 'SEQUENCE')) return null;
+  // 🔑**先頭節だけは prefix（条件節・「〜を対象とし、」）ごと再パースする**＝「それ」の参照先を保てる。
+  //   2節目以降は単独 parse するので、照応・対象指定を含んでいたら触らない（参照先を失う）。
+  if (segs.slice(1).some(s => /それ|その|対象とし/.test(s))) return null;
+  const head = parseSingleSentence(prefix + segs[0]);
+  if (head.type === 'UNKNOWN') return null;
+  const tails = segs.slice(1).map(s => parseSingleSentence(s));
+  if (!tails.every(p => p.type !== 'UNKNOWN' && p.type !== 'STUB' && p.type !== 'SEQUENCE')) return null;
+
+  // 🔑**再構成は現行結果の「厳密な上位集合」でなければ採らない**＝足すことはあっても減らさない。
+  //   （`result` が文全体を表す STUB のときは STUB が want に現れないので、この判定で自動的に弾かれる）
   const have = collectActionTypeSet(result);
-  const presentIdx = parsed.map((p, i) => (have.has(p.type) ? i : -1)).filter(i => i >= 0);
-  // 1つも対応が取れない＝この result はチェーンとは別物を表している（触らない）。
-  // 全部揃っている＝脱落なし。
-  if (presentIdx.length === 0 || presentIdx.length === parsed.length) return null;
-  const before = parsed.slice(0, presentIdx[0]);
-  const after = parsed.slice(presentIdx[presentIdx.length - 1] + 1);
-  if (before.length + after.length === 0) return null; // 抜けが中間だけ＝対応関係が不明なので触らない
-  if (result.type === 'CONDITIONAL') {
-    const c = result as ConditionalAction;
-    return { ...c, then: { type: 'SEQUENCE', steps: [...before, c.then, ...after] } as SequenceAction };
-  }
-  return { type: 'SEQUENCE', steps: [...before, result, ...after] } as SequenceAction;
+  const rebuilt: EffectAction = head.type === 'CONDITIONAL'
+    ? { ...(head as ConditionalAction),
+        then: { type: 'SEQUENCE', steps: [(head as ConditionalAction).then, ...tails] } as SequenceAction }
+    : { type: 'SEQUENCE', steps: [head, ...tails] } as SequenceAction;
+  const want = collectActionTypeSet(rebuilt);
+  if ([...have].some(x => !want.has(x))) return null; // 何かを失う＝採らない
+  if (![...want].some(x => !have.has(x))) return null; // 何も増えない＝触らない
+  return rebuilt;
 }
 
 function parseSingleSentence(text: string): EffectAction {
