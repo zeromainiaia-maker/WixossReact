@@ -5253,6 +5253,12 @@ const IDENTITY_BATCH5B: Record<string, { type: string; flag: keyof TargetFilter;
   'WXK09-067-E2': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
   'WXEX2-33-E3': { type: 'SEARCH', flag: 'levelEqDiscardLevelSum' },
   'WDK13-011-E2': { type: 'BANISH', flag: 'levelEqDiscardLevelSum' },
+  // §6.4 O-32：`WX16-042-E1`「手札からシグニを１枚捨てる。その後、**捨てたシグニと同じレベルの**
+  //   対戦相手のシグニ１体を…バニッシュする」。🔴同族11効果は `levelEqDiscardLevelSum`（コスト経路の
+  //   捨て札レベル）を持つのに、この1件だけ**捨てるのが効果ステップ**なのでその変数が埋まらず、
+  //   レベル条件が丸ごと落ちて**どのシグニでもバニッシュできる**過剰実行になっていた。
+  //   直前の `TRASH{HAND_CARD}` が残す `lastProcessedCards` を見る `levelEqLastProcessed` が正しい軸。
+  'WX16-042-E1': { type: 'BANISH', flag: 'levelEqLastProcessed' },
   'WXEX1-36-E1': { type: 'BANISH', flag: 'levelEqLastProcessed' },
   'WXEX2-42-TRAP': { type: 'TRANSFER_TO_DECK', flag: 'levelEqLastProcessed' },
   'WXK06-060-E1': { type: 'BOUNCE', flag: 'levelEqLastProcessed' },
