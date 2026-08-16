@@ -94,15 +94,58 @@ export function collectForcedAttackZones(p: ForcedAttackScanInput): number[] {
   return zones;
 }
 
+/**
+ * 「ダウン状態でもアタックできる」（`ATTACK_WHILE_DOWN`＝`WX22-022-E1`・§6.4 O-10）を宣言しているか。
+ * ⚠**判定はここ1箇所**＝人間ボタン／`performSigniAttack`／CPU 候補フィルタが同じ gate を通るので、
+ *   呼び出し元に「すでにダウン」判定を写経すると例外が片側にしか効かない。
+ */
+function declaresAttackWhileDown(
+  attacker: PlayerState, defender: PlayerState, attackerNum: string,
+  effectsMap: Map<string, CardEffect[]>, cardMap: Map<string, CardData>,
+): boolean {
+  return (effectsMap.get(attackerNum) ?? []).some(eff =>
+    eff.effectType === 'CONTINUOUS'
+    && eff.action.type === 'STUB'
+    && (eff.action as { id?: string }).id === 'ATTACK_WHILE_DOWN'
+    && checkActiveCondition(eff.activeCondition, attacker, defender, true, cardMap, attackerNum));
+}
+
+/**
+ * ダウン状態のまま同一ターンに撃てるアタックの**安全上限**（§6.4 O-10）。
+ *
+ * 🔑「ダウン状態でもアタックできる」は原文どおりなら回数を制限しない＝現存カード（`WX22-022`）は
+ * 同居する【常】「自身のパワー10000につき一度まで」で必ず止まるが、**その相方を持たない札が将来出ると
+ * CPU/fuzz が無限にアタックし続ける**（`performSigniAttack` はダウン済みでも状態が変わらない）。
+ * ここは挙動の再現ではなく**ハングを止めるための弁**なので、実カードが到達しない値にしておく。
+ */
+const MAX_ATTACKS_WHILE_DOWN = 5;
+
 /** アタックできない理由。null ならアタック可能。 */
 export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBlockReason | null {
   const { attacker, defender, attackerNum, effectsMap, cardMap } = p;
 
   if (attacker.blocked_actions?.includes(`ATTACK:${attackerNum}`)) return 'BLOCKED_ACTION';
 
+  // 実効パワーは「相手が課したパワー上限」「アタック禁止のパワー条件」「パワー比例のアタック回数」の
+  // 3軸が使う。⚠**同じ1本を共有する**＝軸ごとに引き直すと、渡された `effectivePowers` を使う軸と
+  //   印刷パワーへ落ちる軸が混ざって人間/CPU でズレる。
+  let powersCache = p.effectivePowers;
+  const getPowers = (): Map<string, number> =>
+    (powersCache ??= calcFieldPowers(attacker, defender, true, effectsMap, cardMap, p.turnPhase));
+
+  // §6.4 O-10（続き507）＝「すでにダウン」を gate へ寄せた（従来は人間ボタン生成と CPU 候補フィルタに
+  // インラインで写経されていた）。例外は【常】「このシグニはダウン状態でもアタックできる」だけ。
+  const downZone = attacker.field.signi.findIndex(stack => stack?.at(-1) === attackerNum);
+  if (downZone >= 0 && (attacker.field.signi_down?.[downZone] ?? false)) {
+    if (!declaresAttackWhileDown(attacker, defender, attackerNum, effectsMap, cardMap)) return 'ALREADY_DOWN';
+    if ((attacker.attacked_signi_ids ?? []).filter(id => id === attackerNum).length >= MAX_ATTACKS_WHILE_DOWN) {
+      return 'ALREADY_DOWN';
+    }
+  }
+
   // アタックはアタッカーのターンにしか起きないので isOwnerTurn は常に true。
   const contBlocked = p.contBlocked
-    ?? calcContinuousBlockedActions(attacker, defender, true, effectsMap, cardMap);
+    ?? calcContinuousBlockedActions(attacker, defender, true, effectsMap, cardMap, getPowers());
   if (contBlocked.cannotAttackSigni.has(attackerNum)) return 'CONTINUOUS_CANNOT_ATTACK';
   // 【常】由来の「〈コスト〉を支払わないかぎりアタックできない」は**払えば通る**（§6.4 O-31）。
   // ⚠`cannotAttackSigni` と同じ扱いにすると「絶対に通らない」に化ける。
