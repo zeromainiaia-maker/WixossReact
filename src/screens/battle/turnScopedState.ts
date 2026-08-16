@@ -117,6 +117,11 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   negated_attacks_escape: { boundaries: ['turn-end'], reset: undefined, reason: 'escape cost of negated_attacks; same lifetime' },
   // 追加アタックフェイズ開始時の本文は、そのフェイズで消化する。未消化の残骸をターンを跨がせない。
   pending_extra_attack_phase_start_effects: { boundaries: ['turn-end'], reset: undefined, reason: 'extra attack phase start effects are consumed in that phase; no carry-over' },
+  // 🔴ルリグの能力喪失（`OPP_LRIG_LOSE_ABILITY`／`SELF_LRIG_LOSE_ABILITY`）も型コメントは「このターン」なのに
+  //   **失効地点が手書き2箇所しか無かった**（§6.4 O-10 続き509 で発見。`negated_attacks` と同じクラス）。
+  //   しかも手書きは**自分側の turn-end 経路だけ**で、`OPP_LRIG_LOSE_ABILITY` が書き込むのは**相手側**＝
+  //   相手ターンを跨いだ経路では**ゲーム終了までルリグが能力を失ったまま**になりうる。
+  lrig_abilities_disabled: { boundaries: ['turn-end'], reset: undefined, reason: 'lrig ability loss for the current turn; both players expire at the boundary' },
   // キーの能力喪失（§6.4 O-16(b)）も「このターン」限定。⚠登録前は BattleScreen の turn-end 4経路のうち
   //   2経路でしか手書きクリアされておらず、普通にターンを終えるとキー能力が**永久に**戻らなかった。
   keys_abilities_disabled: { boundaries: ['turn-end'], reset: undefined, reason: 'all-keys ability loss for the current turn' },
