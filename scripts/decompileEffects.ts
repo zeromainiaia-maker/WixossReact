@@ -2824,6 +2824,10 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §6.4 O-28（続き503）＝キーワード名だが engine に消費が無いもの＝明示 defer。
+        DEFERRED_CONVERT_ENERGY_COLOR: '【未実装】【コンバート《色》】（エナコストを支払う際、このカードはその色として支払える）',
+        DEFERRED_ATTACK_WHILE_DOWN: '【未実装】このシグニはダウン状態でもアタックできる',
+        DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN: '【未実装】このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失い、このシグニをダウンする',
         // §6.4 O-32（続き501）
         PLACE_TRASH_SIGNI_FACING_SAME_POWER: 'あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーのシグニを１枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す',
         // ⚠engine 本体は §6.4 O-32 で撤去済み（正準形は `REPEAT`）。残るのは `WX22-016-E1` の
