@@ -290,12 +290,41 @@ const KNOWN_ACTION_TYPES: Set<string> = (() => {
   }
 }
 
+/**
+ * 「行き先をパラメータに持つ」型から派生アクションを導く（2026-08-16・§6.4 O-11）。
+ * ⚠`LOOK_PICK_CHAIN` / `REVEAL_AND_PICK` は**エナ置き・ミル・手札加え・場出しを型名では区別しない**
+ * （行き先は `stages[].then` / `remainder.location` / `handOrEnergy` に入る）ので、
+ * 型名だけ見る照合では原理的に当てられず、そのぶんが誤検出になっていた。
+ * 派生分は `~` を付けて記録し、レポートでも「推定」と分かるようにする。
+ */
+const DEST_TO_ACTION: Record<string, string[]> = {
+  energy: ['SEND_TO_ENERGY'],
+  trash:  ['MILL', 'TRASH'],
+  hand:   ['ADD_TO_HAND', 'TRANSFER_TO_HAND'],
+  field:  ['ADD_TO_FIELD'],
+  deck:   ['TRANSFER_TO_DECK'],
+};
+
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
   const found = new Set<string>();
+  const addDest = (dest: unknown) => {
+    if (typeof dest !== 'string') return;
+    for (const a of DEST_TO_ACTION[dest] ?? []) found.add(`~${a}`);
+  };
   function walk(action: Record<string, unknown>) {
     if (!action) return;
     if (action.type) found.add(action.type as string);
     if (action.type === 'STUB' && action.id) found.add(`STUB:${action.id as string}`);
+    // 行き先パラメータ由来の派生アクション
+    if (action.type === 'LOOK_PICK_CHAIN' || action.type === 'REVEAL_AND_PICK') {
+      (action.stages as Record<string, unknown>[] | undefined)?.forEach(st => {
+        addDest(st.then);
+        if (st.handOrEnergy) { addDest('hand'); addDest('energy'); }
+      });
+      addDest((action.remainder as Record<string, unknown> | undefined)?.location);
+      if (action.handOrEnergy) { addDest('hand'); addDest('energy'); }
+      if (action.handOrField)  { addDest('hand'); addDest('field'); }
+    }
     if (action.steps) (action.steps as Record<string, unknown>[]).forEach(walk);
     if (action.then) walk(action.then as Record<string, unknown>);
     if (action.else) walk(action.else as Record<string, unknown>);
