@@ -2857,6 +2857,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- キーワード能力（スタンドアロン形式：【XXX】（説明）or 【XXX】のみ）----
   // 【マルチエナ】など CONTINUOUS 効果として記載されるキーワード能力
   {
+    // ⚠**engine に消費が無いキーワード名は先に明示 defer へ落とす**（§6.4 O-28）＝
+    //   `GRANT_KEYWORD{keyword:'コンバート《青》'}` のまま置くと `census:stubs` に映らない無言 no-op になる。
+    if (/^【コンバート《[白赤青緑黒無]》】/.test(t.trim())) {
+      return { type: 'STUB', id: 'DEFERRED_CONVERT_ENERGY_COLOR' } as StubAction;
+    }
     const saM = t.match(/^【([^】]+)】[（(]?/);
     if (saM && !['常','出','起','自','ガード','エナチャージ'].includes(saM[1]) && !saM[1].match(/^エナチャージ/)) {
       const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
