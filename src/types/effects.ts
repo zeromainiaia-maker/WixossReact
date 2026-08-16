@@ -2667,6 +2667,14 @@ export interface StubAction {
   deckTopIcon?: { icon: 'トラップ' | 'ライズ' | 'クロス' | 'アクセ'; deckOwner: Owner; onWrongAction: EffectAction };
   /** EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY: 守るシグニの条件。 */
   leaveVictimFilter?: TargetFilter;
+  /**
+   * EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY（§6.4 O-10・続き507）＝
+   * 「このシグニが対戦相手の効果によって場を離れる場合、代わりに（ターン終了時まで、）この能力を失う」。
+   * `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY` の**シグニ自身版**で、失うのは
+   * **この効果1つだけ**（`lost_ability_effect_ids_this_turn`）＝同居する他の【常】/【自】は残る。
+   * `thenDown`＝「そうした場合、このシグニをダウンする」（`WX25-P2-071-E1` の付与文）。
+   */
+  leaveLoseSelfAbility?: { thenDown?: boolean };
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */
   handDiscardCountFromTargetLevel?: boolean;
   /** Filter for a target-level-derived hand discard cost. */
