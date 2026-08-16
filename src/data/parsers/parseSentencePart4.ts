@@ -1600,14 +1600,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   前半の「エナ全部を手札へ」だけが走る一方通行になっていた（§6.4 O-11 の `SEND_TO_ENERGY` 群）。
   // 可変枚数は `{$ref:'self_hand_over_five'}`（手札枚数−5・下限0）＝`seven_minus_self_life_count` と同型。
   // ⚠live は「５枚」の1形しかないので閾値は 5 に限定する（他の閾値が出たら ref を増やす）。
-  // ⚠上流の条件節スプリッタが「〜場合、」で切るので**帰結節だけ**が来る形も受ける（そちらが実経路）。
-  if (t.match(/^(?:あなたの手札が５枚より多い場合、)?その差の分だけ手札からカードをエナゾーンに置く$/)
-      || t.match(/手札が５枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く/))
-    return {
-      type: 'CONDITIONAL',
-      condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gt', value: 5 },
-      then: { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: { $ref: 'self_hand_over_five' } } },
-    } as EffectAction;
+  // ⚠上流の条件節スプリッタが「〜場合、」で切るので**帰結節だけ**が来るのが実経路＝そちらは条件を
+  //   二重に被せない（外側の CONDITIONAL{HAND_COUNT gt 5} が既に付いている）。
+  {
+    const handExcessM = t.match(/^(あなたの手札が５枚より多い場合、)?その差の分だけ手札からカードをエナゾーンに置く$/);
+    if (handExcessM) {
+      const charge: EffectAction = {
+        type: 'ENERGY_CHARGE',
+        target: { type: 'HAND_CARD', owner: 'self', count: { $ref: 'self_hand_over_five' } },
+      } as EffectAction;
+      return handExcessM[1]
+        ? ({ type: 'CONDITIONAL', condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gt', value: 5 }, then: charge } as EffectAction)
+        : charge;
+    }
+  }
 
   // ---- 対戦相手のトラッシュから〜デッキの一番下に置く ----
   if (t.match(/対戦相手のトラッシュから.*デッキの一番下に置く/))
