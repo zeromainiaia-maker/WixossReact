@@ -7479,7 +7479,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       }
       const zoneLabelJa = (zi: number) => (zi === 0 ? '左' : zi === 1 ? '中央' : '右');
       const scopeLabel = [
-        ban.zones?.length ? `${ban.zones.map(zoneLabelJa).join('か')}のシグニゾーンにある` : '',
+        ban.zoneSource === 'gate' ? '【ゲート】があるシグニゾーンにある'
+          : ban.zones?.length ? `${ban.zones.map(zoneLabelJa).join('か')}のシグニゾーンにある` : '',
         ban.level !== undefined ? `レベル${ban.level}の` : '',
         ban.powerDiffersFromPrinted ? '表記と異なるパワーの' : '',
         sab.targetsStored
