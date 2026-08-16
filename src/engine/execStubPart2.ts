@@ -823,7 +823,9 @@ export function execStubPart2(
   // 自シグニパワーの2倍を全相手シグニにマイナス
   // DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置）
   if (stub.id === 'DOUBLE_OWN_POWER_MINUS') {
-    const targetDOPM = (ctx.lastProcessedCards ?? []).find(cn =>
+    // ⚠**対象は `storedTargetCards` も見る**（§6.4 O-28）＝`SELECT_TARGET_ONLY → STORE` の正準形から来る
+    //   経路では `lastProcessedCards` が後続で上書きされうる。
+    const targetDOPM = [...(ctx.storedTargetCards ?? []), ...(ctx.lastProcessedCards ?? [])].find(cn =>
       ctx.otherState.field.signi.some(s => s?.at(-1) === cn)
     );
     if (!targetDOPM) {
