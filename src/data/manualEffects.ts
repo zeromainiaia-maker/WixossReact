@@ -4667,8 +4667,15 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WXK01-002": [
     {"effectId":"WXK01-002-E1","effectType":"CONTINUOUS","activeCondition":{"type":"COUNT_THRESHOLD","location":"hand","owner":"self","operator":"eq","value":0},"action":{"type":"STUB","id":"PREVENT_LRIG_DAMAGE","loseAbilityAfterUse":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
+  // §6.4 O-10（続き507）＝**据置。ただし理由を絞り込んで専用 id にした**（旧 `DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY`
+  // は「この能力を失う」機構が無いことを理由にしていたが、その機構は本セッションで実装済み
+  // ＝`lost_ability_effect_ids_this_turn`）。**残っているブロッカーはアーツ使用コスト側**＝
+  // 「あなたが対戦相手のターンにアーツを使用する場合、そのアーツの使用コストは《無×2》減る」は
+  // **場のシグニが宣言する**軽減で、`ARTS_COST_REDUCTION_BY_COST_THRESHOLD` と同じ層に収集器が要り、
+  // かつ**コスト算出の入口が3箇所**（ArtsModal Phase1／Phase2／CutinModal＝§3(d) の教訓）ある。
+  // 1点 funnel が無いまま足すと「一覧では安いのにタップすると高い」型の食い違いになる。
   "WXK03-071": [
-    {"effectId":"WXK03-071-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WXK03-071-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_OPP_TURN_ARTS_COST_REDUCTION_ONCE"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXDi-P01-003": [
     {"effectId":"WXDi-P01-003-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":5}]},"condition":{"type":"FIELD_LRIGS_HAVE_COLORS","owner":"self","colors":["白","青"]},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":2,"upToCount":true,"filter":{"cardType":"シグニ","isFrozen":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
