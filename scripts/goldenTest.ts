@@ -35032,7 +35032,8 @@ test('§6.4 離場置換: 強制2軸／任意3軸の分類が live の原文と�
     return out;
   };
   const isOptional = (effectId: string) => /てもよい/.test(srcText[effectId] ?? '');
-  const mandatoryAxes = ['EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM'];
+  // §6.4 O-10（続き507）＝シグニ自身の「代わりに（ターン終了時まで、）この能力を失う」も強制軸。
+  const mandatoryAxes = ['EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY', 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM'];
   const optionalAxes = ['BANISH_SUBSTITUTE', 'EFFECT_LEAVE_REPLACE_BANISH'];
   for (const axis of mandatoryAxes) {
     const ids = declarers(axis);
