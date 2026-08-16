@@ -15,36 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +STUB -GRANT_KEYWORD -SIGNI ［4枚］
-WX22-022 WXEX1-54 WXEX1-56 WXEX2-56
---- WX22-022
-  原文: 【常】：このシグニはダウン状態でもアタックできる。【常】：各ターン、このシグニは自身のパワー10000につき一度までしかアタックできない。【常】：このシグニのパワーは30000より大きくならない。【自】：あなたの他のシグニ１体がアタックしたとき、ターン終了時まで、このシグニのパワーは＋5000される。,：あなたのデッキから異なる色を持つ＜遊具＞のシグニ２枚を
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "スリープアタッカー"
-  - [0].action.duration = "PERMANENT"
-  ~ [0].action.type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.id = "DEFERRED_ATTACK_WHILE_DOWN"
---- WXEX1-54
-  原文: 【出】：対戦相手の凍結状態のシグニ１体を対象とし、それを手札に戻す。【起】《メインフェイズ》《アタックフェイズ》トラッシュにあるこのカードをゲームから除外する：対戦相手のシグニを２体まで対象とし、それらを凍結する。この能力はあなたのセンタールリグが＜リメンバ＞の場合にしか使用できない。【常】：【コンバート《青》】,-
-  - [2].action.target.type = "SIGNI"
-  - [2].action.target.owner = "self"
-  - [2].action.target.count = 1
-  - [2].action.keyword = "コンバート《青》"
-  - [2].action.duration = "PERMANENT"
-  ~ [2].action.type : "GRANT_KEYWORD" → "STUB"
-  + [2].action.id = "DEFERRED_CONVERT_ENERGY_COLOR"
---- WXEX1-56
-  原文: 【常】：対戦相手のターンの間、あなたの＜美巧＞のシグニのパワーを＋1000する。【常】：【コンバート《緑》】,-
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 1
-  - [1].action.keyword = "コンバート《緑》"
-  - [1].action.duration = "PERMANENT"
-  ~ [1].action.type : "GRANT_KEYWORD" → "STUB"
-  + [1].action.id = "DEFERRED_CONVERT_ENERGY_COLOR"
-
 ## +SEQUENCE ［4枚］
 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
@@ -654,6 +624,19 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
+
+## +STUB -GRANT_KEYWORD -SIGNI ［1枚］
+WX25-P2-071
+--- WX25-P2-071
+  原文: あなたの＜宇宙＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋5000する。それがレゾナの場合、次の対戦相手のターン終了時まで、それは「【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。」を得る。,：対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.targetsLastProcessed = true
+  - [0].action.steps[1].then.keyword = "【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。"
+  - [0].action.steps[1].then.duration = "UNTIL_OPP_TURN_END"
+  ~ [0].action.steps[1].then.type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[1].then.id = "DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN"
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
