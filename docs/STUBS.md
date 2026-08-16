@@ -7,15 +7,15 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 > 名前付きハンドラ（`src/engine/execStub.ts` → `execStubPart1〜3.ts`）に逃がす仕組み。
 > `execStub` は Part1→2→3 の順に `stub.id` を照合し、どれにも一致しなければ `[STUB: id]` をログ出力する（フォールバック）。
 
-## サマリー（最終生成: 2026-08-15）
+## サマリー（最終生成: 2026-08-16）
 
 | 区分 | 値 |
 |---|---:|
 | JSON で使用中の STUB id 種類 | 596 |
 | 　└ ハンドラ実装あり | 561 |
 | 　└ フォールバック（execStub 未処理） | 35 |
-| 総 STUB ノード件数 | 2877 |
-| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 330 |
+| 総 STUB ノード件数 | 2874 |
+| JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 332 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
 - **STUB_LOG（ゲーム効果なしのログのみ）は 0 件達成済み**（v0.284）。現在残る STUB は何らかの実処理を持つ。
@@ -69,7 +69,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ## 実装済み STUB（ハンドラ別）
 
-### execStubPart1.ts（120 種）
+### execStubPart1.ts（121 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -178,6 +178,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_TRASH_TO_DECK_TOP` | 1 | 1 | WXDi-P07-076 | 相手のトラッシュからカードをデッキトップに（もよい） |
 | `OPTIONAL_DISCARD_CLASS_SIGNI` | 1 | 1 | PR-328 | 手札からクラスシグニを任意枚数捨てる |
 | `PLACE_REV_SIGNI` | 1 | 1 | PR-Di017A | PLACE_REV_SIGNI: REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す） PR-Di017A「白熱する黒白」のREV変身効果 |
+| `PLACE_TRASH_SIGNI_FACING_SAME_POWER` | 1 | 1 | WXDi-CP01-024 | ═══ PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）═══ 「あなたのトラッシュから**対戦相手の場にあるシグニ１体と同じパワー**の＜X＞のシグニを１… |
 | `PLAY_MILLED_SIGNI_DELAYED_TRASH` | 1 | 1 | WXDi-P09-079 | PLAY_MILLED_SIGNI_DELAYED_TRASH（WXDi-P09-079-E1）：   「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき、そのシグニを場に出す。     ターン終了時、そのシグニを場からト… |
 | `POWER_PLUS_BANISHED_POWER` | 1 | 1 | WX24-P2-049 |  |
 | `PREVENT_DEFEAT` | 1 | 1 | WX12-002 | 敗北無効フラグ |
@@ -404,7 +405,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS` | 1 | 1 | WX25-P1-089 | UNDER_SIGNI_TO_ENERGY: シグニ下カードをエナゾーンへ UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ソースシグニの下のカードを対象とし、エナに同クラスがなければエナへ |
 | `USE_SPELL_FROM_TRASH` | 1 | 1 | WXDi-P06-066 |  |
 
-### execStubPart3.ts（236 種）
+### execStubPart3.ts（235 種）
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
@@ -451,7 +452,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `NEGATE_NTH_ATTACK` | 3 | 3 | SP27-016, WX10-018, WX17-006 | NEGATE_NTH_ATTACK: このターン、対象種別の相手アタックを共有カウントでN回目まで自動無効化 |
 | `OPP_DECLARE_CHOICE` | 3 | 3 | PR-K060, WX05-006, WX16-Re17 | OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ |
 | `PLACE_OWN_GATE` | 3 | 3 | WXDi-P15-003, WXDi-P15-010, WXDi-P15-011 | PLACE_OWN_GATE: あなたのシグニゾーン1つにTHE DOOR【ゲート】を置く（own_gate_zones）。 signi_gate_zones（相手ゾーンのアタック妨害ゲート）とは別概念。THE DOORシグニが参照する自… |
-| `REPEAT_N_TIMES` | 3 | 3 | WXDi-P07-007, WXDi-CP01-024, WXDi-CP02-047 | REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す |
 | `REVEAL_TOP_CONDITIONAL_ROUTE` | 3 | 3 | WX08-025, WX10-030, WXK05-021 | REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐 |
 | `REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI` | 3 | 3 | WDK05-T15, WXK02-071, WXK10-057 | REVEAL_TOP_PLACE_AS_ATTACKER_IF_SIGNI: このシグニを手札に戻した場合のみ、デッキの一番上を公開し、シグニならアタッカーの元ゾーンにダウン状態で出してアタックを継続する（G186） |
 | `SET_ACCE_CHOICE` | 3 | 1 | SPK01-11 | SET_ACCE_CHOICE: アクセ装着時に選んだ付与能力のインデックスを記録（SPK01-11 ラズベリー）。 sourceCardNum（=このアクセカード）をキーに ownerState.acce_choice へ保存。GRAN… |
@@ -477,7 +477,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_ZONE_PLACEMENT_RESTRICT` | 2 | 2 | WXDi-P14-068, WXDi-P11-TK01 | OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定） |
 | `OPTIONAL_RETURN_SELF_ARTS_FIRST_USE` | 2 | 1 | WX24-P3-036 | OPTIONAL_RETURN_SELF_ARTS_FIRST_USE: 同名アーツの当ターン初回使用時だけ、 使用済みの自身をルリグデッキへ戻す任意選択を提示する。 |
 | `PEEP_HAND` | 2 | 2 | PR-K070, WX24-P4-105 | PEEP_HAND: 相手の手札を覗き見（ログに枚数と名前を表示） |
-| `REPEAT_EFFECT` | 2 | 2 | WX16-042, WX22-016 | REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す |
 | `RETURN_SUMMONED_RESONA_AT_TURN_END` | 2 | 2 | WX07-050, WX16-Re18 | RETURN_SUMMONED_RESONA_AT_TURN_END: 「ターン終了時、（その）レゾナを場からルリグデッキに戻す」の予約。 ⚠**直前の SUMMON が置いたレゾナ**を対象にする（`last_summoned_reso… |
 | `REVEAL_OPP_HAND_CARD` | 2 | 2 | PR-459A, WXDi-P14-060 | REVEAL_OPP_HAND_CARD: 相手の手札のカードを1枚公開 |
 | `SWAP_OPTIONAL` | 2 | 2 | WX13-073, WXDi-P10-047 | SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理） |
@@ -614,6 +613,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `REDIRECT_ATTACK_TO_SELF_ZONE` | 1 | 1 | WXDi-CP02-TK01A | REDIRECT_ATTACK_TO_SELF_ZONE: 相手シグニの直接アタックをこのシグニゾーンにリダイレクト（BattleScreen側処理） |
 | `REDUCE_OPP_HAND_LIMIT` | 1 | 1 | WDK09-009 | 手札上限増加（CONTINUOUS：シグニがフィールドにある間） HAND_SIZE_INCREASE: 手札上限を増やす / REDUCE_OPP_HAND_LIMIT: 相手の手札上限を減らす |
 | `REMOVE_SELF_SIGNI_FROM_GAME` | 1 | 1 | WXDi-CP02-TK01A | REMOVE_SELF_SIGNI_FROM_GAME: このシグニをゲームから除外する（クラフトルール適用） |
+| `REPEAT_EFFECT` | 1 | 1 | WX22-016 | REPEAT_N_TIMES / REPEAT_EFFECT（§6.4 O-32 で本体は撤去） 🔴**旧実装はカード全文の regex を読んで自分でN回ぶん実行する O-20 クラスの受け皿**だった＝   `SEQUENCE` の… |
 | `REPLACE_LEAVE_FIELD_WITH_TRASH_UNDER` | 1 | 1 | WXDi-P05-038 |  |
 | `REPLACE_PLUS_N` | 1 | 1 | WXK10-005 | REPLACE_PLUS_N: このターン、相手シグニへの正パワー修正を負に置換 |
 | `RESONANCE_COST_CARDS_TO_ENERGY` | 1 | 1 | WXEX1-16 | RESONANCE_COST_CARDS_TO_ENERGY: レゾナコストカードをエナゾーンへ |
@@ -648,7 +648,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 ---
 
-## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 330 種）
+## 付録: 内部/動的生成 STUB（JSON 0 件・ハンドラのみ 332 種）
 
 他の STUB やパーサーが実行時に動的生成する `INTERNAL_*` 系などが大半。JSON には静的には現れない。
 
@@ -833,6 +833,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `INTERNAL_PICK_TO_ENERGY` | 0 | 0 |  | INTERNAL_PICK_TO_ENERGY: 公開中のカード（stub.value）をデッキ/トラッシュからエナゾーンへ（handOrEnergy のエナ分岐）。 |
 | `INTERNAL_PICK_TO_HAND` | 0 | 0 |  | INTERNAL_TRASH_TO_LIFE: 自トラッシュの末尾カードをライフクロスへ追加（近似：相手選択なし） INTERNAL_PICK_TO_HAND: 公開中のカード（stub.value）をデッキ/トラッシュ/エナから手札へ（… |
 | `INTERNAL_PICK_TO_TRAP` | 0 | 0 |  |  |
+| `INTERNAL_PLACE_FACING_SAME_POWER` | 0 | 0 |  | ═══ PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）═══ 「あなたのトラッシュから**対戦相手の場にあるシグニ１体と同じパワー**の＜X＞のシグニを１… |
 | `INTERNAL_PLACE_LRIG_UNDER_CENTER` | 0 | 0 |  | INTERNAL_PLACE_LRIG_UNDER_CENTER: ルリグトラッシュから選択ルリグをセンタールリグ下に配置 |
 | `INTERNAL_PLACE_PUPPET` | 0 | 0 |  | INTERNAL_PLACE_PUPPET: 選択した相手トラッシュのシグニ1枚を、傀儡状態で自分の空きゾーンに出す（applyDirectActionが1枚ずつ呼ぶ） |
 | `INTERNAL_PLACE_SELF_UNDER_SIGNI` | 0 | 0 |  | INTERNAL_PLACE_SELF_UNDER_SIGNI: 自シグニを選択シグニのスタック下に移動。 ⚠同名スタブが execStubPart2 にもあり、そちらは「スペル自身を stub.value のシグニの下に置き   ON_… |
@@ -954,6 +955,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `REACTIVE_POWER_UP` | 0 | 0 |  | REACTIVE_POWER_UP: あなたの効果で相手シグニのパワーが減ったとき、その分だけ自シグニのパワーを上げる |
 | `REMOVE_MIKO_KEYWORD` | 0 | 0 |  | REMOVE_MIKO_KEYWORD: みこみこ親衛隊キーワードをsourceCardNumのシグニのkeyword_grantsから取り除く（WX25-P3-TK03） |
 | `REORDER_LIFE_CLOTHS` | 0 | 0 |  | REORDER_LIFE_CLOTHS: ライフクロスを好きな枚数トラッシュに置き同数デッキ上から補充し並び替え |
+| `REPEAT_N_TIMES` | 0 | 0 |  | REPEAT_N_TIMES / REPEAT_EFFECT（§6.4 O-32 で本体は撤去） 🔴**旧実装はカード全文の regex を読んで自分でN回ぶん実行する O-20 クラスの受け皿**だった＝   `SEQUENCE` の… |
 | `RESOLVE_EXTRA_ATTACK_PHASE_START` | 0 | 0 |  | RESOLVE_EXTRA_ATTACK_PHASE_START（§6.4 O-3）: 追加したアタックフェイズの開始時本文を1件取り出して実行する。 ⚠**取り出しと実行を同じハンドラで行う**＝collector は予約1件につき1エ… |
 | `RESOLVE_FACEDOWN_FLIP` | 0 | 0 |  | RESOLVE_FACEDOWN_FLIP: 次の自メインフェイズ開始時、裏向きカードを表向きにするか選ぶ（合成トリガーから発火）。 |
 | `RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT` | 0 | 0 |  | RESOLVE_NEXT_OPP_ATTACK_PHASE_EFFECT（§6.4 O-3）: 「次の対戦相手のアタックフェイズ開始時、〜」の本文を 1件取り出して実行する。collector が予約1件につき1エントリを積むので、先頭か… |
