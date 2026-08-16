@@ -1798,8 +1798,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   engine 側は `resumeSearch` が `then:STUB{INTERNAL_ASK_TRAP_ZONE}` を**ピック枚数ぶん展開**して
   //   ゾーン選択→`field.signi_traps` へ置く（`effectExecutor.ts:8475`）＝機構は既存で足りる。
   const toTrapZone = /【トラップ】として[^。]*シグニゾーンに設置/.test(t);
+  // 🆕【アクセ】付け先（§6.4 O-11・2026-08-16）＝「あなたのデッキから〈X〉のシグニN枚まで探して
+  //   **それ（ら）の【アクセ】にし**、デッキをシャッフルする」。行き先の語彙が無くこの規則を素通りし、
+  //   **サーケもアクセ付けも消えて `SHUFFLE_DECK` だけ**になっていた（`WDK07-E07`／`WDK07-E20`／`WXK10-074`）。
+  //   engine 側は `INTERNAL_ASK_ACCE_HOST`（`execStubPart3`）＋`resumeSearch` の枚数展開で受ける。
+  // ⚠既存の `ATTACH_ACCE` は使えない＝アクセ元がエナ／手札のときしかカードを抜けない。
+  const toAcce = /探して[^。]*【アクセ】に(?:し|する)/.test(t);
   if (t.includes('デッキから') && t.includes('探して') && !t.includes('手札かデッキから') &&
-      (toTrapZone || t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
+      (toTrapZone || toAcce || t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
     const filter: TargetFilter = {
       // ⚠トラップ設置文は「あなたの**シグニゾーン**に設置」と書くだけで**探す対象はカード全般**。
       //   ここで cardType を拾うと「シグニしか【トラップ】にできない」過少実行になる。
