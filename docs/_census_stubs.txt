@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 598（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 761  うち生ID露出 266 箇所（183 種）
+live JSON の STUB id 種類 : 596（総ノード 2881 件）
+逆翻訳シートの [STUB:…] 総数: 761  うち生ID露出 265 箇所（182 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 13 種 / 17 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 13 種 / 17 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 11 種 / 15 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 11 種 / 15 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 21 種 / 67 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 172 種 / 253 箇所
@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart1.ts:2918 / src\data\parsers\parseSentencePart1.ts:2936
      3件   3枚  DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY  [生ID露出 3]
         カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
-        生成: src\data\effectParser.ts:4500 / src\data\parsers\parseSentencePart1.ts:498
+        生成: src\data\effectParser.ts:4505 / src\data\parsers\parseSentencePart1.ts:498
      1件   1枚  DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF
         カード: WX24-P4-016
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
@@ -33,26 +33,21 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart1.ts:3330
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4854
+        生成: src\data\manualEffects.ts:4877
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
      1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
-     1件   1枚  DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY  [生ID露出 1]
-        カード: WXDi-P16-062
-        生成: src\data\manualEffects.ts:3686
-     1件   1枚  DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG
-        カード: WXDi-P00-026
      1件   1枚  DEFERRED_OPP_TURN_ARTS_COST_REDUCTION_ONCE  [生ID露出 1]
         カード: WXK03-071
-        生成: src\data\manualEffects.ts:4678
+        生成: src\data\manualEffects.ts:4701
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        生成: src\data\manualEffects.ts:4655
+        生成: src\data\manualEffects.ts:4678
      1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92
@@ -157,7 +152,7 @@ live JSON の STUB id 種類 : 598（総ノード 2883 件）
   露出  3箇所 (live 3件/3枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
         カード: WX13-003, WXEX2-44, WXK06-028
         既存コメント: CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
-  露出  3箇所 (live 3件/2枚)  GATE  [execStubPart3]
+  露出  3箇所 (live 2件/2枚)  GATE  [execStubPart3]
         カード: WDK09-001, WDK09-006
         既存コメント: GATE: ゲート効果（ログのみ） GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）
   露出  3箇所 (live 3件/3枚)  MARK_SELF_DELAYED_EXILE  [execStubPart3]

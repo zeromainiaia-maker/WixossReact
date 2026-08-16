@@ -10869,7 +10869,10 @@ test('task12(lxvii): CPU ターンで不発だった live 母数を固定', () =
   eq(count('ON_MAIN_PHASE_START').eff, 31, 'ON_MAIN_PHASE_START（同上）');
   eq(count('ON_TURN_START').eff, 3, 'ON_TURN_START（同上）');
   eq(count('ON_LRIG_ATTACK_STEP_START').eff, 1, 'ON_LRIG_ATTACK_STEP_START（同上）');
-  eq(count('ON_ATTACK_PHASE_START').nonSelf, 57, 'ON_ATTACK_PHASE_START の非 self（手書き実装が落としていた分）');
+  // 57→58＝§6.4 O-10（続き508）で `WXDi-P16-062-E1` の defer を解体し、同族18効果と同じ
+  //   「引用を平らにした AUTO＋`condition:SAME_ZONE_HAS_GATE`」へ揃えた（原文「**各**アタックフェイズ開始時」
+  //   ＝`triggerScope:'any'`）。
+  eq(count('ON_ATTACK_PHASE_START').nonSelf, 58, 'ON_ATTACK_PHASE_START の非 self（手書き実装が落としていた分）');
   eq(count('ON_GROW_PHASE_START').eff, 2, 'ON_GROW_PHASE_START（唯一 CPU にも配線されていた）');
 });
 
@@ -15540,6 +15543,46 @@ test('§6.4 O-33 live: ゾーン限定アタック禁止3効果が SIGNI_ATTACK_
     ok(!JSON.stringify(eff.action).includes('"actionId":"ATTACK"'), `${effectId}: 旧 BLOCK_ACTION が残っている`);
   }
 });
+// ── §6.4 O-33 据置分（続き508）：`SigniAttackBan.zoneSource:'gate'`（動的ゾーン）──
+test('SigniAttackBan.zoneSource=gate: 【ゲート】のあるゾーンだけ止まり、ゲートが動けば追随する', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const base = mkState({ signi: [a, b, c] });
+  const cm = cardMap as Map<string, CardData>;
+  const banned: PlayerState = { ...base, signi_attack_bans_this_turn: [{ zoneSource: 'gate' }], signi_gate_zones: [1] };
+  eq(signiAttackBanCost(banned, b, cm), null, '【ゲート】があるゾーン1のシグニは止まる');
+  eq(JSON.stringify(signiAttackBanCost(banned, a, cm)), '{"colorless":0,"handDiscard":0}', '負方向＝ゲートの無いゾーン0は止まらない');
+  eq(JSON.stringify(signiAttackBanCost(banned, c, cm)), '{"colorless":0,"handDiscard":0}', '同上（ゾーン2）');
+  // 🔑ゾーン集合も**判定地点で引く**＝ban を張ったあとに【ゲート】が増えれば新しいゾーンにも掛かる。
+  const moreGates: PlayerState = { ...banned, signi_gate_zones: [0, 1] };
+  eq(signiAttackBanCost(moreGates, a, cm), null, 'あとから置かれた【ゲート】にも追随する');
+  // 対照＝【ゲート】が1つも無ければ誰も止まらない（ban だけ残っても全禁止に化けない）。
+  const noGate: PlayerState = { ...banned, signi_gate_zones: [] };
+  for (const n of [a, b, c]) {
+    eq(JSON.stringify(signiAttackBanCost(noGate, n, cm)), '{"colorless":0,"handDiscard":0}', 'ゲート0個なら全員アタックできる');
+  }
+}));
+test('§6.4 O-33 据置分 live: WDK09-001-E2 が「公開→【ライフバースト】なし→ゲートゾーン禁止」になっている', () => {
+  // 🔴旧 live は `SEQUENCE[LOOK_AND_REORDER, STUB{GATE}]`＝2文目が**catch-all の「【ゲート】を置く」**へ
+  //    落ちており、相手のアタックフェイズ開始のたびに**ゲートが増える**という原文に無い動作だった。
+  const eff = (effectsMap.get('WDK09-001') ?? []).find(e => e.effectId === 'WDK09-001-E2')!;
+  const steps = (eff.action as { steps: EffectAction[] }).steps;
+  const reveal = steps[0] as { type: string; owner?: string };
+  eq(reveal.type, 'REVEAL_DECK_TOP', '1文目は公開（並べ替えモーダルではない）');
+  eq(reveal.owner, 'opponent', '⚠公開するのは**対戦相手の**デッキ（owner を焼き込むと自分のデッキに化ける）');
+  const cond = steps[1] as { type: string; condition?: { type?: string; filter?: { hasLifeBurst?: boolean } }; then?: { type?: string; zoneSource?: string; owner?: string } };
+  eq(cond.type, 'CONDITIONAL', '2文目は条件つき');
+  eq(cond.condition?.type, 'LAST_PROCESSED_MATCHES', '公開したカードで判定する');
+  eq(cond.condition?.filter?.hasLifeBurst, false, '🔴「【ライフバースト】を持たない場合」＝条件が落ちていない');
+  eq(cond.then?.type, 'SIGNI_ATTACK_BAN', '帰結はアタック禁止');
+  eq(cond.then?.zoneSource, 'gate', 'ゾーンは動的（【ゲート】がある所）');
+  eq(cond.then?.owner, 'opponent', '止まるのは対戦相手');
+  ok(!JSON.stringify(eff.action).includes('"id":"GATE"'), '🔴2文目が「ゲートを置く」へ戻っていない');
+  // 設置そのもの（E1）は【ゲート】を置くだけ＝アタック禁止は課さない。
+  const src = fs.readFileSync(join(root, 'src/engine/execStubPart3.ts'), 'utf8');
+  const setGate = src.slice(src.indexOf("stub.id === 'INTERNAL_SET_GATE'"), src.indexOf("stub.id === 'PLACE_OWN_GATE'"));
+  ok(!/blocked_actions/.test(setGate),
+     '🔴【ゲート】設置は blocked_actions を積まない（設置＝禁止ではない／設置時の1枚に焼き込まない）');
+});
 // 🔴選択肢本文（①②③）の2文目が top-level へ漏れると、**選ばなくても必ず走る**（§6.4 O-33 続き502）。
 // engine 側が全文 regex で選択肢を組む choice ビルダー3種すべてに掛ける一般ガードの回帰テスト。
 test('choice ビルダー: 選択肢本文が top-level へ漏れていない（live 6効果）／見出しの宣言は残す', () => {
@@ -17393,8 +17436,10 @@ test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を�
   //   `OPPONENT_PAY_OPTIONAL`（otherState 払い）は**払う側が逆**だった。回避枝そのものは残っている。
   // 76/40/36＝2026-08-15 続き496（§6.4 O-31）後。**増えた3件はいずれも回避クローズの復元**
   //   （`WXDi-P05-023-E1/E2`＝付与を止める支払い／`WXDi-P07-007-E3`＝手札1枚 or 《無》の2枝）。
-  eq(stubs.length, 76, 'OPPONENT_PAY_OPTIONAL の live 出現数');
-  eq(withCost.length, 40, 'エナコストを持つ（＝pay 枝が出る）STUB');
+  // 77＝2026-08-16 続き508（§6.4 O-10）。**増えた1件は defer 解体**＝`WXDi-P16-062-E1`
+  //   （「対戦相手が《無》を支払わないかぎり、ターン終了時まで、それは能力を失う」）。
+  eq(stubs.length, 77, 'OPPONENT_PAY_OPTIONAL の live 出現数');
+  eq(withCost.length, 41, 'エナコストを持つ（＝pay 枝が出る）STUB');  // 40→41＝続き508 の `WXDi-P16-062-E1`（《無》×1）
   eq(noCost.length, 36, 'エナコスト非搭載（＝pay 枝を出さない）STUB');
   // ⚠ここが (ci) の安全弁＝costColors も回避枝も無い STUB があると「必ず本体が発動する」過剰実行になる。
   eq(noCost.filter(s => !SPECS.some(k => s[k] !== undefined)).length, 0,

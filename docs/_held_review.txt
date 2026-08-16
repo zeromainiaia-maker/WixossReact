@@ -188,38 +188,6 @@ WXDi-D08-004 WXEX2-28
   ~ [0].action.type : "DOWN" → "STUB"
   + [0].action.id = "DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY"
 
-## -CONDITIONAL -IS_MY_TURN -REMOVE_ABILITIES -SEQUENCE -SIGNI ［2枚］
-WX25-P2-059 WX26-CP1-047
---- WX25-P2-059
-  原文: 【常】《相手ターン》：あなたの緑のシグニ１体が対戦相手の効果によって場を離れる場合、《緑》《無》を支払ってもよい。そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う。【自】：あなたのアタックフェイズ開始時、次の対戦相手のターン終了時まで、あなたのすべてのシグニのパワーを＋2000する。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "緑"
-  - [0].action.steps[0].costColors[1] = "無"
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "REMOVE_ABILITIES"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
-  - [0].action.steps[1].then.target.filter.color = "緑"
-  …（他 4 行）
---- WX26-CP1-047
-  原文: 【常】《相手ターン》：あなたの＜プリオケ＞のシグニ１体が対戦相手の効果によって場を離れる場合、《無》を支払ってもよい。そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う。【起】《ダウン》手札から＜プリオケ＞のカードを２枚捨てる：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。,：どちらか１つを選ぶ。①対
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "無"
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "REMOVE_ABILITIES"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.until = "UNTIL_END_OF_TURN"
-  ~ [0].action.type : "SEQUENCE" → "STUB"
-  + [0].action.id = "DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY"
-
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -716,6 +684,24 @@ WDK08-Y08
   + [0].action.steps[1].condition.value = 5
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "その差の分だけ手札からカードをエナゾーンに置く"
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES +REVEAL_DECK_TOP +SIGNI_ATTACK_BAN -LOOK_AND_REORDER -STUB ［1枚］
+WDK09-001
+--- WDK09-001
+  原文: 【出】：対戦相手のシグニゾーン１つに【ゲート】１つを置く。カードを１枚引く。【自】：対戦相手のアタックフェイズ開始時、対戦相手はデッキの一番上を公開する。それが【ライフバースト】を持たない場合、このターン、対戦相手は【ゲート】があるシグニゾーンにあるシグニでアタックできない。【起】《ゲーム１回》プライマル《コインアイコン》：対戦相手は、【ゲート】がある自分の
+  - [1].action.steps[0].source.location = "deck"
+  - [1].action.steps[0].source.owner = "opponent"
+  - [1].action.steps[0].private = false
+  - [1].action.steps[0].reorder = false
+  - [1].action.steps[0].destination.location = "deck"
+  - [1].action.steps[0].destination.owner = "opponent"
+  - [1].action.steps[0].destination.position = "top"
+  - [1].action.steps[1].id = "GATE"
+  ~ [1].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
+  + [1].action.steps[0].owner = "opponent"
+  ~ [1].action.steps[1].type : "STUB" → "CONDITIONAL"
+  + [1].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
+  …（他 4 行）
 
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007
