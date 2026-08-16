@@ -5,6 +5,7 @@ import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource } 
 import type {
   EffectAction, StubAction, DrawAction, BanishAction, BounceAction, TrashAction, ShuffleDeckAction, AddToFieldAction, SequenceAction, AddToHandAction, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
+import { textHasKeyword } from '../utils/keywords';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter,
@@ -1230,7 +1231,9 @@ export function execStubPart1(
     // 引用符内のテキストを抽出
     const quotedM = txtGQ.match(/「([^」]+)」(?:の能力)?(?:を得る|として扱う)/) ?? txtGQ.match(/【([^】]+)】を得る/);
     const quotedText = quotedM ? quotedM[1] : '';
-    const grantedKws = knownKeywords.filter(kw => quotedText.includes(kw) || txtGQ.match(new RegExp(`【${kw}】を得`)));
+    // ⚠綴りズレ（全角Ｓ／半角S）を吸収して照合する（§6.4 O-28）＝素の includes は【Ｓランサー】に当たらず、
+    //   『Ｓランサー』に含まれる『ランサー』へフォールバックして**弱い方へ格下げ**していた。
+    const grantedKws = knownKeywords.filter(kw => textHasKeyword(quotedText, kw) || textHasKeyword(txtGQ, `【${kw}】を得`));
     // 対象シグニを決定（SELECT_TARGET後はlastProcessedCards、「このシグニ」→sourceCardNum、全体→全自シグニ）
     const allM = txtGQ.match(/あなたのシグニすべては|あなたの場にあるすべてのシグニ/);
     const rawTargets: string[] = ctx.lastProcessedCards && ctx.lastProcessedCards.length > 0

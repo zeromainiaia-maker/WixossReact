@@ -4,6 +4,7 @@ import { parseCardEffects } from '../data/effectParser';
 import type {
   EffectAction, StubAction, TrashAction, AddToFieldAction, SequenceAction, PlaceUnderSourceSigniAction, AddToEnergyAction, TransferToHandAction, EnergyChargeAction, ChooseAction, Owner, } from '../types/effects';
 import type { ExecCtx, ExecResult } from './execUtils';
+import { textHasKeyword } from '../utils/keywords';
 import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, splitColors, banishDestination, banishRedirectOpts,
@@ -4359,7 +4360,7 @@ export function execStubPart2(
     let kwSGQCA: string | null = null;
     if (txtSGQCA.includes('アサシン')) kwSGQCA = 'アサシン';
     else if (txtSGQCA.includes('シャドウ')) kwSGQCA = 'シャドウ';
-    else if (txtSGQCA.includes('Sランサー')) kwSGQCA = 'Sランサー';
+    else if (textHasKeyword(txtSGQCA, 'Sランサー')) kwSGQCA = 'Sランサー';  // ⚠全角【Ｓランサー】を吸収（§6.4 O-28）
     else if (txtSGQCA.includes('ランサー')) kwSGQCA = 'ランサー';
     else if (txtSGQCA.includes('ダブルクラッシュ')) kwSGQCA = 'ダブルクラッシュ';
     // 対象シグニ数
@@ -4440,7 +4441,7 @@ export function execStubPart2(
     // 注意: keyword_grantsはhasGrantedKeyword/hasKeyword（utils/keywords.ts）が日本語の正式名でしか
     // 照合しないため、英語短縮コード（'lancer'等）を入れると常時非発火になる（2026-06-17発見・修正）
     let kwGAUOT: string | null = null;
-    if (txtGAUOT.includes('Sランサー')) kwGAUOT = 'Sランサー';
+    if (textHasKeyword(txtGAUOT, 'Sランサー')) kwGAUOT = 'Sランサー';  // ⚠全角【Ｓランサー】を吸収（§6.4 O-28）
     else if (txtGAUOT.includes('ランサー')) kwGAUOT = 'ランサー';
     else if (txtGAUOT.includes('アサシン')) kwGAUOT = 'アサシン';
     else if (txtGAUOT.includes('ダブルクラッシュ')) kwGAUOT = 'ダブルクラッシュ';
@@ -4461,7 +4462,7 @@ export function execStubPart2(
     // 照合しないため、英語短縮コード（'assassin'等）を入れると常時非発火になる（2026-06-17発見・修正）
     let kwRTSGA: string | null = null;
     if (txtRTSGA.includes('アサシン')) kwRTSGA = 'アサシン';
-    else if (txtRTSGA.includes('Sランサー')) kwRTSGA = 'Sランサー';
+    else if (textHasKeyword(txtRTSGA, 'Sランサー')) kwRTSGA = 'Sランサー';  // ⚠全角【Ｓランサー】を吸収（§6.4 O-28）
     else if (txtRTSGA.includes('ランサー')) kwRTSGA = 'ランサー';
     else if (txtRTSGA.includes('ダブルクラッシュ')) kwRTSGA = 'ダブルクラッシュ';
     else if (txtRTSGA.includes('シャドウ')) kwRTSGA = 'シャドウ';
@@ -4529,7 +4530,7 @@ export function execStubPart2(
     const layerMatchILCA = targetTxtILCA.match(/《レイヤーアイコン》(.+)/);
     const layerTxtILCA = layerMatchILCA?.[1] ?? '';
     const knownKwsILCA = ['Sランサー', 'ランサー', 'ダブルクラッシュ', 'アサシン', 'シャドウ', 'マルチエナ'];
-    const copiedKwsILCA = knownKwsILCA.filter(kw => layerTxtILCA.includes(kw));
+    const copiedKwsILCA = knownKwsILCA.filter(kw => textHasKeyword(layerTxtILCA, kw));  // ⚠全角【Ｓランサー】を吸収（§6.4 O-28）
     // Sランサー（パワー条件付き）
     if (layerTxtILCA.match(/12000以上.*Sランサー|Sランサー.*12000以上/)) {
       const srcPow = ctx.effectivePowers?.get(srcILCA) ?? parseInt(ctx.cardMap.get(srcILCA)?.Power ?? '0');

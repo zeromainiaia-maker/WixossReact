@@ -14061,6 +14061,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     e.action = foldSuppressOnPlay(e.action);
     // §6.4 O-16: 指定ゾーンの保存先を読み手（zoneSource:'designated' の target.owner）へ揃える。
     e.action = alignDesignatedZoneOwner(e.action);
+    // §6.4 O-28: `GRANT_KEYWORD.keyword` の綴りを正準化する（原文の全角【Ｓランサー】→ `Sランサー`）。
+    // 🔴engine は半角綴りでしか照合しないので、正準化しないと live 27効果が**一度も効かない**。
+    // ⚠**live データ側も1綴りに寄せる**＝`hasKeyword` 側の吸収（safety net）だけに頼ると、
+    //   直接比較する読み手（表示・キーワード集合）が綴りごとに分岐して無言でズレる。
+    normalizeGrantKeywordSpelling(e.action);
     normalizeOnPlayAbilitySuppression(e, card.EffectText ?? '');
   }
 
