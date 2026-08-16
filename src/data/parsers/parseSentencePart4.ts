@@ -22,7 +22,46 @@ import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
 
 
+/**
+ * 「（あなたの）手札から〈修飾〉〈名詞〉を{好きな枚数|N枚まで}捨てる」＝**可変枚数の手札捨て**（§6.4 O-11・2026-08-17）。
+ *
+ * 🔴従来はこの文型が**バラバラに3本の `STUB{OPTIONAL_COST}`（ペイロード無し＝真 no-op）**へ落ちており、
+ *   「手札を1枚も捨てないのに『この方法で捨てた1枚につき…』の帰結だけが走る」過剰実行になっていた。
+ *   ⚠**機構は既にあった**＝すぐ下の「あなたは手札を好きな枚数捨てる」だけが正準形
+ *   `TRASH{HAND_CARD, count:'ALL', upToCount:true}` を使っており、engine（`execTrash` の HAND_CARD 分岐）は
+ *   0〜全部の選択UIを出して `lastProcessedCards` に選択枚数を残す。**足りなかったのは parser 規則だけ。**
+ * 🔑`lastProcessedCards` が残るので、後段の「この方法で捨てた1枚につき」は
+ *   `DRAW{count:0, addLastProcessedCount:true}` で枚数に追従できる。
+ */
+function parseVariableHandDiscard(t: string): EffectAction | null {
+  const m = t.match(/^(?:あなたは?の?)?手札から(.*?)(シグニ|スペル|カード)を(好きな枚数|[０-９\d]+枚まで)捨てる$/);
+  if (!m) return null;
+  const [, mod, noun, cnt] = m;
+  // 修飾に「〜場合」「〜とき」等が紛れていたら条件文なので触らない（帰結を条件ごと潰さない）。
+  if (/場合|とき|かぎり|それ|その/.test(mod)) return null;
+  const filter: Record<string, unknown> = {};
+  if (noun === 'シグニ') filter.cardType = 'シグニ';
+  else if (noun === 'スペル') filter.cardType = 'スペル';
+  const storyM = mod.match(/＜([^＞]+)＞の/);
+  if (storyM) filter.story = storyM[1];
+  const colorM = mod.match(/(?:^|[^色])([白赤青緑黒])の/);
+  if (colorM) filter.color = colorM[1];
+  const target: Record<string, unknown> = {
+    type: 'HAND_CARD', owner: 'self',
+    count: cnt === '好きな枚数' ? 'ALL' : parseNum(cnt.replace(/枚まで$/, '')),
+    upToCount: true,
+    ...(Object.keys(filter).length > 0 ? { filter } : {}),
+  };
+  // 「それぞれ異なる色を持つ」＝選択集合どうしが色を共有しない（候補単体の条件ではない）。
+  if (/それぞれ異なる色を持つ/.test(mod)) target.selectionConstraint = { sharedColor: 'none' };
+  return { type: 'TRASH', target } as EffectAction;
+}
+
 export function parseSentencePart4(t: string): EffectAction | null {
+  {
+    const varDiscard = parseVariableHandDiscard(t);
+    if (varDiscard) return varDiscard;
+  }
   // ═══ §6.4 O-4：UNKNOWN で落ちていた単発文（続き499）═══
   // ⚠**UNKNOWN は「そのノードが no-op」で済まないことが多い**＝直前/直後のステップを束ねる
   //   ゲート（条件・対象・選択肢）を飲み込んでいると、周囲が無条件で走る過剰実行になる。
