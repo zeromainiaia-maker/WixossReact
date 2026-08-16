@@ -7029,7 +7029,7 @@ export function resumeSelectVirusZone(
   return done(cur);
 }
 
-function canAttachAcceToHost(
+export function canAttachAcceToHost(
   state: PlayerState,
   otherState: PlayerState,
   hostNum: string,
