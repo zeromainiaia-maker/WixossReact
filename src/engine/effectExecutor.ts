@@ -8931,7 +8931,12 @@ export function resumeRearrangeSigni(
     .map(ni => newArrangement[ni]);
   const newState: PlayerState = { ...state, field: newField,
     ...(rearrMoved.length > 0 ? { zone_moved_just: [...(state.zone_moved_just ?? []), ...rearrMoved] } : {}) };
-  const cur = addLog(setOwnerState(pending.owner, newState, ctx), 'シグニを配置し直した');
+  // §6.4 O-8(b)：後続文「この方法で**他のシグニゾーンに移動した**シグニを〜」の照応先は
+  // `rearrMoved`（旧ゾーン≠新ゾーン）。`lastProcessedCards` に載せて `STORE_LAST_PROCESSED_TARGETS`
+  // → `targetsStored` の正準形で受ける。
+  // ⚠`zone_moved_just` は ON_ZONE_MOVED 用に**累積**するので照応先には使えない（前の移動が混ざる）。
+  const cur = addLog({ ...setOwnerState(pending.owner, newState, ctx), lastProcessedCards: rearrMoved },
+    'シグニを配置し直した');
   if (pending.continuation) return executeAction(pending.continuation, cur);
   return done(cur);
 }
