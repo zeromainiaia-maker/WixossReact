@@ -17,7 +17,7 @@ import {
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
-import { activeOppMoveImmunityZones, collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
+import { activeOppMoveImmunityZones, checkActiveCondition, collectBanishSubstitutes, collectMultiAcceLimits, keySlotCardNums, matchesStateFilter } from './effectEngine';
 import type { BanishSubstituteOption } from './effectEngine';
 import { deployLimitBlockReason, deployLimitLogMessage, effectPlacementSource, type DeployBlockReason } from './deployLimit';
 import { isHandSigniPlayBlockedByPower } from './blockAction';
