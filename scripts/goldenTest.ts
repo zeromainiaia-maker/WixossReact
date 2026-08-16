@@ -5237,7 +5237,7 @@ test('§6.4 E2E WXDi-P08-046-E2: 2枚ミル後の4枚だけを名前限定し、
   eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側もカード消滅なし');
 }));
 
-test('§6.4 O-11: 「追加でエクシードNを支払ってもよい」が実際にルリグの下を払う', () => {
+test('§6.4 O-11: 「追加でエクシードNを支払ってもよい」が実際にルリグの下を払う', () => withSavedCursor(() => {
   const SRC = 'PR-Di013';
   const effect = effectsMap.get(SRC)?.find(e => e.effectId === 'PR-Di013-E1');
   ok(!!effect, 'PR-Di013-E1 が live に存在');
