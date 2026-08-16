@@ -26,6 +26,7 @@ export type SigniAttackBlockReason =
   | 'ATTACK_BAN'               // signi_attack_bans_this_turn（「〈条件〉のシグニでアタックできない」）
   | 'ATTACK_BAN_COST'          // 同・「《無》×N を支払わないかぎり」の分が払えない
   | 'ATTACK_BAN_HAND_COST'     // 同・「手札をN枚捨てないかぎり」の分が払えない（手札不足）
+  | 'ALREADY_DOWN'             // すでにダウンしている（＝アタック済み）。§6.4 O-10 で gate へ寄せた
   | 'FORCED_ATTACK_ORDER';     // 「可能ならばアタックしなければならない」対象が未アタック＝**そちらが先**（§6.4 O-8(a)）
 
 export interface SigniAttackGateInput {
