@@ -4614,16 +4614,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       {"type":"CONDITIONAL","condition":{"type":"ENERGY_EACH_LEVEL_FILTER_GTE","owner":"self","filter":{"cardType":"シグニ","story":"電機"},"levels":[1,2,3,4],"minEach":2},"then":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXK09-055-sub-ENERGY","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}}
     ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
-  "WX25-P3-038": [
-    {"effectId":"WX25-P3-038-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"SEQUENCE","steps":[
-      {"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","story":"迷宮"},"pickCount":1,"then":"hand"},{"filter":{"cardType":"シグニ","story":"迷宮"},"pickCount":1,"then":"field"}],"remainder":{"location":"deck","position":"bottom"}},
-      {"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":"ALL"},"targetsLastProcessed":true,"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-P3-038-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[
-        {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}}},"delta":0},
-        {"type":"STUB","id":"STORE_LAST_PROCESSED_TARGETS"},
-        {"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_HAS_NO_ABILITIES"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true},"else":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1},"targetsStored":true}}
-      ]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}}
-    ]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
-  ],
+  // §6.4 O-6：`WX25-P3-038` の MANUAL は**削除して AUTO 採用へ切り替えた**（2026-08-16）。
+  // 判断の根拠＝fresh の木は MANUAL の上位互換で、2点だけが違い両方とも fresh が正しい：
+  //   ① 対象宣言が `POWER_MODIFY{delta:0}` の代用ではなく `STUB{SELECT_TARGET_ONLY}`
+  //      （＝「パワーを＋0した」という偽の履歴を残さない）。
+  //   ② 条件が `LAST_PROCESSED_HAS_NO_ABILITIES` ではなく `LAST_PROCESSED_MATCHES{noAbilities}`
+  //      ＝カードが実際に居る場から holder を引くので**相手側の `abilities_removed` を見られる**。
+  // ⚠②は engine 側も同時に是正済み（`execUtils.ts` の `LAST_PROCESSED_HAS_NO_ABILITIES`）＝
+  //   同じ条件型を使う `WX25-CP1-002-E1` の選択肢4も直る。
   "WXEX1-02": [
     {"effectId":"WXEX1-02-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","isFrozen":true}},"abilityTypes":["常","自"],"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
