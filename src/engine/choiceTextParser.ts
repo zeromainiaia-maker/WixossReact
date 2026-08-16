@@ -227,10 +227,20 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   // 「あなたのすべてのシグニのパワーを＋N」
   const pwAllPlusM = choiceTxt.match(/あなたのすべてのシグニのパワーを[＋+]([０-９\d]+)/);
   if (pwAllPlusM) {
-    return {
+    const pwAllPlus = {
       type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
       delta: parseInt(toHW(pwAllPlusM[1])),
     } as EffectAction;
+    // 🔴選択肢が**2文**のとき（`WXK10-011-E1`②＝「エナゾーンからシグニを2枚まで場に出す。ターン終了時まで、
+    //   あなたのすべてのシグニのパワーを＋5000する。」）、この規則が先に当たって**前半の配置が丸ごと落ちる**。
+    //   ⚠選択肢テキストは複文になりうる＝**先に当たった1文で return しない**（前半を拾って SEQUENCE にする）。
+    if (/エナゾーンから.*シグニ.*場に出す/.test(choiceTxt)) {
+      return { type: 'SEQUENCE', steps: [
+        ({ type: 'STUB', id: 'SUMMON_FROM_ENERGY' } as StubAction) as EffectAction,
+        pwAllPlus,
+      ] } as SequenceAction;
+    }
+    return pwAllPlus;
   }
   // 「すべてのシグニのパワーを－N」
   const pwAllM = choiceTxt.match(/すべてのシグニのパワーを([－-][０-９\d]+)/);
