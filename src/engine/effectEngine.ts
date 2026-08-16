@@ -4289,6 +4289,35 @@ export function collectFieldEnergySigniColorGains(
 }
 
 /**
+ * 【コンバート《色》】（`CONVERT_ENERGY_COLOR`・§6.4 O-10・続き508）＝
+ * 「エナコストを支払う際、**このカードは**《色》として支払える」。
+ *
+ * 🔑**カード自身の宣言**（`FIELD_ENERGY_SIGNI_GAIN_COLOR` が「場のシグニが**他のカードに**色を足す」のと逆）
+ * なので、走査するのは**エナゾーンだけ**＝場に出ていても意味は無い。
+ * ⚠色は原文を再パースせず**ペイロード（`value`）から読む**（parser が落としていたら足さない＝過少側）。
+ * ⚠戻り値は `extraColorMap`（instId → 追加色）＝支払い判定の唯一の funnel（`canAffordGrowCost` /
+ *   `canAffordWithExtraCost` の `extraColorMap` 引数）。**判定サイトへ渡し忘れるとその経路だけ効かない。**
+ */
+export function collectConvertEnergyColors(
+  ownerState: PlayerState,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const instId of ownerState.energy) {
+    const baseNum = instId.includes('#') ? instId.slice(0, instId.indexOf('#')) : instId;
+    for (const eff of (effectsMap.get(instId) ?? effectsMap.get(baseNum) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'CONVERT_ENERGY_COLOR') continue;
+      if (typeof act.value !== 'string' || !act.value) continue;
+      out.set(instId, act.value);
+      break;
+    }
+  }
+  return out;
+}
+
+/**
  * HAND_SIGNI_HAS_GUARD_ICON: フィールドに「手札の特定シグニが【ガードアイコン】を持つ」
  * CONTINUOUS効果があれば、ガードに使えるシグニのクラスフィルター（nullは全シグニ）を返す。
  */
