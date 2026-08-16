@@ -20,7 +20,19 @@ const baseCardNum = (id: string): string => id.split('#')[0];
  * ⚠**レベル限定（`PREVENT_LOW_LEVEL_LRIG_DAMAGE`＝`WXK11-012-E2`「レベル２以下のルリグによって」）は
  * アタックしてきたルリグのレベルで判定する**＝限定を落とすと全ルリグのダメージを無効にする過剰効果になる。
  */
-export function isLrigDamagePrevented(args: {
+export function isLrigDamagePrevented(args: Parameters<typeof resolveLrigDamageShield>[0]): boolean {
+  return resolveLrigDamageShield(args).prevented;
+}
+
+/**
+ * 上と同じ判定に、**「1回防いだらこの能力を失う」宣言の effectId** を添えて返す
+ * （§6.4 O-10・続き507＝`WXK01-002-E1`「代わりにダメージを受けず、ターン終了時まで、この能力を失う」）。
+ *
+ * ⚠**防いだ側は返ってきた `loseEffectId` を必ず `lost_ability_effect_ids_this_turn` へ書くこと**。
+ *   書かないと同じターンに何度でも防ぐ＝原文が1回に絞った意味が消える（`PREVENT_LRIG_DAMAGE` の
+ *   既定は「回数無制限」なので、書き忘れると**無限バリア**になる）。
+ */
+export function resolveLrigDamageShield(args: {
   /** ダメージを受ける側（防御側）。 */
   defender: PlayerState;
   /** アタックしている側。`activeCondition` の相手視点に使う。 */
