@@ -1241,9 +1241,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/^あなたのグロウフェイズ開始時/))
     return { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME' } as StubAction;
 
-  // ---- 手札からスペルを好きな枚数捨てる ----
-  if (t.match(/手札からスペルを好きな枚数捨てる/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+  // 「手札からスペルを好きな枚数捨てる」も `parseVariableHandDiscard` が受ける（旧 no-op STUB は撤去）。
 
   // ---- この方法であなたのセンタールリグのレベル以下のシグニがトラッシュに置かれた場合 ----
   if (t.match(/この方法であなたのセンタールリグのレベル以下のシグニがトラッシュに置かれた場合/))
