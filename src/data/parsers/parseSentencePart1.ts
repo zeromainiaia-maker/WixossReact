@@ -145,6 +145,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'STUB', id: 'COPY_CARD' } as StubAction;
   }
 
+  // ---- 「あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーの＜X＞のシグニを１枚まで対象とし、
+  //        それをその対戦相手のシグニの正面のシグニゾーンに出す」（`WXDi-CP01-024-E1`・§6.4 O-32）----
+  // 🔴従来は丸ごと `UNKNOWN`＝**配置が一度も起きない**（同じ効果の「以下を3回行う」も受け皿 STUB のまま
+  //   engine のカード全文 regex に落ちていた）。パワー一致の相手シグニを選び、その**正面**（相手ゾーン zi の
+  //   正面は自分ゾーン 2-zi）へ出す専用機構へ載せる。
+  // 🔑`placesToField` を立てて `foldSuppressOnPlay` の配置アンカーにする＝次文「それの【出】能力は発動しない」が
+  //   畳み込まれる（立てないと engine 未参照の `BLOCK_ACTION` が残り、置いたシグニの【出】が発動する）。
+  {
+    const facingM = t.match(/^あなたのトラッシュから対戦相手の場にあるシグニ[１1]体と同じパワーの＜([^＞]+)＞のシグニを[１1]枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す$/);
+    if (facingM) {
+      return { type: 'STUB', id: 'PLACE_TRASH_SIGNI_FACING_SAME_POWER', value: facingM[1], placesToField: true } as StubAction;
+    }
+  }
+
   // ---- 「〈シグニ〉に付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く」----
   // （§6.4 O-34(a)・母集団は原文 regex で**3効果**＝`WX19-064-E1`③／`WX18-029-E1`／`WXDi-P07-041-E2`）
   // 🔑**シグニ自身は場に残る**＝剥がすのは付随物（チャーム／アクセ／ソウル）と下カードだけ。
