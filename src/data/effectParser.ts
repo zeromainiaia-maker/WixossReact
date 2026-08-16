@@ -13533,6 +13533,45 @@ function foldDeclaredNumberTopReveal(action: EffectAction, sourceText: string): 
   ] } as SequenceAction;
 }
 
+// 色宣言→デッキトップ1枚公開→宣言色と一致したら手札／エナ（§6.4 O-11・`SEND_TO_ENERGY` 群）。
+// 🔴この文型は live 3効果すべてが壊れていた＝**色宣言の受け皿が3つに割れていた**のが根因：
+//   ・`CHOOSE_COLOR_FROM_LIST`（WX11-077/WX11-080）＝原文は「白、赤、青、黒から１つ」＝**固定リスト**なのに
+//     ハンドラは**自分のエナゾーンにある色**を選ばせ、結果を `story_overrides.__selected_colors__` に置く。
+//   ・`DECLARE_COLOR`（WXK04-027）＝結果を `declared_color`（単数）に置く。読者は `utils/keywords.ts` の
+//     プロテクション判定**だけ**＝この文型からは誰も読まない。
+//   ・`DECLARE_COLORS`（WX11-074）＝結果を `declared_colors`（複数）に置き、**filter `colorEqDeclaredColorIndex`
+//     が読むのはここだけ**。
+//   ＝つまり後段の filter に繋がる store は3つ目だけで、前2つは宣言しても誰も参照しない。実際 live は
+//   後段の色 filter が丸ごと無く（WX11-077＝**どんなカードでも手札に加わる過剰実行**／WX11-080＝同じ上に
+//   行き先まで手札になっていた）、WXK04-027 は後段ごと `CONDITIONAL_POWER_BONUS` に飲まれて**丸ごと no-op**
+//   だった。3件とも `DECLARE_COLORS` + `colorEqDeclaredColorIndex` の既存機構へ寄せるだけで直る。
+// ⚠「色を持つシグニ」と「色を持つカード」は候補集合が違う（前者だけ cardType を付ける）。
+// ⚠不一致時は公開しただけ＝そのカードはデッキの一番上に残る（remainder deck/top）。
+const DECLARED_COLOR_TOP_REVEAL_RE =
+  /(?:([白赤青緑黒](?:、[白赤青緑黒])+)から[１1]つを選ぶ|色[１1]つを宣言する)。あなたのデッキの一番上(?:のカード)?を公開し、それが(?:選んだ|宣言した)色を持つ(シグニ|カード)である?場合、それを(手札に加える|エナゾーンに置く)/;
+function foldDeclaredColorTopReveal(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(DECLARED_COLOR_TOP_REVEAL_RE);
+  if (!m) return action;
+  // 旧木＝「色宣言 STUB ＋ 後段」の2ステップだけを畳む（別構造は触らない）。
+  if (action.type !== 'SEQUENCE' || action.steps.length !== 2) return action;
+  const head = action.steps[0];
+  if (head?.type !== 'STUB' || !['CHOOSE_COLOR_FROM_LIST', 'DECLARE_COLOR', 'DECLARE_COLORS'].includes(head.id)) return action;
+  const declareOptions = m[1] ? m[1].split('、') : ['白', '赤', '青', '緑', '黒'];
+  return { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'DECLARE_COLORS', declareOptions, count: 1 } as StubAction,
+    {
+      // 原文は「〜の場合、それを…」＝条件成立なら**強制**（「1枚まで」ではない）＝pickUpTo は付けない。
+      type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, pickCount: 1, pickUpTo: false,
+      filter: { ...(m[2] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), colorEqDeclaredColorIndex: 0 },
+      ...(m[2] === 'カード' ? { pickNoun: 'カード' } : {}),
+      then: m[3] === 'エナゾーンに置く'
+        ? { type: 'ADD_TO_ENERGY', owner: 'self' }
+        : { type: 'ADD_TO_HAND', owner: 'self' },
+      remainder: { location: 'deck', position: 'top' },
+    } as RevealAndPickAction,
+  ] } as SequenceAction;
+}
+
 // 「数字１つを宣言する。このターン、対戦相手は宣言された数字と同じレベルのシグニでアタックできない」（WX24-P4-039）。
 // 裸の `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる専用 STUB＝そのままだと原文に無い
 // 「対戦相手はそのレベルのシグニでガードできない」まで付く過剰実行になる（PR-434 と同型）。
