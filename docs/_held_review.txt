@@ -152,7 +152,8 @@ WXEX2-09 WXEX2-30
 --- WXEX2-09
   原文: 【常】：アタックフェイズの間、自身の下にカードが３枚以上ある《ライズアイコン》を持つあなたのシグニが対戦相手の効果によって場を離れる場合、代わりにその下からすべてのカードをトラッシュに置いてもよい。【起】《ターン１回》《アタックフェイズアイコン》《赤×0》：あなたのトラッシュから《ライズアイコン》を持つシグニ１枚を対象とし、それを場に出す。【起】《ゲーム１回
   + [0].activeCondition.type = "DURING_ATTACK_PHASE"
-  ~ [0].action.id : "RISE_LEAVE_DISCARD_STACK" → "DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY"
+  ~ [0].action.id : "RISE_LEAVE_DISCARD_STACK" → "EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY"
+  + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
 --- WXEX2-30
   原文: 【常】：アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる。【出】《白》：このシグニをチアガールにする。【起】《ターン１回》他の＜迷宮＞のシグニ１体を場からトラッシュに置く：あなたのデッキから＜迷宮＞のシグニ１枚を探して場に出し、デッキをシャッフルする。その後、対戦相手のシグニ１体を対象とし、ターン終了時ま
   - [1].action.target.filter.thisCardOnly = true
@@ -186,7 +187,9 @@ WXDi-D08-004 WXEX2-28
   - [0].action.target.upToCount = false
   - [0].action.optional = true
   ~ [0].action.type : "DOWN" → "STUB"
-  + [0].action.id = "DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY"
+  + [0].action.id = "EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY"
+  + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
+  + [0].action.leavePayLoseSelfAbility.victimFilter.story = "ウェポン"
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -503,6 +506,24 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
+## +DECK_CARD +SEQUENCE +TRASH ［1枚］
+WXK03-044
+--- WXK03-044
+  原文: 【出】：あなたのトラッシュが１５枚の場合、カードを１枚引き、【エナチャージ１】をし、あなたのデッキの上からカードを３枚トラッシュに置く。,-
+  - [0].action.steps[0].owner = "self"
+  - [0].action.steps[0].count = 1
+  - [0].action.steps[1].owner = "self"
+  - [0].action.steps[1].count = 1
+  ~ [0].action.steps[0].type : "DRAW" → "SEQUENCE"
+  + [0].action.steps[0].steps[0].type = "DRAW"
+  + [0].action.steps[0].steps[0].owner = "self"
+  + [0].action.steps[0].steps[0].count = 1
+  + [0].action.steps[0].steps[1].type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.steps[0].steps[1].owner = "self"
+  + [0].action.steps[0].steps[1].count = 1
+  ~ [0].action.steps[1].type : "ENERGY_CHARGE_FROM_DECK" → "TRASH"
+  …（他 3 行）
+
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069
@@ -684,24 +705,6 @@ WDK08-Y08
   + [0].action.steps[1].condition.value = 5
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "その差の分だけ手札からカードをエナゾーンに置く"
-
-## +CONDITIONAL +LAST_PROCESSED_MATCHES +REVEAL_DECK_TOP +SIGNI_ATTACK_BAN -LOOK_AND_REORDER -STUB ［1枚］
-WDK09-001
---- WDK09-001
-  原文: 【出】：対戦相手のシグニゾーン１つに【ゲート】１つを置く。カードを１枚引く。【自】：対戦相手のアタックフェイズ開始時、対戦相手はデッキの一番上を公開する。それが【ライフバースト】を持たない場合、このターン、対戦相手は【ゲート】があるシグニゾーンにあるシグニでアタックできない。【起】《ゲーム１回》プライマル《コインアイコン》：対戦相手は、【ゲート】がある自分の
-  - [1].action.steps[0].source.location = "deck"
-  - [1].action.steps[0].source.owner = "opponent"
-  - [1].action.steps[0].private = false
-  - [1].action.steps[0].reorder = false
-  - [1].action.steps[0].destination.location = "deck"
-  - [1].action.steps[0].destination.owner = "opponent"
-  - [1].action.steps[0].destination.position = "top"
-  - [1].action.steps[1].id = "GATE"
-  ~ [1].action.steps[0].type : "LOOK_AND_REORDER" → "REVEAL_DECK_TOP"
-  + [1].action.steps[0].owner = "opponent"
-  ~ [1].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [1].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  …（他 4 行）
 
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007
