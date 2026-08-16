@@ -4635,12 +4635,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     {"effectId":"WXEX1-02-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","isFrozen":true}},"abilityTypes":["常","自"],"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // Opus task 12 (liv): state-filtered global ability loss.
+  // §6.4 O-10（続き507）＝**旧 defer 理由は原文の誤読**だった。「【グロウ】あなたのセンタールリグが
+  // カード名に《リメンバ》を含む」は**このルリグへグロウするための条件**（＝グロウ前のセンターに掛かる）で、
+  // 場に出たあとの E1 に掛かる「かぎり」条件ではない（このルリグ自身の名前が《リメンバ》を含む）。
+  // ⇒ E1 は無条件の【常】＝同文の `WXEX1-02-E1` と同じ形。原文が「【常】能力と【自】能力」ではなく
+  //   「能力を失う」なので `abilityTypes` は付けない（全能力）。
   "WX09-Re01": [
-    // Honest defer: the printed grow condition requires the center LRIG name to
-    // contain リメンバ, but LRIG_NAME_CONTAINS is not an ActiveCondition and
-    // checkActiveCondition cannot evaluate it. Wiring this unconditionally would
-    // over-fire, so keep E1 inert until that condition mechanism is implemented.
-    {"effectId":"WX09-Re01-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WX09-Re01-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","isFrozen":true}},"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WX18-038": [
     {"effectId":"WX18-038-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","hasCharm":true}},"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
