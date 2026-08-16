@@ -2633,10 +2633,33 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ...(t.includes('場に出してもよい') ? { optional: true } : {}) };
   }
 
-  // ---- ルリグデッキからレゾナを出現条件無視で場に出す ----
-  // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）。専用STUBはクラスを EffectText から読む。
+  // ---- ルリグデッキからレゾナを出現条件無視で場に出す（§6.4 O-5）----
+  // 旧実装は bare ADD_TO_FIELD でデッキトップを出していた（誤り）→ 専用 STUB 化 → **さらに engine が
+  // カード全文 regex でクラスだけ読む O-20 クラス**だったので、ここで**枚数・絞り込みを原文から解いて渡す**。
+  // 🔴従来落ちていた軸＝①枚数（「２枚まで」`WX16-Re18-E1`／「好きな枚数」`WX13-007-E3` が1枚に潰れる）
+  //   ②レベル（「レベル３以下の」`WD12-007-E1`／`WX07-050-E1`）③色（「白の」`WX07-050-E1`）
+  //   ④クラスの OR（「＜空獣＞か＜地獣＞」`WX19-028-E3` は `includes` に当たらず**無条件**になっていた）。
   if (t.includes('ルリグデッキから') && t.includes('レゾナ') && t.includes('場に出す')) {
-    return { type: 'STUB', id: 'SUMMON_RESONA_FROM_LRIG_DECK' } as StubAction;
+    // 「レゾナ」より前の修飾句だけを見る＝後続文（「ターン終了時、〜」等）の語を拾わない。
+    const clause = t.slice(t.indexOf('ルリグデッキから'), t.indexOf('レゾナ') + 3);
+    const anyCount = /好きな枚数の/.test(clause);
+    const countM = clause.match(/レゾナ(?:を)?([０-９\d]+)枚/) ?? clause.match(/レゾナ[０-９\d]*枚/);
+    const upToM = /枚まで/.test(clause) || anyCount;
+    const nM = clause.match(/([０-９\d]+)枚/);
+    const resonaFilter: TargetFilter = {
+      ...parseLevelFilter(clause), ...parseColorFilter(clause), ...parseStoryFilter(clause),
+    };
+    return {
+      type: 'STUB', id: 'SUMMON_RESONA_FROM_LRIG_DECK',
+      resonaSummon: {
+        count: anyCount ? 'ALL' : (nM ? parseNum(nM[1]) : 1),
+        ...(upToM ? { upTo: true } : {}),
+        ...(Object.keys(resonaFilter).length > 0 ? { filter: resonaFilter } : {}),
+        // 「この方法で場に出たレゾナの【出】能力は発動しない」＝同じ効果の別文にある（全文で見る）。
+        ...(/この方法で場に出たレゾナの【出】能力は発動しない/.test(t) ? { suppressOnPlay: true } : {}),
+      },
+      ...(countM ? {} : {}),
+    } as StubAction;
   }
 
   // ---- 手札からシグニを場に出す ----
