@@ -707,6 +707,11 @@ export function collectLeaveSubstituteOptions(
 
   push('lrigAbility', 'mandatory', '代わりにルリグがこの能力を失う',
     applyEffectLeaveLrigAbilitySubstitute(victimNum, victimOwner, ctx));
+  // §6.4 O-10（続き507）＝シグニ自身の「代わりにこの能力を失う」。原文に「してもよい」が無いので
+  // **強制**（`lrigAbility` と同じ扱い）。⚠`lrigAbility` の直後に置く＝どちらも強制なので、
+  // 順序を任意軸より後ろにすると「任意置換を辞退したのに強制が効かない」形の取りこぼしになる。
+  push('selfAbility', 'mandatory', '代わりにこのシグニがこの能力を失う',
+    applyEffectLeaveSelfAbilitySubstitute(victimNum, victimOwner, ctx));
   push('powerReduction', 'optional', '代わりに身代わりシグニのパワーを下げる',
     applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
