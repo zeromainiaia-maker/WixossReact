@@ -1,5 +1,114 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-16（続き507・Opus 5）— §6.4 **O-10（明示 defer の棚卸し）を1巡**
+
+`census:stubs` A群の明示 defer を**16種/20件 → 13種/17件**にした（実装で **6件/5種** 解体・1件は理由を絞って
+専用 id へ改名・**新規の明示 defer 3件**は下の隣接発見）。ゲート全緑（**golden 2109**＝+7・**census 823 据置**・
+smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors）。live JSON changed **13効果 / 12カード**（CSV 非改変）。
+うち2効果は `--adopt` の**カード単位巻き添え**（memory `heldreview-adopt-is-per-card`）なので個別に検算した＝
+`WX12-010-E1` は**キー順だけ**の差／`WX25-P2-059-E2` は**効果レベルの `duration`**（`UNTIL_OPP_TURN_END`→
+`UNTIL_END_OF_TURN`）だけの差で、パワー修正が読むのは `action.duration`（`UNTIL_OPP_TURN_END` のまま）。
+効果レベル `duration` の消費地点は engine 全体で2箇所しかなく（`execStubPart1.ts:1445` の付与タグ付けと
+`BattleScreen.tsx:6695` の `PERMANENT` 判定）、どちらもこの効果には掛からない＝**退化なし**。
+
+### 🔑 この棚卸しで一番効いたのは「原文 regex で数え直す」ほう
+
+memory `noop-inventory-blind-spots` のとおり、**A群は母集団の一部しか映さない**。
+「代わりに…この能力を失う」を `docs/_effect_srctext.json` に regex を当てて数えると **14効果**あり、
+A群に出ていたのは **4件だけ**だった。残り10件のうち **4件が壊れていた**：
+
+| 効果 | live の姿 | 実際の壊れ方 |
+|---|---|---|
+| `WX25-P2-TK04-E1` | `SEQUENCE[REMOVE_ABILITIES{owner:'opponent'}, CONDITIONAL{IS_MY_TURN}→DOWN{self}]` | 🔴**defer と原文が1文字も違わない**のに、A群には映らない**加害**へ化けていた（相手シグニの能力を恒久的に消し、自分のシグニをダウンする） |
+| `WX25-P2-059-E1` / `WX26-CP1-047-E1` / `WXDi-CP02-056-E1` | `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN}→REMOVE_ABILITIES{self}]` | **CONTINUOUS の SEQUENCE は誰も実行しない**＝完全な無言 no-op（しかも逆翻訳は「自分のシグニの能力を消す」と嘘をつく） |
+
+`WX25-P2-TK04-E1` が defer 側の規則に落ちなかった真因は**文の分割**だった。原文は2文
+（「…代わりにこの能力を失う。」＋「そうした場合、このシグニをダウンする。」）で、旧規則は
+`parseSentencePart1` の**汎用「能力を失う」ブロックより後ろ**に置かれていたため、1文目が先に
+`REMOVE_ABILITIES` へ食われて一度も到達しなかった（`WX25-P2-071-E1` はリテラル固定だったので気づけなかった）。
+⇒ 規則を**バニッシュ版の置換規則と同じ位置（汎用ブロックの前）**へ移し、2文目は後処理
+`foldLeaveLoseSelfAbilityDown` が `thenDown` として畳む。
+
+### 解体した6件
+
+**(a) `WX09-Re01-E1`＝defer 理由が原文の誤読だった。** 旧コメントは「グロウ条件が
+`LRIG_NAME_CONTAINS` で `ActiveCondition` に無いから無条件配線は過剰発火」としていたが、
+**「【グロウ】あなたのセンタールリグがカード名に《リメンバ》を含む」はこのルリグへ*グロウするための*条件**で、
+場に出たあとの E1 に掛かる「かぎり」条件ではない（このルリグ自身の名前が《リメンバ》を含む）。
+⇒ E1 は無条件の【常】＝同文の `WXEX1-02-E1` と同じ `REMOVE_ABILITIES{opponent, ALL, isFrozen}` で足りた。
+⚠原文の差は `abilityTypes`＝`WXEX1-02` は「【常】能力と【自】能力」／`WX09-Re01` は「能力」＝**全能力**。
+
+**(b) `WX22-022-E1`「このシグニはダウン状態でもアタックできる」。** §6.4 O-8 で作った
+`signiAttackGate` へ**「すでにダウン」判定を寄せた**（旧実装は `BattleScreen.getMySigniZoneActions` と
+CPU 候補フィルタに**インラインで写経**されていて、例外を足す場所が無かった）＝新理由 `ALREADY_DOWN`。
+🔑**同居する `ATTACK_COUNT_BY_POWER`（「自身のパワー10000につき一度まで」）を実効パワーで数えるように
+しないと、この能力は観測不能な死に機構のままだった**＝印刷15000で maxAttacks が永久に1回に固定され、
+「ダウン中でも撃てる」が一度も観測されない。`calcContinuousBlockedActions` に `effectivePowers` を
+渡せるようにし、gate と BattleScreen のメモから**同じ値**を渡す。
+⚠**安全弁 `MAX_ATTACKS_WHILE_DOWN = 5`** を入れてある＝回数制限の相方を持たない札が将来出ると
+CPU/fuzz が無限にアタックし続けるため（挙動の再現ではなくハング防止）。
+
+**(c)(d)(e) 離場置換の新軸 `selfAbility`。** 既存の `lrigAbility` 軸
+（`EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY`＝「代わりにこのルリグはこの能力を失う」）の**シグニ自身版**
+`EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY` を新設し、`WX25-P3-055-E2`（印刷【常】《相手ターン》）・
+`WX25-P2-071-E1`（`GRANT_EFFECT` で付与する引用【常】）・`WX25-P2-TK04-E1`（`thenDown`）の3効果に載せた。
+- 🔑**失うのは「その効果1つ」だけ**＝新フィールド `lost_ability_effect_ids_this_turn`（**効果単位**）。
+  `abilities_removed`（カード単位・全能力）で表すと `WX25-P3-055` の E1（パワー＋3000）と E3（手札戻し）まで
+  巻き添えで消える＝原文にない過剰。
+- ⚠**同じ効果の2回目は置換しない**（刻んだ effectId を先に見る）。見ないと**そのターン無敵**になる。
+- 原文に「してもよい」が無いので `kind:'mandatory'`（対話の選択肢に出さない軸）。
+- `declaredContinuousEffects` の付与ストア参照を **instance 付きキーでも引ける**ようにした
+  （`GRANT_EFFECT` は `geGranted[cardNum]` に instance 付きで書くことがあり、base だけで引くと黙って読めない）。
+
+**(f) `WXK01-002-E1`「代わりにダメージを受けず、ターン終了時まで、この能力を失う」。**
+既存の `PREVENT_LRIG_DAMAGE`（判定 funnel＝`lrigDamageShield.ts`）＋新フラグ `loseAbilityAfterUse`。
+判定を `resolveLrigDamageShield`（`{prevented, loseEffectId}` を返す）へ広げ、BattleScreen の
+ルリグアタック解決地点で `lost_ability_effect_ids_this_turn` を刻む。
+⚠**`PREVENT_LRIG_DAMAGE` の既定は「回数無制限」**なので、刻みを落とすと**無限バリア**になる。
+
+### 改名1件（据置だが理由を絞った）
+
+`WXK03-071-E1` は旧 `DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY`（＝「この能力を失う」機構が無い）だったが、
+その機構は本セッションで実装済み。**残るブロッカーはアーツ使用コスト側**＝「あなたが対戦相手のターンに
+アーツを使用する場合、そのアーツの使用コストは《無×2》減る」は**場のシグニが宣言する**軽減で、
+`ARTS_COST_REDUCTION_BY_COST_THRESHOLD` と同じ層の収集器が要り、かつ**コスト算出の入口が3箇所**
+（ArtsModal Phase1／Phase2／CutinModal）ある。⇒ `DEFERRED_OPP_TURN_ARTS_COST_REDUCTION_ONCE` へ改名。
+
+### 新規の明示 defer 3件（無言 no-op を計器に載せた）
+
+`WX25-P2-059-E1`／`WX26-CP1-047-E1`／`WXDi-CP02-056-E1`＝上の置換の**任意コスト**版
+（「〈コスト〉を支払ってもよい。そうした場合、代わりに…この能力を失う」）を
+`DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY` にした。
+⚠ブロッカーは**支払い**側＝離場置換の決定層は `resultCtx` を**同期的に**組む契約（`applyEffectLeaveSubstitutes`）
+なので被害側に色エナ／手札を選ばせる対話 pause を張れず、さらに**払うのは victim のオーナー＝`otherState`** で
+`optionalCostPaySteps`／`canAffordOptionalCostSpec` の `ownerState` 固定と視点が合わない。
+⇒ **対話つき置換（`leaveSubstituteAskOptions` の policy 差し替え）と対で実装する。**
+
+### その他の是正（隣接）
+
+- **`WX25-P2-103-E1` の選択肢②「代わりに３倍－される」**（旧 `DEFERRED_CHARM_POWER_MINUS_MULTIPLIER`）＝
+  `double_power_minus_targets` が**2倍固定の集合**だったのを、倍率つきの
+  `power_minus_multipliers_this_turn` で上位互換にした（新 STUB `CHARM_POWER_MINUS_MULTIPLIER`）。
+  ⚠**読み手は2倍軸と同じ2箇所**（`applyTempMods` と `applyActiveFieldPowerGrants`）＝片方だけに足すと
+  「場レベル付与のパワー－にだけ倍率が乗らない」無言のズレになる。2軸の合成は `Math.max`（掛け算で重ねない）。
+  ⚠倍率は**原文から読む**（`value`）＝焼き込むと将来の「4倍」で静かにズレる。
+- **golden の fixture 差し替え**＝任意コスト機構のテストが `WXDi-CP02-056-E1` を fixture にしていたが、
+  それは `effectType:'CONTINUOUS'` で**実アプリでは `executeEffect` を一度も通らない**（＝壊れた形をテストが
+  固定していた）。実際に実行される【自】`WXDi-P01-037-E2` へ差し替えた。
+  ⚠新 fixture の本体は「カードを２枚引く」なので**手札枚数は 2→0→2 に戻る**＝手札だけを見ると
+  「支払いも本体も走っていない」盤面と区別できない。デッキ枚数で本体を確認する。
+
+### 残す教訓
+
+1. **defer の理由は「機構が無い」だけでなく「原文の読み違い」でも書かれる**（`WX09-Re01` がそれ）。
+   棚卸しでは**理由を信じず原文へ戻る**。
+2. **同文の別カードを必ず探す**＝defer 1件の裏に、同じ文なのに別の（しばしば加害的な）形へ落ちた
+   兄弟が居ることがある（`WX25-P2-TK04`）。原因はたいてい**文の分割位置**と**規則の並び順**。
+3. **「機構を実装したら defer が消える」とは限らない**＝`WXK03-071` のように、同じ id に
+   **別のブロッカー**がぶら下がっていることがある。実装後に id を割り直して理由を1つに保つ。
+4. **CONTINUOUS の `SEQUENCE`／`CONDITIONAL` は誰も実行しない**＝この形で live に居る効果は無条件に
+   no-op を疑う（A群には映らない）。
+
 ## 2026-08-16（続き506・Opus 5）— §6.4 **O-8／O-9 クローズ（ともに残0）**
 
 **O-8（強制アタックの残り2件）**と**O-9（「対戦相手は〈コスト〉てもよい」の残り2件）**を消化した。
