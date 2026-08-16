@@ -2889,6 +2889,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 「【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、
+  //  このシグニをダウンする。」（`WX25-P2-071-E1`）＝**離場の置換**（身代わりでも耐性でもない第3の形）。
+  // ⚠置換の受け皿（`collectBanishSubstitutes` 族）は「代わりに別カードを離す」型で、
+  //   「代わりに**この能力を失って**ダウンする」は表現できない＝機構不在を宣言して計器へ載せる。
+  if (/この(?:シグニ|カード)が対戦相手の効果によって場を離れる場合、代わりにこの能力を失う/.test(t)) {
+    return { type: 'STUB', id: 'DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN' } as StubAction;
+  }
+
   // ---- 引用【常】の中身が既存機構で解ける3形（§6.4 O-28）----
   // 🔴どれも従来は引用文が丸ごと `GRANT_KEYWORD.keyword` に入って**一度も効かなかった**。
   {
