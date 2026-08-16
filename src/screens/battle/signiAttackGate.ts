@@ -1,6 +1,6 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
-import { calcContinuousBlockedActions, calcFieldPowers, type ContinuousBlockResult } from '../../engine/effectEngine';
+import { calcContinuousBlockedActions, calcFieldPowers, collectForcedFrontAttackZones, resolveForcedSigniAttack, type ContinuousBlockResult } from '../../engine/effectEngine';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost } from './attackFieldTrashCost';
 import { parsePowerVal } from './battleUtils';
 import { signiAttackBanCost, signiAttackBansNeedPower } from './signiAttackBan';
@@ -25,7 +25,8 @@ export type SigniAttackBlockReason =
   | 'FIELD_TRASH_COST'         // 「他のシグニN体をトラッシュしないかぎりアタックできない」が払えない
   | 'ATTACK_BAN'               // signi_attack_bans_this_turn（「〈条件〉のシグニでアタックできない」）
   | 'ATTACK_BAN_COST'          // 同・「《無》×N を支払わないかぎり」の分が払えない
-  | 'ATTACK_BAN_HAND_COST';    // 同・「手札をN枚捨てないかぎり」の分が払えない（手札不足）
+  | 'ATTACK_BAN_HAND_COST'     // 同・「手札をN枚捨てないかぎり」の分が払えない（手札不足）
+  | 'FORCED_ATTACK_ORDER';     // 「可能ならばアタックしなければならない」対象が未アタック＝**そちらが先**（§6.4 O-8(a)）
 
 export interface SigniAttackGateInput {
   attacker: PlayerState;
@@ -46,6 +47,50 @@ export interface SigniAttackGateInput {
    *   （G154 BURST の無効化回避モーダルからの再実行が該当）。
    */
   fieldTrashCostAlreadyPaid?: boolean;
+  /**
+   * 内部用＝**強制アタック順**（§6.4 O-8(a)）の判定から再入するときだけ true。
+   * ⚠強制対象が「いまアタック可能か」を同じ gate で判定するため、立てないと無限再帰する。
+   *   立てて呼ぶのは `collectForcedAttackZones` の1箇所だけ。
+   */
+  skipForcedOrderRule?: boolean;
+}
+
+/** `collectForcedAttackZones` の入力（アタッカー1体を指さないので `attackerNum` を持たない）。 */
+export type ForcedAttackScanInput = Omit<SigniAttackGateInput, 'attackerNum'>;
+
+/**
+ * 「可能ならばアタックしなければならない」対象のうち、**まだアタックしておらず、いまアタックできる**
+ * シグニのゾーン index 一覧（§6.4 O-8(a)）。
+ *
+ * 原文のリマインダは「（**他のシグニより先にアタックしなければならない**）」＝**順序の規則**。
+ * ここが空でない間は、含まれないゾーンのシグニはアタックできない（`FORCED_ATTACK_ORDER`）。
+ *
+ * ⚠**「アタック可能か」は同じ gate で判定する**（`skipForcedOrderRule`）＝
+ *   「可能ならば」の除外（アタック禁止・コスト不足・パワー上限）が自動で効き、
+ *   アタックできない強制対象が残ってフェイズを進められなくなるソフトロックを防ぐ。
+ * ⚠**フェイズ進行のブロック（`mustAttackRemainingZones`）も必ずこの関数を使う**＝
+ *   軸を写経すると「ボタンは消えるのにフェイズは進める」型のズレが出る。
+ */
+export function collectForcedAttackZones(p: ForcedAttackScanInput): number[] {
+  const { attacker, defender, effectsMap, cardMap } = p;
+  // アタックはアタッカーのターンにしか起きないので isViewerTurn は常に true。
+  const front = collectForcedFrontAttackZones(attacker, defender, true, effectsMap, cardMap);
+  const all = resolveForcedSigniAttack(attacker, defender, true, effectsMap, cardMap);
+  if (!all.forced && front.size === 0) return [];
+  const down = attacker.field.signi_down ?? [false, false, false];
+  const virus = attacker.field.signi_virus ?? [0, 0, 0];
+  const zones: number[] = [];
+  for (let i = 0; i < attacker.field.signi.length; i++) {
+    const top = attacker.field.signi[i]?.at(-1);
+    if (!top) continue;
+    if (down[i]) continue;                                   // 既にアタック済み（ダウン）
+    const byFront = front.has(i);
+    if (!all.forced && !byFront) continue;                   // 全体強制でなければ正面強制のゾーンだけ
+    if (all.forced && all.infectedOnly && (virus[i] ?? 0) === 0 && !byFront) continue; // 感染限定
+    if (signiAttackBlockReason({ ...p, attackerNum: top, skipForcedOrderRule: true }) !== null) continue;
+    zones.push(i);
+  }
+  return zones;
 }
 
 /** アタックできない理由。null ならアタック可能。 */
@@ -100,6 +145,18 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
       && attackFieldTrashCost(attacker, attackerNum) > 0
       && !canPayAttackFieldTrashCost(attacker, attackerNum, cardMap)) {
     return 'FIELD_TRASH_COST';
+  }
+
+  // §6.4 O-8(a)「可能ならばアタックしなければならない（**他のシグニより先にアタックしなければならない**）」。
+  // 🔴従来はフェイズ進行を止めるだけで**順序を強制していなかった**＝強制対象を後回しにして
+  //   他のシグニから先にアタックできてしまう（原文のリマインダが明示している規則の違反）。
+  // ⚠最後に置く＝他の「そもそもアタックできない」理由を先に返したい（理由表示が「順番」に化けない）。
+  if (!p.skipForcedOrderRule) {
+    const forcedZones = collectForcedAttackZones(p);
+    if (forcedZones.length > 0) {
+      const zi = attacker.field.signi.findIndex(stack => stack?.at(-1) === attackerNum);
+      if (zi >= 0 && !forcedZones.includes(zi)) return 'FORCED_ATTACK_ORDER';
+    }
   }
 
   return null;

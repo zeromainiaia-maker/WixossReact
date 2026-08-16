@@ -848,6 +848,12 @@ export interface PlayerState {
   // delayed_triggers はターン境界で消えるため、二重遅延の1段目／2段目を専用の永続フィールドで持つ。
   turn_end_facedown_all?: Array<{ sourceCardNum: string; returnTiming: 'NEXT_OPP_ATTACK_PHASE_START' }>;
   pending_opponent_attack_facedown_returns?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string }>;
+  // §6.4 O-9(b)：「**各**アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
+  // 対戦相手は〈コスト〉を支払ってもよい。そうした場合、それを表向きにする」（`WXDi-P07-010-E2`）。
+  // ⚠**繰り返す**ゲート＝一度きりの `pending_*` と違い、支払われるまで毎アタックフェイズ残る
+  //   （＝解決しても消さない。表向きにできたときだけ取り除く）。
+  // ⚠**裏向きカードの持ち主側**（＝支払う側）に載せる。効果を使った側に置くと支払い主体が反転する。
+  facedown_release_by_payment?: Array<{ cardNum: string; zoneIndex: number; sourceCardNum: string; colorlessCost: number; handDiscard: number }>;
   // DELAY_TO_NEXT_OPP_ATTACK_PHASE（§6.4 O-3）: 「次の対戦相手のアタックフェイズ開始時、〜」の予約。
   // ⚠**ターン境界を跨ぐ**ので turnScopedState にも delayed_triggers（THIS_TURN 限定）にも載せない。
   //   予約は**予約した側**（＝次のアタックフェイズでは非ターンプレイヤー）に積み、

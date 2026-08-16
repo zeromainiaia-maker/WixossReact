@@ -709,6 +709,10 @@ function actionJa(a?: Action, effectType?: string): string {
       ? `${ownerJa(a.owner)}手札が${a.untilHandCount}枚より少ない場合、その差の分だけカードを引く`
       : a.perLastProcessedLevel
       ? `${ownerJa(a.owner)}そのシグニのレベル1につきカードを${numJa(a.count)}枚引く`
+      // `addLastProcessedCount`＝「この方法で処理した枚数だけ」（§6.4 O-9(a)）。
+      // ⚠出さないと `count:0` が「カードを0枚引く」と描かれ、**何も引かない**逆翻訳になる。
+      : a.addLastProcessedCount
+      ? `${ownerJa(a.owner)}この方法で処理したカード1枚につきカードを1枚引く${(a.count ?? 0) > 0 ? `（さらに${numJa(a.count)}枚）` : ''}`
       : `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
     case 'GAIN_COIN': return `${ownerJa(a.owner)}コインを${numJa(a.count ?? 1)}枚得る`;
     case 'DRAW_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきカードを${a.drawPerUnit}枚引く`;
@@ -831,7 +835,9 @@ function actionJa(a?: Action, effectType?: string): string {
       return `このターン、${a.once ? '次に' : ''}あなたのライフクロスが${src}クラッシュされる場合、代わりに${what}`;
     }
     case 'EXILE': return `${targetJa(a.target)}をゲームから除外する`;
-    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : targetJa(a.target)}をアップする`;
+    // `targetsStored`＝先行の対象宣言で固定した集合（§6.4 O-8(b)「この方法で移動したシグニ」）。
+    // ⚠出さないと「好きな数のダウン状態のシグニをアップする」＝**盤面全体から選べる**逆翻訳になる。
+    case 'UP': return `${a.targetsBattleAttacker ? 'そのアタックしているシグニ' : a.targetsTriggerSource ? 'それ（トリガー元シグニ）' : a.targetsStored ? `この方法で処理した${targetJa(a.target)}` : targetJa(a.target)}をアップする`;
     case 'ENERGY_CHARGE': {
       // target 形式（デッキ/トラッシュ/手札/場のカードをエナゾーンへ）。全カードが target 形式
       if (a.target?.type === 'DECK_CARD') return `${ownerJa(a.target.owner)}デッキの上から${numJa(a.target.count)}枚をエナゾーンに置く`;
@@ -2866,7 +2872,7 @@ function actionJa(a?: Action, effectType?: string): string {
         DEFERRED_UP_REARRANGED_MOVED_SIGNI: '【未実装】この方法で他のシグニゾーンに移動したシグニをアップしてもよい',
         // 明示 defer（§6.4・続き425）＝「各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
         // 対戦相手は〈コスト〉を支払ってもよい。そうした場合、それを表向きにする」＝**繰り返す遅延ゲート**。
-        DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT: '【未実装】各アタックフェイズ開始時、同じ場所にシグニがない場合、対戦相手はコストを支払って裏向きのそれを表向きにできる',
+        FACEDOWN_RELEASE_BY_OPP_PAYMENT: '各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、対戦相手はコストを支払ってもよい。そうした場合、それを表向きにする',
         // 明示 defer（§6.4 O-3・続き459）＝parser の**未パース節の受け皿**。旧 id `LRIG_GROW_RESTRICT`
         // （＝原文と無関係な「グロウ制限」）に相乗りしていたため、`census:stubs` が「実装あり」と誤分類し
         // 真 no-op が計器から消えていた。日本語表示にして逆翻訳でも「何が落ちているか」が読めるようにする。

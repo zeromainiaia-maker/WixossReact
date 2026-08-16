@@ -7,7 +7,7 @@ import { buildEffectsMap } from '../data/effectParser';
 import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
-collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
+collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
@@ -117,7 +117,7 @@ import { activateNextTurnDeployCountLimit } from './battle/deployCountLimit';
 import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './battle/signiZoneBlock';
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
-import { canSigniAttack, signiAttackColorlessCost } from './battle/signiAttackGate';
+import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
@@ -4303,41 +4303,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     doPhaseAdvance();
   };
 
-  // 強制攻撃: まだアタック（ダウン）しておらず、アタック可能な「強制対象」シグニのゾーン一覧を返す。
-  // must_attack_infected_only の場合は感染状態（ウィルスが乗っている）シグニのみが対象。
-  // 「アタック可能か」は実際にアタックボタンが出る条件（getMySigniZoneActions）で判定するため、
-  // パワー上限・コスト不足・アタック禁止など「可能ならば」の対象外ケースは自動的に除外され、
-  // アタックできないシグニだけが残ってフェイズを進められなくなるソフトロックを防ぐ。
-  // FORCE_FRONT_SIGNI_ATTACK（WX20-045 マロンクリーム「この正面のシグニは可能ならばアタックしなければならない」）:
-  // 相手の場のこの効果を読み、自分の該当（正面）ゾーンを個別強制対象にする。
-  const forcedFrontAttackZones = (): Set<number> =>
-    collectForcedFrontAttackZones(my, op, isMyTurn, effectsMap, battleCardMap);
-
   // 全体強制（ターン限定フラグ＋印字/付与の【常】）は resolveForcedSigniAttack に一本化する。
   // ⚠`my.must_attack_signi` を直接読むと【常】（WD07-004/WX14-018/WX20-Re07〜09/WX12-010）が恒久 no-op に戻る。
   const myForcedAttack = resolveForcedSigniAttack(my, op, isMyTurn, effectsMap, battleCardMap);
   const opForcedAttack = resolveForcedSigniAttack(op, my, !isMyTurn, effectsMap, battleCardMap);
 
-  const mustAttackRemainingZones = (): number[] => {
-    const forcedFront = forcedFrontAttackZones();
-    if (!myForcedAttack.forced && forcedFront.size === 0) return [];
-    const signiDown = my.field.signi_down  ?? [false, false, false];
-    const virus     = my.field.signi_virus ?? [0, 0, 0];
-    const zones: number[] = [];
-    for (let i = 0; i < my.field.signi.length; i++) {
-      const top = my.field.signi[i]?.at(-1);
-      if (!top) continue;
-      if (signiDown[i]) continue;                                   // 既にアタック済み（ダウン）
-      // 全体強制でない（個別の正面強制のみの）ゾーンは forcedFront に含まれるゾーンに限定
-      const isForcedByFront = forcedFront.has(i);
-      if (!myForcedAttack.forced && !isForcedByFront) continue;
-      if (myForcedAttack.forced && myForcedAttack.infectedOnly && (virus[i] ?? 0) === 0 && !isForcedByFront) continue; // 非感染は対象外
-      const acts = getMySigniZoneActions(i);                        // アタックボタンが出る＝アタック可能
-      if (!acts.some(a => a.label.includes('アタック'))) continue;
-      zones.push(i);
-    }
-    return zones;
-  };
+  // 強制攻撃: まだアタック（ダウン）しておらず、アタック可能な「強制対象」シグニのゾーン一覧。
+  // 🆕§6.4 O-8(a)＝**判定は `collectForcedAttackZones`（signiAttackGate）に一本化**した。
+  //   同じ関数がアタックボタン側の順序規則（`FORCED_ATTACK_ORDER`）も決めるので、
+  //   「ボタンは消えるのにフェイズは進める」型の軸ズレが構造的に起きない。
+  //   ⚠ここに条件を写経し直さないこと（旧実装は `getMySigniZoneActions` のラベル照合で判定していた）。
+  const mustAttackRemainingZones = (): number[] => collectForcedAttackZones({
+    attacker: my, defender: op, effectsMap, cardMap: battleCardMap,
+    contBlocked, effectivePowers, turnPhase: bs.turn_phase,
+  });
 
   // フェイズ進行（エナフェイズ・グロウフェイズ未使用時は確認ポップアップ）
   const handlePhaseAdvance = () => {
@@ -10720,7 +10699,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ─── ATTACK_SIGNIフェイズ：全シグニでアタック ───
     // ⚠強制攻撃（`resolveForcedSigniAttack`）は CPU 側では**自動的に満たされている**＝アタック可能な
     //   シグニを1体も残さないため。**CPU がアタックを選ぶようになったら**（§8 メインフェイズAI拡張）、
-    //   ここで `resolveForcedSigniAttack(cpuSt, huSt, true, …)` を見て強制対象を先に消化すること。
+    //   ここで `collectForcedAttackZones` を見て強制対象を先に消化すること。
+    // 🆕**アタック順（§6.4 O-8(a)「他のシグニより先にアタックしなければならない」）は
+    //   `signiAttackGate` 側で効く**＝下の `canSigniAttack` が非強制シグニを候補から外すので、
+    //   CPU も「強制対象 → その他」の順に殴る（ここに順序ロジックを写経しないこと）。
     if (phase === 'ATTACK_SIGNI') {
       // まだダウンしていない（かつアタック可能な）シグニを1枚ずつアタック
       const signiDown = cpuSt.field.signi_down ?? [false, false, false];

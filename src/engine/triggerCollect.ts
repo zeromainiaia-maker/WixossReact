@@ -3845,6 +3845,32 @@ export function collectTurnTriggers(
     });
   }
 
+  // §6.4 O-9(b)：「**各**アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
+  //   対戦相手は〈コスト〉を支払ってもよい。そうした場合、それを表向きにする」（`WXDi-P07-010-E2`）。
+  // ⚠**両プレイヤーのアタックフェイズで走る**（「各」）＝`myState`／`opState` の両方を見る。
+  //   片側だけを見ると「自分のアタックフェイズでしか解除できない」半分の実装になる。
+  // ⚠**エントリの playerId は裏向きカードの持ち主**（＝支払う側）＝ハンドラの `ctx.ownerState` が
+  //   その側になる。ここを間違えると支払い主体が反転する。
+  if (timing === 'ON_ATTACK_PHASE_START') {
+    for (const [holderId, holderState] of [[meId, myState], [opId, opState]] as const) {
+      const pendFR = holderState.facedown_release_by_payment ?? [];
+      if (pendFR.length === 0) continue;
+      entries.push({
+        id: ctx.genId(), playerId: holderId, cardNum: pendFR[0].sourceCardNum,
+        effectId: `FACEDOWN_RELEASE_PAYMENT:${pendFR[0].cardNum}`,
+        label: '裏向きのシグニを表向きにするか（各アタックフェイズ開始時）',
+        effect: {
+          effectId: `FACEDOWN_RELEASE_PAYMENT:${pendFR[0].cardNum}`,
+          effectType: 'AUTO',
+          timing: ['ON_ATTACK_PHASE_START'],
+          action: { type: 'STUB', id: 'RESOLVE_FACEDOWN_RELEASE_PAYMENT' } as StubAction,
+          duration: 'INSTANT',
+          mandatory: true,
+        } as CardEffect,
+      });
+    }
+  }
+
   // 追加のアタックフェイズ（§6.4 O-3）：「この方法で加えたアタックフェイズの開始時、〜」の本文。
   // 予約はターンプレイヤー（myState）側にあり、`resolveNextPhaseAfterAttack` がフェイズ突入時に移している。
   // ⚠**この timing は通常のアタックフェイズ開始でも走る**ので、`pending_*` が空なら何も積まない

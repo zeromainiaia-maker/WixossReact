@@ -23,6 +23,7 @@ import {
   markTurnEndFacedownTrashIfOccupied,
   moveFieldSigniFacedown,
   resolveOpponentAttackFacedownReturns,
+  flipFacedownSigniFaceUp,
   scheduleTurnEndFacedownReturns,
 } from './facedownSigni';
 
@@ -4108,6 +4109,78 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: movedOppSFD.state }, movedOppSFD.target
       ? `${ctx.cardMap.get(getCardNum(srcSFD))?.CardName ?? srcSFD}を裏向きに`
       : '裏向きにできる対象なし'));
+  }
+  // ═══ §6.4 O-9(b)＝**繰り返す**遅延ゲート（`WXDi-P07-010-E2`）═══
+  // 「各アタックフェイズ開始時、裏向きのそれと同じ場所にシグニがない場合、
+  //   対戦相手は《無》《無》を支払うか手札を２枚捨ててもよい。そうした場合、それを表向きにする。」
+  // ⚠**予約は裏向きカードの持ち主（＝支払う側）に載せる**＝効果を使った側に置くと支払い主体が反転する。
+  // ⚠一度きりの `pending_*` と違い**支払われるまで毎アタックフェイズ残す**（解決しても消さない）。
+  if (stub.id === 'FACEDOWN_RELEASE_BY_OPP_PAYMENT') {
+    const targetFRP = ctx.lastProcessedCards?.[0];
+    const fdFRP = ctx.otherState.field.facedown_signi ?? [null, null, null];
+    const zoneFRP = targetFRP ? fdFRP.findIndex(n => n === targetFRP) : -1;
+    if (!targetFRP || zoneFRP < 0) return done(addLog(ctx, '裏向きの解除条件を予約できる対象がない'));
+    const entryFRP = {
+      cardNum: targetFRP, zoneIndex: zoneFRP, sourceCardNum: ctx.sourceCardNum ?? '',
+      colorlessCost: typeof stub.value === 'number' ? stub.value : 2,
+      handDiscard: stub.handDiscard?.count ?? 2,
+    };
+    return done(addLog({
+      ...ctx,
+      otherState: {
+        ...ctx.otherState,
+        facedown_release_by_payment: [...(ctx.otherState.facedown_release_by_payment ?? []), entryFRP],
+      },
+    }, '各アタックフェイズ開始時の表向き解除（対戦相手の支払い）を予約'));
+  }
+  // RESOLVE_FACEDOWN_RELEASE_PAYMENT: 上の予約を各アタックフェイズ開始時に問う合成トリガー。
+  // ⚠`ctx.ownerState` は**裏向きカードの持ち主**（合成エントリの playerId をその側にしてある）＝
+  //   ここで `opponentResponds` を付けると相手側に問うことになり支払い主体が二重反転する。
+  if (stub.id === 'RESOLVE_FACEDOWN_RELEASE_PAYMENT') {
+    const pendFRP = ctx.ownerState.facedown_release_by_payment ?? [];
+    const fdRFP = ctx.ownerState.field.facedown_signi ?? [null, null, null];
+    // 「同じ場所にシグニがない場合」＝ゾーンが空いているものだけが解除の候補。
+    const liveFRP = pendFRP.find(t => fdRFP[t.zoneIndex] === t.cardNum
+      && !(ctx.ownerState.field.signi[t.zoneIndex]?.length));
+    if (!liveFRP) return done(addLog(ctx, '表向きにできる裏向きシグニがない（同じ場所にシグニがある）'));
+    const canEnergyFRP = ctx.ownerState.energy.length >= liveFRP.colorlessCost;
+    const canHandFRP = ctx.ownerState.hand.length >= liveFRP.handDiscard;
+    if (!canEnergyFRP && !canHandFRP) return done(addLog(ctx, '表向きにするコストを支払えない'));
+    const flipFRP: StubAction = { type: 'STUB', id: 'INTERNAL_FACEDOWN_RELEASE_FLIP', value: liveFRP.cardNum };
+    const nameFRP = ctx.cardMap.get(getCardNum(liveFRP.cardNum))?.CardName ?? liveFRP.cardNum;
+    return needsInteraction(addLog(ctx, `裏向きの${nameFRP}を表向きにしますか？`), {
+      type: 'CHOOSE', count: 1,
+      options: [
+        {
+          id: 'energy', label: `${'《無》'.repeat(liveFRP.colorlessCost)}を支払う`,
+          action: flipFRP as EffectAction, available: canEnergyFRP,
+          costColors: Array.from({ length: liveFRP.colorlessCost }, () => '無'),
+        },
+        {
+          id: 'hand', label: `手札を${liveFRP.handDiscard}枚捨てる`,
+          action: { type: 'SEQUENCE', steps: [
+            { type: 'TRASH', asCost: true, target: { type: 'HAND_CARD', owner: 'self', count: liveFRP.handDiscard } },
+            flipFRP,
+          ] } as EffectAction,
+          available: canHandFRP,
+        },
+        { id: 'skip', label: '支払わない', action: { type: 'SEQUENCE', steps: [] } as EffectAction, available: true },
+      ],
+    });
+  }
+  // INTERNAL_FACEDOWN_RELEASE_FLIP: 支払い後に裏向きカードを同じゾーンへ表向きで戻し、予約を解除する。
+  if (stub.id === 'INTERNAL_FACEDOWN_RELEASE_FLIP') {
+    const numIFR = typeof stub.value === 'string' ? stub.value : '';
+    const flippedIFR = flipFacedownSigniFaceUp(ctx.ownerState, numIFR);
+    if (!flippedIFR.flipped) return done(addLog(ctx, '表向きに戻せなかった（同じ場所にシグニがある）'));
+    const remainIFR = (flippedIFR.state.facedown_release_by_payment ?? []).filter(t => t.cardNum !== numIFR);
+    return done(addLog({
+      ...ctx,
+      ownerState: {
+        ...flippedIFR.state,
+        facedown_release_by_payment: remainIFR.length > 0 ? remainIFR : undefined,
+      },
+    }, `${ctx.cardMap.get(getCardNum(numIFR))?.CardName ?? numIFR}を表向きにした`));
   }
   // RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS: 次の対戦相手アタックフェイズ開始時の合成トリガー。
   if (stub.id === 'RESOLVE_OPP_ATTACK_FACEDOWN_FLIPS') {

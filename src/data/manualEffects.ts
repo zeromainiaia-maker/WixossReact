@@ -1190,15 +1190,18 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       // ⚠parser の素の出力は 2段目が `UP{SIGNI, owner:'self', count:1}`＝**自分のシグニをアップ**する
       //   別物だった（主語のない「移動したシグニ」を self へ倒す既知の反転）。採ると過剰効果になるので
       //   ここで手書きに置き換える。1段目の「配置し直して**もよい**」も素の出力は optional が落ちていた。
-      // 📋 2段目は明示 defer＝「この方法で移動したシグニ」だけを対象に**任意で**アップする選択UIが要る
-      //   （`resumeRearrangeSigni` は移動したシグニを `rearrMoved` として既に把握しているので、
-      //     必要なのは pay/skip ではなく「アップするシグニを選ぶ」インタラクション）。
+      // 🆕**§6.4 O-8(b) で defer を解除（2026-08-16 続き506）**＝`resumeRearrangeSigni` が
+      //   `rearrMoved`（旧ゾーン≠新ゾーン）を `lastProcessedCards` に載せるようにし、
+      //   `STORE_LAST_PROCESSED_TARGETS` → `UP{targetsStored}` の正準形で受ける。
+      //   `count:'ALL' + upToCount` ＝「好きな数アップして**もよい**」（0体も選べる）。
+      // ⚠`filter.isDown` を付けないと**アップ状態のシグニまで候補**に出て「何が起きたか分からない」選択になる。
       effectId: 'WX12-010-E3',
       effectType: 'AUTO',
       timing: ['ON_PLAY'],
       action: { type: 'SEQUENCE', steps: [
         { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true },
-        { type: 'STUB', id: 'DEFERRED_UP_REARRANGED_MOVED_SIGNI' },
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+        { type: 'UP', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true, filter: { cardType: 'シグニ', isDown: true } }, targetsStored: true },
       ] },
       duration: 'INSTANT',
       mandatory: false,
@@ -4109,8 +4112,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   対戦相手は《無》《無》を支払うか手札を２枚捨ててもよい。そうした場合、それを表向きにする。
   // 🔴旧パース＝2文目が `TRASH{HAND_CARD, owner:'self', 2, optional}`＝**自分が手札2枚を捨てる**（しかも
   //   帰結は `RULE_REMINDER_TEXT`＝何も起きない）＝**ただの自傷**だった。
-  // 📋 解放条件は「**各**アタックフェイズ開始時に、同じ場所が空なら相手が支払える」という**繰り返す遅延ゲート**で、
-  //   現行の遅延トリガー機構（THIS_TURN 主体）では表せない。裏向きにする本体だけを残し、解放側は明示 defer。
+  // 🆕**§6.4 O-9(b) で defer を解除（2026-08-16 続き506）**＝「**各**アタックフェイズ開始時に、
+  //   同じ場所が空なら相手が支払える」という**繰り返す遅延ゲート**を専用の予約フィールド
+  //   `facedown_release_by_payment` で実装した（`delayed_triggers` は THIS_TURN 限定なので載らない）。
+  //   ⚠予約は**裏向きカードの持ち主側**（＝支払う側）に載る。両プレイヤーのアタックフェイズ開始時に
+  //   合成トリガーが立ち、支払われるまで消えない。
   'WXDi-P07-010': [
     {
       effectId: 'WXDi-P07-010-E2',
@@ -4120,7 +4126,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       usageLimit: 'once_per_game',
       action: { type: 'SEQUENCE', steps: [
         { type: 'STUB', id: 'FACE_DOWN_OPP_SIGNI' },
-        { type: 'STUB', id: 'DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT' },
+        // value＝《無》の枚数／handDiscard＝手札で払う場合の枚数（原文どおり2と2）
+        { type: 'STUB', id: 'FACEDOWN_RELEASE_BY_OPP_PAYMENT', value: 2, handDiscard: { count: 2 } },
       ] },
       duration: 'INSTANT',
       mandatory: false,

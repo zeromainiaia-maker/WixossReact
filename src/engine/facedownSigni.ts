@@ -151,3 +151,24 @@ export function resolveOpponentAttackFacedownReturns(state: PlayerState): TurnEn
     facedown: [],
   };
 }
+
+/**
+ * 裏向きカード1枚を、同じゾーンへ表向きで戻す（§6.4 O-9(b)）。
+ * 「同じ場所にシグニがない場合」だけ成立する＝ゾーンが埋まっていれば裏向きのまま何もしない。
+ */
+export function flipFacedownSigniFaceUp(
+  state: PlayerState,
+  cardNum: string,
+): { state: PlayerState; flipped: boolean } {
+  const facedown = [...(state.field.facedown_signi ?? [null, null, null])] as (string | null)[];
+  const zoneIndex = facedown.findIndex(n => n === cardNum);
+  if (zoneIndex < 0) return { state, flipped: false };
+  if (state.field.signi[zoneIndex]?.length) return { state, flipped: false };
+  const signi = [...state.field.signi] as (string[] | null)[];
+  signi[zoneIndex] = [cardNum];
+  facedown[zoneIndex] = null;
+  return {
+    state: { ...state, field: { ...state.field, signi, facedown_signi: facedown } },
+    flipped: true,
+  };
+}

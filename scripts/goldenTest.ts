@@ -63,7 +63,7 @@ import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeS
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
 import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
-import { signiAttackBlockReason, signiAttackColorlessCost } from '../src/screens/battle/signiAttackGate';
+import { signiAttackBlockReason, signiAttackColorlessCost, collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { lrigAttackBanCost, signiAttackBanCost } from '../src/screens/battle/signiAttackBan';
 import { pickLifeCrashReplacement, applyMillReplacement } from '../src/screens/battle/lifeCrashReplace';
 import { resolveTurnEndLrigDeckReturn } from '../src/screens/battle/turnEndLrigDeckReturn';
@@ -7703,6 +7703,97 @@ test('§3 (cxxvii) parser: 「このアタックを無効にする」は SET_CAN
   }
 });
 
+// ═══ §6.4 O-9(b)＝`WXDi-P07-010-E2` の**繰り返す**遅延ゲート ═══
+// 原文「…それを裏向きにする。**各アタックフェイズ開始時**、裏向きのそれと同じ場所にシグニがない場合、
+//   対戦相手は《無》《無》を支払うか手札を２枚捨ててもよい。そうした場合、それを表向きにする。」
+// 🔴従来は `STUB{DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT}`＝明示 defer の no-op＝**永久に表向きに戻らない**。
+test('§6.4 O-9(b): 裏向き化と同時に「各アタックフェイズ開始時の解除」が相手側へ予約される', () => withSavedCursor(() => {
+  const victim = fresh();
+  const live = manualEffect('WXDi-P07-010', 'WXDi-P07-010-E2');
+  ok(!JSON.stringify(live.action).includes('DEFERRED_'), '明示 defer の STUB が残っていない');
+  const ctx = mkCtx({}, { signi: [victim, null, null] }, 'WXDi-P07-010');
+  const r0 = executeEffect(live, ctx);
+  const c0: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+  const r1 = r0.done ? r0 : resumeSelectTarget([victim], (r0 as { pending: unknown }).pending as never, c0);
+  eq(r1.otherState.field.facedown_signi?.[0], victim, '相手のゾーン0が裏向きになる');
+  const pend = r1.otherState.facedown_release_by_payment ?? [];
+  eq(pend.length, 1, '解除の予約が1件');
+  eq(pend[0].cardNum, victim, '予約は裏向きにしたカード');
+  eq(pend[0].colorlessCost, 2, '《無》×2');
+  eq(pend[0].handDiscard, 2, 'または手札2枚');
+  ok(!(r1.ownerState.facedown_release_by_payment ?? []).length,
+     '🔴予約は**裏向きカードの持ち主側**にだけ載る（支払い主体が反転していない）');
+}));
+test('§6.4 O-9(b): 各アタックフェイズ開始時に支払いを問い、払えば表向きに戻る／同じ場所が埋まっていれば戻らない', () => withSavedCursor(() => {
+  const victim = fresh(), blocker = fresh();
+  const ask = (st: PlayerState) => executeAction(
+    { type: 'STUB', id: 'RESOLVE_FACEDOWN_RELEASE_PAYMENT' } as EffectAction,
+    { ...mkCtx({}, {}), ownerState: st } as ExecCtx);
+  const base = mkState({});
+  const holder: PlayerState = {
+    ...base, energy: [fresh(), fresh()], hand: [fresh(), fresh()],
+    field: { ...base.field, signi: [null, null, null], facedown_signi: [victim, null, null] },
+    facedown_release_by_payment: [{ cardNum: victim, zoneIndex: 0, sourceCardNum: 'WXDi-P07-010', colorlessCost: 2, handDiscard: 2 }],
+  };
+  const r = ask(holder);
+  ok(!r.done && r.pending.type === 'CHOOSE', '支払いを問う');
+  const opts = (r.pending as { options: { id: string; available?: boolean }[] }).options;
+  eq(opts.find(o => o.id === 'energy')?.available, true, 'エナ2枚あるので《無》×2は選べる');
+  eq(opts.find(o => o.id === 'hand')?.available, true, '手札2枚あるので手札払いも選べる');
+  ok(opts.some(o => o.id === 'skip'), '支払わない枝もある');
+  // 同じ場所にシグニがいる＝解除できない（原文の条件）
+  const occupied: PlayerState = { ...holder, field: { ...holder.field, signi: [[blocker], null, null] } };
+  ok(ask(occupied).done, '🔴同じ場所にシグニがあるときは問わない（無条件で戻していない）');
+  // 支払い後のフリップ
+  const flipped = executeAction(
+    { type: 'STUB', id: 'INTERNAL_FACEDOWN_RELEASE_FLIP', value: victim } as EffectAction,
+    { ...mkCtx({}, {}), ownerState: holder } as ExecCtx);
+  eq(flipped.ownerState.field.signi[0]?.at(-1), victim, '同じゾーンへ表向きで戻る');
+  eq(flipped.ownerState.field.facedown_signi?.[0], null, '裏向きから外れる');
+  ok(!(flipped.ownerState.facedown_release_by_payment ?? []).length, '解除できたら予約も消える');
+  // 支払わなければ予約は残る＝**次のアタックフェイズでも問われる**（繰り返すゲート）
+  const c: ExecCtx = { ...mkCtx({}, {}), ownerState: r.ownerState } as ExecCtx;
+  const skipped = resumeChoose('skip', r.pending as never, c);
+  eq((skipped.ownerState.facedown_release_by_payment ?? []).length, 1,
+     '🔴支払わなくても予約は消えない（一度きりの pending に退化していない）');
+}));
+
+// ═══ §6.4 O-9(a)＝「対戦相手は手札を**N枚まで**捨ててもよい。捨てたカード1枚につきカードを1枚引く」═══
+// 🔴従来は all-or-nothing の `opponentHandDiscard: 2` で近似＝**0枚か2枚**に丸まり、中間値が選べなかった。
+test('§6.4 O-9(a): 相手の可変枚数コスト＝1枚/2枚/0枚の3択が出て、引く枚数が実枚数に追従する', () => withSavedCursor(() => {
+  const live = manualEffect('WXDi-P09-064', 'WXDi-P09-064-E1');
+  ok(JSON.stringify(live.action).includes('opponentHandDiscardUpTo'), '可変枚数の spec を持つ');
+  ok(!JSON.stringify(live.action).includes('"opponentHandDiscard":2'), '🔴 all-or-nothing 近似へ戻っていない');
+  const ctx = { ...mkCtx({}, { hand: 3, deck: 5 }), isOwnerTurn: true } as ExecCtx;
+  const r = executeEffect(live, ctx);
+  ok(!r.done && r.pending.type === 'CHOOSE', '対戦相手へ枚数を問う');
+  const ask = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  ok(ask.opponentResponds, '選ぶのは対戦相手自身');
+  const ids = ask.options.map(o => o.id);
+  ok(ids.includes('discard1') && ids.includes('discard2') && ids.includes('skip'),
+     `1枚/2枚/0枚の3択が出る（実際: ${ids.join(',')}）`);
+  // 1枚だけ捨てる＝1枚だけ引く（中間値が成立する＝これが O-9(a) の本体）
+  const c: ExecCtx = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs };
+  const hand0 = ctx.otherState.hand.length;
+  const one = resumeOpponentPayOptional('discard1', [], ask, c);
+  const c1: ExecCtx = { ...c, ownerState: one.ownerState, otherState: one.otherState, logs: one.logs };
+  const picked = one.done ? one : resumeSelectTarget([ctx.otherState.hand[0]], (one as { pending: unknown }).pending as never, c1);
+  eq(picked.otherState.hand.length, hand0, '🔴1枚捨てて1枚引く＝手札は増減0（2枚引く近似に戻っていない）');
+  eq(picked.otherState.trash.length, ctx.otherState.trash.length + 1, '捨てたのは1枚だけ');
+  // 0枚＝skip では何も起きない（負方向）
+  const none = resumeOpponentPayOptional('skip', [], ask, c);
+  eq(none.otherState.hand.length, hand0, '0枚なら手札は変わらない');
+  eq(none.otherState.trash.length, ctx.otherState.trash.length, '0枚ならトラッシュも増えない');
+}));
+test('§6.4 O-9(a): 手札が足りない枚数の枝は選べない', () => withSavedCursor(() => {
+  const live = manualEffect('WXDi-P09-064', 'WXDi-P09-064-E1');
+  const ctx = { ...mkCtx({}, { hand: 1, deck: 5 }), isOwnerTurn: true } as ExecCtx;
+  const r = executeEffect(live, ctx);
+  const ask = (r as { pending: PendingInteractionDef & { type: 'CHOOSE' } }).pending;
+  eq(ask.options.find(o => o.id === 'discard1')?.available, true, '手札1枚なら1枚捨ては選べる');
+  eq(ask.options.find(o => o.id === 'discard2')?.available, false, '手札1枚で2枚捨ては選べない');
+}));
+
 test('§3 (cxxvii) engine: thenOnPay のエナ払い枝でも帰結が実行される（payOpt.action を捨てない）', () => {
   // 🔴`resumeOpponentPayOptional` の `pay` 枝はエナを引くだけで `payOpt.action` を**一度も実行して
   //   いなかった**＝`thenOnPay`（「支払ってもよい。**そうした場合**、X」）の X が丸ごと落ちていた。
@@ -14537,6 +14628,58 @@ test('signiAttackGate: cannotAttackSigni（CONTINUOUS 自己アタック封じ�
   eq(g('WX05-023'), 'CONTINUOUS_CANNOT_ATTACK', '自己アタック封じシグニはアタック不可');
   eq(g(SIGNI), null, '他のシグニはアタック可能');
 }));
+// ═══ §6.4 O-8(a)＝「可能ならばアタックしなければならない（**他のシグニより先にアタックしなければならない**）」═══
+// 🔴従来はフェイズ進行を止めるだけで**順序を強制していなかった**＝強制対象を後回しにして他のシグニから
+//    先にアタックできた（原文の括弧書きが明示している規則の違反）。
+test('§6.4 O-8(a): 強制アタック対象が未アタックの間、他のシグニはアタックできない', () => withSavedCursor(() => {
+  const def = mkState({});
+  // WX16-047-E1 由来の「感染状態のシグニだけ強制」をフラグ軸で組む（must_attack_signi + infected_only）。
+  const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
+  const forcedAll: PlayerState = { ...base, must_attack_signi: true };
+  const g = (attacker: PlayerState, num: string) => signiAttackBlockReason({
+    attacker, defender: def, attackerNum: num, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  // 全体強制＝どちらも強制対象なので、どちらから殴ってもよい（順序規則は掛からない）
+  eq(g(forcedAll, SIGNI), null, '全体強制では全員が強制対象＝順序で止まらない');
+  eq(g(forcedAll, SIGNI_P3000), null, '同上');
+  // 感染限定＝ゾーン0だけが強制。ゾーン1は「先にアタックしなければならない」対象が残る間は不可。
+  const infectedOnly: PlayerState = {
+    ...base, must_attack_signi: true, must_attack_infected_only: true,
+    field: { ...base.field, signi_virus: [1, 0, 0] },
+  };
+  eq(JSON.stringify(collectForcedAttackZones({
+    attacker: infectedOnly, defender: def, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  })), JSON.stringify([0]), '感染しているゾーン0だけが強制対象');
+  eq(g(infectedOnly, SIGNI), null, '強制対象自身はアタックできる');
+  eq(g(infectedOnly, SIGNI_P3000), 'FORCED_ATTACK_ORDER', '🔴非強制のシグニは強制対象より先にアタックできない');
+  // 強制対象がアタック済み（ダウン）になれば順序規則は解ける＝ソフトロックしない
+  const afterAttack: PlayerState = {
+    ...infectedOnly, field: { ...infectedOnly.field, signi_down: [true, false, false] },
+  };
+  eq(JSON.stringify(collectForcedAttackZones({
+    attacker: afterAttack, defender: def, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  })), JSON.stringify([]), 'ダウン済みは強制対象から外れる');
+  eq(g(afterAttack, SIGNI_P3000), null, '強制対象が済んだら他のシグニもアタックできる');
+  // 負方向＝強制が一切無ければ順序規則は掛からない
+  eq(g(base, SIGNI_P3000), null, '強制が無ければ誰でもアタックできる');
+}));
+test('§6.4 O-8(a): 「可能ならば」＝アタックできない強制対象は他をブロックしない（ソフトロック回避）', () => withSavedCursor(() => {
+  const def = mkState({});
+  const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
+  // ゾーン0が強制対象だが `blocked_actions` でアタック不可＝「可能ならば」の対象外
+  const st: PlayerState = {
+    ...base, must_attack_signi: true, must_attack_infected_only: true,
+    field: { ...base.field, signi_virus: [1, 0, 0] },
+    blocked_actions: [`ATTACK:${SIGNI}`],
+  };
+  eq(JSON.stringify(collectForcedAttackZones({
+    attacker: st, defender: def, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  })), JSON.stringify([]), 'アタックできない強制対象は集合に入らない');
+  eq(signiAttackBlockReason({
+    attacker: st, defender: def, attackerNum: SIGNI_P3000, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  }), null, '🔴強制対象がアタック不可なら他のシグニは止まらない（フェイズが進めなくなる回帰）');
+}));
+
 test('signiAttackGate: 付与された「アタックできない」（keyword_grants）がアタック可否に反映される（続き404）', () => withSavedCursor(() => {
   // keyword_grants['アタックできない'] は execBlockAction 由来。CPU 候補フィルタが見ていなかった軸。
   const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
@@ -16542,6 +16685,48 @@ test('optional self-trash thisCardOnly: このシグニのみ対象＋「そう�
     eq(rSkip.ownerState.hand.length, h0, 'スキップ時: そうした場合の本体（ドロー）は発火しない');
   }
 });
+// ═══ §6.4 O-8(b)＝`WX12-010-E3`「この方法で**他のシグニゾーンに移動した**シグニをアップしてもよい」═══
+// 🔴従来は `STUB{DEFERRED_UP_REARRANGED_MOVED_SIGNI}`＝明示 defer の no-op。
+// 🔑照応先は `resumeRearrangeSigni` が算出する `rearrMoved`（旧ゾーン≠新ゾーン）。
+//   `lastProcessedCards` に載せて `STORE_LAST_PROCESSED_TARGETS` → `UP{targetsStored}` の正準形で受ける。
+test('§6.4 O-8(b): 配置し直しで移動したシグニだけがアップ候補になる（動かなかったシグニは候補外）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c3 = fresh();
+  const live = manualEffect('WX12-010', 'WX12-010-E3');
+  ok(!JSON.stringify(live.action).includes('DEFERRED_'), '明示 defer の STUB が残っていない');
+  // 相手の3体すべてダウン状態。a↔b だけ入れ替え、c3 は動かさない。
+  const ctx = mkCtx({}, { signi: [a, b, c3], down: [true, true, true] }, 'WX12-010');
+  const r0 = executeEffect(live, ctx);
+  ok(!r0.done && r0.pending.type === 'REARRANGE_SIGNI', '配置し直しの対話');
+  const c0: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+  const r1 = resumeRearrangeSigni([b, a, c3], r0.pending as never, c0);
+  ok(!r1.done && r1.pending.type === 'SELECT_TARGET', '移動したシグニのアップ選択へ進む');
+  const cands = (r1.pending as { candidates: string[] }).candidates;
+  ok(cands.includes(a) && cands.includes(b), '入れ替えた2体はアップ候補');
+  ok(!cands.includes(c3), '🔴動かなかったシグニは候補に入らない（全体アップに戻っていない）');
+  // 0体選択＝「アップしてもよい」を断れる
+  const c1: ExecCtx = { ...ctx, ownerState: r1.ownerState, otherState: r1.otherState, logs: r1.logs };
+  const skipped = resumeSelectTarget([], r1.pending as never, c1);
+  eq(JSON.stringify(skipped.otherState.field.signi_down), JSON.stringify([true, true, true]),
+     '0体選択なら誰もアップしない（任意性が消えていない）');
+  // 1体だけアップ
+  const upped = resumeSelectTarget([a], r1.pending as never, c1);
+  const downAfter = upped.otherState.field.signi_down ?? [];
+  const ziA = upped.otherState.field.signi.findIndex(st => st?.at(-1) === a);
+  eq(downAfter[ziA], false, '選んだシグニだけアップする');
+}));
+test('§6.4 O-8(b): アップ状態のシグニは候補に出ない（isDown フィルタ）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c3 = fresh();
+  const live = manualEffect('WX12-010', 'WX12-010-E3');
+  const ctx = mkCtx({}, { signi: [a, b, c3], down: [false, true, true] }, 'WX12-010');
+  const r0 = executeEffect(live, ctx);
+  const c0: ExecCtx = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs };
+  const r1 = resumeRearrangeSigni([b, a, c3], r0.pending as never, c0);
+  ok(!r1.done && r1.pending.type === 'SELECT_TARGET', 'アップ選択へ進む');
+  const cands = (r1.pending as { candidates: string[] }).candidates;
+  ok(!cands.includes(a), 'すでにアップ状態のシグニは候補外');
+  ok(cands.includes(b), 'ダウン状態で移動したシグニだけが候補');
+}));
+
 test('REARRANGE_SIGNI count:ALL: 並び替え要求→resumeRearrangeSigniで新配置に反映（WX04-041-E2）', () => {
   const ctx = mkCtx({}, { signi: [SIGNI, SIGNI_P3000, SIGNI_L2] });
   const result = executeEffect({ effectId: 't', effectType: 'AUTO', action: { type: 'REARRANGE_SIGNI', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' }, optional: true } as EffectAction, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
@@ -17151,7 +17336,9 @@ test('§6.4 thenOnPay は「そうした場合」形の2効果だけに乗る（
 });
 
 test('(ci) 影響母集団＝costColors 非搭載でも必ず別の回避枝を持つ（＝過剰実行にならない）', () => {
-  const SPECS = ['opponentHandDiscard', 'opponentEnergyTrash', 'opponentSigniTrash',
+  // 🆕`opponentHandDiscardUpTo`（§6.4 O-9(a)＝「N枚まで」の可変枚数）も回避/支払い枝を生む spec。
+  //   ここに足さないと「costColors も回避枝も無い＝タダで素通り」と誤判定される。
+  const SPECS = ['opponentHandDiscard', 'opponentHandDiscardUpTo', 'opponentEnergyTrash', 'opponentSigniTrash',
     'opponentSigniToDeckTop', 'opponentHandOrEnergyToDeckTop'];
   const stubs: Record<string, unknown>[] = [];
   const walk = (n: unknown) => {

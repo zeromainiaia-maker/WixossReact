@@ -1,5 +1,90 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-16（続き506・Opus 5）— §6.4 **O-8／O-9 クローズ（ともに残0）**
+
+**O-8（強制アタックの残り2件）**と**O-9（「対戦相手は〈コスト〉てもよい」の残り2件）**を消化した。
+ゲート全緑（**golden 2102**＝+8・**census 823 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・
+lint 0 errors・`census:goldentypes` 未カバー0型）。`census:stubs` A群 **18種/22件 → 16種/20件**
+（明示 defer 2種を実装で解体。無言 no-op は 0 のまま）。live JSON changed **3効果 / 3カード**
+（＋キー順だけの差1効果。CSV 非改変）。
+
+### O-8(a) 🔴 アタック順＝**原文の括弧書きが規則そのものだった**
+
+原文は「可能ならばアタックしなければならない**（他のシグニより先にアタックしなければならない）**」。
+括弧内はフレーバーではなく**順序の規則**で、実装はこれを一切見ていなかった＝
+**強制対象を後回しにして他のシグニから先にアタックできた**（フェイズ進行を止めるだけの近似）。
+
+- 新機構＝`signiAttackGate` の `collectForcedAttackZones` ＋ ブロック理由 `FORCED_ATTACK_ORDER`。
+- 🔑**判定は gate に1本化した**＝人間のアタックボタン／共通実行経路 `performSigniAttack`／CPU の候補
+  フィルタが**同じ関数**を通るので、「人間には出ないが CPU は撃てる」型の軸ズレが構造的に起きない
+  （CPU も自動的に「強制対象 → その他」の順で殴るようになる）。
+- 🔑**「可能ならば」の除外は同じ gate の再入で判定する**（`skipForcedOrderRule` で再帰を1段に切る）＝
+  アタック禁止・コスト不足・パワー上限で撃てない強制対象は集合に入らず、**フェイズを進められなくなる
+  ソフトロックを防ぐ**。負方向を golden で固定した。
+- ⚠**BattleScreen 側の `mustAttackRemainingZones` も同じ関数へ寄せた**（旧実装は
+  `getMySigniZoneActions` のラベル照合で「アタック可能」を判定する**別軸のコピー**だった）＝
+  「ボタンは消えるのにフェイズは進める」型のズレを構造的に消した。
+
+母集団＝`FORCE_SIGNI_ATTACK`（16効果）／`FORCE_FRONT_SIGNI_ATTACK`。順序が意味を持つのは
+**部分強制**のとき（`WX16-047`＝感染状態限定／`WXDi-P13-035-E2`＝1体指定／`WXDi-P08-030-E1`＝選んだ集合／
+`WX20-045-E2`・`WXDi-P06-042-E1`＝正面限定）。全体強制では全員が集合に入るので挙動は変わらない。
+
+### O-8(b) `WX12-010-E3`＝「この方法で移動したシグニをアップしてもよい」
+
+`STUB{DEFERRED_UP_REARRANGED_MOVED_SIGNI}`（明示 defer の no-op）を解体。
+🔑**照応先は `resumeRearrangeSigni` が既に持っていた `rearrMoved`**（旧ゾーン≠新ゾーン）＝
+これを `lastProcessedCards` に載せ、`STORE_LAST_PROCESSED_TARGETS` → `UP{targetsStored}` の
+**既存の正準形**で受けた（新しい STUB を足していない）。
+
+- ⚠**`zone_moved_just` は照応先に使えない**＝ON_ZONE_MOVED 用に**累積**するので前の移動が混ざる。
+- `execUp` に `count:'ALL' + upToCount` の分岐を追加＝「好きな数アップして**もよい**」（0体も選べる）。
+  これが無いと `applyUp(cands)` が**全部を無選択でアップ**して任意性が消える。
+- `filter.isDown` を付けて**アップ状態のシグニを候補から外す**（付けないと「何が起きたか分からない」選択になる）。
+
+### O-9(a) `WXDi-P09-064-E1`＝相手側の**可変枚数**コスト
+
+「対戦相手は手札を**２枚まで**捨ててもよい。この方法で捨てたカード1枚につきカードを1枚引く」を
+all-or-nothing の `opponentHandDiscard: 2` で近似していたため、**0枚か2枚**に丸まり
+「1枚だけ捨てて1枚引く」が選べなかった。
+
+- 新機構＝`StubAction.opponentHandDiscardUpTo`＝**1..N を選択肢に並べる**（0枚は既存の skip 枝）。
+- 🔑**帰結は枚数を焼き込まず `DRAW{count:0, addLastProcessedCount:true}` で実枚数に追従**させた
+  （`resumeSelectTarget` が `lastProcessedCards` を残すので中間値でも成立する）。
+- skip のラベルを「支払わない」→「手札を捨てない（0枚）」に変えた＝**0枚も原文どおり合法な選択肢**
+  であることが実機で判別できるようにする。
+- ⚠golden の安全弁（`(ci)` ＝ costColors 非搭載の `OPPONENT_PAY_OPTIONAL` は必ず別の回避枝を持つ）の
+  spec 一覧に新キーを足す必要がある。足さないと「タダで素通り」と誤判定されて赤くなる。
+
+### O-9(b) `WXDi-P07-010-E2`＝**繰り返す**遅延ゲート
+
+「…それを裏向きにする。**各アタックフェイズ開始時**、裏向きのそれと同じ場所にシグニがない場合、
+対戦相手は《無》《無》を支払うか手札を２枚捨ててもよい。そうした場合、それを表向きにする。」
+＝`STUB{DEFERRED_FACEDOWN_RELEASE_BY_OPP_PAYMENT}`（no-op）で**永久に表向きに戻らなかった**。
+
+- 新機構＝`PlayerState.facedown_release_by_payment`（予約）＋ `ON_ATTACK_PHASE_START` の合成トリガー
+  ＋ `RESOLVE_FACEDOWN_RELEASE_PAYMENT` / `INTERNAL_FACEDOWN_RELEASE_FLIP` ＋
+  `flipFacedownSigniFaceUp`（`facedownSigni.ts`）。
+- 🔑**予約は「裏向きカードの持ち主側」に載せる**＝合成エントリの `playerId` をその側にすることで
+  ハンドラの `ctx.ownerState` が支払う側になる。効果を使った側に置くと支払い主体が反転する
+  （さらに `opponentResponds` を付けると**二重反転**する）。
+- 🔑**「各」＝両プレイヤーのアタックフェイズで走る**＝`myState`／`opState` の**両方**を走査する
+  （片側だけだと「自分のアタックフェイズでしか解除できない」半分の実装になる）。
+- 🔑**支払われるまで予約を消さない**（一度きりの `pending_*` と違う）＝解除できたときだけ取り除く。
+  `delayed_triggers` は THIS_TURN 限定なので載せられない。
+
+### ⚠ 逆翻訳（表示）の穴を2つ同時に潰した
+
+- `DRAW{addLastProcessedCount}` が「カードを**0枚**引く」と描かれていた（＝何も引かない逆翻訳）。
+- `UP{targetsStored}` が「好きな数のダウン状態のシグニをアップする」＝**盤面全体から選べる**と読めた。
+
+### ⚠ 実機未検証（§7 送り）
+
+全経路ヘッドレスのみ。**§7 worklist へ**＝(a)部分強制の盤面で**非強制シグニのアタックボタンが消える**／
+強制対象が殴った直後に復活する（負方向＋対照の対）(b)`WX12-010`（相手を並べ替えると**動かした
+シグニだけ**がアップ候補に出て0体も選べる）(c)`WXDi-P09-064`（相手側に**3択**が出て、1枚選ぶと手札が
+増減0になる）(d)`WXDi-P07-010`（**毎アタックフェイズ**に相手へ2択が出て、払うと表向きに戻り、
+同じ場所にシグニがいる間は出ない）。
+
 ## 2026-08-16（続き505・Opus 5）— §6.4 **O-6／O-7 クローズ（ともに残0）**
 
 PLAN の §6.4 worklist から **O-6（`MANUAL` 不可侵で live に届かない改善・1効果）** と
