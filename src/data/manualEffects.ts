@@ -4654,9 +4654,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX12-023": [
     {"effectId":"WX12-023-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
-  "WX25-P3-055": [
-    {"effectId":"WX25-P3-055-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
+  // §6.4 O-10（続き507）＝`WX25-P3-055-E2` の defer を解体。parser 規則
+  // （`EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY`）が《相手ターン》の `activeCondition` ごと正しく作るので
+  // **AUTO 採用**（MANUAL エントリを削除）。⚠live レコードは `MANUAL` 刻印だと `build:effects` が
+  // 永久に触れないので、live JSON の外科パッチとセットで行うこと（§6.4 O-6 続き505 と同じ手順）。
   "WXK01-002": [
     {"effectId":"WXK01-002-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
