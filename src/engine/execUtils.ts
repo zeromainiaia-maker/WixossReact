@@ -219,6 +219,13 @@ export interface OptionalCostSpec {
   charmTrash?: number;
   trashArtsFromLrigDeck?: { color?: string; count: number };
   removeOppVirus?: number;
+  /**
+   * 🔴「（使用コストとして）追加でエクシードNを支払ってもよい」（§6.4 O-11・2026-08-16）。
+   * ⚠**`StubAction.exceed` は前からあり live に9効果いたのに、この runtime spec に無かった**＝
+   *   `resolveOptionalCostSpec` が黙って落とし、pay を選んでも**エクシードがタダ**になっていた
+   *   （上の「片方にキーを足しただけでは無視される」注記＝続き422 の罠を実際にもう一度踏んでいた）。
+   */
+  exceed?: number;
   /** レベル倍率が要るのに対象レベルが 0＝支払い自体が成立しない */
   levelUnavailable: boolean;
 }
