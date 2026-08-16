@@ -3298,6 +3298,7 @@ function parseSingleSentence(text: string): EffectAction {
   action = rewritePerLastProcessedCount(action, text);
   action = rewriteSameLevelAsLastProcessed(action, text);
   action = wrapHandOrField(action, text);
+  action = wrapFieldOrEnergy(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
   action = rewriteNextOppTurnEndBody(action, text);
   action = rewriteNextOwnTurnEndBody(action, text);
