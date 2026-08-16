@@ -114,11 +114,18 @@ export function hasApplicableAssassin(
   opponentState: PlayerState,
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
+  attackerState?: PlayerState,
 ): boolean {
   const baseCardNum = (cardNum: string) => cardNum.includes('#') ? cardNum.slice(0, cardNum.indexOf('#')) : cardNum;
   for (const keyword of keywords) {
     const scope = decodeAssassinKeyword(keyword);
     if (scope === null) continue;
+    // 「あなたの手札がN枚以下であるかぎり」＝**アタック側**の状態条件（§6.4 O-28）。
+    // ⚠`attackerState` を渡さない呼び出し元では判定できない＝掛からない（過少側）。
+    if (scope.selfHandLte !== undefined) {
+      if (!attackerState || attackerState.hand.length > scope.selfHandLte) continue;
+      if (Object.keys(scope).length === 1) return true;
+    }
     if (Object.keys(scope).length === 0) return true;
     const matches = opponentState.field.signi.some((stack, zoneIdx) => {
       const cardNum = stack?.at(-1);
