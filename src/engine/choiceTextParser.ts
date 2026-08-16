@@ -254,6 +254,22 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (choiceTxt.match(/トラッシュにある.*ゲームから除外/)) {
     return ({ type: 'STUB', id: 'INTERNAL_EXILE_OPP_TRASH' } as StubAction) as EffectAction;
   }
+  // 「〈期間〉、対戦相手は（《無》×Nを支払わないかぎり、）〈中央/左/右〉のシグニゾーンにあるシグニで
+  //  アタックできない」＝**ゾーン限定のアタック禁止**（§6.4 O-33・`WXK10-011-E1`③）。
+  // ⚠**下の汎用「アタックできない」より先に判定する**＝後ろに置くとゾーン限定も期間も落ちて
+  //   `INTERNAL_BLOCK_ATTACK_THIS_TURN`（このターン・全ゾーン）に潰れる。
+  {
+    const zoneBanChoiceM = choiceTxt.match(
+      /(このターン|次の対戦相手のターンの間|次の対戦相手のターン終了時まで)、対戦相手は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(中央|左|右)のシグニゾーンにあるシグニでアタックできない/);
+    if (zoneBanChoiceM) {
+      return {
+        type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
+        zones: [zoneBanChoiceM[3] === '左' ? 0 : zoneBanChoiceM[3] === '右' ? 2 : 1],
+        ...(zoneBanChoiceM[2] ? { unlessPayColorless: (zoneBanChoiceM[2].match(/《無》/g) ?? []).length } : {}),
+        ...(zoneBanChoiceM[1] === 'このターン' ? {} : { turns: 2 }),
+      } as unknown as EffectAction;
+    }
+  }
   // 「アタックできない」→ blocked_actions追加
   if (choiceTxt.match(/アタックできない/)) {
     return ({ type: 'STUB', id: 'INTERNAL_BLOCK_ATTACK_THIS_TURN' } as StubAction) as EffectAction;
