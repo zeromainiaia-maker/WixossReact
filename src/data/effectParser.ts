@@ -13790,7 +13790,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
       // 【シャドウ（X）】のスコープ条件を stripRuleParens で括弧除去される前に符号化する
-      let effectText = encodeShadowScopesInText(card.EffectText);
+      let effectText = restoreElidedSwapSource(encodeShadowScopesInText(card.EffectText));
       // 【歌のカケラ】は下段で独立した SONG effect として解析する。通常能力ブロックへ残すと、
       // 直前の【自】等へ歌本文が連結され、E1 に UNKNOWN/STUB が漏れる（WX26-CP1-061）。
       effectText = effectText.replace(/【歌のカケラ】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
