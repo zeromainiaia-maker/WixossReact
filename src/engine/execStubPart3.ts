@@ -1275,11 +1275,13 @@ export function execStubPart3(
     const gateZoneIdx: number = (typeof stub.value === 'number' ? stub.value : 0) as number;
     const currentGates = [...(ctx.otherState.signi_gate_zones ?? [])];
     if (!currentGates.includes(gateZoneIdx)) currentGates.push(gateZoneIdx);
-    // ゲートゾーンの相手シグニを blocked_actions に追加（アタック不可）
-    const gateTop = ctx.otherState.field.signi[gateZoneIdx]?.at(-1);
-    const blocked = [...(ctx.otherState.blocked_actions ?? [])];
-    if (gateTop) blocked.push(`ATTACK:${gateTop}`);
-    const newOtherGATE = { ...ctx.otherState, signi_gate_zones: currentGates, blocked_actions: blocked };
+    // 🔴**設置そのものはアタックを禁止しない**（§6.4 O-33 据置分・続き508）＝原文（`WDK09-001-E1`／
+    //   `WDK09-006-E1`）は「【ゲート】１つを置く」としか書いておらず、アタック禁止は**別の効果**
+    //   （`WDK09-001-E2`＝公開したカードが【ライフバースト】を持たない場合に限る）が課す。
+    // ⚠従来はここで `blocked_actions:'ATTACK:<設置時のトップ>'` を積んでいた＝
+    //   ①条件を無視して常に禁止 ②**設置時に居た1枚**に焼き込むのでゾーンが入れ替わると外れる、の二重の誤り。
+    //   禁止は `SIGNI_ATTACK_BAN{zoneSource:'gate'}`（判定地点で `signi_gate_zones` を引く）が担う。
+    const newOtherGATE = { ...ctx.otherState, signi_gate_zones: currentGates };
     return done(addLog({ ...ctx, otherState: newOtherGATE }, `相手ゾーン${gateZoneIdx + 1}に【ゲート】設置`));
   }
   // PLACE_OWN_GATE: あなたのシグニゾーン1つにTHE DOOR【ゲート】を置く（own_gate_zones）。
