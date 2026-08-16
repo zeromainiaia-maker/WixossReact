@@ -1,6 +1,6 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
-import { calcContinuousBlockedActions, calcFieldPowers, collectForcedFrontAttackZones, resolveForcedSigniAttack, type ContinuousBlockResult } from '../../engine/effectEngine';
+import { calcContinuousBlockedActions, calcFieldPowers, checkActiveCondition, collectForcedFrontAttackZones, resolveForcedSigniAttack, type ContinuousBlockResult } from '../../engine/effectEngine';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost } from './attackFieldTrashCost';
 import { parsePowerVal } from './battleUtils';
 import { signiAttackBanCost, signiAttackBansNeedPower } from './signiAttackBan';
