@@ -13726,7 +13726,17 @@ function restoreElidedSwapSource(text: string): string {
     /((?:あなた|対戦相手)の(?:エナゾーン|トラッシュ)から[^。、]*?シグニ(?:を)?[０-９\d]+枚(?:まで)?)を対象とし、([^。]*?)。そうした場合、それと(場にある)?(この|その)シグニの場所を入れ替える/g,
     (_m, src: string, mid: string, atField: string | undefined, dem: string) =>
       `${src}を対象とし、${mid}。そうした場合、${src}と${atField ?? ''}${dem}シグニの場所を入れ替える`,
-  );
+  )
+  // 同じ照応の**分解表記**（§6.4 O-7・`WX25-P2-090` / `WX25-P2-093`）＝交換を「自分をエナへ置く」＋
+  // 「対象を場に出す」の2動作で書く形。ここでも交換元の名詞句が前の文にしか無いので、
+  // **対象宣言を帰結側へ移す**（＝任意コストは自己エナ送り、本体はエナからの配置）。
+  // ⚠従来は文全体が part4 の総称 STUB へ落ち、**コストを払わずに手札から何かを場に出す**
+  //   （`ADD_TO_FIELD` に source が無い）別動作になっていた。
+    .replace(
+      /((?:あなた|対戦相手)の(?:エナゾーン|トラッシュ)から[^。、]*?シグニ)(?:を)?([０-９\d]+枚(?:まで)?)を対象とし、((?:場にある)?この(?:シグニ|カード)を(?:場から)?エナゾーンに置いてもよい)。そうした場合、それを(ダウン状態で)?場に出す/g,
+      (_m, src: string, cnt: string, cost: string, asDown: string | undefined) =>
+        `${cost}。そうした場合、${src}${cnt}を${asDown ?? ''}場に出す`,
+    );
 }
 
 export function parseCardEffects(card: CardData): CardEffect[] {
