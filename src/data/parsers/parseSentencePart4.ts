@@ -937,9 +937,24 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/カードを[１-９\d０-９]*枚?まで?ルリグゾーンに裏向きで置く/))
     return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
 
-  // ---- 場に凍結状態/レゾナがない場合、手札を捨てる ----
-  if (t.match(/場に.*がない場合、手札を[１-９\d０-９]*枚捨てる/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  // ---- 〈誰か〉の場に〈X〉がない場合、手札をN枚捨てる（§6.4 O-11・`CONDITIONAL_POWER_BONUS` の解体）----
+  // 🔴従来は catch-all の `CONDITIONAL_POWER_BONUS`＝**丸ごと無言 no-op**（ハンドラは原文から
+  //   `＋N`/`－N` のパワー値を読む分岐しか持たず、この文型は最後の `done(addLog())` に落ちる）。
+  //   前段の「カードを１枚引く」だけが走り、**デメリットの手札捨てが一切起きない**片翼状態だった。
+  // ⚠この条件系には NOT ラッパが無いので `HAS_CARD_IN_FIELD{negate:true}` で否定を表す。
+  {
+    const noneFieldM = t.match(/^(あなた|対戦相手)の場に(凍結状態のシグニ|レゾナ)がない場合、手札を([１-９\d０-９]*)枚捨てる$/);
+    if (noneFieldM) {
+      const filter: TargetFilter = noneFieldM[2] === '凍結状態のシグニ'
+        ? { cardType: 'シグニ', isFrozen: true }
+        : { cardType: 'レゾナ' };
+      return {
+        type: 'CONDITIONAL',
+        condition: { type: 'HAS_CARD_IN_FIELD', owner: noneFieldM[1] === 'あなた' ? 'self' : 'opponent', filter, negate: true },
+        then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: noneFieldM[3] ? parseNum(noneFieldM[3]) : 1 } },
+      } as EffectAction;
+    }
+  }
 
   // ---- カードをN枚引き、手札をN枚まで捨てる ----
   if (t.match(/カードを[１-９\d０-９]+枚引き、手札を[１-９\d０-９]+枚まで捨てる/))

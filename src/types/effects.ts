@@ -277,7 +277,7 @@ export type Condition =
   // カード（last_cost_trashed_cards＝手札/エナ/場すべてを含む）に filter 一致が1枚以上あるか。§3タスク6 C（2026-07-25）。
   // WX24-P1-060「スペルを捨てた→代わりにパワー5000以下」／WX25-P3-076「緑の＜龍獣＞をトラッシュ→代わりに5000以下」
   | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash' }
-  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較
+  | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter } // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合」＝場の全シグニ（頂点）が filter 一致。1体以上必須（空盤面は false＝空振り発火しない）。WX25-CP1-042 等
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // minCount: フィルタ一致カードがN枚以上。distinctName=true は異なるカード名の種類数
