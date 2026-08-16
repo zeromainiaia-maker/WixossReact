@@ -1784,7 +1784,27 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'TARGET_AND_DISCARD_HAND' } as StubAction;
   }
 
-  // ---- この方法でトラッシュに置かれたカードの中からシグニをN枚対象とし〜 ----
+  // ---- この方法でトラッシュに置いた/置かれたカードの中から〈名詞〉をN枚（まで）対象とし、〈行き先〉へ ----
+  // §6.4 O-11。**枚数・「まで」・名詞・行き先を engine へ渡す**（従来は裸 STUB＝全部落ちていた）：
+  //   ・`PICK_FROM_TRASHED_CARDS` の旧ハンドラは候補が**トラッシュ全体**で1枚を手札固定＝
+  //     「この方法で」の限定も「２枚まで」も無視（`WXEX2-49`／`WX24-P4-034`）。
+  //   ・エナ行きの1文（`WX26-CP1-057-E2`）は下流の catch-all `CONDITIONAL_POWER_BONUS` に飲まれて**丸ごと no-op**。
+  {
+    const mPT = t.match(/この方法で(?:デッキから)?トラッシュに置(?:いた|かれた)カードの中から(シグニ|カード)を?([０-９\d]+)枚(まで)?を?対象とし、それらを?(手札に加えるか場に出す|手札に加える|エナゾーンに置く)/);
+    if (mPT) {
+      return {
+        type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS',
+        trashedPick: {
+          count: parseNum(mPT[2]),
+          ...(mPT[3] ? { upTo: true } : {}),
+          ...(mPT[1] === 'シグニ' ? { filter: { cardType: 'シグニ' as const } } : {}),
+          dest: mPT[4] === 'エナゾーンに置く' ? 'energy' as const
+            : mPT[4] === '手札に加えるか場に出す' ? 'hand_or_field' as const : 'hand' as const,
+        },
+      } as StubAction;
+    }
+  }
+  // ---- この方法でトラッシュに置かれたカードの中からシグニをN枚対象とし〜（上の精密形に載らない残り） ----
   if (t.match(/この方法でトラッシュに置かれたカードの中からシグニ/)) {
     return { type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS' } as StubAction;
   }
