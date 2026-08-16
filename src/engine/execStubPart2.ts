@@ -851,6 +851,45 @@ export function execStubPart2(
     return done(addLog({ ...ctx, otherState: newOtherDOPM },
       `${ctx.cardMap.get(targetDOPM)?.CardName ?? targetDOPM}へのパワー-を2倍に設定`));
   }
+  // CHARM_POWER_MINUS_MULTIPLIER（§6.4 O-10・続き507）＝`WX25-P2-103-E1` の選択肢②
+  // 「それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワーが－される場合、
+  //  代わりに３倍－される」。上の 2倍版（`DOUBLE_OWN_POWER_MINUS`）の**倍率つき＋チャーム条件**版。
+  // 🔑倍率は `power_minus_multipliers_this_turn`（相手 state ＝**修正を受ける側**に積む）。
+  //   ⚠2倍版と同じで、自分の state に積むと `calcFieldPowers` が一度も読まない（続き503 で踏んだ罠）。
+  if (stub.id === 'CHARM_POWER_MINUS_MULTIPLIER') {
+    const targetCPM = [...(ctx.storedTargetCards ?? []), ...(ctx.lastProcessedCards ?? [])].find(cn =>
+      ctx.otherState.field.signi.some(s => s?.at(-1) === cn)
+    );
+    if (!targetCPM) {
+      const oppSigniCPM = [0, 1, 2]
+        .map(zi => ctx.otherState.field.signi[zi]?.at(-1))
+        .filter((cn): cn is string => !!cn);
+      if (oppSigniCPM.length === 0) return done(addLog(ctx, '3倍パワー-：相手シグニなし'));
+      return needsInteraction(addLog(ctx, 'このターン自分効果でパワー-を3倍にするシグニを選択'), {
+        type: 'SELECT_TARGET', candidates: oppSigniCPM, count: 1, optional: false,
+        targetScope: 'opp_field',
+        thenAction: { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as unknown as EffectAction,
+        continuation: { type: 'STUB', id: 'CHARM_POWER_MINUS_MULTIPLIER' } as unknown as EffectAction,
+      });
+    }
+    // ⚠**「【チャーム】が付いている場合」は条件**＝付いていなければ何も起きない（倍率も積まない）。
+    const zoneCPM = ctx.otherState.field.signi.findIndex(s => s?.at(-1) === targetCPM);
+    const hasCharmCPM = (ctx.otherState.field.signi_charms?.[zoneCPM] ?? null) !== null;
+    const nameCPM = ctx.cardMap.get(getCardNum(targetCPM))?.CardName ?? targetCPM;
+    if (!hasCharmCPM) return done(addLog(ctx, `${nameCPM}に【チャーム】が付いていないため何も起きない`));
+    const multiplier = typeof stub.value === 'number' ? stub.value : 3;
+    const existingCPM = ctx.otherState.power_minus_multipliers_this_turn ?? {};
+    return done(addLog({
+      ...ctx,
+      otherState: {
+        ...ctx.otherState,
+        power_minus_multipliers_this_turn: {
+          ...existingCPM,
+          [targetCPM]: Math.max(existingCPM[targetCPM] ?? 1, multiplier),
+        },
+      },
+    }, `${nameCPM}へのパワー-を${multiplier}倍に設定`));
+  }
   // 全自シグニのパワーを2倍にする（現在値と同量をデルタ追加）
   if (stub.id === 'POWER_DOUBLE_ALL') {
     const modsPDA = [...(ctx.ownerState.temp_power_mods ?? [])];
