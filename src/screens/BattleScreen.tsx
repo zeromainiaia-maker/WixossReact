@@ -28,6 +28,7 @@ import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
+import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, isEnergyPayBlocked, type EnergyPayEntry } from './battle/energyPaySource';
 
@@ -7643,6 +7644,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // トラッシュのカードにも `abilities_removed` を積む。⚠ここで見ないと**トラッシュ起動だけが素通り**して、
     // 領域を跨いだ能力喪失が「候補を広げただけの見せかけ」になる。
     if (my.abilities_removed?.includes(cardNum)) return actions;
+    // §6.4 O-10（続き514）＝「対戦相手のトラッシュ…にあるカードは能力を失い」（`WX12-023`）＝
+    // 相手の場に宣言があれば**自分のトラッシュ起動は丸ごと使えない**。
+    if (isTrashImmuneByOpponent(op, battleCardMap, effectsMap)) return actions;
     const effs = effectsMap.get(cardNum) ?? [];
     for (const eff of effs) {
       if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
@@ -12929,7 +12933,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承
-      const hasInheritLrigTrash = (effectsMap.get(lrigTopMA) ?? []).some(eff =>
+      // §6.4 O-10（続き514）＝「対戦相手の…**ルリグトラッシュ**にあるカードは能力を失い」（`WX12-023`）＝
+      // 継承元が能力を失っているので、継承自体が成立しない。
+      const lrigTrashAbilitiesLost = isTrashImmuneByOpponent(op, battleCardMap, effectsMap);
+      const hasInheritLrigTrash = !lrigTrashAbilitiesLost && (effectsMap.get(lrigTopMA) ?? []).some(eff =>
         eff.effectType === 'CONTINUOUS' &&
         ((eff.action as import('../types/effects').StubAction)?.id === 'INHERIT_LRIG_TRASH_ABILITIES' ||
          (eff.action as import('../types/effects').StubAction)?.id === 'COPY_LRIG_TRASH_ACTIVATED'),

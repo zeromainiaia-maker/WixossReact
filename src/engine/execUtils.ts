@@ -1336,6 +1336,37 @@ export function isOwnTrashMoveLocked(owner: Owner, ctx: ExecCtx): boolean {
   return TRASH_LOCK_PHASES.includes(ctx.currentPhase ?? '');
 }
 
+/**
+ * `TRASH_ABILITY_LOSS_AND_IMMUNITY`（§6.4 O-10・続き514・`WX12-023`）＝
+ * 「【常】：対戦相手のトラッシュとルリグトラッシュにあるカードは能力を失い、効果を受けない。」
+ *
+ * `holderState` の**トラッシュが免疫を受けているか**＝`declarerState`（対面）の場に宣言があるか。
+ * 🔑**「効果を受けない」は主語を問わない**＝原文は「効果を受けない」としか書いていないので、
+ *   宣言者の効果でも持ち主自身の効果でも、そのトラッシュのカードは対象にできない（ロック札）。
+ * ⚠`effectsMap` は engine の一部経路でしか代入されない（続き296 の罠）＝
+ *   `cardMap.get(...).effects`（実アプリの live JSON）へフォールバックする。
+ */
+export function isTrashImmuneByOpponent(
+  declarerState: PlayerState,
+  cardMap: Map<string, CardData>,
+  effectsMap?: Map<string, CardEffect[]>,
+): boolean {
+  const sources = [
+    ...declarerState.field.signi.flatMap(st => (st?.at(-1) ? [st.at(-1)!] : [])),
+    ...(declarerState.field.lrig.at(-1) ? [declarerState.field.lrig.at(-1)!] : []),
+  ];
+  for (const num of sources) {
+    const base = getCardNum(num);
+    const effs = effectsMap?.get(num) ?? effectsMap?.get(base) ?? cardMap.get(base)?.effects ?? [];
+    for (const eff of effs) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as { type?: string; id?: string };
+      if (act.type === 'STUB' && act.id === 'TRASH_ABILITY_LOSS_AND_IMMUNITY') return true;
+    }
+  }
+  return false;
+}
+
 export function trashCandidates(state: PlayerState, filter: TargetFilter | undefined, cardMap: Map<string, CardData>, allZoneClassOverrides?: Record<string, string>): string[] {
   return state.trash.filter(n => matchesFilter(cardMap.get(n), filter, undefined, undefined, allZoneClassOverrides));
 }
@@ -1349,6 +1380,11 @@ export function movableTrashCandidates(
   cardMap: Map<string, CardData>, ctx: ExecCtx, allZoneClassOverrides?: Record<string, string>,
 ): string[] {
   if (isOwnTrashMoveLocked(owner, ctx)) return [];
+  // §6.4 O-10（続き514）＝「対戦相手のトラッシュ…にあるカードは…効果を受けない」（`WX12-023`）。
+  // 🔑**宣言者は `owner` の対面**＝`owner==='self'` なら相手の場、`'opponent'` なら効果主の場を見る。
+  // ⚠ロックと同じく候補0で表す＝アクションは「対象がない」で自然に no-op する（盤面を巻き戻さない）。
+  const declarerState = owner === 'self' ? ctx.otherState : ctx.ownerState;
+  if (declarerState && isTrashImmuneByOpponent(declarerState, cardMap, ctx.effectsMap)) return [];
   return trashCandidates(state, filter, cardMap, allZoneClassOverrides);
 }
 

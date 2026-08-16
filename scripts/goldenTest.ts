@@ -75,6 +75,7 @@ import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttack
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
 import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
+import { isTrashImmuneByOpponent, movableTrashCandidates } from '../src/engine/execUtils';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
 import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
@@ -30261,6 +30262,39 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   const json062 = JSON.stringify(e.action);
   ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き514）: 相手トラッシュの「能力を失い、効果を受けない」（負方向＋対照の対）', () => {
+  // 🔑据置理由「相手トラッシュに触る全効果に及ぶ」は**古かった**＝トラッシュを発生源にする候補列は
+  //   `movableTrashCandidates` の**1点 funnel**（8呼び出しが全部そこを通る）。
+  const cm = cardMap as Map<string, CardData>;
+  const trashed = findCard(c => isSigni(c));
+  // 宣言者（WX12-023）が**自分の場**にいる → 相手のトラッシュが免疫。
+  const withDeclarer = mkCtx({ signi: ['WX12-023', null, null] }, {});
+  withDeclarer.otherState.trash = [trashed];
+  eq(movableTrashCandidates('opponent', withDeclarer.otherState, undefined, cm, withDeclarer).length, 0,
+     '🔴相手のトラッシュは効果の対象にできない');
+  // 対照＝宣言者がいなければ普通に対象にできる。
+  const noDeclarer = mkCtx({ signi: [SIGNI, null, null] }, {});
+  noDeclarer.otherState.trash = [trashed];
+  ok(movableTrashCandidates('opponent', noDeclarer.otherState, undefined, cm, noDeclarer).length > 0,
+     '対照＝宣言が無ければ対象にできる');
+  // ⚠**主語を問わない**＝持ち主自身の回収も止まる（原文は「効果を受けない」としか書いていない）。
+  const ownTrash = mkCtx({ signi: [SIGNI, null, null] }, { signi: ['WX12-023', null, null] });
+  ownTrash.ownerState.trash = [trashed];
+  eq(movableTrashCandidates('self', ownTrash.ownerState, undefined, cm, ownTrash).length, 0,
+     '🔴宣言者が相手の場にあるとき、自分のトラッシュ回収も止まる');
+  // 判定関数の単体＝宣言の有無だけを見る。
+  ok(isTrashImmuneByOpponent(withDeclarer.ownerState, cm), '宣言者が場にあれば true');
+  ok(!isTrashImmuneByOpponent(noDeclarer.ownerState, cm), '宣言者がいなければ false');
+  // live 表現＝defer は解体済み。
+  const act = JSON.stringify(mergeManualEffects('WX12-023', effectsMap.get('WX12-023') ?? [])
+    .find(e => e.effectId === 'WX12-023-E1')!.action);
+  ok(act.includes('TRASH_ABILITY_LOSS_AND_IMMUNITY') && !act.includes('DEFERRED_'), 'defer は解体済み');
+  // 「能力を失う」の読み手2つが UI に配線されている（実挙動は §7 実機検証）。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  eq((src.match(/isTrashImmuneByOpponent\(/g) ?? []).length, 2,
+     'トラッシュ起動【起】とルリグトラッシュ継承【起】の2箇所から見る');
 });
 
 test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約され、ボタン生成側からも見られている', () => {

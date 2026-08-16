@@ -5,11 +5,11 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
 逆翻訳シートの [STUB:…] 総数: 764  うち生ID露出 269 箇所（185 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 4 種 / 4 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 4 種 / 4 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 3 種 / 3 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 3 種 / 3 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 24 種 / 74 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 180 種 / 264 箇所
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 25 種 / 75 件
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 181 種 / 265 箇所
   D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
@@ -25,12 +25,9 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart1.ts:3346
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4890
+        生成: src\data\manualEffects.ts:4894
      1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
-     1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
-        カード: WX12-023
-        生成: src\data\manualEffects.ts:4691
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -100,7 +97,10 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
         消費: src\engine\effectExecutor.ts:4029
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1013 / src\screens\BattleScreen.tsx:10309
+        消費: src\screens\BattleScreen.tsx:1014 / src\screens\BattleScreen.tsx:10313
+     1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
+        カード: WX12-023
+        消費: src\engine\execUtils.ts:1364
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6841
@@ -612,6 +612,8 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
         既存コメント: TK3_DECLARE_DISCARD: 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる （WX25-P1-TK3 ダーク・アナライズ：「数字1つを宣言する。対戦相手の手札を見て、宣言した数字と同じ
   露出  1箇所 (live 5件/5枚)  TRAP_TO_HAND  [execStubPart2]
         カード: WD23-040-A, WX16-017, WX16-028, WX16-063, WX19-037
+  露出  1箇所 (live 1件/1枚)  TRASH_ABILITY_LOSS_AND_IMMUNITY  [engine別経路]
+        カード: WX12-023
   露出  1箇所 (live 1件/1枚)  TRASH_ACCE_AT_TURN_END  [execStubPart3]
         カード: WX16-044
         既存コメント: TRASH_ACCE_AT_TURN_END: アクセカードをターン終了時にトラッシュ（即座に処理） TRASH_ACCE_AT_TURN_END: このシグニに付いているアクセ1枚をトラッシュへ

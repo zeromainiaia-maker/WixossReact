@@ -4682,13 +4682,17 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX18-038": [
     {"effectId":"WX18-038-E1","effectType":"CONTINUOUS","action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","hasCharm":true}},"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
-  // Opus task 12 (liv) honest defers. These texts do not remove abilities
-  // from a field SIGNI: trash-zone immunity (WX12), replacement effects
-  // losing their own ability (WX25/K01/K03), and a nested granted AUTO
-  // ability (P16-062). Keep an explicit no-op instead of the old harmful
-  // opponent count:1 approximation.
+  // §6.4 O-10（続き514）＝`WX12-023` の defer を解体。
+  // 「【常】：対戦相手のトラッシュとルリグトラッシュにあるカードは能力を失い、効果を受けない。」
+  // 🔑**据置理由「相手トラッシュに触る全効果に及ぶ」は古かった**＝トラッシュを発生源にする候補列は
+  //   `movableTrashCandidates`（`execUtils.ts`）の**1点 funnel**（8呼び出しが全部そこを通る）。
+  //   「効果を受けない」は**候補0**で表す＝アクションは「対象がない」で自然に no-op する
+  //   （`isOwnTrashMoveLocked`＝トラッシュ移動ロックと同じ形）。
+  // 🔑「能力を失う」の読み手は2つだけ＝①トラッシュ起動【起】のボタン ②ルリグトラッシュ由来の継承【起】。
+  // ⚠**「効果を受けない」は主語を問わない**＝原文は誰の効果とも書いていないので、持ち主自身の
+  //   トラッシュ回収も止まる（ロック札）。
   "WX12-023": [
-    {"effectId":"WX12-023-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WX12-023-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"TRASH_ABILITY_LOSS_AND_IMMUNITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   // §6.4 O-10（続き507）＝`WX25-P3-055-E2` の defer を解体。parser 規則
   // （`EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY`）が《相手ターン》の `activeCondition` ごと正しく作るので
