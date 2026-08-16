@@ -1369,6 +1369,28 @@ export function parseSentencePart3(t: string): EffectAction | null {
       } as BlockActionAction;
     }
   }
+  // ---- 「〈期間〉、対戦相手は（《無》×Nを支払わないかぎり、）〈中央/左/右〉のシグニゾーンにある
+  //        シグニでアタックできない」＝**ゾーン限定のアタック禁止**（§6.4 O-33）----
+  // 🔴従来は `BLOCK_ACTION{ATTACK, until:NEXT_TURN}` に潰れ、**支払い回避もゾーン限定も落ちて**いた
+  //   （`WX25-CP1-050-E1`＝払っても中央以外まで止まる）。
+  // ⚠**この関数の中の他のアタック禁止規則より前**に置く＝下の `^このターン、対戦相手は(.+?)シグニで
+  //   アタックできない` は本文を丸ごと飲むので、後ろに置くとゾーン節が落ちる。
+  // ⚠判定は `banMatches` の1点（`SigniAttackBan.zones`）＝**ゾーン添字は判定地点で引く**ので、
+  //   掛けたあとにシグニが入れ替わっても「いまそのゾーンにいるシグニ」に掛かる（原文どおり）。
+  {
+    const zoneBanM = t.match(
+      /^(このターン|次の対戦相手のターンの間|次の対戦相手のターン終了時まで)、対戦相手は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(中央|左|右)のシグニゾーンにあるシグニでアタックできない/);
+    if (zoneBanM) {
+      return {
+        type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
+        zones: [signiZoneIndexJa(zoneBanM[3])],
+        ...(zoneBanM[2] ? { unlessPayColorless: (zoneBanM[2].match(/《無》/g) ?? []).length } : {}),
+        // 「次の対戦相手の〜」＝このターン＋次のターンの2ターン分（`SIGNI_DEPLOY_BAN` と同じ規約）。
+        ...(zoneBanM[1] === 'このターン' ? {} : { turns: 2 }),
+      } as SigniAttackBanAction;
+    }
+  }
+
   // ---- 次の対戦相手のターンの間、特定ゾーンのシグニでアタックできない（ゾーン指定を伴わない残り）----
   if (t.match(/次の対戦相手のターン.*アタックできない/)) {
     return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'opponent', count: 1 }, actionId: 'ATTACK', until: 'NEXT_TURN' } as BlockActionAction;
@@ -2108,28 +2130,6 @@ export function parseSentencePart3(t: string): EffectAction | null {
   // ⚠part1 の「あなたはダメージを受けない」は所有者句が違うのでここまで落ちてくる。
   if (/^このターン、対戦相手は(?:.{0,8}によって)?ダメージを受けない/.test(t)) {
     return { type: 'PREVENT_DAMAGE', owner: 'opponent', until: 'UNTIL_END_OF_TURN', scope: 'ALL' } as PreventDamageAction;
-  }
-
-  // ---- 「〈期間〉、対戦相手は（《無》×Nを支払わないかぎり、）〈中央/左/右〉のシグニゾーンにある
-  //        シグニでアタックできない」＝**ゾーン限定のアタック禁止**（§6.4 O-33）----
-  // 🔴従来は `BLOCK_ACTION{ATTACK, until:NEXT_TURN}` に潰れ、**支払い回避もゾーン限定も落ちて**いた
-  //   （`WX25-CP1-050-E1`＝払っても中央以外まで止まる）。
-  // ⚠**この関数の中の他のアタック禁止規則より前**に置く＝下の `^このターン、対戦相手は(.+?)シグニで
-  //   アタックできない` は本文を丸ごと飲むので、後ろに置くとゾーン節が落ちる。
-  // ⚠判定は `banMatches` の1点（`SigniAttackBan.zones`）＝**ゾーン添字は判定地点で引く**ので、
-  //   掛けたあとにシグニが入れ替わっても「いまそのゾーンにいるシグニ」に掛かる（原文どおり）。
-  {
-    const zoneBanM = t.match(
-      /^(このターン|次の対戦相手のターンの間|次の対戦相手のターン終了時まで)、対戦相手は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(中央|左|右)のシグニゾーンにあるシグニでアタックできない/);
-    if (zoneBanM) {
-      return {
-        type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
-        zones: [signiZoneIndexJa(zoneBanM[3])],
-        ...(zoneBanM[2] ? { unlessPayColorless: (zoneBanM[2].match(/《無》/g) ?? []).length } : {}),
-        // 「次の対戦相手の〜」＝このターン＋次のターンの2ターン分（`SIGNI_DEPLOY_BAN` と同じ規約）。
-        ...(zoneBanM[1] === 'このターン' ? {} : { turns: 2 }),
-      } as SigniAttackBanAction;
-    }
   }
 
   // ---- このターン、対戦相手は〈条件〉のシグニでアタックできない（§6.4 O-3）----
