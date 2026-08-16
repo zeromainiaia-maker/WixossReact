@@ -2916,7 +2916,9 @@ export function calcContinuousBlockedActions(
       checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap),
     );
     if (!hasATK) continue;
-    const power = parseInt(cardMap.get(topNum)?.Power ?? '0') || 0;
+    // ⚠原文は「**自身のパワー**10000につき」＝いまのパワー（修正込み）。印刷パワーで数えると
+    //   バフを受けても回数が増えない（§6.4 O-10・続き507）。
+    const power = effectivePowers?.get(topNum) ?? (parseInt(cardMap.get(topNum)?.Power ?? '0') || 0);
     const maxAttacks = Math.floor(power / 10000);
     const attackCount = (ownerState.attacked_signi_ids ?? []).filter(id => id === topNum).length;
     if (attackCount >= maxAttacks) cannotAttackSigni.add(topNum);
