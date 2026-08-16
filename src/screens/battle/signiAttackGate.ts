@@ -168,8 +168,7 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   if ((attacker.signi_attack_bans_this_turn?.length ?? 0) > 0 || contPay > 0) {
     // 実効パワー参照の ban が無ければパワー計算そのものを省く（毎ゾーン呼ばれる関数なので）。
     const banPower = signiAttackBansNeedPower(attacker)
-      ? ((p.effectivePowers ?? calcFieldPowers(attacker, defender, true, effectsMap, cardMap, p.turnPhase)).get(attackerNum)
-          ?? parsePowerVal(cardMap.get(attackerNum)?.Power))
+      ? (getPowers().get(attackerNum) ?? parsePowerVal(cardMap.get(attackerNum)?.Power))
       : undefined;
     const banCost = signiAttackBanCost(attacker, attackerNum, cardMap, banPower);
     if (banCost === null) return 'ATTACK_BAN';
