@@ -14682,6 +14682,34 @@ test('§6.4 O-8(a): 「可能ならば」＝アタックできない強制対象
   }), null, '🔴強制対象がアタック不可なら他のシグニは止まらない（フェイズが進めなくなる回帰）');
 }));
 
+// ═══ §6.4 O-10（続き507）＝「すでにダウン」判定を gate へ寄せ、【常】「ダウン状態でもアタックできる」を実装 ═══
+// 🔴従来この判定は `BattleScreen.getMySigniZoneActions`（人間ボタン）と CPU 候補フィルタに**インラインで
+//    写経**されており、gate には無かった＝例外を足す場所が無い（＝`WX22-022-E1` が恒久 no-op だった）。
+test('§6.4 O-10: すでにダウンしたシグニはアタックできない／「ダウン状態でもアタックできる」だけが例外（負方向＋対照の対）', () => withSavedCursor(() => {
+  const def = mkState({});
+  // ゾーン0＝WX22-022（【常】ダウン状態でもアタックできる）／ゾーン1＝素のシグニ。両方ダウン済み。
+  const base = mkState({ signi: ['WX22-022', SIGNI, null] });
+  const downed: PlayerState = { ...base, field: { ...base.field, signi_down: [true, true, false] } };
+  const g = (attacker: PlayerState, num: string) => signiAttackBlockReason({
+    attacker, defender: def, attackerNum: num, effectsMap, cardMap: cardMap as Map<string, CardData>,
+  });
+  eq(g(downed, SIGNI), 'ALREADY_DOWN', '🔴素のシグニはダウン中アタックできない（gate が判定する）');
+  eq(g(base, SIGNI), null, '対照＝アップなら同じシグニがアタックできる');
+  // WX22-022 は実効パワー次第。印刷 15000＝1回までなので、まだ0回なら**ダウン中でも**撃てる。
+  eq(g(downed, 'WX22-022'), null, '【常】「ダウン状態でもアタックできる」は例外として通る');
+  // 同居する【常】「自身のパワー10000につき一度まで」（ATTACK_COUNT_BY_POWER）が回数の上限。
+  const usedOnce: PlayerState = { ...downed, attacked_signi_ids: ['WX22-022'] };
+  eq(g(usedOnce, 'WX22-022'), 'CONTINUOUS_CANNOT_ATTACK',
+     '印刷15000＝1回まで＝2回目は回数制限で止まる（ダウン例外が無制限に化けない）');
+  // 🔑実効パワーを渡すと回数が増える（原文「**自身の**パワー10000につき」）。
+  //   ⚠印刷パワーのままだと `WX22-022` は永久に1回＝ダウン例外が観測不能な死に機構になる。
+  const powers = new Map<string, number>([['WX22-022', 20000]]);
+  eq(signiAttackBlockReason({
+    attacker: usedOnce, defender: def, attackerNum: 'WX22-022',
+    effectsMap, cardMap: cardMap as Map<string, CardData>, effectivePowers: powers,
+  }), null, 'パワー20000なら2回目が撃てる（実効パワーで数える）');
+}));
+
 test('signiAttackGate: 付与された「アタックできない」（keyword_grants）がアタック可否に反映される（続き404）', () => withSavedCursor(() => {
   // keyword_grants['アタックできない'] は execBlockAction 由来。CPU 候補フィルタが見ていなかった軸。
   const base = mkState({ signi: [SIGNI, SIGNI_P3000, null] });
