@@ -1645,6 +1645,11 @@ function parseThisWayTrashCondition(clause: string, prevIsDeckMill = true): Cond
 // 「レベルが奇数の」等の表現不能フィルタは null（呼び出し側で従来挙動に据置＝IS_MY_TURN化けを増やさない）。
 // prevIsEnergyPlace: 直前がエナチャージ系＝「この方法で＜X＞のシグニがエナゾーンに置かれた場合」も抽出（WXEX1-43-BURST）。
 function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = false): Condition | null {
+  // 「それが【ライフバースト】を持たない場合、」（`WDK09-001-E2`・§6.4 O-33 据置分）。
+  // ⚠下の汎用形は `〜**の**場合、` を要求するので「持たない場合、」には当たらない（＝条件が丸ごと落ちて
+  //   アタック禁止が無条件に走る過剰実行になる）。**否定形を明示的に受ける。**
+  const lb = clause.match(/^(?:その後、)?(?:それが|そのカードが)【ライフバースト】を(持たない|持つ)場合、$/);
+  if (lb) return { type: 'LAST_PROCESSED_MATCHES', filter: { hasLifeBurst: lb[1] === '持つ' } };
   const sg = clause.match(/^(?:その後、)?(?:それが|そのカードが)(.+?)の場合、$/);
   if (sg) {
     const desc = sg[1];
