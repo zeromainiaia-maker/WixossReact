@@ -1349,6 +1349,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 「この方法で捨てた〈名詞〉1枚につきカードを1枚引く」＝**直前の可変枚数に追従**するドロー（§6.4 O-11）。
+  // 🔴汎用 DRAW が先に食うと**固定1枚**に潰れ、何枚捨てても1枚しか引かない過少実行になる
+  //   （`WX22-037`「好きな枚数捨てる」＋この文）。`lastProcessedCards` は直前の TRASH が残している。
+  // ⚠**「1枚につきM枚（M≧2）」は倍率が要る**（`addLastProcessedCount` は等倍のみ）ので、ここでは受けない
+  //   ＝黙って等倍にすると原文より弱い別物になる。既存の `COUNT_BASED_DRAW_OR_POWER` 側の領分。
+  {
+    const perDiscardDrawM = t.match(/^この方法で(?:捨てた|トラッシュに置いた)[^。]{0,12}?([０-９\d]+)枚につきカードを([０-９\d]+)枚引く$/);
+    if (perDiscardDrawM && parseNum(perDiscardDrawM[1]) === 1 && parseNum(perDiscardDrawM[2]) === 1) {
+      return { type: 'DRAW', owner: 'self', count: 0, addLastProcessedCount: true };
+    }
+  }
+
   // 「場の…シグニ1体につきカードをN枚引く」は動的枚数（part3 の DRAW_PER_FIELD_COUNT）に委譲する。
   // 汎用 DRAW が先取りすると前半を無視して固定枚数に潰れてしまう。
   const drawM = t.match(/カードを?([０-９\d]+)枚引(?:く|いてもよい)/);
