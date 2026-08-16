@@ -155,7 +155,7 @@ const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /エナゾーンに置く/,                                       types: ['SEND_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK', 'ADD_TO_ENERGY', 'TAKE_FROM_UNDER_SIGNI', 'ENERGY_CHARGE_PER_LRIG_LEVEL', 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT', 'ENERGY_CHARGE_BY_FIELD_COUNT', 'EQUALIZE_ENERGY'] },
   // 能動形のみ（「手札からトラッシュに移動していた」等のトリガー条件文を除外）
   // [^。]+で同一センテンス内のみマッチ（「手札から場に出す。ターン終了時トラッシュ」等の文またぎ誤検出を防ぐ）
-  { pattern: /手札から[^。]+トラッシュに置|手札から[^。]+捨てる/,        types: ['DISCARD', 'TRASH'] },
+  { pattern: /手札から[^。]+トラッシュに置|手札から[^。]+捨てる/,        types: ['HAND_DISCARD', 'TRASH', 'DISCARD_BOTH', 'MUTUAL_DISCARD_AND_DRAW', 'VARIABLE_DISCARD_AND_DRAW'] },
   // MILLパターン: 受動態「トラッシュに置かれた」はトリガー条件なので除外（能動態「置く」のみ）
   // [^。]+で同一センテンス内のみマッチ（別センテンスの「トラッシュに置く」の誤検出を防ぐ）
   // REVEAL_AND_PICK（デッキ上公開→選択→残りトラッシュ）もMILLエイリアス
