@@ -1975,10 +1975,15 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   `effectParser` の「代わりに」置換 fixup が `CONDITIONAL + POWER_MODIFY{targetsLastProcessed}` へ組む
   //   （前段の base との**差分**で表す）＝ここには来ない。旧 `STUB{CHARM_CONDITIONAL_POWER}` は
   //   delta を**効果元カード自身**へ適用しており、該当2枚がライフバースト（場に無い）だったため恒久 no-op だった。
-  // 残るのは**倍率**形（`WX25-P2-103` ②「代わりに３倍－される」）＝`double_power_minus_targets` は
-  //   **2倍固定のフラグ集合**（`effectEngine.ts:2322`）で3倍を表せないので honest defer にする。
-  if (t.match(/【チャーム】が付いている場合.*[０-９\d]+倍[－-]/))
-    return { type: 'STUB', id: 'DEFERRED_CHARM_POWER_MINUS_MULTIPLIER' } as StubAction;
+  // 残るのは**倍率**形（`WX25-P2-103` ②「代わりに３倍－される」）＝§6.4 O-10（続き507）で
+  //   `power_minus_multipliers_this_turn`（倍率つきの上位互換）を新設して defer 解体。
+  //   ⚠倍率は**原文から読む**（焼き込むと将来の「4倍」で静かにズレる）。
+  {
+    const charmMulM = t.match(/【チャーム】が付いている場合.*?([０-９\d]+)倍[－-]/);
+    if (charmMulM) {
+      return { type: 'STUB', id: 'CHARM_POWER_MINUS_MULTIPLIER', value: parseNum(charmMulM[1]) } as StubAction;
+    }
+  }
 
   // ---- 緑/青/黒カードを色別にエナまたはトラッシュへ ----
   if (t.match(/その中から.*(?:緑|青|黒|白|赤)の.*カード.*(?:エナゾーンに置き|手札に加え).*残り.*(?:トラッシュ|デッキ)/))
