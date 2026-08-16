@@ -30220,6 +30220,49 @@ test('§6.4 O-3: ルリグダメージ無効の走査軸はシグニだけでは
     'レベル上限を超えるルリグからは守らない');
 });
 
+test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与クラスは全件が同じ形（`WXDi-P16-062-E1` の取り残しガード）', () => {
+  // 🔑この defer は**新機構を要らなかった**＝原文 regex（「同じシグニゾーンに【ゲート】」）で数えた同族は
+  //   20効果あり、うち引用付与形は**すべて「引用を平らにして `SAME_ZONE_HAS_GATE` を条件に持つ」形**で
+  //   実装済みだった。1件だけ defer のまま残っていた＝**在庫表ではなく原文で数えると見つかる**型。
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  const quoted = Object.keys(srcText).filter(id =>
+    /この(?:シグニ|カード)は同じシグニゾーンに【ゲート】があるかぎり[、,]「/.test(srcText[id]));
+  ok(quoted.length >= 10, `引用付与形の母集団（${quoted.length}効果）`);
+  for (const effectId of quoted) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const eff = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const json = JSON.stringify(eff);
+    ok(json.includes('SAME_ZONE_HAS_GATE'), `${effectId}: 同ゾーンゲート条件を持つ`);
+    ok(!json.includes('DEFERRED_'), `${effectId}: defer が残っていない`);
+  }
+  // `WXDi-P16-062-E1` の中身＝「各アタックフェイズ開始時」＋「相手が《無》を支払わないかぎり能力を失う」。
+  const e = mergeManualEffects('WXDi-P16-062', effectsMap.get('WXDi-P16-062') ?? [])
+    .find(x => x.effectId === 'WXDi-P16-062-E1')!;
+  eq(e.effectType, 'AUTO', '引用【自】は AUTO へ平らにする');
+  eq(e.timing?.join(','), 'ON_ATTACK_PHASE_START', 'アタックフェイズ開始時');
+  eq(e.triggerScope, 'any', '⚠「**各**アタックフェイズ」＝両プレイヤー分（self にすると自分のターンだけになる）');
+  const json062 = JSON.stringify(e.action);
+  ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
+  ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き508）: 引用【自】のルリグ付与が実体化している（`WXDi-P00-026-E1`）', () => {
+  // 原文「あなたの＜さんばか＞のルリグ１体を対象とし、ターン終了時まで、それは
+  //      「【自】《ターン１回》：このルリグがアタックしたとき、このルリグをアップする。」を得る」。
+  // 🔑**parser は既に正しい形を作れていた**＝live の `MANUAL` 刻印だけが古い defer を固定していた
+  //   （`build:effects` は MANUAL を触らない＝§6.4 O-6 の第3の死角）。
+  const eff = mergeManualEffects('WXDi-P00-026', effectsMap.get('WXDi-P00-026') ?? [])
+    .find(e => e.effectId === 'WXDi-P00-026-E1')!;
+  const act = eff.action as { type: string; target?: { type?: string }; duration?: string; effect?: CardEffect };
+  eq(act.type, 'GRANT_EFFECT', 'ルリグへの能力付与');
+  eq(act.target?.type, 'LRIG', '付与先はルリグ');
+  eq(act.duration, 'UNTIL_END_OF_TURN', 'ターン終了時まで');
+  eq(act.effect?.timing?.join(','), 'ON_ATTACK_LRIG', '内側は「このルリグがアタックしたとき」');
+  eq(act.effect?.action.type, 'UP', '内側の帰結は「このルリグをアップする」');
+  eq(act.effect?.usageLimit, 'once_per_turn', '⚠《ターン１回》を落とすと無限アタックになる');
+  ok(!JSON.stringify(eff).includes('DEFERRED_'), 'defer は解体済み');
+});
+
 test('§6.4 O-10: 「代わりにダメージを受けず、ターン終了時まで、この能力を失う」は1回だけ（負方向＋対照の対）', () => {
   const cm = cardMap as Map<string, CardData>;
   // `WXK01-002-E1`＝「【常】：あなたの手札が０枚であるかぎり、あなたが対戦相手のルリグによって
