@@ -823,8 +823,11 @@ export function matchesFilter(
       const txt = card.EffectText ?? '';
       const kws = Array.isArray(filter.keyword) ? filter.keyword : [filter.keyword];
       // いずれかのキーワードを持てばマッチ（OR）。【ランサー（条件）】等の括弧付き変種も含める（公式ルール）。
+      // ⚠**綴りズレ（全角Ｓ／半角S）を吸収する**（§6.4 O-28）＝ここは**原文照合**なので
+      //   原文の全角【Ｓランサー】が正、`GRANT_KEYWORD.keyword`（state 照合）は半角が正、と**軸ごとに正が逆**。
+      //   どちらの綴りで書かれていても当たるように `textHasKeyword` を通す。
       const hasAny = kws.some(kw =>
-        txt.includes(`【${kw}】`) || txt.includes(`《${kw}》`) || txt.includes(`【${kw}（`));
+        textHasKeyword(txt, `【${kw}】`) || textHasKeyword(txt, `《${kw}》`) || textHasKeyword(txt, `【${kw}（`));
       if (!hasAny) return false;
     }
   }
