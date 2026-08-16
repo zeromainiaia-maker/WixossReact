@@ -4495,10 +4495,18 @@ function foldLeaveLoseSelfAbilityDown(action: EffectAction): EffectAction {
   const steps = seq.steps.map(foldLeaveLoseSelfAbilityDown);
   const isSelfLose = (s: EffectAction): boolean =>
     s.type === 'STUB' && (s as StubAction).id === 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY';
+  // 任意コスト版（明示 defer）＝2文目「そうした場合、代わりに…この能力を失う」も同じく死に文なので捨てる。
+  const isDeferredPay = (s: EffectAction): boolean =>
+    s.type === 'STUB' && (s as StubAction).id === 'DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY';
   const isThenDown = (s: EffectAction): boolean => {
     if (s.type !== 'CONDITIONAL') return false;
     const co = s as import('../types/effects').ConditionalAction;
     return co.condition?.type === 'IS_MY_TURN' && co.then?.type === 'DOWN' && !co.else;
+  };
+  const isThenLoseAbility = (s: EffectAction): boolean => {
+    if (s.type !== 'CONDITIONAL') return false;
+    const co = s as import('../types/effects').ConditionalAction;
+    return co.condition?.type === 'IS_MY_TURN' && co.then?.type === 'REMOVE_ABILITIES' && !co.else;
   };
   const out: EffectAction[] = [];
   for (const step of steps) {
@@ -4507,9 +4515,12 @@ function foldLeaveLoseSelfAbilityDown(action: EffectAction): EffectAction {
       out[out.length - 1] = { ...(prev as StubAction), leaveLoseSelfAbility: { thenDown: true } } as EffectAction;
       continue;
     }
+    // ⚠この `REMOVE_ABILITIES{owner:'self'}` を残すと**自分のシグニの能力を消す**表示になる（実行はされない
+    //   ので盤面には出ないが、逆翻訳が嘘をつくうえ将来 CONTINUOUS を実行し始めたら自傷になる）。
+    if (prev && isDeferredPay(prev) && isThenLoseAbility(step)) continue;
     out.push(step);
   }
-  return out.length === 1 && isSelfLose(out[0]) ? out[0] : { ...seq, steps: out };
+  return out.length === 1 && (isSelfLose(out[0]) || isDeferredPay(out[0])) ? out[0] : { ...seq, steps: out };
 }
 
 // 状態条件節バッチ①第2波。全件を CardNum+effectId でゲートし、同型カードへ生パースを波及させない。
