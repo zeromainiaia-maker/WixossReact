@@ -80,7 +80,7 @@
 `WX22-016`（§6.4 `O-29`＝本体のバニッシュ節が落ちていることは同項に既記）／
 `WXEX2-66`・`WXDi-P15-001` は `GRANT_ABILITY_INNER_TEXT`／`TRASH_SIGNI_UNDER_FIELD_SIGNI` を伴う＝`O-27`／`O-31` と同じ「引用能力の中身が未パース」層に隣接
 
-<details><summary>ペイロードが空の <code>OPTIONAL_COST</code> 67効果（実測）</summary>
+<details><summary>⚠過大計上のままの旧一覧（67効果。<code>exceed</code>/<code>coinCost</code> を持つ個体を含む＝実際は空ではない）</summary>
 
 `WX09-032-E1` `WX11-029-BURST` `WX12-011-E1` `WX14-003-E3` `WX15-059-E1` `WX20-069-E1` `WX21-Re18-E1`
 `WX22-021-BURST` `WX22-029-E1` `WX22-037-E1` `WXEX2-68-E1` `WXDi-D08-012-E1` `WXDi-D09-H29-E1`
