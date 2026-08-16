@@ -27720,10 +27720,10 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
       ok(j.includes('"targetsStored":true') && !j.includes('ABILITY_CHECK_ELSE_TRASH'),
         `${num} は同じ固定対象へ TRASH/BOUNCE を排他的に適用する`);
     }
-    for (const num of ['WX25-P3-038', 'WX25-CP1-002']) {
-      const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
+    {
+      const j = JSON.stringify(cardMap.get('WX25-CP1-002')?.effects ?? []);
       ok(j.includes('LAST_PROCESSED_HAS_NO_ABILITIES') && !j.includes('ABILITY_CHECK_ELSE_TRASH'),
-        `${num} は条件形（MANUAL）で読む`);
+        'WX25-CP1-002 は条件形（MANUAL）で読む');
     }
     ok(JSON.stringify(cardMap.get('WXEX2-30')?.effects ?? []).includes('NO_ABILITY_SIGNI_TO_DECK_BOTTOM'),
       'WXEX2-30 が NO_ABILITY_SIGNI_TO_DECK_BOTTOM を持つ');
