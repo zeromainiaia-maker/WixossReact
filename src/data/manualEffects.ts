@@ -3676,15 +3676,38 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WXDi-P16-062 コードライド マキナ//THE DOOR（乗機）
   // E1【常】：同ゾーンゲートで「【自】各APS開始時、相手シグニ1体を対象とし、相手が《無》を払わないかぎりターン終了時まで能力を失う」を得る。
-  //   引用付与の対象/任意支払いを忠実に表す追加機構待ち。旧 facing フリーロック近似は有害なので明示 no-op。
+  //   §6.4 O-10（続き508）で defer 解体。⚠**新機構は要らなかった**＝原文 regex（「同じシグニゾーンに【ゲート】」）
+  //   で数え直すと同族は **20効果**あり、**18効果は既に「引用を平らにして `condition:SAME_ZONE_HAS_GATE` を
+  //   持つ AUTO/CONTINUOUS」で実装済み**（`WXDi-P15-076`／`-078`／`-080`〜`-082`／`WXDi-P16-070`／`-074` 等）。
+  //   この1件だけが取り残されていた＝**同じ書き方に揃えるだけ**でよい。
+  //   「対戦相手が《無》を支払わないかぎり」は O-31 の正準形
+  //   `SEQUENCE[STUB{OPPONENT_PAY_OPTIONAL}, CONDITIONAL{IS_MY_TURN}→本体]`（`WXDi-P05-023-E2` と同形）。
+  //   ⚠「**各**アタックフェイズ開始時」＝`triggerScope:'any'`（自分のターンだけの `'self'` にしない）。
   // E2【常】：同じシグニゾーンに【ゲート】があるあなたのシグニのパワーを＋2000する。
   //   → CONTINUOUS POWER_MODIFY self ALL に inGateZone フィルタ（own_gate_zones のゾーンのシグニのみ）。
   'WXDi-P16-062': [
     {
       effectId: 'WXDi-P16-062-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'STUB', id: 'DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY' },
-      duration: 'PERMANENT',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'any',
+      condition: { type: 'SAME_ZONE_HAS_GATE' },
+      action: {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', costColors: ['無'] },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'IS_MY_TURN' },
+            then: {
+              type: 'REMOVE_ABILITIES',
+              target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false },
+              until: 'UNTIL_END_OF_TURN',
+            },
+          },
+        ],
+      },
+      duration: 'UNTIL_END_OF_TURN',
       mandatory: true,
       parseStatus: 'MANUAL',
     },
