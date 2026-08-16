@@ -278,10 +278,16 @@ function hasValidConstrainedSelection(
   return pick(0, []);
 }
 
-// 支払い可能か（エナ色・手札・エナゾーンの在庫）。exceed/handDiscardGroups は呼び出し側の既存判定に残す。
+// 支払い可能か（エナ色・手札・エナゾーンの在庫）。handDiscardGroups は呼び出し側の既存判定に残す。
 export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx): boolean {
   if (spec.levelUnavailable) return false;
   if (spec.costColors.length > 0 && !canPayOptionalCost(spec.costColors, ctx.ownerState, ctx.cardMap)) return false;
+  if (spec.exceed !== undefined) {
+    // エクシード＝**ルリグの下**のカード（センター＋アシスト左右。各ゾーンの最上段＝ルリグ本体は除く）。
+    const underCount = [ctx.ownerState.field.lrig, ctx.ownerState.field.assist_lrig_l, ctx.ownerState.field.assist_lrig_r]
+      .reduce((n, zone) => n + Math.max(0, (zone?.length ?? 0) - 1), 0);
+    if (underCount < spec.exceed) return false;
+  }
   if (spec.handDiscard) {
     const matching = ctx.ownerState.hand.filter(n =>
       !spec.handDiscard!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handDiscard!.filter));
