@@ -4306,6 +4306,12 @@ function trySetSuppressOnPlay(a: EffectAction): EffectAction | null {
     if (rs.swap === true && !!rs.swapSourceLocation) return { ...rs, suppressOnPlay: true };
     return null;
   }
+  // 配置を行う STUB（`placesToField`）も配置アンカーとして扱う（§6.4 O-32）。
+  // ⚠**目印を立てた STUB だけ**＝汎用 STUB を巻き込むと、場に出さない効果にまで
+  //   `suppressOnPlay` が付いて死フラグになる。
+  if (a.type === 'STUB' && (a as StubAction).placesToField) {
+    return { ...(a as StubAction), suppressOnPlay: true } as EffectAction;
+  }
   if (a.type === 'CONDITIONAL') {
     // 「（自分のターンなら）場に出す。そうした場合その【出】は発動しない」＝配置が CONDITIONAL.then/else に埋没
     const co = a as import('../types/effects').ConditionalAction;
