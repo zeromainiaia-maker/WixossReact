@@ -14421,6 +14421,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     let folded = foldDeckSearchToTop(e.action, card.EffectText ?? '');
     folded = foldDeclaredNumberTopReveal(folded, card.EffectText ?? '');
     folded = foldDeclaredColorTopReveal(folded, card.EffectText ?? '');
+    folded = foldGradedEnergyEachLevelReplacement(folded, card.EffectText ?? '');
     folded = foldColorMatchAllToEnergy(folded, card.EffectText ?? '');
     folded = foldRevealPickPlay(folded, card.EffectText ?? '');
     folded = foldOptionalHandRevealCost(folded, card.EffectText ?? '');
