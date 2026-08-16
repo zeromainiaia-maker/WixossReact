@@ -5237,6 +5237,53 @@ test('§6.4 E2E WXDi-P08-046-E2: 2枚ミル後の4枚だけを名前限定し、
   eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側もカード消滅なし');
 }));
 
+test('§6.4 O-11: 「追加でエクシードNを支払ってもよい」が実際にルリグの下を払う', () => {
+  const SRC = 'PR-Di013';
+  const effect = effectsMap.get(SRC)?.find(e => e.effectId === 'PR-Di013-E1');
+  ok(!!effect, 'PR-Di013-E1 が live に存在');
+  // 🔴`StubAction.exceed` は前からあったのに `OptionalCostSpec` に無く、`resolveOptionalCostSpec` が
+  //   黙って落として**pay を選んでもエクシードがタダ**だった（live 実装済み9効果が該当）。
+  const under = (s: PlayerState) =>
+    [s.field.lrig, s.field.assist_lrig_l, s.field.assist_lrig_r]
+      .reduce((n, z) => n + Math.max(0, (z?.length ?? 0) - 1), 0);
+  const open = (pay: boolean) => {
+    const base = mkCtx({ deckTop: fill(4), hand: 0, lrig: fill(5) }, { signi: [findCard(c => c.Type === 'シグニ'), null, null] }, SRC);
+    base.ownerState = { ...base.ownerState, field: { ...base.ownerState.field, check: SRC } };
+    const offered = executeEffect(effect!, base);
+    ok(!offered.done && offered.pending.type === 'CHOOSE', 'エクシードの pay/skip 提示');
+    if (offered.done || offered.pending.type !== 'CHOOSE') throw new Error('optional exceed missing');
+    const before = { under: under(offered.ownerState), trash: offered.ownerState.lrig_trash.length };
+    const after = resumeChoose(pay ? 'pay' : 'skip', offered.pending, execCtxFrom(offered, base));
+    return { before, after };
+  };
+  const paid = open(true);
+  eq(under(paid.after.ownerState), paid.before.under - 4, '支払うとルリグの下が4枚減る');
+  eq(paid.after.ownerState.lrig_trash.length, paid.before.trash + 4, '減った4枚はルリグトラッシュへ');
+  const skipped = open(false);
+  eq(under(skipped.after.ownerState), skipped.before.under, '支払わなければルリグの下は減らない');
+  eq(skipped.after.ownerState.lrig_trash.length, skipped.before.trash, '支払わなければルリグトラッシュも増えない');
+});
+test('§6.4 O-11: 「使用する際、」前置きつきの追加エクシードが payload を持つ', () => {
+  // 🔴規則自体はあったが `^` アンカーが「このスペルを使用する際、」で外れ、**一度も当たらず**
+  //   bare `OPTIONAL_COST`（＝エクシードがタダ）になっていた形が21効果あった。
+  for (const [cardNum, effectId, n] of [
+    ['WXDi-P03-063', 'WXDi-P03-063-E1', 4], ['WXDi-P11-083', 'WXDi-P11-083-E1', 7],
+  ] as const) {
+    const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在`);
+    const stubs: Record<string, unknown>[] = [];
+    const walk = (a: unknown): void => {
+      if (Array.isArray(a)) { a.forEach(walk); return; }
+      if (!a || typeof a !== 'object') return;
+      const o = a as Record<string, unknown>;
+      if (o.type === 'STUB' && o.id === 'OPTIONAL_COST') stubs.push(o);
+      Object.values(o).forEach(walk);
+    };
+    walk(e!.action);
+    eq(stubs.length, 1, `${effectId}: OPTIONAL_COST は1つ`);
+    eq(stubs[0].exceed, n, `${effectId}: エクシード${n}が payload に載る（bare にしない）`);
+  }
+});
 test('§6.4 O-11: デッキサーチの行き先「【トラップ】設置」「【アクセ】付け」が落ちない', () => {
   const act = (cardNum: string, effectId: string) => {
     const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
