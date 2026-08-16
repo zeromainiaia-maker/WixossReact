@@ -43,7 +43,8 @@ export function getSigniAttackKeywordState(
 
   return {
     isAssassin: !attacker.abilities_removed?.includes(cardNum)
-      && hasApplicableAssassin(assassinKeywords, defender, cardMap, effectivePowers),
+      // ⚠`attacker` も渡す＝「あなたの手札がN枚以下であるかぎり」（`selfHandLte`）は**アタック側**の条件（§6.4 O-28）。
+      && hasApplicableAssassin(assassinKeywords, defender, cardMap, effectivePowers, attacker),
     isLancer: has('ランサー'),
     isSLancer: has('Sランサー'),
     isDoubleCrush: has('ダブルクラッシュ'),
