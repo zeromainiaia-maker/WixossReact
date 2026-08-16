@@ -571,7 +571,7 @@ for (const row of rows) {
       const hasStub = jsonActions.has('STUB');
       const severity = hasStub ? '[STUB代替?]' : '[要確認]';
       addIssue(cardNum, cardName, `アクション${severity}`,
-        `テキストから"${label}"が期待されるがJSONに存在しない (JSONアクション: ${[...jsonActions].filter(a=>a!=='SEQUENCE'&&a!=='STUB'&&!a.startsWith('STUB:')).join(', ')||'なし'}${[...jsonActions].some(a=>a.startsWith('STUB:'))?' / STUB: '+[...jsonActions].filter(a=>a.startsWith('STUB:')).map(a=>a.slice(5)).join(', '):''})`);
+        `テキストから"${label}"が期待されるがJSONに存在しない (JSONアクション: ${[...jsonActions].filter(a=>a!=='SEQUENCE'&&a!=='STUB'&&!a.startsWith('STUB:')&&!a.startsWith('~')).join(', ')||'なし'}${[...jsonActions].some(a=>a.startsWith('~'))?' / 派生: '+[...jsonActions].filter(a=>a.startsWith('~')).join(', '):''}${[...jsonActions].some(a=>a.startsWith('STUB:'))?' / STUB: '+[...jsonActions].filter(a=>a.startsWith('STUB:')).map(a=>a.slice(5)).join(', '):''})`);
     }
   }
 
