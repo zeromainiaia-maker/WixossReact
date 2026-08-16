@@ -1294,6 +1294,12 @@ export interface RepeatAction {
   type: 'REPEAT';
   count: number;
   action: EffectAction;
+  /**
+   * 「あなたはこの効果を**あとN回まで繰り返してもよい**」（`WX16-042-E1`・§6.4 O-32）＝
+   * 各周回の**前**に「繰り返す／繰り返さない」を問い、断られたらそこで打ち切る。
+   * 省略時は従来どおり N 回すべて強制（「以下をN回行う」）。
+   */
+  optional?: boolean;
 }
 
 /**

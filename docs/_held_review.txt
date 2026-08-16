@@ -361,6 +361,24 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +REPEAT -SEQUENCE -STUB ［1枚］
+WXDi-P07-007
+--- WXDi-P07-007
+  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手は以下の２つから１つを選び、あなたはそれを行う。①対戦相手のデッキの上からカードを４枚トラッシュに置く。②あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。【出】：あなたのトラッシュからシグニ１枚を対象とし、それを場に出す。【起】《ゲーム１回》《黒×0》：以下を３回行う。「対戦相手は手札を１枚捨て
+  - [2].action.steps[0].type = "STUB"
+  - [2].action.steps[0].id = "REPEAT_N_TIMES"
+  - [2].action.steps[1].type = "SEQUENCE"
+  - [2].action.steps[1].steps[0].type = "STUB"
+  - [2].action.steps[1].steps[0].id = "OPPONENT_PAY_OPTIONAL"
+  - [2].action.steps[1].steps[0].opponentHandDiscard = 1
+  - [2].action.steps[1].steps[0].costColors[0] = "無"
+  - [2].action.steps[1].steps[1].type = "CONDITIONAL"
+  - [2].action.steps[1].steps[1].condition.type = "IS_MY_TURN"
+  - [2].action.steps[1].steps[1].then.type = "TRASH"
+  - [2].action.steps[1].steps[1].then.target.type = "DECK_CARD"
+  - [2].action.steps[1].steps[1].then.target.owner = "opponent"
+  …（他 14 行）
+
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
@@ -469,6 +487,24 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
+## +REPEAT -BLOCK_ACTION -SIGNI ［1枚］
+WXDi-CP01-024
+--- WXDi-CP01-024
+  原文: 【出】：以下を３回行う。「あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーの＜バーチャル＞のシグニを１枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す。それの【出】能力は発動しない。」,-
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "REPEAT_N_TIMES"
+  - [0].action.steps[1].type = "BLOCK_ACTION"
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "any"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].actionId = "ON_PLAY_ABILITY"
+  - [0].action.steps[1].until = "END_OF_TURN"
+  ~ [0].action.type : "SEQUENCE" → "REPEAT"
+  + [0].action.count = 3
+  + [0].action.action.type = "SEQUENCE"
+  + [0].action.action.steps[0].type = "STUB"
+  …（他 4 行）
+
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
 --- WXDi-CP01-042
@@ -486,6 +522,24 @@ WXDi-CP01-042
   + [0].action.steps[1].then.id = "OPTIONAL_COST"
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
+
+## +POWER_MODIFY +REPEAT +SIGNI -STUB ［1枚］
+WXDi-CP02-047
+--- WXDi-CP02-047
+  原文: 【出】《無》：以下を３回行う。「対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。対戦相手のデッキの上からカードを２枚トラッシュに置く。」【絆出】：あなたのトラッシュから＜ブルアカ＞のカード１枚を対象とし、それを手札に加える。,-
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "REPEAT_N_TIMES"
+  - [0].action.steps[1].type = "TRASH"
+  - [0].action.steps[1].target.type = "DECK_CARD"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = 2
+  ~ [0].action.type : "SEQUENCE" → "REPEAT"
+  + [0].action.count = 3
+  + [0].action.action.type = "SEQUENCE"
+  + [0].action.action.steps[0].type = "POWER_MODIFY"
+  + [0].action.action.steps[0].target.type = "SIGNI"
+  + [0].action.action.steps[0].target.owner = "opponent"
+  …（他 8 行）
 
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
