@@ -4048,6 +4048,11 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   なら触らず、含まない＝X だけ解析され DRAW が飲まれた場合のみ DRAW を積む。UNKNOWN は悪化させない。
   // 「その後、」プレフィックスも許容（続き107・非先頭の連用ドロー＝SP24-009「その後、5枚引き、ライフに加える」等。
   // splitSentences 各文が parseSingleSentence 経由で来るため、SEQUENCE 内の後続文でも安全網が効く）。
+  // 🔴条件節つきチェーンで脱落した節を補う（§6.4 O-11）。上の連用中止 splitter は「場合/とき」を含む文を
+  //   触らないので、そこだけ別経路で救う。⚠**足すだけ**（既存の結果は書き換えない）。
+  const recovered = recoverDroppedConjClauses(t, result);
+  if (recovered) return recovered;
+
   const leadDrawM = t.match(/^(?:その後、)?カードを([０-９\d]+)枚引き、/);
   if (leadDrawM && result.type !== 'UNKNOWN') {
     const steps0 = result.type === 'SEQUENCE' ? (result as SequenceAction).steps : [result];
