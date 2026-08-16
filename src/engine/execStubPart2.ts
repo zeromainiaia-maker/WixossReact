@@ -2514,7 +2514,7 @@ export function execStubPart2(
   }
   if (stub.id === 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD_REST') {
     const restIR: string[] = typeof stub.value === 'string' ? JSON.parse(stub.value) : [];
-    return executeAction({ type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD' } as StubAction as EffectAction,
+    return exec({ type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD' } as StubAction as EffectAction,
       { ...ctx, lastProcessedCards: restIR });
   }
   // CONDITIONAL_ADD_HAND: フィールドにシグニがあれば手札に1枚追加
