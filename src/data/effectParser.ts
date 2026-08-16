@@ -7944,6 +7944,28 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ═══ §6.4 O-32：「〈本文〉あなたはこの効果をあとN回まで繰り返してもよい」＝任意反復 ═══
+  // 🔴従来は末尾が `STUB{REPEAT_EFFECT}` に落ち、engine 側の共有ハンドラ（`REPEAT_N_TIMES` と同じ分岐）が
+  //   カード全文 regex のどのパターンにも当たらず**ログだけ出して終わる無言 no-op**だった＝
+  //   `WX16-042-E1` は「あと2回まで繰り返す」が一度も効かず**1回で終わっていた**（過少）。
+  // 🔑本文を再帰 parse して「1回目＋任意の追加N回」に組み替える（`REPEAT.optional`）。
+  // ⚠**本文が解けないときは包まない**（回数だけ増えた no-op になる）。
+  {
+    const optRepM = text.trim().match(
+      /^([\s\S]+?)。あなたはこの効果をあと([０-９\d一二三四五六七八九十]+)回まで繰り返してもよい。?$/);
+    if (optRepM) {
+      const bodyOR = parseActionText(optRepM[1].trim());
+      const strOR = JSON.stringify(bodyOR);
+      const extraOR = parseNum(optRepM[2]);
+      if (extraOR >= 1 && !strOR.includes('"UNKNOWN"') && !strOR.includes('REPEAT_EFFECT')) {
+        return { type: 'SEQUENCE', steps: [
+          bodyOR,
+          { type: 'REPEAT', count: extraOR, optional: true, action: bodyOR } as unknown as EffectAction,
+        ] } as SequenceAction;
+      }
+    }
+  }
+
   // 「7－自分のライフクロス枚数」枚を見る（WXK02-032）。
   // 固定 N の入口と同じ REVEAL_AND_PICK へ載せ、枚数だけ既存 NumberOrRef で実行時解決する。
   {
