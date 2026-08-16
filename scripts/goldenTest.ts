@@ -15187,8 +15187,11 @@ test('引用【常】: 文がまるごと keyword に入っていない（live �
     if (!a || typeof a !== 'object') return;
     if (Array.isArray(a)) { a.forEach(x => walk(x, eid)); return; }
     const r = a as Record<string, unknown>;
-    if (r.type === 'GRANT_KEYWORD' && typeof r.keyword === 'string'
-        && (/[、。]/.test(r.keyword) || /[【】]/.test(r.keyword) || r.keyword.length > 14)) bad.push(`${eid}:${r.keyword.slice(0, 24)}`);
+    // ⚠スコープ付き（`シャドウ:{…}` / `アサシン:{…}`）は正規表現＝**`:` より前の名前部分**だけを見る。
+    if (r.type === 'GRANT_KEYWORD' && typeof r.keyword === 'string') {
+      const name = r.keyword.split(':')[0];
+      if (/[、。]/.test(name) || /[【】]/.test(name) || name.length > 14) bad.push(`${eid}:${r.keyword.slice(0, 24)}`);
+    }
     for (const v of Object.values(r)) walk(v, eid);
   };
   for (const [id, effs] of effectsMap) for (const e of mergeManualEffects(id, effs as never[])) walk((e as CardEffect).action, (e as CardEffect).effectId);
