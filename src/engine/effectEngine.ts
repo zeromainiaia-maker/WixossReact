@@ -2360,12 +2360,14 @@ export function calcFieldPowers(
           : grant.delta;
         if (scaledDelta === 0) continue;
         const fromSigni = grant.srcType === undefined || grant.srcType.includes('シグニ') || grant.srcType.includes('レゾナ');
-        const doubled = scaledDelta < 0 && (
-          targetDoublers.includes(cardNum)
+        const doubled = targetDoublers.includes(cardNum)
           || (grant.srcCardNum != null && sourceDoublers.includes(grant.srcCardNum))
-          || (otherState.double_power_minus_this_turn === true && fromSigni)
-        );
-        const rawDelta = doubled ? scaledDelta * 2 : scaledDelta;
+          || (otherState.double_power_minus_this_turn === true && fromSigni);
+        // §6.4 O-10: 倍率つき（「代わりに３倍－される」）＝2倍軸と大きい方を採る。
+        const mult = scaledDelta < 0
+          ? Math.max(doubled ? 2 : 1, (state.power_minus_multipliers_this_turn ?? {})[cardNum] ?? 1)
+          : 1;
+        const rawDelta = mult > 1 ? scaledDelta * mult : scaledDelta;
         const delta = negatePositive && rawDelta > 0 ? -rawDelta : rawDelta;
         powers.set(cardNum, (powers.get(cardNum) ?? 0) + delta);
       }
