@@ -1137,6 +1137,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     for (const { gainColor, instIds } of collectFieldEnergySigniColorGains(myS, battleCardMap, effectsMap)) {
       for (const id of instIds) map.set(id, gainColor);
     }
+    // 【コンバート《色》】（§6.4 O-10・続き508）＝**そのカード自身**がエナゾーンで別色としても払える。
+    for (const [instId, color] of collectConvertEnergyColors(myS, effectsMap)) {
+      if (!map.has(instId)) map.set(instId, color);
+    }
     // ALL_ZONE_BLACK: 全ゾーンで黒でもあるカードをエナ内で黒追加
     const allZoneBlackNums = collectAllZoneBlackCardNums(effectsMap);
     const allMyCardsBlack = hasAllCardsColorBlack(myS, opS, myTurn, effectsMap, battleCardMap);
