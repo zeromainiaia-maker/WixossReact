@@ -13594,6 +13594,33 @@ function foldDeclaredColorTopReveal(action: EffectAction, sourceText: string): E
   ] } as SequenceAction;
 }
 
+// 「あなたのエナゾーンにレベル１～４の＜X＞のシグニがそれぞれ**N**枚以上ある場合、A。
+//   それぞれ**M**枚以上ある場合、**代わりに** B。」＝多段閾値の**置換**（§6.4 O-11）。
+// 🔴従来は前段だけが CONDITIONAL に載り、後段 B は**条件ごと落ちて SEQUENCE の第2ステップ**になっていた＝
+//   ①B が閾値に関係なく**無条件で走る** ②「代わりに」なのに A と B が**両方**走る、の二重の過剰実行
+//   （`WXK09-031-E1`＝2枚以上あるかに関わらず**相手シグニが毎回全滅**／`WXK09-081-E1`＝同型）。
+// 🔑同型の `WXK09-051-E1` は1文形なので既存規則が then/else を正しく作れている＝**要るのは
+//   「2文に割れた形」を同じ then/else へ寄せる畳み込みだけ**（新しい条件語彙は不要）。
+// ⚠上段（M）が真のときは B **だけ**。下段（N）は「M未満かつN以上」＝else の内側でもう一度判定する。
+function foldGradedEnergyEachLevelReplacement(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(/それぞれ([０-９\d]+)枚以上ある場合、(?:代わりに|追加で)?/g);
+  if (!m || m.length < 2) return action;
+  const alt = sourceText.match(/それぞれ([０-９\d]+)枚以上ある場合、代わりに/);
+  if (!alt) return action;
+  if (action.type !== 'SEQUENCE' || action.steps.length !== 2) return action;
+  const head = action.steps[0];
+  if (head?.type !== 'CONDITIONAL' || head.condition?.type !== 'ENERGY_EACH_LEVEL_FILTER_GTE' || head.else) return action;
+  const lowBranch = head.then;
+  const highBranch = action.steps[1];
+  if (!lowBranch || !highBranch) return action;
+  return {
+    type: 'CONDITIONAL',
+    condition: { ...head.condition, minEach: parseNum(alt[1]) },
+    then: highBranch,
+    else: head,
+  } as EffectAction;
+}
+
 // 「数字１つを宣言する。このターン、対戦相手は宣言された数字と同じレベルのシグニでアタックできない」（WX24-P4-039）。
 // 裸の `DECLARE_NUMBER` は `declared_guard_restrict_level` を立てる専用 STUB＝そのままだと原文に無い
 // 「対戦相手はそのレベルのシグニでガードできない」まで付く過剰実行になる（PR-434 と同型）。
