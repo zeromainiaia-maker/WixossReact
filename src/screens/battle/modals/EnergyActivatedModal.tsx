@@ -18,7 +18,7 @@ interface EnergyActivatedModalProps {
 }
 
 export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
-  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs , myEnergyPayPool } = p.ctx;
+  const { my, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyPayPool } = p.ctx;
   const { pendingEnergyActivated, setPendingEnergyActivated, selectedEnergyActivatedCost, setSelectedEnergyActivatedCost, executeEnergyActivated } = p;
   return (
     <>
@@ -58,7 +58,7 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
               const canAfford = energyTotal === 0
                 ? true
                 : selectedEnergyActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
