@@ -3270,6 +3270,7 @@ function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): Ef
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = rewritePerLastProcessedCount(action, text);
+  action = rewriteSameLevelAsLastProcessed(action, text);
   action = wrapHandOrField(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
   action = rewriteNextOppTurnEndBody(action, text);
