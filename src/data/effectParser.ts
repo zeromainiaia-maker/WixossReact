@@ -4475,6 +4475,43 @@ function foldSuppressOnPlay(action: EffectAction): EffectAction {
   return action;
 }
 
+/**
+ * §6.4 O-10（続き507）＝離場置換「代わりにこの能力を失う。**そうした場合、このシグニをダウンする。**」の
+ * 2文目を1つの宣言へ畳む。
+ *
+ * 1文目は `EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY`（宣言型 CONTINUOUS）になるが、2文目は別の文なので
+ * 汎用の「そうした場合」規則が `CONDITIONAL{IS_MY_TURN} → DOWN{self}` へ落ちる＝
+ * **CONTINUOUS の SEQUENCE は誰も実行しない**ので無害に見えるが、
+ * ①ダウンの意味が落ち ②逆翻訳が「自分のシグニをダウンする」と嘘をつく。
+ * ⇒ 直前の宣言へ `thenDown` として吸収し、死んだ2文目を捨てる（`foldSuppressOnPlay` と同じ形）。
+ */
+function foldLeaveLoseSelfAbilityDown(action: EffectAction): EffectAction {
+  if (action.type === 'GRANT_EFFECT') {
+    const ge = action as import('../types/effects').GrantEffectAction;
+    return ge.effect ? { ...ge, effect: { ...ge.effect, action: foldLeaveLoseSelfAbilityDown(ge.effect.action) } } : ge;
+  }
+  if (action.type !== 'SEQUENCE') return action;
+  const seq = action as SequenceAction;
+  const steps = seq.steps.map(foldLeaveLoseSelfAbilityDown);
+  const isSelfLose = (s: EffectAction): boolean =>
+    s.type === 'STUB' && (s as StubAction).id === 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY';
+  const isThenDown = (s: EffectAction): boolean => {
+    if (s.type !== 'CONDITIONAL') return false;
+    const co = s as import('../types/effects').ConditionalAction;
+    return co.condition?.type === 'IS_MY_TURN' && co.then?.type === 'DOWN' && !co.else;
+  };
+  const out: EffectAction[] = [];
+  for (const step of steps) {
+    const prev = out[out.length - 1];
+    if (prev && isSelfLose(prev) && isThenDown(step)) {
+      out[out.length - 1] = { ...(prev as StubAction), leaveLoseSelfAbility: { thenDown: true } } as EffectAction;
+      continue;
+    }
+    out.push(step);
+  }
+  return out.length === 1 && isSelfLose(out[0]) ? out[0] : { ...seq, steps: out };
+}
+
 // 状態条件節バッチ①第2波。全件を CardNum+effectId でゲートし、同型カードへ生パースを波及させない。
 function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): void {
   const setAction = (effectId: string, action: EffectAction): void => {
