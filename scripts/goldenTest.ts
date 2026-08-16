@@ -15200,7 +15200,9 @@ test('引用【常】: 文がまるごと keyword に入っていない（live �
 test('§6.4 O-28: 引用【常】の3形が既存機構へ載る（live）', () => {
   // ①「あなたの手札が2枚以下であるかぎり【アサシン】」＝アサシンのアタック側スコープ
   const p1064 = (effectsMap.get('WX24-P1-064') ?? []).find(e => e.effectId === 'WX24-P1-064-E1')!;
-  ok(JSON.stringify(p1064.action).includes('"selfHandLte":2'), 'WX24-P1-064-E1: selfHandLte スコープ');
+  // ⚠`keyword` は文字列なので `JSON.stringify` するとエスケープが入る＝**値そのもの**を見る。
+  eq((p1064.action as unknown as { keyword?: string }).keyword ?? '',
+    `アサシン:${JSON.stringify({ selfHandLte: 2 })}`, 'WX24-P1-064-E1: selfHandLte スコープ');
   // ②「対戦相手の効果によって、バニッシュされず手札に戻らない」＝GRANT_PROTECTION（2軸）
   const k029 = (effectsMap.get('WXK07-029') ?? []).find(e => e.effectId === 'WXK07-029-E1')!;
   const prot = findActionByType(k029.action, 'GRANT_PROTECTION')!;
