@@ -2912,6 +2912,10 @@ function actionJa(a?: Action, effectType?: string): string {
         COOKING_BANISH_SUBSTITUTE: 'あなたの＜調理＞のシグニ１体がバニッシュされる場合、代わりにそのシグニに付いている【アクセ】１枚をトラッシュに置いてもよい',
         BANISH_SUBSTITUTE_RISE_STACK: 'このシグニがバニッシュされる場合、代わりにこのシグニの下からカード１枚をトラッシュに置く',
         ATTACK_COUNT_BY_POWER: '各ターン、このシグニは自身のパワー10000につき一度までしかアタックできない',
+        // §6.4 O-10（続き507）で defer 解体した3宣言。
+        ATTACK_WHILE_DOWN: 'このシグニはダウン状態でもアタックできる',
+        EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY: 'このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う',
+        CHARM_POWER_MINUS_MULTIPLIER: 'それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワーが－される場合、代わりにN倍－される',
         ARTS_COST_REDUCTION_BY_COST_THRESHOLD: 'あなたがコストの合計が３以上のアーツを使用する場合、それの使用コストは《緑×1》減る',
         ALLOW_ATTACK_WHILE_DRIVE: 'このルリグはドライブ状態でもアタックできる',
         ADJACENT_ZONE_ATTACK: 'このシグニが正面にアタックする場合、このシグニは正面に加えてその隣のシグニゾーン１つにアタックしてもよい',
