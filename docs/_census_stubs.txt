@@ -1,12 +1,12 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 597（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 758  うち生ID露出 263 箇所（182 種）
+live JSON の STUB id 種類 : 598（総ノード 2883 件）
+逆翻訳シートの [STUB:…] 総数: 761  うち生ID露出 266 箇所（183 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 12 種 / 14 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 12 種 / 14 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 13 種 / 17 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 13 種 / 17 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 21 種 / 67 件
   C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 172 種 / 253 箇所
@@ -22,12 +22,15 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      3件   3枚  DEFERRED_CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
-        生成: src\data\parsers\parseSentencePart1.ts:2904 / src\data\parsers\parseSentencePart1.ts:2922
+        生成: src\data\parsers\parseSentencePart1.ts:2918 / src\data\parsers\parseSentencePart1.ts:2936
+     3件   3枚  DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY  [生ID露出 3]
+        カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
+        生成: src\data\effectParser.ts:4500 / src\data\parsers\parseSentencePart1.ts:498
      1件   1枚  DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF
         カード: WX24-P4-016
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3316
+        生成: src\data\parsers\parseSentencePart1.ts:3330
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4854

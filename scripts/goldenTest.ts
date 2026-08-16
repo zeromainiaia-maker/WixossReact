@@ -22492,8 +22492,13 @@ test('additional exceed curated: pay/skip and insufficient pool', () => {
       }
     }
 
-    const discardSource = 'WXDi-CP02-056';
-    const discardEffect = (effectsMap.get(discardSource) ?? []).find(e => e.effectId === 'WXDi-CP02-056-E1')!;
+    // ⚠**fixture を差し替えた（§6.4 O-10・続き507）**＝旧 fixture の `WXDi-CP02-056-E1` は
+    //   `effectType:'CONTINUOUS'` で、CONTINUOUS は実アプリでは `executeEffect` を一度も通らない
+    //   （＝原文「支払ってもよい」が実機では機能しない無言 no-op だった）。そのカードは明示 defer へ
+    //   移したので、ここは**実際に実行される**【自】（`WXDi-P01-037-E2`＝「このシグニがアタックしたとき、
+    //   手札を２枚捨ててもよい。そうした場合、カードを２枚引く」）で任意コスト機構そのものを見る。
+    const discardSource = 'WXDi-P01-037';
+    const discardEffect = (effectsMap.get(discardSource) ?? []).find(e => e.effectId === 'WXDi-P01-037-E2')!;
     const discardCtx = mkCtx({ signi: [discardSource, null, null], hand: 2 }, {}, discardSource);
     const discardOffered = executeEffect(discardEffect, discardCtx);
     ok(!discardOffered.done && discardOffered.pending.type === 'CHOOSE', 'hand discard cost: offers pay/skip');
