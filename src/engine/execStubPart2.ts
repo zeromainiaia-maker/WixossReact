@@ -2450,16 +2450,72 @@ export function execStubPart2(
     }
     return done(curACET);
   }
-  // PICK_FROM_TRASHED_CARDS: トラッシュカードからピックして手札へ
+  // PICK_FROM_TRASHED_CARDS: 「この方法でトラッシュに置いたカードの中から」N枚（まで）選び、行き先へ送る。
+  // 🔑候補は `ctx.lastProcessedCards` ∩ トラッシュ＝**直前のミル／トラッシュで実際に置かれた札だけ**。
+  // 🔴従来はペイロードが無く、候補が**トラッシュ全体**・枚数1固定・行き先は手札固定だった
+  //   （＝「この方法で」の限定も「N枚まで」も「エナゾーンに置く」も丸ごと落ちていた）。§6.4 O-11。
+  // ⚠直前が「〜してもよい」で辞退されたときは lastProcessedCards が空＝候補0＝no-op が正しい挙動。
+  //   ここでトラッシュ全体へフォールバックすると、置いていない札まで拾える過剰実行に戻る。
   if (stub.id === 'PICK_FROM_TRASHED_CARDS') {
     if (isOwnTrashMoveLocked('self', ctx)) return done(addLog(ctx, 'トラッシュのカードは自分の効果で移動できない'));
-    const trashPFTC = ctx.ownerState.trash;
-    if (trashPFTC.length === 0) return done(addLog(ctx, 'トラッシュなし'));
-    const thenPFTC: TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } };
-    return needsInteraction(ctx, {
-      type: 'SELECT_TARGET', candidates: trashPFTC, count: 1, optional: true,
-      targetScope: 'self_trash', thenAction: thenPFTC,
+    const pkPFTC = stub.trashedPick;
+    if (!pkPFTC) {
+      // ペイロード無し（旧 live レコード）＝従来どおりトラッシュ全体から1枚を手札へ。
+      const trashPFTC = ctx.ownerState.trash;
+      if (trashPFTC.length === 0) return done(addLog(ctx, 'トラッシュなし'));
+      const thenPFTC: TransferToHandAction = { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } };
+      return needsInteraction(ctx, {
+        type: 'SELECT_TARGET', candidates: trashPFTC, count: 1, optional: true,
+        targetScope: 'self_trash', thenAction: thenPFTC,
+      });
+    }
+    const candsPFTC = (ctx.lastProcessedCards ?? [])
+      .filter(n => ctx.ownerState.trash.includes(n))
+      .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), pkPFTC.filter));
+    if (candsPFTC.length === 0) return done(addLog(ctx, 'この方法でトラッシュに置いたカードに該当なし'));
+    const thenByDest: EffectAction = pkPFTC.dest === 'energy'
+      ? ({ type: 'ENERGY_CHARGE', target: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as EffectAction)
+      : ({ type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count: 1 } } as TransferToHandAction as EffectAction);
+    // dest:'hand_or_field'＝選んだ札ごとに「手札に加える／場に出す」を問う（既存 CHOOSE 部品を再利用）。
+    const contPFTC: EffectAction | undefined = pkPFTC.dest === 'hand_or_field'
+      ? ({ type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD' } as StubAction as EffectAction)
+      : undefined;
+    return needsInteraction(addLog(ctx, `この方法でトラッシュに置いたカードから${pkPFTC.count}枚${pkPFTC.upTo ? 'まで' : ''}選択`), {
+      type: 'SELECT_TARGET',
+      candidates: candsPFTC,
+      count: Math.min(pkPFTC.count, candsPFTC.length),
+      optional: pkPFTC.upTo ?? false,
+      targetScope: 'self_trash',
+      // hand_or_field は移動を continuation 側で行うので、選択だけして thenAction は何もしない。
+      thenAction: (contPFTC ? ({ type: 'SEQUENCE', steps: [] } as SequenceAction as EffectAction) : thenByDest),
+      ...(contPFTC ? { continuation: contPFTC } : {}),
     });
+  }
+  // INTERNAL_TRASHED_PICK_HAND_OR_FIELD: 上の選択結果（lastProcessedCards）を1枚ずつ手札／場へ振り分ける。
+  if (stub.id === 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD') {
+    const queueITPHF = (ctx.lastProcessedCards ?? []).filter(n => ctx.ownerState.trash.includes(n));
+    const headITPHF = queueITPHF[0];
+    if (!headITPHF) return done(ctx);
+    const restITPHF = queueITPHF.slice(1);
+    // 残りは同じ STUB を continuation として自己チェーンする（lastProcessedCards を残り分で差し替え）。
+    const chain = (move: EffectAction): EffectAction => restITPHF.length === 0 ? move : ({
+      type: 'SEQUENCE',
+      steps: [move, { type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD_REST', value: JSON.stringify(restITPHF) } as StubAction],
+    } as SequenceAction);
+    const nameITPHF = ctx.cardMap.get(getCardNum(headITPHF))?.CardName ?? headITPHF;
+    return needsInteraction(addLog(ctx, `${nameITPHF}を手札に加えるか場に出す`), {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'hand', label: '手札に加える', available: true,
+          action: chain({ type: 'STUB', id: 'INTERNAL_TRASHED_TO_HAND' } as StubAction as EffectAction) },
+        { id: 'field', label: '場に出す', available: true,
+          action: chain({ type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardNum: getCardNum(headITPHF) } } } as AddToFieldAction as EffectAction) },
+      ],
+    });
+  }
+  if (stub.id === 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD_REST') {
+    const restIR: string[] = typeof stub.value === 'string' ? JSON.parse(stub.value) : [];
+    return executeAction({ type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD' } as StubAction as EffectAction,
+      { ...ctx, lastProcessedCards: restIR });
   }
   // CONDITIONAL_ADD_HAND: フィールドにシグニがあれば手札に1枚追加
   if (stub.id === 'CONDITIONAL_ADD_HAND') {
