@@ -338,7 +338,13 @@ function collectActionsFromJson(effs: EffectDef[]): Set<string> {
   function walk(action: Record<string, unknown>) {
     if (!action) return;
     if (action.type) found.add(action.type as string);
-    if (action.type === 'STUB' && action.id) found.add(`STUB:${action.id as string}`);
+    if (action.type === 'STUB' && action.id) {
+      found.add(`STUB:${action.id as string}`);
+      // 任意コスト系はペイロードのキーが「実際に支払うもの」＝そこから派生させる
+      for (const [k, acts] of Object.entries(COST_KEY_TO_ACTION)) {
+        if (action[k]) acts.forEach(a => found.add(`~${a}`));
+      }
+    }
     // 行き先パラメータ由来の派生アクション
     if (action.type === 'LOOK_PICK_CHAIN' || action.type === 'REVEAL_AND_PICK') {
       (action.stages as Record<string, unknown>[] | undefined)?.forEach(st => {
