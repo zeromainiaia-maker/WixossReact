@@ -8185,22 +8185,6 @@ function parseActionTextInner(text: string): EffectAction {
       } as unknown as EffectAction;
     }
   }
-  // ---- 「〈期間〉、対戦相手は（《無》×Nを支払わないかぎり、）〈ゾーン〉のシグニゾーンにあるシグニでアタックできない」----
-  // （§6.4 O-33・引用付与を挟まない素の形＝`WX25-CP1-050-E1`／`WXK10-011-E1`③）。
-  // 🔴従来は `BLOCK_ACTION{ATTACK, until:NEXT_TURN}` だけ＝**支払い回避もゾーン限定も落ちて**
-  //   （払っても中央以外も止まる）いた。
-  {
-    const zoneBanM = text.match(
-      /^(このターン|次の対戦相手のターンの間|次の対戦相手のターン終了時まで)、対戦相手は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(中央|左|右)のシグニゾーンにあるシグニでアタックできない。?$/);
-    if (zoneBanM) {
-      return {
-        type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
-        zones: [signiZoneIndexJa(zoneBanM[3])],
-        ...(zoneBanM[2] ? { unlessPayColorless: (zoneBanM[2].match(/《無》/g) ?? []).length } : {}),
-        ...(zoneBanM[1] === 'このターン' ? {} : { turns: 2 }),
-      } as unknown as EffectAction;
-    }
-  }
 
   // ---- 「このゲームの間、対戦相手は以下の能力を得る。『…』」＝**プレイヤー**への能力付与（§6.4 O-4 続き499）----
   // 🔴放置すると引用の【自】本文（＝相手が毎ターン払う不利益）が**使った側にその場で1回だけ走る**
