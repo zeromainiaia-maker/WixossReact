@@ -15179,6 +15179,57 @@ test('normalizeKeywordName / textHasKeyword: 全角と半角のどちらでも�
   // state 側の照合＝`hasKeyword` が綴り差を吸収する（MANUAL 等に全角が残っても動く safety net）。
   ok(hasKeyword('X#1', 'Sランサー', new Map(), { 'X#1': ['Ｓランサー'] }), '全角で付与されていても半角要求に当たる');
 });
+// 🔴引用【常】の中身を丸ごと `GRANT_KEYWORD.keyword` に詰める形は `hasKeyword`（正式名の完全一致）に
+//    一度も当たらない無言 no-op。§6.4 O-28 で**キーワード名の「形」でしか keyword 化しない**ようにした。
+test('引用【常】: 文がまるごと keyword に入っていない（live 全体・トリップワイヤ）', () => {
+  const bad: string[] = [];
+  const walk = (a: unknown, eid: string): void => {
+    if (!a || typeof a !== 'object') return;
+    if (Array.isArray(a)) { a.forEach(x => walk(x, eid)); return; }
+    const r = a as Record<string, unknown>;
+    if (r.type === 'GRANT_KEYWORD' && typeof r.keyword === 'string'
+        && (/[、。]/.test(r.keyword) || /[【】]/.test(r.keyword) || r.keyword.length > 14)) bad.push(`${eid}:${r.keyword.slice(0, 24)}`);
+    for (const v of Object.values(r)) walk(v, eid);
+  };
+  for (const [id, effs] of effectsMap) for (const e of mergeManualEffects(id, effs as never[])) walk((e as CardEffect).action, (e as CardEffect).effectId);
+  eq(bad.join(' / '), '', '文がキーワードとして入っている（無言 no-op）');
+});
+test('§6.4 O-28: 引用【常】の3形が既存機構へ載る（live）', () => {
+  // ①「あなたの手札が2枚以下であるかぎり【アサシン】」＝アサシンのアタック側スコープ
+  const p1064 = (effectsMap.get('WX24-P1-064') ?? []).find(e => e.effectId === 'WX24-P1-064-E1')!;
+  ok(JSON.stringify(p1064.action).includes('"selfHandLte":2'), 'WX24-P1-064-E1: selfHandLte スコープ');
+  // ②「対戦相手の効果によって、バニッシュされず手札に戻らない」＝GRANT_PROTECTION（2軸）
+  const k029 = (effectsMap.get('WXK07-029') ?? []).find(e => e.effectId === 'WXK07-029-E1')!;
+  const prot = findActionByType(k029.action, 'GRANT_PROTECTION')!;
+  eq(JSON.stringify(prot.from ?? []), '["BANISH","BOUNCE"]', 'WXK07-029-E1: バニッシュ＋バウンス耐性');
+  eq(prot.sourceOwner, 'opponent', 'WXK07-029-E1: 相手の効果限定');
+  // ③「このシグニのパワーが－される場合、代わりに2倍－される」＝double_power_minus_targets
+  const k049 = (effectsMap.get('WXK08-049') ?? []).find(e => e.effectId === 'WXK08-049-E2')!;
+  ok(JSON.stringify(k049.action).includes('DOUBLE_OWN_POWER_MINUS'), 'WXK08-049-E2: 2倍マイナス機構');
+});
+// `selfHandLte` は**アタック側**の状態条件（相手盤面ではない）＝手札が減ったときだけアサシンになる。
+test('アサシン selfHandLte: 手札2枚以下のときだけ有効（対の検証）', () => withSavedCursor(() => {
+  const kw = new Set([`アサシン:${JSON.stringify({ selfHandLte: 2 })}`]);
+  const opp = mkState({ signi: [fresh(), null, null] });
+  const few = mkState({ hand: 2 });
+  const many = mkState({ hand: 3 });
+  ok(hasApplicableAssassin(kw, opp, cardMap as Map<string, CardData>, undefined, few), '手札2枚＝アサシン有効');
+  ok(!hasApplicableAssassin(kw, opp, cardMap as Map<string, CardData>, undefined, many), '手札3枚＝無効');
+  // ⚠アタック側 state を渡さない呼び出し元では**掛からない**（過少側に倒す）
+  ok(!hasApplicableAssassin(kw, opp, cardMap as Map<string, CardData>), 'attackerState 無しなら掛からない');
+}));
+// `DOUBLE_OWN_POWER_MINUS` は**そのシグニを持つ側**の state に積む（旧＝自分の state で一度も効かなかった）。
+test('DOUBLE_OWN_POWER_MINUS: 対象を持つ側の state にフラグが載る', () => withSavedCursor(() => {
+  const target = fresh();
+  const ctx = mkCtx({}, { signi: [target, null, null] });
+  const r = run({ type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+    { type: 'STUB', id: 'DOUBLE_OWN_POWER_MINUS' },
+  ] } as unknown as EffectAction, ctx);
+  eq(JSON.stringify(r.otherState.double_power_minus_targets ?? []), JSON.stringify([target]), '相手側 state に載る');
+  eq(JSON.stringify(r.ownerState.double_power_minus_targets ?? []), '[]', '⚠自分側には載せない（旧バグ）');
+}));
 // ── §6.4 O-33：`SigniAttackBan.zones`（「中央のシグニゾーンにあるシグニでアタックできない」）──
 // 🔴回帰ガード＝旧 live は `BLOCK_ACTION{ATTACK}` に潰れ、**ゾーン限定も支払い回避も期間も落ちて**いた
 //    （`WX24-P1-038-E2`／`WXDi-P03-027-E2` は `owner:'any'`＝**両プレイヤー**が1ターンだけ止まる）。
