@@ -2675,6 +2675,13 @@ export interface StubAction {
    * `thenDown`＝「そうした場合、このシグニをダウンする」（`WX25-P2-071-E1` の付与文）。
    */
   leaveLoseSelfAbility?: { thenDown?: boolean };
+  /**
+   * PREVENT_LRIG_DAMAGE（§6.4 O-10・続き507）＝原文が
+   * 「代わりにダメージを受けず、**ターン終了時まで、この能力を失う**」（`WXK01-002-E1`）の形のとき true。
+   * 1回防いだ時点で `lost_ability_effect_ids_this_turn` に刻み、**そのターンは二度と防がない**。
+   * ⚠落とすと「回数無制限の防御」に化ける（`PREVENT_LRIG_DAMAGE` の既定はまさに無制限）。
+   */
+  loseAbilityAfterUse?: boolean;
   /** OPTIONAL_COST: discard count is the stored target SIGNI's level. */
   handDiscardCountFromTargetLevel?: boolean;
   /** Filter for a target-level-derived hand discard cost. */
