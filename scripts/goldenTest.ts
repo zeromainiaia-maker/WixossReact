@@ -1847,6 +1847,36 @@ test('task12(lxxxiii) 第8波: live バニッシュ置換4件は「他の」を�
     riseSourceMap, effectsMap, 'WX20-055').length, 0,
     'WX20-055-E1: 省略時も発生源自身を victim にする縮退自己置換は成立しない');
 }));
+test('§6.4 O-11: 条件節つき連用形チェーンの節が落ちない／条件を跨いで足さない', () => {
+  const liveTypes = (cardNum: string, effectId: string): Set<string> => {
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(!!effect, `${effectId} が live effectsMap に存在`);
+    const out = new Set<string>();
+    const walk = (a: unknown): void => {
+      if (Array.isArray(a)) { a.forEach(walk); return; }
+      if (!a || typeof a !== 'object') return;
+      const o = a as Record<string, unknown>;
+      if (typeof o.type === 'string') out.add(o.type);
+      Object.values(o).forEach(walk);
+    };
+    walk(effect!.action);
+    return out;
+  };
+
+  // 正方向＝「〜の場合、カードを１枚引き、【エナチャージ１】をし、デッキの上からカードを３枚トラッシュに置く」。
+  // 🔴従来は**条件節が付いた瞬間に連用形の分割が丸ごと無効化**され、3節目（ミル）が無言で落ちていた。
+  const wxk03 = liveTypes('WXK03-044', 'WXK03-044-E1');
+  for (const t of ['DRAW', 'ENERGY_CHARGE_FROM_DECK', 'TRASH']) {
+    ok(wxk03.has(t), `WXK03-044-E1: ${t} が残る（条件節つきチェーンの節が落ちない）`);
+  }
+
+  // 🔴負方向のトリップワイヤ＝`WX21-006-E1` は「相手のシグニ1体を対象とし、〜が３体ある**場合**、それを
+  //   バニッシュし、…」だが**条件節自体がパースされていない**。ここで補完に釣られて BANISH を足すと
+  //   「毎アタックフェイズ無条件に相手シグニをバニッシュ」＝**過少実行より悪い過剰実行**になる。
+  //   ⚠節の脱落を直すつもりで条件の脱落を踏み抜かないこと（補完は先頭節が既に結果にある場合だけ）。
+  ok(!liveTypes('WX21-006', 'WX21-006-E1').has('BANISH'),
+    'WX21-006-E1: 条件が未表現のあいだは BANISH を足さない（無条件バニッシュを作らない）');
+});
 test('SELF_TRASH_PREVENT: 自分の効果で自シグニをトラッシュに置けない（WX07-033・§6.1・タスク7）', () => {
   // collector が場の WX07-033（CONTINUOUS SELF_TRASH_PREVENT）を検出。
   const st = mkState({ signi: ['WX07-033', null, null] });
