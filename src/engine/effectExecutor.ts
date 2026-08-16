@@ -7965,6 +7965,22 @@ export function applyRefreshOnDone(
     if (pending.continuation) return executeAction(pending.continuation, cur);
     return done(cur);
   }
+  // §6.4 O-5: レゾナの複数枚配置＝**選んだ全枚数をまとめて渡す**。
+  // ⚠下の per-card ループは**最初の pause で残りを落とす**（ADD_TO_FIELD が特例回避しているのと同じ理由）＝
+  //   ゾーン選択を挟む配置を個別適用すると2枚目以降が無言で消える（実測で1枚しか出なかった）。
+  //   STUB 側が `value` のキューで自己チェーンするので、ここでは1回だけ実行する。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'INTERNAL_PLACE_SUMMONED_RESONAS') {
+    if (selected.length === 0) {
+      if (pending.continuation) return executeAction(pending.continuation, cur);
+      return done(cur);
+    }
+    const queued = { ...(pending.thenAction as StubAction), value: JSON.stringify(selected) } as EffectAction;
+    const chained = pending.continuation
+      ? ({ type: 'SEQUENCE', steps: [queued, pending.continuation] } as SequenceAction)
+      : queued;
+    return executeAction(chained, { ...cur, lastProcessedCards: selected });
+  }
   if (pending.thenAction.type === 'STUB' && (pending.thenAction as StubAction).id === 'INTERNAL_MILL_BOTTOM_DISTINCT4_BANISH') {
     const retainedTarget = selected[0];
     if (!retainedTarget) return done(cur);
