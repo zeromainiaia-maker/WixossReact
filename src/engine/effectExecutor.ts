@@ -4737,6 +4737,24 @@ function execConditional(a: ConditionalAction, ctx: ExecCtx): ExecResult {
 
 function execRepeat(a: RepeatAction, ctx: ExecCtx): ExecResult {
   if (a.count <= 0) return done(ctx);
+  // 「あとN回まで繰り返して**もよい**」（§6.4 O-32・`WX16-042-E1`）＝1周ごとに可否を問う。
+  // ⚠**問うのは実行の前**＝「繰り返さない」を選んだ時点で残り周回ごと打ち切る（`count` は減らさない）。
+  //   後ろで問う形にすると最後の1周が必ず走って原文より1回多くなる。
+  if (a.optional) {
+    const perform = { ...a, optional: false, count: 1 } as RepeatAction;
+    const rest: EffectAction | undefined = a.count > 1
+      ? ({ type: 'REPEAT', count: a.count - 1, action: a.action, optional: true } as RepeatAction)
+      : undefined;
+    const yes: EffectAction = rest
+      ? ({ type: 'SEQUENCE', steps: [perform, rest] } as SequenceAction)
+      : (perform as EffectAction);
+    return needsInteraction(ctx, {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'repeat', label: `繰り返す（残り${a.count}回まで）`, action: yes, available: true },
+        { id: 'stop', label: '繰り返さない', action: { type: 'SEQUENCE', steps: [] } as EffectAction, available: true },
+      ],
+    });
+  }
   const continuation: EffectAction | undefined = a.count > 1
     ? { type: 'REPEAT', count: a.count - 1, action: a.action }
     : undefined;
