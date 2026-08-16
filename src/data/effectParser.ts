@@ -4536,9 +4536,12 @@ function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): 
   if (cardNum === 'WX25-P2-071') setAction('WX25-P2-071-E1', { type: 'SEQUENCE', steps: [
     { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1,
       filter: { cardType: 'シグニ', story: '宇宙' }, upToCount: false }, delta: 5000, duration: 'UNTIL_OPP_TURN_END' },
+    // §6.4 O-28: 引用【常】＝**離場の置換**（「代わりにこの能力を失う。そうした場合、このシグニをダウンする」）。
+    // 🔴従来は引用文を丸ごと `GRANT_KEYWORD.keyword` に詰めていた＝`hasKeyword` は正式名でしか照合しないので
+    //   **一度も効かない無言 no-op**（しかも `census:stubs` にも映らない）。機構不在を宣言して計器へ載せる。
+    // ⚠**リテラルで固定されているカードは parser 規則を足しても変わらない**（続き494 の教訓）＝ここを直す。
     { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } },
-      then: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1 }, targetsLastProcessed: true,
-        keyword: '【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。', duration: 'UNTIL_OPP_TURN_END' } },
+      then: { type: 'STUB', id: 'DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN' } },
   ] });
   if (cardNum === 'WXDi-P13-006') {
     const e = effects.find(x => x.effectId === 'WXDi-P13-006-E2');
