@@ -656,7 +656,7 @@ export function applyEffectBanishSubstitute(
  * - `powerReduction`（`WX06-019`）／`banishSubstitute`（F-3 8枚）／`replaceBanish`（`WX25-P1-056`）＝**任意**
  */
 export type LeaveSubstituteAxisId =
-  | 'lrigAbility' | 'powerReduction' | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
+  | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
