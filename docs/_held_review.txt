@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［75枚］
-PR-Di017B SPDi43-11 SPDi43-12 SPDi43-13 SPDi43-32 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-D4-20 WX24-P1-007 WX24-P1-064 WX24-P4-020 WX25-CD1-04 WX25-CP1-005 WX25-CP1-046 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WX26-CP1-007 WX26-CP1-055 WXDi-CP01-006 WXDi-CP02-009 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-092 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-009 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-003 WXDi-P12-009 WXDi-P12-054 WXDi-P14-004 WXDi-P14-046 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXDi-P16-051 WXEX2-16 WXEX2-59 WXK01-020 WXK01-044 WXK03-026 WXK05-040 WXK07-050 WXK08-049 WXK08-056 WXK09-040 WXK09-084 WXK10-104 WXK11-019
+## （type増減なし＝値/構造変更） ［51枚］
+PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P1-064 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -164,6 +164,72 @@ WXEX2-09 WXK08-048
   ~ [0].action.type : "STUB" → "UNKNOWN"
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
+
+## +BLOCK_ACTION +SIGNI -LRIG -SEQUENCE -SIGNI_ATTACK_BAN -STUB×2 ［2枚］
+WX24-P4-001 WXDi-P03-036
+--- WX24-P4-001
+  原文: 対戦相手のルリグ１体を対象とし、ターン終了時まで、それは「【常】：《無》《無》《無》《無》を支払わないかぎりアタックできない。」を得る。対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、《無》《無》《無》《無》を支払わないかぎり、このシグニをバニッシュする。」を得る。,-
+  - [0].action.steps[0].steps[0].type = "STUB"
+  - [0].action.steps[0].steps[0].id = "SELECT_TARGET_ONLY"
+  - [0].action.steps[0].steps[0].selectTarget.type = "LRIG"
+  - [0].action.steps[0].steps[0].selectTarget.owner = "opponent"
+  - [0].action.steps[0].steps[0].selectTarget.count = 1
+  - [0].action.steps[0].steps[1].type = "STUB"
+  - [0].action.steps[0].steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  - [0].action.steps[0].steps[2].type = "SIGNI_ATTACK_BAN"
+  - [0].action.steps[0].steps[2].owner = "opponent"
+  - [0].action.steps[0].steps[2].targetsStored = true
+  - [0].action.steps[0].steps[2].unlessPayColorless = 4
+  ~ [0].action.steps[0].type : "SEQUENCE" → "BLOCK_ACTION"
+  …（他 5 行）
+--- WXDi-P03-036
+  原文: 【自】：対戦相手のアタックフェイズ開始時、対戦相手のルリグ１体を対象とし、ターン終了時まで、それは「【常】：《無》《無》を支払わないかぎりアタックできない。」を得る。【自】：あなたのターン終了時、このターンにあなたがスペルを使用していた場合、次の対戦相手のターン終了時まで、このシグニは【シャドウ】を得る。,：どちらか１つを選ぶ。①カードを１枚引く。②対戦相手
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [0].action.steps[0].selectTarget.type = "LRIG"
+  - [0].action.steps[0].selectTarget.owner = "opponent"
+  - [0].action.steps[0].selectTarget.count = 1
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  - [0].action.steps[2].type = "SIGNI_ATTACK_BAN"
+  - [0].action.steps[2].owner = "opponent"
+  - [0].action.steps[2].targetsStored = true
+  - [0].action.steps[2].unlessPayColorless = 2
+  ~ [0].action.type : "SEQUENCE" → "BLOCK_ACTION"
+  …（他 5 行）
+
+## +BLOCK_ACTION -SEQUENCE -SIGNI_ATTACK_BAN -STUB×2 ［2枚］
+WXDi-P05-022 WXDi-P05-033
+--- WXDi-P05-022
+  原文: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：手札を１枚捨てないかぎりアタックできない。」を得る。,-
+  - [0].action.steps[0].type = "STUB"
+  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [0].action.steps[0].selectTarget.type = "SIGNI"
+  - [0].action.steps[0].selectTarget.owner = "opponent"
+  - [0].action.steps[0].selectTarget.count = 1
+  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  - [0].action.steps[0].selectTarget.upToCount = false
+  - [0].action.steps[1].type = "STUB"
+  - [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  - [0].action.steps[2].type = "SIGNI_ATTACK_BAN"
+  - [0].action.steps[2].owner = "opponent"
+  - [0].action.steps[2].targetsStored = true
+  …（他 7 行）
+--- WXDi-P05-033
+  原文: 【ライズ】あなたのシグニ１体の上に置く【常】《相手ターン》：このシグニは【シャドウ】を得る。【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：《無》を支払わないかぎりアタックできない。」を得る。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。②カードを１枚引く。
+  - [1].action.steps[0].type = "STUB"
+  - [1].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [1].action.steps[0].selectTarget.type = "SIGNI"
+  - [1].action.steps[0].selectTarget.owner = "opponent"
+  - [1].action.steps[0].selectTarget.count = 1
+  - [1].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  - [1].action.steps[0].selectTarget.upToCount = false
+  - [1].action.steps[1].type = "STUB"
+  - [1].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  - [1].action.steps[2].type = "SIGNI_ATTACK_BAN"
+  - [1].action.steps[2].owner = "opponent"
+  - [1].action.steps[2].targetsStored = true
+  …（他 7 行）
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -361,6 +427,20 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
 
+## +STUB -GRANT_KEYWORD -SIGNI ［1枚］
+WXDi-P05-068
+--- WXDi-P05-068
+  原文: カードを２枚引き、あなたの手札から《大罠　ハーメルン》を１枚まで場に出す。その後、あなたの《大罠　ハーメルン》１体を対象とし、ターン終了時まで、それは「【常】：このシグニのアタックはこのシグニの効果によって無効にされない。」を得る。,：対戦相手のアップ状態のシグニ１体を対象とし、手札を１枚捨ててもよい。そうした場合、それをデッキの一番下に置く。
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].target.filter.cardType = "シグニ"
+  - [0].action.steps[1].target.upToCount = false
+  - [0].action.steps[1].keyword = "このシグニのアタックはこのシグニの効果によって無効にされない"
+  - [0].action.steps[1].duration = "UNTIL_END_OF_TURN"
+  ~ [0].action.steps[1].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[1].id = "GRANT_ABILITY_INNER_TEXT"
+
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
 --- WXDi-P09-054
@@ -415,6 +495,24 @@ WXDi-P12-073
   + [1].action.then.steps[0].target.filter.cardType = "シグニ"
   …（他 7 行）
 
+## +GRANT_KEYWORD -STUB×2 ［1枚］
+WXDi-P14-065
+--- WXDi-P14-065
+  原文: あなたの緑のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る。」を得る。それが《コードオーダー　メル//フェゾーネ》の場合、それは覚醒する。,：対戦相手のパワー7000以上のシグニ１体を対象とし、それをバニッシュする。
+  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [0].action.steps[0].selectTarget.type = "SIGNI"
+  - [0].action.steps[0].selectTarget.owner = "self"
+  - [0].action.steps[0].selectTarget.count = 1
+  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  - [0].action.steps[0].selectTarget.filter.color = "緑"
+  - [0].action.steps[0].selectTarget.upToCount = false
+  - [0].action.steps[1].id = "GRANT_QUOTED_ABILITY"
+  - [0].action.steps[2].type = "CONDITIONAL"
+  - [0].action.steps[2].condition.type = "LAST_PROCESSED_MATCHES"
+  - [0].action.steps[2].condition.filter.cardName = "コードオーダー　メル//フェゾーネ"
+  - [0].action.steps[2].then.type = "AWAKEN_SIGNI"
+  …（他 13 行）
+
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052
 --- WXDi-P15-052
@@ -432,6 +530,24 @@ WXDi-P15-052
   + [0].action.choices[1].condition.owner = "self"
   + [0].action.choices[1].condition.operator = "gte"
   …（他 1 行）
+
+## +GAIN_COIN -CONDITIONAL -FRONT_SIGNI_POWER -GRANT_EFFECT -GRANT_KEYWORD×2 -IS_BETTING -SIGNI×4 ［1枚］
+WXDi-P15-071
+--- WXDi-P15-071
+  原文: ベット―《コインアイコン》《コインアイコン》《コインアイコン》あなたの＜闘争派＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る。」を得る。あなたがベットしていた場合、代わりにそれは「【常】：【Ｓランサー】」を得る。,：【エナチャージ１】をする。その後、あなたのエナゾーン
+  - [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [0].action.steps[0].selectTarget.type = "SIGNI"
+  - [0].action.steps[0].selectTarget.owner = "self"
+  - [0].action.steps[0].selectTarget.count = 1
+  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  - [0].action.steps[0].selectTarget.filter.story = "闘争派"
+  - [0].action.steps[0].selectTarget.upToCount = false
+  - [0].action.steps[1].condition.type = "IS_BETTING"
+  - [0].action.steps[1].then.type = "GRANT_KEYWORD"
+  - [0].action.steps[1].then.targetsLastProcessed = true
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "self"
+  …（他 28 行）
 
 ## +COINS_PAID_THIS_TURN×2 +CONDITIONAL×2 ［1枚］
 WXDi-P15-074
@@ -486,6 +602,24 @@ WXDi-CP01-042
   + [0].action.steps[1].then.id = "OPTIONAL_COST"
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
+
+## +BLOCK_ACTION +SIGNI -CENTER_LRIG_OR_SIGNI -SEQUENCE -SIGNI_ATTACK_BAN -STUB×2 ［1枚］
+WX24-P1-041
+--- WX24-P1-041
+  原文: 【常】《相手ターン》：このシグニのパワーは＋3000される。【自】：対戦相手のアタックフェイズ開始時、対戦相手のルリグかシグニ１体を対象とし、ターン終了時まで、それは「【常】：《無》を支払わないかぎりアタックできない。」を得る。【起】《白》《無》《ダウン》：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。,：対戦相手の
+  - [1].action.steps[0].type = "STUB"
+  - [1].action.steps[0].id = "SELECT_TARGET_ONLY"
+  - [1].action.steps[0].selectTarget.type = "CENTER_LRIG_OR_SIGNI"
+  - [1].action.steps[0].selectTarget.owner = "opponent"
+  - [1].action.steps[0].selectTarget.count = 1
+  - [1].action.steps[1].type = "STUB"
+  - [1].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  - [1].action.steps[2].type = "SIGNI_ATTACK_BAN"
+  - [1].action.steps[2].owner = "opponent"
+  - [1].action.steps[2].targetsStored = true
+  - [1].action.steps[2].unlessPayColorless = 1
+  ~ [1].action.type : "SEQUENCE" → "BLOCK_ACTION"
+  …（他 5 行）
 
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
@@ -582,6 +716,24 @@ WXK06-049
   + [0].action.redirectTo = "trash"
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
+
+## +SEQUENCE +STUB×3 -GRANT_KEYWORD ［1枚］
+WXK08-049
+--- WXK08-049
+  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。【起】《ターン１回》《黒×0》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグニのパワーが－される場合、代わりに２倍－される。」を得る。,：どちらか１つを選ぶ。①カードを１枚引く。②対戦相手のシグニ１体を対象とし
+  - [1].action.target.type = "SIGNI"
+  - [1].action.target.owner = "opponent"
+  - [1].action.target.count = 1
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.upToCount = false
+  - [1].action.keyword = "このシグニのパワーが－される場合、代わりに２倍－される"
+  - [1].action.duration = "UNTIL_END_OF_TURN"
+  ~ [1].action.type : "GRANT_KEYWORD" → "SEQUENCE"
+  + [1].action.steps[0].type = "STUB"
+  + [1].action.steps[0].id = "SELECT_TARGET_ONLY"
+  + [1].action.steps[0].selectTarget.type = "SIGNI"
+  + [1].action.steps[0].selectTarget.owner = "opponent"
+  …（他 7 行）
 
 ## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE +SEND_TO_ENERGY +SIGNI -ENERGY_CARD -TRANSFER_TO_HAND ［1枚］
 WXK09-031

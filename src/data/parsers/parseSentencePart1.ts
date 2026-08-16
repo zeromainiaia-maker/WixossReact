@@ -2865,6 +2865,25 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // ---- 明示 defer（§6.4 O-28）＝キーワード名だが engine に消費が無いもの ----
+  // 🔑ゴミ `GRANT_KEYWORD.keyword` のまま置くと `census:stubs` に映らない**無言 no-op**なので、
+  //   `DEFERRED_*` STUB に落として計器へ載せる（「defer は何もしないに倒すためのもの」）。
+  {
+    // 【コンバート《色》】＝「エナコストを支払う際、このカードは《色》として支払える」（3効果）。
+    // ⚠エナ支払いの色照合は `costs.ts` に複数散っており（`(c.Color ?? '').includes(color)` が5箇所）、
+    //   1点funnel が無い＝**先に色照合を1本に集約する**のが前提。
+    if (/^【コンバート《[白赤青緑黒無]》】$/.test(t.trim())) {
+      return { type: 'STUB', id: 'DEFERRED_CONVERT_ENERGY_COLOR' } as StubAction;
+    }
+    // 「このシグニはダウン状態でもアタックできる」（`WX22-022-E1`・内部名 スリープアタッカー）。
+    // ⚠アタック可否の「すでにダウン」判定は `signiAttackGate` ではなく `BattleScreen` の
+    //   `getMySigniZoneActions` にインラインで入っており、CPU 経路にも同じ判定がある＝
+    //   **例外を足す前に down 判定を gate へ寄せる**必要がある（写経すると人間/CPU で軸ズレする）。
+    if (/^この(?:シグニ|カード)はダウン状態でもアタックできる$/.test(t.trim())) {
+      return { type: 'STUB', id: 'DEFERRED_ATTACK_WHILE_DOWN' } as StubAction;
+    }
+  }
+
   // ---- 引用【常】の中身が既存機構で解ける3形（§6.4 O-28）----
   // 🔴どれも従来は引用文が丸ごと `GRANT_KEYWORD.keyword` に入って**一度も効かなかった**。
   {
