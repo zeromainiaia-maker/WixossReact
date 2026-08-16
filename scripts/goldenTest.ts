@@ -21377,7 +21377,9 @@ test('PLAN §6.3 tail: lock-in and curated structures', () => {
   ] as Array<[string,string[]]>) for (const n of needles) ok(j(card).includes(n), `${card}: ${n}`);
   ok(j('WX25-CP1-074').includes('"delta":3000') && j('WX25-CP1-074').includes('CANNOT_DEAL_DAMAGE_TO_OPPONENT'), 'C1');
   ok((j('WXK09-055').match(/GRANT_EFFECT/g)?.length ?? 0) === 3 && j('WXK09-055').includes('ENERGY_EACH_LEVEL_FILTER_GTE'), 'C2');
-  ok(j('WX25-P3-038').includes('LAST_PROCESSED_HAS_NO_ABILITIES') && !j('WX25-P3-038').includes('ABILITY_CHECK_ELSE_TRASH'), 'C3');
+  // §6.4 O-6：MANUAL を外して AUTO 採用（条件型が `LAST_PROCESSED_MATCHES{noAbilities}` へ昇格）。
+  // 固定するのは**「能力を持たない」を条件節で読み、旧 `ABILITY_CHECK_ELSE_TRASH` へ戻らない**こと。
+  ok(j('WX25-P3-038').includes('"noAbilities":true') && !j('WX25-P3-038').includes('ABILITY_CHECK_ELSE_TRASH'), 'C3');
   ok(j('WXDi-P01-003').includes('FIELD_LRIGS_HAVE_COLORS') && j('WXDi-P01-003').includes('"count":2'), 'C5');
   ok(j('WD23-023-E').includes('"fromSearch":true'), 'C6');
   ok(j('WX14-026').includes('"optional":true') && !j('WX14-026').includes('IS_MY_TURN'), 'C7');
