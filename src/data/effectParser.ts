@@ -3244,6 +3244,29 @@ function rewritePerLastProcessedCount(action: EffectAction, text: string): Effec
   } as EffectAction;
 }
 
+/**
+ * 「（そのシグニ|それ）と同じレベルの/を持つ〈対象〉」＝**直前に処理した札とのレベル同一性**を対象へ載せる
+ * （§6.4 O-11・2026-08-17）。既存の同型は `SEND_TO_ENERGY` の1箇所にしか無く、`DOWN`／`BANISH` では
+ * 限定が落ちて**どのシグニでも処理できる過剰効果**になっていた（`WX24-P2-036`／`WDA-F02-07`）。
+ *
+ * ⚠`levelEqLastProcessed` が見るのは **`lastProcessedCards[0]` の1枚だけ**＝原文の
+ *   「捨てた札**ごとに**対応づける」ペア付けまでは表せない（機構未実装）。
+ *   ここで載るのは**過少側の近似**（対象は先頭1枚のレベルに固定）＝**過剰にはしない**。
+ */
+function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): EffectAction {
+  const t = text.trim();
+  if (!/(?:そのシグニ|それ)と同じレベル(?:の|を持つ)/.test(t)) return action;
+  const a = action as unknown as { target?: { type?: string; filter?: Record<string, unknown> } };
+  if (!a.target || a.target.type !== 'SIGNI') return action;
+  const f = a.target.filter ?? {};
+  // 既にレベル指定がある／同型キーが載っているなら触らない。
+  if (f.level !== undefined || f.levelEqLastProcessed) return action;
+  return {
+    ...action,
+    target: { ...a.target, filter: { ...f, levelEqLastProcessed: true } },
+  } as EffectAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = rewritePerLastProcessedCount(action, text);
