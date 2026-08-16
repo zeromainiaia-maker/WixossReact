@@ -8170,14 +8170,34 @@ function parseActionTextInner(text: string): EffectAction {
   //   落ちて**両プレイヤーのシグニが無条件でアタック不可**になっていた（`WXDi-P11-005-E3`／`WXDi-P16-034-E2`）。
   {
     const atkTaxGrantM = text.match(
-      /^(ターン終了時まで|次の対戦相手のターン終了時まで|次の対戦相手のターンの間)、(?:このルリグ|対戦相手)は[「『]【常】：(?:対戦相手|あなた)は((?:《無》)+)を支払わないかぎりシグニでアタックできない。?[」』]を得る。?$/);
-    if (atkTaxGrantM) {
+      /^(ターン終了時まで|次の対戦相手のターン終了時まで|次の対戦相手のターンの間)、(?:このルリグ|対戦相手)は[「『]【常】：(?:対戦相手|あなた)は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(?:(中央|左|右)のシグニゾーンにある)?シグニでアタックできない。?[」』]を得る。?$/);
+    if (atkTaxGrantM && (atkTaxGrantM[2] || atkTaxGrantM[3])) {
       return {
         type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
-        unlessPayColorless: (atkTaxGrantM[2].match(/《無》/g) ?? []).length,
+        ...(atkTaxGrantM[2] ? { unlessPayColorless: (atkTaxGrantM[2].match(/《無》/g) ?? []).length } : {}),
+        // 「中央のシグニゾーンにあるシグニ」＝ゾーン限定（§6.4 O-33）。
+        // 🔴従来はこの節が落ちて**全ゾーン**が止まり、しかも `BLOCK_ACTION{owner:'any'}` だったので
+        //   **両プレイヤー**のシグニが止まっていた（`WX24-P1-038-E2`／`WXDi-P03-027-E2`）。
+        ...(atkTaxGrantM[3] ? { zones: [signiZoneIndexJa(atkTaxGrantM[3])] } : {}),
         // 「次の対戦相手の〜」＝このターン＋次のターンの2ターン分（`SIGNI_DEPLOY_BAN` と同じ規約）。
         // ⚠自分のターンに張っても相手はアタックしないので、この重なりは挙動に出ない。
         ...(atkTaxGrantM[1] === 'ターン終了時まで' ? {} : { turns: 2 }),
+      } as unknown as EffectAction;
+    }
+  }
+  // ---- 「〈期間〉、対戦相手は（《無》×Nを支払わないかぎり、）〈ゾーン〉のシグニゾーンにあるシグニでアタックできない」----
+  // （§6.4 O-33・引用付与を挟まない素の形＝`WX25-CP1-050-E1`／`WXK10-011-E1`③）。
+  // 🔴従来は `BLOCK_ACTION{ATTACK, until:NEXT_TURN}` だけ＝**支払い回避もゾーン限定も落ちて**
+  //   （払っても中央以外も止まる）いた。
+  {
+    const zoneBanM = text.match(
+      /^(このターン|次の対戦相手のターンの間|次の対戦相手のターン終了時まで)、対戦相手は(?:((?:《無》)+)を支払わないかぎり)?[、,]?(中央|左|右)のシグニゾーンにあるシグニでアタックできない。?$/);
+    if (zoneBanM) {
+      return {
+        type: 'SIGNI_ATTACK_BAN', owner: 'opponent',
+        zones: [signiZoneIndexJa(zoneBanM[3])],
+        ...(zoneBanM[2] ? { unlessPayColorless: (zoneBanM[2].match(/《無》/g) ?? []).length } : {}),
+        ...(zoneBanM[1] === 'このターン' ? {} : { turns: 2 }),
       } as unknown as EffectAction;
     }
   }
