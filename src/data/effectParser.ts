@@ -7909,6 +7909,28 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // ═══ §6.4 O-32：「以下をN回行う。「〈本文〉」」＝反復（`REPEAT`）の正準形 ═══
+  // 🔴従来は `STUB{REPEAT_N_TIMES}` に落ち、engine 側が**カード全文の regex**を読んで自分で N 回ぶん
+  //   実行したうえ、`SEQUENCE` の後続ステップ（＝parse された本文）も走るので**二重に効いていた**
+  //   （`WXDi-P07-007-E3` は相手デッキが 16 枚落ちる／原文は最大 12 枚）。さらに引用の**先頭文が
+  //   丸ごと落ちる**（`WXDi-CP02-047-E1` のパワー－5000）ので過剰と過少が同居していた。
+  // 🔑**本文は引用ブロックを丸ごと `parseActionText` へ再入力する**＝文分割の前に切り出すので、
+  //   本文が複数文でも「N回まわす1つの塊」として保てる。
+  // ⚠**本文が解けないときは包まない**＝`REPEAT{UNKNOWN}` にすると回数だけ増えた no-op になり、
+  //   受け皿（`REPEAT_N_TIMES`）より計器上も悪くなる。従来形のまま残して worklist に留める。
+  // ⚠先頭に別の文が付く形（`WX25-P3-028-E2`＝リフレッシュ禁止＋反復）は上の専用分岐が持つ。
+  {
+    const repM = text.trim().match(/^以下を([０-９\d一二三四五六七八九十]+)回行う。「([\s\S]+)」$/);
+    if (repM && !/^以下を[０-９\d一二三四五六七八九十]+回行う/.test(repM[2].trim())) {
+      const repCount = parseNum(repM[1]);
+      const repBody = parseActionText(repM[2].trim());
+      const repStr = JSON.stringify(repBody);
+      if (repCount >= 1 && !repStr.includes('"UNKNOWN"') && !repStr.includes('REPEAT_N_TIMES')) {
+        return repCount === 1 ? repBody : ({ type: 'REPEAT', count: repCount, action: repBody } as unknown as EffectAction);
+      }
+    }
+  }
+
   // 「7－自分のライフクロス枚数」枚を見る（WXK02-032）。
   // 固定 N の入口と同じ REVEAL_AND_PICK へ載せ、枚数だけ既存 NumberOrRef で実行時解決する。
   {
