@@ -30,6 +30,7 @@ import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
+import { collectPieceCutinCandidates } from './battle/pieceCutin';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, isEnergyPayBlocked, type EnergyPayEntry } from './battle/energyPaySource';
 
@@ -126,7 +127,7 @@ import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAtta
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
 import { sideAttackEmptyZoneDealsDamage } from './battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
-import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
+import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
 import { isHandSigniPlayBlockedByPower } from '../engine/blockAction';
@@ -6118,6 +6119,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // スペルカットイン候補（lrig_deck + field lrig + signi_field + hand）
   const cutinCandidates: CutinCandidate[] = (() => {
     if (!bs.pending_spell || bs.pending_spell.caster_id === user.id) return [];
+    // §6.4 O-10（続き518）＝ピース応答窓。スペル窓とは**候補の出所も打ち消しの意味も違う**ので早期に分岐する。
+    if (bs.pending_spell.kind === 'piece') {
+      const usedPieceCard = battleCardMap.get(getCardNum(bs.pending_spell.card_num));
+      return collectPieceCutinCandidates({
+        responder: my, caster: op, usedPieceCard,
+        cardMap: battleCardMap, effectsMap, turnPhase: bs.turn_phase ?? undefined,
+      }).map(c => ({
+        kind: 'effect' as const, card: c.card, instanceId: c.instanceId,
+        source: 'lrig_deck' as const, effect: c.effect,
+        // ⚠打ち消しは**選択肢①を選んだときだけ**なので、窓を閉じる既定挙動としては打ち消さない。
+        countersSpell: false,
+      }));
+    }
     // GRANT_NEXT_SPELL_UNCOUNTERABLE（WX04-008）は打ち消す従来候補だけを抑止する。
     // SPELL_CUTINレゾナはスペルを打ち消さず先にON_PLAYを解決するため、この窓自体は残す。
     const cutinCasterState = bs.pending_spell.caster_id === bs.host_id ? bs.host_state : bs.guest_state;
@@ -6815,6 +6829,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const paidWithCoin = applyCoinPaidUsed(paid, keyCoin); // 《ターン1回/2回》消化を永続化（続き106）
       // ⚠**ピースは `ACTIVATED` も積む**＝118枚の本体がここに入っている。`queueCardEffects` は
       //   `effect.cost` を**徴収しない**（コスト徴収は UI 経路の担当）ので、印刷 Cost の1回払いだけになる。
+      // §6.4 O-10（続き518）＝ピース使用への**カットイン応答窓**。
+      // 🔑**応答側に使える打ち消しピースが実在するときだけ**窓を開く＝候補0なら以降は従来と同じ即時解決。
+      //   （ピースを使うたびに待ち状態を挟むと、応答が来ない経路がそのままデッドロックになる）。
+      const pieceCutins = isPiece
+        ? collectPieceCutinCandidates({
+            responder: op, caster: paidWithCoin, usedPieceCard: card,
+            cardMap: battleCardMap, effectsMap, turnPhase: bs.turn_phase ?? undefined,
+          })
+        : [];
+      if (isPiece && pieceCutins.length > 0) {
+        const stateKeyPC = isHost ? 'host_state' : 'guest_state';
+        const oppKeyPC = isHost ? 'guest_state' : 'host_state';
+        appendBattleLogs([`${card.CardName}の使用にカットインできる（相手の応答待ち）`]);
+        await persist.commit(reduceBattle(bs, {
+          type: 'QUEUE_SPELL',
+          casterKey: stateKeyPC,
+          casterState: paidWithCoin,
+          other: { key: oppKeyPC, state: { ...op, team_piece_cutin_window: true } },
+          spell: { caster_id: user.id, card_num: instanceId, kind: 'piece' },
+        }));
+        setCloseZoneSignal(sig => sig + 1);
+        return;
+      }
       const fired = isPiece
         ? await queueCardEffects(instanceId, ['AUTO', 'ACTIVATED'],
             ['ON_PLAY', 'MAIN', 'ATTACK', 'SPELL_CUTIN'], paidWithCoin, op, undefined, 1, keyCoinPaidEntries)
@@ -7197,11 +7234,61 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // スペルカットインをパス → スペル解決（スペル効果を発火）
+  /**
+   * ピース応答窓を閉じて、使われたピースを解決する（§6.4 O-10・続き518）。
+   *
+   * ⚠**窓フラグは必ずここで落とす**（残すと「カットイン専用ピースが通常タイミングで撃てる」過剰実行に戻る）。
+   * ⚠`countered` のときは**解決せずゲームから除外**する（原文「打ち消されたピースはゲームから除外される」）。
+   * ⚠使う側の state は既に支払い済みで DB にある＝ここでは**現在の bs から読み直す**（再徴収しない）。
+   */
+  const resolvePendingPiece = async () => {
+    const ps = bs.pending_spell;
+    if (!ps || ps.kind !== 'piece') return;
+    const casterIsHost = ps.caster_id === bs.host_id;
+    const casterKey: PlayerStateKey = casterIsHost ? 'host_state' : 'guest_state';
+    const oppKey: PlayerStateKey = casterIsHost ? 'guest_state' : 'host_state';
+    const casterState = casterIsHost ? bs.host_state : bs.guest_state;
+    const oppState = casterIsHost ? bs.guest_state : bs.host_state;
+    const pieceName = battleCardMap.get(getCardNum(ps.card_num))?.CardName ?? ps.card_num;
+    // 応答側の窓フラグを落とす（＝この1点が「窓を閉じる」の定義）。
+    const oppClosed: PlayerState = closeTeamPieceCutinWindow(oppState);
+    // 打ち消されたか＝`COUNTER_TEAM_PIECE_AND_EXILE` が使った側に立てたフラグ（⚠読んだら落とす）。
+    if (casterState.piece_use_countered) {
+      // 打ち消し＝ルリグトラッシュへ置いた自分自身を**除外**へ移す。
+      const casterExiled: PlayerState = {
+        ...casterState,
+        piece_use_countered: undefined,
+        lrig_trash: casterState.lrig_trash.filter(n => n !== ps.card_num),
+        excluded: [...(casterState.excluded ?? []), ps.card_num],
+      };
+      appendBattleLogs([`${pieceName}の効果は打ち消され、ゲームから除外された`]);
+      await persist.commit(reduceBattle(bs, {
+        type: 'FINISH_SPELL', casterKey, casterState: casterExiled,
+        other: { key: oppKey, state: oppClosed },
+      }));
+      return;
+    }
+    // パス＝通常どおり解決する（ピースは AUTO/ACTIVATED を積む＝`executeArts` のピース枝と同じ形）。
+    await persist.commit(reduceBattle(bs, {
+      type: 'FINISH_SPELL', casterKey, casterState,
+      other: { key: oppKey, state: oppClosed },
+    }));
+    // ⚠**効果の持ち主は「ピースを使った側」**＝応答側のクライアントから解決するので `owner` を明示する
+    //   （省略すると自分の state へ書いてしまう。スペル側の `handleCutinPass` が caster を跨ぐのと同じ形）。
+    await queueCardEffects(ps.card_num, ['AUTO', 'ACTIVATED'],
+      ['ON_PLAY', 'MAIN', 'ATTACK', 'SPELL_CUTIN'],
+      casterState, oppClosed, { key: oppKey, state: oppClosed }, 1, [],
+      { id: ps.caster_id, key: casterKey });
+  };
+
   const handleCutinPass = async () => {
     if (!bs.pending_spell || loading) return;
     setLoading(true);
     closeCutin();
     try {
+      // §6.4 O-10（続き518）＝ピース応答窓のパス＝**使われたピースをそのまま解決する**
+      // （スペルの解決経路 `executeEffect`＋`FINISH_SPELL` とは別物なので先に分岐する）。
+      if (bs.pending_spell.kind === 'piece') { await resolvePendingPiece(); return; }
       const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;
@@ -7434,6 +7521,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     closeCutin();
     try {
       const { card: cutinCard, instanceId: cutinInstanceId, source, handIdx } = candidate;
+      // §6.4 O-10（続き518）＝ピース応答窓での使用。スペル打ち消しとは処理が別なので先に分岐する。
+      // 🔑**ここでは窓を閉じない**＝カットインしたピースの効果を解決し、`cutin_response_complete` を立てて
+      //   既存の「応答完了→元の処理を継続」useEffect に `resolvePendingPiece` を呼ばせる
+      //   （選択肢②を選んだときは元のピースがそのまま解決する＝原文どおり）。
+      if (bs.pending_spell.kind === 'piece') {
+        const piecePay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+        const lrigIdxPC = my.lrig_deck.findIndex(id => id === cutinInstanceId);
+        const newLrigDeckPC = lrigIdxPC === -1 ? my.lrig_deck
+          : [...my.lrig_deck.slice(0, lrigIdxPC), ...my.lrig_deck.slice(lrigIdxPC + 1)];
+        const paidPC: PlayerState = piecePay.applyTo({
+          ...my,
+          lrig_deck: newLrigDeckPC,
+          lrig_trash: [...my.lrig_trash, cutinInstanceId],
+          trash: [...my.trash, ...piecePay.paidNums],
+        });
+        appendBattleLogs([`[カットイン] ${cutinCard.CardName}を使用`]);
+        await persist.commit(reduceBattle(bs, {
+          type: 'WRITE_STATE',
+          myKey: isHost ? 'host_state' : 'guest_state', myState: paidPC,
+          markCutinResponseComplete: true,
+        }));
+        await queueCardEffects(cutinInstanceId, ['ACTIVATED'], ['MAIN', 'ATTACK', 'SPELL_CUTIN'], paidPC, op);
+        return;
+      }
       const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
       const casterIsHost = caster_id === bs.host_id;
       const casterState = casterIsHost ? bs.host_state : bs.guest_state;

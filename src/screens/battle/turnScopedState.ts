@@ -95,7 +95,7 @@ const CONVENTION_TURN_SCOPED_STATE = {
 const IRREGULAR_TURN_SCOPED_STATE = {
   // ピース応答窓のフラグ（§6.4 O-10 続き518）＝窓を閉じる側で落とすのが正だが、
   // **万一の閉じ忘れでターンを跨いで「常時カットイン可」にならない**よう保険で登録する。
-  team_piece_cutin_window: { boundaries: ['turn-end'], reset: undefined, reason: 'piece cut-in response window; closed by the flow, expired here as a safety net' },
+  team_piece_cutin_window: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'piece cut-in response window; consumed when the window closes, expired here as a safety net' },
   // 強制アタック active は現在ターンだけ。次ターン分は must_attack_signi_next_turn に予約する。
   must_attack_signi: { boundaries: ['turn-end'], reset: undefined, reason: 'active forced-signi-attack flag; next-turn value is reserved separately' },
   // 「このターン使用禁止のカード名」は課されたグローバルターンだけ有効（§6.4 O-3 続き498 で登録）。
@@ -356,4 +356,13 @@ export function consumeSpellNegationThisTurn(state: PlayerState): PlayerState {
  */
 export function consumeDeclaredGuardRestrictLevel(state: PlayerState): PlayerState {
   return consumeField(state, 'declared_guard_restrict_level');
+}
+
+/**
+ * ピース応答窓を**閉じる**（§6.4 O-10・続き518）。
+ * ⚠**funnel の外で `team_piece_cutin_window: undefined` を書かないこと**（T2 が検出する）。
+ *   窓の開閉は「開く＝フロー」「閉じる＝この1関数」に固定する＝閉じ忘れが1箇所に集まる。
+ */
+export function closeTeamPieceCutinWindow(state: PlayerState): PlayerState {
+  return consumeField(state, 'team_piece_cutin_window');
 }

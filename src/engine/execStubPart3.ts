@@ -4710,6 +4710,16 @@ export function execStubPart3(
       ...ctx.ownerState, lrig_trash: lrigTrashCZ, pending_flip_grow_card: flipTo,
     } }, `チェックゾーンのこのカードを裏返し、${flipName}へグロウする（コスト不要）`));
   }
+  // COUNTER_TEAM_PIECE_AND_EXILE（§6.4 O-10・続き518・`WXDi-P05-006-E1` の選択肢①）＝
+  // 「【使用条件】【チーム】を持つ対戦相手のピース１枚を対象とし、それの効果を打ち消す。
+  //  この方法で打ち消されたピースはゲームから除外される。」
+  // 🔑**対象はいま使用中のピース1枚だけ**（応答窓が開いている＝その1枚しか候補が無い）＝
+  //   ここでは「打ち消した」フラグだけを**ピースを使った側**（`otherState`）に立て、
+  //   実際の除外と解決スキップは窓を閉じる `resolvePendingPiece` が行う（窓の id を知っているのはそちら）。
+  if (stub.id === 'COUNTER_TEAM_PIECE_AND_EXILE') {
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, piece_use_countered: true } },
+      '対戦相手のピースの効果を打ち消す（ゲームから除外）'));
+  }
   if (stub.id === 'BLOCK_COLORLESS_ENERGY_PAY') {
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, cannot_pay_colorless_this_attack_phase: true } },
       '対戦相手はこのアタックフェイズの間、無色のカードでエナコストを支払えない'));

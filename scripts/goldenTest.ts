@@ -99,6 +99,7 @@ import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrash
 import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
+import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { isHandSigniPlayBlockedByPower } from '../src/engine/blockAction';
 
 // ── データ読み込み ──
@@ -4222,10 +4223,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 22, '命名規約外のターン限定フィールド数');
+  eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 54, '型由来32件＋命名規約外22件の母集団');
+  eq(registered.length, 55, '型由来32件＋命名規約外23件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -21089,11 +21090,12 @@ test('batch9: アンチ・スペル・バツはDOWN/COUNTERを分離し初回だ
   ok(notOffered.done && notOffered.ownerState.lrig_trash.includes('WX24-P3-036#1'), '2回目は戻せない');
 });
 
-test('batch9: きゅるきゅる～んはchoice②のみ実装しchoice①を明示defer', () => {
+test('batch9: きゅるきゅる～んは2択とも実装済み（§6.4 O-10 続き518 で応答窓ごと解体）', () => {
   const eff = mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? [])[0];
   ok(eff?.action.type === 'CHOOSE', 'ピースは2択を保持');
   if (!eff || eff.action.type !== 'CHOOSE') return;
-  ok(JSON.stringify(eff.action.choices[0].action).includes('DEFERRED_COUNTER_TEAM_PIECE_CUTIN'), 'choice①は基盤待ちSTUB');
+  // 旧アサートは「choice①は基盤待ちSTUB」を固定していた＝**実装したら必ず赤くなる意図的なトリップワイヤ**。
+  ok(JSON.stringify(eff.action.choices[0].action).includes('COUNTER_TEAM_PIECE_AND_EXILE'), 'choice①＝打ち消して除外');
   const c2 = JSON.stringify(eff.action.choices[1].action);
   ok(c2.includes('"type":"DRAW"') && c2.includes('ENERGY_CHARGE_FROM_DECK'), 'choice② draw+energy charge');
 });
@@ -30266,6 +30268,52 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
 });
 
+test('§6.4 O-10（続き518）: ピース応答窓＝候補が出るのは窓が開いた盤面だけ（負方向＋対照の対）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const em = new Map(effectsMap);
+  em.set('WXDi-P05-006', mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? []));
+  // 応答側＝きゅるきゅるーん☆のルリグ3体＋ルリグデッキに WXDi-P05-006。
+  const teamLrigs = [...cm.values()].filter(c => (c.Team ?? '').includes('きゅるきゅるーん')).map(c => c.CardNum);
+  ok(teamLrigs.length >= 3, `＜きゅるきゅるーん☆＞のルリグが3体以上ある（${teamLrigs.length}）`);
+  const responder: PlayerState = {
+    ...mkState({ lrig: [teamLrigs[0]], assistL: [teamLrigs[1]], assistR: [teamLrigs[2]] }),
+    lrig_deck: ['WXDi-P05-006'],
+  };
+  const caster = mkState({});
+  // 使われた側＝【使用条件】【チーム】を持つピース。
+  const teamPiece = [...cm.values()].find(c => c.Type === 'ピース' && (c.EffectText ?? '').includes('【使用条件】【チーム】'))!;
+  ok(!!teamPiece, '【使用条件】【チーム】を持つピースが見つかる');
+  const call = (used: CardData | undefined, r: PlayerState = responder) =>
+    collectPieceCutinCandidates({ responder: r, caster, usedPieceCard: used, cardMap: cm, effectsMap: em });
+  eq(call(teamPiece).length, 1, '対照＝チームピースの使用にはカットインできる');
+  eq(call(teamPiece)[0].instanceId, 'WXDi-P05-006', '候補はルリグデッキのそのピース');
+  // 🔴負方向①＝【使用条件】【チーム】を持たないピースの使用では窓が開かない。
+  const plainPiece = [...cm.values()].find(c => c.Type === 'ピース' && !(c.EffectText ?? '').includes('【使用条件】【チーム】'));
+  eq(call(plainPiece).length, 0, '🔴チーム条件を持たないピースにはカットインできない');
+  eq(call(undefined).length, 0, 'ピースでなければ窓は開かない');
+  // 🔴負方向②＝チームが揃っていなければ候補にならない（同居条件の脱落ガード）。
+  const soloTeam: PlayerState = { ...responder, field: { ...responder.field, assist_lrig_l: [], assist_lrig_r: [] } };
+  eq(call(teamPiece, soloTeam).length, 0, '🔴チーム3体が揃っていなければカットインできない');
+  // 🔴負方向③＝ルリグデッキに札が無ければ候補0（＝窓を開かない＝従来と同じ即時解決経路）。
+  eq(call(teamPiece, { ...responder, lrig_deck: [] }).length, 0, '🔴札が無ければ窓は開かない');
+  // 条件評価の単体＝窓フラグが唯一の読み手。
+  const ctx = mkCtx({}, {});
+  eq(evalUseCondition({ type: 'OPP_USING_TEAM_PIECE' } as never, ctx.ownerState, ctx.otherState, cm, 'x', 'MAIN'),
+     false, '窓が閉じていれば false');
+  eq(evalUseCondition({ type: 'OPP_USING_TEAM_PIECE' } as never,
+     { ...ctx.ownerState, team_piece_cutin_window: true }, ctx.otherState, cm, 'x', 'MAIN'),
+     true, '窓が開いていれば true');
+  // ①＝打ち消しは「使った側にフラグを立てる」だけ（除外は窓を閉じる側が行う＝id を知っているのはそちら）。
+  const counterCtx = mkCtx({}, {});
+  const r = run({ type: 'STUB', id: 'COUNTER_TEAM_PIECE_AND_EXILE' } as unknown as EffectAction, counterCtx);
+  eq(r.otherState.piece_use_countered, true, '打ち消しフラグはピースを使った側に立つ');
+  eq(r.ownerState.piece_use_countered, undefined, '⚠自分側には立てない（向きを取り違えると自爆する）');
+  // live 表現＝defer は解体済み。
+  const act = JSON.stringify(mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? [])
+    .find(e => e.effectId === 'WXDi-P05-006-E1')!.action);
+  ok(act.includes('COUNTER_TEAM_PIECE_AND_EXILE') && !act.includes('DEFERRED_'), 'defer は解体済み');
+});
+
 test('§6.4 O-10（続き517）: カットイン専用ピースの使用条件を復元（過剰実行→宣言済みの過少）', () => {
   // 🔴従来 `WXDi-P05-006-E1` は `condition` が丸ごと無く、**チームが揃っていなくても・カットイン窓でなくても**
   //    メイン／アタックフェイズにいつでも撃てた（選択肢②＝「1枚引き＋エナチャージ1」が《青×0》で撃ち放題）。
@@ -30284,7 +30332,7 @@ test('§6.4 O-10（続き517）: カットイン専用ピースの使用条件�
   // 選択肢②は窓が出来たらそのまま動く形で残してある（消さない）。
   const act = JSON.stringify(eff.action);
   ok(act.includes('"type":"DRAW"') && act.includes('ENERGY_CHARGE_FROM_DECK'), '②は実装済みのまま残す');
-  ok(act.includes('DEFERRED_COUNTER_TEAM_PIECE_CUTIN'), '①は機構待ちの明示 defer のまま');
+  ok(act.includes('COUNTER_TEAM_PIECE_AND_EXILE'), '①も続き518 で実装済み（応答窓ごと）');
 });
 
 test('§6.4 O-10（続き516）: 対象になったら裏返って対象から外れる（負方向＋対照の対）', () => {

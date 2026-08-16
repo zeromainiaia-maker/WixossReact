@@ -800,6 +800,12 @@ export interface PlayerState {
    *   保険として turn-scoped レジストリにも登録してある（ターン境界で必ず落ちる）。
    */
   team_piece_cutin_window?: boolean;
+  /**
+   * 使用中のピースが**打ち消された**（§6.4 O-10・続き518）。
+   * `COUNTER_TEAM_PIECE_AND_EXILE` が**ピースを使った側**に立て、窓を閉じる
+   * `resolvePendingPiece` が読んで「解決せずゲームから除外」に倒す。⚠読んだら必ず落とす。
+   */
+  piece_use_countered?: boolean;
   free_grow_this_turn?: boolean;
   /**
    * このターンにセンタールリグがグロウしたか（§6.4 O-10・続き515・`WXDi-P16-001A`
