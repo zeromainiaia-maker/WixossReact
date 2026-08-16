@@ -564,7 +564,7 @@ for (const row of rows) {
 
   for (const { label, aliases } of textActions) {
     // aliasのどれかがJSONに存在すればOK。実装済みSTUBの同等物（STUB_EQUIVALENTS）も照合
-    const matched = aliases.some(a => jsonActions.has(a))
+    const matched = aliases.some(a => jsonActions.has(a) || jsonActions.has(`~${a}`))
       || [...jsonActions].some(j => j.startsWith('STUB:')
         && (STUB_EQUIVALENTS[j.slice(5)] ?? []).some(t => aliases.includes(t)));
     if (!matched) {
