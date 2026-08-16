@@ -2540,9 +2540,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   if (t.match(/対戦相手の手札を見て.*シグニ(?:を|すべて)捨てさせる/))
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
-  // ---- この方法で場に出たレゾナの【出】能力は発動しない ----
+  // ---- この方法で場に出たレゾナの【出】能力は発動しない（§6.4 O-5）----
+  // 🔴従来は `RULE_REMINDER_TEXT`（＝完全な no-op）で、**出したレゾナの【出】が普通に発火**していた。
+  // 🔑既存の畳み込み funnel に載せる＝`BLOCK_ACTION{ON_PLAY_ABILITY}` を出すと `foldSuppressOnPlay` が
+  //   直前の配置アンカー（`SUMMON_RESONA_FROM_LRIG_DECK` は `placesToField` を宣言済み）へ
+  //   `suppressOnPlay` を畳み込み、この死アクションを取り除く。
   if (t.match(/この方法で場に出たレゾナの【出】能力は発動しない/))
-    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+    return { type: 'BLOCK_ACTION', target: { type: 'SIGNI', owner: 'self', count: 1 }, actionId: 'ON_PLAY_ABILITY', until: 'END_OF_TURN' } as BlockActionAction;
 
   // ---- 好きな数のシグニを対象とし、合わせてパワーを増やす ----
   if (t.match(/好きな数のシグニを対象とし、ターン終了時まで、それらのパワーを合わせて/))
