@@ -793,6 +793,13 @@ export interface PlayerState {
   // BANISH_BY_SELF_GOES_TO_TRASH: このシグニによってバニッシュされたシグニはエナでなくトラッシュへ
   banish_to_trash_by_self?: string[];
   // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
+  /**
+   * ピース応答窓が開いていて**このプレイヤーが応答側**であるあいだ true（§6.4 O-10・続き518）。
+   * `Condition.OPP_USING_TEAM_PIECE` の**唯一の読み手**。
+   * ⚠窓を閉じるときに必ず落とす（残すと「カットイン専用ピースが通常タイミングで撃てる」過剰実行に戻る）。
+   *   保険として turn-scoped レジストリにも登録してある（ターン境界で必ず落ちる）。
+   */
+  team_piece_cutin_window?: boolean;
   free_grow_this_turn?: boolean;
   /**
    * このターンにセンタールリグがグロウしたか（§6.4 O-10・続き515・`WXDi-P16-001A`
@@ -1094,6 +1101,15 @@ export interface PendingSpell {
   pre_use_virus_removed?: number;
   /** A non-countering SPELL_CUTIN Resona was summoned; finish its triggers before continuing the spell. */
   cutin_response_complete?: boolean;
+  /**
+   * `'piece'`＝**ピース使用への応答窓**（§6.4 O-10・続き518・`WXDi-P05-006`）。
+   * このとき `card_num` は**使用中のピースの instanceId**、`caster_id` は使用した側。
+   * ⚠`pending_spell` は `battle_states` の**既存カラム（JSON）**なので、判別子をこの中に足すぶんには
+   *   DB マイグレーションが要らない。**新カラムを足さないこと**（スキーマ変更は別途ユーザー判断が要る）。
+   * ⚠**窓は「応答側に使える打ち消しピースが実在するときだけ」開く**＝候補0なら従来と同じ即時解決経路。
+   *   ここを緩めると、ピースを使うたびに全対戦で新しい待ち状態が挟まりデッドロックの面が広がる。
+   */
+  kind?: 'piece';
 }
 
 // ===== 効果エンジン インタラクション定義 =====

@@ -2286,7 +2286,9 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // ⚠**ピース使用への応答窓が engine/UI に無い**ので常に false＝この札は使えない（宣言済みの過少）。
     //   窓（`pending_piece`）が出来たらここでその state を読む。**false に倒す判断が本体**＝
     //   条件を落とすと「いつでも無条件に使えるピース」になる（続き517 以前は実際そうだった）。
-    case 'OPP_USING_TEAM_PIECE': return false;
+    // 窓（`pending_spell.kind==='piece'`）が開いている間だけ true。窓を開くのは
+    // `executeArts` のピース枝で、**応答側に使える打ち消しピースが実在するとき**に限る。
+    case 'OPP_USING_TEAM_PIECE': return ctx.ownerState.team_piece_cutin_window === true;
   }
   // ⚠**網羅性ガード（タスク12(cxv)）**＝この switch を抜ける＝未実装の Condition 型がある、ということ。
   // 抜けた先は `return true`（＝無条件成立）なので、**未実装型を JSON に書くと過剰実行になるのに
