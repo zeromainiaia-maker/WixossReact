@@ -9991,7 +9991,11 @@ function parseActionTextInner(text: string): EffectAction {
         continue;
       }
       if (condition?.type === 'LAST_PROCESSED_MATCHES' && prevIsRevealLook) {
-        steps[steps.length - 1] = { type: 'REVEAL_DECK_TOP', owner: 'self', count: 1 };
+        // ⚠**公開するデッキの持ち主を引き継ぐ**（§6.4 O-33 据置分・続き508）＝`owner:'self'` を
+        //   焼き込むと「**対戦相手は**デッキの一番上を公開する」（`WDK09-001-E2`）が自分のデッキを
+        //   公開する別動作に化け、後続の「それが〜の場合」も違うカードで判定される。
+        const revealOwner: Owner = lar.source?.owner === 'opponent' ? 'opponent' : 'self';
+        steps[steps.length - 1] = { type: 'REVEAL_DECK_TOP', owner: revealOwner, count: 1 };
       }
       // 具体的な条件節（この方法で…た場合/《色》を支払った場合/それが〜の場合）を抽出できず常時true化
       // ＝条件の無言脱落。「そうした場合、」だけは慣例エンコード（§9-9）のため刻印しない。
