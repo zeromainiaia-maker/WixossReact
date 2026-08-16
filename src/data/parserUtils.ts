@@ -130,6 +130,15 @@ export function parseStateFilter(text: string): Partial<TargetFilter> {
   return f;
 }
 
+/**
+ * 「中央／左／右のシグニゾーン」→ ゾーン添字（§6.4 O-33）。
+ * 所有者から見た表示順＝left=0 / center=1 / right=2（`TargetFilter.centerZoneOnly` / `zoneSide` と同じ規約）。
+ * ⚠**この対応表は1本だけ**（判定側 `banMatches` も `field.signi` の添字をそのまま使う）。
+ */
+export function signiZoneIndexJa(word: string): number {
+  return word === '左' ? 0 : word === '右' ? 2 : 1;
+}
+
 export function parseLevelFilter(text: string): Partial<TargetFilter> {
   const above = text.match(/レベル([０-９\d]+)以上/);
   const below = text.match(/レベル([０-９\d]+)以下/);
