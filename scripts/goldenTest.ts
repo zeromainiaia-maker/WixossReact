@@ -5237,6 +5237,59 @@ test('§6.4 E2E WXDi-P08-046-E2: 2枚ミル後の4枚だけを名前限定し、
   eq(trackedCardCount(missResult.ownerState), missBefore, '不成立側もカード消滅なし');
 }));
 
+test('§6.4 O-11: デッキサーチの行き先「【トラップ】設置」「【アクセ】付け」が落ちない', () => {
+  const act = (cardNum: string, effectId: string) => {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live effectsMap に存在`);
+    return e!.action as Record<string, unknown>;
+  };
+  // 🔴従来は行き先の語彙が無くサーチ規則を素通りし、**サーチも設置も消えて SHUFFLE_DECK だけ**になっていた。
+  for (const [cardNum, effectId, maxCount] of [
+    ['WD23-033-A', 'WD23-033-A-E1', 3], ['WD23-008-A', 'WD23-008-A-E2', 2],
+  ] as const) {
+    const a = act(cardNum, effectId);
+    eq(a.type, 'SEARCH', `${effectId}: デッキ検索が残る`);
+    eq((a.then as Record<string, unknown>).id, 'INTERNAL_ASK_TRAP_ZONE', `${effectId}: 【トラップ】設置へ繋がる`);
+    eq(a.maxCount, maxCount, `${effectId}: 「N枚まで」の枚数`);
+    // ⚠原文は「**カードを**N枚まで探して」＝探す対象はカード全般。「あなたのシグニゾーンに設置」の
+    //   「シグニ」を拾って cardType を付けると「シグニしか【トラップ】にできない」過少実行になる。
+    eq((a.filter as Record<string, unknown>).cardType, undefined, `${effectId}: トラップ元はカード全般（cardType を付けない）`);
+  }
+  for (const [cardNum, effectId] of [
+    ['WXK10-074', 'WXK10-074-E1'], ['WDK07-E07', 'WDK07-E07-E1'],
+  ] as const) {
+    const a = act(cardNum, effectId);
+    eq(a.type, 'SEARCH', `${effectId}: デッキ検索が残る`);
+    const then = a.then as Record<string, unknown>;
+    eq(then.id, 'INTERNAL_ASK_ACCE_HOST', `${effectId}: 【アクセ】付けへ繋がる`);
+    // アクセ**カード**側の絞り込みは SEARCH.filter、**ホスト**側は acceHostFilter＝役割を混ぜない。
+    eq((a.filter as Record<string, unknown>).story, '調理', `${effectId}: 探すのは＜調理＞`);
+    eq((then.acceHostFilter as Record<string, unknown>).story, '調理', `${effectId}: 付け先も＜調理＞`);
+  }
+});
+test('§6.4 O-11 E2E: デッキから探した札を【アクセ】にする（デッキから抜けて複製しない）', () => withSavedCursor(() => {
+  const host = findCard(c => c.Type === 'シグニ');
+  const acceCard = findCard(c => c.Type === 'シグニ' && c.CardNum !== host);
+  const ctx = exactDeckCtx([acceCard], 'WXK10-074');
+  ctx.ownerState.field.signi = [[host], null, null];
+  const before = trackedCardCount(ctx.ownerState);
+
+  const search = { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: {}, maxCount: 1,
+    then: { type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST' },
+    afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } } as unknown as EffectAction;
+  let r = executeAction(search, ctx);
+  ok(!r.done && r.pending.type === 'SEARCH', 'デッキ検索の窓が出る');
+  r = resumeSearch([acceCard], r.pending as never, ctxAfter(r, ctx));
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '付け先シグニの選択が出る');
+  r = resumeSelectTarget([host], r.pending as never, ctxAfter(r, ctx));
+  r = finish(r, ctx);
+
+  const zi = r.ownerState.field.signi.findIndex(s => s?.at(-1) === host);
+  ok((r.ownerState.field.signi_acce?.[zi] ?? []).includes(acceCard), '探した札がホストの【アクセ】になる');
+  // 🔴既存 `ATTACH_ACCE` はエナ／手札からしか抜けない＝デッキ由来だと**デッキに残ったまま**アクセにも現れる。
+  ok(!r.ownerState.deck.includes(acceCard), 'アクセにした札はデッキから抜ける（複製しない）');
+  eq(trackedCardCount(r.ownerState), before, 'カード総数が変わらない');
+}));
 test('§6.4 E2E WX24-P4-008-E1: 場→手札→残りエナの3分岐を維持', () => withSavedCursor(() => {
   const chain = findActionByType(manualEffect('WX24-P4-008', 'WX24-P4-008-E1').action, 'LOOK_PICK_CHAIN')! as LookPickChainGolden;
   const signi = findCard(card => card.Type === 'シグニ');
