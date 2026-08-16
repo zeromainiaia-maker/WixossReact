@@ -158,7 +158,7 @@ import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4 } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
-import { encodeShadowScopesInText } from '../utils/keywords';
+import { encodeShadowScopesInText, normalizeKeywordName } from '../utils/keywords';
 
 // ---- 「その中から…」の pick 節を **複数群**（LOOK_PICK_CHAIN の stages）へ分解する（タスク12(xlvi)(h)(a)）----
 // 受ける形だけを明示的に書く。どれにも当たらない／名詞句に未知の修飾語が残る場合は null を返し、
@@ -7200,7 +7200,7 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
     setAction('WDK08-Y11-E2', { type: 'SEQUENCE', steps: [
       { type: 'STUB', id: 'REVEAL_CLASS_SIGNI_FROM_HAND' },
       { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 6, verbJa: '公開した' }, then: {
-        type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'Ｓランサー', duration: 'UNTIL_END_OF_TURN',
+        type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'Sランサー', duration: 'UNTIL_END_OF_TURN',
       }, else: { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 4, verbJa: '公開した' }, then: {
         type: 'GRANT_KEYWORD', target: selfSigni, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN',
       } } },
