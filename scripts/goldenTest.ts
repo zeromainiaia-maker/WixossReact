@@ -15153,6 +15153,65 @@ test('SET_LRIG_BASE_LIMIT / RESERVE_DRAW_PHASE_REPLACEMENT: 予約先フィー�
   eq(rOpp.otherState.lrig_base_limit_override ?? 0, 3, 'owner:opponent は相手側へ');
   eq(rOpp.ownerState.lrig_base_limit_override ?? 0, 0, '自分側には載らない');
 }));
+// ── §6.4 O-33：`SigniAttackBan.zones`（「中央のシグニゾーンにあるシグニでアタックできない」）──
+// 🔴回帰ガード＝旧 live は `BLOCK_ACTION{ATTACK}` に潰れ、**ゾーン限定も支払い回避も期間も落ちて**いた
+//    （`WX24-P1-038-E2`／`WXDi-P03-027-E2` は `owner:'any'`＝**両プレイヤー**が1ターンだけ止まる）。
+//    **中央は止まる／左右は止まらない**の対で固定する。
+test('SigniAttackBan.zones: 指定ゾーンのシグニだけが止まる（中央=止まる／左右=止まらない）', () => withSavedCursor(() => {
+  const a = fresh(), b = fresh(), c = fresh();
+  const attacker = mkState({ signi: [a, b, c] });
+  const banned: PlayerState = { ...attacker, signi_attack_bans_this_turn: [{ zones: [1] }] };
+  eq(signiAttackBanCost(banned, b, cardMap as Map<string, CardData>), null, '中央（zone1）は解除不能で止まる');
+  eq(JSON.stringify(signiAttackBanCost(banned, a, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0}', '左（zone0）は止まらない');
+  eq(JSON.stringify(signiAttackBanCost(banned, c, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0}', '右（zone2）は止まらない');
+  // 支払い回避つき（`WX25-CP1-050-E1`）＝中央だけ《無》×1、左右は0。
+  const paid: PlayerState = { ...attacker, signi_attack_bans_this_turn: [{ zones: [1], unlessPayColorless: 1 }] };
+  eq(signiAttackBanCost(paid, b, cardMap as Map<string, CardData>)?.colorless ?? -1, 1, '中央は《無》×1で通る');
+  eq(signiAttackBanCost(paid, a, cardMap as Map<string, CardData>)?.colorless ?? -1, 0, '左は無条件で通る');
+  // 🔑ゾーン添字は**判定地点で引く**＝掛けたあとに入れ替わっても「いま中央にいるシグニ」に掛かる。
+  const swapped: PlayerState = { ...banned, field: { ...banned.field, signi: [[b], [a], [c]] } };
+  eq(signiAttackBanCost(swapped, a, cardMap as Map<string, CardData>), null, '入れ替え後は a が中央なので止まる');
+  eq(JSON.stringify(signiAttackBanCost(swapped, b, cardMap as Map<string, CardData>)), '{"colorless":0,"handDiscard":0}', '入れ替え後の b は左なので止まらない');
+}));
+test('§6.4 O-33 live: ゾーン限定アタック禁止3効果が SIGNI_ATTACK_BAN{zones} になっている', () => {
+  const cases: [string, string, number | undefined][] = [
+    ['WX25-CP1-050', 'WX25-CP1-050-E1', 1],   // 《無》×1 の支払い回避つき
+    ['WX24-P1-038', 'WX24-P1-038-E2', undefined],
+    ['WXDi-P03-027', 'WXDi-P03-027-E2', undefined],
+  ];
+  for (const [cardNum, effectId, pay] of cases) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const ban = findActionByType(eff.action, 'SIGNI_ATTACK_BAN')!;
+    ok(!!ban, `${effectId}: SIGNI_ATTACK_BAN が無い`);
+    eq(JSON.stringify(ban.zones ?? []), '[1]', `${effectId}: 中央限定`);
+    eq(ban.turns ?? 0, 2, `${effectId}: 次の対戦相手のターンまで`);
+    eq(ban.owner, 'opponent', `${effectId}: 止まるのは対戦相手だけ（旧 owner:'any' への退行ガード）`);
+    eq(ban.unlessPayColorless, pay, `${effectId}: 支払い回避`);
+    ok(!JSON.stringify(eff.action).includes('"actionId":"ATTACK"'), `${effectId}: 旧 BLOCK_ACTION が残っている`);
+  }
+});
+// 🔴選択肢本文（①②③）の2文目が top-level へ漏れると、**選ばなくても必ず走る**（§6.4 O-33 続き502）。
+// engine 側が全文 regex で選択肢を組む choice ビルダー3種すべてに掛ける一般ガードの回帰テスト。
+test('choice ビルダー: 選択肢本文が top-level へ漏れていない（live 6効果）／見出しの宣言は残す', () => {
+  const leaked: [string, string][] = [
+    ['WD22-011-G', 'WD22-011-G-E1'], ['WXK05-003', 'WXK05-003-E1'], ['WXK10-009', 'WXK10-009-E1'],
+    ['WXK10-011', 'WXK10-011-E1'], ['WXK03-TK-01B', 'WXK03-TK-01B-E1'], ['WX13-003', 'WX13-003-E1'],
+  ];
+  for (const [cardNum, effectId] of leaked) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const steps = eff.action.type === 'SEQUENCE'
+      ? (eff.action as unknown as { steps: { type: string }[] }).steps : [eff.action as { type: string }];
+    ok(steps.every(s => s.type === 'STUB'), `${effectId}: 選択肢本文が top-level に残っている`);
+  }
+  // 見出し側の宣言（コスト増減）は残す＝`WX13-003-E1` の「選んだ数から2を引いた数だけコストが増える」。
+  const wx13 = (effectsMap.get('WX13-003') ?? []).find(e => e.effectId === 'WX13-003-E1')!;
+  ok(JSON.stringify(wx13.action).includes('ARTS_COST_REDUCTION_BY_EFFECT'), 'WX13-003-E1: 見出しのコスト宣言まで落とさない');
+  // ⚠`①` を持たない `CHOOSE_N_FROM_LIST`（「プレイヤーを1人まで選ぶ」）の後続は**本体**＝落とさない。
+  for (const [cardNum, effectId] of [['WXEX2-44', 'WXEX2-44-E2'], ['WXK06-028', 'WXK06-028-E2']] as [string, string][]) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    eq(eff.action.type, 'SEQUENCE', `${effectId}: 本体を落としていない`);
+  }
+});
 // ── §6.4 O-32：「以下をN回行う。「〈本文〉」」＝`REPEAT` の正準形 ──
 // 🔴回帰ガード＝旧 `STUB{REPEAT_N_TIMES}` は**カード全文の regex**で自分でN回ぶん実行したうえ、
 //    `SEQUENCE` の後続ステップ（＝parse された本文）も走るので**二重に効いていた**。さらに引用の
