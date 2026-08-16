@@ -56,7 +56,13 @@ export function hasKeyword(
   if (abilitiesRemoved?.includes(cardNum)) return false;
   if (isKeywordAbilityRemoved(cardNum, keyword, keywordAbilitiesRemoved)) return false;
   const card = cardMap.get(cardNum);
-  const matches = (kw: string) => kw === keyword || kw.startsWith(keyword + ':');
+  // ⚠**綴りズレ（全角Ｓ／半角S）を吸収する**＝ここが全キーワード照合の funnel（§6.4 O-28）。
+  //   素の完全一致に戻すと `GRANT_KEYWORD{'Ｓランサー'}` が丸ごと無言 no-op へ戻る。
+  const wanted = normalizeKeywordName(keyword);
+  const matches = (kw: string) => {
+    const n = normalizeKeywordName(kw);
+    return n === wanted || n.startsWith(wanted + ':');
+  };
   if (card?.effects?.some(e => {
     if (e.effectType !== 'CONTINUOUS') return false;
     if (e.action.type !== 'GRANT_KEYWORD') return false;
