@@ -309,6 +309,16 @@ export type Condition =
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）カード枚数（「ルリグトラッシュにアーツが4枚以上」等）。excludeSource=trueで使用中カード自身(sourceCardNum)を除外＝リコレクト判定
   | { type: 'FIELD_CLASS_COUNT'; owner: Owner; story: string; operator: CompareOp; value: number } // 場のシグニのうちCardClassがstoryを含むものの数（「場に＜天使＞が3体」等）
   | { type: 'LRIG_TEAM_COUNT'; owner: Owner; team: string; operator: CompareOp; value: number } // 場のルリグ（センター＋アシストL/R）のうちTeamがteamを含むものの数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021。Teamはチーム名でCardClass/Storyとは別）
+  /**
+   * 「このピースは、**対戦相手が【使用条件】【チーム】を持つピースを使用する際、カットインして使用できる**」
+   * （`WXDi-P05-006`・§6.4 O-10 続き517）＝**カットイン窓が開いているときだけ使える**という使用条件。
+   * ⚠**現状は常に false**＝ピース使用への応答窓（`pending_spell` 相当の `pending_piece`）が engine/UI に無い。
+   *   窓が実装されたらここがその state を読む1点になる。
+   * 🔑これを**条件として持たせる意味**＝落とすと「いつでも無条件に使えるピース」になる（実際そうなっていた）。
+   *   使えないことは過少実行だが、**カットイン専用札が通常タイミングで撃てるのは過剰実行**なので、
+   *   窓が無い間は false に倒すのが正しい。
+   */
+  | { type: 'OPP_USING_TEAM_PIECE' }
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number } // 登録者数（万人）条件
   // 場に付いている【チャーム】の枚数（「対戦相手の場に【チャーム】が３枚ある場合」WX11-049-E2）。
   // 【ウィルス】の VIRUS_COUNT（ActiveCondition 側）と対になる使用条件版。
@@ -414,7 +424,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE: true, IS_DRIVE_STATE: true,
   TURN_HAND_DISCARD_GTE: true, THIS_CARD_HAS_UNDER: true, LRIG_LEVEL_EQ_OPP: true, LRIG_LEVEL_CMP_OPP: true,
   LRIG_NAME_CONTAINS: true, LRIG_COLOR: true, LRIG_TRASH_COUNT: true, FIELD_CLASS_COUNT: true,
-  LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
+  LRIG_TEAM_COUNT: true, LRIG_ANY_TEAM_COUNT: true, OPP_USING_TEAM_PIECE: true, SUBSCRIBER_COUNT: true, CHARM_COUNT: true, LRIG_DECK_COUNT: true, SELF_POWER_GTE: true,
   SELF_LEVEL_THRESHOLD: true,
   THIS_CARD_FROM_TRASH: true, THIS_CARD_FROM_NON_HAND_THIS_TURN: true, THIS_CARD_PLACED_BY_CLASS: true,
   THIS_CARD_FROM_DECK: true, LAST_PROCESSED_SHARES_COLOR_WITH_LRIG: true, FIELD_SIGNI_POWER_COUNT: true,

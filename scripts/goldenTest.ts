@@ -18035,7 +18035,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 44, 'ActiveCondition の型数（増えたら union に足した合図。44＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
-  eq(Object.keys(C_TYPES).length, 117, 'Condition の型数（増えたら union に足した合図。117＝§6.4 O-34(d) の LRIG_ANY_TEAM_COUNT 追加後）');
+  eq(Object.keys(C_TYPES).length, 118, 'Condition の型数（増えたら union に足した合図。118＝§6.4 O-10 続き517 の OPP_USING_TEAM_PIECE 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -30264,6 +30264,27 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   const json062 = JSON.stringify(e.action);
   ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き517）: カットイン専用ピースの使用条件を復元（過剰実行→宣言済みの過少）', () => {
+  // 🔴従来 `WXDi-P05-006-E1` は `condition` が丸ごと無く、**チームが揃っていなくても・カットイン窓でなくても**
+  //    メイン／アタックフェイズにいつでも撃てた（選択肢②＝「1枚引き＋エナチャージ1」が《青×0》で撃ち放題）。
+  const eff = mergeManualEffects('WXDi-P05-006', effectsMap.get('WXDi-P05-006') ?? [])
+    .find(e => e.effectId === 'WXDi-P05-006-E1')!;
+  const cond = JSON.stringify(eff.condition ?? {});
+  ok(cond.includes('LRIG_TEAM_COUNT') && cond.includes('きゅるきゅるーん☆'),
+     '【使用条件】【チーム】＜きゅるきゅるーん☆＞（同族11効果と同じ形）');
+  ok(cond.includes('"value":3'), 'チームは3体');
+  ok(cond.includes('OPP_USING_TEAM_PIECE'), '🔴「カットインして使用できる」＝窓限定の使用条件');
+  // ⚠窓が無い間は**常に false**＝使えない（宣言済みの過少）。ここが true に化けたら過剰実行に戻る。
+  const ctx = mkCtx({}, {});
+  eq(evalUseCondition({ type: 'OPP_USING_TEAM_PIECE' } as never, ctx.ownerState, ctx.otherState,
+     cardMap as Map<string, CardData>, 'WXDi-P05-006', 'MAIN'), false,
+     '🔴応答窓が無い間は常に false（＝通常タイミングで撃てない）');
+  // 選択肢②は窓が出来たらそのまま動く形で残してある（消さない）。
+  const act = JSON.stringify(eff.action);
+  ok(act.includes('"type":"DRAW"') && act.includes('ENERGY_CHARGE_FROM_DECK'), '②は実装済みのまま残す');
+  ok(act.includes('DEFERRED_COUNTER_TEAM_PIECE_CUTIN'), '①は機構待ちの明示 defer のまま');
 });
 
 test('§6.4 O-10（続き516）: 対象になったら裏返って対象から外れる（負方向＋対照の対）', () => {

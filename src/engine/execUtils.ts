@@ -2282,6 +2282,11 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     // ExecCtx に無い情報で、実ゲートは収集時のインライン評価（`BattleScreen.tsx` の `oppCrashEventSize`）。
     // 網羅性ガードのために case を明示しておく（従来の `default: return true` と同じ挙動）。
     case 'OPP_LIFE_CRASH_EVENT_GTE': return true;
+    // §6.4 O-10（続き517）＝「対戦相手が【チーム】ピースを使用する際、カットインして使用できる」。
+    // ⚠**ピース使用への応答窓が engine/UI に無い**ので常に false＝この札は使えない（宣言済みの過少）。
+    //   窓（`pending_piece`）が出来たらここでその state を読む。**false に倒す判断が本体**＝
+    //   条件を落とすと「いつでも無条件に使えるピース」になる（続き517 以前は実際そうだった）。
+    case 'OPP_USING_TEAM_PIECE': return false;
   }
   // ⚠**網羅性ガード（タスク12(cxv)）**＝この switch を抜ける＝未実装の Condition 型がある、ということ。
   // 抜けた先は `return true`（＝無条件成立）なので、**未実装型を JSON に書くと過剰実行になるのに

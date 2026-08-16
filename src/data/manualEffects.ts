@@ -4889,8 +4889,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   // ピースカットインの pending_piece/応答窓は未実装。①を偽実装せず STUB に残し、
   // 通常使用でも正しく解決できる②だけを実装する。
+  // §6.4 O-10（続き517）＝**使用条件を復元**した（機構＝カットイン窓はまだ無い）。
+  // 原文「【使用条件】【チーム】＜きゅるきゅるーん☆＞ このピースは、対戦相手が【使用条件】【チーム】を持つ
+  //   ピースを使用する際、**カットインして使用できる**。…」
+  // 🔴従来は `condition` が丸ごと無く、**チームが揃っていなくても・カットイン窓でなくても
+  //   メイン／アタックフェイズにいつでも撃てた**（選択肢②＝「1枚引き＋エナチャージ1」が《青×0》で撃ち放題）。
+  //   ⇒ `LRIG_TEAM_COUNT{きゅるきゅるーん☆, gte 3}`（同族11効果と同じ形）＋ `OPP_USING_TEAM_PIECE`。
+  // ⚠`OPP_USING_TEAM_PIECE` は**窓が無い間は常に false**＝この札は使えない（宣言済みの過少）。
+  //   使えないのは過少だが、**カットイン専用札が通常タイミングで撃てるのは過剰**なので false に倒すのが正しい。
   "WXDi-P05-006": [
-    {"effectId":"WXDi-P05-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
+    {"effectId":"WXDi-P05-006-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"きゅるきゅるーん☆","operator":"gte","value":3},{"type":"OPP_USING_TEAM_PIECE"}]},"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[
       {"choiceId":"counter-piece","label":"チームピースの効果を打ち消し、ゲームから除外する（基盤待ち）","action":{"type":"STUB","id":"DEFERRED_COUNTER_TEAM_PIECE_CUTIN"}},
       {"choiceId":"draw-energy","label":"カードを1枚引き、エナチャージ1","action":{"type":"SEQUENCE","steps":[
         {"type":"DRAW","owner":"self","count":1},

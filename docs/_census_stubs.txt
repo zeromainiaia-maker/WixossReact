@@ -22,7 +22,7 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4894
+        生成: src\data\manualEffects.ts:4902
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
