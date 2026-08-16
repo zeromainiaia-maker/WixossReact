@@ -4400,6 +4400,20 @@ function alignDesignatedZoneOwner(action: EffectAction): EffectAction {
   return walk(action);
 }
 
+/**
+ * 木の中のすべての `GRANT_KEYWORD.keyword` を正準綴りへ寄せる（§6.4 O-28）。
+ * ⚠**破壊的**（`normalizeOnPlayAbilitySuppression` と同じく effects を直接書き換える後処理）。
+ */
+function normalizeGrantKeywordSpelling(node: unknown): void {
+  if (!node || typeof node !== 'object') return;
+  if (Array.isArray(node)) { node.forEach(normalizeGrantKeywordSpelling); return; }
+  const rec = node as Record<string, unknown>;
+  if (rec.type === 'GRANT_KEYWORD' && typeof rec.keyword === 'string') {
+    rec.keyword = normalizeKeywordName(rec.keyword);
+  }
+  for (const v of Object.values(rec)) normalizeGrantKeywordSpelling(v);
+}
+
 function foldSuppressOnPlay(action: EffectAction): EffectAction {
   if (action.type === 'GRANT_EFFECT') {
     const ge = action as import('../types/effects').GrantEffectAction;
