@@ -2447,6 +2447,27 @@ function wrapHandOrField(action: EffectAction, text: string): EffectAction {
   } as ChooseAction;
 }
 
+// 「（対象を）場に出すかエナゾーンに置く」＝行き先二択（場 or エナ）。`wrapHandOrField` の兄弟形で、
+// 従来は「場に出す」だけを拾って**エナ枝が無言脱落**していた（`WX26-CP1-059-E2`・§6.4 O-11 の
+// `SEND_TO_ENERGY` 群）。エナ枝の正準形は `ENERGY_CHARGE{target:<同じ source>}`＝
+// 「トラッシュから〜をエナゾーンに置く」の live 12効果と同じ形（`ADD_TO_ENERGY` は source を持たない
+// SEARCH/公開の continuation 専用なのでここでは使えない）。
+const FIELD_OR_ENERGY_RE = /場に出すか、?エナゾーンに置く|エナゾーンに置くか、?場に出す/;
+function wrapFieldOrEnergy(action: EffectAction, text: string): EffectAction {
+  if (!FIELD_OR_ENERGY_RE.test(text)) return action;
+  // top-level が source 付きの場出しのときだけ包む（複合文は個別文で個々に処理される）。
+  if (action.type !== 'ADD_TO_FIELD' || !(action as AddToFieldAction).source) return action;
+  const srcFE = (action as AddToFieldAction).source as EffectTarget;
+  const energySrc = JSON.parse(JSON.stringify(srcFE)) as EffectTarget;
+  return {
+    type: 'CHOOSE', choose_count: 1, from_count: 2,
+    choices: [
+      { choiceId: 'field', label: '場に出す', action },
+      { choiceId: 'energy', label: 'エナゾーンに置く', action: { type: 'ENERGY_CHARGE', target: energySrc } as EnergyChargeAction },
+    ],
+  } as ChooseAction;
+}
+
 // ── タスク12(lxi)「対戦相手が〜しないかぎり、X」＝支払い回避クローズの一般化（2026-07-30）──
 // 原文は「[<対象節>、]対戦相手が《無》を支払わない／手札をN枚捨てないかぎり、X」で、**相手が任意で
 // 回避コストを払える対話ゲート**＝払えば X は起きない。engine は完備＝STUB{OPPONENT_PAY_OPTIONAL,
