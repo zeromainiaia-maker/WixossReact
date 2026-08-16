@@ -658,6 +658,15 @@ export interface PlayerState {
   // このターン、指定した自シグニの効果による相手シグニへのパワー-を2倍にする。
   // double_power_minus_targets は「修正を受ける側」の指定なので、発生源指定は別軸で保持する。
   double_power_minus_sources?: string[];
+  /**
+   * このターン、指定シグニが受けるパワー－の**倍率**（§6.4 O-10・続き507）。
+   * `double_power_minus_targets` は 2倍固定の集合なので「代わりに**３倍**－される」
+   * （`WX25-P2-103-E1` の選択肢②）を表せなかった＝倍率つきの上位互換。
+   * ⚠**読み手は 2倍軸と同じ2箇所**（`applyTempMods` と `applyActiveFieldPowerGrants`）＝
+   *   片方だけに足すと「場レベル付与のパワー－にだけ倍率が乗らない」無言のズレになる。
+   * ⚠倍率は 2倍軸と**併用時は大きい方**を採る（同じ－を二重に掛けない）。
+   */
+  power_minus_multipliers_this_turn?: Record<string, number>;
   // 基本レベルの一時変更（CardNum → 扱うレベル。SET_BASE_LEVEL/CHANGE_BASE_LEVEL 等が単一値で書く）
   attack_phase_level_overrides?: Record<string, number>;
   // 【英知】条件の判定でだけ「このシグニのレベルは１であり２であり３である」のように**同時に複数値**として
