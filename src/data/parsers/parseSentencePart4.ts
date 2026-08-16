@@ -37,23 +37,24 @@ function parseVariableHandDiscard(t: string): EffectAction | null {
   const m = t.match(/^(?:あなたは?の?)?手札から(.*?)(シグニ|スペル|カード)を(好きな枚数|[０-９\d]+枚まで)捨てる$/);
   if (!m) return null;
   const [, mod, noun, cnt] = m;
-  // 修飾に「〜場合」「〜とき」等が紛れていたら条件文なので触らない（帰結を条件ごと潰さない）。
-  if (/場合|とき|かぎり|それ|その/.test(mod)) return null;
-  const filter: Record<string, unknown> = {};
+  // 修飾に条件節や照応が紛れていたら触らない（帰結を条件ごと潰さない／参照先を失わない）。
+  // ⚠`それ` の否定先読みは必須＝**「それぞれ異なる色を持つ」を照応と誤判定する**（実際に踏んだ）。
+  if (/場合|とき|かぎり|それ(?!ぞれ)|その/.test(mod)) return null;
+  const filter: TargetFilter = {};
   if (noun === 'シグニ') filter.cardType = 'シグニ';
   else if (noun === 'スペル') filter.cardType = 'スペル';
   const storyM = mod.match(/＜([^＞]+)＞の/);
   if (storyM) filter.story = storyM[1];
   const colorM = mod.match(/(?:^|[^色])([白赤青緑黒])の/);
   if (colorM) filter.color = colorM[1];
-  const target: Record<string, unknown> = {
+  const target: EffectTarget = {
     type: 'HAND_CARD', owner: 'self',
     count: cnt === '好きな枚数' ? 'ALL' : parseNum(cnt.replace(/枚まで$/, '')),
     upToCount: true,
     ...(Object.keys(filter).length > 0 ? { filter } : {}),
+    // 「それぞれ異なる色を持つ」＝選択集合どうしが色を共有しない（候補単体の条件ではない）。
+    ...(/それぞれ異なる色を持つ/.test(mod) ? { selectionConstraint: { sharedColor: 'none' as const } } : {}),
   };
-  // 「それぞれ異なる色を持つ」＝選択集合どうしが色を共有しない（候補単体の条件ではない）。
-  if (/それぞれ異なる色を持つ/.test(mod)) target.selectionConstraint = { sharedColor: 'none' };
   return { type: 'TRASH', target } as EffectAction;
 }
 
