@@ -1505,7 +1505,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       //   （原文が「（エナコストを支払う際、このカードは青か緑１つとして支払える）」だけのカード）を
       //   「能力を持たない」と誤判定していた＝マルチエナは常時能力なので**能力あり**が正。
       //   判定は `hasNoAbility` 1本に統一する（タスク12(xcv)）。
-      return hasNoAbility(last, ctx.cardMap, ownerState('self', ctx), ctx.effectsMap?.get(getCardNum(last)));
+      // ⚠🔴**`abilities_removed` は「能力を消されたカードの持ち主」側の PlayerState に載る**
+      //   （`applyAbilitiesRemoval` は target owner の state へ書く）。この条件の対象は
+      //   **対戦相手のシグニ**なので、`ownerState('self')` 固定で引くと相手側の能力喪失を
+      //   一度も見られない＝「代わりにトラッシュ」枝が永久に外れる。`LAST_PROCESSED_MATCHES`
+      //   の `noAbilities` と同じく **カードが実際に居る場から holder を引く**（§6.4 O-6）。
+      const holder = findFieldZoneState(last, ctx)?.state ?? ownerState('self', ctx);
+      return hasNoAbility(last, ctx.cardMap, holder, ctx.effectsMap?.get(getCardNum(last)));
     }
     case 'ENERGY_HAS_COLOR': {
       const ez = st(cond.owner).energy;
