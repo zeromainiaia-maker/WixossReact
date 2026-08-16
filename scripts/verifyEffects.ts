@@ -369,6 +369,20 @@ function collectActionsFromJson(effs: EffectDef[]): Set<string> {
       .forEach(a => { if (a.action) walk(a.action); });
   }
   effs.forEach(e => walk(e.action));
+
+  // 深い走査（2026-08-16・§6.4 O-11）：STUB のペイロードが**本体アクションそのもの**を持つ形
+  // （`PER_OWN_LRIG_COLOR_SCALE.scaleAction` / `unpaidAction` / `additionalCostChoices[].action` 等）は
+  // 上の walk の固定キー辿りでは届かない。照合が気にする型だけを allowlist して全体を舐める。
+  // ⚠EffectTarget / Condition の `type`（SIGNI / HAND_CARD / IS_MY_TURN …）とは名前が衝突しない。
+  const RELEVANT = new Set(ACTION_KEYWORDS.flatMap(k => k.types).filter(t => !CONCEPT_LABELS.has(t)));
+  const deep = (v: unknown): void => {
+    if (Array.isArray(v)) { v.forEach(deep); return; }
+    if (!v || typeof v !== 'object') return;
+    const o = v as Record<string, unknown>;
+    if (typeof o.type === 'string' && RELEVANT.has(o.type)) found.add(`~${o.type}`);
+    Object.values(o).forEach(deep);
+  };
+  effs.forEach(e => deep(e.action));
   return found;
 }
 
