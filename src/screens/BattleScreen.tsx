@@ -29,6 +29,7 @@ import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
+import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, isEnergyPayBlocked, type EnergyPayEntry } from './battle/energyPaySource';
 
@@ -5042,8 +5043,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const inter = pe.interaction;
 
       let result: ExecResult;
+      // §6.4 O-10（続き516）＝「このシグニが対戦相手の、能力か効果の対象になったとき、このシグニを
+      // 裏向きにし、表向きにする」（`WX25-CP1-060-E2`）＝**新しいオブジェクトになってその効果の対象から外れる**。
+      // 🔑`ON_TARGETED` トリガーは `resumeSelectTarget` が効果を適用し**終えた後**に積まれる（下の収集）ので、
+      //   トリガーとしては表現できない＝**対象宣言の直後・適用の前**であるこの1点でしか解決できない。
+      // ⚠該当宣言が対象に1体も居なければ `dodged` は空＝**従来とまったく同じ経路**を通る（ホットパスの安全条件）。
+      let selectedForResume = selectedOrChoiceId;
       if (inter.type === 'SELECT_TARGET') {
-        result = resumeSelectTarget(selectedOrChoiceId, inter, ctx);
+        const dodgeOwnerIsHost = pe.sourcePlayerId !== bs.host_id;   // 対象の持ち主＝効果主の対戦相手
+        const dodgeOwnerState = dodgeOwnerIsHost ? bs.host_state : bs.guest_state;
+        const flip = resolveTargetDodgeFlip({
+          targeted: selectedOrChoiceId,
+          targetOwnerState: dodgeOwnerState,
+          sourceState: dodgeOwnerIsHost ? bs.guest_state : bs.host_state,
+          isTargetOwnerTurn: bs.active_user_id === (dodgeOwnerIsHost ? bs.host_id : bs.guest_id),
+          cardMap: battleCardMap, effectsMap, turnPhase: bs.turn_phase ?? undefined,
+        });
+        if (flip.dodged.length > 0) {
+          selectedForResume = selectedOrChoiceId.filter(n => !flip.dodged.includes(n));
+          // ⚠ctx 側にも反映しないと、以降の解決が**失効前の state** を見てもう一度回避できてしまう。
+          if (dodgeOwnerIsHost === ownerIsHost) ctx.ownerState = flip.state; else ctx.otherState = flip.state;
+          appendBattleLogs([`${flip.dodged.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}は裏向きになり表向きになった（対象から外れる）`], { defer: true });
+        }
+      }
+      if (inter.type === 'SELECT_TARGET') {
+        result = resumeSelectTarget(selectedForResume, inter, ctx);
       } else if (inter.type === 'SEARCH') {
         result = resumeSearch(selectedOrChoiceId, inter, ctx);
       } else if (inter.type === 'CHOOSE') {

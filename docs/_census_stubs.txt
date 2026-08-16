@@ -2,14 +2,14 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 597（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 765  うち生ID露出 270 箇所（186 種）
+逆翻訳シートの [STUB:…] 総数: 766  うち生ID露出 271 箇所（187 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 2 種 / 2 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 2 種 / 2 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 1 種 / 1 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 1 種 / 1 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 25 種 / 75 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 182 種 / 266 箇所
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 26 種 / 76 件
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 183 種 / 267 箇所
   D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
@@ -23,8 +23,6 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4894
-     1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
-        カード: WX25-CP1-060
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -71,6 +69,9 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
      1件   1枚  EFFECT_LEAVE_REPLACE_BANISH
         カード: WX25-P1-056
         消費: src\engine\effectExecutor.ts:469
+     1件   1枚  FLIP_SELF_ON_TARGETED  [生ID露出 1]
+        カード: WX25-CP1-060
+        消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
         消費: src\engine\effectExecutor.ts:7332
@@ -94,7 +95,7 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
         消費: src\engine\effectExecutor.ts:4029
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1014 / src\screens\BattleScreen.tsx:10342
+        消費: src\screens\BattleScreen.tsx:1015 / src\screens\BattleScreen.tsx:10366
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
         カード: WX12-023
         消費: src\engine\execUtils.ts:1364
@@ -370,6 +371,8 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
   露出  1箇所 (live 1件/1枚)  ENERGY_LEVEL_CONDITION_CHOOSE  [execStubPart3]
         カード: WXK09-031
         既存コメント: ENERGY_LEVEL_CONDITION_CHOOSE: エナにレベルN以上があればCHOOSE提示
+  露出  1箇所 (live 1件/1枚)  FLIP_SELF_ON_TARGETED  [engine別経路]
+        カード: WX25-CP1-060
   露出  1箇所 (live 1件/1枚)  FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM  [execStubPart2]
         カード: WXDi-P13-071
         既存コメント: FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 凍結シグニのバニッシュをデッキ下へ

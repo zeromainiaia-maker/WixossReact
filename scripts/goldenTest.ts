@@ -98,6 +98,7 @@ import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
+import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { isHandSigniPlayBlockedByPower } from '../src/engine/blockAction';
 
 // ── データ読み込み ──
@@ -30263,6 +30264,46 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   const json062 = JSON.stringify(e.action);
   ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き516）: 対象になったら裏返って対象から外れる（負方向＋対照の対）', () => {
+  // 🔑`ON_TARGETED` トリガーは `resumeSelectTarget` が効果を適用し**終えた後**に積まれる（続き511 で特定）＝
+  //   トリガーとしては表現できないので、**対象宣言の直後・適用の前**の1点で解決する。
+  const cm = cardMap as Map<string, CardData>;
+  const other = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('ブルアカ') && c.CardNum !== 'WX25-CP1-060');
+  const em = new Map(effectsMap);
+  em.set('WX25-CP1-060', mergeManualEffects('WX25-CP1-060', effectsMap.get('WX25-CP1-060') ?? []));
+  const mk = (signi: (string | null)[]) => mkState({ signi });
+  const src = mkState({});
+  const call = (owner: PlayerState, isOwnerTurn = false) => resolveTargetDodgeFlip({
+    targeted: ['WX25-CP1-060'], targetOwnerState: owner, sourceState: src,
+    isTargetOwnerTurn: isOwnerTurn, cardMap: cm, effectsMap: em,
+  });
+  // 対照＝相手ターン＋他の＜ブルアカ＞がいる → 対象から外れる。
+  const okState = mk(['WX25-CP1-060', other, null]);
+  const hit = call(okState);
+  eq(hit.dodged.join(','), 'WX25-CP1-060', '対象から外れる');
+  eq(hit.state.lost_ability_effect_ids_this_turn?.join(','), 'WX25-CP1-060-E2',
+     '⚠失うのは**この効果1つ**（abilities_removed だと同居する【常】E1/【絆常】E3 まで消える）');
+  // 🔴負方向①＝他の＜ブルアカ＞がいなければ回避しない（使用条件の脱落ガード）。
+  eq(call(mk(['WX25-CP1-060', null, null])).dodged.length, 0, '🔴単騎では回避しない');
+  // 🔴負方向②＝自分のターンには回避しない（《相手ターン》の脱落ガード）。
+  eq(call(okState, true).dodged.length, 0, '🔴自分のターンには回避しない');
+  // 🔴負方向③＝同じターンの2回目は回避しない（1回で【自】を失う）。
+  eq(call(hit.state).dodged.length, 0, '🔴一度回避したらそのターンは回避しない');
+  eq(call(clearTurnEndScopedState(hit.state)).dodged.length, 1, 'ターンが変われば再び回避する');
+  // 🔴無関係な盤面では**完全に不活性**（ホットパスに足した分岐の安全条件）。
+  const plain = mk([SIGNI, null, null]);
+  const inert = resolveTargetDodgeFlip({ targeted: [SIGNI], targetOwnerState: plain, sourceState: src,
+    isTargetOwnerTurn: false, cardMap: cm, effectsMap: em });
+  eq(inert.dodged.length, 0, '宣言を持たないシグニでは何も起きない');
+  eq(JSON.stringify(inert.state), JSON.stringify(plain), '🔴state も 1バイトも変わらない');
+  // live 表現＝defer は解体済み＆死んだ REMOVE_ABILITIES が消えている。
+  const act = JSON.stringify(mergeManualEffects('WX25-CP1-060', effectsMap.get('WX25-CP1-060') ?? [])
+    .find(e => e.effectId === 'WX25-CP1-060-E2')!.action);
+  ok(act.includes('FLIP_SELF_ON_TARGETED') && !act.includes('DEFERRED_'), 'defer は解体済み');
+  ok(!act.includes('REMOVE_ABILITIES'),
+     '🔴カード単位の能力喪失（同居能力の巻き添え）へ戻っていない');
 });
 
 test('§6.4 O-10（続き515）: チェックゾーン裏返し→無償グロウ（負方向＋対照の対）', () => {
