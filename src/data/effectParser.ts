@@ -3105,7 +3105,6 @@ function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
-  action = dropSentenceShapedKeyword(action);
   action = rewriteNextOppTurnEndBody(action, text);
   action = rewriteNextOwnTurnEndBody(action, text);
   action = rewritePerOwnLrigColorScale(action, text);
