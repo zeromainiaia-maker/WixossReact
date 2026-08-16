@@ -1,5 +1,82 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き523・Opus 5）— §6.4 **O-11 の `SEND_TO_ENERGY` 群を完全消化**（31 → 25）
+
+ゲート全緑（**golden 2136**＝+6・census **820 据置**・smoke 10688 / SKIP 0・fuzz 全0・
+`census:stubs` A群 0種/0件・lint 0 errors）。**live JSON changed 11効果 / 11カード**（CSV 非改変）。
+
+在庫は着手前に**全10シート**で実測＝31件/29カード（簿記どおり）。うち最大クラスタ＝
+「原文が**エナゾーンに置く**なのに live が別のことをしている」6件を丸ごと取り、
+同じ規則の巻き添えで**同型5効果**（`WX11-077` `WXEX2-49` `WX24-P4-034` `WXK09-081` ほか）も直った。
+
+### 🔴 通底する根因＝**「コメントは正しい意味を書いているのに受け皿が catch-all」**
+
+`CONDITIONAL_POWER_BONUS` は **live 26効果**が落ちるゴミ箱で、ハンドラは**カード全文からパワー修正を
+読むだけ**＝パワーと無関係な文はすべて**無言 no-op**。parser 側には
+`// ---- この方法でトラッシュに置いたカードの中からカードをN枚まで対象とし、エナゾーンに置く ----`
+のように**正しい意味を書いたコメントの直下でこの STUB を返す**行が並んでいた（§6.4 O-3 の
+`LRIG_GROW_RESTRICT` と同型・今回はそのうち3本を解体）。⚠**残り23効果は未着手**＝次の worklist。
+
+### ① 色宣言→デッキトップ公開（3効果）＝**宣言色の store が3つに割れていた**
+
+`CHOOSE_COLOR_FROM_LIST`（実は**自分のエナにある色**を選ばせ `story_overrides.__selected_colors__` へ）／
+`DECLARE_COLOR`（`declared_color` 単数・読者は `utils/keywords.ts` のプロテクション判定だけ）／
+`DECLARE_COLORS`（`declared_colors` 複数）の3系統があり、**後段 filter `colorEqDeclaredColorIndex` が
+読むのは3つ目だけ**。結果、`WX11-077`＝色 filter が無く**どのカードでも手札に入る過剰実行**、
+`WX11-080`＝同じ上に**行き先まで手札**（原文はエナ）、`WXK04-027`＝後段ごと `CONDITIONAL_POWER_BONUS`
+で**丸ごと no-op**。新規機構は不要で、`foldDeclaredColorTopReveal` で3件とも `DECLARE_COLORS` ＋
+`colorEqDeclaredColorIndex` へ寄せた。⚠「色を持つ**シグニ**」と「色を持つ**カード**」は候補集合が違う。
+
+### ② 「この方法でトラッシュに置いたカードの中から」（3効果）＝**候補がトラッシュ全体だった**
+
+`PICK_FROM_TRASHED_CARDS` は枚数1・行き先は手札固定・候補は**トラッシュ全体**で、
+「この方法で」の限定も「２枚まで」も「エナゾーンに置く」も全部落ちていた。
+`StubAction.trashedPick{count, upTo, filter, dest}` を新設し、engine 側は候補を
+**`ctx.lastProcessedCards` ∩ トラッシュ**に限定。⚠直前が「〜してもよい」で辞退されたときは
+`lastProcessedCards` が空＝候補0＝no-op が正しい（**トラッシュ全体へフォールバックしてはならない**）。
+`dest:'hand_or_field'` は1枚ずつ二択を問い、場出し枝は**ゾーン選択で中断しうる**ので残りの振り分けを
+`PLACE_SIGNI_ON_FIELD.afterAction` に載せる（SEQUENCE の後続だと落ちる）。
+
+### ③ 行き先二択の片枝が無言脱落（1効果＋兄弟形の棚卸し）
+
+`wrapHandOrField`（手札／場・85効果）の**兄弟形 `wrapFieldOrEnergy` が無く**、
+`WX26-CP1-059-E2`「場に出す**か**エナゾーンに置く」は場出しだけに縮退していた。
+エナ枝の正準形は `ENERGY_CHARGE{target:<同じ source>}`（`ADD_TO_ENERGY` は source を持たない
+SEARCH/公開 continuation 専用）。⚠棚卸しで**同族の残り3件**（`WX13-035-BURST`／`WX14-024-BURST`／
+`WX18-070-E1`＝REVEAL_AND_PICK / SEARCH に `handOrEnergy` が付いていない）を発見＝**未着手**。
+
+### ④ 「各プレイヤーは手札をすべてエナゾーンに置く」→ `MASS_TRASH`（1効果）
+
+`MASS_TRASH` は「**相手の**エナ全部と**相手の場のシグニ全部**をトラッシュ」＝行き先も対象も原文と無関係。
+両プレイヤーぶんの `ENERGY_CHARGE{HAND_CARD, count:'ALL'}` へ正準化。
+
+### ⑤ 多段閾値「それぞれN枚以上ある場合、**代わりに**」（2効果）
+
+後段が条件ごと落ちて SEQUENCE の第2ステップになっており、①**閾値に関係なく走る**
+②「代わりに」なのに A と B が**両方走る**の二重の過剰実行だった（`WXK09-031-E1` は
+エナ状況に関わらず**相手シグニが毎回全滅**）。同型の `WXK09-051-E1` は1文形なので既存規則が
+then/else を正しく作れている＝**要るのは2文に割れた形を同じ then/else へ寄せる畳み込みだけ**。
+`foldGradedEnergyEachLevelReplacement` を追加（新しい条件語彙は不要）。
+
+### ⑥ 「その差の分だけ手札からカードをエナゾーンに置く」（1効果）
+
+`CONDITIONAL_POWER_BONUS` で丸ごと no-op＝前半の「エナ全部を手札へ」だけが走る一方通行だった。
+可変枚数 ref `self_hand_over_five`（手札枚数−5・下限0）を追加（`seven_minus_self_life_count` と同型）。
+⚠上流の条件節スプリッタが「〜場合、」で切るので**帰結節だけが来る**のが実経路＝そこでは条件を二重に被せない。
+
+### ⚠ 採用の判断＝`WXK09-031` だけ **E1 の外科パッチ**
+
+`--adopt` は**カード単位**なので、fresh の E2（`STUB{ENERGY_TO_HAND_ON_DECK}`）が live の
+構造化 `TRANSFER_TO_HAND{ENERGY_CARD}` を置き換えてしまう。E1 だけを live に外科パッチし、
+E2 の drift は残した（**原文「このカードを」の自己限定はどちらの形でも未表現**＝別項）。
+
+### 🔑 計器の較正（O-11 そのものの再演を1回踏んだ）
+
+`trashedPick.dest` を足した直後、`verifyEffects` は `WX26-CP1-057` を**まだ穴として報告し続けた**＝
+「行き先をペイロードに持つ型を型名だけで照合していた」（整理㉑ #3）と同じ穴を自分で作っていた。
+`collectActionsFromJson` に `trashedPick.dest` からの派生（`~SEND_TO_ENERGY` 等）を追加して 26 → 25。
+
+
 ## 2026-08-17（続き522・Opus 5）— §6.4 **O-11 の可変枚数コスト**（34 → 31）
 
 ゲート全緑（**golden 2130**＝+1・**census 820**（`BASELINE_HIGH` 実数更新）・smoke 10688 / SKIP 0・

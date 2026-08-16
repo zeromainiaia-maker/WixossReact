@@ -2,14 +2,14 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 598（総ノード 2875 件）
-逆翻訳シートの [STUB:…] 総数: 766  うち生ID露出 271 箇所（187 種）
+逆翻訳シートの [STUB:…] 総数: 764  うち生ID露出 273 箇所（186 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 0 種 / 0 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 0 種 / 0 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 26 種 / 76 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 183 種 / 267 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 183 種 / 270 箇所
   D 健全（実装あり＋日本語表示）                          : 415 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 338 種
 
@@ -124,6 +124,9 @@ live JSON の STUB id 種類 : 598（総ノード 2875 件）
   露出  4箇所 (live 4件/4枚)  CHOOSE_HAND_OR_ENERGY  [execStubPart3]
         カード: WX24-P1-025, WX24-P2-042, WXDi-CP01-004, WXDi-CP02-003
         既存コメント: CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
+  露出  4箇所 (live 4件/4枚)  DECLARE_COLORS  [execStubPart1]
+        カード: WX11-074, WX11-077, WX11-080, WXK04-027
+        既存コメント: DECLARE_COLORS: 原文が列挙した候補から重複なしで複数色を同時宣言する。 CHOOSE の複数選択は選択 action を SEQUENCE で実行するため、各色を順に配列へ積む。
   露出  4箇所 (live 4件/3枚)  EXILE_SELF_AFTER_USE  [execStubPart3]
         カード: PR-378, SP36-001, WXK11-070
         既存コメント: EXILE_SELF_AFTER_USE: 使用後の既定配置を excluded に置換する。 使用中スペルは解決中どのゾーンにもいないため、未配置なら探索せず直接置換を記録する。 既に使用済みゾーンへ置かれるアーツ等は
@@ -196,6 +199,9 @@ live JSON の STUB id 種類 : 598（総ノード 2875 件）
   露出  2箇所 (live 2件/2枚)  PEEP_HAND  [execStubPart3]
         カード: PR-K070, WX24-P4-105
         既存コメント: PEEP_HAND: 相手の手札を覗き見（ログに枚数と名前を表示）
+  露出  2箇所 (live 3件/3枚)  PICK_FROM_TRASHED_CARDS  [execStubPart2]
+        カード: WXEX2-49, WX24-P4-034, WX26-CP1-057
+        既存コメント: PICK_FROM_TRASHED_CARDS: 「この方法でトラッシュに置いたカードの中から」N枚（まで）選び、行き先へ送る。 🔑候補は `ctx.lastProcessedCards` ∩ トラッシュ＝**直前のミ
   露出  2箇所 (live 2件/2枚)  PLACE_SIGNI_UNDER_SIGNI  [execStubPart2]
         カード: WXDi-P05-060, WXDi-P09-078
         既存コメント: PLACE_SIGNI_UNDER_SIGNI: シグニをシグニ下に設置（lastProcessed→sourceCardNumのゾーン下）
@@ -208,9 +214,6 @@ live JSON の STUB id 種類 : 598（総ノード 2875 件）
   露出  2箇所 (live 2件/1枚)  TARGET_OPP_SIGNI_ONLY  [execStubPart3]
         カード: WXDi-P01-028
         既存コメント: TARGET_OPP_SIGNI_ONLY: 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」 対象選択→対戦相手が手札2枚を捨てて回避するか、シグニがデッキの一番下
-  露出  2箇所 (live 1件/1枚)  TRASH  [execStubPart2]
-        カード: WDK07-E09
-        既存コメント: TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
   露出  2箇所 (live 2件/2枚)  USE_CONDITION_ARTS_USED  [execStubPart3]
         カード: WD15-006, WD20-008
         既存コメント: USE_CONDITION_ARTS_USED: このターンにアーツを使用していた場合、このカードは使用不可 actions_done に 'USE_ARTS' が含まれるかチェック（BattleScreenがartsU
@@ -339,9 +342,6 @@ live JSON の STUB id 種類 : 598（総ノード 2875 件）
   露出  1箇所 (live 1件/1枚)  DECK_SIGNI_LEVEL_OVERRIDE  [execStubPart3]
         カード: WX18-065
         既存コメント: DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）
-  露出  1箇所 (live 4件/4枚)  DECLARE_COLORS  [execStubPart1]
-        カード: WX11-074, WX11-077, WX11-080, WXK04-027
-        既存コメント: DECLARE_COLORS: 原文が列挙した候補から重複なしで複数色を同時宣言する。 CHOOSE の複数選択は選択 action を SEQUENCE で実行するため、各色を順に配列へ積む。
   露出  1箇所 (live 1件/1枚)  DECLARE_NUMBER_POWER  [execStubPart3]
         カード: WXDi-P07-086
         既存コメント: DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_guard_restrict_level に保存
@@ -480,9 +480,6 @@ live JSON の STUB id 種類 : 598（総ノード 2875 件）
         既存コメント: OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
   露出  1箇所 (live 1件/1枚)  OPTIONAL_LRIG_UNDER_COST  [engine別経路]
         カード: WXDi-P05-009
-  露出  1箇所 (live 3件/3枚)  PICK_FROM_TRASHED_CARDS  [execStubPart2]
-        カード: WXEX2-49, WX24-P4-034, WX26-CP1-057
-        既存コメント: PICK_FROM_TRASHED_CARDS: 「この方法でトラッシュに置いたカードの中から」N枚（まで）選び、行き先へ送る。 🔑候補は `ctx.lastProcessedCards` ∩ トラッシュ＝**直前のミ
   露出  1箇所 (live 1件/1枚)  PLACE_CHOKKIN  [execStubPart3]
         カード: WX17-034
         既存コメント: PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1
@@ -611,6 +608,9 @@ live JSON の STUB id 種類 : 598（総ノード 2875 件）
         既存コメント: TK3_DECLARE_DISCARD: 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる （WX25-P1-TK3 ダーク・アナライズ：「数字1つを宣言する。対戦相手の手札を見て、宣言した数字と同じ
   露出  1箇所 (live 5件/5枚)  TRAP_TO_HAND  [execStubPart2]
         カード: WD23-040-A, WX16-017, WX16-028, WX16-063, WX19-037
+  露出  1箇所 (live 1件/1枚)  TRASH  [execStubPart2]
+        カード: WDK07-E09
+        既存コメント: TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
   露出  1箇所 (live 1件/1枚)  TRASH_ABILITY_LOSS_AND_IMMUNITY  [engine別経路]
         カード: WX12-023
   露出  1箇所 (live 1件/1枚)  TRASH_ACCE_AT_TURN_END  [execStubPart3]

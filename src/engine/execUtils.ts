@@ -1660,7 +1660,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
         ? new Set(matchedNums.flatMap(n => splitColors(ctx.cardMap.get(n)?.Color))).size
         : cond.distinctLevels ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.Level ?? '')).size
         : cond.distinctNames ? new Set(matchedNums.map(n => ctx.cardMap.get(n)?.CardName ?? n)).size : matchedNums.length;
-      return matched >= (cond.minCount ?? 1);
+      // negate: 「あなたの場に〈X〉が**ない**場合」（§6.4 O-11・`CONDITIONAL_POWER_BONUS` の解体）。
+      // ⚠この条件には NOT ラッパが無いので否定はここで表す。minCount と併用すると「N枚以上ではない」。
+      const hasEnough = matched >= (cond.minCount ?? 1);
+      return cond.negate ? !hasEnough : hasEnough;
     }
     case 'HAS_KEY_IN_FIELD': {
       const f = st(cond.owner).field;
