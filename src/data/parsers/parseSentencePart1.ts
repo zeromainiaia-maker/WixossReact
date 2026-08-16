@@ -1852,6 +1852,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       maxCount,
       then: toTrapZone
         ? { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction
+        : toAcce
+        // ⚠ホスト側の絞り込みは**「探して」より前**に書かれた「あなたの＜X＞のシグニ1体を対象とし」から取る。
+        //   SEARCH の `filter`（アクセ**カード**側）と役割を混ぜない＝同じ ＜X＞ でも意味が違う。
+        ? ({ type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST',
+             ...(parseStoryFilter(t.split('探して')[0]).story
+               ? { acceHostFilter: { cardType: 'シグニ', ...parseStoryFilter(t.split('探して')[0]) } }
+               : {}) } as EffectAction)
         : toField
         ? { type: 'ADD_TO_FIELD', owner: 'self' }
         : toTrash
