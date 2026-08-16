@@ -4205,7 +4205,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 26 → 27（§6.4 O-3 続き498 で arts_name_whitelist_this_turn を追加）
   // 27 → 29（§6.4 O-10 続き507 で lost_ability_effect_ids_this_turn ＝「代わりに…この能力を失う」の
   //          効果単位の自壊、power_minus_multipliers_this_turn ＝「代わりに３倍－される」を追加）
-  eq(convention.length, 29, 'PlayerState の命名規約由来フィールド数');
+  // 29 → 30（§6.4 O-10 続き510 で own_effects_cannot_negate_signi_attack_this_turn を追加）
+  eq(convention.length, 30, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4218,7 +4219,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
   eq(irregular.length, 20, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 49, '型由来29件＋命名規約外20件の母集団');
+  eq(registered.length, 50, '型由来30件＋命名規約外20件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -30248,6 +30249,37 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   const json062 = JSON.stringify(e.action);
   ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き510）: 「あなたの効果によってシグニのアタックは無効にならない」（負方向＋対照の対）', () => {
+  // 🔑ちより／【マジックボックス】系は「【ライフバースト】を持たない場合、**このアタックを無効にし**、〈利得〉」＝
+  //   **自分の効果で自分のアタックを無効にする**足枷を持つ。`WX24-P4-016-E3` はその足枷をターン中だけ外す。
+  // ⚠**利得側**なので落ちていても盤面は壊れず「使ってもデメリットが消えない」過少実行として現れる
+  //   （A群にも映らない型）＝ここが唯一の見張り。
+  const cancel = { type: 'STUB', id: 'SET_CANCEL_ATTACK_FLAG' } as unknown as EffectAction;
+  const plain = mkCtx({ signi: [SIGNI, null, null] }, {});
+  eq(run(cancel, plain).ownerState.cancel_current_signi_attack, true, '対照＝通常はアタックが無効になる');
+  const immune = { ...plain, ownerState: { ...plain.ownerState, own_effects_cannot_negate_signi_attack_this_turn: true } } as ExecCtx;
+  eq(run(cancel, immune).ownerState.cancel_current_signi_attack, undefined,
+     '🔴免疫があると自分の効果ではアタックが無効にならない');
+  // 守備用途（`SET_CANCEL_OPP_ATTACK_FLAG`）にも同じ免疫が掛かる（原文は主語を「シグニのアタック」としか言わない）。
+  const cancelOpp = { type: 'STUB', id: 'SET_CANCEL_OPP_ATTACK_FLAG' } as unknown as EffectAction;
+  eq(run(cancelOpp, plain).otherState.cancel_current_signi_attack, true, '対照＝通常は相手のアタックも無効にできる');
+  eq(run(cancelOpp, immune).otherState.cancel_current_signi_attack, undefined, '免疫中は相手のアタックも無効にできない');
+  // ⚠**ルリグのアタック無効化は通す**（原文は「シグニのアタック」）。
+  const oppLrig = findCard(c => c.Type === 'ルリグ' && c.Level === '3');
+  const negLrig = { type: 'NEGATE_ATTACK', target: { type: 'LRIG', owner: 'opponent', count: 1 } } as unknown as EffectAction;
+  const lrigCtx = { ...immune, otherState: { ...immune.otherState, field: { ...immune.otherState.field, lrig: [oppLrig] } } } as ExecCtx;
+  ok(JSON.stringify(run(negLrig, lrigCtx).otherState).includes('negated_attacks'),
+     '🔴ルリグのアタック無効化まで止めない（限定の落とし忘れガード）');
+  // 免疫はターン境界で消える。
+  eq(clearTurnEndScopedState(immune.ownerState as PlayerState).own_effects_cannot_negate_signi_attack_this_turn,
+     undefined, 'ターン終了で免疫が切れる');
+  // live 表現＝defer は解体済み。
+  const e3 = JSON.stringify(mergeManualEffects('WX24-P4-016', effectsMap.get('WX24-P4-016') ?? [])
+    .find(e => e.effectId === 'WX24-P4-016-E3')!.action);
+  ok(e3.includes('SELF_SIGNI_ATTACK_NEGATE_IMMUNITY'), 'WX24-P4-016-E3: 免疫を宣言する');
+  ok(!e3.includes('DEFERRED_'), 'WX24-P4-016-E3: defer は残っていない');
 });
 
 test('§6.4 O-10（続き508）: 【コンバート《色》】がエナの追加色 funnel に載る（負方向＋対照の対）', () => {

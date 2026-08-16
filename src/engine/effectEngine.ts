@@ -4416,6 +4416,44 @@ export function collectArtsThresholdCostReductions(
 }
 
 /**
+ * `OPP_TURN_ARTS_COST_REDUCTION_ONCE`（§6.4 O-10・続き510・`WXK03-071-E1`）＝
+ * 「【常】：このシグニが中央のシグニゾーンにあるかぎり、あなたが**対戦相手のターンに**アーツを使用する場合、
+ * そのアーツの使用コストは《無×2》減り、ターン終了時まで、この能力を失う。」
+ *
+ * 🔑**軽減の funnel は `computeArtsEffectiveCost` の `artsThresholdReductions`**（3入口＝ArtsModal／
+ * CutinModal／BattleScreen が同じ関数を通る）なので、`minTotalCost:0`＝無条件の項として合流させる。
+ * ⚠**1回使ったら「この能力を失う」**＝`lost_ability_effect_ids_this_turn`（§6.4 O-10 続き507）で落とす。
+ *   落とし忘れると同じターンに何度でも軽減される。返す `effectId` はアーツ使用の確定地点で刻むためのもの。
+ * ⚠`isOwnerTurn` が true（自分のターン）のときは**空**＝原文の「対戦相手のターンに」を落とすと常時軽減になる。
+ */
+export function collectOppTurnArtsCostReductions(
+  ownerState: PlayerState,
+  otherState: PlayerState,
+  isOwnerTurn: boolean,
+  cardMap: Map<string, CardData>,
+  effectsMap: Map<string, import('../types/effects').CardEffect[]>,
+): { effectId: string; color: string; reduction: number }[] {
+  if (isOwnerTurn) return [];
+  const lost = ownerState.lost_ability_effect_ids_this_turn ?? [];
+  const out: { effectId: string; color: string; reduction: number }[] = [];
+  for (const stack of ownerState.field.signi) {
+    const top = stack?.at(-1);
+    if (!top) continue;
+    for (const eff of (effectsMap.get(top) ?? [])) {
+      if (eff.effectType !== 'CONTINUOUS') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.type !== 'STUB' || act.id !== 'OPP_TURN_ARTS_COST_REDUCTION_ONCE') continue;
+      if (lost.includes(eff.effectId)) continue;
+      if (!checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top)) continue;
+      const color = typeof act.value === 'string' ? act.value : '無';
+      const reduction = typeof act.count === 'number' ? act.count : 1;
+      out.push({ effectId: eff.effectId, color, reduction });
+    }
+  }
+  return out;
+}
+
+/**
  * OPP_LRIG_ATTACK_COST: フィールドに「相手ターン中、条件を満たす場合、対戦相手は《無》を支払わないかぎりルリグでアタックできない」
  * CONTINUOUS効果があれば、追加エナ枚数を返す。
  */

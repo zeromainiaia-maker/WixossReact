@@ -822,14 +822,18 @@ export function computeArtsEffectiveCost(
     }
   }
 
-  // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減
+  // ARTS_COST_REDUCTION_BY_COST_THRESHOLD: コスト合計がN以上なら色コスト軽減。
+  // §6.4 O-10（続き510）で「対戦相手のターンにアーツを使用する場合の軽減」（`minTotalCost:0`）も
+  // ここへ合流させた＝**このリストは複数エントリを取りうる**。
+  // 🔴従来は**最初に一致した1件で `return`** していたので、宣言が2つあると片方が黙って消えていた
+  //   （軽減は本来すべて累積する）。閾値は**元のコスト合計**で判定する（順に引くと後段の閾値がズレる）。
   if (artsThresholdReductions && artsThresholdReductions.length > 0) {
     const totalCost = parseGrowCost(base).reduce((s, c) => s + c.count, 0);
+    let reduced = base;
     for (const { minTotalCost, color, reduction } of artsThresholdReductions) {
-      if (totalCost >= minTotalCost) {
-        return removeNColorFromCost(base, color, reduction);
-      }
+      if (totalCost >= minTotalCost) reduced = removeNColorFromCost(reduced, color, reduction);
     }
+    if (reduced !== base) return reduced;
   }
 
   return base;

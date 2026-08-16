@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectConvertEnergyColors, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectConvertEnergyColors, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -1186,7 +1186,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (!bs || bs.global_phase !== 'PLAYING') return [] as { minTotalCost: number; color: string; reduction: number }[];
     const localIsHost = user.id === bs.host_id;
     const myS = localIsHost ? bs.host_state : bs.guest_state;
-    return collectArtsThresholdCostReductions(myS, battleCardMap, effectsMap);
+    const opS = localIsHost ? bs.guest_state : bs.host_state;
+    const myTurn = bs.active_user_id === user.id;
+    // §6.4 O-10（続き510）＝「対戦相手のターンにアーツを使用する場合、使用コストは《無×N》減る」
+    // （`WXK03-071-E1`）も**同じ funnel**（`computeArtsEffectiveCost` の `artsThresholdReductions`）へ合流させる。
+    // `minTotalCost:0`＝コスト合計の閾値なし。⚠1回使うと「この能力を失う」ので、消費は
+    // アーツ使用の確定地点（`lost_ability_effect_ids_this_turn` へ刻む）で行う。
+    return [
+      ...collectArtsThresholdCostReductions(myS, battleCardMap, effectsMap),
+      ...collectOppTurnArtsCostReductions(myS, opS, myTurn, battleCardMap, effectsMap)
+        .map(r => ({ minTotalCost: 0, color: r.color, reduction: r.reduction })),
+    ];
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT: 実効手札上限（自分のターン終了時に適用）
@@ -6493,6 +6503,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
       const artsPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
       const paidNums = artsPay.paidNums;
+      // §6.4 O-10（続き510）＝いま軽減に使った「1回きり」の宣言（`WXK03-071-E1`）を後で失効させる。
+      // ⚠**コスト計算と同じ収集関数**を使う（別の条件で数え直すと「軽減はされたのに能力は残る」ズレになる）。
+      const oppTurnArtsReductionIds = collectOppTurnArtsCostReductions(
+        my, op, isMyTurn, battleCardMap, effectsMap).map(r => r.effectId);
       // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払い元が手札なら
       // 既存の discard と**同じ index 空間**でまとめて消す（別々に消すと index がずれる）。
       const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
@@ -6525,6 +6539,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // ⚠このアーツ自身が新しい【チェイン】を宣言する場合は効果解決（COST_REDUCTION）が
         //   このあと走って積み直すので、ここで消しても次の1枚ぶんは残る。
         next_arts_cost_reduction: undefined,
+        // §6.4 O-10（続き510）＝「対戦相手のターンにアーツを使用する場合…減り、ターン終了時まで、この能力を失う」
+        // （`WXK03-071-E1`）の消費。⚠刻まないと**同じターンに何度でも軽減される**（軽減は回数無制限になる）。
+        ...(oppTurnArtsReductionIds.length > 0
+          ? { lost_ability_effect_ids_this_turn: [...(my.lost_ability_effect_ids_this_turn ?? []), ...oppTurnArtsReductionIds] }
+          : {}),
         // このターンにアーツを使用したフラグ（ARTS_USED_THIS_TURN 条件。WX25-P1-106。ターン境界でリセット）
         turn_arts_used: true,
         turn_arts_used_names: [...(my.turn_arts_used_names ?? []), card.CardName],

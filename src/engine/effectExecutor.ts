@@ -9586,6 +9586,12 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
     case 'NEGATE_ATTACK': {
       // cardNum を対象シグニ/ルリグの negated_attacks に追加
       const na = action as import('../types/effects').NegateAttackAction;
+      // §6.4 O-10（続き510）＝「このターン、あなたの効果によってシグニのアタックは無効にならない」
+      // （`WX24-P4-016-E3`）。⚠**シグニ対象だけ**（原文は「シグニのアタック」）＝ルリグのアタック無効化は通す。
+      // ⚠見るのは**効果を使う側**（`ctx.ownerState`）＝対戦相手の効果による無効化は止まらない。
+      if (ctx.ownerState.own_effects_cannot_negate_signi_attack_this_turn && na.target.type === 'SIGNI') {
+        return done(addLog(ctx, 'このターン、あなたの効果によってシグニのアタックは無効にならない'));
+      }
       const tgtOwner = na.target.owner === 'any' ? 'opponent' : na.target.owner as Owner;
       const s = ownerState(tgtOwner, ctx);
       // 対象が**いま宣言中のアタッカー**なら、事前登録（negated_attacks＝アタック宣言時に見る）では止まらない。

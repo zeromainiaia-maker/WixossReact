@@ -4674,6 +4674,14 @@ export function execStubPart3(
       turn_end_return_to_hand: [...new Set([...existingRTH, ...targetsRTH])],
     } }, `ターン終了時に${targetsRTH.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・')}を手札に戻す（予約）`));
   }
+  // SELF_SIGNI_ATTACK_NEGATE_IMMUNITY（§6.4 O-10・続き510）＝
+  // 「このターン、あなたの効果によってシグニのアタックは無効にならない」（`WX24-P4-016-E3`）。
+  // ⚠**利得側の効果**（自分の足枷を外す）なので、落ちていても盤面は壊れず「使ってもデメリットが消えない」
+  //   という**過少実行**として現れる＝A群にも映らない型（だからこそ計器へ載せて実装する）。
+  if (stub.id === 'SELF_SIGNI_ATTACK_NEGATE_IMMUNITY') {
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, own_effects_cannot_negate_signi_attack_this_turn: true } },
+      'このターン、あなたの効果によってシグニのアタックは無効にならない'));
+  }
   if (stub.id === 'SELF_LRIG_LOSE_ABILITY') {
     const lrigTopSLLA = ctx.ownerState.field.lrig?.at(-1);
     if (!lrigTopSLLA) return done(addLog(ctx, 'センタールリグがいない（能力喪失なし）'));
@@ -5448,6 +5456,11 @@ export function execStubPart3(
 
   // SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
   if (stub.id === 'SET_CANCEL_ATTACK_FLAG') {
+    // §6.4 O-10（続き510）＝「このターン、あなたの効果によってシグニのアタックは無効にならない」
+    // （`WX24-P4-016-E3`）。⚠**フラグの持ち主＝効果を使う側**なので `ownerState` を見る。
+    if (ctx.ownerState.own_effects_cannot_negate_signi_attack_this_turn) {
+      return done(addLog(ctx, 'このターン、あなたの効果によってシグニのアタックは無効にならない'));
+    }
     return done({ ...ctx, ownerState: { ...ctx.ownerState, cancel_current_signi_attack: true } });
   }
 
@@ -5455,6 +5468,11 @@ export function execStubPart3(
   // Phase2(resolvePendingSigniBattleFor)はアタッカー側stateの cancel_current_signi_attack を見るため、
   // 守備側効果(owner=守備側)からは otherState(=アタッカー)にフラグを立てる必要がある（WX04-004-E2）。
   if (stub.id === 'SET_CANCEL_OPP_ATTACK_FLAG') {
+    // 同上（§6.4 O-10 続き510）＝原文は「**シグニの**アタック」を無効にする側を主語にしていないので、
+    // 相手のアタックを止める防御用途にも同じ免疫が掛かる。⚠見るのは**宣言者＝`ownerState`**。
+    if (ctx.ownerState.own_effects_cannot_negate_signi_attack_this_turn) {
+      return done(addLog(ctx, 'このターン、あなたの効果によってシグニのアタックは無効にならない'));
+    }
     return done({ ...ctx, otherState: { ...ctx.otherState, cancel_current_signi_attack: true } });
   }
 

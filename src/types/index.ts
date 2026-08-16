@@ -956,6 +956,16 @@ export interface PlayerState {
   turn_plant_down_count?: number;
   // OPP_LRIG_LOSE_ABILITY: このターン、このプレイヤーのルリグは能力を失う（相手がカットイン発動）
   lrig_abilities_disabled?: boolean;
+  /**
+   * 「このターン、**あなたの効果によって**シグニのアタックは無効にならない」（`WX24-P4-016-E3`・§6.4 O-10 続き510）。
+   *
+   * 🔑ちより／【マジックボックス】系は「【ライフバースト】を持たない場合、**このアタックを無効にし**、〈利得〉」＝
+   * **自分の効果で自分のアタックを無効にする**足枷を持つ。この【起】はその足枷をターン中だけ外す。
+   * ⚠読むのは**アタック無効化を書き込む3地点だけ**＝`SET_CANCEL_ATTACK_FLAG`／`SET_CANCEL_OPP_ATTACK_FLAG`／
+   *   `NEGATE_ATTACK`（シグニ対象のみ）。**このフラグの持ち主＝効果を使う側**なので、
+   *   対戦相手の効果による無効化は止まらない（原文「あなたの効果によって」）。
+   */
+  own_effects_cannot_negate_signi_attack_this_turn?: boolean;
   // このターンに手札を捨てた枚数の累計（BANISH_IF_DISCARDED_3_THIS_TURN等で参照）
   turn_hand_discarded_count?: number;
   // このターンにシグニが場から手札に戻ったか（G087「このターンにシグニが場から手札に戻っていた場合」）。ターン境界でリセット
