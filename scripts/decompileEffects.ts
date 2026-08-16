@@ -2077,6 +2077,13 @@ function actionJa(a?: Action, effectType?: string): string {
           const bodyOPO = a.opponentHandDiscard === 'ALL' ? `${nounOPO}をすべて` : `${nounOPO}を${a.opponentHandDiscard}枚`;
           optsOPO.push({ dict: `${bodyOPO}捨てる`, te: `${bodyOPO}捨てて` });
         }
+        // 可変枚数の手札捨て（§6.4 O-9(a)）＝「N枚**まで**」。出さないと固定枚数と見分けが付かない。
+        if (a.opponentHandDiscardUpTo !== undefined) {
+          const colUp = a.opponentHandDiscardFilter?.color;
+          const nounUp = colUp ? `${colUp === '無' ? '無色' : colUp}のカード` : '手札';
+          const bodyUp = `${nounUp}を${a.opponentHandDiscardUpTo}枚まで`;
+          optsOPO.push({ dict: `${bodyUp}捨てる`, te: `${bodyUp}捨てて` });
+        }
         if (a.opponentEnergyTrash !== undefined) {
           const bodyOPO = a.opponentEnergyTrash === 'ALL'
             ? 'エナゾーンのすべてのカードを' : `エナゾーンからカードを${a.opponentEnergyTrash}枚`;

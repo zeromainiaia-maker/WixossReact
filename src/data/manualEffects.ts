@@ -4132,9 +4132,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 【出】：対戦相手は手札を２枚まで捨ててもよい。対戦相手はこの方法で捨てたカード１枚につきカードを１枚引く。
   // 🔴旧パース＝`SEQUENCE[STUB{TARGET_AND_DISCARD_HAND}, DRAW{owner:'self'}]`＝**主語が丸ごと反転**して
   //   「**自分**が手札を1枚捨てて**自分**が1枚引く」（相手のデッキ圧縮のはずが自分の手札交換）になっていた。
-  // 📋**近似**＝「２枚**まで**」は `OPPONENT_PAY_OPTIONAL` が all-or-nothing の pay/skip なので**0枚か2枚**に丸める
-  //   （1枚だけ捨てる中間の選択肢が消える）。所有者と方向は原文どおりになり、捨てた枚数＝引く枚数の対応も
-  //   両枝で保たれる（0→0／2→2）。可変枚数の相手側任意コストは機構が要る＝§6.4 に登録。
+  // 🆕**§6.4 O-9(a) で近似を解消（2026-08-16 続き506）**＝旧実装は `opponentHandDiscard: 2`（all-or-nothing）で
+  //   **0枚か2枚**に丸めており、「1枚だけ捨てて1枚引く」が選べなかった。`opponentHandDiscardUpTo` で
+  //   1..N を選択肢に並べ（0枚は skip 枝）、引く枚数は **`addLastProcessedCount` で実枚数に追従**させる
+  //   ＝枚数を焼き込まないので「この方法で捨てたカード1枚につき」が任意の中間値でも成立する。
   'WXDi-P09-064': [
     {
       effectId: 'WXDi-P09-064-E1',
@@ -4142,8 +4143,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['ON_PLAY'],
       triggerScope: 'self',
       action: { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscard: 2, thenOnPay: true },
-        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'opponent', count: 2 } },
+        { type: 'STUB', id: 'OPPONENT_PAY_OPTIONAL', opponentHandDiscardUpTo: 2, thenOnPay: true },
+        // count:0 + addLastProcessedCount ＝「直前に捨てた枚数だけ引く」（枚数を焼き込まない）
+        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'opponent', count: 0, addLastProcessedCount: true } },
       ] },
       duration: 'INSTANT',
       mandatory: true,
