@@ -10705,10 +10705,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     //   CPU も「強制対象 → その他」の順に殴る（ここに順序ロジックを写経しないこと）。
     if (phase === 'ATTACK_SIGNI') {
       // まだダウンしていない（かつアタック可能な）シグニを1枚ずつアタック
-      const signiDown = cpuSt.field.signi_down ?? [false, false, false];
-      const firstUp = cpuSt.field.signi.findIndex((stack, i) => {
+      // ⚠「すでにダウン」判定も gate（`ALREADY_DOWN`）へ寄せた（§6.4 O-10）＝ここで先に落とすと
+      //   【常】「ダウン状態でもアタックできる」が CPU 側にだけ効かない軸ズレになる。
+      const firstUp = cpuSt.field.signi.findIndex((stack) => {
         const top = (stack ?? []).at(-1);
-        if (!top || signiDown[i]) return false;
+        if (!top) return false;
         // アタック不可のシグニはダウンされず performSigniAttack が早期returnして
         // 無限ループするため、ここで候補から除外する。判定は人間ボタン／共通実行経路と
         // 同じ signiAttackGate に一本化する（旧実装は blocked_actions と場トラッシュコストしか
