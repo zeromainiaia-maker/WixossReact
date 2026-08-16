@@ -4432,6 +4432,13 @@ function foldSuppressOnPlay(action: EffectAction): EffectAction {
     const co = action as import('../types/effects').ConditionalAction;
     return { ...co, then: foldSuppressOnPlay(co.then), ...(co.else ? { else: foldSuppressOnPlay(co.else) } : {}) };
   }
+  // 「以下をN回行う。「〈配置〉。それの【出】能力は発動しない。」」＝反復の**中**に配置と封じが入る
+  // （§6.4 O-32・`WXDi-CP01-024-E1`）。降りないと死アクションの `BLOCK_ACTION` が残り、
+  // 置いたシグニの【出】が毎回発動する（過剰実行）。
+  if (action.type === 'REPEAT') {
+    const rp = action as import('../types/effects').RepeatAction;
+    return { ...rp, action: foldSuppressOnPlay(rp.action) };
+  }
   return action;
 }
 
