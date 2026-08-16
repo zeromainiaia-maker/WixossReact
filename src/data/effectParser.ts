@@ -3256,11 +3256,16 @@ function rewritePerLastProcessedCount(action: EffectAction, text: string): Effec
 function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): EffectAction {
   const t = text.trim();
   if (!/(?:そのシグニ|それ)と同じレベル(?:の|を持つ)/.test(t)) return action;
+  // ⚠**「この方法で」が無いと基準が違う**＝「そのシグニ」がトリガー元を指す文（`WX09-014-E2` の
+  //   `levelEqTrigger`）まで書き換えて別カード扱いにしてしまう（実際に golden が赤くなった）。
+  //   直前ステップの結果に連鎖する形だけを対象にする。
+  if (!/この方法で/.test(t)) return action;
   const a = action as unknown as { target?: { type?: string; filter?: Record<string, unknown> } };
   if (!a.target || a.target.type !== 'SIGNI') return action;
   const f = a.target.filter ?? {};
-  // 既にレベル指定がある／同型キーが載っているなら触らない。
-  if (f.level !== undefined || f.levelEqLastProcessed) return action;
+  // 既にレベル指定／別基準のレベル同一性キーが載っているなら触らない。
+  if (f.level !== undefined || f.levelEqLastProcessed || f.levelEqTrigger
+      || f.levelLtTrigger || f.levelLteLastProcessed) return action;
   return {
     ...action,
     target: { ...a.target, filter: { ...f, levelEqLastProcessed: true } },
