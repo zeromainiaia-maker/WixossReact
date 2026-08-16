@@ -2299,6 +2299,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'OPTIONAL_TRASH_SELF' } as StubAction;
   }
 
+  // ---- （場にある）このシグニをエナゾーンに置いてもよい（任意コスト。「そうした場合、X」が兄弟 CONDITIONAL）----
+  // §6.4 O-7：`OPTIONAL_TRASH_SELF` の**行き先違い**（トラッシュではなくエナ）。従来は part4 の
+  // 総称 `LRIG_UNDER_CARD_OP` へ落ち、支払いが一度も起きないまま後続の本体だけが走っていた
+  // （＝場を離れずに得だけする過少コスト）。正準形 `OPTIONAL_COST{selfToEnergy}` へ寄せて
+  // 既存の Pattern ③（STUB→CONDITIONAL{IS_MY_TURN}）funnel に載せる。
+  // ⚠「対象」を含む文は別経路（対象宣言つきの本体）なので除外＝`OPTIONAL_TRASH_SELF` と同じ規約。
+  if (/(?:場にある)?この(?:シグニ|カード)を(?:場から)?エナゾーンに置いてもよい/.test(t) && !t.includes('対象')) {
+    return { type: 'STUB', id: 'OPTIONAL_COST', selfToEnergy: true, costText: t } as StubAction;
+  }
+
   // ---- トリガーした能力の処理順説明（ルール説明）----
   if (t.match(/トリガーした能力は.*好きな順番で処理する/) ||
       t.match(/（このアーツの後に.*処理する）/) ||
