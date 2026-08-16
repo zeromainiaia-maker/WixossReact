@@ -2932,12 +2932,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 🔑ゴミ `GRANT_KEYWORD.keyword` のまま置くと `census:stubs` に映らない**無言 no-op**なので、
   //   `DEFERRED_*` STUB に落として計器へ載せる（「defer は何もしないに倒すためのもの」）。
   {
-    // 【コンバート《色》】＝「エナコストを支払う際、このカードは《色》として支払える」（3効果）。
-    // ⚠エナ支払いの色照合は `costs.ts` に複数散っており（`(c.Color ?? '').includes(color)` が5箇所）、
-    //   1点funnel が無い＝**先に色照合を1本に集約する**のが前提。
-    if (/^【コンバート《[白赤青緑黒無]》】$/.test(t.trim())) {
-      return { type: 'STUB', id: 'DEFERRED_CONVERT_ENERGY_COLOR' } as StubAction;
-    }
+    // ⚠【コンバート《色》】は**上のキーワードブロックで実装済み**（§6.4 O-10・続き508）＝
+    //   ここに defer を置くと到達しない死んだ規則になる。
     // 「このシグニはダウン状態でもアタックできる」（`WX22-022-E1`・内部名 スリープアタッカー）。
     // §6.4 O-10（続き507）で defer 解体＝**down 判定を `signiAttackGate` へ寄せた**ので、
     // 例外はその 1 関数（`ALREADY_DOWN` の分岐）だけで人間ボタン／実行経路／CPU の3経路に効く。
