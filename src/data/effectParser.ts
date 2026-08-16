@@ -13706,6 +13706,29 @@ function stripTrapIconClause(text: string): string {
   return text.replace(/【トラップアイコン】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
 }
 
+/**
+ * 二ゾーン交換の**省略された交換元**を復元する（§6.4 O-7）。
+ *
+ * 原文「〈エナ／トラッシュの名詞句〉を対象とし、〈コスト〉を支払ってもよい。**そうした場合、それと**
+ * （場にある）このシグニの場所を入れ替える。」は、交換元の名詞句が**前の文**にあり、交換文には
+ * 照応の「それ」しか残らない。`parseSentencePart3` の二ゾーン交換ビルダーは**その文だけ**を見るので
+ * 「エナゾーン」の語が無く一致せず、汎用フォールバック `REARRANGE_SIGNI{owner:'any', count:1}`
+ * ＝**場の適当な2体を入れ替えるだけ**（交換元・レベル/クラス絞り込み・【出】抑止がすべて脱落）へ落ちていた。
+ *
+ * ⭐**照応を戻すだけの純テキスト正規化**＝新しい語彙も機構も足さず、既存の二ゾーン交換ビルダーと
+ *   `foldSuppressOnPlay` funnel にそのまま載せる。
+ * ⚠**「それと」が交換元を指す形に限る**（交換元の名詞句が同じ文にある `WX25-P1-059` 等は素通り）。
+ * ⚠**場内交換（「あなたの他のシグニ１体を対象とし」）は対象外**＝場外ゾーン語を含む名詞句だけを拾う
+ *   （場内形にゾーン語を注入すると存在しない外部交換に化ける）。
+ */
+function restoreElidedSwapSource(text: string): string {
+  return text.replace(
+    /((?:あなた|対戦相手)の(?:エナゾーン|トラッシュ)から[^。、]*?シグニ(?:を)?[０-９\d]+枚(?:まで)?)を対象とし、([^。]*?)。そうした場合、それと(場にある)?(この|その)シグニの場所を入れ替える/g,
+    (_m, src: string, mid: string, atField: string | undefined, dem: string) =>
+      `${src}を対象とし、${mid}。そうした場合、${src}と${atField ?? ''}${dem}シグニの場所を入れ替える`,
+  );
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
