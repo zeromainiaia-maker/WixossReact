@@ -20346,11 +20346,12 @@ test('参照属性バッチ2: 採用12効果の構造とスコープを固定', 
   for (const c of ['WX05-021','WX15-037']) ok(json(c).includes('"elseAction":{"type":"DRAW","owner":"self","count":1}'), `${c}: else DRAW1`);
   for (const c of ['WXDi-P14-053','WXDi-P14-057','WXDi-P14-065','WXDi-P14-069']) ok(json(c).includes('"targetsLastProcessed":true') && json(c).includes('LAST_PROCESSED_MATCHES'), `${c}: 名前条件付き対象覚醒`);
   for (const c of ['WX25-P2-068','WX25-P2-070']) ok(json(c).includes('"cardType":"レゾナ"') && json(c).includes('"owner":"self"') && !json(c).includes('"owner":"any"'), `${c}: 同一自対象のレゾナ置換`);
-  // ⚠`WX25-P2-071` の後段は §6.4 O-28 で**明示 defer** へ置き換えた＝引用【常】（離場の置換）を
-  //   丸ごと `GRANT_KEYWORD.keyword` へ詰めていた形は `hasKeyword` に一度も当たらない無言 no-op だった。
-  //   旧アサート（`GRANT_KEYWORD` があること）は**その壊れた形を固定していた**ので正方向へ置き換える。
-  ok(json('WX25-P2-071').includes('DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN')
-    && !json('WX25-P2-071').includes('REMOVE_ABILITIES'), 'WX25-P2-071: 幻覚除去＋離場置換は明示 defer');
+  // ⚠`WX25-P2-071` の後段は §6.4 O-28 で**明示 defer** へ置き換え（引用【常】＝離場の置換を丸ごと
+  //   `GRANT_KEYWORD.keyword` へ詰めていた形は `hasKeyword` に一度も当たらない無言 no-op だった）、
+  //   §6.4 O-10（続き507）で `GRANT_EFFECT{EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY}` として実体化した。
+  ok(json('WX25-P2-071').includes('EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY')
+    && !json('WX25-P2-071').includes('REMOVE_ABILITIES')
+    && !json('WX25-P2-071').includes('DEFERRED_'), 'WX25-P2-071: 幻覚除去＋離場置換は付与として実装済み');
   ok(json('WXDi-P13-006').includes('"isDisona":true') && !json('WXDi-P13-006').includes('"filter":{"cardType":"シグニ"}'), 'WXDi-P13-006: Dissona判定');
   // 続き250 Claude 検証で codex 見送りを差し戻して採用（13枚目）：落ちたカードの名前条件ゲート。
   // 同一インスタンス限定の不在は非問題（トラッシュはカード番号管理＝同名交換可能）。
