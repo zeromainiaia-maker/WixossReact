@@ -41,6 +41,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   double_power_minus_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'power-minus multiplier granted for the current turn' },
   // ホログラフ公開置換は、付与されたターンだけ有効。
   holograph_reveal_replace_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'holograph reveal replacement for the current turn' },
+  // 「代わりに〜、ターン終了時まで、この能力を失う」で自壊した効果（§6.4 O-10）は当該ターンだけ無効。
+  lost_ability_effect_ids_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'self-disabled replacement abilities, restored at the turn boundary' },
   // トラッシュ移動ロックの active 値は現在ターンだけで、次ターン予約は別フィールドに置く。
   lock_trash_move_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'active trash-move lock; next-turn reservation is stored separately' },
   // ガード追加無色コストは、付与されたターンだけ有効。
