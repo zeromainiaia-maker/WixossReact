@@ -123,7 +123,7 @@ export function lrigAttackBanCost(
 ): SigniAttackBanCost | null {
   if (!lrigNum) return { colorless: 0, handDiscard: 0 };
   const bans = (attacker.signi_attack_bans_this_turn ?? [])
-    .filter(ban => ban.appliesTo === 'LRIG' && banMatches(ban, lrigNum, cardMap, undefined));
+    .filter(ban => ban.appliesTo === 'LRIG' && banMatches(ban, attacker, lrigNum, cardMap, undefined));
   if (bans.length === 0) return { colorless: 0, handDiscard: 0 };
   if (bans.some(ban => !ban.unlessPayColorless && !ban.unlessPayHandDiscard)) return null;
   return {
