@@ -1595,9 +1595,17 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/それぞれレベルの異なるシグニ[１-９\d０-９]+枚が公開された場合/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- 手札がN枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く ----
-  if (t.match(/手札が[１-９\d０-９]+枚より多い場合、その差.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  // ---- 手札が５枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く（WDK08-Y08-E1）----
+  // 🔴従来は `CONDITIONAL_POWER_BONUS`（パワー修正の catch-all）＝**丸ごと無言 no-op**で、
+  //   前半の「エナ全部を手札へ」だけが走る一方通行になっていた（§6.4 O-11 の `SEND_TO_ENERGY` 群）。
+  // 可変枚数は `{$ref:'self_hand_over_five'}`（手札枚数−5・下限0）＝`seven_minus_self_life_count` と同型。
+  // ⚠live は「５枚」の1形しかないので閾値は 5 に限定する（他の閾値が出たら ref を増やす）。
+  if (t.match(/手札が５枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く/))
+    return {
+      type: 'CONDITIONAL',
+      condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gt', value: 5 },
+      then: { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: { $ref: 'self_hand_over_five' } } },
+    } as EffectAction;
 
   // ---- 対戦相手のトラッシュから〜デッキの一番下に置く ----
   if (t.match(/対戦相手のトラッシュから.*デッキの一番下に置く/))
