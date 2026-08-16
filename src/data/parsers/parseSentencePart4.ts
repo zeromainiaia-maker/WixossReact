@@ -876,8 +876,7 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // ---- 手札を好きな枚数捨てる ----
   if (t.match(/^あなたは手札を好きな枚数捨てる$/))
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL', upToCount: true } };
-  if (t.match(/^手札からシグニを好きな枚数捨てる$/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+  // 「手札からシグニを好きな枚数捨てる」も `parseVariableHandDiscard` が受ける（旧 no-op STUB は撤去）。
 
   // ---- 手札から〈クラス〉/特定カードを捨ててもよい（条件付き） ----
   if (t.match(/対戦相手のエナゾーンにカードが[１-９\d０-９]+枚以上ある場合、手札から/) ||
