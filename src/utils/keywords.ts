@@ -1,5 +1,29 @@
 import type { CardData, PlayerState } from '../types';
 
+/**
+ * キーワード名の綴りを正準化する（§6.4 O-28）。
+ *
+ * 🔴**原文（CSV）は全角の【Ｓランサー】、engine コードは半角の `'Sランサー'`** という綴りズレがあり、
+ *   `hasKeyword` は完全一致でしか照合しないので **live 27効果の `GRANT_KEYWORD{'Ｓランサー'}` が
+ *   一度も効かない無言 no-op** だった。さらに原文を `includes('Sランサー')` で嗅ぐ実行時ハンドラ群は
+ *   全角原文に当たらず、**「Ｓランサー」に含まれる「ランサー」へフォールバック**して
+ *   **弱い方（通常ランサー）へ勝手に格下げ**していた。
+ *
+ * ⚠**全角英数を半角へ寄せるだけ**（かな・漢字・記号は触らない）＝キーワード名の同一性判定にだけ使う。
+ *   カード全文へ掛けると《サーバントＺＥＲＯ》等の別 regex を壊すので、**照合の直前でだけ**通すこと。
+ */
+export function normalizeKeywordName(keyword: string): string {
+  return keyword.replace(/[Ａ-Ｚａ-ｚ０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+}
+
+/**
+ * 原文テキストにキーワード名が現れるか（綴りズレを吸収した `includes`）。
+ * ⚠実行時にカード全文からキーワードを嗅ぐハンドラは**必ずこれを通す**（素の `includes` は全角原文に当たらない）。
+ */
+export function textHasKeyword(text: string, keyword: string): boolean {
+  return normalizeKeywordName(text).includes(normalizeKeywordName(keyword));
+}
+
 /** 指定キーワードだけを失う効果。plain 名はスコープ付き表現（例: アサシン:{...}）も止める。 */
 export function isKeywordAbilityRemoved(
   cardNum: string,
