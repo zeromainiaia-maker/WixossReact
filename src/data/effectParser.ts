@@ -7854,6 +7854,14 @@ function scanQuotedGrant(text: string, open: number): string | null {
   return null;
 }
 
+/**
+ * 「中央／左／右のシグニゾーン」→ ゾーン添字（§6.4 O-33）。
+ * 所有者から見た表示順＝left=0 / center=1 / right=2（`TargetFilter.centerZoneOnly` / `zoneSide` と同じ規約）。
+ */
+function signiZoneIndexJa(word: string): number {
+  return word === '左' ? 0 : word === '右' ? 2 : 1;
+}
+
 function parseActionTextInner(text: string): EffectAction {
   // ═══ §6.4 O-4 続き499：効果**全体**を明示 defer にする（周囲の無条件実行を止める）═══
   // 🔑UNKNOWN のままだと計器に映らないうえ、同じ SEQUENCE の他ステップが**ゲート抜きで走る**。
