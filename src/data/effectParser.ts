@@ -14174,6 +14174,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   }
   for (const e of effects) {
     e.action = foldSuppressOnPlay(e.action);
+    // §6.4 O-10: 離場置換「代わりにこの能力を失う。そうした場合、このシグニをダウンする。」を1宣言へ畳む。
+    e.action = foldLeaveLoseSelfAbilityDown(e.action);
     // §6.4 O-16: 指定ゾーンの保存先を読み手（zoneSource:'designated' の target.owner）へ揃える。
     e.action = alignDesignatedZoneOwner(e.action);
     // §6.4 O-28: `GRANT_KEYWORD.keyword` の綴りを正準化する（原文の全角【Ｓランサー】→ `Sランサー`）。
