@@ -2864,6 +2864,45 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // ---- 引用【常】の中身が既存機構で解ける3形（§6.4 O-28）----
+  // 🔴どれも従来は引用文が丸ごと `GRANT_KEYWORD.keyword` に入って**一度も効かなかった**。
+  {
+    const innerConstM = t.match(/を対象とし、ターン終了時まで、それは「【常】：(.+?)。?」を得る/);
+    const inner = innerConstM?.[1]?.replace(/。$/, '') ?? '';
+    if (inner) {
+      // ①「あなたの手札がN枚以下であるかぎり、このシグニは【アサシン】を得る」（`WX24-P1-064-E1`）
+      //   ＝アサシンの**アタック側条件**スコープ（`hasApplicableAssassin` の `selfHandLte`）。
+      const handAssassinM = inner.match(/^あなたの手札が([０-９\d]+)枚以下であるかぎり、この(?:シグニ|カード)は【アサシン】を得る$/);
+      if (handAssassinM) {
+        return {
+          type: 'GRANT_KEYWORD', target: parseSigniTarget(t, 'self'),
+          keyword: `アサシン:${JSON.stringify({ selfHandLte: parseNum(handAssassinM[1]) })}`,
+          duration: 'UNTIL_END_OF_TURN',
+        } as GrantKeywordAction;
+      }
+      // ②「対戦相手の効果によって、バニッシュされず手札に戻らない」（`WXK07-029-E1`）
+      //   ＝既存 `GRANT_PROTECTION`（軸 BANISH＋BOUNCE・発生源は相手）。
+      if (/^対戦相手の効果によって[、,]?バニッシュされず手札に戻らない$/.test(inner)) {
+        return {
+          type: 'GRANT_PROTECTION', target: parseSigniTarget(t, 'self'),
+          from: ['BANISH', 'BOUNCE'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN',
+        } as GrantProtectionAction;
+      }
+      // ③「このシグニのパワーが－される場合、代わりに２倍－される」（`WXK08-049-E2`）
+      //   ＝既存 `double_power_minus_targets`（`DOUBLE_OWN_POWER_MINUS`）。対象は相手シグニ。
+      if (/^この(?:シグニ|カード)のパワーが[－-]される場合、代わりに[２2]倍[－-]される$/.test(inner)) {
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: parseSigniTarget(t, 'opponent') } as StubAction,
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+            { type: 'STUB', id: 'DOUBLE_OWN_POWER_MINUS' } as StubAction,
+          ],
+        } as SequenceAction;
+      }
+    }
+  }
+
   // ---- 引用符キーワード効果付与（「【常】：XXX」を得る）----
   // ⚠**XXX が「キーワード名」のときだけ**キーワード付与にする（§6.4 O-28）。
   // 🔴従来は引用の中身を**そのまま `keyword` に詰めていた**ので、文がまるごと入った綴りは
