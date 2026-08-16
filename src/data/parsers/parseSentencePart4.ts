@@ -1889,9 +1889,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/のシグニ.*を対象とし.*トラッシュからそれぞれレベルの異なる.*のシグニ.*枚を.*デッキの一番下に置いてもよい/))
     return { type: 'STUB', id: 'LOOK_AND_REORDER' } as StubAction;
 
-  // ---- この方法でトラッシュに置いたカードの中からカードをN枚まで対象とし、エナゾーンに置く ----
-  if (t.match(/この方法でトラッシュに置いたカードの中からカードを.*枚まで対象とし.*エナゾーンに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  // 「この方法でトラッシュに置いたカードの中からカードをN枚まで対象とし、エナゾーンに置く」は
+  // parseSentencePart3 の `PICK_FROM_TRASHED_CARDS`（trashedPick ペイロードつき）が受ける（§6.4 O-11）。
+  // 🔴従来ここに `CONDITIONAL_POWER_BONUS` へ落とす行があった＝**コメントは正しい意味を書いているのに
+  //   受け皿がパワー修正の catch-all** なので、原文どおりの節が丸ごと無言 no-op だった（`WX26-CP1-057-E2`）。
 
   // ---- 場に《X》がいる場合、色を宣言し、エナゾーンから宣言した色を持つカードをトラッシュに置いてもよい ----
   if (t.match(/場に《.+》がいる場合.*色.*宣言し.*エナゾーンから.*カード.*トラッシュに置いてもよい/))
