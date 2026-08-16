@@ -39,7 +39,7 @@ live JSON の STUB id 種類 : 599（総ノード 2883 件）
         生成: src\data\parsers\parseSentencePart4.ts:1981
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3279
+        生成: src\data\parsers\parseSentencePart1.ts:3277
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4832
@@ -58,7 +58,7 @@ live JSON の STUB id 種類 : 599（総ノード 2883 件）
         カード: WXDi-P00-026
      1件   1枚  DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN
         カード: WX25-P2-071
-        生成: src\data\effectParser.ts:4544 / src\data\parsers\parseSentencePart1.ts:2897
+        生成: src\data\effectParser.ts:4559 / src\data\parsers\parseSentencePart1.ts:2897
      1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
         カード: WXK08-002
         生成: src\data\manualEffects.ts:92

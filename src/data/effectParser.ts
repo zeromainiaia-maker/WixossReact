@@ -3082,25 +3082,6 @@ function rewritePerOwnLrigColorScale(action: EffectAction, text: string): Effect
   return { type: 'STUB', id: 'PER_OWN_LRIG_COLOR_SCALE', scaleColor: m[1], scaleAction: inner } as EffectAction;
 }
 
-/**
- * `GRANT_KEYWORD.keyword` に**文がまるごと入っている**形を宣言済みの穴へ落とす（§6.4 O-28）。
- *
- * 🔴`hasKeyword` は正式名の完全一致（＋`名前:` プレフィックス）でしか照合しないので、文が入った綴りは
- *   **一度も効かない無言 no-op**。しかも `GRANT_KEYWORD` は実装済みアクションなので `census:stubs` にも映らない。
- * 🔑判定は**形**で行う＝キーワード名に句読点・入れ子の【】は現れず、長くもない
- *   （スコープ付き `シャドウ:{…}` は `:` より前だけを見る）。
- * ⚠**必ず `rewriteAttackTaxKeywordGrant` の後に呼ぶ**＝あちらはこの「文が入った GRANT_KEYWORD」を
- *   入力として `SELECT_TARGET_ONLY → SIGNI_ATTACK_BAN` の正準形へ組み替える（続き490/494 の7効果）。
- *   先に落とすとその正準形ごと消える（実測で held +7）。
- */
-function dropSentenceShapedKeyword(action: EffectAction): EffectAction {
-  const gk = action as { type?: string; keyword?: string };
-  if (gk.type !== 'GRANT_KEYWORD' || typeof gk.keyword !== 'string') return action;
-  const name = gk.keyword.split(':')[0];
-  if (!/[、。]/.test(name) && !/[【】]/.test(name) && name.length <= 14) return action;
-  return { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as EffectAction;
-}
-
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = wrapHandOrField(action, text);

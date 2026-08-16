@@ -415,24 +415,6 @@ WXDi-P12-073
   + [1].action.then.steps[0].target.filter.cardType = "シグニ"
   …（他 7 行）
 
-## -SIGNI -STUB ［1枚］
-WXDi-P14-065
---- WXDi-P14-065
-  原文: あなたの緑のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る。」を得る。それが《コードオーダー　メル//フェゾーネ》の場合、それは覚醒する。,：対戦相手のパワー7000以上のシグニ１体を対象とし、それをバニッシュする。
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "self"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [0].action.steps[0].selectTarget.filter.color = "緑"
-  - [0].action.steps[0].selectTarget.upToCount = false
-  - [0].action.steps[1].id = "GRANT_QUOTED_ABILITY"
-  - [0].action.steps[2].type = "CONDITIONAL"
-  - [0].action.steps[2].condition.type = "LAST_PROCESSED_MATCHES"
-  - [0].action.steps[2].condition.filter.cardName = "コードオーダー　メル//フェゾーネ"
-  - [0].action.steps[2].then.type = "AWAKEN_SIGNI"
-  - [0].action.steps[2].then.targetsLastProcessed = true
-  …（他 6 行）
-
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052
 --- WXDi-P15-052
@@ -450,24 +432,6 @@ WXDi-P15-052
   + [0].action.choices[1].condition.owner = "self"
   + [0].action.choices[1].condition.operator = "gte"
   …（他 1 行）
-
-## +STUB -CONDITIONAL -FRONT_SIGNI_POWER -GRANT_EFFECT -GRANT_KEYWORD×2 -IS_BETTING -SIGNI×4 ［1枚］
-WXDi-P15-071
---- WXDi-P15-071
-  原文: ベット―《コインアイコン》《コインアイコン》《コインアイコン》あなたの＜闘争派＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：このシグニは正面のシグニのパワーが8000以下であるかぎり、【ランサー】を得る。」を得る。あなたがベットしていた場合、代わりにそれは「【常】：【Ｓランサー】」を得る。,：【エナチャージ１】をする。その後、あなたのエナゾーン
-  - [0].action.steps[0].selectTarget.type = "SIGNI"
-  - [0].action.steps[0].selectTarget.owner = "self"
-  - [0].action.steps[0].selectTarget.count = 1
-  - [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  - [0].action.steps[0].selectTarget.filter.story = "闘争派"
-  - [0].action.steps[0].selectTarget.upToCount = false
-  - [0].action.steps[1].condition.type = "IS_BETTING"
-  - [0].action.steps[1].then.type = "GRANT_KEYWORD"
-  - [0].action.steps[1].then.targetsLastProcessed = true
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 1
-  …（他 25 行）
 
 ## +COINS_PAID_THIS_TURN×2 +CONDITIONAL×2 ［1枚］
 WXDi-P15-074
