@@ -302,9 +302,12 @@ export function parseSingleChoiceText(choiceTxt: string): EffectAction | null {
   if (choiceTxt.match(/デッキの一番下.*トラッシュ.*同じレベル.*ダウン/)) {
     return ({ type: 'STUB', id: 'INTERNAL_DECK_BOTTOM_LEVEL_DOWN' } as StubAction) as EffectAction;
   }
-  // 「シグニをエナゾーンに置く」→ バニッシュ近似（エナゾーンへ移動）
+  // 「対戦相手のシグニ１体を対象とし、それをエナゾーンに置く」＝**エナ送り**。
+  // 🔴従来は `BANISH` 近似だった＝**バニッシュとエナ送りは別アクション**で、バニッシュは
+  //   置換（`BANISH_REDIRECT`／身代わり）やバニッシュ時トリガーを踏む一方、エナ送りは踏まない。
+  //   「バニッシュされない」耐性を持つシグニにも効かなくなる（＝原文より弱い／強いが両方向にズレる）。
   if (choiceTxt.match(/対戦相手のシグニ[１1]体.*エナゾーンに置く/)) {
-    return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } as BanishAction;
+    return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction;
   }
   // 「場にある【ウィルス】Nつを取り除く」（「そうした場合…ライフクロスに加える」連結対応）
   const removeVirusM = choiceTxt.match(/【ウィルス】([０-９\d]+)つを取り除く/);
