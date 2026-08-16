@@ -54,6 +54,7 @@ import type {
   SendToEnergyAction,
   SequenceAction,
   InstallDelayedTriggerAction,
+  GrantKeywordAction,
 } from '../../types/effects';
 import {
   blockUntilFromText,
