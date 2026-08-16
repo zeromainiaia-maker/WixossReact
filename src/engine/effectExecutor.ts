@@ -302,6 +302,58 @@ export function applyEffectLeaveLrigAbilitySubstitute(
 }
 
 /**
+ * 相手効果による場離れを、**そのシグニ自身**が宣言する
+ * 「代わりに（ターン終了時まで、）この能力を失う」で置換する（§6.4 O-10・続き507）。
+ *
+ * `applyEffectLeaveLrigAbilitySubstitute`（ルリグ付与ストア版）の**シグニ自身版**。
+ * 対象は `WX25-P3-055-E2`（印刷【常】《相手ターン》）と `WX25-P2-071-E1` が付与する
+ * 【常】（`thenDown`＝「そうした場合、このシグニをダウンする」）。
+ *
+ * 🔑**失うのは「この効果1つ」だけ**＝`lost_ability_effect_ids_this_turn`（効果単位）に刻む。
+ *   `abilities_removed`（カード単位・全能力）で表すと `WX25-P3-055` の E1（パワー＋3000）と
+ *   E3（ターン終了時の手札戻し）まで巻き添えで消える＝原文にない過剰。
+ * ⚠**同じ効果で2回目は置換しない**＝刻んだ effectId を毎回先に見る（見ないと
+ *   「ターン中は何度でも場を離れない」＝無敵になる）。
+ * ⚠`victimOwner === 'opponent'` ガードは他3本と同じ＝原文の「**対戦相手の**効果によって」。
+ */
+export function applyEffectLeaveSelfAbilitySubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const zone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (zone < 0) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  // `checkActiveCondition` の isOwnerTurn は**victim オーナー視点**。ctx.isOwnerTurn は効果主視点なので反転する
+  // （`collectEffectBanishSubstituteChoices` と同じ規約）。
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  const lost = state.lost_ability_effect_ids_this_turn ?? [];
+  for (const eff of declaredContinuousEffects(victimNum, state, ctx.cardMap)) {
+    if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+    const act = eff.action as import('../types/effects').StubAction;
+    if (act.id !== 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY') continue;
+    if (lost.includes(eff.effectId)) continue;
+    if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, victimNum)) continue;
+    const down = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
+    if (act.leaveLoseSelfAbility?.thenDown) down[zone] = true;
+    const nextState: PlayerState = {
+      ...state,
+      lost_ability_effect_ids_this_turn: [...lost, eff.effectId],
+      ...(act.leaveLoseSelfAbility?.thenDown ? { field: { ...state.field, signi_down: down as [boolean, boolean, boolean] } } : {}),
+    };
+    const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+    return {
+      ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
+        `${name}の場離れをこの能力の喪失で置換${act.leaveLoseSelfAbility?.thenDown ? '（そうした場合ダウン）' : ''}`),
+      replaced: true,
+    };
+  }
+  return { ctx, replaced: false };
+}
+
+/**
  * 相手効果による**非バニッシュ**の場離れ（手札戻し／トラッシュ／エナ送り／デッキ戻し／除外）を、
  * 被害側の場が宣言する CONTINUOUS STUB `EFFECT_LEAVE_REPLACE_BANISH` でバニッシュへ置換する
  * （WX25-P1-056-E1「あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動が
