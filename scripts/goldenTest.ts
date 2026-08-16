@@ -16785,13 +16785,28 @@ for (const [cardNum, effectId] of [
   eq(swapped.ownerState.field.signi[1]?.at(-1), source, `${effectId}: 効果元が対象の場所へ`);
 }));
 
-test('§6.4 non-adoption: WX25-P2-058-E1は外部交換だが別欠落を伴うため部分採用しない', () => {
+// §6.4 O-7 クローズ（2026-08-16）＝据置ブロッカー3軸（アタック終了時／《アイヤイ★クイーン》条件／
+// エナからの交換）がすべて表現できたので採用した。旧テストは「部分採用しない」を固定していたが、
+// **弱めずに向きを反転**する＝3軸が1つでも落ちたら赤くなる形で残す。
+test('§6.4 O-7: WX25-P2-058-E1 は据置ブロッカー3軸をすべて表現している（部分採用に戻さない）', () => {
   const live = manualEffect('WX25-P2-058', 'WX25-P2-058-E1');
+  const j = JSON.stringify(live);
+  // ①「そのアタック終了時」＝アタック宣言時ではなく解決後（ON_ATTACK_SIGNI に戻らない）
+  ok(live.timing?.includes('ON_ATTACK_END') && !live.timing?.includes('ON_ATTACK_SIGNI'),
+    'ON_ATTACK_END（アタック解決後）で発火する');
+  // ②《アイヤイ★クイーン》条件が任意コストを包む（無条件発火に戻らない）
+  ok(j.includes('HAS_CARD_IN_FIELD') && j.includes('アイヤイ★クイーン'), '場の《アイヤイ★クイーン》条件が載る');
+  // ③ エナからの二ゾーン交換＝交換元・レベル/クラス絞り込み・場側は自身固定
   const rearrange = findActionByType(live.action, 'REARRANGE_SIGNI')!;
-  ok(!rearrange.swapSourceLocation, '完全なタイミング/条件構造ができるまで旧liveを据置');
+  eq(rearrange.swapSourceLocation, 'energy', 'エナゾーンからの交換');
+  eq(rearrange.swapSourceTarget?.owner, 'self', '交換元は自分のエナ');
+  ok(JSON.stringify(rearrange.swapSourceTarget?.filter).includes('遊具')
+    && JSON.stringify(rearrange.swapSourceTarget?.filter).includes('"max":2'), '＜遊具＞かつレベル2以下に絞る');
+  ok(rearrange.target.filter?.thisCardOnly, '場側はこのシグニ自身（owner:any の場内交換に戻らない）');
+  ok(rearrange.suppressOnPlay, '「それの【出】能力は発動しない」が消費経路つきで載る');
   const sourceText = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf8'))['WX25-P2-058-E1'] as string;
   ok(sourceText.includes('アタック終了時') && sourceText.includes('《アイヤイ★クイーン》') && sourceText.includes('エナゾーンから'),
-    '据置ブロッカー3軸を原文で固定');
+    '3軸を原文で固定（原文が変わったら見直す）');
 });
 test('applyContinuousBaseLevelOverride: CONTINUOUS SET_BASE_LEVELでcardMapのLevelを上書き（WX04-049・条件成立時のみ）', () => {
   const st = mkState({ signi: ['WX04-049', 'WD04-009', null] }); // WD04-009=空獣/地獣
