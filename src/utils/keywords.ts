@@ -82,6 +82,13 @@ export function hasKeyword(
 export interface AssassinScope {
   isFrozen?: boolean;
   powerLte?: number;
+  /**
+   * 「あなたの手札がN枚以下であるかぎり、このシグニは【アサシン】を得る」（`WX24-P1-064-E1`・§6.4 O-28）。
+   * ⚠**相手盤面ではなくアタック側の状態**を見る唯一のスコープ＝`hasApplicableAssassin` の
+   *   `attackerState` を渡さない呼び出し元では**判定できないので掛からない**（過少側に倒す）。
+   * 🔴従来はこの節が丸ごと `GRANT_KEYWORD.keyword` に文字列として入り、一度も効かなかった。
+   */
+  selfHandLte?: number;
 }
 
 const ASSASSIN_PREFIX = 'アサシン:';
