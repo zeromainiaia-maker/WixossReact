@@ -29,7 +29,7 @@ import type {
   SigniDeployBanAction,
 } from '../../types/effects';
 import {
-  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost,
+  parseNum, parseSignedNum, parseCardTypeFilter, parseStoryFilter, parseColorFilter, parseLevelFilter, makeRevealPickStub, parseEnergyCosts, extractCostColors, parseSigniTarget, hasOtherSelfSigniNoun, tradeOptionalCost, signiZoneIndexJa,
 } from '../parserUtils';
 import { parseSentencePart1 } from './parseSentencePart1';
 import { parseSentencePart2 } from './parseSentencePart2';
