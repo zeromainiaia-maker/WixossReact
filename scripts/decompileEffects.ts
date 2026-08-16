@@ -2824,6 +2824,12 @@ function actionJa(a?: Action, effectType?: string): string {
       // その他の単発 STUB（engine実装/認識済み・action STUB は各1枚）の原文意味文。
       // activeCondition(TURN_OWNER/英知 等)を持つものは条件が別途前置描画されるため本体のみ。
       const miscStubMap: Record<string, string> = {
+        // §6.4 O-32（続き501）
+        PLACE_TRASH_SIGNI_FACING_SAME_POWER: 'あなたのトラッシュから対戦相手の場にあるシグニ１体と同じパワーのシグニを１枚まで対象とし、それをその対戦相手のシグニの正面のシグニゾーンに出す',
+        // ⚠engine 本体は §6.4 O-32 で撤去済み（正準形は `REPEAT`）。残るのは `WX22-016-E1` の
+        //   「このアーツの効果を一度繰り返す」1件だけで、§6.4 O-29 の機構待ち＝**未実装**であることを表示する。
+        REPEAT_N_TIMES: '【未実装】この効果を繰り返す（反復の正準形は REPEAT。§6.4 O-29 待ち）',
+        REPEAT_EFFECT: '【未実装】この効果を繰り返す（反復の正準形は REPEAT。§6.4 O-29 待ち）',
         // §6.4 O-34（続き500）＝明示 defer 5件を解体して実装した機構。生 id を漏らさない。
         STRIP_ATTACHED_AND_UNDER: 'それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く',
         USE_SEARCHED_SPELL_OR_TRASH: 'それをコストを支払わずに使用するかトラッシュに置く',
