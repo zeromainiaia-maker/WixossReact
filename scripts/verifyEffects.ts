@@ -245,6 +245,24 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   INTERNAL_DISCARD_ALL_DRAW_N: ['DRAW', 'HAND_DISCARD'],
   // シグニの下に置かれたとき上のシグニにパワー+N（v0.284実装済み）
   BUFF_HOST_WHEN_PLACED_UNDER: ['POWER_MODIFY'],
+
+  // ===== 2026-08-16（§6.4 O-11）追加＝ハンドラ本文を読んで実挙動を確認したもののみ =====
+  // 支払ったエナの色ごとに SEARCH→REVEAL→ADD_TO_HAND→SHUFFLE を選択肢化（execStubPart3.ts:1586）
+  COST_COLOR_SELECT: ['SEARCH'],
+  // パワーが0以下なら deck[0] を hand へ（execStubPart1.ts:2092）
+  DRAW_IF_POWER_ZERO_TEMP: ['DRAW'],
+  // 両プレイヤーの deck→trash をN枚、名前ヒットで繰り返し（execStubPart2.ts:2723）
+  MILL_EACH_REPEAT_ON_NAME: ['MILL', 'TRASH'],
+  // turn_end_draw_count を予約。消費は BattleScreen.tsx:3656（人間）/ :11089（CPU）
+  DRAW_AT_TURN_END: ['DRAW'],
+  // turn_end_return_to_hand を予約。消費は screens/battle/turnEndHandReturn.ts
+  RETURN_TO_HAND_AT_TURN_END: ['BOUNCE', 'TRANSFER_TO_HAND'],
+  // 対象選択→デッキ下4枚ミル→レベル4種以上なら BANISH（effectExecutor.ts:8180）
+  SELECT_OPP_SIGNI_FOR_BOTTOM_MILL: ['BANISH', 'MILL'],
+  // 正面よりパワーが低いアタッカーを banishDestination でバニッシュ（execStubPart1.ts:1182）
+  BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: ['BANISH'],
+  // ①全体パワー-1000 ②パワー4000以下バニッシュ ③2ドロー2捨て（execStubPart3.ts:3226）
+  INTERNAL_KIYOHIME_CHOOSE: ['POWER_MODIFY', 'BANISH', 'DRAW', 'HAND_DISCARD', 'TRASH'],
 };
 
 // ======= 計器の較正（2026-08-16・§6.4 O-11） =======
