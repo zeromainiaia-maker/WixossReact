@@ -12,10 +12,19 @@ import { parsePowerVal } from './battleUtils';
 /** ban 1件が、いまアタックしようとしているシグニに掛かるか。 */
 function banMatches(
   ban: SigniAttackBan,
+  attacker: PlayerState,
   attackerNum: string,
   cardMap: Map<string, CardData>,
   effectivePower: number | undefined,
 ): boolean {
+  // ゾーン限定（「**中央の**シグニゾーンにあるシグニでアタックできない」＝§6.4 O-33）。
+  // 🔑**ゾーン添字は判定地点で引く**＝ban に焼き込むと、掛けたあとにシグニが移動／入れ替わったとき
+  //   「いま中央にいるシグニ」ではなく「掛けた時点の1枚」に化ける（原文はゾーンに掛かる制限）。
+  // ⚠ゾーンが取れない（＝場のシグニでない＝ルリグ判定経路）ときは掛けない＝過少側に倒す。
+  if (ban.zones) {
+    const zi = attacker.field.signi.findIndex(stack => stack?.at(-1) === attackerNum);
+    if (zi < 0 || !ban.zones.includes(zi)) return false;
+  }
   if (ban.cardNums && !ban.cardNums.includes(attackerNum)) return false;
   // 「選んだシグニ**以外**でアタックできない」＝除外リストに載っていないものだけ止める（§6.4 O-3）。
   if (ban.exceptCardNums && ban.exceptCardNums.includes(attackerNum)) return false;
