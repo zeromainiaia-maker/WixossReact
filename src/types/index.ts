@@ -212,6 +212,13 @@ export interface SigniAttackBan {
    *   ルリグ判定ではゾーンが取れないので、`zones` を持つ ban はルリグには掛からない＝過少側）。
    */
   zones?: number[];
+  /**
+   * **動的**ゾーン限定（§6.4 O-33 の据置分・続き508）＝「【ゲート】があるシグニゾーンにあるシグニで
+   * アタックできない」（`WDK09-001-E2`）。判定地点（`banMatches`）で**禁止を受ける側の
+   * `signi_gate_zones`** を引く＝ban を張ったあとに【ゲート】が増減しても追随する。
+   * ⚠`zones` と同時に持たない。
+   */
+  zoneSource?: 'gate';
   /** ログ・アタックボタンに出す由来表示。 */
   label?: string;
 }
