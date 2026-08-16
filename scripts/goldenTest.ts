@@ -5262,7 +5262,7 @@ test('§6.4 O-11: 「追加でエクシードNを支払ってもよい」が実�
   const skipped = open(false);
   eq(under(skipped.after.ownerState), skipped.before.under, '支払わなければルリグの下は減らない');
   eq(skipped.after.ownerState.lrig_trash.length, skipped.before.trash, '支払わなければルリグトラッシュも増えない');
-});
+}));
 test('§6.4 O-11: 「使用する際、」前置きつきの追加エクシードが payload を持つ', () => {
   // 🔴規則自体はあったが `^` アンカーが「このスペルを使用する際、」で外れ、**一度も当たらず**
   //   bare `OPTIONAL_COST`（＝エクシードがタダ）になっていた形が21効果あった。
