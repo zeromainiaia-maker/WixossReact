@@ -2952,6 +2952,14 @@ function actionJa(a?: Action, effectType?: string): string {
         const mer = a.millEachRepeatOnName;
         return `各プレイヤーは自分のデッキの上からカードを${mer.count}枚トラッシュに置く（この方法でトラッシュに置いたカードの中にカード名に《${mer.name}》を含むカードがある場合、この効果を繰り返してもよい）`;
       }
+      // §6.4 O-10（続き507）：ダウンの有無・倍率は**ペイロードにある**ので原文どおりに描画する
+      //   （固定文にすると `WX25-P3-055`（ダウンなし）と `WX25-P2-TK04`（ダウンあり）が同じ文になる）。
+      if (a.id === 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY') {
+        return `このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う${a.leaveLoseSelfAbility?.thenDown ? '。そうした場合、このシグニをダウンする' : ''}`;
+      }
+      if (a.id === 'CHARM_POWER_MINUS_MULTIPLIER') {
+        return `それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワーが－される場合、代わりに${typeof a.value === 'number' ? a.value : 3}倍－される`;
+      }
       if (miscStubMap[a.id]) return miscStubMap[a.id];
       // STUBS.md に説明があれば id ではなく説明文を表示（無ければ id にフォールバック）
       // 説明文中の実装フロー注記（例:（SELECT→INTERNAL））は原文語彙でないため除去。
