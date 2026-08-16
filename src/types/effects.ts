@@ -2089,6 +2089,12 @@ export interface SigniAttackBanAction {
    * `clearTurnEndScopedState` の1点だけが減らす。
    */
   turns?: number;
+  /**
+   * 禁止するシグニゾーン（「**中央の**シグニゾーンにあるシグニでアタックできない」＝§6.4 O-33）。
+   * 添字は所有者から見た表示順＝left=0 / center=1 / right=2（`TargetFilter.centerZoneOnly` と同じ規約）。
+   * 省略＝ゾーンを問わない。
+   */
+  zones?: number[];
 }
 
 /**
