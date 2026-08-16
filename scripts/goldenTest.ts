@@ -37054,6 +37054,102 @@ test('§6.4 O-25: 自己付与は問いを出さずに granted_effects へ入る
   eq(inner?.timing?.[0], 'ON_ATTACK_PHASE_START', '付いたのは引用の【自】（即時実行に戻っていない）');
 });
 
+
+// ── §6.4 O-11：`SEND_TO_ENERGY` 群（2026-08-17 続き523）─────────────────────────────
+// 6件とも「原文の行き先がエナなのに live が別のことをしていた／節が丸ごと落ちていた」型。
+// ここは**live の構造そのもの**を assert する（parser 規則が外れたら即赤）。
+
+test('§6.4 O-11: 色宣言→デッキトップ公開は DECLARE_COLORS＋colorEqDeclaredColorIndex（受け皿の割れを固定）', () => {
+  // 🔴CHOOSE_COLOR_FROM_LIST（エナの色から選ぶ・別 store）と DECLARE_COLOR（単数 store・読者は
+  //   プロテクション判定だけ）は、どちらも後段 filter の `colorEqDeclaredColorIndex` に届かない。
+  //   届く store を持つのは DECLARE_COLORS だけ＝3効果ともここへ寄せる。
+  const cases: [string, string, string][] = [
+    ['WX11-077', 'WX11-077-E1', 'ADD_TO_HAND'],
+    ['WX11-080', 'WX11-080-E1', 'ADD_TO_ENERGY'],   // 原文「それをエナゾーンに置く」＝手札ではない
+    ['WXK04-027', 'WXK04-027-E1', 'ADD_TO_ENERGY'],
+  ];
+  for (const [cardNum, effectId, thenType] of cases) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在する`);
+    const seq = e!.action as SequenceAction;
+    eq(seq.type, 'SEQUENCE', `${effectId}: SEQUENCE`);
+    const head = seq.steps[0] as StubAction;
+    eq(head.id, 'DECLARE_COLORS', `🔴${effectId}: 宣言色の store が後段 filter へ繋がらない受け皿に戻っている`);
+    eq(head.count, 1, `${effectId}: 宣言は1色`);
+    const rap = seq.steps[1] as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
+    eq(rap.type, 'REVEAL_AND_PICK', `${effectId}: 公開は REVEAL_AND_PICK`);
+    eq(rap.filter?.colorEqDeclaredColorIndex, 0, `🔴${effectId}: 宣言色 filter が落ちている（＝どの色でも拾う過剰実行）`);
+    eq((rap.then as { type: string }).type, thenType, `🔴${effectId}: 行き先が原文と違う`);
+    eq(rap.remainder?.position, 'top', `${effectId}: 不一致なら公開札はデッキの一番上に残る`);
+  }
+});
+
+test('§6.4 O-11: 「この方法でトラッシュに置いたカードの中から」は lastProcessedCards 限定（トラッシュ全体ではない）', () => {
+  // 🔴旧ハンドラは候補がトラッシュ全体・1枚・手札固定で、枚数/行き先/「この方法で」の限定が全部落ちていた。
+  const src = SIGNI;
+  const deckTop = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const ctx = mkCtx({ signi: [src, null, null], deckTop, trash: 4, energy: 0 } as never, {}, src);
+  const before = ctx.ownerState.trash.length;
+  const r = run({ type: 'SEQUENCE', steps: [
+    { type: 'MILL', owner: 'self', count: 3 },
+    { type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS', trashedPick: { count: 1, upTo: true, dest: 'energy' } } as StubAction,
+  ] } as unknown as EffectAction, ctx);
+  eq(r.ownerState.energy.length, 1, '🔴選んだ1枚がエナゾーンへ（旧実装は手札へ入れていた）');
+  ok(deckTop.includes(r.ownerState.energy[0]),
+    `🔴エナへ行ったのは**この方法でトラッシュに置いた3枚**のいずれか（実際: ${r.ownerState.energy[0]}）`);
+  eq(r.ownerState.trash.length, before + 3 - 1, 'ミル3枚のうち1枚がトラッシュから出た');
+});
+
+test('§6.4 O-11: WX26-CP1-059-E2 は「場に出すかエナゾーンに置く」の二択（エナ枝が消えない）', () => {
+  const e = (effectsMap.get('WX26-CP1-059') ?? []).find(x => x.effectId === 'WX26-CP1-059-E2');
+  ok(!!e, 'WX26-CP1-059-E2 が live に存在する');
+  const ch = e!.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(ch.type, 'CHOOSE', '🔴片枝（場出しだけ）へ縮退している');
+  eq(ch.choices.length, 2, '選択肢は2つ');
+  eq(ch.choices.map(c => (c.action as { type: string }).type).join(','), 'ADD_TO_FIELD,ENERGY_CHARGE',
+    '🔴エナ枝の正準形は ENERGY_CHARGE{target:同じ source}');
+});
+
+test('§6.4 O-11: WX24-P2-026-E2「各プレイヤーは手札をすべてエナゾーンに置く」は MASS_TRASH ではない', () => {
+  // 🔴MASS_TRASH は「**相手の**エナ全部と場のシグニ全部をトラッシュ」＝行き先も対象も原文と無関係だった。
+  const e = (effectsMap.get('WX24-P2-026') ?? []).find(x => x.effectId === 'WX24-P2-026-E2');
+  ok(!!e, 'WX24-P2-026-E2 が live に存在する');
+  const inner = ((e!.action as SequenceAction).steps[0] as SequenceAction);
+  eq(inner.type, 'SEQUENCE', '🔴STUB{MASS_TRASH} に戻っている');
+  eq(inner.steps.map(s => `${(s as { type: string }).type}:${((s as { target?: { owner?: string } }).target?.owner)}`).join(','),
+    'ENERGY_CHARGE:self,ENERGY_CHARGE:opponent', '両プレイヤーぶんの手札→エナ');
+});
+
+test('§6.4 O-11: 多段閾値「それぞれN枚以上ある場合、代わりに」は置換（無条件＋追加ではない）', () => {
+  // 🔴従来は後段が条件ごと落ちて SEQUENCE の第2ステップ＝①閾値に関係なく走る ②A と B が両方走る。
+  //   `WXK09-031-E1` は「エナ状況に関わらず相手シグニが毎回全滅」していた。
+  for (const [cardNum, effectId, hi, lo] of [['WXK09-031', 'WXK09-031-E1', 3, 2], ['WXK09-081', 'WXK09-081-E1', 2, 1]] as [string, string, number, number][]) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在する`);
+    const outer = e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(outer.type, 'CONDITIONAL', `🔴${effectId}: SEQUENCE（＝無条件実行）に戻っている`);
+    eq((outer.condition as { type: string; minEach?: number }).minEach, hi, `${effectId}: 外側は上段の閾値`);
+    ok(!!outer.else, `🔴${effectId}: 下段が else に入っていない`);
+    const innerCond = (outer.else as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as { minEach?: number };
+    eq(innerCond.minEach, lo, `${effectId}: else の内側が下段の閾値`);
+  }
+});
+
+test('§6.4 O-11: WDK08-Y08-E1 の「その差の分だけ」＝手札枚数−5 の可変枚数', () => {
+  const e = (effectsMap.get('WDK08-Y08') ?? []).find(x => x.effectId === 'WDK08-Y08-E1');
+  ok(!!e, 'WDK08-Y08-E1 が live に存在する');
+  const step = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(step.type, 'CONDITIONAL', '🔴STUB{CONDITIONAL_POWER_BONUS}（＝丸ごと no-op）に戻っている');
+  const charge = step.then as { type: string; target: { count: unknown } };
+  eq(charge.type, 'ENERGY_CHARGE', '帰結は手札→エナ');
+  eq(JSON.stringify(charge.target.count), '{"$ref":"self_hand_over_five"}', '可変枚数 ref');
+  // engine 側：手札7枚なら2枚がエナへ（原文の括弧書きの例そのもの）。
+  const ctx = mkCtx({ hand: 7, energy: 0 } as never, {});
+  const r = run({ type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: { $ref: 'self_hand_over_five' } } } as unknown as EffectAction, ctx);
+  eq(r.ownerState.energy.length, 2, '🔴手札7枚→2枚がエナゾーンへ');
+  eq(r.ownerState.hand.length, 5, '手札は5枚に戻る');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

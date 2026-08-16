@@ -373,6 +373,11 @@ function collectActionsFromJson(effs: EffectDef[]): Set<string> {
       for (const [k, acts] of Object.entries(COST_KEY_TO_ACTION)) {
         if (action[k]) acts.forEach(a => found.add(`~${a}`));
       }
+      // `PICK_FROM_TRASHED_CARDS` も**行き先をペイロードに持つ**型（2026-08-17・§6.4 O-11）＝
+      // id だけでは手札／エナ／場出しを区別できない。`trashedPick.dest` から派生させる。
+      const tp = action.trashedPick as { dest?: string } | undefined;
+      if (tp?.dest === 'hand_or_field') { addDest('hand'); addDest('field'); }
+      else addDest(tp?.dest);
     }
     // 行き先パラメータ由来の派生アクション
     if (action.type === 'LOOK_PICK_CHAIN' || action.type === 'REVEAL_AND_PICK') {

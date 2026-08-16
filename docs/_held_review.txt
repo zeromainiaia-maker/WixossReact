@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［51枚］
-PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［56枚］
+PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX11-077 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WX26-CP1-057 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -191,6 +191,21 @@ WXDi-D08-004 WXEX2-28
   + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
   + [0].action.leavePayLoseSelfAbility.victimFilter.story = "ウェポン"
 
+## +ADD_TO_ENERGY -ADD_TO_HAND ［1枚］
+WX11-080
+--- WX11-080
+  原文: 【起】《ダウン》：白、赤、青、黒から１つを選ぶ。あなたのデッキの一番上を公開し、それが選んだ色を持つシグニである場合、それをエナゾーンに置く。,-
+  ~ [0].action.steps[0].id : "CHOOSE_COLOR_FROM_LIST" → "DECLARE_COLORS"
+  + [0].action.steps[0].declareOptions[0] = "白"
+  + [0].action.steps[0].declareOptions[1] = "赤"
+  + [0].action.steps[0].declareOptions[2] = "青"
+  + [0].action.steps[0].declareOptions[3] = "黒"
+  + [0].action.steps[0].count = 1
+  + [0].action.steps[1].pickUpTo = false
+  + [0].action.steps[1].filter.cardType = "シグニ"
+  + [0].action.steps[1].filter.colorEqDeclaredColorIndex = 0
+  ~ [0].action.steps[1].then.type : "ADD_TO_HAND" → "ADD_TO_ENERGY"
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -322,24 +337,6 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
-
-## +BANISH +ENERGY_CHARGE_FROM_DECK +SEQUENCE +SIGNI ［1枚］
-WX21-006
---- WX21-006
-  原文: 【自】：各アタックフェイズ開始時、対戦相手のシグニ１体を対象とし、あなたの場にそれぞれ共通する色を持たない＜天使＞のシグニが３体ある場合、それをバニッシュし、あなたのデッキの一番上のカードをエナゾーンに置き、カードを１枚引く。【起】《メインフェイズアイコン》《アタックフェイズアイコン》エクシード２：あなたのデッキから＜天使＞のシグニ１枚を探して場に出し、デッ
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "DRAW" → "SEQUENCE"
-  + [0].action.steps[0].type = "BANISH"
-  + [0].action.steps[0].target.type = "SIGNI"
-  + [0].action.steps[0].target.owner = "opponent"
-  + [0].action.steps[0].target.count = 1
-  + [0].action.steps[0].target.filter.cardType = "シグニ"
-  + [0].action.steps[0].target.filter.story = "天使"
-  + [0].action.steps[0].target.upToCount = false
-  + [0].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.steps[1].owner = "self"
-  …（他 4 行）
 
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［1枚］
 WXEX2-70
@@ -506,6 +503,21 @@ WXDi-CP01-042
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
 
+## +ENERGY_CHARGE×2 +HAND_CARD×2 +SEQUENCE -STUB ［1枚］
+WX24-P2-026
+--- WX24-P2-026
+  原文: 【常】：あなたが【ガード】する際、《ガードアイコン》を持つカードを１枚捨てる代わりにあなたのエナゾーンから＜植物＞のシグニ１枚をトラッシュに置いてもよい。【起】《ゲーム１回》本当の気持ち《緑×0》：各プレイヤーは手札をすべてエナゾーンに置く。その後、あなたは自分のエナゾーンからシグニを１枚まで対象とし、それを手札に加える。,-
+  - [1].action.steps[0].id = "MASS_TRASH"
+  ~ [1].action.steps[0].type : "STUB" → "SEQUENCE"
+  + [1].action.steps[0].steps[0].type = "ENERGY_CHARGE"
+  + [1].action.steps[0].steps[0].target.type = "HAND_CARD"
+  + [1].action.steps[0].steps[0].target.owner = "self"
+  + [1].action.steps[0].steps[0].target.count = "ALL"
+  + [1].action.steps[0].steps[1].type = "ENERGY_CHARGE"
+  + [1].action.steps[0].steps[1].target.type = "HAND_CARD"
+  + [1].action.steps[0].steps[1].target.owner = "opponent"
+  + [1].action.steps[0].steps[1].target.count = "ALL"
+
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
 --- WX24-P2-055
@@ -523,6 +535,24 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
+
+## +CHOOSE +ENERGY_CHARGE +TRASH_CARD ［1枚］
+WX26-CP1-059
+--- WX26-CP1-059
+  原文: 【常】：あなたのトラッシュに＜プリオケ＞のカードが５枚以上あるかぎり、このシグニのパワーは＋3000される。１０枚以上あるかぎり、このシグニは【シャドウ】を得る。【出】《無》：あなたのトラッシュからレベル２以下の＜プリオケ＞のシグニ１枚を対象とし、それを場に出すかエナゾーンに置く。,：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、ターン終
+  - [1].action.owner = "self"
+  - [1].action.source.type = "TRASH_CARD"
+  - [1].action.source.owner = "self"
+  - [1].action.source.count = 1
+  - [1].action.source.upToCount = false
+  - [1].action.source.filter.cardType = "シグニ"
+  - [1].action.source.filter.level.max = 2
+  - [1].action.source.filter.story = "プリオケ"
+  ~ [1].action.type : "ADD_TO_FIELD" → "CHOOSE"
+  + [1].action.choose_count = 1
+  + [1].action.from_count = 2
+  + [1].action.choices[0].choiceId = "field"
+  …（他 20 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
@@ -574,6 +604,24 @@ WXK04-014
   + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
   …（他 15 行）
 
+## +ADD_TO_ENERGY +REVEAL_AND_PICK -STUB ［1枚］
+WXK04-027
+--- WXK04-027
+  原文: 【出】：色１つを宣言する。あなたのデッキの一番上を公開し、それが宣言した色を持つカードの場合、それをエナゾーンに置く。【自】：各ターン終了時、あなたのエナゾーンにあるカードの色が２種類以上ある場合、【エナチャージ１】をする。その後、あなたのエナゾーンにあるカードの色が４種類以上ある場合、対戦相手のシグニ１体を対象とし、それをトラッシュに置く。,：カードを１枚
+  - [0].action.steps[1].id = "CONDITIONAL_POWER_BONUS"
+  ~ [0].action.steps[0].id : "DECLARE_COLOR" → "DECLARE_COLORS"
+  + [0].action.steps[0].declareOptions[0] = "白"
+  + [0].action.steps[0].declareOptions[1] = "赤"
+  + [0].action.steps[0].declareOptions[2] = "青"
+  + [0].action.steps[0].declareOptions[3] = "緑"
+  + [0].action.steps[0].declareOptions[4] = "黒"
+  + [0].action.steps[0].count = 1
+  ~ [0].action.steps[1].type : "STUB" → "REVEAL_AND_PICK"
+  + [0].action.steps[1].owner = "self"
+  + [0].action.steps[1].revealCount = 1
+  + [0].action.steps[1].pickCount = 1
+  …（他 7 行）
+
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028
 --- WXK06-028
@@ -613,23 +661,41 @@ WXK08-048
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
 
-## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE +SEND_TO_ENERGY +SIGNI -ENERGY_CARD -TRANSFER_TO_HAND ［1枚］
+## +CONDITIONAL×2 +ENERGY_EACH_LEVEL_FILTER_GTE×2 +SEND_TO_ENERGY +SIGNI -ENERGY_CARD -SEQUENCE -TRANSFER_TO_HAND ［1枚］
 WXK09-031
 --- WXK09-031
   原文: 【自】：このシグニがアタックしたとき、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ２枚以上ある場合、対象の対戦相手のシグニ１体をエナゾーンに置く。それぞれ３枚以上ある場合、代わりに対戦相手のすべてのシグニをトラッシュに置く。【自】：このカードがトラッシュからエナゾーンに置かれたとき、このカードをエナゾーンから手札に加えてもよい。,：あなたのト
+  - [0].action.steps[0].type = "STUB"
   - [0].action.steps[0].id = "ENERGY_LEVEL_CONDITION_CHOOSE"
+  - [0].action.steps[1].type = "TRASH"
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "opponent"
+  - [0].action.steps[1].target.count = "ALL"
   - [1].action.source.type = "ENERGY_CARD"
   - [1].action.source.owner = "self"
   - [1].action.source.count = 1
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.story = "電機"
-  + [0].action.steps[0].condition.levels[0] = 1
-  + [0].action.steps[0].condition.levels[1] = 2
-  + [0].action.steps[0].condition.levels[2] = 3
-  …（他 8 行）
+  ~ [0].action.type : "SEQUENCE" → "CONDITIONAL"
+  + [0].action.condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
+  + [0].action.condition.owner = "self"
+  …（他 27 行）
+
+## +CONDITIONAL +ENERGY_EACH_LEVEL_FILTER_GTE -SEQUENCE ［1枚］
+WXK09-081
+--- WXK09-081
+  原文: 【出】：対戦相手のレベル１以下のシグニ１体を対象とし、あなたのエナゾーンにレベル１～４の＜電機＞のシグニがそれぞれ１枚以上ある場合、それをエナゾーンに置く。それぞれ２枚以上ある場合、代わりに対戦相手のレベル３以下のシグニ１体を対象とし、それをエナゾーンに置く。【自】：このカードがトラッシュからエナゾーンに置かれたとき、あなたの＜電機＞のシグニ１体を対象とし、
+  - [0].action.steps[0].type = "CONDITIONAL"
+  - [0].action.steps[0].condition.type = "ENERGY_EACH_LEVEL_FILTER_GTE"
+  - [0].action.steps[0].condition.owner = "self"
+  - [0].action.steps[0].condition.filter.cardType = "シグニ"
+  - [0].action.steps[0].condition.filter.story = "電機"
+  - [0].action.steps[0].condition.levels[0] = 1
+  - [0].action.steps[0].condition.levels[1] = 2
+  - [0].action.steps[0].condition.levels[2] = 3
+  - [0].action.steps[0].condition.levels[3] = 4
+  - [0].action.steps[0].condition.minEach = 1
+  - [0].action.steps[0].then.type = "SEND_TO_ENERGY"
+  - [0].action.steps[0].then.target.type = "SIGNI"
+  …（他 42 行）
 
 ## +HAND_CARD +REVEAL -STUB ［1枚］
 WXK10-081
@@ -693,7 +759,7 @@ WDK06-C06
   ~ [0].condition.type : "TRASH_COUNT" → "COND_STUB"
   + [0].condition.raw = "あなたのトラッシュにカードが２０枚以上ある"
 
-## +CONDITIONAL +HAND_COUNT +UNKNOWN -STUB ［1枚］
+## +CONDITIONAL +ENERGY_CHARGE +HAND_CARD +HAND_COUNT -STUB ［1枚］
 WDK08-Y08
 --- WDK08-Y08
   原文: あなたのエナゾーンにあるすべてのカードを手札に加える。その後、あなたの手札が５枚より多い場合、その差の分だけ手札からカードをエナゾーンに置く。,-
@@ -703,8 +769,10 @@ WDK08-Y08
   + [0].action.steps[1].condition.owner = "self"
   + [0].action.steps[1].condition.operator = "gt"
   + [0].action.steps[1].condition.value = 5
-  + [0].action.steps[1].then.type = "UNKNOWN"
-  + [0].action.steps[1].then.raw = "その差の分だけ手札からカードをエナゾーンに置く"
+  + [0].action.steps[1].then.type = "ENERGY_CHARGE"
+  + [0].action.steps[1].then.target.type = "HAND_CARD"
+  + [0].action.steps[1].then.target.owner = "self"
+  + [0].action.steps[1].then.target.count.$ref = "self_hand_over_five"
 
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007
@@ -760,7 +828,7 @@ SPK16-13E
   + [0].action.choices[0].action.target.upToCount = false
   …（他 11 行）
 
-## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 -STUB ［1枚］
+## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 ［1枚］
 PR-K072
 --- PR-K072
   原文: ベット―《コインアイコン》以下の２つから１つを選ぶ。あなたがベットしていた場合、代わりに２つ選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンする。カードを１枚引く。②あなたの手札から＜調理＞のシグニ１枚を場に出す。ターン終了時まで、そのシグニは能力を失う。その後、あなたのデッキから＜調理＞のシグニ１枚を探して対象のあなたの＜調理＞のシグニ１体の【アクセ】
@@ -776,7 +844,7 @@ PR-K072
   + [0].action.choices[0].action.steps[0].target.owner = "opponent"
   + [0].action.choices[0].action.steps[0].target.count = 1
   + [0].action.choices[0].action.steps[0].target.filter.cardType = "シグニ"
-  …（他 24 行）
+  …（他 34 行）
 
 ## +GRANT_EFFECT +LRIG -STUB ［1枚］
 SPDi43-05

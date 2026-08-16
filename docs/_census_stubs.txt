@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 599（総ノード 2879 件）
+live JSON の STUB id 種類 : 598（総ノード 2875 件）
 逆翻訳シートの [STUB:…] 総数: 766  うち生ID露出 271 箇所（187 種）
 
 ■ 仕分け結果
@@ -9,9 +9,9 @@ live JSON の STUB id 種類 : 599（総ノード 2879 件）
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 0 種 / 0 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 26 種 / 76 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 184 種 / 268 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 183 種 / 267 箇所
   D 健全（実装あり＋日本語表示）                          : 415 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 338 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -95,7 +95,7 @@ live JSON の STUB id 種類 : 599（総ノード 2879 件）
         消費: src\screens\BattleScreen.tsx:1016 / src\screens\BattleScreen.tsx:10477
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1381
+        消費: src\engine\execUtils.ts:1384
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6841
@@ -339,8 +339,8 @@ live JSON の STUB id 種類 : 599（総ノード 2879 件）
   露出  1箇所 (live 1件/1枚)  DECK_SIGNI_LEVEL_OVERRIDE  [execStubPart3]
         カード: WX18-065
         既存コメント: DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）
-  露出  1箇所 (live 1件/1枚)  DECLARE_COLORS  [execStubPart1]
-        カード: WX11-074
+  露出  1箇所 (live 4件/4枚)  DECLARE_COLORS  [execStubPart1]
+        カード: WX11-074, WX11-077, WX11-080, WXK04-027
         既存コメント: DECLARE_COLORS: 原文が列挙した候補から重複なしで複数色を同時宣言する。 CHOOSE の複数選択は選択 action を SEQUENCE で実行するため、各色を順に配列へ積む。
   露出  1箇所 (live 1件/1枚)  DECLARE_NUMBER_POWER  [execStubPart3]
         カード: WXDi-P07-086
@@ -368,9 +368,6 @@ live JSON の STUB id 種類 : 599（総ノード 2879 件）
   露出  1箇所 (live 1件/1枚)  END_ATTACK_IF_EXTRA_TURN  [execStubPart3]
         カード: WX10-026
         既存コメント: END_ATTACK_IF_EXTRA_TURN: 追加ターンならアタックフェイズを終了（ATTACK_SIGNI/LRIG封じ）
-  露出  1箇所 (live 1件/1枚)  ENERGY_LEVEL_CONDITION_CHOOSE  [execStubPart3]
-        カード: WXK09-031
-        既存コメント: ENERGY_LEVEL_CONDITION_CHOOSE: エナにレベルN以上があればCHOOSE提示
   露出  1箇所 (live 1件/1枚)  FLIP_SELF_ON_TARGETED  [engine別経路]
         カード: WX25-CP1-060
   露出  1箇所 (live 1件/1枚)  FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM  [execStubPart2]
@@ -483,9 +480,9 @@ live JSON の STUB id 種類 : 599（総ノード 2879 件）
         既存コメント: OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
   露出  1箇所 (live 1件/1枚)  OPTIONAL_LRIG_UNDER_COST  [engine別経路]
         カード: WXDi-P05-009
-  露出  1箇所 (live 2件/2枚)  PICK_FROM_TRASHED_CARDS  [execStubPart2]
-        カード: WXEX2-49, WX24-P4-034
-        既存コメント: PICK_FROM_TRASHED_CARDS: トラッシュカードからピックして手札へ
+  露出  1箇所 (live 3件/3枚)  PICK_FROM_TRASHED_CARDS  [execStubPart2]
+        カード: WXEX2-49, WX24-P4-034, WX26-CP1-057
+        既存コメント: PICK_FROM_TRASHED_CARDS: 「この方法でトラッシュに置いたカードの中から」N枚（まで）選び、行き先へ送る。 🔑候補は `ctx.lastProcessedCards` ∩ トラッシュ＝**直前のミ
   露出  1箇所 (live 1件/1枚)  PLACE_CHOKKIN  [execStubPart3]
         カード: WX17-034
         既存コメント: PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1
