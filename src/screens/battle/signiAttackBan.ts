@@ -48,7 +48,7 @@ export function matchedSigniAttackBans(
   effectivePower: number | undefined,
 ): SigniAttackBan[] {
   return (attacker.signi_attack_bans_this_turn ?? [])
-    .filter(ban => ban.appliesTo !== 'LRIG' && banMatches(ban, attackerNum, cardMap, effectivePower));
+    .filter(ban => ban.appliesTo !== 'LRIG' && banMatches(ban, attacker, attackerNum, cardMap, effectivePower));
 }
 
 /** ban の判定に実効パワーが要るか（要らないなら gate はパワー計算を省ける）。 */
