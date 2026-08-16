@@ -30166,6 +30166,34 @@ test('§6.4 O-3: ルリグダメージ無効の走査軸はシグニだけでは
     'レベル上限を超えるルリグからは守らない');
 });
 
+test('§6.4 O-10: 「代わりにダメージを受けず、ターン終了時まで、この能力を失う」は1回だけ（負方向＋対照の対）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  // `WXK01-002-E1`＝「【常】：あなたの手札が０枚であるかぎり、あなたが対戦相手のルリグによって
+  // ダメージを受ける場合、代わりにダメージを受けず、ターン終了時まで、この能力を失う。」
+  const base = { ...mkState({ signi: [SIGNI, null, null] }), hand: [] as string[] };
+  base.field.lrig = ['WXK01-002'];
+  const attacker = mkState({});
+  const first = resolveLrigDamageShield({ defender: base, attacker, cardMap: cm, effectsMap });
+  eq(first.prevented, true, '手札0枚なら1回目は防ぐ');
+  eq(first.loseEffectId, 'WXK01-002-E1', '「この能力を失う」宣言なので消費する effectId を返す');
+  // 🔴負方向＝防いだ側が刻んだあとの2回目。`PREVENT_LRIG_DAMAGE` の既定は**回数無制限**なので、
+  //    刻みを見ないと同じターンに何度でも防ぐ＝無限バリアになる。
+  const after: PlayerState = { ...base, lost_ability_effect_ids_this_turn: [first.loseEffectId!] };
+  eq(resolveLrigDamageShield({ defender: after, attacker, cardMap: cm, effectsMap }).prevented, false,
+     '能力を失ったあとは防がない（同一ターンの2回目）');
+  // 対照①＝ターン境界で戻る（原文「ターン終了時まで」）。
+  eq(clearTurnEndScopedState(after).lost_ability_effect_ids_this_turn, undefined, 'ターン終了で失効が解ける');
+  // 対照②＝activeCondition（手札0枚）を満たさなければそもそも防がない。
+  eq(resolveLrigDamageShield({ defender: { ...base, hand: [SIGNI] }, attacker, cardMap: cm, effectsMap }).prevented,
+     false, '手札があれば防がない');
+  // 対照③＝`loseAbilityAfterUse` を持たない宣言（`WXK03-001-E1`）は刻まない＝回数無制限のまま。
+  const unlimited = { ...mkState({ signi: [SIGNI, null, null] }), hand: [] as string[] };
+  unlimited.field.lrig = ['WXK03-001'];
+  const u = resolveLrigDamageShield({ defender: unlimited, attacker, cardMap: cm, effectsMap });
+  eq(u.prevented, true, '無制限型も防ぐ');
+  eq(u.loseEffectId, undefined, '⚠無制限型に消費を足さない（原文に「この能力を失う」が無い）');
+});
+
 test('§6.4 O-3: `WXK01-002-E2`（次のあなたのメインフェイズまで）の3機構と即時ドローの脱落', () => {
   const eff = effectsMap.get('WXK01-002')!.find(e => e.effectId === 'WXK01-002-E2')!;
   const ctx = mkCtx({}, {}, 'WXK01-002');
