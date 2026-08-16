@@ -2641,24 +2641,27 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   ④クラスの OR（「＜空獣＞か＜地獣＞」`WX19-028-E3` は `includes` に当たらず**無条件**になっていた）。
   if (t.includes('ルリグデッキから') && t.includes('レゾナ') && t.includes('場に出す')) {
     // 「レゾナ」より前の修飾句だけを見る＝後続文（「ターン終了時、〜」等）の語を拾わない。
+    // ⚠絞り込みは「ルリグデッキから」〜「レゾナ」の**間の修飾句だけ**を見る＝
+    //   後続文（「ターン終了時、〜」等）の語を拾わない。
     const clause = t.slice(t.indexOf('ルリグデッキから'), t.indexOf('レゾナ') + 3);
     const anyCount = /好きな枚数の/.test(clause);
-    const countM = clause.match(/レゾナ(?:を)?([０-９\d]+)枚/) ?? clause.match(/レゾナ[０-９\d]*枚/);
-    const upToM = /枚まで/.test(clause) || anyCount;
-    const nM = clause.match(/([０-９\d]+)枚/);
+    // 「レゾナを２枚まで」／「レゾナ１枚を」の両語順を受ける。
+    const nM = t.slice(t.indexOf('ルリグデッキから')).match(/レゾナ(?:を)?([０-９\d]+)枚|([０-９\d]+)枚(?:まで)?の?レゾナ/);
+    const nRaw = nM?.[1] ?? nM?.[2];
+    const upTo = anyCount || /レゾナ(?:を)?[０-９\d]+枚まで/.test(t.slice(t.indexOf('ルリグデッキから')));
     const resonaFilter: TargetFilter = {
       ...parseLevelFilter(clause), ...parseColorFilter(clause), ...parseStoryFilter(clause),
     };
     return {
       type: 'STUB', id: 'SUMMON_RESONA_FROM_LRIG_DECK',
+      // `placesToField`＝次文「この方法で場に出たレゾナの【出】能力は発動しない」を
+      // `foldSuppressOnPlay` が畳み込むための配置アンカー（§6.4 O-32 で入れた汎用フラグ）。
+      placesToField: true,
       resonaSummon: {
-        count: anyCount ? 'ALL' : (nM ? parseNum(nM[1]) : 1),
-        ...(upToM ? { upTo: true } : {}),
+        count: anyCount ? 'ALL' : (nRaw ? parseNum(nRaw) : 1),
+        ...(upTo ? { upTo: true } : {}),
         ...(Object.keys(resonaFilter).length > 0 ? { filter: resonaFilter } : {}),
-        // 「この方法で場に出たレゾナの【出】能力は発動しない」＝同じ効果の別文にある（全文で見る）。
-        ...(/この方法で場に出たレゾナの【出】能力は発動しない/.test(t) ? { suppressOnPlay: true } : {}),
       },
-      ...(countM ? {} : {}),
     } as StubAction;
   }
 
