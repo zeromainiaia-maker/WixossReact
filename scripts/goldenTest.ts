@@ -15212,7 +15212,7 @@ test('SUMMON_RESONA_FROM_LRIG_DECK: 2枚まで出せる／絞り込みに合わ�
   const eff = (effectsMap.get('WX16-Re18') ?? []).find(e => e.effectId === 'WX16-Re18-E1')!;
   const ctx = mkCtx({}, {});
   ctx.ownerState.lrig_deck = [r1, r2, r3];
-  let r = executeEffect(eff, ctx);
+  const r = executeEffect(eff, ctx);
   ok(!r.done && r.pending.type === 'SELECT_TARGET', 'ルリグデッキ選択が出る');
   eq((r.pending as { count: number }).count, 2, '2枚まで選べる（旧＝1枚固定）');
   eq((r.pending as { optional: boolean }).optional, true, '「まで」＝0枚でもよい');
