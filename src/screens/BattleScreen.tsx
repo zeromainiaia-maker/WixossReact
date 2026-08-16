@@ -2914,6 +2914,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (!value || typeof value !== 'object') return false;
       const action = value as Record<string, unknown>;
       if ((action.type === 'ADD_TO_FIELD' || action.type === 'REVEAL_UNTIL_TO_FIELD') && action.suppressOnPlay === true) return true;
+      // 配置を行う STUB（`placesToField` を宣言したもの）にも同じ scoped フラグが乗る（§6.4 O-32）。
+      // ⚠型ごとに分岐を足していくと**新しい配置アンカーが無言で漏れる**ので、STUB 側は id ではなく
+      //   フラグで判定する（`foldSuppressOnPlay` が立てる側と同じ規約）。
+      if (action.type === 'STUB' && action.suppressOnPlay === true) return true;
       if (action.type === 'REVEAL_UNTIL' && action.hit && typeof action.hit === 'object') {
         const hit = action.hit as { destination?: unknown; suppressOnPlay?: unknown };
         if (hit.destination === 'field' && hit.suppressOnPlay === true) return true;
