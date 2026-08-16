@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 599（総ノード 2885 件）
+live JSON の STUB id 種類 : 599（総ノード 2879 件）
 逆翻訳シートの [STUB:…] 総数: 766  うち生ID露出 271 箇所（187 種）
 
 ■ 仕分け結果
@@ -208,8 +208,8 @@ live JSON の STUB id 種類 : 599（総ノード 2885 件）
   露出  2箇所 (live 2件/1枚)  TARGET_OPP_SIGNI_ONLY  [execStubPart3]
         カード: WXDi-P01-028
         既存コメント: TARGET_OPP_SIGNI_ONLY: 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」 対象選択→対戦相手が手札2枚を捨てて回避するか、シグニがデッキの一番下
-  露出  2箇所 (live 2件/2枚)  TRASH  [execStubPart2]
-        カード: WDA-F02-07, WDK07-E09
+  露出  2箇所 (live 1件/1枚)  TRASH  [execStubPart2]
+        カード: WDK07-E09
         既存コメント: TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
   露出  2箇所 (live 2件/2枚)  USE_CONDITION_ARTS_USED  [execStubPart3]
         カード: WD15-006, WD20-008
