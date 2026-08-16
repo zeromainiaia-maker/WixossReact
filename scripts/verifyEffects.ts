@@ -263,6 +263,14 @@ const STUB_EQUIVALENTS: Record<string, string[]> = {
   BANISH_ATTACKER_IF_WEAKER_THAN_FRONT: ['BANISH'],
   // ①全体パワー-1000 ②パワー4000以下バニッシュ ③2ドロー2捨て（execStubPart3.ts:3226）
   INTERNAL_KIYOHIME_CHOOSE: ['POWER_MODIFY', 'BANISH', 'DRAW', 'HAND_DISCARD', 'TRASH'],
+  // 対象選択→「手札に戻す／トラッシュに置く」の二択（execStubPart3.ts:1426→INTERNAL_TOSFC_BOUNCE/_TRASH）
+  TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: ['BOUNCE', 'TRANSFER_TO_HAND', 'TRASH'],
+  // 手札1枚を捨てさせ、宣言アイコンを持たなければ BANISH（execStubPart3.ts:2390→INTERNAL_DECLARED_ICON_RESOLVE）
+  DECLARED_ICON_HAND_DISCARD_BANISH: ['BANISH', 'HAND_DISCARD', 'TRASH'],
+  // 追加コストの有無で①②を切り替え、SEARCH→ADD_TO_HAND / トラッシュ回収を実行（execStubPart3.ts:2048）
+  CONDITIONAL_ALTERNATE_EFFECT: ['SEARCH', 'ADD_TO_HAND', 'TRANSFER_TO_HAND'],
+  // エナのトラッシュ枚数（レベル）に応じて BOUNCE（execStubPart1.ts:120）
+  VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: ['BOUNCE', 'TRASH'],
 };
 
 // ======= 計器の較正（2026-08-16・§6.4 O-11） =======
