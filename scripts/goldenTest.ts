@@ -4214,7 +4214,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 16 → 17（§6.4 O-3 続き498 で blocked_card_names を登録＝turn-end で**両プレイヤー**失効。
   //          登録前はターンプレイヤー側しか手書きクリアされず、相手に課した分が1ターン長く残っていた）
   eq(irregular.length, 17, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 44, '型由来27件＋命名規約外17件の母集団');
+  eq(registered.length, 46, '型由来29件＋命名規約外17件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
