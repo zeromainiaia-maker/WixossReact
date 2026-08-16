@@ -484,6 +484,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     } as StubAction;
   }
 
+  // ---- §6.4 O-10（続き507）: 上の置換の**任意コスト**版＝明示 defer ----
+  // 「あなたの〈filter〉のシグニ１体が対戦相手の効果によって場を離れる場合、〈コスト〉を支払ってもよい。
+  //  そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う。」（原文 regex で3効果）
+  // 🔴従来は `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN}→REMOVE_ABILITIES{self}]` へ落ちていた＝
+  //   **CONTINUOUS の SEQUENCE は誰も実行しない**ので完全な無言 no-op（A群にも映らない）。
+  // ⚠ブロッカーは「支払い」側＝離場置換の決定層は `resultCtx` を**同期的に**組む契約なので
+  //   （`applyEffectLeaveSubstitutes`）、被害側プレイヤーに色エナ/手札を選ばせる対話 pause を張れない。
+  //   さらに**払うのは victim のオーナー＝ctx の `otherState`** で、`optionalCostPaySteps`／
+  //   `canAffordOptionalCostSpec` は `ownerState` 固定＝視点も合わない。
+  //   ⇒ 対話つき置換（`leaveSubstituteAskOptions` の policy 差し替え）と対で実装する。
+  if (/(?:あなたの[^。]{0,20}シグニ[０-９\d]*体?が対戦相手の効果によって場を離れる場合|対戦相手の効果によってあなたの[^。]{0,20}シグニ[０-９\d]*体?が場を離れる場合)[、,][^。]*てもよい/.test(t)) {
+    return { type: 'STUB', id: 'DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY' } as StubAction;
+  }
+
   // ---- §6.3「正面」サブ機構(b)(e): このシグニの正面のシグニの能力喪失／【出】ブロック ----
   // 「このシグニの正面のシグニは能力を失う」（WX05-019-E1）＝従来 owner:'self' へ落ちて**自分のシグニの能力を消す自傷**だった。
   // 「このシグニの正面のシグニの【出】能力は発動しない」（WXK11-029-E1）＝従来 BLOCK_ACTION{PLAYER owner:'self'} へ落ちて

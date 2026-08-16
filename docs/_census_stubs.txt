@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 597（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 762  うち生ID露出 267 箇所（185 種）
+逆翻訳シートの [STUB:…] 総数: 758  うち生ID露出 263 箇所（182 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 12 種 / 14 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 12 種 / 14 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 21 種 / 67 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 175 種 / 257 箇所
-  D 健全（実装あり＋日本語表示）                          : 410 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 172 種 / 253 箇所
+  D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
 ==============================================================================
@@ -69,7 +69,7 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
         消費: src\engine\effectEngine.ts:4726
-     3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY  [生ID露出 2]
+     3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
         カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
         消費: src\engine\effectExecutor.ts:341
      3件   3枚  GRANT_ALL_ZONE_LIFEBURST
@@ -84,7 +84,7 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
      2件   2枚  OPTIONAL_DISCARD_HAND_CLASS
         カード: WX24-P3-068, WXDi-P14-083
         消費: src\engine\effectExecutor.ts:4187
-     1件   1枚  ATTACK_WHILE_DOWN  [生ID露出 1]
+     1件   1枚  ATTACK_WHILE_DOWN
         カード: WX22-022
         消費: src\screens\battle\signiAttackGate.ts:109
      1件   1枚  CANNOT_DEAL_DAMAGE_TO_OPPONENT
@@ -187,8 +187,6 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
   露出  2箇所 (live 2件/1枚)  DISONA_RESTRICTION  [execStubPart3]
         カード: WXDi-P12-075
         既存コメント: DISONA_RESTRICTION: 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」 （使用条件側「すでに非ディソナスペルを使用していた場合は使用不可」はeffect.conditionで判定
-  露出  2箇所 (live 3件/3枚)  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY  [engine別経路]
-        カード: WX25-P2-071, WX25-P3-055, WX25-P2-TK04
   露出  2箇所 (live 2件/2枚)  ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白  [execStubPart3]
         カード: WDK16-01T, WXK10-015
         既存コメント: ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: CONTINUOUS効果（effectEngine.collectEnergyColorSubsで動的計算）
@@ -278,8 +276,6 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
   露出  1箇所 (live 1件/1枚)  ARTS_EXTRA_COST_CONDITION  [execStubPart2]
         カード: WX26-CP1-024
         既存コメント: ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
-  露出  1箇所 (live 1件/1枚)  ATTACK_WHILE_DOWN  [engine別経路]
-        カード: WX22-022
   露出  1箇所 (live 1件/1枚)  BANISH_BY_SELF_GOES_TO_TRASH  [execStubPart3]
         カード: WXK06-049
         既存コメント: BANISH_BY_SELF_GOES_TO_TRASH: このシグニによるバニッシュはエナでなくトラッシュへ
@@ -322,9 +318,6 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
   露出  1箇所 (live 1件/1枚)  CHANGE_SIGNI_COLOR  [execStubPart3]
         カード: WX25-P3-111
         既存コメント: CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）
-  露出  1箇所 (live 1件/1枚)  CHARM_POWER_MINUS_MULTIPLIER  [execStubPart2]
-        カード: WX25-P2-103
-        既存コメント: CHARM_POWER_MINUS_MULTIPLIER（§6.4 O-10・続き507）＝`WX25-P2-103-E1` の選択肢② 「それに【チャーム】が付いている場合、このターン、あなたの効果によってそれのパワー
   露出  1箇所 (live 1件/1枚)  CHOSEN_TO_ENERGY_OR_HAND  [execStubPart2]
         カード: WX22-050
         既存コメント: CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加
