@@ -2652,6 +2652,26 @@ export interface StubAction {
     suppressOnPlay?: boolean;
   };
   /**
+   * `PICK_FROM_TRASHED_CARDS` のペイロード（§6.4 O-11）＝
+   * 「この方法でトラッシュに置いた**カードの中から**N枚（まで）対象とし、それを〈行き先〉へ」。
+   *
+   * 🔑候補は **`ctx.lastProcessedCards`（＝直前のミル/トラッシュで実際に置かれた札）に限定**する。
+   * 🔴従来ハンドラは**トラッシュ全体**を候補にし、枚数・行き先・filter も全部無視して
+   *   「1枚を手札へ」に潰していた（＝「この方法で」の限定が丸ごと落ちた過剰実行）。
+   * ⚠直前が「〜してもよい」で辞退された場合は `lastProcessedCards` が空＝候補0＝no-op が正しい
+   *   （トラッシュ全体へフォールバックしてはならない）。
+   */
+  trashedPick?: {
+    /** 対象枚数。 */
+    count: number;
+    /** 「N枚**まで**」＝0枚でもよい。 */
+    upTo?: boolean;
+    /** 候補側の絞り込み（「シグニ1枚」等）。省略＝任意カード。 */
+    filter?: TargetFilter;
+    /** 行き先。`hand_or_field`＝1枚ずつ「手札に加える／場に出す」の二択。 */
+    dest: 'hand' | 'energy' | 'hand_or_field';
+  };
+  /**
    * この STUB が**シグニを場に出す**ことの宣言（§6.4 O-32）。
    * 🔑`foldSuppressOnPlay` が「直後の `BLOCK_ACTION{ON_PLAY_ABILITY}`（＝「それの【出】能力は発動しない」）」を
    *   畳み込む配置アンカーとして認識するための目印。⚠これを立てないと畳み込みが起きず、
