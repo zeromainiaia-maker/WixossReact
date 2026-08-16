@@ -35219,6 +35219,26 @@ test('§6.4 O-10: 「代わりにこの能力を失う」クラスの live 表�
   ok(!p2071.includes('DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN'), 'WX25-P2-071-E1: defer は解体済み');
 });
 
+test('§6.4 O-10: 任意コストつきの離場置換は明示 defer（無言 no-op へ戻さない）', () => {
+  // 🔴この3効果は A群（census:stubs）に**映らない**無言 no-op だった＝
+  //    `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN}→REMOVE_ABILITIES{self}]` で、
+  //    CONTINUOUS の SEQUENCE は誰も実行しない（しかも表示は「自分のシグニの能力を消す」と嘘をつく）。
+  //    原文 regex（場を離れる場合＋てもよい＋この能力を失う）で数え直した母集団は**ちょうど3効果**。
+  const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
+  const population = Object.keys(srcText).filter(id =>
+    /場を離れる場合/.test(srcText[id]) && /てもよい/.test(srcText[id]) && /この能力を失う/.test(srcText[id]));
+  eq(population.sort().join(','), ['WX25-P2-059-E1', 'WX26-CP1-047-E1', 'WXDi-CP02-056-E1'].join(','),
+     '母集団は原文 regex で3効果（増えたらここで気づく）');
+  for (const effectId of population) {
+    const cardNum = effectId.replace(/-E\d+$/, '');
+    const act = JSON.stringify(mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? [])
+      .find(e => e.effectId === effectId)!.action);
+    ok(act.includes('DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY'), `${effectId}: 明示 defer で計器に載る`);
+    ok(!act.includes('REMOVE_ABILITIES'), `🔴${effectId}: 死んだ REMOVE_ABILITIES{self} が復活していない`);
+    ok(!act.includes('OPTIONAL_COST'), `${effectId}: 実行されない任意コストの残骸が消えている`);
+  }
+});
+
 test('§6.4 離場置換: 強制軸は kind:mandatory で列挙される（対話の選択肢に出さないため）', () => {
   // WXEX2-30「アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる」
   const noAbility = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【'));
