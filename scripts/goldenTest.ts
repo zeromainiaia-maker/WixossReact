@@ -35983,12 +35983,18 @@ test('§6.4 O-22(a): 「代わりに－N」の置換が加算モデルで live �
   const part2 = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
   ok(!/stub\.id === 'CHARM_CONDITIONAL_POWER'/.test(part2),
     '🔴CHARM_CONDITIONAL_POWER のハンドラは削除済み（効果元へ delta を当てる誤実装）');
-  // ④ 倍率形（WX25-P2-103②）は honest defer として分離されている
+  // ④ 倍率形（WX25-P2-103②）＝§6.4 O-10（続き507）で defer 解体。倍率は**原文から読む**。
   const p2103 = (effectsMap.get('WX25-P2-103') ?? []).find(e => e.effectId === 'WX25-P2-103-E1');
   const txt = JSON.stringify(p2103?.action ?? {});
-  ok(txt.includes('DEFERRED_CHARM_POWER_MINUS_MULTIPLIER'),
-    '「代わりに３倍－される」は倍率の別機構＝DEFERRED_ で未実装を宣言する（double_power_minus_targets は2倍固定）');
+  ok(txt.includes('"id":"CHARM_POWER_MINUS_MULTIPLIER"'),
+    '「代わりに３倍－される」は倍率つき機構（power_minus_multipliers_this_turn）で実装済み');
+  ok(txt.includes('"value":3'), '倍率は焼き込まず原文の「３倍」から読む');
+  ok(!txt.includes('DEFERRED_'), 'defer 宣言は残っていない');
   ok(!txt.includes('CHARM_CONDITIONAL_POWER'), '旧 id は残っていない');
+  // ⑤ 2倍軸（選択肢①）と倍率軸（選択肢②）は**別の state** に載る＝二重掛けしない。
+  const partsMul = fs.readFileSync(join(root, 'src/engine/effectEngine.ts'), 'utf8');
+  ok(/Math\.max\([\s\S]{0,400}power_minus_multipliers_this_turn/.test(partsMul),
+    '倍率は 2倍軸と Math.max で合成する（掛け算で重ねない）');
 });
 
 test('§6.4 O-23: 「アタックしたそのシグニのレベル」は triggeringCardNum で解く（効果元で代用しない）', () => withSavedCursor(() => {
