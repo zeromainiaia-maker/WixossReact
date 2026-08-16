@@ -619,7 +619,12 @@ for (const row of rows) {
   const stripDiscardCtx = (t: string) => t.replace(/手札から[^。]*?(?:置かれ|捨てられ)[^、。]*/g, '');
   // アンコールコスト宣言文（「アンコール－手札から…捨てる」等）は追加コストなので除去（DISCARD誤検出対策）
   const stripEncoreCost = (t: string) => t.replace(/アンコール－[^。（]*/g, '');
-  const effectBody = stripCostParts(stripCrashCtx(stripDiscardCtx(stripEncoreCost(stripBanishCtx(stripQuoted(stripParens(effectText)))))));
+  // 「この（アーツ|スペル|カード）を使用する際、…捨てる／支払う」＝**使用コストの宣言節**であって効果本体ではない。
+  // コストの徴収はアーツ使用の支払い funnel が行い、action 側は `ARTS_COST_REDUCTION_BY_EFFECT`＝
+  // 「コストは支払い時点で計算済み」の no-op になる（`execStubPart1.ts:772`）＝ここを本体として数えると
+  // 必ず「捨てるはずが JSON に無い」と鳴る誤検出になる（2026-08-16・§6.4 O-11）。⚠アンコールコストと同じ扱い。
+  const stripUseCost = (t: string) => t.replace(/この(?:アーツ|スペル|カード)を使用する際、[^。]*。?/g, '');
+  const effectBody = stripCostParts(stripCrashCtx(stripDiscardCtx(stripUseCost(stripEncoreCost(stripBanishCtx(stripQuoted(stripParens(effectText))))))));
   const burstBody  = stripParens(burstText);
   const textActions = detectActionsFromText(effectBody + ' ' + burstBody);
   const jsonActions = collectActionsFromJson(effs);
