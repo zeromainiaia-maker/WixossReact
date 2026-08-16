@@ -4240,6 +4240,24 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               } as EffectAction),
               available: eligibleHand.length >= handCount,
             }] : []),
+            // 🆕§6.4 O-9(a)「対戦相手は手札を**N枚まで**捨ててもよい」＝**枚数が可変**。
+            // ⚠all-or-nothing の `opponentHandDiscard` で近似すると **0枚かN枚**に丸まり、
+            //   「この方法で捨てたカード1枚につきカードを1枚引く」の**中間値が選べない**
+            //   （`WXDi-P09-064-E1` は「2枚捨てて2枚引く」か「何もしない」の二択になっていた）。
+            //   0枚は既存の skip 枝が担当するので、ここは 1..N を並べる。
+            //   帰結（`conditional.then`）は `DRAW{addLastProcessedCount}` 等で**実枚数に追従**させる規約
+            //   ＝枚数をここで焼き込まない（`resumeSelectTarget` が `lastProcessedCards` を残す）。
+            ...(stub.opponentHandDiscardUpTo !== undefined
+              ? Array.from({ length: stub.opponentHandDiscardUpTo }, (_unused, i) => i + 1).map(k => ({
+                  id: `discard${k}`,
+                  label: `${handLabelNoun}を${k}枚捨てる`,
+                  action: payBranch({
+                    type: 'TRASH',
+                    target: { type: 'HAND_CARD', owner: 'opponent', count: k, ...(handFilter ? { filter: handFilter } : {}) },
+                  } as EffectAction),
+                  available: eligibleHand.length >= k,
+                }))
+              : []),
             ...(enSpec !== undefined && enCount > 0 ? [{
               id: 'energyTrash',
               label: enSpec === 'ALL' ? 'エナゾーンのすべてのカードをトラッシュに置く' : `エナゾーンからカードを${enCount}枚トラッシュに置く`,
