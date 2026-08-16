@@ -2727,6 +2727,12 @@ export interface StubAction {
   charmTrashVariable?: { min: number };
   /** OPTIONAL_COST: 効果元シグニ自身をダウンする任意コスト。 */
   down_self?: boolean;
+  /**
+   * OPTIONAL_COST: 効果元シグニ自身を**場からエナゾーンへ置く**任意コスト（§6.4 O-7）。
+   * 「（場にある）このシグニをエナゾーンに置いてもよい。そうした場合、〜」＝場を空けることが対価。
+   * ⚠`fieldTrash`（トラッシュ送り）とは行き先が違うので流用できない＝エナが増える／トラッシュ参照に載らない。
+   */
+  selfToEnergy?: boolean;
   /** OPTIONAL_COST: 場のシグニを【ビート】にする任意コスト。原文上の自身/他の区別は共通解析器が担う。 */
   beat_signi?: number;
   /** OPTIONAL_COST: トラッシュのシグニを【ビート】にする任意コスト。 */
