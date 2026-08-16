@@ -101,6 +101,15 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   turn_off_zone_energy_paid_count: { boundaries: ['turn-end'], reset: undefined, reason: 'off-zone energy payments counted per turn' },
   // 空ゾーン側面アタックの正面扱いは、付与されたターンだけ有効。
   side_attack_empty_zone_damage_class: { boundaries: ['turn-end'], reset: undefined, reason: 'side-attack empty-zone override for the current turn' },
+  // 「ターン終了時、それを場から手札に戻す」の対象（§6.4 O-10 続き509）＝当該ターンで消費し切る。
+  //   ⚠解決は `turnEndHandReturn.ts` が行い、**未消費の残骸**をここで落とす（両プレイヤー・全 turn-end 経路）。
+  turn_end_return_to_hand: { boundaries: ['turn-end'], reset: undefined, reason: 'end-of-turn hand returns are consumed in the end phase; no carry-over' },
+  // 🔴基本レベルの一時上書き（`SET_BASE_LEVEL{until:END_OF_TURN}`／`CHANGE_BASE_LEVEL` 系）も
+  //   型コメントは「一時変更」なのに**失効地点が1つも無く永続していた**（§6.4 O-10 続き509 で発見。
+  //   `signi_deploy_power_limit`／`negated_attacks` と同じクラス）。
+  //   ⚠`CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN` だけは原文が「次の自ターン終了まで」＝ここでは1ターン短くなるが、
+  //     **無期限よりは近い**（2ターン軸が要るなら `SigniAttackBan.turnsRemaining` と同じ規約で足す）。
+  attack_phase_level_overrides: { boundaries: ['turn-end'], reset: undefined, reason: 'temporary base-level overrides last until the end of the turn' },
   // 離場置換の選択は解決中に消費し、未消費の残骸もターンを跨がせない。
   leave_substitute_choices: { boundaries: ['turn-end'], reset: undefined, reason: 'unconsumed leave-replacement decisions must not cross turns' },
   // 能力喪失 active は現在のグローバルターンだけ。次ターン分は abilities_removed_next_turn に予約する（§6.4 O-3）。

@@ -21,6 +21,7 @@ import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
 import { resolveTurnEndLrigDeckReturn } from './battle/turnEndLrigDeckReturn';
+import { resolveTurnEndHandReturn } from './battle/turnEndHandReturn';
 import { resolveTurnEndEnergyTrash } from './battle/turnEndEnergyTrash';
 import { pickLifeCrashReplacement, applyMillReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
@@ -3637,6 +3638,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         let myLrigDeckReturned: string[] = [];
+        let myHandReturnedEND: string[] = [];
         // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
         if ((my.turn_end_field_trash_targets ?? []).length > 0) {
           const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
@@ -3669,6 +3671,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: ret.state.field.signi };
             myLrigDeckReturned = ret.returned;
             appendBattleLogs([`ターン終了時：${ret.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す`]);
+          }
+        }
+        // turn_end_return_to_hand: 「ターン終了時、それを場から手札に戻す」（§6.4 O-10 続き509・funnel＝2経路）
+        {
+          const rh = resolveTurnEndHandReturn({ ...my, field: myFieldAfterCoinCheck });
+          if (rh.returned.length > 0) {
+            myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: rh.state.field.signi };
+            myHandReturnedEND = rh.returned;
+            // 🔑**手札上限チェックより前に手札へ入れる**（memory: エンドフェイズは①ターン終了時効果→②手札上限）。
+            //   後から足すと上限超過分が捨てられずに残る。
+            myHandEND = [...myHandEND, ...rh.returned];
+            appendBattleLogs([`ターン終了時：${rh.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を手札に戻す`]);
           }
         }
         // game_turn_end_trash_to_hand: ターン終了時、トラッシュから特定クラスシグニを手札へ（GAIN_ABILITY_THIS_GAME）
@@ -3726,6 +3740,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ...(myLrigDeckReturned.length > 0
                 ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned], turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined }
                 : {}),
+              ...(myHandReturnedEND.length > 0 ? { turn_end_return_to_hand: undefined } : {}),
               excluded: myExcludedEND, pending_exile_nums: undefined,
               energy: myEnergyEND,
               turn_end_draw_count: undefined,
@@ -4126,6 +4141,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       let myLrigDeckReturned2: string[] = [];
+      let myHandReturnedEND2: string[] = [];
       // turn_end_field_trash_targets
       if (!my.end_turn_effects_resolved && (my.turn_end_field_trash_targets ?? []).length > 0) {
         const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
@@ -4158,6 +4174,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: ret.state.field.signi };
           myLrigDeckReturned2 = ret.returned;
           appendBattleLogs([`ターン終了時：${ret.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す`]);
+        }
+      }
+      // turn_end_return_to_hand: 「ターン終了時、それを場から手札に戻す」（§6.4 O-10 続き509・上と同じ関数）
+      if (!my.end_turn_effects_resolved) {
+        const rh = resolveTurnEndHandReturn({ ...my, field: myFieldAfterCoinCheck });
+        if (rh.returned.length > 0) {
+          myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: rh.state.field.signi };
+          myHandReturnedEND2 = rh.returned;
+          appendBattleLogs([`ターン終了時：${rh.returned.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を手札に戻す`]);
         }
       }
       // game_turn_end_trash_to_hand（「このゲーム」持続なのでフラグは消さない。マーカーで二重適用を防ぐ）
@@ -4200,6 +4225,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         turn_end_energy_trash_targets: undefined,
         ...(myLrigDeckReturned2.length > 0
           ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned2] } : {}),
+        // §6.4 O-10（続き509）＝手札へ戻す分は `myHandEND` の**後**に足す（上限チェックは既に済んでいる）。
+        ...(myHandReturnedEND2.length > 0
+          ? { hand: [...myHandEND, ...myHandReturnedEND2], turn_end_return_to_hand: undefined } : {}),
         turn_end_draw_count: undefined,
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},

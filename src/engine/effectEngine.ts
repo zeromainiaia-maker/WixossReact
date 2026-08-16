@@ -6872,6 +6872,16 @@ export function applyContinuousBaseLevelOverride(
   };
   scan(ownerState, otherState, isOwnerTurn);
   scan(otherState, ownerState, !isOwnerTurn);
+  // 🔴**一時的な基本レベル変更**（`SET_BASE_LEVEL{until:'END_OF_TURN'}`／`CHANGE_BASE_LEVEL` 系が書く
+  //   `attack_phase_level_overrides`）も**ここで cardMap へ反映する**（§6.4 O-10・続き509）。
+  //   従来この store の読み手は `EICHI_LEVEL_SUM` の1箇所だけで、レベル参照の funnel（cardMap 上書き）に
+  //   載っていなかった＝「基本レベルを1にする」がフィルタにもレベル比較にも一切効かない**ほぼ死んだ store**だった。
+  // ⚠CONTINUOUS 宣言（上の scan）より**後**に適用する＝一時変更が恒久宣言を上書きする（後勝ち）。
+  for (const state of [ownerState, otherState]) {
+    for (const [cn, level] of Object.entries(state.attack_phase_level_overrides ?? {})) {
+      if (typeof level === 'number') overrides.push({ cn, level });
+    }
+  }
   if (overrides.length === 0) return cardMap;
   const newMap = new Map(cardMap);
   for (const { cn, level } of overrides) {
