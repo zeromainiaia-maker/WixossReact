@@ -2316,12 +2316,18 @@ export function calcFieldPowers(
   // doubleNeg: このstateのシグニへの負デルタを2倍にする（対戦相手が double_power_minus_this_turn を持つ場合。WX04-038-E1）
   const applyTempMods = (state: PlayerState, negatePositiveFor?: Set<string>, doubleNeg = false, sourceDoublers: string[] = []) => {
     const doublers = state.double_power_minus_targets ?? [];
+    const multipliers = state.power_minus_multipliers_this_turn ?? {};
     for (const mod of [...(state.temp_power_mods ?? []), ...(state.power_mods_until_opp_turn ?? [])] as Array<{ cardNum: string; delta: number; srcType?: string; srcCardNum?: string }>) {
       if (powers.has(mod.cardNum)) {
         // DOUBLE_OWN_POWER_MINUS（特定シグニ）/ DOUBLE_POWER_MINUS（このターン・相手フラグ。シグニ発生元のみ）: 負デルタを2倍に
         // srcType 未設定はシグニ発生元として扱う（STUB系シグニ効果が大多数）。レゾナもシグニ。
         const fromSigni = mod.srcType === undefined || mod.srcType.includes('シグニ') || mod.srcType.includes('レゾナ');
-        let delta = mod.delta < 0 && (doublers.includes(mod.cardNum) || (mod.srcCardNum != null && sourceDoublers.includes(mod.srcCardNum)) || (doubleNeg && fromSigni)) ? mod.delta * 2 : mod.delta;
+        // §6.4 O-10: 倍率つき（「代わりに３倍－される」）は 2倍軸と**大きい方**を採る（二重掛けしない）。
+        const mult = Math.max(
+          doublers.includes(mod.cardNum) || (mod.srcCardNum != null && sourceDoublers.includes(mod.srcCardNum)) || (doubleNeg && fromSigni) ? 2 : 1,
+          multipliers[mod.cardNum] ?? 1,
+        );
+        let delta = mod.delta < 0 && mult > 1 ? mod.delta * mult : mod.delta;
         // REPLACE_PLUS_N: 対象シグニへの正デルタを負に置換
         if (negatePositiveFor?.has(mod.cardNum) && delta > 0) delta = -delta;
         powers.set(mod.cardNum, (powers.get(mod.cardNum) ?? 0) + delta);
