@@ -410,6 +410,19 @@ export interface PlayerState {
   abilities_removed_next_turn?: string[];
   // 指定キーワードだけを失い、新たに得られないシグニ。ターン終了時に abilities_removed と同時にクリア。
   keyword_abilities_removed?: Record<string, string[]>;
+  /**
+   * §6.4 O-10（続き507）＝**「代わりに〜、ターン終了時まで、この能力を失う」で自壊した効果の effectId**。
+   *
+   * 🔑この語彙の能力は「置換を1回起こすこと」**だけ**が仕事なので、能力喪失を `abilities_removed`
+   * （＝カード単位・全能力）で表すと**同居する他の能力まで巻き添えで消える**（`WX25-P3-055` は
+   * E1 のパワー＋3000 と E3 の手札戻しが道連れになる）。そこで**効果単位**で無効化する。
+   * ⚠**読むのは置換の成立地点だけ**＝現状は
+   *   ①離場置換 `applyEffectLeaveSelfAbilitySubstitute`（`WX25-P3-055-E2`／`WX25-P2-071-E1` の付与）
+   *   ②ルリグダメージ無効 `resolveLrigDamageShield`（`WXK01-002-E1`）
+   *   の2点。新しい「代わりに…この能力を失う」を足すときは**成立地点で必ずこの配列を見る**
+   *   （見ないと「ターン中に何度でも置換できる」＝原文が1回に絞った意味が消える）。
+   */
+  lost_ability_effect_ids_this_turn?: string[];
   // 次のダメージを無効にする回数（PREVENT_NEXT_DAMAGE 効果）
   prevent_next_damage?: number;
   // 発生源限定付きの「次のダメージ」予約。count は条件に合うダメージでのみ減る。
