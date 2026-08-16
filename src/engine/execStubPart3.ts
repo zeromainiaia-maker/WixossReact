@@ -4650,6 +4650,30 @@ export function execStubPart3(
   //   BattleScreen の augmented `effectsMap` 経由で読まれる。`lrig_abilities_disabled` が落とすのは
   //   `grantedStoreWatchers`（`lrig_granted_auto_effects` 系）と CONTINUOUS の走査であって、この経路ではない。
   //   ⚠つまり**付与に `GRANT_LRIG_ABILITY` を使うと自分で消してしまう**（原文は「失い、得る」＝得た側は残る）。
+  // SET_STORED_BASE_LEVEL（§6.4 O-10・続き509）＝「ターン終了時まで、**それ**の基本レベルをNにする」。
+  // 直前に処理／固定したカード（`storedTargetCards` → `lastProcessedCards` の順）へ
+  // `attack_phase_level_overrides` を書く。読み手は `applyContinuousBaseLevelOverride`（cardMap 上書き）1本。
+  // ⚠既存の `SET_BASE_LEVEL{until:'END_OF_TURN'}` は **`ctx.sourceCardNum` 固定**で「それ」を指せない。
+  if (stub.id === 'SET_STORED_BASE_LEVEL') {
+    const targetsSSBL = (ctx.storedTargetCards?.length ? ctx.storedTargetCards : ctx.lastProcessedCards) ?? [];
+    if (targetsSSBL.length === 0) return done(addLog(ctx, '基本レベル変更：対象が確定していない'));
+    const lvSSBL = typeof stub.value === 'number' ? stub.value : 1;
+    const ovSSBL = { ...(ctx.ownerState.attack_phase_level_overrides ?? {}) };
+    for (const cn of targetsSSBL) ovSSBL[cn] = lvSSBL;
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, attack_phase_level_overrides: ovSSBL } },
+      `${targetsSSBL.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・')}の基本レベルを${lvSSBL}に変更（ターン終了時まで）`));
+  }
+  // RETURN_TO_HAND_AT_TURN_END（§6.4 O-10・続き509）＝「ターン終了時、それを場から手札に戻す」。
+  // 予約だけを積み、解決は `screens/battle/turnEndHandReturn.ts` の funnel（ターン終了2経路で同じ関数）。
+  if (stub.id === 'RETURN_TO_HAND_AT_TURN_END') {
+    const targetsRTH = (ctx.storedTargetCards?.length ? ctx.storedTargetCards : ctx.lastProcessedCards) ?? [];
+    if (targetsRTH.length === 0) return done(addLog(ctx, 'ターン終了時の手札戻し：対象が確定していない'));
+    const existingRTH = ctx.ownerState.turn_end_return_to_hand ?? [];
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState,
+      turn_end_return_to_hand: [...new Set([...existingRTH, ...targetsRTH])],
+    } }, `ターン終了時に${targetsRTH.map(cn => ctx.cardMap.get(getCardNum(cn))?.CardName ?? cn).join('・')}を手札に戻す（予約）`));
+  }
   if (stub.id === 'SELF_LRIG_LOSE_ABILITY') {
     const lrigTopSLLA = ctx.ownerState.field.lrig?.at(-1);
     if (!lrigTopSLLA) return done(addLog(ctx, 'センタールリグがいない（能力喪失なし）'));
