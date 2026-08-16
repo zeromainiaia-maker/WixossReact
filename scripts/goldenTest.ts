@@ -16648,6 +16648,9 @@ const externalSwapSpecs: Array<{
   { cardNum: 'WX26-CP1-085', effectId: 'WX26-CP1-085-SONG', location: 'energy', owner: 'opponent', fieldMode: 'selected', suppress: true },
   { cardNum: 'WXDi-P12-043', effectId: 'WXDi-P12-043-E2', location: 'energy', owner: 'opponent', fieldMode: 'selected', suppress: true },
   { cardNum: 'WXDi-P14-058', effectId: 'WXDi-P14-058-E2', location: 'trash', owner: 'opponent', fieldMode: 'selected', suppress: true },
+  // 🆕§6.4 O-7（2026-08-16）＝交換元の名詞句が**前の文**にしか無い省略形（`restoreElidedSwapSource`）。
+  //    採用前は `REARRANGE_SIGNI{owner:'any', count:1}`＝場の適当な2体を入れ替えるだけだった。
+  { cardNum: 'WX25-P2-058', effectId: 'WX25-P2-058-E1', location: 'energy', owner: 'self', fieldMode: 'source', suppress: true },
 ];
 for (const spec of externalSwapSpecs) test(`§6.4 zone swap E2E ${spec.effectId}`, () => withSavedCursor(() => {
   const action = freshRearrange(spec.cardNum, spec.effectId);
