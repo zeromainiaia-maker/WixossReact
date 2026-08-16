@@ -19424,8 +19424,8 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ['WX26-CP1-085', 'WX26-CP1-085-SONG', 'external'],
     ['WXDi-P12-043', 'WXDi-P12-043-E2', 'external'],
     ['WXDi-P14-058', 'WXDi-P14-058-E2', 'external'],
-    // 据置＝原文にはアタック終了時・《アイヤイ★クイーン》条件もあり、交換節だけの部分採用はしない（続き449）。
-    ['WX25-P2-058', 'WX25-P2-058-E1', 'field-only'],
+    // 🆕§6.4 O-7 クローズ（2026-08-16）＝据置ブロッカー3軸が揃ったので外部ゾーン交換として採用。
+    ['WX25-P2-058', 'WX25-P2-058-E1', 'external'],
   ];
   for (const [cardNum, effectId, mode] of rearrangeOnPlaySuppression) {
     test(`§6.4 ${effectId}: 死BLOCKは復活させず、suppressOnPlay は消費経路とセットでのみ持つ`, () => withSavedCursor(() => {
