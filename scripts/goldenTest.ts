@@ -16811,6 +16811,86 @@ test('§6.4 O-7: WX25-P2-058-E1 は据置ブロッカー3軸をすべて表現�
   ok(sourceText.includes('アタック終了時') && sourceText.includes('《アイヤイ★クイーン》') && sourceText.includes('エナゾーンから'),
     '3軸を原文で固定（原文が変わったら見直す）');
 });
+
+// §6.4 O-7 の母集団＝「このシグニがアタックしたとき、**そのアタック終了時**、〜」。
+// 🔴従来は `trigText` が「〜したとき、」で非貪欲に切れるため直後の限定句を見ず ON_ATTACK_SIGNI へ落ちていた
+//   ＝**アタック解決前**に本体が走る（自分を退避したり対象をバニッシュしたりしてアタックを取り消す）過剰実行。
+// ⚠**ルリグのアタック終了時は engine 未配線**（`collectAttackEndTriggers` はアタックしたシグニ自身しか見ない）
+//   ＝ここへ混ぜると収集地点が無い無言 no-op になる。負方向を同じテストで固定する。
+test('§6.4 O-7: 「このシグニがアタックしたとき、そのアタック終了時、」= ON_ATTACK_END（ルリグ版は巻き込まない）', () => {
+  for (const [num, eid] of [
+    ['WX25-P2-058', 'WX25-P2-058-E1'], ['WX24-P4-052', 'WX24-P4-052-E2'],
+    ['WX25-P1-053', 'WX25-P1-053-E1'], ['WX25-P2-090', 'WX25-P2-090-E1'],
+    ['WX25-P2-093', 'WX25-P2-093-E1'], ['WX25-P3-060', 'WX25-P3-060-E2'],
+  ] as const) {
+    const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
+    ok(live.timing?.includes('ON_ATTACK_END'), `${eid}: ON_ATTACK_END`);
+    ok(!live.timing?.includes('ON_ATTACK_SIGNI'), `${eid}: アタック宣言時へ戻っていない`);
+  }
+  // 負方向＝主語がルリグ／相手シグニの「そのアタック終了時」は engine に収集地点が無いので昇格させない
+  for (const [num, eid] of [['WX24-P3-055', 'WX24-P3-055-E2'], ['WXK11-006', 'WXK11-006-E4']] as const) {
+    const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
+    ok(!live.timing?.includes('ON_ATTACK_END'), `${eid}: ルリグのアタック終了時は未配線なので昇格しない`);
+  }
+});
+
+// §6.4 O-7：`OPTIONAL_COST{selfToEnergy}`＝「（場にある）このシグニをエナゾーンに置いてもよい」。
+// 🔴従来は part4 の総称 `LRIG_UNDER_CARD_OP` へ落ち、**支払いが一度も起きないまま本体だけが走って**いた
+//   （しかも本体の `ADD_TO_FIELD` に source が無く、エナからではなく手札から出す別動作だった）。
+test('§6.4 O-7: selfToEnergy 任意コスト＝自身がエナへ行き、エナの絞り込み札がダウン状態で場に出る', () => withSavedCursor(() => {
+  for (const [num, eid, level] of [
+    ['WX25-P2-090', 'WX25-P2-090-E1', 1], ['WX25-P2-093', 'WX25-P2-093-E1', 2],
+  ] as const) {
+    const live = (effectsMap.get(num) ?? []).find(e => e.effectId === eid)!;
+    const seq = live.action as SequenceAction;
+    const cost = seq.steps[0] as { id?: string; selfToEnergy?: boolean };
+    eq(cost.id, 'OPTIONAL_COST', `${eid}: 正準形の任意コスト`);
+    ok(cost.selfToEnergy, `${eid}: 支払いは「このシグニをエナゾーンへ」`);
+    const body = (seq.steps[1] as ConditionalAction).then as { source?: { type?: string; filter?: unknown }; asDown?: boolean; suppressOnPlay?: boolean };
+    eq(body.source?.type, 'ENERGY_CARD', `${eid}: 出す先はエナゾーンから（手札からではない）`);
+    ok(JSON.stringify(body.source?.filter).includes('遊具'), `${eid}: ＜遊具＞に絞る`);
+    ok(body.asDown && body.suppressOnPlay, `${eid}: ダウン状態＋【出】抑止`);
+    void level;
+  }
+  // 実経路：支払い枝を選ぶと効果元がエナへ移り、エナのレベル1＜遊具＞だけが配置候補になる。
+  const self = 'WX25-P2-090';
+  const toy1 = findCard(c => isSigni(c) && c.Level === '1' && (c.Story ?? '').includes('遊具') && c.CardNum !== self);
+  const other = findCard(c => isSigni(c) && !(c.Story ?? '').includes('遊具'));
+  const ctx = mkCtx({ signi: [self, null, null] }, {}, self);
+  ctx.ownerState.energy = [toy1, other];
+  const live = (effectsMap.get(self) ?? []).find(e => e.effectId === 'WX25-P2-090-E1')!;
+  const p0 = executeEffect(live, ctx);
+  ok(!p0.done && p0.pending.type === 'CHOOSE', '任意コストの pay/skip を問う');
+  const pay = p0.pending.options.find(o => o.id === 'pay')!;
+  ok(pay.available, '効果元が場にあるので支払える');
+  const c0: ExecCtx = { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs };
+  const paid = executeAction(pay.action, c0);
+  ok(paid.ownerState.energy.includes(self), '効果元がエナゾーンへ移動した（＝対価を払った）');
+  ok(!paid.done && paid.pending.type === 'SELECT_TARGET', '配置するエナ札を選ぶ');
+  ok(paid.pending.candidates.includes(toy1) && !paid.pending.candidates.includes(other),
+    'レベル1の＜遊具＞だけが候補（絞り込みが落ちていない）');
+  // 負方向＝効果元が既に場を離れていれば支払えない
+  const goneCtx = mkCtx({ signi: [null, null, null] }, {}, self);
+  goneCtx.ownerState.energy = [toy1];
+  const p1 = executeEffect(live, goneCtx);
+  ok(!p1.done && p1.pending.type === 'CHOOSE'
+    && p1.pending.options.find(o => o.id === 'pay')?.available === false,
+    '場に居ない効果元はエナへ置けない＝支払い枝が選べない');
+}));
+
+// §6.4 O-6：`LAST_PROCESSED_HAS_NO_ABILITIES` は `abilities_removed` を**カードが実際に居る側**から引く。
+// 🔴旧実装は `ownerState('self')` 固定で、対象が相手シグニのこの条件では相手側の能力喪失を一度も見られず
+//   「代わりにトラッシュ」枝が永久に外れていた。
+test('§6.4 O-6: 能力を消された相手シグニも「能力を持たない」に数える（holder を場から引く）', () => withSavedCursor(() => {
+  const abled = findCard(c => isSigni(c) && (c.EffectText ?? '').trim() !== '-' && (c.EffectText ?? '').trim() !== '');
+  const ctx = mkCtx({}, { signi: [abled, null, null] });
+  ctx.lastProcessedCards = [abled];
+  eq(evalCondition({ type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }, ctx), false, '能力持ちはそのまま「能力あり」');
+  const removedCtx: ExecCtx = { ...ctx, otherState: { ...ctx.otherState, abilities_removed: [abled] } };
+  eq(evalCondition({ type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }, removedCtx), true,
+    '相手側の abilities_removed を読む（自分側 state 固定に戻っていない）');
+}));
+
 test('applyContinuousBaseLevelOverride: CONTINUOUS SET_BASE_LEVELでcardMapのLevelを上書き（WX04-049・条件成立時のみ）', () => {
   const st = mkState({ signi: ['WX04-049', 'WD04-009', null] }); // WD04-009=空獣/地獣
   const overridden = applyContinuousBaseLevelOverride(cardMap as Map<string, CardData>, st, mkState({}), effectsMap, true);
