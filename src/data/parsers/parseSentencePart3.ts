@@ -448,6 +448,16 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REMOVE_SIGNI_ZONE' } as StubAction;
   }
 
+  // ---- 【ゲート】があるシグニゾーンのアタック禁止（§6.4 O-33 据置分・続き508）----
+  // 「（このターン、）対戦相手は【ゲート】があるシグニゾーンにあるシグニでアタックできない」（`WDK09-001-E2`）。
+  // 🔴**下の catch-all（`includes('【ゲート】')`）より前に置く**＝従来はこの文まで `STUB{GATE}` へ落ちて
+  //   **相手ゾーンに【ゲート】をもう1つ置く**という原文に無い動作に化けていた（毎アタックフェイズに増える）。
+  // 🔑ゾーン集合は静的に焼き込まず `zoneSource:'gate'`＝判定地点で `signi_gate_zones` を引く。
+  if (/【ゲート】があるシグニゾーンにあるシグニ(?:で|では)アタックできない/.test(t)) {
+    const banOwnerGate: Owner = /あなたは【ゲート】/.test(t) ? 'self' : 'opponent';
+    return { type: 'SIGNI_ATTACK_BAN', owner: banOwnerGate, zoneSource: 'gate' } as SigniAttackBanAction;
+  }
+
   // ---- ゲートを置く ----
   if (t.includes('【ゲート】')) {
     return { type: 'STUB', id: 'GATE' } as StubAction;
