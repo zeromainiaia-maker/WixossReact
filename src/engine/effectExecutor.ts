@@ -4306,7 +4306,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
               } as EffectAction),
               available: cur.otherState.hand.length + cur.otherState.energy.length >= stub.opponentHandOrEnergyToDeckTop,
             }] : []),
-            { id: 'skip', label: '支払わない', action: thenOnPay ? ((conditional.else ?? noopAction) as EffectAction) : conditional.then, available: true },
+            // ⚠可変枚数（§6.4 O-9(a)）では skip が **「0枚捨てる」**＝原文の合法な選択肢なので、
+            //   「支払わない」ではなく枚数の言葉で出す（0枚も選べることが実機で判別できるようにする）。
+            {
+              id: 'skip',
+              label: stub.opponentHandDiscardUpTo !== undefined ? `${handLabelNoun}を捨てない（0枚）` : '支払わない',
+              action: thenOnPay ? ((conditional.else ?? noopAction) as EffectAction) : conditional.then,
+              available: true,
+            },
           ];
           const pending: PendingInteractionDef = {
             type: 'CHOOSE', options, count: 1, opponentResponds: true,
