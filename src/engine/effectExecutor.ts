@@ -8483,6 +8483,20 @@ export function resumeSearch(
       { ...cur, lastProcessedCards: picked },
     );
   }
+  // 【アクセ】付け（§6.4 O-11）: 探した札を1枚ずつ「どのシグニに付けるか」の選択へ回す。
+  // ⚠【トラップ】設置と**同じ理由**でここに置く＝対話を伴うので下の applyDirectAction ループ
+  //   （!done で即 return する）に載せると afterAction / continuation が落ちる。
+  if (pending.thenAction.type === 'STUB'
+      && (pending.thenAction as StubAction).id === 'INTERNAL_ASK_ACCE_HOST' && picked.length > 0) {
+    const acceSteps: EffectAction[] = picked.map(
+      cn => ({ ...(pending.thenAction as StubAction), value: cn } as StubAction) as EffectAction);
+    if (pending.afterAction) acceSteps.push(pending.afterAction);
+    if (pending.continuation) acceSteps.push(pending.continuation);
+    return executeAction(
+      acceSteps.length === 1 ? acceSteps[0] : { type: 'SEQUENCE', steps: acceSteps } as SequenceAction,
+      { ...cur, lastProcessedCards: picked },
+    );
+  }
   // 【マジックボックス】設置: PLACE_MAGIC_BOX は lastProcessedCards[0] を設置札として読む。
   // 下の applyDirectAction ループは picked を引数で渡すだけで lastProcessedCards を設定せず、
   // 対話 pause で早期 return すると afterAction / continuation も落ちるため、SEQUENCE に積んで渡す。
