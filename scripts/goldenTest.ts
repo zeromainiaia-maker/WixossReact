@@ -35094,6 +35094,74 @@ test('§6.4 離場置換: WX14-026 の lifeCrash は列挙されるが自動で�
      '入口も置換しない＝挙動は従来のまま');
 });
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-10（続き507）: 離場置換の `selfAbility` 軸＝「代わりに（ターン終了時まで、）この能力を失う」
+// ⚠**壊れ方は3方向とも無言**＝(a) 置換しない（シグニが素直に消える）(b) 一度失った能力でまた置換する
+//   （＝そのターン無敵）(c) 能力喪失をカード単位でやって同居能力を巻き添えにする。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 O-10: 「代わりにこの能力を失う」で場に残り、そのターンの2回目は置換しない（負方向＋対照の対）', () => {
+  // `WX25-P2-TK04-E1`＝「【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を
+  // 失う。そうした場合、このシグニをダウンする。」
+  const victim = 'WX25-P2-TK04';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  const first = applyEffectLeaveSubstitutes(victim, 'opponent', ctx, {});
+  ok(first.replaced, '1回目は置換が成立する');
+  ok(first.ctx.otherState.field.signi.some(z => z?.at(-1) === victim), '置換したので victim は場に残る');
+  eq(first.ctx.otherState.lost_ability_effect_ids_this_turn?.join(','), 'WX25-P2-TK04-E1',
+     '失うのは**この効果1つだけ**（カード単位の abilities_removed ではない＝同居能力を巻き添えにしない）');
+  eq(first.ctx.otherState.abilities_removed?.length ?? 0, 0, 'カード単位の能力喪失は使わない');
+  eq(first.ctx.otherState.field.signi_down?.[0], true, '「そうした場合、このシグニをダウンする」が効く');
+  // 🔴負方向＝同じターンの2回目。刻んだ effectId を見ないと**そのターン無敵**になる。
+  const second = applyEffectLeaveSubstitutes(victim, 'opponent', first.ctx, {});
+  eq(second.replaced, false, '能力を失ったあとは置換しない（2回目は通常どおり場を離れる）');
+});
+
+test('§6.4 O-10: thenDown の無い宣言はダウンしない／強制軸として列挙される', () => {
+  // `WX25-P3-055-E2`＝「【常】《相手ターン》：対戦相手の効果によってこのシグニが場を離れる場合、
+  // 代わりにターン終了時まで、この能力を失う。」＝ダウンは**書いていない**。
+  const victim = 'WX25-P3-055';
+  const ctx = mkCtx({}, { signi: [victim, null, null] });
+  const options = collectLeaveSubstituteOptions(victim, 'opponent', ctx, {});
+  const axis = options.find(o => o.axis === 'selfAbility');
+  ok(!!axis, 'selfAbility 軸が列挙される');
+  eq(axis!.kind, 'mandatory', '原文に「してもよい」が無い＝強制軸');
+  const applied = applyEffectLeaveSubstitutes(victim, 'opponent', ctx, {});
+  ok(applied.replaced, '置換は成立する');
+  eq(applied.ctx.otherState.field.signi_down?.[0], false, '⚠原文に無いダウンを勝手に足さない');
+  eq(applied.ctx.otherState.lost_ability_effect_ids_this_turn?.join(','), 'WX25-P3-055-E2', 'E2 だけを失う');
+});
+
+test('§6.4 O-10: 自分の効果で自分のシグニを動かす経路では成立しない（他3軸と同じガード）', () => {
+  // 原文は「**対戦相手の**効果によって場を離れる場合」＝victimOwner==='self' では置換しない。
+  const victim = 'WX25-P2-TK04';
+  const ctx = mkCtx({ signi: [victim, null, null] }, {});
+  eq(applyEffectLeaveSubstitutes(victim, 'self', ctx, {}).replaced, false,
+     '自分の効果で自分のシグニを動かす経路は置換しない');
+});
+
+test('§6.4 O-10: 「代わりにこの能力を失う」クラスの live 表現が回帰していない', () => {
+  // 🔴このクラスは A群（census:stubs）に映らない誤 parse を持っていた＝`WX25-P2-TK04-E1` は
+  //   `REMOVE_ABILITIES{owner:'opponent'}`＝**相手シグニの能力を恒久的に消す**加害へ化けていた。
+  //   原文 regex で数え直した母集団のうち「離場×自己能力喪失」の3効果を live で固定する。
+  for (const [cardNum, effectId, thenDown] of [
+    ['WX25-P2-TK04', 'WX25-P2-TK04-E1', true],
+    ['WX25-P3-055', 'WX25-P3-055-E2', false],
+  ] as const) {
+    const act = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? [])
+      .find(e => e.effectId === effectId)!.action as { type: string; id?: string; leaveLoseSelfAbility?: { thenDown?: boolean } };
+    eq(act.type, 'STUB', `${effectId}: 宣言型 STUB`);
+    eq(act.id, 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY', `${effectId}: 離場置換の自己能力喪失`);
+    eq(act.leaveLoseSelfAbility?.thenDown ?? false, thenDown, `${effectId}: ダウンの有無は原文どおり`);
+    ok(!JSON.stringify(act).includes('REMOVE_ABILITIES'),
+       `🔴${effectId}: カード単位の能力喪失（相手シグニへの加害）へ戻っていない`);
+  }
+  // 付与形（`WX25-P2-071-E1`＝「それは「【常】：…」を得る」）は GRANT_EFFECT の中に同じ宣言が入る。
+  const p2071 = JSON.stringify(mergeManualEffects('WX25-P2-071', effectsMap.get('WX25-P2-071') ?? []));
+  ok(p2071.includes('"type":"GRANT_EFFECT"'), 'WX25-P2-071-E1: 引用【常】は付与として実体化する');
+  ok(p2071.includes('EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY'), 'WX25-P2-071-E1: 付与の中身が同じ宣言');
+  ok(!p2071.includes('DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN'), 'WX25-P2-071-E1: defer は解体済み');
+});
+
 test('§6.4 離場置換: 強制軸は kind:mandatory で列挙される（対話の選択肢に出さないため）', () => {
   // WXEX2-30「アタックフェイズの間、能力を持たない対戦相手のシグニが場を離れる場合、代わりにデッキの一番下に置かれる」
   const noAbility = findCard(c => isSigni(c) && !(c.EffectText ?? '').includes('【'));
