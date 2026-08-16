@@ -4658,8 +4658,14 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // （`EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY`）が《相手ターン》の `activeCondition` ごと正しく作るので
   // **AUTO 採用**（MANUAL エントリを削除）。⚠live レコードは `MANUAL` 刻印だと `build:effects` が
   // 永久に触れないので、live JSON の外科パッチとセットで行うこと（§6.4 O-6 続き505 と同じ手順）。
+  // §6.4 O-10（続き507）＝defer を解体。原文「【常】：あなたの手札が０枚であるかぎり、あなたが対戦相手の
+  // ルリグによってダメージを受ける場合、代わりにダメージを受けず、ターン終了時まで、この能力を失う。」
+  // ⇒ 既存の `PREVENT_LRIG_DAMAGE`（判定 funnel＝`resolveLrigDamageShield`）＋
+  //    `loseAbilityAfterUse`（1回で自壊）。⚠**`loseAbilityAfterUse` を落とすと無限バリアになる**
+  //    （`PREVENT_LRIG_DAMAGE` の既定は回数無制限）。
+  // ⚠条件は「手札が0枚であるかぎり」＝`ActiveCondition`（毎回判定）であって使用時1回の `condition` ではない。
   "WXK01-002": [
-    {"effectId":"WXK01-002-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+    {"effectId":"WXK01-002-E1","effectType":"CONTINUOUS","activeCondition":{"type":"COUNT_THRESHOLD","location":"hand","owner":"self","operator":"eq","value":0},"action":{"type":"STUB","id":"PREVENT_LRIG_DAMAGE","loseAbilityAfterUse":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   ],
   "WXK03-071": [
     {"effectId":"WXK03-071-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
