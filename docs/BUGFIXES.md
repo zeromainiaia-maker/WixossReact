@@ -1,5 +1,83 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-16（続き503・Opus 5）— §6.4 **O-28 クローズ＝`GRANT_KEYWORD.keyword` のゴミ（残0）**
+
+**着手前に在庫を実測し直したら、PLAN の「23 綴り」は実態と違っていた**（`census:stubs` と同じ罠＝
+`mergeManualEffects` を通していない集計だった）。MANUAL マージ後に「engine のどこにも消費が無い綴り」を
+全数走査すると **8 綴り / 8 効果**で、代わりに **PLAN が数えていなかった綴りズレが 26 効果**見つかった。
+ゲート全緑（**golden 2088**＝+6・**census 825→823**＝`BASELINE_HIGH` 実数更新・smoke 10688 / SKIP 0・
+fuzz 全0・同型★0（265群）・lint 0 errors / 260 warnings・held **103枚→102枚 / 44群**）。
+`census:stubs` A群 **15種/17件 → 18種/22件**（+3種＝**明示 defer にした分**。無言 no-op は 0 のまま）。
+live JSON changed **38効果 / 37カード**（CSV 非改変）。
+
+### 🔴 本命＝全角【Ｓランサー】と半角 `Sランサー` の綴りズレ（26効果が丸ごと無言 no-op）
+
+原文（CSV）は**全角**の【Ｓランサー】、engine コードは**半角**の `'Sランサー'`。`hasKeyword` は
+完全一致（＋`名前:` プレフィックス）でしか照合しないので、live の `GRANT_KEYWORD{'Ｓランサー'}`
+**26効果が一度も効かなかった**。さらに原文を `includes('Sランサー')` で嗅ぐ実行時ハンドラ（5箇所）は
+全角原文に当たらず、**「Ｓランサー」に含まれる「ランサー」へフォールバック**して**弱い方へ格下げ**していた
+（Sランサーは「ライフが無くても勝てる」上位版）。
+
+🔑**綴りの funnel を1本に集約した**＝`normalizeKeywordName`（全角英数→半角）と `textHasKeyword`。
+- `hasKeyword` の照合を正準化（MANUAL 等に全角が残っても効く safety net）
+- 実行時にカード全文からキーワードを嗅ぐ5箇所を `textHasKeyword` へ
+- **`matchesFilter` の `filter.keyword`（原文照合）も同じ funnel へ**＝⚠こちらは**原文の全角が正**で
+  `GRANT_KEYWORD.keyword`（state 照合）は**半角が正**＝**軸ごとに正が逆**。どちらで書かれても当たるようにした
+- parser のカード単位後処理で `GRANT_KEYWORD.keyword` を正準化＋MANUAL リテラル4件と手当て JSON 5件を半角へ
+
+### 🔴 引用【常】の中身が丸ごと `keyword` に入っていた（5効果）
+
+`parseSentencePart1` の「「【常】：XXX」を得る」規則が **XXX をそのまま `keyword` に詰めていた**。
+`GRANT_KEYWORD` は実装済みアクションなので `census:stubs` にも映らない**二重に見えない無言 no-op**。
+カード単位の最終後処理で「**キーワード名の形**でない綴り（句読点・入れ子の【】・15文字以上）」を
+`STUB{GRANT_ABILITY_INNER_TEXT}` へ落とし、そのうえで解けるものを機構へ載せた：
+
+| 効果 | 是正後 |
+|---|---|
+| `WX24-P1-064-E1`「手札が2枚以下であるかぎり【アサシン】」 | `アサシン:{"selfHandLte":2}`（新スコープ。**アタック側**の状態を見る唯一のスコープ） |
+| `WXK07-029-E1`「対戦相手の効果によって、バニッシュされず手札に戻らない」 | `GRANT_PROTECTION{from:['BANISH','BOUNCE'], sourceOwner:'opponent'}` |
+| `WXK08-049-E2`「パワーが－される場合、代わりに2倍－される」 | `SELECT_TARGET_ONLY → STORE → DOUBLE_OWN_POWER_MINUS` |
+| `WXDi-P05-068-E1`「アタックはこのシグニの効果によって無効にされない」 | `GRANT_ABILITY_INNER_TEXT`（宣言済みの穴へ） |
+| `WX25-P2-071-E1`「場を離れる場合、代わりにこの能力を失いダウン」 | 🆕`DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN` |
+
+🔴**`DOUBLE_OWN_POWER_MINUS` は誰も使っていない上に壊れていた**＝相手シグニを選ばせておきながら
+**自分の state** へ `double_power_minus_targets` を積んでいた。`calcFieldPowers` の `applyTempMods(state, …)` は
+**`state.double_power_minus_targets`**（＝そのシグニを持つ側）を読むので、倍化は一度も効かない。
+対象の持ち主側へ積むよう是正し、`storedTargetCards` 経路も読むようにした。
+
+### 🆕 明示 defer 3件（機構不在を宣言して計器へ載せる）
+
+- `DEFERRED_CONVERT_ENERGY_COLOR`（3効果）＝【コンバート《色》】「エナコストを支払う際、このカードは
+  その色として支払える」。⚠エナ支払いの色照合は `costs.ts` に `(c.Color ?? '').includes(color)` が5箇所
+  散っており**1点 funnel が無い**＝先に色照合を集約するのが前提。
+- `DEFERRED_ATTACK_WHILE_DOWN`（1効果・`WX22-022-E1`）＝「ダウン状態でもアタックできる」。
+  ⚠「すでにダウン」判定は `signiAttackGate` ではなく `BattleScreen` の `getMySigniZoneActions` に
+  **インライン**で入っており CPU 経路にも同じ判定がある＝**例外を足す前に down 判定を gate へ寄せる**必要がある。
+- `DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN`（1効果）＝離場の置換。置換の受け皿（`collectBanishSubstitutes` 族）は
+  「代わりに別カードを離す」型で、「代わりに**この能力を失って**ダウンする」は表現できない。
+
+### 🔑 総括の教訓
+
+- 🔴**在庫の実測は「実際に engine が読む形」で行う**＝`effects_*.json` を直接数えると MANUAL 上書き済みの
+  カード（`WXEX2-71-E3` 等）を誤って worklist に載せる。**`mergeManualEffects` を通してから数える。**
+- 🔴**綴りズレは「両方向」に壊れる**＝state 照合（半角が正）と原文照合（全角が正）で**正が逆**。
+  片方だけ直すともう片方が壊れる。**照合ヘルパーを1本にして両側を正準化する。**
+- 🔴**ゴミを落とす後処理は「最終段」でだけ掛ける**＝この壊れた `GRANT_KEYWORD` を**入力として**
+  正準形へ組み替える rewriter が後段に2種（`rewriteAttackTaxKeywordGrant` の7効果／
+  `applyDroppedTargetDesignation` 族の2効果）あり、文単位や `parseActionText` の途中で落とすと
+  **その正準形ごと消える**（実装中に held +7 → +2 と2回踏んだ）。カード単位の最終後処理へ移して解消。
+- 🔑**「文が入っているか」は形で判定できる**＝キーワード名に句読点・入れ子の【】は現れず長くもない。
+  スコープ付き（`シャドウ:{…}`）は `:` より前だけを見る。golden にトリップワイヤを2本置いた。
+
+### ⚠ 実機未検証（§7 送り）
+
+(a)**Sランサー26効果**（バトルに勝つとライフを追加クラッシュし、**ライフが無ければ相手が敗北**する＝
+通常ランサーとの**対**で見る。旧実装は通常ランサーへ格下げ、または何も起きなかった）
+(b)`WX24-P1-064-E1`（手札2枚以下のときだけ【アサシン】が乗る＝**負方向＋対照の対**）
+(c)`WXK07-029-E1`（相手の効果でバニッシュ／手札戻しの両方が効かない）
+(d)`WXK08-049-E2`（対象の相手シグニだけパワー－が2倍になる）。
+
+
 ## 2026-08-16（続き502・Opus 5）— §6.4 **O-33 クローズ＝アタック禁止の「ゾーン限定」軸（残0）**
 
 `SigniAttackBan` に**最後まで残っていた `zones` 軸**を実装した（`turnsRemaining` は続き499 で導入済み）。
