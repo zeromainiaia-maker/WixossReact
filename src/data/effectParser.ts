@@ -4592,12 +4592,19 @@ function applyReferenceAttributeBatch2(cardNum: string, effects: CardEffect[]): 
   if (cardNum === 'WX25-P2-071') setAction('WX25-P2-071-E1', { type: 'SEQUENCE', steps: [
     { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1,
       filter: { cardType: 'シグニ', story: '宇宙' }, upToCount: false }, delta: 5000, duration: 'UNTIL_OPP_TURN_END' },
-    // §6.4 O-28: 引用【常】＝**離場の置換**（「代わりにこの能力を失う。そうした場合、このシグニをダウンする」）。
+    // §6.4 O-28→O-10（続き507）: 引用【常】＝**離場の置換**（「代わりにこの能力を失う。そうした場合、
+    //   このシグニをダウンする」）。機構（離場置換の `selfAbility` 軸）を実装したので付与へ実体化する。
     // 🔴従来は引用文を丸ごと `GRANT_KEYWORD.keyword` に詰めていた＝`hasKeyword` は正式名でしか照合しないので
-    //   **一度も効かない無言 no-op**（しかも `census:stubs` にも映らない）。機構不在を宣言して計器へ載せる。
+    //   **一度も効かない無言 no-op**（しかも `census:stubs` にも映らない）→ defer STUB → 本実装。
     // ⚠**リテラルで固定されているカードは parser 規則を足しても変わらない**（続き494 の教訓）＝ここを直す。
+    // ⚠付与の期間は本体（パワー＋5000）と同じ `UNTIL_OPP_TURN_END`＝`granted_effects_until_opp_turn` へ入る。
     { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'レゾナ' } },
-      then: { type: 'STUB', id: 'DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN' } },
+      then: { type: 'GRANT_EFFECT', targetsLastProcessed: true, duration: 'UNTIL_OPP_TURN_END',
+        target: { type: 'SIGNI', owner: 'self', count: 1 },
+        rawText: '【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。',
+        effect: { effectId: 'WX25-P2-071-E1-GRANT', effectType: 'CONTINUOUS',
+          action: { type: 'STUB', id: 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY', leaveLoseSelfAbility: { thenDown: true } },
+          duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'AUTO' } } },
   ] });
   if (cardNum === 'WXDi-P13-006') {
     const e = effects.find(x => x.effectId === 'WXDi-P13-006-E2');
