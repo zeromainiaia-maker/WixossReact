@@ -21,9 +21,13 @@ function banMatches(
   // 🔑**ゾーン添字は判定地点で引く**＝ban に焼き込むと、掛けたあとにシグニが移動／入れ替わったとき
   //   「いま中央にいるシグニ」ではなく「掛けた時点の1枚」に化ける（原文はゾーンに掛かる制限）。
   // ⚠ゾーンが取れない（＝場のシグニでない＝ルリグ判定経路）ときは掛けない＝過少側に倒す。
-  if (ban.zones) {
+  // 「【ゲート】があるシグニゾーンにあるシグニ」＝**動的**ゾーン（§6.4 O-33 据置分・続き508）。
+  // 🔑ゾーン集合も判定地点で引く＝ban を張ったあとに【ゲート】が置かれ／消えても追随する
+  //   （原文は「【ゲート】がある」という現在形の条件で、掛けた時点の写しではない）。
+  const banZones = ban.zoneSource === 'gate' ? (attacker.signi_gate_zones ?? []) : ban.zones;
+  if (banZones) {
     const zi = attacker.field.signi.findIndex(stack => stack?.at(-1) === attackerNum);
-    if (zi < 0 || !ban.zones.includes(zi)) return false;
+    if (zi < 0 || !banZones.includes(zi)) return false;
   }
   if (ban.cardNums && !ban.cardNums.includes(attackerNum)) return false;
   // 「選んだシグニ**以外**でアタックできない」＝除外リストに載っていないものだけ止める（§6.4 O-3）。
