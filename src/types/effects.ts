@@ -2603,6 +2603,18 @@ export interface StubAction {
   carriedCardNum?: string;
   /** 多段対話を跨いで運ぶ対象シグニ（§6.4 O-34(e)＝先に宣言した相手シグニ1体）。 */
   carriedTargetNum?: string;
+  /**
+   * この STUB が**シグニを場に出す**ことの宣言（§6.4 O-32）。
+   * 🔑`foldSuppressOnPlay` が「直後の `BLOCK_ACTION{ON_PLAY_ABILITY}`（＝「それの【出】能力は発動しない」）」を
+   *   畳み込む配置アンカーとして認識するための目印。⚠これを立てないと畳み込みが起きず、
+   *   engine 未参照の死アクションが残ったまま**置いたシグニの【出】が発動する**（過剰実行）。
+   */
+  placesToField?: boolean;
+  /**
+   * `AddToFieldAction.suppressOnPlay` の STUB 版＝この配置で場に出したシグニ自身の ON_PLAY を発火させない。
+   * 読みは `BattleScreen` の `fieldPlacementOnPlayOpts` 1点（配置アンカーの型に依らない汎用判定）。
+   */
+  suppressOnPlay?: boolean;
   /** TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 能力選択CHOOSEを跨いで保持する発動元シグニ。 */
   eichiAbilitySourceCardNum?: string;
   /** 対象句つき任意色コストで、支払い後の本体へ引き継ぐ対象。 */
