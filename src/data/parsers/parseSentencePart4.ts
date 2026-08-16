@@ -319,9 +319,8 @@ export function parseSentencePart4(t: string): EffectAction | null {
       t.match(/この方法でカードを[１-９\d０-９]+枚トラッシュに置いた場合/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- 手札からそれぞれ異なる色を持つシグニを好きな枚数捨てる ----
-  if (t.match(/手札からそれぞれ異なる色を持つ.+シグニを好きな枚数捨てる/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+  // 「手札からそれぞれ異なる色を持つ〜シグニを好きな枚数捨てる」は
+  // `parseVariableHandDiscard`（この関数の冒頭）が正準形 TRASH で受ける＝旧 `STUB{OPTIONAL_COST}` は撤去。
 
   // ---- このシグニは色を失い、宣言した色を得る ----
   if (t.match(/このシグニは色を失い、宣言した色を得る/))
