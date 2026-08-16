@@ -937,10 +937,30 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/あなたの場にあるシグニが持つ色が合計[１-９\d０-９]+種類以上ある場合/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
-  // ---- 手札/エナゾーンからカードをN枚エナゾーンに置く ----
-  if (t.match(/^手札からカードを[１-９\d０-９]+枚エナゾーンに置く$/) ||
-      t.match(/^手札からカードを[１-９\d０-９]+枚まで好きな順番でデッキの一番下に置く$/))
-    return { type: 'STUB', id: 'OPTIONAL_COST' } as StubAction;
+  // ---- 手札からカードをN枚エナゾーンに置く ----
+  // 🔴2026-08-16（§6.4 O-11）＝従来は**ペイロードの無い `STUB{OPTIONAL_COST}`** に落としていた＝
+  //   `resolveOptionalCostSpec` が空 spec を返し「発動する／スキップ」を出すだけで**何も動かない真 no-op**。
+  //   しかもこれは**任意コストではなく効果本体の必須動作**（`WD20-004`「カードを1枚引き、手札から
+  //   カードを1枚エナゾーンに置く」／`WDK07-E12`／`WX22-029`）＝デメリットが丸ごと踏み倒されていた。
+  // 🔑正準形は `ENERGY_CHARGE{target:HAND_CARD}`＝任意コストの `handToEnergy` 支払いステップが
+  //   既に使っている形（`execUtils.ts` の `optionalCostPaySteps`）。**新しい型は要らない。**
+  {
+    const handToEnergyM = t.match(/^手札からカードを([１-９\d０-９]+)枚エナゾーンに置く$/);
+    if (handToEnergyM) {
+      return { type: 'ENERGY_CHARGE',
+        target: { type: 'HAND_CARD', owner: 'self', count: parseNum(handToEnergyM[1]) } } as EffectAction;
+    }
+  }
+  // ---- 手札からカードをN枚まで好きな順番でデッキの一番下に置く ----
+  // 🔴同上＝bare `OPTIONAL_COST`（真 no-op）だった。行き先が明示されている必須動作なので
+  //   `TRANSFER_TO_DECK{position:'bottom'}` へ。⚠「N枚**まで**」なので `upToCount` を立てる。
+  {
+    const handToBottomM = t.match(/^手札からカードを([１-９\d０-９]+)枚まで好きな順番でデッキの一番下に置く$/);
+    if (handToBottomM) {
+      return { type: 'TRANSFER_TO_DECK', shuffle: false, position: 'bottom',
+        source: { type: 'HAND_CARD', owner: 'self', count: parseNum(handToBottomM[1]), upToCount: true } } as EffectAction;
+    }
+  }
 
   // ---- その中から〈クラス〉のカードをN枚まで選びエナゾーンに置き残りをデッキ下 ----
   if (t.match(/その中から[＜〈<].+[＞〉>]のカードを[１-９\d０-９]*枚?まで?エナゾーンに置き/) ||
