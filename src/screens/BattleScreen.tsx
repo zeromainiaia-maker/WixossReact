@@ -11074,12 +11074,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // §6.4 O-3 続き492: 判定は `isLrigDamagePrevented` 1本（期間ウィンドウ＋【常】宣言をまとめて見る）。
         // ⚠🔴従来ここは期間ウィンドウだけで、【常】版は**消費型のさらに後ろ**かつ**自分のシグニしか
         //   走査しない**インライン判定だった（ルリグ本体・アシスト・キーの宣言が丸ごと無視されていた）。
-        if (isLrigDamagePrevented({
+        const lrigShield = resolveLrigDamageShield({
           defender: my, attacker: op, cardMap: battleCardMap, effectsMap,
           attackingLrigNum: opLrigNum ?? undefined,
-        })) {
+        });
+        if (lrigShield.prevented) {
           appendBattleLogs([`ルリグアタック：ダメージ無効（ダメージを受けない効果）`]);
-          newMyState = { ...my, field: { ...my.field, lrig_attacked: false } };
+          // §6.4 O-10（続き507）＝「代わりにダメージを受けず、ターン終了時まで、この能力を失う」
+          // （`WXK01-002-E1`）は**1回だけ**。刻まないと同ターン中の2回目以降も防いで無限バリアになる。
+          newMyState = {
+            ...my,
+            ...(lrigShield.loseEffectId
+              ? { lost_ability_effect_ids_this_turn: [...(my.lost_ability_effect_ids_this_turn ?? []), lrigShield.loseEffectId] }
+              : {}),
+            field: { ...my.field, lrig_attacked: false },
+          };
         } else if (countBarrierTokens(my.field.free_zone, LRIG_BARRIER_CARD) > 0) {
           const fzLB = removeOneBarrierToken(my.field.free_zone, LRIG_BARRIER_CARD);
           appendBattleLogs([`ルリグアタック：ルリグバリア発動（残${countBarrierTokens(fzLB, LRIG_BARRIER_CARD)}）`]);
