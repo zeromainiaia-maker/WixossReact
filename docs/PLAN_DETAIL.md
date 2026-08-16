@@ -6,6 +6,103 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-16 整理㉑：§6.4 `O-11`（計器の未仕分け）の仕分け結果 — `verifyEffects` アクション照合
+
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-16（続き519）。**PLAN §6.4 の `O-11` 行はこの節を参照する。**
+
+### 在庫の実測（§3-1）— 簿記の「8件」は**スクリプト既定の Sheet1 だけ**の値だった
+
+`npm run verify`（＝`scripts/verifyEffects.ts`）は `--sheet` の**既定が `Sheet1`**。
+簿記の「アクション[STUB代替?] 5件／[要確認] 3件＝8件」はその1シートぶんで、
+**全10シートで数え直すと 135件（[STUB代替?] 78／[要確認] 57）**だった。
+
+### 計器の較正（誤検出をルールで潰した）＝135件 → **43件**
+
+| # | 潰した誤検出 | 効いた件数 |
+|---|---|---|
+| 1 | 🔴**幻の型名 `MOVE_TO_ENERGY`**＝型宣言にも live JSON にも存在しない。しかも**実型名 `SEND_TO_ENERGY`（live 77件）が別名表から丸ごと漏れていた**＝「エナゾーンに置く」の報告が原理的に全部誤検出だった。ほかに `DISCARD`／`CRASH_LIFE` も幻の型名（こちらは実型名が同居していたので実害は表示だけ） | 最大 |
+| 2 | **枚数が盤面/レベル依存の同義形が別名表に無い**＝`DRAW_PER_FIELD_COUNT`／`DRAW_PER_LRIG_LEVEL`／`ENERGY_CHARGE_PER_LRIG_LEVEL`／`ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT` ほか | 多数 |
+| 3 | **「行き先をパラメータに持つ」型を型名だけで照合していた**＝`LOOK_PICK_CHAIN`（`stages[].then`／`remainder.location`）と `REVEAL_AND_PICK`（`remainder.location`／`handOrEnergy`／`handOrField`）はエナ置き・ミル・手札加え・場出しを**型名で区別しない**。行き先から派生アクション（`~NAME`）を導くようにした | 11 |
+| 4 | **任意コスト STUB の「実際に払うもの」はペイロードのキーで決まる**（`resolveOptionalCostSpec`）。id 単位で `STUB_EQUIVALENTS` に登録すると**ペイロードが空＝何も払わない個体まで実装済みに見える**ので、キー単位（`handDiscard`／`handToEnergy`／`deckTrash`…）で派生させた | — |
+| 5 | **STUB のペイロードが本体アクションそのものを持つ形**（`PER_OWN_LRIG_COLOR_SCALE.scaleAction`／`unpaidAction`／`additionalCostChoices[].action`）に固定キー辿りが届いていなかった＝allowlist つきの深い走査を追加 | 10 |
+| 6 | **ハンドラ本文を読んで実挙動を確認した STUB を `STUB_EQUIVALENTS` へ登録**（13 id）＝`COST_COLOR_SELECT`／`DRAW_IF_POWER_ZERO_TEMP`／`MILL_EACH_REPEAT_ON_NAME`／`DRAW_AT_TURN_END`／`RETURN_TO_HAND_AT_TURN_END`／`SELECT_OPP_SIGNI_FOR_BOTTOM_MILL`／`BANISH_ATTACKER_IF_WEAKER_THAN_FRONT`／`INTERNAL_KIYOHIME_CHOOSE`／`TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE`／`DECLARED_ICON_HAND_DISCARD_BANISH`／`CONDITIONAL_ALTERNATE_EFFECT`／`VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE`／`LOOK_PLACE_FACEDOWN_DELAYED` | 14 |
+| 7 | **「このアーツ/スペルを使用する際、〜捨てる」＝使用コストの宣言節**を本体として数えていた。徴収は使用の支払い funnel が行い、action 側は `ARTS_COST_REDUCTION_BY_EFFECT`＝**「コストは支払い時点で計算済み」の no-op**（`execStubPart1.ts:772`）なので必ず鳴る。アンコールコストと同じく除去 | 5 |
+| 8 | `REPLACE_NEXT_DAMAGE_WITH_MILL` が MILL の別名に無い | 2 |
+
+🔑**再発防止＝起動時の較正チェックを常設した**。`ACTION_KEYWORDS`／`STUB_EQUIVALENTS` に書いた型名を
+**型宣言（`src/types/effects.ts`）∪ live JSON の実出現**と突き合わせ、実在しない名前を 🔴 で報告する
+（概念名は `CONCEPT_LABELS` に登録して明示的に除外＝現在は `HAND_DISCARD` の1つだけ）。
+**これが無かったから `MOVE_TO_ENERGY` が誰にも気付かれず「全件誤検出」を出し続けていた。**
+
+### 残った43件（41カード）＝**すべて実際の実装穴**。仕分け済みの worklist
+
+⚠**この43件は `census:stubs` A群（0種/0件）にも `census`（823 据置）にも映らない層**＝
+「ハンドラは在るが**別のことをしている**／原文の節が丸ごと落ちている」型（続き459 の教訓の一般形）。
+
+**(a) 原文の節が丸ごと落ちている（過少実行）— 24件**
+`WX05-042`（本体のバニッシュ＋エナ→手札が落ち DRAW だけ）／`WX12-CB02`（レベル3/4/5の分岐3本）／
+`WX13-046`（【クロス自】のバニッシュ）／`WX21-006`（バニッシュ＋エナ置き＋**条件そのもの**が落ち無条件ドロー）／
+`WXEX1-47`（バニッシュ）／`WXEX2-13`（サーチ2箇所）／`WXEX2-66`（「引くか【エナチャージ】」の**ドロー側**）／
+`WXK03-044`（デッキ3枚ミル）／`WXK05-005`（公開→場出し→残りトラッシュ）／`WXK09-031`（相手シグニをエナへ）／
+`WXK10-018`（【起】1本ぶんの1ドロー）／`WXK10-074`（アクセ用サーチ）／`WD23-008-A`・`WD23-033-A`（【トラップ】設置サーチ）／
+`WDK07-E07`（サーチ＋アクセ付与＝**カードの本体まるごと**）／`WDK07-E08`（③の手札戻し）／`WDK07-E20`（①のサーチ＋アクセ）／
+`WDK08-Y08`（手札→エナ）／`SPK01-14`（①のバニッシュ）／`PR-469`（【起】3択の②）／`PR-471`（**3択が丸ごと**）／
+`SPDi43-26`（相手シグニのバウンス＋ガード捨てコスト）／`WXDi-P07-010`（公開レベルによる①②分岐）／
+`WXDi-P08-063`（末尾の1ドロー）／`WXDi-P12-002`（**全体バニッシュ**）／`WX26-CP1-057`（エナ置き）
+
+**(b) カード/効果が丸ごと no-op — 2件**
+`WXDi-P12-005`（3択カードが `STUB{RULE_REMINDER_TEXT}` だけ）／`WX25-P1-046`（DRAW が無く、原文に無い `POWER_MOD_PER_COUNT` が出ている＝**幻覚も同居**）
+
+**(c) 行き先／内容の取り違え — 4件**
+`WX11-080`（原文「それをエナゾーンに置く」なのに**手札に加えている**）／
+`WX24-P2-026`（原文「手札をすべて**エナゾーンに置く**」なのに `MASS_TRASH`。加えて `GUARD_ALTERNATIVE_COST` は**ログのみの no-op**）／
+`PR-328`（2択が丸ごと落ちて、原文に無い `DRAW` になっている＝**幻覚**）／
+`WDA-F02-07`（`STUB{id:'TRASH'}` が `lastProcessedCards` 不在時に**アーツ自身をトラッシュする**＝原文の「手札からレベルの異なるシグニ3枚まで」ではない。BANISH も枚数連動でなく固定1）
+
+**(d) 🆕ペイロードが空の `OPTIONAL_COST` — 6件（母集団は別途 67効果）**
+`WX20-069`／`WX22-029`／`WX22-037`／`WX24-P2-036`／`WD20-004`／`WDK07-E12`。
+`OPTIONAL_COST` は**ペイロードのキーが空だと `resolveOptionalCostSpec` が空 spec を返し「支払う」を選んでも何も払わない**。
+つまり「手札を好きな枚数捨てる」等のコストが**丸ごと踏み倒され、後続の本体だけが走る**。
+⚠**live 全体では `OPTIONAL_COST` 606件のうち 67件がペイロード空**（内訳は下記）。全部が誤りとは限らない
+（【常】の置換コスト等・近似として置いた個体を含む）ので、**着手時に67件を仕分けること**。
+なお「好きな枚数」＝**可変枚数**は現行のペイロード（固定 `count`）では表せない＝**機構が要る**。
+
+**(e) 既知の別項目に合流 — 3件**
+`WX22-016`（§6.4 `O-29`＝本体のバニッシュ節が落ちていることは同項に既記）／
+`WXEX2-66`・`WXDi-P15-001` は `GRANT_ABILITY_INNER_TEXT`／`TRASH_SIGNI_UNDER_FIELD_SIGNI` を伴う＝`O-27`／`O-31` と同じ「引用能力の中身が未パース」層に隣接
+
+<details><summary>ペイロードが空の <code>OPTIONAL_COST</code> 67効果（実測）</summary>
+
+`WX09-032-E1` `WX11-029-BURST` `WX12-011-E1` `WX14-003-E3` `WX15-059-E1` `WX20-069-E1` `WX21-Re18-E1`
+`WX22-021-BURST` `WX22-029-E1` `WX22-037-E1` `WXEX2-68-E1` `WXDi-D08-012-E1` `WXDi-D09-H29-E1`
+`WXDi-D09-P15-E1` `WXDi-D09-P25-E1` `WXDi-P02-083-E1` `WXDi-P03-005-E1` `WXDi-P03-054-E1`
+`WXDi-P03-063-E1` `WXDi-P03-072-E1` `WXDi-P03-080-E1` `WXDi-P03-089-E1` `WXDi-P07-053-E1`
+`WXDi-P07-055-BURST` `WXDi-P07-066-BURST` `WXDi-P07-072-BURST` `WXDi-P07-083-BURST` `WXDi-P07-094-BURST`
+`WXDi-P08-038-E1` `WXDi-P10-038-E1` `WXDi-P11-070-E1` `WXDi-P11-076-E1` `WXDi-P11-083-E1`
+`WXDi-P12-072-E2` `WXDi-P15-002-E1` `WXDi-CP01-001-E1` `WXDi-CP01-003-E1` `WXDi-CP02-072-E1`
+`WX24-P1-013-E2` `WX24-P2-036-E1` `WX25-P3-001-E1` `WX25-P3-003-E1` `WX25-P3-005-E1` `WX25-P3-007-E1`
+`WX25-P3-009-E1` `WX25-CP1-061-E1` `WX25-CP1-080-E1` `WX26-CP1-053-E1` `WXK03-023-E1` `WXK03-048-E1`
+`WXK04-054-E2` `WXK04-056-E1` `WXK05-072-E2` `WXK06-053-E1` `WXK10-080-E2` `WXK11-071-E1` `WD13-003-E1`
+`WD20-004-E1` `WD22-007-G-E1` `WDK07-E12-E1` `WDK08-Y13-E1` `WDK12-015-E2` `SP07-009-E1` `PR-204-E1`
+`SPDi43-28-E1` `SPDi43-30-E1` `PR-Di013-E1`
+
+再実測コマンド：`node tmp_*.mjs` を書き直すより、`docs/_effect_srctext.json` ではなく
+`public/data/effects_*.json` を直接走査して `type==='STUB' && id==='OPTIONAL_COST'` かつ
+`resolveOptionalCostSpec` が見るキー（`handDiscard` `handToEnergy` `selfToEnergy` `energyTrash` `fieldTrash`
+`life_crash` `deckTrash` `costColors` `lrigDown` `fieldDown` …）が**1つも無い**ものを数える。
+</details>
+
+### 再現手順
+
+```
+# 1シートだけ（既定 Sheet1）
+npm run verify
+# 全シート（在庫を数えるときは必ずこちら）
+for s in Sheet1 … Sheet10; do npx tsx scripts/verifyEffects.ts --sheet $s; done
+```
+
+---
+
 ## 2026-08-16 整理⑳：PLAN §6.4 のクローズ済み行（`O-3`／`O-4`／`O-5`／`O-6`／`O-7`／`O-8`／`O-9`／`O-10`／`O-18`／`O-28`／`O-32`／`O-33`／`O-34`）を退避
 
 > §6.4 の規約「**消化済みは1行サマリも含めて全文退避／PLAN には生きている worklist だけ**」に従い、
