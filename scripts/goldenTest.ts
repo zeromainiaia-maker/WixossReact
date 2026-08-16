@@ -22507,8 +22507,10 @@ test('additional exceed curated: pay/skip and insufficient pool', () => {
         ...discardCtx, ownerState: discardOffered.ownerState, otherState: discardOffered.otherState, logs: discardOffered.logs,
       });
       const paid = finish(paid0, discardCtx);
-      eq(paid.ownerState.hand.length, 0, 'hand discard cost: consumes two cards');
       eq(paid.ownerState.trash.length, discardCtx.ownerState.trash.length + 2, 'hand discard cost: adds two cards to trash');
+      // ⚠この fixture の本体は「カードを２枚引く」＝手札は 2→0（コスト）→2（本体）に戻る。
+      //   手札枚数だけを見ると**支払いも本体も走っていない**盤面と区別できないので、デッキ側で本体を確認する。
+      eq(paid.ownerState.deck.length, discardCtx.ownerState.deck.length - 2, 'hand discard cost: paid branch runs the body (draw 2)');
     }
     const discardShort = mkCtx({ signi: [discardSource, null, null], hand: 1 }, {}, discardSource);
     const discardShortOffered = executeEffect(discardEffect, discardShort);
