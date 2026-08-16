@@ -8178,7 +8178,7 @@ function parseActionTextInner(text: string): EffectAction {
         // 「中央のシグニゾーンにあるシグニ」＝ゾーン限定（§6.4 O-33）。
         // 🔴従来はこの節が落ちて**全ゾーン**が止まり、しかも `BLOCK_ACTION{owner:'any'}` だったので
         //   **両プレイヤー**のシグニが止まっていた（`WX24-P1-038-E2`／`WXDi-P03-027-E2`）。
-        ...(atkTaxGrantM[3] ? { zones: [signiZoneIndexJa(atkTaxGrantM[3])] } : {}),  // eslint-disable-line
+        ...(atkTaxGrantM[3] ? { zones: [signiZoneIndexJa(atkTaxGrantM[3])] } : {}),
         // 「次の対戦相手の〜」＝このターン＋次のターンの2ターン分（`SIGNI_DEPLOY_BAN` と同じ規約）。
         // ⚠自分のターンに張っても相手はアタックしないので、この重なりは挙動に出ない。
         ...(atkTaxGrantM[1] === 'ターン終了時まで' ? {} : { turns: 2 }),
