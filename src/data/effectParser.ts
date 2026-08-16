@@ -3221,8 +3221,30 @@ function recoverDroppedConjClauses(t: string, result: EffectAction): EffectActio
   return null;
 }
 
+/**
+ * 「この方法で捨てた〈名詞〉**１枚につき**〈対象〉１体を…」＝**直前の可変枚数に追従する対象数**
+ * （§6.4 O-11・2026-08-17）。汎用規則が先に固定 `count:1` へ潰すので、ここで `$ref` へ差し替える。
+ *
+ * ⚠**「同じレベル／色／名前の」を伴う形は触らない**＝枚数だけ増やすと
+ *   「捨てた札と対応づかない相手シグニをN体まとめて処理できる」**過剰実行**になる。
+ *   対応づけの機構（捨てた札ごとにレベル一致の相手を選ぶ）が入るまでは**過少側に倒す**。
+ * ⚠`DRAW` はここでは扱わない（`addLastProcessedCount` の専用規則が先に受ける）。
+ */
+function rewritePerLastProcessedCount(action: EffectAction, text: string): EffectAction {
+  const t = text.trim();
+  if (!/^この方法で(?:捨てた|トラッシュに置いた|公開した)[^。]{0,12}?[１1]枚につき/.test(t)) return action;
+  if (/同じ(?:レベル|色|名前)/.test(t)) return action;
+  const a = action as unknown as { target?: { count?: unknown } };
+  if (!a.target || a.target.count !== 1) return action;
+  return {
+    ...action,
+    target: { ...a.target, count: { $ref: 'last_processed_count' } },
+  } as EffectAction;
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
+  action = rewritePerLastProcessedCount(action, text);
   action = wrapHandOrField(action, text);
   action = rewriteAttackTaxKeywordGrant(action);
   action = rewriteNextOppTurnEndBody(action, text);
