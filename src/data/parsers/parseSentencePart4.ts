@@ -54,8 +54,12 @@ function parseVariableHandDiscard(t: string): EffectAction | null {
     count: cnt === '好きな枚数' ? 'ALL' : parseNum(cnt.replace(/枚まで$/, '')),
     upToCount: true,
     ...(Object.keys(filter).length > 0 ? { filter } : {}),
-    // 「それぞれ異なる色を持つ」＝選択集合どうしが色を共有しない（候補単体の条件ではない）。
-    ...(/それぞれ異なる色を持つ/.test(mod) ? { selectionConstraint: { sharedColor: 'none' as const } } : {}),
+    // 「それぞれ〜異なる」＝**選択集合どうしの相互制約**（候補単体の条件ではない）。
+    // ⚠これを落とすと「同じカードを3枚捨てる」が通ってしまう＝原文より緩い。
+    ...(/それぞれ異なる色を持つ/.test(mod) ? { selectionConstraint: { sharedColor: 'none' as const } }
+      : /それぞれレベルの異なる/.test(mod) ? { selectionConstraint: { distinct: 'level' as const } }
+      : /それぞれ名前の異なる/.test(mod) ? { selectionConstraint: { distinct: 'name' as const } }
+      : {}),
   };
   return { type: 'TRASH', target } as EffectAction;
 }
