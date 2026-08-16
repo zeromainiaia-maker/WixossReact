@@ -5272,7 +5272,10 @@ test('§6.4 O-11 E2E: デッキから探した札を【アクセ】にする（�
   const acceCard = findCard(c => c.Type === 'シグニ' && c.CardNum !== host);
   const ctx = exactDeckCtx([acceCard], 'WXK10-074');
   ctx.ownerState.field.signi = [[host], null, null];
-  const before = trackedCardCount(ctx.ownerState);
+  // ⚠`trackedCardCount` は `signi_acce` を数えない＝アクセ枠を明示的に足して総数を見る。
+  const total = (s: PlayerState) =>
+    trackedCardCount(s) + (s.field.signi_acce ?? []).reduce((n, slot) => n + (slot?.length ?? 0), 0);
+  const before = total(ctx.ownerState);
 
   const search = { type: 'SEARCH', from: { location: 'deck', owner: 'self' }, filter: {}, maxCount: 1,
     then: { type: 'STUB', id: 'INTERNAL_ASK_ACCE_HOST' },
