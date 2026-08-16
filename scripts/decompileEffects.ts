@@ -2137,6 +2137,10 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.trashOwnKey) {
           return `${headOC}このキーを場からルリグトラッシュに置いてもよい`;
         }
+        // 自身をエナゾーンへ置く任意コスト（§6.4 O-7）＝出さないと「コストを支払ってもよい」に潰れる。
+        if (a.selfToEnergy) {
+          return `${headOC}場にあるこのシグニをエナゾーンに置いてもよい`;
+        }
         if (a.underAnySigniTrash) {
           const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）
