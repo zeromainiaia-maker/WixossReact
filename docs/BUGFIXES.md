@@ -1,5 +1,56 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-16（続き509・Opus 5）— §6.4 **O-10 の3巡目**（`WXK08-002` の3択を全部生かす）
+
+`census:stubs` A群の明示 defer を**10種/12件 → 8種/10件**にした。アーツ `WXK08-002`（4コスト）の
+**3択のうち2択（①③）が丸ごと無反応**だったのを実装し、3択すべてが実体を持つようにした。
+ゲート全緑（**golden 2114**・**census 823 据置**・smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors）。
+live JSON changed **1効果 / 1カード**（CSV 非改変）。
+
+### ③「能力を失い『Q』を得る」＝**付与の書き方を間違えると自分で消える**
+
+原文「あなたの赤のセンタールリグ１体を対象とし、ターン終了時まで、それは能力を失い
+『【自】《ターン２回》：このルリグのアタックが【ガード】されたとき、このルリグをアップする。』を得る。」
+
+- 能力喪失＝新 STUB `SELF_LRIG_LOSE_ABILITY`（既存 `OPP_LRIG_LOSE_ABILITY` の**自分側**版・フラグは同じ
+  `lrig_abilities_disabled`）。色条件は `CONDITIONAL{LRIG_COLOR}` で外に出す（赤でなければ何も起きない）。
+- 🔑**付与は `GRANT_EFFECT{target:LRIG}`（per-card ストア）で書く**。`GRANT_LRIG_ABILITY` を使うと
+  `grantedStoreWatchers` が `lrig_abilities_disabled` で**丸ごと落とす**ので、**得たはずの能力を自分で消してしまう**
+  （原文は「失い、得る」＝同時なので得た側は残る）。`GRANT_EFFECT` は `granted_effects[<ルリグ instId>]` へ入り、
+  BattleScreen の augmented `effectsMap` 経由で `collectLrigAttackGuardedTriggers` が読む（この経路はフラグを見ない）。
+
+### ①「基本レベルを１にして場に出し、ターン終了時に手札へ戻す」
+
+- 新 STUB **`SET_STORED_BASE_LEVEL`**＝「**それ**の基本レベルをNにする」。既存の
+  `SET_BASE_LEVEL{until:'END_OF_TURN'}` は **`ctx.sourceCardNum` 固定**で「それ」を指せなかった。
+- 新 funnel **`screens/battle/turnEndHandReturn.ts`**（`RETURN_TO_HAND_AT_TURN_END` が予約）。
+  ⚠**ターン終了処理は BattleScreen に2経路ある**ので両方から同じ関数を呼ぶ（`resolveTurnEndLrigDeckReturn` と同じ規約）。
+  ⚠**手札上限チェックより前に手札へ入れる**（memory `end-phase-order`＝エンドフェイズは①ターン終了時効果→②手札上限）。
+  後ろに置くと上限超過分が捨てられずに残る。
+- ⚠行き先が違う3本（`turn_end_field_trash_targets`＝トラッシュ／`turn_end_return_to_lrig_deck`＝ルリグデッキ／
+  `turn_end_return_to_hand`＝手札）を**流用し合わない**。
+
+### 🔴 隣接発見＝「ターン限定」なのに失効地点が無い state が3つ
+
+| フィールド | 何が起きていたか |
+|---|---|
+| `attack_phase_level_overrides` | **失効地点が1つも無く永続**。しかも読み手が `EICHI_LEVEL_SUM` の1箇所だけで、レベル参照の funnel（`applyContinuousBaseLevelOverride` の cardMap 上書き）に載っていない＝**「基本レベルをNにする」がフィルタにもレベル比較にも一切効かない**ほぼ死んだ store だった（書き手は5箇所ある）。⇒ funnel へ載せ、turn-scoped レジストリへ登録 |
+| `lrig_abilities_disabled` | 手書きクリアが**自分側の turn-end 2経路だけ**。`OPP_LRIG_LOSE_ABILITY` が書き込むのは**相手側**なので、経路によっては**ゲーム終了までルリグが能力を失ったまま**になりうる（`negated_attacks`＝続き489 と同じクラス） |
+| `turn_end_return_to_hand` | 新設。最初から登録して未消費の残骸がターンを跨がないようにした |
+
+⚠**`CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN` だけは原文が「次の自ターン終了まで」**なので、turn-end 登録では
+1ターン短くなる。**無期限よりは近い**ので登録を優先し、2ターン軸が要るなら
+`SigniAttackBan.turnsRemaining` と同じカウントダウン規約で足す（PLAN §6.4 に記録）。
+
+### 残す教訓
+
+1. **「能力を失い、〜を得る」は付与ストアの選び方が挙動を決める**＝どのストアが能力喪失フラグに落とされるかを
+   先に確かめる。ストアを間違えると**実装したのに何も起きない**（しかも A群にも映らない）。
+2. **書き手が複数あるのに読み手が1つしかない state は「死んだ store」を疑う**＝`attack_phase_level_overrides` は
+   5箇所が書いて1箇所しか読まず、しかもその1箇所は 英知 の合計だけだった。
+3. **turn-scoped レジストリに載っていない「このターン」state は全部疑う**＝続き489（`negated_attacks`）・
+   続き498（`blocked_card_names`）に続いて今回も2件出た。**型コメントに期間が書いてあるのに登録が無い**のが目印。
+
 ## 2026-08-16（続き508・Opus 5）— §6.4 **O-10 の2巡目**（＋O-33 の据置を解体）
 
 `census:stubs` A群の明示 defer を**13種/17件 → 10種/12件**にした（実装で **5件/3種** 解体）。

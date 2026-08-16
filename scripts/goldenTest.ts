@@ -96,6 +96,7 @@ import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKey
 import { resolveTurnEndFacedownReturns } from '../src/engine/facedownSigni';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, payAttackFieldTrashCost } from '../src/screens/battle/attackFieldTrashCost';
 import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from '../src/screens/battle/turnScopedState';
+import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { isHandSigniPlayBlockedByPower } from '../src/engine/blockAction';
 
 // ── データ読み込み ──
@@ -4213,8 +4214,11 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   //          境界は turn-end ではなく **main-phase-start**＝「次のあなたのメインフェイズまで」）
   // 16 → 17（§6.4 O-3 続き498 で blocked_card_names を登録＝turn-end で**両プレイヤー**失効。
   //          登録前はターンプレイヤー側しか手書きクリアされず、相手に課した分が1ターン長く残っていた）
-  eq(irregular.length, 17, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 46, '型由来29件＋命名規約外17件の母集団');
+  // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
+  //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
+  //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
+  eq(irregular.length, 20, '命名規約外のターン限定フィールド数');
+  eq(registered.length, 49, '型由来29件＋命名規約外20件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -31937,10 +31941,25 @@ test('task12(lxxxii) 第3波 WXK08-002-E1: アーツの3択・②のany/2体ま�
   ok(choose.type === 'CHOOSE' && choose.choose_count === 1 && choose.from_count === 3 && choose.choices.length === 3,
     'CHOOSE 1/3をliveへ保持');
   if (choose.type !== 'CHOOSE') return;
-  ok(choose.choices[0].action.type === 'STUB'
-    && choose.choices[0].action.id === 'DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN', '①は明示defer');
-  ok(choose.choices[2].action.type === 'STUB'
-    && choose.choices[2].action.id === 'DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN', '③は明示defer');
+  // §6.4 O-10（続き509）＝①③とも defer を解体した。**3択すべてが実体を持つ**ことを固定する
+  // （旧アサートは「defer であること」を固定しており、実装したら必ず赤くなる意図的なトリップワイヤ）。
+  {
+    const c1 = JSON.stringify(choose.choices[0].action);
+    ok(c1.includes('"type":"ADD_TO_FIELD"'), '①：トラッシュから場に出す');
+    ok(c1.includes('"color":"赤"') && c1.includes('"type":"TRASH_CARD"'), '①：出処はトラッシュの**赤の**シグニ');
+    ok(c1.includes('SET_STORED_BASE_LEVEL'), '①：「それの基本レベルを１にする」');
+    ok(c1.includes('RETURN_TO_HAND_AT_TURN_END'), '🔴①：「ターン終了時、それを場から手札に戻す」＝出しっぱなしにしない');
+    const c3 = JSON.stringify(choose.choices[2].action);
+    ok(c3.includes('"type":"LRIG_COLOR"') && c3.includes('"color":"赤"'), '③：**赤の**センタールリグ限定');
+    ok(c3.includes('SELF_LRIG_LOSE_ABILITY'), '③：能力を失う');
+    ok(c3.includes('"lrigAttackGuarded":true') && c3.includes('"type":"UP"'), '③：ガードされたときアップを得る');
+    ok(c3.includes('"usageLimit":"twice_per_turn"'), '③：⚠《ターン２回》を落とすと無限にアップする');
+    // 🔑付与は per-card ストア（`GRANT_EFFECT{LRIG}`）で書く＝`GRANT_LRIG_ABILITY` にすると
+    //   `grantedStoreWatchers` が `lrig_abilities_disabled` で落として**自分で消してしまう**。
+    ok(c3.includes('"type":"GRANT_EFFECT"') && !c3.includes('GRANT_LRIG_ABILITY'),
+       '🔴③：能力喪失と同時に得る能力は GRANT_EFFECT で書く（GRANT_LRIG_ABILITY だと自分で消える）');
+    ok(!JSON.stringify(effect).includes('DEFERRED_'), '①③とも defer は残っていない');
+  }
 
   const low = [...cardMap.values()].filter(c => isSigni(c) && Number(c.Power) > 0 && Number(c.Power) <= 5000)
     .slice(0, 3).map(c => c.CardNum);
@@ -31961,13 +31980,64 @@ test('task12(lxxxii) 第3波 WXK08-002-E1: アーツの3択・②のany/2体ま�
     return resumeChoose(choiceId, opened.pending, { ...base, ownerState: opened.ownerState, otherState: opened.otherState, logs: opened.logs });
   };
 
-  for (const choiceId of ['c0', 'c2']) {
+  // ①＝トラッシュの**赤のシグニ**だけが候補（負方向＝赤でないカードは候補に出ない）。
+  {
+    const redSigni = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+    const blueSigni = findCard(c => isSigni(c) && (c.Color ?? '') === '青');
+    const trashCtx = {
+      ...base,
+      ownerState: { ...base.ownerState, trash: [redSigni, blueSigni], field: { ...base.ownerState.field, signi: [null, null, null] } },
+      logs: [],
+    } as unknown as ExecCtx;
+    const opened0 = executeEffect(effect, trashCtx);
+    ok(!opened0.done && opened0.pending.type === 'CHOOSE', '①: CHOOSE を提示');
+    if (opened0.done || opened0.pending.type !== 'CHOOSE') return;
+    const r0 = resumeChoose('c0', opened0.pending,
+      { ...trashCtx, ownerState: opened0.ownerState, otherState: opened0.otherState, logs: opened0.logs });
+    ok(!r0.done && r0.pending.type === 'SELECT_TARGET', '①: トラッシュから出すカードを選ばせる');
+    if (r0.done || r0.pending.type !== 'SELECT_TARGET') return;
+    ok(r0.pending.candidates.includes(redSigni), '①: 赤のシグニが候補');
+    ok(!r0.pending.candidates.includes(blueSigni), '🔴①: 青のシグニは候補に出ない（色限定の脱落ガード）');
+    const placed = finish(resumeSelectTarget([redSigni], r0.pending,
+      { ...trashCtx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs }), trashCtx);
+    ok(placed.ownerState.field.signi.some(z => z?.at(-1) === redSigni), '①: 場に出る');
+    ok(!placed.ownerState.trash.includes(redSigni), '①: トラッシュから消える');
+    eq(placed.ownerState.attack_phase_level_overrides?.[redSigni], 1, '①: 基本レベルが1になる');
+    eq(placed.ownerState.turn_end_return_to_hand?.join(','), redSigni, '🔴①: ターン終了時の手札戻しが予約される');
+    // ターン終了時に実際に手札へ戻る（funnel の往復）。
+    const ended = resolveTurnEndHandReturn(placed.ownerState as PlayerState);
+    eq(ended.returned.join(','), redSigni, '①: ターン終了時に戻る');
+    ok(ended.state.hand.includes(redSigni) && !ended.state.field.signi.some(z => z?.at(-1) === redSigni),
+       '①: 場から手札へ移る');
+    // 予約の失効は turn-scoped レジストリが行う（funnel は自前で消さない）。
+    eq(clearTurnEndScopedState(ended.state).turn_end_return_to_hand, undefined, '①: 未消費の予約もターン境界で消える');
+  }
+  // ③＝センタールリグが赤でない盤面なので条件で落ちる（＝**負方向**。赤なら能力喪失＋付与が起きる）。
+  {
     const beforeOwner = JSON.stringify(base.ownerState);
-    const beforeOther = JSON.stringify(base.otherState);
-    const result = selectBranch(choiceId);
-    ok(result.done, `${choiceId}: STUB枝は追加interactionなしで完了`);
-    eq(JSON.stringify(result.ownerState), beforeOwner, `${choiceId}: 自盤面no-op`);
-    eq(JSON.stringify(result.otherState), beforeOther, `${choiceId}: 相手盤面no-op`);
+    const r2 = selectBranch('c2');
+    ok(r2.done, 'c2: 追加の問いは出ない');
+    eq(r2.ownerState.lrig_abilities_disabled, undefined, '🔴c2: 赤のセンタールリグでなければ能力を失わない');
+    eq(JSON.stringify(r2.ownerState), beforeOwner, 'c2: 条件を満たさなければ盤面 no-op');
+  }
+  // ③ の対照＝赤のセンタールリグが居れば能力喪失＋付与が起きる。
+  {
+    const redLrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤'));
+    ok(!!redLrig, '赤のルリグが見つかる');
+    const redBase = {
+      ...base,
+      ownerState: { ...base.ownerState, field: { ...base.ownerState.field, lrig: [redLrig!] }, logs: undefined },
+      logs: [],
+    } as unknown as ExecCtx;
+    const opened = executeEffect(effect, redBase);
+    ok(!opened.done && opened.pending.type === 'CHOOSE', '赤ルリグ盤面でも CHOOSE が出る');
+    if (opened.done || opened.pending.type !== 'CHOOSE') return;
+    const r = resumeChoose('c2', opened.pending,
+      { ...redBase, ownerState: opened.ownerState, otherState: opened.otherState, logs: opened.logs });
+    eq(r.ownerState.lrig_abilities_disabled, true, '赤なら能力を失う');
+    const granted = r.ownerState.granted_effects?.[redLrig!] ?? [];
+    eq(granted.length, 1, '同時に1つだけ能力を得る');
+    eq(granted[0]?.timing?.join(','), 'ON_GUARD', '得るのは「アタックがガードされたとき」');
   }
 
   const branch = selectBranch('c1');

@@ -27,15 +27,14 @@ export function resolveTurnEndHandReturn(
     const rest = stack!.slice(0, -1);
     return rest.length > 0 ? rest : null;
   }) as (string[] | null)[];
-  if (returned.length === 0) {
-    return { state: { ...state, turn_end_return_to_hand: undefined }, returned: [] };
-  }
+  // ⚠**予約の失効はここで書かない**＝`turn_end_return_to_hand` は turn-scoped レジストリ
+  //   （`turnScopedState.ts`）が turn-end に落とす。ここで手書きすると funnel が二重管理になる。
+  if (returned.length === 0) return { state, returned: [] };
   return {
     state: {
       ...state,
       field: { ...state.field, signi },
       hand: [...state.hand, ...returned],
-      turn_end_return_to_hand: undefined,
     },
     returned,
   };

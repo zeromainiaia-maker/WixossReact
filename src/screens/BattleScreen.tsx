@@ -3638,7 +3638,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         let myLrigDeckReturned: string[] = [];
-        let myHandReturnedEND: string[] = [];
         // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
         if ((my.turn_end_field_trash_targets ?? []).length > 0) {
           const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
@@ -3678,7 +3677,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           const rh = resolveTurnEndHandReturn({ ...my, field: myFieldAfterCoinCheck });
           if (rh.returned.length > 0) {
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: rh.state.field.signi };
-            myHandReturnedEND = rh.returned;
             // 🔑**手札上限チェックより前に手札へ入れる**（memory: エンドフェイズは①ターン終了時効果→②手札上限）。
             //   後から足すと上限超過分が捨てられずに残る。
             myHandEND = [...myHandEND, ...rh.returned];
@@ -3740,7 +3738,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ...(myLrigDeckReturned.length > 0
                 ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned], turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined }
                 : {}),
-              ...(myHandReturnedEND.length > 0 ? { turn_end_return_to_hand: undefined } : {}),
               excluded: myExcludedEND, pending_exile_nums: undefined,
               energy: myEnergyEND,
               turn_end_draw_count: undefined,
@@ -3829,7 +3826,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           life_crash_counter: undefined,            // カウンタークラッシュ（このターン）をリセット
           negate_opp_attacks: undefined,              // N回目アタック共有カウンタをリセット
           all_cont_effects_negated: undefined,       // CONTINUOUS効果無効化フラグをリセット
-          lrig_abilities_disabled: undefined,        // ルリグ能力消去フラグをリセット
+          // lrig_abilities_disabled のリセットは clearTurnEndScopedState のレジストリへ集約（§6.4 O-10 続き509）。
           turn_hand_discarded_count: undefined,      // このターンの手札捨て枚数をリセット
           turn_signi_returned_to_hand: undefined,    // このターンのシグニ手札戻りフラグをリセット（G087）
           turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined, // アーツ使用履歴をリセット
@@ -4226,8 +4223,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...(myLrigDeckReturned2.length > 0
           ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned2] } : {}),
         // §6.4 O-10（続き509）＝手札へ戻す分は `myHandEND` の**後**に足す（上限チェックは既に済んでいる）。
-        ...(myHandReturnedEND2.length > 0
-          ? { hand: [...myHandEND, ...myHandReturnedEND2], turn_end_return_to_hand: undefined } : {}),
+        ...(myHandReturnedEND2.length > 0 ? { hand: [...myHandEND, ...myHandReturnedEND2] } : {}),
         turn_end_draw_count: undefined,
         end_turn_effects_resolved: undefined, // マーカーをクリア（次ターンの解決に持ち越さない）
         temp_power_mods: [], temp_level_mods: [], keyword_grants: {}, granted_effects: {},
@@ -4262,7 +4258,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         reduce_next_on_play_cost: undefined, optional_discard_guard_enabled: undefined,
         flip_attack_signi_zones: undefined, turn_end_field_trash_targets: undefined,
         turn_trigger_3rd_plant_down: undefined,
-        turn_plant_down_count: undefined, lrig_abilities_disabled: undefined,
+        turn_plant_down_count: undefined,
         turn_hand_discarded_count: undefined, turn_signi_returned_to_hand: undefined, turn_arts_used: undefined, turn_arts_used_names: undefined, turn_arts_used_colors: undefined,
         is_betting_this_effect: undefined, is_boosting_this_effect: undefined, last_discarded_signi_power: undefined, last_discarded_signi_level: undefined,
         cancel_current_signi_attack: undefined,

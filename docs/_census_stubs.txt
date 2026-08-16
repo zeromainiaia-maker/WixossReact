@@ -1,15 +1,15 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 596（総ノード 2881 件）
-逆翻訳シートの [STUB:…] 総数: 762  うち生ID露出 267 箇所（183 種）
+live JSON の STUB id 種類 : 597（総ノード 2882 件）
+逆翻訳シートの [STUB:…] 総数: 763  うち生ID露出 268 箇所（184 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 10 種 / 12 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 10 種 / 12 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 8 種 / 10 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 8 種 / 10 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 22 種 / 70 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 255 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 258 箇所
   D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
@@ -30,7 +30,7 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
         生成: src\data\parsers\parseSentencePart1.ts:3329
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
-        生成: src\data\manualEffects.ts:4877
+        生成: src\data\manualEffects.ts:4890
      1件   1枚  DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS  [生ID露出 1]
         カード: WXK07-001
         生成: src\data\manualEffects.ts:21
@@ -38,16 +38,10 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
         カード: WX25-CP1-060
      1件   1枚  DEFERRED_OPP_TURN_ARTS_COST_REDUCTION_ONCE  [生ID露出 1]
         カード: WXK03-071
-        生成: src\data\manualEffects.ts:4701
-     1件   1枚  DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN  [生ID露出 1]
-        カード: WXK08-002
-        生成: src\data\manualEffects.ts:92
+        生成: src\data\manualEffects.ts:4714
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        生成: src\data\manualEffects.ts:4678
-     1件   1枚  DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN  [生ID露出 1]
-        カード: WXK08-002
-        生成: src\data\manualEffects.ts:92
+        生成: src\data\manualEffects.ts:4691
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -111,7 +105,7 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
         消費: src\engine\effectExecutor.ts:3951
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1012 / src\screens\BattleScreen.tsx:10241
+        消費: src\screens\BattleScreen.tsx:1013 / src\screens\BattleScreen.tsx:10265
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6803
@@ -543,6 +537,9 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
         既存コメント: RESONANCE_COST_CARDS_TO_ENERGY: レゾナコストカードをエナゾーンへ
   露出  1箇所 (live 1件/1枚)  RESTORE_REVEALED_DECK_CARDS  [execStubPart3]
         カード: WXDi-P06-036
+  露出  1箇所 (live 1件/1枚)  RETURN_TO_HAND_AT_TURN_END  [execStubPart3]
+        カード: WXK08-002
+        既存コメント: RETURN_TO_HAND_AT_TURN_END（§6.4 O-10・続き509）＝「ターン終了時、それを場から手札に戻す」。 予約だけを積み、解決は `screens/battle/turnEndHandRetur
   露出  1箇所 (live 1件/1枚)  REVEAL  [execStubPart3]
         カード: WX16-Re17
         既存コメント: REVEAL: デッキ上を公開（名前ログ）
@@ -569,6 +566,8 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
   露出  1箇所 (live 1件/1枚)  SELECT_OTHER_SIGNI  [execStubPart3]
         カード: WXDi-P10-052
         既存コメント: SELECT_OTHER_SIGNI: ソース以外のシグニを選択
+  露出  1箇所 (live 1件/1枚)  SELF_LRIG_LOSE_ABILITY  [execStubPart3]
+        カード: WXK08-002
   露出  1箇所 (live 1件/1枚)  SELF_TRASH_IF_NO_OPP_VIRUS  [execStubPart2]
         カード: WX20-030
         既存コメント: SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
@@ -578,6 +577,9 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
   露出  1箇所 (live 1件/1枚)  SET_LEVEL_RANGE  [execStubPart2]
         カード: WX19-065
         既存コメント: SET_LEVEL_RANGE: 自シグニ1体を選んでレベル1～4に変更（ターン終了時まで）
+  露出  1箇所 (live 1件/1枚)  SET_STORED_BASE_LEVEL  [execStubPart3]
+        カード: WXK08-002
+        既存コメント: SELF_LRIG_LOSE_ABILITY（§6.4 O-10・続き509）＝「あなたの（赤の）センタールリグ１体を対象とし、 ターン終了時まで、それは能力を失い『…』を得る」（`WXK08-002-E1` の選択肢③
   露出  1箇所 (live 1件/1枚)  SIGNI_GAIN_ONE_LRIG_COLOR  [execStubPart3]
         カード: WXDi-P03-074
         既存コメント: SIGNI_GAIN_ONE_LRIG_COLOR: このシグニがルリグの色を1つ得る（ターン終了時まで）
