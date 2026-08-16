@@ -625,19 +625,6 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
-## +STUB -GRANT_KEYWORD -SIGNI ［1枚］
-WX25-P2-071
---- WX25-P2-071
-  原文: あなたの＜宇宙＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋5000する。それがレゾナの場合、次の対戦相手のターン終了時まで、それは「【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。」を得る。,：対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 1
-  - [0].action.steps[1].then.targetsLastProcessed = true
-  - [0].action.steps[1].then.keyword = "【常】：このシグニが対戦相手の効果によって場を離れる場合、代わりにこの能力を失う。そうした場合、このシグニをダウンする。"
-  - [0].action.steps[1].then.duration = "UNTIL_OPP_TURN_END"
-  ~ [0].action.steps[1].then.type : "GRANT_KEYWORD" → "STUB"
-  + [0].action.steps[1].then.id = "DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN"
-
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069

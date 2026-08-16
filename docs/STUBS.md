@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 596 |
+| JSON で使用中の STUB id 種類 | 599 |
 | 　└ ハンドラ実装あり | 561 |
-| 　└ フォールバック（execStub 未処理） | 35 |
-| 総 STUB ノード件数 | 2874 |
+| 　└ フォールバック（execStub 未処理） | 38 |
+| 総 STUB ノード件数 | 2883 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 332 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -33,6 +33,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_TRASH_SELF` | 14 | 14 | PR-319, WX06-CB01, WX06-CB03 |  |
 | `PREVENT_POWER_MODIFY_BY_OPP` | 5 | 5 | WX05-024, WX12-033, WX20-023 |  |
 | `BATTLE_BANISH_PREVENT_LOSE_ABILITY` | 3 | 3 | WX13-031, WX16-001, WXK04-068 |  |
+| `DEFERRED_CONVERT_ENERGY_COLOR` | 3 | 3 | WXEX1-54, WXEX1-56, WXEX2-56 |  |
 | `DEFERRED_REPLACEMENT_LOSE_THIS_ABILITY` | 3 | 3 | WX25-P3-055, WXK01-002, WXK03-071 |  |
 | `GRANT_ALL_ZONE_LIFEBURST` | 3 | 3 | WD14-001, WX02-002, WX17-036 |  |
 | `GUARD_LOSS_UNLESS_LRIG` | 3 | 3 | WX12-025, WX12-034, WX12-036 |  |
@@ -41,6 +42,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
 | `CANNOT_DEAL_DAMAGE_TO_OPPONENT` | 1 | 1 | WX25-CP1-074 |  |
 | `DEFERRED_ATTACK_NEGATE_IMMUNITY_SELF` | 1 | 1 | WX24-P4-016 |  |
+| `DEFERRED_ATTACK_WHILE_DOWN` | 1 | 1 | WX22-022 |  |
 | `DEFERRED_CENTER_LRIG_NAME_CONDITION_ABILITY_LOSS` | 1 | 1 | WX09-Re01 |  |
 | `DEFERRED_CHARM_POWER_MINUS_MULTIPLIER` | 1 | 1 | WX25-P2-103 |  |
 | `DEFERRED_CHECK_ZONE_FLIP_FREE_GROW` | 1 | 1 | WXDi-P16-001A |  |
@@ -50,6 +52,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `DEFERRED_FLIP_SELF_FACE_DOWN_UP` | 1 | 1 | WX25-CP1-060 |  |
 | `DEFERRED_GATE_ZONE_GRANT_AUTO_ABILITY` | 1 | 1 | WXDi-P16-062 |  |
 | `DEFERRED_GRANT_UNTAP_ON_ATTACK_TO_TEAM_LRIG` | 1 | 1 | WXDi-P00-026 |  |
+| `DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN` | 1 | 1 | WX25-P2-071 |  |
 | `DEFERRED_RED_CENTER_LRIG_REPLACE_ABILITIES_UNTIL_END_OF_TURN` | 1 | 1 | WXK08-002 |  |
 | `DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY` | 1 | 1 | WX12-023 |  |
 | `DEFERRED_TRASH_RED_SIGNI_LEVEL1_PLAY_AND_END_TURN_RETURN` | 1 | 1 | WXK08-002 |  |
@@ -74,14 +77,14 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
 | `OPTIONAL_COST` | 607 | 570 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
-| `STORE_LAST_PROCESSED_TARGETS` | 143 | 139 | WD12-009, WDK06-R09, WDK06-C17 |  |
-| `SELECT_TARGET_ONLY` | 130 | 126 | WD12-009, WDK06-R09, WDK06-C17 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
+| `STORE_LAST_PROCESSED_TARGETS` | 144 | 140 | WD12-009, WDK06-R09, WDK06-C17 |  |
+| `SELECT_TARGET_ONLY` | 131 | 127 | WD12-009, WDK06-R09, WDK06-C17 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
 | `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 121 | 118 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 116 | 114 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
 | `OPPONENT_PAY_OPTIONAL` | 76 | 68 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `POWER_MOD_PER_COUNT` | 58 | 58 | WD19-001, WDK06-C17, SP26-003 | 動的パワー修正（COUNT依存） |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 41 | 41 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
-| `GRANT_ABILITY_INNER_TEXT` | 38 | 38 | WD16-014, WD17-001, SPDi43-01 |  |
+| `GRANT_ABILITY_INNER_TEXT` | 39 | 39 | WD16-014, WD17-001, SPDi43-01 |  |
 | `RULE_REMINDER_TEXT` | 37 | 37 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `DECLARE_NUMBER` | 30 | 29 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
 | `LOOK_OPP_LIFE_TOP` | 30 | 29 | WD06-006, WD06-018, WDK09-017 | 対戦相手のライフクロス上を見る（複数枚パターン対応） |
@@ -207,13 +210,13 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TRAP_OP` | 7 | 7 | WX16-061, WX17-044, WX17-062 | TRAP_OP: ソースカードのテキストに応じて操作判定 |
 | `CAST_FROM_OPP_TRASH` | 6 | 5 | PR-433, WX14-027, WXEX1-46 | CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択 |
 | `CRAFT_TO_LRIG_DECK` | 6 | 6 | WX25-P1-034, WXDi-P14-006, WXDi-P14-007 | CRAFT_TO_LRIG_DECK / ADD_CRAFT_TO_LRIG_DECK: クラフトをルリグデッキへ 原文の《クラフト名》を解決し、既存インスタンスが無ければゲーム外から生成して加える。 （旧実装は sourceCardNu… |
+| `DOUBLE_OWN_POWER_MINUS` | 6 | 6 | WX24-P1-049, WX25-P2-103, WX25-CP1-070 | 自シグニパワーの2倍を全相手シグニにマイナス DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置） |
 | `ACTIVATE_TRAP` | 5 | 5 | SP26-001, WX15-017, WX15-035 | ACTIVATE_TRAP / ACTIVATE_TRAP_IN_FIELD: トラップを表向きにしてTRAP_ICON効果を発動 |
 | `ADD_CARD_TO_LRIG_DECK_HIDDEN` | 5 | 5 | WX25-P2-017, WX25-P2-021, WXDi-P11-013 | ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える |
 | `ARTS_IMMOVABLE` | 5 | 5 | WX25-P1-TK1, WX25-P1-TK2, WX25-P1-TK3 | アーツ条件系（engine: アーツ使用条件未実装） |
 | `BLOCK_OPP_ZONE_PLACEMENT` | 5 | 5 | WX08-032, WX10-051, WXEX1-24 | BLOCK_OPP_ZONE_PLACEMENT: 対戦相手のシグニゾーンへの新規配置を禁止する。禁止するゾーンの供給源は parser が `zoneBlockSource` で渡す3種類＝指定ゾーン（DESIGNATE_SIGNI_Z… |
 | `CONDITIONAL_CARD_COST_BY_OPP_LRIG` | 5 | 5 | WX03-002, WX03-003, WX03-004 | CONDITIONAL_CARD_COST_BY_OPP_LRIG: 対戦相手のセンタールリグ色による基本コスト軽減（実コスト軽減は支払い時に computeArtsEffectiveCost が適用済み。ここでは結果ログのみ） |
 | `DECK_TOP_CHECK_LEVEL_HAND` | 5 | 5 | WX20-Re05, WX20-Re06, WXEX1-58 | デッキトップを公開してレベル一致なら手札に加える |
-| `DOUBLE_OWN_POWER_MINUS` | 5 | 5 | WX24-P1-049, WX25-P2-103, WX25-CP1-070 | 自シグニパワーの2倍を全相手シグニにマイナス DOUBLE_OWN_POWER_MINUS: 対象シグニへの自分効果パワー-を2倍にする（SELECT_TARGET + フラグ設置） |
 | `GAIN_EXTRA_TURN` | 5 | 5 | SP26-006, SP38-006, WX05-001 | 追加ターンを獲得（ログのみ、ゲームエンジン実装が必要） GAIN_EXTRA_TURN: 追加ターンフラグをセット（BattleScreen側でターン終了時に追加ターンを付与） |
 | `REMOVE_SIGNI_ZONE` | 5 | 5 | WX25-P3-015, WXDi-P00-015, WXDi-P09-003 | 裏向き系（field.facedown_signi へ移し、場のシグニとして扱わない） REMOVE_SIGNI_ZONE: 対戦相手のシグニゾーンを1つ削除 |
 | `SEED_BLOOM` | 5 | 4 | WDK07-Y01, WDK07-Y07, WXK04-001 | SEED_BLOOM: シード1枚（または好きな枚数）を開花する SEED_BLOOM_OPTIONAL: 任意でシード1枚を開花する |

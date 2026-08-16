@@ -2937,15 +2937,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 引用符キーワード効果付与（「【常】：XXX」を得る）----
-  // ⚠**XXX が「キーワード名」のときだけ**キーワード付与にする（§6.4 O-28）。
-  // 🔴従来は引用の中身を**そのまま `keyword` に詰めていた**ので、文がまるごと入った綴りは
-  //   `hasKeyword`（正式名の完全一致）に一度も当たらない**無言 no-op** になっていた
-  //   （`WX25-P2-071-E1`／`WXDi-P05-068-E1`／`WXK07-029-E1`／`WXK08-049-E2`／`WX24-P1-064-E1`）。
-  // 🔑判定は**形**で行う＝キーワード名に句読点・入れ子の【】は現れず、長くもない。
-  //   弾いた分は後段（`GRANT_ABILITY_INNER_TEXT` 等）へ落ちる＝**計器に映る宣言済みの穴**になる。
-  const isKeywordNameShape = (s: string) => !/[、。]/.test(s) && !/[【】]/.test(s) && s.length <= 14;
+  // ⚠XXX がキーワード名でない（＝文）ときは **`parseSingleSentence` の後処理**
+  //   `dropSentenceShapedKeyword` が `GRANT_ABILITY_INNER_TEXT` へ落とす（§6.4 O-28）。
+  //   🔴**ここで先に弾いてはいけない**＝`rewriteAttackTaxKeywordGrant`（続き490/494）は
+  //     この GRANT_KEYWORD を**入力として**受け取り `SELECT_TARGET_ONLY → SIGNI_ATTACK_BAN` へ
+  //     組み替える。ここで弾くとその7効果の正準形が丸ごと消える（実測で held +7）。
   const grantQuotedM = t.match(/を対象とし、ターン終了時まで、それは「【常】：(.+?)。?」を得る/);
-  if (grantQuotedM && isKeywordNameShape(grantQuotedM[1].replace(/。$/, ''))) {
+  if (grantQuotedM) {
     const keyword = grantQuotedM[1].replace(/。$/, '');
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const target: EffectTarget = /(?:センター)?ルリグかシグニ/.test(t)
