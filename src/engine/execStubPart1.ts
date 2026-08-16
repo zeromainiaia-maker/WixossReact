@@ -195,6 +195,73 @@ export function execStubPart1(
   }
   // 盤面を変えない内部マーカー（SELECT_TARGET_ONLY の thenAction 等）。
   if (stub.id === 'INTERNAL_NOOP') return done(ctx);
+  // ═══ PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）═══
+  // 「あなたのトラッシュから**対戦相手の場にあるシグニ１体と同じパワー**の＜X＞のシグニを１枚まで対象とし、
+  //  それを**その対戦相手のシグニの正面**のシグニゾーンに出す」。
+  // 🔑盤面は左右反転する＝**相手ゾーン zi の正面は自分ゾーン 2-zi**（`collectForcedFrontAttackZones` と同規約）。
+  // ⚠**正面が埋まっているペアは最初から候補に入れない**＝選ばせてから「出せません」になるのを防ぐ。
+  // ⚠パワー照合は**相手側だけ実効パワー**（`effectivePowers`）を見る。トラッシュのカードには場の修正が
+  //   乗らないので印刷値で比べる。
+  if (stub.id === 'PLACE_TRASH_SIGNI_FACING_SAME_POWER' || stub.id === 'INTERNAL_PLACE_FACING_SAME_POWER') {
+    const clsPFSP = typeof stub.value === 'string' && stub.value ? stub.value : undefined;
+    // 「(必要パワー, 正面ゾーン)」の組を作る。
+    const pairsPFSP: { power: number; frontZone: number }[] = [];
+    for (let zi = 0; zi < 3; zi++) {
+      const topPFSP = ctx.otherState.field.signi[zi]?.at(-1);
+      if (!topPFSP) continue;
+      const frontPFSP = 2 - zi;
+      if ((ctx.ownerState.field.signi[frontPFSP] ?? []).length > 0) continue; // 正面が埋まっている
+      const pwPFSP = ctx.effectivePowers?.get(topPFSP)
+        ?? Number.parseInt(ctx.cardMap.get(getCardNum(topPFSP))?.Power ?? '', 10);
+      if (!Number.isFinite(pwPFSP)) continue;
+      pairsPFSP.push({ power: pwPFSP, frontZone: frontPFSP });
+    }
+    const trashPowerOk = (n: string): number | null => {
+      const c = ctx.cardMap.get(getCardNum(n));
+      if (!c || c.Type !== 'シグニ') return null;
+      if (clsPFSP && !(c.CardClass ?? '').includes(clsPFSP)) return null;
+      const p = Number.parseInt(c.Power ?? '', 10);
+      return Number.isFinite(p) ? p : null;
+    };
+    // 第2段＝選択済みの1枚を正面ゾーンへ出す。
+    if (stub.id === 'INTERNAL_PLACE_FACING_SAME_POWER') {
+      const pickPFSP = ctx.lastProcessedCards?.[0];
+      if (!pickPFSP) return done(addLog(ctx, '場に出すシグニが選ばれなかった'));
+      const pwPick = trashPowerOk(pickPFSP);
+      const slotPFSP = pwPick === null ? undefined : pairsPFSP.find(x => x.power === pwPick);
+      if (!slotPFSP) return done(addLog(ctx, '同じパワーの相手シグニの正面が空いていない'));
+      const namePFSP = ctx.cardMap.get(getCardNum(pickPFSP))?.CardName ?? pickPFSP;
+      const blockedPFSP = deployLimitBlockReason({
+        placingState: ctx.ownerState, opponentState: ctx.otherState,
+        cardNum: pickPFSP, cardMap: ctx.cardMap, effectsMap: ctx.effectsMap,
+        contCountCap: ctx.deployCountCapSelf, isPlacingOwnerTurn: ctx.isOwnerTurn,
+        placementSource: effectPlacementSource(ctx.sourceCardNum, ctx.cardMap),
+      });
+      if (blockedPFSP) return done(addLog(ctx, deployLimitLogMessage(blockedPFSP, namePFSP)));
+      const signiPFSP = ctx.ownerState.field.signi.map(s => (s ? [...s] : null)) as (string[] | null)[];
+      signiPFSP[slotPFSP.frontZone] = [pickPFSP];
+      const nextPFSP: PlayerState = {
+        ...ctx.ownerState,
+        trash: ctx.ownerState.trash.filter(n => n !== pickPFSP),
+        field: { ...ctx.ownerState.field, signi: signiPFSP },
+      };
+      return done(addLog({ ...ctx, ownerState: nextPFSP, lastProcessedCards: [pickPFSP] },
+        `${namePFSP}を正面のシグニゾーン${slotPFSP.frontZone + 1}に場に出す`));
+    }
+    if (pairsPFSP.length === 0) return done(addLog(ctx, '正面が空いている対戦相手のシグニがいない'));
+    const candsPFSP = ctx.ownerState.trash.filter(n => {
+      const p = trashPowerOk(n);
+      return p !== null && pairsPFSP.some(x => x.power === p);
+    });
+    if (candsPFSP.length === 0) {
+      return done(addLog(ctx, `同じパワーの${clsPFSP ? `＜${clsPFSP}＞の` : ''}シグニがトラッシュにない`));
+    }
+    // 「１枚**まで**」＝任意（0枚でよい）。
+    return needsInteraction(addLog(ctx, 'トラッシュから正面へ出すシグニを選ぶ（1枚まで）'), {
+      type: 'SELECT_TARGET', candidates: candsPFSP, count: 1, optional: true, targetScope: 'self_trash',
+      thenAction: { type: 'STUB', id: 'INTERNAL_PLACE_FACING_SAME_POWER', value: clsPFSP ?? '' } as StubAction as EffectAction,
+    });
+  }
   // USE_SEARCHED_SPELL_OR_TRASH（§6.4 O-34(b)・`WX20-077-E2`）:
   // 「その後、デッキをシャッフルし、**それをコストを支払わずに使用するかトラッシュに置く**」＝
   // 直前のサーチで見つけたカードを「タダで使う／トラッシュに置く」の二択にする。
