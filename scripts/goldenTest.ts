@@ -15153,6 +15153,32 @@ test('SET_LRIG_BASE_LIMIT / RESERVE_DRAW_PHASE_REPLACEMENT: 予約先フィー�
   eq(rOpp.otherState.lrig_base_limit_override ?? 0, 3, 'owner:opponent は相手側へ');
   eq(rOpp.ownerState.lrig_base_limit_override ?? 0, 0, '自分側には載らない');
 }));
+// ── §6.4 O-28：キーワード綴りの正準化（全角【Ｓランサー】／半角 `Sランサー`）──
+// 🔴回帰ガード＝原文（CSV）は全角、engine コードは半角。`hasKeyword` は完全一致でしか照合しないので、
+//    live の `GRANT_KEYWORD{'Ｓランサー'}` **26効果が一度も効かない無言 no-op** だった。さらに原文を
+//    `includes('Sランサー')` で嗅ぐ実行時ハンドラは全角原文に当たらず、「Ｓランサー」に含まれる
+//    「ランサー」へフォールバックして**弱い方へ勝手に格下げ**していた。
+test('キーワード綴り: live の GRANT_KEYWORD は半角 Sランサー に正準化されている（トリップワイヤ）', () => {
+  const bad: string[] = [];
+  const walk = (a: unknown, eid: string): void => {
+    if (!a || typeof a !== 'object') return;
+    if (Array.isArray(a)) { a.forEach(x => walk(x, eid)); return; }
+    const r = a as Record<string, unknown>;
+    if (r.type === 'GRANT_KEYWORD' && typeof r.keyword === 'string' && /[Ａ-Ｚａ-ｚ０-９]/.test(r.keyword)) bad.push(`${eid}:${r.keyword}`);
+    for (const v of Object.values(r)) walk(v, eid);
+  };
+  for (const [id, effs] of effectsMap) for (const e of mergeManualEffects(id, effs as never[])) walk((e as CardEffect).action, (e as CardEffect).effectId);
+  eq(bad.join(','), '', '全角英数を含む keyword が残っている');
+});
+test('normalizeKeywordName / textHasKeyword: 全角と半角のどちらでも同じキーワードとして照合する', () => {
+  eq(normalizeKeywordName('Ｓランサー'), 'Sランサー', '全角Ｓ→半角S');
+  eq(normalizeKeywordName('シャドウ'), 'シャドウ', 'かなは触らない');
+  ok(textHasKeyword('【Ｓランサー】を得る', 'Sランサー'), '原文が全角でも半角要求に当たる');
+  ok(textHasKeyword('【Sランサー】を得る', 'Ｓランサー'), '原文が半角でも全角要求に当たる');
+  ok(!textHasKeyword('【ランサー】を得る', 'Sランサー'), '⚠通常ランサーは Sランサー に当たらない（格下げ検出）');
+  // state 側の照合＝`hasKeyword` が綴り差を吸収する（MANUAL 等に全角が残っても動く safety net）。
+  ok(hasKeyword('X#1', 'Sランサー', new Map(), { 'X#1': ['Ｓランサー'] }), '全角で付与されていても半角要求に当たる');
+});
 // ── §6.4 O-33：`SigniAttackBan.zones`（「中央のシグニゾーンにあるシグニでアタックできない」）──
 // 🔴回帰ガード＝旧 live は `BLOCK_ACTION{ATTACK}` に潰れ、**ゾーン限定も支払い回避も期間も落ちて**いた
 //    （`WX24-P1-038-E2`／`WXDi-P03-027-E2` は `owner:'any'`＝**両プレイヤー**が1ターンだけ止まる）。
