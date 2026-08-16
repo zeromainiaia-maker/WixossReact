@@ -4643,6 +4643,20 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: newOther }, '相手センタールリグはターン終了時まで能力を失う'));
   }
 
+  // SELF_LRIG_LOSE_ABILITY（§6.4 O-10・続き509）＝「あなたの（赤の）センタールリグ１体を対象とし、
+  // ターン終了時まで、それは能力を失い『…』を得る」（`WXK08-002-E1` の選択肢③）。
+  // 上の `OPP_LRIG_LOSE_ABILITY` の**自分側**版（フラグは同じ `lrig_abilities_disabled`）。
+  // 🔑**同時に得る能力は消えない**＝`GRANT_EFFECT{target:LRIG}` は `granted_effects[<ルリグ instId>]` へ入り
+  //   BattleScreen の augmented `effectsMap` 経由で読まれる。`lrig_abilities_disabled` が落とすのは
+  //   `grantedStoreWatchers`（`lrig_granted_auto_effects` 系）と CONTINUOUS の走査であって、この経路ではない。
+  //   ⚠つまり**付与に `GRANT_LRIG_ABILITY` を使うと自分で消してしまう**（原文は「失い、得る」＝得た側は残る）。
+  if (stub.id === 'SELF_LRIG_LOSE_ABILITY') {
+    const lrigTopSLLA = ctx.ownerState.field.lrig?.at(-1);
+    if (!lrigTopSLLA) return done(addLog(ctx, 'センタールリグがいない（能力喪失なし）'));
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, lrig_abilities_disabled: true } },
+      `${ctx.cardMap.get(getCardNum(lrigTopSLLA))?.CardName ?? lrigTopSLLA}はターン終了時まで能力を失う`));
+  }
+
   // LIFE_CLOTH_LOOK_TRASH_REFILL: 全ライフクロスを見て好きな枚数トラッシュ→同数デッキ上から補充（WX05-010）
   if (stub.id === 'LIFE_CLOTH_LOOK_TRASH_REFILL') {
     const lifeCloth = ctx.ownerState.life_cloth;
