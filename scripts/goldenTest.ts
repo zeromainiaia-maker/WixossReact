@@ -15579,7 +15579,8 @@ test('§6.4 O-33 据置分 live: WDK09-001-E2 が「公開→【ライフバー�
   ok(!JSON.stringify(eff.action).includes('"id":"GATE"'), '🔴2文目が「ゲートを置く」へ戻っていない');
   // 設置そのもの（E1）は【ゲート】を置くだけ＝アタック禁止は課さない。
   const src = fs.readFileSync(join(root, 'src/engine/execStubPart3.ts'), 'utf8');
-  const setGate = src.slice(src.indexOf("stub.id === 'INTERNAL_SET_GATE'"), src.indexOf("stub.id === 'PLACE_OWN_GATE'"));
+  const setGate = src.slice(src.indexOf("stub.id === 'INTERNAL_SET_GATE'"), src.indexOf("stub.id === 'PLACE_OWN_GATE'"))
+    .split('\n').filter(l => !/^\s*(\/\/|\*)/.test(l)).join('\n');   // ⚠コメント行は除く（説明文に id が出る）
   ok(!/blocked_actions/.test(setGate),
      '🔴【ゲート】設置は blocked_actions を積まない（設置＝禁止ではない／設置時の1枚に焼き込まない）');
 });
