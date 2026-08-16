@@ -12220,9 +12220,22 @@ test('§5d(A) noAbilities: 既存11効果＋対象修飾2効果に載る／別�
     const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
     ok(j.includes('LAST_PROCESSED') && j.includes('"noAbilities":true'), `${num}: 条件節として評価する`);
   }
+  // §6.4 O-6：`WX25-P3-038` は MANUAL を外して AUTO 採用へ切り替えた（条件型が
+  // `LAST_PROCESSED_MATCHES{noAbilities}` へ昇格＝**カードが実際に居る場から holder を引く**）。
+  // `WX25-CP1-002` は MANUAL のまま＝旧条件型を使い続ける。**どちらの型でも「能力を持たない」を
+  // 読むこと自体は不変**なので、型名ではなく「2型のどちらかで読む」を固定する（弱めない）。
   for (const num of ['WX25-P3-038', 'WX25-CP1-002']) {
-    ok(JSON.stringify(cardMap.get(num)?.effects ?? []).includes('LAST_PROCESSED_HAS_NO_ABILITIES'),
-      `${num}: MANUAL の既存条件型で評価する`);
+    const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
+    ok(j.includes('LAST_PROCESSED_HAS_NO_ABILITIES')
+      || (j.includes('LAST_PROCESSED_MATCHES') && j.includes('"noAbilities":true')),
+      `${num}: 「能力を持たない」を条件節として読む`);
+  }
+  // 🔒O-6 の向きを固定＝`WX25-P3-038` は**対象宣言が `POWER_MODIFY{delta:0}` の代用に戻らない**
+  //   （偽のパワー修正履歴を残さない）。
+  {
+    const j38 = JSON.stringify(cardMap.get('WX25-P3-038')?.effects ?? []);
+    ok(j38.includes('SELECT_TARGET_ONLY'), 'WX25-P3-038: 対象宣言は SELECT_TARGET_ONLY');
+    ok(!j38.includes('"delta":0'), 'WX25-P3-038: POWER_MODIFY{delta:0} の対象宣言代用に戻っていない');
   }
 });
 test('§5d(A) noAbilities: engine 判定＝素のシグニのみ候補／能力持ちは除外／abilities_removed も「持たない」', () => withSavedCursor(() => {
