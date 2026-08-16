@@ -841,9 +841,13 @@ export function execStubPart2(
         continuation: contDOPM as EffectAction,
       });
     }
-    const existingDOPM = ctx.ownerState.double_power_minus_targets ?? [];
-    const newOwnerDOPM = { ...ctx.ownerState, double_power_minus_targets: [...new Set([...existingDOPM, targetDOPM])] };
-    return done(addLog({ ...ctx, ownerState: newOwnerDOPM },
+    // 🔴**フラグは「そのシグニを持つ側」の state に積む**（§6.4 O-28）＝`calcFieldPowers` の
+    //   `applyTempMods(state, …)` は **`state.double_power_minus_targets`** を読み、`state.temp_power_mods`
+    //   （＝そのプレイヤーのシグニに掛かる修正）にだけ適用する。従来は相手シグニを選んでおきながら
+    //   **自分の state** へ積んでいたので、倍化が一度も効かなかった。
+    const existingDOPM = ctx.otherState.double_power_minus_targets ?? [];
+    const newOtherDOPM = { ...ctx.otherState, double_power_minus_targets: [...new Set([...existingDOPM, targetDOPM])] };
+    return done(addLog({ ...ctx, otherState: newOtherDOPM },
       `${ctx.cardMap.get(targetDOPM)?.CardName ?? targetDOPM}へのパワー-を2倍に設定`));
   }
   // 全自シグニのパワーを2倍にする（現在値と同量をデルタ追加）
