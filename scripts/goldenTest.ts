@@ -27711,9 +27711,10 @@ test('task12(lx)① WX25-P1-056-E1: 相手効果の非バニッシュ離場を�
   }));
 
   test('task12(xcv) 母集団＝「能力を持たない」を読む live カードの内訳を固定', () => {
-    // ⚠**merge 後（manualEffects 適用後）の実測**＝生 JSON では4枚が STUB を持つが、`WX25-P3-038` だけは
-    //   MANUAL 上書きで `LAST_PROCESSED_HAS_NO_ABILITIES` の CONDITIONAL 形に置き換わっている。
-    for (const num of ['WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073']) {
+    // ⚠**merge 後（manualEffects 適用後）の実測**。§6.4 O-6 で `WX25-P3-038` の MANUAL を外したので、
+    //   同カードは `WX25-P3-069/072/073` と**同じ AUTO の条件形**（`LAST_PROCESSED_MATCHES{noAbilities}`）に
+    //   合流した。`WX25-CP1-002` は MANUAL のまま旧条件型を使う。
+    for (const num of ['WX25-P3-069', 'WX25-P3-072', 'WX25-P3-073', 'WX25-P3-038']) {
       const j = JSON.stringify(cardMap.get(num)?.effects ?? []);
       ok(j.includes('LAST_PROCESSED_MATCHES') && j.includes('"noAbilities":true'), `${num} が対象決定後の能力なし条件を持つ`);
       ok(j.includes('"targetsStored":true') && !j.includes('ABILITY_CHECK_ELSE_TRASH'),
