@@ -463,6 +463,13 @@ export interface PlayerState {
    */
   turn_end_return_to_lrig_deck?: string[];
   /**
+   * 「ターン終了時、それを場から**手札に**戻す」（§6.4 O-10・続き509・`WXK08-002-E1` 選択肢①）の対象。
+   * ⚠**行き先が3本とも違う**＝`turn_end_field_trash_targets`（トラッシュ）／
+   *   `turn_end_return_to_lrig_deck`（ルリグデッキ）と流用し合わないこと。
+   * 解決は `screens/battle/turnEndHandReturn.ts` の funnel 1本（ターン終了処理は2経路ある）。
+   */
+  turn_end_return_to_hand?: string[];
+  /**
    * 直前に `SUMMON_RESONA_FROM_LRIG_DECK` が場に出したレゾナ（次のステップが参照する一時値）。
    * ⚠**ctx ではなく state に置く**＝ゾーン選択の対話 pause を跨いで残す必要があるため。
    */
