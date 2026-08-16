@@ -74,7 +74,7 @@ import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDama
 import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
-import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni } from '../src/engine/effectEngine';
+import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors } from '../src/engine/effectEngine';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
 import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
@@ -30268,12 +30268,12 @@ test('§6.4 O-10（続き508）: 【コンバート《色》】がエナの追�
   eq(map.get('WXEX1-56'), '緑', 'エナゾーンのカードは追加色を宣言する');
   eq(map.get('WXEX1-54'), undefined, '⚠場に出ているだけのカードは対象外');
   // 支払い判定＝《緑》×1 は WXEX1-56（印刷は白/黒）では本来払えないが、追加色で通る。
-  const cards = battleCardsOf(['WXEX1-56']);
-  eq(canAffordGrowCost(['WXEX1-56'], cards, '《緑》×１', undefined, false, false, undefined, undefined, map),
+  const cards = [...cardMap.values()] as CardData[];
+  eq(canAffordGrowCost(['WXEX1-56'], cards, '《緑》×1', undefined, undefined, undefined, undefined, undefined, map),
      true, '【コンバート《緑》】で《緑》を払える');
-  eq(canAffordGrowCost(['WXEX1-56'], cards, '《緑》×１'),
+  eq(canAffordGrowCost(['WXEX1-56'], cards, '《緑》×1'),
      false, '🔴負方向＝追加色を渡さない経路では払えない（渡し忘れの検知）');
-  eq(canAffordGrowCost(['WXEX1-56'], cards, '《赤》×１', undefined, false, false, undefined, undefined, map),
+  eq(canAffordGrowCost(['WXEX1-56'], cards, '《赤》×1', undefined, undefined, undefined, undefined, undefined, map),
      false, '対照＝宣言していない色は払えない');
 });
 

@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 596（総ノード 2881 件）
-逆翻訳シートの [STUB:…] 総数: 759  うち生ID露出 264 箇所（182 種）
+逆翻訳シートの [STUB:…] 総数: 762  うち生ID露出 267 箇所（183 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 10 種 / 12 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 10 種 / 12 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 22 種 / 70 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 172 種 / 252 箇所
-  D 健全（実装あり＋日本語表示）                          : 414 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 255 箇所
+  D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
 ==============================================================================
@@ -64,7 +64,7 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
         消費: src\engine\effectEngine.ts:4755
-     3件   3枚  CONVERT_ENERGY_COLOR
+     3件   3枚  CONVERT_ENERGY_COLOR  [生ID露出 3]
         カード: WXEX1-54, WXEX1-56, WXEX2-56
         消費: src\engine\effectEngine.ts:4311
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
@@ -152,6 +152,8 @@ live JSON の STUB id 種類 : 596（総ノード 2881 件）
   露出  3箇所 (live 3件/3枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
         カード: WX13-003, WXEX2-44, WXK06-028
         既存コメント: CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
+  露出  3箇所 (live 3件/3枚)  CONVERT_ENERGY_COLOR  [engine別経路]
+        カード: WXEX1-54, WXEX1-56, WXEX2-56
   露出  3箇所 (live 3件/3枚)  MARK_SELF_DELAYED_EXILE  [execStubPart3]
         カード: WD22-035-G, WX16-040, WX21-Re06
         既存コメント: MARK_SELF_DELAYED_EXILE: この解決で実際に場へ戻った自身だけを遅延除外対象にする。
