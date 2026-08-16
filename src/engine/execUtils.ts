@@ -208,6 +208,8 @@ export interface OptionalCostSpec {
   fieldDown?: { count: number; filter?: TargetFilter };
   lrigDown?: { count: number; centerOnly?: boolean; level?: number };
   down_self?: boolean;
+  /** 効果元シグニ自身を場からエナゾーンへ置く任意コスト（§6.4 O-7）。 */
+  selfToEnergy?: boolean;
   beat_signi?: number;
   beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
@@ -242,7 +244,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
     costColors, handDiscard, handReveal: a.handReveal, handToEnergy: a.handToEnergy, handToUnderSelf: a.handToUnderSelf,
     underAnySigniTrash: a.underAnySigniTrash,
     energyTrash, fieldTrash: a.fieldTrash, fieldToDeckBottom: a.fieldToDeckBottom, fieldTrashGroups: a.fieldTrashGroups,
-    fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self,
+    fieldToLrigTrash: a.fieldToLrigTrash, trashOwnKey: a.trashOwnKey, fieldDown: a.fieldDown, lrigDown: a.lrigDown, down_self: a.down_self, selfToEnergy: a.selfToEnergy,
     beat_signi: a.beat_signi, beat_signi_from_trash: a.beat_signi_from_trash,
     life_crash: a.life_crash, lifeTrash: a.lifeTrash, lifeToHand: a.lifeToHand,
     deckTrash: a.deckTrash, charmTrash: a.charmTrash,
@@ -347,6 +349,11 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     if (!ctx.sourceCardNum) return false;
     const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === ctx.sourceCardNum);
     if (zoneIdx < 0 || (ctx.ownerState.field.signi_down?.[zoneIdx] ?? false)) return false;
+  }
+  if (spec.selfToEnergy) {
+    // 場を離れることが対価＝効果元シグニが場に居ないと払えない（アタック後に既に落ちている等）。
+    if (!ctx.sourceCardNum) return false;
+    if (!ctx.ownerState.field.signi.some(stack => stack?.at(-1) === ctx.sourceCardNum)) return false;
   }
   if (spec.beat_signi) {
     if (!ctx.sourceCardNum) return false;
@@ -453,6 +460,10 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     ...(spec.down_self ? [{
       type: 'DOWN',
       target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+    } as EffectAction] : []),
+    ...(spec.selfToEnergy ? [{
+      type: 'SEND_TO_ENERGY',
+      target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', thisCardOnly: true } },
     } as EffectAction] : []),
     ...((spec.beat_signi || spec.beat_signi_from_trash) ? [{
       type: 'STUB', id: 'INTERNAL_PAY_BEAT_SIGNI',

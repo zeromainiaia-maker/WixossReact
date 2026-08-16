@@ -1282,8 +1282,18 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
   // 動的フィルタ（powerLteLastProcessed=「公開したシグニのパワー以下」等）を解決（WDK08-Y07）
-  const resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+  let resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
+  // thisCardOnly: 効果元シグニ自身のみ（「このシグニをエナゾーンに置く」＝§6.4 O-7 の `selfToEnergy` 任意コスト等）。
+  // ⚠`matchesFilter` は `thisCardOnly` を**黙って無視する**ので、ここで剥がして候補を絞らないと
+  //   「自分のシグニを1体選んでエナへ置く」選択UIに化ける（＝原文より広い別動作）。
+  let sendThisCardRestrict: string[] | null = null;
+  if (resolvedFilter?.thisCardOnly) {
+    const { thisCardOnly: _t, ...rest } = resolvedFilter;
+    resolvedFilter = rest;
+    sendThisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : [];
+  }
   let cands = fieldCandidates(state, resolvedFilter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
+  if (sendThisCardRestrict) cands = cands.filter(n => sendThisCardRestrict!.includes(n));
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   if (a.fixedCardNums) cands = cands.filter(n => a.fixedCardNums!.includes(n));
   const scope: TargetScope = tgt.owner === 'self' ? 'self_field' : 'opp_field';
