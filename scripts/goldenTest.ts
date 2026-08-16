@@ -30263,6 +30263,30 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
 });
 
+test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約され、ボタン生成側からも見られている', () => {
+  // 🔴続き460 で `USE_SPELL` だけボタン生成側へ足したが、`PLAY_COLORLESS`（無色スペル封じ）と
+  //    `BLOCK_NON_WHITE_SPELL`（白以外スペル封じ）は**実行入口にしかガードが無く**、
+  //    封じ中でも「発動」ボタンが出て押しても何も起きない**無言の no-op** だった。
+  // ⚠実 UI は BattleScreen のクロージャなので、ここでは**軸の集約と呼び出し箇所**を固定する
+  //    （実挙動は §7 実機検証＝負方向＋対照の対）。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const fn = src.slice(src.indexOf('const isSpellUseBlocked'), src.indexOf('const isSpellUseBlocked') + 600);
+  ok(/isSpellUseBlocked\s*=\s*\(/.test(src), 'スペル封じの判定が1関数に集約されている');
+  for (const axis of ['USE_SPELL', 'PLAY_COLORLESS', 'BLOCK_NON_WHITE_SPELL']) {
+    ok(fn.includes(axis), `🔴${axis} が判定に含まれる（軸の脱落ガード）`);
+  }
+  ok(/PLAY_COLORLESS'\)\s*&&\s*card\?\.Color === '無'/.test(fn), '無色スペルだけを止める（全スペルに広げない）');
+  ok(/BLOCK_NON_WHITE_SPELL'\)\s*&&\s*!card\?\.Color\?\.includes\('白'\)/.test(fn), '白以外だけを止める');
+  // ⚠**実行入口とボタン生成2箇所（手札スペル／スペル・クラフト）の計3箇所**から呼ぶ。
+  eq((src.match(/isSpellUseBlocked\(/g) ?? []).length, 3, '呼び出しは3箇所（実行入口・手札スペル・スペル/クラフト）');
+  // 旧・軸ごとの直書きが復活していないこと（＝また片側だけ塞ぐ回帰）。
+  // 軸の直書きは**funnel の中だけ**（＝また片側だけ塞ぐ回帰のガード）。
+  eq((src.match(/isActionBlocked\('BLOCK_NON_WHITE_SPELL'\)/g) ?? []).length, 1,
+     'BLOCK_NON_WHITE_SPELL を見るのは funnel の1箇所だけ');
+  eq((src.match(/isActionBlocked\('PLAY_COLORLESS'\) && card/g) ?? []).length, 1,
+     'スペル側の PLAY_COLORLESS 判定も funnel の1箇所だけ（召喚側の判定とは別軸なので数えない）');
+});
+
 test('§6.4 O-10（続き512）: 無色のカードではエナコストを支払えない（負方向＋対照の対）', () => {
   const cards = [...cardMap.values()] as CardData[];
   const colorless = findCard(c => (c.Color ?? '') === '無' && c.Type === 'シグニ');

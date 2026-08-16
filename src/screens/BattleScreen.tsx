@@ -2425,6 +2425,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const isLrigActBlocked = () => isActionBlocked('USE_ACT') || isActionBlocked('USE_LRIG_ACT');
 
   /**
+   * スペル（手札／スペル・クラフト）を使用できないか（§6.4 O-18・続き513）。
+   *
+   * 🔴**封じの軸は3つある**のに、ボタン生成側は `USE_SPELL` しか見ていなかった＝
+   * `PLAY_COLORLESS`（無色のスペル封じ）と `BLOCK_NON_WHITE_SPELL`（白以外のスペル封じ）は
+   * 実行入口 `castSpell` にしかガードが無く、**押しても無反応**の無言 no-op になっていた
+   * （続き460 で `USE_SPELL` だけ同じ穴を塞いだときの残り2軸）。
+   * ⚠**判定はこの1関数に集約する**＝ボタン生成／実行入口が別々に軸を持つと必ずズレる。
+   */
+  const isSpellUseBlocked = (card: { Color?: string } | undefined) =>
+    isActionBlocked('USE_SPELL')
+    || (isActionBlocked('PLAY_COLORLESS') && card?.Color === '無')
+    || (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card?.Color?.includes('白'));
+
+  /**
    * アーツを使用できないか（§6.4 O-10・続き512）。
    *
    * 🔴`ARTS_LIMIT_1`（「対戦相手は各ターンに一度しかアーツを使用できない」＝`WX13-007-E1`）は
@@ -6961,9 +6975,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // 選んだ手札 index。支払うと使用コストが置換される（検証は SpellCastModal 側＝executeArts と同じ規約）。
   const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set(), useCostPayKeys: Set<string> = new Set()) => {
     if (!isMyTurn || loading) return;
-    if (isActionBlocked('USE_SPELL')) return;
-    if (isActionBlocked('PLAY_COLORLESS') && card.Color === '無') return;
-    if (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card.Color?.includes('白')) return;
+    // §6.4 O-18（続き513）＝3軸を `isSpellUseBlocked` に集約（ボタン生成側と同じ関数を見る）。
+    if (isSpellUseBlocked(card)) return;
     // DISONA_RESTRICTION: このターン《ディソナアイコン》ではないスペルを使用できない
     if (my.dissona_only_spells_this_turn && card.Story !== 'Dissona') {
       appendBattleLogs(['ディソナ制限：《ディソナアイコン》ではないスペルは使用不可']);
@@ -7565,12 +7578,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           });
         }
       }
-      // ⚠`isActionBlocked('USE_SPELL')`（＝「対戦相手はスペルを使用できない」の封じ）を**ここで見る**。
-      //   実行入口の `castSpell`（:6769）にはガードがあるが、**ボタン生成側には無かった**＝封じ中でも
-      //   「発動」が出て、押しても何も起きない**無言の no-op** になっていた（続き460 の実機検証で検出＝
-      //   `spellArtsBlockedUiHidesUseButtons`）。ルリグデッキ側のスペル/クラフト（:7508）とアーツ（:7529）は
-      //   最初から同じゲートを持っており、手札スペルだけが抜けていた。
-      if (cardData?.Type === 'スペル' && !isActionBlocked('USE_SPELL') &&
+      // ⚠スペル使用の封じは**3軸**（`USE_SPELL` ／ `PLAY_COLORLESS` ／ `BLOCK_NON_WHITE_SPELL`）＝
+      //   `isSpellUseBlocked` の1関数に集約してボタン生成側と実行入口の両方から呼ぶ（§6.4 O-18 続き513）。
+      //   🔴続き460 では `USE_SPELL` だけを塞いだので、残り2軸は**押しても無反応**のまま残っていた。
+      if (cardData?.Type === 'スペル' && !isSpellUseBlocked(cardData) &&
           meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction) &&
           !cardNameUseBlocked(my, cardData.CardName, cardData.Type)) {
         // pending_spell がある間は新たにスペルを発動できない
@@ -7705,7 +7716,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       if (cardNameUseBlocked(my, cardData.CardName, cardData.Type)) return actions;
       // pending_spell がある間は新たにスペルを発動できない
       const spellBlocked = !!bs.pending_spell;
-      const canUse = !isActionBlocked('USE_SPELL') && phase === 'MAIN' && isMyTurn && !spellBlocked;
+      const canUse = !isSpellUseBlocked(cardData) && phase === 'MAIN' && isMyTurn && !spellBlocked;
       // スペル使用条件（手札スペルと同様にACTIVATED効果の condition を評価）
       const spellEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectType === 'ACTIVATED');
       const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
