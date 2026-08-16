@@ -1543,111 +1543,19 @@ export function execStubPart3(
     const newOwnerDEFEAT: PlayerState = { ...ctx.ownerState, life_cloth: [] };
     return done(addLog({ ...ctx, ownerState: newOwnerDEFEAT }, '敗北（ライフクロス0）'));
   }
-  // REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す
+  // REPEAT_N_TIMES / REPEAT_EFFECT（§6.4 O-32 で本体は撤去）
+  // 🔴**旧実装はカード全文の regex を読んで自分でN回ぶん実行する O-20 クラスの受け皿**だった＝
+  //   `SEQUENCE` の後続ステップ（＝parse された本文）も走るので**二重に効いていた**
+  //   （`WXDi-P07-007-E3` は相手デッキが16枚落ちた／原文は最大12枚）。しかも文型に当たらない札では
+  //   ログだけ出す無言 no-op で、どちらに転ぶかが原文の言い回し次第という最悪の形だった。
+  // 🔑**正準形は `REPEAT{count, action}`**（`execRepeat`＝continuation も合成する）＝parser が
+  //   「以下をN回行う。「〈本文〉」」「〜あとN回まで繰り返してもよい（`REPEAT.optional`）」を組み立てる。
+  // ⚠**live の `REPEAT_N_TIMES` は 0 件**（golden にトリップワイヤあり）。ここへ戻ってくるのは
+  //   parser の退行なので、黙って実行せず**何もしない**（過少側）に倒す。
+  // ⚠残る唯一の利用者は `WX22-016-E1`（MANUAL）の「このアーツの効果を一度繰り返す」＝
+  //   ベットのコイン枚数ぶん同じ選択肢を選べる §6.4 O-29 の機構が要るため未実装のまま（PLAN §6.4 O-32 参照）。
   if (stub.id === 'REPEAT_N_TIMES' || stub.id === 'REPEAT_EFFECT') {
-    const srcRNT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtRNT = srcRNT ? (srcRNT.EffectText ?? '') + ' ' + (srcRNT.BurstText ?? '') : '';
-    const toHWRNT = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-    const nM = txtRNT.match(/以下を([２-９\d]+)回行う/);
-    const nRNT = nM ? parseInt(toHWRNT(nM[1])) : 1;
-    // パワー修正パターン
-    const pwMRNT = txtRNT.match(/パワーを([－-][０-９\d]+)する/);
-    if (pwMRNT) {
-      const delta = parseInt(toHWRNT(pwMRNT[1]).replace('－', '-'));
-      const totalDelta = delta * nRNT;
-      const modsRNT = [...(ctx.otherState.temp_power_mods ?? [])];
-      [0,1,2].forEach(zi => {
-        const top = ctx.otherState.field.signi[zi]?.at(-1);
-        if (top) modsRNT.push({ cardNum: top, delta: totalDelta });
-      });
-      return done(addLog({...ctx, otherState: {...ctx.otherState, temp_power_mods: modsRNT}},
-        `${nRNT}回繰り返し: 全シグニパワー${totalDelta}（${delta}×${nRNT}）`));
-    }
-    // デッキトラッシュパターン（相手）
-    const millMRNT = txtRNT.match(/デッキの上からカードを([０-９\d]+)枚トラッシュに置く/);
-    if (millMRNT) {
-      const millPerRound = parseInt(toHWRNT(millMRNT[1]));
-      const totalMill = millPerRound * nRNT;
-      const toTrashRNT = ctx.otherState.deck.slice(0, Math.min(totalMill, ctx.otherState.deck.length));
-      const newOtherRNT = { ...ctx.otherState, deck: ctx.otherState.deck.slice(toTrashRNT.length), trash: [...ctx.otherState.trash, ...toTrashRNT] };
-      return done(addLog({...ctx, otherState: newOtherRNT}, `${nRNT}回繰り返し: デッキ${toTrashRNT.length}枚トラッシュ`));
-    }
-    // ドローパターン（自分）
-    const drawMRNT = txtRNT.match(/カードを([０-９\d]+)枚引く/);
-    if (drawMRNT) {
-      const drawPerRound = parseInt(toHWRNT(drawMRNT[1]));
-      const totalDraw = drawPerRound * nRNT;
-      const canDraw = Math.min(totalDraw, ctx.ownerState.deck.length);
-      const newOwnerRNTDraw: PlayerState = {
-        ...ctx.ownerState,
-        hand: [...ctx.ownerState.hand, ...ctx.ownerState.deck.slice(0, canDraw)],
-        deck: ctx.ownerState.deck.slice(canDraw),
-      };
-      return done(addLog({ ...ctx, ownerState: newOwnerRNTDraw }, `${nRNT}回繰り返し: ${canDraw}枚ドロー`));
-    }
-    // パワーアップパターン（自シグニ・正の値）
-    const pwUpMRNT = txtRNT.match(/パワーを[＋+]([０-９\d]+)する/);
-    if (pwUpMRNT) {
-      const deltaUp = parseInt(toHWRNT(pwUpMRNT[1]));
-      const totalDeltaUp = deltaUp * nRNT;
-      const targetRNTUp = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
-      if (targetRNTUp) {
-        const modsRNTUp = [...(ctx.ownerState.temp_power_mods ?? []), { cardNum: targetRNTUp, delta: totalDeltaUp }];
-        return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, temp_power_mods: modsRNTUp } },
-          `${nRNT}回繰り返し: パワー+${totalDeltaUp}`));
-      }
-    }
-    // バウンスパターン（相手シグニを手札へ）
-    if (txtRNT.includes('手札に戻す') && nRNT > 0) {
-      const oppCands = ctx.otherState.field.signi.flatMap(s => s?.at(-1) ? [s.at(-1)!] : []);
-      if (oppCands.length > 0) {
-        const toBounce = oppCands.slice(0, nRNT);
-        let newOtherBounce = ctx.otherState;
-        for (const cn of toBounce) {
-          const newSigni = [...newOtherBounce.field.signi] as (string[] | null)[];
-          const zi = newSigni.findIndex(s => s?.at(-1) === cn);
-          if (zi >= 0) { newSigni[zi] = null; }
-          newOtherBounce = { ...newOtherBounce, hand: [...newOtherBounce.hand, cn], field: { ...newOtherBounce.field, signi: newSigni }, turn_signi_returned_to_hand: true };
-        }
-        return done(addLog({ ...ctx, otherState: newOtherBounce }, `${nRNT}回繰り返し: バウンス${toBounce.length}体`));
-      }
-    }
-    // パワーダウン＋デッキミル複合パターン（例：銀鏡イオリ「－5000＋デッキ2枚」×N）
-    const pwDownMillM = txtRNT.match(/パワーを([－-][０-９\d]+)する.*?デッキの上からカードを([０-９\d]+)枚トラッシュ/);
-    if (pwDownMillM) {
-      const deltaPDM = parseInt(toHWRNT(pwDownMillM[1]).replace('－', '-'));
-      const millPerPDM = parseInt(toHWRNT(pwDownMillM[2]));
-      // 相手シグニに1体ずつパワーダウン（nRNT回、ランダムに振り分け）
-      const modsRNTPDM = [...(ctx.otherState.temp_power_mods ?? [])];
-      const oppSigniListPDM = [0,1,2].map(zi => ctx.otherState.field.signi[zi]?.at(-1)).filter(Boolean) as string[];
-      for (let i = 0; i < nRNT; i++) {
-        const target = oppSigniListPDM[i % Math.max(1, oppSigniListPDM.length)];
-        if (target) modsRNTPDM.push({ cardNum: target, delta: deltaPDM });
-      }
-      const totalMillPDM = millPerPDM * nRNT;
-      const toTrashPDM = ctx.otherState.deck.slice(0, Math.min(totalMillPDM, ctx.otherState.deck.length));
-      const newOtherPDM = {
-        ...ctx.otherState,
-        temp_power_mods: modsRNTPDM,
-        deck: ctx.otherState.deck.slice(toTrashPDM.length),
-        trash: [...ctx.otherState.trash, ...toTrashPDM],
-      };
-      return done(addLog({ ...ctx, otherState: newOtherPDM },
-        `${nRNT}回繰り返し: パワー${deltaPDM}×${nRNT}＋デッキ${toTrashPDM.length}枚トラッシュ`));
-    }
-    // 両者デッキミルパターン（例：「あなたか対戦相手のデッキの上からN枚トラッシュ」→両者にmill）
-    const bothMillM = txtRNT.match(/あなたか対戦相手のデッキの上からカードを([０-９\d]+)枚トラッシュ/);
-    if (bothMillM) {
-      const millPerBMRNT = parseInt(toHWRNT(bothMillM[1]));
-      const totalBMRNT = millPerBMRNT * nRNT;
-      const toTrashOwnerBM = ctx.ownerState.deck.slice(0, Math.min(totalBMRNT, ctx.ownerState.deck.length));
-      const toTrashOtherBM = ctx.otherState.deck.slice(0, Math.min(totalBMRNT, ctx.otherState.deck.length));
-      const newOwnerBM = { ...ctx.ownerState, deck: ctx.ownerState.deck.slice(toTrashOwnerBM.length), trash: [...ctx.ownerState.trash, ...toTrashOwnerBM] };
-      const newOtherBM = { ...ctx.otherState, deck: ctx.otherState.deck.slice(toTrashOtherBM.length), trash: [...ctx.otherState.trash, ...toTrashOtherBM] };
-      return done(addLog({ ...ctx, ownerState: newOwnerBM, otherState: newOtherBM },
-        `${nRNT}回繰り返し: 両者デッキ${millPerBMRNT}枚×${nRNT}トラッシュ`));
-    }
-    return done(addLog(ctx, `${nRNT}回繰り返し効果（後続ステップで処理）`));
+    return done(addLog(ctx, `[反復未実装: ${stub.id}]`));
   }
   // PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1
   if (stub.id === 'PLACE_CHOKKIN') {

@@ -15164,6 +15164,22 @@ test('REPEAT 正準形: live に REPEAT_N_TIMES が残らず、本文が丸ご�
     for (const n of needles) ok(JSON.stringify(rep.action).includes(n), `${effectId}: 本文に ${n} が無い`);
   }
 });
+// トリップワイヤ＝`REPEAT_N_TIMES` は live 全体で 0 件（engine 側の全文 regex 実装は §6.4 O-32 で撤去済み）。
+// ⚠parser が退行してここへ戻ると、旧実装のような二重実行ではなく**何も起きない**（過少側）に倒れる。
+// この assert が落ちたら parser 側を直す合図。`REPEAT_EFFECT` の残り1件（`WX22-016-E1`）は §6.4 O-29 待ち。
+test('REPEAT_N_TIMES: live 0件／REPEAT_EFFECT は WX22-016-E1 の1件だけ（トリップワイヤ）', () => {
+  const nTimes: string[] = [];
+  const nEffect: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      const s = JSON.stringify(e);
+      if (s.includes('REPEAT_N_TIMES')) nTimes.push(e.effectId);
+      if (s.includes('REPEAT_EFFECT')) nEffect.push(e.effectId);
+    }
+  }
+  eq(nTimes.join(','), '', 'REPEAT_N_TIMES は live 0件');
+  eq(nEffect.join(','), 'WX22-016-E1', 'REPEAT_EFFECT の残りは1件（O-29 待ち）');
+});
 // 実行して回数が原文どおりになるか（＝「二重に効かない」ことを盤面で見る）。
 test('REPEAT: WXDi-CP02-047-E1 は 1体ずつ－5000×3回＋相手デッキ2枚×3回（旧＝全シグニ×3＋2枚）', () => withSavedCursor(() => {
   const eff = (effectsMap.get('WXDi-CP02-047') ?? []).find(e => e.effectId === 'WXDi-CP02-047-E1')!;
