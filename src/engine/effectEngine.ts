@@ -2708,6 +2708,13 @@ export function calcContinuousBlockedActions(
   isOwnerTurn: boolean,
   effectsMap: Map<string, CardEffect[]>,
   cardMap: Map<string, CardData>,
+  /**
+   * `ATTACK_COUNT_BY_POWER`（「自身のパワー10000につき一度までしかアタックできない」）の**実効**パワー。
+   * 省略すると印刷パワーへフォールバックする（§6.4 O-10・続き507）。
+   * ⚠**呼び出し元で渡し忘れると回数が過少になる**＝`WX22-022` は印刷15000で「1回」に固定され、
+   *   パワー＋5000 を受けても2回目が撃てない（＝同居する「ダウン状態でもアタックできる」が死ぬ）。
+   */
+  effectivePowers?: Map<string, number>,
 ): ContinuousBlockResult {
   const forSelf = new Set<string>();
   const forOther = new Set<string>();
