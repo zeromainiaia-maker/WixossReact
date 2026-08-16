@@ -15215,7 +15215,7 @@ test('PLACE_TRASH_SIGNI_FACING_SAME_POWER: 同パワーの札だけが候補に�
   // 相手はゾーン0＝正面は自分ゾーン2。トラッシュには同パワー1枚＋別パワー1枚。
   const ctx = mkCtx({}, { signi: [oppSame, null, null] });
   ctx.ownerState.trash = [virtual, otherVirtual];
-  let r = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
   ok(!r.done && r.pending.type === 'SELECT_TARGET', 'トラッシュ選択が出る');
   eq((r.pending as { candidates: string[] }).candidates.join('|'), virtual, '同じパワーの札だけ候補');
   const c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
