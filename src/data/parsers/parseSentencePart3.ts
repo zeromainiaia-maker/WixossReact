@@ -1790,7 +1790,7 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //     「この方法で」の限定も「２枚まで」も無視（`WXEX2-49`／`WX24-P4-034`）。
   //   ・エナ行きの1文（`WX26-CP1-057-E2`）は下流の catch-all `CONDITIONAL_POWER_BONUS` に飲まれて**丸ごと no-op**。
   {
-    const mPT = t.match(/この方法で(?:デッキから)?トラッシュに置(?:いた|かれた)カードの中から(シグニ|カード)を?([０-９\d]+)枚(まで)?を?対象とし、それらを?(手札に加えるか場に出す|手札に加える|エナゾーンに置く)/);
+    const mPT = t.match(/この方法で(?:デッキから)?トラッシュに置(?:いた|かれた)カードの中から(シグニ|カード)を?([０-９\d]+)枚(まで)?を?対象とし、それら?を?(手札に加えるか場に出す|手札に加える|エナゾーンに置く)/);
     if (mPT) {
       return {
         type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS',
