@@ -180,72 +180,115 @@ function detectActionsFromText(text: string): { label: string; aliases: string[]
 // （ログのみ📝のSTUBを登録すると実欠落を隠蔽してしまう）。
 const STUB_EQUIVALENTS: Record<string, string[]> = {
   // カードテキストの①②③④を実行時に解析しCHOOSE提示（DRAW/ミル/ダウン/凍結/バニッシュ/バウンス/エナ置き(BANISH近似)等を実装）
-  CONDITIONAL_MULTI_CHOOSE_BY_CENTER: ['DRAW', 'MILL', 'TRASH', 'DISCARD', 'DOWN', 'FREEZE', 'BANISH', 'BOUNCE', 'POWER_MODIFY', 'MOVE_TO_ENERGY'],
+  CONDITIONAL_MULTI_CHOOSE_BY_CENTER: ['DRAW', 'MILL', 'TRASH', 'HAND_DISCARD', 'DOWN', 'FREEZE', 'BANISH', 'BOUNCE', 'POWER_MODIFY', 'SEND_TO_ENERGY'],
   // 手札がN枚になるまでドロー
   DRAW_UNTIL_HAND_SIZE: ['DRAW'],
   // ①②③④を実行時解析（DRAW/ミル/バニッシュ/バウンス/トラッシュ→デッキ+ライフエナ/全体パワー+等を実装）
-  CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE: ['DRAW', 'MILL', 'BANISH', 'BOUNCE', 'MOVE_TO_ENERGY', 'POWER_MODIFY'],
+  CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE: ['DRAW', 'MILL', 'BANISH', 'BOUNCE', 'SEND_TO_ENERGY', 'POWER_MODIFY'],
   // 直前エナチャージがクラス一致なら1ドロー
   DRAW_IF_CHARGED_CLASS: ['DRAW'],
   // 手札N枚超過分をエナゾーンへ
-  HAND_EXCESS_TO_ENERGY: ['MOVE_TO_ENERGY'],
+  HAND_EXCESS_TO_ENERGY: ['SEND_TO_ENERGY'],
   // デッキ上N枚公開→場に出す、残りはトラッシュ（restDest:'trash'）
   REVEAL_PICK_PLAY: ['MILL'],
   // 相手シグニ対象+手札1枚捨て（then未指定時はBANISH既定）
-  TARGET_AND_DISCARD_HAND: ['DISCARD', 'TRASH', 'BANISH'],
+  TARGET_AND_DISCARD_HAND: ['HAND_DISCARD', 'TRASH', 'BANISH'],
   TRADE_BANISH_SELF_SIGNI: ['BANISH'],
   // エナゾーンへ置く系
-  CHOOSE_HAND_OR_ENERGY: ['MOVE_TO_ENERGY'],
-  OPP_CHOOSE_OWN_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  MULTI_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  UNDER_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ['MOVE_TO_ENERGY'],
-  CLASS_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  PLACE_ACCE_SIGNI_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  RESONANCE_COST_CARDS_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  HAND_NONCOLORLESS_TO_ENERGY: ['MOVE_TO_ENERGY'],
-  NON_GUARD_DISCARD_TO_ENERGY: ['MOVE_TO_ENERGY', 'DISCARD'],
-  TRASH_CLASS_TO_HAND_OR_ENERGY: ['MOVE_TO_ENERGY'],
-  TRASHED_CARD_TO_HAND_OR_ENERGY: ['MOVE_TO_ENERGY'],
-  ENERGY_BY_LEVEL_SUM_LIMIT: ['MOVE_TO_ENERGY'],
-  DECK_TOP_CHECK_LEVEL_ENERGY: ['MOVE_TO_ENERGY'],
+  CHOOSE_HAND_OR_ENERGY: ['SEND_TO_ENERGY'],
+  OPP_CHOOSE_OWN_SIGNI_TO_ENERGY: ['SEND_TO_ENERGY'],
+  MULTI_SIGNI_TO_ENERGY: ['SEND_TO_ENERGY'],
+  UNDER_SIGNI_TO_ENERGY: ['SEND_TO_ENERGY'],
+  UNDER_SIGNI_TO_ENERGY_IF_NO_CLASS: ['SEND_TO_ENERGY'],
+  CLASS_SIGNI_TO_ENERGY: ['SEND_TO_ENERGY'],
+  PLACE_ACCE_SIGNI_TO_ENERGY: ['SEND_TO_ENERGY'],
+  RESONANCE_COST_CARDS_TO_ENERGY: ['SEND_TO_ENERGY'],
+  HAND_NONCOLORLESS_TO_ENERGY: ['SEND_TO_ENERGY'],
+  NON_GUARD_DISCARD_TO_ENERGY: ['SEND_TO_ENERGY', 'HAND_DISCARD'],
+  TRASH_CLASS_TO_HAND_OR_ENERGY: ['SEND_TO_ENERGY'],
+  TRASHED_CARD_TO_HAND_OR_ENERGY: ['SEND_TO_ENERGY'],
+  ENERGY_BY_LEVEL_SUM_LIMIT: ['SEND_TO_ENERGY'],
+  DECK_TOP_CHECK_LEVEL_ENERGY: ['SEND_TO_ENERGY'],
   // デッキ上→トラッシュ（ミル）系
   DECK_TOP_DECLARED_NUM_TRASH: ['MILL'],
   DECK_MILL_UNTIL_CLASS: ['MILL'],
   // 手札捨て系
-  OPTIONAL_DISCARD_CLASS_SIGNI: ['DISCARD'],
-  ARTS_USE_DISCARD_COLOR_HAND: ['DISCARD'],
-  DISCARD_OR_PENALTY: ['DISCARD'],
-  OPP_CHOOSE_YOUR_HAND_DISCARD: ['DISCARD'],
-  POWER_MOD_BY_DISCARD_COUNT_HIGH: ['DISCARD'],
-  DRAW_DISCARD_COUNT_PLUS_N: ['DRAW', 'DISCARD'],
-  COUNT_BASED_DRAW_OR_POWER: ['DRAW', 'DISCARD'],
+  OPTIONAL_DISCARD_CLASS_SIGNI: ['HAND_DISCARD'],
+  ARTS_USE_DISCARD_COLOR_HAND: ['HAND_DISCARD'],
+  DISCARD_OR_PENALTY: ['HAND_DISCARD'],
+  OPP_CHOOSE_YOUR_HAND_DISCARD: ['HAND_DISCARD'],
+  POWER_MOD_BY_DISCARD_COUNT_HIGH: ['HAND_DISCARD'],
+  DRAW_DISCARD_COUNT_PLUS_N: ['DRAW', 'HAND_DISCARD'],
+  COUNT_BASED_DRAW_OR_POWER: ['DRAW', 'HAND_DISCARD'],
   // ベット機構: BET_MECHANICが①②③④をchoiceTextParserで解析実行（バニッシュ/エナ置き/ドロー/ミル/クラッシュ/サーチ等）
-  BET_MECHANIC: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE', 'SEARCH', 'ENERGY_CHARGE_FROM_DECK', 'LIFE_CRASH'],
-  BET_CONDITION: ['BANISH', 'MOVE_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'DOWN', 'FREEZE'],
+  BET_MECHANIC: ['BANISH', 'SEND_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'HAND_DISCARD', 'DOWN', 'FREEZE', 'SEARCH', 'ENERGY_CHARGE_FROM_DECK', 'LIFE_CRASH'],
+  BET_CONDITION: ['BANISH', 'SEND_TO_ENERGY', 'DRAW', 'MILL', 'BOUNCE', 'HAND_DISCARD', 'DOWN', 'FREEZE'],
   // ①②③④をchoiceTextParserで解析実行
-  CHOOSE_N_FROM_LIST: ['BANISH', 'DOWN', 'FREEZE', 'DRAW', 'MILL', 'BOUNCE', 'DISCARD', 'MOVE_TO_ENERGY'],
+  CHOOSE_N_FROM_LIST: ['BANISH', 'DOWN', 'FREEZE', 'DRAW', 'MILL', 'BOUNCE', 'HAND_DISCARD', 'SEND_TO_ENERGY'],
   // ①バウンス（+手札捨て）②アタック不可③クラスサーチを実装
-  CHOOSE_SAME_OPTION_TWICE: ['BOUNCE', 'SEARCH', 'DISCARD'],
-  CHOOSE_SAME_OPTION_MULTIPLE: ['BOUNCE', 'SEARCH', 'DISCARD'],
+  CHOOSE_SAME_OPTION_TWICE: ['BOUNCE', 'SEARCH', 'HAND_DISCARD'],
+  CHOOSE_SAME_OPTION_MULTIPLE: ['BOUNCE', 'SEARCH', 'HAND_DISCARD'],
   // ウィルス除去→①②③④をchoiceTextParserで解析実行（両者ミル/パワー修正/トラッシュ回収等）
   EXTRA_COST_REMOVE_VIRUS: ['MILL', 'POWER_MODIFY', 'TRANSFER_TO_HAND'],
   // デッキ上N枚公開→レベル合計×1000以下バニッシュ→公開分トラッシュ（本実装済み）
   REVEAL_TOP_BANISH_BY_LEVEL_SUM: ['BANISH', 'MILL'],
   // デッキ上N枚公開→選択→手札/エナ（then:'energy'対応済み）、残りはrestDest先へ
-  REVEAL_PICK_HAND_SHUFFLE_BOTTOM: ['MOVE_TO_ENERGY'],
+  REVEAL_PICK_HAND_SHUFFLE_BOTTOM: ['SEND_TO_ENERGY'],
   // デッキトップ公開→レベル別効果（Lv1:パワー+5000/Lv2:エナ/Lv3:ランサー/Lv4:ドロー/Lv5:バニッシュ、本実装済み）
-  REVEAL_TOP_LEVEL_ROUTE: ['BANISH', 'DRAW', 'MOVE_TO_ENERGY', 'POWER_MODIFY'],
+  REVEAL_TOP_LEVEL_ROUTE: ['BANISH', 'DRAW', 'SEND_TO_ENERGY', 'POWER_MODIFY'],
   // 両プレイヤーのデッキ上N枚をトラッシュ（choiceTextParser生成STUB、本実装済み）
   INTERNAL_DECK_TRASH_BOTH: ['MILL'],
   // センタールリグのレベル1につき1ドロー/エナチャージ1（本実装済み）
   INTERNAL_DRAW_PER_CENTER_LEVEL: ['DRAW'],
-  INTERNAL_CHARGE_PER_CENTER_LEVEL: ['MOVE_TO_ENERGY'],
+  INTERNAL_CHARGE_PER_CENTER_LEVEL: ['SEND_TO_ENERGY'],
   // 手札すべて捨ててN枚引く（choiceTextParser生成STUB、本実装済み）
-  INTERNAL_DISCARD_ALL_DRAW_N: ['DRAW', 'DISCARD'],
+  INTERNAL_DISCARD_ALL_DRAW_N: ['DRAW', 'HAND_DISCARD'],
   // シグニの下に置かれたとき上のシグニにパワー+N（v0.284実装済み）
   BUFF_HOST_WHEN_PLACED_UNDER: ['POWER_MODIFY'],
 };
+
+// ======= 計器の較正（2026-08-16・§6.4 O-11） =======
+// ⚠**この計器の語彙が腐ると、過剰報告する計器は無いより悪い**（続き407/408 の教訓）。
+// ACTION_KEYWORDS / STUB_EQUIVALENTS に書いた「アクション型名」が
+// 実在するか（型宣言 `src/types/effects.ts` ∪ live JSON の実出現）を毎回突き合わせ、
+// 実在しない名前＝**幻の型名**を起動時に赤で報告する。
+// これを入れた理由：`MOVE_TO_ENERGY` が幻の型名だったせいで実型名 `SEND_TO_ENERGY`（live 77件）が
+// 別名表から漏れ、「エナゾーンに置く」の報告が**全件誤検出**になっていた（O-11 で発見）。
+const KNOWN_ACTION_TYPES: Set<string> = (() => {
+  const s = new Set<string>();
+  // (1) 型宣言側
+  const typesSrc = path.resolve('src/types/effects.ts');
+  if (fs.existsSync(typesSrc)) {
+    for (const m of fs.readFileSync(typesSrc, 'utf8').matchAll(/\btype:\s*'([A-Z][A-Z_0-9]*)'/g)) s.add(m[1]);
+  }
+  // (2) live JSON の実出現（型宣言に無い旧型・手書き MANUAL も拾う）
+  const walkTypes = (a: unknown): void => {
+    if (Array.isArray(a)) { a.forEach(walkTypes); return; }
+    if (!a || typeof a !== 'object') return;
+    const o = a as Record<string, unknown>;
+    if (typeof o.type === 'string') s.add(o.type);
+    Object.values(o).forEach(walkTypes);
+  };
+  walkTypes(Object.values(effectsAll));
+  return s;
+})();
+
+{
+  const unknown = new Map<string, string[]>(); // 型名 → 参照元
+  const note = (t: string, where: string) => {
+    if (KNOWN_ACTION_TYPES.has(t) || CONCEPT_LABELS.has(t)) return;
+    if (!unknown.has(t)) unknown.set(t, []);
+    unknown.get(t)!.push(where);
+  };
+  ACTION_KEYWORDS.forEach(k => k.types.forEach(t => note(t, `ACTION_KEYWORDS ${k.pattern.source.slice(0, 20)}`)));
+  for (const [stub, types] of Object.entries(STUB_EQUIVALENTS)) types.forEach(t => note(t, `STUB_EQUIVALENTS ${stub}`));
+  if (unknown.size > 0) {
+    console.log('🔴 計器の較正エラー＝実在しないアクション型名が照合表に混ざっている');
+    console.log('   （型宣言 src/types/effects.ts にも live JSON にも無い。概念名なら CONCEPT_LABELS へ登録すること）');
+    for (const [t, wheres] of unknown) console.log(`   - ${t}  ← ${[...new Set(wheres)].join(' / ')}`);
+    console.log('');
+  }
+}
 
 function collectActionsFromJson(effs: EffectDef[]): Set<string> {
   const found = new Set<string>();
