@@ -3188,17 +3188,37 @@ function recoverDroppedConjClauses(t: string, result: EffectAction): EffectActio
   const tails = segs.slice(1).map(s => parseSingleSentence(s));
   if (!tails.every(p => p.type !== 'UNKNOWN' && p.type !== 'STUB' && p.type !== 'SEQUENCE')) return null;
 
-  // 🔑**再構成は現行結果の「厳密な上位集合」でなければ採らない**＝足すことはあっても減らさない。
-  //   （`result` が文全体を表す STUB のときは STUB が want に現れないので、この判定で自動的に弾かれる）
   const have = collectActionTypeSet(result);
-  const rebuilt: EffectAction = head.type === 'CONDITIONAL'
-    ? { ...(head as ConditionalAction),
-        then: { type: 'SEQUENCE', steps: [(head as ConditionalAction).then, ...tails] } as SequenceAction }
-    : { type: 'SEQUENCE', steps: [head, ...tails] } as SequenceAction;
-  const want = collectActionTypeSet(rebuilt);
-  if ([...have].some(x => !want.has(x))) return null; // 何かを失う＝採らない
-  if (![...want].some(x => !have.has(x))) return null; // 何も増えない＝触らない
-  return rebuilt;
+  const headTypes = collectActionTypeSet(head);
+  const missing = tails.filter(p => !have.has(p.type));
+  if (missing.length === 0) return null; // 脱落なし
+
+  // 🔴**先頭節が現行結果に無いときは触らない**（過剰実行を作らないための本質的なガード）。
+  //   例＝`WX21-006`「相手のシグニ1体を対象とし、あなたの場に…3体ある場合、それをバニッシュし、…」は
+  //   **条件節がそもそもパースされていない**ので、ここで BANISH を足すと「毎アタックフェイズ無条件に
+  //   相手シグニをバニッシュ」という**過少実行より悪い過剰実行**になる（しかも ＜天使＞ が条件側から
+  //   対象フィルタへ漏れる）。⚠**節が落ちているのを直すつもりで、条件の落ちを踏み抜かないこと。**
+  //   逆に先頭節が既に結果へ出ているなら、続く節は**同じ条件の下にある**ことが保証できる。
+  const headCovered = [...headTypes].every(x => have.has(x) || x === 'SEQUENCE' || x === 'CONDITIONAL');
+  if (headCovered) {
+    // 既存の結果はそのままに、落ちていた後続節だけを**同じ入れ物の中へ**足す。
+    if (result.type === 'CONDITIONAL') {
+      const c = result as ConditionalAction;
+      return { ...c, then: { type: 'SEQUENCE', steps: [c.then, ...missing] } as SequenceAction };
+    }
+    return { type: 'SEQUENCE', steps: [result, ...missing] } as SequenceAction;
+  }
+
+  // 先頭節が結果に無くても、**head 自身が CONDITIONAL に解けている**なら条件は明示されている＝
+  // その `then` の中へ入れるかぎり条件を跨がない。この場合だけ再構成を許す。
+  if (head.type === 'CONDITIONAL') {
+    const c = head as ConditionalAction;
+    const rebuilt: EffectAction = { ...c, then: { type: 'SEQUENCE', steps: [c.then, ...tails] } as SequenceAction };
+    const want = collectActionTypeSet(rebuilt);
+    if ([...have].some(x => !want.has(x))) return null; // 何かを失う＝採らない
+    return rebuilt;
+  }
+  return null;
 }
 
 function parseSingleSentence(text: string): EffectAction {

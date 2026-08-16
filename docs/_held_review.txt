@@ -323,6 +323,24 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
+## +BANISH +ENERGY_CHARGE_FROM_DECK +SEQUENCE +SIGNI ［1枚］
+WX21-006
+--- WX21-006
+  原文: 【自】：各アタックフェイズ開始時、対戦相手のシグニ１体を対象とし、あなたの場にそれぞれ共通する色を持たない＜天使＞のシグニが３体ある場合、それをバニッシュし、あなたのデッキの一番上のカードをエナゾーンに置き、カードを１枚引く。【起】《メインフェイズアイコン》《アタックフェイズアイコン》エクシード２：あなたのデッキから＜天使＞のシグニ１枚を探して場に出し、デッ
+  - [0].action.owner = "self"
+  - [0].action.count = 1
+  ~ [0].action.type : "DRAW" → "SEQUENCE"
+  + [0].action.steps[0].type = "BANISH"
+  + [0].action.steps[0].target.type = "SIGNI"
+  + [0].action.steps[0].target.owner = "opponent"
+  + [0].action.steps[0].target.count = 1
+  + [0].action.steps[0].target.filter.cardType = "シグニ"
+  + [0].action.steps[0].target.filter.story = "天使"
+  + [0].action.steps[0].target.upToCount = false
+  + [0].action.steps[1].type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.steps[1].owner = "self"
+  …（他 4 行）
+
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［1枚］
 WXEX2-70
 --- WXEX2-70
@@ -505,24 +523,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## +DECK_CARD +SEQUENCE +TRASH ［1枚］
-WXK03-044
---- WXK03-044
-  原文: 【出】：あなたのトラッシュが１５枚の場合、カードを１枚引き、【エナチャージ１】をし、あなたのデッキの上からカードを３枚トラッシュに置く。,-
-  - [0].action.steps[0].owner = "self"
-  - [0].action.steps[0].count = 1
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].count = 1
-  ~ [0].action.steps[0].type : "DRAW" → "SEQUENCE"
-  + [0].action.steps[0].steps[0].type = "DRAW"
-  + [0].action.steps[0].steps[0].owner = "self"
-  + [0].action.steps[0].steps[0].count = 1
-  + [0].action.steps[0].steps[1].type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.steps[0].steps[1].owner = "self"
-  + [0].action.steps[0].steps[1].count = 1
-  ~ [0].action.steps[1].type : "ENERGY_CHARGE_FROM_DECK" → "TRASH"
-  …（他 3 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
