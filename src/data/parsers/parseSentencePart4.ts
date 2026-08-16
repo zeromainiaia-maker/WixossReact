@@ -1350,9 +1350,18 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/あなたの[＜〈<].+[＞〉>]のシグニ[１-９\d０-９]*体?を場からデッキの一番下に置いてもよい/))
     return { type: 'STUB', id: 'LRIG_UNDER_CARD_OP' } as StubAction;
 
-  // ---- 各プレイヤーは手札をすべてエナゾーンに置く ----
+  // ---- 各プレイヤーは手札をすべてエナゾーンに置く（WX24-P2-026-E2）----
+  // 🔴従来は `MASS_TRASH`＝**相手のエナ全部と相手の場のシグニ全部をトラッシュする**別物だった
+  //   （行き先も対象も原文と無関係／§6.4 O-11 の `SEND_TO_ENERGY` 群）。両プレイヤーぶんの
+  //   `ENERGY_CHARGE{HAND_CARD, count:'ALL'}` へ正準化する（count:'ALL' は対話なしで全部動く）。
   if (t.match(/^各プレイヤーは手札をすべてエナゾーンに置く$/))
-    return { type: 'STUB', id: 'MASS_TRASH' } as StubAction;
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' } },
+        { type: 'ENERGY_CHARGE', target: { type: 'HAND_CARD', owner: 'opponent', count: 'ALL' } },
+      ],
+    } as SequenceAction;
 
   // ---- この方法でカードを何枚かトラッシュ後、ライフを加える ----
   if (t.match(/この方法でカードを[１-９\d０-９]+枚以上捨てた場合.*ライフクロス/))
