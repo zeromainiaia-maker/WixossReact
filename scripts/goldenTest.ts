@@ -74,7 +74,7 @@ import { signiCannotDealDamageToOpponent } from '../src/screens/battle/signiDama
 import { sideAttackEmptyZoneDealsDamage } from '../src/screens/battle/sideAttackDamage';
 import { crashSourceSuppressesLifeBurst } from '../src/screens/battle/lifeBurstSuppress';
 import { deployCountCap, deployLimitBlockReason } from '../src/engine/deployLimit';
-import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors } from '../src/engine/effectEngine';
+import { collectGrantedFromAcce, collectGrantedFromSoul, collectGrantedFromUnderSigni, collectConvertEnergyColors, collectOppTurnArtsCostReductions } from '../src/engine/effectEngine';
 import { getFieldGrantedShadowScopes } from '../src/utils/keywords';
 import { findGrowFreeAction, effectiveLrigClass, lrigClassesCompatible, meetsRestriction } from '../src/screens/battle/growLogic';
 import { cardNameUseBlocked } from '../src/screens/battle/cardNameUseBlock';
@@ -82,7 +82,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
@@ -30249,6 +30249,44 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   const json062 = JSON.stringify(e.action);
   ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き510）: 相手ターンのアーツコスト軽減は1回だけ（負方向＋対照の対）', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const st = mkState({ signi: [null, 'WXK03-071', null] });   // 中央（zone1）に置く
+  const op = mkState({});
+  const em = new Map(effectsMap);
+  em.set('WXK03-071', mergeManualEffects('WXK03-071', effectsMap.get('WXK03-071') ?? []));
+  const get = (owner: PlayerState, isOwnerTurn: boolean) =>
+    collectOppTurnArtsCostReductions(owner, op, isOwnerTurn, cm, em);
+  // 対照＝相手ターン・中央なら軽減が出る。
+  const got = get(st, false);
+  eq(got.length, 1, '相手ターンなら軽減が1件出る');
+  eq(got[0].color, '無', '《無》の軽減');
+  eq(got[0].reduction, 2, '⚠枚数は宣言から読む（2枚）');
+  eq(got[0].effectId, 'WXK03-071-E1', '消費する effectId を返す');
+  // 🔴負方向①＝自分のターンには効かない（落とすと常時軽減になる）。
+  eq(get(st, true).length, 0, '🔴自分のターンには軽減しない');
+  // 🔴負方向②＝中央でなければ効かない（activeCondition）。
+  const side = mkState({ signi: ['WXK03-071', null, null] });
+  eq(get(side, false).length, 0, '🔴左のシグニゾーンでは軽減しない');
+  // 🔴負方向③＝一度使ったら「この能力を失う」＝同じターンの2回目は出ない。
+  const used: PlayerState = { ...st, lost_ability_effect_ids_this_turn: ['WXK03-071-E1'] };
+  eq(get(used, false).length, 0, '🔴1回使ったらそのターンは軽減しない');
+  eq(get(clearTurnEndScopedState(used), false).length, 1, 'ターンが変われば戻る');
+  // funnel＝`computeArtsEffectiveCost` の `artsThresholdReductions`（minTotalCost:0）で実際に引ける。
+  // ⚠`findCard` は **CardNum（文字列）**を返す＝カード実体は cardMap から引く。
+  const arts = cm.get(findCard(c => c.Type === 'アーツ' && /《無》×[２2]/.test(c.Cost ?? '')))!;
+  ok(!!arts?.Cost, '《無》×2 以上のアーツが見つかる');
+  const before = computeArtsEffectiveCost(arts, st, undefined, undefined, undefined, cm, undefined, []);
+  const after = computeArtsEffectiveCost(arts, st, undefined, undefined, undefined, cm, undefined,
+    got.map(r => ({ minTotalCost: 0, color: r.color, reduction: r.reduction })));
+  ok(after !== before, `軽減が実コストへ効く（${before} → ${after}）`);
+  // live 表現＝defer は解体済み。
+  const e1 = JSON.stringify(mergeManualEffects('WXK03-071', effectsMap.get('WXK03-071') ?? [])
+    .find(e => e.effectId === 'WXK03-071-E1')!);
+  ok(e1.includes('OPP_TURN_ARTS_COST_REDUCTION_ONCE') && e1.includes('IS_SELF_IN_CENTER_ZONE'), '宣言＋中央条件');
+  ok(!e1.includes('DEFERRED_'), 'defer は残っていない');
 });
 
 test('§6.4 O-10（続き510）: 「あなたの効果によってシグニのアタックは無効にならない」（負方向＋対照の対）', () => {

@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 597（総ノード 2882 件）
-逆翻訳シートの [STUB:…] 総数: 763  うち生ID露出 268 箇所（184 種）
+逆翻訳シートの [STUB:…] 総数: 764  うち生ID露出 269 箇所（185 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 7 種 / 9 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 7 種 / 9 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 6 種 / 8 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 6 種 / 8 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
-  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 22 種 / 70 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 176 種 / 258 箇所
-  D 健全（実装あり＋日本語表示）                          : 414 種
+  B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 23 種 / 71 件
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 178 種 / 260 箇所
+  D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
 ==============================================================================
@@ -34,9 +34,6 @@ live JSON の STUB id 種類 : 597（総ノード 2882 件）
         生成: src\data\manualEffects.ts:21
      1件   1枚  DEFERRED_FLIP_SELF_FACE_DOWN_UP
         カード: WX25-CP1-060
-     1件   1枚  DEFERRED_OPP_TURN_ARTS_COST_REDUCTION_ONCE  [生ID露出 1]
-        カード: WXK03-071
-        生成: src\data\manualEffects.ts:4714
      1件   1枚  DEFERRED_TRASH_AND_LRIG_TRASH_ABILITY_LOSS_IMMUNITY  [生ID露出 1]
         カード: WX12-023
         生成: src\data\manualEffects.ts:4691
@@ -55,7 +52,7 @@ live JSON の STUB id 種類 : 597（総ノード 2882 件）
         消費(ペイロードキー): src\engine\effectEngine.ts:1570
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
-        消費: src\engine\effectEngine.ts:4755
+        消費: src\engine\effectEngine.ts:4793
      3件   3枚  CONVERT_ENERGY_COLOR  [生ID露出 3]
         カード: WXEX1-54, WXEX1-56, WXEX2-56
         消費: src\engine\effectEngine.ts:4311
@@ -98,15 +95,18 @@ live JSON の STUB id 種類 : 597（総ノード 2882 件）
      1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW  [生ID露出 1]
         カード: WXDi-P13-003A
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
+     1件   1枚  OPP_TURN_ARTS_COST_REDUCTION_ONCE  [生ID露出 1]
+        カード: WXK03-071
+        消費: src\engine\effectEngine.ts:4445
      1件   1枚  OPTIONAL_LRIG_UNDER_COST  [生ID露出 1]
         カード: WXDi-P05-009
         消費: src\engine\effectExecutor.ts:3951
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1013 / src\screens\BattleScreen.tsx:10265
+        消費: src\screens\BattleScreen.tsx:1013 / src\screens\BattleScreen.tsx:10284
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:6803
+        消費: src\engine\effectEngine.ts:6841
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:43
@@ -466,6 +466,8 @@ live JSON の STUB id 種類 : 597（総ノード 2882 件）
   露出  1箇所 (live 1件/1枚)  OPP_TRASH_LOSE_COLOR_AND_CLASS  [execStubPart3]
         カード: WXK11-026
         既存コメント: OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理）
+  露出  1箇所 (live 1件/1枚)  OPP_TURN_ARTS_COST_REDUCTION_ONCE  [engine別経路]
+        カード: WXK03-071
   露出  1箇所 (live 1件/1枚)  OPP_TURN_NO_ENERGY_COST  [execStubPart3]
         カード: WXDi-P03-012
         既存コメント: OPP_TURN_NO_ENERGY_COST: 対戦相手の次のターン中、対戦相手はエナコストを支払えない
@@ -566,6 +568,9 @@ live JSON の STUB id 種類 : 597（総ノード 2882 件）
         既存コメント: SELECT_OTHER_SIGNI: ソース以外のシグニを選択
   露出  1箇所 (live 1件/1枚)  SELF_LRIG_LOSE_ABILITY  [execStubPart3]
         カード: WXK08-002
+  露出  1箇所 (live 1件/1枚)  SELF_SIGNI_ATTACK_NEGATE_IMMUNITY  [execStubPart3]
+        カード: WX24-P4-016
+        既存コメント: SELF_SIGNI_ATTACK_NEGATE_IMMUNITY（§6.4 O-10・続き510）＝ 「このターン、あなたの効果によってシグニのアタックは無効にならない」（`WX24-P4-016-E3`）。 ⚠**利
   露出  1箇所 (live 1件/1枚)  SELF_TRASH_IF_NO_OPP_VIRUS  [execStubPart2]
         カード: WX20-030
         既存コメント: SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
