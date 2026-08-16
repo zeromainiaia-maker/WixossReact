@@ -15153,6 +15153,88 @@ test('SET_LRIG_BASE_LIMIT / RESERVE_DRAW_PHASE_REPLACEMENT: 予約先フィー�
   eq(rOpp.otherState.lrig_base_limit_override ?? 0, 3, 'owner:opponent は相手側へ');
   eq(rOpp.ownerState.lrig_base_limit_override ?? 0, 0, '自分側には載らない');
 }));
+// ── §6.4 O-5：ルリグデッキからのレゾナ配置（枚数・絞り込み・選択）──
+// 🔴回帰ガード＝旧実装は**カード全文 regex でクラスだけ**を読み `candidates[0]` を1枚だけ自動配置していた＝
+//    「２枚まで」「好きな枚数」が1枚に潰れ（過少）、レベル・色の絞り込みが落ちて**どのレゾナでも出せた**（過剰）。
+test('SUMMON_RESONA_FROM_LRIG_DECK: live 11効果が枚数・絞り込みのペイロードを持つ（トリップワイヤ）', () => {
+  const expected: Record<string, { count: number | 'ALL'; upTo?: boolean; filterKeys: string[] }> = {
+    'WX16-Re18-E1':   { count: 2, upTo: true, filterKeys: [] },
+    'WX13-007-E3':    { count: 'ALL', upTo: true, filterKeys: ['story'] },
+    'WX07-050-E1':    { count: 1, filterKeys: ['level', 'color'] },
+    'WD12-007-E1':    { count: 1, filterKeys: ['level', 'story'] },
+    'WX19-028-E3':    { count: 1, filterKeys: ['story'] },
+    'WD23-001-E-E2':  { count: 1, filterKeys: ['story'] },
+    'WX18-020-E3':    { count: 1, filterKeys: ['story'] },
+    'WX20-069-E1':    { count: 1, filterKeys: ['story'] },
+    'WX22-010-E1':    { count: 1, filterKeys: ['story'] },
+    'WX10-028-BURST': { count: 1, filterKeys: [] },
+    'WX10-040-E1':    { count: 1, filterKeys: [] },
+  };
+  let seen = 0;
+  for (const [id, effs] of effectsMap) {
+    for (const e of mergeManualEffects(id, effs as never[]) as CardEffect[]) {
+      const stub = findActionByType(e.action, 'STUB');
+      const all: Record<string, unknown>[] = [];
+      const walk = (a: unknown): void => {
+        if (!a || typeof a !== 'object') return;
+        if (Array.isArray(a)) { a.forEach(walk); return; }
+        const r = a as Record<string, unknown>;
+        if (r.type === 'STUB' && r.id === 'SUMMON_RESONA_FROM_LRIG_DECK') all.push(r);
+        for (const v of Object.values(r)) walk(v);
+      };
+      walk(e.action);
+      void stub;
+      for (const node of all) {
+        seen++;
+        const exp = expected[e.effectId];
+        ok(!!exp, `${e.effectId}: 未知のレゾナ配置効果（期待表に足すこと）`);
+        const spec = node.resonaSummon as { count?: unknown; upTo?: boolean; filter?: Record<string, unknown> } | undefined;
+        ok(!!spec, `${e.effectId}: resonaSummon ペイロードが無い（engine が全文 regex へ戻る）`);
+        eq(JSON.stringify(spec!.count), JSON.stringify(exp!.count), `${e.effectId}: 枚数`);
+        eq(!!spec!.upTo, !!exp!.upTo, `${e.effectId}: 「まで」`);
+        eq(Object.keys(spec!.filter ?? {}).sort().join(','), [...exp!.filterKeys].sort().join(','), `${e.effectId}: 絞り込み軸`);
+      }
+    }
+  }
+  eq(seen, Object.keys(expected).length, 'live のレゾナ配置効果は11件');
+  // 「＜空獣＞か＜地獣＞」＝**OR**（旧 `includes('空獣＞か＜地獣')` は誤ってどのレゾナも通していた）
+  const wx19 = (effectsMap.get('WX19-028') ?? []).find(e => e.effectId === 'WX19-028-E3')!;
+  ok(JSON.stringify(wx19.action).includes('["空獣","地獣"]'), 'WX19-028-E3: クラスは OR 配列');
+  // 「この方法で場に出たレゾナの【出】能力は発動しない」＝配置アンカーへ畳み込む（死 BLOCK_ACTION は残さない）
+  const re18 = (effectsMap.get('WX16-Re18') ?? []).find(e => e.effectId === 'WX16-Re18-E1')!;
+  ok(JSON.stringify(re18.action).includes('"suppressOnPlay":true'), 'WX16-Re18-E1: 【出】抑止を畳み込み');
+  ok(!JSON.stringify(re18.action).includes('ON_PLAY_ABILITY'), 'WX16-Re18-E1: 死 BLOCK_ACTION が残っている');
+  ok(!JSON.stringify(re18.action).includes('RULE_REMINDER_TEXT'), 'WX16-Re18-E1: 旧 no-op が残っている');
+});
+test('SUMMON_RESONA_FROM_LRIG_DECK: 2枚まで出せる／絞り込みに合わないレゾナは候補に出ない', () => withSavedCursor(() => {
+  const resona = [...cardMap.values()].filter(c => c.Type === 'レゾナ');
+  const r1 = resona[0].CardNum, r2 = resona[1].CardNum, r3 = resona[2].CardNum;
+  const eff = (effectsMap.get('WX16-Re18') ?? []).find(e => e.effectId === 'WX16-Re18-E1')!;
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.lrig_deck = [r1, r2, r3];
+  let r = executeEffect(eff, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', 'ルリグデッキ選択が出る');
+  eq((r.pending as { count: number }).count, 2, '2枚まで選べる（旧＝1枚固定）');
+  eq((r.pending as { optional: boolean }).optional, true, '「まで」＝0枚でもよい');
+  eq((r.pending as { candidates: string[] }).candidates.length, 3, '候補は3枚');
+  const c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+  const placed = finish(resumeSelectTarget([r1, r2], r.pending as never, c), c);
+  const onField = placed.ownerState.field.signi.filter(z => z && z.length > 0).map(z => z!.at(-1));
+  eq(onField.length, 2, '2枚とも場に出る');
+  ok(onField.includes(r1) && onField.includes(r2), '選んだ2枚が出る');
+  ok(!placed.ownerState.lrig_deck.includes(r1) && !placed.ownerState.lrig_deck.includes(r2), 'ルリグデッキから抜ける');
+  eq(JSON.stringify(placed.ownerState.turn_end_return_to_lrig_deck ?? []), JSON.stringify([r1, r2]), 'ターン終了時の返却も2枚とも予約');
+  // 絞り込み＝レベル3以下の白（`WX07-050-E1`）は条件に合うレゾナだけが候補になる。
+  const eff050 = (effectsMap.get('WX07-050') ?? []).find(e => e.effectId === 'WX07-050-E1')!;
+  const spec = findActionByType(eff050.action, 'STUB')!.resonaSummon as { filter: Record<string, unknown> };
+  const ok050 = [...cardMap.values()].find(cd => cd.Type === 'レゾナ' && matchesFilter(cd, spec.filter));
+  const ng050 = [...cardMap.values()].find(cd => cd.Type === 'レゾナ' && !matchesFilter(cd, spec.filter));
+  const ctx2 = mkCtx({}, {});
+  ctx2.ownerState.lrig_deck = [ng050!.CardNum, ok050!.CardNum];
+  const r2res = finish(executeEffect(eff050, ctx2), ctx2);
+  const placedNum = r2res.ownerState.field.signi.map(z => z?.at(-1)).find(Boolean);
+  eq(placedNum, ok050!.CardNum, '条件を満たすレゾナだけが出る（旧＝先頭を無条件で出していた）');
+}));
 // ── §6.4 O-28：キーワード綴りの正準化（全角【Ｓランサー】／半角 `Sランサー`）──
 // 🔴回帰ガード＝原文（CSV）は全角、engine コードは半角。`hasKeyword` は完全一致でしか照合しないので、
 //    live の `GRANT_KEYWORD{'Ｓランサー'}` **26効果が一度も効かない無言 no-op** だった。さらに原文を

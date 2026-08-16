@@ -2910,40 +2910,95 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: newOwnerRSR },
       `ターン終了時に${summoned.map(n => ctx.cardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をルリグデッキへ戻す（予約）`));
   }
-  // SUMMON_RESONA_FROM_LRIG_DECK: ルリグデッキからレゾナ1枚を出現条件を無視して場に出す（WX20-069等）
+  // ═══ SUMMON_RESONA_FROM_LRIG_DECK（§6.4 O-5）═══
+  // 「あなたのルリグデッキから〈絞り込み〉のレゾナを〈枚数〉出現条件を無視して場に出す」。
+  //
+  // 🔴**旧実装はカード全文 regex でクラスだけを読み、candidates[0] を1枚だけ自動で出していた**（O-20 クラス）＝
+  //   ①「２枚まで」「好きな枚数」が**1枚に潰れる**（WX16-Re18-E1／WX13-007-E3＝過少）
+  //   ②レベル・色の絞り込みが落ちて**どのレゾナでも出せる**（WD12-007-E1／WX07-050-E1＝過剰）
+  //   ③クラスの OR（「＜空獣＞か＜地獣＞」）は includes に当たらず**無条件**（WX19-028-E3）
+  //   ④**どれを出すか選べない**（候補が複数でも先頭固定）。
+  // 🔑いまは parser が渡す resonaSummon ペイロードだけを見る（原文は一切読まない）。
+  // ⚠ペイロードが無い live（MANUAL 等）は**1枚・絞り込み無し**の従来動作へフォールバックする。
+  //   golden にトリップワイヤを置いてあるので、新しく生えたら気付ける。
   if (stub.id === 'SUMMON_RESONA_FROM_LRIG_DECK') {
-    const srcSRLD = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
-    const txtSRLD = srcSRLD ? (srcSRLD.EffectText ?? '') : '';
-    const classMSRLD = txtSRLD.match(/ルリグデッキから＜([^＞]+)＞のレゾナ/);
-    const clsSRLD = classMSRLD ? classMSRLD[1] : '';
+    const specSRLD = stub.resonaSummon;
     const candsSRLD = (ctx.ownerState.lrig_deck ?? []).filter(cn => {
-      const c = ctx.cardMap.get(cn);
+      const c = ctx.cardMap.get(getCardNum(cn));
       if (!c || c.Type !== 'レゾナ') return false;
-      return !clsSRLD || (c.CardClass ?? '').includes(clsSRLD);
+      return !specSRLD?.filter || matchesFilter(c, specSRLD.filter);
     });
-    if (candsSRLD.length === 0) return done(addLog(ctx, 'ルリグデッキにレゾナなし'));
-    const emptyZonesSRLD = ctx.ownerState.field.signi.map((z, i) => ({ i, empty: !z || z.length === 0 })).filter(x => x.empty);
-    if (emptyZonesSRLD.length === 0) return done(addLog(ctx, '空きシグニゾーンなし（レゾナ配置不可）'));
-    const pickSRLD = candsSRLD[0];
-    const ctxAfterSRLD = { ...ctx, ownerState: { ...ctx.ownerState, lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== pickSRLD) } };
-    if (emptyZonesSRLD.length >= 2) {
-      // ⚠一時レゾナ（`WX07-050`／`WX16-Re18`）の返却対象は**ゾーン選択の pause を跨ぐ**ので
-      //   pending にフラグを載せ、resume 側で `last_summoned_resonas` に記録する。
-      return needsInteraction(ctxAfterSRLD,
-        { type: 'SELECT_SIGNI_ZONE', cardNum: pickSRLD, owner: 'self', fromNonHand: true, recordSummonedResona: true });
+    if (candsSRLD.length === 0) return done(addLog(ctx, 'ルリグデッキに条件を満たすレゾナなし'));
+    const emptyZonesSRLD = ctx.ownerState.field.signi.filter(z => !z || z.length === 0).length;
+    if (emptyZonesSRLD === 0) return done(addLog(ctx, '空きシグニゾーンなし（レゾナ配置不可）'));
+    // 「好きな枚数」＝候補数まで。⚠**空きゾーン数でも頭打ちにする**（出せない枚数を選ばせない）。
+    const wantSRLD = specSRLD?.count === 'ALL' ? candsSRLD.length : (specSRLD?.count ?? 1);
+    const pickCountSRLD = Math.min(wantSRLD, candsSRLD.length, emptyZonesSRLD);
+    if (pickCountSRLD <= 0) return done(addLog(ctx, 'レゾナを出せない'));
+    const chainSRLD = (picked?: string[]): EffectAction => ({
+      type: 'STUB', id: 'INTERNAL_PLACE_SUMMONED_RESONAS',
+      ...(picked ? { value: JSON.stringify(picked) } : {}),
+      ...(stub.suppressOnPlay ? { suppressOnPlay: true } : {}),
+    } as StubAction) as EffectAction;
+    // 候補がちょうど必要数で任意でもないなら選択を挟まない（選択肢が1通りのモーダルを出さない）。
+    if (candsSRLD.length === pickCountSRLD && !specSRLD?.upTo) {
+      return exec(chainSRLD(candsSRLD.slice(0, pickCountSRLD)), ctx);
     }
-    const newSigniSRLD = ctxAfterSRLD.ownerState.field.signi.map((z, i) => (i === emptyZonesSRLD[0].i ? [...(z ?? []), pickSRLD] : z));
-    const newOwnerSRLD: PlayerState = {
-      ...ctxAfterSRLD.ownerState,
-      field: { ...ctxAfterSRLD.ownerState.field, signi: newSigniSRLD },
-      signi_played_from_non_hand_this_turn: [
-        ...(ctxAfterSRLD.ownerState.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== pickSRLD), pickSRLD,
-      ],
-      // 「ターン終了時、そのレゾナをルリグデッキに戻す」が次のステップで参照する（state に置くのは pause 跨ぎのため）。
-      last_summoned_resonas: [...(ctxAfterSRLD.ownerState.last_summoned_resonas ?? []), pickSRLD],
+    const labelSRLD = specSRLD?.upTo
+      ? 'ルリグデッキから出すレゾナを選ぶ（' + pickCountSRLD + '枚まで）'
+      : 'ルリグデッキから出すレゾナを選ぶ（' + pickCountSRLD + '枚）';
+    return needsInteraction(addLog(ctx, labelSRLD), {
+      type: 'SELECT_TARGET', candidates: candsSRLD, count: pickCountSRLD,
+      optional: !!specSRLD?.upTo, targetScope: 'self_lrig_deck',
+      thenAction: chainSRLD(),
+    });
+  }
+  // INTERNAL_PLACE_SUMMONED_RESONAS: 選ばれたレゾナを1枚ずつ空きゾーンへ置く（§6.4 O-5）。
+  // ⚠**1枚ずつ再帰する**＝ゾーン選択は pause を挟むので、残りは value（JSON）に焼き込んで運ぶ
+  //   （lastProcessedCards は resume を跨いで生存しない）。
+  // ⚠SELECT_TARGET の thenAction 経由では applyDirectAction が**1枚ずつ**呼ぶので value が無い＝
+  //   その回の lastProcessedCards（1枚）だけを処理する。
+  if (stub.id === 'INTERNAL_PLACE_SUMMONED_RESONAS') {
+    const queueIPSR: string[] = typeof stub.value === 'string' && stub.value.startsWith('[')
+      ? (JSON.parse(stub.value) as string[])
+      : [...(ctx.lastProcessedCards ?? [])];
+    if (queueIPSR.length === 0) return done(ctx);
+    const headIPSR = queueIPSR[0];
+    const restIPSR = queueIPSR.slice(1);
+    const emptyIdxIPSR = ctx.ownerState.field.signi
+      .map((z, zi) => ({ i: zi, empty: !z || z.length === 0 })).filter(x => x.empty);
+    if (emptyIdxIPSR.length === 0) return done(addLog(ctx, '空きシグニゾーンなし（残りのレゾナは出せない）'));
+    const afterRemoveIPSR: PlayerState = {
+      ...ctx.ownerState,
+      lrig_deck: (ctx.ownerState.lrig_deck ?? []).filter(n => n !== headIPSR),
     };
-    return done(addLog({ ...ctxAfterSRLD, ownerState: newOwnerSRLD },
-      `${ctx.cardMap.get(pickSRLD)?.CardName ?? pickSRLD}を出現条件を無視して場に出す`));
+    const ctxIPSR = { ...ctx, ownerState: afterRemoveIPSR };
+    const contIPSR = restIPSR.length > 0
+      ? (({ type: 'STUB', id: 'INTERNAL_PLACE_SUMMONED_RESONAS', value: JSON.stringify(restIPSR),
+            ...(stub.suppressOnPlay ? { suppressOnPlay: true } : {}) } as StubAction) as EffectAction)
+      : undefined;
+    if (emptyIdxIPSR.length >= 2) {
+      // ⚠一時レゾナ（WX07-050／WX16-Re18）の返却対象は**ゾーン選択の pause を跨ぐ**ので
+      //   pending にフラグを載せ、resume 側で last_summoned_resonas に記録する。
+      return needsInteraction(ctxIPSR, {
+        type: 'SELECT_SIGNI_ZONE', cardNum: headIPSR, owner: 'self', fromNonHand: true,
+        recordSummonedResona: true, ...(contIPSR ? { continuation: contIPSR } : {}),
+      });
+    }
+    const zoneIPSR = emptyIdxIPSR[0].i;
+    const newSigniIPSR = afterRemoveIPSR.field.signi.map((z, zi) => (zi === zoneIPSR ? [headIPSR] : z));
+    const newOwnerIPSR: PlayerState = {
+      ...afterRemoveIPSR,
+      field: { ...afterRemoveIPSR.field, signi: newSigniIPSR },
+      signi_played_from_non_hand_this_turn: [
+        ...(afterRemoveIPSR.signi_played_from_non_hand_this_turn ?? []).filter(n => n !== headIPSR), headIPSR,
+      ],
+      // 「ターン終了時、それらをルリグデッキに戻す」が次のステップで参照する（state に置くのは pause 跨ぎのため）。
+      last_summoned_resonas: [...(afterRemoveIPSR.last_summoned_resonas ?? []), headIPSR],
+    };
+    const placedIPSR = addLog({ ...ctxIPSR, ownerState: newOwnerIPSR },
+      (ctx.cardMap.get(getCardNum(headIPSR))?.CardName ?? headIPSR) + 'を出現条件を無視して場に出す');
+    return contIPSR ? exec(contIPSR, placedIPSR) : done(placedIPSR);
   }
   // SUMMON_FROM_TRASH: トラッシュからシグニ1枚を場に出す（choiceTextParser選択肢から使用）
   if (stub.id === 'SUMMON_FROM_TRASH') {
