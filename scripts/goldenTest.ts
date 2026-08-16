@@ -4202,7 +4202,9 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   const irregular = registered.filter(field => !convention.includes(field));
   // 25 → 26（§6.4 O-3 で extra_attack_phases_this_turn を追加）
   // 26 → 27（§6.4 O-3 続き498 で arts_name_whitelist_this_turn を追加）
-  eq(convention.length, 27, 'PlayerState の命名規約由来フィールド数');
+  // 27 → 29（§6.4 O-10 続き507 で lost_ability_effect_ids_this_turn ＝「代わりに…この能力を失う」の
+  //          効果単位の自壊、power_minus_multipliers_this_turn ＝「代わりに３倍－される」を追加）
+  eq(convention.length, 29, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
