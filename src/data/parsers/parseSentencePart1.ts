@@ -1844,7 +1844,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       from: { location: 'deck', owner: 'self' },
       filter,
       maxCount,
-      then: toField
+      then: toTrapZone
+        ? { type: 'STUB', id: 'INTERNAL_ASK_TRAP_ZONE' } as EffectAction
+        : toField
         ? { type: 'ADD_TO_FIELD', owner: 'self' }
         : toTrash
           ? { type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 1 } }
