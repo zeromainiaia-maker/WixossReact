@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 596（総ノード 2877 件）
+live JSON の STUB id 種類 : 596（総ノード 2874 件）
 逆翻訳シートの [STUB:…] 総数: 767  うち生ID露出 271 箇所（185 種）
 
 ■ 仕分け結果
@@ -9,9 +9,9 @@ live JSON の STUB id 種類 : 596（総ノード 2877 件）
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 15 種 / 17 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 19 種 / 63 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 173 種 / 257 箇所
-  D 健全（実装あり＋日本語表示）                          : 408 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 330 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 172 種 / 253 箇所
+  D 健全（実装あり＋日本語表示）                          : 409 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 332 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -33,7 +33,7 @@ live JSON の STUB id 種類 : 596（総ノード 2877 件）
         生成: src\data\parsers\parseSentencePart4.ts:1981
      1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
         カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3186
+        生成: src\data\parsers\parseSentencePart1.ts:3200
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4832
@@ -98,10 +98,10 @@ live JSON の STUB id 種類 : 596（総ノード 2877 件）
         消費: src\engine\effectExecutor.ts:338
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:7122
+        消費: src\engine\effectExecutor.ts:7140
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:7124
+        消費: src\engine\effectExecutor.ts:7142
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:65
@@ -116,7 +116,7 @@ live JSON の STUB id 種類 : 596（総ノード 2877 件）
         消費: src\engine\effectExecutor.ts:3862
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1012 / src\screens\BattleScreen.tsx:10252
+        消費: src\screens\BattleScreen.tsx:1012 / src\screens\BattleScreen.tsx:10256
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6757
@@ -151,9 +151,6 @@ live JSON の STUB id 種類 : 596（総ノード 2877 件）
   露出  4箇所 (live 6件/6枚)  PLACE_MAGIC_BOX  [execStubPart3]
         カード: WX24-P3-018, WX24-P3-067, WX24-P3-070, WX24-P3-072, WX24-P3-089, WX24-P4-064
         既存コメント: PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
-  露出  4箇所 (live 3件/3枚)  REPEAT_N_TIMES  [execStubPart3]
-        カード: WXDi-P07-007, WXDi-CP01-024, WXDi-CP02-047
-        既存コメント: REPEAT_N_TIMES / REPEAT_EFFECT: 以下をN回繰り返す
   露出  4箇所 (live 4件/4枚)  UNKNOWN_NESTED  [execStubPart1]
         カード: WX24-P2-060, WX24-P3-018, WXDi-P04-033, WXDi-P12-061
         既存コメント: UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動）

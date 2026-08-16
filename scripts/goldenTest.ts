@@ -15143,6 +15143,119 @@ test('SET_LRIG_BASE_LIMIT / RESERVE_DRAW_PHASE_REPLACEMENT: 予約先フィー�
   eq(rOpp.otherState.lrig_base_limit_override ?? 0, 3, 'owner:opponent は相手側へ');
   eq(rOpp.ownerState.lrig_base_limit_override ?? 0, 0, '自分側には載らない');
 }));
+// ── §6.4 O-32：「以下をN回行う。「〈本文〉」」＝`REPEAT` の正準形 ──
+// 🔴回帰ガード＝旧 `STUB{REPEAT_N_TIMES}` は**カード全文の regex**で自分でN回ぶん実行したうえ、
+//    `SEQUENCE` の後続ステップ（＝parse された本文）も走るので**二重に効いていた**。さらに引用の
+//    先頭文が丸ごと落ちるので、過剰（回数）と過少（本文）が同居していた。
+test('REPEAT 正準形: live に REPEAT_N_TIMES が残らず、本文が丸ごと反復の中にある（3効果）', () => {
+  const cases: [string, string, string[]][] = [
+    // [カード, effectId, 反復本文に必ず含まれるアクション型]
+    ['WXDi-P07-007', 'WXDi-P07-007-E3', ['OPPONENT_PAY_OPTIONAL', 'TRASH']],
+    ['WXDi-CP02-047', 'WXDi-CP02-047-E1', ['POWER_MODIFY', 'TRASH']],
+    ['WXDi-CP01-024', 'WXDi-CP01-024-E1', ['PLACE_TRASH_SIGNI_FACING_SAME_POWER']],
+  ];
+  for (const [cardNum, effectId, needles] of cases) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
+    const s = JSON.stringify(eff.action);
+    ok(!s.includes('REPEAT_N_TIMES'), `${effectId}: 旧受け皿 STUB が残っている`);
+    const rep = eff.action as unknown as { type: string; count?: number; action?: unknown };
+    eq(rep.type, 'REPEAT', `${effectId}: トップレベルが REPEAT`);
+    eq(rep.count ?? 0, 3, `${effectId}: 3回`);
+    for (const n of needles) ok(JSON.stringify(rep.action).includes(n), `${effectId}: 本文に ${n} が無い`);
+  }
+});
+// 実行して回数が原文どおりになるか（＝「二重に効かない」ことを盤面で見る）。
+test('REPEAT: WXDi-CP02-047-E1 は 1体ずつ－5000×3回＋相手デッキ2枚×3回（旧＝全シグニ×3＋2枚）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-CP02-047') ?? []).find(e => e.effectId === 'WXDi-CP02-047-E1')!;
+  const ctx = mkCtx({}, { signi: [fresh(), fresh(), fresh()] });
+  const deck0 = ctx.otherState.deck.length;
+  const r = finish(executeEffect(eff, ctx), ctx);
+  const mods = (r.otherState.temp_power_mods ?? []).filter(m => m.delta === -5000);
+  eq(mods.length, 3, '－5000 が3回ぶん（毎回1体）');
+  eq((r.otherState.temp_power_mods ?? []).length, 3, 'それ以外のパワー修正は載らない');
+  eq(deck0 - r.otherState.deck.length, 6, '相手デッキは 2枚×3回＝6枚');
+}));
+test('REPEAT: WXDi-P07-007-E3 の相手ミルは 4枚×3回＝最大12枚（旧＝16枚）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WXDi-P07-007') ?? []).find(e => e.effectId === 'WXDi-P07-007-E3')!;
+  const ctx = mkCtx({}, {});
+  ctx.otherState.hand = [];       // 手札0＝回避の「手札1枚捨て」は選べない
+  ctx.otherState.energy = [];     // エナ0＝《無》も払えない → 毎回ミルが通る（最大ケース）
+  const deck0 = ctx.otherState.deck.length;
+  const r = finish(executeEffect(eff, ctx), ctx);
+  const milled = deck0 - r.otherState.deck.length;
+  ok(milled <= 12, `ミルは12枚以下（実測 ${milled}）`);
+  eq(milled, 12, '払えないときは 4枚×3回');
+}));
+// ── PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）──
+// 🔑相手ゾーン zi の正面は自分ゾーン 2-zi。**同じパワー**のトラッシュ札しか出せない。
+test('PLACE_TRASH_SIGNI_FACING_SAME_POWER: 同パワーの札だけが候補になり正面ゾーンへ出る', () => withSavedCursor(() => {
+  const virtual = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('バーチャル') && !!c.Power);
+  const power = cardMap.get(virtual)!.Power!;
+  const oppSame = findCard(c => c.Type === 'シグニ' && c.Power === power && c.CardNum !== virtual);
+  const oppDiff = findCard(c => c.Type === 'シグニ' && !!c.Power && c.Power !== power);
+  const otherVirtual = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('バーチャル')
+    && !!c.Power && c.Power !== power);
+  const act = { type: 'STUB', id: 'PLACE_TRASH_SIGNI_FACING_SAME_POWER', value: 'バーチャル' } as EffectAction;
+  // 相手はゾーン0＝正面は自分ゾーン2。トラッシュには同パワー1枚＋別パワー1枚。
+  const ctx = mkCtx({}, { signi: [oppSame, null, null] });
+  ctx.ownerState.trash = [virtual, otherVirtual];
+  let r = executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', 'トラッシュ選択が出る');
+  eq((r.pending as { candidates: string[] }).candidates.join('|'), virtual, '同じパワーの札だけ候補');
+  const c = { ...ctx, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs } as ExecCtx;
+  const placed = finish(resumeSelectTarget([virtual], r.pending as never, c), c);
+  eq(placed.ownerState.field.signi[2]?.at(-1) ?? '', virtual, '相手ゾーン0の正面＝自分ゾーン2へ');
+  ok(!placed.ownerState.trash.includes(virtual), 'トラッシュから抜ける');
+  // 対照＝パワーが一致する相手シグニがいなければ何も起きない
+  const ctx2 = mkCtx({}, { signi: [oppDiff, null, null] });
+  ctx2.ownerState.trash = [virtual];
+  const r2 = finish(executeEffect({ effectId: 't', effectType: 'AUTO', action: act, duration: 'INSTANT', mandatory: true } as CardEffect, ctx2), ctx2);
+  ok(r2.ownerState.trash.includes(virtual), 'パワー不一致なら場に出ない');
+  eq(r2.ownerState.field.signi.filter(z => z && z.length > 0).length, 0, '盤面は動かない');
+}));
+// 「それの【出】能力は発動しない」が配置 STUB へ畳み込まれること（旧＝engine 未参照の死 BLOCK_ACTION）。
+test('WXDi-CP01-024-E1 live: 配置 STUB に suppressOnPlay が畳み込まれ死 BLOCK_ACTION が消えている', () => {
+  const eff = (effectsMap.get('WXDi-CP01-024') ?? []).find(e => e.effectId === 'WXDi-CP01-024-E1')!;
+  const s = JSON.stringify(eff.action);
+  ok(s.includes('"suppressOnPlay":true'), '配置アンカーに suppressOnPlay');
+  ok(!s.includes('ON_PLAY_ABILITY'), '死 BLOCK_ACTION が残っている');
+});
+// ── REPEAT.optional（§6.4 O-32・`WX16-042-E1`「あと2回まで繰り返してもよい」）──
+// 🔴旧 `STUB{REPEAT_EFFECT}` は共有ハンドラのどのパターンにも当たらず**ログだけの無言 no-op**＝
+//    1回で終わっていた（過少）。あわせて「捨てたシグニと同じレベルの」条件も落ちていた（過剰）。
+test('REPEAT optional: 断れば打ち切り／続ければ最大3回（WX16-042-E1 live・対の検証）', () => withSavedCursor(() => {
+  const eff = (effectsMap.get('WX16-042') ?? []).find(e => e.effectId === 'WX16-042-E1')!;
+  const s = JSON.stringify(eff.action);
+  ok(s.includes('"optional":true'), '任意反復として表現されている');
+  ok(s.includes('levelEqLastProcessed'), '「捨てたシグニと同じレベル」条件が載っている');
+  ok(!s.includes('REPEAT_EFFECT'), '旧受け皿 STUB が残っている');
+  // 「繰り返さない」を最初に選ぶ＝1回だけ（手札は1枚だけ減る）
+  const lv3a = SIGNI_L3, lv3b = SIGNI_L3;
+  const mk = () => {
+    const c = mkCtx({}, { signi: [lv3a, null, null] });
+    c.ownerState.hand = [lv3b, lv3b, lv3b];
+    return c;
+  };
+  const stopCtx = mk();
+  let r = executeEffect(eff, stopCtx);
+  // 1周目（強制）を消化し、最初に現れる「繰り返す/繰り返さない」で止める
+  let cur = { ...stopCtx } as ExecCtx;
+  let guard = 0;
+  while (!r.done) {
+    if (++guard > 20) throw new Error('autopilot hang');
+    cur = { ...cur, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs,
+      lastProcessedCards: r.lastProcessedCards } as ExecCtx;
+    const p = r.pending as { type: string; options?: { id: string }[]; candidates?: string[]; count?: number };
+    if (p.type === 'CHOOSE' && (p.options ?? []).some(o => o.id === 'stop')) { r = resumeChoose('stop', r.pending as never, cur); continue; }
+    if (p.type === 'SELECT_TARGET') { r = resumeSelectTarget((p.candidates ?? []).slice(0, p.count ?? 1), r.pending as never, cur); continue; }
+    throw new Error(`unexpected pending ${p.type}`);
+  }
+  eq(r.ownerState.hand.length, 2, '断れば手札は1枚しか減らない（1回だけ）');
+  // 「繰り返す」を選び続ける＝合計3回（autopilot は先頭の available を選ぶ＝'repeat'）
+  const goCtx = mk();
+  const rAll = finish(executeEffect(eff, goCtx), goCtx);
+  eq(rAll.ownerState.hand.length, 0, '続ければ合計3回で手札3枚を消費');
+}));
 // ── DECLARED_ICON_HAND_DISCARD_BANISH（§6.4 O-34(e)・`WXDi-P12-055-E1`）──
 // 🔴回帰ガード＝従来は効果が丸ごと UNKNOWN に落ち、汎用 `OPP_DECLARE_CHOICE`（外れると**相手の
 //    全シグニをトラッシュ**する別カード用）と `BANISH{owner:'self'}`（＝**自分のシグニ**）だけが残っていた。
