@@ -14,6 +14,8 @@ import type {
   PreventDamageAction,
   SetLrigBaseLimitAction,
   ReserveDrawPhaseReplacementAction,
+  TargetFilter,
+  EffectTarget,
 } from '../../types/effects';
 import {
   parseNum, makeRevealPickStub, parseRevealPickDescriptor, fusedLookPickSentence, tradeOptionalCost,
