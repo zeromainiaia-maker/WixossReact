@@ -1316,6 +1316,14 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
+  // thisCardOnly＝「このシグニを」＝選ぶ余地が無いので**UI を出さず即適用**する
+  // （`execUp` / `execPowerModify` の thisCardOnly 分岐と同規約）。
+  // ⚠ここでプロンプトを出すと、`OPTIONAL_COST{selfToEnergy}` の pay 枝が**支払いの途中で中断**し、
+  //   本体（＝「そうした場合」）へ進む前に選択待ちが1つ挟まる＝候補1件のダイアログが無意味に出る。
+  if (sendThisCardRestrict) {
+    if (cands.length === 0) return done(addLog(ctx, 'このシグニが場にないためエナ送りをスキップ'));
+    return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
+  }
   if (tgt.count === 'ALL') {
     // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
     //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。

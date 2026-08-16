@@ -16849,13 +16849,13 @@ test('§6.4 O-7: selfToEnergy 任意コスト＝自身がエナへ行き、エ�
     const body = (seq.steps[1] as ConditionalAction).then as { source?: { type?: string; filter?: unknown }; asDown?: boolean; suppressOnPlay?: boolean };
     eq(body.source?.type, 'ENERGY_CARD', `${eid}: 出す先はエナゾーンから（手札からではない）`);
     ok(JSON.stringify(body.source?.filter).includes('遊具'), `${eid}: ＜遊具＞に絞る`);
-    ok(body.asDown && body.suppressOnPlay, `${eid}: ダウン状態＋【出】抑止`);
     void level;
+    ok(body.asDown && body.suppressOnPlay, `${eid}: ダウン状態＋【出】抑止`);
   }
   // 実経路：支払い枝を選ぶと効果元がエナへ移り、エナのレベル1＜遊具＞だけが配置候補になる。
   const self = 'WX25-P2-090';
-  const toy1 = findCard(c => isSigni(c) && c.Level === '1' && (c.Story ?? '').includes('遊具') && c.CardNum !== self);
-  const other = findCard(c => isSigni(c) && !(c.Story ?? '').includes('遊具'));
+  const toy1 = findCard(c => isSigni(c) && c.Level === '1' && (c.CardClass ?? '').includes('遊具') && c.CardNum !== self);
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('遊具'));
   const ctx = mkCtx({ signi: [self, null, null] }, {}, self);
   ctx.ownerState.energy = [toy1, other];
   const live = (effectsMap.get(self) ?? []).find(e => e.effectId === 'WX25-P2-090-E1')!;
