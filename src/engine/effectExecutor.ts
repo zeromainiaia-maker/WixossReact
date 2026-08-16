@@ -3193,7 +3193,16 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
-  if (a.target.count === 'ALL') return done(applyUp(cands, ctx));
+  if (a.target.count === 'ALL') {
+    // `count:'ALL'` + `upToCount` ＝「（該当するシグニを）好きな数アップして**もよい**」＝0体も選べる
+    // （§6.4 O-8(b)・`SELECT_TARGET_ONLY` / `execTrash` の手札版と同規約）。
+    // ⚠これが無いと `applyUp(cands)` が**全部を無選択でアップ**する＝任意性が消える。
+    if (a.target.upToCount) {
+      if (cands.length === 0) return done(addLog(ctx, 'アップできる対象がない'));
+      return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+    }
+    return done(applyUp(cands, ctx));
+  }
   const count = resolveNum(a.target.count);
   return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
 }
