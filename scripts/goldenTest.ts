@@ -35358,7 +35358,8 @@ test('§6.4 離場置換: 強制2軸／任意3軸の分類が live の原文と�
   const isOptional = (effectId: string) => /てもよい/.test(srcText[effectId] ?? '');
   // §6.4 O-10（続き507）＝シグニ自身の「代わりに（ターン終了時まで、）この能力を失う」も強制軸。
   const mandatoryAxes = ['EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY', 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY', 'NO_ABILITY_SIGNI_TO_DECK_BOTTOM'];
-  const optionalAxes = ['BANISH_SUBSTITUTE', 'EFFECT_LEAVE_REPLACE_BANISH'];
+  // §6.4 O-10（続き511）＝コスト付きの自己能力喪失も原文は「支払っ**てもよい**」＝任意軸。
+  const optionalAxes = ['BANISH_SUBSTITUTE', 'EFFECT_LEAVE_REPLACE_BANISH', 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY'];
   for (const axis of mandatoryAxes) {
     const ids = declarers(axis);
     ok(ids.length > 0, `${axis}: 宣言カードが live に居る`);
@@ -35486,11 +35487,11 @@ test('§6.4 O-10: 「代わりにこの能力を失う」クラスの live 表�
   ok(!p2071.includes('DEFERRED_LEAVE_FIELD_REPLACE_WITH_DOWN'), 'WX25-P2-071-E1: defer は解体済み');
 });
 
-test('§6.4 O-10: 任意コストつきの離場置換は明示 defer（無言 no-op へ戻さない）', () => {
+test('§6.4 O-10（続き511）: 任意コストつきの離場置換＝払えば残り、払えなければ通る（負方向＋対照の対）', () => {
   // 🔴この3効果は A群（census:stubs）に**映らない**無言 no-op だった＝
   //    `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN}→REMOVE_ABILITIES{self}]` で、
   //    CONTINUOUS の SEQUENCE は誰も実行しない（しかも表示は「自分のシグニの能力を消す」と嘘をつく）。
-  //    原文 regex（場を離れる場合＋てもよい＋この能力を失う）で数え直した母集団は**ちょうど3効果**。
+  //    母集団は原文 regex（場を離れる場合＋てもよい＋この能力を失う）で**ちょうど3効果**。
   const srcText: Record<string, string> = JSON.parse(fs.readFileSync(join(root, 'docs/_effect_srctext.json'), 'utf-8'));
   const population = Object.keys(srcText).filter(id =>
     /場を離れる場合/.test(srcText[id]) && /てもよい/.test(srcText[id]) && /この能力を失う/.test(srcText[id]));
@@ -35500,10 +35501,41 @@ test('§6.4 O-10: 任意コストつきの離場置換は明示 defer（無言 n
     const cardNum = effectId.replace(/-E\d+$/, '');
     const act = JSON.stringify(mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? [])
       .find(e => e.effectId === effectId)!.action);
-    ok(act.includes('DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY'), `${effectId}: 明示 defer で計器に載る`);
+    ok(act.includes('EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY'), `${effectId}: 実装済みの宣言`);
+    ok(act.includes('victimFilter'), `${effectId}: 守れる victim の条件を持つ（無条件に化けていない）`);
+    ok(!act.includes('DEFERRED_'), `${effectId}: defer は残っていない`);
     ok(!act.includes('REMOVE_ABILITIES'), `🔴${effectId}: 死んだ REMOVE_ABILITIES{self} が復活していない`);
     ok(!act.includes('OPTIONAL_COST'), `${effectId}: 実行されない任意コストの残骸が消えている`);
   }
+  // ── 挙動＝`WXDi-CP02-056`（手札2枚捨て・＜ブルアカ＞限定）で対にする ──
+  const bluearchive = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('ブルアカ') && c.CardNum !== 'WXDi-CP02-056');
+  const ctxPay = mkCtx({}, { signi: ['WXDi-CP02-056', bluearchive, null], hand: 5 });
+  const paid = applyEffectLeaveSubstitutes(bluearchive, 'opponent', ctxPay, {});
+  ok(paid.replaced, '手札が足りれば置換が成立する');
+  eq(paid.ctx.otherState.hand.length, 3, '⚠手札2枚を実際に払う（タダで置換しない）');
+  eq(paid.ctx.otherState.trash.length, ctxPay.otherState.trash.length + 2, '捨てた2枚はトラッシュへ');
+  ok(paid.ctx.otherState.field.signi.some(z => z?.at(-1) === bluearchive), 'victim は場に残る');
+  eq(paid.ctx.otherState.lost_ability_effect_ids_this_turn?.join(','), 'WXDi-CP02-056-E1',
+     '⚠失うのは**宣言元**の効果1つ（victim ではない）');
+  // 🔴負方向①＝手札が足りなければ成立しない（払えないのに残ったら「タダで無敵」）。
+  const ctxPoor = mkCtx({}, { signi: ['WXDi-CP02-056', bluearchive, null], hand: 1 });
+  eq(applyEffectLeaveSubstitutes(bluearchive, 'opponent', ctxPoor, {}).replaced, false,
+     '🔴手札が足りなければ置換しない');
+  // 🔴負方向②＝victimFilter（＜ブルアカ＞）に合わない victim は守れない。
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('ブルアカ'));
+  const ctxOther = mkCtx({}, { signi: ['WXDi-CP02-056', other, null], hand: 3 });
+  eq(applyEffectLeaveSubstitutes(other, 'opponent', ctxOther, {}).replaced, false,
+     '🔴＜ブルアカ＞でないシグニは守れない（filter の脱落ガード）');
+  // 🔴負方向③＝同じターンの2回目は成立しない（宣言元が能力を失っている）。
+  const second = applyEffectLeaveSubstitutes(bluearchive, 'opponent', paid.ctx, {});
+  eq(second.replaced, false, '🔴一度払ったらそのターンは二度と置換しない');
+  // 対照＝ターン境界で戻る。
+  const restored = { ...paid.ctx, otherState: clearTurnEndScopedState(paid.ctx.otherState as PlayerState) } as ExecCtx;
+  ok(applyEffectLeaveSubstitutes(bluearchive, 'opponent', restored, {}).replaced, 'ターンが変われば再び使える');
+  // ⚠自分の効果で自分のシグニを動かす経路では成立しない（他軸と同じガード）。
+  const selfSide = mkCtx({ signi: ['WXDi-CP02-056', bluearchive, null], hand: 3 }, {});
+  eq(applyEffectLeaveSubstitutes(bluearchive, 'self', selfSide, {}).replaced, false,
+     '「対戦相手の効果によって」以外では置換しない');
 });
 
 test('§6.4 離場置換: 強制軸は kind:mandatory で列挙される（対話の選択肢に出さないため）', () => {

@@ -2683,6 +2683,21 @@ export interface StubAction {
    */
   leaveLoseSelfAbility?: { thenDown?: boolean };
   /**
+   * `EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY`（§6.4 O-10・続き511）＝上の**任意コスト**版
+   * 「あなたの〈filter〉のシグニ１体が対戦相手の効果によって場を離れる場合、〈コスト〉を支払ってもよい。
+   *  そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う。」
+   * ⚠**victim は宣言元とは限らない**（「あなたの緑のシグニ１体が」＝別のシグニでもよい）が、
+   *   **能力を失うのは宣言元**（「**この**シグニはこの能力を失う」）＝両者を混同しない。
+   */
+  leavePayLoseSelfAbility?: {
+    /** 守れる victim の条件（省略＝自分のシグニなら誰でも）。 */
+    victimFilter?: TargetFilter;
+    /** エナで払う場合の色スロット（`selectOptionalCostEnergy` と同じ表記）。 */
+    costColors?: string[];
+    /** 手札を捨てて払う場合の枚数。 */
+    handDiscard?: number;
+  };
+  /**
    * PREVENT_LRIG_DAMAGE（§6.4 O-10・続き507）＝原文が
    * 「代わりにダメージを受けず、**ターン終了時まで、この能力を失う**」（`WXK01-002-E1`）の形のとき true。
    * 1回防いだ時点で `lost_ability_effect_ids_this_turn` に刻み、**そのターンは二度と防がない**。

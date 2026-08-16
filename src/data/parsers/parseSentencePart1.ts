@@ -484,18 +484,35 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     } as StubAction;
   }
 
-  // ---- §6.4 O-10（続き507）: 上の置換の**任意コスト**版＝明示 defer ----
+  // ---- §6.4 O-10（続き511）: 上の置換の**任意コスト**版 ----
   // 「あなたの〈filter〉のシグニ１体が対戦相手の効果によって場を離れる場合、〈コスト〉を支払ってもよい。
   //  そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う。」（原文 regex で3効果）
   // 🔴従来は `SEQUENCE[OPTIONAL_COST, CONDITIONAL{IS_MY_TURN}→REMOVE_ABILITIES{self}]` へ落ちていた＝
-  //   **CONTINUOUS の SEQUENCE は誰も実行しない**ので完全な無言 no-op（A群にも映らない）。
-  // ⚠ブロッカーは「支払い」側＝離場置換の決定層は `resultCtx` を**同期的に**組む契約なので
-  //   （`applyEffectLeaveSubstitutes`）、被害側プレイヤーに色エナ/手札を選ばせる対話 pause を張れない。
-  //   さらに**払うのは victim のオーナー＝ctx の `otherState`** で、`optionalCostPaySteps`／
-  //   `canAffordOptionalCostSpec` は `ownerState` 固定＝視点も合わない。
-  //   ⇒ 対話つき置換（`leaveSubstituteAskOptions` の policy 差し替え）と対で実装する。
-  if (/(?:あなたの[^。]{0,20}シグニ[０-９\d]*体?が対戦相手の効果によって場を離れる場合|対戦相手の効果によってあなたの[^。]{0,20}シグニ[０-９\d]*体?が場を離れる場合)[、,][^。]*てもよい/.test(t)) {
-    return { type: 'STUB', id: 'DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY' } as StubAction;
+  //   **CONTINUOUS の SEQUENCE は誰も実行しない**ので完全な無言 no-op（A群にも映らなかった）。
+  // ⚠**victim（守られる側）と宣言元（能力を失う側）は別**＝原文は「あなたの〈filter〉のシグニ１体が…
+  //   **この**シグニはこの能力を失う」。victim 条件だけをペイロードに載せ、失うのは宣言元。
+  {
+    const payLeaveM = t.match(/(?:あなたの([^。]{0,20}?)シグニ[０-９\d]*体?が対戦相手の効果によって場を離れる場合|対戦相手の効果によってあなたの([^。]{0,20}?)シグニ[０-９\d]*体?が場を離れる場合)[、,]([^。]*?てもよい)/);
+    if (payLeaveM) {
+      const victimDesc = payLeaveM[1] ?? payLeaveM[2] ?? '';
+      const costText = payLeaveM[3];
+      // 色コスト（「《緑》《無》を支払ってもよい」）／手札捨て（「「手札を２枚捨てる」を行ってもよい」）。
+      const colors = [...costText.matchAll(/《([白赤青緑黒無])》/g)].map(m => m[1]);
+      const handM = costText.match(/手札を([０-９\d]+)枚捨てる/);
+      const victimFilter: TargetFilter = { cardType: 'シグニ' };
+      const colM = victimDesc.match(/^(白|赤|青|緑|黒)の$/);
+      if (colM) victimFilter.color = colM[1];
+      const storyM = victimDesc.match(/＜([^＞]+)＞/);
+      if (storyM) victimFilter.story = storyM[1];
+      return {
+        type: 'STUB', id: 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY',
+        leavePayLoseSelfAbility: {
+          victimFilter,
+          ...(colors.length > 0 ? { costColors: colors } : {}),
+          ...(handM ? { handDiscard: parseNum(handM[1]) } : {}),
+        },
+      } as StubAction;
+    }
   }
 
   // ---- §6.3「正面」サブ機構(b)(e): このシグニの正面のシグニの能力喪失／【出】ブロック ----

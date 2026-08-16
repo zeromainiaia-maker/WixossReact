@@ -11,7 +11,7 @@ import {
   costSlotIsAny, energyMatchesCostSlot,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
   canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
-  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
+  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, selectOptionalCostEnergy,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel,
 } from './execUtils';
@@ -359,6 +359,80 @@ export function applyEffectLeaveSelfAbilitySubstitute(
 }
 
 /**
+ * 相手効果による場離れを、**任意コストを払って**「この能力を失う」で置換する（§6.4 O-10・続き511）。
+ *
+ * 上の `applyEffectLeaveSelfAbilitySubstitute` の**コスト付き**版
+ * （`WX25-P2-059-E1`／`WX26-CP1-047-E1`／`WXDi-CP02-056-E1`＝原文 regex でちょうど3効果）。
+ *
+ * 🔑**victim（守られる側）と宣言元（能力を失う側）は別**＝原文は「あなたの〈filter〉のシグニ１体が…
+ *   **この**シグニはこの能力を失う」。victim は `victimFilter` で絞り、失効させるのは**宣言元の effectId**。
+ * ⚠**払うのは victim のオーナー**＝ctx から見た `otherState`（`victimOwner==='opponent'` ガードは他軸と同じ）。
+ *   `optionalCostPaySteps`／`canAffordOptionalCostSpec` は `ownerState` 固定で視点が合わないので使わず、
+ *   `selectOptionalCostEnergy`（state 非依存）で**同期的に**払う。
+ * ⚠原文は「支払っ**てもよい**」＝`kind:'optional'`。engine の現行 policy はこれを自動適用する
+ *   （`discardSpell`／`trashStackSpell` と同じ決定論的近似）。対話 policy が入れば選択肢として出る。
+ */
+export function applyEffectLeavePayLoseSelfAbilitySubstitute(
+  victimNum: string,
+  victimOwner: Owner,
+  ctx: ExecCtx,
+): { ctx: ExecCtx; replaced: boolean } {
+  if (victimOwner !== 'opponent') return { ctx, replaced: false };
+  const state = ownerState(victimOwner, ctx);
+  const victimZone = state.field.signi.findIndex(stack => stack?.at(-1) === victimNum);
+  if (victimZone < 0) return { ctx, replaced: false };
+  const attackerState = ownerState('self', ctx);
+  const victimOwnerTurn = ctx.isOwnerTurn === undefined ? false : !ctx.isOwnerTurn;
+  const lost = state.lost_ability_effect_ids_this_turn ?? [];
+  const victimCard = ctx.cardMap.get(getCardNum(victimNum));
+  for (let zi = 0; zi < state.field.signi.length; zi++) {
+    const declarer = state.field.signi[zi]?.at(-1);
+    if (!declarer) continue;
+    for (const eff of declaredContinuousEffects(declarer, state, ctx.cardMap)) {
+      if (eff.effectType !== 'CONTINUOUS' || eff.action.type !== 'STUB') continue;
+      const act = eff.action as import('../types/effects').StubAction;
+      if (act.id !== 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY') continue;
+      const spec = act.leavePayLoseSelfAbility;
+      if (!spec) continue;
+      if (lost.includes(eff.effectId)) continue;
+      if (!checkActiveCondition(eff.activeCondition, state, attackerState, victimOwnerTurn, ctx.cardMap, declarer)) continue;
+      // ⚠victim 条件は**盤面状態込み**で見る（`matchesStateFilter`＝凍結/ダウン等）＝他軸と同じ規約。
+      if (spec.victimFilter
+        && (!matchesFilter(victimCard, spec.victimFilter) || !matchesStateFilter(state, victimZone, spec.victimFilter))) continue;
+      // ── 支払い（払えないなら成立しない＝タダで置換しない）──
+      let paidState = state;
+      const paidLabels: string[] = [];
+      if (spec.costColors?.length) {
+        const picked = selectOptionalCostEnergy(spec.costColors, paidState, ctx.cardMap);
+        if (!picked) continue;
+        const rest = [...paidState.energy];
+        for (const n of picked) { const i = rest.indexOf(n); if (i >= 0) rest.splice(i, 1); }
+        paidState = { ...paidState, energy: rest, trash: [...paidState.trash, ...picked] };
+        paidLabels.push(spec.costColors.map(c => `《${c}》`).join(''));
+      }
+      if (spec.handDiscard) {
+        if (paidState.hand.length < spec.handDiscard) continue;
+        const discarded = paidState.hand.slice(0, spec.handDiscard);
+        paidState = { ...paidState, hand: paidState.hand.slice(spec.handDiscard), trash: [...paidState.trash, ...discarded] };
+        paidLabels.push(`手札${spec.handDiscard}枚`);
+      }
+      if (paidLabels.length === 0) continue;   // コストの無い宣言は成立させない（タダ置換の防止）
+      const nextState: PlayerState = {
+        ...paidState,
+        lost_ability_effect_ids_this_turn: [...lost, eff.effectId],
+      };
+      const name = ctx.cardMap.get(getCardNum(victimNum))?.CardName ?? victimNum;
+      return {
+        ctx: addLog(setOwnerState(victimOwner, nextState, ctx),
+          `${paidLabels.join('・')}を支払い、${name}の場離れをこの能力の喪失で置換`),
+        replaced: true,
+      };
+    }
+  }
+  return { ctx, replaced: false };
+}
+
+/**
  * 相手効果による**非バニッシュ**の場離れ（手札戻し／トラッシュ／エナ送り／デッキ戻し／除外）を、
  * 被害側の場が宣言する CONTINUOUS STUB `EFFECT_LEAVE_REPLACE_BANISH` でバニッシュへ置換する
  * （WX25-P1-056-E1「あなたの＜原子＞のシグニが対戦相手の効果によって場を離れる場合、その移動が
@@ -661,7 +735,7 @@ export function applyEffectBanishSubstitute(
  * - `powerReduction`（`WX06-019`）／`banishSubstitute`（F-3 8枚）／`replaceBanish`（`WX25-P1-056`）＝**任意**
  */
 export type LeaveSubstituteAxisId =
-  | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
+  | 'lrigAbility' | 'selfAbility' | 'powerReduction' | 'selfAbilityPay' | 'banishSubstitute' | 'replaceBanish' | 'noAbilityDeckBottom';
 
 export interface LeaveSubstituteOption {
   axis: LeaveSubstituteAxisId;
@@ -719,6 +793,10 @@ export function collectLeaveSubstituteOptions(
     applyEffectLeaveSelfAbilitySubstitute(victimNum, victimOwner, ctx));
   push('powerReduction', 'optional', '代わりに身代わりシグニのパワーを下げる',
     applyEffectLeavePowerReductionSubstitute(victimNum, victimOwner, ctx));
+  // §6.4 O-10（続き511）＝コスト付きの「代わりにこの能力を失う」。⚠**無料の軸より後ろ**に置く
+  //   （自動 policy は先頭から採るので、先に置くとタダで済む置換があるのに資源を払ってしまう）。
+  push('selfAbilityPay', 'optional', '〈コスト〉を払って代わりにこの能力を失う',
+    applyEffectLeavePayLoseSelfAbilitySubstitute(victimNum, victimOwner, ctx));
   if (opts?.isBanish) {
     // ⚠**engine が徴収できないコストは列挙しない**（§3 (cxxix)＝落とすと apply 側の末尾へ流れて
     //   「0枚トラッシュ」で成立し、コスト0でバニッシュを回避できてしまう）。

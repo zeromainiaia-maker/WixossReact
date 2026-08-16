@@ -4500,9 +4500,11 @@ function foldLeaveLoseSelfAbilityDown(action: EffectAction): EffectAction {
   const steps = seq.steps.map(foldLeaveLoseSelfAbilityDown);
   const isSelfLose = (s: EffectAction): boolean =>
     s.type === 'STUB' && (s as StubAction).id === 'EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY';
-  // 任意コスト版（明示 defer）＝2文目「そうした場合、代わりに…この能力を失う」も同じく死に文なので捨てる。
+  // 任意コスト版（§6.4 O-10 続き511 で実装）＝2文目「そうした場合、代わりに…この能力を失う」は
+  // 宣言の中身（`leavePayLoseSelfAbility`）に畳み込み済みなので、`CONDITIONAL{IS_MY_TURN}→REMOVE_ABILITIES`
+  // の死に文を捨てる。⚠残すと逆翻訳が「自分のシグニの能力を消す」と嘘をつく。
   const isDeferredPay = (s: EffectAction): boolean =>
-    s.type === 'STUB' && (s as StubAction).id === 'DEFERRED_LEAVE_REPLACE_PAY_TO_LOSE_ABILITY';
+    s.type === 'STUB' && (s as StubAction).id === 'EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY';
   const isThenDown = (s: EffectAction): boolean => {
     if (s.type !== 'CONDITIONAL') return false;
     const co = s as import('../types/effects').ConditionalAction;
