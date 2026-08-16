@@ -30246,6 +30246,37 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
 });
 
+test('§6.4 O-10（続き508）: 【コンバート《色》】がエナの追加色 funnel に載る（負方向＋対照の対）', () => {
+  // 🔑旧 defer 理由「色照合が costs.ts に5箇所散っていて 1点 funnel が無い」は**古かった**＝
+  //   追加色の funnel（`canAffordGrowCost` の `extraColorMap`）は既にあり、
+  //   `FIELD_ENERGY_SIGNI_GAIN_COLOR` / `ALL_ZONE_BLACK` が同じ経路で動いている。
+  const conv: [string, string, string][] = [
+    ['WXEX1-54', 'WXEX1-54-E3', '青'],
+    ['WXEX1-56', 'WXEX1-56-E2', '緑'],
+    ['WXEX2-56', 'WXEX2-56-E3', '青'],
+  ];
+  for (const [cardNum, effectId, color] of conv) {
+    const act = mergeManualEffects(cardNum, effectsMap.get(cardNum) ?? [])
+      .find(e => e.effectId === effectId)!.action as { type: string; id?: string; value?: unknown };
+    eq(act.id, 'CONVERT_ENERGY_COLOR', `${effectId}: 宣言型 STUB`);
+    eq(act.value, color, `${effectId}: 色は原文から読む（engine で再パースしない）`);
+  }
+  // 収集＝**エナゾーンだけ**を見る（場に出ていても意味は無い）。
+  const st = mkState({ signi: ['WXEX1-54', null, null] });
+  st.energy = ['WXEX1-56'];
+  const map = collectConvertEnergyColors(st, effectsMap);
+  eq(map.get('WXEX1-56'), '緑', 'エナゾーンのカードは追加色を宣言する');
+  eq(map.get('WXEX1-54'), undefined, '⚠場に出ているだけのカードは対象外');
+  // 支払い判定＝《緑》×1 は WXEX1-56（印刷は白/黒）では本来払えないが、追加色で通る。
+  const cards = battleCardsOf(['WXEX1-56']);
+  eq(canAffordGrowCost(['WXEX1-56'], cards, '《緑》×１', undefined, false, false, undefined, undefined, map),
+     true, '【コンバート《緑》】で《緑》を払える');
+  eq(canAffordGrowCost(['WXEX1-56'], cards, '《緑》×１'),
+     false, '🔴負方向＝追加色を渡さない経路では払えない（渡し忘れの検知）');
+  eq(canAffordGrowCost(['WXEX1-56'], cards, '《赤》×１', undefined, false, false, undefined, undefined, map),
+     false, '対照＝宣言していない色は払えない');
+});
+
 test('§6.4 O-10（続き508）: 引用【自】のルリグ付与が実体化している（`WXDi-P00-026-E1`）', () => {
   // 原文「あなたの＜さんばか＞のルリグ１体を対象とし、ターン終了時まで、それは
   //      「【自】《ターン１回》：このルリグがアタックしたとき、このルリグをアップする。」を得る」。
