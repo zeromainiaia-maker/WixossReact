@@ -2794,6 +2794,13 @@ export interface StubAction {
   opponentHandDiscard?: number | 'ALL';
   /** OPPONENT_PAY_OPTIONAL: restricts which hand cards satisfy `opponentHandDiscard`（「無色のカードを1枚捨てないかぎり」＝WX11-044）。 */
   opponentHandDiscardFilter?: TargetFilter;
+  /**
+   * OPPONENT_PAY_OPTIONAL: 「対戦相手は手札を**N枚まで**捨ててもよい」＝**枚数が可変**（§6.4 O-9(a)）。
+   * ⚠`opponentHandDiscard`（all-or-nothing）で近似すると **0枚かN枚**に丸まり、
+   *   「この方法で捨てたカード1枚につき〜」の中間値（1枚だけ捨てる）が**選べない**。
+   *   1..N の各枚数を選択肢として出し、帰結は `DRAW{addLastProcessedCount}` 等で実枚数に追従させる。
+   */
+  opponentHandDiscardUpTo?: number;
   /** OPPONENT_PAY_OPTIONAL: avoidance by trashing this many of the opponent's own energy cards ('ALL' = whole energy zone). */
   opponentEnergyTrash?: number | 'ALL';
   /** OPPONENT_PAY_OPTIONAL: avoidance by trashing this many of the opponent's own field SIGNI（「自分のシグニ１体を場からトラッシュに置かないかぎり」＝WX22-025-E3／WXDi-P16-088-E1。タスク12(lxi) 第3波）。 */
