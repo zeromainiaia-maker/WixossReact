@@ -127,18 +127,32 @@ function normTextCost(costs: { color: string; count: number }[]): string {
     .map(e => `${e.color}×${e.count}`).join(',');
 }
 
+/**
+ * 計器だけの「概念ラベル」＝ EffectAction の実型名ではない語。
+ * ⚠ここに無い名前は実型名として扱われ、下の較正チェック（KNOWN_ACTION_TYPES）で検証される。
+ * 2026-08-16（O-11）：`MOVE_TO_ENERGY` / `DISCARD` / `CRASH_LIFE` は型にも live JSON にも存在しない
+ * 幻の型名だった。うち `MOVE_TO_ENERGY` は**実型名 `SEND_TO_ENERGY`（live 77件）が別名表に無かった**ため、
+ * 「エナゾーンに置く」系の報告が丸ごと誤検出になっていた。
+ */
+const CONCEPT_LABELS = new Set<string>([
+  'HAND_DISCARD', // 手札を捨てる＝実装は TRASH{target:HAND_CARD}。デッキミルの TRASH と区別するための概念名
+]);
+
 /** アクションタイプのキーワード照合 */
 // aliases: テキストのキーワードが複数のJSONアクション名にマッピングされる場合
 const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /手札に戻す|バウンス/,                                    types: ['BOUNCE', 'TRANSFER_TO_HAND'] },
   // BANISH系: BANISH_REDIRECT（バニッシュ先変更）, CHARM_PROTECTION（バニッシュ代替チャーム）もエイリアス
+  // BANISH_SUBSTITUTE（バニッシュ置換）/ REVEAL_UNTIL_BANISH_SAME_LEVEL（公開してバニッシュ）もエイリアス
   // 「バニッシュ以外で」（移動制限の除外句）はアクションではないため除外
-  { pattern: /バニッシュ(?!無効|以外)/,                                types: ['BANISH', 'BANISH_REDIRECT', 'CHARM_PROTECTION'] },
+  { pattern: /バニッシュ(?!無効|以外)/,                                types: ['BANISH', 'BANISH_REDIRECT', 'CHARM_PROTECTION', 'BANISH_SUBSTITUTE', 'REVEAL_UNTIL_BANISH_SAME_LEVEL'] },
   // DRAW系: MUTUAL_DISCARD_AND_DRAW（両者手札捨て+ドロー）もエイリアス
-  { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             types: ['DRAW', 'MUTUAL_DISCARD_AND_DRAW'] },
+  // 枚数が盤面/レベル依存の DRAW_PER_* も「引く」の実装形（2026-08-16 O-11）
+  { pattern: /カードを([１-９\d０-９]+枚)?引く|ドローする/,             types: ['DRAW', 'MUTUAL_DISCARD_AND_DRAW', 'DRAW_PER_FIELD_COUNT', 'DRAW_PER_LRIG_LEVEL', 'VARIABLE_DISCARD_AND_DRAW', 'DRAW_PHASE_REPLACEMENT', 'RESERVE_DRAW_PHASE_REPLACEMENT'] },
   // 「探している間」（SEARCH中の常時能力トリガー文）は除外
   { pattern: /デッキから.+探して(?!いる)/,                             types: ['SEARCH'] },
-  { pattern: /エナゾーンに置く/,                                       types: ['MOVE_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK', 'ADD_TO_ENERGY', 'TAKE_FROM_UNDER_SIGNI'] },
+  // ⚠主力は SEND_TO_ENERGY（live 77件）。ENERGY_CHARGE_*_PER_* は枚数が盤面/レベル依存の同義形。
+  { pattern: /エナゾーンに置く/,                                       types: ['SEND_TO_ENERGY', 'ENERGY_CHARGE', 'ENERGY_CHARGE_FROM_DECK', 'ADD_TO_ENERGY', 'TAKE_FROM_UNDER_SIGNI', 'ENERGY_CHARGE_PER_LRIG_LEVEL', 'ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT', 'ENERGY_CHARGE_BY_FIELD_COUNT', 'EQUALIZE_ENERGY'] },
   // 能動形のみ（「手札からトラッシュに移動していた」等のトリガー条件文を除外）
   // [^。]+で同一センテンス内のみマッチ（「手札から場に出す。ターン終了時トラッシュ」等の文またぎ誤検出を防ぐ）
   { pattern: /手札から[^。]+トラッシュに置|手札から[^。]+捨てる/,        types: ['DISCARD', 'TRASH'] },
