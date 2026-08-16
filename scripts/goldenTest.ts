@@ -33471,7 +33471,9 @@ test('wave2 C1 WDK08-Y11-E2: hand reveal count 4/6 is exclusive and resumes sele
   };
   eq(JSON.stringify(resolve(3).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), '[]', 'three grants nothing');
   eq(JSON.stringify(resolve(4).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), JSON.stringify(['ランサー']), 'four grants lancer');
-  eq(JSON.stringify(resolve(6).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), JSON.stringify(['Ｓランサー']), 'six grants only S-lancer');
+  // ⚠綴りは**半角 `Sランサー`**（§6.4 O-28）＝engine の照合綴りに正準化した。全角 `Ｓランサー` に戻すと
+  //   `getSigniAttackKeywordState` の `has('Sランサー')` に当たらず**丸ごと無言 no-op** へ退行する。
+  eq(JSON.stringify(resolve(6).ownerState.keyword_grants?.['WDK08-Y11'] ?? []), JSON.stringify(['Sランサー']), 'six grants only S-lancer');
 }));
 
 test('wave2 C2 WXK04-034-E1: hand reveal count 3/5 charges exclusively after resume', () => withSavedCursor(() => {
