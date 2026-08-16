@@ -420,6 +420,10 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       type: 'ENERGY_CHARGE', asCost: true,
       target: { type: 'HAND_CARD', owner: 'self', count: spec.handToEnergy.count, filter: spec.handToEnergy.filter },
     } as EffectAction] : []),
+    // エクシードは既存の `INTERNAL_PAY_EXCEED`（ルリグの下→ルリグトラッシュ）で払う＝新機構は要らない。
+    ...(spec.exceed !== undefined ? [{
+      type: 'STUB', id: 'INTERNAL_PAY_EXCEED', value: spec.exceed,
+    } as EffectAction] : []),
     ...(spec.handToUnderSelf ? [{
       type: 'PLACE_UNDER_SIGNI', source: 'hand', count: spec.handToUnderSelf.count, filter: spec.handToUnderSelf.filter,
       selectionConstraint: spec.handToUnderSelf.selectionConstraint,
