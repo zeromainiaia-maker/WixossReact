@@ -2922,11 +2922,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       return { type: 'STUB', id: 'DEFERRED_CONVERT_ENERGY_COLOR' } as StubAction;
     }
     // 「このシグニはダウン状態でもアタックできる」（`WX22-022-E1`・内部名 スリープアタッカー）。
-    // ⚠アタック可否の「すでにダウン」判定は `signiAttackGate` ではなく `BattleScreen` の
-    //   `getMySigniZoneActions` にインラインで入っており、CPU 経路にも同じ判定がある＝
-    //   **例外を足す前に down 判定を gate へ寄せる**必要がある（写経すると人間/CPU で軸ズレする）。
+    // §6.4 O-10（続き507）で defer 解体＝**down 判定を `signiAttackGate` へ寄せた**ので、
+    // 例外はその 1 関数（`ALREADY_DOWN` の分岐）だけで人間ボタン／実行経路／CPU の3経路に効く。
+    // ⚠同居する【常】「自身のパワー10000につき一度まで」（`ATTACK_COUNT_BY_POWER`）が回数の上限。
+    //   そちらは**実効パワー**で数える（印刷パワーだと 15000＝1回に固定されてこの能力が死ぬ）。
     if (/^この(?:シグニ|カード)はダウン状態でもアタックできる$/.test(t.trim())) {
-      return { type: 'STUB', id: 'DEFERRED_ATTACK_WHILE_DOWN' } as StubAction;
+      return { type: 'STUB', id: 'ATTACK_WHILE_DOWN' } as StubAction;
     }
   }
 
