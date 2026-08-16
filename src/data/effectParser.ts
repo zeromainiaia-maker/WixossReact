@@ -13548,7 +13548,7 @@ function foldDeclaredNumberTopReveal(action: EffectAction, sourceText: string): 
 // ⚠「色を持つシグニ」と「色を持つカード」は候補集合が違う（前者だけ cardType を付ける）。
 // ⚠不一致時は公開しただけ＝そのカードはデッキの一番上に残る（remainder deck/top）。
 const DECLARED_COLOR_TOP_REVEAL_RE =
-  /(?:([白赤青緑黒](?:、[白赤青緑黒])+)から[１1]つを選ぶ|色[１1]つを宣言する)。あなたのデッキの一番上(?:のカード)?を公開し、それが(?:選んだ|宣言した)色を持つ(シグニ|カード)である?場合、それを(手札に加える|エナゾーンに置く)/;
+  /(?:([白赤青緑黒](?:、[白赤青緑黒])+)から[１1]つを選ぶ|色[１1]つを宣言する)。あなたのデッキの一番上(?:のカード)?を公開し、それが(?:選んだ|宣言した)色を持つ(シグニ|カード)(?:である|の)場合、それを(手札に加える|エナゾーンに置く)/;
 function foldDeclaredColorTopReveal(action: EffectAction, sourceText: string): EffectAction {
   const m = sourceText.match(DECLARED_COLOR_TOP_REVEAL_RE);
   if (!m) return action;
