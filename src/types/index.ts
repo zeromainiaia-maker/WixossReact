@@ -794,6 +794,20 @@ export interface PlayerState {
   banish_to_trash_by_self?: string[];
   // GROW_COST_ZERO / CONDITIONAL_FREE_GROW: 次のグロウコストを0にする
   free_grow_this_turn?: boolean;
+  /**
+   * このターンにセンタールリグがグロウしたか（§6.4 O-10・続き515・`WXDi-P16-001A`
+   * 「このターンにあなたのセンタールリグがグロウしていない場合」）。
+   * ⚠**書くのはグロウの2経路だけ**（人間 `executeGrow` ／ CPU グロウ）＝
+   *   片方に書き忘れると「CPU のターンだけ条件が通る」型の無言のズレになる。
+   */
+  lrig_grew_this_turn?: boolean;
+  /**
+   * 「チェックゾーンにあるこのカードを裏返し、…グロウコストを支払わずにグロウする」（`WXDi-P16-001A`）の
+   * **裏面 CardNum**。engine 側は条件判定と予約だけを行い、実際のグロウは BattleScreen が
+   * `executeGrow`（＝グロウの正規経路＝【出】トリガー・リミット再計算・コイン獲得を通る）で行う。
+   * ⚠**engine で直接 `field.lrig` へ push しないこと**＝グロウ時トリガーが丸ごと落ちる。
+   */
+  pending_flip_grow_card?: string;
   // THIS_CARD_FROM_TRASH: トラッシュから場に出したシグニのインスタンスID。直後の【出】効果で
   // 「このシグニがトラッシュから場に出た場合」条件の判定に使う（WX03-034）。ターン開始時にクリア。
   signi_played_from_trash?: string[];

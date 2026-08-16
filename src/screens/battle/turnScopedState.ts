@@ -75,6 +75,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   signi_left_field_this_attack_phase: { boundaries: ['attack-phase-start'], reset: [], reason: 'signi leave history starts fresh at attack-phase start' },
   // 無料グロウは次のグロウで消費し、使わなくても付与ターン終了で失効する。
   free_grow_this_turn: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'free-grow entitlement is consumed by grow or expires at turn end' },
+  // このターンにグロウしたか（§6.4 O-10 続き515）＝「このターンにグロウしていない場合」の判定材料。
+  lrig_grew_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'grow history for the current turn' },
   // リフレッシュ回数は新しいターンの開始時から数え直す。
   refresh_count_this_turn: { boundaries: ['turn-start'], reset: 0, reason: 'refresh count starts fresh at turn start' },
   // バニッシュされた枚数は、ターン単位のコスト軽減条件。

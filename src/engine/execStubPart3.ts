@@ -4682,6 +4682,34 @@ export function execStubPart3(
   // 「対戦相手はこのアタックフェイズの間、**無色のカードで**エナコストを支払えず」（`WXK07-001-E1` の引用【自】）。
   // ⚠**制限を受ける側（＝対戦相手）の state** に載せる＝支払い可否 funnel
   //   （`canAffordGrowCost` / `canAffordWithExtraCost` の `banColorlessPay`）が払う側の state から読む。
+  // CHECK_ZONE_FLIP_FREE_GROW（§6.4 O-10・続き515・`WXDi-P16-001A`）＝
+  // 「このターンにあなたのセンタールリグがグロウしていない場合、チェックゾーンにあるこのカードを裏返し、
+  //  あなたのセンタールリグはこの《扉の俯瞰者　ウトゥルス》にグロウコストを支払わずにグロウする。」
+  // 🔑**engine では条件判定と予約だけ**＝実際のグロウは BattleScreen が `executeGrow`（正規経路）で行う。
+  //   ここで `field.lrig` へ直接 push すると**グロウ時トリガー（【出】）・リミット再計算・コイン獲得が
+  //   丸ごと落ちる**（GROW_FREE が「BattleScreen 処理」なのと同じ理由）。
+  // ⚠裏面 CardNum は**ペイロードから読む**（原文の再パースをしない規約）。
+  if (stub.id === 'CHECK_ZONE_FLIP_FREE_GROW') {
+    if (ctx.ownerState.lrig_grew_this_turn) {
+      return done(addLog(ctx, 'このターンに既にグロウしているため何も起きない'));
+    }
+    // ⚠原文にあるのは**カード名**なので `cardMap` から CardNum を解決する（Type='ルリグ' で絞る）。
+    //   見つからなければ**何もしない**＝壊れたルリグへグロウさせない（過少側に倒す）。
+    const flipName = typeof stub.value === 'string' ? stub.value : undefined;
+    if (!flipName) return done(addLog(ctx, 'グロウ先（裏面）が指定されていない'));
+    const flipTo = [...ctx.cardMap.entries()]
+      .find(([, c]) => c.Type === 'ルリグ' && c.CardName === flipName)?.[0];
+    if (!flipTo) return done(addLog(ctx, `グロウ先《${flipName}》がカードデータに無い`));
+    // ⚠**このカード自身はルリグトラッシュに残さない**＝物理的には「裏返してルリグになる」ので、
+    //   ピース使用時にルリグトラッシュへ送られた自分自身を取り除く（残すとリコレクト等の枚数がずれる）。
+    const selfIdCZ = ctx.sourceCardNum;
+    const lrigTrashCZ = selfIdCZ
+      ? ctx.ownerState.lrig_trash.filter(n => n !== selfIdCZ)
+      : ctx.ownerState.lrig_trash;
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState, lrig_trash: lrigTrashCZ, pending_flip_grow_card: flipTo,
+    } }, `チェックゾーンのこのカードを裏返し、${flipName}へグロウする（コスト不要）`));
+  }
   if (stub.id === 'BLOCK_COLORLESS_ENERGY_PAY') {
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, cannot_pay_colorless_this_attack_phase: true } },
       '対戦相手はこのアタックフェイズの間、無色のカードでエナコストを支払えない'));

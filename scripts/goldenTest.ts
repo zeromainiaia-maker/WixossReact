@@ -4208,7 +4208,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   //          効果単位の自壊、power_minus_multipliers_this_turn ＝「代わりに３倍－される」を追加）
   // 29 → 30（§6.4 O-10 続き510 で own_effects_cannot_negate_signi_attack_this_turn を追加）
   // 30 → 31（§6.4 O-10 続き512 で cannot_pay_colorless_this_attack_phase を追加）
-  eq(convention.length, 31, 'PlayerState の命名規約由来フィールド数');
+  // 31 → 32（§6.4 O-10 続き515 で lrig_grew_this_turn を追加）
+  eq(convention.length, 32, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4223,7 +4224,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   eq(irregular.length, 22, '命名規約外のターン限定フィールド数');
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 53, '型由来31件＋命名規約外22件の母集団');
+  eq(registered.length, 54, '型由来32件＋命名規約外22件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -30264,6 +30265,40 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
 });
 
+test('§6.4 O-10（続き515）: チェックゾーン裏返し→無償グロウ（負方向＋対照の対）', () => {
+  // 🔑**旧・据置理由「B面が CardData CSV に無い」は古かった**＝`WXDi-P16-001B`（ルリグ Lv4）は
+  //   `CardData_TK.csv` に入っている。**前提は着手のたびに grep で確かめる。**
+  const bSide = cardMap.get('WXDi-P16-001B');
+  ok(!!bSide, 'B面がカードデータにある');
+  eq(bSide?.Type, 'ルリグ', 'B面はルリグ');
+  eq(bSide?.Level, '4', 'B面は Lv4');
+  // live 表現＝グロウ先は**カード名**で載る（CardNum は原文に無い）。
+  const act = (effectsMap.get('WXDi-P16-001A') ?? []).find(e => e.effectId === 'WXDi-P16-001A-E1')!.action as
+    { type: string; id?: string; value?: unknown };
+  eq(act.id, 'CHECK_ZONE_FLIP_FREE_GROW', 'defer は解体済み');
+  eq(act.value, bSide?.CardName, 'グロウ先はカード名で載る（engine が cardMap で解決）');
+  // 対照＝このターン未グロウなら予約が立つ。
+  const ctx = mkCtx({ lrig: ['WXDi-P16-001A'] }, {}, 'WXDi-P16-001A');
+  ctx.ownerState.lrig_trash = ['WXDi-P16-001A'];
+  const ok1 = run(act as unknown as EffectAction, ctx);
+  eq(ok1.ownerState.pending_flip_grow_card, 'WXDi-P16-001B', 'グロウ予約が立つ（CardNum へ解決済み）');
+  ok(!ok1.ownerState.lrig_trash.includes('WXDi-P16-001A'),
+     '⚠裏返して**ルリグになる**ので、自分自身はルリグトラッシュに残さない');
+  // 🔴負方向＝このターン既にグロウしていれば何も起きない。
+  const grown = { ...ctx, ownerState: { ...ctx.ownerState, lrig_grew_this_turn: true } } as ExecCtx;
+  eq(run(act as unknown as EffectAction, grown).ownerState.pending_flip_grow_card, undefined,
+     '🔴このターン既にグロウしていたら予約が立たない');
+  // グロウ履歴はターン境界で消える＝次のターンにはまた使える。
+  eq(clearTurnEndScopedState(grown.ownerState as PlayerState).lrig_grew_this_turn, undefined, 'ターン境界で消える');
+  // ⚠**実グロウは BattleScreen の正規経路**（engine が field.lrig へ直接 push しない＝
+  //    グロウ時トリガー・リミット再計算・コイン獲得を落とさない）。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/pending_flip_grow_card/.test(src), 'BattleScreen が予約を消費する');
+  ok(/lrig_grew_this_turn: true/.test(src), 'グロウ履歴を立てる地点がある');
+  eq((src.match(/lrig_grew_this_turn: true/g) ?? []).length, 2,
+     '🔴グロウは人間・CPU の2経路＝両方で履歴を立てる（片方だけだと CPU ターンだけ条件が通る）');
+});
+
 test('§6.4 O-10（続き514）: 相手トラッシュの「能力を失い、効果を受けない」（負方向＋対照の対）', () => {
   // 🔑据置理由「相手トラッシュに触る全効果に及ぶ」は**古かった**＝トラッシュを発生源にする候補列は
   //   `movableTrashCandidates` の**1点 funnel**（8呼び出しが全部そこを通る）。
@@ -33633,21 +33668,15 @@ test('続き388 群C WXDi-P15-003: ACTIVATED効果が無く、condition追加は
     'ACTIVATEDが無い現行経路では使用条件を評価できない');
 });
 
-test('続き388 群D WXDi-P16-001A-E1: DEFERRED_CHECK_ZONE_FLIP_FREE_GROW は宣言STUBで盤面不変', () => {
+test('続き388 群D WXDi-P16-001A-E1: チェックゾーン裏返し→無償グロウ（§6.4 O-10 続き515 で実装）', () => {
+  // 旧アサートは「defer STUB で盤面不変」を固定していた＝**実装したら必ず赤くなる意図的なトリップワイヤ**。
   const effect = batch387Effect('WXDi-P16-001A');
-  eq(effect.parseStatus, 'AUTO', 'UNKNOWN計器から宣言STUBへ');
+  eq(effect.parseStatus, 'AUTO', 'UNKNOWN計器から実装済み宣言へ');
   eq(effect.action.type, 'STUB', 'action type');
-  eq((effect.action as StubAction).id, 'DEFERRED_CHECK_ZONE_FLIP_FREE_GROW', '専用id');
-  const executorSources = ['execStub.ts', 'execStubPart1.ts', 'execStubPart2.ts', 'execStubPart3.ts']
-    .map(file => fs.readFileSync(join(root, 'src', 'engine', file), 'utf8')).join('\n');
-  ok(!executorSources.includes('DEFERRED_CHECK_ZONE_FLIP_FREE_GROW'), 'engine実働分岐を持たない');
-  const ctx = mkCtx({ lrig: [batch387CenterByColor.白] }, {}, 'WXDi-P16-001A');
-  const beforeOwner = JSON.stringify(ctx.ownerState);
-  const beforeOther = JSON.stringify(ctx.otherState);
-  const result = finish(executeEffect(effect, ctx), ctx);
-  eq(JSON.stringify(result.ownerState), beforeOwner, 'owner盤面不変');
-  eq(JSON.stringify(result.otherState), beforeOther, 'opponent盤面不変');
-  ok(result.logs.some(log => log.includes('[STUB: DEFERRED_CHECK_ZONE_FLIP_FREE_GROW]')), 'ログだけを残す');
+  eq((effect.action as StubAction).id, 'CHECK_ZONE_FLIP_FREE_GROW', '専用id');
+  eq((effect.action as StubAction).value, cardMap.get('WXDi-P16-001B')?.CardName, 'グロウ先はカード名で載る');
+  // ⚠使用条件（【ドリームチーム】白か黒のルリグを1体以上）は `condition` に残っていること。
+  eq(effect.condition?.type, 'HAS_CARD_IN_FIELD', '使用条件が落ちていない');
 });
 
 // ── 続き389：【チーム】＜X＞＆全員レベル1以上の印刷済み使用条件 ──

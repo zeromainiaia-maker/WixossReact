@@ -6281,6 +6281,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...growBase,
         lrig_deck: newLrigDeck,
         field: { ...growBase.field, lrig: [...growBase.field.lrig, instanceId] },
+        // §6.4 O-10（続き515）＝「このターンにあなたのセンタールリグがグロウしていない場合」の判定材料。
+        lrig_grew_this_turn: true,
         trash: [...growBase.trash, ...paidNums],
         actions_done: consumeGrowAction ? [...(growBase.actions_done ?? []), 'GROW'] : (growBase.actions_done ?? []),
         coins: Math.min(5, Math.max(0, growBase.coins - growCoinCost) + coinGain),
@@ -6802,6 +6804,33 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       setLoading(false);
     }
   };
+
+  /**
+   * §6.4 O-10（続き515）＝`CHECK_ZONE_FLIP_FREE_GROW` の予約（`pending_flip_grow_card`）を消費して
+   * **正規のグロウ経路**（`executeGrow`）でグロウする。
+   *
+   * 🔑engine 側で `field.lrig` へ直接 push すると、グロウ時トリガー（【出】）・リミット再計算・
+   * コイン獲得が**丸ごと落ちる**（`GROW_FREE` が「BattleScreen 処理」なのと同じ理由）。
+   * ⚠**多重発火ガード**＝予約は commit が返るまで state に残るので、同じ対象で2回走らないよう ref で締める。
+   * ⚠`freeCost:true`／`consumeGrowAction:false`＝「グロウコストを支払わずに」かつ通常グロウ枠を消費しない。
+   */
+  const flipGrowRef = useRef<string | null>(null);
+  useEffect(() => {
+    const target = my.pending_flip_grow_card;
+    if (!target) { flipGrowRef.current = null; return; }
+    if (!bs || bs.global_phase !== 'PLAYING' || !isMyTurn || loading) return;
+    if (flipGrowRef.current === target) return;
+    const card = battleCardMap.get(target);
+    if (!card) return;                 // カードデータが無ければ何もしない（壊れたルリグを作らない）
+    flipGrowRef.current = target;
+    void executeGrow(card, new Set(), {
+      baseState: { ...my, pending_flip_grow_card: undefined },
+      freeCost: true,
+      consumeGrowAction: false,
+      instanceId: target,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [my.pending_flip_grow_card, isMyTurn, loading, bs?.global_phase]);
 
   // ── キーピース起動効果 ──
   const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set()) => {
@@ -10358,6 +10387,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             energy: newEnergy,
             lrig_deck: newLrigDeck,
             field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growTargetId] },
+            lrig_grew_this_turn: true,   // §6.4 O-10（続き515）＝人間 executeGrow と同じ軸を CPU でも立てる
             actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
             coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
             coins_paid_this_turn: (cpuSt.coins_paid_this_turn ?? 0) + growCoinCostCpu, // COINS_PAID_THIS_TURN

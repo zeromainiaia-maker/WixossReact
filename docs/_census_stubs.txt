@@ -2,14 +2,14 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 597（総ノード 2883 件）
-逆翻訳シートの [STUB:…] 総数: 764  うち生ID露出 269 箇所（185 種）
+逆翻訳シートの [STUB:…] 総数: 765  うち生ID露出 270 箇所（186 種）
 
 ■ 仕分け結果
-  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 3 種 / 3 件
-      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 3 種 / 3 件
+  A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 2 種 / 2 件
+      └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 2 種 / 2 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 25 種 / 75 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 181 種 / 265 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 182 種 / 266 箇所
   D 健全（実装あり＋日本語表示）                          : 413 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 335 種
 
@@ -20,9 +20,6 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
 -- 無言の no-op（要対応）--
 
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
-     1件   1枚  DEFERRED_CHECK_ZONE_FLIP_FREE_GROW
-        カード: WXDi-P16-001A
-        生成: src\data\parsers\parseSentencePart1.ts:3346
      1件   1枚  DEFERRED_COUNTER_TEAM_PIECE_CUTIN  [生ID露出 1]
         カード: WXDi-P05-006
         生成: src\data\manualEffects.ts:4894
@@ -97,7 +94,7 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
         消費: src\engine\effectExecutor.ts:4029
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1014 / src\screens\BattleScreen.tsx:10313
+        消費: src\screens\BattleScreen.tsx:1014 / src\screens\BattleScreen.tsx:10342
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
         カード: WX12-023
         消費: src\engine\execUtils.ts:1364
@@ -287,7 +284,6 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
         既存コメント: BATTLE_LEAVE_REPLACE_WITH_EXILE: 場を離れる代わりにゲームから除外（≈トラッシュ近似・WXK05-024・BattleScreen側処理）
   露出  1箇所 (live 1件/1枚)  BLOCK_COLORLESS_ENERGY_PAY  [execStubPart3]
         カード: WXK07-001
-        既存コメント: SELF_SIGNI_ATTACK_NEGATE_IMMUNITY（§6.4 O-10・続き510）＝ 「このターン、あなたの効果によってシグニのアタックは無効にならない」（`WX24-P4-016-E3`）。 ⚠**利
   露出  1箇所 (live 1件/1枚)  BLOCK_OPP_ARTS_SPELL_ACT  [execStubPart3]
         カード: WX25-P1-050
         既存コメント: BLOCK_OPP_ARTS_SPELL_ACT: このターン対戦相手はアーツ・スペル・起動能力を使用できない
@@ -312,6 +308,9 @@ live JSON の STUB id 種類 : 597（総ノード 2883 件）
   露出  1箇所 (live 1件/1枚)  CHANGE_SIGNI_COLOR  [execStubPart3]
         カード: WX25-P3-111
         既存コメント: CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）
+  露出  1箇所 (live 1件/1枚)  CHECK_ZONE_FLIP_FREE_GROW  [execStubPart3]
+        カード: WXDi-P16-001A
+        既存コメント: SELF_SIGNI_ATTACK_NEGATE_IMMUNITY（§6.4 O-10・続き510）＝ 「このターン、あなたの効果によってシグニのアタックは無効にならない」（`WX24-P4-016-E3`）。 ⚠**利
   露出  1箇所 (live 1件/1枚)  CHOSEN_TO_ENERGY_OR_HAND  [execStubPart2]
         カード: WX22-050
         既存コメント: CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加

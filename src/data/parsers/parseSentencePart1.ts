@@ -3338,12 +3338,16 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'STUB', id: 'ASSIST_LRIG_ATTACK_THIS_TURN', minLevel: parseNum(assistAttackM[1]) } as StubAction;
   }
 
-  // チェックゾーンのピースを裏返して無償グロウする機構は未実装＝**明示 defer**（`DEFERRED_*`・続き427）。
-  // ⚠止まっているのは機構ではなく**データ**＝グロウ先の B面 `WXDi-P16-001B` が CardData CSV に無く、
-  //   Level/Power/Type を持たない壊れたルリグへグロウしてしまう（live effects JSON には
-  //   `WXDi-P16-001B-E1/E2` があるが `cardMap` に載らないので到達不能）。CSV に B面が入るまで着手しない。
-  if (/^このターンにあなたのセンタールリグがグロウしていない場合、チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《[^》]+》にグロウコストを支払わずにグロウする$/.test(t)) {
-    return { type: 'STUB', id: 'DEFERRED_CHECK_ZONE_FLIP_FREE_GROW' } as StubAction;
+  // チェックゾーンのピースを裏返して無償グロウする（`WXDi-P16-001A`・§6.4 O-10 続き515 で defer 解体）。
+  // 🔑**旧・据置理由「B面が CardData CSV に無い」は古かった**＝`WXDi-P16-001B`（ルリグ Lv4）は
+  //   `CardData_TK.csv` に入っている。前提は着手のたびに grep で確かめる。
+  // ⚠**グロウ先はカード名で載せる**（CardNum は原文に無い）＝engine 側が `cardMap` から
+  //   Type='ルリグ' で解決する。engine で原文を再パースしない規約は守れている。
+  {
+    const flipGrowM = t.match(/^このターンにあなたのセンタールリグがグロウしていない場合、チェックゾーンにあるこのカードを裏返し、あなたのセンタールリグはこの《([^》]+)》にグロウコストを支払わずにグロウする$/);
+    if (flipGrowM) {
+      return { type: 'STUB', id: 'CHECK_ZONE_FLIP_FREE_GROW', value: flipGrowM[1] } as StubAction;
+    }
   }
 
   // ---- ドロー後、このアーツ/カードをルリグデッキに戻す ----
