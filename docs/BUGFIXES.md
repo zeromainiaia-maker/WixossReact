@@ -1,5 +1,68 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-16（続き519・Opus 5）— §6.4 **O-11＝計器（`verifyEffects` アクション照合）の較正と仕分け**
+
+**過剰報告する計器は無いより悪い**（続き407/408 の教訓）の実例を1本潰した。
+コード変更は `scripts/verifyEffects.ts` **のみ**（engine / parser / live JSON / CSV は非改変）。
+ゲート全緑（golden・census 823 据置・smoke 10688 / SKIP 0・fuzz 全0・census:stubs A群 0種/0件・lint 0 errors）。
+
+### 在庫は簿記の「8件」ではなく **135件**だった
+`verifyEffects.ts` は `--sheet` の**既定が `Sheet1`**。簿記の8件はその1シートぶんで、
+**全10シートでは 135件**（[STUB代替?] 78／[要確認] 57）。§3-1「着手前に在庫を実測」がまた効いた。
+
+### 🔴 根本原因＝**幻の型名**が照合表に混ざっていた
+`ACTION_KEYWORDS` の「エナゾーンに置く」の別名筆頭 `MOVE_TO_ENERGY` は
+**`src/types/effects.ts` の union にも live JSON にも存在しない**。しかも
+**実型名 `SEND_TO_ENERGY`（live 77件）が別名表から丸ごと漏れていた**ため、
+「エナゾーンに置く」系の報告は**構造的に全件誤検出**だった（`DISCARD`／`CRASH_LIFE` も同種の幻だが、
+実型名 `TRASH`／`LIFE_CRASH` が同居していたので実害は表示文言だけ）。
+
+🔑**再発防止＝起動時の較正チェックを常設した。**
+`ACTION_KEYWORDS`／`STUB_EQUIVALENTS` に書いた型名を **型宣言 ∪ live JSON の実出現**と突き合わせ、
+実在しない名前を 🔴 で列挙する。計器だけの概念名は `CONCEPT_LABELS` に登録して明示除外する
+（現在は `HAND_DISCARD`＝実装は `TRASH{target:HAND_CARD}` の1つだけ）。
+**この検査が無かったから幻の型名が誰にも気付かれず残り続けた。**
+
+### そのほかの規則修正（135 → 43）
+1. **枚数が盤面/レベル依存の同義形**を別名へ（`DRAW_PER_FIELD_COUNT`／`DRAW_PER_LRIG_LEVEL`／
+   `ENERGY_CHARGE_PER_LRIG_LEVEL`／`ENERGY_CHARGE_FROM_DECK_PER_FIELD_COUNT` ほか）。
+2. ⚠**「行き先をパラメータに持つ型」は型名だけでは当てられない**＝`LOOK_PICK_CHAIN`（`stages[].then`／
+   `remainder.location`）と `REVEAL_AND_PICK`（`remainder.location`／`handOrEnergy`／`handOrField`）は
+   **エナ置き・ミル・手札加え・場出しを型名で区別しない**。行き先から派生アクション `~NAME` を導く。
+3. ⚠**任意コスト STUB の「実際に払うもの」はペイロードのキーで決まる**（`resolveOptionalCostSpec`）。
+   id 単位で `STUB_EQUIVALENTS` に登録すると**ペイロードが空＝何も払わない個体まで実装済みに見える**ので、
+   キー単位（`handDiscard`／`handToEnergy`／`deckTrash`…）で派生させた。
+   結果として**ペイロード空の `OPTIONAL_COST` は正しく穴として報告される**ようになった（下記の新発見）。
+4. **STUB のペイロードが本体アクションそのものを持つ形**（`PER_OWN_LRIG_COLOR_SCALE.scaleAction` 等）へ
+   allowlist つきの深い走査を追加。
+5. **ハンドラ本文を読んで実挙動を確認した 13 id** を `STUB_EQUIVALENTS` へ登録（名前で推測しない）。
+6. ⚠**「このアーツ/スペルを使用する際、〜捨てる」＝使用コストの宣言節**を本体から除去。
+   徴収は使用の支払い funnel が行い、action 側は `ARTS_COST_REDUCTION_BY_EFFECT`＝
+   **「コストは支払い時点で計算済み」の no-op**（`execStubPart1.ts:772`）なので必ず鳴っていた。
+   アンコールコスト（既存の `stripEncoreCost`）と同じ扱いに揃えた。
+7. `REPLACE_NEXT_DAMAGE_WITH_MILL` を MILL の別名へ。
+
+### 🔴 残った43件（41カード）は**すべて実際の実装穴**（仕分け済み・worklist 化）
+⚠**`census:stubs` A群（0種/0件）にも `census`（823）にも映らない層**＝
+「ハンドラは在るが**別のことをしている**／原文の節が丸ごと落ちている」型。代表例：
+- `WXDi-P12-002`＝原文「対戦相手の**すべてのシグニをバニッシュ**し」が丸ごと落ちている。
+- `WX21-006`＝バニッシュ＋エナ置きに加え**条件そのもの**が落ち、**無条件で1ドロー**になっている。
+- `WX11-080`＝原文「それを**エナゾーンに置く**」なのに**手札に加えている**（行き先の取り違え）。
+- `PR-328`＝2択が丸ごと落ち、**原文に無い `DRAW`** になっている（幻覚）。
+- `WDA-F02-07`＝`STUB{id:'TRASH'}` が `lastProcessedCards` 不在時に**アーツ自身をトラッシュする**。
+- `WX24-P2-026`＝「手札をすべて**エナゾーンに置く**」が `MASS_TRASH`。同居する
+  `GUARD_ALTERNATIVE_COST` は**ログ1行だけのハンドラ**（続き459 の教訓そのもの）。
+
+### 🆕 隣接で見つけた新しい母集団＝**ペイロードが空の `OPTIONAL_COST` 67効果**
+`OPTIONAL_COST` は live 606件のうち **67件がペイロード空**＝`resolveOptionalCostSpec` が空 spec を返し、
+**「支払う」を選んでも何も払わないまま後続の本体だけが走る**（コストの踏み倒し）。
+⚠ただし全部が誤りとは限らない（【常】の置換コスト等・近似として置いた個体を含む）ので、
+**着手時に67件を仕分けること**。⚠「手札から好きな枚数捨てる」＝**可変枚数**は現行ペイロード（固定 `count`）
+では表せない＝**機構が要る**。全リストは PLAN_DETAIL「2026-08-16 整理㉑」。
+
+**全明細（較正の内訳・43件の分類・67効果のリスト・再現手順）は
+[PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-16 整理㉑」。**
+
 ## 2026-08-16（続き518・Opus 5）— §6.4 **O-10 クローズ**＝`census:stubs` A群が **0種/0件**
 
 最後の1件 `WXDi-P05-006`（ピース使用への**カットイン応答窓**）を実装し、
