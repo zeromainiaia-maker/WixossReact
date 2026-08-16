@@ -2901,50 +2901,6 @@ export function execStubPart2(
     return done(addLog({ ...ctx, ownerState: newOwnerPT, lastProcessedCards: [cardPT], trapSetOwners: [...(ctx.trapSetOwners ?? []), 'self'] },
       `${ctx.cardMap.get(getCardNum(cardPT))?.CardName ?? cardPT}を【トラップ】としてゾーン${zonePT + 1}に設置`));
   }
-  // INTERNAL_ASK_ACCE_HOST / INTERNAL_ATTACH_ACCE_TO_HOST（§6.4 O-11・2026-08-16）＝
-  // 「あなたのデッキから〈X〉のシグニ1枚を探して**それの【アクセ】にし**、デッキをシャッフルする」。
-  // ⚠既存の `ATTACH_ACCE` は**アクセ元がエナ／手札のときしか**カードを抜けない
-  //   （`applyDirectAction` が `energy`／`hand` からしか除去せず、デッキ由来だと
-  //    「エナ/手札にない」で不発＝**デッキに残ったままアクセにも現れる複製**を避けるためのガード）。
-  //   そこで【トラップ】設置（`INTERNAL_ASK_TRAP_ZONE`）と同じ形で、**デッキから抜く専用の経路**を置く。
-  // 🔑ホスト選択は1枚ずつ。複数枚ピック時は `resumeSearch` が枚数ぶん展開する。
-  if (stub.id === 'INTERNAL_ASK_ACCE_HOST') {
-    const cardAAH = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? null);
-    if (!cardAAH) return done(addLog(ctx, 'アクセ設置：対象カードなし'));
-    const isOwnerTurnAAH = ctx.isOwnerTurn ?? true;
-    const hostsAAH = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
-      const top = stack?.at(-1);
-      if (!top) return [];
-      if (!canAttachAcceToHost(ctx.ownerState, ctx.otherState, top, i, ctx, isOwnerTurnAAH)) return [];
-      if (stub.acceHostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(top)), stub.acceHostFilter)) return [];
-      return [top];
-    });
-    if (hostsAAH.length === 0) return done(addLog(ctx, 'アクセできるシグニがいない'));
-    return needsInteraction(
-      addLog(ctx, `${ctx.cardMap.get(getCardNum(cardAAH))?.CardName ?? cardAAH}をどのシグニの【アクセ】にしますか？`), {
-        type: 'SELECT_TARGET', candidates: hostsAAH, count: 1, optional: false, targetScope: 'self_field',
-        thenAction: { type: 'STUB', id: 'INTERNAL_ATTACH_ACCE_TO_HOST', value: cardAAH } as StubAction as EffectAction,
-      });
-  }
-  if (stub.id === 'INTERNAL_ATTACH_ACCE_TO_HOST') {
-    const acceATH = typeof stub.value === 'string' ? stub.value : null;
-    const hostATH = ctx.lastProcessedCards?.[0];
-    if (!acceATH || !hostATH) return done(addLog(ctx, 'アクセ設置：対象が確定していない'));
-    const zoneATH = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === hostATH);
-    if (zoneATH < 0) return done(addLog(ctx, 'アクセ設置：ホストが場にいない'));
-    const acceSlotsATH = cloneAcceSlots(ctx.ownerState.field);
-    acceSlotsATH[zoneATH] = [...(acceSlotsATH[zoneATH] ?? []), acceATH];
-    const newOwnerATH: PlayerState = {
-      ...ctx.ownerState,
-      // 元ゾーン（デッキ／手札／エナ）から抜く。どこにも無ければ何も抜かない（冪等）。
-      deck: ctx.ownerState.deck.filter(c => c !== acceATH),
-      hand: ctx.ownerState.hand.filter(c => c !== acceATH),
-      energy: ctx.ownerState.energy.filter(c => c !== acceATH),
-      field: { ...ctx.ownerState.field, signi_acce: acceSlotsATH },
-    };
-    return done(addLog({ ...ctx, ownerState: newOwnerATH, lastProcessedCards: [acceATH] },
-      `${ctx.cardMap.get(getCardNum(acceATH))?.CardName ?? acceATH}を${ctx.cardMap.get(getCardNum(hostATH))?.CardName ?? hostATH}の【アクセ】にした`));
-  }
   // INTERNAL_SET_TRAP: ゾーン番号をstub.valueで受け取りトラップ設置
   if (stub.id === 'INTERNAL_SET_TRAP') {
     const zoneIdxIST = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));

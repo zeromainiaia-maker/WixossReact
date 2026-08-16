@@ -55,6 +55,50 @@ export function execStubPart3(
       `${ctx.cardMap.get(picked)?.CardName ?? picked}を${ctx.cardMap.get(host)?.CardName ?? host}にアクセ`,
     ));
   }
+  // INTERNAL_ASK_ACCE_HOST / INTERNAL_ATTACH_ACCE_TO_HOST（§6.4 O-11・2026-08-16）＝
+  // 「あなたのデッキから〈X〉のシグニ1枚を探して**それの【アクセ】にし**、デッキをシャッフルする」。
+  // ⚠既存の `ATTACH_ACCE` は**アクセ元がエナ／手札のときしか**カードを抜けない（`applyDirectAction` が
+  //   `energy`／`hand` からしか除去せず、デッキ由来だと「エナ/手札にない」で不発になる）。
+  //   上の `INTERNAL_ACCE_PICKED_TO_SELF` は付け先が**効果元自身に固定**なので、
+  //   「あなたの＜X＞のシグニ1体を対象とし〜それの【アクセ】にし」には使えない＝ホストを選ぶ版を置く。
+  // 🔑ホスト選択は1枚ずつ。複数枚ピック時は `resumeSearch` が枚数ぶん展開する（【トラップ】設置と同じ形）。
+  if (stub.id === 'INTERNAL_ASK_ACCE_HOST') {
+    const cardAAH = typeof stub.value === 'string' ? stub.value : (ctx.lastProcessedCards?.[0] ?? null);
+    if (!cardAAH) return done(addLog(ctx, 'アクセ設置：対象カードなし'));
+    const hostsAAH = (ctx.ownerState.field.signi ?? []).flatMap((stack, i) => {
+      const top = stack?.at(-1);
+      if (!top) return [];
+      if (!canAttachSelf(top, i)) return [];
+      if (stub.acceHostFilter && !matchesFilter(ctx.cardMap.get(getCardNum(top)), stub.acceHostFilter)) return [];
+      return [top];
+    });
+    if (hostsAAH.length === 0) return done(addLog(ctx, 'アクセできるシグニがいない'));
+    return needsInteraction(
+      addLog(ctx, `${ctx.cardMap.get(getCardNum(cardAAH))?.CardName ?? cardAAH}をどのシグニの【アクセ】にしますか？`), {
+        type: 'SELECT_TARGET', candidates: hostsAAH, count: 1, optional: false, targetScope: 'self_field',
+        thenAction: { type: 'STUB', id: 'INTERNAL_ATTACH_ACCE_TO_HOST', value: cardAAH } as StubAction as EffectAction,
+      });
+  }
+  if (stub.id === 'INTERNAL_ATTACH_ACCE_TO_HOST') {
+    const acceATH = typeof stub.value === 'string' ? stub.value : null;
+    const hostATH = ctx.lastProcessedCards?.[0];
+    if (!acceATH || !hostATH) return done(addLog(ctx, 'アクセ設置：対象が確定していない'));
+    const zoneATH = ctx.ownerState.field.signi.findIndex(s => s?.at(-1) === hostATH);
+    if (zoneATH < 0) return done(addLog(ctx, 'アクセ設置：ホストが場にいない'));
+    const acceSlotsATH = cloneAcceSlots(ctx.ownerState.field);
+    acceSlotsATH[zoneATH] = [...acceCardsAt(ctx.ownerState.field, zoneATH), acceATH];
+    const newOwnerATH: PlayerState = {
+      ...ctx.ownerState,
+      // 元ゾーン（デッキ／手札／エナ）から抜く。どこにも無ければ何も抜かない（冪等）。
+      deck: ctx.ownerState.deck.filter(c => c !== acceATH),
+      hand: ctx.ownerState.hand.filter(c => c !== acceATH),
+      energy: ctx.ownerState.energy.filter(c => c !== acceATH),
+      field: { ...ctx.ownerState.field, signi_acce: acceSlotsATH },
+      acce_just_done: hostATH,
+    };
+    return done(addLog({ ...ctx, ownerState: newOwnerATH, lastProcessedCards: [acceATH] },
+      `${ctx.cardMap.get(getCardNum(acceATH))?.CardName ?? acceATH}を${ctx.cardMap.get(getCardNum(hostATH))?.CardName ?? hostATH}の【アクセ】にした`));
+  }
   if (stub.id === 'INTERNAL_RIDE_ON_APPLY') {
     const rideCandIROA = [0, 1, 2].flatMap(zi => {
       const top = ctx.ownerState.field.signi[zi]?.at(-1);
