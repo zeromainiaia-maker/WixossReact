@@ -1043,9 +1043,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const myS = localIsHost ? bs.host_state : bs.guest_state;
     const opS = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
-    return calcContinuousBlockedActions(myS, opS, myTurn, effectsMap, battleCardMap);
+    // ⚠実効パワーを渡す（§6.4 O-10）＝`ATTACK_COUNT_BY_POWER`（「自身のパワー10000につき一度まで」）が
+    //   印刷パワーで数えると、バフを受けても回数が増えない。gate 側も同じ値を見る。
+    return calcContinuousBlockedActions(myS, opS, myTurn, effectsMap, battleCardMap, effectivePowers);
 
-  }, [bs, effectsMap, battleCardMap, user.id]);
+  }, [bs, effectsMap, battleCardMap, user.id, effectivePowers]);
 
   // DEPLOY_RESTRICT（CONTINUOUS 版・WX07-006 レゾナ等）の配置数上限を ExecCtx へ載せる。
   // ⚠**ExecCtx を作るところでは必ずこれを呼ぶこと**＝`ctx.effectsMap` はスタック解決の1経路でしか
