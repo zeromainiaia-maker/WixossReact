@@ -204,10 +204,15 @@ function declaredContinuousEffects(
   cardMap: Map<string, import('../types').CardData>,
 ): CardEffect[] {
   const base = getCardNum(cardNum);
+  // ⚠付与ストアのキーは**書き手が instance 付きの CardNum を使う**ことがある（`GRANT_EFFECT` の
+  //   `geGranted[cardNum]`）。base だけで引くと、instance を持つ個体への付与が黙って読めない。
+  const grantKeys = base === cardNum ? [base] : [cardNum, base];
   return [
     ...(cardMap.get(base)?.effects ?? []),
-    ...(state.granted_effects?.[base] ?? []),
-    ...(state.granted_effects_until_opp_turn?.[base] ?? []),
+    ...grantKeys.flatMap(k => [
+      ...(state.granted_effects?.[k] ?? []),
+      ...(state.granted_effects_until_opp_turn?.[k] ?? []),
+    ]),
   ];
 }
 
