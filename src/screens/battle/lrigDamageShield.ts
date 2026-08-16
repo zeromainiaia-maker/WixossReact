@@ -58,6 +58,8 @@ export function resolveLrigDamageShield(args: {
       if (eff.action.type !== 'STUB') continue;
       const id = (eff.action as StubAction).id;
       if (id !== 'PREVENT_LRIG_DAMAGE' && id !== 'PREVENT_LOW_LEVEL_LRIG_DAMAGE') continue;
+      // §6.4 O-10: 「1回防いだらこの能力を失う」宣言は、そのターン既に使っていたら**もう防がない**。
+      if ((eff.action as StubAction).loseAbilityAfterUse && lostThisTurn.includes(eff.effectId)) continue;
       // ⚠防御側は常に非ターンプレイヤー（ルリグアタックは相手のターン中）＝`isOwnerTurn=false`。
       if (!checkActiveCondition(eff.activeCondition, defender, attacker, false, cardMap, num)) continue;
       if (id === 'PREVENT_LOW_LEVEL_LRIG_DAMAGE') {
@@ -66,10 +68,13 @@ export function resolveLrigDamageShield(args: {
           ? (eff.action as StubAction).value as number : undefined;
         if (maxLevel === undefined || isNaN(attackerLevel) || attackerLevel > maxLevel) continue;
       }
-      return true;
+      return {
+        prevented: true,
+        ...((eff.action as StubAction).loseAbilityAfterUse ? { loseEffectId: eff.effectId } : {}),
+      };
     }
   }
-  return false;
+  return { prevented: false };
 }
 
 /** 【常】の宣言元になりうる自分の場のカード（シグニ／センタールリグ／アシスト／キー）。 */
