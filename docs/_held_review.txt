@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［52枚］
-PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P4-052 WX25-CP1-080 WX25-P1-053 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［50枚］
+PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-059 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -164,37 +164,6 @@ WXEX2-09 WXK08-048
   ~ [0].action.type : "STUB" → "UNKNOWN"
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
-
-## +ENERGY_CARD ［2枚］
-WX25-P2-090 WX25-P2-093
---- WX25-P2-090
-  原文: 【自】：このシグニがアタックしたとき、そのアタック終了時、あなたのエナゾーンからレベル１の＜遊具＞のシグニ１枚を対象とし、場にあるこのシグニをエナゾーンに置いてもよい。そうした場合、それをダウン状態で場に出す。それの【出】能力は発動しない。,-
-  ~ [0].timing[0] : "ON_ATTACK_SIGNI" → "ON_ATTACK_END"
-  ~ [0].action.steps[0].id : "LRIG_UNDER_CARD_OP" → "OPTIONAL_COST"
-  + [0].action.steps[0].selfToEnergy = true
-  + [0].action.steps[0].costText = "場にあるこのシグニをエナゾーンに置いてもよい"
-  + [0].action.steps[1].then.source.type = "ENERGY_CARD"
-  + [0].action.steps[1].then.source.owner = "self"
-  + [0].action.steps[1].then.source.count = 1
-  + [0].action.steps[1].then.source.upToCount = false
-  + [0].action.steps[1].then.source.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.source.filter.level = 1
-  + [0].action.steps[1].then.source.filter.story = "遊具"
-  + [0].action.steps[1].then.asDown = true
---- WX25-P2-093
-  原文: 【自】：このシグニがアタックしたとき、そのアタック終了時、あなたのエナゾーンからレベル２以下の＜遊具＞のシグニ１枚を対象とし、場にあるこのシグニをエナゾーンに置いてもよい。そうした場合、それをダウン状態で場に出す。それの【出】能力は発動しない。,-
-  ~ [0].timing[0] : "ON_ATTACK_SIGNI" → "ON_ATTACK_END"
-  ~ [0].action.steps[0].id : "LRIG_UNDER_CARD_OP" → "OPTIONAL_COST"
-  + [0].action.steps[0].selfToEnergy = true
-  + [0].action.steps[0].costText = "場にあるこのシグニをエナゾーンに置いてもよい"
-  + [0].action.steps[1].then.source.type = "ENERGY_CARD"
-  + [0].action.steps[1].then.source.owner = "self"
-  + [0].action.steps[1].then.source.count = 1
-  + [0].action.steps[1].then.source.upToCount = false
-  + [0].action.steps[1].then.source.filter.cardType = "シグニ"
-  + [0].action.steps[1].then.source.filter.level.max = 2
-  + [0].action.steps[1].then.source.filter.story = "遊具"
-  + [0].action.steps[1].then.asDown = true
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -535,24 +504,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## +CONDITIONAL +ENERGY_CARD +HAS_CARD_IN_FIELD ［1枚］
-WX25-P2-058
---- WX25-P2-058
-  原文: 【自】：このシグニがアタックしたとき、そのアタック終了時、あなたの場に《アイヤイ★クイーン》がいる場合、あなたのエナゾーンからレベル２以下の＜遊具＞のシグニ１枚を対象とし、《緑》《緑》《無》を支払ってもよい。そうした場合、それと場にあるこのシグニの場所を入れ替える。それの【出】能力は発動しない。【出】：あなたの手札から＜遊具＞のシグニを２枚までエナゾーンに置
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "緑"
-  - [0].action.steps[0].costColors[1] = "緑"
-  - [0].action.steps[0].costColors[2] = "無"
-  ~ [0].timing[0] : "ON_ATTACK_SIGNI" → "ON_ATTACK_END"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardName = "アイヤイ★クイーン"
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "OPTIONAL_COST"
-  + [0].action.steps[0].then.costColors[0] = "緑"
-  …（他 13 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
