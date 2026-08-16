@@ -114,43 +114,6 @@ WDK06-C08 WX25-P3-105 WXDi-P01-044
   - [1].action.steps[1].condition.value = 20
   …（他 24 行）
 
-## +SIGNI_ATTACK_BAN -BLOCK_ACTION -SIGNI ［3枚］
-WX24-P1-038 WX25-CP1-050 WXDi-P03-027
---- WX24-P1-038
-  原文: 【出】：【エナチャージ２】をする。その後、あなたのエナゾーンからカードを２枚まで対象とし、それらを手札に加える。【出】：次の対戦相手のターン終了時まで、このルリグは「【常】：対戦相手は中央のシグニゾーンにあるシグニでアタックできない。」を得る。,-
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "any"
-  - [1].action.target.count = 1
-  - [1].action.actionId = "ATTACK"
-  - [1].action.until = "END_OF_TURN"
-  ~ [1].action.type : "BLOCK_ACTION" → "SIGNI_ATTACK_BAN"
-  + [1].action.owner = "opponent"
-  + [1].action.zones[0] = 1
-  + [1].action.turns = 2
---- WX25-CP1-050
-  原文: 【自】：このシグニがアタックしたとき、あなたの場に他の＜ブルアカ＞のシグニがある場合、次の対戦相手のターンの間、対戦相手は《無》を支払わないかぎり、中央のシグニゾーンにあるシグニでアタックできない。【絆常】《相手ターン》：【シャドウ】,-
-  - [0].action.then.target.type = "SIGNI"
-  - [0].action.then.target.owner = "opponent"
-  - [0].action.then.target.count = 1
-  - [0].action.then.actionId = "ATTACK"
-  - [0].action.then.until = "NEXT_TURN"
-  ~ [0].action.then.type : "BLOCK_ACTION" → "SIGNI_ATTACK_BAN"
-  + [0].action.then.owner = "opponent"
-  + [0].action.then.zones[0] = 1
-  + [0].action.then.unlessPayColorless = 1
-  + [0].action.then.turns = 2
---- WXDi-P03-027
-  原文: 【出】：あなたのシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。【出】《無》：次の対戦相手のターン終了時まで、このルリグは「【常】：対戦相手は中央のシグニゾーンにあるシグニでアタックできない。」を得る。,-
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "any"
-  - [1].action.target.count = 1
-  - [1].action.actionId = "ATTACK"
-  - [1].action.until = "END_OF_TURN"
-  ~ [1].action.type : "BLOCK_ACTION" → "SIGNI_ATTACK_BAN"
-  + [1].action.owner = "opponent"
-  + [1].action.zones[0] = 1
-  + [1].action.turns = 2
-
 ## +CHOOSE +SIGNI +UP ［2枚］
 WX06-017 WX19-029
 --- WX06-017
@@ -201,15 +164,6 @@ WXEX2-09 WXK08-048
   ~ [0].action.type : "STUB" → "UNKNOWN"
   + [0].action.raw = "このシグニはこのカードの下にあるレベル３以下の黒の＜ウェポン＞のシグニの【自】能力を得る"
   ~ [0].parseStatus : "AUTO" → "UNKNOWN"
-
-## -HAND_CARD -TRASH ［1枚］
-WX13-003
---- WX13-003
-  原文: 以下から４つから４つまで選ぶ。選んだ数が３つ以上の場合、このアーツの使用コストは、選んだ数から２を引いた数だけ《無×2》増える。①対戦相手のセンタールリグ１体を対象とし、それをダウンする。②対戦相手のセンタールリグ１体を対象とし、それを凍結する。③対戦相手のパワー７０００以下のシグニ１体を対象とし、それをバニッシュする。④レゾナではない対戦相手のシグニ１体を
-  - [0].action.steps[2].type = "TRASH"
-  - [0].action.steps[2].target.type = "HAND_CARD"
-  - [0].action.steps[2].target.owner = "self"
-  - [0].action.steps[2].target.count = 1
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -601,24 +555,6 @@ WXK04-014
   + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
   …（他 15 行）
 
-## -BANISH -CONDITIONAL -HAND_CARD -IS_MY_TURN -SEQUENCE -SIGNI -TRASH ［1枚］
-WXK05-003
---- WXK05-003
-  原文: 以下の４つから２つまで選ぶ。あなたのセンタールリグが＜ＬｏＶ＞の場合、代わりに３つまで選ぶ。①あなたは手札をすべて捨て、カードを４枚引く。②対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。③対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。手札を１枚捨てる。④対戦相手のシグニ１体を対象とし、手札からレベル４
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
-  - [0].action.steps[1].type = "TRASH"
-  - [0].action.steps[1].target.type = "HAND_CARD"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[2].type = "CONDITIONAL"
-  - [0].action.steps[2].condition.type = "IS_MY_TURN"
-  - [0].action.steps[2].then.type = "BANISH"
-  - [0].action.steps[2].then.target.type = "SIGNI"
-  - [0].action.steps[2].then.target.owner = "opponent"
-  - [0].action.steps[2].then.target.count = 1
-  …（他 4 行）
-
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028
 --- WXK06-028
@@ -665,39 +601,6 @@ WXK09-031
   + [0].action.steps[0].condition.levels[2] = 3
   …（他 8 行）
 
-## -ADD_TO_FIELD -DOWN -SEQUENCE -SIGNI -TRASH_CARD ［1枚］
-WXK10-009
---- WXK10-009
-  原文: 以下の３つから１つを選ぶ。あなたのセンタールリグが＜リメンバ＞の場合、代わりに２つまで選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンし、対戦相手のすべてのシグニを凍結する。②あなたのデッキの一番下のカードをトラッシュに置く。それがシグニの場合、それをトラッシュから場に出す。③あなたのデッキの一番下のカードをトラッシュに置く。それがシグニの場合、それと同
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
-  - [0].action.steps[1].type = "ADD_TO_FIELD"
-  - [0].action.steps[1].owner = "self"
-  - [0].action.steps[1].source.type = "TRASH_CARD"
-  - [0].action.steps[1].source.owner = "self"
-  - [0].action.steps[1].source.count = 1
-  - [0].action.steps[1].source.upToCount = false
-  - [0].action.steps[1].source.filter.cardType = "シグニ"
-  - [0].action.steps[2].type = "DOWN"
-  - [0].action.steps[2].target.type = "SIGNI"
-  - [0].action.steps[2].target.owner = "opponent"
-  …（他 5 行）
-
-## -POWER_MODIFY -SEQUENCE -SIGNI ［1枚］
-WXK10-011
---- WXK10-011
-  原文: 以下の３つから２つまで選ぶ。あなたのセンタールリグが＜緑子＞の場合、代わりに３つまで選ぶ。①対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。②あなたのエナゾーンからシグニを２枚まで対象とし、それらを場に出す。ターン終了時まで、あなたのすべてのシグニのパワーを＋5000する。③次の対戦相手のターンの間、対戦相手は中央のシグニゾーンにあるシグニでアタック
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
-  - [0].action.steps[1].type = "POWER_MODIFY"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "self"
-  - [0].action.steps[1].target.count = "ALL"
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.steps[1].delta = 5000
-  ~ [0].action.type : "SEQUENCE" → "STUB"
-  + [0].action.id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
-
 ## +HAND_CARD +REVEAL -STUB ［1枚］
 WXK10-081
 --- WXK10-081
@@ -711,24 +614,6 @@ WXK10-081
   + [1].action.steps[0].source.filter.cardType = "シグニ"
   + [1].action.steps[0].source.filter.story = "水獣"
 
-## -GRANT_KEYWORD -HAND_CARD -SEQUENCE -SIGNI -TRASH ［1枚］
-WXK03-TK-01B
---- WXK03-TK-01B
-  原文: 以下の４つから１つを選ぶ。あなたのセンタールリグが＜リル＞か＜メル＞の場合、代わりに２つまで選ぶ。①対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。③あなたのシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。そのシグニがレベル４以
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
-  - [0].action.steps[1].type = "GRANT_KEYWORD"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "any"
-  - [0].action.steps[1].target.count = 1
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.steps[1].target.filter.level.min = 4
-  - [0].action.steps[1].keyword = "アサシン"
-  - [0].action.steps[1].duration = "PERMANENT"
-  - [0].action.steps[2].type = "TRASH"
-  - [0].action.steps[2].target.type = "HAND_CARD"
-  …（他 4 行）
-
 ## +CONDITIONAL +HAS_CARD_IN_FIELD +UNKNOWN -STUB ［1枚］
 WD09-018
 --- WD09-018
@@ -740,20 +625,6 @@ WD09-018
   + [0].action.steps[1].condition.filter.cardType = "レゾナ"
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
-
-## -CONDITIONAL -DRAW -IS_MY_TURN -SEQUENCE ［1枚］
-WD22-011-G
---- WD22-011-G
-  原文: 以下の４つから２つまで選ぶ。あなたのセンタールリグが＜グズ子＞の場合、代わりに３つまで選ぶ。①このターン、あなたのシグニ１体が効果によって場に出たとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。②あなたのシグニ２体をバニッシュする。そうした場合、カードを２枚引く。③対戦相手のシグニ１体を対象とし、それのレベルがあなたの手
-  - [0].action.steps[0].type = "STUB"
-  - [0].action.steps[0].id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
-  - [0].action.steps[1].type = "CONDITIONAL"
-  - [0].action.steps[1].condition.type = "IS_MY_TURN"
-  - [0].action.steps[1].then.type = "DRAW"
-  - [0].action.steps[1].then.owner = "self"
-  - [0].action.steps[1].then.count = 2
-  ~ [0].action.type : "SEQUENCE" → "STUB"
-  + [0].action.id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER"
 
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009
