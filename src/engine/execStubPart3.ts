@@ -4678,6 +4678,14 @@ export function execStubPart3(
   // 「このターン、あなたの効果によってシグニのアタックは無効にならない」（`WX24-P4-016-E3`）。
   // ⚠**利得側の効果**（自分の足枷を外す）なので、落ちていても盤面は壊れず「使ってもデメリットが消えない」
   //   という**過少実行**として現れる＝A群にも映らない型（だからこそ計器へ載せて実装する）。
+  // BLOCK_COLORLESS_ENERGY_PAY（§6.4 O-10・続き512）＝
+  // 「対戦相手はこのアタックフェイズの間、**無色のカードで**エナコストを支払えず」（`WXK07-001-E1` の引用【自】）。
+  // ⚠**制限を受ける側（＝対戦相手）の state** に載せる＝支払い可否 funnel
+  //   （`canAffordGrowCost` / `canAffordWithExtraCost` の `banColorlessPay`）が払う側の state から読む。
+  if (stub.id === 'BLOCK_COLORLESS_ENERGY_PAY') {
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, cannot_pay_colorless_this_attack_phase: true } },
+      '対戦相手はこのアタックフェイズの間、無色のカードでエナコストを支払えない'));
+  }
   if (stub.id === 'SELF_SIGNI_ATTACK_NEGATE_IMMUNITY') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, own_effects_cannot_negate_signi_attack_this_turn: true } },
       'このターン、あなたの効果によってシグニのアタックは無効にならない'));

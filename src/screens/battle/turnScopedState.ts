@@ -65,6 +65,12 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
   // コイン支払い累計は、ターン単位の条件カウンタ。
   coins_paid_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'coin payments made during the current turn' },
+  // 「このアタックフェイズの間、無色のカードでエナコストを支払えない」（§6.4 O-10 続き512）。
+  // ⚠**境界は `attack-phase-start` ではなく `turn-end`**＝この制限は**相手側の state** に載るのに、
+  //   `clearAttackPhaseScopedState` はターンプレイヤー自身にしか適用されない（相手側に残り続ける）。
+  //   `turn-end` は両プレイヤーを落とすので安全側。差分は「そのターンのアタックフェイズ後〜ターン終了」だけで、
+  //   その間にエナ支払いが起きる経路は無い（アーツは main/attack、【ガード】はアタックフェイズ内）。
+  cannot_pay_colorless_this_attack_phase: { boundaries: ['turn-end'], reset: undefined, reason: 'colorless payment ban; cleared for both players at the turn boundary' },
   // アタックフェイズ離場履歴は終了時トリガーまで保持し、次のアタックフェイズ開始時に切り替える。
   signi_left_field_this_attack_phase: { boundaries: ['attack-phase-start'], reset: [], reason: 'signi leave history starts fresh at attack-phase start' },
   // 無料グロウは次のグロウで消費し、使わなくても付与ターン終了で失効する。
@@ -112,6 +118,11 @@ const IRREGULAR_TURN_SCOPED_STATE = {
   //   ⚠`CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN` だけは原文が「次の自ターン終了まで」＝ここでは1ターン短くなるが、
   //     **無期限よりは近い**（2ターン軸が要るなら `SigniAttackBan.turnsRemaining` と同じ規約で足す）。
   attack_phase_level_overrides: { boundaries: ['turn-end'], reset: undefined, reason: 'temporary base-level overrides last until the end of the turn' },
+  // 🔴宣言数字によるガード制限（`DECLARE_NUMBER`）も手書きクリアが turn-end の一部経路にしか無かった
+  //   （§6.4 O-10 続き512 で登録）。⚠宣言するのはターンプレイヤー・読むのは防御側なので、
+  //   経路によっては相手側に残り続ける。
+  declared_guard_restrict_level: { boundaries: ['turn-end', 'consume'], reset: undefined, reason: 'declared guard-restriction level; consumed by deck-top comparisons or expires at turn end' },
+  declared_guard_restrict_levels: { boundaries: ['turn-end'], reset: undefined, reason: 'same as declared_guard_restrict_level (multi-value form)' },
   // 離場置換の選択は解決中に消費し、未消費の残骸もターンを跨がせない。
   leave_substitute_choices: { boundaries: ['turn-end'], reset: undefined, reason: 'unconsumed leave-replacement decisions must not cross turns' },
   // 能力喪失 active は現在のグローバルターンだけ。次ターン分は abilities_removed_next_turn に予約する（§6.4 O-3）。
@@ -330,4 +341,14 @@ export function consumeFreeGrowThisTurn(state: PlayerState): PlayerState {
 /** 対象スペルを打ち消した時点で予約を消費する。未消費でも clearTurnEndScopedState が安全に失効させる。 */
 export function consumeSpellNegationThisTurn(state: PlayerState): PlayerState {
   return consumeField(state, 'spell_negated_this_turn');
+}
+
+/**
+ * 宣言数字を**消費**する（§6.4 O-10・続き512）。
+ * 「数字を宣言してデッキトップと比べる」型の効果は、比較し終えた時点で宣言値を捨てる＝
+ * `declared_guard_restrict_level`（＝相手のガード制限）に残すと**原文にないガード制限が漏れる**。
+ * ⚠**funnel の外で `declared_guard_restrict_level: undefined` を書かないこと**（T2 が検出する）。
+ */
+export function consumeDeclaredGuardRestrictLevel(state: PlayerState): PlayerState {
+  return consumeField(state, 'declared_guard_restrict_level');
 }

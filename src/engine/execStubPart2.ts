@@ -19,6 +19,7 @@ import {
   sourceAbilityText,
 } from './execUtils';
 import { allAcceCards, countAcce } from '../utils/acce';
+import { consumeDeclaredGuardRestrictLevel } from '../screens/battle/turnScopedState';
 import {
   markTurnEndFacedownTrashIfOccupied,
   moveFieldSigniFacedown,
@@ -142,14 +143,14 @@ export function execStubPart2(
       const newDeck = ctx.ownerState.deck.slice(1);
       // 宣言数字はこのデッキトップ判定で消費。ガード制限フィールド（declared_guard_restrict_level）に
       // 残すと「数字宣言だけの効果」で原文にないガード制限が漏れるためクリアする。
-      const newOwner = { ...ctx.ownerState, deck: newDeck, hand: [...ctx.ownerState.hand, topCard], declared_guard_restrict_level: undefined };
+      const newOwner = consumeDeclaredGuardRestrictLevel({ ...ctx.ownerState, deck: newDeck, hand: [...ctx.ownerState.hand, topCard] });
       return done(addLog({ ...ctx, ownerState: newOwner },
         `デッキトップ公開：${topData?.CardName ?? topCard}（Lv${topLv}）→手札`));
     }
     const name = topData?.CardName ?? topCard;
     const lv = topData?.Level ?? '?';
     // 一致しない場合もデッキトップに戻す（移動なし）。宣言数字は消費済みのためクリア。
-    const newOwnerNM = { ...ctx.ownerState, declared_guard_restrict_level: undefined };
+    const newOwnerNM = consumeDeclaredGuardRestrictLevel(ctx.ownerState);
     return done(addLog({ ...ctx, ownerState: newOwnerNM }, `デッキトップ公開：${name}（Lv${lv}）→不一致、デッキトップに戻す`));
   }
   // 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ）

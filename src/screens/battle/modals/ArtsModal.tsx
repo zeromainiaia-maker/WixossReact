@@ -95,9 +95,9 @@ export function ArtsModal(p: ArtsModalProps) {
                     const useCostMinCost = useCostSpecHere && useCostMaxHere > 0
                       ? applyUseTimeCostReduction(effCost, useCostSpecHere, useCostMaxHere) : null;
                     const canAfford =
-                      canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
-                      (betCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)) ||
-                      (useCostMinCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, useCostMinCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                      canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase) ||
+                      (betCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)) ||
+                      (useCostMinCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, useCostMinCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
                     const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
                     const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
                       : betSpecBadge.options.length > 1 ? `ベット: ${betSpecBadge.options.join('か')}枚`
@@ -229,7 +229,7 @@ export function ArtsModal(p: ArtsModalProps) {
                 .filter(e => e.effectType === 'ACTIVATED')
                 .reduce((sum, e) => sum + (e.cost?.discard ?? 0), 0);
               const energyValid = selectedArtsCost.size === totalReq &&
-                canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount) &&
+                canAffordWithExtraCost(selectedNums, battleCards, effectiveCostAfterPay, [...extraArtsCosts, ...boostExtraEna], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, keySubCount, my.cannot_pay_colorless_this_attack_phase) &&
                 (!isEncore || encoreExtraEna.every(req =>
                   selectedNums.filter(n => {
                     const c = battleCardMap.get(n);

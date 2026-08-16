@@ -166,8 +166,8 @@ export function CutinModal(p: CutinModalProps) {
                             const betCostCand = canBetCand ? betReplacedCostOf(candidate.card) : null;
                             const canAffordEnergy = isHandDiscard
                               ? true
-                              : canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
-                                || (betCostCand !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+                              : canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, costStr, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)
+                                || (betCostCand !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, `${betCostCand}${addColorless}`, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
                             const canAfford = canAffordEnergy && canAffordExceedCand;
                             const exceedPart = exceedCostCand > 0 ? `エクシード${exceedCostCand}` : '';
                             const energyPart = isHandDiscard ? '手札から自分を捨てる' : costStr || '';
@@ -252,7 +252,7 @@ export function CutinModal(p: CutinModalProps) {
               ) !== null);
               const isValid = underOkModal && exceedOkModal && (totalReq === 0 || isHandDiscardModal ||
                 (selectedCutinCost.size === totalReq &&
-                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
+                  canAffordWithExtraCost(selectedNums, battleCards, cutinCostStrModal, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)));
               return (
                 <>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>

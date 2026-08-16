@@ -45,7 +45,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {getAssistGrowCandidates(pendingAssistSide).map(card => {
                     const growCostRA = applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap));
-                    const canAfford = canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                    const canAfford = canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostRA, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
                     const energyTotal = parseGrowCost(growCostRA).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -88,7 +88,7 @@ export function AssistGrowModal(p: AssistGrowModalProps) {
                 const selectedNums = [...selectedAssistGrowCost].map(i => myEnergyPayPool[i].cardNum);
                 const canAfford = energyTotal === 0
                   ? true
-                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                  : selectedAssistGrowCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, growCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
                 return (
                   <>
                     <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>

@@ -60,7 +60,7 @@ export function GrowModal(p: GrowModalProps) {
                     const growCoinNeeded = parseCoinCost(card.GrowCost);
                     const isFreeGrow = my.free_grow_this_turn === true || freeGrowFilter !== null;
                     const canAfford = isFreeGrow || ((growCoinNeeded === 0 || my.coins >= growCoinNeeded) &&
-                      canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap));
+                      canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, growCostR, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase));
                     const totalReq = isFreeGrow ? 0 : parseGrowCost(growCostR).reduce((s, c) => s + c.count, 0);
                     return (
                       <button key={card.CardNum}
@@ -127,7 +127,7 @@ export function GrowModal(p: GrowModalProps) {
               const canUseGrowSub = growSubInfo && growSubEnaSigni.length > 0 &&
                 costItems.some(ci => ci.color === growSubInfo.substituteColor && ci.count > 0);
               const isValidNormal = selectedGrowCost.size === totalReq &&
-                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+                canAffordGrowCost(selectedNums, battleCards, reducedGrowCost, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
               const isValidWithSub = !!(canUseGrowSub && growSubInfo &&
                 selectedGrowCost.size === totalReq - 1 && (() => {
                   const subSigniId = growSubEnaSigni[0];

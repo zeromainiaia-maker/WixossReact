@@ -537,6 +537,13 @@ export interface PlayerState {
   // このターン、あなたのシグニの効果で対戦相手のシグニのパワーが－される場合2倍－される（WX04-038-E1）
   double_power_minus_this_turn?: boolean;
   // DECLARE_NUMBER で宣言された数字（このターン、相手はこのレベルのシグニでガードできない）
+  /**
+   * 「対戦相手はこのアタックフェイズの間、**無色のカードで**エナコストを支払えず」
+   * （`WXK07-001-E1` の引用【自】・§6.4 O-10 続き512）。
+   * ⚠読むのは支払い可否 funnel（`canAffordGrowCost` / `canAffordWithExtraCost` の `banColorlessPay`）1本。
+   *   ここを通らない支払い経路を足すと**その経路だけ制限が効かない**。
+   */
+  cannot_pay_colorless_this_attack_phase?: boolean;
   declared_guard_restrict_level?: number;
   declared_guard_restrict_levels?: number[];
   // DECLARE_NUMBER_PLAIN で宣言された数字（ガード制限を**伴わない**汎用の数字宣言）。

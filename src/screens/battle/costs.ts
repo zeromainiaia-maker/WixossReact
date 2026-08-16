@@ -910,6 +910,11 @@ export function canAffordGrowCost(
   trashSubWilds?: Set<string>,       // エナ代替ワイルド（任意色）
   trashSubColors?: Map<string, string>, // エナ代替色指定（instId→色）
   extraWildCount?: number,            // キー代替による追加ワイルド枚数
+  /**
+   * 「無色のカードでエナコストを支払えない」（§6.4 O-10 続き512・`WXK07-001-E1`）。
+   * ⚠**プールから落とす**＝色照合を通す前に除く（無色カードは《無》スロットの充当にも使えない）。
+   */
+  banColorlessPay?: boolean,
 ): boolean {
   const costs = parseGrowCost(growCost);
   if (costs.length === 0) return true;
@@ -928,6 +933,9 @@ export function canAffordGrowCost(
       extraColor,
     };
   });
+  // §6.4 O-10（続き512）＝無色のカードは支払いに使えない。⚠**マルチエナ扱いでも落とす**
+  //   （無色カードがワイルドとして通ると制限が骨抜きになる）。
+  if (banColorlessPay) pool = pool.filter(p => p.color !== '無' && !(p.color === '' || p.color == null));
   // キーピース代替による追加ワイルド（エナ選択不要分）
   if (extraWildCount) {
     for (let i = 0; i < extraWildCount; i++) pool.push({ color: '無', isWild: true });
@@ -1020,8 +1028,10 @@ export function canAffordWithExtraCost(
   trashSubWilds?: Set<string>,
   trashSubColors?: Map<string, string>,
   extraWildCount?: number,
+  /** 「無色のカードでエナコストを支払えない」（§6.4 O-10 続き512）。 */
+  banColorlessPay?: boolean,
 ): boolean {
-  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
+  if (extraCosts.length === 0) return canAffordGrowCost(energyNums, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay);
   // 追加コスト分をプールから引いてから基本コストをチェック
   let pool = [...energyNums];
   for (const { color, count } of extraCosts) {
@@ -1033,6 +1043,8 @@ export function canAffordWithExtraCost(
         const isColorless = colorlessOverrides?.includes(getCardNum(n)) || colorlessOverrides?.includes(n);
         const isTrashWild = trashSubWilds?.has(n) === true;
         const cardColor = isColorless ? '無' : (cd?.Color ?? '無');
+        // §6.4 O-10（続き512）＝無色のカードは支払いに使えない（追加コスト側も同じ規則）。
+        if (banColorlessPay && cardColor === '無') { rem.push(n); continue; }
         const extraColor = extraColorMap?.get(n) ?? trashSubColors?.get(n);
         const colorMatches = color === '無' || isTrashWild || cardColor.includes(color) || extraColor === color ||
           (colorSubs?.some(s => s.to === cardColor && s.from.includes(color)));
@@ -1047,7 +1059,7 @@ export function canAffordWithExtraCost(
       return false;
     }
   }
-  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount);
+  return canAffordGrowCost(pool, cards, baseCost, keywordGrants, allMulti, stripped, colorlessOverrides, colorSubs, extraColorMap, trashSubWilds, trashSubColors, extraWildCount, banColorlessPay);
 }
 
 // ブーストの任意追加エナコスト（先頭の「ブースト―《色》…」）を返す。

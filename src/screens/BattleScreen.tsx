@@ -2424,6 +2424,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // の【起】だけ**を封じる。⚠既存の `USE_ACT` はシグニ・キー・付与も含む全【起】を止めるので流用できない。
   const isLrigActBlocked = () => isActionBlocked('USE_ACT') || isActionBlocked('USE_LRIG_ACT');
 
+  /**
+   * アーツを使用できないか（§6.4 O-10・続き512）。
+   *
+   * 🔴`ARTS_LIMIT_1`（「対戦相手は各ターンに一度しかアーツを使用できない」＝`WX13-007-E1`）は
+   * **parser が生成するのに engine/UI の誰も読んでいなかった**＝恒久 no-op だった
+   * （memory「未消費の `BLOCK_ACTION` id」クラス）。
+   * ⚠**回数は `actions_done` の 'USE_ARTS' で数える**＝このターンぶんだけ（自分のターン開始と自分のターン終了で
+   *   クリアされるので、相手ターン中に使った分もその1ターン内で正しく数えられる）。
+   * ⚠**表示ゲートと実行ゲートの両方で呼ぶ**（片方だけだと「押せるのに無反応」か「UI を迂回して使える」になる）。
+   */
+  const isArtsUseBlocked = () =>
+    isActionBlocked('USE_ARTS')
+    || (isActionBlocked('ARTS_LIMIT_1') && (my.actions_done ?? []).filter(a => a === 'USE_ARTS').length >= 1);
+
   // ドロー枚数（先攻1ターン目=1枚、それ以外=2枚）
   const drawCount = bs.turn_count === 1 && bs.active_user_id === bs.first_player_id ? 1 : 2;
 
@@ -3811,7 +3825,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           suppress_life_burst: undefined,       // ライフバースト抑制フラグをリセット
           prevent_lrig_damage: undefined,       // ルリグダメージ無効フラグをリセット
           prevent_defeat: undefined,            // 敗北無効フラグをリセット
-          declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined, // 宣言数字をリセット
+          // 宣言数字のリセットは clearTurnEndScopedState のレジストリへ集約（§6.4 O-10 続き512）。
           declared_number: undefined,              // 宣言数字（ガード制限なし版）をリセット
           declared_class: undefined,               // 宣言クラスをリセット
           hand_signi_guard_enabled: undefined,     // 手札シグニガードフラグをリセット
@@ -4252,7 +4266,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         banish_redirect_by_source_nums: undefined,
         double_power_minus_sources: undefined, no_grow: undefined,
         suppress_life_burst: undefined, prevent_lrig_damage: undefined,
-        prevent_defeat: undefined, declared_guard_restrict_level: undefined, declared_guard_restrict_levels: undefined,
+        prevent_defeat: undefined,
         declared_number: undefined,
         declared_class: undefined, hand_signi_guard_enabled: undefined,
         lrig_limit_mod: undefined, prevent_opp_guard: undefined,
@@ -4388,7 +4402,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             // エナ代替トラッシュ（COST_SUBSTITUTE / ENERGY_SUBSTITUTE_TRASH_SIGNI 等）はグロウ支払いにも効く
             // ＝原文「あなたが《X》を支払う際」はグロウコストを含む（タスク12(xxxvi)・続き206）。
             canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, applyGrowCostReduction(card.GrowCost, growRed), my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs,
-              undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap);
+              undefined, myEnergyTrashSubInfo.wildcardInstIds, myEnergyTrashSubInfo.colorOverrideMap, undefined, my.cannot_pay_colorless_this_attack_phase);
         });
         if (hasAffordable) {
           setShowGrowSkipConfirm(true);
@@ -6487,7 +6501,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set()) => {
     if (loading) return;
-    if (isActionBlocked('USE_ARTS')) return;
+    if (isArtsUseBlocked()) return;
     // ⚠実行入口にも同じゲートを置く（UI 側だけだと別経路＝カットイン等から素通りする・§6.4 O-3）
     if (cardNameUseBlocked(my, card.CardName, card.Type)) return;
     if (!canUseArtsCondition(
@@ -7696,7 +7710,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const spellEff = (effectsMap.get(cardNum) ?? []).find(e => e.effectType === 'ACTIVATED');
       const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       // コスト支払い可能か（簡易チェック：エナで賄えるか）
-      const costOk = canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+      const costOk = canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, cardData.Cost, [], my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase);
       if (canUse && condOk && costOk) {
         actions.push({
           label: '使用',
@@ -7712,7 +7726,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // カード名指定の使用封じ（ターン内 blacklist ／ゲーム内 NAME_BAN ／アーツ名 whitelist）は1関数に集約（§6.4 O-3）
       if (cardNameUseBlocked(my, cardData.CardName, cardData.Type)) return actions;
       const canUse =
-        !isActionBlocked('USE_ARTS') && (
+        !isArtsUseBlocked() && (
           (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
           (phase === 'ATTACK_ARTS'    && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
           (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'))
@@ -7747,9 +7761,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
       const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
       const costOk = effectiveCostStr
-        ? canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)
-        : (canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors) ||
-           (artsBetCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, artsBetCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors)));
+        ? canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)
+        : (canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase) ||
+           (artsBetCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, artsBetCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)));
       const condOk = canUseArtsCondition(
         effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
       if (canUse && condOk && costOk) {

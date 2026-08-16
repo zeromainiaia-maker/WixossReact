@@ -4206,7 +4206,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 27 → 29（§6.4 O-10 続き507 で lost_ability_effect_ids_this_turn ＝「代わりに…この能力を失う」の
   //          効果単位の自壊、power_minus_multipliers_this_turn ＝「代わりに３倍－される」を追加）
   // 29 → 30（§6.4 O-10 続き510 で own_effects_cannot_negate_signi_attack_this_turn を追加）
-  eq(convention.length, 30, 'PlayerState の命名規約由来フィールド数');
+  // 30 → 31（§6.4 O-10 続き512 で cannot_pay_colorless_this_attack_phase を追加）
+  eq(convention.length, 31, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4218,8 +4219,10 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 17→20（§6.4 O-10 続き509）＝`lrig_abilities_disabled`〔手書きクリアが**自分側の2経路だけ**で、
   //   `OPP_LRIG_LOSE_ABILITY` が書く**相手側**は一度も落ちず永続しうる穴だった〕／
   //   `turn_end_return_to_hand`〔新設〕／`attack_phase_level_overrides`〔失効地点が1つも無く永続していた〕。
-  eq(irregular.length, 20, '命名規約外のターン限定フィールド数');
-  eq(registered.length, 50, '型由来30件＋命名規約外20件の母集団');
+  eq(irregular.length, 22, '命名規約外のターン限定フィールド数');
+  // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
+  //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
+  eq(registered.length, 53, '型由来31件＋命名規約外22件の母集団');
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -11372,7 +11375,16 @@ test('§6.3 E-2 WXK07-001-E1: 自ルリグへ恒久付与し、APS collectorへ�
   const granted = installed.ownerState.lrig_granted_auto_effects ?? [];
   eq(granted.length, 1, '引用AUTOが自ルリグの付与ストアへ入らない');
   eq(granted[0].permanentGrant, true, '引用AUTOにpermanentGrantが刻まれない');
-  eq((granted[0].action as StubAction).id, 'DEFERRED_DECLARE_NUMBER_AND_ATTACK_PHASE_RESTRICTIONS', '実装済み共有STUBを誤流用した');
+  // §6.4 O-10（続き512）＝内側の3制限を実装した（旧アサートは defer であることを固定していた）。
+  {
+    const inner = JSON.stringify(granted[0].action);
+    ok(inner.includes('"id":"DECLARE_NUMBER"'), '①数字を宣言する（→ declared_guard_restrict_level）');
+    ok(inner.includes('"id":"BLOCK_COLORLESS_ENERGY_PAY"'), '②無色のカードでエナコストを支払えない');
+    ok(inner.includes('"actionId":"ARTS_LIMIT_1"'), '③一度しかアーツを使用できない');
+    ok(inner.includes('"type":"LRIG_LEVEL"') && inner.includes('"owner":"opponent"') && inner.includes('"value":4'),
+       '🔴③は「**自身の**センタールリグがレベル４以上の場合」限定＝落とすと常時1回制限になる');
+    ok(!inner.includes('DEFERRED_'), 'defer は残っていない');
+  }
 
   const afterTurn = clearTurnGrantedLrigAbilities(installed.ownerState);
   eq(afterTurn.lrig_granted_auto_effects?.length, 1, 'ターン終了時に恒久付与が消えた');
@@ -30249,6 +30261,42 @@ test('§6.4 O-10（続き508）: 【ゲート】同ゾーンの引用付与ク�
   const json062 = JSON.stringify(e.action);
   ok(json062.includes('OPPONENT_PAY_OPTIONAL'), '支払い回避（対戦相手が払う）を持つ');
   ok(json062.includes('REMOVE_ABILITIES'), '払わなければ能力を失う');
+});
+
+test('§6.4 O-10（続き512）: 無色のカードではエナコストを支払えない（負方向＋対照の対）', () => {
+  const cards = [...cardMap.values()] as CardData[];
+  const colorless = findCard(c => (c.Color ?? '') === '無' && c.Type === 'シグニ');
+  const red = findCard(c => (c.Color ?? '') === '赤' && c.Type === 'シグニ');
+  // 対照＝制限が無ければ無色カードでも《無》×1 を払える。
+  eq(canAffordGrowCost([colorless], cards, '《無》×1'), true, '通常は無色カードで《無》を払える');
+  // 🔴負方向＝制限中は払えない（⚠**《無》スロットの充当にも使えない**＝ここを緩めると制限が骨抜き）。
+  eq(canAffordGrowCost([colorless], cards, '《無》×1', undefined, undefined, undefined, undefined, undefined,
+     undefined, undefined, undefined, undefined, true), false, '🔴制限中は無色カードで払えない');
+  // 対照＝有色カードは制限中でも払える。
+  eq(canAffordGrowCost([red], cards, '《無》×1', undefined, undefined, undefined, undefined, undefined,
+     undefined, undefined, undefined, undefined, true), true, '有色カードは制限を受けない');
+  eq(canAffordGrowCost([red], cards, '《赤》×1', undefined, undefined, undefined, undefined, undefined,
+     undefined, undefined, undefined, undefined, true), true, '色指定も同様');
+  // ⚠制限はアタックフェイズ限定だが**境界は turn-end**（相手側 state に載るため）＝ターンで消える。
+  const banned = { ...mkState({}), cannot_pay_colorless_this_attack_phase: true } as PlayerState;
+  eq(clearTurnEndScopedState(banned).cannot_pay_colorless_this_attack_phase, undefined, 'ターン境界で解ける');
+});
+
+test('§6.4 O-10（続き512）: ARTS_LIMIT_1 が実際にアーツ使用を止める（未消費 BLOCK_ACTION id の解消）', () => {
+  // 🔴`ARTS_LIMIT_1` は parser が生成するのに **engine/UI の誰も読んでいなかった**＝
+  //    `WX13-007-E1`「対戦相手は各ターンに一度しかアーツを使用できない」が恒久 no-op だった。
+  //    実 UI ゲート（`isArtsUseBlocked`）は BattleScreen のクロージャなので、ここでは
+  //    **live 表現＋判定式の存在**を固定する（実挙動は §7 実機検証）。
+  const e1 = (effectsMap.get('WX13-007') ?? []).find(e => e.effectId === 'WX13-007-E1')!;
+  const act = e1.action as { type: string; actionId?: string; target?: { owner?: string } };
+  eq(act.type, 'BLOCK_ACTION', 'BLOCK_ACTION で表す');
+  eq(act.actionId, 'ARTS_LIMIT_1', 'id は ARTS_LIMIT_1');
+  eq(act.target?.owner, 'opponent', '止まるのは対戦相手');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/isArtsUseBlocked\s*=\s*\(\)\s*=>/.test(src), 'アーツ使用ゲートが1関数に集約されている');
+  ok(/ARTS_LIMIT_1/.test(src), "🔴`ARTS_LIMIT_1` を UI が読む（未消費 id へ戻っていない）");
+  // ⚠**表示ゲートと実行ゲートの両方**で呼ぶ（片方だけだと「押せるのに無反応」か「UI 迂回で使える」）。
+  eq((src.match(/isArtsUseBlocked\(\)/g) ?? []).length, 2, '表示ゲートと実行ゲートの2箇所から呼ぶ');
 });
 
 test('§6.4 O-10（続き510）: 相手ターンのアーツコスト軽減は1回だけ（負方向＋対照の対）', () => {

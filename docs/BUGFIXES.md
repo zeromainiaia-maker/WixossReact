@@ -1,5 +1,66 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-16（続き512・Opus 5）— §6.4 **O-10 の6巡目**（`WXK07-001` の数字宣言＋3制限）
+
+`census:stubs` A群の明示 defer を**5種/5件 → 4種/4件**にした。
+ゲート全緑（**golden 2118**・**census 823 据置**・smoke 10688 / SKIP 0・fuzz 全0・lint 0 errors）。
+live JSON changed **1効果 / 1カード**（CSV 非改変）。
+
+原文（`WXK07-001-E1` が付与する引用【自】）＝「あなたのアタックフェイズ開始時、数字１つを宣言する。
+対戦相手はこのアタックフェイズの間、**無色のカードでエナコストを支払えず**、**宣言された数字と同じレベルの
+シグニで【ガード】ができず**、自身のセンタールリグがレベル４以上の場合**一度しかアーツを使用できない**。」
+
+### 3制限のうち2つは受け皿が既にあった
+
+| 制限 | 受け皿 |
+|---|---|
+| 宣言＋同レベルのシグニでガード不可 | `DECLARE_NUMBER` → `declared_guard_restrict_level(s)`。`GuardResponseDialog` が**既に読んでいた** |
+| 一度しかアーツを使用できない | `BLOCK_ACTION{actionId:'ARTS_LIMIT_1'}`。ただし下記のとおり**誰も読んでいなかった** |
+| 無色のカードでエナコストを支払えない | 受け皿なし＝**唯一の新機構** |
+
+### 🔴 `ARTS_LIMIT_1` は「parser が生成するのに誰も読まない id」だった
+
+`parseSentencePart2.ts:222` が生成し、`effectExecutor.ts:3354` に**日本語ラベルだけ**があり、
+**engine/UI のどこにも判定が無かった**。つまり `WX13-007-E1`
+「【常】：対戦相手は各ターンに一度しかアーツを使用できない。」は**恒久 no-op**。
+memory `noop-inventory-blind-spots` の「未消費の `BLOCK_ACTION` id」クラスそのもので、
+A群にも smoke にも census にも映らない。
+
+⇒ `isArtsUseBlocked()`（`USE_ARTS` の封じ ∪ `ARTS_LIMIT_1` かつ既に1枚使用済み）へ集約し、
+**表示ゲート（`getCardActions` のアーツ枝）と実行ゲート（`executeArts`）の両方**から呼ぶ。
+⚠片方だけだと「押せるのに無反応」か「UI を迂回して使える」になる（§6.4 O-18 と同じ形）。
+⚠回数は `actions_done` の `'USE_ARTS'` で数える＝自分のターン開始と自分のターン終了でクリアされるので、
+**相手ターン中に使った分もその1ターン内で正しく数えられる**。
+
+### 新機構＝「無色のカードでエナコストを支払えない」
+
+`cannot_pay_colorless_this_attack_phase` ＋ 支払い可否 funnel
+（`canAffordGrowCost` / `canAffordWithExtraCost` の `banColorlessPay`）。続き508 で全サイトへ配線済みの
+`extraColorMap` と同じ経路に相乗りするので、8箇所の呼び出しへ機械的に足すだけで済んだ。
+
+- ⚠**無色カードはマルチエナ扱いでも落とす**（ワイルドとして通ると制限が骨抜きになる）。
+- ⚠**境界は `attack-phase-start` ではなく `turn-end`**＝制限は**相手側の state** に載るのに、
+  `clearAttackPhaseScopedState` は**ターンプレイヤー自身にしか適用されない**（相手側に残り続ける）。
+  `turn-end` なら両プレイヤーを落とせる。差分は「そのターンのアタックフェイズ後〜ターン終了」だけで、
+  その間にエナ支払いが起きる経路は無い。
+
+### 🔴 隣接発見＝`declared_guard_restrict_level(s)` も失効経路が足りなかった
+
+手書きクリアが turn-end の一部経路にしかなく、**宣言するのはターンプレイヤー・読むのは防御側**なので
+経路によっては相手側に残りうる。turn-scoped レジストリへ登録し、
+「デッキトップと比べて消費する」用途は funnel の `consumeDeclaredGuardRestrictLevel` へ寄せた
+（`spell_negated_this_turn` と同じ `['turn-end','consume']` の作法）。
+
+### 残す教訓
+
+1. **「受け皿がある」は「実装されている」ではない**＝`ARTS_LIMIT_1` は id も生成もラベルもあったのに
+   判定が無かった。据置理由を確かめるときは**その id を読む側**を grep する（生成側だけ見ない）。
+2. **制限を「相手の state」に載せる設計は、失効経路の担当者がズレる**＝
+   `clearAttackPhaseScopedState` はターンプレイヤーにしか掛からない。
+   相手側へ書くフラグは **`turn-end`（両プレイヤー）**を既定にする。
+3. **既に通した funnel は次の機構でそのまま使える**＝続き508 で `extraColorMap` を8サイトへ配線してあったので、
+   今回の `banColorlessPay` は同じ引数列に足すだけで済んだ。**funnel 化の投資は次の1件で回収される。**
+
 ## 2026-08-16（続き511・Opus 5）— §6.4 **O-10 の5巡目**（コスト付き離場置換の3件）
 
 `census:stubs` A群の明示 defer を**6種/8件 → 5種/5件**にした（**残りはすべて1件ずつ実機構が要るものだけ**）。

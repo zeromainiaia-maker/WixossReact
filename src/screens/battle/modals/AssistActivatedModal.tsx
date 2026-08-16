@@ -38,7 +38,7 @@ export function AssistActivatedModal(p: AssistActivatedModalProps) {
               const discardNeeded = eff.cost?.discard ?? 0;
               const costStr = (eff.cost?.energy ?? []).map(e => `《${e.color}》×${e.count}`).join('') || '';
               const selectedNums = [...selectedAssistActivatedCost].map(i => myEnergyPayPool[i].cardNum);
-              const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));
+              const energyOk = energyTotal === 0 || (selectedAssistActivatedCost.size === energyTotal && canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
               const virusNeededAssist = eff.cost?.removeOppVirus ?? 0;
               const virusOkAssist = virusNeededAssist === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededAssist;
               const canAfford = energyOk && selectedAssistActivatedDiscard.size >= discardNeeded && virusOkAssist;

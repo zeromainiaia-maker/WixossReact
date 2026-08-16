@@ -58,7 +58,7 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
               const canAfford = energyTotal === 0
                 ? true
                 : selectedEnergyActivatedCost.size === energyTotal &&
-                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors);
+                  canAffordGrowCost(selectedNums, battleCards, costStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase);
               return (
                 <>
                   <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
