@@ -1792,10 +1792,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 終止形「場に出す」も受ける（従来は連用形「場に出し」のみで、文末が「探して場に出す。」の文が
   // この規則を素通りして bare ADD_TO_FIELD に退化＝デッキ検索が丸ごと消えていた。WXEX2-28/WX18-001）。
   // ⚠「手札かデッキから」（二重ソース＝WX20-053）は deck 単独 SEARCH に丸めると手札側が失われるため除外（据置）。
+  // 🆕【トラップ】設置先（§6.4 O-11・2026-08-16）＝「デッキからカードをN枚まで探して**【トラップ】として
+  //   あなたのシグニゾーンに設置し**、デッキをシャッフルする」。行き先の語彙が無かったためこの規則を素通りし、
+  //   **サーチも設置も丸ごと消えて `SHUFFLE_DECK` だけ**が残っていた（`WD23-008-A`／`WD23-033-A`）。
+  //   engine 側は `resumeSearch` が `then:STUB{INTERNAL_ASK_TRAP_ZONE}` を**ピック枚数ぶん展開**して
+  //   ゾーン選択→`field.signi_traps` へ置く（`effectExecutor.ts:8475`）＝機構は既存で足りる。
+  const toTrapZone = /【トラップ】として[^。]*シグニゾーンに設置/.test(t);
   if (t.includes('デッキから') && t.includes('探して') && !t.includes('手札かデッキから') &&
-      (t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
+      (toTrapZone || t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
     const filter: TargetFilter = {
-      ...parseCardTypeFilter(t),
+      // ⚠トラップ設置文は「あなたの**シグニゾーン**に設置」と書くだけで**探す対象はカード全般**。
+      //   ここで cardType を拾うと「シグニしか【トラップ】にできない」過少実行になる。
+      ...(toTrapZone ? {} : parseCardTypeFilter(t)),
       ...parseCostTotalFilter(t),
       ...parseLevelFilter(t),
       ...parseLevelLteLastProcessed(t),
