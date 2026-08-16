@@ -163,7 +163,7 @@ const ACTION_KEYWORDS: { pattern: RegExp; types: string[] }[] = [
   { pattern: /(?<!ルリグ)デッキ(?:の上|から)[^。]+トラッシュに置く(?!の?[たとき])/,   types: ['MILL', 'TRASH', 'REVEAL_AND_PICK', 'LOOK_AND_REORDER'] },
   { pattern: /パワーを[＋+][０-９\d]+する|パワーが[０-９\d]+になる/,   types: ['POWER_MODIFY'] },
   // 「ダブルクラッシュ」「クロスクラッシュ」等のキーワード名は除外し、ライフをクラッシュする文脈のみ
-  { pattern: /ライフクロスを.{0,6}クラッシュ|ライフを.{0,6}クラッシュ|クロスを.{0,6}クラッシュ/, types: ['LIFE_CRASH', 'CRASH_LIFE'] },
+  { pattern: /ライフクロスを.{0,6}クラッシュ|ライフを.{0,6}クラッシュ|クロスを.{0,6}クラッシュ/, types: ['LIFE_CRASH', 'LIFE_CRASH_REPLACE'] },
 ];
 
 // テキストから期待アクション候補セットを返す（aliasを考慮）
