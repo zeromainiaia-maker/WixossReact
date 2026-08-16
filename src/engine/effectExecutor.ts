@@ -7464,6 +7464,9 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       // ⚠**ルリグ側 ban には載せない**＝ルリグにシグニゾーンは無く、載せると判定地点でゾーンが取れず
       //   「掛からない」に倒れる（`zones` 付き ban は `appliesTo:'LRIG'` と両立しない）。
       if (sab.zones?.length) ban.zones = [...sab.zones];
+      // 動的ゾーン（「【ゲート】があるシグニゾーン」＝§6.4 O-33 据置分・続き508）。
+      // ⚠**静的な `zones` へ解決して焼き込まない**＝ban を張ったあとに【ゲート】が増減する。
+      if (sab.zoneSource) ban.zoneSource = sab.zoneSource;
       for (const b of [ban, lrigBan]) {
         if (!b) continue;
         if (sab.unlessPayColorless) b.unlessPayColorless = sab.unlessPayColorless;
