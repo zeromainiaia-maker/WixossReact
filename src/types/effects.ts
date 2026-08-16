@@ -2929,6 +2929,12 @@ export interface StubAction {
    * ⚠リフレッシュはこの効果の処理中には起こさない（原文の但し書き）＝デッキが尽きたら取れる分だけ取る。
    */
   millEachRepeatOnName?: { count: number; name: string };
+  /**
+   * `INTERNAL_ASK_ACCE_HOST`（§6.4 O-11）＝デッキから探したカードを【アクセ】にする際の
+   * **ホスト側**（付け先シグニ）の絞り込み。「あなたの＜調理＞のシグニ1体を対象とし、〜それの【アクセ】にし」。
+   * ⚠アクセ**カード側**の絞り込みは SEARCH の `filter` が担当＝役割を混ぜない。
+   */
+  acceHostFilter?: TargetFilter;
   type: 'STUB';
   id: string;
   /** 実行時に設定するターン持続 state の寿命。省略時は宣言型／既存 no-op のまま。 */
