@@ -156,9 +156,7 @@ export function signiAttackBlockReason(p: SigniAttackGateInput): SigniAttackBloc
   // OPP_SIGNI_ATTACK_POWER_RESTRICT: 相手側が設定したパワー上限「以下」のシグニはアタック不可
   const oppPowerCap = defender.opp_signi_attack_power_cap;
   if (oppPowerCap !== undefined) {
-    const powers = p.effectivePowers
-      ?? calcFieldPowers(attacker, defender, true, effectsMap, cardMap, p.turnPhase);
-    const signiPower = powers.get(attackerNum) ?? parsePowerVal(cardMap.get(attackerNum)?.Power);
+    const signiPower = getPowers().get(attackerNum) ?? parsePowerVal(cardMap.get(attackerNum)?.Power);
     if (signiPower <= oppPowerCap) return 'OPP_POWER_CAP';
   }
 
