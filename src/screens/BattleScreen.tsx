@@ -11071,7 +11071,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const opLrigHasTripleCrush = !!(opLrigNum && (op.keyword_grants?.[opLrigNum] ?? []).includes('トリプルクラッシュ'));
         // 「あなたは対戦相手の（レベルN以下の）ルリグによってダメージを受けない」＝**回数無制限**の防御。
         // 消費型（バリア／prevent_next_damage／置換ミル）を無駄遣いさせないため最初に判定する。
-        // §6.4 O-3 続き492: 判定は `isLrigDamagePrevented` 1本（期間ウィンドウ＋【常】宣言をまとめて見る）。
+        // §6.4 O-3 続き492: 判定は `resolveLrigDamageShield` 1本（期間ウィンドウ＋【常】宣言をまとめて見る）。
         // ⚠🔴従来ここは期間ウィンドウだけで、【常】版は**消費型のさらに後ろ**かつ**自分のシグニしか
         //   走査しない**インライン判定だった（ルリグ本体・アシスト・キーの宣言が丸ごと無視されていた）。
         const lrigShield = resolveLrigDamageShield({
