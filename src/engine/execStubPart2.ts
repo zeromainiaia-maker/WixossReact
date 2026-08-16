@@ -2497,18 +2497,23 @@ export function execStubPart2(
     const headITPHF = queueITPHF[0];
     if (!headITPHF) return done(ctx);
     const restITPHF = queueITPHF.slice(1);
-    // 残りは同じ STUB を continuation として自己チェーンする（lastProcessedCards を残り分で差し替え）。
-    const chain = (move: EffectAction): EffectAction => restITPHF.length === 0 ? move : ({
-      type: 'SEQUENCE',
-      steps: [move, { type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD_REST', value: JSON.stringify(restITPHF) } as StubAction],
-    } as SequenceAction);
+    // 残りは同じ STUB を自己チェーンする（lastProcessedCards を残り分で差し替えて再入）。
+    const restStep: EffectAction | undefined = restITPHF.length === 0 ? undefined
+      : ({ type: 'STUB', id: 'INTERNAL_TRASHED_PICK_HAND_OR_FIELD_REST', value: JSON.stringify(restITPHF) } as StubAction as EffectAction);
     const nameITPHF = ctx.cardMap.get(getCardNum(headITPHF))?.CardName ?? headITPHF;
+    // ⚠場出しはゾーン選択で中断しうる＝SEQUENCE の後続は落ちる（resumeSelectTarget の ADD_TO_FIELD 特例と
+    //   同じ理由）。残りの振り分けは `PLACE_SIGNI_ON_FIELD.afterAction` に載せて配置後に実行する。
+    const handBranch: EffectAction = restStep
+      ? ({ type: 'SEQUENCE', steps: [{ type: 'STUB', id: 'INTERNAL_TRASHED_TO_HAND' } as StubAction, restStep] } as SequenceAction as EffectAction)
+      : ({ type: 'STUB', id: 'INTERNAL_TRASHED_TO_HAND' } as StubAction as EffectAction);
+    const fieldBranch: EffectAction = ({
+      type: 'PLACE_SIGNI_ON_FIELD', owner: 'self', cardNums: [headITPHF],
+      ...(restStep ? { afterAction: restStep } : {}),
+    } as import('../types/effects').PlaceSigniOnFieldAction) as EffectAction;
     return needsInteraction(addLog(ctx, `${nameITPHF}を手札に加えるか場に出す`), {
       type: 'CHOOSE', count: 1, options: [
-        { id: 'hand', label: '手札に加える', available: true,
-          action: chain({ type: 'STUB', id: 'INTERNAL_TRASHED_TO_HAND' } as StubAction as EffectAction) },
-        { id: 'field', label: '場に出す', available: true,
-          action: chain({ type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'TRASH_CARD', owner: 'self', count: 1, filter: { cardNum: getCardNum(headITPHF) } } } as AddToFieldAction as EffectAction) },
+        { id: 'hand', label: '手札に加える', available: true, action: handBranch },
+        { id: 'field', label: '場に出す', available: true, action: fieldBranch },
       ],
     });
   }
