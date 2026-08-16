@@ -10235,9 +10235,19 @@ function parseActionTextInner(text: string): EffectAction {
   // 選択の結果とは無関係にそれが**必ず走る二重実行**になる（§6.4 O-4 続き499）。
   // 🔴`WX17-003-E1` は①の後半「手札を１枚捨てる」が、①を選んでいなくても毎回走っていた。
   // ⚠選択ループ本体（CSO を含む枝）とベット差し替え宣言だけを残す。
+  // 🆕§6.4 O-33（続き502）＝**同じクラスの choice ビルダーをすべてここへ寄せる**。
+  //   `CONDITIONAL_MULTI_CHOOSE(_BY_CENTER)` と `CHOOSE_N_FROM_LIST` も engine 側でカード全文の
+  //   ①②③を読んで選択肢を組む（`choiceTextParser`）＝**選択肢の2文目が top-level へ漏れる**と
+  //   選ばなくても必ず走る。実測5効果が該当＝`WD22-011-G-E1`（常にカード2枚ドロー）／
+  //   `WXK05-003-E1`（常に手札1枚捨て＋バニッシュ）／`WXK10-009-E1`（常にトラッシュから場出し＋全ダウン）／
+  //   `WXK10-011-E1`（常に全シグニ＋5000）／`WXK03-TK-01B-E1`（常に【アサシン】付与＋手札2枚捨て）／
+  //   `WX13-003-E1`（常に手札1枚捨て）。
+  // ⚠**`①` が本文にあるときだけ**掛ける＝`CHOOSE_N_FROM_LIST` には「プレイヤーを1人まで選ぶ」形
+  //   （`WXEX2-44-E2`／`WXK06-028-E2`）もあり、そちらの後続ステップは**本体**なので落としてはいけない。
+  // ⚠見出し側の宣言（コスト増減・ベット差し替え）は KEEP_IDS で残す（①より前の文＝選択肢本文ではない）。
   {
-    const CSO_RE2 = /"id":"CHOOSE_SAME_OPTION_(?:TWICE|MULTIPLE)"/;
-    const KEEP_IDS = /"id":"(?:BET_ALTERNATIVE|CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE)"/;
+    const CSO_RE2 = /"id":"(?:CHOOSE_SAME_OPTION_(?:TWICE|MULTIPLE)|CONDITIONAL_MULTI_CHOOSE(?:_BY_CENTER)?|CHOOSE_N_FROM_LIST)"/;
+    const KEEP_IDS = /"id":"(?:BET_ALTERNATIVE|CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE|ARTS_COST_REDUCTION_BY_EFFECT)"/;
     if (steps.some(st => CSO_RE2.test(JSON.stringify(st))) && /[①②③]/.test(text)) {
       const kept = steps.filter(st => {
         const js = JSON.stringify(st);
