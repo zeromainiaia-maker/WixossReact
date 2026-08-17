@@ -1864,6 +1864,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
             if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
                 && !evalUseCondition(eff.condition, st, op, battleCardMap, topNum, bs.turn_phase, curPowers)) continue;
+            if (!reserveGrantedAutoUsage(st, eff, grantedUsedByKey[key])) continue;   // タスク12(cxx)
             entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
               label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（エナチャージ時）`, effect: eff });
           }
@@ -1873,6 +1874,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const prevP = prevPowers.get(topNum);
             const wasBelow = prevP === undefined || prevP < threshold;
             if (curP >= threshold && wasBelow) {
+              if (!reserveGrantedAutoUsage(st, eff, grantedUsedByKey[key])) continue;   // タスク12(cxx)
               entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
                 label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（パワー${threshold}到達時）`, effect: eff });
             }
