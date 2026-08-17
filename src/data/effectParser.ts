@@ -8122,7 +8122,8 @@ function parseActionText(text: string): EffectAction {
         applyLeadingTrashHandAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))));
-  const parse = (source: string): EffectAction => applySelectedTargetTrashReplacement(source, parseBase(source));
+  const parse = (source: string): EffectAction => applyDeckTopMillTargetAnaphora(source,
+    applySelectedTargetTrashReplacement(source, parseBase(source)));
   let parsed = parse(text);
   parsed = foldStructuredRevealUntil(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
