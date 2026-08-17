@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き544・Opus 5）— 🏁§6.4 `O-38` 完了（相手シグニ【自】の「支払えば通る」回避）
+
+**engine 側のみの是正＝live JSON / CSV とも非改変**。ゲート全緑・golden 2218→**2221**・census **799 据置**・smoke 10693 全0・fuzz 全0・`census:stubs` 無言 no-op **0**・manual-fields **0**・lint **0 errors**。実機の観測点は PLAN §7 `V-65`。
+
+### 🔴 症状＝相手に支払いの機会が一度も来なかった
+
+`SPDi43-01-E2`「【起】《ゲーム１回》…：次の対戦相手のターン終了時まで、このルリグは『【常】：対戦相手のシグニの【自】能力が発動する場合、**対戦相手が《無》を支払わないかぎり**、その能力は何もしない。』を得る。」
+
+旧実装は `blocked_actions` の `BLOCK_OPP_SIGNI_AUTO` ／ `BLOCK_OWN_SIGNI_AUTO:NEXT_TURN` で**相手シグニの【自】を丸ごと止めていた**＝**原文より強い近似**。支払いの窓が一度も出ないので、相手はエナがあっても能力を通せなかった。
+
+### 🔑 「収集を止める」のではなく「解決を包む」
+
+- `BLOCK_OWN_SIGNI_AUTO` は `triggerCollect.ts` の**42箇所に散った収集時フィルタ**で、支払い分岐を差し込める choke point が無い。
+- ⇒ **スタック解決の1点**（`BattleScreen.resolveStackNext` の `executeEffect` 直前。`shiftQueue` の呼び出し元はここだけ）で、対象の【自】を
+  `SEQUENCE[ STUB{OPTIONAL_COST, costColors:['無'], unlessPay}, CONDITIONAL{PAID_ADDITIONAL_COST, then: 元の action} ]` に包む。
+  **新しい engine 語彙は0本**＝既存の任意コスト機構（払う→then／払わない→何もしない）をそのまま使う。
+- ⚠払うのは**能力の持ち主**（`ctx.ownerState`）＝`OPPONENT_PAY_OPTIONAL`（`ctx.otherState` が払う）ではない。
+- 🟢**副次的に原文へ近づいた**＝能力は「発動はする」ので `ON_ABILITY_ACTIVATED` の監視は素通りし、《ターン1回》も消費される（止めていた頃はどちらも起きなかった）。
+
+### 🧷 宣言マーカーは旧ペアと同じ2スロットの持ち方
+
+`PAY_GATE_OPP_SIGNI_AUTO:無`（宣言者に当ターンぶん）／`PAY_GATE_OWN_SIGNI_AUTO:無:NEXT_TURN`（相手に次ターン予約）＝`clearTurnEndScopedState`／`activateTurnStartScopedState` の寿命機構をそのまま借りる（「次の対戦相手のターン終了時まで」）。**変えたのは「止める」→「支払わせる」の一点だけ。**
+読み出しは `engine/blockAction.ts` の `findSigniAutoPayGate(abilityOwner, declarer)` 1本で、**引数の向きが「対戦相手のシグニ」限定を担保する**（宣言者自身のシグニには掛からない）。対象判定は `isSigniAutoAbility`＝**カード種別がシグニ/レゾナの `effectType:'AUTO'`** だけ（ルリグ・アシスト・キー・【起】・【ライフバースト】は素通り）。
+
+### ⚠ 対象外（近似ではなく実装済み／別軸）
+
+`WXDi-P16-044-E2`（無条件で発動しない）・`WXDi-P13-006-E3`（`BLOCK_OPP_AUTO_ABILITY_EXTENDED`）・`WXDi-P08-044-E1`（`NEGATE_ABILITY`）は**ハードブロックのままが正しい**＝原文に支払い回避が無い。golden で `WXDi-P16-044-E2` 側が旧マーカーを積み続けることを固定した。
+
+### ⚠ 残した近似（PLAN §6.4 監視項目）
+
+①**【出】も巻き込む**＝`CardEffect` に【出】と【自】を分ける情報が無い（どちらも `effectType:'AUTO'`）。**旧ハードブロックも同じ母集団を止めていた**ので母集団は変えていない。②宣言側は `STUB{GRANT_ABILITY_INNER_TEXT}` の**実行時カード原文 regex**のまま（engine 側は構造化済み）。
+
 ## 2026-08-18（続き543・Opus 5）— 🏁§6.4 `O-37` 完了（defer していた引用能力の置換3形を実装）
 
 **live 6効果/6カードの挙動是正**（CSV 非改変）。ゲート全緑・golden 2214→**2218**・census **799 据置**・smoke 10693 全0・fuzz 全0・`census:stubs` 無言 no-op **0**・manual-fields **0**・lint **0 errors**。実機の観測点は PLAN §7 `V-64`。
