@@ -10,6 +10,7 @@ import type {
   NumberOrRef,
   CountFromZone,
   Condition,
+  ActiveCondition,
   SelectionConstraint,
 } from '../types/effects';
 import { payLrigDownCost } from '../screens/battle/lrigDownCost';
