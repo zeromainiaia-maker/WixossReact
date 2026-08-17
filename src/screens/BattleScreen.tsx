@@ -2478,9 +2478,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    *   クリアされるので、相手ターン中に使った分もその1ターン内で正しく数えられる）。
    * ⚠**表示ゲートと実行ゲートの両方で呼ぶ**（片方だけだと「押せるのに無反応」か「UI を迂回して使える」になる）。
    */
-  const isArtsUseBlocked = () =>
-    isActionBlocked('USE_ARTS')
-    || (isActionBlocked('ARTS_LIMIT_1') && (my.actions_done ?? []).filter(a => a === 'USE_ARTS').length >= 1);
+  // ⚠実装は `artsUseGate.isArtsUseBlockedFor`（提示ゲート `checkArtsUse` と同じ関数）。
+  const isArtsUseBlocked = () => isArtsUseBlockedFor(my, contBlocked.forSelf);
 
   // ドロー枚数（先攻1ターン目=1枚、それ以外=2枚）
   const drawCount = bs.turn_count === 1 && bs.active_user_id === bs.first_player_id ? 1 : 2;
