@@ -7511,9 +7511,14 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (names.length === 0) return done(addLog(ctx, '同名禁止: 対象カードなし'));
       const tgtOwner: Owner = nb.targetSelf ? 'self' : 'opponent';
       const s = ownerState(tgtOwner, ctx);
-      const newS: PlayerState = { ...s, blocked_card_names_game: [...(s.blocked_card_names_game ?? []), ...names] };
+      // 期間は原文どおり（§6.4 O-11）＝`TURN` は turn-end で消える `blocked_card_names` へ載せる。
+      // どちらの軸も読み手は `cardNameUseBlocked` の1関数に集約済み。
+      const perTurn = nb.duration === 'TURN';
+      const newS: PlayerState = perTurn
+        ? { ...s, blocked_card_names: [...(s.blocked_card_names ?? []), ...names] }
+        : { ...s, blocked_card_names_game: [...(s.blocked_card_names_game ?? []), ...names] };
       return done(addLog(setOwnerState(tgtOwner, newS, ctx),
-        `このゲームの間、${nb.targetSelf ? 'あなた' : '対戦相手'}は${names.join('・')}を使用できない`));
+        `${perTurn ? 'このターン' : 'このゲームの間'}、${nb.targetSelf ? 'あなた' : '対戦相手'}は${names.join('・')}を使用できない`));
     }
     case 'SIGNI_ATTACK_BAN': {
       // 「このターン、対戦相手は〈条件〉のシグニでアタックできない」（§6.4 O-3）。
