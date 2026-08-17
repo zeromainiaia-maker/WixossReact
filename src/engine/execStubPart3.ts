@@ -802,6 +802,19 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOASA } },
       'このターン、対戦相手はアーツ・スペル・起動能力を使用できない'));
   }
+  // BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN（§6.4 O-14(a)・`WX15-003-E3`）:
+  // 「**次のターンの間**、対戦相手はアーツとスペルと【起】能力を使用できず〜」＝上の当ターン版の予約形。
+  // ⚠`:NEXT_TURN` 接尾辞つきで積む＝`clearTurnEndScopedState` が接尾辞つきだけを跨がせ、
+  //   `activateTurnStartScopedState` が**そのプレイヤーのターン開始時**に接尾辞を外して active にする
+  //   （既存 `BLOCK_OPP_SPELL_ACT_NEXT_TURN` と同じ2スロット規約。接尾辞なしで積むと自分のターン中に効く）。
+  if (stub.id === 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN') {
+    const newBlockedBOASANT = [...new Set([
+      ...(ctx.otherState.blocked_actions ?? []),
+      'USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN', 'USE_ACT:NEXT_TURN',
+    ])];
+    return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOASANT } },
+      '次のターン、対戦相手はアーツ・スペル・起動能力を使用できない'));
+  }
   // BLOCK_COLORLESS_PLAY: 相手の無色プレイを封じる
   if (stub.id === 'BLOCK_COLORLESS_PLAY') {
     const newBlockedBCP = [...(ctx.otherState.blocked_actions ?? []), 'PLAY_COLORLESS'];
