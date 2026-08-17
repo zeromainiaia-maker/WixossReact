@@ -893,7 +893,9 @@ function parseCost(costStr: string): EffectCost | undefined {
   if (!cost.energyTrash && !cost.energyTrashAll) {
     const etDistinctM = costStr.match(/エナゾーンからそれぞれ名前の異なる、カード名に《([^》]+)》を含む(?:シグニ|カード)([０-９\d]+)枚をトラッシュに置く/);
     if (etDistinctM) {
-      cost.energyTrash = { count: parseNum(etDistinctM[2]), filter: { cardName: etDistinctM[1] } };
+      // ⚠**規則名に「それぞれ名前の異なる」と書きながら制約を出していなかった**（2026-08-18・§5d-0 (ii)）＝
+      //   `WXK11-047-E3` は同名《サーバント》15枚でも払えた（正しくは全部別名）。
+      cost.energyTrash = { count: parseNum(etDistinctM[2]), filter: { cardName: etDistinctM[1] }, selectionConstraint: { distinct: 'name' } };
     }
   }
   // 手札とエナゾーンとトラッシュにある《XXX》をN枚ずつゲームから除外する → trashExile で近似
