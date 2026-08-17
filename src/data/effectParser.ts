@@ -1450,6 +1450,30 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン6f: 「あなたの場にあるすべてのシグニが〈色〉/＜C＞/《X》であるかぎり、」（§6.4 O-35）
+  //   → ALL_FIELD_SIGNI_MATCH（ACTIVE_CONDITION allowlist 済み・checkActiveCondition 実装済み）。
+  //   従来は下の generic フォールバックが条件を黙って落とし、【常】が**無条件で効く過剰効果**だった
+  //   （`WXDi-P11-054-E1` のパワー＋4000／`WXDi-P13-006-E1` の【ガード】追加コスト）。
+  //   ⚠`WXDi-P13-006-E1` は engine 側に「すべてのシグニが《ディソナアイコン》」を**丸ごとスキップする**
+  //     原文 regex の安全側フォールバック（effectEngine.ts の collectOppGuardExtraColorlessCost）が在り、
+  //     activeCondition が付くとそちらより先に評価される＝過少側も同時に解ける。
+  const allFieldSigniKagiriM = text.match(/^あなたの場にあるすべてのシグニが(?:(白|赤|青|緑|黒|無色)|＜([^＞]+)＞|《([^》]+)》)であるかぎり、/);
+  if (allFieldSigniKagiriM) {
+    const [, color, story, name] = allFieldSigniKagiriM;
+    const filter: import('../types/effects').TargetFilter = color
+      ? { cardType: 'シグニ', color }
+      : story
+        ? { cardType: 'シグニ', story }
+        : name === 'ディソナアイコン'
+          ? { cardType: 'シグニ', isDisona: true }
+          : { cardType: 'シグニ', cardName: name };
+    return {
+      condition: { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter } as ActiveCondition,
+      rest: text.slice(allFieldSigniKagiriM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // それ以外の「〜かぎり、」パターン（複雑な条件→未解析、句点を越えない）
   // ⚠引用「」も越えない＝引用内の「…かぎり、」は付与能力側の条件であり、跨いで消費すると
   //   引用前の本文（「パワーは＋3000され、このシグニは」等）まで無言消失する（WXDi-P11-046＝続き77観測(b)）
