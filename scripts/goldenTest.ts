@@ -105,7 +105,9 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuMainPhaseActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGate';
-import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
+import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
+import { checkSpellUse } from '../src/screens/battle/spellUseGate';
+import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -39752,6 +39754,96 @@ test('O-1 cpuArts: 自ターンは除去だけを使う（無効化・軽減は�
   eq(pickOff({ card: { Timing: 'アタックフェイズ' } }), null, 'アタックフェイズ専用の札はメイン窓では使えない');
   eq(pickOff({ card: { Timing: 'アタックフェイズ' }, turnPhase: 'ATTACK_ARTS' })?.card.CardNum, 'T-ARTS-1',
     '同じ札がアタック窓では使える');
+}));
+
+// ── §8／§6.4 `O-1` (b)：CPU の自ターンのスペル ───────────────────────────────
+const mkSpell = (o: Partial<CardData> = {}): CardData => ({
+  CardNum: 'T-SPELL-1', CardName: 'テストスペル', Type: 'スペル', Cost: '《赤》×1',
+  Timing: 'メインフェイズ', Color: '赤', Restriction: '', EffectText: '', Level: '', Power: '',
+  CardClass: '', ImgURL: '', Story: '', ...o,
+} as unknown as CardData);
+const SPELL_REMOVAL: CardEffect[] = [{
+  effectId: 'T-SPELL-1-E1', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+  action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+} as CardEffect];
+/** 合成スペルを載せた cardMap / effectsMap と、その支払い ctx。 */
+const spellFixture = (p: {
+  card?: Partial<CardData>; effs?: CardEffect[];
+  actor?: PlayerState; opponent?: PlayerState;
+}) => {
+  const card = mkSpell(p.card);
+  const cm = new Map(cardMap) as Map<string, CardData>;
+  cm.set(card.CardNum, card);
+  const em = new Map(effectsMap);
+  em.set(card.CardNum, p.effs ?? SPELL_REMOVAL);
+  const actor = p.actor ?? ({
+    ...mkState({ energy: 0, signi: [SIGNI, null, null] }), hand: [card.CardNum], energy: [ART_RED],
+  } as PlayerState);
+  const opponent = p.opponent ?? mkState({ signi: [null, null, SIGNI] });
+  const payer = buildArtsPayerCtx({
+    actor, opponent, isActorTurn: true, turnPhase: 'MAIN', cardMap: cm, effectsMap: em,
+  });
+  return { card, cm, em, actor, opponent, payer };
+};
+
+test('O-1 spellUseGate: 手札スペルの提示はフェイズ・封じ3軸・限定・ディソナ制限・低コスト封じで切れる', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const check = (o: Parameters<typeof spellFixture>[0], turnPhase: TurnPhase = 'MAIN', isMyTurn = true, pendingSpell = false) => {
+    const f = spellFixture(o);
+    return checkSpellUse({
+      card: f.card, my: f.actor, op: f.opponent, isMyTurn, turnPhase, pendingSpell,
+      cards: allCards, cardMap: f.cm, effectsMap: f.em, payer: f.payer,
+    });
+  };
+  ok(check({}).usable, '素の盤面（自分のメインフェイズ）では発動できる');
+  ok(check({}).affordable, '《赤》×1 はエナ1枚で払える');
+  eq(check({}).effectiveCost, '《赤》×1', '請求額は印刷コスト');
+  ok(!check({}, 'ATTACK_ARTS').usable, 'メインフェイズ以外では発動できない');
+  ok(!check({}, 'MAIN', false).usable, '相手ターンには発動できない');
+  ok(!check({}, 'MAIN', true, true).usable, 'スペル解決待ちの間は新しいスペルを発動できない');
+  const mkActor = (extra: Partial<PlayerState>) =>
+    ({ ...mkState({ energy: 0, signi: [SIGNI, null, null] }), hand: ['T-SPELL-1'], energy: [ART_RED], ...extra } as PlayerState);
+  ok(!check({ actor: mkActor({ blocked_actions: ['USE_SPELL'] }) }).usable, 'USE_SPELL 封じ');
+  ok(!check({ card: { Color: '無' }, actor: mkActor({ blocked_actions: ['PLAY_COLORLESS'] }) }).usable, '🔴無色スペル封じ（軸2）');
+  ok(!check({ actor: mkActor({ blocked_actions: ['BLOCK_NON_WHITE_SPELL'] }) }).usable, '🔴白以外スペル封じ（軸3）');
+  ok(check({ card: { Color: '白' }, actor: mkActor({ blocked_actions: ['BLOCK_NON_WHITE_SPELL'] }) }).usable, '対照：白なら通る');
+  ok(!check({ actor: mkActor({ dissona_only_spells_this_turn: true }) }).usable, 'ディソナ制限');
+  ok(check({ card: { Story: 'Dissona' }, actor: mkActor({ dissona_only_spells_this_turn: true }) }).usable, '対照：《ディソナアイコン》なら通る');
+  ok(!check({ actor: mkActor({ blocked_card_names: ['テストスペル'] }) }).usable, 'カード名指定の封じ');
+  // 🔴支払い可否は `usable` に**含めない**（アーツと違う）＝任意支払いで下がる軽減を隠さないため。
+  const poor = check({ actor: mkActor({ energy: [] }) });
+  ok(poor.usable, '🔴エナが無くても提示は切らない（軽減は支払いUI の選択で下がる）');
+  ok(!poor.affordable, '払えないことは affordable 側で表す');
+}));
+
+test('O-1 cpuSpell: CPU は「除去・正面が塞がれている・払える・未使用」の4条件を満たす1枚を使う', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const pick = (o: Parameters<typeof spellFixture>[0], already: string[] = []) => {
+    const f = spellFixture(o);
+    return pickCpuMainSpell({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: 'MAIN', pendingSpell: false, alreadyUsedNums: already,
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+    });
+  };
+  const got = pick({});
+  eq(got?.card.CardNum, 'T-SPELL-1', '除去スペルを使う');
+  eq(got?.handIndex, 0, '手札 index が返る（performSpell にそのまま渡す）');
+  eq(got?.costIndices.size, 1, 'エナ1枚ぶんの index が返る');
+  eq(pick({}, ['T-SPELL-1']), null, 'このターン使った札は選び直さない（台帳はアーツと共通）');
+  eq(pick({ opponent: mkState({}) }), null, '🔴相手の場が空なら除去は無価値＝使わない');
+  eq(pick({ effs: [{ effectId: 'x', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+    action: { type: 'DRAW', owner: 'self', count: 2 } } as CardEffect] }), null, 'ドロースペルは使わない（盤面評価が要る）');
+  eq(pick({ actor: { ...mkState({ energy: 0, signi: [SIGNI, null, null] }), hand: ['T-SPELL-1'], energy: [] } as PlayerState }), null,
+    '🔴払えないスペルは使わない（CPU は任意支払いをしないので基本コストが請求額）');
+  // 🔴追加アタックフェイズは CPU の ATTACK_LRIG→END 遷移を壊す＝分類できても使わない
+  eq(pick({ effs: [{ effectId: 'x', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+    action: { type: 'SEQUENCE', steps: [
+      { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+      { type: 'ADD_EXTRA_ATTACK_PHASE' },
+    ] } } as CardEffect] }), null, '🔴ADD_EXTRA_ATTACK_PHASE を含む札は使わない（CPU 進行が無限ループする）');
+  ok(hasCpuUnsupportedAction({ type: 'ADD_EXTRA_ATTACK_PHASE' } as never), '除外判定は木を歩いて検出する');
+  ok(!hasCpuUnsupportedAction({ type: 'DRAW', owner: 'self', count: 1 } as never), '通常のアクションは除外しない');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
