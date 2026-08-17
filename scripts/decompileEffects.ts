@@ -1815,7 +1815,15 @@ function actionJa(a?: Action, effectType?: string): string {
         : '';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
       const glaOwner = a.targetOwner === 'opponent' ? '対戦相手の' : 'あなたの';
-      if (a.targetedCenter) return `${glaOwner}センタールリグ１体を対象とし、${a.permanent ? 'このゲームの間' : 'ターン終了時まで'}、それは以下の能力を得る。『${glaInner}』`;
+      // ⚠**`duration` を読む**（§6.4 O-27・続き536）＝従来は `targetedCenter` の枝だけ
+      //   「ターン終了時まで」を決め打ちしており、`UNTIL_OPP_TURN_END` の付与が**1ターン短く見えて**いた
+      //   ＝原文照合で期間のズレを見つけられない（engine と逆翻訳の乖離）。
+      if (a.targetedCenter) {
+        const glaSpan = a.permanent ? 'このゲームの間'
+          : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで'
+          : 'ターン終了時まで';
+        return `${glaOwner}センタールリグ１体を対象とし、${glaSpan}、それは以下の能力を得る。『${glaInner}』`;
+      }
       return `${glaDuration}${glaOwner}センタールリグは『${glaInner}』を得る`;
     }
     case 'GRANT_PLAYER_ABILITY':

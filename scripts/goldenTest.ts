@@ -32482,10 +32482,23 @@ test("task12(lxx) Batch E': UP/REMOVE_ABILITIES/GUARD の引用内漏出を live
       ['WX24-P3-009', ['REMOVE_ABILITIES', '"type":"TRASH"', 'TRANSFER_TO_HAND']],
       ['WX25-P2-001', ['GUARD_EXTRA_COST_BY_OPP', 'OPTIONAL_COST']],
     ] as const;
+    // ⚠**「引用内の語が live に現れないこと」ではなく「引用外に漏れていないこと」を見る**
+    //   （§6.4 O-27・続き536）。引用能力が `GRANT_LRIG_ABILITY.abilities` へ**構造化された**今、
+    //   素の substring 検査は正しい是正でも落ちる（続き528「性質を固定し、出現回数/表現を固定しない」）。
+    //   守りたい性質＝**即時実行に漏れていない**なので、GRANT_* の内側を落としてから検査する。
+    const stripGrants = (node: unknown): unknown => {
+      if (Array.isArray(node)) return node.map(stripGrants);
+      if (node && typeof node === 'object') {
+        const o = node as { type?: string; [k: string]: unknown };
+        if (typeof o.type === 'string' && o.type.startsWith('GRANT_')) return { type: o.type };
+        return Object.fromEntries(Object.entries(o).map(([k, v]) => [k, stripGrants(v)]));
+      }
+      return node;
+    };
     for (const [cardNum, forbidden] of cases) {
       const effect = effectsMap.get(cardNum)!.find(e => e.effectId === `${cardNum}-E1`)!;
-      const encoded = JSON.stringify(effect.action);
-      for (const token of forbidden) ok(!encoded.includes(token), `${cardNum}: 引用内 ${token} を live に残さない`);
+      const encoded = JSON.stringify(stripGrants(effect.action));
+      for (const token of forbidden) ok(!encoded.includes(token), `${cardNum}: 引用内 ${token} を引用外へ漏らさない`);
       const ctx = mkCtx({ hand: 5, energy: 5, deckTop: fill(6), lrig: [cardNum] }, { signi: [SIGNI_L1, null, null] }, cardNum);
       const noLeakSnapshot = (owner: PlayerState, other: PlayerState) => JSON.stringify({
         owner: { deck: owner.deck.length, hand: owner.hand.length, trash: owner.trash.length, energy: owner.energy.length,
@@ -38174,6 +38187,82 @@ test('§6.4 O-26: 束ねた任意コスト「〜置き《色》を支払って�
     && p1.pending.options.find(o => o.id === 'pay')?.available === false,
     '場に居ない効果元はトラッシュに置けない＝支払い枝が選べない');
 }));
+
+
+
+// ── §6.4 O-27 続き536：ダメージ無効の残り（引用能力の中身が丸ごと未パース） ────────────────
+// 🔴`WX24-P3-003-E1` は `STUB{GRANT_ABILITY_INNER_TEXT}`＝**リミット＋1も付与能力も何も起きない**
+//   真 no-op だった。姉妹4枚も「リミットだけ動いて引用能力が丸ごと消える」状態だった。
+test('§6.4 O-27: 「リミット＋Nし、それは以下の能力を得る」でリミットと付与が両方載る', () => {
+  for (const [num, eid] of [
+    ['WX24-P3-001', 'WX24-P3-001-E1'], ['WX24-P3-003', 'WX24-P3-003-E1'],
+    ['WX24-P3-005', 'WX24-P3-005-E1'], ['WX24-P3-007', 'WX24-P3-007-E1'],
+    ['WX24-P3-009', 'WX24-P3-009-E1'],
+  ] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const steps = (e.action as SequenceAction).steps;
+    eq((steps[0] as StubAction).id, 'LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END', `${eid}: リミット修正が落ちている`);
+    const gla = steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
+    eq(gla.type, 'GRANT_LRIG_ABILITY', `🔴${eid}: 引用能力の付与が丸ごと消えている`);
+    eq(gla.duration, 'UNTIL_OPP_TURN_END', `${eid}: 期間（過少側の近似）`);
+    // 🔑**引用の2ブロック（【常】/【自】＋【起】）が両方そろう**＝片方を STUB へ潰すと同居ブロックが消える
+    eq(gla.abilities.length, 2, `🔴${eid}: 同居する能力ブロックが落ちている`);
+    eq(gla.abilities[1].effectType, 'ACTIVATED', `${eid}: 2つ目は【起】`);
+  }
+});
+
+test('§6.4 O-27: 【常】の「対戦相手のルリグによってダメージを受けない」が宣言 STUB になる', () => {
+  const e = (effectsMap.get('WX24-P3-003') ?? []).find(x => x.effectId === 'WX24-P3-003-E1')!;
+  const gla = (e.action as SequenceAction).steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
+  const shield = gla.abilities[0];
+  eq(shield.effectType, 'CONTINUOUS', '【常】の宣言');
+  eq((shield.action as StubAction).id, 'PREVENT_LRIG_DAMAGE',
+    '🔴期間ウィンドウ（PREVENT_DAMAGE）に倒すと条件が落ちて張りっぱなしになる');
+  // 🔑条件（「あなたの手札が３枚以下であるかぎり」）が生きていること＝これが落ちると常時無敵
+  eq(shield.activeCondition?.type, 'COUNT_THRESHOLD', '🔴手札枚数の条件が落ちている');
+  // 負方向＝期間句つきの綴りは従来どおり `PREVENT_DAMAGE` ウィンドウのまま（新規則が横取りしていない）
+  const k02 = (effectsMap.get('WXK01-002') ?? []).find(x => x.effectId === 'WXK01-002-E2');
+  ok(!JSON.stringify(k02 ?? {}).includes('"PREVENT_LRIG_DAMAGE"'),
+    '「次のあなたのメインフェイズまで」形を横取りしていない');
+});
+
+test('§6.4 O-27: 付与された【常】シールドが実際に判定へ届く（付与ストア走査）', () => {
+  // 🔴付与された能力は `effectsMap` に載らない＝印刷能力しか見ない走査では**構造が正しくても恒久 no-op**。
+  const shield: CardEffect = {
+    effectId: 'granted-shield', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'PREVENT_LRIG_DAMAGE' } as StubAction,
+    duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'AUTO',
+  };
+  const base = mkState({});
+  const attacker = mkState({});
+  const args = { attacker, cardMap: cardMap as Map<string, CardData>, effectsMap };
+  eq(isLrigDamagePrevented({ ...args, defender: base }), false, '付与が無ければ通る');
+  eq(isLrigDamagePrevented({ ...args, defender: { ...base, lrig_granted_auto_effects: [shield] } }), true,
+    '🔴通常付与ストアの【常】シールドが見えていない');
+  eq(isLrigDamagePrevented({ ...args, defender: { ...base, lrig_granted_auto_effects_until_opp_turn: [shield] } }), true,
+    '🔴「次の対戦相手のターン終了時まで」ストアの【常】シールドが見えていない');
+  // ⚠付与ストアの2本は「ルリグの能力」＝能力消失で丸ごと落ちる（`grantedStoreWatchers` と同じ規約）
+  eq(isLrigDamagePrevented({ ...args, defender: {
+    ...base, lrig_granted_auto_effects: [shield], lrig_abilities_disabled: true } }), false,
+    'ルリグ能力が消えているときは付与シールドも落ちる');
+});
+
+test('§6.4 O-27: 表せない置換は明示 defer にする（誤った形を積まない）', () => {
+  // 🔴素直に parse すると「手札を1枚捨てる」が即時実行され、「このルリグはこの能力を失う」が
+  //   `REMOVE_ABILITIES{SIGNI self}`＝**自分のシグニ**の能力を消す別物に化ける（実測）。
+  for (const [num, eid, id] of [
+    ['WX24-P3-005', 'WX24-P3-005-E1', 'DEFERRED_DAMAGE_REPLACE_BY_COST'],
+    ['WX24-P3-009', 'WX24-P3-009-E1', 'DEFERRED_REFRESH_LIFE_MOVE_REPLACE'],
+    ['WX24-P3-007', 'WX24-P3-007-E1', 'DEFERRED_OPP_EFFECT_TRASHED_ANY_ZONE'],
+  ] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const gla = (e.action as SequenceAction).steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
+    eq((gla.abilities[0].action as StubAction).id, id, `${eid}: 明示 defer になっていない`);
+    // 🔑**自分のシグニの能力を消す形が紛れ込んでいない**（走査軸が広がった瞬間に事故になる）
+    ok(!JSON.stringify(gla.abilities[0]).includes('REMOVE_ABILITIES'),
+      `🔴${eid}: 置換が REMOVE_ABILITIES へ化けている`);
+  }
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
