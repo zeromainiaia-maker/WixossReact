@@ -65,6 +65,9 @@ const CONVENTION_TURN_SCOPED_STATE = {
   life_crashed_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'life crash total copied to life_crashed_last_turn at the boundary' },
   // コイン支払い累計は、ターン単位の条件カウンタ。
   coins_paid_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'coin payments made during the current turn' },
+  // 「それがこのターンでN回目である場合」（`WX05-042`・§6.4 O-11）の台帳。**両プレイヤーぶん**を
+  // グローバルターン境界で空にする（自分のターンにダウンした数を次のターンへ持ち越さない）。
+  signi_downed_this_turn: { boundaries: ['turn-end'], reset: [], reason: 'signi that became down during the current turn (nth-time conditions)' },
   // 「このアタックフェイズの間、無色のカードでエナコストを支払えない」（§6.4 O-10 続き512）。
   // ⚠**境界は `attack-phase-start` ではなく `turn-end`**＝この制限は**相手側の state** に載るのに、
   //   `clearAttackPhaseScopedState` はターンプレイヤー自身にしか適用されない（相手側に残り続ける）。

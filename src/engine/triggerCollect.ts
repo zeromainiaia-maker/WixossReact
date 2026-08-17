@@ -2340,6 +2340,18 @@ export function collectFreezeTriggers(
  *   triggerCondition.duringAttackPhase（「アタックフェイズの間」＝ctx.turnPhase が ATTACK_* のときのみ）。
  * watcher は場シグニ＋センタールリグ＋キー（WXK11-015 はキーカード自身の AUTO）。
  */
+/**
+ * このターンにダウンしたシグニを台帳（`signi_downed_this_turn`）へ積む（§6.4 O-11・`WX05-042`）。
+ *
+ * ⚠**ダウン検出の3経路すべてから呼ぶこと**＝中央 diff（効果ダウン）／`performSigniAttack`（アタックダウン）／
+ *   `checkAndApplyContMutations`（常時効果ダウン）。1経路でも漏らすと「このターンでN回目」が永久に来ない。
+ * ⚠**所有者ごとに積む**（自分のシグニがダウンした回数を数える条件なので、相手のダウンと混ぜない）。
+ */
+export function recordSigniDownedThisTurn(state: PlayerState, nums: string[]): PlayerState {
+  if (nums.length === 0) return state;
+  return { ...state, signi_downed_this_turn: [...(state.signi_downed_this_turn ?? []), ...nums] };
+}
+
 export function collectSigniDownUpTriggers(
   ctx: TrigCtx,
   event: 'ON_SIGNI_DOWN' | 'ON_SIGNI_BECOMES_UP',
