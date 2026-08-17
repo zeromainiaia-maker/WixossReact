@@ -2839,6 +2839,42 @@ test('【起】lrigDown コストの母集団と支払い可否（タスク12(cv
   ok(payLrigDownCost(board({ lrig: lv2, assistL: lv1 }), { count: 2, level: 2 }, cardMap) === null, 'level：レベル1は数に入らない');
 }));
 
+// ── 🔴タスク12(cxxxi): ルリグの【起】《ダウン》（cost.down_self）が誰もダウンさせず**実質無コスト**だった。
+//    真因＝`down_self` の支払い/可否判定が `field.signi` しか探さない（`executeSigniActivated` 用の実装）ため、
+//    ルリグ経路では `findIndex` が常に -1。`executeLrigGranted` にはそもそも支払いが1行も無かった。
+//    支払いの配線そのものは BattleScreen 層＝golden 非カバーなので、(cviii) と同じ形で
+//    ①影響母集団（ルリグ本体の ACTIVATED × cost.down_self 全件）②共有支払い関数の可否
+//    を固定する。母集団が増減したらここが落ちる＝新しい札の配線漏れに気づける。
+test('ルリグ【起】《ダウン》の母集団と自己ダウン支払い（タスク12(cxxxi)）', () => withSavedCursor(() => {
+  const found = [...effectsMap.entries()].flatMap(([cardNum, effs]) => effs
+    .filter(e => e.effectType === 'ACTIVATED' && e.cost?.down_self && cardMap.get(cardNum)?.Type === 'ルリグ')
+    .map(e => e.effectId)).sort();
+  // 実測母集団（2026-08-18）＝この27件がすべて「無コストで何度でも撃てる」状態だった。
+  const expected = [
+    'PR-046-E4', 'PR-195-E3', 'SPDi43-11-E1', 'SPDi43-12-E1', 'SPDi43-13-E1', 'WD08-001-E3', 'WD12-001-E2',
+    'WX01-002-E3', 'WX02-002-E3', 'WX07-002-E3', 'WX07-003-E3', 'WX07-004-E3', 'WX07-005-E3', 'WX08-001-E3',
+    'WX08-002-E3', 'WX08-003-E3', 'WX10-003-E3', 'WX10-009-E3', 'WX19-Re17-E2', 'WX20-Re04-E2', 'WX21-005-E3',
+    'WX24-P2-014-E2', 'WX25-P2-018-E2', 'WXDi-P02-016-E1', 'WXDi-P03-016-E1', 'WXDi-P09-006-E1', 'WXK01-004-E2',
+  ];
+  eq(found.join(','), expected.join(','), 'ルリグ【起】《ダウン》の母集団（増減したら支払い経路の配線を確認する）');
+
+  // 共有支払い関数：アップなら払えてセンターが下がる／ダウン済みなら払えない（＝UI が発動を止める）。
+  const anyLrig = findCard(c => c.Type === 'ルリグ');
+  const upBoard = mkState({ lrig: [anyLrig] });
+  upBoard.field.lrig_down = false;
+  const paidSelf = payLrigDownSelfCost(upBoard);
+  ok(paidSelf !== null, 'アップのルリグは《ダウン》を払える');
+  eq(paidSelf?.field.lrig_down, true, '支払うとセンタールリグがダウンする（従来は誰もダウンしなかった）');
+  eq(upBoard.field.lrig_down, false, '元の state は書き換えない');
+  // ⚠アシストが1体アップでも「自分自身」は代用できない＝lrigDown 語彙との違い。
+  const downBoard = mkState({ lrig: [anyLrig], assistL: [anyLrig] });
+  downBoard.field.lrig_down = true;
+  downBoard.field.assist_lrig_l_down = false;
+  eq(payLrigDownSelfCost(downBoard), null, 'ダウン済みなら払えない（アシストで代用できない＝多重発動の封じ）');
+  // 支払いは「この方法でダウンしたルリグ」を記録しない（シグニ側 down_self と同じ規約）。
+  eq(paidSelf?.last_lrig_down_cards, undefined, 'down_self は last_lrig_down_cards を汚さない');
+}));
+
 test('結果カウント閾値の parser 構造固定（Cluster B・続き143）', () => {
   // WDK06-C07: 黒5枚トラッシュ→{color:黒}minCount5
   const s1 = JSON.stringify(effectsMap.get('WDK06-C07') ?? []);
