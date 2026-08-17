@@ -6689,7 +6689,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? [instanceId, ...newLrigDeck]    // アンコール：ルリグデッキ先頭に戻す
           : newLrigDeck,
         hand: newHand,
-        lrig_trash: keySub ? [...lrigTrashBase, myEnergyTrashSubInfo.keySubInstId!] : lrigTrashBase,
+        lrig_trash: keySub ? [...lrigTrashBase, p.energyTrashSubInfo.keySubInstId!] : lrigTrashBase,
         trash: [...my.trash, ...paidNums, ...discardNums],
         coins: Math.max(0, my.coins - betCost - encoreCoinCost),
         coins_paid_this_turn: (my.coins_paid_this_turn ?? 0) + betCost + encoreCoinCost, // COINS_PAID_THIS_TURN
