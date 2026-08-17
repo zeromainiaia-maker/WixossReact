@@ -12438,9 +12438,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_HAND_ADDED（続き207）: handOwner／fromZones／movedSelf／excludeGrowPhase／turnOwner／移動カード filter を抽出。
       if (timing[0] === 'ON_HAND_ADDED') {
         const haCond: NonNullable<typeof extractedTriggerCondObj> = {};
-        if (/対戦相手の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?[０-９\d]+枚以上対戦相手の手札に移動したとき/.test(trigText)) {
-          haCond.handOwner = 'opponent'; // 増えたのは相手の手札
-          haCond.byOpponentEffect = true; // 原因も相手の効果
+        // 「〈原因〉の効果N つによってカードが合計N枚以上〈増えた側〉の手札に移動したとき」＝**owner 2軸**（タスク12(cxix)）。
+        // ⚠従来は「相手の効果→相手の手札」の1形しか読めず、「あなたの効果→あなたの手札」（`SPDi43-11-E2`）は
+        //   timing 判定にも一致せず `ON_PLAY` へ落ちていた。原因側と増えた側は独立に指定できる。
+        const haMove = trigText.match(/(あなた|対戦相手)の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?([０-９\d]+)枚以上(あなた|対戦相手)の手札に移動したとき/);
+        if (haMove) {
+          if (haMove[1] === '対戦相手') haCond.byOpponentEffect = true; else haCond.byOwnEffect = true;
+          haCond.handOwner = haMove[3] === '対戦相手' ? 'opponent' : 'self';
+          const haMin = parseNum(haMove[2]);
+          if (haMin > 1) haCond.minCount = haMin;   // 既定1＝刻まない（live diff を増やさない）
         }
         if (/グロウフェイズ以外で/.test(trigText)) haCond.excludeGrowPhase = true;
         if (/エナゾーンから/.test(trigText)) haCond.fromZones = ['energy'];
