@@ -6751,7 +6751,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
       // ON_COIN_PAID（C1 配線・アーツのベット/アンコールのコイン支払）: extraEntries 経由で反応【自】を積む。
-      const artsCoin = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(user.id, paidWithUseCost, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const artsCoin = (betCost + encoreCoinCost) > 0 ? collectCoinPaidTriggers(p.actorId, paidWithUseCost, op) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const artsCoinPaidEntries = artsCoin.entries;
       // ON_MATERIAL_USED（改造素材機構 Step3a）: 《改造素材》使用時に「あなたが使用したとき」(materialUsedByPlayer)変種を発火。
       // ⚠「このシグニに/他の味方に使用されたとき」(self/any_ally・対象シグニ依存)は Step2（トークン3択の対象捕捉）が前提＝別途。
