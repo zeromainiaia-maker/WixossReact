@@ -7172,10 +7172,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // fromLrigDeck=true のとき: ルリグデッキから除いてpending_spell.from_lrig_deck=trueをセット（フェゾーネマジック）
   // discardIndices＝使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）で
   // 選んだ手札 index。支払うと使用コストが置換される（検証は SpellCastModal 側＝executeArts と同じ規約）。
-  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set(), useCostPayKeys: Set<string> = new Set()) => {
-    if (!isMyTurn || loading) return;
-    // §6.4 O-18（続き513）＝3軸を `isSpellUseBlocked` に集約（ボタン生成側と同じ関数を見る）。
-    if (isSpellUseBlocked(card)) return;
+  /**
+   * スペル使用の実行（人間・CPU 共通）。DESIGN §4「CPU は対人戦と同じ処理を使う」の抽出形＝
+   * `performArts` / `performSigniActivated` と同じく **owner をパラメータ化**し、
+   * 人間用 `castSpell` は薄いラッパーにする（§8 `O-1` (b)）。
+   *
+   * ⚠**「いま発動できるか」の判定はここではなく `spellUseGate.checkSpellUse`**。
+   * ここに残すゲートは**実行入口の再検算**（UI を迂回する経路から素通りさせないため）。
+   */
+  const performSpell = async (
+    card: CardData,
+    sel: {
+      costIndices: Set<number>;
+      handIdx: number;
+      fromLrigDeck?: boolean;
+      betCoins?: number;
+      virusRemovalByZone?: number[];
+      discardIndices?: Set<number>;
+      useCostPayKeys?: Set<string>;
+    },
+    p: {
+      actor: PlayerState; opponent: PlayerState;
+      actorId: string;
+      actorKey: 'host_state' | 'guest_state';
+      /** `actor` がターンプレイヤーか。 */
+      isActorTurn: boolean;
+      /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
+      energyPayPool: EnergyPayEntry[];
+      /** `calcContinuousBlockedActions(actor, ...).forSelf`。 */
+      blockedSelf: Set<string>;
+      /** 支払ったエナの色記録（`WX04-063`）に要る＝`ArtsPayerCtx` の同名フィールド。 */
+      enaAllMulti: boolean;
+      enaMultiStripped: boolean;
+    },
+  ) => {
+    const my = p.actor;
+    const op = p.opponent;
+    const actorIsHost = p.actorKey === 'host_state';
+    const { costIndices, handIdx } = sel;
+    const fromLrigDeck = sel.fromLrigDeck;
+    const betCoins = sel.betCoins ?? 0;
+    const virusRemovalByZone = sel.virusRemovalByZone;
+    const discardIndices = sel.discardIndices ?? new Set<number>();
+    const useCostPayKeys = sel.useCostPayKeys ?? new Set<string>();
+    if (!p.isActorTurn) return;
+    // §6.4 O-18（続き513）＝3軸を `isSpellUseBlockedFor` に集約（ボタン生成側と同じ関数を見る）。
+    if (isSpellUseBlockedFor(my, p.blockedSelf, card)) return;
     // DISONA_RESTRICTION: このターン《ディソナアイコン》ではないスペルを使用できない
     if (my.dissona_only_spells_this_turn && card.Story !== 'Dissona') {
       appendBattleLogs(['ディソナ制限：《ディソナアイコン》ではないスペルは使用不可']);
@@ -7191,15 +7233,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
     }
     setLoading(true);
-    closeSpellCast();
-    setBetAmount(0);
     try {
-      const spellPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const spellPay = planEnergyPayment(my, p.energyPayPool, costIndices);
       const paidNums = spellPay.paidNums;
       // 支払ったエナ1枚ごとの色配列（WX04-063「支払われたエナの色」参照用）。
       // マルチエナは全5色、無色エナは空配列として記録する。
       const paidEnergyColors = paidNums.map(num =>
-        isMultiEna(num, battleCards, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped)
+        isMultiEna(num, battleCards, my.keyword_grants, p.enaAllMulti, p.enaMultiStripped)
           ? ['白', '赤', '青', '緑', '黒']
           : splitColors(battleCardMap.get(getCardNum(num))?.Color));
       // 使用時の任意支払いで捨てる手札（コスト置換の対価）。使用したスペル自身の index は含めない。

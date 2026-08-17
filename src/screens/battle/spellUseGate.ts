@@ -9,7 +9,7 @@ import {
   canAffordWithExtraCost, computeArtsEffectiveCost, parseGrowCost, removeNColorFromCost,
 } from './costs';
 import { energyPoolCardNums } from './energyPaySource';
-import { effectiveLrigClass, meetsRestriction } from './growLogic';
+import { meetsRestriction } from './growLogic';
 
 /**
  * 手札スペルが**いま発動できるか**（提示の可否＋請求される実効コスト）を1か所で判定する純関数群
@@ -165,6 +165,3 @@ export function listCastableSpells(p: Omit<Parameters<typeof checkSpellUse>[0], 
   });
   return out;
 }
-
-/** `ArtsPayerCtx` から実効ルリグクラスを組み直すときのヘルパー（テスト用の再エクスポート）。 */
-export { effectiveLrigClass };
