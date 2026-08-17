@@ -1835,7 +1835,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // センタールリグの付与ストア（effectsMap 非搭載）の ON_ENERGY_CHARGE watcher（SPDi43-13-E2＝
       // 「ターン終了時まで、このルリグは『【自】あなたのエナゾーンにカードが置かれたとき…』を得る」）。
       // 下の走査は場のシグニしか見ないため、ルリグ host の付与能力は付与ストアから別途収集する。
-      // 《ターン1回/2回》はこの付与 watcher 経路だけで予約し、下の印刷能力走査には影響させない。
+      // 🔴《ターン1回/2回》の予約は**付与 watcher と印刷シグニの両方**で行う（タスク12(cxx)）。
+      //   ⚠この useEffect は entries を積むだけで `actions_done` へ書き戻していなかったため、
+      //     印刷シグニ側は**エナチャージのたびに撃てた**（ON_ENERGY_CHARGE 6効果／ON_POWER_THRESHOLD 3効果）。
+      //     予約 ID は下の commit で `actions_done` へ書き戻す＝他コレクタと同じ規約。
       const ecLrigTop = st.field.lrig.at(-1);
       if (ecLrigTop && addedToEnergy.length === 1) {
         for (const w of grantedStoreWatchers(st, 'ON_ENERGY_CHARGE', ['self', 'any_ally', 'any'])) {
