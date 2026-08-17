@@ -17932,8 +17932,14 @@ test('parse (lxxv)：主語形「対戦相手は…デッキの上から…ト�
     walk(eff.action);
     return out;
   };
+  // ⚠**枝の数ではなく owner だけを見る**（§6.4 O-35・続き528）＝`WX08-020-E1` は「代わりに１０枚」が
+  //   置換として解けた結果 `CONDITIONAL{then: mill10, else: mill5}` になり **DECK_CARD が2つ**現れる。
+  //   このトリップワイヤの目的は「自分のデッキを削る自傷への退化」の検出なので、**全エントリが opponent**
+  //   かつ **1つ以上ある** ことを固定する（`join(',')` の完全一致だと枝が増えただけで落ちる）。
   for (const id of ['WX08-020-E1', 'WX18-037-E1', 'WX25-CP1-024-E1', 'WXDi-P07-007-E3', 'WXDi-P10-003-E1', 'WXEX2-27-E3']) {
-    eq(millOwners(id).join(','), 'opponent', `${id}: 相手のデッキを削る（従来は自分のデッキ＝自傷）`);
+    const owners = millOwners(id);
+    ok(owners.length > 0, `${id}: デッキミルが消えていない`);
+    eq([...new Set(owners)].join(','), 'opponent', `${id}: 相手のデッキを削る（従来は自分のデッキ＝自傷）`);
   }
   // 選択肢の中に入っている形（③）も同じ
   const p14 = effectsMap.get('WXDi-P14-005')!.find(e => e.effectId === 'WXDi-P14-005-E1')!;
@@ -37485,6 +37491,16 @@ test('§6.4 O-35: 「手札をN枚まで捨てる」の upToCount が落ちな�
   const a = (effectsMap.get('WXDi-P05-001') ?? []).find(e => e.effectId === 'WXDi-P05-001-E1')!.action as SequenceAction;
   const s = JSON.stringify(a.steps[1]);
   ok(s.includes('"upToCount":true') && s.includes('"HAND_CARD"'), '🔴「３枚まで捨てる」が落ちている');
+});
+
+test('§6.4 O-35: 「〈色〉のセンタールリグの場合、代わりにN枚」がミル枚数の置換として解ける', () => {
+  // 🔴`LRIG_COLOR` は engine に在るのに**条件表（両方）に色形だけ無く**、置換にならず条件節ごと
+  //   catch-all へ落ちて **10枚側が無言 no-op**（＝常に5枚）だった。
+  const a = (effectsMap.get('WX08-020') ?? []).find(e => e.effectId === 'WX08-020-E1')!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(a.type, 'CONDITIONAL', '🔴置換になっていない');
+  eq(a.condition.type, 'LRIG_COLOR', 'センタールリグの色ゲート');
+  eq(((a.then as Extract<EffectAction, { type: 'TRASH' }>).target).count, 10, '成立時は10枚');
+  eq(((a.else as Extract<EffectAction, { type: 'TRASH' }>).target).count, 5, '🔴else（基本の5枚）が落ちると置換が加算に化ける');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
