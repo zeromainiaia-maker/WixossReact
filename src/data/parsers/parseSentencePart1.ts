@@ -1980,6 +1980,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
             ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction
             : { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
       afterSearch: t.includes('シャッフル') ? { type: 'SHUFFLE_DECK', owner: 'self' } : undefined,
+      // 「（それぞれ）**レベルの異なる**＜X＞のシグニN枚を探して」（§6.4 O-29・`WX17-003-E1`③）＝
+      // **選択集合どうしの相互制約**（候補単体の条件ではない）なので `selectionConstraint` に載せる。
+      // ⚠落とすと**同じレベルを2枚**探せる＝原文より緩い。`SearchAction.selectionConstraint` は実装済み。
+      ...(/(?:それぞれ)?レベルの異なる/.test(t) ? { selectionConstraint: { distinct: 'level' as const } }
+        : /(?:それぞれ)?名前の異なる/.test(t) ? { selectionConstraint: { distinct: 'name' as const } }
+        : {}),
     };
   }
 
