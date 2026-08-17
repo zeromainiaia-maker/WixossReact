@@ -3390,6 +3390,9 @@ export interface CardEffect {
     accedHostStory?: string;    // ON_ACCE_ATTACH（アクセカード自身）の「＜X＞のシグニに付いたとき」host クラス条件（WX17-033-E4=調理）。host シグニの CardClass に含まれなければ発火しない
     refreshedOwner?: 'self' | 'opponent' | 'any'; // ON_REFRESH の発生源プレイヤー（トリガー所有者から見た self/opponent/any）。省略=any。WXDi-P04-043=any（いずれかのプレイヤー）
     handOwner?: 'self' | 'opponent' | 'any'; // ON_HAND_ADDED の手札が増えた側（watcher 所有者から見て）。省略=self。any=いずれかのプレイヤー（WX20-067）。fromZones で移動元も限定可（['energy']＝「エナゾーンから」）
+    // ON_TRASH_CARD_ADDED（§6.4 O-37(c)）のトラッシュが増えた側（watcher 所有者から見て）。省略=self。
+    // 枚数しきい値は `minCount`、原因側は `byOpponentEffect`/`byOwnEffect` を共用する。
+    trashOwner?: 'self' | 'opponent' | 'any';
     lifeMovedOwner?: 'self' | 'opponent' | 'any'; // ON_LIFE_CLOTH_MOVED の離脱元（watcher 所有者から見て）。省略=self
     lifeMovedTo?: Array<'trash' | 'hand' | 'energy' | 'deck' | 'other'>; // ON_LIFE_CLOTH_MOVED の宛先限定。省略=全領域
     lifeCountReached?: number; // ON_LIFE_CLOTH_MOVED の到達枚数。before!==value && after===value の遷移だけを発火
