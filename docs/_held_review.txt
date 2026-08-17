@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［54枚］
-PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［55枚］
+PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX12-017 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -15,56 +15,8 @@ PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +SEQUENCE +SIGNI +STUB×2 ［7枚］
-SPDi43-15 WX12-017 WX24-P4-047 WX25-CP1-004 WX25-CP1-052 WXDi-CP01-027 WXDi-P13-045
---- SPDi43-15
-  原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、手札から青のカードを２枚捨ててもよい。そうした場合、それをバニッシュする。【起】《ゲーム１回》ブレイキング《青×0》：あなたのルリグトラッシュから《リコレクトアイコン》を持たないコストの合計が３以下の青のアーツ１枚を対象とし、それをルリグデッキに加える。,-
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].handDiscard.count = 2
-  - [0].action.steps[0].handDiscard.filter.color = "青"
-  ~ [0].action.steps[0].type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].steps[0].type = "STUB"
-  + [0].action.steps[0].steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].steps[0].selectTarget.type = "SIGNI"
-  + [0].action.steps[0].steps[0].selectTarget.owner = "opponent"
-  + [0].action.steps[0].steps[0].selectTarget.count = 1
-  + [0].action.steps[0].steps[0].selectTarget.filter.cardType = "シグニ"
-  + [0].action.steps[0].steps[0].selectTarget.upToCount = false
-  + [0].action.steps[0].steps[1].type = "STUB"
-  …（他 6 行）
---- WX12-017
-  原文: 【出現条件】《メインフェイズアイコン》レゾナではない青の＜電機＞のシグニ１体とレゾナではない黒の＜電機＞のシグニ１体をあなたの場からトラッシュに置く【自】：対戦相手のアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、手札からスペルを１枚捨ててもよい。そうした場合、それをダウンし凍結する。【出】：あなたのトラッシュから青か黒のスペル１枚を対象とし、それを
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].handDiscard.count = 1
-  - [0].action.steps[0].handDiscard.filter.cardType = "スペル"
-  ~ [0].action.steps[0].type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].steps[0].type = "STUB"
-  + [0].action.steps[0].steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].steps[0].selectTarget.type = "SIGNI"
-  + [0].action.steps[0].steps[0].selectTarget.owner = "opponent"
-  + [0].action.steps[0].steps[0].selectTarget.count = 1
-  + [0].action.steps[0].steps[0].selectTarget.filter.cardType = "シグニ"
-  + [0].action.steps[0].steps[0].selectTarget.upToCount = false
-  + [0].action.steps[0].steps[1].type = "STUB"
-  …（他 5 行）
---- WX24-P4-047
-  原文: 【自】：このシグニがアタックしたとき、以下の２つから１つを選ぶ。①あなたの手札が４枚以下の場合、カードを２枚引く。②あなたの手札が５枚以上ある場合、対戦相手のシグニ１体を対象とし、手札から青のカードを２枚捨ててもよい。そうした場合、ターン終了時まで、それのパワーを－12000する。,：どちらか１つを選ぶ。①対戦相手のシグニを２体まで対象とし、それらをダウンす
-  - [0].action.choices[1].action.steps[0].then.id = "OPTIONAL_COST"
-  - [0].action.choices[1].action.steps[0].then.handDiscard.count = 2
-  - [0].action.choices[1].action.steps[0].then.handDiscard.filter.color = "青"
-  ~ [0].action.choices[1].action.steps[0].then.type : "STUB" → "SEQUENCE"
-  + [0].action.choices[1].action.steps[0].then.steps[0].type = "STUB"
-  + [0].action.choices[1].action.steps[0].then.steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.choices[1].action.steps[0].then.steps[0].selectTarget.type = "SIGNI"
-  + [0].action.choices[1].action.steps[0].then.steps[0].selectTarget.owner = "opponent"
-  + [0].action.choices[1].action.steps[0].then.steps[0].selectTarget.count = 1
-  + [0].action.choices[1].action.steps[0].then.steps[0].selectTarget.filter.cardType = "シグニ"
-  + [0].action.choices[1].action.steps[0].then.steps[0].selectTarget.upToCount = false
-  + [0].action.choices[1].action.steps[0].then.steps[1].type = "STUB"
-  …（他 6 行）
-
-## +SEQUENCE ［7枚］
-WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001 WXDi-P02-009 WXDi-P05-066 WXDi-P14-055
+## +SEQUENCE ［4枚］
+WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
 --- WX24-P3-001
   原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【自】：あなたのアタックフェイズ開始時、このルリグをアップする。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。』,-
   - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
@@ -786,7 +738,7 @@ SPDi43-05
   + [1].action.rawText = "【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする。"
   ~ [1].parseStatus : "AUTO" → "PARTIAL"
 
-## +BOUNCE +CONDITIONAL +IS_MY_TURN +SEQUENCE +SIGNI×2 +STUB×3 ［1枚］
+## +BOUNCE +CONDITIONAL +IS_MY_TURN +SEQUENCE +SIGNI +STUB ［1枚］
 SPDi43-26
 --- SPDi43-26
   原文: 【自】：このルリグがアタックしたとき、あなたのエナゾーンから白のシグニ１枚をデッキの一番上に置いてもよい。そうした場合、【ルリグバリア】１つを得る。【起】《ゲーム１回》インフレーション《白×0》：あなたのデッキの上からカードを５枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。その後、対戦相手のシグニ１体を対象とし、手札か
@@ -802,5 +754,5 @@ SPDi43-26
   + [1].action.steps[0].type = "REVEAL_AND_PICK"
   + [1].action.steps[0].owner = "self"
   + [1].action.steps[0].revealCount = 5
-  …（他 31 行）
+  …（他 21 行）
 

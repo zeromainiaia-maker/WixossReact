@@ -32161,8 +32161,15 @@ test('task12(lxx) Batch E: 引用付与の内側を裸で即時実行せず、TR
       eq(JSON.stringify(tops(result.otherState)), JSON.stringify(beforeOpp), `${cardNum}: 引用内BANISHを即時実行しない`);
     }
 
+    // 原文の E2 は「カードを１枚引く**か**【エナチャージ１】をする」＝二択（§6.4 O-11）。
+    // ⚠この assert は元は `ENERGY_CHARGE_FROM_DECK` を期待していたが、それは
+    //   【エナチャージ】ショートハンドの catch-all が**「引く」側を飲んでいた**当時の姿で、
+    //   ここで見たいのは「TRAP の FREEZE tail が E2 に継ぎ足されていないこと」だけ。
     const spamE2 = effectsMap.get('WXEX2-66')!.find(e => e.effectId === 'WXEX2-66-E2')!;
-    eq(spamE2.action.type, 'ENERGY_CHARGE_FROM_DECK', 'E2からTRAPのFREEZE tailを除去');
+    eq(spamE2.action.type, 'CHOOSE', 'E2 はドロー/エナチャージの二択');
+    eq(JSON.stringify(spamE2.action).includes('FREEZE'), false, 'E2からTRAPのFREEZE tailを除去');
+    const e2Choices = (spamE2.action as unknown as { choices: { action: { type: string } }[] }).choices;
+    eq(e2Choices.map(c => c.action.type).join(','), 'DRAW,ENERGY_CHARGE_FROM_DECK', 'E2 の二択の中身');
     const trap = effectsMap.get('WXEX2-66')!.find(e => e.effectId === 'WXEX2-66-TRAP')!;
     eq(trap.action.type, 'FREEZE', '独立TRAP側のFREEZEは維持');
   } finally {

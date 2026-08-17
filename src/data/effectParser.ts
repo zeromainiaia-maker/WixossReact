@@ -9585,7 +9585,7 @@ function parseActionTextInner(text: string): EffectAction {
           //   🔑「その後、」で始まる＝**明示的に逐次**と書いてある続きだけを、まとめて1つの木に解いて足す
           //     （`parseActionText` に渡すのは「そうした場合、」ゲートを跨いで解かせるため。1文ずつ足すと
           //      任意コストの支払いゲートが外れて帰結だけが無条件に走る）。
-          const seqTail = process.env.NO_TAIL ? [] : sentences.slice(2).map(s => s.trim()).filter(Boolean);
+          const seqTail = sentences.slice(2).map(s => s.trim()).filter(Boolean);
           if (seqTail.length > 0 && /^その後、/.test(seqTail[0])
               && !seqTail.some(s => /(?:場合|とき|かぎり|代わりに)/.test(s.replace(/^そうした場合、/, '')))) {
             const tailAction = parseActionText(seqTail.join(''));
