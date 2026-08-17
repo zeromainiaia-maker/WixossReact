@@ -9590,7 +9590,26 @@ function parseActionTextInner(text: string): EffectAction {
               && !seqTail.some(s => /(?:場合|とき|かぎり|代わりに)/.test(s.replace(/^そうした場合、/, '')))) {
             const tailAction = parseActionText(seqTail.join(''));
             if (tailAction.type !== 'UNKNOWN' && !JSON.stringify(tailAction).includes('"UNKNOWN"')) {
-              return { type: 'SEQUENCE', steps: [rp, tailAction] } as SequenceAction;
+              // ⚠**入れ子 SEQUENCE のままにしてはいけない**＝engine の任意コスト funnel（Pattern ③/⑤）は
+              //   `STUB{OPTIONAL_COST}` の**直後の兄弟**が「そうした場合」ゲートであることを見る。
+              //   包んだままだと支払いの残りステップが空になり、**払わなくてもゲートの先が走る**
+              //   （過少実行を直すつもりで過剰実行を作る）。平坦化してから足す。
+              const flat = (a: EffectAction): EffectAction[] =>
+                a.type === 'SEQUENCE' ? (a as SequenceAction).steps.flatMap(flat) : [a];
+              const tailSteps = flat(tailAction);
+              // 対象宣言（SELECT_TARGET_ONLY → STORE）があるなら、以降の帰結を**その固定対象**へ束縛する。
+              // 束縛しないと「そうした場合、**それを**手札に戻す」が別のシグニを選び直せてしまう。
+              const selIdx = tailSteps.findIndex(s => s.type === 'STUB' && (s as StubAction).id === 'SELECT_TARGET_ONLY');
+              const bound = (selIdx >= 0 && (tailSteps[selIdx] as StubAction).selectTarget
+                && tailSteps[selIdx + 1]?.type === 'STUB'
+                && (tailSteps[selIdx + 1] as StubAction).id === 'STORE_LAST_PROCESSED_TARGETS')
+                ? [
+                    ...tailSteps.slice(0, selIdx + 2),
+                    ...tailSteps.slice(selIdx + 2)
+                      .map(s => bindToStoredTarget(s, (tailSteps[selIdx] as StubAction).selectTarget!)),
+                  ]
+                : tailSteps;
+              return { type: 'SEQUENCE', steps: [rp, ...bound] } as SequenceAction;
             }
           }
           return rp;
