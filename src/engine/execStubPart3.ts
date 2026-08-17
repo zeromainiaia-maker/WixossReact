@@ -836,13 +836,13 @@ export function execStubPart3(
       || stub.id === 'BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT') {
     return done(addLog(ctx, `[ブロック効果: ${stub.id}]`));
   }
+  /* 唯一の利用者 `WXDi-P03-012-E2` の原文は「**対戦相手のターンの場合**、**このターン**、対戦相手は
+     １以上のエナコストを支払えない」＝§6.4 O-36（続き534）でこの条件が `CONDITIONAL{TURN_OWNER opponent}`
+     として parser から届くようになった。⚠従来は条件が落ちて自分のターンに発火していたため
+     `:NEXT_TURN` 予約（＝相手のターン開始時に昇格）で辻褄を合わせていたが、条件が効く今それを残すと
+     **相手のターンに発火→その次のターンに効く**＝1ターンずれる。接尾辞なし＝このターン限りが正しい
+     （接尾辞なしのエントリはターン終了時に `clearTurnEndScopedState` が落とす）。 */
   // OPP_TURN_NO_ENERGY_COST: このターン、対戦相手はエナコストを支払えない
-  // 唯一の利用者 `WXDi-P03-012-E2` の原文は「**対戦相手のターンの場合**、**このターン**、対戦相手は
-  // １以上のエナコストを支払えない」＝§6.4 O-36（続き534）でこの条件が `CONDITIONAL{TURN_OWNER opponent}`
-  // として parser から届くようになった。⚠従来は条件が落ちて自分のターンに発火していたため
-  // `:NEXT_TURN` 予約（＝相手のターン開始時に昇格）で辻褄を合わせていたが、条件が効く今それを残すと
-  // **相手のターンに発火→その次のターンに効く**＝1ターンずれる。接尾辞なし＝このターン限りが正しい
-  // （接尾辞なしのエントリはターン終了時に `clearTurnEndScopedState` が落とす）。
   if (stub.id === 'OPP_TURN_NO_ENERGY_COST') {
     // エナコストを必要とする全アクションをブロック（アーツ/スペル/グロウ/起動能力）
     const newBlockedOTNEC = [...new Set([

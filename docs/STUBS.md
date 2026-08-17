@@ -68,10 +68,10 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 
 | STUB ID | 件数 | カード数 | 代表カード | 説明 |
 |---|---:|---:|---|---|
-| `OPTIONAL_COST` | 602 | 564 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
+| `OPTIONAL_COST` | 601 | 563 | WD10-009, WD12-009, WD13-003 | OPTIONAL_COST: 任意コスト（effectExecutorのSEQUENCEインターセプト対象外のエッジケース） 主な338件はeffectExecutor.tsがSTUB→CONDITIONAL(IS_MY_TURN)パター… |
 | `STORE_LAST_PROCESSED_TARGETS` | 149 | 145 | WD12-009, WDK06-R09, WDK06-C17 |  |
 | `SELECT_TARGET_ONLY` | 136 | 132 | WD12-009, WDK06-R09, WDK06-C17 | SELECT_TARGET_ONLY（タスク12(liii)）: 「〈シグニ〉１体を対象とし、」だけを行い盤面は一切変えない対象宣言。 「それのレベル１につき〈コスト〉を支払ってもよい」族は、コスト量が対象のレベルで決まるため **対象を… |
-| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 121 | 118 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
+| `TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST` | 122 | 119 | WD06-001, WD15-001, WD20-001 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `ARTS_COST_REDUCTION_BY_EFFECT` | 116 | 114 | WD10-006, WD12-006, WD15-006 | アーツコスト軽減／置換マーカー（コストはBattleScreen使用時に算出済み）。 「減る/増える」は `computeArtsEffectiveCost` の軽減規則、「《X》に**なる**」＝条件つき置換は 同ファイルの `comp… |
 | `OPPONENT_PAY_OPTIONAL` | 77 | 69 | WDK10-001, SPDi43-01, SPDi43-02 | 対戦相手任意コスト（相手にCHOOSEを提示し、支払うとフラグを立てる） |
 | `POWER_MOD_PER_COUNT` | 57 | 57 | WD19-001, WDK06-C17, SP26-003 | 動的パワー修正（COUNT依存） |
@@ -521,7 +521,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `BLOCK_OPP_AUTO_ABILITY_EXTENDED` | 1 | 1 | WXDi-P13-006 | BLOCK_OPP_AUTO_ABILITY_EXTENDED: このターンと次のターン、相手シグニの【自】能力は発動しない |
 | `BLOCK_OPP_DECK_TO_ENERGY` | 1 | 1 | WXK11-068 |  |
 | `BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT` | 1 | 1 | WXK11-042 |  |
-| `BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN` | 1 | 1 | WXK10-013 | BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: 相手ターン中、相手はシグニを配置できない |
+| `BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN` | 1 | 1 | WXK10-013 | BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: このターン、対戦相手はシグニを新たに場に出せない ⚠id は「IF_OPP_TURN」だが**ターン判定はここでは見ない**＝§6.4 O-36（続き534）で   「対… |
 | `BLOCK_OPP_SPELL_ACT_NEXT_TURN` | 1 | 1 | WXDi-P09-007 | ブロック系（engine: 行動ブロック未実装） BLOCK_OPP_SPELL_ACT_NEXT_TURN: 次の対戦相手のターン中、スペルと起動能力を使用できない |
 | `CARDS_OUTSIDE_ENERGY_BECOME_WHITE` | 1 | 1 | WX08-005 |  |
 | `CENTER_LRIG_COLOR_CHANGE_BLACK` | 1 | 1 | WXK03-006 |  |
@@ -603,7 +603,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_REVEAL_TOP_AND_HAND` | 1 | 1 | WXDi-D09-P14 | OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ |
 | `OPP_SIGNI_ONE_ATTACK_TOTAL` | 1 | 1 | WXDi-P04-023 | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
 | `OPP_TRASH_LOSE_COLOR_AND_CLASS` | 1 | 1 | WXK11-026 | OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理） |
-| `OPP_TURN_NO_ENERGY_COST` | 1 | 1 | WXDi-P03-012 | OPP_TURN_NO_ENERGY_COST: 対戦相手の次のターン中、対戦相手はエナコストを支払えない |
+| `OPP_TURN_NO_ENERGY_COST` | 1 | 1 | WXDi-P03-012 | OPP_TURN_NO_ENERGY_COST: このターン、対戦相手はエナコストを支払えない 唯一の利用者 `WXDi-P03-012-E2` の原文は「**対戦相手のターンの場合**、**このターン**、対戦相手は １以上のエナコスト… |
 | `OPTIONAL_HAND_REVEAL_NAMED` | 1 | 1 | WX05-038 | OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開 |
 | `PLACE_CHOKKIN` | 1 | 1 | WX17-034 | PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1 |
 | `PLACE_DECK_TOP_UNDER_WEAPON_SIGNI` | 1 | 1 | WXK08-088 | PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: ウェポンシグニの下にデッキ上を置く |
