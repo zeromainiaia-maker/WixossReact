@@ -13985,9 +13985,12 @@ function expandGrantEffectRawTexts(action: EffectAction, cardNum: string): boole
             && /そのアタックを無効にする/.test(cleanRaw)
             ? 'DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE' : null;
           if (deferredId) {
-            (a as unknown as StubAction & { target?: unknown }).type = 'STUB' as never;
-            (a as unknown as StubAction).id = deferredId;
-            delete (a as unknown as { rawText?: string }).rawText;
+            // ⚠GRANT_EFFECT の随伴キー（target/duration/rawText）は STUB では意味を持たないので落とす
+            //   （残すと逆翻訳・census が「対象つきの実装済み STUB」に見えてしまう）。
+            const obj = a as unknown as Record<string, unknown>;
+            for (const k of Object.keys(obj)) delete obj[k];
+            obj.type = 'STUB';
+            obj.id = deferredId;
             return;
           }
         }
