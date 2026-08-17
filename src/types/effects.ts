@@ -315,6 +315,14 @@ export type Condition =
   | { type: 'THIS_CARD_IS_CHARMED' }
   | { type: 'THIS_CARD_HAS_ATTACHED'; minCount?: number }     // このシグニにカードがN枚以上付いている場合（【チャーム】/【アクセ】/【ソウル】の合計。省略=1。WXK10-049-E2）
   | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number } // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。`signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する
+  // 「そのアタックがこのターンN度目の場合」（§6.4 O-25(d)・`WXK06-033/035/037/038/062`／`WXDi-P14-052`／`WXDi-P16-063`）。
+  // 🔑序数は**シグニ単位ではなくアタックしたプレイヤーのターン内通算**＝`attacked_signi_ids.length`
+  //   ＋ルリグアタック済み分（シグニは通常1回しかアタックできないので「四度目」は盤面全体の通算でしか成立しない）。
+  // ⚠**解決中のアタック自身を含む**＝`BattleScreen` は `attacked_signi_ids` へ追記した `newMyState` で
+  //   ON_ATTACK_SIGNI を収集するので、一度目のアタックの解決時点で既に 1 になっている。
+  // ⚠「一度目**か二度目**」（`WX10-018`／`WX17-006`／`SP27-016`）は**別機構**＝`negateNthAttack` の
+  //   カウントダウン窓が既に実装済み。ここで拾わないこと（regex は「N度目の場合」に限定してある）。
+  | { type: 'ATTACK_ORDINAL_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }          // このターンにあなたが手札をN枚以上捨てている場合
   // このシグニの下にカードがある場合。negate=true は「無い場合」。
