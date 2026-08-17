@@ -2006,10 +2006,12 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.id === 'GRANT_LEAVE_PLACE_PENDING') return 'シグニが場を離れたときに発動する配置能力を付与する（機構未実装・近似）';
       if (a.id === 'PLACE_LIMIT_UPPER') return 'あなたのルリグゾーンに【リミットアッパー】1つを置く';
       if (a.id === 'STEAL_OPP_TRASH_PUPPET') {
-        const pp = (a as { puppetParams?: { count?: number; optional?: boolean; levelLteTrigger?: boolean } }).puppetParams;
+        const pp = (a as { puppetParams?: { count?: number; optional?: boolean; levelLteTrigger?: boolean; filter?: any } }).puppetParams;
         if (pp) {
           const n = pp.count ?? 1;
-          const lvl = pp.levelLteTrigger ? 'そのシグニのレベル以下の' : '';
+          // 静的な絞り込み（「レベル３以下の」「＜美巧＞ではない」）＝2026-08-18 §5d-0 (i) で配線。
+          // ⚠逆翻訳に出さないと原文照合で絞り込みの脱落を検出できない（PLAN 教訓⑩）。
+          const lvl = pp.levelLteTrigger ? 'そのシグニのレベル以下の' : filterJa(pp.filter);
           const opt = pp.optional ? '出してもよい' : '出す';
           return `対戦相手のトラッシュから${lvl}シグニ${n}枚を対象とし、それを傀儡状態であなたの場に${opt}（離場時は持ち主のトラッシュへ）`;
         }
