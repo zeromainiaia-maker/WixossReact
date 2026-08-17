@@ -5199,7 +5199,11 @@ export function execStubPart1(
     const toHWODC = (s: string) => s.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
     const classMatchODC = txtODC.match(/手札から[<＜]([^>＞]+)[>＞]のシグニ/);
     const targetClassODC = classMatchODC?.[1];
-    const maxMODC = txtODC.match(/シグニ([０-９\d]+)枚まで/);
+    // ⚠**「シグニ**を**２枚まで」の `を` を許すこと**＝`PR-328`「手札から＜武勇＞のシグニ**を**２枚まで
+    //   捨ててもよい」がこの regex から外れ、上限が既定の **1枚** に落ちていた（§6.4 O-11・続き532）。
+    //   このカードは捨てた枚数がそのまま後段 CHOOSE の選択数（`countChoose`）になるので、
+    //   上限が半分になると**選べる効果も半分**になる。
+    const maxMODC = txtODC.match(/シグニを?([０-９\d]+)枚まで/);
     const maxODC = maxMODC ? parseInt(toHWODC(maxMODC[1])) : 1;
     const handCands = ctx.ownerState.hand.filter(cn => {
       const c = ctx.cardMap.get(cn);
