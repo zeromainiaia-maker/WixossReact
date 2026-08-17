@@ -38767,26 +38767,25 @@ test('§6.4 O-37(c): 「相手の効果でトラッシュに置かれたとき�
   eq(watcher.triggerCondition?.byOpponentEffect, true, '🔴「対戦相手の効果1つによって」が落ちている');
   eq((watcher.action as StubAction).trashedCardUpTo, true, '🔴「1枚**まで**」＝0枚を選べる');
   // 検出器＝**移動元の領域を問わない**（デッキ限定/手札限定の既存検出器では狭くて流用できない）
-  const before = mkState({ trash: ['WX24-P3-005'] });
-  const after = { ...before, trash: ['WX24-P3-005', 'WX24-P3-007', 'WX24-P3-007'] };
-  eq(detectTrashAdded(before, after).join(','), 'WX24-P3-007,WX24-P3-007', '🔴同名の重複増加を数えられていない');
+  const before: PlayerState = { ...mkState({ trash: 0 }), trash: ['A'] };
+  const after: PlayerState = { ...before, trash: ['A', 'B', 'B'] };
+  eq(detectTrashAdded(before, after).join(','), 'B,B', '🔴同名の重複増加を数えられていない');
   eq(detectTrashAdded(before, before).length, 0, '増えていなければ空');
   // 付与ストア走査（印刷能力しか見ないと構造が正しくても恒久 no-op）
-  const trigCtx = mkTrigCtx({ hostId: 'H', guestId: 'G', activeUserId: 'G' });
-  const host = { ...mkState({ field: { ...mkState({}).field, lrig: ['WX24-P3-005'] } }),
-    lrig_granted_auto_effects_until_opp_turn: [watcher] };
+  const ctxT = trigCtx(GUEST);
+  const host: PlayerState = { ...mkState({ lrig: ['WX24-P3-005'] }), lrig_granted_auto_effects_until_opp_turn: [watcher] };
   const guest = mkState({});
-  const fired = collectTrashAddedTriggers(trigCtx, [
-    { ownerId: 'H', nums: ['WX24-P3-007'] }, { ownerId: 'G', nums: [] },
-  ], 'G', host, guest);
+  const fired = collectTrashAddedTriggers(ctxT, [
+    { ownerId: HOST, nums: ['B'] }, { ownerId: GUEST, nums: [] },
+  ], GUEST, host, guest);
   eq(fired.entries.length, 1, '🔴付与ストアの【自】が収集されていない');
   // 「対戦相手の効果1つによって」＝自分の効果・原因不明では発火しない
-  eq(collectTrashAddedTriggers(trigCtx, [{ ownerId: 'H', nums: ['WX24-P3-007'] }], 'H', host, guest).entries.length, 0,
+  eq(collectTrashAddedTriggers(ctxT, [{ ownerId: HOST, nums: ['B'] }], HOST, host, guest).entries.length, 0,
     '🔴自分の効果でも発火している');
-  eq(collectTrashAddedTriggers(trigCtx, [{ ownerId: 'H', nums: ['WX24-P3-007'] }], undefined, host, guest).entries.length, 0,
+  eq(collectTrashAddedTriggers(ctxT, [{ ownerId: HOST, nums: ['B'] }], undefined, host, guest).entries.length, 0,
     '🔴原因不明（ルール処理）でも発火している');
   // 「あなたのトラッシュ」＝相手のトラッシュが増えても発火しない
-  eq(collectTrashAddedTriggers(trigCtx, [{ ownerId: 'G', nums: ['WX24-P3-007'] }], 'G', host, guest).entries.length, 0,
+  eq(collectTrashAddedTriggers(ctxT, [{ ownerId: GUEST, nums: ['B'] }], GUEST, host, guest).entries.length, 0,
     '🔴相手のトラッシュ増加で発火している');
 });
 
