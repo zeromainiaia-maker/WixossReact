@@ -9635,6 +9635,20 @@ function parseActionTextInner(text: string): EffectAction {
       const chosen = buildChoose(text, chooseCount, !!chooseCountM?.[2]);
       if (chosen) return chosen;
     }
+    // 🔴**CHOOSE ヘッダが文フィルタで落ち、残ったのが「本体の前置き1文」だけ**という形（§6.4 O-11・続き532）。
+    //   ヘッダの選択数が定数でない（「この方法で捨てた枚数と同じ数だけ」／「ルリグタイプ1つにつき1つまで」）と
+    //   上の分岐にも下の `chooseIdx` ブロック（sentences.length>1 が前提）にも届かず、
+    //   **残った1文だけが返って①②③が丸ごと消える**（`PR-328` は任意手札捨てだけ・`PR-471` はタイプ付与だけ）。
+    //   前置き1文を先に解いて CHOOSE の前へ積む。
+    if (!/以下の[０-９\d２-９]+つから/.test(s) && /[①②③④⑤]/.test(text)) {
+      const dynChosen = buildChooseFromHeader(text, text);
+      if (dynChosen?.countChoose) {
+        const pre = parseSingleSentence(s.trim());
+        return pre.type === 'UNKNOWN'
+          ? dynChosen
+          : { type: 'SEQUENCE', steps: [pre, dynChosen] } as SequenceAction;
+      }
+    }
     // ---- 「どちらか/いずれか選ぶ。①...②...」パターン：フィルタで選択肢行が消えたが元textにある場合 ----
     // 残存 sentence が「①②③④」に続く選択肢の内容テキストで、元のテキストが選択肢構造の場合のみ適用
     // 🆕2026-08-10（§6.4）＝残存が「そうした場合、…」だけの形を追加。選択肢の内側が
