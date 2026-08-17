@@ -13827,7 +13827,12 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
         const pieces = cleanRaw.split(/[」』]\s*[「『]/);
         gla.abilities = pieces
           .flatMap(p => splitEffectBlocks(p))
-          .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
+          // 🆕**ブロック単位**で明示 defer に差し替える（§6.4 O-27・続き536）。
+          // ⚠上の特例群のように **rawText 全体**を1つの STUB へ潰してはいけない＝引用に
+          //   「【常】…。【起】…。」と複数ブロックが入っている形（`WX24-P3-005`／`-009`）では
+          //   **同居する【起】が丸ごと消える**（実測）。差し替えるのは当たったブロックだけにする。
+          .map((b, si) => deferredQuotedAbility(b, `${cardNum}-sub`, si, gla.duration)
+            ?? parseBlock(`${cardNum}-sub`, b, si))
           .filter((e): e is CardEffect => e !== null);
         }
       }
