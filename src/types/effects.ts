@@ -108,7 +108,11 @@ export type EffectTiming =
   | 'ON_ENERGY_TO_FIELD'       // あなたのエナゾーンからシグニが場に出たとき（続き207・WXDi-P11-007-E1「手札に加わるか場に出たとき」の場側枝＝ON_HAND_ADDED と併記して OR）。detectPlacedFromEnergy で検出
   | 'ON_LIFE_CLOTH_ADDED'      // あなたのライフクロスにカード1枚が加えられたとき（WD06-001/WD20-001）。detectLifeClothAdded の増加 set-diff のみで検出し、クラッシュ等の減少とは混線しない
   | 'ON_LIFE_CLOTH_MOVED'      // ライフクロスが他領域へ移動したとき。クラッシュ直後の life→field.check は to:'other'、後続 check→energy/trash は life 差分なし
-  | 'ON_OPP_ENERGY_ADDED';     // 対戦相手のエナゾーンにカード1枚が置かれたとき（WDA-F03-13/WX24-P2-050）。detectEnergyAdded の増加 set-diff で置かれたカード自身を triggeringCardNum に保持
+  | 'ON_OPP_ENERGY_ADDED'      // 対戦相手のエナゾーンにカード1枚が置かれたとき（WDA-F03-13/WX24-P2-050）。detectEnergyAdded の増加 set-diff で置かれたカード自身を triggeringCardNum に保持
+  // 「〈誰か〉の効果1つによって〈誰か〉のトラッシュにカードが合計N枚以上置かれたとき」（§6.4 O-37(c)・続き543・WX24-P3-007 が付与）。
+  // ⚠**移動元の領域を問わない**＝`ON_CARD_MILLED_FROM_DECK`（デッキ限定）／`ON_OPP_EFFECT_TRASH_FROM_HAND`（手札限定）では狭くて流用できない。
+  // detectTrashAdded の増加 set-diff で検出し、trashOwner／byOpponentEffect／minCount／triggerFilter で限定する。
+  | 'ON_TRASH_CARD_ADDED';
 
 export type UsageLimit =
   | 'once_per_turn'    // ターンに1回
