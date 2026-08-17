@@ -1921,6 +1921,15 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneIdx < 0) return false;
       return acceCardsAt(ctx.ownerState.field, zoneIdx).length >= (cond.minCount ?? 1);
     }
+    // 「このシグニに【チャーム】が付いている場合」（§6.4 O-25(d)）。
+    // ⚠`ActiveCondition` の `IS_SELF_CHARMED`（`effectEngine.checkActiveCondition`）と同実装＝両方揃えること。
+    case 'THIS_CARD_IS_CHARMED': {
+      const srcCh = ctx.sourceCardNum;
+      if (!srcCh) return false;
+      const zoneCh = ctx.ownerState.field.signi.findIndex(z => z?.at(-1) === srcCh);
+      if (zoneCh < 0) return false;
+      return (ctx.ownerState.field.signi_charms?.[zoneCh] ?? null) !== null;
+    }
     case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
       // 「そのアタックフェイズの間に〈owner〉のシグニ（filter一致）が場を離れていた場合」（§6.3 J-4・WX24-P2-075-E1）。
       // 記録は instanceId なので cardMap 照合には getCardNum を通す。⚠行き先は問わない。
