@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き547・Opus 5）— §5 P1：「それぞれ〜異なる」の軸取り違え7効果＋「傀儡状態で場に出す」8効果／計器較正 miss 242→197
+
+ゲート全緑（typecheck / golden **2225→2246** / smoke 10693 全0 / fuzz 全0 / census **799 据置** / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live 15効果（added 0 / removed 0 / changed 15）・CSV 非改変。**
+
+**入口＝`npm run census:wiring` の実測**（PLAN の記載 miss 541／291 は古く、実測 **242**）。最大の未消化 `eachDistinctLevel`（miss 29 / has 1）から着手したところ、**2件とも trap (h)「同じ概念に2つのキー綴りが併存」**だった。
+
+### 🔴① 「それぞれ〜異なる」の軸を**手書き表**に書いていた＝7効果が原文と別物（`effectParser.ts`）
+
+`DISTINCT_BATCH5C` は `effectId → 'level'|'name'|'class'` の**手書き表**で、値が原文と食い違っていても
+**構造は正しいので smoke / golden / census / 逆翻訳のどれにも映らない**（制約の「軸」だけが違う）。全40件を原文と機械照合したら **7件が誤り**：
+
+| effectId | 表 | 原文 | 実害 |
+|---|---|---|---|
+| `WX14-030-E1` / `WX17-025-E3` / `WX19-080-E1` / `WXDi-P07-090-E1` / `WXEX2-31-E3` | `name` | **level**（「それぞれ**レベル**の異なる…シグニN枚」） | 同レベルが揃った組を弾かず、名前さえ違えば通る＝**別の制約** |
+| `WXDi-P00-023-E1` | `name` | **class**（「それぞれ異なる**クラス**を持つシグニ７枚」） | 同上 |
+| `WXDi-CP01-008-E3` | `level` | **name**（「それぞれ**名前**の異なるカード３枚」） | 同上（逆方向） |
+
+**直し方＝表から軸を消す。** `inferDistinctKind(text)`（4系統の言い回し表・**1系統だけに当たったときしか返さない**）で
+原文から導き、表は「どの効果に載せるか」のオプトインとフォールバックにした。実測でカード全文は**40件すべて一意**。
+`distinctConstraintOf` を挟んで `color`（「共通する色を持たない」＝複数色があるので集合の重なりで見る）だけ
+`{sharedColor:'none'}` へ落とす経路に統一し、`WXDi-P02-031-E1`／`WXDi-P13-034-E1` の後付け置換ハック（`replaceClassWithColor`）を撤去した。
+
+**golden にトリップワイヤ**＝「表の値 == 原文から導いた値」を全40件で固定＋live 7効果の実値を固定（+9）。
+
+### 🔴② 「それを傀儡状態であなたの場に出す」8効果が**自分のトラッシュからの自己蘇生**だった
+
+原文は「**対戦相手の**トラッシュからシグニ１枚を対象とし、それを**傀儡状態で**あなたの場に出す」なのに、live は
+汎用ビルダーの `ADD_TO_FIELD{source:{TRASH_CARD, owner:'self'}}`＝**自分のトラッシュから自分のシグニを蘇生する完全な別物**
+（傀儡状態にもならず、離場時の持ち主トラッシュ回収も効かない）。**8効果**＝`WDK17-001-E2`／`WDK17-012-E2`／`WDK17-013-E1`／
+`WDK17-017-E1`／`WXEX2-23-E4`／`WXK09-034-E2`／`WXK09-096-E2`／`WXK10-091-E2`。
+さらに `WXK10-091-E2` は「**＜美巧＞ではない**レベル３以下」を `story:'美巧'` と読んで**条件が反転**していた（美巧しか奪えない）。
+
+**機構は実装済みだった**＝`STEAL_OPP_TRASH_PUPPET`（`execStubPart1.ts:2300`）が相手トラッシュ→自分の空きゾーン配置＋
+`field.puppet_signi` 登録＋離場時回収（`sweepPuppets`）まで担う。落ちていたのは **parser がそこへ載せていない**ことだけ。
+parser に専用分岐を新設（`parseSentencePart1.ts`・汎用「トラッシュから…場に出す」より**前**）し、
+`puppetParams.filter` を型・engine（`matchesFilter` で候補を絞る）・逆翻訳（`filterJa`）へ通した。
+
+- ⚠**「傀儡状態で〜場に出す」だけを受ける**＝`WDK17-001-E1`「あなたの**傀儡状態の**シグニ１体が**場に出た**とき」は
+  連体の「の」なので当たらない（当てるとトリガー文を配置文へ化けさせる）。golden にトリップワイヤ設置。
+- ⚠`WXEX2-23-E4`「それの【出】能力は発動しない」は `placesToField` を立てたので `foldSuppressOnPlay` が
+  STUB 側へ畳み込む（立て忘れると**奪ったシグニの【出】が発動する**過剰実行）。
+- 採用経路は2種＝held から7枚 `--adopt`／`WXEX2-23` は同居 MANUAL のカード単位 PRESERVE で held に載らないため
+  `_partial_fresh` から **E4 だけ外科パッチ**（続き371 `WX09-CB02` と同型）。
+
+### 🔧③ 計器較正（`scripts/censusWiring.ts`）＝miss **242→197**（−45・実装ゼロ）
+
+| キー | before | after | 根拠 |
+|---|---|---|---|
+| `eachDistinctLevel` | miss 29 / has 1 | **3 / 27** | 正準形は `selectionConstraint.distinct:'level'`（`satisfiesSelectionConstraint` と `resumeSearch` が実際に不正集合を拒否する）。filter キーは**表示・選択補助のみ**。条件側の同義キー `distinctLevels` も追加 |
+| `eachDistinctColor` | miss 2 / has 0 | **0** | 正準形は `selectionConstraint.sharedColor:'none'` |
+| `isPuppet` | miss 11 / has 2 | **1 / 4** | 素の `/傀儡状態/` が**配置様態**「傀儡状態で場に出す」に当たっていた（filter ではない）。名詞に係る形へ限定。専用キー `placedPuppet`（トリガー主語）と `COST_TRASHED_PUPPET`（コスト由来条件）も配線済みに数える |
+| `isAwakened` | miss 10 / has 3 | **1 / 3** | 素の `/覚醒状態(のシグニ\|の)/` が**条件節**「このシグニが覚醒状態の**場合**」（＝`THIS_CARD_IS_AWAKENED`）に当たっていた |
+
+⚠**残った miss は全部「条件節・コスト節の脱落」＝(ii) 機構ギャップ**なので PLAN §5d-0 (ii) へ登録した（下記）。
+
+### 🔎 残す教訓
+
+- **(a) 手書きの「種別」表は全ゲートを素通りする。** 構造ではなく**意味の軸**だけが違う誤りは smoke/golden/census/逆翻訳のどれにも映らない。
+  **軸は原文から導き、表は「載せるかどうか」だけを持つ**。導出と表の一致を golden で固定すれば以後ドリフトしない。
+- **(b) trap (h)「2つのキー綴りの併存」は計器の最大の偽陽性源。** `noGuard`/`hasGuard:false`（続き377b）・アイコン2系統（続き377c）に続く4例目で、
+  **今回は miss 242 のうち 45（19%）**がこれだった。**セルを取る前に「その語彙の正準形は本当にこのキーか」を確かめる。**
+- **(c) 据置の理由書きは腐る。** parser の「engine 側 cross-owner 未対応なので据置＝self」というコメントは
+  `ADD_TO_FIELD` の話であって**傀儡 STUB の話ではなかった**（STUB は最初から cross-owner 対応）。
+  続き546 の教訓「在庫は寝かせるほど陳腐化する」がコメントにも当てはまる＝**着手時に engine を実測し直す。**
+- **(d) 「has=0 だから機構未実装」も疑う。** `eachDistinctLevel × TRASH_CARD[filter]`（miss 20 / has 0）は
+  「同入口に配線済みなし＝機構未実装の可能性」と表示されていたが、実際は**20件すべてが正準形で配線済み**だった。
+
 ## 2026-08-18（続き546・Opus 5）— 🏁🏁Opusタスク12 在庫6件を残0クローズ（＝**在庫0**）＋クローズ済み行の退避
 
 ゲート全緑（typecheck / golden **2222→2225** / smoke 10693 全0 / fuzz 全0 / census 799 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**live JSON 1枚採用（`SPDi43-11`）・CSV 非改変**。
