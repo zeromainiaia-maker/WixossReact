@@ -8831,8 +8831,26 @@ function parseActionTextInner(text: string): EffectAction {
   if (text.includes('センタールリグは以下の能力を得る') || text.includes('レベルN以上のセンタールリグは以下の能力を得る')) {
     const m = text.match(/以下の能力を得る[。、]?(.+)/s);
     // abilities は parseBlock 後に埋められる（此処では rawText のみ保持）
-    return { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: m?.[1]?.trim() ?? '',
+    const grant = { type: 'GRANT_LRIG_ABILITY', abilities: [], rawText: m?.[1]?.trim() ?? '',
       ...(text.includes('このゲームの間') ? { permanent: true } : {}) } as GrantLrigAbilityAction;
+    // 🔴**付与節より前の本文が丸ごと落ちる**（§6.4 O-11・`WXDi-P15-001-E1`＝
+    //   「カードを３枚引く。…＜解放派＞のシグニを１枚捨ててもよい。そうした場合、対戦相手のライフクロス
+    //    １枚をクラッシュする。」が全部消えて付与だけが残っていた）。この early return は
+    //   **全文を GRANT として奪う**ので、前置きがあるときだけ別に解いて前に積む。
+    // ⚠前置きが少しでも解けない（UNKNOWN を含む）なら従来どおり付与だけ返す＝
+    //   中途半端な近似で新しい過剰実行を作らない。
+    const grantStart = text.search(/(?:このゲームの間、)?(?:レベル[０-９\d]+以上の)?(?:あなたの)?センタールリグは以下の能力を得る/);
+    const grantPrefix = grantStart > 0 ? text.slice(0, grantStart).trim() : '';
+    if (grantPrefix) {
+      const pre = parseActionText(grantPrefix);
+      if (pre.type !== 'UNKNOWN' && !JSON.stringify(pre).includes('"UNKNOWN"')) {
+        return { type: 'SEQUENCE', steps: [
+          ...(pre.type === 'SEQUENCE' ? (pre as SequenceAction).steps : [pre]),
+          grant,
+        ] } as SequenceAction;
+      }
+    }
+    return grant;
   }
   // ---- センタールリグへの能力付与（引用符形式: 「（ターン終了時まで、）あなたのセンタールリグは「...」を得る」）----
   {
