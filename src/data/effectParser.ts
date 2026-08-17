@@ -8744,10 +8744,14 @@ function parseActionTextInner(text: string): EffectAction {
   // 「以下のN個からMつ(まで)選ぶ。あなたがベットしていた場合、代わりにKつ(まで)選ぶ。①…②…」
   // → CHOOSE(choose_count=M) に betChoose(thenChooseCount=K) を付与（ベット宣言で選択数が増える）。
   // リコレクトの chooseHeadM/chooseRecoM 型と同型（engine effectExecutor が betChoose で count を上書き）。
-  // ⚠「以下から…選ぶ。同じ選択肢を2回以上選んでもよい」（WX17-003 の CHOOSE_SAME_OPTION 型）は
-  //   「以下のN個から」で始まらないため未マッチ＝据置（repeat 選択は別機構）。
+  // 🆕**「以下**から**Mつまで選ぶ」形も受ける**（§6.4 O-29・2026-08-17）＝従来は「以下の**N個**から」で
+  //   始まる形しか受けず、`WX17-003-E1` は**カード全文を実行時に regex で読む受け皿 STUB**
+  //   （`CHOOSE_SAME_OPTION_TWICE` / `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`＝§6.4 O-20 で潰した型の
+  //   生き残り）へ落ちていた。その受け皿は「1つずつN周」を `continuation` で回すので、
+  //   🔴**「Nつ**まで**」の upTo が落ちて必ずN回選ばされる**過剰実行でもあった。
+  // 🔑「同じ選択肢を２回(以上)選んでもよい」は `allowRepeat`（UI が回数マップへ切り替わる）。
   {
-    const chooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから(?:まだ選んでいないもの)?([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
+    const chooseHeadM = text.match(/以下(?:の[０-９\d二三四五六七八九]+つ)?から(?:まだ選んでいないもの)?([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
     const chooseBetM = text.match(/あなたがベットしていた場合、代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ/);
     if (chooseHeadM && chooseBetM && /[①②③④⑤]/.test(text)) {
       const items = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
@@ -8762,6 +8766,7 @@ function parseActionTextInner(text: string): EffectAction {
             return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
           }),
           ...(chooseHeadM[2] ? { upTo: true } : {}),
+          ...(detectAllowRepeat(text) ? { allowRepeat: true } : {}),
           betChoose: { thenChooseCount: parseNum(chooseBetM[1]), thenUpTo: !!chooseBetM[2] },
         } as ChooseAction;
       }
