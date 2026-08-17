@@ -39200,7 +39200,7 @@ test('§5d-0(i) engine: STEAL_OPP_TRASH_PUPPET の puppetParams.filter が候補
   const ctx: ExecCtx = { ...base, otherState: { ...base.otherState, trash: [lv1, lv4] } };
   const stub = { type: 'STUB', id: 'STEAL_OPP_TRASH_PUPPET',
     puppetParams: { count: 1, filter: { cardType: 'シグニ', level: { max: 3 } } } } as unknown as EffectAction;
-  const r = run(stub, ctx);
+  const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: stub, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
   ok(!r.done && r.pending.type === 'SELECT_TARGET', '相手トラッシュ選択へ pause');
   if (r.done || r.pending.type !== 'SELECT_TARGET') return;
   eq(JSON.stringify(r.pending.candidates), JSON.stringify([lv1]), 'レベル3以下だけが候補（レベル4は候補外）');
