@@ -775,6 +775,25 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/各プレイヤーは自分のデッキの一番上のカードを公開する/))
     return { type: 'STUB', id: 'REVEAL_EACH_PLAYER_DECK_TOP' } as StubAction;
 
+  // ---- 「〈誰か〉のデッキからすべてのカードをトラッシュに置く」（`PR-469`②・§6.4 O-11）----
+  // ⚠**大きな `count` で代用しない**＝原文に枚数が無いので `MILL{all:true}` で表す。
+  {
+    const millAllM = t.match(/^(あなた|対戦相手)のデッキからすべてのカードをトラッシュに置く$/);
+    if (millAllM) {
+      return { type: 'MILL', owner: millAllM[1] === '対戦相手' ? 'opponent' : 'self', count: 0, all: true } as EffectAction;
+    }
+  }
+
+  // ---- 「対戦相手のルリグデッキからカードを１枚見ないで選び公開する」（`PR-469`③・§6.4 O-11）----
+  // 後続文「それがルリグでない場合、それをルリグトラッシュに置く」まで engine 側の1 STUB で処理する
+  // （公開して初めて種別が分かる＝2ステップに割ると「それ」の束縛が要るうえ相手ゾーンを跨ぐ）。
+  // ⚠既存の `OPP_LRIG_DECK_TO_LRIG_TRASH` は**相手が自分で選ぶ**別文型なので流用しない。
+  if (/^対戦相手のルリグデッキからカードを[１1]枚見ないで選び公開する$/.test(t))
+    return { type: 'STUB', id: 'OPP_LRIG_DECK_BLIND_REVEAL' } as StubAction;
+  // 上の STUB が種別判定まで済ませるので、続く「それがルリグでない場合、〜」は注記として畳む。
+  if (/^それがルリグでない場合、それをルリグトラッシュに置く$/.test(t))
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
+
   // ---- 「対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く」（§6.4 O-35・続き530）----
   // engine 実装済み＝`STUB{OPP_LRIG_DECK_TO_LRIG_TRASH}`（`execStubPart1.ts`。相手が自分で1枚選ぶ）。
   // 🔴**parser 側に規則が無く**、live では `WX24-P4-014-E3` だけが手パッチでこの STUB を持っていた

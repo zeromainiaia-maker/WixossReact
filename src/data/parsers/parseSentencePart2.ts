@@ -1449,8 +1449,13 @@ export function parseSentencePart2(t: string): EffectAction | null {
   }
 
   // ---- それがルリグでない場合ルリグトラッシュへ ----
+  // 🔴**唯一の利用者は `PR-469`③**（全CSV実測）で、その1文前が「対戦相手のルリグデッキからカードを１枚
+  //   見ないで選び公開する」＝**相手のゾーン**を触る。旧 `NON_LRIG_TO_LRIG_TRASH` は `ctx.ownerState` 固定で
+  //   除去元が見つからなくても**無条件に自分のルリグトラッシュへ積む**ので、そのまま後段に置くと
+  //   **相手のカードが自分のルリグトラッシュに複製される**（§6.4 O-11・続き533 で実測）。
+  //   公開と種別判定と行き先は `OPP_LRIG_DECK_BLIND_REVEAL` が1つで済ませるので、ここは注記に畳む。
   if (t.match(/それがルリグでない場合.*ルリグトラッシュに置く/)) {
-    return { type: 'STUB', id: 'NON_LRIG_TO_LRIG_TRASH' } as StubAction;
+    return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
   }
 
   // ---- このゲームすべてのセンタールリグが特定タイプを追加で得る ----

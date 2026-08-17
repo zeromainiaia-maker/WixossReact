@@ -9471,6 +9471,11 @@ function parseActionTextInner(text: string): EffectAction {
     { count: number; upTo: boolean; countChoose?: ChooseAction['countChoose'] } | null => {
     const fixed = src.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
     if (fixed) return { count: parseNum(fixed[1]), upTo: !!fixed[2] };
+    // 「この【起】能力で**まだ選ばれていない**１つを選ぶ」（`PR-469`）＝既存の「まだ選んでいないもの」と同義。
+    // ⚠**選択履歴（使用済み選択肢の除外）は未実装**＝毎回すべての選択肢から選べる近似のまま
+    //   （既存の `まだ選んでいないもの` と同じ扱い。effectParser の同注記を参照）。
+    const notYet = src.match(/以下の[０-９\d２-９]+つからこの【[出起自常]】能力でまだ選ばれていない([０-９\d１-９]+)つ(まで)?を?選ぶ/);
+    if (notYet) return { count: parseNum(notYet[1]), upTo: !!notYet[2] };
     // 「この方法で捨てた〈名詞〉の枚数と同じ数だけ選ぶ」＝直前に処理した枚数（`PR-328`）。
     if (/以下の[０-９\d２-９]+つから[、,]?この方法で(?:捨てた|トラッシュに置いた|公開した)[^。]{0,10}?の枚数と同じ数だけ選ぶ/.test(src)) {
       return { count: 1, upTo: false, countChoose: { count: { $ref: 'last_processed_count' } } };
@@ -9558,8 +9563,13 @@ function parseActionTextInner(text: string): EffectAction {
   // ⚠選択数変更型「〜の場合、代わりにNつまで選ぶ」（CONDITIONAL_MULTI_CHOOSE_BY_CENTER 等の実装済み
   // STUB・リコレクトの選択数変更を含む）は選択数の条件分岐が要る＝素の CHOOSE に退化させない（据置）。
   {
-    const headM = text.trim().match(/^以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ。/);
-    if (headM && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
+    // 🆕ヘッダの解析は `parseChooseHeaderCount` に集約（§6.4 O-11・続き533）＝
+    //   「この【起】能力でまだ選ばれていない１つを選ぶ」（`PR-469`）のような綴りの違いを
+    //   **ここの regex を増やさずに**受けられるようにする。
+    const headSrcM = text.trim().match(/^(以下の[０-９\d２-９]+つから[^。]*?選ぶ)。/);
+    const headParsed = headSrcM ? parseChooseHeaderCount(headSrcM[1]) : null;
+    const headM = headParsed ? ([headSrcM![0], String(headParsed.count), headParsed.upTo ? 'まで' : undefined] as unknown as RegExpMatchArray) : null;
+    if (headM && headParsed && /[①②③④⑤]/.test(text) && !/代わりに[^。①②③④⑤]*選ぶ/.test(text)) {
       // ⚠「…それは**選んだ能力を得る**。①【アサシン】②【ランサー】」型（WXK10-018）は、選択肢が
       //   **付与される能力名**であって実行するアクションではない＝素の CHOOSE に組むと「②【ランサー】」が
       //   別アクション（DRAW 等）に誤マッチする幻覚になる（§3 Opusタスク10 パターンC）。

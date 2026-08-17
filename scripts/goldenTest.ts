@@ -20386,6 +20386,27 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ok(!choices.includes('BANISH') && !choices.includes('TRANSFER_TO_HAND'),
       '🔴本体が選択肢の中へ戻っている（②を選ばないと走らない）');
   });
+  // §6.4 O-11（続き533・**残0クローズ**）：`PR-469`＝3択が丸ごと消え、しかも
+  //   除外コストが表現されていないので《白×3》だけで撃てる形だった。
+  test('(O-11) PR-469-E3: 3択が組まれ、ルリグデッキ除外コストが載る', () => {
+    const eff = effectsMap.get('PR-469')!.find(e => e.effectId === 'PR-469-E3')!;
+    // コスト＝《白》×3 ＋「ルリグデッキの＜タマ＞のルリグ1枚をゲームから除外」
+    const exile = eff.cost?.exileLrigFromLrigDeck;
+    ok(!!exile, '🔴除外コストが落ちると《白×3》だけで撃てる（コスト踏み倒し）');
+    eq(exile!.count, 1, '除外枚数');
+    eq(exile!.story, 'タマ', '🔴＜タマ＞限定が落ちると何を除外してもよくなる');
+    const a = eff.action as unknown as { type: string; choices: { action: Record<string, unknown> }[] };
+    eq(a.type, 'CHOOSE', '🔴3択が組まれず受け皿 STUB に戻っている');
+    eq(a.choices.length, 3, '選択肢数');
+    eq(a.choices[0].action.type, 'TRASH', '①相手のすべてのシグニをトラッシュ');
+    eq((a.choices[1].action as { type: string; all?: boolean }).type, 'MILL', '②相手デッキを落とす');
+    eq((a.choices[1].action as { all?: boolean }).all, true, '🔴「すべての」を固定枚数で代用していない');
+    // ③は公開→種別判定→行き先まで1つの STUB（相手ゾーンを跨ぐので分割しない）
+    const c3 = JSON.stringify(a.choices[2].action);
+    ok(c3.includes('OPP_LRIG_DECK_BLIND_REVEAL'), '③の見ないで選び公開が落ちている');
+    ok(!c3.includes('NON_LRIG_TO_LRIG_TRASH'),
+      '🔴自分側固定の NON_LRIG_TO_LRIG_TRASH が後段に残ると、相手のカードが自分のルリグトラッシュへ複製される');
+  });
   test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
     const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
     eq((eff.action as unknown as { id?: string }).id, 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK',
