@@ -9594,7 +9594,12 @@ function parseActionTextInner(text: string): EffectAction {
   }
 
   // ---- デッキの一番上を公開 → 条件分岐（それが〜の場合）----
-  if (sentences[0].trim().match(/デッキの一番上を公開する/) && sentences.length >= 2) {
+  // 「公開する」だけでなく「公開して**もよい**」も受ける（§6.4 O-35・続き528）。従来は後者に規則が無く、
+  // `WXDi-P09-050-E2` は**1文目が丸ごと `CONDITIONAL_POWER_BONUS`（無言 no-op）／2文目のドローが無条件**＝
+  // 毎ターン終了時に1枚引く過剰実行だった。任意性は `STUB{OPTIONAL_ACTIVATE}`（コスト無しの発動可否だけを
+  // 問う既存形＝辞退で以降のステップごとスキップ＝executor Pattern⑤）で表す。
+  if (sentences[0].trim().match(/デッキの一番上を公開(?:する|してもよい)/) && sentences.length >= 2) {
+    const optionalReveal = /デッキの一番上を公開してもよい/.test(sentences[0]);
     const condS = sentences[1].trim();
     // "それが/そのカードが ... の場合/ではない場合、..."
     // ⚠🔴否定形（「ではない場合」＝`WX12-Re12-E1`「それが赤のカード**ではない**場合、このシグニを場から
