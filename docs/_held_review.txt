@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［55枚］
-PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX12-017 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［54枚］
+PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -590,6 +590,24 @@ WXK09-031
   ~ [1].action.type : "TRANSFER_TO_HAND" → "STUB"
   + [1].action.id = "ENERGY_TO_HAND_ON_DECK"
 
+## +STUB -BLOCK_ACTION×2 -PLAYER×2 -SEQUENCE ［1枚］
+WXK09-037
+--- WXK09-037
+  原文: 【出】：対戦相手は色１つを宣言する。対戦相手のエナゾーンから宣言された色を持たず無色ではないすべてのカードをトラッシュに置く。【常】：対戦相手はこのシグニの【出】能力で宣言された色を持たず無色ではない、アーツとスペルを使用できない。【常】：対戦相手のエナゾーンにこのシグニの【出】能力で宣言された色を持たず無色ではないカードが置かれる場合、代わりにトラッシュに
+  - [1].action.steps[0].type = "BLOCK_ACTION"
+  - [1].action.steps[0].target.type = "PLAYER"
+  - [1].action.steps[0].target.owner = "opponent"
+  - [1].action.steps[0].target.count = 1
+  - [1].action.steps[0].actionId = "USE_ARTS"
+  - [1].action.steps[0].until = "PERMANENT"
+  - [1].action.steps[1].type = "BLOCK_ACTION"
+  - [1].action.steps[1].target.type = "PLAYER"
+  - [1].action.steps[1].target.owner = "opponent"
+  - [1].action.steps[1].target.count = 1
+  - [1].action.steps[1].actionId = "USE_SPELL"
+  - [1].action.steps[1].until = "PERMANENT"
+  …（他 2 行）
+
 ## +HAND_CARD +REVEAL -STUB ［1枚］
 WXK10-081
 --- WXK10-081
@@ -602,24 +620,6 @@ WXK10-081
   + [1].action.steps[0].source.upToCount = true
   + [1].action.steps[0].source.filter.cardType = "シグニ"
   + [1].action.steps[0].source.filter.story = "水獣"
-
-## +DECK_CARD×2 +SEQUENCE +TRASH×2 ［1枚］
-WXK11-005
---- WXK11-005
-  原文: 各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。その後、あなたは以下の２つから１つを選ぶ。あなたのトラッシュにカードが２５枚以上ある場合、代わりに２つまで選ぶ。①あなたのトラッシュからレベル３以下のシグニ１枚を対象とし、それを場に出す。②ターン終了時まで、対戦相手のすべてのシグニのパワーを対戦相手のセンタールリグのレベル１につき－2000する
-  - [0].action.choose_count = 1
-  - [0].action.from_count = 2
-  - [0].action.choices[0].choiceId = "c0"
-  - [0].action.choices[0].label = "選択肢1"
-  - [0].action.choices[0].action.type = "ADD_TO_FIELD"
-  - [0].action.choices[0].action.owner = "self"
-  - [0].action.choices[0].action.source.type = "TRASH_CARD"
-  - [0].action.choices[0].action.source.owner = "self"
-  - [0].action.choices[0].action.source.count = 1
-  - [0].action.choices[0].action.source.upToCount = false
-  - [0].action.choices[0].action.source.filter.cardType = "シグニ"
-  - [0].action.choices[0].action.source.filter.level.max = 3
-  …（他 52 行）
 
 ## +CONDITIONAL +HAS_CARD_IN_FIELD +UNKNOWN -STUB ［1枚］
 WD09-018
@@ -705,6 +705,42 @@ SPK16-13E
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
   …（他 11 行）
+
+## +ADD_TO_FIELD +BANISH +CHOOSE +SEQUENCE +SIGNI +TRASH_CARD ［1枚］
+PR-328
+--- PR-328
+  原文: 【自】：このシグニがアタックしたとき、手札から＜武勇＞のシグニを２枚まで捨ててもよい。以下の２つから、この方法で捨てたシグニの枚数と同じ数だけ選ぶ。①このシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。②あなたのトラッシュからレベル２以下の《ライズアイコン》を持たない＜武勇＞のシグニ１枚を対象とし、それを場に出す。,：カードを１枚引
+  - [0].action.id = "OPTIONAL_DISCARD_CLASS_SIGNI"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "OPTIONAL_DISCARD_CLASS_SIGNI"
+  + [0].action.steps[1].type = "CHOOSE"
+  + [0].action.steps[1].choose_count = 1
+  + [0].action.steps[1].from_count = 2
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  + [0].action.steps[1].choices[0].label = "選択肢1"
+  + [0].action.steps[1].choices[0].action.type = "BANISH"
+  + [0].action.steps[1].choices[0].action.target.type = "SIGNI"
+  + [0].action.steps[1].choices[0].action.target.owner = "opponent"
+  …（他 16 行）
+
+## +ADD_TO_HAND +CHOOSE +PREVENT_DAMAGE +REVEAL +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +STUB ［1枚］
+PR-471
+--- PR-471
+  原文: このゲームの間、すべての場にあるセンタールリグは＜ぶくぶタマ＞を追加で得る。以下の３つから対戦相手のセンタールリグのルリグタイプ１つにつき１つまで選ぶ。①次の対戦相手のターンの間、対戦相手のルリグはあなたにダメージを与えない。②次の対戦相手のターンの間、対戦相手は無色ではない、アーツとスペルを使用できない。③あなたのデッキから無色のシグニを２枚まで探して公開
+  - [0].action.id = "ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE"
+  + [0].action.steps[1].type = "CHOOSE"
+  + [0].action.steps[1].choose_count = 1
+  + [0].action.steps[1].from_count = 3
+  + [0].action.steps[1].choices[0].choiceId = "c0"
+  + [0].action.steps[1].choices[0].label = "選択肢1"
+  + [0].action.steps[1].choices[0].action.type = "PREVENT_DAMAGE"
+  + [0].action.steps[1].choices[0].action.owner = "self"
+  + [0].action.steps[1].choices[0].action.until = "NEXT_TURN"
+  …（他 22 行）
 
 ## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 ［1枚］
 PR-K072

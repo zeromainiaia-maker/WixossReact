@@ -36928,6 +36928,9 @@ test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が�
     'ENERGY_CHARGE_FROM_DECK.count',   // execEnergyChargeFromDeck(:1740)
     'REVEAL_AND_PICK.revealCount',     // execRevealAndPick(:4986/:5081)
     'SEARCH.maxCount',                 // execSearch(:3360)
+    // §6.4 O-11（続き532）＝`ChooseAction.countChoose`（選択数が実行時に決まる CHOOSE）。
+    // 消費側は `execChoose` で `resolveCountRef(a.countChoose.count, ctx)`（0 のときは選ばせず終了）。
+    'CHOOSE.count',
   ]);
   const found = new Map<string, string[]>();
   const walk = (node: unknown, types: string[], key: string, who: string): void => {
