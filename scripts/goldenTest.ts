@@ -39359,6 +39359,73 @@ test('§5d-0(ii) engine parity: isPuppet 条件でルリグゾーンを数えな
     '傀儡状態のシグニが居れば成立');
 });
 
+// ── §5d-0 2026-08-18：【常】先頭の「〜あるかぎり、」が activeCondition ごと落ちて無条件成立していた35効果 ──
+// 🔴常在能力のゲートが落ちる＝**基本パワーが常に上書き／常に効果耐性／常にキーワード付与**という重い過剰効果で、
+//   しかも構造は正しいので smoke/fuzz/逆翻訳のどれにも映らない。真因は先頭条件節テーブルの**綴りの穴**：
+//   ①通常トラッシュのカード種別版が無い（ルリグトラッシュ版はあった）②「が**いる**かぎり」③「このシグニ**は**アクセ」
+//   ④＜クラス＞側だけ「の」を飲まない ⑤エナ条件がレベル前置を受けない ⑥チャーム/アップダウン/下カードの綴り無し。
+const kagiriCases = [
+  { effectId: 'WX14-073-E1', want: '"TRASH_HAS_CARD"', why: 'トラッシュにスペルがあるかぎり基本パワー8000' },
+  { effectId: 'WX09-018-E1', want: '"minCount":5', why: 'トラッシュにスペルが5枚以上' },
+  { effectId: 'WX24-P1-039-E1', want: '"cardName":"月日の巫女　タマヨリヒメ"', why: '場に《X》が「いる」かぎり' },
+  { effectId: 'WX15-038-E1', want: '"IS_SELF_ACCED"', why: 'このシグニ「は」アクセされているかぎり' },
+  { effectId: 'WDK12-015-E1', want: '"IS_SELF_CHARMED"', why: 'このシグニに【チャーム】が付いているかぎり' },
+  { effectId: 'WXDi-P04-050-E1', want: '"IS_SELF_UP"', why: 'このシグニがアップ状態であるかぎり' },
+  { effectId: 'WXDi-P08-059-E1', want: '"IS_SELF_DOWN"', why: 'このシグニがダウン状態であるかぎり' },
+  { effectId: 'WXDi-P10-059-E1', want: '"isFrozen":true', why: '対戦相手の場に凍結状態のシグニがあるかぎり' },
+  { effectId: 'WX19-021-E1', want: '"story":"ウェポン"', why: '場に＜C＞の（←「の」）シグニがあるかぎり' },
+  { effectId: 'WXK09-082-E1', want: '"ENERGY_HAS_CARD"', why: 'エナにレベル4の＜電機＞のシグニがあるかぎり' },
+  { effectId: 'WXK08-085-E1', want: '"THIS_CARD_HAS_UNDER"', why: 'このシグニの下にカードがあるかぎり' },
+] as const;
+for (const spec of kagiriCases) {
+  test(`§5d-0 live ${spec.effectId}: 【常】のゲートが activeCondition に載る（${spec.why}）`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    ok(!!eff.activeCondition, '🔴activeCondition が落ちていない（落ちると常時発動＝重い過剰効果）');
+    const s = JSON.stringify(eff.activeCondition ?? null);
+    ok(s.includes(spec.want), `原文どおりのゲート ${spec.want}（実際 ${s}）`);
+  });
+}
+
+test('§5d-0 engine: IS_SELF_UP はアップのときだけ成立し、場に居ないときは成立しない', () => {
+  const signi = findCard(c => isSigni(c));
+  const cm = cardMap as Map<string, CardData>;
+  const up = mkState({ signi: [signi, null, null] });
+  ok(checkActiveCondition({ type: 'IS_SELF_UP' } as ActiveCondition, up, mkState({}), true, cm, signi), 'アップなら成立');
+  const down = { ...up, field: { ...up.field, signi_down: [true, false, false] } };
+  ok(!checkActiveCondition({ type: 'IS_SELF_UP' } as ActiveCondition, down, mkState({}), true, cm, signi), 'ダウンなら不成立');
+  // ⚠場に居ない効果元で「ダウンしていない＝アップ」に倒すと、離場後も常時成立してしまう
+  ok(!checkActiveCondition({ type: 'IS_SELF_UP' } as ActiveCondition, mkState({}), mkState({}), true, cm, signi),
+    '🔴場に居なければ不成立（ダウン判定の単純反転にしない）');
+  ok(!checkActiveCondition({ type: 'IS_SELF_UP' } as ActiveCondition, up, mkState({}), true, cm, undefined),
+    '効果元が特定できなければ不成立');
+});
+
+test('§5d-0 engine: TRASH_HAS_CARD{cardType:スペル} が枚数どおり成立/不成立する', () => {
+  const eff = (effectsMap.get('WX09-018') ?? []).find(e => e.effectId === 'WX09-018-E1');
+  ok(!!eff?.activeCondition, 'activeCondition が存在');
+  if (!eff?.activeCondition) return;
+  const spell = findCard(c => c.Type === 'スペル');
+  const spell2 = findCard(c => c.Type === 'スペル' && c.CardNum !== spell);
+  const signi = findCard(c => isSigni(c));
+  const cm = cardMap as Map<string, CardData>;
+  const mk = (trash: string[]) => ({ ...mkState({ signi: [signi, null, null] }), trash });
+  ok(!checkActiveCondition(eff.activeCondition, mk([]), mkState({}), true, cm, signi),
+    '🔴トラッシュが空なら成立しない（旧実装は無条件成立）');
+  ok(!checkActiveCondition(eff.activeCondition, mk([spell, spell2, spell, spell2]), mkState({}), true, cm, signi),
+    'スペル4枚では5枚以上を満たさない');
+  ok(checkActiveCondition(eff.activeCondition, mk([spell, spell2, spell, spell2, spell]), mkState({}), true, cm, signi),
+    'スペル5枚で成立');
+  ok(!checkActiveCondition(eff.activeCondition, mk([signi, signi, signi, signi, signi]), mkState({}), true, cm, signi),
+    'シグニ5枚では成立しない（cardType が効いている）');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
