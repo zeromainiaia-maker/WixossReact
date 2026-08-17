@@ -15,51 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +ATTACK_ORDINAL_THIS_TURN +CONDITIONAL ［6枚］
-WXDi-P14-052 WXK06-033 WXK06-035 WXK06-037 WXK06-038 WXK06-062
---- WXDi-P14-052
-  原文: 【自】：このシグニがアタックしたとき、そのアタックがこのターン三度目の場合、対戦相手のレベル１のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それを手札に戻す。,-
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "無"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "ATTACK_ORDINAL_THIS_TURN"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.operator = "eq"
-  + [0].action.steps[0].condition.value = 3
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "OPTIONAL_COST"
-  + [0].action.steps[0].then.costColors[0] = "無"
---- WXK06-033
-  原文: 【自】：このシグニがアタックしたとき、そのアタックがこのターン四度目の場合、このシグニをアップする。,：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.thisCardOnly = true
-  ~ [0].action.type : "UP" → "CONDITIONAL"
-  + [0].action.condition.type = "ATTACK_ORDINAL_THIS_TURN"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.operator = "eq"
-  + [0].action.condition.value = 4
-  + [0].action.then.type = "UP"
-  + [0].action.then.target.type = "SIGNI"
-  + [0].action.then.target.owner = "self"
-  …（他 2 行）
---- WXK06-035
-  原文: 【自】：このシグニがアタックしたとき、そのアタックがこのターン四度目の場合、このシグニをアップする。,：カードを１枚引く。
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.thisCardOnly = true
-  ~ [0].action.type : "UP" → "CONDITIONAL"
-  + [0].action.condition.type = "ATTACK_ORDINAL_THIS_TURN"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.operator = "eq"
-  + [0].action.condition.value = 4
-  + [0].action.then.type = "UP"
-  + [0].action.then.target.type = "SIGNI"
-  + [0].action.then.target.owner = "self"
-  …（他 2 行）
-
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
 --- WX06-CB03
@@ -259,6 +214,24 @@ WX16-005
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
   …（他 24 行）
+
+## +ADD_TO_HAND +BOUNCE +CHOOSE +GRANT_KEYWORD +HAND_CARD +LRIG +REVEAL +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +SIGNI +TRASH -CONDITIONAL -IS_BETTING -STUB×2 ［1枚］
+WX17-003
+--- WX17-003
+  原文: ベット―《コインアイコン》《コインアイコン》以下から２つまで選ぶ。同じ選択肢を２回選んでもよい。あなたがベットしていた場合、代わりに４つまで選ぶ。同じ選択肢を２回以上選んでもよい。①対戦相手のシグニ１体を対象とし、それを手札に戻す。手札を１枚捨てる。②対戦相手のセンタールリグ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。③あな
+  - [0].action.condition.type = "IS_BETTING"
+  - [0].action.then.type = "STUB"
+  - [0].action.then.id = "CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE"
+  - [0].action.else.type = "STUB"
+  - [0].action.else.id = "CHOOSE_SAME_OPTION_TWICE"
+  ~ [0].action.type : "CONDITIONAL" → "CHOOSE"
+  + [0].action.choose_count = 2
+  + [0].action.from_count = 3
+  + [0].action.choices[0].choiceId = "c0"
+  + [0].action.choices[0].label = "選択肢1"
+  + [0].action.choices[0].action.type = "SEQUENCE"
+  + [0].action.choices[0].action.steps[0].type = "BOUNCE"
+  …（他 37 行）
 
 ## +CONDITIONAL +IS_BETTING -SEQUENCE ［1枚］
 WX17-005
@@ -476,24 +449,6 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
-## +ATTACK_ORDINAL_THIS_TURN×2 +CONDITIONAL×2 ［1枚］
-WXDi-P16-063
---- WXDi-P16-063
-  原文: 【自】：このシグニがアタックしたとき、そのアタックがこのターン一度目の場合、次の対戦相手のターン終了時まで、このシグニのパワーを＋4000する。そのアタックがこのターン二度目の場合、ターン終了時まで、このシグニは「【常】：対戦相手のシグニがこのシグニとのバトルによってバニッシュされる場合、エナゾーンに置かれる代わりにトラッシュに置かれる。」を得る。,：対戦相
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "self"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.thisCardOnly = true
-  - [0].action.steps[0].delta = 4000
-  - [0].action.steps[0].duration = "UNTIL_OPP_TURN_END"
-  - [0].action.steps[1].target.type = "SIGNI"
-  - [0].action.steps[1].target.owner = "opponent"
-  - [0].action.steps[1].target.count = "ALL"
-  - [0].action.steps[1].target.filter.cardType = "シグニ"
-  - [0].action.steps[1].redirectTo = "trash"
-  - [0].action.steps[1].until = "END_OF_TURN"
-  …（他 26 行）
-
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
 --- WXDi-CP01-042
@@ -601,36 +556,6 @@ WXK06-049
   + [0].action.redirectTo = "trash"
   + [0].action.until = "PERMANENT"
   + [0].action.bySource = "by_this"
-
-## +CONDITIONAL×2 +GRANT_PROTECTION +THIS_CARD_IS_CHARMED×2 -GRANT_KEYWORD ［1枚］
-WXK07-043
---- WXK07-043
-  原文: 【自】：対戦相手のアタックフェイズ開始時、このシグニに【チャーム】が付いている場合、ターン終了時まで、このシグニは「【常】：バニッシュされない。」を得る。【自】：対戦相手のターン終了時、【エナチャージ１】をする。このシグニに【チャーム】が付いている場合、追加でカードを１枚引く。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.keyword = "チャーム"
-  - [0].action.duration = "UNTIL_END_OF_TURN"
-  - [1].action.steps[1].owner = "self"
-  - [1].action.steps[1].count = 1
-  ~ [0].action.type : "GRANT_KEYWORD" → "CONDITIONAL"
-  + [0].action.condition.type = "THIS_CARD_IS_CHARMED"
-  + [0].action.then.type = "GRANT_PROTECTION"
-  + [0].action.then.target.type = "SIGNI"
-  + [0].action.then.target.owner = "self"
-  …（他 9 行）
-
-## +CONDITIONAL +THIS_CARD_IS_CHARMED ［1枚］
-WXK07-071
---- WXK07-071
-  原文: 【自】《ターン１回》：このシグニがアタックしたとき、このシグニに【チャーム】が付いている場合、《緑》を支払ってもよい。そうした場合、このシグニをアップする。,-
-  - [0].action.steps[0].id = "OPTIONAL_COST"
-  - [0].action.steps[0].costColors[0] = "緑"
-  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "THIS_CARD_IS_CHARMED"
-  + [0].action.steps[0].then.type = "STUB"
-  + [0].action.steps[0].then.id = "OPTIONAL_COST"
-  + [0].action.steps[0].then.costColors[0] = "緑"
 
 ## +DURING_ATTACK_PHASE +UNKNOWN -STUB ［1枚］
 WXK08-048
@@ -768,18 +693,4 @@ PR-K072
   + [0].action.choices[0].action.steps[0].target.count = 1
   + [0].action.choices[0].action.steps[0].target.filter.cardType = "シグニ"
   …（他 34 行）
-
-## +GRANT_EFFECT +LRIG -STUB ［1枚］
-SPDi43-05
---- SPDi43-05
-  原文: 【起】《黒×0》：あなたのシグニ１体を対象とし、このルリグの下からカード１枚をそれの【ソウル】にする。【起】《ゲーム１回》バーテックス　ルリグデッキからアーツ１枚をルリグトラッシュに置く：次の対戦相手のターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚を
-  - [1].action.id = "GRANT_QUOTED_AUTO_ABILITY"
-  ~ [1].action.type : "STUB" → "GRANT_EFFECT"
-  + [1].action.target.type = "LRIG"
-  + [1].action.target.owner = "self"
-  + [1].action.target.count = 1
-  + [1].action.target.filter.thisCardOnly = true
-  + [1].action.duration = "UNTIL_OPP_TURN_END"
-  + [1].action.rawText = "【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする。"
-  ~ [1].parseStatus : "AUTO" → "PARTIAL"
 

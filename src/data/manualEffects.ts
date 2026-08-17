@@ -3259,9 +3259,16 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  ③**トラッシュ回収の ＜遊具＞ 限定が落ちていた**＝トラッシュのどのシグニでも拾える過剰実行。
   // 🔑選択数は原文どおり「ベットした《コインアイコン》1枚につき1つ」＝`countChoose{$ref:'bet_coins_paid'}`
   //   （§6.4 O-11 続き532 で入れた汎用受け皿。ベット0枚なら選択自体が起きず本体だけが走る）。
-  // ⚠**「同じ選択肢を２回以上選んでもよい」は表せない**＝CHOOSE は相異なる選択肢しか選べないので
-  //   実質 `upTo` で「最大2つ（相異なる）」に丸まる＝**過少側の近似**。②の反復本体（`REPEAT_EFFECT`）は
-  //   engine で明示 no-op のまま（§6.4 `O-29` 待ち）。
+  // 🆕**2026-08-17（§6.4 O-29）で「同じ選択肢を２回以上選んでもよい」を表せるようになった**＝
+  //   `ChooseAction.allowRepeat`（UI が回数マップへ切り替わる。engine の `resumeChoose` は元から
+  //   `['c1','c1']` を受けられた＝穴は UI が `Set<string>` だったこと）。
+  //   ⇒ 旧「実質 `upTo` で最大2つ（相異なる）に丸まる過少近似」を解消。
+  // 🔑**②「このアーツの効果を一度繰り返す」は本体そのものを action に持たせる**＝
+  //   `STUB{REPEAT_EFFECT}`（engine ではログだけの**無言 no-op**）を置き換えた。
+  //   `allowRepeat` で②をN回選べば本体がN回**追加で**走る（基底の1回は下の兄弟ステップ）。
+  // ⚠**解決順は「追加ぶん → 基底」**になる（CHOOSE が SEQUENCE の先頭にあるため）。このカードの本体は
+  //   「相手シグニ1体バニッシュ＋トラッシュから＜遊具＞1枚回収」で**順序に依存しない**ので影響しない。
+  //   順序が意味を持つ本体を持つカードが出たら、基底を CHOOSE より前へ出すこと。
   'WX22-016': [
     {
       effectId: 'WX22-016-E1',
@@ -3278,6 +3285,8 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
             upTo: true,
             // ベットした《コインアイコン》1枚につき1つ（0枚＝選択なし）
             countChoose: { count: { $ref: 'bet_coins_paid' }, upTo: true },
+            // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）
+            allowRepeat: true,
             choices: [
               {
                 choiceId: 'c0',
@@ -3287,7 +3296,27 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
               {
                 choiceId: 'c1',
                 label: 'このアーツの効果を一度繰り返す',
-                action: { type: 'STUB', id: 'REPEAT_EFFECT' },
+                // ⚠**本体と同じ木**（下の兄弟ステップと一致させること）＝ここがズレると
+                //   「繰り返し」が本体と違う挙動になる。
+                action: {
+                  type: 'SEQUENCE',
+                  steps: [
+                    {
+                      type: 'BANISH',
+                      target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
+                    },
+                    {
+                      type: 'TRANSFER_TO_HAND',
+                      source: {
+                        type: 'TRASH_CARD',
+                        owner: 'self',
+                        count: 1,
+                        upToCount: false,
+                        filter: { cardType: 'シグニ', story: '遊具' },
+                      },
+                    },
+                  ],
+                },
               },
             ],
           },
