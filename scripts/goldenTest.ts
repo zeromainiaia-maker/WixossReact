@@ -38651,21 +38651,143 @@ test('§6.4 O-27: 付与された【常】シールドが実際に判定へ届�
     'ルリグ能力が消えているときは付与シールドも落ちる');
 });
 
-test('§6.4 O-27: 表せない置換は明示 defer にする（誤った形を積まない）', () => {
+// ── §6.4 O-37 続き543：defer にしていた引用能力3形を実装 ───────────────────────────────
+test('§6.4 O-37: 引用の置換3形が専用構造にパースされる（誤った形を積まない）', () => {
   // 🔴素直に parse すると「手札を1枚捨てる」が即時実行され、「このルリグはこの能力を失う」が
-  //   `REMOVE_ABILITIES{SIGNI self}`＝**自分のシグニ**の能力を消す別物に化ける（実測）。
+  //   `REMOVE_ABILITIES{SIGNI self}`＝**自分のシグニ**の能力を消す別物に化ける（続き536 の実測）。
   for (const [num, eid, id] of [
-    ['WX24-P3-005', 'WX24-P3-005-E1', 'DEFERRED_DAMAGE_REPLACE_BY_COST'],
-    ['WX24-P3-009', 'WX24-P3-009-E1', 'DEFERRED_REFRESH_LIFE_MOVE_REPLACE'],
-    ['WX24-P3-007', 'WX24-P3-007-E1', 'DEFERRED_OPP_EFFECT_TRASHED_ANY_ZONE'],
+    ['WX24-P3-005', 'WX24-P3-005-E1', 'DAMAGE_REPLACE_BY_COST'],
+    ['WX24-P3-009', 'WX24-P3-009-E1', 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY'],
+    ['WX24-P3-007', 'WX24-P3-007-E1', 'TRASHED_CARD_TO_HAND_OR_ENERGY'],
   ] as const) {
     const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
     const gla = (e.action as SequenceAction).steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
-    eq((gla.abilities[0].action as StubAction).id, id, `${eid}: 明示 defer になっていない`);
+    eq((gla.abilities[0].action as StubAction).id, id, `${eid}: 専用構造になっていない`);
     // 🔑**自分のシグニの能力を消す形が紛れ込んでいない**（走査軸が広がった瞬間に事故になる）
     ok(!JSON.stringify(gla.abilities[0]).includes('REMOVE_ABILITIES'),
       `🔴${eid}: 置換が REMOVE_ABILITIES へ化けている`);
   }
+});
+
+test('§6.4 O-37(a): ダメージ置換のコスト選択肢が原文どおり載る', () => {
+  const spec = (num: string, eid: string, stepIdx: number) => {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const act = e.action.type === 'SEQUENCE' ? (e.action as SequenceAction).steps[stepIdx] : e.action;
+    const gla = act as import('../src/types/effects').GrantLrigAbilityAction;
+    eq(gla.type, 'GRANT_LRIG_ABILITY', `🔴${eid}: 付与ごと消えている（GRANT_ABILITY_INNER_TEXT へ落ちた）`);
+    eq(gla.duration, 'UNTIL_OPP_TURN_END', `${eid}: 期間`);
+    return (gla.abilities[0].action as StubAction).damageReplaceByCost!;
+  };
+  // 手札1枚だけ（『』引用・アーツ）
+  const a = spec('WX24-P3-005', 'WX24-P3-005-E1', 1);
+  eq(JSON.stringify(a.options), '[{"handDiscard":1}]', 'WX24-P3-005: 支払い方');
+  eq(a.loseAbility, true, 'WX24-P3-005: 「そうした場合、このルリグはこの能力を失う」');
+  // 手札1枚 **か** エナ1枚（🔴「エナゾーン**から**」の「か」で split すると2つ目が丸ごと落ちる）
+  for (const num of ['WX25-P1-014', 'SPDi44-12'] as const) {
+    const b = spec(num, `${num}-E2`, 0);
+    eq(JSON.stringify(b.options), '[{"handDiscard":1},{"energyTrash":1}]', `🔴${num}: 2つ目の支払い方が落ちている`);
+    eq(b.loseAbility, true, `${num}: 能力喪失`);
+  }
+  // エナコスト《緑》《無》＝**能力喪失なし**（払えるかぎり何度でも置換できる）
+  const c = spec('WX24-P4-021', 'WX24-P4-021-E3', 1);
+  eq(JSON.stringify(c.options), '[{"costColors":["緑","無"]}]', 'WX24-P4-021: 支払い方');
+  eq(c.loseAbility, undefined, '🔴WX24-P4-021 に能力喪失は書かれていない（1回限りに丸めない）');
+  // 同居する《リコレクトアイコン》［４枚以上］ゲートが残っている（付与ノードで前段を潰さない）
+  const rec = (effectsMap.get('WX24-P4-021') ?? []).find(x => x.effectId === 'WX24-P4-021-E3')!;
+  eq(((rec.action as SequenceAction).steps[0] as { type: string }).type, 'RECOLLECT_GATE',
+    '🔴リコレクトゲートが消えている');
+});
+
+test('§6.4 O-37(a): ダメージ置換 funnel が付与ストアを見て、払ったら能力を1つ失う', () => {
+  const mkGrant = (options: { handDiscard?: number; energyTrash?: number; costColors?: string[] }[], loseAbility?: boolean): CardEffect => ({
+    effectId: 'granted-damage-replace', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST', damageReplaceByCost: { options, ...(loseAbility ? { loseAbility } : {}) } } as StubAction,
+    duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
+  });
+  const base = mkState({ hand: ['WX24-P3-005', 'WX24-P3-007'], energy: [], life_cloth: ['WX24-P3-009'] });
+  const cm = cardMap as Map<string, CardData>;
+  // 宣言が無ければ置換されない
+  eq(pickLifeCrashReplacement(base, { damageSource: 'signi', cardMap: cm }), null, '付与が無ければ通る');
+  // 🔴付与された能力は effectsMap に載らない＝付与ストアを見ないと恒久 no-op
+  const withGrant = { ...base, lrig_granted_auto_effects_until_opp_turn: [mkGrant([{ handDiscard: 1 }], true)] };
+  const picked = pickLifeCrashReplacement(withGrant, { damageSource: 'signi', cardMap: cm })!;
+  eq(picked.repl.kind, 'pay_cost', '🔴付与ストアの宣言が見えていない');
+  const paid = applyPayCostReplacement(withGrant, picked.index, picked.repl, cm)!;
+  eq(paid.state.hand.length, 1, '手札1枚を支払う');
+  eq(paid.state.trash.length, 1, '支払った手札はトラッシュへ');
+  eq(paid.state.life_cloth.length, 1, '🔴ライフは減らない（置換）');
+  // 🔑「そうした場合、このルリグはこの能力を失う」＝2回目は成立しない（無限に守らない）
+  eq(pickLifeCrashReplacement(paid.state, { damageSource: 'signi', cardMap: cm }), null,
+    '🔴能力を失ったのに置換だけ残っている');
+  // 払えない盤面では選ばれない＝ダメージがそのまま通る（自滅もしない）
+  const noHand = { ...base, hand: [], lrig_granted_auto_effects_until_opp_turn: [mkGrant([{ handDiscard: 1 }], true)] };
+  eq(pickLifeCrashReplacement(noHand, { damageSource: 'signi', cardMap: cm }), null, '払えないなら置換は成立しない');
+  // 能力喪失が書かれていない形（WX24-P4-021）は払えるかぎり何度でも
+  const repeat = { ...base, lrig_granted_auto_effects_until_opp_turn: [mkGrant([{ handDiscard: 1 }])] };
+  const p1 = pickLifeCrashReplacement(repeat, { damageSource: 'lrig', cardMap: cm })!;
+  const s1 = applyPayCostReplacement(repeat, p1.index, p1.repl, cm)!;
+  ok(pickLifeCrashReplacement(s1.state, { damageSource: 'lrig', cardMap: cm }) !== null,
+    '🔴能力喪失が無い形を1回限りに丸めている');
+  // ⚠ルリグの能力が消えているときは付与ストアの宣言も落ちる（他の付与走査と同じ規約）
+  eq(pickLifeCrashReplacement({ ...withGrant, lrig_abilities_disabled: true }, { damageSource: 'signi', cardMap: cm }), null,
+    'ルリグ能力消失中は置換も落ちる');
+  // ⚠cardMap 無しの呼び出しでは選ばない（払えるか判定できない＝過剰にしない側）
+  eq(pickLifeCrashReplacement(withGrant, { damageSource: 'signi' }), null, 'cardMap 未指定では選ばない');
+});
+
+test('§6.4 O-37(b): リフレッシュのライフ移動を「この能力を失う」で置換する', () => {
+  const grant: CardEffect = {
+    effectId: 'granted-refresh-replace', effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id: 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY', refreshLifeMoveReplace: true } as StubAction,
+    duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
+  };
+  const base = mkState({ deck: [], trash: ['WX24-P3-005', 'WX24-P3-007'], life_cloth: ['WX24-P3-009', 'WX24-P3-001'] });
+  // 付与が無ければ従来どおりライフが1枚トラッシュへ
+  eq(applyRefreshState(base).life_cloth.length, 1, '既定はライフ1枚がトラッシュへ');
+  const withGrant = { ...base, lrig_granted_auto_effects_until_opp_turn: [grant] };
+  const after = applyRefreshState(withGrant);
+  eq(after.life_cloth.length, 2, '🔴ライフ移動が置換されていない');
+  eq(after.lrig_granted_auto_effects_until_opp_turn, undefined, '🔴代わりに失うはずの能力が残っている');
+  eq(after.trash.length, 0, 'トラッシュはデッキへ（ライフは落ちない）');
+  // 🔑2回目は守らない（能力を失っている）
+  eq(applyRefreshState({ ...after, deck: [], trash: ['WX24-P3-005'] }).life_cloth.length, 1,
+    '🔴能力を失ったのに置換が続いている');
+  // ライフ0枚＝移動が起きない＝能力を消費しない
+  const noLife = { ...withGrant, life_cloth: [] };
+  eq(applyRefreshState(noLife).lrig_granted_auto_effects_until_opp_turn?.length, 1,
+    '🔴ライフが無いのに能力だけ失っている');
+});
+
+test('§6.4 O-37(c): 「相手の効果でトラッシュに置かれたとき」が付与ストアから発火する', () => {
+  const eff = (effectsMap.get('WX24-P3-007') ?? []).find(x => x.effectId === 'WX24-P3-007-E1')!;
+  const gla = (eff.action as SequenceAction).steps[1] as import('../src/types/effects').GrantLrigAbilityAction;
+  const watcher = gla.abilities[0];
+  eq(watcher.timing?.[0], 'ON_TRASH_CARD_ADDED', '🔴 timing が ON_PLAY へフォールバックしている');
+  eq(watcher.triggerCondition?.trashOwner, 'self', 'あなたのトラッシュ');
+  eq(watcher.triggerCondition?.byOpponentEffect, true, '🔴「対戦相手の効果1つによって」が落ちている');
+  eq((watcher.action as StubAction).trashedCardUpTo, true, '🔴「1枚**まで**」＝0枚を選べる');
+  // 検出器＝**移動元の領域を問わない**（デッキ限定/手札限定の既存検出器では狭くて流用できない）
+  const before = mkState({ trash: ['WX24-P3-005'] });
+  const after = { ...before, trash: ['WX24-P3-005', 'WX24-P3-007', 'WX24-P3-007'] };
+  eq(detectTrashAdded(before, after).join(','), 'WX24-P3-007,WX24-P3-007', '🔴同名の重複増加を数えられていない');
+  eq(detectTrashAdded(before, before).length, 0, '増えていなければ空');
+  // 付与ストア走査（印刷能力しか見ないと構造が正しくても恒久 no-op）
+  const trigCtx = mkTrigCtx({ hostId: 'H', guestId: 'G', activeUserId: 'G' });
+  const host = { ...mkState({ field: { ...mkState({}).field, lrig: ['WX24-P3-005'] } }),
+    lrig_granted_auto_effects_until_opp_turn: [watcher] };
+  const guest = mkState({});
+  const fired = collectTrashAddedTriggers(trigCtx, [
+    { ownerId: 'H', nums: ['WX24-P3-007'] }, { ownerId: 'G', nums: [] },
+  ], 'G', host, guest);
+  eq(fired.entries.length, 1, '🔴付与ストアの【自】が収集されていない');
+  // 「対戦相手の効果1つによって」＝自分の効果・原因不明では発火しない
+  eq(collectTrashAddedTriggers(trigCtx, [{ ownerId: 'H', nums: ['WX24-P3-007'] }], 'H', host, guest).entries.length, 0,
+    '🔴自分の効果でも発火している');
+  eq(collectTrashAddedTriggers(trigCtx, [{ ownerId: 'H', nums: ['WX24-P3-007'] }], undefined, host, guest).entries.length, 0,
+    '🔴原因不明（ルール処理）でも発火している');
+  // 「あなたのトラッシュ」＝相手のトラッシュが増えても発火しない
+  eq(collectTrashAddedTriggers(trigCtx, [{ ownerId: 'G', nums: ['WX24-P3-007'] }], 'G', host, guest).entries.length, 0,
+    '🔴相手のトラッシュ増加で発火している');
 });
 
 
