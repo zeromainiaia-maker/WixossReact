@@ -1340,7 +1340,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
   if (trashTypeM) {
     return {
       condition: {
-        type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: trashTypeM[1] },
+        type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: trashTypeM[1] as TargetFilter['cardType'] },
         ...(trashTypeM[2] ? { minCount: parseNum(trashTypeM[2]) } : {}),
       },
       rest: text.slice(trashTypeM[0].length),
