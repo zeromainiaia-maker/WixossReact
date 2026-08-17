@@ -13786,6 +13786,38 @@ function grantLrigAbilityNodes(action: EffectAction): GrantLrigAbilityAction[] {
   return out;
 }
 
+/**
+ * 引用能力の**1ブロック**が「機構が無いので実装しない」と宣言済みの形なら、明示 defer の
+ * `CardEffect` を返す（§6.4 O-27・続き536）。当たらなければ null＝通常の `parseBlock` に任せる。
+ *
+ * 🔴**素直に parse させてはいけない**＝置換効果（「〜する場合、代わりに〜」）は CONTINUOUS の
+ *   機構が無く、現状の規則では**別物に化ける**（実測）：
+ *   - 「あなたがダメージを受ける場合、代わりに手札を１枚捨ててもよい。そうした場合、このルリグは
+ *     この能力を失う。」→ 手札捨てが**即時実行**され、能力喪失が `REMOVE_ABILITIES{SIGNI self}`
+ *     ＝**自分のシグニ**の能力を消す別物になる。
+ *   - 「あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに…」
+ *     → `CONTINUOUS REMOVE_ABILITIES{SIGNI self, until:PERMANENT}`＝走査軸が付与ストアへ広がった
+ *     瞬間に**自分のシグニの能力を恒久的に消す**。
+ * ⚠付与された【常】として積む以上、**誤った形を積むより宣言済みの穴**にしておく方が安全。
+ *   実装するときは `DEFERRED_` を外して消費地点を書く（CLAUDE.md の `census:stubs` 規約）。
+ */
+function deferredQuotedAbility(
+  block: string, idPrefix: string, index: number, duration: EffectDuration | undefined,
+): CardEffect | null {
+  const id = /あなたがダメージを受ける場合、代わりに/.test(block) ? 'DEFERRED_DAMAGE_REPLACE_BY_COST'
+    : /ライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに/.test(block) ? 'DEFERRED_REFRESH_LIFE_MOVE_REPLACE'
+    : null;
+  if (!id) return null;
+  return {
+    effectId: `${idPrefix}-E${index + 1}`,
+    effectType: 'CONTINUOUS',
+    action: { type: 'STUB', id } as StubAction,
+    duration: duration ?? 'UNTIL_END_OF_TURN',
+    mandatory: true,
+    parseStatus: 'MANUAL',
+  };
+}
+
 function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolean {
   let hasUnknownSub = false;
   const walk = (a: EffectAction) => {
