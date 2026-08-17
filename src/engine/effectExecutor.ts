@@ -4590,8 +4590,14 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             const payAction4: EffectAction = costActions4.length
               ? { type: 'SEQUENCE', steps: [...costActions4, paidBody4] }
               : paidBody4;
-            const payLabel4 = costColors4.length > 0
-              ? `追加コスト支払う（${costColors4.map(c => `《${c}》`).join('')}）`
+            // ⚠**このシグニ自身を失う対価はラベルに出す**（§6.4 O-26・続き535）。色だけ並べると
+            //   「《無》を1つ払うだけ」に見えるのに実際は場のシグニが1体消える＝選択を誤らせる。
+            const payParts4 = [
+              ...costColors4.map(c => `《${c}》`),
+              ...(spec4.selfTrash ? ['このシグニをトラッシュ'] : []),
+            ];
+            const payLabel4 = payParts4.length > 0
+              ? `追加コスト支払う（${payParts4.join('＋')}）`
               : '追加コストを支払う';
             const opts4 = [
               { id: 'pay', label: payLabel4, action: payAction4, available: canAfford4, ...(costColors4.length ? { costColors: costColors4 } : {}) },
