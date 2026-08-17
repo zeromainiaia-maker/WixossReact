@@ -1990,7 +1990,10 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     ] })],
   [/あなたの場に他の《ディソナアイコン》のシグニがある場合/,
     () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, excludeSelf: true })],
-  [/このシグニの下に《ディソナアイコン》のカードがある場合/,
+  // ⚠「**置かれている**場合」の綴りも受ける（§6.4 O-25・続き538・`WXDi-P13-065-E2` 1件）。
+  //   受けないと条件節が未パースのまま**期間アンカー（`^ターン終了時まで、`）に掛からず**、
+  //   引用付与が丸ごと受け皿へ落ちる＝**ディソナが下に無くても能力が付く**過剰実行になっていた。
+  [/このシグニの下に《ディソナアイコン》のカードが(?:ある|置かれている)場合/,
     () => ({ type: 'THIS_CARD_HAS_UNDER', filter: { isDisona: true } })],
   [/あなたの場にパワー([０-９\d]+)以上の《ディソナアイコン》のシグニがある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: {
