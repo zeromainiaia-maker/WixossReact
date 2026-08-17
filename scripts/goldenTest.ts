@@ -36890,8 +36890,10 @@ test('§6.4 O-15 WXEX1-44-E2: 手札から2枚までエナへ置き、置いた�
     '🔴後段が固定枚数のまま＝置いた枚数と無関係に回収する過剰');
 
   // 挙動＝アクセ持ちシグニ2枚と非該当1枚を手札に、エナには＜調理＞シグニ3枚を置く。
+  // ⚠`hasIcon:'アクセ'` の判定は**カード自身のテキストに「【アクセ】」があるか**（`matchesFilter`）＝
+  //   「《アクセアイコン》」という綴りで拾うと候補0件になる（このテストが最初にそれで落ちた）。
   const acce = [...cardMap.values()]
-    .filter(c => c.Type === 'シグニ' && /《アクセアイコン》/.test(c.EffectText ?? '')).slice(0, 2).map(c => c.CardNum);
+    .filter(c => c.Type === 'シグニ' && (c.EffectText ?? '').includes('【アクセ】')).slice(0, 2).map(c => c.CardNum);
   const cook = [...cardMap.values()]
     .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('調理') && !acce.includes(c.CardNum))
     .slice(0, 3).map(c => c.CardNum);
