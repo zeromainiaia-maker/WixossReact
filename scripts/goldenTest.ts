@@ -20105,7 +20105,7 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   //   が読点欠落で `fusedLookPickSentence` から外れ、pick も残りの行き先も消えていた（＝本体が丸ごと no-op）。
   test('(xxix→O-11) WXK05-005-E1: 公開ピック配置が復元し BLOCK は suppressOnPlay へ畳まれる', () => {
     const a = effOfX('WXK05-005', 'WXK05-005-E1').action;
-    const rp = firstOfType(a, 'REVEAL_AND_PICK') as unknown as Record<string, unknown> | undefined;
+    const rp = treeFind(a, x => x.type === 'REVEAL_AND_PICK') ?? undefined;
     ok(!!rp, 'REVEAL_AND_PICK が復元していない（LOOK_AND_REORDER に潰れている）');
     eq(rp!.revealCount, 5, '公開枚数');
     eq((rp!.filter as { color?: string }).color, '緑', '色フィルタ');
