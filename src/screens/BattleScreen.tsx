@@ -13358,6 +13358,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (energyTotal > 0) parts.push(`エナ${energyTotal}`);
         if (eff.cost?.discardAll) parts.push('手札すべて捨て');
         if (eff.cost?.energyTrashAll) parts.push('エナすべトラッシュ');
+        if (eff.cost?.down_self) parts.push('このルリグをダウン');   // タスク12(cxxxi)
         return parts.join('・') || 'コストなし';
       };
       // センタールリグ本来のACTIVATED効果（timing ATTACK_ARTS）
