@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import type { CardData, PlayerState } from '../types';
 import { getCardNum } from '../engine/effectExecutor';
+import { normalizeAcceSlot } from '../utils/acce';
 
 // ── テーマカラー ──────────────────────────────────────────────────────
 export const C = {
