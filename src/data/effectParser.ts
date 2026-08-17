@@ -4631,6 +4631,19 @@ function applyLeadingSelfComparison(text: string, action: EffectAction): EffectA
 //  ・トリガー/条件構造（「とき」「そうした場合」）を含む場合は 2択でなく条件/連鎖なので除外。
 // 選択肢の action が leading CONDITIONAL（状態条件ゲート・else 無し）なら、engine の choice.condition
 // （execChoose の available 判定＝effectExecutor.ts:2540）へ持ち上げ、action を then へ差し替える。
+/**
+ * 「**同じ選択肢を２回(以上)選んでもよい**」（§6.4 O-29）を検出して `ChooseAction.allowRepeat` を立てる。
+ *
+ * 🔴従来この語彙が無かったため、該当カードは丸ごと**カード全文を実行時に regex で読む受け皿 STUB**
+ *   （`CHOOSE_SAME_OPTION_TWICE` / `REPEAT_EFFECT`＝§6.4 O-20 で潰した型の生き残り）へ落ちていた。
+ * ⚠**engine（`resumeChoose`）は最初から重複 id を受けられる**（`['c1','c1']` を順に実行する）＝
+ *   本当の穴は **UI が `Set<string>` で持っていた**ことだった。
+ * ⚠「まだ選んでいないものを選ぶ」（＝重複**禁止**）とは逆向きなので、同じ文に両方あることは無い。
+ */
+function detectAllowRepeat(text: string): boolean {
+  return /同じ選択肢を[０-９\d二三四五六七八九]*回(?:以上)?選んでもよい/.test(text);
+}
+
 // 「②<状態条件>の場合、X」は「条件を満たすときだけ選べる」＝availability。action を CONDITIONAL 包みに
 // すると選択肢が常時選択可に化け、条件が偽でも選んで空振りできる（続き156・§3 Opusタスク12🆕 の解消）。
 // IS_MY_TURN/IS_OPPONENT_TURN（プレースホルダ常時真）は availability に持ち上げても無意味＝据置。
