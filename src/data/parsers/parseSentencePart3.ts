@@ -1460,7 +1460,31 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CARD' } as StubAction;
   }
 
-  // ---- アクセアイコン持ちシグニをエナゾーンへ ----
+  // ---- 「あなたの手札から《アクセアイコン》を持つシグニをN枚（まで）エナゾーンに置く」（§6.4 O-15）----
+  // 🔴従来は下の `PLACE_ACCE_SIGNI_TO_ENERGY` がこの形まで食っていた＝engine のハンドラ
+  //   （`execStubPart2.ts` の `allAcceCards(sATE.field)`）は**場のアクセゾーン**のカードを全部エナへ送る
+  //   別機構で、原文の「手札から2枚まで選ぶ」ではない（`WXEX1-44-E2` は手札が1枚も動かない）。
+  // 🔑正準形は `ENERGY_CHARGE{HAND_CARD}`＝**語彙も engine も既に揃っている**（`execEnergyCharge` の
+  //   HAND_CARD 分岐が `handCandidates` で filter を効かせ `selectOrInteract` で選ばせる）。
+  //   同じ形は `WX22-043-E1`（MANUAL）が先に手当てしていた＝ここは parser を追いつかせるだけ。
+  // ⚠**アクセは CardClass ではない**（〈遊具〉等のクラスとは別軸）＝《アクセアイコン》は専用フィルタ
+  //   `hasIcon:'アクセ'`（`matchesFilter` が消費）。`story` や `cardClass` に書くと候補が空になる。
+  {
+    const handAcceM = t.match(/^あなたの手札から《アクセアイコン》を持つシグニを([０-９\d]+)枚(まで)?エナゾーンに置く$/);
+    if (handAcceM) {
+      return {
+        type: 'ENERGY_CHARGE',
+        target: {
+          type: 'HAND_CARD', owner: 'self', count: parseNum(handAcceM[1]),
+          ...(handAcceM[2] ? { upToCount: true } : {}),
+          filter: { cardType: 'シグニ', hasIcon: 'アクセ' },
+        },
+      } as EnergyChargeAction;
+    }
+  }
+
+  // ---- アクセアイコン持ちシグニをエナゾーンへ（＝**場のアクセゾーン**を全部エナへ）----
+  // ⚠上の「手札から」形をここへ落とさないこと（機構が別＝原文と無関係な枚数が lastProcessedCards に載る）。
   if (t.match(/《アクセアイコン》を持つシグニ.*エナゾーンに置く/)) {
     return { type: 'STUB', id: 'PLACE_ACCE_SIGNI_TO_ENERGY' } as StubAction;
   }
