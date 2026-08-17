@@ -81,8 +81,10 @@ export function isSigniAutoAbility(
   effect: CardEffect, hostCardNum: string, cardMap: Map<string, CardData>,
 ): boolean {
   if (effect.effectType !== 'AUTO') return false;
+  // ⚠instanceId のまま先に引く＝`InstanceMap` は `card_identity_overrides`（カード差し替え）を
+  //   解決するので、先に `#` を落とすと差し替え前のカードを見てしまう。素の Map 用に base も試す。
   const base = hostCardNum.includes('#') ? hostCardNum.slice(0, hostCardNum.indexOf('#')) : hostCardNum;
-  const type = cardMap.get(base)?.Type;
+  const type = (cardMap.get(hostCardNum) ?? cardMap.get(base))?.Type;
   return type === 'シグニ' || type === 'レゾナ';
 }
 
