@@ -467,14 +467,14 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.energy.map((num, i) => {
                           const c = battleCardMap.get(num);
-                          const matches = !actEnergyTrashCost.filter || matchesFilter(c, actEnergyTrashCost.filter);
+                          const matches = (!actEnergyTrashCost.filter || matchesFilter(c, actEnergyTrashCost.filter))
+                            && canAddEnergyTrashIndex(my.energy, selectedSigniActivatedEnergyTrash, i, actEnergyTrashCost, battleCardMap);
                           const isSel = selectedSigniActivatedEnergyTrash.has(i);
                           return (
                             <div key={i}
                               onClick={() => matches && setSelectedSigniActivatedEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (!actEnergyTrashCost.atLeast && next.size >= actEnergyTrashCost.count) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
