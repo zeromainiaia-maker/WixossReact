@@ -758,6 +758,7 @@ export function execStubPart3(
     return done({ ...addLog({ ...ctx, ownerState: newOwnerITUS },
       `シグニの下から${cardsITUS.length}枚をトラッシュへ`), lastProcessedCards: cardsITUS });
   }
+  // TRASH_UNDER_SIGNI_UP_TO_ALL: あなたのシグニの下にあるカードを好きな枚数選び、それらをトラッシュに置く
   if (stub.id === 'TRASH_UNDER_SIGNI_UP_TO_ALL') {
     const candidates = ctx.ownerState.field.signi.flatMap(stack => stack && stack.length > 1 ? stack.slice(0, -1) : []);
     if (candidates.length === 0) return done({ ...addLog(ctx, 'シグニの下にカードがない'), lastProcessedCards: [] });
@@ -766,6 +767,8 @@ export function execStubPart3(
       targetScope: 'self_field', thenAction: { type: 'STUB', id: 'INTERNAL_TRASH_UNDER_SIGNI' } as StubAction,
     });
   }
+  // SELECT_OPP_SIGNI_FOR_BOTTOM_MILL: 対戦相手のシグニ1体を対象とし、デッキの下から4枚をトラッシュに置く。
+  // この方法でレベルの異なるシグニ4枚が置かれた場合、対象をバニッシュする
   if (stub.id === 'SELECT_OPP_SIGNI_FOR_BOTTOM_MILL') {
     const candidates = ctx.otherState.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []);
     if (candidates.length === 0) return done(addLog(ctx, '対象にできる対戦相手のシグニがない'));
@@ -1428,6 +1431,7 @@ export function execStubPart3(
       count: 1,
     });
   }
+  // INTERNAL_OPEN_MB_SKIP: 【マジックボックス】を表向きにしない（「〜してもよい」を断った枝）
   if (stub.id === 'INTERNAL_OPEN_MB_SKIP') {
     return done(addLog({ ...ctx, lastProcessedCards: [] }, '【マジックボックス】を公開しない'));
   }
@@ -1645,6 +1649,8 @@ export function execStubPart3(
   // COST_COLOR_SELECT（WX04-063 ゲット・ゲート）:
   // 支払われたエナ1つにつきその色を1つ選択し、選択した「色の種類」1つにつき
   // その色のシグニ1枚をデッキから探して公開・手札に加える（その後シャッフル）。無色は色に含まれない。
+  // COST_COLOR_SELECT: 使用コストで支払ったエナ1つにつきその色1つを選択する（後続のデッキ探索が
+  // 「選択した色の種類1つにつき1枚」の枚数と色フィルタにこれを使う）
   if (stub.id === 'COST_COLOR_SELECT') {
     const COLORS_CCS = ['白', '赤', '青', '緑', '黒'];
     // 実際に支払ったエナ1枚ごとの色集合（無色エナ＝空配列は除外）。
@@ -3532,6 +3538,8 @@ export function execStubPart3(
     return done(addLog({ ...ctx, lastProcessedCards: [randROHC] },
       `相手の手札を公開：${ctx.cardMap.get(randROHC)?.CardName ?? randROHC}`));
   }
+  // RESTORE_REVEALED_DECK_CARDS: 直前に公開したデッキのカードを「この効果で公開したカード」として
+  // 復元する（間にドロー等が挟まっても後続の条件判定が公開カードを見られるようにする）
   if (stub.id === 'RESTORE_REVEALED_DECK_CARDS') {
     return done({ ...ctx, lastProcessedCards: [...(ctx.ownerState.last_revealed_deck_cards ?? [])] });
   }
@@ -4784,14 +4792,17 @@ export function execStubPart3(
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, piece_use_countered: true } },
       '対戦相手のピースの効果を打ち消す（ゲームから除外）'));
   }
+  // BLOCK_COLORLESS_ENERGY_PAY: このアタックフェイズの間、対戦相手は無色のカードでエナコストを支払えない
   if (stub.id === 'BLOCK_COLORLESS_ENERGY_PAY') {
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, cannot_pay_colorless_this_attack_phase: true } },
       '対戦相手はこのアタックフェイズの間、無色のカードでエナコストを支払えない'));
   }
+  // SELF_SIGNI_ATTACK_NEGATE_IMMUNITY: このターン、あなたの効果によってシグニのアタックは無効にならない
   if (stub.id === 'SELF_SIGNI_ATTACK_NEGATE_IMMUNITY') {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, own_effects_cannot_negate_signi_attack_this_turn: true } },
       'このターン、あなたの効果によってシグニのアタックは無効にならない'));
   }
+  // SELF_LRIG_LOSE_ABILITY: ターン終了時まで、あなたのセンタールリグは能力を失う
   if (stub.id === 'SELF_LRIG_LOSE_ABILITY') {
     const lrigTopSLLA = ctx.ownerState.field.lrig?.at(-1);
     if (!lrigTopSLLA) return done(addLog(ctx, 'センタールリグがいない（能力喪失なし）'));

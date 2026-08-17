@@ -107,6 +107,7 @@ export function execStubPart1(
       `全領域を再編し、夢限 -Q- が夢限 -A- に反転（${ctx.ownerState.lrig_deck.length + exiledFromField.length}枚をゲームから除外）`,
     ));
   }
+  // POWER_PLUS_BANISHED_POWER: 対象のパワーを、そのバニッシュしたシグニのパワーぶん＋する
   if (stub.id === 'POWER_PLUS_BANISHED_POWER') {
     const params = stub.powerPlusBanishedPower;
     const delta = Math.max(0, ctx.banishedSigniPower ?? 0);
@@ -118,6 +119,8 @@ export function execStubPart1(
       duration: params.duration,
     }, ctx);
   }
+  // VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と
+  // 同じレベルの対戦相手のシグニ1体を手札に戻す
   if (stub.id === 'VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE') {
     const params = stub.variableEnergyTrashLevelBounce;
     if (!params) return done(ctx);
@@ -688,6 +691,7 @@ export function execStubPart1(
       otherState: { ...ctx.otherState, field: { ...ctx.otherState.field, signi_virus: virus } },
     }, `相手の【ウィルス】${count}個をコストで取り除いた`));
   }
+  // LRIG_UNDER_TRASH_ANY: あなたのルリグ（アシスト含む）の下からカードを好きな枚数選び、ルリグトラッシュに置く
   if (stub.id === 'LRIG_UNDER_TRASH_ANY') {
     const pool = [
       ...ctx.ownerState.field.lrig.slice(0, -1),
@@ -785,6 +789,7 @@ export function execStubPart1(
     const pending: PendingInteractionDef = { type: 'CHOOSE', options, count: 1 };
     return needsInteraction(addLog(ctx, '数字を宣言してください（1〜5）'), pending);
   }
+  // DECLARE_TWO_GUARD_LEVELS: 異なるレベルを2つ宣言する（対戦相手はそのレベルのシグニで【ガード】できない）
   if (stub.id === 'DECLARE_TWO_GUARD_LEVELS') {
     const options = [1, 2, 3, 4, 5].map(n => ({
       id: `guard_lv_${n}`, label: `${n}を宣言`,
@@ -1550,6 +1555,9 @@ export function execStubPart1(
     return done(addLog({ ...ctx, lastProcessedCards: revealedRE },
       `各プレイヤーがデッキの一番上を公開（あなた: ${myTopRE ? nameRE(myTopRE) : 'なし'}・対戦相手: ${opTopRE ? nameRE(opTopRE) : 'なし'}）`));
   }
+  // LOOK_OPP_LIFE_TOP: 対戦相手のライフクロスの上からN枚（既定1枚）を見る（原文から枚数を読む。
+  // 「対戦相手の手札を見る」綴りのときは手札を見る）。見たカードは lastProcessedCards に残り、後続の
+  // 「【ライフバースト】を持たない場合、それをトラッシュに置く」等がそれを参照する
   if (stub.id === 'LOOK_OPP_LIFE_TOP') {
     const srcLT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLT = srcLT ? (srcLT.EffectText ?? '') + ' ' + (srcLT.BurstText ?? '') : '';
@@ -3555,6 +3563,8 @@ export function execStubPart1(
       otherState: { ...ctx.otherState, next_refresh_replaced: true },
     }, '対戦相手の次のリフレッシュを置換'));
   }
+  // GAIN_ABILITY_THIS_GAME: 「このゲームの間」続く常在の宣言をまとめて立てる（グロウ不可・ダブルクラッシュ付与・
+  // 特定カード名の使用禁止など）。⚠原文を実行時に読み分ける受け皿＝どの宣言が立つかはカードごとに違う
   if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
     const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';

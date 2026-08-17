@@ -2992,7 +2992,38 @@ function actionJa(a?: Action, effectType?: string): string {
         SUPPRESS_LIFE_BURST_ON_CARD: 'そのカードのライフバーストは発動しない',
         ARTS_ATTACK_EMPTY_ZONE_AS_FRONT: 'このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える',
         MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC: 'このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きになったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か【ダブルクラッシュ】を得る',
+        // §6.4 O-12（続き545）＝**ハンドラを持たない宣言型**（消費は engine の別経路）。
+        // `genStubsMd.mjs` はハンドラ直前コメントしか拾えないので、この 9 種はここに日本語を置く。
+        // ⚠**「STUB＝未実装」ではない**（`stub-means-implemented`）＝どれも engine 側に消費地点がある。
+        // 消費地点＝`effectEngine.collectEnergyColorConversions`
+        CONVERT_ENERGY_COLOR: 'このカードはエナゾーンにあるかぎり、指定された色のエナとして扱う',
+        // 消費地点＝`effectEngine`（パワー修正の適用側で `powerModifyProtection` を読む）
+        PREVENT_POWER_MODIFY_BY_OPP: '対戦相手の効果によって、対象のシグニのパワーは増減しない',
+        // 消費地点＝`effectExecutor.applyEffectLeavePayToLoseSelfAbility`
+        EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY: 'あなたのシグニ１体が対戦相手の効果によって場を離れる場合、コストを支払ってもよい。そうした場合、代わりにターン終了時まで、このシグニはこの能力を失う',
+        // 消費地点＝`screens/battle/targetDodgeFlip.ts`（対象宣言の直後・適用の前）
+        FLIP_SELF_ON_TARGETED: 'このシグニが対戦相手の、能力か効果の対象になったとき、このシグニを裏向きにしてから表向きにする（その効果の対象から外れる）',
+        // 消費地点＝`screens/battle/mayuEncounter.ts`
+        MAYU_ENCOUNTER_FLIP_AND_GROW: '手札をすべて捨てエナゾーンのすべてのカードをトラッシュに置き、このキーを反転してセンタールリグをグロウする',
+        // 消費地点＝`effectEngine.collectOppTurnArtsCostReductions`
+        OPP_TURN_ARTS_COST_REDUCTION_ONCE: 'あなたが対戦相手のターンにアーツを使用する場合、そのアーツの使用コストは減り、ターン終了時まで、この能力を失う',
+        // 消費地点＝`effectExecutor` の任意コスト分岐（ルリグの下1枚をルリグトラッシュへ置いて支払う）
+        OPTIONAL_LRIG_UNDER_COST: 'このルリグの下からカード１枚をルリグトラッシュに置いてもよい。そうした場合、以下を行う',
+        // 消費地点＝`BattleScreen`（エナ支払い・エナ数え上げの2地点）
+        STRIP_OPP_ENA_MULTI_ENA: '対戦相手のエナゾーンにあるカードは【マルチエナ】を失い、対戦相手の効果を受けない',
+        // 消費地点＝`execUtils`（トラッシュのカードの能力・効果耐性の判定）
+        TRASH_ABILITY_LOSS_AND_IMMUNITY: '対戦相手のトラッシュとルリグトラッシュにあるカードは能力を失い、効果を受けない',
       };
+      // §6.4 O-12（続き545）＝`ENERGY_COLOR_SUBSTITUTE_<色>_OR_<色>_TO_<色>` は**色を id に焼き込んだ動的 id**。
+      // ⚠`genStubsMd.mjs` のハンドラ抽出は `stub.id === '[A-Z0-9_]+'` なので**日本語入りの id は拾えない**＝
+      //   固定キーの `miscStubMap` にも並べられない。id から色を読んで文を組む。
+      {
+        const subst = a.id.match(/^ENERGY_COLOR_SUBSTITUTE_(.)(?:_OR_(.))?_TO_(.)$/);
+        if (subst) {
+          const from = subst[2] ? `《${subst[1]}》か《${subst[2]}》` : `《${subst[1]}》`;
+          return `あなたが${from}を支払う際、代わりに《${subst[3]}》を支払ってもよい`;
+        }
+      }
       // §6.4 O-22(b)：枚数と名前はペイロードにあるので原文どおりに描画する（固定文にしない）。
       if (a.id === 'MILL_EACH_REPEAT_ON_NAME' && a.millEachRepeatOnName) {
         const mer = a.millEachRepeatOnName;
