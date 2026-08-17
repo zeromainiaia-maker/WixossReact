@@ -13970,6 +13970,27 @@ function expandGrantEffectRawTexts(action: EffectAction, cardNum: string): boole
       const ge = a as import('../types/effects').GrantEffectAction;
       if (ge.rawText && !ge.effect) {
         const cleanRaw = ge.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
+        // 🆕**表せない引用は「宣言済みの穴」へ落とす**（§6.4 O-25(c)・2026-08-17。O-37 の
+        //   `deferredQuotedAbility` と同じ方針）＝据置（rawText のまま PARTIAL）にすると engine の
+        //   `GRANT_QUOTED_AUTO_ABILITY` ハンドラが**カード全文 regex で拾おうとして黙って何もしない**
+        //   ＝`census:stubs` にも映らない**無言 no-op** になる（`SPDi43-05-E2` が実際にそうだった）。
+        // ⚠**実装したことにしない**＝この形は1効果に機構4本が要る（PLAN §6.4 O-25(c) に列挙）：
+        //   ①ルリグ／シグニ両方を受ける union トリガー ②**ソース側の場∪エナ横断選択**
+        //   （既存 `wrapFieldOrEnergy` は「場に**出す**かエナに**置く**」＝行き先側で向きが逆・流用不可。
+        //    `TRADE_BANISH_SELF_SIGNI` も場だけの近似でエナ側が無い）③アタッカーのレベルを実行時に束縛
+        //   ④アタック無効化。②が engine のどこにも無いので、正しく表せるまでは穴を宣言しておく。
+        {
+          const deferredId = /対戦相手のルリグかシグニ[１1]体がアタックしたとき/.test(cleanRaw)
+            && /あなたの場かエナゾーンから/.test(cleanRaw)
+            && /そのアタックを無効にする/.test(cleanRaw)
+            ? 'DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE' : null;
+          if (deferredId) {
+            (a as unknown as StubAction & { target?: unknown }).type = 'STUB' as never;
+            (a as unknown as StubAction).id = deferredId;
+            delete (a as unknown as { rawText?: string }).rawText;
+            return;
+          }
+        }
         const subs = splitEffectBlocks(cleanRaw)
           .map((b, si) => parseBlock(`${cardNum}-sub`, b, si))
           .filter((e): e is CardEffect => e !== null);
