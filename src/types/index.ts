@@ -1214,6 +1214,14 @@ export type PendingInteractionDef =
       costlessOpponentChoice?: boolean;
       multiSelect?: boolean;       // true = count > 1 の複数選択UI
       upTo?: boolean;              // true = 「N個まで」選択可（0個も可）
+      /**
+       * 「**同じ選択肢を２回以上選んでもよい**」（§6.4 O-29・`WX17-003-E1`／`WX22-016-E1`）。
+       * ⚠**engine 側（`resumeChoose`）は最初から `['c1','c1']` を受けられる**（id 配列を順に実行する）＝
+       *   穴は **UI が `Set<string>` で持っていた**こと＝同じ選択肢は一度しか選べなかった。
+       *   このフラグが立つと UI は**選択肢ごとの回数**（`Record<id, number>`）で持ち、合計が `count` に達するまで
+       *   同じボタンを何度でも押せる。
+       */
+      allowRepeat?: boolean;
     }
   | {
       type: 'LOOK_AND_REORDER';
