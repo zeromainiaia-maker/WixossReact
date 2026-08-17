@@ -12917,6 +12917,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (!lrigPaidLg) { setLoading(false); return; } // 支払い不能（UI側でも無効化済み）
         paid = lrigPaidLg.state;
       }
+      // 🔴down_self（【起】《ダウン》）＝**この能力を使ったカード自身**をダウンする。タスク12(cxxxi)。
+      // ⚠従来この経路には支払いが1行も無かった＝`executeSigniActivated` の実装が `field.signi` しか
+      //   探さないので、ルリグの【起】では `findIndex` が常に -1 ＝**誰もダウンせず実質無コスト**
+      //   （live 27効果。`usageLimit` を持たない効果は同一ターンに何度でも撃てていた）。
+      // ⚠可否判定は下の `isLrigDownSelfUnpayable`（UI側ゲート）と対になる＝両方揃えること。
+      if (effect.cost?.down_self) {
+        if (paid.field.lrig_down) { setLoading(false); return; }
+        paid = { ...paid, field: { ...paid.field, lrig_down: true } };
+      }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
       // ルリグ自身の【起】効果か、付与/継承された【起】効果かでラベルを分ける
