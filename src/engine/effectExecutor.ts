@@ -5169,6 +5169,23 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     return selectOrInteract(cands, count, a.source.upToCount ?? false, scope, a, undefined, ctx);
   }
 
+  // ENERGY_CARD: エナゾーンからデッキへ戻す（§6.4 O-35・続き529）。
+  // 🔴従来この分岐だけが無く、`HAND_CARD`／`SIGNI`／`TRASH_CARD` は在るのにエナだけ**無言 no-op**だった
+  //   （`WXK05-005-E1`「あなたの手札とエナゾーンとシグニゾーンにあるすべてのカードをデッキに加える」）。
+  // ⚠`HAND_OR_ENERGY_CARD`（＝手札とエナを跨いだ単一プールから合計N枚）とは別物＝**エナ単独**のゾーン指定。
+  if (src.type === 'ENERGY_CARD') {
+    const candsEN = state.energy.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), src.filter));
+    const scopeEN: TargetScope = src.owner === 'self' ? 'self_energy' : 'opp_energy';
+    if (src.count === 'ALL') {
+      const newS = insertToDeck({ ...state, energy: state.energy.filter(n => !candsEN.includes(n)) }, candsEN);
+      return done({
+        ...addLog(setOwnerState(src.owner, newS, ctx), `エナゾーン${candsEN.length}枚をデッキ${toBottom ? '下' : '上'}に置く`),
+        lastProcessedCards: candsEN,
+      });
+    }
+    return selectOrInteract(candsEN, resolveNum(src.count), src.upToCount ?? false, scopeEN, a, undefined, ctx);
+  }
+
   // HAND_OR_ENERGY_CARD: 手札とエナゾーンを跨いだ**単一プール**から合計N枚をデッキへ（タスク12(lxi) 第11波）。
   // 原文「対象としたエナゾーンのカードと手札を合計２枚デッキの一番上に置く」（`WXK06-067-E1`）＝
   // 内訳（手札2／手札1+エナ1／エナ2）は選ぶ側が自由に決める＝2つの単一ゾーン枝には割れない。
