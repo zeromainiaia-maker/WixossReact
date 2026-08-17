@@ -25,16 +25,16 @@ live JSON の STUB id 種類 : 603（総ノード 2867 件）
         生成: src\data\parsers\parseSentencePart2.ts:424
      1件   1枚  DEFERRED_DAMAGE_REPLACE_BY_COST  [生ID露出 1]
         カード: WX24-P3-005
-        生成: src\data\effectParser.ts:13849
+        生成: src\data\effectParser.ts:13866
      1件   1枚  DEFERRED_OPP_EFFECT_TRASHED_ANY_ZONE  [生ID露出 1]
         カード: WX24-P3-007
-        生成: src\data\effectParser.ts:13851
+        生成: src\data\effectParser.ts:13868
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:1720
      1件   1枚  DEFERRED_REFRESH_LIFE_MOVE_REPLACE  [生ID露出 1]
         カード: WX24-P3-009
-        生成: src\data\effectParser.ts:13850
+        生成: src\data\effectParser.ts:13867
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:1954
@@ -113,7 +113,7 @@ live JSON の STUB id 種類 : 603（総ノード 2867 件）
         消費: src\screens\BattleScreen.tsx:1017 / src\screens\BattleScreen.tsx:10513
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1420
+        消費: src\engine\execUtils.ts:1421
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6851

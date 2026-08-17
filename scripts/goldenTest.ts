@@ -24934,7 +24934,16 @@ test('(xlvi) wave17 WXDi-P15-005-E1: ルリグ1体ならそのindexの1段だけ
     ctx.cardMap = new InstanceMap(cardMap);
     ctx.ownerState.field.check = source;
     const pick = `${redCard}#601`;
-    ctx.ownerState.deck = [pick, ...fill(4).map((n, i) => `${n}#${610 + i}`)];
+    // ⚠**埋め札は「赤ではない」ことを明示して選ぶ**（2026-08-17・§6.4 O-25(d) の作業中に踏んだ）＝
+    //   従来の `fill(4)` は POOL の **cursor 位置**から取るので、live JSON が変わって先行テストの
+    //   フィクスチャ消費数がズレると**埋め札がたまたま赤**になり「共通色だけ候補」が落ちる（実測＝
+    //   `WXK08-074`〜`077` が候補に混入）。ファイル冒頭の「cursor 依存の既知の結合」注記の実体はこれ。
+    //   ⇒ 性質（＝共通色を持たない）で選べば順序に依存しない（§7 📌 の「回数を固定しない」と同じ趣旨）。
+    const nonRed = [...cardMap.values()]
+      .filter(c => !(c.Color ?? '').includes('赤') && c.CardNum !== redLrig && c.CardNum !== redCard)
+      .slice(0, 4).map(c => c.CardNum);
+    eq(nonRed.length, 4, '赤を持たない埋め札4枚を確保');
+    ctx.ownerState.deck = [pick, ...nonRed.map((n, i) => `${n}#${610 + i}`)];
     const total0 = ctx.ownerState.deck.length + ctx.ownerState.hand.length + ctx.ownerState.energy.length + ctx.ownerState.trash.length;
     let result = executeEffect(manualEffect('WXDi-P15-005', 'WXDi-P15-005-E1'), ctx);
     ok(!result.done && result.pending.type === 'SEARCH', 'センタールリグ色の段だけSEARCH');
