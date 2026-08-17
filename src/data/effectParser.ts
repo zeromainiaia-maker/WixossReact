@@ -2249,6 +2249,14 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
   [/対戦相手のライフクロスが([０-９\d]+)枚(以上|以下)?の場合/,
     g => ({ type: 'LIFE_COUNT', owner: 'opponent', operator: g[1] === '以上' ? 'gte' : g[1] === '以下' ? 'lte' : 'eq', value: parseNum(g[0]) })],
+  // 「〈誰か〉の手札がN枚で〈誰か〉のターンの場合」＝手札枚数とターン所有者の**連言**（§6.4 O-36・続き534）。
+  // ⚠下の単独 HAND_COUNT 規則より**前**に置く（「N枚で」は「N枚の場合」に当たらないので現状は
+  //   どちらにも当たらず条件が丸ごと落ちていた＝`WXK01-040-E1` の【出】が**ノーコストの無条件バニッシュ**）。
+  [/(あなた|対戦相手)の手札が([０-９\d]+)枚で(あなた|対戦相手)のターンの場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'eq', value: parseNum(g[1]) },
+      { type: 'TURN_OWNER', owner: g[2] === '対戦相手' ? 'opponent' : 'self' },
+    ] })],
   [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?の場合/,
     g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
   [/(あなた|対戦相手)のエナゾーンにカードが([０-９\d]+)枚(以上|以下)ある場合/,
