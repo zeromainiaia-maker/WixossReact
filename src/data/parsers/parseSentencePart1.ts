@@ -1670,6 +1670,35 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- トラッシュに置く（直接除去）----
   if (t.includes('トラッシュに置く') || t.includes('トラッシュに置く')) {
+    // ---- 「〈対象宣言〉を対象とし、〈誰か〉のデッキの一番上のカードをトラッシュに置く」（§6.4 O-35）----
+    // 🔴従来はこのブロック末尾の「シグニ・ルリグをトラッシュへ」フォールバックが
+    //   `t.includes('対戦相手のシグニ')` **だけ**を見て `TRASH{SIGNI opponent}` を返していた＝
+    //   **間に挟まる目的語（「あなたのデッキの一番上のカードを」）を無視**して、
+    //   【出】でノーコストの相手シグニ除去に化けていた（live 3効果＝`WXK03-080-E1`／`WXK03-081-E1`／
+    //   `WXEX1-41-E2`。うち `WXEX1-41-E2` は続く「それをバニッシュする」も**自分のシグニ**を撃っていた）。
+    //   この文が実際にトラッシュへ置くのは**デッキの一番上のカード**だけで、対象宣言は
+    //   後続文の「それ（ら）」の束縛先にすぎない（この文自体は場から何も除去しない）。
+    // 🔑正準形＝`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → TRASH{DECK_CARD}`。
+    //   ミルが `lastProcessedCards` を置いたカードで上書きするので後続文の `LAST_PROCESSED_MATCHES`
+    //   （「それがレベルが偶数のシグニの場合」）はそのまま生き、帰結側は `targetsStored` で
+    //   宣言した対象へ戻る（束縛は effectParser の `applyDeckTopMillTargetAnaphora`）。
+    // ⚠**コスト節に置かれた形（`【起】…デッキの一番上のカードをトラッシュに置く：〈本文〉`）はここに来ない**
+    //   （コロンの前はコストとして別扱い＝`WXDi-P10-009-E2`／`WXK06-084-E1`）。
+    {
+      const deckTopMillM = t.match(/(あなた|対戦相手)のデッキの一番上のカードをトラッシュに置く/);
+      const millDesigM = t.match(/((?:対戦相手|あなた)の[^、。]*?シグニを?[０-９\d]*体(?:まで)?)を対象とし/);
+      if (deckTopMillM && millDesigM) {
+        const millDesigOwner: Owner = millDesigM[1].startsWith('対戦相手') ? 'opponent' : 'self';
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: parseSigniTarget(millDesigM[1], millDesigOwner) } as StubAction,
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+            { type: 'TRASH', target: { type: 'DECK_CARD', owner: deckTopMillM[1] === '対戦相手' ? 'opponent' : 'self', count: 1 } },
+          ],
+        } as SequenceAction;
+      }
+    }
     // 「あなたの（XかYの）シグニを好きな数対象とし、それらを（場から）トラッシュに置く」= 好きな数選択
     if (t.match(/あなたの(?:.+の)?シグニを好きな数対象とし/)) {
       const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
