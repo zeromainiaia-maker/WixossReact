@@ -7,7 +7,7 @@ import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashS
 import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna } from '../costs';
+import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
