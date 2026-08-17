@@ -7963,6 +7963,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ⚠**判定は `artsUseGate.checkArtsUse` 1本**（§8 `O-1`）＝カード名封じ・限定・フェイズ/Timing・
       //   `ARTS_LIMIT_1`・使用条件・実効コスト・支払い可否をすべてそこで見る。CPU の応答アーツも
       //   同じ関数を呼ぶので、ここに条件を足すときは gate 側へ足すこと（写経すると人間と CPU がズレる）。
+      if (!myArtsPayerCtx) return actions;
       const artsCheck = checkArtsUse({
         card: cardData, my, op, isMyTurn, turnPhase: bs.turn_phase,
         cards: battleCards, cardMap: battleCardMap, effectsMap,
