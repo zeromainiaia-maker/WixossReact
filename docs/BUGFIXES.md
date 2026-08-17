@@ -1,5 +1,34 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き545・Opus 5）— 🏁§6.4 `O-12` 完了（逆翻訳の「表示だけの穴」＝C群 残0・ゲート化）
+
+**逆翻訳の表示のみの是正＝engine / live JSON / CSV とも非改変**。ゲート全緑・golden **2221 据置**・census **799 据置**・smoke 10693 全0・fuzz 全0・manual-fields **0**・lint **0 errors**。
+**C群（実装はあるのに逆翻訳へ英語 ID がそのまま出る）＝179 種 / 296 箇所 → 0 種 / 0 箇所。**
+
+### 📏 まず在庫を実測＝簿記の「259箇所」は古かった
+
+実測は **179 種 / 296 箇所**。内訳を数えたところ **156 種（219 箇所）は既に日本語コメントを持っていた**＝手で文を書く必要があるのは 23 種だけだった。
+
+### ⭐ 本当の穴は「説明が無い」ではなく「説明の先頭が ID のまま」だった
+
+ハンドラ直前コメントは慣例で `// STUB_ID: 日本語の説明` と書かれており、`genStubsMd.mjs` がそれを**丸ごと**説明欄へ入れていた。結果、逆翻訳は
+`[STUB:SIGNI_REPOSITION: シグニを別のゾーンに移動…]` のように**先頭が英語 ID**になり、`censusStubs.ts` が「生ID露出」として数えていた。
+
+⇒ `genStubsMd.mjs` に **ラベル剥がし**を入れた（`descriptionForId`）。**この1本で 179 種 → 30 種**。
+- ⚠実際の綴りは3通り＝`ID: 説明` ／ `ID1 / ID2 / ID3: 説明` ／ `ID (STUB版): 説明` ／ `ID AUTO: 説明`。固定の `^[A-Z_]+:` だけでは後ろ2つを取りこぼす。**ラベル部が既知 id（＋短い注記語）だけで組まれているとき**にラベルと判定するので、本文中のコロン（「注意：〜」等）を誤って剥がさない。
+- 🔑**その id のラベル行だけ**を説明に採る（他 id 宛ての行を混ぜない）。ラベルが無い id（1つの `if` が複数 id を捌く共有コメント＝`SWAP_OPTIONAL` が実例）はブロック全体からラベルだけ外して使う。
+- ⚠**ラベル行が `ID（カード番号）：` だけで本文が次行以降にある**綴りが実在する（`ARTS_ATTACK_EMPTY_ZONE_AS_FRONT` 等4種）＝自己完結していないときだけ続きの行を足す。これを入れずに出したら**説明が空になって逆翻訳が文の途中で切れた**（実測して是正）。
+
+### ✍ 残りは手で書いた（23 種）
+
+- **ハンドラを持つ 14 種**＝ハンドラ直前に `// <ID>: 日本語の説明` を追加（`LOOK_OPP_LIFE_TOP` 28箇所・`GAIN_ABILITY_THIS_GAME` 19箇所が最大）。
+- **ハンドラを持たない宣言型 9 種**＝`decompileEffects.ts` の `miscStubMap` に日本語文を追加（`CONVERT_ENERGY_COLOR` / `PREVENT_POWER_MODIFY_BY_OPP` / `EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY` / `FLIP_SELF_ON_TARGETED` / `MAYU_ENCOUNTER_FLIP_AND_GROW` / `OPP_TURN_ARTS_COST_REDUCTION_ONCE` / `OPTIONAL_LRIG_UNDER_COST` / `STRIP_OPP_ENA_MULTI_ENA` / `TRASH_ABILITY_LOSS_AND_IMMUNITY`）。⚠**「STUB＝未実装」ではない**（`stub-means-implemented`）＝どれも engine 側に消費地点があるので、その地点をコメントに書き添えた。
+- **`ENERGY_COLOR_SUBSTITUTE_<色>_OR_<色>_TO_<色>` は id に色を焼き込んだ動的 id**＝`genStubsMd.mjs` の `stub.id === '[A-Z0-9_]+'` では原理的に拾えず、固定キーの `miscStubMap` にも並べられない。**id から色を読んで文を組む**分岐を `decompileEffects.ts` に置いた。
+
+### 🚧 ゲート化（再発防止）
+
+`censusStubs.ts` に**2本目のゲート**を追加＝**C群が増えたら exit 1**（A群の無言 no-op と同じ作法。2026-08-11 続き427 の1本目に続く）。新しい STUB を足して日本語の表示語彙を書き忘れると赤で止まる。⚠**日本語を書いたら `npm run regen` まで回すこと**（計器は逆翻訳シートの実出力を読む）。意図的に `miscStubMap` の1行を消して**赤くなることを実測**した。
+
 ## 2026-08-18（続き544・Opus 5）— 🏁§6.4 `O-38` 完了（相手シグニ【自】の「支払えば通る」回避）
 
 **engine 側のみの是正＝live JSON / CSV とも非改変**。ゲート全緑・golden 2218→**2221**・census **799 据置**・smoke 10693 全0・fuzz 全0・`census:stubs` 無言 no-op **0**・manual-fields **0**・lint **0 errors**。実機の観測点は PLAN §7 `V-65`。
