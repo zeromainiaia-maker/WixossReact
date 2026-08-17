@@ -18218,7 +18218,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 44, 'ActiveCondition の型数（増えたら union に足した合図。44＝(cxvii) の SELF_LEVEL_THRESHOLD 追加後）');
+  eq(Object.keys(AC_TYPES).length, 45, 'ActiveCondition の型数（増えたら union に足した合図。45＝§6.4 O-35 続き527 の ALL_FIELD_SIGNI_MATCH 追加後）');
   eq(Object.keys(C_TYPES).length, 118, 'Condition の型数（増えたら union に足した合図。118＝§6.4 O-10 続き517 の OPP_USING_TEAM_PIECE 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
