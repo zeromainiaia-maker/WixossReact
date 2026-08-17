@@ -20244,6 +20244,40 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq((down!.target as { filter?: { levelEqLastProcessed?: boolean } }).filter?.levelEqLastProcessed, true,
       '🔴レベル限定が落ちると相手シグニが全員ダウンする');
   });
+  // §6.4 O-11（続き532）：**選択数が実行時に決まる CHOOSE**（`countChoose`）。
+  //   これが無かった頃は**ヘッダごとマッチせずカードが受け皿 STUB に落ち、①②③が1つも実行されない**真 no-op。
+  test('(O-11) countChoose: PR-328 は「捨てた枚数と同じ数だけ」選ぶ', () => {
+    const a = effOfX('PR-328', 'PR-328-E1').action;
+    eq(a.type, 'SEQUENCE', '任意手札捨てだけの STUB に戻っている');
+    const ch = treeFind(a, x => x.type === 'CHOOSE') as Record<string, unknown> | null;
+    ok(!!ch, '2択が落ちている');
+    eq((ch!.choices as unknown[]).length, 2, '選択肢数');
+    eq((ch!.countChoose as { count?: { $ref?: string } }).count?.$ref, 'last_processed_count',
+      '🔴選択数を定数へ倒すと、1枚も捨てていなくても1つ選べる過剰実行になる');
+    // ①の対象は「このシグニのパワー以下の対戦相手のシグニ」＝バニッシュが載っていること
+    ok(treeHas(a, x => x.type === 'BANISH'), '①のバニッシュが落ちている');
+  });
+  test('(O-11) countChoose: PR-471 は「相手センタールリグのルリグタイプ1つにつき1つまで」選ぶ', () => {
+    const a = effOfX('PR-471', 'PR-471-E1').action;
+    const ch = treeFind(a, x => x.type === 'CHOOSE') as Record<string, unknown> | null;
+    ok(!!ch, '3択が落ちている');
+    eq((ch!.choices as unknown[]).length, 3, '選択肢数');
+    eq((ch!.countChoose as { count?: { $ref?: string }; upTo?: boolean }).count?.$ref, 'opp_center_lrig_type_count', '選択数の参照先');
+    eq((ch!.countChoose as { upTo?: boolean }).upTo, true, '「1つまで」＝上限');
+    // ③の無色限定（落とすと**どのシグニでも探せる**過剰実行）
+    const search = treeFind(a, x => x.type === 'SEARCH') as Record<string, unknown> | null;
+    eq((search!.filter as { color?: string }).color, '無', '🔴「無色の」限定が落ちている');
+    // ②は色限定つき使用封じ＝機構未実装なので明示 defer（素の BLOCK_ACTION は無色まで封じる過剰実行）
+    ok(!treeHas(a, x => x.type === 'BLOCK_ACTION' && x.actionId === 'USE_ARTS'),
+      '🔴色限定つき使用封じを素の BLOCK_ACTION にすると無色のアーツ／スペルまで封じる');
+    ok(treeHas(a, x => x.type === 'STUB' && x.id === 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK'), '明示 defer が無い');
+  });
+  // §6.4 O-11（続き532）：色限定つき使用封じは **live 全体**で素の BLOCK_ACTION に落とさない。
+  test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
+    const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
+    eq((eff.action as unknown as { id?: string }).id, 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK',
+      '🔴「宣言された色を持たず無色ではない」を落とすと、相手はアーツもスペルも一切使えなくなる');
+  });
 }
 
 // ── §6.4: 【出】能力抑止の死 BLOCK_ACTION family ─────────────────────────────
