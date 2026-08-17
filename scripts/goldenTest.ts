@@ -38896,22 +38896,22 @@ test('§6.4 O-38: 包んだ【自】は払えば通り、払わなければ何�
   eq((steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition.type, 'PAID_ADDITIONAL_COST', '払ったか否かで分岐');
   // ⚠払うのは**能力の持ち主**（ownerState）＝`OPPONENT_PAY_OPTIONAL`（otherState が払う）ではない
   const ctx = mkCtx({ energy: 3, hand: 5 }, { energy: 3 });
-  const pending = executeEffect(wrapped, ctx);
-  ok(!pending.done, '🔴支払いを問う窓が出ていない（黙って通す／黙って止める）');
-  const opts = (pending as Extract<ExecResult, { done: false }>).pending as Extract<PendingInteractionDef, { type: 'CHOOSE' }>;
-  const payOpt = opts.options.find(o => o.id === 'pay')!;
-  ok(payOpt.available, 'エナがあれば払える');
-  const paid = finish(resumeChoose('pay', opts, ctx), ctx);
+  const first = executeEffect(wrapped, ctx);
+  ok(!first.done && first.pending.type === 'CHOOSE', '🔴支払いを問う窓が出ていない（黙って通す／黙って止める）');
+  if (first.done || first.pending.type !== 'CHOOSE') throw new Error('pay gate missing');
+  const opts = first.pending;
+  ok(opts.options.find(o => o.id === 'pay')?.available, 'エナがあれば払える');
+  const paid = finish(resumeChoose('pay', opts, execCtxFrom(first, ctx)), ctx);
   eq(paid.ownerState.hand.length, 7, '🔴払ったのに本体が走っていない');
   eq(paid.ownerState.energy.length, 2, '🔴コストが引かれていない');
-  const skipped = finish(resumeChoose('skip', opts, ctx), ctx);
+  const skipped = finish(resumeChoose('skip', opts, execCtxFrom(first, ctx)), ctx);
   eq(skipped.ownerState.hand.length, 5, '🔴払わなかったのに本体が走っている');
   eq(skipped.ownerState.energy.length, 3, '払わなければエナも減らない');
   // エナが無ければ払えない＝「何もしない」側に倒れる（勝手に通さない）
   const poor = mkCtx({ energy: 0, hand: 5 }, {});
-  const poorPending = executeEffect(wrapped, poor);
-  const poorOpts = (poorPending as Extract<ExecResult, { done: false }>).pending as Extract<PendingInteractionDef, { type: 'CHOOSE' }>;
-  eq(poorOpts.options.find(o => o.id === 'pay')!.available, false, '🔴払えないのに払える表示');
+  const poorFirst = executeEffect(wrapped, poor);
+  if (poorFirst.done || poorFirst.pending.type !== 'CHOOSE') throw new Error('pay gate missing (poor)');
+  eq(poorFirst.pending.options.find(o => o.id === 'pay')!.available, false, '🔴払えないのに払える表示');
 });
 
 
