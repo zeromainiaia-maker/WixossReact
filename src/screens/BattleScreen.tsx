@@ -1827,7 +1827,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       { key: 'guest', st: guestState, op: hostState,  ownerId: bs.guest_id, prevE: prevEnergy.guest },
     ];
     const entries: StackEntry[] = [];
-    const grantedUsedByKey: Record<'host' | 'guest', string[]> = { host: [], guest: [] };
+    const autoUsedByKey: Record<'host' | 'guest', string[]> = { host: [], guest: [] };
     for (const { key, st, op, ownerId, prevE } of sides) {
       const isOwnerActiveTurn = ownerId === bs.active_user_id;
       // ON_ENERGY_CHARGE: エナがちょうど1枚増えたとき（差分の新規カードが1枚）
@@ -1847,7 +1847,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
           if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
               && !evalUseCondition(eff.condition, st, op, battleCardMap, ecLrigTop, bs.turn_phase, curPowers)) continue;
-          if (!reserveGrantedAutoUsage(st, eff, grantedUsedByKey[key])) continue;
+          if (!reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])) continue;
           entries.push({ id: generateUUID(), playerId: ownerId, cardNum: ecLrigTop, effectId: eff.effectId,
             label: `${battleCardMap.get(ecLrigTop)?.CardName ?? ecLrigTop} の【自】効果（エナチャージ時・付与能力）`, effect: eff });
         }
@@ -1864,7 +1864,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.condition?.type === 'IS_MY_TURN' && !isOwnerActiveTurn) continue;
             if (eff.condition && eff.condition.type !== 'IS_MY_TURN'
                 && !evalUseCondition(eff.condition, st, op, battleCardMap, topNum, bs.turn_phase, curPowers)) continue;
-            if (!reserveGrantedAutoUsage(st, eff, grantedUsedByKey[key])) continue;   // タスク12(cxx)
+            if (!reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])) continue;   // タスク12(cxx)
             entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
               label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（エナチャージ時）`, effect: eff });
           }
@@ -1874,7 +1874,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             const prevP = prevPowers.get(topNum);
             const wasBelow = prevP === undefined || prevP < threshold;
             if (curP >= threshold && wasBelow) {
-              if (!reserveGrantedAutoUsage(st, eff, grantedUsedByKey[key])) continue;   // タスク12(cxx)
+              if (!reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])) continue;   // タスク12(cxx)
               entries.push({ id: generateUUID(), playerId: ownerId, cardNum: topNum, effectId: eff.effectId,
                 label: `${battleCardMap.get(topNum)?.CardName ?? topNum} の【自】効果（パワー${threshold}到達時）`, effect: eff });
             }
@@ -1889,11 +1889,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const existingStack = bs.effect_stack ?? null;
         const newStack = existingStack ? pushToStack(existingStack, entries) : initStack(bs.active_user_id ?? user.id, entries);
         const states: Partial<Record<PlayerStateKey, PlayerState>> = {};
-        if (grantedUsedByKey.host.length > 0) {
-          states.host_state = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...grantedUsedByKey.host] };
+        if (autoUsedByKey.host.length > 0) {
+          states.host_state = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...autoUsedByKey.host] };
         }
-        if (grantedUsedByKey.guest.length > 0) {
-          states.guest_state = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...grantedUsedByKey.guest] };
+        if (autoUsedByKey.guest.length > 0) {
+          states.guest_state = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...autoUsedByKey.guest] };
         }
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATES', states, effectStack: newStack }));
         snapshot();
