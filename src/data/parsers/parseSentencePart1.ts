@@ -1274,6 +1274,29 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // 「カードをN枚引くか【エナチャージM】をする」＝**素の**ドロー／エナチャージ二択（§6.4 O-11・`WXEX2-66`）。
+  // 🔴上のルリグレベル比例版だけがあり、素の形は下のショートハンドの catch-all に食われて
+  //   **「引く」側が丸ごと消えたただのエナチャージ**になっていた（選択肢が1つ減る過少実行）。
+  // ⚠この文型は【常】の付与テキスト内・【トラップ】側にも同文で現れるので、前置き（読点・「その後、」）を許す。
+  {
+    const m = t.match(/^(?:その後、)?カードを([０-９\d]+)枚引くか【エナチャ[ー―‐−-]ジ([０-９\d]+)】をする$/);
+    if (m) {
+      return {
+        type: 'CHOOSE',
+        choose_count: 1,
+        from_count: 2,
+        choices: [
+          { choiceId: 'c0', label: '選択肢1', action: {
+            type: 'DRAW', owner: 'self', count: parseNum(m[1]),
+          } as EffectAction },
+          { choiceId: 'c1', label: '選択肢2', action: {
+            type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: parseNum(m[2]),
+          } as EffectAction },
+        ],
+      };
+    }
+  }
+
   // ---- エナチャージ（【エナチャージN】ショートハンド）----
   // 長音符が異体字ダッシュ（― U+2015 / ‐ / − / -）で記録されたデータにも対応（WX03-033-BURST等）
   const ecM = t.match(/【エナチャ[ー―‐−-]ジ([０-９\d]+)】/);
