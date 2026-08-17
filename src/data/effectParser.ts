@@ -1251,8 +1251,34 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3f-2: 「このシグニに【チャーム】が付いているかぎり、」（2026-08-18・§5d-0）
+  // 🔴従来は落ちて**無条件でパワー＋／【ランサー】付与**だった（`WDK12-014-E1`／`WDK12-015-E1`／`WXK07-079-E1`）。
+  //   engine は `IS_SELF_CHARMED` を `checkActiveCondition` に実装済み＝parser の綴りが無かっただけ。
+  if (text.startsWith('このシグニに【チャーム】が付いているかぎり、')) {
+    return {
+      condition: { type: 'IS_SELF_CHARMED' } as ActiveCondition,
+      rest: text.slice('このシグニに【チャーム】が付いているかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン3f-3: 「このシグニが〔アップ／ダウン〕状態であるかぎり、」（2026-08-18・§5d-0）
+  // 🔴従来は落ちて**無条件でパワー＋**（`WXDi-CP01-025-E1`／`WXDi-P08-059-E1`／`WXDi-P04-050-E1`／`-E2`）。
+  // ⚠`IS_SELF_DOWN` は既存、`IS_SELF_UP` は今回新設（`checkActiveCondition` に case を足さないと
+  //   **未知の型は `return true`＝無条件成立**に落ちるので、型・評価器・golden ミラー表をセットで足す）。
+  const selfUpDownM = text.match(/^このシグニが(アップ|ダウン)状態であるかぎり、/);
+  if (selfUpDownM) {
+    return {
+      condition: { type: selfUpDownM[1] === 'アップ' ? 'IS_SELF_UP' : 'IS_SELF_DOWN' } as ActiveCondition,
+      rest: text.slice(selfUpDownM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3f: 「このシグニがアクセされているかぎり、」「このシグニに【アクセ】が付いているかぎり、」（自身にアクセが付いている条件。G078／WXK04-080）
-  for (const accePhrase of ['このシグニがアクセされているかぎり、', 'このシグニに【アクセ】が付いているかぎり、']) {
+  // ⚠**「このシグニ**は**アクセされているかぎり」**（助詞違い）も受ける（2026-08-18）＝
+  //   `WX15-038-E1`／`WX16-044-E2`／`WXEX1-70-E1` が**無条件で【ランサー】／バニッシュ耐性**だった。
+  for (const accePhrase of ['このシグニがアクセされているかぎり、', 'このシグニはアクセされているかぎり、', 'このシグニに【アクセ】が付いているかぎり、']) {
     if (text.startsWith(accePhrase)) {
       return {
         condition: { type: 'IS_SELF_ACCED' } as ActiveCondition,
