@@ -20118,8 +20118,8 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   // §6.4 O-11：「【エナチャージN】をし、X」のショートハンドが後続節 X を丸ごと飲んでいた。
   test('(O-11) WXDi-CP02-058-E1: 【エナチャージ】の後続「ライフ2枚以下なら追加で」が脱落しない', () => {
     const a = effOfX('WXDi-CP02-058', 'WXDi-CP02-058-E1').action;
-    const conds = collectOfType(a, 'CONDITIONAL');
-    ok(conds.some(c => (c as unknown as { condition?: { type?: string } }).condition?.type === 'LIFE_COUNT'),
+    ok(treeHas(a, x => x.type === 'CONDITIONAL'
+      && (x.condition as { type?: string } | undefined)?.type === 'LIFE_COUNT'),
       '後続の LIFE_COUNT 条件つき追加エナチャージが落ちている');
   });
   // §6.4 O-11：束ねた任意コスト（手札3枚捨て＋自己トラッシュ）の手札側が丸ごと踏み倒されていた。
