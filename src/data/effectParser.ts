@@ -8318,24 +8318,7 @@ function parseActionText(text: string): EffectAction {
       ],
     } as SequenceAction;
   };
-  // 「（次の対戦相手のターン終了時まで、）このルリグは「【常】：あなたがダメージを受ける場合、代わりに
-  //  〈コスト〉を支払ってもよい。（そうした場合、このルリグはこの能力を失う。）」を得る。」
-  //  （§6.4 O-37(a)・続き543・`WX25-P1-014`／`SPDi44-12`／`WX24-P4-021`）。
-  // 🔴従来は下の「引用漏出」安全網に落ちて `STUB{GRANT_ABILITY_INNER_TEXT}` ＝**付与ごと消えていた**
-  //   （引用内の「捨てる」「支払う」が裸の即時アクションとして漏れるため）。**付与の器だけを先に組む**と、
-  //   中身は `expandGrantLrigAbilities` → `quotedSpecialFormAbility` が専用構造で埋める（同じ1本の規則）。
-  const parseQuotedLrigDamageReplaceGrant = (source: string): EffectAction | null => {
-    const m = source.match(/このルリグは[「『](.+?)[」』]を得る/);
-    if (!m || !/あなたがダメージを受ける場合、代わりに/.test(m[1])) return null;
-    return {
-      type: 'GRANT_LRIG_ABILITY',
-      abilities: [],
-      rawText: m[1],
-      duration: /次の対戦相手のターン終了時まで/.test(source) ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN',
-    } as GrantLrigAbilityAction;
-  };
-  const parseBase = (source: string): EffectAction => parseQuotedLrigDamageReplaceGrant(source)
-    ?? parseQuotedOtherSigniProtectionAndPower(source)
+  const parseBase = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
