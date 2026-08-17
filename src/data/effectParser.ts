@@ -53,6 +53,12 @@ const STATE_HOIST_BATCH1_CARDS = new Set([
   'WX09-Re04', 'WX16-012', 'WX21-Re07', 'WXDi-P02-001', 'WX16-065', 'SPDi43-02',
   'SPDi43-07', 'WX11-026', 'WX11-032', 'WX19-028', 'WXDi-P09-047', 'WXK11-019',
   'WXDi-P01-004',
+  // 🆕§6.4 O-35・続き528＝`WXK03-040-E1`「【出】：**あなたのターンの場合**、あなたのデッキの一番下の
+  //   カードをトラッシュに置く。それがレベル１のシグニの場合、それをトラッシュから場に出す。」
+  //   条件が allowlist 外で落ち、1文目ごと `CONDITIONAL_POWER_BONUS`（無言 no-op）＝**ミルが起きないのに
+  //   2文目の場出しだけ無条件に走る**過剰実行だった。⚠allowlist の全撤廃は §6.4 **O-36**（残24効果・
+  //   一斉に変わるので A/B 必須）。ここは1枚だけを個別に検証して足している。
+  'WXK03-040',
 ]);
 
 // PLAN §3 task12(xlvi) wave2: a single reveal followed by independent pick groups.
