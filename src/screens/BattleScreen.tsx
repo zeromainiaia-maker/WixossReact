@@ -6740,13 +6740,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // 収集したエントリはアーツ効果と同じスタックへ（queueCardEffects の extraEntries）。
       let useCostLeaveEntries: StackEntry[] = [];
       if (useCostTrashedSigni.length > 0) {
-        const afterHostAr = isHost ? paidWithUseCost : op;
-        const afterGuestAr = isHost ? op : paidWithUseCost;
+        const afterHostAr = actorIsHost ? paidWithUseCost : op;
+        const afterGuestAr = actorIsHost ? op : paidWithUseCost;
         const bdAr = collectBoardDiffTriggers(afterHostAr, afterGuestAr, {
-          causeOwnerId: user.id, causeSourceCardNum: instanceId,
+          causeOwnerId: p.actorId, causeSourceCardNum: instanceId,
           fieldTrashCostCards: useCostTrashedSigni,
         });
-        paidWithUseCost = isHost ? bdAr.hostState : bdAr.guestState;
+        paidWithUseCost = actorIsHost ? bdAr.hostState : bdAr.guestState;
         useCostLeaveEntries = bdAr.entries;
       }
       if (encore) appendBattleLogs([`アンコール：${card.CardName}をルリグデッキに戻す`]);
