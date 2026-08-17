@@ -10327,6 +10327,57 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 人間がライフバースト処理中（チェックゾーンにカードあり）はCPU行動しない
     if (huSt.field?.check) return;
 
+    /**
+     * CPU のアーツ使用を1枚ぶん試す（使ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1` (a)(b)。
+     *
+     * ⚠**窓は3つ（相手ターンの応答／自ターンの MAIN／自ターンの ATTACK_ARTS）だが通す道は1本**。
+     *   窓ごとに書き分けると、片方だけに条件を足したときに気付けない。
+     * ⚠**判定は `artsUseGate`・実行は `performArts`＝どちらも人間と同じ関数**（DESIGN §4）。
+     *   CPU 専用の判定/実行をここに書かない＝軸がずれると人間には見えないアーツを CPU だけが
+     *   使える（またはその逆）という無言のズレになる。
+     * ⚠1回の呼び出しで**1枚だけ**使う＝スタック解決（対象選択の自動応答を含む）を待ってから次を選ぶ。
+     */
+    const tryCpuUseArts = async (
+      actorState: PlayerState,
+      turnPhase: TurnPhase,
+      pick: (p: CpuArtsPickInput) => CpuArtsChoice | null,
+    ): Promise<boolean> => {
+      const isActorTurn = turnPhase !== 'ATTACK_ARTS_OP';
+      const payer = buildArtsPayerCtx({
+        actor: actorState, opponent: huSt, isActorTurn,
+        turnPhase, cardMap: battleCardMap, effectsMap,
+      });
+      const choice = pick({
+        actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
+        payer, turnPhase, alreadyUsedNums: actorState.cpu_arts_used_nums_this_turn ?? [],
+        // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
+        isAffordable: (selectedNums, costStr, extraCosts) => canAffordWithExtraCost(
+          selectedNums, battleCards, costStr, extraCosts, actorState.keyword_grants,
+          payer.enaAllMulti, payer.enaMultiStripped,
+          payer.colorlessOverrides, payer.colorSubs, payer.energyExtraColors,
+          undefined, undefined, undefined, actorState.cannot_pay_colorless_this_attack_phase),
+      });
+      if (!choice) return false;
+      appendBattleLogs([`[CPU] アーツを使用: ${choice.card.CardName}`]);
+      // ⚠**安全弁＝実行より先に「使った」履歴を確定させる**。`performArts` は使用不能を検出すると
+      //   **何も書かずに return** するので、履歴を実行の成否に委ねると CPU が同じ札を選び直して
+      //   その窓から先へ進まなくなる（＝画面が止まる）。
+      const artsActor: PlayerState = {
+        ...actorState,
+        cpu_arts_used_nums_this_turn: [...(actorState.cpu_arts_used_nums_this_turn ?? []), choice.card.CardNum],
+      };
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: artsActor }));
+      await performArts(choice.card, { costIndices: choice.costIndices }, {
+        actor: artsActor, opponent: huSt,
+        actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
+        isActorTurn,
+        energyPayPool: payer.energyPayPool,
+        energyTrashSubInfo: payer.energyTrashSubInfo,
+        blockedSelf: payer.blockedSelf,
+      });
+      return true;
+    };
+
     // ─── ライフバースト確認（チェックゾーンのカードを処理）───
     if (cpuSt.field?.check) {
       const cardNum = cpuSt.field.check;
