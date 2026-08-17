@@ -1192,6 +1192,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     ];
   }, [bs, battleCardMap, effectsMap, user.id]);
 
+  /**
+   * アーツの使用可否・実効コストを判定するための「支払う側の常在効果」一式（§8 `O-1`）。
+   *
+   * ⚠**CPU の応答アーツも同じ `buildArtsPayerCtx` から作る**＝人間UIだけ別の式で組み立てると
+   * 「人間には使えるのに CPU には使えない」型の無言のズレになる（PLAN §4 教訓 (d)）。
+   */
+  const myArtsPayerCtx = useMemo((): ArtsPayerCtx | null => {
+    if (!bs || bs.global_phase !== 'PLAYING') return null;
+    const localIsHost = user.id === bs.host_id;
+    return buildArtsPayerCtx({
+      actor: localIsHost ? bs.host_state : bs.guest_state,
+      opponent: localIsHost ? bs.guest_state : bs.host_state,
+      isActorTurn: bs.active_user_id === user.id,
+      turnPhase: bs.turn_phase, cardMap: battleCardMap, effectsMap, effectivePowers,
+    });
+  }, [bs, battleCardMap, effectsMap, user.id, effectivePowers]);
+
   // HAND_SIZE_INCREASE / REDUCE_OPP_HAND_LIMIT: 実効手札上限（自分のターン終了時に適用）
   const myEffectiveHandLimit = useMemo(() => {
     if (!bs || bs.global_phase !== 'PLAYING') return 6;
