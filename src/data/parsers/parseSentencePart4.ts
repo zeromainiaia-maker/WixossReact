@@ -2418,16 +2418,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
   //   （原文は「使用」＝印刷コストを払う）。専用 id で**コストを払う使用**へ分岐させる。
   // ⚠「**対戦相手の**トラッシュから」は別機構（`CAST_FROM_OPP_TRASH`）なので除外する。
   {
-    const useOwnTrashSpellM = t.match(/^あなたのトラッシュから(《[^》]+》の|[白赤青緑黒]の|＜[^＞]+＞の)?スペル[１1]枚を対象とし、それを使用してもよい$/);
+    // ⚠**修飾は原文にある綴りだけを列挙する**（実測でこの文型は1効果＝《ディソナアイコン》のみ）。
+    //   未知の修飾を素通しで無視すると「トラッシュのどのスペルでも撃てる」過剰実行になるので、
+    //   表せない修飾が来たら**マッチさせない**（受け皿へ落として計器に映す）。
+    const useOwnTrashSpellM = t.match(/^あなたのトラッシュから(《ディソナアイコン》の|[白赤青緑黒]の)?スペル[１1]枚を対象とし、それを使用してもよい$/);
     if (useOwnTrashSpellM) {
       const q = useOwnTrashSpellM[1] ?? '';
+      const colorM = q.match(/^([白赤青緑黒])の$/);
       const filter: TargetFilter = {
         cardType: 'スペル',
-        ...parseIconFilter(q), ...parseColorFilter(q), ...parseStoryFilter(q),
-        ...(/《ディソナアイコン》の/.test(q) ? { isDisona: true } : {}),
+        ...(q === '《ディソナアイコン》の' ? { isDisona: true } : {}),
+        ...(colorM ? { color: colorM[1] } : {}),
       };
       return {
-        type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', optional: true,
+        type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST',
         selectTarget: { type: 'TRASH_CARD', owner: 'self', count: 1, filter },
       } as StubAction;
     }
