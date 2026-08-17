@@ -5278,18 +5278,51 @@ function applyLrigColorBatch5(effects: CardEffect[]): void {
 
 // ROADMAP batch5c 第1波。候補単体 filter では表せない「それぞれ異なる」を
 // target.selectionConstraint（SEARCH は action 直下）へ固定する。
-const DISTINCT_BATCH5C: Record<string, 'level' | 'name' | 'class'> = {
-  'WX17-028-E1':'level','WXDi-P02-031-E1':'class','WXDi-P13-034-E1':'class',
+//
+// ⚠**種別（level/name/class/color）を表に手書きしない**（2026-08-18・§5d-0 (i)）＝
+//   旧実装は effectId → 種別 の**手書き表**で、**7効果が原文と食い違っていた**：
+//     `WX14-030-E1`／`WX17-025-E3`／`WX19-080-E1`／`WXDi-P07-090-E1`／`WXEX2-31-E3`
+//       ＝原文「それぞれ**レベル**の異なる…」なのに `distinct:'name'`（**名前**が異なればよい）
+//       ＝同レベル4枚でも通り、レベルが揃っていない組を弾かない＝**原文と別の制約**。
+//     `WXDi-P00-023-E1` ＝原文「それぞれ異なる**クラス**を持つシグニ７枚」なのに `'name'`。
+//     `WXDi-CP01-008-E3` ＝原文「それぞれ**名前**の異なるカード３枚」なのに `'level'`。
+//   手書き値は smoke/golden/census のどれにも映らない（構造は正しく、意味だけ違う）ので、
+//   **原文から導いて表は「どの効果に載せるか」のオプトインだけ**にする。表の値は
+//   原文が取れないときのフォールバック兼ドキュメントとして残し、**golden が両者の一致を固定**する。
+export type DistinctKind = 'level' | 'name' | 'class' | 'color';
+// ⚠**原文の言い回しは4系統**。`color` だけ `distinct` ではなく `sharedColor:'none'` に落ちる
+//   （「共通する色を持たない」＝複数色カードがあるので集合の重なりで判定する＝
+//    `satisfiesSelectionConstraint`（execUtils）が別枝で実装済み）。
+const DISTINCT_PHRASES: ReadonlyArray<readonly [DistinctKind, RegExp]> = [
+  ['level', /(?:それぞれ)?レベルの異なる/],
+  ['name',  /(?:それぞれ)?名前の異なる/],
+  ['class', /それぞれ異なるクラスを持つ|(?:それぞれ)?クラスの異なる|それぞれ共通するクラスを持たない/],
+  ['color', /それぞれ異なる色を持つ|それぞれ共通する色を持た(?:ない|ず)/],
+];
+/**
+ * 原文から「それぞれ〜異なる」の種別を導く。**1系統だけに当たったときしか返さない**
+ * （2系統以上が同じカードに出たら曖昧＝呼び出し側が表の値へフォールバックする）。
+ * 実測（2026-08-18）＝オプトイン40効果すべてでカード全文が一意に決まる。
+ */
+export function inferDistinctKind(text: string): DistinctKind | undefined {
+  const hits = DISTINCT_PHRASES.filter(([, re]) => re.test(text)).map(([k]) => k);
+  return hits.length === 1 ? hits[0] : undefined;
+}
+export function distinctConstraintOf(kind: DistinctKind): SelectionConstraint {
+  return kind === 'color' ? { sharedColor: 'none' } : { distinct: kind };
+}
+export const DISTINCT_BATCH5C: Record<string, DistinctKind> = {
+  'WX17-028-E1':'level','WXDi-P02-031-E1':'color','WXDi-P13-034-E1':'color',
   'WD07-012-E2':'level','WX24-P1-085-E1':'level','WX25-P3-107-E1':'level',
   'SPDi44-12-E1':'level','SPDi44-16-E1':'level','WX15-Re15-E1':'level',
   'WX20-079-E1':'level','WX20-Re14-E1':'level','WXEX1-47-E2':'level',
   'WXEX2-74-E2':'level','WX25-P1-014-E1':'level','WX25-P1-030-E1':'level',
   'WX25-P2-063-E2':'level','WXK09-067-E1':'level',
   'WD07-006-E1':'level','WX06-025-E1':'level','WXEX1-39-E1':'level','WXK02-028-E3':'level',
-  'WX14-030-E1':'name','WX17-025-E3':'name','WX19-080-E1':'name','WX21-026-E3':'name',
-  'WXDi-P00-023-E1':'name','WXDi-P07-090-E1':'name','WXEX1-03-E2':'name',
-  'WXEX2-31-E3':'name','WXK09-090-E1':'name',
-  'WXDi-CP01-008-E3':'level','WXDi-CP02-010-E2':'level','WXDi-P07-035-E1':'level',
+  'WX14-030-E1':'level','WX17-025-E3':'level','WX19-080-E1':'level','WX21-026-E3':'name',
+  'WXDi-P00-023-E1':'class','WXDi-P07-090-E1':'level','WXEX1-03-E2':'name',
+  'WXEX2-31-E3':'level','WXK09-090-E1':'name',
+  'WXDi-CP01-008-E3':'name','WXDi-CP02-010-E2':'level','WXDi-P07-035-E1':'level',
   'WXDi-P14-036-E1':'level','WXEX2-25-E2':'level','WX20-002-E1':'name',
   'WXEX2-41-E1':'name','WXDi-D01-004-E1':'class','WX12-Re02-E1':'name','WXDi-P14-027-E1':'name',
 };
