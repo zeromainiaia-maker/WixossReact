@@ -138,7 +138,8 @@ export function reduceFieldSigniToLimit(
   const newDown = [...(state.field.signi_down ?? [false, false, false])] as boolean[];
   const newFrozen = [...(state.field.signi_frozen ?? [false, false, false])] as boolean[];
   const newCharms = state.field.signi_charms ? [...state.field.signi_charms] as (string | null)[] : undefined;
-  const newAcce = state.field.signi_acce ? state.field.signi_acce.map(cards => cards ? [...cards] : null) : undefined;
+  // ⚠旧形式（素の string）を `[...cards]` で複製すると**1文字ずつの配列**に化けるので必ず正規化を通す（タスク12(cxxxiv)）。
+  const newAcce = state.field.signi_acce ? cloneAcceSlots(state.field) : undefined;
   let trash = [...state.trash];
   const trashed: string[] = [];
   for (const z of zones) {
