@@ -363,13 +363,13 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                         {pcEnergy.map((num, i) => {
                           const c = battleCardMap.get(num);
                           const isSel = selectedSigniOnPlayEnergyTrash.has(i);
-                          const matchesEna = !enaTrashFilter || matchesFilter(c, enaTrashFilter);
+                          const matchesEna = (!enaTrashFilter || matchesFilter(c, enaTrashFilter))
+                            && canAddEnergyTrashIndex(pcEnergy, selectedSigniOnPlayEnergyTrash, i, eff.cost?.energyTrash, battleCardMap);
                           return (
                             <div key={i}
                               onClick={() => matchesEna && setSelectedSigniOnPlayEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= enaTrashNeeded) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
