@@ -11393,6 +11393,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             ...consumed,
             field: { ...my.field, lrig_attacked: false },
           };
+        } else if (pickLifeCrashReplacement(my, { damageSource: 'lrig', cardMap: battleCardMap })?.repl.kind === 'pay_cost') {
+          // §6.4 O-37(a) ダメージ置換（コスト支払い型）＝ルリグアタック側の消費地点。
+          // ⚠**シグニアタック側（crashOneLife）と同じ funnel を通す**＝片方だけだと
+          //   「シグニには効くがルリグには効かない」型の無言の不整合になる。
+          const pickedC = pickLifeCrashReplacement(my, { damageSource: 'lrig', cardMap: battleCardMap })!;
+          const paidC = applyPayCostReplacement(my, pickedC.index, pickedC.repl, battleCardMap);
+          appendBattleLogs([`ルリグアタック：${lifeCrashReplaceLog(pickedC.repl, paidC?.paidJa)}`]);
+          newMyState = { ...(paidC?.state ?? my), field: { ...my.field, lrig_attacked: false } };
         } else if (pickLifeCrashReplacement(my, { damageSource: 'lrig' })?.repl.kind === 'mill') {
           // ライフクラッシュ置換（ルリグアタック側の消費地点）＝ funnel で crashOneLife と同じ規則を通す。
           // ⚠「シグニによって」限定の宣言はここで**選ばれない**（従来は限定を見ずに消費していた）。
