@@ -310,9 +310,18 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対戦相手はライフクロスの一番上を公開する/))
     return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
 
-  // ---- カードがLBを持たない場合トラッシュ ----
+  // ---- 公開した相手ライフクロスが【ライフバースト】を持たない場合、それをトラッシュに置く（WD06-006-E1）----
+  // 🔴従来は catch-all の `CONDITIONAL_POWER_BONUS`＝**丸ごと無言 no-op**＝公開するだけで**何も落ちなかった**。
+  // 条件語彙 `LAST_PROCESSED_HAS_BURST{negate}` は既にあり、直前の `LOOK_OPP_LIFE_TOP` が
+  // `lastProcessedCards` に公開札を残す（`execStubPart1.ts:1548`）＝そのまま繋がる。
+  // ⚠「それ」は**相手のライフクロスの一番上**＝汎用の「それをトラッシュに置く」は `SIGNI{owner:'any'}` に
+  //   化けるので、ここで行き先を固定する（`execTrash` の LIFE_CLOTH_CARD 分岐は末尾＝上から count 枚）。
   if (t.match(/そのカードが【ライフバースト】を持たない場合、それをトラッシュに置く/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return {
+      type: 'CONDITIONAL',
+      condition: { type: 'LAST_PROCESSED_HAS_BURST', negate: true },
+      then: { type: 'TRASH', target: { type: 'LIFE_CLOTH_CARD', owner: 'opponent', count: 1 } },
+    } as EffectAction;
 
   // ---- 追加のアタックフェイズを加える（§6.4 O-3）----
   // 消化は `resolveNextPhaseAfterAttack`＝ATTACK_LRIG の次を END ではなく ATTACK_ARTS にする1点。
