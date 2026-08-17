@@ -4934,6 +4934,9 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     type: 'CHOOSE', options, count: effectiveCount,
     ...(effectiveUpTo || effectiveCount > 1 ? { multiSelect: true } : {}),
     ...(effectiveUpTo ? { upTo: true } as Record<string, unknown> : {}),
+    // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）＝UI を回数マップへ切り替える。
+    // ⚠**選択数が1のときは意味が無い**ので立てない（`multiSelect` が付かず単発UIになるため）。
+    ...(a.allowRepeat && effectiveCount > 1 ? { allowRepeat: true, multiSelect: true } : {}),
     ...(a.opponentResponds ? { opponentResponds: true } : {}),
   } as PendingInteractionDef & { type: 'CHOOSE' });
 }
