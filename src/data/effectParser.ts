@@ -1321,6 +1321,49 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: undefined, rest: text.slice(fieldGenM[0].length), conditionFound: true };
   }
 
+  // パターン3z-2: 「あなたのエナゾーンに(レベルNの)?(色|＜C＞)のシグニがあるかぎり、」（2026-08-18・§5d-0）
+  // 🔴従来は落ちて**無条件でパワー＋3000**（`WXK09-082-E1`／`WXK09-086-E1`）。`ENERGY_HAS_CARD` は実装済み。
+  const enaSigniM = text.match(/^あなたのエナゾーンに(?:レベル([０-９\d]+)の)?((?:[白赤青緑黒]の|＜[^＞]+＞の)*)シグニが(?:([０-９\d]+)枚以上)?あるかぎり、/);
+  if (enaSigniM) {
+    return {
+      condition: {
+        type: 'ENERGY_HAS_CARD', owner: 'self',
+        filter: { cardType: 'シグニ', ...(enaSigniM[1] ? { level: parseNum(enaSigniM[1]) } : {}),
+          ...parseColorFilter(enaSigniM[2]), ...parseStoryFilter(enaSigniM[2]) },
+        ...(enaSigniM[3] ? { minCount: parseNum(enaSigniM[3]) } : {}),
+      },
+      rest: text.slice(enaSigniM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン3z-3: 「このシグニの下にカードがあるかぎり、」（2026-08-18・§5d-0）
+  // 🔴従来は落ちて**無条件でパワー＋5000／能力付与**（`WXK08-085-E1`／`WXK09-059-E1`）。
+  //   `THIS_CARD_HAS_UNDER` は実装済み（《ディソナアイコン》限定版だけ規則があった）。
+  if (text.startsWith('このシグニの下にカードがあるかぎり、')) {
+    return {
+      condition: { type: 'THIS_CARD_HAS_UNDER' } as ActiveCondition,
+      rest: text.slice('このシグニの下にカードがあるかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
+  // パターン4-0: 「あなたのトラッシュに〔スペル/シグニ/アーツ〕が(N枚以上)?あるかぎり、」（2026-08-18・§5d-0）
+  // 🔴**ルリグトラッシュ版（4a2）はあるのに通常トラッシュのカード種別版が無かった**＝
+  //   「トラッシュにスペルがあるかぎり基本パワーは8000になる」等が**無条件で成立**していた（実測12効果）。
+  // ⚠`カード`（種別なし）は下のパターン4（`COUNT_THRESHOLD`）の担当なので**ここでは受けない**（既存挙動を変えない）。
+  const trashTypeM = text.match(/^あなたのトラッシュに(スペル|シグニ|アーツ)が(?:([０-９\d]+)枚以上)?あるかぎり、/);
+  if (trashTypeM) {
+    return {
+      condition: {
+        type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: trashTypeM[1] },
+        ...(trashTypeM[2] ? { minCount: parseNum(trashTypeM[2]) } : {}),
+      },
+      rest: text.slice(trashTypeM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // パターン4: 「あなたのトラッシュにカードがN枚以上あるかぎり、」
   const trashM = text.match(/^あなたのトラッシュにカードが([０-９\d]+)枚以上あるかぎり、/);
   if (trashM) {
