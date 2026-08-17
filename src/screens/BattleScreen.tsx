@@ -26,7 +26,7 @@ import { resolveTurnEndEnergyTrash } from './battle/turnEndEnergyTrash';
 import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
-import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
+import { payLrigDownCost, payLrigDownSelfCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } from './battle/trashActivateCost';
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
