@@ -38741,19 +38741,19 @@ test('§6.4 O-37(b): リフレッシュのライフ移動を「この能力を�
     action: { type: 'STUB', id: 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY', refreshLifeMoveReplace: true } as StubAction,
     duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
   };
-  const base = mkState({ deck: [], trash: ['WX24-P3-005', 'WX24-P3-007'], life_cloth: ['WX24-P3-009', 'WX24-P3-001'] });
+  const base: PlayerState = { ...mkState({ life: 2, trash: 2 }), deck: [] };
   // 付与が無ければ従来どおりライフが1枚トラッシュへ
   eq(applyRefreshState(base).life_cloth.length, 1, '既定はライフ1枚がトラッシュへ');
-  const withGrant = { ...base, lrig_granted_auto_effects_until_opp_turn: [grant] };
+  const withGrant: PlayerState = { ...base, lrig_granted_auto_effects_until_opp_turn: [grant] };
   const after = applyRefreshState(withGrant);
   eq(after.life_cloth.length, 2, '🔴ライフ移動が置換されていない');
   eq(after.lrig_granted_auto_effects_until_opp_turn, undefined, '🔴代わりに失うはずの能力が残っている');
   eq(after.trash.length, 0, 'トラッシュはデッキへ（ライフは落ちない）');
   // 🔑2回目は守らない（能力を失っている）
-  eq(applyRefreshState({ ...after, deck: [], trash: ['WX24-P3-005'] }).life_cloth.length, 1,
+  eq(applyRefreshState({ ...after, deck: [], trash: ['dummy'] }).life_cloth.length, 1,
     '🔴能力を失ったのに置換が続いている');
   // ライフ0枚＝移動が起きない＝能力を消費しない
-  const noLife = { ...withGrant, life_cloth: [] };
+  const noLife: PlayerState = { ...withGrant, life_cloth: [] };
   eq(applyRefreshState(noLife).lrig_granted_auto_effects_until_opp_turn?.length, 1,
     '🔴ライフが無いのに能力だけ失っている');
 });
