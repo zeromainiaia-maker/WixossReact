@@ -487,6 +487,10 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
       type: 'SEND_TO_ENERGY',
       target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', thisCardOnly: true } },
     } as EffectAction] : []),
+    ...(spec.selfTrash ? [{
+      type: 'TRASH', asCost: true,
+      target: { type: 'SIGNI', owner: 'self', count: 1, upToCount: false, filter: { cardType: 'シグニ', thisCardOnly: true } },
+    } as EffectAction] : []),
     ...((spec.beat_signi || spec.beat_signi_from_trash) ? [{
       type: 'STUB', id: 'INTERNAL_PAY_BEAT_SIGNI',
       beat_signi: spec.beat_signi,
