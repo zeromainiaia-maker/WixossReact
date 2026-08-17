@@ -2310,6 +2310,141 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
 
 // text 先頭が STATE_CONDITION_CLAUSES のいずれかの条件節「〜の場合、」で始まれば、その Condition と
 // 残り（「、」以降）を返す。マッチしなければ null。
+// 先頭状態条件節の共通表（§6.4 O-35・続き528 で module 化）。
+// ⚠**`tryWrapLeadingStateCond`（文単位の CONDITIONAL 持ち上げ）と、デッキトップ公開ビルダーのような
+//   複数文ハンドラの両方**がこの1本を引く。ハンドラ側が独自の小さな語彙表を持つと、そこだけ条件が
+//   黙って落ちる（実測＝デッキトップ公開は**エナゾーン形しか見ておらず**「このシグニがアップ状態の場合」
+//   8効果ほかの条件が丸ごと脱落＝無条件発火の過剰効果だった）。**語彙を足すときはこの表だけを触る。**
+  const LEADING_STATE_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
+    [/あなたのターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'self' })],
+    [/対戦相手のターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'opponent' })],
+    [/このシグニのパワーが([０-９\d]+)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
+      g => ({ type: 'AND', conditions: [
+        { type: 'SELF_POWER_GTE', operator: 'eq', value: parseNum(g[0]) },
+        { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[1]) },
+      ] })],
+    [/あなたのライフクロスが([０-９\d]+)枚以下で対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
+      g => ({ type: 'AND', conditions: [
+        { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) },
+        { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
+      ] })],
+    [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
+    [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
+      g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
+    // ⚠「以上/以下」が付かない**ちょうどN枚**（WD20-018②「あなたのライフクロスが０枚の場合」）はこの表に
+    //   無く、条件ゲートごと脱落して**無条件に自分の全シグニをトラッシュする**過剰効果になっていた（タスク10 パターンD）。
+    [/あなたのライフクロスが([０-９\d]+)枚の場合/,
+      g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
+    [/対戦相手のライフクロスが([０-９\d]+)枚(以上|以下)?の場合/,
+      g => ({ type: 'LIFE_COUNT', owner: 'opponent', operator: g[1] === '以上' ? 'gte' : g[1] === '以下' ? 'lte' : 'eq', value: parseNum(g[0]) })],
+    // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
+    // （WXDi-P02-005／WXDi-P07-023／SPK16-13E）。engine に状態カウンタを新設（§3 Opusタスク10 パターンF-2）。
+    // ⚠これが無いと「代わりに」の置換ゲートが立たず、**SEQUENCE に化けて両方実行**される（1枚引く→3枚引く＝計4枚）。
+    [/このターンに対戦相手の効果によってあなたの手札からカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+      g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+    [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
+      g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
+    // ⚠「N枚以上ある場合」（枚+以上+ある+場合／の 無し）は census 条件節クラスタの独立テンプレ＝
+    //   「の場合」固定だと "ある場合" 形（WX12-046/WXDi-P15-094/WXEX1-39 等）が未マッチで条件ごと脱落した。
+    //   `(?:ある)?の?場合` で「N枚以上ある場合」「N枚以下の場合」「N枚の場合」の三形を許容する。
+    [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?(?:ある)?の?場合/,
+      g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
+    // 「エナゾーンにあるカードがN枚以下の場合」（にある＋の場合）も許容（WX21-064/WX24-P3-056 等）。
+    [/(あなた|対戦相手)のエナゾーンに(?:ある)?カードが([０-９\d]+)枚(以上|以下)(?:ある)?の?場合/,
+      g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+    // 「あなたのトラッシュにカードがN枚以上/以下ある場合」＝トラッシュ総枚数ゲート（engine TRASH_COUNT 実装済）。
+    //   ＜C＞/レベル/色付きは先行の TRASH_HAS_CARD が先にマッチする＝ここは無フィルタの総枚数のみ（WXDi-P01-079 等）。
+    [/(あなた|対戦相手)のトラッシュにカードが([０-９\d]+)枚(以上|以下)ある場合/,
+      g => ({ type: 'TRASH_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+    [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚以上ある場合/,
+      g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+    [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
+    // 「あなたの場にそれぞれ共通する色を持たない＜C＞のシグニがN体ある場合」（§6.4 O-11・`WX21-006-E1`）。
+    // 🔴受け皿 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は engine 実装済みなのに **live 利用者0の死んだ受け皿**
+    //   だった（クラス filter が無く、この文型を表せなかったため）。filter を足して繋いだ。
+    //   条件が落ちていた `WX21-006-E1` は live が `DRAW 1` だけ＝**バニッシュもエナ置きも消えていた**。
+    [/あなたの場にそれぞれ共通する色を持たない＜([^＞]+)＞のシグニが([０-９\d]+)体ある場合/,
+      g => ({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: parseNum(g[1]), filter: { cardType: 'シグニ', story: g[0] } })],
+    [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある(?:場合|間)/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
+    // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
+    // 従来は語彙が無くルリグアタック時に無条件発火の過剰効果（WX14-010/WX14-013/WX20-009/WX20-015/WX20-019・census 条件節クラスタ）。
+    [/あなたの場に(白|赤|青|緑|黒|無色)と(白|赤|青|緑|黒|無色)のシグニがある場合/,
+      g => ({ type: 'AND', conditions: [
+        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } },
+        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[1] } },
+      ] })],
+    [/あなたの場にクロス状態のシグニがある場合/,
+      () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
+    // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合、〜」＝場の全シグニ同クラス/同名ゲート
+    // （engine ALL_FIELD_SIGNI_MATCH 実装済＝execUtils/effectEngine・空盤面 false）。従来は語彙が無く
+    // アタックフェイズ開始時に無条件発火の過剰効果（WX25-CP1-042/WX26-CP1-048 等・census 条件節クラスタ）。
+    [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
+      g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+    // 色バリアント（§6.4 O-35・`CONDITIONAL_POWER_BONUS` の解体）。＜C＞/《X》形だけが在り**色形が無かった**ため
+    // 条件節が丸ごと脱落＝アタック時に無条件発火の過剰効果になっていた（`WXDi-D09-H19-E1`／`WXDi-P00-036-E1`／
+    // `WXDi-P14-055-E1`）。engine 側は `matchesFilter` の `color` を通るだけ＝**新機構ゼロで配線のみ**。
+    [/あなたの場にあるすべてのシグニが(白|赤|青|緑|黒|無色)の場合/,
+      g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } })],
+    // 《ディソナアイコン》は Story='Dissona'（isDisona フラグ・matchesFilter/execUtils 慣例）＝カード名ではない。
+    [/あなたの場にあるすべてのシグニが《([^》]+)》の場合/,
+      g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: g[0] === 'ディソナアイコン' ? { cardType: 'シグニ', isDisona: true } : { cardType: 'シグニ', cardName: g[0] } })],
+    // 「このシグニが覚醒状態の場合、〜」＝効果元シグニの覚醒状態ゲート（engine THIS_CARD_IS_AWAKENED
+    // 実装済＝execUtils.ts・awakened_signi 参照）。従来は語彙が無くアタックフェイズ開始時に無条件発火の
+    // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
+    [/このシグニが覚醒状態の場合/,
+      () => ({ type: 'THIS_CARD_IS_AWAKENED' })],
+    // 「あなたの場にレベルNの覚醒状態のシグニがある場合、〜」＝場に覚醒状態のシグニが居る盤面ゲート
+    // （engine HAS_CARD_IN_FIELD の isAwakened 状態フィルタ実装済＝execUtils/matchesStateFilter・
+    // awakened_signi 参照）。従来は語彙が無くアタック時/アタックフェイズ開始時に無条件発火の過剰効果
+    // （WXDi-P14-054/058/066）。
+    [/あなたの場にレベル([０-９\d]+)の覚醒状態のシグニがある場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(g[0]), isAwakened: true } })],
+    // 「このシグニが〔アップ/ダウン〕状態の場合、〜」＝効果元シグニの向き状態ゲート（engine THIS_CARD_IS_UP/DOWN
+    // 実装済＝execUtils.ts・signi_down 参照）。従来は語彙が無く無条件発火の過剰効果（WX15-055/056・WXDi-P02-038 等）。
+    [/このシグニがアップ状態の場合/,
+      () => ({ type: 'THIS_CARD_IS_UP' })],
+    [/このシグニがダウン状態の場合/,
+      () => ({ type: 'THIS_CARD_IS_DOWN' })],
+    [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
+      g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
+    // 「あなたのセンタールリグのレベルが対戦相手のセンタールリグ〔以下/より低い/より高い/以上〕の場合」＝
+    // 自/相手中央ルリグのレベル比較（engine LRIG_LEVEL_CMP_OPP 実装済＝execUtils・EQ の不等号版）。
+    // 従来は語彙が無くアタック時に無条件発火の過剰効果（WXK07-025-E1/E2・WXK10-068-E2）。
+    // ⚠「以下/以上」は「〜の場合」だが「より低い/より高い」は「〜場合」（の無し）＝「の?」で両対応
+    // （続き55 は以下のみ対応でWXK07-025-E2「より低い場合」の condition が脱落＝毎アタック無条件発火の過剰効果だった）
+    [/あなたのセンタールリグのレベルが対戦相手のセンタールリグ(以下|より低い|より高い|以上)の?場合/,
+      g => ({ type: 'LRIG_LEVEL_CMP_OPP', operator: g[0] === '以下' ? 'lte' : g[0] === 'より低い' ? 'lt' : g[0] === 'より高い' ? 'gt' : 'gte' })],
+    [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
+      g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
+    // 「このターンにあなたが手札をN枚以上捨てていた場合」＝turn_hand_discarded_count ゲート
+    //   （engine TURN_HAND_DISCARD_GTE 実装済）。従来は語彙が無くアタックフェイズ開始時/出時に無条件発火の
+    //   過剰効果（WX24-P1-062/WX25-P3-090/WXK02-049 等・census 条件節クラスタ6枚）。
+    [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
+      g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
+    // 「(あなた|対戦相手)の場にシグニがN体(以上)ある場合」＝場のシグニ数ゲート（engine FIELD_COUNT 実装済）。
+    //   ＜C＞/色/状態付きは先行の HAS_CARD_IN_FIELD が先にマッチ＝ここは無フィルタの総数のみ。旧3ゾーン札の
+    //   「3体ある」＝満場＝gte で正しい（PR-464/WX10-065/WXK06-085）。
+    [/(あなた|対戦相手)の場にシグニが([０-９\d]+)体(?:以上)?ある場合/,
+      g => ({ type: 'FIELD_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gte', value: parseNum(g[1]) })],
+    // 「(あなた|対戦相手)のセンタールリグがレベルN以上の場合」＝中央ルリグのレベル閾値（engine LRIG_LEVEL 実装済）。
+    //   従来は語彙が無く無条件発火（WX24-P2-003 相手Lv3以上・WXDi-D08-011 等）。
+    [/(あなた|対戦相手)のセンタールリグがレベル([０-９\d]+)(以上|以下)の場合/,
+      g => ({ type: 'LRIG_LEVEL', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
+    // 「あなたの場にレゾナがある場合」＝場にレゾナが1体以上（engine HAS_CARD_IN_FIELD の cardType レゾナ）。
+    //   WD11-018/WX07-023 等。「追加で」形は line 1456 ブロックが then だけ CONDITIONAL で処理するため、
+    //   ここは matchLeadingStateCondition 経由の先頭マッチ用。
+    [/あなたの場にレゾナがある場合/,
+      () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } })],
+    // 「このシグニがアクセされている場合」＝効果元シグニにアクセが付いているか（engine THIS_CARD_IS_ACCED 実装済）。
+    //   従来は語彙が無くアタック時に無条件発火（WX15-098/101/104）。
+    [/このシグニがアクセされている場合/,
+      () => ({ type: 'THIS_CARD_IS_ACCED' })],
+    ...STATE_CONDITION_CLAUSES_V2,
+  ];
+
 function matchLeadingStateCondition(text: string): { condition: Condition; rest: string } | null {
   const t = text.trim();
   for (const [re, mk] of STATE_CONDITION_CLAUSES) {
@@ -3607,137 +3742,9 @@ function parseSingleSentenceInner(text: string): EffectAction {
   //   （WX12-046「ターン終了時、手札がN枚以上ある場合、…」等）。②は t 先頭がクリーン（トリガー句既除去）なので
   //   プレフィックス空でマッチする。①が return したら②へは来ない＝二重ラップしない。
   function tryWrapLeadingStateCond(text: string): EffectAction | null {
-    const CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
-      [/あなたのターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'self' })],
-      [/対戦相手のターンの場合/, () => ({ type: 'TURN_OWNER', owner: 'opponent' })],
-      [/このシグニのパワーが([０-９\d]+)で、あなたのライフクロスが([０-９\d]+)枚以下の場合/,
-        g => ({ type: 'AND', conditions: [
-          { type: 'SELF_POWER_GTE', operator: 'eq', value: parseNum(g[0]) },
-          { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[1]) },
-        ] })],
-      [/あなたのライフクロスが([０-９\d]+)枚以下で対戦相手のエナゾーンにカードが([０-９\d]+)枚以上ある場合/,
-        g => ({ type: 'AND', conditions: [
-          { type: 'LIFE_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) },
-          { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: parseNum(g[1]) },
-        ] })],
-      [/あなたの場に《([^》]+)》が(?:い|あ)る場合/,
-        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardName: g[0] } })],
-      [/あなたのライフクロスが([０-９\d]+)枚(以上|以下)の場合/,
-        g => ({ type: 'LIFE_COUNT', owner: 'self', operator: g[1] === '以上' ? 'gte' : 'lte', value: parseNum(g[0]) })],
-      // ⚠「以上/以下」が付かない**ちょうどN枚**（WD20-018②「あなたのライフクロスが０枚の場合」）はこの表に
-      //   無く、条件ゲートごと脱落して**無条件に自分の全シグニをトラッシュする**過剰効果になっていた（タスク10 パターンD）。
-      [/あなたのライフクロスが([０-９\d]+)枚の場合/,
-        g => ({ type: 'LIFE_COUNT', owner: 'self', operator: 'eq', value: parseNum(g[0]) })],
-      [/対戦相手のライフクロスが([０-９\d]+)枚(以上|以下)?の場合/,
-        g => ({ type: 'LIFE_COUNT', owner: 'opponent', operator: g[1] === '以上' ? 'gte' : g[1] === '以下' ? 'lte' : 'eq', value: parseNum(g[0]) })],
-      // 「このターンに対戦相手の効果によってあなたの手札／エナゾーンからカードがN枚以上トラッシュに移動していた場合」
-      // （WXDi-P02-005／WXDi-P07-023／SPK16-13E）。engine に状態カウンタを新設（§3 Opusタスク10 パターンF-2）。
-      // ⚠これが無いと「代わりに」の置換ゲートが立たず、**SEQUENCE に化けて両方実行**される（1枚引く→3枚引く＝計4枚）。
-      [/このターンに対戦相手の効果によってあなたの手札からカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
-        g => ({ type: 'HAND_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
-      [/このターンに対戦相手の効果によってあなたのエナゾーンからカードが([０-９\d]*)枚?以上?トラッシュに移動していた場合/,
-        g => ({ type: 'ENERGY_TRASHED_BY_OPP', owner: 'self', operator: 'gte', value: g[0] ? parseNum(g[0]) : 1 })],
-      // ⚠「N枚以上ある場合」（枚+以上+ある+場合／の 無し）は census 条件節クラスタの独立テンプレ＝
-      //   「の場合」固定だと "ある場合" 形（WX12-046/WXDi-P15-094/WXEX1-39 等）が未マッチで条件ごと脱落した。
-      //   `(?:ある)?の?場合` で「N枚以上ある場合」「N枚以下の場合」「N枚の場合」の三形を許容する。
-      [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?(?:ある)?の?場合/,
-        g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
-      // 「エナゾーンにあるカードがN枚以下の場合」（にある＋の場合）も許容（WX21-064/WX24-P3-056 等）。
-      [/(あなた|対戦相手)のエナゾーンに(?:ある)?カードが([０-９\d]+)枚(以上|以下)(?:ある)?の?場合/,
-        g => ({ type: 'ENERGY_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
-      // 「あなたのトラッシュにカードがN枚以上/以下ある場合」＝トラッシュ総枚数ゲート（engine TRASH_COUNT 実装済）。
-      //   ＜C＞/レベル/色付きは先行の TRASH_HAS_CARD が先にマッチする＝ここは無フィルタの総枚数のみ（WXDi-P01-079 等）。
-      [/(あなた|対戦相手)のトラッシュにカードが([０-９\d]+)枚(以上|以下)ある場合/,
-        g => ({ type: 'TRASH_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
-      [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)枚以上ある場合/,
-        g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
-      [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
-        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
-      // 「あなたの場にそれぞれ共通する色を持たない＜C＞のシグニがN体ある場合」（§6.4 O-11・`WX21-006-E1`）。
-      // 🔴受け皿 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は engine 実装済みなのに **live 利用者0の死んだ受け皿**
-      //   だった（クラス filter が無く、この文型を表せなかったため）。filter を足して繋いだ。
-      //   条件が落ちていた `WX21-006-E1` は live が `DRAW 1` だけ＝**バニッシュもエナ置きも消えていた**。
-      [/あなたの場にそれぞれ共通する色を持たない＜([^＞]+)＞のシグニが([０-９\d]+)体ある場合/,
-        g => ({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: parseNum(g[1]), filter: { cardType: 'シグニ', story: g[0] } })],
-      [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある(?:場合|間)/,
-        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
-      // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
-      // 従来は語彙が無くルリグアタック時に無条件発火の過剰効果（WX14-010/WX14-013/WX20-009/WX20-015/WX20-019・census 条件節クラスタ）。
-      [/あなたの場に(白|赤|青|緑|黒|無色)と(白|赤|青|緑|黒|無色)のシグニがある場合/,
-        g => ({ type: 'AND', conditions: [
-          { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } },
-          { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: g[1] } },
-        ] })],
-      [/あなたの場にクロス状態のシグニがある場合/,
-        () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', crossState: true } })],
-      // 「あなたの場にあるすべてのシグニが＜C＞/《X》の場合、〜」＝場の全シグニ同クラス/同名ゲート
-      // （engine ALL_FIELD_SIGNI_MATCH 実装済＝execUtils/effectEngine・空盤面 false）。従来は語彙が無く
-      // アタックフェイズ開始時に無条件発火の過剰効果（WX25-CP1-042/WX26-CP1-048 等・census 条件節クラスタ）。
-      [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
-        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
-      // 色バリアント（§6.4 O-35・`CONDITIONAL_POWER_BONUS` の解体）。＜C＞/《X》形だけが在り**色形が無かった**ため
-      // 条件節が丸ごと脱落＝アタック時に無条件発火の過剰効果になっていた（`WXDi-D09-H19-E1`／`WXDi-P00-036-E1`／
-      // `WXDi-P14-055-E1`）。engine 側は `matchesFilter` の `color` を通るだけ＝**新機構ゼロで配線のみ**。
-      [/あなたの場にあるすべてのシグニが(白|赤|青|緑|黒|無色)の場合/,
-        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } })],
-      // 《ディソナアイコン》は Story='Dissona'（isDisona フラグ・matchesFilter/execUtils 慣例）＝カード名ではない。
-      [/あなたの場にあるすべてのシグニが《([^》]+)》の場合/,
-        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: g[0] === 'ディソナアイコン' ? { cardType: 'シグニ', isDisona: true } : { cardType: 'シグニ', cardName: g[0] } })],
-      // 「このシグニが覚醒状態の場合、〜」＝効果元シグニの覚醒状態ゲート（engine THIS_CARD_IS_AWAKENED
-      // 実装済＝execUtils.ts・awakened_signi 参照）。従来は語彙が無くアタックフェイズ開始時に無条件発火の
-      // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
-      [/このシグニが覚醒状態の場合/,
-        () => ({ type: 'THIS_CARD_IS_AWAKENED' })],
-      // 「あなたの場にレベルNの覚醒状態のシグニがある場合、〜」＝場に覚醒状態のシグニが居る盤面ゲート
-      // （engine HAS_CARD_IN_FIELD の isAwakened 状態フィルタ実装済＝execUtils/matchesStateFilter・
-      // awakened_signi 参照）。従来は語彙が無くアタック時/アタックフェイズ開始時に無条件発火の過剰効果
-      // （WXDi-P14-054/058/066）。
-      [/あなたの場にレベル([０-９\d]+)の覚醒状態のシグニがある場合/,
-        g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(g[0]), isAwakened: true } })],
-      // 「このシグニが〔アップ/ダウン〕状態の場合、〜」＝効果元シグニの向き状態ゲート（engine THIS_CARD_IS_UP/DOWN
-      // 実装済＝execUtils.ts・signi_down 参照）。従来は語彙が無く無条件発火の過剰効果（WX15-055/056・WXDi-P02-038 等）。
-      [/このシグニがアップ状態の場合/,
-        () => ({ type: 'THIS_CARD_IS_UP' })],
-      [/このシグニがダウン状態の場合/,
-        () => ({ type: 'THIS_CARD_IS_DOWN' })],
-      [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
-        g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
-      // 「あなたのセンタールリグのレベルが対戦相手のセンタールリグ〔以下/より低い/より高い/以上〕の場合」＝
-      // 自/相手中央ルリグのレベル比較（engine LRIG_LEVEL_CMP_OPP 実装済＝execUtils・EQ の不等号版）。
-      // 従来は語彙が無くアタック時に無条件発火の過剰効果（WXK07-025-E1/E2・WXK10-068-E2）。
-      // ⚠「以下/以上」は「〜の場合」だが「より低い/より高い」は「〜場合」（の無し）＝「の?」で両対応
-      // （続き55 は以下のみ対応でWXK07-025-E2「より低い場合」の condition が脱落＝毎アタック無条件発火の過剰効果だった）
-      [/あなたのセンタールリグのレベルが対戦相手のセンタールリグ(以下|より低い|より高い|以上)の?場合/,
-        g => ({ type: 'LRIG_LEVEL_CMP_OPP', operator: g[0] === '以下' ? 'lte' : g[0] === 'より低い' ? 'lt' : g[0] === 'より高い' ? 'gt' : 'gte' })],
-      [/あなたの登録者数が([０-９\d]+)万人を達成している場合/,
-        g => ({ type: 'SUBSCRIBER_COUNT', operator: 'gte', value: parseNum(g[0]) })],
-      // 「このターンにあなたが手札をN枚以上捨てていた場合」＝turn_hand_discarded_count ゲート
-      //   （engine TURN_HAND_DISCARD_GTE 実装済）。従来は語彙が無くアタックフェイズ開始時/出時に無条件発火の
-      //   過剰効果（WX24-P1-062/WX25-P3-090/WXK02-049 等・census 条件節クラスタ6枚）。
-      [/このターンにあなたが手札を([０-９\d]+)枚以上捨てていた場合/,
-        g => ({ type: 'TURN_HAND_DISCARD_GTE', value: parseNum(g[0]) })],
-      // 「(あなた|対戦相手)の場にシグニがN体(以上)ある場合」＝場のシグニ数ゲート（engine FIELD_COUNT 実装済）。
-      //   ＜C＞/色/状態付きは先行の HAS_CARD_IN_FIELD が先にマッチ＝ここは無フィルタの総数のみ。旧3ゾーン札の
-      //   「3体ある」＝満場＝gte で正しい（PR-464/WX10-065/WXK06-085）。
-      [/(あなた|対戦相手)の場にシグニが([０-９\d]+)体(?:以上)?ある場合/,
-        g => ({ type: 'FIELD_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'gte', value: parseNum(g[1]) })],
-      // 「(あなた|対戦相手)のセンタールリグがレベルN以上の場合」＝中央ルリグのレベル閾値（engine LRIG_LEVEL 実装済）。
-      //   従来は語彙が無く無条件発火（WX24-P2-003 相手Lv3以上・WXDi-D08-011 等）。
-      [/(あなた|対戦相手)のセンタールリグがレベル([０-９\d]+)(以上|以下)の場合/,
-        g => ({ type: 'LRIG_LEVEL', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : 'lte', value: parseNum(g[1]) })],
-      // 「あなたの場にレゾナがある場合」＝場にレゾナが1体以上（engine HAS_CARD_IN_FIELD の cardType レゾナ）。
-      //   WD11-018/WX07-023 等。「追加で」形は line 1456 ブロックが then だけ CONDITIONAL で処理するため、
-      //   ここは matchLeadingStateCondition 経由の先頭マッチ用。
-      [/あなたの場にレゾナがある場合/,
-        () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'レゾナ' } })],
-      // 「このシグニがアクセされている場合」＝効果元シグニにアクセが付いているか（engine THIS_CARD_IS_ACCED 実装済）。
-      //   従来は語彙が無くアタック時に無条件発火（WX15-098/101/104）。
-      [/このシグニがアクセされている場合/,
-        () => ({ type: 'THIS_CARD_IS_ACCED' })],
-      ...STATE_CONDITION_CLAUSES_V2,
-    ];
+    // ⚠表は module 直下の `LEADING_STATE_CLAUSES`（複数文ハンドラと共用）。
     const t0 = text.trim();
-    for (const [re, mk] of CLAUSES) {
+    for (const [re, mk] of LEADING_STATE_CLAUSES) {
       if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;
       // 先頭の任意プレフィックス（m[1]）は「…対象とし、」に加えトリガー句「このシグニがアタックしたとき、」
       // 「このルリグがアタックしたとき、」も許容する（ON_ATTACK_SIGNI/ON_ATTACK_LRIG のトリガー除去は本ループ
@@ -9674,15 +9681,27 @@ function parseActionTextInner(text: string): EffectAction {
           if (!JSON.stringify(elseAction).includes('"UNKNOWN"')) rp.elseAction = elseAction;
         }
       }
-      // 公開文の前置き「あなたのエナゾーンにあるカードがN枚以下の場合、／エナゾーンにカードがない場合、」
-      // が丸ごと脱落していた（無条件公開の過剰効果）＝ ENERGY_COUNT で持ち上げる（WX12-051/WX12-052）
-      const enaPrefM = sentences[0].trim().match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)の|カードがない)場合、/);
-      if (enaPrefM) {
-        return {
-          type: 'CONDITIONAL',
-          condition: { type: 'ENERGY_COUNT', owner: 'self', operator: enaPrefM[1] ? (enaPrefM[2] === '以上' ? 'gte' : 'lte') : 'lte', value: enaPrefM[1] ? parseNum(enaPrefM[1]) : 0 },
-          then: rp,
-        } as import('../types/effects').ConditionalAction;
+      // 公開文の前置き条件（「〜の場合、あなたのデッキの一番上を公開する。」）を CONDITIONAL で持ち上げる。
+      // 🔴従来は**エナゾーン形の2効果しか見ておらず**、それ以外の前置き条件は丸ごと脱落＝**無条件公開の
+      //   過剰効果**だった（§6.4 O-35・続き528 で実測＝「このシグニがアップ状態の場合」**8効果**ほか）。
+      //   ⚠live は `MANUAL` 刻印で手当て済みのものが多く**計器には映らない**＝壊れていたのは parser だけ。
+      // 共通表 `LEADING_STATE_CLAUSES` を引く（ハンドラ独自の小さな語彙表を持たない＝続き528 の教訓）。
+      // ⚠トリガー句（「あなたのターン終了時、」等）が前置きとして残っている形も許すため、
+      //   **「公開する」の直前に接する `〈条件〉、` で終わっているか**で見る（先頭アンカーではない）。
+      const s0 = sentences[0].trim();
+      const pubAt = s0.search(/(?:あなたの)?デッキの一番上/);
+      if (pubAt > 0) {
+        const pre = s0.slice(0, pubAt);
+        for (const [re, mk] of LEADING_STATE_CLAUSES) {
+          if (isBatch1OnlyClause(re) && !STATE_HOIST_BATCH1_CARDS.has(_parsingCardNum)) continue;
+          const pm = pre.match(new RegExp('(?:^|、)' + re.source + '、$'));
+          if (!pm) continue;
+          return {
+            type: 'CONDITIONAL',
+            condition: mk(pm.slice(1)),
+            then: rp,
+          } as import('../types/effects').ConditionalAction;
+        }
       }
       // 3文目以降が残っている形は、この早期 return が sentences[0..1] しか消費しないため
       // **丸ごと捨てられていた**（無言の脱落）。⚠ただし後続文を一律に SEQUENCE へ足すのは**不可**＝
