@@ -20641,6 +20641,43 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq((steps.steps[0] as { allowRepeat?: boolean }).allowRepeat, true,
       '🔴「同じ選択肢を２回以上選んでもよい」が落ちている（②を1回しか選べない）');
   });
+  // 🆕§6.4 O-29：②を**2回**選ぶと本体が追加で2回走る（＝基底1回とあわせて計3回）。
+  // 🔴旧実装は `STUB{REPEAT_EFFECT}`＝engine でログを出すだけの**無言 no-op** で、②を何回選んでも
+  //    盤面は1回ぶんしか動かなかった。
+  test('(O-29) WX22-016-E1: ②を2回選ぶと本体が追加で2回走る（無言 no-op ではない）', () => withSavedCursor(() => {
+    const eff = effectsMap.get('WX22-016')!.find(e => e.effectId === 'WX22-016-E1')!;
+    const victims = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 3).map(c => c.CardNum);
+    const toys = [...cardMap.values()]
+      .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('遊具') && !victims.includes(c.CardNum))
+      .slice(0, 3).map(c => c.CardNum);
+    eq(victims.length, 3, '相手シグニ3体を確保');
+    eq(toys.length, 3, '＜遊具＞シグニ3枚を確保');
+
+    // ベット3枚＝3つ選べる。②を2回＋①を1回 選ぶ。
+    const ctx = mkCtx({ hand: 0, trash: 0 }, { signi: victims });
+    ctx.ownerState.trash = [...toys];
+    ctx.ownerState.bet_coins_paid = 3;
+    const r0 = executeEffect(eff, ctx);
+    ok(!r0.done && r0.pending.type === 'CHOOSE', 'CHOOSE が立つ');
+    eq((r0.pending as { count: number }).count, 3, '🔴ベット枚数ぶん選べていない');
+    const c = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+    const r = finish(resumeChoose(['c1', 'c1', 'c0'], r0.pending as never, c), c);
+    ok(r.done, '完走');
+    // 本体×3（追加2＋基底1）＝相手シグニ3体すべてバニッシュ／＜遊具＞3枚回収。
+    eq(r.otherState.field.signi.filter(Boolean).length, 0,
+      '🔴②を2回選んでも本体が1回しか走っていない（REPEAT_EFFECT の無言 no-op）');
+    eq(r.ownerState.hand.filter(n => toys.includes(n)).length, 3, '＜遊具＞を3枚回収');
+
+    // 対照＝②を1回も選ばなければ本体は基底の1回だけ。
+    const ctl = mkCtx({ hand: 0, trash: 0 }, { signi: victims });
+    ctl.ownerState.trash = [...toys];
+    ctl.ownerState.bet_coins_paid = 3;
+    const p0 = executeEffect(eff, ctl);
+    const cc = { ...ctl, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs } as ExecCtx;
+    const rc = finish(resumeChoose(['c0'], (p0 as { pending: never }).pending, cc), cc);
+    eq(rc.otherState.field.signi.filter(Boolean).length, 2, '①だけなら本体は1回（3体→2体）');
+    eq(rc.ownerState.hand.filter(n => toys.includes(n)).length, 1, '回収も1枚');
+  }));
   // §6.4 O-11（続き533・**残0クローズ**）：`PR-469`＝3択が丸ごと消え、しかも
   //   除外コストが表現されていないので《白×3》だけで撃てる形だった。
   test('(O-11) PR-469-E3: 3択が組まれ、ルリグデッキ除外コストが載る', () => {
