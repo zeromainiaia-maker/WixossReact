@@ -15475,7 +15475,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyLrigColorBatch5(effects);
   applyIdentityBatch5b(effects);
   applySharedColorBatch5c2(effects);
-  applyDistinctBatch5c(effects);
+  applyDistinctBatch5c(effects, card.EffectText ?? '');
   applyOpponentSelectsBatch11(effects);
   applyProportionalCountBatch6(effects);
   applyGradedThresholdBatch(card.CardNum, effects);
