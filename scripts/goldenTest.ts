@@ -102,6 +102,8 @@ import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandRetur
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
+import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
+import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuMainPhaseActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -1055,10 +1057,22 @@ test('§3 task8(c) attack geometry: six cards use self-targeted multi/adjacent a
     'WX16-043-E2 is enabled at printed EICHI=11');
   ok(!checkActiveCondition(wx16043e2.activeCondition, sum5, emptyOpponent, true, cardMap, 'WX16-043'),
     'WX16-043-E2 is disabled outside printed EICHI=11');
-  const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(battleSource.includes(
-    '(!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, battleCardMap, topNum, effectivePowers))',
+  // ⚠この判定は 2026-08-18（続き551・§8 O-1）に `signiActivateGate.ts` へ移した
+  //   （人間のボタン生成と CPU の候補フィルタが同じ関数を見るため）。ソース走査もそちらを見る。
+  const gateSource = fs.readFileSync(join(root, 'src/screens/battle/signiActivateGate.ts'), 'utf8');
+  ok(gateSource.includes(
+    '(!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, cardMap, topNum, getPowers()))',
   ), 'signi ACTIVATED candidate filter evaluates activeCondition');
+  // 挙動でも固定する＝満たさない activeCondition の【起】は提示されない
+  const eichiGateEff = { effectId: 'T-EICHI', effectType: 'ACTIVATED', duration: 'INSTANT', timing: ['MAIN'],
+    action: { type: 'DRAW', owner: 'self', count: 1 }, activeCondition: e3.activeCondition } as CardEffect;
+  const eichiTop = sum5.field.signi[0]!.at(-1)!;
+  eq(listActivatableSigniEffects({ my: sum5, op: emptyOpponent, zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[eichiTop, [eichiGateEff]]]), cardMap: cardMap as Map<string, CardData> }).length, 1,
+    'activeCondition を満たすなら提示される');
+  eq(listActivatableSigniEffects({ my: sum11, op: emptyOpponent, zoneIndex: 0, phase: 'MAIN', isMyTurn: true,
+    effectsMap: new Map([[sum11.field.signi[0]!.at(-1)!, [eichiGateEff]]]), cardMap: cardMap as Map<string, CardData> }).length, 0,
+    '🔴満たさない activeCondition の【起】は提示しない（評価器を通していないと常時提示になる）');
 
   const armored = manualEffect('WXK04-072', 'WXK04-072-E1b');
   eq(armored.action.type, 'STUB', 'WXK04-072-E1b existing MULTI_ZONE_ATTACK');
@@ -4355,7 +4369,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 30 → 31（§6.4 O-10 続き512 で cannot_pay_colorless_this_attack_phase を追加）
   // 31 → 32（§6.4 O-10 続き515 で lrig_grew_this_turn を追加）
   // 32 → 33（§6.4 O-11 続き533 で signi_downed_this_turn を追加＝「このターンでN回目」の台帳）
-  eq(convention.length, 33, 'PlayerState の命名規約由来フィールド数');
+  // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
+  eq(convention.length, 34, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4370,7 +4385,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 56, '型由来33件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn
+  eq(registered.length, 57, '型由来34件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn／+1＝続き551 の cpu_activated_effect_ids_this_turn
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -39425,6 +39440,115 @@ test('§5d-0 engine: TRASH_HAS_CARD{cardType:スペル} が枚数どおり成立
   ok(!checkActiveCondition(eff.activeCondition, mk([signi, signi, signi, signi, signi]), mkState({}), true, cm, signi),
     'シグニ5枚では成立しない（cardType が効いている）');
 });
+
+
+// ── §8／§6.4 O-1: CPU のメインフェイズ【起】能動使用（続き551）──────────────────────
+// ⚠**人間のボタン生成と CPU の候補フィルタは同じ関数**（`listActivatableSigniEffects`）＝
+//   ここが割れると「人間には見えない【起】を CPU だけが撃つ」型の無言のズレになる。
+const mkAct = (id: string, extra: Partial<CardEffect> = {}): CardEffect => ({
+  effectId: id, effectType: 'ACTIVATED', duration: 'INSTANT', timing: ['MAIN'],
+  action: { type: 'DRAW', owner: 'self', count: 1 },
+  ...extra,
+} as CardEffect);
+
+test('O-1 signiActivateGate: 【起】の提示は timing・能力喪失・使用制限・costUnparsed で切れる', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const my = mkState({ signi: [SIGNI, null, null] });
+  const op = mkState({});
+  const list = (effs: CardEffect[], state: PlayerState = my, phase: 'MAIN' | 'ATTACK_ARTS' = 'MAIN') =>
+    listActivatableSigniEffects({
+      my: state, op, zoneIndex: 0, phase, isMyTurn: true,
+      effectsMap: new Map([[SIGNI, effs]]), cardMap: cm,
+    }).map(e => e.effectId);
+  eq(list([mkAct('T-ACT1')]).join(','), 'T-ACT1', '素の盤面では提示される');
+  eq(list([mkAct('T-ACT1')], my, 'ATTACK_ARTS').length, 0, '《アタックフェイズアイコン》無しはアタックフェイズに出ない');
+  eq(list([mkAct('T-ACT1', { timing: ['ATTACK_ARTS'] })], my, 'ATTACK_ARTS').join(','), 'T-ACT1', 'アイコン付きはアタックフェイズに出る');
+  eq(list([mkAct('T-ACT1')], { ...my, abilities_removed: [SIGNI] }).length, 0, '能力を失っていれば提示しない');
+  eq(list([mkAct('T-ACT1')], { ...my, blocked_actions: ['USE_ACT'] }).length, 0, 'USE_ACT 封じ');
+  eq(list([mkAct('T-ACT1')], { ...my, blocked_actions: ['T-ACT1'] }).length, 0, 'effectId 名指しの封じ');
+  eq(list([mkAct('T-ACT1', { usageLimit: 'once_per_turn' })], { ...my, actions_done: ['T-ACT1'] }).length, 0, '《ターン1回》消化済み');
+  eq(list([mkAct('T-ACT1', { usageLimit: 'once_per_game' })], { ...my, game_actions_done: ['T-ACT1'] }).length, 0, '《ゲーム1回》消化済み');
+  // 🔴コストを表現できていない効果を提示すると**コストを踏み倒して撃てる**（§6.4 O-11）
+  eq(list([mkAct('T-ACT1', { costUnparsed: true } as Partial<CardEffect>)]).length, 0, '🔴costUnparsed は提示しない');
+  eq(list([mkAct('T-ACT1', { cost: { down_self: true } })], { ...my, field: { ...my.field, signi_down: [true, false, false] } }).length, 0,
+    'ダウン済みでは down_self コストを払えない');
+  eq(list([mkAct('T-ACT1', { cost: { discard: 3 } })], mkState({ signi: [SIGNI, null, null], hand: 2 })).length, 0, '手札不足では提示しない');
+}));
+
+test('O-1 cpuActivate: 支払い内訳が要るコストは CPU が撃たない（allowlist・未知キーは撃たない側へ倒れる）', () => withSavedCursor(() => {
+  const st = mkState({ signi: [SIGNI, null, null], coins: 1 });
+  const can = (cost: Record<string, unknown>, state: PlayerState = st) =>
+    cpuCanAutoPayActivatedCost(mkAct('T', { cost: cost as never }), state, SIGNI);
+  ok(can({}), 'コストなしは撃てる');
+  ok(can({ energy: [{ color: '赤', count: 1 }] }), 'エナは内訳を自動で決められる');
+  ok(can({ down_self: true }), 'down_self は自動支払い');
+  ok(can({ lrigDown: { count: 1 } }), 'lrigDown は自動支払い');
+  ok(!can({ discard: 1 }), '🔴手札の何を捨てるかは盤面評価＝撃たない');
+  ok(!can({ discardVariable: { min: 1 } }), '可変手札捨ては撃たない');
+  ok(!can({ fieldTrash: { count: 1 } }), '場のどのシグニを捨てるかは撃たない');
+  ok(!can({ beat_signi: 1 }), '【ビート】選択は撃たない');
+  ok(!can({ underSelfTrash: { count: 1 } }), '下カード選択は撃たない');
+  ok(!can({ energyTrash: { count: 1 } }), 'エナ指定トラッシュは撃たない');
+  ok(!can({ trashExile: { count: 1 } }), 'トラッシュ除外（選択あり）は撃たない');
+  ok(can({ trashExile: { self: true } }), 'trashExile.self は自動');
+  // 🔴allowlist であることの固定＝新しいコストキーが増えても「撃たない」側へ倒れる
+  ok(!can({ handToEnergy: { count: 1 } }), '🔴allowlist に無いキーは撃たない');
+  ok(!CPU_AUTO_PAYABLE_COST_KEYS.has('discard'), 'allowlist に手札捨ては含めない');
+  ok(!can({ coin: 4 }), 'コイン不足では撃たない');
+  ok(can({ coin: 1 }), 'コインが足りれば撃てる');
+}));
+
+test('O-1 cpuActivate: エナコストの支払い index は色を先に充当し、払えなければ null', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const red = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const blue = findCard(c => isSigni(c) && (c.Color ?? '') === '青');
+  const isAffordable = (nums: string[], costStr: string) => canAffordGrowCost(nums, allCards, costStr);
+  const pick = (poolNums: string[], costStr: string) =>
+    selectEnergyIndicesForCost({ poolNums, cards: allCards, costStr, isAffordable });
+  eq(pick([red, blue], '')?.size, 0, 'コスト0は空の選択で成立');
+  const p1 = pick([blue, red], '《赤》×1');
+  ok(!!p1 && p1.size === 1 && [...p1][0] === 1, '🔴色指定は該当色から取る（先頭の別色で潰さない）');
+  const p2 = pick([blue, red], '《無》×1');
+  ok(!!p2 && p2.size === 1, '《無》は先頭から1枚');
+  eq(pick([blue], '《赤》×1'), null, '払えなければ null（撃たない）');
+  eq(pick([], '《無》×1'), null, 'エナが無ければ null');
+  const p3 = pick([red, blue, red], '《赤》×2《無》×1');
+  ok(!!p3 && p3.size === 3, '色2＋無1は3枚');
+}));
+
+test('O-1 cpuActivate: CPU の【起】選択は「撃てる・自動で払える・未使用」の3条件をすべて満たす1件', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const cm = cardMap as Map<string, CardData>;
+  const actor = mkState({ signi: [SIGNI, SIGNI_P3000, null], energy: 0 });
+  const opponent = mkState({});
+  const isAffordable = (nums: string[], costStr: string) => canAffordGrowCost(nums, allCards, costStr);
+  const pickFor = (effs: Map<string, CardEffect[]>, already: string[] = [], state: PlayerState = actor) =>
+    pickCpuMainPhaseActivated({
+      actor: state, opponent, effectsMap: effs, cardMap: cm, cards: allCards,
+      energyPoolNums: state.energy, alreadyActivated: already, isAffordable,
+    });
+  const free = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-FREE')]]]);
+  eq(pickFor(free)?.effect.effectId, 'Z-FREE', 'コストなしの【起】を選ぶ');
+  eq(pickFor(free, ['Z-FREE']), null, '🔴同じ効果はこのターン撃ち直さない（無限ループ防止）');
+  // 支払えないコストの効果しか無ければ何も選ばない＝現状（何もしない）と同じ安全側
+  const paid = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-DISCARD', { cost: { discard: 1 } })]]]);
+  eq(pickFor(paid), null, '支払い内訳の要る【起】は選ばない');
+  // ゾーン順の決定論＝ゾーン0が撃てなければゾーン1へ進む
+  const twoZones = new Map<string, CardEffect[]>([
+    [SIGNI, [mkAct('Z-DISCARD', { cost: { discard: 1 } })]],
+    [SIGNI_P3000, [mkAct('Z-FREE2')]],
+  ]);
+  const got = pickFor(twoZones);
+  eq(got?.effect.effectId, 'Z-FREE2', 'ゾーン0が不可ならゾーン1から選ぶ');
+  eq(got?.zoneIndex, 1, 'ゾーン index が返る');
+  // エナコスト：足りなければ選ばず、足りれば index つきで返る
+  const enaEff = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })]]]);
+  eq(pickFor(enaEff), null, 'エナ0では選ばない');
+  const rich = { ...actor, energy: [SIGNI_L1, SIGNI_L2] } as PlayerState;
+  const gotEna = pickFor(enaEff, [], rich);
+  eq(gotEna?.costIndices.size, 2, 'エナ2枚ぶんの index が返る');
+  eq(activatedEnergyCostStr(mkAct('x', { cost: { energy: [{ color: '赤', count: 2 }] } })), '《赤》×2', 'コスト文字列は《色》×N 形式（parseGrowCost が読める唯一の綴り）');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

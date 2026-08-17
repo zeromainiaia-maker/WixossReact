@@ -1,5 +1,6 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
+import { energyCostToString, parseGrowCost } from './costs';
 import { listActivatableSigniEffects } from './signiActivateGate';
 
 /**
@@ -39,12 +40,17 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
   'trash_key',     // キーをルリグトラッシュ（自動）
   'fieldDown',     // 該当ゾーンを順にダウン（自動）
   'lrigDown',      // payLrigDownCost（センター→アシストの順・自動）
-  'charmTrash',    // 先頭ゾーンから自動
-  'acceTrash',     // 先頭ゾーンから自動
+  'acceTrash',     // 先頭ゾーンから自動（`signiActivateGate` が枚数を検算している）
   'discardAll',    // 手札をすべて（選択不要）
   'energyTrashAll',// エナをすべて（選択不要）
-  'removeOppVirus',// 相手のウィルスを順に除去（自動）
 ]);
+
+/**
+ * ⚠**`charmTrash` / `removeOppVirus` は載せない**（自動支払いではあるが `signiActivateGate` が
+ * 数を検算していない）＝提示は通るのに `performSigniActivated` が支払い不能で**何も書かずに return** し、
+ * CPU が同じ効果を選び直して**無限ループ**になる。載せるなら先に gate 側へ検算を足すこと。
+ * （下の `pickCpuMainPhaseActivated` を使う側にも、実行前に履歴を確定させる安全弁を置いてある。）
+ */
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
 export function cpuCanAutoPayActivatedCost(effect: CardEffect, actor: PlayerState, cardNum: string): boolean {
@@ -71,7 +77,7 @@ export function cpuCanAutoPayActivatedCost(effect: CardEffect, actor: PlayerStat
 
 /** 【起】の `cost.energy` を、支払いモーダルと同じコスト文字列表現へ直す。 */
 export function activatedEnergyCostStr(effect: CardEffect): string {
-  return (effect.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('');
+  return energyCostToString(effect.cost?.energy ?? []);
 }
 
 /**
@@ -98,13 +104,14 @@ export function selectEnergyIndicesForCost(p: {
   const selected = new Set<number>();
   const isSat = () => isAffordable([...selected].map(i => poolNums[i]), costStr);
   // ①コストに出てくる色を先に充当する（色指定を無色エナで潰さない）。
-  const needColors = [...costStr.matchAll(/([白赤青緑黒無])(\d+)/g)]
-    .filter(m => m[1] !== '無')
-    .map(m => m[1]);
-  for (const color of needColors) {
-    if (isSat()) break;
-    const idx = poolNums.findIndex((num, i) => !selected.has(i) && colorOf(num).includes(color));
-    if (idx >= 0) selected.add(idx);
+  // ⚠色の取り出しも `parseGrowCost`（人間の支払い判定と同じ解析器）を通す＝
+  //   自前の regex を書くと《色》×N 以外の綴りで黙って空になる（続き551 に golden が検出した壊れ方）。
+  for (const { color, count } of parseGrowCost(costStr)) {
+    if (color === '無') continue;
+    for (let n = 0; n < count && !isSat(); n++) {
+      const idx = poolNums.findIndex((num, i) => !selected.has(i) && colorOf(num).includes(color));
+      if (idx >= 0) selected.add(idx); else break;
+    }
   }
   // ②残りは先頭から足していく（《無》スロット・マルチエナでの充当はここで埋まる）。
   for (let i = 0; i < poolNums.length && !isSat(); i++) selected.add(i);

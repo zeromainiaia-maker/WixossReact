@@ -10983,6 +10983,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
               ...(newCpuSt.cpu_activated_effect_ids_this_turn ?? []), cpuChoice.effect.effectId,
             ],
           };
+          // ⚠**安全弁＝実行より先に「撃った」履歴を確定させる**。`performSigniActivated` は
+          //   支払い不能を検出すると**何も書かずに return** するので、履歴を実行の成否に委ねると
+          //   CPU が同じ効果を選び直して無限ループになる（＝画面が止まる）。
+          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuActActor }));
           await performSigniActivated(cpuChoice.cardNum, cpuChoice.effect, {
             costIndices: cpuChoice.costIndices, discardCostIndices: new Set(),
           }, {

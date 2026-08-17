@@ -4,7 +4,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardEffect } from '../../../types/effects';
 import { collectAcceCostReduction } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, isMultiEna } from '../costs';
+import { canAffordGrowCost, energyCostToString, isMultiEna } from '../costs';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
@@ -53,7 +53,8 @@ export function EnergyActivatedModal(p: EnergyActivatedModalProps) {
                   })()
                 : baseCostItems;
               const energyTotal = reducedCostItems.reduce((s, c) => s + c.count, 0);
-              const costStr = reducedCostItems.map(e => `${e.color}${e.count}`).join('') || '';
+              // 🔴`parseGrowCost` は《色》×N 形式しか読まない（続き551）＝素の `赤1` では色の照合が効かない。
+              const costStr = energyCostToString(reducedCostItems);
               const selectedNums = [...selectedEnergyActivatedCost].map(i => myEnergyPayPool[i].cardNum);
               const canAfford = energyTotal === 0
                 ? true

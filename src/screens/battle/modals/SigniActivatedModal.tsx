@@ -6,7 +6,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, energyCostToString, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
@@ -70,7 +70,9 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const actFilterLabel = actDiscardGroups
                 ? actDiscardGroups.map(g => `${fmtDiscardFilterLabel(g.filter) || 'カード'}${g.count}枚`).join('と')
                 : fmtDiscardFilterLabel(actDiscardFilter);
-              const costStr = isCostZeroByEffect ? '' : ((eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`).join('') || '');
+              // 🔴`parseGrowCost` は《色》×N 形式しか読まない＝素の `赤1` を渡すと**コストが空と解釈され色の照合が丸ごと効かない**
+              //   （枚数だけ合っていれば任意の色で払えた・2026-08-18 続き551 に golden が検出）。変換は `energyCostToString` に一本化する。
+              const costStr = isCostZeroByEffect ? '' : energyCostToString(eff.cost?.energy ?? []);
               const keySubCount = (!isCostZeroByEffect && keySubstituteEnabled && myEnergyTrashSubInfo.keySubInstId) ? 2 : 0;
               // INCREASE_ACT_ABILITY_COST: 相手フィールドが持つ場合、自分のターン中に起動能力コスト+1
               const actCostExtra = isCostZeroByEffect ? 0 : collectIncreaseActCost(op, isMyTurn, effectsMap);
