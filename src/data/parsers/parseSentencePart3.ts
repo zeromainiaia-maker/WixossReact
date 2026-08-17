@@ -300,7 +300,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のターンは使用コスト増加 ----
-  if (t.match(/対戦相手のターンの場合.*エナコストを支払えない/)) {
+  // ⚠2つ目の形（`^このターン、対戦相手は…エナコストを支払えない`）は §6.4 O-36（続き534）で足した＝
+  //   先頭の「対戦相手のターンの場合、」が `CONDITIONAL{TURN_OWNER opponent}` へ持ち上がるようになり、
+  //   本規則の残り文からは条件句が消えるため。無いと `DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE`
+  //   （engine に消費地点なし＝真 no-op）へ退化する。⚠先頭アンカー必須＝引用文中の
+  //   「シグニアタックステップの間、対戦相手は１以上のエナコストを支払えない」（`WX25-P2-004-E1`）は別スコープ。
+  if (t.match(/対戦相手のターンの場合.*エナコストを支払えない/)
+      || /^このターン、対戦相手は[０-９\d]*以上のエナコストを支払えない/.test(t.trim())) {
     return { type: 'STUB', id: 'OPP_TURN_NO_ENERGY_COST' } as StubAction;
   }
 
