@@ -1140,8 +1140,13 @@ function parseActiveCondition(text: string): ConditionParseResult {
   //   に無かった＝**同じ文型なのに一部だけ直らない**ときは「どの表に居るか」を疑う（続き368 の教訓）。
   // 🔑engine は両評価器とも対応済み（`execUtils.evalCondition` の HAS_CARD_IN_FIELD／
   //   `effectEngine.matchesStateFilter` の `isAwakened`/`isPuppet`）＝新機構は不要。
-  const fieldSigniStateM = text.match(/^(あなた|対戦相手)の場に(?:レベル([０-９\d]+)の)?(覚醒|傀儡)状態のシグニがあるかぎり、/);
+  // ⚠**凍結状態も同じ形**（2026-08-18 追加）＝`WXDi-P10-059-E1`／`WXK02-053-E2` が**無条件でパワー＋**だった。
+  //   engine は `matchesStateFilter` の `isFrozen` を実装済み（`WX04-078-E1` は MANUAL で先例あり）。
+  const fieldSigniStateM = text.match(/^(あなた|対戦相手)の場に(?:レベル([０-９\d]+)の)?(覚醒|傀儡|凍結)状態のシグニが(?:ある|いる)かぎり、/);
   if (fieldSigniStateM) {
+    const stateKey = fieldSigniStateM[3] === '覚醒' ? { isAwakened: true }
+      : fieldSigniStateM[3] === '傀儡' ? { isPuppet: true }
+      : { isFrozen: true };
     return {
       condition: {
         type: 'HAS_CARD_IN_FIELD',
@@ -1149,7 +1154,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
         filter: {
           cardType: 'シグニ',
           ...(fieldSigniStateM[2] ? { level: parseNum(fieldSigniStateM[2]) } : {}),
-          ...(fieldSigniStateM[3] === '覚醒' ? { isAwakened: true } : { isPuppet: true }),
+          ...stateKey,
         },
       },
       rest: text.slice(fieldSigniStateM[0].length),
