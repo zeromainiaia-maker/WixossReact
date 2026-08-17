@@ -119,8 +119,7 @@ export function execStubPart1(
       duration: params.duration,
     }, ctx);
   }
-  // VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と
-  // 同じレベルの対戦相手のシグニ1体を手札に戻す
+  // VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE: エナゾーンからN枚までトラッシュに置き、この方法で置いた枚数と同じレベルの対戦相手のシグニ1体を手札に戻す
   if (stub.id === 'VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE') {
     const params = stub.variableEnergyTrashLevelBounce;
     if (!params) return done(ctx);
@@ -1555,9 +1554,9 @@ export function execStubPart1(
     return done(addLog({ ...ctx, lastProcessedCards: revealedRE },
       `各プレイヤーがデッキの一番上を公開（あなた: ${myTopRE ? nameRE(myTopRE) : 'なし'}・対戦相手: ${opTopRE ? nameRE(opTopRE) : 'なし'}）`));
   }
-  // LOOK_OPP_LIFE_TOP: 対戦相手のライフクロスの上からN枚（既定1枚）を見る（原文から枚数を読む。
-  // 「対戦相手の手札を見る」綴りのときは手札を見る）。見たカードは lastProcessedCards に残り、後続の
-  // 「【ライフバースト】を持たない場合、それをトラッシュに置く」等がそれを参照する
+  // LOOK_OPP_LIFE_TOP: 対戦相手のライフクロスの上から1枚（原文にN枚とあればN枚）を見る
+  // ⚠見たカードは lastProcessedCards に残り、後続の「【ライフバースト】を持たない場合、それをトラッシュに置く」等が参照する。
+  //   「対戦相手の手札を見る」綴りのときは手札を見る（同じ受け皿を共有している）。
   if (stub.id === 'LOOK_OPP_LIFE_TOP') {
     const srcLT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLT = srcLT ? (srcLT.EffectText ?? '') + ' ' + (srcLT.BurstText ?? '') : '';
@@ -3563,8 +3562,8 @@ export function execStubPart1(
       otherState: { ...ctx.otherState, next_refresh_replaced: true },
     }, '対戦相手の次のリフレッシュを置換'));
   }
-  // GAIN_ABILITY_THIS_GAME: 「このゲームの間」続く常在の宣言をまとめて立てる（グロウ不可・ダブルクラッシュ付与・
-  // 特定カード名の使用禁止など）。⚠原文を実行時に読み分ける受け皿＝どの宣言が立つかはカードごとに違う
+  // GAIN_ABILITY_THIS_GAME: このゲームの間、グロウ不可・キーワード付与・特定カード名の使用禁止などの常在効果を得る
+  // ⚠原文を実行時に読み分ける受け皿＝どの宣言が立つかはカードごとに違う。
   if (stub.id === 'GAIN_ABILITY_THIS_GAME') {
     const srcGA = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtGA = srcGA ? (srcGA.EffectText ?? '') + ' ' + (srcGA.BurstText ?? '') : '';

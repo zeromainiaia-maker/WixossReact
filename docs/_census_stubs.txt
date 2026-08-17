@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 601（総ノード 2864 件）
-逆翻訳シートの [STUB:…] 総数: 747  うち生ID露出 86 箇所（29 種）
+逆翻訳シートの [STUB:…] 総数: 728  うち生ID露出 5 箇所（4 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 4 種 / 5 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 4 種 / 5 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 25 種 / 81 箇所
-  D 健全（実装あり＋日本語表示）                          : 572 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 0 種 / 0 箇所
+  D 健全（実装あり＋日本語表示）                          : 597 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 345 種
 
 ==============================================================================
@@ -42,7 +42,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
     14件  14枚  OPTIONAL_TRASH_SELF
         カード: PR-319, WX06-CB01, WX06-CB03, WX13-056, WX14-042, WX21-056 …他8枚
         消費: src\engine\effectExecutor.ts:4241 / src\engine\effectExecutor.ts:4246
-     5件   5枚  PREVENT_POWER_MODIFY_BY_OPP  [生ID露出 5]
+     5件   5枚  PREVENT_POWER_MODIFY_BY_OPP
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
         消費(ペイロードキー): src\engine\effectEngine.ts:1580
      4件   4枚  DAMAGE_REPLACE_BY_COST
@@ -51,10 +51,10 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
      3件   3枚  BATTLE_BANISH_PREVENT_LOSE_ABILITY
         カード: WX13-031, WX16-001, WXK04-068
         消費: src\engine\effectEngine.ts:4803
-     3件   3枚  CONVERT_ENERGY_COLOR  [生ID露出 3]
+     3件   3枚  CONVERT_ENERGY_COLOR
         カード: WXEX1-54, WXEX1-56, WXEX2-56
         消費: src\engine\effectEngine.ts:4321
-     3件   3枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY  [生ID露出 3]
+     3件   3枚  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY
         カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
         消費: src\engine\effectExecutor.ts:394
      3件   3枚  EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY
@@ -81,7 +81,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
      1件   1枚  EFFECT_LEAVE_REPLACE_BANISH
         カード: WX25-P1-056
         消費: src\engine\effectExecutor.ts:469
-     1件   1枚  FLIP_SELF_ON_TARGETED  [生ID露出 1]
+     1件   1枚  FLIP_SELF_ON_TARGETED
         カード: WX25-CP1-060
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
@@ -96,22 +96,22 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
         消費: src\engine\effectExecutor.ts:3870
-     1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW  [生ID露出 1]
+     1件   1枚  MAYU_ENCOUNTER_FLIP_AND_GROW
         カード: WXDi-P13-003A
         消費(カード番号): src\screens\battle\mayuEncounter.ts:4
-     1件   1枚  OPP_TURN_ARTS_COST_REDUCTION_ONCE  [生ID露出 1]
+     1件   1枚  OPP_TURN_ARTS_COST_REDUCTION_ONCE
         カード: WXK03-071
         消費: src\engine\effectEngine.ts:4455
-     1件   1枚  OPTIONAL_LRIG_UNDER_COST  [生ID露出 1]
+     1件   1枚  OPTIONAL_LRIG_UNDER_COST
         カード: WXDi-P05-009
         消費: src\engine\effectExecutor.ts:4029
      1件   1枚  REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY
         カード: WX24-P3-009
         消費: src\engine\refresh.ts:30
-     1件   1枚  STRIP_OPP_ENA_MULTI_ENA  [生ID露出 1]
+     1件   1枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WXK11-020
         消費: src\screens\BattleScreen.tsx:1022 / src\screens\BattleScreen.tsx:10546
-     1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
+     1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
         消費: src\engine\execUtils.ts:1421
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
@@ -126,57 +126,4 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
   ※ 直し方＝`scripts/decompileEffects.ts` の `miscStubMap` に日本語文を足す（単発）か、
      ハンドラ直前コメントを日本語説明にして `node scripts/genStubsMd.mjs` を回す（STUBS.md 経由で自動反映）。
 ==============================================================================
-  露出 28箇所 (live 29件/28枚)  LOOK_OPP_LIFE_TOP  [execStubPart1]
-        カード: WD06-006, WD06-018, WDK09-017, WDK17-009, SPK01-14, PR-K070 …他22枚
-  露出 19箇所 (live 19件/18枚)  GAIN_ABILITY_THIS_GAME  [execStubPart1]
-        カード: WX08-015, WX10-011, WX24-P4-036, WX25-P2-001, WX25-P2-003, WX25-P2-005 …他12枚
-  露出  5箇所 (live 5件/5枚)  PREVENT_POWER_MODIFY_BY_OPP  [engine別経路]
-        カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-  露出  3箇所 (live 3件/3枚)  CONVERT_ENERGY_COLOR  [engine別経路]
-        カード: WXEX1-54, WXEX1-56, WXEX2-56
-  露出  3箇所 (live 3件/3枚)  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY  [engine別経路]
-        カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
-  露出  2箇所 (live 6件/5枚)  CAST_FROM_OPP_TRASH  [execStubPart2]
-        カード: PR-433, WX14-027, WXEX1-46, WXEX2-12, WXK11-016
-        既存コメント: CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
-  露出  2箇所 (live 2件/2枚)  ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白  [execStubPart3]
-        カード: WDK16-01T, WXK10-015
-        既存コメント: ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: CONTINUOUS効果（effectEngine.collectEnergyColorSubsで動的計算）
-  露出  2箇所 (live 2件/2枚)  LRIG_UNDER_TRASH_ANY  [execStubPart1]
-        カード: WD21-009, PR-238
-  露出  1箇所 (live 1件/1枚)  BLOCK_COLORLESS_ENERGY_PAY  [execStubPart3]
-        カード: WXK07-001
-  露出  1箇所 (live 1件/1枚)  COST_COLOR_SELECT  [execStubPart3]
-        カード: WX04-063
-        既存コメント: COST_COLOR_SELECT（WX04-063 ゲット・ゲート）: 支払われたエナ1つにつきその色を1つ選択し、選択した「色の種類」1つにつき その色のシグニ1枚をデッキから探して公開・手札に加える（その後シャッフ
-  露出  1箇所 (live 1件/1枚)  DECLARE_TWO_GUARD_LEVELS  [execStubPart1]
-        カード: WD21-009
-  露出  1箇所 (live 1件/1枚)  FLIP_SELF_ON_TARGETED  [engine別経路]
-        カード: WX25-CP1-060
-  露出  1箇所 (live 1件/1枚)  INTERNAL_OPEN_MB_SKIP  [execStubPart3]
-        カード: WX24-P3-050
-  露出  1箇所 (live 1件/1枚)  MAYU_ENCOUNTER_FLIP_AND_GROW  [engine別経路]
-        カード: WXDi-P13-003A
-  露出  1箇所 (live 1件/1枚)  OPP_TURN_ARTS_COST_REDUCTION_ONCE  [engine別経路]
-        カード: WXK03-071
-  露出  1箇所 (live 1件/1枚)  OPTIONAL_LRIG_UNDER_COST  [engine別経路]
-        カード: WXDi-P05-009
-  露出  1箇所 (live 1件/1枚)  POWER_PLUS_BANISHED_POWER  [execStubPart1]
-        カード: WX24-P2-049
-  露出  1箇所 (live 1件/1枚)  RESTORE_REVEALED_DECK_CARDS  [execStubPart3]
-        カード: WXDi-P06-036
-  露出  1箇所 (live 1件/1枚)  SELECT_OPP_SIGNI_FOR_BOTTOM_MILL  [execStubPart3]
-        カード: WXK03-039
-  露出  1箇所 (live 1件/1枚)  SELF_LRIG_LOSE_ABILITY  [execStubPart3]
-        カード: WXK08-002
-  露出  1箇所 (live 1件/1枚)  SELF_SIGNI_ATTACK_NEGATE_IMMUNITY  [execStubPart3]
-        カード: WX24-P4-016
-  露出  1箇所 (live 1件/1枚)  STRIP_OPP_ENA_MULTI_ENA  [engine別経路]
-        カード: WXK11-020
-  露出  1箇所 (live 1件/1枚)  TRASH_ABILITY_LOSS_AND_IMMUNITY  [engine別経路]
-        カード: WX12-023
-  露出  1箇所 (live 1件/1枚)  TRASH_UNDER_SIGNI_UP_TO_ALL  [execStubPart3]
-        カード: WXK08-055
-  露出  1箇所 (live 1件/1枚)  VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE  [execStubPart1]
-        カード: WX25-CP1-040
 

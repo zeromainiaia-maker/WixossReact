@@ -77,8 +77,21 @@ function descriptionForId(lines, id, knownIds) {
     return { ids, rest: line.slice(at + 1).trim() };
   };
   const strip = (line) => labelIdsOf(line)?.rest ?? line;
-  const mine = lines.filter(l => labelIdsOf(l)?.ids.includes(id));
-  return (mine.length > 0 ? mine : lines).map(strip).join(' ');
+  // ラベル行 → その後ろの無ラベル行（次のラベル行まで）を「続き」として持つ。
+  // ⚠ラベル行が `ID（カード番号）：` だけで**本文が次行以降にある**綴りが実在するので、
+  //   自己完結していないときだけ続きを足す（自己完結しているラベル行に実装メモを継ぎ足さない）。
+  const own = [];
+  let cur = null;
+  for (const line of lines) {
+    const lab = labelIdsOf(line);
+    if (lab) { cur = { ids: lab.ids, text: lab.rest, cont: [] }; own.push(cur); }
+    else if (cur) cur.cont.push(line);
+  }
+  const mine = own.filter(seg => seg.ids.includes(id));
+  if (mine.length > 0) {
+    return mine.map(seg => (seg.text || seg.cont.join(' ')).trim()).filter(Boolean).join(' ');
+  }
+  return lines.map(strip).join(' ');
 }
 
 const allIds = new Set([...Object.keys(count), ...Object.keys(handlerFile)]);
