@@ -1347,10 +1347,23 @@ export function parseSentencePart3(t: string): EffectAction | null {
     //   「《コインアイコン》を得て」等を支払いに数え込まないため。
     const payTokens = t.match(/((?:《[^》]+》)+)を支払ってもよい/);
     const coinCost = (payTokens?.[1].match(/《コインアイコン》/g) ?? []).length;
+    // 🆕「**この(シグニ|カード)を場からトラッシュに置き**《色》を支払ってもよい」＝自己トラッシュとエナを
+    //   束ねた**1つの**任意コスト（§6.4 O-26・続き535）。従来はエナ側だけが `costColors` に載り、
+    //   **自己トラッシュが丸ごと踏み倒されていた**（場を離れずに効果だけ得る過少コスト＝実測4効果）。
+    //   engine は `OPTIONAL_COST{selfTrash}` を実装済み（`execUtils` の可否判定と支払いステップ）＝
+    //   parser が生成していなかっただけ。⚠**最後の読点以降の節**で見る（前置きのトリガー句・
+    //   「〜を対象とし、」を巻き込まないため。上の `oppPayClause` と同じ軸）。
+    const payClause = t.slice(t.lastIndexOf('、') + 1);
+    const selfTrashBundled = /^この(?:シグニ|カード)を場からトラッシュに置き/.test(payClause);
+    const extra = {
+      ...(costColors.length ? { costColors } : {}),
+      ...(coinCost ? { coinCost } : {}),
+      ...(selfTrashBundled ? { selfTrash: true } : {}),
+    };
     const tradeCost = tradeOptionalCost(t);
     return tradeCost.id === 'OPTIONAL_COST'
-      ? { ...tradeCost, ...(costColors.length ? { costColors } : {}), ...(coinCost ? { coinCost } : {}) }
-      : { type: 'STUB', id: 'OPTIONAL_COST', ...(costColors.length ? { costColors } : {}), ...(coinCost ? { coinCost } : {}) } as StubAction;
+      ? { ...tradeCost, ...extra }
+      : { type: 'STUB', id: 'OPTIONAL_COST', ...extra } as StubAction;
   }
 
   // ---- 括弧で始まるルール説明（汎用スキップ）----
