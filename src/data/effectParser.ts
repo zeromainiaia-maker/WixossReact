@@ -8663,7 +8663,7 @@ function parseActionTextInner(text: string): EffectAction {
     if (condChooseHeadM && condChooseAltM && /[①②③④⑤]/.test(text)) {
       // 共通表（`parseHoistStateCondition`）→ 局所パターンの順で条件を解く。
       const condText = condChooseAltM[1];
-      const shareColorM = condText.match(/^あなたの場にそれぞれ共通する色を持つルリグが([０-９\d]+)体以上いる$/);
+      const shareColorM = condText.match(/^あなたの場にそれぞれ共通する色を持つルリグが([０-９\d]+)体以上いる場合$/);
       const altCond: Condition | null = parseHoistStateCondition(condText + '、')
         ?? (shareColorM
           ? { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount: parseNum(shareColorM[1]) }
