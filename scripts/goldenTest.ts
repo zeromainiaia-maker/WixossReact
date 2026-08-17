@@ -1870,12 +1870,20 @@ test('§6.4 O-11: 条件節つき連用形チェーンの節が落ちない／�
     ok(wxk03.has(t), `WXK03-044-E1: ${t} が残る（条件節つきチェーンの節が落ちない）`);
   }
 
-  // 🔴負方向のトリップワイヤ＝`WX21-006-E1` は「相手のシグニ1体を対象とし、〜が３体ある**場合**、それを
-  //   バニッシュし、…」だが**条件節自体がパースされていない**。ここで補完に釣られて BANISH を足すと
-  //   「毎アタックフェイズ無条件に相手シグニをバニッシュ」＝**過少実行より悪い過剰実行**になる。
-  //   ⚠節の脱落を直すつもりで条件の脱落を踏み抜かないこと（補完は先頭節が既に結果にある場合だけ）。
-  ok(!liveTypes('WX21-006', 'WX21-006-E1').has('BANISH'),
-    'WX21-006-E1: 条件が未表現のあいだは BANISH を足さない（無条件バニッシュを作らない）');
+  // 🔴かつての負方向トリップワイヤ＝`WX21-006-E1` は「相手のシグニ1体を対象とし、〜が３体ある**場合**、
+  //   それをバニッシュし、…」で**条件節自体がパースされていなかった**ため、補完に釣られて BANISH を足すと
+  //   「毎アタックフェイズ無条件に相手シグニをバニッシュ」＝**過少実行より悪い過剰実行**になっていた。
+  // 🆕2026-08-17 続き526 で条件語彙（`NO_COMMON_COLOR_AMONG_FIELD_SIGNI` に filter を追加）を実装したので
+  //   **正方向へ反転**＝BANISH は「条件の内側」にあること。⚠**トップレベルに出たら元の過剰実行**なので、
+  //   条件の外に BANISH が無いことも同時に見る（詳細な形は下の O-11 の専用テストで固定）。
+  {
+    const wx21 = (effectsMap.get('WX21-006') ?? []).find(x => x.effectId === 'WX21-006-E1');
+    ok(!!wx21, 'WX21-006-E1 が live に存在する');
+    const act = wx21!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(act.type, 'CONDITIONAL', 'WX21-006-E1: 条件ごと落ちて無条件実行に戻っていない');
+    ok(JSON.stringify(act.then).includes('"BANISH"'), 'WX21-006-E1: BANISH は条件の内側にある');
+    ok(!JSON.stringify(act.condition).includes('"BANISH"'), 'WX21-006-E1: 条件側に BANISH が漏れていない');
+  }
 });
 test('SELF_TRASH_PREVENT: 自分の効果で自シグニをトラッシュに置けない（WX07-033・§6.1・タスク7）', () => {
   // collector が場の WX07-033（CONTINUOUS SELF_TRASH_PREVENT）を検出。
@@ -37298,6 +37306,87 @@ test('§6.4 O-11: 先頭節の復元は「公開/探索の複合文」を割ら�
     const placements = (json.match(/"ADD_TO_FIELD"/g) ?? []).length + (json.match(/"then":"field"/g) ?? []).length;
     ok(placements <= 1, `🔴${effectId}: 場出しが ${placements} 回に増えている（複合文を割った）`);
   }
+});
+
+
+// ── §6.4 O-11：BANISH 脱落クラスタ（2026-08-17 続き526）────────────────────────────────────
+// 「原文にバニッシュがあるのに live に無い」8件を仕分けた結果、**5件は fresh が既に正しく live が古いだけ**
+// （PARTIAL/MANUAL 刻印で `build:effects` が触れない stale レコード）だった。
+
+test('§6.4 O-11: WX21-006-E1 は条件つき（それぞれ共通色を持たない＜天使＞3体）で BANISH＋エナ＋ドロー', () => {
+  // 🔴live は `DRAW 1` だけ＝**条件もバニッシュもエナ置きも消えていた**。
+  //   受け皿 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は engine 実装済みなのに
+  //   **クラス filter が無く live 利用者0の死んだ受け皿**だったのが根因。
+  const e = (effectsMap.get('WX21-006') ?? []).find(x => x.effectId === 'WX21-006-E1');
+  ok(!!e, 'WX21-006-E1 が live に存在する');
+  const c = e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(c.type, 'CONDITIONAL', '🔴条件ごと落ちて無条件ドローに戻っている');
+  const cond = c.condition as { type: string; count?: number; filter?: { story?: string } };
+  eq(cond.type, 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', '共通色なし条件');
+  eq(cond.count, 3, '3体');
+  eq(cond.filter?.story, '天使', '🔴クラス filter が落ちると場のシグニ全体を見る別条件になる');
+  const json = JSON.stringify(c.then);
+  ok(json.includes('"BANISH"'), '🔴バニッシュが落ちている');
+  ok(json.includes('"ENERGY_CHARGE_FROM_DECK"'), '🔴エナ置きが落ちている');
+  ok(json.includes('"DRAW"'), 'ドローも残る');
+});
+
+test('§6.4 O-11: NO_COMMON_COLOR_AMONG_FIELD_SIGNI の filter が engine で効く', () => {
+  // filter 省略時は従来どおり「場のシグニちょうど N 体」。filter 指定時は一致シグニだけを見る。
+  const red = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const white = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const ctx = mkCtx({ signi: [red, white, null] } as never, {});
+  eq(evalCondition({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: 2 } as never, ctx),
+    true, '色違い2体＝共通色なし');
+  eq(evalCondition({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: 3 } as never, ctx),
+    false, '🔴filter 無しは「ちょうど N 体」（2体しか居ないので偽）');
+  eq(evalCondition({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: 3,
+    filter: { cardType: 'シグニ', story: '存在しないクラス' } } as never, ctx),
+    false, '🔴filter に一致しなければ偽（filter を無視して素通りしない）');
+});
+
+test('§6.4 O-11: WX12-CB02-E1 のレベル別5分岐が全部ある（else の入れ子で1本だけ走る）', () => {
+  // 🔴live は archive の one-off パッチが書いた **Lv1・Lv2 の2分岐だけ**の MANUAL で Lv3〜5 が欠落していた。
+  // ⚠並列 CONDITIONAL にすると Lv2 のエナチャージが**デッキトップを持っていく**ため後段が次のカードを見て
+  //   二重発火する＝else の入れ子であること自体がバグ防止の本体。
+  const e = (effectsMap.get('WX12-CB02') ?? []).find(x => x.effectId === 'WX12-CB02-E1');
+  ok(!!e, 'WX12-CB02-E1 が live に存在する');
+  let node = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const levels: unknown[] = [];
+  const thens: string[] = [];
+  for (let i = 0; i < 5; i++) {
+    eq(node.type, 'CONDITIONAL', `分岐${i + 1}は CONDITIONAL`);
+    levels.push((node.condition as { filter?: { level?: unknown } }).filter?.level);
+    thens.push((node.then as { type: string }).type);
+    if (i < 4) {
+      ok(!!node.else, `🔴分岐${i + 2}が else に無い（＝並列に並ぶと二重発火する）`);
+      node = node.else as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    }
+  }
+  eq(JSON.stringify(levels), '[1,2,3,4,5]', 'レベル1〜5の5分岐');
+  eq(thens.join(','), 'POWER_MODIFY,ENERGY_CHARGE_FROM_DECK,GRANT_KEYWORD,DRAW,BANISH', '🔴分岐の帰結が原文とずれている');
+});
+
+test('§6.4 O-11: 「その後、〜場合、それをバニッシュし、〜」の BANISH が消えない（WXEX1-47-E1）', () => {
+  const e = (effectsMap.get('WXEX1-47') ?? []).find(x => x.effectId === 'WXEX1-47-E1');
+  ok(!!e, 'WXEX1-47-E1 が live に存在する');
+  const cond = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq((cond.condition as { type: string }).type, 'TRASHED_STORY_COUNT_GTE', 'ミル結果のクラス枚数条件');
+  const steps = (cond.then as SequenceAction).steps;
+  eq(steps.map(s => s.type).join(','), 'BANISH,LIFE_CRASH', '🔴BANISH が落ちて LIFE_CRASH だけになっている');
+});
+
+test('§6.4 O-11: SPK01-14-E1 は2択で、①がバニッシュ→（引く/エナ）②が5ドロー', () => {
+  // 🔴live は外側の2択も BANISH も5ドローも欠けており、①の後段だけが無条件に走っていた。
+  const e = (effectsMap.get('SPK01-14') ?? []).find(x => x.effectId === 'SPK01-14-E1');
+  ok(!!e, 'SPK01-14-E1 が live に存在する');
+  const ch = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CHOOSE' }>;
+  eq(ch.type, 'CHOOSE', '🔴外側の2択が落ちている');
+  eq(ch.choices.length, 2, '2択');
+  const c0 = JSON.stringify(ch.choices[0].action);
+  ok(c0.includes('"BANISH"'), '🔴①のバニッシュが落ちている');
+  const c1 = JSON.stringify(ch.choices[1].action);
+  ok(c1.includes('"DRAW"') && c1.includes('"count":5'), '🔴②の5ドローが落ちている');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
