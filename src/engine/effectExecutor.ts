@@ -4710,8 +4710,10 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ...(coinCost5 > 0 ? [`《コイン》×${coinCost5}`] : []),
             ...(exceed5 > 0 ? [`エクシード${exceed5}`] : []),
           ];
+          // ⚠**このシグニ自身を失う対価はラベルに出す**（§6.4 O-26・続き535＝site4 と同じ理由）。
+          const payParts5 = [...costParts5, ...(spec5.selfTrash ? ['このシグニをトラッシュ'] : [])];
           const payLabel5 = activateOnly5 ? '発動する'
-            : costParts5.length > 0 ? `支払う（${costParts5.join('')}）` : '支払う';
+            : payParts5.length > 0 ? `支払う（${payParts5.join('')}）` : '支払う';
           const paySteps5: EffectAction[] = [
             ...(exceed5 > 0 ? [{ type: 'STUB', id: 'INTERNAL_PAY_EXCEED', value: exceed5 } as EffectAction] : []),
             ...optionalCostPaySteps(spec5),
