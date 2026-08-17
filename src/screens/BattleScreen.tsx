@@ -6607,28 +6607,68 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
   };
 
-  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set()) => {
-    if (loading) return;
-    if (isArtsUseBlocked()) return;
+  /**
+   * アーツ使用の実行（人間・CPU 共通）。DESIGN §4「CPU は対人戦と同じ処理を使う」の抽出形＝
+   * `performSigniActivated` / `performSigniAttack` と同じく **owner をパラメータ化**し、
+   * 人間用 `executeArts` は薄いラッパーにする（§8 `O-1`）。
+   *
+   * ⚠**「いま使えるか」の判定はここではなく `artsUseGate.checkArtsUse`**（提示と支払いは別の地点）。
+   * ここに残す3ゲートは**実行入口の再検算**＝UI を迂回する経路（カットイン等）から素通りさせないため。
+   */
+  const performArts = async (
+    card: CardData,
+    sel: {
+      costIndices: Set<number>;
+      betCoins?: number;
+      encore?: boolean;
+      discardIndices?: Set<number>;
+      useKeySub?: boolean;
+      boosting?: boolean;
+      useCostPayKeys?: Set<string>;
+    },
+    p: {
+      actor: PlayerState; opponent: PlayerState;
+      actorId: string;
+      actorKey: 'host_state' | 'guest_state';
+      /** `actor` がターンプレイヤーか（相手ターンのアーツ軽減の消費判定に要る）。 */
+      isActorTurn: boolean;
+      /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
+      energyPayPool: EnergyPayEntry[];
+      /** `collectEnergyTrashSubstituteInfo(actor, ...)` の結果（キー代替払い）。 */
+      energyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
+      /** `calcContinuousBlockedActions(actor, ...).forSelf`。 */
+      blockedSelf: Set<string>;
+      effectivePowers?: Map<string, number>;
+    },
+  ) => {
+    const my = p.actor;
+    const op = p.opponent;
+    const actorIsHost = p.actorKey === 'host_state';
+    const costIndices = sel.costIndices;
+    const betCoins = sel.betCoins ?? 0;
+    const encore = sel.encore ?? false;
+    const discardIndices = sel.discardIndices ?? new Set<number>();
+    const useKeySub = sel.useKeySub ?? false;
+    const boosting = sel.boosting ?? false;
+    const useCostPayKeys = sel.useCostPayKeys ?? new Set<string>();
+    if (isArtsUseBlockedFor(my, p.blockedSelf)) return;
     // ⚠実行入口にも同じゲートを置く（UI 側だけだと別経路＝カットイン等から素通りする・§6.4 O-3）
     if (cardNameUseBlocked(my, card.CardName, card.Type)) return;
     if (!canUseArtsCondition(
-      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, effectivePowers)) return;
+      effectsMap.get(card.CardNum) ?? [], my, op, battleCardMap, card.CardNum, bs.turn_phase, p.effectivePowers)) return;
     setLoading(true);
-    closeArtsModal();
-    setKeySubstituteEnabled(false);
     try {
       const cardNum = card.CardNum;
       const idx = my.lrig_deck.findIndex(id => getCardNum(id) === cardNum);
       const instanceId = idx >= 0 ? my.lrig_deck[idx] : cardNum;
       const newLrigDeck = idx === -1 ? my.lrig_deck
         : [...my.lrig_deck.slice(0, idx), ...my.lrig_deck.slice(idx + 1)];
-      const artsPay = planEnergyPayment(my, myEnergyPayPool, costIndices);
+      const artsPay = planEnergyPayment(my, p.energyPayPool, costIndices);
       const paidNums = artsPay.paidNums;
       // §6.4 O-10（続き510）＝いま軽減に使った「1回きり」の宣言（`WXK03-071-E1`）を後で失効させる。
       // ⚠**コスト計算と同じ収集関数**を使う（別の条件で数え直すと「軽減はされたのに能力は残る」ズレになる）。
       const oppTurnArtsReductionIds = collectOppTurnArtsCostReductions(
-        my, op, isMyTurn, battleCardMap, effectsMap).map(r => r.effectId);
+        my, op, p.isActorTurn, battleCardMap, effectsMap).map(r => r.effectId);
       // 使用時の任意支払いによるコスト軽減（タスク12(lxxxv)）＝支払い元が手札なら
       // 既存の discard と**同じ index 空間**でまとめて消す（別々に消すと index がずれる）。
       const useCostSpec = parseUseTimeCostReduction(card.EffectText ?? '');
