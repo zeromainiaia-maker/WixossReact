@@ -37503,6 +37503,43 @@ test('§6.4 O-35: 「〈色〉のセンタールリグの場合、代わりにN�
   eq(((a.else as Extract<EffectAction, { type: 'TRASH' }>).target).count, 5, '🔴else（基本の5枚）が落ちると置換が加算に化ける');
 });
 
+// ── §6.4 O-35 続き529：残7件のうち2件を機構ごと閉じる ─────────────────────────────
+test('§6.4 O-35: LRIG_STORY の negate と複数ゾーン一括デッキ戻し（WXK05-005-E1）', () => withSavedCursor(() => {
+  const e = (effectsMap.get('WXK05-005') ?? []).find(x => x.effectId === 'WXK05-005-E1')!;
+  const wrap = (e.action as SequenceAction).steps[0] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(wrap.type, 'CONDITIONAL', '🔴「＜ユヅキ＞でない場合」が受け皿 STUB に飲まれている');
+  const c = wrap.condition as Extract<Condition, { type: 'LRIG_STORY' }>;
+  eq(c.type, 'LRIG_STORY', 'センタールリグの＜C＞条件');
+  eq(c.negate, true, '🔴否定が落ちると条件が反転する');
+  // 3ゾーンぶんの TRANSFER_TO_DECK が**列挙どおり**に並ぶ（1つでも欠けるとリセット漏れ）
+  const zones = (wrap.then as SequenceAction).steps.map(x => (x as { source?: { type?: string } }).source?.type);
+  eq(zones.join(','), 'HAND_CARD,ENERGY_CARD,SIGNI', '🔴手札／エナ／シグニゾーンのどれかが落ちている');
+  // engine 側：`ENERGY_CARD` は続き529 で新設した分岐＝ALL でエナが空になり、その分デッキが増える
+  const cm = new InstanceMap(cardMap);
+  const st = mkState({ energy: 3 });
+  const before = st.energy.length, deckBefore = st.deck.length;
+  ok(before > 0, 'エナに札がある前提');
+  const res = run({ type: 'TRANSFER_TO_DECK', source: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' }, shuffle: false } as EffectAction,
+    { ...mkCtx({ energy: 3 }), cardMap: cm });
+  eq(res.ownerState.energy.length, 0, '🔴エナゾーンが空にならない（分岐が無いと無言 no-op）');
+  eq(res.ownerState.deck.length - deckBefore, before, 'デッキが同数だけ増える（消失0）');
+}));
+
+test('§6.4 O-35: 「追加で」節のゾーン照応が復元される（WDK10-009-E1）', () => {
+  // 🔴「その後、**あなたのトラッシュから**黒のシグニ…。〈条件〉の場合、追加で黒のシグニ１枚を対象とし、
+  //   それを手札に加える。」＝2文目が領域句を省くため単独 parse では UNKNOWN → 条件節ごと受け皿へ。
+  const e = (effectsMap.get('WDK10-009') ?? []).find(x => x.effectId === 'WDK10-009-E1')!;
+  const steps = (e.action as SequenceAction).steps;
+  const s2 = steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(s2.type, 'CONDITIONAL', '🔴条件節が受け皿 STUB に飲まれている');
+  eq(s2.condition.type, 'LRIG_STORY', 'センタールリグ＜ウリス＞ゲート');
+  const then = s2.then as Extract<EffectAction, { type: 'TRANSFER_TO_HAND' }>;
+  eq(then.type, 'TRANSFER_TO_HAND', '追加ぶんの回収');
+  // 🔑復元した領域が**直前ステップと同じ**であること＝ここが違うと別の山札から引く誤りになる
+  eq(then.source.type, 'TRASH_CARD', '🔴トラッシュ以外の領域が当てはめられている');
+  eq(JSON.stringify(then.source.filter), JSON.stringify({ cardType: 'シグニ', color: '黒' }), '黒のシグニ限定');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

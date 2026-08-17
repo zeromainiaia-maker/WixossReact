@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き529・Opus 5）— §6.4 **O-35 続き**（7 → 5）＝機構2本の新設と、**重複綴りを作りかけて撤回**した記録
+
+ゲート全緑（**golden 2162**＝+2・**census 818**（817 から **+1・実数更新**＝下記のとおり**退化ではなく可視化**）・
+smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・`census:stubs` A群 0種/0件・lint 0 errors）。
+**fresh changed 2効果 / 2カード**（A/B 全走査・新規 UNKNOWN 0）。**live JSON changed 2枚**。CSV 非改変。
+
+### 消化した2件
+
+| カード | 要った機構 |
+|---|---|
+| `WXK05-005-E1` | ①`LRIG_STORY` の **`negate`**（「センタールリグが＜ユヅキ＞**でない**場合」＝`HAS_CARD_IN_FIELD`／`IS_BETTING` と同じ既存の否定慣例）②**複数ゾーン一括デッキ戻し**の parser 規則 ③engine `execTransferToDeck` の **`ENERGY_CARD` 分岐**（`HAND_CARD`／`SIGNI`／`TRASH_CARD` は在ったのにエナだけ無く、規則を足しても無言 no-op になる穴だった） |
+| `WDK10-009-E1` | **「追加で」節のゾーン照応の復元**＝前文の領域句（「あなたのトラッシュから」）が省かれるため単独 parse では UNKNOWN → ガードBで条件節ごと受け皿へ落ちていた |
+
+🔑**照応復元のガードは「型の一致」で掛ける**＝復元した領域句で再 parse した結果が**直前ステップと同じ action 型**に
+なるときだけ採用する（続き525 の『残り節だけを parse した結果が現行結果と一致するときだけ足す』と同じ規律）。
+ここを緩めると**無関係な前段の領域を当てはめて別の山札から引く**誤りを作る。実測でも全CSVで**1効果しか動かない**
+（`WD09-018-E1`／`WX09-041-E1` は別経路で既に解決済み／別の受け皿）。
+
+### 🔴 `LIFE_TO_ENERGY` は既に在った＝**重複綴りを作りかけて撤回した**
+
+`WX25-CP1-020-E2` の「対戦相手のライフクロス１枚をエナゾーンに置く」を取りに行き、
+`SEND_TO_ENERGY{target: LIFE_CLOTH_CARD}` の engine 分岐＋parser 規則を書いた。**が、既存の
+`STUB{LIFE_TO_ENERGY, owner}` が engine に完全実装済み**（`execStubPart1.ts:3733`）で、
+`WXK09-003-E1` は既にそれを使っていた。**綴りを増やさない**規律に従い、追加した engine 分岐と
+parser 規則を**両方とも撤去**した（A/B で changed 0 を確認）。
+
+🔑**新しい action/target 綴りを足す前に、同義の STUB が engine に無いかを必ず見る。**
+`census:stubs` は「STUB＝未実装」ではないので、実装済み STUB が既にその意味を持っていることがある。
+
+⚠この過程で**規則を非アンカーで書いて過剰化させかけた**＝
+「この方法でカードをN枚以上トラッシュに置いた**場合**、対戦相手のライフクロス１枚をエナゾーンに置く」の
+**閾値節ごと奪って**条件を落とし、**両方の枝が無条件発火**する形を一度作った（A/B で発見・文頭アンカーで解消）。
+
+### census 817 → 818 は**退化ではなく可視化**
+
+`WXK05-005-E1` の受け皿 STUB（1文目の無言 no-op）を解体した結果、**その効果が STUB バケツを出て
+高シグナル側へ昇格**した（続き522 と同型）。⚠**残っているのは本物の穴**＝同カードの
+「あなたのデッキの上からカードを５枚公開して**その中から好きな枚数の緑のシグニを場に出し、残りを
+トラッシュに置く**」が連用形チェーンで**丸ごと脱落**したままで、`LOOK_AND_REORDER` にすら届かず
+action に存在しない（§6.4 O-11 続き520/525 の「連用形チェーンの節の脱落」と同系統）。
+**受け皿を解体すると、その中に隠れていた別の穴が計器に出る**＝+1 はそれを正しく捉えている。
+
+### 残5件
+
+`SPDi43-25-E2`（⚠**1文目から誤読**＝「各プレイヤーは自分のデッキの一番上のカードを公開する」が
+`STUB{LOOK_OPP_LIFE_TOP}` に化けており、続く**レベル合計の3分岐**もすべて条件が落ちて
+**4ドローと相手4枚捨てが両方とも無条件**。範囲が大きいので単独で扱う）／
+`WX09-011-E2`（「**この能力の**発動コストは《赤×2》減る」）／
+`WX25-CP1-020-E2`（⚠**`LIFE_TO_ENERGY` は在る**。詰まりは「この方法でN枚以上トラッシュに置いた場合」の閾値＝
+コストの `energyTrashAll` は **BattleScreen 側で支払われ `lastProcessedCards` を残さない**ので
+`LAST_PROCESSED_COUNT_GTE` を書いても恒久 false になる＝**支払い枚数の記録**が要る）／
+`WXDi-P13-008-E1`（⚠既存 `USE_SPELL_FROM_TRASH` は**コストなし**使用なので流用すると過剰）／
+`WXK03-080-E1`（**stale live＋1文目が原文と別物**＝要再parse。真因は `parseSentencePart1` の
+「トラッシュに置く」ブロックが**間に挟まる目的語を無視して**「対象とし」の名詞句を対象に取ること）。
+
+### 触ったファイル
+- `src/types/effects.ts`（`LRIG_STORY.negate`）
+- `src/engine/effectEngine.ts`／`src/engine/execUtils.ts`（`LRIG_STORY` の negate 評価・**両評価器そろえる**。
+  ⚠ルリグ不在は negate でも false）
+- `src/engine/effectExecutor.ts`（`execTransferToDeck` の `ENERGY_CARD` 分岐）
+- `src/data/effectParser.ts`（否定形の条件節を**肯定より先に**／`parseMultiZoneReturnToDeck`／「追加で」節のゾーン照応復元）
+- `scripts/goldenTest.ts`（+2件）・`scripts/vocabCensus.ts`（`BASELINE_HIGH` 817→818）
+- `public/data/effects_{WXK,misc}.json`（held 採用2枚）
+
+### 追試
+`npm run gates`（全緑）／`npm run regen`＋`node scripts/groupSimilar.mjs --all`（同型★0）。
+
 ## 2026-08-17（続き528・Opus 5）— §6.4 **O-35 続き**（13 → 7）＝**受け皿の外に居た「条件・枚数の無言脱落」**
 
 ゲート全緑（**golden 2160**＝+5・**census 817 据置**・smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・

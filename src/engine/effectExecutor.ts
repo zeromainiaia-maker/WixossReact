@@ -1421,23 +1421,6 @@ function execExile(a: import('../types/effects').ExileAction, ctx: ExecCtx): Exe
 function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
   const tgt = a.target;
   const state = ownerState(tgt.owner, ctx);
-  // ライフクロス→エナゾーン（§6.4 O-35・続き529）。`LIFE_CLOTH_CARD` は TRASH（`LIFE_CRASH` 相当）と
-  // TRANSFER_TO_DECK には分岐が在るのに**エナ行きだけ無かった**＝規則を足しても no-op になる穴だった。
-  // ⚠**下（新しい側）から取る**＝`execTrash`／`execTransferToDeck` の `LIFE_CLOTH_CARD` と同じ向きにそろえる。
-  //   ライフクラッシュではないので【ライフバースト】は発動しない（原文「エナゾーンに置く」）。
-  if (tgt.type === 'LIFE_CLOTH_CARD') {
-    const nLC = tgt.count === 'ALL' ? state.life_cloth.length : resolveNum(tgt.count);
-    const lifeLC = [...state.life_cloth];
-    const movedLC: string[] = [];
-    for (let i = 0; i < nLC && lifeLC.length > 0; i++) movedLC.push(lifeLC.pop()!);
-    if (movedLC.length === 0) return done(addLog(ctx, 'ライフクロスがない'));
-    const newLC: PlayerState = { ...state, life_cloth: lifeLC, energy: [...state.energy, ...movedLC] };
-    return done({
-      ...addLog(setOwnerState(tgt.owner, newLC, ctx),
-        `${tgt.owner === 'opponent' ? '対戦相手の' : ''}ライフクロス${movedLC.length}枚をエナゾーンへ`),
-      lastProcessedCards: movedLC,
-    });
-  }
   // 動的フィルタ（powerLteLastProcessed=「公開したシグニのパワー以下」等）を解決（WDK08-Y07）
   let resolvedFilter = resolveDynamicFilter(tgt.filter, ctx.ownerState, ctx.cardMap, ctx.otherState, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum);
   // thisCardOnly: 効果元シグニ自身のみ（「このシグニをエナゾーンに置く」＝§6.4 O-7 の `selfToEnergy` 任意コスト等）。
