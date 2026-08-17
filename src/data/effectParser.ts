@@ -2399,6 +2399,12 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     // ⚠「N枚以上ある場合」（枚+以上+ある+場合／の 無し）は census 条件節クラスタの独立テンプレ＝
     //   「の場合」固定だと "ある場合" 形（WX12-046/WXDi-P15-094/WXEX1-39 等）が未マッチで条件ごと脱落した。
     //   `(?:ある)?の?場合` で「N枚以上ある場合」「N枚以下の場合」「N枚の場合」の三形を許容する。
+    // 連言形（§6.4 O-36・続き534）＝上の `STATE_CONDITION_CLAUSES` と同じものを同じ順で置く。
+    [/(あなた|対戦相手)の手札が([０-９\d]+)枚で(あなた|対戦相手)のターンの場合/,
+      g => ({ type: 'AND', conditions: [
+        { type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: 'eq', value: parseNum(g[1]) },
+        { type: 'TURN_OWNER', owner: g[2] === '対戦相手' ? 'opponent' : 'self' },
+      ] })],
     [/(あなた|対戦相手)の手札が([０-９\d]+)枚(以上|以下)?(?:ある)?の?場合/,
       g => ({ type: 'HAND_COUNT', owner: g[0] === '対戦相手' ? 'opponent' : 'self', operator: g[2] === '以上' ? 'gte' : g[2] === '以下' ? 'lte' : 'eq', value: parseNum(g[1]) })],
     // 「エナゾーンにあるカードがN枚以下の場合」（にある＋の場合）も許容（WX21-064/WX24-P3-056 等）。
