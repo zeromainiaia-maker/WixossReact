@@ -3512,10 +3512,7 @@ function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): Ef
   //    すべてのシグニをダウンする」）。この形は「この方法で」と書かないので上のガードから外れ、
   //   **レベル限定が落ちて相手シグニが全員ダウン**する過剰実行になっていた。
   //   🔑判定は**文言ではなく木**で行う＝条件が `LAST_PROCESSED_MATCHES` なら「それ」の先行詞は直前の結果で確定。
-  //   🔑アンカーは**文頭の「それが〈X〉の場合、」**＝直前の文の結果で「それ」が束縛済みである証拠。
-  //     （この文自体は条件を持たない bare な帰結として parse され、`CONDITIONAL{LAST_PROCESSED_MATCHES}`
-  //      の包みは複数文ハンドラが後から付ける＝木では判定できない。）
-  if (!/この方法で/.test(t) && !/^それが[^。]*場合[、,]/.test(t)) return action;
+  if (!/この方法で/.test(t)) return action;
   const a = action as unknown as { target?: { type?: string; filter?: Record<string, unknown> } };
   if (!a.target || a.target.type !== 'SIGNI') return action;
   const f = a.target.filter ?? {};

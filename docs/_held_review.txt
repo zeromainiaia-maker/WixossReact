@@ -625,18 +625,6 @@ WD09-018
   + [0].action.steps[1].then.type = "UNKNOWN"
   + [0].action.steps[1].then.raw = "追加でレベル３以下の白のシグニ１枚を探して公開し手札に加える"
 
-## +STUB -SIGNI -TRASH ［1枚］
-WD23-012-A
---- WD23-012-A
-  原文: 以下の３つから１つを選ぶ。あなたのセンタールリグが＜あや＞の場合、代わりに２つまで選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンし凍結する。②コストの合計が５以下のスペル１つを対象とし、それの効果を打ち消す。③対戦相手のセンタールリグの下からカードを２枚まで対象とし、それらをルリグトラッシュに置く。,-
-  - [0].action.choices[2].action.target.type = "SIGNI"
-  - [0].action.choices[2].action.target.owner = "opponent"
-  - [0].action.choices[2].action.target.count = 1
-  - [0].action.choices[2].action.target.filter.cardType = "シグニ"
-  - [0].action.choices[2].action.target.upToCount = false
-  ~ [0].action.choices[2].action.type : "TRASH" → "STUB"
-  + [0].action.choices[2].action.id = "DEFERRED_OPP_LRIG_UNDER_TO_TRASH"
-
 ## +COND_STUB -LRIG_COLOR ［1枚］
 WDK01-009
 --- WDK01-009
