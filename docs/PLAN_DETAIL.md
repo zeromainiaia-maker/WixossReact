@@ -6,6 +6,47 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-17 整理㉗：§6.4 `O-14`（申告済みの原文不一致2件）と `O-15`（手札からの選択機構）の消化（続き540）
+
+> PLAN §6.4 からは行を削除し、索引だけ残した。**実機の観測点は §7 の `V-59`／`V-60`**。
+
+### O-14(a) `WX15-003-E3`＝1文に2機構（強制アタック＋アーツ/スペル/【起】封じ）
+
+原文「【起】ベルセルク《コインアイコン》×3：**次のターンの間、対戦相手はアーツとスペルと【起】能力を使用できず**、シグニは可能ならばアタックしなければならない。」
+
+- 🔴**従来は後半の強制アタックだけが拾われ、前半が丸ごと落ちていた**＝`FORCE_SIGNI_ATTACK{opponent, NEXT_TURN}` 単体。
+- ⭐**なぜ既存規則で拾えなかったか**（着手前に実測した）＝①既存の `BLOCK_OPP_ARTS_SPELL_ACT`（`parseSentencePart3`）は綴りが**「使用できない」限定**で、連用中止の**「使用できず」**を取らない ②そもそも `parseSentencePart1` の強制攻撃規則が**先に文全体を消費する**ので part3 まで届かない。⇒ **合流点は強制攻撃規則しかない**＝そこで `SEQUENCE[STUB, FORCE_SIGNI_ATTACK]` へ畳んだ。
+- **新設 STUB `BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN`**（`execStubPart3.ts`）＝`otherState.blocked_actions` へ **`USE_ARTS:NEXT_TURN` / `USE_SPELL:NEXT_TURN` / `USE_ACT:NEXT_TURN`**。⚠**新しい語彙は要らなかった**＝`:NEXT_TURN` の2スロット規約（`clearTurnEndScopedState` が接尾辞つきだけを跨がせ、`activateTurnStartScopedState` が接尾辞を外して active 化）も、`isActionBlocked('USE_ARTS'/'USE_SPELL'/'USE_ACT')` の消費地点（`BattleScreen.tsx`）も**既にある**。兄弟の `BLOCK_OPP_SPELL_ACT_NEXT_TURN` と同型。
+- 🆕**同族の穴を1件同時に是正**＝`WX25-P1-050-E1`「**次の対戦相手のターンの間**、対戦相手はアーツとスペルと【起】能力を使用できない」は、綴りに関係なく**当ターン版へ潰れていた**＝**自分のターンに効いて相手のターンには切れる**1ターンずれ。part3 の規則に「期間を読む」分岐を足して解消。
+
+### O-14(b) `WXDi-P08-010-E3`＝文跨ぎの「そのターン」照応と遅延バニッシュ
+
+原文「【起】《ゲーム１回》《黒》《無》：次の対戦相手のターンの間、対戦相手のシグニは可能ならばアタックしなければならない。**そのターン終了時、そのターンにアタックしていたすべてのシグニをバニッシュする。**」
+
+- 🔴**従来は `SEQUENCE[FORCE_SIGNI_ATTACK, BANISH{SIGNI owner:'any', count:'ALL'}]`＝使った瞬間に両者の全シグニが飛んでいた**（遅延も限定も落ちた二重の過剰）。
+- ⭐**機構は3つとも既にあった**＝①`DELAY_TO_NEXT_OPP_TURN_END`＋`pending_next_opp_turn_end_effects`＋collector（`ON_TURN_END` で `opState` 側を走査）＋`STUB{RESOLVE_NEXT_OPP_TURN_END_EFFECT}`（§6.4 O-3 続き497）②`TargetFilter.attackedThisTurn`（`execUtils` が `state.attacked_signi_ids` を読む・§6.4 O-3 続き497）③`fieldCandidatesByOwner` の `owner:'any'` 両場走査。⇒ **要ったのは parser の2本だけ。**
+- **(1) 文跨ぎの照応**＝`effectParser` の sentence map に「**そのターン終了時、**」→「次の対戦相手のターン終了時、」の書き換えを追加（直前の文が「次の対戦相手のターン」を含むときだけ）。既にあった「**そのターンの間、**」の兄弟。⚠書き換えないと**遅延宣言そのものが消える**。
+- **(2) 本文の解決**＝`rewriteNextOppTurnEndBody` に「そのターンにアタックしていたすべてのシグニをバニッシュする」の分岐を追加。⚠**`^その` で受け皿へ落とす既存ガードの例外**＝ここでの「その」は**カードの照応ではなくターンの照応**で、予約が発火する**そのターンそのもの**を指すので発火時の state だけで解ける。
+- 🔑**`owner:'any'` のままで自分のシグニを巻き込まない**＝`attackedThisTurn` は各 state の `attacked_signi_ids` を見るので、**アタックした側にしか載らない**。
+- ⚠**タイミングの確認**＝`attacked_signi_ids` のリセットは END フェイズの後始末で、`ON_TURN_END` の解決**より後**（人間経路 `doPhaseAdvance` の END 分岐／CPU 経路の両方で確認済み）＝予約の発火時点ではまだ残っている。
+
+### O-15 `WXEX1-44-E2`＝手札からの選択機構
+
+原文「【出】：**あなたの手札から**《アクセアイコン》を持つシグニを２枚までエナゾーンに置く。その後、あなたのエナゾーンから**この方法でエナゾーンに置いたカードと同じ枚数**の＜調理＞のシグニを対象とし、それらを手札に加える。」
+
+- 🔴**従来は前段が `STUB{PLACE_ACCE_SIGNI_TO_ENERGY}`＝場のアクセゾーンを全部エナへ送る別機構**（`allAcceCards(field.signi_acce)`）で、**手札は1枚も動かない**。後段は固定1枚＝置いた枚数と無関係に必ず1枚回収する過剰。
+- ⭐**「要るのは手札選択の機構だけ」という PLAN の見立ては合っていたが、その機構すら既にあった**＝`ENERGY_CHARGE{HAND_CARD}` は `execEnergyCharge` が `handCandidates` で filter を効かせ `selectOrInteract` で選ばせる完全実装で、**同じ形を `WX22-043-E1` が MANUAL で先に手当てしていた**。⇒ **parser を追いつかせるだけ**だった。
+- **(1)** `parseSentencePart3` に「あなたの手札から《アクセアイコン》を持つシグニをN枚（まで）エナゾーンに置く」の規則を、既存の `PLACE_ACCE_SIGNI_TO_ENERGY` の**手前**へ追加＝`ENERGY_CHARGE{HAND_CARD, count:2, upToCount:true, filter:{cardType:'シグニ', hasIcon:'アクセ'}}`。⚠**アクセは CardClass ではない**（`hasIcon:'アクセ'` の判定は**カード自身のテキストに「【アクセ】」があるか**＝`matchesFilter`。「《アクセアイコン》」の綴りで拾うと候補0件になる＝golden を書くときに実際に踏んだ）。
+- **(2)** 後段の「同じ枚数」を `{$ref:'last_processed_count'}` へ（`effectParser` の per-effectId 表）。⚠**前段が期待の形のときだけ**書き換える（別機構へ戻ったら $ref は無関係な数字に化ける）。⚠`upToCount` は落とす＝「同じ枚数」は上限ではなく**丁度その枚数**。
+- ⚠**旧 defer の根拠2つはどちらも既に古かった**＝「`TRANSFER_TO_HAND` が `resolveNum` で $ref を0にする」は続き441 で解消済み（いまは `resolveCountRef`）、「前段 STUB が別機構」は本項で解消。**着手前に台帳の根拠を実データで検証すること**（J-4／J-5 と同じ教訓がまた出た）。
+
+### 計器・ゲート
+
+- **golden 2200→2203**（+3＝O-14(a) の2本／O-14(b) の1本）。`WXEX1-44-E2` の defer トリップワイヤは**正方向の挙動テストへ書き換え**（前段の型・filter・upTo／後段の $ref／2枚置き→2枚回収／**0枚置き→0枚回収**の対照）。
+- 🔑**4本とも「実装を戻すと赤くなる」ことを live JSON を一時 revert して実測**（`FAIL 4`）してから復帰させた。
+- **census 806 据置**（ベースライン 806）、smoke 10688 / SKIP 0、fuzz 全0、`census:stubs` 無言 no-op 0、lint 0 errors。**live JSON changed 4効果/4カード**（`WXEX1-44` / `WX15-003` / `WXDi-P08-010` / `WX25-P1-050`。CSV 非改変）。
+- ⚠**3件とも実機未検証**（§7 `V-59`／`V-60` 送り）。
+
 ## 2026-08-17 整理㉖：§6.4「■ 消化済み」節と `O-11` 行の退避（続き539）
 
 > PLAN §6.4 が読めない長さになっていたので、**消化済みの記録をここへ全文移した**（PLAN 側は ID と日付の索引だけ）。
