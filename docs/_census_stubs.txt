@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 601（総ノード 2864 件）
-逆翻訳シートの [STUB:…] 総数: 747  うち生ID露出 95 箇所（35 種）
+逆翻訳シートの [STUB:…] 総数: 747  うち生ID露出 86 箇所（29 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 4 種 / 5 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 4 種 / 5 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 30 種 / 89 箇所
-  D 健全（実装あり＋日本語表示）                          : 567 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 25 種 / 81 箇所
+  D 健全（実装あり＋日本語表示）                          : 572 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 345 種
 
 ==============================================================================
@@ -136,12 +136,6 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         カード: WXEX1-54, WXEX1-56, WXEX2-56
   露出  3箇所 (live 3件/3枚)  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY  [engine別経路]
         カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
-  露出  3箇所 (live 3件/3枚)  OPP_DECLARE_CHOICE  [execStubPart3]
-        カード: PR-K060, WX05-006, WX16-Re17
-        既存コメント: OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
-  露出  2箇所 (live 2件/2枚)  BANISH  [execStubPart2]
-        カード: WXDi-CP01-015, WXK06-025
-        既存コメント: BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ
   露出  2箇所 (live 6件/5枚)  CAST_FROM_OPP_TRASH  [execStubPart2]
         カード: PR-433, WX14-027, WXEX1-46, WXEX2-12, WXK11-016
         既存コメント: CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
@@ -150,23 +144,17 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         既存コメント: ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: CONTINUOUS効果（effectEngine.collectEnergyColorSubsで動的計算）
   露出  2箇所 (live 2件/2枚)  LRIG_UNDER_TRASH_ANY  [execStubPart1]
         カード: WD21-009, PR-238
-  露出  1箇所 (live 1件/1枚)  ACCE_TO_ENERGY  [execStubPart2]
-        カード: WD18-009
-        既存コメント: ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ
-  露出  1箇所 (live 1件/1枚)  ADD_CARD_TO_LRIG_DECK  [execStubPart2]
-        カード: WXDi-P09-007
-        既存コメント: ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える
   露出  1箇所 (live 1件/1枚)  BLOCK_COLORLESS_ENERGY_PAY  [execStubPart3]
         カード: WXK07-001
+  露出  1箇所 (live 1件/1枚)  COST_COLOR_SELECT  [execStubPart3]
+        カード: WX04-063
+        既存コメント: COST_COLOR_SELECT（WX04-063 ゲット・ゲート）: 支払われたエナ1つにつきその色を1つ選択し、選択した「色の種類」1つにつき その色のシグニ1枚をデッキから探して公開・手札に加える（その後シャッフ
   露出  1箇所 (live 1件/1枚)  DECLARE_TWO_GUARD_LEVELS  [execStubPart1]
         カード: WD21-009
   露出  1箇所 (live 1件/1枚)  FLIP_SELF_ON_TARGETED  [engine別経路]
         カード: WX25-CP1-060
   露出  1箇所 (live 1件/1枚)  INTERNAL_OPEN_MB_SKIP  [execStubPart3]
         カード: WX24-P3-050
-  露出  1箇所 (live 1件/1枚)  LRIG_LIMIT_MODIFY  [execStubPart2]
-        カード: WXDi-P16-047
-        既存コメント: LRIG_LIMIT_MODIFY (STUB版): ルリグリミット修正
   露出  1箇所 (live 1件/1枚)  MAYU_ENCOUNTER_FLIP_AND_GROW  [engine別経路]
         カード: WXDi-P13-003A
   露出  1箇所 (live 1件/1枚)  OPP_TURN_ARTS_COST_REDUCTION_ONCE  [engine別経路]
@@ -185,9 +173,6 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         カード: WX24-P4-016
   露出  1箇所 (live 1件/1枚)  STRIP_OPP_ENA_MULTI_ENA  [engine別経路]
         カード: WXK11-020
-  露出  1箇所 (live 1件/1枚)  TRASH  [execStubPart2]
-        カード: WDK07-E09
-        既存コメント: TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
   露出  1箇所 (live 1件/1枚)  TRASH_ABILITY_LOSS_AND_IMMUNITY  [engine別経路]
         カード: WX12-023
   露出  1箇所 (live 1件/1枚)  TRASH_UNDER_SIGNI_UP_TO_ALL  [execStubPart3]

@@ -69,9 +69,12 @@ function descriptionForId(lines, id, knownIds) {
     const at = line.search(/[:：]/);
     if (at < 0 || at > 80) return null;
     const head = line.slice(0, at).replace(/[(（][^)）]*[)）]/g, '');
-    const parts = head.split(/[\/／、]/).map(s => s.trim()).filter(Boolean);
-    if (parts.length === 0 || !parts.every(p => knownIds.has(p))) return null;
-    return { ids: parts, rest: line.slice(at + 1).trim() };
+    const parts = head.split(/[\s\/／、]+/).map(s => s.trim()).filter(Boolean);
+    const ids = parts.filter(p => knownIds.has(p));
+    // 注記語（`CAST_FROM_OPP_TRASH AUTO:` の `AUTO` 等）は許すが、日本語が混ざったら本文のコロン。
+    const ok = ids.length > 0 && parts.every(p => knownIds.has(p) || /^[A-Za-z0-9]{1,12}$/.test(p));
+    if (!ok) return null;
+    return { ids, rest: line.slice(at + 1).trim() };
   };
   const strip = (line) => labelIdsOf(line)?.rest ?? line;
   const mine = lines.filter(l => labelIdsOf(l)?.ids.includes(id));
