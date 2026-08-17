@@ -1082,7 +1082,7 @@ export function PlayerField({ state, cards, isMe, getSigniZoneActions, getLrigDe
             isAbilityRemoved={s ? s.some(num => state.abilities_removed?.includes(num)) : false}
             effectivePowers={effectivePowers}
             charmCardNum={state.field.signi_charms?.[rawIdx] ?? null}
-            acceCardNums={state.field.signi_acce?.[rawIdx] ?? null}
+            acceCardNums={normalizeAcceSlot(state.field.signi_acce?.[rawIdx])}
             virusCount={state.field.signi_virus?.[rawIdx] ?? 0}
             chokkinCount={state.field.signi_chokkin?.[rawIdx] ?? 0}
             trapCardNum={state.field.signi_traps?.[rawIdx] ?? null}
