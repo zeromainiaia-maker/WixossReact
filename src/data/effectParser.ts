@@ -171,6 +171,18 @@ import { encodeShadowScopesInText, normalizeKeywordName } from '../utils/keyword
 // 呼び出し側は従来経路へ落ちる（過剰な filter・群の取り違えより取りこぼす方を選ぶ）。
 type LookPickStage = import('../types/effects').LookPickChainStage;
 const PICK_DEST_RE = /^(手札に加え|エナゾーンに置|トラッシュに置|場に出)/;
+
+/**
+ * 「（この方法で）（エナゾーンから）カードを（合計）N枚以上トラッシュに置いた場合、（追加で）〈帰結〉」＝
+ * **コスト支払い枚数のゲート**（§6.4 O-35・続き530）。$1＝閾値／$2＝帰結。
+ *
+ * 「この方法で」がコロンの左＝**コスト節**（「エナゾーンからすべてのカードをトラッシュに置く」）を指す形で、
+ * 支払い枚数が可変なので閾値ゲートになる。engine 側は `COST_TRASHED_MATCHES{minCount}`＝
+ * BattleScreen がコスト支払い時に必ず記録する `last_cost_trashed_cards` を数えるだけ。
+ * ⚠**本文の直前ステップの結果枚数を指す形は別**（`LAST_PROCESSED_COUNT_GTE` の領分）＝使う側で
+ *   「先頭文か、直前が同じコストゲートのときだけ」に限定すること。
+ */
+const COST_TRASH_COUNT_GATE_RE = /^(?:この方法で)?(?:エナゾーンから)?(?:カードを)?(?:合計)?([０-９\d]+)枚以上(?:を)?トラッシュに置いた場合、(?:追加で)?(.+)$/;
 function pickDest(verb: string): LookPickStage['then'] | null {
   const m = verb.match(PICK_DEST_RE);
   if (!m) return null;
