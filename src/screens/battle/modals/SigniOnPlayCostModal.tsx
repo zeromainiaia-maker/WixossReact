@@ -166,7 +166,8 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
-                && selectedSigniOnPlayEnergyTrash.size >= enaTrashNeeded
+                // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
+                && energyTrashCostSatisfied(pcEnergy, selectedSigniOnPlayEnergyTrash, eff.cost?.energyTrash, battleCardMap)
                 && fieldTrashSelectionSatisfied(
                   ftCost, ftGroups, [...selectedSigniOnPlayFieldTrash],
                   pState, battleCardMap, selfZoneFT,
