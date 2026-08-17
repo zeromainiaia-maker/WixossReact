@@ -1643,7 +1643,9 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
           },
         },
       ] },
-      duration: 'INSTANT',
+      // ⚠live の既存値（`UNTIL_END_OF_TURN`）に合わせる＝Lv1 の `POWER_MODIFY`（duration 省略）と
+      //   Lv3 の `GRANT_KEYWORD` がターン終了時に消える扱いを従来どおり保つ。
+      duration: 'UNTIL_END_OF_TURN',
       mandatory: true,
       parseStatus: 'MANUAL',
     },
