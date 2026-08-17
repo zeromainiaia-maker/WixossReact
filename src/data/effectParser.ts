@@ -14890,6 +14890,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyOpponentChoiceRepeatLookPickWave16(card.CardNum, effects);
   applyFinalLookPickWave17(card.CardNum, effects);
   applyExceedBodyFixes(card.CardNum, effects);
+  hoistSelfAbilityCostReduction(effects);
   dropRedundantStepAfterTargetOppSigniOnly(effects);
   applyStateCondBatch4(effects);
   applyLrigColorBatch5(effects);
