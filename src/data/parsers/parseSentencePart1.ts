@@ -4078,7 +4078,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       } as EnergyChargeAction;
     }
     // 汎用: トラッシュから(フィルタ)N枚を対象とし、それをエナゾーンに置く
-    const trashToEnaG = t.match(/トラッシュから.{0,30}?([０-９\d]+)枚(まで)?を?対象とし、それら?をエナゾーンに置く/);
+    // ⚠「そのレゾナの**出現条件のためにトラッシュに置いた**カード」は照応（＝直前に払ったコスト札そのもの）で、
+    //   filter では表せない＝`RESONANCE_COST_CARDS_TO_ENERGY`（part2・engine が `lastProcessedCards` を読む）の
+    //   領分。ここで拾うと**トラッシュの任意2枚**を選べる過剰へ退化する（§6.4 O-36・続き534＝ターン条件の
+    //   持ち上げで文が分割され、本規則が先に当たるようになったため顕在化。`WXEX1-16-E1` 1件）。
+    const trashToEnaG = /出現条件のためにトラッシュに置いた/.test(t)
+      ? null
+      : t.match(/トラッシュから.{0,30}?([０-９\d]+)枚(まで)?を?対象とし、それら?をエナゾーンに置く/);
     if (trashToEnaG) {
       const filter: TargetFilter = { ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parseGuardFilter(t) };
       if (t.includes('シグニ')) filter.cardType = 'シグニ';
