@@ -521,7 +521,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `BLOCK_OPP_AUTO_ABILITY_EXTENDED` | 1 | 1 | WXDi-P13-006 | BLOCK_OPP_AUTO_ABILITY_EXTENDED: このターンと次のターン、相手シグニの【自】能力は発動しない |
 | `BLOCK_OPP_DECK_TO_ENERGY` | 1 | 1 | WXK11-068 |  |
 | `BLOCK_OPP_SIGNI_FIELD_PLACE_BY_SIGNI_EFFECT` | 1 | 1 | WXK11-042 |  |
-| `BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN` | 1 | 1 | WXK10-013 | BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: このターン、対戦相手はシグニを新たに場に出せない ⚠id は「IF_OPP_TURN」だが**ターン判定はここでは見ない**＝§6.4 O-36（続き534）で   「対… |
+| `BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN` | 1 | 1 | WXK10-013 | BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: このターン、対戦相手はシグニを新たに場に出せない |
 | `BLOCK_OPP_SPELL_ACT_NEXT_TURN` | 1 | 1 | WXDi-P09-007 | ブロック系（engine: 行動ブロック未実装） BLOCK_OPP_SPELL_ACT_NEXT_TURN: 次の対戦相手のターン中、スペルと起動能力を使用できない |
 | `CARDS_OUTSIDE_ENERGY_BECOME_WHITE` | 1 | 1 | WX08-005 |  |
 | `CENTER_LRIG_COLOR_CHANGE_BLACK` | 1 | 1 | WXK03-006 |  |
@@ -603,7 +603,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPP_REVEAL_TOP_AND_HAND` | 1 | 1 | WXDi-D09-P14 | OPP_REVEAL_HAND_AND_LRIG_DECK / OPP_REVEAL_LRIG_DECK / OPP_REVEAL_TOP_AND_HAND: 公開ログ |
 | `OPP_SIGNI_ONE_ATTACK_TOTAL` | 1 | 1 | WXDi-P04-023 | LIMIT_OPP_SIGNI_ATTACKS_ONCE / OPP_SIGNI_ONE_ATTACK_TOTAL / LIMIT_OPP_ATTACK_ONCE: 相手シグニ合計1回アタック制限 |
 | `OPP_TRASH_LOSE_COLOR_AND_CLASS` | 1 | 1 | WXK11-026 | OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理） |
-| `OPP_TURN_NO_ENERGY_COST` | 1 | 1 | WXDi-P03-012 | OPP_TURN_NO_ENERGY_COST: このターン、対戦相手はエナコストを支払えない 唯一の利用者 `WXDi-P03-012-E2` の原文は「**対戦相手のターンの場合**、**このターン**、対戦相手は １以上のエナコスト… |
+| `OPP_TURN_NO_ENERGY_COST` | 1 | 1 | WXDi-P03-012 | OPP_TURN_NO_ENERGY_COST: このターン、対戦相手はエナコストを支払えない |
 | `OPTIONAL_HAND_REVEAL_NAMED` | 1 | 1 | WX05-038 | OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開 |
 | `PLACE_CHOKKIN` | 1 | 1 | WX17-034 | PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1 |
 | `PLACE_DECK_TOP_UNDER_WEAPON_SIGNI` | 1 | 1 | WXK08-088 | PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: ウェポンシグニの下にデッキ上を置く |

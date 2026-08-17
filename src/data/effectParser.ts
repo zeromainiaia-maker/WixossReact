@@ -56,10 +56,14 @@ const STATE_HOIST_BATCH1_CARDS = new Set([
   // 🆕§6.4 O-35・続き528＝`WXK03-040-E1`「【出】：**あなたのターンの場合**、あなたのデッキの一番下の
   //   カードをトラッシュに置く。それがレベル１のシグニの場合、それをトラッシュから場に出す。」
   //   条件が allowlist 外で落ち、1文目ごと `CONDITIONAL_POWER_BONUS`（無言 no-op）＝**ミルが起きないのに
-  //   2文目の場出しだけ無条件に走る**過剰実行だった。⚠allowlist の全撤廃は §6.4 **O-36**（残24効果・
-  //   一斉に変わるので A/B 必須）。ここは1枚だけを個別に検証して足している。
+  //   2文目の場出しだけ無条件に走る**過剰実行だった。
   'WXK03-040',
 ]);
+// 🏁§6.4 **O-36 完了**（2026-08-17 続き534）＝「(あなた|対戦相手)の**ターンの場合**」はこの allowlist から
+//   **外した**（`isBatch1OnlyClause` の該当行を削除・`parseAbilityBlock` の先頭持ち上げもゲートなし）。
+//   allowlist 外に23効果あり、条件が丸ごと落ちて**ターンを問わず発火**していた。全5971カードの A/B で
+//   影響を実測してから外している。⚠**この Set はまだ生きている**＝ライフクロスの閾値形（`isBatch1OnlyClause`
+//   の残り3条件）と `printedLifeM`（:13971）が引く。ターン以外の語彙をここから外すときも A/B を取ること。
 
 // PLAN §3 task12(xlvi) wave2: a single reveal followed by independent pick groups.
 // Card gating keeps the new multi-stage grammar from changing superficially similar LOOK_AND_REORDER text.
