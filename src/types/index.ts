@@ -848,6 +848,15 @@ export interface PlayerState {
   // （HAND_TRASHED_BY_OPP / ENERGY_TRASHED_BY_OPP）用＝WXDi-P02-005/WXDi-P07-023/SPK16-13E。ターン境界で0へリセット。
   hand_trashed_by_opp_this_turn?: number;
   energy_trashed_by_opp_this_turn?: number;
+  /**
+   * このターンに**ダウン状態になった自分のシグニ**のカード番号（発生順）。
+   * 「それがこのターンで**N回目**である場合」条件（`SIGNI_DOWNED_COUNT_THIS_TURN`）用＝`WX05-042`（§6.4 O-11）。
+   * ⚠**枚数ではなくカード番号を積む**＝原文が「あなたの＜植物＞のシグニ」のように**クラスで絞る**ため、
+   *   数えるときに `filter` を当てられる形にしておく（数だけだと絞りが表現できない）。
+   * ⚠記録は**ダウン検出の3経路すべて**（中央 diff／アタック宣言によるダウン／常時効果によるダウン）で行う
+   *   ＝`recordSigniDownedThisTurn` を通す。1経路でも漏らすと「N回目」が永久に来ない。ターン境界で空にする。
+   */
+  signi_downed_this_turn?: string[];
   // 直近の効果ドロー（execDraw 経由）の原因カード番号。triggerCondition.drawBySourceStory（WX20-026-E3）の発火判定用。
   // ドローフェイズの通常ドロー（drawCards 経由）では undefined にクリアし、効果ドロー（execDraw）が原因カードを上書きする。
   last_effect_draw_source?: string;

@@ -104,7 +104,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         消費: src\screens\BattleScreen.tsx:1017 / src\screens\BattleScreen.tsx:10485
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1399
+        消費: src\engine\execUtils.ts:1403
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6851
