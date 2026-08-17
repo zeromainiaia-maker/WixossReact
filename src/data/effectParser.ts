@@ -3629,6 +3629,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
         g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
+      // 「あなたの場にそれぞれ共通する色を持たない＜C＞のシグニがN体ある場合」（§6.4 O-11・`WX21-006-E1`）。
+      // 🔴受け皿 `NO_COMMON_COLOR_AMONG_FIELD_SIGNI` は engine 実装済みなのに **live 利用者0の死んだ受け皿**
+      //   だった（クラス filter が無く、この文型を表せなかったため）。filter を足して繋いだ。
+      //   条件が落ちていた `WX21-006-E1` は live が `DRAW 1` だけ＝**バニッシュもエナ置きも消えていた**。
+      [/あなたの場にそれぞれ共通する色を持たない＜([^＞]+)＞のシグニが([０-９\d]+)体ある場合/,
+        g => ({ type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI', owner: 'self', count: parseNum(g[1]), filter: { cardType: 'シグニ', story: g[0] } })],
       [/あなたの場に＜([^＞]+)＞のシグニが([０-９\d]+)体(?:以上)?ある(?:場合|間)/,
         g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]) })],
       // 「あなたの場に(色)と(色)のシグニがある場合」＝両方の色のシグニがそれぞれ1体以上（同一カードの多色でも別々の2枚でも可）。
