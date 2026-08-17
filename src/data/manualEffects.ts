@@ -1604,6 +1604,51 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX12-CB02 幻獣　ぷにとー（§6.4 O-11・2026-08-17 続き526）
+  // E1【自】：アタックフェイズ開始時、デッキの一番上を公開する。公開したシグニのレベルで**5分岐**：
+  //   Lv1 自パワー＋5000／Lv2 エナチャージ1／Lv3 このシグニが【ランサー】／Lv4 1ドロー／Lv5 相手シグニ1体をバニッシュ。
+  // 🔴live は archive の one-off パッチ（`scripts/archive/fixWX2.mjs`）が書いた **Lv1・Lv2 の2分岐だけ**の
+  //   MANUAL で、**Lv3〜Lv5 が丸ごと落ちていた**（parser も 5分岐は組めず fresh は Lv1 だけに縮退する）。
+  // 🔑**else の入れ子チェーン**にするのが要点＝並列 CONDITIONAL を並べると、Lv2 の
+  //   `ENERGY_CHARGE_FROM_DECK` が**デッキトップを持っていってしまう**ため、後段の `DECK_TOP_MATCHES` が
+  //   **次のカード**を見て二重発火する。else なら1本だけ走って打ち切られる。
+  // ⚠engine 側には同義のカード専用 STUB `REVEAL_TOP_LEVEL_ROUTE`（`execStubPart3.ts`）があるが、
+  //   live からは参照していない（§6.4 O-20 の「カード全文を読む STUB」クラス）。構造化 DSL 側を正とする。
+  'WX12-CB02': [
+    {
+      effectId: 'WX12-CB02-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_PHASE_START'],
+      triggerScope: 'self',
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'LOOK_AND_REORDER', source: { location: 'deck', owner: 'self' }, count: 1, private: false, reorder: false, destination: { location: 'deck', owner: 'self', position: 'top' } },
+        { type: 'CONDITIONAL',
+          condition: { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 1 } },
+          then: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, delta: 5000 },
+          else: { type: 'CONDITIONAL',
+            condition: { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 2 } },
+            then: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
+            else: { type: 'CONDITIONAL',
+              condition: { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 3 } },
+              then: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'ランサー', duration: 'UNTIL_END_OF_TURN' },
+              else: { type: 'CONDITIONAL',
+                condition: { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 4 } },
+                then: { type: 'DRAW', owner: 'self', count: 1 },
+                else: { type: 'CONDITIONAL',
+                  condition: { type: 'DECK_TOP_MATCHES', owner: 'self', filter: { cardType: 'シグニ', level: 5 } },
+                  then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+                },
+              },
+            },
+          },
+        },
+      ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // WX01-059 出弓　ボウ（シグニ）
   // E1【出】：デッキトップを見る。それがレベル1のシグニで自分の場に他のシグニがない場合、出してもよい。
   //   旧JSONは ADD_TO_FIELD 無条件＝条件・任意欠落。→ WX01-036/057 と同型。レベルは「1」（ちょうど）。
