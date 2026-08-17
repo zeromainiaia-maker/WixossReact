@@ -16254,7 +16254,10 @@ test('REPEAT 正準形: live に REPEAT_N_TIMES が残らず、本文が丸ご�
 // トリップワイヤ＝`REPEAT_N_TIMES` は live 全体で 0 件（engine 側の全文 regex 実装は §6.4 O-32 で撤去済み）。
 // ⚠parser が退行してここへ戻ると、旧実装のような二重実行ではなく**何も起きない**（過少側）に倒れる。
 // この assert が落ちたら parser 側を直す合図。`REPEAT_EFFECT` の残り1件（`WX22-016-E1`）は §6.4 O-29 待ち。
-test('REPEAT_N_TIMES: live 0件／REPEAT_EFFECT は WX22-016-E1 の1件だけ（トリップワイヤ）', () => {
+// 🆕**2026-08-17（§6.4 O-29）で `REPEAT_EFFECT` も live 0件になった**＝最後の利用者だった
+//    `WX22-016-E1` の②を、`allowRepeat` つき CHOOSE ＋**本体と同じ木**へ置き換えたため。
+// ⚠どちらの id も engine では「何もしない」（過少側）ので、live に戻ってきたら parser の退行。
+test('REPEAT_N_TIMES／REPEAT_EFFECT: どちらも live 0件（トリップワイヤ）', () => {
   const nTimes: string[] = [];
   const nEffect: string[] = [];
   for (const [, effs] of effectsMap) {
