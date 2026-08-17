@@ -13319,6 +13319,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (exceedCost > 0) costParts.push(`エクシード${exceedCost}`);
           if (energyTotal > 0) costParts.push(`エナ${energyTotal}`);
           if (eff.cost?.coin) costParts.push(`コイン${eff.cost.coin}`);
+          if (eff.cost?.down_self) costParts.push('このルリグをダウン');   // タスク12(cxxxi)
           const costLabel = costParts.join('・') || 'コストなし';
           return {
             label: `【起】${costLabel}`,
