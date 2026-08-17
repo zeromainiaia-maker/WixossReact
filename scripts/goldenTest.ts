@@ -39224,6 +39224,76 @@ test('§5d-0(i) parser: 「傀儡状態の」連体形はトリガー文なの�
   ok(s.includes('CHOOSE'), '本体は3択のまま');
 });
 
+// ── §5d-0 (ii) 2026-08-18：`cost.energyTrash` の集合制約が「捕捉されて捨てられて」いた ──
+// 🔴parser の regex は5つの言い回しを**捕捉していたのに switch が2つしか写していなかった**ので、
+//   「エナゾーンからそれぞれレベルの異なるシグニ３枚をトラッシュに置く」は**同じレベル3枚でも払えた**。
+//   さらに UI 側は `size >= count` しか見ておらず、型にあった `selectionConstraint` は**完全な死フラグ**だった。
+const energyTrashCostCases = [
+  { effectId: 'WD18-001-E2', want: '"distinct":"level"', why: 'それぞれレベルの異なる＜調理＞のシグニ４枚（後置き形）' },
+  { effectId: 'WXDi-P09-008-E1', want: '"distinct":"level"', why: 'それぞれレベルの異なるシグニ３枚' },
+  { effectId: 'WXDi-P04-028-E3', want: '"distinct":"class"', why: 'それぞれ共通するクラスを持たないシグニ７枚' },
+  { effectId: 'WX11-052-E3', want: '"distinct":"name"', why: '名前の異なる＜精元＞のシグニ８枚' },
+  { effectId: 'WXK11-047-E3', want: '"distinct":"name"', why: 'それぞれ名前の異なる《サーバント》１５枚' },
+  { effectId: 'WXK09-052-E2', want: '"distinct":"level"', why: 'レベル１～４のシグニを1枚ずつ＝各レベル1枚' },
+  { effectId: 'WXK10-050-E2', want: '"distinct":"level"', why: 'レベル１～４のシグニを1枚ずつ＝各レベル1枚' },
+] as const;
+for (const spec of energyTrashCostCases) {
+  test(`§5d-0(ii) live ${spec.effectId}: energyTrash コストに集合制約が載る（${spec.why}）`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    const s = JSON.stringify(eff.cost?.energyTrash ?? {});
+    ok(s.includes(spec.want), `原文の集合制約 ${spec.want}（実際 ${s}）`);
+  });
+}
+
+test('§5d-0(ii) energyTrashCostSatisfied: 枚数を満たしても制約違反なら払えない', () => {
+  const lv1a = findCard(c => isSigni(c) && c.Level === '1');
+  const lv1b = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== lv1a);
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2');
+  const energy = [lv1a, lv1b, lv2];
+  const cm = cardMap as Map<string, CardData>;
+  const spec = { count: 2, selectionConstraint: { distinct: 'level' as const } };
+  ok(!energyTrashCostSatisfied(energy, new Set([0, 1]), spec, cm), '🔴同レベル2枚は払えない');
+  ok(energyTrashCostSatisfied(energy, new Set([0, 2]), spec, cm), 'レベルが異なれば払える');
+  ok(!energyTrashCostSatisfied(energy, new Set([0]), spec, cm), '枚数不足は払えない');
+  // 制約が無いコストは従来どおり枚数だけで判定する（既存挙動を変えない）
+  ok(energyTrashCostSatisfied(energy, new Set([0, 1]), { count: 2 }, cm), '制約なしは同レベル2枚でも払える');
+  ok(energyTrashCostSatisfied(energy, new Set(), undefined, cm), 'コスト自体が無ければ常に true');
+});
+
+test('§5d-0(ii) canAddEnergyTrashIndex: 制約を壊す組み合わせは選べない（選ばせてから赤くしない）', () => {
+  const lv1a = findCard(c => isSigni(c) && c.Level === '1');
+  const lv1b = findCard(c => isSigni(c) && c.Level === '1' && c.CardNum !== lv1a);
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2');
+  const energy = [lv1a, lv1b, lv2];
+  const cm = cardMap as Map<string, CardData>;
+  const spec = { count: 2, selectionConstraint: { distinct: 'level' as const } };
+  ok(canAddEnergyTrashIndex(energy, new Set(), 0, spec, cm), '1枚目はどれでも選べる');
+  ok(!canAddEnergyTrashIndex(energy, new Set([0]), 1, spec, cm), '🔴同レベルの2枚目は選べない');
+  ok(canAddEnergyTrashIndex(energy, new Set([0]), 2, spec, cm), '別レベルなら選べる');
+  ok(canAddEnergyTrashIndex(energy, new Set([0]), 0, spec, cm), '選択済みの解除は常に可');
+  ok(!canAddEnergyTrashIndex(energy, new Set([0, 2]), 1, spec, cm), '枚数上限に達したら選べない');
+  ok(!canAddEnergyTrashIndex(energy, new Set(), 0, undefined, cm), 'コスト自体が無ければ選べない');
+});
+
+test('§5d-0(ii) 支払いUI3経路すべてが共有判定を通る（1つ落とすとその入口だけ制約なしで払える）', () => {
+  // ⚠続き546 の教訓「支払い地点と提示地点は別々に数える」＝モーダルごとに写経されていた
+  //   `size >= count` を1本の純関数へ寄せたので、**3ファイルすべてで呼ばれていること**を固定する。
+  for (const f of ['SigniActivatedModal', 'LrigGrantedModal', 'SigniOnPlayCostModal']) {
+    const src = fs.readFileSync(join(root, `src/screens/battle/modals/${f}.tsx`), 'utf8');
+    ok(src.includes('energyTrashCostSatisfied('), `${f}: 支払い可否が共有判定を通る`);
+    ok(src.includes('canAddEnergyTrashIndex('), `${f}: 候補の選択可否が共有判定を通る`);
+    // 旧実装（写経された枚数比較）が残っていたら、その入口だけ制約を無視して払える
+    ok(!/EnergyTrash\.size\s*>=/.test(src), `🔴${f}: 旧 size>=count の写経が残っていない`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
