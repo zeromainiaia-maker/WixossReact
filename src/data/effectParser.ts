@@ -1321,22 +1321,6 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: undefined, rest: text.slice(fieldGenM[0].length), conditionFound: true };
   }
 
-  // パターン3z-2: 「あなたのエナゾーンに(レベルNの)?(色|＜C＞)のシグニがあるかぎり、」（2026-08-18・§5d-0）
-  // 🔴従来は落ちて**無条件でパワー＋3000**（`WXK09-082-E1`／`WXK09-086-E1`）。`ENERGY_HAS_CARD` は実装済み。
-  const enaSigniM = text.match(/^あなたのエナゾーンに(?:レベル([０-９\d]+)の)?((?:[白赤青緑黒]の|＜[^＞]+＞の)*)シグニが(?:([０-９\d]+)枚以上)?あるかぎり、/);
-  if (enaSigniM) {
-    return {
-      condition: {
-        type: 'ENERGY_HAS_CARD', owner: 'self',
-        filter: { cardType: 'シグニ', ...(enaSigniM[1] ? { level: parseNum(enaSigniM[1]) } : {}),
-          ...parseColorFilter(enaSigniM[2]), ...parseStoryFilter(enaSigniM[2]) },
-        ...(enaSigniM[3] ? { minCount: parseNum(enaSigniM[3]) } : {}),
-      },
-      rest: text.slice(enaSigniM[0].length),
-      conditionFound: true,
-    };
-  }
-
   // パターン3z-3: 「このシグニの下にカードがあるかぎり、」（2026-08-18・§5d-0）
   // 🔴従来は落ちて**無条件でパワー＋5000／能力付与**（`WXK08-085-E1`／`WXK09-059-E1`）。
   //   `THIS_CARD_HAS_UNDER` は実装済み（《ディソナアイコン》限定版だけ規則があった）。
