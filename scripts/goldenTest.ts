@@ -62,7 +62,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill } from '../sr
 import { buildOptionalCostPayload, optionalCostOptions } from '../src/screens/battle/optionalCostUi';
 import { buildRearrangeSigniArrangement } from '../src/screens/battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from '../src/screens/battle/lifeCost';
-import { payLrigDownCost } from '../src/screens/battle/lrigDownCost';
+import { payLrigDownCost, payLrigDownSelfCost } from '../src/screens/battle/lrigDownCost';
 import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels, trashActivateHandDiscard, trashActivateSelectionsSatisfied, unsupportedTrashActivateCostKeys } from '../src/screens/battle/trashActivateCost';
 import { signiAttackBlockReason, signiAttackColorlessCost, collectForcedAttackZones } from '../src/screens/battle/signiAttackGate';
 import { lrigAttackBanCost, signiAttackBanCost } from '../src/screens/battle/signiAttackBan';
