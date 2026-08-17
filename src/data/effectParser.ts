@@ -4327,6 +4327,28 @@ function parseSingleSentenceInner(text: string): EffectAction {
       ] } as SequenceAction;
     }
   }
+
+  // 🔴**「【エナチャージN】をし、X」で後続節 X が丸ごと飲まれる**（§6.4 O-11・`WXK05-005-E1`）。
+  //   `parseSentencePart1` の【エナチャージ】ショートハンドは**文のどこかに【エナチャージN】が有れば
+  //   それ1つだけを返す** catch-all なので、連用形で続く節が無言で消えていた
+  //   （原文「…カードを３枚引き、【エナチャージ４】をし、デッキの上から５枚公開して…場に出し、残りをトラッシュ」
+  //    が **DRAW + CHARGE だけ**＝公開・場出し・トラッシュが全部 no-op）。
+  // 🔑安全条件＝①先頭のエナチャージが現行結果に出ている（＝ショートハンドが食った証拠）
+  //   ②後続節を単独 parse した全ステップが UNKNOWN/STUB でない ③そのうち1つ以上が現行結果に無い型。
+  //   照応（「それ」「その」）を含む後続節は単独 parse で参照先を失うので触らない。
+  const leadEcM = t.match(/^(?:その後、)?【エナチャ[ー―‐−-]ジ[０-９\d]+】をし、(.+)$/);
+  if (leadEcM && result.type !== 'UNKNOWN' && !/^(?:それ|その)/.test(leadEcM[1])) {
+    const steps0 = result.type === 'SEQUENCE' ? (result as SequenceAction).steps : [result];
+    const haveEc = collectActionTypeSet(result);
+    if (haveEc.has('ENERGY_CHARGE_FROM_DECK')) {
+      const tailEc = parseSingleSentence(leadEcM[1]);
+      const tailTops = tailEc.type === 'SEQUENCE' ? (tailEc as SequenceAction).steps : [tailEc];
+      const usable = tailTops.length > 0
+        && tailTops.every(x => x.type !== 'UNKNOWN' && x.type !== 'STUB')
+        && tailTops.some(x => !haveEc.has(x.type));
+      if (usable) return { type: 'SEQUENCE', steps: [...steps0, ...tailTops] } as SequenceAction;
+    }
+  }
   return result;
 }
 
