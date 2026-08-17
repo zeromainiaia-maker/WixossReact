@@ -7590,7 +7590,13 @@ function applyThisWayTrashOutcomeGuards(text: string, action: EffectAction): Eff
 
   // 同じミル結果を読む独立3段。第1段の手札破棄が lastProcessedCards を上書きするため、
   // 既存 snapshot 機構で3条件を先に同じ ctx に対して解決する。
-  if (levelClauses.length === 3 && steps.length === 4 && isDeckTrash(steps[0], 'self', 3)) {
+  // 🆕recorder は「デッキ上3枚トラッシュ」だけでなく**各プレイヤーの公開**でもよい（§6.4 O-35・続き530／
+  //   `SPDi43-25-E2`＝「各プレイヤーは自分のデッキの一番上のカードを公開する」→ レベル合計3分岐）。
+  //   🔴従来この recorder を認識できず、3条件が丸ごと落ちて**4ドローと相手4枚捨てが両方とも無条件**だった。
+  const isLevelSumRecorder = (step: EffectAction | undefined): boolean =>
+    isDeckTrash(step, 'self', 3)
+    || (step?.type === 'STUB' && (step as StubAction).id === 'REVEAL_EACH_PLAYER_DECK_TOP');
+  if (levelClauses.length === 3 && steps.length === 4 && isLevelSumRecorder(steps[0])) {
     return { ...action, steps: [steps[0], { type: 'SEQUENCE', snapshotLastProcessedForConditionals: true,
       steps: levelClauses.map((clause, i) => ({ type: 'CONDITIONAL', condition: clause.condition, then: steps[i + 1] })) }] };
   }

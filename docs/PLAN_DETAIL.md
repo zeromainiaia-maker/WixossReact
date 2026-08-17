@@ -6,6 +6,105 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-17 整理㉒：§6.4 `O-35`（`CONDITIONAL_POWER_BONUS` 受け皿）の解体・完了（続き530）
+
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-17（続き530）。**PLAN §6.4 の `O-35` 行はここへ退避した。**
+
+### 在庫（§3-1 の実測）
+
+live 全走査（`type==='STUB' && id==='CONDITIONAL_POWER_BONUS'`）で **5効果6ノード → 0効果0ノード**。
+内訳＝`WXK03-080-E1`／`WX09-011-E2`／`WX25-CP1-020-E2`（×2）／`WXDi-P13-008-E1`／`SPDi43-25-E2`。
+
+### (1) 対象宣言＋デッキトップミル（**live 3効果・過剰実行**）
+
+原文「対戦相手のシグニを〈N〉体（まで）対象とし、あなたのデッキの一番上のカードをトラッシュに置く。」
+
+🔴 真因は `parseSentencePart1` の「トラッシュに置く（直接除去）」フォールバックが
+`t.includes('対戦相手のシグニ')` **だけ**を見ていたこと＝**間に挟まる目的語を無視**して
+`TRASH{SIGNI opponent}` を返し、**【出】でノーコストの相手シグニ除去**に化けていた
+（`WXK03-080-E1`／`WXK03-081-E1`／`WXEX1-41-E2`。`WXEX1-41-E2` は続く「それをバニッシュする」も
+**自分のシグニ**を撃ち、しかも《トラップアイコン》条件が丸ごと落ちて無条件だった）。
+
+正準形 `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → TRASH{DECK_CARD}` ＋
+帰結を `targetsStored` で宣言済み対象へ束縛（`applyDeckTopMillTargetAnaphora`）。
+あわせて `LAST_PROCESSED_MATCHES` に `hasIcon`（「《Xアイコン》を持つ**カード**」）を配線した。
+
+- 🔑**「を」の有無で2綴りある**＝「シグニ**を２体まで**対象とし」と「シグニ１体**を**対象とし」。
+  `を対象とし` 固定だと前者が丸ごと漏れる（実際 `WXK03-080-E1` だけ外れていた）。
+- ⚠**「そのカードが〜の場合、」は条件持ち上げの alternation へ丸ごとは足さない**＝原文実測53文の大半は
+  `REVEAL_AND_PICK`（公開して条件一致なら帰結）として別経路で正しく解けており、引き込むと構造を壊す。
+  ミル結果を受けるアイコン綴りだけを**列挙で1本**足した。
+
+### (2) コスト支払い枚数のゲート（**live 2効果・no-op と過剰実行が1件ずつ**）
+
+原文「〈エナ全トラッシュ〉：この方法でカードを〈N〉枚以上トラッシュに置いた場合、〈帰結〉」。
+
+新語彙 `COST_TRASHED_MATCHES{minCount}`（既存条件に1キー追加）＝BattleScreen がコスト支払い時に
+記録する `last_cost_trashed_cards` を数えるだけ。`LAST_PROCESSED_COUNT_GTE`（**本文**の直前ステップを見る）
+とは参照先が違うので取り違えない＝**先頭文か、直前が同じコストゲートのときだけ**適用する。
+
+- 🔴**ルリグ【起】の支払い経路にだけ `last_cost_trashed_cards` の記録が無かった**（BattleScreen）＝
+  シグニ【起】(11825) と召喚 (12427) には在るのに欠けており、`WX25-CP1-020-E2`／`WXDi-P16-012-E3`
+  （どちらもルリグ）では条件が**恒久 false** になるところだった。
+- 是正＝`WX25-CP1-020-E2` は無言 no-op（ライフ→エナが一度も起きない）／`WXDi-P16-012-E3` は
+  条件が落ちて**エナ0枚でもライフが1枚増える**過剰実行。
+- 「〈誰か〉のライフクロス1枚をエナゾーンに置く」の**素の綴りに規則が無かった**ので追加（機構
+  `STUB{LIFE_TO_ENERGY}` は最初から完全実装済み＝純粋な parser 穴）。
+
+### (3) 能力スコープのコスト減額（**live 1効果・過少実行**）
+
+原文「あなたのセンタールリグがレベル４以上の場合、**この能力の**発動コストは《赤×2》減る」（`WX09-011-E2`）。
+
+`COST_REDUCTION` は「スペル／アーツ／ルリグ」という**カード種別**に掛かる別軸なので表せない。
+新フィールド `EffectCost.conditionalEnergyReduction{condition, energy}` を置き、
+**【出】コスト効果を集める1点**で `applyAbilityCostReduction` が `energy` へ焼き込む
+（提示モーダル・支払い・可否判定がすべて同じ削減後コストを見る＝funnel を増やさない）。
+
+- 🔑parser は `CONDITIONAL{LRIG_LEVEL, then: STUB{SELF_ABILITY_COST_REDUCTION}}` を作り、
+  `hoistSelfAbilityCostReduction` が **action から cost へ移して**ノードを取り除く。
+- ⚠`tryWrapLeadingStateCond` の**ガードC**（`COST_REDUCTION` を含む id は CONDITIONAL に包まない）に
+  引っかかるので明示的に例外へ入れる＝包まないと条件が消えて**常時タダ**になる。
+- ⚠`optionalOnPlayCostStub` の `SUPPORTED` にキーを足さないと「未対応キーあり」で任意【出】が
+  **丸ごと積まれなくなる**（golden の (xxix)(1) トリップワイヤがこれを検出した）。
+
+### (4) コストを払ってトラッシュのスペルを使用（**live 1効果**）
+
+原文「あなたのトラッシュから《ディソナアイコン》のスペル1枚を対象とし、それを**使用**してもよい」。
+
+🔴既存 `USE_SPELL_FROM_TRASH` は**コストを支払わずに**使うので流用すると過剰実行。
+新 STUB `USE_SPELL_FROM_TRASH_PAYING_COST` が ①候補選択 ②印刷コストの支払い確認 ③本体へ委譲 を担う。
+
+- ⚠選択を跨ぐと `lastProcessedCards` は消えるので、確定したスペルは `carriedCardNum` で運ぶ。
+- ⚠可否は**枚数ではなく色**で見る（`canPayOptionalCost`）＝枚数だけ見ると色が足りないまま
+  「支払う」を選べてしまい、支払いステップが黙って何も引かず**タダで使用**になる。
+- 🔴副産物＝`INTERNAL_CMCLG_DEDUCT` が**支払ったエナを `energy` から抜くだけでトラッシュへ置いておらず、
+  カードがゲームから消えていた**（リフレッシュのデッキ枚数が合わなくなる）。
+
+### (5) `SPDi43-25-E2`（**live 1効果・1文目から誤読**）
+
+原文「各プレイヤーは自分のデッキの一番上のカードを公開する。（レベル合計）３以下→4ドロー／４→相手が
+ルリグデッキから1枚をルリグトラッシュ／５以上→相手が手札4枚捨て」。
+
+- 🔴1文目が `LOOK_OPP_LIFE_TOP`（＝**相手のライフクロス**上を見る別機構）に化けており、公開が起きず
+  `lastProcessedCards` に無関係な札が載っていた → 新 STUB `REVEAL_EACH_PLAYER_DECK_TOP`
+  （⚠公開札は**デッキの一番上に残す**。`REVEAL_BOTH_DECK_TOPS` は一番下へ回す別文型なので流用しない）。
+- 🔴3つのレベル合計条件が全部落ちて**4ドローと相手4枚捨てが両方とも無条件**だった → 既存の
+  `applyThisWayTrashOutcomeGuards`「同じミル結果を読む独立3段」の recorder 判定を公開にも広げ、
+  `SEQUENCE{snapshotLastProcessedForConditionals}` ＋ `LAST_PROCESSED_LEVEL_SUM` ×3 へ。
+- 🔑**新しい綴りを足す前に同義の STUB が engine に無いかを見る**（続き529 と同じ罠）＝
+  「対戦相手は自分のルリグデッキからカード1枚をルリグトラッシュに置く」に `TRASH{LRIG_DECK_CARD}` を
+  新設しかけたが、**`STUB{OPP_LRIG_DECK_TO_LRIG_TRASH}` が実装済み**（parser 規則だけが無く、
+  live では `WX24-P4-014-E3` の手パッチだけが持っていた）と分かり、engine 側の追加を撤回して
+  **parser 規則を足す**方向に変えた。
+
+### 残した契約（golden 4本）
+
+1. 受け皿 `STUB{CONDITIONAL_POWER_BONUS}` の **live 0件**トリップワイヤ（parser の46規則がここへ流れ込むので、
+   復活したら赤くなる＝規則を足すなら専用 id を与えること）。
+2. (1) の正準形（`SELECT_TARGET_ONLY`/`STORE`/`DECK_CARD`/`targetsStored`）と `hasIcon` 条件。
+3. (2)(3) の parse 形＋engine 評価（枚数閾値・条件成立/不成立でのコスト減額）。
+4. (4)(5) の engine 挙動（支払ったエナがトラッシュへ移る／公開札がデッキ上に残る／レベル合計3分岐）。
+
 ## 2026-08-16 整理㉑：§6.4 `O-11`（計器の未仕分け）の仕分け結果 — `verifyEffects` アクション照合
 
 > 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-16（続き519）。**PLAN §6.4 の `O-11` 行はこの節を参照する。**

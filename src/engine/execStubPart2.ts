@@ -13,6 +13,7 @@ import {
   resolveTokenBase,
   isOwnTrashMoveLocked,
   matchesFilter,
+  canPayOptionalCost,
   hasNoAbility,
   designatedZones,
   buildFrontPowerGatedKeywordGrant,
@@ -3946,7 +3947,10 @@ export function execStubPart2(
       { type: 'STUB', id: 'INTERNAL_CMCLG_DEDUCT', value: JSON.stringify(colorsUS) } as StubAction,
       bodyUS,
     ] } as SequenceAction;
-    const canAffordUS = ctx.ownerState.energy.length >= colorsUS.length;
+    // ⚠**枚数ではなく色で**可否を見る（`canPayOptionalCost`）＝枚数だけ見ると、色が足りないまま
+    //   「支払う」を選べてしまい、`INTERNAL_CMCLG_DEDUCT` は該当色が無いとき黙って何も引かない
+    //   ＝**タダで使用**になる。
+    const canAffordUS = canPayOptionalCost(colorsUS, ctx.ownerState, ctx.cardMap);
     return needsInteraction(addLog(ctx, `${cardUS.CardName}のコストを支払いますか？`), {
       type: 'CHOOSE', count: 1, options: [
         { id: 'pay', label: `使用する（${colorsUS.map(c => `《${c}》`).join('')}）`, action: payUS, available: canAffordUS, costColors: colorsUS },

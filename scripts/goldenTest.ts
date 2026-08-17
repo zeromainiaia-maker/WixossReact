@@ -14622,6 +14622,54 @@ test('型網羅 ALT_COST_OPP_TURN: engine では no-op（展開フェイズで�
   eq(r.done, true, '完了する');
   eq(JSON.stringify((r.ownerState as PlayerState).field.signi), before, '盤面を変えない');
 }));
+test('§6.4 O-35 完了の契約: 受け皿 STUB{CONDITIONAL_POWER_BONUS} は live 0件（続き530）', () => withSavedCursor(() => {
+  // 🔴この受け皿には **parser の46規則が流れ込む**（どれも正しい意味のコメントの直下）。ハンドラ
+  //   （`execStubPart1`）の9分岐はすべて原文の `＋N`/`－N` を要求するので、**当たらなければ無言 no-op、
+  //   当たると「カード全文の別の節」の数値を適用する誤発火**になる。O-35 で live 0件まで解体したので、
+  //   ここを契約にして**復活した瞬間に赤くする**（規則を足すなら専用 id を与えること）。
+  const hits: string[] = [];
+  const walk = (n: unknown, id: string): void => {
+    if (!n || typeof n !== 'object') return;
+    if (Array.isArray(n)) { n.forEach(x => walk(x, id)); return; }
+    const o = n as Record<string, unknown>;
+    if (o.type === 'STUB' && o.id === 'CONDITIONAL_POWER_BONUS') hits.push(id);
+    Object.values(o).forEach(x => walk(x, id));
+  };
+  for (const effs of effectsMap.values()) for (const e of effs) walk(e.action, e.effectId);
+  eq(hits.length, 0, `live に CONDITIONAL_POWER_BONUS は無い（出た: ${hits.join(',')}）`);
+}));
+
+// §6.4 O-35（続き530）: `SPDi43-25-E2` の3分岐。1文目が `LOOK_OPP_LIFE_TOP`（相手ライフ上）に化けており、
+//   3つのレベル合計条件も全部落ちて **4ドローと相手4枚捨てが両方とも無条件**だった。
+test('SPDi43-25-E2: 各プレイヤーの公開→レベル合計3分岐（snapshot で同じ公開結果を読む）', () => withSavedCursor(() => {
+  type CondA = import('../src/types/effects').ConditionalAction;
+  const seq = manualEffect('SPDi43-25', 'SPDi43-25-E2').action as SeqA;
+  eq((seq.steps[0] as import('../src/types/effects').StubAction).id, 'REVEAL_EACH_PLAYER_DECK_TOP', '1文目は各プレイヤーの公開');
+  const inner = seq.steps[1] as SeqA;
+  ok(inner.snapshotLastProcessedForConditionals, '3条件は同じ公開結果を読む（snapshot）');
+  const want = [['lte', 3, 'DRAW'], ['eq', 4, 'STUB'], ['gte', 5, 'TRASH']] as const;
+  eq(inner.steps.length, 3, '3分岐');
+  inner.steps.forEach((st, i) => {
+    const g = st as CondA;
+    eq(g.condition.type, 'LAST_PROCESSED_LEVEL_SUM', `分岐${i} はレベル合計条件`);
+    eq((g.condition as { operator: string }).operator, want[i][0], `分岐${i} 比較`);
+    eq((g.condition as { value: number }).value, want[i][1], `分岐${i} 閾値`);
+    eq(g.then.type, want[i][2], `分岐${i} 帰結の型`);
+  });
+  // engine＝公開2枚が lastProcessedCards に載り、デッキの一番上に残る（原文に移動指示なし）。
+  const lv1 = findCard(c => c.Type === 'シグニ' && c.Level === '1');
+  const lv2 = findCard(c => c.Type === 'シグニ' && c.Level === '2');
+  const ctxRE = mkCtx({ deckTop: [lv1] }, { deckTop: [lv2] });
+  const rRE = run({ type: 'STUB', id: 'REVEAL_EACH_PLAYER_DECK_TOP' } as EffectAction, ctxRE);
+  eq(JSON.stringify(rRE.lastProcessedCards), JSON.stringify([lv1, lv2]), '両者の一番上を公開結果に載せる');
+  eq(rRE.ownerState.deck[0], lv1, '公開札はデッキの一番上に残る');
+  eq(rRE.otherState.deck[0], lv2, '相手側も一番上に残る');
+  ok(evalCondition({ type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'lte', value: 3 },
+    { ...ctxRE, lastProcessedCards: [lv1, lv2] }), 'レベル合計3 → 3以下が真');
+  ok(!evalCondition({ type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'gte', value: 5 },
+    { ...ctxRE, lastProcessedCards: [lv1, lv2] }), 'レベル合計3 → 5以上は偽');
+}));
+
 test('型網羅 POWER_THRESHOLD_TRASH: engine ハンドラが無いので live に出てはいけない（契約）', () => withSavedCursor(() => {
   // parser（parseSentencePart2）は生成しうるが engine のどこにも消費地点が無い＝出た瞬間に真 no-op。
   // live 件数0を assert しておくことで、parser 規則が生えた瞬間にここが赤くなる。
@@ -19326,6 +19374,38 @@ test('PLAY_FREE_FROM_TRASH アーツ: ルリグトラッシュのコスト5以�
   ok(rEnd.logs.join('').includes('コストなしで使用'), '使用ログあり');
   eq(rEnd.ownerState.lrig_trash.filter(n => n === okArts).length, 1, '使用後もルリグトラッシュに残置');
 });
+// §6.4 O-35（続き530）: 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」
+//   ＝原文は印刷コストを払う。既存 `USE_SPELL_FROM_TRASH`（コストなし）を流用すると過剰実行になるので
+//   専用 STUB `USE_SPELL_FROM_TRASH_PAYING_COST` が①候補選択②支払い確認③本体委譲の3段を担う。
+test('USE_SPELL_FROM_TRASH_PAYING_COST: 候補はfilter一致のみ・支払ったエナはトラッシュへ（WXDi-P13-008-E1）', () => {
+  const savedCursor = cursor;
+  // parser＝【常】条件（場の全シグニがディソナ）で包まれ、対象はトラッシュのディソナスペル。
+  const e1 = manualEffect('WXDi-P13-008', 'WXDi-P13-008-E1').action as import('../src/types/effects').ConditionalAction;
+  eq(e1.condition.type, 'ALL_FIELD_SIGNI_MATCH', 'WXDi-P13-008-E1 全シグニ条件');
+  const st1 = e1.then as import('../src/types/effects').StubAction;
+  eq(st1.id, 'USE_SPELL_FROM_TRASH_PAYING_COST', 'コストを払う使用へ分岐');
+  eq(st1.selectTarget?.filter?.isDisona, true, '対象はディソナのスペル');
+  // engine（1）＝filter 一致だけが候補。（2）＝支払った色エナが減り、同じ枚数がトラッシュへ移る。
+  // ⚠エナは**支払える色**を明示して置く（色が足りないと `canPayOptionalCost` が「支払う」を塞ぐ）。
+  const disonaSpell = 'WXDi-P12-062';                    // ディソナスペル・コスト《白》×１
+  const plainSpell = findCard(c => c.Type === 'スペル' && c.Story !== 'Dissona');
+  const whiteEna = findCard(c => (c.Color ?? '').includes('白') && c.Type === 'シグニ');
+  eq(cardMap.get(disonaSpell)?.Cost, '《白》×１', 'テスト前提＝コストは《白》×1');
+  const base = mkCtx({}, {});
+  const ctxUS = {
+    ...base,
+    ownerState: { ...base.ownerState, trash: [plainSpell, disonaSpell], energy: [whiteEna, whiteEna] },
+  } as ExecCtx;
+  const r0 = run({ type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', selectTarget: st1.selectTarget } as EffectAction, ctxUS);
+  const logsUS = r0.logs.join(' | ');
+  ok(logsUS.includes('トラッシュから使用するスペルを選ぶ'), '選択を要求');
+  ok(logsUS.includes('のコストを支払いますか？'), '支払い確認を挟む（＝タダで使わない）');
+  eq(r0.ownerState.energy.length, 1, '《白》×1 を支払ってエナが1枚減る');
+  eq(r0.ownerState.trash.filter(n => n === whiteEna).length, 1, '支払ったエナはトラッシュへ（消滅しない）');
+  eq(r0.ownerState.trash.filter(n => n === disonaSpell).length, 1, '使用したスペルはトラッシュに1枚だけ（二重積みなし）');
+  cursor = savedCursor;
+});
+
 test('WX09-012-E2 parser: 「青の」色フィルタが filter.color に載る', () => {
   const effs = parseCardEffects(cardMap.get('WX09-012')!);
   const e2 = effs.find(e => JSON.stringify(e.action).includes('PLAY_FREE_FROM_TRASH'));

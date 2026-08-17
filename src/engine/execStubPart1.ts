@@ -1529,6 +1529,22 @@ export function execStubPart1(
       addLog({ ...ctx, sourceCardNum: encoreCN }, `${encoreCard.CardName}をアンコール（コストなし）`));
   }
   // 対戦相手のライフクロス上を見る（複数枚パターン対応）
+  // REVEAL_EACH_PLAYER_DECK_TOP（§6.4 O-35・続き530）＝「各プレイヤーは自分のデッキの一番上のカードを公開する」。
+  // 🔴従来は parser がこの文を `LOOK_OPP_LIFE_TOP`（＝**相手のライフクロス**上を見る）に化けさせており、
+  //   公開が起きないうえ `lastProcessedCards` に無関係な札が載って、後続の「レベルの合計が〜の場合」が
+  //   別物を数えていた（`SPDi43-25-E2`）。
+  // ⚠原文に移動の指示が無い＝**公開した札はデッキの一番上に残す**（`REVEAL_BOTH_DECK_TOPS` は
+  //   一番下へ回す別文型なので流用しない）。公開2枚を `lastProcessedCards` に載せて後続の
+  //   `LAST_PROCESSED_LEVEL_SUM` へ渡す。
+  if (stub.id === 'REVEAL_EACH_PLAYER_DECK_TOP') {
+    const myTopRE = ctx.ownerState.deck[0];
+    const opTopRE = ctx.otherState.deck[0];
+    const revealedRE = [myTopRE, opTopRE].filter((n): n is string => !!n);
+    if (revealedRE.length === 0) return done(addLog(ctx, '各プレイヤーの公開：デッキが空'));
+    const nameRE = (n: string) => ctx.cardMap.get(getCardNum(n))?.CardName ?? n;
+    return done(addLog({ ...ctx, lastProcessedCards: revealedRE },
+      `各プレイヤーがデッキの一番上を公開（あなた: ${myTopRE ? nameRE(myTopRE) : 'なし'}・対戦相手: ${opTopRE ? nameRE(opTopRE) : 'なし'}）`));
+  }
   if (stub.id === 'LOOK_OPP_LIFE_TOP') {
     const srcLT = ctx.sourceCardNum ? ctx.cardMap.get(ctx.sourceCardNum) : undefined;
     const txtLT = srcLT ? (srcLT.EffectText ?? '') + ' ' + (srcLT.BurstText ?? '') : '';

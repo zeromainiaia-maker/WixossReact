@@ -191,24 +191,6 @@ WXDi-D08-004 WXEX2-28
   + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
   + [0].action.leavePayLoseSelfAbility.victimFilter.story = "ウェポン"
 
-## +LRIG_LEVEL -SEQUENCE -STUB ［1枚］
-WX09-011
---- WX09-011
-  原文: 【出現条件】《メインフェイズアイコン》《手剣　カクマル》１体と《手弾　アヤボン》１体をあなたの場からトラッシュに置く【自】：このシグニの正面にあるシグニ１体がバニッシュされたとき、《赤》を支払ってもよい。そうした場合、このシグニをアップする。【出】《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。あなたのセンタールリグがレベル４以上の場
-  - [1].action.steps[0].type = "GRANT_KEYWORD"
-  - [1].action.steps[0].target.type = "SIGNI"
-  - [1].action.steps[0].target.owner = "self"
-  - [1].action.steps[0].target.count = 1
-  - [1].action.steps[0].target.filter.thisCardOnly = true
-  - [1].action.steps[0].keyword = "ダブルクラッシュ"
-  - [1].action.steps[0].duration = "UNTIL_END_OF_TURN"
-  - [1].action.steps[1].type = "STUB"
-  - [1].action.steps[1].id = "CONDITIONAL_POWER_BONUS"
-  + [1].cost.conditionalEnergyReduction.condition.type = "LRIG_LEVEL"
-  + [1].cost.conditionalEnergyReduction.condition.owner = "self"
-  + [1].cost.conditionalEnergyReduction.condition.operator = "gte"
-  …（他 10 行）
-
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -737,4 +719,22 @@ SPDi43-05
   + [1].action.duration = "UNTIL_OPP_TURN_END"
   + [1].action.rawText = "【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする。"
   ~ [1].parseStatus : "AUTO" → "PARTIAL"
+
+## +CONDITIONAL×3 +LAST_PROCESSED_LEVEL_SUM×3 +SEQUENCE ［1枚］
+SPDi43-25
+--- SPDi43-25
+  原文: 【自】：このルリグがアタックしたとき、対戦相手のすべてのシグニをダウンし凍結する。【起】《ゲーム１回》インフレーション《青×0》：各プレイヤーは自分のデッキの一番上のカードを公開する。この方法で公開されたシグニのレベルの合計が３以下の場合、カードを４枚引く。レベルの合計が４の場合、対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く。レベルの合
+  - [1].action.steps[1].owner = "self"
+  - [1].action.steps[1].count = 4
+  - [1].action.steps[2].type = "STUB"
+  - [1].action.steps[2].id = "CONDITIONAL_POWER_BONUS"
+  - [1].action.steps[3].type = "TRASH"
+  - [1].action.steps[3].target.type = "HAND_CARD"
+  - [1].action.steps[3].target.owner = "opponent"
+  - [1].action.steps[3].target.count = 4
+  ~ [1].action.steps[0].id : "LOOK_OPP_LIFE_TOP" → "REVEAL_EACH_PLAYER_DECK_TOP"
+  ~ [1].action.steps[1].type : "DRAW" → "SEQUENCE"
+  + [1].action.steps[1].snapshotLastProcessedForConditionals = true
+  + [1].action.steps[1].steps[0].type = "CONDITIONAL"
+  …（他 20 行）
 

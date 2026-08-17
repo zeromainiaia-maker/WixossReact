@@ -1874,6 +1874,10 @@ function actionJa(a?: Action, effectType?: string): string {
         ? 'このシグニには好きな枚数の【アクセ】を付けることができる'
         : `このシグニには${numJa(typeof a.value === 'number' ? a.value : 2)}枚まで【アクセ】を付けることができる`;
       if (a.id === 'TRASH_SELF_ACCE_ALL') return 'このシグニに付いている【アクセ】をすべてトラッシュに置く';
+      // §6.4 O-35（続き530）＝**コストを払って**トラッシュのスペルを使う（`USE_SPELL_FROM_TRASH` は払わない別物）。
+      if (a.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') {
+        return `あなたのトラッシュから${filterJa(a.selectTarget?.filter)}スペル1枚を対象とし、それを使用してもよい`;
+      }
       if (a.id === 'UNKNOWN_NESTED' && a.text) return `[未実装:${a.text}]`;
       // §6.4 A群・続き427 で実装済み（`screens/battle/assistLrigAttack.ts` ＋ `performLrigAttack(slot)`）。
       // ⚠レベルは `count` ではなく `minLevel`（`count` だと「N体まで」と誤読される）。
@@ -2949,6 +2953,8 @@ function actionJa(a?: Action, effectType?: string): string {
         // ⚠`PLAY_MILLED_SIGNI_DELAYED_TRASH` はここに書かない＝**上の :1591 に既に専用分岐がある**
         //   （二重に置くと到達不能な死語彙になる）。
         OPP_LRIG_DECK_TO_LRIG_TRASH: '対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く',
+        // §6.4 O-35（続き530）＝公開したカードはデッキの一番上に残る（`REVEAL_BOTH_DECK_TOPS` は一番下へ回す別文型）。
+        REVEAL_EACH_PLAYER_DECK_TOP: '各プレイヤーは自分のデッキの一番上のカードを公開する',
         // ライフバースト抑制の2 STUB。従来は STUBS.md のハンドラ直前コメント（実装語彙
         // 「対戦相手の suppress_life_burst フラグをセット」）がそのまま出ていた＝原文語彙に置き換える。
         // ⚠利用カードごとに主語が違う（「この効果で」「この方法で」「このシグニによって」）ので

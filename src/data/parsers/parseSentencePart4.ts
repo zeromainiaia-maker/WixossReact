@@ -764,9 +764,22 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/次の対戦相手のアタックフェイズ開始時/))
     return { type: 'STUB', id: 'DEFERRED_NEXT_OPP_ATTACK_PHASE_START' } as StubAction;
 
-  // ---- 各プレイヤーは自分のデッキの一番上を公開する ----
+  // ---- 各プレイヤーは自分のデッキの一番上のカードを公開する（§6.4 O-35・続き530）----
+  // 🔴従来は `LOOK_OPP_LIFE_TOP`（＝**相手のライフクロス**上を見る別機構）に化けており、
+  //   公開が起きないうえ `lastProcessedCards` に無関係な札が載って、後続の
+  //   「この方法で公開されたシグニのレベルの合計が〜の場合」が別物を数えていた（`SPDi43-25-E2`）。
   if (t.match(/各プレイヤーは自分のデッキの一番上のカードを公開する/))
-    return { type: 'STUB', id: 'LOOK_OPP_LIFE_TOP' } as StubAction;
+    return { type: 'STUB', id: 'REVEAL_EACH_PLAYER_DECK_TOP' } as StubAction;
+
+  // ---- 「対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く」（§6.4 O-35・続き530）----
+  // engine 実装済み＝`STUB{OPP_LRIG_DECK_TO_LRIG_TRASH}`（`execStubPart1.ts`。相手が自分で1枚選ぶ）。
+  // 🔴**parser 側に規則が無く**、live では `WX24-P4-014-E3` だけが手パッチでこの STUB を持っていた
+  //   ＝同じ文の `SPDi43-25-E2` は下の「レベル合計がNの場合」catch-all に飲まれて無言 no-op だった。
+  // ⚠先頭の「レベルの合計がN(以上/以下)?の場合、」は多分岐の枝ラベルで、条件は
+  //   `applyThisWayTrashOutcomeGuards` が原文から3枝ぶんまとめて復元する（他の2枝と同じ扱い）。
+  if (/^(?:レベルの合計が[０-９\d]+(?:以上|以下)?の場合、)?対戦相手は自分のルリグデッキからカード[１1]枚をルリグトラッシュに置く$/.test(t))
+    return { type: 'STUB', id: 'OPP_LRIG_DECK_TO_LRIG_TRASH' } as StubAction;
+
 
   // ---- エナゾーンから白/色のシグニをデッキ上に置いてもよい ----
   if (t.match(/エナゾーンから.+のシグニ[１-９\d０-９]*枚をデッキの一番上に置いてもよい/))
