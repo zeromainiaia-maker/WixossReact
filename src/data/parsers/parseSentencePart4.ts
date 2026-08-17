@@ -1105,6 +1105,33 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/このゲームの間にあなたがこの【起】を使用したのが[１-９\d０-９]+回目である場合/))
     return { type: 'STUB', id: 'GAIN_ABILITY_THIS_GAME' } as StubAction;
 
+  // ---- この方法でトラッシュに置かれたシグニのレベルの合計がNの場合、その中から〜を手札に加える（WXK05-028-E3）----
+  // §6.4 O-11。条件（`LAST_PROCESSED_LEVEL_SUM`）も帰結（`PICK_FROM_TRASHED_CARDS` の
+  // `trashedPick`＝候補を `lastProcessedCards` に限定）も**既に機構がある**＝要るのはこの規則だけ。
+  // 🔴従来は下の catch-all `CONDITIONAL_POWER_BONUS` に飲まれて**丸ごと無言 no-op**だった。
+  {
+    const lvSumPickM = t.match(/^この方法で(?:デッキから)?トラッシュに置かれたシグニのレベルの合計が([１-９\d０-９]+)(以上|以下)?の場合、その中から(シグニ|カード)([１-９\d０-９]+)枚(まで)?を?手札に加える$/);
+    if (lvSumPickM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'LAST_PROCESSED_LEVEL_SUM',
+          operator: lvSumPickM[2] === '以上' ? 'gte' : lvSumPickM[2] === '以下' ? 'lte' : 'eq',
+          value: parseNum(lvSumPickM[1]),
+        },
+        then: {
+          type: 'STUB', id: 'PICK_FROM_TRASHED_CARDS',
+          trashedPick: {
+            count: parseNum(lvSumPickM[4]),
+            ...(lvSumPickM[5] ? { upTo: true } : {}),
+            ...(lvSumPickM[3] === 'シグニ' ? { filter: { cardType: 'シグニ' as const } } : {}),
+            dest: 'hand' as const,
+          },
+        } as StubAction,
+      } as EffectAction;
+    }
+  }
+
   // ---- レベル合計がNの場合〜 ----
   if (t.match(/レベルの合計が[１-９\d０-９]+の場合/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
