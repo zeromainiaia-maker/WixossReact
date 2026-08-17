@@ -38704,7 +38704,7 @@ test('§6.4 O-37(a): ダメージ置換 funnel が付与ストアを見て、払
     action: { type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST', damageReplaceByCost: { options, ...(loseAbility ? { loseAbility } : {}) } } as StubAction,
     duration: 'UNTIL_OPP_TURN_END', mandatory: true, parseStatus: 'MANUAL',
   });
-  const base = mkState({ hand: ['WX24-P3-005', 'WX24-P3-007'], energy: [], life_cloth: ['WX24-P3-009'] });
+  const base = mkState({ hand: 2, energy: 0, life: 1, trash: 0 });
   const cm = cardMap as Map<string, CardData>;
   // 宣言が無ければ置換されない
   eq(pickLifeCrashReplacement(base, { damageSource: 'signi', cardMap: cm }), null, '付与が無ければ通る');
