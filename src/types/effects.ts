@@ -1361,6 +1361,13 @@ export interface ChooseAction {
   preUseVirusChoose?: { minRemoved: number; thenChooseCount: number; thenUpTo?: boolean };
   /** 直前の任意追加コストを支払った場合の選択数上書き。支払い結果は選択提示時に消費する。 */
   additionalCostChoose?: { thenChooseCount: number; thenUpTo?: boolean };
+  /**
+   * 汎用の選択数上書き（§6.4 O-11）＝「〈盤面条件〉の場合、代わりにNつ(まで)選ぶ」。
+   * ⚠上の5本（`recollect`／`recollectArts`／`betChoose`／`preUseVirusChoose`／`additionalCostChoose`）は
+   *   **トリガーを型名に焼き込んだ特殊形**で、素の盤面条件を表せなかった。ここは `Condition` を
+   *   そのまま持ち engine の `evalCondition` に委ねる＝条件語彙が増えても CHOOSE 側を触らずに済む。
+   */
+  conditionChoose?: { condition: Condition; thenChooseCount: number; thenUpTo?: boolean };
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
