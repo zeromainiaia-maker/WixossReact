@@ -2582,6 +2582,85 @@ export function collectHandAddedTriggers(
 }
 
 /**
+ * `ON_TRASH_CARD_ADDED` トリガーを収集する（§6.4 O-37(c)・続き543・`collectHandAddedTriggers` と同型）。
+ *
+ * 原文＝「〈誰か〉の効果1つによって〈誰か〉のトラッシュにカードが合計N枚以上置かれたとき」
+ * （`WX24-P3-007` がセンタールリグへ付与する【自】）。
+ *
+ * 評価軸: `triggerCondition.trashOwner`（増えたトラッシュの側・既定 self）／`minCount`（合計枚数）／
+ *   `byOpponentEffect`・`byOwnEffect`（原因効果のオーナー）／`turnOwner`／`triggerFilter`（置かれたカード）。
+ * 発火は**解決イベント単位**（「合計1枚以上」＝枚数によらず1回）。
+ *
+ * ⚠**印刷能力の走査と付与ストアの走査は必ず対**（`grantedStore.ts` の規約）。この timing の実カードは
+ *   いま付与経由の1件だけなので、付与側を落とすと**構造が正しいのに恒久 no-op** になる。
+ */
+export function collectTrashAddedTriggers(
+  ctx: TrigCtx,
+  addedByOwner: { ownerId: string; nums: string[] }[],
+  causeOwnerId: string | undefined,
+  hostState: PlayerState,
+  guestState: PlayerState,
+): { entries: StackEntry[]; usedHostIds: string[]; usedGuestIds: string[] } {
+  const entries: StackEntry[] = [];
+  const usedHostIds: string[] = [];
+  const usedGuestIds: string[] = [];
+  const evalCommon = (eff: CardEffect, watcherId: string, watcherState: PlayerState, otherState: PlayerState, topNum: string): boolean => {
+    if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH_CARD_ADDED')) return false;
+    const to = eff.triggerCondition?.turnOwner;
+    const watcherIsTurn = watcherId === ctx.activeUserId;
+    if (to === 'self' && !watcherIsTurn) return false;
+    if (to === 'opponent' && watcherIsTurn) return false;
+    if (eff.triggerCondition?.byOpponentEffect && (causeOwnerId === undefined || causeOwnerId === watcherId)) return false;
+    if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== watcherId) return false;
+    if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, watcherState, otherState, watcherIsTurn, ctx.cardMap, topNum)) return false;
+    if (eff.condition && !evalUseCondition(eff.condition, watcherState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) return false;
+    return true;
+  };
+  const matchingCount = (eff: CardEffect, nums: string[]): number =>
+    (eff.triggerFilter ? nums.filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), eff.triggerFilter!)) : nums).length;
+  for (const watcherIsHost of [true, false]) {
+    const watcherId = watcherIsHost ? ctx.hostId : ctx.guestId;
+    const watcherState = watcherIsHost ? hostState : guestState;
+    const otherState = watcherIsHost ? guestState : hostState;
+    const usedIds = watcherIsHost ? usedHostIds : usedGuestIds;
+    const lrigTop = watcherState.field.lrig.at(-1);
+    const sources: { topNum: string; eff: CardEffect; granted: boolean }[] = [];
+    if (!watcherState.blocked_actions?.includes('BLOCK_OWN_SIGNI_AUTO')) {
+      for (const topNum of [...ownFieldSources(watcherState), ...activeKeyAbilitySources(watcherState)]) {
+        for (const eff of effsOf(ctx, topNum)) sources.push({ topNum, eff, granted: false });
+      }
+    }
+    if (lrigTop) {
+      for (const w of grantedStoreWatchers(watcherState, 'ON_TRASH_CARD_ADDED', ['self', 'any_ally', 'any'])) {
+        sources.push({ topNum: lrigTop, eff: w.effect, granted: true });
+      }
+    }
+    for (const { topNum, eff, granted } of sources) {
+      if (!evalCommon(eff, watcherId, watcherState, otherState, topNum)) continue;
+      const max = eff.usageLimit === 'once_per_turn' ? 1 : eff.usageLimit === 'twice_per_turn' ? 2 : Infinity;
+      for (const grp of addedByOwner) {
+        if (grp.nums.length === 0) continue;
+        const trashIsWatcherOwn = grp.ownerId === watcherId;
+        const owner = eff.triggerCondition?.trashOwner ?? 'self';
+        if (owner === 'self' && !trashIsWatcherOwn) continue;
+        if (owner === 'opponent' && trashIsWatcherOwn) continue;
+        if (matchingCount(eff, grp.nums) < (eff.triggerCondition?.minCount ?? 1)) continue;
+        const used = (watcherState.actions_done ?? []).filter(id => id === eff.effectId).length
+          + usedIds.filter(id => id === eff.effectId).length;
+        if (used >= max) break;
+        if (eff.usageLimit === 'once_per_turn' || eff.usageLimit === 'twice_per_turn') usedIds.push(eff.effectId);
+        const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+        entries.push({
+          id: ctx.genId(), playerId: watcherId, cardNum: topNum, effectId: eff.effectId,
+          label: `${cardName} の【自】効果（トラッシュに置かれたとき${granted ? '・付与能力' : ''}）`, effect: eff,
+        });
+      }
+    }
+  }
+  return { entries, usedHostIds, usedGuestIds };
+}
+
+/**
  * ON_ENERGY_CHARGE のうち、エナへ移動したカード自身が持つ movedSelf:true の AUTO だけを収集する。
  * 場の watcher は従来の React watcher が担当し、ここでは扱わない。
  */
