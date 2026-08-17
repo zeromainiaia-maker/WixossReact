@@ -4671,9 +4671,11 @@ test('§6.4 O-25(d) ATTACK_ORDINAL_THIS_TURN: N度目の条件が落ちず、通
 // ⚠**「一度目か二度目」は別機構**（`negateNthAttack` のカウントダウン窓＝実装済み）。
 //   ここへ引き込むと「そのアタックを無効にする」側が壊れるので、regex は「N度目の場合」に限定してある。
 test('§6.4 O-25(d) 「一度目か二度目」は negateNthAttack のまま（序数条件に奪わない）', () => {
+  // ⚠**窓の payload（`negateNthAttack`）は全カードには載っていない**＝`WX10-018` は MANUAL で
+  //   `STUB{NEGATE_NTH_ATTACK}` の id だけを持つ（枚数は engine 側の既定）。**機構の目印は id で見る。**
   for (const cardNum of ['WX10-018', 'WX17-006', 'SP27-016']) {
     const js = JSON.stringify(effectsMap.get(cardNum) ?? []);
-    ok(js.includes('negateNthAttack'), `${cardNum}: 既存のカウントダウン窓が残っている`);
+    ok(js.includes('NEGATE_NTH_ATTACK'), `${cardNum}: 既存のカウントダウン窓が残っている`);
     ok(!js.includes('ATTACK_ORDINAL_THIS_TURN'), `🔴${cardNum}: 序数条件が別機構を奪っている`);
   }
 });
