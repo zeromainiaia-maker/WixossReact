@@ -41,6 +41,55 @@ export function activatedEnergyTrashPaidCount(selected: Set<number>): number {
   return selected.size;
 }
 
+// ===== `cost.energyTrash` の集合制約（「それぞれレベルの異なる」等）＝2026-08-18 §5d-0 (ii) =====
+// ⚠**型（`EffectCost.energyTrash.selectionConstraint`）は前からあったが、支払いUIは `size >= count` しか
+//   見ておらず完全な死フラグだった**（BUGFIXES 続き16245 の「コスト側の集合制約は運搬契約が未整備」がそのまま残存）。
+//   parser 側の regex も5つの言い回しを**捕捉しておきながら2つしか写していなかった**ので、
+//   「エナゾーンからそれぞれレベルの異なるシグニ３枚をトラッシュに置く」は**同じレベル3枚でも払えた**。
+// ⚠**支払いモーダルは3つある**（`SigniActivatedModal`／`LrigGrantedModal`／`SigniOnPlayCostModal`）＝
+//   1つ落とすと「その入口からだけ制約なしで払える」ことになる（続き546 の教訓「支払い地点と提示地点は別々に数える」）。
+//   写経を防ぐためにここを**唯一の判定**にする。
+
+/** エナゾーンの index 集合 → カード番号列（`satisfiesSelectionConstraint` は番号で判定する）。 */
+export function energyTrashSelectedNums(energy: string[], selected: Set<number>): string[] {
+  return [...selected].filter(i => i >= 0 && i < energy.length).map(i => energy[i]);
+}
+
+/**
+ * `cost.energyTrash` の選択が**枚数と集合制約の両方**を満たすか（支払いボタンの可否）。
+ * `atLeast` のときは枚数の上限が無いだけで、集合制約は同じく効く。
+ */
+export function energyTrashCostSatisfied(
+  energy: string[],
+  selected: Set<number>,
+  spec: { count: number; atLeast?: boolean; selectionConstraint?: import('../../types/effects').SelectionConstraint } | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec) return true;
+  if (selected.size < spec.count) return false;
+  return satisfiesSelectionConstraint(energyTrashSelectedNums(energy, selected), spec.selectionConstraint, cardMap);
+}
+
+/**
+ * エナゾーンの index を1枚**追加できるか**（カードをタップした瞬間のガード）。
+ * ⚠枚数上限だけでなく集合制約も見る＝**制約を壊す組み合わせは選べない**（選んでから赤くするのではなく弾く。
+ *   `EffectInteractionModal` の効果解決側 `canAddToSelection` と同じ作法）。
+ */
+export function canAddEnergyTrashIndex(
+  energy: string[],
+  selected: Set<number>,
+  index: number,
+  spec: { count: number; atLeast?: boolean; selectionConstraint?: import('../../types/effects').SelectionConstraint } | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!spec) return false;
+  if (selected.has(index)) return true;                       // 解除は常に可
+  if (!spec.atLeast && selected.size >= spec.count) return false;
+  const num = energy[index];
+  if (num === undefined) return false;
+  return canAddToSelection(energyTrashSelectedNums(energy, selected), num, spec.selectionConstraint, cardMap);
+}
+
 /** エクシードで選べる「各ルリグの一番上を除いたカード」。placedState 基準で呼ぶ。 */
 export function exceedPoolOf(state: PlayerState): string[] {
   return [
