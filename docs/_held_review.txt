@@ -506,24 +506,6 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
-## +AND +CONDITIONAL +HAND_COUNT +TURN_OWNER ［1枚］
-WXK01-040
---- WXK01-040
-  原文: 【出】《青》：対戦相手のシグニ１体を対象とし、あなたの手札が０枚であなたのターンの場合、それをバニッシュする。【起】《ターン１回》《青》：カードを１枚引く。,：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "BANISH" → "CONDITIONAL"
-  + [0].action.condition.type = "AND"
-  + [0].action.condition.conditions[0].type = "HAND_COUNT"
-  + [0].action.condition.conditions[0].owner = "self"
-  + [0].action.condition.conditions[0].operator = "eq"
-  + [0].action.condition.conditions[0].value = 0
-  + [0].action.condition.conditions[1].type = "TURN_OWNER"
-  …（他 7 行）
-
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069

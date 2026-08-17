@@ -416,6 +416,23 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   return true;
 }
 
+/**
+ * 支払いボタンのラベルに**エナ色以外で足すべき対価**（§6.4 O-26・続き535）。
+ *
+ * 🔴任意コストのラベルは長らく `costColors` だけを並べており、**「このシグニ自身を失う」対価が
+ *   一言も出ないまま pay/skip を選ばせていた**（＝「《無》を1つ払うだけ」に見える）。支払い自体は
+ *   `optionalCostPaySteps` が行うので挙動バグではないが、実機で判断できない表示だった。
+ * ⚠ラベル生成は pay 枝が4サイトに分かれている（Pattern ③/④/⑤ ＋ `execStubPart1` のエッジ）ので
+ *   **ここに集約する**＝1サイトだけ直すと他が古いままになる。
+ * ⚠**エナ色・コイン・エクシードは含めない**（サイトごとに書式が違うため呼び出し側の領分）。
+ */
+export function optionalCostExtraLabels(spec: OptionalCostSpec): string[] {
+  return [
+    ...(spec.selfTrash ? ['このシグニをトラッシュ'] : []),
+    ...(spec.selfToEnergy ? ['このシグニをエナゾーンへ'] : []),
+  ];
+}
+
 // 支払いそのものを表す前置ステップ（エナ色は pending の costColors で UI が徴収するためここには含めない）。
 export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
   return [

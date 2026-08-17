@@ -38115,6 +38115,63 @@ test('§6.4 O-36: OPP_TURN_NO_ENERGY_COST は「このターン」＝接尾辞�
   ok(!blocked.some(a => a.endsWith(':NEXT_TURN')), '🔴:NEXT_TURN 予約が残っている＝1ターンずれる');
 });
 
+
+
+// ── §6.4 O-26 続き535：「このシグニを場からトラッシュに置き、〜」がコストに載らない ────────────
+// 🔴自己トラッシュはこの能力の**対価の中核**なのに、どちらの形でも parser が生成しておらず
+//   **場のシグニを失わずに効果だけ得られる**（＝実質ただで撃てる）状態だった。
+test('§6.4 O-26: 【起】の複合コスト前半（連用形「置き、」）が cost.trash_self に載る', () => {
+  for (const [num, eid, enaCount] of [
+    ['WX25-P3-100', 'WX25-P3-100-E1', 2], ['WXDi-CP02-099', 'WXDi-CP02-099-E1', 1],
+  ] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    ok(e.cost?.trash_self, `🔴${eid}: 自己トラッシュが落ちて実質ただで起動できる`);
+    // 後半のエナトラッシュは元から載っていた＝**両方そろっている**ことが契約
+    eq(e.cost?.energyTrash?.count, enaCount, `${eid}: エナトラッシュ側は据置`);
+  }
+  // 負方向＝終止形「置く」しか無い既存カードを壊していない（`trash_self` の従来母集団）
+  const solo = [...effectsMap.values()].flat()
+    .filter(e => e.cost?.trash_self && e.effectType === 'ACTIVATED').length;
+  ok(solo >= 2, 'trash_self を持つ ACTIVATED が存在する（規則を壊していない）');
+});
+
+test('§6.4 O-26: 束ねた任意コスト「〜置き《色》を支払ってもよい」で自身も落ちる', () => withSavedCursor(() => {
+  for (const [num, eid] of [
+    ['WX24-P2-063', 'WX24-P2-063-E1'], ['WX24-P2-086', 'WX24-P2-086-E1'],
+    ['WX24-P4-059', 'WX24-P4-059-E1'], ['WXDi-P13-044', 'WXDi-P13-044-E1'],
+  ] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const cost = (e.action as SequenceAction).steps[0] as StubAction;
+    eq(cost.id, 'OPTIONAL_COST', `${eid}: 正準形の任意コスト`);
+    ok(cost.selfTrash, `🔴${eid}: 自己トラッシュが踏み倒されている（場を離れずに効果だけ得る）`);
+    ok((cost.costColors ?? []).length > 0, `${eid}: エナ側も同じ1つの任意コストに束ねる`);
+  }
+  // 実経路＝支払い枝を選ぶと**エナと効果元の両方**が減る（片方だけ払える形に割れていない）
+  const self = 'WX24-P2-086';
+  const oppSigni = findCard(c => isSigni(c) && c.CardNum !== self);
+  const enaCard = findCard(c => isSigni(c) && c.CardNum !== self && c.CardNum !== oppSigni);
+  const ctx = mkCtx({ signi: [self, null, null] }, { signi: [oppSigni, null, null] }, self);
+  ctx.ownerState.energy = [enaCard];
+  const live = (effectsMap.get(self) ?? []).find(e => e.effectId === 'WX24-P2-086-E1')!;
+  const p0 = executeEffect(live, ctx);
+  ok(!p0.done && p0.pending.type === 'CHOOSE', '任意コストの pay/skip を問う');
+  const pay = p0.pending.options.find(o => o.id === 'pay')!;
+  ok(pay.available, '効果元が場にあり、エナも足りるので支払える');
+  ok(pay.label.includes('このシグニをトラッシュ'),
+    '🔴ラベルが色だけ＝「シグニ1体を失う」対価が見えないまま選ばせている');
+  const paid = finish(executeAction(pay.action, { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs }), ctx);
+  ok(paid.ownerState.trash.includes(self), '🔴効果元がトラッシュへ行っていない＝コスト踏み倒し');
+  ok(!paid.ownerState.field.signi.some(st => st?.at(-1) === self), '効果元が場から消えている');
+  eq(paid.ownerState.energy.length, 0, 'エナ側の《無》も払っている（束ねたコストの片方だけになっていない）');
+  // 負方向＝効果元が既に場を離れていれば支払えない（`selfToEnergy` と同じ在庫判定）
+  const goneCtx = mkCtx({ signi: [null, null, null] }, { signi: [oppSigni, null, null] }, self);
+  goneCtx.ownerState.energy = [enaCard];
+  const p1 = executeEffect(live, goneCtx);
+  ok(!p1.done && p1.pending.type === 'CHOOSE'
+    && p1.pending.options.find(o => o.id === 'pay')?.available === false,
+    '場に居ない効果元はトラッシュに置けない＝支払い枝が選べない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
