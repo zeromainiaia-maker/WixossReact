@@ -39094,6 +39094,67 @@ test('§6.4 O-25(b): 全文再パースの受け皿から構造化済みの付�
   ok(!g.rawText, 'rawText は展開済みなので残さない');
 });
 
+// ── §5d-0 (i) 2026-08-18：「それぞれ〜異なる」の種別を手書き表に書かせないトリップワイヤ ──
+// 旧実装は `DISTINCT_BATCH5C`（effectId → 'level'|'name'|'class'）の**値を手で書いて**おり、
+// **7効果が原文と食い違ったまま全ゲート緑**だった（構造は正しく、制約の「軸」だけ別物＝
+// `distinct:'name'` は同名を弾くだけでレベルが揃った組を通す）。値は原文から導く実装へ移したので、
+// ここで **表の値 == 原文から導いた値** を全件固定する＝新しい効果を表へ足すときに軸を間違えたら落ちる。
+test('§5d-0(i) DISTINCT_BATCH5C: 「それぞれ〜異なる」の種別が全件で原文と一致する', () => {
+  const mismatches: string[] = [];
+  const noPhrase: string[] = [];
+  for (const [effectId, declared] of Object.entries(DISTINCT_BATCH5C)) {
+    // effectId → CardNum は「効果サフィックスを剥がす」ではなく **cardMap に実在する最長前方一致**で引く
+    // （`WXDi-CP01-008-E3` のようにハイフンを含むカード番号があるため）。
+    let cardNum: string | undefined;
+    for (let i = effectId.length; i > 0; i--) {
+      const cand = effectId.slice(0, i);
+      if (cardMap.has(cand)) { cardNum = cand; break; }
+    }
+    const text = cardNum ? (cardMap.get(cardNum)?.EffectText ?? '') : '';
+    const inferred = inferDistinctKind(text);
+    if (!inferred) { noPhrase.push(`${effectId}(card=${cardNum ?? '?'})`); continue; }
+    if (inferred !== declared) mismatches.push(`${effectId}: 表=${declared} 原文=${inferred}`);
+  }
+  eq(mismatches.length, 0, `表の種別が原文と食い違う: ${mismatches.join(' / ')}`);
+  // 原文から一意に決まらない効果は「表の値がフォールバックとして効いている」ので、
+  // **増えたら気づけるように件数を固定**する（0 が理想だが、引用能力など原文を持たない効果がありうる）。
+  eq(noPhrase.length, 0, `原文から種別を導けない効果（表の値へフォールバック中）: ${noPhrase.join(', ')}`);
+});
+
+test('§5d-0(i) distinctConstraintOf: color だけ sharedColor へ落ちる', () => {
+  eq(JSON.stringify(distinctConstraintOf('level')), '{"distinct":"level"}');
+  eq(JSON.stringify(distinctConstraintOf('name')), '{"distinct":"name"}');
+  eq(JSON.stringify(distinctConstraintOf('class')), '{"distinct":"class"}');
+  // 「共通する色を持たない」は複数色カードがあるので集合の重なりで見る＝`distinct` では表せない
+  eq(JSON.stringify(distinctConstraintOf('color')), '{"sharedColor":"none"}');
+});
+
+// live 側の実値も固定する（parser を直しても live へ届いていなければ意味がない＝続き377g の教訓）。
+const distinctLiveCases = [
+  { effectId: 'WX14-030-E1', want: 'level', why: 'それぞれレベルの異なる無色ではないシグニ４枚' },
+  { effectId: 'WX17-025-E3', want: 'level', why: 'それぞれレベルの異なる＜怪異＞のシグニ４枚' },
+  { effectId: 'WX19-080-E1', want: 'level', why: 'それぞれレベルの異なる＜微菌＞のシグニ３枚' },
+  { effectId: 'WXDi-P07-090-E1', want: 'level', why: 'それぞれレベルの異なる＜天使＞のシグニ３枚' },
+  { effectId: 'WXEX2-31-E3', want: 'level', why: 'それぞれレベルの異なる＜天使＞のシグニ４枚' },
+  { effectId: 'WXDi-P00-023-E1', want: 'class', why: 'それぞれ異なるクラスを持つシグニ７枚' },
+  { effectId: 'WXDi-CP01-008-E3', want: 'name', why: 'それぞれ名前の異なるカード３枚' },
+] as const;
+for (const spec of distinctLiveCases) {
+  test(`§5d-0(i) live ${spec.effectId}: selectionConstraint が原文の軸（${spec.why}）`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    const s = JSON.stringify(eff.action);
+    ok(s.includes(`"distinct":"${spec.want}"`),
+      `原文の軸は ${spec.want}（実際 ${s.match(/"selectionConstraint":\{[^}]*\}/)?.[0] ?? '(制約なし)'}）`);
+  });
+}
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
