@@ -4563,6 +4563,75 @@ test('§6.4 NEXT_TURN WXDi-P08-010-E3: 強制シグニアタックを次相手�
   assertNextTurnForcedAttack('WXDi-P08-010', 'WXDi-P08-010-E3', seq.steps[0]);
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-14 申告済みの原文不一致 2件（2026-08-17 に消化）
+// ══════════════════════════════════════════════════════════════════════════════
+
+// (a) `WX15-003-E3`「次のターンの間、対戦相手は**アーツとスペルと【起】能力を使用できず**、
+//     シグニは可能ならばアタックしなければならない」＝**1文に2機構**。
+// 🔴従来は後半の強制アタックだけが拾われ、前半の使用不可が丸ごと落ちていた。
+test('§6.4 O-14(a) WX15-003-E3: 強制アタックと同時にアーツ/スペル/【起】を次ターン封じる', () => withSavedCursor(() => {
+  const seq = nextTurnLiveAction('WX15-003', 'WX15-003-E3') as SequenceAction;
+  eq(seq.type, 'SEQUENCE', '🔴前半の使用不可が落ちて単一 action に戻っている');
+  eq((seq.steps[0] as StubAction).id, 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN', '前半＝次ターンの使用不可');
+  eq(seq.steps[1].type, 'FORCE_SIGNI_ATTACK', '後半＝強制アタック');
+
+  const applied = run(seq, mkCtx({}, {}, 'WX15-003'));
+  const blocked = applied.otherState.blocked_actions ?? [];
+  for (const id of ['USE_ARTS', 'USE_SPELL', 'USE_ACT']) {
+    ok(blocked.includes(`${id}:NEXT_TURN`), `${id} が次ターン予約で積まれていない`);
+    ok(!blocked.includes(id), `⚠${id} が接尾辞なしで積まれている＝発動ターンに効いてしまう`);
+  }
+  // 2スロット式＝ターン境界を跨ぎ、相手のターン開始時に接尾辞が外れて active になる。
+  const activated = activateTurnStartScopedState(clearTurnEndScopedState(applied.otherState));
+  for (const id of ['USE_ARTS', 'USE_SPELL', 'USE_ACT']) {
+    ok((activated.blocked_actions ?? []).includes(id), `${id} が次ターン開始時に昇格していない`);
+  }
+  eq((clearTurnEndScopedState(activated).blocked_actions ?? []).length, 0, 'そのターン終了で失効');
+}));
+
+// ⚠同族＝`WX25-P1-050-E1`「**次の対戦相手のターンの間**、対戦相手はアーツとスペルと【起】能力を使用できない」。
+// 🔴従来は綴りに関係なく当ターン版へ潰れており、**自分のターンに効いて相手のターンには切れる**1ターンずれだった。
+test('§6.4 O-14(a) WX25-P1-050-E1: 「次の対戦相手のターン」を当ターンに潰さない', () => withSavedCursor(() => {
+  const a = nextTurnLiveAction('WX25-P1-050', 'WX25-P1-050-E1') as StubAction;
+  eq(a.id, 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN', '🔴当ターン版に潰れている（1ターンずれる）');
+  const applied = run(a, mkCtx({}, {}, 'WX25-P1-050'));
+  eq((applied.otherState.blocked_actions ?? []).includes('USE_ARTS'), false, '発動ターンには効かない');
+  ok((activateTurnStartScopedState(clearTurnEndScopedState(applied.otherState)).blocked_actions ?? [])
+    .includes('USE_ARTS'), '次の相手ターンに効く');
+}));
+
+// (b) `WXDi-P08-010-E3` 後半「**そのターン終了時**、**そのターンにアタックしていた**すべてのシグニをバニッシュする」。
+// 🔴従来は遅延宣言（文跨ぎの「そのターン」照応）が解けず、`BANISH{SIGNI owner:'any', count:'ALL'}` が
+//   **使った瞬間に即時実行**＝アタックの有無に関係なく**自分のシグニまで全部消えていた**。
+test('§6.4 O-14(b) WXDi-P08-010-E3: 全体即時バニッシュではなく「そのターンにアタックした分」を予約する', () => withSavedCursor(() => {
+  const seq = nextTurnLiveAction('WXDi-P08-010', 'WXDi-P08-010-E3') as SequenceAction;
+  const delayed = seq.steps[1] as Extract<EffectAction, { type: 'DELAY_TO_NEXT_OPP_TURN_END' }>;
+  eq(delayed.type, 'DELAY_TO_NEXT_OPP_TURN_END', '🔴遅延宣言が落ちて即時実行に戻っている');
+  const banish = delayed.action as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(banish.type, 'BANISH', '本文はバニッシュ');
+  eq(banish.target.filter?.attackedThisTurn, true, '🔴「そのターンにアタックしていた」限定が落ちている');
+
+  // 発動時は**1体もバニッシュされず**、予約が1件積まれるだけ。
+  const signi = [...cardMap.values()].filter(c => c.Type === 'シグニ').slice(0, 4).map(c => c.CardNum);
+  const ctx = mkCtx({ signi: [signi[0], signi[1], null] }, { signi: [signi[2], signi[3], null] });
+  const applied = run(seq, ctx);
+  eq(applied.ownerState.field.signi.filter(Boolean).length, 2, '🔴発動した瞬間に自分のシグニが消えている');
+  eq(applied.otherState.field.signi.filter(Boolean).length, 2, '🔴発動した瞬間に相手のシグニが消えている');
+  eq((applied.ownerState.pending_next_opp_turn_end_effects ?? []).length, 1, '予約が1件積まれる');
+
+  // 相手ターン終了時の解決＝**アタックした1体だけ**が飛ぶ（`attacked_signi_ids` はアタックした側にしか載らない）。
+  const resolveCtx = mkCtx({ signi: [signi[0], signi[1], null] }, { signi: [signi[2], signi[3], null] });
+  resolveCtx.ownerState.pending_next_opp_turn_end_effects = applied.ownerState.pending_next_opp_turn_end_effects;
+  resolveCtx.otherState.attacked_signi_ids = [signi[2]];
+  const resolved = run({ type: 'STUB', id: 'RESOLVE_NEXT_OPP_TURN_END_EFFECT' } as StubAction, resolveCtx);
+  eq(resolved.otherState.field.signi.filter(Boolean).length, 1, 'アタックした相手シグニ1体だけがバニッシュ');
+  ok(!resolved.otherState.field.signi.some(st => st?.at(-1) === signi[2]), 'アタックした側が消えている');
+  eq(resolved.ownerState.field.signi.filter(Boolean).length, 2,
+    '🔴アタックしていない自分のシグニまで巻き込んでいる');
+  eq((resolved.ownerState.pending_next_opp_turn_end_effects ?? []).length, 0, '予約は1回で消費される');
+}));
+
 test('§6.4 O-4 WXDi-P11-005-E3: 支払い回避つき攻撃制限を期間ごと表現する', () => {
   // 🔴続き499 以前は `BLOCK_ACTION{ATTACK, owner:'any', until:END_OF_TURN}`＝支払い回避も期間も所有者も
   //   落ちて**両プレイヤーのシグニが無条件でアタック不可**だった（受け皿が無いので据置していた形）。
