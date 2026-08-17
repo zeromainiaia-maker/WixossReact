@@ -15,27 +15,6 @@ PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +SEQUENCE ［4枚］
-WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
---- WX24-P3-001
-  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【自】：あなたのアタックフェイズ開始時、このルリグをアップする。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。』,-
-  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
---- WX24-P3-005
-  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたがダメージを受ける場合、代わりに手札を１枚捨ててもよい。そうした場合、このルリグはこの能力を失う。【起】《ターン１回》《ダウン》：カードを４枚引き、手札を２枚捨てる。』,-
-  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
---- WX24-P3-009
-  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを５枚トラッシュに置く。その後、あなたのトラッシュ
-  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
-
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
 --- WX06-CB03
@@ -505,6 +484,87 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
+
+## +ADD_TO_HAND +GRANT_LRIG_ABILITY +LRIG +REVEAL_AND_PICK +SEQUENCE +UP ［1枚］
+WX24-P3-001
+--- WX24-P3-001
+  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【自】：あなたのアタックフェイズ開始時、このルリグをアップする。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。』,-
+  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  + [0].action.steps[1].type = "GRANT_LRIG_ABILITY"
+  + [0].action.steps[1].abilities[0].effectId = "WX24-P3-001-sub-E1"
+  + [0].action.steps[1].abilities[0].effectType = "AUTO"
+  + [0].action.steps[1].abilities[0].timing[0] = "ON_ATTACK_PHASE_START"
+  + [0].action.steps[1].abilities[0].action.type = "UP"
+  + [0].action.steps[1].abilities[0].action.target.type = "LRIG"
+  + [0].action.steps[1].abilities[0].action.target.owner = "self"
+  + [0].action.steps[1].abilities[0].action.target.count = 1
+  …（他 24 行）
+
+## +CHOOSE +COUNT_THRESHOLD +DRAW +ENERGY_CHARGE_FROM_DECK +GRANT_LRIG_ABILITY +SEQUENCE +STUB ［1枚］
+WX24-P3-003
+--- WX24-P3-003
+  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたの手札が３枚以下であるかぎり、あなたは対戦相手のルリグによってダメージを受けない。【起】《ターン１回》《ダウン》：カードを２枚引くか【エナチャージ２】をする。』,-
+  - [0].action.id = "GRANT_ABILITY_INNER_TEXT"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  + [0].action.steps[1].type = "GRANT_LRIG_ABILITY"
+  + [0].action.steps[1].abilities[0].effectId = "WX24-P3-003-sub-E1"
+  + [0].action.steps[1].abilities[0].effectType = "CONTINUOUS"
+  + [0].action.steps[1].abilities[0].activeCondition.type = "COUNT_THRESHOLD"
+  + [0].action.steps[1].abilities[0].activeCondition.location = "hand"
+  + [0].action.steps[1].abilities[0].activeCondition.owner = "self"
+  + [0].action.steps[1].abilities[0].activeCondition.operator = "lte"
+  + [0].action.steps[1].abilities[0].activeCondition.value = 3
+  …（他 29 行）
+
+## +DRAW +GRANT_LRIG_ABILITY +HAND_CARD +SEQUENCE×2 +STUB +TRASH ［1枚］
+WX24-P3-005
+--- WX24-P3-005
+  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたがダメージを受ける場合、代わりに手札を１枚捨ててもよい。そうした場合、このルリグはこの能力を失う。【起】《ターン１回》《ダウン》：カードを４枚引き、手札を２枚捨てる。』,-
+  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  + [0].action.steps[1].type = "GRANT_LRIG_ABILITY"
+  + [0].action.steps[1].abilities[0].effectId = "WX24-P3-005-sub-E1"
+  + [0].action.steps[1].abilities[0].effectType = "CONTINUOUS"
+  + [0].action.steps[1].abilities[0].action.type = "STUB"
+  + [0].action.steps[1].abilities[0].action.id = "DEFERRED_DAMAGE_REPLACE_BY_COST"
+  + [0].action.steps[1].abilities[0].duration = "UNTIL_OPP_TURN_END"
+  + [0].action.steps[1].abilities[0].mandatory = true
+  + [0].action.steps[1].abilities[0].parseStatus = "MANUAL"
+  …（他 19 行）
+
+## +DECK_CARD +GRANT_LRIG_ABILITY +SEQUENCE×2 +STUB +TRANSFER_TO_HAND +TRASH +TRASH_CARD ［1枚］
+WX24-P3-009
+--- WX24-P3-009
+  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを５枚トラッシュに置く。その後、あなたのトラッシュ
+  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
+  + [0].action.steps[1].type = "GRANT_LRIG_ABILITY"
+  + [0].action.steps[1].abilities[0].effectId = "WX24-P3-009-sub-E1"
+  + [0].action.steps[1].abilities[0].effectType = "CONTINUOUS"
+  + [0].action.steps[1].abilities[0].action.type = "STUB"
+  + [0].action.steps[1].abilities[0].action.id = "DEFERRED_REFRESH_LIFE_MOVE_REPLACE"
+  + [0].action.steps[1].abilities[0].duration = "UNTIL_OPP_TURN_END"
+  + [0].action.steps[1].abilities[0].mandatory = true
+  + [0].action.steps[1].abilities[0].parseStatus = "MANUAL"
+  …（他 22 行）
+
+## +SEQUENCE ［1枚］
+WX25-P2-001
+--- WX25-P2-001
+  原文: このゲームの間、あなたは以下の能力を得る。『【常】：対戦相手は追加で《無》を支払わないかぎり【ガード】ができない。【起】《ターン１回》手札から《ガードアイコン》を持つシグニを１枚捨てる：【ルリグバリア】１つを得る。』,-
+  - [0].action.id = "GAIN_ABILITY_THIS_GAME"
+  ~ [0].action.type : "STUB" → "SEQUENCE"
+  + [0].action.steps[0].type = "STUB"
+  + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
