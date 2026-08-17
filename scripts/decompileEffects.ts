@@ -3074,6 +3074,7 @@ const timingJa: Record<string, string> = {
   ON_CARD_MILLED_FROM_DECK: 'あなたか対戦相手のデッキからカードが1枚以上トラッシュに置かれたとき',
   ON_CARD_MOVED_TO_DECK: 'あなたか対戦相手のカードが効果によって1枚以上デッキに移動したとき',
   ON_HAND_ADDED: '効果によってカードがあなたの手札に移動したとき',
+  ON_TRASH_CARD_ADDED: '効果によってあなたのトラッシュにカードが置かれたとき',
   ON_ENERGY_TO_FIELD: 'あなたのエナゾーンからシグニが場に出たとき',
   ON_LIFE_CLOTH_ADDED: 'あなたのライフクロスにカード１枚が加えられたとき',
   ON_OPP_ENERGY_ADDED: '対戦相手のエナゾーンにカード１枚が置かれたとき',
