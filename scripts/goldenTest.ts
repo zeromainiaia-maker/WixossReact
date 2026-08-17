@@ -13131,6 +13131,83 @@ test('task12(cxiv) 引用文が keyword スロットへ流れ込んでいた2枚
   eq(pop.join(','), 'WXDi-CP02-057,WXDi-CP02-089,WXDi-P05-081,WXDi-P10-025,WXDi-P11-071,WXDi-P14-065,WXDi-P15-069',
      '引用付与ハンドラを通る正面パワー条件つきカードは7枚（8枚目の WXDi-P15-071 は (cxviii) で別経路）');
 }));
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-25(d)（2026-08-17）：引用付与のゲート条件を1形から5形へ（`buildGatedKeywordGrant`）
+// 🔴従来は「正面のシグニのパワーが」だけを読み、他の綴りは `null`＝**無条件 `keyword_grants`**へ
+//    フォールバックしていた＝ゲートが丸ごと落ちて**常時発動**（実測6効果）。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 O-25(d) buildGatedKeywordGrant: 5形のゲートを activeCondition へ写す', () => {
+  const condOf = (quoted: string, kw = 'ランサー') =>
+    JSON.stringify(buildGatedKeywordGrant(quoted, kw)?.activeCondition ?? null);
+
+  eq(condOf('このシグニは正面のシグニのパワーが5000以下であるかぎり、【ランサー】を得る'),
+    JSON.stringify({ type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 5000 }), '②正面パワー（従来形）');
+  eq(condOf('このシグニは正面のシグニがレベル１であるかぎり、【ランサー】を得る'),
+    JSON.stringify({ type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', level: 1 } }),
+    '③正面レベル＝比較語なしは**丁度N**（`{max:N}` に倒すと過剰）');
+  eq(condOf('このシグニは正面のシグニがレベル２以下であるかぎり、【ランサー】を得る'),
+    JSON.stringify({ type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', level: { max: 2 } } }), '③正面レベル以下');
+  // ⚠パワーとレベル／状態は評価器が別＝凍結つきは AND で2本に割る（`FRONT_SIGNI{powerRange}` に
+  //   まとめると `matchesFilter` が**表記パワー**で判定してバフ／デバフを無視する）。
+  eq(condOf('このシグニの正面のシグニが、凍結状態でパワーが5000以下であるかぎり、このシグニは【アサシン】を得る', 'アサシン'),
+    JSON.stringify({ type: 'AND', conditions: [
+      { type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', isFrozen: true } },
+      { type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 5000 },
+    ] }), '①凍結＋実効パワー');
+  eq(condOf('あなたの手札が２枚以下であるかぎり、このシグニは【ダブルクラッシュ】を得る', 'ダブルクラッシュ'),
+    JSON.stringify({ type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: 'lte', value: 2 }), '④自分の手札枚数');
+  eq(condOf('対戦相手のターンの間、【シャドウ】を得る', 'シャドウ'),
+    JSON.stringify({ type: 'TURN_OWNER', owner: 'opponent' }), '⑤ターンの持ち主');
+  // 🔑ゲートが無い引用は従来どおり null＝呼び出し元が無条件 `keyword_grants` を続ける（退化させない）。
+  eq(condOf('このシグニは【ランサー】を得る'), 'null', 'ゲート節が無ければ null');
+});
+
+test('§6.4 O-25(d) 引用付与6効果: ゲート条件が落ちて常時発動になっていない', () => withSavedCursor(() => {
+  // live の実 action を実行し、**無条件の `keyword_grants` に落ちていない**ことを固定する。
+  const cases: [string, string, string][] = [
+    ['WXDi-P12-078', 'WXDi-P12-078-E2', 'ランサー'],
+    ['WXDi-P13-079', 'WXDi-P13-079-E1', 'ランサー'],
+    ['WXDi-P13-069', 'WXDi-P13-069-E2', 'アサシン'],
+    ['WX24-P1-042', 'WX24-P1-042-E2', 'ダブルクラッシュ'],
+    ['WXDi-P06-032', 'WXDi-P06-032-E2', 'シャドウ'],
+    ['WXDi-P13-044', 'WXDi-P13-044-E2', 'シャドウ'],
+  ];
+  for (const [cardNum, effectId, kw] of cases) {
+    const eff = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    if (!eff) throw new Error(`${effectId} が存在`);
+    const ctx = mkCtx({ signi: [cardNum, null, null] }, { signi: [null, null, 'WX01-001'] }, cardNum);
+    const r = run(eff.action, ctx);
+    eq((r.ownerState.keyword_grants?.[cardNum] ?? []).includes(kw), false,
+      `🔴${effectId}: ${kw} が無条件の keyword_grants に入っている（ゲートが落ちている）`);
+    const granted = r.ownerState.granted_effects?.[cardNum] ?? [];
+    eq(granted.length, 1, `${effectId}: 条件つき CONTINUOUS が1本 granted_effects に入る`);
+    ok(!!granted[0].activeCondition, `${effectId}: activeCondition つきで入る`);
+    eq((granted[0].action as import('../src/types/effects').GrantKeywordAction).keyword, kw,
+      `${effectId}: 付与キーワードは ${kw}`);
+  }
+}));
+
+// 🔑**条件を付けた瞬間に走査軸から外れないこと**（§6.4 O-25(d)）＝シャドウの除外判定は
+//   `keyword_grants` と**印字能力**しか見ておらず、`granted_effects` を読んでいなかった。
+//   これを足さないと「常時シャドウ（過剰）」が「シャドウが一切効かない（過少）」へ裏返る。
+test('§6.4 O-25(d) 付与ストアの条件つきシャドウが対象選択から除外される', () => withSavedCursor(() => {
+  const victim = [...cardMap.values()].find(c => c.Type === 'シグニ')!.CardNum;
+  const shadowEff = buildGatedKeywordGrant('対戦相手のターンの間、【シャドウ】を得る', 'シャドウ')!;
+  const banish: EffectAction = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } };
+
+  // 対照＝付与なし＝普通に候補へ出る（＝盤面そのものが原因ではないことの固定）。
+  const plain = mkCtx({}, { signi: [victim, null, null] });
+  ok(!run(banish, plain).otherState.field.signi.some(s => s?.at(-1) === victim), '付与なしならバニッシュされる');
+
+  // 🔑`granted_effects` に条件つきシャドウを置く＝相手ターン中（＝こちらが効果を撃つ側なので
+  //    otherState から見れば「対戦相手のターン」）は候補から外れて**何も起きない**。
+  const shadowed = mkCtx({}, { signi: [victim, null, null] });
+  shadowed.otherState.granted_effects = { [victim]: [shadowEff] };
+  const r = run(banish, shadowed);
+  ok(r.otherState.field.signi.some(s => s?.at(-1) === victim),
+    '🔴付与ストアの条件つきシャドウが走査軸から漏れている（＝シャドウが一切効かない）');
+}));
 // ── タスク12(cxvii)（2026-08-08）：`WX20-Re18` の動的レベル閾値（`SELF_LEVEL_THRESHOLD`）──
 // 「レベルはエナ5枚につき＋1され、パワーはレベル1につき＋3000される」＝**表記レベル2**で、
 // 原文の「レベル4以上／5以上であるかぎり」は**動的にしか届かない**。
