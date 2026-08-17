@@ -1327,6 +1327,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
   }
 
+  // ---- 「この方法で〈移動〉したカードの枚数に N を加えた枚数のカードを引く」＝直前枚数＋定数のドロー ----
+  // 🔴従来はどの DRAW 規則にも掛からず総称 `STUB{POWER_MOD_PER_COUNT}`（＝パワー修整のバケツ）へ落ち、
+  //   **ドローが丸ごと no-op** かつ原文に無いパワー修整が出ていた（§6.4 O-11・`WX25-P1-046-E1`）。
+  // 🔑機構は既存＝`DRAW{count:N, addLastProcessedCount:true}` が「定数＋直前に処理した枚数」を解決する。
+  //   直前ステップ（手札→デッキ下の `TRANSFER_TO_DECK`）が `lastProcessedCards` を実枚数で置く。
+  {
+    const plusLastM = t.match(/^この方法で(?:デッキに移動した|捨てた|トラッシュに置いた|公開した)カードの枚数に([０-９\d]+)を加えた枚数のカードを引く$/);
+    if (plusLastM) {
+      return { type: 'DRAW', owner: 'self', count: parseNum(plusLastM[1]), addLastProcessedCount: true } as EffectAction;
+    }
+  }
+
   // ---- ドロー：まず「引き、捨てる」複合パターンを先にチェック ----
   const drawDiscardM = t.match(/カードを([０-９\d]+)枚引き、手札を([０-９\d]+)枚捨てる/);
   if (drawDiscardM) {
