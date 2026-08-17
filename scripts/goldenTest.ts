@@ -37637,6 +37637,47 @@ test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集�
     'execTransferToHand の非ALL経路は resolveCountRef');
 });
 
+// 🔴タスク12(cxx)：エナ差分 watcher（ON_ENERGY_CHARGE / ON_POWER_THRESHOLD）が entries を積むだけで
+//   `actions_done` へ書き戻しておらず、**《ターン1回/2回》が効かずエナチャージのたびに撃てた**。
+//   付与ストア側は続き478 で予約済みだったが、**印刷シグニ側は元から穴だった**。
+//   watcher 本体は BattleScreen 層＝golden 非カバーなので、①影響母集団 ②予約関数の意味論
+//   ③3つの push 地点すべてが予約を通ること（ソース照合）を固定する。
+test('エナ差分 watcher の《ターン1回/2回》予約（タスク12(cxx)）', () => withSavedCursor(() => {
+  const limited = (timing: string) => [...effectsMap.entries()]
+    .filter(([num]) => ['シグニ', 'レゾナ'].includes(cardMap.get(num)?.Type ?? ''))
+    .flatMap(([, effs]) => effs.filter(e => e.effectType === 'AUTO' && e.timing?.includes(timing as never) && e.usageLimit)
+      .map(e => `${e.effectId}:${e.usageLimit}`)).sort();
+  // 実測母集団（2026-08-18）＝この9効果が「無制限に撃てる」状態だった。
+  eq(limited('ON_ENERGY_CHARGE').join(','),
+    ['WX25-CP1-046-E1:once_per_turn', 'WXDi-CP02-085-E1:once_per_turn', 'WXDi-P11-073-E1:twice_per_turn',
+     'WXK04-028-E2:once_per_turn', 'WXK04-037-E2:once_per_turn', 'WXK11-039-E2:once_per_turn'].join(','),
+    'ON_ENERGY_CHARGE の usageLimit 付き母集団');
+  eq(limited('ON_POWER_THRESHOLD').join(','),
+    ['WX18-077-E1:once_per_turn', 'WX18-078-E1:once_per_turn', 'WXK04-035-E1:once_per_turn'].join(','),
+    'ON_POWER_THRESHOLD の usageLimit 付き母集団');
+
+  // 予約関数の意味論＝印刷能力（付与でなくても）同じ規約で消費する。
+  const eff = (effectsMap.get('WXK04-028') ?? []).find(e => e.effectId === 'WXK04-028-E2');
+  if (!eff) throw new Error('WXK04-028-E2 が存在');
+  const reserved: string[] = [];
+  ok(reserveGrantedAutoUsage(mkState({}), eff, reserved), '1回目は発火可能');
+  ok(!reserveGrantedAutoUsage(mkState({}), eff, reserved), '同じ収集内の2回目は不可（once_per_turn）');
+  eq(reserved.length, 1, 'actions_done へ書き戻すIDは1件');
+  ok(!reserveGrantedAutoUsage({ ...mkState({}), actions_done: [eff.effectId] }, eff, []),
+    '永続済み actions_done があれば次の収集でも不可');
+
+  // ③ push 地点3つ（付与 watcher／印刷 ON_ENERGY_CHARGE／印刷 ON_POWER_THRESHOLD）がすべて予約を通る。
+  //    ⚠1つでも素通りすると「全ゲート緑のまま撃ち放題」に戻る。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const watcher = src.slice(src.indexOf('// ON_ENERGY_CHARGE / ON_POWER_THRESHOLD の検知ウォッチャー'));
+  const block = watcher.slice(0, watcher.indexOf('// ON_TURN_END 解決後の自動フェーズ進行'));
+  eq((block.match(/reserveGrantedAutoUsage\(st, eff, autoUsedByKey\[key\]\)/g) ?? []).length, 3,
+    'エナ差分 watcher の push 地点3つすべてが usageLimit 予約を通る');
+  ok(/actions_done: \[\.\.\.\(hostState\.actions_done \?\? \[\]\), \.\.\.autoUsedByKey\.host\]/.test(block)
+    && /actions_done: \[\.\.\.\(guestState\.actions_done \?\? \[\]\), \.\.\.autoUsedByKey\.guest\]/.test(block),
+    '予約IDが両サイドの actions_done へ書き戻される');
+}));
+
 // 🔴タスク12(cxix)：`SPDi43-11-E2` の内側付与【自】が `ON_PLAY` へ落ちて恒久 no-op だった。
 //   真因＝ON_HAND_ADDED の regex が「**対戦相手**の効果→**対戦相手**の手札」の1形しか読めず、
 //   「**あなた**の効果→**あなた**の手札」が末尾フォールバックに食われていた（兄弟の SPDi43-12/13 だけ正しかった）。
