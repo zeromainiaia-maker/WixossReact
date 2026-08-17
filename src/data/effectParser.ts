@@ -883,7 +883,10 @@ function parseCost(costStr: string): EffectCost | undefined {
     if (etLvRangeM) {
       const minLv = parseNum(etLvRangeM[1]);
       const maxLv = parseNum(etLvRangeM[2]);
-      cost.energyTrash = { count: maxLv - minLv + 1, filter: { cardType: 'シグニ', story: etLvRangeM[3], levelRange: { min: minLv, max: maxLv } } };
+      // 「レベル1～4の＜X＞のシグニを**1枚ずつ**」＝レベル範囲ぶんを1枚ずつ＝**全部レベルが異なる**。
+      // ⚠`levelRange` と枚数だけでは「レベル1を4枚」でも払えてしまう（2026-08-18・§5d-0 (ii)）。
+      //   枚数＝範囲の幅なので `distinct:'level'` を課せば「各レベル1枚ずつ」と同値になる。
+      cost.energyTrash = { count: maxLv - minLv + 1, filter: { cardType: 'シグニ', story: etLvRangeM[3], levelRange: { min: minLv, max: maxLv } }, selectionConstraint: { distinct: 'level' } };
     }
   }
   // エナゾーンからそれぞれ名前の異なる、カード名に《XXX》を含むシグニN枚をトラッシュ → energyTrash
