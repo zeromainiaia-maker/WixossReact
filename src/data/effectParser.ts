@@ -1221,12 +1221,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // パターン3g: 「あなたのトラッシュに＜X＞(か＜Y＞)*のシグニがN枚以上あるかぎり、」（トラッシュのクラス指定枚数条件。G090）
-  const trashStoryCountM = text.match(/^あなたのトラッシュに((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)枚以上あるかぎり、/);
+  // パターン3g: 「あなたのトラッシュに＜X＞(か＜Y＞)*の〔シグニ|カード〕がN枚以上あるかぎり、」（トラッシュのクラス指定枚数条件。G090）
+  // ⚠**「カード」形を受けていなかった**（2026-08-18 実測）＝`WX26-CP1-059-E1`／`WXDi-CP02-097-E1` が
+  //   丸ごと落ちて**無条件で成立**していた。名詞が「カード」のときは `cardType` を課さない（シグニ以外も数える）。
+  const trashStoryCountM = text.match(/^あなたのトラッシュに((?:＜[^＞]+＞(?:か)?)+)の(シグニ|カード)が([０-９\d]+)枚以上あるかぎり、/);
   if (trashStoryCountM) {
     const storyFilter = parseStoryFilter(trashStoryCountM[1]);
     return {
-      condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, minCount: parseNum(trashStoryCountM[2]) },
+      condition: { type: 'TRASH_HAS_CARD', owner: 'self',
+        filter: { ...(trashStoryCountM[2] === 'シグニ' ? { cardType: 'シグニ' as const } : {}), ...storyFilter },
+        minCount: parseNum(trashStoryCountM[3]) },
       rest: text.slice(trashStoryCountM[0].length),
       conditionFound: true,
     };
