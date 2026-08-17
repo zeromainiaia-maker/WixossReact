@@ -94,7 +94,10 @@ export function parseSentencePart2(t: string): EffectAction | null {
 
   // ---- 同名カード使用禁止（禁止されるのは対戦相手＝targetSelf:false。直前に除外したカード名を ban する）----
   if (t.match(/対戦相手はそれと同じ名前のカードを使用できない/)) {
-    return { type: 'NAME_BAN', targetSelf: false, duration: 'GAME' } as NameBanAction;
+    // ⚠期間は**原文から取る**＝「このターン、」が付く形（`WDK07-E08` ③）を `GAME` に倒すと
+    //   ゲーム中ずっと封じる過剰実行になる（§6.4 O-11）。
+    return { type: 'NAME_BAN', targetSelf: false,
+      duration: /このターン/.test(t) ? 'TURN' : 'GAME' } as NameBanAction;
   }
 
   // ---- トラッシュからコスト以下のスペルを使用 ----
