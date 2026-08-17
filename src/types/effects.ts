@@ -1402,6 +1402,15 @@ export interface ChooseAction {
    * 🔴これが無かった頃は**カードごと受け皿 STUB に落ちて①②③が1つも実行されない**真 no-op だった。
    */
   countChoose?: { count: NumberOrRef; upTo?: boolean };
+  /**
+   * 「**同じ選択肢を２回以上選んでもよい**」（§6.4 O-29・`WX17-003-E1`／`WX22-016-E1`）。
+   * ⚠**engine（`resumeChoose`）は最初から重複 id を受けられる**（`['c1','c1']` を順に実行する）＝
+   *   本当の穴は **UI が `Set<string>` で持っていた**ことだった。ここを立てると UI が回数マップへ切り替わる。
+   * ⚠従来この語彙が無かったため、`WX17-003-E1` は**カード全文を実行時に regex で読む受け皿 STUB**
+   *   （`CHOOSE_SAME_OPTION_TWICE`＝§6.4 O-20 で潰した型の生き残り）で「1つずつN周」を近似しており、
+   *   **「Nつ**まで**」の upTo が落ちて必ずN回選ばされる**過剰実行でもあった。
+   */
+  allowRepeat?: boolean;
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
