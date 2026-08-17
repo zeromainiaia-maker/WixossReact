@@ -5355,7 +5355,7 @@ function applyDistinctBatch5c(effects: CardEffect[], cardText: string): void {
       const actual = (sourceCount !== undefined && obj.type === 'TRANSFER_TO_DECK'
         ? obj.source : target) as Record<string, unknown>;
       if (actual && typeof actual === 'object') {
-        actual.selectionConstraint = { distinct: kind };
+        actual.selectionConstraint = distinctConstraintOf(kind);
         state.applied = true;
       }
     }
