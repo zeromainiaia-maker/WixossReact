@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 601（総ノード 2864 件）
-逆翻訳シートの [STUB:…] 総数: 748  うち生ID露出 302 箇所（185 種）
+逆翻訳シートの [STUB:…] 総数: 747  うち生ID露出 304 箇所（186 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 4 種 / 5 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 4 種 / 5 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 178 種 / 294 箇所
-  D 健全（実装あり＋日本語表示）                          : 419 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 179 種 / 296 箇所
+  D 健全（実装あり＋日本語表示）                          : 418 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 345 種
 
 ==============================================================================
@@ -23,7 +23,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
      2件   2枚  DEFERRED_COLOR_QUALIFIED_USE_BLOCK  [生ID露出 2]
         カード: PR-471, WXK09-037
         生成: src\data\parsers\parseSentencePart2.ts:424
-     1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE
+     1件   1枚  DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE  [生ID露出 1]
         カード: SPDi43-05
         生成: src\data\effectParser.ts:14114
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
@@ -187,6 +187,9 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
   露出  2箇所 (live 2件/2枚)  BANISH  [execStubPart2]
         カード: WXDi-CP01-015, WXK06-025
         既存コメント: BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ
+  露出  2箇所 (live 2件/2枚)  BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN  [execStubPart3]
+        カード: WX15-003, WX25-P1-050
+        既存コメント: BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN（§6.4 O-14(a)・`WX15-003-E3`）: 「**次のターンの間**、対戦相手はアーツとスペルと【起】能力を使用できず〜」＝上の当ターン
   露出  2箇所 (live 6件/5枚)  CAST_FROM_OPP_TRASH  [execStubPart2]
         カード: PR-433, WX14-027, WXEX1-46, WXEX2-12, WXK11-016
         既存コメント: CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
