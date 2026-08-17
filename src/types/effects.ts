@@ -208,6 +208,9 @@ export type ActiveCondition =
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
   | { type: 'IS_SELF_DOWN' }                                    // このシグニがダウン状態であるかぎり
+  // このシグニがアップ状態であるかぎり（`IS_SELF_DOWN` の裏。`WXDi-P04-050-E1/E2`＝2026-08-18）。
+  // ⚠否定を持たないので `IS_SELF_DOWN` では表せない＝専用型。Condition 側の `THIS_CARD_IS_UP` と対。
+  | { type: 'IS_SELF_UP' }
   | { type: 'IS_SELF_IN_CENTER_ZONE' }                          // このシグニが中央のシグニゾーンにあるかぎり
   // このシグニが左／右（または「左か右」）のシグニゾーンにあるかぎり。ゾーン添字は所有者から見た
   // 表示順＝left=0 / right=2（`TargetFilter.zoneSide` と同じ規約）。`either`＝「左か右の」＝中央以外。
