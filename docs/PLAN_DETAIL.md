@@ -6,6 +6,117 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-17 整理㉘：🏁§6.4 `O-25` 完了（自己引用付与の残り (c)(d)）（続き541）
+
+> PLAN §6.4 からは行を削除し、索引だけ残した。**実機の観測点は §7 の `V-61`／`V-62`**。
+
+### 📏 在庫の実測（着手前・§3-1）＝簿記の「(d) 39効果」は実態と違った
+
+原文 regex「〈期間〉、この(シグニ|ルリグ|カード)は「【常】…」を得る」を効果単位で走査＝**36ヒット／35カード**。
+そのうち**大半は既に実装済み**（`GRANT_PROTECTION`／`SIGNI_ATTACK_BAN`／`POWER_MODIFY`／`BANISH_REDIRECT`／
+`GRANT_LRIG_ABILITY` などの「期間つき即時適用」で**実際に効いている**）。
+
+⭐**PLAN が (d) の本体と書いていた「CONTINUOUS の走査軸が付与ストアを読んでいない」は、この母集団では
+主症状ではなかった**（それは `GRANT_LRIG_ABILITY`＝**ルリグ側**の話で、シグニ側の `granted_effects` は
+`collectContinuousGrantedKeywords`→`getSigniAttackKeywordState` まで既に通っている）。
+実際に壊れていたのは**別の3クラス・計14効果**で、いずれも**条件節が落ちて無条件発火する過剰実行**だった。
+⚠**着手前に台帳の見立てを実データで検証すること**（O-14／O-15 と同じ教訓が3セッション連続で出ている）。
+
+### ① 引用付与のゲート条件が1形しか読めない（6効果）
+
+`buildFrontPowerGatedKeywordGrant`（`execUtils.ts`）は「**正面のシグニのパワーが**N{以上|以下}であるかぎり」
+1形だけを読み、他の綴りには `null` を返していた。呼び出し元（`execStubPart1` の `GRANT_QUOTED_ABILITY` ほか）は
+`null` のとき**無条件の `keyword_grants`** へフォールバックするので、**ゲートが丸ごと落ちて常時発動**になる。
+
+engine で実行して確認した実測値：
+
+| 効果 | 原文のゲート | 旧挙動 |
+|---|---|---|
+| `WXDi-P12-078-E2` | 正面のシグニがレベル１ | 常時【ランサー】 |
+| `WXDi-P13-079-E1` | 正面のシグニがレベル２以下 | 常時【ランサー】 |
+| `WXDi-P13-069-E2` | 正面が凍結状態でパワー5000以下 | 常時【アサシン】 |
+| `WX24-P1-042-E2` | あなたの手札が２枚以下 | 常時【ダブルクラッシュ】 |
+| `WXDi-P06-032-E2` | 対戦相手のターンの間 | 常時【シャドウ】 |
+| `WXDi-P13-044-E2` | 対戦相手のターンの間 | 常時【シャドウ】 |
+
+⇒ **`buildGatedKeywordGrant` へ改名し、読めるゲートを5形へ広げた**（`FRONT_SIGNI_POWER` ／ `FRONT_SIGNI{level}` ／
+`AND[FRONT_SIGNI{isFrozen}, FRONT_SIGNI_POWER]` ／ `COUNT_THRESHOLD{hand}` ／ `TURN_OWNER`）。
+**新しい `ActiveCondition` は1つも要らなかった**＝語彙は全部あった。
+
+- ⚠**パワーとレベル／状態は評価器が別**＝「凍結状態でパワーがN以下」は **`AND` で2本に割る**。
+  `FRONT_SIGNI{filter:{isFrozen, powerRange}}` にまとめると `matchesFilter` が**表記パワー**で判定して
+  バフ／デバフを無視する（`FRONT_SIGNI_POWER` だけが実効パワーを見る）。
+- ⚠**比較語の無い「レベル１であるかぎり」は丁度N**（`{max:N}` に倒すと過剰）。
+- ⚠**ゲートが見つからなければ従来どおり `null`**＝無条件フォールバックを残す（読めない綴りで退化させない）。
+
+### ②🔴 条件を付けた瞬間に走査軸から外れる（シャドウ）＝ここが本当の「走査軸」問題
+
+【シャドウ】だけは、条件つきにして `granted_effects` へ移すと**効かなくなる**ことが分かった。
+`selectOrInteract` のシャドウ除外（`execUtils.ts`）が読んでいたのは
+**`keyword_grants` ＋ カードの印字 `effects` ＋ 場全体付与**の3軸だけで、**付与ストアが入っていなかった**。
+
+⇒ `condShadowSources` に `granted_effects` / `granted_effects_until_opp_turn` を足した。
+🔑**足さないと「常時シャドウ（過剰）」が「シャドウが一切効かない（過少）」へ裏返る**＝
+**近似を外すときは、外した先の走査軸が本当にそこを読むかを実行して確かめる**（PLAN の警告の実例が出た形）。
+
+### ③🔴「そのアタックがこのターンN度目の場合」が条件節ごと落ちていた（7効果）
+
+新条件 **`ATTACK_ORDINAL_THIS_TURN{owner, operator, value}`**（`Condition` 側）。
+
+- 🔑**序数はシグニ単位ではなくアタックしたプレイヤーのターン内通算**＝`attacked_signi_ids.length`
+  ＋ルリグアタック済み分（シグニは通常1回しかアタックできないので「四度目」は盤面全体の通算でしか成立しない）。
+- ⚠**解決中のアタック自身を含む**＝`BattleScreen` は `attacked_signi_ids` へ追記した `newMyState` で
+  `ON_ATTACK_SIGNI` を収集するので、一度目のアタックの解決時点で既に 1 になっている。
+- 母集団＝`WXK06-033/035-E1`（**アタックのたびに自分をアップ**＝実質もう1回アタックできる／原文は四度目のみ）、
+  `WXK06-037/038/062-E1`・`WXDi-P14-052-E1`（毎アタックで引き／エナチャージ／手札戻し）、
+  `WXDi-P16-063-E1`（**一度目と二度目の排他分岐が両方走る**）。
+- ⚠**「一度目か二度目」は拾わない**（`WX10-018`／`WX17-006`／`SP27-016`）＝あちらは「そのアタックを無効にする」
+  側の別機構（`negateNthAttack` のカウントダウン窓）が既に実装済み。regex を「N度目の場合」に限定して避けた
+  （golden に「奪っていない」トリップワイヤあり）。
+
+### ④🔴「このシグニに【チャーム】が付いている場合」が落ち、しかも別物に化けていた
+
+新条件 **`THIS_CARD_IS_CHARMED`**（`ActiveCondition` の `IS_SELF_CHARMED` と同型・同実装。
+`THIS_CARD_HAS_ATTACHED`＝チャーム/アクセ/ソウルの合計とは別物）。
+
+- 🔴`WXK07-043-E1`＝**条件節の「【チャーム】」を付与キーワードとして拾って** `GRANT_KEYWORD{keyword:'チャーム'}`
+  ＝**原文と無関係な別物**（本体のバニッシュ耐性は消失、条件も消失）。
+- 🔴`WXK07-043-E2`＝「チャームが付いている場合、**追加で**カードを1枚引く」が**無条件**。
+- 🔴`WXK07-071-E1`＝チャーム条件が落ちて**無条件で《緑》支払いの選択が出る**。
+- 🔴`WXK07-044-E1`（MANUAL・手書き）＝**チャーム分岐が丸ごと欠落**していて「パワー7000ちょうど」の弱い枝しか
+  撃てなかった（原文は「代わりにパワー12000以上」）。⚠「代わりに」＝**排他**なので `then`/`else` で書く
+  （SEQUENCE にすると両方バニッシュする過剰）。`syncManualLive.ts` で live へ同期。
+
+### ⑤ (c) `SPDi43-05-E2` は**宣言済みの穴**にした（実装したことにしない）
+
+原文＝「次の対戦相手のターン終了時まで、このルリグは「【自】：対戦相手のルリグかシグニ１体がアタックしたとき、
+**あなたの場かエナゾーンから**そのルリグかシグニと**同じレベルの**シグニ１枚をトラッシュに置いてもよい。
+そうした場合、そのアタックを無効にする。」を得る。」
+
+- 🔴**旧状態は「真 no-op」ですらなく「無言の no-op」だった**＝live は `STUB{GRANT_QUOTED_AUTO_ABILITY}` で、
+  そのハンドラは**カード全文 regex で拾おうとして黙って何もしない**＝ハンドラが在るので
+  `census:stubs` では「実装済み」に見えて計器に映らない（CLAUDE.md の「STUB＝未実装ではない」の実例）。
+- ⇒ `expandGrantEffectRawTexts` に分岐を足し、**`STUB{DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE}`** へ落とした
+  （O-37 の `deferredQuotedAbility` と同じ方針）。`census:stubs` A群の**明示 defer** に載る。
+- **実装に要る機構4本**（次に着手する人向け）＝①ルリグ／シグニ両方を受ける union トリガー
+  ②🔴**ソース側の場∪エナ横断選択**（既存 `wrapFieldOrEnergy` は「場に**出す**かエナに**置く**」＝行き先側で
+  向きが逆・流用不可。`TRADE_BANISH_SELF_SIGNI` も `field.signi` しか読まない場だけの近似）
+  ③アタッカーのレベルを実行時に束縛 ④アタック無効化（`SET_CANCEL_ATTACK_FLAG` は実装済み）。
+  **②が engine のどこにも無い**のが唯一の実ブロッカー。
+
+### 計器・ゲート
+
+- **golden 2203→2210**（+7）。⚠**うち1本は既存テストの順序依存の是正**＝`(xlvi) wave17 WXDi-P15-005-E1` は
+  埋め札を `fill(4)`（POOL の **cursor 位置**から取る）で作っており、live JSON が変われば
+  **埋め札がたまたま赤**になって「共通色だけ候補」が落ちる（実測＝`WXK08-074`〜`077` が混入）。
+  ファイル冒頭に「cursor 依存の既知の結合」と注記されていた実体がこれ。⇒ **性質（赤を持たない）で選ぶ**形へ是正。
+- 🔑**5本とも「実装を戻すと赤くなる」ことを実測**（live JSON と `buildGatedKeywordGrant` を一時 revert して `FAIL 5`）。
+- **census 806→800**（`BASELINE_HIGH` 更新済み）、smoke 10693 / SKIP 0、fuzz 全0、
+  `census:stubs` A群＝**7種/8件（すべて明示 defer。無言 no-op は 0）**、manual-fields 0、lint 0 errors。
+- **live JSON changed 11効果/11カード**（held 採用10＋MANUAL 外科パッチ1。CSV 非改変）。
+  ⚠**ゲート条件の6効果は live 非改変**＝`buildGatedKeywordGrant` は実行時に STUB から呼ばれる engine 側の是正。
+- ⚠**14効果すべて実機未検証**（§7 `V-61`／`V-62` 送り）。
+
 ## 2026-08-17 整理㉗：§6.4 `O-14`（申告済みの原文不一致2件）と `O-15`（手札からの選択機構）の消化（続き540）
 
 > PLAN §6.4 からは行を削除し、索引だけ残した。**実機の観測点は §7 の `V-59`／`V-60`**。
