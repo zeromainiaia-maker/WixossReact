@@ -42,9 +42,32 @@ for (const part of ['execStubPart1', 'execStubPart2', 'execStubPart3']) {
       cmt.unshift(c);
     }
     for (const id of ids) {
-      if (!handlerFile[id]) { handlerFile[id] = part; handlerComment[id] = cmt.join(' '); }
+      if (!handlerFile[id]) { handlerFile[id] = part; handlerComment[id] = cmt; }
     }
   }
+}
+
+/**
+ * ハンドラ直前コメントから「その id の説明文」だけを取り出す（§6.4 O-12・続き545）。
+ *
+ * 🔴**この整形が無いと逆翻訳に生の英語 ID が出る**＝コメントは慣例的に
+ *   `// STUB_ID: 日本語の説明` の形で書かれており、そのまま説明欄へ入れると
+ *   `[STUB:SIGNI_REPOSITION: シグニを別のゾーンに移動…]` のように**先頭がIDのまま**になる
+ *   （`censusStubs.ts` はこれを「生ID露出」として数える）。実測 179種中 156種がこの形だった。
+ *
+ * 規則：
+ *   ① その id のラベル行（`<id>: …`）があればそれだけを使う（他 id 宛ての行を混ぜない）。
+ *   ② 無ければ**ブロック全体からラベルだけを外して**使う（1つの `if` が複数 id を捌く共有
+ *      コメントは、ラベルの無い id にも当てはまる＝`SWAP_OPTIONAL` が実例）。
+ */
+function descriptionForId(lines, id, knownIds) {
+  const labelOf = (line) => {
+    const m = line.match(/^([A-Z][A-Z0-9_]*)\s*[:：]\s*/);
+    return m && knownIds.has(m[1]) ? m[1] : null;
+  };
+  const strip = (line) => line.replace(/^[A-Z][A-Z0-9_]*\s*[:：]\s*/, '');
+  const mine = lines.filter(l => labelOf(l) === id);
+  return (mine.length > 0 ? mine : lines).map(strip).join(' ');
 }
 
 const allIds = new Set([...Object.keys(count), ...Object.keys(handlerFile)]);
