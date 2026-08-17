@@ -1,5 +1,39 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き542・Opus 5）— 🏁§6.4 `O-29` 完了（「同じ選択肢を複数回選ぶ」ループ）
+
+**live 8効果/8カードの挙動是正**（CSV 非改変）。ゲート全緑・golden 2210→**2214**・census 800→**799**。詳細台帳は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-17 整理㉙」、実機の観測点は PLAN §7 `V-63`。
+
+### 📏 まず在庫を実測＝台帳の記述が2箇所とも古かった
+
+母集団は簿記どおり2効果だったが、①「`WX17-003-E1` は先頭に `UNKNOWN{raw:"以下から２つまで選ぶ"}` が残る」→ **もう残っていない**（続き531/532 で `CONDITIONAL{IS_BETTING}` 形になっていた）②「`WX22-016-E1` の MANUAL は本体のバニッシュ節も落ちている」→ **落ちていない**（続き532 で手当て済み）。残っていたのは②の `STUB{REPEAT_EFFECT}` だけだった。
+
+### ⭐ 本当の穴は engine ではなく **UI** だった
+
+`resumeChoose` は `choiceId: string | string[]` を受け、`ids.map(...)` で**重複 id をそのまま順に実行する**（dedup していない）＝**engine は最初から `['c1','c1']` を捌ける**。穴は `EffectInteractionModal.tsx` の複数選択UIが **`selectedMultiChoiceIds: Set<string>`** だったこと＝**同じ選択肢は一度しか選べない**。
+
+⇒ **`ChooseAction.allowRepeat`（JSON語彙）→ `PendingInteractionDef.CHOOSE.allowRepeat`（engine→UI）→ UI は回数マップ（`Record<id, number>`）へ切り替え**、決定時に `['c1','c1',…]` へ展開。**engine の解決ロジックは1行も変えていない。**
+- ⚠選択数1のときは立てない（`multiSelect` が付かず単発UIになるため）。
+- ⚠**CPU 自動応答も直した**＝`avail.slice(0, count)` のままだと選択肢2つ・count4 で CPU は2つしか選ばず、**ベットしたコインぶんの選択が黙って目減りする**（過少）。`allowRepeat` のときは先頭から巡回して `count` を埋める。
+
+### 🔴① `WX17-003-E1`＝受け皿 STUB から構造化 CHOOSE へ
+
+旧は**カード全文を実行時に regex で読む受け皿 STUB**（`CHOOSE_SAME_OPTION_TWICE` / `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`＝§6.4 O-20 で潰した型の生き残り）。しかもその受け皿は `count:1` の `continuation` を N 周回すので、🔴**「Nつ**まで**」の upTo が落ちて必ずN回選ばされる**過剰実行でもあった。
+
+🔑**ベット選択数変更型のヘッダ regex を「以下**から**Mつ選ぶ」でも受けるよう広げただけ**で構造化できた（従来は「以下の**N個**から」で始まる形しか受けず、コメントに「未マッチ＝据置」と明記されていた）。結果＝`CHOOSE{choose_count:2, upTo:true, allowRepeat:true, betChoose:{thenChooseCount:4, thenUpTo:true}}` ＋ ①`SEQUENCE[BOUNCE, TRASH{hand}]`／②`GRANT_KEYWORD{LRIG opponent, アタックできない}`／③`SEARCH{story:'怪異', maxCount:2}`。
+
+### 🔴② `WX22-016-E1`＝②「このアーツの効果を一度繰り返す」が無言 no-op だった
+
+旧は `STUB{REPEAT_EFFECT}`＝engine では `[反復未実装]` のログを出すだけで、**②を何回選んでも盤面は1回ぶんしか動かない**。⇒ ②の action を**アーツ本体と同じ木**（`SEQUENCE[BANISH, TRANSFER_TO_HAND{story:'遊具'}]`）にした。`allowRepeat` で②をN回選べば本体がN回**追加で**走る（基底の1回は CHOOSE の兄弟ステップ）。⚠**解決順は「追加ぶん → 基底」**（CHOOSE が SEQUENCE の先頭にあるため）＝このカードの本体は順序に依存しないので影響しないが、**順序が意味を持つ本体を持つカードが出たら基底を CHOOSE より前へ出すこと**。MANUAL 不可侵なので `syncManualLive.ts` で同期。🏁これで **`REPEAT_EFFECT` / `REPEAT_N_TIMES` はどちらも live 0件**。
+
+### 🔧③ 副産物＝SEARCH の「レベル／名前の異なる」を配線（6効果の過少を是正）
+
+`WX17-003-E1`③「**レベルの異なる**＜怪異＞のシグニ２枚を探して」の相互制約が `SearchAction.selectionConstraint`（実装済み）に載っておらず、**同じレベルを2枚探せた**（原文より緩い）。デッキサーチのビルダーへ配線したところ収穫マージが同型6効果を自動採用＝`WXEX2-43-E3`／`WXEX2-47-E4`／`WXK05-029-E3`／`WXK10-032-E2`／`WD23-001-E-E3`／`WXK02-028-E1`（distinct level）、`WX21-Re07-E1`（distinct name）。**全件、原文に該当句があることを照合済み。**
+
+### ゲート
+
+golden **2214**（+4）。⚠既存2本を更新＝`REPEAT_EFFECT` の残存許容（1件→**0件**）と、`(O-11) WX22-016-E1` の「選択肢の中に本体が無いこと」→「①は本体を持たない／②は本体と同じ木」へ精密化（旧条件は「本体が①②のどちらかを選ばないと走らない」旧構造を弾くためのもので、いまは②の本体コピーが正しい姿）。🔑**6本とも「実装を戻すと赤くなる」ことを live JSON と engine の pending 伝搬を一時 revert して実測**（`FAIL 6`）。census **800→799**（`BASELINE_HIGH` 更新）、smoke 10693 / SKIP 0、fuzz 全0、`census:stubs` 無言 no-op 0、manual-fields 0、lint 0 errors。live JSON changed **8効果/8カード**。⚠**UI（回数モーダル）と CPU 自動応答は実機未検証**（golden は engine 側までしか踏めない）。
+
 ## 2026-08-17（続き541・Opus 5）— 🏁§6.4 `O-25` 完了（自己引用付与の残り (c)(d)）
 
 **live 11効果/11カードの挙動是正＋engine 側で 6効果**（CSV 非改変）。ゲート全緑・golden 2203→**2210**・census 806→**800**。詳細台帳は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-17 整理㉘」、実機の観測点は PLAN §7 `V-61`／`V-62`。
