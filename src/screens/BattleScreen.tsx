@@ -1009,46 +1009,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // フィールド（シグニ＋センタールリグ）にCONTINUOUS GRANT_KEYWORD マルチエナ（count:ALL）効果があるか
   // WX01-027（シグニ）・WX05-006（ルリグLv5）のような「全エナにマルチエナ付与」効果を検出
+  // ⚠**実装は `artsUseGate.ts` の pure 関数1本**（CPU の候補フィルタも同じ関数を呼ぶ＝§8 `O-1`）。
+  //   ここに式を写経すると「人間には剥がれているのに CPU では効かない」型の無言のズレになる。
   const myEnaAllMulti = useMemo(() => {
     if (!bs) return false;
     const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    const opS = localIsHost ? bs.guest_state : bs.host_state;
-    const isMyTurnNow = bs.active_user_id === user.id;
-    const hasAllMultiEffect = (cardNum: string) =>
-      (effectsMap.get(cardNum) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' &&
-        e.action?.type === 'GRANT_KEYWORD' &&
-        (e.action as { keyword: string }).keyword === 'マルチエナ' &&
-        (e.action as { target: { count: unknown } }).target?.count === 'ALL' &&
-        // グロウ条件等の activeCondition（WX05-006「エナの色が3種類以上」）を尊重
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, myS, opS, isMyTurnNow, battleCardMap, cardNum))
-      );
-    // シグニゾーン
-    if (myS.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasAllMultiEffect(top); })) return true;
-    // センタールリグ
-    const lrigTop = myS.field.lrig.at(-1);
-    if (lrigTop && hasAllMultiEffect(lrigTop)) return true;
-    return false;
+    return collectEnaAllMulti(
+      localIsHost ? bs.host_state : bs.guest_state,
+      localIsHost ? bs.guest_state : bs.host_state,
+      bs.active_user_id === user.id, effectsMap, battleCardMap);
   }, [bs, effectsMap, user.id, battleCardMap]);
 
   // 相手フィールドの WXK11-020 により、自分のエナは印字・付与を問わずマルチエナを失う。
   const myEnaMultiStripped = useMemo(() => {
     if (!bs) return false;
     const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    const opS = localIsHost ? bs.guest_state : bs.host_state;
-    const opIsOwnerTurn = bs.active_user_id !== user.id;
-    const hasStripEffect = (cardNum: string) =>
-      (effectsMap.get(getCardNum(cardNum)) ?? []).some(e =>
-        e.effectType === 'CONTINUOUS' &&
-        e.action?.type === 'STUB' &&
-        (e.action as import('../types/effects').StubAction).id === 'STRIP_OPP_ENA_MULTI_ENA' &&
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, opS, myS, opIsOwnerTurn, battleCardMap, cardNum))
-      );
-    if (opS.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasStripEffect(top); })) return true;
-    const lrigTop = opS.field.lrig.at(-1);
-    return !!lrigTop && hasStripEffect(lrigTop);
+    return isEnaMultiStripped(
+      localIsHost ? bs.host_state : bs.guest_state,
+      localIsHost ? bs.guest_state : bs.host_state,
+      bs.active_user_id !== user.id, effectsMap, battleCardMap);
   }, [bs, effectsMap, user.id, battleCardMap]);
 
   // ── Rules of Hooks 対策：PLAYING セクション由来の hooks を if(!bs)/SETUP return より前に置く ──
