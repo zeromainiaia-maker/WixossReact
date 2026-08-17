@@ -4200,7 +4200,63 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   `facedown_release_by_payment` で実装した（`delayed_triggers` は THIS_TURN 限定なので載らない）。
   //   ⚠予約は**裏向きカードの持ち主側**（＝支払う側）に載る。両プレイヤーのアタックフェイズ開始時に
   //   合成トリガーが立ち、支払われるまで消えない。
+  // 🆕**E1＝公開したカードのレベル別4分岐（§6.4 O-11・続き532）**。
+  // 原文＝「【自】：このルリグがアタックしたとき、**対戦相手の**デッキの一番上を公開する。
+  //   それがレベル１のシグニの場合、①を行う。レベル２のシグニの場合、②を行う。
+  //   レベル３のシグニの場合、①か②を行う。スペルの場合、①と②を行う。
+  //   ①カードを１枚引く。②対戦相手は手札を１枚捨てる。」
+  // 🔴旧パース＝`REVEAL_AND_PICK{owner:'self', filter:{シグニ,level:1}, then:RULE_REMINDER_TEXT}`＝
+  //   ①**公開するデッキが自分**（相手の情報を見るはずが自分のデッキを晒す）②pick して**何もしない**
+  //   ③レベル2/3・スペルの3分岐が丸ごと消えている＝**実質すべて no-op**。
+  // 🔑機構は全部既存＝`REVEAL_DECK_TOP{owner:'opponent'}` が `lastProcessedCards` に公開札を残し、
+  //   `LAST_PROCESSED_MATCHES` の else 連鎖で4分岐を書ける。**parser 規則にはしない**＝
+  //   「①を行う／①か②を行う」という後方参照の書式は**全CSVでこの1枚だけ**（実測）。
+  // ⚠**else の入れ子**にする（並列 CONDITIONAL だと「レベル3のシグニ」がレベル1の枝にも当たらない代わりに、
+  //   将来 filter を緩めたときに複数枝が同時発火する）。
   'WXDi-P07-010': [
+    {
+      effectId: 'WXDi-P07-010-E1',
+      effectType: 'AUTO',
+      timing: ['ON_ATTACK_LRIG'],
+      triggerScope: 'self',
+      action: { type: 'SEQUENCE', steps: [
+        { type: 'REVEAL_DECK_TOP', owner: 'opponent', count: 1 },
+        {
+          type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 1 } },
+          then: { type: 'DRAW', owner: 'self', count: 1 },
+          else: {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 2 } },
+            then: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+            else: {
+              type: 'CONDITIONAL',
+              condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'シグニ', level: 3 } },
+              // 「①か②を行う」＝プレイヤーがどちらかを選ぶ
+              then: {
+                type: 'CHOOSE', choose_count: 1, from_count: 2,
+                choices: [
+                  { choiceId: 'c0', label: 'カードを1枚引く', action: { type: 'DRAW', owner: 'self', count: 1 } },
+                  { choiceId: 'c1', label: '対戦相手は手札を1枚捨てる', action: { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } } },
+                ],
+              },
+              else: {
+                type: 'CONDITIONAL',
+                condition: { type: 'LAST_PROCESSED_MATCHES', filter: { cardType: 'スペル' } },
+                // 「①と②を行う」＝両方
+                then: { type: 'SEQUENCE', steps: [
+                  { type: 'DRAW', owner: 'self', count: 1 },
+                  { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 1 } },
+                ] },
+              },
+            },
+          },
+        },
+      ] },
+      duration: 'INSTANT',
+      mandatory: true,
+      parseStatus: 'MANUAL',
+    },
     {
       effectId: 'WXDi-P07-010-E2',
       effectType: 'ACTIVATED',
