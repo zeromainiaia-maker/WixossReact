@@ -39155,6 +39155,75 @@ for (const spec of distinctLiveCases) {
   });
 }
 
+// ── §5d-0 (i) 2026-08-18：「傀儡状態であなたの場に出す」8効果を STEAL_OPP_TRASH_PUPPET へ ──
+// 🔴従来は汎用「トラッシュから…場に出す」へ落ちて `ADD_TO_FIELD{TRASH_CARD, owner:'self'}`＝
+//   **自分のトラッシュから自分のシグニを蘇生する完全な別物**（傀儡状態にもならない）だった。
+//   `WXK10-091-E2` は「＜美巧＞**ではない**」を `story:'美巧'` と読んで**条件が反転**していた。
+const puppetLiveCases = [
+  { effectId: 'WDK17-001-E2', filter: null },
+  { effectId: 'WDK17-012-E2', filter: null },
+  { effectId: 'WDK17-013-E1', filter: '"level":{"max":3}' },
+  { effectId: 'WDK17-017-E1', filter: '"level":1' },
+  { effectId: 'WXEX2-23-E4', filter: null },
+  { effectId: 'WXK09-034-E2', filter: null },
+  { effectId: 'WXK09-096-E2', filter: null },
+  { effectId: 'WXK10-091-E2', filter: '"cardClassExclude":"美巧"' },
+] as const;
+for (const spec of puppetLiveCases) {
+  test(`§5d-0(i) live ${spec.effectId}: 相手トラッシュ→傀儡配置の STUB へ載っている`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    const s = JSON.stringify(eff.action);
+    ok(s.includes('"STEAL_OPP_TRASH_PUPPET"'), `STEAL_OPP_TRASH_PUPPET へ載る（実際 ${s.slice(0, 140)}）`);
+    // 🔴自分のトラッシュから蘇生する旧形へ戻っていないこと（この2語が同居したら退化）
+    ok(!/"ADD_TO_FIELD"[\s\S]*"TRASH_CARD"/.test(s), '🔴自分トラッシュからの ADD_TO_FIELD へ戻っていない');
+    if (spec.filter) ok(s.includes(spec.filter), `原文の絞り込み ${spec.filter} が載る（実際 ${s.slice(0, 200)}）`);
+  });
+}
+test('§5d-0(i) WXEX2-23-E4: 「それの【出】能力は発動しない」が STUB の配置アンカーへ畳み込まれている', () => {
+  const eff = (effectsMap.get('WXEX2-23') ?? []).find(e => e.effectId === 'WXEX2-23-E4');
+  ok(!!eff, 'live 効果が存在');
+  const s = JSON.stringify(eff!.action);
+  ok(s.includes('"suppressOnPlay":true'), 'suppressOnPlay が残る（落ちると奪ったシグニの【出】が発動する）');
+  ok(!s.includes('BLOCK_ACTION'), '未消費の BLOCK_ACTION が残っていない');
+});
+test('§5d-0(i) engine: STEAL_OPP_TRASH_PUPPET の puppetParams.filter が候補を絞る', () => {
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  const base = mkCtx({ signi: [null, null, null] }, {});
+  const ctx: ExecCtx = { ...base, otherState: { ...base.otherState, trash: [lv1, lv4] } };
+  const stub = { type: 'STUB', id: 'STEAL_OPP_TRASH_PUPPET',
+    puppetParams: { count: 1, filter: { cardType: 'シグニ', level: { max: 3 } } } } as unknown as EffectAction;
+  const r = run(stub, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '相手トラッシュ選択へ pause');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq(JSON.stringify(r.pending.candidates), JSON.stringify([lv1]), 'レベル3以下だけが候補（レベル4は候補外）');
+});
+test('§5d-0(i) engine: filter 無しなら従来どおり相手トラッシュのシグニ全部が候補', () => {
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  const base = mkCtx({ signi: [null, null, null] }, {});
+  const ctx: ExecCtx = { ...base, otherState: { ...base.otherState, trash: [lv1, lv4] } };
+  const stub = { type: 'STUB', id: 'STEAL_OPP_TRASH_PUPPET', puppetParams: { count: 1 } } as unknown as EffectAction;
+  const r = run(stub, ctx);
+  ok(!r.done && r.pending.type === 'SELECT_TARGET', '相手トラッシュ選択へ pause');
+  if (r.done || r.pending.type !== 'SELECT_TARGET') return;
+  eq(r.pending.candidates.length, 2, '絞り込み無しは全シグニ候補（既存挙動を変えない）');
+});
+test('§5d-0(i) parser: 「傀儡状態の」連体形はトリガー文なので配置 STUB に化けない（WDK17-001-E1）', () => {
+  const eff = (effectsMap.get('WDK17-001') ?? []).find(e => e.effectId === 'WDK17-001-E1');
+  ok(!!eff, 'live 効果が存在');
+  const s = JSON.stringify(eff!.action);
+  ok(!s.includes('STEAL_OPP_TRASH_PUPPET'), '「あなたの傀儡状態のシグニ1体が場に出たとき」は CHOOSE のまま');
+  ok(s.includes('CHOOSE'), '本体は3択のまま');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
