@@ -6237,6 +6237,36 @@ function applyFinalLookPickWave17(cardNum: string, effects: CardEffect[]): void 
   }
 }
 
+/**
+ * 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」を **action から `cost` へ移す**（§6.4 O-35・続き530）。
+ *
+ * 文単位 parser は `CONDITIONAL{cond, then: STUB{SELF_ABILITY_COST_REDUCTION}}` を作るが、
+ * これは**実行されるアクションではなく能力コストの修飾**なので、engine ではなく `EffectCost` 側に置く
+ * （BattleScreen が【出】コスト提示の直前に評価する）。ノードは action から取り除く＝
+ * 残っていると engine が読まない no-op ステップとして居座る。
+ *
+ * ⚠**条件つきの形だけ**を移す。条件なしの裸 STUB は原文実測で存在しない（あれば parser 側の穴なので
+ *   受け皿に残して計器に映す）。
+ */
+function hoistSelfAbilityCostReduction(effects: CardEffect[]): void {
+  const isRed = (a: EffectAction): boolean =>
+    a?.type === 'STUB' && (a as StubAction).id === 'SELF_ABILITY_COST_REDUCTION';
+  for (const e of effects) {
+    if (e.action?.type !== 'SEQUENCE') continue;
+    const steps = (e.action as SequenceAction).steps;
+    const idx = steps.findIndex(s => s.type === 'CONDITIONAL'
+      && isRed((s as import('../types/effects').ConditionalAction).then)
+      && !(s as import('../types/effects').ConditionalAction).else);
+    if (idx < 0) continue;
+    const gate = steps[idx] as import('../types/effects').ConditionalAction;
+    const energy = (gate.then as StubAction).costEnergy;
+    if (!energy?.length) continue;
+    e.cost = { ...(e.cost ?? {}), conditionalEnergyReduction: { condition: gate.condition, energy } };
+    const rest = steps.filter((_, i) => i !== idx);
+    e.action = rest.length === 1 ? rest[0] : { type: 'SEQUENCE', steps: rest } as SequenceAction;
+  }
+}
+
 function applyExceedBodyFixes(cardNum: string, effects: CardEffect[]): void {
   const effect = (id: string) => effects.find(e => e.effectId === id);
   if (cardNum === 'WX24-P4-014') {
