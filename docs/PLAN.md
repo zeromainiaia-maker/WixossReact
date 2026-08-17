@@ -477,7 +477,8 @@
 - [x] ~~**`eachDistinctLevel` 29**（has 1）~~ 🏁**続き547 で消化＝miss 3**。⚠**「厳密 enforce は engine 側が TODO」は誤読だった**＝`TargetFilter.eachDistinctLevel` が表示・選択補助どまりなのは事実だが、**正準形は別キー** `SelectionConstraint{distinct:'level'}` で、これは `satisfiesSelectionConstraint`（execUtils）と `resumeSearch` が**実際に不正な集合を拒否する**。29 miss のうち **20 は正準形で配線済み**（計器の誤検出）・**7 は軸そのものが取り違え**（`distinct:'name'` 等）・残り 3 がコスト節/条件節（→ 下の (ii) へ登録）。
 - [ ] **`hasCrossIcon` 22**（has 2）★＝`SIGNI[filter]` 11／`SEARCH[filter]` 10／`POWER_MODIFY{SIGNI}` 7。`WX07-010-E1` ほか7効果が**自分の全シグニに+1000**の過剰効果。
 - [ ] **`noGuard` 14**（has 61）★＝`TRASH_CARD[filter]` に 7 miss だが**同じ入口で 61件が配線済み**＝最も明確な穴。
-- [ ] `isPuppet` 10／`isAwakened` 10／`levelParity` 9（has 4）★／`excludeResona` 6／`hasGuard` 6／`nonColorless` 5／`levelEqTrigger` 5 ほか。
+- [x] ~~`isPuppet` 10／`isAwakened` 10~~ 🏁**続き547 で消化＝各 miss 1**（配置様態8効果を `STEAL_OPP_TRASH_PUPPET` へ配線＋計器を名詞に係る形へ較正）。残1件ずつは条件節脱落＝(ii) へ登録済み。
+- [ ] `levelParity` 6（has 8）★／`excludeResona` 1／`hasGuard` 4／`nonColorless` 4／`levelEqTrigger` 5 ほか（続き547 実測に更新）。
 - ⚠**一度も配線されていない語彙は (i) ではない**＝`powerLteSelf` 9／`isDrive` 14／`eachDistinctColor` 3／`levelLtSelf` 2 は has=0＝**機構未実装 (ii)**。スクリプトが自動で別枠に落とす。
 
 **✅消化済みセル**
