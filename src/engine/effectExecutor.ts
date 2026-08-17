@@ -8060,6 +8060,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       if (stub.id === 'INTERNAL_LEAVE_SUB_ASK') return execLeaveSubAsk(stub, ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_DECIDE') return execLeaveSubDecide(stub, ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_NOOP') return done(ctx);
+      // 「〜1枚**まで**」の CHOOSE に出す「何もしない」枝の受け皿（engine 内部専用・parser は生成しない）。
+      if (stub.id === 'INTERNAL_NOOP') return done(ctx);
       if (stub.id === 'INTERNAL_LEAVE_SUB_RESUME_SELECT') {
         const r = (stub as unknown as { leaveSubResume?: { selected: string[]; pending: PendingInteractionDef & { type: 'SELECT_TARGET' } } }).leaveSubResume;
         return r ? resumeSelectTarget(r.selected, r.pending, ctx) : done(ctx);
