@@ -2340,6 +2340,10 @@ function actionJa(a?: Action, effectType?: string): string {
         PREVENT_BOUNCE_AND_DOWN_BY_OPP: 'このシグニは対戦相手の効果によって、手札に戻らずダウンしない',
         PREVENT_INFECTED_SIGNI_ACTIVATE: '対戦相手は感染状態のシグニの【起】能力を使用できない',
         PREVENT_LIFE_REFRESH_TRASH: 'あなたのライフクロスはリフレッシュによってトラッシュに移動しない',
+        // §6.4 O-37（続き543）＝引用能力の置換3形。⚠支払い方は `damageReplaceByCost.options` に
+        //   載っているが、ここでは総称で出す（原文の並びは live JSON を見る）。
+        DAMAGE_REPLACE_BY_COST: 'あなたがダメージを受ける場合、代わりにコストを支払ってもよい',
+        REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY: 'あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う',
         PREVENT_NON_FIELD_MOVE_BY_OPP: '場以外のあなたの領域にあるカードは、クラッシュ以外の対戦相手の効果によって他の領域に移動しない',
         PREVENT_ZONE_MOVE_BY_OPP: '対戦相手の効果によって、あなたの手札／エナゾーンにあるカードはトラッシュに移動しない',
         // §6.4 O-3 続き493 の明示 defer＝「次の対戦相手のターン終了時、〜」の**遅延本体**（予約機構が未実装）。
