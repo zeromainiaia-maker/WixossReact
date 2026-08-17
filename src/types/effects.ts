@@ -2637,6 +2637,12 @@ export interface StubAction {
    * `storedTargetCards`（＝直前の `SELECT_TARGET_ONLY` が確定した対象）を剥がす。
    */
   stripSelf?: boolean;
+  /**
+   * `SELF_ABILITY_COST_REDUCTION`: 「この能力の発動コストは《X×N》減る」の減額分（§6.4 O-35・続き530）。
+   * ⚠**このノードは engine で実行されない**＝`hoistSelfAbilityCostReduction` が
+   *   `EffectCost.conditionalEnergyReduction` へ移して action から取り除く（残っていたら parser の穴）。
+   */
+  costEnergy?: EnergyCost[];
   /** PER_OWN_LRIG_COLOR_SCALE: 数える自ルリグの色（「あなたの場にいる〈色〉のルリグ１体につき」）。 */
   scaleColor?: string;
   /** PER_OWN_LRIG_COLOR_SCALE: その色のルリグ体数だけ繰り返す本体。 */
