@@ -39691,8 +39691,15 @@ test('O-1 cpuArts: CPU は「守りの札・エナだけで払える・未使用
     { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
     { cost: { discard: 1 } } as Partial<CardEffect>,
   )] }), null, '🔴効果側コスト（手札を捨てる等）があれば内訳に盤面評価が要る＝使わない');
-  ok(cpuCanPayArtsWithEnergyOnly([mkArtsEff({ type: 'DRAW', owner: 'self', count: 1 })]), 'コストなしはエナだけで払える');
-  ok(!cpuCanPayArtsWithEnergyOnly([mkArtsEff({ type: 'DRAW', owner: 'self', count: 1 }, { cost: { discard: 1 } } as Partial<CardEffect>)]), 'discard コストがあれば false');
+  const payOnly = (cost?: Record<string, unknown>) =>
+    cpuCanPayArtsWithEnergyOnly([mkArtsEff({ type: 'DRAW', owner: 'self', count: 1 }, { cost } as Partial<CardEffect>)]);
+  ok(payOnly(undefined), 'コストなしはエナだけで払える');
+  ok(payOnly({ energy: [{ color: '赤', count: 1 }] }), 'エナ宣言（CSV Cost の写し）は払える');
+  ok(!payOnly({ discard: 1 }), 'discard コストがあれば false');
+  // 🔴allowlist は `energy` 1本＝**`performArts` はエナ以外の宣言コストを払わない**ので、
+  //   シグニ【起】で自動支払いできるキーを足すと「宣言だけして踏み倒す」ことになる。
+  ok(!payOnly({ down_self: true }), '🔴down_self はアーツでは払われない＝使わない側へ倒す');
+  ok(!payOnly({ lrigDown: { count: 1 } }), '🔴lrigDown も同じ（allowlist に足さない）');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
