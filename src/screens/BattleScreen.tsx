@@ -13393,6 +13393,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
           !isLrigActBlocked() &&
+          !isLrigDownSelfUnpayable(e) &&   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
           (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopAA, 'ATTACK_ARTS', effectivePowers)),
         )
         .map(eff => ({
