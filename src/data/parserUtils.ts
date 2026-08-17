@@ -914,7 +914,7 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   return {
     filter,
     pickCount,
-    pickUpTo: prefixAll ? false : m[5] === 'まで' || m[4] === '好きな枚数',
+    pickUpTo: prefixAll ? m[1] === '好きな枚数' : m[5] === 'まで' || m[4] === '好きな枚数',
     noun: outNoun,
     dest,
   };
