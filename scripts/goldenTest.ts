@@ -39557,6 +39557,144 @@ test('O-1 cpuActivate: CPU の【起】選択は「撃てる・自動で払え�
   eq(activatedEnergyCostStr(mkAct('x', { cost: { energy: [{ color: '赤', count: 2 }] } })), '《赤》×2', 'コスト文字列は《色》×N 形式（parseGrowCost が読める唯一の綴り）');
 }));
 
+// ── §8／§6.4 `O-1` (a)：CPU が相手のアタックフェイズに応答アーツで守る ──────────────
+const ART_RED = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+const mkArts = (o: Partial<CardData> = {}): CardData => ({
+  CardNum: 'T-ARTS-1', CardName: 'テストアーツ', Type: 'アーツ', Cost: '《赤》×1',
+  Timing: 'アタックフェイズ', Color: '赤', Restriction: '', EffectText: '', Level: '', Power: '',
+  CardClass: '', ImgURL: '', ...o,
+} as unknown as CardData);
+const mkArtsEff = (action: unknown, extra: Partial<CardEffect> = {}): CardEffect => ({
+  effectId: 'T-ARTS-1-E1', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
+  action: action as never, ...extra,
+} as CardEffect);
+/** 合成アーツを載せた cardMap / effectsMap と、その支払い ctx を1回で組む。 */
+const artsFixture = (p: {
+  card?: Partial<CardData>; effs?: CardEffect[];
+  actor?: PlayerState; opponent?: PlayerState;
+}) => {
+  const card = mkArts(p.card);
+  const cm = new Map(cardMap) as Map<string, CardData>;
+  cm.set(card.CardNum, card);
+  const em = new Map(effectsMap);
+  em.set(card.CardNum, p.effs ?? [mkArtsEff({ type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } })]);
+  const actor = p.actor ?? ({ ...mkState({ energy: 0 }), lrig_deck: [card.CardNum], energy: [ART_RED] } as PlayerState);
+  const opponent = p.opponent ?? mkState({ signi: [SIGNI, null, null] });
+  const payer = buildArtsPayerCtx({
+    actor, opponent, isActorTurn: false, turnPhase: 'ATTACK_ARTS_OP', cardMap: cm, effectsMap: em,
+  });
+  return { card, cm, em, actor, opponent, payer };
+};
+
+test('O-1 artsUseGate: アーツの提示は限定・フェイズ/Timing・ARTS_LIMIT_1・使用条件・支払いで切れる', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const check = (o: Parameters<typeof artsFixture>[0], turnPhase: TurnPhase = 'ATTACK_ARTS_OP', isMyTurn = false) => {
+    const f = artsFixture(o);
+    return checkArtsUse({
+      card: f.card, my: f.actor, op: f.opponent, isMyTurn, turnPhase,
+      cards: allCards, cardMap: f.cm, effectsMap: f.em, payer: f.payer,
+    });
+  };
+  ok(check({}).usable, '素の盤面（相手ターンのアーツステップ）では使える');
+  eq(check({}).effectiveCost, '《赤》×1', '請求額は印刷コスト');
+  eq(check({}).effectiveCostForModal, null, '印刷コストから動いていなければ支払いUIへ持ち込まない');
+  ok(!check({}, 'MAIN', false).usable, '相手のメインフェイズには使えない');
+  ok(!check({}, 'ATTACK_ARTS_OP', true).usable, '🔴自分がターンプレイヤーなら ATTACK_ARTS_OP は自分の窓ではない');
+  ok(!check({ card: { Timing: 'メインフェイズ' } }).usable, 'CSV Timing にアタックフェイズが無ければ使えない');
+  // 「〇〇限定」＝実効ルリグクラスで見る（センタールリグを置いた盤面で対照を取る）。
+  const lrigNum = findCard(c => c.Type === 'ルリグ' && !!(c.CardClass ?? '').trim());
+  const lrigClass0 = (cardMap.get(lrigNum)?.CardClass ?? '').split(/[/／]/)[0].trim();
+  const withLrig = (restriction: string) => check({
+    card: { Restriction: restriction },
+    actor: { ...mkState({ energy: 0, lrig: [lrigNum] }), lrig_deck: ['T-ARTS-1'], energy: [ART_RED] } as PlayerState,
+  });
+  ok(withLrig(`${lrigClass0}限定`).usable, '対照：ルリグクラスが合えば使える');
+  ok(!withLrig('#限定').usable, '「〇〇限定」はルリグクラスが合わなければ使えない');
+  const mkActor = (extra: Partial<PlayerState>) =>
+    ({ ...mkState({ energy: 0 }), lrig_deck: ['T-ARTS-1'], energy: [ART_RED], ...extra } as PlayerState);
+  ok(!check({ actor: mkActor({ energy: [] }) }).usable, 'エナが無ければ使えない');
+  ok(!check({ actor: mkActor({ blocked_actions: ['USE_ARTS'] }) }).usable, 'USE_ARTS 封じ');
+  // 🔴`ARTS_LIMIT_1`＝「対戦相手は各ターンに一度しかアーツを使用できない」（§6.4 O-10 続き512）
+  ok(check({ actor: mkActor({ blocked_actions: ['ARTS_LIMIT_1'] }) }).usable, 'ARTS_LIMIT_1 でも1枚目は使える');
+  ok(!check({ actor: mkActor({ blocked_actions: ['ARTS_LIMIT_1'], actions_done: ['USE_ARTS'] }) }).usable, '🔴ARTS_LIMIT_1 は2枚目を止める');
+  // カード名指定の使用封じ（§6.4 O-3）
+  ok(!check({ actor: mkActor({ blocked_card_names: ['テストアーツ'] }) }).usable, 'カード名指定の封じ');
+}));
+
+test('O-1 artsUseGate: 相手ターンの代替コスト（altCostOppTurn）がそのまま請求額になる', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  // 🔴従来この読み替えは**ルリグデッキのカード詳細だけ**にあり、コスト計算の入口が分かれていた
+  //   （PLAN §4 教訓 (d)）。gate へ集約した今は CPU の応答アーツも同じ請求額を見る。
+  const effs = [mkArtsEff(
+    { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+    { altCostOppTurn: [{ color: '無', count: 1 }] } as Partial<CardEffect>,
+  )];
+  const f = artsFixture({ card: { Cost: '《赤》×3' }, effs });
+  const args = {
+    card: f.card, my: f.actor, op: f.opponent, cards: allCards,
+    cardMap: f.cm, effectsMap: f.em, payer: f.payer,
+  };
+  const onOppTurn = checkArtsUse({ ...args, isMyTurn: false, turnPhase: 'ATTACK_ARTS_OP' as TurnPhase });
+  eq(onOppTurn.effectiveCost, '《無》×1', '相手ターンは代替コストが請求額');
+  eq(onOppTurn.effectiveCostForModal, '《無》×1', '支払いUIにも代替コストを持ち込む');
+  ok(onOppTurn.usable, 'エナ1枚で払えるので使える');
+  // 対照＝自分のターンなら代替コストは効かない（印刷コスト《赤》×3 はエナ1枚では払えない）。
+  const onOwnTurn = checkArtsUse({ ...args, isMyTurn: true, turnPhase: 'ATTACK_ARTS' as TurnPhase });
+  eq(onOwnTurn.effectiveCost, '《赤》×3', '自分のターンは印刷コスト');
+  ok(!onOwnTurn.usable, '対照：印刷コストは払えない');
+}));
+
+test('O-1 cpuArts: 守りの分類は「無効化→除去→軽減」で、STUB と自分対象は数えない', () => withSavedCursor(() => {
+  const kind = (a: unknown) => defensiveKindOf(a as never);
+  eq(kind({ type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent' } }), 'negate', 'アタック無効化は最優先');
+  eq(kind({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }), 'removal', '相手シグニのバニッシュは除去');
+  eq(kind({ type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: 1 } }), 'removal', 'ダウンもアタックを止める');
+  eq(kind({ type: 'PREVENT_DAMAGE', owner: 'self', until: 'TURN_END' }), 'prevent', 'ダメージ軽減は守り');
+  eq(kind({ type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1 } }), null, '🔴自分のシグニを飛ばす効果は守りではない');
+  eq(kind({ type: 'BANISH', target: { type: 'LRIG', owner: 'opponent', count: 1 } }), null, 'シグニ以外の対象は除去に数えない');
+  eq(kind({ type: 'DRAW', owner: 'self', count: 1 }), null, 'ドローは守りではない');
+  eq(kind({ type: 'STUB', id: 'SOMETHING_DEFENSIVE' }), null, '🔴STUB は id ごとに意味が違う＝機械的に守りと決めつけない');
+  // 入れ子（SEQUENCE / CHOOSE）も歩いて、より優先度の高い分類を採る。
+  eq(kind({ type: 'SEQUENCE', steps: [{ type: 'DRAW', owner: 'self', count: 1 }, { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent' } }] }), 'negate', '入れ子の無効化を拾う');
+  eq(kind({ type: 'CHOOSE', choices: [{ action: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'TURN_END' } }, { action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } } }] }), 'removal', '選択肢のうち優先度の高い分類を採る');
+}));
+
+test('O-1 cpuArts: 脅威判定は「正面が空いたアップの相手シグニ」か「ライフ1枚以下」', () => withSavedCursor(() => {
+  // 相手ゾーン0の正面は自分ゾーン2（engine 共通規約の facing ＝ 2 - zi）。
+  const attacker = mkState({ signi: [SIGNI, null, null] });
+  ok(hasIncomingThreat(mkState({}), attacker), '正面が空いていればライフクラッシュが通る＝守る');
+  ok(!hasIncomingThreat(mkState({ signi: [null, null, SIGNI] }), attacker), '正面が埋まっていれば（この判定では）脅威なし');
+  ok(hasIncomingThreat(mkState({ signi: [SIGNI, null, null] }), attacker), '🔴正面はゾーン2＝同じ番号のゾーン0を埋めても止まらない');
+  ok(!hasIncomingThreat(mkState({}), mkState({})), '相手にシグニがいなければ脅威なし');
+  ok(!hasIncomingThreat(mkState({}), mkState({ signi: [SIGNI, null, null], down: [true, false, false] })), 'ダウン状態はアタックできない');
+  ok(hasIncomingThreat(mkState({ life: 1 }), mkState({})), '🔴ライフ1枚以下は常に守る（CPU はガードしないので詰む）');
+}));
+
+test('O-1 cpuArts: CPU は「守りの札・エナだけで払える・未使用」の3条件を満たす1枚を選ぶ', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const pick = (o: Parameters<typeof artsFixture>[0], already: string[] = []) => {
+    const f = artsFixture(o);
+    return pickCpuResponseArts({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: 'ATTACK_ARTS_OP', alreadyUsedNums: already,
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+    });
+  };
+  const got = pick({});
+  eq(got?.card.CardNum, 'T-ARTS-1', '守りのアーツを選ぶ');
+  eq(got?.kind, 'negate', '分類が返る');
+  eq(got?.costIndices.size, 1, 'エナ1枚ぶんの index が返る');
+  eq(pick({}, ['T-ARTS-1']), null, '🔴このターン使った札は選び直さない（応答窓で止まらないための安全弁）');
+  eq(pick({ opponent: mkState({}) }), null, '脅威が無ければ使わない（開幕に撃ち尽くさない）');
+  eq(pick({ effs: [mkArtsEff({ type: 'DRAW', owner: 'self', count: 2 })] }), null, '守りでないアーツは使わない');
+  eq(pick({ effs: [mkArtsEff(
+    { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
+    { cost: { discard: 1 } } as Partial<CardEffect>,
+  )] }), null, '🔴効果側コスト（手札を捨てる等）があれば内訳に盤面評価が要る＝使わない');
+  ok(cpuCanPayArtsWithEnergyOnly([mkArtsEff({ type: 'DRAW', owner: 'self', count: 1 })]), 'コストなしはエナだけで払える');
+  ok(!cpuCanPayArtsWithEnergyOnly([mkArtsEff({ type: 'DRAW', owner: 'self', count: 1 }, { cost: { discard: 1 } } as Partial<CardEffect>)]), 'discard コストがあれば false');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
