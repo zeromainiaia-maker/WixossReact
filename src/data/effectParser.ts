@@ -8713,7 +8713,7 @@ function parseActionTextInner(text: string): EffectAction {
           : null);
       const condItems = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
       if (altCond && condItems.length >= 2) {
-        return {
+        const chooseNode = {
           type: 'CHOOSE',
           choose_count: parseNum(condChooseHeadM[1]),
           from_count: condItems.length,
@@ -8729,6 +8729,21 @@ function parseActionTextInner(text: string): EffectAction {
             thenUpTo: !!condChooseAltM[3],
           },
         } as ChooseAction;
+        // ⚠**見出しより前の本文を落とさない**＝`WXK11-005-E1`「各プレイヤーは自分のデッキの上から
+        //   カードを５枚トラッシュに置く。その後、あなたは以下の２つから…」の**先頭のミルが消える**
+        //   （旧 `CONDITIONAL_MULTI_CHOOSE_BY_CENTER` も同じく落としていた＝構造化して初めて見えた穴）。
+        //   前置きが**残りなく解けたときだけ**前に積む（解けない形は従来どおり CHOOSE 単独）。
+        const preText = text.slice(0, condChooseHeadM.index ?? 0).replace(/その後、\s*(?:あなたは)?$/, '').trim();
+        if (preText) {
+          const preAction = parseActionText(preText);
+          if (preAction.type !== 'UNKNOWN' && !JSON.stringify(preAction).includes('"UNKNOWN"')) {
+            return { type: 'SEQUENCE', steps: [
+              ...(preAction.type === 'SEQUENCE' ? (preAction as SequenceAction).steps : [preAction]),
+              chooseNode,
+            ] } as SequenceAction;
+          }
+        }
+        return chooseNode;
       }
     }
   }
