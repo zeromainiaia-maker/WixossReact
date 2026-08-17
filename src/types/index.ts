@@ -822,6 +822,13 @@ export interface PlayerState {
    */
   cpu_activated_effect_ids_this_turn?: string[];
   /**
+   * **CPU がこのターンに使用したアーツの CardNum**（§8／§6.4 `O-1` (a)・`cpuArts.ts`）。
+   * ⚠`cpu_activated_effect_ids_this_turn` と同じく**ルールの状態ではなく CPU の行動履歴**＝
+   *   `performArts` が使用不能を検出して何も書かずに return したとき、CPU が同じ札を選び直して
+   *   **`ATTACK_ARTS_OP` から先へ進まなくなる**のを止めるためだけに存在する。
+   */
+  cpu_arts_used_nums_this_turn?: string[];
+  /**
    * 「チェックゾーンにあるこのカードを裏返し、…グロウコストを支払わずにグロウする」（`WXDi-P16-001A`）の
    * **裏面 CardNum**。engine 側は条件判定と予約だけを行い、実際のグロウは BattleScreen が
    * `executeGrow`（＝グロウの正規経路＝【出】トリガー・リミット再計算・コイン獲得を通る）で行う。
