@@ -3089,19 +3089,25 @@ export function execStubPart1(
       type: 'CHOOSE', options: optsCMCLG, count: maxCount, multiSelect: maxCount > 1,
     });
   }
-  // INTERNAL_CMCLG_DEDUCT: 任意コストのエナを消費
+  // INTERNAL_CMCLG_DEDUCT: 任意コストのエナを消費（実行時に組み立てる汎用の支払いステップ。
+  //   `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` 発祥だが、支払い額が実行時に決まる形なら誰でも使える
+  //   ＝§6.4 O-35 の `USE_SPELL_FROM_TRASH_PAYING_COST`（選んだスペルの印刷コスト）も同じ手順を通す）。
+  // 🔴**支払ったエナはトラッシュへ置く**＝従来 `energy` から抜くだけでカードが**ゲームから消えて**いた
+  //   （リフレッシュのデッキ枚数が合わなくなる。§6.4 O-35・続き530 で発見）。
   if (stub.id === 'INTERNAL_CMCLG_DEDUCT') {
     const colorsArr: string[] = JSON.parse(typeof stub.value === 'string' ? stub.value : '[]');
     const newEnergyDEDUCT = [...ctx.ownerState.energy];
+    const paidDEDUCT: string[] = [];
     for (const col of colorsArr) {
       const idx = newEnergyDEDUCT.findIndex(en => {
         const c = ctx.cardMap.get(en)?.Color ?? '無';
         return col === '無' || c.includes(col);
       });
-      if (idx >= 0) newEnergyDEDUCT.splice(idx, 1);
+      if (idx >= 0) paidDEDUCT.push(...newEnergyDEDUCT.splice(idx, 1));
     }
-    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, energy: newEnergyDEDUCT } },
-      `追加コスト消費（${colorsArr.map(c => `《${c}》`).join('')}）`));
+    return done(addLog({ ...ctx, ownerState: {
+      ...ctx.ownerState, energy: newEnergyDEDUCT, trash: [...ctx.ownerState.trash, ...paidDEDUCT],
+    } }, `追加コスト消費（${colorsArr.map(c => `《${c}》`).join('')}）`));
   }
   // INTERNAL_CMCLG_TRASH_TO_DECK_LIFE: 自トラッシュ全→デッキにシャッフル+デッキ上→ライフ
   if (stub.id === 'INTERNAL_CMCLG_TRASH_TO_DECK_LIFE') {

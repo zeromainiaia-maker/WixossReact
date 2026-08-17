@@ -3911,6 +3911,49 @@ export function execStubPart2(
       addLog({ ...ctx, ownerState: statePSFIR, sourceCardNum: cnPSFIR, lastProcessedCards: [] },
         `${cardPSFIR.CardName}をコストなし・限定条件無視で使用`));
   }
+  // ── USE_SPELL_FROM_TRASH_PAYING_COST（§6.4 O-35・続き530）──
+  // 「あなたのトラッシュから〈修飾〉スペル1枚を対象とし、それを**使用**してもよい」（`WXDi-P13-008-E1`）。
+  // 🔴既存 `USE_SPELL_FROM_TRASH` は**コストを支払わずに**使うので流用すると過剰実行になる。
+  //   原文の「使用」は印刷コストを払う＝ここで払わせてから本体（=USE_SPELL_FROM_TRASH）へ委譲する。
+  // 🔑段階は `value` で見分ける（`lastProcessedCards` の有無で見分けると、前段が何か処理していた場合に
+  //   選択フェイズを飛ばして無関係なカードを使ってしまう）。
+  // ⚠選択を跨ぐと `lastProcessedCards` は失われるので、確定したスペルは `carriedCardNum` で運ぶ。
+  if (stub.id === 'USE_SPELL_FROM_TRASH_PAYING_COST') {
+    if (stub.value !== 'picked') {
+      const filtUS = stub.selectTarget?.filter;
+      const candsUS = ctx.ownerState.trash.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), filtUS));
+      if (candsUS.length === 0) return done(addLog(ctx, '[トラッシュから使用: 対象のスペルなし]'));
+      return needsInteraction(addLog(ctx, 'トラッシュから使用するスペルを選ぶ'), {
+        type: 'SELECT_TARGET', candidates: candsUS, count: 1, optional: true,
+        targetScope: 'self_trash',
+        thenAction: ({ ...stub, value: 'picked' } as StubAction) as EffectAction,
+      });
+    }
+    const cnUS = stub.carriedCardNum ?? ctx.lastProcessedCards?.[0];
+    if (!cnUS) return done(addLog(ctx, '[トラッシュから使用: スペル未選択]'));
+    const cardUS = ctx.cardMap.get(getCardNum(cnUS));
+    if (!cardUS) return done(addLog(ctx, '[トラッシュから使用: カードデータなし]'));
+    // 印刷コスト「《白》×１《赤》×２」を色の配列へ展開する（×N は 《》の**外**にある表記）。
+    const colorsUS: string[] = [];
+    for (const m of (cardUS.Cost ?? '').matchAll(/《([^》]+)》×([０-９\d]+)/g)) {
+      if (m[1] === 'コイン') continue;                       // コインはエナではない
+      const nUS = parseInt(m[2].replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0)), 10);
+      for (let i = 0; i < nUS; i++) colorsUS.push(m[1]);
+    }
+    const bodyUS: StubAction = { type: 'STUB', id: 'USE_SPELL_FROM_TRASH', carriedCardNum: cnUS };
+    if (colorsUS.length === 0) return exec(bodyUS as EffectAction, ctx);   // 《無》×０ 等＝支払い不要
+    const payUS: EffectAction = { type: 'SEQUENCE', steps: [
+      { type: 'STUB', id: 'INTERNAL_CMCLG_DEDUCT', value: JSON.stringify(colorsUS) } as StubAction,
+      bodyUS,
+    ] } as SequenceAction;
+    const canAffordUS = ctx.ownerState.energy.length >= colorsUS.length;
+    return needsInteraction(addLog(ctx, `${cardUS.CardName}のコストを支払いますか？`), {
+      type: 'CHOOSE', count: 1, options: [
+        { id: 'pay', label: `使用する（${colorsUS.map(c => `《${c}》`).join('')}）`, action: payUS, available: canAffordUS, costColors: colorsUS },
+        { id: 'skip', label: '使用しない', action: ({ type: 'STUB', id: 'INTERNAL_NOOP' } as StubAction) as EffectAction, available: true },
+      ],
+    });
+  }
   // CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
   if (stub.id === 'CAST_FROM_OPP_TRASH' && !(ctx.lastProcessedCards?.length)) {
     const spellsInOppTrash = ctx.otherState.trash.filter(cn => ctx.cardMap.get(cn)?.Type === 'スペル');
@@ -3925,7 +3968,9 @@ export function execStubPart2(
   if (stub.id === 'PLAY_FREE' || stub.id === 'CAST_FROM_OPP_TRASH'
       || stub.id === 'PLAY_SPELL_FROM_HAND' || stub.id === 'PLAY_SPELL_FROM_HAND_FREE'
       || stub.id === 'USE_SPELL_FROM_TRASH' || stub.id === 'PLAY_EFFECT_TARGET_CLASS_CHANGE') {
-    const cnPF = ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
+    // ⚠`carriedCardNum` 優先＝支払い CHOOSE を跨ぐと `lastProcessedCards` が消えるため
+    //   （`USE_SPELL_FROM_TRASH_PAYING_COST` が確定済みスペルを焼き込んで渡す。§6.4 O-35）。
+    const cnPF = stub.carriedCardNum ?? ctx.lastProcessedCards?.[0] ?? ctx.sourceCardNum;
     if (!cnPF) return done(addLog(ctx, '[フリープレイ: 対象カードなし]'));
     const cardPF = ctx.cardMap.get(cnPF);
     if (!cardPF) return done(addLog(ctx, '[フリープレイ: カードデータなし]'));
