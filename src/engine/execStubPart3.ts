@@ -4104,9 +4104,9 @@ export function execStubPart3(
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, blocked_actions: newBlockedEAIET } },
       '追加ターン中のアタックを全封じ（アタックフェイズ終了）'));
   }
+  /* ⚠id は「IF_OPP_TURN」だが**ターン判定はここでは見ない**＝§6.4 O-36（続き534）で
+     「対戦相手のターンの場合、」が `CONDITIONAL{TURN_OWNER opponent}` として外側に付くようになった。 */
   // BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: このターン、対戦相手はシグニを新たに場に出せない
-  // ⚠id は「IF_OPP_TURN」だが**ターン判定はここでは見ない**＝§6.4 O-36（続き534）で
-  //   「対戦相手のターンの場合、」が `CONDITIONAL{TURN_OWNER opponent}` として外側に付くようになった。
   if (stub.id === 'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN') {
     const newBlockedBOSP = [...(ctx.otherState.blocked_actions ?? []), 'PLACE_SIGNI'];
     return done(addLog({ ...ctx, otherState: { ...ctx.otherState, blocked_actions: newBlockedBOSP } },
