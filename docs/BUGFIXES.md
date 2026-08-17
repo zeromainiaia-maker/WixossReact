@@ -1,5 +1,39 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き540・Opus 5）— §6.4 `O-14`（申告済みの原文不一致2件）と `O-15`（手札からの選択機構）を消化
+
+**live 4効果/4カードの挙動是正**（CSV 非改変）。ゲート全緑・golden 2200→**2203**。詳細台帳は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-17 整理㉗」、実機の観測点は PLAN §7 `V-59`／`V-60`。
+
+### ① `WX15-003-E3`＝1文に2機構あるのに片方しか拾えていなかった（O-14(a)）
+
+原文「次のターンの間、**対戦相手はアーツとスペルと【起】能力を使用できず**、シグニは可能ならばアタックしなければならない」に対し、live は `FORCE_SIGNI_ATTACK{opponent, NEXT_TURN}` **単体**＝前半が丸ごと落ちていた。
+
+- **なぜ既存規則で拾えなかったか**＝①`BLOCK_OPP_ARTS_SPELL_ACT`（`parseSentencePart3.ts`）は綴りが**「使用できない」限定**で連用中止の**「使用できず」**を取らない ②`parseSentencePart1.ts` の強制攻撃規則が**先に文全体を消費する**ので part3 まで届かない。⇒ 合流点は強制攻撃規則しかないので、そこで `SEQUENCE[STUB, FORCE_SIGNI_ATTACK]` へ畳んだ。
+- **新設 STUB `BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN`**（`execStubPart3.ts`）＝`otherState.blocked_actions` へ `USE_ARTS:NEXT_TURN` / `USE_SPELL:NEXT_TURN` / `USE_ACT:NEXT_TURN`。⚠**新しい語彙は要らなかった**＝`:NEXT_TURN` の2スロット規約も消費地点（`BattleScreen.tsx` の `isActionBlocked`）も既にある。兄弟の `BLOCK_OPP_SPELL_ACT_NEXT_TURN` と同型。
+- 🆕**同族の穴を1件同時に是正**＝`WX25-P1-050-E1`「**次の対戦相手のターンの間**、〜使用できない」は綴りに関係なく**当ターン版へ潰れていた**＝**自分のターンに効いて相手のターンには切れる**1ターンずれ。part3 の規則に期間の分岐を足して解消。
+
+### ② `WXDi-P08-010-E3`＝遅延も限定も落ちて「使った瞬間に両者の全シグニが飛ぶ」（O-14(b)）
+
+原文「次の対戦相手のターンの間、対戦相手のシグニは可能ならばアタックしなければならない。**そのターン終了時、そのターンにアタックしていた**すべてのシグニをバニッシュする」に対し、live は `SEQUENCE[FORCE_SIGNI_ATTACK, BANISH{SIGNI owner:'any', count:'ALL'}]`＝**二重の過剰**だった。
+
+- ⭐**機構は3つとも既にあった**＝`DELAY_TO_NEXT_OPP_TURN_END`＋予約スロット＋collector＋`RESOLVE_NEXT_OPP_TURN_END_EFFECT`（O-3 続き497）／`TargetFilter.attackedThisTurn`（同）／`fieldCandidatesByOwner` の `owner:'any'` 両場走査。**要ったのは parser 2本だけ。**
+- **(1) 文跨ぎの照応**＝`effectParser.ts` の sentence map に「**そのターン終了時、**」→「次の対戦相手のターン終了時、」を追加（直前の文が「次の対戦相手のターン」を含むときだけ）。既にあった「**そのターンの間、**」の兄弟。書き換えないと**遅延宣言そのものが消える**。
+- **(2) 本文の解決**＝`rewriteNextOppTurnEndBody` に該当分岐を追加。⚠**`^その` で受け皿へ落とす既存ガードの例外**＝ここでの「その」は**カードの照応ではなくターンの照応**（予約が発火するそのターンそのもの）なので発火時の state だけで解ける。
+- 🔑**`owner:'any'` のままで自分のシグニを巻き込まない**＝`attackedThisTurn` は各 state の `attacked_signi_ids` を見るので**アタックした側にしか載らない**。⚠リセットは END フェイズの後始末で `ON_TURN_END` の解決**より後**（人間/CPU 両経路で確認）＝発火時点ではまだ残っている。
+
+### ③ `WXEX1-44-E2`＝手札から置くはずが場のアクセゾーンを全部エナへ送っていた（O-15）
+
+原文「**あなたの手札から**《アクセアイコン》を持つシグニを２枚までエナゾーンに置く。その後、…**この方法でエナゾーンに置いたカードと同じ枚数**の＜調理＞のシグニを…手札に加える」に対し、前段は `STUB{PLACE_ACCE_SIGNI_TO_ENERGY}`＝**場のアクセゾーン**を全部エナへ送る別機構で**手札は1枚も動かず**、後段は固定1枚＝置いた枚数と無関係に必ず1枚回収する過剰だった。
+
+- ⭐**手札選択の機構すら既にあった**＝`ENERGY_CHARGE{HAND_CARD}` は `execEnergyCharge` が `handCandidates` で filter を効かせ `selectOrInteract` で選ばせる完全実装で、**同じ形を `WX22-043-E1` が MANUAL で先に手当てしていた**。⇒ parser を追いつかせるだけ。
+- **(1)** `parseSentencePart3.ts` に「あなたの手札から《アクセアイコン》を持つシグニをN枚（まで）エナゾーンに置く」を既存 STUB の**手前**へ追加。⚠**アクセは CardClass ではない**＝`hasIcon:'アクセ'` の判定は**カード自身のテキストに「【アクセ】」があるか**（`matchesFilter`）。「《アクセアイコン》」の綴りで候補を作ると**0件**になる（golden を書くときに実際に踏んだ）。
+- **(2)** 後段の「同じ枚数」を `{$ref:'last_processed_count'}` へ（`effectParser.ts` の per-effectId 表）。⚠前段が期待の形のときだけ書き換える。`upToCount` は落とす（「同じ枚数」＝上限ではなく丁度）。
+- ⚠**旧 defer の根拠2つはどちらも古かった**（「`resolveNum` が $ref を0にする」は続き441 で解消済み／「前段 STUB が別機構」は本項で解消）＝**着手前に台帳の根拠を実データで検証すること**（J-4／J-5 と同じ教訓）。
+
+### ゲート
+
+golden **2203**（+3）。`WXEX1-44-E2` の defer トリップワイヤは**正方向の挙動テストへ書き換え**（前段の型・filter・upTo／後段の $ref／2枚置き→2枚回収／**0枚置き→0枚回収**の対照）。🔑**4本とも「実装を戻すと赤くなる」ことを live JSON を一時 revert して実測**（`FAIL 4`）してから復帰。census **806 据置**、smoke 10688 / SKIP 0、fuzz 全0、`census:stubs` 無言 no-op 0、lint 0 errors。
+
 ## 2026-08-17（続き539・Opus 5）— 📁**PLAN.md の整理**（§6.4 O-13 → §7 の `V-nn` worklist へ移設）
 
 コード非改変（ドキュメントのみ）。ゲート全緑のまま。
