@@ -256,14 +256,14 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {my.energy.map((num, i) => {
                           const c = battleCardMap.get(num);
-                          const matches = !lgEnergyTrashCost.filter || matchesFilter(c, lgEnergyTrashCost.filter);
+                          const matches = (!lgEnergyTrashCost.filter || matchesFilter(c, lgEnergyTrashCost.filter))
+                            && canAddEnergyTrashIndex(my.energy, selectedLrigGrantedEnergyTrash, i, lgEnergyTrashCost, battleCardMap);
                           const isSel = selectedLrigGrantedEnergyTrash.has(i);
                           return (
                             <div key={i}
                               onClick={() => matches && setSelectedLrigGrantedEnergyTrash(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }
-                                if (next.size >= lgEnergyTrashCost.count) return prev;
                                 next.add(i); return next;
                               })}
                               onPointerDown={() => { pickLongPressTimer.current = setTimeout(() => { setExpandedPickImgUrl(c?.ImgURL ?? null); }, 500); }}
