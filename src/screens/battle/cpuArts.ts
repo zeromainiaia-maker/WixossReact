@@ -114,31 +114,38 @@ export interface CpuArtsChoice {
   costIndices: Set<number>;
 }
 
-/**
- * CPU がいま使う応答アーツを1枚選ぶ（無ければ `null`）。**1回の呼び出しで1枚だけ**＝
- * 実行後はスタック解決を待って CPU ループが再入する（人間が1枚ずつ使うのと同じ順序）。
- */
-export function pickCpuResponseArts(p: {
+export interface CpuArtsPickInput {
   actor: PlayerState;
   opponent: PlayerState;
   cards: CardData[];
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
   payer: ArtsPayerCtx;
-  /** 応答窓のフェイズ（＝`'ATTACK_ARTS_OP'`）。 */
+  /** 窓のフェイズ（応答＝`'ATTACK_ARTS_OP'`／自ターン＝`'MAIN'` か `'ATTACK_ARTS'`）。 */
   turnPhase: TurnPhase;
   /** このターン CPU が既に使ったアーツの CardNum（同じ札を選び直さない安全弁）。 */
   alreadyUsedNums: readonly string[];
   /** 可否の権威＝人間の支払いUIと同じ `canAffordWithExtraCost`。 */
   isAffordable: (selectedNums: string[], costStr: string, extraCosts: { color: string; count: number }[]) => boolean;
   effectivePowers?: Map<string, number>;
-}): CpuArtsChoice | null {
+}
+
+/**
+ * 「使える（gate）× 指定した分類 × エナだけで払える × このターン未使用」を満たす1枚を
+ * **分類→ルリグデッキ順の決定論**で選ぶ内部共通処理。
+ *
+ * ⚠**応答（相手ターン）と攻め（自ターン）で違うのは `isMyTurn` と `allowKinds` だけ**にする＝
+ * 選び方の本体を2本に分けると、片方だけに条件を足したときに気付けない。
+ */
+function pickCpuArtsBy(
+  p: CpuArtsPickInput,
+  opts: { isMyTurn: boolean; allowKinds: ReadonlySet<CpuDefensiveKind> },
+): CpuArtsChoice | null {
   const { actor, opponent, cards, cardMap, effectsMap, payer } = p;
-  if (!hasIncomingThreat(actor, opponent)) return null;
   const poolNums = energyPoolCardNums(payer.energyPayPool);
   const candidates: CpuArtsChoice[] = [];
   for (const { card, check } of listUsableArts({
-    my: actor, op: opponent, isMyTurn: false, turnPhase: p.turnPhase,
+    my: actor, op: opponent, isMyTurn: opts.isMyTurn, turnPhase: p.turnPhase,
     cards, cardMap, effectsMap, payer, effectivePowers: p.effectivePowers,
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
@@ -147,7 +154,7 @@ export function pickCpuResponseArts(p: {
     const kind = effects
       .filter(e => e.effectType === 'ACTIVATED')
       .map(e => defensiveKindOf(e.action))
-      .filter((k): k is CpuDefensiveKind => k !== null)
+      .filter((k): k is CpuDefensiveKind => k !== null && opts.allowKinds.has(k))
       .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b])[0];
     if (!kind) continue;
     const costIndices = selectEnergyIndicesForCost({
@@ -168,4 +175,32 @@ export function pickCpuResponseArts(p: {
     (KIND_PRIORITY[a.kind] - KIND_PRIORITY[b.kind]) ||
     ((deckOrder.get(a.card.CardNum) ?? 0) - (deckOrder.get(b.card.CardNum) ?? 0)));
   return candidates[0];
+}
+
+const ALL_KINDS: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['negate', 'removal', 'prevent']);
+const REMOVAL_ONLY: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['removal']);
+
+/**
+ * CPU がいま使う**応答アーツ**を1枚選ぶ（相手ターンのアーツステップ・無ければ `null`）。
+ * **1回の呼び出しで1枚だけ**＝実行後はスタック解決を待って CPU ループが再入する
+ * （人間が1枚ずつ使うのと同じ順序）。
+ */
+export function pickCpuResponseArts(p: CpuArtsPickInput): CpuArtsChoice | null {
+  if (!hasIncomingThreat(p.actor, p.opponent)) return null;
+  return pickCpuArtsBy(p, { isMyTurn: false, allowKinds: ALL_KINDS });
+}
+
+/**
+ * CPU がいま使う**攻めのアーツ**を1枚選ぶ（自ターンの `MAIN` / `ATTACK_ARTS`・無ければ `null`）。
+ *
+ * ■ v1 は**除去だけ**（honest defer）
+ *   - 目的は「**アタックを通す**」の1点＝正面が埋まっているとアタックはバトルになりライフに通らない。
+ *     相手シグニを退かす札だけを使い、**アタッカーが実際に塞がれているとき**にしか使わない
+ *     （`hasBlockedAttacker`）＝盤面が空の相手に除去を撃たない。
+ *   - 強化（パワー付与）・展開・ドロー・サーチは**盤面評価が要る**ので使わない。撃たない＝現状と同じ安全側。
+ *   - 無効化／ダメージ軽減は**自ターンには意味が無い**ので分類から外してある。
+ */
+export function pickCpuOffensiveArts(p: CpuArtsPickInput): CpuArtsChoice | null {
+  if (!hasBlockedAttacker(p.actor, p.opponent)) return null;
+  return pickCpuArtsBy(p, { isMyTurn: true, allowKinds: REMOVAL_ONLY });
 }
