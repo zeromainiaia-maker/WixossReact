@@ -3159,6 +3159,10 @@ export interface StubAction {
     count?: number;          // 出す枚数（省略時=ベット2/非ベット1）
     optional?: boolean;      // 「場に出してもよい」＝スキップ可
     levelLteTrigger?: boolean; // 候補をトリガー元シグニ（triggeringCardNum）のレベル以下に限定（「そのシグニのレベル以下」WXK10-055-E2）
+    // 相手トラッシュの候補を静的に絞る（2026-08-18・§5d-0 (i)）。
+    // 「対戦相手のトラッシュから**レベル３以下の**シグニ１枚」（WDK17-013-E1／WDK17-017-E1）／
+    // 「**＜美巧＞ではない**レベル３以下の」（WXK10-091-E2）。⚠落とすと相手トラッシュのどのシグニでも奪える。
+    filter?: TargetFilter;
   };
   burstFilter?: TargetFilter; // GRANT_ALL_ZONE_LIFEBURST: 付与対象の絞り込み（省略時=全カード。例: ＜怪異＞シグニ限定=WX17-036）
   burstAction?: EffectAction; // GRANT_ALL_ZONE_LIFEBURST: 付与する【ライフバースト】のアクション（省略時=相手シグニ1体バニッシュ=WD14-001）
