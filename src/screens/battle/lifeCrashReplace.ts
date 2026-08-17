@@ -1,4 +1,6 @@
-import type { LifeCrashReplacement, PlayerState } from '../../types';
+import type { CardData, LifeCrashReplacement, PlayerState } from '../../types';
+import type { StubAction } from '../../types/effects';
+import { selectOptionalCostEnergy } from '../../engine/execUtils';
 
 /**
  * 「あなたのライフクロスがクラッシュされる場合、**代わりに**〜する」＝**ライフクラッシュの置換**（§6.4）。
