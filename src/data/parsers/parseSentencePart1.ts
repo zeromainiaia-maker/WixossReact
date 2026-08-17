@@ -1882,8 +1882,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   engine 側は `INTERNAL_ASK_ACCE_HOST`（`execStubPart3`）＋`resumeSearch` の枚数展開で受ける。
   // ⚠既存の `ATTACH_ACCE` は使えない＝アクセ元がエナ／手札のときしかカードを抜けない。
   const toAcce = /探して[^。]*【アクセ】に(?:し|する)/.test(t);
+  // 🆕ライフクロス行き（§6.4 O-11・`WXEX2-13-E2`）＝「あなたのデッキからカード１枚を探して**ライフクロスに加え**、
+  //   デッキをシャッフルする」。行き先の語彙が無いためこの規則を素通りし、**サーチもライフ加えも消えて
+  //   `SHUFFLE_DECK` だけ**が残っていた（後続の「ライフクロス１枚をクラッシュする」だけが走る＝
+  //   ライフが増えずに減る**符号が逆の**盤面になる）。engine 側は `ADD_TO_LIFE{fromSearch}` が既存
+  //   （`effectExecutor` の resume 経路）＝配線するだけで足りる。
+  const toLife = /ライフクロスに加え/.test(t);
   if (t.includes('デッキから') && t.includes('探して') && !t.includes('手札かデッキから') &&
-      (toTrapZone || toAcce || t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
+      (toTrapZone || toAcce || toLife || t.includes('手札に加え') || t.includes('場に出し') || t.includes('場に出す') || t.includes('トラッシュに置き') || t.includes('エナゾーンに置く') || t.includes('エナゾーンに置き'))) {
     const filter: TargetFilter = {
       // ⚠トラップ設置文は「あなたの**シグニゾーン**に設置」と書くだけで**探す対象はカード全般**。
       //   ここで cardType を拾うと「シグニしか【トラップ】にできない」過少実行になる。
