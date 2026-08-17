@@ -20131,6 +20131,22 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq((stub!.handDiscard as { count?: number }).count, 3, '手札を捨てる枚数');
     eq((stub!.handDiscard as { filter?: { story?: string } }).filter?.story, '遊具', '捨てるカードのクラス限定');
   });
+  // §6.4 O-11：「デッキ上N枚見る → その中からN枚まで手札 → 残りデッキ下」の早期 return が
+  //   3文目以降を丸ごと捨てていた（`SPDi43-26-E2` はバウンスとその支払いが消えていた）。
+  test('(O-11) SPDi43-26-E2: 早期 return の後ろに続く「その後、」節が落ちない', () => {
+    const a = effOfX('SPDi43-26', 'SPDi43-26-E2').action;
+    eq(a.type, 'SEQUENCE', '公開ピックだけで打ち切られている');
+    const steps = (a as unknown as { steps: Record<string, unknown>[] }).steps;
+    eq(steps[0].type, 'REVEAL_AND_PICK', '先頭は公開ピック');
+    // 🔑任意コストとゲートは**平坦な隣接**でなければ engine の funnel が外れて「払わずに撃てる」
+    const costIdx = steps.findIndex(s => s.type === 'STUB' && s.id === 'OPTIONAL_COST');
+    ok(costIdx > 0, '任意コスト（ガードアイコン持ちを1枚捨てる）が無い');
+    eq((steps[costIdx].handDiscard as { filter?: { hasGuard?: boolean } }).filter?.hasGuard, true, '《ガードアイコン》限定');
+    eq(steps[costIdx + 1]?.type, 'CONDITIONAL', '任意コストの直後がゲートでない＝支払いを踏み倒せる');
+    const bounce = treeFind(a, x => x.type === 'BOUNCE') as Record<string, unknown> | null;
+    ok(!!bounce, 'バウンスが落ちている');
+    eq((bounce!.target as { owner?: string }).owner, 'opponent', 'バウンス対象は対戦相手');
+  });
 }
 
 // ── §6.4: 【出】能力抑止の死 BLOCK_ACTION family ─────────────────────────────
