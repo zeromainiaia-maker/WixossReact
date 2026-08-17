@@ -1,14 +1,57 @@
 import type { PlayerState } from '../types';
+import type { StubAction } from '../types/effects';
 import { shuffle } from './execUtils';
+
+/** ルリグ付与ストア2本（`lifeCrashReplace.ts` と同じ規約＝合成と消費で同じ順に見る）。 */
+const LRIG_GRANT_STORES = [
+  'lrig_granted_auto_effects',
+  'lrig_granted_auto_effects_until_opp_turn',
+] as const;
+
+/**
+ * 「あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、**代わりに**
+ * このルリグはこの能力を失う。」（§6.4 O-37(b)・続き543・`WX24-P3-009` が付与）。
+ *
+ * 🔑**置換なので「ライフを失わない」と「能力を1つ失う」は必ず対**＝どちらか片方だけだと
+ *   「タダで無限に守る」か「守らないのに能力だけ消える」になる。
+ * ⚠**素直に parse させると別物になる**（続き536 の実測）＝`CONTINUOUS REMOVE_ABILITIES{SIGNI self,
+ *   until:PERMANENT}`＝**自分のシグニ**の能力を恒久的に消す。だから parser 側で専用の構造を組む。
+ * ⚠ライフクロスが0枚のときは移動が起きない＝**能力を消費しない**（置換すべきものが無い）。
+ */
+function consumeRefreshLifeMoveReplace(state: PlayerState): PlayerState | null {
+  if (state.lrig_abilities_disabled) return null;
+  if (state.life_cloth.length === 0) return null;
+  for (const key of LRIG_GRANT_STORES) {
+    const effects = state[key] ?? [];
+    const index = effects.findIndex(effect => {
+      const action = effect.action as StubAction;
+      return effect.effectType === 'CONTINUOUS'
+        && action?.type === 'STUB'
+        && action.id === 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY';
+    });
+    if (index < 0) continue;
+    const kept = effects.filter((_, i) => i !== index);
+    return { ...state, [key]: kept.length > 0 ? kept : undefined };
+  }
+  return null;
+}
 
 /**
  * リフレッシュの共通状態遷移。
  * next_refresh_replaced は通常のリフレッシュダメージを置換し、
  * ルリグデッキ先頭1枚をルリグトラッシュへ置いて一度だけ消費する。
+ *
+ * ⚠**リフレッシュの choke point はこの1本**＝`refreshPlayerIfDeckEmpty`（engine）と
+ *   `battleUtils.applyRefresh`／`drawCards`（UI）の全経路がここを通る。ライフ移動の置換は
+ *   呼び出し側ではなくここに置くこと（片方だけだと経路によって効いたり効かなかったりする）。
  */
 export function applyRefreshState(state: PlayerState, preventLifeToTrash = false): PlayerState {
   if (state.prevent_refresh_until_opp_turn) return state;
   if (state.trash.length === 0) return state;
+  if (!preventLifeToTrash) {
+    const replaced = consumeRefreshLifeMoveReplace(state);
+    if (replaced) return applyRefreshState(replaced, true);
+  }
   if (state.next_refresh_replaced) {
     const [lrigCard, ...remainingLrigDeck] = state.lrig_deck;
     return {
