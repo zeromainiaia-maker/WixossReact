@@ -20622,10 +20622,21 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq(steps.steps[2].type, 'TRANSFER_TO_HAND', '本体のトラッシュ回収');
     eq((steps.steps[2].source as { filter?: { story?: string } }).filter?.story, '遊具',
       '🔴＜遊具＞限定が落ちるとトラッシュのどのシグニでも拾える');
-    // 選択肢の中に本体が残っていないこと
-    const choices = JSON.stringify((steps.steps[0] as { choices: unknown }).choices);
-    ok(!choices.includes('BANISH') && !choices.includes('TRANSFER_TO_HAND'),
-      '🔴本体が選択肢の中へ戻っている（②を選ばないと走らない）');
+    // 🆕**②「このアーツの効果を一度繰り返す」は本体と同じ木を持つ**（§6.4 O-29・2026-08-17）＝
+    //   旧 `STUB{REPEAT_EFFECT}`（engine ではログだけの無言 no-op）を置き換えた。
+    // ⚠**旧テストは「選択肢の中に BANISH が無いこと」を要求していた**が、それは
+    //   「本体が①②のどちらかを選ばないと走らない」旧構造を弾くための条件だった。
+    //   いまは**兄弟に本体がある（＝ベット0枚でも走る）ことを上で固定済み**なので、
+    //   ②の中の本体コピーは正しい姿。⇒ 条件を「①は本体を持たない／②は本体と同じ木」へ精密化する。
+    const chs = (steps.steps[0] as { choices: { choiceId: string; action: unknown }[] }).choices;
+    const opt0 = JSON.stringify(chs[0].action);
+    ok(!opt0.includes('BANISH') && !opt0.includes('TRANSFER_TO_HAND'),
+      '🔴①（コスト減）に本体が紛れている');
+    eq(JSON.stringify(chs[1].action),
+      JSON.stringify({ type: 'SEQUENCE', steps: [steps.steps[1], steps.steps[2]] }),
+      '🔴②「一度繰り返す」が本体と別の木（無言 no-op や別挙動）になっている');
+    eq((steps.steps[0] as { allowRepeat?: boolean }).allowRepeat, true,
+      '🔴「同じ選択肢を２回以上選んでもよい」が落ちている（②を1回しか選べない）');
   });
   // §6.4 O-11（続き533・**残0クローズ**）：`PR-469`＝3択が丸ごと消え、しかも
   //   除外コストが表現されていないので《白×3》だけで撃てる形だった。
