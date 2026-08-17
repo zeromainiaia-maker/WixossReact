@@ -38715,7 +38715,7 @@ test('§6.4 O-37(a): ダメージ置換 funnel が付与ストアを見て、払
   const paid = applyPayCostReplacement(withGrant, picked.index, picked.repl, cm)!;
   eq(paid.state.hand.length, 1, '手札1枚を支払う');
   eq(paid.state.trash.length, 1, '支払った手札はトラッシュへ');
-  eq(paid.state.life_cloth.length, 1, '🔴ライフは減らない（置換）');
+  eq(paid.state.life_cloth.length, 1, '🔴ライフは減らない（置換は funnel の外で行われない）');
   // 🔑「そうした場合、このルリグはこの能力を失う」＝2回目は成立しない（無限に守らない）
   eq(pickLifeCrashReplacement(paid.state, { damageSource: 'signi', cardMap: cm }), null,
     '🔴能力を失ったのに置換だけ残っている');
