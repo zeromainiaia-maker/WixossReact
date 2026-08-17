@@ -241,6 +241,26 @@ export function detectHandTrashed(before: PlayerState, after: PlayerState): stri
   return after.trash.filter(n => beforeHand.has(n) && !beforeTrash.has(n));
 }
 
+/**
+ * トラッシュに**新しく置かれた**カードを検出（`ON_TRASH_CARD_ADDED`・§6.4 O-37(c)）。
+ *
+ * ⚠**移動元の領域を問わない**のが要点＝原文「対戦相手の効果1つによってあなたのトラッシュに
+ *   カードが合計1枚以上置かれたとき」は手札・エナ・場・デッキ・ライフのどれからでも成立する。
+ *   `detectDeckTrashed`／`detectHandTrashed`／`detectEnergyTrashed` は移動元を限定するので流用できない。
+ * ⚠同名カードが複数あってもよいよう**多重集合の増加分**で数える（`detectUnderSigniTrashed` と同じ作法）。
+ */
+export function detectTrashAdded(before: PlayerState, after: PlayerState): string[] {
+  const beforeCounts = new Map<string, number>();
+  for (const n of before.trash) beforeCounts.set(n, (beforeCounts.get(n) ?? 0) + 1);
+  const added: string[] = [];
+  for (const n of after.trash) {
+    const remaining = beforeCounts.get(n) ?? 0;
+    if (remaining > 0) beforeCounts.set(n, remaining - 1);
+    else added.push(n);
+  }
+  return added;
+}
+
 /** エナゾーン→トラッシュに移動したカードを検出（ON_TRASH「エナから」用）。 */
 export function detectEnergyTrashed(before: PlayerState, after: PlayerState): string[] {
   const beforeEnergy = new Set(before.energy);
