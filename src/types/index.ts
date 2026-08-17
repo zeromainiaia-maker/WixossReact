@@ -815,6 +815,13 @@ export interface PlayerState {
    */
   lrig_grew_this_turn?: boolean;
   /**
+   * **CPU がこのターンに能動使用した【起】の effectId**（§8／§6.4 `O-1`・`cpuActivate.ts`）。
+   * ⚠**ルールの状態ではなく CPU の行動履歴**＝engine は読まない。CPU が同じ【起】を
+   *   撃ち直して無限ループになるのを止めるためだけに存在する（`usageLimit` の無い効果や
+   *   コスト表現が落ちている効果は `actions_done` では止まらない）。
+   */
+  cpu_activated_effect_ids_this_turn?: string[];
+  /**
    * 「チェックゾーンにあるこのカードを裏返し、…グロウコストを支払わずにグロウする」（`WXDi-P16-001A`）の
    * **裏面 CardNum**。engine 側は条件判定と予約だけを行い、実際のグロウは BattleScreen が
    * `executeGrow`（＝グロウの正規経路＝【出】トリガー・リミット再計算・コイン獲得を通る）で行う。
