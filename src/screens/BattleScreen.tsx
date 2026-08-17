@@ -13056,10 +13056,37 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // ルリグ付与能力（GRANT_LRIG_ABILITY）の発動：エクシードコスト＋エナコスト支払い
-  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
-    if (loading) return;
+  /**
+   * ルリグの【起】（センタールリグ本来／付与／継承）の実行（人間・CPU 共通）。
+   * DESIGN §4「CPU は対人戦と同じ処理を使う」の抽出形＝`performArts` / `performSigniActivated` と
+   * 同じく **owner をパラメータ化**し、人間用 `executeLrigGranted` は薄いラッパーにする（§8 `O-1` (c)）。
+   *
+   * ⚠**「いま撃てるか」の判定はここではなく `lrigActivateGate.listActivatableLrigEffects`**
+   * （提示と支払いは別の地点）。
+   */
+  const performLrigActivated = async (
+    effect: import('../types/effects').CardEffect,
+    sel: {
+      costIndices: Set<number>;
+      handDiscardIndices?: Set<number>;
+      energyTrashIndices?: Set<number>;
+      trashExileIndices?: Set<number>;
+    },
+    p: {
+      actor: PlayerState; opponent: PlayerState;
+      actorId: string;
+      actorKey: 'host_state' | 'guest_state';
+      /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
+      energyPayPool: EnergyPayEntry[];
+    },
+  ) => {
+    const my = p.actor;
+    const op = p.opponent;
+    const costIndices = sel.costIndices;
+    const handDiscardIndices = sel.handDiscardIndices ?? new Set<number>();
+    const energyTrashIndices = sel.energyTrashIndices ?? new Set<number>();
+    const trashExileIndices = sel.trashExileIndices ?? new Set<number>();
     setLoading(true);
-    closeLrigGranted();
     try {
       // エクシードコスト：センター → 左アシスト → 右アシストの順で下からN枚をルリグトラッシュへ
       const exceedCost = effect.cost?.exceed ?? 0;
@@ -13084,7 +13111,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // エナコスト支払い（色コスト + energyTrash指定コスト）＝支払い元は funnel 1本（§6.4）
-      const lgPay = planEnergyPayment(my, myEnergyPayPool, costIndices, energyTrashIndices);
+      const lgPay = planEnergyPayment(my, p.energyPayPool, costIndices, energyTrashIndices);
       const paidNums = lgPay.paidNums;
       const lgEnergyTrashCards = lgPay.extraEnergyNums;
       // energyTrashAll: エナゾーンのカードをすべてトラッシュ（自動）
@@ -13108,13 +13135,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const lgDiscardAllCards = effect.cost?.discardAll ? [...baseLGHand] : [];
       const newHand = effect.cost?.discardAll ? [] : baseLGHand;
       const lgIsGameOnce = effect.usageLimit === 'once_per_game';
+      // 🔴《コインアイコン》コスト（`cost.coin`・live 82効果）＝**この経路には支払いが1行も無かった**
+      //   （§8 `O-1` (c)・続き552c に発見）。シグニ【起】（`performSigniActivated`）は同じキーを
+      //   deduct しているのに、ルリグ【起】だけコインが減らず、提示側も所持枚数を見ていなかった＝
+      //   **宣言だけして踏み倒す**状態だった。⚠可否判定は `lrigActivateGate` 側と対にすること。
+      const coinCostLg = effect.cost?.coin ?? 0;
+      if (coinCostLg > 0 && (my.coins ?? 0) < coinCostLg) { setLoading(false); return; }
       let paid: import('../types').PlayerState = lgPay.applyTo({
         ...my,
         hand: newHand,
+        coins: coinCostLg > 0 ? Math.max(0, (my.coins ?? 0) - coinCostLg) : my.coins,
+        coins_paid_this_turn: coinCostLg > 0 ? (my.coins_paid_this_turn ?? 0) + coinCostLg : my.coins_paid_this_turn,
         trash: [...my.trash, ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums, ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards],
         field: { ...my.field, lrig: newLrig, assist_lrig_l: newAssistL, assist_lrig_r: newAssistR },
         lrig_trash: newLrigTrash,
-        actions_done: [...(my.actions_done ?? []), effect.effectId],
+        actions_done: [...(my.actions_done ?? []), effect.effectId, ...(coinCostLg > 0 ? ['COIN_SPENT'] : [])],
         game_actions_done: lgIsGameOnce ? [...(my.game_actions_done ?? []), effect.effectId] : my.game_actions_done,
         ...activatedDiscardCostRecord(
           discardedHandNums.length, lgDiscardAllCards.length, lgEnergyTrashAllCards.length, 0,
@@ -13210,7 +13245,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const isOwnLrigEffect = (effectsMap.get(lrigTop ?? '') ?? []).some(e => e.effectId === effect.effectId);
       const entry: import('../types').StackEntry = {
         id: generateUUID(),
-        playerId: user.id,
+        playerId: p.actorId,
         cardNum: lrigTop ?? '',
         effectId: effect.effectId,
         label: isOwnLrigEffect ? `${cardName} の【起】効果` : `${cardName} の【起】付与効果`,
@@ -13224,7 +13259,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.triggerCondition?.exceedCostPaidByPlayer) continue; // 「あなたが支払ったとき」変種は下の場シグニ走査で処理
           entriesLG.push({
             id: generateUUID(),
-            playerId: user.id,
+            playerId: p.actorId,
             cardNum: cn,
             effectId: eff.effectId,
             label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】エクシードコスト時`,
@@ -13235,7 +13270,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ON_EXCEED_COST（場のシグニ）: 「あなたがエクシードのコストを支払ったとき」変種（exceedCostPaidByPlayer）。
       // エクシードコストを支払った場合のみ、自分の場のシグニ/ルリグの該当【自】を発火（WXDi-P06-078）。
       if (exceedCost > 0) {
-        const myTurnEC = user.id === bs.active_user_id;
+        const myTurnEC = p.actorId === bs.active_user_id;
         const exceedUsedIds: string[] = [];
         const ecSources: string[] = [
           ...paid.field.signi.flatMap(s => (s?.at(-1) ? [s.at(-1)!] : [])),
@@ -13253,7 +13288,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             if (eff.usageLimit === 'once_per_turn') exceedUsedIds.push(eff.effectId);
             entriesLG.push({
               id: generateUUID(),
-              playerId: user.id,
+              playerId: p.actorId,
               cardNum: topEC,
               effectId: eff.effectId,
               label: `${battleCardMap.get(topEC)?.CardName ?? topEC}【自】エクシードコスト支払い時`,
@@ -13263,13 +13298,19 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         if (exceedUsedIds.length > 0) paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...exceedUsedIds] };
       }
-      const turnPlayerId = bs.active_user_id ?? user.id;
+      // ON_COIN_PAID（C1 配線）＝シグニ【起】と同じく、コインを支払ったら反応【自】を積む。
+      if (coinCostLg > 0) {
+        const lgCoin = collectCoinPaidTriggers(p.actorId, paid, op);
+        entriesLG.push(...lgCoin.entries);
+        paid = applyCoinPaidUsed(paid, lgCoin); // 《ターン1回/2回》消化を永続化
+      }
+      const turnPlayerId = bs.active_user_id ?? p.actorId;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
         ? pushToStack(existingStack, entriesLG)
         : initStack(turnPlayerId, entriesLG);
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      const oppStateKeyLrig = isHost ? 'guest_state' : 'host_state';
+      const stateKey = p.actorKey;
+      const oppStateKeyLrig: PlayerStateKey = p.actorKey === 'host_state' ? 'guest_state' : 'host_state';
       await persist.commit(reduceBattle(bs, {
         type: 'WRITE_STATE', myKey: stateKey, myState: paid, effectStack: newStack, clearPending: true,
         opp: newOpVirusStateLrig ? { key: oppStateKeyLrig, state: newOpVirusStateLrig } : undefined,
@@ -13277,6 +13318,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  /** 人間UI（`LrigGrantedModal`）から呼ぶ薄いラッパー。本体は `performLrigActivated`。 */
+  const executeLrigGranted = async (effect: import('../types/effects').CardEffect, costIndices: Set<number>, handDiscardIndices: Set<number> = new Set(), energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set()) => {
+    if (loading) return;
+    closeLrigGranted();
+    await performLrigActivated(effect, { costIndices, handDiscardIndices, energyTrashIndices, trashExileIndices }, {
+      actor: my, opponent: op,
+      actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      energyPayPool: myEnergyPayPool,
+    });
   };
 
   // シグニゾーンのカードアクション（エナチャージ / 起動 / アタック）

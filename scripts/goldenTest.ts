@@ -39539,7 +39539,7 @@ test('O-1 cpuActivate: CPU の【起】選択は「撃てる・自動で払え�
   const pickFor = (effs: Map<string, CardEffect[]>, already: string[] = [], state: PlayerState = actor) =>
     pickCpuSigniActivated({
       actor: state, opponent, effectsMap: effs, cardMap: cm, cards: allCards,
-      energyPoolNums: state.energy, alreadyActivated: already, isAffordable,
+      phase: 'MAIN', energyPoolNums: state.energy, alreadyActivated: already, isAffordable,
     });
   const free = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-FREE')]]]);
   eq(pickFor(free)?.effect.effectId, 'Z-FREE', 'コストなしの【起】を選ぶ');
@@ -39562,6 +39562,16 @@ test('O-1 cpuActivate: CPU の【起】選択は「撃てる・自動で払え�
   const gotEna = pickFor(enaEff, [], rich);
   eq(gotEna?.costIndices.size, 2, 'エナ2枚ぶんの index が返る');
   eq(activatedEnergyCostStr(mkAct('x', { cost: { energy: [{ color: '赤', count: 2 }] } })), '《赤》×2', 'コスト文字列は《色》×N 形式（parseGrowCost が読める唯一の綴り）');
+  // 🆕続き552c＝窓が2つになった（`MAIN` と `ATTACK_ARTS`）。判定は同じ gate で `phase` だけが違う。
+  const pickPhase = (effs: Map<string, CardEffect[]>, phase: 'MAIN' | 'ATTACK_ARTS') =>
+    pickCpuSigniActivated({
+      actor, opponent, effectsMap: effs, cardMap: cm, cards: allCards,
+      phase, energyPoolNums: actor.energy, alreadyActivated: [], isAffordable,
+    });
+  const iconEff = new Map<string, CardEffect[]>([[SIGNI, [mkAct('Z-ICON', { timing: ['ATTACK_ARTS'] })]]]);
+  eq(pickPhase(iconEff, 'MAIN'), null, '🔴《アタックフェイズアイコン》付きはメイン窓では撃たない');
+  eq(pickPhase(iconEff, 'ATTACK_ARTS')?.effect.effectId, 'Z-ICON', 'アタック窓では撃つ');
+  eq(pickPhase(free, 'ATTACK_ARTS'), null, '対照：無印【起】はアタック窓では撃たない');
 }));
 
 // ── §8／§6.4 `O-1` (a)：CPU が相手のアタックフェイズに応答アーツで守る ──────────────
