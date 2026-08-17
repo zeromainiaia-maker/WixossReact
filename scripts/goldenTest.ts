@@ -4317,7 +4317,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 29 → 30（§6.4 O-10 続き510 で own_effects_cannot_negate_signi_attack_this_turn を追加）
   // 30 → 31（§6.4 O-10 続き512 で cannot_pay_colorless_this_attack_phase を追加）
   // 31 → 32（§6.4 O-10 続き515 で lrig_grew_this_turn を追加）
-  eq(convention.length, 32, 'PlayerState の命名規約由来フィールド数');
+  // 32 → 33（§6.4 O-11 続き533 で signi_downed_this_turn を追加＝「このターンでN回目」の台帳）
+  eq(convention.length, 33, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4332,7 +4333,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 55, '型由来32件＋命名規約外23件の母集団');
+  eq(registered.length, 56, '型由来33件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -10338,6 +10339,48 @@ test('Stage2 ON_SIGNI_DOWN: any_ally scope＝相手側シグニのダウンで�
   const host = mkState({ signi: ['WX05-040', null, null] }); const guest = mkState({ signi: ['WX05-040-opp', null, null] });
   const grpOpp = [{ ownerId: GUEST, nums: ['WX05-040-opp'], byEffect: true }];
   eq(has(collectSigniDownUpTriggers(trigCtx(HOST), 'ON_SIGNI_DOWN', grpOpp, host, guest).entries, 'WX05-040-E2'), false, 'any_ally は相手側ダウンで非発火');
+});
+// ── §6.4 O-11（続き533）: `WX05-042`＝スペルが**このターンだけ**設置する ON_SIGNI_DOWN 遅延トリガー。
+//    「あなたのメインフェイズの間」＝発火窓／「このターンで3回目である場合」＝`fireCondition`。
+//    🔴旧 live は `SEQUENCE[DRAW 1, RULE_REMINDER_TEXT]`＝**使った瞬間に無条件で1枚引くだけ**だった。
+test('(O-11) 遅延 ON_SIGNI_DOWN: 発火窓（自分のメイン）と「N回目」条件が両方効く（WX05-042）', () => {
+  const install = (effectsMap.get('WX05-042') ?? []).find(e => e.effectId === 'WX05-042-E1')!;
+  const dt = install.action as unknown as {
+    type: string; duration: string; once?: boolean;
+    trigger: { timing: string; downedOwner?: string; duringOwnMainPhase?: boolean; triggerFilter?: Record<string, unknown> };
+    fireCondition?: { type: string; value?: number };
+  };
+  eq(dt.type, 'INSTALL_DELAYED_TRIGGER', '🔴旧形（裸の DRAW）に戻っていない');
+  eq(dt.duration, 'THIS_TURN', '設置はこのターン限り');
+  eq(dt.once, true, '「１ターンに一度しか発動しない」');
+  eq(dt.trigger.timing, 'ON_SIGNI_DOWN', '発火タイミング');
+  eq(dt.trigger.downedOwner, 'self', 'ダウンするのは**あなたの**シグニ');
+  eq(dt.trigger.duringOwnMainPhase, true, '🔴発火窓（あなたのメインフェイズ）が落ちると相手ターンにも撃てる');
+  eq(dt.trigger.triggerFilter?.story, '植物', '🔴＜植物＞限定が落ちるとどのシグニのダウンでも撃てる');
+  eq(dt.fireCondition?.type, 'SIGNI_DOWNED_COUNT_THIS_TURN', '「このターンで3回目」の条件');
+  eq(dt.fireCondition?.value, 3, '回数');
+
+  // 収集の実挙動＝台帳の枚数と発火窓で分岐する
+  const PLANT = 'WX05-042#p';   // ＜植物＞のシグニに見立てる（filter は cardMap 依存なので実カードを使う）
+  const mk = (downed: string[], phase: string) => {
+    const host = mkState({ signi: [null, null, null] });
+    host.delayed_triggers = [install.action as never];
+    host.signi_downed_this_turn = downed;
+    return { host, guest: mkState({}), phase };
+  };
+  // ＜植物＞の実カードを探す（フィクスチャに依存しない）
+  const plantNum = [...cardMap.entries()].find(([, c]) =>
+    c.Type === 'シグニ' && (c.CardClass ?? '').includes('植物'))?.[0] ?? PLANT;
+  const grp = [{ ownerId: HOST, nums: [plantNum], byEffect: true }];
+  const run = (downed: string[], phase: string) => {
+    const s = mk(downed, phase);
+    return collectSigniDownUpTriggers(
+      { ...trigCtx(HOST), turnPhase: phase } as TrigCtx, 'ON_SIGNI_DOWN', grp, s.host, s.guest,
+    ).entries.filter(e => e.effectId === 'DELAYED_TRIGGER').length;
+  };
+  eq(run([plantNum, plantNum, plantNum], 'MAIN'), 1, '3体目のダウンで発火');
+  eq(run([plantNum, plantNum], 'MAIN'), 0, '🔴2体目では発火しない（条件を落とすと毎回撃てる）');
+  eq(run([plantNum, plantNum, plantNum], 'ATTACK'), 0, '🔴メインフェイズ以外では発火しない');
 });
 test('Stage2 ON_SIGNI_BECOMES_UP: キー watcher＝キー上の【自】を収集（WXK11-015-E3 isTriggerSource freeze・MANUAL）', () => {
   const host = mkState({ signi: [null, null, null] }); const guest = mkState({ signi: ['GG', null, null] });
@@ -18361,7 +18404,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
   eq(Object.keys(AC_TYPES).length, 45, 'ActiveCondition の型数（増えたら union に足した合図。45＝§6.4 O-35 続き527 の ALL_FIELD_SIGNI_MATCH 追加後）');
-  eq(Object.keys(C_TYPES).length, 118, 'Condition の型数（増えたら union に足した合図。118＝§6.4 O-10 続き517 の OPP_USING_TEAM_PIECE 追加後）');
+  eq(Object.keys(C_TYPES).length, 119, 'Condition の型数（増えたら union に足した合図。119＝§6.4 O-11 続き533 の SIGNI_DOWNED_COUNT_THIS_TURN 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。

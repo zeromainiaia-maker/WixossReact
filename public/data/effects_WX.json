@@ -16942,22 +16942,63 @@
         ]
       },
       "action": {
-        "type": "SEQUENCE",
-        "steps": [
-          {
-            "type": "DRAW",
-            "owner": "self",
-            "count": 1
+        "type": "INSTALL_DELAYED_TRIGGER",
+        "duration": "THIS_TURN",
+        "once": true,
+        "trigger": {
+          "timing": "ON_SIGNI_DOWN",
+          "downedOwner": "self",
+          "triggerFilter": {
+            "cardType": "シグニ",
+            "story": "植物"
           },
-          {
-            "type": "STUB",
-            "id": "RULE_REMINDER_TEXT"
-          }
-        ]
+          "duringOwnMainPhase": true
+        },
+        "fireCondition": {
+          "type": "SIGNI_DOWNED_COUNT_THIS_TURN",
+          "owner": "self",
+          "filter": {
+            "cardType": "シグニ",
+            "story": "植物"
+          },
+          "operator": "gte",
+          "value": 3
+        },
+        "effect": {
+          "type": "SEQUENCE",
+          "steps": [
+            {
+              "type": "BANISH",
+              "target": {
+                "type": "SIGNI",
+                "owner": "opponent",
+                "count": 1,
+                "upToCount": false,
+                "filter": {
+                  "cardType": "シグニ"
+                }
+              }
+            },
+            {
+              "type": "TRANSFER_TO_HAND",
+              "source": {
+                "type": "ENERGY_CARD",
+                "owner": "self",
+                "count": 1,
+                "upToCount": false
+              }
+            },
+            {
+              "type": "DRAW",
+              "owner": "self",
+              "count": 1
+            }
+          ]
+        }
       },
       "duration": "INSTANT",
       "mandatory": false,
-      "parseStatus": "AUTO"
+      "parseStatus": "MANUAL"
     },
     {
       "effectId": "WX05-042-BURST",
