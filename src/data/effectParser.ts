@@ -3651,6 +3651,11 @@ function parseSingleSentenceInner(text: string): EffectAction {
       // アタックフェイズ開始時に無条件発火の過剰効果（WX25-CP1-042/WX26-CP1-048 等・census 条件節クラスタ）。
       [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
         g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+      // 色バリアント（§6.4 O-35・`CONDITIONAL_POWER_BONUS` の解体）。＜C＞/《X》形だけが在り**色形が無かった**ため
+      // 条件節が丸ごと脱落＝アタック時に無条件発火の過剰効果になっていた（`WXDi-D09-H19-E1`／`WXDi-P00-036-E1`／
+      // `WXDi-P14-055-E1`）。engine 側は `matchesFilter` の `color` を通るだけ＝**新機構ゼロで配線のみ**。
+      [/あなたの場にあるすべてのシグニが(白|赤|青|緑|黒|無色)の場合/,
+        g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', color: g[0] } })],
       // 《ディソナアイコン》は Story='Dissona'（isDisona フラグ・matchesFilter/execUtils 慣例）＝カード名ではない。
       [/あなたの場にあるすべてのシグニが《([^》]+)》の場合/,
         g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: g[0] === 'ディソナアイコン' ? { cardType: 'シグニ', isDisona: true } : { cardType: 'シグニ', cardName: g[0] } })],
