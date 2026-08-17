@@ -323,24 +323,6 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
-## +CONDITIONAL +DECK_CARD +LAST_PROCESSED_MATCHES +STUB×2 ［1枚］
-WXEX1-41
---- WXEX1-41
-  原文: 【自】《ターン１回》：あなたの【トラップ】１つが設置されたとき、カードを１枚引くか【エナチャージ１】をする。【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの一番上のカードをトラッシュに置く。そのカードが《トラップアイコン》を持つカードの場合、それをバニッシュする。【トラップアイコン】：《青》を支払ってもよい。そうした場合、対戦相手のダウン状態のすべて
-  - [1].action.steps[0].target.type = "SIGNI"
-  - [1].action.steps[0].target.owner = "opponent"
-  - [1].action.steps[0].target.count = 1
-  - [1].action.steps[0].target.filter.cardType = "シグニ"
-  - [1].action.steps[0].target.upToCount = false
-  - [1].action.steps[1].target.type = "SIGNI"
-  - [1].action.steps[1].target.owner = "self"
-  - [1].action.steps[1].target.count = 1
-  - [1].action.steps[1].target.filter.cardType = "シグニ"
-  - [1].action.steps[1].target.upToCount = false
-  ~ [1].action.steps[0].type : "TRASH" → "STUB"
-  + [1].action.steps[0].id = "SELECT_TARGET_ONLY"
-  …（他 21 行）
-
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［1枚］
 WXEX2-70
 --- WXEX2-70
@@ -488,6 +470,21 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
+## +CONDITIONAL +COST_TRASHED_MATCHES ［1枚］
+WXDi-P16-012
+--- WXDi-P16-012
+  原文: 【出】：あなたの手札からカードを３枚までエナゾーンに置く。【起】《ターン１回》《緑×0》：以下の２つから１つを選ぶ。①あなたの手札が０枚の場合、カードを２枚引く。②あなたのエナゾーンにカードがない場合、【エナチャージ２】をする。【起】《ゲーム１回》エナゾーンにあるすべてのカードをトラッシュに置き、手札をすべて捨てる：この方法でカードを合計５枚以上トラッシュに
+  - [2].action.owner = "self"
+  - [2].action.count = 1
+  - [2].action.fromTop = true
+  ~ [2].action.type : "ADD_TO_LIFE" → "CONDITIONAL"
+  + [2].action.condition.type = "COST_TRASHED_MATCHES"
+  + [2].action.condition.minCount = 5
+  + [2].action.then.type = "ADD_TO_LIFE"
+  + [2].action.then.owner = "self"
+  + [2].action.then.count = 1
+  + [2].action.then.fromTop = true
+
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
 --- WXDi-CP01-042
@@ -524,6 +521,24 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
+## +CONDITIONAL×2 +COST_TRASHED_MATCHES×2 ［1枚］
+WX25-CP1-020
+--- WX25-CP1-020
+  原文: 【自】：あなたのアタックフェイズ開始時、【エナチャージ１】をする。あなたのエナゾーンにカードがない場合、代わりに【エナチャージ２】をする。【起】《ゲーム１回》エナゾーンからすべてのカードをトラッシュに置く：この方法でカードを３枚以上トラッシュに置いた場合、対戦相手のライフクロス１枚をエナゾーンに置く。７枚以上トラッシュに置いた場合、追加で対戦相手のライフクロ
+  - [1].action.steps[0].id = "CONDITIONAL_POWER_BONUS"
+  - [1].action.steps[1].id = "CONDITIONAL_POWER_BONUS"
+  ~ [1].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [1].action.steps[0].condition.type = "COST_TRASHED_MATCHES"
+  + [1].action.steps[0].condition.minCount = 3
+  + [1].action.steps[0].then.type = "STUB"
+  + [1].action.steps[0].then.id = "LIFE_TO_ENERGY"
+  + [1].action.steps[0].then.owner = "opponent"
+  ~ [1].action.steps[1].type : "STUB" → "CONDITIONAL"
+  + [1].action.steps[1].condition.type = "COST_TRASHED_MATCHES"
+  + [1].action.steps[1].condition.minCount = 7
+  + [1].action.steps[1].then.type = "STUB"
+  …（他 2 行）
+
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069
@@ -540,42 +555,6 @@ WXK03-069
   + [0].action.steps[1].destination.location = "deck"
   + [0].action.steps[1].destination.owner = "self"
   + [0].action.steps[1].destination.position = "bottom"
-
-## +CONDITIONAL +DECK_CARD +LAST_PROCESSED_MATCHES +POWER_MODIFY +SIGNI +STUB ［1枚］
-WXK03-080
---- WXK03-080
-  原文: 【出】：対戦相手のシグニを２体まで対象とし、あなたのデッキの一番上のカードをトラッシュに置く。それがレベルが偶数のシグニの場合、ターン終了時まで、それらのパワーをそれぞれ－1000する。,：カードを１枚引く。
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 2
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.upToCount = true
-  ~ [0].action.steps[0].type : "TRASH" → "STUB"
-  + [0].action.steps[0].id = "SELECT_TARGET_ONLY"
-  + [0].action.steps[0].selectTarget.type = "SIGNI"
-  + [0].action.steps[0].selectTarget.owner = "opponent"
-  + [0].action.steps[0].selectTarget.count = 2
-  + [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
-  + [0].action.steps[0].selectTarget.upToCount = true
-  …（他 16 行）
-
-## +DECK_CARD +STUB×2 ［1枚］
-WXK03-081
---- WXK03-081
-  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたのデッキの一番上のカードをトラッシュに置く。それがレベルが奇数のシグニの場合、ターン終了時まで、それのパワーを－1000する。,：カードを１枚引く。
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[1].condition.type = "LAST_PROCESSED_MATCHES"
-  - [0].action.steps[1].condition.filter.cardType = "シグニ"
-  - [0].action.steps[1].condition.filter.levelParity = "odd"
-  - [0].action.steps[1].then.type = "POWER_MODIFY"
-  - [0].action.steps[1].then.target.type = "SIGNI"
-  - [0].action.steps[1].then.target.owner = "self"
-  - [0].action.steps[1].then.target.count = 1
-  …（他 25 行）
 
 ## +BLOOD_CRYSTAL_ARMOR +CHOOSE +DRAW +PREVENT_DAMAGE +SEQUENCE ［1枚］
 WXK04-014
