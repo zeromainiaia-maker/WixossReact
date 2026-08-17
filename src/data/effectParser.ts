@@ -431,6 +431,24 @@ function extractUseCondition(text: string): { cleaned: string; condition?: Condi
 
 
 
+/**
+ * `energyTrash` コスト節の「それぞれ〜異なる／共通する〜」句 → `SelectionConstraint`（2026-08-18・§5d-0 (ii)）。
+ *
+ * 🔴**旧実装は5つの言い回しを regex で捕捉しておきながら2つしか写していなかった**＝
+ *   「それぞれレベルの異なる」「名前の異なる」「それぞれ共通するクラスを持たない」は
+ *   **捕捉されて黙って捨てられ**、`WXDi-P09-008-E1`「エナゾーンからそれぞれレベルの異なるシグニ３枚を
+ *   トラッシュに置く」等が**同じレベルのシグニでも払える**コストになっていた（実測6効果）。
+ * ⚠捕捉句を1つ増やしたらここに必ず1行足す（`?? {}` で黙って落ちる形にしない）。
+ */
+function energyTrashConstraintOf(phrase: string | undefined): { selectionConstraint: SelectionConstraint } | null {
+  if (!phrase) return null;
+  if (/それぞれ異なるクラスを持つ|それぞれ共通するクラスを持たない/.test(phrase)) return { selectionConstraint: { distinct: 'class' } };
+  if (/共通する色を持つ/.test(phrase)) return { selectionConstraint: { sharedColor: 'all' } };
+  if (/レベルの異なる/.test(phrase)) return { selectionConstraint: { distinct: 'level' } };
+  if (/名前の異なる/.test(phrase)) return { selectionConstraint: { distinct: 'name' } };
+  return null;
+}
+
 function parseCost(costStr: string): EffectCost | undefined {
   if (!costStr || costStr === '-') return undefined;
   const cost: EffectCost = {};
