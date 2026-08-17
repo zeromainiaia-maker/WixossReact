@@ -20050,6 +20050,16 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
   };
   const hasOnPlayBlock = (a: unknown) => treeHas(a, x => x.type === 'BLOCK_ACTION' && x.actionId === 'ON_PLAY_ABILITY');
   const hasSuppress = (a: unknown) => treeHas(a, x => x.suppressOnPlay === true);
+  const treeFind = (a: unknown, pred: (x: Record<string, unknown>) => boolean): Record<string, unknown> | null => {
+    if (!a || typeof a !== 'object') return null;
+    const o = a as Record<string, unknown>;
+    if (pred(o)) return o;
+    for (const v of Object.values(o)) {
+      if (Array.isArray(v)) { for (const x of v) { const r = treeFind(x, pred); if (r) return r; } }
+      else if (v && typeof v === 'object') { const r = treeFind(v, pred); if (r) return r; }
+    }
+    return null;
+  };
   const effOfX = (card: string, effId: string) => parseCardEffects(cardMap.get(card)!).find(e => e.effectId === effId)!;
 
   test('(xxix) parser fold: WX18-026-E1 は ON_PLAY_ABILITY 死ブロックを ADD_TO_FIELD.suppressOnPlay へ畳む', () => {
