@@ -2531,12 +2531,16 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     // 過剰効果（PR-Di038/039・WXDi-P14-045/047/049）。「代わりに」置換の WX25-P2-078 は rest ガードで除外。
     [/このシグニが覚醒状態の場合/,
       () => ({ type: 'THIS_CARD_IS_AWAKENED' })],
-    // 「あなたの場にレベルNの覚醒状態のシグニがある場合、〜」＝場に覚醒状態のシグニが居る盤面ゲート
-    // （engine HAS_CARD_IN_FIELD の isAwakened 状態フィルタ実装済＝execUtils/matchesStateFilter・
-    // awakened_signi 参照）。従来は語彙が無くアタック時/アタックフェイズ開始時に無条件発火の過剰効果
-    // （WXDi-P14-054/058/066）。
-    [/あなたの場にレベル([０-９\d]+)の覚醒状態のシグニがある場合/,
-      g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(g[0]), isAwakened: true } })],
+    // 「(あなた|対戦相手)の場に(レベルNの)?(覚醒|傀儡)状態のシグニがある場合、〜」＝盤面の状態ゲート
+    // （engine HAS_CARD_IN_FIELD の isAwakened/isPuppet 状態フィルタ実装済＝execUtils/matchesStateFilter・
+    // awakened_signi / field.puppet_signi 参照）。従来は語彙が無くアタック時/アタックフェイズ開始時に
+    // 無条件発火の過剰効果（WXDi-P14-054/058/066）。
+    // ⚠**2026-08-18 に「傀儡状態」とレベル無し形へ一般化**＝`WXK09-061-E1`「あなたの場に傀儡状態のシグニが
+    //   ある場合、…パワーを－3000」が**無条件で−3000**だった（覚醒だけを見る regex だったので当たらなかった）。
+    [/(あなた|対戦相手)の場に(?:レベル([０-９\d]+)の)?(覚醒|傀儡)状態のシグニがある場合/,
+      g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self',
+        filter: { cardType: 'シグニ', ...(g[1] ? { level: parseNum(g[1]) } : {}),
+          ...(g[2] === '覚醒' ? { isAwakened: true } : { isPuppet: true }) } })],
     // 「このシグニが〔アップ/ダウン〕状態の場合、〜」＝効果元シグニの向き状態ゲート（engine THIS_CARD_IS_UP/DOWN
     // 実装済＝execUtils.ts・signi_down 参照）。従来は語彙が無く無条件発火の過剰効果（WX15-055/056・WXDi-P02-038 等）。
     [/このシグニがアップ状態の場合/,
