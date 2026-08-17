@@ -156,6 +156,10 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   // 「あなたの手札が５枚より多い場合、**その差の分だけ**手札からカードをエナゾーンに置く」（`WDK08-Y08-E1`・§6.4 O-11）。
   // 原文の括弧書きが「７枚になった場合は２枚」と明示している＝手札枚数−5（下限0）。
   if (n.$ref === 'self_hand_over_five') return Math.max(0, ctx.ownerState.hand.length - 5);
+  // 「あなたがベットする《コインアイコン》**１枚につき**」（`WX22-016`・§6.4 O-11）。
+  // ⚠**ベットしなかった場合は 0**＝`countChoose` 側が 0 のとき選ばせずに次のステップへ進む
+  //   （ベットは任意なので、選ばなくても本体は走るのが原文どおり）。
+  if (n.$ref === 'bet_coins_paid') return Math.max(0, ctx.ownerState.bet_coins_paid ?? 0);
   // 「対戦相手のセンタールリグの**ルリグタイプ１つにつき**」（`PR-471`・§6.4 O-11）。
   // ルリグタイプは `CardClass` の `/` 区切り（例＝`タマ/イオナ` は2種）。ルリグ不在は0。
   if (n.$ref === 'opp_center_lrig_type_count' || n.$ref === 'self_center_lrig_type_count') {
