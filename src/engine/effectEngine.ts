@@ -176,6 +176,15 @@ export function checkActiveCondition(
       const f = (cond.owner === 'self' ? ownerState : otherState).field;
       return f.key_piece != null || (f.key_piece_extra?.length ?? 0) > 0;
     }
+    // 「あなたの場にあるすべてのシグニが〈色〉/＜C＞/《X》であるかぎり、」（§6.4 O-35）。
+    // `Condition` 側（evalConditionForContinuous:998／execUtils:1672）と**同じ式**＝各スタック頂点が
+    // 全て filter 一致・空盤面 false（1体以上必須＝軍勢が居ないのに空振りで効かない）。
+    case 'ALL_FIELD_SIGNI_MATCH': {
+      const tops = (cond.owner === 'self' ? ownerState : otherState).field.signi
+        .map(stack => (stack && stack.length ? stack[stack.length - 1] : null))
+        .filter((n): n is string => n !== null);
+      return tops.length > 0 && tops.every(top => matchesFilter(cardMap.get(top), cond.filter));
+    }
 
     case 'COUNT_THRESHOLD': {
       const state = cond.owner === 'self' ? ownerState : otherState;
