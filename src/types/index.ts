@@ -1085,9 +1085,23 @@ export interface PlayerState {
 
 /** ライフクラッシュ置換1件ぶんの宣言（`PlayerState.life_crash_replacements`）。 */
 export interface LifeCrashReplacement {
-  /** 置換の中身。`mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ。 */
-  kind: 'mill' | 'crash_opponent';
+  /**
+   * 置換の中身。`mill`＝自分のデッキ上N枚をトラッシュ／`crash_opponent`＝対戦相手のライフクロスN枚をクラッシュ／
+   * 🆕`pay_cost`＝「代わりに〈コスト〉を支払ってもよい」（§6.4 O-37(a)・続き543）。
+   */
+  kind: 'mill' | 'crash_opponent' | 'pay_cost';
   count: number;
+  /**
+   * `kind:'pay_cost'` の支払い方（**原文の並び順**＝funnel は先に払えるものを使う）。
+   * ⚠この配列が空／未指定の `pay_cost` は「タダで置換できる」＝**必ず1つ以上入れる**。
+   */
+  payOptions?: { costColors?: string[]; handDiscard?: number; energyTrash?: number }[];
+  /**
+   * 「そうした場合、このルリグはこの能力を失う」＝払ったら**ルリグ付与ストアからこの effectId を1つ**消す。
+   * ⚠この項目が付いた置換は `life_crash_replacements` には積まれない（付与ストアが唯一の在庫）＝
+   *   `lifeCrashReplacements()` が走査のたびに合成する。二重に積むと能力喪失後も残る。
+   */
+  loseGrantedEffectId?: string;
   /** 「対戦相手の**シグニ**によって」等の発生源限定。未指定＝どのダメージでもよい。 */
   damageSource?: 'lrig' | 'signi';
   /** 「シグニの**アタック**によって」限定＝効果によるクラッシュには乗らない。 */
