@@ -1449,38 +1449,42 @@ export function energyCandidates(state: PlayerState, filter: TargetFilter | unde
 }
 
 /**
- * Opusタスク12(cxiv)：引用付与の内側が「このシグニは**正面のシグニのパワーが**N{以上|以下}であるかぎり、
- * 【KW】を得る」型のとき、**条件つきの** CONTINUOUS `GRANT_KEYWORD` を1本組み立てて返す。
+ * 引用付与の内側にある「〜であるかぎり／〜の間、【KW】を得る」の**ゲート条件**を読み、
+ * **条件つきの** CONTINUOUS `GRANT_KEYWORD` を1本組み立てて返す（Opusタスク12(cxiv)＋§6.4 O-25(d)）。
  *
  * なぜ必要か＝`keyword_grants`（`Record<cardNum, string[]>`）は**条件を持てない**ので、
  * 引用付与の STUB ハンドラ（`GRANT_QUOTED_ABILITY` / `SIGNI_GRANT_QUOTED_CONSTANT_ABILITY`）が
- * 原文からキーワードだけ抜いてそこへ入れると、**「かぎり」の正面パワー条件が丸ごと落ちて常時発動**になる
- * （8カード＝正面が誰であっても【ランサー】【アサシン】が付いていた＝過剰実行）。
+ * 原文からキーワードだけ抜いてそこへ入れると、**ゲート条件が丸ごと落ちて常時発動**になる（＝過剰実行）。
  * `granted_effects` は `BattleScreen` の augmented effectsMap 経由で **付与先シグニ自身を発生源として**
- * CONTINUOUS 収集に載る（`collectContinuousGrantedKeywords` が `FRONT_SIGNI_POWER` を実効パワーで毎回評価する）
- * ので、条件つき付与はそちらへ回す。
+ * CONTINUOUS 収集に載る（`collectContinuousGrantedKeywords` が `activeCondition` を毎回評価し、
+ * その結果が `getSigniAttackKeywordState` の `continuousKeywords` としてアタック解決まで届く）ので、
+ * 条件つき付与はそちらへ回す。
  *
- * ⚠`FRONT_SIGNI_POWER` は**正面が空なら不成立**（`checkActiveCondition`）＝原文どおり。
- * 条件節が見つからなければ `null`＝呼び出し元は従来の無条件 `keyword_grants` を続ける（退化させない）。
+ * 🆕**2026-08-17（§6.4 O-25(d)）＝読めるゲートを1形から5形へ広げた**。従来は「正面のシグニのパワーが」
+ * 1形しか読めず、他の綴りは `null` を返して**無条件 `keyword_grants` へフォールバック**していた＝実測で
+ * `WXDi-P12-078-E2`（正面がレベル1）／`WXDi-P13-079-E1`（正面がレベル2以下）／`WXDi-P13-069-E2`
+ * （正面が凍結かつパワー5000以下）／`WX24-P1-042-E2`（自分の手札2枚以下）／`WXDi-P06-032-E2`・
+ * `WXDi-P13-044-E2`（対戦相手のターンの間）の**6効果が常時【ランサー】【アサシン】【ダブルクラッシュ】
+ * 【シャドウ】を持っていた**。
+ *
+ * ⚠**パワーは `FRONT_SIGNI_POWER`（実効パワー）／レベル・状態は `FRONT_SIGNI{filter}`（表記＋盤面状態）**と
+ *   評価器が別なので、「凍結状態でパワーがN以下」は **`AND` で2本に割る**（`FRONT_SIGNI{powerRange}` に
+ *   まとめると `matchesFilter` が**表記パワー**で判定してバフ／デバフを無視する）。
+ * ⚠`FRONT_SIGNI` 系は**正面が空なら不成立**（`checkActiveCondition`）＝原文どおり。
+ * ⚠条件節が見つからなければ `null`＝呼び出し元は従来の無条件 `keyword_grants` を続ける（退化させない）。
  */
-export function buildFrontPowerGatedKeywordGrant(
+export function buildGatedKeywordGrant(
   quotedText: string,
   keyword: string,
   duration: 'UNTIL_END_OF_TURN' | 'PERMANENT' = 'UNTIL_END_OF_TURN',
 ): CardEffect | null {
   const hw = quotedText.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
-  const m = hw.match(/正面のシグニのパワーが([\d,]+)(以上|以下)であるかぎり/);
-  if (!m) return null;
-  return {
-    effectId: `granted-front-power-${keyword}-${m[1]}-${m[2]}`,
+  const mk = (tag: string, activeCondition: ActiveCondition): CardEffect => ({
+    effectId: `granted-gated-${keyword}-${tag}`,
     effectType: 'CONTINUOUS',
     duration,
     mandatory: true,
-    activeCondition: {
-      type: 'FRONT_SIGNI_POWER',
-      operator: m[2] === '以上' ? 'gte' : 'lte',
-      value: parseInt(m[1].replace(/,/g, ''), 10),
-    },
+    activeCondition,
     // count:1 かつ filter:thisCardOnly ＝ collectContinuousGrantedKeywords は発生源自身にだけ付ける。
     // ここでの「発生源」は granted_effects のキー＝**付与された側のシグニ**なので原文どおり。
     action: {
@@ -1489,7 +1493,63 @@ export function buildFrontPowerGatedKeywordGrant(
       keyword,
       duration,
     },
-  } as CardEffect;
+  } as CardEffect);
+
+  // ①「正面のシグニが、凍結状態でパワーがN以下であるかぎり」（`WXDi-P13-069-E2`）。
+  //   ⚠**②より先に置く**＝②の regex は「パワーが…」だけを見るので、凍結の条件を落として先取りしてしまう。
+  {
+    const m = hw.match(/正面のシグニが[、,]?\s*凍結状態でパワーが([\d,]+)(以上|以下)であるかぎり/);
+    if (m) {
+      return mk(`frontFrozenPower-${m[1]}-${m[2]}`, {
+        type: 'AND',
+        conditions: [
+          { type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', isFrozen: true } },
+          { type: 'FRONT_SIGNI_POWER', operator: m[2] === '以上' ? 'gte' : 'lte', value: parseInt(m[1].replace(/,/g, ''), 10) },
+        ],
+      } as ActiveCondition);
+    }
+  }
+  // ②「正面のシグニのパワーがN{以上|以下}であるかぎり」（従来からの1形）。
+  {
+    const m = hw.match(/正面のシグニのパワーが([\d,]+)(以上|以下)であるかぎり/);
+    if (m) {
+      return mk(`frontPower-${m[1]}-${m[2]}`, {
+        type: 'FRONT_SIGNI_POWER',
+        operator: m[2] === '以上' ? 'gte' : 'lte',
+        value: parseInt(m[1].replace(/,/g, ''), 10),
+      });
+    }
+  }
+  // ③「正面のシグニがレベルN{以上|以下}であるかぎり」（`WXDi-P12-078-E2`＝丁度／`WXDi-P13-079-E1`＝以下）。
+  //   ⚠比較語が無ければ**丁度N**（原文「レベル１であるかぎり」）＝`{max:N}` に倒すと過剰になる。
+  {
+    const m = hw.match(/正面のシグニがレベル(\d+)(以上|以下)?であるかぎり/);
+    if (m) {
+      const level = m[2] === '以上' ? { min: parseInt(m[1], 10) }
+        : m[2] === '以下' ? { max: parseInt(m[1], 10) }
+        : parseInt(m[1], 10);
+      return mk(`frontLevel-${m[1]}-${m[2] ?? 'eq'}`, {
+        type: 'FRONT_SIGNI', filter: { cardType: 'シグニ', level },
+      });
+    }
+  }
+  // ④「あなたの手札がN枚{以上|以下}であるかぎり」（`WX24-P1-042-E2`）。
+  {
+    const m = hw.match(/あなたの手札が(\d+)枚(以上|以下)であるかぎり/);
+    if (m) {
+      return mk(`selfHand-${m[1]}-${m[2]}`, {
+        type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self',
+        operator: m[2] === '以上' ? 'gte' : 'lte', value: parseInt(m[1], 10),
+      });
+    }
+  }
+  // ⑤「{対戦相手|あなた}のターンの間、〜を得る」（`WXDi-P06-032-E2`／`WXDi-P13-044-E2`）。
+  //   ⚠「かぎり」ではなく期間句だが、**得ている間ずっと評価される条件**という点では同じ形。
+  {
+    const m = hw.match(/(対戦相手|あなた)のターンの間/);
+    if (m) return mk(`turnOwner-${m[1]}`, { type: 'TURN_OWNER', owner: m[1] === 'あなた' ? 'self' : 'opponent' });
+  }
+  return null;
 }
 
 export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
