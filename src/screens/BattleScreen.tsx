@@ -13024,81 +13024,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // 《アタックフェイズアイコン》付き【起】（timing:['ATTACK_ARTS']）はアタックフェイズのみ、無印【起】（timing未指定/['MAIN']）はメインのみ。
     if (bs.turn_phase === 'MAIN' || bs.turn_phase === 'ATTACK_ARTS') {
       if (!stack || stack.length === 0) return [];
-      const actPhase = bs.turn_phase; // 'MAIN' | 'ATTACK_ARTS'
       const topNum = stack[stack.length - 1];
-      // REMOVE_ABILITIES で能力を失っているシグニは【起】を発動できない（G085-E2 等）
-      if (my.abilities_removed?.includes(topNum)) return [];
-      const effects = effectsMap.get(topNum) ?? [];
-      // PREVENT_INFECTED_SIGNI_ACTIVATE: 感染状態のシグニの起動能力をブロック
-      const infectedBlocked = collectInfectedActivateBlockedSigni(my, op, battleCardMap, effectsMap, true);
-      const isInfectedBlocked = infectedBlocked.includes(topNum);
-      // RESTRICT_CHARMED_SIGNI_ACTIVATED: 相手フィールドにあれば、チャーム付きシグニの【起】能力を封じる
-      const hasCharmInZone = (my.field.signi_charms?.[rawZoneIdx] ?? null) !== null;
-      const isCharmActivateBlocked = hasCharmInZone && op.field.signi.some(stack => {
-        const top = stack?.at(-1);
-        return top && (effectsMap.get(top) ?? []).some(eff =>
-          eff.effectType === 'CONTINUOUS' &&
-          (eff.action as import('../types/effects').StubAction).type === 'STUB' &&
-          (eff.action as import('../types/effects').StubAction).id === 'RESTRICT_CHARMED_SIGNI_ACTIVATED'
-        );
+      // GATE: 【起】の発動可否は `signiActivateGate` に一本化（人間ボタン／CPU の候補フィルタと同じ関数）。
+      const activatable = listActivatableSigniEffects({
+        my, op, zoneIndex: rawZoneIdx, phase: bs.turn_phase, isMyTurn,
+        effectsMap, cardMap: battleCardMap, effectivePowers, contBlockedSelf: contBlocked.forSelf,
       });
-      // down_self コストは、このシグニが既にダウンしていると支払えない
-      const isAlreadyDown = my.field.signi_down?.[rawZoneIdx] ?? false;
-      // discard コストは手札の枚数が足りないと支払えない
-      const handCount = my.hand.length;
-      // acceTrash コストは【アクセ】枚数が足りないと支払えない
-      const acceCount = countAcce(my.field);
-      // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
-      const kizunaOkHere = isKizunaActive(my, topNum, battleCardMap);
-      const activatable = effects.filter(e =>
-        e.effectType === 'ACTIVATED' &&
-        (!e.kizunaIcon || kizunaOkHere) &&
-        // メイン: timing未指定 or MAIN を含む。アタックフェイズ: ATTACK_ARTS を含む（《アタックフェイズアイコン》）。
-        (actPhase === 'MAIN'
-          ? (e.timing === undefined || e.timing.includes('MAIN'))
-          : !!e.timing?.includes('ATTACK_ARTS')) &&
-        !(e.cost?.acceTrash && acceCount < e.cost.acceTrash) &&
-        // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
-        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
-        !e.costUnparsed &&
-        canPayExileLrigFromLrigDeck(e) &&
-        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
-        !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
-        !(my.blocked_actions?.includes(e.effectId)) &&
-        !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
-        !isActionBlocked('USE_ACT') &&
-        !isInfectedBlocked &&
-        !isCharmActivateBlocked &&
-        !(e.cost?.down_self && isAlreadyDown) &&
-        !(e.cost?.discard && handCount < e.cost.discard) &&
-        !(e.cost?.underSelfTrash && !canPayUnderSelfTrash(
-          my, rawZoneIdx, e.cost.underSelfTrash.count, battleCardMap,
-          e.cost.underSelfTrash.filter, e.cost.underSelfTrash.selectionConstraint,
-        )) &&
-        // fieldTrash: 場からトラッシュ可能なシグニ（excludeSelf=自身を除く）が必要数いないと支払えない
-        !(e.cost?.fieldTrash && [0, 1, 2].filter(zi => {
-          const ftTop = my.field.signi[zi]?.at(-1);
-          if (!ftTop) return false;
-          if (e.cost!.fieldTrash!.excludeSelf && zi === rawZoneIdx) return false;
-          return !e.cost!.fieldTrash!.filter || matchesFilter(battleCardMap.get(getCardNum(ftTop)), e.cost!.fieldTrash!.filter);
-        }).length < e.cost.fieldTrash.count) &&
-        // fieldTrashGroups: 各グループ（異クラス）を満たすシグニ構成が場にないと支払えない
-        !(e.cost?.fieldTrashGroups && !fieldTrashGroupsAffordable(e.cost.fieldTrashGroups, my.field.signi, battleCardMap)) &&
-        // beat_signi: 場にシグニがいないと【ビート】にできない（精密な不足は支払い時に判定）
-        !(e.cost?.beat_signi && my.field.signi.filter(s => (s?.length ?? 0) > 0).length < 1) &&
-        // fieldDown: アップ状態の該当シグニが必要数いないと支払えない
-        !(e.cost?.fieldDown && [0, 1, 2].filter(zi => {
-          const fdTop = my.field.signi[zi]?.at(-1);
-          if (!fdTop) return false;
-          if (my.field.signi_down?.[zi]) return false; // アップ状態のみ
-          const { isUp: _iu, isDown: _id, ...fdCardFilter } = e.cost!.fieldDown!.filter ?? {};
-          return matchesFilter(battleCardMap.get(getCardNum(fdTop)), fdCardFilter);
-        }).length < e.cost.fieldDown.count) &&
-        // lrigDown: アップ状態のルリグ（centerOnly / level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
-        !(e.cost?.lrigDown && payLrigDownCost(my, e.cost.lrigDown, battleCardMap) === null) &&
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, my, op, isMyTurn, battleCardMap, topNum, effectivePowers)) &&
-        (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, topNum, bs.turn_phase, effectivePowers)),
-      );
       if (activatable.length === 0) return [];
       return activatable.map(eff => {
         const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
