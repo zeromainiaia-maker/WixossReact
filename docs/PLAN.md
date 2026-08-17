@@ -465,7 +465,11 @@
 
 **⚠取る前に必ず**：`--cell` で原文を全部読み、**クロス計上**（フレーズが同じ効果の別の入口に掛かっている）・**条件節用法**・**コスト側フィルタ**を仕分ける。miss 数＝見込み件数ではない（①の⚠⚠を参照）。
 
-現在の miss 上位（`npm run census:wiring`・続き376b 実測＝**合計 541**。★★＝同入口に20件以上の配線済み／★＝5件以上）：
+**✅第20バッチ（続き547）＝`eachDistinctLevel` の軸取り違え7効果＋`isPuppet` の配置様態8効果／計器較正 miss 242→197・census 799 据置・golden 2225→2246。** ⚠**着手前の実測が最重要**＝PLAN 記載の miss 541／291 は古く実測 **242**、しかも最大セル `eachDistinctLevel`（29/1）は **20件が別綴りの正準形 `selectionConstraint.distinct:'level'` で配線済み**だった（trap (h) の4例目）。真の穴は**別の層**にあった＝①`DISTINCT_BATCH5C` が effectId→軸の**手書き表**で、**7効果が原文と別の軸**（`WX14-030-E1` ほか5件が「レベルの異なる」を `distinct:'name'`／`WXDi-P00-023-E1` が class を name／`WXDi-CP01-008-E3` が name を level）。**構造は正しく意味の軸だけ違うので全ゲートを素通りする**＝軸を原文から導く（`inferDistinctKind`）実装へ移し、表は「載せるかどうか」だけにして golden で一致を固定。②`isPuppet` の miss 11 のうち8件は filter ではなく**配置様態**「それを傀儡状態であなたの場に出す」で、live は `ADD_TO_FIELD{TRASH_CARD, owner:'self'}`＝**自分のトラッシュから自己蘇生する完全な別物**だった（機構 `STEAL_OPP_TRASH_PUPPET` は実装済み・parser が載せていないだけ／`WXK10-091-E2` は「＜美巧＞**ではない**」が `story:'美巧'` で**反転**）。詳細は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18 続き547。
+
+現在の miss 上位（🆕**2026-08-18 続き547 実測＝合計 197**。PLAN 旧記載の 541／291 は古い。★★＝同入口に20件以上の配線済み／★＝5件以上）：
+- ⚠**着手前に必ず `npm run census:wiring` を回し直す**＝下の一覧は続き376b 時点の値で、消化と較正で**大きく動いている**（`eachDistinctLevel` 29→3／`isDisona` 34→4／`hasCrossIcon` 22→1／`noGuard` 14→1／`isPuppet` 11→1／`isAwakened` 10→1）。生きているのは `cardClass` 51／`color` 24／`levelRange` 24／`levelExact` 21／`powerRange` 19／`hasRiseIcon` 8／`levelParity` 6／`levelEqTrigger` 5 ほか。
+
 - [ ] **大クラスタ（続き376b 追加）**＝`cardClass` **154**（has 1407）／`levelRange` **81**（247）／`color` **36**（297）／`powerRange` **30**（507）／`levelExact` **29**（103）。★★セルは `cardClass × SIGNI[filter]` 46／`cardClass × POWER_MODIFY{SIGNI}` 38／`levelRange × SIGNI[filter]` 25／`cardClass × TRASH_CARD[filter]` 13／`color × SIGNI[filter]` 12 ほか。⚠`cardClass × (filter無)` 37 は**条件節用法が濃い**＝優先度低。
 - 以下は続き376 時点の実測（マイナー語彙・★＝同じ入口に配線済みの効果があり穴が明確）：
 - [ ] **`isDisona` 34**（has 21）＝WXDi-P12/P13 系に集中。
