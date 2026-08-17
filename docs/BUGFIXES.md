@@ -1,5 +1,100 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き551・Opus 5）— **§8／§6.4 `O-1` 着手＝CPU がメインフェイズに【起】を撃つ**（v1）＋ 副産物で**【起】エナコストの色照合が効いていなかった**バグを是正
+
+ゲート全緑（typecheck / golden **2274→2278** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.478→0.479。
+
+### 0. なぜこれを取ったか（PLAN 全体を見た判断）
+
+§4 の「次の一手」は census（§5d-0）だったが、**全体を見ると層④（対戦体験）が完全に未着手**で、
+DoD 4層のうち「一人で通しで遊べる」に直結するのはそこだけだった。CPU は
+**メインフェイズにシグニ召喚しかしない**（アーツ／スペル／【起】が1本も無い）＝
+人間側は毎ターン一方的に殴れる状態だった。ユーザー選択により `O-1` に着手。
+
+### 1. 現状の実測（着手前・PLAN §3-1 の規律）
+
+- CPU の MAIN は**召喚だけ**（`BattleScreen.tsx` の `cpuTurnAction` 内 `phase === 'MAIN'`）。
+- **CPU グロウは `executeGrow` の手書き再実装**＝DESIGN §4 が禁じる「CPU 独自実装」がここに残っていた。
+- 一方 **`perform*` 抽出パターンは4例で確立済み**（`performSigniAttack` / `performLrigAttack` /
+  `performGuardResponse` / `performLifeBurstResponse`）＝`{actor, defender, actorKey}` を引数に取り
+  `my`/`op` をローカルに束縛する形。
+- **CPU の対話自動応答は既に完備**（`BattleScreen.tsx:526`〜＝SELECT_TARGET／ゾーン選択／任意コスト／
+  スタック整列）＝**効果さえ起動できれば解決まで自動で回る**。
+
+⇒ 欠けていたのは **①人間用 executor の owner パラメータ化** と **②「何を撃つか」の判断** の2つだけだった。
+
+### 2. やったこと（3段）
+
+**(1) 提示ゲートの抽出＝`src/screens/battle/signiActivateGate.ts` 新設**
+`getMySigniZoneActions` の中にインラインで書かれていた **約90行の【起】提示判定**を
+`listActivatableSigniEffects()` へ切り出し、人間のボタン生成はこれを呼ぶだけにした（**挙動不変**）。
+⚠**`signiAttackGate.ts` と同じ理由**＝人間のボタン生成と CPU の候補フィルタが別実装だと
+「人間には見えない【起】を CPU だけが撃つ」型のズレになり、**ゲートにも census にも一切映らない**。
+
+**(2) 実行の owner パラメータ化＝`performSigniActivated`**
+`executeSigniActivated`（311行）から `my`/`op`/`user.id`/`isHost`/`myEnergyPayPool`/
+`myEnergyTrashSubInfo`/UI state への依存を引数へ出し、人間用 `executeSigniActivated` は
+**薄いラッパー**（DESIGN §4 の抽出パターン）。支払い内訳は `sel`、主体は `p` に分けた。
+
+**(3) CPU の判断＝`src/screens/battle/cpuActivate.ts` 新設**
+`pickCpuMainPhaseActivated()` が「**撃てる**（= (1) のゲート）× **自動で払える** × **このターン未使用**」の
+3条件を満たす1件を決定論（ゾーン順→効果定義順）で返し、`cpuTurnAction` の MAIN が
+**1回の呼び出しで1つだけ**撃って return する（スタック解決を待って再入＝人間と同じ順序）。
+
+**実測＝シグニ【起】682（MAIN で撃てるもの）のうち 500（73%）が CPU の射程に入った。**
+残 182 の内訳（コストキー別）＝`discard` 44／`handDiscardSigni` 40／`energyTrash` 36／
+`fieldTrash` 18／`underSelfTrash` 8 ほか＝**支払い内訳の選択に盤面評価が要る**もの。
+
+### 3. 🔴副産物＝**シグニ【起】とエナ【起】のエナコストで「色」が一切チェックされていなかった**
+
+新しい golden が検出した。`parseGrowCost` は **`《赤》×1` 形式しか読まない**のに、
+`SigniActivatedModal.tsx:73` と `EnergyActivatedModal.tsx:56` は
+``(eff.cost?.energy ?? []).map(e => `${e.color}${e.count}`)`` ＝ **`赤1`** を渡していた。
+⇒ `parseGrowCost('赤1') === []` → `canAffordGrowCost` が**先頭で無条件 true**を返す
+⇒ 支払いボタンの色照合が丸ごと死に、**枚数さえ合っていれば任意の色で【起】が撃てた**。
+
+- **枚数は別軸（`selectedSigniActivatedCost.size === adjustedTotal`）で守られていた**ので露見しにくい。
+- **同じ変換が要る他の2モーダル（`HandActivatedModal` / `TrashActivatedModal`）は
+  `energyCostToString` を使っていて正しかった**＝「正しい関数が隣にあるのに使っていない」型。
+- 是正＝3箇所（2モーダル＋`cpuActivate.activatedEnergyCostStr`）を `energyCostToString` に一本化。
+- ⚠**CPU 側の色選択も自前 regex をやめて `parseGrowCost` を通す**ようにした（同じ壊れ方の再発防止）。
+
+### 4. ⚠無限ループの安全弁（2重）
+
+`performSigniActivated` は支払い不能を検出すると**何も書かずに return** する。
+履歴を「実行の成否」に委ねると CPU が同じ効果を選び直して**画面が止まる**ので：
+
+1. **allowlist は「ゲートが検算しているコスト」だけ**にした。⚠`charmTrash` / `removeOppVirus` は
+   自動支払いだが `signiActivateGate` が数を検算していないので**意図的に外してある**
+   （載せるなら先に gate 側へ検算を足すこと）。
+2. **実行より先に `cpu_activated_effect_ids_this_turn` を commit** してから撃つ。
+   新フィールドは `turnScopedState` の命名規約レジストリに登録済み（ターン終了で失効）。
+
+### 5. 共有ヘルパーの追加（写経の解消）
+
+`isEnaMultiStripped`（`costs.ts`）＝【マルチエナ】剥がしの判定。CPU グロウ内に
+IIFE で写経されていたものを関数化し、CPU グロウ／CPU【起】の両方が同じ関数を見るようにした。
+
+### 6. golden（+4本＝2274→2278）
+
+- 【起】提示ゲートの軸（timing／能力喪失／`USE_ACT` 封じ／effectId 名指し封じ／
+  《ターン1回》《ゲーム1回》消化済み／🔴`costUnparsed` は提示しない／ダウン済み `down_self`／手札不足）
+- CPU の allowlist（🔴**未知のコストキーは「撃たない」側へ倒れる**ことを固定）
+- エナ支払い index の決定（🔴色指定は該当色から取る／払えなければ `null`）
+- CPU の選択3条件（🔴同じ効果はこのターン撃ち直さない＝無限ループ防止／ゾーン順の決定論）
+- ⚠**既存の source-scan トリップワイヤ1本を移設**＝`BattleScreen.tsx` の該当行を走査していた
+  「signi ACTIVATED candidate filter evaluates activeCondition」を `signiActivateGate.ts` 側へ向け直し、
+  **挙動でも固定**（満たさない `activeCondition` の【起】は提示されない）ようにした。
+
+### 7. ⚠残（次の一手）
+
+- **v1 は自ターン MAIN の**シグニ【起】**だけ**。アーツ／スペル／ルリグ【起】／
+  `ATTACK_ARTS` の《アタックフェイズアイコン》付き【起】／相手ターンの応答（アーツ）は**未着手**＝
+  `O-1` は継続。**CPU がアーツで守らない**のは体験上いちばん大きい穴なので次はそこ。
+- **CPU グロウの手書き再実装は残っている**（DESIGN §4 の統一は未完）。
+- **実機未検証**＝§7 `V-74` へ登録。⚠特に **§3 の色照合是正は人間側の挙動を変える**
+  （従来撃てた組み合わせが撃てなくなる）ので、実機で「色が合わないと発動ボタンが出ない」対照を見ること。
+
 ## 2026-08-18（続き549・Opus 5）— 「census をもっと減らせないか」への回答＝**壊れ方で機械検出**して【常】のゲート脱落37効果
 
 ゲート全緑（typecheck / golden **2261→2274** / smoke 10693 全0 / fuzz 全0 / census **796→787**（`BASELINE_HIGH` 更新）/ census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live 37効果（added 0 / removed 0 / changed 37）・CSV 非改変。**
