@@ -48,7 +48,9 @@ function consumeRefreshLifeMoveReplace(state: PlayerState): PlayerState | null {
 export function applyRefreshState(state: PlayerState, preventLifeToTrash = false): PlayerState {
   if (state.prevent_refresh_until_opp_turn) return state;
   if (state.trash.length === 0) return state;
-  if (!preventLifeToTrash) {
+  // ⚠`next_refresh_replaced` が立っているときは**そもそもライフが動かない**（下の分岐）＝
+  //   置換すべきものが無いので付与能力を消費しない。
+  if (!preventLifeToTrash && !state.next_refresh_replaced) {
     const replaced = consumeRefreshLifeMoveReplace(state);
     if (replaced) return applyRefreshState(replaced, true);
   }
