@@ -433,6 +433,15 @@ export function checkActiveCondition(
       return zoneIdx >= 0 && (ownerState.field.signi_down?.[zoneIdx] ?? false);
     }
 
+    // 「このシグニがアップ状態であるかぎり」（`WXDi-P04-050-E1/E2`・2026-08-18）。
+    // ⚠**場に居ないときは false**（`IS_SELF_DOWN` と同じ＝「ダウンしていない」を素直に反転すると
+    //   場を離れた効果元まで真になる）。ゾーンが見つかったうえで `signi_down` が false のときだけ真。
+    case 'IS_SELF_UP': {
+      if (!sourceCardNum) return false;
+      const upZoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      return upZoneIdx >= 0 && !(ownerState.field.signi_down?.[upZoneIdx] ?? false);
+    }
+
     case 'IS_SELF_IN_CENTER_ZONE':
       // このシグニが中央のシグニゾーン（index 1）にあるかぎり
       if (!sourceCardNum) return false;
