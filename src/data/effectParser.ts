@@ -5368,8 +5368,10 @@ function applyDistinctBatch5c(effects: CardEffect[], cardText: string): void {
     if (e.effectId === 'WXK08-027-E1') {
       e.condition = { type:'HAS_CARD_IN_FIELD', owner:'self', filter:{ cardType:'シグニ' }, minCount:3, distinctLevels:true };
     }
-    const kind = DISTINCT_BATCH5C[e.effectId];
-    if (!kind) continue;
+    const declared = DISTINCT_BATCH5C[e.effectId];
+    if (!declared) continue;
+    // **種別は原文から導く**（表の値はフォールバック）。旧実装の手書き値は7効果で原文と食い違っていた。
+    const kind = inferDistinctKind(cardText) ?? declared;
     visit(e.action, kind, DISTINCT_SOURCE_FIX_BATCH5C[e.effectId], { applied:false });
     if (e.effectId === 'WX06-025-E1' && e.action.type === 'SEARCH') e.action.filter = { ...e.action.filter, nonColorless:true };
     if (e.effectId === 'WD07-006-E1' && e.action.type === 'SEARCH' && e.action.then.type === 'TRASH') e.action.then.target.count = 3;
