@@ -9568,7 +9568,7 @@ function parseActionTextInner(text: string): EffectAction {
     //   トラッシュに置く」）は捕捉していたのに **否定を捨てて肯定と同じ形**を作っており、一致したときに
     //   帰結が走る＝**分岐が逆**だった。`elseAction`（既存＝公開札が filter に一致しない場合の実行先）へ
     //   回して正しい向きにする。`then` は空 SEQUENCE＝execSequence が done(ctx) を返す素の no-op。
-    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|(で|ではな)?ない場合)、(.+)/);
+    const condM = condS.match(/^(?:それが|そのカードが)(.+?)(?:の場合|であった場合|(でない|ではない)場合)、(.+)/);
     if (condM) {
       const negated = condM[2] !== undefined;
       const condText = condM[1];
