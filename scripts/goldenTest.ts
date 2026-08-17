@@ -12786,7 +12786,8 @@ test('§5d(A) excludeCardName:「《カード名》以外の」が36効果に載
     ['WX09-CB02', 'WX09-CB02-E2', '終末の回旋　チェロン'], ['WX13-041', 'WX13-041-E1', '巨弓　ガンデヴァ'],
     ['WX16-035', 'WX16-035-E1', '幻怪　ザシワラ'], ['WX16-Re03', 'WX16-Re03-E1', 'ＭＡＧＩＣ　ＨＡＮＤ'],
     ['WX17-Re02', 'WX17-Re02-E3', '幻竜　アパト'], ['WX18-077', 'WX18-077-E1', '幻獣　シロチ'],
-    ['WXK01-036', 'WXK01-036-E2', 'コードアクセル　エフワン'], ['WXK06-023', 'WXK06-023-E2', 'ＧＦ　ハウス'],
+    // ⚠`WXK01-036` は E2→E3＝続き532 で先頭の【ドライブ常】：【アサシン】ブロックを分割したぶんの id シフト。
+    ['WXK01-036', 'WXK01-036-E3', 'コードアクセル　エフワン'], ['WXK06-023', 'WXK06-023-E2', 'ＧＦ　ハウス'],
     ['WXK08-023', 'WXK08-023-E3', 'コードＶＬ　物述有栖'],
   ];
   for (const [num, id, name] of inverted) {
@@ -20273,6 +20274,35 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ok(treeHas(a, x => x.type === 'STUB' && x.id === 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK'), '明示 defer が無い');
   });
   // §6.4 O-11（続き532）：色限定つき使用封じは **live 全体**で素の BLOCK_ACTION に落とさない。
+  // §6.4 O-11（続き532）：**キーワード単独の能力ブロック**が句点なしで次のマーカーへ直結する形。
+  //   分割しないと**後続のブロックが丸ごと欠落**する（実測8カード）。
+  test('(O-11) 能力ブロック分割: キーワード単独ブロックの直後のマーカーで割る（live 5枚）', () => {
+    const cases: [string, number, string][] = [
+      ['WX13-030', 2, 'ダブルクラッシュ'],   // 【常】：【アサシン】【常】：【ダブルクラッシュ】
+      ['WX17-034', 5, 'シャドウ'],           // 【常】：【シャドウ】【常】：…アタックできない
+      ['WX22-025', 4, 'シャドウ'],           // 【常】：【マルチエナ】【常】：【シャドウ】【常】：…
+      ['WXK01-036', 3, 'アサシン'],          // 【ドライブ常】：【アサシン】【常】：…＋2000
+      ['WXK10-018', 3, ''],                  // ②【ランサー】【起】《ターン１回》…：カードを１枚引く
+    ];
+    for (const [cardNum, minEffects, keyword] of cases) {
+      const effs = (effectsMap.get(cardNum) ?? []).filter(e => e.effectType !== 'LIFE_BURST');
+      ok(effs.length >= minEffects - 1,
+        `${cardNum}: 能力ブロックが飲み込まれている（${effs.length}件）`);
+      if (!keyword) continue;
+      ok(effs.some(e => JSON.stringify(e.action).includes(`"keyword":"${keyword}"`)),
+        `${cardNum}: 【${keyword}】の付与ブロックが落ちている`);
+    }
+    // `WXK10-018` は2本目の【起】（コストが表現できない＝`costUnparsed`）が**存在すること**が眼目。
+    const wxk = (effectsMap.get('WXK10-018') ?? []).find(e => e.effectId === 'WXK10-018-E2')!;
+    eq(wxk.effectType, 'ACTIVATED', 'WXK10-018: 2本目の【起】が復活していない');
+    eq((wxk.action as unknown as { type?: string }).type, 'DRAW', 'その本体は1ドロー');
+    eq(wxk.costUnparsed, true,
+      '🔴コストが表現できていないのに印が無いと、UI が**コストなしで撃てる**ものとして提示する');
+    // ⚠**文中の参照**（「対戦相手のシグニの【自】【出】【起】能力が発動する場合」）で割ってはいけない。
+    const p08 = (effectsMap.get('WXDi-P08-044') ?? []);
+    eq(p08.filter(e => e.effectType !== 'LIFE_BURST').length, 3,
+      '🔴マーカー自身を区切りに足すと、文中に並ぶ【自】【出】【起】でブロックが割れる');
+  });
   test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
     const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
     eq((eff.action as unknown as { id?: string }).id, 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK',

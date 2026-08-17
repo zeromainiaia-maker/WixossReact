@@ -147,6 +147,39 @@ WX06-017 WX19-029
   + [0].action.choices[0].action.target.type = "SIGNI"
   …（他 12 行）
 
+## +GRANT_KEYWORD +SIGNI ［2枚］
+WX13-030 WX17-034
+--- WX13-030
+  原文: 【常】：【アサシン】【常】：【ダブルクラッシュ】,：対戦相手のシグニをパワー合計が10000以下になるように好きな数対象とし、それらをバニッシュする。
+  - [1].timing[0] = "ON_LIFE_BURST"
+  - [1].action.target.filter.cardType = "シグニ"
+  - [1].action.target.upToCount = false
+  ~ [1].effectId : "WX13-030-BURST" → "WX13-030-E2"
+  ~ [1].effectType : "LIFE_BURST" → "CONTINUOUS"
+  ~ [1].action.type : "BANISH" → "GRANT_KEYWORD"
+  ~ [1].action.target.owner : "opponent" → "self"
+  + [1].action.keyword = "ダブルクラッシュ"
+  + [1].action.duration = "PERMANENT"
+  ~ [1].duration : "INSTANT" → "PERMANENT"
+  ~ [1].mandatory : false → true
+  + [2].effectId = "WX13-030-BURST"
+  …（他 11 行）
+--- WX17-034
+  原文: 【常】：【シャドウ】【常】：このシグニはアタックできない。【自】：対戦相手の場に【ウィルス】１つが置かれたとき、この上に【貯菌】１つを置く。【起】《アタックフェイズアイコン》この上から【貯菌】１つを取り除く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－5000する。【起】この上から【貯菌】２つを取り除く：対戦相手のシグニ１体を対象とし、
+  - [0].action.actionId = "ATTACK"
+  - [0].action.until = "PERMANENT"
+  - [1].timing[0] = "ON_OPP_VIRUS_PLACED"
+  - [1].action.id = "PLACE_CHOKKIN"
+  - [2].cost.chargeCounterRemove = 1
+  - [2].action.target.type = "SIGNI"
+  - [2].action.target.owner = "opponent"
+  - [2].action.target.count = 1
+  - [2].action.target.filter.cardType = "シグニ"
+  - [2].action.target.upToCount = false
+  - [2].action.delta = -5000
+  - [4].action.steps[0].type = "DRAW"
+  …（他 52 行）
+
 ## +DURING_ATTACK_PHASE ［2枚］
 WXEX2-09 WXEX2-30
 --- WXEX2-09
@@ -322,6 +355,24 @@ WX19-006
   + [0].action.choices[1].action.type = "ADD_TO_LIFE"
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
+
+## +STUB ［1枚］
+WX22-025
+--- WX22-025
+  原文: 【常】：【マルチエナ】【常】：【シャドウ】【常】：このシグニはすべての色を得る。【自】《ターン１回》：このシグニがアタックしたとき、対戦相手が、対象の自分のシグニ１体を場からトラッシュに置くか、自分の手札を２枚捨てるか、対象の自分のエナゾーンからカード３枚をトラッシュに置かないかぎり、対戦相手にダメージを与える。,-
+  - [2].timing[0] = "ON_ATTACK_SIGNI"
+  - [2].action.steps[0].type = "STUB"
+  - [2].action.steps[0].id = "OPPONENT_PAY_OPTIONAL"
+  - [2].action.steps[0].opponentSigniTrash = 1
+  - [2].action.steps[0].opponentHandDiscard = 2
+  - [2].action.steps[0].opponentEnergyTrash = 3
+  - [2].action.steps[1].type = "CONDITIONAL"
+  - [2].action.steps[1].condition.type = "IS_MY_TURN"
+  - [2].action.steps[1].then.type = "LIFE_CRASH"
+  - [2].action.steps[1].then.owner = "opponent"
+  - [2].action.steps[1].then.count = 1
+  - [2].action.steps[1].then.triggerBurst = true
+  …（他 26 行）
 
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［1枚］
 WXEX2-70
@@ -506,6 +557,24 @@ WX24-P2-055
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
 
+## +GRANT_KEYWORD +SIGNI +TURN_OWNER ［1枚］
+WXK01-036
+--- WXK01-036
+  原文: 【ドライブ常】：【アサシン】【常】：あなたのターンの間、あなたの赤のシグニのパワーを＋2000する。【出】《赤》《赤》：あなたのデッキから《コードアクセル　エフワン》以外の＜乗機＞のシグニ１枚を探して場に出し、デッキをシャッフルする。,：対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.filter.color = "赤"
+  - [0].action.delta = 2000
+  - [1].timing[0] = "ON_PLAY"
+  - [1].cost.energy[0].color = "赤"
+  - [1].cost.energy[0].count = 1
+  - [1].cost.energy[1].color = "赤"
+  - [1].cost.energy[1].count = 1
+  - [1].action.from.location = "deck"
+  - [1].action.from.owner = "self"
+  - [1].action.filter.cardType = "シグニ"
+  - [1].action.filter.story = "乗機"
+  …（他 57 行）
+
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069
@@ -590,23 +659,23 @@ WXK09-031
   ~ [1].action.type : "TRANSFER_TO_HAND" → "STUB"
   + [1].action.id = "ENERGY_TO_HAND_ON_DECK"
 
-## +STUB -BLOCK_ACTION×2 -PLAYER×2 -SEQUENCE ［1枚］
-WXK09-037
---- WXK09-037
-  原文: 【出】：対戦相手は色１つを宣言する。対戦相手のエナゾーンから宣言された色を持たず無色ではないすべてのカードをトラッシュに置く。【常】：対戦相手はこのシグニの【出】能力で宣言された色を持たず無色ではない、アーツとスペルを使用できない。【常】：対戦相手のエナゾーンにこのシグニの【出】能力で宣言された色を持たず無色ではないカードが置かれる場合、代わりにトラッシュに
-  - [1].action.steps[0].type = "BLOCK_ACTION"
-  - [1].action.steps[0].target.type = "PLAYER"
-  - [1].action.steps[0].target.owner = "opponent"
-  - [1].action.steps[0].target.count = 1
-  - [1].action.steps[0].actionId = "USE_ARTS"
-  - [1].action.steps[0].until = "PERMANENT"
-  - [1].action.steps[1].type = "BLOCK_ACTION"
-  - [1].action.steps[1].target.type = "PLAYER"
-  - [1].action.steps[1].target.owner = "opponent"
-  - [1].action.steps[1].target.count = 1
-  - [1].action.steps[1].actionId = "USE_SPELL"
-  - [1].action.steps[1].until = "PERMANENT"
-  …（他 2 行）
+## +DRAW ［1枚］
+WXK10-018
+--- WXK10-018
+  原文: 【出】：以下の２つから１つを選ぶ。あなたのシグニ１体を対象とし、ターン終了時まで、それは選んだ能力を得る。①【アサシン】②【ランサー】【起】《ターン１回》あなたのシグニに付いているカード１枚か、あなたのシグニの下にあるカード１枚をトラッシュに置く：カードを１枚引く。【起】このキーを場からルリグトラッシュに置く：あなたのデッキの一番上のカードをライフクロスに加
+  - [1].cost.trash_key = true
+  - [1].action.steps[0].type = "ADD_TO_LIFE"
+  - [1].action.steps[0].owner = "self"
+  - [1].action.steps[0].count = 1
+  - [1].action.steps[0].fromTop = true
+  - [1].action.steps[1].type = "TRASH"
+  - [1].action.steps[1].target.type = "HAND_CARD"
+  - [1].action.steps[1].target.owner = "self"
+  - [1].action.steps[1].target.count = 2
+  + [1].costUnparsed = true
+  ~ [1].action.type : "SEQUENCE" → "DRAW"
+  + [1].action.owner = "self"
+  …（他 18 行）
 
 ## +HAND_CARD +REVEAL -STUB ［1枚］
 WXK10-081
@@ -705,42 +774,6 @@ SPK16-13E
   + [0].action.choices[0].action.target.filter.cardType = "シグニ"
   + [0].action.choices[0].action.target.upToCount = false
   …（他 11 行）
-
-## +ADD_TO_FIELD +BANISH +CHOOSE +SEQUENCE +SIGNI +TRASH_CARD ［1枚］
-PR-328
---- PR-328
-  原文: 【自】：このシグニがアタックしたとき、手札から＜武勇＞のシグニを２枚まで捨ててもよい。以下の２つから、この方法で捨てたシグニの枚数と同じ数だけ選ぶ。①このシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。②あなたのトラッシュからレベル２以下の《ライズアイコン》を持たない＜武勇＞のシグニ１枚を対象とし、それを場に出す。,：カードを１枚引
-  - [0].action.id = "OPTIONAL_DISCARD_CLASS_SIGNI"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "OPTIONAL_DISCARD_CLASS_SIGNI"
-  + [0].action.steps[1].type = "CHOOSE"
-  + [0].action.steps[1].choose_count = 1
-  + [0].action.steps[1].from_count = 2
-  + [0].action.steps[1].choices[0].choiceId = "c0"
-  + [0].action.steps[1].choices[0].label = "選択肢1"
-  + [0].action.steps[1].choices[0].action.type = "BANISH"
-  + [0].action.steps[1].choices[0].action.target.type = "SIGNI"
-  + [0].action.steps[1].choices[0].action.target.owner = "opponent"
-  …（他 16 行）
-
-## +ADD_TO_HAND +CHOOSE +PREVENT_DAMAGE +REVEAL +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +STUB ［1枚］
-PR-471
---- PR-471
-  原文: このゲームの間、すべての場にあるセンタールリグは＜ぶくぶタマ＞を追加で得る。以下の３つから対戦相手のセンタールリグのルリグタイプ１つにつき１つまで選ぶ。①次の対戦相手のターンの間、対戦相手のルリグはあなたにダメージを与えない。②次の対戦相手のターンの間、対戦相手は無色ではない、アーツとスペルを使用できない。③あなたのデッキから無色のシグニを２枚まで探して公開
-  - [0].action.id = "ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE"
-  + [0].action.steps[1].type = "CHOOSE"
-  + [0].action.steps[1].choose_count = 1
-  + [0].action.steps[1].from_count = 3
-  + [0].action.steps[1].choices[0].choiceId = "c0"
-  + [0].action.steps[1].choices[0].label = "選択肢1"
-  + [0].action.steps[1].choices[0].action.type = "PREVENT_DAMAGE"
-  + [0].action.steps[1].choices[0].action.owner = "self"
-  + [0].action.steps[1].choices[0].action.until = "NEXT_TURN"
-  …（他 22 行）
 
 ## +ADD_TO_FIELD +CHOOSE +DOWN +DRAW +HAND_CARD +REMOVE_ABILITIES +SEARCH +SEQUENCE×2 +SHUFFLE_DECK +SIGNI×2 ［1枚］
 PR-K072

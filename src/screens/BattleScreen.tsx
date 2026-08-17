@@ -7775,6 +7775,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const timingPhase = (phase === 'ATTACK_ARTS_OP' ? 'ATTACK_ARTS' : phase) as import('../types/effects').EffectTiming;
       for (const eff of handEffects) {
         if (eff.effectType !== 'ACTIVATED') continue;
+        // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになる（§6.4 O-11・続き532）。
+        if (eff.costUnparsed) continue;
         if (!eff.handActivated) continue;
         if (!eff.timing?.includes(timingPhase)) continue;
         if (my.actions_done?.includes(eff.effectId)) continue;
@@ -7818,6 +7820,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const effs = effectsMap.get(cardNum) ?? [];
     for (const eff of effs) {
       if (!eff.trashActivated || eff.effectType !== 'ACTIVATED') continue;
+      // `costUnparsed`＝原文のコストを表現できなかった印（§6.4 O-11・続き532）。
+      if (eff.costUnparsed) continue;
       if (!eff.timing?.includes(trashTiming)) continue;
       if (my.actions_done?.includes(eff.effectId)) continue;
       if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
@@ -12923,6 +12927,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ? (e.timing === undefined || e.timing.includes('MAIN'))
           : !!e.timing?.includes('ATTACK_ARTS')) &&
         !(e.cost?.acceTrash && acceCount < e.cost.acceTrash) &&
+        // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
+        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
+        !e.costUnparsed &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
@@ -13073,6 +13080,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.kizunaIcon && !isKizunaActive(my, lrigTopMA, battleCardMap)) continue;
           // ルリグの【起】効果は基本何度でも使用可（ターン1回アイコンを持つ場合のみ usageLimit で制限）。
           // 他パス（シグニ/付与/キー）と同様に usageLimit 基準で判定する。
+          // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになるので出さない（§6.4 O-11）。
+          if (eff.costUnparsed) continue;
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
@@ -13156,7 +13165,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e =>
           e.effectType === 'ACTIVATED' &&
           keyActivatedTimingMatchesPhase(e.timing, 'MAIN') &&
-          !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
+          // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
+        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
+        !e.costUnparsed &&
+        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
@@ -13213,6 +13225,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // センタールリグ本来のACTIVATED効果（timing ATTACK_ARTS）
       if (lrigTopAA && !isLrigActBlocked()) {
         for (const eff of collectCenterLrigActivatedEffects(my, effectsMap, 'ATTACK_ARTS')) {
+          // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになるので出さない（§6.4 O-11）。
+          if (eff.costUnparsed) continue;
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
@@ -13232,7 +13246,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         .filter(e =>
           e.effectType === 'ACTIVATED' &&
           !!e.timing?.includes('ATTACK_ARTS') &&
-          !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
+          // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
+        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
+        !e.costUnparsed &&
+        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
           !(my.blocked_actions?.includes(e.effectId)) &&
@@ -13285,6 +13302,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effects = effectsMap.get(keyNum) ?? [];
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
+        // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
+        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
+        !e.costUnparsed &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
@@ -13357,6 +13377,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const effects = effectsMap.get(topNum) ?? [];
       const activatable = effects.filter(e =>
         e.effectType === 'ACTIVATED' &&
+        // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
+        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
+        !e.costUnparsed &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
