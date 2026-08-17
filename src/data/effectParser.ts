@@ -4200,6 +4200,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
     parseSentencePart2(t) ??
     parseSentencePart3(t) ??
     parseSentencePart4(t) ??
+    parseBareOptionalHandDiscard(t) ??
     { type: 'UNKNOWN', raw: t } as UnknownAction;
 
   // 「カードをN枚引き、X」で下流パーサが先頭 DRAW を落としていた場合のみ DRAW を前置する。
