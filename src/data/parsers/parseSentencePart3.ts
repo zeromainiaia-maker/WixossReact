@@ -2357,6 +2357,30 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GROW', until: 'NEXT_TURN' } as BlockActionAction;
   }
 
+  // ---- 手札からN枚捨て**かつ**このシグニを場からトラッシュに置いてもよい（束ねた1つの任意コスト）----
+  // 🔴下の `OPTIONAL_TRASH_SELF` は「このシグニを場からトラッシュに置いてもよい」を**部分一致**で受けるので、
+  //   同じ任意ゲートに束ねられた**先行の手札捨てが丸ごと踏み倒されていた**（§6.4 O-11・`WX20-069-E1`
+  //   ＝「手札から＜遊具＞のシグニを３枚捨て、このシグニを場からトラッシュに置いてもよい」でレゾナ出現が
+  //   自己トラッシュ1枚だけで成立していた）。両方を1つの `OPTIONAL_COST` に載せる＝
+  //   **払うなら両方・払わないなら両方払わない**（別々の任意ゲート2つに割ると片方だけ払えてしまう）。
+  {
+    const bundleM = t.match(
+      /^(?:あなたの)?手札から(?:[＜〈<]([^＞〉>]+)[＞〉>]の)?(シグニ|カード)を([０-９\d]+)枚捨て、この(?:シグニ|カード)を場からトラッシュに置いてもよい$/,
+    );
+    if (bundleM) {
+      return {
+        type: 'STUB', id: 'OPTIONAL_COST', selfTrash: true, costText: t,
+        handDiscard: {
+          count: parseNum(bundleM[3]),
+          filter: {
+            ...(bundleM[2] === 'シグニ' ? { cardType: 'シグニ' } : {}),
+            ...(bundleM[1] ? { story: bundleM[1] } : {}),
+          },
+        },
+      } as StubAction;
+    }
+  }
+
   // ---- このシグニを場からトラッシュに置いてもよい（任意の自己犠牲コスト。「そうした場合、X」が兄弟 CONDITIONAL）----
   //   engine OPTIONAL_TRASH_SELF が pay=自トラッシュ+then / skip で解決（WX06-CB03/WX21-056/061）。
   //   「対象」を含む文（selfTrashCost 付き BANISH＝対象選択のコストとして自トラッシュ）は別経路のため除外。
