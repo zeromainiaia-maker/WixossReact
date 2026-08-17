@@ -89,6 +89,25 @@ export function hasIncomingThreat(actor: PlayerState, attacker: PlayerState): bo
 }
 
 /**
+ * 自ターンに除去を使う価値があるか＝**アタックが正面で塞がれているアップのシグニがいる**か。
+ *
+ * 正面（facing ＝ `2 - zi`）に相手シグニがいるとアタックは**バトル**になりライフに通らない。
+ * 塞いでいる札を退かせばライフクラッシュに変わる＝これが「攻めのアーツ」の唯一の目的（v1）。
+ * ⚠**相手の場が空なら除去は無価値**なので false（開幕に撃ち尽くさないための足切り）。
+ */
+export function hasBlockedAttacker(actor: PlayerState, defender: PlayerState): boolean {
+  for (let zi = 0; zi < actor.field.signi.length; zi++) {
+    const top = actor.field.signi[zi]?.at(-1);
+    if (!top) continue;
+    if (actor.field.signi_down?.[zi]) continue;   // ダウン状態はアタックできない
+    if (actor.field.signi_frozen?.[zi]) continue; // 凍結もアタックできない
+    const facing = defender.field.signi[2 - zi];
+    if (facing && facing.length > 0) return true;
+  }
+  return false;
+}
+
+/**
  * そのアーツを CPU が「エナだけで」使えるか。
  *
  * ⚠**allowlist は `energy` 1本だけ**にする（denylist にしない）。理由は
