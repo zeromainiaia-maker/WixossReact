@@ -88,11 +88,22 @@ export function hasIncomingThreat(actor: PlayerState, attacker: PlayerState): bo
   return false;
 }
 
-/** そのアーツを CPU が「エナだけで」使えるか（効果側コストがあれば内訳選択が要るので使わない）。 */
+/**
+ * そのアーツを CPU が「エナだけで」使えるか。
+ *
+ * ⚠**allowlist は `energy` 1本だけ**にする（denylist にしない）。理由は
+ * **`performArts` がエナ以外の宣言コストを払わない**から＝`down_self` や `lrigDown` のような
+ * 「シグニ【起】なら自動で払える」キーをここに足すと、**宣言だけして踏み倒す**ことになる。
+ * （実測＝アタックフェイズの Timing を持つアーツ 428枚は全枚 `cost` が `energy` のみ＝
+ * CSV `Cost` 列の写し。手札を捨てる等が出てきたら内訳に盤面評価が要るので使わない側へ倒れる。）
+ */
+export const CPU_ARTS_PAYABLE_COST_KEYS: ReadonlySet<string> = new Set(['energy']);
+
 export function cpuCanPayArtsWithEnergyOnly(effects: readonly CardEffect[]): boolean {
   return effects
     .filter(e => e.effectType === 'ACTIVATED')
-    .every(e => !e.cost || Object.values(e.cost).every(v => v === undefined));
+    .every(e => Object.entries(e.cost ?? {})
+      .every(([k, v]) => v === undefined || CPU_ARTS_PAYABLE_COST_KEYS.has(k)));
 }
 
 export interface CpuArtsChoice {
