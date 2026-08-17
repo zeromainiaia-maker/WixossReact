@@ -151,8 +151,10 @@ function isBatch1OnlyClause(re: RegExp): boolean {
   // ⚠両者を直接比べる形（「あなたのライフクロスが対戦相手のライフクロス以下の場合」＝LIFE_COMPARE_OPP）も
   //   ゲート外＝閾値形ではないので batch1 限定の理由が無い（§6.4・2026-08-10・`WXDi-CP01-026-E1`）。
   const lifeCompare = re.source.includes('あなたのライフクロス(?:の枚数)?が対戦相手のライフクロス');
-  return re.source.includes('ターンの場合')
-    || (re.source.includes('対戦相手のライフクロス') && !re.source.includes('あなたより多い') && !lifeCompare)
+  // ⚠「(あなた|対戦相手)のターンの場合」はゲートから外した（§6.4 O-36・2026-08-17 続き534）。
+  //   allowlist 外に23効果あり、条件が丸ごと落ちて**ターンを問わず発火する過剰実行**だった。
+  //   A/B（全5971カードの fresh 差分）で影響を実測してから外している。
+  return (re.source.includes('対戦相手のライフクロス') && !re.source.includes('あなたより多い') && !lifeCompare)
     || (re.source.includes('このシグニのパワーが') && re.source.includes('ライフクロス'))
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
