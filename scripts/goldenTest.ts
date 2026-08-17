@@ -4632,6 +4632,99 @@ test('§6.4 O-14(b) WXDi-P08-010-E3: 全体即時バニッシュではなく「�
   eq((resolved.ownerState.pending_next_opp_turn_end_effects ?? []).length, 0, '予約は1回で消費される');
 }));
 
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-25(d)（2026-08-17）：期間つき【常】自己引用付与の在庫を実測して見つけた2クラス
+// ══════════════════════════════════════════════════════════════════════════════
+
+// 🔴「そのアタックがこのターンN度目の場合」が**条件節ごと落ちて無条件発火**していた（7効果）。
+//    とくに `WXK06-033/035-E1` は**アタックのたびに自分をアップ**＝実質もう1回アタックできる過剰実行。
+// 🔑序数は**アタックしたプレイヤーのターン内通算**（シグニは通常1回しかアタックできないので
+//    「四度目」は盤面全体の通算でしか成立しない）＋**解決中のアタック自身を含む**。
+test('§6.4 O-25(d) ATTACK_ORDINAL_THIS_TURN: N度目の条件が落ちず、通算で数える', () => withSavedCursor(() => {
+  const cases: [string, string, number][] = [
+    ['WXK06-033', 'WXK06-033-E1', 4], ['WXK06-035', 'WXK06-035-E1', 4],
+    ['WXK06-037', 'WXK06-037-E1', 1], ['WXK06-038', 'WXK06-038-E1', 3],
+    ['WXK06-062', 'WXK06-062-E1', 3], ['WXDi-P14-052', 'WXDi-P14-052-E1', 3],
+  ];
+  for (const [cardNum, effectId, ordinal] of cases) {
+    const eff = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+    if (!eff) throw new Error(`${effectId} が存在`);
+    ok(JSON.stringify(eff.action).includes('"ATTACK_ORDINAL_THIS_TURN"'),
+      `🔴${effectId}: 序数条件が落ちて無条件発火に戻っている`);
+    ok(JSON.stringify(eff.action).includes(`"value":${ordinal}`), `${effectId}: N度目＝${ordinal}`);
+  }
+  // 評価器＝`attacked_signi_ids` の件数＋ルリグアタック済み分（解決中の1回を含む）。
+  const at = (signiAttacks: number, lrigAttacked = false) => {
+    const c = mkCtx({}, {});
+    c.ownerState.attacked_signi_ids = Array.from({ length: signiAttacks }, (_, i) => `A${i}`);
+    c.ownerState.lrig_has_attacked = lrigAttacked;
+    return c;
+  };
+  const cond = (value: number) => ({ type: 'ATTACK_ORDINAL_THIS_TURN', owner: 'self', operator: 'eq', value }) as Condition;
+  eq(evalCondition(cond(1), at(1)), true, '1回目のアタック解決中は「一度目」');
+  eq(evalCondition(cond(1), at(2)), false, '2回目は「一度目」ではない');
+  eq(evalCondition(cond(4), at(4)), true, '4回目は「四度目」');
+  eq(evalCondition(cond(4), at(3, true)), true, '🔑ルリグアタックも通算に数える（シグニ3＋ルリグ1＝四度目）');
+  eq(evalCondition(cond(3), at(0)), false, 'アタック0回では成立しない');
+}));
+
+// ⚠**「一度目か二度目」は別機構**（`negateNthAttack` のカウントダウン窓＝実装済み）。
+//   ここへ引き込むと「そのアタックを無効にする」側が壊れるので、regex は「N度目の場合」に限定してある。
+test('§6.4 O-25(d) 「一度目か二度目」は negateNthAttack のまま（序数条件に奪わない）', () => {
+  for (const cardNum of ['WX10-018', 'WX17-006', 'SP27-016']) {
+    const js = JSON.stringify(effectsMap.get(cardNum) ?? []);
+    ok(js.includes('negateNthAttack'), `${cardNum}: 既存のカウントダウン窓が残っている`);
+    ok(!js.includes('ATTACK_ORDINAL_THIS_TURN'), `🔴${cardNum}: 序数条件が別機構を奪っている`);
+  }
+});
+
+// 🔴「このシグニに【チャーム】が付いている場合」が条件節ごと落ちていた。とくに `WXK07-043-E1` は
+//    **条件節の「【チャーム】」を付与キーワードとして拾って** `GRANT_KEYWORD{チャーム}` に化けており、
+//    本体（バニッシュされない）は丸ごと消えていた＝原文と無関係な別物。
+test('§6.4 O-25(d) THIS_CARD_IS_CHARMED: チャーム条件が落ちず、別物にも化けない', () => withSavedCursor(() => {
+  const e1 = effectsMap.get('WXK07-043')?.find(e => e.effectId === 'WXK07-043-E1');
+  if (!e1) throw new Error('WXK07-043-E1 が存在');
+  const c1 = e1.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(c1.type, 'CONDITIONAL', '🔴条件節が落ちている');
+  eq(c1.condition.type, 'THIS_CARD_IS_CHARMED', 'チャーム限定（HAS_ATTACHED の合計版ではない）');
+  eq(c1.then.type, 'GRANT_PROTECTION', '🔴本体はバニッシュ耐性（GRANT_KEYWORD{チャーム} に化けていない）');
+  ok(!JSON.stringify(e1.action).includes('"keyword":"チャーム"'), '🔴条件節の語が付与キーワードに化けている');
+
+  // E2＝「【エナチャージ１】をする。**チャームが付いている場合、追加で**カードを1枚引く」＝後段だけ条件つき。
+  const e2 = effectsMap.get('WXK07-043')?.find(e => e.effectId === 'WXK07-043-E2');
+  const seq2 = e2!.action as SequenceAction;
+  eq(seq2.steps[0].type, 'ENERGY_CHARGE_FROM_DECK', 'エナチャージは無条件');
+  eq((seq2.steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition.type, 'THIS_CARD_IS_CHARMED',
+    '🔴追加ドローが無条件になっている');
+
+  // `WXK07-044-E1`（MANUAL）＝「代わりに」＝**排他**なので then/else。SEQUENCE だと両方バニッシュする過剰。
+  const e44 = effectsMap.get('WXK07-044')?.find(e => e.effectId === 'WXK07-044-E1');
+  const c44 = e44!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(c44.condition.type, 'THIS_CARD_IS_CHARMED', '🔴チャーム分岐が欠落している（弱い枝しか撃てない）');
+  ok(!!c44.else, '「代わりに」は排他＝else 枝を持つ');
+
+  // 評価器＝効果元シグニのゾーンに charm が付いているか（`IS_SELF_CHARMED` と同実装）。
+  const src = 'WXK07-043';
+  const ctxNo = mkCtx({ signi: [src, null, null] }, {}, src);
+  eq(evalCondition({ type: 'THIS_CARD_IS_CHARMED' } as Condition, ctxNo), false, 'チャーム無しでは不成立');
+  const ctxYes = mkCtx({ signi: [src, null, null] }, {}, src);
+  ctxYes.ownerState.field.signi_charms = ['CHARM#1', null, null];
+  eq(evalCondition({ type: 'THIS_CARD_IS_CHARMED' } as Condition, ctxYes), true, 'チャーム有りで成立');
+}));
+
+// §6.4 O-25(c)：`SPDi43-05-E2` は**宣言済みの穴**（実装したことにしない）。
+// 🔴据置（rawText のまま）だと engine の `GRANT_QUOTED_AUTO_ABILITY` が全文 regex で拾おうとして
+//    黙って何もしない＝`census:stubs` にも映らない**無言 no-op** だった。
+test('§6.4 O-25(c) SPDi43-05-E2: 表せない引用は DEFERRED_ で穴を宣言する', () => {
+  const eff = effectsMap.get('SPDi43-05')?.find(e => e.effectId === 'SPDi43-05-E2');
+  if (!eff) throw new Error('SPDi43-05-E2 が存在');
+  const a = eff.action as StubAction;
+  eq(a.type, 'STUB', '受け皿は STUB');
+  eq(a.id, 'DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE', '🔴無言 no-op（GRANT_QUOTED_AUTO_ABILITY 等）へ戻っている');
+  // ⚠**実装する前にこの4機構をそろえること**（PLAN §6.4 O-25(c)）。とくに②が engine に存在しない。
+  ok(!JSON.stringify(eff.action).includes('rawText'), 'STUB に GRANT_EFFECT の随伴キーが残っていない');
+});
+
 test('§6.4 O-4 WXDi-P11-005-E3: 支払い回避つき攻撃制限を期間ごと表現する', () => {
   // 🔴続き499 以前は `BLOCK_ACTION{ATTACK, owner:'any', until:END_OF_TURN}`＝支払い回避も期間も所有者も
   //   落ちて**両プレイヤーのシグニが無条件でアタック不可**だった（受け皿が無いので据置していた形）。
