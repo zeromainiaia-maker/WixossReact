@@ -11,10 +11,10 @@ effects JSON 内の `{ type: 'STUB', id: '...' }` ノードの全一覧と実装
 
 | 区分 | 値 |
 |---|---:|
-| JSON で使用中の STUB id 種類 | 600 |
+| JSON で使用中の STUB id 種類 | 601 |
 | 　└ ハンドラ実装あり | 571 |
-| 　└ フォールバック（execStub 未処理） | 29 |
-| 総 STUB ノード件数 | 2862 |
+| 　└ フォールバック（execStub 未処理） | 30 |
+| 総 STUB ノード件数 | 2864 |
 | JSON 0 件・ハンドラのみ（内部/動的生成 STUB） | 340 |
 
 - 「説明」列は `execStubPart*.ts` の各 `stub.id ===` 直前コメントから自動抽出（空欄＝コメント無し、要補完）。説明を充実させたい場合は該当ハンドラの直前にコメントを書いて再生成する。
@@ -38,6 +38,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `EFFECT_LEAVE_PREVENT_LOSE_SELF_ABILITY` | 3 | 3 | WX25-P2-071, WX25-P3-055, WX25-P2-TK04 |  |
 | `GRANT_ALL_ZONE_LIFEBURST` | 3 | 3 | WD14-001, WX02-002, WX17-036 |  |
 | `GUARD_LOSS_UNLESS_LRIG` | 3 | 3 | WX12-025, WX12-034, WX12-036 |  |
+| `DEFERRED_COLOR_QUALIFIED_USE_BLOCK` | 2 | 2 | PR-471, WXK09-037 |  |
 | `EFFECT_LEAVE_PREVENT_LOSE_LRIG_ABILITY` | 2 | 2 | SPDi44-08, WX25-P1-018 |  |
 | `ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白` | 2 | 2 | WDK16-01T, WXK10-015 |  |
 | `OPTIONAL_DISCARD_HAND_CLASS` | 2 | 2 | WX24-P3-068, WXDi-P14-083 |  |
@@ -76,7 +77,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `POWER_MOD_PER_COUNT` | 57 | 57 | WD19-001, WDK06-C17, SP26-003 | 動的パワー修正（COUNT依存） |
 | `OPTIONAL_TRASH_ENERGY_CLASS` | 41 | 41 | WD14-009, WDK08-Y14, WX11-006 | 他の任意コスト系（SEQUENCEパターン外のフォールバック） |
 | `GRANT_ABILITY_INNER_TEXT` | 39 | 39 | WD16-014, WD17-001, SPDi43-01 |  |
-| `RULE_REMINDER_TEXT` | 35 | 35 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
+| `RULE_REMINDER_TEXT` | 34 | 34 | SP26-003, SP38-001, PR-K026 | ゲームプレイに影響しない説明テキストは無音でスキップ |
 | `DECLARE_NUMBER` | 31 | 30 | WD06-008, WD13-008, WDK09-011 | 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存 |
 | `LOOK_OPP_LIFE_TOP` | 29 | 28 | WD06-006, WD06-018, WDK09-017 |  |
 | `SOUL_OP` | 27 | 27 | WD21-006, WD22-016-UG, SPK06-05 | ソウル/ルリグデッキ操作 |
@@ -453,6 +454,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `SET_ACCE_CHOICE` | 3 | 1 | SPK01-11 | SET_ACCE_CHOICE: アクセ装着時に選んだ付与能力のインデックスを記録（SPK01-11 ラズベリー）。 sourceCardNum（=このアクセカード）をキーに ownerState.acce_choice へ保存。GRAN… |
 | `SIGNI_REPOSITION` | 3 | 3 | WXEX2-04, WX24-P2-089, WXDi-CP02-095 | SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理） |
 | `TRIGGER_LIFE_BURST` | 3 | 3 | WX13-032, WXEX1-11, WXEX2-13 | TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット） |
+| `ALL_COLOR` | 2 | 2 | WX22-025, WXK05-029 | ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み |
 | `ARTS_SELF_RECYCLE_ON_TRIGGER` | 2 | 2 | WX10-015, WX10-027 | ARTS_SELF_RECYCLE_ON_TRIGGER: ルリグトラッシュのアーツがトリガー時に自己回収 |
 | `CENTER_LRIG_DISMOUNT` | 2 | 2 | WXK03-036, WXK10-063 | CENTER_LRIG_DISMOUNT: センタールリグがすべての乗機シグニから降りる（ドライブ解除・任意） |
 | `COIN_USE_RESTRICTION` | 2 | 2 | WXDi-P15-008, WXDi-P15-009 | COIN_USE_RESTRICTION: コイン使用先をスペルとシグニに限定（ゲーム中永続） |
@@ -492,7 +494,6 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ALL_CARDS_COLOR_CHANGE_BLACK` | 1 | 1 | WXK07-005 | ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み |
 | `ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE` | 1 | 1 | PR-471 | ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照） |
 | `ALL_CLASS` | 1 | 1 | WX21-021 | ALL_CLASS: CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み |
-| `ALL_COLOR` | 1 | 1 | WXK05-029 | ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み |
 | `ALL_PLAYER_MILL` | 1 | 1 | WX22-017 | ALL_PLAYER_MILL: 各プレイヤーがデッキ上N枚をトラッシュ |
 | `ALL_ZONE_BLACK` | 1 | 1 | WDA-F02-17 | ALL_ZONE_BLACK: CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み |
 | `ALLOW_ATTACK_WHILE_DRIVE` | 1 | 1 | WXEX2-11 |  |

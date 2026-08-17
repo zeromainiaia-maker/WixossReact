@@ -2,14 +2,14 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 601（総ノード 2864 件）
-逆翻訳シートの [STUB:…] 総数: 741  うち生ID露出 299 箇所（184 種）
+逆翻訳シートの [STUB:…] 総数: 744  うち生ID露出 302 箇所（185 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 3 種 / 4 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 3 種 / 4 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 26 種 / 77 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 179 種 / 294 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 179 種 / 295 箇所
   D 健全（実装あり＋日本語表示）                          : 419 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 340 種
 
@@ -20,7 +20,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
 -- 無言の no-op（要対応）--
 
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
-     2件   2枚  DEFERRED_COLOR_QUALIFIED_USE_BLOCK
+     2件   2枚  DEFERRED_COLOR_QUALIFIED_USE_BLOCK  [生ID露出 2]
         カード: PR-471, WXK09-037
         生成: src\data\parsers\parseSentencePart2.ts:424
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
@@ -169,6 +169,9 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
   露出  3箇所 (live 3件/3枚)  TRIGGER_LIFE_BURST  [execStubPart3]
         カード: WX13-032, WXEX1-11, WXEX2-13
         既存コメント: TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）
+  露出  2箇所 (live 2件/2枚)  ALL_COLOR  [execStubPart3]
+        カード: WX22-025, WXK05-029
+        既存コメント: ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み
   露出  2箇所 (live 2件/2枚)  ARTS_SELF_RECYCLE_ON_TRIGGER  [execStubPart3]
         カード: WX10-015, WX10-027
         既存コメント: ARTS_SELF_RECYCLE_ON_TRIGGER: ルリグトラッシュのアーツがトリガー時に自己回収
@@ -264,9 +267,6 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
   露出  1箇所 (live 1件/1枚)  ALL_CLASS  [execStubPart3]
         カード: WX21-021
         既存コメント: ALL_CLASS: CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み
-  露出  1箇所 (live 2件/2枚)  ALL_COLOR  [execStubPart3]
-        カード: WX22-025, WXK05-029
-        既存コメント: ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み
   露出  1箇所 (live 1件/1枚)  ALL_PLAYER_MILL  [execStubPart3]
         カード: WX22-017
         既存コメント: ALL_PLAYER_MILL: 各プレイヤーがデッキ上N枚をトラッシュ

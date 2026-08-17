@@ -6,6 +6,54 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-17 整理㉔：§6.4 `O-11` をさらに4件消化（続き532）— 残 3件に必要な機構
+
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-17（続き532）。**PLAN §6.4 の `O-11` 行はこの節も参照する。**
+
+### 消化した4件（7件/7カード → 3件/3カード）
+
+| カード | 何が起きていたか | 直し方 |
+|---|---|---|
+| `PR-328` | 「以下の２つから、**この方法で捨てたシグニの枚数と同じ数だけ**選ぶ」＝ヘッダの選択数が定数でないため**ヘッダごとマッチせず**、カードが `STUB{OPTIONAL_DISCARD_CLASS_SIGNI}` に落ちて**①②が1つも実行されない** | `ChooseAction.countChoose{count:{$ref:'last_processed_count'}}` |
+| `PR-471` | 同上（「相手センタールリグのルリグタイプ1つにつき1つまで」）＋③のサーチに**無色限定が無い**＋②が素の `BLOCK_ACTION`＝**無色まで封じる** | `countChoose{$ref:'opp_center_lrig_type_count'}`／`parseColorFilter` に `無`／②は明示 defer |
+| `WXK10-018` | 「②【ランサー】**【起】**《ターン１回》…」が句点なしで直結し、**2本目の【起】が丸ごと欠落** | `splitEffectBlocks` の句点挿入リストに**キーワード単独ブロック**を追加 |
+| `WXDi-P07-010` | 旧パースは `REVEAL_AND_PICK{owner:'self', then:RULE_REMINDER_TEXT}`＝**自分のデッキを公開して pick して何もしない**＝レベル別4分岐が全部 no-op | manualEffects に `REVEAL_DECK_TOP{owner:'opponent'}`＋`LAST_PROCESSED_MATCHES` の **else 入れ子** |
+
+### 🔑 `ChooseAction.countChoose`（選択数が実行時に決まる CHOOSE）
+
+`conditionChoose`（条件を満たしたら**定数へ差し替え**）の隣。`choose_count` を丸ごと `NumberOrRef` で解決する。
+engine は `execChoose` で `resolveCountRef`、**0 のときは選ばせずに終了**（0枚捨てたのに1つ選べると過剰実行）。
+CHOOSE ヘッダの選択数解析は `parseChooseHeaderCount` に集約し、**解けないヘッダには null を返す**
+（既定の「1つ選ぶ」へ倒さない）。新 `$ref`＝`opp_center_lrig_type_count`／`self_center_lrig_type_count`
+（ルリグタイプは `CardClass` の `/` 区切り＝`タマ/イオナ` は2種）。
+
+### 🔴 能力ブロック分割：キーワード単独ブロックの直後で割る（live 5枚が復活）
+
+`splitEffectBlocks` は「`。` の直後」でしか割らない。【エナチャージN】【シュート】【ダブルクラッシュ】
+【マルチエナ】は句点挿入済みだったが、**【アサシン】【ランサー】【シャドウ】【シャドウ（スペル）】が漏れて**おり、
+`【常】：【アサシン】【常】：【ダブルクラッシュ】` のような形で**後続ブロックが丸ごと欠落**していた（実測8カード）。
+復活＝`WX13-030`（ダブルクラッシュ）／`WX17-034`（シャドウ）／`WX22-025`（すべての色を得る）／
+`WXK01-036`（アサシン・ドライブ）／`WXK10-018`（2本目の【起】）。
+
+⚠**マーカー自身（【自】【出】【起】）を区切りに足してはいけない**＝
+「対戦相手のシグニの**【自】【出】【起】能力**が発動する場合」（`WXDi-P08-044`）という**文中の参照**がある。
+
+### 🔴 `costUnparsed` の ACTIVATED 経路が無防備だった
+
+`WXK10-018-E2` のコスト「シグニに付いているカード1枚**か**下にあるカード1枚をトラッシュ」は
+**ゾーンを跨ぐ OR コスト**で表現できず `costUnparsed` が立つ。ところが**このフラグを見ていたのは
+`triggerCollect`（AUTO 経路）だけ**で、ACTIVATED の提示側（シグニ／ルリグ MAIN・AA／付与 MAIN・AA／
+キー／手札／トラッシュ）は素通りだった。既存の `costUnparsed` 11効果はすべて AUTO なので被害は0だが、
+**ACTIVATED に1本でも出た瞬間にコスト踏み倒し**になるため全経路にガードを入れた。
+
+### 残 3件に必要な機構（次の担当への引き継ぎ）
+
+| カード | 要るもの |
+|---|---|
+| `WX05-042` | **回数カウンタつきの一時付与トリガー**＝「このターン、〜がダウン状態になったとき、それが**このターンで3回目**である場合」。`delayed_triggers` は回数を持たない |
+| `WX22-016` | §6.4 `O-29`（`REPEAT` の反復）合流 |
+| `PR-469` | **4本**＝①「この【起】能力で**まだ選ばれていない**1つ」＝**選択履歴**（既存の「まだ選んでいないもの」も未実装で同じ器を待っている）②「相手デッキから**すべて**トラッシュ」③「相手ルリグデッキから1枚**見ないで選び**公開」④コスト「ルリグデッキの＜タマ＞1枚を**ゲームから除外**」。⚠**④が無いまま CHOOSE を組むと《白×3》だけで撃てる**＝**コストを踏み倒す過剰実行**（実測確認済み） |
+
 ## 2026-08-17 整理㉓：§6.4 `O-11` の実装穴10件消化（続き531）— 消化の内訳と、残 7件に必要な機構
 
 > 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-17（続き531）。**PLAN §6.4 の `O-11` 行はこの節も参照する。**
