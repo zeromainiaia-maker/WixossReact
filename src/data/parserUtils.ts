@@ -151,6 +151,12 @@ export function parseLevelFilter(text: string): Partial<TargetFilter> {
 }
 
 export function parseColorFilter(text: string): Partial<TargetFilter> {
+  // 🆕**無色**（§6.4 O-11・続き532）＝CSV の `Color` 列は無色カードを `無` で持つので `color:'無'` で表せる。
+  // ⚠**「無色ではない」は別キー**（`nonColorless`）＝ここで拾うと意味が正反対になる。
+  //   「無色の」という綴りは上の5色ループ（`${c}の`）では拾えない（「色の」であって「無の」ではない）ため、
+  //   規則が無いと `PR-471`③「デッキから**無色の**シグニを２枚まで探して」のように**どのシグニでも探せる**
+  //   過剰実行になっていた。
+  if (/無色の/.test(text) && !/無色ではない/.test(text)) return { color: '無' };
   for (const c of ['白', '赤', '青', '緑', '黒']) {
     if (text.includes(`${c}の`)) return { color: c };
   }
