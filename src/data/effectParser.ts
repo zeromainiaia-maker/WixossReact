@@ -10415,7 +10415,7 @@ function parseActionTextInner(text: string): EffectAction {
     //   `LAST_PROCESSED_COUNT_GTE` の領分（`WXDi-P14-042-E1`／`WXK08-055-E1`／`WXK11-070-E1`）。
     //   そこで**先頭文か、直前が同じコストゲートのときだけ**適用する（2段目「７枚以上〜」を拾うため）。
     {
-      const costGateM = clean.match(/^(?:この方法で)?(?:エナゾーンから)?(?:カードを)?(?:合計)?([０-９\d]+)枚以上(?:を)?トラッシュに置いた場合、(?:追加で)?(.+)$/);
+      const costGateM = clean.match(COST_TRASH_COUNT_GATE_RE);
       const prevIsCostGate = steps.length > 0 && steps[steps.length - 1].type === 'CONDITIONAL'
         && (steps[steps.length - 1] as import('../types/effects').ConditionalAction).condition?.type === 'COST_TRASHED_MATCHES';
       if (costGateM && (steps.length === 0 || prevIsCostGate)) {
