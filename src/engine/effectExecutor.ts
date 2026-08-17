@@ -4909,6 +4909,11 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     effectiveCount = a.additionalCostChoose.thenChooseCount;
     effectiveUpTo = a.additionalCostChoose.thenUpTo ?? false;
   }
+  // 汎用の盤面条件による上書き（§6.4 O-11）＝上の5本と違いトリガーを型名に焼き込まない。
+  if (a.conditionChoose && evalCondition(a.conditionChoose.condition, ctx)) {
+    effectiveCount = a.conditionChoose.thenChooseCount;
+    effectiveUpTo = a.conditionChoose.thenUpTo ?? false;
+  }
   const chooseCtx = a.additionalCostChoose
     ? { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } }
     : ctx;
