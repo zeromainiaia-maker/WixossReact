@@ -13368,6 +13368,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
           if (my.blocked_actions?.includes(eff.effectId)) continue;
+          if (isLrigDownSelfUnpayable(eff)) continue;   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
           lrigActionsAA.push({
             label: `【起】${buildCostLabelAA(eff)}`,
             color: C.coin,
