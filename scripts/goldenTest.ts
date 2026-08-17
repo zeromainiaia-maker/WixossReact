@@ -39294,6 +39294,71 @@ test('§5d-0(ii) 支払いUI3経路すべてが共有判定を通る（1つ落�
   }
 });
 
+// ── §5d-0 (ii) 2026-08-18：盤面状態（覚醒／傀儡）の条件節が丸ごと落ちて無条件発火していた3効果 ──
+// 🔴engine は両評価器（`evalCondition` / `checkActiveCondition`）とも `isAwakened`/`isPuppet` を実装済みで、
+//   落ちていたのは parser だけ。⚠**「がある場合」形の規則はあったが「あるかぎり」形（＝【常】の
+//   activeCondition 経路）に無かった**＝同じ文型なのに一部だけ直らないときは「どの表に居るか」を疑う。
+const boardStateCondCases = [
+  { effectId: 'WXDi-P14-050-E1', slot: 'activeCondition', want: '"isAwakened":true',
+    why: '【常】レベル３の覚醒状態のシグニがあるかぎり→無条件で相手の【ガード】に追加コストを課していた' },
+  { effectId: 'WXDi-P14-062-E1', slot: 'activeCondition', want: '"isAwakened":true',
+    why: '【常】レベル３の覚醒状態のシグニがあるかぎり→無条件で能力付与していた' },
+  { effectId: 'WXK09-061-E1', slot: 'action', want: '"isPuppet":true',
+    why: '【出】傀儡状態のシグニがある場合→無条件で−3000していた' },
+] as const;
+for (const spec of boardStateCondCases) {
+  test(`§5d-0(ii) live ${spec.effectId}: 盤面状態の条件節が載る（${spec.why}）`, () => {
+    let cardNum: string | undefined;
+    for (let i = spec.effectId.length; i > 0; i--) {
+      const cand = spec.effectId.slice(0, i);
+      if (effectsMap.has(cand)) { cardNum = cand; break; }
+    }
+    const eff = (effectsMap.get(cardNum ?? '') ?? []).find(e => e.effectId === spec.effectId);
+    ok(!!eff, `${spec.effectId}: live 効果が存在`);
+    if (!eff) return;
+    const s = JSON.stringify(spec.slot === 'activeCondition' ? eff.activeCondition ?? null : eff.action);
+    ok(s.includes('HAS_CARD_IN_FIELD') && s.includes(spec.want),
+      `${spec.slot} に盤面状態ゲートが載る（実際 ${s.slice(0, 200)}）`);
+  });
+}
+
+test('§5d-0(ii) engine: 「場に覚醒状態のシグニがあるかぎり」は覚醒していなければ成立しない', () => {
+  const eff = (effectsMap.get('WXDi-P14-062') ?? []).find(e => e.effectId === 'WXDi-P14-062-E1');
+  ok(!!eff?.activeCondition, 'activeCondition が存在');
+  if (!eff?.activeCondition) return;
+  const lv3 = findCard(c => isSigni(c) && c.Level === '3');
+  const lv3b = findCard(c => isSigni(c) && c.Level === '3' && c.CardNum !== lv3);
+  const cm = cardMap as Map<string, CardData>;
+  const notAwake = mkState({ signi: [lv3, null, null] });
+  ok(!checkActiveCondition(eff.activeCondition, notAwake, mkState({}), true, cm, lv3),
+    '🔴覚醒していないレベル3が居るだけでは成立しない（旧実装は無条件成立）');
+  const awake = { ...notAwake, awakened_signi: [lv3] };
+  ok(checkActiveCondition(eff.activeCondition, awake, mkState({}), true, cm, lv3),
+    '覚醒したレベル3が居れば成立');
+  // レベル違いは成立しない（原文の「レベル３の」を落としていないことの負方向）
+  const lv1 = findCard(c => isSigni(c) && c.Level === '1');
+  const awakeWrongLv = { ...mkState({ signi: [lv1, null, null] }), awakened_signi: [lv1] };
+  ok(!checkActiveCondition(eff.activeCondition, awakeWrongLv, mkState({}), true, cm, lv1),
+    '覚醒していてもレベルが違えば成立しない');
+  ok(!!lv3b, '対照カードが引ける');
+});
+
+test('§5d-0(ii) engine parity: isPuppet 条件でルリグゾーンを数えない（判定器2つの片方だけ穴が空く型）', () => {
+  // ⚠`matchesFilter` は `isPuppet` を見ないので、ルリグ走査へ落ちると**ルリグが「傀儡状態のシグニ」として
+  //   数えられる**。`execUtils.evalCondition` は4状態とも除外していたが `effectEngine` 側は3つだけだった。
+  const cond: ActiveCondition = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isPuppet: true } };
+  const lrig = findCard(c => c.Type === 'ルリグ');
+  const signi = findCard(c => isSigni(c));
+  const cm = cardMap as Map<string, CardData>;
+  const onlyLrig = mkState({ lrig: [lrig], signi: [null, null, null] });
+  ok(!checkActiveCondition(cond, onlyLrig, mkState({}), true, cm, signi),
+    '🔴ルリグだけの盤面で「傀儡状態のシグニがある」が成立しない');
+  const withPuppet = { ...mkState({ lrig: [lrig], signi: [signi, null, null] }),
+    field: { ...mkState({ lrig: [lrig], signi: [signi, null, null] }).field, puppet_signi: [signi] } };
+  ok(checkActiveCondition(cond, withPuppet, mkState({}), true, cm, signi),
+    '傀儡状態のシグニが居れば成立');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

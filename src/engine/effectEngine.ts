@@ -161,8 +161,11 @@ export function checkActiveCondition(
         else if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
         else matched++;
       });
-      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened はシグニ専用）
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
+      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened/isPuppet はシグニ専用）
+      // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
+      //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
+      //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
         for (const ln of lrigZoneTops(state.field)) {
           if (ln && matchesFilter(cardMap.get(ln), cond.filter)) {
             if (distinctNameSet) distinctNameSet.add(cardMap.get(ln)?.CardName ?? ln);
@@ -994,8 +997,11 @@ function evalConditionForContinuous(
       if (cond.distinctColors) return new Set(matchedNums.flatMap(n => splitFieldColors(cardMap.get(n)?.Color))).size >= (cond.minCount ?? 1);
       if (cond.distinctNames) return new Set(matchedNums.map(n => cardMap.get(n)?.CardName ?? n)).size >= (cond.minCount ?? 1);
       if (matchedNums.length >= (cond.minCount ?? 1)) return true;
-      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened はシグニ専用）
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened) {
+      // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened/isPuppet はシグニ専用）
+      // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
+      //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
+      //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
+      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
         return lrigZoneTops(hcifState.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter));
       }
       return false;
