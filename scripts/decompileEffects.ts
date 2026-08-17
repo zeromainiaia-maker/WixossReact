@@ -1329,7 +1329,12 @@ function actionJa(a?: Action, effectType?: string): string {
       const recoCh = a.recollectArts
         ? `。《リコレクトアイコン》［${a.recollectArts.minArts}枚以上］代わりに${numJa(a.recollectArts.thenChooseCount)}つ${a.recollectArts.thenUpTo ? 'まで' : ''}選ぶ`
         : '';
-      return `以下の${numJa(totalCh)}つから${cntCh}${betCh}${recoCh}【${chOpts.join(' / ')}】`;
+      // conditionChoose＝「〈盤面条件〉の場合、代わりにKつ(まで)選ぶ」（§6.4 O-11）。
+      // ⚠betChoose/recollectArts と同型＝**書かないと原文照合で「代わりに」節が消えて見える**。
+      const condCh = a.conditionChoose
+        ? `。${condJa(a.conditionChoose.condition)}なら代わりに${numJa(a.conditionChoose.thenChooseCount)}つ${a.conditionChoose.thenUpTo ? 'まで' : ''}選ぶ`
+        : '';
+      return `以下の${numJa(totalCh)}つから${cntCh}${betCh}${recoCh}${condCh}【${chOpts.join(' / ')}】`;
     }
     case 'CONDITIONAL': {
       // IS_MY_TURN は「そうした場合」マーカーとして使われる
