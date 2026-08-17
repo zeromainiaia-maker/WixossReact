@@ -6557,6 +6557,31 @@ function selfHandDiscardStep(step: EffectAction | undefined): import('../types/e
 //   ここを外すと engine が**手札の最後の1枚を自動で捨てる**ままになり、プレイヤーが選べない。
 const TADH_DISCARD_RE = /手札(?:から)?(.{0,32}?)を?([０-９\d]+)枚(?:を)?捨て(てもよい|る)$/;
 
+/**
+ * 「（あなたは）手札から〈spec〉をN枚捨ててもよい」**単独文**＝任意手札コスト（§6.4 O-35・続き528）。
+ *
+ * 🔴この正準形（`OPTIONAL_COST{handDiscard}`）は続き416 から在るのに、**生成経路が
+ * `applyTargetAndDiscardHandCost` しかなかった**＝「対戦相手のシグニ1体を対象とし、」を伴って
+ * `TARGET_AND_DISCARD_HAND` STUB が立つ形からしか作られず、**対象節を伴わない裸の1文は規則ゼロ**で
+ * UNKNOWN に落ちていた。その結果 `tryWrapLeadingStateCond` の**ガードB**（rest 単体が UNKNOWN なら
+ * catch-all へ委ねる）に引っかかり、前置きの条件節ごと `CONDITIONAL_POWER_BONUS` へ流れて
+ * **①コストが一度も請求されず ②対になる「そうした場合」の本体が無条件に走る**（過剰実行）。
+ *
+ * ⚠**part1〜4 が全部 null のときだけ**呼ぶ最終規則にしてある（既存の複合ハンドラを横取りしない）。
+ * ⚠filter は `handDiscardSpecFilter` に委ねる＝**表現できない修飾が残ったら null＝無変換**（誤った
+ *   filter を作るより据置が安全、という同関数の既存規律をそのまま継ぐ）。
+ */
+function parseBareOptionalHandDiscard(t: string): EffectAction | null {
+  const m = t.trim().replace(/。$/, '').match(/^(?:あなたは)?手札から(.{0,32}?)を?([０-９\d]+)枚(?:を)?捨ててもよい$/);
+  if (!m) return null;
+  const filter = handDiscardSpecFilter(m[1]);
+  if (filter === null) return null;
+  return {
+    type: 'STUB', id: 'OPTIONAL_COST',
+    handDiscard: { count: parseNum(m[2]), ...(Object.keys(filter).length ? { filter } : {}) },
+  } as StubAction;
+}
+
 /** 手札コストの名詞句（「＜ブルアカ＞のカード」「《ガードアイコン》を持つシグニ」等）を TargetFilter へ。 */
 function handDiscardSpecFilter(spec: string): TargetFilter | null {
   // 表現できない（＝取りこぼすと過剰に緩くなる）修飾が混ざる形は null＝変換しない
