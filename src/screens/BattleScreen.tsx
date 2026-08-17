@@ -4732,7 +4732,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ⚠ ExecCtx.effectsMap は省略可＝渡さないと当該条件が**常に false** になる dead flag だった（続き296 検証で発見）。
       ctx.effectsMap = effectsMap;
       fillDeployCaps(ctx); // 配置数制限（CONT版）をctxへ（isOwnerTurn 確定後に呼ぶ）
-      let result = executeEffect(entry.effect, ctx);
+      // §6.4 O-38（続き544）＝「対戦相手のシグニの【自】能力が発動する場合、対戦相手が〈コスト〉を
+      // 支払わないかぎり、その能力は何もしない」（`SPDi43-01-E2`）。
+      // 🔑**ここが唯一の choke point**＝`shiftQueue` の呼び出し元は上の1箇所だけなので、
+      //   全経路（人間/CPU・シグニの【自】）をここで包める。収集側（`triggerCollect` の42箇所に散った
+      //   `BLOCK_OWN_SIGNI_AUTO` フィルタ）に支払い分岐は差し込めない。
+      const autoPayGate = isSigniAutoAbility(entry.effect, entry.cardNum, battleCardMap)
+        ? findSigniAutoPayGate(ownerState, otherState) : null;
+      const effectToRun = autoPayGate ? wrapSigniAutoPayGate(entry.effect, autoPayGate) : entry.effect;
+      let result = executeEffect(effectToRun, ctx);
       // デッキ0枚→リフレッシュ（効果解決後）。ターンプレイヤーの2回目リフレッシュならその後ターン終了。
       {
         const refreshed = applyRefreshOnDone(result, battleCardMap);
