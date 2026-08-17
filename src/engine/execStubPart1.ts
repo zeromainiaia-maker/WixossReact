@@ -454,9 +454,9 @@ export function execStubPart1(
     const specOC = resolveOptionalCostSpec(stub, ctx);
     const costColorsOC = specOC.costColors;
     const canAffordOC = canAffordOptionalCostSpec(specOC, ctx);
-    const payLabelOC = costColorsOC.length > 0
-      ? `発動する（${costColorsOC.map(c => `《${c}》`).join('')}）`
-      : '発動する';
+    // ⚠エナ色以外の対価（自己トラッシュ等）も出す＝§6.4 O-26・続き535（4サイト共通の `optionalCostExtraLabels`）。
+    const payPartsOC = [...costColorsOC.map(c => `《${c}》`), ...optionalCostExtraLabels(specOC)];
+    const payLabelOC = payPartsOC.length > 0 ? `発動する（${payPartsOC.join('＋')}）` : '発動する';
     const noopOC: import('../types/effects').SequenceAction = { type: 'SEQUENCE', steps: [] };
     const payStepsOC = optionalCostPaySteps(specOC);
     const payActionOC: EffectAction = payStepsOC.length === 0 ? noopOC
