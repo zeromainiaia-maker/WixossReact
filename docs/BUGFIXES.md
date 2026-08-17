@@ -1,5 +1,74 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き552b・Opus 5）— **§8／§6.4 `O-1` (b)＝CPU が自ターンにアーツ／スペルを使う**（v1）＋ スペルの**使用ゲート／コスト計算を1関数へ集約**
+
+ゲート全緑（typecheck / golden **2283→2287** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.480→0.481。続き552（(a) 応答アーツ）の直接の続き。
+
+### 1. やったこと
+
+**(1) 攻めのアーツ＝`cpuArts.ts` に窓を2つ追加（`MAIN` / `ATTACK_ARTS`）**
+
+- `pickCpuOffensiveArts()` 新設。**応答（相手ターン）と攻め（自ターン）で違うのは `isMyTurn` と
+  許す分類だけ**にして、選び方の本体は `pickCpuArtsBy()` の1本に畳んだ（窓ごとに書き分けると
+  片方だけに条件を足したときに気付けない）。
+- **攻めは「除去」だけ**＝目的は「アタックを通す」の1点。無効化／ダメージ軽減は自ターンには意味が無い。
+- 足切りは `hasBlockedAttacker()`＝**正面（facing ＝ `2 - zi`）に相手シグニがいるアップのアタッカーがいる**か。
+  正面が埋まっているとアタックはバトルになりライフに通らない＝退かせばライフクラッシュに変わる。
+  **相手の場が空なら除去は無価値**なので使わない（開幕に撃ち尽くさない）。
+- BattleScreen 側は **`tryCpuUseArts()` 1本**に畳んだ＝3つの窓（応答／MAIN／ATTACK_ARTS）が同じ道を通る。
+
+**(2) `src/screens/battle/spellUseGate.ts` 新設＝スペルの提示とコスト計算を1関数に集約**
+
+- `checkSpellUse()`＝フェイズ（`MAIN` × 自ターン）・`pending_spell`・封じ3軸（`USE_SPELL` /
+  `PLAY_COLORLESS` / `BLOCK_NON_WHITE_SPELL`）・限定・カード名封じ・ディソナ制限・
+  低コスト封じ（相手チャーム数）・使用条件を1か所で見る。人間の手札「発動」ボタンはこの1呼び出しに置き換え。
+- `computeSpellEffectiveCost()` / `spellExtraCosts()`＝**`SpellCastModal` もこの2本を通す**
+  （条件つき軽減／場の CONTINUOUS 軽減／次スペル軽減／カード名指定軽減／メルト・ファクトの事前ウィルス除去、
+  および CONTINUOUS 増加＋`FIRST_SPELL_COST_UP`）。⚠これで**スペルのコスト計算の入口も1本**になった。
+- ⚠🔑**`SpellUseCheck.usable` は `affordable` を含めない**（`checkArtsUse.usable` とはここが違う）。
+  スペルの軽減は**支払いUI の選択次第で下がる**（任意手札捨てによるコスト置換・使用時の任意支払い）ので、
+  基本コストの支払い可否で提示を切ると**払える札を隠す**＝人間の既存挙動を壊す。
+  **CPU 側だけが `usable && affordable` を見る**（CPU は任意支払いをしないので基本コストが請求額）。
+
+**(3) `castSpell` → `performSpell` へ owner パラメータ化**（`performArts` と同じ形。人間用は薄いラッパー）
+
+**(4) `src/screens/battle/cpuSpell.ts` 新設＝CPU がメインフェイズに除去スペルを使う**
+
+- 条件は4つ＝**除去 × 正面が塞がれている × エナだけで払える × このターン未使用**。手札順の決定論。
+- 🔴**`pending_spell`（人間のカットイン応答）を待つ早期 return を追加**＝これが無いと CPU が
+  自分のスペルの応答窓を無視してフェイズを進めてしまう（`CutinModal` は `caster_id !== user.id` で出る）。
+
+**実測＝CPU の射程**：攻めのアーツ＝除去（エナのみ払い）が**メイン窓 174 ／ アタック窓 188**（アーツ690枚中）。
+スペル＝**427枚中 123枚**（効果側コストは全枚 `energy` のみ）。
+
+### 2. 安全弁（前回ぶんの拡張）
+
+- **台帳を1本に統一**＝`cpu_arts_used_nums_this_turn` → **`cpu_used_card_nums_this_turn`**（アーツ／スペル共通。
+  CardNum は型を跨いで衝突しない）。3窓＋スペルのすべてが**実行より先に**ここへ commit する。
+- 🔴**`ADD_EXTRA_ATTACK_PHASE` を含む札は CPU が使わない**（`hasCpuUnsupportedAction`）。
+  CPU の `ATTACK_LRIG`→`END` 遷移は `SET_TURN_PHASE` しかコミットできず（state を書けない）、
+  追加アタックフェイズのキューを減らせないまま `ATTACK_ARTS` へ戻る＝**無限ループ**になる
+  （BattleScreen に以前から「CPU AI が【起】/スペルを使うようになったらここも state 込みへ揃えること」という
+  注記があった箇所）。⚠**この除外を外すなら先にあの遷移を直すこと**。実測の該当は `WXK06-026` 1枚。
+- 🔴**支払いキーの allowlist は `energy` 1本**（アーツと共通）＝`performArts`／`performSpell` は
+  エナ以外の宣言コストを払わないので、載せると**宣言だけして踏み倒す**。
+
+### 3. golden（+4）
+
+`O-1 cpuArts:`（攻めの窓の足切り＝`hasBlockedAttacker` の真理値表／自ターンは除去だけ・
+《アタックフェイズアイコン》専用札はメイン窓に出ない）、`O-1 spellUseGate:`（提示の切れ方＋
+🔴`usable` に支払い可否を含めない対照）、`O-1 cpuSpell:`（4条件＋`ADD_EXTRA_ATTACK_PHASE` 除外）。
+既存の `§6.4 O-18`（スペル封じ3軸）golden は**funnel が `spellUseGate.ts` へ移った形**に更新。
+
+### 4. ⚠実機未検証（→ §7 `V-76`）
+
+CPU の自ターンのアーツ／スペルは**実機で1本も回していない**。特に見るべき点＝
+(a) CPU がスペルを使ったあと**人間にカットイン窓が出て、パスすると解決して先へ進む**か
+(b) 除去が解決したあと CPU が**そのままアタックして今度は通る**か（＝`hasBlockedAttacker` の目的）
+(c) **人間側の挙動が変わっていないこと**（手札スペルの「発動」可否・請求額。特に
+**任意支払いでコストが下がる札**が従来どおり提示されること）
+(d) 追加アタックフェイズを持つ `WXK06-026` を CPU の手札に置いても**使わない**こと（負方向）。
+
 ## 2026-08-18（続き552・Opus 5）— **§8／§6.4 `O-1` (a)＝CPU が相手のアタックフェイズに応答アーツで守る**（v1）＋ アーツの**使用ゲート／コスト計算を1関数へ集約**
 
 ゲート全緑（typecheck / golden **2278→2283** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.479→0.480。
