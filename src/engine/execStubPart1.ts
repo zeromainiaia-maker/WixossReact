@@ -10,7 +10,7 @@ import {
   done, addLog, needsInteraction, ownerState, setOwnerState,
   removeFromField, fieldCandidates, selectOrInteract, shuffle, getCardNum, matchesFilter,
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
-  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps,
+  resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
   payBeatSigniCost, payBeatSigniFromTrashCost,
   isOwnTrashMoveLocked, buildFrontPowerGatedKeywordGrant,
   sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,

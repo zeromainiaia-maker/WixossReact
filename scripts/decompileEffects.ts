@@ -2174,6 +2174,15 @@ function actionJa(a?: Action, effectType?: string): string {
         if (a.selfToEnergy) {
           return `${headOC}場にあるこのシグニをエナゾーンに置いてもよい`;
         }
+        // 自身をトラッシュへ置く任意コスト（§6.4 O-26・続き535）＝`selfToEnergy` の行き先違い。
+        // ⚠**エナ色と束ねた1つのコスト**なので原文どおり連用形で繋ぐ（出さないと逆翻訳が
+        //   「《無》を支払ってもよい」だけになり、**シグニ1体を失う対価が原文照合で見えない**）。
+        // ⚠`selfTrash` ＋ `handDiscard` の束ね（`WX20-069-E1`）は上の `costText` が先に返す。
+        if (a.selfTrash) {
+          return costJaOC
+            ? `${headOC}このシグニを場からトラッシュに置き${costJaOC}を支払ってもよい`
+            : `${headOC}このシグニを場からトラッシュに置いてもよい`;
+        }
         if (a.underAnySigniTrash) {
           const whereUA = a.underAnySigniTrash.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
           // 絞り込み（「赤のシグニ1枚」等）も出す＝出さないと逆翻訳でコストの範囲が判定できない（続き421）

@@ -38162,7 +38162,10 @@ test('§6.4 O-26: 束ねた任意コスト「〜置き《色》を支払って�
   const paid = finish(executeAction(pay.action, { ...ctx, ownerState: p0.ownerState, otherState: p0.otherState, logs: p0.logs }), ctx);
   ok(paid.ownerState.trash.includes(self), '🔴効果元がトラッシュへ行っていない＝コスト踏み倒し');
   ok(!paid.ownerState.field.signi.some(st => st?.at(-1) === self), '効果元が場から消えている');
-  eq(paid.ownerState.energy.length, 0, 'エナ側の《無》も払っている（束ねたコストの片方だけになっていない）');
+  // ⚠エナ色は `optionalCostPaySteps` ではなく **pending の costColors で UI が徴収する**（execUtils の規約）＝
+  //   engine 層の契約は「pay 枝が costColors を持って出ること」。両方そろって初めて束ねたコストになる。
+  eq(JSON.stringify((pay as { costColors?: string[] }).costColors), JSON.stringify(['無']),
+    'エナ側は pending の costColors として UI へ渡る（束ねたコストの片方だけになっていない）');
   // 負方向＝効果元が既に場を離れていれば支払えない（`selfToEnergy` と同じ在庫判定）
   const goneCtx = mkCtx({ signi: [null, null, null] }, { signi: [oppSigni, null, null] }, self);
   goneCtx.ownerState.energy = [enaCard];
