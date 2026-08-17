@@ -1943,6 +1943,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
              ...(parseStoryFilter(t.split('探して')[0]).story
                ? { acceHostFilter: { cardType: 'シグニ', ...parseStoryFilter(t.split('探して')[0]) } }
                : {}) } as EffectAction)
+        : toLife
+        ? { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: false, fromSearch: true } as EffectAction
         : toField
         ? { type: 'ADD_TO_FIELD', owner: 'self' }
         : toTrash
