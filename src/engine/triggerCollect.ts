@@ -2415,6 +2415,38 @@ export function collectSigniDownUpTriggers(
         }
       }
     }
+    // INSTALL_DELAYED_TRIGGER（§6.4 O-11・`WX05-042`）＝スペルがこのターンだけ設置した
+    // 「あなたのメインフェイズの間、あなたの＜植物＞のシグニがダウンしたとき」型。
+    // ⚠場のカードではなく `delayed_triggers` に住むので、上の source ループでは拾えない。
+    // ⚠**発火条件（`fireCondition`）は収集時に評価する**＝満たさない回に entry を作ると
+    //   `once` が空振りで消費される（「3回目である場合」が2回目で消えてしまう）。
+    if (event === 'ON_SIGNI_DOWN') {
+      for (const dt of watcherState.delayed_triggers ?? []) {
+        if (dt.trigger?.timing !== 'ON_SIGNI_DOWN') continue;
+        if (dt.trigger.duringOwnMainPhase && !(watcherIsTurn && (ctx.turnPhase ?? '') === 'MAIN')) continue;
+        const wantOwner = dt.trigger.downedOwner ?? 'any';
+        const matched = changedByOwner.some(grp => {
+          const isOwn = grp.ownerId === watcherId;
+          if (wantOwner === 'self' && !isOwn) return false;
+          if (wantOwner === 'opponent' && isOwn) return false;
+          const f = dt.trigger.triggerFilter;
+          return grp.nums.some(num => !f
+            || matchesFilter(ctx.cardMap.get(getCardNum(num)), f, ctx.effectivePowers?.get(num)));
+        });
+        if (!matched) continue;
+        if (dt.fireCondition
+          && !evalUseCondition(dt.fireCondition, watcherState, otherState, ctx.cardMap, dt.sourceCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+        entries.push({
+          id: ctx.genId(), playerId: watcherId,
+          cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
+          label: 'このターンの遅延トリガー（シグニがダウンしたとき）',
+          effect: {
+            effectId: 'DELAYED_TRIGGER', effectType: 'AUTO', timing: ['ON_SIGNI_DOWN'],
+            action: dt.effect, duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+          },
+        });
+      }
+    }
   }
   return { entries, usedHostIds, usedGuestIds };
 }
