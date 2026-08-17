@@ -2359,7 +2359,13 @@ export interface GainLrigTypeAction {
 export interface NameBanAction {
   type: 'NAME_BAN';
   targetSelf: boolean;
-  duration: 'GAME';
+  /**
+   * 封じる期間。`GAME`＝`blocked_card_names_game`／`TURN`＝`blocked_card_names`（ターン終了時に消える）。
+   * ⚠**`TURN` は §6.4 O-11 で追加**＝原文が「**このターン**、対戦相手はそれと同じ名前のカードを
+   *   使用できない」と書いていても型に GAME しか無く、**ゲーム中ずっと封じる過剰実行**になっていた
+   *   （`WDK07-E08` ③）。期間語は必ず原文から取る（既定へ倒さない）。
+   */
+  duration: 'GAME' | 'TURN';
 }
 
 // トラッシュからコスト以下のスペルをコスト無しで使用
