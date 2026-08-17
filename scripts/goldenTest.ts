@@ -20077,14 +20077,49 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
       }
     }
   });
-  // ⚠元は WX20-007-E1 を「アンカー無し」の否定例に使っていたが、それは文中 CHOOSE が丸ごと
-  //   脱落して③の ADD_TO_FIELD が消えていたせいで BLOCK が宙に浮いていただけだった
-  //   （タスク12(lxxxii) 第6波で CHOOSE を復元＝③にアンカーが戻り、畳むのが正しい状態になった）。
-  //   否定例は「配置を STUB／公開ピック連鎖が行い ADD_TO_FIELD アンカーが本当に無い」WXK05-005-E1 へ移す。
-  test('(xxix) 非該当は不変: 配置アンカーの無い BLOCK は誤って畳まない（WXK05-005-E1・公開ピック配置）', () => {
+  // ⚠**この否定例は2度作り直している**＝どちらも「アンカーが無い」のではなく
+  //   **配置節そのものが parse から脱落していた**だけだった。
+  //   ①元の WX20-007-E1＝文中 CHOOSE が丸ごと落ちて③の ADD_TO_FIELD が消えていた
+  //     （タスク12(lxxxii) 第6波で CHOOSE を復元＝畳むのが正しい状態になった）。
+  //   ②次の WXK05-005-E1＝「デッキの上から５枚公開して…好きな枚数の緑のシグニを場に出し」が
+  //     `LOOK_AND_REORDER` に潰れて `ADD_TO_FIELD` が消えていた（§6.4 O-11・下に正の golden を追加）。
+  //   🔑**否定例には「配置とは無関係の【出】封じ」を使う**＝`WXK06-025-E1`
+  //     「【常】：対戦相手のレベル１以下のシグニの【出】能力は発動しない」は
+  //     そもそも配置を伴わない恒久封じなので、脱落が直っても畳む先が生まれない。
+  test('(xxix) 非該当は不変: 配置を伴わない【出】封じは畳まない（WXK06-025-E1・【常】相手Lv1以下）', () => {
+    const a = effOfX('WXK06-025', 'WXK06-025-E1').action;
+    ok(hasOnPlayBlock(a), '配置無しの恒久封じ＝ブロック据置のはず');
+    ok(!hasSuppress(a), '配置アンカーが無いのに suppressOnPlay を付けてはいけない');
+  });
+  // §6.4 O-11：「デッキの上からN枚**公開して**その中から好きな枚数の〈色〉のシグニを場に出し、残りをトラッシュ」
+  //   が読点欠落で `fusedLookPickSentence` から外れ、pick も残りの行き先も消えていた（＝本体が丸ごと no-op）。
+  test('(xxix→O-11) WXK05-005-E1: 公開ピック配置が復元し BLOCK は suppressOnPlay へ畳まれる', () => {
     const a = effOfX('WXK05-005', 'WXK05-005-E1').action;
-    ok(hasOnPlayBlock(a), 'アンカー無し＝ブロック据置のはず');
-    ok(!hasSuppress(a), 'アンカー無しに suppressOnPlay を付けてはいけない');
+    const rp = firstOfType(a, 'REVEAL_AND_PICK') as unknown as Record<string, unknown> | undefined;
+    ok(!!rp, 'REVEAL_AND_PICK が復元していない（LOOK_AND_REORDER に潰れている）');
+    eq(rp!.revealCount, 5, '公開枚数');
+    eq((rp!.filter as { color?: string }).color, '緑', '色フィルタ');
+    eq(rp!.pickCount, 'ALL', 'pickCount');
+    eq(rp!.pickUpTo, true, '「好きな枚数」＝上限（強制で全部出してはいけない）');
+    eq((rp!.remainder as { location?: string }).location, 'trash', '残りの行き先');
+    ok(!hasOnPlayBlock(a), '配置アンカーが戻ったので BLOCK は残らない');
+    ok(hasSuppress(a), '「この方法で場に出たシグニの【出】能力は発動しない」が配置へ畳まれていない');
+  });
+  // §6.4 O-11：「【エナチャージN】をし、X」のショートハンドが後続節 X を丸ごと飲んでいた。
+  test('(O-11) WXDi-CP02-058-E1: 【エナチャージ】の後続「ライフ2枚以下なら追加で」が脱落しない', () => {
+    const a = effOfX('WXDi-CP02-058', 'WXDi-CP02-058-E1').action;
+    const conds = collectOfType(a, 'CONDITIONAL');
+    ok(conds.some(c => (c as unknown as { condition?: { type?: string } }).condition?.type === 'LIFE_COUNT'),
+      '後続の LIFE_COUNT 条件つき追加エナチャージが落ちている');
+  });
+  // §6.4 O-11：束ねた任意コスト（手札3枚捨て＋自己トラッシュ）の手札側が丸ごと踏み倒されていた。
+  test('(O-11) WX20-069-E1: OPTIONAL_COST に handDiscard と selfTrash の両方が載る', () => {
+    const a = effOfX('WX20-069', 'WX20-069-E1').action;
+    const stub = treeFind(a, x => x.type === 'STUB' && x.id === 'OPTIONAL_COST') as Record<string, unknown> | undefined;
+    ok(!!stub, 'OPTIONAL_COST が無い');
+    eq(stub!.selfTrash, true, 'selfTrash');
+    eq((stub!.handDiscard as { count?: number }).count, 3, '手札を捨てる枚数');
+    eq((stub!.handDiscard as { filter?: { story?: string } }).filter?.story, '遊具', '捨てるカードのクラス限定');
   });
 }
 

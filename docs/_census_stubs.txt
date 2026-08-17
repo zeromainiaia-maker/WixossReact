@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 601（総ノード 2870 件）
+live JSON の STUB id 種類 : 600（総ノード 2869 件）
 逆翻訳シートの [STUB:…] 総数: 743  うち生ID露出 272 箇所（184 種）
 
 ■ 仕分け結果
@@ -9,9 +9,9 @@ live JSON の STUB id 種類 : 601（総ノード 2870 件）
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 2 種 / 2 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 26 種 / 77 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 179 種 / 267 箇所
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 178 種 / 266 箇所
   D 健全（実装あり＋日本語表示）                          : 420 種
-  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 339 種
+  （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 340 種
 
 ==============================================================================
 【A】実装の穴＝live に居るのに engine のどこにも消費が無い（実行しても何も起きない）
@@ -22,7 +22,7 @@ live JSON の STUB id 種類 : 601（総ノード 2870 件）
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
-        生成: src\data\parsers\parseSentencePart4.ts:1928
+        生成: src\data\parsers\parseSentencePart4.ts:1932
      1件   1枚  DEFERRED_TRASH_NAME_CHOOSE_COUNT  [生ID露出 1]
         カード: WX20-078
         生成: src\data\parsers\parseSentencePart3.ts:1786
@@ -101,7 +101,7 @@ live JSON の STUB id 種類 : 601（総ノード 2870 件）
         消費: src\screens\BattleScreen.tsx:1017 / src\screens\BattleScreen.tsx:10481
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY  [生ID露出 1]
         カード: WX12-023
-        消費: src\engine\execUtils.ts:1384
+        消費: src\engine\execUtils.ts:1390
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
         消費: src\engine\effectEngine.ts:6851
@@ -423,9 +423,6 @@ live JSON の STUB id 種類 : 601（総ノード 2870 件）
   露出  1箇所 (live 1件/1枚)  LOOK_TOP_OPP_CHOOSE_TRASH  [execStubPart3]
         カード: WXK11-064
         既存コメント: LOOK_TOP_OPP_CHOOSE_TRASH: デッキ上N枚を公開し相手が1枚選んでトラッシュ
-  露出  1箇所 (live 1件/1枚)  LOOK_TOP_SPELLS_TO_HAND  [execStubPart2]
-        カード: WX10-033
-        既存コメント: LOOK_TOP_SPELLS_TO_HAND: デッキ上N枚を確認してスペルを手札へ・残りをデッキへ
   露出  1箇所 (live 1件/1枚)  LRIG_LIMIT_MODIFY  [execStubPart2]
         カード: WXDi-P16-047
         既存コメント: LRIG_LIMIT_MODIFY (STUB版): ルリグリミット修正

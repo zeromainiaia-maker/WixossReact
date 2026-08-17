@@ -4249,7 +4249,6 @@ function parseSingleSentenceInner(text: string): EffectAction {
     } as EffectAction;
   }
 
-  if (process.env.DBG_SENT) console.error('SENT:', JSON.stringify(t));
   const result =
     parseSentencePart1(t, _parsingCardNum) ??
     parseSentencePart2(t) ??

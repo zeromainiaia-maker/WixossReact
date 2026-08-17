@@ -191,6 +191,24 @@ WXDi-D08-004 WXEX2-28
   + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
   + [0].action.leavePayLoseSelfAbility.victimFilter.story = "ウェポン"
 
+## +ADD_TO_HAND +REVEAL_AND_PICK -LOOK_AND_REORDER -SEQUENCE -STUB ［1枚］
+WX10-033
+--- WX10-033
+  原文: 【常】：このシグニがバニッシュされる場合、代わりに手札からスペルを１枚捨ててもよい。【出】手札からスペルを１枚捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《アタックフェイズアイコン》手札からスペルを２枚捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。,：あなたのデッキの上からカードを５枚公開する。その中からすべてのスペル
+  - [3].action.steps[0].type = "LOOK_AND_REORDER"
+  - [3].action.steps[0].source.location = "deck"
+  - [3].action.steps[0].source.owner = "self"
+  - [3].action.steps[0].count = 5
+  - [3].action.steps[0].private = false
+  - [3].action.steps[0].reorder = false
+  - [3].action.steps[0].canTrash = false
+  - [3].action.steps[0].destination.location = "deck"
+  - [3].action.steps[0].destination.owner = "self"
+  - [3].action.steps[0].destination.position = "top"
+  - [3].action.steps[1].type = "STUB"
+  - [3].action.steps[1].id = "LOOK_TOP_SPELLS_TO_HAND"
+  …（他 10 行）
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -488,6 +506,24 @@ WXDi-CP01-042
   + [0].action.steps[1].then.costColors[0] = "無"
   …（他 1 行）
 
+## +CONDITIONAL +ENERGY_CHARGE_FROM_DECK +LIFE_COUNT +SEQUENCE ［1枚］
+WXDi-CP02-058
+--- WXDi-CP02-058
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが＜ブルアカ＞の場合、【エナチャージ１】をし、あなたのライフクロスが２枚以下の場合、追加で【エナチャージ１】をする。【自】：このシグニがバトルによってシグニ１体をバニッシュしたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。【絆出】《無》《無》《無》：対戦相
+  - [0].action.then.owner = "self"
+  - [0].action.then.count = 1
+  ~ [0].action.then.type : "ENERGY_CHARGE_FROM_DECK" → "SEQUENCE"
+  + [0].action.then.steps[0].type = "ENERGY_CHARGE_FROM_DECK"
+  + [0].action.then.steps[0].owner = "self"
+  + [0].action.then.steps[0].count = 1
+  + [0].action.then.steps[1].type = "CONDITIONAL"
+  + [0].action.then.steps[1].condition.type = "LIFE_COUNT"
+  + [0].action.then.steps[1].condition.owner = "self"
+  + [0].action.then.steps[1].condition.operator = "lte"
+  + [0].action.then.steps[1].condition.value = 2
+  + [0].action.then.steps[1].then.type = "ENERGY_CHARGE_FROM_DECK"
+  …（他 2 行）
+
 ## +GRANT_EFFECT +SIGNI ［1枚］
 WX24-P2-055
 --- WX24-P2-055
@@ -540,6 +576,24 @@ WXK04-014
   + [0].action.choices[0].action.steps[1].type = "STUB"
   + [0].action.choices[0].action.steps[1].id = "OPTIONAL_COST"
   …（他 15 行）
+
+## +ADD_TO_FIELD +REVEAL_AND_PICK -BLOCK_ACTION -PLAYER ［1枚］
+WXK05-005
+--- WXK05-005
+  原文: あなたのセンタールリグが＜ユヅキ＞でない場合、あなたの手札とエナゾーンとシグニゾーンにあるすべてのカードをデッキに加える。あなたのトラッシュにあるすべてのカードをデッキに加えてシャッフルする。その後、カードを３枚引き、【エナチャージ４】をし、あなたのデッキの上からカードを５枚公開してその中から好きな枚数の緑のシグニを場に出し、残りをトラッシュに置く。この方法
+  - [0].action.steps[3].type = "BLOCK_ACTION"
+  - [0].action.steps[3].target.type = "PLAYER"
+  - [0].action.steps[3].target.owner = "self"
+  - [0].action.steps[3].target.count = 1
+  - [0].action.steps[3].actionId = "ON_PLAY_ABILITY"
+  - [0].action.steps[3].until = "END_OF_TURN"
+  + [0].action.steps[2].steps[2].type = "REVEAL_AND_PICK"
+  + [0].action.steps[2].steps[2].owner = "self"
+  + [0].action.steps[2].steps[2].revealCount = 5
+  + [0].action.steps[2].steps[2].filter.color = "緑"
+  + [0].action.steps[2].steps[2].filter.cardType = "シグニ"
+  + [0].action.steps[2].steps[2].pickCount = "ALL"
+  …（他 6 行）
 
 ## +TRANSFER_TO_DECK +TRASH_CARD -STUB ［1枚］
 WXK06-028
@@ -652,6 +706,18 @@ WDK06-C06
   ~ [0].condition.type : "TRASH_COUNT" → "COND_STUB"
   + [0].condition.raw = "あなたのトラッシュにカードが２０枚以上ある"
 
+## +DECK_CARD +ENERGY_CHARGE -ADD_TO_HAND ［1枚］
+WDK08-Y09
+--- WDK08-Y09
+  原文: 【常】：あなたのシグニのパワーを＋1000する。【出】：あなたのデッキの上からカードを３枚公開する。その中からすべての緑のカードをエナゾーンに置き、残りをトラッシュに置く。【起】《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋20000する。,-
+  - [1].action.then.owner = "self"
+  + [1].action.filter.color = "緑"
+  + [1].action.pickNoun = "カード"
+  ~ [1].action.then.type : "ADD_TO_HAND" → "ENERGY_CHARGE"
+  + [1].action.then.target.type = "DECK_CARD"
+  + [1].action.then.target.owner = "self"
+  + [1].action.then.target.count = 1
+
 ## +ATTACH_CHARM +CHOOSE +ENERGY_CHARGE_FROM_DECK +GRANT_KEYWORD +REMOVE_CHARM +SEQUENCE×2 +SIGNI×2 +TRASH_CARD -STUB ［1枚］
 WDK12-007
 --- WDK12-007
@@ -719,22 +785,4 @@ SPDi43-05
   + [1].action.duration = "UNTIL_OPP_TURN_END"
   + [1].action.rawText = "【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする。"
   ~ [1].parseStatus : "AUTO" → "PARTIAL"
-
-## +CONDITIONAL×3 +LAST_PROCESSED_LEVEL_SUM×3 +SEQUENCE ［1枚］
-SPDi43-25
---- SPDi43-25
-  原文: 【自】：このルリグがアタックしたとき、対戦相手のすべてのシグニをダウンし凍結する。【起】《ゲーム１回》インフレーション《青×0》：各プレイヤーは自分のデッキの一番上のカードを公開する。この方法で公開されたシグニのレベルの合計が３以下の場合、カードを４枚引く。レベルの合計が４の場合、対戦相手は自分のルリグデッキからカード１枚をルリグトラッシュに置く。レベルの合
-  - [1].action.steps[1].owner = "self"
-  - [1].action.steps[1].count = 4
-  - [1].action.steps[2].type = "STUB"
-  - [1].action.steps[2].id = "CONDITIONAL_POWER_BONUS"
-  - [1].action.steps[3].type = "TRASH"
-  - [1].action.steps[3].target.type = "HAND_CARD"
-  - [1].action.steps[3].target.owner = "opponent"
-  - [1].action.steps[3].target.count = 4
-  ~ [1].action.steps[0].id : "LOOK_OPP_LIFE_TOP" → "REVEAL_EACH_PLAYER_DECK_TOP"
-  ~ [1].action.steps[1].type : "DRAW" → "SEQUENCE"
-  + [1].action.steps[1].snapshotLastProcessedForConditionals = true
-  + [1].action.steps[1].steps[0].type = "CONDITIONAL"
-  …（他 20 行）
 
