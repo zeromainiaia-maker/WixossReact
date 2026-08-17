@@ -39211,7 +39211,7 @@ test('§5d-0(i) engine: filter 無しなら従来どおり相手トラッシュ�
   const base = mkCtx({ signi: [null, null, null] }, {});
   const ctx: ExecCtx = { ...base, otherState: { ...base.otherState, trash: [lv1, lv4] } };
   const stub = { type: 'STUB', id: 'STEAL_OPP_TRASH_PUPPET', puppetParams: { count: 1 } } as unknown as EffectAction;
-  const r = run(stub, ctx);
+  const r = executeEffect({ effectId: 't', effectType: 'AUTO', action: stub, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
   ok(!r.done && r.pending.type === 'SELECT_TARGET', '相手トラッシュ選択へ pause');
   if (r.done || r.pending.type !== 'SELECT_TARGET') return;
   eq(r.pending.candidates.length, 2, '絞り込み無しは全シグニ候補（既存挙動を変えない）');
