@@ -16,22 +16,22 @@
      4    10  noAbilities
      4    36  hasGuard
      4    51  isDisona
-     3    27  eachDistinctLevel  ※正準形は selectionConstraint.distinct（filter キーは表示用）
      3    37  excludeCardName
      3     6  levelLtTrigger
      2     2  noRiseIcon
      2    10  powerLtSelf
+     1    29  eachDistinctLevel  ※正準形は selectionConstraint.distinct（filter キーは表示用）
      1    22  hasCrossIcon
-     1     4  isPuppet
      1     6  excludeResona
      1    71  noGuard
      1     2  powerLtTrigger
-     1     3  isAwakened
      0    42  triggerSubjectClass  ※トリガー主語のクラス限定
      0     3  powerLteTrigger
+     0     5  isPuppet
      0     1  levelGtTrigger
+     0     4  isAwakened
      0     1  powerGtSelf
-   197        合計
+   193        合計
 
 --- 除外：一度も配線されていない語彙（＝配線漏れではなく機構未実装／計器の誤検出）---
   powerLteSelf  miss=9 has=0
@@ -542,20 +542,9 @@
    MISS WXK03-025-E1	【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを４枚トラッシュに置く。この方法でそれぞれレベルの異なるシグニ４枚がトラッシュに置かれた場合、対戦相手は手札を２枚捨てる。
    （配線済み見本: WD07-006-E1, WXDi-P07-035-E1, WXDi-P14-036-E1）
 
-## eachDistinctLevel × (filter無)   miss=1 has=0
-   MISS WD18-001-E2	【起】《ターン１回》それぞれレベルの異なる＜調理＞のシグニ４枚をエナゾーンからトラッシュに置く：あなたのデッキの一番上のカードをライフクロスに加える。
-
 ## eachDistinctLevel × TRASH{HAND_CARD}   miss=1 has=1
    MISS WXK03-025-E1	【自】：このシグニがアタックしたとき、あなたのデッキの下からカードを４枚トラッシュに置く。この方法でそれぞれレベルの異なるシグニ４枚がトラッシュに置かれた場合、対戦相手は手札を２枚捨てる。
    （配線済み見本: WDA-F02-07-E1）
-
-## eachDistinctLevel × BANISH{SIGNI}   miss=1 has=6
-   MISS WXDi-P09-008-E1	【起】《ターン１回》エナゾーンからそれぞれレベルの異なるシグニ３枚をトラッシュに置く：対戦相手のレベル３以上のシグニ１体を対象とし、それをバニッシュする。
-   （配線済み見本: WDA-F02-07-E1, SPDi44-16-E1, WX14-030-E1, WX25-P1-030-E1, WX25-P2-063-E2, WXK08-027-E1）
-
-## eachDistinctLevel × SIGNI[filter]   miss=1 has=11
-   MISS WXDi-P09-008-E1	【起】《ターン１回》エナゾーンからそれぞれレベルの異なるシグニ３枚をトラッシュに置く：対戦相手のレベル３以上のシグニ１体を対象とし、それをバニッシュする。
-   （配線済み見本: WDA-F02-07-E1, SPDi44-12-E1, SPDi44-16-E1, WX14-030-E1, WX20-079-E1, WXEX2-31-E3, WX25-P1-014-E1, WX25-P1-030-E1 …）
 
 ## levelRange × POWER_MODIFY{SIGNI}   miss=1 has=6
    MISS WX25-CP1-084-E1	【出】手札から＜ブルアカ＞のカードを１枚捨てる：対戦相手のレベル２以下のシグニ１体を対象とし、ターン終了時まで、それは能力を失い、それのパワーを－3000する。
@@ -677,14 +666,6 @@
    MISS WXK03-078-E1	【出】《黒》：レベルが奇数の対戦相手のシグニ１体を対象とし、それをバニッシュする。
    （配線済み見本: WXK03-028-BURST）
 
-## isPuppet × POWER_MODIFY{SIGNI}   miss=1 has=3
-   MISS WXK09-061-E1	【出】：対戦相手のシグニ１体を対象とし、あなたの場に傀儡状態のシグニがある場合、ターン終了時まで、それのパワーを－3000する。
-   （配線済み見本: WDK17-001-E1, WDK17-014-E1, WXK09-057-E2）
-
-## isPuppet × SIGNI[filter]   miss=1 has=4
-   MISS WXK09-061-E1	【出】：対戦相手のシグニ１体を対象とし、あなたの場に傀儡状態のシグニがある場合、ターン終了時まで、それのパワーを－3000する。
-   （配線済み見本: WDK17-001-E1, WDK17-011-E2, WDK17-014-E1, WXK09-057-E2）
-
 ## excludeResona × BANISH{SIGNI}   miss=1 has=3
    MISS WXEX2-18-E2	【起】《ターン１回》《緑×0》：対戦相手のシグニ１体を対象とし、レゾナではないあなたの＜遊具＞のシグニ１体をバニッシュする。そうした場合、それをエナゾーンに置く。
    （配線済み見本: SP27-010-E1, WX16-Re01-E1, WX16-Re10-E1）
@@ -753,13 +734,6 @@
 ## powerLtTrigger × SIGNI[filter]   miss=1 has=2
    MISS WXDi-P08-031-E1	【出】：カードを３枚引き、あなたの手札からシグニを１枚まで場に出す。その後、そのシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
    （配線済み見本: WXK11-020-E2, WXK11-041-E3）
-
-## isAwakened × SIGNI[filter]   miss=1 has=1
-   MISS WXDi-P14-062-E1	【常】：あなたの場にレベル３の覚醒状態のシグニがあるかぎり、このシグニは「【自】：このシグニがパワー10000以上のシグニとバトルしたとき、そのシグニをトラッシュに置く。」を得る。
-   （配線済み見本: WXDi-P08-076-E1）
-
-## isAwakened × TRASH{SIGNI}   miss=1 has=0
-   MISS WXDi-P14-062-E1	【常】：あなたの場にレベル３の覚醒状態のシグニがあるかぎり、このシグニは「【自】：このシグニがパワー10000以上のシグニとバトルしたとき、そのシグニをトラッシュに置く。」を得る。
 
 ## isDisona × BANISH{SIGNI}   miss=1 has=10
    MISS WXDi-P13-005-E1	カードを２枚引き、手札を１枚捨てる。その後、対戦相手のレベル１のシグニ１体を対象とし、それをバニッシュする。この効果によって捨てたカードが《ディソナアイコン》の場合、代わりに対戦相手のシグニ１体を対象とし、それをバニッシ
