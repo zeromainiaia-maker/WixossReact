@@ -3429,8 +3429,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- このシグニを場からトラッシュに置く（自己トラッシュ）----
+  // 🔴`thisCardOnly` が無いと**自分のシグニ1体を選ぶ**形になり、**このシグニ以外**も落とせてしまう
+  //   （§6.4 O-31・続き537 で発見。すぐ下の「これをトラッシュに置く」は最初から付けていた＝取りこぼし）。
   if (t.match(/^このシグニを場からトラッシュに置く/)) {
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1 } };
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } };
   }
 
   // ---- パワー閾値トリガー後の「これをトラッシュに置く」（WX09-019）----
