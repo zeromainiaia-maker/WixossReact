@@ -9454,6 +9454,45 @@ function parseActionTextInner(text: string): EffectAction {
     };
   }
 
+  /**
+   * CHOOSE ヘッダ「以下のNつから〈選択数〉選ぶ」の**選択数だけ**を解く（§6.4 O-11・続き532）。
+   *
+   * 🔴従来は**定数の「Mつ(まで)選ぶ」しか読めず**、数量が実行時に決まるヘッダはヘッダごと
+   *   マッチせずカードが受け皿 STUB に落ちていた（`PR-328`／`PR-471` は**①②③が1つも実行されない**真 no-op）。
+   * 🔑数量参照は `ChooseAction.countChoose`（engine が `resolveCountRef` で解決）へ載せる。
+   * ⚠**解けないヘッダには null を返す**＝既定の1つ選ぶへ倒すと「1つは必ず選べる」過剰実行になる。
+   */
+  const parseChooseHeaderCount = (src: string):
+    { count: number; upTo: boolean; countChoose?: ChooseAction['countChoose'] } | null => {
+    const fixed = src.match(/以下の[０-９\d２-９]+つから(?:まだ選んでいないもの)?([０-９\d１-９]+)つ(まで)?を?選ぶ/);
+    if (fixed) return { count: parseNum(fixed[1]), upTo: !!fixed[2] };
+    // 「この方法で捨てた〈名詞〉の枚数と同じ数だけ選ぶ」＝直前に処理した枚数（`PR-328`）。
+    if (/以下の[０-９\d２-９]+つから[、,]?この方法で(?:捨てた|トラッシュに置いた|公開した)[^。]{0,10}?の枚数と同じ数だけ選ぶ/.test(src)) {
+      return { count: 1, upTo: false, countChoose: { count: { $ref: 'last_processed_count' } } };
+    }
+    // 「〈誰か〉のセンタールリグのルリグタイプ１つにつき１つまで選ぶ」（`PR-471`）。
+    const perType = src.match(/以下の[０-９\d２-９]+つから(あなた|対戦相手)のセンタールリグのルリグタイプ[１1]つにつき[１1]つ(まで)?選ぶ/);
+    if (perType) {
+      return {
+        count: 1, upTo: !!perType[2],
+        countChoose: {
+          count: { $ref: perType[1] === '対戦相手' ? 'opp_center_lrig_type_count' : 'self_center_lrig_type_count' },
+          ...(perType[2] ? { upTo: true } : {}),
+        },
+      };
+    }
+    return null;
+  };
+
+  /** ヘッダ解析つき buildChoose。数量が実行時に決まる形は `countChoose` を載せて返す。 */
+  const buildChooseFromHeader = (headerSrc: string, bodySrc: string): ChooseAction | null => {
+    const head = parseChooseHeaderCount(headerSrc);
+    if (!head) return null;
+    const chosen = buildChoose(bodySrc, head.count, head.upTo);
+    if (!chosen || !head.countChoose) return chosen;
+    return { ...chosen, countChoose: head.countChoose };
+  };
+
   // 使用コスト修飾文に続く CHOOSE。文分割フィルタはヘッダと①②…を除くため、
   // 従来は先行 STUB だけが残り本体が無言脱落していた。先行部を先に通常パースし、
   // その木が「1本以上のコスト修飾マーカーだけ」の場合に限って CHOOSE を連結する。
