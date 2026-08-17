@@ -20213,6 +20213,37 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq(ban!.duration, 'TURN', '期間を GAME に倒すとゲーム中ずっと封じる過剰実行になる');
     ok(treeHas(wdk.action, x => x.type === 'TRANSFER_TO_HAND'), 'トラッシュ→対戦相手の手札戻しが落ちている');
   });
+  // §6.4 O-11：「〈盤面条件〉の場合、代わりにNつ(まで)選ぶ」の汎用受け皿 `conditionChoose`。
+  //   これが無かった頃は engine が**カード全文を再パース**する `CONDITIONAL_MULTI_CHOOSE_BY_CENTER`
+  //   （選択肢を取りこぼす／`WXDi-P12-005` はカードごと真 no-op）だった。
+  test('(O-11) conditionChoose: 選択数の条件付き上書きが構造で載る（live 11効果の代表3枚）', () => {
+    const cases: [string, string, string, number][] = [
+      ['WXDi-P12-005', 'WXDi-P12-005-E1', 'FIELD_LRIGS_SHARE_COLOR', 2],
+      ['WXK10-011', 'WXK10-011-E1', 'LRIG_STORY', 3],
+      ['WX20-078', 'WX20-078-E1', 'TRASH_HAS_CARD', 2],
+    ];
+    for (const [cardNum, effectId, condType, thenCount] of cases) {
+      const eff = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+      const a = eff.action as unknown as {
+        type: string; choices?: unknown[];
+        conditionChoose?: { condition: { type: string }; thenChooseCount: number };
+      };
+      eq(a.type, 'CHOOSE', `${effectId}: engine の全文再パース STUB に戻っている`);
+      ok((a.choices?.length ?? 0) >= 3, `${effectId}: 選択肢が取りこぼされている`);
+      eq(a.conditionChoose?.condition.type, condType, `${effectId}: 選択数を増やす条件`);
+      eq(a.conditionChoose?.thenChooseCount, thenCount, `${effectId}: 条件達成時の選択数`);
+    }
+  });
+  // §6.4 O-11：「それが〈X〉の場合、**それと同じレベルの**〜」＝結果ゲートの内側のレベル同一性。
+  //   落ちると「相手のシグニが全員ダウン」する過剰実行になる。
+  test('(O-11) WXK10-009-E1③: 結果ゲート内の「それと同じレベル」が対象へ載る', () => {
+    const eff = effectsMap.get('WXK10-009')!.find(e => e.effectId === 'WXK10-009-E1')!;
+    const down = treeFind(eff.action, x => x.type === 'DOWN'
+      && (x.target as { owner?: string; count?: unknown })?.count === 'ALL') as Record<string, unknown> | null;
+    ok(!!down, '③の全体ダウンが無い');
+    eq((down!.target as { filter?: { levelEqLastProcessed?: boolean } }).filter?.levelEqLastProcessed, true,
+      '🔴レベル限定が落ちると相手シグニが全員ダウンする');
+  });
 }
 
 // ── §6.4: 【出】能力抑止の死 BLOCK_ACTION family ─────────────────────────────
