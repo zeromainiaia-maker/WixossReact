@@ -1040,7 +1040,10 @@ export function parseSentencePart4(t: string): EffectAction | null {
   // 🔴同上＝bare `OPTIONAL_COST`（真 no-op）だった。行き先が明示されている必須動作なので
   //   `TRANSFER_TO_DECK{position:'bottom'}` へ。⚠「N枚**まで**」なので `upToCount` を立てる。
   {
-    const handToBottomM = t.match(/^手札からカードを([１-９\d０-９]+)枚まで好きな順番でデッキの一番下に置く$/);
+    // ⚠**「あなたの」の前置きを許すこと**＝`^手札から` だけだと `WX25-P1-046-E1`
+    //   「**あなたの**手札からカードを５枚まで…」が黙って外れ、後段の総称 `LOOK_AND_REORDER`
+    //   （＝デッキを覗いて並べ替える別物）に落ちて**手札が1枚も動かない**真 no-op だった（§6.4 O-11）。
+    const handToBottomM = t.match(/^(?:あなたの)?手札からカードを([１-９\d０-９]+)枚まで好きな順番でデッキの一番下に置く$/);
     if (handToBottomM) {
       return { type: 'TRANSFER_TO_DECK', shuffle: false, position: 'bottom',
         source: { type: 'HAND_CARD', owner: 'self', count: parseNum(handToBottomM[1]), upToCount: true } } as EffectAction;
