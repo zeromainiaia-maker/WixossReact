@@ -213,6 +213,8 @@ export interface OptionalCostSpec {
   down_self?: boolean;
   /** 効果元シグニ自身を場からエナゾーンへ置く任意コスト（§6.4 O-7）。 */
   selfToEnergy?: boolean;
+  /** 効果元シグニ自身を場からトラッシュへ置く任意コスト（§6.4 O-11）。`selfToEnergy` の行き先違い。 */
+  selfTrash?: boolean;
   beat_signi?: number;
   beat_signi_from_trash?: { count: number; filter?: TargetFilter };
   life_crash?: number;
