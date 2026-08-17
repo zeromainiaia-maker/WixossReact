@@ -1,5 +1,84 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き534・Opus 5）— 🏁§6.4 **O-36 完了**（ターン条件の allowlist を解体・23効果 → 残0）
+
+ゲート全緑（**golden 2188**＝+4・**census 809→808**・smoke 全0・fuzz 全0・
+`census:stubs` 無言 no-op 0・manual-fields 0・lint 0 errors・同型★0）。
+**live JSON changed 21枚**（うちAUTO収穫16枚＋MANUAL外科パッチ4効果＋自動採用1枚）。CSV 非改変。
+
+### 真因＝「(あなた|対戦相手)の**ターンの場合**、」の条件持ち上げが**カード名の allowlist に閉じ込められていた**
+
+`effectParser.ts` の `STATE_HOIST_BATCH1_CARDS`（25カード）と `isBatch1OnlyClause` が、
+この文型の CONDITIONAL 持ち上げを allowlist 内のカードだけに限定していた。
+allowlist 外の **23効果は条件が丸ごと落ち、ターンを問わず発火**していた（過剰実行）。
+原文母集団は `docs/_effect_srctext.json` を `/ターンの場合/` で走査＝**42効果**（allowlist内19・外23）。
+
+### 直し方＝allowlist 撤廃＋全5971カードの A/B で影響を実測
+
+1. `isBatch1OnlyClause` から `ターンの場合` の行を削除（ライフクロス閾値形の3条件はゲートに残す）。
+2. `parseAbilityBlock` の先頭持ち上げ（`^(あなた|対戦相手)のターンの場合、`）から allowlist ゲートを撤去。
+3. **A/B**＝parser 生出力（fresh）を全カードぶんダンプして前後比較。
+   **変わったのは21カード・21効果だけで巻き添えゼロ**。内訳＝
+   - **16効果**＝純粋な条件追加（`CONDITIONAL{TURN_OWNER}` で包んだだけ・中身は同一）
+   - **5効果**＝表現も改善（下記）
+
+### 表現も変わった5効果
+
+| 効果 | before | after |
+|---|---|---|
+| `WXDi-P03-010-E2` | 🔴付与先が **`owner:'opponent'`**（相手シグニに「バニッシュされない」を与えていた） | `owner:'self'`＋`TURN_OWNER opponent` |
+| `WXK05-041-E2`／`WXK09-035-E1` | `STUB{OPTIONAL_COST}`（**対象の有無を見ずに**コストを提示） | `STUB{TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST}`（対象なしなら提示しない） |
+| `WXK10-008-E1`／`WXK10-013-E1` | 選択肢①が**常時選べた** | `choice.condition = TURN_OWNER opponent`（`execChoose` が `available` を落とす） |
+
+### 副産物＝**持ち上げで文が分割され、実装済みハンドラが無言 no-op へ退化する**罠を3件塞いだ
+
+条件句を持ち上げると残り文が**別の規則に当たる**。A/B で3件見つけて手当てした（golden に契約として固定）。
+
+1. `WXEX1-16-E1`＝「そのレゾナの**出現条件のためにトラッシュに置いた**カードを２枚まで」は照応で filter では
+   表せない（`STUB{RESONANCE_COST_CARDS_TO_ENERGY}`＝engine が `lastProcessedCards` を読む）のに、
+   分割後は `parseSentencePart1` の汎用「トラッシュから N枚を対象とし…エナゾーンに置く」が先に当たり
+   **トラッシュの任意2枚を選べる過剰**へ退化していた → その名詞句を汎用規則から除外。
+2. `WXDi-P03-012-E2`＝残り文「このターン、対戦相手は１以上のエナコストを支払えない」が
+   `STUB{DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE}`（**engine に消費地点なし＝真 no-op**）へ落ちていた
+   → `OPP_TURN_NO_ENERGY_COST` の規則に先頭アンカー形を追加。
+   ⚠引用文中の「シグニアタックステップの間、対戦相手は…」（`WX25-P2-004-E1`）は別スコープなので**先頭アンカー必須**。
+3. `WXK10-013-E1`①＝残り文「このターン、対戦相手は…シグニを新たに場に出せない」が `STUB{DEPLOY_RESTRICT}` へ落ちていた。
+   `DEPLOY_RESTRICT` は原文から「N体までしか」「パワーN以上」だけを読むので**どちらにも当たらず
+   「配置制限（パターン解析不可）」のログだけ＝無言 no-op** → `BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN` を先取り。
+
+### engine＝`OPP_TURN_NO_ENERGY_COST` の期間を「次のターン」→「このターン」へ
+
+条件が落ちていた時代は自分のターンに発火していたので `blocked_actions` へ `:NEXT_TURN` 予約で辻褄を合わせていた。
+条件が効く今それを残すと**相手のターンに発火 → その次のターンに効く**＝1ターンずれる。
+原文どおり接尾辞なし（＝ターン終了時に `clearTurnEndScopedState` が落とす）へ変更。利用者は本効果1件のみ。
+
+### MANUAL 刻印で収穫マージが触れない4効果は live を外科パッチ
+
+`build:effects` は `parseStatus:MANUAL/PARTIAL` を含むカードを**カード単位で丸ごと温存**するので、
+parser を直しても届かない。`manualEffects.ts` にも無い（live 直書きの歴史的手修正）ため live JSON を直接パッチした。
+
+- `WXK01-082-E1`（`TURN_OWNER self` を追加）
+- `WXK05-041-E2`（任意コスト STUB を包み形へ＝`effectExecutor` の `OPT_IDS_WRAP` が解体して Pattern ④/⑤ へ委譲）
+- `WXK10-007-E1`（選択肢①に `condition`。label には書いてあったのに条件が無く**常時選べた**）
+- `WXDi-P03-010-E2`（`TURN_OWNER opponent` を追加）
+
+`WXK10-008-E1`（MANUAL）と `WX20-003-E1`（AUTO）は**既に条件を持っていた**＝手当て不要。
+
+### 連言形「手札がN枚で〜のターンの場合」を語彙化（`WXK01-040-E1`）
+
+「【出】《青》：対戦相手のシグニ１体を対象とし、**あなたの手札が０枚であなたのターンの場合**、それをバニッシュする。」
+は「N枚**で**」が既存の `HAND_COUNT`（「N枚**の場合**」）にも `TURN_OWNER`（先頭アンカー）にも当たらず、
+**条件が両方とも落ちて【出】がノーコストの無条件バニッシュ**だった。
+`AND[HAND_COUNT{self,eq,0}, TURN_OWNER{self}]` として2つの条件表へ追加（単独 `HAND_COUNT` 規則より**前**に置く）。
+A/B で**このカード1枚だけ**が変わることを確認済み。
+
+### 追試
+
+- 母集団の数え直し＝`docs/_effect_srctext.json` を `/ターンの場合/` で走査（42効果）。
+- **live 側の残0確認**＝42効果すべてが live で `TURN_OWNER` を持つ（残り0）。
+- golden に4テストを追加（`§6.4 O-36:` 接頭）＝allowlist 撤廃の契約／連言形／退化3件のトリップワイヤ／
+  `OPP_TURN_NO_ENERGY_COST` が `:NEXT_TURN` を張らないこと。
+
 ## 2026-08-17（続き533・Opus 5）— 🏁§6.4 **O-11 完了**（実装穴 3件 → **0**）
 
 ゲート全緑（**golden 2184**＝+3・**census 809 据置**・smoke 全0・fuzz 全0・
