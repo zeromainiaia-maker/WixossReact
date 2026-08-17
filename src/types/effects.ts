@@ -168,7 +168,7 @@ export type ActiveCondition =
   | { type: 'LRIG_DECK_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'OR'; conditions: ActiveCondition[] }
   | { type: 'TURN_OWNER'; owner: Owner }
-  | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
+  | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number; filter?: TargetFilter } // 「あなたの場にそれぞれ共通する色を持たない〈filter〉のシグニがN体ある場合」。filter 省略＝場のシグニ全体（§6.4 O-11 で filter を追加）
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
   // §6.3「正面」サブ機構(d)：効果元シグニ（sourceCardNum）の**正面**（相手ゾーン 2-zi）を条件にする型。
   // 「このシグニの正面に〈filter〉のシグニがあるかぎり」／「このシグニより〈key〉が高いシグニがこの正面にあるかぎり」。
@@ -233,7 +233,7 @@ export type Condition =
   | { type: 'LAST_PROCESSED_HAS_NO_ABILITIES' }
   | { type: 'OR'; conditions: Condition[] }
   | { type: 'TURN_OWNER'; owner: 'self' | 'opponent' }
-  | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number }
+  | { type: 'NO_COMMON_COLOR_AMONG_FIELD_SIGNI'; owner: 'self'; count: number; filter?: TargetFilter } // 「あなたの場にそれぞれ共通する色を持たない〈filter〉のシグニがN体ある場合」。filter 省略＝場のシグニ全体（§6.4 O-11 で filter を追加）
   | { type: 'FIELD_LRIGS_SHARE_COLOR'; owner: Owner; minCount: number }
   | { type: 'FIELD_COUNT'; owner: Owner; cardType?: CardTypeFilter; operator: CompareOp; value: NumberOrRef }
   | { type: 'DECK_COUNT'; owner: Owner; operator: CompareOp; value: NumberOrRef }
