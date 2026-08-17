@@ -12923,8 +12923,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   （live 27効果。`usageLimit` を持たない効果は同一ターンに何度でも撃てていた）。
       // ⚠可否判定は下の `isLrigDownSelfUnpayable`（UI側ゲート）と対になる＝両方揃えること。
       if (effect.cost?.down_self) {
-        if (paid.field.lrig_down) { setLoading(false); return; }
-        paid = { ...paid, field: { ...paid.field, lrig_down: true } };
+        const downSelfPaid = payLrigDownSelfCost(paid);
+        if (!downSelfPaid) { setLoading(false); return; }   // 既にダウン＝払えない（UI側でも非提示）
+        paid = downSelfPaid;
       }
       const lrigTop = my.field.lrig.at(-1);
       const cardName = battleCardMap.get(lrigTop ?? '')?.CardName ?? 'ルリグ';
