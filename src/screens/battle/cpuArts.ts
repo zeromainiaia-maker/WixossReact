@@ -1,4 +1,4 @@
-import type { CardData, PlayerState } from '../../types';
+import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect, EffectAction } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
 import { type ArtsPayerCtx, type ArtsUseCheck, listUsableArts } from './artsUseGate';
@@ -115,7 +115,7 @@ export function pickCpuResponseArts(p: {
   effectsMap: Map<string, CardEffect[]>;
   payer: ArtsPayerCtx;
   /** 応答窓のフェイズ（＝`'ATTACK_ARTS_OP'`）。 */
-  turnPhase: string;
+  turnPhase: TurnPhase;
   /** このターン CPU が既に使ったアーツの CardNum（同じ札を選び直さない安全弁）。 */
   alreadyUsedNums: readonly string[];
   /** 可否の権威＝人間の支払いUIと同じ `canAffordWithExtraCost`。 */

@@ -104,6 +104,8 @@ import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuMainPhaseActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGate';
+import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasIncomingThreat, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -4370,7 +4372,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 31 → 32（§6.4 O-10 続き515 で lrig_grew_this_turn を追加）
   // 32 → 33（§6.4 O-11 続き533 で signi_downed_this_turn を追加＝「このターンでN回目」の台帳）
   // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
-  eq(convention.length, 34, 'PlayerState の命名規約由来フィールド数');
+  // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_arts_used_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
+  eq(convention.length, 35, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4385,7 +4388,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 57, '型由来34件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn／+1＝続き551 の cpu_activated_effect_ids_this_turn
+  eq(registered.length, 58, '型由来35件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn／+1＝続き551 の cpu_activated_effect_ids_this_turn／+1＝続き552 の cpu_arts_used_nums_this_turn
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -31534,11 +31537,15 @@ test('§6.4 O-10（続き512）: ARTS_LIMIT_1 が実際にアーツ使用を止�
   eq(act.type, 'BLOCK_ACTION', 'BLOCK_ACTION で表す');
   eq(act.actionId, 'ARTS_LIMIT_1', 'id は ARTS_LIMIT_1');
   eq(act.target?.owner, 'opponent', '止まるのは対戦相手');
-  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  ok(/isArtsUseBlocked\s*=\s*\(\)\s*=>/.test(src), 'アーツ使用ゲートが1関数に集約されている');
-  ok(/ARTS_LIMIT_1/.test(src), "🔴`ARTS_LIMIT_1` を UI が読む（未消費 id へ戻っていない）");
+  // 続き552（§8 O-1 (a)）＝ゲート本体は `artsUseGate.ts` の pure 関数へ移した（CPU の応答アーツも
+  // 同じ関数を呼ぶ）。判定式の存在をここで固定する（実挙動は §7 実機検証）。
+  const gate = fs.readFileSync(join(root, 'src/screens/battle/artsUseGate.ts'), 'utf8');
+  ok(/export function isArtsUseBlockedFor\(/.test(gate), 'アーツ使用ゲートが1関数に集約されている');
+  ok(/ARTS_LIMIT_1/.test(gate), "🔴`ARTS_LIMIT_1` を UI が読む（未消費 id へ戻っていない）");
   // ⚠**表示ゲートと実行ゲートの両方**で呼ぶ（片方だけだと「押せるのに無反応」か「UI 迂回で使える」）。
-  eq((src.match(/isArtsUseBlocked\(\)/g) ?? []).length, 2, '表示ゲートと実行ゲートの2箇所から呼ぶ');
+  ok(/isArtsUseBlockedFor\(my, payer\.blockedSelf\)/.test(gate), '表示ゲート（checkArtsUse）から呼ぶ');
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(/isArtsUseBlockedFor\(my, p\.blockedSelf\)/.test(src), '実行ゲート（performArts）から呼ぶ');
 });
 
 test('§6.4 O-10（続き510）: 相手ターンのアーツコスト軽減は1回だけ（負方向＋対照の対）', () => {

@@ -1,4 +1,4 @@
-import type { CardData, PlayerState } from '../../types';
+import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
 import {
   type ActiveCostMod,
@@ -136,7 +136,7 @@ export function buildArtsPayerCtx(p: {
   opponent: PlayerState;
   /** `actor` がターンプレイヤーか。 */
   isActorTurn: boolean;
-  turnPhase: string;
+  turnPhase: TurnPhase;
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
   /** 事前計算済みなら渡す（`calcContinuousBlockedActions` に流す）。 */
@@ -176,7 +176,7 @@ export interface ArtsUseGateInput {
   op: PlayerState;
   /** `my` がターンプレイヤーか。 */
   isMyTurn: boolean;
-  turnPhase: string;
+  turnPhase: TurnPhase;
   cards: CardData[];
   cardMap: Map<string, CardData>;
   effectsMap: Map<string, CardEffect[]>;
