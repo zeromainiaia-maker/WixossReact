@@ -5377,16 +5377,9 @@ function applyDistinctBatch5c(effects: CardEffect[], cardText: string): void {
     if (e.effectId === 'WD07-006-E1' && e.action.type === 'SEARCH' && e.action.then.type === 'TRASH') e.action.then.target.count = 3;
     if (e.effectId === 'WX20-002-E1' && e.action.type === 'ENERGY_CHARGE') e.action.target.filter = { ...(e.action.target.filter ?? {}), hasIcon:'アクセ' };
     if (e.effectId === 'WXEX2-41-E1' && e.action.type === 'PLACE_UNDER_SIGNI') e.action.count = 15;
-    if (e.effectId === 'WXDi-P02-031-E1' || e.effectId === 'WXDi-P13-034-E1') {
-      const replaceClassWithColor = (node: unknown): void => {
-        if (!node || typeof node !== 'object') return;
-        const obj = node as Record<string, unknown>;
-        const candidate = (obj.source ?? obj.target) as Record<string, unknown> | undefined;
-        if (candidate?.selectionConstraint) candidate.selectionConstraint = { sharedColor:'none' };
-        Object.values(obj).forEach(v => Array.isArray(v) ? v.forEach(replaceClassWithColor) : replaceClassWithColor(v));
-      };
-      replaceClassWithColor(e.action);
-    }
+    // ⚠旧 `replaceClassWithColor`（`WXDi-P02-031-E1`／`WXDi-P13-034-E1` の後付け置換）は撤去した＝
+    //   原文「それぞれ**共通する色を持たず**」から `kind='color'` が導かれ、`distinctConstraintOf` が
+    //   最初から `{sharedColor:'none'}` を置くので二度手間だった（表の値も `'color'` へ訂正済み）。
   }
 }
 
