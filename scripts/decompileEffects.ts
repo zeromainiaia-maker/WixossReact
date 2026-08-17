@@ -582,7 +582,12 @@ function condJa(c?: any): string {
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
     case 'COST_TRASHED_MATCHES': {
       // §3タスク6 C: 「このコストで<filter>を捨てた／トラッシュに置いた」
-      const cm = c as { filter?: TargetFilter; verbJa?: 'discard' | 'trash' };
+      const cm = c as { filter?: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number };
+      // minCount（§6.4 O-35）＝枚数閾値形「この方法でカードをN枚以上トラッシュに置いた」。
+      // filter が空＝カード種別を問わないので「シグニ」を付けない（付けると原文と別物になる）。
+      if (cm.minCount !== undefined) {
+        return `この方法で${filterJa(cm.filter)}カードを${numJa(cm.minCount)}枚以上トラッシュに置いた`;
+      }
       return `このコストで${filterJa(cm.filter)}${cm.filter?.cardType === 'スペル' ? 'スペル' : 'シグニ'}を${cm.verbJa === 'trash' ? 'トラッシュに置いた' : '捨てた'}`;
     }
     case 'ACTIVATED_DISCARD_COUNT_GTE': return `直前の起動コストで${numJa(c.value)}枚以上捨てた`;
