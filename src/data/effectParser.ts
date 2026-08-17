@@ -1300,7 +1300,11 @@ function parseActiveCondition(text: string): ConditionParseResult {
 
   // パターン3z: 「あなたの場に[色][＜クラス＞]のシグニが(N体)?あるかぎり、」（色/クラス指定の存在条件。WX03-038「赤のシグニがあるかぎり」）
   // 上の story/count/level 専用パターンに当たらない素の色・クラス存在条件を拾う（従来はキャッチオールで condition=undefined に落ちていた）。
-  const fieldColorStoryM = text.match(/^あなたの場に((?:[白赤青緑黒]の|＜[^＞]+＞(?:か)?)+)シグニが(?:([０-９\d]+)体)?あるかぎり、/);
+  // 🔴**＜クラス＞側が「の」を飲んでいなかった**（2026-08-18 実測）＝原文は「＜ウェポン＞**の**シグニ」なので
+  //   `＜[^＞]+＞(?:か)?` の直後に `シグニ` を要求するこの regex は**クラス指定形に一度も当たらなかった**
+  //   （`WX19-021-E1`／`WX19-023-E1` が**無条件で効果耐性＋パワー＋3000**）。色側は `[白赤青緑黒]の` と
+  //   「の」込みだったので当たっていた＝**片方だけ綴りが違う**典型。
+  const fieldColorStoryM = text.match(/^あなたの場に((?:[白赤青緑黒]の|＜[^＞]+＞(?:か|の)?)+)シグニが(?:([０-９\d]+)体)?あるかぎり、/);
   if (fieldColorStoryM) {
     const sub = fieldColorStoryM[1];
     const filter: TargetFilter = { cardType: 'シグニ', ...parseColorFilter(sub), ...parseStoryFilter(sub) };
