@@ -353,7 +353,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const upTo = /([０-９\d]+)枚まで/.test(t);
     // 🔴「**すべての**カード」＝枚数表記が無いので既定の `count:1` に落ち、**1枚だけ**になっていた
     //   （§6.4 O-35・続き528 実測＝`PR-470B-E2` はアタックのたびに相手エナ全損のはずが1枚）。
-    const allM = !cM && /すべての(?:カード|、)/.test(t);
+    // ⚠**「エナゾーンから」と「すべてのカード」の間に修飾が挟まる形は対象外**＝
+    //   「宣言した色ではない色を持つすべてのカード」（`WXEX1-07-E2`／`WXK09-037-E1`）は
+    //   その色限定が未表現なので、ALL にすると**相手のエナを全部飛ばす過剰**に化ける（A/B で実測）。
+    //   1枚（過少）のまま据置＝限定を表現できるようになってから広げる。
+    const allM = !cM && /エナゾーン(?:から|にある)すべてのカードをトラッシュに置く/.test(t);
     return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: allM ? 'ALL' : cM ? parseNum(cM[1]) : 1, ...(upTo ? { upToCount: true } : {}) } };
   }
   // ---- 自分エナゾーン→トラッシュ ----
