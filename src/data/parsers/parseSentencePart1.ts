@@ -2983,11 +2983,25 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const target: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const infectedOnly = t.includes('感染状態');
     const nextTurn = /次の(?:対戦相手の)?ターンの間/.test(t);
-    return {
+    const forced = {
       type: 'FORCE_SIGNI_ATTACK', targetOwner: target,
       ...(infectedOnly ? { infectedOnly: true } : {}),
       ...(nextTurn ? { duration: 'NEXT_TURN' as const } : {}),
     } as ForceSigniAttackAction;
+    // ---- 「〜、対戦相手はアーツとスペルと【起】能力を使用でき**ず**、シグニは可能ならばアタックしなければならない」----
+    // （§6.4 O-14(a)・`WX15-003-E3`）＝**1文に2機構**。🔴従来は後半の強制アタックだけが拾われ、
+    //   前半の使用不可が**丸ごと落ちていた**（申告済みの原文不一致）。
+    // ⚠既存の使用不可規則（`parseSentencePart3` の `BLOCK_OPP_ARTS_SPELL_ACT`）は
+    //   ①綴りが「使用できない」限定で連用中止の「使用できず」を取らない ②そもそもこの規則が先に当たるので
+    //   後段まで届かない＝**ここで畳む**のが唯一の合流点。
+    // ⚠期間は前半・後半で共有される（「次のターンの間、」が文頭の1つだけ）＝同じ `nextTurn` で分岐する。
+    if (/アーツとスペルと【起】能力を使用でき(?:ない|ず)/.test(t)) {
+      return { type: 'SEQUENCE', steps: [
+        { type: 'STUB', id: nextTurn ? 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN' : 'BLOCK_OPP_ARTS_SPELL_ACT' } as StubAction,
+        forced,
+      ] } as EffectAction;
+    }
+    return forced;
   }
 
   // ---- チャーム除去 ----
