@@ -115,7 +115,12 @@ const VOCAB: Vocab[] = [
   { key: 'isAwakened',       re: /覚醒状態の(シグニ|カード)/ },
   { key: 'isDrive',          re: /ドライブ状態/ },
   { key: 'crossState',       re: /クロス状態/ },
-  { key: 'isPuppet',         re: /傀儡状態の(シグニ|カード)/ },
+  // 傀儡は**専用キーが3つ**ある＝対象フィルタ `isPuppet` のほか、トリガー主語の
+  // `triggerCondition.placedPuppet`（「あなたの傀儡状態のシグニ1体が**場に出たとき**」`WDK17-001-E1`）と、
+  // コスト由来の条件 `COST_TRASHED_PUPPET`（「この能力のコストで傀儡状態のシグニをトラッシュに置いた場合」
+  // `WDK17-014-E1`）。どちらも実装済みなのでキー名照合だけだと配線済みの効果を miss と誤検出する。
+  { key: 'isPuppet',         re: /傀儡状態の(シグニ|カード)/,
+    jsonRe: /"isPuppet"\s*:|"placedPuppet"\s*:|"COST_TRASHED_PUPPET"/ },
 
   // --- 大クラスタ語彙（2026-08-07 続き376b 追加）---
   // ⚠上の「マイナーな真偽値フラグ」群と**性質が違う**＝原文にも live JSON にも大量にあり、
