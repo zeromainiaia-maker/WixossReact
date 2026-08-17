@@ -470,16 +470,6 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
-## +DRAW -STUB ［1枚］
-WXDi-P16-038
---- WXDi-P16-038
-  原文: 【出】手札を４枚まで捨てる：この方法で捨てたカードの枚数に１を加えた枚数のカードを引く。,-
-  - [0].action.id = "COUNT_BASED_DRAW_OR_POWER"
-  ~ [0].action.type : "STUB" → "DRAW"
-  + [0].action.owner = "self"
-  + [0].action.count = 1
-  + [0].action.addLastProcessedCount = true
-
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
 --- WXDi-CP01-042

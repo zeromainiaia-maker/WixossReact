@@ -1543,8 +1543,12 @@ export function parseSentencePart3(t: string): EffectAction | null {
     );
     if (desigCostM) {
       const spec = desigCostM[2];
+      // ⚠**カード種別は「シグニ」だけではない**＝`WX12-017-E1`「手札から**スペル**を１枚捨ててもよい」で
+      //   `cardType` が落ちると `filter:{}` になり**手札のどのカードでも払える**（過剰実行）。
+      //   「カード」は限定なし＝そのまま空でよい。
+      const specNoun = /シグニ/.test(spec) ? 'シグニ' as const : /スペル/.test(spec) ? 'スペル' as const : null;
       const filter: TargetFilter = {
-        ...(/シグニ/.test(spec) ? { cardType: 'シグニ' as const } : {}),
+        ...(specNoun ? { cardType: specNoun } : {}),
         ...parseColorFilter(spec), ...parseStoryFilter(spec), ...parseLevelFilter(spec),
         ...(/《ガードアイコン》を持つ/.test(spec) ? { hasGuard: true } : {}),
       };
