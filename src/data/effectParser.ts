@@ -9568,7 +9568,7 @@ function parseActionTextInner(text: string): EffectAction {
       {
         const pickUpToM = nextS.match(/^その中からカードを([０-９\d]+)枚まで手札に加え、残りを好きな順番でデッキの一番(上|下)に(?:置く|戻す)/);
         if (pickUpToM) {
-          return {
+          const rp: RevealAndPickAction = {
             type: 'REVEAL_AND_PICK',
             owner: 'self',
             revealCount: parseNum(cM[1]),
@@ -9577,6 +9577,23 @@ function parseActionTextInner(text: string): EffectAction {
             then: { type: 'ADD_TO_HAND', owner: 'self' },
             remainder: { location: 'deck', position: pickUpToM[2] === '下' ? 'bottom' : 'top' },
           } as RevealAndPickAction;
+          // 🔴**この早期 return は sentences[0..1] しか消費しない**＝3文目以降が丸ごと無言で落ちていた
+          //   （§6.4 O-11・`SPDi43-26-E2` は「その後、対戦相手のシグニ１体を対象とし、手札から
+          //    《ガードアイコン》を持つシグニを１枚捨ててもよい。そうした場合、それを手札に戻す」が消えていた）。
+          //   ⚠**一律に足すのは不可**＝この文型の後続文は多くが公開札を条件にする**排他分岐**で、
+          //     無条件に並べると全部走る過剰効果になる（9932 付近の同じ教訓）。
+          //   🔑「その後、」で始まる＝**明示的に逐次**と書いてある続きだけを、まとめて1つの木に解いて足す
+          //     （`parseActionText` に渡すのは「そうした場合、」ゲートを跨いで解かせるため。1文ずつ足すと
+          //      任意コストの支払いゲートが外れて帰結だけが無条件に走る）。
+          const seqTail = sentences.slice(2).map(s => s.trim()).filter(Boolean);
+          if (seqTail.length > 0 && /^その後、/.test(seqTail[0])
+              && !seqTail.some(s => /(?:場合|とき|かぎり|代わりに)/.test(s.replace(/^そうした場合、/, '')))) {
+            const tailAction = parseActionText(seqTail.join(''));
+            if (tailAction.type !== 'UNKNOWN' && !JSON.stringify(tailAction).includes('"UNKNOWN"')) {
+              return { type: 'SEQUENCE', steps: [rp, tailAction] } as SequenceAction;
+            }
+          }
+          return rp;
         }
       }
       // ---- その中から〔filter〕N枚(まで)(公開し)手札に加え、（カード）N枚をデッキの一番上に戻し、残りをデッキの一番下 ----
