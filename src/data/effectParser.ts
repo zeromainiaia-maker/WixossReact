@@ -8441,7 +8441,41 @@ function parseActionText(text: string): EffectAction {
     }
     return node;
   };
-  return pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+  const pruned = pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
+  return restoreQuotedLrigDamageReplaceGrant(text, pruned);
+}
+
+/**
+ * 「（次の対戦相手のターン終了時まで、）このルリグは「【常】：あなたがダメージを受ける場合、代わりに
+ *  〈コスト〉を支払ってもよい。（そうした場合、このルリグはこの能力を失う。）」を得る。」
+ * （§6.4 O-37(a)・続き543・`WX25-P1-014`／`SPDi44-12`／`WX24-P4-021`）を付与ノードへ戻す。
+ *
+ * 🔴従来は上の「引用漏出」安全網に落ちて `STUB{GRANT_ABILITY_INNER_TEXT}` ＝**付与ごと消えていた**
+ *   （引用内の「捨てる」「支払う」「能力を失う」が裸の即時アクションとして漏れるため）。
+ * 🔑**安全網の後ろで STUB ノードだけを差し替える**＝`parseBase` の前段に置くと、同居する
+ *   `RECOLLECT_GATE`（`WX24-P4-021-E3` の《リコレクトアイコン》［４枚以上］）まで消える（実測）。
+ * 中身（`abilities`）は空のままにして `expandGrantLrigAbilities` → `quotedSpecialFormAbility` に埋めさせる
+ *   ＝『』引用の3枚（`WX24-P3-005` 等）と**同じ1本の規則**を通す。
+ */
+function restoreQuotedLrigDamageReplaceGrant(text: string, parsed: EffectAction): EffectAction {
+  const quoted = text.match(/このルリグは[「『](.+?)[」』]を得る/);
+  if (!quoted || !/あなたがダメージを受ける場合、代わりに/.test(quoted[1])) return parsed;
+  const grant: EffectAction = {
+    type: 'GRANT_LRIG_ABILITY',
+    abilities: [],
+    rawText: quoted[1],
+    duration: /次の対戦相手のターン終了時まで/.test(text) ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN',
+  } as GrantLrigAbilityAction;
+  const swap = (node: EffectAction): EffectAction => {
+    if (node.type === 'STUB' && (node as StubAction).id === 'GRANT_ABILITY_INNER_TEXT') return grant;
+    if (node.type === 'SEQUENCE') return { ...node, steps: (node as SequenceAction).steps.map(swap) };
+    if (node.type === 'CONDITIONAL') {
+      const c = node as import('../types/effects').ConditionalAction;
+      return { ...c, then: swap(c.then), ...(c.else ? { else: swap(c.else) } : {}) };
+    }
+    return node;
+  };
+  return swap(parsed);
 }
 
 /**
