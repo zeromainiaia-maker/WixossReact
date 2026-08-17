@@ -14063,7 +14063,7 @@ function expandGrantEffectRawTexts(action: EffectAction, cardNum: string): boole
       if (ge.rawText && !ge.effect) {
         const cleanRaw = ge.rawText.replace(/^[『「]/, '').replace(/[』」]$/, '');
         // 🆕**表せない引用は「宣言済みの穴」へ落とす**（§6.4 O-25(c)・2026-08-17。O-37 の
-        //   `deferredQuotedAbility` と同じ方針）＝据置（rawText のまま PARTIAL）にすると engine の
+        //   `quotedSpecialFormAbility` の defer 枝と同じ方針）＝据置（rawText のまま PARTIAL）にすると engine の
         //   `GRANT_QUOTED_AUTO_ABILITY` ハンドラが**カード全文 regex で拾おうとして黙って何もしない**
         //   ＝`census:stubs` にも映らない**無言 no-op** になる（`SPDi43-05-E2` が実際にそうだった）。
         // ⚠**実装したことにしない**＝この形は1効果に機構4本が要る（PLAN §6.4 O-25(c) に列挙）：
