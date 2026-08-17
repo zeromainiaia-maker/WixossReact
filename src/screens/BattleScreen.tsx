@@ -42,7 +42,7 @@ interface Props {
   onBack: () => void;
 }
 
-import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
+import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction } from '../engine/triggerCollect';
 import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
@@ -125,6 +125,7 @@ import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrash
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
 import { pickCpuSigniActivated } from './battle/cpuActivate';
+import { listActivatableLrigEffects } from './battle/lrigActivateGate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
@@ -13466,29 +13467,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const lrigActionsMA: CardAction[] = [];
 
       // センタールリグ本来のACTIVATED効果（SONG_FRAGMENT等）
-      if (lrigTopMA && !isLrigActBlocked()) {
-        const lrigEffsMA = collectCenterLrigActivatedEffects(my, effectsMap, 'MAIN');
-        for (const eff of lrigEffsMA) {
-          // 【絆起】は発生源カード名との絆を獲得していなければ発動できない
-          if (eff.kizunaIcon && !isKizunaActive(my, lrigTopMA, battleCardMap)) continue;
-          // ルリグの【起】効果は基本何度でも使用可（ターン1回アイコンを持つ場合のみ usageLimit で制限）。
-          // 他パス（シグニ/付与/キー）と同様に usageLimit 基準で判定する。
-          // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになるので出さない（§6.4 O-11）。
-          if (eff.costUnparsed) continue;
-          if (!canPayExileLrigFromLrigDeck(eff)) continue;   // ルリグデッキ除外コスト（PR-469）
-          if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
-          if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
-          if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
-          if (my.blocked_actions?.includes(eff.effectId)) continue;
-          // lrigDown: アップ状態のルリグ（level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
-          if (eff.cost?.lrigDown && payLrigDownCost(my, eff.cost.lrigDown, battleCardMap) === null) continue;
-          if (isLrigDownSelfUnpayable(eff)) continue;   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
-          // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
+      // ⚠**判定は `lrigActivateGate.listActivatableLrigEffects` 1本**（§8 `O-1` (c)）＝
+      //   封じ／【絆起】／`costUnparsed`／ルリグデッキ除外／usageLimit／コイン／エクシード／
+      //   `lrigDown`／《ダウン》／【歌のカケラ】／使用条件をそこで見る。CPU も同じ関数を呼ぶ。
+      if (lrigTopMA) {
+        for (const eff of listActivatableLrigEffects({
+          my, op, phase: 'MAIN', effectsMap, cardMap: battleCardMap,
+          blockedSelf: contBlocked.forSelf, effectivePowers,
+        })) {
           const actMA = eff.action as import('../types/effects').StubAction;
-          if (actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT') {
-            const hasSongCardMA = my.energy.some(cn => battleCardMap.get(cn)?.EffectText?.includes('【歌のカケラ】'));
-            if (!hasSongCardMA) continue;
-          }
           const isSongFrag = actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT';
           const energyTotalMA = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
           const exceedCostMA = eff.cost?.exceed ?? 0;
@@ -13623,16 +13610,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return parts.join('・') || 'コストなし';
       };
       // センタールリグ本来のACTIVATED効果（timing ATTACK_ARTS）
-      if (lrigTopAA && !isLrigActBlocked()) {
-        for (const eff of collectCenterLrigActivatedEffects(my, effectsMap, 'ATTACK_ARTS')) {
-          // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになるので出さない（§6.4 O-11）。
-          if (eff.costUnparsed) continue;
-          if (!canPayExileLrigFromLrigDeck(eff)) continue;   // ルリグデッキ除外コスト（PR-469）
-          if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
-          if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
-          if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
-          if (my.blocked_actions?.includes(eff.effectId)) continue;
-          if (isLrigDownSelfUnpayable(eff)) continue;   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
+      // ⚠MAIN 窓と**同じ1本**を通す（§8 `O-1` (c)）＝従来この窓は【絆起】・【歌のカケラ】・
+      //   `lrigDown`・使用条件を見ておらず、軸が食い違っていた。
+      if (lrigTopAA) {
+        for (const eff of listActivatableLrigEffects({
+          my, op, phase: 'ATTACK_ARTS', effectsMap, cardMap: battleCardMap,
+          blockedSelf: contBlocked.forSelf, effectivePowers,
+        })) {
           lrigActionsAA.push({
             label: `【起】${buildCostLabelAA(eff)}`,
             color: C.coin,

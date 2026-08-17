@@ -67,7 +67,7 @@ export function exceedPayableCount(my: PlayerState): number {
 export function canActivateLrigEffect(
   eff: CardEffect, p: LrigActivateGateInput, sourceCardNum: string,
 ): boolean {
-  const { my, op, phase, effectsMap, cardMap } = p;
+  const { my, op, phase, cardMap } = p;
   const isActionBlocked = (id: string) =>
     (my.blocked_actions?.some(a => a === id) ?? false) || p.blockedSelf.has(id);
   // 「対戦相手はルリグの【起】能力を使用できない」（`USE_LRIG_ACT`）＋全【起】封じ（`USE_ACT`）。
