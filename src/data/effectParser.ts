@@ -468,7 +468,11 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.handDiscardSigni = hdsObj;
   }
   // このシグニを場からトラッシュに置く（単独、または「このシグニと《XXX》」形式）→ trash_self
-  if (/このシグニを(?:場から)?トラッシュに置く/.test(costStr) || /このシグニと《[^》]+》[０-９\d]*体を場からトラッシュに置く/.test(costStr)) cost.trash_self = true;
+  // ⚠**連用形「置き、」も受ける**（§6.4 O-26・続き535）＝「【起】**このシグニを場からトラッシュに置き、**
+  //   エナゾーンから＜X＞のシグニN枚をトラッシュに置く：」のように**複合コストの前半**に来る形が
+  //   終止形しか見ておらず落ちていた＝`cost` がエナ側だけになり**自己トラッシュを踏み倒して撃てた**
+  //   （`WX25-P3-100-E1`／`WXDi-CP02-099-E1`）。直下の `trash_key` は最初から両形を受けている（同じ軸）。
+  if (/このシグニを(?:場から)?トラッシュに置[くき]/.test(costStr) || /このシグニと《[^》]+》[０-９\d]*体を場からトラッシュに置く/.test(costStr)) cost.trash_self = true;
   // このキーを場からルリグトラッシュに置く（単独 or 複合「置き」形も含む） → trash_key
   if (/このキーを(?:場から)?ルリグトラッシュに置く/.test(costStr) || /このキーを(?:場から)?ルリグトラッシュに置き/.test(costStr)) cost.trash_key = true;
   // 手札からこのカードを捨てる → discardSelfFromHand（「捨てる：」終止形と「捨て、…を取り除く：」複合コストの連用形両対応）
