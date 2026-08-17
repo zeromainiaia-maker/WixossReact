@@ -1787,9 +1787,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- 自分手札を捨てる（任意含む）----
-  const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚?捨てる(?:もよい)?$/);
+  // 🔴「手札をN枚**まで**捨てる」は綴りが無く UNKNOWN に落ちていた（§6.4 O-35・続き528）＝
+  //   `WX25-P3-005-E1` は前段の DRAW だけが残って**捨てる節が丸ごと消え**、後段の「この方法で捨てた
+  //   カード１枚につき」も 0 枚基準になっていた。正準形は続き522 と同じ `upToCount`（engine 実装済み）。
+  const selfDiscardM = t.match(/^(?:あなたは)?手札を([０-９\d]+)枚?(まで)?捨てる(?:もよい)?$/);
   if (selfDiscardM) {
-    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]) } };
+    return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: parseNum(selfDiscardM[1]), ...(selfDiscardM[2] ? { upToCount: true } : {}) } };
   }
   // ---- 「（…を対象とし、）手札をN枚捨ててもよい」（任意）----
   // 「てもよい」＝任意。「そうした場合、それを<除去>」の did-it ゲートと組む任意コストで、optional を落とすと

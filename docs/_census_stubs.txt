@@ -25,7 +25,7 @@ live JSON の STUB id 種類 : 600（総ノード 2872 件）
         生成: src\data\parsers\parseSentencePart4.ts:1903
      1件   1枚  DEFERRED_TRASH_NAME_CHOOSE_COUNT  [生ID露出 1]
         カード: WX20-078
-        生成: src\data\parsers\parseSentencePart3.ts:1777
+        生成: src\data\parsers\parseSentencePart3.ts:1786
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
