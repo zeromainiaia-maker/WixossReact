@@ -3291,6 +3291,19 @@ function rewriteNextOppTurnEndBody(action: EffectAction, text: string): EffectAc
     return { type: 'DELAY_TO_NEXT_OPP_TURN_END',
       action: { type: 'RETURN_FACEDOWN_LRIG_ZONE_TO_HAND' } as EffectAction } as EffectAction;
   }
+  // 🆕**「そのターンにアタックしていたすべてのシグニをバニッシュする」**（§6.4 O-14(b)・`WXDi-P08-010-E3`）。
+  //   ⚠ここでの「その」は**カードの照応ではなくターンの照応**＝予約が発火する**そのターン**そのものなので、
+  //     発火時の state だけで解ける（下の `^その` ガードの例外）。`attackedThisTurn` は各 state の
+  //     `attacked_signi_ids` を読む＝**アタックした側にしか載らない**ので `owner:'any'` のままで
+  //     「そのターンにアタックしていた」だけが候補になる（＝自分のシグニは巻き込まない）。
+  //   ⚠`attacked_signi_ids` のリセットは ON_TURN_END の解決**より後**（END フェイズの後始末）なので、
+  //     予約の発火時点ではまだ残っている（人間経路 `doPhaseAdvance`／CPU 経路とも順序を確認済み）。
+  if (/^そのターンにアタックしていたすべてのシグニをバニッシュする$/.test(body)) {
+    return { type: 'DELAY_TO_NEXT_OPP_TURN_END', action: {
+      type: 'BANISH',
+      target: { type: 'SIGNI', owner: 'any', count: 'ALL', filter: { cardType: 'シグニ', attackedThisTurn: true } },
+    } as EffectAction } as EffectAction;
+  }
   // ⚠**「そのカード」「それら」＝遅延を跨いだ照応は予約できない**（予約が運ぶのは action だけで
   //   参照先を束縛しない）。単独文として読むと別物に化ける＝`WXDi-P09-066-E1` の
   //   「そのカードを手札に加える」（＝裏向きでルリグゾーンに置いたカード）は
