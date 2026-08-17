@@ -1003,6 +1003,16 @@ export function parseSentencePart2(t: string): EffectAction | null {
   if (t.match(/このターン.*あなたは対戦相手のルリグによってダメージを受けない/)) {
     return { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'LRIG' } as PreventDamageAction;
   }
+  // ---- 期間句を持たない裸の形＝**【常】の宣言**（§6.4 O-27・続き536）----
+  // 「【常】：〈条件〉であるかぎり、あなたは対戦相手のルリグによってダメージを受けない。」の本体。
+  // 🔑期間つき（上2つ）は `PREVENT_DAMAGE` ウィンドウだが、**【常】は宣言 STUB**（`PREVENT_LRIG_DAMAGE`）
+  //   ＝`resolveLrigDamageShield` が毎回 `activeCondition` を評価し直す軸に載せる（回数無制限）。
+  //   ⚠ここでウィンドウ側（`PREVENT_DAMAGE`）を返すと**条件が落ちて張りっぱなし**になる。
+  // ⚠**完全一致アンカー**にする＝「次の対戦相手のターンの間、」「次のあなたのメインフェイズまで、」等の
+  //   期間句つきは別規則の領分（`WX26-CP1-007-E1`／`WXK01-002-E2`）。前置きを許すと横取りする。
+  if (/^あなたは対戦相手のルリグによってダメージを受けない。?$/.test(t.trim())) {
+    return { type: 'STUB', id: 'PREVENT_LRIG_DAMAGE' } as StubAction;
+  }
 
   // ---- 対戦相手のエナゾーンのカードがマルチエナを失う ----
   if (t.match(/対戦相手のエナゾーンにあるカードは【マルチエナ】を失う/)) {
