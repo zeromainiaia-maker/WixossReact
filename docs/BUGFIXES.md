@@ -1,5 +1,50 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き541・Opus 5）— 🏁§6.4 `O-25` 完了（自己引用付与の残り (c)(d)）
+
+**live 11効果/11カードの挙動是正＋engine 側で 6効果**（CSV 非改変）。ゲート全緑・golden 2203→**2210**・census 806→**800**。詳細台帳は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-17 整理㉘」、実機の観測点は PLAN §7 `V-61`／`V-62`。
+
+### 📏 まず在庫を実測したら、簿記の見立てが外れていた
+
+原文 regex「〈期間〉、この(シグニ|ルリグ|カード)は「【常】…」を得る」を効果単位で走査＝**36ヒット/35カード**（簿記は「39効果」）。**大半は既に実装済み**（期間つき即時適用で実際に効いている）で、⭐**PLAN が (d) の本体と書いていた「CONTINUOUS の走査軸が付与ストアを読んでいない」も、この母集団では主症状ではなかった**（それは `GRANT_LRIG_ABILITY`＝ルリグ側の話。シグニ側の `granted_effects` は `collectContinuousGrantedKeywords`→`getSigniAttackKeywordState` まで既に通っている）。実際に壊れていたのは**別の3クラス・計14効果**で、いずれも**条件節が落ちて無条件発火する過剰実行**。⚠3セッション連続で同じ教訓（着手前に台帳を実データで検証する）。
+
+### ①🔴 引用付与のゲート条件が1形しか読めず、常時発動していた（6効果）
+
+`buildFrontPowerGatedKeywordGrant` は「**正面のシグニのパワーが**N{以上|以下}であるかぎり」1形だけを読み、他の綴りは `null` を返す。呼び出し元は `null` のとき**無条件の `keyword_grants`** へフォールバックするので、ゲートが丸ごと落ちる。engine 実行で実測：`WXDi-P12-078-E2`／`WXDi-P13-079-E1`＝常時【ランサー】、`WXDi-P13-069-E2`＝常時【アサシン】、`WX24-P1-042-E2`＝常時【ダブルクラッシュ】、`WXDi-P06-032-E2`／`WXDi-P13-044-E2`＝常時【シャドウ】。
+
+⇒ **`buildGatedKeywordGrant` へ改名し5形へ拡張**（`FRONT_SIGNI_POWER` ／ `FRONT_SIGNI{level}` ／ `AND[FRONT_SIGNI{isFrozen}, FRONT_SIGNI_POWER]` ／ `COUNT_THRESHOLD{hand}` ／ `TURN_OWNER`）。**新しい `ActiveCondition` は1つも要らなかった**。
+- ⚠**パワーとレベル／状態は評価器が別**＝「凍結状態でパワーがN以下」は **`AND` で2本に割る**（`FRONT_SIGNI{powerRange}` にまとめると `matchesFilter` が**表記パワー**で判定してバフ／デバフを無視する）。
+- ⚠比較語の無い「レベル１であるかぎり」は**丁度N**（`{max:N}` に倒すと過剰）。ゲートが読めなければ従来どおり `null`＝退化させない。
+
+### ②🔴 条件を付けた瞬間に走査軸から外れる（シャドウ）＝これが本当の「走査軸」問題
+
+【シャドウ】だけは、条件つきにして `granted_effects` へ移すと**効かなくなる**。`selectOrInteract` のシャドウ除外が読んでいたのは **`keyword_grants` ＋ カードの印字 `effects` ＋ 場全体付与**の3軸だけで、**付与ストアが入っていなかった**。⇒ `condShadowSources` に `granted_effects` / `granted_effects_until_opp_turn` を追加。🔑**足さないと「常時シャドウ（過剰）」が「シャドウが一切効かない（過少）」へ裏返る**＝近似を外すときは、外した先の走査軸が本当にそこを読むかを**実行して**確かめる。
+
+### ③🔴「そのアタックがこのターンN度目の場合」が条件節ごと落ちていた（7効果）
+
+新条件 **`ATTACK_ORDINAL_THIS_TURN{owner, operator, value}`**。🔑**序数はシグニ単位ではなくアタックしたプレイヤーのターン内通算**（`attacked_signi_ids.length`＋ルリグアタック済み分。シグニは通常1回しかアタックできないので「四度目」は盤面全体の通算でしか成立しない）で、⚠**解決中のアタック自身を含む**（`BattleScreen` は追記後の `newMyState` で `ON_ATTACK_SIGNI` を収集する）。
+
+母集団＝`WXK06-033/035-E1`（🔴**アタックのたびに自分をアップ**＝実質もう1回アタックできる／原文は四度目のみ＝**差が一番大きい**）、`WXK06-037/038/062-E1`・`WXDi-P14-052-E1`（毎アタックで引き／エナチャージ／手札戻し）、`WXDi-P16-063-E1`（**一度目と二度目の排他分岐が両方走る**）。⚠**「一度目か二度目」は拾わない**（`WX10-018`／`WX17-006`／`SP27-016`＝`negateNthAttack` のカウントダウン窓が既に実装済み）＝regex を「N度目の場合」に限定し、golden に「奪っていない」トリップワイヤを置いた。
+
+### ④🔴「このシグニに【チャーム】が付いている場合」が落ち、しかも別物に化けていた
+
+新条件 **`THIS_CARD_IS_CHARMED`**（`ActiveCondition` の `IS_SELF_CHARMED` と同型・同実装。`THIS_CARD_HAS_ATTACHED`＝チャーム/アクセ/ソウルの合計とは別物）。
+- 🔴`WXK07-043-E1`＝**条件節の「【チャーム】」を付与キーワードとして拾って** `GRANT_KEYWORD{keyword:'チャーム'}`＝**原文と無関係な別物**（本体のバニッシュ耐性も条件も消失）。
+- 🔴`WXK07-043-E2`＝「**追加で**カードを1枚引く」が無条件／🔴`WXK07-071-E1`＝無条件で《緑》支払いの選択が出る。
+- 🔴`WXK07-044-E1`（MANUAL・手書き）＝**チャーム分岐が丸ごと欠落**で弱い枝（パワー7000ちょうど）しか撃てなかった。⚠「代わりに」＝**排他**なので `then`/`else`（SEQUENCE にすると両方バニッシュする過剰）。`syncManualLive.ts` で live へ同期。
+
+### ⑤ (c) `SPDi43-05-E2` は**宣言済みの穴**にした（実装したことにしない）
+
+🔴旧状態は「真 no-op」ですらなく**無言の no-op**＝live は `STUB{GRANT_QUOTED_AUTO_ABILITY}` で、そのハンドラは**カード全文 regex で拾おうとして黙って何もしない**。ハンドラが在るので `census:stubs` では「実装済み」に見えて計器に映らなかった（CLAUDE.md の「STUB＝未実装ではない」の実例）。⇒ **`STUB{DEFERRED_ATTACKER_LEVEL_TRADE_NEGATE}`** へ落として明示 defer に載せた（O-37 と同じ方針）。**実装に要る機構4本**は PLAN_DETAIL に列挙。🔴**②「ソース側の場∪エナ横断選択」が engine のどこにも無い**のが唯一の実ブロッカー（`wrapFieldOrEnergy` は行き先側で向きが逆、`TRADE_BANISH_SELF_SIGNI` も `field.signi` しか読まない近似）。
+
+### ⑥ 既存 golden の順序依存を1本是正（副産物）
+
+`(xlvi) wave17 WXDi-P15-005-E1` は埋め札を `fill(4)`（POOL の **cursor 位置**から取る）で作っており、live JSON が変わると**埋め札がたまたま赤**になって「共通色だけ候補」が落ちる（実測＝`WXK08-074`〜`077` が混入）。ファイル冒頭の「cursor 依存の既知の結合」注記の実体がこれ。⇒ **性質（赤を持たない）で選ぶ**形へ是正＝§7 📌 の「回数・順序を固定しない」と同趣旨。
+
+### ゲート
+
+golden **2210**（+7）。🔑**5本とも「実装を戻すと赤くなる」ことを live JSON と `buildGatedKeywordGrant` を一時 revert して実測**（`FAIL 5`）してから復帰。census **806→800**（`BASELINE_HIGH` 更新）、smoke 10693 / SKIP 0、fuzz 全0、`census:stubs` A群＝**7種/8件（すべて明示 defer。無言 no-op は 0）**、manual-fields 0、lint 0 errors。live JSON changed **11効果/11カード**（ゲート条件の6効果は live 非改変＝engine 側の是正）。
+
 ## 2026-08-17（続き540・Opus 5）— §6.4 `O-14`（申告済みの原文不一致2件）と `O-15`（手札からの選択機構）を消化
 
 **live 4効果/4カードの挙動是正**（CSV 非改変）。ゲート全緑・golden 2200→**2203**。詳細台帳は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-17 整理㉗」、実機の観測点は PLAN §7 `V-59`／`V-60`。
