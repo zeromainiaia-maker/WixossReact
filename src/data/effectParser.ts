@@ -4336,7 +4336,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
   // 🔑安全条件＝①先頭のエナチャージが現行結果に出ている（＝ショートハンドが食った証拠）
   //   ②後続節を単独 parse した全ステップが UNKNOWN/STUB でない ③そのうち1つ以上が現行結果に無い型。
   //   照応（「それ」「その」）を含む後続節は単独 parse で参照先を失うので触らない。
-  const leadEcM = t.match(/^(?:その後、)?【エナチャ[ー―‐−-]ジ[０-９\d]+】をし、(.+)$/);
+  const leadEcM = t.match(/^(?:その後、)?(?:カードを[０-９\d]+枚引き、?)?【エナチャ[ー―‐−-]ジ[０-９\d]+】をし、(.+)$/);
   if (leadEcM && result.type !== 'UNKNOWN' && !/^(?:それ|その)/.test(leadEcM[1])) {
     const steps0 = result.type === 'SEQUENCE' ? (result as SequenceAction).steps : [result];
     const haveEc = collectActionTypeSet(result);
