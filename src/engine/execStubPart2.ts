@@ -16,7 +16,7 @@ import {
   canPayOptionalCost,
   hasNoAbility,
   designatedZones,
-  buildFrontPowerGatedKeywordGrant,
+  buildGatedKeywordGrant,
   sourceAbilityText,
 } from './execUtils';
 import { allAcceCards, countAcce } from '../utils/acce';
@@ -4626,7 +4626,7 @@ export function execStubPart2(
       if (!kwSGQCA) return done(addLog(ctx, '[SIGNI_GRANT_QUOTED_CONSTANT_ABILITY: キーワード解析不可]'));
       // ⚠引用の内側が「正面のシグニのパワーがN以上であるかぎり」型なら条件つき CONTINUOUS として
       //   `granted_effects` へ（`keyword_grants` は条件を持てず**常時発動**になる。タスク12(cxiv)）。
-      const gatedSGQCA = buildFrontPowerGatedKeywordGrant(txtSGQCA, kwSGQCA);
+      const gatedSGQCA = buildGatedKeywordGrant(txtSGQCA, kwSGQCA);
       if (gatedSGQCA) {
         const grantedMapSG = { ...(ctx.ownerState.granted_effects ?? {}) };
         for (const cn of ctx.lastProcessedCards) grantedMapSG[cn] = [...(grantedMapSG[cn] ?? []), gatedSGQCA];

@@ -12,7 +12,7 @@ import {
   createTokenInstanceId, resolveTokenBase, banishDestination, banishRedirectOpts,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels,
   payBeatSigniCost, payBeatSigniFromTrashCost,
-  isOwnTrashMoveLocked, buildFrontPowerGatedKeywordGrant,
+  isOwnTrashMoveLocked, buildGatedKeywordGrant,
   sourceAbilityText, fieldCandidatesByOwner, sideOfFieldCard, lrigZoneTops,
 } from './execUtils';
 import { cloneAcceSlots } from '../utils/acce';
@@ -1252,13 +1252,13 @@ export function execStubPart1(
     //   `granted_effects` へ条件つき CONTINUOUS として置き、毎フレーム正面パワーで評価させる。
     if (grantedKws.length > 0 && targetCardNums.length > 0) {
       const gatedGQ = grantedKws
-        .map(kw => buildFrontPowerGatedKeywordGrant(quotedText, kw))
+        .map(kw => buildGatedKeywordGrant(quotedText, kw))
         .filter((e): e is import('../types/effects').CardEffect => e !== null);
       if (gatedGQ.length > 0) {
         const grantedMapGQ = { ...(ctx.ownerState.granted_effects ?? {}) };
         for (const cn of targetCardNums) grantedMapGQ[cn] = [...(grantedMapGQ[cn] ?? []), ...gatedGQ];
         return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGQ } },
-          `${grantedKws.join('・')}を条件つきで付与（${targetCardNums.length}体・正面のパワー条件つき）`));
+          `${grantedKws.join('・')}を条件つきで付与（${targetCardNums.length}体・${gatedGQ[0]?.activeCondition?.type ?? '条件'}）`));
       }
     }
 
