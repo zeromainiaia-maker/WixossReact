@@ -1270,9 +1270,20 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対戦相手のシグニを好きな数対象とし.*それらのパワーを合計で[＋－][０-９\d０-９]+する/))
     return { type: 'STUB', id: 'POWER_MOD_PER_COUNT' } as StubAction;
 
-  // ---- あなたのデッキの一番下のカードをトラッシュに置く ----
-  if (t.match(/^あなたのデッキの一番下のカードをトラッシュに置く$/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+  // ---- あなたのデッキの一番下のカードをN枚トラッシュに置く（§6.4 O-11）----
+  // 🔴従来は catch-all の `CONDITIONAL_POWER_BONUS`＝**丸ごと無言 no-op**で、
+  //   後続の「それが〈条件〉の場合、〜」だけが（条件も落ちたまま）無条件に走っていた
+  //   （`WXK03-040-E1`＝ミルせずに**トラッシュの任意のレベル１シグニ**を場に出す／
+  //     `WXDi-CP01-033-E1`＝ミルせずに**無条件で＋5000**）。
+  // 🔑正準形 `MILL{fromBottom:true}` は**最初から在った**（`PR-K049`／`WXK02-055` が使っている）＝
+  //   足りなかったのはこの1規則だけ。`execMill` が `lastProcessedCards` にミル札を残すので
+  //   後続の「それが〜の場合」（`LAST_PROCESSED_*`）がそのまま繋がる。
+  {
+    const bottomMillM = t.match(/^あなたのデッキの一番下の(?:カードを|カード)([０-９\d]+)?枚?トラッシュに置く$/);
+    if (bottomMillM) {
+      return { type: 'MILL', owner: 'self', count: bottomMillM[1] ? parseNum(bottomMillM[1]) : 1, fromBottom: true } as EffectAction;
+    }
+  }
 
   // ---- この方法でカードをN枚以上トラッシュに置いた場合 ----
   if (t.match(/この方法でカードを[１-９\d０-９]+枚以上トラッシュに置いた場合/))
