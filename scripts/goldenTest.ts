@@ -38037,6 +38037,84 @@ test('§6.4 O-35: 「追加で」節のゾーン照応が復元される（WDK10
   eq(JSON.stringify(then.source.filter), JSON.stringify({ cardType: 'シグニ', color: '黒' }), '黒のシグニ限定');
 });
 
+
+
+// ── §6.4 O-36 続き534：「(あなた|対戦相手)のターンの場合」の allowlist 解体 ───────────────
+// 🔴従来は `STATE_HOIST_BATCH1_CARDS`（25カード）の中でしか条件が持ち上がらず、**allowlist 外の
+//   23効果は条件が丸ごと落ちてターンを問わず発火**していた。allowlist を撤廃したので、
+//   ここでは「代表的な形が全部そろって条件を持っている」ことを契約として固定する。
+test('§6.4 O-36: ターン条件の持ち上げが allowlist 無しで全カードに効く', () => {
+  const turnCond = (a: unknown): Condition | undefined => {
+    const c = (a as { condition?: Condition })?.condition;
+    return c?.type === 'TURN_OWNER' ? c : undefined;
+  };
+  // (a) 文頭形（【出】：あなたのターンの場合、…）＝旧 allowlist 外
+  const k50 = (effectsMap.get('WXK03-050') ?? []).find(x => x.effectId === 'WXK03-050-E1')!;
+  eq(turnCond(k50.action)?.owner, 'self', '🔴文頭「あなたのターンの場合、」が落ちている');
+  // (b) 「〜対象とし、」の直後形（トリガー句が前置きに残る）
+  const k67 = (effectsMap.get('WXK01-067') ?? []).find(x => x.effectId === 'WXK01-067-E1')!;
+  eq(turnCond(k67.action)?.owner, 'self', '🔴「対象とし、」直後のターン条件が落ちている');
+  // (c) 任意コスト STUB の「包み形」＝engine の OPT_IDS_WRAP が解体して Pattern ④/⑤ へ委譲する形
+  const d82 = (effectsMap.get('WXDi-P02-082') ?? []).find(x => x.effectId === 'WXDi-P02-082-E1')!;
+  const s0 = (d82.action as SequenceAction).steps[0];
+  eq(turnCond(s0)?.owner, 'self', '🔴任意コストの包み形にターン条件が無い＝相手ターンでも払える');
+  eq(((s0 as { then?: StubAction }).then)?.id, 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', '包みの中身は任意コスト STUB');
+  // (d) CHOOSE の選択肢条件（execChoose が available を決める）
+  const k13 = (effectsMap.get('WXK10-013') ?? []).find(x => x.effectId === 'WXK10-013-E1')!;
+  const ch13 = (k13.action as import('../src/types/effects').ChooseAction).choices[0];
+  eq(ch13.condition?.type, 'TURN_OWNER', '🔴選択肢①のターン条件が落ちている');
+  eq((ch13.condition as Extract<Condition, { type: 'TURN_OWNER' }>).owner, 'opponent', '相手ターン限定');
+  // (e) MANUAL 刻印で収穫マージが触れない4効果（外科パッチ済み＝戻ると無言で過剰発火に戻る）
+  for (const [card, eid, owner] of [
+    ['WXK01-082', 'WXK01-082-E1', 'self'],
+    ['WXDi-P03-010', 'WXDi-P03-010-E2', 'opponent'],
+  ] as const) {
+    const e = (effectsMap.get(card) ?? []).find(x => x.effectId === eid)!;
+    eq(turnCond(e.action)?.owner, owner, `🔴${eid}（MANUAL）のターン条件が落ちている`);
+  }
+  const k41 = (effectsMap.get('WXK05-041') ?? []).find(x => x.effectId === 'WXK05-041-E2')!;
+  eq(turnCond((k41.action as SequenceAction).steps[0])?.owner, 'self', '🔴WXK05-041-E2（MANUAL）のターン条件が落ちている');
+  const k07 = (effectsMap.get('WXK10-007') ?? []).find(x => x.effectId === 'WXK10-007-E1')!;
+  eq((k07.action as import('../src/types/effects').ChooseAction).choices[0].condition?.type, 'TURN_OWNER',
+    '🔴WXK10-007-E1（MANUAL）の選択肢①条件が落ちている');
+});
+
+test('§6.4 O-36: 「手札がN枚で〜のターンの場合」は連言（WXK01-040-E1）', () => {
+  // 🔴従来はどの規則にも当たらず**条件が丸ごと落ちて【出】がノーコストの無条件バニッシュ**だった。
+  const e = (effectsMap.get('WXK01-040') ?? []).find(x => x.effectId === 'WXK01-040-E1')!;
+  const c = (e.action as { condition?: Condition }).condition!;
+  eq(c.type, 'AND', '🔴手札枚数とターン所有者の連言が落ちている');
+  const kinds = (c as Extract<Condition, { type: 'AND' }>).conditions.map(x => x.type).sort().join(',');
+  eq(kinds, 'HAND_COUNT,TURN_OWNER', '両方そろっていること（片方だけだと過剰発火）');
+});
+
+test('§6.4 O-36: 持ち上げで分割された文が実装済み STUB へ戻ること', () => {
+  // 条件句を持ち上げると残り文が別規則に当たり、**実装済みハンドラから無言 no-op へ退化**しうる。
+  // 続き534 の A/B で見つかった3件を契約として固定する。
+  // (a) レゾナの出現条件コスト札＝照応（トラッシュの任意2枚を選べる形に退化していた）
+  const x16 = (effectsMap.get('WXEX1-16') ?? []).find(x => x.effectId === 'WXEX1-16-E1')!;
+  eq(((x16.action as { then?: StubAction }).then)?.id, 'RESONANCE_COST_CARDS_TO_ENERGY',
+    '🔴トラッシュの任意札を選べる過剰へ退化している');
+  // (b) 「このターン、対戦相手は１以上のエナコストを支払えない」＝engine 実装あり
+  const d12 = (effectsMap.get('WXDi-P03-012') ?? []).find(x => x.effectId === 'WXDi-P03-012-E2')!;
+  eq(((d12.action as { then?: StubAction }).then)?.id, 'OPP_TURN_NO_ENERGY_COST',
+    '🔴DEFERRED_UNPARSED_THIS_TURN_OPP_CLAUSE（消費地点なし＝真 no-op）へ退化している');
+  // (c) 「シグニを新たに場に出せない」＝DEPLOY_RESTRICT は N体/パワー形しか読まず無言 no-op になる
+  const k13 = (effectsMap.get('WXK10-013') ?? []).find(x => x.effectId === 'WXK10-013-E1')!;
+  eq(((k13.action as import('../src/types/effects').ChooseAction).choices[0].action as StubAction).id,
+    'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN', '🔴DEPLOY_RESTRICT（パターン解析不可＝無言 no-op）へ退化している');
+});
+
+test('§6.4 O-36: OPP_TURN_NO_ENERGY_COST は「このターン」＝接尾辞なしで張る', () => {
+  // 条件が効くようになった今 `:NEXT_TURN` 予約を残すと**相手ターンに発火→その次のターンに効く**＝1ターンずれる。
+  const res = run({ type: 'STUB', id: 'OPP_TURN_NO_ENERGY_COST' } as EffectAction, mkCtx({}, {}));
+  const blocked = res.otherState.blocked_actions ?? [];
+  for (const id of ['USE_ARTS', 'USE_SPELL', 'GROW', 'USE_ACT']) {
+    ok(blocked.includes(id), `🔴${id} が張られていない`);
+  }
+  ok(!blocked.some(a => a.endsWith(':NEXT_TURN')), '🔴:NEXT_TURN 予約が残っている＝1ターンずれる');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

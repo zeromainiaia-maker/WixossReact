@@ -476,7 +476,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         カード: WXK03-071
   露出  1箇所 (live 1件/1枚)  OPP_TURN_NO_ENERGY_COST  [execStubPart3]
         カード: WXDi-P03-012
-        既存コメント: OPP_TURN_NO_ENERGY_COST: 対戦相手の次のターン中、対戦相手はエナコストを支払えない
+        既存コメント: OPP_TURN_NO_ENERGY_COST: このターン、対戦相手はエナコストを支払えない 唯一の利用者 `WXDi-P03-012-E2` の原文は「**対戦相手のターンの場合**、**このターン**、対戦相手は 
   露出  1箇所 (live 2件/2枚)  OPP_ZONE_PLACEMENT_RESTRICT  [execStubPart3]
         カード: WXDi-P14-068, WXDi-P11-TK01
         既存コメント: OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定）
