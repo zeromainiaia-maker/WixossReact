@@ -37389,6 +37389,52 @@ test('§6.4 O-11: SPK01-14-E1 は2択で、①がバニッシュ→（引く/エ
   ok(c1.includes('"DRAW"') && c1.includes('"count":5'), '🔴②の5ドローが落ちている');
 });
 
+
+// ── §6.4 O-35: `CONDITIONAL_POWER_BONUS`（ゴミ箱受け皿）の解体・2026-08-17 続き527 ──
+// 🔴この回の根因は2本とも**「原文が言っている軸を parser が焼き付けた既定値で潰していた」**型で、
+//   census にも STUB 仕分けにも映らない（生成物は正しい型で、値だけが違う）。
+test('§6.4 O-35: ALL_FIELD_SIGNI_MATCH は ActiveCondition としても評価される（【常】の「〜であるかぎり」）', () => withSavedCursor(() => {
+  // 🔴従来 `Condition` 側にしか型が無く、【常】の条件節は generic「〜かぎり、」フォールバックで
+  //   **黙って落ちて無条件に効いていた**（`WXDi-P11-054-E1` のパワー＋4000／`WXDi-P13-006-E1` の
+  //   【ガード】追加コスト）。⚠片方の union にだけ足すと未知型フォールバックで**無条件成立**に倒れる。
+  const red1 = findCard(c => isSigni(c) && (c.Color ?? '') === '赤');
+  const red2 = findCard(c => isSigni(c) && (c.Color ?? '') === '赤' && c.CardNum !== red1);
+  const white1 = findCard(c => isSigni(c) && (c.Color ?? '') === '白');
+  const cond = { type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', color: '赤' } } as ActiveCondition;
+  const opp = mkState({});
+  ok(checkActiveCondition(cond, mkState({ signi: [red1, red2, null] }), opp, true, cardMap), '全部赤 → true');
+  ok(!checkActiveCondition(cond, mkState({ signi: [red1, white1, null] }), opp, true, cardMap), '1体でも別色 → false');
+  ok(!checkActiveCondition(cond, mkState({}), opp, true, cardMap), '🔴空盤面は false（1体以上必須＝空振りで効かない）');
+}));
+
+test('§6.4 O-35: デッキ一番上の公開→条件分岐は原文の型/軸をそのまま filter にする', () => {
+  const act = (num: string, id: string) => JSON.stringify((effectsMap.get(num) ?? []).find(e => e.effectId === id)?.action ?? {});
+  // 🔴「そのカードが**スペル**の場合」＝ビルダーが `cardType:'シグニ'` を焼き付けており**分岐が逆**だった。
+  ok(act('WXDi-P04-045', 'WXDi-P04-045-E2').includes('"filter":{"cardType":"スペル"}'), '🔴スペル判定がシグニ判定に化けている');
+  // 🔴「そのカードが＜ブルアカ＞の場合」＝種別を言っていない形。シグニ限定にすると**過少**。
+  const bluaka = act('WXDi-CP02-092', 'WXDi-CP02-092-E1');
+  ok(bluaka.includes('"filter":{"story":"ブルアカ"}'), '🔴＜C＞単独に cardType:シグニ が付いている（過少）');
+  // 🔴「そのカードが《ディソナアイコン》の場合」＝cardType を外すだけだと filter が**空**になり全カード一致に化ける。
+  ok(act('WXDi-P12-070', 'WXDi-P12-070-E1').includes('"isDisona":true'), '🔴《ディソナアイコン》が filter に載っていない');
+  // 🔴「それが赤のカード**ではない**場合」＝否定を捨てて肯定と同形にしていた＝**分岐が逆**。
+  const re12 = act('WX12-Re12', 'WX12-Re12-E1');
+  ok(re12.includes('"elseAction"') && re12.includes('"then":{"type":"SEQUENCE","steps":[]}'), '🔴否定形が elseAction に載っていない');
+});
+
+test('§6.4 O-35: 「すべてのシグニが〈色〉の場合」は条件が持ち上がり CONDITIONAL_POWER_BONUS が消える', () => {
+  const eff = (effectsMap.get('WXDi-P14-055') ?? []).find(e => e.effectId === 'WXDi-P14-055-E1');
+  const s = JSON.stringify(eff?.action ?? {});
+  ok(!s.includes('CONDITIONAL_POWER_BONUS'), '🔴受け皿 STUB が残っている（＝無言 no-op）');
+  ok(s.includes('"ALL_FIELD_SIGNI_MATCH"') && s.includes('"color":"赤"'), '🔴全体が赤ゲートが落ちている（無条件発火）');
+  // 正準の「包み形」＝`CONDITIONAL{gate, then: STUB OPTIONAL_COST}` が SEQUENCE の直下ステップに居ること
+  // （effectExecutor の包み形解体が Pattern ④/⑤ へ委譲できる唯一の形）。
+  const steps = (eff!.action as SequenceAction).steps;
+  const wrap = steps.find(x => x.type === 'CONDITIONAL') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(wrap.condition.type, 'ALL_FIELD_SIGNI_MATCH', 'ゲートは全体色一致');
+  eq((wrap.then as StubAction).id, 'OPTIONAL_COST', '🔴then が素の STUB 単体でないと engine が包みを解けない');
+});
+
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

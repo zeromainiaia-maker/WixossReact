@@ -1,5 +1,91 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-17（続き527・Opus 5）— §6.4 **O-35：`CONDITIONAL_POWER_BONUS` の解体**（14 → 13）＋**焼き付き既定値**の一掃
+
+ゲート全緑（**golden 2155**＝+3・**census 817**（818 から −1・`BASELINE_HIGH` 実数更新）・
+smoke 10688 / SKIP 0・fuzz 全0・同型★0（265群）・`census:stubs` A群 0種/0件・lint 0 errors）。
+**fresh changed 25効果 / 25カード**（A/B 全走査で実測。新規 UNKNOWN 0）。うち **live JSON changed 12枚**
+（held 採用11＋MANUAL 層の外科パッチ1）。CSV 非改変。
+
+### 🔑 この回の根因は2本とも「**原文が言っている軸を、parser が焼き付けた既定値で潰していた**」型
+
+**`census` にも `census:stubs` にも映らない**のが要点＝生成物は正しい action 型で、**値だけが違う**。
+STUB でも UNKNOWN でもないので、どの計器にも「穴」として立たない。**受け皿 STUB を数える worklist
+（O-35 の 14件）だけを追っていると、この層は永久に見つからない。**
+
+#### (a) 「デッキの一番上を公開する。そのカードが〈X〉の場合、…」ビルダーが `cardType:'シグニ'` を焼き付けていた
+
+`effectParser.ts` の該当ビルダーは `filter` を **`cardType:'シグニ'` から始めて**修飾を spread していた。
+原文の condText を全走査（56綴り／159効果）して照合したところ、**シグニ以外を言っている形が全部化けていた**：
+
+| 綴り | 効果数 | 化け方 |
+|---|---|---|
+| 「そのカードが**スペル**の場合」 | 3 | 🔴**分岐が逆**＝トップがシグニのとき帰結が走り、スペルのときは何も起きない |
+| 「そのカードが**＜ブルアカ＞/＜プリオケ＞**の場合」 | 9 | 種別を問わない形（`parseLastProcessedMatchesCondition` の既存慣例）なのに**シグニ限定の過少** |
+| 「そのカードが**《ディソナアイコン》**の場合」 | 4 | 同上（＋⚠cardType を外す**だけ**だと `parseStoryFilter` が拾わず **filter が空＝全カード一致**に化ける。A/B で実際に踏んだ） |
+| 「そのカードが**白/青**の場合」 | 2 | `parseColorFilter` が「〈色〉**の**」形しか見ず**色が丸ごと脱落**＝どのカードでも発火 |
+| 「**赤/青のカード**の場合」 | 2 | 「〜のカード」＝種別を言っていないのにシグニ限定 |
+| 「**レベルが偶数/奇数の**シグニの場合」 | 2 | `parseLevelFilter` はパリティを見ない＝限定が落ちてどのシグニでも発火 |
+| 「**《ライズアイコン》を持つ**シグニの場合」 | 1 | `parseIconFilter` が spread に無く限定が落ちて過剰 |
+| 「〜**ではない**場合」 | 1 | regex は捕捉していたのに**否定を捨てて肯定と同形**を作っていた＝**分岐が逆**（`WX12-Re12-E1`） |
+
+是正＝cardType を **condText から決める**（`スペル$`／`レゾナ$`／`カード$`・裸の `＜C＞`/`《X》`/色は付けない）＋
+裸色・アイコン・パリティ・裸《X》を spread へ追加＋否定形は既存の `elseAction` へ載せる
+（`then` は**空 SEQUENCE**＝`execSequence` が `done(ctx)` を返す素の no-op）。
+
+🔑**あわせて 3文目「そうでない場合、〈X〉」を汎用の `elseAction` に載せた**（従来は tail ガードが
+「【出】能力は発動しない」以外を全部落としていた＝帰結の無言脱落）。⚠**2件は据置**＝else 節が公開札を指す
+照応（`WXDi-P09-068-E1`「**その**カードをデッキの一番下に置く」／`WXK03-050-E1`「**それ**を…」）で、
+単独 parse では参照先が束縛されず UNKNOWN／別物の `LOOK_AND_REORDER` に化ける（行き先は `remainder` の
+領分で枝ごとに変えられない）＝**据置のほうが正しい**。文頭の照応語と UNKNOWN の両方で弾いている。
+
+#### 🔴 副産物＝**MANUAL 層が同じ parser バグの手当てを14枚ぶん抱えていた**
+
+上記25効果のうち **14枚は live が `MANUAL` 刻印**で、その中身は**今回 parser が出すのと同じ filter**が
+手で書かれていた（`DECK_TOP_MATCHES{cardType:'スペル'}` 等）。**live 挙動は既に正しく、壊れていたのは
+parser だけ**＝この14枚は「手で塞いだ穴」で、計器からは完全に見えなくなっていた。
+⚠**`MANUAL`/`PARTIAL` 刻印の live は `build:effects` も `--adopt` も触らない**ので、
+**parser を直しても live との乖離は自動では消えない**（§6.4 O-11 続き526 と同じ層）。
+唯一 live が fresh より劣っていた `WXDi-P10-042-E1`（「そうでない場合、【エナチャージ１】をする」が欠落）
+だけ、MANUAL 構造を保ったまま `CONDITIONAL.else` を足す外科パッチを当てた。
+
+#### (b) 【常】「あなたの場にあるすべてのシグニが〈色〉/《X》であるかぎり、」＝**条件が黙って落ちていた**
+
+`ALL_FIELD_SIGNI_MATCH` は `Condition` 側にしか型が無く、【常】の `activeCondition` 経路では
+generic な「〜かぎり、」フォールバック（`condition: undefined`）に落ちて**無条件に効いていた**：
+- `WXDi-P11-054-E1`＝パワー**＋4000 が常時**（本来は場の全シグニが白のときだけ）
+- `WXDi-P13-006-E1`＝【ガード】の追加《無》が**常時**（engine 側に「すべてのシグニが《ディソナアイコン》は
+  複雑条件なので安全のためスキップ」という**原文 regex の安全側フォールバック**があり、そちらは逆に
+  **一生効かない過少**だった＝`activeCondition` が付いたことで両側とも解けた）
+
+実装＝`ActiveCondition` union ＋ `ACTIVE_CONDITION_TYPES` ＋ `checkActiveCondition` の3点セット。
+⚠**片方の union にだけ型を足すと、評価器は未知型で `return true` に倒れる＝無条件成立（過剰実行）**。
+golden の `(cxv)` は `Record<Union['type'], true>` の**型数**を固定しているので、union に足すと必ず赤くなる。
+
+🔑**`(cxv)` が落ちると `(xlvi) wave17 WXDi-P15-005-E1` も連鎖して落ちる**＝goldenTest は共有カーソルから
+フィクスチャを払い出しており、**assert が throw するとその先の払い出しが飛んでカーソルがズレる**。
+（xlvi）側の失敗は偽陽性なので、**先に (cxv) の期待値を直してから読み直すこと。**
+
+#### 「場にあるすべてのシグニが〈色〉の場合、」（`Condition` 側）＝3効果
+
+`＜C＞`／`《X》` 形だけが在り**色形が無かった**ため条件節が丸ごと脱落＝アタック時に無条件発火していた
+（`WXDi-D09-H19-E1`／`WXDi-P00-036-E1`／`WXDi-P14-055-E1`）。regex 1本で、出力は**正準の「包み形」**
+`SEQUENCE[SELECT_TARGET_ONLY, STORE, CONDITIONAL{gate, then: STUB OPTIONAL_COST}, CONDITIONAL{…, BANISH}]`
+になり、`effectExecutor` の包み形解体（Pattern ④/⑤ への委譲）にそのまま乗った。
+
+### 触ったファイル
+- `src/data/effectParser.ts`（デッキトップ公開ビルダーの filter／`tryWrapLeadingStateCond` の色形／
+  `activeCondition` の「すべてのシグニが〜であるかぎり」）
+- `src/types/effects.ts`（`ActiveCondition` に `ALL_FIELD_SIGNI_MATCH`・`ACTIVE_CONDITION_TYPES`）
+- `src/engine/effectEngine.ts`（`checkActiveCondition` の `ALL_FIELD_SIGNI_MATCH`）
+- `scripts/goldenTest.ts`（+3件／`(cxv)` の型数 44→45）・`scripts/vocabCensus.ts`（`BASELINE_HIGH` 818→817）
+- `public/data/effects_{WX,WX24_26,WXDi}.json`（held 採用11枚＋`WXDi-P10-042` の外科パッチ）
+
+### 追試
+`npm run gates`（全緑）／`npm run regen`＋`node scripts/groupSimilar.mjs --all`（同型★0）。
+A/B は **baseline コミットから `git show <sha>:<path>` で3ファイルを取り出して全カード fresh を dump し diff**
+（⚠auto-commit があるので `git checkout -- <path>` では戻らない＝**自分の変更が既にコミットされている**）。
+
 ## 2026-08-17（続き526・Opus 5）— §6.4 **O-11：BANISH 脱落クラスタ**（22 → 17）
 
 ゲート全緑（**golden 2152**＝+5・**census 818**（819 から −1・`BASELINE_HIGH` 実数更新）・

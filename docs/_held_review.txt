@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［54枚］
-PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［61枚］
+PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-009 WX19-061 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-038 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WX26-CP1-046 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-CP02-068 WXDi-CP02-088 WXDi-CP02-092 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P04-045 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -15,8 +15,19 @@ PR-Di017B SPDi43-11 SPDi43-12 WD07-006 WX05-025 WX07-029 WX10-062 WX13-031 WX17-
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
 
-## +SEQUENCE ［4枚］
-WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
+## +SEQUENCE ［5枚］
+WX12-Re12 WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
+--- WX12-Re12
+  原文: 【出】：あなたのデッキの一番上を公開する。それが赤のカードではない場合、このシグニを場からトラッシュに置く。,：カードを１枚引く。
+  - [0].action.filter.cardType = "シグニ"
+  - [0].action.then.target.type = "SIGNI"
+  - [0].action.then.target.owner = "self"
+  - [0].action.then.target.count = 1
+  ~ [0].action.then.type : "TRASH" → "SEQUENCE"
+  + [0].action.elseAction.type = "TRASH"
+  + [0].action.elseAction.target.type = "SIGNI"
+  + [0].action.elseAction.target.owner = "self"
+  + [0].action.elseAction.target.count = 1
 --- WX24-P3-001
   原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【自】：あなたのアタックフェイズ開始時、このルリグをアップする。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。』,-
   - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
@@ -25,12 +36,6 @@ WX24-P3-001 WX24-P3-005 WX24-P3-009 WX25-P2-001
   + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
 --- WX24-P3-005
   原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたがダメージを受ける場合、代わりに手札を１枚捨ててもよい。そうした場合、このルリグはこの能力を失う。【起】《ターン１回》《ダウン》：カードを４枚引き、手札を２枚捨てる。』,-
-  - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
-  ~ [0].action.type : "STUB" → "SEQUENCE"
-  + [0].action.steps[0].type = "STUB"
-  + [0].action.steps[0].id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
---- WX24-P3-009
-  原文: あなたのレベル２以上のセンタールリグ１体を対象とし、次のあなたのエナフェイズ終了時まで、それのリミットを＋１し、それは以下の能力を得る。『【常】：あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う。【起】《ターン１回》《ダウン》：あなたのデッキの上からカードを５枚トラッシュに置く。その後、あなたのトラッシュ
   - [0].action.id = "LIMIT_CHANGE_UNTIL_ENERGY_PHASE_END"
   ~ [0].action.type : "STUB" → "SEQUENCE"
   + [0].action.steps[0].type = "STUB"
@@ -190,6 +195,35 @@ WXDi-D08-004 WXEX2-28
   + [0].action.id = "EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY"
   + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
   + [0].action.leavePayLoseSelfAbility.victimFilter.story = "ウェポン"
+
+## +ALL_FIELD_SIGNI_MATCH +CONDITIONAL ［2枚］
+WXDi-D09-H19 WXDi-P00-036
+--- WXDi-D09-H19
+  原文: 【自】：このシグニがアタックしたとき、あなたの場にあるすべてのシグニが赤の場合、対戦相手のパワー5000以下のシグニ１体を対象とし、《赤》を支払ってもよい。そうした場合、それをバニッシュする。,-
+  - [0].action.steps[2].id = "OPTIONAL_COST"
+  - [0].action.steps[2].costColors[0] = "赤"
+  ~ [0].action.steps[2].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[2].condition.type = "ALL_FIELD_SIGNI_MATCH"
+  + [0].action.steps[2].condition.owner = "self"
+  + [0].action.steps[2].condition.filter.cardType = "シグニ"
+  + [0].action.steps[2].condition.filter.color = "赤"
+  + [0].action.steps[2].then.type = "STUB"
+  + [0].action.steps[2].then.id = "OPTIONAL_COST"
+  + [0].action.steps[2].then.costColors[0] = "赤"
+--- WXDi-P00-036
+  原文: 【チーム】＜アンシエント・サプライズ＞【チーム自】：このシグニがアタックしたとき、あなたの場にあるすべてのシグニが赤の場合、対戦相手のパワー１２０００以下のシグニ１体を対象とし、《赤》《赤》を支払ってもよい。そうした場合、それをバニッシュする。【出】《赤》《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。,-
+  - [0].action.steps[2].id = "OPTIONAL_COST"
+  - [0].action.steps[2].costColors[0] = "赤"
+  - [0].action.steps[2].costColors[1] = "赤"
+  ~ [0].action.steps[2].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[2].condition.type = "ALL_FIELD_SIGNI_MATCH"
+  + [0].action.steps[2].condition.owner = "self"
+  + [0].action.steps[2].condition.filter.cardType = "シグニ"
+  + [0].action.steps[2].condition.filter.color = "赤"
+  + [0].action.steps[2].then.type = "STUB"
+  + [0].action.steps[2].then.id = "OPTIONAL_COST"
+  + [0].action.steps[2].then.costColors[0] = "赤"
+  + [0].action.steps[2].then.costColors[1] = "赤"
 
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
@@ -415,6 +449,24 @@ WXDi-P12-073
   + [1].action.then.steps[0].target.count = 1
   + [1].action.then.steps[0].target.filter.cardType = "シグニ"
   …（他 7 行）
+
+## +ALL_FIELD_SIGNI_MATCH +CONDITIONAL +SIGNI +STUB×2 ［1枚］
+WXDi-P14-055
+--- WXDi-P14-055
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるすべてのシグニが赤の場合、対戦相手のパワー5000以下のシグニ１体を対象とし、手札から赤のカードを１枚捨ててもよい。そうした場合、それをバニッシュする。,-
+  - [0].action.steps[1].condition.type = "IS_MY_TURN"
+  - [0].action.steps[1].then.type = "BANISH"
+  - [0].action.steps[1].then.target.type = "SIGNI"
+  - [0].action.steps[1].then.target.owner = "opponent"
+  - [0].action.steps[1].then.target.count = 1
+  - [0].action.steps[1].then.target.filter.cardType = "シグニ"
+  - [0].action.steps[1].then.target.upToCount = false
+  ~ [0].action.steps[0].id : "CONDITIONAL_POWER_BONUS" → "SELECT_TARGET_ONLY"
+  + [0].action.steps[0].selectTarget.type = "SIGNI"
+  + [0].action.steps[0].selectTarget.owner = "opponent"
+  + [0].action.steps[0].selectTarget.count = 1
+  + [0].action.steps[0].selectTarget.filter.cardType = "シグニ"
+  …（他 22 行）
 
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052
