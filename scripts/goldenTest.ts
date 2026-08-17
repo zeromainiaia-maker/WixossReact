@@ -100,7 +100,7 @@ import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhas
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
-import { isHandSigniPlayBlockedByPower } from '../src/engine/blockAction';
+import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -38900,8 +38900,12 @@ test('§6.4 O-38: 包んだ【自】は払えば通り、払わなければ何�
   ok(!first.done && first.pending.type === 'CHOOSE', '🔴支払いを問う窓が出ていない（黙って通す／黙って止める）');
   if (first.done || first.pending.type !== 'CHOOSE') throw new Error('pay gate missing');
   const opts = first.pending;
-  ok(opts.options.find(o => o.id === 'pay')?.available, 'エナがあれば払える');
-  const paid = finish(resumeChoose('pay', opts, execCtxFrom(first, ctx)), ctx);
+  const payOpt = opts.options.find(o => o.id === 'pay')!;
+  ok(payOpt.available, 'エナがあれば払える');
+  // ⚠エナの実支払いは UI 層（`resumeOptionalCost`）＝選択肢が `costColors` を運んでいないと**タダで通る**
+  eq(payOpt.costColors?.join(','), '無', '🔴支払うエナの色が選択肢に載っていない（タダで通る）');
+  const payCtx = execCtxFrom(first, ctx);
+  const paid = finish(resumeOptionalCost('pay', payCtx.ownerState.energy.slice(0, 1), opts, payCtx), ctx);
   eq(paid.ownerState.hand.length, 7, '🔴払ったのに本体が走っていない');
   eq(paid.ownerState.energy.length, 2, '🔴コストが引かれていない');
   const skipped = finish(resumeChoose('skip', opts, execCtxFrom(first, ctx)), ctx);
