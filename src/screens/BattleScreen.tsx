@@ -126,6 +126,7 @@ import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } fr
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
 import { pickCpuSigniActivated } from './battle/cpuActivate';
 import { listActivatableLrigEffects } from './battle/lrigActivateGate';
+import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
@@ -10436,6 +10437,49 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     };
 
     /**
+     * CPU のセンタールリグ【起】を1つぶん試す（撃ったら `true`＝呼び出し元は即 return する）。§8 `O-1` (c)。
+     *
+     * ⚠**判定は `lrigActivateGate`・実行は `performLrigActivated`＝どちらも人間と同じ関数**（DESIGN §4）。
+     * ⚠台帳（`cpu_activated_effect_ids_this_turn`）は**シグニ【起】と共通**＝effectId は型を跨いで衝突しない。
+     */
+    const tryCpuLrigActivated = async (
+      actorState: PlayerState,
+      phase: 'MAIN' | 'ATTACK_ARTS',
+    ): Promise<boolean> => {
+      const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
+      const powers = calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase);
+      const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
+      const blockedSelf = calcContinuousBlockedActions(
+        actorState, huSt, true, effectsMap, battleCardMap, powers).forSelf;
+      const choice = pickCpuLrigActivated({
+        actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
+        phase, energyPoolNums: energyPoolCardNums(pool), blockedSelf,
+        alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
+        effectivePowers: powers,
+        isAffordable: (selectedNums, costStr) => canAffordGrowCost(
+          selectedNums, cards, costStr, actorState.keyword_grants, undefined, stripped,
+        ),
+      });
+      if (!choice) return false;
+      const lrigName = battleCardMap.get(actorState.field.lrig.at(-1) ?? '')?.CardName ?? 'ルリグ';
+      appendBattleLogs([`[CPU] ルリグの【起】を発動: ${lrigName}`]);
+      // ⚠安全弁＝実行より先に「撃った」履歴を確定させる（シグニ【起】と同じ理由）。
+      const actActor: PlayerState = {
+        ...actorState,
+        cpu_activated_effect_ids_this_turn: [
+          ...(actorState.cpu_activated_effect_ids_this_turn ?? []), choice.effect.effectId,
+        ],
+      };
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: actActor }));
+      await performLrigActivated(choice.effect, { costIndices: choice.costIndices }, {
+        actor: actActor, opponent: huSt,
+        actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
+        energyPayPool: pool,
+      });
+      return true;
+    };
+
+    /**
      * CPU のアーツ使用を1枚ぶん試す（使ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1` (a)(b)。
      *
      * ⚠**窓は3つ（相手ターンの応答／自ターンの MAIN／自ターンの ATTACK_ARTS）だが通す道は1本**。
@@ -11117,6 +11161,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ウィルス除去時しか書かないので、ここで撃つと配置で積んだ人間側の変更を取りこぼす。
       if (!cpuMainSkipped && cpuHuSt === huSt
         && await tryCpuSigniActivated(newCpuSt, 'MAIN')) return;
+      // §8／§6.4 O-1 (c)＝センタールリグの【起】（live 492効果がメイン窓）。
+      if (!cpuMainSkipped && cpuHuSt === huSt
+        && await tryCpuLrigActivated(newCpuSt, 'MAIN')) return;
 
       // ── §8／§6.4 O-1 (b): CPU がメインフェイズに攻めのアーツ／スペル（＝除去）を使う ──────────
       // ⚠`cpuHuSt` が書き換わっている間は使わない＝`performArts`／`performSpell` は相手 state を
@@ -11246,6 +11293,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // §8／§6.4 O-1 (c)＝《アタックフェイズアイコン》付きシグニ【起】（`timing:['ATTACK_ARTS']`）。
       // ⚠**MAIN 窓では出ない**（`signiActivateGate` が timing で切る）＝この窓を足すまで恒久 no-op だった。
       if (await tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS')) return;
+      if (await tryCpuLrigActivated(cpuSt, 'ATTACK_ARTS')) return;
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: cpuNextPhase('ATTACK_ARTS') }));
       return;
     }
