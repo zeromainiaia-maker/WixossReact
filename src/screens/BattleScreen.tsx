@@ -7910,20 +7910,20 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // ⚠スペル使用の封じは**3軸**（`USE_SPELL` ／ `PLAY_COLORLESS` ／ `BLOCK_NON_WHITE_SPELL`）＝
       //   `isSpellUseBlocked` の1関数に集約してボタン生成側と実行入口の両方から呼ぶ（§6.4 O-18 続き513）。
       //   🔴続き460 では `USE_SPELL` だけを塞いだので、残り2軸は**押しても無反応**のまま残っていた。
-      if (cardData?.Type === 'スペル' && !isSpellUseBlocked(cardData) &&
-          meetsRestriction(cardData.Restriction, lrigClass, ignoreRestriction) &&
-          !cardNameUseBlocked(my, cardData.CardName, cardData.Type)) {
-        // pending_spell がある間は新たにスペルを発動できない
-        const spellBlocked = !!bs.pending_spell;
-        const spellEff = effectsMap.get(cardNum)?.find(e => e.effectType === 'ACTIVATED');
-        const condOk = !spellEff?.condition || evalUseCondition(spellEff.condition, my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
-        if (!spellBlocked && condOk) {
-          actionList.push({
-            label: '発動',
-            color: C.accent,
-            onClick: () => { openSpellCast({ cardNum, handIndex }); setBetAmount(0); },
-          });
-        }
+      // ⚠**判定は `spellUseGate.checkSpellUse` 1本**（§8 `O-1` (b)）＝封じ3軸・限定・カード名封じ・
+      //   ディソナ制限・低コスト封じ・使用条件をそこで見る。CPU の候補フィルタも同じ関数を呼ぶ。
+      // ⚠**ここでは `affordable` を見ない**（従来どおり）＝スペルのコストは支払いUI の任意支払い
+      //   （手札を捨てての置換・使用時の任意支払い）で下がるので、基本コストで切ると**払える札を隠す**。
+      if (cardData?.Type === 'スペル' && myArtsPayerCtx && checkSpellUse({
+        card: cardData, my, op, isMyTurn, turnPhase: bs.turn_phase,
+        pendingSpell: !!bs.pending_spell, cards: battleCards, cardMap: battleCardMap, effectsMap,
+        payer: myArtsPayerCtx, effectivePowers,
+      }).usable) {
+        actionList.push({
+          label: '発動',
+          color: C.accent,
+          onClick: () => { openSpellCast({ cardNum, handIndex }); setBetAmount(0); },
+        });
       }
     }
 
