@@ -9572,7 +9572,7 @@ function parseActionTextInner(text: string): EffectAction {
     if (condM) {
       const negated = condM[2] !== undefined;
       const condText = condM[1];
-      const thenText = condM[2].replace(/。$/, '');
+      const thenText = condM[3].replace(/。$/, '');
       let thenAction = parseSingleSentence(thenText);
       // 「（公開した）そのシグニのレベル１につきカードをN枚引く」＝公開シグニのレベル比例ドロー（WD21-001-E2）。
       // parseSingleSentence は「レベル１につき」を無視して固定 count に潰すため、公開カード（lastProcessedCards）の
