@@ -1038,7 +1038,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
   }
 
   // パターン2: 「あなたの場に《カード名》/＜カード名＞があるかぎり、」
-  const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)があるかぎり、/);
+  const fieldNameM = text.match(/^あなたの場に(《[^》]+》|＜[^＞]+＞)が(?:ある|いる)かぎり、/);
   if (fieldNameM) {
     const nameM = fieldNameM[1].match(/[《＜]([^》＞]+)[》＞]/);
     return {
