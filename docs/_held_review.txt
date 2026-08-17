@@ -284,6 +284,16 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
+## +HAS_CARD_IN_FIELD +LRIG -SIGNI ［1枚］
+WXEX2-03
+--- WXEX2-03
+  原文: 【グロウ】あなたの場にあるカード名に《タウィル》か《ウムル》を含むキー１枚をあなたのセンタールリグの下に置く【自】：各アタックフェイズ開始時、ターン終了時まで、このルリグは「【常】：あなたの場に＜天使＞のシグニがあるかぎり、対戦相手のセンタールリグは能力を失う。」と「【常】：あなたの場に＜古代兵器＞のシグニがあるかぎり、対戦相手の場とトラッシュにあるシグニは
+  + [0].action.abilities[0].activeCondition.type = "HAS_CARD_IN_FIELD"
+  + [0].action.abilities[0].activeCondition.owner = "self"
+  + [0].action.abilities[0].activeCondition.filter.cardType = "シグニ"
+  + [0].action.abilities[0].activeCondition.filter.story = "天使"
+  ~ [0].action.abilities[0].action.target.type : "SIGNI" → "LRIG"
+
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［1枚］
 WXEX2-70
 --- WXEX2-70
@@ -322,6 +332,16 @@ WXDi-P04-002
   - [0].action.steps[1].choices[0].label = "選択肢1"
   - [0].action.steps[1].choices[0].action.type = "SEQUENCE"
   …（他 39 行）
+
+## +AND +IS_SELF_UP ［1枚］
+WXDi-P07-056
+--- WXDi-P07-056
+  原文: 【常】：対戦相手のターンの間、このシグニがアップ状態であるかぎり、このシグニのパワーは＋4000される。【自】《ターン１回》：あなたのルリグ１体がアタックしたとき、あなたのシグニ１体を対象とし、それをアップする。,-
+  - [0].activeCondition.owner = "opponent"
+  ~ [0].activeCondition.type : "TURN_OWNER" → "AND"
+  + [0].activeCondition.conditions[0].type = "TURN_OWNER"
+  + [0].activeCondition.conditions[0].owner = "opponent"
+  + [0].activeCondition.conditions[1].type = "IS_SELF_UP"
 
 ## -CONDITIONAL -IS_MY_TURN ［1枚］
 WXDi-P09-054
@@ -476,6 +496,19 @@ WX25-P2-001
   + [0].action.steps[0].type = "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
 
+## +AND +HAS_CARD_IN_FIELD ［1枚］
+WX25-P2-014
+--- WX25-P2-014
+  原文: 【常】《相手ターン》：あなたの場に＜宇宙＞のシグニがあるかぎり、対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない。【起】《ゲーム１回》レリーズ《白×0》：次のあなたのエナフェイズ終了時まで、このルリグのリミットを＋１する。次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－２する。,-
+  - [0].activeCondition.owner = "opponent"
+  ~ [0].activeCondition.type : "TURN_OWNER" → "AND"
+  + [0].activeCondition.conditions[0].type = "TURN_OWNER"
+  + [0].activeCondition.conditions[0].owner = "opponent"
+  + [0].activeCondition.conditions[1].type = "HAS_CARD_IN_FIELD"
+  + [0].activeCondition.conditions[1].owner = "self"
+  + [0].activeCondition.conditions[1].filter.cardType = "シグニ"
+  + [0].activeCondition.conditions[1].filter.story = "宇宙"
+
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
 --- WXK03-069
@@ -559,24 +592,6 @@ WXK09-031
   - [1].action.source.count = 1
   ~ [1].action.type : "TRANSFER_TO_HAND" → "STUB"
   + [1].action.id = "ENERGY_TO_HAND_ON_DECK"
-
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［1枚］
-WXK09-061
---- WXK09-061
-  原文: 【出】：対戦相手のシグニ１体を対象とし、あなたの場に傀儡状態のシグニがある場合、ターン終了時まで、それのパワーを－3000する。,：【エナチャージ１】
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = false
-  - [0].action.delta = -3000
-  ~ [0].action.type : "POWER_MODIFY" → "CONDITIONAL"
-  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.isPuppet = true
-  + [0].action.then.type = "POWER_MODIFY"
-  …（他 6 行）
 
 ## +HAND_CARD +REVEAL -STUB ［1枚］
 WXK10-081
