@@ -5740,20 +5740,26 @@ function applyProportionalCountBatch6(effects: CardEffect[]): void {
           }
         });
         break;
-      // ⚠WXEX1-44-E2 は**採用しない**（2026-08-11 続き441 で実測して確定）。
+      // ✅WXEX1-44-E2＝**2026-08-17（§6.4 O-15）で採用**（続き441 からの defer を解除）。
       // 原文「あなたの**手札から**《アクセアイコン》を持つシグニを２枚までエナゾーンに置く。その後、
       // …**この方法でエナゾーンに置いたカードと同じ枚数の**＜調理＞のシグニを対象とし、それらを手札に加える」。
-      // 前段は STUB{PLACE_ACCE_SIGNI_TO_ENERGY} だが、engine の実装（execStubPart2.ts:1940）は
-      // **場のアクセゾーン**のカードを全部エナへ送る別機構（`allAcceCards(field.signi_acce)`＝utils/acce.ts:15）で、
-      // 手札からの任意2枚配置ではない。⇒ lastProcessedCards は**記録されるが原文と無関係な枚数**なので、
-      // ここに $ref を書くと「0枚」が「別の誤った枚数」に化けるだけで悪化する。
-      // ⚠**アクセは CardClass ではない**（〈遊具〉等のクラスとは別軸）＝《アクセアイコン》は専用フィルタ
-      // `hasIcon:'アクセ'`（parserUtils.ts で生成・matchesFilter が execUtils.ts:727 で消費）。
-      // ⇒ 正しい実装は「手札から `{cardType:'シグニ', hasIcon:'アクセ'}` を**２枚まで**選んでエナへ」であり、
-      //    **語彙は既に揃っている**。要るのは手札選択の機構だけ（＝この defer は「難しい」ではなく「未着手」）。
-      // 🔴PLAN §6.4 の「前段の STUB は枚数を記録するので resolveNum 側を直せば通る」は**誤った見立て**だった
-      // （resolveNum は続き441 で解消済みなので、残るブロッカーは STUB 側の機構違い）。
-      // 非採用は goldenTest の「WXEX1-44-E2 defer」で固定してある。
+      // 🔑defer の根拠だった「前段 STUB が原文と別機構」は解消した＝前段は
+      //   `ENERGY_CHARGE{HAND_CARD, upToCount, filter:{hasIcon:'アクセ'}}`（`parseSentencePart3` の新規則）になり、
+      //   `execEnergyCharge` が**実際に手札から置いた枚数**を lastProcessedCards に載せる。
+      // ⇒ 後段の「同じ枚数」は $ref が正しい実数を読む（0枚置けば0枚回収＝固定1枚の過剰が消える）。
+      // ⚠**前段が期待の形のときだけ**書き換える（別機構へ戻ったら $ref は無関係な数字に化けるだけ）。
+      // ⚠`upToCount` は落とす＝「同じ枚数」は上限ではなく**丁度その枚数**。
+      case 'WXEX1-44-E2':
+        if (e.action.type === 'SEQUENCE') {
+          const head44 = e.action.steps[0];
+          const last44 = e.action.steps.at(-1);
+          if (head44?.type === 'ENERGY_CHARGE' && head44.target.type === 'HAND_CARD'
+            && last44?.type === 'TRANSFER_TO_HAND' && last44.source.type === 'ENERGY_CARD') {
+            last44.source.count = ref;
+            last44.source.upToCount = false;
+          }
+        }
+        break;
 
       case 'WX26-CP1-009-E1':
         lastOfType(e, 'TRASH', o => {
