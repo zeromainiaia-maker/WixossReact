@@ -529,6 +529,15 @@ export interface EffectCost {
   acceTrash?: number;          // あなたの【アクセ】N枚をトラッシュに置く（コスト）
   chargeCounterRemove?: number; // この上からカウンター（貯菌等）Nつを取り除く（コスト）
   trapToHand?: number;         // あなたの【トラップ】N体を手札に加える（コスト）
+  /**
+   * 「〈盤面条件〉の場合、**この能力の**発動コストは《X×N》減る」＝**この能力スコープ**の条件つきエナ減額
+   * （§6.4 O-35・続き530／`WX09-011-E2`＝センタールリグがレベル4以上なら《赤×2》減る＝実質タダ）。
+   *
+   * ⚠`COST_REDUCTION` アクションは「スペル／アーツ／ルリグ」という**カード種別**に掛かる別軸なので表せない。
+   * 🔑BattleScreen が【出】コスト提示の**直前**に条件を評価して `energy` を実際に削る（`applyAbilityCostReduction`）＝
+   *   提示・支払い・可否判定がすべて同じ削減後コストを見る（funnel を増やさない）。
+   */
+  conditionalEnergyReduction?: { condition: Condition; energy: EnergyCost[] };
 }
 
 // ===== レゾナ出現条件 =====
