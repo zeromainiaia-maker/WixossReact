@@ -11131,8 +11131,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
-    // ─── ATTACK_ARTSフェイズ：アーツ不使用でスキップ ───
+    // ─── ATTACK_ARTSフェイズ：攻めのアーツ（＝除去）を使ってからアタックへ ───
     if (phase === 'ATTACK_ARTS') {
+      // §8／§6.4 O-1 (b)。⚠《アタックフェイズアイコン》付きの札はここでしか使えない
+      //   （MAIN 窓は CSV Timing に「メインフェイズ」がある札だけを通す＝gate 側で切れる）。
+      if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS', pickCpuOffensiveArts)) return;
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: cpuNextPhase('ATTACK_ARTS') }));
       return;
     }
