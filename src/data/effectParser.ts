@@ -1024,7 +1024,10 @@ function parseActiveCondition(text: string): ConditionParseResult {
 
   // パターン2a: 「あなたの場に《X》(か《Y》)*があるかぎり、」（複数カード名のいずれか存在。WX08-049「《羅星　アルシャ》か《羅星　ディアデム》」）
   // 単一名は cardName、複数名は cardNames に解決。下のパターン2は単一《》/＜＞のみなので、複数《》はここで先取りする。
-  const fieldNamesM = text.match(/^あなたの場に((?:《[^》]+》(?:か)?)+)があるかぎり、/);
+  // ⚠**「がいるかぎり」も受ける**（2026-08-18・§5d-0）＝ルリグ/シグニは「いる」と書かれる形があり、
+  //   「ある」だけを見ていたため `WX24-P1-039-E1`／`WX24-P3-055-E1`／`WX25-P3-065-E1`／`WXDi-P12-052-E1` の
+  //   4効果が **activeCondition ごと落ちて無条件でパワー＋／【シャドウ】付与**になっていた（1文字違いの穴）。
+  const fieldNamesM = text.match(/^あなたの場に((?:《[^》]+》(?:か)?)+)が(?:ある|いる)かぎり、/);
   if (fieldNamesM && fieldNamesM[1].includes('か《')) {
     const names = [...fieldNamesM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
     return {
