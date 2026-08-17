@@ -2782,6 +2782,42 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     };
   }
 
+  // ---- 相手トラッシュのシグニを「傀儡状態で」自分の場に出す（§5d-0 (i)・2026-08-18）----
+  // 🔴従来は下の汎用「トラッシュから…場に出す」へ落ちて `TRASH_CARD{owner:'self'}` になっていた＝
+  //   **自分のトラッシュから自分のシグニを蘇生する完全な別物**（傀儡状態にもならない＝実測8効果）。
+  //   さらに `WXK10-091-E2` は「＜美巧＞**ではない**」を `story:'美巧'` と読んで**条件が反転**していた。
+  // 🔑機構は実装済み＝`STEAL_OPP_TRASH_PUPPET`（`execStubPart1`）が相手トラッシュ→自分の空きゾーン配置＋
+  //   `field.puppet_signi` 登録＋離場時の持ち主トラッシュ回収（`sweepPuppets`）まで担う。
+  // ⚠旧コメントの据置理由「engine 側 cross-owner 未対応」は**古い**（`ADD_TO_FIELD` の話であって
+  //   傀儡 STUB の話ではなかった）。在庫は寝かせるほど陳腐化する＝着手時に engine を実測し直すこと。
+  // ⚠**「傀儡状態で〜場に出す」だけを受ける**＝`WDK17-001-E1`「あなたの**傀儡状態の**シグニ１体が
+  //   **場に出た**とき」は連体の「の」なので当たらない（当てるとトリガー文を配置文に化けさせる）。
+  if (/傀儡状態で(?:あなたの)?(?:場|シグニゾーン)に出/.test(t)) {
+    // 絞り込みは「トラッシュから」〜「シグニ」の間の修飾句だけを見る（`signiClause*Filter` 3兄弟と同じ隣接規律）。
+    // 全文から取ると前文（「対戦相手のセンタールリグのルリグタイプを追加で得る」等）の語を巻き込む。
+    const puppetIdx = t.indexOf('トラッシュから');
+    const puppetSpan = puppetIdx >= 0 ? (t.slice(puppetIdx).match(/^トラッシュから(.*?)シグニ/s)?.[1] ?? '') : '';
+    const puppetExM = puppetSpan.match(/＜([^＞]+)＞ではない/);
+    const puppetFilter: TargetFilter = {
+      cardType: 'シグニ',
+      ...parseLevelFilter(puppetSpan),
+      ...(puppetExM ? { cardClassExclude: puppetExM[1] } : parseStoryFilter(puppetSpan)),
+    };
+    const puppetUpToM = t.match(/([０-９\d]+)枚まで/);
+    const puppetCountM = t.match(/([０-９\d]+)枚を対象/);
+    return {
+      type: 'STUB', id: 'STEAL_OPP_TRASH_PUPPET',
+      // 次文「それの【出】能力は発動しない」（`WXEX2-23-E4`）を `foldSuppressOnPlay` が畳み込むための配置アンカー
+      placesToField: true,
+      puppetParams: {
+        count: puppetUpToM ? parseNum(puppetUpToM[1]) : (puppetCountM ? parseNum(puppetCountM[1]) : 1),
+        ...(puppetUpToM || /場に出してもよい/.test(t) ? { optional: true } : {}),
+        // cardType だけ＝原文に絞り込みが無い＝渡さない（engine 既定の「相手トラッシュのシグニ全部」と同じ）
+        ...(Object.keys(puppetFilter).length > 1 ? { filter: puppetFilter } : {}),
+      },
+    } as StubAction as EffectAction;
+  }
+
   // ---- トラッシュからシグニを場に出す ----
   if (t.includes('トラッシュから') && (t.includes('場に出す') || t.includes('場に出してもよい'))) {
     const filter: TargetFilter = {
