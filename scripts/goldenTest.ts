@@ -38836,19 +38836,82 @@ test('§6.4 O-31: 「このシグニを場からトラッシュに置く」は�
   }
 });
 
-test('§6.4 O-31: 相手シグニ【自】能力の停止は engine に届く（近似の在処を固定）', () => {
-  // ⚠**支払い回避は未実装＝原文より強い近似**（`SPDi43-01-E2`）。実装するまでこの形が正。
-  for (const [num, eid] of [
-    ['SPDi43-01', 'SPDi43-01-E2'], ['WXDi-P16-044', 'WXDi-P16-044-E2'],
-  ] as const) {
-    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
-    const ctx = mkCtx({ lrig: [num] }, {}, num);
-    const r = run(e.action, ctx);
-    ok((r.ownerState.blocked_actions ?? []).includes('BLOCK_OPP_SIGNI_AUTO'),
-      `🔴${eid}: 相手シグニ【自】の停止が engine に届いていない`);
-    ok((r.otherState.blocked_actions ?? []).includes('BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'),
-      `${eid}: 次の相手ターンぶんの予約も積む`);
-  }
+test('§6.4 O-31: 「対戦相手のシグニの【自】能力は発動しない」の停止は engine に届く', () => {
+  // ⚠こちらは**無条件で発動しない**原文＝ハードブロックが正（`SPDi43-01-E2` の支払い回避型とは別軸）。
+  const e = (effectsMap.get('WXDi-P16-044') ?? []).find(x => x.effectId === 'WXDi-P16-044-E2')!;
+  const r = run(e.action, mkCtx({ lrig: ['WXDi-P16-044'] }, {}, 'WXDi-P16-044'));
+  ok((r.ownerState.blocked_actions ?? []).includes('BLOCK_OPP_SIGNI_AUTO'),
+    '🔴相手シグニ【自】の停止が engine に届いていない');
+  ok((r.otherState.blocked_actions ?? []).includes('BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'),
+    '次の相手ターンぶんの予約も積む');
+});
+
+// ── §6.4 O-38 続き544：相手シグニ【自】の「支払えば通る」回避 ─────────────────────────────
+test('§6.4 O-38: SPDi43-01-E2 はハードブロックではなく支払いゲートを積む', () => {
+  const e = (effectsMap.get('SPDi43-01') ?? []).find(x => x.effectId === 'SPDi43-01-E2')!;
+  const r = run(e.action, mkCtx({ lrig: ['SPDi43-01'] }, {}, 'SPDi43-01'));
+  // 🔴旧実装は `BLOCK_OPP_SIGNI_AUTO` で丸ごと止めており、相手に支払いの機会が一度も来なかった
+  ok(!(r.ownerState.blocked_actions ?? []).includes('BLOCK_OPP_SIGNI_AUTO'),
+    '🔴ハードブロックへ戻っている（原文より強い近似）');
+  ok(!(r.otherState.blocked_actions ?? []).includes('BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'),
+    '🔴ハードブロックへ戻っている（次ターンぶん）');
+  // 宣言者に当ターンぶん／相手に次ターン予約＝旧マーカーとまったく同じ2スロットの持ち方
+  ok((r.ownerState.blocked_actions ?? []).includes('PAY_GATE_OPP_SIGNI_AUTO:無'),
+    '🔴支払いゲートが engine に届いていない');
+  ok((r.otherState.blocked_actions ?? []).includes('PAY_GATE_OWN_SIGNI_AUTO:無:NEXT_TURN'),
+    '次の相手ターンぶんの予約も積む（「次の対戦相手のターン終了時まで」）');
+});
+
+test('§6.4 O-38: 支払いゲートの向き＝宣言者自身のシグニ【自】には掛からない', () => {
+  const cm = cardMap as Map<string, CardData>;
+  const markers = { declarer: 'PAY_GATE_OPP_SIGNI_AUTO:無', opponentNextTurn: 'PAY_GATE_OWN_SIGNI_AUTO:無:NEXT_TURN' };
+  const declarer: PlayerState = { ...mkState({}), blocked_actions: [markers.declarer] };
+  const victim: PlayerState = mkState({});
+  // 相手（victim）の【自】を解決するとき＝掛かる
+  eq(findSigniAutoPayGate(victim, declarer)?.join(','), '無', '🔴宣言者の相手に掛かっていない');
+  // 宣言者自身の【自】を解決するとき＝掛からない（原文は「**対戦相手の**シグニの【自】能力」）
+  eq(findSigniAutoPayGate(declarer, victim), null, '🔴宣言者自身のシグニまで止めている');
+  // `:NEXT_TURN` 予約は**まだ効かない**（相手のターン開始時に接尾辞が外れて有効になる）
+  const reserved: PlayerState = { ...mkState({}), blocked_actions: [markers.opponentNextTurn] };
+  eq(findSigniAutoPayGate(reserved, mkState({})), null, '🔴予約がその場で効いている（1ターン早い）');
+  eq(findSigniAutoPayGate({ ...reserved, blocked_actions: ['PAY_GATE_OWN_SIGNI_AUTO:無'] }, mkState({}))?.join(','), '無',
+    '接尾辞が外れたら有効');
+  // 対象は**シグニ（レゾナ含む）の【自】**だけ＝ルリグ/【起】は素通り
+  const auto: CardEffect = { effectId: 't', effectType: 'AUTO', timing: ['ON_PLAY'], action: { type: 'DRAW', owner: 'self', count: 1 } as EffectAction, duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO' };
+  const signiNum = [...cm.values()].find(c => c.Type === 'シグニ')!.CardNum;
+  const lrigNum = [...cm.values()].find(c => c.Type === 'ルリグ')!.CardNum;
+  eq(isSigniAutoAbility(auto, signiNum, cm), true, 'シグニの【自】は対象');
+  eq(isSigniAutoAbility(auto, `${signiNum}#1`, cm), true, 'instanceId 付きでも対象');
+  eq(isSigniAutoAbility(auto, lrigNum, cm), false, '🔴ルリグの【自】まで止めている');
+  eq(isSigniAutoAbility({ ...auto, effectType: 'ACTIVATED' }, signiNum, cm), false, '🔴【起】まで止めている');
+});
+
+test('§6.4 O-38: 包んだ【自】は払えば通り、払わなければ何もしない', () => {
+  const draw: EffectAction = { type: 'DRAW', owner: 'self', count: 2 } as EffectAction;
+  const auto: CardEffect = { effectId: 'gated', effectType: 'AUTO', timing: ['ON_PLAY'], action: draw, duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO' };
+  const wrapped = wrapSigniAutoPayGate(auto, ['無']);
+  const steps = (wrapped.action as SequenceAction).steps;
+  eq((steps[0] as StubAction).id, 'OPTIONAL_COST', '任意コストの正準形');
+  ok((steps[0] as StubAction).unlessPay, '🔴「支払わないかぎり」＝文言が「発動する/スキップ」のままだと実機で判断できない');
+  eq((steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition.type, 'PAID_ADDITIONAL_COST', '払ったか否かで分岐');
+  // ⚠払うのは**能力の持ち主**（ownerState）＝`OPPONENT_PAY_OPTIONAL`（otherState が払う）ではない
+  const ctx = mkCtx({ energy: 3, hand: 5 }, { energy: 3 });
+  const pending = executeEffect(wrapped, ctx);
+  ok(!pending.done, '🔴支払いを問う窓が出ていない（黙って通す／黙って止める）');
+  const opts = (pending as Extract<ExecResult, { done: false }>).pending as Extract<PendingInteractionDef, { type: 'CHOOSE' }>;
+  const payOpt = opts.options.find(o => o.id === 'pay')!;
+  ok(payOpt.available, 'エナがあれば払える');
+  const paid = finish(resumeChoose('pay', opts, ctx), ctx);
+  eq(paid.ownerState.hand.length, 7, '🔴払ったのに本体が走っていない');
+  eq(paid.ownerState.energy.length, 2, '🔴コストが引かれていない');
+  const skipped = finish(resumeChoose('skip', opts, ctx), ctx);
+  eq(skipped.ownerState.hand.length, 5, '🔴払わなかったのに本体が走っている');
+  eq(skipped.ownerState.energy.length, 3, '払わなければエナも減らない');
+  // エナが無ければ払えない＝「何もしない」側に倒れる（勝手に通さない）
+  const poor = mkCtx({ energy: 0, hand: 5 }, {});
+  const poorPending = executeEffect(wrapped, poor);
+  const poorOpts = (poorPending as Extract<ExecResult, { done: false }>).pending as Extract<PendingInteractionDef, { type: 'CHOOSE' }>;
+  eq(poorOpts.options.find(o => o.id === 'pay')!.available, false, '🔴払えないのに払える表示');
 });
 
 
