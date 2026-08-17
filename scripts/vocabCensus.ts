@@ -386,6 +386,12 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
     const tb = stripResultClauses(t.replace(/あなたがベット(?:していた|する)場合[、,]/g, ''));
     if (!/場合[、,]/.test(tb)) return true;
   }
+  // 「〈盤面条件〉の場合、代わりにNつ(まで)選ぶ」＝`conditionChoose` が正表現（§6.4 O-11）。
+  // ⚠`betChoose` と同じ理由でここにも要る＝`condition` フィールドでは表せない選択数の置換。
+  {
+    const tc = stripResultClauses(stripConditionChooseClause(js, t));
+    if (tc !== t && !/場合[、,]/.test(tc)) return true;
+  }
   // 「配置する場合」は条件節ではなく FORCE_PLACE_FRONT の行動表現。
   if (js.includes('FORCE_PLACE_FRONT')) {
     const tf = stripResultClauses(t.replace(/(?:対戦相手|あなた)が[^。]{0,12}?を?配置する場合[、,]/g, ''));
