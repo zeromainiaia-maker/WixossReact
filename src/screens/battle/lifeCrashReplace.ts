@@ -27,11 +27,60 @@ import { selectOptionalCostEnergy } from '../../engine/execUtils';
  *     自滅にはならないが、**本来は被害側が選ぶ**。対話化は離場置換（§6.4 M2）と同じ枠組みで別バッチ。
  */
 
+/** ルリグ付与ストア2本（通常付与／次の相手ターン終了時まで）。合成と消費で同じ順に見る。 */
+const LRIG_GRANT_STORES = [
+  'lrig_granted_auto_effects',
+  'lrig_granted_auto_effects_until_opp_turn',
+] as const;
+
+/**
+ * ルリグ付与ストアの `STUB{DAMAGE_REPLACE_BY_COST}`（§6.4 O-37(a)）を置換宣言へ合成する。
+ *
+ * ⚠**`life_crash_replacements` へコピーしない**＝「そうした場合、このルリグはこの能力を失う」の
+ *   在庫は付与ストアだけにしておく。コピーすると能力を失ったのに置換だけ残る（無限に払える）。
+ * ⚠`lrig_abilities_disabled`（ルリグの能力を失う効果）で丸ごと落ちるのは他の付与走査と同じ。
+ */
+function grantedPayCostReplacements(state: PlayerState): LifeCrashReplacement[] {
+  if (state.lrig_abilities_disabled) return [];
+  const out: LifeCrashReplacement[] = [];
+  for (const key of LRIG_GRANT_STORES) {
+    for (const effect of state[key] ?? []) {
+      const action = effect.action as StubAction;
+      if (effect.effectType !== 'CONTINUOUS' || action?.type !== 'STUB') continue;
+      if (action.id !== 'DAMAGE_REPLACE_BY_COST') continue;
+      const spec = action.damageReplaceByCost;
+      if (!spec || spec.options.length === 0) continue;
+      out.push({
+        kind: 'pay_cost', count: 1, optional: true, payOptions: spec.options,
+        ...(spec.loseAbility ? { loseGrantedEffectId: effect.effectId } : {}),
+      });
+    }
+  }
+  return out;
+}
+
 /** legacy `damage_replace_mill: number[]`（続行中の対戦の state）も含めて正規化する。 */
 export function lifeCrashReplacements(state: PlayerState): LifeCrashReplacement[] {
   const legacy = (state.damage_replace_mill ?? []).map((count): LifeCrashReplacement =>
     ({ kind: 'mill', count, once: true }));
-  return [...(state.life_crash_replacements ?? []), ...legacy];
+  // 付与ストア由来（コスト支払い型）は**必ず末尾**＝タダで済む宣言を先に使い切る。
+  return [...(state.life_crash_replacements ?? []), ...legacy, ...grantedPayCostReplacements(state)];
+}
+
+/** `pay_cost` の支払い方を1つ選ぶ（**原文の並び順**で最初に払えるもの）。払えなければ null。 */
+function pickPayOption(
+  repl: LifeCrashReplacement, state: PlayerState, cardMap: Map<string, CardData>,
+): { option: NonNullable<LifeCrashReplacement['payOptions']>[number]; energyPicked: string[] } | null {
+  for (const option of repl.payOptions ?? []) {
+    if (option.costColors && option.costColors.length > 0) {
+      const picked = selectOptionalCostEnergy(option.costColors, state, cardMap);
+      if (picked) return { option, energyPicked: picked };
+      continue;
+    }
+    if (option.handDiscard && state.hand.length >= option.handDiscard) return { option, energyPicked: [] };
+    if (option.energyTrash && state.energy.length >= option.energyTrash) return { option, energyPicked: [] };
+  }
+  return null;
 }
 
 export interface LifeCrashReplaceContext {
