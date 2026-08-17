@@ -9581,11 +9581,32 @@ function parseActionTextInner(text: string): EffectAction {
       if (thenAction.type === 'ENERGY_CHARGE' && (thenAction as EnergyChargeAction).target?.type === 'DECK_CARD') {
         thenAction = { type: 'ADD_TO_ENERGY', owner: 'self' } as AddToEnergyAction;
       }
+      // 🔴cardType は**原文から決める**（§6.4 O-35・2026-08-17）。従来は `cardType:'シグニ'` を無条件に
+      //   焼き付けており、原文が別の型／型を言っていない形をすべてシグニ判定に化けさせていた＝
+      //   (a)「そのカードが**スペル**の場合」3効果は**分岐が逆**（`WX24-P1-066-E1`／`WXDi-P04-045-E2`／
+      //       `WXDi-P10-042-E1`＝トップがシグニのときにドローし、スペルのときは何も起きない）
+      //   (b)「そのカードが**＜ブルアカ＞**／**《ディソナアイコン》**／**白**の場合」＝カード種別を問わない
+      //       形（`parseLastProcessedMatchesCondition` の既存慣例と同じ読み）なのに**シグニ限定の過少**。
+      //   ⚠「〜のカード」も型を言っていない＝cardType を付けない（`WX12-Re12-E1`「赤のカード」）。
+      const bareTypeless = /^(?:＜[^＞]+＞(?:か＜[^＞]+＞)?|《[^》]+》|白|赤|青|緑|黒|無色)$/.test(condText);
+      const revealCardType: TargetFilter['cardType'] | undefined =
+        /スペル$/.test(condText) ? 'スペル'
+        : /レゾナ$/.test(condText) ? 'レゾナ'
+        : /カード$/.test(condText) || bareTypeless ? undefined
+        : 'シグニ';
       const filter: TargetFilter = {
-        cardType: 'シグニ',
+        ...(revealCardType ? { cardType: revealCardType } : {}),
         ...parseStoryFilter(condText),
         ...parseLevelFilter(condText),
         ...parseColorFilter(condText),
+        // 裸の色（「そのカードが**白**の場合」＝`WXDi-P07-051-E1`／`WXDi-P07-070-E1`）は `parseColorFilter` の
+        // 「〈色〉の」形に当たらず色が丸ごと落ちていた＝**どのカードでも発火する過剰効果**。
+        ...(/^(白|赤|青|緑|黒|無色)$/.test(condText) ? { color: condText } : {}),
+        // 《ライズ/クロス/アクセアイコン》を持つシグニ（`WX22-027-E2`）＝アイコン限定が落ちて過剰だった。
+        ...parseIconFilter(condText),
+        // 「レベルが偶数／奇数のシグニ」（`WDK04-012-E1`／`WXK01-004-E1`）＝`parseLevelFilter` はパリティを
+        // 見ないので限定が落ち、どのシグニでも発火する過剰効果だった（engine matchesFilter は対応済み）。
+        ...(/レベルが(偶数|奇数)の/.test(condText) ? { levelParity: /偶数/.test(condText) ? 'even' as const : 'odd' as const } : {}),
         // 「そのカードが《コードメイズ　ウムル//メモリア》**以外の**シグニの場合」（`WXDi-P08-062-E2`）＝
         // 除外が落ちて自分自身も出せる過剰効果だった（§5d パターンA・続き371）。
         ...parseExcludeCardNameFilter(condText),
