@@ -107,10 +107,15 @@ const VOCAB: Vocab[] = [
   { key: 'levelGtSelf',      re: /この(シグニ|カード)より高いレベル/ },
 
   // --- 盤面状態（matchesStateFilter） ---
-  { key: 'isAwakened',       re: /覚醒状態(のシグニ|の)/ },
+  // ⚠**盤面状態語は「名詞に係る形」だけを見る**（2026-08-18 較正）＝素の `/覚醒状態/` `/傀儡状態/` は
+  //   (a) **条件節**「このシグニが覚醒状態の**場合**」＝`THIS_CARD_IS_AWAKENED`（Condition。filter ではない）
+  //   (b) **配置様態**「それを傀儡状態で**場に出す**」＝`STEAL_OPP_TRASH_PUPPET`（アクション。filter ではない）
+  //   にも当たり、実測 `isAwakened` は miss 10 のうち 7、`isPuppet` は miss 11 のうち 9 がこれだった。
+  //   `levelRange` を名詞に係る形へ限定した続き377d と同型の較正。
+  { key: 'isAwakened',       re: /覚醒状態の(シグニ|カード)/ },
   { key: 'isDrive',          re: /ドライブ状態/ },
   { key: 'crossState',       re: /クロス状態/ },
-  { key: 'isPuppet',         re: /傀儡状態/ },
+  { key: 'isPuppet',         re: /傀儡状態の(シグニ|カード)/ },
 
   // --- 大クラスタ語彙（2026-08-07 続き376b 追加）---
   // ⚠上の「マイナーな真偽値フラグ」群と**性質が違う**＝原文にも live JSON にも大量にあり、
