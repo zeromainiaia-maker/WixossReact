@@ -12745,6 +12745,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ),
         last_cost_energy_trash_count: activatedEnergyTrashPaidCount(energyTrashIndices),
         last_energy_trash_color_count: lgEnergyTrashColor ? lgEnergyTrashColorCards.length : my.last_energy_trash_color_count,
+        // 直前の能力コストでトラッシュへ送ったカード（`COST_TRASHED_MATCHES`）。§6.4 O-35・続き530。
+        // 🔴**この経路（ルリグ本来の【起】＋付与/継承の【起】）にだけ記録が無かった**＝
+        //   「この方法でカードをN枚以上トラッシュに置いた場合」（`WX25-CP1-020-E2` 3/7枚・
+        //   `WXDi-P16-012-E3` 5枚。どちらもルリグ）の条件が恒久 false になる。
+        // ⚠**この支払い分で上書き**する（シグニ 11825／召喚 12427 と同じ規約＝前の能力の支払いを持ち越さない）。
+        last_cost_trashed_cards: [
+          ...paidNums, ...lgEnergyTrashCards, ...discardedHandNums,
+          ...lgDiscardAllCards, ...lgEnergyTrashAllCards, ...lgEnergyTrashColorCards,
+        ],
       });
       if (lgOverrideEnergy) paid = { ...paid, energy: lgOverrideEnergy };
       // trashExile: トラッシュからカードをゲームから除外（lrig_trashへ）
