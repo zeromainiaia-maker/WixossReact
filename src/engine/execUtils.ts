@@ -368,7 +368,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
     const zoneIdx = ctx.ownerState.field.signi.findIndex(stack => stack?.at(-1) === ctx.sourceCardNum);
     if (zoneIdx < 0 || (ctx.ownerState.field.signi_down?.[zoneIdx] ?? false)) return false;
   }
-  if (spec.selfToEnergy) {
+  if (spec.selfToEnergy || spec.selfTrash) {
     // 場を離れることが対価＝効果元シグニが場に居ないと払えない（アタック後に既に落ちている等）。
     if (!ctx.sourceCardNum) return false;
     if (!ctx.ownerState.field.signi.some(stack => stack?.at(-1) === ctx.sourceCardNum)) return false;
