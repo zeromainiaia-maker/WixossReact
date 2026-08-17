@@ -2300,6 +2300,8 @@ export function execStubPart1(
   if (stub.id === 'STEAL_OPP_TRASH_PUPPET') {
     const pp = stub.puppetParams;
     let oppTrashSPP = ctx.otherState.trash.filter(cn => ctx.cardMap.get(getCardNum(cn))?.Type === 'シグニ');
+    // filter: 原文の静的な絞り込み（「レベル３以下の」「＜美巧＞ではない」）。2026-08-18・§5d-0 (i)
+    if (pp?.filter) oppTrashSPP = oppTrashSPP.filter(cn => matchesFilter(ctx.cardMap.get(getCardNum(cn)), pp.filter));
     // levelLteTrigger: トリガー元シグニ（バニッシュしたシグニ）のレベル以下に候補を限定
     if (pp?.levelLteTrigger && ctx.triggeringCardNum) {
       const trigLv = parseInt(ctx.cardMap.get(getCardNum(ctx.triggeringCardNum))?.Level ?? '0', 10);
