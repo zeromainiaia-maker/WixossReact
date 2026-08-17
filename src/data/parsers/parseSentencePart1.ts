@@ -3290,6 +3290,29 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'self', count: 1 }, actionId: 'ATTACK_SIGNI_SELF', until: 'PERMANENT' };
   }
 
+  // ---- ライフクロス → エナゾーン／デッキの一番下（§6.4 O-35・続き529）----
+  // 🔴トラッシュ行き（下の `LIFE_CRASH{triggerBurst:false}`）だけ規則が在り、**エナ行き・デッキ行きは
+  //   規則ゼロで UNKNOWN**＝条件節ごと `CONDITIONAL_POWER_BONUS` へ落ちて無言 no-op だった
+  //   （`WX25-CP1-020-E2`／`WXK09-003-E1`／`SP38-004-E1`／`SPDi47-03-E2`）。
+  // ⚠**クラッシュではない**ので【ライフバースト】は発動しない（engine 側もその実装）。
+  // ⚠条件節形「ライフクロス**が**N枚…」は下の既存ガードと同じ理由で除外する。
+  {
+    const lifeMoveM = !/ライフクロスが[０-９\d]+枚/.test(t)
+      && t.match(/ライフクロスを?([０-９\d]+)枚を?(エナゾーンに置く|デッキの一番下に置く)$/);
+    if (lifeMoveM) {
+      const lmOwner: Owner = /対戦相手[のはが][^。、]{0,4}ライフクロス/.test(t) ? 'opponent' : 'self';
+      const lmCount = parseNum(lifeMoveM[1]);
+      if (lifeMoveM[2] === 'エナゾーンに置く') {
+        return { type: 'SEND_TO_ENERGY', target: { type: 'LIFE_CLOTH_CARD', owner: lmOwner, count: lmCount } } as EffectAction;
+      }
+      return {
+        type: 'TRANSFER_TO_DECK',
+        source: { type: 'LIFE_CLOTH_CARD', owner: lmOwner, count: lmCount },
+        shuffle: false, position: 'bottom',
+      } as EffectAction;
+    }
+  }
+
   // ---- ライフクロス → トラッシュ ----
   // 「ライフクロスがN枚…」（が形）は条件節（「3枚以上ある場合、代わりに」「0枚の場合」等）＝
   // ここで自傷クラッシュに誤変換しない（WXDi-CP02-007: 3 が count に化けていた／WX24-P4-014: 0枚の場合）。
