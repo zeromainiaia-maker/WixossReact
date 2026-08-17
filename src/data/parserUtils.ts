@@ -859,7 +859,10 @@ export function isSplitTopBottomReorder(t: string): boolean {
  * 返り値が true の文は parseSentencePart4 の combined 規則が REVEAL_AND_PICK として受ける。
  */
 export function fusedLookPickSentence(t: string): { revealCount: number; pick: string; desc: RevealPickDescriptor } | null {
-  const m = t.match(/^(?:あなたの)?デッキの上からカードを([０-９\d]+)枚(?:公開し|見て)、(その中から.+)$/);
+  // ⚠**読点の有無と「公開して」形の両方を許すこと**＝`WXK05-005`「…５枚公開して**その中から**…」は
+  //   読点が無いだけでこの規則から外れ、上流の汎用「デッキ上を見る」規則に落ちて **pick と残りの行き先が
+  //   丸ごと消えた LOOK_AND_REORDER** になっていた（§6.4 O-11）。
+  const m = t.match(/^(?:あなたの)?デッキの上からカードを([０-９\d]+)枚(?:公開して|公開し|見て)、?(その中から.+)$/);
   if (!m) return null;
   const desc = parseRevealPickDescriptor(m[2]);
   return desc ? { revealCount: parseNum(m[1]), pick: m[2], desc } : null;
