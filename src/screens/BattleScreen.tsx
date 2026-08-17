@@ -124,7 +124,7 @@ import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
-import { pickCpuMainPhaseActivated } from './battle/cpuActivate';
+import { pickCpuSigniActivated } from './battle/cpuActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
@@ -10385,6 +10385,56 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     if (huSt.field?.check) return;
 
     /**
+     * CPU の場のシグニ【起】を1つぶん試す（撃ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1`。
+     *
+     * ⚠**窓は2つ（`MAIN` の無印【起】／`ATTACK_ARTS` の《アタックフェイズアイコン》付き【起】）だが
+     *   通す道は1本**＝窓ごとに書き分けると、片方だけに条件を足したときに気付けない。
+     * ⚠**判定は `signiActivateGate`・実行は `performSigniActivated`＝どちらも人間と同じ関数**
+     *   （DESIGN §4）。CPU 専用の判定/実行をここに書かない。
+     * ⚠1回の呼び出しで**1つだけ**撃つ＝スタック解決（対象選択の自動応答を含む）を待ってから次を選ぶ。
+     */
+    const tryCpuSigniActivated = async (
+      actorState: PlayerState,
+      phase: 'MAIN' | 'ATTACK_ARTS',
+    ): Promise<boolean> => {
+      const pool = buildEnergyPayPool(actorState, { turnPhase: phase, isMyTurn: true, effectsMap });
+      const powers = calcFieldPowers(actorState, huSt, true, effectsMap, battleCardMap, phase);
+      const stripped = isEnaMultiStripped(actorState, huSt, false, effectsMap, battleCardMap);
+      const choice = pickCpuSigniActivated({
+        actor: actorState, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
+        phase, energyPoolNums: energyPoolCardNums(pool),
+        alreadyActivated: actorState.cpu_activated_effect_ids_this_turn ?? [],
+        effectivePowers: powers,
+        // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
+        isAffordable: (selectedNums, costStr) => canAffordGrowCost(
+          selectedNums, cards, costStr, actorState.keyword_grants, undefined, stripped,
+        ),
+      });
+      if (!choice) return false;
+      appendBattleLogs([`[CPU] 【起】を発動: ${battleCardMap.get(choice.cardNum)?.CardName ?? choice.cardNum}`]);
+      // ⚠**安全弁＝実行より先に「撃った」履歴を確定させる**。`performSigniActivated` は
+      //   支払い不能を検出すると**何も書かずに return** するので、履歴を実行の成否に委ねると
+      //   CPU が同じ効果を選び直して無限ループになる（＝画面が止まる）。
+      const actActor: PlayerState = {
+        ...actorState,
+        cpu_activated_effect_ids_this_turn: [
+          ...(actorState.cpu_activated_effect_ids_this_turn ?? []), choice.effect.effectId,
+        ],
+      };
+      await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: actActor }));
+      await performSigniActivated(choice.cardNum, choice.effect, {
+        costIndices: choice.costIndices, discardCostIndices: new Set(),
+      }, {
+        actor: actActor, opponent: huSt,
+        actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
+        actorKey: 'guest_state',
+        energyPayPool: pool,
+        energyTrashSubInfo: collectEnergyTrashSubstituteInfo(actorState, battleCardMap, effectsMap),
+      });
+      return true;
+    };
+
+    /**
      * CPU のアーツ使用を1枚ぶん試す（使ったら `true`＝呼び出し元は即 return する）。§8／§6.4 `O-1` (a)(b)。
      *
      * ⚠**窓は3つ（相手ターンの応答／自ターンの MAIN／自ターンの ATTACK_ARTS）だが通す道は1本**。
@@ -11062,54 +11112,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // ── §8／§6.4 O-1: CPU がメインフェイズに場のシグニの【起】を能動使用する ──────────
-      // ⚠**判定は `signiActivateGate`・実行は `performSigniActivated`＝どちらも人間と同じ関数**
-      //   （DESIGN §4）。CPU 専用の判定/実行をここに書かない＝軸がずれると人間には見えない
-      //   【起】を CPU だけが撃てる（またはその逆）という無言のズレになる。
-      // ⚠1回の呼び出しで**1つだけ**撃って return する＝スタック解決（対象選択の自動応答を含む）を
-      //   待ってから次を選ぶ。人間が1つずつ撃つのと同じ順序になる。
       // ⚠`cpuHuSt` が書き換わっている間は撃たない＝`performSigniActivated` は相手 state を
       //   ウィルス除去時しか書かないので、ここで撃つと配置で積んだ人間側の変更を取りこぼす。
-      if (!cpuMainSkipped && cpuHuSt === huSt) {
-        const cpuActPool = buildEnergyPayPool(newCpuSt, {
-          turnPhase: 'MAIN', isMyTurn: true, effectsMap,
-        });
-        const cpuActPowers = calcFieldPowers(newCpuSt, huSt, true, effectsMap, battleCardMap, 'MAIN');
-        const cpuEnaMultiStrippedAct = isEnaMultiStripped(newCpuSt, huSt, false, effectsMap, battleCardMap);
-        const cpuChoice = pickCpuMainPhaseActivated({
-          actor: newCpuSt, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
-          energyPoolNums: energyPoolCardNums(cpuActPool),
-          alreadyActivated: newCpuSt.cpu_activated_effect_ids_this_turn ?? [],
-          effectivePowers: cpuActPowers,
-          // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
-          isAffordable: (selectedNums, costStr) => canAffordGrowCost(
-            selectedNums, cards, costStr, newCpuSt.keyword_grants, undefined, cpuEnaMultiStrippedAct,
-          ),
-        });
-        if (cpuChoice) {
-          const actName = battleCardMap.get(cpuChoice.cardNum)?.CardName ?? cpuChoice.cardNum;
-          appendBattleLogs([`[CPU] 【起】を発動: ${actName}`]);
-          const cpuActActor: PlayerState = {
-            ...newCpuSt,
-            cpu_activated_effect_ids_this_turn: [
-              ...(newCpuSt.cpu_activated_effect_ids_this_turn ?? []), cpuChoice.effect.effectId,
-            ],
-          };
-          // ⚠**安全弁＝実行より先に「撃った」履歴を確定させる**。`performSigniActivated` は
-          //   支払い不能を検出すると**何も書かずに return** するので、履歴を実行の成否に委ねると
-          //   CPU が同じ効果を選び直して無限ループになる（＝画面が止まる）。
-          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuActActor }));
-          await performSigniActivated(cpuChoice.cardNum, cpuChoice.effect, {
-            costIndices: cpuChoice.costIndices, discardCostIndices: new Set(),
-          }, {
-            actor: cpuActActor, opponent: huSt,
-            actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
-            actorKey: 'guest_state',
-            energyPayPool: cpuActPool,
-            energyTrashSubInfo: collectEnergyTrashSubstituteInfo(newCpuSt, battleCardMap, effectsMap),
-          });
-          return;
-        }
-      }
+      if (!cpuMainSkipped && cpuHuSt === huSt
+        && await tryCpuSigniActivated(newCpuSt, 'MAIN')) return;
 
       // ── §8／§6.4 O-1 (b): CPU がメインフェイズに攻めのアーツ／スペル（＝除去）を使う ──────────
       // ⚠`cpuHuSt` が書き換わっている間は使わない＝`performArts`／`performSpell` は相手 state を
@@ -11231,11 +11237,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
-    // ─── ATTACK_ARTSフェイズ：攻めのアーツ（＝除去）を使ってからアタックへ ───
+    // ─── ATTACK_ARTSフェイズ：攻めのアーツ／《アタックフェイズアイコン》付き【起】を使ってからアタックへ ───
     if (phase === 'ATTACK_ARTS') {
       // §8／§6.4 O-1 (b)。⚠《アタックフェイズアイコン》付きの札はここでしか使えない
       //   （MAIN 窓は CSV Timing に「メインフェイズ」がある札だけを通す＝gate 側で切れる）。
       if (await tryCpuUseArts(cpuSt, 'ATTACK_ARTS', pickCpuOffensiveArts)) return;
+      // §8／§6.4 O-1 (c)＝《アタックフェイズアイコン》付きシグニ【起】（`timing:['ATTACK_ARTS']`）。
+      // ⚠**MAIN 窓では出ない**（`signiActivateGate` が timing で切る）＝この窓を足すまで恒久 no-op だった。
+      if (await tryCpuSigniActivated(cpuSt, 'ATTACK_ARTS')) return;
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: cpuNextPhase('ATTACK_ARTS') }));
       return;
     }

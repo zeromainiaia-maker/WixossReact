@@ -4,7 +4,8 @@ import { energyCostToString, parseGrowCost } from './costs';
 import { listActivatableSigniEffects } from './signiActivateGate';
 
 /**
- * CPU がメインフェイズにシグニの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1`）。
+ * CPU が場のシグニの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1`）。
+ * 窓は**メインフェイズ**と**自分のアタックフェイズ（アーツステップ）**の2つ。
  *
  * ■ 設計
  *   - **「撃てるか」の判定は `signiActivateGate`（人間のボタン生成と同じ関数）**。ここは
@@ -16,11 +17,12 @@ import { listActivatableSigniEffects } from './signiActivateGate';
  *   - **支払い内訳を人間が選ぶコストは撃たない**（下の allowlist）。手札の何を捨てるか・場の
  *     どのシグニをトラッシュするかは**盤面評価が要る判断**で、雑に先頭から取ると
  *     「CPU が自分の場を壊す」型の悪手になる。撃たない＝現状（何もしない）と同じで安全側。
- *   - **同じ効果はCPUターンに1回まで**（`cpu_activated_effect_ids_this_turn`）。コストの
+ *   - **同じ効果はCPUターンに1回まで**（`cpu_activated_effect_ids_this_turn`・2窓で共通の台帳）。コストの
  *     表現が落ちている効果（`cost` が空になっている parse 事故）を撃つと**無限ループ**になるため、
  *     `usageLimit` に頼らず選択側で必ず止める。⚠この上限を外すときは先にループ試験をすること。
  *   - 優先度は**ゾーン順→効果定義順の決定論**（盤面評価はしない）。CPU の対象選択が
  *     ランダムなのと同じ近似で、「強い順に撃つ」は別バッチ（§8）。
+ *   - **`pickCpuMainPhaseActivated` から改名**（2026-08-18 続き552c）＝窓が2つになったため。
  */
 
 /**
@@ -49,7 +51,7 @@ export const CPU_AUTO_PAYABLE_COST_KEYS: ReadonlySet<keyof EffectCost> = new Set
  * ⚠**`charmTrash` / `removeOppVirus` は載せない**（自動支払いではあるが `signiActivateGate` が
  * 数を検算していない）＝提示は通るのに `performSigniActivated` が支払い不能で**何も書かずに return** し、
  * CPU が同じ効果を選び直して**無限ループ**になる。載せるなら先に gate 側へ検算を足すこと。
- * （下の `pickCpuMainPhaseActivated` を使う側にも、実行前に履歴を確定させる安全弁を置いてある。）
+ * （下の `pickCpuSigniActivated` を使う側にも、実行前に履歴を確定させる安全弁を置いてある。）
  */
 
 /** この【起】のコストを CPU が自動で払いきれるか（払えないキーが1つでもあれば false）。 */
@@ -127,16 +129,21 @@ export interface CpuActivatedChoice {
 }
 
 /**
- * CPU がいま撃つ【起】を1つ選ぶ（無ければ `null`）。**1回の呼び出しで1つだけ**＝
+ * CPU がいま撃つ場のシグニ【起】を1つ選ぶ（無ければ `null`）。**1回の呼び出しで1つだけ**＝
  * 実行後はスタック解決を待って CPU ループが再入する（`cpuTurnAction` は
  * `effect_stack` があると走らないので、これで解決順が人間と同じになる）。
+ *
+ * ⚠**窓は2つ**＝`'MAIN'`（無印【起】）と `'ATTACK_ARTS'`（《アタックフェイズアイコン》付き【起】）。
+ * 判定は同じ `signiActivateGate` の1本で、違うのは渡す `phase` だけ（§8 `O-1` (c)）。
  */
-export function pickCpuMainPhaseActivated(p: {
+export function pickCpuSigniActivated(p: {
   actor: PlayerState;
   opponent: PlayerState;
   effectsMap: Map<string, CardEffect[]>;
   cardMap: Map<string, CardData>;
   cards: CardData[];
+  /** `'MAIN'`＝無印【起】／`'ATTACK_ARTS'`＝《アタックフェイズアイコン》付き【起】。 */
+  phase: 'MAIN' | 'ATTACK_ARTS';
   /** `buildEnergyPayPool(actor, ...)` の各エントリの cardNum（pool index 順）。 */
   energyPoolNums: string[];
   /** このターン CPU が既に撃った effectId（同じ効果を撃ち直さない）。 */
@@ -150,7 +157,7 @@ export function pickCpuMainPhaseActivated(p: {
     const cardNum = actor.field.signi[zoneIndex]?.at(-1);
     if (!cardNum) continue;
     const usable = listActivatableSigniEffects({
-      my: actor, op: opponent, zoneIndex, phase: 'MAIN', isMyTurn: true,
+      my: actor, op: opponent, zoneIndex, phase: p.phase, isMyTurn: true,
       effectsMap, cardMap, effectivePowers: p.effectivePowers, contBlockedSelf: p.contBlockedSelf,
     });
     for (const effect of usable) {

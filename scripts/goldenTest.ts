@@ -103,7 +103,7 @@ import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
-import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuMainPhaseActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
+import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGate';
 import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
@@ -39537,7 +39537,7 @@ test('O-1 cpuActivate: CPU の【起】選択は「撃てる・自動で払え�
   const opponent = mkState({});
   const isAffordable = (nums: string[], costStr: string) => canAffordGrowCost(nums, allCards, costStr);
   const pickFor = (effs: Map<string, CardEffect[]>, already: string[] = [], state: PlayerState = actor) =>
-    pickCpuMainPhaseActivated({
+    pickCpuSigniActivated({
       actor: state, opponent, effectsMap: effs, cardMap: cm, cards: allCards,
       energyPoolNums: state.energy, alreadyActivated: already, isAffordable,
     });
