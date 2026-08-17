@@ -158,9 +158,30 @@ function nextRespondPatch(
     : {};
 }
 
+/**
+ * 🔴**DB から来た行の `signi_acce` 旧形式（素の string）をここで一度だけ配列へ正す**（タスク12(cxxxiv)）。
+ * `setBs` は「外部（fetch / Realtime）から状態が入ってくる唯一の入口」なので、ここを通せば
+ * 以降の全消費地点（`acceCardsAt` を通らない生アクセスも含む）が配列だけを見る。
+ * ⚠正規化が不要な行は**同一参照のまま返す**（毎 UPDATE で新オブジェクトを作ると再描画が増えるため）。
+ */
+function normalizeBattleRow(row: BattleStateRow): BattleStateRow {
+  let changed = false;
+  const fix = (s: PlayerState | null | undefined): PlayerState | null | undefined => {
+    if (!s?.field?.signi_acce) return s;
+    const next = normalizeAcceSlots(s.field.signi_acce);
+    if (next === s.field.signi_acce) return s;
+    changed = true;
+    return { ...s, field: { ...s.field, signi_acce: next } };
+  };
+  const host = fix(row.host_state), guest = fix(row.guest_state);
+  return changed ? { ...row, host_state: host, guest_state: guest } as BattleStateRow : row;
+}
+
 // ─── メインコンポーネント ────────────────────────────────────────────
 export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: Props) {
-  const [bs, setBs] = useState<BattleStateRow | null>(null);
+  const [bs, setBsRaw] = useState<BattleStateRow | null>(null);
+  const setBs = useCallback(
+    (row: BattleStateRow | null) => setBsRaw(row ? normalizeBattleRow(row) : row), []);
   // 試合セッション/構成レベル（読み込み・自/CPU デッキ・CPU 戦フラグ）
   const {
     loading, setLoading, myDeckData, setMyDeckData,
