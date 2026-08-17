@@ -2935,14 +2935,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const downHost = detectNewlyDowned(bs.host_state, afterHost);
     const downGuest = detectNewlyDowned(bs.guest_state, afterGuest);
     if (downHost.length > 0 || downGuest.length > 0) {
+      // 🔴「このターンでN回目」台帳（§6.4 O-11）は**収集の前に**積む＝
+      //   `fireCondition` は収集時に評価されるので、今回のダウンを含めないと「3回目」が永久に来ない。
+      h = recordSigniDownedThisTurn(h, downHost);
+      g = recordSigniDownedThisTurn(g, downGuest);
       const dn = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
         [{ ownerId: bs.host_id, nums: downHost, byEffect: true }, { ownerId: bs.guest_id, nums: downGuest, byEffect: true }], h, g);
       entries.push(...dn.entries);
       if (dn.usedHostIds.length > 0) h = { ...h, actions_done: [...(h.actions_done ?? []), ...dn.usedHostIds] };
       if (dn.usedGuestIds.length > 0) g = { ...g, actions_done: [...(g.actions_done ?? []), ...dn.usedGuestIds] };
-      // 「このターンでN回目」台帳（§6.4 O-11）。⚠ダウン検出3経路すべてで積む。
-      h = recordSigniDownedThisTurn(h, downHost);
-      g = recordSigniDownedThisTurn(g, downGuest);
     }
     const upHost = detectNewlyUpped(bs.host_state, afterHost);
     const upGuest = detectNewlyUpped(bs.guest_state, afterGuest);
@@ -8447,8 +8448,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // ON_SIGNI_DOWN（アタックダウン・タスク16[C]機構①）: アタック宣言でアタッカーがダウンした（byEffect:false＝
       // 「効果によってダウン」限定の watcher は発火しない）。中央 diff はスタック解決のみを通るためここで収集する。
-      const downHostSt  = attackerIsHost ? newMyState : newOpStateAtk;
-      const downGuestSt = attackerIsHost ? newOpStateAtk : newMyState;
+      // 🔴台帳は**収集の前に**積む（`fireCondition` が今回のダウンを含めて数えるため）。
+      //   アタックでダウンするのはアタッカー＝`newMyState` 側。
+      const newMyStateDownRec = recordSigniDownedThisTurn(newMyState, [myTopNum]);
+      const downHostSt  = attackerIsHost ? newMyStateDownRec : newOpStateAtk;
+      const downGuestSt = attackerIsHost ? newOpStateAtk : newMyStateDownRec;
       const atkDownRes = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
         [{ ownerId: attackerId, nums: [myTopNum], byEffect: false }], downHostSt, downGuestSt);
       const atkDownUsedMine = attackerIsHost ? atkDownRes.usedHostIds : atkDownRes.usedGuestIds;
@@ -8459,9 +8463,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
       // バトル解決前にON_ATTACK_SIGNIを処理するため pending_signi_battle をセット（側面アタックは攻撃先ゾーンを保持）
       const newMyStateWithPending: PlayerState = {
-        // 「このターンでN回目」台帳（§6.4 O-11）。⚠アタック宣言によるダウンも**同じ台帳へ積む**
-        //   （原文の「ダウン状態になったとき」は効果起因に限らない。`byEffect` の絞りは watcher 側の役目）。
-        ...recordSigniDownedThisTurn(newMyState, [myTopNum]),
+        // 「このターンでN回目」台帳（§6.4 O-11）＝上で積んだ `newMyStateDownRec` をそのまま引き継ぐ。
+        //   ⚠アタック宣言によるダウンも**同じ台帳へ積む**（原文の「ダウン状態になったとき」は
+        //     効果起因に限らない。`byEffect` の絞りは watcher 側の役目）。
+        ...newMyStateDownRec,
         ...(atkUsedMine.length > 0 || atkDownUsedMine.length > 0
           ? { actions_done: [...(newMyState.actions_done ?? []), ...atkUsedMine, ...atkDownUsedMine] } : {}),
         pending_signi_battle: { zoneIndex, ...(isSideAttack ? { targetOpZone: p.targetOpZone } : {}) },
@@ -10198,14 +10203,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const downHost  = detectNewlyDowned(bs.host_state, hostState);
       const downGuest = detectNewlyDowned(bs.guest_state, guestState);
       if (downHost.length > 0 || downGuest.length > 0) {
+        // 🔴台帳は**収集の前に**積む（`fireCondition` が今回のダウンを含めて数えるため）。
+        hostState = recordSigniDownedThisTurn(hostState, downHost);
+        guestState = recordSigniDownedThisTurn(guestState, downGuest);
         const dn = pureCollectSigniDownUpTriggers(mkTrigCtx(), 'ON_SIGNI_DOWN',
           [{ ownerId: bs.host_id, nums: downHost, byEffect: true }, { ownerId: bs.guest_id, nums: downGuest, byEffect: true }], hostState, guestState);
         allTriggers.push(...dn.entries);
         if (dn.usedHostIds.length > 0) hostState = { ...hostState, actions_done: [...(hostState.actions_done ?? []), ...dn.usedHostIds] };
         if (dn.usedGuestIds.length > 0) guestState = { ...guestState, actions_done: [...(guestState.actions_done ?? []), ...dn.usedGuestIds] };
-        // 「このターンでN回目」台帳（§6.4 O-11）。⚠ダウン検出3経路すべてで積む。
-        hostState = recordSigniDownedThisTurn(hostState, downHost);
-        guestState = recordSigniDownedThisTurn(guestState, downGuest);
       }
     }
 

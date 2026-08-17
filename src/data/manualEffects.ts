@@ -2000,6 +2000,58 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
     },
   ],
 
+  // WX05-042 増武（スペル）— §6.4 O-11（2026-08-17 続き533）
+  // 原文＝「このターン、あなたのメインフェイズの間、あなたの＜植物＞のシグニ１体がダウン状態になったとき、
+  //   それが**このターンで３回目**である場合、対象の対戦相手のシグニ１体をバニッシュし、
+  //   あなたのエナゾーンから対象のカードを１枚手札に加え、カードを１枚引く。
+  //   このカードの効果は１ターンに一度しか発動しない。」
+  // 🔴旧パース＝`SEQUENCE[DRAW 1, STUB{RULE_REMINDER_TEXT}]`＝**トリガーも条件も丸ごと消えて
+  //   使った瞬間に無条件で1枚引くだけ**（バニッシュとエナ回収は消失・ドローは過剰実行）。
+  // 🔑機構3本を続き533 で新設した：
+  //   ①`InstallDelayedTriggerAction.trigger.timing:'ON_SIGNI_DOWN'` の遅延収集
+  //     （`collectSigniDownUpTriggers` に `delayed_triggers` ループを追加）
+  //   ②`trigger.duringOwnMainPhase`＝「**あなたのメインフェイズの間**」の発火窓
+  //     （期間 `THIS_TURN` とは別軸＝設置はターン中ずっと残るが発火はメインだけ）
+  //   ③`fireCondition`＋`SIGNI_DOWNED_COUNT_THIS_TURN`＝「このターンで3回目」
+  //     （台帳 `signi_downed_this_turn` は**ダウン検出3経路すべて**で `recordSigniDownedThisTurn` が積む）
+  // ⚠`operator:'gte'` にしてある＝同時に複数体ダウンして 2→4 と飛んだ回も取りこぼさない
+  //   （`once:true` があるので「最初に3体目に達した1回」しか撃たない＝原文どおり）。
+  // ⚠「１ターンに一度しか発動しない」は `once:true`（最初の発火で設置を消費）で表す。
+  'WX05-042': [
+    {
+      effectId: 'WX05-042-E1',
+      effectType: 'ACTIVATED',
+      timing: ['MAIN'],
+      cost: { energy: [{ color: '緑', count: 2 }] },
+      action: {
+        type: 'INSTALL_DELAYED_TRIGGER',
+        duration: 'THIS_TURN',
+        once: true,
+        trigger: {
+          timing: 'ON_SIGNI_DOWN',
+          downedOwner: 'self',
+          triggerFilter: { cardType: 'シグニ', story: '植物' },
+          duringOwnMainPhase: true,
+        },
+        fireCondition: {
+          type: 'SIGNI_DOWNED_COUNT_THIS_TURN', owner: 'self',
+          filter: { cardType: 'シグニ', story: '植物' }, operator: 'gte', value: 3,
+        },
+        effect: {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } },
+            { type: 'TRANSFER_TO_HAND', source: { type: 'ENERGY_CARD', owner: 'self', count: 1, upToCount: false } },
+            { type: 'DRAW', owner: 'self', count: 1 },
+          ],
+        },
+      },
+      duration: 'INSTANT',
+      mandatory: false,
+      parseStatus: 'MANUAL',
+    },
+  ],
+
   // アタック無効化 watcher。スイボクは場、ミニマリ／シンカーはトラッシュを発生源とする。
   'WX05-025': [
     {

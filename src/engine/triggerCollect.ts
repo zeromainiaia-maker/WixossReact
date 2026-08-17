@@ -2435,7 +2435,7 @@ export function collectSigniDownUpTriggers(
         });
         if (!matched) continue;
         if (dt.fireCondition
-          && !evalUseCondition(dt.fireCondition, watcherState, otherState, ctx.cardMap, dt.sourceCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+          && !evalUseCondition(dt.fireCondition, watcherState, otherState, ctx.cardMap, dt.sourceCardNum ?? '', ctx.turnPhase, ctx.effectivePowers)) continue;
         entries.push({
           id: ctx.genId(), playerId: watcherId,
           cardNum: dt.sourceCardNum ?? 'DELAYED_TRIGGER', effectId: 'DELAYED_TRIGGER',
