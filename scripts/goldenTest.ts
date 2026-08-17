@@ -16268,7 +16268,7 @@ test('REPEAT_N_TIMES／REPEAT_EFFECT: どちらも live 0件（トリップワ�
     }
   }
   eq(nTimes.join(','), '', 'REPEAT_N_TIMES は live 0件');
-  eq(nEffect.join(','), 'WX22-016-E1', 'REPEAT_EFFECT の残りは1件（O-29 待ち）');
+  eq(nEffect.join(','), '', '🔴REPEAT_EFFECT（engine では無言 no-op）が live へ戻っている');
 });
 // 実行して回数が原文どおりになるか（＝「二重に効かない」ことを盤面で見る）。
 test('REPEAT: WXDi-CP02-047-E1 は 1体ずつ－5000×3回＋相手デッキ2枚×3回（旧＝全シグニ×3＋2枚）', () => withSavedCursor(() => {
