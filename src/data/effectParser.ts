@@ -8648,6 +8648,48 @@ function parseActionTextInner(text: string): EffectAction {
       }
     }
   }
+  // ---- 盤面条件で選択数が変わる CHOOSE（「〈条件〉の場合、代わりにKつ(まで)選ぶ」）----
+  // 🔴選択数の上書きは `recollect`／`recollectArts`／`betChoose`／`preUseVirusChoose`／
+  //   `additionalCostChoose` の**5本ともトリガーを型名に焼き込んだ特殊形**しか無く、
+  //   素の盤面条件で増える形を表せなかった。その結果 `WXDi-P12-005-E1`（ピース）は
+  //   **カードごと `STUB{RULE_REMINDER_TEXT}` の真 no-op**（①②③のどれも実行されない）だった（§6.4 O-11）。
+  // 🔑汎用キー `conditionChoose` を1本足し、判定は engine の `evalCondition` に委ねる
+  //   ＝新しい条件語彙を足すたびに CHOOSE 側を触らなくてよい。
+  // ⚠**条件が解けたときだけ**この経路を使う（解けない条件で `thenChooseCount` を既定にすると
+  //   「常に多く選べる」過剰実行になる）。
+  {
+    const condChooseHeadM = text.match(/以下の[０-９\d二三四五六七八九]+つから([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ。/);
+    const condChooseAltM = text.match(/。([^。]*?場合)、代わりに([０-９\d一二三四五六七八九]+)つ(まで)?(?:を)?選ぶ。/);
+    if (condChooseHeadM && condChooseAltM && /[①②③④⑤]/.test(text)) {
+      // 共通表（`parseHoistStateCondition`）→ 局所パターンの順で条件を解く。
+      const condText = condChooseAltM[1];
+      const shareColorM = condText.match(/^あなたの場にそれぞれ共通する色を持つルリグが([０-９\d]+)体以上いる$/);
+      const altCond: Condition | null = parseHoistStateCondition(condText + '、')
+        ?? (shareColorM
+          ? { type: 'FIELD_LRIGS_SHARE_COLOR', owner: 'self', minCount: parseNum(shareColorM[1]) }
+          : null);
+      const condItems = [...text.matchAll(/[①②③④⑤]([^①②③④⑤]+?)(?=[①②③④⑤]|$)/gs)];
+      if (altCond && condItems.length >= 2) {
+        return {
+          type: 'CHOOSE',
+          choose_count: parseNum(condChooseHeadM[1]),
+          from_count: condItems.length,
+          choices: condItems.map((m, i) => {
+            const optRaw = m[1].replace(/[。）\s]+$/, '').trim();
+            const { action, condition } = liftChoiceOptionCondition(parseActionText(optRaw), optRaw);
+            return { choiceId: `c${i}`, label: `選択肢${i + 1}`, action, ...(condition ? { condition } : {}) };
+          }),
+          ...(condChooseHeadM[2] ? { upTo: true } : {}),
+          conditionChoose: {
+            condition: altCond,
+            thenChooseCount: parseNum(condChooseAltM[2]),
+            thenUpTo: !!condChooseAltM[3],
+          },
+        } as ChooseAction;
+      }
+    }
+  }
+
   // ---- リコレクトアイコン分割（最優先：他の早期returnに飲み込まれる前に処理する） ----
   // 《リコレクトアイコン》［N枚以上］を境界に base（前）と bonus/replacement（後）へ分割する。
   // リコレクトは「ルリグトラッシュのアーツ枚数」で判定し、使用中のアーツ自身(sourceCardNum)は数えない（excludeSource）。
