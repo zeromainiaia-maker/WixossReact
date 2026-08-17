@@ -10398,9 +10398,51 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       return;
     }
 
-    // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤーの場合はアーツ不使用でスキップ ───
+    // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤー＝応答アーツの窓 ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある
     if (bs.turn_phase === 'ATTACK_ARTS_OP' && !isCpuTurnNow) {
+      // ── §8／§6.4 O-1 (a): CPU が人間のアタックフェイズに応答アーツで守る ──────────
+      // ⚠**判定は `artsUseGate`・実行は `performArts`＝どちらも人間と同じ関数**（DESIGN §4）。
+      //   CPU 専用の判定/実行をここに書かない＝軸がずれると人間には見えないアーツを CPU だけが
+      //   使える（またはその逆）という無言のズレになる。
+      // ⚠1回の呼び出しで**1枚だけ**使って return する＝スタック解決（対象選択の自動応答を含む）を
+      //   待ってから次を選ぶ。人間が1枚ずつ使うのと同じ順序になる。
+      const cpuArtsPayer = buildArtsPayerCtx({
+        actor: cpuSt, opponent: huSt, isActorTurn: false,
+        turnPhase: 'ATTACK_ARTS_OP', cardMap: battleCardMap, effectsMap,
+      });
+      const cpuArtsChoice = pickCpuResponseArts({
+        actor: cpuSt, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
+        payer: cpuArtsPayer, turnPhase: 'ATTACK_ARTS_OP',
+        alreadyUsedNums: cpuSt.cpu_arts_used_nums_this_turn ?? [],
+        // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
+        isAffordable: (selectedNums, costStr, extraCosts) => canAffordWithExtraCost(
+          selectedNums, battleCards, costStr, extraCosts, cpuSt.keyword_grants,
+          cpuArtsPayer.enaAllMulti, cpuArtsPayer.enaMultiStripped,
+          cpuArtsPayer.colorlessOverrides, cpuArtsPayer.colorSubs, cpuArtsPayer.energyExtraColors,
+          undefined, undefined, undefined, cpuSt.cannot_pay_colorless_this_attack_phase),
+      });
+      if (cpuArtsChoice) {
+        appendBattleLogs([`[CPU] アーツを使用: ${cpuArtsChoice.card.CardName}`]);
+        // ⚠**安全弁＝実行より先に「使った」履歴を確定させる**。`performArts` は使用不能を検出すると
+        //   **何も書かずに return** するので、履歴を実行の成否に委ねると CPU が同じ札を選び直して
+        //   `ATTACK_ARTS_OP` から先へ進まなくなる（＝画面が止まる）。
+        const cpuArtsActor: PlayerState = {
+          ...cpuSt,
+          cpu_arts_used_nums_this_turn: [...(cpuSt.cpu_arts_used_nums_this_turn ?? []), cpuArtsChoice.card.CardNum],
+        };
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuArtsActor }));
+        await performArts(cpuArtsChoice.card, { costIndices: cpuArtsChoice.costIndices }, {
+          actor: cpuArtsActor, opponent: huSt,
+          actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
+          isActorTurn: false,
+          energyPayPool: cpuArtsPayer.energyPayPool,
+          energyTrashSubInfo: cpuArtsPayer.energyTrashSubInfo,
+          blockedSelf: cpuArtsPayer.blockedSelf,
+        });
+        return;
+      }
+      appendBattleLogs(['[CPU] アーツを使用しない']);
       await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: resolveNextPhaseWithSkips('ATTACK_ARTS_OP', huSt, contBlocked.forSelf) }));
       return;
     }
