@@ -260,6 +260,12 @@ export type Condition =
   // 「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」＝coins_paid_this_turn（支払いのみ・獲得は数えない）。
   // WXDi-P09-039/WXDi-P15-053/068/072/073（従来は条件節ごと落ちて**無条件発火**していた＝Opusタスク12(cxvi)）。
   | { type: 'COINS_PAID_THIS_TURN'; owner: Owner; operator: CompareOp; value: number }
+  /**
+   * 「それが**このターンでN回目**である場合」（`WX05-042`・§6.4 O-11）。
+   * `signi_downed_this_turn` の台帳を `filter` で絞って数える（＜植物＞のシグニ限定など）。
+   * ⚠**数だけの器にしない**＝クラス/色の限定が原文側にあるので filter を持たせる。
+   */
+  | { type: 'SIGNI_DOWNED_COUNT_THIS_TURN'; owner: Owner; filter?: TargetFilter; operator: CompareOp; value: number }
   // このターンに**対戦相手の効果によって** owner の手札／エナゾーンからトラッシュへ移動した累計枚数
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
@@ -421,6 +427,7 @@ export const CONDITION_TYPES: Record<Condition['type'], true> = {
   LIFE_CRASHED_THIS_TURN: true, LIFE_CRASHED_LAST_TURN: true, ENERGY_COUNT: true, ENERGY_COUNT_FILTER: true,
   ENERGY_EACH_LEVEL_FILTER_GTE: true, ENERGY_HAS_COLOR: true, CARDS_DRAWN_BY_EFFECT: true,
   COINS_PAID_THIS_TURN: true, HAND_TRASHED_BY_OPP: true, ENERGY_TRASHED_BY_OPP: true,
+  SIGNI_DOWNED_COUNT_THIS_TURN: true,
   ARTS_USED_THIS_TURN: true, NO_OTHER_ARTS_USED_THIS_TURN: true, SPELL_USED_THIS_TURN: true,
   THIS_CARD_UPPED_FROM_DOWN_THIS_TURN: true, OPP_CARDS_MOVED_TO_DECK_THIS_TURN: true,
   SELF_DECK_TO_ENERGY_THIS_TURN: true, SELECTED_COLOR: true, BEAT_ZONE_COUNT: true, COST_TRASHED_PUPPET: true,
@@ -1455,7 +1462,20 @@ export interface InstallDelayedTriggerAction {
     leftOwner?: 'self' | 'opponent' | 'any';       // ON_LEAVE_FIELD の離脱カード所有者（設置者から見て）。省略=any
     triggerFilter?: TargetFilter;                  // ON_LEAVE_FIELD の離脱カード条件
     attackerOwner?: 'self' | 'opponent' | 'any';   // ON_ATTACK_SIGNI のアタッカー所有者（設置者から見て）。省略=any。WXK05-009-E2=opponent（タスク12(lxi) 第8波）
+    /** ON_SIGNI_DOWN のダウンしたシグニの所有者（設置者から見て）。省略=any。`WX05-042`＝self（§6.4 O-11） */
+    downedOwner?: 'self' | 'opponent' | 'any';
+    /**
+     * 「**あなたのメインフェイズの間**、〜したとき」＝メインフェイズかつ設置者のターンのときだけ発火。
+     * ⚠期間（`duration:'THIS_TURN'`）とは別軸＝設置は turn 全体に残るが**発火窓はメインだけ**。
+     */
+    duringOwnMainPhase?: boolean;
   };
+  /**
+   * 発火時に満たしていなければならない盤面条件（§6.4 O-11・`WX05-042` の「それがこのターンで３回目である場合」）。
+   * ⚠**収集時に評価する**＝満たさない回は entry を作らない（作ってから中で分岐すると
+   *   `once` が1回目の非成立で消費されてしまう）。
+   */
+  fireCondition?: Condition;
   effect: EffectAction;           // 発火時に実行するアクション
   conditional?: boolean;          // 「そうした場合」＝直前ステップ（任意コスト等）が成功したときのみ設置
 }
