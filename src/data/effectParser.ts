@@ -580,16 +580,16 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.energyTrash = {
       count: parseNum(etM[4]),
       filter: etFilter,
-      ...(etM[1] === 'それぞれ異なるクラスを持つ'
-        ? { selectionConstraint: { distinct: 'class' } }
-        : etM[1] === '共通する色を持つ'
-          ? { selectionConstraint: { sharedColor: 'all' } }
-          : {}),
+      ...(energyTrashConstraintOf(etM[1]) ?? {}),
     };
   } else if (etRevM) {
     const etRFilter: TargetFilter = { cardType: 'シグニ' };
-    if (etRevM[1]) etRFilter.story = etRevM[1];
-    cost.energyTrash = { count: parseNum(etRevM[2]), filter: etRFilter };
+    if (etRevM[2]) etRFilter.story = etRevM[2];
+    cost.energyTrash = {
+      count: parseNum(etRevM[3]),
+      filter: etRFilter,
+      ...(energyTrashConstraintOf(etRevM[1]) ?? {}),
+    };
   } else if (etCardM) {
     const etCFilter: TargetFilter = {};
     if (etCardM[1]) etCFilter.story = etCardM[1];
