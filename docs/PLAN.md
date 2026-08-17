@@ -191,19 +191,24 @@
 
 **なぜこれが最上位に上がったか**＝続き551 に PLAN 全体を見直した結果、**DoD 4層のうち層④（対戦体験）だけが
 完全に未着手**で、しかも「一人で通しで遊べる」に直結するのはそこだけだった。続き551 で
-**CPU がメインフェイズにシグニ【起】を撃つ v1**（射程＝MAIN で撃てる 682 のうち **500**）まで入れた。
+**CPU がメインフェイズにシグニ【起】を撃つ v1**（射程＝MAIN で撃てる 682 のうち **500**）、
+続き552 で **(a) CPU が相手のアタックフェイズに応答アーツで守る v1**（射程＝アタックフェイズ Timing の
+428 のうち **214**）まで入れた。
 
-- [ ] **(a) 相手ターンの応答アーツ**＝**現状 CPU は `ATTACK_ARTS` を素通り**＝人間は一方的に殴れる。
-  **体験上いちばん大きい穴**なのでここが次。⚠**`executeArts` の owner パラメータ化が先**
-  （手順は続き551 の `performSigniActivated` と同じ＝`{actor, opponent, actorId, actorKey}` を引数化して
-  人間用は薄いラッパーにする）。
-- [ ] **(b) 自ターンのアーツ／スペル**（`castSpell` は177行・`my` 参照76箇所）。
+- [x] **✅(a) 相手ターンの応答アーツ**＝2026-08-18 続き552 完了。`artsUseGate.ts`（提示＋コスト計算の funnel）／
+  `performArts`（owner パラメータ化）／`cpuArts.ts`（守りの分類・脅威判定）。詳細は [BUGFIXES.md](./BUGFIXES.md) 続き552。
+- [ ] **(b) 自ターンのアーツ／スペル**。⚠**アーツ側は `performArts` が済んでいるので「攻めの札の選び方」だけ**が残り
+  （`turnPhase:'ATTACK_ARTS'`／`'MAIN'` × `isMyTurn:true` で同じ `listUsableArts` が使える）。
+  スペルは `castSpell` の owner パラメータ化が先（177行・`my` 参照76箇所＝`performArts` と同じ手順で割れる）。
 - [ ] **(c) ルリグ【起】・《アタックフェイズアイコン》付き【起】**（`ATTACK_ARTS` の【起】は gate 側に既に対応済み＝
   `listActivatableSigniEffects({phase:'ATTACK_ARTS'})` を呼ぶだけ）。
 - [ ] **(d) CPU グロウの手書き再実装を `executeGrow` へ寄せる**（DESIGN §4「CPU は対人戦と同じ処理」は未完のまま）。
-- ⚠**支払い内訳に盤面評価が要るコストは撃たない allowlist**（`cpuActivate.ts`）を広げるときは、
-  **先に `signiActivateGate` 側へ検算を足す**こと＝gate が数を見ていないコストを allowlist に載せると
-  実行側が黙って abort して **CPU が同じ効果を選び直す無限ループ**になる。
+- ⚠**支払いコストの allowlist を広げるときは「その実行経路が実際に払っているか」を先に見る**。
+  **`cpuActivate.ts`（シグニ【起】）と `cpuArts.ts`（アーツ）で allowlist が違うのは正しい**＝
+  `performSigniActivated` は `down_self`／`lrigDown`／`acceTrash` 等を自動で払うが、
+  **`performArts` はエナ以外の宣言コストを払わない**（＝アーツ側に足すと宣言だけして踏み倒す）。
+- ⚠加えて `cpuActivate.ts` 側は、**gate が数を検算していないコスト**を allowlist に載せると
+  実行側が黙って abort して **CPU が同じ効果を選び直す無限ループ**になる（先に `signiActivateGate` へ検算を足す）。
 
 #### ① 【Opus 側】「壊れ方」で機械検出して直す（§5d-0）
 
