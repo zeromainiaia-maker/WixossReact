@@ -1130,6 +1130,30 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3c-2: 「(あなた|対戦相手)の場に(レベルNの)?(覚醒|傀儡)状態のシグニがあるかぎり、」（2026-08-18・§5d-0 (ii)）
+  // 🔴従来この形の条件節は**丸ごと落ちて無条件発火**していた＝`WXDi-P14-050-E1`（**無条件で相手の【ガード】に
+  //   追加コストを課す**）／`WXDi-P14-062-E1`（**無条件で能力付与**）。
+  // ⚠**「がある場合」形の規則は既にあった**（下の条件節テーブル）が「あるかぎり」形（＝【常】の activeCondition 経路）
+  //   に無かった＝**同じ文型なのに一部だけ直らない**ときは「どの表に居るか」を疑う（続き368 の教訓）。
+  // 🔑engine は両評価器とも対応済み（`execUtils.evalCondition` の HAS_CARD_IN_FIELD／
+  //   `effectEngine.matchesStateFilter` の `isAwakened`/`isPuppet`）＝新機構は不要。
+  const fieldSigniStateM = text.match(/^(あなた|対戦相手)の場に(?:レベル([０-９\d]+)の)?(覚醒|傀儡)状態のシグニがあるかぎり、/);
+  if (fieldSigniStateM) {
+    return {
+      condition: {
+        type: 'HAS_CARD_IN_FIELD',
+        owner: fieldSigniStateM[1] === '対戦相手' ? 'opponent' : 'self',
+        filter: {
+          cardType: 'シグニ',
+          ...(fieldSigniStateM[2] ? { level: parseNum(fieldSigniStateM[2]) } : {}),
+          ...(fieldSigniStateM[3] === '覚醒' ? { isAwakened: true } : { isPuppet: true }),
+        },
+      },
+      rest: text.slice(fieldSigniStateM[0].length),
+      conditionFound: true,
+    };
+  }
+
   // 「あなたの場に《ライズアイコン》を持つシグニが3体あるかぎり、」
   // ＝ライズアイコン持ちシグニ3体の条件（WXEX1-35）。別枚数の既存カードは今回の採用対象に混ぜない。
   const fieldRiseCountM = text.match(/^(?:このシグニは)?あなたの場に《ライズアイコン》を持つシグニが[３3]体あるかぎり、/);
