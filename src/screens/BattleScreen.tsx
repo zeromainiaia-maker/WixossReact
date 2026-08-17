@@ -582,7 +582,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (inter.multiSelect) {
           // 複数選択: 利用可能な選択肢からcount個（upToならcount個まで）選択
           const avail = inter.options.filter(o => o.available);
-          selected = avail.slice(0, inter.count).map(o => o.id);
+          // 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）＝**選択肢の数より多く選べる**ので、
+          // 足りないぶんは先頭から巡回して埋める。⚠これが無いと選択肢2つ・count4 のとき CPU は2つしか
+          // 選ばず、ベットしたコインぶんの選択が**黙って目減りする**（過少）。
+          selected = inter.allowRepeat && avail.length > 0
+            ? Array.from({ length: inter.count }, (_, i) => avail[i % avail.length].id)
+            : avail.slice(0, inter.count).map(o => o.id);
         } else {
           const firstAvail = inter.options.find(o => o.available) ?? inter.options[0];
           selected = firstAvail ? [firstAvail.id] : [];
