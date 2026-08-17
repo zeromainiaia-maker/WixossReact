@@ -9425,6 +9425,22 @@ function parseActionTextInner(text: string): EffectAction {
       const chosen = buildChoose(text, 1, false);
       if (chosen) return chosen;
     }
+    // ---- コスト支払い枚数のゲート（§6.4 O-35・続き530。複文側はメインループに同じ規則がある）----
+    // 単文の効果はここで早期 return されるので、ループ側だけに置くと `WXDi-P16-012-E3` のように
+    // **条件だけ落ちて帰結が無条件に走る**（エナが0枚でもライフが1枚増える過剰実行）。
+    {
+      const g1 = s.trim().match(COST_TRASH_COUNT_GATE_RE);
+      if (g1) {
+        const inner1 = parseSingleSentence(g1[2].replace(/。$/, '').trim());
+        if (!JSON.stringify(inner1).includes('"UNKNOWN"')) {
+          return {
+            type: 'CONDITIONAL',
+            condition: { type: 'COST_TRASHED_MATCHES', filter: {}, minCount: parseNum(g1[1]) },
+            then: inner1,
+          };
+        }
+      }
+    }
     // ---- 「カードをN枚引き、X」複合文 ----
     const drawAndM = s.trim().match(/^カードを([０-９\d]+)枚引き、(.+)/);
     if (drawAndM) {
