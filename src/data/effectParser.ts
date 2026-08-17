@@ -3525,6 +3525,43 @@ function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): Ef
   } as EffectAction;
 }
 
+/**
+ * 「〈直前の結果〉が〈X〉の場合、**それと同じレベルの**〈対象〉を…」＝**結果ゲートの内側**のレベル同一性
+ * （§6.4 O-11・続き531・`WXK10-009-E1`③＝「デッキの一番下のカードをトラッシュに置く。それがシグニの
+ * 場合、それと同じレベルの対戦相手のすべてのシグニをダウンする」）。
+ *
+ * 🔴レベル限定が落ちると**相手のシグニが全員ダウンする**過剰実行になる。
+ * ⚠上の `rewriteSameLevelAsLastProcessed`（文単位）では届かない＝この文型は
+ *   「それが〜の場合、」の前置きが複数文ハンドラ側で剥がされ、`CONDITIONAL{LAST_PROCESSED_MATCHES}` の
+ *   包みは**後から**付くので、文単位の時点では「基準がどれか」の証拠が無い。
+ * 🔑ここは**組み上がった木**を見る＝`LAST_PROCESSED_MATCHES` ゲートの内側なら「それ」＝直前の結果で確定。
+ */
+function applySameLevelInsideLastProcessedGate(text: string, action: EffectAction): EffectAction {
+  if (!/それが[^。]*場合[、,][^。]*それと同じレベル/.test(text)) return action;
+  const walk = (node: EffectAction): EffectAction => {
+    if (!node || typeof node !== 'object') return node;
+    if (node.type === 'CONDITIONAL') {
+      const c = node as ConditionalAction;
+      if (c.condition.type === 'LAST_PROCESSED_MATCHES') {
+        const inner = c.then as unknown as { type?: string; target?: { type?: string; filter?: Record<string, unknown> } };
+        const f = inner.target?.filter ?? {};
+        if (inner.target?.type === 'SIGNI' && f.level === undefined && !f.levelEqLastProcessed
+            && !f.levelEqTrigger && !f.levelLteLastProcessed) {
+          return { ...c, then: { ...c.then, target: { ...inner.target, filter: { ...f, levelEqLastProcessed: true } } } as EffectAction };
+        }
+      }
+      return { ...c, then: walk(c.then), ...(c.else ? { else: walk(c.else) } : {}) };
+    }
+    if (node.type === 'SEQUENCE') return { ...node, steps: (node as SequenceAction).steps.map(walk) } as EffectAction;
+    if (node.type === 'CHOOSE') {
+      const ch = node as ChooseAction;
+      return { ...ch, choices: ch.choices.map(c => ({ ...c, action: walk(c.action) })) } as EffectAction;
+    }
+    return node;
+  };
+  return walk(action);
+}
+
 function parseSingleSentence(text: string): EffectAction {
   let action = parseSingleSentenceInner(text);
   action = rewritePerLastProcessedCount(action, text);
