@@ -126,7 +126,7 @@ import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } fr
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
 import { pickCpuMainPhaseActivated } from './battle/cpuActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
-import { pickCpuResponseArts } from './battle/cpuArts';
+import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';

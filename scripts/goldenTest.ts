@@ -39572,6 +39572,8 @@ const mkArtsEff = (action: unknown, extra: Partial<CardEffect> = {}): CardEffect
 const artsFixture = (p: {
   card?: Partial<CardData>; effs?: CardEffect[];
   actor?: PlayerState; opponent?: PlayerState;
+  /** 自ターンの窓を組むときに渡す（既定＝相手ターンの応答窓）。 */
+  turnPhase?: TurnPhase; isActorTurn?: boolean;
 }) => {
   const card = mkArts(p.card);
   const cm = new Map(cardMap) as Map<string, CardData>;
@@ -39581,7 +39583,8 @@ const artsFixture = (p: {
   const actor = p.actor ?? ({ ...mkState({ energy: 0 }), lrig_deck: [card.CardNum], energy: [ART_RED] } as PlayerState);
   const opponent = p.opponent ?? mkState({ signi: [SIGNI, null, null] });
   const payer = buildArtsPayerCtx({
-    actor, opponent, isActorTurn: false, turnPhase: 'ATTACK_ARTS_OP', cardMap: cm, effectsMap: em,
+    actor, opponent, isActorTurn: p.isActorTurn ?? false,
+    turnPhase: p.turnPhase ?? 'ATTACK_ARTS_OP', cardMap: cm, effectsMap: em,
   });
   return { card, cm, em, actor, opponent, payer };
 };
