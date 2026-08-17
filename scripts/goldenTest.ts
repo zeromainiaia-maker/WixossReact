@@ -32335,6 +32335,83 @@ test('live データ不変条件: 「同じ選択肢を複数回選ぶ」ルー�
   }
   eq(bad.length, 0, `選択ループが二重になっている効果: ${bad.join(', ')}`);
 });
+
+// ══════════════════════════════════════════════════════════════════════════════
+// §6.4 O-29（2026-08-17・**残0クローズ**）：「同じ選択肢を複数回選ぶ」ループの表現
+// 🔑本当の穴は **UI が `Set<string>` で選択を持っていた**ことだった＝engine の `resumeChoose` は
+//    最初から `['c1','c1']` を順に実行できる。⇒ `ChooseAction.allowRepeat` を足して UI を回数マップへ。
+// ══════════════════════════════════════════════════════════════════════════════
+test('§6.4 O-29 resumeChoose: 同じ選択肢を複数回渡すとその回数だけ実行される', () => withSavedCursor(() => {
+  // engine 側の素の性質（UI とは独立）＝重複 id を dedup しないこと。
+  const choose = {
+    type: 'CHOOSE', choose_count: 3, from_count: 2, upTo: true, allowRepeat: true,
+    choices: [
+      { choiceId: 'c0', label: '1枚引く', action: { type: 'DRAW', owner: 'self', count: 1 } },
+      { choiceId: 'c1', label: '何もしない', action: { type: 'SEQUENCE', steps: [] } },
+    ],
+  } as unknown as EffectAction;
+  const ctx = mkCtx({ hand: 0 }, {});
+  const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action: choose, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!r0.done && r0.pending.type === 'CHOOSE', 'CHOOSE が立つ');
+  eq((r0.pending as { allowRepeat?: boolean }).allowRepeat, true, '🔴allowRepeat が pending へ伝わっていない（UI が回数UIに切り替わらない）');
+  eq((r0.pending as { multiSelect?: boolean }).multiSelect, true, 'allowRepeat は multiSelect も立てる');
+  const c = { ...ctx, ownerState: r0.ownerState, otherState: r0.otherState, logs: r0.logs } as ExecCtx;
+  const r = resumeChoose(['c0', 'c0', 'c0'], r0.pending as never, c);
+  ok(r.done, '完走');
+  eq(r.ownerState.hand.length, 3, '🔴同じ選択肢3回が1回に潰れている（dedup されている）');
+}));
+
+test('§6.4 O-29 allowRepeat: 選択数1のときは立てない（単発UIになるため）', () => withSavedCursor(() => {
+  const choose = {
+    type: 'CHOOSE', choose_count: 1, from_count: 2, allowRepeat: true,
+    choices: [
+      { choiceId: 'c0', label: 'a', action: { type: 'SEQUENCE', steps: [] } },
+      { choiceId: 'c1', label: 'b', action: { type: 'SEQUENCE', steps: [] } },
+    ],
+  } as unknown as EffectAction;
+  const r0 = executeEffect({ effectId: 't', effectType: 'AUTO', action: choose, duration: 'INSTANT', mandatory: true } as CardEffect, mkCtx({}, {}));
+  ok(!r0.done && r0.pending.type === 'CHOOSE', 'CHOOSE が立つ');
+  eq((r0.pending as { allowRepeat?: boolean }).allowRepeat, undefined, '選択数1では allowRepeat を立てない');
+}));
+
+// `WX17-003-E1`＝「以下**から**２つまで選ぶ。同じ選択肢を２回選んでもよい。あなたがベットしていた場合、
+// 代わりに４つまで選ぶ。①…②…③…」。
+// 🔴従来は**カード全文を実行時に regex で読む受け皿 STUB**（`CHOOSE_SAME_OPTION_TWICE` /
+//    `CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE`＝§6.4 O-20 で潰した型の生き残り）で、
+//    しかも「1つずつN周」の強制ループ＝**「Nつ**まで**」の upTo が落ちて必ずN回選ばされる**過剰実行だった。
+test('§6.4 O-29 WX17-003-E1: 受け皿STUBではなく betChoose+allowRepeat の CHOOSE になる', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WX17-003')?.find(e => e.effectId === 'WX17-003-E1');
+  if (!eff) throw new Error('WX17-003-E1 が存在');
+  const a = eff.action as ChooseAction;
+  eq(a.type, 'CHOOSE', '🔴受け皿 STUB（カード全文 regex）へ戻っている');
+  const js = JSON.stringify(a);
+  ok(!js.includes('CHOOSE_SAME_OPTION') && !js.includes('CONDITIONAL_MULTI_CHOOSE'),
+    '🔴実行時にカード全文を読む受け皿が残っている');
+  eq(a.choose_count, 2, 'ベットなし＝2つ');
+  eq(a.upTo, true, '🔴「２つ**まで**」の upTo が落ちている（必ず2回選ばされる過剰）');
+  eq(a.allowRepeat, true, '🔴「同じ選択肢を２回選んでもよい」が落ちている');
+  eq(a.betChoose?.thenChooseCount, 4, 'ベット時は4つ');
+  eq(a.betChoose?.thenUpTo, true, 'ベット時も「まで」');
+  eq(a.choices.length, 3, '①②③の3択');
+  eq(a.choices[0].action.type, 'SEQUENCE', '①相手シグニを手札に戻す＋手札1枚捨てる');
+  eq(a.choices[1].action.type, 'GRANT_KEYWORD', '②相手センタールリグにアタック不可');
+  eq((a.choices[1].action as { target?: { type?: string; owner?: string } }).target?.type, 'LRIG', '②の対象はルリグ');
+  eq(a.choices[2].action.type, 'SEARCH', '③デッキから＜怪異＞2枚');
+  // ⚠「レベルの**異なる**」は**選択集合どうしの相互制約**＝落とすと同じレベルを2枚探せる（原文より緩い）。
+  eq(JSON.stringify((a.choices[2].action as { selectionConstraint?: unknown }).selectionConstraint),
+    JSON.stringify({ distinct: 'level' }), '🔴「レベルの異なる」が落ちている');
+
+  // 挙動＝ベットしていなければ2つまで、ベットしていれば4つまで（どちらも upTo）。
+  const openWith = (betting: boolean) => {
+    const ctx = mkCtx({}, {});
+    ctx.ownerState.is_betting_this_effect = betting;
+    const r = executeEffect({ ...eff, action: a } as CardEffect, ctx);
+    return r.done ? null : (r.pending as { count: number; allowRepeat?: boolean; upTo?: boolean });
+  };
+  eq(openWith(false)?.count, 2, 'ベットなしは2つ');
+  eq(openWith(true)?.count, 4, '🔴ベットしても選択数が増えていない');
+  eq(openWith(true)?.allowRepeat, true, 'ベット時も同一選択肢を選べる');
+}));
 test('execSequence: 入れ子 SEQUENCE の continuation を外側で上書きしない（§6.4 O-28）', () => withSavedCursor(() => {
   // 🔴内側 SEQUENCE が対話に入ると、内側の残りステップが continuation に載る。外側がそこへ
   //   自分の残りステップを**代入**すると内側の残りが無言で消える＝盤面が半分しか動かない。
