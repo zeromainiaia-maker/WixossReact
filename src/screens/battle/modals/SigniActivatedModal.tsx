@@ -6,7 +6,7 @@ import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine
 import { canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { collectIncreaseActCost } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, isMultiEna } from '../costs';
+import { fmtDiscardFilterLabel, canAffordWithExtraCost, canAffordGrowCost, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
 import { fieldTrashGroupsSatisfied } from '../fieldLimit';
 import { payUnderSelfTrash, underSelfCostCandidates } from '../underAnySigniCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from '../lrigDownCost';
