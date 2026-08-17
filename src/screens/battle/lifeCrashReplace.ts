@@ -110,6 +110,8 @@ export function pickLifeCrashReplacement(
     if (r.byAttack && ctx.damageSource === undefined) continue;
     // 「デッキがN-1枚以下の場合は置き換えられない」（原文の注記）
     if (r.kind === 'mill' && state.deck.length < r.count) continue;
+    // 「代わりに〈コスト〉を支払ってもよい」＝払えないなら置換は成立しない（ダメージがそのまま通る）。
+    if (r.kind === 'pay_cost' && (!ctx.cardMap || !pickPayOption(r, state, ctx.cardMap))) continue;
     return { index: i, repl: r };
   }
   return null;
@@ -119,14 +121,68 @@ export function pickLifeCrashReplacement(
 export function consumeLifeCrashReplacement(state: PlayerState, index: number): PlayerState {
   const all = lifeCrashReplacements(state);
   const target = all[index];
-  if (!target?.once) return state;
+  if (!target) return state;
+  // 「そうした場合、このルリグはこの能力を失う」＝在庫はルリグ付与ストアなので、そこから1件だけ消す。
+  if (target.loseGrantedEffectId) {
+    for (const key of LRIG_GRANT_STORES) {
+      const effects = state[key] ?? [];
+      const idx = effects.findIndex(e => e.effectId === target.loseGrantedEffectId);
+      if (idx < 0) continue;
+      const kept = effects.filter((_, i) => i !== idx);
+      return { ...state, [key]: kept.length > 0 ? kept : undefined };
+    }
+    return state;
+  }
+  if (!target.once) return state;
   // legacy と新形式を1本に畳んでから消す（以後 legacy 側は書かない）。
-  const next = all.filter((_, i) => i !== index);
+  // ⚠付与ストア由来（末尾）は畳み込みの対象外＝`life_crash_replacements` へ移してはいけない。
+  const declared = [...(state.life_crash_replacements ?? []),
+    ...(state.damage_replace_mill ?? []).map((count): LifeCrashReplacement => ({ kind: 'mill', count, once: true }))];
+  const next = declared.filter((_, i) => i !== index);
   return {
     ...state,
     life_crash_replacements: next.length > 0 ? next : undefined,
     damage_replace_mill: undefined,
   };
+}
+
+/**
+ * `kind:'pay_cost'` の置換を適用する（コストを払い、必要なら付与能力を1つ失う）。
+ *
+ * ⚠**現状は自動適用・自動選択の近似**（funnel 冒頭の `optional` の注記と同じ枠）＝
+ *   ダメージ解決は `crashOneLife` の同期経路なので、被害側に問う対話窓が無い。
+ *   - 支払い方は**原文の並び順**で最初に払えるものを選ぶ（恣意的な優先順位を作らない）。
+ *   - 捨てる手札／トラッシュに置くエナは**末尾から**取る（決定論・ファズ再現性のため）。
+ *   本来は被害側が「払う／払わない」「どれで払うか」を選ぶ。対話化は離場置換（§6.4 M2）と同じ枠組み。
+ */
+export function applyPayCostReplacement(
+  state: PlayerState,
+  index: number,
+  repl: LifeCrashReplacement,
+  cardMap: Map<string, CardData>,
+): { state: PlayerState; paidJa: string } | null {
+  const picked = pickPayOption(repl, state, cardMap);
+  if (!picked) return null;
+  const { option, energyPicked } = picked;
+  let paid = state;
+  let paidJa = '';
+  if (energyPicked.length > 0) {
+    paid = {
+      ...paid,
+      energy: paid.energy.filter(n => !energyPicked.includes(n)),
+      trash: [...paid.trash, ...energyPicked],
+    };
+    paidJa = (option.costColors ?? []).map(c => `《${c}》`).join('');
+  } else if (option.handDiscard) {
+    const spent = paid.hand.slice(-option.handDiscard);
+    paid = { ...paid, hand: paid.hand.slice(0, paid.hand.length - spent.length), trash: [...paid.trash, ...spent] };
+    paidJa = `手札${spent.length}枚を捨てる`;
+  } else if (option.energyTrash) {
+    const spent = paid.energy.slice(-option.energyTrash);
+    paid = { ...paid, energy: paid.energy.slice(0, paid.energy.length - spent.length), trash: [...paid.trash, ...spent] };
+    paidJa = `エナゾーンから${spent.length}枚をトラッシュに置く`;
+  }
+  return { state: consumeLifeCrashReplacement(paid, index), paidJa };
 }
 
 /** `kind:'mill'` の置換を適用する（デッキ上 N 枚をトラッシュへ）。 */
