@@ -37238,6 +37238,68 @@ test('§6.4 O-11: 「レベル３か白のシグニ」は anyOf（種別の違�
     '🔴level と color を同じ filter に並べると AND になり候補が消える');
 });
 
+
+// ── §6.4 O-11：連用形チェーンの**先頭節**が丸ごと落ちる形（2026-08-17 続き525）──────────────
+// 既存の復元パス（`recoverDroppedConjClauses`）は**落ちているのが後続節**の場合しか救わない。
+// 先頭節が落ちる向きは素通りしており、たまたま最後の節に食いついた規則の結果だけが残っていた。
+
+test('§6.4 O-11: 「AをバニッシュしBする」で先頭のバニッシュが消えない（条件節の内側でも）', () => {
+  const e = (effectsMap.get('WXDi-P12-002') ?? []).find(x => x.effectId === 'WXDi-P12-002-E1');
+  ok(!!e, 'WXDi-P12-002-E1 が live に存在する');
+  const c = e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(c.type, 'CONDITIONAL', '条件は保たれる');
+  const steps = (c.then as SequenceAction).steps;
+  eq(steps[0].type, 'BANISH', '🔴先頭の「すべてのシグニをバニッシュ」が落ちている');
+  eq(JSON.stringify((steps[0] as { target: unknown }).target),
+    '{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}', '相手の全シグニ');
+  eq(steps[1].type, 'TRASH', '後続のエナトラッシュも残る');
+});
+
+test('§6.4 O-11: 「〜を対象とし、それをバニッシュし、…このシグニのパワーを＋N」の先頭節が消えない', () => {
+  // 照応（それ）を含む先頭節は「自己完結」ガードに引っかかるので、対象節ごと再パースする専用パスで拾う。
+  const e = (effectsMap.get('WX13-046') ?? []).find(x => x.effectId === 'WX13-046-E1');
+  ok(!!e, 'WX13-046-E1 が live に存在する');
+  const steps = (e!.action as SequenceAction).steps;
+  eq(steps.length, 2, '🔴BANISH が落ちて POWER_MODIFY だけになっている');
+  eq(steps[0].type, 'BANISH', '先頭はバニッシュ');
+  const f = (steps[0] as { target: { filter?: { powerRange?: { max?: number } }; upToCount?: boolean } }).target;
+  eq(f.filter?.powerRange?.max, 5000, 'パワー5000以下');
+  eq(f.upToCount, true, '「１体まで」＝0体も選べる');
+  eq(steps[1].type, 'POWER_MODIFY', '自己パワー修整も残る');
+});
+
+test('§6.4 O-11: LOOK_AND_REORDER の後続文（末尾の1ドロー）が捨てられない', () => {
+  const e = (effectsMap.get('WXDi-P08-063') ?? []).find(x => x.effectId === 'WXDi-P08-063-E1');
+  ok(!!e, 'WXDi-P08-063-E1 が live に存在する');
+  const steps = (e!.action as SequenceAction).steps;
+  eq(steps.map(s => s.type).join(','), 'LOOK_AND_REORDER,DRAW', '🔴3文目の「カードを１枚引く」が落ちている');
+});
+
+test('§6.4 O-11: 「手札をすべて捨て、捨てた枚数＋Nドロー」は捨てが先に走る', () => {
+  // `DRAW_DISCARD_COUNT_PLUS_N` は **引くだけ**で捨てない（枚数は lastProcessedCards から読む）＝
+  // 先頭の「手札をすべて捨て」が落ちていると**捨てが起きず枚数も別の値**になる。
+  const e = (effectsMap.get('WXDi-P00-018') ?? []).find(x => x.effectId === 'WXDi-P00-018-E1');
+  ok(!!e, 'WXDi-P00-018-E1 が live に存在する');
+  const first = (e!.action as SequenceAction).steps[0] as SequenceAction;
+  eq(first.type, 'SEQUENCE', '🔴先頭が STUB 単体（＝捨てが無い）に戻っている');
+  eq(first.steps[0].type, 'TRASH', '手札を捨てるのが先');
+  eq(JSON.stringify((first.steps[0] as { target: unknown }).target),
+    '{"type":"HAND_CARD","owner":"self","count":"ALL"}', '自分の手札をすべて');
+  eq((first.steps[1] as StubAction).id, 'DRAW_DISCARD_COUNT_PLUS_N', '捨てた枚数を読むドロー');
+});
+
+test('§6.4 O-11: 先頭節の復元は「公開/探索の複合文」を割らない（二重実行の防止）', () => {
+  // 「その中から…場に出し、残りを…」は 1つの REVEAL_AND_PICK / LOOK_PICK_CHAIN で表す文型＝
+  // 先頭節を別アクションとして前置すると**場出しが二重に走る**（A/B 実測で17効果が該当した）。
+  for (const [cardNum, effectId] of [['SP27-004', 'SP27-004-E2'], ['WX14-046', 'WX14-046-E1']] as [string, string][]) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在する`);
+    const json = JSON.stringify(e!.action);
+    const placements = (json.match(/"ADD_TO_FIELD"/g) ?? []).length + (json.match(/"then":"field"/g) ?? []).length;
+    ok(placements <= 1, `🔴${effectId}: 場出しが ${placements} 回に増えている（複合文を割った）`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

@@ -4179,22 +4179,48 @@ function parseSingleSentenceInner(text: string): EffectAction {
   const recovered = recoverDroppedConjClauses(t, result);
   if (recovered) return recovered;
 
+  // 🔴**条件節の無い連用チェーンで先頭節が丸ごと落ちる**形（§6.4 O-11・`WXDi-P12-002-E1`＝
+  //   「対戦相手の**すべてのシグニをバニッシュし**、その後、…をトラッシュに置く」でバニッシュだけ消える）。
+  //   一般の連用中止 splitter は「対象とし、」を含む文に**一切触らない**設計なので、
+  //   たまたま最後の節に食いついた単発規則の結果だけが残っていた。
+  // 🔑安全条件は3つ：
+  //   ①この文に条件/トリガーの marker が無い（上流で条件は剥がれている＝条件を跨がない）
+  //   ②**先頭節が自己完結**（「それ」「その」「対象とし」を含まない＝単独 parse で参照先を失わない）
+  //   ③🔴**残り節だけを parse した結果が現行結果と完全一致する**＝現行結果は「残り」の意味しか持って
+  //     いない証拠。これが無いと、**文全体を1アクションで表す複合ハンドラ**（`MUTUAL_DISCARD_AND_DRAW`
+  //     ／`REVEAL_AND_PICK` 等）の前に先頭節を積んで**二重実行**になる（A/B 実測で該当あり）。
+  if (!/場合|かぎり|とき|代わりに/.test(t) && result.type !== 'UNKNOWN') {
+    const conjM = t.match(CONJ_SPLIT_RE);
+    const rawHead = conjM ? toFiniteForm(conjM[1]) : null;
+    if (conjM && rawHead && !/それ|その|対象とし/.test(rawHead)) {
+      const tailAction = parseSingleSentence(conjM[2]);
+      if (JSON.stringify(tailAction) === JSON.stringify(result)) {
+        const headPlain = parseSingleSentence(rawHead);
+        const havePlain = collectActionTypeSet(result);
+        if (headPlain.type !== 'UNKNOWN' && headPlain.type !== 'STUB' && headPlain.type !== 'SEQUENCE'
+            && !havePlain.has(headPlain.type)) {
+          return { type: 'SEQUENCE', steps: [headPlain, result] } as SequenceAction;
+        }
+      }
+    }
+  }
+
   // 🔴「〈対象節〉を対象とし、**それを**〈V〉し、ターン終了時まで、このシグニのパワーを±Nする」＝
   //   **先頭節（対象＋V）が丸ごと落ちて自己パワー修整だけが残る**形（§6.4 O-11・`WX13-046-E1`）。
-  //   上の `recoverDroppedConjClauses` は「2節目以降に照応（それ）があれば触らない」設計なので
-  //   この向き（**落ちているのが head 側**）は素通りしていた。
+  //   上の2つの復元パスは「先頭節が自己完結」を要求するので、**照応（それ）を含む先頭節**のこの形は拾えない。
+  //   ここは「対象節＋それをV」をひとまとまりで再パースするので参照先を失わない。
   // ⚠再構成してよいのは**前置きが条件ではなくトリガー句のとき**だけ＝`WX21-006`（「…3体ある場合、
   //   それをバニッシュし、…」）で条件が未パースのまま head を足すと**毎アタックフェイズ無条件バニッシュ**
-  //   になる（`recoverDroppedConjClauses` の同じ教訓）。ここは `場合|かぎり` を含む文を明示的に弾く。
+  //   になる（`recoverDroppedConjClauses` と同じ教訓）。`場合|かぎり` を含む文は明示的に弾く。
   {
-    const chainM = t.match(/^(.*?(?:とき|：)、?)?((?:.+?)を[０-９\d]*[体枚]?(?:まで)?対象とし、それを(?:バニッシュ|トラッシュに置き|手札に戻し|エナゾーンに置き|ダウン))し?、(ターン終了時まで、このシグニのパワーを[＋－][０-９\d]+する)。?$/);
+    const chainM = t.match(/^(?:.*?(?:とき|：)、?)?((?:.+?)を[０-９\d]*[体枚]?(?:まで)?対象とし、それを(?:バニッシュ|トラッシュに置き|手札に戻し|エナゾーンに置き|ダウン))し?、(?:ターン終了時まで、このシグニのパワーを[＋－][０-９\d]+する)。?$/);
     if (chainM && !/場合|かぎり|代わりに/.test(t) && result.type !== 'UNKNOWN') {
-      const head = parseSingleSentence(chainM[2] + 'する');
-      const have = collectActionTypeSet(result);
-      const headTypes = collectActionTypeSet(head);
-      const headMissing = [...headTypes].some(x => x !== 'SEQUENCE' && x !== 'SIGNI' && !have.has(x));
-      if (head.type !== 'UNKNOWN' && head.type !== 'STUB' && headMissing) {
-        return { type: 'SEQUENCE', steps: [head, result] } as SequenceAction;
+      const headChain = parseSingleSentence(chainM[1] + 'する');
+      const haveChain = collectActionTypeSet(result);
+      const missingChain = [...collectActionTypeSet(headChain)]
+        .some(x => x !== 'SEQUENCE' && x !== 'SIGNI' && !haveChain.has(x));
+      if (headChain.type !== 'UNKNOWN' && headChain.type !== 'STUB' && missingChain) {
+        return { type: 'SEQUENCE', steps: [headChain, result] } as SequenceAction;
       }
     }
   }
