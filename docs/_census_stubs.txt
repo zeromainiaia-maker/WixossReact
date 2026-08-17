@@ -2,15 +2,15 @@
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
 live JSON の STUB id 種類 : 601（総ノード 2864 件）
-逆翻訳シートの [STUB:…] 総数: 747  うち生ID露出 304 箇所（186 種）
+逆翻訳シートの [STUB:…] 総数: 747  うち生ID露出 95 箇所（35 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 4 種 / 5 件
       └ うち明示 defer（DEFERRED_*＝機構不在の宣言）      : 4 種 / 5 件
       └ 無言の no-op（DEFERRED_ でない＝要対応）           : 0 種 / 0 件
   B 宣言型（ハンドラ無しだが engine 別経路が消費）        : 28 種 / 83 件
-  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 179 種 / 296 箇所
-  D 健全（実装あり＋日本語表示）                          : 418 種
+  C 表示だけの穴（実装あり＋逆翻訳に生ID露出）            : 30 種 / 89 箇所
+  D 健全（実装あり＋日本語表示）                          : 567 種
   （参考）JSON 0件・ハンドラのみ（内部/動的生成）         : 345 種
 
 ==============================================================================
@@ -130,514 +130,68 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         カード: WD06-006, WD06-018, WDK09-017, WDK17-009, SPK01-14, PR-K070 …他22枚
   露出 19箇所 (live 19件/18枚)  GAIN_ABILITY_THIS_GAME  [execStubPart1]
         カード: WX08-015, WX10-011, WX24-P4-036, WX25-P2-001, WX25-P2-003, WX25-P2-005 …他12枚
-  露出  7箇所 (live 3件/3枚)  SIGNI_REPOSITION  [execStubPart3]
-        カード: WXEX2-04, WX24-P2-089, WXDi-CP02-095
-        既存コメント: SIGNI_REPOSITION: シグニを別のゾーンに移動（自or相手、1体 or 全体） MOVE_TARGET_SIGNI_TO_OTHER_ZONE: 対象の自シグニを他のシグニゾーンへ移動（同処理）
-  露出  6箇所 (live 6件/6枚)  RETURN_SELF_ARTS_TO_LRIG_DECK  [execStubPart3]
-        カード: WDK17-008, SP07-009, WXDi-P06-023, WXK01-005, WXK06-016, WXK11-003
-        既存コメント: RETURN_SELF_ARTS_TO_LRIG_DECK: 使用後の自身をルリグデッキに戻す。 アーツは lrig_trash、アシストルリグは左右いずれかのアシストルリグスタックにある。
   露出  5箇所 (live 5件/5枚)  PREVENT_POWER_MODIFY_BY_OPP  [engine別経路]
         カード: WX05-024, WX12-033, WX20-023, WX22-013, WXK03-018
-  露出  5箇所 (live 5件/5枚)  SET_CANCEL_ATTACK_FLAG  [execStubPart3]
-        カード: SPDi43-06, WX24-P3-050, WX24-P3-069, WX24-P4-067, WXDi-P05-037
-        既存コメント: SET_CANCEL_ATTACK_FLAG: アタックキャンセルフラグをセット（NEGATE_ATTACK_ON_TRIGGERのYes時。攻撃側=効果オーナー自身のアタックを無効化）
-  露出  4箇所 (live 4件/4枚)  CHOOSE_HAND_OR_ENERGY  [execStubPart3]
-        カード: WX24-P1-025, WX24-P2-042, WXDi-CP01-004, WXDi-CP02-003
-        既存コメント: CHOOSE_HAND_OR_ENERGY: デッキ上N枚から任意枚数を手札に加え、残りをエナへ（LOOK_AND_REORDER後）
-  露出  4箇所 (live 4件/4枚)  DECLARE_COLORS  [execStubPart1]
-        カード: WX11-074, WX11-077, WX11-080, WXK04-027
-        既存コメント: DECLARE_COLORS: 原文が列挙した候補から重複なしで複数色を同時宣言する。 CHOOSE の複数選択は選択 action を SEQUENCE で実行するため、各色を順に配列へ積む。
-  露出  4箇所 (live 4件/3枚)  EXILE_SELF_AFTER_USE  [execStubPart3]
-        カード: PR-378, SP36-001, WXK11-070
-        既存コメント: EXILE_SELF_AFTER_USE: 使用後の既定配置を excluded に置換する。 使用中スペルは解決中どのゾーンにもいないため、未配置なら探索せず直接置換を記録する。 既に使用済みゾーンへ置かれるアーツ等は
-  露出  4箇所 (live 6件/6枚)  PLACE_MAGIC_BOX  [execStubPart3]
-        カード: WX24-P3-018, WX24-P3-067, WX24-P3-070, WX24-P3-072, WX24-P3-089, WX24-P4-064
-        既存コメント: PLACE_MAGIC_BOX: lastProcessedCards[0]のカードをMBとして設置（ゾーン選択→INTERNAL_SET_MAGIC_BOX）
-  露出  4箇所 (live 4件/4枚)  UNKNOWN_NESTED  [execStubPart1]
-        カード: WX24-P2-060, WX24-P3-018, WXDi-P04-033, WXDi-P12-061
-        既存コメント: UNKNOWN_NESTED: 自シグニを任意でトラッシュに置く（そうした場合に後続効果が発動）
-  露出  3箇所 (live 3件/3枚)  CHOOSE_N_FROM_LIST  [execStubPart3]
-        カード: WX13-003, WXEX2-44, WXK06-028
-        既存コメント: CHOOSE_N_FROM_LIST: 以下の①②③④からN個選択して実行
   露出  3箇所 (live 3件/3枚)  CONVERT_ENERGY_COLOR  [engine別経路]
         カード: WXEX1-54, WXEX1-56, WXEX2-56
   露出  3箇所 (live 3件/3枚)  EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY  [engine別経路]
         カード: WX25-P2-059, WX26-CP1-047, WXDi-CP02-056
-  露出  3箇所 (live 3件/3枚)  MARK_SELF_DELAYED_EXILE  [execStubPart3]
-        カード: WD22-035-G, WX16-040, WX21-Re06
-        既存コメント: MARK_SELF_DELAYED_EXILE: この解決で実際に場へ戻った自身だけを遅延除外対象にする。
   露出  3箇所 (live 3件/3枚)  OPP_DECLARE_CHOICE  [execStubPart3]
         カード: PR-K060, WX05-006, WX16-Re17
         既存コメント: OPP_DECLARE_CHOICE / OPP_CHOOSE_EFFECT / OPP_CHOOSES_FOR_YOU: 相手が①②から選ぶ
-  露出  3箇所 (live 4件/4枚)  PICK_FROM_TRASHED_CARDS  [execStubPart2]
-        カード: WXEX2-49, WX24-P4-034, WX26-CP1-057, WXK05-028
-        既存コメント: PICK_FROM_TRASHED_CARDS: 「この方法でトラッシュに置いたカードの中から」N枚（まで）選び、行き先へ送る。 🔑候補は `ctx.lastProcessedCards` ∩ トラッシュ＝**直前のミ
-  露出  3箇所 (live 3件/3枚)  REVEAL_TOP_CONDITIONAL_ROUTE  [execStubPart3]
-        カード: WX08-025, WX10-030, WXK05-021
-        既存コメント: REVEAL_TOP_CONDITIONAL_ROUTE: デッキ上を公開しレベル条件で分岐
-  露出  3箇所 (live 3件/3枚)  TRIGGER_LIFE_BURST  [execStubPart3]
-        カード: WX13-032, WXEX1-11, WXEX2-13
-        既存コメント: TRIGGER_LIFE_BURST: lastProcessedCards[0] のLBを発動（field.checkにセット）
-  露出  2箇所 (live 2件/2枚)  ALL_COLOR  [execStubPart3]
-        カード: WX22-025, WXK05-029
-        既存コメント: ALL_COLOR: CONTINUOUS→effectEngine.collectAllColorSigniで動的処理済み
-  露出  2箇所 (live 2件/2枚)  ARTS_SELF_RECYCLE_ON_TRIGGER  [execStubPart3]
-        カード: WX10-015, WX10-027
-        既存コメント: ARTS_SELF_RECYCLE_ON_TRIGGER: ルリグトラッシュのアーツがトリガー時に自己回収
   露出  2箇所 (live 2件/2枚)  BANISH  [execStubPart2]
         カード: WXDi-CP01-015, WXK06-025
         既存コメント: BANISH (STUB版): lastProcessedCards[0] か sourceCardNum をバニッシュ
-  露出  2箇所 (live 2件/2枚)  BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN  [execStubPart3]
-        カード: WX15-003, WX25-P1-050
-        既存コメント: BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN（§6.4 O-14(a)・`WX15-003-E3`）: 「**次のターンの間**、対戦相手はアーツとスペルと【起】能力を使用できず〜」＝上の当ターン
   露出  2箇所 (live 6件/5枚)  CAST_FROM_OPP_TRASH  [execStubPart2]
         カード: PR-433, WX14-027, WXEX1-46, WXEX2-12, WXK11-016
         既存コメント: CAST_FROM_OPP_TRASH AUTO: lastProcessedCards未設定時は相手トラッシュからスペル選択
-  露出  2箇所 (live 4件/4枚)  CENTER_LRIG_RIDES_ON_SIGNI  [execStubPart3]
-        カード: WDK01-008, SPK01-01, WXK01-008, WXK01-009
-        既存コメント: CENTER_LRIG_RIDES_ON_SIGNI: センタールリグが選択した1体の乗機シグニに乗る（乗り換え可）
-  露出  2箇所 (live 2件/2枚)  COPY_CARD  [execStubPart3]
-        カード: WX21-034, WXDi-P07-041
-        既存コメント: COPY_CARD: このシグニはlastProcessed[0]のカードとレベル以外同じになる（card_identity_overrides）
-  露出  2箇所 (live 2件/1枚)  DISONA_RESTRICTION  [execStubPart3]
-        カード: WXDi-P12-075
-        既存コメント: DISONA_RESTRICTION: 「このターン、あなたは《ディソナアイコン》ではないスペルを使用できない」 （使用条件側「すでに非ディソナスペルを使用していた場合は使用不可」はeffect.conditionで判定
   露出  2箇所 (live 2件/2枚)  ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白  [execStubPart3]
         カード: WDK16-01T, WXK10-015
         既存コメント: ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白: CONTINUOUS効果（effectEngine.collectEnergyColorSubsで動的計算）
-  露出  2箇所 (live 2件/2枚)  EXTRA_COST_REMOVE_VIRUS  [execStubPart1]
-        カード: WX16-023, WX16-048
-        既存コメント: EXTRA_COST_REMOVE_VIRUS: ウイルスを任意数取り除いてからN+1択の効果を選ぶ
-  露出  2箇所 (live 2件/2枚)  GATE  [execStubPart3]
-        カード: WDK09-001, WDK09-006
-        既存コメント: GATE: ゲート効果（ログのみ） GATE: 相手のシグニゾーン1つに【ゲート】を設置（次のアタックフェイズに条件付きでアタック不可）
-  露出  2箇所 (live 2件/2枚)  HAND_REVEAL_CLASS_SIGNI  [execStubPart3]
-        カード: WX05-030, WX06-019
-        既存コメント: HAND_REVEAL_CLASS_SIGNI: 手札のクラスシグニを選択して公開（SELECT_TARGET）
-  露出  2箇所 (live 2件/2枚)  INTERNAL_SEED_FROM_DECK_TOP_PLACE  [execStubPart2]
-        カード: WXK04-060, WXK10-059
-        既存コメント: INTERNAL_SEED_FROM_DECK_TOP_PLACE: デッキ上1枚をシードとして設置
   露出  2箇所 (live 2件/2枚)  LRIG_UNDER_TRASH_ANY  [execStubPart1]
         カード: WD21-009, PR-238
-  露出  2箇所 (live 2件/2枚)  NEGATE_THAT_ATTACK  [execStubPart3]
-        カード: WXEX2-17, WXDi-D06-010
-        既存コメント: NEGATE_THAT_ATTACK: 現在のアタックを無効化
-  露出  2箇所 (live 2件/1枚)  OPTIONAL_RETURN_SELF_ARTS_FIRST_USE  [execStubPart3]
-        カード: WX24-P3-036
-        既存コメント: OPTIONAL_RETURN_SELF_ARTS_FIRST_USE: 同名アーツの当ターン初回使用時だけ、 使用済みの自身をルリグデッキへ戻す任意選択を提示する。
-  露出  2箇所 (live 2件/2枚)  PEEP_HAND  [execStubPart3]
-        カード: PR-K070, WX24-P4-105
-        既存コメント: PEEP_HAND: 相手の手札を覗き見（ログに枚数と名前を表示）
-  露出  2箇所 (live 2件/2枚)  PLACE_SIGNI_UNDER_SIGNI  [execStubPart2]
-        カード: WXDi-P05-060, WXDi-P09-078
-        既存コメント: PLACE_SIGNI_UNDER_SIGNI: シグニをシグニ下に設置（lastProcessed→sourceCardNumのゾーン下）
-  露出  2箇所 (live 2件/2枚)  POWER_MOD_MIRROR  [execStubPart2]
-        カード: WXEX1-23, WXK06-049
-        既存コメント: POWER_MOD_MIRROR: 捨てたシグニのパワーを±として対象に適用 ・WXEX1-23文脈（lastProcessedCardsに相手シグニ）: -(捨てたパワー)を相手シグニへ ・WXK06-049文脈（自場
-  露出  2箇所 (live 2件/2枚)  SET_NEXT_LIFE_CRASH_COUNTER  [execStubPart1]
-        カード: WX25-P1-004, WXDi-P12-030
-        既存コメント: SET_NEXT_LIFE_CRASH_COUNTER: 「次にあなたのライフクロスがクラッシュされたとき、対戦相手のライフクロスをクラッシュする」 防御用カウンタークラッシュをセット（WX25-P1-004 / WXD
-  露出  2箇所 (live 2件/1枚)  TARGET_OPP_SIGNI_ONLY  [execStubPart3]
-        カード: WXDi-P01-028
-        既存コメント: TARGET_OPP_SIGNI_ONLY: 「対戦相手のシグニ１体を対象とする。対戦相手は手札を２枚捨てないかぎり、それをデッキの一番下に置く。」 対象選択→対戦相手が手札2枚を捨てて回避するか、シグニがデッキの一番下
-  露出  2箇所 (live 2件/2枚)  USE_CONDITION_ARTS_USED  [execStubPart3]
-        カード: WD15-006, WD20-008
-        既存コメント: USE_CONDITION_ARTS_USED: このターンにアーツを使用していた場合、このカードは使用不可 actions_done に 'USE_ARTS' が含まれるかチェック（BattleScreenがartsU
-  露出  1箇所 (live 1件/1枚)  ACCE_BANISH_SELF_TRASH  [execStubPart2]
-        カード: WXK04-031
-        既存コメント: ACCE_BANISH_SELF_TRASH: アクセを自分のトラッシュへ
-  露出  1箇所 (live 1件/1枚)  ACCE_OP  [execStubPart3]
-        カード: WD18-009
-        既存コメント: ACCE_OP: アクセ操作（汎用ログ）
-  露出  1箇所 (live 1件/1枚)  ACCE_SIGNI_ALL_COLOR  [execStubPart3]
-        カード: WX22-043
-        既存コメント: ACCE_SIGNI_ALL_COLOR: アクセ中のシグニを全色にする
   露出  1箇所 (live 1件/1枚)  ACCE_TO_ENERGY  [execStubPart2]
         カード: WD18-009
         既存コメント: ACCE_TO_ENERGY / PLACE_ACCE_SIGNI_TO_ENERGY: アクセカードをエナゾーンへ
-  露出  1箇所 (live 1件/1枚)  ACTIVATE_COST_ZERO_BLACK  [execStubPart3]
-        カード: WD08-001
-        既存コメント: ACTIVATE_COST_ZERO_BLACK: トラッシュのシグニを選択→次の起動コストを《黒×0》に
-  露出  1箇所 (live 1件/1枚)  ACTIVATE_EICHI_ABILITY  [execStubPart3]
-        カード: WXEX1-18
-        既存コメント: ACTIVATE_EICHI_ABILITY: コイン能力でこのシグニの【出】効果を再発動
   露出  1箇所 (live 1件/1枚)  ADD_CARD_TO_LRIG_DECK  [execStubPart2]
         カード: WXDi-P09-007
         既存コメント: ADD_CARD_TO_LRIG_DECK / ADD_CARD_TO_LRIG_DECK_HIDDEN: lastProcessedCards をルリグデッキに加える
-  露出  1箇所 (live 1件/1枚)  ADD_RESONANCE_CONDITION  [execStubPart3]
-        カード: WX20-052
-        既存コメント: ADD_RESONANCE_CONDITION: ルリグデッキのレゾナにアタックフェイズタイミングを追加（effectEngineで処理）
-  露出  1箇所 (live 1件/1枚)  ADJACENT_SIGNI_POWER_MOD  [execStubPart3]
-        カード: WXK01-060
-        既存コメント: ADJACENT_SIGNI_POWER_MOD: このシグニと隣接するシグニ最大2体のパワーを修正
-  露出  1箇所 (live 1件/1枚)  ALL_CARDS_COLOR_CHANGE_BLACK  [execStubPart3]
-        カード: WXK07-005
-        既存コメント: ALL_CARDS_COLOR_CHANGE_BLACK: CONTINUOUS→effectEngine.hasAllCardsColorBlackで動的処理済み
-  露出  1箇所 (live 1件/1枚)  ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE  [execStubPart3]
-        カード: PR-471
-        既存コメント: ALL_CENTER_LRIG_GAIN_TYPE_GAME_WIDE: ゲーム全体ルリグタイプ付与（effectEngine lrig_gained_types参照）
-  露出  1箇所 (live 1件/1枚)  ALL_CLASS  [execStubPart3]
-        カード: WX21-021
-        既存コメント: ALL_CLASS: CONTINUOUS→effectEngine.collectAllClassSigniで動的処理済み
-  露出  1箇所 (live 1件/1枚)  ALL_PLAYER_MILL  [execStubPart3]
-        カード: WX22-017
-        既存コメント: ALL_PLAYER_MILL: 各プレイヤーがデッキ上N枚をトラッシュ
-  露出  1箇所 (live 1件/1枚)  ALL_ZONE_BLACK  [execStubPart3]
-        カード: WDA-F02-17
-        既存コメント: ALL_ZONE_BLACK: CONTINUOUS→effectEngine.collectAllZoneBlackCardNumsで動的処理済み
-  露出  1箇所 (live 1件/1枚)  ARTS_EXTRA_COST_CONDITION  [execStubPart2]
-        カード: WX26-CP1-024
-        既存コメント: ARTS_EXTRA_COST_CONDITION: 追加コスト支払い済みなら選択肢を増やす
-  露出  1箇所 (live 1件/1枚)  BANISH_BY_SELF_GOES_TO_TRASH  [execStubPart3]
-        カード: WXK06-049
-        既存コメント: BANISH_BY_SELF_GOES_TO_TRASH: このシグニによるバニッシュはエナでなくトラッシュへ
-  露出  1箇所 (live 1件/1枚)  BANISH_REDIRECT_TO_HAND  [execStubPart3]
-        カード: WXDi-P13-045
-        既存コメント: BANISH_REDIRECT_TO_HAND: このターン、対戦相手のシグニがバニッシュされる場合エナゾーンではなく手札に戻る
-  露出  1箇所 (live 1件/1枚)  BANISH_THRESHOLD_BOOST_7_15  [execStubPart3]
-        カード: WX09-027
-        既存コメント: BANISH_THRESHOLD_BOOST_7_15: WX09-027(オリハルティア)の常在マーカー。 実体は execBanish が自場のオリハルティア存在を検出して 7000→15000 に書き換える（no-
-  露出  1箇所 (live 1件/1枚)  BATTLE_BANISH_LIFE_BURST  [execStubPart3]
-        カード: WXEX2-40
-        既存コメント: BATTLE_BANISH_LIFE_BURST: バトルバニッシュ後に相手側LBを発動
-  露出  1箇所 (live 1件/1枚)  BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY  [execStubPart3]
-        カード: WXDi-P06-034
-        既存コメント: BATTLE_LEAVE_REPLACE_DOWN_TRASH_UNDER_ENERGY: バニッシュ代わりにダウン＋下1枚＋エナ1枚トラッシュ（WXDi-P06-034・BattleScreen側処理）
-  露出  1箇所 (live 1件/1枚)  BATTLE_LEAVE_REPLACE_WITH_EXILE  [execStubPart3]
-        カード: WXK05-024
-        既存コメント: BATTLE_LEAVE_REPLACE_WITH_EXILE: 場を離れる代わりにゲームから除外（≈トラッシュ近似・WXK05-024・BattleScreen側処理）
   露出  1箇所 (live 1件/1枚)  BLOCK_COLORLESS_ENERGY_PAY  [execStubPart3]
         カード: WXK07-001
-  露出  1箇所 (live 1件/1枚)  BLOCK_OPP_AUTO_ABILITY_EXTENDED  [execStubPart3]
-        カード: WXDi-P13-006
-        既存コメント: BLOCK_OPP_AUTO_ABILITY_EXTENDED: このターンと次のターン、相手シグニの【自】能力は発動しない
-  露出  1箇所 (live 1件/1枚)  BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN  [execStubPart3]
-        カード: WXK10-013
-        既存コメント: BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN: このターン、対戦相手はシグニを新たに場に出せない
-  露出  1箇所 (live 1件/1枚)  BOTH_DISCARD_BY_CENTER_LEVEL  [execStubPart2]
-        カード: WX16-016
-        既存コメント: BOTH_DISCARD_BY_CENTER_LEVEL: 両者センタールリグのレベル分捨て
-  露出  1箇所 (live 1件/1枚)  CHANGE_BASE_LEVEL  [execStubPart3]
-        カード: WX19-027
-        既存コメント: CHANGE_BASE_LEVEL: このシグニの基本レベルを1～3にしてもよい（ターン終了まで）
-  露出  1箇所 (live 1件/1枚)  CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN  [execStubPart3]
-        カード: WXK07-032
-        既存コメント: CHANGE_BASE_LEVEL_UNTIL_NEXT_TURN: シグニ1体の基本レベルを1にしてもよい（次の自ターン終了まで）
-  露出  1箇所 (live 1件/1枚)  CHANGE_EICHI_SIGNI_BASE_LEVEL  [execStubPart3]
-        カード: WXEX1-71
-        既存コメント: CHANGE_EICHI_SIGNI_BASE_LEVEL: 英知シグニを選択→基本レベルを1～3に変更（ターン終了まで）
-  露出  1箇所 (live 1件/1枚)  CHANGE_SIGNI_COLOR  [execStubPart3]
-        カード: WX25-P3-111
-        既存コメント: CHANGE_SIGNI_COLOR: 対象シグニの色を指定色に変更（ターン終了時まで）
-  露出  1箇所 (live 1件/1枚)  CHOSEN_TO_ENERGY_OR_HAND  [execStubPart2]
-        カード: WX22-050
-        既存コメント: CHOSEN_TO_ENERGY_OR_HAND: 選んだカードをエナか手札か選択して追加
-  露出  1箇所 (live 1件/1枚)  COIN_SPEND_CONDITION  [execStubPart3]
-        カード: WXDi-P16-083
-        既存コメント: COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック、未達時トラッシュ
-  露出  1箇所 (live 1件/1枚)  CONDITIONAL_ALTERNATE_EFFECT  [execStubPart3]
-        カード: WD23-044-EA
-        既存コメント: CONDITIONAL_ALTERNATE_EFFECT: 条件達成時にダウン済みシグニをトラッシュへ（代替効果）
-  露出  1箇所 (live 1件/1枚)  CONDITIONAL_SEARCH_IF_FIELD  [execStubPart2]
-        カード: WX09-041
-        既存コメント: CONDITIONAL_SEARCH_IF_FIELD: フィールドにシグニがある場合サーチ
-  露出  1箇所 (live 1件/1枚)  CONDITIONAL_SEARCH_IF_RESONA  [execStubPart2]
-        カード: WD09-018
-        既存コメント: CONDITIONAL_SEARCH_IF_RESONA: フィールドにレゾナがある場合サーチ
-  露出  1箇所 (live 1件/1枚)  CONDITIONAL_TRASH_UNDER_SIGNI  [execStubPart3]
-        カード: WXDi-P16-064
-        既存コメント: CONDITIONAL_TRASH_UNDER_SIGNI: 相手エナN枚以上の場合、シグニ下カードを任意でトラッシュ
-  露出  1箇所 (live 1件/1枚)  COPY_ABILITY  [execStubPart2]
-        カード: WXDi-P04-035
-        既存コメント: COPY_ABILITY: このシグニはその能力を得る
-  露出  1箇所 (live 1件/1枚)  CRASH_TO_TRASH_INSTEAD  [execStubPart3]
-        カード: WX19-034
-        既存コメント: CRASH_TO_TRASH_INSTEAD: このターン相手のライフクロスクラッシュ時、エナではなくトラッシュへ
-  露出  1箇所 (live 1件/1枚)  DECK_SIGNI_LEVEL_OVERRIDE  [execStubPart3]
-        カード: WX18-065
-        既存コメント: DECK_SIGNI_LEVEL_OVERRIDE: デッキ内指定クラスのシグニレベルをN扱い（このターン）
-  露出  1箇所 (live 1件/1枚)  DECLARE_NUMBER_POWER  [execStubPart3]
-        カード: WXDi-P07-086
-        既存コメント: DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_guard_restrict_level に保存
   露出  1箇所 (live 1件/1枚)  DECLARE_TWO_GUARD_LEVELS  [execStubPart1]
         カード: WD21-009
-  露出  1箇所 (live 1件/1枚)  DECLARE_ZONE_FOR_CLASS_CHANGE  [execStubPart3]
-        カード: WX14-032
-        既存コメント: DECLARE_ZONE_FOR_CLASS_CHANGE: メインデッキ/手札/シグニゾーン/トラッシュの1つを指定 指定領域にある相手シグニはクラス/色を失い＜精元＞を得る（CONTINUOUS）
-  露出  1箇所 (live 1件/1枚)  DEFEAT  [execStubPart3]
-        カード: PR-422
-        既存コメント: DEFEAT: 敗北処理 - ライフクロスを0にしてゲーム終了を誘発
-  露出  1箇所 (live 10件/10枚)  DEPLOY_RESTRICT  [execStubPart3]
-        カード: WX07-006, WX12-008, WXDi-P05-024, WXDi-P11-050, WXDi-P15-039, WXDi-P13-003B …他4枚
-        既存コメント: DEPLOY_RESTRICT: 配置制限（CONTINUOUSは動的処理、AUTOはフラグ設置）
-  露出  1箇所 (live 1件/1枚)  DRAW  [execStubPart2]
-        カード: WXDi-P10-006
-        既存コメント: DRAW: N枚ドロー
-  露出  1箇所 (live 3件/3枚)  DRAW_DISCARD_COUNT_PLUS_N  [execStubPart2]
-        カード: PR-427, WXEX2-39, WXDi-P00-018
-        既存コメント: DRAW_DISCARD_COUNT_PLUS_N: 捨てた枚数+Nドロー
-  露出  1箇所 (live 1件/1枚)  DRAW_IF_POWER_ZERO_TEMP  [execStubPart1]
-        カード: WX15-064
-        既存コメント: DRAW_IF_POWER_ZERO_TEMP: lastProcessedCards[0]がtemp_power_mods適用後パワー0以下なら1枚引く（WX15-064型）
-  露出  1箇所 (live 1件/1枚)  END_ATTACK_IF_EXTRA_TURN  [execStubPart3]
-        カード: WX10-026
-        既存コメント: END_ATTACK_IF_EXTRA_TURN: 追加ターンならアタックフェイズを終了（ATTACK_SIGNI/LRIG封じ）
   露出  1箇所 (live 1件/1枚)  FLIP_SELF_ON_TARGETED  [engine別経路]
         カード: WX25-CP1-060
-  露出  1箇所 (live 1件/1枚)  FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM  [execStubPart2]
-        カード: WXDi-P13-071
-        既存コメント: FROZEN_SIGNI_BANISH_TO_DECK_BOTTOM: 凍結シグニのバニッシュをデッキ下へ
-  露出  1箇所 (live 1件/1枚)  FROZEN_SIGNI_TO_TRASH_ON_LEAVE  [execStubPart2]
-        カード: WXEX1-30
-        既存コメント: FROZEN_SIGNI_TO_TRASH_ON_LEAVE: 凍結状態のシグニが退場するとトラッシュへ
-  露出  1箇所 (live 1件/1枚)  GRANT_ABILITY_UNTIL_OPP_TURN  [execStubPart2]
-        カード: WXDi-P07-059
-        既存コメント: GRANT_ABILITY_UNTIL_OPP_TURN: 次の対戦相手のターン終了時まで①の能力を付与 付与先: 直前のTARGET_ONLY等でlastProcessedCardsが設定済みならそれを使う（「あなたの
-  露出  1箇所 (live 1件/1枚)  GRANT_CHOSEN_ABILITY_FROM_PLAY  [execStubPart2]
-        カード: WX22-Re04
-        既存コメント: GRANT_CHOSEN_ABILITY_FROM_PLAY: 【出】で選んだ能力（keyword_grants記録済み）を常在で参照 このCONTINUOUS効果はexecStubではなくeffectEngine側でk
-  露出  1箇所 (live 1件/1枚)  GRANT_CONDITIONAL_ASSASSIN_ABILITY  [execStubPart3]
-        カード: WXK02-057
-        既存コメント: GRANT_CONDITIONAL_ASSASSIN_ABILITY: 条件付きアサシンをkeyword_grantsに付与
-  露出  1箇所 (live 1件/1枚)  GRANT_NEXT_SPELL_UNCOUNTERABLE  [execStubPart3]
-        カード: WX04-008
-        既存コメント: GRANT_NEXT_SPELL_UNCOUNTERABLE: 次に自分が使用するスペルは対戦相手の効果で打ち消されない（WX04-008 ファフニール）
-  露出  1箇所 (live 1件/1枚)  GRANT_SIGNI_CLASS  [execStubPart2]
-        カード: WX21-Re03
-        既存コメント: GRANT_SIGNI_CLASS: このシグニに＜X＞クラスを付与
-  露出  1箇所 (live 1件/1枚)  GRID_REVEAL_PLUS  [execStubPart3]
-        カード: WX06-033
-        既存コメント: GRID_REVEAL_PLUS: このターン、デッキ公開枚数+1フラグを設定
-  露出  1箇所 (live 1件/1枚)  HASTARLIQ  [execStubPart3]
-        カード: WXDi-P05-016
-        既存コメント: HASTARLIQ: 【ハスターリク】(WXDi-P05-TK01A)を相手シグニゾーンに設置
-  露出  1箇所 (live 1件/1枚)  INCREASE_ACT_ABILITY_COST  [execStubPart3]
-        カード: WXDi-P06-031
-        既存コメント: INCREASE_ACT_ABILITY_COST: 起動能力のコストを増加（ログのみ）
-  露出  1箇所 (live 1件/1枚)  INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED  [execStubPart1]
-        カード: WXK04-030
-        既存コメント: INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED: WXK04-030 血晶の紅雨。   あなたの血晶武装状態のすべてのシグニに「【自】このシグニがアタックしたとき、自パワー以下の対戦相手の
-  露出  1箇所 (live 1件/1枚)  INTERNAL_KIYOHIME_CHOOSE  [execStubPart3]
-        カード: WDK08-L14
-        既存コメント: INTERNAL_KIYOHIME_CHOOSE: WDK08-L14 紅蓮の使い魔 清姫。   【自】アタック時、以下の3つから1つを選ぶ。血晶武装状態の場合は代わりに3つまで選ぶ（同じ選択肢を2回以上選んでもよい）。
   露出  1箇所 (live 1件/1枚)  INTERNAL_OPEN_MB_SKIP  [execStubPart3]
         カード: WX24-P3-050
-  露出  1箇所 (live 1件/1枚)  LIFE_TO_HAND_OPTIONAL  [execStubPart2]
-        カード: WXDi-P11-040
-        既存コメント: LIFE_TO_HAND_OPTIONAL: ライフクロス1枚を手札に加える
-  露出  1箇所 (live 1件/1枚)  LOOK_DECK_BOTTOM  [execStubPart3]
-        カード: WXDi-P13-049
-        既存コメント: LOOK_DECK_BOTTOM: デッキ下を1枚確認
-  露出  1箇所 (live 1件/1枚)  LOOK_TOP_BOTTOM  [execStubPart3]
-        カード: WXDi-P08-046
-        既存コメント: LOOK_TOP_BOTTOM: デッキ上1枚とデッキ下1枚を確認
-  露出  1箇所 (live 1件/1枚)  LOOK_TOP_ONE_RETURN_REST_BOTTOM  [execStubPart2]
-        カード: WXDi-CP01-036
-        既存コメント: LOOK_TOP_ONE_RETURN_REST_BOTTOM: デッキ上N枚を確認し1枚をトップ・残りをデッキ下に
-  露出  1箇所 (live 1件/1枚)  LOOK_TOP_OPP_CHOOSE_TRASH  [execStubPart3]
-        カード: WXK11-064
-        既存コメント: LOOK_TOP_OPP_CHOOSE_TRASH: デッキ上N枚を公開し相手が1枚選んでトラッシュ
   露出  1箇所 (live 1件/1枚)  LRIG_LIMIT_MODIFY  [execStubPart2]
         カード: WXDi-P16-047
         既存コメント: LRIG_LIMIT_MODIFY (STUB版): ルリグリミット修正
-  露出  1箇所 (live 1件/1枚)  LRIG_LIMIT_UP_AND_COLOR_GAIN  [execStubPart2]
-        カード: WX22-014
-        既存コメント: LRIG_LIMIT_UP_AND_COLOR_GAIN: ルリグリミット増加（+1）と色獲得（log）
-  露出  1箇所 (live 1件/1枚)  LRIG_TRASH_KEY_TO_CENTER_UNDER  [execStubPart2]
-        カード: WXK09-005
-        既存コメント: LRIG_TRASH_KEY_TO_CENTER_UNDER: ルリグトラッシュのキーをセンタールリグの下に
-  露出  1箇所 (live 1件/1枚)  MARK_PLACED_DELAYED_EXILE  [execStubPart3]
-        カード: WXDi-P13-004A
-        既存コメント: MARK_PLACED_DELAYED_EXILE: この解決で**場に出したカード**（lastProcessedCards）を遅延除外対象にする （「この方法で場に出た《X》が場を離れる場合、代わりにゲームから除外さ
   露出  1箇所 (live 1件/1枚)  MAYU_ENCOUNTER_FLIP_AND_GROW  [engine別経路]
         カード: WXDi-P13-003A
-  露出  1箇所 (live 1件/1枚)  MOVE_ACCE_TO_SIGNI  [execStubPart3]
-        カード: WXK05-064
-        既存コメント: MOVE_ACCE_TO_SIGNI: アクセを別のシグニに付け替え
-  露出  1箇所 (live 1件/1枚)  MULTI_DAMAGE_ON_LRIG_ATTACK  [execStubPart3]
-        カード: WXK01-004
-        既存コメント: MULTI_DAMAGE_ON_LRIG_ATTACK: このターン、ルリグアタックをN回与える（lrig_attack_remainingフラグでBattleScreen側が管理）
-  露出  1箇所 (live 1件/1枚)  NEGATE_ABILITY  [execStubPart3]
-        カード: WXDi-P08-044
-        既存コメント: NEGATE_ABILITY: 対象シグニの能力を無効化（abilities_removedに追加）
-  露出  1箇所 (live 1件/1枚)  NEGATE_ALL_OPP_EFFECTS  [execStubPart3]
-        カード: WXK02-001
-        既存コメント: NEGATE_ALL_OPP_EFFECTS: 相手のCONTINUOUS効果を全て無効化（all_cont_effects_negatedフラグ）
-  露出  1箇所 (live 1件/1枚)  NEGATE_COIN_ABILITY  [execStubPart3]
-        カード: WX16-002
-        既存コメント: NEGATE_COIN_ABILITY: コイン能力を無効化（ログのみ）
-  露出  1箇所 (live 1件/1枚)  OPP_DIRECT_ATTACK_NEGATE  [execStubPart3]
-        カード: WX04-004
-        既存コメント: OPP_DIRECT_ATTACK_NEGATE: 相手シグニが正面なしでアタックしたとき、コスト（costColorsのエナ＋＜美巧＞シグニ1枚捨て）を 支払ってそのアタックを無効にしてもよい（WX04-004-E2）
-  露出  1箇所 (live 1件/1枚)  OPP_ENERGY_REDUCE_TO_N  [execStubPart3]
-        カード: WXK06-055
-        既存コメント: OPP_ENERGY_REDUCE_TO_N: 相手のエナをstub.value枚になるようにトラッシュ（WXK06-055 CHOOSE選択肢）
-  露出  1箇所 (live 1件/1枚)  OPP_REVEAL_SPELL_USE_FREE  [execStubPart1]
-        カード: WX04-015
-        既存コメント: OPP_REVEAL_SPELL_USE_FREE: 対戦相手のデッキを上からスペルがめくれるまで公開し、 めくれたスペルをあなたが手札にあるかのようにコストなし・限定条件無視で使用してもよい。 残り（公開した非スペル）
-  露出  1箇所 (live 1件/1枚)  OPP_TRASH_LOSE_COLOR_AND_CLASS  [execStubPart3]
-        カード: WXK11-026
-        既存コメント: OPP_TRASH_LOSE_COLOR_AND_CLASS: CONT効果（effectEngineで処理）
   露出  1箇所 (live 1件/1枚)  OPP_TURN_ARTS_COST_REDUCTION_ONCE  [engine別経路]
         カード: WXK03-071
-  露出  1箇所 (live 1件/1枚)  OPP_TURN_NO_ENERGY_COST  [execStubPart3]
-        カード: WXDi-P03-012
-        既存コメント: OPP_TURN_NO_ENERGY_COST: このターン、対戦相手はエナコストを支払えない
-  露出  1箇所 (live 2件/2枚)  OPP_ZONE_PLACEMENT_RESTRICT  [execStubPart3]
-        カード: WXDi-P14-068, WXDi-P11-TK01
-        既存コメント: OPP_ZONE_PLACEMENT_RESTRICT: CONTINUOUS効果（effectEngineで動的判定）
-  露出  1箇所 (live 1件/1枚)  OPTIONAL_HAND_REVEAL_NAMED  [execStubPart3]
-        カード: WX05-038
-        既存コメント: OPTIONAL_HAND_REVEAL_NAMED: 名称指定で手札カードを任意公開
   露出  1箇所 (live 1件/1枚)  OPTIONAL_LRIG_UNDER_COST  [engine別経路]
         カード: WXDi-P05-009
-  露出  1箇所 (live 1件/1枚)  PLACE_CHOKKIN  [execStubPart3]
-        カード: WX17-034
-        既存コメント: PLACE_CHOKKIN: sourceCardNumのゾーンに【貯菌】カウンターを+1
-  露出  1箇所 (live 1件/1枚)  PLACE_DECK_TOP_UNDER_WEAPON_SIGNI  [execStubPart3]
-        カード: WXK08-088
-        既存コメント: PLACE_DECK_TOP_UNDER_WEAPON_SIGNI: ウェポンシグニの下にデッキ上を置く
-  露出  1箇所 (live 1件/1枚)  PLACE_LRIG_FROM_DECK_ON_TOP  [execStubPart2]
-        カード: WXEX1-20
-        既存コメント: PLACE_LRIG_FROM_DECK_ON_TOP: ルリグデッキからルリグをフィールドへ
-  露出  1箇所 (live 1件/1枚)  PLACE_REV_SIGNI  [execStubPart1]
-        カード: PR-Di017A
-        既存コメント: PLACE_REV_SIGNI: REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す） PR-Di017A「白熱する黒白」のREV変身効果
-  露出  1箇所 (live 1件/1枚)  PLACE_SEEDS_FROM_REVEALED  [execStubPart2]
-        カード: WXK04-010
-        既存コメント: PLACE_SEEDS_FROM_REVEALED: デッキ上4枚を見て stub.value 枚まで【シード】設置（WXK04-010 アンコール・シード）。 SEARCH で最大N枚選び、continuation の
-  露出  1箇所 (live 1件/1枚)  PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON  [execStubPart3]
-        カード: WXK08-030
-        既存コメント: PLACE_TRASH_SIGNI_UNDER_ALL_WEAPON: 全ウェポンシグニの下にトラッシュからシグニを1枚ずつ置く
-  露出  1箇所 (live 1件/1枚)  PLACE_VIRUS_CENTER  [execStubPart2]
-        カード: WXEX2-79
-        既存コメント: PLACE_VIRUS_CENTER: 相手の中央のシグニゾーンにウィルスを設置
-  露出  1箇所 (live 1件/1枚)  POWER_BY_ACCE_COUNT  [execStubPart2]
-        カード: WX21-062
-        既存コメント: POWER_BY_ACCE_COUNT: アクセ数×deltaをパワー修正
-  露出  1箇所 (live 1件/1枚)  POWER_BY_CENTER_LRIG_TYPE_COUNT  [execStubPart2]
-        カード: PR-472
-        既存コメント: POWER_BY_CENTER_LRIG_TYPE_COUNT: センタールリグのタイプ数×deltaをパワー修正
-  露出  1箇所 (live 1件/1枚)  POWER_CAP  [execStubPart2]
-        カード: WX22-022
-        既存コメント: POWER_CAP: シグニのパワーをN以下に制限
-  露出  1箇所 (live 1件/1枚)  POWER_MOD_DISTRIBUTE  [execStubPart2]
-        カード: WX17-021
-        既存コメント: POWER_MOD_DISTRIBUTE: 合計パワーを選択シグニに均等配分（自場シグニ最大3体）
-  露出  1箇所 (live 1件/1枚)  POWER_MOD_DOUBLE_DIFF  [execStubPart2]
-        カード: WX24-P4-054
-        既存コメント: POWER_MOD_DOUBLE_DIFF: 対象シグニの基本パワーと自分の基本パワーとの差の2倍でマイナス
   露出  1箇所 (live 1件/1枚)  POWER_PLUS_BANISHED_POWER  [execStubPart1]
         カード: WX24-P2-049
-  露出  1箇所 (live 1件/1枚)  PREVENT_OPP_UPKEEP  [execStubPart3]
-        カード: WXK10-012
-        既存コメント: PREVENT_OPP_UPKEEP: 相手のアップキープ（アップ）を防ぐ
-  露出  1箇所 (live 1件/1枚)  REDUCE_PLAY_ABILITY_COST  [execStubPart2]
-        カード: WXK04-075
-        既存コメント: REDUCE_PLAY_ABILITY_COST: 次の【出】能力コストを軽減
-  露出  1箇所 (live 1件/1枚)  REMOVE_VIRUS_TARGET_ZONE  [execStubPart1]
-        カード: WX15-064
-        既存コメント: REMOVE_VIRUS_TARGET_ZONE: lastProcessedCards[0]と同じゾーンのウィルスを1個除去（WX15-064型）
-  露出  1箇所 (live 1件/1枚)  REPLACE_PLUS_N  [execStubPart3]
-        カード: WXK10-005
-        既存コメント: REPLACE_PLUS_N: このターン、相手シグニへの正パワー修正を負に置換
-  露出  1箇所 (live 1件/1枚)  RESONANCE_COST_CARDS_TO_ENERGY  [execStubPart3]
-        カード: WXEX1-16
-        既存コメント: RESONANCE_COST_CARDS_TO_ENERGY: レゾナコストカードをエナゾーンへ
   露出  1箇所 (live 1件/1枚)  RESTORE_REVEALED_DECK_CARDS  [execStubPart3]
         カード: WXDi-P06-036
-  露出  1箇所 (live 1件/1枚)  REVEAL  [execStubPart3]
-        カード: WX16-Re17
-        既存コメント: REVEAL: デッキ上を公開（名前ログ）
-  露出  1箇所 (live 1件/1枚)  REVEALED_CARD_COLOR_DISCARD  [execStubPart2]
-        カード: WX24-P4-105
-        既存コメント: REVEALED_CARD_COLOR_DISCARD: 公開カードの色と同じ色の手札カードを捨てる
-  露出  1箇所 (live 1件/1枚)  REVERSE_OPP_POWER_MINUS  [execStubPart3]
-        カード: WXDi-P00-039
-        既存コメント: REVERSE_OPP_POWER_MINUS: 相手シグニのパワーマイナス修正を反転（プラスに）
-  露出  1箇所 (live 1件/1枚)  RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY  [execStubPart2]
-        カード: WX20-056
-        既存コメント: RISE_TARGET_SIGNI_GAIN_CONSTANT_ABILITY: ライズ対象シグニに引用常在能力を付与
-  露出  1箇所 (live 1件/1枚)  SEED_FLOWER_OP  [execStubPart2]
-        カード: WXK05-050
-        既存コメント: SEED_FLOWER_OP: 別シード1枚を開花してデッキ上をシード設置（ヤマレンゲ系）
-  露出  1箇所 (live 1件/1枚)  SEED_HAND_AND_BLOOM_FROM_DECK_TOP  [execStubPart2]
-        カード: WDK07-Y20
-        既存コメント: SEED_HAND_AND_BLOOM_FROM_DECK_TOP: シード1枚を手札に加え、デッキ上をシード設置
-  露出  1箇所 (live 1件/1枚)  SELECT_NO_COMMON_COLOR  [execStubPart3]
-        カード: WX22-050
-        既存コメント: SELECT_NO_COMMON_COLOR: 共通色なしを選択（ログのみ） SELECT_NO_COMMON_COLOR: WX22-050 エンジェル・アウェイク LOOK_AND_REORDER後のlastProc
   露出  1箇所 (live 1件/1枚)  SELECT_OPP_SIGNI_FOR_BOTTOM_MILL  [execStubPart3]
         カード: WXK03-039
-  露出  1箇所 (live 1件/1枚)  SELECT_OTHER_SIGNI  [execStubPart3]
-        カード: WXDi-P10-052
-        既存コメント: SELECT_OTHER_SIGNI: ソース以外のシグニを選択
   露出  1箇所 (live 1件/1枚)  SELF_LRIG_LOSE_ABILITY  [execStubPart3]
         カード: WXK08-002
   露出  1箇所 (live 1件/1枚)  SELF_SIGNI_ATTACK_NEGATE_IMMUNITY  [execStubPart3]
         カード: WX24-P4-016
-  露出  1箇所 (live 1件/1枚)  SELF_TRASH_IF_NO_OPP_VIRUS  [execStubPart2]
-        カード: WX20-030
-        既存コメント: SELF_TRASH_IF_NO_OPP_VIRUS: 相手にウィルスがなければ自トラッシュ
-  露出  1箇所 (live 1件/1枚)  SET_CANCEL_OPP_ATTACK_FLAG  [execStubPart3]
-        カード: WX15-016
-        既存コメント: SET_CANCEL_OPP_ATTACK_FLAG: 守備側の効果が「対戦相手のアタック」を無効化する場合に使う。 Phase2(resolvePendingSigniBattleFor)はアタッカー側stateの c
-  露出  1箇所 (live 1件/1枚)  SET_LEVEL_RANGE  [execStubPart2]
-        カード: WX19-065
-        既存コメント: SET_LEVEL_RANGE: 自シグニ1体を選んでレベル1～4に変更（ターン終了時まで）
-  露出  1箇所 (live 1件/1枚)  SIGNI_GAIN_ONE_LRIG_COLOR  [execStubPart3]
-        カード: WXDi-P03-074
-        既存コメント: SIGNI_GAIN_ONE_LRIG_COLOR: このシグニがルリグの色を1つ得る（ターン終了時まで）
-  露出  1箇所 (live 1件/1枚)  SIGNI_UNDER_WEAPON_SIGNI  [execStubPart3]
-        カード: WDK15-013
-        既存コメント: SIGNI_UNDER_WEAPON_SIGNI: 自シグニ1体を自＜ウェポン＞シグニの下に置く
-  露出  1箇所 (live 1件/1枚)  STACK_ALL_LRIG_UNDER  [execStubPart3]
-        カード: WX14-001
-        既存コメント: STACK_ALL_LRIG_UNDER: ルリグトラッシュ全ルリグをこのカードの下に置く
   露出  1箇所 (live 1件/1枚)  STRIP_OPP_ENA_MULTI_ENA  [engine別経路]
         カード: WXK11-020
-  露出  1箇所 (live 1件/1枚)  SUBSTITUTE_DAMAGE_WITH_SELF_TRASH  [execStubPart3]
-        カード: WXDi-P08-054
-        既存コメント: SUBSTITUTE_DAMAGE_WITH_SELF_TRASH: このシグニをトラッシュに置く代わりにダメージ無効（任意）
-  露出  1箇所 (live 1件/1枚)  SUPPRESS_CENTER_ON_PLAY  [execStubPart3]
-        カード: WX12-011
-        既存コメント: SUPPRESS_CENTER_ON_PLAY: このターン自分のセンタールリグの【出】効果を抑制
-  露出  1箇所 (live 1件/1枚)  SUPPRESS_OPP_SIGNI_ABILITIES  [execStubPart3]
-        カード: SP27-016
-        既存コメント: SUPPRESS_OPP_SIGNI_ABILITIES: 相手フィールドの全シグニの能力を消去
-  露出  1箇所 (live 1件/1枚)  TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE  [execStubPart3]
-        カード: WXDi-P10-033
-        既存コメント: TARGET_OPP_SIGNI_FROM_CONTEXT_CHOOSE: 相手シグニ1体を対象とし、バウンスかトラッシュを選ぶ （WXDi-P10-033: デッキ5枚公開後の条件付き選択効果）
-  露出  1箇所 (live 1件/1枚)  TK3_DECLARE_DISCARD  [execStubPart1]
-        カード: WD03-006
-        既存コメント: TK3_DECLARE_DISCARD: 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる （WX25-P1-TK3 ダーク・アナライズ：「数字1つを宣言する。対戦相手の手札を見て、宣言した数字と同じ
-  露出  1箇所 (live 5件/5枚)  TRAP_TO_HAND  [execStubPart2]
-        カード: WD23-040-A, WX16-017, WX16-028, WX16-063, WX19-037
   露出  1箇所 (live 1件/1枚)  TRASH  [execStubPart2]
         カード: WDK07-E09
         既存コメント: TRASH (STUB版): lastProcessedCards[0] か sourceCardNum をトラッシュへ
   露出  1箇所 (live 1件/1枚)  TRASH_ABILITY_LOSS_AND_IMMUNITY  [engine別経路]
         カード: WX12-023
-  露出  1箇所 (live 1件/1枚)  TRASH_ACCE_AT_TURN_END  [execStubPart3]
-        カード: WX16-044
-        既存コメント: TRASH_ACCE_AT_TURN_END: アクセカードをターン終了時にトラッシュ（即座に処理） TRASH_ACCE_AT_TURN_END: このシグニに付いているアクセ1枚をトラッシュへ
-  露出  1箇所 (live 1件/1枚)  TRASH_ALL_OPP_CARDS  [execStubPart2]
-        カード: WXK11-047
-        既存コメント: TRASH_ALL_OPP_CARDS: 相手エナから名前一致カードをすべてトラッシュへ
-  露出  1箇所 (live 1件/1枚)  TRASH_SPELL_FREE_USE_LIMIT  [execStubPart3]
-        カード: WX25-P2-034
-        既存コメント: TRASH_SPELL_FREE_USE_LIMIT: トラッシュスペル無料使用制限（ログのみ） TRASH_SPELL_FREE_USE_LIMIT: トラッシュからコスト上限以下のスペルをコストなしで使用
   露出  1箇所 (live 1件/1枚)  TRASH_UNDER_SIGNI_UP_TO_ALL  [execStubPart3]
         カード: WXK08-055
-  露出  1箇所 (live 1件/1枚)  TRIGGER_OTHER_SIGNI_EICHI_ABILITY  [execStubPart3]
-        カード: PR-366
-        既存コメント: TRIGGER_OTHER_SIGNI_EICHI_ABILITY: 他の自シグニを選択し、その英知AUTO能力を発動させる
-  露出  1箇所 (live 1件/1枚)  UNDER_SIGNI_TO_ENERGY  [execStubPart2]
-        カード: WXDi-P07-080
-        既存コメント: シグニの下のカードをエナゾーンに置く
   露出  1箇所 (live 1件/1枚)  VARIABLE_ENERGY_TRASH_LEVEL_BOUNCE  [execStubPart1]
         カード: WX25-CP1-040
-  露出  1箇所 (live 2件/2枚)  VIEW_AND_DISCARD_SPELL  [execStubPart1]
-        カード: WX14-038, WXDi-P16-050
-        既存コメント: 相手の手札を見てスペルを捨てさせる
 

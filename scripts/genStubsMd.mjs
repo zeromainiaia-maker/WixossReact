@@ -61,12 +61,20 @@ for (const part of ['execStubPart1', 'execStubPart2', 'execStubPart3']) {
  *      コメントは、ラベルの無い id にも当てはまる＝`SWAP_OPTIONAL` が実例）。
  */
 function descriptionForId(lines, id, knownIds) {
-  const labelOf = (line) => {
-    const m = line.match(/^([A-Z][A-Z0-9_]*)\s*[:：]\s*/);
-    return m && knownIds.has(m[1]) ? m[1] : null;
+  // ラベル部（最初の `:` の前）が **既知 id だけ**で組まれているときにラベルとみなす。
+  // ⚠実際の綴りは3通りある＝`ID: 説明` ／ `ID1 / ID2 / ID3: 説明` ／ `ID (STUB版): 説明`。
+  //   固定の `^[A-Z][A-Z0-9_]*:` だけだと後ろ2つを取りこぼす（`OPP_DECLARE_CHOICE` `BANISH` が実例）。
+  //   id 集合で照合するので、本文中のコロン（「注意：〜」等）を誤ってラベル扱いしない。
+  const labelIdsOf = (line) => {
+    const at = line.search(/[:：]/);
+    if (at < 0 || at > 80) return null;
+    const head = line.slice(0, at).replace(/[(（][^)）]*[)）]/g, '');
+    const parts = head.split(/[\/／、]/).map(s => s.trim()).filter(Boolean);
+    if (parts.length === 0 || !parts.every(p => knownIds.has(p))) return null;
+    return { ids: parts, rest: line.slice(at + 1).trim() };
   };
-  const strip = (line) => line.replace(/^[A-Z][A-Z0-9_]*\s*[:：]\s*/, '');
-  const mine = lines.filter(l => labelOf(l) === id);
+  const strip = (line) => labelIdsOf(line)?.rest ?? line;
+  const mine = lines.filter(l => labelIdsOf(l)?.ids.includes(id));
   return (mine.length > 0 ? mine : lines).map(strip).join(' ');
 }
 
