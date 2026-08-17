@@ -1930,6 +1930,16 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       if (zoneCh < 0) return false;
       return (ctx.ownerState.field.signi_charms?.[zoneCh] ?? null) !== null;
     }
+    // 「そのアタックがこのターンN度目の場合」（§6.4 O-25(d)）。
+    // 🔑序数は**アタックしたプレイヤーのターン内通算**（シグニ1体あたりではない）＝
+    //   `attacked_signi_ids` の件数＋ルリグアタック済み分。**解決中のアタック自身を含む**
+    //   （`BattleScreen` は追記後の state で ON_ATTACK_SIGNI を収集する）。
+    // ⚠アタックフェイズを追加するカードがあるので上限は決め打ちしない。
+    case 'ATTACK_ORDINAL_THIS_TURN': {
+      const stAO = st(cond.owner);
+      const nAO = (stAO.attacked_signi_ids ?? []).length + (stAO.lrig_has_attacked ? 1 : 0);
+      return cmp(nAO, cond.operator, cond.value);
+    }
     case 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE': {
       // 「そのアタックフェイズの間に〈owner〉のシグニ（filter一致）が場を離れていた場合」（§6.3 J-4・WX24-P2-075-E1）。
       // 記録は instanceId なので cardMap 照合には getCardNum を通す。⚠行き先は問わない。
