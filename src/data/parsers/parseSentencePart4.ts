@@ -215,9 +215,13 @@ export function parseSentencePart4(t: string): EffectAction | null {
         ...(combD.pickUpTo ? { pickUpTo: true } : {}),
         ...(combD.noun !== 'シグニ' ? { pickNoun: combD.noun } : {}),
         ...(combD.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
+        // ⚠**`dest==='field'` を落とすと「場に出す」が黙って「手札に加える」になる**（§6.4 O-11）。
+        //   `makeRevealPickStub` 側には同じ分岐が既にあり、こちらの畳み込み経路だけが欠けていた。
         then: combD.dest === 'energy'
           ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } } as EnergyChargeAction
-          : { type: 'ADD_TO_HAND', owner: 'self' },
+          : combD.dest === 'field'
+            ? { type: 'ADD_TO_FIELD', owner: 'self' }
+            : { type: 'ADD_TO_HAND', owner: 'self' },
         remainder: rpp.restDest === 'trash'
           ? { location: 'trash', position: 'bottom' }
           : rpp.restDest === 'energy'
