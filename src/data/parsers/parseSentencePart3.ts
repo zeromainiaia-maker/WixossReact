@@ -1767,9 +1767,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
       } as ConditionalAction;
     }
   }
-  // ---- トラッシュ条件（パワー修正なし）→ STUB フォールバック ----
+  // ---- トラッシュにカード名に《X》を含むカードがある場合（パワー修正なし）----
+  // 🔴従来は `CONDITIONAL_POWER_BONUS`＝**誤発火**した。ハンドラの `trashNameM` 分岐がこの条件に当たり、
+  //   delta は**カード全文の別の節**から拾う（`WX20-078-E1` は選択肢③の「－5000」を拾って、
+  //   トラッシュに《インフル》があるだけで**相手の全シグニに－5000**する原文に無い効果になっていた）。
+  //   本来の意味は「代わりに２つまで選ぶ」＝**CHOOSE の選択個数が変わる**（§6.4 O-29 と同じ層の機構待ち）。
+  //   機構が入るまでは明示 defer にして誤発火を止める。
   if (t.match(/あなたのトラッシュにカード名に.+を含むカードがある場合/)) {
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_TRASH_NAME_CHOOSE_COUNT' } as StubAction;
   }
 
   // ---- センタールリグのレベルが〜の場合のアーツコスト変動 ----

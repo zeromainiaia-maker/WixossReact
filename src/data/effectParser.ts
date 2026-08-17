@@ -9431,7 +9431,7 @@ function parseActionTextInner(text: string): EffectAction {
         // 従来は「一番下」を含むだけで position:'bottom' に潰れ、**見た全部がデッキ下へ**送られていた
         // （良い札を上に残せる原文の意味が丸ごと消える過小実行）。タスク12(xlvi)(d)。
         const split = isSplitTopBottomReorder(nextS);
-        return {
+        const lookAction: EffectAction = {
           type: 'LOOK_AND_REORDER',
           source: { location: 'deck', owner: 'self' },
           count: parseNum(cM[1]),
@@ -9440,6 +9440,14 @@ function parseActionTextInner(text: string): EffectAction {
           canTrash: nextS.includes('トラッシュ'),
           destination: { location: 'deck', owner: 'self', position: split ? 'split_top_bottom' : nextS.includes('一番下') ? 'bottom' : 'top' },
         };
+        // 🔴この early return は**3文目以降を捨てていた**＝「…残りを一番下に置く。**カードを１枚引く。**」の
+        //   末尾1文が丸ごと落ちる（§6.4 O-11・`WXDi-P08-063-E1`）。上の pick 版 `keepTrailing` と同じ
+        //   ガード（条件・置換・照応を含む後続は対象外＝条件ごと落として無条件実行にしない）で引き連れる。
+        const restS = sentences.slice(2).map(s => s.trim()).filter(Boolean);
+        if (restS.length > 0 && restS.every(s => !/この方法で|場合|かぎり|代わりに|それら?を|その中/.test(s))) {
+          return { type: 'SEQUENCE', steps: [lookAction, ...restS.map(s => parseSingleSentence(s))] } as SequenceAction;
+        }
+        return lookAction;
       }
     }
   }

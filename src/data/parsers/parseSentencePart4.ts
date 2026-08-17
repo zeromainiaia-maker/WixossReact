@@ -1893,9 +1893,14 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/対戦相手のレベル[０-９\d]+以上のシグニ.*体を対象とし.*トラッシュに置く/))
     return { type: 'STUB', id: 'BANISH' } as StubAction;
 
-  // ---- そのカードが《X》の場合、この効果を繰り返す ----
+  // ---- そのカードが《X》の場合、この効果を繰り返す（§6.4 O-29 の繰り返し機構待ち）----
+  // 🔴従来は `CONDITIONAL_POWER_BONUS` に落としていたが、これは**無言 no-op ではなく誤発火**だった＝
+  //   ハンドラの `selfPwM`（`/このシグニのパワーを([－＋]N)する/`）が**カード全文**から別の節の値を拾い、
+  //   `WXDi-CP01-033-E1` は原文に無い ＋5000 を条件抜きで上乗せしていた（同カードの本体 POWER_MODIFY と
+  //   合わせて二重適用）。繰り返し機構が入るまでは**明示 defer** にして誤発火を止める（`census:stubs` の
+  //   A群では `DEFERRED_*` は「機構が無いと宣言済み」＝無言バグとは別枠に出る）。
   if (t.match(/そのカードが《.+》の場合、この効果を繰り返す/))
-    return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
+    return { type: 'STUB', id: 'DEFERRED_REPEAT_ON_REVEALED_NAME' } as StubAction;
 
   // ---- それらのカードを好きな順番でデッキの一番上に戻す ----
   if (t.match(/それらのカードを好きな順番でデッキの一番上に戻す/))

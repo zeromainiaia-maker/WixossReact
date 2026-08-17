@@ -37150,6 +37150,94 @@ test('§6.4 O-11: WDK08-Y08-E1 の「その差の分だけ」＝手札枚数−5
   eq(r.ownerState.hand.length, 5, '手札は5枚に戻る');
 });
 
+
+// ── §6.4 O-11：`CONDITIONAL_POWER_BONUS`（ゴミ箱受け皿）の解体（2026-08-17 続き524）────────────
+// 🔴この受け皿は **live 21効果**が落ちるゴミ箱で、ハンドラの9分岐は**すべて原文の `＋N`/`－N` を要求する**＝
+//    19効果は無言 no-op、残り2効果は**カード全文から別の節の数値を拾う誤発火**だった。
+
+test('§6.4 O-11: 「場に〈X〉がない場合、手札をN枚捨てる」＝ HAS_CARD_IN_FIELD{negate}（前段のドローだけ走る片翼を解消）', () => {
+  for (const [cardNum, effectId, owner, key] of [
+    ['WX25-P2-080', 'WX25-P2-080-E1', 'opponent', 'isFrozen'],
+    ['WX25-P2-087', 'WX25-P2-087-E1', 'self', 'cardType'],
+  ] as [string, string, string, string][]) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在する`);
+    const step = (e!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+    eq(step.type, 'CONDITIONAL', `🔴${effectId}: STUB{CONDITIONAL_POWER_BONUS}（＝丸ごと no-op）に戻っている`);
+    const cond = step.condition as { type: string; owner?: string; negate?: boolean; filter?: Record<string, unknown> };
+    eq(cond.type, 'HAS_CARD_IN_FIELD', `${effectId}: 盤面存在条件`);
+    eq(cond.owner, owner, `${effectId}: 見る側`);
+    eq(cond.negate, true, `🔴${effectId}: 否定が落ちると「ある場合」に反転する`);
+    ok(cond.filter?.[key] !== undefined, `${effectId}: filter に ${key}`);
+  }
+  // engine: negate は「1件以上ない」＝空盤面で真、居れば偽。
+  const frozenCtx = mkCtx({}, { signi: [SIGNI, null, null] } as never);
+  (frozenCtx.otherState as unknown as { field: { signi_frozen: boolean[] } }).field.signi_frozen = [true, false, false];
+  eq(evalCondition({ type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true }, negate: true } as never, frozenCtx),
+    false, '🔴凍結シグニが居るとき negate は偽');
+  eq(evalCondition({ type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true }, negate: true } as never, mkCtx({}, {})),
+    true, '🔴居なければ真');
+});
+
+test('§6.4 O-11: 「デッキの一番下のカードをトラッシュに置く」は MILL{fromBottom}（正準形は最初から在った）', () => {
+  for (const [cardNum, effectId] of [['WXDi-CP01-033', 'WXDi-CP01-033-E1'], ['WXK02-055', 'WXK02-055-E1']] as [string, string][]) {
+    const e = (effectsMap.get(cardNum) ?? []).find(x => x.effectId === effectId);
+    ok(!!e, `${effectId} が live に存在する`);
+    const json = JSON.stringify(e!.action);
+    ok(json.includes('"fromBottom":true'), `🔴${effectId}: 一番下からのミルが消えている`);
+    ok(!json.includes('CONDITIONAL_POWER_BONUS'), `🔴${effectId}: ゴミ箱受け皿に戻っている`);
+  }
+});
+
+test('§6.4 O-11: MILL は lastProcessedCards の recorder＝「それが〜の場合」が条件として立つ', () => {
+  // 🔴parser の recorder 判定に MILL が無く、後段が IS_MY_TURN（did-it ゲート）へ化けて**無条件実行**だった。
+  const e = (effectsMap.get('WXK02-055') ?? []).find(x => x.effectId === 'WXK02-055-E1');
+  ok(!!e, 'WXK02-055-E1 が live に存在する');
+  const last = (e!.action as SequenceAction).steps[2] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq((last.condition as { type: string }).type, 'LAST_PROCESSED_MATCHES', '🔴IS_MY_TURN へ化けている');
+  eq(JSON.stringify((last.condition as { filter?: unknown }).filter), '{"cardType":"シグニ","level":2}', 'ミル結果のレベル条件');
+});
+
+test('§6.4 O-11: 誤発火していた2件は明示 defer へ（原文に無いパワー修正を捏造しない）', () => {
+  // `CONDITIONAL_POWER_BONUS` のハンドラは**カード全文**から `[－＋]N` を拾うので、
+  // パワーと無関係な条件節に当たると別の節の数値を適用してしまう（無言 no-op より悪い）。
+  const wx = (effectsMap.get('WX20-078') ?? []).find(x => x.effectId === 'WX20-078-E1');
+  ok(!!wx, 'WX20-078-E1 が live に存在する');
+  eq(((wx!.action as SequenceAction).steps[0] as StubAction).id, 'DEFERRED_TRASH_NAME_CHOOSE_COUNT',
+    '🔴トラッシュ名条件が CONDITIONAL_POWER_BONUS に戻ると、選択肢③の「－5000」を拾って相手全体が弱体化する');
+  const di = (effectsMap.get('WXDi-CP01-033') ?? []).find(x => x.effectId === 'WXDi-CP01-033-E1');
+  ok(!!di, 'WXDi-CP01-033-E1 が live に存在する');
+  ok(!JSON.stringify(di!.action).includes('CONDITIONAL_POWER_BONUS'),
+    '🔴「この効果を繰り返す」が CONDITIONAL_POWER_BONUS に戻ると ＋5000 が二重に乗る');
+});
+
+test('§6.4 O-11: 直前処理の結果条件（ライフバースト非所持／レベル合計）が立つ', () => {
+  const wd = (effectsMap.get('WD06-006') ?? []).find(x => x.effectId === 'WD06-006-E1');
+  ok(!!wd, 'WD06-006-E1 が live に存在する');
+  const c1 = ((wd!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>);
+  eq((c1.condition as { type: string; negate?: boolean }).type, 'LAST_PROCESSED_HAS_BURST', '公開札のバースト判定');
+  eq((c1.condition as { negate?: boolean }).negate, true, '🔴否定が落ちると持っている側を落とす');
+  eq(JSON.stringify((c1.then as { target?: unknown }).target), '{"type":"LIFE_CLOTH_CARD","owner":"opponent","count":1}',
+    '🔴「それ」は相手のライフクロス（汎用の「それをトラッシュに置く」は SIGNI{owner:any} に化ける）');
+
+  const wk = (effectsMap.get('WXK05-028') ?? []).find(x => x.effectId === 'WXK05-028-E3');
+  ok(!!wk, 'WXK05-028-E3 が live に存在する');
+  const c2 = ((wk!.action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>);
+  eq((c2.condition as { type: string }).type, 'LAST_PROCESSED_LEVEL_SUM', 'ミル結果のレベル合計');
+  eq(((c2.then as StubAction).trashedPick ?? {}).dest, 'hand', '「その中から」は trashedPick（候補は lastProcessedCards 限定）');
+});
+
+test('§6.4 O-11: 「レベル３か白のシグニ」は anyOf（種別の違う OR）', () => {
+  const e = (effectsMap.get('WX25-CP1-056') ?? []).find(x => x.effectId === 'WX25-CP1-056-E1');
+  ok(!!e, 'WX25-CP1-056-E1 が live に存在する');
+  const cond = (e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition as { type: string; excludeSelf?: boolean };
+  eq(cond.type, 'HAS_CARD_IN_FIELD', '🔴丸ごと STUB に戻っている');
+  eq(cond.excludeSelf, true, '「他の」＝自分自身を除く');
+  const tgt = ((e!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).then as { target: { filter?: { anyOf?: unknown[] } } }).target;
+  eq(JSON.stringify(tgt.filter?.anyOf), '[{"level":3},{"color":"白"}]',
+    '🔴level と color を同じ filter に並べると AND になり候補が消える');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
