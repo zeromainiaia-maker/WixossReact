@@ -8072,7 +8072,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // ⚠**限定（誰のどんな攻撃か）はここで見る**＝従来は `damageSource` を宣言していたのに捨てていて、
     //   「シグニによって」限定の札がルリグアタックのダメージまで置換していた。
     {
-      const picked = pickLifeCrashReplacement(state, { damageSource: damageSource?.type });
+      const picked = pickLifeCrashReplacement(state, { damageSource: damageSource?.type, cardMap: battleCardMap });
+      if (picked && picked.repl.kind === 'pay_cost') {
+        // §6.4 O-37(a)「代わりに〈コスト〉を支払ってもよい」＝払えるときだけ選ばれている（funnel 側で確認済み）。
+        const paid = applyPayCostReplacement(state, picked.index, picked.repl, battleCardMap);
+        if (paid) {
+          appendBattleLogs([lifeCrashReplaceLog(picked.repl, paid.paidJa)]);
+          return { newState: paid.state, crashed: null, prevented: true };
+        }
+      }
       if (picked && picked.repl.kind === 'mill') {
         const applied = applyMillReplacement(state, picked.index, picked.repl.count);
         appendBattleLogs([lifeCrashReplaceLog(picked.repl)]);
