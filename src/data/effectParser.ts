@@ -1415,12 +1415,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // パターン5a2: 「あなたのエナゾーンに＜X＞(か＜Y＞)*のシグニが(N枚)?あるかぎり、」（クラス指定エナ存在条件。G038）
-  const enaSigniM = text.match(/^あなたのエナゾーンに((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:([０-９\d]+)枚以上)?あるかぎり、/);
+  // パターン5a2: 「あなたのエナゾーンに(レベルNの)?＜X＞(か＜Y＞)*のシグニが(N枚)?あるかぎり、」（クラス指定エナ存在条件。G038）
+  // ⚠**レベル前置を受けていなかった**（2026-08-18 実測）＝「あなたのエナゾーンに**レベル４の**＜電機＞のシグニが
+  //   あるかぎり」が丸ごと落ちて**無条件でパワー＋3000**だった（`WXK09-082-E1`／`WXK09-086-E1`）。
+  const enaSigniM = text.match(/^あなたのエナゾーンに(?:レベル([０-９\d]+)の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:([０-９\d]+)枚以上)?あるかぎり、/);
   if (enaSigniM) {
-    const storyFilter = parseStoryFilter(enaSigniM[1]);
+    const storyFilter = parseStoryFilter(enaSigniM[2]);
     return {
-      condition: { type: 'ENERGY_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', ...storyFilter }, ...(enaSigniM[2] ? { minCount: parseNum(enaSigniM[2]) } : {}) },
+      condition: { type: 'ENERGY_HAS_CARD', owner: 'self',
+        filter: { cardType: 'シグニ', ...(enaSigniM[1] ? { level: parseNum(enaSigniM[1]) } : {}), ...storyFilter },
+        ...(enaSigniM[3] ? { minCount: parseNum(enaSigniM[3]) } : {}) },
       rest: text.slice(enaSigniM[0].length),
       conditionFound: true,
     };
