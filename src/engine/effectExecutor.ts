@@ -4914,6 +4914,13 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     effectiveCount = a.conditionChoose.thenChooseCount;
     effectiveUpTo = a.conditionChoose.thenUpTo ?? false;
   }
+  // 選択数そのものが実行時に決まる形（§6.4 O-11）。
+  // ⚠**0 のときは選ばせない**＝「捨てた枚数と同じ数だけ選ぶ」で0枚捨てたのに1つ選べると過剰実行になる。
+  if (a.countChoose) {
+    effectiveCount = Math.max(0, resolveCountRef(a.countChoose.count, ctx));
+    effectiveUpTo = a.countChoose.upTo ?? false;
+    if (effectiveCount === 0) return done(addLog(ctx, '選択数0（選ばない）'));
+  }
   const chooseCtx = a.additionalCostChoose
     ? { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } }
     : ctx;
