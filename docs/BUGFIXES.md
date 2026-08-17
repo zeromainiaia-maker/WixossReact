@@ -1,5 +1,97 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き552・Opus 5）— **§8／§6.4 `O-1` (a)＝CPU が相手のアタックフェイズに応答アーツで守る**（v1）＋ アーツの**使用ゲート／コスト計算を1関数へ集約**
+
+ゲート全緑（typecheck / golden **2278→2283** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.479→0.480。
+
+### 0. なぜこれを取ったか
+
+続き551 で「CPU がメインフェイズに【起】を撃つ」まで入れたが、**CPU は `ATTACK_ARTS` を素通り**＝
+人間は一方的に殴れるままだった（PLAN §4 の「▶ 次の一手」で (a) として登録済み）。
+体験上いちばん大きい穴なのでここを取った。
+
+### 1. 着手前の実測（PLAN §3-1 の規律）
+
+- CPU の応答窓は `cpuTurnAction` の `ATTACK_ARTS_OP` 分岐にあり、**中身は「フェイズを進める」1行だけ**
+  （コメントも「アーツ不使用でスキップ」）。
+- 🔴**`ArtsModal` の Phase1（アーツ一覧）は到達不能**だった＝`showArtsModal` を立てる唯一の入口
+  `openArtsModal` が必ず `pendingArtsCard` も同時に立てるので、常に Phase2（コスト支払い）から始まる。
+  ⇒ **生きている人間の提示ゲートはルリグデッキのカード詳細「使用」1箇所だけ**（`getMyLrigDeckCardActions`）。
+- そのため**コスト計算の入口が2つに割れていた**（PLAN §4 教訓 (d) の再発）＝
+  `altCostOppTurn`（相手ターン中の代替コスト）はカード詳細側にしか無く、
+  「使用時の任意支払いによる軽減」は Phase1 側にしか無かった。
+
+### 2. やったこと（3段）
+
+**(1) 提示ゲート＋コスト計算の抽出＝`src/screens/battle/artsUseGate.ts` 新設**
+
+- `checkArtsUse()`＝アーツ1枚の **使用可否と請求額**を返す唯一の funnel。
+  限定（`meetsRestriction`）／カード名封じ／`USE_ARTS`・`ARTS_LIMIT_1`／フェイズ×CSV Timing／
+  使用条件（`canUseArtsCondition`）／実効コスト（`computeArtsEffectiveCost` ＋ CONTINUOUS 軽減 ＋
+  カード名指定軽減 ＋【チェイン】軽減 ＋ **`altCostOppTurn`**）／支払い可否（ベット宣言での成立を含む）
+  をすべてここで見る。人間のカード詳細「使用」はこの1呼び出しに置き換えた（**挙動不変**）。
+- `listUsableArts()`＝ルリグデッキから使えるアーツを列挙（CPU 用）。
+- `buildArtsPayerCtx()`＝「支払う側の常在効果」一式（エナ支払い元プール・マルチエナ・色代替・
+  追加色・キー代替・コスト増加・名前エイリアス・閾値軽減・カード名軽減・行動封じ・実効ルリグクラス）を
+  **1回で組む**。人間UIの `useMemo` もこの1本を呼ぶ（＝人間と CPU で同じ値になることが構造で保証される）。
+- BattleScreen にインラインで書かれていた `myEnaAllMulti` / `myEnaMultiStripped` / `myEnergyExtraColors`
+  の式も pure 関数へ移した（`collectEnaAllMulti` / `isEnaMultiStripped`（既存）/ `collectEnergyExtraColors`）。
+  ⚠これを残すと「人間には剥がれているのに CPU では効かない」型の無言のズレになる。
+- `isArtsUseBlockedFor()`＝`USE_ARTS` ＋ `ARTS_LIMIT_1` の判定も pure 化し、**提示（`checkArtsUse`）と
+  実行（`performArts`）の両方**から同じ関数を呼ぶ。
+
+**(2) `executeArts` → `performArts` へ owner パラメータ化**
+
+`{actor, opponent, actorId, actorKey, isActorTurn, energyPayPool, energyTrashSubInfo, blockedSelf,
+effectivePowers}` を引数に取り、人間用 `executeArts` は薄いラッパーにした
+（`performSigniActivated`／`performSigniAttack` と同じ形＝DESIGN §4）。
+`user.id`／`isHost`／`myEnergyPayPool`／`myEnergyTrashSubInfo`／`isMyTurn` の参照をすべて引数へ置換し、
+`queueCardEffects` には `owner: {id, key}` を渡す（既存の owner 引数）。
+
+**(3) `src/screens/battle/cpuArts.ts` 新設＝「何を使うか」の判断**
+
+- `defensiveKindOf(action)`＝アクション木を歩いて **無効化（`NEGATE_ATTACK`）→ 除去（相手シグニ対象の
+  `BANISH`/`TRASH`/`BOUNCE`/`SEND_TO_ENERGY`/`FREEZE`/`DOWN`・`SIGNI_ATTACK_BAN`）→ 軽減
+  （`PREVENT_DAMAGE`/`PREVENT_NEXT_DAMAGE`/`REPLACE_NEXT_DAMAGE_WITH_MILL`/`LIFE_CRASH_REPLACE`）**
+  に分類。⚠**`STUB` は対象外**（id ごとに意味が違うので機械的に「守り」と決めつけない＝保守側）。
+  ⚠除去は **`target.owner === 'opponent' && target.type === 'SIGNI'`** のときだけ（自分のシグニを
+  飛ばす効果を「守り」に数えない）。
+- `hasIncomingThreat(actor, attacker)`＝**①正面（facing ＝ `2 - zi`）が空いているアップの相手シグニがいる**
+  （＝ライフクラッシュが通る）か **②自分のライフクロスが1枚以下**（CPU は【ガード】しないので詰む射程）。
+  これが足切り＝**開幕から撃ち尽くさない**。
+- `pickCpuResponseArts()`＝「使える（gate）× 守り × エナだけで払える × このターン未使用」を満たす1枚を
+  **分類→ルリグデッキ順の決定論**で選ぶ。**1回の呼び出しで1枚だけ**使って return（スタック解決を待って再入）。
+
+**実測＝アタックフェイズの Timing を持つアーツ 428枚のうち 214枚（50%）が CPU の射程に入った**
+（内訳＝除去 188／軽減 16／無効化 10）。残214枚は「守り」に分類されない札（自ターン用の展開・
+ドロー・コスト踏み倒し等）。
+
+### 3. 安全弁（無限ループ／踏み倒しの両方）
+
+- **`cpu_arts_used_nums_this_turn` を実行より先に commit する**（`PlayerState` 新設・`turnScopedState` に
+  `turn-end` 境界で登録）。`performArts` は使用不能を検出すると**何も書かずに return** するので、
+  履歴を実行の成否に委ねると CPU が同じ札を選び直して **`ATTACK_ARTS_OP` から先へ進まない**（画面が止まる）。
+- 🔴**支払いキーの allowlist は `energy` 1本だけ**にした。`performArts` は**エナ以外の宣言コストを払わない**
+  ので、シグニ【起】側の allowlist（`down_self` / `lrigDown` 等＝あちらは自動支払いがある）をそのまま
+  流用すると **宣言だけして踏み倒す**ことになる。⚠2つの allowlist を統合したくなったら、まず
+  「その経路が実際に払っているか」を確認すること。
+
+### 4. golden（+5）
+
+`O-1 artsUseGate:`（提示の切れ方／`altCostOppTurn` が請求額になる対照つき）、
+`O-1 cpuArts:`（守りの分類・脅威判定・選択の3条件）を追加。
+既存の `ARTS_LIMIT_1` golden は**ゲートが `artsUseGate.ts` へ移った形**に更新
+（表示ゲート＝`checkArtsUse`／実行ゲート＝`performArts` の2箇所から呼ぶことを固定）。
+turn-scoped レジストリの母数は 34→35（登録総数 57→58）。
+
+### 5. ⚠実機未検証（→ §7 `V-75`）
+
+CPU の応答アーツは**実機で1本も回していない**。特に見るべき点＝
+(a) CPU がアーツを使ったあと `ATTACK_ARTS_OP` から先へ進むか（安全弁が効いているか）
+(b) 対象選択が要るアーツで CPU の自動応答が回るか
+(c) **人間側の挙動が変わっていないこと**（カード詳細「使用」の可否・請求額が続き551 以前と同じ）
+(d) `altCostOppTurn` を持つ札が**相手ターンに代替コストで**使えること（＝今回ゲートへ合流させた分）
+
 ## 2026-08-18（続き551・Opus 5）— **§8／§6.4 `O-1` 着手＝CPU がメインフェイズに【起】を撃つ**（v1）＋ 副産物で**【起】エナコストの色照合が効いていなかった**バグを是正
 
 ゲート全緑（typecheck / golden **2274→2278** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.478→0.479。
