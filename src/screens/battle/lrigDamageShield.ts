@@ -52,8 +52,8 @@ export function resolveLrigDamageShield(args: {
     ? parseInt(cardMap.get(baseCardNum(attackingLrigNum))?.Level ?? '', 10)
     : NaN;
 
-  for (const num of shieldSources(defender)) {
-    for (const eff of (effectsMap.get(num) ?? effectsMap.get(baseCardNum(num)) ?? [])) {
+  for (const [num, eff] of shieldCandidates(defender, effectsMap)) {
+    {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.action.type !== 'STUB') continue;
       const id = (eff.action as StubAction).id;
