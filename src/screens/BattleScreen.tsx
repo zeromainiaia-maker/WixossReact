@@ -10955,6 +10955,52 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         return;
       }
 
+      // ── §8／§6.4 O-1: CPU がメインフェイズに場のシグニの【起】を能動使用する ──────────
+      // ⚠**判定は `signiActivateGate`・実行は `performSigniActivated`＝どちらも人間と同じ関数**
+      //   （DESIGN §4）。CPU 専用の判定/実行をここに書かない＝軸がずれると人間には見えない
+      //   【起】を CPU だけが撃てる（またはその逆）という無言のズレになる。
+      // ⚠1回の呼び出しで**1つだけ**撃って return する＝スタック解決（対象選択の自動応答を含む）を
+      //   待ってから次を選ぶ。人間が1つずつ撃つのと同じ順序になる。
+      // ⚠`cpuHuSt` が書き換わっている間は撃たない＝`performSigniActivated` は相手 state を
+      //   ウィルス除去時しか書かないので、ここで撃つと配置で積んだ人間側の変更を取りこぼす。
+      if (!cpuMainSkipped && cpuHuSt === huSt) {
+        const cpuActPool = buildEnergyPayPool(newCpuSt, {
+          turnPhase: 'MAIN', isMyTurn: true, effectsMap,
+        });
+        const cpuActPowers = calcFieldPowers(newCpuSt, huSt, true, effectsMap, battleCardMap, 'MAIN');
+        const cpuEnaMultiStrippedAct = (newCpuSt.blocked_actions ?? []).includes('MULTI_ENA_STRIP');
+        const cpuChoice = pickCpuMainPhaseActivated({
+          actor: newCpuSt, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
+          energyPoolNums: cpuActPool.map(e => e.cardNum),
+          alreadyActivated: newCpuSt.cpu_activated_effect_ids_this_turn ?? [],
+          effectivePowers: cpuActPowers,
+          // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
+          isAffordable: (selectedNums, costStr) => canAffordGrowCost(
+            selectedNums, cards, costStr, newCpuSt.keyword_grants, undefined, cpuEnaMultiStrippedAct,
+          ),
+        });
+        if (cpuChoice) {
+          const actName = battleCardMap.get(cpuChoice.cardNum)?.CardName ?? cpuChoice.cardNum;
+          appendBattleLogs([`[CPU] 【起】を発動: ${actName}`]);
+          const cpuActActor: PlayerState = {
+            ...newCpuSt,
+            cpu_activated_effect_ids_this_turn: [
+              ...(newCpuSt.cpu_activated_effect_ids_this_turn ?? []), cpuChoice.effect.effectId,
+            ],
+          };
+          await performSigniActivated(cpuChoice.cardNum, cpuChoice.effect, {
+            costIndices: cpuChoice.costIndices, discardCostIndices: new Set(),
+          }, {
+            actor: cpuActActor, opponent: huSt,
+            actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
+            actorKey: 'guest_state',
+            energyPayPool: cpuActPool,
+            energyTrashSubInfo: collectEnergyTrashSubstituteInfo(newCpuSt, battleCardMap, effectsMap),
+          });
+          return;
+        }
+      }
+
       // ── MAIN→ATTACK_ARTS 移行（アタックフェイズ開始時）。以下のトリガーを1つのスタックに集約し、
       //    フェイズを ATTACK_ARTS へ進めながら積む（MAIN に留まると再実行で無限収集になるため）。
       const cpuTurnPlayerId = bs.active_user_id ?? CPU_PLAYER_ID;
