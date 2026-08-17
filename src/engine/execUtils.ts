@@ -2068,10 +2068,13 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return ctx.ownerState.last_cost_trashed_puppet === true;
     case 'COST_DISCARDED_SIGNI_LEVEL':
       return (ctx.ownerState.last_discarded_signi_level ?? -1) === cond.level;
-    case 'COST_TRASHED_MATCHES':
+    case 'COST_TRASHED_MATCHES': {
       // 直前のコスト支払いでトラッシュへ送ったカードに filter 一致が1枚以上あるか（§3タスク6 C）。
-      return (ctx.ownerState.last_cost_trashed_cards ?? [])
-        .some(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), cond.filter));
+      // minCount 指定時は**枚数閾値**（§6.4 O-35・続き530）＝「この方法でカードをN枚以上トラッシュに置いた場合」。
+      const costMatched = (ctx.ownerState.last_cost_trashed_cards ?? [])
+        .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), cond.filter));
+      return costMatched.length >= (cond.minCount ?? 1);
+    }
     case 'ENERGY_TRASH_COLOR_COUNT_GTE':
       return (ctx.ownerState.last_energy_trash_color_count ?? 0) >= cond.value;
     case 'NOT_PLAYED_NON_DISSONA_SPELL_THIS_TURN':
