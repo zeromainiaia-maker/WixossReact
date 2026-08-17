@@ -2073,6 +2073,24 @@ export function parseSentencePart3(t: string): EffectAction | null {
       } as ConditionalAction;
     }
   }
+  // ---- 「この能力の発動コストは《X×N》減る」＝**この能力スコープ**の条件つきコスト減額（§6.4 O-35・続き530）----
+  // 🔴従来は下の汎用フォールバックが**条件節ごと**受け皿 `CONDITIONAL_POWER_BONUS` に飲み込んでいた＝
+  //   `WX09-011-E2`「あなたのセンタールリグがレベル４以上の場合、この能力の発動コストは《赤×2》減る」の
+  //   減額が一度も起きず、**常に《赤》《赤》を払わされる**（原文どおりならレベル4以上でタダ）。
+  // ⚠`COST_REDUCTION` アクションは「スペル／アーツ／ルリグ」という**カード種別**に掛かる別軸なので使えない。
+  //   条件節は `tryWrapLeadingStateCond` が `CONDITIONAL{LRIG_LEVEL}` で包み、
+  //   effectParser の `hoistSelfAbilityCostReduction` が **action から `cost` へ移す**（engine では実行しない）。
+  // ⚠「**それの**発動コストは〜減る」（`WXK04-075-E1`＝次に発動する別能力への予約）は別機構なので取らない。
+  {
+    const selfCostRedM = t.match(/^この能力の発動コストは(《[^》]+》(?:×[０-９\d]+)?)+減る$/);
+    if (selfCostRedM) {
+      const redEnergy = parseEnergyCosts(t);
+      if (redEnergy.length > 0) {
+        return { type: 'STUB', id: 'SELF_ABILITY_COST_REDUCTION', costEnergy: redEnergy } as StubAction;
+      }
+    }
+  }
+
   // ---- センタールリグが〜の場合（汎用フォールバック）----
   if (t.match(/あなたのセンタールリグが.+の場合、(?:代わりに|追加で|この能力)/)) {
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
