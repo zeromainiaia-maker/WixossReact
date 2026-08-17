@@ -1178,7 +1178,30 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/この方法で公開した生徒との絆を獲得する/))
     return { type: 'GAIN_BOND', source: 'last_found' } as import('../../types/effects').GainBondAction;
 
-  // ---- あなたの場に他の〈クラス〉のシグニがある場合、対戦相手のシグニをトラッシュ ----
+  // ---- あなたの場に他の＜C＞のシグニがある場合、対戦相手の〔レベルN**か**〈色〉〕のシグニをトラッシュ（WX25-CP1-056-E1）----
+  // 🔴従来は catch-all の `CONDITIONAL_POWER_BONUS`＝**丸ごと無言 no-op**。
+  // 条件（`HAS_CARD_IN_FIELD{excludeSelf}`）も帰結も既存語彙で表せるが、汎用の条件持ち上げは
+  // **帰結節が単体で UNKNOWN になると catch-all へ委ねる**（ガードB）ため届かなかった。
+  // 🔑届かない理由は「レベル３**か**白のシグニ」＝**種別の違う OR** で、`anyOf`（matchesFilter が再帰評価）が要る。
+  {
+    const otherClassTrashM = t.match(/^あなたの場に他の＜([^＞]+)＞のシグニがある場合、対戦相手のレベル([０-９\d]+)か([白赤青緑黒])のシグニ([０-９\d]+)体を対象とし、それをトラッシュに置く$/);
+    if (otherClassTrashM) {
+      return {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'HAS_CARD_IN_FIELD', owner: 'self',
+          filter: { cardType: 'シグニ', story: otherClassTrashM[1] }, excludeSelf: true,
+        },
+        then: {
+          type: 'TRASH',
+          target: {
+            type: 'SIGNI', owner: 'opponent', count: parseNum(otherClassTrashM[4]), upToCount: false,
+            filter: { cardType: 'シグニ', anyOf: [{ level: parseNum(otherClassTrashM[2]) }, { color: otherClassTrashM[3] }] },
+          },
+        },
+      } as EffectAction;
+    }
+  }
   if (t.match(/あなたの場に他の[＜〈<].+[＞〉>]のシグニがある場合、対戦相手のレベル.+のシグニ.+対象とし、それをトラッシュに置く/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
