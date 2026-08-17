@@ -308,6 +308,11 @@ export type Condition =
   | { type: 'THIS_CARD_IS_ARMORED' }                          // このシグニが血晶武装状態の場合
   | { type: 'THIS_CARD_IS_AWAKENED' }                         // このシグニが覚醒状態の場合
   | { type: 'THIS_CARD_IS_ACCED'; minCount?: number }         // 効果元シグニに付いた【アクセ】枚数（省略=1枚以上）
+  // このシグニに【チャーム】が付いている場合（§6.4 O-25(d)・`WXK07-043-E1/E2`）。
+  // ⚠`ActiveCondition` 側の `IS_SELF_CHARMED` と**同型・同実装**＝両方揃えて更新すること
+  //   （`SELF_LEVEL_THRESHOLD` / `HAND_DIFF` と同じ運用）。
+  // ⚠`THIS_CARD_HAS_ATTACHED`（チャーム/アクセ/ソウルの合計）とは**別物**＝チャーム限定。
+  | { type: 'THIS_CARD_IS_CHARMED' }
   | { type: 'THIS_CARD_HAS_ATTACHED'; minCount?: number }     // このシグニにカードがN枚以上付いている場合（【チャーム】/【アクセ】/【ソウル】の合計。省略=1。WXK10-049-E2）
   | { type: 'SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE'; owner: Owner; filter?: TargetFilter; minCount?: number } // そのアタックフェイズの間に owner のシグニ（filter 一致）が場を離れていた場合（§6.3 J-4・WX24-P2-075-E1）。`signi_left_field_this_attack_phase` に記録した instanceId を cardMap で照合する
   | { type: 'IS_DRIVE_STATE' }                                // このシグニがドライブ状態の場合
