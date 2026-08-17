@@ -9785,6 +9785,26 @@ test('PLAN §6.3 WX20-028 Step B: 複数アクセ保持・無制限/2枚/通常1
     '旧live値なしMULTI_ACCE_LIMITも印刷本文どおり2枚上限');
 }));
 
+// 🔴タスク12(cxxxiv)：旧形式の `signi_acce`（配列化前の**素の string**）が残った途中局面をロードしても
+//   「文字列長＝枚数」「1文字ずつの配列」に化けないことを、読み出しユーティリティ全経路で固定する。
+//   ⚠外すと `'WD18-013#8202'.length === 13` で「3枚以上」が真になり（THIS_CARD_IS_ACCED）、
+//   複製経路が1文字ずつのゾーンを作ってデータを破壊する（実機で観測した壊れ方）。
+test('acce 旧形式(string)の正規化：枚数も複製も1枚として扱う', () => {
+  const legacyNum = 'WD18-013#8202';
+  const legacyField = { ...mkState({}).field, signi_acce: [legacyNum, null, null] } as unknown as PlayerState['field'];
+  eq(acceCardsAt(legacyField, 0).length, 1, '旧形式1枚は length=1（文字列長13ではない）');
+  eq(acceCardsAt(legacyField, 0)[0], legacyNum, '旧形式1枚は instanceId そのものを返す');
+  ok(hasAcceAt(legacyField, 0), '旧形式でも「アクセ有り」');
+  eq(allAcceCards(legacyField).join('|'), legacyNum, '全アクセ列挙も1件');
+  eq(countAcce(legacyField), 1, 'countAcce も1枚');
+  eq(findAcceZone(legacyField, legacyNum), 0, '旧形式スロットからもゾーンを引ける');
+  eq(cloneAcceSlots(legacyField)[0]?.join('|'), legacyNum, '複製が1文字ずつの配列に化けない');
+  // 正常形（配列）は同じ参照/内容のまま素通りする＝正規化が既存経路を壊していないことの対照。
+  const okField = { ...mkState({}).field, signi_acce: [[legacyNum], null, null] } as unknown as PlayerState['field'];
+  eq(acceCardsAt(okField, 0).length, 1, '配列形は従来どおり');
+  eq(countAcce(okField), 1, '配列形の countAcce も従来どおり');
+});
+
 // 続き400: WX25-P3-023-E2「このターンと次のターンの間」の一時付与 watcher。
 // 起動→相手効果による実際のエナ→手札移動→中央 diff と同じ detector/collector→付与AUTO実行、
 // という実行鎖を通し、旧「起動時に即1枚捨てる」過剰実行と4つの非発火条件を固定する。
