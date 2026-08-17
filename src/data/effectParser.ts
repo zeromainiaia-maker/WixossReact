@@ -3201,6 +3201,30 @@ function recoverDroppedConjClauses(t: string, result: EffectAction): EffectActio
   if (/探して|残りを|その中から|公開し|手札に加え/.test(consequent)) return null;
   const segs = splitConjChain(consequent);
   if (!segs || segs.length < 2) return null;
+
+  // 🆕**落ちているのが head 側**の形（§6.4 O-11・`WXDi-P12-002-E1`＝「…３体ある場合、対戦相手の
+  //   **すべてのシグニをバニッシュし**、その後、…をトラッシュに置く」でバニッシュだけが消える）。
+  //   下の一般ロジックは「2節目以降に照応があれば触らない」ので、この向きは素通りしていた。
+  // 🔑安全条件＝**head を prefix ごとパースした結果の condition が、いま出ている結果の condition と完全一致**すること。
+  //   これで「条件が未パースのまま head を足して無条件実行にする」事故（`WX21-006` の教訓）を構造的に防ぐ
+  //   ＝条件が表現されている証拠が取れたときだけ、その `then` の**内側へ**足す。
+  {
+    const head0 = parseSingleSentence(prefix + segs[0]);
+    if (head0.type === 'CONDITIONAL' && result.type === 'CONDITIONAL') {
+      const hc = head0 as ConditionalAction;
+      const rc = result as ConditionalAction;
+      const inner = hc.then;
+      const innerTops = inner?.type === 'SEQUENCE' ? (inner as SequenceAction).steps : inner ? [inner] : [];
+      const have0 = collectActionTypeSet(result);
+      const usable = innerTops.length > 0
+        && innerTops.every(x => x.type !== 'UNKNOWN' && x.type !== 'STUB')
+        && innerTops.some(x => !have0.has(x.type));
+      if (usable && JSON.stringify(hc.condition) === JSON.stringify(rc.condition)) {
+        return { ...rc, then: { type: 'SEQUENCE', steps: [...innerTops, rc.then] } as SequenceAction };
+      }
+    }
+  }
+
   // 🔑**先頭節だけは prefix（条件節・「〜を対象とし、」）ごと再パースする**＝「それ」の参照先を保てる。
   //   2節目以降は単独 parse するので、照応・対象指定を含んでいたら触らない（参照先を失う）。
   if (segs.slice(1).some(s => /それ|その|対象とし/.test(s))) return null;
