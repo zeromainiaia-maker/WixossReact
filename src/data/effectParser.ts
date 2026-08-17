@@ -13860,40 +13860,114 @@ function grantLrigAbilityNodes(action: EffectAction): GrantLrigAbilityAction[] {
 }
 
 /**
- * 引用能力の**1ブロック**が「機構が無いので実装しない」と宣言済みの形なら、明示 defer の
- * `CardEffect` を返す（§6.4 O-27・続き536）。当たらなければ null＝通常の `parseBlock` に任せる。
+ * 「あなたがダメージを受ける場合、代わりに〈コスト〉を支払ってもよい」の**支払い方**を原文から読む
+ * （§6.4 O-37(a)・続き543）。並び順は原文どおり（funnel が先に払えるものを使う）。
  *
- * 🔴**素直に parse させてはいけない**＝置換効果（「〜する場合、代わりに〜」）は CONTINUOUS の
- *   機構が無く、現状の規則では**別物に化ける**（実測）：
+ * 母集団の綴りは3通りだけ：
+ *   - 「手札を１枚捨てて」（`WX24-P3-005`）
+ *   - 「手札を１枚捨てるかあなたのエナゾーンからカードを１枚トラッシュに置いて」（`WX25-P1-014`／`SPDi44-12`）
+ *   - 「《緑》《無》を支払って」（`WX24-P4-021`）
+ * ⚠1つも読めなければ null を返して**明示 defer に戻す**＝空の options を積むと
+ *   「タダでダメージを置換できる」穴になる（funnel 側にも同じガードがある）。
+ */
+function parseDamageReplaceCostOptions(
+  block: string,
+): NonNullable<StubAction['damageReplaceByCost']>['options'] | null {
+  const body = block.match(/あなたがダメージを受ける場合、代わりに(.+?)(?:てもよい|ても良い)/)?.[1];
+  if (!body) return null;
+  const options: NonNullable<StubAction['damageReplaceByCost']>['options'] = [];
+  for (const clause of body.split('か')) {
+    const hand = clause.match(/手札を([０-９\d]+)枚捨て/);
+    if (hand) { options.push({ handDiscard: parseNum(hand[1]) }); continue; }
+    const energyTrash = clause.match(/エナゾーンからカードを([０-９\d]+)枚トラッシュに置い/);
+    if (energyTrash) { options.push({ energyTrash: parseNum(energyTrash[1]) }); continue; }
+    if (/を?支払っ/.test(clause)) {
+      const colors = [...clause.matchAll(/《(.)》/g)].map(m => m[1]);
+      if (colors.length > 0) options.push({ costColors: colors });
+    }
+  }
+  return options.length > 0 ? options : null;
+}
+
+/**
+ * 引用能力の**1ブロック**が「専用の構造でしか正しく表せない」形なら、その構造を組んで返す
+ * （§6.4 O-27／O-37・続き536 で defer → 続き543 で実装）。当たらなければ null＝通常の `parseBlock` に任せる。
+ *
+ * 🔴**素直に parse させてはいけない**＝置換効果（「〜する場合、代わりに〜」）は通常規則では
+ *   **別物に化ける**（続き536 の実測。golden にトリップワイヤあり）：
  *   - 「あなたがダメージを受ける場合、代わりに手札を１枚捨ててもよい。そうした場合、このルリグは
  *     この能力を失う。」→ 手札捨てが**即時実行**され、能力喪失が `REMOVE_ABILITIES{SIGNI self}`
  *     ＝**自分のシグニ**の能力を消す別物になる。
  *   - 「あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに…」
  *     → `CONTINUOUS REMOVE_ABILITIES{SIGNI self, until:PERMANENT}`＝走査軸が付与ストアへ広がった
  *     瞬間に**自分のシグニの能力を恒久的に消す**。
- * ⚠付与された【常】として積む以上、**誤った形を積むより宣言済みの穴**にしておく方が安全。
- *   実装するときは `DEFERRED_` を外して消費地点を書く（CLAUDE.md の `census:stubs` 規約）。
+ *
+ * 消費地点（`census:stubs` 規約）：
+ *   - `DAMAGE_REPLACE_BY_COST` → `screens/battle/lifeCrashReplace.ts`（funnel・消費は2地点）
+ *   - `REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY` → `engine/refresh.ts` の `applyRefreshState`
+ *   - `TRASHED_CARD_TO_HAND_OR_ENERGY` → `engine/execStubPart1.ts`（既存・`WX24-P3-030-E1` と共用）
  */
-function deferredQuotedAbility(
+function quotedSpecialFormAbility(
   block: string, idPrefix: string, index: number, duration: EffectDuration | undefined,
 ): CardEffect | null {
-  // ⚠3つ目は**トリガーの語彙が無い**形。`ON_OPP_EFFECT_TRASH_FROM_HAND` は「手札が」限定で、
-  //   原文の「（領域を問わず）あなたのトラッシュにカードが置かれたとき」より狭い＝流用できない。
-  //   語彙が無いまま parse させると timing が `ON_PLAY` へフォールバックし（`census:timing` のクラス）、
-  //   **ルリグに付与された ON_PLAY** という永久に噛み合わない形が積まれる。母集団1効果（`WX24-P3-007-E1`）。
-  const id = /あなたがダメージを受ける場合、代わりに/.test(block) ? 'DEFERRED_DAMAGE_REPLACE_BY_COST'
-    : /ライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに/.test(block) ? 'DEFERRED_REFRESH_LIFE_MOVE_REPLACE'
-    : /対戦相手の効果[１1]つによってあなたのトラッシュにカードが/.test(block) ? 'DEFERRED_OPP_EFFECT_TRASHED_ANY_ZONE'
-    : null;
-  if (!id) return null;
-  return {
-    effectId: `${idPrefix}-E${index + 1}`,
-    effectType: 'CONTINUOUS',
-    action: { type: 'STUB', id } as StubAction,
+  const effectId = `${idPrefix}-E${index + 1}`;
+  const base = {
+    effectId,
     duration: duration ?? 'UNTIL_END_OF_TURN',
     mandatory: true,
     parseStatus: 'MANUAL',
-  };
+  } as const;
+  // (a)「あなたがダメージを受ける場合、代わりに〈コスト〉を支払ってもよい。（そうした場合、このルリグはこの能力を失う。）」
+  if (/あなたがダメージを受ける場合、代わりに/.test(block)) {
+    const options = parseDamageReplaceCostOptions(block);
+    if (!options) {
+      // 読めない綴りは**宣言済みの穴**のまま（誤った形を積むより安全）。
+      return { ...base, effectType: 'CONTINUOUS', action: { type: 'STUB', id: 'DEFERRED_DAMAGE_REPLACE_BY_COST' } as StubAction };
+    }
+    return {
+      ...base,
+      effectType: 'CONTINUOUS',
+      action: {
+        type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST',
+        damageReplaceByCost: {
+          options,
+          // ⚠`WX24-P4-021` にはこの一文が無い＝**払えるかぎり何度でも**置換できる（1回限りに丸めない）。
+          ...(/そうした場合、このルリグはこの能力を失う/.test(block) ? { loseAbility: true } : {}),
+        },
+      } as StubAction,
+    };
+  }
+  // (b)「あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、代わりにこのルリグはこの能力を失う。」
+  if (/ライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに/.test(block)) {
+    if (!/このルリグはこの能力を失う/.test(block)) return null;
+    return {
+      ...base,
+      effectType: 'CONTINUOUS',
+      action: { type: 'STUB', id: 'REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY', refreshLifeMoveReplace: true } as StubAction,
+    };
+  }
+  // (c)「対戦相手の効果１つによってあなたのトラッシュにカードが合計N枚以上置かれたとき、
+  //     その効果によってあなたのトラッシュに置かれたカードの中からカードを１枚まで対象とし、
+  //     それを手札に加えるかエナゾーンに置く。」
+  // ⚠**移動元の領域を問わない** timing＝既存の `ON_OPP_EFFECT_TRASH_FROM_HAND`（手札限定）／
+  //   `ON_CARD_MILLED_FROM_DECK`（デッキ限定）では狭くて流用できない。新設した `ON_TRASH_CARD_ADDED` を使う。
+  const trashed = block.match(/対戦相手の効果[１1]つによってあなたのトラッシュにカードが(?:合計)?([０-９\d]+)枚以上置かれたとき/);
+  if (trashed) {
+    if (!/それを手札に加えるかエナゾーンに置く/.test(block)) return null;
+    return {
+      ...base,
+      effectType: 'AUTO',
+      timing: ['ON_TRASH_CARD_ADDED'],
+      duration: 'INSTANT',
+      triggerCondition: { trashOwner: 'self', byOpponentEffect: true, minCount: parseNum(trashed[1]) },
+      // 「カードを１枚**まで**」＝0枚を選べる（`trashedCardUpTo`）。行き先の二択は既存ハンドラが出す。
+      action: {
+        type: 'STUB', id: 'TRASHED_CARD_TO_HAND_OR_ENERGY',
+        ...(/カードを[０-９\d]+枚まで対象とし/.test(block) ? { trashedCardUpTo: true } : {}),
+      } as StubAction,
+    };
+  }
+  return null;
 }
 
 function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolean {
