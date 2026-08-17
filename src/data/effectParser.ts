@@ -3833,9 +3833,12 @@ function parseSingleSentenceInner(text: string): EffectAction {
         // ⚠例外＝ARTS_COST_REDUCTION_BY_EFFECT は実行時マーカー（execStubPart1 で no-op・トップレベル収集なし）
         //   ＝CONDITIONAL に包んでも失うものが無く、包まないと条件節ごと脱落する
         //   （WXDi-P16-009 LIFE_COUNT／WXDi-P16-011 HAND_COUNT＝続き77 Sonnet観測(c)）。
+        // ⚠例外2＝`SELF_ABILITY_COST_REDUCTION`（§6.4 O-35・続き530）＝**トップレベル収集をしない**（後段の
+        //   `hoistSelfAbilityCostReduction` が `EffectCost.conditionalEnergyReduction` へ移す）ので、
+        //   むしろ**条件ごと包まれている必要がある**。包まないと条件が消えて常時タダになる。
         const thenStub = then as import('../types/effects').StubAction;
         if (thenStub.type === 'STUB' && typeof thenStub.id === 'string' && thenStub.id.includes('COST_REDUCTION')
-            && thenStub.id !== 'ARTS_COST_REDUCTION_BY_EFFECT') continue;
+            && thenStub.id !== 'ARTS_COST_REDUCTION_BY_EFFECT' && thenStub.id !== 'SELF_ABILITY_COST_REDUCTION') continue;
         // rest 先頭の「ターン終了時まで、」は再帰先の ^プレフィックス除去で消え PERMANENT 化する
         // （元の全文パースでは節が前置していたため中置扱いで拾えていた）＝ここで復元する
         if (/^(追加で)?ターン終了時まで、/.test(rest)) {
