@@ -6,6 +6,55 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-17 整理㉕：🏁§6.4 `O-11` 完了（続き533）— 最後の3件と、残した近似
+
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-17（続き533）。
+
+### 消化した3件（3件 → 0）
+
+| カード | 何が起きていたか | 直し方 |
+|---|---|---|
+| `WX22-016` | アーツの**本体**（相手シグニをバニッシュ＋トラッシュから＜遊具＞回収）が**選択肢②の中に埋まって**おり、ベットは任意なので**ベット0枚だとカードが何もしなかった**。バニッシュの脱落と ＜遊具＞ 限定の脱落も同居 | 本体を CHOOSE の**兄弟**へ出す／選択数は `countChoose{$ref:'bet_coins_paid'}` |
+| `WX05-042` | `SEQUENCE[DRAW 1, RULE_REMINDER_TEXT]`＝**使った瞬間に無条件で1枚引くだけ**（トリガーも条件も消え、バニッシュとエナ回収は消失、ドローは過剰実行） | 機構3本を新設（下記）＋ manualEffects |
+| `PR-469` | 3択が丸ごと消え、さらに【起】コスト「ルリグデッキの＜タマ＞のルリグ1枚を**ゲームから除外**」が JSON に無く **《白×3》だけで撃てた** | 4本まとめて実装（下記） |
+
+### 🔑 `WX05-042` で新設した機構
+
+| 追加 | なぜ要るか |
+|---|---|
+| `INSTALL_DELAYED_TRIGGER` の `ON_SIGNI_DOWN` 収集 | この収集は**場のカードとキーしか見ていなかった**＝スペルが設置した遅延トリガーは拾えなかった |
+| `trigger.duringOwnMainPhase` | 「**あなたのメインフェイズの間**」＝発火窓。期間（`THIS_TURN`）とは別軸で、設置はターン中ずっと残るが撃てるのはメインだけ |
+| `PlayerState.signi_downed_this_turn` ＋ `Condition.SIGNI_DOWNED_COUNT_THIS_TURN` | 「このターンでN回目」。**枚数ではなくカード番号を積む**（原文が ＜植物＞ で絞るので `filter` を当てられる形にする） |
+| `InstallDelayedTriggerAction.fireCondition` | **収集時に評価する**＝作ってから中で分岐すると `once` が非成立の回で消費される |
+
+⚠**台帳はダウン検出3経路すべてで積む**（中央 diff／アタック宣言／常時効果）＝`recordSigniDownedThisTurn` に集約。
+⚠**記録は収集より前**にやる。最初は収集の後に積んでいて「3回目」が1つズレていた（実測）。
+
+### 🔑 `PR-469` で新設した機構
+
+- `EffectCost.exileLrigFromLrigDeck`（parser 抽出＋ルリグ【起】の支払い＋提示側の可否ゲート7経路）。
+  ⚠**行先は `excluded`**＝`trashArtsFromLrigDeck`（ルリグトラッシュ行き）を流用しない。
+- `MILLAction.all`＝「デッキから**すべての**カードをトラッシュに置く」。大きな `count` で代用しない。
+- `STUB{OPP_LRIG_DECK_BLIND_REVEAL}`＝「相手のルリグデッキから1枚**見ないで選び**公開し、
+  **ルリグでないときだけ**相手のルリグトラッシュへ」。公開して初めて種別が分かるので1 STUB にまとめた。
+  🔴既存の後段 `NON_LRIG_TO_LRIG_TRASH` は `ctx.ownerState` 固定で、除去元が見つからなくても
+  **無条件に自分のルリグトラッシュへ積む**＝そのまま繋ぐと**相手のカードが自分側に複製される**（実測）。
+- CHOOSE ヘッダ「この【起】能力で**まだ選ばれていない**１つを選ぶ」を `parseChooseHeaderCount` へ集約。
+
+### ⚠ O-11 に残した近似（クローズ後の既知の穴）
+
+| 残り | 中身 | 影響 |
+|---|---|---|
+| **選択履歴** | 「まだ選ばれていない1つ」（`PR-469`）／「まだ選んでいないもの」（`WXDi-P11-002`・`WXDi-P11-003`）＝**使用済み選択肢の除外**が未実装 | 毎回すべての選択肢から選べる（3効果） |
+| **ゾーンを跨ぐ OR コスト** | `WXK10-018-E2`「シグニに付いているカード1枚**か**下にあるカード1枚をトラッシュ」 | `costUnparsed`＝提示されない（続き532 で ACTIVATED 提示7経路にガード） |
+| **明示 defer 3種/4件** | `DEFERRED_OPP_LRIG_UNDER_TO_TRASH`（相手ルリグ下の操作＝engine が `ownerState` 固定）／`DEFERRED_COLOR_QUALIFIED_USE_BLOCK`（色限定つき使用封じ＝`BLOCK_ACTION` に色の絞りが無い）ほか | 宣言された no-op（無言 no-op は0） |
+
+### 🔧 `scripts/syncManualLive.ts`（新設）
+
+`build:effects` は `MANUAL`／`PARTIAL` を不可侵にするので**既存 id の手修正は live に届かない**
+（新しい id の追加だけ `adopted_manual_add` で通る）。`WX20-069`／`WXDi-P07-010`／`WX22-016`／`WX05-042` で
+3セッション連続で同じ手当てをしていたため道具にした。`npx tsx scripts/syncManualLive.ts [--dry] <CardNum> ...`。
+
 ## 2026-08-17 整理㉔：§6.4 `O-11` をさらに4件消化（続き532）— 残 3件に必要な機構
 
 > 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-17（続き532）。**PLAN §6.4 の `O-11` 行はこの節も参照する。**
