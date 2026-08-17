@@ -3507,7 +3507,18 @@ function rewriteSameLevelAsLastProcessed(action: EffectAction, text: string): Ef
   // ⚠**「この方法で」が無いと基準が違う**＝「そのシグニ」がトリガー元を指す文（`WX09-014-E2` の
   //   `levelEqTrigger`）まで書き換えて別カード扱いにしてしまう（実際に golden が赤くなった）。
   //   直前ステップの結果に連鎖する形だけを対象にする。
-  if (!/この方法で/.test(t)) return action;
+  // 🆕**「それが〈X〉の場合、」で直前の結果に束縛された形**も同じ基準（§6.4 O-11・続き531・`WXK10-009-E1`③
+  //   ＝「デッキの一番下のカードをトラッシュに置く。それがシグニの場合、**それと同じレベルの**対戦相手の
+  //    すべてのシグニをダウンする」）。この形は「この方法で」と書かないので上のガードから外れ、
+  //   **レベル限定が落ちて相手シグニが全員ダウン**する過剰実行になっていた。
+  //   🔑判定は**文言ではなく木**で行う＝条件が `LAST_PROCESSED_MATCHES` なら「それ」の先行詞は直前の結果で確定。
+  if (!/この方法で/.test(t)) {
+    const cond = action.type === 'CONDITIONAL' ? action as ConditionalAction : null;
+    if (cond?.condition.type !== 'LAST_PROCESSED_MATCHES') return action;
+    const rewrittenThen = rewriteSameLevelAsLastProcessed(cond.then, t + 'この方法で');
+    if (rewrittenThen === cond.then) return action;
+    return { ...cond, then: rewrittenThen } as EffectAction;
+  }
   const a = action as unknown as { target?: { type?: string; filter?: Record<string, unknown> } };
   if (!a.target || a.target.type !== 'SIGNI') return action;
   const f = a.target.filter ?? {};
