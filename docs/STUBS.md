@@ -154,7 +154,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `TRASHED_CARD_TO_HAND_OR_ENERGY` | 2 | 2 | WX24-P3-007, WX24-P3-030 | トラッシュに置かれたカードを手札かエナに |
 | `VIEW_AND_DISCARD_SPELL` | 2 | 2 | WX14-038, WXDi-P16-050 | 相手の手札を見てスペルを捨てさせる |
 | `ACCE_BANISH_SUBSTITUTE` | 1 | 1 | WXDi-P09-TK03A | アクセクラフトによる場離れ代替（オンタマ等） |
-| `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT` | 1 | 1 | WX16-021 |  |
+| `ARTS_ATTACK_EMPTY_ZONE_AS_FRONT` | 1 | 1 | WX16-021 | 「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、     代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える。」 ⚠クラスは**構造（`sideAttac… |
 | `BANISH_ATTACKER_IF_WEAKER_THAN_FRONT` | 1 | 1 | WD07-012 | WD07-012 コードアンチ ヴィマナ【自】。 |
 | `DECLARE_PARITY_OPPONENT` | 1 | 1 | WDK04-006 | WDK04-006: 対戦相手が偶数/奇数を宣言する。値は汎用 declared_number に偶=0/奇=1で保存し、 ガード制限用 declared_guard_restrict_level は立てない。 |
 | `DECLARE_TWO_GUARD_LEVELS` | 1 | 1 | WD21-009 | 異なるレベルを2つ宣言する（対戦相手はそのレベルのシグニで【ガード】できない） |
@@ -165,7 +165,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `HAND_NONCOLORLESS_TO_ENERGY` | 1 | 1 | WXK10-083 | 手札から無色でないカードをエナに置く |
 | `INSTALL_GAME_GRANTED_AUTO` | 1 | 1 | WX25-P2-009 | ゲーム全体能力付与 |
 | `INTERNAL_GRANT_ATTACK_BANISH_TO_ARMORED` | 1 | 1 | WXK04-030 | WXK04-030 血晶の紅雨。 |
-| `MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC` | 1 | 1 | WX24-P4-016 |  |
+| `MAGIC_BOX_FLIP_GRANT_ASSASSIN_DC` | 1 | 1 | WX24-P4-016 | 「このターンのアタックフェイズの間、効果によってあなたの【マジックボックス】１つが表向きに     なったとき、あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】か     【ダブルクラッシュ】を得る。」 ⚠**印字能力で… |
 | `MUGEN_Q_RESET_AND_FLIP` | 1 | 1 | WXDi-P11-010A | WXDi-P11-010A 夢限 -Q-: reset and flip in one indivisible state write. Field SIGNI leave triggers are collected later by … |
 | `MULTI_SIGNI_TO_ENERGY` | 1 | 1 | WXDi-P04-077 | 相手シグニ複数をエナに置く |
 | `NON_GUARD_DISCARD_TO_ENERGY` | 1 | 1 | WX24-P2-051 | ガードアイコンなしカードを捨てたとき、そのカードをエナへ |
@@ -177,7 +177,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `OPTIONAL_DISCARD_CLASS_SIGNI` | 1 | 1 | PR-328 | 手札からクラスシグニを任意枚数捨てる |
 | `PLACE_REV_SIGNI` | 1 | 1 | PR-Di017A | REVメカニクス（ライフクロス1枚以下時に指定シグニを場に出す） |
 | `PLACE_TRASH_SIGNI_FACING_SAME_POWER` | 1 | 1 | WXDi-CP01-024 | ═══ PLACE_TRASH_SIGNI_FACING_SAME_POWER（§6.4 O-32・`WXDi-CP01-024-E1`）═══ 「あなたのトラッシュから**対戦相手の場にあるシグニ１体と同じパワー**の＜X＞のシグニを１… |
-| `PLAY_MILLED_SIGNI_DELAYED_TRASH` | 1 | 1 | WXDi-P09-079 |  |
+| `PLAY_MILLED_SIGNI_DELAYED_TRASH` | 1 | 1 | WXDi-P09-079 | 「あなたのデッキからレベル１のシグニ１枚がトラッシュに置かれたとき、そのシグニを場に出す。     ターン終了時、そのシグニを場からトラッシュに置く。」 ⚠**timing・triggerCondition は既に配線済み**（`ON_C… |
 | `POWER_PLUS_BANISHED_POWER` | 1 | 1 | WX24-P2-049 | 対象のパワーを、そのバニッシュしたシグニのパワーぶん＋する |
 | `PREVENT_DEFEAT` | 1 | 1 | WX12-002 | 敗北無効フラグ |
 | `PREVENT_DEFEAT_UNTIL_NEXT_TURN` | 1 | 1 | WXEX2-08 | 敗北無効フラグ |
@@ -539,7 +539,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `CONDITIONAL_GROW_AND_KEY_DISABLE` | 1 | 1 | WXK02-029 | WXK02-029 ビカム・ユー（アーツ）の選択肢①。 |
 | `CONDITIONAL_TRASH_UNDER_SIGNI` | 1 | 1 | WXDi-P16-064 | 相手エナN枚以上の場合、シグニ下カードを任意でトラッシュ |
 | `COOKING_BANISH_SUBSTITUTE` | 1 | 1 | WX17-048 |  |
-| `COST_COLOR_SELECT` | 1 | 1 | WX04-063 | このスペルの使用コストで支払われたエナ1つにつきそのエナの色1つを選択する |
+| `COST_COLOR_SELECT` | 1 | 1 | WX04-063 | 支払われたエナ1つにつきその色を1つ選択し、選択した「色の種類」1つにつき その色のシグニ1枚をデッキから探して公開・手札に加える（その後シャッフル）。無色は色に含まれない。 |
 | `COUNTER_TEAM_PIECE_AND_EXILE` | 1 | 1 | WXDi-P05-006 | COUNTER_TEAM_PIECE_AND_EXILE（§6.4 O-10・続き518・`WXDi-P05-006-E1` の選択肢①）＝ 「【使用条件】【チーム】を持つ対戦相手のピース１枚を対象とし、それの効果を打ち消す。  この方法… |
 | `CRASH_TO_TRASH_INSTEAD` | 1 | 1 | WX19-034 | このターン相手のライフクロスクラッシュ時、エナではなくトラッシュへ |
 | `DECK_SIGNI_LEVEL_OVERRIDE` | 1 | 1 | WX18-065 | デッキ内指定クラスのシグニレベルをN扱い（このターン） |
@@ -558,7 +558,7 @@ execStub の if 分岐に無い id。ただし下記の一部は **CONTINUOUS �
 | `ENERGY_SUBSTITUTE_TRASH_KEY` | 1 | 1 | WXK02-023 |  |
 | `ENERGY_SUBSTITUTE_TRASH_SIGNI` | 1 | 1 | WX16-Re06 | エナ代替系（effectEngine.collectEnergyTrashSubstituteInfoで動的計算） |
 | `ENERGY_SUBSTITUTE_WHITE_TRASH_SIGNI` | 1 | 1 | SP07-011 |  |
-| `EXILE_CRAFTS_RESET_ZONES_AND_DRAW` | 1 | 1 | WX24-P2-014 |  |
+| `EXILE_CRAFTS_RESET_ZONES_AND_DRAW` | 1 | 1 | WX24-P2-014 | 「各プレイヤーは自分の手札とシグニゾーンとエナゾーンとトラッシュにある、すべてのクラフトを     ゲームから除外し、すべてのカードをデッキに加えてシャッフルし、カードをN枚引く」 ⚠**両プレイヤーに同じ処理をする**（従来は自分の D… |
 | `FIRST_SPELL_COST_UP` | 1 | 1 | WXDi-P13-072 | コストアップ系（engine: コスト計算未実装） |
 | `GAIN_ADDITIONAL_LRIG_TYPE` | 1 | 1 | WXK09-005 |  |
 | `GAIN_LRIG_COLOR` | 1 | 1 | WXDi-P16-058 |  |

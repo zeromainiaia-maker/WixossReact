@@ -374,3 +374,16 @@ if (silentNoOps.length > 0) {
   console.error('   実装するか、id を DEFERRED_* にして保留理由を PLAN §6.4 に書く。');
   process.exit(1);
 }
+
+// ── C群もゲート化（§6.4 O-12 完了・続き545）──
+// **C群（逆翻訳に英語 ID が出るだけの穴）が 0 になった**ので、以後は**増えたら止める**。
+// 新しい STUB を足して**日本語の表示語彙を書き忘れる**と、ここで落ちる。直し方は2つ：
+//   - ハンドラ直前に `// <ID>: 日本語の説明` を書いて `node scripts/genStubsMd.mjs`（STUBS.md 経由で自動反映）
+//   - ハンドラを持たない宣言型は `scripts/decompileEffects.ts` の `miscStubMap` に日本語文を足す
+// ⚠**日本語を書いたら `npm run regen`**（この計器は逆翻訳シートの実出力を読むので、再生成しないと直らない）。
+if (holeDisplay.length > 0) {
+  console.error(`\n❌ 逆翻訳に生の英語 ID が出る STUB が ${holeDisplay.length} 種 / ${holeDisplay.reduce((a, r) => a + r.raw, 0)} 箇所`);
+  for (const r of holeDisplay.slice(0, 10)) console.error(`   - ${r.id}（${r.cards.slice(0, 4).join(', ')}）`);
+  console.error('   ハンドラ直前コメントに日本語説明を書く（→ genStubsMd.mjs）か miscStubMap に足して、npm run regen。');
+  process.exit(1);
+}
