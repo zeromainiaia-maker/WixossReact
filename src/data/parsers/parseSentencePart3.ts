@@ -1525,6 +1525,45 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'REVEAL_PICK_CLASS_TO_ENERGY' } as StubAction;
   }
 
+  // ---- 〈対象宣言〉を対象とし、手札から〈限定〉をN枚捨ててもよい（対象宣言つきの任意コスト）----
+  // 🔴下の総称 `TARGET_AND_DISCARD_HAND` は engine（`effectExecutor` Pattern ⑥）が
+  //   **手札の末尾1枚を無条件に自動で捨てる**だけの近似で、①原文の限定（《ガードアイコン》を持つシグニ等）を
+  //   無視し ②「〜てもよい」の任意性が消え ③対象宣言を保存しないので後続の「そうした場合、**それを**〜」が
+  //   別のカードを掴む（§6.4 O-11・`SPDi43-26-E2`＝バウンス自体が丸ごと落ちていた）。
+  // 🔑限定が**残りなく**解けたときだけ正準形へ寄せる＝
+  //   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST{handDiscard}`。
+  //   解けなければ従来の総称 STUB のまま（取りこぼしを増やさない）。
+  {
+    const desigCostM = t.match(
+      /^(?:その後、)?((?:対戦相手|あなた)の[^、。]*?シグニを?[０-９\d]*体(?:まで)?)を?対象とし、手札から(.+?)を([０-９\d]+)枚捨ててもよい$/,
+    );
+    if (desigCostM) {
+      const spec = desigCostM[2];
+      const filter: TargetFilter = {
+        ...(/シグニ/.test(spec) ? { cardType: 'シグニ' as const } : {}),
+        ...parseColorFilter(spec), ...parseStoryFilter(spec), ...parseLevelFilter(spec),
+        ...(/《ガードアイコン》を持つ/.test(spec) ? { hasGuard: true } : {}),
+      };
+      // 限定語をすべて消費できたか（未知の修飾が残るなら受けない＝`costSpecFilter` と同じ規約）
+      const rest = spec
+        .replace(/＜[^＞]+＞/g, '').replace(/《ガードアイコン》を持つ/g, '')
+        .replace(/レベル[０-９\d]+(?:以下|以上)?/g, '')
+        .replace(/シグニ|カード|スペル|[の、,か]/g, '').replace(/[白赤青緑黒無]色?/g, '').trim();
+      if (rest.length === 0) {
+        const desigOwner: Owner = desigCostM[1].startsWith('対戦相手') ? 'opponent' : 'self';
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: parseSigniTarget(desigCostM[1], desigOwner) } as StubAction,
+            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+            { type: 'STUB', id: 'OPTIONAL_COST', costText: `手札から${spec}を${desigCostM[3]}枚捨ててもよい`,
+              handDiscard: { count: parseNum(desigCostM[3]), filter } } as StubAction,
+          ],
+        } as EffectAction;
+      }
+    }
+  }
+
   // ---- 対戦相手のシグニ/ルリグN体を対象とし、（中間条件節を挟んでも）手札から〜を捨てる（複合パターン）----
   // 「対象とし、それが能力を持たない場合、手札から…捨ててもよい」「対戦相手のルリグを対象とし、手札から…捨ててもよい」も含む。
   if (t.match(/対戦相手の(?:シグニ|ルリグ)[０-９\d]*体?(?:まで)?を対象とし、.*?手札から.+捨て(?:る|てもよい)?$/)) {
