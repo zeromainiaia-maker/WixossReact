@@ -10018,7 +10018,11 @@ function parseActionTextInner(text: string): EffectAction {
       const prevStep = steps[steps.length - 1] as { type?: string };
       // 先頭ガード CONDITIONAL／連文 SEQUENCE にラップされた recorder を貫通して検出する（(xxii)）。
       const effPrev = unwrapWrappedRecorder(prevStep) as { type?: string };
-      const prevSetsProcessed = effPrev?.type === 'TRASH' || effPrev?.type === 'LIFE_CRASH';
+      // `MILL` は `execMill` が末尾で `lastProcessedCards: milled` を残す（`effectExecutor.ts`）＝立派な recorder。
+      // 🔴ここに無かったせいで「デッキの一番下のカードをトラッシュに置く。**それが**〜の場合、X」の後段が
+      //   条件ごと落ちて**無条件実行**になっていた（§6.4 O-11・`WXDi-CP01-033-E1`＝どのカードを落としても
+      //   ＋5000／`WXK03-040-E1`＝ミルせずトラッシュの任意のレベル１シグニを場に出す）。
+      const prevSetsProcessed = effPrev?.type === 'TRASH' || effPrev?.type === 'LIFE_CRASH' || effPrev?.type === 'MILL';
       // 「それが〜の場合」（LAST_PROCESSED_MATCHES）の前段ゲート＝lastProcessedCards を記録するステップ。
       // 「デッキの一番上を公開する」は LOOK_AND_REORDER(1枚・並べ替えなし・公開・デッキ上) に近似されている
       // ため、条件持ち上げ時に記録付き公開 REVEAL_DECK_TOP へ置換する（WXEX1-36-BURST）。
