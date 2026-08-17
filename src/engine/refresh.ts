@@ -72,7 +72,10 @@ export function applyRefreshState(state: PlayerState, preventLifeToTrash = false
   return {
     ...state,
     deck: shuffle([...state.trash]),
-    trash: preventLifeToTrash ? state.trash : (topLife ? [topLife] : []),
+    // 🔴`preventLifeToTrash` のとき従来は `state.trash` を残していた＝**トラッシュ全部がデッキと
+    //   トラッシュの両方に居る**カード複製バグ（`PREVENT_LIFE_REFRESH_TRASH` の唯一の消費地点。
+    //   §6.4 O-37(b) で同じフラグを通したときに golden で顕在化）。トラッシュは必ず空にする。
+    trash: (!preventLifeToTrash && topLife) ? [topLife] : [],
     life_cloth: (!preventLifeToTrash && topLife) ? state.life_cloth.slice(0, -1) : state.life_cloth,
     refresh_count_this_turn: (state.refresh_count_this_turn ?? 0) + 1,
   };
