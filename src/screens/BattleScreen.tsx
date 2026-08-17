@@ -1141,33 +1141,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // FIELD_ENERGY_SIGNI_GAIN_COLOR: エナゾーンの追加色マップ（instId -> 追加色）
   // ALL_ZONE_BLACK / ALL_CARDS_COLOR_CHANGE_BLACK も考慮
   const myEnergyExtraColors = useMemo((): Map<string, string> => {
-    const map = new Map<string, string>();
-    if (!bs || bs.global_phase !== 'PLAYING') return map;
+    if (!bs || bs.global_phase !== 'PLAYING') return new Map<string, string>();
     const localIsHost = user.id === bs.host_id;
-    const myS = localIsHost ? bs.host_state : bs.guest_state;
-    const opS = localIsHost ? bs.guest_state : bs.host_state;
-    const myTurn = bs.active_user_id === user.id;
-    for (const { gainColor, instIds } of collectFieldEnergySigniColorGains(myS, battleCardMap, effectsMap)) {
-      for (const id of instIds) map.set(id, gainColor);
-    }
-    // 【コンバート《色》】（§6.4 O-10・続き508）＝**そのカード自身**がエナゾーンで別色としても払える。
-    for (const [instId, color] of collectConvertEnergyColors(myS, effectsMap)) {
-      if (!map.has(instId)) map.set(instId, color);
-    }
-    // ALL_ZONE_BLACK: 全ゾーンで黒でもあるカードをエナ内で黒追加
-    const allZoneBlackNums = collectAllZoneBlackCardNums(effectsMap);
-    const allMyCardsBlack = hasAllCardsColorBlack(myS, opS, myTurn, effectsMap, battleCardMap);
-    if (allZoneBlackNums.size > 0 || allMyCardsBlack) {
-      for (const instId of myS.energy) {
-        const baseNum = getCardNum(instId);
-        const card = battleCardMap.get(baseNum);
-        const currentColor = card?.Color ?? '無';
-        if (!currentColor.includes('黒') && !map.has(instId)) {
-          if (allMyCardsBlack || allZoneBlackNums.has(baseNum)) map.set(instId, '黒');
-        }
-      }
-    }
-    return map;
+    return collectEnergyExtraColors(
+      localIsHost ? bs.host_state : bs.guest_state,
+      localIsHost ? bs.guest_state : bs.host_state,
+      bs.active_user_id === user.id, effectsMap, battleCardMap);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
   // エナコストの支払い元プール（§6.4「エナ支払い元の一本化」＝`screens/battle/energyPaySource.ts`）。
