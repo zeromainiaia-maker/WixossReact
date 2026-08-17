@@ -128,6 +128,7 @@ import { pickCpuMainPhaseActivated } from './battle/cpuActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
 import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
+import { pickCpuMainSpell } from './battle/cpuSpell';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
