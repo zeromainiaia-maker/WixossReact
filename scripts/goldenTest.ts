@@ -20303,6 +20303,28 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq(p08.filter(e => e.effectType !== 'LIFE_BURST').length, 3,
       '🔴マーカー自身を区切りに足すと、文中に並ぶ【自】【出】【起】でブロックが割れる');
   });
+  // §6.4 O-11（続き532）：公開したカードのレベル別4分岐（`WXDi-P07-010-E1`）。
+  //   旧パースは**自分のデッキ**を公開して pick して何もしない（＝全分岐が no-op）だった。
+  test('(O-11) WXDi-P07-010-E1: 相手デッキトップのレベル別4分岐が else 入れ子で載る', () => {
+    const eff = effectsMap.get('WXDi-P07-010')!.find(e => e.effectId === 'WXDi-P07-010-E1')!;
+    const steps = (eff.action as unknown as { steps: Record<string, unknown>[] }).steps;
+    eq(steps[0].type, 'REVEAL_DECK_TOP', '1文目は公開');
+    eq(steps[0].owner, 'opponent', '🔴公開するのは**対戦相手の**デッキ（自分のデッキを晒す別物に戻っていない）');
+    // レベル1→ドロー／レベル2→相手手札1捨て／レベル3→二択／スペル→両方、を else 連鎖で辿る
+    const lv1 = steps[1] as Record<string, unknown>;
+    eq((lv1.condition as { filter?: { level?: number } }).filter?.level, 1, 'レベル1の枝');
+    eq((lv1.then as { type?: string }).type, 'DRAW', 'レベル1＝①ドロー');
+    const lv2 = lv1.else as Record<string, unknown>;
+    eq((lv2.condition as { filter?: { level?: number } }).filter?.level, 2, 'レベル2の枝');
+    eq(((lv2.then as { target?: { owner?: string } }).target)?.owner, 'opponent', 'レベル2＝②相手が手札を捨てる');
+    const lv3 = lv2.else as Record<string, unknown>;
+    eq((lv3.condition as { filter?: { level?: number } }).filter?.level, 3, 'レベル3の枝');
+    eq((lv3.then as { type?: string }).type, 'CHOOSE', 'レベル3＝「①か②」＝二択');
+    const spell = lv3.else as Record<string, unknown>;
+    eq((spell.condition as { filter?: { cardType?: string } }).filter?.cardType, 'スペル', 'スペルの枝');
+    eq((spell.then as { type?: string }).type, 'SEQUENCE', 'スペル＝「①と②」＝両方');
+    ok(!JSON.stringify(eff.action).includes('RULE_REMINDER_TEXT'), '🔴pick して何もしない旧形に戻っていない');
+  });
   test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
     const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
     eq((eff.action as unknown as { id?: string }).id, 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK',
