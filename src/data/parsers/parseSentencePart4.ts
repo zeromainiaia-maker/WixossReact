@@ -1540,7 +1540,19 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/ルリグトラッシュから.*アーツ.*コストを支払わずに.*使用する/))
     return { type: 'STUB', id: 'PLAY_FREE' } as StubAction;
 
+  // ---- 「〈誰か〉のライフクロス１枚をエナゾーンに置く」＝ライフ→エナ（§6.4 O-35・続き530）----
+  // engine 実装済み＝`STUB{LIFE_TO_ENERGY, owner}`（`execStubPart1.ts`＝そのプレイヤーのライフ上1枚を
+  // 同じプレイヤーのエナゾーンへ。**クラッシュではない**のでライフバーストは発動しない）。
+  // 🔴従来は素の綴りに規則が無く、`WX25-CP1-020-E2` は条件節ごと下の受け皿 `CONDITIONAL_POWER_BONUS` に
+  //   落ちて**ライフ→エナが一度も起きない無言 no-op** だった（機構は最初から在った＝純粋な parser 穴）。
+  // ⚠**下の「〜の場合、」形より先に置く**（条件節を先に持ち上げた残りがここへ来る）。
+  {
+    const l2eM = t.match(/^(対戦相手|あなた)のライフクロス[１1]枚をエナゾーンに置く$/);
+    if (l2eM) return { type: 'STUB', id: 'LIFE_TO_ENERGY', owner: l2eM[1] === 'あなた' ? 'self' : 'opponent' } as StubAction;
+  }
+
   // ---- 赤の場合、対戦相手のライフクロスをエナゾーンに置く ----
+  // ⚠残っているのは条件節を持ち上げられない形だけ（`WXK09-003-E1`＝MANUAL 済み）。live 0件。
   if (t.match(/.*の場合、対戦相手のライフクロス.*エナゾーンに置く/))
     return { type: 'STUB', id: 'CONDITIONAL_POWER_BONUS' } as StubAction;
 
