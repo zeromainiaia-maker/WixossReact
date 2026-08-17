@@ -1,7 +1,7 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 604（総ノード 2868 件）
+live JSON の STUB id 種類 : 604（総ノード 2869 件）
 逆翻訳シートの [STUB:…] 総数: 748  うち生ID露出 305 箇所（188 種）
 
 ■ 仕分け結果
@@ -25,16 +25,16 @@ live JSON の STUB id 種類 : 604（総ノード 2868 件）
         生成: src\data\parsers\parseSentencePart2.ts:424
      1件   1枚  DEFERRED_DAMAGE_REPLACE_BY_COST  [生ID露出 1]
         カード: WX24-P3-005
-        生成: src\data\effectParser.ts:13811
+        生成: src\data\effectParser.ts:13819
      1件   1枚  DEFERRED_OPP_EFFECT_TRASHED_ANY_ZONE  [生ID露出 1]
         カード: WX24-P3-007
-        生成: src\data\effectParser.ts:13813
+        生成: src\data\effectParser.ts:13821
      1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH  [生ID露出 1]
         カード: WD23-012-A
         生成: src\data\parsers\parseSentencePart1.ts:1720
      1件   1枚  DEFERRED_REFRESH_LIFE_MOVE_REPLACE  [生ID露出 1]
         カード: WX24-P3-009
-        生成: src\data\effectParser.ts:13812
+        生成: src\data\effectParser.ts:13820
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:1954

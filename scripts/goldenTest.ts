@@ -38264,6 +38264,68 @@ test('§6.4 O-27: 表せない置換は明示 defer にする（誤った形を�
   }
 });
 
+
+
+// ── §6.4 O-31 続き537：「〈コスト〉を支払わないかぎり、X」の残り ─────────────────────────
+// 🟢**簿記の2件はどちらも実装済みだった**（在庫実測で判明）＝`SPDi43-01-E2` は
+//   `blocked_actions` で相手シグニ【自】を止める（⚠**支払い回避が無い近似**＝原文より強い）／
+//   `WXDi-P16-062-E1` は MANUAL で完全表現。ここは**実測で新たに見つかった穴**を固定する。
+test('§6.4 O-31: 読点なしの「支払わないかぎり〈X〉」も回避ゲートになる（WXDi-P11-044-E2）', () => {
+  // 🔴従来は前置きが丸ごと落ち、本体だけが残って**払っても落ちる**うえ条件も消えていた。
+  const e = (effectsMap.get('WXDi-P11-044') ?? []).find(x => x.effectId === 'WXDi-P11-044-E2')!;
+  const cond = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(cond.type, 'CONDITIONAL', '🔴「手札が５枚以下の場合」が落ちている＝常に発火する');
+  eq(cond.condition.type, 'HAND_COUNT', '手札枚数ゲート');
+  const steps = (cond.then as SequenceAction).steps;
+  eq((steps[0] as StubAction).id, 'OPTIONAL_COST', '任意コストの正準形');
+  ok((steps[0] as StubAction).unlessPay, '🔴「支払わないかぎり」＝払えば回避できる極性');
+  const gate = steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(gate.condition.type, 'PAID_ADDITIONAL_COST', '払ったか否かで分岐');
+  eq((gate.else as Extract<EffectAction, { type: 'TRASH' }>).type, 'TRASH', '払わなければトラッシュ');
+  // 負方向＝制限型（「〜を支払わないかぎりアタックできない／【ガード】ができない」）を横取りしていない
+  for (const [num, eid] of [
+    ['WXDi-P01-035', 'WXDi-P01-035-E1'], ['WXDi-CP01-041', 'WXDi-CP01-041-E1'],
+  ] as const) {
+    const g = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    eq((g.action as StubAction).id, 'GUARD_EXTRA_COST_BY_OPP', `${eid}: ガード税の機構のまま`);
+  }
+});
+
+test('§6.4 O-31: 「このシグニを場からトラッシュに置く」は自身だけ（thisCardOnly）', () => {
+  // 🔴`thisCardOnly` が無いと**自分のシグニ1体を選ぶ**形＝**このシグニ以外**も落とせる
+  //   （＝任意の自軍シグニを処理できる抜け道）。実測10効果が該当していた。
+  const cases = [
+    ['WX08-025', 'WX08-025-E2'], ['WX12-046', 'WX12-046-E2'], ['WX12-Re12', 'WX12-Re12-E1'],
+    ['WX13-037', 'WX13-037-E3'], ['WX13-057', 'WX13-057-E2'], ['WX15-061', 'WX15-061-E1'],
+    ['WX21-043', 'WX21-043-E1'], ['WD14-012', 'WD14-012-E2'],
+    ['WXDi-P04-040', 'WXDi-P04-040-E1'], ['WXDi-P11-044', 'WXDi-P11-044-E2'],
+  ] as const;
+  for (const [num, eid] of cases) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    // 木のどこかにある自己トラッシュ（条件節・付与の内側・else 枝など位置は札ごとに違う）
+    const trashes = [...JSON.stringify(e).matchAll(/\{"type":"TRASH","target":\{"type":"SIGNI","owner":"self"[^}]*\}/g)]
+      .map(m => m[0]);
+    ok(trashes.length > 0, `${eid}: 自己トラッシュが見つからない`);
+    for (const t of trashes) ok(t.includes('thisCardOnly') || t.includes('"count":"ALL"'),
+      `🔴${eid}: このシグニ以外も選べる（thisCardOnly が落ちている）`);
+  }
+});
+
+test('§6.4 O-31: 相手シグニ【自】能力の停止は engine に届く（近似の在処を固定）', () => {
+  // ⚠**支払い回避は未実装＝原文より強い近似**（`SPDi43-01-E2`）。実装するまでこの形が正。
+  for (const [num, eid] of [
+    ['SPDi43-01', 'SPDi43-01-E2'], ['WXDi-P16-044', 'WXDi-P16-044-E2'],
+  ] as const) {
+    const e = (effectsMap.get(num) ?? []).find(x => x.effectId === eid)!;
+    const ctx = mkCtx({ lrig: [num] }, {}, num);
+    const r = run(e.action, ctx);
+    ok((r.ownerState.blocked_actions ?? []).includes('BLOCK_OPP_SIGNI_AUTO'),
+      `🔴${eid}: 相手シグニ【自】の停止が engine に届いていない`);
+    ok((r.otherState.blocked_actions ?? []).includes('BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'),
+      `${eid}: 次の相手ターンぶんの予約も積む`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');
