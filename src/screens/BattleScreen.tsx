@@ -6758,7 +6758,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let materialUsedEntries: StackEntry[] = [];
       let paidAfterMaterial = applyCoinPaidUsed(paidWithUseCost, artsCoin); // ON_COIN_PAID の《ターン1回/2回》消化を永続化（続き106）
       if (card.CardName === '改造素材') {
-        const mu = collectMaterialUsedByPlayerTriggers(user.id, paidAfterMaterial);
+        const mu = collectMaterialUsedByPlayerTriggers(p.actorId, paidAfterMaterial);
         materialUsedEntries = mu.entries;
         if (mu.usedOncePerTurnIds.length > 0) {
           paidAfterMaterial = { ...paidAfterMaterial, actions_done: [...(paidAfterMaterial.actions_done ?? []), ...mu.usedOncePerTurnIds] };
