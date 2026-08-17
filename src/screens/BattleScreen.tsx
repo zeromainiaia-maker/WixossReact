@@ -11110,11 +11110,50 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
 
-      // ── §8／§6.4 O-1 (b): CPU がメインフェイズに攻めのアーツ（＝除去）を使う ──────────
-      // ⚠`cpuHuSt` が書き換わっている間は使わない＝`performArts` は相手 state を書かないので、
-      //   ここで使うと配置で積んだ人間側の変更を取りこぼす（【起】と同じ理由）。
-      if (!cpuMainSkipped && cpuHuSt === huSt
-        && await tryCpuUseArts(newCpuSt, 'MAIN', pickCpuOffensiveArts)) return;
+      // ── §8／§6.4 O-1 (b): CPU がメインフェイズに攻めのアーツ／スペル（＝除去）を使う ──────────
+      // ⚠`cpuHuSt` が書き換わっている間は使わない＝`performArts`／`performSpell` は相手 state を
+      //   書かないので、ここで使うと配置で積んだ人間側の変更を取りこぼす（【起】と同じ理由）。
+      if (!cpuMainSkipped && cpuHuSt === huSt) {
+        if (await tryCpuUseArts(newCpuSt, 'MAIN', pickCpuOffensiveArts)) return;
+        // スペルは1枚使うと `pending_spell`（人間のカットイン窓）で止まる＝上の早期 return が受ける。
+        const cpuSpellPayer = buildArtsPayerCtx({
+          actor: newCpuSt, opponent: huSt, isActorTurn: true,
+          turnPhase: 'MAIN', cardMap: battleCardMap, effectsMap,
+        });
+        const cpuSpellChoice = pickCpuMainSpell({
+          actor: newCpuSt, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
+          payer: cpuSpellPayer, turnPhase: 'MAIN', pendingSpell: !!bs.pending_spell,
+          alreadyUsedNums: newCpuSt.cpu_used_card_nums_this_turn ?? [],
+          isAffordable: (selectedNums, costStr, extraCosts) => canAffordWithExtraCost(
+            selectedNums, battleCards, costStr, extraCosts, newCpuSt.keyword_grants,
+            cpuSpellPayer.enaAllMulti, cpuSpellPayer.enaMultiStripped,
+            cpuSpellPayer.colorlessOverrides, cpuSpellPayer.colorSubs, cpuSpellPayer.energyExtraColors,
+            undefined, undefined, undefined, newCpuSt.cannot_pay_colorless_this_attack_phase),
+        });
+        if (cpuSpellChoice) {
+          appendBattleLogs([`[CPU] スペルを発動: ${cpuSpellChoice.card.CardName}`]);
+          // ⚠アーツと同じ安全弁＝実行より先に「使った」履歴を確定させる（`performSpell` は
+          //   使用不能を検出すると何も書かずに return するので、履歴を実行の成否に委ねると
+          //   CPU が同じ札を選び直して MAIN から先へ進まなくなる）。
+          const cpuSpellActor: PlayerState = {
+            ...newCpuSt,
+            cpu_used_card_nums_this_turn: [...(newCpuSt.cpu_used_card_nums_this_turn ?? []), cpuSpellChoice.card.CardNum],
+          };
+          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuSpellActor }));
+          await performSpell(cpuSpellChoice.card, {
+            costIndices: cpuSpellChoice.costIndices, handIdx: cpuSpellChoice.handIndex,
+          }, {
+            actor: cpuSpellActor, opponent: huSt,
+            actorId: CPU_PLAYER_ID, actorKey: 'guest_state',
+            isActorTurn: true,
+            energyPayPool: cpuSpellPayer.energyPayPool,
+            blockedSelf: cpuSpellPayer.blockedSelf,
+            enaAllMulti: cpuSpellPayer.enaAllMulti,
+            enaMultiStripped: cpuSpellPayer.enaMultiStripped,
+          });
+          return;
+        }
+      }
 
       // ── MAIN→ATTACK_ARTS 移行（アタックフェイズ開始時）。以下のトリガーを1つのスタックに集約し、
       //    フェイズを ATTACK_ARTS へ進めながら積む（MAIN に留まると再実行で無限収集になるため）。
