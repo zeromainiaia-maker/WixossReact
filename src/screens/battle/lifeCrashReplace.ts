@@ -86,6 +86,11 @@ function pickPayOption(
 export interface LifeCrashReplaceContext {
   /** ダメージ源。**未指定＝効果によるクラッシュ**（アタックではない）＝`byAttack` 限定は成立しない。 */
   damageSource?: 'lrig' | 'signi';
+  /**
+   * `kind:'pay_cost'` の支払い可否（色つきエナコスト）を見るために要る。
+   * 未指定のときはコスト支払い型の置換を**選ばない**（＝ダメージがそのまま通る＝過剰にならない側）。
+   */
+  cardMap?: Map<string, CardData>;
 }
 
 /**
