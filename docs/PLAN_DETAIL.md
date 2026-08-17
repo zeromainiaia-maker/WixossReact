@@ -2444,6 +2444,13 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
+- **2026-08-18 続き549（§5d-0＝【常】先頭「〜あるかぎり、」のゲート脱落37効果）後 最新値（本行が直近の正）**：
+  **census 787**（796→787・`BASELINE_HIGH` 更新済み）、**golden 2274**、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
+  fuzz 全0、**同型★ 0**（265群 / 5986枚）、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
+  `census:goldentypes` **未カバー 0**（EffectAction 147型）、`census:wiring` miss **197**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**。
+  **live 効果総数 10693**（`added 0 / removed 0` を毎バッチで機械確認）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き549）。
+
 > **なぜ**＝どちらの節も見出しに「最新1件のみ」と書きながら実際は溜まっていた。恒久指標は**計測行15本＋ポインタ37本**、
 > 次の一手は**続き432／440 の本文がそのまま**（当時から100セッション以上経過し、挙げられていた在庫はほぼ全部が消化済み・
 > 数字も census 924／golden 1753 のように**現在値と桁で食い違う**）。cold start が最初に読む節が一番古い、という状態だったので、
