@@ -543,6 +543,80 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             );
           }
 
+          // allowRepeat: 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）＝**回数**で選ぶUI。
+          // ⚠**`multiSelect` 分岐より前に置く**（`allowRepeat` は `multiSelect` も同時に立つため）。
+          // 🔑engine 側（`resumeChoose`）は id 配列を順に実行するので、`['c1','c1']` を渡せば2回走る＝
+          //   ここで回数マップを id の並びへ展開するだけでよい（engine の変更は不要だった）。
+          if (inter.allowRepeat) {
+            const maxRep = inter.count;
+            const totalRep = Object.values(repeatChoiceCounts).reduce((s, n) => s + n, 0);
+            const canConfirmRep = inter.upTo ? true : totalRep === maxRep;
+            const expand = () => inter.options.flatMap(o =>
+              Array.from({ length: repeatChoiceCounts[o.id] ?? 0 }, () => o.id));
+            return createPortal(
+              <div style={{ position: 'fixed', inset: 0, zIndex: 4000,
+                backgroundColor: 'rgba(0,0,0,0.92)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+                <div onClick={e => e.stopPropagation()}
+                  style={{ backgroundColor: C.bgModal, border: C.borderUI, borderRadius: 12,
+                    padding: '20px 16px', width: 'min(92vw, 380px)',
+                    display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  <p style={{ color: C.textSub, fontSize: 14, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
+                    {srcCard?.CardName ?? pe.sourceCardNum}の効果
+                  </p>
+                  <p style={{ color: C.text, fontSize: 13, margin: 0, textAlign: 'center' }}>
+                    {inter.upTo ? `${maxRep}個まで選択` : `${maxRep}個選択`}（{totalRep}/{maxRep}）<br />
+                    <span style={{ color: C.textDim, fontSize: 11 }}>同じ選択肢を複数回選べます</span>
+                  </p>
+                  {inter.options.map(opt => {
+                    const n = repeatChoiceCounts[opt.id] ?? 0;
+                    const canAdd = opt.available && totalRep < maxRep;
+                    return (
+                      <div key={opt.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
+                        <button
+                          data-testid={`repeat-choice-${opt.id}`}
+                          disabled={loading || !canAdd}
+                          onClick={() => setRepeatChoiceCounts(prev => ({ ...prev, [opt.id]: (prev[opt.id] ?? 0) + 1 }))}
+                          style={{ flex: 1, padding: '12px 8px', borderRadius: 8, border: 'none',
+                            backgroundColor: n > 0 ? C.success : (opt.available ? C.bgButton : C.disabled),
+                            color: C.text, fontSize: 13, fontWeight: 'bold', textAlign: 'left',
+                            cursor: (loading || !canAdd) ? 'default' : 'pointer',
+                            outline: n > 0 ? `2px solid ${C.success}` : 'none' }}>
+                          {n > 0 ? `×${n} ` : ''}{opt.label}
+                        </button>
+                        <button
+                          data-testid={`repeat-choice-minus-${opt.id}`}
+                          disabled={loading || n === 0}
+                          onClick={() => setRepeatChoiceCounts(prev => {
+                            const next = { ...prev };
+                            if ((next[opt.id] ?? 0) <= 1) delete next[opt.id]; else next[opt.id] = next[opt.id] - 1;
+                            return next;
+                          })}
+                          style={{ width: 40, borderRadius: 8, border: C.borderUI,
+                            backgroundColor: 'transparent', color: n === 0 ? C.disabled : C.textDim,
+                            fontSize: 16, fontWeight: 'bold',
+                            cursor: (loading || n === 0) ? 'default' : 'pointer' }}>
+                          −
+                        </button>
+                      </div>
+                    );
+                  })}
+                  <button
+                    data-testid="repeat-choice-confirm"
+                    disabled={loading || !canConfirmRep}
+                    onClick={() => { handleEffectInteraction(expand()); setRepeatChoiceCounts({}); }}
+                    style={{ padding: '12px 0', borderRadius: 8, border: 'none',
+                      backgroundColor: canConfirmRep ? C.success : C.disabled,
+                      color: C.text, fontSize: 14, fontWeight: 'bold',
+                      cursor: (loading || !canConfirmRep) ? 'default' : 'pointer' }}>
+                    決定 ({totalRep}/{maxRep})
+                  </button>
+                </div>
+              </div>,
+              document.body,
+            );
+          }
+
           // multiSelect: 複数選択UI（チェックボックス＋決定ボタン）
           if (inter.multiSelect) {
             const maxSel = inter.count;
