@@ -36868,30 +36868,54 @@ test('§6.4 任意コストの UNKNOWN 落ち: このシグニの下からの〈
 // 各テストは live の実カード action を実行し、固定1/0のままでは落ちる複数枚ケースと
 // 参照元0枚の完走を固定する。
 // ══════════════════════════════════════════════════════════════════════════════
-// 🔴2026-08-11（続き441）で defer の根拠が入れ替わった。
-// 旧根拠「TRANSFER_TO_HAND が resolveNum で $ref を0にする」は**解消済み**（下の C2 が resolveCountRef を固定する）。
-// 真のブロッカーは**前段 STUB が原文と別機構**であること＝原文は「あなたの**手札から**《アクセアイコン》を持つ
-// シグニを２枚までエナゾーンに置く」なのに、engine の PLACE_ACCE_SIGNI_TO_ENERGY は
-// **場のアクセゾーン**のカードを全部エナへ送る（`allAcceCards(field.signi_acce)`）。
-// ⇒ lastProcessedCards は記録されるが**原文と無関係な枚数**なので、$ref を書くと悪化するだけ。
-// PLAN §6.4 の「前段の STUB は枚数を記録するので resolveNum 側を直せば通る」は誤った見立てだった。
-test('WXEX1-44-E2 defer: 前段STUBが原文と別機構である間は$refを生成しない', () => {
-  const freshEff = parseCardEffects(cardMap.get('WXEX1-44')!).find(e => e.effectId === 'WXEX1-44-E2');
-  const liveEff = effectsMap.get('WXEX1-44')?.find(e => e.effectId === 'WXEX1-44-E2');
-  if (!freshEff || !liveEff) throw new Error('WXEX1-44-E2 が存在');
-  const freshLast = (freshEff.action as SequenceAction).steps.at(-1) as import('../src/types/effects').TransferToHandAction;
-  const liveLast = (liveEff.action as SequenceAction).steps.at(-1) as import('../src/types/effects').TransferToHandAction;
-  eq(freshLast.source.count, 1, '機構が別である間は parser から意味のない$refを出さない');
-  eq(liveLast.source.count, 1, 'live も見せかけだけの$refを採用しない');
-  // defer根拠①: 前段は依然 PLACE_ACCE_SIGNI_TO_ENERGY
-  const freshFirst = (freshEff.action as SequenceAction).steps[0] as import('../src/types/effects').StubAction;
-  eq(freshFirst.id, 'PLACE_ACCE_SIGNI_TO_ENERGY', 'defer根拠: 前段は手札配置ではなくアクセ送りのSTUB');
-  // defer根拠②: そのハンドラは「場のアクセゾーン」を読む＝原文の「手札から2枚まで」ではない。
-  // ⇒ 手札から選ばせる実装へ変わったらこのテストが落ちる＝そのとき $ref を採用しに来ること。
-  const stubSrc = fs.readFileSync(join(root, 'src/engine/execStubPart2.ts'), 'utf8');
-  ok(/PLACE_ACCE_SIGNI_TO_ENERGY[\s\S]{0,400}?allAcceCards\(sATE\.field\)/.test(stubSrc),
-    'defer根拠: ハンドラは場のアクセゾーンを全部エナへ送る（手札からの任意2枚ではない）');
-});
+// ✅2026-08-17（§6.4 O-15）で defer を解除＝**手札選択の機構**へ載せ替えた。
+// 原文「あなたの**手札から**《アクセアイコン》を持つシグニを２枚までエナゾーンに置く。その後、あなたの
+// エナゾーンから**この方法でエナゾーンに置いたカードと同じ枚数**の＜調理＞のシグニを対象とし、それらを手札に加える」。
+// 🔴旧実装は前段が `STUB{PLACE_ACCE_SIGNI_TO_ENERGY}`＝**場のアクセゾーン**を全部エナへ送る別機構で、
+//   手札は1枚も動かず、後段は固定1枚（＝置いた枚数と無関係に必ず1枚回収する過剰）だった。
+// 🔑いまは `ENERGY_CHARGE{HAND_CARD, upToCount, filter:{hasIcon:'アクセ'}}`＋`$ref:'last_processed_count'`。
+// ⚠アクセは CardClass ではない＝《アクセアイコン》は `hasIcon:'アクセ'`（`matchesFilter` が消費）。
+test('§6.4 O-15 WXEX1-44-E2: 手札から2枚までエナへ置き、置いた枚数と同じだけ＜調理＞を回収', () => withSavedCursor(() => {
+  const eff = effectsMap.get('WXEX1-44')?.find(e => e.effectId === 'WXEX1-44-E2');
+  if (!eff) throw new Error('WXEX1-44-E2 が存在');
+  const seq = eff.action as SequenceAction;
+  const charge = seq.steps[0] as import('../src/types/effects').EnergyChargeAction;
+  eq(charge.type, 'ENERGY_CHARGE', '前段は手札→エナの ENERGY_CHARGE');
+  eq(charge.target.type, 'HAND_CARD', '🔴前段が場のアクセゾーン送り（別機構）へ戻っている');
+  eq(charge.target.filter?.hasIcon, 'アクセ', '《アクセアイコン》は hasIcon で絞る（CardClass ではない）');
+  eq(charge.target.count, 2, '「２枚まで」の上限');
+  eq(charge.target.upToCount, true, '「まで」＝0〜2枚（丁度2枚必須ではない）');
+  const last = seq.steps.at(-1) as import('../src/types/effects').TransferToHandAction;
+  eq(JSON.stringify(last.source.count), JSON.stringify({ $ref: 'last_processed_count' }),
+    '🔴後段が固定枚数のまま＝置いた枚数と無関係に回収する過剰');
+
+  // 挙動＝アクセ持ちシグニ2枚と非該当1枚を手札に、エナには＜調理＞シグニ3枚を置く。
+  const acce = [...cardMap.values()]
+    .filter(c => c.Type === 'シグニ' && /《アクセアイコン》/.test(c.EffectText ?? '')).slice(0, 2).map(c => c.CardNum);
+  const cook = [...cardMap.values()]
+    .filter(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('調理') && !acce.includes(c.CardNum))
+    .slice(0, 3).map(c => c.CardNum);
+  eq(acce.length, 2, 'アクセアイコン持ちシグニ2枚を確保');
+  eq(cook.length, 3, '＜調理＞シグニ3枚を確保');
+
+  const ctx = mkCtx({ hand: 0, energy: 0 }, {});
+  ctx.ownerState.hand = [...acce, ...cook.slice(0, 1)];   // 非該当（アクセ無し）を1枚混ぜる
+  ctx.ownerState.energy = [...cook];
+  const r = run(eff.action, ctx);
+  // オートパイロットは候補を先頭から上限まで取る＝2枚置く → 同じ2枚を回収する。
+  eq(r.ownerState.energy.filter(n => acce.includes(n)).length, 2, 'アクセ持ち2枚だけがエナへ移動');
+  eq(r.ownerState.hand.filter(n => acce.includes(n)).length, 0, '置いた2枚は手札から抜けている');
+  eq(r.ownerState.hand.filter(n => cook.includes(n)).length, 3,
+    '🔴回収枚数が置いた枚数（2枚）に比例していない（元から手札の1枚＋エナから2枚＝3枚）');
+
+  // 対照＝手札にアクセ持ちが1枚も無ければ0枚置き＝**0枚回収**（固定1枚なら1枚増えて落ちる）。
+  const zero = mkCtx({ hand: 0, energy: 0 }, {});
+  zero.ownerState.hand = [...cook.slice(0, 1)];
+  zero.ownerState.energy = [...cook.slice(1)];
+  const rz = run(eff.action, zero);
+  ok(rz.done, '0枚置きでも完走');
+  eq(rz.ownerState.hand.length, 1, '🔴0枚置いたのに回収が走っている（固定1枚の過剰）');
+}));
 
 test('WXEX2-07-E3: 全バニッシュ3体と同数まで回収し、0体なら0枚', () => withSavedCursor(() => {
   const eff = effectsMap.get('WXEX2-07')?.find(e => e.effectId === 'WXEX2-07-E3');
