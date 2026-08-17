@@ -178,6 +178,10 @@ export type ActiveCondition =
   | { type: 'FIELD_LRIGS_HAVE_COLORS'; owner: Owner; colors: string[] }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds' }
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }
+  // 「あなたの場にあるすべてのシグニが〈色〉/＜C＞/《X》であるかぎり、」（§6.4 O-35）。`Condition` 側と同型・
+  // 同実装（空盤面 false＝1体以上必須）。⚠**両 union に同じ型を置いたら評価器も両方に実装する**
+  // （片方だけだと未知型フォールバックで無条件成立に倒れる＝過剰実行）。
+  | { type: 'ALL_FIELD_SIGNI_MATCH'; owner: Owner; filter: TargetFilter }
   | { type: 'COUNT_THRESHOLD'; location: CardLocation; owner: Owner; operator: CompareOp; value: number; color?: string } // color指定時はその色を含むカードのみ数える（WX05-005「トラッシュに黒のカードが10枚以上」）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
   | { type: 'SELF_POWER_THRESHOLD'; operator: CompareOp; value: number }
