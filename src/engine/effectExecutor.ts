@@ -6769,7 +6769,8 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     ? a.count + (ctx.seqVars?.lastDownedLrigLevelSum ?? ctx.ownerState.last_lrig_down_level_sum ?? 0)
     : a.count;
   const state = ownerState(a.owner, ctx);
-  let actual = Math.min(count, state.deck.length);
+  // `all`＝デッキ全体（`PR-469`②「対戦相手のデッキからすべてのカードをトラッシュに置く」）
+  let actual = a.all ? state.deck.length : Math.min(count, state.deck.length);
   if (a.untilFilter) {
     const need = a.untilCount ?? 1;
     let matched = 0;

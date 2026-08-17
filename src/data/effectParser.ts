@@ -744,6 +744,11 @@ function parseCost(costStr: string): EffectCost | undefined {
     const tArtM = costStr.match(/ルリグデッキから(?:(白|赤|青|緑|黒|無)の)?アーツ([０-９\d]+)枚をルリグトラッシュに置く/);
     if (tArtM) cost.trashArtsFromLrigDeck = { count: parseNum(tArtM[2]), ...(tArtM[1] ? { color: tArtM[1] } : {}) };
   }
+  // ルリグデッキにある＜X＞のルリグN枚をゲームから除外する → exileLrigFromLrigDeck（`PR-469`・§6.4 O-11）
+  if (!cost.exileLrigFromLrigDeck) {
+    const exLrigM = costStr.match(/ルリグデッキにある(?:＜([^＞]+)＞の)?ルリグ([０-９\d]+)枚をゲームから除外する/);
+    if (exLrigM) cost.exileLrigFromLrigDeck = { count: parseNum(exLrigM[2]), ...(exLrigM[1] ? { story: exLrigM[1] } : {}) };
+  }
   // 手札から＜A＞と＜B＞のシグニを合計N枚捨てる → discardGroups
   if (!cost.handDiscardSigni && !cost.discardGroups) {
     const hdsAndM = costStr.match(/手札から＜([^＞]+)＞と＜([^＞]+)＞のシグニを合計([０-９\d]+)枚捨てる/);

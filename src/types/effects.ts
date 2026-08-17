@@ -501,6 +501,12 @@ export interface EffectCost {
   charmTrash?: number;    // 自分の場のチャームN枚をトラッシュに置く（固定枚数）
   charmTrashVariable?: { min: number }; // チャームを好きな枚数（min枚以上）トラッシュ（プレイヤーが枚数を選択）
   trashArtsFromLrigDeck?: { color?: string; count: number }; // ルリグデッキからアーツN枚をトラッシュ（【出】コスト）
+  /**
+   * ルリグデッキにある＜X＞のルリグN枚を**ゲームから除外する**（ルリグ【起】コスト・`PR-469`・§6.4 O-11）。
+   * ⚠**行先が違うので `trashArtsFromLrigDeck`（ルリグトラッシュ行き）を流用してはいけない**＝
+   *   除外はどこにも戻らない。⚠これが無いまま本体だけを組むと**コストを踏み倒して撃てる**。
+   */
+  exileLrigFromLrigDeck?: { count: number; story?: string };
   removeOppVirus?: number; // 対戦相手の場の【ウィルス】N個を取り除く
   none?: boolean;         // コストなしの任意効果（発動するかの確認のみ）
   // ─ v0.276 追加: 全捨て型コスト ─
@@ -3126,6 +3132,11 @@ export interface MILLAction {
   type: 'MILL';
   owner: Owner;
   count: number;
+  /**
+   * 「デッキから**すべての**カードをトラッシュに置く」（`PR-469`②・§6.4 O-11）。
+   * `count` を無視してデッキ全体を落とす。⚠大きな `count` で代用しない（枚数が原文に無いので嘘になる）。
+   */
+  all?: boolean;
   countFromZone?: CountFromZone;
   fromBottom?: boolean;
   useDeclaredCount?: boolean;

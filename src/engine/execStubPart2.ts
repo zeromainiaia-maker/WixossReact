@@ -1630,6 +1630,32 @@ export function execStubPart2(
     ].join('、');
     return done(addLog({ ...ctx, ownerState: newOwnerITCS }, names));
   }
+  // 「対戦相手のルリグデッキからカードを１枚**見ないで選び**公開する。
+  //   それがルリグでない場合、それをルリグトラッシュに置く。」（`PR-469`③・§6.4 O-11）
+  // ⚠既存の `OPP_LRIG_DECK_TO_LRIG_TRASH` は**相手が自分で選ぶ**（`opponentResponds`）別文型＝流用できない。
+  //   こちらは「見ないで選び」＝ランダム。公開したうえで**ルリグでないときだけ**ルリグトラッシュへ送る。
+  // ⚠行先は相手の `lrig_trash`（ルリグデッキのカードはルリグトラッシュへ行く）。
+  if (stub.id === 'OPP_LRIG_DECK_BLIND_REVEAL') {
+    const deckOBR = ctx.otherState.lrig_deck ?? [];
+    if (deckOBR.length === 0) return done(addLog({ ...ctx, lastProcessedCards: [] }, '対戦相手のルリグデッキにカードがない'));
+    const pickedOBR = deckOBR[Math.floor(Math.random() * deckOBR.length)];
+    const cardOBR = ctx.cardMap.get(getCardNum(pickedOBR));
+    const nameOBR = cardOBR?.CardName ?? pickedOBR;
+    const isLrigOBR = (cardOBR?.Type ?? '').startsWith('ルリグ');
+    if (isLrigOBR) {
+      return done(addLog({ ...ctx, lastProcessedCards: [pickedOBR] },
+        `対戦相手のルリグデッキから${nameOBR}を見ないで選び公開した（ルリグなのでそのまま戻る）`));
+    }
+    return done(addLog({
+      ...ctx,
+      otherState: {
+        ...ctx.otherState,
+        lrig_deck: deckOBR.filter(n => n !== pickedOBR),
+        lrig_trash: [...ctx.otherState.lrig_trash, pickedOBR],
+      },
+      lastProcessedCards: [pickedOBR],
+    }, `対戦相手のルリグデッキから${nameOBR}を見ないで選び公開し、ルリグではないのでルリグトラッシュに置いた`));
+  }
   // ルリグデッキにカードを追加（非ルリグをルリグトラッシュへ）
   if (stub.id === 'NON_LRIG_TO_LRIG_TRASH') {
     const target = (ctx.lastProcessedCards ?? [])[0];

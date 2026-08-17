@@ -2426,6 +2426,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
   // 「対戦相手はルリグの【起】能力を使用できない」（`USE_LRIG_ACT`・§6.4 O-3 続き487）＝**ルリグ／アシストルリグ
   // の【起】だけ**を封じる。⚠既存の `USE_ACT` はシグニ・キー・付与も含む全【起】を止めるので流用できない。
+  /**
+   * ルリグデッキ除外コスト（`exileLrigFromLrigDeck`）を払えるか（§6.4 O-11・`PR-469`）。
+   * ⚠**提示側にこのゲートが無いと、除外できないのに撃てて実質コスト0**になる。
+   */
+  const canPayExileLrigFromLrigDeck = (eff: CardEffect): boolean => {
+    const c = eff.cost?.exileLrigFromLrigDeck;
+    if (!c) return true;
+    const n = my.lrig_deck.filter(num => {
+      const card = battleCardMap.get(getCardNum(num));
+      if (!card) return false;
+      if (!c.story) return true;
+      return (card.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(c.story);
+    }).length;
+    return n >= c.count;
+  };
   const isLrigActBlocked = () => isActionBlocked('USE_ACT') || isActionBlocked('USE_LRIG_ACT');
 
   /**
@@ -12782,6 +12797,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const lgExiledNums = [...trashExileIndices].map(i => my.trash[i]);
         paid = { ...paid, trash: paid.trash.filter((_, i) => !trashExileIndices.has(i)), lrig_trash: [...paid.lrig_trash, ...lgExiledNums] };
       }
+      // exileLrigFromLrigDeck: ルリグデッキの＜X＞のルリグN枚をゲームから除外（ルリグ起動コスト・PR-469）。
+      // ⚠**行先は `excluded`**＝ルリグトラッシュではない（`trashArtsFromLrigDeck` と混ぜない）。
+      // ⚠支払えないときは**発動そのものを中止**する（コスト踏み倒しを作らない）。
+      const exileLrigCost = effect.cost?.exileLrigFromLrigDeck;
+      if (exileLrigCost) {
+        const matchExLrig = (n: string): boolean => {
+          const c = battleCardMap.get(getCardNum(n));
+          if (!c) return false;
+          if (!exileLrigCost.story) return true;
+          return (c.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(exileLrigCost.story);
+        };
+        const pickedExLrig: string[] = [];
+        for (const n of paid.lrig_deck) {
+          if (pickedExLrig.length >= exileLrigCost.count) break;
+          if (matchExLrig(n)) pickedExLrig.push(n);
+        }
+        if (pickedExLrig.length < exileLrigCost.count) { setLoading(false); return; }
+        const exSet = new Set(pickedExLrig);
+        paid = {
+          ...paid,
+          lrig_deck: paid.lrig_deck.filter(n => !exSet.has(n)),
+          excluded: [...(paid.excluded ?? []), ...pickedExLrig],
+        };
+        appendBattleLogs([`ルリグデッキの${exileLrigCost.story ? `＜${exileLrigCost.story}＞の` : ''}ルリグ${pickedExLrig.length}枚をゲームから除外（コスト）`]);
+      }
       // charmTrash: 自分の場のチャームN枚をトラッシュ（ルリグ起動コスト）
       const charmTrashNLrig = effect.cost?.charmTrash ?? 0;
       if (charmTrashNLrig > 0) {
@@ -12943,6 +12983,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
         //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
         !e.costUnparsed &&
+        canPayExileLrigFromLrigDeck(e) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
@@ -13095,6 +13136,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 他パス（シグニ/付与/キー）と同様に usageLimit 基準で判定する。
           // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになるので出さない（§6.4 O-11）。
           if (eff.costUnparsed) continue;
+          if (!canPayExileLrigFromLrigDeck(eff)) continue;   // ルリグデッキ除外コスト（PR-469）
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
@@ -13181,6 +13223,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
         //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
         !e.costUnparsed &&
+        canPayExileLrigFromLrigDeck(e) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
@@ -13240,6 +13283,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         for (const eff of collectCenterLrigActivatedEffects(my, effectsMap, 'ATTACK_ARTS')) {
           // `costUnparsed`＝原文のコストを表現できなかった印。提示すると踏み倒しになるので出さない（§6.4 O-11）。
           if (eff.costUnparsed) continue;
+          if (!canPayExileLrigFromLrigDeck(eff)) continue;   // ルリグデッキ除外コスト（PR-469）
           if (eff.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(eff.effectId)) continue;
           if (eff.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === eff.effectId).length >= 2) continue;
           if (eff.usageLimit === 'once_per_game' && my.game_actions_done?.includes(eff.effectId)) continue;
@@ -13262,6 +13306,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
         //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
         !e.costUnparsed &&
+        canPayExileLrigFromLrigDeck(e) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
           !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
           !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
@@ -13318,6 +13363,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
         //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
         !e.costUnparsed &&
+        canPayExileLrigFromLrigDeck(e) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
@@ -13393,6 +13439,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
         //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
         !e.costUnparsed &&
+        canPayExileLrigFromLrigDeck(e) &&
         !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
         !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
         !(my.blocked_actions?.includes(e.effectId)) &&
