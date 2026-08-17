@@ -56,6 +56,22 @@ export function payLrigDownCost(
   };
 }
 
+/**
+ * 🔴ルリグの【起】《ダウン》（`cost.down_self`）＝**その能力を使ったルリグ自身**をダウンする（タスク12(cxxxi)）。
+ * ⚠シグニ用の `down_self` 実装（`executeSigniActivated` / `canAffordOptionalCostSpec`）は
+ *   **`field.signi` しか探さない**ので、ルリグの【起】では `findIndex` が常に -1 ＝**誰もダウンせず
+ *   実質無コスト**だった（live 27効果。`usageLimit` を持たない効果は同一ターンに何度でも撃てた）。
+ * ⚠`lrigDown`（別カードのコスト語彙）とは別物＝あちらは「アップ状態のルリグN体」を任意に選ぶ。
+ *   こちらは**自分自身**なので候補選択が無く、既にダウンしていれば払えない（`null`＝盤面を変えない）。
+ * ⚠`last_lrig_down_cards` は**記録しない**＝シグニ側の `down_self` と同じ規約（「この方法でダウンした
+ *   ルリグ」を参照するカードは `lrigDown` 語彙の側にしかいない。記録すると過剰実行の種になる）。
+ */
+export function payLrigDownSelfCost(state: PlayerState): PlayerState | null {
+  if (state.field.lrig.length === 0) return null;
+  if (state.field.lrig_down) return null;
+  return { ...state, field: { ...state.field, lrig_down: true } };
+}
+
 /** コスト表示用ラベル（「アップ状態のレベル2のルリグ2体をダウン」）。モーダル間で共有する。 */
 export function fmtLrigDownCostLabel(cost: NonNullable<EffectCost['lrigDown']>): string {
   const scope = cost.centerOnly ? 'センタールリグ' : cost.level !== undefined ? `レベル${cost.level}のルリグ` : 'ルリグ';
