@@ -323,23 +323,22 @@ WX19-006
   + [0].action.choices[1].action.owner = "self"
   …（他 19 行）
 
-## +CHOOSE +DRAW ［1枚］
-WXEX2-66
---- WXEX2-66
-  原文: 【常】：あなたのすべての領域にある《トラップアイコン》を持たない＜トリック＞のカードは《トラップアイコン》「カードを１枚引くか【エナチャージ１】をする。」を得る。【自】《ターン１回》：あなたの《トラップアイコン》が発動したとき、カードを１枚引くか【エナチャージ１】をする。【トラップアイコン】：対戦相手のセンタールリグ１体を対象とし、それを凍結する。,：対戦相
-  - [1].action.owner = "self"
-  - [1].action.count = 1
-  ~ [1].action.type : "ENERGY_CHARGE_FROM_DECK" → "CHOOSE"
-  + [1].action.choose_count = 1
-  + [1].action.from_count = 2
-  + [1].action.choices[0].choiceId = "c0"
-  + [1].action.choices[0].label = "選択肢1"
-  + [1].action.choices[0].action.type = "DRAW"
-  + [1].action.choices[0].action.owner = "self"
-  + [1].action.choices[0].action.count = 1
-  + [1].action.choices[1].choiceId = "c1"
-  + [1].action.choices[1].label = "選択肢2"
-  …（他 3 行）
+## +ADD_TO_LIFE +SEARCH ［1枚］
+WXEX2-13
+--- WXEX2-13
+  原文: 【自】《ターン１回》：あなたの＜水獣＞のシグニ１体がアタックしたとき、あなたのデッキから【ライフバースト】を持つカード１枚を探してチェックゾーンに置き、デッキをシャッフルする。そのカードのライフバーストを発動する。【出】：あなたのデッキからカード１枚を探してライフクロスに加え、デッキをシャッフルする。あなたのライフクロス１枚をクラッシュする。【起】《ターン１
+  - [1].action.steps[0].owner = "self"
+  ~ [1].action.steps[0].type : "SHUFFLE_DECK" → "SEARCH"
+  + [1].action.steps[0].from.location = "deck"
+  + [1].action.steps[0].from.owner = "self"
+  + [1].action.steps[0].maxCount = 1
+  + [1].action.steps[0].then.type = "ADD_TO_LIFE"
+  + [1].action.steps[0].then.owner = "self"
+  + [1].action.steps[0].then.count = 1
+  + [1].action.steps[0].then.fromTop = false
+  + [1].action.steps[0].then.fromSearch = true
+  + [1].action.steps[0].afterSearch.type = "SHUFFLE_DECK"
+  + [1].action.steps[0].afterSearch.owner = "self"
 
 ## +SEND_TO_ENERGY +SIGNI -DECK_CARD -ENERGY_CHARGE ［1枚］
 WXEX2-70
@@ -488,6 +487,16 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
+## +DRAW -STUB ［1枚］
+WXDi-P16-038
+--- WXDi-P16-038
+  原文: 【出】手札を４枚まで捨てる：この方法で捨てたカードの枚数に１を加えた枚数のカードを引く。,-
+  - [0].action.id = "COUNT_BASED_DRAW_OR_POWER"
+  ~ [0].action.type : "STUB" → "DRAW"
+  + [0].action.owner = "self"
+  + [0].action.count = 1
+  + [0].action.addLastProcessedCount = true
+
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
 --- WXDi-CP01-042
@@ -523,6 +532,24 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
+
+## +DRAW +HAND_CARD +TRANSFER_TO_DECK -STUB×2 ［1枚］
+WX25-P1-046
+--- WX25-P1-046
+  原文: あなたの手札からカードを５枚まで好きな順番でデッキの一番下に置く。この方法でデッキに移動したカードの枚数に１を加えた枚数のカードを引く。あなたのルリグゾーンに【リミットアッパー】１つを置く。,-
+  - [0].action.steps[0].id = "LOOK_AND_REORDER"
+  - [0].action.steps[1].id = "POWER_MOD_PER_COUNT"
+  ~ [0].action.steps[0].type : "STUB" → "TRANSFER_TO_DECK"
+  + [0].action.steps[0].shuffle = false
+  + [0].action.steps[0].position = "bottom"
+  + [0].action.steps[0].source.type = "HAND_CARD"
+  + [0].action.steps[0].source.owner = "self"
+  + [0].action.steps[0].source.count = 5
+  + [0].action.steps[0].source.upToCount = true
+  ~ [0].action.steps[1].type : "STUB" → "DRAW"
+  + [0].action.steps[1].owner = "self"
+  + [0].action.steps[1].count = 1
+  …（他 1 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
@@ -737,22 +764,4 @@ SPDi43-05
   + [1].action.duration = "UNTIL_OPP_TURN_END"
   + [1].action.rawText = "【自】：対戦相手のルリグかシグニ１体がアタックしたとき、あなたの場かエナゾーンからそのルリグかシグニと同じレベルのシグニ１枚をトラッシュに置いてもよい。そうした場合、そのアタックを無効にする。"
   ~ [1].parseStatus : "AUTO" → "PARTIAL"
-
-## +BOUNCE +CONDITIONAL +IS_MY_TURN +SEQUENCE +SIGNI +STUB ［1枚］
-SPDi43-26
---- SPDi43-26
-  原文: 【自】：このルリグがアタックしたとき、あなたのエナゾーンから白のシグニ１枚をデッキの一番上に置いてもよい。そうした場合、【ルリグバリア】１つを得る。【起】《ゲーム１回》インフレーション《白×0》：あなたのデッキの上からカードを５枚見る。その中からカードを２枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。その後、対戦相手のシグニ１体を対象とし、手札か
-  - [1].action.owner = "self"
-  - [1].action.revealCount = 5
-  - [1].action.pickCount = 2
-  - [1].action.pickUpTo = true
-  - [1].action.then.type = "ADD_TO_HAND"
-  - [1].action.then.owner = "self"
-  - [1].action.remainder.location = "deck"
-  - [1].action.remainder.position = "bottom"
-  ~ [1].action.type : "REVEAL_AND_PICK" → "SEQUENCE"
-  + [1].action.steps[0].type = "REVEAL_AND_PICK"
-  + [1].action.steps[0].owner = "self"
-  + [1].action.steps[0].revealCount = 5
-  …（他 21 行）
 

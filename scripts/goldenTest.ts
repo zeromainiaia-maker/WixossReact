@@ -20147,6 +20147,31 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     ok(!!bounce, 'バウンスが落ちている');
     eq((bounce!.target as { owner?: string }).owner, 'opponent', 'バウンス対象は対戦相手');
   });
+  // §6.4 O-11：SEARCH の行き先語彙に「ライフクロスに加え」が無く、サーチごと消えて
+  //   後続の LIFE_CRASH だけが走っていた（＝ライフが増えずに減る符号逆転）。
+  test('(O-11) WXEX2-13-E2: デッキサーチ→ライフクロス追加が LIFE_CRASH の前に入る', () => {
+    const a = effOfX('WXEX2-13', 'WXEX2-13-E2').action;
+    const search = treeFind(a, x => x.type === 'SEARCH') as Record<string, unknown> | null;
+    ok(!!search, 'SEARCH が落ちている（SHUFFLE_DECK だけになっている）');
+    eq((search!.then as { type?: string; fromSearch?: boolean }).type, 'ADD_TO_LIFE', 'サーチ札の行き先');
+    eq((search!.then as { fromSearch?: boolean }).fromSearch, true, 'デッキから抜く経路の指定');
+    ok(treeHas(a, x => x.type === 'LIFE_CRASH'), '後続のライフクラッシュが消えている');
+  });
+  // §6.4 O-11：「あなたの」前置きで規則が外れて総称 STUB に落ち、手札もドローも動かない真 no-op だった。
+  test('(O-11) WX25-P1-046-E1: 手札→デッキ下と「移動枚数＋1」ドローが載る', () => {
+    const a = effOfX('WX25-P1-046', 'WX25-P1-046-E1').action;
+    const ttd = treeFind(a, x => x.type === 'TRANSFER_TO_DECK') as Record<string, unknown> | null;
+    ok(!!ttd, '手札→デッキ下が落ちている');
+    eq((ttd!.source as { type?: string; count?: number; upToCount?: boolean }).type, 'HAND_CARD', '移動元');
+    eq((ttd!.source as { count?: number }).count, 5, '上限枚数');
+    eq((ttd!.source as { upToCount?: boolean }).upToCount, true, '「N枚まで」＝上限');
+    eq(ttd!.position, 'bottom', '行き先はデッキの一番下');
+    const draw = treeFind(a, x => x.type === 'DRAW') as Record<string, unknown> | null;
+    ok(!!draw, 'ドローが落ちている');
+    eq(draw!.count, 1, '定数部（＋1）');
+    eq(draw!.addLastProcessedCount, true, '直前に移動した枚数への追従');
+    ok(!treeHas(a, x => x.type === 'STUB' && x.id === 'POWER_MOD_PER_COUNT'), '原文に無いパワー修整が残っている');
+  });
 }
 
 // ── §6.4: 【出】能力抑止の死 BLOCK_ACTION family ─────────────────────────────
