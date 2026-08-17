@@ -1,0 +1,81 @@
+/**
+ * syncManualLive.ts — **`manualEffects.ts` の手修正を live（effects_*.json）へ届ける**ための同期ツール。
+ *
+ * ## なぜ要るか
+ * `build:effects` の収穫マージは **`parseStatus` が `MANUAL`／`PARTIAL` の効果を不可侵**として扱う
+ * （`PRESERVE_STATUSES`）。これは「人が直したものを parser が壊さない」ための保護だが、
+ * **人が `manualEffects.ts` の既存 id を書き直したとき**も同じ保護が効いて live に届かない
+ * （新しい id の追加だけは `adopted_manual_add` で通る）。
+ * その結果、直したはずの効果が `docs/_partial_fresh.json` へ回るだけで live は古いまま残る。
+ *
+ * 実際に3セッション連続で踏んだ（`WX20-069`／`WXDi-P07-010`／`WX22-016`）ので専用ツールにした。
+ *
+ * ## 使い方
+ *   npx tsx scripts/syncManualLive.ts <CardNum> [<CardNum> ...]   # 同期する
+ *   npx tsx scripts/syncManualLive.ts --dry <CardNum> ...          # 差分だけ表示（書き込まない）
+ *
+ * ## 規約
+ * - **カード単位**で `mergeManualEffects(parseCardEffects(row))` の結果をそのまま live へ書く
+ *   ＝parser の最新結果＋手修正の合成。`parseStatus` は生成側の値をそのまま残す。
+ * - `appearanceCondition`（出現条件＝カード単位メタ）は既存 live の値を引き継ぐ
+ *   （`build:effects` がカード単位で付け直すフィールドなので、ここで落とすと次回の差分になる）。
+ * - ⚠**実行後は必ず `npm run gates`**（live を直接書くのでゲートだけが安全網）。
+ */
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import Papa from 'papaparse';
+import { parseCardEffects } from '../src/data/effectParser';
+import { mergeManualEffects } from '../src/data/manualEffects';
+
+const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const EFFECT_FILES = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.json', 'effects_WXK.json', 'effects_misc.json'];
+
+const args = process.argv.slice(2);
+const dryRun = args.includes('--dry');
+const ids = args.filter(a => !a.startsWith('--'));
+if (ids.length === 0) {
+  console.error('使い方: npx tsx scripts/syncManualLive.ts [--dry] <CardNum> [<CardNum> ...]');
+  process.exit(1);
+}
+
+// CSV 行を集める（先勝ち＝decompile/build と同じ規約）
+const rows = new Map<string, Record<string, string>>();
+for (const f of [...Array.from({ length: 10 }, (_, i) => `CardData_Sheet${i + 1}.csv`), 'CardData_TK.csv']) {
+  const p = join(root, 'public/data', f);
+  if (!existsSync(p)) continue;
+  const { data } = Papa.parse<Record<string, string>>(readFileSync(p, 'utf-8').replace(/^﻿/, ''), {
+    header: true, skipEmptyLines: true,
+  });
+  for (const r of data) { const id = r.CardNum?.trim(); if (id && !rows.has(id)) rows.set(id, r); }
+}
+
+let changed = 0;
+for (const id of ids) {
+  const row = rows.get(id);
+  if (!row) { console.error(`  ✗ ${id}: CSV に無い`); continue; }
+  /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+  const fresh = mergeManualEffects(id, parseCardEffects({ ...(row as any), effects: [] }));
+  let found = false;
+  for (const f of EFFECT_FILES) {
+    const p = join(root, 'public/data', f);
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any */
+    const j = JSON.parse(readFileSync(p, 'utf-8')) as Record<string, any[]>;
+    if (!j[id]) continue;
+    found = true;
+    const appearance = j[id][0]?.appearanceCondition;
+    const next = fresh.map((e, i) => (i === 0 && appearance ? { ...e, appearanceCondition: appearance } : e));
+    if (JSON.stringify(j[id]) === JSON.stringify(next)) { console.log(`  = ${id}: 差分なし（${f}）`); break; }
+    console.log(`  ~ ${id}（${f}）`);
+    console.log(`      OLD ${JSON.stringify(j[id]).slice(0, 240)}`);
+    console.log(`      NEW ${JSON.stringify(next).slice(0, 240)}`);
+    if (!dryRun) {
+      j[id] = next;
+      writeFileSync(p, JSON.stringify(j, null, 2) + '\n', 'utf-8');
+      changed++;
+    }
+    break;
+  }
+  if (!found) console.error(`  ✗ ${id}: effects_*.json に無い`);
+}
+console.log(dryRun ? '(--dry: 書き込みなし)' : `${changed}枚を同期。⚠ npm run gates を回すこと。`);
