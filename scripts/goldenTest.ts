@@ -105,7 +105,7 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuMainPhaseActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGate';
-import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasIncomingThreat, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
+import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -39703,6 +39703,50 @@ test('O-1 cpuArts: CPU は「守りの札・エナだけで払える・未使用
   //   シグニ【起】で自動支払いできるキーを足すと「宣言だけして踏み倒す」ことになる。
   ok(!payOnly({ down_self: true }), '🔴down_self はアーツでは払われない＝使わない側へ倒す');
   ok(!payOnly({ lrigDown: { count: 1 } }), '🔴lrigDown も同じ（allowlist に足さない）');
+}));
+
+test('O-1 cpuArts: 攻めの窓は「アタックが正面で塞がれている」ときだけ（除去に価値がある盤面）', () => withSavedCursor(() => {
+  // 自分ゾーン0の正面は相手ゾーン2（engine 共通規約の facing ＝ 2 - zi）。
+  const blocker = mkState({ signi: [null, null, SIGNI] });
+  ok(hasBlockedAttacker(mkState({ signi: [SIGNI, null, null] }), blocker), '正面が埋まっている＝アタックが通らない＝除去に価値がある');
+  ok(!hasBlockedAttacker(mkState({ signi: [SIGNI, null, null] }), mkState({})), '🔴相手の場が空なら除去は無価値＝使わない');
+  ok(!hasBlockedAttacker(mkState({ signi: [null, null, SIGNI] }), blocker), '🔴正面はゾーン2＝同じ番号のゾーンを見ない');
+  ok(!hasBlockedAttacker(mkState({}), blocker), '自分にアタッカーがいなければ価値なし');
+  ok(!hasBlockedAttacker(mkState({ signi: [SIGNI, null, null], down: [true, false, false] }), blocker), 'ダウン状態はアタックできない');
+}));
+
+test('O-1 cpuArts: 自ターンは除去だけを使う（無効化・軽減は自ターンには意味が無い）', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const removal = [mkArtsEff({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } })];
+  const pickOff = (o: Parameters<typeof artsFixture>[0], already: string[] = []) => {
+    const f = artsFixture({
+      // 自ターンのメイン窓＝CSV Timing に「メインフェイズ」が要る。
+      card: { Timing: 'メインフェイズアタックフェイズ', ...(o.card ?? {}) },
+      effs: o.effs ?? removal,
+      actor: o.actor ?? ({ ...mkState({ energy: 0, signi: [SIGNI, null, null] }), lrig_deck: ['T-ARTS-1'], energy: [ART_RED] } as PlayerState),
+      opponent: o.opponent ?? mkState({ signi: [null, null, SIGNI] }),
+      turnPhase: o.turnPhase ?? 'MAIN', isActorTurn: true,
+    });
+    return pickCpuOffensiveArts({
+      actor: f.actor, opponent: f.opponent, cards: allCards, cardMap: f.cm, effectsMap: f.em,
+      payer: f.payer, turnPhase: o.turnPhase ?? 'MAIN', alreadyUsedNums: already,
+      isAffordable: (nums, costStr, extra) => canAffordWithExtraCost(nums, allCards, costStr, extra),
+    });
+  };
+  const got = pickOff({});
+  eq(got?.card.CardNum, 'T-ARTS-1', '正面が塞がれていれば除去アーツを使う');
+  eq(got?.kind, 'removal', '分類は除去');
+  eq(got?.costIndices.size, 1, 'エナ1枚ぶんの index が返る');
+  eq(pickOff({}, ['T-ARTS-1']), null, 'このターン使った札は選び直さない（安全弁は3窓で共通）');
+  eq(pickOff({ opponent: mkState({}) }), null, '🔴相手の場が空なら使わない');
+  eq(pickOff({ effs: [mkArtsEff({ type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'opponent', count: 1 } })] }), null,
+    '🔴アタック無効化は自ターンには意味が無い＝使わない');
+  eq(pickOff({ effs: [mkArtsEff({ type: 'PREVENT_DAMAGE', owner: 'self', until: 'TURN_END' })] }), null,
+    '🔴ダメージ軽減も自ターンには使わない');
+  // 《アタックフェイズアイコン》だけの札はメイン窓では出ず、アタック窓で出る（gate の Timing 照合）。
+  eq(pickOff({ card: { Timing: 'アタックフェイズ' } }), null, 'アタックフェイズ専用の札はメイン窓では使えない');
+  eq(pickOff({ card: { Timing: 'アタックフェイズ' }, turnPhase: 'ATTACK_ARTS' })?.card.CardNum, 'T-ARTS-1',
+    '同じ札がアタック窓では使える');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
