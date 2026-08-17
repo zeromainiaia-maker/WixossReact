@@ -4709,7 +4709,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
             ...(exceed5 > 0 ? [`エクシード${exceed5}`] : []),
           ];
           // ⚠**このシグニ自身を失う対価はラベルに出す**（§6.4 O-26・続き535＝site4 と同じ理由）。
-          const payParts5 = [...costParts5, ...(spec5.selfTrash ? ['このシグニをトラッシュ'] : [])];
+          const payParts5 = [...costParts5, ...optionalCostExtraLabels(spec5)];
           const payLabel5 = activateOnly5 ? '発動する'
             : payParts5.length > 0 ? `支払う（${payParts5.join('')}）` : '支払う';
           const paySteps5: EffectAction[] = [
