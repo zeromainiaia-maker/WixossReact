@@ -1693,6 +1693,14 @@ function parseLastProcessedMatchesCondition(clause: string, prevIsEnergyPlace = 
     if (st) return { type: 'LAST_PROCESSED_MATCHES', filter: { story: st[2] ? [st[1], st[2]] : st[1] } };
     const named = desc.match(/^《([^》]+)》$/);
     if (named) return { type: 'LAST_PROCESSED_MATCHES', filter: { cardName: named[1] } };
+    // 「そのカードが《トラップアイコン》を持つ**カード**の場合、」（`WXEX1-41-E2`・§6.4 O-35）。
+    // 🔴従来は下の `sm`（末尾が「シグニ」）にも `named`（《カード名》単独）にも当たらず **null＝条件が丸ごと
+    //   落ちて**、後続の「それをバニッシュする」が無条件に走っていた（デッキトップが何であれ除去）。
+    //   `hasIcon` は型にも `execUtils.matchesFilter` にも実装済み＝純粋な配線漏れ。
+    // ⚠**「シグニ」で終わる綴りはここに来ない**（`sm` 側が `parseIconFilter` で拾う）。カード種別を
+    //   問わない「カード」形はデッキトップ公開／ミルの結果判定にしか出ないので `cardType` を付けない。
+    const iconCard = desc.match(/^《(ライズ|クロス|トラップ|アクセ)アイコン》を持つカード$/);
+    if (iconCard) return { type: 'LAST_PROCESSED_MATCHES', filter: { hasIcon: iconCard[1] as NonNullable<TargetFilter['hasIcon']> } };
     // 「(色)(か(色))*のシグニ」＝色（OR）フィルタ。BANISH/公開/ミル結果が特定色かの判定（WX21-016「青か緑のシグニ」）。
     //   matchesFilter は filter.color の string|string[] を OR 判定する。従来は色語彙が無く IS_MY_TURN 据置だった。
     const colM = desc.match(/^((?:白|赤|青|緑|黒)(?:か(?:白|赤|青|緑|黒))+)のシグニ$/);
