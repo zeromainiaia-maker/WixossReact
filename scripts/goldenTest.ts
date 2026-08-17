@@ -20172,6 +20172,28 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq(draw!.addLastProcessedCount, true, '直前に移動した枚数への追従');
     ok(!treeHas(a, x => x.type === 'STUB' && x.id === 'POWER_MOD_PER_COUNT'), '原文に無いパワー修整が残っている');
   });
+  // §6.4 O-11：「センタールリグは以下の能力を得る」の early return が**全文を GRANT として奪い**、
+  //   付与節より前の本文（ドロー／任意コスト／ライフクラッシュ）が丸ごと消えていた。
+  test('(O-11) WXDi-P15-001-E1: 能力付与の前に書かれた本文が落ちない', () => {
+    const a = effOfX('WXDi-P15-001', 'WXDi-P15-001-E1').action;
+    eq(a.type, 'SEQUENCE', '付与だけになっている');
+    const draw = treeFind(a, x => x.type === 'DRAW') as Record<string, unknown> | null;
+    ok(!!draw, '3ドローが落ちている');
+    eq(draw!.count, 3, 'ドロー枚数');
+    ok(treeHas(a, x => x.type === 'STUB' && x.id === 'OPTIONAL_COST'), '＜解放派＞1枚捨ての任意コストが落ちている');
+    const crash = treeFind(a, x => x.type === 'LIFE_CRASH') as Record<string, unknown> | null;
+    ok(!!crash, 'ライフクラッシュが落ちている');
+    eq(crash!.owner, 'opponent', 'クラッシュされるのは対戦相手のライフ');
+    ok(treeHas(a, x => x.type === 'GRANT_LRIG_ABILITY'), '付与そのものが消えている');
+  });
+  // §6.4 O-11：`NAME_BAN` の期間が型に GAME しか無く、原文「このターン」がゲーム中の封じに化けていた。
+  test('(O-11) NAME_BAN: 「このターン」は duration:TURN として解く', () => {
+    const wdk = effectsMap.get('WDK07-E08')!.find(e => e.effectId === 'WDK07-E08-E1')!;
+    const ban = treeFind(wdk.action, x => x.type === 'NAME_BAN') as Record<string, unknown> | null;
+    ok(!!ban, '同名使用禁止が落ちている');
+    eq(ban!.duration, 'TURN', '期間を GAME に倒すとゲーム中ずっと封じる過剰実行になる');
+    ok(treeHas(wdk.action, x => x.type === 'TRANSFER_TO_HAND'), 'トラッシュ→対戦相手の手札戻しが落ちている');
+  });
 }
 
 // ── §6.4: 【出】能力抑止の死 BLOCK_ACTION family ─────────────────────────────
