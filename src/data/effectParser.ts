@@ -11403,9 +11403,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   const isHolograph = /ホログラフ/.test(costStr);
   let actionText = afterMarker.slice(colonIdx + 1).trim();
   let leadingTurnOwnerActionCond: Condition | undefined;
-  const leadingTurnM = STATE_HOIST_BATCH1_CARDS.has(cardNum)
-    ? actionText.match(/^(あなた|対戦相手)のターンの場合、(.+)$/s)
-    : null;
+  // §6.4 O-36（続き534）＝カード allowlist を撤廃。「【出】：あなたのターンの場合、…」の先頭条件を
+  // 全カードで持ち上げる（従来は allowlist 外で条件が落ち、ターンを問わず発火していた）。
+  const leadingTurnM = actionText.match(/^(あなた|対戦相手)のターンの場合、(.+)$/s);
   if (leadingTurnM) {
     leadingTurnOwnerActionCond = { type: 'TURN_OWNER', owner: leadingTurnM[1] === '対戦相手' ? 'opponent' : 'self' };
     actionText = leadingTurnM[2];
