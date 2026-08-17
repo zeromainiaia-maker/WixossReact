@@ -16,7 +16,7 @@ import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collect
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource, detectTrashAdded } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
-import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, hasAcceAt } from '../utils/acce';
+import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, hasAcceAt, normalizeAcceSlots } from '../utils/acce';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
