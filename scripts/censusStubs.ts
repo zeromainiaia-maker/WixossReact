@@ -11,7 +11,8 @@
 //   出てこない id は「作られるが誰も読まない＝真 no-op」）＝producer は消費地点から除外する。
 // ⚠id には日本語を含むものがある（`ENERGY_COLOR_SUBSTITUTE_赤_OR_青_TO_白`）＝`[A-Z0-9_]+` で
 //   拾うと実装済みなのに「フォールバック」に化ける（genStubsMd.mjs の既知の誤検出）。
-// ゲートではない（exit 0）。
+// ⚠**ゲート2本**＝A群の無言 no-op（2026-08-11 続き427〜）と、🆕C群＝逆翻訳の生ID露出
+//   （2026-08-18 続き545・§6.4 O-12 完了時）。どちらも 0 が正で、増えたら exit 1 で止まる。
 import { readFileSync, readdirSync, writeFileSync } from 'fs';
 import { join, relative } from 'path';
 
