@@ -13242,6 +13242,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (eff.cost?.discardAll) costPartsMA.push('手札すべて捨て');
           if (eff.cost?.energyTrashAll) costPartsMA.push('エナすべトラッシュ');
           if (eff.cost?.lrigDown) costPartsMA.push(fmtLrigDownCostLabel(eff.cost.lrigDown));
+          if (eff.cost?.down_self) costPartsMA.push('このルリグをダウン');   // タスク12(cxxxi)
           const lrigActLabel = isSongFrag ? '歌のカケラ' : (costPartsMA.join('・') || 'コストなし');
           lrigActionsMA.push({
             label: `【起】${lrigActLabel}`,
