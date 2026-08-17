@@ -1,5 +1,63 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き546・Opus 5）— 🏁🏁Opusタスク12 在庫6件を残0クローズ（＝**在庫0**）＋クローズ済み行の退避
+
+ゲート全緑（typecheck / golden **2222→2225** / smoke 10693 全0 / fuzz 全0 / census 799 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**live JSON 1枚採用（`SPDi43-11`）・CSV 非改変**。
+
+**まず表を整理**＝PLAN §3 の在庫表にクローズ済み10行（🏁残0クローズ7・✅解決1・🟢取り下げ2）が溜まって生きている6件が読めなくなっていたので、原文を [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」へ退避した。**その後 6件すべてを消化して在庫0**。
+
+### 📏 着手前の実測で「6件中2件は原因が既に消えていた」
+
+| # | 結末 | 実測 |
+|---|---|---|
+| (cxxxii) | 🟢**実体消滅** | `signi_deploy_power_limit` は §6.4 O-3（続き487）で**フィールドごと廃止**され、寿命 `turnsRemaining` を持つ `signi_deploy_bans` へ統合済み（`clearTurnEndScopedState` が減算）。登録は 2026-08-14、解消は 2026-08-15＝**在庫が寝ている間に別バッチが原因ごと消していた** |
+| (cxxii) | 🟢**実体消滅** | `WXDi-P05-037-E1` は (cxxvii)（続き475d）の修正で `STUB{OPPONENT_PAY_OPTIONAL, opponentHandDiscard:2, thenOnPay}`＋`TRASH{owner:'opponent'}` になっており、登録時の症状（`TRASH{HAND_CARD, owner:'self'}`）は消えていた |
+
+⇒ **教訓＝在庫は寝かせるほど陳腐化する。着手時に必ず live を実測し直す**（見立てを読んで直しに行くと、既に無い症状を「直した」ことにしてしまう）。
+
+### 🏁 (cxxxiv) 旧形式 `signi_acce`（素の string）の正規化
+
+**見立ての「`acceCardsAt` の1点」では足りなかった。** 実害の本体は `.length` 誤読（`'WD18-013#8202'.length === 13` ＝「3枚以上」が真）ではなく、**`[...cards]` で複製する経路が1文字ずつの配列を作ってゾーンを破壊する**ほう（実機で `hTrash=["W","D","1","8",…]`）。`flatMap` は文字列を展開しないので、壊すのは**スプレッドを使う経路だけ**＝`cloneAcceSlots`（`src/utils/acce.ts:27`）と `screens/battle/fieldLimit.ts:141` の2つだった。
+
+- `src/utils/acce.ts` に `normalizeAcceSlot` / `normalizeAcceSlots` を新設し、**読み出しユーティリティ5関数すべて**（`acceCardsAt`／`allAcceCards`／`countAcce`／`findAcceZone`／`cloneAcceSlots`）を通す。
+- 🔑**より本質的な塞ぎ方＝`setBs` で1度だけ正規化する**（`BattleScreen.tsx` の `normalizeBattleRow`）。`setBs` は fetch / Realtime / 再取得の**3サイトすべてが通る「外から state が入る唯一の入口」**なので、`acceCardsAt` を通らない生アクセス（`BoardComponents` のバッジ等）も自動的に守られる。⚠正規化が不要な行は**同一参照のまま返す**（毎 UPDATE で新オブジェクトを作ると再描画が増える）。
+- 保険として `BoardComponents.tsx` のバッジと `fieldLimit.ts` の複製も個別に正規化へ寄せた。
+- golden 1件。**外すと `expected=1 got=13` で FAIL することを確認済み**。
+
+### 🏁 (cxxxi) ルリグの【起】《ダウン》が実質無コスト（live 27効果）
+
+`down_self` の支払いは `my.field.signi.findIndex(...)` で書かれており（`executeSigniActivated` 用）、**ルリグの【起】では常に -1**。しかも **`executeLrigGranted` には支払いが1行も無く**、UI の可否ゲート（シグニ側 `!(e.cost?.down_self && isAlreadyDown)` に相当するもの）も無かった＝`usageLimit` を持たない効果は**同一ターンに何度でも撃てた**。
+
+- `screens/battle/lrigDownCost.ts` に **`payLrigDownSelfCost(state)`** を新設（純関数）。既にダウンなら `null`＝盤面を変えない。⚠`lrigDown` 語彙（アップのルリグN体を任意に選ぶ）とは別物で、**アシストでは代用できない**。`last_lrig_down_cards` は**記録しない**（シグニ側 `down_self` と同じ規約＝「この方法でダウンしたルリグ」を読むカードは `lrigDown` 側にしか居ない）。
+- 🔴**配線は5地点**＝支払い1（`executeLrigGranted`）＋**提示4**（MAIN 本来／MAIN 付与・継承／ATTACK_ARTS 本来／ATTACK_ARTS 付与）。⚠**支払いだけ直すと「撃てるのに何も起きない」に化ける**（§5-20 の「支払い地点が複数ある型」の提示側版）。コストラベルにも「このルリグをダウン」を出した（3サイト）。
+- 母集団は **ルリグ Type × ACTIVATED × `cost.down_self` ＝ 27効果**（`WD08-001-E3` ほか）。アシストルリグは**0件**なので `executeAssistActivated` は触っていない（ラベル側の 'ダウン' は実質デッドコード）。
+- golden 1件＝母集団27件の固定＋`payLrigDownSelfCost` の可否・非破壊・記録なし。**母集団が増減したら落ちる**＝新しい札の配線漏れに気づける。
+
+### 🏁 (cxix) `ON_HAND_ADDED` の owner を2軸に一般化（`SPDi43-11-E2` の内側付与が恒久 no-op）
+
+timing 判定の regex が **「対戦相手の効果→対戦相手の手札」の1形だけ**だったため、「**あなた**の効果１つによってカードが合計１枚以上**あなた**の手札に移動したとき」が末尾フォールバックに食われ **`ON_PLAY`** になっていた（兄弟の `SPDi43-12`＝ON_ENERGY_TO_TRASH／`SPDi43-13`＝ON_ENERGY_CHARGE だけが正しく、**手札版だけが取り残されていた**）。
+
+- `effectParser.ts` の timing regex を `(?:あなた|対戦相手)…(?:あなた|対戦相手)の手札に移動したとき` へ一般化し、cond 抽出で **原因側（`byOwnEffect`／`byOpponentEffect`）と増えた側（`handOwner`）を独立の2軸として刻む**（`minCount` は 2以上のときだけ刻む＝live diff を増やさない）。
+- live は **`SPDi43-11` 1枚のみ採用**（E1 はバイト単位で同一・E2 の内側 timing / triggerCondition / `costUnparsed` 消滅だけを機械照合してから採用）。既存の「相手→相手」形（`WX25-P2-063-E1`）は**キー順以外の変化なし**を確認。
+- golden 1件＝構造（timing／2軸／`costUnparsed` なし）＋**対照（`WX25-P2-063-E1` が反転していない）**＋付与ストア経由の end-to-end（自分の効果×自分の手札でだけ発火）。
+
+### 🏁 (cxx) エナ差分 watcher の《ターン1回/2回》（live 9効果が撃ち放題）
+
+付与ストア側は続き478 で `reserveGrantedAutoUsage` により予約済みだったが、**同じ useEffect の「印刷シグニ走査」は元から無防備**だった＝`ON_ENERGY_CHARGE` 6効果（`WXK04-028-E2` ほか）／`ON_POWER_THRESHOLD` 3効果（`WX18-077-E1` ほか）が**エナチャージ／閾値到達のたびに撃てた**。
+
+- push 地点3つすべてを `reserveGrantedAutoUsage(st, eff, autoUsedByKey[key])` に通し、予約IDを既存の commit で `actions_done` へ書き戻す（付与と印刷で accumulator を共有＝effectId が違うので衝突しない。変数名も `grantedUsedByKey`→`autoUsedByKey` へ改名）。
+- golden 1件＝母集団9効果の固定＋予約関数の意味論＋🔑**ソース照合で「push 地点3つすべてが予約を通る」**（1つでも素通りすると全ゲート緑のまま撃ち放題に戻る層なので、ここだけは構造を直接見る）。
+
+### 🔧 副産物＝廃止フィールド名で注入していた実機シナリオの是正
+
+`scripts/verifyBattleDrive.mjs` の `v11CpuDeployPowerLimitWithControl` が **廃止済みの `signi_deploy_power_limit` を注入**していた（(cxxxii) の精査で発見）。誰も読まないので**「制限側」が対照と同じ盤面になり、緑でも赤でも意味がない**状態だった＝`signi_deploy_bans: [{ turnsRemaining: 2, powerGte: 5000 }]` へ更新。⚠**機構を統合したら注入側も grep して追随させる**（`injectScenario` は非コアの全トップレベルフィールドを消すので、対照側は元から clean）。
+
+### 観測点
+
+**要実機検証5件を §7 へ `V-66`〜`V-70` で登録**（`V-66`／`V-68` は既存シナリオの再走＝新規シナリオは3本）。最重要は **`V-67`(b)＝ルリグの【起】《ダウン》が2回撃てないこと**（`usageLimit` を持たない効果なので、封じているのはダウン済みゲートだけ）。
+
+---
+
 ## 2026-08-18（続き545・Opus 5）— 🏁§6.4 `O-12` 完了（逆翻訳の「表示だけの穴」＝C群 残0・ゲート化）
 
 **逆翻訳の表示のみの是正＝engine / live JSON / CSV とも非改変**。ゲート全緑・golden **2221 据置**・census **799 据置**・smoke 10693 全0・fuzz 全0・manual-fields **0**・lint **0 errors**。
