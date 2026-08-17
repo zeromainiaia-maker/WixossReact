@@ -33,6 +33,12 @@ interface EffectInteractionModalProps {
 
 export function EffectInteractionModal(p: EffectInteractionModalProps) {
   const [selectedOptionalCostChoiceId, setSelectedOptionalCostChoiceId] = useState<string | null>(null);
+  /**
+   * 「同じ選択肢を２回以上選んでもよい」（§6.4 O-29）専用の**回数**マップ。
+   * ⚠共有の `selectedMultiChoiceIds` は `Set<string>`＝**同じ選択肢を1回しか持てない**ので、
+   *   `inter.allowRepeat` のときだけこちらを使う（既存の複数選択UIの挙動は一切変えない）。
+   */
+  const [repeatChoiceCounts, setRepeatChoiceCounts] = useState<Record<string, number>>({});
   const { bs, user, my, op, loading, battleCardMap, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
   const { effectSelectedNums, setEffectSelectedNums, selectedOptCost, setSelectedOptCost, selectedMultiChoiceIds, setSelectedMultiChoiceIds, lookReorderOrder, setLookReorderOrder, lookReorderTrash, setLookReorderTrash, lookReorderBottom, setLookReorderBottom, rearrangeSlots, setRearrangeSlots, handleEffectInteraction, handleSelectZoneForEffect, handleSelectSigniZoneForEffect, handleSelectVirusZoneForEffect, handleRearrangeSigniConfirm } = p;
   return (
