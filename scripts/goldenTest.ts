@@ -5086,12 +5086,19 @@ test('§6.4 NEXT_TURN 非採用 WX24-P4-024-E3 / WXK10-011-E1: パワー節は�
   // 🔑`WXK10-011-E1` の＋5000 は §6.4 O-33（続き502）で**選択肢②の中へ戻した**＝top-level には無い。
   //   旧アサートは「top-level の POWER_MODIFY を NEXT_TURN 予約しない」だったが、その top-level 自体が
   //   **選択肢本文の漏れ**（＝選ばなくても常に全シグニ＋5000）だったので、正方向へ置き換える。
-  ok(!JSON.stringify(nextTurnLiveAction('WXK10-011', 'WXK10-011-E1')).includes('POWER_MODIFY'),
-    'WXK10-011-E1: ＋5000 が top-level へ漏れていない');
-  const wxkChoice = parseChoiceOptionsFromText(cardMap.get('WXK10-011')!.EffectText ?? '');
-  const wxkPower = findActionByType(wxkChoice[1].action, 'POWER_MODIFY')!;
-  ok(wxkPower.delta === 5000 && wxkPower.duration !== 'NEXT_TURN' && wxkPower.nextTurnOwner === undefined,
-    'WXK10-011-E1②の＋5000を予約しない');
+  // 🆕§6.4 O-11（続き531）＝この効果は engine の全文 regex STUB から**構造化 CHOOSE**へ移った。
+  //   「JSON 全体に POWER_MODIFY が出ない」では選択肢②の中身まで禁じてしまうので、
+  //   **top-level に無いこと**＋**選択肢②の中に在ること**の2本で見る。
+  {
+    const wxk = nextTurnLiveAction('WXK10-011', 'WXK10-011-E1') as unknown as
+      { type: string; choices?: { action: EffectAction }[] };
+    eq(wxk.type, 'CHOOSE', 'WXK10-011-E1: 構造化 CHOOSE になっている');
+    const { choices: _c, ...wxkTop } = wxk;
+    ok(!JSON.stringify(wxkTop).includes('POWER_MODIFY'), 'WXK10-011-E1: ＋5000 が top-level へ漏れていない');
+    const wxkPower = findActionByType(wxk.choices![1].action, 'POWER_MODIFY')!;
+    ok(wxkPower.delta === 5000 && wxkPower.duration !== 'NEXT_TURN' && wxkPower.nextTurnOwner === undefined,
+      'WXK10-011-E1②の＋5000を予約しない');
+  }
 });
 
 test('§6.4 NEXT_TURN 据置 WXK05-052-E1: 相手2体＋同列シード条件の受け皿なし', () => {

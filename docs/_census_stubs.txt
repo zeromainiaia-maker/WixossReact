@@ -1,8 +1,8 @@
 ===== STUB 仕分け計器（§6.4「生ID残存＝表示or実装の穴」） =====
 生成: npx tsx scripts/censusStubs.ts   1件の内訳: --id <STUB_ID>
 
-live JSON の STUB id 種類 : 600（総ノード 2869 件）
-逆翻訳シートの [STUB:…] 総数: 743  うち生ID露出 272 箇所（184 種）
+live JSON の STUB id 種類 : 600（総ノード 2862 件）
+逆翻訳シートの [STUB:…] 総数: 743  うち生ID露出 271 箇所（183 種）
 
 ■ 仕分け結果
   A 実装の穴（ハンドラ無し＋src に消費0＝真 no-op）      : 2 種 / 2 件
@@ -20,12 +20,12 @@ live JSON の STUB id 種類 : 600（総ノード 2869 件）
 -- 無言の no-op（要対応）--
 
 -- 明示 defer（DEFERRED_*＝機構が無いことを宣言済み。無言バグではない）--
+     1件   1枚  DEFERRED_OPP_LRIG_UNDER_TO_TRASH
+        カード: WD23-012-A
+        生成: src\data\parsers\parseSentencePart1.ts:1716
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
         生成: src\data\parsers\parseSentencePart4.ts:1935
-     1件   1枚  DEFERRED_TRASH_NAME_CHOOSE_COUNT  [生ID露出 1]
-        カード: WX20-078
-        生成: src\data\parsers\parseSentencePart3.ts:1824
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -77,10 +77,10 @@ live JSON の STUB id 種類 : 600（総ノード 2869 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:7349
+        消費: src\engine\effectExecutor.ts:7354
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:7351
+        消費: src\engine\effectExecutor.ts:7356
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:65

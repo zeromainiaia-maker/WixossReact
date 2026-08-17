@@ -1712,7 +1712,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ⚠engine のルリグ下操作（`INTERNAL_CONSUME_LRIG_UNDER`／`SOUL_OP` ほか）は
   //   **すべて `ctx.ownerState` 固定**で相手側のスタックを触れない＝機構が要る。
   //   実装が入るまでは**明示 defer**（無言の no-op ではなく宣言された no-op）にする。
-  if (/対戦相手の(?:センター)?ルリグの下から(?:カード)?[０-９\d]+枚(?:まで)?を?対象とし、?それらを(?:ルリグ)?トラッシュに置く/.test(t)) {
+  if (/対戦相手の(?:センター)?ルリグの下から(?:カード)?を?[０-９\d]+枚(?:まで)?を?対象とし、?それらを(?:ルリグ)?トラッシュに置く/.test(t)) {
     return { type: 'STUB', id: 'DEFERRED_OPP_LRIG_UNDER_TO_TRASH' } as StubAction;
   }
 
