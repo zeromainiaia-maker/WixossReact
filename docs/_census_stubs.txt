@@ -92,7 +92,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         消費: src\engine\effectExecutor.ts:7373
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
-        消費(id正規表現): src\screens\battle\fieldLimit.ts:65
+        消費(id正規表現): src\screens\battle\fieldLimit.ts:66
      1件   1枚  LRIG_UNDER_TO_TRASH
         カード: WX05-007
         消費: src\engine\effectExecutor.ts:3870
@@ -110,7 +110,7 @@ live JSON の STUB id 種類 : 601（総ノード 2864 件）
         消費: src\engine\refresh.ts:30
      1件   1枚  STRIP_OPP_ENA_MULTI_ENA
         カード: WXK11-020
-        消費: src\screens\BattleScreen.tsx:1022 / src\screens\BattleScreen.tsx:10546
+        消費: src\screens\BattleScreen.tsx:1044 / src\screens\BattleScreen.tsx:10568
      1件   1枚  TRASH_ABILITY_LOSS_AND_IMMUNITY
         カード: WX12-023
         消費: src\engine\execUtils.ts:1421
