@@ -13221,6 +13221,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           if (my.blocked_actions?.includes(eff.effectId)) continue;
           // lrigDown: アップ状態のルリグ（level 条件つき）が必要数いないと支払えない（タスク12(cviii)）
           if (eff.cost?.lrigDown && payLrigDownCost(my, eff.cost.lrigDown, battleCardMap) === null) continue;
+          if (isLrigDownSelfUnpayable(eff)) continue;   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
           // SONG_FRAGMENT: エナゾーンに歌のカケラがある場合のみ表示
           const actMA = eff.action as import('../types/effects').StubAction;
           if (actMA?.type === 'STUB' && actMA.id === 'SONG_FRAGMENT') {
