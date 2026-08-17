@@ -9618,8 +9618,21 @@ function parseActionTextInner(text: string): EffectAction {
         // 「それが**無色ではない**シグニの場合」（`WXK10-022-E3`）＝限定が落ちて無色シグニでも発火する
         // 過剰効果だった。`parseColorFilter` は肯定色（「青の」）しか見ないのでここで明示的に拾う。
         ...(/無色ではない/.test(condText) ? { nonColorless: true } : {}),
+        // 裸の《X》（「そのカードが**《ディソナアイコン》**の場合」＝`WXDi-P12-057-E1`／`WXDi-P12-070-E1`／
+        // `WXDi-P13-060-E1`）。⚠cardType を外しただけだと `parseStoryFilter` が拾わず **filter が空＝
+        // どのカードでも発火**に化ける（この規則が無いと A/B で実際にそうなった）。
+        ...(bareTypeless && condText.startsWith('《')
+          ? (condText === '《ディソナアイコン》'
+            ? { isDisona: true }
+            : { cardName: condText.slice(1, -1) })
+          : {}),
       };
-      const rp = { type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1, then: thenAction, remainder: { location: 'deck', position: 'top' } } as RevealAndPickAction;
+      const rp = {
+        type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 1, filter, pickCount: 1,
+        // 否定形は「一致しなかったとき」に帰結が走る＝`then` は空 SEQUENCE（no-op）で `elseAction` に載せる。
+        ...(negated ? { then: { type: 'SEQUENCE', steps: [] }, elseAction: thenAction } : { then: thenAction }),
+        remainder: { location: 'deck', position: 'top' },
+      } as RevealAndPickAction;
       // 公開文の前置き「あなたのエナゾーンにあるカードがN枚以下の場合、／エナゾーンにカードがない場合、」
       // が丸ごと脱落していた（無条件公開の過剰効果）＝ ENERGY_COUNT で持ち上げる（WX12-051/WX12-052）
       const enaPrefM = sentences[0].trim().match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)の|カードがない)場合、/);
