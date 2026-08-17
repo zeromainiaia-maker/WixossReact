@@ -415,6 +415,14 @@ export function parseSentencePart2(t: string): EffectAction | null {
   //   のどちらのチェックにも当たらない＝**誰も読まない死 actionId**（live 5効果が真 no-op）。
   //   `USE_ARTS` と `USE_SPELL` の**2本に割る**＝どちらも live に消費地点がある。
   // ⚠語順は両方ある（「アーツとスペル」／「スペルとアーツ」）。
+  // 🆕⚠**色で限定された使用封じは受けない**（§6.4 O-11・続き532・`PR-471`②
+  //   「対戦相手は**無色ではない、**アーツとスペルを使用できない」）。
+  //   `BLOCK_ACTION` は actionId しか持たず**カードの色で絞る機構が無い**ので、素の2本を積むと
+  //   **無色のアーツ／スペルまで封じる過剰実行**になる（既存の `BLOCK_NON_WHITE_SPELL` も engine では
+  //   ログだけの no-op ＝この層は未実装）。実装が入るまでは明示 defer。
+  if (/(?:無色ではない|[白赤青緑黒]の)[、,]?(?:アーツとスペル|スペルとアーツ)を使用できない/.test(t)) {
+    return { type: 'STUB', id: 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK' } as StubAction;
+  }
   if (t.match(/(?:アーツとスペル|スペルとアーツ)を使用できない/)) {
     const owner: Owner = (t.includes('あなたはアーツ') || (t.includes('あなたは') && !t.includes('対戦相手'))) ? 'self' : 'opponent';
     const until = blockUntilFromText(t);
