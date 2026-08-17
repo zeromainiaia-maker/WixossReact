@@ -2234,6 +2234,15 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- このターン、対戦相手が場に出せない（配置制限）----
+  // ⚠「シグニを新たに場に出せない」＝**枚数上限でも パワー上限でもない全面禁止**なので `DEPLOY_RESTRICT`
+  //   （engine が原文から「N体までしか」「パワーN以上」を読む）に渡すと**どちらの形にも当たらず
+  //   「配置制限（パターン解析不可）」のログだけ＝無言 no-op** になる。`BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN`
+  //   （`blocked_actions:'PLACE_SIGNI'` を相手へ張る）が正しい受け皿。
+  //   §6.4 O-36（続き534）＝先頭の「対戦相手のターンの場合、」が CONDITIONAL へ持ち上がって
+  //   part4 の元の規則（条件句を含む形）から外れたため、ここで先取りする（`WXK10-013-E1` 1件）。
+  if (/^このターン、対戦相手(?:が|は)/.test(t.trim()) && /シグニを新たに場に出せない/.test(t)) {
+    return { type: 'STUB', id: 'BLOCK_OPP_SIGNI_PLAY_IF_OPP_TURN' } as StubAction;
+  }
   if (t.match(/^このターン、対戦相手(?:が|は)/) && t.includes('場に出せない')) {
     return { type: 'STUB', id: 'DEPLOY_RESTRICT' } as StubAction;
   }
