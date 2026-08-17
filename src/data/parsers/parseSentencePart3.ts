@@ -1530,9 +1530,13 @@ export function parseSentencePart3(t: string): EffectAction | null {
   //   **手札の末尾1枚を無条件に自動で捨てる**だけの近似で、①原文の限定（《ガードアイコン》を持つシグニ等）を
   //   無視し ②「〜てもよい」の任意性が消え ③対象宣言を保存しないので後続の「そうした場合、**それを**〜」が
   //   別のカードを掴む（§6.4 O-11・`SPDi43-26-E2`＝バウンス自体が丸ごと落ちていた）。
-  // 🔑限定が**残りなく**解けたときだけ正準形へ寄せる＝
-  //   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → OPTIONAL_COST{handDiscard}`。
+  // 🔑限定が**残りなく**解けたときだけ正準形 `OPTIONAL_COST{handDiscard:{count,filter}}` へ寄せる。
   //   解けなければ従来の総称 STUB のまま（取りこぼしを増やさない）。
+  // ⚠**ここで対象宣言（`SELECT_TARGET_ONLY`/`STORE_LAST_PROCESSED_TARGETS`）を作ってはいけない**＝
+  //   対象の束縛はカード単位の `applyDroppedTargetDesignation` が「そうした場合」ゲートを見ながら行う。
+  //   文単位で入れ子 SEQUENCE を作ると、engine の任意コスト funnel が見る
+  //   「`OPTIONAL_COST` の**直後の兄弟**がゲート」という隣接が壊れ、**払わなくても本体が走る**
+  //   （実測7効果＝`SPDi43-15`／`WX12-017`／`WX24-P4-047` ほかで踏んだ）。
   {
     const desigCostM = t.match(
       /^(?:その後、)?((?:対戦相手|あなた)の[^、。]*?シグニを?[０-９\d]*体(?:まで)?)を?対象とし、手札から(.+?)を([０-９\d]+)枚捨ててもよい$/,
