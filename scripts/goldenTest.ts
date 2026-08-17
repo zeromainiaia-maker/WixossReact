@@ -38860,6 +38860,9 @@ test('§6.4 O-38: SPDi43-01-E2 はハードブロックではなく支払いゲ�
     '🔴支払いゲートが engine に届いていない');
   ok((r.otherState.blocked_actions ?? []).includes('PAY_GATE_OWN_SIGNI_AUTO:無:NEXT_TURN'),
     '次の相手ターンぶんの予約も積む（「次の対戦相手のターン終了時まで」）');
+  // 宣言 → 消費の橋渡し（`resolveStackNext` の choke point が読むのと同じ関数で確かめる）
+  eq(findSigniAutoPayGate(r.otherState, r.ownerState)?.join(','), '無', '🔴宣言が choke point に届いていない');
+  eq(findSigniAutoPayGate(r.ownerState, r.otherState), null, '宣言者自身のシグニには掛からない');
 });
 
 test('§6.4 O-38: 支払いゲートの向き＝宣言者自身のシグニ【自】には掛からない', () => {
