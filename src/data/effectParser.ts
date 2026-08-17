@@ -4155,6 +4155,26 @@ function parseSingleSentenceInner(text: string): EffectAction {
   const recovered = recoverDroppedConjClauses(t, result);
   if (recovered) return recovered;
 
+  // 🔴「〈対象節〉を対象とし、**それを**〈V〉し、ターン終了時まで、このシグニのパワーを±Nする」＝
+  //   **先頭節（対象＋V）が丸ごと落ちて自己パワー修整だけが残る**形（§6.4 O-11・`WX13-046-E1`）。
+  //   上の `recoverDroppedConjClauses` は「2節目以降に照応（それ）があれば触らない」設計なので
+  //   この向き（**落ちているのが head 側**）は素通りしていた。
+  // ⚠再構成してよいのは**前置きが条件ではなくトリガー句のとき**だけ＝`WX21-006`（「…3体ある場合、
+  //   それをバニッシュし、…」）で条件が未パースのまま head を足すと**毎アタックフェイズ無条件バニッシュ**
+  //   になる（`recoverDroppedConjClauses` の同じ教訓）。ここは `場合|かぎり` を含む文を明示的に弾く。
+  {
+    const chainM = t.match(/^(.*?(?:とき|：)、?)?((?:.+?)を[０-９\d]*[体枚]?(?:まで)?対象とし、それを(?:バニッシュ|トラッシュに置き|手札に戻し|エナゾーンに置き|ダウン))し?、(ターン終了時まで、このシグニのパワーを[＋－][０-９\d]+する)。?$/);
+    if (chainM && !/場合|かぎり|代わりに/.test(t) && result.type !== 'UNKNOWN') {
+      const head = parseSingleSentence(chainM[2] + 'する');
+      const have = collectActionTypeSet(result);
+      const headTypes = collectActionTypeSet(head);
+      const headMissing = [...headTypes].some(x => x !== 'SEQUENCE' && x !== 'SIGNI' && !have.has(x));
+      if (head.type !== 'UNKNOWN' && head.type !== 'STUB' && headMissing) {
+        return { type: 'SEQUENCE', steps: [head, result] } as SequenceAction;
+      }
+    }
+  }
+
   const leadDrawM = t.match(/^(?:その後、)?カードを([０-９\d]+)枚引き、/);
   if (leadDrawM && result.type !== 'UNKNOWN') {
     const steps0 = result.type === 'SEQUENCE' ? (result as SequenceAction).steps : [result];
