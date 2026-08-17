@@ -5331,16 +5331,16 @@ const DISTINCT_SOURCE_FIX_BATCH5C: Record<string, number> = {
   'WX20-Re14-E1':4,'WXEX1-47-E2':4,'WXEX2-74-E2':4,'WX25-P1-014-E1':3,
   'WX25-P1-030-E1':3,'WX25-P2-063-E2':3,'WXK09-067-E1':4,
 };
-function applyDistinctBatch5c(effects: CardEffect[]): void {
-  const visit = (node: unknown, kind: 'level'|'name'|'class', sourceCount: number | undefined, state: { applied: boolean }): void => {
+function applyDistinctBatch5c(effects: CardEffect[], cardText: string): void {
+  const visit = (node: unknown, kind: DistinctKind, sourceCount: number | undefined, state: { applied: boolean }): void => {
     if (!node || typeof node !== 'object') return;
     const obj = node as Record<string, unknown>;
     if (!state.applied && obj.type === 'PLACE_UNDER_SIGNI') {
-      obj.selectionConstraint = { distinct: kind };
+      obj.selectionConstraint = distinctConstraintOf(kind);
       state.applied = true;
     }
     if (obj.type === 'SEARCH' && !state.applied) {
-      obj.selectionConstraint = { distinct: kind };
+      obj.selectionConstraint = distinctConstraintOf(kind);
       state.applied = true;
     }
     const key = obj.target ? 'target' : obj.source ? 'source' : undefined;
