@@ -131,7 +131,7 @@ import { crashSourceSuppressesLifeBurst } from './battle/lifeBurstSuppress';
 import { activateTurnStartScopedState, clearAttackPhaseScopedState, clearMainPhaseScopedState, clearTurnEndScopedState, closeTeamPieceCutinWindow, consumeFreeGrowThisTurn, consumeSpellNegationThisTurn } from './battle/turnScopedState';
 import { grantedStoreWatchers } from '../engine/grantedStore';
 import { deployCountCap, deployLimitBlockReason } from '../engine/deployLimit';
-import { isHandSigniPlayBlockedByPower } from '../engine/blockAction';
+import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../engine/blockAction';
 
 function finalizePendingSpellPlacement(result: ExecResult, pe: PendingEffect): ExecResult {
   if (!result.done || !pe.spellPlacement) return result;
