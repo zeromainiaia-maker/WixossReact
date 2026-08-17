@@ -419,9 +419,23 @@ export const conditionClauseExtraOk = (js: string, t: string): boolean => {
   return allCovered && t2 !== t && !/場合[、,]/.test(stripResultClauses(t2));
 };
 
+/**
+ * 「〈盤面条件〉の場合、代わりにNつ(まで)選ぶ」＝**選択数の置換**を落とす。
+ * JSON 側の正表現は `conditionChoose`（§6.4 O-11・続き531）で、`betChoose` と同じく
+ * `CONDITIONAL` では表せない＝キー表に載らないため、較正しないと
+ * **正しく表現した札が「代わりに」だけを理由に高シグナルへ落ちる**。
+ * ⚠無条件マスクにはしない（この節を除いた残りに「代わりに」があればフラグ維持）。
+ */
+const stripConditionChooseClause = (js: string, text: string): string =>
+  /"conditionChoose"/.test(js)
+    ? text.replace(/[^。]*?場合[、,]代わりに[０-９\d一二三四五六七八九]+つ(?:まで)?を?選ぶ[。]?/g, '')
+    : text;
+
 export const replacementClauseExtraOk = (js: string, t: string): boolean => {
   const modeled = removeModeledReplacementClauses(js, t);
   if (modeled !== t && !/代わりに/.test(modeled)) return true;
+  const ccStripped = stripConditionChooseClause(js, t);
+  if (ccStripped !== t && !/代わりに/.test(ccStripped)) return true;
   return /betChoose|IS_BETTING|BET_CONDITION/.test(js)
     && !/代わりに/.test(t.replace(/あなたがベット(?:していた|する)場合[、,]代わりに[^。]*。?/g, ''));
 };
