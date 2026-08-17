@@ -77,6 +77,34 @@ export function resolveLrigDamageShield(args: {
   return { prevented: false };
 }
 
+/**
+ * 【常】の宣言になりうる `(host, 能力)` の組を**印刷能力と付与ストアの両方**から列挙する
+ * （§6.4 O-27・続き536）。
+ *
+ * ⚠🔴**付与された能力は `effectsMap` に載らない**（`engine/grantedStore.ts` の冒頭注記）＝
+ *   「それは以下の能力を得る。『【常】：…ダメージを受けない…』」で得たシールドは、印刷能力しか
+ *   見ていない従来の走査では**構造が正しくても恒久 no-op** だった（`WX24-P3-003-E1`）。
+ *   新しい【常】の走査軸を足すときは、必ず印刷側とこの付与ストア側を**対で**書くこと。
+ * ⚠付与ストアの2本は「ルリグの能力」なので `lrig_abilities_disabled` で丸ごと落ちる
+ *   （`grantedStoreWatchers` と同じ規約）。`game_granted_effects`＝プレイヤー付与は落ちない。
+ */
+function shieldCandidates(
+  state: PlayerState,
+  effectsMap: Map<string, CardEffect[]>,
+): Array<[string, CardEffect]> {
+  const out: Array<[string, CardEffect]> = [];
+  for (const num of shieldSources(state)) {
+    for (const eff of (effectsMap.get(num) ?? effectsMap.get(baseCardNum(num)) ?? [])) out.push([num, eff]);
+  }
+  const lrigTop = state.field.lrig.at(-1) ?? '';
+  if (!state.lrig_abilities_disabled) {
+    for (const eff of state.lrig_granted_auto_effects ?? []) out.push([lrigTop, eff]);
+    for (const eff of state.lrig_granted_auto_effects_until_opp_turn ?? []) out.push([lrigTop, eff]);
+  }
+  for (const eff of state.game_granted_effects ?? []) out.push([lrigTop, eff]);
+  return out;
+}
+
 /** 【常】の宣言元になりうる自分の場のカード（シグニ／センタールリグ／アシスト／キー）。 */
 function shieldSources(state: PlayerState): string[] {
   return [
