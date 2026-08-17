@@ -37500,10 +37500,20 @@ test('§6.4 O-11: MILL は lastProcessedCards の recorder＝「それが〜の�
 test('§6.4 O-11: 誤発火していた2件は明示 defer へ（原文に無いパワー修正を捏造しない）', () => {
   // `CONDITIONAL_POWER_BONUS` のハンドラは**カード全文**から `[－＋]N` を拾うので、
   // パワーと無関係な条件節に当たると別の節の数値を適用してしまう（無言 no-op より悪い）。
+  // 🆕§6.4 O-11（続き531）＝この効果は defer を卒業し、**構造化 CHOOSE＋`conditionChoose`** になった。
+  //   （旧 `DEFERRED_TRASH_NAME_CHOOSE_COUNT` は「トラッシュ名で選択数が変わる」機構が無かったための
+  //    明示 defer。汎用の `conditionChoose` が入ったので条件そのものを載せられる。）
+  //   ⚠見張る本質は変わらない＝**`CONDITIONAL_POWER_BONUS` へ戻らないこと**（戻ると③の「－5000」を
+  //    カード全文から拾って相手全体が弱体化する）。
   const wx = (effectsMap.get('WX20-078') ?? []).find(x => x.effectId === 'WX20-078-E1');
   ok(!!wx, 'WX20-078-E1 が live に存在する');
-  eq(((wx!.action as SequenceAction).steps[0] as StubAction).id, 'DEFERRED_TRASH_NAME_CHOOSE_COUNT',
+  ok(!JSON.stringify(wx!.action).includes('CONDITIONAL_POWER_BONUS'),
     '🔴トラッシュ名条件が CONDITIONAL_POWER_BONUS に戻ると、選択肢③の「－5000」を拾って相手全体が弱体化する');
+  const wxCC = (wx!.action as unknown as { conditionChoose?: { condition?: { type?: string; filter?: { cardName?: string } };
+    thenChooseCount?: number } }).conditionChoose;
+  eq(wxCC?.condition?.type, 'TRASH_HAS_CARD', '選択数を増やす条件はトラッシュのカード名');
+  eq(wxCC?.condition?.filter?.cardName, 'インフル', '🔴カード名限定が落ちると常に2つ選べる');
+  eq(wxCC?.thenChooseCount, 2, '条件達成時の選択数');
   const di = (effectsMap.get('WXDi-CP01-033') ?? []).find(x => x.effectId === 'WXDi-CP01-033-E1');
   ok(!!di, 'WXDi-CP01-033-E1 が live に存在する');
   ok(!JSON.stringify(di!.action).includes('CONDITIONAL_POWER_BONUS'),
