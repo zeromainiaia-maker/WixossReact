@@ -2,6 +2,7 @@
 import type { PlayerState, CardData } from '../../types';
 import { getCardNum, matchesFilter } from '../../engine/effectExecutor';
 import { matchesStateFilter } from '../../engine/effectEngine';
+import { cloneAcceSlots } from '../../utils/acce';
 
 export function fieldTrashSelectableZones(
   cost: { count: number; filter?: import('../../types/effects').TargetFilter; excludeSelf?: boolean } | undefined,
