@@ -13188,6 +13188,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return [];
   };
 
+  // 🔴ルリグの【起】《ダウン》（`cost.down_self`）はセンタールリグ自身をダウンさせるコスト（タスク12(cxxxi)）。
+  //   既にダウンしていれば払えない＝提示しない（シグニ経路 13057 の `!(e.cost?.down_self && isAlreadyDown)` の
+  //   ルリグ版。支払いは `executeLrigGranted` 側で行う＝§5-20「支払い地点が2箇所ある型」）。
+  const isLrigDownSelfUnpayable = (e: import('../types/effects').CardEffect): boolean =>
+    !!e.cost?.down_self && !!my.field.lrig_down;
+
   // ルリグゾーンのカードアクション（ルリグアタック）
   const getMyLrigFieldActions = (): CardAction[] => {
     if (!isMyTurn || loading) return [];
