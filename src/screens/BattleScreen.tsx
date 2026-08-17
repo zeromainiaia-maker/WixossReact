@@ -3326,6 +3326,18 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       ], causeOwnerId, h, g);
       entries.push(...ha.entries); useHost(ha.usedHostIds); useGuest(ha.usedGuestIds);
     }
+    // ON_TRASH_CARD_ADDED: 効果によってトラッシュにカードが置かれた場合（§6.4 O-37(c)・WX24-P3-007 の付与【自】）。
+    // ⚠**移動元を問わない**＝ON_CARD_MILLED_FROM_DECK（デッキ限定）とは別軸で、同じ解決で両方発火しうる。
+    //   「対戦相手の効果1つによって」は causeOwnerId で判定する（コスト支払いはこの中央 diff を通らない）。
+    const trashAddedHost = detectTrashAdded(beforeHost, h);
+    const trashAddedGuest = detectTrashAdded(beforeGuest, g);
+    if (trashAddedHost.length > 0 || trashAddedGuest.length > 0) {
+      const ta = pureCollectTrashAddedTriggers(mkTrigCtx(), [
+        { ownerId: bs.host_id, nums: trashAddedHost },
+        { ownerId: bs.guest_id, nums: trashAddedGuest },
+      ], causeOwnerId, h, g);
+      entries.push(...ta.entries); useHost(ta.usedHostIds); useGuest(ta.usedGuestIds);
+    }
     // ON_ENERGY_CHARGE movedSelf: エナへ移動したカード自身の AUTO。場 watcher とは movedSelf で排他的。
     const energyAddedSelfHost = detectEnergyAddedWithSource(beforeHost, h);
     const energyAddedSelfGuest = detectEnergyAddedWithSource(beforeGuest, g);
