@@ -1554,16 +1554,11 @@ export function parseSentencePart3(t: string): EffectAction | null {
         .replace(/レベル[０-９\d]+(?:以下|以上)?/g, '')
         .replace(/シグニ|カード|スペル|[の、,か]/g, '').replace(/[白赤青緑黒無]色?/g, '').trim();
       if (rest.length === 0) {
-        const desigOwner: Owner = desigCostM[1].startsWith('対戦相手') ? 'opponent' : 'self';
         return {
-          type: 'SEQUENCE',
-          steps: [
-            { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: parseSigniTarget(desigCostM[1], desigOwner) } as StubAction,
-            { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
-            { type: 'STUB', id: 'OPTIONAL_COST', costText: `手札から${spec}を${desigCostM[3]}枚捨ててもよい`,
-              handDiscard: { count: parseNum(desigCostM[3]), filter } } as StubAction,
-          ],
-        } as EffectAction;
+          type: 'STUB', id: 'OPTIONAL_COST',
+          costText: `手札から${spec}を${desigCostM[3]}枚捨ててもよい`,
+          handDiscard: { count: parseNum(desigCostM[3]), filter },
+        } as StubAction;
       }
     }
   }
