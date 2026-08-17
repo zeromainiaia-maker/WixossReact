@@ -127,6 +127,7 @@ import { listActivatableSigniEffects } from './battle/signiActivateGate';
 import { pickCpuMainPhaseActivated } from './battle/cpuActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
+import { checkSpellUse, isSpellUseBlockedFor } from './battle/spellUseGate';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
@@ -2462,11 +2463,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * 実行入口 `castSpell` にしかガードが無く、**押しても無反応**の無言 no-op になっていた
    * （続き460 で `USE_SPELL` だけ同じ穴を塞いだときの残り2軸）。
    * ⚠**判定はこの1関数に集約する**＝ボタン生成／実行入口が別々に軸を持つと必ずズレる。
+   * ⚠実装は `spellUseGate.isSpellUseBlockedFor`（CPU の候補フィルタも同じ関数を呼ぶ・§8 `O-1` (b)）。
    */
   const isSpellUseBlocked = (card: { Color?: string } | undefined) =>
-    isActionBlocked('USE_SPELL')
-    || (isActionBlocked('PLAY_COLORLESS') && card?.Color === '無')
-    || (isActionBlocked('BLOCK_NON_WHITE_SPELL') && !card?.Color?.includes('白'));
+    isSpellUseBlockedFor(my, contBlocked.forSelf, card);
 
   /**
    * アーツを使用できないか（§6.4 O-10・続き512）。
@@ -7334,12 +7334,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // カットインのベット）は収集済みで、ここだけが「コインは払うのに反応【自】を積まない」穴だった。
       // 対象＝ベット持ちスペル7枚（`WXDi-P07-059` ほか）。
       const spellCoin = betCost > 0
-        ? collectCoinPaidTriggers(user.id, newMyState, newOpState)
+        ? collectCoinPaidTriggers(p.actorId, newMyState, newOpState)
         : { entries: [] as StackEntry[], usedIds: [] as string[] };
       newMyState = applyCoinPaidUsed(newMyState, spellCoin); // 《ターン1回/2回》消化を永続化
-      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const stateKey = p.actorKey;
       const spell: PendingSpell = {
-        caster_id: user.id,
+        caster_id: p.actorId,
         card_num: spellInstanceId,
         paid_energy_colors: paidEnergyColors,
         ...(removedVirusCount > 0 ? { pre_use_virus_removed: removedVirusCount } : {}),
@@ -7354,31 +7354,47 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   `if (bs.effect_stack …) return;` で待つので「支払い→トリガー解決→カットイン→スペル解決」の順になる。
       const spellUseCostEntries: StackEntry[] = [...spellCoin.entries];
       if (useCostTrashedSigni.length > 0) {
-        const afterHostSp = isHost ? newMyState : newOpState;
-        const afterGuestSp = isHost ? newOpState : newMyState;
+        const afterHostSp = actorIsHost ? newMyState : newOpState;
+        const afterGuestSp = actorIsHost ? newOpState : newMyState;
         const bdSp = collectBoardDiffTriggers(afterHostSp, afterGuestSp, {
-          causeOwnerId: user.id, causeSourceCardNum: spellInstanceId,
+          causeOwnerId: p.actorId, causeSourceCardNum: spellInstanceId,
           fieldTrashCostCards: useCostTrashedSigni,
         });
-        newMyState = isHost ? bdSp.hostState : bdSp.guestState;
+        newMyState = actorIsHost ? bdSp.hostState : bdSp.guestState;
         spellUseCostEntries.push(...bdSp.entries);
       }
       const spellUseCostStack: EffectStack | undefined = spellUseCostEntries.length > 0
         ? (bs.effect_stack
           ? pushToStack(bs.effect_stack, spellUseCostEntries)
-          : initStack(bs.active_user_id ?? user.id, spellUseCostEntries))
+          : initStack(bs.active_user_id ?? p.actorId, spellUseCostEntries))
         : undefined;
       await persist.commit(reduceBattle(bs, {
         type: 'QUEUE_SPELL',
         casterKey: stateKey,
         casterState: newMyState,
         spell,
-        ...(removedVirusCount > 0 ? { other: { key: isHost ? 'guest_state' : 'host_state', state: newOpState } } : {}),
+        ...(removedVirusCount > 0 ? { other: { key: actorIsHost ? 'guest_state' : 'host_state', state: newOpState } } : {}),
         ...(spellUseCostStack ? { effectStack: spellUseCostStack } : {}),
       }));
     } finally {
       setLoading(false);
     }
+  };
+
+  /** 人間UI（`SpellCastModal`）から呼ぶ薄いラッパー。本体は `performSpell`。 */
+  const castSpell = async (card: CardData, costIndices: Set<number>, handIdx: number, fromLrigDeck?: boolean, betCoins: number = 0, virusRemovalByZone?: number[], discardIndices: Set<number> = new Set(), useCostPayKeys: Set<string> = new Set()) => {
+    if (loading) return;
+    closeSpellCast();
+    setBetAmount(0);
+    await performSpell(card, { costIndices, handIdx, fromLrigDeck, betCoins, virusRemovalByZone, discardIndices, useCostPayKeys }, {
+      actor: my, opponent: op,
+      actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      isActorTurn: isMyTurn,
+      energyPayPool: myEnergyPayPool,
+      blockedSelf: contBlocked.forSelf,
+      enaAllMulti: myEnaAllMulti,
+      enaMultiStripped: myEnaMultiStripped,
+    });
   };
 
   // スペルカットインをパス → スペル解決（スペル効果を発火）
