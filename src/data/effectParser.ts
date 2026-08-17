@@ -7271,7 +7271,7 @@ function applyDeckTopMillTargetAnaphora(text: string, action: EffectAction): Eff
       const c = a as import('../types/effects').ConditionalAction;
       return { ...c, then: stripTriggerSource(c.then), ...(c.else ? { else: stripTriggerSource(c.else) } : {}) };
     }
-    if (!(a as Record<string, unknown>).targetsTriggerSource) return a;
+    if (!(a as unknown as Record<string, unknown>).targetsTriggerSource) return a;
     const { targetsTriggerSource: _drop, ...rest } = a as EffectAction & { targetsTriggerSource?: boolean };
     return rest as EffectAction;
   };
