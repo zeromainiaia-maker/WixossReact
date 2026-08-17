@@ -196,8 +196,9 @@ function pickCpuArtsBy(
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
     const effects = effectsMap.get(card.CardNum) ?? [];
     if (!cpuCanPayArtsWithEnergyOnly(effects)) continue;
-    const kind = effects
-      .filter(e => e.effectType === 'ACTIVATED')
+    const acts = effects.filter(e => e.effectType === 'ACTIVATED');
+    if (acts.some(e => hasCpuUnsupportedAction(e.action))) continue;
+    const kind = acts
       .map(e => defensiveKindOf(e.action))
       .filter((k): k is CpuDefensiveKind => k !== null && opts.allowKinds.has(k))
       .sort((a, b) => KIND_PRIORITY[a] - KIND_PRIORITY[b])[0];
