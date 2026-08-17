@@ -1259,9 +1259,18 @@ export function parseSentencePart3(t: string): EffectAction | null {
     return { type: 'STUB', id: 'SUPPRESS_LIFE_BURST_ON_CRASH' } as StubAction;
   }
 
-  // ---- あなたのエナゾーンからすべてのカードをトラッシュに置く ----
-  if (t.match(/あなたのエナゾーンからすべてのカードをトラッシュに置く/)) {
-    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'self', count: 'ALL' } };
+  // ---- 〈誰か〉のエナゾーンの全カードをトラッシュに置く ----
+  // 🔴従来は **`あなたの`＋`から` の1綴りだけ**を見ており（§6.4 O-35・続き528 で実測）、
+  //   ①「**対戦相手の**エナゾーンからすべてのカードを〜」は下流の汎用規則に拾われて
+  //     **`count:1`＝1枚だけ**に化けていた（`PR-470B-E2`＝アタックのたびに相手エナ全損のはずが1枚）
+  //   ②「エナゾーンに**ある**すべてのカードを〜」（から→にある）は**規則ゼロで UNKNOWN**
+  //     （`WX11-020-E1` は条件節ごと `CONDITIONAL_POWER_BONUS` へ落ちて無言 no-op）
+  //   だった。所有者と2綴りをまとめて受ける。
+  // ⚠**「手札と**エナゾーンにある〜」（2ゾーン同時）は対象外**＝`あなたの` の直後が `エナゾーン` で
+  //   ないので自然に外れる。片方だけ実行する近似にしないため、あえて広げない。
+  const massEnergyTrashM = t.match(/^(?:(あなた|対戦相手)(?:は自分)?の)?エナゾーン(?:から|にある)すべてのカードをトラッシュに置く$/);
+  if (massEnergyTrashM) {
+    return { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: massEnergyTrashM[1] === '対戦相手' ? 'opponent' : 'self', count: 'ALL' } };
   }
 
   // ---- 手札からクラス等のシグニをN枚捨ててもよい ----

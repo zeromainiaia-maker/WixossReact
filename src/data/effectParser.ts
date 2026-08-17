@@ -9671,6 +9671,12 @@ function parseActionTextInner(text: string): EffectAction {
         ...(negated ? { then: { type: 'SEQUENCE', steps: [] }, elseAction: thenAction } : { then: thenAction }),
         remainder: { location: 'deck', position: 'top' },
       } as RevealAndPickAction;
+      // 任意公開は `OPTIONAL_ACTIVATE` を**直下ステップ**として前置する（executor Pattern⑤ は
+      // 「STUB が SEQUENCE の直接ステップ」を前提にするので、SEQUENCE を入れ子にしない）。
+      const optAct = { type: 'STUB', id: 'OPTIONAL_ACTIVATE' } as EffectAction;
+      const body: EffectAction = optionalReveal
+        ? ({ type: 'SEQUENCE', steps: [optAct, rp] } as SequenceAction)
+        : rp;
       // 3文目「そうでない場合、〈X〉」＝**この文型で唯一の排他 else**（§6.4 O-35）。従来は下の tail ガードが
       // 「【出】能力は発動しない」以外を全部落としていたため**帰結が丸ごと無言脱落**していた
       // （`WXDi-P09-068-E1`／`WXDi-P10-042-E1`／`WXK03-050-E1`。`WX05-021`／`WX15-037` は per-card fixup で
@@ -9704,7 +9710,7 @@ function parseActionTextInner(text: string): EffectAction {
           return {
             type: 'CONDITIONAL',
             condition: mk(pm.slice(1)),
-            then: rp,
+            then: body,
           } as import('../types/effects').ConditionalAction;
         }
       }
@@ -9717,7 +9723,7 @@ function parseActionTextInner(text: string): EffectAction {
         return {
           type: 'CONDITIONAL',
           condition: { type: 'ENERGY_COUNT', owner: 'self', operator: enaPrefM[1] ? (enaPrefM[2] === '以上' ? 'gte' : 'lte') : 'lte', value: enaPrefM[1] ? parseNum(enaPrefM[1]) : 0 },
-          then: rp,
+          then: body,
         } as import('../types/effects').ConditionalAction;
       }
       // 3文目以降が残っている形は、この早期 return が sentences[0..1] しか消費しないため
@@ -9731,10 +9737,10 @@ function parseActionTextInner(text: string): EffectAction {
       {
         const tail = sentences.slice(2).map(s => s.trim().replace(/。$/, '')).filter(Boolean);
         if (tail.length > 0 && tail.every(s => /^(?:それ|それら|そのシグニ)の【出】能力は発動しない$/.test(s))) {
-          return { type: 'SEQUENCE', steps: [rp, ...tail.map(s => parseSingleSentence(s))] } as SequenceAction;
+          return { type: 'SEQUENCE', steps: [...(optionalReveal ? [optAct] : []), rp, ...tail.map(s => parseSingleSentence(s))] } as SequenceAction;
         }
       }
-      return rp;
+      return body;
     }
     // マッチしない場合、単純に「公開する + 後続」のシーケンスとして扱う
   }
