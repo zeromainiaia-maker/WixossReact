@@ -9444,7 +9444,10 @@ function parseActionTextInner(text: string): EffectAction {
         //   末尾1文が丸ごと落ちる（§6.4 O-11・`WXDi-P08-063-E1`）。上の pick 版 `keepTrailing` と同じ
         //   ガード（条件・置換・照応を含む後続は対象外＝条件ごと落として無条件実行にしない）で引き連れる。
         const restS = sentences.slice(2).map(s => s.trim()).filter(Boolean);
-        if (restS.length > 0 && restS.every(s => !/この方法で|場合|かぎり|代わりに|それら?を|その中/.test(s))) {
+        // ⚠「対象の」も除外する＝`WXDi-D01-011-E1` の「その後、**対象の**レベル１のシグニ１体は【アサシン】を得…」は
+        //   **この規則では場に出していないシグニ**への照応で、引き連れると3つの付与のうち1つだけが
+        //   `owner:'any'`（＝相手のシグニにも付く）で走る**新しい過剰実行**になる。A/B 計測で実測して除外した。
+        if (restS.length > 0 && restS.every(s => !/この方法で|場合|かぎり|代わりに|それら?を|その中|対象/.test(s))) {
           return { type: 'SEQUENCE', steps: [lookAction, ...restS.map(s => parseSingleSentence(s))] } as SequenceAction;
         }
         return lookAction;
