@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectConvertEnergyColors, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectInfectedActivateBlockedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectFieldEnergySigniColorGains, collectConvertEnergyColors, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectAllZoneBlackCardNums, hasAllCardsColorBlack, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -16,7 +16,7 @@ import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collect
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource, detectTrashAdded } from '../engine/boardDiff';
 import { hasKeyword, hasBanishResist } from '../utils/keywords';
-import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, hasAcceAt, normalizeAcceSlots } from '../utils/acce';
+import { acceCardsAt, allAcceCards, cloneAcceSlots, hasAcceAt, normalizeAcceSlots } from '../utils/acce';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
 import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageSourceContext } from './battle/damagePrevention';
@@ -47,7 +47,7 @@ import { applyAbilityCostReduction } from '../engine/triggerCollect';
 import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
-import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
+import { computeFieldSigniLimit, reduceFieldSigniToLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
@@ -11836,20 +11836,60 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   };
 
   // シグニ起動効果を実行（コスト支払い後）
-  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set()) => {
-    if (loading) return;
+  /**
+   * 場のシグニ【起】の実行（人間・CPU 共通）。DESIGN §4「CPU は対人戦と同じ処理を使う」の抽出形＝
+   * `performSigniAttack` / `performGuardResponse` と同じく **owner をパラメータ化**し、
+   * 人間用 `executeSigniActivated` は薄いラッパーにする。
+   *
+   * ⚠**「いま撃てるか」の判定はここではなく `signiActivateGate`**（提示と支払いは別の地点＝続き546 教訓 (d)）。
+   * ⚠`sel` は**UIで選んだ支払い内訳**＝CPU から呼ぶときは自動選択した index を入れる（空 Set＝選択なし）。
+   */
+  const performSigniActivated = async (
+    cardNum: string,
+    effect: import('../types/effects').CardEffect,
+    sel: {
+      costIndices: Set<number>;
+      discardCostIndices: Set<number>;
+      useKeySub?: boolean;
+      discardVarIndices?: Set<number>;
+      energyTrashIndices?: Set<number>;
+      trashExileIndices?: Set<number>;
+      fieldTrashZones?: Set<number>;
+      beatZones?: Set<number>;
+      underTrashKeys?: Set<string>;
+      /** `charmTrashVariable` で選んだ枚数（人間はUIの state、CPU は 0）。 */
+      charmTrashVarCount?: number;
+    },
+    p: {
+      actor: PlayerState; opponent: PlayerState;
+      actorId: string; opponentId: string;
+      actorKey: 'host_state' | 'guest_state';
+      /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
+      energyPayPool: EnergyPayEntry[];
+      /** `collectEnergyTrashSubstituteInfo(actor, ...)` の結果（キー代替払い）。 */
+      energyTrashSubInfo: { wildcardInstIds: Set<string>; colorOverrideMap: Map<string, string>; keySubInstId: string | null };
+    },
+  ) => {
+    const my = p.actor;
+    const op = p.opponent;
+    const { costIndices, discardCostIndices, discardVarIndices } = sel;
+    const underTrashKeys = sel.underTrashKeys ?? new Set<string>();
+    const useKeySub = sel.useKeySub ?? false;
+    const energyTrashIndices = sel.energyTrashIndices ?? new Set<number>();
+    const trashExileIndices = sel.trashExileIndices ?? new Set<number>();
+    const fieldTrashZones = sel.fieldTrashZones ?? new Set<number>();
+    const beatZones = sel.beatZones ?? new Set<number>();
+    const charmTrashVarCount = sel.charmTrashVarCount ?? 0;
     // down_self コストは、対象シグニが既にダウンしていると支払えない（多重発動防止）
     if (effect.cost?.down_self) {
       const dzi = my.field.signi.findIndex(s => s?.at(-1) === cardNum);
       if (dzi >= 0 && (my.field.signi_down?.[dzi] ?? false)) return;
     }
     setLoading(true);
-    closeSigniActivated();
-    setKeySubstituteEnabled(false);
     try {
       // エナコストを支払う（色コスト + energyTrash指定コスト）＝支払い元は funnel 1本（§6.4）。
       // ⚠energyTrash 系は**エナゾーン専用**のコストなので pool ではなく my.energy の index を渡す。
-      const signiActPay = planEnergyPayment(my, myEnergyPayPool, costIndices, energyTrashIndices);
+      const signiActPay = planEnergyPayment(my, p.energyPayPool, costIndices, energyTrashIndices);
       const paidNums = signiActPay.paidNums;
       const energyTrashCards = signiActPay.extraEnergyNums;
       // energyTrashAll: エナゾーンのカードをすべてトラッシュ（選択不要、自動）
@@ -11888,11 +11928,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）: キーをルリグトラッシュへ
-      const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
+      const keySub = useKeySub && p.energyTrashSubInfo.keySubInstId;
       const newField = keySub
         ? { ...my.field, signi_down: newSigniDown, key_piece: null, key_piece_extra: [] }
         : { ...my.field, signi_down: newSigniDown };
-      const newLrigTrash = keySub ? [...my.lrig_trash, myEnergyTrashSubInfo.keySubInstId!] : my.lrig_trash;
+      const newLrigTrash = keySub ? [...my.lrig_trash, p.energyTrashSubInfo.keySubInstId!] : my.lrig_trash;
       // 《コインアイコン》コスト（【起】コイン。activate_cost_zero時は免除）
       const coinCostAct = my.activate_cost_zero_signi === cardNum ? 0 : (effect.cost?.coin ?? 0);
       if (coinCostAct > 0 && (my.coins ?? 0) < coinCostAct) return; // 支払い不能（UI側でも無効化済み）
@@ -11994,7 +12034,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // charmTrashVariable: チャームを可変枚数トラッシュ（プレイヤーが選択した枚数）
       const charmVarActCost = effect.cost?.charmTrashVariable;
       if (charmVarActCost) {
-        const n = signiActCharmTrashVar;
+        const n = charmTrashVarCount;
         if (n < charmVarActCost.min) return;
         if (n > 0) {
           const newCharmsActV = [...(paid.field.signi_charms ?? [null, null, null])];
@@ -12089,7 +12129,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             };
             plant3rdDownTriggerEntry = {
               id: generateUUID(),
-              playerId: user.id,
+              playerId: p.actorId,
               cardNum,
               effectId: banishEff3D.effectId,
               label: `${battleCardMap.get(cardNum)?.CardName ?? cardNum} 植物3回目ダウン：相手シグニ1体バニッシュ`,
@@ -12102,7 +12142,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cardName = battleCardMap.get(cardNum)?.CardName ?? cardNum;
       const entry: StackEntry = {
         id: generateUUID(),
-        playerId: user.id,
+        playerId: p.actorId,
         cardNum,
         effectId: effect.effectId,
         label: `${cardName} の【起】効果`,
@@ -12115,8 +12155,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const allDiscardedForTrigger = [...discardedCards, ...discardAllCards, ...discardVarCards];
       if (allDiscardedForTrigger.length > 0) {
         const { entries: hdEntries, usedLimitIds } = collectHandDiscardTriggers(
-          allDiscardedForTrigger, paid, user.id, true,
-          isHost ? bs.guest_state : bs.host_state, isHost ? bs.guest_id : bs.host_id, cardNum, undefined, undefined);
+          allDiscardedForTrigger, paid, p.actorId, true,
+          op, p.opponentId, cardNum, undefined, undefined);
         stackEntries.push(...hdEntries);
         if (usedLimitIds.length > 0) {
           paid = { ...paid, actions_done: [...(paid.actions_done ?? []), ...usedLimitIds] };
@@ -12124,17 +12164,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // ON_COIN_PAID（C1 配線・シグニ【起】《コイン》）: コインを支払った場合に反応【自】を積む。
       if (coinCostAct > 0) {
-        const actCoin = collectCoinPaidTriggers(user.id, paid, isHost ? bs.guest_state : bs.host_state);
+        const actCoin = collectCoinPaidTriggers(p.actorId, paid, op);
         stackEntries.push(...actCoin.entries);
         paid = applyCoinPaidUsed(paid, actCoin); // 《ターン1回/2回》消化を永続化（続き106）
       }
-      const turnPlayerId = bs.active_user_id ?? user.id;
+      const turnPlayerId = bs.active_user_id ?? p.actorId;
       const existingStack = bs?.effect_stack ?? null;
       const newStack = existingStack
         ? pushToStack(existingStack, stackEntries)
         : initStack(turnPlayerId, stackEntries);
-      const stateKey = isHost ? 'host_state' : 'guest_state';
-      const oppStateKey = isHost ? 'guest_state' : 'host_state';
+      const stateKey = p.actorKey;
+      const oppStateKey: 'host_state' | 'guest_state' = p.actorKey === 'host_state' ? 'guest_state' : 'host_state';
       // ウィルス除去が起きた場合のみ自状態にマーカーを立てる（旧：payload を後から差し替えていた）
       if (newOpVirusState) paid = { ...paid, opp_virus_removed_just: true };
       await persist.commit(reduceBattle(bs, {
@@ -12144,6 +12184,24 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     } finally {
       setLoading(false);
     }
+  };
+
+  /** 人間UI（`SigniActivatedModal`）から呼ぶ薄いラッパー。判定・実行の本体は `performSigniActivated`。 */
+  const executeSigniActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardCostIndices: Set<number>, useKeySub = false, discardVarIndices?: Set<number>, energyTrashIndices: Set<number> = new Set(), trashExileIndices: Set<number> = new Set(), fieldTrashZones: Set<number> = new Set(), beatZones: Set<number> = new Set(), underTrashKeys: Set<string> = new Set()) => {
+    if (loading) return;
+    closeSigniActivated();
+    setKeySubstituteEnabled(false);
+    await performSigniActivated(cardNum, effect, {
+      costIndices, discardCostIndices, useKeySub, discardVarIndices, energyTrashIndices,
+      trashExileIndices, fieldTrashZones, beatZones, underTrashKeys,
+      charmTrashVarCount: signiActCharmTrashVar,
+    }, {
+      actor: my, opponent: op,
+      actorId: user.id, opponentId: isHost ? bs.guest_id : bs.host_id,
+      actorKey: isHost ? 'host_state' : 'guest_state',
+      energyPayPool: myEnergyPayPool,
+      energyTrashSubInfo: myEnergyTrashSubInfo,
+    });
   };
 
   // エナゾーンのACTIVATED能力（アクセカード）を発動
