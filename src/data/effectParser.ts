@@ -9633,6 +9633,14 @@ function parseActionTextInner(text: string): EffectAction {
         ...(negated ? { then: { type: 'SEQUENCE', steps: [] }, elseAction: thenAction } : { then: thenAction }),
         remainder: { location: 'deck', position: 'top' },
       } as RevealAndPickAction;
+      // 3文目「そうでない場合、〈X〉」＝**この文型で唯一の排他 else**（§6.4 O-35）。従来は下の tail ガードが
+      // 「【出】能力は発動しない」以外を全部落としていたため**帰結が丸ごと無言脱落**していた
+      // （`WXDi-P09-068-E1`／`WXDi-P10-042-E1`／`WXK03-050-E1`。`WX05-021`／`WX15-037` は per-card fixup で
+      //  手当て済み＝この規則が入ると同じ結果を汎用に出す）。`elseAction` は engine 実装済み。
+      if (!negated && sentences.length >= 3) {
+        const elseM = sentences[2].trim().match(/^そうでない場合、(.+)/);
+        if (elseM) rp.elseAction = parseSingleSentence(elseM[1].replace(/。$/, ''));
+      }
       // 公開文の前置き「あなたのエナゾーンにあるカードがN枚以下の場合、／エナゾーンにカードがない場合、」
       // が丸ごと脱落していた（無条件公開の過剰効果）＝ ENERGY_COUNT で持ち上げる（WX12-051/WX12-052）
       const enaPrefM = sentences[0].trim().match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)の|カードがない)場合、/);
