@@ -2594,14 +2594,24 @@ export function selectOrInteract(
       if (fieldScopes.some(scope => evaluateShadowScope(scope, sourceCardForShadow, n, ctx.otherState, ctx.cardMap))) return false;
       // activeCondition 付きシャドウ（TURN_OWNER等）を評価:
       // n は ctx.otherState のシグニ。ownerState=otherState, isOwnerTurn=false（ctx.ownerState のターン中に効果実行）
-      const hasCondShadow = ctx.cardMap.get(n)?.effects?.some(eff => {
+      // 🆕**付与ストア（`granted_effects*`）も走査軸に入れる**（§6.4 O-25(d)・2026-08-17）＝
+      //   引用付与「【常】：対戦相手のターンの間、【シャドウ】を得る」（`WXDi-P06-032-E2`／`WXDi-P13-044-E2`）は
+      //   条件を持つため `keyword_grants`（条件を持てない）ではなく `granted_effects` へ入る。
+      //   ⚠**この行を足さないと「常時シャドウ（過剰）」が「シャドウが一切効かない（過少）」へ裏返る**
+      //     ＝条件を付けた瞬間に走査軸から外れる。印字能力とまったく同じ規則で評価する。
+      const condShadowSources = [
+        ...(ctx.cardMap.get(n)?.effects ?? []),
+        ...(ctx.otherState.granted_effects?.[n] ?? []),
+        ...(ctx.otherState.granted_effects_until_opp_turn?.[n] ?? []),
+      ];
+      const hasCondShadow = condShadowSources.some(eff => {
         if (eff.effectType !== 'CONTINUOUS' || !eff.activeCondition) return false;
         if (eff.action.type !== 'GRANT_KEYWORD') return false;
         const scope = decodeShadowKeyword((eff.action as { keyword: string }).keyword);
         if (scope === null) return false;
         if (!checkActiveCondition(eff.activeCondition, ctx.otherState, ctx.ownerState, false, ctx.cardMap, n, ctx.effectivePowers)) return false;
         return evaluateShadowScope(scope, sourceCardForShadow, n, ctx.otherState, ctx.cardMap);
-      }) ?? false;
+      });
       if (hasCondShadow) return false;
       return true;
     });
