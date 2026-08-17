@@ -6681,7 +6681,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const betCost = Math.max(0, betCoins);
       const encoreCoinCost = encore ? (parseEncoreCost(card.EffectText ?? '')?.coins ?? 0) : 0;
       // キーピース代替（ENERGY_SUBSTITUTE_TRASH_KEY）
-      const keySub = useKeySub && myEnergyTrashSubInfo.keySubInstId;
+      const keySub = useKeySub && p.energyTrashSubInfo.keySubInstId;
       const lrigTrashBase = encore ? my.lrig_trash : [...my.lrig_trash, instanceId];
       const paid: PlayerState = artsPay.applyTo({
         ...my,
