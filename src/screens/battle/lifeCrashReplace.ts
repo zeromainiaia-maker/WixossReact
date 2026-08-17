@@ -200,7 +200,10 @@ export function applyMillReplacement(
 }
 
 /** 置換のログ文（消費地点2つで同じ文言を出すため funnel 側に置く）。 */
-export function lifeCrashReplaceLog(repl: LifeCrashReplacement): string {
+export function lifeCrashReplaceLog(repl: LifeCrashReplacement, paidJa?: string): string {
+  if (repl.kind === 'pay_cost') {
+    return `ダメージ置換：代わりに${paidJa ?? 'コスト'}を支払う${repl.loseGrantedEffectId ? '（このルリグはこの能力を失う）' : ''}`;
+  }
   return repl.kind === 'mill'
     ? `ライフクラッシュ置換：代わりにデッキの上から${repl.count}枚をトラッシュに置く`
     : `ライフクラッシュ置換：代わりに対戦相手のライフクロス${repl.count}枚をクラッシュする`;
