@@ -37435,6 +37435,58 @@ test('§6.4 O-35: 「すべてのシグニが〈色〉の場合」は条件が�
 });
 
 
+// ── §6.4 O-35 続き528：受け皿の外に居た「条件・枚数の無言脱落」 ──────────────────────────
+test('§6.4 O-35: 裸の「手札から〈spec〉をN枚捨ててもよい」が任意コストの正準形になる', () => {
+  // 🔴正準形 `OPTIONAL_COST{handDiscard}` は在ったのに、生成経路が `TARGET_AND_DISCARD_HAND`（＝
+  //   「対戦相手のシグニ1体を対象とし、」を伴う形）しか無く、**対象節を伴わない裸の1文は UNKNOWN**。
+  //   その結果 `tryWrapLeadingStateCond` のガードBに引っかかって条件節ごと catch-all へ落ち、
+  //   ①コストが一度も請求されず ②対になる「そうした場合」の本体が無条件に走っていた。
+  const e = (effectsMap.get('WXDi-P05-059') ?? []).find(x => x.effectId === 'WXDi-P05-059-E1')!;
+  const steps = (e.action as SequenceAction).steps;
+  const wrap = steps[0] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(wrap.type, 'CONDITIONAL', '🔴条件節が受け皿 STUB に飲まれている');
+  eq(wrap.condition.type, 'ENERGY_COUNT', '相手エナ2枚以上のゲート');
+  const stub = wrap.then as StubAction;
+  eq(stub.id, 'OPTIONAL_COST', '🔴then は素の STUB 単体でないと engine が包みを解けない');
+  eq(JSON.stringify(stub.handDiscard), JSON.stringify({ count: 1, filter: { cardType: 'スペル', color: '赤' } }), '色＋型の両方が filter に載る');
+});
+
+test('§6.4 O-35: デッキ一番上の公開は前置き条件を落とさない（共通表を引く）', () => {
+  // 🔴従来この複数文ハンドラは**エナゾーン形の2効果しか見ておらず**、他の前置き条件は丸ごと脱落＝
+  //   無条件公開の過剰効果だった。共通表 `LEADING_STATE_CLAUSES` へ寄せて解消。
+  const act = (num: string, id: string) => (effectsMap.get(num) ?? []).find(e => e.effectId === id)?.action;
+  const a1 = act('WXDi-P09-050', 'WXDi-P09-050-E2') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(a1.type, 'CONDITIONAL', '🔴「このシグニがアップ状態の場合」が落ちている');
+  eq(a1.condition.type, 'THIS_CARD_IS_UP', 'アップ状態ゲート');
+  // 「公開して**もよい**」は OPTIONAL_ACTIVATE を**直下ステップ**に置く（Pattern⑤ の前提）
+  const inner = (a1.then as SequenceAction).steps;
+  eq((inner[0] as StubAction).id, 'OPTIONAL_ACTIVATE', '🔴任意性が落ちている');
+  eq(inner[1].type, 'REVEAL_AND_PICK', '公開→条件分岐');
+  // ⚠エナゾーン形（共通表に無い綴り）は局所 fallback で残す＝寄せただけだと落ちる
+  const a2 = act('WX12-052', 'WX12-052-E1') as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(a2.condition.type, 'ENERGY_COUNT', '🔴「エナゾーンにカードがない場合」の fallback が外れている');
+});
+
+test('§6.4 O-35: エナゾーンの「すべてのカード」が count:1 に潰れない', () => {
+  // 🔴枚数表記が無いので既定の count:1 に落ち、相手エナ全損が**1枚**になっていた（`PR-470B-E2`）。
+  const a = (effectsMap.get('PR-470B') ?? []).find(e => e.effectId === 'PR-470B-E2')!.action as Extract<EffectAction, { type: 'TRASH' }>;
+  eq(a.target.count, 'ALL', '🔴すべて→1枚に潰れている');
+  eq(a.target.owner, 'opponent', '相手のエナ');
+  // ⚠限定が未表現の形は**広げない**＝「宣言した色ではない色を持つすべてのカード」は1枚のまま据置
+  //   （ALL にすると相手のエナを全部飛ばす過剰に化ける）。
+  const w = (effectsMap.get('WXEX1-07') ?? []).find(e => e.effectId === 'WXEX1-07-E2')!.action as SequenceAction;
+  const t2 = w.steps[1] as Extract<EffectAction, { type: 'TRASH' }>;
+  eq(t2.target.count, 1, '🔴色限定が未表現のまま ALL へ広げてはいけない');
+});
+
+test('§6.4 O-35: 「手札をN枚まで捨てる」の upToCount が落ちない', () => {
+  // 🔴「まで」の綴りが無く UNKNOWN＝捨てる節が丸ごと消え、後段の「この方法で捨てた枚数」が
+  //   直前ステップ（付与対象）の件数を読んで**偽の枚数でドロー**していた（`WXDi-P05-001-E1`）。
+  const a = (effectsMap.get('WXDi-P05-001') ?? []).find(e => e.effectId === 'WXDi-P05-001-E1')!.action as SequenceAction;
+  const s = JSON.stringify(a.steps[1]);
+  ok(s.includes('"upToCount":true') && s.includes('"HAND_CARD"'), '🔴「３枚まで捨てる」が落ちている');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

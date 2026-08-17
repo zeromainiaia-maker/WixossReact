@@ -2240,6 +2240,12 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
     () => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isPuppet: true } })],
   [/このシグニのパワーが([０-９\d]+)以上の場合/,
     g => ({ type: 'SELF_POWER_GTE', value: parseNum(g[0]) })],
+  // 「〈誰か〉のセンタールリグが〈色〉の場合」＝`LRIG_COLOR`（§6.4 O-35・続き528）。
+  // 🔴この表は**「代わりに」昇格置換のゲート**＝ここに無いと置換にならず catch-all へ落ちる。
+  //   `WX08-020-E1`「対戦相手は…５枚トラッシュ。あなたのセンタールリグが黒の場合、**代わりに**１０枚
+  //   トラッシュに置く」は10枚側が丸ごと無言 no-op だった（＜C＞とレベルは在ったのに色だけ欠けていた）。
+  [/(あなた|対戦相手)のセンタールリグが(白|赤|青|緑|黒)の場合/,
+    g => ({ type: 'LRIG_COLOR', owner: g[0] === '対戦相手' ? 'opponent' : 'self', color: g[1] })],
   [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
     g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
   // 「あなたのセンタールリグが(色)で、あなたのライフクロスがN枚以下の場合、代わりに強化」（WX06-002〜006「五面」）
@@ -2414,6 +2420,10 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       () => ({ type: 'THIS_CARD_IS_UP' })],
     [/このシグニがダウン状態の場合/,
       () => ({ type: 'THIS_CARD_IS_DOWN' })],
+    // 「〈誰か〉のセンタールリグが〈色〉の場合」＝`LRIG_COLOR`（§6.4 O-35・続き528）。
+    // ＜C＞（`LRIG_STORY`）とレベル（`LRIG_LEVEL`）は在ったのに**色形だけ両方の条件表に無かった**。
+    [/(あなた|対戦相手)のセンタールリグが(白|赤|青|緑|黒)の場合/,
+      g => ({ type: 'LRIG_COLOR', owner: g[0] === '対戦相手' ? 'opponent' : 'self', color: g[1] })],
     [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
       g => ({ type: 'LRIG_STORY', owner: 'self', story: g[0] })],
     // 「あなたのセンタールリグのレベルが対戦相手のセンタールリグ〔以下/より低い/より高い/以上〕の場合」＝
@@ -10011,9 +10021,15 @@ function parseActionTextInner(text: string): EffectAction {
         //   文が主語を省くため素直に再パースすると owner が self へ反転する＝base を複製して count だけ差し替える
         //   （上の (b) per-target 値のみ形と同じ考え方）。
         //   ⚠対象プロパティ条件では使わない（条件が対象決定より前に評価されて常に偽になる）。
-        const cmm = !cmIsTargetProperty && enhancedText.match(/^(?:手札を)?([０-９\d]+)枚捨てる。?$/);
+        //   🆕デッキミルの枚数だけ差し替える形も同型（§6.4 O-35・続き528）＝`WX08-020-E1`
+        //     「対戦相手は自分のデッキの上からカードを**５枚**トラッシュに置く。あなたのセンタールリグが
+        //      黒の場合、**代わりにカードを１０枚**トラッシュに置く。」。従来は綴りが `手札を…捨てる` 固定で
+        //     外れ、条件節ごと `CONDITIONAL_POWER_BONUS` へ落ちて**10枚側が無言 no-op**だった。
+        //     ⚠主語（「対戦相手は」）が省かれるので**素直に再パースしない**＝base を複製して count だけ差す。
+        const cmm = !cmIsTargetProperty && enhancedText.match(/^(?:手札を|カードを)?([０-９\d]+)枚(?:捨てる|トラッシュに置く)。?$/);
         if (cmm && baseCore.type === 'TRASH'
-            && (baseCore as import('../types/effects').TrashAction).target?.type === 'HAND_CARD') {
+            && ((baseCore as import('../types/effects').TrashAction).target?.type === 'HAND_CARD'
+              || (baseCore as import('../types/effects').TrashAction).target?.type === 'DECK_CARD')) {
           const thenTR = JSON.parse(JSON.stringify(baseCore)) as import('../types/effects').TrashAction;
           thenTR.target = { ...thenTR.target, count: parseNum(cmm[1]) };
           steps[steps.length - 1] = { type: 'CONDITIONAL', condition: cm.condition, then: thenTR, else: base };
