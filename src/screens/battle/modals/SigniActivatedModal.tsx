@@ -108,7 +108,8 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
               const charmVarActOk = !charmVarActCostM || signiActCharmTrashVar >= charmVarActCostM.min;
               // energyTrash: エナゾーンから指定カードN枚コスト
               const actEnergyTrashCost = eff.cost?.energyTrash;
-              const actEnergyTrashOk = !actEnergyTrashCost || selectedSigniActivatedEnergyTrash.size >= actEnergyTrashCost.count;
+              // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
+              const actEnergyTrashOk = energyTrashCostSatisfied(my.energy, selectedSigniActivatedEnergyTrash, actEnergyTrashCost, battleCardMap);
               // trashExile: トラッシュからカードをゲーム除外コスト
               const actTrashExileCost = eff.cost?.trashExile;
               const actTrashExileOk = !actTrashExileCost || actTrashExileCost.self
