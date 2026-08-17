@@ -1686,7 +1686,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   （コロンの前はコストとして別扱い＝`WXDi-P10-009-E2`／`WXK06-084-E1`）。
     {
       const deckTopMillM = t.match(/(あなた|対戦相手)のデッキの一番上のカードをトラッシュに置く/);
-      const millDesigM = t.match(/((?:対戦相手|あなた)の[^、。]*?シグニを?[０-９\d]*体(?:まで)?)を対象とし/);
+      // ⚠**「を」は付かない形がある**＝「シグニ**を２体まで**対象とし」（`WXK03-080-E1`）と
+      //   「シグニ１体**を**対象とし」（`WXK03-081-E1`）の2綴り。`を対象とし` 固定だと前者が漏れる。
+      const millDesigM = t.match(/((?:対戦相手|あなた)の[^、。]*?シグニを?[０-９\d]*体(?:まで)?)を?対象とし/);
       if (deckTopMillM && millDesigM) {
         const millDesigOwner: Owner = millDesigM[1].startsWith('対戦相手') ? 'opponent' : 'self';
         return {
