@@ -1,4 +1,5 @@
-import type { PlayerState } from '../types';
+import type { CardData, PlayerState } from '../types';
+import type { CardEffect, ConditionalAction, SequenceAction, StubAction } from '../types/effects';
 
 const PLAY_SIGNI_POWER_BLOCK_RE = /^PLAY_SIGNI_POWER_(\d+)_OR_MORE$/;
 
