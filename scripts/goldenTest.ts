@@ -15918,11 +15918,23 @@ test('choice ビルダー: 選択肢本文が top-level へ漏れていない（
     ['WD22-011-G', 'WD22-011-G-E1'], ['WXK05-003', 'WXK05-003-E1'], ['WXK10-009', 'WXK10-009-E1'],
     ['WXK10-011', 'WXK10-011-E1'], ['WXK03-TK-01B', 'WXK03-TK-01B-E1'], ['WX13-003', 'WX13-003-E1'],
   ];
+  // ⚠見たいのは「①②③の本文が top-level に居ないこと」だけ。**受け皿が STUB であること**ではない。
+  //   §6.4 O-11（続き531）で `CONDITIONAL_MULTI_CHOOSE_BY_CENTER`（engine がカード全文を再パースする
+  //   STUB）を**構造化 `CHOOSE`＋`conditionChoose`** へ移したので、`CHOOSE` も正当な top-level 形。
+  //   本文は `choices[].action` の中＝選ばなければ走らない。
   for (const [cardNum, effectId] of leaked) {
     const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId)!;
     const steps = eff.action.type === 'SEQUENCE'
       ? (eff.action as unknown as { steps: { type: string }[] }).steps : [eff.action as { type: string }];
-    ok(steps.every(s => s.type === 'STUB'), `${effectId}: 選択肢本文が top-level に残っている`);
+    ok(steps.every(s => s.type === 'STUB' || s.type === 'CHOOSE'),
+      `${effectId}: 選択肢本文が top-level に残っている`);
+    // CHOOSE 形なら「本文が choices の外に無い」ことも見る（見出し以外の裸アクションを禁じる）。
+    for (const s of steps) {
+      if (s.type !== 'CHOOSE') continue;
+      const { choices: _drop, ...outside } = s as unknown as { choices: unknown[] };
+      ok(!/"type":"(?:POWER_MODIFY|BANISH|DRAW|TRASH|SEND_TO_ENERGY|ADD_TO_FIELD)"/.test(JSON.stringify(outside)),
+        `${effectId}: CHOOSE の外に本文アクションが漏れている`);
+    }
   }
   // 見出し側の宣言（コスト増減）は残す＝`WX13-003-E1` の「選んだ数から2を引いた数だけコストが増える」。
   const wx13 = (effectsMap.get('WX13-003') ?? []).find(e => e.effectId === 'WX13-003-E1')!;
