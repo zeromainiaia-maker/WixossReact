@@ -12,6 +12,20 @@
 > 退避したのは **🏁残0クローズ 7件＝(cxxx)(cxxix)(cxxviii)(cxxvii)(cxxvi)(cxxiii)(cxxi)** ／ **✅解決 1件＝(cxxiv)** ／ **🟢取り下げ（engine バグではなくシナリオ側の偽陰性/偽陽性）2件＝(cxxxiii)(cxxv)**。
 > **退避後に生きている在庫＝6件**：(cxxxiv)〔旧形式 `signi_acce` string でゾーン破壊〕／(cxxxi)〔ルリグ【起】《ダウン》が無コスト〕／(cxxxii)〔`signi_deploy_power_limit` のリセット漏れ〕／(cxxii)〔`WXDi-P05-037-E1` の任意手札捨ての owner 取り違え〕／(cxx)〔ON_ENERGY_CHARGE watcher の usageLimit 未管理〕／(cxix)〔`SPDi43-11-E2` 内側付与の timing 誤パース〕。
 
+### 🏁 同セッション（続き546）で在庫6件を残0クローズ＝**在庫0**
+
+**3件は engine/parser の実バグ（修正した）／2件は既に別バッチで解消済み（実体消滅）／1件は engine は正しくシナリオが古かった。**
+⚠**「登録時の見立て」の的中は6件中3件**＝(cxxxii)(cxxii) は**登録から数日で別の作業が原因ごと消していた**（在庫は寝かせるほど陳腐化する＝着手時に必ず live を実測し直す）。
+
+| # | 結末 | 実体 |
+|---|---|---|
+| 🏁(cxxxiv) | **修正** | 旧形式 `signi_acce`（素の string）の正規化。**見立ての「`acceCardsAt` の1点」では足りない**＝`[...cards]` で複製する経路（`cloneAcceSlots`／`fieldLimit.ts`）が**1文字ずつの配列**を作るのが実害の本体だったので、**読み出しユーティリティ全5関数＋`setBs`（外から state が入る唯一の入口）で正規化**した。golden 1件（外すと `got=13` で FAIL を確認）|
+| 🏁(cxxxi) | **修正** | ルリグの【起】《ダウン》。**live 27効果が実質無コスト**（`executeLrigGranted` には支払いが1行も無く、UI の可否ゲートも無かった）。`payLrigDownSelfCost` を新設し、**支払い1地点＋提示4地点**（MAIN 本来／MAIN 付与・継承／ATTACK_ARTS 本来／ATTACK_ARTS 付与）へ配線。golden に母集団27件＋支払い可否 |
+| 🏁(cxix) | **修正** | ON_HAND_ADDED の regex が「**相手**の効果→**相手**の手札」1形しか読めず、「**あなた**の効果→**あなた**の手札」が末尾フォールバックに食われて `ON_PLAY`＝恒久 no-op。**原因側と増えた側は独立の2軸**として抽出するよう一般化（`byOwnEffect`/`byOpponentEffect` × `handOwner`）。live 1枚採用（`SPDi43-11`）。golden に構造＋end-to-end |
+| 🏁(cxx) | **修正** | エナ差分 watcher の《ターン1回/2回》。付与ストア側は続き478 で予約済みだったが**印刷シグニ側は元から穴**＝ON_ENERGY_CHARGE 6効果／ON_POWER_THRESHOLD 3効果が撃ち放題だった。3つの push 地点すべてを `reserveGrantedAutoUsage` に通し、予約IDを `actions_done` へ書き戻す。golden に母集団＋**ソース照合で push 地点3つ**を固定 |
+| 🟢(cxxxii) | **実体消滅** | `signi_deploy_power_limit` は §6.4 O-3（続き487）で**フィールドごと廃止**され、寿命 `turnsRemaining` を持つ `signi_deploy_bans` へ統合済みだった（`clearTurnEndScopedState` でカウントダウン）。⚠**副産物**＝実機シナリオ `v11CpuDeployPowerLimitWithControl` が**廃止済みの旧フィールド名で注入**しており、制限側が対照と同じ盤面になっていた（＝意味のない緑/赤）。`signi_deploy_bans` へ更新した |
+| 🟢(cxxii) | **実体消滅** | `WXDi-P05-037-E1` は (cxxvii)（続き475d）の修正で `STUB{OPPONENT_PAY_OPTIONAL, opponentHandDiscard:2, thenOnPay}`＋`TRASH{owner:'opponent'}` になっており、登録時の症状（`owner:'self'`）は消えていた |
+
 ### 退避した行（原文そのまま）
 
 | # | 症状 | 発見経緯 | 見立て |
