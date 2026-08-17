@@ -6765,15 +6765,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // アーツ効果を発火
-      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paidAfterMaterial, op, undefined, 1, [...artsCoinPaidEntries, ...materialUsedEntries, ...useCostLeaveEntries]);
+      const fired = await queueCardEffects(instanceId, ['ACTIVATED'], [], paidAfterMaterial, op, undefined, 1,
+        [...artsCoinPaidEntries, ...materialUsedEntries, ...useCostLeaveEntries],
+        { id: p.actorId, key: p.actorKey });
       if (!fired) {
-        const stateKey = isHost ? 'host_state' : 'guest_state';
-        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: paidAfterMaterial }));
+        await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: p.actorKey, myState: paidAfterMaterial }));
       }
       setCloseZoneSignal(s => s + 1);
     } finally {
       setLoading(false);
     }
+  };
+
+  /** 人間UI（`ArtsModal` / ルリグデッキのカード詳細）から呼ぶ薄いラッパー。本体は `performArts`。 */
+  const executeArts = async (card: CardData, costIndices: Set<number>, betCoins: number = 0, encore: boolean = false, discardIndices: Set<number> = new Set(), useKeySub = false, boosting = false, useCostPayKeys: Set<string> = new Set()) => {
+    if (loading) return;
+    closeArtsModal();
+    setKeySubstituteEnabled(false);
+    await performArts(card, { costIndices, betCoins, encore, discardIndices, useKeySub, boosting, useCostPayKeys }, {
+      actor: my, opponent: op,
+      actorId: user.id, actorKey: isHost ? 'host_state' : 'guest_state',
+      isActorTurn: isMyTurn,
+      energyPayPool: myEnergyPayPool,
+      energyTrashSubInfo: myEnergyTrashSubInfo,
+      blockedSelf: contBlocked.forSelf,
+      effectivePowers,
+    });
   };
 
   // ── キーピース使用 ──
