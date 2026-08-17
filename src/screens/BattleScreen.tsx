@@ -43,7 +43,7 @@ interface Props {
 }
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
-import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed, applyAbilityCostReduction } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -5909,7 +5909,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.cost &&
         // 使用条件（《ビートアイコン》[N枚以下]ゲート＝BEAT_CONDITION や「〜の場合にしか使用できない」）を満たさない【出】コスト効果は提示しない
         (!e.condition || evalUseCondition(e.condition, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers)),
-      );
+      // 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」を**提示前に**焼き込む（§6.4 O-35・続き530）。
+      ).map(e => applyAbilityCostReduction(e, placed, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers));
       // mandatory:false + cost なしの自身【出】（「〜してもよい」／【出】英知＝N）＝タスク12(xxix)(2)。
       // `ownOnPlay`（mandatory のみ）にも `ownCostOnPlay`（cost ありのみ）にも入らず**丸ごと無発火**だった
       // （旧実装はここで console.warn するだけ）。engine の OPTIONAL_ACTIVATE 包み（「発動しますか？」）へ
@@ -6389,7 +6390,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.timing?.includes('ON_PLAY') &&
         e.mandatory === false &&
         e.cost,
-      );
+      // 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」を**提示前に**焼き込む（§6.4 O-35・続き530）。
+      // ここ1点で削るので、モーダル表示・支払い・可否判定がすべて同じ削減後コストを見る。
+      ).map(e => applyAbilityCostReduction(e, newMyState, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers));
       const optionalNoCostGrow = collectOptionalNoCostOnPlayForGrow(
         allOnPlayEffects, newMyState, growOp, true, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );

@@ -368,6 +368,12 @@ function costJa(c?: any): string {
     const d = cs.discardFromHand;
     parts.push(`《${cs.originalCost.color}》を支払う際、代わりに手札から${filterJa(d?.filter)}シグニを${d?.count ?? 1}枚捨ててもよい`);
   }
+  // 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」（§6.4 O-35・続き530）。
+  // action ではなく cost 側に載る修飾なので、ここで描かないと原文の1文が逆翻訳から丸ごと消える。
+  if (c.conditionalEnergyReduction) {
+    const cr = c.conditionalEnergyReduction;
+    parts.push(`（${conditionJa(cr.condition)}場合、この能力の発動コストは${cr.energy.map((e: any) => `《${e.color}×${e.count}》`).join('')}減る）`);
+  }
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
   return parts.join('＋');
 }
