@@ -7943,57 +7943,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ── アーツ（'アーツ/クラフト'＝改造素材等8枚も同経路で使用可能）──
     if (cardData.Type === 'アーツ' || cardData.Type === 'アーツ/クラフト') {
-      // カード名指定の使用封じ（ターン内 blacklist ／ゲーム内 NAME_BAN ／アーツ名 whitelist）は1関数に集約（§6.4 O-3）
-      if (cardNameUseBlocked(my, cardData.CardName, cardData.Type)) return actions;
-      const canUse =
-        !isArtsUseBlocked() && (
-          (phase === 'MAIN'           && isMyTurn  && cardData.Timing.includes('メインフェイズ'))  ||
-          (phase === 'ATTACK_ARTS'    && isMyTurn  && cardData.Timing.includes('アタックフェイズ')) ||
-          (phase === 'ATTACK_ARTS_OP' && !isMyTurn && cardData.Timing.includes('アタックフェイズ'))
-        );
-      const extraArtsCosts = activeCostMods.forMy
-        .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
-        .flatMap(m => m.amount);
-      // 実効コスト＝**アーツ一覧（`ArtsModal` Phase1）と完全に同じ式**で出す（タスク12(xcii)）。
-      // ⚠従来ここだけ `computeCostReplacement`（＝「《X》に**なる**」置換）＋カード名指定軽減しか通しておらず、
-      //   `computeArtsEffectiveCost` の EffectText 由来の**条件つき軽減**（(xc) の37枚＋(xcii) の相手盤面参照8枚）と
-      //   場の CONTINUOUS 軽減を素通りしていた＝**同じアーツが「一覧から」は使えて「ルリグデッキのカードを
-      //   タップして」は使えない**（印刷コストで可否判定していたため）。(lxxxvii) のカットイン窓と同じ食い違い。
-      const myLrigCardLD = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-      // ⚠【チェイン】の「次に使用するアーツ」軽減（タスク12(xciii)）もここへ通す。落とすと
-      //   **一覧（ArtsModal Phase1）からは使えるのにルリグデッキのカードをタップすると「使用」が出ない**
-      //   ＝(xcii) と同じ食い違いになる（実機で実際にこの形の FAIL を観測した）。
-      const reducedArtsCost = applyNextArtsCostReduction(applySpecificCardCostReduction(applyContinuousCostDecreases(
-        computeArtsEffectiveCost(cardData, my, myLrigCardLD?.CardName,
-          battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '',
-          myLrigCardLD ? parseInt(myLrigCardLD.Level ?? '0') : 0,
-          battleCardMap, myLrigNameAliases, myArtsThresholdReductions,
-          { oppState: op, cardCostReplacements: my.card_cost_replacements }),
-        'アーツ', cardData.Color, activeCostMods.forMy), cardData.CardName, specificCardCostReductions), my.next_arts_cost_reduction);
-      // ベット宣言でのみ成立する置換は宣言が ArtsModal 内なので、ここでは「ベットすれば払えるか」だけ見る
-      const artsBetSpec = parseBetOptions(cardData.EffectText ?? '');
-      const artsBetCoinMin = artsBetSpec.variable ? 1 : Math.min(...artsBetSpec.options, Infinity);
-      const artsBetCost = !isActionBlocked('BET') && !my.negate_coin_abilities
-        && Number.isFinite(artsBetCoinMin) && my.coins >= artsBetCoinMin
-        ? computeCostReplacement(cardData, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
-        : null;
-      // 対戦相手ターン中の代替コストがあればそちらを使う
-      const artsAltCost = !isMyTurn ? (effectsMap.get(cardNum)?.[0]?.altCostOppTurn) : undefined;
-      const effectiveCostStr = artsAltCost ? energyCostToString(artsAltCost) : null;
-      const costOk = effectiveCostStr
-        ? canAffordGrowCost(energyPoolCardNums(myEnergyPayPool), battleCards, effectiveCostStr, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)
-        : (canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, reducedArtsCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase) ||
-           (artsBetCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, artsBetCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)));
-      const condOk = canUseArtsCondition(
-        effectsMap.get(cardNum) ?? [], my, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers);
-      if (canUse && condOk && costOk) {
+      // ⚠**判定は `artsUseGate.checkArtsUse` 1本**（§8 `O-1`）＝カード名封じ・限定・フェイズ/Timing・
+      //   `ARTS_LIMIT_1`・使用条件・実効コスト・支払い可否をすべてそこで見る。CPU の応答アーツも
+      //   同じ関数を呼ぶので、ここに条件を足すときは gate 側へ足すこと（写経すると人間と CPU がズレる）。
+      const artsCheck = checkArtsUse({
+        card: cardData, my, op, isMyTurn, turnPhase: bs.turn_phase,
+        cards: battleCards, cardMap: battleCardMap, effectsMap,
+        payer: myArtsPayerCtx, effectivePowers,
+      });
+      if (artsCheck.usable) {
         actions.push({
           label: '使用',
           color: C.coin,
           onClick: () => {
             // 印刷コストから動いたときだけ実効コストを持ち込む（null＝Phase2 が印刷コストを使う）。
-            // `ArtsModal` Phase1 のボタンと同じ約束＝どちらの入口から開いても請求額が一致する。
-            openArtsModal(cardData, effectiveCostStr ?? (reducedArtsCost !== cardData.Cost ? reducedArtsCost : null));
+            openArtsModal(cardData, artsCheck.effectiveCostForModal);
           },
         });
       }
