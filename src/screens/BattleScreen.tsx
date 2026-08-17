@@ -166,15 +166,16 @@ function nextRespondPatch(
  */
 function normalizeBattleRow(row: BattleStateRow): BattleStateRow {
   let changed = false;
-  const fix = (s: PlayerState | null | undefined): PlayerState | null | undefined => {
-    if (!s?.field?.signi_acce) return s;
-    const next = normalizeAcceSlots(s.field.signi_acce);
-    if (next === s.field.signi_acce) return s;
+  const fix = (s: PlayerState): PlayerState => {
+    const slots = s?.field?.signi_acce;
+    if (!slots) return s;
+    const next = normalizeAcceSlots(slots);
+    if (next === slots) return s;
     changed = true;
     return { ...s, field: { ...s.field, signi_acce: next } };
   };
   const host = fix(row.host_state), guest = fix(row.guest_state);
-  return changed ? { ...row, host_state: host, guest_state: guest } as BattleStateRow : row;
+  return changed ? { ...row, host_state: host, guest_state: guest } : row;
 }
 
 // ─── メインコンポーネント ────────────────────────────────────────────
