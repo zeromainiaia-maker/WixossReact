@@ -2,7 +2,7 @@ import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
 import type { ArtsPayerCtx } from './artsUseGate';
 import { selectEnergyIndicesForCost } from './cpuActivate';
-import { defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction } from './cpuArts';
+import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction } from './cpuArts';
 import { energyPoolCardNums } from './energyPaySource';
 import { type SpellUseCheck, listCastableSpells } from './spellUseGate';
 
@@ -63,6 +63,10 @@ export function pickCpuMainSpell(p: {
   })) {
     if (p.alreadyUsedNums.includes(card.CardNum)) continue;
     const acts = (effectsMap.get(card.CardNum) ?? []).filter(e => e.effectType === 'ACTIVATED');
+    // ⚠アーツと同じ保険＝**`performSpell` はエナ以外の宣言コストを払わない**（手札捨てコストは
+    //   支払いUI の任意支払いとは別物）。実測では live のスペル427枚すべて `cost` が `energy` のみ
+    //   だが、増えたときに**宣言だけして踏み倒す**側へ倒れないようにここで切る。
+    if (!cpuCanPayArtsWithEnergyOnly(acts)) continue;
     if (acts.some(e => hasCpuUnsupportedAction(e.action))) continue;
     if (!acts.some(e => defensiveKindOf(e.action) === 'removal')) continue;
     const costIndices = selectEnergyIndicesForCost({
