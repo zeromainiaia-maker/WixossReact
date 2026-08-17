@@ -420,8 +420,14 @@ export function parseSentencePart3(t: string): EffectAction | null {
   }
 
   // ---- 対戦相手のアーツ・スペル・起使用不可（複合） ----
-  if (t.match(/アーツとスペルと【起】能力を使用できない/)) {
-    return { type: 'STUB', id: 'BLOCK_OPP_ARTS_SPELL_ACT' } as StubAction;
+  // ⚠**期間を読む**（§6.4 O-14(a)）＝🔴従来は綴りに関係なく当ターン版に潰しており、
+  //   「**次の対戦相手のターンの間**、対戦相手はアーツとスペルと【起】能力を使用できない」（`WX25-P1-050-E1`）が
+  //   **自分のターンに効いて相手のターンには切れる**＝1ターンずれた無害化になっていた。
+  // ⚠連用中止の「使用でき**ず**」形（`WX15-003-E3`）は**1文に強制アタックが同居する**ので
+  //   `parseSentencePart1` の強制攻撃規則が畳む（ここには届かない）。綴りだけ揃えてある。
+  if (t.match(/アーツとスペルと【起】能力を使用でき(?:ない|ず)/)) {
+    const nextTurnBOASA = /次の(?:対戦相手の)?ターンの間/.test(t);
+    return { type: 'STUB', id: nextTurnBOASA ? 'BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN' : 'BLOCK_OPP_ARTS_SPELL_ACT' } as StubAction;
   }
 
   // ---- このルリグは特定色のルリグにしかグロウできない ----
