@@ -13909,17 +13909,19 @@ function parseDamageReplaceCostOptions(
 ): NonNullable<StubAction['damageReplaceByCost']>['options'] | null {
   const body = block.match(/あなたがダメージを受ける場合、代わりに(.+?)(?:てもよい|ても良い)/)?.[1];
   if (!body) return null;
-  const options: NonNullable<StubAction['damageReplaceByCost']>['options'] = [];
-  for (const clause of body.split('か')) {
-    const hand = clause.match(/手札を([０-９\d]+)枚捨て/);
-    if (hand) { options.push({ handDiscard: parseNum(hand[1]) }); continue; }
-    const energyTrash = clause.match(/エナゾーンからカードを([０-９\d]+)枚トラッシュに置い/);
-    if (energyTrash) { options.push({ energyTrash: parseNum(energyTrash[1]) }); continue; }
-    if (/を?支払っ/.test(clause)) {
-      const colors = [...clause.matchAll(/《(.)》/g)].map(m => m[1]);
-      if (colors.length > 0) options.push({ costColors: colors });
-    }
+  // ⚠**「か」で split しない**＝「エナゾーン**から**カード」の「か」で切れて2つ目の選択肢を丸ごと落とす
+  //   （実測。`WX25-P1-014`／`SPDi44-12` が `handDiscard` 1本になった）。出現位置で並べる。
+  const found: { at: number; option: NonNullable<StubAction['damageReplaceByCost']>['options'][number] }[] = [];
+  const hand = body.match(/手札を([０-９\d]+)枚捨て/);
+  if (hand) found.push({ at: hand.index ?? 0, option: { handDiscard: parseNum(hand[1]) } });
+  const energyTrash = body.match(/エナゾーンからカードを([０-９\d]+)枚トラッシュに置い/);
+  if (energyTrash) found.push({ at: energyTrash.index ?? 0, option: { energyTrash: parseNum(energyTrash[1]) } });
+  const pay = body.match(/((?:《.》)+)を支払っ/);
+  if (pay) {
+    const colors = [...pay[1].matchAll(/《(.)》/g)].map(m => m[1]);
+    if (colors.length > 0) found.push({ at: pay.index ?? 0, option: { costColors: colors } });
   }
+  const options = found.sort((a, b) => a.at - b.at).map(f => f.option);
   return options.length > 0 ? options : null;
 }
 
