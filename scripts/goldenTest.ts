@@ -38720,7 +38720,7 @@ test('§6.4 O-37(a): ダメージ置換 funnel が付与ストアを見て、払
   eq(pickLifeCrashReplacement(paid.state, { damageSource: 'signi', cardMap: cm }), null,
     '🔴能力を失ったのに置換だけ残っている');
   // 払えない盤面では選ばれない＝ダメージがそのまま通る（自滅もしない）
-  const noHand = { ...base, hand: [], lrig_granted_auto_effects_until_opp_turn: [mkGrant([{ handDiscard: 1 }], true)] };
+  const noHand = { ...base, hand: [] as string[], lrig_granted_auto_effects_until_opp_turn: [mkGrant([{ handDiscard: 1 }], true)] };
   eq(pickLifeCrashReplacement(noHand, { damageSource: 'signi', cardMap: cm }), null, '払えないなら置換は成立しない');
   // 能力喪失が書かれていない形（WX24-P4-021）は払えるかぎり何度でも
   const repeat = { ...base, lrig_granted_auto_effects_until_opp_turn: [mkGrant([{ handDiscard: 1 }])] };
