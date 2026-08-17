@@ -76,7 +76,8 @@ export function LrigGrantedModal(p: LrigGrantedModalProps) {
               const virusNeededLrig = eff.cost?.removeOppVirus ?? 0;
               const virusOkLrig = virusNeededLrig === 0 || (op.field.signi_virus ?? []).reduce((s, v) => s + v, 0) >= virusNeededLrig;
               const lgEnergyTrashCost = eff.cost?.energyTrash;
-              const lgEnergyTrashOk = !lgEnergyTrashCost || selectedLrigGrantedEnergyTrash.size >= lgEnergyTrashCost.count;
+              // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
+              const lgEnergyTrashOk = energyTrashCostSatisfied(my.energy, selectedLrigGrantedEnergyTrash, lgEnergyTrashCost, battleCardMap);
               const lgTrashExileCost = eff.cost?.trashExile;
               const lgTrashExileOk = !lgTrashExileCost || lgTrashExileCost.self
                 ? true
