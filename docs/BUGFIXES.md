@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き543・Opus 5）— 🏁§6.4 `O-37` 完了（defer していた引用能力の置換3形を実装）
+
+**live 6効果/6カードの挙動是正**（CSV 非改変）。ゲート全緑・golden 2214→**2218**・census **799 据置**・smoke 10693 全0・fuzz 全0・`census:stubs` 無言 no-op **0**・manual-fields **0**・lint **0 errors**。実機の観測点は PLAN §7 `V-64`。
+
+続き536 で「誤った形を積むより宣言済みの穴」として `DEFERRED_*` にした3形を、**それぞれ専用の choke point を1本ずつ作って**実装した。母集団は6効果／6カード（`WX24-P3-005` `WX25-P1-014` `SPDi44-12` `WX24-P4-021` `WX24-P3-009` `WX24-P3-007`）。
+
+### 🔴(a) `DAMAGE_REPLACE_BY_COST`＝「あなたがダメージを受ける場合、代わりに〈コスト〉を支払ってもよい」
+
+- **宣言の在庫はルリグ付与ストア**（`GRANT_LRIG_ABILITY` が積む CONTINUOUS）。⚠**`life_crash_replacements` へコピーしない**＝「そうした場合、このルリグはこの能力を失う」を**ストアからの削除1点**で表すため。コピーすると能力を失ったのに置換だけ残って**無限に払える**。
+- **消費は既存 funnel（`screens/battle/lifeCrashReplace.ts`）に相乗り**＝`lifeCrashReplacements()` が走査のたびに合成し、`pickLifeCrashReplacement` が**払えるときだけ**選ぶ（払えない盤面ではダメージがそのまま通る＝自滅が構造的に起きない）。消費地点は `crashOneLife`（シグニアタック）と**ルリグアタック応答の2つ**＝片方だけ配線すると「シグニには効くがルリグには効かない」無言の不整合になる。
+- ⚠`WX24-P4-021` には「この能力を失う」が**書かれていない**＝払えるかぎり何度でも置換できる（1回限りに丸めない）。golden で固定。
+- ⚠**「払うかどうか」は自動適用の近似**（既存の `optional` なライフクラッシュ置換と同じ枠）＝消費地点が同期経路で対話窓が無い。支払い方は**原文の並び順**で最初に払えるもの、捨てる手札／エナは**末尾から**（決定論）。PLAN §6.4 の監視項目に明記。
+
+### 🔴(b) `REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY`＝「ライフクロスがリフレッシュでトラッシュに移動する場合、代わりにこの能力を失う」
+
+`engine/refresh.ts` の `applyRefreshState` **1本**に置いた（engine の `refreshPlayerIfDeckEmpty` と UI の `battleUtils.applyRefresh`／`drawCards` が全部ここを通る唯一の choke point）。⚠`next_refresh_replaced` が立っているときは**そもそもライフが動かない**ので能力を消費しない／ライフ0枚でも消費しない。
+
+**副産物のバグ修正**＝`preventLifeToTrash` のとき従来は `trash: state.trash` を残していた＝**トラッシュ全部がデッキとトラッシュの両方に居るカード複製バグ**（`PREVENT_LIFE_REFRESH_TRASH` の唯一の消費地点。同じフラグを通した golden で顕在化）。トラッシュを必ず空にするよう是正。
+
+### 🔴(c) `ON_TRASH_CARD_ADDED`＝「対戦相手の効果1つによってあなたのトラッシュにカードが合計1枚以上置かれたとき」
+
+**timing 語彙が無く `ON_PLAY` へフォールバック**していた形（`census:timing` のクラス）。⚠既存の `ON_OPP_EFFECT_TRASH_FROM_HAND`（手札限定）／`ON_CARD_MILLED_FROM_DECK`（デッキ限定）は狭くて流用できない＝**移動元の領域を問わない** timing を新設した。
+- 検出＝`boardDiff.detectTrashAdded`（**多重集合の増加分**。同名カードが複数でも数えられる）。
+- 収集＝`triggerCollect.collectTrashAddedTriggers`（`collectHandAddedTriggers` と同型）。⚠**印刷能力の走査と付与ストアの走査は必ず対**（`grantedStore.ts` の規約）＝この timing の実カードは付与経由の1件だけなので、付与側を落とすと**構造が正しいのに恒久 no-op**。
+- 本体アクションは**既存ハンドラ `TRASHED_CARD_TO_HAND_OR_ENERGY` をそのまま再利用**（姉妹 `WX24-P3-030-E1` と共用）。「カードを1枚**まで**」だけ新設フラグ `trashedCardUpTo` で「何もしない」枝を出す。
+
+### 🔑 parser 側＝2つの入口を**同じ1本の規則**へ寄せた
+
+- 『』引用の3枚（`WX24-P3-005`／`-007`／`-009`）は `quotedSpecialFormAbility`（旧 `deferredQuotedAbility`）が**ブロック単位**で専用構造を組む。
+- 🔴「このルリグは「…」を得る」形の3枚（`WX25-P1-014`／`SPDi44-12`／`WX24-P4-021`）は**引用漏出の安全網に落ちて `STUB{GRANT_ABILITY_INNER_TEXT}` ＝付与ごと消えていた**（引用内の「捨てる」「支払う」「能力を失う」が裸の即時アクションとして漏れるため）。⇒ `restoreQuotedLrigDamageReplaceGrant` で**安全網の後ろで STUB ノードだけを付与ノードへ差し替え**、中身は上と同じ `expandGrantLrigAbilities` に埋めさせる。⚠**`parseBase` の前段に置くと同居する `RECOLLECT_GATE`（`WX24-P4-021-E3` の《リコレクトアイコン》［４枚以上］）まで消える**（実測）。
+- ⚠支払い方の抽出で**「か」で split しない**＝「エナゾーン**から**カード」の「か」で切れて**2つ目の選択肢が丸ごと落ちる**（実測。`WX25-P1-014`／`SPDi44-12` が `handDiscard` 1本になった）。出現位置で並べる。
+
 ## 2026-08-17（続き542・Opus 5）— 🏁§6.4 `O-29` 完了（「同じ選択肢を複数回選ぶ」ループ）
 
 **live 8効果/8カードの挙動是正**（CSV 非改変）。ゲート全緑・golden 2210→**2214**・census 800→**799**。詳細台帳は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-17 整理㉙」、実機の観測点は PLAN §7 `V-63`。
