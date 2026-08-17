@@ -44,7 +44,7 @@ interface Props {
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, collectCenterLrigActivatedEffects, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction } from '../engine/triggerCollect';
-import { activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
+import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, parseBetOptions, computeCostReplacement, computeArtsEffectiveCost, applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction, canAffordWithExtraCost, energyCostToString, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
 import { computeFieldSigniLimit, reduceFieldSigniToLimit } from './battle/fieldLimit';
@@ -124,6 +124,7 @@ import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
+import { pickCpuMainPhaseActivated } from './battle/cpuActivate';
 import { signiAttackBanHandDiscardCost, lrigAttackBanCost } from './battle/signiAttackBan';
 import { assistLrigAttackableSlots, lrigSlotTop, markLrigSlotDown, type LrigAttackSlot } from './battle/assistLrigAttack';
 import { signiCannotDealDamageToOpponent } from './battle/signiDamageGate';
@@ -10568,14 +10569,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, isCpuTurnNow, effectsMap, battleCardMap);
 
         // lrig_deckはinstance IDを持つのでgetCardNum()でCardNumに変換して照合
-        const cpuEnaMultiStripped = (() => {
-          const hasStripEffect = (cardNum: string) => (effectsMap.get(getCardNum(cardNum)) ?? []).some(e =>
-            e.effectType === 'CONTINUOUS' && e.action?.type === 'STUB' &&
-            (e.action as import('../types/effects').StubAction).id === 'STRIP_OPP_ENA_MULTI_ENA' &&
-            (!e.activeCondition || checkActiveCondition(e.activeCondition, huSt, cpuSt, false, battleCardMap, cardNum)));
-          return huSt.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasStripEffect(top); }) ||
-            (!!huSt.field.lrig.at(-1) && hasStripEffect(huSt.field.lrig.at(-1)!));
-        })();
+        // 【マルチエナ】剥がしの判定は `isEnaMultiStripped`（人間の支払いモーダル／CPU の【起】と共通）。
+        const cpuEnaMultiStripped = isEnaMultiStripped(cpuSt, huSt, false, effectsMap, battleCardMap);
 
         const growTargetId = cpuSt.lrig_deck.find(instanceId => {
           const cardNum = getCardNum(instanceId);
@@ -10968,10 +10963,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turnPhase: 'MAIN', isMyTurn: true, effectsMap,
         });
         const cpuActPowers = calcFieldPowers(newCpuSt, huSt, true, effectsMap, battleCardMap, 'MAIN');
-        const cpuEnaMultiStrippedAct = (newCpuSt.blocked_actions ?? []).includes('MULTI_ENA_STRIP');
+        const cpuEnaMultiStrippedAct = isEnaMultiStripped(newCpuSt, huSt, false, effectsMap, battleCardMap);
         const cpuChoice = pickCpuMainPhaseActivated({
           actor: newCpuSt, opponent: huSt, effectsMap, cardMap: battleCardMap, cards,
-          energyPoolNums: cpuActPool.map(e => e.cardNum),
+          energyPoolNums: energyPoolCardNums(cpuActPool),
           alreadyActivated: newCpuSt.cpu_activated_effect_ids_this_turn ?? [],
           effectivePowers: cpuActPowers,
           // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。

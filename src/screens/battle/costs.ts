@@ -1,6 +1,7 @@
 // コスト文字列の解析・軽減適用・支払可否判定（グロウ/アーツ/スペル共通）。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState, CardData } from '../../types';
-import { LRIG_ALL_NAMES_SENTINEL } from '../../engine/effectEngine';
+import type { CardEffect } from '../../types/effects';
+import { LRIG_ALL_NAMES_SENTINEL, checkActiveCondition } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
 import { hasNoAbility, satisfiesSelectionConstraint, canAddToSelection } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
@@ -927,6 +928,28 @@ export function applySpecificCardCostReduction(
 // 2. カード自身の CONTINUOUS GRANT_KEYWORD マルチエナ（count!='ALL' = 自身のみ）
 // 3. EffectText に「：【マルチエナ】」パターン（effects.json 未登録カードへのフォールバック）
 // 4. keyword_grants で動的付与された場合
+/**
+ * 相手の CONTINUOUS（`STRIP_OPP_ENA_MULTI_ENA`）で、`payer` のエナの【マルチエナ】が剥がされているか。
+ *
+ * ⚠**支払い判定を行う経路すべてで同じ関数を使うこと**（人間の各モーダル／CPU グロウ／CPU の【起】）。
+ * 写経すると「人間には剥がれているのに CPU では効かない」型の無言のズレになる。
+ */
+export function isEnaMultiStripped(
+  payer: PlayerState,
+  opponent: PlayerState,
+  /** `opponent` 側がターンプレイヤーか（`activeCondition` の評価に渡す）。 */
+  isOpponentTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>,
+  cardMap: Map<string, CardData>,
+): boolean {
+  const hasStripEffect = (cardNum: string) => (effectsMap.get(getCardNum(cardNum)) ?? []).some(e =>
+    e.effectType === 'CONTINUOUS' && e.action?.type === 'STUB' &&
+    (e.action as { id?: string }).id === 'STRIP_OPP_ENA_MULTI_ENA' &&
+    (!e.activeCondition || checkActiveCondition(e.activeCondition, opponent, payer, isOpponentTurn, cardMap, cardNum)));
+  return opponent.field.signi.some(stack => { const top = stack?.at(-1); return !!top && hasStripEffect(top); })
+    || (!!opponent.field.lrig.at(-1) && hasStripEffect(opponent.field.lrig.at(-1)!));
+}
+
 export function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: Record<string, string[]>, allMulti?: boolean, stripped?: boolean): boolean {
   if (stripped) return false;
   if (allMulti) return true;
