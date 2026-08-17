@@ -1030,8 +1030,9 @@ function evalConditionForContinuous(
     case 'LRIG_STORY': {
       const lrig = st(cond.owner).field.lrig;
       const top = lrig[lrig.length - 1];
-      if (!top) return false;
-      return cardMap.get(top)?.CardClass?.includes(cond.story) ?? false;
+      if (!top) return false;   // ⚠ルリグ不在は negate でも false（execUtils と同扱い）
+      const isStory = cardMap.get(top)?.CardClass?.includes(cond.story) ?? false;
+      return cond.negate ? !isStory : isStory;
     }
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);

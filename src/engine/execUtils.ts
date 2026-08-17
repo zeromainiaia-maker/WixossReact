@@ -1741,9 +1741,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     case 'LRIG_STORY': {
       const lrig = st(cond.owner).field.lrig;
       const topLrig = lrig[lrig.length - 1];
+      // ⚠ルリグ不在は「＜X＞である」も「＜X＞でない」も false（`negate` を掛けると不在で真になり、
+      //   盤面が無いのに発火する）。両評価器で同じ扱いにそろえる。
       if (!topLrig) return false;
       const card = ctx.cardMap.get(topLrig);
-      return card?.CardClass?.includes(cond.story) ?? false;
+      const isStory = card?.CardClass?.includes(cond.story) ?? false;
+      return cond.negate ? !isStory : isStory;
     }
     case 'LRIG_TEAM_COUNT': {
       // 場のルリグ（センター＋アシストL/R）のうち Team が一致する数（「＜うちゅうのはじまり＞のルリグが3体」。WXDi-D05-021）

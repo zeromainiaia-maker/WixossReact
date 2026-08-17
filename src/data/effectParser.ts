@@ -2244,6 +2244,10 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
   // 🔴この表は**「代わりに」昇格置換のゲート**＝ここに無いと置換にならず catch-all へ落ちる。
   //   `WX08-020-E1`「対戦相手は…５枚トラッシュ。あなたのセンタールリグが黒の場合、**代わりに**１０枚
   //   トラッシュに置く」は10枚側が丸ごと無言 no-op だった（＜C＞とレベルは在ったのに色だけ欠けていた）。
+  // 「〈誰か〉のセンタールリグが＜X＞**でない**場合」＝否定形（§6.4 O-35・続き529）。
+  // ⚠肯定形の regex（`＜X＞の場合`）は「でない場合」に当たらないので、**肯定より先に**置く。
+  [/(あなた|対戦相手)のセンタールリグが＜([^＞]+)＞でない場合/,
+    g => ({ type: 'LRIG_STORY', owner: g[0] === '対戦相手' ? 'opponent' : 'self', story: g[1], negate: true })],
   [/(あなた|対戦相手)のセンタールリグが(白|赤|青|緑|黒)の場合/,
     g => ({ type: 'LRIG_COLOR', owner: g[0] === '対戦相手' ? 'opponent' : 'self', color: g[1] })],
   [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
@@ -2422,6 +2426,10 @@ const STATE_CONDITION_CLAUSES: Array<[RegExp, (g: string[]) => Condition]> = [
       () => ({ type: 'THIS_CARD_IS_DOWN' })],
     // 「〈誰か〉のセンタールリグが〈色〉の場合」＝`LRIG_COLOR`（§6.4 O-35・続き528）。
     // ＜C＞（`LRIG_STORY`）とレベル（`LRIG_LEVEL`）は在ったのに**色形だけ両方の条件表に無かった**。
+    // 「〈誰か〉のセンタールリグが＜X＞**でない**場合」＝否定形（§6.4 O-35・続き529）。
+    // ⚠肯定形の regex（`＜X＞の場合`）は「でない場合」に当たらないので、**肯定より先に**置く。
+    [/(あなた|対戦相手)のセンタールリグが＜([^＞]+)＞でない場合/,
+    g => ({ type: 'LRIG_STORY', owner: g[0] === '対戦相手' ? 'opponent' : 'self', story: g[1], negate: true })],
     [/(あなた|対戦相手)のセンタールリグが(白|赤|青|緑|黒)の場合/,
       g => ({ type: 'LRIG_COLOR', owner: g[0] === '対戦相手' ? 'opponent' : 'self', color: g[1] })],
     [/あなたのセンタールリグが＜([^＞]+)＞の場合/,
@@ -4224,6 +4232,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
     parseSentencePart3(t) ??
     parseSentencePart4(t) ??
     parseBareOptionalHandDiscard(t) ??
+    parseMultiZoneReturnToDeck(t) ??
     { type: 'UNKNOWN', raw: t } as UnknownAction;
 
   // 「カードをN枚引き、X」で下流パーサが先頭 DRAW を落としていた場合のみ DRAW を前置する。
@@ -6579,6 +6588,41 @@ function selfHandDiscardStep(step: EffectAction | undefined): import('../types/e
 // ⚠「手札**を**N枚捨てる」（spec 無し）も含める＝option ④ 型（`WX25-CP1-004-E1`）。
 //   ここを外すと engine が**手札の最後の1枚を自動で捨てる**ままになり、プレイヤーが選べない。
 const TADH_DISCARD_RE = /手札(?:から)?(.{0,32}?)を?([０-９\d]+)枚(?:を)?捨て(てもよい|る)$/;
+
+/**
+ * 「〈誰か〉の〈ゾーンA〉と〈ゾーンB〉と…にあるすべてのカードをデッキに加える（てシャッフルする）」
+ * ＝**複数ゾーンの一括デッキ戻し**（§6.4 O-35・続き529・`WXK05-005-E1`）。
+ *
+ * 🔴単一ゾーン形（トラッシュ）だけ規則が在り、**列挙形は規則ゼロ**で UNKNOWN だった。その結果
+ * `tryWrapLeadingStateCond` のガードBに引っかかり、前置きの条件節ごと `CONDITIONAL_POWER_BONUS` へ落ちて
+ * **1文目が丸ごと無言 no-op**（＝リセットが起きないのに後続のドロー/エナチャージだけ走る）。
+ *
+ * ⚠engine 側は `execTransferToDeck` の分岐がゾーンごとに要る。`ENERGY_CARD` は**この回に新設**した
+ *   （`HAND_CARD`／`SIGNI`／`TRASH_CARD` は既存）＝ここに無いゾーンを足すときは engine を先に見ること。
+ * ⚠**ゾーン語をすべて解釈できたときだけ**返す（1つでも未知なら null＝無変換）。部分的に実行する近似は、
+ *   「全部戻す」系ではリセット漏れという重い過少になるため作らない。
+ */
+function parseMultiZoneReturnToDeck(t: string): EffectAction | null {
+  const m = t.trim().replace(/。$/, '').match(/^(あなた|対戦相手)の(.+?)にあるすべてのカードをデッキに加える(?:てシャッフルする)?$/);
+  if (!m) return null;
+  const owner: Owner = m[1] === '対戦相手' ? 'opponent' : 'self';
+  const zones = m[2].split('と').map(z => z.trim()).filter(Boolean);
+  if (zones.length < 2) return null;   // 単一ゾーンは既存規則の領分（横取りしない）
+  const ZONE_SRC: Record<string, EffectTarget['type']> = {
+    '手札': 'HAND_CARD', 'エナゾーン': 'ENERGY_CARD', 'シグニゾーン': 'SIGNI', 'トラッシュ': 'TRASH_CARD',
+  };
+  const steps: EffectAction[] = [];
+  for (const z of zones) {
+    const src = ZONE_SRC[z];
+    if (!src) return null;             // 未知のゾーン語が1つでもあれば無変換
+    steps.push({
+      type: 'TRANSFER_TO_DECK',
+      source: { type: src, owner, count: 'ALL' },
+      shuffle: false,
+    } as EffectAction);
+  }
+  return { type: 'SEQUENCE', steps } as EffectAction;
+}
 
 /**
  * 「（あなたは）手札から〈spec〉をN枚捨ててもよい」**単独文**＝任意手札コスト（§6.4 O-35・続き528）。
@@ -9971,7 +10015,38 @@ function parseActionTextInner(text: string): EffectAction {
       // （WXDi-CP02-062「ブルアカ5枚→−5000。10枚以上ある場合、追加で3枚ミル」。続き29）
       if (cm && cm.rest.startsWith('追加で')) {
         const bonusText = cm.rest.slice('追加で'.length);
-        const bonus = parseSingleSentence(bonusText);
+        let bonus = parseSingleSentence(bonusText);
+        // 🔴**ゾーン照応の復元**（§6.4 O-35・続き529）＝「追加で」節は前文と同じ領域を指すので
+        //   原文が領域句を省く（`WDK10-009-E1`「その後、**あなたのトラッシュから**黒のシグニ１枚を…。
+        //   〈条件〉の場合、追加で黒のシグニ１枚を対象とし、それを手札に加える。」）。単独 parse では
+        //   参照先が束縛されず UNKNOWN → ガードB で条件節ごと catch-all（受け皿）へ落ちていた。
+        // ⚠**復元した領域が正しい保証**として「再parse の結果が**直前ステップと同じ action 型**になること」を
+        //   要求する（続き525 の『残り節だけを parse した結果が現行結果と一致するときだけ足す』と同じ規律）。
+        //   ここを緩めると、無関係な前段の領域を当てはめて**別の山札から引く**誤りを作る。
+        if (JSON.stringify(bonus).includes('"UNKNOWN"') && !/^(?:あなた|対戦相手)の/.test(bonusText)) {
+          const prevCore = ((): EffectAction | null => {
+            const p0 = steps[steps.length - 1];
+            if (!p0) return null;
+            return p0.type === 'SEQUENCE' ? ((p0 as SequenceAction).steps.at(-1) ?? null) : p0;
+          })();
+          const zoneOf = (a: EffectAction | null): string | null => {
+            if (!a) return null;
+            const src = (a as { source?: { type?: string; owner?: string; location?: string } }).source;
+            const from = (a as { from?: { location?: string; owner?: string } }).from;
+            const own = (z?: string) => (z === 'opponent' ? '対戦相手の' : 'あなたの');
+            if (a.type === 'SEARCH' && from?.location === 'deck') return own(from.owner) + 'デッキから';
+            if (src?.type === 'TRASH_CARD') return own(src.owner) + 'トラッシュから';
+            if (src?.type === 'ENERGY_CARD') return own(src.owner) + 'エナゾーンから';
+            return null;
+          };
+          const zone = zoneOf(prevCore);
+          if (zone) {
+            const retry = parseSingleSentence(zone + bonusText);
+            if (!JSON.stringify(retry).includes('"UNKNOWN"') && prevCore && retry.type === prevCore.type) {
+              bonus = retry;
+            }
+          }
+        }
         if (!JSON.stringify(bonus).includes('"UNKNOWN"')) {
           // 「ターン終了時まで、」先頭文は再帰先のプレフィックス除去で PERMANENT 化する＝復元
           // （parseSingleSentence の CONDITIONAL 持ち上げと同じ補正）

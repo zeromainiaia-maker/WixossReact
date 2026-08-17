@@ -289,7 +289,7 @@ export type Condition =
   | { type: 'TRASH_COUNT'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'DECK_TOP_MATCHES'; owner: Owner; filter: TargetFilter }
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number }
-  | { type: 'LRIG_STORY'; owner: Owner; story: string }
+  | { type: 'LRIG_STORY'; owner: Owner; story: string; negate?: boolean } // negate=true は「センタールリグが＜X＞**でない**場合」（この条件系には NOT ラッパが無いので`HAS_CARD_IN_FIELD`／`IS_BETTING` と同じ慣例で否定を表す。§6.4 O-35・`WXK05-005-E1`）
   | { type: 'THIS_CARD_IN_LOCATION'; location: CardLocation }
   | { type: 'THIS_CARD_IN_CENTER_ZONE' }
   | { type: 'THIS_CARD_IS_DOWN' }
