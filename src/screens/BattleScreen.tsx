@@ -23,7 +23,7 @@ import { consumeNextDamagePrevention, resolveTurnEndPreventionMill, type DamageS
 import { resolveTurnEndLrigDeckReturn } from './battle/turnEndLrigDeckReturn';
 import { resolveTurnEndHandReturn } from './battle/turnEndHandReturn';
 import { resolveTurnEndEnergyTrash } from './battle/turnEndEnergyTrash';
-import { pickLifeCrashReplacement, applyMillReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
+import { pickLifeCrashReplacement, applyMillReplacement, applyPayCostReplacement, consumeLifeCrashReplacement, lifeCrashReplaceLog } from './battle/lifeCrashReplace';
 import { buildRearrangeSigniArrangement } from './battle/rearrangeSigniUi';
 import { payLifeOnPlayCost } from './battle/lifeCost';
 import { payLrigDownCost, fmtLrigDownCostLabel } from './battle/lrigDownCost';
