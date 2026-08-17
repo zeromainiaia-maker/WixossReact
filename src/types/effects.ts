@@ -2820,6 +2820,44 @@ export interface StubAction {
     handDiscard?: number;
   };
   /**
+   * `DAMAGE_REPLACE_BY_COST`（§6.4 O-37(a)・続き543）＝
+   * 「あなたがダメージを受ける場合、代わりに〈コスト〉を支払ってもよい。
+   *  （そうした場合、このルリグはこの能力を失う。）」＝**ダメージの置換**。
+   *
+   * ⚠**素直に parse させると別物になる**（続き536 の実測）＝コスト側が即時実行され、
+   *   能力喪失が `REMOVE_ABILITIES{SIGNI owner:'self'}`＝**自分のシグニ**の能力消しに化ける。
+   *   だから parser 側は専用規則でこの構造だけを組む（`quotedDamageReplaceAbility`）。
+   *
+   * 宣言＝ルリグ付与ストア（`GRANT_LRIG_ABILITY` が積む CONTINUOUS）。
+   * 消費＝`screens/battle/lifeCrashReplace.ts` の funnel 1本（消費地点は crashOneLife と
+   *   ルリグアタック応答の2つ）。**funnel を通さないと片方だけ効く不整合になる。**
+   */
+  damageReplaceByCost?: {
+    /** 支払い方（**原文の並び順**。funnel は先に成立したものを使う）。 */
+    options: {
+      /** エナで払う色スロット（`selectOptionalCostEnergy` と同じ表記）。 */
+      costColors?: string[];
+      /** 手札を捨てて払う枚数。 */
+      handDiscard?: number;
+      /** エナゾーンからトラッシュに置いて払う枚数。 */
+      energyTrash?: number;
+    }[];
+    /** 「そうした場合、このルリグはこの能力を失う」＝払ったらこの付与能力を1つ捨てる。 */
+    loseAbility?: boolean;
+  };
+  /**
+   * `REFRESH_LIFE_MOVE_REPLACE_LOSE_ABILITY`（§6.4 O-37(b)・続き543）＝
+   * 「あなたのライフクロスがリフレッシュによってトラッシュに移動する場合、
+   *  代わりにこのルリグはこの能力を失う。」（`WX24-P3-009` が付与）。
+   * 消費は `engine/refresh.ts` の `applyRefreshState` 1本（リフレッシュ経路の唯一の choke point）。
+   */
+  refreshLifeMoveReplace?: true;
+  /**
+   * `TRASHED_CARD_TO_HAND_OR_ENERGY` の「カードを１枚**まで**」（§6.4 O-37(c)・続き543）。
+   * 立っているときだけ CHOOSE に「何もしない」枝が出る（既定＝ちょうど1枚＝`WX24-P3-030-E1`）。
+   */
+  trashedCardUpTo?: boolean;
+  /**
    * PREVENT_LRIG_DAMAGE（§6.4 O-10・続き507）＝原文が
    * 「代わりにダメージを受けず、**ターン終了時まで、この能力を失う**」（`WXK01-002-E1`）の形のとき true。
    * 1回防いだ時点で `lost_ability_effect_ids_this_turn` に刻み、**そのターンは二度と防がない**。
