@@ -3297,8 +3297,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ⚠**クラッシュではない**ので【ライフバースト】は発動しない（engine 側もその実装）。
   // ⚠条件節形「ライフクロス**が**N枚…」は下の既存ガードと同じ理由で除外する。
   {
+    // ⚠**文頭アンカー必須**＝非アンカーだと「この方法でカードをN枚以上トラッシュに置いた**場合**、
+    //   対戦相手のライフクロス１枚をエナゾーンに置く」（`WX25-CP1-020-E2`）の**閾値節ごと奪って**
+    //   条件を落とし、**両方の枝が無条件発火する過剰**に化ける（A/B で実測）。条件つきの形は
+    //   part4 の受け皿（`CONDITIONAL_POWER_BONUS`）に残す＝過少側で安全。
     const lifeMoveM = !/ライフクロスが[０-９\d]+枚/.test(t)
-      && t.match(/ライフクロスを?([０-９\d]+)枚を?(エナゾーンに置く|デッキの一番下に置く)$/);
+      && t.match(/^(?:(?:あなた|対戦相手)(?:は自分)?の)?ライフクロスを?([０-９\d]+)枚を?(エナゾーンに置く|デッキの一番下に置く)$/);
     if (lifeMoveM) {
       const lmOwner: Owner = /対戦相手[のはが][^。、]{0,4}ライフクロス/.test(t) ? 'opponent' : 'self';
       const lmCount = parseNum(lifeMoveM[1]);
