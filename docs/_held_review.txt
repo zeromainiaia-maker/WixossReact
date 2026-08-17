@@ -377,24 +377,6 @@ WXDi-P11-003
   - [0].action.steps[1].choices[0].action.type = "DRAW"
   …（他 22 行）
 
-## +CONDITIONAL×2 +HAND_COUNT +PAID_ADDITIONAL_COST +SEQUENCE×2 +STUB ［1枚］
-WXDi-P11-044
---- WXDi-P11-044
-  原文: 【自】：このシグニがアタックしたとき、カードを２枚引く。【出】：あなたの手札が５枚以下の場合、《無》を支払わないかぎりこのシグニを場からトラッシュに置く。【起】《ターン１回》手札を４枚捨てる：対戦相手のパワー10000以下のシグニ１体を対象とし、それをデッキの一番下に置く。,-
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  ~ [1].action.type : "TRASH" → "CONDITIONAL"
-  + [1].action.condition.type = "HAND_COUNT"
-  + [1].action.condition.owner = "self"
-  + [1].action.condition.operator = "lte"
-  + [1].action.condition.value = 5
-  + [1].action.then.type = "SEQUENCE"
-  + [1].action.then.steps[0].type = "STUB"
-  + [1].action.then.steps[0].id = "OPTIONAL_COST"
-  …（他 11 行）
-
 ## +FREEZE +SEQUENCE +SIGNI ［1枚］
 WXDi-P12-073
 --- WXDi-P12-073
@@ -412,6 +394,24 @@ WXDi-P12-073
   + [1].action.then.steps[0].target.count = 1
   + [1].action.then.steps[0].target.filter.cardType = "シグニ"
   …（他 7 行）
+
+## +BANISH +CONDITIONAL +GRANT_EFFECT +SIGNI×2 +THIS_CARD_HAS_UNDER -STUB ［1枚］
+WXDi-P13-065
+--- WXDi-P13-065
+  原文: 【出】：あなたのデッキの一番上のカードをこのシグニの下に置く。【起】《ターン１回》《赤》《赤》：このシグニの下に《ディソナアイコン》のカードが置かれている場合、ターン終了時まで、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。」を得る。,：対戦相手のパワー12000以下のシグニ１
+  - [1].action.id = "GRANT_ABILITY_INNER_TEXT"
+  ~ [1].action.type : "STUB" → "CONDITIONAL"
+  + [1].action.condition.type = "THIS_CARD_HAS_UNDER"
+  + [1].action.condition.filter.isDisona = true
+  + [1].action.then.type = "GRANT_EFFECT"
+  + [1].action.then.target.type = "SIGNI"
+  + [1].action.then.target.owner = "self"
+  + [1].action.then.target.count = 1
+  + [1].action.then.target.filter.thisCardOnly = true
+  + [1].action.then.duration = "UNTIL_END_OF_TURN"
+  + [1].action.then.effect.effectId = "WXDi-P13-065-sub-E1"
+  + [1].action.then.effect.effectType = "AUTO"
+  …（他 12 行）
 
 ## +COINS_PAID_THIS_TURN +GRANT_KEYWORD +SIGNI -GAIN_COIN ［1枚］
 WXDi-P15-052

@@ -38326,6 +38326,49 @@ test('§6.4 O-31: 相手シグニ【自】能力の停止は engine に届く（
   }
 });
 
+
+
+// ── §6.4 O-25 続き538：自己引用付与の残り（(a)(b) ＋ 実測で見つけた1件） ────────────────────
+test('§6.4 O-25(a): 「下に《ディソナアイコン》が置かれている場合」の条件が付与に掛かる', () => {
+  // 🔴条件節の綴り違い（「ある」ではなく「置かれている」）で未パース → 期間アンカーに掛からず
+  //   引用付与が受け皿 STUB へ落ち、**ディソナが下に無くても能力が付く**過剰実行だった。
+  const e = (effectsMap.get('WXDi-P13-065') ?? []).find(x => x.effectId === 'WXDi-P13-065-E2')!;
+  const c = e.action as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  eq(c.type, 'CONDITIONAL', '🔴条件節が落ちている＝無条件で付与される');
+  eq(c.condition.type, 'THIS_CARD_HAS_UNDER', '下カードの条件');
+  const g = c.then as import('../src/types/effects').GrantEffectAction;
+  eq(g.type, 'GRANT_EFFECT', '自己引用付与の正準形');
+  eq(g.target?.filter?.thisCardOnly, true, '付与先はこのシグニだけ');
+  eq(g.effect?.timing?.[0], 'ON_ATTACK_SIGNI', '引用の【自】が展開されている');
+});
+
+test('§6.4 O-25: 引用付与が「引用内のコスト節」に化けていない（WXDi-P03-016-E2）', () => {
+  // 🔴live は `DOWN{SIGNI self level:2}` ＝撃つと**付与が起きず自分のレベル2シグニが1体ダウンするだけ**
+  //   だった（引用のコスト節が本体に化け、さらにルリグ→シグニの取り違え）。
+  const e = (effectsMap.get('WXDi-P03-016') ?? []).find(x => x.effectId === 'WXDi-P03-016-E2')!;
+  const g = e.action as import('../src/types/effects').GrantLrigAbilityAction;
+  eq(g.type, 'GRANT_LRIG_ABILITY', '🔴付与が即時アクションに潰れている');
+  eq(g.abilities.length, 1, '引用は1能力');
+  const sub = g.abilities[0];
+  eq(sub.effectType, 'ACTIVATED', '引用は【起】');
+  eq(JSON.stringify(sub.cost?.lrigDown), JSON.stringify({ count: 1, level: 2 }),
+    '🔴コスト「アップ状態のレベル２のルリグ１体をダウン」がルリグ側に載っていない');
+  eq((sub.action as Extract<EffectAction, { type: 'UP' }>).target.type, 'LRIG', '本体はこのルリグをアップ');
+  // ⚠同居の E1b（MANUAL）は **期間つきの即時 POWER_MODIFY** で近似したまま＝`calcFieldPowers` が
+  //   付与ストアを読まないため（§6.4 O-25(d) の境界整理待ち）。構造化に倒すと +5000 が死ぬ。
+  const e1b = (effectsMap.get('WXDi-P03-016') ?? []).find(x => x.effectId === 'WXDi-P03-016-E1b')!;
+  eq(e1b.action.type, 'POWER_MODIFY', 'E1b は近似のまま（構造化すると効かなくなる）');
+});
+
+test('§6.4 O-25(b): 全文再パースの受け皿から構造化済みの付与へ（WXDi-P15-055-E3）', () => {
+  const e = (effectsMap.get('WXDi-P15-055') ?? []).find(x => x.effectId === 'WXDi-P15-055-E3')!;
+  const g = e.action as import('../src/types/effects').GrantEffectAction;
+  eq(g.type, 'GRANT_EFFECT', '🔴`GRANT_QUOTED_AUTO_ABILITY`（実行時に全文 regex）へ戻っている');
+  eq(g.target?.filter?.thisCardOnly, true, '付与先はこのシグニだけ');
+  eq(g.effect?.timing?.[0], 'ON_ATTACK_SIGNI', '引用の【自】が展開されている');
+  ok(!g.rawText, 'rawText は展開済みなので残さない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

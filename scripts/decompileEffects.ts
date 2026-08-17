@@ -1810,9 +1810,12 @@ function actionJa(a?: Action, effectType?: string): string {
         return 'このターン、次にこのルリグがアタックしたとき、このルリグをアップする';
       }
       const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';
+      // ⚠**省略時の既定（ターン終了時まで）も明示する**（§6.4 O-25・続き538）＝engine は duration 省略の
+      //   付与を `lrig_granted_auto_effects`（ターン終了で落ちるストア）へ積むので、無表記だと
+      //   **恒久付与に見えて**原文照合で期間のズレを見つけられない（続き536 の targetedCenter 枝と同じ軸）。
       const glaDuration = a.permanent ? 'このゲームの間、'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
-        : '';
+        : 'ターン終了時まで、';
       // targetedCenter＝「センタールリグ１体を対象とし」表記変種（WX25-P1-001系。engine挙動は既定と同一）
       const glaOwner = a.targetOwner === 'opponent' ? '対戦相手の' : 'あなたの';
       // ⚠**`duration` を読む**（§6.4 O-27・続き536）＝従来は `targetedCenter` の枝だけ
