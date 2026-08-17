@@ -4860,6 +4860,11 @@ export function execStubPart1(
       type: 'CHOOSE', count: 1, options: [
         { id: 'hand', label: '手札に加える', action: toHandTCTE as EffectAction, available: true },
         { id: 'energy', label: 'エナゾーンへ', action: toEnaTCTE as EffectAction, available: true },
+        // 「カードを１枚**まで**」（§6.4 O-37(c)・`WX24-P3-007`）＝0枚を選べる。
+        // ⚠既定（`WX24-P3-030-E1`＝「カード１枚を対象とし」）は必須なのでこの枝を出さない。
+        ...(stub.trashedCardUpTo
+          ? [{ id: 'none', label: '何もしない', action: { type: 'STUB', id: 'NOOP' } as EffectAction, available: true }]
+          : []),
       ],
     });
   }
