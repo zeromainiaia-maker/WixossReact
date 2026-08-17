@@ -1368,6 +1368,14 @@ export interface ChooseAction {
    *   そのまま持ち engine の `evalCondition` に委ねる＝条件語彙が増えても CHOOSE 側を触らずに済む。
    */
   conditionChoose?: { condition: Condition; thenChooseCount: number; thenUpTo?: boolean };
+  /**
+   * **選択数そのものが実行時に決まる**形（§6.4 O-11）。`conditionChoose` が「条件を満たしたら定数へ差し替え」
+   * なのに対し、こちらは `choose_count` を丸ごと `NumberOrRef` で解決する。
+   * ・「以下の２つから、**この方法で捨てたシグニの枚数と同じ数だけ**選ぶ」（`PR-328`）＝`last_processed_count`
+   * ・「以下の３つから**対戦相手のセンタールリグのルリグタイプ１つにつき１つまで**選ぶ」（`PR-471`）
+   * 🔴これが無かった頃は**カードごと受け皿 STUB に落ちて①②③が1つも実行されない**真 no-op だった。
+   */
+  countChoose?: { count: NumberOrRef; upTo?: boolean };
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
 }
 
