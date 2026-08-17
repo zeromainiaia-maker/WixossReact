@@ -77,7 +77,7 @@ const rows = [...allIds].map(id => ({
   cardCount: cards[id] ? cards[id].size : 0,
   sample: cards[id] ? [...cards[id]].slice(0, 3).join(', ') : '',
   impl: handlerFile[id] || '',
-  comment: handlerComment[id] || '',
+  comment: descriptionForId(handlerComment[id] || [], id, allIds),
 }));
 
 const inJson = rows.filter(r => r.count > 0);
