@@ -15454,7 +15454,10 @@ scenarios.v11CpuDeployPowerLimitWithControl = {
       'field.signi': [null, null, null],
       'hand': ['WD01-013#6152', 'WD01-012#6153'], // P3000(<5000)＋P7000(>=5000)
       'energy': [],
-      'signi_deploy_power_limit': 5000,
+      // ⚠**旧フィールド `signi_deploy_power_limit` は廃止済み**（§6.4 O-3 続き487 で `signi_deploy_bans` へ統合
+      //   ＝寿命 `turnsRemaining` のカウントダウンが付いた）。旧名で注入しても誰も読まないので、
+      //   このシナリオは「制限側」まで対照と同じ盤面になり、意味のない緑/赤になる（タスク12(cxxxii) 精査）。
+      'signi_deploy_bans': [{ turnsRemaining: 2, powerGte: 5000, label: 'パワー5000以上' }],
       'actions_done': [],
     },
     top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
