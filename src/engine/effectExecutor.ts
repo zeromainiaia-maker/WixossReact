@@ -4496,8 +4496,9 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
         // ⚠**「支払わないかぎり」形は文言だけ反転する**（§6.4 O-30）＝機構は同じ（pay→then／skip→else）だが、
         //   「発動する／スキップ」のままだと**払わない方が得に見える**表示になり実機で判断できない。
         const unlessPay = stub.unlessPay === true;
-        const payLabel = payColors.length > 0
-          ? `${unlessPay ? '支払う' : '発動する'}（コスト: ${payColors.map(c => `《${c}》`).join('')}）`
+        const payParts = [...payColors.map(c => `《${c}》`), ...optionalCostExtraLabels(spec)];
+        const payLabel = payParts.length > 0
+          ? `${unlessPay ? '支払う' : '発動する'}（コスト: ${payParts.join('＋')}）`
           : (unlessPay ? '支払う' : '発動する');
         const options = [
           { id: 'pay', label: payLabel, action: payAction, available: canAfford, ...(payColors.length ? { costColors: payColors } : {}) },
