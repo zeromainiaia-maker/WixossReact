@@ -7237,6 +7237,51 @@ function applyDroppedTargetDesignation(text: string, action: EffectAction): Effe
   return { ...action, steps: rebuilt } as EffectAction;
 }
 
+/**
+ * 「〈対象宣言〉を対象とし、〈誰か〉のデッキの一番上のカードをトラッシュに置く。それが〜の場合、〈帰結〉」
+ * の**帰結を宣言済み対象へ束縛する**（§6.4 O-35・続き530）。
+ *
+ * 文単位 parser は帰結文（「それらのパワーをそれぞれ－1000する」）の「それ（ら）」の指し先を知らないので、
+ * `parseSentencePart1` が組んだ `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → TRASH{DECK_CARD}`
+ * の宣言対象へここで戻す（`targetsStored`）。ミルが `lastProcessedCards` を置いたカードで上書きするので、
+ * 条件側の `LAST_PROCESSED_MATCHES`（「それがレベルが偶数のシグニの場合」）とは競合しない。
+ *
+ * 🔴束縛が無いと帰結が対象を選び直す＝`WXK03-081-E1` は `targetsTriggerSource` で**このシグニ自身**の
+ *   パワーを下げ（原文は相手シグニ）、`WXK03-080-E1` は「２体まで」が `count:1` に潰れていた。
+ * ⚠帰結に残る `targetsTriggerSource`（発生源自身への誤照応）は束縛前に落とす＝両方立つと executor が
+ *   発生源側を優先して束縛が無視される。この文型の「それ」は必ず宣言対象なので安全に落とせる。
+ */
+function applyDeckTopMillTargetAnaphora(text: string, action: EffectAction): EffectAction {
+  if (!/対象とし、[^。]*?デッキの一番上のカードをトラッシュに置く。/.test(text)) return action;
+  if (action.type !== 'SEQUENCE') return action;
+  const steps = [...(action as SequenceAction).steps];
+  const head = steps[0];
+  if (head?.type !== 'SEQUENCE') return action;
+  const inner = (head as SequenceAction).steps;
+  const sel = inner[0] as StubAction | undefined;
+  const store = inner[1] as StubAction | undefined;
+  if (sel?.type !== 'STUB' || sel.id !== 'SELECT_TARGET_ONLY' || !sel.selectTarget) return action;
+  if (store?.type !== 'STUB' || store.id !== 'STORE_LAST_PROCESSED_TARGETS') return action;
+  const desig = sel.selectTarget;
+  const stripTriggerSource = (a: EffectAction): EffectAction => {
+    if (a.type === 'SEQUENCE') {
+      return { ...a, steps: (a as SequenceAction).steps.map(stripTriggerSource) } as EffectAction;
+    }
+    if (a.type === 'CONDITIONAL') {
+      const c = a as import('../types/effects').ConditionalAction;
+      return { ...c, then: stripTriggerSource(c.then), ...(c.else ? { else: stripTriggerSource(c.else) } : {}) };
+    }
+    if (!(a as Record<string, unknown>).targetsTriggerSource) return a;
+    const { targetsTriggerSource: _drop, ...rest } = a as EffectAction & { targetsTriggerSource?: boolean };
+    return rest as EffectAction;
+  };
+  // 入れ子 SEQUENCE は平坦化する（逆翻訳が読みやすく、対話再開の continuation も1段で済む）。
+  return {
+    ...action,
+    steps: [...inner, ...steps.slice(1).map(s => bindToStoredTarget(stripTriggerSource(s), desig))],
+  } as EffectAction;
+}
+
 // 「それを手札に戻す。それが〈対象プロパティ〉の場合、代わりにそれをトラッシュに置く」。
 // 任意コスト形では文単位 parser が後段を説明 STUB に落とすため、対象宣言の復元後の木を正準形へ畳む。
 // カード番号ではなく、原文の具体文型＋ SELECT/STORE＋支払いゲート＋末尾 STUB の全条件で限定する。
