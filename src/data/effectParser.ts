@@ -10387,6 +10387,34 @@ function parseActionTextInner(text: string): EffectAction {
       continue;
     }
 
+    // ---- コスト支払い枚数のゲート「（この方法で）（エナゾーンから）カードを（合計）N枚以上トラッシュに置いた場合、〈帰結〉」----
+    // （§6.4 O-35・続き530）。**本文の先頭に来る**＝「この方法で」がコロンの左＝**コスト節**を指す形で、
+    // 本文の直前ステップを見る `LAST_PROCESSED_COUNT_GTE` では参照先が違って表せない。
+    // 🔴従来の実害2種＝①`WX25-CP1-020-E2` は条件節ごと受け皿 `CONDITIONAL_POWER_BONUS` に落ちて
+    //   **ライフ→エナが一度も起きない無言 no-op**／②`WXDi-P16-012-E3` は条件だけ落ちて
+    //   **エナが0枚でもライフが1枚増える過剰実行**。
+    // 🔑engine 側は新機構ゼロ＝BattleScreen がコスト支払い時に必ず記録する `last_cost_trashed_cards` を
+    //   数えるだけ（`COST_TRASHED_MATCHES` に `minCount` を1キー追加）。
+    // ⚠**本文側でトラッシュした枚数を指す形と取り違えない**＝直前ステップがある形は既存の
+    //   `LAST_PROCESSED_COUNT_GTE` の領分（`WXDi-P14-042-E1`／`WXK08-055-E1`／`WXK11-070-E1`）。
+    //   そこで**先頭文か、直前が同じコストゲートのときだけ**適用する（2段目「７枚以上〜」を拾うため）。
+    {
+      const costGateM = clean.match(/^(?:この方法で)?(?:エナゾーンから)?(?:カードを)?(?:合計)?([０-９\d]+)枚以上(?:を)?トラッシュに置いた場合、(?:追加で)?(.+)$/);
+      const prevIsCostGate = steps.length > 0 && steps[steps.length - 1].type === 'CONDITIONAL'
+        && (steps[steps.length - 1] as import('../types/effects').ConditionalAction).condition?.type === 'COST_TRASHED_MATCHES';
+      if (costGateM && (steps.length === 0 || prevIsCostGate)) {
+        const gateInner = parseSingleSentence(costGateM[2].replace(/。$/, '').trim());
+        if (!JSON.stringify(gateInner).includes('"UNKNOWN"')) {
+          steps.push({
+            type: 'CONDITIONAL',
+            condition: { type: 'COST_TRASHED_MATCHES', filter: {}, minCount: parseNum(costGateM[1]) },
+            then: gateInner,
+          });
+          continue;
+        }
+      }
+    }
+
     // 「そうした場合、」「この方法で...た場合、」「《色》を支払った場合、」「それが〜の場合、」はCONDITIONALとして前のステップと結合
     // ⚠「その後、<状態条件>場合、」の状態条件は「の場合」だけでなく「がいる場合／ある場合」（の 無し）も取る
     //   （ドリームチーム「その後、あなたの場に(色)のルリグがいる場合、X」＝WXDi-P08 等）＝`の?` で両対応。
