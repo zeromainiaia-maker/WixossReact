@@ -13813,6 +13813,32 @@ function expandGrantLrigAbilities(action: EffectAction, cardNum: string): boolea
             mandatory: true,
             parseStatus: 'MANUAL',
           }];
+        } else if (/あなたがダメージを受ける場合、代わりに/.test(cleanRaw)) {
+          // 🆕**ダメージの置換（コストを払って肩代わり）は機構が無い**＝明示 defer（§6.4 O-27・続き536）。
+          // ⚠素直に parse すると「手札を1枚捨てる」が**即時実行**され、「このルリグはこの能力を失う」が
+          //   `REMOVE_ABILITIES{SIGNI self}`＝**自分のシグニの能力を消す**別物に化ける（実測）。
+          //   付与された【常】として積む以上、誤った形を積むより宣言済みの穴にしておく方が安全。
+          // 母集団＝`WX24-P3-005-E1`／`WX25-P1-014-E2`／`SPDi44-12-E2`／`WX24-P4-021-E3`（原文 regex）。
+          gla.abilities = [{
+            effectId: `${cardNum}-GRANT`,
+            effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'DEFERRED_DAMAGE_REPLACE_BY_COST', rawText: cleanRaw },
+            duration: gla.duration ?? 'UNTIL_END_OF_TURN',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          }];
+        } else if (/ライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに/.test(cleanRaw)) {
+          // 🆕**リフレッシュ時のライフ移動の置換も機構が無い**＝明示 defer（§6.4 O-27・続き536）。
+          // ⚠素直に parse すると `CONTINUOUS REMOVE_ABILITIES{SIGNI self, until:PERMANENT}` になり、
+          //   走査軸が付与ストアへ広がった瞬間に**自分のシグニの能力を恒久的に消す**（実測）。
+          gla.abilities = [{
+            effectId: `${cardNum}-GRANT`,
+            effectType: 'CONTINUOUS',
+            action: { type: 'STUB', id: 'DEFERRED_REFRESH_LIFE_MOVE_REPLACE', rawText: cleanRaw },
+            duration: gla.duration ?? 'UNTIL_END_OF_TURN',
+            mandatory: true,
+            parseStatus: 'MANUAL',
+          }];
         } else if (/クロス状態のシグニ[１1]体が対戦相手の効果によって場を離れる場合、代わりにこのルリグはこの能力を失う/.test(cleanRaw)) {
           gla.abilities = [{
             effectId: `${cardNum}-GRANT`,
