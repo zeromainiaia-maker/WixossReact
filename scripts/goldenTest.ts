@@ -50,7 +50,7 @@ import { resolveNextPhaseWithSkips, resolveNextPhaseAfterAttack } from '../src/s
 import { resolveTurnHandover } from '../src/screens/battle/turnHandover';
 import { isLrigDamagePrevented, resolveLrigDamageShield } from '../src/screens/battle/lrigDamageShield';
 import { finalizeUsedCardPlacement } from '../src/screens/battle/spellPlacement';
-import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions } from '../src/screens/battle/costs';
+import { applyMeltFactPreUseCost, computeArtsEffectiveCost, computeCostReplacement, matchesOptionalDiscardGroup, optionalDiscardSatisfied, parseOptionalDiscardForCost, parseGrowCost, parseBetOptions, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../src/screens/battle/costs';
 import { parseUseTimeCostReduction, applyUseTimeCostReduction, useTimeCostCandidates, useTimeCostSelectionValid, payUseTimeCost } from '../src/screens/battle/useTimeCost';
 import { applyContinuousCostDecreases, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../src/screens/battle/costs';
 import { pendingEffectCardNums } from '../src/screens/battle/pendingEffectCards';
