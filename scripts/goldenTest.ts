@@ -37637,6 +37637,38 @@ test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集�
     'execTransferToHand の非ALL経路は resolveCountRef');
 });
 
+// 🔴タスク12(cxix)：`SPDi43-11-E2` の内側付与【自】が `ON_PLAY` へ落ちて恒久 no-op だった。
+//   真因＝ON_HAND_ADDED の regex が「**対戦相手**の効果→**対戦相手**の手札」の1形しか読めず、
+//   「**あなた**の効果→**あなた**の手札」が末尾フォールバックに食われていた（兄弟の SPDi43-12/13 だけ正しかった）。
+//   ⚠原因側（byOwnEffect / byOpponentEffect）と増えた側（handOwner）は**独立の2軸**なので両方を固定する。
+test('ON_HAND_ADDED: 「あなたの効果→あなたの手札」形の付与【自】が collector に載る（タスク12(cxix)）', () => {
+  const inner = findEffectDeep(effectsMap.get('SPDi43-11') ?? [], 'SPDi43-11-sub-E1');
+  if (!inner) throw new Error('SPDi43-11-sub-E1 が存在');
+  eq(JSON.stringify(inner.timing), JSON.stringify(['ON_HAND_ADDED']), '内側【自】は ON_HAND_ADDED（従来 ON_PLAY＝恒久 no-op）');
+  eq(inner.triggerCondition?.byOwnEffect, true, '原因は「あなたの効果」');
+  eq(inner.triggerCondition?.handOwner, 'self', '増えたのは「あなたの手札」');
+  eq(inner.costUnparsed, undefined, '《ターン２回》はコストではない＝costUnparsed を立てない');
+  // 対照＝相手→相手の既存形（WX25-P2-063-E1）が反転していないこと。
+  const opp = (effectsMap.get('WX25-P2-063') ?? []).find(e => e.effectId === 'WX25-P2-063-E1');
+  eq(opp?.triggerCondition?.byOpponentEffect, true, '対照：原因は「対戦相手の効果」のまま');
+  eq(opp?.triggerCondition?.handOwner, 'opponent', '対照：増えたのは「対戦相手の手札」のまま');
+
+  // end-to-end＝付与ストアに載せて「自分の効果で自分の手札が増えた」ときだけ発火する。
+  const host = mkState({}); host.field.lrig = ['SPDi43-11'];
+  host.lrig_granted_auto_effects = [inner];
+  const guest = mkState({});
+  const mv = (owner: string) => [
+    { ownerId: HOST, moved: owner === HOST ? [{ cardNum: SIGNI, from: 'deck' }] : [] },
+    { ownerId: GUEST, moved: owner === GUEST ? [{ cardNum: SIGNI, from: 'deck' }] : [] },
+  ];
+  eq(hasEff(collectHandAddedTriggers(trigCtx(HOST), mv(HOST), HOST, host, guest).entries, 'SPDi43-11-sub-E1'), true,
+    '自分の効果で自分の手札が増えたら発火');
+  eq(hasEff(collectHandAddedTriggers(trigCtx(HOST), mv(HOST), GUEST, host, guest).entries, 'SPDi43-11-sub-E1'), false,
+    '相手の効果が原因なら非発火（byOwnEffect）');
+  eq(hasEff(collectHandAddedTriggers(trigCtx(HOST), mv(GUEST), HOST, host, guest).entries, 'SPDi43-11-sub-E1'), false,
+    '増えたのが相手の手札なら非発火（handOwner:self）');
+});
+
 test('SPDi43-13-sub-E1: 付与ON_ENERGY_CHARGEの《ターン2回》を2件だけ予約する', () => {
   const effect = findEffectDeep(effectsMap.get('SPDi43-13') ?? [], 'SPDi43-13-sub-E1');
   if (!effect) throw new Error('SPDi43-13-sub-E1 が存在');
