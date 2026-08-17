@@ -2413,6 +2413,26 @@ export function parseSentencePart4(t: string): EffectAction | null {
   if (t.match(/の下にカードが無い場合.*の下に置く/))
     return { type: 'STUB', id: 'PLACE_UNDER_IF_EMPTY' } as StubAction;
 
+  // ---- 「**あなたの**トラッシュから〈修飾〉スペル１枚を対象とし、それを使用してもよい」（§6.4 O-35・続き530）----
+  // 🔴既存 `USE_SPELL_FROM_TRASH` は**コストを支払わずに**使用するので流用すると過剰実行になる
+  //   （原文は「使用」＝印刷コストを払う）。専用 id で**コストを払う使用**へ分岐させる。
+  // ⚠「**対戦相手の**トラッシュから」は別機構（`CAST_FROM_OPP_TRASH`）なので除外する。
+  {
+    const useOwnTrashSpellM = t.match(/^あなたのトラッシュから(《[^》]+》の|[白赤青緑黒]の|＜[^＞]+＞の)?スペル[１1]枚を対象とし、それを使用してもよい$/);
+    if (useOwnTrashSpellM) {
+      const q = useOwnTrashSpellM[1] ?? '';
+      const filter: TargetFilter = {
+        cardType: 'スペル',
+        ...parseIconFilter(q), ...parseColorFilter(q), ...parseStoryFilter(q),
+        ...(/《ディソナアイコン》の/.test(q) ? { isDisona: true } : {}),
+      };
+      return {
+        type: 'STUB', id: 'USE_SPELL_FROM_TRASH_PAYING_COST', optional: true,
+        selectTarget: { type: 'TRASH_CARD', owner: 'self', count: 1, filter },
+      } as StubAction;
+    }
+  }
+
   // ---- トラッシュからスペルを使用する ----
   if (t.match(/トラッシュから.*スペル.*を対象とし.*使用する/))
     return { type: 'STUB', id: 'USE_SPELL_FROM_TRASH' } as StubAction;

@@ -372,7 +372,7 @@ function costJa(c?: any): string {
   // action ではなく cost 側に載る修飾なので、ここで描かないと原文の1文が逆翻訳から丸ごと消える。
   if (c.conditionalEnergyReduction) {
     const cr = c.conditionalEnergyReduction;
-    parts.push(`（${conditionJa(cr.condition)}場合、この能力の発動コストは${cr.energy.map((e: any) => `《${e.color}×${e.count}》`).join('')}減る）`);
+    parts.push(`（${condJa(cr.condition)}場合、この能力の発動コストは${cr.energy.map((e: any) => `《${e.color}×${e.count}》`).join('')}減る）`);
   }
   if (parts.length === 0) return `コスト:${JSON.stringify(c)}`;
   return parts.join('＋');

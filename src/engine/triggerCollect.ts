@@ -189,6 +189,10 @@ export function optionalOnPlayCostStub(
     'lrigDown', 'lrigDownVariable', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
     'beat_signi', 'beat_signi_from_trash',
     'deckTrash', 'charmTrash', 'charmTrashVariable', 'trashArtsFromLrigDeck', 'removeOppVirus',
+    // 支払いキーではなく**コストの修飾**（§6.4 O-35・続き530）。呼び出し側が
+    // `applyAbilityCostReduction` で `energy` へ焼き込み済みなので、ここでは無視して通す
+    // （SUPPORTED に無いと「未対応キーあり」で包めず、任意【出】が丸ごと積まれなくなる）。
+    'conditionalEnergyReduction',
   ]);
   const keys = Object.keys(cost).filter(k => (cost as Record<string, unknown>)[k] !== undefined);
   if (keys.length === 0) return null;
@@ -251,7 +255,21 @@ export function optionalOnPlayCostStub(
  * - コストありだが表現できない → **null**（積まない＝コストの踏み倒しを避ける）
  * `cost` は包みへ移すので落とす（二重徴収・UI重複の防止）。
  */
-export function wrapOptionalOnPlay(eff: CardEffect): CardEffect | null {
+export function wrapOptionalOnPlay(
+  eff: CardEffect,
+  // 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」の評価に要る盤面（§6.4 O-35・続き530）。
+  // 省略時は減額しない＝**印刷どおりの重いコスト**で包む（安全側）。
+  reduceCtx?: {
+    my: PlayerState; op: PlayerState; cardMap: Map<string, CardData>;
+    sourceCardNum: string; turnPhase: string; effectivePowers?: Map<string, number>;
+  },
+): CardEffect | null {
+  if (reduceCtx && eff.cost?.conditionalEnergyReduction) {
+    eff = applyAbilityCostReduction(
+      eff, reduceCtx.my, reduceCtx.op, reduceCtx.cardMap,
+      reduceCtx.sourceCardNum, reduceCtx.turnPhase, reduceCtx.effectivePowers,
+    );
+  }
   // 原文にコスト句があるのに parser が解釈できなかった効果は**絶対に包まない**。
   // 包むと「発動しますか？」だけ出てコストを払わずに撃ててしまう（＝踏み倒し）。
   if (eff.costUnparsed) return null;
@@ -319,7 +337,9 @@ export function collectOptionalNoCostOnPlayForGrow(
     if (eff.condition && !evalUseCondition(
       eff.condition, controllerState, otherState, cardMap, sourceCardNum, turnPhase, effectivePowers,
     )) continue;
-    const wrapped = wrapOptionalOnPlay(eff);
+    const wrapped = wrapOptionalOnPlay(eff, {
+      my: controllerState, op: otherState, cardMap, sourceCardNum, turnPhase, effectivePowers,
+    });
     if (wrapped) wrappedEffects.push(wrapped);
     else deferred.push(eff);
   }
@@ -370,7 +390,10 @@ export function collectPlacedSelfOnPlayTriggers(
     // 変換できない（コストを表現できない）ものだけ従来どおり据え置き。
     let wrapped: CardEffect | null = null;
     if (eff.mandatory === false) {
-      wrapped = wrapOptionalOnPlay(eff);
+      wrapped = wrapOptionalOnPlay(eff, {
+        my: controllerState, op: otherState, cardMap: ctx.cardMap,
+        sourceCardNum: placedInstanceId, turnPhase: ctx.turnPhase, effectivePowers: ctx.effectivePowers,
+      });
       if (!wrapped) continue;
     }
     if (eff.activeCondition && !checkActiveCondition(
@@ -4394,4 +4417,37 @@ export function collectKeywordGainedTriggers(
     }
   }
   return { entries, usedOncePerTurnIds };
+}
+/**
+ * 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」（`EffectCost.conditionalEnergyReduction`）を
+ * **実際のコストへ焼き込む**（§6.4 O-35・続き530／`WX09-011-E2`）。
+ *
+ * 🔑呼び出しは【出】コスト効果を**集める1点だけ**にする＝提示（モーダル）・可否判定・支払いが
+ *   すべて同じ削減後コストを見る（funnel を増やさない）。
+ * ⚠削減しきれない色は残す（原文は「減る」であって「支払わない」ではない）。0枚になった色は落とす。
+ */
+export function applyAbilityCostReduction(
+  effect: CardEffect,
+  my: PlayerState,
+  op: PlayerState,
+  cardMap: Map<string, CardData>,
+  sourceCardNum: string,
+  currentPhase: string,
+  effectivePowers?: Map<string, number>,
+): CardEffect {
+  const red = effect.cost?.conditionalEnergyReduction;
+  if (!red) return effect;
+  if (!evalUseCondition(red.condition, my, op, cardMap, sourceCardNum, currentPhase, effectivePowers)) return effect;
+  const remaining = (effect.cost?.energy ?? []).map(e => ({ ...e }));
+  for (const cut of red.energy) {
+    let left = cut.count;
+    for (const slot of remaining) {
+      if (left <= 0) break;
+      if (slot.color !== cut.color) continue;
+      const take = Math.min(slot.count, left);
+      slot.count -= take;
+      left -= take;
+    }
+  }
+  return { ...effect, cost: { ...effect.cost, energy: remaining.filter(e => e.count > 0) } };
 }

@@ -33,7 +33,7 @@ import {
   collectEffectBanishSubstituteChoices, applyEffectBanishSubstituteChoice,
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
-import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, optionalOnPlayCostStub, wrapOptionalOnPlay, type TrigCtx } from '../src/engine/triggerCollect';
+import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed } from '../src/engine/boardDiff';
@@ -1154,6 +1154,74 @@ test('§3 タスク6 C: コスト参照の置換ゲート3枚＋能力スコー�
   eq(e27.action.type, 'BANISH', 'WX07-027 action は BANISH 単体');
   eq(e27.cost?.costSubstitute?.originalCost.color, '青', 'WX07-027 costSubstitute 色');
   eq(e27.cost?.costSubstitute?.discardFromHand?.filter?.story, '原子', 'WX07-027 costSubstitute クラス');
+  cursor = savedCursor;
+});
+
+test('§6.4 O-35（続き530）: 対象宣言＋デッキトップミル／コスト枚数ゲート／能力スコープのコスト減額', () => {
+  const savedCursor = cursor;
+  type CondA = import('../src/types/effects').ConditionalAction;
+  type StubA = import('../src/types/effects').StubAction;
+  // ── (1) 「〈対象宣言〉を対象とし、デッキの一番上のカードをトラッシュに置く」──
+  //    🔴従来は「トラッシュに置く（直接除去）」フォールバックが**間に挟まる目的語を無視**して
+  //      `TRASH{SIGNI opponent}` を返し、【出】でノーコストの相手シグニ除去に化けていた（live 3効果）。
+  //      正準形＝SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → TRASH{DECK_CARD} → 帰結は targetsStored。
+  for (const [id, parity, cnt] of [['WXK03-080-E1', 'even', 2], ['WXK03-081-E1', 'odd', 1]] as const) {
+    const seq = manualEffect(id.slice(0, -3), id).action as SeqA;
+    eq(seq.type, 'SEQUENCE', `${id} SEQUENCE`);
+    eq((seq.steps[0] as StubA).id, 'SELECT_TARGET_ONLY', `${id} 先頭は対象宣言`);
+    eq((seq.steps[1] as StubA).id, 'STORE_LAST_PROCESSED_TARGETS', `${id} 対象を固定`);
+    eq((seq.steps[2] as { target: { type: string } }).target.type, 'DECK_CARD', `${id} ミルするのはデッキトップ`);
+    const gate = seq.steps[3] as CondA;
+    eq(gate.condition.type, 'LAST_PROCESSED_MATCHES', `${id} ミル結果を見る`);
+    eq((gate.condition as { filter: { levelParity: string } }).filter.levelParity, parity, `${id} レベルパリティ`);
+    const then = gate.then as { targetsStored?: boolean; target: { owner: string; count: number } };
+    ok(then.targetsStored, `${id} 帰結は宣言済み対象へ束縛`);
+    eq(then.target.owner, 'opponent', `${id} 帰結は相手シグニ`);
+    eq(then.target.count, cnt, `${id} 体数は宣言側に揃う`);
+  }
+  // WXEX1-41-E2＝条件は《トラップアイコン》（従来は条件ごと落ちて無条件バニッシュ）。
+  const seq41 = manualEffect('WXEX1-41', 'WXEX1-41-E2').action as SeqA;
+  const gate41 = seq41.steps[3] as CondA;
+  eq((gate41.condition as { filter: { hasIcon: string } }).filter.hasIcon, 'トラップ', 'WXEX1-41-E2 トラップアイコン条件');
+  eq(gate41.then.type, 'BANISH', 'WXEX1-41-E2 帰結はバニッシュ');
+  ok((gate41.then as { targetsStored?: boolean }).targetsStored, 'WXEX1-41-E2 も宣言済み対象へ束縛');
+
+  // ── (2) コスト支払い枚数のゲート `COST_TRASHED_MATCHES{minCount}` ──
+  //    🔴`WX25-CP1-020-E2` は受け皿 STUB で**ライフ→エナが一度も起きない**無言 no-op、
+  //      `WXDi-P16-012-E3` は条件が落ちて**エナ0枚でもライフが増える**過剰実行だった。
+  const seq20 = manualEffect('WX25-CP1-020', 'WX25-CP1-020-E2').action as SeqA;
+  for (const [i, n] of [[0, 3], [1, 7]] as const) {
+    const g = seq20.steps[i] as CondA;
+    eq(g.condition.type, 'COST_TRASHED_MATCHES', `WX25-CP1-020-E2[${i}] コスト枚数ゲート`);
+    eq((g.condition as { minCount: number }).minCount, n, `WX25-CP1-020-E2[${i}] 閾値`);
+    eq((g.then as StubA).id, 'LIFE_TO_ENERGY', `WX25-CP1-020-E2[${i}] ライフ→エナ`);
+    eq((g.then as StubA).owner, 'opponent', `WX25-CP1-020-E2[${i}] 相手のライフ`);
+  }
+  const g12 = manualEffect('WXDi-P16-012', 'WXDi-P16-012-E3').action as CondA;
+  eq(g12.condition.type, 'COST_TRASHED_MATCHES', 'WXDi-P16-012-E3 ゲート');
+  eq((g12.condition as { minCount: number }).minCount, 5, 'WXDi-P16-012-E3 合計5枚');
+  // engine 評価＝`last_cost_trashed_cards` の枚数閾値（filter は空＝カード種別を問わない）
+  const cGte = { type: 'COST_TRASHED_MATCHES', filter: {}, minCount: 3 } as const;
+  const any3 = fill(3), any2 = fill(2);
+  ok(evalCondition(cGte, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_cost_trashed_cards: any3 } }), '3枚 → true');
+  ok(!evalCondition(cGte, { ...mkCtx({}, {}), ownerState: { ...mkState(), last_cost_trashed_cards: any2 } }), '2枚 → false');
+  ok(!evalCondition(cGte, { ...mkCtx({}, {}), ownerState: { ...mkState() } }), '記録なし → false');
+
+  // ── (3) 能力スコープのコスト減額 `cost.conditionalEnergyReduction` ──
+  //    🔴`WX09-011-E2` は減額文が受け皿 STUB に落ち、レベル4以上でも常に《赤》《赤》を払わされていた。
+  const e11 = manualEffect('WX09-011', 'WX09-011-E2');
+  eq(e11.cost?.conditionalEnergyReduction?.condition.type, 'LRIG_LEVEL', 'WX09-011-E2 減額条件');
+  eq(e11.cost?.conditionalEnergyReduction?.energy[0].count, 2, 'WX09-011-E2 減額は《赤×2》');
+  eq(JSON.stringify(e11.cost?.energy), JSON.stringify([{ color: '赤', count: 1 }, { color: '赤', count: 1 }]), 'WX09-011-E2 印刷コストは据置');
+  ok(JSON.stringify(e11.action).indexOf('SELF_ABILITY_COST_REDUCTION') < 0, '減額ノードは action に残さない');
+  // 条件を満たすルリグ（レベル4以上）なら《赤×2》が消える／満たさなければ据置。
+  const lrig4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4');
+  const lrig1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1');
+  const red = (lv: string) => applyAbilityCostReduction(
+    e11, mkState({ lrig: [lv] }), mkState(), cardMap as Map<string, CardData>, lv, 'MAIN',
+  ).cost?.energy ?? [];
+  eq(red(lrig4).length, 0, 'レベル4以上 → コストが消える');
+  eq(red(lrig1).length, 2, 'レベル1 → 印刷どおり《赤》《赤》');
   cursor = savedCursor;
 });
 
@@ -24976,6 +25044,9 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
       'lrigDown', 'lrigDownVariable', 'down_self', 'life_crash', 'lifeTrash', 'lifeToHand',
       'beat_signi', 'beat_signi_from_trash',
       'deckTrash', 'charmTrash', 'charmTrashVariable', 'trashArtsFromLrigDeck', 'removeOppVirus',
+      // 支払いキーではなく**コストの修飾**（§6.4 O-35・続き530）＝`wrapOptionalOnPlay` が
+      // `applyAbilityCostReduction` で `energy` へ焼き込んでから包む。表の同期漏れをここで検出する。
+      'conditionalEnergyReduction',
     ]);
     const optionalCost = [...effectsMap.values()].flat().filter(e =>
       e.effectType === 'AUTO' && e.timing?.includes('ON_PLAY')

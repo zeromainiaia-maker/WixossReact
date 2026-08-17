@@ -191,6 +191,24 @@ WXDi-D08-004 WXEX2-28
   + [0].action.leavePayLoseSelfAbility.victimFilter.cardType = "シグニ"
   + [0].action.leavePayLoseSelfAbility.victimFilter.story = "ウェポン"
 
+## +LRIG_LEVEL -SEQUENCE -STUB ［1枚］
+WX09-011
+--- WX09-011
+  原文: 【出現条件】《メインフェイズアイコン》《手剣　カクマル》１体と《手弾　アヤボン》１体をあなたの場からトラッシュに置く【自】：このシグニの正面にあるシグニ１体がバニッシュされたとき、《赤》を支払ってもよい。そうした場合、このシグニをアップする。【出】《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。あなたのセンタールリグがレベル４以上の場
+  - [1].action.steps[0].type = "GRANT_KEYWORD"
+  - [1].action.steps[0].target.type = "SIGNI"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 1
+  - [1].action.steps[0].target.filter.thisCardOnly = true
+  - [1].action.steps[0].keyword = "ダブルクラッシュ"
+  - [1].action.steps[0].duration = "UNTIL_END_OF_TURN"
+  - [1].action.steps[1].type = "STUB"
+  - [1].action.steps[1].id = "CONDITIONAL_POWER_BONUS"
+  + [1].cost.conditionalEnergyReduction.condition.type = "LRIG_LEVEL"
+  + [1].cost.conditionalEnergyReduction.condition.owner = "self"
+  + [1].cost.conditionalEnergyReduction.condition.operator = "gte"
+  …（他 10 行）
+
 ## +CONDITIONAL +PAID_ADDITIONAL_COST +SELF_OPTIONAL_EFFECT_TAKEN +SEQUENCE +STUB -IS_MY_TURN ［1枚］
 WX13-040
 --- WX13-040
@@ -470,21 +488,6 @@ WXDi-P15-092
   - [0].action.steps[1].then.choices[0].action.then.type = "DRAW"
   …（他 28 行）
 
-## +CONDITIONAL +COST_TRASHED_MATCHES ［1枚］
-WXDi-P16-012
---- WXDi-P16-012
-  原文: 【出】：あなたの手札からカードを３枚までエナゾーンに置く。【起】《ターン１回》《緑×0》：以下の２つから１つを選ぶ。①あなたの手札が０枚の場合、カードを２枚引く。②あなたのエナゾーンにカードがない場合、【エナチャージ２】をする。【起】《ゲーム１回》エナゾーンにあるすべてのカードをトラッシュに置き、手札をすべて捨てる：この方法でカードを合計５枚以上トラッシュに
-  - [2].action.owner = "self"
-  - [2].action.count = 1
-  - [2].action.fromTop = true
-  ~ [2].action.type : "ADD_TO_LIFE" → "CONDITIONAL"
-  + [2].action.condition.type = "COST_TRASHED_MATCHES"
-  + [2].action.condition.minCount = 5
-  + [2].action.then.type = "ADD_TO_LIFE"
-  + [2].action.then.owner = "self"
-  + [2].action.then.count = 1
-  + [2].action.then.fromTop = true
-
 ## +CONDITIONAL +TRASH_HAS_CARD ［1枚］
 WXDi-CP01-042
 --- WXDi-CP01-042
@@ -520,24 +523,6 @@ WX24-P2-055
   - [0].action.steps[1].then.triggerBurst = true
   ~ [0].action.type : "SEQUENCE" → "GRANT_EFFECT"
   …（他 28 行）
-
-## +CONDITIONAL×2 +COST_TRASHED_MATCHES×2 ［1枚］
-WX25-CP1-020
---- WX25-CP1-020
-  原文: 【自】：あなたのアタックフェイズ開始時、【エナチャージ１】をする。あなたのエナゾーンにカードがない場合、代わりに【エナチャージ２】をする。【起】《ゲーム１回》エナゾーンからすべてのカードをトラッシュに置く：この方法でカードを３枚以上トラッシュに置いた場合、対戦相手のライフクロス１枚をエナゾーンに置く。７枚以上トラッシュに置いた場合、追加で対戦相手のライフクロ
-  - [1].action.steps[0].id = "CONDITIONAL_POWER_BONUS"
-  - [1].action.steps[1].id = "CONDITIONAL_POWER_BONUS"
-  ~ [1].action.steps[0].type : "STUB" → "CONDITIONAL"
-  + [1].action.steps[0].condition.type = "COST_TRASHED_MATCHES"
-  + [1].action.steps[0].condition.minCount = 3
-  + [1].action.steps[0].then.type = "STUB"
-  + [1].action.steps[0].then.id = "LIFE_TO_ENERGY"
-  + [1].action.steps[0].then.owner = "opponent"
-  ~ [1].action.steps[1].type : "STUB" → "CONDITIONAL"
-  + [1].action.steps[1].condition.type = "COST_TRASHED_MATCHES"
-  + [1].action.steps[1].condition.minCount = 7
-  + [1].action.steps[1].then.type = "STUB"
-  …（他 2 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069

@@ -59,7 +59,10 @@ export function collectOppSigniAttackResponses(
       if (eff.usageLimit === 'once_per_game' && (defender.game_actions_done ?? []).includes(eff.effectId)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, defender, attacker, cardMap, cardNum, turnPhase)) continue;
       if (!canAffordActivationCost(eff, defender)) continue;
-      const wrapped = wrapOptionalOnPlay(eff);
+      // 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」も同じ包みの中で焼き込む（§6.4 O-35）。
+      const wrapped = wrapOptionalOnPlay(eff, {
+        my: defender, op: attacker, cardMap, sourceCardNum: cardNum, turnPhase,
+      });
       if (!wrapped) continue; // コストを包めない＝踏み倒しになるので出さない
       out.push({ cardNum, effect: wrapped });
     }

@@ -1,9 +1,8 @@
 // コスト文字列の解析・軽減適用・支払可否判定（グロウ/アーツ/スペル共通）。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState, CardData } from '../../types';
-import type { CardEffect } from '../../types/effects';
 import { LRIG_ALL_NAMES_SENTINEL } from '../../engine/effectEngine';
 import { getCardNum } from '../../engine/effectExecutor';
-import { hasNoAbility, evalUseCondition } from '../../engine/execUtils';
+import { hasNoAbility } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 /** WX15-067: 使用宣言中に選んだ相手ウィルス数を、このスペルだけのコストへ適用する。 */
@@ -1100,38 +1099,4 @@ export function effectEnergyCostStr(energy: { color: string; count: number }[] |
   const items = energy?.filter(e => e.count > 0) ?? [];
   if (!items.length) return 'なし';
   return items.map(e => `《${e.color}》×${e.count}`).join('');
-}
-
-/**
- * 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」（`EffectCost.conditionalEnergyReduction`）を
- * **実際のコストへ焼き込む**（§6.4 O-35・続き530／`WX09-011-E2`）。
- *
- * 🔑呼び出しは【出】コスト効果を**集める1点だけ**にする＝提示（モーダル）・可否判定・支払いが
- *   すべて同じ削減後コストを見る（funnel を増やさない）。
- * ⚠削減しきれない色は残す（原文は「減る」であって「支払わない」ではない）。0枚になった色は落とす。
- */
-export function applyAbilityCostReduction(
-  effect: CardEffect,
-  my: PlayerState,
-  op: PlayerState,
-  cardMap: Map<string, CardData>,
-  sourceCardNum: string,
-  currentPhase: string,
-  effectivePowers?: Map<string, number>,
-): CardEffect {
-  const red = effect.cost?.conditionalEnergyReduction;
-  if (!red) return effect;
-  if (!evalUseCondition(red.condition, my, op, cardMap, sourceCardNum, currentPhase, effectivePowers)) return effect;
-  const remaining = (effect.cost?.energy ?? []).map(e => ({ ...e }));
-  for (const cut of red.energy) {
-    let left = cut.count;
-    for (const slot of remaining) {
-      if (left <= 0) break;
-      if (slot.color !== cut.color) continue;
-      const take = Math.min(slot.count, left);
-      slot.count -= take;
-      left -= take;
-    }
-  }
-  return { ...effect, cost: { ...effect.cost, energy: remaining.filter(e => e.count > 0) } };
 }
