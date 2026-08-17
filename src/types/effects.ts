@@ -3325,7 +3325,7 @@ export interface CardEffect {
   triggerCondition?: {
     /** ON_CARD_MILLED_FROM_DECK: deck→trash へ移動したカード自身の属性。省略=無限定。 */
     milledCardFilter?: TargetFilter;
-    /** ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH 共通の解決単位最低枚数。省略=1。 */
+    /** ON_HAND_ADDED / ON_HAND_DISCARDED / ON_ENERGY_TO_TRASH / ON_TRASH_CARD_ADDED 共通の解決単位最低枚数。省略=1。 */
     minCount?: number;
     /** ON_ATTACK_END（§6.3 J-4・`WXK11-018-E2`）＝「そのアタックによって対戦相手にダメージが与えられていない場合」。バトル解決の `dealtSigniDamage` が false のときだけ発火する。 */
     attackDealtNoDamage?: boolean;
