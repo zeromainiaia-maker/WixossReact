@@ -9703,6 +9703,18 @@ function parseActionTextInner(text: string): EffectAction {
           } as import('../types/effects').ConditionalAction;
         }
       }
+      // ⚠共通表に無い綴りの取りこぼし＝**旧・エナゾーン専用マッチを fallback として残す**。
+      //   「あなたのエナゾーンに**カードがない**場合、」（`WX12-052-E1`）は `LEADING_STATE_CLAUSES` に
+      //   無く、共通表へ寄せただけだと**この1件の条件が新たに落ちる**（A/B で実測）。共通表へ足すと
+      //   `tryWrapLeadingStateCond` 経由で全カードに波及するので、ここでは局所 fallback に留める。
+      const enaPrefM = sentences[0].trim().match(/^あなたのエナゾーンに(?:あるカードが([０-９\d]+)枚(以上|以下)の|カードがない)場合、/);
+      if (enaPrefM) {
+        return {
+          type: 'CONDITIONAL',
+          condition: { type: 'ENERGY_COUNT', owner: 'self', operator: enaPrefM[1] ? (enaPrefM[2] === '以上' ? 'gte' : 'lte') : 'lte', value: enaPrefM[1] ? parseNum(enaPrefM[1]) : 0 },
+          then: rp,
+        } as import('../types/effects').ConditionalAction;
+      }
       // 3文目以降が残っている形は、この早期 return が sentences[0..1] しか消費しないため
       // **丸ごと捨てられていた**（無言の脱落）。⚠ただし後続文を一律に SEQUENCE へ足すのは**不可**＝
       // この文型の後続文はほぼ全部が**公開したカードを条件にする排他分岐**で（「それが＜X＞のシグニ
