@@ -3212,33 +3212,41 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       timing: ['MAIN', 'ATTACK'],
       cost: { energy: [{ color: '黒', count: 6 }] },
       action: {
-        type: 'CHOOSE',
-        choose_count: 1,
-        from_count: 2,
-        choices: [
+        type: 'SEQUENCE',
+        steps: [
           {
-            choiceId: 'c0',
-            label: '選択肢1',
-            action: { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+            type: 'CHOOSE',
+            choose_count: 1,
+            from_count: 2,
+            upTo: true,
+            // ベットした《コインアイコン》1枚につき1つ（0枚＝選択なし）
+            countChoose: { count: { $ref: 'bet_coins_paid' }, upTo: true },
+            choices: [
+              {
+                choiceId: 'c0',
+                label: 'このアーツの使用コストは《黒×3》減る',
+                action: { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
+              },
+              {
+                choiceId: 'c1',
+                label: 'このアーツの効果を一度繰り返す',
+                action: { type: 'STUB', id: 'REPEAT_EFFECT' },
+              },
+            ],
+          },
+          // ここから下が**アーツの本体**（①②の選択とは独立に必ず走る）
+          {
+            type: 'BANISH',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } },
           },
           {
-            choiceId: 'c1',
-            label: '選択肢2',
-            action: {
-              type: 'SEQUENCE',
-              steps: [
-                { type: 'STUB', id: 'REPEAT_EFFECT' },
-                {
-                  type: 'TRANSFER_TO_HAND',
-                  source: {
-                    type: 'TRASH_CARD',
-                    owner: 'self',
-                    count: 1,
-                    upToCount: false,
-                    filter: { cardType: 'シグニ' },
-                  },
-                },
-              ],
+            type: 'TRANSFER_TO_HAND',
+            source: {
+              type: 'TRASH_CARD',
+              owner: 'self',
+              count: 1,
+              upToCount: false,
+              filter: { cardType: 'シグニ', story: '遊具' },
             },
           },
         ],
