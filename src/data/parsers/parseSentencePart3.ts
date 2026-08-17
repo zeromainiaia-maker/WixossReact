@@ -2372,7 +2372,9 @@ export function parseSentencePart3(t: string): EffectAction | null {
     );
     if (bundleM) {
       return {
-        type: 'STUB', id: 'OPTIONAL_COST', selfTrash: true, costText: t,
+        // costText は逆翻訳がそのまま描画するので、トリガー句は落として支払い句だけを残す。
+        type: 'STUB', id: 'OPTIONAL_COST', selfTrash: true,
+        costText: t.replace(/^.*?(?:とき|場合)、/, ''),
         handDiscard: {
           count: parseNum(bundleM[3]),
           filter: {
