@@ -20368,6 +20368,24 @@ test('WXDi-P10-034: 次の自メインフェイズ開始時に表向き分岐ト
     eq((spell.then as { type?: string }).type, 'SEQUENCE', 'スペル＝「①と②」＝両方');
     ok(!JSON.stringify(eff.action).includes('RULE_REMINDER_TEXT'), '🔴pick して何もしない旧形に戻っていない');
   });
+  // §6.4 O-11（続き533）：`WX22-016`＝アーツの**本体**が選択肢②の中に埋まっていた。
+  //   ベットは任意（0枚可）なので、旧構造では**ベットしないとカードが何もしない**状態だった。
+  test('(O-11) WX22-016-E1: アーツ本体が CHOOSE の外に出て、ベット0枚でも走る', () => {
+    const eff = effectsMap.get('WX22-016')!.find(e => e.effectId === 'WX22-016-E1')!;
+    const steps = (eff.action as unknown as { type: string; steps: Record<string, unknown>[] });
+    eq(steps.type, 'SEQUENCE', '🔴CHOOSE 単体に戻ると本体が選択肢の中に埋まる');
+    eq(steps.steps[0].type, 'CHOOSE', '先頭は①②の選択');
+    eq((steps.steps[0].countChoose as { count?: { $ref?: string } }).count?.$ref, 'bet_coins_paid',
+      '選択数は「ベットした《コイン》1枚につき1つ」');
+    eq(steps.steps[1].type, 'BANISH', '🔴本体のバニッシュが落ちている');
+    eq(steps.steps[2].type, 'TRANSFER_TO_HAND', '本体のトラッシュ回収');
+    eq((steps.steps[2].source as { filter?: { story?: string } }).filter?.story, '遊具',
+      '🔴＜遊具＞限定が落ちるとトラッシュのどのシグニでも拾える');
+    // 選択肢の中に本体が残っていないこと
+    const choices = JSON.stringify((steps.steps[0] as { choices: unknown }).choices);
+    ok(!choices.includes('BANISH') && !choices.includes('TRANSFER_TO_HAND'),
+      '🔴本体が選択肢の中へ戻っている（②を選ばないと走らない）');
+  });
   test('(O-11) 色限定つき使用封じ: WXK09-037-E2 も明示 defer（恒久の全面封じにしない）', () => {
     const eff = effectsMap.get('WXK09-037')!.find(e => e.effectId === 'WXK09-037-E2')!;
     eq((eff.action as unknown as { id?: string }).id, 'DEFERRED_COLOR_QUALIFIED_USE_BLOCK',
