@@ -10502,6 +10502,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       await handleCutinPass();
       return;
     }
+    // ─── CPU 自身が使ったスペルの解決待ち（§8／§6.4 O-1 (b)）───
+    // ⚠**人間のカットイン応答を待つ**（`CutinModal` は `caster_id !== user.id` のときに出る）。
+    //   ここで待たないと CPU が窓を無視してフェイズを進めてしまう＝スペルが宙に浮く。
+    if (bs.pending_spell && bs.pending_spell.caster_id === CPU_PLAYER_ID) return;
 
     // ─── ATTACK_ARTS_OPフェイズ：CPUが非ターンプレイヤー＝応答アーツの窓 ───
     // ※ このチェックは !isCpuTurnNow の早期リターンより前に置く必要がある

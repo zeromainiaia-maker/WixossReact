@@ -1,6 +1,5 @@
 import type { CardData, PlayerState, TurnPhase } from '../../types';
 import type { CardEffect } from '../../types/effects';
-import { getCardNum } from '../../engine/effectExecutor';
 import type { ArtsPayerCtx } from './artsUseGate';
 import { selectEnergyIndicesForCost } from './cpuActivate';
 import { defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction } from './cpuArts';
@@ -77,9 +76,4 @@ export function pickCpuMainSpell(p: {
   // 手札順の決定論（盤面評価はしない）。⚠`handIndex` は `performSpell` の手札 index と同じ空間。
   candidates.sort((a, b) => a.handIndex - b.handIndex);
   return candidates[0];
-}
-
-/** テスト・計測から使う（`listCastableSpells` が返す card の CardNum を数えるとき）。 */
-export function spellCardNums(hand: readonly string[]): string[] {
-  return hand.map(getCardNum);
 }
