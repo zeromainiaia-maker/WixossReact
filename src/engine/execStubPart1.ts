@@ -1382,15 +1382,19 @@ export function execStubPart1(
         }, '相手シグニ【自】能力ブロック（次ターンも）'));
       }
 
-      // 「対戦相手のシグニの【自】能力が発動する場合、支払わないかぎり何もしない」(SPDi43-01)
-      if (quotedText.match(/対戦相手のシグニの【自】能力が発動する場合.*支払わないかぎり.*何もしない/)) {
-        const newMyBl = [...(ctx.ownerState.blocked_actions ?? []), 'BLOCK_OPP_SIGNI_AUTO'];
-        const newOtherBl = [...(ctx.otherState.blocked_actions ?? []), 'BLOCK_OWN_SIGNI_AUTO:NEXT_TURN'];
+      // 「対戦相手のシグニの【自】能力が発動する場合、〈コスト〉を支払わないかぎり何もしない」(SPDi43-01)
+      // 🔴旧実装は `BLOCK_OPP_SIGNI_AUTO` ／ `BLOCK_OWN_SIGNI_AUTO:NEXT_TURN` で**丸ごと止めていた**＝
+      //   相手に支払いの機会が一度も来ない原文より強い近似だった（§6.4 O-38・続き544）。
+      //   ⇒ **支払えば通るゲート**へ（宣言＝ここ／消費＝`BattleScreen.resolveStackNext` の1点）。
+      const autoPayGateM = quotedText.match(/対戦相手のシグニの【自】能力が発動する場合[^。]*?((?:《[^》]+》)+)を支払わないかぎり[^。]*何もしない/);
+      if (autoPayGateM) {
+        const gateColors = [...autoPayGateM[1].matchAll(/《(.)》/g)].map(m => m[1]);
+        const markers = signiAutoPayGateMarkers(gateColors);
         return done(addLog({
           ...ctx,
-          ownerState: { ...ctx.ownerState, blocked_actions: newMyBl },
-          otherState: { ...ctx.otherState, blocked_actions: newOtherBl },
-        }, '相手シグニ【自】能力（コスト払いなし時無効、次ターンも）'));
+          ownerState: { ...ctx.ownerState, blocked_actions: [...(ctx.ownerState.blocked_actions ?? []), markers.declarer] },
+          otherState: { ...ctx.otherState, blocked_actions: [...(ctx.otherState.blocked_actions ?? []), markers.opponentNextTurn] },
+        }, `相手シグニ【自】能力は${gateColors.map(c => `《${c}》`).join('')}を支払わないかぎり何もしない（次の対戦相手のターン終了時まで）`));
       }
 
       // 「対戦相手のカードの【起】能力の使用コストは《無×N》増える」(WXDi-P15-033)
