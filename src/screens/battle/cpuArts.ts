@@ -92,6 +92,29 @@ export function hasIncomingThreat(actor: PlayerState, attacker: PlayerState): bo
 }
 
 /**
+ * CPU が使うと**いまの CPU 進行では壊れる**アクション（＝分類できても選ばない）。
+ *
+ * 🔴`ADD_EXTRA_ATTACK_PHASE`＝CPU の `ATTACK_LRIG`→`END` 遷移は `SET_TURN_PHASE` しかコミットできず
+ * （state を書けない）、追加アタックフェイズのキューを減らせないまま `ATTACK_ARTS` へ戻る＝**無限ループ**
+ * （`BattleScreen` の該当コメント参照）。⚠**この除外を外すなら、先にあの遷移を state 込みのコミットへ揃えること**。
+ */
+export const CPU_UNSUPPORTED_ACTION_TYPES: ReadonlySet<string> = new Set(['ADD_EXTRA_ATTACK_PHASE']);
+
+/** アクション木のどこかに `CPU_UNSUPPORTED_ACTION_TYPES` が含まれるか。 */
+export function hasCpuUnsupportedAction(action: EffectAction | undefined): boolean {
+  let found = false;
+  const walk = (node: unknown) => {
+    if (found || !node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { for (const v of node) walk(v); return; }
+    const obj = node as Record<string, unknown>;
+    if (typeof obj.type === 'string' && CPU_UNSUPPORTED_ACTION_TYPES.has(obj.type)) { found = true; return; }
+    for (const v of Object.values(obj)) walk(v);
+  };
+  walk(action);
+  return found;
+}
+
+/**
  * 自ターンに除去を使う価値があるか＝**アタックが正面で塞がれているアップのシグニがいる**か。
  *
  * 正面（facing ＝ `2 - zi`）に相手シグニがいるとアタックは**バトル**になりライフに通らない。

@@ -7908,7 +7908,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       // ⚠スペル使用の封じは**3軸**（`USE_SPELL` ／ `PLAY_COLORLESS` ／ `BLOCK_NON_WHITE_SPELL`）＝
-      //   `isSpellUseBlocked` の1関数に集約してボタン生成側と実行入口の両方から呼ぶ（§6.4 O-18 続き513）。
+      //   `spellUseGate.isSpellUseBlockedFor` の1関数に集約（§6.4 O-18 続き513）。
       //   🔴続き460 では `USE_SPELL` だけを塞いだので、残り2軸は**押しても無反応**のまま残っていた。
       // ⚠**判定は `spellUseGate.checkSpellUse` 1本**（§8 `O-1` (b)）＝封じ3軸・限定・カード名封じ・
       //   ディソナ制限・低コスト封じ・使用条件をそこで見る。CPU の候補フィルタも同じ関数を呼ぶ。
@@ -10405,7 +10405,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       });
       const choice = pick({
         actor: actorState, opponent: huSt, cards: battleCards, cardMap: battleCardMap, effectsMap,
-        payer, turnPhase, alreadyUsedNums: actorState.cpu_arts_used_nums_this_turn ?? [],
+        payer, turnPhase, alreadyUsedNums: actorState.cpu_used_card_nums_this_turn ?? [],
         // 可否の権威は人間の支払いUIと同じ `canAffordWithExtraCost`。
         isAffordable: (selectedNums, costStr, extraCosts) => canAffordWithExtraCost(
           selectedNums, battleCards, costStr, extraCosts, actorState.keyword_grants,
@@ -10420,7 +10420,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   その窓から先へ進まなくなる（＝画面が止まる）。
       const artsActor: PlayerState = {
         ...actorState,
-        cpu_arts_used_nums_this_turn: [...(actorState.cpu_arts_used_nums_this_turn ?? []), choice.card.CardNum],
+        cpu_used_card_nums_this_turn: [...(actorState.cpu_used_card_nums_this_turn ?? []), choice.card.CardNum],
       };
       await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: artsActor }));
       await performArts(choice.card, { costIndices: choice.costIndices }, {
@@ -13780,7 +13780,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     onBack();
   };
 
-  const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyPayPool, myEnergyTrashSubInfo, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions };
+  const modalCtx: BattleModalCtx = { bs, user, my, op, isMyTurn, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, pickLongPressTimer, setExpandedPickImgUrl, activeCostMods, myEnergyExtraColors, myEnergyPayPool, myEnergyTrashSubInfo, myLrigNameAliases, myArtsThresholdReductions, isActionBlocked, specificCardCostReductions, myArtsPayerCtx };
 
   return (
     <div style={{ height: '100vh', backgroundColor: C.bgApp, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

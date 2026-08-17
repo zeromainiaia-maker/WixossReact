@@ -7,6 +7,7 @@ import type { CardEffect } from '../../../types/effects';
 import type { ActiveCostMod } from '../../../engine/effectEngine';
 import type { ResonaSummonCandidate } from '../resonaSummon';
 import type { EnergyPayEntry } from '../energyPaySource';
+import type { ArtsPayerCtx } from '../artsUseGate';
 
 // カットイン候補（スペルカットイン/カットイン起動効果の出所つきカード）
 export interface EffectCutinCandidate {
@@ -63,4 +64,9 @@ export interface BattleModalCtx {
   myArtsThresholdReductions: { minTotalCost: number; color: string; reduction: number }[];
   isActionBlocked: (actionId: string) => boolean;
   specificCardCostReductions: { targetCardName: string; colorlessReduction: number }[];
+  /**
+   * アーツ／スペルの使用可否・実効コストを判定する funnel（`artsUseGate.buildArtsPayerCtx`）。
+   * ⚠**支払いUI もコスト計算はこの ctx を通した gate 関数を呼ぶ**＝入口を増やさない（PLAN §4 教訓 (d)）。
+   */
+  myArtsPayerCtx: ArtsPayerCtx | null;
 }

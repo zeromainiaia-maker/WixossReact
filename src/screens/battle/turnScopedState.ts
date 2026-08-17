@@ -82,8 +82,8 @@ const CONVENTION_TURN_SCOPED_STATE = {
   lrig_grew_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'grow history for the current turn' },
   // CPU が能動使用した【起】の履歴は、そのターンの重複起動を止めるためだけのもの。
   cpu_activated_effect_ids_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'CPU activated-ability history that prevents re-firing within the turn' },
-  // CPU が使用したアーツの履歴も、そのターンの選び直し（＝応答窓で止まる）を防ぐためだけのもの。
-  cpu_arts_used_nums_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'CPU arts-use history that prevents re-selecting the same arts within the turn' },
+  // CPU が使用したアーツ／スペルの履歴も、そのターンの選び直し（＝窓で止まる）を防ぐためだけのもの。
+  cpu_used_card_nums_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'CPU arts/spell use history that prevents re-selecting the same card within the turn' },
   // リフレッシュ回数は新しいターンの開始時から数え直す。
   refresh_count_this_turn: { boundaries: ['turn-start'], reset: 0, reason: 'refresh count starts fresh at turn start' },
   // バニッシュされた枚数は、ターン単位のコスト軽減条件。

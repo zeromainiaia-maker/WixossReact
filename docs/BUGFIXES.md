@@ -68,7 +68,7 @@ effectivePowers}` を引数に取り、人間用 `executeArts` は薄いラッ�
 
 ### 3. 安全弁（無限ループ／踏み倒しの両方）
 
-- **`cpu_arts_used_nums_this_turn` を実行より先に commit する**（`PlayerState` 新設・`turnScopedState` に
+- **`cpu_used_card_nums_this_turn` を実行より先に commit する**（`PlayerState` 新設・`turnScopedState` に
   `turn-end` 境界で登録）。`performArts` は使用不能を検出すると**何も書かずに return** するので、
   履歴を実行の成否に委ねると CPU が同じ札を選び直して **`ATTACK_ARTS_OP` から先へ進まない**（画面が止まる）。
 - 🔴**支払いキーの allowlist は `energy` 1本だけ**にした。`performArts` は**エナ以外の宣言コストを払わない**

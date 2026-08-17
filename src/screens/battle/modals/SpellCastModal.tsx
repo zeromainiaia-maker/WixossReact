@@ -4,8 +4,9 @@ import { createPortal } from 'react-dom';
 import type { CardData } from '../../../types';
 import { collectFirstSpellCostUp } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, applyMeltFactPreUseCost, computeArtsEffectiveCost, removeNColorFromCost, parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied, applySpecificCardCostReduction } from '../costs';
+import { parseGrowCost, canAffordWithExtraCost, isMultiEna, parseBetOptions, parseOptionalDiscardForCost, matchesOptionalDiscardGroup, optionalDiscardSatisfied } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
+import { computeSpellEffectiveCost, spellExtraCosts } from '../spellUseGate';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
@@ -28,7 +29,7 @@ interface SpellCastModalProps {
 }
 
 export function SpellCastModal(p: SpellCastModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, activeCostMods, myLrigNameAliases, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool, myArtsPayerCtx } = p.ctx;
   const { pendingSpellCast, setPendingSpellCast, selectedSpellCost, setSelectedSpellCost, selectedSpellDiscard, setSelectedSpellDiscard, selectedSpellUseCostPay, setSelectedSpellUseCostPay, betAmount, setBetAmount, toggleSpellCostCard, castSpell } = p;
   return (
     <>
@@ -45,28 +46,27 @@ export function SpellCastModal(p: SpellCastModalProps) {
             {(() => {
               const spellCard = battleCardMap.get(pendingSpellCast.cardNum);
               if (!spellCard) return null;
-              // フィールド条件によるコスト軽減をスペルにも適用
-              const myLrigCardSP = battleCardMap.get(my.field.lrig.at(-1) ?? '');
               // 使用時の任意支払い（「手札から青と黒の＜電機＞を1枚ずつ捨ててもよい」＝WX21-035/WX21-071）。
               // 支払いが揃ってはじめてコスト置換が成立する＝選択に追従して再計算する（タスク12(lxxxi)）。
               const optDiscardSpec = parseOptionalDiscardForCost(spellCard.EffectText ?? '');
               const optDiscardNums = [...selectedSpellDiscard].map(i => my.hand[i]).filter(Boolean);
               const optDiscardPaid = !!optDiscardSpec
                 && optionalDiscardSatisfied(optDiscardSpec.groups, optDiscardNums, battleCardMap);
-              let effSpellCost = applyContinuousCostDecreases(
-                computeArtsEffectiveCost(spellCard, my, myLrigCardSP?.CardName, battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '', myLrigCardSP ? parseInt(myLrigCardSP.Level ?? '0') : 0, battleCardMap, myLrigNameAliases, undefined,
-                  { oppState: op, cardCostReplacements: my.card_cost_replacements, paidOptionalDiscard: optDiscardPaid }),
-                'スペル', spellCard.Color, activeCostMods.forMy);
-              // 次スペルコスト軽減（WX04-008《白×2》減）を適用
-              for (const r of my.next_spell_cost_reduction ?? []) effSpellCost = removeNColorFromCost(effSpellCost, r.color, r.count);
-              // SPECIFIC_CARD_COST_REDUCE（タスク12(xci)）＝「《カード名》の使用コストは《無×N》減る」。
-              // 実測した対象2枚（《フレン・スラッシュ》/《ダークネス・イーター》）は**どちらもスペル**なのに、
-              // 従来この軽減を通していたのは CutinModal とアーツのボタン表示だけ＝ここが本来の効き先だった。
-              effSpellCost = applySpecificCardCostReduction(effSpellCost, spellCard.CardName, specificCardCostReductions);
+              // ⚠**コスト計算は `spellUseGate.computeSpellEffectiveCost` 1本**（§8 `O-1` (b)）＝
+              //   提示ゲート（手札の「発動」ボタン）と CPU の候補フィルタも同じ関数を通る。
+              //   ここに式を写経すると「一覧では使えるのに払えない／請求額が食い違う」に戻る（PLAN §4 教訓 (d)）。
+              //   含まれるもの＝条件つき軽減／場の CONTINUOUS 軽減／次スペル軽減（`WX04-008`）／
+              //   カード名指定軽減（タスク12(xci)）／メルト・ファクトの事前ウィルス除去。
+              let effSpellCost = myArtsPayerCtx
+                ? computeSpellEffectiveCost({
+                    card: spellCard, my, op, cardMap: battleCardMap, payer: myArtsPayerCtx,
+                    paidOptionalDiscard: optDiscardPaid,
+                    virusRemovalByZone: pendingSpellCast.virusRemovalByZone,
+                  })
+                : spellCard.Cost;
               const meltFactVirusCount = pendingSpellCast.cardNum.startsWith('WX15-067')
                 ? (pendingSpellCast.virusRemovalByZone ?? []).reduce((sum, n) => sum + n, 0)
                 : 0;
-              effSpellCost = applyMeltFactPreUseCost(spellCard.CardNum, effSpellCost, pendingSpellCast.virusRemovalByZone);
               // 使用時の任意支払いによるコスト**軽減**（タスク12(lxxxv)）＝選択枚数に追従して差し引く。
               const useCostSpec = parseUseTimeCostReduction(spellCard.EffectText ?? '');
               const useCostCands = useCostSpec
@@ -80,17 +80,13 @@ export function SpellCastModal(p: SpellCastModalProps) {
               const costItems = parseGrowCost(effSpellCost);
               const baseSpellReq = costItems.reduce((s, c) => s + c.count, 0);
               const selectedNums = [...selectedSpellCost].map(i => myEnergyPayPool[i].cardNum);
-              const extraSpellCosts = activeCostMods.forMy
-                .filter(m => m.direction === 'increase' && m.targetCardType === 'スペル')
-                .flatMap(m => m.amount);
-              // FIRST_SPELL_COST_UP: 相手フィールドが持つ場合、最初のスペルに《無×1》追加
+              // 追加コスト（CONTINUOUS の増加ぶん＋`FIRST_SPELL_COST_UP`）も gate と同じ1本を通す。
+              const allExtraSpellCosts = myArtsPayerCtx
+                ? spellExtraCosts({ my, op, payer: myArtsPayerCtx, effectsMap }) : [];
+              // 表示用（「初回」バッジ）だけに使う内訳＝`FIRST_SPELL_COST_UP` のぶん。
               const firstSpellExtra = !my.actions_done?.includes('USE_SPELL')
-                ? collectFirstSpellCostUp(op, effectsMap)
-                : 0;
-              const firstSpellExtraCosts: { color: string; count: number }[] =
-                firstSpellExtra > 0 ? [{ color: '無', count: firstSpellExtra }] : [];
-              const allExtraSpellCosts = [...extraSpellCosts, ...firstSpellExtraCosts];
-              const totalReq = baseSpellReq + firstSpellExtra;
+                ? collectFirstSpellCostUp(op, effectsMap) : 0;
+              const totalReq = baseSpellReq + allExtraSpellCosts.reduce((s, c) => s + c.count, 0);
               const isValid = totalReq === 0 ||
                 (selectedSpellCost.size === totalReq &&
                   canAffordWithExtraCost(selectedNums, battleCards, effSpellCost, allExtraSpellCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors));

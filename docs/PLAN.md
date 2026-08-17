@@ -140,7 +140,7 @@
 - **🆕 セッション（2026-08-18・続き552・Opus 5）＝§8／§6.4 `O-1` の続き＝CPU が相手のアタックフェイズに応答アーツで守る（v1）**。ゲート全緑（**golden 2278→2283**・census 787 据置・smoke 10693 全0・fuzz 全0・**同型★0**・census:stubs 全0・manual-fields 0・lint 0 errors）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.479→0.480。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き552）。
   - **📏 着手前の実測で分かった構造**＝CPU の `ATTACK_ARTS_OP` 分岐は**「フェイズを進める」1行だけ**だった。加えて 🔴**`ArtsModal` の Phase1（アーツ一覧）は到達不能**（`showArtsModal` を立てる唯一の入口 `openArtsModal` が必ず `pendingArtsCard` も立てる＝常に Phase2 から始まる）＝**生きている人間の提示ゲートはルリグデッキのカード詳細「使用」1箇所だけ**。そのため**コスト計算の入口が2つに割れていた**（PLAN §4 教訓 (d) の再発）＝`altCostOppTurn`（相手ターン中の代替コスト）はカード詳細側にしか無く、「使用時の任意支払い軽減」は Phase1 側にしか無かった。
   - **✅ 実装（3段）**＝(1) **`artsUseGate.ts` 新設**＝`checkArtsUse()` がアーツの**使用可否と請求額**を返す唯一の funnel（限定／カード名封じ／`USE_ARTS`・`ARTS_LIMIT_1`／フェイズ×Timing／使用条件／実効コスト＋**`altCostOppTurn`**／支払い可否）。`buildArtsPayerCtx()` が「支払う側の常在効果」一式を1回で組み、**人間UIの `useMemo` も CPU も同じ1本を呼ぶ**（BattleScreen にインラインだった `myEnaAllMulti`／`myEnergyExtraColors` の式も pure 関数へ移した）。(2) `executeArts` → **`performArts`** へ owner パラメータ化・人間用は薄いラッパー。(3) **`cpuArts.ts` 新設**＝守りの分類（**無効化→除去→軽減**・⚠`STUB` は対象外／除去は `target.owner==='opponent' && type==='SIGNI'` のときだけ）と脅威判定（**正面 `2 - zi` が空いたアップの相手シグニ**／**ライフ1枚以下**）で1枚だけ選ぶ。**実測＝アタックフェイズ Timing のアーツ 428枚のうち 214（50%）が CPU の射程**（除去188／軽減16／無効化10）。
-  - **🛡 安全弁**＝①**`cpu_arts_used_nums_this_turn` を実行より先に commit**（`performArts` は使用不能だと何も書かずに return するので、履歴を実行の成否に委ねると `ATTACK_ARTS_OP` から先へ進まない＝画面が止まる）②🔴**支払いキーの allowlist は `energy` 1本だけ**＝`performArts` は**エナ以外の宣言コストを払わない**ので、シグニ【起】側の allowlist（`down_self`／`lrigDown` 等＝あちらは自動支払いがある）を流用すると**宣言だけして踏み倒す**。
+  - **🛡 安全弁**＝①**`cpu_used_card_nums_this_turn` を実行より先に commit**（`performArts` は使用不能だと何も書かずに return するので、履歴を実行の成否に委ねると `ATTACK_ARTS_OP` から先へ進まない＝画面が止まる）②🔴**支払いキーの allowlist は `energy` 1本だけ**＝`performArts` は**エナ以外の宣言コストを払わない**ので、シグニ【起】側の allowlist（`down_self`／`lrigDown` 等＝あちらは自動支払いがある）を流用すると**宣言だけして踏み倒す**。
   - **▶ 次の一手【Opus 側】**＝`O-1` の続き。順に (b) **自ターンのアーツ／スペル**（⚠`castSpell` は177行・`my` 参照76箇所＝今回と同じ手順で割れる。アーツ側は `performArts` が済んでいるので**「攻めの札の選び方」だけ**が残り）(c) ルリグ【起】・《アタックフェイズアイコン》付き【起】（gate は `listActivatableSigniEffects({phase:'ATTACK_ARTS'})` で対応済み）(d) **CPU グロウの手書き再実装を `executeGrow` へ寄せる**（DESIGN §4 の統一は未完）。ほかに 🔴**到達不能な `ArtsModal` Phase1 の始末**（消すか、アーツ一覧の入口を戻すか＝§6.4 `O-19`）。
   - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**。🆕**今回ぶんは `V-75`**（CPU の応答アーツ＝安全弁が効いて先へ進むか／対象選択の自動応答／**人間側の挙動が変わっていないこと**／`altCostOppTurn` が相手ターンに効くこと）。**未検証が約56件**＝**積む速度と消す速度が釣り合っていない**（実機検証を実際に回した最後は 2026-08-14 続き481）。
 
@@ -935,7 +935,7 @@
   ログ `[CPU] アーツを使用: <カード名>` が出て効果が解決する。⚠**脅威が無い**（正面が全部埋まっている・
   ライフ2枚以上）ときは `[CPU] アーツを使用しない` が出る＝**対照**。
   **(B) 🔴止まらないこと（安全弁）**＝アーツを使ったあと **`ATTACK_ARTS_OP` から先へ進む**
-  （＝`cpu_arts_used_nums_this_turn` が効いている）。⚠ここが破れると**画面が止まる**ので最優先。
+  （＝`cpu_used_card_nums_this_turn` が効いている）。⚠ここが破れると**画面が止まる**ので最優先。
   複数枚入れて**1枚ずつ順に使い、最後にフェイズが進む**ことまで見る。
   **(C) 人間側が変わっていないこと（回帰）**＝ルリグデッキのカード詳細「使用」の**可否と請求額**が続き551 以前と同じ
   （提示ゲートを `artsUseGate.checkArtsUse` へ移したので**全アーツが影響範囲**）。特に

@@ -4372,7 +4372,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 31 → 32（§6.4 O-10 続き515 で lrig_grew_this_turn を追加）
   // 32 → 33（§6.4 O-11 続き533 で signi_downed_this_turn を追加＝「このターンでN回目」の台帳）
   // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
-  // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_arts_used_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
+  // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_used_card_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
   eq(convention.length, 35, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
@@ -4388,7 +4388,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 58, '型由来35件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn／+1＝続き551 の cpu_activated_effect_ids_this_turn／+1＝続き552 の cpu_arts_used_nums_this_turn
+  eq(registered.length, 58, '型由来35件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn／+1＝続き551 の cpu_activated_effect_ids_this_turn／+1＝続き552 の cpu_used_card_nums_this_turn
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -31490,22 +31490,27 @@ test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約
   //    封じ中でも「発動」ボタンが出て押しても何も起きない**無言の no-op** だった。
   // ⚠実 UI は BattleScreen のクロージャなので、ここでは**軸の集約と呼び出し箇所**を固定する
   //    （実挙動は §7 実機検証＝負方向＋対照の対）。
+  // 続き552（§8 O-1 (b)）＝funnel 本体は `spellUseGate.ts` の pure 関数へ移した
+  // （CPU のスペル候補フィルタも同じ関数を呼ぶ）。
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  const fn = src.slice(src.indexOf('const isSpellUseBlocked'), src.indexOf('const isSpellUseBlocked') + 600);
-  ok(/isSpellUseBlocked\s*=\s*\(/.test(src), 'スペル封じの判定が1関数に集約されている');
+  const gate = fs.readFileSync(join(root, 'src/screens/battle/spellUseGate.ts'), 'utf8');
+  const fn = gate.slice(gate.indexOf('export function isSpellUseBlockedFor'), gate.indexOf('export function isSpellUseBlockedFor') + 700);
+  ok(/export function isSpellUseBlockedFor\(/.test(gate), 'スペル封じの判定が1関数に集約されている');
   for (const axis of ['USE_SPELL', 'PLAY_COLORLESS', 'BLOCK_NON_WHITE_SPELL']) {
     ok(fn.includes(axis), `🔴${axis} が判定に含まれる（軸の脱落ガード）`);
   }
   ok(/PLAY_COLORLESS'\)\s*&&\s*card\?\.Color === '無'/.test(fn), '無色スペルだけを止める（全スペルに広げない）');
   ok(/BLOCK_NON_WHITE_SPELL'\)\s*&&\s*!card\?\.Color\?\.includes\('白'\)/.test(fn), '白以外だけを止める');
-  // ⚠**実行入口とボタン生成2箇所（手札スペル／スペル・クラフト）の計3箇所**から呼ぶ。
-  eq((src.match(/isSpellUseBlocked\(/g) ?? []).length, 3, '呼び出しは3箇所（実行入口・手札スペル・スペル/クラフト）');
-  // 旧・軸ごとの直書きが復活していないこと（＝また片側だけ塞ぐ回帰）。
-  // 軸の直書きは**funnel の中だけ**（＝また片側だけ塞ぐ回帰のガード）。
-  eq((src.match(/isActionBlocked\('BLOCK_NON_WHITE_SPELL'\)/g) ?? []).length, 1,
+  // ⚠**提示ゲート（`checkSpellUse`）と実行入口（`performSpell`）の両方**から呼ぶ。
+  ok(/!isSpellUseBlockedFor\(my, payer\.blockedSelf, card\)/.test(gate), '提示ゲート（checkSpellUse）から呼ぶ');
+  ok(/isSpellUseBlockedFor\(my, p\.blockedSelf, card\)/.test(src), '実行ゲート（performSpell）から呼ぶ');
+  // ⚠BattleScreen 側は薄いラッパー1本だけ（スペル/クラフトのボタン生成が呼ぶ）。
+  eq((src.match(/isSpellUseBlocked\(/g) ?? []).length, 1, 'BattleScreen 側の呼び出しはスペル/クラフトの1箇所だけ（手札スペルは checkSpellUse 経由）');
+  // 軸の直書きが funnel の外へ復活していないこと（＝また片側だけ塞ぐ回帰のガード）。
+  eq((src.match(/isActionBlocked\('BLOCK_NON_WHITE_SPELL'\)/g) ?? []).length, 0,
+     'BLOCK_NON_WHITE_SPELL を BattleScreen で直接見ない');
+  eq((gate.match(/isActionBlocked\('BLOCK_NON_WHITE_SPELL'\)/g) ?? []).length, 1,
      'BLOCK_NON_WHITE_SPELL を見るのは funnel の1箇所だけ');
-  eq((src.match(/isActionBlocked\('PLAY_COLORLESS'\) && card/g) ?? []).length, 1,
-     'スペル側の PLAY_COLORLESS 判定も funnel の1箇所だけ（召喚側の判定とは別軸なので数えない）');
 });
 
 test('§6.4 O-10（続き512）: 無色のカードではエナコストを支払えない（負方向＋対照の対）', () => {
