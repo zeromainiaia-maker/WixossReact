@@ -13804,8 +13804,13 @@ function grantLrigAbilityNodes(action: EffectAction): GrantLrigAbilityAction[] {
 function deferredQuotedAbility(
   block: string, idPrefix: string, index: number, duration: EffectDuration | undefined,
 ): CardEffect | null {
+  // ⚠3つ目は**トリガーの語彙が無い**形。`ON_OPP_EFFECT_TRASH_FROM_HAND` は「手札が」限定で、
+  //   原文の「（領域を問わず）あなたのトラッシュにカードが置かれたとき」より狭い＝流用できない。
+  //   語彙が無いまま parse させると timing が `ON_PLAY` へフォールバックし（`census:timing` のクラス）、
+  //   **ルリグに付与された ON_PLAY** という永久に噛み合わない形が積まれる。母集団1効果（`WX24-P3-007-E1`）。
   const id = /あなたがダメージを受ける場合、代わりに/.test(block) ? 'DEFERRED_DAMAGE_REPLACE_BY_COST'
     : /ライフクロスがリフレッシュによってトラッシュに移動する場合、代わりに/.test(block) ? 'DEFERRED_REFRESH_LIFE_MOVE_REPLACE'
+    : /対戦相手の効果[１1]つによってあなたのトラッシュにカードが/.test(block) ? 'DEFERRED_OPP_EFFECT_TRASHED_ANY_ZONE'
     : null;
   if (!id) return null;
   return {
