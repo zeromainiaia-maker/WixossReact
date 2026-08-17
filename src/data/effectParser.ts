@@ -11971,7 +11971,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
              // ON_HAND_ADDED（続き207・タスク16[C]）: 効果によってカードが手札に移動（増加）したとき。
              //   「場から手札に移動」（ON_LEAVE_FIELD leftToZone:hand）は上の規則が先取り＝ここは非・場由来。
              //   engine 配線＝collectHandAddedTriggers（detectHandAdded の set-diff・handOwner/fromZones/movedSelf は下で抽出）。
-             : /対戦相手の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?[０-９\d]+枚以上対戦相手の手札に移動したとき/.test(trigText) ? ['ON_HAND_ADDED']
+             //   ⚠**主語は両側ある**（タスク12(cxix)）＝「**あなた**の効果１つによってカードが合計１枚以上
+             //     **あなた**の手札に移動したとき」（`SPDi43-11-E2` の内側付与）は従来この regex に一致せず、
+             //     末尾の「場に出たとき」フォールバックへ落ちて **`ON_PLAY`** になっていた＝恒久 no-op。
+             //     兄弟の `SPDi43-12`（ON_ENERGY_TO_TRASH）／`SPDi43-13`（ON_ENERGY_CHARGE）だけが正しく、
+             //     手札版だけが取り残されていた。owner 2軸は下の cond 抽出で刻む。
+             : /(?:あなた|対戦相手)の効果(?:[０-９\d]+つ)?によってカードが(?:合計)?[０-９\d]+枚以上(?:あなた|対戦相手)の手札に移動したとき/.test(trigText) ? ['ON_HAND_ADDED']
              // 「あなたのエナゾーンからシグニ1枚が手札に加わるか場に出たとき」（WXDi-P11-007）＝手札枝＋場枝の OR（timing 併記）。
              : /エナゾーンから[^。]{0,10}手札に加わるか場に出たとき/.test(trigText) ? ['ON_HAND_ADDED', 'ON_ENERGY_TO_FIELD']
              // 「あなたがエナゾーンからカード1枚を手札に加えたとき」（WX20-046）。
