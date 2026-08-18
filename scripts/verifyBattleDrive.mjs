@@ -18587,6 +18587,8 @@ try {
         damageReplaceMill: s.damage_replace_mill ?? [],
         leaveSubstituteChoices: s.leave_substitute_choices ?? null,
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
+        hastarliqZones: s.hastarliq_zones ?? [],   // V-79(B)：【ハスターリク】設置予約（発動で undefined へ）
+        pendingExtraAttackStart: (s.pending_extra_attack_phase_start_effects ?? []).length,
       });
       return {
         host: sideOf(hs),
