@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き558・Sonnet 5）— §7 実機検証を継続＝`V-75`(A)(B)（CPU が相手のアタックフェイズに応答アーツで守る）実機 PASS
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規2本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.488→0.489。ユーザー指示により V-75 (A)(B) で区切り、(C)(D) は未着手のまま次回へ。
+
+### 1. (A)(B) CPU が相手（人間）のアタックフェイズに応答アーツで守り、止まらないこと
+
+- **`v75CpuDefendsWithArts`** ＝WX24-P1-021（剣一炎敵・赤・使用条件なし・【起】《赤》×1：相手のパワー10000以下のシグニ1体をバニッシュ）を CPU（guest）のルリグデッキへ、赤エナ1枚を持たせ、host（人間）がターンプレイヤーの `ATTACK_ARTS_OP` フェイズへ直接注入。`[CPU] アーツを使用: 剣一炎敵` ログ→host のシグニ（WD01-013）がバニッシュされる→そのまま **`ATTACK_ARTS_OP` から `ATTACK_SIGNI` へ自動的に進む**（止まらない＝`cpu_used_card_nums_this_turn` の安全弁が効いている）ことを確認。
+- **`v75CpuDoesNotDefendWithoutThreat`**（対照）＝guest の正面を埋め・ライフを2枚以上にした同一盤面では `[CPU] アーツを使用しない` ログのみで host のシグニは無傷のまま `ATTACK_SIGNI` へ進む。
+- 🔑**判定の型**＝`hasIncomingThreat` は「host（アタッカー側）の正面（`2-zi`）が空いている**アップ状態**のシグニがいるか」を見る＝**`ATTACK_ARTS_OP` はまだアタック解決前のフェイズなので host 側のシグニは down にしない**（down にすると `hasIncomingThreat` の走査から外れて偽陰性になる）。
+- 🔑**`life_cloth` を条件付きで省略する型**＝`life_cloth: threat ? undefined : [...]` のように**値を `undefined` にして渡すとキー自体が残り、`injectScenario` の既定7枚フィラーを上書きしてしまう**（V-74 続き557 で踏んだのと同型の罠）。正しくは `...(threat ? {} : { 'life_cloth': [...] })` でキーごと省略する。
+
+### 2. ⚠残＝(C)(D) は未着手（follow-up）
+
+- **(C)** 人間側の回帰確認（限定つきアーツ／`ARTS_LIMIT_1`（`WX13-007`）／カード名封じの3点、`artsUseGate.checkArtsUse` への一本化で全アーツが影響範囲になったことの裏取り）。
+- **(D)** `altCostOppTurn`（相手ターン中の代替コストで使えること・従来カード詳細の入口にしか無かった読み替えを gate へ合流させた分）。
+
 ## 2026-08-18（続き557・Sonnet 5）— §7 実機検証を継続＝`V-74`（CPU がメインフェイズにシグニ【起】を撃つ ＋ エナコスト色照合の是正）ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規7本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.487→0.488。続き556 の「▶ 次の一手【Sonnet 側】」を消化。
