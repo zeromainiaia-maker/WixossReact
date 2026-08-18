@@ -21240,8 +21240,9 @@ scenarios.v51LeaveSubstitutePaysAndSurvives = {
   async drive(page, H) {
     const fin = await driveV51LeaveSubstitute(page, H, true);
     const survived = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX25-P2-059#9992'));
-    const paid = (fin?.host?.energyCards ?? []).length === 0;
-    const detail = `survived=${survived}（期待true） / paid=${paid}（期待true＝2枚とも支払済み） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
+    // ⚠最終エナ枚数では判定しない（その後のCPUターン進行でクラッシュ札がエナへ入り増減するため）＝ログで判定。
+    const paid = await H.findLog(/《緑》《無》を支払い、羅輝石　スフェーンの場離れをこの能力の喪失で置換/);
+    const detail = `survived=${survived}（期待true） / paid=${!!paid}（期待true＝支払いログ確認） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
     H.log(`  v51leavesub ${detail}`);
     return { pass: survived && paid, detail };
   },
