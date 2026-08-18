@@ -19499,8 +19499,12 @@ scenarios.v73TrashGateActiveShowsSetPower = {
   spec: v73PowerGateSpec({ cardNum: 'WX14-073', trash: ['WD01-015#9202'] }),
   drive: (page, H) => driveV73PowerGate(page, H, 8000),
 };
+// 🔴このシナリオは Opusタスク12 (cxxxvii) の engine 修正待ちで赤のまま既定orderに残す＝WXDi-P04-050-E2
+// 「隣にあるあなたのシグニのパワーを＋3000」が「隣」を無視して「ALL 自分シグニ」（＝自分自身も含む）に
+// 過剰実装されている（続き562・V-73 実機検証で発見）ため、単独配置でも 10000+5000(E1)+3000(E2 誤爆)=18000 になる。
+// 期待値は「隣が無いので E2 は不発＝15000」というルール上の正しい値（engine が直れば緑化する）。
 scenarios.v73UpGateActiveShowsBuffedPower = {
-  title: 'V-73(c) 対照＝WXDi-P04-050はアップ状態なら+5000（10000→15000）',
+  title: '🔴V-73(c) 対照＝WXDi-P04-050はアップ状態なら+5000（10000→15000・E2の隣接誤爆でengineバグ待ち）',
   spec: v73PowerGateSpec({ cardNum: 'WXDi-P04-050', down: false }),
   drive: (page, H) => driveV73PowerGate(page, H, 15000),
 };
