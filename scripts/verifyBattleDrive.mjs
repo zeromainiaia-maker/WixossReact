@@ -21216,11 +21216,18 @@ const v51LeaveSubstituteSpec = (hostEnergy) => ({
   },
   top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
 });
-async function driveV51LeaveSubstitute(page, H) {
+async function driveV51LeaveSubstitute(page, H, payChoice) {
   let fin = await H.queryState();
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(350);
-    const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+    const st0 = await H.queryState();
+    let did = null;
+    if (st0?.pendingEffect === 'CHOOSE' && (st0?.pendingOptions ?? []).some(o => o.startsWith('selfAbilityPay:'))) {
+      did = payChoice
+        ? await H.clickTextOrBtn(['この能力を失う', 'コスト'])
+        : await H.clickTextOrBtn(['置換しない']);
+    }
+    if (!did) did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
     fin = await H.queryState();
     H.log(`  v51leavesub[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} pendingOptions=${JSON.stringify(fin?.pendingOptions)} hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
     if (fin?.activeUser && fin.activeUser !== V79_CPU_ID) break;
