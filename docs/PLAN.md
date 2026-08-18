@@ -171,21 +171,21 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-18 続き561（§7 実機検証継続＝`V-77` ALL PASS で残0クローズ）後 最新値（本行が直近の正）**：
+- **🆕 2026-08-18 続き562（§7 実機検証継続＝`V-78`(A)(C)／`V-73`／`V-72`＝🔴engineバグ2件発見）後 最新値（本行が直近の正）**：
   **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2295 据置**、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
   fuzz 全0、lint **0 errors**（263 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
   manual-fields **0**、`parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
   （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**＝live 非改変なので
   〔★0・未カバー0・wiring miss 193〕から動いていないはず）。
-  **live 効果総数 10693**（live JSON・CSV とも非改変）。version **0.492**。
-  🆕**実機シナリオ総数 350**（+8＝V-77 の8本）。
-  🆕**実機 PASS（続き561 実測）＝8/8（2回連続）**。
+  **live 効果総数 10693**（live JSON・CSV とも非改変）。version **0.493**。
+  🆕**実機シナリオ総数 359**（+9＝V-78×2・V-73×4・V-72×3）。
+  🆕**実機 PASS（続き562 実測）＝7/9（2本は engine バグ待ちで意図的に赤・V-72の3本は2回連続PASS）**。
   ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**＝
   ドライバー側の不安定化を疑うが engine 側の回帰ではない。
-  🆕**Opusタスク12＝在庫1件据置**（(cxxxv)＝`calcContinuousBlockedActions` 恒久 no-op・続き559 で登録・未修正）。
+  🆕**Opusタスク12＝在庫3件**（(cxxxv)続き559／(cxxxvi)(cxxxvii)続き562で登録・未修正）。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き561）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き562）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
