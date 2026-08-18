@@ -1,5 +1,7 @@
 // 【グロウ】条件の抽出・評価・グロウ時追加効果。BattleScreen.tsx から Stage 0 で抽出。
 import type { PlayerState, CardData } from '../../types';
+import type { CardEffect, StubAction } from '../../types/effects';
+import { getCardNum } from '../../engine/effectExecutor';
 import { toHalfWidth } from './battleUtils';
 
 
@@ -252,3 +254,62 @@ export function meetsRestriction(restriction: string, lrigClass: string, ignoreR
   return lrigClass.split(/[/／]/).map(s => s.trim()).some(cls => restriction.includes(cls));
 }
 
+
+/**
+ * センターグロウの**候補ルリグ**（§8／§6.4 `O-1` (d)）。
+ *
+ * ⚠**必ず人間のグロウ候補一覧と CPU の候補フィルタの両方から同じ関数を呼ぶこと**
+ * （`signiActivateGate.ts` / `artsUseGate.ts` と同じ規律）。写経すると
+ * 「人間には出ないのに CPU はグロウできる」（またはその逆）という無言のズレになる。
+ *
+ * ⚠**ここは「レベル・クラス・【グロウ】条件・色制限」だけ**＝**コストの支払い可否は含めない**
+ * （人間UIは払えない候補もグレーで出すため）。CPU 側は呼び出し元で `canAffordGrowCost` を重ねる。
+ */
+export function listGrowCandidates(p: {
+  my: PlayerState;
+  cardMap: Map<string, CardData>;
+  effectsMap: Map<string, CardEffect[]>;
+  /** `'same'`＝ゲット・グロウ等の横グロウ（現センターと同レベル）。`'plus1'`／`null`＝通常のレベル+1。 */
+  freeGrowFilter?: 'same' | 'plus1' | null;
+}): CardData[] {
+  const { my, cardMap, effectsMap } = p;
+  const currentLrigNum = my.field.lrig.at(-1) ?? null;
+  const currentLrig = currentLrigNum ? cardMap.get(currentLrigNum) ?? null : null;
+  const currentLevel = currentLrig ? parseInt(currentLrig.Level) || 0 : 0;
+  // 現在のルリグのグロウ色制限（「このルリグは〜のルリグにしかグロウできない」）
+  const colorRestrict = currentLrig?.EffectText?.match(/このルリグは(.+)のルリグにしかグロウできない/)?.[1] ?? null;
+  return my.lrig_deck
+    .filter((num, i, arr) => arr.indexOf(num) === i)
+    .map(num => cardMap.get(getCardNum(num)))
+    .filter((c): c is CardData =>
+      !!c &&
+      c.Type === 'ルリグ' &&
+      (p.freeGrowFilter === 'same'
+        ? parseInt(c.Level) === currentLevel
+        : parseInt(c.Level) === currentLevel + 1 ||
+          // GROW_FROM_LEVEL0: このルリグはレベル0からグロウできる
+          (currentLevel === 0 && (effectsMap.get(c.CardNum) ?? []).some(e =>
+            e.effectType === 'CONTINUOUS' &&
+            (e.action as StubAction).type === 'STUB' &&
+            (e.action as StubAction).id === 'GROW_FROM_LEVEL0',
+          ))) &&
+      // CardClass 互換チェック。⚠実効クラス＝印刷クラス＋**追加で得たルリグタイプ**（§6.4 O-3）。
+      (!currentLrig || lrigClassesCompatible(effectiveLrigClass(my, currentLrig.CardClass), c.CardClass)) &&
+      // 【グロウ】条件（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
+      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, cardMap) &&
+      // グロウ色制限（「青かつ黒のルリグにしかグロウできない」等）
+      (!colorRestrict || (() => {
+        const colors = colorRestrict.split(/かつ|と/).map(x => x.trim());
+        const cColors = (c.Color ?? '').split(/[・,、]/).map(x => x.trim());
+        return colors.every(col => cColors.includes(col));
+      })())
+    );
+}
+
+/** グロウが**いま封じられていないか**（静的封じ＋CONTINUOUS＋`no_grow`＋消化済み）。 */
+export function canGrowNow(my: PlayerState, blockedSelf: Set<string>): boolean {
+  if (my.actions_done?.includes('GROW')) return false;
+  if (my.blocked_actions?.includes('GROW')) return false;
+  if (blockedSelf.has('GROW')) return false;
+  return !my.no_grow;
+}

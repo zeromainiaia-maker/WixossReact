@@ -32,7 +32,7 @@ import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from './battle/pieceCutin';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
-import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, isEnergyPayBlocked, type EnergyPayEntry } from './battle/energyPaySource';
+import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './battle/energyPaySource';
 
 interface Props {
   user: User;
@@ -45,9 +45,9 @@ interface Props {
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction } from '../engine/triggerCollect';
 import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
-import { findGrowFreeAction, extractGrowCondition, checkGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass } from './battle/growLogic';
+import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
-import { computeFieldSigniLimit, reduceFieldSigniToLimit } from './battle/fieldLimit';
+import { computeFieldSigniLimit } from './battle/fieldLimit';
 import { MAYU_ENCOUNTER_A, MAYU_ENCOUNTER_B, prepareMayuEncounter } from './battle/mayuEncounter';
 import { computeEffectiveLrigLimit } from './battle/lrigLimit';
 import { consumeNthAttackNegation, getTargetedAttackNegation, resolveNegateEscapeChoice } from './battle/attackNegation';
@@ -124,7 +124,7 @@ import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
-import { pickCpuSigniActivated } from './battle/cpuActivate';
+import { pickCpuSigniActivated, selectEnergyIndicesForCost } from './battle/cpuActivate';
 import { listActivatableLrigEffects } from './battle/lrigActivateGate';
 import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
@@ -6074,37 +6074,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const currentLrig = currentLrigNum ? battleCardMap.get(currentLrigNum) ?? null : null;
   const currentLrigLevel = currentLrig ? parseInt(currentLrig.Level) || 0 : 0;
 
-  // 現在のルリグにグロウ色制限があるか確認（「このルリグは〜のルリグにしかグロウできない」）
-  const growColorRestrictText = currentLrig?.EffectText?.match(/このルリグは(.+)のルリグにしかグロウできない/)?.[1] ?? null;
-  const growCandidates = my.lrig_deck
-    .filter((num, i, arr) => arr.indexOf(num) === i)
-    .map(num => battleCardMap.get(num))
-    .filter((c): c is CardData =>
-      !!c &&
-      c.Type === 'ルリグ' &&
-      // freeGrowFilter==='same': ゲット・グロウ等で現センターと同レベルへ横グロウ
-      (freeGrowFilter === 'same'
-        ? parseInt(c.Level) === currentLrigLevel
-        : parseInt(c.Level) === currentLrigLevel + 1 ||
-        // GROW_FROM_LEVEL0: このルリグはレベル0からグロウできる
-        (currentLrigLevel === 0 && (effectsMap.get(c.CardNum) ?? []).some(e =>
-          e.effectType === 'CONTINUOUS' &&
-          (e.action as import('../types/effects').StubAction).type === 'STUB' &&
-          (e.action as import('../types/effects').StubAction).id === 'GROW_FROM_LEVEL0',
-        ))) &&
-      // CardClass 互換チェック
-      // ⚠実効クラス＝印刷クラス＋**追加で得たルリグタイプ**（§6.4 O-3）。素の CardClass を見ると
-      //   「対戦相手のルリグタイプを得た」が**グロウ互換に一切効かない**無言 no-op になる。
-      (!currentLrig || lrigClassesCompatible(effectiveLrigClass(my, currentLrig.CardClass), c.CardClass)) &&
-      // 【グロウ】条件チェック（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
-      checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, battleCardMap) &&
-      // グロウ色制限チェック（「青かつ黒のルリグにしかグロウできない」等）
-      (!growColorRestrictText || (() => {
-        const colors = growColorRestrictText.split(/かつ|と/).map(s => s.trim());
-        const cColors = (c.Color ?? '').split(/[・,、]/).map(s => s.trim());
-        return colors.every(col => cColors.includes(col));
-      })())
-    );
+  // グロウ候補＝**判定は `growLogic.listGrowCandidates` 1本**（§8 `O-1` (d)）＝
+  // レベル・クラス互換・【グロウ】条件・色制限。CPU の候補フィルタも同じ関数を呼ぶ。
+  // ⚠ここにコストの支払い可否は含めない（人間UIは払えない候補もグレーで出す）。
+  const growCandidates: CardData[] = listGrowCandidates({ my, cardMap: battleCardMap, effectsMap, freeGrowFilter });
 
   // ルリグのクラス（制限チェック共通）
   // ⚠「〇〇限定」の使用制限も**実効クラス**で見る（追加で得たルリグタイプを含む・§6.4 O-3）。
@@ -6318,7 +6291,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return result;
   })();
 
-  const executeGrow = async (
+  /**
+   * センターグロウの実行（人間・CPU 共通）。DESIGN §4「CPU は対人戦と同じ処理を使う」の抽出形＝
+   * `performArts` / `performSpell` / `performLrigActivated` と同じく **owner をパラメータ化**し、
+   * 人間用 `executeGrow` は薄いラッパーにする（§8 `O-1` (d)）。
+   *
+   * ⚠**「どのルリグへグロウできるか」の判定はここではなく `growLogic.listGrowCandidates`**。
+   * ⚠`onCostOnPlay`＝コスト付き任意【出】の扱い。`'prompt'`（人間）は支払いモーダルを開き、
+   *   `'auto'`（CPU）は**コインだけで払えるものを自動で払い、それ以外は発動しない**
+   *   （CPU にモーダルは出せない＝出すと**人間の画面に相手のモーダルが出る**）。
+   */
+  const performGrow = async (
     card: CardData,
     costIndices: Set<number>,
     options: {
@@ -6329,14 +6312,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       extraEntries?: StackEntry[];
       opponentState?: PlayerState;
     } = {},
+    p: {
+      actor: PlayerState; opponent: PlayerState;
+      actorId: string; opponentId: string;
+      actorKey: 'host_state' | 'guest_state';
+      /** `actor` がターンプレイヤーか（グロウは必ず自分のターン）。 */
+      isActorTurn: boolean;
+      /** `buildEnergyPayPool(actor, ...)` の結果（エナ支払い元 funnel）。 */
+      energyPayPool: EnergyPayEntry[];
+      /** コスト付き任意【出】の扱い（既定＝人間の支払いモーダル）。 */
+      onCostOnPlay?: 'prompt' | 'auto';
+      /** 既定の `freeCost` 判定（人間UIの `freeGrowFilter`）。CPU は渡さない＝常に通常グロウ。 */
+      defaultFreeCost?: boolean;
+    },
   ) => {
-    if (!isMyTurn || loading) return;
+    const my = p.actor;
+    const op = p.opponent;
+    const actorIsHost = p.actorKey === 'host_state';
+    if (!p.isActorTurn) return;
     setLoading(true);
     const growBase = options.baseState ?? my;
     const growOp = options.opponentState ?? op;
-    const wasFreeGrow = options.freeCost ?? (freeGrowFilter !== null);
+    const wasFreeGrow = options.freeCost ?? (p.defaultFreeCost ?? false);
     const consumeGrowAction = options.consumeGrowAction ?? !wasFreeGrow;
-    closeGrowModal();
     try {
       const cardNum = card.CardNum;
       const idx = options.instanceId === undefined
@@ -6346,12 +6344,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const newLrigDeck = idx === -1 ? growBase.lrig_deck
         : [...growBase.lrig_deck.slice(0, idx), ...growBase.lrig_deck.slice(idx + 1)];
       // エナ支払いは funnel 1本（§6.4）。`baseState` 指定時はその state のプールを組む。
-      const growPool = growBase === my ? myEnergyPayPool : buildEnergyPayPool(growBase, energyPayCtx);
+      const growPool = growBase === my ? p.energyPayPool : buildEnergyPayPool(growBase, { turnPhase: bs.turn_phase, isMyTurn: p.isActorTurn, effectsMap });
       const growPay = planEnergyPayment(growBase, growPool, costIndices);
       const paidNums = [...growPay.paidNums];
       // GROW_COST_SUBSTITUTE_TRASH_SIGNI: 選択枚数が totalReq-1 なら代替シグニをトラッシュ
       const growSubInfoExec = wasFreeGrow ? null : collectGrowCostSubstitute(growBase, battleCardMap, effectsMap);
-      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(my, op, isMyTurn, effectsMap, battleCardMap)));
+      const costItemsExec = parseGrowCost(applyGrowCostReduction(card.GrowCost, collectGrowCostReductions(growBase, growOp, p.isActorTurn, effectsMap, battleCardMap)));
       const totalReqExec = costItemsExec.reduce((s, c) => s + c.count, 0);
       let growSubSigniPaid: string | null = null;
       if (growSubInfoExec && costIndices.size === totalReqExec - 1) {
@@ -6386,11 +6384,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const growCond = extractGrowCondition(card.EffectText);
       const { state: afterGrowEffect, log: growEffectLog } = applyGrowEffect(growCond, newMyState, battleCardMap);
       newMyState = afterGrowEffect;
-      const stateKey = isHost ? 'host_state' : 'guest_state';
+      const stateKey = p.actorKey;
       // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: グロウ先がこの継続効果を持つなら、各プレイヤーが
       //「自分のシグニを超過分だけ選んでトラッシュに置く」（残り上限体）。スタックに積んで選択させる。
       const grownFieldLimit = computeFieldSigniLimit(newMyState, growOp, effectsMap, getCardNum);
-      const opponentId = isHost ? bs.guest_id : bs.host_id;
+      const opponentId = p.opponentId;
       const fieldLimitEntries: StackEntry[] = [];
       if (grownFieldLimit < 3) {
         const mkLimitEntry = (pid: string, count: number): void => {
@@ -6407,7 +6405,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             } as import('../types/effects').CardEffect,
           });
         };
-        mkLimitEntry(user.id, newMyState.field.signi.filter(s => (s ?? []).length > 0).length);
+        mkLimitEntry(p.actorId, newMyState.field.signi.filter(s => (s ?? []).length > 0).length);
         mkLimitEntry(opponentId, growOp.field.signi.filter(s => (s ?? []).length > 0).length);
       }
       const cardName = card.CardName;
@@ -6426,7 +6424,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const ownEffects = effectsMap.get(cardNum) ?? [];
       // SUPPRESS_CENTER_ON_PLAY: このターンセンタールリグの【出】能力を抑制
       const suppressLrigPlay = newMyState.suppress_center_on_play === true;
-      const copiedOnPlayEffects = suppressLrigPlay ? [] : collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, growOp, isMyTurn)
+      const copiedOnPlayEffects = suppressLrigPlay ? [] : collectCopiedLrigAutoEffects(newMyState, battleCardMap, effectsMap, growOp, p.isActorTurn)
         .filter(e => e.timing?.includes('ON_PLAY'));
       const allOnPlayEffects = suppressLrigPlay ? [] : [...ownEffects, ...copiedOnPlayEffects];
       const mandatoryOnPlay = allOnPlayEffects.filter(e =>
@@ -6434,7 +6432,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.timing?.includes('ON_PLAY') &&
         e.mandatory !== false &&
         // activeCondition（英知=N等）を満たさない【出】は発火しない
-        (!e.activeCondition || checkActiveCondition(e.activeCondition, newMyState, op, true, battleCardMap, cardNum)),
+        (!e.activeCondition || checkActiveCondition(e.activeCondition, newMyState, growOp, true, battleCardMap, cardNum)),
       );
       const costOnPlay = allOnPlayEffects.filter(e =>
         e.effectType === 'AUTO' &&
@@ -6443,7 +6441,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         e.cost,
       // 「〈盤面条件〉の場合、この能力の発動コストは《X×N》減る」を**提示前に**焼き込む（§6.4 O-35・続き530）。
       // ここ1点で削るので、モーダル表示・支払い・可否判定がすべて同じ削減後コストを見る。
-      ).map(e => applyAbilityCostReduction(e, newMyState, op, battleCardMap, cardNum, bs.turn_phase, effectivePowers));
+      ).map(e => applyAbilityCostReduction(e, newMyState, growOp, battleCardMap, cardNum, bs.turn_phase, effectivePowers));
       const optionalNoCostGrow = collectOptionalNoCostOnPlayForGrow(
         allOnPlayEffects, newMyState, growOp, true, battleCardMap, cardNum, bs.turn_phase, effectivePowers,
       );
@@ -6453,27 +6451,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       if (suppressLrigPlay) appendBattleLogs(['センタールリグの【出】能力は抑制されました']);
 
-      // ON_LRIG_GROW（C1 配線）: センターグロウ実行者＝user.id のグロウに反応する【自】を収集。
+      // ON_LRIG_GROW（C1 配線）: センターグロウ実行者（`p.actorId`）のグロウに反応する【自】を収集。
       // any_opp（対戦相手のルリグがグロウ）は非ターンプレイヤー側＝effect_stack の opp 側は
       // buildQueue（effectStack.ts）で `[...turn, ...opp]` の順に並ぶため、グロウ先ルリグ自身の
       // 【出】（ON_PLAY・ターンプレイヤー側）が先に解決され any_opp watcher は後で処理される
       // （2026-07-12・PLAN §7 ON_LRIG_GROW③検証で訂正＝旧コメントは順序を逆に記載していた誤り。
       // golden「Stage2 effectStack initStack: ターンプレイヤー→相手の順でキュー構築」参照）。
-      const growTrig = collectLrigGrowTriggers(user.id, newMyState, growOp);
+      const growTrig = collectLrigGrowTriggers(p.actorId, newMyState, growOp);
       const growTriggerEntries = growTrig.entries;
       // usageLimit（《ターン1回》）消費を actions_done へ永続化（従来は「読むだけ」で書き戻しが無く実質ノーガードだった。続き135）
-      const growUsedMine = isHost ? growTrig.usedHostIds : growTrig.usedGuestIds;
-      const growUsedOpp  = isHost ? growTrig.usedGuestIds : growTrig.usedHostIds;
+      const growUsedMine = actorIsHost ? growTrig.usedHostIds : growTrig.usedGuestIds;
+      const growUsedOpp  = actorIsHost ? growTrig.usedGuestIds : growTrig.usedHostIds;
       // ON_COIN_GAINED（§6.3 J-5）: グロウでルリグの Coin 欄ぶんコインを得た場合。**この経路は効果解決の
       // 中央 diff を通らない**ので、既存 ON_COIN_PAID がここでコスト支払いを拾っているのと同じ場所で獲得も拾う。
       // ⚠実増加は上限5のクランプ後（「5枚持ちでグロウしても得ていない」が正しい）。支払いはこの差から除く。
       const coinsAfterGrowPay = Math.max(0, growBase.coins - growCoinCost);
       const growCoinGainActual = Math.min(5, coinsAfterGrowPay + coinGain) - coinsAfterGrowPay;
       const growCoinGainMine = growCoinGainActual > 0
-        ? collectCoinGainedTriggers(user.id, newMyState, growOp, growCoinGainActual, 0)
+        ? collectCoinGainedTriggers(p.actorId, newMyState, growOp, growCoinGainActual, 0)
         : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
       const growCoinGainOpp = growCoinGainActual > 0
-        ? collectCoinGainedTriggers(isHost ? bs.guest_id : bs.host_id, growOp, newMyState, 0, growCoinGainActual)
+        ? collectCoinGainedTriggers(p.opponentId, growOp, newMyState, 0, growCoinGainActual)
         : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
       const growCoinGainedEntries = [...growCoinGainMine.entries, ...growCoinGainOpp.entries];
       if (growUsedMine.length > 0 || growCoinGainMine.usedOncePerTurnIds.length > 0) {
@@ -6483,12 +6481,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const opAfterGrow: PlayerState | null = growOppUsedAll.length > 0
         ? { ...growOp, actions_done: [...(growOp.actions_done ?? []), ...growOppUsedAll] }
         : (growOp !== op ? growOp : null);
-      const opKeyGrow = isHost ? 'guest_state' : 'host_state';
+      const opKeyGrow: PlayerStateKey = actorIsHost ? 'guest_state' : 'host_state';
       // ON_COIN_PAID（C1 配線・グロウコストのコイン支払）: グロウコストでコインを支払った場合に反応【自】を積む。
-      const growCoin = growCoinCost > 0 ? collectCoinPaidTriggers(user.id, newMyState, growOp) : { entries: [] as StackEntry[], usedIds: [] as string[] };
+      const growCoin = growCoinCost > 0 ? collectCoinPaidTriggers(p.actorId, newMyState, growOp) : { entries: [] as StackEntry[], usedIds: [] as string[] };
       const growCoinPaidEntries = growCoin.entries;
       newMyState = applyCoinPaidUsed(newMyState, growCoin); // 《ターン1回/2回》消化を actions_done に永続化
 
+
+      // ⚠CPU（`onCostOnPlay:'auto'`）は**モーダルを出せない**（出すと人間の画面に相手のモーダルが出る）＝
+      //   **コインだけで払えるものは自動で払って発動し、それ以外は発動しない**。
+      //   これは CPU 手書きグロウ（続き552d で削除）の挙動をそのまま移したもの。
+      const autoPaidOnPlay: import('../types/effects').CardEffect[] = [];
+      if (p.onCostOnPlay === 'auto') {
+        for (const eff of costOnPlay) {
+          const coinOnly = !!eff.cost?.coin && !eff.cost.energy && !eff.cost.discard;
+          if (!coinOnly || (newMyState.coins ?? 0) < eff.cost!.coin!) continue;
+          newMyState = {
+            ...newMyState,
+            coins: (newMyState.coins ?? 0) - eff.cost!.coin!,
+            coins_paid_this_turn: (newMyState.coins_paid_this_turn ?? 0) + eff.cost!.coin!,
+          };
+          appendBattleLogs([`《コイン》×${eff.cost!.coin}を支払って【出】効果を発動`]);
+          autoPaidOnPlay.push(eff);
+        }
+        costOnPlay.length = 0;
+      }
 
       // コスト付き任意【出】効果があればモーダルで確認（複数あれば1効果ずつ連鎖）
       if (costOnPlay.length > 0) {
@@ -6499,11 +6516,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           ...growCoinPaidEntries,
           ...growCoinGainedEntries,
           ...mandatoryOnPlay.map(eff => ({
-            id: generateUUID(), playerId: user.id, cardNum,
+            id: generateUUID(), playerId: p.actorId, cardNum,
             effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
           })),
           ...optionalNoCostGrow.effects.map(eff => ({
-            id: generateUUID(), playerId: user.id, cardNum,
+            id: generateUUID(), playerId: p.actorId, cardNum,
             effectId: eff.effectId, label: `${cardName} の【出】効果（任意）`, effect: eff,
           })),
         ];
@@ -6522,12 +6539,16 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         ...growTriggerEntries,
         ...growCoinPaidEntries,
         ...growCoinGainedEntries,
+        ...autoPaidOnPlay.map(eff => ({
+          id: generateUUID(), playerId: p.actorId, cardNum,
+          effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
+        })),
         ...mandatoryOnPlay.map(eff => ({
-          id: generateUUID(), playerId: user.id, cardNum,
+          id: generateUUID(), playerId: p.actorId, cardNum,
           effectId: eff.effectId, label: `${cardName} の【出】効果`, effect: eff,
         })),
         ...optionalNoCostGrow.effects.map(eff => ({
-          id: generateUUID(), playerId: user.id, cardNum,
+          id: generateUUID(), playerId: p.actorId, cardNum,
           effectId: eff.effectId, label: `${cardName} の【出】効果（任意）`, effect: eff,
         })),
       ];
@@ -6535,13 +6556,39 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, opp: opAfterGrow ? { key: opKeyGrow, state: opAfterGrow } : undefined }));
         return;
       }
-      const turnPlayerId = bs.active_user_id ?? user.id;
+      const turnPlayerId = bs.active_user_id ?? p.actorId;
       const existing = bs?.effect_stack ?? null;
       const stack = existing ? pushToStack(existing, entries) : initStack(turnPlayerId, entries);
       await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: stateKey, myState: newMyState, effectStack: stack, clearPending: true, opp: opAfterGrow ? { key: opKeyGrow, state: opAfterGrow } : undefined }));
     } finally {
       setLoading(false);
     }
+  };
+
+  /** 人間UI（`GrowModal` ほか）から呼ぶ薄いラッパー。本体は `performGrow`。 */
+  const executeGrow = async (
+    card: CardData,
+    costIndices: Set<number>,
+    options: {
+      instanceId?: string;
+      baseState?: PlayerState;
+      freeCost?: boolean;
+      consumeGrowAction?: boolean;
+      extraEntries?: StackEntry[];
+      opponentState?: PlayerState;
+    } = {},
+  ) => {
+    if (loading) return;
+    closeGrowModal();
+    await performGrow(card, costIndices, options, {
+      actor: my, opponent: op,
+      actorId: user.id, opponentId: isHost ? bs.guest_id : bs.host_id,
+      actorKey: isHost ? 'host_state' : 'guest_state',
+      isActorTurn: isMyTurn,
+      energyPayPool: myEnergyPayPool,
+      onCostOnPlay: 'prompt',
+      defaultFreeCost: freeGrowFilter !== null,
+    });
   };
 
   const toggleRemoveZone = (zi: number) => {
@@ -10759,193 +10806,45 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
 
     // ─── GROWフェイズ：グロウ可能なら最初の候補でグロウ ───
+    // ⚠**判定は `growLogic.listGrowCandidates`・実行は `performGrow`＝どちらも人間と同じ関数**
+    //   （DESIGN §4・§8 `O-1` (d)）。従来ここには**約150行の手書き再実装**があり、
+    //   `GROW_COST_SUBSTITUTE_TRASH_SIGNI`／グロウ色制限／`GROW_FROM_LEVEL0`／
+    //   コピー元ルリグの【出】（`collectCopiedLrigAutoEffects`）／`SUPPRESS_CENTER_ON_PLAY` などを
+    //   取りこぼしていた（＝人間ターンとだけ挙動が違う）。
     if (phase === 'GROW') {
-      const grew    = cpuSt.actions_done?.includes('GROW') ?? false;
-      // 静的封じ + CONTINUOUS（グロウフェイズスキップ常在）+ no_grow を考慮
-      const cpuContBlockedGrow = calcContinuousBlockedActions(cpuSt, huSt, true, effectsMap, battleCardMap).forSelf.has('GROW');
-      const blocked = (cpuSt.blocked_actions?.includes('GROW') ?? false) || cpuContBlockedGrow || (cpuSt.no_grow ?? false);
-      if (!grew && !blocked) {
-        const currentLrigId = cpuSt.field.lrig.at(-1) ?? null;
-        const currentLrigNum = currentLrigId ? getCardNum(currentLrigId) : null;
-        const currentLrigCard = currentLrigNum ? cards.find(c => c.CardNum === currentLrigNum) : null;
-        const currentLevel = currentLrigCard ? parseInt(currentLrigCard.Level) || 0 : 0;
-
-        // GROW_COST_REDUCTION（グロウコスト軽減・CONTINUOUS）を人間グロウと同様にCPUグロウにも適用。
-        // CPUのGROWフェイズは常にCPU自身のターン（isCpuTurnNow）なのでisOwnerTurn=true。
-        const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, isCpuTurnNow, effectsMap, battleCardMap);
-
-        // lrig_deckはinstance IDを持つのでgetCardNum()でCardNumに変換して照合
-        // 【マルチエナ】剥がしの判定は `isEnaMultiStripped`（人間の支払いモーダル／CPU の【起】と共通）。
-        const cpuEnaMultiStripped = isEnaMultiStripped(cpuSt, huSt, false, effectsMap, battleCardMap);
-
-        const growTargetId = cpuSt.lrig_deck.find(instanceId => {
-          const cardNum = getCardNum(instanceId);
-          const c = cards.find(card => card.CardNum === cardNum);
-          if (!c || c.Type !== 'ルリグ') return false;
-          if (parseInt(c.Level) !== currentLevel + 1) return false;
-          // CardClass 互換チェック（人間グロウ候補フィルタと同じ）: グロウ元と共通クラスが無ければ不可
-          if (currentLrigCard && !lrigClassesCompatible(effectiveLrigClass(cpuSt, currentLrigCard.CardClass), c.CardClass)) return false;
-          // 【グロウ】条件チェック（人間グロウと同じ）: ライフ枚数・カード名・トラッシュ色数・エナ色種数・複数色制限
-          if (!checkGrowCondition(extractGrowCondition(c.EffectText), cpuSt, currentLrigCard ?? undefined, battleCardMap)) return false;
-          // 「このターン、あなたは１以上のエナコストを支払えない」（§6.4 O-3）＝CPU は `buildEnergyPayPool` を
-          // 通らず `cpuSt.energy` を直接読むので、ここで同じ funnel の判定を当てる（人間側は pool が空になる）。
-          const cpuPayable = isEnergyPayBlocked(cpuSt) ? [] : cpuSt.energy;
-          return canAffordGrowCost(cpuPayable, cards, applyGrowCostReduction(c.GrowCost, cpuGrowRed), undefined, undefined, cpuEnaMultiStripped);
-        });
-
-        if (growTargetId) {
-          const growCardNum = getCardNum(growTargetId);
-          const growCard = cards.find(c => c.CardNum === growCardNum)!;
+      const cpuContBlockedGrow = calcContinuousBlockedActions(cpuSt, huSt, true, effectsMap, battleCardMap).forSelf;
+      if (canGrowNow(cpuSt, cpuContBlockedGrow)) {
+        const cpuGrowRed = collectGrowCostReductions(cpuSt, huSt, true, effectsMap, battleCardMap);
+        const cpuEnaMultiStrippedGrow = isEnaMultiStripped(cpuSt, huSt, false, effectsMap, battleCardMap);
+        const cpuGrowPool = buildEnergyPayPool(cpuSt, { turnPhase: 'GROW', isMyTurn: true, effectsMap });
+        const cpuGrowPoolNums = energyPoolCardNums(cpuGrowPool);
+        // 候補は人間と同じ gate。コストは**払える1枚目**を選ぶ（決定論・盤面評価はしない）。
+        for (const growCard of listGrowCandidates({ my: cpuSt, cardMap: battleCardMap, effectsMap })) {
+          const growCostStr = applyGrowCostReduction(growCard.GrowCost, cpuGrowRed);
+          const growCoinNeed = parseCoinCost(growCard.GrowCost);
+          if (growCoinNeed > 0 && (cpuSt.coins ?? 0) < growCoinNeed) continue;
+          const costIndices = selectEnergyIndicesForCost({
+            poolNums: cpuGrowPoolNums, cards, costStr: growCostStr,
+            // 可否の権威は人間の支払いモーダルと同じ `canAffordGrowCost`。
+            isAffordable: (selectedNums, costStr) => canAffordGrowCost(
+              selectedNums, cards, costStr, cpuSt.keyword_grants, undefined, cpuEnaMultiStrippedGrow,
+            ),
+          });
+          if (!costIndices) continue;
           appendBattleLogs([`[CPU] グロウ: ${growCard.CardName}（Lv.${growCard.Level}）`]);
-          const costs = parseGrowCost(applyGrowCostReduction(growCard.GrowCost, cpuGrowRed));
-          // エナから支払い
-          let newEnergy = [...cpuSt.energy];
-          for (const { color, count } of costs) {
-            let paid = 0;
-            newEnergy = newEnergy.filter(eNum => {
-              if (paid >= count) return true;
-              const eCard = cards.find(c => c.CardNum === getCardNum(eNum));
-              const eColor = eCard?.Color ?? '';
-              if (color === '無' || eColor.includes(color)) { paid++; return false; }
-              return true;
-            });
-          }
-          // lrig_deckはinstance IDなのでgrowTargetIdをそのまま除外・フィールドに積む
-          const newLrigDeck = cpuSt.lrig_deck.filter(id => id !== growTargetId);
-          // コイン獲得/グロウコイン消費（対人戦executeGrowと同じ）
-          const coinGainCpu = parseInt(growCard.Coin) || 0;
-          const growCoinCostCpu = parseCoinCost(growCard.GrowCost);
-          let newCpuSt: PlayerState = {
-            ...cpuSt,
-            energy: newEnergy,
-            lrig_deck: newLrigDeck,
-            field: { ...cpuSt.field, lrig: [...cpuSt.field.lrig, growTargetId] },
-            lrig_grew_this_turn: true,   // §6.4 O-10（続き515）＝人間 executeGrow と同じ軸を CPU でも立てる
-            actions_done: [...(cpuSt.actions_done ?? []), 'GROW'],
-            coins: Math.min(5, Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu) + coinGainCpu),
-            coins_paid_this_turn: (cpuSt.coins_paid_this_turn ?? 0) + growCoinCostCpu, // COINS_PAID_THIS_TURN
-          };
-          // 【グロウ】条件の追加効果（人間executeGrowと同じ）: ルリグデッキから下に置く・除外する等。
-          const cpuGrowCond = extractGrowCondition(growCard.EffectText);
-          const { state: cpuAfterGrowEffect, log: cpuGrowEffectLog } = applyGrowEffect(cpuGrowCond, newCpuSt, battleCardMap);
-          newCpuSt = cpuAfterGrowEffect;
-          if (cpuGrowEffectLog) appendBattleLogs([`[CPU] ${cpuGrowEffectLog}`]);
-          // game_grow_draw: グロウ時ドロー（GAIN_ABILITY_THIS_GAME・人間executeGrowと同じ）
-          if (newCpuSt.game_grow_draw && newCpuSt.deck.length > 0) {
-            newCpuSt = { ...newCpuSt, deck: newCpuSt.deck.slice(1), hand: [...newCpuSt.hand, newCpuSt.deck[0]] };
-            appendBattleLogs(['[CPU] グロウ時ドロー（このゲーム）']);
-          }
-          // LIMIT_ALL_FIELD_N（WX04-005-E3 補足）: CPUがこの継続効果を持つルリグにグロウした場合、
-          // CPU自身は自動削減（レベル高優先）、人間（host）は選択トラッシュをスタックに積む。
-          const cpuGrownFieldLimit = computeFieldSigniLimit(newCpuSt, bs.host_state, effectsMap, getCardNum);
-          const cpuLimitEntries: StackEntry[] = [];
-          if (cpuGrownFieldLimit < 3) {
-            const cRed = reduceFieldSigniToLimit(newCpuSt, cpuGrownFieldLimit, battleCardMap);
-            newCpuSt = cRed.state;
-            if (cRed.trashed.length > 0) {
-              appendBattleLogs([`[CPU] 場出し数制限（上限${cpuGrownFieldLimit}体）で超過シグニをトラッシュに置いた`]);
-            }
-            const hostExcess = bs.host_state.field.signi.filter(s => (s ?? []).length > 0).length - cpuGrownFieldLimit;
-            if (hostExcess > 0) {
-              cpuLimitEntries.push({
-                id: generateUUID(), playerId: bs.host_id, cardNum: '',
-                effectId: '__field_limit_trash__',
-                label: `場出し数制限：シグニ${hostExcess}体を選んでトラッシュに置く（残り${cpuGrownFieldLimit}体）`,
-                effect: {
-                  effectId: '__field_limit_trash__', effectType: 'AUTO', timing: [],
-                  action: { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: hostExcess } },
-                  duration: 'INSTANT', mandatory: true,
-                } as import('../types/effects').CardEffect,
-              });
-            }
-          }
-          // ルリグ【出】効果（対人戦executeGrowと同じ収集）:
-          // mandatoryは発火、コインのみのコスト付き任意【出】は支払えるなら支払って発動
-          const cpuGrowEntries: StackEntry[] = [];
-          for (const eff of (effectsMap.get(growTargetId) ?? [])) {
-            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_PLAY')) continue;
-            let fire = eff.mandatory !== false;
-            if (!fire && eff.cost?.coin && !eff.cost.energy && !eff.cost.discard) {
-              if ((newCpuSt.coins ?? 0) >= eff.cost.coin) {
-                newCpuSt = { ...newCpuSt, coins: (newCpuSt.coins ?? 0) - eff.cost.coin,
-                  coins_paid_this_turn: (newCpuSt.coins_paid_this_turn ?? 0) + eff.cost.coin }; // COINS_PAID_THIS_TURN
-                appendBattleLogs([`[CPU] 《コイン》×${eff.cost.coin}を支払って【出】効果を発動`]);
-                fire = true;
-              }
-            }
-            if (!fire) continue;
-            cpuGrowEntries.push({
-              id: generateUUID(),
-              playerId: CPU_PLAYER_ID,
-              cardNum: growTargetId,
-              effectId: eff.effectId,
-              label: `${growCard.CardName} の【出】効果`,
-              effect: eff,
-            });
-          }
-          // 任意・無コストの【出】＝人間の `executeGrow` と同じ collector へ揃える（タスク12(lv)④）。
-          // ⚠live 該当は現状 **0件**（ルリグの mandatory:false かつ無コストの ON_PLAY は存在しない）だが、
-          //   経路を塞いでおかないと将来そういうルリグが増えたとき**黙って落ちる**（①〜③と同じ壊れ方）。
-          const cpuGrowOptional = collectOptionalNoCostOnPlayForGrow(
-            effectsMap.get(growTargetId) ?? [], newCpuSt, bs.host_state, true, battleCardMap, growTargetId, bs.turn_phase,
-          );
-          for (const effOptG of cpuGrowOptional.effects) {
-            cpuGrowEntries.push({
-              id: generateUUID(),
-              playerId: CPU_PLAYER_ID,
-              cardNum: growTargetId,
-              effectId: effOptG.effectId,
-              label: `${growCard.CardName} の任意【出】効果`,
-              effect: effOptG,
-            });
-          }
-          if (cpuGrowOptional.deferred.length > 0) {
-            console.warn(`[CPU grow] 表現不能コストの任意ON_PLAY効果は発火しません: ${cpuGrowOptional.deferred.map(e => e.effectId).join(', ')}`);
-          }
-          // ON_LRIG_GROW（C1 配線・CPUセンターグロウ）: CPU=guest のグロウに反応する【自】を収集。
-          const cpuGrowReact = collectLrigGrowTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state);
-          const cpuGrowReactEntries = cpuGrowReact.entries;
-          // usageLimit（《ターン1回》）消費を actions_done へ永続化（CPU=guest／人間=host。続き135）
-          if (cpuGrowReact.usedGuestIds.length > 0) {
-            newCpuSt = { ...newCpuSt, actions_done: [...(newCpuSt.actions_done ?? []), ...cpuGrowReact.usedGuestIds] };
-          }
-          const humanStateAfterGrowReact: PlayerState | null = cpuGrowReact.usedHostIds.length > 0
-            ? { ...bs.host_state, actions_done: [...(bs.host_state.actions_done ?? []), ...cpuGrowReact.usedHostIds] }
-            : null;
-          // ON_COIN_PAID（C1 配線・CPUグロウコストのコイン支払）
-          const cpuGrowCoin = growCoinCostCpu > 0 ? collectCoinPaidTriggers(CPU_PLAYER_ID, newCpuSt, bs.host_state) : { entries: [] as StackEntry[], usedIds: [] as string[] };
-          const cpuGrowCoinEntries = cpuGrowCoin.entries;
-          let cpuStAfterCoin = applyCoinPaidUsed(newCpuSt, cpuGrowCoin); // 《ターン1回/2回》消化を永続化（続き106）
-          // ON_COIN_GAINED（§6.3 J-5・CPUグロウでのコイン獲得）: 人間側の【自】も「対戦相手が得たとき」で反応する。
-          const cpuCoinsAfterPay = Math.max(0, (cpuSt.coins ?? 0) - growCoinCostCpu);
-          const cpuCoinGainActual = Math.min(5, cpuCoinsAfterPay + coinGainCpu) - cpuCoinsAfterPay;
-          const cpuCoinGainSelf = cpuCoinGainActual > 0
-            ? collectCoinGainedTriggers(CPU_PLAYER_ID, cpuStAfterCoin, bs.host_state, cpuCoinGainActual, 0)
-            : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
-          const cpuCoinGainHuman = cpuCoinGainActual > 0
-            ? collectCoinGainedTriggers(bs.host_id, humanStateAfterGrowReact ?? bs.host_state, cpuStAfterCoin, 0, cpuCoinGainActual)
-            : { entries: [] as StackEntry[], usedOncePerTurnIds: [] as string[] };
-          if (cpuCoinGainSelf.usedOncePerTurnIds.length > 0) {
-            cpuStAfterCoin = { ...cpuStAfterCoin, actions_done: [...(cpuStAfterCoin.actions_done ?? []), ...cpuCoinGainSelf.usedOncePerTurnIds] };
-          }
-          const humanAfterCoinGain: PlayerState | null = cpuCoinGainHuman.usedOncePerTurnIds.length > 0
-            ? { ...(humanStateAfterGrowReact ?? bs.host_state), actions_done: [...((humanStateAfterGrowReact ?? bs.host_state).actions_done ?? []), ...cpuCoinGainHuman.usedOncePerTurnIds] }
-            : humanStateAfterGrowReact;
-          // 場出し数制限の選択トラッシュ（人間相手）＋グロウ反応＋コイン支払/獲得反応＋ルリグ【出】効果をスタックに積む
-          const cpuAllGrowEntries = [...cpuLimitEntries, ...cpuGrowReactEntries, ...cpuGrowCoinEntries, ...cpuCoinGainSelf.entries, ...cpuCoinGainHuman.entries, ...cpuGrowEntries];
-          if (cpuAllGrowEntries.length > 0) {
-            // スタックに積んで解決を待つ（GROWに留まり、解決後の再実行でMAINへ進む）
-            const existingStackGR = bs.effect_stack ?? null;
-            const newStackGR = existingStackGR
-              ? pushToStack(existingStackGR, cpuAllGrowEntries)
-              : initStack(bs.active_user_id ?? CPU_PLAYER_ID, cpuAllGrowEntries);
-            await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuStAfterCoin, effectStack: newStackGR, opp: humanAfterCoinGain ? { key: 'host_state', state: humanAfterCoinGain } : undefined }));
-            return;
-          }
-          await persist.commit(reduceBattle(bs, { type: 'WRITE_STATE', myKey: 'guest_state', myState: cpuStAfterCoin, opp: humanAfterCoinGain ? { key: 'host_state', state: humanAfterCoinGain } : undefined }));
-          await new Promise(r => setTimeout(r, CPU_ACTION_DELAY));
+          await performGrow(growCard, costIndices, {}, {
+            actor: cpuSt, opponent: huSt,
+            actorId: CPU_PLAYER_ID, opponentId: bs.host_id,
+            actorKey: 'guest_state',
+            isActorTurn: true,
+            energyPayPool: cpuGrowPool,
+            // ⚠CPU にモーダルは出せない＝コインだけで払える任意【出】は自動で払う。
+            onCostOnPlay: 'auto',
+          });
+          return;   // グロウで state が動く＝次の再実行で MAIN へ進む
         }
       }
+
       // ON_MAIN_PHASE_START（タスク12(lxvii)）＝人間ターンの GROW→MAIN と同じ位置で収集する。
       // `triggerScope:any_opp`（「対戦相手のメインフェイズ開始時」）は人間側の場から拾われる＝
       // **CPU ターンだけ人間の【自】が不発**という非対称もここで解消する。

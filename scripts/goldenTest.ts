@@ -31451,8 +31451,13 @@ test('§6.4 O-10（続き515）: チェックゾーン裏返し→無償グロ�
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   ok(/pending_flip_grow_card/.test(src), 'BattleScreen が予約を消費する');
   ok(/lrig_grew_this_turn: true/.test(src), 'グロウ履歴を立てる地点がある');
-  eq((src.match(/lrig_grew_this_turn: true/g) ?? []).length, 2,
-     '🔴グロウは人間・CPU の2経路＝両方で履歴を立てる（片方だけだと CPU ターンだけ条件が通る）');
+  // 🔴2→1（続き552d・§8 `O-1` (d)）＝**CPU の手書きグロウを削除して `performGrow` に統合した**ので
+  //    履歴を立てる地点は1つで正しい。⚠**2つに戻ったら CPU 経路が再分岐した合図**（＝軸が食い違う）。
+  eq((src.match(/lrig_grew_this_turn: true/g) ?? []).length, 1,
+     '🔴グロウの実行経路は1本（人間・CPU 共通の `performGrow`）＝履歴を立てる地点も1つ');
+  ok(/const performGrow = async/.test(src), 'グロウ実行は owner パラメータ化された1本');
+  ok(src.includes("energyPayPool: cpuGrowPool,") && src.includes("onCostOnPlay: 'auto',"),
+     'CPU も同じ `performGrow` を呼ぶ（コスト付き任意【出】は auto）');
 });
 
 test('§6.4 O-10（続き514）: 相手トラッシュの「能力を失い、効果を受けない」（負方向＋対照の対）', () => {
