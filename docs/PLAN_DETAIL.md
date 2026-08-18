@@ -6,6 +6,46 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-18 整理㉜（PLAN §4「次の一手 ⓪」から §8 `O-1` (a)〜(d) の消化済み本文を退避）
+
+> 2026-08-18 続き551〜552d で §8／§6.4 `O-1`（CPU AI）の (a)〜(d) を消化した。PLAN §4 の ⓪ は
+> **生きている worklist（(e)(f)(g) と実機検証）だけ**に戻し、消化ぶんの原文をここへ移す。
+> 一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き551／552／552b／552c／552d）。
+
+#### ⓪ 【Opus 側・最優先】§8／§6.4 `O-1` の続き＝**CPU をアーツで守らせる**（2026-08-18 続き551 で着手）
+
+**なぜこれが最上位に上がったか**＝続き551 に PLAN 全体を見直した結果、**DoD 4層のうち層④（対戦体験）だけが
+完全に未着手**で、しかも「一人で通しで遊べる」に直結するのはそこだけだった。続き551 で
+**CPU がメインフェイズにシグニ【起】を撃つ v1**（射程＝MAIN で撃てる 682 のうち **500**）、
+続き552 で **(a) CPU が相手のアタックフェイズに応答アーツで守る v1**（射程＝アタックフェイズ Timing の
+428 のうち **214**）まで入れた。
+
+- [x] **✅(a) 相手ターンの応答アーツ**＝2026-08-18 続き552 完了。`artsUseGate.ts`（提示＋コスト計算の funnel）／
+  `performArts`（owner パラメータ化）／`cpuArts.ts`（守りの分類・脅威判定）。詳細は [BUGFIXES.md](./BUGFIXES.md) 続き552。
+- [x] **✅(b) 自ターンのアーツ／スペル**＝2026-08-18 続き552b 完了。`pickCpuOffensiveArts`（攻めは**除去だけ**・
+  足切りは `hasBlockedAttacker`）／`spellUseGate.ts`（提示＋コスト計算の funnel・`SpellCastModal` も同じ2本を通す）／
+  `performSpell`（owner パラメータ化）／`cpuSpell.ts`。詳細は [BUGFIXES.md](./BUGFIXES.md) 続き552b。
+- [x] **✅(c) ルリグ【起】・《アタックフェイズアイコン》付きシグニ【起】**＝2026-08-18 続き552c 完了。
+  `pickCpuSigniActivated`（`phase` 引数化）／`lrigActivateGate.ts`（人間の MAIN 窓・AA 窓を1本に）／
+  `performLrigActivated`（owner パラメータ化）／`cpuLrigActivate.ts`。
+  🔴**統合でルリグ【起】のコスト踏み倒し3件を是正**（コイン82効果／MAIN 窓の使用条件／AA 窓の【絆起】等）。
+  ⚠**付与／継承のルリグ【起】は CPU 未対応**（別の収集源）。詳細は [BUGFIXES.md](./BUGFIXES.md) 続き552c。
+- [x] **✅(d) CPU グロウの統合**＝2026-08-18 続き552d 完了。手書き再実装 約150行を削除し `performGrow` へ。
+  候補は `growLogic.listGrowCandidates`／封じは `canGrowNow`。🔴統合で `GROW_COST_SUBSTITUTE_TRASH_SIGNI`／
+  グロウ色制限／`GROW_FROM_LEVEL0`／コピー元ルリグの【出】／`SUPPRESS_CENTER_ON_PLAY` 等の取りこぼしが直った。
+  **🏁 DESIGN §4 の統一は達成＝CPU 独自の実行実装は残っていない**。
+- [ ] 🆕**(f) 付与／継承のルリグ【起】**（`grantedMyLrigEffects`／`INHERIT_LRIG_TRASH_ABILITIES`＝別の収集源）。
+- [ ] 🆕**(e) CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ**＝いまは `SET_TURN_PHASE` しか打てず
+  `extra_attack_phases_this_turn` のキューを減らせない＝**`ADD_EXTRA_ATTACK_PHASE` を含む札を CPU が使うと
+  `ATTACK_ARTS` へ戻って無限ループ**。続き552b では `hasCpuUnsupportedAction` で**その札を選ばない**ことで回避してある
+  （該当1枚＝`WXK06-026`）。⚠**除外を外すのは (e) を直した後**。
+- ⚠**支払いコストの allowlist を広げるときは「その実行経路が実際に払っているか」を先に見る**。
+  **`cpuActivate.ts`（シグニ【起】）と `cpuArts.ts`（アーツ／スペル共通）で allowlist が違うのは正しい**＝
+  `performSigniActivated` は `down_self`／`lrigDown`／`acceTrash` 等を自動で払うが、
+  **`performArts`／`performSpell` はエナ以外の宣言コストを払わない**（＝そちらに足すと宣言だけして踏み倒す）。
+- ⚠加えて `cpuActivate.ts` 側は、**gate が数を検算していないコスト**を allowlist に載せると
+  実行側が黙って abort して **CPU が同じ効果を選び直す無限ループ**になる（先に `signiActivateGate` へ検算を足す）。
+
 ## 2026-08-18 整理㉚：Opusタスク12 の在庫表からクローズ済み10行を退避（続き546）
 
 > PLAN §3 の「Opusタスク12＝未消化の在庫」表は、残0クローズ／取り下げの行が10本たまって**生きている6件が読めなくなっていた**ので、クローズ済み行の原文をここへ移した。PLAN の表には**生きている行だけ**を残す（索引は PLAN §3 の表下の注記）。
