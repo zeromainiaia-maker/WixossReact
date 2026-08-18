@@ -19247,39 +19247,51 @@ const driveV77IconLrig = async (page, H, expectFired) => {
   return { pass: ok, detail };
 };
 
-// 対照専用＝**MAIN フェイズにいる間だけ**観測する（CPU ターンは自動的に ATTACK_ARTS まで進むので、
-// ターン終了まで待つと「MAIN では発動しないが ATTACK_ARTS では正しく発動する」を「MAIN で発動した」と
-// 誤認してしまう＝続き561 実測の教訓）。MAIN を抜けた時点でループを打ち切り、その間 fired が立たないことを見る。
-const driveV77IconLrigMainOnly = async (page, H) => {
-  let fired = false;
-  let leftMain = false;
-  let fin = null;
-  for (let s = 0; s < 40; s++) {
-    const st = await H.queryState();
-    fin = st;
-    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動: コードメイズ'))) fired = true;
-    if (st?.turnPhase && st.turnPhase !== 'MAIN') { leftMain = true; break; }
-    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;   // 稀に一瞬で END まで進む場合の保険
-    await page.waitForTimeout(300);
-  }
-  const detail = `fired=${fired}（期待false） / leftMain=${leftMain} / turnPhase末値=${fin?.turnPhase} / `
-    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-4))}`;
-  H.log(`  v77iconLrigMainOnly ${detail}`);
-  if (!leftMain) return { pass: false, detail: `🔴MAIN フェイズから先へ進んだのを観測できなかった（${detail}）` };
-  return { pass: !fired, detail };
+// 対照は**人間視点**で確認する＝CPU 側は自動進行が速く「MAIN フェイズに留まらせたまま観測する」ことが
+// 決定論的にできない（続き561 実測＝ポーリングの1回目には既に ATTACK_ARTS へ進み発動済みだった）。
+// gate（`signiActivateGate.listActivatableSigniEffects`）は人間の提示と CPU の候補フィルタが同じ1関数を
+// 呼ぶ設計＝**人間視点でボタンの有無を見れば同じ timing 照合ロジックの裏取りになる**。
+const v77HumanIconLrigGateSpec = (phase) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9110'],
+    'field.signi': [['WX19-050#9111'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9120'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: phase, turn_count: 2 },
+});
+
+const driveV77HumanIconLrigGate = async (page, H, expectVisible) => {
+  await page.waitForTimeout(600);
+  await H.clickTestId('my-signi-zone-0');
+  await page.waitForTimeout(500);
+  const btn = page.getByRole('button', { name: /^【起】/ }).first();
+  const count = await btn.count();
+  const visible = count > 0 && await btn.isVisible().catch(() => false);
+  const detail = `【起】ボタン表示=${visible}（期待${expectVisible}）`;
+  H.log(`  v77humanIconLrigGate ${detail}`);
+  return { pass: visible === expectVisible, detail };
 };
 
 scenarios.v77CpuUsesIconAbilityInAttackArts = {
-  title: 'V-77(B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる',
+  title: 'V-77(B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる（CPU側）',
   spec: v77IconLrigSpec('ATTACK_ARTS'),
   drive: (page, H) => driveV77IconLrig(page, H, true),
 };
-scenarios.v77CpuDoesNotUseIconAbilityInMain = {
-  title: 'V-77(B) 対照＝MAIN フェイズの間は撃たれない（gate の timing 照合）',
-  spec: v77IconLrigSpec('MAIN'),
-  drive: (page, H) => driveV77IconLrigMainOnly(page, H),
+scenarios.v77HumanIconLrigShownInAttackArts = {
+  title: 'V-77(B) 人間視点＝ATTACK_ARTS では【起】ボタンが出る（gate の timing 照合・対照の対）',
+  spec: v77HumanIconLrigGateSpec('ATTACK_ARTS'),
+  drive: (page, H) => driveV77HumanIconLrigGate(page, H, true),
 };
-order.push('v77CpuUsesIconAbilityInAttackArts', 'v77CpuDoesNotUseIconAbilityInMain');
+scenarios.v77HumanIconLrigHiddenInMain = {
+  title: 'V-77(B) 人間視点＝MAIN では【起】ボタンが出ない（gate の timing 照合）',
+  spec: v77HumanIconLrigGateSpec('MAIN'),
+  drive: (page, H) => driveV77HumanIconLrigGate(page, H, false),
+};
+order.push('v77CpuUsesIconAbilityInAttackArts', 'v77HumanIconLrigShownInAttackArts', 'v77HumanIconLrigHiddenInMain');
 
 // (C) 🔴コインが実際に減ること＝WX15-001-E3（真実の記憶 リル・コイン1・STUB{OPP_REVEAL_HAND_AND_LRIG_DECK}）。
 // 人間側でコイン1枚を持たせて発動→coins が1→0。対照＝コイン0枚では「【起】コイン1」ボタン自体が出ない。
