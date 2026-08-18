@@ -18853,7 +18853,7 @@ const driveV75AltCost = async (page, H, expectCost) => {
 scenarios.v75AltCostOppTurnTriples = {
   title: 'V-75(D) 🔴人間側＝相手ターン中は altCostOppTurn（緑×3）が請求される',
   spec: v75AltCostSpec(true),
-  drive: (page, H) => driveV75AltCost(page, H, '緑'.repeat(0) || '《緑》×3'),
+  drive: (page, H) => driveV75AltCost(page, H, '《緑》×3'),
 };
 scenarios.v75AltCostOwnTurnPrinted = {
   title: 'V-75(D) 対照＝自分のターンでは印刷コスト（緑×1）のまま',
