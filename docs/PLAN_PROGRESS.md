@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き565・Sonnet 5）＝§7 実機検証を継続＝`V-60`（コンバート出【出】の比例回収）・`V-56`／`V-59`（前回1回PASSの2回目確認）・`V-53`（白以外スペル封じの2軸）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.495→0.496。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き565）。
+  - **✅ V-60＝WXEX1-44【出】の比例回収は回帰なし**（手札1枚→エナ送りに対しエナ→手札回収も1枚＝1:1確認）。🔑**この1本だけで罠3つ**＝①Lv4シグニは「シグニLv≤ルリグLv」制限で低Lv LRIGだと召喚ボタンが出ない②WXEX1-44はRestriction=「メル限定」でクラス不一致のLRIGでも出ない（LRIGをメルLv4の`WD18-001`に差し替えて解消）③`my-hand-card-N`は`spec.hand`の配列順そのまま（前回セッションの「CardNum昇順ソート」仮説は実測で否定）。SELECT_TARGET選択もimg直クリックは効かず`H.stdStep()`のpick-0経由が必須。
+  - **✅ V-56／V-59＝前回1回PASSのみだった2件を再実行し2回連続PASSで確認完了**（新規コードなし）。
+  - **✅ V-53＝`BLOCK_NON_WHITE_SPELL`の2軸は回帰なし**（`WXDi-P03-052`を場に直接注入し、白スペルには「発動」が出て緑スペルには出ないことを確認・初回から2本ともPASS）。
+  - 📋**follow-up＝V-46〜V-52は今回見送り**（3〜4経路の複合検証＝3択アーツUI／複数ターン遷移／新規付与機構の解読を要しV-57/55/54と同じ複雑度クラス。「さらに10件」要求に対し実質4件で区切り）。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫3件据置**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）。
+
 - **🆕 セッション（2026-08-18・続き564・Sonnet 5）＝§7 実機検証を継続＝`V-66`／`V-68`（既存赤の緑化確認）・`V-67`（ルリグ【起】《ダウン》）・`V-65`（相手シグニ自の支払えば通る回避）・`V-64`（引用付与のダメージ置換）・`V-61`（引用付与の条件つきシャドウ）・`V-62`（チャーム条件）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規10本 ALL PASS**（2〜3回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.494→0.495。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き564）。
   - **✅ V-66／V-68＝既存の赤シナリオ（`v14MultiAcceLegacyStringOneLoads`／`v11CpuDeployPowerLimitWithControl`）が過去の修正で既に緑化済みであることを確認**（再実行のみ・新規コードなし）。
   - **✅ V-67＝ルリグ【起】《ダウン》は回帰なし**（`WD08-001`で実際にlrig_downがtrueになり、2回目はボタンが消えることを確認）。🔑**ADD_TO_FIELDはSELECT_TARGET→SELECT_SIGNI_ZONEの2段階**＝`H.stdStep()`だけでは後者を素通りする＝`clickBtn('ゾーン1')`を追加して解消。
