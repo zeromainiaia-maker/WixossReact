@@ -21240,13 +21240,13 @@ scenarios.v51LeaveSubstitutePaysAndSurvives = {
   title: 'V-51(c) 《緑》《無》を払える＝場離れが能力喪失に置換され場に残る',
   spec: v51LeaveSubstituteSpec(['WD04-013#9995', 'WD01-013#9996']),
   async drive(page, H) {
-    const fin = await driveV51LeaveSubstitute(page, H, true);
+    const { fin, sawPayLog } = await driveV51LeaveSubstitute(page, H, true);
     const survived = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX25-P2-059#9992'));
-    // ⚠最終エナ枚数では判定しない（その後のCPUターン進行でクラッシュ札がエナへ入り増減するため）＝ログで判定。
-    const paid = await H.findLog(/《緑》《無》を支払い、羅輝石　スフェーンの場離れをこの能力の喪失で置換/);
-    const detail = `survived=${survived}（期待true） / paid=${!!paid}（期待true＝支払いログ確認） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
+    // ⚠最終エナ枚数では判定しない（その後のCPUターン進行でクラッシュ札がエナへ入り増減するため）＝
+    // ループ内でリアルタイムに捕捉した支払いログの有無で判定する（画面末尾スクロールで消える前に見る）。
+    const detail = `survived=${survived}（期待true） / paid=${sawPayLog}（期待true＝支払いログ確認） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
     H.log(`  v51leavesub ${detail}`);
-    return { pass: survived && paid, detail };
+    return { pass: survived && sawPayLog, detail };
   },
 };
 scenarios.v51LeaveSubstituteUnpayableBanishesNormally = {
