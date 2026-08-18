@@ -20198,10 +20198,11 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
   async drive(page, H) {
     await H.ensureMain();
     await page.waitForTimeout(600);
-    // ⚠`my-hand-card-0` はDOM描画順であって spec.hand の配列順とは限らない（続き565実測＝
-    //   my-hand-card-0 をクリックすると WX15-105 が召喚された＝CardNum昇順ソートで index0=WX15-105
-    //   と判明。img直クリックは反応しなかった（クリックハンドラはラッパー側）ので my-hand-card-1 を使う。
-    const initClick = await H.clickTestId('my-hand-card-1');
+    // ⚠`my-hand-card-N` は CardNum昇順ソートではなく spec.hand の配列順そのまま（続き565実測で確定＝
+    //   my-hand-card-1 をクリックしたら hand配列の index1＝WX15-105 が召喚された。目的の WXEX1-44 は
+    //   hand配列の index0 なので my-hand-card-0 を使う。img直クリックは反応しなかった（クリックハンドラは
+    //   ラッパー側）。
+    const initClick = await H.clickTestId('my-hand-card-0');
     H.log(`  v60acce 初回クリック initClick=${initClick}`);
     let summoned = false;
     let fin = null;
