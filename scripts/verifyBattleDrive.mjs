@@ -18766,7 +18766,9 @@ const v75DefendSpec = (threat) => ({
     'field.signi': threat ? [null, null, null] : [null, null, ['WD01-013#8883']],
     'field.signi_down': [false, false, false],
     'field.check': null,
-    'life_cloth': threat ? undefined : ['WD01-013#8884', 'WD01-013#8885'],
+    // ⚠`life_cloth` はキー自体を持たせない（threat=true では省略）＝`undefined` を明示的に渡すと
+    //   injectScenario の既定7枚フィラーを setPath が上書きしてしまう（続き557実測の教訓＝V-74と同型）。
+    ...(threat ? {} : { 'life_cloth': ['WD01-013#8884', 'WD01-013#8885'] }),
     'lrig_deck': ['WX24-P1-021#8886'],
     'energy': ['WD02-013#8887'],   // 赤エナ1枚（コスト用）
     'hand': [], 'actions_done': [], 'cpu_used_card_nums_this_turn': [],
