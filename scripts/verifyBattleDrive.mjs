@@ -19701,12 +19701,12 @@ scenarios.v73TrashGateActiveShowsSetPower = {
   spec: v73PowerGateSpec({ cardNum: 'WX14-073', trash: ['WD01-015#9202'] }),
   drive: (page, H) => driveV73PowerGate(page, H, 8000),
 };
-// 🔴このシナリオは Opusタスク12 (cxxxvii) の engine 修正待ちで赤のまま既定orderに残す＝WXDi-P04-050-E2
-// 「隣にあるあなたのシグニのパワーを＋3000」が「隣」を無視して「ALL 自分シグニ」（＝自分自身も含む）に
-// 過剰実装されている（続き562・V-73 実機検証で発見）ため、単独配置でも 10000+5000(E1)+3000(E2 誤爆)=18000 になる。
-// 期待値は「隣が無いので E2 は不発＝15000」というルール上の正しい値（engine が直れば緑化する）。
+// ✅**2026-08-19 続き570 で緑化**（Opusタスク12 (cxxxvii) を修正＝`TargetFilter.adjacentToSelf` を新設し、
+// `calcFieldPowers` の CONTINUOUS `POWER_MODIFY` が**効果元の左右ゾーンだけ**に適用するようにした）。
+// 従来は「隣」を無視して「ALL 自分シグニ」（＝自分自身も含む）へ過剰実装されており、単独配置でも
+// 10000+5000(E1)+3000(E2 誤爆)=18000 になっていた＝**このシナリオを赤のまま既定orderに置いて**待っていた。
 scenarios.v73UpGateActiveShowsBuffedPower = {
-  title: '🔴V-73(c) 対照＝WXDi-P04-050はアップ状態なら+5000（10000→15000・E2の隣接誤爆でengineバグ待ち）',
+  title: 'V-73(c) 対照＝WXDi-P04-050はアップ状態なら+5000（単独配置＝隣が無いので E2 は不発＝15000）',
   spec: v73PowerGateSpec({ cardNum: 'WXDi-P04-050', down: false }),
   drive: (page, H) => driveV73PowerGate(page, H, 15000),
 };
@@ -19715,7 +19715,42 @@ scenarios.v73UpGateInactiveShowsPrintedPower = {
   spec: v73PowerGateSpec({ cardNum: 'WXDi-P04-050', down: true }),
   drive: (page, H) => driveV73PowerGate(page, H, 10000),
 };
+// 🆕**(d) 隣接バフそのものの正方向＋負方向**（2026-08-19 続き570・§3 (cxxxvii) の機構実装ぶん）。
+// WXDi-P04-050（アップ状態であるかぎり、このシグニの**隣にある**あなたのシグニのパワーを＋3000）を
+// ゾーン0に置き、P3000 のシグニを **ゾーン1（隣）** か **ゾーン2（隣ではない）** に置いて表示パワーを見る。
+const v73AdjacentSpec = (neighborZone) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9240'],
+    'field.signi': neighborZone === 1
+      ? [['WXDi-P04-050#9241'], ['WD01-013#9242'], null]
+      : [['WXDi-P04-050#9241'], null, ['WD01-013#9242']],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'trash': [], 'energy': [], 'hand': [], 'actions_done': [],
+  },
+  guestSet: { 'field.lrig': ['WD01-001#9250'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV73Adjacent = async (page, H, zone, expectPower) => {
+  await page.waitForTimeout(1200);
+  const zoneText = await page.getByTestId(`my-signi-zone-${zone}`).innerText().catch(() => '');
+  const detail = `zone${zone}のテキスト=${JSON.stringify(zoneText)} / 期待=${expectPower}`;
+  H.log(`  v73adjacent ${detail}`);
+  return { pass: new RegExp(expectPower.toLocaleString('en-US')).test(zoneText), detail };
+};
+
+scenarios.v73AdjacentNeighborGetsBuff = {
+  title: 'V-73(d) 隣（ゾーン1）のシグニは＋3000される（3000→6000）',
+  spec: v73AdjacentSpec(1),
+  drive: (page, H) => driveV73Adjacent(page, H, 1, 6000),
+};
+scenarios.v73AdjacentDistantNoBuff = {
+  title: 'V-73(d) 負方向＝隣ではないゾーン2のシグニは＋3000されない（3000のまま）',
+  spec: v73AdjacentSpec(2),
+  drive: (page, H) => driveV73Adjacent(page, H, 2, 3000),
+};
 order.push('v73TrashGateInactiveShowsPrintedPower', 'v73TrashGateActiveShowsSetPower', 'v73UpGateActiveShowsBuffedPower', 'v73UpGateInactiveShowsPrintedPower');
+order.push('v73AdjacentNeighborGetsBuff', 'v73AdjacentDistantNoBuff');
 // ── V-73 END ──
 
 // ── §7 V-72（続き548・エナコストの集合制約「それぞれレベルの異なるシグニN枚をトラッシュに置く」）──

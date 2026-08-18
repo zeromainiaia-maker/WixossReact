@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き569・Opus 5）＝🏁§8/§6.4 `O-1` (g)「選択の精緻化」v1＝CPU が盤面を見て召喚・アタックを選ぶ＝`O-1` 残0クローズ（§6.4 の大物が全部終わった）**。ゲート全緑（**golden 2300→2303**・census 786 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機 新規2本＋回帰15本 ALL PASS**。live JSON・CSV とも非改変。version 0.499→0.500。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き569）。
+  - **✅ 新モジュール `cpuBoardEval.ts`＝「選択」だけの純関数**（可否は `signiAttackGate`／`deployLimitBlockReason` が権威・実行は人間と同じ関数）。
+  - **✅ 召喚**＝「置ける体数を落とさない範囲でパワー最大」＝①最大体数を出す→②それを維持できる札に絞る→③パワー最大。🔴旧＝**レベル昇順の最初の1枚＝わざと弱い順**で、強い札が一生手札で腐っていた（実機＝Lv4 P15000 を持っていても Lv1×3 を並べる）。
+  - **✅ アタック**＝`life`（正面が空）→`winBattle`→`noEffect` の順（強制アタックは最優先・同点はゾーン昇順）。🔴旧＝ゾーン0から順。
+  - **✅ 応答アーツ**＝軽減（`prevent`）は**ライフ2枚以下**でだけ解禁＝温存（`negate`／`removal` は盤面に残るので温存しない）。
+  - 🔑**最大の教訓＝「精緻化」は実機回帰とセットでしか入れられない**＝当初は「格上の正面には撃たない」を入れたが、[公式ルール](https://www.takaratomy.co.jp/products/wixoss/library/rule/word_051/)は「パワーが**以上**なら相手をバニッシュ／**未満**なら**両方残る**」＝**同値は勝ち・格下で殴っても自分は落ちない**（engine の `myPower >= opPower` は正しい）。**実機回帰4本**（`v12`×3・`v14`）が落ちて初めて前提の誤りが判明し、「順序だけ最適化」に直した。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 (cxxxvii)**（「隣にあるあなたのシグニ」のゾーン隣接フィルタ未実装＝在庫1件）。そのあとは **§6.3／§6.2／タスク13**（大型機構・意味照合・構造混線）＝**どれも在庫を実測してから**取る。§8 (g) v2（誘発の価値・除去の対象価値・グロウ先の選択）は優先度低め。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（残＝`V-04`／`V-15`〜`V-17`／`V-19`〜`V-24`／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`／`V-63`／`V-81`／`V-82`(c)）。
+
 - **🆕 セッション（2026-08-19・続き568・Opus 5）＝§8/§6.4 `O-1` の続き＝Opusタスク12 (cxxxv)(cxxxvi) を残0クローズし `V-75`／`V-78` を実機で緑化＝🏁(g) の着手条件が満たされた**。ゲート全緑（**golden 2295→2300**・**census 787→786**〔`BASELINE_HIGH` 更新〕・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機7シナリオ ALL PASS（2回連続）／新規3本**。live JSON は **1効果だけ改変**（`WXEX2-11-E2` の条件節）・CSV 非改変。version 0.498→0.499。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き568）。
   - **✅ (cxxxv)＝ルリグ本体の CONTINUOUS `BLOCK_ACTION{owner:'opponent'}` が恒久 no-op**（`scanField` はシグニだけ・`scanLrigSelfBlocks` は self だけで、**その対の分岐が無かった**）。`scanLrigBlocks` へ拡張し、**5枚ぶんの消費地点を1つずつ確認**＝`ARTS_LIMIT_1`／`USE_SPELL`／`GROW` は既存、🔴**`GUARD`（素の丸ごと封じ）と `DRAW_LIMIT_1` は消費地点が無かった**ので `GuardResponseDialog` と人間／CPU 両方のドロー地点（新 `drawPhaseLimitFromBlocked`）へ配線した。
   - ⚠**経路を開くと過剰実行になる札があった**＝`WXEX2-11-E2`「このルリグがドライブ状態であるかぎり」の条件節が live から落ちていた。シグニ用 `IS_DRIVE_STATE` は**ルリグ本体では常に false** なので流用できず、新型 `LRIG_IS_DRIVE_STATE` を型/評価器/parser/ミラー表に足してから開いた（census −1）。

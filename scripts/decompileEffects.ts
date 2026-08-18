@@ -125,6 +125,7 @@ function filterJa(f?: any): string {
   if (f.thisCardOnly) parts.push('このシグニ自身');
   if (f.excludeSelf) parts.push('他の');
   if (f.frontOfSelf) parts.push('このシグニの正面の');
+  if (f.adjacentToSelf) parts.push('このシグニの隣にある');
   if (f.frontOfGateZone) parts.push('【ゲート】の正面の');
   if (f.inGateZone) parts.push('同じゾーンに【ゲート】がある');
   if (f.centerZoneOnly) parts.push('中央ゾーンの');

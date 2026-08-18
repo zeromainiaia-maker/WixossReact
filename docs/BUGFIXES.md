@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き570・Opus 5）— 🏁Opusタスク12 (cxxxvii)＝「このシグニの隣にあるあなたのシグニ」のゾーン隣接フィルタを新設＝**在庫0件**
+
+ゲート全緑（typecheck / golden **2305**（+2）/ smoke 10693 全0 / fuzz 全0 / census 786 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）＋**実機 V-73 の6本 ALL PASS**（うち**新規2本**・**赤で待機していた1本が緑へ反転**）。live JSON は **2効果だけ改変**・CSV 非改変。version 0.500→0.501。
+
+### 1. 何が壊れていたか
+
+原文「【常】：…**このシグニの隣にある**あなたのシグニのパワーを＋3000する」（`WXDi-P04-050-E2`＝聖将 コウチュウ／`WXDi-P00-053-E1`＝中装 ホタルマル）が、live では
+
+```json
+{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":3000}
+```
+
+＝**「隣」がどこにも無い**＝自分の全シグニ（**自分自身を含む**）へ一律 +3000 の**過剰実装**だった。`TargetFilter` にゾーン隣接の概念が無く、parser にも「隣にある」を拾う語彙が無い＝**機構ごと未実装**（2026-08-18 続き562・`V-73` 実機検証で発見＝単独配置なのに 10000+5000+**3000** = 18000 と表示されていた）。
+
+### 2. どう直したか（3層＋逆翻訳）
+
+- **型**＝`TargetFilter.adjacentToSelf?: boolean`（「効果元のシグニゾーンの左右 `zi±1`」）。
+- **parser**（`parseSentencePart1.ts`）＝「このシグニの隣にある[あなたの]…シグニのパワーを」の枝を**既定の「あなたの…シグニのパワーを」より前**に置いた。⚠**後ろだと既定枝が先に食う**（「このシグニの隣にある**あなたのシグニのパワーを**」は既定枝の regex にも一致する）。
+- **engine**（`calcFieldPowers`）＝`count:'ALL'` 経路で効果元のゾーン `ziHost` を引き、`{ziHost-1, ziHost+1}` を `applyDeltaToState` の新引数 `onlyZones` に渡す。⚠**効果元自身は「隣」ではない**ので `ziHost` は含めない。⚠「**あなたの**シグニ」限定の語彙なので**相手側へは適用しない**。
+- **decompiler**＝`f.adjacentToSelf` → 「このシグニの隣にある」。
+
+⚠**消費地点は CONTINUOUS `POWER_MODIFY` だけ**＝`matchesFilter`／`matchesStateFilter` は**効果元のゾーンを受け取らない**ので隣接を判定できない。対象宣言（`SELECT_TARGET` 等）にこのキーを付けると**黙って無視されて過剰選択**になるため、**live で CONTINUOUS 以外に付いていないことを golden の tripwire で見張る**（用法を広げるなら消費地点を先に足すこと）。
+
+### 3. 検証
+
+- **golden +2**＝①左右だけに乗る／自分自身・離れたゾーン・ダウン時には乗らない（4方向の対照）②`adjacentToSelf` の用法 tripwire。
+- **実機**＝`V-73` を6本に拡張して ALL PASS（2回連続）。**新規2本**＝`v73AdjacentNeighborGetsBuff`（隣のゾーン1が 3000→**6000**）／`v73AdjacentDistantNoBuff`（隣ではないゾーン2は **3000 のまま**）。**赤で待機していた** `v73UpGateActiveShowsBuffedPower` は 18000→**15000** で緑へ反転。
+- **live 改変＝2効果**（`WXDi-P04-050-E2`／`WXDi-P00-053-E1`）。census 786 据置。
+
+### 4. 現在地
+
+🏁**Opusタスク12 の在庫は0件**（常設の受け口として残す）。**§6.4・§8 も残0**なので、Opus 側の次は **§6.3／§6.2／タスク13 の在庫実測**から。
+
 ## 2026-08-19（続き569・Opus 5）— 🏁§8/§6.4 `O-1` (g)「選択の精緻化」v1＝CPU が盤面を見て召喚とアタックを選ぶようになった（`O-1` 残0クローズ）
 
 ゲート全緑（typecheck / golden **2303**（+3）/ smoke 10693 全0 / fuzz 全0 / census 786 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）＋**実機 新規2本＋回帰15本 ALL PASS**。live JSON・CSV とも非改変（UI/engine のみ）。version 0.499→0.500。

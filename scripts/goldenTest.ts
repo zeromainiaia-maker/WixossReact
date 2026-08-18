@@ -31238,6 +31238,52 @@ test('§6.4 O-3: `WX05-018-E1`（【常】相手のエナフェイズをスキ�
   eq(resolveNextPhaseWithSkips('DRAW', me, none.forSelf), 'ENERGY', '対照: 居なければ飛ばさない');
 });
 
+test('§3 (cxxxvii): 「このシグニの隣にあるあなたのシグニ」は左右のゾーンだけ（自分自身・離れたゾーンには効かない）', () => withSavedCursor(() => {
+  // 🔴従来は `owner:'self'/count:'ALL'` へ潰れて**自分の全シグニ（自分自身を含む）**に＋3000 していた
+  //   （`V-73` 実機検証で発見＝単独配置でも 10000+5000+3000=18000 と表示されていた）。
+  const HOST = 'WXDi-P04-050';   // 聖将 コウチュウ（P10000・アップ状態であるかぎり 自分+5000／隣に+3000）
+  const eff = effectsMap.get(HOST)!.find(e => e.effectId === 'WXDi-P04-050-E2')!;
+  eq((eff.action as { target: { filter: { adjacentToSelf?: boolean } } }).target.filter.adjacentToSelf, true,
+    'live の filter に adjacentToSelf が載っている');
+  const foe = mkState({});
+  const powersOf = (signi: (string | null)[], down: boolean[]) =>
+    calcFieldPowers({ ...mkState({ signi, down }) } as PlayerState, foe, true, effectsMap, cardMap as Map<string, CardData>);
+  // ① 単独配置（両隣とも空）＝隣が居ないので②は不発。自分は①の +5000 だけ。
+  const alone = powersOf([HOST, null, null], [false, false, false]);
+  eq(alone.get(HOST), 15000, '単独なら 10000+5000（隣バフは自分に乗らない）');
+  // ② 隣（ゾーン1）に置くと、その1体だけが +3000。
+  const nb = SIGNI_P3000;
+  const adj = powersOf([HOST, nb, null], [false, false, false]);
+  eq(adj.get(HOST), 15000, '自分は変わらない');
+  eq(adj.get(nb), 3000 + 3000, '隣のシグニは +3000');
+  // ③ 離れたゾーン（ゾーン2＝隣ではない）には効かない。
+  const far = powersOf([HOST, null, nb], [false, false, false]);
+  eq(far.get(nb), 3000, '離れたゾーンには効かない');
+  // ④ 中央に置けば両隣に効く。
+  const both = powersOf([nb, HOST, SIGNI_L1], [false, false, false]);
+  eq(both.get(nb), 3000 + 3000, '左隣に効く');
+  eq(both.get(SIGNI_L1), (parseInt((cardMap.get(SIGNI_L1) as CardData).Power) || 0) + 3000, '右隣にも効く');
+  // ⑤ activeCondition（アップ状態）が偽なら丸ごと不発（既存機構の回帰）。
+  const downed = powersOf([HOST, nb, null], [true, false, false]);
+  eq(downed.get(nb), 3000, 'ダウン状態なら隣バフも乗らない');
+}));
+
+test('§3 (cxxxvii): `adjacentToSelf` は CONTINUOUS の POWER_MODIFY にしか付いていない（消費地点の外で使わない）', () => {
+  // ⚠`matchesFilter`／`matchesStateFilter` は**効果元のゾーンを知らない**ので隣接を判定できない＝
+  //   対象宣言（SELECT_TARGET 等）にこのキーを付けると**黙って無視されて過剰選択**になる。
+  //   消費地点（`calcFieldPowers`）を増やすまでは、この tripwire で用法を CONTINUOUS に固定する。
+  const offenders: string[] = [];
+  for (const [num, effs] of effectsMap) {
+    for (const e of effs) {
+      const json = JSON.stringify(e.action ?? {});
+      if (!json.includes('"adjacentToSelf"')) continue;
+      const ok = e.effectType === 'CONTINUOUS' && (e.action as { type?: string }).type === 'POWER_MODIFY';
+      if (!ok) offenders.push(`${num}/${e.effectId}`);
+    }
+  }
+  eq(offenders.join(','), '', `CONTINUOUS POWER_MODIFY 以外に adjacentToSelf が付いている: ${offenders.join(',')}`);
+});
+
 // ══════════════ §8 `O-1` (g) 選択の精緻化（`cpuBoardEval.ts`・続き569）══════════════
 // ⚠ここは**選択**だけの純関数（可否は `signiAttackGate` / `deployLimitBlockReason` が権威）＝
 //   合成入力で決定論を固定する。実カードを引かないので `withSavedCursor` も不要。

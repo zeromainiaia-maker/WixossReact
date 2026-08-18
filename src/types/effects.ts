@@ -707,6 +707,18 @@ export interface TargetFilter {
   zoneSide?: 'left' | 'right';
   thisCardOnly?: boolean; // 効果元シグニ自身のみ（「このシグニをバニッシュする」等の自己対象。execBanishが解決）
   frontOfSelf?: boolean; // このシグニの正面（相手ゾーン 2-zi）の相手シグニ1枚のみ。効果元が場のシグニでない／正面が空なら候補ゼロ＝no-op
+  /**
+   * 「**このシグニの隣にある**あなたのシグニ」＝効果元のシグニゾーンの**左右（`zi±1`）**だけ（`WXDi-P04-050-E2`／`WXDi-P00-053-E1`）。
+   *
+   * 🔴これが無いと `owner:'self'/count:'ALL'` へ潰れて**自分の全シグニ（自分自身を含む）**に効く＝過剰実装だった
+   * （2026-08-18 続き562・`V-73` 実機検証で発見＝単独配置でも自分に＋3000 が乗っていた）。
+   * ⚠**効果元自身は「隣」ではない**（`zi` は含めない）。効果元が場のシグニでなければ候補ゼロ＝no-op。
+   * ⚠**現状の消費地点は `calcFieldPowers` の CONTINUOUS `POWER_MODIFY`（`count:'ALL'`）だけ**＝
+   *   `matchesFilter`／`matchesStateFilter` は**ゾーン隣接を判定できない**（効果元のゾーンを受け取らない）ので、
+   *   対象宣言（`SELECT_TARGET` 等）でこのキーを使うと**黙って無視されて過剰選択**になる。使うなら消費地点を先に足すこと
+   *   （live で CONTINUOUS 以外に付いていないことは golden が見張っている）。
+   */
+  adjacentToSelf?: boolean;
   excludeSelf?: boolean;  // 効果元シグニ自身を対象から除外（「あなたの他の＜原子＞のシグニ」等。execTrash/execBanishが解決）
   isTriggerSource?: boolean; // トリガー元カード（ctx.triggeringCardNum）のみを対象。execBanishが解決
   colorMatchesLrig?: boolean;    // 自分のセンタールリグと共通する色を持つか（WX01-025等）

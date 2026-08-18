@@ -2138,6 +2138,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         type: 'SIGNI', owner: delta < 0 ? 'opponent' : 'self', count: 'ALL',
         filter: { cardType: 'シグニ' }, zoneSource: 'designated',
       };
+    } else if (t.match(/このシグニの隣にある.*?シグニのパワーを/)) {
+      // 「このシグニの隣にある[あなたの][＜種族＞/《ディソナアイコン》]の?シグニのパワーを±N」＝
+      // **効果元の左右のシグニゾーン（`zi±1`）だけ**（`WXDi-P04-050-E2`／`WXDi-P00-053-E1`＝live 母集団2件）。
+      // 🔴これが無いと下の「あなたの…シグニのパワーを」既定枝へ落ちて `owner:'self'/count:'ALL'`＝
+      //   **自分の全シグニ（自分自身を含む）**に効く過剰実装だった（§3 (cxxxvii)・`V-73` 実機検証で発見）。
+      // 消費地点は `calcFieldPowers` の CONTINUOUS `POWER_MODIFY`（`TargetFilter.adjacentToSelf`）。
+      const adjNounM = t.match(/このシグニの隣にある(?:あなたの)?((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニのパワーを/);
+      const adjMods = adjNounM?.[1] ?? '';
+      const adjFilter: TargetFilter = {
+        cardType: 'シグニ', adjacentToSelf: true,
+        ...parseColorFilter(adjMods), ...parseStoryFilter(adjMods),
+      };
+      if (adjMods.includes('《ディソナアイコン》')) adjFilter.isDisona = true;
+      target = { type: 'SIGNI', owner: 'self', count: 'ALL', filter: adjFilter };
     } else if (t.match(/あなたの中央のシグニゾーンにある.*?シグニのパワーを/)) {
       // 「あなたの中央のシグニゾーンにある[＜種族＞/《ディソナアイコン》]の?シグニのパワーを±N」＝中央ゾーン(index1)の該当シグニ全体。
       // engine matchesStateFilter（centerZoneOnly=zoneIdx1）・decompiler（「中央ゾーンの」）対応済み。MANUAL 前例 WXDi-P06-034-E2 と同形。

@@ -57,6 +57,42 @@
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
   一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き568）。
 
+> **2026-08-19 続き570 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き569（🏁§8 `O-1` (g) 選択の精緻化 v1＝`O-1` 残0クローズ）後 最新値（本行が直近の正）**：
+  **census 786 据置**（`BASELINE_HIGH` 786）、**golden 2303**（+3＝召喚の体数維持／アタックの価値順＋公式ルールの同値・格下／`prevent` 温存の線）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（262 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**）。
+  **live 効果総数 10693**（live JSON・CSV とも非改変＝変更は engine/UI と scripts のみ）。version **0.500**。
+  🆕**実機シナリオ総数 412**（+2＝`v82CpuDeploysStrongestWithinLimit`／`v82CpuAttacksInValueOrder`）。
+  🆕**実機 PASS（続き569 実測）＝新規2本＋回帰15本 ALL PASS**（`v11`×3・`v12`×3・`v14`・`v74`×3・`v75`×2・`v76`×2・`v77`・`v78`×5・`v79`×2・`v80`）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**。
+  🆕**Opusタスク12＝在庫1件**（(cxxxvii) のみ）。
+  🏁**§6.4 は残0**（唯一の大物 `O-1` も (a)〜(g) 全消化）。**§8 は (g) v2 候補だけが残**（優先度低め）。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き569）。
+
+## 2026-08-19 整理㊼（Opusタスク12 (cxxxvii) 残0クローズぶんの退避・続き570）
+
+> 🏁**これで Opusタスク12 の在庫は0件**（常設の受け口として残す）。以下は**登録時の原文**。
+> **どう直したかは `BUGFIXES.md` 2026-08-19（続き570）**。観測点は §7 `V-73`（(d) を新設して実機 PASS）。
+
+- 🔴**(cxxxvii) 「隣にあるあなたのシグニ」の対象フィルタが未実装＝ゾーン隣接を無視して「自分の全シグニ（自分自身含む）」に過剰実装されている**（2026-08-18 続き562・V-73 実機検証で発見）。
+  - **再現手順**＝`v73UpGateActiveShowsBuffedPower`（`scripts/verifyBattleDrive.mjs`）＝`WXDi-P04-050`（聖将　コウチュウ・パワー10000。【常】①「このシグニがアップ状態であるかぎり、このシグニのパワーは＋5000される」②「このシグニがアップ状態であるかぎり、**このシグニの隣にあるあなたのシグニ**のパワーを＋3000する」）を**単独で**（両隣とも空）場に出してアップ状態にすると、隣が無いのに②が自分自身に誤爆し、盤面のパワー表示が 10000+5000+3000=**18000**になる（ルール上の正しい表示は隣が無いので②は不発＝15000）。
+  - **原因**＝`WXDi-P04-050-E2` の JSON は `action:{type:POWER_MODIFY, target:{type:SIGNI, owner:self, count:'ALL', filter:{cardType:'シグニ'}}, delta:3000}`＝**「隣」の条件がフィルタに一切無く、自分の全シグニ（自分自身を含む）に一律+3000**。`src/types/effects.ts` の `TargetFilter` にゾーン隣接（`adjacentToSelf`／`neighborOnly` 等）の概念が存在せず、パーサ側も「隣にある」を検出する語彙が無い（`src/data/parserUtils.ts` の `*_ADJACENT_*` はすべて「原文の文中で対象節に隣接する語」を拾うテキストパース用のヘルパーで、**盤面のゾーン隣接とは無関係**）＝機構そのものが未実装。
+  - **live 母集団＝2件**（原文に「隣にある」を含むカード）＝`WXDi-P04-050`（聖将　コウチュウ）／`WXDi-P00-053`（中装　ホタルマル・【常】「あなたのターンである間、隣にあるあなたのシグニのパワーを+3000」＝同型の過剰実装＝`target:{owner:self,count:'ALL'}`）。
+  - **修正の型（提案）**＝`TargetFilter` にゾーン隣接（センターの `zi±1`）を表すフィルタを新設し、パーサに「隣にある」検出を追加、`matchesFilter`／候補列挙側でゾーンインデックス比較を実装する。2件しかないので golden にトリップワイヤ（単独配置で不発／隣接配置で発火の両方）を足してから直すこと。
+  - **§7 follow-up**＝直った後 `v73UpGateActiveShowsBuffedPower` を再実行して緑化を確認すること。
+
+- **結末（続き570）**＝提案どおり **`TargetFilter.adjacentToSelf` を新設**した。
+  - **parser**＝`parseSentencePart1.ts` に「このシグニの隣にある[あなたの]…シグニのパワーを」の枝を、既定の「あなたの…シグニのパワーを」より**前**に足した（後ろだと既定枝が先に食って `count:'ALL'` へ潰れる）。
+  - **engine**＝`calcFieldPowers` の `count:'ALL'` 経路で、効果元のゾーン `ziHost` から `ziHost±1` の集合を作り `applyDeltaToState` に `onlyZones` として渡す。⚠**効果元自身は「隣」ではない**ので `ziHost` は含めない／「あなたのシグニ」限定の語彙なので**相手側には適用しない**。
+  - **decompiler**＝`f.adjacentToSelf` → 「このシグニの隣にある」。
+  - ⚠**消費地点は CONTINUOUS `POWER_MODIFY` だけ**＝`matchesFilter`／`matchesStateFilter` は効果元のゾーンを受け取らないので隣接を判定できない。対象宣言に付けると黙って無視されて過剰選択になるため、**live で CONTINUOUS 以外に付いていないことを golden の tripwire で見張る**。
+  - **live 改変＝2効果**（`WXDi-P04-050-E2`／`WXDi-P00-053-E1`）。census 786 据置。
+
 ## 2026-08-19 整理㊻（§6.4 `O-1`／§7 `V-82` 完全消化ぶんの退避・続き569）
 
 > 🏁**§6.4 で唯一の大物だった `O-1`（CPU AI の拡張）が (a)〜(g) 全消化で残0クローズ**。

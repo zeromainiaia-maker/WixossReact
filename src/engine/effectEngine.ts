@@ -1927,6 +1927,19 @@ export function calcFieldPowers(
           const targetIsOwner = target.owner === 'self' || target.owner === 'any';
           const targetIsOther  = target.owner === 'opponent' || target.owner === 'any';
 
+          // 🆕`adjacentToSelf`＝「このシグニの**隣にある**あなたのシグニ」（`WXDi-P04-050-E2`／`WXDi-P00-053-E1`）。
+          // 🔴2026-08-19 続き570 まで機構が無く、`owner:'self'/count:'ALL'` へ潰れて**自分の全シグニ（自分自身を含む）**
+          //   に効いていた（§3 (cxxxvii)・`V-73` 実機検証で発見＝単独配置でも自分に＋3000 が乗る）。
+          // ⚠**効果元自身は「隣」ではない**＝`ziHost` は含めない。効果元が場のシグニでなければ候補ゼロ＝no-op。
+          // ⚠「あなたのシグニ」限定の語彙なので**相手側には適用しない**（`targetIsOther` 側は素通し禁止）。
+          let adjacentZones: Set<number> | undefined;
+          if (target.filter?.adjacentToSelf) {
+            const ziHost = ownerState.field.signi.findIndex(st => st?.at(-1) === topNum);
+            if (ziHost < 0) continue;
+            adjacentZones = new Set([ziHost - 1, ziHost + 1]
+              .filter(z => z >= 0 && z < ownerState.field.signi.length));
+          }
+
           // PREVENT_OPP_POWER_PLUS: otherState（相手）のCONTによる正デルタをブロック
           const effectiveDelta = delta;
           // levelLtSelf/levelGtSelf（このシグニ/このルリグより低い/高いレベル）を効果元(topNum)基準で解決
@@ -1937,9 +1950,10 @@ export function calcFieldPowers(
               // POWER_FLIP: ownerState の自己バフを反転（正デルタ → 負デルタ）
               const ownerDelta = flipOwnerPosDelta && effectiveDelta > 0 ? -effectiveDelta : effectiveDelta;
               applyDeltaToState(ownerState, ownerDelta, contFilter, cardMap, powers,
-                ownerPowerProtection, undefined, (mod.excludeSelf || target.filter?.excludeSelf) ? topNum : undefined);
+                ownerPowerProtection, undefined, (mod.excludeSelf || target.filter?.excludeSelf) ? topNum : undefined,
+                adjacentZones);
             }
-            if (targetIsOther) {
+            if (targetIsOther && !adjacentZones) {
               applyDeltaToState(otherState, effectiveDelta, contFilter, cardMap, powers, otherPowerProtection, dblOtherMult);
             }
           }
@@ -2490,6 +2504,11 @@ function applyDeltaToState(
   powerProtection?: PowerDeltaProtection | Set<string>,
   negMultiplier?: number,
   excludeNum?: string, // excludeSelf: 効果元カード自身を除外
+  /**
+   * 適用先のシグニゾーンを限定する（省略＝全ゾーン）。`adjacentToSelf`（「このシグニの隣にある」）専用。
+   * ⚠**ゾーン集合はここでしか作れない**（`matchesStateFilter` は効果元のゾーンを知らない）。
+   */
+  onlyZones?: ReadonlySet<number>,
 ) {
   const effectiveDelta = (negMultiplier !== undefined && delta < 0) ? delta * negMultiplier : delta;
   // 同一CardNumが複数ゾーンにある場合、同じpowersエントリに重複適用しない
@@ -2497,6 +2516,7 @@ function applyDeltaToState(
   for (let zoneIdx = 0; zoneIdx < state.field.signi.length; zoneIdx++) {
     const stack = state.field.signi[zoneIdx];
     if (!stack || stack.length === 0) continue;
+    if (onlyZones && !onlyZones.has(zoneIdx)) continue;
     const topNum = stack[stack.length - 1];
     if (seen.has(topNum)) continue;
     seen.add(topNum);
