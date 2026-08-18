@@ -21030,6 +21030,60 @@ scenarios.v50NegateImmunityAbsentAttackNegated = {
 order.push('v50NegateImmunityAttackGoesThrough', 'v50NegateImmunityAbsentAttackNegated');
 // ── V-50 END ──
 
+// ── §7 V-46（O-8/O-9・続き566）(a)のみ（部分強制＝感染限定） ──
+// `must_attack_signi`＋`must_attack_infected_only`（`resolveForcedSigniAttack`／`collectForcedAttackZones`
+// が唯一の判定点＝`signiAttackGate.ts`）＝感染限定の強制アタックが立っているとき、**感染していない
+// シグニのアタックボタンは消え**（`FORCED_ATTACK_ORDER`）、感染シグニが殴ってダウンした直後に復活する。
+scenarios.v46PartialForceInfectedOnlyHidesNonInfectedButton = {
+  title: 'V-46(a) 感染限定の部分強制＝非強制（非感染）シグニのアタックボタンが消え、強制側が殴ると復活する',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9960'], 'field.signi': [['WD01-013#9961'], ['WD01-013#9962'], null],
+      'field.signi_down': [false, false, false], 'field.signi_virus': [1, 0, 0], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [], 'must_attack_signi': true, 'must_attack_infected_only': true,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9963'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9964', 'WD01-013#9965'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.clickTestId('my-signi-zone-1');
+    await page.waitForTimeout(500);
+    const atkZone1Before = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+    const zone1BlockedBefore = !(await atkZone1Before.count() > 0 && await atkZone1Before.isVisible().catch(() => false));
+    await H.closeModals().catch(() => {});
+    await page.waitForTimeout(300);
+    await H.clickTestId('my-signi-zone-0');
+    await page.waitForTimeout(500);
+    const atkZone0 = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+    const zone0Visible = await atkZone0.count() > 0 && await atkZone0.isVisible().catch(() => false);
+    if (zone0Visible) await atkZone0.click({ timeout: 2000 }).catch(() => {});
+    let fin = await H.queryState();
+    let quietTicks = 0;
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(350);
+      const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+      fin = await H.queryState();
+      const settled = fin?.pendingEffect == null && fin?.host?.fieldCheck == null && fin?.guest?.fieldCheck == null;
+      quietTicks = settled ? quietTicks + 1 : 0;
+      if (quietTicks >= 3) break;
+    }
+    await H.clickTestId('my-signi-zone-1');
+    await page.waitForTimeout(500);
+    const atkZone1After = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+    const zone1VisibleAfter = await atkZone1After.count() > 0 && await atkZone1After.isVisible().catch(() => false);
+    const pass = zone1BlockedBefore && zone0Visible && zone1VisibleAfter;
+    const detail = `強制前zone1ボタン非表示=${zone1BlockedBefore}（期待true） / zone0ボタン表示=${zone0Visible}（期待true） / `
+      + `zone0アタック後zone1ボタン復活=${zone1VisibleAfter}（期待true） / hSigniDown=${JSON.stringify(fin?.host?.signiDown)}`;
+    H.log(`  v46partialforce ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v46PartialForceInfectedOnlyHidesNonInfectedButton');
+// ── V-46 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
