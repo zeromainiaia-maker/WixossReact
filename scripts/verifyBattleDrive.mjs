@@ -18925,11 +18925,12 @@ const v75ArtsLimit1Spec = (alreadyUsedOnce) => ({
     'field.signi': [null, null, null], 'field.check': null,
     'hand': [], 'energy': [],
   },
-  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  // ⚠WX24-P1-021 の Timing は「アタックフェイズ」限定（メインフェイズを含まない）＝ATTACK_ARTS で注入する。
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
 });
 
 const driveV75ArtsLimit1 = async (page, H, expectUsable) => {
-  await H.ensureMain();
+  await page.waitForTimeout(600);
   await page.waitForTimeout(600);
   await H.clickTestId('my-lrig-dk');
   await page.waitForTimeout(500);
