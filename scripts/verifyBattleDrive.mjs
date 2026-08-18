@@ -18454,11 +18454,11 @@ const v80CpuGrantedSpec = {
 };
 
 const driveV80CpuGranted = async (page, H) => {
-  const before = await H.queryState();
-  const beforeCoins = before?.guest?.coins ?? 0;
-  const beforeHand = before?.guest?.hand ?? 0;
+  // ⚠**「before→after」の差分では見ない**（続き556 実測＝V-79(B)と同じ罠）＝CPU の MAIN 処理は速く、
+  //   最初の queryState() より前に発動・コイン消費・ドローまで終わっていることがある。
+  //   **注入時の既知の初期値（coins:1）からの絶対値**＋**ログの実発火証跡**で見る。
   let fired = false;
-  let fin = before;
+  let fin = null;
   for (let s = 0; s < 60; s++) {
     const st = await H.queryState();
     fin = st;
@@ -18467,13 +18467,13 @@ const driveV80CpuGranted = async (page, H) => {
     await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
     await page.waitForTimeout(300);
   }
-  const coinsSpent = (fin?.guest?.coins ?? 0) < beforeCoins;
-  const handGrew = (fin?.guest?.hand ?? 0) > beforeHand;
-  const detail = `fired=${fired} / coins ${beforeCoins}→${fin?.guest?.coins}(spent=${coinsSpent}) / `
-    + `hand ${beforeHand}→${fin?.guest?.hand}(grew=${handGrew}) / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  const coinsSpent = (fin?.guest?.coins ?? 0) === 0;   // 注入時 coins:1 からの絶対値
+  const bodyRan = (fin?.logTail ?? []).some(l => String(l).includes('1枚ドロー'));
+  const detail = `fired=${fired} / coins終値=${fin?.guest?.coins}(spent=${coinsSpent}) / `
+    + `本体ログ(1枚ドロー)=${bodyRan} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
   H.log(`  v80cpuGranted ${detail}`);
   if (!fired) return { pass: false, detail: `🔴CPU が付与ルリグ【起】を撃たなかった（${detail}）` };
-  return { pass: coinsSpent && handGrew, detail };
+  return { pass: coinsSpent && bodyRan, detail };
 };
 
 scenarios.v80CpuActivatesGrantedLrig = {
