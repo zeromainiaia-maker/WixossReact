@@ -19750,7 +19750,7 @@ scenarios.v70OwnEffectHandAddedUpsLrig = {
     let did = await H.clickBtn('発動', { exact: true });
     await page.waitForTimeout(500);
     const afterGrant = await H.queryState();
-    const grantOk = (afterGrant?.logTail ?? []).some(l => String(l).includes('得る') || String(l).includes('バイブスMAX'));
+    const grantOk = (afterGrant?.logTail ?? []).some(l => String(l).includes('ルリグ付与能力'));
 
     await H.clickTestId('my-signi-zone-0').catch(() => {});
     await page.waitForTimeout(400);
