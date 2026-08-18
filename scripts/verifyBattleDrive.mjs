@@ -19516,6 +19516,94 @@ scenarios.v73UpGateInactiveShowsPrintedPower = {
 order.push('v73TrashGateInactiveShowsPrintedPower', 'v73TrashGateActiveShowsSetPower', 'v73UpGateActiveShowsBuffedPower', 'v73UpGateInactiveShowsPrintedPower');
 // ── V-73 END ──
 
+// ── §7 V-72（続き548・エナコストの集合制約「それぞれレベルの異なるシグニN枚をトラッシュに置く」）──
+// WXDi-P09-008-E1（【起】・cost.energyTrash{count:3,filter:{cardType:シグニ},selectionConstraint:{distinct:'level'}}）。
+// エナに 小剣ククリ/小弓ボーニャ（ともにLv1）＋中剣フランベル（Lv2）＋大剣カリバン（Lv3）を仕込む。
+// ⚠選択状態はモーダルのローカル state＝queryState()では見えない＝DOMの「✓」個数と「発動」ボタンの活性で見る
+// （このシナリオでは energyTrash 以外のコスト欄が無いので「✓」はエナトラッシュ選択欄だけに出る）。
+// 旧実装は枚数だけ見ていた＝同レベル2枚でも普通に選べて払えてしまっていた（過剰許可）。
+const v72EnergyDistinctSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#9300'], 'field.signi': [['WXDi-P09-008#9301'], null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'energy': ['WD01-013#9302', 'WD01-014#9303', 'WD01-012#9304', 'WD01-010#9305'],
+    'hand': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9310'], 'field.signi': [['WD01-010#9311'], null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const openV72Modal = async (page, H) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  await H.clickTestId('my-signi-zone-0').catch(() => {});
+  await page.waitForTimeout(400);
+  const btn = page.getByRole('button', { name: /【起】/ }).first();
+  if (await btn.count() && await btn.isVisible().catch(() => false)) {
+    await btn.click({ timeout: 3000 }).catch(() => {});
+  }
+  await page.waitForTimeout(500);
+};
+
+const clickEnergyCard = async (page, cardName) => {
+  const img = page.locator(`img[alt="${cardName}"]`).first();
+  if (await img.count() && await img.isVisible().catch(() => false)) {
+    await img.click({ force: true, timeout: 3000 }).catch(() => {});
+  }
+  await page.waitForTimeout(300);
+};
+
+scenarios.v72DistinctLevelBlocksSameLevelSecond = {
+  title: 'V-72(a) 🔴同レベル2枚目は選べない（✓が付かない）＝集合制約が弾く',
+  spec: v72EnergyDistinctSpec,
+  async drive(page, H) {
+    await openV72Modal(page, H);
+    await clickEnergyCard(page, '小剣　ククリ');           // Lv1・1枚目
+    const afterFirst = await page.getByText('✓', { exact: true }).count();
+    await clickEnergyCard(page, '小弓　ボーニャ');          // Lv1・同レベル2枚目＝弾かれるはず
+    const afterSecond = await page.getByText('✓', { exact: true }).count();
+    const detail = `✓個数: 1枚目後=${afterFirst} / 同レベル2枚目試行後=${afterSecond}（期待どちらも1）`;
+    H.log(`  v72distinct ${detail}`);
+    return { pass: afterFirst === 1 && afterSecond === 1, detail };
+  },
+};
+scenarios.v72DistinctLevelAllowsThreeDistinctLevels = {
+  title: 'V-72(b) 対照＝レベルの異なる3枚を選ぶと「発動」ボタンが有効になる',
+  spec: v72EnergyDistinctSpec,
+  async drive(page, H) {
+    await openV72Modal(page, H);
+    await clickEnergyCard(page, '小剣　ククリ');            // Lv1
+    await clickEnergyCard(page, '中剣　フランベル');         // Lv2
+    await clickEnergyCard(page, '大剣　カリバン');           // Lv3
+    const checkCount = await page.getByText('✓', { exact: true }).count();
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    const enabled = await fireBtn.count() > 0 && await fireBtn.isEnabled().catch(() => false);
+    const detail = `✓個数=${checkCount}（期待3） / 「発動」活性=${enabled}（期待true）`;
+    H.log(`  v72distinct ${detail}`);
+    return { pass: checkCount === 3 && enabled, detail };
+  },
+};
+scenarios.v72DistinctLevelTwoCardsCannotFire = {
+  title: 'V-72(c) 対照＝2枚（3枚未満）では「発動」ボタンが無効のまま',
+  spec: v72EnergyDistinctSpec,
+  async drive(page, H) {
+    await openV72Modal(page, H);
+    await clickEnergyCard(page, '小剣　ククリ');            // Lv1
+    await clickEnergyCard(page, '中剣　フランベル');         // Lv2
+    const checkCount = await page.getByText('✓', { exact: true }).count();
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    const enabled = await fireBtn.count() > 0 && await fireBtn.isEnabled().catch(() => false);
+    const detail = `✓個数=${checkCount}（期待2） / 「発動」活性=${enabled}（期待false）`;
+    H.log(`  v72distinct ${detail}`);
+    return { pass: checkCount === 2 && !enabled, detail };
+  },
+};
+order.push('v72DistinctLevelBlocksSameLevelSecond', 'v72DistinctLevelAllowsThreeDistinctLevels', 'v72DistinctLevelTwoCardsCannotFire');
+// ── V-72 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
