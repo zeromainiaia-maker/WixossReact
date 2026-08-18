@@ -20833,9 +20833,10 @@ scenarios.v37GrantedAttackTaxUnpaidBanishesSelf = {
   spec: v37GrantedAttackTaxSpec([]),
   async drive(page, H) {
     const fin = await driveV37GrantedAttackTax(page, H);
+    // ⚠バニッシュの既定送り先はトラッシュではなくエナゾーン（Wixoss基本ルール＝「バニッシュ」＝場からエナゾーンへ）。
     const banished = !(fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9996'))
-      && (fin?.host?.trashCards ?? []).includes('WD01-013#9996');
-    const detail = `banished=${banished}（期待true） / hField=${JSON.stringify(fin?.host?.fieldSigni)} / hTrash=${JSON.stringify(fin?.host?.trashCards)}`;
+      && (fin?.host?.energyCards ?? []).includes('WD01-013#9996');
+    const detail = `banished=${banished}（期待true＝場を離れエナゾーンへ） / hField=${JSON.stringify(fin?.host?.fieldSigni)} / hEnergy=${JSON.stringify(fin?.host?.energyCards)}`;
     H.log(`  v37attacktax ${detail}`);
     return { pass: banished, detail };
   },
