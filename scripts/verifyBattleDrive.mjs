@@ -19341,6 +19341,7 @@ const driveV77CoinCostFires = async (page, H) => {
 const driveV77CoinCostGated = async (page, H) => {
   await H.ensureMain();
   await page.waitForTimeout(600);
+  await clickLrigImageAndWait(page, '真実の記憶　リル');
   const btn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
   const btnCount = await btn.count();
   const visible = btnCount > 0 && await btn.isVisible().catch(() => false);
