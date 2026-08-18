@@ -18621,7 +18621,7 @@ const driveV74SelectTarget = async (page, H) => {
     fin = st;
     if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動'))) fired = true;
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
-    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
   const handGrew = (fin?.guest?.hand ?? 0) >= 1;
