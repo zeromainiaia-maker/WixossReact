@@ -21444,7 +21444,7 @@ scenarios.v30LrigAbilitiesDisabledClearsAtTurnBoundary = {
     let crossedBoundary = false;
     for (let s = 0; s < 60; s++) {
       await page.waitForTimeout(300);
-      const did = await H.clickTextOrBtn(['ターン終了', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定', 'パス', 'スキップ']) || await H.stdStep();
+      const did = await H.clickTextOrBtn(['ターン終了', 'アーツ終了', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定', 'パス', 'スキップ']) || await H.stdStep();
       fin = await H.queryState();
       if (fin?.activeUser === V79_CPU_ID) crossedBoundary = true;
       const notDiscarded = (fin?.host?.handCards ?? []).includes('WD01-013#9971');
