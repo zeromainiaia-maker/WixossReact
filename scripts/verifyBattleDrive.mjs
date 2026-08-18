@@ -18486,6 +18486,208 @@ order.push('v80CpuActivatesGrantedLrig');
 
 // ── V-79 END ──
 
+// ── §7 V-74（続き551・§8/`O-1` CPU がメインフェイズに【起】を撃つ v1 ＋ 【起】エナコストの色照合の是正）──
+// ⚠(A)は CPU 側＝`v79CpuExtraAttackPhaseConsumed` 等と同じ「進行ボタン待ち」ポーリング型。
+// ⚠(B)は人間側＝`SigniActivatedModal`／`EnergyActivatedModal` の色照合（続き551 の副産物バグ）。
+
+// (A)(a)(b): WXK01-040（魔界の酒鬼 シュテンド・青Lv4）の【起】《青》：カードを1枚引く（usageLimit once_per_turn）。
+// エナを2枚（2回分）持たせ、①ログに1回だけ発動 ②2回目は撃たれない（hand/energy の最終値で見る）を同時に確認。
+const v74OncePerTurnSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8810'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8811'],
+    'field.signi': [['WXK01-040#8812'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': ['WD03-009#8813', 'WD03-009#8814'],   // 青エナ2枚＝2回分払える量
+    'hand': [],
+    'actions_done': [],
+    'cpu_activated_effect_ids_this_turn': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV74OncePerTurn = async (page, H) => {
+  let fired = false;
+  let fin = null;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動'))) fired = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const onceOk = (fin?.guest?.hand ?? -1) === 1 && (fin?.guest?.energy ?? -1) === 1;
+  const actionsOk = (fin?.guest?.actionsDone ?? []).includes('WXK01-040-E2');
+  const detail = `fired=${fired} / hand終値=${fin?.guest?.hand}（期待1） / energy終値=${fin?.guest?.energy}（期待1） / `
+    + `actionsDone含む=${actionsOk} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  H.log(`  v74once ${detail}`);
+  if (!fired) return { pass: false, detail: `🔴CPU が【起】を撃たなかった（${detail}）` };
+  return { pass: onceOk && actionsOk, detail: onceOk && actionsOk ? detail : `🔴同一ターンに2回撃たれた疑い（${detail}）` };
+};
+
+scenarios.v74CpuSigniActivatedOncePerTurn = {
+  title: 'V-74(A)(a)(b) CPU がメインフェイズにシグニ【起】を発動し、同一ターンに2回撃たない',
+  spec: v74OncePerTurnSpec,
+  drive: (page, H) => driveV74OncePerTurn(page, H),
+};
+order.push('v74CpuSigniActivatedOncePerTurn');
+
+// (A)(c) 負方向＝WX05-032（弩砲アヴェンジャー・赤Lv4）の【起】は cost.handDiscardSigni のみ（エナ不要）。
+// allowlist に無いコストキーなので CPU は撃たない（＝人間には提示されるが CPU だけ避ける）。
+// 手札に＜ウェポン＞story持ちの捨て札（WX05-032自身の別インスタンス）を用意し、host 側にパワー8000以下の
+// バニラ（WD01-013・小剣ククリ）を対象として置く＝もし誤って撃たれればバニッシュされて即座にわかる。
+const v74AllowlistBlocksSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8820'],
+    'field.signi': [['WD01-013#8821'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8822'],
+    'field.signi': [['WX05-032#8823'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WX05-032#8824'],   // 捨てる材料（＜ウェポン＞story）。Lv4＋既存Lv4で残Limit1のため召喚もされない。
+    'energy': [],
+    'actions_done': [],
+    'cpu_activated_effect_ids_this_turn': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV74AllowlistBlocks = async (page, H) => {
+  let sawFireLog = false;
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('【起】を発動'))) sawFireLog = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const hostSigniIntact = (fin?.host?.fieldSigni?.[0] ?? []).some(c => c && c.startsWith('WD01-013'));
+  const detail = `sawFireLog=${sawFireLog} / handedOver=${handedOver} / hostSigniIntact=${hostSigniIntact} / `
+    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+  H.log(`  v74allowlist ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  return { pass: !sawFireLog && hostSigniIntact, detail };
+};
+
+scenarios.v74CpuSkipsHandDiscardCost = {
+  title: 'V-74(A)(c) 負方向＝手札捨てコストの【起】（allowlist外）は CPU が撃たない',
+  spec: v74AllowlistBlocksSpec,
+  drive: (page, H) => driveV74AllowlistBlocks(page, H),
+};
+order.push('v74CpuSkipsHandDiscardCost');
+
+// (A)(d) 対象選択が要る【起】でも自動応答で最後まで解決する＝WX07-029（幻獣 ウサ・緑Lv4）
+// 【起】《ターン1回》《緑》：エナゾーンから1枚を対象とし、それを手札に加える（SELECT_TARGET を要する）。
+// エナを4枚（コスト1枚＋候補3枚）用意し、候補が複数残る状態で自動応答が解決できることを見る。
+const v74SelectTargetSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8830'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8831'],   // ルリグの色は無関係（エナの色で払う）
+    'field.signi': [['WX07-029#8832'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': ['WD04-009#8833', 'WD04-009#8834', 'WD04-009#8835', 'WD04-009#8836'],   // 緑エナ4枚
+    'hand': [],
+    'actions_done': [],
+    'cpu_activated_effect_ids_this_turn': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV74SelectTarget = async (page, H) => {
+  const beforeEnergy = 4;
+  let fired = false;
+  let fin = null;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動'))) fired = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const handGrew = (fin?.guest?.hand ?? 0) >= 1;
+  const energySpent = (fin?.guest?.energy ?? beforeEnergy) === beforeEnergy - 2;   // コスト1枚＋対象1枚＝2枚減る
+  const settled = !fin?.pendingEffect && (fin?.stackLen ?? 0) === 0;
+  const detail = `fired=${fired} / hand終値=${fin?.guest?.hand}（≥1） / energy終値=${fin?.guest?.energy}（期待${beforeEnergy - 2}） / `
+    + `settled=${settled} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+  H.log(`  v74selectTarget ${detail}`);
+  if (!fired) return { pass: false, detail: `🔴CPU が【起】を撃たなかった（${detail}）` };
+  return { pass: handGrew && energySpent && settled, detail };
+};
+
+scenarios.v74CpuAutoRespondsSelectTarget = {
+  title: 'V-74(A)(d) 対象選択が要る【起】（SELECT_TARGET）でも CPU の自動応答で最後まで解決する',
+  spec: v74SelectTargetSpec,
+  drive: (page, H) => driveV74SelectTarget(page, H),
+};
+order.push('v74CpuAutoRespondsSelectTarget');
+
+// (B) 人間側＝場のシグニ【起】でエナコストの色が合っていないと発動ボタンが押せない（続き551の副産物バグの是正）。
+// WXK01-040（青コスト×1）を host 自身の場に置き、①赤エナ1枚だけでは「発動」が disabled のまま
+// ②青エナ1枚なら「発動」が有効になる、を対で見る。
+const v74HumanColorGateSpec = (energyCardNum) => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#8840'],
+    'field.signi': [['WXK01-040#8841'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': [`${energyCardNum}#8842`],
+    'hand': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8850'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV74HumanColorGate = async (page, H, energyCardName, expectEnabled) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  await H.clickTestId('my-signi-zone-0');
+  await page.waitForTimeout(500);
+  const abilityBtn = page.getByRole('button', { name: /^【起】/ }).first();
+  let opened = false;
+  if (await abilityBtn.count() && await abilityBtn.isVisible().catch(() => false)) {
+    await abilityBtn.click({ timeout: 3000 }).catch(() => {});
+    opened = true;
+  }
+  await page.waitForTimeout(500);
+  const pickedEnergy = await H.clickModalImage(energyCardName);
+  await page.waitForTimeout(400);
+  const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+  const btnCount = await fireBtn.count();
+  const enabled = btnCount > 0 ? await fireBtn.isEnabled().catch(() => false) : false;
+  const detail = `opened=${opened} / energy選択=${pickedEnergy} / 発動ボタン存在=${btnCount > 0} / 発動enabled=${enabled}（期待${expectEnabled}）`;
+  H.log(`  v74colorGate ${detail}`);
+  if (!opened || btnCount === 0) return { pass: false, detail: `🔴モーダルが開かない（${detail}）` };
+  return { pass: enabled === expectEnabled, detail };
+};
+
+scenarios.v74HumanColorMismatchBlocked = {
+  title: 'V-74(B) 🔴人間側＝エナの色が合っていない（赤エナで青コスト）と「発動」が押せない',
+  spec: v74HumanColorGateSpec('WD02-013'),   // 羅石　アイロン＝赤エナ
+  drive: (page, H) => driveV74HumanColorGate(page, H, '羅石　アイロン', false),
+};
+scenarios.v74HumanColorMatchEnabled = {
+  title: 'V-74(B) 対照＝エナの色が合っている（青エナで青コスト）なら「発動」が押せる',
+  spec: v74HumanColorGateSpec('WD03-009'),   // コードアート　Ｒ・Ｍ・Ｎ＝青エナ
+  drive: (page, H) => driveV74HumanColorGate(page, H, 'コードアート　Ｒ・Ｍ・Ｎ', true),
+};
+order.push('v74HumanColorMismatchBlocked', 'v74HumanColorMatchEnabled');
+// ── V-74 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
