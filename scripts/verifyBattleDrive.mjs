@@ -19307,9 +19307,20 @@ const v77CoinCostSpec = (hasCoin) => ({
   top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
 });
 
+// ⚠**ルリグ本体の【起】ボタンはルリグ画像をクリックして初めて表示される**（V-80 で確立した型）＝
+//   シグニと違い最初から場に見えているわけではない。省略すると「ボタンが無い」で即 FAIL する（続き561実測）。
+const clickLrigImageAndWait = async (page, cardName) => {
+  const img = page.locator(`img[alt="${cardName}"]`).first();
+  if (await img.count() && await img.isVisible().catch(() => false)) {
+    await img.click({ force: true, timeout: 3000 }).catch(() => {});
+  }
+  await page.waitForTimeout(800);
+};
+
 const driveV77CoinCostFires = async (page, H) => {
   await H.ensureMain();
   await page.waitForTimeout(600);
+  await clickLrigImageAndWait(page, '真実の記憶　リル');
   const btn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
   const btnCount = await btn.count();
   if (btnCount === 0 || !(await btn.isVisible().catch(() => false))) {
