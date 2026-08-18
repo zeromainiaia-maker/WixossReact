@@ -18572,7 +18572,9 @@ const driveV74AllowlistBlocks = async (page, H) => {
     fin = st;
     if ((st?.logTail ?? []).some(l => String(l).includes('【起】を発動'))) sawFireLog = true;
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
-    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    // ⚠**弩砲アヴェンジャーの正面（host ゾーン0）は guest ゾーン0 の正面ではない**（正面は `2-zi` 変換）
+    //   ので直接ライフクラッシュが起きる＝ライフバースト確認モーダル「エナに送る」への応答が要る（続き556実測）。
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
   const hostSigniIntact = (fin?.host?.fieldSigni?.[0] ?? []).some(c => c && c.startsWith('WD01-013'));
