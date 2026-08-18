@@ -18810,6 +18810,152 @@ scenarios.v75CpuDoesNotDefendWithoutThreat = {
   drive: (page, H) => driveV75Defend(page, H, false),
 };
 order.push('v75CpuDefendsWithArts', 'v75CpuDoesNotDefendWithoutThreat');
+
+// (D) altCostOppTurn（相手ターン中の代替コスト）＝WX09-005（森羅万象・自ターン緑×1／相手ターン緑×3）。
+// host のルリグデッキに入れ、①相手（CPU）のターン中（ATTACK_ARTS_OP）にカード詳細を開くと
+// コスト表示が「緑×3」になる ②自分のターン（MAIN）では「緑×1」（印刷コストのまま）。
+const v75AltCostSpec = (oppTurn) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8890'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': ['WX09-005#8891'],
+    'energy': ['WD04-009#8892', 'WD04-009#8893', 'WD04-009#8894', 'WD04-009#8895'],   // 緑エナ4枚
+    'hand': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8896'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: oppTurn
+    ? { active: 'cpu', turn_phase: 'ATTACK_ARTS_OP', turn_count: 2 }
+    : { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV75AltCost = async (page, H, expectCost) => {
+  if (!page.url()) return { pass: false, detail: '不明' };
+  await page.waitForTimeout(600);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(500);
+  const opened = await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(500);
+  const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+  let used = false;
+  if (await useBtn.count() && await useBtn.isVisible().catch(() => false) && await useBtn.isEnabled().catch(() => false)) {
+    await useBtn.click({ timeout: 3000 }).catch(() => {});
+    used = true;
+  }
+  await page.waitForTimeout(500);
+  const costText = await page.getByText(/コスト: /).first().textContent().catch(() => null);
+  const detail = `opened=${opened} / used=${used} / costText=${JSON.stringify(costText)}（期待に「${expectCost}」を含む）`;
+  H.log(`  v75altCost ${detail}`);
+  if (!opened || !used || !costText) return { pass: false, detail: `🔴モーダルが開かない／コスト表示が取れない（${detail}）` };
+  return { pass: costText.includes(expectCost), detail };
+};
+
+scenarios.v75AltCostOppTurnTriples = {
+  title: 'V-75(D) 🔴人間側＝相手ターン中は altCostOppTurn（緑×3）が請求される',
+  spec: v75AltCostSpec(true),
+  drive: (page, H) => driveV75AltCost(page, H, '緑'.repeat(0) || '《緑》×3'),
+};
+scenarios.v75AltCostOwnTurnPrinted = {
+  title: 'V-75(D) 対照＝自分のターンでは印刷コスト（緑×1）のまま',
+  spec: v75AltCostSpec(false),
+  drive: (page, H) => driveV75AltCost(page, H, '《緑》×1'),
+};
+order.push('v75AltCostOppTurnTriples', 'v75AltCostOwnTurnPrinted');
+
+// (C) 人間側の回帰確認＝限定つきアーツ／`ARTS_LIMIT_1`／カード名封じ。
+// (C)-1 限定つきアーツ＝WX02-019（クロス・ライフ・クロス・エルドラ限定・青×1）。
+// ルリグクラスが一致（WX02-011＝エルドラ×マークⅡ）なら「使用」が出る／不一致（WD01-001＝タマ）なら出ない。
+const v75RestrictionSpec = (matchClass) => ({
+  hostSet: {
+    'field.lrig': [matchClass ? 'WX02-011#8900' : 'WD01-001#8901'],
+    'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': ['WX02-019#8902'],
+    'energy': ['WD03-009#8903'],   // 青エナ1枚
+    'life_cloth': ['WD01-013#8904', 'WD01-013#8905'],   // TRANSFER_TO_HAND のソース（ライフクロス）
+    'hand': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8910'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV75Restriction = async (page, H, expectUsable) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  const openDk = await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(500);
+  const opened = await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(500);
+  const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+  const count = await useBtn.count();
+  const visible = count > 0 && await useBtn.isVisible().catch(() => false);
+  const detail = `openDk=${openDk} / opened=${opened} / 使用ボタン表示=${visible}（期待${expectUsable}）`;
+  H.log(`  v75restriction ${detail}`);
+  if (!opened) return { pass: false, detail: `🔴モーダルが開かない（${detail}）` };
+  return { pass: visible === expectUsable, detail };
+};
+
+scenarios.v75RestrictionMatchedShowsUse = {
+  title: 'V-75(C)-1 対照＝限定つきアーツ＝ルリグクラス一致（エルドラ）なら「使用」が出る',
+  spec: v75RestrictionSpec(true),
+  drive: (page, H) => driveV75Restriction(page, H, true),
+};
+scenarios.v75RestrictionMismatchHidesUse = {
+  title: 'V-75(C)-1 🔴限定つきアーツ＝ルリグクラス不一致（タマ）だと「使用」が出ない',
+  spec: v75RestrictionSpec(false),
+  drive: (page, H) => driveV75Restriction(page, H, false),
+};
+order.push('v75RestrictionMatchedShowsUse', 'v75RestrictionMismatchHidesUse');
+
+// (C)-2 `ARTS_LIMIT_1`＝WX13-007（博愛の使者 サシェ・リュンヌ）を CPU（guest）のセンタールリグに置くと、
+// host（相手＝対戦相手側）は各ターン1枚しかアーツを使えない。host のルリグデッキに使えるアーツ2種を入れ、
+// ①1枚目は「使用」が出る ②`actions_done` に `USE_ARTS` を1回分入れた状態では2枚目の「使用」が出ない（対照）。
+const v75ArtsLimit1Spec = (alreadyUsedOnce) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8920'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': ['WX24-P1-021#8921'],   // 剣一炎敵（赤×1・使用条件なし・V-75(A)で使用済みの実績カード）
+    'energy': ['WD02-013#8922'],   // 赤エナ1枚
+    'hand': [],
+    'actions_done': alreadyUsedOnce ? ['USE_ARTS'] : [],
+  },
+  guestSet: {
+    'field.lrig': ['WX13-007#8930'],   // 博愛の使者 サシェ・リュンヌ＝【常】対戦相手は各ターン1度しかアーツを使えない
+    'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV75ArtsLimit1 = async (page, H, expectUsable) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(500);
+  const opened = await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(500);
+  const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+  const count = await useBtn.count();
+  const visible = count > 0 && await useBtn.isVisible().catch(() => false);
+  const detail = `opened=${opened} / 使用ボタン表示=${visible}（期待${expectUsable}）`;
+  H.log(`  v75artsLimit1 ${detail}`);
+  if (!opened) return { pass: false, detail: `🔴モーダルが開かない（${detail}）` };
+  return { pass: visible === expectUsable, detail };
+};
+
+scenarios.v75ArtsLimit1FirstUseShown = {
+  title: 'V-75(C)-2 対照＝WX13-007 の ARTS_LIMIT_1 下でも1枚目は「使用」が出る',
+  spec: v75ArtsLimit1Spec(false),
+  drive: (page, H) => driveV75ArtsLimit1(page, H, true),
+};
+scenarios.v75ArtsLimit1SecondUseBlocked = {
+  title: 'V-75(C)-2 🔴WX13-007 の ARTS_LIMIT_1＝このターン1回使用済みなら2枚目の「使用」が出ない',
+  spec: v75ArtsLimit1Spec(true),
+  drive: (page, H) => driveV75ArtsLimit1(page, H, false),
+};
+order.push('v75ArtsLimit1FirstUseShown', 'v75ArtsLimit1SecondUseBlocked');
 // ── V-75 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
