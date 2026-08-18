@@ -21331,10 +21331,11 @@ scenarios.v54TrashImmunityHidesTrashActButton = {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   async drive(page, H) {
+    const preState = await H.queryState();
     const { opened, labels } = await driveV54TrashImmunity(page, H);
     if (!opened) return { pass: false, detail: 'CardModalが開かず判定不能' };
     const leaked = labels.includes(V54_TRASH_ACT_LABEL);
-    const detail = `leaked=${leaked}（期待false＝出ない） / actions=${JSON.stringify(labels)}`;
+    const detail = `leaked=${leaked}（期待false＝出ない） / actions=${JSON.stringify(labels)} / gField=${JSON.stringify(preState?.guest?.fieldSigni)}`;
     H.log(`  v54trashimm ${detail}`);
     return { pass: !leaked, detail };
   },
