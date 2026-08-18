@@ -21218,6 +21218,7 @@ const v51LeaveSubstituteSpec = (hostEnergy) => ({
 });
 async function driveV51LeaveSubstitute(page, H, payChoice) {
   let fin = await H.queryState();
+  let sawPayLog = false;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(350);
     const st0 = await H.queryState();
@@ -21229,10 +21230,11 @@ async function driveV51LeaveSubstitute(page, H, payChoice) {
     }
     if (!did) did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
     fin = await H.queryState();
+    sawPayLog ||= (fin?.logTail ?? []).some(l => l.includes('を支払い、羅輝石　スフェーンの場離れをこの能力の喪失で置換'));
     H.log(`  v51leavesub[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} pendingOptions=${JSON.stringify(fin?.pendingOptions)} hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
     if (fin?.activeUser && fin.activeUser !== V79_CPU_ID) break;
   }
-  return fin;
+  return { fin, sawPayLog };
 }
 scenarios.v51LeaveSubstitutePaysAndSurvives = {
   title: 'V-51(c) 《緑》《無》を払える＝場離れが能力喪失に置換され場に残る',
