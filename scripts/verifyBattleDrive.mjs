@@ -18308,6 +18308,119 @@ order.push('v79CpuExtraAttackPhaseConsumed', 'v79CpuNoExtraAttackPhase');
 // （収集器そのものは golden `§6.4 O-1 (e): ON_ATTACK_PHASE_END は …` が離場履歴の有無＋filter 不一致の
 //  3点で押さえている＝**そちらが正しい観測層**）。⚠実測＝ターンは正常に終わり、シグニは場に残ったまま。
 
+// ── §7 V-79(B)＝CPU の2周目でも ON_ATTACK_PHASE_START は走るが【ハスターリク】は発動しない ──
+// 🔑**「走ること」の証拠＝キューした開始時本文（DRAW）が実際に消化される**（`EXTRA_ATTACK_PHASE_START` 合成
+//   エントリ＝triggerCollect.ts:4024-4039）。【ハスターリク】は human 側と同じ `phase !== 'ATTACK_LRIG'` 相当の
+//   扱い＝CPU 側の addedExtraPhase 分岐（BattleScreen.tsx:11322-11346）に HASTARLIQ 直書きチェックが**存在しない**
+//   （lap1＝MAIN→ATTACK_ARTS の別ブロック＝:11162-11193 だけにある）ので、host の hastarliq_zones は
+//   触れられないまま残る＝発動していれば必ず消費される（`hastarliq_zones: undefined`）ことの対偶で見る。
+const v79HastarliqSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8740'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+    'hastarliq_zones': [0],   // CPUのアタックフェイズ開始時に発動しうる予約＝相手（host）の場に設置済み
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8741'], 'field.lrig_down': true,
+    'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'actions_done': [],
+    'extra_attack_phases_this_turn': [{ sourceCardNum: 'V79B-TEST', onStart: { type: 'DRAW', owner: 'self', count: 1 } }],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+};
+
+const driveV79Hastarliq = async (page, H) => {
+  const before = await H.queryState();
+  const beforeHand = before?.guest?.hand ?? 0;
+  const phases = [];
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    if (st?.turnPhase && phases[phases.length - 1] !== st.turnPhase) phases.push(st.turnPhase);
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const fin = await H.queryState();
+  const sawSecondLap = phases.some(p => p === 'ATTACK_ARTS' || p === 'ATTACK_ARTS_OP');
+  const handGrew = (fin?.guest?.hand ?? 0) > beforeHand;
+  const hlZonesRemain = JSON.stringify(fin?.host?.hastarliqZones ?? []) === JSON.stringify([0]);
+  const hlLogHit = (fin?.logTail ?? []).some(l => String(l).includes('ハスターリク'));
+  const detail = `phases=${JSON.stringify(phases)} / 2周目=${sawSecondLap} / handedOver=${handedOver} / `
+    + `guestHand ${beforeHand}→${fin?.guest?.hand}（開始時本文=${handGrew}） / hastarliqZones残存=${hlZonesRemain} / ハスターリクログ=${hlLogHit}`;
+  H.log(`  v79hastarliq ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail})` };
+  if (!sawSecondLap) return { pass: false, detail: `🔴2周目に入っていない（前提が崩れている）（${detail})` };
+  if (!handGrew) return { pass: false, detail: `🔴2周目の ON_ATTACK_PHASE_START が走っていない（開始時本文が消化されていない）（${detail})` };
+  if (!hlZonesRemain || hlLogHit) return { pass: false, detail: `🔴2周目で【ハスターリク】が発動してしまった（${detail})` };
+  return { pass: true, detail };
+};
+
+scenarios.v79SecondLapHastarliqSuppressed = {
+  title: 'V-79(B) CPU の2周目＝ON_ATTACK_PHASE_START は走る（開始時本文を消化）が【ハスターリク】は発動しない',
+  spec: v79HastarliqSpec,
+  drive: (page, H) => driveV79Hastarliq(page, H),
+};
+order.push('v79SecondLapHastarliqSuppressed');
+// ── V-79(B) END ──
+
+// ── §7 V-79(D)＝人間側「1周目の終了時→2周目の開始時」の解決順 ──
+// 🔑**同一コミットで両方を積む盤面**を作り、順序選択UI（「発動順序を確定」）が要らない**pending 配列そのもの**
+//   （`stackPending`＝`pendingTurn`+`pendingOpp` の連結＝push 順を保持）を確定直後に読む＝
+//   実際に解決を進めずに済むので「どちらのモーダルが先に出るか」の目視より決定論的。
+// ⚠終了時トリガーは `WX24-P2-075-E1`（live 唯一の ON_ATTACK_PHASE_END・§7 V-15②で確立済み）を
+//   host 自身の場に置き、`signi_left_field_this_attack_phase` を直接注入して activeCondition を満たす
+//   （実際に遊具を離場させる手順を踏まなくても条件は成立する＝カード実在チェックのみ）。
+const v79dOrderSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8750'], 'field.lrig_down': true,
+    'field.signi': [['WX24-P2-075#8751'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [], 'trash': [],
+    'signi_left_field_this_attack_phase': ['WDK05-T15#9001'],
+    'extra_attack_phases_this_turn': [{ sourceCardNum: 'V79D-TEST', onStart: { type: 'DRAW', owner: 'self', count: 1 } }],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8760'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+};
+
+const driveV79dOrder = async (page, H) => {
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_LRIG', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  let clicked = false;
+  let orderIds = null;
+  let lastSeen = null;
+  for (let s = 0; s < 30; s++) {
+    if (!clicked) clicked = await H.clickBtn('エンドフェイズへ', { exact: true });
+    await page.waitForTimeout(250);
+    const st = await H.queryState();
+    lastSeen = st;
+    const ids = [...(st?.stackPending ?? []), ...(st?.stackQueue ?? [])];
+    const hasEnd = ids.some(i => i.includes('WX24-P2-075'));
+    const hasStart = ids.some(i => i.startsWith('EXTRA_ATTACK_PHASE_START'));
+    if (hasEnd && hasStart) { orderIds = ids; break; }
+  }
+  if (!orderIds) {
+    return { pass: false, detail: `🔴両エントリが揃わない（clicked=${clicked} last=${JSON.stringify(lastSeen?.stackPending)}/${JSON.stringify(lastSeen?.stackQueue)}）` };
+  }
+  const idxEnd = orderIds.findIndex(i => i.includes('WX24-P2-075'));
+  const idxStart = orderIds.findIndex(i => i.startsWith('EXTRA_ATTACK_PHASE_START'));
+  const detail = `stack順=${JSON.stringify(orderIds)} / 終了時idx=${idxEnd} 開始時idx=${idxStart}（終了→開始の順が正）`;
+  H.log(`  v79dOrder ${detail}`);
+  return { pass: idxEnd >= 0 && idxStart >= 0 && idxEnd < idxStart, detail };
+};
+
+scenarios.v79HumanOrderEndBeforeStart = {
+  title: 'V-79(D) 人間側＝追加アタックフェイズへ入るとき「1周目終了時→2周目開始時」の順でスタックへ積まれる',
+  spec: v79dOrderSpec,
+  drive: (page, H) => driveV79dOrder(page, H),
+};
+order.push('v79HumanOrderEndBeforeStart');
+// ── V-79(D) END ──
+
 // ── V-79 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
