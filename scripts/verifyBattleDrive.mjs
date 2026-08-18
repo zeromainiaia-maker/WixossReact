@@ -18375,7 +18375,12 @@ const v79dOrderSpec = {
   hostSet: {
     'field.lrig': ['WD01-001#8750'], 'field.lrig_down': true,
     'field.signi': [['WX24-P2-075#8751'], null, null], 'field.signi_down': [false, false, false],
-    'field.check': null, 'hand': [], 'energy': [], 'trash': [],
+    // ⚠**離場履歴（instanceId）は `battleCardNums` の反応的ロード走査に含まれない**（続き556 実測＝
+    //   `nums.add()` の明示リストに `signi_left_field_this_attack_phase` が無い）＝カードが盤面のどこにも
+    //   実在しないと `battleCardMap` に載らず `matchesFilter` が undefined カードで即 false になる。
+    //   実ゲームでは離場先（手札/トラッシュ/デッキ）が必ず他の走査に掛かるので無害だが、直接注入では
+    //   **同じ instanceId を trash にも置く**必要がある。
+    'field.check': null, 'hand': [], 'energy': [], 'trash': ['WDK05-T15#9001'],
     'signi_left_field_this_attack_phase': ['WDK05-T15#9001'],
     'extra_attack_phases_this_turn': [{ sourceCardNum: 'V79D-TEST', onStart: { type: 'DRAW', owner: 'self', count: 1 } }],
     'actions_done': [],
