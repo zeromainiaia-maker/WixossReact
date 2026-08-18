@@ -1,5 +1,82 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き566・Sonnet 5）— §7 実機検証を継続＝`V-38`／`V-36`／`V-49`／`V-47`／`V-31`／`V-32`／`V-34`／`V-37`／`V-33`／`V-48`／`V-50`／`V-46`／`V-52`／`V-51`／`V-57`／`V-54`／`V-55` の17件 ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規17件・計28シナリオ ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.496→0.497。「さらに20件行う」要求に対し、V-46〜V-52（4-path複合検証）を主軸に据えて着手し、V-30（ターン境界の跨ぎ確認）は実機で3回試行したが**注入自体がターン境界クリア済み状態で始まる設計限界**（`turn_phase:'END'`直接注入が room 正規化時に既にターン終端の失効処理を1回走らせてしまう＝テスト設計側の限界であって engine バグではないと判断）のため見送り、17件で区切った。
+
+### 1. V-38＝`signi_attack_bans_this_turn`（appliesTo:'LRIG'）のルリグ税は回帰なし（2本 ALL PASS）
+
+`lrigAttackBanCost`（`signiAttackBan.ts`）へ `{appliesTo:'LRIG', cardNums:[...], unlessPayColorless:2}` を直接注入。(a) 払える＝ボタンが「アタック（《無》×2）」になり払ってアタックできる (b) 払えない＝「アタック不可（《無》×2）」になり不成立、を確認。
+
+### 2. V-36＝`BLOCK_FRONT_SIGNI_ATTACK`（`WXDi-P16-047`）は回帰なし（2本 ALL PASS）
+
+相手フィールドに直接置くだけで常時判定される CONTINUOUS。正面シグニのアタックは (a) エナ1枚以上＝ボタンが「アタック（《無》×1）」になり払って通る (b) エナ0枚＝**ボタン自体が生成されない**（LRIG版の「アタック不可」表示とは違う挙動＝`canSigniAttack`がfalseで`[]`）ことを確認。
+
+### 3. V-49＝`lrig_abilities_disabled`は付与済みのルリグ能力ごと機能を止める（1本 PASS）
+
+V-64と同じ`DAMAGE_REPLACE_BY_COST`注入に`lrig_abilities_disabled:true`を足すと、置換が発火せずhost.lifeが素通しで減ることを確認（`grantedStore.ts`/`lifeCrashReplace.ts`が明記する「ルリグ付与の2ストアは能力なので丸ごと落ちる」規約の実機初確認）。
+
+### 4. V-47＝`WXK01-002-E1`（手札0枚条件のルリグダメージシールド）は回帰なし（2本 ALL PASS）
+
+`resolveLrigDamageShield`（`lrigDamageShield.ts`）が唯一の判定点。CPUのルリグアタックで(a)手札0枚＝防ぐ(b)手札1枚以上＝条件不成立で通常どおり通る、の対照を確認。
+
+### 5. V-31＝`PAY_GATE_OPP_SIGNI_AUTO`……ではなく`PAY_ENERGY_COST`（`SPK01-10`）は回帰なし（2本 ALL PASS）
+
+`blocked_actions`へ`PAY_ENERGY_COST`（`energyPaySource.ts`の`ENERGY_PAY_BLOCK_ACTION_ID`）を直接注入。エナがあってもコスト1以上のアーツの「使用」ボタンが非活性になり、封じが無ければ同じエナで使えることを確認。
+
+### 6. V-32＝`ENERGY_PHASE`フェイズスキップ（`WX05-018`）は回帰なし（2本 ALL PASS）
+
+`blocked_actions`へ`ENERGY_PHASE`を直接注入。`isPhaseSkipped`/`resolveNextPhaseWithSkips`（`attackStepPhase.ts`）がDRAW→ENERGY→GROWのうちENERGYを飛ばす。CPUのターンでエナチャージが一度も起きないことを確認（対照＝封じ無しなら通常どおりチャージ）。
+🔑**ハーネス側の注意**＝CPUターンがATTACK_ARTS_OPフェイズで20+ tick停滞することがある（アサーションが早期に安定するので実害無し）。
+
+### 7. V-34＝期間つき`opp_move_immunity`（エナゾーン移動不可）は回帰なし（2本 ALL PASS）
+
+`WXDi-P08-059`【起】《ダウン》：対戦相手のエナ1枚をトラッシュ、で相手（＝保護効果を持つ側）のエナを狙い、(a)保護があれば「エナ保護により効果なし」で不発(b)保護が無ければ通常どおり奪える、の対照を確認。
+🔑**ハーネス側の罠**＝`clickTextOrBtn`に`'決定'`を含めると`H.stdStep()`の「pick-0→決定」2段仕込みより先に単独の「決定」ボタンへ食いついて空振りループになる＝`'発動'`だけに絞って`stdStep()`に譲る。
+
+### 8. V-37＝`granted_effects`経由のON_ATTACK_SIGNI＋OPTIONAL_COST＋BANISHは回帰なし（2本 ALL PASS）
+
+`WX25-P2-038`が対象に付与する「アタックしたとき、《無》×4を支払わないかぎりバニッシュする」を`granted_effects[instanceId]`へ直接注入（ARTS詠唱省略）。host自身のシグニへ付与しhostにアタックさせることでCPUのAI選択に依存せず(a)エナ0＝バニッシュ(b)エナ4枚＝生存、を制御。
+🔑**バニッシュの既定送り先はトラッシュではなくエナゾーン**（Wixoss基本ルール）＝最初トラッシュで判定して空振りFAILした。
+
+### 9. V-33＝キー（`WXK11-012`）のレベル限定ルリグダメージシールドは回帰なし（2本 ALL PASS）
+
+`PREVENT_LOW_LEVEL_LRIG_DAMAGE`はV-47と同じ`resolveLrigDamageShield`が判定点で、続き536の修正でキー（field.key_piece）も走査対象。攻撃側Lv2以下＝防ぐ／Lv3以上＝防がない、の対照を確認。
+
+### 10. V-48＝付与「ルリグがアタックしたときアップする」（`WXDi-P00-026`）は回帰なし（1本 PASS）
+
+`granted_effects[lrig instId]`へ`ON_ATTACK_LRIG`＋`UP`アクションを直接注入。アタック後に実際にlrigDownがfalseへ戻ることを確認。
+🔑**2回目の実アタックは`lrig_has_attacked`という別の恒久ガードで意図的にブロックされる**（`BattleScreen.tsx:10006`のコメントに明記）＝「アップすれば2回目が撃てる」という当初のPLAN記述は誤読で、実際に確認できる部分（アップする、の一点）だけに絞った。
+
+### 11. V-50＝`own_effects_cannot_negate_signi_attack_this_turn`は回帰なし（4本 ALL PASS）
+
+自分のシグニへ「アタックしたとき、このアタックを無効にする」を`granted_effects`で直接付与し、(a)フラグあり＝無効化されず通る(a')無し＝無効化される、の対照を確認。**追加で(c)フラグはシグニ限定＝同じ手口でルリグの自己無効化を仕込むと、フラグを立てていてもルリグの無効化は止まらない**ことも確認（`na.target.type==='SIGNI'`のガードの実機初確認）。
+
+### 12. V-46＝感染限定の部分強制アタック（`must_attack_signi`+`must_attack_infected_only`）は回帰なし（1本 PASS）
+
+`resolveForcedSigniAttack`/`collectForcedAttackZones`へ直接注入。非感染シグニのアタックボタンが消え（`FORCED_ATTACK_ORDER`）、感染シグニが殴ってダウンした直後にボタンが復活することを確認。
+
+### 13. V-52＝`declared_guard_restrict_level`（`WXK07-001`の数字宣言ガード制限）は回帰なし（2本 ALL PASS）
+
+攻撃側（CPU）へ直接注入。宣言レベルと同じレベルの手札ガードカードは`GuardResponseDialog`の候補に出ない／レベル不一致なら出る、の対照を確認。
+
+### 14. V-51＝`EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY`（`WX25-P2-059`の場離れ置換）は回帰なし（2本 ALL PASS）
+
+相手（CPU）の攻撃にON_ATTACK_SIGNI＋BANISH(owner:opponent)を`granted_effects`で直接付与し、host側の緑シグニを対象化。(a)《緑》《無》払える＝場に残り能力喪失に置換(b)払えない＝通常どおりバニッシュ（エナゾーンへ）、を確認。
+🔑**置換は`selfAbilityPay`/`none`のCHOOSE対話**（当初想定した完全自動適用ではなかった）。判定は最終エナ枚数ではなくループ内でリアルタイムに捕捉したログ文言で行う（画面末尾スクロールでDOM上のログが消えるため`findLog`のDOM走査は使えない）。
+
+### 15. V-57＝【使用条件】【チーム】ピース（`WXDi-P05-006`）はカットイン窓の外で「使用」ボタンが出ない（1本 PASS）
+
+ACTIVATED効果のconditionに含まれる`OPP_USING_TEAM_PIECE`は`team_piece_cutin_window`フラグが立っているときだけ真になる（`pieceCutin.ts`）＝通常のMAINフェイズでは`evalUseCondition`が落ちてボタン自体が生成されないことを確認（旧実装はcondition無視でボタンが出て《青×0》で撃ち放題だった）。
+
+### 16. V-54＝`TRASH_ABILITY_LOSS_AND_IMMUNITY`（`WX12-023`）は回帰なし（2本 ALL PASS）
+
+`isTrashImmuneByOpponent`（`execUtils.ts`）が`getMyTrashCardActions`の唯一の判定点。相手フィールドにWX12-023があると自分のトラッシュ【起】ボタンが丸ごと消え、無ければ出ることを確認（既存の`abilities_removed`テストと同じ`WXDi-P04-042`トラッシュ札を流用）。
+
+### 17. V-55＝`CHECK_ZONE_FLIP_FREE_GROW`（`WXDi-P16-001A`）は回帰なし（1本 PASS）
+
+⚠**事前調査で「グロウ先カード`WXDi-P16-001B`がCSV grepでヒットしない＝データ欠落の実バグ」と一時誤認した**（`[...cardMap.entries()].find(c.CardName===flipName)`の名前一致検索先を疑った）。実機でクリック段数を2段（一覧の「ピースを使用」→モーダル内の「使用」）に直すと`WXDi-P16-001B`は実在し、コスト無料でグロウ→グロウ先の【出】（ソウル操作）まで正しく発火した＝**grep不一致だけでDB欠落と断定しない**教訓。
+
 ## 2026-08-18（続き565・Sonnet 5）— §7 実機検証を継続＝`V-60`（コンバート出【出】の比例回収）／`V-56`（強制対象の2回目確認）／`V-59`（ベルセルクの次ターン予約確認）／`V-53`（白以外スペル封じの2軸確認）ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.495→0.496。
