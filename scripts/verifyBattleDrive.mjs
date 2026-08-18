@@ -21084,6 +21084,60 @@ scenarios.v46PartialForceInfectedOnlyHidesNonInfectedButton = {
 order.push('v46PartialForceInfectedOnlyHidesNonInfectedButton');
 // ── V-46 END ──
 
+// ── §7 V-50（O-10・続き566）(c)＝免疫の限定確認（シグニ限定でルリグには効かない） ──
+// `own_effects_cannot_negate_signi_attack_this_turn` は `NEGATE_ATTACK` 実行点で
+// `na.target.type === 'SIGNI'` のときだけ免除する＝V-50(a)と同じフラグを立てたまま、今度は
+// 自分のルリグへ「アタックしたとき、このアタックを無効にする」を付与し、**免疫があってもルリグの
+// アタック無効化は止まらない**ことを見る（限定の落とし忘れが無いことの確認）。
+scenarios.v50cLrigNegationNotCoveredByImmunityFlag = {
+  title: 'V-50(c) 免疫フラグはシグニ限定＝立てていてもルリグ自己無効化は止まらない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9970'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [],
+      'own_effects_cannot_negate_signi_attack_this_turn': true,
+      'granted_effects': {
+        'WD01-001#9970': [{
+          effectId: 'v50cSelfNegateLrig1', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], triggerScope: 'self',
+          mandatory: true, duration: 'INSTANT', parseStatus: 'AUTO',
+          action: { type: 'NEGATE_ATTACK', target: { type: 'LRIG', owner: 'self', count: 1 } },
+        }],
+      },
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9971'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9972', 'WD01-013#9973'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(400);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+    if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+      await atk.click({ timeout: 2000 }).catch(() => {});
+    }
+    let fin = await H.queryState();
+    let quietTicks = 0;
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(350);
+      const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+      fin = await H.queryState();
+      H.log(`  v50clrignegate[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} gLife=${fin?.guest?.life} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+      const settled = fin?.pendingEffect == null && fin?.host?.fieldCheck == null && fin?.guest?.fieldCheck == null;
+      quietTicks = settled ? quietTicks + 1 : 0;
+      if (quietTicks >= 3) break;
+    }
+    const pass = (fin?.guest?.life ?? -1) === (before?.guest?.life ?? 0);
+    const detail = `guest.life ${before?.guest?.life}→${fin?.guest?.life}（期待不変＝ルリグ自己無効化は免疫フラグでも止まらず発火）`;
+    H.log(`  v50clrignegate ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v50cLrigNegationNotCoveredByImmunityFlag');
+// ── V-50c END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
