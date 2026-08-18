@@ -24,6 +24,100 @@
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
   一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き566）。
 
+## 2026-08-19 整理㊸（§7 決着済み `V-01`／`V-02`／`V-03`／`V-05`〜`V-14`／`V-18` の全文退避・続き567）
+
+> PLAN §7 にあった**決着済み15ブロックを verbatim で退避**（`V-01`〜`V-03`＝§3 実バグ待ちの残0クローズ分、
+> `V-05`〜`V-14`・`V-18`＝🅱🅲 の決着分）。PLAN 側には ID・続きNN・本節へのポインタだけを残す。
+> ⚠`V-06`／`V-07`／`V-09` は**見出しに ✅ が付いていなかった**が、**チェック項目が全て `[x]`＝実機PASS**で
+> 実体は決着済みだったので同時に退避した（見出しの `2件`／`残り2件` という数え方だけが古かった）。
+> 各ブロック内の `📋` は「未実装として送る（バグではない）」＝**再着手の対象ではない**。
+
+- **✅ V-01 離場置換の対話＝2026-08-14 続き475/475b で決着＝6シナリオすべて緑**（`leaveSubCpuAutoRespondsSubstitute`／`leaveSubAskDirectedToVictim`／`leaveSubDecisionNoneIsHonored`／`leaveSubDecisionKeyIsHonored`／`leaveSubNoOptionMeansNoAsk`／`leaveSubAllTargetsAskedPerVictim`）。**在庫3件のうち (cxxv) は取り下げ・(cxxvi)(cxxx) は engine 修正で残0クローズ**。以下は経緯。⭐**(cxxv)「数値 count では問いが出ない」は取り下げ＝シナリオ偽陽性だった**（`pendingCandidates` の index を `pick-<idx>` に使っており、`opp_field` は reverse 描画なので**犠牲シグニを直接バニッシュしていた**＝victim は対象ですらないので問いが出ないのは当然。**結果の盤面は身代わり成立時と同一**＝§7 📌4 の実例）。`clickPendingInstance` へ差し替えて **`leaveSubCpuAutoRespondsSubstitute`／`leaveSubAskDirectedToVictim`／`leaveSubDecisionKeyIsHonored`／`leaveSubNoOptionMeansNoAsk` が PASS**（`asks=1`・`responder=CPU`・options＝`banishSubstitute…`／`none:置換しない`）。**数値 count の hoist（`resumeSelectTarget`＝`effectExecutor.ts:7412`）は正しく効いている。**
+  - [x] 🔴**赤で残っていた2本＝engine の実バグ＝続き475b で修正して緑へ**。①`leaveSubDecisionNoneIsHonored`（→§3 **(cxxx)**＝置換不成立時に消費済み ctx を捨てていた）＝**11経路で `sub.ctx` を無条件に採る**ように修正 ②`leaveSubAllTargetsAskedPerVictim`（→§3 **(cxxvi)**＝身代わりで先に場を離れた instance を再処理して移動先へ2枚目を push）＝**ループ5経路に `isOnFieldTop` ガード**を追加。**golden にトリップワイヤ2本を追加し、外すと FAIL することも確認済み**（golden 1964→1966）。
+  - [ ] 📋**人間側モーダル（`場離れの置換`）の描画確認は defer**＝`leaveSubstituteAskQueue`（`effectExecutor.ts:740-743`）は victim を `ctx.otherState.field.signi` に限定するので、**問いは常に「効果を撃った側の対戦相手」にしか飛ばない**＝host vs CPU のドライバでは **host を victim にする決定論的手段が無い**。将来案＝(a) CPU 側に効果バニッシュを撃たせる経路を作る (b) `pending_effect` を直接注入する。
+  - [ ] 📋**未実装として送る（バグではない）**＝(a) **CPU は常に先頭の選択肢（＝最も安い置換）を選ぶ**＝盤面評価はしない近似 (b) `WX14-026` の**ライフクラッシュは選択肢に出るが engine の自動適用はしない**。
+
+- **✅ V-02「このアタックを無効にする」＝2026-08-14 続き475d で決着＝3シナリオすべて緑**（`oppPayNegateAttackWhenPaid`／`oppPayAttackGoesThroughWhenUnpaid`／`oppHandDiscardIsOpponentSide`）。**§3 (cxxvii) を残0クローズ**＝真因は**2つ**あり、①parser が `NEGATE_ATTACK{owner:'opponent'}` を作っていた（→`STUB{SET_CANCEL_ATTACK_FLAG}` へ是正）②🔴**`resumeOpponentPayOptional` の `pay` 枝が `payOpt.action` を実行していなかった**＝`thenOnPay` の帰結が**エナ払いのときだけ**丸ごと落ちていた（コスト種別で挙動が割れる無言バグ）。
+  - ⚠**観測の注意**＝進行中アタックのキャンセルは **`negatedAttacks` には載らない**（一時フラグ＝`effectExecutor.ts:8822` で立て `BattleScreen.tsx:8119` で消去）。**ライフが減ったかどうかで見る**。
+
+- **✅ V-03 ピースの効果が使用時に解決しない＝2026-08-14 続き475g で決着**（→§3 **(cxxiii)** 残0クローズ）。`connectSpinningChoice4Pay`／`connectSpinningChoice4Insufficient` が**緑へ反転**（④pay＝host.hand 2→0・guest.life 7→6／手札不足では pay が `(disabled)`）。**ピースは「使用＝印刷コストを1回払って即解決→ルリグトラッシュ」**になり、キーゾーンを占有しなくなった。新規 `pieceUseResolvesAndGoesToLrigTrash` も PASS。
+
+- **✅ V-05 対象宣言の脱落（続き423）＝2026-08-13 続き469 で決着**（Codex 起案→Claude 実機検証・**5シナリオが2回連続PASS**・既定 order 登録済み）。⭐**母集団は `STUB{SELECT_TARGET_ONLY}` を使う live 118効果**（PLAN が書いていた「16効果」は**続き423 で変更した数**であって母集団ではない）＝代表2枚で filter の enforce を固定した。
+  - [x] 🔴**所有者と体数**（`WXDi-P02-009-E3`）＝**実機PASS 3本**。①`targetDeclOpponentOnlyCandidates`＝`pendingCandidates` が **guest の3体だけ**で**自分のシグニは混入しない**（旧＝自分のシグニ1体が戻っていた）②`targetDeclUpToTwoSelectsBoth`＝**2体選べて、選んだ2体だけが相手の手札へ戻り未選択の1体は場に残存**（旧＝`count:1` 固定）③`targetDeclUpToTwoAllowsZero`＝**`決定 (0/2)` で0体確定でき相手3体すべて残存**（旧＝1体強制）。⚠**0体確定でも《ガードアイコン》の任意コストは提示され、payすると手札→トラッシュへ動く**＝**現状を記録しただけで仕様判断はしていない**（原文「対象とし、〜捨ててもよい。そうした場合、それらを手札に戻す」の解釈が要るなら別途）。
+  - [x] **パワー制限が候補に効くか**（`WX06-CB01-E1`）＝**実機PASS 2本**。①`targetDeclPowerCapExcludesAbove`＝候補は **P3000 の1体だけ**で **P15000 は除外**（旧＝無差別）②⭐`targetDeclPowerCapUsesEffectivePower`＝**対照**＝盤面のカードを1枚も変えず `guest.temp_power_mods` に **+1000 を足すだけ**（印字3000→**実効4000**）で**候補が一度も非空にならない** ⇒ **パワー判定が実効パワーで行われている**（`fieldCandidates` に `ctx.effectivePowers` を渡す＝`execStubPart1.ts:163`）ことを実機で証明。⚠**注入が効いたことを `powerMods` で先に確認してから**候補を見ている（効いていないのに「候補0」で PASS すると偽陽性）。
+
+- **V-06 🔴 幻コスト第2波＋下カードコストの絞り込み（続き422）2件**
+  - [x] **下カードコストの候補が絞られるか**（`WXDi-P11-042-E1`）＝**実機PASS 2本**（`underCostFiltersByColor` ＋ 対照 `underCostUnavailableWhenNoRed`・2026-08-13 続き471）。下に「赤シグニ1枚＋非赤2枚」を置くと**候補は赤1枚だけ**／支払うと下 stack から trash へ行き対象がバニッシュ（エナへ）。**下の1枚を白へ交換するだけ**の対照で **`pay` が `(disabled)`** になり本体も走らない。⭐**続き421 でこの filter は「型にも無い死フィールド」だった**（逆翻訳にだけ出て engine は無視）＝**続き422 の配線が実UIまで届いていることを実機で確認**。⚠**runtime 型（`execUtils.ts:171-196`）と JSON payload 型は別物**で、**片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される**（`:177-179` の警告）。
+  - [x] 🔴**捨てさせる向き**（`WXDi-P14-060-E1`）＝**実機PASS 2本**（`revealOppHandSkipKeepsOpponentHand` ＋ 対照 `revealOppHandPayDiscardsOpponentAndDraws`・2026-08-14 続き473）。**辞退**すると `host.hand` 2→2／`guest.hand` 3→3／`guest.trash` 0→0／`guest.deck` 40→40 で**全て不変**（＝捨てさせもドローも起きない）。**pay** すると **`guest.trash` 0→1・`guest.deck` 40→39** で、🔑**`host.hand` は 2→2 のまま**（旧実装＝自分が1枚失って相手が引く**真逆**は再現しない）。⚠**手札の枚数では見えない**（捨て1・引き1で戻る）＝**trash と deck で見る**。
+    - 🔑**構造の読み違いに注意**＝この JSON は `SEQUENCE[REVEAL, OPTIONAL_ACTIVATE, TRASH{opponent}, CONDITIONAL→DRAW]` で **`TRASH` が `CONDITIONAL` の外**にあるため「辞退しても捨てさせるのでは」と疑ったが、**実際は Pattern⑤**（`effectExecutor.ts:4314`）が**後続の `TRASH＋CONDITIONAL` を丸ごと pay 側 `cont5` に包み skip 側を no-op にする**（`:4421`）＝**「そうした場合」慣例（`:3745`）は STUB の直後が CONDITIONAL のときだけ**。実機でも辞退時に何も動かないことを確認した。
+
+- **V-07 🔴 幻の手札コストの是正（続き421）2件**＝**16効果**でコストの徴収先が変わった（従来は原文と無関係に**手札**が1枚落ちていた）。
+  - [x] 🔴**エナゾーンから正しく徴収されるか**（`WX24-P1-047-E1`）＝**実機PASS 2本**（`energyTrashCostDeductsEnergyNotHand` ＋ 対照 `energyTrashCostUnavailableWhenShort`・2026-08-14 続き473）。エナに「Lv1シグニ2枚＋Lv2シグニ＋スペル」を置くと**候補は Lv1シグニ2枚だけ**／支払うと**その2枚だけがトラッシュへ**行き、🔑**手札は1枚も減らない**（旧実装＝**原文と無関係に手札が1枚落ち、しかもエナは減っていなかった**）。**2枚目を Lv2 へ交換するだけ**（総エナ4枚は維持）の対照で **`pay` が `(disabled)`**。
+    - ⚠**検証側で足したドライバ修正**＝**支払い後に `BANISH{targetsStored}` がもう一度 `SELECT_TARGET` を開く**（候補は宣言済み対象に限定）＝**ここに応答しないと `pEff=SELECT_TARGET` のままタイムアウトする**（続き469 の `targetDeclUpToTwoSelectsBoth` と同じ挙動）。**支払い自体は初回から正しく完了していた**。
+  - [x] **自己トラッシュコストが二重に取られないか**（`WX06-CB01-E1`）＝**実機PASS**（`optionalTrashSelfNoHandLoss`・2026-08-13 続き469）。**pay**＝`WX06-CB01` 自身が場からトラッシュへ行き対象がバニッシュされ、🔑**host の手札は1枚も減らない**（旧＝手札1枚＋このシグニの**両方**を失っていた）／**skip**＝**双方のシグニも手札も不変**。⚠**同一 spec を再注入して `optcost-pay`／`optcost-skip` のクリックだけを変える**対照形。
+
+- **✅ V-08 `OPTIONAL_COST{handDiscard}` のモーダル（続き420）＝2026-08-13 続き470 で決着**（Codex 起案→Claude 実機検証・**6シナリオが2回連続PASS**・既定 order 登録済み）。**18効果**で「手札を捨てる／捨てない」のモーダルが新たに出るようになった分。
+  - [x] **絞り込みが効くか**＝**実機PASS**（`handDiscardCostFiltersCandidates`）。⚠**代表カードは `WX18-001-E3` ではなく `WXK09-041`**（同じ `handDiscard.filter`／`canAfford` 経路を**シグニの【自】アタックだけ**で踏めるため。`WX18-001` はルリグ Lv4・GrowCost《黒》×3・《コインアイコン》起動が要る）。**手札に「＜天使＞シグニ1枚＋非該当2枚」**で pay を選ぶと**候補は該当1枚だけ**／支払い後に本体が走り**相手の手札 2→1**。⚠従来は**末尾の1枚が問答無用で落ちていた**。
+  - [x] **`canAfford` が効くか**＝**実機PASS**（`handDiscardCostUnavailableWhenNoMatch`＝**対照**＝手札の該当札を非該当へ**交換するだけ**）。**`pay` が `(disabled)`**（`canAffordOptionalCostSpec`＝`execUtils.ts:250,253-257`）／`skip` しか選べず**本体が走らない**（相手の手札不変）。
+  - [x] **辞退できるか**＝**実機PASS 2本**（`handDiscardSkipBlocksBody` ＋ 対照 `handDiscardPayRunsBody`）。`WXDi-CP01-027-E3` で **skip すると本体（相手シグニを手札に戻す）が走らず**自分の手札も減らない／**pay すると《ガードアイコン》持ちシグニだけが候補**になり、支払うと相手の P10000以下シグニが手札へ戻る。
+  - [x] 🔴**ルリグを対象にするか**＝**実機PASS 2本**（`handDiscardOptionTwoDownsOpponentLrig` ＋ 対照 `handDiscardOptionThreeDownsOpponentSigni`）。`WX25-CP1-004-E1` の**②だけ**を選ぶと **guest の lrigDown=true・両者の signi は全て up**／**③だけ**を選ぶと **guest の signi だけ down・guest lrig は up**＝**②と③で対象が入れ替わっていない**（旧＝自分のシグニがダウンしていた）。⚠**「4つから2つまで選ぶ」は `choose_count:2`＋`upTo:true` の multiSelect**（`effectExecutor.ts:4567`/`:4613`）で、**1つ選んだ時点で「決定」が押せる**（`EffectInteractionModal.tsx:541`）＝**②③を同時に選ぶと対象の切り分けができないので必ず1つずつ**。
+  - 📋**やらなかった**＝`WX18-001-E3` 本体（上記の理由）。⚠**その原文は「捨て**る**」＝強制なのに live は `OPTIONAL_COST`（任意）**という既知差がある＝**仕様判断は未実施**。
+
+- **✅ V-09① 手札捨ての任意コスト＝2026-08-13 続き470 で決着**（上の V-08 と**同一 STUB**なので同じバッチで消化）。`WXK09-041` で ①pay/skip が出る ②**skip で手札が減らず本体も走らない** ③支払うと**＜天使＞のシグニだけ**が候補 ④**該当が0枚なら「支払う」が `(disabled)`**＝**4点すべて実機PASS**。
+
+- **V-09 🔴 任意性脱落の系統消化（続き416〜417）＝残り2件**（①は上で✅・②は続き469 の `optionalTrashSelfNoHandLoss` で✅）＝engine 側は golden で固定したが、**任意コストの pay/skip モーダルが新たに出るカードが 140枚超**あり、実UIでの提示・支払い徴収は golden では踏めない。
+  - [x] ~~**手札捨ての任意コスト（`OPTIONAL_COST{handDiscard}`）**~~＝**✅続き470**（上の V-09① を参照）。
+  - [x] **効果まるごと任意（`OPTIONAL_ACTIVATE`）**＝**実機PASS**（`optionalActivateSkipThenPay`・2026-08-13 続き471）。⚠**PLAN が例示していた `WX07-003` は記述が誤り**＝実データは**ルリグ**（ミルルン・ユニオン Lv4）で、原文は【自】「あなたの**《クロスアイコン》を持つシグニ１体が場に出たとき**、カードを１枚引いてもよい」＝**【出】でドローではない**。⇒ 代わりに **`WXDi-P02-037-E3`**（シグニ／限定なし／【出】「あなたのライフクロス１枚をクラッシュしてもよい」）で検証＝**通常召喚の ON_PLAY で「発動する／発動しない」が出る**／**発動しないと `host.life` 7→7（不変）**・**発動すると 7→6**（確認フローも消化）。⚠**同一 spec を再注入して応答だけを変える**対照形。
+  - [x] ~~**自己トラッシュコスト（`OPTIONAL_TRASH_SELF`）**~~＝**✅続き469**（`optionalTrashSelfNoHandLoss`＝V-07② と同一）。
+  - [x] **`underAnySigniTrash{fromThis}` が「このシグニの下」だけに絞るか**＝**実機PASS**（`underCostFromThisOnly`・`WXK08-052`）。**このシグニの下1枚**と**別シグニの下1枚**を同時に置くと、**候補は自分の下の1枚だけ**／支払うと相手シグニに **−3000**、**別 stack は不変**。
+  - [x] 🔴**新設 `fieldDown`（アップ状態の自シグニをダウン＋色）**＝`WXDi-P04-051`。①**アップ白シグニが3体そろっていないと「支払う」が選べない**＝**実機PASS**（`fieldDownCostRequiresThreeUpWhite`）。②③＝**2026-08-14 続き475d で決着**（→§3 **(cxxviii)** 残0クローズ）。従来は timing が `ON_ATTACK_SIGNI` で**シグニのアタック時に発火→攻撃者が先にダウン→3体そろわない＝恒久 no-op** だった。**engine に `collectAllyLrigAttackTriggers` を新設**（アタック側の味方カードを走査する経路が丸ごと無かった）してから timing を `ON_ATTACK_LRIG`＋`triggerScope:any_ally` へ、帰結を **LRIG 対象**へ是正。⇒ **実機PASS**（`fieldDownCostPaysThreeAndWhite` を**ルリグアタック経路へ書き換え**＝3体down＋白エナ徴収→**ルリグがアップし能力を失う**・シグニは対象外）。⚠**シナリオはライフ枚数を spec で固定する**（ルーム再利用で前シナリオのクラッシュが残ると `before` がずれて完走タイムアウトになる＝実測）。
+
+- **✅ V-10 F-3 身代わりを効果バニッシュへ配線＝2026-08-14 続き475／475c で決着＝5シナリオすべて緑**（`effectBanishSubstituteRunsAutomatically`／`effectBanishNoSubstituteWithoutSacrifice`／`effectBanishSubstituteDiscardsSpell`／`effectBanishLifeCrashSubstitutePaysLife`／`battleBanishSubstituteStillInteractive`）。**在庫だった (cxxix) も engine 修正で残0クローズ**。以下は経緯。
+  - [x] **バトルバニッシュは従来どおり対話モーダルが出る**（＝自動適用に化けていない）＝**実機PASS**（`battleBanishSubstituteStillInteractive`）。`pending_banish_substitute` が立ち、モーダル「身代わりバニッシュ」と待機ログを確認。
+  - [x] 🆕**効果バニッシュの身代わりは「被害側へ問い1件→CPU が選択」で成立する＝2026-08-14 続き475 で 3本とも緑**（`effectBanishSubstituteRunsAutomatically`／`effectBanishNoSubstituteWithoutSacrifice`／`effectBanishSubstituteDiscardsSpell`。**2回連続 ALL PASS**）。⭐**続き474 が「問いなし自動適用」を前提に `asks===0` を要求していたのが誤り**＝`BANISH{count:1}` は `resumeSelectTarget` の hoist（`effectExecutor.ts:7412`）を通るので**問いが1件出るのが現行の正**（V-01 の再検証と整合）。**期待値を `asks===1 かつ victim名を含む` に変え、機構が動いた証拠（§7 📌4）は「問いログ＋身代わりログ」の2本立てで取る**ようにした。⚠**対照側（犠牲なし／非スペル）の `asks===0` は据置**＝置換候補が1本も無いので問いが立たないのが正。
+  - [x] 🆕**driver の位置依存フレークを2件つぶした（続き475）**＝①**盤面は正しいのに `normalLog=false` で落ちる**＝`H.queryState()` の盤面は Supabase 直照会で先に真になるが `game_logs` の行は数百ms遅れる（§7 📌7 と同型）。⇒ **settled 後も PASS しない間は最大12反復ぶんログの到着を待ってから確定**する（単体PASS・3件バッチFAIL の再現を解消）。②**`決定 (1/1)` が出ず 64反復×3秒＝211秒溶かす**（実測1回）＝pick のクリックが React に載らなかったとき。⇒ **`SELECT_TARGET` が続いているうちは pick からやり直す**自己回復を追加。
+  - [x] 🏁**(cxxix)＝`WX14-026` の「コスト0」身代わりを修正（続き475c）**＝真因は `lifeCrash` が `autoEligible:false` でも **`leaveSubstituteAskOptions` は `kind==='optional'` だけで絞るので選択肢には出る**→CPU が選ぶ→**`applyEffectBanishSubstituteChoice` に分岐が無く末尾の `trashStackSpell` へフォールスルー**＝**0枚トラッシュで成立**（実機ログと完全一致）。⇒ **apply 側に `lifeCrash` を実装**（`field.check` を立てて【ライフバースト】確認フローへ乗せる）＋**未実装 costType を列挙段階で落とす `isImplementedSubstituteCost`**。⭐**「同期的に差し込めない」という旧コメントの前提は誤りだった**＝実機で `[CPU] ライフクロスをオープン: …（ライフバーストなし）` まで通しで動く。**`effectBanishLifeCrashSubstitutePaysLife`（旧 `…NotOnEffect`）が guest.life 7→6 で PASS**。
+  - 📋**残る近似（バグではない）**＝**CPU は常に先頭の選択肢を選ぶ**ので、`lifeCrash` しか無い盤面では**必ずライフを払って生き残る**（盤面評価はしない）。原文は「してもよい」なので**辞退も正当**＝人間側 UI では選べる。
+  - 📋**参考（旧記述）**＝下の項目が当初の検証内容。⚠③は**前提が誤っていた**（下の (cxxix) 参照＝`WX14-026` も効果バニッシュで身代わりできるのが正しく、当時は「されない」を期待値にしていた）。
+  - [x] **効果でバニッシュされたときに身代わりが自動で走るか**＝相手の場に `WX12-024`（＋他の＜電機＞）を置き、**バトルではなく効果**で `WX12-024` を狙う → **`WX12-024` が残り、代わりに他の＜電機＞がバニッシュされてログに「身代わり：〜」が出る**こと。あわせて①`WX10-033`（手札のスペル1枚が自動で捨てられる）②**バトルバニッシュは従来どおり対話モーダルが出る**こと③`WX14-026`（ライフクラッシュ型）は**効果バニッシュでは身代わりされない**ことを確認する。⚠**V-01 と同じカードを使うが軸が違う**（V-01 は対話化・こちらは自動適用の配線）。
+
+- **✅ V-11 配置制限ゲートの一本化＝2026-08-14 続き476 で決着＝6シナリオすべて緑**（フラグ版／CONTINUOUS 版＝`fillDeployCaps` 経路／CPU 召喚の3経路とも実UIで効いていることを確認・engine バグ0）。**経緯と罠の詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-14 整理⑭」へ退避**。📋**未カバー＝`deployCountCapOpponent`（自分の効果で相手の場に出す）＝踏むなら V-25 として別立て**。
+
+- **✅ V-12 アタック可否ゲート一本化＋付与ストア共通走査（続き404）＝2026-08-14 続き478 で決着＝8シナリオすべて緑**（続き477 で6/8→続き478 で残り2本が緑へ反転・Codex 起案→Claude 実機検証・既定 order 登録済み）。**在庫だった (cxxxiii) は取り下げ**（＝engine バグではなくシナリオ偽陰性）＋**《ターン2回》未管理の実バグ1件を修正**して残0クローズ。
+  - [x] 🔴**CPU がアタック不可のシグニでアタックしないか**＝**実機PASS 3本**。①`keyword_grants` に「アタックできない」を注入すると、**そのシグニだけ up のまま**・もう1体はアタックして down・**`ATTACK_LRIG` へ前進**（＝`performSigniAttack` の早期 return で同じシグニを選び続ける**無限ループが起きない**）＝`v12CpuCannotAttackGranted` ②**対照**＝`keyword_grants` だけ外すと両方 down＝`v12CpuCannotAttackGrantedControl` ③**別軸**＝防御側 `opp_signi_attack_power_cap:5000` で P3000 だけ up・P7000 は down、cap を外すと両方 down＝`v12CpuPowerCapWithControl`。
+    - 🔑**アタック可否の6軸のうち4軸は `PlayerState` 注入だけで作れる**（`keyword_grants`／`signi_attack_once_limit`＋`attacked_signi_ids`／`opp_signi_attack_power_cap`／`signi_attack_cost`）＝**CPU 側の検証が決定論的に書ける**。
+    - ⚠**アタッカーの正面が空だとライフクラッシュ確認モーダルで止まる**（`VERIFY_BROWSER.md` の既知の罠）＝CPU 観測系は**防御側3ゾーンを埋めて正面を塞ぐ**。実際これで対照2本が最初 FAIL した。
+    - 📋**未カバー**＝`fieldTrashCostAlreadyPaid`（G154 BURST 無効化回避モーダルからの再入）。予約済みコストと再入状態を注入だけで作れないため見送り。
+  - [x] 🔴**付与された【自】が ON_SPELL_USE / ON_SIGNI_BANISH_OPPONENT で発火するか**＝**実機PASS 2本**。(a)`WXDi-P13-008-E3` を**エクシード4で実際に撃って付与**（`lrigUnder` 4→0・`grantedLrigAutoIds` に sub が入る）→ ディソナスペル `WXDi-P12-089` 使用で相手シグニに **-4000**＝`v12GrantedSpellUseMinus4000` (b)`WXDi-P12-041-sub-E1` を付与ストアへ直接注入→**バトルバニッシュで発火**しエナのシグニとアタッカーが入れ替わる／**2回目は《ターン1回》で非発火**（`actions_done` に同 ID が1件だけ）＝`v12GrantedBattleBanishOnce`。
+    - ⚠**swap は2段階**＝①エナから1枚を `SELECT_TARGET` ②`REARRANGE_SIGNI{mode:'swap'}` モーダルで**カード画像を1回クリックすると即確定**（`EffectInteractionModal.tsx:842` 付近＝確定ボタンが無い）。②を押さないと `pending_effect` が `REARRANGE_SIGNI` のまま止まり、**発火しているのに盤面が動かない絵**になる。
+    - ⚠🔎**要確認（断定しない）**＝場に**同名シグニ2体**が居ると swap モーダルの候補で**非アタッカー側**を掴めた（`targetsBattleAttacker` が instance 単位で効いていない疑い）。シナリオは zone1 を別カードにして回避済み。**確証は取っていない**ので、踏むなら候補列を直接見るシナリオを1本立てる。
+  - [x] 🔴**付与された【自】が ON_ENERGY_CHARGE で発火するか＝2026-08-14 続き478 で決着＝実機PASS 2本**（`v12GrantedEnergyChargeTwice`／`v12GrantedEnergyChargeThirdBlocked`）。`SPDi43-13-E2` を【起】から撃って付与→`WXDi-P12-082`（【エナチャージ１】）を1枚ずつ使うと、**各回 `actions_done` に `SPDi43-13-sub-E1` が入り `lrig_down` が false になる**。**3回目（`energy 2→3`）は約5秒待ってもアップしない**＝《ターン2回》が効く。
+    - 🔴**続き477 の「発火しない」は誤りだった**（→§3 (cxxxiii) 取り下げ）＝**シナリオが「エナ増加後の最初の settled 観測」で即 FAIL していた**（📌13 違反）。付与 watcher は `BattleScreen.tsx:1734` の early return により **stack/pending が空になった「あと」の useEffect** で走るので、**最初の settled では必ず未発火**。⚠**対照 `v12PrintedEnergyChargeControl` だけが最初からポーリング型**で、**2本の「判定の待ち方」が非対称**だったことが誤診の原因＝**対照は盤面だけでなく待ち方まで揃える**。
+    - ✅**実在した実バグ＝付与 watcher が `usageLimit` を一切見ず `actions_done` にも書き戻していなかった**。`reserveGrantedAutoUsage`（`src/screens/battle/grantedAuto.ts`）を新設して**この経路だけ**で判定・予約し、`WRITE_STATES` で書き戻す（**印刷能力の走査ループは無変更**＝diff 実査で確認）。golden にトリップワイヤ1本（1975→**1976**）。
+    - ⚠**負方向側も「その瞬間の絵」で確定させない**＝「3回目はアップしない」は**まだ発火していないだけ**と区別が付かないので、**正方向と同じ待機予算（約5秒）**を置いてから確定する形に是正した。
+    - ⚠**SPDi43-13 は【起】が2つあり、E1（《ダウン》でSランサー付与）も「【起】コストなし」と表示される**（ルリグ用のコストラベル生成に `down_self` が無い＝`BattleScreen.tsx:12585` 付近）＝**nth 指定が必須**。→§3 **(cxxxi)** と同根の表示側の穴。
+
+- **✅ V-13 トラッシュ起動のコストUI（続き403）＝2026-08-14 続き478 で決着＝6シナリオすべて緑（engine バグ0）**（Codex 起案→Claude 実機検証・既定 order 登録済み）。**トラッシュゾーンUIからの実発動経路（`getMyTrashCardActions` → `TrashActivatedModal` → `executeTrashActivated` → `execAddToField`）は golden では原理的に踏めない**。全件で **①【起】ボタンが出る ②本体が trash→field で全ゾーン合計1枚（＝複製していない） ③払ったカードが正しいゾーンから減る** を assert。
+  - [x] **アップ状態のレベル2のルリグ2体をダウン**（`WXDi-P04-042`）＝**実機PASS 2本**（`v13TrashActLrigDownTwo` ＋ 対照 `v13TrashActLrigDownTwoNoUpLv2`）。**センター→アシストL の順に自動でダウン**（`down=[true,true,false]`）／**アップしているルリグを Lv1 だけにするだけ**の対照で**【起】が出ない**。
+  - [x] **アタックフェイズ起動＋複合コスト**（`WX19-029`）＝**実機PASS 2本**（`v13TrashActAttackPhaseCombo` ＋ 対照 `v13TrashActAttackPhaseComboShortHand`）。エナ《黒》2枚＋**手札の＜遊具＞2枚**を払って**ダウン状態で**場に出る／**手札総数は維持したまま＜遊具＞を1枚に減らすだけ**の対照で**【起】が出ない**。
+  - [x] **《ディソナアイコン》フィルタつき手札捨て**（`WXDi-P12-053`）＝**実機PASS**（`v13TrashActDisonaDiscardFilter`）。**ディソナ2枚だけ `data-selectable=true`**・非ディソナは false／支払うとディソナ2枚だけが trash へ行き**非ディソナは手札に残る**。
+  - [x] **コイン2＋ON_COIN_PAID 連鎖**（`WXDi-P16-082`）＝**実機PASS**（`v13TrashActCoinChain`）。`coins 2→0`・`coins_paid_this_turn=2`・`WXDi-P15-069-E1` が `actions_done` に入り **+2000 が乗る**。
+  - 📋**やらなかった**＝**【ウィルス】2個除去**（`WX17-049`／`WXEX2-53`）／**【チャーム】1枚トラッシュ**（`WXEX2-73`）／**エナ0コスト＋条件**（`WX11-049`）＝踏むなら V-26 として別立て。
+  - 🔑**セレクタ整備が前提だった**＝`TrashActivatedModal` に `trashact-modal`／`trashact-cancel`／`trashact-cost-summary`（`data-coin-cost`・`data-lrig-down-count`・`data-lrig-down-level`）／`trashact-energy-{i}`／`trashact-hand-{i}`（`data-selectable`）／`trashact-exceed-{i}`／`trashact-pay` を**属性だけ**追加（レイアウト・ロジックは無変更）。⚠**コインとルリグダウンは自動支払いで候補要素が存在しない**ので summary の data 属性で観測する。
+
+- **✅ V-14 §6.3 C 第4波／E（続き397〜402）＝2026-08-14 続き479 で決着＝14シナリオ中13本が緑**（Codex 起案→Claude 実機検証・**13本は2回連続 ALL PASS**・既定 order 登録済み）。**赤1本は engine 実バグの再現用**（→§3 **(cxxxiv)**）。
+  - [x] **裏向きにしたシグニがターン終了時に戻る／トラッシュされるか**＝**実機PASS 3本**（`v14FacedownOwnReturnsHumanEndNoDiscard`／`…Opponent…`／`…OpponentOccupiedTrashes…`）。**解決直後は `field.facedown_signi[i]` に居る**（＝まだ裏向き・`field.signi` ではない）→ human END で**同じゾーンへ表向き復帰**。**相手のシグニを裏返した場合も戻る**／**元ゾーンが埋まっていればトラッシュ**（`turn_end_facedown_signi_returns` の `trashIfOccupied`）。⚠`WXDi-P09-009` の**ターン跨ぎ**は別ライフサイクルなので未着手（踏むなら V-27）。
+  - [x] **解除コストつきアタック制限**（`WX24-P2-010`）＝**実機PASS 3本**（`v14AttackFieldTrashPayTwoHuman`／対照 `…OneHidesAction`／`…CpuDeterministic`）。他シグニ2体を払うと**その2体だけが場→トラッシュ**（各 instance 1枚）でアタッカーが down／**他シグニを1体に減らしただけ**の対照では**アタック action が出ない**／**CPU は左から決定論的に2体**を払う。
+  - [x] **多重アクセ**（`WX20-028`）＝**実機PASS 4本**。**2枚では E2 不発**（アクセ・相手エナ・相手3面をすべて保存）／**3枚で初めて発火**／通常シグニは**2枚目の【アクセ】ボタンが disabled**／**host だけ WX20-028 に替えると enabled**（対照）。🔴**旧形式 `signi_acce` の読み込みは実バグ**＝→§3 **(cxxxiv)**（`v14MultiAcceLegacyStringOneLoads` が**赤のまま既定 order に置いてある**）。
+  - [x] **「このゲームの間」付与がターンを跨いで残るか**＝**実機PASS 3本**。`WXK03-001-E3` の付与2件が `permanentGrant:true` で **human END→CPU ターンを跨いで残存**／`WXDi-P03-003-E1` は `game_granted_effects` に入り END を跨いで残存（ピースはルリグトラッシュへ）／**`UNTIL_OPP_TURN_END` は CPU END で失効**（`v14UntilOppTurnPowerExpiresCpuEnd`＝**CPU END 直前に長期ストアの +4000 を直接観測してから**消滅を2回連続で確認）。
+  - 🔑**検証側で足したドライバ修正3点**＝①**場のシグニは `StackModal` を開く**（`card-detail-modal` は CardModal 専用）ので `stack-detail-modal` を新設して両対応 ②**Playwright の accessible name は全角スペースを ASCII へ畳む**ので regex を `\s*` 化 ③非 MAIN シナリオは `repatchTop` でフェイズ固定。**①②は §7 📌17・18 として登録**。
+
+- **✅ V-18 §6.3 J-2 付与・離脱イベント機構（続き380）＝2026-08-14 続き481 で決着＝6シナリオすべて緑**（Codex 起案→Claude 実機検証・既定 order 登録済み・**engine バグ0**）。
+  - [x] **【ソウル】付与で【自】が発火するか**（`WXDi-D07-019`＝self／`WXDi-D07-004`＝any_ally）＝**実機PASS 2本**。**1枚ずつ付与**して `WXDi-D07-019` 自身に付けると **self と any_ally の両方が発火**／⚠**付与先だけを別シグニに変えた対照**では**ルリグ側だけ発火・self は非発火**＝**`self` scope が他シグニへの付与で誤発火しない**ことを両方向で固定。
+  - [x] **【アクセ】がトラッシュに置かれて【自】が発火するか**（`WXEX2-19-E1`）＝**実機PASS 2本**。`WD18-018` で両軍のホストを同時バニッシュし、**自分の【アクセ】だけ拾ってエナ化**／⚠**付与先を guest に変えただけ**の対照では**相手の【アクセ】はトラッシュに残り非発火**（`any_ally` の極性を固定）。
+  - [x] **`WXK10-049` は付いていない状態ではランサーが付かないか**＝**実機PASS 2本**。**アクセが自身に付いていればアタック時にランサー**／**同じアクセを別シグニに移しただけ**の対照では**付かない**（旧＝条件脱落で常時ランサー）。
+  - 📋**未修正の原文差1件**＝`WXEX2-19-E1` の原文は「《アクセアイコン》を持つレベル2以下」だが、live の filter は `cardType:'シグニ'`＋`level.max:2` だけで **`hasIcon:'アクセ'` が欠落**（engine 側は `execUtils.ts:755` で消費可能＝**parser/JSON の穴**）。⚠**今回の検証はこの過剰範囲に依存していない**（対象を実際にアクセ判定へ通る `WXK05-041` に固定した）。
+
 ## 2026-08-19 整理㊷（§6.4 `O-19b` 完全消化ぶんの退避・続き567）
 
 > PLAN §6.4 の worklist 行を verbatim で退避（残0クローズ）。PLAN 側には消化済み索引の1行だけ残す。
