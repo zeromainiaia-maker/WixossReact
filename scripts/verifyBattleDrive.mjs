@@ -21264,6 +21264,38 @@ scenarios.v51LeaveSubstituteUnpayableBanishesNormally = {
 order.push('v51LeaveSubstitutePaysAndSurvives', 'v51LeaveSubstituteUnpayableBanishesNormally');
 // ── V-51 END ──
 
+// ── §7 V-57（O-10・続き566）(a)のみ ──
+// `WXDi-P05-006`（永遠♡不滅　きゅるきゅる～ん☆）は【使用条件】【チーム】ピース＝
+// ACTIVATED効果のconditionに`OPP_USING_TEAM_PIECE`を含む＝`pieceCutin.ts`の`team_piece_cutin_window`
+// フラグが立っているときだけ`evalUseCondition`が通る。通常のMAINフェイズ（窓なし）では
+// 「使用」ボタン自体が出ないはず（旧実装はcondition無視でボタンが出て《青×0》で撃ち放題だった）。
+scenarios.v57TeamConditionPieceNoUseButtonOutsideCutin = {
+  title: 'V-57(a) 【使用条件】【チーム】ピースはカットイン窓の外（通常MAIN）では「使用」ボタンが出ない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9930'], 'lrig_deck': ['WXDi-P05-006#9931'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9932'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(600);
+    await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(600);
+    const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+    const visible = await useBtn.count() > 0 && await useBtn.isVisible().catch(() => false);
+    const detail = `「使用」ボタン可視=${visible}（期待false＝カットイン窓の外では出ない）`;
+    H.log(`  v57teampiece ${detail}`);
+    return { pass: !visible, detail };
+  },
+};
+order.push('v57TeamConditionPieceNoUseButtonOutsideCutin');
+// ── V-57 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
