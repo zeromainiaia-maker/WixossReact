@@ -19424,26 +19424,28 @@ const v78CpuGrowOnPlaySpec = (hasCoin) => ({
 
 const driveV78CpuGrowOnPlay = async (page, H, expectOnPlay) => {
   let grewLog = false;
+  let drewLog = false;   // DRAW本体（execDraw の `N枚ドロー` ログ）が解決した証拠＝hand終値は
+                          // CPUが引いた札をそのまま召喚してしまうと確認に使えない（既知の罠）ので使わない。
   let fin = null;
   let handedOver = false;
   for (let s = 0; s < 60; s++) {
     const st = await H.queryState();
     fin = st;
     if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] グロウ'))) grewLog = true;
+    if ((st?.logTail ?? []).some(l => /枚ドロー/.test(String(l)))) drewLog = true;
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
     await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
   const grewLrig = (fin?.guest?.lrigTop ?? '').startsWith('WDK01-003');
   const coinsSpent = (fin?.guest?.coins ?? -1) === 0;          // コスト付き任意【出】が自動で払われた証拠
-  const handGrew = (fin?.guest?.hand ?? 0) >= 1;               // DRAW本体が解決した証拠
   const detail = `grewLog=${grewLog} / grewLrig=${grewLrig}（lrigTop=${fin?.guest?.lrigTop}） / `
-    + `coins終値=${fin?.guest?.coins}（期待${expectOnPlay ? 0 : 0}） / hand終値=${fin?.guest?.hand}（期待${expectOnPlay ? '≥1' : '参考'}） / `
-    + `handedOver=${handedOver} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    + `coins終値=${fin?.guest?.coins}（期待0） / drewLog=${drewLog}（期待${expectOnPlay}） / hand終値=${fin?.guest?.hand}（参考） / `
+    + `handedOver=${handedOver} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-8))}`;
   H.log(`  v78cpuGrow ${detail}`);
   if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
   if (!grewLrig) return { pass: false, detail: `🔴グロウしなかった（${detail}）` };
-  const ok = expectOnPlay ? (coinsSpent && handGrew) : !handGrew;
+  const ok = expectOnPlay ? (coinsSpent && drewLog) : !drewLog;
   return { pass: ok, detail };
 };
 
