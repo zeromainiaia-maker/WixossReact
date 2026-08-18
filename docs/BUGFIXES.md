@@ -1,5 +1,29 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き567・Opus 5）— §6.4 `O-19b`＝到達不能な `ArtsModal` Phase1（アーツ一覧）を削除＝🏁§6.4 の worklist が残0
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors・262 warnings）。**live JSON・CSV とも非改変**（変更は UI 3ファイル：`ArtsModal.tsx` / `BattleScreen.tsx` / `cardNameUseBlock.ts`）。version 0.497→0.498。
+
+### 1. 何が残っていたか（真因＝入口の二重化の残骸）
+
+`ArtsModal` は2相構成だった＝**Phase1「アーツ一覧」**（ルリグデッキのアーツを並べ、実効コストと「エナ不足」を出す）→ **Phase2「コスト支払い」**。ところが `showArtsModal` を立てる**唯一の入口 `openArtsModal(card, effectiveCost)` が必ず `pendingArtsCard` も同時に立てる**ため、`!pendingArtsCard` で分岐する Phase1 には**構造上たどり着けない**（続き552 で発見）。人間の提示ゲートはルリグデッキのカード詳細「使用」1箇所だけ。
+
+⚠この二重化が**コスト計算の入口を割っていた**のが本質的な害＝`altCostOppTurn`（相手ターンの代替コスト）は詳細側だけ、「使用時の任意支払いによる軽減」は Phase1 側だけを見ていた。続き552 で**提示・コスト計算は `artsUseGate.checkArtsUse` に一本化**済みだが、Phase1 の死にコード自体が残っていた。
+
+### 2. どう直したか（二択のうち①「消す」を採用）
+
+- `src/screens/battle/modals/ArtsModal.tsx`＝**Phase1 ブロック 119行を削除**。三項 `{!pendingArtsCard ? (Phase1) : (() => Phase2)()}` を `{(() => Phase2)()}` に畳み、レンダリングは **`{showArtsModal && pendingArtsCard && createPortal(...)}`** でガード（`pendingArtsCard` は const なので IIFE 内でも非 null に絞られる＝tsc で確認）。`artsCandidates` prop と、Phase1 でしか使っていなかった import（`applyContinuousCostDecreases` / `computeArtsEffectiveCost` / `energyPoolCardNums`）・ctx フィールド（`myLrigNameAliases` / `myArtsThresholdReductions`）も削除。
+- `src/screens/BattleScreen.tsx`＝**`artsCandidates` の算出 11行**（`lrig_deck` → 型フィルタ → `cardNameUseBlocked` → `canUseArtsCondition`）と prop 受け渡しを削除。同じ判定は `checkArtsUse` / `listUsableArts` が持っている。
+- `src/screens/battle/cardNameUseBlock.ts`＝ヘッダコメントの `artsCandidates` 参照を「削除済み」注記へ更新（消えたシンボル名を残さない）。
+
+**②「アーツ一覧の入口を戻して `listUsableArts` で描き直す」を採らなかった理由**＝一覧を戻すと `checkArtsUse` と並ぶ**2本目のコスト計算入口**が復活し、まさに今回の割れ（`altCostOppTurn` / 使用時の任意支払い）を再生産する。将来一覧 UI が欲しくなったら **`listUsableArts` の戻り値（`check.effectiveCost` / `betCost` / `affordable`）を描画するだけ**にすること＝計算をモーダル側へ戻さない。
+
+### 3. 挙動への影響＝不変（削除したのは到達不能コードのみ）
+
+旧 Phase1 の「コスト0かつブーストコスト無しなら即 `executeArts`」ショートカットも同様に到達不能だったので、**コスト0のアーツは従来どおり Phase2 の「アーツ使用」ボタンで撃つ**（今回の削除で変わっていない）。観測点として §7 に **`V-81`** を登録（ルリグデッキ詳細「使用」→コスト選択→使用が通ること・コスト0アーツ含む／実機未検証）。
+
+⚠**引き継ぎ**＝Phase2 の `specificAlreadyApplied`（`SPECIFIC_CARD_COST_REDUCE` と【チェイン】軽減の**二重適用防止**）は「`pendingArtsEffectiveCost` は既に軽減適用後の値」という不変条件に依拠している。その出どころが Phase1 から **`checkArtsUse.effectiveCostForModal`**（＝`applyNextArtsCostReduction(applySpecificCardCostReduction(...))` 適用後、印刷コストと同値なら `null`）へ移った＝コメントを更新済み。gate 側の実効コスト式を触るときはこの不変条件を壊さないこと。
+
 ## 2026-08-19（続き566・Sonnet 5）— §7 実機検証を継続＝`V-38`／`V-36`／`V-49`／`V-47`／`V-31`／`V-32`／`V-34`／`V-37`／`V-33`／`V-48`／`V-50`／`V-46`／`V-52`／`V-51`／`V-57`／`V-54`／`V-55` の17件 ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規17件・計28シナリオ ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.496→0.497。「さらに20件行う」要求に対し、V-46〜V-52（4-path複合検証）を主軸に据えて着手し、V-30（ターン境界の跨ぎ確認）は実機で3回試行したが**注入自体がターン境界クリア済み状態で始まる設計限界**（`turn_phase:'END'`直接注入が room 正規化時に既にターン終端の失効処理を1回走らせてしまう＝テスト設計側の限界であって engine バグではないと判断）のため見送り、17件で区切った。

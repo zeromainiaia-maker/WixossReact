@@ -6,6 +6,33 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+> **2026-08-19 続き567 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き566（§7 実機検証継続＝17件 ALL PASS で残0クローズ）後 最新値（本行が直近の正）**：
+  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2295 据置**、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
+  fuzz 全0、lint **0 errors**（263 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
+  manual-fields **0**、`parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**＝live 非改変なので
+  〔★0・未カバー0・wiring miss 193〕から動いていないはず）。
+  **live 効果総数 10693**（live JSON・CSV とも非改変）。version **0.497**。
+  🆕**実機シナリオ総数 407**（+28＝V-38×2・V-36×2・V-49×1・V-47×2・V-31×2・V-32×2・V-34×2・V-37×2・V-33×2・
+  V-48×1・V-50×4・V-46×1・V-52×2・V-51×2・V-57×1・V-54×2・V-55×1）。
+  🆕**実機 PASS（続き566 実測）＝17件・計28シナリオ ALL PASS（2回連続）**。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**＝
+  ドライバー側の不安定化を疑うが engine 側の回帰ではない。
+  🆕**Opusタスク12＝在庫3件据置**（(cxxxv)続き559／(cxxxvi)(cxxxvii)続き562で登録・未修正）。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き566）。
+
+## 2026-08-19 整理㊷（§6.4 `O-19b` 完全消化ぶんの退避・続き567）
+
+> PLAN §6.4 の worklist 行を verbatim で退避（残0クローズ）。PLAN 側には消化済み索引の1行だけ残す。
+> 一次記録は `BUGFIXES.md` 2026-08-19（続き567）。観測点は §7 `V-81`。
+
+- **原記述（`O-19b`）**：🆕**到達不能な `ArtsModal` Phase1（アーツ一覧）の始末**｜小｜2026-08-18 続き552 に発見＝`showArtsModal` を立てる唯一の入口 `openArtsModal` が**必ず `pendingArtsCard` も立てる**ので、Phase1（アーツ一覧＋「エナ不足」表示）へは**構造上たどり着けない**。生きている人間の提示ゲートは**ルリグデッキのカード詳細「使用」1箇所だけ**。⚠この二重化が原因で**コスト計算の入口が割れていた**（`altCostOppTurn` は詳細側だけ／「使用時の任意支払い軽減」は Phase1 側だけ）。続き552 で提示側は `artsUseGate.checkArtsUse` に一本化したが、**Phase1 の死んだコード自体は残っている**＝①消す（`artsCandidates` ごと）か ②アーツ一覧の入口を戻して `listUsableArts` で描き直すか、の二択。
+- **消化（続き567）＝①を採用**＝`ArtsModal.tsx` の Phase1 ブロック（119行）と `BattleScreen.tsx` の `artsCandidates`（11行＋prop 受け渡し）を削除。モーダルは `showArtsModal && pendingArtsCard &&` でガードし、以降は**コスト支払い（旧 Phase2）だけの単相**になった。**②を採らなかった理由**＝一覧を戻すと `checkArtsUse` と並ぶ**2本目のコスト計算入口**が復活する（この二重化こそが `altCostOppTurn`／「使用時の任意支払い軽減」の割れの真因）。一覧が欲しくなったら `listUsableArts` の戻り値（`check.effectiveCost` / `betCost` / `affordable`）を**描画するだけ**にすること＝計算をモーダルへ戻さない。
+- **挙動不変**（削除したのは到達不能コードのみ）。旧 Phase1 の「コスト0なら即 `executeArts`」経路も同様に到達不能だったので、コスト0のアーツは従来どおり Phase2 の「アーツ使用」ボタンで撃つ。⚠ただし Phase2 の `specificAlreadyApplied`（`SPECIFIC_CARD_COST_REDUCE` と【チェイン】軽減の二重適用防止）が依拠する**「`pendingArtsEffectiveCost` は軽減適用後の値」という不変条件の出どころが `checkArtsUse.effectiveCostForModal` に移った**＝コメントを更新済み。gate 側の式を触るときはこの不変条件を壊さないこと。
+
 ## 2026-08-19 整理㊶（§7 `V-38`／`V-36`／`V-49`／`V-47`／`V-31`／`V-32`／`V-34`／`V-37`／`V-33`／`V-48`／`V-50`／`V-46`／`V-52`／`V-51`／`V-57`／`V-54`／`V-55` 完全消化ぶんの退避・続き566）
 
 > PLAN §7 🅱 にあった17件の全ブロックを verbatim で退避（残0クローズ）。PLAN 側には1行✅サマリだけ残す。

@@ -6143,17 +6143,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   const fieldSigniTotal = fieldSigniTopLevels.reduce((s, l) => s + l, 0);
 
 
-  // アーツ候補（自分の lrig_deck からアーツカード）
-  // 'アーツ' と 'アーツ/クラフト'（改造素材 WXK09-TK-01A 等8枚）は同じプレイ経路で使用できる。
-  const artsCandidates: CardData[] = my.lrig_deck
-    .filter((num, i, arr) => arr.indexOf(num) === i)
-    .map(num => battleCardMap.get(num))
-    .filter((c): c is CardData => !!c && (c.Type === 'アーツ' || c.Type === 'アーツ/クラフト'))
-    // ⚠**カード名の使用封じはここにも要る**＝従来この一覧だけ素通りで、名指しで封じたアーツが普通に使えた（§6.4 O-3）
-    .filter(c => !cardNameUseBlocked(my, c.CardName, c.Type))
-    .filter(c => canUseArtsCondition(
-      effectsMap.get(c.CardNum) ?? [], my, op, battleCardMap, c.CardNum, bs.turn_phase, effectivePowers));
-
   // アシストグロウ候補（各ゾーンごとに、lrig_deck からアシストルリグを検索）
   const getAssistGrowCandidates = (side: 'l' | 'r'): CardData[] => {
     if (!bs) return [];
@@ -13847,7 +13836,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       <GrowModal ctx={modalCtx} showGrowModal={showGrowModal} setShowGrowModal={setShowGrowModal} pendingGrowCard={pendingGrowCard} setPendingGrowCard={setPendingGrowCard} selectedGrowCost={selectedGrowCost} setSelectedGrowCost={setSelectedGrowCost} freeGrowFilter={freeGrowFilter} setFreeGrowFilter={setFreeGrowFilter} growCandidates={growCandidates} currentLrigLevel={currentLrigLevel} executeGrow={executeGrow} toggleGrowCostCard={toggleGrowCost} />
 
       {/* アーツ使用モーダル */}
-      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} selectedArtsUseCostPay={selectedArtsUseCostPay} setSelectedArtsUseCostPay={setSelectedArtsUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} artsCandidates={artsCandidates} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
+      <ArtsModal ctx={modalCtx} showArtsModal={showArtsModal} setShowArtsModal={setShowArtsModal} pendingArtsCard={pendingArtsCard} setPendingArtsCard={setPendingArtsCard} pendingArtsEffectiveCost={pendingArtsEffectiveCost} setPendingArtsEffectiveCost={setPendingArtsEffectiveCost} selectedArtsCost={selectedArtsCost} setSelectedArtsCost={setSelectedArtsCost} selectedArtsDiscard={selectedArtsDiscard} setSelectedArtsDiscard={setSelectedArtsDiscard} selectedArtsUseCostPay={selectedArtsUseCostPay} setSelectedArtsUseCostPay={setSelectedArtsUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} isBoosting={isBoosting} setIsBoosting={setIsBoosting} isEncore={isEncore} setIsEncore={setIsEncore} keySubstituteEnabled={keySubstituteEnabled} setKeySubstituteEnabled={setKeySubstituteEnabled} executeArts={executeArts} toggleArtsCostCard={toggleArtsCost} />
 
       {/* スペル発動コスト選択 */}
       <SpellCastModal ctx={modalCtx} pendingSpellCast={pendingSpellCast} setPendingSpellCast={setPendingSpellCast} selectedSpellCost={selectedSpellCost} setSelectedSpellCost={setSelectedSpellCost} selectedSpellDiscard={selectedSpellDiscard} setSelectedSpellDiscard={setSelectedSpellDiscard} selectedSpellUseCostPay={selectedSpellUseCostPay} setSelectedSpellUseCostPay={setSelectedSpellUseCostPay} betAmount={betAmount} setBetAmount={setBetAmount} toggleSpellCostCard={toggleSpellCost} castSpell={castSpell} />

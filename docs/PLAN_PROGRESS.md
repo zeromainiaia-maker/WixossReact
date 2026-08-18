@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き566・Sonnet 5）＝§7 実機検証を継続＝`V-38`／`V-36`／`V-49`／`V-47`／`V-31`／`V-32`／`V-34`／`V-37`／`V-33`／`V-48`／`V-50`／`V-46`／`V-52`／`V-51`／`V-57`／`V-54`／`V-55` の17件 ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規17件・計28シナリオ ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.496→0.497。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き566）。
+  - **✅ V-38／V-36／V-33／V-47＝ルリグ・シグニのダメージシールド／アタック税4種は回帰なし**（`signi_attack_bans_this_turn`のappliesTo:'LRIG'／`BLOCK_FRONT_SIGNI_ATTACK`／`PREVENT_LOW_LEVEL_LRIG_DAMAGE`（キー走査込み）／手札0枚条件シールド＝いずれも既存の判定関数へ直接注入するだけで検証できた）。
+  - **✅ V-49／V-48／V-50／V-46／V-52＝`granted_effects`/`lrig_granted_auto_effects`直接注入シリーズ**（`lrig_abilities_disabled`の付与能力抑止・ON_ATTACK_LRIG+UP・`own_effects_cannot_negate_signi_attack_this_turn`のシグニ限定確認・感染限定の部分強制アタック・`declared_guard_restrict_level`のガード制限）。
+  - **✅ V-31／V-32／V-34＝`blocked_actions`/期間つき保護の直接注入シリーズ**（`PAY_ENERGY_COST`／`ENERGY_PHASE`フェイズスキップ／`opp_move_immunity`のエナゾーン移動不可）。
+  - **✅ V-37／V-51＝`granted_effects`のON_ATTACK+BANISH系・場離れ置換シリーズ**（対象付与のバニッシュ税／`EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY`の緑シグニ場離れ置換）。
+  - **✅ V-57／V-54／V-55＝ボタン生成側の条件反映3件**（【使用条件】【チーム】ピースのカットイン窓外非表示／`TRASH_ABILITY_LOSS_AND_IMMUNITY`のトラッシュ【起】封じ／`CHECK_ZONE_FLIP_FREE_GROW`の無料グロウ＋【出】発火）。**V-55は事前調査で「グロウ先カードDB欠落の実バグ」と一時誤認したが、クリック段数の見誤りと判明＝バグではなかった**（grep不一致だけでDB欠落と断定しない教訓）。
+  - 📋**follow-up＝V-30は見送り**（`lrig_abilities_disabled`のターン境界クリア確認を試みたが、`turn_phase:'END'`直接注入だとroom正規化時に既にターン終端の失効処理が走ってしまう設計限界に3回とも当たり、engine側の実バグと切り分けられなかった）。`V-63`（続き542/564から見送り継続）／`V-28`／`V-29`／`V-35`も今回未着手。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-28`／`V-29`／`V-30`／`V-35`／`V-63`（いずれも見送り分）／それ以前の約28件**が未検証。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も要再現確認**（続き556 記録・未解決）。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫3件据置**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）＝**次の Opus セッションはまずこれを消化**。🏁**§6.4 は 2026-08-19 続き567 で `O-19b` を消化＝残0**（`O-1` の (g) だけが §7 実機検証待ちで別枠）。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-28`／`V-29`／`V-30`／`V-35`（ターン境界／複数ターン遷移系＝室注入の設計を見直してから着手）または `V-63`（見送り分）から。
+
 - **🆕 セッション（2026-08-18・続き565・Sonnet 5）＝§7 実機検証を継続＝`V-60`（コンバート出【出】の比例回収）・`V-56`／`V-59`（前回1回PASSの2回目確認）・`V-53`（白以外スペル封じの2軸）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.495→0.496。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き565）。
   - **✅ V-60＝WXEX1-44【出】の比例回収は回帰なし**（手札1枚→エナ送りに対しエナ→手札回収も1枚＝1:1確認）。🔑**この1本だけで罠3つ**＝①Lv4シグニは「シグニLv≤ルリグLv」制限で低Lv LRIGだと召喚ボタンが出ない②WXEX1-44はRestriction=「メル限定」でクラス不一致のLRIGでも出ない（LRIGをメルLv4の`WD18-001`に差し替えて解消）③`my-hand-card-N`は`spec.hand`の配列順そのまま（前回セッションの「CardNum昇順ソート」仮説は実測で否定）。SELECT_TARGET選択もimg直クリックは効かず`H.stdStep()`のpick-0経由が必須。
   - **✅ V-56／V-59＝前回1回PASSのみだった2件を再実行し2回連続PASSで確認完了**（新規コードなし）。

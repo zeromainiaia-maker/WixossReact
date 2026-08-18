@@ -9,8 +9,9 @@ import type { PlayerState } from '../../types';
  *  - `arts_name_whitelist_this_turn`（このターン・**whitelist**／「宣言したカード名以外のアーツを使用できない」）
  *
  * ⚠**軸ごとに読み手を書かない**。従来は blacklist 2本だけが手札スペル／ルリグデッキのタップ経路で
- *   個別に読まれており、**アーツ一覧（`artsCandidates`）と実行入口（`executeArts`）は素通り**だった
+ *   個別に読まれており、**アーツの一覧と実行入口（`executeArts`）は素通り**だった
  *   ＝カード名で封じても一覧からは普通に使えた。判定はこの1関数に集約する。
+ *   （その一覧＝旧 ArtsModal Phase1 は到達不能な死にコードとして削除済み。§6.4 `O-19b`）
  */
 export function cardNameUseBlocked(
   state: Pick<PlayerState, 'blocked_card_names' | 'blocked_card_names_game' | 'arts_name_whitelist_this_turn'>,

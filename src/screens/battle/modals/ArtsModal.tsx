@@ -4,10 +4,10 @@ import type { Dispatch, SetStateAction } from 'react';
 import type { CardData } from '../../../types';
 import { splitColors } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { applyContinuousCostDecreases, computeArtsEffectiveCost, computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
+import { computeCostReplacement, canAffordWithExtraCost, parseGrowCost, parseBetOptions, parseBoostCost, parseEncoreCost, isMultiEna, applySpecificCardCostReduction, applyNextArtsCostReduction } from '../costs';
 import { parseUseTimeCostReduction, useTimeCostCandidates, applyUseTimeCostReduction, useTimeCostSelectionValid } from '../useTimeCost';
 import { UseCostPaymentPanel } from './UseCostPaymentPanel';
-import { energyPoolCardNums, energyPayEntryLabel } from '../energyPaySource';
+import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
 
 interface ArtsModalProps {
@@ -32,17 +32,16 @@ interface ArtsModalProps {
   setIsEncore: Dispatch<SetStateAction<boolean>>;
   keySubstituteEnabled: boolean;
   setKeySubstituteEnabled: Dispatch<SetStateAction<boolean>>;
-  artsCandidates: CardData[];
   executeArts: (card: CardData, costIndices: Set<number>, betCoins?: number, encore?: boolean, discardIndices?: Set<number>, useKeySub?: boolean, boosting?: boolean, useCostPayKeys?: Set<string>) => void;
   toggleArtsCostCard: (idx: number) => void;
 }
 
 export function ArtsModal(p: ArtsModalProps) {
-  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, myLrigNameAliases, myArtsThresholdReductions, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
-  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, artsCandidates, executeArts, toggleArtsCostCard } = p;
+  const { my, op, loading, battleCards, battleCardMap, effectsMap, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, myEnergyTrashSubInfo, activeCostMods, specificCardCostReductions, isActionBlocked, pickLongPressTimer, setExpandedPickImgUrl , myEnergyPayPool } = p.ctx;
+  const { showArtsModal, setShowArtsModal, pendingArtsCard, setPendingArtsCard, pendingArtsEffectiveCost, setPendingArtsEffectiveCost, selectedArtsCost, setSelectedArtsCost, selectedArtsDiscard, setSelectedArtsDiscard, selectedArtsUseCostPay, setSelectedArtsUseCostPay, betAmount, setBetAmount, isBoosting, setIsBoosting, isEncore, setIsEncore, keySubstituteEnabled, setKeySubstituteEnabled, executeArts, toggleArtsCostCard } = p;
   return (
     <>
-      {showArtsModal && createPortal(
+      {showArtsModal && pendingArtsCard && createPortal(
         <div onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setSelectedArtsCost(new Set()); setSelectedArtsUseCostPay(new Set()); setBetAmount(0); setIsEncore(false); setKeySubstituteEnabled(false); }}
           style={{ position: 'fixed', inset: 0, zIndex: 3500,
             backgroundColor: 'rgba(0,0,0,0.92)',
@@ -53,129 +52,13 @@ export function ArtsModal(p: ArtsModalProps) {
               padding: '20px 16px', width: 'min(92vw, 360px)', maxHeight: '85vh',
               display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-            {!pendingArtsCard ? (
-              /* Phase 1: アーツ選択 */
-              <>
-                <p style={{ color: C.textSub, fontSize: 15, fontWeight: 'bold', margin: 0, textAlign: 'center' }}>
-                  アーツを選択
-                </p>
-                <div style={{ overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {(() => {
-                    const myLrigCard = battleCardMap.get(my.field.lrig.at(-1) ?? '');
-                    const myLrigName = myLrigCard?.CardName;
-                    const myLrigLevel = myLrigCard ? parseInt(myLrigCard.Level ?? '0') : 0;
-                    const oppLrigColor = battleCardMap.get(op.field.lrig.at(-1) ?? '')?.Color ?? '';
-                    return artsCandidates.map(card => {
-                    // SPECIFIC_CARD_COST_REDUCE（タスク12(xci)）も通す＝発生源はカード名で対象を指すので、
-                    // 将来アーツが対象になっても静かに落ちない（実測の現対象2枚はスペル）。
-                    // 【チェイン】が積んだ「次に使用するアーツ」の軽減（タスク12(xciii)）＝
-                    // カード個別ではなくプレイヤー状態なので、全候補に等しく効く。
-                    const effCost = applyNextArtsCostReduction(applySpecificCardCostReduction(applyContinuousCostDecreases(
-                      computeArtsEffectiveCost(card, my, myLrigName, oppLrigColor, myLrigLevel, battleCardMap, myLrigNameAliases, myArtsThresholdReductions, { oppState: op, cardCostReplacements: my.card_cost_replacements }),
-                      'アーツ', card.Color, activeCostMods.forMy), card.CardName, specificCardCostReductions), my.next_arts_cost_reduction);
-                    const extraArtsCosts = activeCostMods.forMy
-                      .filter(m => m.direction === 'increase' && m.targetCardType === 'アーツ')
-                      .flatMap(m => m.amount);
-                    const boostCost = parseBoostCost(card.EffectText ?? '');
-                    const betSpecBadge = parseBetOptions(card.EffectText ?? '');
-                    // ベット宣言で使用コストが置換される札（タスク12(lxxxi)）＝宣言は Phase2 なので
-                    // 一覧では印刷コストのまま表示し、**「ベットすれば払える」かだけ**を使用可否に加える。
-                    // これを入れないと《赤》×4→《赤×0》の札がエナ不足で開けず、ベット宣言に到達できない。
-                    const betCoinMin = betSpecBadge.variable ? 1 : Math.min(...betSpecBadge.options, Infinity);
-                    const betPossibleHere = !isActionBlocked('BET') && !my.negate_coin_abilities
-                      && Number.isFinite(betCoinMin) && my.coins >= betCoinMin;
-                    const betCost = betPossibleHere
-                      ? computeCostReplacement(card, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
-                      : null;
-                    // 使用時の任意支払いによる軽減（タスク12(lxxxv)）も同じ理由で使用可否に加える＝
-                    // 支払いは Phase2 なので、一覧で印刷コストだけを見ると《白》×3→なしの札に到達できない。
-                    const useCostSpecHere = parseUseTimeCostReduction(card.EffectText ?? '');
-                    const useCostMaxHere = useCostSpecHere
-                      ? Math.min(useCostSpecHere.max, useTimeCostCandidates(useCostSpecHere, my, battleCardMap).length) : 0;
-                    const useCostMinCost = useCostSpecHere && useCostMaxHere > 0
-                      ? applyUseTimeCostReduction(effCost, useCostSpecHere, useCostMaxHere) : null;
-                    const canAfford =
-                      canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, effCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase) ||
-                      (betCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, betCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase)) ||
-                      (useCostMinCost !== null && canAffordWithExtraCost(energyPoolCardNums(myEnergyPayPool), battleCards, useCostMinCost, extraArtsCosts, my.keyword_grants, myEnaAllMulti, myEnaMultiStripped, myColorlessOverrides, myColorSubs, myEnergyExtraColors, undefined, undefined, undefined, my.cannot_pay_colorless_this_attack_phase));
-                    const totalReq = parseGrowCost(effCost).reduce((s, c) => s + c.count, 0);
-                    const betBadge = betSpecBadge.variable ? 'ベット: 好きな枚数'
-                      : betSpecBadge.options.length > 1 ? `ベット: ${betSpecBadge.options.join('か')}枚`
-                      : betSpecBadge.options.length === 1 ? `ベット: コイン${betSpecBadge.options[0]}枚` : '';
-                    const costReduced = effCost !== card.Cost;
-                    return (
-                      <button key={card.CardNum}
-                        onClick={() => {
-                          if (!canAfford) return;
-                          setBetAmount(0);
-                          setIsBoosting(false);
-                          if (totalReq === 0 && boostCost.length === 0) { executeArts(card, new Set()); }
-                          else {
-                            setPendingArtsCard(card);
-                            setPendingArtsEffectiveCost(costReduced ? effCost : null);
-                            setSelectedArtsCost(new Set());
-                          }
-                        }}
-                        disabled={loading || !canAfford}
-                        style={{ display: 'flex', alignItems: 'center', gap: 10,
-                          padding: '8px 12px', borderRadius: 8, border: C.borderUI,
-                          backgroundColor: canAfford ? C.bgButton : C.bgButtonDark,
-                          cursor: (loading || !canAfford) ? 'default' : 'pointer',
-                          opacity: canAfford ? 1 : 0.5, textAlign: 'left' }}>
-                        <img src={card.ImgURL} alt={card.CardName}
-                          style={{ width: 44, height: 62, objectFit: 'cover', borderRadius: 4, flexShrink: 0 }}
-                          onError={e => { const img = e.target as HTMLImageElement; if (!img.src.endsWith('/ErrerCard.webp')) img.src = '/ErrerCard.webp'; }} />
-                        <div>
-                          <p style={{ color: C.text, fontSize: 13, fontWeight: 'bold', margin: '0 0 2px' }}>
-                            {card.CardName}
-                          </p>
-                          <p style={{ color: C.textDim, fontSize: 11, margin: '0 0 2px' }}>
-                            コスト: {costReduced ? <><s style={{ color: C.textFaint }}>{card.Cost}</s> → {effCost}</> : (card.Cost || 'なし')}
-                          </p>
-                          <p style={{ color: C.textFaint, fontSize: 10, margin: 0 }}>
-                            {card.Timing}
-                          </p>
-                          {betBadge && (
-                            <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>
-                              {betBadge}
-                            </p>
-                          )}
-                          {(() => {
-                            const encoreCost = parseEncoreCost(card.EffectText ?? '');
-                            if (!encoreCost) return null;
-                            const encoreEnaStr = encoreCost.energy.map(e => `《${e.color}》${e.count > 1 ? `×${e.count}` : ''}`).join('');
-                            const encoreCoinStr = encoreCost.coins > 0 ? ` コイン${encoreCost.coins}枚` : '';
-                            return (
-                              <p style={{ color: '#88ddff', fontSize: 10, margin: '2px 0 0' }}>
-                                アンコール: {encoreEnaStr}{encoreCoinStr}
-                              </p>
-                            );
-                          })()}
-                          {!canAfford && (
-                            <p style={{ color: C.danger, fontSize: 10, margin: '2px 0 0' }}>エナ不足</p>
-                          )}
-                          {canAfford && betCost !== null && (
-                            <p style={{ color: C.coin, fontSize: 10, margin: '2px 0 0' }}>ベット宣言でコスト → {betCost}</p>
-                          )}
-                          {canAfford && useCostMinCost !== null && useCostMinCost !== effCost && (
-                            <p style={{ color: '#88ffaa', fontSize: 10, margin: '2px 0 0' }}>使用時の任意支払いでコスト → {useCostMinCost}</p>
-                          )}
-                        </div>
-                      </button>
-                    );
-                  });
-                  })()}
-                </div>
-                <button onClick={() => { setShowArtsModal(false); setPendingArtsCard(null); setPendingArtsEffectiveCost(null); setSelectedArtsCost(new Set()); setBetAmount(0); }}
-                  style={{ padding: '8px 0', borderRadius: 8, border: C.borderUI,
-                    backgroundColor: 'transparent', color: C.textDim, cursor: 'pointer', fontSize: 13 }}>
-                  キャンセル
-                </button>
-              </>
-            ) : (() => {
-              /* Phase 2: コスト支払いカード選択 */
+            {(() => {
+              /* コスト支払い（ベット/アンコール/キー代替/使用時の任意支払い）。
+                 ⚠**カード未確定の入口はもう無い**（§6.4 `O-19b`）＝唯一の入口 `openArtsModal` が必ず
+                 `pendingArtsCard` を立てるので、旧「Phase1: アーツ一覧」は到達不能な死にコードだった（削除済み）。
+                 提示可否と実効コストは `artsUseGate.checkArtsUse` が唯一の funnel（コスト計算の入口を増やさない）。 */
               // ベット宣言でコストが置換される札（タスク12(lxxxi)）は betAmount に追従して再計算する
-              // （Phase1 で確定させた pendingArtsEffectiveCost は宣言前の値なので使えない）。
+              // （gate から渡された pendingArtsEffectiveCost は宣言前の値なので使えない）。
               const betReplacedCost = betAmount > 0
                 ? computeCostReplacement(pendingArtsCard, my, battleCardMap, { oppState: op, cardCostReplacements: my.card_cost_replacements, isBetting: true })
                 : null;
