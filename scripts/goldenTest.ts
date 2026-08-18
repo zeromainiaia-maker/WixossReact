@@ -108,6 +108,8 @@ import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGa
 import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
+import { exceedPayableCount, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
 // ── データ読み込み ──
 const root = process.cwd();
@@ -39854,6 +39856,84 @@ test('O-1 cpuSpell: CPU は「除去・正面が塞がれている・払える�
     ] } } as CardEffect] }), null, '🔴ADD_EXTRA_ATTACK_PHASE を含む札は使わない（CPU 進行が無限ループする）');
   ok(hasCpuUnsupportedAction({ type: 'ADD_EXTRA_ATTACK_PHASE' } as never), '除外判定は木を歩いて検出する');
   ok(!hasCpuUnsupportedAction({ type: 'DRAW', owner: 'self', count: 1 } as never), '通常のアクションは除外しない');
+}));
+
+// ── §8／§6.4 `O-1` (c)：ルリグの【起】 ─────────────────────────────────────
+const LRIG_ANY = findCard(c => c.Type === 'ルリグ' && !!(c.CardClass ?? '').trim());
+const mkLrigAct = (id: string, extra: Partial<CardEffect> = {}): CardEffect => ({
+  effectId: id, effectType: 'ACTIVATED', timing: ['MAIN'], duration: 'INSTANT', mandatory: false,
+  action: { type: 'DRAW', owner: 'self', count: 1 },
+  ...extra,
+} as CardEffect);
+const lrigGateArgs = (effs: CardEffect[], state?: Partial<PlayerState>, phase: 'MAIN' | 'ATTACK_ARTS' = 'MAIN') => {
+  const my = { ...mkState({ lrig: [LRIG_ANY], coins: 0 }), ...state } as PlayerState;
+  return {
+    my, op: mkState({}), phase,
+    effectsMap: new Map([[LRIG_ANY, effs]]) as Map<string, CardEffect[]>,
+    cardMap: cardMap as Map<string, CardData>,
+    blockedSelf: new Set<string>(),
+  };
+};
+
+test('O-1 lrigActivateGate: ルリグ【起】の提示は封じ・使用制限・コイン・エクシード・使用条件で切れる', () => withSavedCursor(() => {
+  const ids = (effs: CardEffect[], state?: Partial<PlayerState>, phase: 'MAIN' | 'ATTACK_ARTS' = 'MAIN') =>
+    listActivatableLrigEffects(lrigGateArgs(effs, state, phase)).map(e => e.effectId);
+  eq(ids([mkLrigAct('L1')]).join(','), 'L1', '素の盤面では提示される');
+  eq(ids([mkLrigAct('L1')], {}, 'ATTACK_ARTS').length, 0, 'timing MAIN はアタック窓に出ない');
+  eq(ids([mkLrigAct('L1', { timing: ['ATTACK_ARTS'] })], {}, 'ATTACK_ARTS').join(','), 'L1', '《アタックフェイズアイコン》はアタック窓に出る');
+  eq(ids([mkLrigAct('L1')], { blocked_actions: ['USE_LRIG_ACT'] }).length, 0, '🔴USE_LRIG_ACT 封じ（ルリグ【起】だけを止める軸）');
+  eq(ids([mkLrigAct('L1')], { blocked_actions: ['USE_ACT'] }).length, 0, 'USE_ACT 封じ（全【起】）');
+  eq(ids([mkLrigAct('L1', { usageLimit: 'once_per_turn' })], { actions_done: ['L1'] }).length, 0, '《ターン1回》消化済み');
+  eq(ids([mkLrigAct('L1', { costUnparsed: true } as Partial<CardEffect>)]).length, 0, '🔴costUnparsed は提示しない');
+  // 🔴《コインアイコン》＝所持枚数を見る（続き552c で追加。実行側も同時にコインを減らすようにした）
+  eq(ids([mkLrigAct('L1', { cost: { coin: 1 } })]).length, 0, '🔴コイン不足では提示しない');
+  eq(ids([mkLrigAct('L1', { cost: { coin: 1 } })], { coins: 1 }).join(','), 'L1', '対照：コインが足りれば提示する');
+  // 🔴エクシード＝ルリグトラッシュへ送れる下札の枚数を見る（続き552c で追加）
+  eq(exceedPayableCount(mkState({ lrig: [LRIG_ANY] })), 0, '一番上の1枚は送れない＝支払い可能枚数0');
+  eq(exceedPayableCount(mkState({ lrig: [LRIG_ANY, LRIG_ANY, LRIG_ANY] })), 2, '3枚積まれていれば2枚まで送れる');
+  eq(ids([mkLrigAct('L1', { cost: { exceed: 1 } })]).length, 0, '🔴エクシードの下札が足りなければ提示しない');
+  eq(ids([mkLrigAct('L1', { cost: { exceed: 1 } })], { field: { ...mkState({ lrig: [LRIG_ANY, LRIG_ANY] }).field } }).join(','), 'L1',
+    '対照：下札があれば提示する');
+  // 🔴使用条件＝従来 MAIN 窓だけが1度も見ていなかった軸（付与【起】側だけが見ていた）
+  const condEff = mkLrigAct('L1', { condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gte', value: 99 } } as Partial<CardEffect>);
+  eq(ids([condEff]).length, 0, '🔴使用条件を満たさなければ提示しない');
+  eq(ids([mkLrigAct('L1', { cost: { down_self: true } })], { field: { ...mkState({ lrig: [LRIG_ANY] }).field, lrig_down: true } }).length, 0,
+    '【起】《ダウン》：既にダウン済みなら提示しない');
+}));
+
+test('O-1 cpuLrigActivate: 支払い内訳が要るコストは CPU が撃たない（allowlist）', () => withSavedCursor(() => {
+  const can = (cost: Record<string, unknown>) => cpuCanAutoPayLrigCost(mkLrigAct('L', { cost: cost as never }));
+  ok(can({}), 'コストなしは撃てる');
+  ok(can({ energy: [{ color: '赤', count: 1 }] }), 'エナは内訳を自動で決められる');
+  ok(can({ exceed: 1 }), 'エクシードは自動（gate が枚数を検算している）');
+  ok(can({ coin: 1 }), 'コインは自動（gate が所持を検算・実行側が deduct）');
+  ok(can({ down_self: true }), '《ダウン》は自動');
+  ok(!can({ handDiscardSigni: { count: 1 } }), '🔴手札の何を捨てるかは盤面評価＝撃たない');
+  ok(!can({ discardGroups: [{ count: 1 }] }), '手札グループ捨ては撃たない');
+  ok(!can({ trashExile: { count: 1 } }), 'トラッシュ除外（選択あり）は撃たない');
+  ok(!can({ energyTrash: { count: 1 } }), 'エナ指定トラッシュは撃たない');
+  ok(!can({ deckTrash: 1 }), '🔴allowlist に無いキーは撃たない（未知キーは撃たない側へ倒れる）');
+  ok(!CPU_LRIG_AUTO_PAYABLE_COST_KEYS.has('handDiscardSigni'), 'allowlist に手札捨ては含めない');
+}));
+
+test('O-1 cpuLrigActivate: CPU のルリグ【起】選択は「撃てる・自動で払える・未使用」の3条件', () => withSavedCursor(() => {
+  const allCards = [...cardMap.values()];
+  const cm = cardMap as Map<string, CardData>;
+  const isAffordable = (nums: string[], costStr: string) => canAffordGrowCost(nums, allCards, costStr);
+  const pick = (effs: CardEffect[], already: string[] = [], state?: Partial<PlayerState>) => {
+    const actor = { ...mkState({ lrig: [LRIG_ANY], coins: 0, energy: 0 }), ...state } as PlayerState;
+    return pickCpuLrigActivated({
+      actor, opponent: mkState({}), effectsMap: new Map([[LRIG_ANY, effs]]), cardMap: cm, cards: allCards,
+      phase: 'MAIN', energyPoolNums: actor.energy, blockedSelf: new Set<string>(),
+      alreadyActivated: already, isAffordable,
+    });
+  };
+  eq(pick([mkLrigAct('L-FREE')])?.effect.effectId, 'L-FREE', 'コストなしの【起】を選ぶ');
+  eq(pick([mkLrigAct('L-FREE')], ['L-FREE']), null, '🔴同じ効果はこのターン撃ち直さない（シグニ【起】と共通の台帳）');
+  eq(pick([mkLrigAct('L-HD', { cost: { handDiscardSigni: { count: 1 } } })]), null, '支払い内訳の要る【起】は選ばない');
+  eq(pick([mkLrigAct('L-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })]), null, 'エナ0では選ばない');
+  const rich = pick([mkLrigAct('L-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })], [], { energy: [SIGNI_L1, SIGNI_L2] });
+  eq(rich?.costIndices.size, 2, 'エナ2枚ぶんの index が返る');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
