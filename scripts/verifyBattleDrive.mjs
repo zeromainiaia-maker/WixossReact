@@ -20119,6 +20119,62 @@ scenarios.v61ConditionalShadowBlocksTargetingDuringOpponentTurn = {
 order.push('v61ConditionalShadowBlocksTargetingDuringOpponentTurn');
 // ── V-61 END ──
 
+// ── §7 V-62（続き541・O-25(d) の序数条件・チャーム条件）(c)チャーム条件の2経路 ──
+// WXK07-043（【自】《対戦相手のターン終了時》：エナチャージ１。このシグニに【チャーム】が付いている場合、
+// 追加でカードを1枚引く）＝ `THIS_CARD_IS_CHARMED` 条件。旧実装は「無関係な【チャーム】キーワードが付くだけ」
+// でこの条件が機能しなかった（バニッシュ耐性・追加ドローとも常時 or 常に不発の過剰/過少）。
+// CPUターンを1周させ、ターン終了時トリガーで（a）チャーム有り＝エナ+1・手札+1(b)チャーム無し＝エナ+1のみ、を見る。
+function v62CharmSpec(hasCharm) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9900'], 'field.signi': [['WXK07-043#9901'], null, null], 'field.check': null,
+      'field.signi_charms': hasCharm ? ['WD03-002#9902', null, null] : [null, null, null],
+      'energy': [], 'hand': [], 'deck': ['WD01-013#9903', 'WD01-013#9904', 'WD01-013#9905'], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9910'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'lrig_deck': [],
+    },
+    top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+async function driveV62Charm(page, H) {
+  let last = await H.queryState();
+  for (let s = 0; s < 60; s++) {
+    await page.waitForTimeout(400);
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    const st = await H.queryState();
+    last = st;
+    H.log(`  v62charm[${s}] activeUser=${st?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} hEnergy=${st?.host?.energy} hHand=${st?.host?.hand} phase=${st?.turnPhase}`);
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
+  }
+  return last;
+}
+
+scenarios.v62CharmedGetsBonusDrawOnOppTurnEnd = {
+  title: 'V-62(c) 🔴WXK07-043＝チャーム付きだと対戦相手のターン終了時に追加ドローが発火する',
+  spec: v62CharmSpec(true),
+  async drive(page, H) {
+    const fin = await driveV62Charm(page, H);
+    const detail = `hEnergy終値=${fin?.host?.energy}（期待≥1） / hHand終値=${fin?.host?.hand}（期待≥1＝追加ドロー発火） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+    H.log(`  v62charm ${detail}`);
+    return { pass: (fin?.host?.energy ?? 0) >= 1 && (fin?.host?.hand ?? 0) >= 1, detail };
+  },
+};
+scenarios.v62UnchamedNoBonusDrawOnOppTurnEnd = {
+  title: 'V-62(c) 対照＝チャームが無ければエナチャージのみで追加ドローは起きない',
+  spec: v62CharmSpec(false),
+  async drive(page, H) {
+    const fin = await driveV62Charm(page, H);
+    const detail = `hEnergy終値=${fin?.host?.energy}（期待≥1） / hHand終値=${fin?.host?.hand}（期待0＝追加ドロー不発） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+    H.log(`  v62charm ${detail}`);
+    return { pass: (fin?.host?.energy ?? 0) >= 1 && (fin?.host?.hand ?? 0) === 0, detail };
+  },
+};
+order.push('v62CharmedGetsBonusDrawOnOppTurnEnd', 'v62UnchamedNoBonusDrawOnOppTurnEnd');
+// ── V-62 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
