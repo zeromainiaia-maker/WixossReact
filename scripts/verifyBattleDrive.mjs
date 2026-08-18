@@ -19956,19 +19956,26 @@ async function driveV65PayGate(page, H, payChoice) {
   await H.clickBtn('発動', { exact: true });
   let fin = null;
   let windowSeen = false;
+  let energySelected = false;
   for (let s = 0; s < 10; s++) {
     await page.waitForTimeout(400);
-    const payBtn = page.getByRole('button', { name: /支払う/ }).first();
-    const skipBtn = page.getByRole('button', { name: '支払わない', exact: true }).first();
-    const payVisible = await payBtn.count() && await payBtn.isVisible().catch(() => false);
+    const skipBtn = page.getByTestId('optcost-skip').first();
+    const energyCard0 = page.getByTestId('optcost-energy-0').first();
+    const payBtn = page.getByTestId('optcost-pay').first();
     const skipVisible = await skipBtn.count() && await skipBtn.isVisible().catch(() => false);
-    if (payVisible || skipVisible) windowSeen = true;
+    const energyVisible = await energyCard0.count() && await energyCard0.isVisible().catch(() => false);
+    if (skipVisible || energyVisible) windowSeen = true;
     let did = null;
-    if (payChoice && payVisible) { await payBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:支払う'; }
-    else if (!payChoice && skipVisible) { await skipBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:支払わない'; }
+    if (!payChoice && skipVisible) { await skipBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:支払わない'; }
+    else if (payChoice && energyVisible && !energySelected) {
+      await energyCard0.click({ timeout: 3000 }).catch(() => {}); did = 'click:optcost-energy-0'; energySelected = true;
+    } else if (payChoice && energySelected) {
+      const payEnabled = await payBtn.count() && await payBtn.isEnabled().catch(() => false);
+      if (payEnabled) { await payBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:optcost-pay'; }
+    }
     if (!did) did = await H.stdStep();
     fin = await H.queryState();
-    H.log(`  v65paygate[${s}] did=${did} windowSeen=${windowSeen} pendingEffect=${fin?.pendingEffect} energy=${fin?.host?.energy} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+    H.log(`  v65paygate[${s}] did=${did} windowSeen=${windowSeen} pendingEffect=${fin?.pendingEffect} energy=${fin?.host?.energy} deck=${fin?.host?.deck} trash=${JSON.stringify(fin?.host?.trashCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
   }
   return { fin, windowSeen };
 }
