@@ -19109,6 +19109,52 @@ scenarios.v76CpuSpellCutinPassProgresses = {
   drive: (page, H) => driveV76SpellCutin(page, H),
 };
 order.push('v76CpuSpellCutinPassProgresses');
+
+// (D) 負方向＝`WXK06-026`（ネクスト・フューチャー・追加アタックフェイズ＋CHOOSE①②）は
+// `defensiveKindOf` が 'removal' と分類しない（NEGATE_ATTACK でも BANISH{owner:opponent} でもない）ので、
+// hasBlockedAttacker が真の盤面・支払い可能な状態でも CPU は使わない。
+const v76SpellNotUsedSpec = {
+  guestSet: {
+    'field.lrig': ['WXK06-006#9000'],   // エマ限定を満たす（WXK06-026 の Restriction）
+    'field.signi': [['WD01-013#9001'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WXK06-026#9002'],
+    'energy': ['WD01-013#9003', 'WD01-013#9004', 'WD01-013#9005', 'WD01-013#9006'],   // 白エナ4枚（支払い可能）
+    'actions_done': [], 'cpu_used_card_nums_this_turn': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9010'],
+    'field.signi': [null, null, ['WD01-013#9011']],   // 正面塞ぎ＝hasBlockedAttacker を真にする
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV76SpellNotUsed = async (page, H) => {
+  let sawSpellLog = false;
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('スペルを発動: ネクスト・フューチャー'))) sawSpellLog = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['パス（カットインしない）', 'パス', 'アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const detail = `sawSpellLog=${sawSpellLog}（期待false） / handedOver=${handedOver} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+  H.log(`  v76notUsed ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  return { pass: !sawSpellLog, detail };
+};
+
+scenarios.v76CpuDoesNotUseUnsupportedSpell = {
+  title: 'V-76(D) 負方向＝除去分類できないスペル（WXK06-026・追加アタックフェイズ）は支払い可能でも CPU が使わない',
+  spec: v76SpellNotUsedSpec,
+  drive: (page, H) => driveV76SpellNotUsed(page, H),
+};
+order.push('v76CpuDoesNotUseUnsupportedSpell');
 // ── V-76 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
