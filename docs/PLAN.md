@@ -141,13 +141,13 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-18・続き558・Sonnet 5）＝§7 実機検証を継続＝`V-75`(A)(B)（CPU が相手のアタックフェイズに応答アーツで守る）実機 PASS**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規2本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.488→0.489。**ユーザー指示により V-75 (A)(B) で区切り、(C)(D) は未着手のまま次回へ**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き558）。
-  - **✅ (A)(B) CPU が守り、止まらないこと**（`v75CpuDefendsWithArts`／`v75CpuDoesNotDefendWithoutThreat`）＝WX24-P1-021（剣一炎敵）を CPU のルリグデッキへ入れ、host の `ATTACK_ARTS_OP` フェイズで CPU が応答して host シグニをバニッシュ→そのまま次フェイズへ自動進行（止まらない）ことを確認。対照＝脅威が無ければ使わない。
-  - 🔑**判定の罠（次に触る人へ）**＝`hasIncomingThreat` は host 側シグニが**まだダウンしていない**（`ATTACK_ARTS_OP` はアタック解決**前**）状態を見る＝down にすると偽陰性になる。`life_cloth` は値を `undefined` にするのではなく**キーごと条件付きで省略する**（`...(cond ? {} : {...})`）＝`undefined` を渡すと `injectScenario` の既定7枚フィラーを上書きしてしまう（V-74で踏んだのと同型）。
-  - 📋**残＝(C)(D) は未着手**＝(C) 人間側の回帰確認（限定つきアーツ／`ARTS_LIMIT_1`／カード名封じ）(D) `altCostOppTurn`（相手ターン中の代替コスト）。
-  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-75`(C)(D) から再開**。未検証は他に `V-76`〜`V-78`／それ以前の約49件。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も次に触る人が要再現確認**（続き556 記録・未解決）。
-  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（実機検証待ちはクローズ済み）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-75`(C)(D) から。
+- **🆕 セッション（2026-08-18・続き559・Sonnet 5）＝§7 実機検証を継続＝`V-75`(C)(D) 実機確認＋🔴実機検証中に真の engine バグを発見（Opusタスク12 (cxxxv) へ登録）**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規8本中7本 PASS・1本は意図的に赤**（実バグ待ち・2回連続で同じ結果）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.489→0.490。**`V-75` は (A)〜(D) すべて着手完了**（(C)-2 のみ engine バグ待ちで残る）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き559）。
+  - 🔴🔴**新規発見＝`calcContinuousBlockedActions` がルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない恒久 no-op**＝V-75(C)-2（`ARTS_LIMIT_1` の回帰確認）で `WX13-007` を実機に置いても2枚目アーツの「使用」が消えず発見。**単体スクリプトで `forSelf`/`forOther` が完全に空集合であることを確認**（実機の観測と一致・注入側の問題ではない）。真因は `effectEngine.ts` の `scanField`（シグニのみ）と `scanLrigSelfBlocks`（self対象のみ）の2関数しか無く、**ルリグ本体の opponent 対象 `BLOCK_ACTION` を処理する経路が構造的に無い**こと。live母集団5件（`WX04-005`／`WX05-011`／`WX13-007`／`WXEX2-11`／`WD14-001`）。**Opusタスク12 (cxxxv) へ登録**（その場では未修正）。`v75ArtsLimit1SecondUseBlocked` は実バグ待ちとして赤のまま既定orderに残す。
+  - **✅ (C)-1 限定つきアーツ／(C)-3 カード名封じ／(D) altCostOppTurn は回帰なし＝実機PASS 6本**（`v75RestrictionMatchedShowsUse`/`MismatchHidesUse`・`v75CardNameBlockedHidesUse`/`NotBlockedShowsUse`・`v75AltCostOppTurnTriples`/`OwnTurnPrinted`）。
+  - 🔑**罠**＝カード印字は全角数字（`《緑》×１`）＝文字列一致で判定するときは全角/半角に注意。人間側ルリグデッキの「使用」可否確認は `my-lrig-dk`→`zone-card-0`→`getByRole('button',{name:'使用'})` で判定できる（`ArtsModal` は Phase1 をスキップし直接コスト表示から開く）。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-76`〜`V-78`／それ以前の約49件**が未検証。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も要再現確認**（続き556 記録・未解決）。
+  - **▶ 次の一手【Opus 側】**＝🆕**Opusタスク12 に新規在庫1件**（(cxxxv)＝上記の `calcContinuousBlockedActions` 恒久 no-op）＝**次の Opus セッションはまずこれを消化**。§6.4 は `O-19b`（小）・`O-1` は (g) のみ残。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-76` から。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
