@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き555・Opus 5）＝§6.4 `O-1` (e) を実機で確認（`V-79` 本命2本 PASS）＋ `ON_ATTACK_PHASE_END` の収集器を golden で固定**。ゲート全緑（**golden 2294→2295**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機5本 ALL PASS**。**live JSON・CSV とも非改変**（`scripts/` のみ）。version 0.485→0.486。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き555）。
+  - **✅ `V-79` 本命＝「追加アタックフェイズで無限ループしない」**＝`ATTACK_LRIG` 始まりで **`ATTACK_ARTS_OP`→`ATTACK_SIGNI`→`ATTACK_LRIG`→`END`→`UP`**＝**2周してターンが人間へ渡った**（ログあり・残キュー0）。対照（予約なし）は **`UP` へ直行**。
+  - 🔑**予約（`extra_attack_phases_this_turn`）を直接注入する**型＝CPU に `WXK06-026` を撃たせる盤面を組まずに**直したその1点**を踏める。`PHASE_NEXT` は一方向なので `ATTACK_ARTS*` の再出現がそのまま2周の証拠。
+  - ⚠**実機ドライブの落とし穴2つ（次に CPU ターンを回す人へ）**＝①**`ATTACK_ARTS_OP` は非ターンプレイヤー（＝人間）が進行ボタンを持つ**＝CPU ターンでもここで止まるので**「アーツ終了」を押さないと無限ループと誤診する** ②**開始時の `activeUser` を基準にしない**（注入→reload→2秒待ちの間に CPU が走り切る）＝終了判定は **`activeUser !== CPU_PLAYER_ID`** の絶対条件で見る。
+  - **✅ golden +1**＝`ON_ATTACK_PHASE_END`（(e) で新規配線）の収集器を**離場履歴あり／なし／filter 不一致**の3点で固定。
+  - ⚠**その実機シナリオは取り下げた**＝live 母集団の `WX24-P2-075` は本文が **`optional`（「置いてもよい」）** なので、収集されても**CPU の自動応答が「しない」側に倒れて盤面差分が出ない**＝**実機からは観測できない**。**収集の正しさを見る層は golden が正**（実機は「フェイズ進行が壊れないこと」に絞る）。原因の確定は未調査・低優先。
+  - 🆕**計器**＝`queryState` に `extraAttackPhases` / `pendingExtraAttackStart` を追加。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**。**ハーネスは動く**（続き554 で復旧）。未検証は `V-79`(B)(D)／`V-80`(C)／`V-74`〜`V-78`／それ以前の約56件。
+  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（(a)〜(f) は実装済み・(e)(f) は実機確認済み）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）。⚠**過去に FAIL と記録した実機結果は #310 の巻き添えを疑って回し直す**（続き554）。
 - **🆕 セッション（2026-08-18・続き554・Opus 5）＝🔴🔴`BattleScreen` が React #310 で丸ごと落ちていた（Rules of Hooks 違反）＝§7 実機検証が全件回せなくなっていた真因を発見・修正 ／ §6.4 `O-1` (f) を実機で確認（`V-80` ALL PASS）**。ゲート全緑（**golden 2293→2294**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機3本 ALL PASS**。**live JSON・CSV とも非改変**。version 0.484→0.485。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き554）。
   - **🔴 真因**＝`§6.4 O-10`（続き515）で足した `flipGrowRef`（`useRef`）＋`useEffect` が **`if (!bs) return` の後ろ**に置かれていた。BattleScreen は `bs` 到着前に一度レンダーして早期 return するので、**bs 到着後の再レンダーで hook 数が増える** → React **#310**「Rendered more hooks than during the previous render.」で**画面が真っ黒**。
   - **🔴 実害**＝`verifyBattleDrive.mjs` は盤面注入後に `page.reload()` する設計＝**この経路を必ず通る**ので、**全シナリオが無条件 FAIL**。**§7 実機検証 worklist（61件）が丸ごと回せない状態**だった＝**2026-08-14 続き481 を最後に実機検証が1本も進んでいなかった説明がつく**。
