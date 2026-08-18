@@ -19899,7 +19899,8 @@ scenarios.v67LrigDownAbilityActuallyDownsAndBlocksSecondUse = {
     let fin = null;
     for (let s = 0; s < 10; s++) {
       await page.waitForTimeout(400);
-      const did = await H.stdStep();
+      let did = await H.stdStep();
+      if (!did) did = await H.clickBtn('ゾーン1', { exact: false });
       fin = await H.queryState();
       H.log(`  v67lrigdown[${s}] did=${did} stackLen=${fin?.stackLen} pendingEffect=${fin?.pendingEffect} candidates=${JSON.stringify(fin?.pendingCandidates)} hField=${JSON.stringify(fin?.host?.fieldSigni)}`);
     }
