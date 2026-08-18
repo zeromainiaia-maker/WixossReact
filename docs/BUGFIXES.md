@@ -1,5 +1,70 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き556・Sonnet 5）— §7 実機検証を継続＝`V-79`(B)(D)・`V-80`(C・付与側) ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規3本 ALL PASS**（既存7本の回帰確認込み）。version 0.486→0.487。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。続き555 の「▶ 次の一手【Sonnet 側】」を消化。
+
+### 1. `V-79`(B) ＝ CPU の2周目でも `ON_ATTACK_PHASE_START` は走るが【ハスターリク】は発動しない
+
+新規シナリオ `v79SecondLapHastarliqSuppressed`＝✅PASS。CPU の `ATTACK_LRIG`→追加アタックフェイズ（2周目）の遷移で、
+①**開始時本文（`pending_extra_attack_phase_start_effects` 経由の DRAW）は消化される**（`guest.hand` が0→1）
+②**同時に相手（human）側の `hastarliq_zones` は消費されず残存**・関連ログも出ない、の両方を1本で固定。
+`BattleScreen.tsx:11322-11346`（CPU の `addedExtraPhase` 分岐）には HASTARLIQ の直書きチェックがそもそも無い
+（HASTARLIQ は CPU の MAIN→ATTACK_ARTS 移行〔lap1〕専用ブロック＝`:11162-11193` にしか無い）＝
+human 側の `phase !== 'ATTACK_LRIG'` ガード（`:4090-4093`）と**同じ扱い**であることを実機で確認した。
+
+### 2. `V-79`(D) ＝ 人間側「1周目終了時→2周目開始時」の解決順
+
+新規シナリオ `v79HumanOrderEndBeforeStart`＝✅PASS。`WX24-P2-075-E1`（ON_ATTACK_PHASE_END・live唯一の母集団）を
+host 自身の場に置き、`signi_left_field_this_attack_phase` を直接注入して条件を満たした状態で
+追加アタックフェイズへ入ると、**確定直後の `effect_stack`（`pendingTurn`）の並びが
+`["WX24-P2-075-E1", "EXTRA_ATTACK_PHASE_START:..."]` の順**＝**終了時→開始時**が実際に成立していることを確認
+（`BattleScreen.tsx:4126-4173` の順序是正・2026-08-18 §6.4 O-1(e) の直接の裏取り）。
+⚠**解決を待たずスタックの積み順だけを見る**手法＝両エントリとも同一プレイヤー（host）所有なので
+`orderTurnDone=pendingTurn.length<=1` が false になり「発動順序を確定」UI が要るが、
+**押下前の `pendingTurn` 配列そのもの＝push 順＝解決順**を読むだけで決定論的に判定できる。
+
+- 🔴🔑**実機注入の罠を新規発見（次に触る人へ）**＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の条件が読む
+  `signi_left_field_this_attack_phase` 配列の instanceId は、**`BattleScreen.tsx` の `battleCardNums`
+  （700行台の反応的ロード走査＝deck/hand/field/trash/lrig_trash 等を明示的に `nums.add()` する集合）に
+  含まれていない**。離場した instanceId を**この配列だけ**に書いて注入すると、`battleCardMap`
+  （＝`InstanceMap(cards.filter(c => battleCardNums.has(c.CardNum))...)`）にカードが載らず、
+  `matchesFilter(ctx.cardMap.get(getCardNum(id)), filter)` が `undefined` カードに対して静かに `false` を返し、
+  **条件つきの `ON_ATTACK_PHASE_END` が「条件不成立」として無言で不発**になる（実機で実際に踏んで
+  1時間ほど溶かした＝`effectsMap`/`cardMap` の実装は正しく、原因は注入側の不足だった）。
+  **実ゲームでは離場先が必ず手札/トラッシュ/デッキ等の既存走査対象になるため無害**（この gap 自体はバグではない）が、
+  **直接注入で `signi_left_field_this_attack_phase` を使うときは、同じ instanceId を `trash` 等にも置くこと**。
+  切り分け手順＝`scripts/goldenTest.ts` と同じパターンで `evalCondition`/`collectTurnTriggers` を
+  スクリプト単体（フル cardMap 使用）で再現→PASSしたのに実機だけ FAIL する場合は、まずこの「battle-scoped cardMap」を疑う。
+
+### 2b. 副産物＝いったん `console.error` 差し込みデバッグで原因を特定（コードは差分なしに復元済み）
+
+`src/engine/triggerCollect.ts`／`src/engine/execUtils.ts` に一時的な `console.error` 診断を入れて
+`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の評価過程を実機ブラウザのコンソールへ出し、上記2の原因を確定した。
+**両ファイルとも診断コードは調査後に完全に revert 済み**（`git diff` で無変更を確認）。
+
+### 3. `V-80`(C) ＝ CPU が付与ルリグ【起】を撃つ（付与側のみ・継承側は follow-up）
+
+新規シナリオ `v80CpuActivatesGrantedLrig`＝✅PASS。`lrig_granted_auto_effects`（コスト《コイン》×1）を
+CPU のセンタールリグへ注入し MAIN フェイズを回すと、`[CPU] ルリグの【起】を発動: <カード名>` のログ→
+`coins` が1→0→本体（DRAW）の「1枚ドロー」ログまで一気通貫で解決（`pickCpuLrigActivated` の
+②`listActivatableGrantedLrigEffects` 経路が実機で機能していることを確認）。
+⚠**before/after の差分では判定しない**＝CPU の MAIN 処理は速く、`drive()` 最初の `queryState()` 時点で
+既に発動・コイン消費・ドロー・（引いたカードの）召喚まで終わっていることがある
+（`v79SecondLapHastarliqSuppressed` でも同型の罠を踏んだ＝**注入時の既知の初期値からの絶対値**で判定するのが正）。
+📋**継承【起】（`INHERIT_LRIG_TRASH_ABILITIES`）側は未着手**＝宣言カードが `WX05-002`/`003`/`004` の3枚のみで、
+「ルリグトラッシュへ落ちて継承済み」の盤面構築コストが付与側より高いため見送り（PLAN §7 V-80 に追記）。
+
+### 4. ⚠副次調査＝`v15AttackPhaseEndCentralDiffToyLeftFires` が実機で不安定（要 follow-up・未解決）
+
+上記2の調査中、既存の（過去 PASS 記録のある）シナリオ `v15AttackPhaseEndCentralDiffToyLeftFires` を
+比較対象として単独再実行したところ FAIL した（ログを見ると `WDK05-T15`（遊具）自身の自己バウンス選択を
+経ずに通常のバトル解決ログへ流れており、ドライバーのクリック列が期待した「発動する」ボタンを
+掴めていない疑い）。**2回連続で同じ FAIL**（うち1回は他ジョブと並行実行だった影響を排除するため単独実行）。
+⚠**engine 側の回帰ではない**（本セッションで触れたのは `scripts/` のみ・上記2bの差し込みも revert 済み）。
+**V-79/V-80 の作業スコープ外につき深追いしていない**＝次に触る人は `V-15` 単体を `SHOTS=1` 付きで
+ステップごとのスクショを見ながら再現性から確認すること。
+
 ## 2026-08-18（続き555・Opus 5）— **§6.4 `O-1` (e) を実機で確認（`V-79` 本命2本 PASS）＋ `ON_ATTACK_PHASE_END` の収集器を golden で固定**
 
 ゲート全緑（typecheck / golden **2294→2295** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機5本 ALL PASS**。version 0.485→0.486。**live JSON・CSV とも非改変**（`scripts/` のみ）。続き553〜554 の直接の続き。
