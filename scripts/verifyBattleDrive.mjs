@@ -19607,6 +19607,115 @@ scenarios.v72DistinctLevelTwoCardsCannotFire = {
 order.push('v72DistinctLevelBlocksSameLevelSecond', 'v72DistinctLevelAllowsThreeDistinctLevels', 'v72DistinctLevelTwoCardsCannotFire');
 // ── V-72 END ──
 
+// ── §7 V-71（続き547・「傀儡状態であなたの場に出す」＝STEAL_OPP_TRASH_PUPPET）──
+// WXK10-091-E2（【起】・cost.trash_self・puppetParams filter{level.max:3,cardClassExclude:'美巧'}）で(a)(b)を
+// 1本にまとめて見る＝相手トラッシュに 美巧Lv2（除外）／非美巧Lv4（除外）／非美巧Lv1（該当）の3枚を置き、
+// 該当1枚だけが傀儡として場に出て、除外2枚は相手トラッシュに残ることを確認する。
+const v71PuppetPickSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#9600'], 'field.signi': [['WXK10-091#9601'], null, null], 'field.check': null,
+    'trash': [], 'hand': [], 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9610'], 'field.signi': [null, null, null], 'field.check': null,
+    // WX04-089=美巧Lv2（除外）／WD01-009=非美巧Lv4（除外）／WD01-013=非美巧Lv1（該当・唯一の候補）
+    'trash': ['WX04-089#9611', 'WD01-009#9612', 'WD01-013#9613'],
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v71PuppetFilterPicksOnlyEligibleCard = {
+  title: 'V-71(a)(b) WXK10-091【起】＝相手トラッシュから条件に合うシグニだけが傀儡として場に出る',
+  spec: v71PuppetPickSpec,
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await H.clickTestId('my-signi-zone-0').catch(() => {});
+    await page.waitForTimeout(400);
+    const abilBtn = page.getByRole('button', { name: /【起】/ }).first();
+    if (await abilBtn.count() && await abilBtn.isVisible().catch(() => false)) {
+      await abilBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(400);
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    if (await fireBtn.count() && await fireBtn.isEnabled().catch(() => false)) {
+      await fireBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    let fin = null;
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(500);
+      await H.stdStep();
+      fin = await H.queryState();
+      const placed = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9613'));
+      if (placed) break;
+    }
+    const placedOk = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9613'));
+    const costPaid = (fin?.host?.trashCards ?? []).includes('WXK10-091#9601');
+    const excludedStillInGuestTrash = (fin?.guest?.trashCards ?? []).includes('WX04-089#9611')
+      && (fin?.guest?.trashCards ?? []).includes('WD01-009#9612');
+    const eligibleGoneFromGuestTrash = !(fin?.guest?.trashCards ?? []).includes('WD01-013#9613');
+    const detail = `placedOk=${placedOk} / costPaid=${costPaid} / excludedStillInGuestTrash=${excludedStillInGuestTrash} / `
+      + `eligibleGoneFromGuestTrash=${eligibleGoneFromGuestTrash} / hField=${JSON.stringify(fin?.host?.fieldSigni)} / `
+      + `gTrash=${JSON.stringify(fin?.guest?.trashCards)}`;
+    H.log(`  v71puppet ${detail}`);
+    return { pass: placedOk && costPaid && excludedStillInGuestTrash && eligibleGoneFromGuestTrash, detail };
+  },
+};
+
+// (c) 傀儡が場を離れると、自分ではなく持ち主（対戦相手）のトラッシュへ行く（sweepPuppets）。
+// 直接「もう場に居ない傀儡」を注入し、別の【起】（同じWXK10-091・今回は相手トラッシュが空で即done）を撃って
+// 効果解決を1回発生させ、sweepPuppets/applyRefreshOnDoneが自動で回収することを見る。
+const v71PuppetSweepSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#9620'], 'field.signi': [['WXK10-091#9621'], null, null], 'field.check': null,
+    'field.puppet_signi': ['WD01-013#9622'],   // 「もう場に居ない傀儡」＝ field.signi のどこにも無い
+    'trash': [], 'hand': [], 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9630'], 'field.signi': [null, null, null], 'field.check': null,
+    'trash': [], 'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v71PuppetLeftFieldReturnsToTrueOwnerTrash = {
+  title: 'V-71(c) 傀儡が場を離れると持ち主（対戦相手）のトラッシュへ回収される（sweepPuppets）',
+  spec: v71PuppetSweepSpec,
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await H.clickTestId('my-signi-zone-0').catch(() => {});
+    await page.waitForTimeout(400);
+    const abilBtn = page.getByRole('button', { name: /【起】/ }).first();
+    if (await abilBtn.count() && await abilBtn.isVisible().catch(() => false)) {
+      await abilBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(400);
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    if (await fireBtn.count() && await fireBtn.isEnabled().catch(() => false)) {
+      await fireBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    let fin = null;
+    for (let s = 0; s < 8; s++) {
+      await page.waitForTimeout(500);
+      await H.stdStep();
+      fin = await H.queryState();
+    }
+    const sweptToGuest = (fin?.guest?.trashCards ?? []).includes('WD01-013#9622');
+    const notInHostTrash = !(fin?.host?.trashCards ?? []).includes('WD01-013#9622');
+    const costPaid = (fin?.host?.trashCards ?? []).includes('WXK10-091#9621');
+    const detail = `sweptToGuest=${sweptToGuest}（期待true） / notInHostTrash=${notInHostTrash}（期待true） / `
+      + `costPaid=${costPaid} / hTrash=${JSON.stringify(fin?.host?.trashCards)} / gTrash=${JSON.stringify(fin?.guest?.trashCards)} / `
+      + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+    H.log(`  v71sweep ${detail}`);
+    return { pass: sweptToGuest && notInHostTrash, detail };
+  },
+};
+
+order.push('v71PuppetFilterPicksOnlyEligibleCard', 'v71PuppetLeftFieldReturnsToTrueOwnerTrash');
+// ── V-71 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
