@@ -20611,6 +20611,56 @@ scenarios.v47LrigDamageShieldFiresWhenHandNonEmpty = {
 order.push('v47LrigDamageShieldPreventsWhenHandEmpty', 'v47LrigDamageShieldFiresWhenHandNonEmpty');
 // ── V-47 END ──
 
+// ── §7 V-31（O-3・続き566）(b)のみ ──
+// `SPK01-10-E1`（羅植　ミズバショウ）【出】：デッキ上から2枚エナへ→ターン終了時にトラッシュへ→
+// 「このターン、あなたは1以上のエナコストを支払えない」＝STUB{BLOCK_ACTION, actionId:'PAY_ENERGY_COST'}
+// →`blocked_actions`に`PAY_ENERGY_COST`（`energyPaySource.ts`の`ENERGY_PAY_BLOCK_ACTION_ID`）。
+// カード詠唱を省略しマーカーを直接注入＝エナがあってもコスト1以上のアーツが使えなくなることを見る。
+const v31EnergyPayBlockSpec = (blocked) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9980'], 'lrig_deck': ['WX01-010#9981'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': ['WD01-013#9982'], 'actions_done': [], 'blocked_actions': blocked,
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9983'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+scenarios.v31EnergyPayBlockedPreventsArtsCast = {
+  title: 'V-31(b) `PAY_ENERGY_COST`＝エナがあってもコスト1以上のアーツが使えない',
+  spec: v31EnergyPayBlockSpec(['PAY_ENERGY_COST']),
+  async drive(page, H) {
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(600);
+    await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(600);
+    const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+    const visible = await useBtn.count() > 0 && await useBtn.isVisible().catch(() => false);
+    const enabled = visible && await useBtn.isEnabled().catch(() => false);
+    const detail = `「使用」ボタン可視=${visible} / 活性=${enabled}（期待false＝エナ支払い封じで使えない）`;
+    H.log(`  v31enapayblock ${detail}`);
+    return { pass: !enabled, detail };
+  },
+};
+scenarios.v31EnergyPayUnblockedAllowsArtsCast = {
+  title: 'V-31(b) 対照＝封じが無ければ同じエナでアーツが使える',
+  spec: v31EnergyPayBlockSpec([]),
+  async drive(page, H) {
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(600);
+    await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(600);
+    const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+    const visible = await useBtn.count() > 0 && await useBtn.isVisible().catch(() => false);
+    const enabled = visible && await useBtn.isEnabled().catch(() => false);
+    const detail = `「使用」ボタン可視=${visible} / 活性=${enabled}（期待true＝封じが無ければ使える）`;
+    H.log(`  v31enapayblock ${detail}`);
+    return { pass: enabled, detail };
+  },
+};
+order.push('v31EnergyPayBlockedPreventsArtsCast', 'v31EnergyPayUnblockedAllowsArtsCast');
+// ── V-31 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
