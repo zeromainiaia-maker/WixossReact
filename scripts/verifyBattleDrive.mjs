@@ -21296,6 +21296,74 @@ scenarios.v57TeamConditionPieceNoUseButtonOutsideCutin = {
 order.push('v57TeamConditionPieceNoUseButtonOutsideCutin');
 // ── V-57 END ──
 
+// ── §7 V-54（O-10・続き566）(a)のみ ──
+// `WX12-023`【常】：対戦相手のトラッシュとルリグトラッシュにあるカードは能力を失い、効果を受けない＝
+// STUB{TRASH_ABILITY_LOSS_AND_IMMUNITY}。`isTrashImmuneByOpponent`（execUtils.ts）が
+// `getMyTrashCardActions`（BattleScreen.tsx:8055）の唯一の判定点＝相手フィールドにこれがあれば
+// `actions` を即 `[]` で返す。`WXDi-P04-042`（既存の abilities_removed テストと同じトラッシュ札）を使い、
+// (a)相手フィールドにWX12-023があるとトラッシュ【起】ボタンが出ない(b)無ければ出る、の対照を見る。
+const V54_TRASH_ACT_LABEL = '【起】トラッシュから出す（アップ状態のレベル2のルリグ2体をダウン）';
+async function driveV54TrashImmunity(page, H) {
+  await H.closeModals();
+  await H.ensureMain();
+  const trashClick = await H.clickTestId('my-trash');
+  await page.waitForTimeout(350);
+  const cardClick = await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(500);
+  const modal = page.getByTestId('card-detail-modal').first();
+  if (!trashClick || !cardClick || !(await modal.count()) || !(await modal.isVisible().catch(() => false))) {
+    return { opened: false, labels: [] };
+  }
+  const labels = await modal.locator('[data-testid^="card-action-"]:visible').evaluateAll(els => els.map(el => el.getAttribute('data-action-label') ?? ''));
+  return { opened: true, labels };
+}
+scenarios.v54TrashImmunityHidesTrashActButton = {
+  title: 'V-54(a) 相手フィールドにWX12-023があると自分のトラッシュ【起】ボタンが出ない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#9950'], 'field.assist_lrig_l': ['WD03-003#9951'], 'field.assist_lrig_r': [],
+      'field.lrig_down': false, 'field.assist_lrig_l_down': false, 'field.signi': [null, null, null],
+      'trash': ['WXDi-P04-042#9952'], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9953'], 'field.signi': [['WX12-023#9954'], null, null], 'field.check': null, 'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const { opened, labels } = await driveV54TrashImmunity(page, H);
+    if (!opened) return { pass: false, detail: 'CardModalが開かず判定不能' };
+    const leaked = labels.includes(V54_TRASH_ACT_LABEL);
+    const detail = `leaked=${leaked}（期待false＝出ない） / actions=${JSON.stringify(labels)}`;
+    H.log(`  v54trashimm ${detail}`);
+    return { pass: !leaked, detail };
+  },
+};
+scenarios.v54TrashImmunityAbsentShowsTrashActButton = {
+  title: 'V-54(a) 対照＝WX12-023が無ければ同じトラッシュ【起】ボタンが出る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-003#9950'], 'field.assist_lrig_l': ['WD03-003#9951'], 'field.assist_lrig_r': [],
+      'field.lrig_down': false, 'field.assist_lrig_l_down': false, 'field.signi': [null, null, null],
+      'trash': ['WXDi-P04-042#9952'], 'actions_done': [], 'field.check': null,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9953'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const { opened, labels } = await driveV54TrashImmunity(page, H);
+    if (!opened) return { pass: false, detail: 'CardModalが開かず判定不能' };
+    const shown = labels.includes(V54_TRASH_ACT_LABEL);
+    const detail = `shown=${shown}（期待true＝出る） / actions=${JSON.stringify(labels)}`;
+    H.log(`  v54trashimm ${detail}`);
+    return { pass: shown, detail };
+  },
+};
+order.push('v54TrashImmunityHidesTrashActButton', 'v54TrashImmunityAbsentShowsTrashActButton');
+// ── V-54 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
