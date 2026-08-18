@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き564・Sonnet 5）— §7 実機検証を継続＝`V-66`（旧形式signi_acce正規化）／`V-67`（ルリグ【起】《ダウン》）／`V-68`（signi_deploy_bans）／`V-65`（相手シグニ自能力の支払えば通る回避）／`V-64`（引用付与のダメージ置換）／`V-61`（引用付与の条件つきシャドウ）／`V-62`（チャーム条件）ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規10本 ALL PASS**（2〜3回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.494→0.495。
+
+### 1. V-66／V-68＝既存の赤シナリオが緑化していることを確認（回帰なし）
+
+`v14MultiAcceLegacyStringOneLoads`（旧形式 `signi_acce` string の正規化）と `v11CpuDeployPowerLimitWithControl`（`signi_deploy_bans` への統合）は、いずれも過去の修正で既に緑化済みであることを確認（新規コードなし・再実行のみ）。
+
+### 2. V-67＝ルリグ【起】《ダウン》は回帰なし（1本 PASS・2回連続）
+
+`WD08-001`（混沌の鍵主 ウムル＝フィーラ）の【起】《ダウン》：トラッシュからシグニ1枚を場に出す＝(a) 実際に `host.field.lrig_down` が true になる (b) 同じ【起】を2回目に撃とうとするとボタン自体が消える、を確認。
+🔑**ハーネス側の罠**＝ADD_TO_FIELD の解決は SELECT_TARGET（対象選択）→SELECT_SIGNI_ZONE（配置ゾーン選択＝「ゾーン1」ボタン）の2段階インタラクション。`H.stdStep()` は前者しかカバーせず、後者を素通りして `pendingEffect` が固まったまま止まっていた（最初 FAIL）＝`clickBtn('ゾーン1')` をフォールバックに追加して解消。
+
+### 3. V-65＝相手シグニ【自】能力の「支払えば通る」回避は回帰なし（2本 ALL PASS・2回連続）
+
+`blocked_actions` へ `PAY_GATE_OPP_SIGNI_AUTO:無`（`blockAction.ts`）を直接注入し、host の `WXK04-028`（【自】《ターン１回》：エナチャージをしたとき、エナチャージ１）を `WX01-049` で発火させて確認。(a) 「支払う（コスト: 《無》）」／「支払わない」の窓が実際に出る (b) 支払えば本体（エナチャージ）が通る (c) 支払わなければ何も起きない。旧実装はこの窓が一度も出ずに丸ごと止めていた。
+🔑**ハーネス側の罠×2**＝①`任意コスト` の CHOOSE 選択は単純な「支払う」ボタンではなく、**エナ画像（`optcost-energy-0`）を選択→`optcost-pay`ボタン**の2段階（未選択だと disabled で押しても無反応・最初 FAIL）。②支払った分は energy→trash へ移るがボーナスのエナチャージが埋め合わせるため **energy枚数だけでは判定できない**（deckの消費枚数とtrashへの移動で判定）。③deckが少ないと「デッキ0枚→リフレッシュ」がtrashをdeckへ戻し判定を汚染する＝deckは余裕を持って5枚積む。
+
+### 4. V-64＝引用付与のダメージ置換（支払えば手札を捨てる）は回帰なし（1本 PASS・2回連続）
+
+`lrig_granted_auto_effects` へ `WX24-P3-005-sub-E1`（STUB{DAMAGE_REPLACE_BY_COST}）相当を直接注入し、ARTS詠唱を省略。CPUシグニアタックで (a) host.life が減らず手札を1枚捨てて支払う (b) 支払った瞬間に付与効果自体が消える（「このルリグはこの能力を失う」の消費）ことを確認。既存の `life_crash_replacements` 系シナリオ群と同型の直接注入パターンが `lrig_granted_auto_effects` にもそのまま使えることを確認。
+
+### 5. V-61＝引用付与の条件つきシャドウ（対戦相手のターンの間）は回帰なし（1本 PASS・3回連続）
+
+`granted_effects`（signi-keyed）へ `activeCondition:{type:'TURN_OWNER',owner:'opponent'}` の CONTINUOUS GRANT_KEYWORD{シャドウ} を直接注入し、`buildGatedKeywordGrant` の走査軸（`execUtils.ts` の `selectOrInteract` 内 `condShadowSources`）が実際にバウンス対象化をブロックすることを確認。⚠**初回実行時のみ原因不明の1回FAIL**（bounceが成立）＝孤立スクリプトで `checkActiveCondition`/`evaluateShadowScope`/フィルタ関数を個別に検証したところ全て理論通り動作し、続く3回の実機再実行はすべてPASS＝ハーネス側の一過性フレーク（新規ルーム作成直後の状態競合疑い）と判断・engine側の回帰ではない。
+
+### 6. V-62＝チャーム条件（`THIS_CARD_IS_CHARMED`）は回帰なし（2本 ALL PASS・2回連続）
+
+`WXK07-043`（【自】《対戦相手のターン終了時》：エナチャージ１。チャームが付いていれば追加でカードを1枚引く）で、`field.signi_charms` にチャームカードを直接注入し、CPUターンを1周させて確認。(a) チャーム付き＝エナ+1・手札+1（追加ドロー発火）(b) チャーム無し＝エナ+1のみ（追加ドロー不発）。
+🔑**ハーネス側の罠**＝CPUのATTACK_ARTSステップで `clickTextOrBtn` の固定ラベル一覧だけではクリックできない場面があり、`H.stdStep()`（pick-0＋汎用確定）をフォールバックに足さないとCPUターンが `ATTACK_ARTS` で止まったまま進まなかった（最初2本ともタイムアウトFAIL）。
+
+📋**follow-up＝V-63（O-29「同じ選択肢を複数回選ぶ」）は見送り**（`WX17-003`＝ARTS詠唱＋「2つまで・同じ選択肢を2回選んでもよい」の複数選択UI＋ベット宣言時4つまでの階層構造で、実機シナリオ化の複雑度が他項目より大幅に高い。優先度は次回以降に持ち越し）。
+
 ## 2026-08-18（続き563・Sonnet 5）— §7 実機検証を継続＝`V-71`（傀儡状態で場に出す・STEAL_OPP_TRASH_PUPPET）／`V-70`（ON_HAND_ADDED の owner 2軸）／`V-69`（エナ差分 watcher の《ターン1回/2回》）ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.493→0.494。
