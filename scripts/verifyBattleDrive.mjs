@@ -19462,6 +19462,56 @@ scenarios.v78CpuGrowsButSkipsOnPlayWithoutCoin = {
 order.push('v78CpuGrowsAndPaysOnPlayCost', 'v78CpuGrowsButSkipsOnPlayWithoutCoin');
 // ── V-78 END ──
 
+// ── §7 V-73（続き549・【常】のゲート「〜あるかぎり」が実際に効くこと）──
+// WX14-073（基本パワー5000。トラッシュにスペルがあるかぎり基本パワー8000＝POWER_SET＋activeCondition
+// TRASH_HAS_CARD）と WXDi-P04-050（パワー10000。このシグニがアップ状態であるかぎり＋5000＝POWER_MODIFY＋
+// activeCondition IS_SELF_UP）の2枚。⚠パワーは calcFieldPowers 経由の純計算値＝temp_power_mods に載らない
+// （aboveSelfSelfBuffStopped/wxdip03057DownUnderRed と同じ罠）ので、盤面のパワー表示DOM（my-signi-zone-0の
+// innerText）で見る。旧実装は無条件成立＝条件を満たさないときに8000/15000のままだったので、負方向（条件不成立で
+// 印刷値のまま）が本命の観測点。
+const v73PowerGateSpec = (opts) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9200'], 'field.signi': [[opts.cardNum + '#9201'], null, null], 'field.check': null,
+    'field.signi_down': [opts.down ?? false, false, false],
+    'trash': opts.trash ?? [], 'energy': [], 'hand': [], 'actions_done': [],
+  },
+  guestSet: { 'field.lrig': ['WD01-001#9210'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [] },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV73PowerGate = async (page, H, expectPower) => {
+  await page.waitForTimeout(1200);
+  const zoneText = await page.getByTestId('my-signi-zone-0').innerText().catch(() => '');
+  const st = await H.queryState();
+  const detail = `zoneText=${JSON.stringify(zoneText)} / 期待=${expectPower} / powerMods=${JSON.stringify(st?.host?.powerMods)}`;
+  H.log(`  v73powerGate ${detail}`);
+  const ok = new RegExp(expectPower.toLocaleString('en-US')).test(zoneText);
+  return { pass: ok, detail };
+};
+
+scenarios.v73TrashGateInactiveShowsPrintedPower = {
+  title: 'V-73(a) WX14-073＝トラッシュにスペルが無いと基本パワーは印刷値5000のまま（8000にならない）',
+  spec: v73PowerGateSpec({ cardNum: 'WX14-073', trash: [] }),
+  drive: (page, H) => driveV73PowerGate(page, H, 5000),
+};
+scenarios.v73TrashGateActiveShowsSetPower = {
+  title: 'V-73(b) 対照＝トラッシュにスペル1枚を送ると基本パワーが8000になる',
+  spec: v73PowerGateSpec({ cardNum: 'WX14-073', trash: ['WD01-015#9202'] }),
+  drive: (page, H) => driveV73PowerGate(page, H, 8000),
+};
+scenarios.v73UpGateActiveShowsBuffedPower = {
+  title: 'V-73(c) 対照＝WXDi-P04-050はアップ状態なら+5000（10000→15000）',
+  spec: v73PowerGateSpec({ cardNum: 'WXDi-P04-050', down: false }),
+  drive: (page, H) => driveV73PowerGate(page, H, 15000),
+};
+scenarios.v73UpGateInactiveShowsPrintedPower = {
+  title: 'V-73(c) WXDi-P04-050＝ダウンさせると+5000が外れ印刷値10000に戻る',
+  spec: v73PowerGateSpec({ cardNum: 'WXDi-P04-050', down: true }),
+  drive: (page, H) => driveV73PowerGate(page, H, 10000),
+};
+order.push('v73TrashGateInactiveShowsPrintedPower', 'v73TrashGateActiveShowsSetPower', 'v73UpGateActiveShowsBuffedPower', 'v73UpGateInactiveShowsPrintedPower');
+// ── V-73 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
