@@ -154,19 +154,20 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-18 続き555（§6.4 `O-1` (e) の実機確認＋`ON_ATTACK_PHASE_END` 収集器の golden 固定）後 最新値（本行が直近の正）**：
-  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2295**（+1）、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
-  fuzz 全0、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
+- **🆕 2026-08-18 続き556（§7 実機検証継続＝`V-79`(B)(D)・`V-80`(C・付与側) ALL PASS）後 最新値（本行が直近の正）**：
+  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2295 据置**、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
+  fuzz 全0、lint **0 errors**（263 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
   manual-fields **0**、`parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
   （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**＝live 非改変なので
   〔★0・未カバー0・wiring miss 193〕から動いていないはず）。
-  **live 効果総数 10693**（live JSON・CSV とも非改変）。version **0.486**。
-  🆕**実機シナリオ総数 317**（+2＝`v79CpuExtraAttackPhaseConsumed` / `v79CpuNoExtraAttackPhase`）。
-  🆕**実機 PASS（続き555 実測）＝5/5**（`V-79` 2本＋`V-80` 2本＋`wxk04003Label`）。
-  ⚠**実機ハーネスは続き554 で復旧済み**（それ以前の FAIL 記録は React #310 の巻き添えを疑う）。
+  **live 効果総数 10693**（live JSON・CSV とも非改変）。version **0.487**。
+  🆕**実機シナリオ総数 320**（+3＝`v79SecondLapHastarliqSuppressed` / `v79HumanOrderEndBeforeStart` / `v80CpuActivatesGrantedLrig`）。
+  🆕**実機 PASS（続き556 実測）＝10/10**（新規3本＋既存7本の回帰確認）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（未解決・follow-up）**＝
+  ドライバー側の不安定化を疑うが engine 側の回帰ではない（本セッションは `scripts/` のみ変更）。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き555）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き556）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
