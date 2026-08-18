@@ -19061,6 +19061,54 @@ scenarios.v76CpuDoesNotUseRemovalWhenClear = {
   drive: (page, H) => driveV76OffensiveArts(page, H, false),
 };
 order.push('v76CpuUsesRemovalWhenBlocked', 'v76CpuDoesNotUseRemovalWhenClear');
+
+// (B) 🔴スペルの応答窓＝CPU がスペルを使うと人間側にカットイン窓（`CutinModal`）が出て、
+// 「パス（カットインしない）」を押すと解決して CPU が先へ進むこと（止まらないことが最優先）。
+// WD02-015（轟音の火柱・赤×1・使用条件なし・BANISH 相手パワー5000以下）を CPU（guest）の手札へ。
+const v76SpellCutinSpec = {
+  guestSet: {
+    'field.lrig': ['WD03-003#8980'],
+    'field.signi': [['WD01-013#8981'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'hand': ['WD02-015#8982'],
+    'energy': ['WD02-013#8983'],   // 赤エナ1枚
+    'actions_done': [], 'cpu_used_card_nums_this_turn': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#8990'],
+    'field.signi': [null, null, ['WD01-013#8991']],   // guestゾーン0の正面（host zone2）・パワー3000
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV76SpellCutin = async (page, H) => {
+  let firedLog = false;
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] スペルを発動: 轟音の火柱'))) firedLog = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['パス（カットインしない）', 'パス', 'アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const targetGone = !(fin?.host?.fieldSigni?.[2] ?? []).some(c => c && c.startsWith('WD01-013'));
+  const detail = `firedLog=${firedLog} / handedOver=${handedOver}（止まらないことの証明） / targetGone=${targetGone} / `
+    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+  H.log(`  v76spellCutin ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない＝カットイン窓で止まった疑い（${detail}）` };
+  return { pass: firedLog && targetGone, detail };
+};
+
+scenarios.v76CpuSpellCutinPassProgresses = {
+  title: 'V-76(B) CPU がスペルを使うと人間側にカットイン窓が出て、パスすると解決して先へ進む（止まらない）',
+  spec: v76SpellCutinSpec,
+  drive: (page, H) => driveV76SpellCutin(page, H),
+};
+order.push('v76CpuSpellCutinPassProgresses');
 // ── V-76 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
