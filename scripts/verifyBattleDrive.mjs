@@ -20143,10 +20143,11 @@ async function driveV62Charm(page, H) {
   let last = await H.queryState();
   for (let s = 0; s < 60; s++) {
     await page.waitForTimeout(400);
-    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    const did = await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    if (!did) await H.stdStep();
     const st = await H.queryState();
     last = st;
-    H.log(`  v62charm[${s}] activeUser=${st?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} hEnergy=${st?.host?.energy} hHand=${st?.host?.hand} phase=${st?.turnPhase}`);
+    H.log(`  v62charm[${s}] did=${did} activeUser=${st?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} hEnergy=${st?.host?.energy} hHand=${st?.host?.hand} phase=${st?.turnPhase} stackLen=${st?.stackLen} pendingEffect=${st?.pendingEffect}`);
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
   }
   return last;
