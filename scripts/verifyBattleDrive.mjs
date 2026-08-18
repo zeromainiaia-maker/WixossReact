@@ -19006,6 +19006,63 @@ scenarios.v75CardNameNotBlockedShowsUse = {
 order.push('v75CardNameBlockedHidesUse', 'v75CardNameNotBlockedShowsUse');
 // ── V-75 END ──
 
+// ── §7 V-76（続き552b・§8/`O-1` (b) CPU が自ターンにアーツ／スペルで攻める v1 ＋ スペル使用ゲートの1本化）──
+// (A)(C): WX24-P1-021（剣一炎敵・赤×1・使用条件なし・BANISH 相手パワー10000以下）を CPU（guest）の
+// ルリグデッキへ。guest ゾーン0 の正面（`2-0=2`）を host のシグニ（WD01-013・3000）で塞いだ盤面で
+// CPU ターンを回すと、①除去アーツを使って正面を空ける ②そのままアタックしてライフクラッシュが通る、の両方を見る。
+const v76OffensiveArtsSpec = (hasTarget) => ({
+  guestSet: {
+    'field.lrig': ['WD03-003#8960'],
+    'field.signi': [['WD01-013#8961'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'lrig_deck': ['WX24-P1-021#8962'],
+    'energy': ['WD02-013#8963'],   // 赤エナ1枚
+    'hand': [], 'actions_done': [], 'cpu_used_card_nums_this_turn': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#8970'],
+    'field.signi': hasTarget ? [null, null, ['WD01-013#8971']] : [null, null, null],
+    'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV76OffensiveArts = async (page, H, expectUsed) => {
+  let usedLog = false;
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] アーツを使用: 剣一炎敵'))) usedLog = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const targetGone = expectUsed ? !(fin?.host?.fieldSigni?.[2] ?? []).some(c => c && c.startsWith('WD01-013')) : true;
+  const lifeCrashed = (fin?.host?.life ?? 7) < 7;   // 除去のあとアタックが通った証拠（(C)）
+  const detail = `usedLog=${usedLog}（期待${expectUsed}） / handedOver=${handedOver} / targetGone=${targetGone} / `
+    + `hostLife終値=${fin?.host?.life}（除去後アタックが通れば<7） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+  H.log(`  v76offensive ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  const ok = expectUsed ? (usedLog && targetGone && lifeCrashed) : !usedLog;
+  return { pass: ok, detail };
+};
+
+scenarios.v76CpuUsesRemovalWhenBlocked = {
+  title: 'V-76(A)(C) CPU が正面塞がれで除去アーツを使い、正面を空けてアタックが通る（ライフクラッシュ）',
+  spec: v76OffensiveArtsSpec(true),
+  drive: (page, H) => driveV76OffensiveArts(page, H, true),
+};
+scenarios.v76CpuDoesNotUseRemovalWhenClear = {
+  title: 'V-76(A) 対照＝相手の場が空なら除去アーツを使わない（hasBlockedAttacker の足切り）',
+  spec: v76OffensiveArtsSpec(false),
+  drive: (page, H) => driveV76OffensiveArts(page, H, false),
+};
+order.push('v76CpuUsesRemovalWhenBlocked', 'v76CpuDoesNotUseRemovalWhenClear');
+// ── V-76 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
