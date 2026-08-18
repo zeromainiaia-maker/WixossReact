@@ -137,16 +137,15 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-18・続き555・Opus 5）＝§6.4 `O-1` (e) を実機で確認（`V-79` 本命2本 PASS）＋ `ON_ATTACK_PHASE_END` の収集器を golden で固定**。ゲート全緑（**golden 2294→2295**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機5本 ALL PASS**。**live JSON・CSV とも非改変**（`scripts/` のみ）。version 0.485→0.486。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き555）。
-  - **✅ `V-79` 本命＝「追加アタックフェイズで無限ループしない」**＝`ATTACK_LRIG` 始まりで **`ATTACK_ARTS_OP`→`ATTACK_SIGNI`→`ATTACK_LRIG`→`END`→`UP`**＝**2周してターンが人間へ渡った**（ログあり・残キュー0）。対照（予約なし）は **`UP` へ直行**。
-  - 🔑**予約（`extra_attack_phases_this_turn`）を直接注入する**型＝CPU に `WXK06-026` を撃たせる盤面を組まずに**直したその1点**を踏める。`PHASE_NEXT` は一方向なので `ATTACK_ARTS*` の再出現がそのまま2周の証拠。
-  - ⚠**実機ドライブの落とし穴2つ（次に CPU ターンを回す人へ）**＝①**`ATTACK_ARTS_OP` は非ターンプレイヤー（＝人間）が進行ボタンを持つ**＝CPU ターンでもここで止まるので**「アーツ終了」を押さないと無限ループと誤診する** ②**開始時の `activeUser` を基準にしない**（注入→reload→2秒待ちの間に CPU が走り切る）＝終了判定は **`activeUser !== CPU_PLAYER_ID`** の絶対条件で見る。
-  - **✅ golden +1**＝`ON_ATTACK_PHASE_END`（(e) で新規配線）の収集器を**離場履歴あり／なし／filter 不一致**の3点で固定。
-  - ⚠**その実機シナリオは取り下げた**＝live 母集団の `WX24-P2-075` は本文が **`optional`（「置いてもよい」）** なので、収集されても**CPU の自動応答が「しない」側に倒れて盤面差分が出ない**＝**実機からは観測できない**。**収集の正しさを見る層は golden が正**（実機は「フェイズ進行が壊れないこと」に絞る）。原因の確定は未調査・低優先。
-  - 🆕**計器**＝`queryState` に `extraAttackPhases` / `pendingExtraAttackStart` を追加。
-  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**。**ハーネスは動く**（続き554 で復旧）。未検証は `V-79`(B)(D)／`V-80`(C)／`V-74`〜`V-78`／それ以前の約56件。
-  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（(a)〜(f) は実装済み・(e)(f) は実機確認済み）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）。⚠**過去に FAIL と記録した実機結果は #310 の巻き添えを疑って回し直す**（続き554）。
+- **🆕 セッション（2026-08-18・続き556・Sonnet 5）＝§7 実機検証を継続＝`V-79`(B)(D)・`V-80`(C・付与側) ALL PASS で両方とも残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規3本 ALL PASS**（既存7本の回帰確認込み）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.486→0.487。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き556）。
+  - **✅ `V-79`(B)＝CPU の2周目でも `ON_ATTACK_PHASE_START` は走るが【ハスターリク】は発動しない**（`v79SecondLapHastarliqSuppressed`）＝開始時本文（DRAW）は消化される一方、【ハスターリク】は human 側と同じ扱いで発動しない（CPU の addedExtraPhase 分岐に直書きチェックが無い設計を実機で確認）。
+  - **✅ `V-79`(D)＝人間側「1周目終了時→2周目開始時」の解決順**（`v79HumanOrderEndBeforeStart`）＝確定直後の `effect_stack.pendingTurn` の並びが `["WX24-P2-075-E1", "EXTRA_ATTACK_PHASE_START:..."]`＝終了→開始の順を実機で確認。**解決を待たず push 順を直接読む**手法で決定論的に判定。
+  - **✅ `V-80`(C・付与側)＝CPU が付与ルリグ【起】を撃つ**（`v80CpuActivatesGrantedLrig`）＝`lrig_granted_auto_effects` を CPU のルリグへ注入→`[CPU] ルリグの【起】を発動:` ログ→コイン消費→DRAW本体まで一気通貫で解決。📋**継承【起】側は盤面構築コストが高く見送り**（follow-up）。
+  - 🔴🔑**新規に踏んだ実機注入の罠**＝`signi_left_field_this_attack_phase` の instanceId は `battleCardNums`（`BattleScreen.tsx` の反応的ロード走査）に含まれない＝**その配列だけに書くと `battleCardMap` に載らず条件が静かに false になる**（実ゲームでは離場先が必ず他の走査に掛かるため無害だが、直接注入では同じ instanceId を `trash` 等にも置く必要がある）。詳細は BUGFIXES 続き556。
+  - ⚠**副次発見（未解決・follow-up）**＝既存シナリオ `v15AttackPhaseEndCentralDiffToyLeftFires` が単独実行でも2回連続 FAIL（ドライバーのクリック列が迷子になっている疑い）。**engine 側の回帰ではない**（このセッションは `scripts/` のみ変更）。V-79/V-80 のスコープ外につき未着手のまま記録。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。未検証は `V-74`〜`V-78`／それ以前の約56件。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も次に触る人が要再現確認**。
+  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（実機検証待ちはクローズ済み）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
