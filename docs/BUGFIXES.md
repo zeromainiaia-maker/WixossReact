@@ -1,5 +1,57 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き552c・Opus 5）— **§8／§6.4 `O-1` (c)＝CPU がルリグ【起】と《アタックフェイズアイコン》付きシグニ【起】を撃つ**（v1）＋ 🔴**ルリグ【起】の《コインアイコン》コストが1度も支払われていなかった**（live 82効果）
+
+ゲート全緑（typecheck / golden **2287→2290** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.481→0.482。続き552／552b の直接の続き。
+
+### 1. やったこと
+
+**(c1) 《アタックフェイズアイコン》付きシグニ【起】**
+
+`pickCpuMainPhaseActivated` → **`pickCpuSigniActivated`** へ改名し、`phase`（`'MAIN'` / `'ATTACK_ARTS'`）を
+引数化した。判定は既存の `signiActivateGate` 1本のままで、**違うのは渡す `phase` だけ**。
+BattleScreen 側も `tryCpuSigniActivated(actorState, phase)` に畳んで2窓が同じ道を通るようにした。
+⚠この窓を足すまで、《アタックフェイズアイコン》付き【起】は **CPU にとって恒久 no-op** だった。
+**実測＝76効果中 54 が CPU の射程**。
+
+**(c2) ルリグの【起】**
+
+- **`src/screens/battle/lrigActivateGate.ts` 新設**＝`listActivatableLrigEffects()` /
+  `canActivateLrigEffect()` / `exceedPayableCount()`。人間の MAIN 窓・ATTACK_ARTS 窓の両方をこれ1本に置き換えた。
+- `executeLrigGranted` → **`performLrigActivated`** へ owner パラメータ化（人間用は薄いラッパー）。
+- **`src/screens/battle/cpuLrigActivate.ts` 新設**＝allowlist（`CPU_LRIG_AUTO_PAYABLE_COST_KEYS`）で
+  「支払い内訳が要るコストは撃たない」を守りつつ1つ選ぶ。台帳は**シグニ【起】と共通**
+  （`cpu_activated_effect_ids_this_turn`＝effectId は型を跨いで衝突しない）。
+- **実測＝CPU が撃てるルリグ【起】は MAIN 425／ATTACK_ARTS 83**（live のルリグ【起】は 558＝MAIN 492／AA 87）。
+  ルリグ【起】は**シグニ【起】より母数が大きい**（492 vs 686 だが1枚あたりの重みが違う）。
+
+### 2. 🔴 統合で塞いだ穴（3つとも「軸が窓ごとに食い違っていた」型）
+
+1. 🔴**《コインアイコン》コスト（`cost.coin`・live 82効果）が1度も支払われていなかった**。
+   `performSigniActivated`（シグニ【起】）は同じキーを deduct しているのに、**ルリグ【起】の実行経路には
+   コインの行が1行も無く**、`LrigGrantedModal` にも所持枚数の表示すら無かった＝**宣言だけして踏み倒す**状態。
+   ⇒ 実行側に deduct ＋ `COIN_SPENT` ＋ `ON_COIN_PAID` 収集を足し、**提示ゲート側に所持枚数の検算**を足した
+   （＝支払いと提示を対にする規律）。
+2. 🔴**MAIN 窓は `condition`（使用条件）を1度も見ていなかった**（付与【起】側だけが見ていた）＝
+   条件つきのルリグ【起】が**条件を無視して撃てた**。
+3. 🔴**ATTACK_ARTS 窓は【絆起】・【歌のカケラ】・`lrigDown` の支払い可否を見ていなかった**（MAIN 窓だけが見ていた）。
+
+加えて **エクシードの検算**（`exceedPayableCount`）を提示側へ追加した。`performLrigActivated` の支払いは
+`Math.min(remaining, stack.length - 1)` で**払える分だけ**払うので、不足していても素通り＝コストが軽くなっていた。
+
+### 3. golden（+3）
+
+`O-1 lrigActivateGate:`（提示の切れ方＝封じ2軸・使用制限・🔴コイン・🔴エクシード・🔴使用条件・《ダウン》。
+対照つき）、`O-1 cpuLrigActivate:`（allowlist ／ 3条件の選択）。
+
+### 4. ⚠実機未検証（→ §7 `V-77`）
+
+(a) CPU がメインフェイズに**ルリグの【起】を撃つ**こと（`[CPU] ルリグの【起】を発動:` のログ）
+(b) 《アタックフェイズアイコン》付きシグニ【起】が**アタックフェイズに撃たれる**こと（対照＝メインでは撃たない）
+(c) 🔴**人間側の是正**＝コインを持っていないとルリグ【起】のボタンが出ないこと／撃つと**コインが実際に減る**こと
+（対照＝従来は減らなかった）
+(d) 🔴**人間側の是正**＝使用条件つきのルリグ【起】が条件を満たさないと出ないこと（MAIN 窓）。
+
 ## 2026-08-18（続き552b・Opus 5）— **§8／§6.4 `O-1` (b)＝CPU が自ターンにアーツ／スペルを使う**（v1）＋ スペルの**使用ゲート／コスト計算を1関数へ集約**
 
 ゲート全緑（typecheck / golden **2283→2287** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.480→0.481。続き552（(a) 応答アーツ）の直接の続き。
