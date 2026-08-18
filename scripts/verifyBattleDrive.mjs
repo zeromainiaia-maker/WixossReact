@@ -21414,6 +21414,54 @@ scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
 order.push('v55CheckZoneFlipGrowsAndOnPlayFires');
 // ── V-55 END ──
 
+// ── §7 V-30（O-10・続き566）ターン境界を跨いだ能力喪失の復帰確認 ──
+// `lrig_abilities_disabled`（`turnScopedState.ts` の boundaries:['turn-end']）＝ターンが終わるたびに
+// 両プレイヤーぶん失効する。V-49で「フラグが立っている間は付与済み能力ごと機能しない」ことは確認済み＝
+// 今回は host のターンを1つ終えて（フラグが立った状態で開始→ターン終了→CPUターンへ）、
+// **ターン境界を跨いだ直後には既に復帰している**ことを、V-49と同じ DAMAGE_REPLACE_BY_COST 注入が
+// 今度は発火する（＝能力が戻っている）ことで確認する。
+scenarios.v30LrigAbilitiesDisabledClearsAtTurnBoundary = {
+  title: 'V-30 lrig_abilities_disabledはターン境界を跨ぐと復帰し、付与済み能力が再び機能する',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9970'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': ['WD01-013#9971'], 'energy': [], 'actions_done': [], 'lrig_abilities_disabled': true,
+      'lrig_granted_auto_effects': [{
+        effectId: 'v30damageReplaceE1', effectType: 'CONTINUOUS', duration: 'UNTIL_OPP_TURN_END',
+        mandatory: true, parseStatus: 'MANUAL',
+        action: { type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST', damageReplaceByCost: { options: [{ handDiscard: 1 }], loseAbility: true } },
+      }],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9972'], 'field.signi': [['WD01-013#9973'], null, null], 'field.signi_down': [false, false, false],
+      'field.check': null, 'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let fin = before;
+    let crossedBoundary = false;
+    for (let s = 0; s < 60; s++) {
+      await page.waitForTimeout(300);
+      const did = await H.clickTextOrBtn(['ターン終了', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+      fin = await H.queryState();
+      if (fin?.activeUser === V79_CPU_ID) crossedBoundary = true;
+      const notDiscarded = (fin?.host?.handCards ?? []).includes('WD01-013#9971');
+      H.log(`  v30turnboundary[${s}] did=${did ?? 'なし'} activeUser=${fin?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} hLife=${fin?.host?.life} hHand=${fin?.host?.hand} notDiscarded=${notDiscarded}`);
+      if (crossedBoundary && (fin?.host?.life ?? 7) < 7) break;
+      if (crossedBoundary && !notDiscarded) break;
+    }
+    const discarded = !(fin?.host?.handCards ?? []).includes('WD01-013#9971');
+    const lifeIntact = (fin?.host?.life ?? -1) === (before?.host?.life ?? 7);
+    const detail = `crossedBoundary=${crossedBoundary}（前提true） / discarded=${discarded}（期待true＝能力復帰で置換発火） / hLife ${before?.host?.life}→${fin?.host?.life}（期待不変）`;
+    H.log(`  v30turnboundary ${detail}`);
+    return { pass: crossedBoundary && discarded && lifeIntact, detail };
+  },
+};
+order.push('v30LrigAbilitiesDisabledClearsAtTurnBoundary');
+// ── V-30 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
