@@ -19779,6 +19779,82 @@ scenarios.v70OwnEffectHandAddedUpsLrig = {
 order.push('v70OwnEffectHandAddedUpsLrig');
 // ── V-70 END ──
 
+// ── §7 V-69（続き546・タスク12(cxx)＝エナ差分 watcher の《ターン1回/2回》）──
+// WX01-049（【起】《ダウン》：デッキ最上をエナゾーンに置く＝コストなしで独立に2回撃てる充填源）を2体場に置き、
+// (a) WXK04-028（【自】《ターン１回》：エナチャージをしたとき、エナチャージ１＝ON_ENERGY_CHARGE self・
+//     usageLimit once_per_turn）は1回目の充填だけ追加チャージを誘発し、2回目では誘発しないこと＝
+//     energy 終値が「2回の手動ぶん+1回目のボーナスぶん」=3（4ではない）になることで見る。
+// (b) 対照＝WXDi-P11-073（【自】《ターン２回》：エナゾーンにカードが置かれたとき、このシグニのパワー+2000）は
+//     2回とも誘発する＝パワーが+4000（temp_power_modsに現れる）になることで見る。
+// ⚠旧実装は「チャージのたびに撃てた」＝(a)の3が4になっていた過剰発火。
+const v69EnergyWatcherSpec = (watcherCardNum) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9900'], 'field.signi': [[watcherCardNum + '#9901'], ['WX01-049#9902'], ['WX01-049#9903']],
+    'field.check': null, 'field.signi_down': [false, false, false],
+    'energy': [], 'deck': ['WD01-013#9910', 'WD01-013#9911', 'WD01-013#9912', 'WD01-013#9913', 'WD01-013#9914'],
+    'hand': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9930'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV69EnergyWatcher = async (page, H, zoneCount) => {
+  for (const zoneIdx of [1, 2]) {
+    await H.clickTestId(`my-signi-zone-${zoneIdx}`).catch(() => {});
+    await page.waitForTimeout(400);
+    const btn = page.getByRole('button', { name: '【起】ダウン', exact: false }).first();
+    if (await btn.count() && await btn.isVisible().catch(() => false)) {
+      await btn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(300);
+    await H.clickBtn('発動', { exact: true });
+    await page.waitForTimeout(600);
+  }
+  let fin = null;
+  for (let s = 0; s < 4; s++) {
+    await page.waitForTimeout(300);
+    await H.stdStep();
+    fin = await H.queryState();
+  }
+  return fin;
+};
+
+scenarios.v69OnceLimitBlocksSecondEnergyChargeTrigger = {
+  title: 'V-69(a) 🔴WXK04-028＝エナチャージ2回のうち1回目だけ追加チャージが誘発（《ターン１回》の境界）',
+  spec: v69EnergyWatcherSpec('WXK04-028'),
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    const fin = await driveV69EnergyWatcher(page, H);
+    const energyFinal = fin?.host?.energy ?? -1;
+    const usedOnce = (fin?.host?.actionsDone ?? []).includes('WXK04-028-E2');
+    const detail = `energy終値=${energyFinal}（期待3＝手動2回+ボーナス1回のみ） / usedOnce=${usedOnce} / `
+      + `energyCards=${JSON.stringify(fin?.host?.energyCards)} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    H.log(`  v69watcher ${detail}`);
+    return { pass: energyFinal === 3, detail };
+  },
+};
+scenarios.v69TwiceLimitFiresBothEnergyChargeTriggers = {
+  title: 'V-69(b) 対照＝WXDi-P11-073（《ターン２回》）は2回とも誘発してパワー+4000になる',
+  spec: v69EnergyWatcherSpec('WXDi-P11-073'),
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    const fin = await driveV69EnergyWatcher(page, H);
+    const buff = (fin?.host?.powerMods ?? []).find(m => m.startsWith('WXDi-P11-073#9901:'));
+    const delta = buff ? parseInt(buff.split(':')[1], 10) : 0;
+    const detail = `powerMods=${JSON.stringify(fin?.host?.powerMods)}（期待+4000） / energy終値=${fin?.host?.energy} / `
+      + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    H.log(`  v69watcher ${detail}`);
+    return { pass: delta === 4000, detail };
+  },
+};
+order.push('v69OnceLimitBlocksSecondEnergyChargeTrigger', 'v69TwiceLimitFiresBothEnergyChargeTriggers');
+// ── V-69 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
