@@ -1946,10 +1946,6 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const st = cond.owner === 'opponent' ? ctx.otherState : ctx.ownerState;
       const left = st.signi_left_field_this_attack_phase ?? [];
       const n = left.filter(id => !cond.filter || matchesFilter(ctx.cardMap.get(getCardNum(id)), cond.filter)).length;
-      if (typeof console !== 'undefined') console.error('DBGV79D condcase', JSON.stringify({
-        owner: cond.owner, left, n, minCount: cond.minCount ?? 1,
-        filter: cond.filter, matched: left.map(id => ({ id, base: getCardNum(id), card: ctx.cardMap.get(getCardNum(id)), m: !cond.filter || matchesFilter(ctx.cardMap.get(getCardNum(id)), cond.filter) })),
-      }));
       return n >= (cond.minCount ?? 1);
     }
     case 'THIS_CARD_HAS_ATTACHED': {
