@@ -21394,25 +21394,21 @@ scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
     const useClick = await H.clickTextOrBtn(['使用']);
     await page.waitForTimeout(400);
     const useClick2 = await H.clickTextOrBtn(['使用']);
-    await page.waitForTimeout(400);
-    const visibleBtnTexts = await page.locator('button:visible').allTextContents();
-    H.log(`  v55flipgrow 初手 dkClick=${dkClick} cardClick=${cardClick} useClick=${useClick} useClick2=${useClick2} visibleButtons=${JSON.stringify(visibleBtnTexts)}`);
+    H.log(`  v55flipgrow 初手 dkClick=${dkClick} cardClick=${cardClick} useClick=${useClick} useClick2=${useClick2}`);
     let fin = before;
-    let sawNoTargetLog = false;
+    let sawOnPlayLog = false;
     for (let s = 0; s < 10; s++) {
       await page.waitForTimeout(350);
       const did = await H.stdStep() || await H.clickTextOrBtn(['決定', 'OK', '発動']);
       fin = await H.queryState();
-      sawNoTargetLog ||= (fin?.logTail ?? []).some(l => l.includes('グロウ先（裏面）が指定されていない'));
+      sawOnPlayLog ||= (fin?.logTail ?? []).some(l => l.includes('扉の俯瞰者　ウトゥルス の【出】効果'));
       H.log(`  v55flipgrow[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} lrigTop=${fin?.host?.lrigTop} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-3))}`);
-      if (!did && sawNoTargetLog) break;
+      if (fin?.host?.lrigTop === 'WXDi-P16-001B' && sawOnPlayLog) break;
     }
-    const lrigUnchanged = fin?.host?.lrigTop === before?.host?.lrigTop;
-    const detail = `sawNoTargetLog=${sawNoTargetLog}（実バグなら期待true） / lrigTop不変=${lrigUnchanged}（実バグなら期待true＝グロウ不発） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-4))}`;
+    const grew = fin?.host?.lrigTop === 'WXDi-P16-001B';
+    const detail = `grew=${grew}（期待true＝WXDi-P16-001Bへグロウ） / sawOnPlayLog=${sawOnPlayLog}（期待true＝【出】発火） / lrigTop=${fin?.host?.lrigTop}`;
     H.log(`  v55flipgrow ${detail}`);
-    // このシナリオは「実バグを実機確認する」ための調査＝バグを確認できたらそれ自体が検証成功（PASS）とし、
-    // Opusタスク12へ登録する（その場では直さない＝CLAUDE.md規約）。
-    return { pass: sawNoTargetLog && lrigUnchanged, detail };
+    return { pass: grew && sawOnPlayLog, detail };
   },
 };
 order.push('v55CheckZoneFlipTargetMissingConfirmsBug');
