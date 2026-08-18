@@ -20185,8 +20185,10 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
   title: 'V-60(a)(c) 🔴WXEX1-44＝手札から1枚エナに送ると、エナから調理シグニ1枚が手札に回収される（比例）',
   spec: {
     hostSet: {
-      'field.lrig': ['WXK09-018#9920'], 'field.signi': [null, null, null], 'field.check': null,
-      'hand': ['WXEX1-44#9921', 'WX15-105#9922'], 'energy': ['WX15-105#9923'],
+      // ⚠WXK09-018（Lv3）だと signiLevel(4) <= currentLrigLevel(3) を満たさず召喚不可＝
+      //   常に「召喚」ボタンが出ずクリックが空振りしていた（続き565実測）。WD01-001（Lv4）に変更。
+      'field.lrig': ['WD01-001#9920'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': ['WXEX1-44#9921', 'WX15-105#9922'], 'energy': ['WX15-105#9923', 'WD01-013#9924', 'WD01-013#9925'],
       'lrig_deck': [], 'actions_done': [],
     },
     guestSet: {
