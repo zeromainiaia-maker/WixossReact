@@ -20556,6 +20556,61 @@ scenarios.v49LrigAbilitiesDisabledSuppressesGrantedReplace = {
 order.push('v49LrigAbilitiesDisabledSuppressesGrantedReplace');
 // ── V-49 END ──
 
+// ── §7 V-47（O-10・続き566）(c)のうち単発発火の核だけ ──
+// `WXK01-002-E1`【常】：手札が0枚であるかぎり、対戦相手のルリグによるダメージを代わりに受けない＝
+// STUB{PREVENT_LRIG_DAMAGE, loseAbilityAfterUse:true}＋activeCondition COUNT_THRESHOLD(hand,eq,0)。
+// `lrigDamageShield.ts` の `resolveLrigDamageShield` が判定の唯一の場所（続き507でルリグ本体走査を追加
+// した修正）。CPUのルリグアタックで(a)手札0枚＝ダメージを防ぐ(b)手札1枚以上＝条件不成立で通常どおり
+// ダメージを受ける、の対照を見る（同ターン2回目の確認は別途follow-up）。
+const v47LrigShieldSpec = (hostHand) => ({
+  hostSet: {
+    'field.lrig': ['WXK01-002#9970'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+    'hand': hostHand, 'energy': [], 'actions_done': [], 'lost_ability_effect_ids_this_turn': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9971'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9972', 'WD01-013#9973'],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+async function driveV47LrigShield(page, H) {
+  const before = await H.queryState();
+  let last = before;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(400);
+    const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定', 'スキップ']) || await H.stdStep();
+    const st = await H.queryState();
+    last = st;
+    H.log(`  v47lrigshield[${s}] did=${did ?? 'なし'} hLife=${st?.host?.life}（開始${before?.host?.life}） activeUser=${st?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} check=${st?.host?.fieldCheck ?? '-'}`);
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
+  }
+  return { before, fin: last };
+}
+scenarios.v47LrigDamageShieldPreventsWhenHandEmpty = {
+  title: 'V-47(c) 手札0枚＝WXK01-002がルリグダメージを防ぐ',
+  spec: v47LrigShieldSpec([]),
+  async drive(page, H) {
+    const { before, fin } = await driveV47LrigShield(page, H);
+    const pass = fin?.host?.life === before?.host?.life;
+    const detail = `host.life ${before?.host?.life}→${fin?.host?.life}（期待不変＝防いだ）`;
+    H.log(`  v47lrigshield ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v47LrigDamageShieldFiresWhenHandNonEmpty = {
+  title: 'V-47(c) 対照＝手札1枚以上だと条件不成立でダメージが通る',
+  spec: v47LrigShieldSpec(['WD01-013#9974']),
+  async drive(page, H) {
+    const { before, fin } = await driveV47LrigShield(page, H);
+    const pass = (fin?.host?.life ?? 0) === (before?.host?.life ?? 0) - 1;
+    const detail = `host.life ${before?.host?.life}→${fin?.host?.life}（期待-1＝防がず通る）`;
+    H.log(`  v47lrigshield ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v47LrigDamageShieldPreventsWhenHandEmpty', 'v47LrigDamageShieldFiresWhenHandNonEmpty');
+// ── V-47 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
