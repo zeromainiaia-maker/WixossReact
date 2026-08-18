@@ -20199,13 +20199,11 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
     await H.ensureMain();
     await page.waitForTimeout(600);
     // ⚠`my-hand-card-0` はDOM描画順であって spec.hand の配列順とは限らない（続き565実測＝
-    //   意図しないWX15-105が召喚された）。目的のカード名で直接クリックする。
-    const targetHandImg = page.locator('img[alt="コードオーダー　とんラー"]').last();
-    if (await targetHandImg.count() && await targetHandImg.isVisible().catch(() => false)) {
-      await targetHandImg.click({ force: true, timeout: 2000 }).catch(() => {});
-    } else {
-      await H.clickTestId('my-hand-card-0');
-    }
+    //   意図しないWX15-105が召喚された＝おそらくCardNum昇順ソート）。目的のカード名で直接クリックする。
+    const targetHandImg = page.locator('img[alt="コードオーダー　とんラー"]').first();
+    const targetVisible = await targetHandImg.count() && await targetHandImg.isVisible().catch(() => false);
+    if (targetVisible) await targetHandImg.click({ force: true, timeout: 2000 }).catch(() => {});
+    H.log(`  v60acce 初回クリック targetVisible=${targetVisible}`);
     let summoned = false;
     let fin = null;
     for (let s = 0; s < 20; s++) {
@@ -20216,8 +20214,10 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
         await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
       }
       if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
-      if (!did) {
-        const handImg = page.locator('img[alt="コードイート　トロチー"]').last();
+      // ⚠トロチーのコスト選択は「召喚済み」になってから探す＝召喚前に探すと初回クリックの代役として
+      //   誤ってトロチー自身を開いてしまう事故を防ぐ（続き565実測）。
+      if (!did && summoned) {
+        const handImg = page.locator('img[alt="コードイート　トロチー"]').first();
         if (await handImg.count() && await handImg.isVisible().catch(() => false)) {
           await handImg.click({ force: true, timeout: 2000 }).catch(() => {}); did = 'img:トロチー';
         }
