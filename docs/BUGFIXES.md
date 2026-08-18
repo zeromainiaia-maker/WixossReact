@@ -1,5 +1,82 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き553・Opus 5）— **§8／§6.4 `O-1` (e)(f)＝CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ ＋ 付与／継承のルリグ【起】を funnel へ寄せて CPU に載せる**
+
+ゲート全緑（typecheck / golden **2291→2293** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.483→0.484。続き551〜552d の直接の続き。
+
+### 1. (e) CPU の `ATTACK_LRIG`→`END` 遷移（`BattleScreen.tsx` の CPU ループ）
+
+**真因**＝この1点だけ `SET_TURN_PHASE`（**フェイズしか書けない** reducer アクション）でコミットしていた。
+そのため「追加のアタックフェイズ」（§6.4 O-3・`extra_attack_phases_this_turn`）の**キューを減らす手段が無く**、
+`resolveNextPhaseAfterAttack` を通すと `ATTACK_ARTS` へ戻り続ける＝**CPU 進行の無限ループ**になる構造だった。
+続き552b では `hasCpuUnsupportedAction` で `ADD_EXTRA_ATTACK_PHASE` を含む札を **CPU が選ばない**ことで回避していた。
+
+**直し方**＝`ADVANCE_TURN_WITH_STATE`（両者の state ＋ phase ＋ effect_stack を1コミットで書ける）へ移し、
+人間経路（`doPhaseAdvance` の同じ遷移）と**同じ4点**を行うようにした：
+
+1. `ON_ATTACK_PHASE_END` 収集 — ⚠**CPU 経路では一度も収集していなかった**（タスク12(lxvii) が配線した5 timing に続く6本目。live 母集団は1効果＝`WX24-P2-075`）
+2. `clearEndOfAttackPhaseDelayedTriggers` を**両者**に — ⚠これも CPU 経路には無かった（「このアタックフェイズの間」の遅延 watcher が CPU ターンだけ消えずに残っていた）
+3. `resolveNextPhaseAfterAttack` で追加アタックフェイズの予約を**1件消化**して `ATTACK_ARTS` へ戻す
+4. 戻る場合は2周目の `clearAttackPhaseScopedState` ＋ `ON_ATTACK_PHASE_START` 収集（⚠【ハスターリク】は2周目では発動しない＝人間経路の `phase !== 'ATTACK_LRIG'` と同じ扱い）
+
+**除外の撤去**＝`CPU_UNSUPPORTED_ACTION_TYPES` は**空集合**になった（受け口としては残す）。
+これで `WXK06-026`（スペル）／`WX22-010`（ルリグ【起】）を CPU が使えるようになる。
+`hasCpuUnsupportedAction` は**テスト用に集合を差し込める第2引数**を足した（本番集合が空でも
+「入れ子の `SEQUENCE`/分岐まで歩く」回帰を golden で検査し続けるため）。
+
+**人間経路の順序も直した**＝`ON_ATTACK_PHASE_END` の収集ブロックが `ON_ATTACK_PHASE_START` の**後**にあり、
+追加のアタックフェイズへ入るときだけ ①スタックの解決順が「2周目の開始時 → 1周目の終了時」と**逆転**し
+②直前の `clearAttackPhaseScopedState` で離場履歴（`signi_left_field_this_attack_phase`）が消えた state を読んでいた
+（＝コメントに書いてある前提が成り立たない）。フェイズ境界の自然な順（終了→開始）へ移動。
+
+### 2. (f) 付与／継承のルリグ【起】＝**収集源3つを1つの funnel へ**
+
+**真因**＝ルリグ【起】の収集源は3つ（①センター本来 ②付与＝`GRANT_LRIG_ABILITY` ③ルリグトラッシュ継承＝
+`INHERIT_LRIG_TRASH_ABILITIES`）あるのに、続き552c で funnel 化したのは①だけで、②③は
+`BattleScreen` 側に**手書きの部分再実装**が残っていた＝軸が食い違っていた。
+
+- **②付与【起】**（live **92効果／63カード**）＝コイン／エクシード／`lrigDown`／【絆起】／【歌のカケラ】を
+  **1つも見ていなかった**（`costUnparsed`・`usageLimit`・使用条件・封じは見ていた）。
+  ⚠特にコインは続き552c で**実行側が deduct するようにした**ので、提示側が見ないと所持0でも撃てた。
+- **③継承【起】**（宣言カード live **3枚**＝`WX05-002`/`003`/`004`）＝**継承済みの印以外は何も見ていなかった**
+  ＝`costUnparsed`・コイン・エクシード・`lrigDown`・《ダウン》・使用条件・封じを**全部素通り**して撃てた。
+
+**直し方**＝`lrigActivateGate.ts` に3本足して、可否判定はすべて既存の `canActivateLrigEffect` を通す：
+- `collectGrantedLrigEffects(...)`＝付与の収集源3つ（`collectLrigGrantedEffects` ＋
+  `lrig_granted_auto_effects` ＋ `lrig_granted_auto_effects_until_opp_turn`）を1本に。
+  人間の `grantedMyLrigEffects` useMemo と CPU の `tryCpuLrigActivated` が**同じ関数**を呼ぶ。
+- `listActivatableGrantedLrigEffects(gate, granted)`
+- `listActivatableInheritedLrigEffects(gate)`＝継承元の能力喪失（§6.4 O-10・`WX12-023`）の判定も内包し、
+  戻り値は**継承用に id を書き換えた複製**（`inherited_<継承元>_<元 id>`）＝人間も CPU もこの複製をそのまま実行へ渡す。
+
+`cpuLrigActivate.pickCpuLrigActivated` は①→②→③の順に候補を連結（優先度は定義順の決定論のまま）。
+BattleScreen 側の手書きフィルタ2本と `isLrigDownSelfUnpayable` ヘルパーは削除した。
+
+⚠**継承は「同じ継承元の同じ能力を1ターンに1回」まで**（`usageLimit` の有無に依らない既存の近似）。
+センター本来の【起】は `usageLimit` が無ければ何度でも撃てるので、そこだけ軸が違う＝**据置**（原文照合は別件）。
+
+⚠旧実装は継承の複製に `sourceCardNum` も足していたが、**`CardEffect` にそのキーは無い**（型外＝誰も読まない
+死にフィールドだった）ので落とした。発生源は `openLrigGranted({ sourceCardNum, effect })` の外側で渡している。
+
+### 3. golden（+2 テスト／既存3本を更新）
+
+- 追加＝`O-1 (f) lrigActivateGate: 付与【起】も同じ funnel で切れる`／`… ルリグトラッシュ継承【起】も …`
+  （どちらも「🔴従来1つも見ていなかった軸」を負方向＋対照の対で固定）。
+- `O-1 cpuLrigActivate: CPU のルリグ【起】選択…` に**継承【起】を CPU が選ぶ**1件を追加。
+- `§6.4 turn-scoped T6`＝`clearAttackPhaseScopedState` の出現数 **2→3**（CPU の追加アタックフェイズぶん）＋
+  **CPU の ATTACK_LRIG→END が state 込みコミットであること**の契約テスト5行を追加
+  （`SET_TURN_PHASE` へ戻したら赤で止まる）。
+- `§6.4 O-10（続き514）`＝`isTrashImmuneByOpponent` の読み手が BattleScreen 2箇所 → BattleScreen 1 ＋ lrigActivateGate 1 へ。
+- `O-1 cpuArts` の除外テスト＝「`ADD_EXTRA_ATTACK_PHASE` を含む札は使わない」→ **使えるようになった**へ反転。
+
+### 4. ⚠実機未検証（→ §7 `V-79`・`V-80`）
+
+`V-79`(e)＝CPU が `WXK06-026`（追加アタックフェイズのスペル）を撃って**アタックフェイズを2周し、2周目の後に
+ちゃんと END へ抜ける**（無限ループしない）／2周目に `ON_ATTACK_PHASE_START` が走り【ハスターリク】は走らない／
+CPU ターンに `ON_ATTACK_PHASE_END`（`WX24-P2-075`）が発火する。
+`V-80`(f)＝人間側で**付与【起】・継承【起】のボタンが従来どおり出る**（⚠今回**提示が厳しくなった**＝コイン不足・
+エクシード下札不足・使用条件未達では消える＝**回帰があるならここに出る**）／CPU が付与【起】・継承【起】を撃つ。
+
 ## 2026-08-18（続き552d・Opus 5）— **§8／§6.4 `O-1` (d)＝CPU グロウの手書き再実装を削除して `performGrow` へ統合**（DESIGN §4 の統一が完了）
 
 ゲート全緑（typecheck / golden **2290→2291** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors / 同型★**0** 据置 265群）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.482→0.483。続き552／552b／552c の直接の続き。

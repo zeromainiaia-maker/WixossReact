@@ -2484,6 +2484,20 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
+- **2026-08-18 続き552〜552d（§8／§6.4 `O-1` (a)〜(d)＝CPU がアーツ／スペル／【起】を使い、グロウも共通経路へ）後 最新値**：
+  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2291**（+13）、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
+  fuzz 全0、**同型★ 0**（265群 / 5986枚）、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
+  `census:goldentypes` **未カバー 0**（EffectAction 147型）、`census:wiring` miss **193**（⚠197→193 は当時の変更とは無関係＝
+  コミット済みシートが古く、再生成で `eachDistinctLevel`／`isPuppet`／`isAwakened` の3語彙が実態に追いついたぶん）、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**。
+  **live 効果総数 10693**（live JSON・CSV とも非改変＝engine/UI 側のみ）。version **0.483**。
+  **CPU が使える応答アーツ＝アタックフェイズ Timing の 428 のうち 214（50%）**（除去188／軽減16／無効化10）。
+  **攻めのアーツ（除去）＝メイン窓 174 ／ アタック窓 188**、**スペル＝427枚中 123**。
+  **シグニ【起】＝MAIN 500/682（73%）／《アタックフェイズアイコン》付き 54/76**。
+  **ルリグ【起】＝MAIN 425／ATTACK_ARTS 83**（live のルリグ【起】は 558＝MAIN 492／AA 87）。
+  **`BattleScreen.tsx` 14118行**（CPU 手書きグロウ約150行の削除で −9.8KB）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き552〜552d）。
+
 - **2026-08-18 続き551（§8／§6.4 `O-1`＝CPU がメインフェイズに【起】を撃つ v1）後 最新値（本行が直近の正）**：
   **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2278**（+4）、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
   fuzz 全0、**同型★ 0**（265群 / 5986枚）、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、

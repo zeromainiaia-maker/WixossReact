@@ -105,10 +105,10 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGate';
-import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
+import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
-import { exceedPayableCount, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
 import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
@@ -5400,8 +5400,22 @@ test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタッ�
     '次ターン側4経路はclear後に既存予約を昇格する');
   eq((battleSource.match(/activateTurnStartScopedState\(/g) ?? []).length, 2,
     '人間/CPUのUP開始をfunnelへ');
-  eq((battleSource.match(/clearAttackPhaseScopedState\(/g) ?? []).length, 2,
-    '人間/CPUのアタックフェイズ開始をfunnelへ');
+  // 🆕3箇所（2026-08-18・§6.4 O-1 (e)）＝人間（`doPhaseAdvance` の `nextPhase==='ATTACK_ARTS'`）／
+  //   CPU の MAIN→ATTACK_ARTS ／ CPU の**追加アタックフェイズ**（ATTACK_LRIG→ATTACK_ARTS の2周目）。
+  //   ⚠人間側の2周目は同じ `nextPhase==='ATTACK_ARTS'` フックが兼ねるので1箇所のまま。
+  eq((battleSource.match(/clearAttackPhaseScopedState\(/g) ?? []).length, 3,
+    '人間/CPU(通常)/CPU(追加アタックフェイズ)のアタックフェイズ開始をfunnelへ');
+  // 🆕§6.4 O-1 (e)（2026-08-18）＝CPU の ATTACK_LRIG→END は **state 込みコミット**でなければならない。
+  //   `SET_TURN_PHASE` へ戻すと `extra_attack_phases_this_turn` を減らせず ATTACK_ARTS へ戻り続ける
+  //   （＝CPU 進行の無限ループ）。母集団は `WX22-010`（ルリグ【起】）／`WXK06-026`（スペル）。
+  {
+    const cpuLrigAtk = section('// ─── ATTACK_LRIGフェイズ：ルリグアタック ───', '// ─── ENDフェイズ：ターン終了処理 ───');
+    ok(cpuLrigAtk.includes('resolveNextPhaseAfterAttack('), 'CPU も追加アタックフェイズの消化 funnel を通る');
+    ok(cpuLrigAtk.includes("type: 'ADVANCE_TURN_WITH_STATE'"), 'CPU の遷移は state 込みでコミットする');
+    ok(!cpuLrigAtk.includes("type: 'SET_TURN_PHASE'"), '🔴state を書けない SET_TURN_PHASE へ戻さない');
+    ok(cpuLrigAtk.includes("collectCpuTurnTriggers('ON_ATTACK_PHASE_END'"), 'CPU ターンでもアタックフェイズ終了時を収集する');
+    ok(cpuLrigAtk.includes('clearEndOfAttackPhaseDelayedTriggers('), 'このアタックフェイズの間の遅延 watcher を消す');
+  }
   // §6.4 O-3（続き492）: 「次のあなたのメインフェイズまで」の**唯一の失効地点**＝人間/CPU の
   // `ON_MAIN_PHASE_START` 収集と同じ2箇所。⚠1箇所でも欠けると予約が永続する（続き487/489 の再発）。
   eq((battleSource.match(/clearMainPhaseScopedState\(/g) ?? []).length, 2,
@@ -31489,9 +31503,14 @@ test('§6.4 O-10（続き514）: 相手トラッシュの「能力を失い、�
     .find(e => e.effectId === 'WX12-023-E1')!.action);
   ok(act.includes('TRASH_ABILITY_LOSS_AND_IMMUNITY') && !act.includes('DEFERRED_'), 'defer は解体済み');
   // 「能力を失う」の読み手2つが UI に配線されている（実挙動は §7 実機検証）。
+  // 🆕2026-08-18（§6.4 O-1 (f)）＝**継承【起】ぶんの読み手は `lrigActivateGate.ts` へ移った**
+  //   （人間のボタン生成と CPU の候補フィルタが同じ funnel を通るようにしたため）。
   const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
-  eq((src.match(/isTrashImmuneByOpponent\(/g) ?? []).length, 2,
-     'トラッシュ起動【起】とルリグトラッシュ継承【起】の2箇所から見る');
+  const gateSrc = fs.readFileSync(join(root, 'src/screens/battle/lrigActivateGate.ts'), 'utf8');
+  eq((src.match(/isTrashImmuneByOpponent\(/g) ?? []).length, 1,
+     'トラッシュ起動【起】は BattleScreen 側で見る');
+  eq((gateSrc.match(/isTrashImmuneByOpponent\(/g) ?? []).length, 1,
+     'ルリグトラッシュ継承【起】は lrigActivateGate 側で見る（人間/CPU 共通）');
 });
 
 test('§6.4 O-18（続き513）: スペル使用の封じ3軸が1関数に集約され、ボタン生成側からも見られている', () => {
@@ -39854,14 +39873,23 @@ test('O-1 cpuSpell: CPU は「除去・正面が塞がれている・払える�
     action: { type: 'DRAW', owner: 'self', count: 2 } } as CardEffect] }), null, 'ドロースペルは使わない（盤面評価が要る）');
   eq(pick({ actor: { ...mkState({ energy: 0, signi: [SIGNI, null, null] }), hand: ['T-SPELL-1'], energy: [] } as PlayerState }), null,
     '🔴払えないスペルは使わない（CPU は任意支払いをしないので基本コストが請求額）');
-  // 🔴追加アタックフェイズは CPU の ATTACK_LRIG→END 遷移を壊す＝分類できても使わない
+  // 🆕§6.4 O-1 (e)（2026-08-18）＝CPU の ATTACK_LRIG→END が state 込みコミットになり、
+  //   `resolveNextPhaseAfterAttack` で追加アタックフェイズのキューを1件消化できるようになった＝
+  //   `ADD_EXTRA_ATTACK_PHASE` の除外を撤去した（`CPU_UNSUPPORTED_ACTION_TYPES` は空集合）。
   eq(pick({ effs: [{ effectId: 'x', effectType: 'ACTIVATED', duration: 'INSTANT', mandatory: false,
     action: { type: 'SEQUENCE', steps: [
       { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1 } },
       { type: 'ADD_EXTRA_ATTACK_PHASE' },
-    ] } } as CardEffect] }), null, '🔴ADD_EXTRA_ATTACK_PHASE を含む札は使わない（CPU 進行が無限ループする）');
-  ok(hasCpuUnsupportedAction({ type: 'ADD_EXTRA_ATTACK_PHASE' } as never), '除外判定は木を歩いて検出する');
-  ok(!hasCpuUnsupportedAction({ type: 'DRAW', owner: 'self', count: 1 } as never), '通常のアクションは除外しない');
+    ] } } as CardEffect] })?.card.CardNum, 'T-SPELL-1', '🆕ADD_EXTRA_ATTACK_PHASE を含む除去スペルも使えるようになった');
+  eq(CPU_UNSUPPORTED_ACTION_TYPES.size, 0, '現在 CPU 進行が支えられない綴りは無い（受け口だけ残す）');
+  ok(!hasCpuUnsupportedAction({ type: 'ADD_EXTRA_ATTACK_PHASE' } as never), '空集合なら何も除外しない');
+  // walker 自体の回帰（集合が空でも「入れ子まで歩く」ことを検査し続ける＝合成集合を差し込む）。
+  const synth = new Set(['T_UNSUPPORTED']);
+  ok(hasCpuUnsupportedAction({ type: 'SEQUENCE', steps: [
+    { type: 'DRAW', owner: 'self', count: 1 },
+    { type: 'CONDITIONAL', then: { type: 'T_UNSUPPORTED' } },
+  ] } as never, synth), '除外判定は入れ子（SEQUENCE→CONDITIONAL.then）まで木を歩いて検出する');
+  ok(!hasCpuUnsupportedAction({ type: 'DRAW', owner: 'self', count: 1 } as never, synth), '通常のアクションは除外しない');
 }));
 
 // ── §8／§6.4 `O-1` (c)：ルリグの【起】 ─────────────────────────────────────
@@ -39907,6 +39935,49 @@ test('O-1 lrigActivateGate: ルリグ【起】の提示は封じ・使用制限�
     '【起】《ダウン》：既にダウン済みなら提示しない');
 }));
 
+test('O-1 (f) lrigActivateGate: 付与【起】も同じ funnel で切れる', () => withSavedCursor(() => {
+  const ids = (granted: CardEffect[], state?: Partial<PlayerState>, phase: 'MAIN' | 'ATTACK_ARTS' = 'MAIN') =>
+    listActivatableGrantedLrigEffects(lrigGateArgs([], state, phase), granted).map(e => e.effectId);
+  eq(ids([mkLrigAct('G1')]).join(','), 'G1', '付与された【起】は提示される');
+  eq(ids([mkLrigAct('G1', { effectType: 'CONTINUOUS' })]).length, 0, '付与された【常】は【起】ではない');
+  eq(ids([mkLrigAct('G1')], {}, 'ATTACK_ARTS').length, 0, 'MAIN 専用はアタック窓に出ない');
+  eq(ids([mkLrigAct('G1', { timing: ['ATTACK_ARTS'] })], {}, 'ATTACK_ARTS').join(','), 'G1', '《アタックフェイズアイコン》付与はアタック窓に出る');
+  eq(ids([mkLrigAct('G1', { timing: undefined } as Partial<CardEffect>)]).join(','), 'G1',
+    'MAIN 窓は timing 未設定を許容する（`keyActivatedTimingMatchesPhase` の既存挙動）');
+  // 🔴ここから下は**従来 付与【起】側が1つも見ていなかった軸**（§6.4 O-1 (f) で funnel へ寄せて解消）。
+  eq(ids([mkLrigAct('G1', { cost: { coin: 1 } })]).length, 0, '🔴コイン不足の付与【起】は提示しない');
+  eq(ids([mkLrigAct('G1', { cost: { coin: 1 } })], { coins: 1 }).join(','), 'G1', '対照：コインが足りれば提示する');
+  eq(ids([mkLrigAct('G1', { cost: { exceed: 1 } })]).length, 0, '🔴エクシードの下札が足りない付与【起】は提示しない');
+  eq(ids([mkLrigAct('G1', { kizunaIcon: true } as Partial<CardEffect>)]).length, 0, '🔴【絆起】は絆が無ければ提示しない');
+  eq(ids([mkLrigAct('G1')], { blocked_actions: ['USE_LRIG_ACT'] }).length, 0, 'USE_LRIG_ACT 封じ');
+  eq(ids([mkLrigAct('G1', { costUnparsed: true } as Partial<CardEffect>)]).length, 0, 'costUnparsed は提示しない');
+}));
+
+test('O-1 (f) lrigActivateGate: ルリグトラッシュ継承【起】も同じ funnel で切れる', () => withSavedCursor(() => {
+  const INHERIT: CardEffect = {
+    effectId: 'INH', effectType: 'CONTINUOUS', duration: 'PERMANENT', mandatory: true,
+    action: { type: 'STUB', id: 'INHERIT_LRIG_TRASH_ABILITIES' },
+  } as CardEffect;
+  const TRASH_LRIG = findCard(c => c.Type === 'ルリグ' && c.CardNum !== LRIG_ANY);
+  const args = (centerEffs: CardEffect[], trashEffs: CardEffect[], state?: Partial<PlayerState>,
+                phase: 'MAIN' | 'ATTACK_ARTS' = 'MAIN') => {
+    const base = lrigGateArgs(centerEffs, { lrig_trash: [TRASH_LRIG], ...state }, phase);
+    return { ...base, effectsMap: new Map([[LRIG_ANY, centerEffs], [TRASH_LRIG, trashEffs]]) as Map<string, CardEffect[]> };
+  };
+  const ids = (...a: Parameters<typeof args>) => listActivatableInheritedLrigEffects(args(...a)).map(e => e.effectId);
+  const INHERITED_ID = `inherited_${TRASH_LRIG}_T1`;
+  eq(ids([INHERIT], [mkLrigAct('T1')]).join(','), INHERITED_ID, '継承宣言があればトラッシュの【起】が提示される');
+  eq(ids([], [mkLrigAct('T1')]).length, 0, '対照：継承宣言が無ければ提示しない');
+  eq(ids([INHERIT], [mkLrigAct('T1')], { actions_done: [INHERITED_ID] }).length, 0, '継承済みの印があれば提示しない');
+  eq(ids([INHERIT], [mkLrigAct('T1')], {}, 'ATTACK_ARTS').length, 0, 'MAIN 専用はアタック窓に出ない');
+  // 🔴ここから下は**従来 継承側が1つも見ていなかった軸**（＝コストを踏み倒して撃てた）。
+  eq(ids([INHERIT], [mkLrigAct('T1', { cost: { coin: 1 } })]).length, 0, '🔴コイン不足の継承【起】は提示しない');
+  eq(ids([INHERIT], [mkLrigAct('T1', { cost: { coin: 1 } })], { coins: 1 }).join(','), INHERITED_ID, '対照：コインが足りれば提示する');
+  eq(ids([INHERIT], [mkLrigAct('T1', { cost: { exceed: 1 } })]).length, 0, '🔴エクシードの下札が足りない継承【起】は提示しない');
+  eq(ids([INHERIT], [mkLrigAct('T1', { costUnparsed: true } as Partial<CardEffect>)]).length, 0, '🔴costUnparsed の継承【起】は提示しない');
+  eq(ids([INHERIT], [mkLrigAct('T1')], { blocked_actions: ['USE_ACT'] }).length, 0, 'USE_ACT 封じは継承にも効く');
+}));
+
 test('O-1 cpuLrigActivate: 支払い内訳が要るコストは CPU が撃たない（allowlist）', () => withSavedCursor(() => {
   const can = (cost: Record<string, unknown>) => cpuCanAutoPayLrigCost(mkLrigAct('L', { cost: cost as never }));
   ok(can({}), 'コストなしは撃てる');
@@ -39940,6 +40011,18 @@ test('O-1 cpuLrigActivate: CPU のルリグ【起】選択は「撃てる・自�
   eq(pick([mkLrigAct('L-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })]), null, 'エナ0では選ばない');
   const rich = pick([mkLrigAct('L-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })], [], { energy: [SIGNI_L1, SIGNI_L2] });
   eq(rich?.costIndices.size, 2, 'エナ2枚ぶんの index が返る');
+  // 🆕§6.4 O-1 (f)：CPU も**継承【起】**を撃つ（収集源①だけでなく③も見る）。
+  const TRASH_LRIG_C = findCard(c => c.Type === 'ルリグ' && c.CardNum !== LRIG_ANY);
+  const inheritDecl = { effectId: 'INH', effectType: 'CONTINUOUS', duration: 'PERMANENT', mandatory: true,
+    action: { type: 'STUB', id: 'INHERIT_LRIG_TRASH_ABILITIES' } } as CardEffect;
+  const actorInh = { ...mkState({ lrig: [LRIG_ANY], coins: 0, energy: 0 }), lrig_trash: [TRASH_LRIG_C] } as PlayerState;
+  const gotInh = pickCpuLrigActivated({
+    actor: actorInh, opponent: mkState({}),
+    effectsMap: new Map([[LRIG_ANY, [inheritDecl]], [TRASH_LRIG_C, [mkLrigAct('T1')]]]),
+    cardMap: cm, cards: allCards, phase: 'MAIN', energyPoolNums: [], blockedSelf: new Set<string>(),
+    alreadyActivated: [], isAffordable,
+  });
+  eq(gotInh?.effect.effectId, `inherited_${TRASH_LRIG_C}_T1`, '🆕継承【起】も候補に入る（id は継承用に書き換わっている）');
 }));
 
 // ── §8／§6.4 `O-1` (d)：グロウ候補ゲート（人間・CPU 共通） ─────────────────────

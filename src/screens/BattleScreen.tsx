@@ -125,7 +125,7 @@ import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrash
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
 import { pickCpuSigniActivated, selectEnergyIndicesForCost } from './battle/cpuActivate';
-import { listActivatableLrigEffects } from './battle/lrigActivateGate';
+import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects } from './battle/lrigActivateGate';
 import { pickCpuLrigActivated } from './battle/cpuLrigActivate';
 import { type ArtsPayerCtx, buildArtsPayerCtx, checkArtsUse, collectEnaAllMulti, collectEnergyExtraColors, isArtsUseBlockedFor } from './battle/artsUseGate';
 import { type CpuArtsChoice, type CpuArtsPickInput, pickCpuOffensiveArts, pickCpuResponseArts } from './battle/cpuArts';
@@ -1006,11 +1006,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     const myS  = localIsHost ? bs.host_state  : bs.guest_state;
     const opS  = localIsHost ? bs.guest_state : bs.host_state;
     const myTurn = bs.active_user_id === user.id;
-    return [
-      ...collectLrigGrantedEffects(myS, opS, myTurn, effectsMap, battleCardMap),
-      ...(myS.lrig_granted_auto_effects ?? []),
-      ...(myS.lrig_granted_auto_effects_until_opp_turn ?? []),
-    ];
+    // ⚠収集は `lrigActivateGate.collectGrantedLrigEffects` 1本（CPU も同じ関数を呼ぶ＝§6.4 O-1 (f)）。
+    return collectGrantedLrigEffects(myS, opS, myTurn, effectsMap, battleCardMap);
   }, [bs, effectsMap, battleCardMap, user.id]);
 
   // フィールド（シグニ＋センタールリグ）にCONTINUOUS GRANT_KEYWORD マルチエナ（count:ALL）効果があるか
@@ -4086,6 +4083,26 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             oppWrite = { key: opKeyT, state: { ...opBase, actions_done: [...(opBase.actions_done ?? []), ...res.usedOpIds] } };
           }
         };
+        // ON_ATTACK_PHASE_END（§6.3 J-4）: ATTACK_LRIG→END 移行時（アタックフェイズ終了時）トリガー。
+        // ⚠`signi_left_field_this_attack_phase` はアタックフェイズ**開始時**にクリアするので、ここではまだ
+        //   このアタックフェイズぶんの離場履歴が残っている＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` 条件が読める。
+        // ⚠追加のアタックフェイズ（§6.4 O-3）へ入る場合も**そのアタックフェイズは終了している**ので、
+        //   遷移先ではなく `phase === 'ATTACK_LRIG'` で判定する（`PHASE_NEXT` 上の次は常に END）。
+        // 🆕**「終了時」は「（追加フェイズの）開始時」より前に置く**（2026-08-18・§6.4 O-1 (e)）＝
+        //   従来この収集は `ON_ATTACK_PHASE_START` ブロックの**後**にあり、追加のアタックフェイズへ入るときだけ
+        //   ①スタックの解決順が「2周目の開始時 → 1周目の終了時」と逆転し
+        //   ②直前の `clearAttackPhaseScopedState` で離場履歴が消えた state を読んでいた
+        //   （＝上の⚠が成り立たない）。フェイズ境界の自然な順（終了→開始）へ揃える。
+        if (phase === 'ATTACK_LRIG') {
+          const apeRes = collectTurnTriggers('ON_ATTACK_PHASE_END', newMyState, op);
+          foldTurnUsed(apeRes);
+          if (apeRes.entries.length > 0) {
+            const baseStackAPE = phaseStack ?? bs.effect_stack ?? null;
+            phaseStack = baseStackAPE
+              ? pushToStack(baseStackAPE, apeRes.entries)
+              : initStack(bs.active_user_id ?? user.id, apeRes.entries);
+          }
+        }
         // ON_GROW_PHASE_START: →GROW移行時（グロウフェイズ開始時）トリガー。
         if (nextPhase === 'GROW') {
           const gpsRes = collectTurnTriggers('ON_GROW_PHASE_START', newMyState, op);
@@ -4111,21 +4128,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             phaseStack = baseStackAPS
               ? pushToStack(baseStackAPS, apsEntries)
               : initStack(bs.active_user_id ?? user.id, apsEntries);
-          }
-        }
-        // ON_ATTACK_PHASE_END（§6.3 J-4）: ATTACK_LRIG→END 移行時（アタックフェイズ終了時）トリガー。
-        // ⚠`signi_left_field_this_attack_phase` はアタックフェイズ**開始時**にクリアするので、ここではまだ
-        //   このアタックフェイズぶんの離場履歴が残っている＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` 条件が読める。
-        // ⚠追加のアタックフェイズ（§6.4 O-3）へ入る場合も**そのアタックフェイズは終了している**ので、
-        //   遷移先ではなく `phase === 'ATTACK_LRIG'` で判定する（`PHASE_NEXT` 上の次は常に END）。
-        if (phase === 'ATTACK_LRIG') {
-          const apeRes = collectTurnTriggers('ON_ATTACK_PHASE_END', newMyState, op);
-          foldTurnUsed(apeRes);
-          if (apeRes.entries.length > 0) {
-            const baseStackAPE = phaseStack ?? bs.effect_stack ?? null;
-            phaseStack = baseStackAPE
-              ? pushToStack(baseStackAPE, apeRes.entries)
-              : initStack(bs.active_user_id ?? user.id, apeRes.entries);
           }
         }
         // ON_LRIG_ATTACK_STEP_START（C1 配線）: ATTACK_SIGNI→ATTACK_LRIG移行時（ルリグアタックステップ開始時）トリガー。
@@ -11279,14 +11281,45 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         });
         if (attackedAssist) return;   // 次の useEffect で残りのアシストへ
       }
-      // ルリグアタック済み → ENDへ
-      // ⚠**追加のアタックフェイズ（§6.4 O-3）は CPU 経路では発生しない**＝ここは `SET_TURN_PHASE` しか
-      //   コミットできず（state を書けない）、`resolveNextPhaseAfterAttack` を通すとキューを減らせないまま
-      //   ATTACK_ARTS へ戻り**無限ループ**になる。母集団2枚（`WX22-010`＝ルリグ【起】／`WXK06-026`＝スペル）は
-      //   どちらも CPU が能動使用しない（§6.4 O-1）ので CPU 側にキューは積まれず、積まれても
-      //   `extra_attack_phases_this_turn` はターン終了で失効する＝安全側の近似。
-      //   CPU AI が【起】/スペルを使うようになったら（O-1）ここも state 込みのコミットへ揃えること。
-      await persist.commit(reduceBattle(bs, { type: 'SET_TURN_PHASE', phase: cpuNextPhase('ATTACK_LRIG') }));
+      // ── ルリグアタック済み → アタックフェイズ終了（§8／§6.4 O-1 (e)・2026-08-18）────────────
+      // 🔑**人間経路（`doPhaseAdvance` の同じ遷移）と同じ4点をこの1コミットで行う**＝
+      //   ①`ON_ATTACK_PHASE_END` 収集 ②「このアタックフェイズの間」の遅延 watcher を両者から消す
+      //   ③追加のアタックフェイズ（§6.4 O-3）の予約を**1件消化して** `ATTACK_ARTS` へ戻す
+      //   ④戻る場合は2周目の `ON_ATTACK_PHASE_START` を収集する。
+      // ⚠🔴**従来ここは `SET_TURN_PHASE`（state を書けない）だった**＝③が構造的に不可能で、
+      //   `resolveNextPhaseAfterAttack` を通すとキューを減らせないまま ATTACK_ARTS へ戻る無限ループ。
+      //   そのため `hasCpuUnsupportedAction` で `ADD_EXTRA_ATTACK_PHASE` を含む札を CPU が**選ばない**
+      //   除外で回避していた（母集団2枚＝`WX22-010` ルリグ【起】／`WXK06-026` スペル）。
+      //   state 込みコミットへ移したので**その除外は撤去した**（`CPU_UNSUPPORTED_ACTION_TYPES` は空集合）。
+      // ⚠**`ON_ATTACK_PHASE_END` は CPU 経路では一度も収集されていなかった**（人間ターンだけ発火）＝
+      //   タスク12(lxvii) が配線した5 timing に続く6本目。live 母集団は1効果（`WX24-P2-075`）。
+      // ⚠【ハスターリク】は2周目では発動しない（人間経路の `phase !== 'ATTACK_LRIG'` と同じ扱い）。
+      // ⚠人間側 state は**必ず書く**（遅延 watcher のクリアが両者に掛かるため）＝`opp` を省略しない。
+      {
+        const apeCpu = collectCpuTurnTriggers('ON_ATTACK_PHASE_END', cpuSt, huSt);
+        const apeEntries: StackEntry[] = [...apeCpu.entries];
+        let nextCpuState = clearEndOfAttackPhaseDelayedTriggers(apeCpu.cpuState);
+        let nextHuState = clearEndOfAttackPhaseDelayedTriggers(apeCpu.humanState ?? huSt);
+        const nextResCpu = resolveNextPhaseAfterAttack('ATTACK_LRIG', nextCpuState, cpuContBlockedSelf);
+        nextCpuState = nextResCpu.state;
+        if (nextResCpu.addedExtraPhase) {
+          appendBattleLogs(['[CPU] 追加のアタックフェイズを開始する']);
+          // §6.3 J-4: アタックフェイズ開始時に離場履歴をリセット（人間経路と同じ順＝クリア→収集）。
+          nextCpuState = clearAttackPhaseScopedState(nextCpuState);
+          const aps2 = collectCpuTurnTriggers('ON_ATTACK_PHASE_START', nextCpuState, nextHuState);
+          nextCpuState = aps2.cpuState;
+          if (aps2.humanState) nextHuState = aps2.humanState;
+          apeEntries.push(...aps2.entries);
+        }
+        await persist.commit(reduceBattle(bs, {
+          type: 'ADVANCE_TURN_WITH_STATE', phase: nextResCpu.next,
+          playerKey: 'guest_state', playerState: nextCpuState,
+          opp: { key: 'host_state', state: nextHuState },
+          effectStack: apeEntries.length > 0
+            ? (bs.effect_stack ? pushToStack(bs.effect_stack, apeEntries) : initStack(bs.active_user_id ?? CPU_PLAYER_ID, apeEntries))
+            : undefined,
+        }));
+      }
       return;
     }
 
@@ -13397,12 +13430,6 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return [];
   };
 
-  // 🔴ルリグの【起】《ダウン》（`cost.down_self`）はセンタールリグ自身をダウンさせるコスト（タスク12(cxxxi)）。
-  //   既にダウンしていれば払えない＝提示しない（シグニ経路 13057 の `!(e.cost?.down_self && isAlreadyDown)` の
-  //   ルリグ版。支払いは `executeLrigGranted` 側で行う＝§5-20「支払い地点が2箇所ある型」）。
-  const isLrigDownSelfUnpayable = (e: import('../types/effects').CardEffect): boolean =>
-    !!e.cost?.down_self && payLrigDownSelfCost(my) === null;
-
   // ルリグゾーンのカードアクション（ルリグアタック）
   const getMyLrigFieldActions = (): CardAction[] => {
     if (!isMyTurn || loading) return [];
@@ -13450,40 +13477,29 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
 
       // INHERIT_LRIG_TRASH_ABILITIES: ルリグトラッシュにあるルリグの起動能力を継承
-      // §6.4 O-10（続き514）＝「対戦相手の…**ルリグトラッシュ**にあるカードは能力を失い」（`WX12-023`）＝
-      // 継承元が能力を失っているので、継承自体が成立しない。
-      const lrigTrashAbilitiesLost = isTrashImmuneByOpponent(op, battleCardMap, effectsMap);
-      const hasInheritLrigTrash = !lrigTrashAbilitiesLost && (effectsMap.get(lrigTopMA) ?? []).some(eff =>
-        eff.effectType === 'CONTINUOUS' &&
-        ((eff.action as import('../types/effects').StubAction)?.id === 'INHERIT_LRIG_TRASH_ABILITIES' ||
-         (eff.action as import('../types/effects').StubAction)?.id === 'COPY_LRIG_TRASH_ACTIVATED'),
-      );
-      if (hasInheritLrigTrash) {
-        for (const trashLrigCn of my.lrig_trash) {
-          if ((battleCardMap.get(trashLrigCn)?.Type ?? '') !== 'ルリグ') continue;
-          for (const eff of (effectsMap.get(trashLrigCn) ?? [])) {
-            if (eff.effectType !== 'ACTIVATED') continue;
-            if (!eff.timing?.includes('MAIN')) continue;
-            const inheritedId = `inherited_${trashLrigCn}_${eff.effectId}`;
-            if (my.actions_done?.includes(inheritedId)) continue;
-            const energyCostILT = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-            const exceedILT = eff.cost?.exceed ?? 0;
-            const costPartsILT: string[] = [];
-            if (exceedILT > 0) costPartsILT.push(`エクシード${exceedILT}`);
-            if (energyCostILT > 0) costPartsILT.push(`エナ${energyCostILT}`);
-            if (eff.cost?.coin) costPartsILT.push(`コイン${eff.cost.coin}`);
-            const costLabelILT = costPartsILT.join('・') || 'コストなし';
-            const trashLrigName = battleCardMap.get(trashLrigCn)?.CardName ?? trashLrigCn;
-            lrigActionsMA.push({
-              label: `【継承起】${costLabelILT}（${trashLrigName.slice(0, 6)}）`,
-              color: '#9966cc',
-              onClick: () => {
-                const inheritedEff = { ...eff, effectId: inheritedId, sourceCardNum: lrigTopMA };
-                openLrigGranted({ sourceCardNum: lrigTopMA, effect: inheritedEff });
-              },
-            });
-          }
-        }
+      // ⚠**判定は `lrigActivateGate.listActivatableInheritedLrigEffects` 1本**（§6.4 O-1 (f)）＝
+      //   継承元の能力喪失（§6.4 O-10・`WX12-023`）・継承済み印・コスト踏み倒しの全軸をそこで見る。
+      //   🔴従来ここは手書きで、**継承済み印以外は何も見ていなかった**＝`costUnparsed`／コイン／
+      //   エクシード／`lrigDown`／《ダウン》／使用条件を素通りして撃てた（センター本来の【起】との軸ズレ）。
+      for (const eff of listActivatableInheritedLrigEffects({
+        my, op, phase: 'MAIN', effectsMap, cardMap: battleCardMap,
+        blockedSelf: contBlocked.forSelf, effectivePowers,
+      })) {
+        const energyCostILT = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
+        const exceedILT = eff.cost?.exceed ?? 0;
+        const costPartsILT: string[] = [];
+        if (exceedILT > 0) costPartsILT.push(`エクシード${exceedILT}`);
+        if (energyCostILT > 0) costPartsILT.push(`エナ${energyCostILT}`);
+        if (eff.cost?.coin) costPartsILT.push(`コイン${eff.cost.coin}`);
+        const costLabelILT = costPartsILT.join('・') || 'コストなし';
+        // 継承元カード番号は id（`inherited_<番号>_<元 id>`）から復元する＝gate と綴りを二重に持たない。
+        const srcTrashCn = eff.effectId.split('_')[1] ?? '';
+        const trashLrigName = battleCardMap.get(srcTrashCn)?.CardName ?? srcTrashCn;
+        lrigActionsMA.push({
+          label: `【継承起】${costLabelILT}（${trashLrigName.slice(0, 6)}）`,
+          color: '#9966cc',
+          onClick: () => { openLrigGranted({ sourceCardNum: lrigTopMA, effect: eff }); },
+        });
       }
 
       // 付与された ACTIVATED 能力
@@ -13491,22 +13507,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   従来ここは timing も condition も見ておらず、《アタックフェイズアイコン》専用の付与【起】が
       //   メインでも撃て、使用条件つき付与【起】が条件を無視して撃てた（付与スコープを構造化して
       //   キーの【起】群を GRANT_LRIG_ABILITY.abilities へ入れ子にした結果、この緩さが36枚に効くようになる）。
-      const grantedActionsMA = grantedMyLrigEffects
-        .filter(e =>
-          e.effectType === 'ACTIVATED' &&
-          keyActivatedTimingMatchesPhase(e.timing, 'MAIN') &&
-          // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
-        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
-        !e.costUnparsed &&
-        canPayExileLrigFromLrigDeck(e) &&
-        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
-          !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
-          !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
-          !(my.blocked_actions?.includes(e.effectId)) &&
-          !isLrigActBlocked() &&
-          !isLrigDownSelfUnpayable(e) &&   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
-          (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopMA, 'MAIN', effectivePowers)),
-        )
+      const grantedActionsMA = listActivatableGrantedLrigEffects({
+        my, op, phase: 'MAIN', effectsMap, cardMap: battleCardMap,
+        blockedSelf: contBlocked.forSelf, effectivePowers,
+      }, grantedMyLrigEffects)
         .map(eff => {
           const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
           const exceedCost = eff.cost?.exceed ?? 0;
@@ -13575,22 +13579,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       }
       // 付与された ACTIVATED 能力（timing ATTACK_ARTS）
       // ⚠使用条件・once_per_game はキー【起】経路と同じゲートを通す（タスク12(l)。MAIN 分岐と同趣旨）。
-      const grantedActionsAA = grantedMyLrigEffects
-        .filter(e =>
-          e.effectType === 'ACTIVATED' &&
-          !!e.timing?.includes('ATTACK_ARTS') &&
-          // 🔴`costUnparsed`＝**原文のコストを表現できなかった**印（§6.4 O-11・続き532）。
-        //   提示すると**コストを踏み倒して撃てる**ので、トリガー収集（`triggerCollect`）と同じく提示しない。
-        !e.costUnparsed &&
-        canPayExileLrigFromLrigDeck(e) &&
-        !(e.usageLimit === 'once_per_turn' && (my.actions_done ?? []).includes(e.effectId)) &&
-          !(e.usageLimit === 'twice_per_turn' && (my.actions_done ?? []).filter(id => id === e.effectId).length >= 2) &&
-          !(e.usageLimit === 'once_per_game' && my.game_actions_done?.includes(e.effectId)) &&
-          !(my.blocked_actions?.includes(e.effectId)) &&
-          !isLrigActBlocked() &&
-          !isLrigDownSelfUnpayable(e) &&   // 【起】《ダウン》：既にダウン済み（タスク12(cxxxi)）
-          (!e.condition || evalUseCondition(e.condition, my, op, battleCardMap, lrigTopAA, 'ATTACK_ARTS', effectivePowers)),
-        )
+      const grantedActionsAA = listActivatableGrantedLrigEffects({
+        my, op, phase: 'ATTACK_ARTS', effectsMap, cardMap: battleCardMap,
+        blockedSelf: contBlocked.forSelf, effectivePowers,
+      }, grantedMyLrigEffects)
         .map(eff => ({
           label: `【起】${buildCostLabelAA(eff)}`,
           color: C.coin,

@@ -94,20 +94,34 @@ export function hasIncomingThreat(actor: PlayerState, attacker: PlayerState): bo
 /**
  * CPU が使うと**いまの CPU 進行では壊れる**アクション（＝分類できても選ばない）。
  *
- * 🔴`ADD_EXTRA_ATTACK_PHASE`＝CPU の `ATTACK_LRIG`→`END` 遷移は `SET_TURN_PHASE` しかコミットできず
- * （state を書けない）、追加アタックフェイズのキューを減らせないまま `ATTACK_ARTS` へ戻る＝**無限ループ**
- * （`BattleScreen` の該当コメント参照）。⚠**この除外を外すなら、先にあの遷移を state 込みのコミットへ揃えること**。
+ * 🆕**2026-08-18（§6.4 O-1 (e)）で空集合になった**＝唯一の登録だった `ADD_EXTRA_ATTACK_PHASE` は、
+ * CPU の `ATTACK_LRIG`→`END` 遷移を state 込みコミット（`ADVANCE_TURN_WITH_STATE`）へ揃えて
+ * `resolveNextPhaseAfterAttack` を通すようにしたので**キューを正しく1件消化できる**＝除外不要になった。
+ *
+ * 🔑**受け口としては残す**＝「CPU 進行がまだ支えられない綴り」が出たらここへ1行足せば、
+ * アーツ（`cpuArts`）・スペル（`cpuSpell`）の両方の候補選定から同時に落ちる（判定は funnel 1箇所）。
+ * ⚠**外すときは必ず「その綴りを CPU が撃った後の進行」を先に直す**（除外は原因ではなく回避策）。
  */
-export const CPU_UNSUPPORTED_ACTION_TYPES: ReadonlySet<string> = new Set(['ADD_EXTRA_ATTACK_PHASE']);
+export const CPU_UNSUPPORTED_ACTION_TYPES: ReadonlySet<string> = new Set<string>();
 
-/** アクション木のどこかに `CPU_UNSUPPORTED_ACTION_TYPES` が含まれるか。 */
-export function hasCpuUnsupportedAction(action: EffectAction | undefined): boolean {
+/**
+ * アクション木のどこかに `CPU_UNSUPPORTED_ACTION_TYPES` が含まれるか。
+ *
+ * ⚠`types` は**テストから合成集合を差し込むためだけ**の引数（既定＝本番の集合）。
+ *   本番の集合が空になっても「入れ子の `SEQUENCE`/分岐まで歩く」ことを golden で検査し続けられるようにする
+ *   （空集合のままだと walker が常に false を返し、回帰が計器に映らなくなる）。
+ */
+export function hasCpuUnsupportedAction(
+  action: EffectAction | undefined,
+  types: ReadonlySet<string> = CPU_UNSUPPORTED_ACTION_TYPES,
+): boolean {
+  if (types.size === 0) return false;
   let found = false;
   const walk = (node: unknown) => {
     if (found || !node || typeof node !== 'object') return;
     if (Array.isArray(node)) { for (const v of node) walk(v); return; }
     const obj = node as Record<string, unknown>;
-    if (typeof obj.type === 'string' && CPU_UNSUPPORTED_ACTION_TYPES.has(obj.type)) { found = true; return; }
+    if (typeof obj.type === 'string' && types.has(obj.type)) { found = true; return; }
     for (const v of Object.values(obj)) walk(v);
   };
   walk(action);

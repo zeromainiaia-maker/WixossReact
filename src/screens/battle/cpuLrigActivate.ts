@@ -1,7 +1,10 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, EffectCost } from '../../types/effects';
 import { activatedEnergyCostStr, selectEnergyIndicesForCost } from './cpuActivate';
-import { listActivatableLrigEffects } from './lrigActivateGate';
+import {
+  collectGrantedLrigEffects, listActivatableGrantedLrigEffects,
+  listActivatableInheritedLrigEffects, listActivatableLrigEffects,
+} from './lrigActivateGate';
 
 /**
  * CPU がセンタールリグの【起】を能動使用するための選択ロジック（§8／§6.4 `O-1` (c)）。
@@ -11,9 +14,13 @@ import { listActivatableLrigEffects } from './lrigActivateGate';
  *     「撃てるもののうち **CPU が支払い内訳を自動で決められる**ものを1つ選ぶ」だけを担う。
  *   - 実行は `performLrigActivated`（人間の【起】実行と同じ関数）。**CPU 専用の実行経路は作らない**。
  *
+ * ■ 収集源は3つ（🆕2026-08-18・§6.4 O-1 (f) で②③を追加）
+ *   ①センタールリグ本来の【起】 ②付与された【起】（`GRANT_LRIG_ABILITY` ほか）
+ *   ③ルリグトラッシュからの継承（`INHERIT_LRIG_TRASH_ABILITIES`）。
+ *   **どれも `lrigActivateGate` の list 関数を通す**＝可否判定は人間のボタン生成と同じ1本。
+ *   ⚠優先度は①→②→③の固定順（盤面評価はしない）。
+ *
  * ■ v1 の意図的な限界（honest defer）
- *   - **センタールリグ本来の【起】だけ**＝付与（`GRANT_LRIG_ABILITY`）／ルリグトラッシュからの継承は
- *     別の収集源なので別バッチ。
  *   - **支払い内訳を人間が選ぶコストは撃たない**（下の allowlist）。
  *   - **同じ効果はCPUターンに1回まで**（`cpu_activated_effect_ids_this_turn`＝シグニ【起】と共通の台帳）。
  *   - 優先度は**効果定義順の決定論**（盤面評価はしない）。
@@ -80,11 +87,19 @@ export function pickCpuLrigActivated(p: {
   isAffordable: (selectedNums: string[], costStr: string) => boolean;
   effectivePowers?: Map<string, number>;
 }): CpuLrigActivatedChoice | null {
-  const usable = listActivatableLrigEffects({
+  const gateInput = {
     my: p.actor, op: p.opponent, phase: p.phase,
     effectsMap: p.effectsMap, cardMap: p.cardMap,
     blockedSelf: p.blockedSelf, effectivePowers: p.effectivePowers,
-  });
+  };
+  // ⚠CPU の【起】は**自分のターン**でしか撃たない（呼び出し元が MAIN/ATTACK_ARTS 窓でだけ呼ぶ）＝
+  //   付与の収集に渡す `isMyTurn` は常に true。
+  const granted = collectGrantedLrigEffects(p.actor, p.opponent, true, p.effectsMap, p.cardMap);
+  const usable = [
+    ...listActivatableLrigEffects(gateInput),
+    ...listActivatableGrantedLrigEffects(gateInput, granted),
+    ...listActivatableInheritedLrigEffects(gateInput),
+  ];
   for (const effect of usable) {
     if (p.alreadyActivated.includes(effect.effectId)) continue;
     if (!cpuCanAutoPayLrigCost(effect)) continue;

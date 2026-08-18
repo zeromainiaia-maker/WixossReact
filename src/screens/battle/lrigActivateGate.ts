@@ -1,8 +1,9 @@
 import type { CardData, PlayerState } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
-import { isKizunaActive } from '../../engine/effectEngine';
+import { collectLrigGrantedEffects, isKizunaActive } from '../../engine/effectEngine';
 import { evalUseCondition, getCardNum } from '../../engine/effectExecutor';
-import { collectCenterLrigActivatedEffects } from './battleUtils';
+import { isTrashImmuneByOpponent } from '../../engine/execUtils';
+import { collectCenterLrigActivatedEffects, keyActivatedTimingMatchesPhase } from './battleUtils';
 import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
 
 /**
@@ -11,9 +12,14 @@ import { payLrigDownCost, payLrigDownSelfCost } from './lrigDownCost';
  * ⚠**必ず人間のボタン生成と CPU の候補フィルタの両方から同じ関数を呼ぶこと**
  * （`signiActivateGate.ts` / `artsUseGate.ts` と同じ規律）。
  *
- * ⚠**対象はセンタールリグ本来の【起】だけ**＝付与（`GRANT_LRIG_ABILITY`）／ルリグトラッシュからの継承
- * （`INHERIT_LRIG_TRASH_ABILITIES`）は**別の収集源**なので、呼び出し元がそれぞれ足す
- * （CPU は v1 では使わない）。
+ * ⚠**収集源は3つある**（＝「撃てるか」の軸は共通だが「どこから集めるか」が違う）。
+ * それぞれ専用の list 関数を用意してあり、**可否判定はどれも `canActivateLrigEffect` 1本**を通る：
+ *   ①センタールリグ本来の【起】＝`listActivatableLrigEffects`
+ *   ②付与された【起】（`GRANT_LRIG_ABILITY`）＝`listActivatableGrantedLrigEffects`
+ *   ③ルリグトラッシュからの継承（`INHERIT_LRIG_TRASH_ABILITIES`）＝`listActivatableInheritedLrigEffects`
+ * 🆕**②③も 2026-08-18（§6.4 O-1 (f)）でこの funnel へ寄せた**＝従来は BattleScreen 側に
+ * **手書きの部分再実装**が2本あり、①と軸が食い違っていた（②はコイン／エクシード／`lrigDown`／
+ * 【絆起】／【歌のカケラ】を見ておらず、③は**何も見ていなかった**＝コスト踏み倒しで撃てた）。
  *
  * 🔴**統合で塞いだ穴（続き552c）**＝従来 MAIN 窓と ATTACK_ARTS 窓でゲートの軸が食い違っていた。
  *   ①**MAIN 窓は `condition`（使用条件）を1度も見ていなかった**（付与【起】側だけが見ていた）
@@ -95,6 +101,87 @@ export function canActivateLrigEffect(
     && !my.energy.some(cn => cardMap.get(getCardNum(cn))?.EffectText?.includes('【歌のカケラ】'))) return false;
   if (eff.condition && !evalUseCondition(eff.condition, my, op, cardMap, sourceCardNum, phase, p.effectivePowers)) return false;
   return true;
+}
+
+/**
+ * 自分のセンタールリグへ**付与されている**効果を全部集める（§6.4 O-1 (f)）。
+ *
+ * 🔑**収集源が3つある**＝①場のシグニ／キーピースの `GRANT_LRIG_ABILITY`（`collectLrigGrantedEffects`）
+ * ②`lrig_granted_auto_effects`（恒久）③`lrig_granted_auto_effects_until_opp_turn`（相手ターンまで）。
+ * ⚠**人間（`grantedMyLrigEffects` の useMemo）と CPU（`tryCpuLrigActivated`）が同じ関数を呼ぶ**＝
+ *   ②③を片方だけに足すと「人間には出るが CPU は撃てない」型の無言のズレになる。
+ */
+export function collectGrantedLrigEffects(
+  my: PlayerState, op: PlayerState, isMyTurn: boolean,
+  effectsMap: Map<string, CardEffect[]>, cardMap: Map<string, CardData>,
+): CardEffect[] {
+  return [
+    ...collectLrigGrantedEffects(my, op, isMyTurn, effectsMap, cardMap),
+    ...(my.lrig_granted_auto_effects ?? []),
+    ...(my.lrig_granted_auto_effects_until_opp_turn ?? []),
+  ];
+}
+
+/**
+ * **付与された**【起】のうち、いま撃てるもの（§6.4 O-1 (f)）。
+ *
+ * `granted` は BattleScreen の `grantedMyLrigEffects`（`collectGrantedFromLayer` の結果）を渡す＝
+ * **収集そのものは呼び出し元の責務**（付与ストアは effectsMap の外にあり、ここからは見えない）。
+ *
+ * ⚠timing 照合は**窓ごとに綴りが違う**（既存挙動をそのまま funnel へ移した）＝
+ *   MAIN 窓は `keyActivatedTimingMatchesPhase`（timing 未設定＝許容・`SPELL_CUTIN` は常に許容）、
+ *   ATTACK_ARTS 窓は `timing.includes('ATTACK_ARTS')` の厳密一致。
+ */
+export function listActivatableGrantedLrigEffects(
+  p: LrigActivateGateInput, granted: readonly CardEffect[],
+): CardEffect[] {
+  const lrigTop = p.my.field.lrig.at(-1);
+  if (!lrigTop) return [];
+  return granted.filter(eff =>
+    eff.effectType === 'ACTIVATED'
+    && (p.phase === 'MAIN'
+      ? keyActivatedTimingMatchesPhase(eff.timing, 'MAIN')
+      : !!eff.timing?.includes('ATTACK_ARTS'))
+    && canActivateLrigEffect(eff, p, lrigTop));
+}
+
+/**
+ * **ルリグトラッシュから継承した**【起】のうち、いま撃てるもの（§6.4 O-1 (f)）。
+ *
+ * 戻り値は**継承用に id を書き換えた複製**（`inherited_<継承元カード番号>_<元 effectId>`）＝
+ * 人間の実行（`openLrigGranted`）も CPU の実行（`performLrigActivated`）も**この複製をそのまま渡す**。
+ * `performLrigActivated` が `effect.effectId` を `actions_done` へ書くので、
+ * この id が**そのまま「もう使った」印**になる。
+ *
+ * ⚠**継承は「同じ継承元の同じ能力を1ターンに1回」まで**（`usageLimit` の有無に依らない既存の近似）。
+ *   センター本来の【起】は `usageLimit` が無ければ何度でも撃てるので、そこだけ軸が違う。
+ * ⚠**継承元が能力を失っていれば継承自体が成立しない**（§6.4 O-10・`WX12-023`
+ *   「対戦相手の…ルリグトラッシュにあるカードは能力を失い」）。
+ */
+export function listActivatableInheritedLrigEffects(p: LrigActivateGateInput): CardEffect[] {
+  const lrigTop = p.my.field.lrig.at(-1);
+  if (!lrigTop) return [];
+  if (isTrashImmuneByOpponent(p.op, p.cardMap, p.effectsMap)) return [];
+  const hasInherit = (p.effectsMap.get(lrigTop) ?? []).some(eff =>
+    eff.effectType === 'CONTINUOUS'
+    && ((eff.action as StubAction)?.id === 'INHERIT_LRIG_TRASH_ABILITIES'
+      || (eff.action as StubAction)?.id === 'COPY_LRIG_TRASH_ACTIVATED'));
+  if (!hasInherit) return [];
+  const out: CardEffect[] = [];
+  for (const trashLrigCn of p.my.lrig_trash) {
+    if ((p.cardMap.get(trashLrigCn)?.Type ?? '') !== 'ルリグ') continue;
+    for (const eff of (p.effectsMap.get(trashLrigCn) ?? [])) {
+      if (eff.effectType !== 'ACTIVATED') continue;
+      if (!eff.timing?.includes(p.phase)) continue;
+      // ⚠旧実装は複製に `sourceCardNum` も足していたが、`CardEffect` に**そのキーは無い**（型外＝誰も読まない
+      //   死にフィールドだった）。発生源は `openLrigGranted({ sourceCardNum, effect })` の外側で渡す。
+      const inherited: CardEffect = { ...eff, effectId: `inherited_${trashLrigCn}_${eff.effectId}` };
+      if ((p.my.actions_done ?? []).includes(inherited.effectId)) continue;
+      if (!canActivateLrigEffect(inherited, p, lrigTop)) continue;
+      out.push(inherited);
+    }
+  }
+  return out;
 }
 
 /** センタールリグ本来の【起】のうち、**いま撃てる**もの（効果の並びは定義順）。 */
