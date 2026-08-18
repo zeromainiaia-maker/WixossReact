@@ -21385,18 +21385,20 @@ scenarios.v55CheckZoneFlipTargetMissingConfirmsBug = {
   },
   async drive(page, H) {
     const before = await H.queryState();
-    await H.clickTestId('my-lrig-dk');
+    const dkClick = await H.clickTestId('my-lrig-dk');
     await page.waitForTimeout(600);
-    await H.clickTestId('zone-card-0');
+    const cardClick = await H.clickTestId('zone-card-0');
     await page.waitForTimeout(600);
-    await H.clickTextOrBtn(['使用']);
+    const useClick = await H.clickTextOrBtn(['使用']);
+    H.log(`  v55flipgrow 初手 dkClick=${dkClick} cardClick=${cardClick} useClick=${useClick}`);
     let fin = before;
     let sawNoTargetLog = false;
     for (let s = 0; s < 10; s++) {
       await page.waitForTimeout(350);
-      const did = await H.stdStep() || await H.clickTextOrBtn(['決定', 'OK']);
+      const did = await H.stdStep() || await H.clickTextOrBtn(['決定', 'OK', '発動']);
       fin = await H.queryState();
       sawNoTargetLog ||= (fin?.logTail ?? []).some(l => l.includes('グロウ先（裏面）が指定されていない'));
+      H.log(`  v55flipgrow[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} lrigTop=${fin?.host?.lrigTop} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-3))}`);
       if (!did && sawNoTargetLog) break;
     }
     const lrigUnchanged = fin?.host?.lrigTop === before?.host?.lrigTop;
