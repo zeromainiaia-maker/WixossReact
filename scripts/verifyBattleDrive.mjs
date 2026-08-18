@@ -21253,7 +21253,7 @@ scenarios.v51LeaveSubstituteUnpayableBanishesNormally = {
   title: 'V-51(c) 対照＝払えない＝通常どおりバニッシュされる',
   spec: v51LeaveSubstituteSpec([]),
   async drive(page, H) {
-    const fin = await driveV51LeaveSubstitute(page, H, false);
+    const { fin } = await driveV51LeaveSubstitute(page, H, false);
     const stillOnField = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX25-P2-059#9992'));
     const banishedToEnergy = (fin?.host?.energyCards ?? []).includes('WX25-P2-059#9992');
     const detail = `場に残っている=${stillOnField}（期待false） / エナゾーンにバニッシュ=${banishedToEnergy}（期待true） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
