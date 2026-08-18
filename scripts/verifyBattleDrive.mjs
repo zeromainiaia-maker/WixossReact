@@ -20218,14 +20218,8 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
         await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
       }
       if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
-      // ⚠トロチーのコスト選択は「召喚済み」になってから探す＝召喚前に探すと初回クリックの代役として
-      //   誤ってトロチー自身を開いてしまう事故を防ぐ（続き565実測）。
-      if (!did && summoned) {
-        const handImg = page.locator('img[alt="コードイート　トロチー"]').first();
-        if (await handImg.count() && await handImg.isVisible().catch(() => false)) {
-          await handImg.click({ force: true, timeout: 2000 }).catch(() => {}); did = 'img:トロチー';
-        }
-      }
+      // ⚠SELECT_TARGET（【出】のCHOOSE＝手札からエナに送るカード選択）は img直クリックでは反応しない
+      //   （candidate候補一覧の pick-N testid 経由でしか選べない）＝ H.stdStep() に一本化（続き565実測）。
       if (!did) did = await H.stdStep();
       if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '確定', 'スキップ', '選ばない']);
       fin = await H.queryState();
