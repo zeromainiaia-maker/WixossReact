@@ -20855,6 +20855,47 @@ scenarios.v37GrantedAttackTaxPaidSurvives = {
 order.push('v37GrantedAttackTaxUnpaidBanishesSelf', 'v37GrantedAttackTaxPaidSurvives');
 // ── V-37 END ──
 
+// ── §7 V-33（O-3・続き566）(c)のみ（キーのレベル限定ダメージシールド） ──
+// `WXK11-012`（キー）【常】：あなたは対戦相手のレベル２以下のルリグによってダメージを受けない＝
+// STUB{PREVENT_LOW_LEVEL_LRIG_DAMAGE, value:2}。`lrigDamageShield.ts` の `resolveLrigDamageShield` が
+// 唯一の判定点で、続き536の修正でキー（field.key_piece）も印刷【常】の走査対象に入った。CPUのルリグ
+// アタックで(a)攻撃側Lv2以下＝防ぐ(b)攻撃側Lv3以上＝レベル超過で防がない、の対照を見る。
+const v33KeyLevelShieldSpec = (attackerLrig) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9930'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+    'field.key_piece': 'WXK11-012#9931', 'hand': [], 'energy': [], 'actions_done': [], 'lost_ability_effect_ids_this_turn': [],
+  },
+  guestSet: {
+    'field.lrig': [attackerLrig], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9932', 'WD01-013#9933'],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+scenarios.v33KeyLowLevelShieldPreventsDamage = {
+  title: 'V-33(c) 攻撃側Lv2以下＝`WXK11-012`のキー【常】がルリグダメージを防ぐ',
+  spec: v33KeyLevelShieldSpec('WD01-003#9934'),
+  async drive(page, H) {
+    const { before, fin } = await driveV47LrigShield(page, H);
+    const pass = fin?.host?.life === before?.host?.life;
+    const detail = `host.life ${before?.host?.life}→${fin?.host?.life}（期待不変＝防いだ）`;
+    H.log(`  v33keyshield ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v33KeyHighLevelShieldDoesNotPrevent = {
+  title: 'V-33(c) 対照＝攻撃側Lv3以上だとレベル超過で防がない',
+  spec: v33KeyLevelShieldSpec('WD01-002#9935'),
+  async drive(page, H) {
+    const { before, fin } = await driveV47LrigShield(page, H);
+    const pass = (fin?.host?.life ?? 0) === (before?.host?.life ?? 0) - 1;
+    const detail = `host.life ${before?.host?.life}→${fin?.host?.life}（期待-1＝防がず通る）`;
+    H.log(`  v33keyshield ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v33KeyLowLevelShieldPreventsDamage', 'v33KeyHighLevelShieldDoesNotPrevent');
+// ── V-33 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
