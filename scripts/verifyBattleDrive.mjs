@@ -18756,6 +18756,7 @@ try {
         leaveSubstituteChoices: s.leave_substitute_choices ?? null,
         deckBottom: (s.deck ?? []).at(-1) ?? null, // 「代わりにデッキの一番下」系の置換確認用
         hastarliqZones: s.hastarliq_zones ?? [],   // V-79(B)：【ハスターリク】設置予約（発動で undefined へ）
+        signiLeftThisAttackPhase: s.signi_left_field_this_attack_phase ?? [],   // V-79(D)：離場履歴（診断用）
       });
       return {
         host: sideOf(hs),
