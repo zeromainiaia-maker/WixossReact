@@ -20001,10 +20001,12 @@ scenarios.v65PayGateSkipBlocksAbility = {
   spec: v65PayGateSpec,
   async drive(page, H) {
     const { fin, windowSeen } = await driveV65PayGate(page, H, false);
-    const energyFinal = fin?.host?.energy ?? -1;
-    const detail = `windowSeen=${windowSeen}（期待true） / energy終値=${energyFinal}（期待1＝手動ぶんのみ） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    const deckFinal = fin?.host?.deck ?? -1;
+    const paidCardStillInEnergy = (fin?.host?.energyCards ?? []).includes('WD01-014#9983');
+    const detail = `windowSeen=${windowSeen}（期待true） / deck終値=${deckFinal}（期待1＝WX01-049ぶんのみ・ボーナス不発） / `
+      + `paidCardStillInEnergy=${paidCardStillInEnergy}（期待true＝支払っていない） / energy終値=${fin?.host?.energy} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
     H.log(`  v65paygate ${detail}`);
-    return { pass: windowSeen && energyFinal === 1, detail };
+    return { pass: windowSeen && deckFinal === 1 && paidCardStillInEnergy, detail };
   },
 };
 order.push('v65PayGateWindowAppearsAndPayingFires', 'v65PayGateSkipBlocksAbility');
