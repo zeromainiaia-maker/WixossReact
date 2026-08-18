@@ -21365,14 +21365,16 @@ scenarios.v54TrashImmunityAbsentShowsTrashActButton = {
 order.push('v54TrashImmunityHidesTrashActButton', 'v54TrashImmunityAbsentShowsTrashActButton');
 // ── V-54 END ──
 
-// ── §7 V-55（O-10・続き566）調査用（実バグ疑いの確認） ──
-// `WXDi-P16-001A`（NEXT GATE）＝チェックゾーンで裏返り《扉の俯瞰者　ウトゥルス》へグロウコスト無料で
-// グロウする＝STUB{CHECK_ZONE_FLIP_FREE_GROW, value:"扉の俯瞰者　ウトゥルス"}。
-// `execStubPart3.ts` の実装は `[...cardMap.entries()].find(c => c.CardName === flipName)` で裏面カードを
-// 名前完全一致検索するが、**カードDB全体を検索しても「扉の俯瞰者　ウトゥルス」という CardName のカードも
-// `WXDi-P16-001B` という対の CardNum も存在しない**（grep実測・続き566）＝flipTo が常に undefined。
-scenarios.v55CheckZoneFlipTargetMissingConfirmsBug = {
-  title: 'V-55 🔴調査＝WXDi-P16-001Aのグロウ先カードがDBに存在せず常に無言no-opになる疑いを実機確認',
+// ── §7 V-55（O-10・続き566）(a)(c)のみ ──
+// `WXDi-P16-001A`（NEXT GATE）＝チェックゾーンで裏返り《扉の俯瞰者　ウトゥルス》（`WXDi-P16-001B`）へ
+// グロウコスト無料でグロウする＝STUB{CHECK_ZONE_FLIP_FREE_GROW}→`pending_flip_grow_card`予約を
+// BattleScreen.tsx の専用useEffectが**正規のexecuteGrow経路**（freeCost:true）で消費する。
+// ⚠事前のCSV grepでは`WXDi-P16-001B`がヒットせず「グロウ先カードがDBに無い実バグ」を一時疑ったが、
+// 実機ではボタンを2段階（一覧の「使用」→モーダル内の「使用」）押すと正しくグロウし、
+// 【出】（ソウル操作）まで発火することを確認＝**バグではなく実機のクリック段数を見誤っていただけ**
+// （続き566の教訓＝grep不一致だけでDB欠落と断定しない）。
+scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
+  title: 'V-55(a)(c) WXDi-P16-001A使用＝コスト無料で《扉の俯瞰者　ウトゥルス》へグロウし【出】も発火する',
   spec: {
     hostSet: {
       'field.lrig': ['WD01-001#9960'], 'lrig_deck': ['WXDi-P16-001A#9961'], 'field.signi': [null, null, null],
