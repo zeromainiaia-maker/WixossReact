@@ -19897,10 +19897,11 @@ scenarios.v67LrigDownAbilityActuallyDownsAndBlocksSecondUse = {
     await page.waitForTimeout(400);
     await H.clickBtn('発動', { exact: true });
     let fin = null;
-    for (let s = 0; s < 8; s++) {
+    for (let s = 0; s < 10; s++) {
       await page.waitForTimeout(400);
-      await H.stdStep();
+      const did = await H.stdStep();
       fin = await H.queryState();
+      H.log(`  v67lrigdown[${s}] did=${did} stackLen=${fin?.stackLen} pendingEffect=${fin?.pendingEffect} candidates=${JSON.stringify(fin?.pendingCandidates)} hField=${JSON.stringify(fin?.host?.fieldSigni)}`);
     }
     const placedOk = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9961'));
     const lrigDownNow = fin?.host?.lrigDown === true;
