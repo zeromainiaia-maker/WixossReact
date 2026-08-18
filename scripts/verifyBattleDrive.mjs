@@ -20509,6 +20509,53 @@ scenarios.v36FrontSigniAttackUnpayableNoButton = {
 order.push('v36FrontSigniAttackPayableFires', 'v36FrontSigniAttackUnpayableNoButton');
 // ── V-36 END ──
 
+// ── §7 V-49（O-10・続き566）(b)のうち「能力喪失」の核だけ ──
+// `lrig_abilities_disabled`（ターン終了時まで、あなたのセンタールリグは能力を失う＝`WXK08-002③`等）＝
+// `grantedStore.ts`/`lifeCrashReplace.ts` が「ルリグ付与の2ストアは能力なので丸ごと落ちる」と書いている
+// とおり、**付与済みのルリグ能力ごと機能しなくなる**ことを V-64 と同じ DAMAGE_REPLACE_BY_COST 注入で見る
+// （V-64 は `lrig_abilities_disabled` 無し＝置換が発火する対照、今回は有り＝発火しない）。
+scenarios.v49LrigAbilitiesDisabledSuppressesGrantedReplace = {
+  title: 'V-49(b) lrig_abilities_disabled＝付与済みのダメージ置換ごと機能しなくなる（V-64の対照）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_abilities_disabled': true,
+      'lrig_granted_auto_effects': [{
+        effectId: 'v49damageReplaceE1', effectType: 'CONTINUOUS', duration: 'UNTIL_OPP_TURN_END',
+        mandatory: true, parseStatus: 'MANUAL',
+        action: { type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST', damageReplaceByCost: { options: [{ handDiscard: 1 }], loseAbility: true } },
+      }],
+      'hand': ['WD01-013#900'], 'energy': [], 'lrig_deck': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.lrig_down': true,
+      'field.signi': [['WD01-013#201'], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+      'energy': [], 'hand': [], 'lrig_deck': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let last = await H.queryState();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true }) || await H.clickTextOrBtn(['エナに送る', '発動順序を確定']);
+      const st = await H.queryState();
+      last = st;
+      const notDiscarded = (st?.host?.handCards ?? []).includes('WD01-013#900');
+      H.log(`  v49lrigdisabled[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hHand=${st?.host?.hand} notDiscarded=${notDiscarded} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+      if ((st?.host?.life ?? 7) < 7) {
+        return { pass: notDiscarded, detail: `置換は発火せずhost.life 7→${st.host.life}（能力喪失で無効化＝期待どおり） / 手札不変=${notDiscarded}` };
+      }
+      if (st?.host?.fieldCheck == null && st?.turnPhase === 'MAIN' && (st?.host?.life ?? 7) === 7 && s > 15) {
+        return { pass: false, detail: `【予期せぬ置換発火疑い】host.life=7のままターンが進んだ（hHand=${JSON.stringify(st?.host?.handCards)}）` };
+      }
+    }
+    return { pass: false, detail: `タイムアウト（hLife=${last?.host?.life} hHand=${JSON.stringify(last?.host?.handCards)} phase=${last?.turnPhase}）` };
+  },
+};
+order.push('v49LrigAbilitiesDisabledSuppressesGrantedReplace');
+// ── V-49 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
