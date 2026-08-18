@@ -20234,6 +20234,53 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
 order.push('v60OnPlayAcceToEnergyRecoversProportional');
 // ── V-60 END ──
 
+// ── §7 V-59（続き540・O-14 実装）(a)のみ ──
+// WX15-003（メル＝マティーニ）の【起】ベルセルク《コイン》×3：「次のターンの間、対戦相手はアーツとスペルと
+// 【起】能力を使用できず、シグニは可能ならばアタックしなければならない」＝STUB{BLOCK_OPP_ARTS_SPELL_ACT_NEXT_TURN}
+// が `:NEXT_TURN` サフィックス付きで `blocked_actions` へ積む（2スロット予約規約）。
+// 撃った直後に guest.blockedActions に `USE_ARTS:NEXT_TURN` 等が入り、**無印（今ターン即時）ではない**ことを見る
+// （旧実装が1ターンずれていた場合はここで無印が入るか、何も入らないかのどちらかになる）。
+scenarios.v59BerserkBlocksNextTurnNotThisTurn = {
+  title: 'V-59(a) 🔴WX15-003ベルセルク＝次ターン予約の`:NEXT_TURN`サフィックスで積まれ、今ターン即時ではない',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX15-003#9940'], 'field.signi': [null, null, null], 'field.check': null,
+      'coins': 3, 'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9950'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await clickLrigImageAndWait(page, 'メル＝マティーニ');
+    const btn = page.getByRole('button', { name: /【起】コイン3/, exact: false }).first();
+    const btnVisible = await btn.count() && await btn.isVisible().catch(() => false);
+    if (btnVisible) await btn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    await H.clickBtn('発動', { exact: true });
+    let fin = null;
+    for (let s = 0; s < 6; s++) {
+      await page.waitForTimeout(400);
+      await H.stdStep();
+      fin = await H.queryState();
+    }
+    const guestBlocked = fin?.guest?.blockedActions ?? [];
+    const nextTurnSet = ['USE_ARTS:NEXT_TURN', 'USE_SPELL:NEXT_TURN', 'USE_ACT:NEXT_TURN'].every(id => guestBlocked.includes(id));
+    const immediateSet = ['USE_ARTS', 'USE_SPELL', 'USE_ACT'].some(id => guestBlocked.includes(id));
+    const coinsSpent = fin?.host?.coins === 0;
+    const detail = `btnVisible=${btnVisible} / nextTurnSet=${nextTurnSet}（期待true） / immediateSet=${immediateSet}（期待false） / `
+      + `coinsSpent=${coinsSpent} / guestBlocked=${JSON.stringify(guestBlocked)}`;
+    H.log(`  v59berserk ${detail}`);
+    return { pass: btnVisible && nextTurnSet && !immediateSet && coinsSpent, detail };
+  },
+};
+order.push('v59BerserkBlocksNextTurnNotThisTurn');
+// ── V-59 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
