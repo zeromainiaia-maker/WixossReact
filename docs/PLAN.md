@@ -91,8 +91,14 @@
 
 > **✅消化済のタスク（1〜9・11・14・16〜19）は 2026-07-29／2026-08-02／2026-08-06 の整理で退避**＝完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節（1〜9・11・17〜19）／「2026-08-02 整理②」節（16＝timing 語彙センサス 🏁残0クローズ）／**「2026-08-06 整理③」節（14＝リファクタ Stage2→Stage3 純粋バトルコントローラ。⚠残作業は §7 実機通し確認のみ・手順は [BATTLE_CONTROLLER.md](./BATTLE_CONTROLLER.md)）**。生きているのは上表の **13・15・20・21**（**12 は常設受け口**）。**🚧次セッションは 21（§5d-0 工程改善）を最優先**＝それが済んでから **20（§5d）** の通常バッチへ戻る。**主戦場は 20（§5d）**＝2026-08-07 続き369 に §5c の文型バッチを店じまいして移した。
 
-🆕**Opusタスク12＝在庫2件**（2026-08-18 続き559/562・Sonnet 5 が §7 実機検証中に発見）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
+🆕**Opusタスク12＝在庫3件**（2026-08-18 続き559/562・Sonnet 5 が §7 実機検証中に発見）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
 
+- 🔴**(cxxxvii) 「隣にあるあなたのシグニ」の対象フィルタが未実装＝ゾーン隣接を無視して「自分の全シグニ（自分自身含む）」に過剰実装されている**（2026-08-18 続き562・V-73 実機検証で発見）。
+  - **再現手順**＝`v73UpGateActiveShowsBuffedPower`（`scripts/verifyBattleDrive.mjs`）＝`WXDi-P04-050`（聖将　コウチュウ・パワー10000。【常】①「このシグニがアップ状態であるかぎり、このシグニのパワーは＋5000される」②「このシグニがアップ状態であるかぎり、**このシグニの隣にあるあなたのシグニ**のパワーを＋3000する」）を**単独で**（両隣とも空）場に出してアップ状態にすると、隣が無いのに②が自分自身に誤爆し、盤面のパワー表示が 10000+5000+3000=**18000**になる（ルール上の正しい表示は隣が無いので②は不発＝15000）。
+  - **原因**＝`WXDi-P04-050-E2` の JSON は `action:{type:POWER_MODIFY, target:{type:SIGNI, owner:self, count:'ALL', filter:{cardType:'シグニ'}}, delta:3000}`＝**「隣」の条件がフィルタに一切無く、自分の全シグニ（自分自身を含む）に一律+3000**。`src/types/effects.ts` の `TargetFilter` にゾーン隣接（`adjacentToSelf`／`neighborOnly` 等）の概念が存在せず、パーサ側も「隣にある」を検出する語彙が無い（`src/data/parserUtils.ts` の `*_ADJACENT_*` はすべて「原文の文中で対象節に隣接する語」を拾うテキストパース用のヘルパーで、**盤面のゾーン隣接とは無関係**）＝機構そのものが未実装。
+  - **live 母集団＝2件**（原文に「隣にある」を含むカード）＝`WXDi-P04-050`（聖将　コウチュウ）／`WXDi-P00-053`（中装　ホタルマル・【常】「あなたのターンである間、隣にあるあなたのシグニのパワーを+3000」＝同型の過剰実装＝`target:{owner:self,count:'ALL'}`）。
+  - **修正の型（提案）**＝`TargetFilter` にゾーン隣接（センターの `zi±1`）を表すフィルタを新設し、パーサに「隣にある」検出を追加、`matchesFilter`／候補列挙側でゾーンインデックス比較を実装する。2件しかないので golden にトリップワイヤ（単独配置で不発／隣接配置で発火の両方）を足してから直すこと。
+  - **§7 follow-up**＝直った後 `v73UpGateActiveShowsBuffedPower` を再実行して緑化を確認すること。
 - 🔴**(cxxxvi) CPU グロウが「効果解決なしで state だけ変わる」ケースで GROW フェイズから先に進めなくなる（ターンが凍結）**（2026-08-18 続き562・V-78 実機検証で発見）。
   - **再現手順**＝`v78CpuGrowsButSkipsOnPlayWithoutCoin`（`scripts/verifyBattleDrive.mjs`）＝CPU（guest）にコイン0枚・`WDK01-003`（コスト付き任意【出】＝`cost.coin:1`／`DRAW`）をグロウ先候補として持たせて GROW フェイズから開始。CPU はグロウ自体は実行する（ログに「[CPU] グロウ」「◯◯にグロウ」まで出る）が、そこから60秒（ポーリング上限）経ってもターンが先に進まない＝`handedOver` が立たない。
   - **原因**＝`BattleScreen.tsx` の `performGrow`（6346行目〜）は、ON_PLAY 系エントリ（`autoPaidOnPlay`／`mandatoryOnPlay`／`fieldLimitEntries`／`growTriggerEntries` 等）が1件もない場合（`entries.length === 0`、6597行目）、`effect_stack` を一切動かさず `WRITE_STATE` だけ commit して return する。コスト付き任意【出】が**コイン不足で自動発火しなかった**場合はまさにこのケース（`costOnPlay.length = 0` に強制クリアされる＝6549行目）。ところが CPU ターンを進める `useEffect`（504行目〜、`cpuTimerRef` を再スケジュールする側）の依存配列（520〜529行目）は `turn_phase`／`active_user_id`／`field.check`／`field.lrig_attacked`／`signi_down`／`pending_*` などに限定されており、**グロウで変わる `field.lrig`（トップ/下敷き）・`lrig_deck`・`coins`・`actions_done` はどれも依存配列に含まれない**。よって WRITE_STATE 後の再レンダーでも useEffect の依存が1つも変化せず、CPU ターン処理の `setTimeout` が二度と積まれない＝GROW フェイズで永久凍結する。
