@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き562・Sonnet 5）— §7 実機検証を継続＝`V-78`（CPU グロウを `performGrow` へ統合）／`V-73`（【常】のゲート「〜あるかぎり」）／`V-72`（エナコストの集合制約）を実施・実バグ2件を発見
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規9本**（うち2本は engine 実バグ待ちで意図的に赤のまま既定orderに残す）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.492→0.493。
+
+### 1. V-78＝CPU グロウの回帰確認＋🔴新規 engine バグ発見（Opusタスク12 (cxxxvi)）
+
+`v78CpuGrowsAndPaysOnPlayCost`（WXDi-P09-015→WDK01-003・コイン1枚持たせてコスト付き任意【出】が自動発火）は PASS。
+🔑**判定の罠**＝hand の最終値では判定しない（ドローした札を CPU がそのまま召喚してしまうことがある＝既知の罠の再確認）。`execDraw` が出す `N枚ドロー` ログで判定するのが正しい。
+
+`v78CpuGrowsButSkipsOnPlayWithoutCoin`（対照＝コイン0枚）は**🔴ターンが GROW フェイズで永久凍結**した。原因を切り分けたところ、`performGrow`（`BattleScreen.tsx`）が ON_PLAY 系エントリが1件も無い（`entries.length===0`）場合に `effect_stack` を動かさず `WRITE_STATE` だけ commit して return し、そのあとは「次の再レンダーで CPU ターン処理 useEffect が再起動する」ことに依存しているが、この useEffect の依存配列（`turn_phase`／`active_user_id`／`field.check`／`field.lrig_attacked`／`signi_down`／`pending_*` 等）に**グロウで実際に変わる `field.lrig`／`lrig_deck`／`coins`／`actions_done` のどれも入っていない**ため、依存が1つも変化せず二度と `setTimeout` が積まれない＝恒久凍結する。**CPU 対戦で「グロウ先に ON_PLAY 効果が無い」または「あってもコスト不足等で発火しない」すべてのケースで踏みうる**。Opusタスク12 (cxxxvi) へ登録。修正待ちにつき `v78CpuGrowsButSkipsOnPlayWithoutCoin` は赤のまま既定orderに残す。
+
+### 2. V-73＝【常】のゲート「〜あるかぎり」の実機確認＋🔴新規 engine バグ発見（Opusタスク12 (cxxxvii)）
+
+`WX14-073`（トラッシュにスペルが無ければ基本パワー印刷値5000のまま／スペル1枚送ると8000になる）の2本は PASS。`WXDi-P04-050`（アップ状態でダウン時と比較）はダウン側（印刷値10000に戻る）は PASS したが、**アップ側が期待15000に対し実際は18000で FAIL**。
+原因調査で `WXDi-P04-050-E2`（「隣にあるあなたのシグニのパワーを+3000」）の JSON が `target:{owner:'self',count:'ALL'}` になっており、**「隣」の条件を一切見ずに自分の全シグニ（自分自身も含む）に一律+3000**していることが判明。`TargetFilter` にゾーン隣接の概念が存在せず機構そのものが未実装（`parserUtils.ts` の `*_ADJACENT_*` は原文パース用のテキスト隣接であり盤面のゾーン隣接とは無関係）。live母集団2件（`WXDi-P04-050`／`WXDi-P00-053`）。Opusタスク12 (cxxxvii) へ登録。修正待ちにつき `v73UpGateActiveShowsBuffedPower` は赤のまま既定orderに残す。
+⚠パワーは `calcFieldPowers` 経由の純計算値＝`temp_power_mods` に載らない（`aboveSelfSelfBuffStopped`/`wxdip03057DownUnderRed` と同じ罠）ので、盤面のパワー表示 DOM（`my-signi-zone-0` の innerText）で見る必要がある。
+
+### 3. V-72＝エナコストの集合制約「それぞれレベルの異なるシグニN枚をトラッシュに置く」は回帰なし（3本 ALL PASS・2回連続）
+
+`WXDi-P09-008`（【起】・`cost.energyTrash{count:3,selectionConstraint:{distinct:'level'}}`）で確認。(a) 同レベル2枚目は選べない（✓が付かない＝`canAddEnergyTrashIndex` が選ばせてから赤くするのではなく最初から弾く）、(b) レベルの異なる3枚を選ぶと「発動」ボタンが有効になる、(c) 2枚（3枚未満）では無効のまま、をすべて確認。
+🔑**ハーネス側の罠**＝相手フィールドの対象カードにエナと**同じ CardNum**（`WD01-010`）を使ったところ、`img[alt="CardName"]` ロケータが背後の相手フィールドカードを誤クリックしてモーダル外へ抜け、選択状態（✓）が0個に巻き戻る事故が発生（(b) が最初 FAIL）。**エナに使うカードと相手フィールドの対象カードは名前を重複させない**こと＝`WD01-010` を `WD02-010` に差し替えて解消。選択状態はモーダルのローカル state なので `queryState()` では見えず、DOM の「✓」個数と「発動」ボタンの活性で判定する。
+
 ## 2026-08-18（続き561・Sonnet 5）— §7 実機検証を継続＝`V-77`（CPU がルリグ【起】と《アタックフェイズアイコン》付きシグニ【起】を撃つ＋人間側のコスト是正3件）ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規8本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.491→0.492。
