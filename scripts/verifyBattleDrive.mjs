@@ -20380,6 +20380,71 @@ scenarios.v53NonWhiteSpellBlockHidesGreenSpell = {
 order.push('v53NonWhiteSpellBlockAllowsWhiteSpell', 'v53NonWhiteSpellBlockHidesGreenSpell');
 // ── V-53 END ──
 
+// ── §7 V-38（O-28・続き566）──
+// `signi_attack_bans_this_turn`（`appliesTo:'LRIG'`）＝「対戦相手のルリグ１体を対象とし、《無》×Nを
+// 支払わないかぎりアタックできない」（例＝`WXDi-P03-036`）の帰結を、grant元カードの詠唱を省略して
+// `lrigAttackBanCost`（`signiAttackBan.ts`）へ直接注入して見る。ボタン生成（BattleScreen.tsx ATTACK_LRIG
+// 分岐）は `lrigCostALK.blocked` で「アタック（《無》×N）」／「アタック不可（《無》×N）」を出し分ける。
+const v38LrigBanSpec = (energyCards) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9990'], 'field.signi': [null, null, null], 'field.lrig_down': false, 'field.check': null,
+    'signi_attack_bans_this_turn': [{ appliesTo: 'LRIG', cardNums: ['WD01-001#9990'], unlessPayColorless: 2 }],
+    'hand': [], 'energy': energyCards, 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9991'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9992', 'WD01-013#9993'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+scenarios.v38LrigAttackBanPayableFires = {
+  title: 'V-38(a)(d) 《無》×2を払えばルリグアタックできる＝ボタン「アタック（《無》×2）」が出て払って通る',
+  spec: v38LrigBanSpec(['WD01-013#9994', 'WD01-013#9995']),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック（"]').first();
+    const label = await atk.count() ? await atk.getAttribute('data-action-label') : null;
+    const visible = await atk.count() > 0 && await atk.isVisible().catch(() => false);
+    if (visible) await atk.click().catch(() => {});
+    let fin = before;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(300);
+      fin = await H.queryState();
+      if (fin?.host?.lrigDown) break;
+      const did = await H.stdStep() || await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']);
+      if (!did) { fin = await H.queryState(); if (fin?.host?.lrigDown) break; }
+    }
+    const paid = (before?.host?.energy ?? 0) - (fin?.host?.energy ?? 0) === 2;
+    const pass = label === 'アタック（《無》×2）' && !!fin?.host?.lrigDown && paid;
+    const detail = `label=${label}（期待"アタック（《無》×2）"） / lrigDown=${fin?.host?.lrigDown}（期待true） / エナ消費=${(before?.host?.energy ?? 0)}→${fin?.host?.energy}（2消費期待）`;
+    H.log(`  v38lrigban ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v38LrigAttackBanUnpayableBlocks = {
+  title: 'V-38(a)(d) 対照＝エナ不足だと「アタック不可（《無》×2）」でボタンが機能せずルリグは攻撃できない',
+  spec: v38LrigBanSpec([]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-slot-center');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック不可（"]').first();
+    const label = await atk.count() ? await atk.getAttribute('data-action-label') : null;
+    const visible = await atk.count() > 0 && await atk.isVisible().catch(() => false);
+    if (visible) await atk.click().catch(() => {});
+    await page.waitForTimeout(500);
+    const fin = await H.queryState();
+    const pass = label === 'アタック不可（《無》×2）' && !fin?.host?.lrigDown;
+    const detail = `label=${label}（期待"アタック不可（《無》×2）"） / lrigDown=${fin?.host?.lrigDown}（期待false＝攻撃不成立）`;
+    H.log(`  v38lrigban ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v38LrigAttackBanPayableFires', 'v38LrigAttackBanUnpayableBlocks');
+// ── V-38 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
