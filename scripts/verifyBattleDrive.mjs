@@ -21138,6 +21138,59 @@ scenarios.v50cLrigNegationNotCoveredByImmunityFlag = {
 order.push('v50cLrigNegationNotCoveredByImmunityFlag');
 // ── V-50c END ──
 
+// ── §7 V-52（O-10・続き566）(a)のうち宣言レベルのガード制限だけ ──
+// `WXK07-001`（炎真爛漫）の付与【自】：アタックフェイズ開始時に数字を宣言し「宣言された数字と同じ
+// レベルのシグニで【ガード】ができない」＝`declared_guard_restrict_level`（`GuardResponseDialog.tsx`が
+// 唯一の消費点＝ルリグアタックのガード候補フィルタ）。カード詠唱と数字宣言UIを省略し、攻撃側（CPU）に
+// 直接注入＝(a)宣言レベルと同じLv2の手札ガードカードは候補に出ない(b)Lv3のガードカードなら候補に出る。
+const v52GuardRestrictSpec = (restrictLevel) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9980'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+    'hand': ['WD01-016#9981'], 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9982'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'declared_guard_restrict_level': restrictLevel,
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+async function driveV52GuardRestrict(page, H) {
+  let fin = await H.queryState();
+  for (let s = 0; s < 15; s++) {
+    await page.waitForTimeout(300);
+    fin = await H.queryState();
+    if (fin?.host?.lrigAttacked) break;
+  }
+  await page.waitForTimeout(400);
+  const guardBtn = page.locator('button', { hasText: 'サーバント　Ｄ' }).first();
+  const visible = await guardBtn.count() > 0 && await guardBtn.isVisible().catch(() => false);
+  // 後始末：ガードせず進める（ガードボタンが出ていればクリックせず素通り）
+  await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る']);
+  return visible;
+}
+scenarios.v52GuardRestrictSameLevelBlocksGuard = {
+  title: 'V-52(a) 宣言Lv2＝同じLv2の手札ガードカードが候補に出ない',
+  spec: v52GuardRestrictSpec(2),
+  async drive(page, H) {
+    const visible = await driveV52GuardRestrict(page, H);
+    const detail = `ガード候補可視=${visible}（期待false＝宣言レベルと一致し弾かれる）`;
+    H.log(`  v52guardrestrict ${detail}`);
+    return { pass: !visible, detail };
+  },
+};
+scenarios.v52GuardRestrictDifferentLevelAllowsGuard = {
+  title: 'V-52(a) 対照＝宣言Lv3なら同じLv2の手札ガードカードは候補に出る',
+  spec: v52GuardRestrictSpec(3),
+  async drive(page, H) {
+    const visible = await driveV52GuardRestrict(page, H);
+    const detail = `ガード候補可視=${visible}（期待true＝レベル不一致で弾かれない）`;
+    H.log(`  v52guardrestrict ${detail}`);
+    return { pass: visible, detail };
+  },
+};
+order.push('v52GuardRestrictSameLevelBlocksGuard', 'v52GuardRestrictDifferentLevelAllowsGuard');
+// ── V-52 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
