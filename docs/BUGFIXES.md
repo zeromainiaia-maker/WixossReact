@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き561・Sonnet 5）— §7 実機検証を継続＝`V-77`（CPU がルリグ【起】と《アタックフェイズアイコン》付きシグニ【起】を撃つ＋人間側のコスト是正3件）ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規8本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.491→0.492。
+
+### 1. (A) CPU がルリグ本来【起】を発動し、同一ターンに2回撃たない
+
+`v77CpuActivatesPrintedLrigAbility` ＝WX12-002-E3（紅蓮乙女 遊月・肆・無×1・`ENERGY_CHARGE_FROM_DECK`・`usageLimit:once_per_turn`）で確認。
+🔑**判定の罠**＝`energy` の最終値では判定しない＝action 自体が `ENERGY_CHARGE_FROM_DECK`（デッキから1枚エナへ）なので、コストで払った1枚と action で得た1枚が相殺されて `energy` の総数は変わらない。**`trash` の枚数**（コストで払った分だけ増える・action はトラッシュを経由しない）で1回だけ発動したことを確認するのが正しい。
+
+### 2. (B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる
+
+`v77CpuUsesIconAbilityInAttackArts` ＝WX19-050（コードメイズ ベルク・白×0・timing:['ATTACK_ARTS']のみ）で確認。
+🔑**判定の罠×2**＝①**host のダウン状態は host 自身の次の UP フェイズでアップされる**＝CPU ターンが完全に終わった（`handedOver`）後の state で判定すると、既に UP 処理でダウンが消えていることがある。②**発動ログ検出と同じクエリの瞬間はまだ効果解決前**のことがある（発動ログ→対象選択の自動応答→`DOWN` 実行、の間にラグがある）。⇒ **fired 検出後も継続して対象のダウン状態を監視し、一度でも true になったら記録する**のが正しい。
+
+対照（「MAIN では撃たれない」）は**当初 CPU 側で確認しようとして失敗した**＝CPU ターンは MAIN から自動的に ATTACK_ARTS へ進んでしまい、「MAIN フェイズに留まらせたまま観測する」ことが決定論的にできない（ポーリングの1回目には既に ATTACK_ARTS へ進み発動済みだった）。⇒ **人間視点に切り替え**（`v77HumanIconLrigShownInAttackArts`/`v77HumanIconLrigHiddenInMain`）＝`signiActivateGate.listActivatableSigniEffects` は人間の提示と CPU の候補フィルタが同じ1関数を呼ぶ設計なので、人間視点でボタンの有無を見れば同じ timing 照合ロジックの裏取りになる。
+
+### 3. (C)(D) 人間側のコスト是正＝コインが実際に減る／使用条件つきルリグ【起】が MAIN 窓で条件を見る
+
+`v77HumanCoinCostActuallyDeducted`/`GatedWhenShort`（WX15-001・コイン1）、`v77HumanConditionHidesWhenUnmet`/`ShowsWhenMet`（PR-466・条件＝場に「新鋭の巫女 タマヨリヒメ」＝キー `PR-K022` がある）で確認。
+
+🔑**ルリグ本体の【起】ボタンはルリグ画像をクリックして初めて表示される**（V-80 で確立した型と同じ）＝シグニと違い最初から場に見えているわけではない。**最初これを省略して「ボタンが無い」で FAIL した**＝`img[alt=カード名]` をクリックしてから探すこと。
+
 ## 2026-08-18（続き560・Sonnet 5）— §7 実機検証を継続＝`V-76`（CPU が自ターンにアーツ／スペルで攻める）ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規5本 ALL PASS**（うち1本はバッチ実行時にハーネス側の断続的フレークを観測・follow-up として記録）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.490→0.491。
