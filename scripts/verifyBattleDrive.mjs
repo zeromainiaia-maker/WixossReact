@@ -21365,6 +21365,51 @@ scenarios.v54TrashImmunityAbsentShowsTrashActButton = {
 order.push('v54TrashImmunityHidesTrashActButton', 'v54TrashImmunityAbsentShowsTrashActButton');
 // ── V-54 END ──
 
+// ── §7 V-55（O-10・続き566）調査用（実バグ疑いの確認） ──
+// `WXDi-P16-001A`（NEXT GATE）＝チェックゾーンで裏返り《扉の俯瞰者　ウトゥルス》へグロウコスト無料で
+// グロウする＝STUB{CHECK_ZONE_FLIP_FREE_GROW, value:"扉の俯瞰者　ウトゥルス"}。
+// `execStubPart3.ts` の実装は `[...cardMap.entries()].find(c => c.CardName === flipName)` で裏面カードを
+// 名前完全一致検索するが、**カードDB全体を検索しても「扉の俯瞰者　ウトゥルス」という CardName のカードも
+// `WXDi-P16-001B` という対の CardNum も存在しない**（grep実測・続き566）＝flipTo が常に undefined。
+scenarios.v55CheckZoneFlipTargetMissingConfirmsBug = {
+  title: 'V-55 🔴調査＝WXDi-P16-001Aのグロウ先カードがDBに存在せず常に無言no-opになる疑いを実機確認',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9960'], 'lrig_deck': ['WXDi-P16-001A#9961'], 'field.signi': [null, null, null],
+      'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9962'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-lrig-dk');
+    await page.waitForTimeout(600);
+    await H.clickTestId('zone-card-0');
+    await page.waitForTimeout(600);
+    await H.clickTextOrBtn(['使用']);
+    let fin = before;
+    let sawNoTargetLog = false;
+    for (let s = 0; s < 10; s++) {
+      await page.waitForTimeout(350);
+      const did = await H.stdStep() || await H.clickTextOrBtn(['決定', 'OK']);
+      fin = await H.queryState();
+      sawNoTargetLog ||= (fin?.logTail ?? []).some(l => l.includes('グロウ先（裏面）が指定されていない'));
+      if (!did && sawNoTargetLog) break;
+    }
+    const lrigUnchanged = fin?.host?.lrigTop === before?.host?.lrigTop;
+    const detail = `sawNoTargetLog=${sawNoTargetLog}（実バグなら期待true） / lrigTop不変=${lrigUnchanged}（実バグなら期待true＝グロウ不発） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-4))}`;
+    H.log(`  v55flipgrow ${detail}`);
+    // このシナリオは「実バグを実機確認する」ための調査＝バグを確認できたらそれ自体が検証成功（PASS）とし、
+    // Opusタスク12へ登録する（その場では直さない＝CLAUDE.md規約）。
+    return { pass: sawNoTargetLog && lrigUnchanged, detail };
+  },
+};
+order.push('v55CheckZoneFlipTargetMissingConfirmsBug');
+// ── V-55 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
