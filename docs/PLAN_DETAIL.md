@@ -6,6 +6,21 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-18 整理㉝（§7 `V-79`／`V-80` 完全消化ぶんの退避・続き556）
+
+> PLAN §7 🅱／🅳 にあった `V-79`／`V-80` の全ブロックを verbatim で退避（両方とも残0クローズ）。PLAN 側には1行✅サマリだけ残す。
+
+- **✅ V-80 続き554／556 で (A)(B)(C・付与側) は実機 PASS＝残0クローズ**（`wxk04003Label` / `v80GrantedLrigActCoinShown` / `v80GrantedLrigActCoinGated` / `v80CpuActivatesGrantedLrig` の4本）。§8/`O-1` (f) 付与／継承のルリグ【起】を funnel（`lrigActivateGate`）へ寄せた分の観測は完了。
+  - [x] **(A)(B)** 続き554＝付与【起】の提示（コイン軸）が正しく厳しくなったこと＝実機PASS 2本。
+  - [x] **(C) CPU が付与【起】を撃つ**＝続き556 実機PASS（`v80CpuActivatesGrantedLrig`）。`lrig_granted_auto_effects`（コスト《コイン》×1）を CPU のセンタールリグへ注入し MAIN フェイズを回すと、**`[CPU] ルリグの【起】を発動: <カード名>` のログ→コインが1→0→本体（DRAW）の「1枚ドロー」ログまで解決**（`pickCpuLrigActivated` の②`listActivatableGrantedLrigEffects` 経路を実機で確認）。
+  - 📋**継承【起】（`INHERIT_LRIG_TRASH_ABILITIES`＝③）の CPU 検証は未着手**＝宣言カードが `WX05-002`/`003`/`004` の3枚のみで、実際に「継承済み」の盤面（ルリグトラッシュへ落ちた履歴）を組む必要がありコストが高い。①②（本来／付与）は確認済みで③だけが `pickCpuLrigActivated` の同一ループの3番目という位置づけ＝**踏むなら別番号で**（優先度低）。
+- **✅ V-79 続き555／556 で (A)(B)(D) は実機 PASS＝残は (C) のみ取り下げ済みにつき残0クローズ**。
+  - [x] **(A)** 続き555＝`ATTACK_LRIG` 始まりで**2周してターンが人間へ渡る**／対照は `UP` へ直行（`v79CpuExtraAttackPhaseConsumed` / `v79CpuNoExtraAttackPhase`）。
+  - [x] **(B)** 続き556 実機PASS（`v79SecondLapHastarliqSuppressed`）＝CPU の2周目でも**開始時本文（`pending_extra_attack_phase_start_effects` 経由の DRAW）は消化される**（guest.hand が0→1）一方、**【ハスターリク】は発動しない**（`hastarliq_zones` が消費されず残存・関連ログなし）＝`BattleScreen.tsx:11322-11346`（CPU の addedExtraPhase 分岐）に HASTARLIQ 直書きチェックが無い設計（human 側の `phase !== 'ATTACK_LRIG'` ガードと同じ扱い）を実機で確認。
+  - [x] **(D)** 続き556 実機PASS（`v79HumanOrderEndBeforeStart`）＝人間が追加アタックフェイズへ入るとき、**スタックへの積み順が `WX24-P2-075-E1`（1周目終了時）→`EXTRA_ATTACK_PHASE_START:...`（2周目開始時）の順**（`stackPending` を確定直後に読む決定論的手法。解決自体は待たない）＝ `BattleScreen.tsx:4126-4173` の「終了→開始」順（2026-08-18 §6.4 O-1(e) で是正済み）を実機で確認。
+    - 🔑**実機注入の罠（次に触る人へ）**＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の `signi_left_field_this_attack_phase` 配列は **`battleCardNums`（`BattleScreen.tsx:700番台` の反応的ロード走査）に含まれない**＝離場した instanceId をそこにしか書かないと `battleCardMap` に載らず `matchesFilter` が undefined カードで即 false になり、条件つきの ON_ATTACK_PHASE_END が**静かに不発**する。**同じ instanceId を `trash` 等の既存走査対象にも置く**必要がある（実ゲームでは離場先が必ず手札/トラッシュ/デッキのどれかなので無害・直接注入だけの罠）。
+  - (C) は続き555 で実機シナリオを取り下げ済み（`WX24-P2-075` の本文が `optional` なため CPU の自動応答で盤面差分が出ない＝収集器の正しさは golden 側で固定）。
+
 ## 2026-08-18 整理㉜（PLAN §4「次の一手 ⓪」から §8 `O-1` (a)〜(d) の消化済み本文を退避）
 
 > 2026-08-18 続き551〜552d で §8／§6.4 `O-1`（CPU AI）の (a)〜(d) を消化した。PLAN §4 の ⓪ は
