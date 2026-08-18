@@ -20176,6 +20176,64 @@ scenarios.v62UnchamedNoBonusDrawOnOppTurnEnd = {
 order.push('v62CharmedGetsBonusDrawOnOppTurnEnd', 'v62UnchamedNoBonusDrawOnOppTurnEnd');
 // ── V-62 END ──
 
+// ── §7 V-60（続き540・O-15 実装）──
+// WXEX1-44（コードオーダー とんラー）の【出】：手札から《アクセアイコン》を持つシグニを2枚までエナへ→
+// その後、その方法でエナへ置いた枚数と同じ枚数の＜調理＞シグニをエナから手札へ（回収枚数が置いた枚数に比例）。
+// `WX15-105`（コードイート トロチー）は【アクセ】文を持つ＝hasIcon:'アクセ' 該当かつ story:調理。
+// 手札から1枚を選んでエナに送ると、エナから1枚（同じWX15-105）が手札へ回収されることを見る＝(c)の比例確認が本命。
+scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
+  title: 'V-60(a)(c) 🔴WXEX1-44＝手札から1枚エナに送ると、エナから調理シグニ1枚が手札に回収される（比例）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXK09-018#9920'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': ['WXEX1-44#9921', 'WX15-105#9922'], 'energy': ['WX15-105#9923'],
+      'lrig_deck': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9930'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await H.clickTestId('my-hand-card-0');
+    let summoned = false;
+    let fin = null;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (!summoned && await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (!did) {
+        const handImg = page.locator('img[alt="コードイート　トロチー"]').last();
+        if (await handImg.count() && await handImg.isVisible().catch(() => false)) {
+          await handImg.click({ force: true, timeout: 2000 }).catch(() => {}); did = 'img:トロチー';
+        }
+      }
+      if (!did) did = await H.stdStep();
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', '確定', 'スキップ', '選ばない']);
+      fin = await H.queryState();
+      H.log(`  v60acce[${s}] did=${did} hHand=${JSON.stringify(fin?.host?.handCards)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} pendingEffect=${fin?.pendingEffect} hField=${JSON.stringify(fin?.host?.fieldSigni)}`);
+      const recovered = (fin?.host?.handCards ?? []).includes('WX15-105#9923');
+      const sentToEnergy = (fin?.host?.energyCards ?? []).includes('WX15-105#9922');
+      if (recovered && sentToEnergy) break;
+    }
+    const recovered = (fin?.host?.handCards ?? []).includes('WX15-105#9923');
+    const sentToEnergy = (fin?.host?.energyCards ?? []).includes('WX15-105#9922');
+    const detail = `sentToEnergy=${sentToEnergy}（手札→エナ・期待true） / recovered=${recovered}（エナ→手札・期待true） / `
+      + `hHand=${JSON.stringify(fin?.host?.handCards)} / hEnergy=${JSON.stringify(fin?.host?.energyCards)}`;
+    H.log(`  v60acce ${detail}`);
+    return { pass: recovered && sentToEnergy, detail };
+  },
+};
+order.push('v60OnPlayAcceToEnergyRecoversProportional');
+// ── V-60 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
