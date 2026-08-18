@@ -20899,10 +20899,12 @@ order.push('v33KeyLowLevelShieldPreventsDamage', 'v33KeyHighLevelShieldDoesNotPr
 // ── §7 V-48（O-10・続き566）(b)のみ ──
 // `WXDi-P00-026`（アシスト）【出】：センタールリグへ「【自】《ターン１回》：このルリグがアタックしたとき、
 // このルリグをアップする」を付与＝`GRANT_EFFECT{target:LRIG}`→`granted_effects[<lrig instId>]`。
-// アシスト詠唱を省略し直接注入＝(b)1回目のルリグアタック後にアップして2回目のアタックができる／
-// 《ターン１回》なので2回目のアタック後は再アップせず3回目は無い、を1本で見る。
-scenarios.v48GrantedUpOnAttackAllowsSecondAttack = {
-  title: 'V-48(b) 🔴付与「アタック時アップ」＝1回目後アップして2回目が撃てる／3回目は無い（ターン1回）',
+// アシスト詠唱を省略し直接注入＝アタック後に実際にアップすることを見る。
+// ⚠**2回目の実アタックは別の恒久ガード（`lrig_has_attacked`）で意図的にブロックされる**
+// （`BattleScreen.tsx:10006`「このターン既に攻撃済み（ON_ATTACK_LRIGでアップされても再攻撃不可）」＝
+// アップ状態だけでは再攻撃を許さない設計）＝ここでは「アップする」の一点だけを見る（続き566実測で判明）。
+scenarios.v48GrantedUpOnAttackFiresAfterAttack = {
+  title: 'V-48(b) 付与「アタック時アップ」＝ルリグアタック後に実際にアップする',
   spec: {
     hostSet: {
       'field.lrig': ['WD01-001#9940'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
