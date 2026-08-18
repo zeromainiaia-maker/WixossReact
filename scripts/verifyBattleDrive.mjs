@@ -18749,6 +18749,67 @@ scenarios.v74HumanAcceColorMatchEnabled = {
 order.push('v74HumanAcceColorMismatchBlocked', 'v74HumanAcceColorMatchEnabled');
 // ── V-74 END ──
 
+// ── §7 V-75（続き552・§8/`O-1` (a) CPU が相手のアタックフェイズに応答アーツで守る v1 ＋ アーツ使用ゲートの1本化）──
+// (A)(B): WX24-P1-021（剣一炎敵・赤・使用条件なし）の【起】《赤》×1：相手のパワー10000以下のシグニ1体をバニッシュ。
+// host（人間）がターンプレイヤーで ATTACK_ARTS_OP フェイズへ直接注入＝CPU（guest）が非ターンプレイヤーの応答窓。
+// `hasIncomingThreat` は「host の正面（2-zi）が空いている up 状態のシグニ」を見る＝host 側のシグニは
+// まだダウンしていない（アタック**前**のアーツステップ）状態で注入する。
+const v75DefendSpec = (threat) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8880'],
+    'field.signi': [['WD01-013#8881'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD03-003#8882'],
+    // 脅威あり＝guestの正面（2-0=2）を空ける。脅威なし（対照）＝正面を塞ぎ、ライフも2枚以上にする。
+    'field.signi': threat ? [null, null, null] : [null, null, ['WD01-013#8883']],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'life_cloth': threat ? undefined : ['WD01-013#8884', 'WD01-013#8885'],
+    'lrig_deck': ['WX24-P1-021#8886'],
+    'energy': ['WD02-013#8887'],   // 赤エナ1枚（コスト用）
+    'hand': [], 'actions_done': [], 'cpu_used_card_nums_this_turn': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS_OP', turn_count: 2 },
+});
+
+const driveV75Defend = async (page, H, expectFired) => {
+  let fired = false;
+  let noneLog = false;
+  let fin = null;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] アーツを使用: 剣一炎敵'))) fired = true;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] アーツを使用しない'))) noneLog = true;
+    if (st?.turnPhase && st.turnPhase !== 'ATTACK_ARTS_OP') break;   // 🔴止まらないことの確認＝次のフェイズへ進んだ
+    await H.clickTextOrBtn(['決定', 'OK', 'はい', 'エナに送る']);
+    await page.waitForTimeout(300);
+  }
+  const advanced = fin?.turnPhase && fin.turnPhase !== 'ATTACK_ARTS_OP';
+  const hostSigniIntact = (fin?.host?.fieldSigni?.[0] ?? []).some(c => c && c.startsWith('WD01-013'));
+  const detail = `fired=${fired}（期待${expectFired}） / 使用しないログ=${noneLog} / advanced=${advanced}（ATTACK_ARTS_OPから先へ進んだ） / `
+    + `hostSigniIntact=${hostSigniIntact}（期待${!expectFired}） / turnPhase終値=${fin?.turnPhase} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  H.log(`  v75defend ${detail}`);
+  if (!advanced) return { pass: false, detail: `🔴ATTACK_ARTS_OP から先へ進まない＝止まった疑い（${detail}）` };
+  const ok = expectFired ? (fired && !hostSigniIntact) : (!fired && noneLog && hostSigniIntact);
+  return { pass: ok, detail };
+};
+
+scenarios.v75CpuDefendsWithArts = {
+  title: 'V-75(A)(B) CPU が相手（人間）のアタックフェイズに応答アーツで守り、ATTACK_ARTS_OPから先へ進む（止まらない）',
+  spec: v75DefendSpec(true),
+  drive: (page, H) => driveV75Defend(page, H, true),
+};
+scenarios.v75CpuDoesNotDefendWithoutThreat = {
+  title: 'V-75(A) 対照＝脅威が無い（正面埋まり・ライフ2枚以上）ときは CPU がアーツを使わない',
+  spec: v75DefendSpec(false),
+  drive: (page, H) => driveV75Defend(page, H, false),
+};
+order.push('v75CpuDefendsWithArts', 'v75CpuDoesNotDefendWithoutThreat');
+// ── V-75 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
