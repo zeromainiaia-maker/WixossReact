@@ -20777,6 +20777,83 @@ scenarios.v34EnergyMoveImmunityAbsentTrashFires = {
 order.push('v34EnergyMoveImmunityBlocksTrash', 'v34EnergyMoveImmunityAbsentTrashFires');
 // ── V-34 END ──
 
+// ── §7 V-37（O-3・続き566）(a)のみ ──
+// `WX25-P2-038`（給油火業）：対戦相手のシグニ１体に「このシグニがアタックしたとき、《無》×4を支払わない
+// かぎりこのシグニをバニッシュする」を付与＝`GRANT_EFFECT`で`granted_effects[<instanceId>]`へ
+// ON_ATTACK_SIGNI起点のOPTIONAL_COST(unlessPay)+CONDITIONAL(PAID_ADDITIONAL_COST)を注入。
+// ARTS詠唱を省略し、host自身のシグニへ直接付与してhostにアタックさせ、任意コストの支払い可否で
+// バニッシュされるかどうかを直接コントロールする（CPU相手のAI選択に依存しない設計）。
+const v37GrantedAttackTaxSpec = (hostEnergy) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9995'], 'field.signi': [['WD01-013#9996'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': hostEnergy, 'actions_done': [],
+    'granted_effects': {
+      'WD01-013#9996': [{
+        effectId: 'v37attackTax1', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], triggerScope: 'self',
+        mandatory: true, duration: 'INSTANT', parseStatus: 'AUTO',
+        action: {
+          type: 'SEQUENCE', steps: [
+            { type: 'STUB', id: 'OPTIONAL_COST', costColors: ['無', '無', '無', '無'], unlessPay: true },
+            {
+              type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
+              then: { type: 'SEQUENCE', steps: [] },
+              else: { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } },
+            },
+          ],
+        },
+      }],
+    },
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9997'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9998', 'WD01-013#9999'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function driveV37GrantedAttackTax(page, H) {
+  await H.clickTestId('my-signi-zone-0');
+  await page.waitForTimeout(500);
+  const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+  await atk.click({ timeout: 2000 }).catch(() => {});
+  let fin = await H.queryState();
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(400);
+    let did = await H.clickTestId('optcost-energy-0');
+    if (!did) did = await H.clickTestId('optcost-pay');
+    if (!did) did = await H.clickTextOrBtn(['支払わない', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']);
+    if (!did) did = await H.stdStep();
+    fin = await H.queryState();
+    H.log(`  v37attacktax[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} hField=${JSON.stringify(fin?.host?.fieldSigni)} hTrash=${fin?.host?.trashCards} pendingOptions=${JSON.stringify(fin?.pendingOptions)}`);
+    if (fin?.pendingEffect == null && (fin?.host?.signiDown ?? [])[0] && s >= 4) break;
+  }
+  return fin;
+}
+scenarios.v37GrantedAttackTaxUnpaidBanishesSelf = {
+  title: 'V-37(a) エナ0＝支払えず自分がバニッシュされる',
+  spec: v37GrantedAttackTaxSpec([]),
+  async drive(page, H) {
+    const fin = await driveV37GrantedAttackTax(page, H);
+    const banished = !(fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9996'))
+      && (fin?.host?.trashCards ?? []).includes('WD01-013#9996');
+    const detail = `banished=${banished}（期待true） / hField=${JSON.stringify(fin?.host?.fieldSigni)} / hTrash=${JSON.stringify(fin?.host?.trashCards)}`;
+    H.log(`  v37attacktax ${detail}`);
+    return { pass: banished, detail };
+  },
+};
+scenarios.v37GrantedAttackTaxPaidSurvives = {
+  title: 'V-37(a) 対照＝《無》×4を払えば生き残る',
+  spec: v37GrantedAttackTaxSpec(['WD01-013#9910', 'WD01-013#9911', 'WD01-013#9912', 'WD01-013#9913']),
+  async drive(page, H) {
+    const fin = await driveV37GrantedAttackTax(page, H);
+    const survived = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9996'));
+    const detail = `survived=${survived}（期待true） / hField=${JSON.stringify(fin?.host?.fieldSigni)} / hEnergy=${fin?.host?.energy}`;
+    H.log(`  v37attacktax ${detail}`);
+    return { pass: survived, detail };
+  },
+};
+order.push('v37GrantedAttackTaxUnpaidBanishesSelf', 'v37GrantedAttackTaxPaidSurvives');
+// ── V-37 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
