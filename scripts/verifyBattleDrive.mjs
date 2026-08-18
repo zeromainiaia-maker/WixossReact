@@ -19157,6 +19157,195 @@ scenarios.v76CpuDoesNotUseUnsupportedSpell = {
 order.push('v76CpuDoesNotUseUnsupportedSpell');
 // ── V-76 END ──
 
+// ── §7 V-77（続き552c・§8/`O-1` (c) CPU がルリグ【起】と《アタックフェイズアイコン》付きシグニ【起】を撃つ v1 ＋ 人間側のコスト是正3件）──
+
+// (A) CPU がルリグ本来【起】を撃つこと＝WX12-002-E3（紅蓮乙女 遊月・肆・無×1・ENERGY_CHARGE_FROM_DECK・once_per_turn）。
+// エナ2枚（2回分）を持たせ、①発動ログ ②同一ターンに2回撃たれない（エナが1枚だけ消費される）ことを確認。
+const v77CpuLrigActivatedSpec = {
+  guestSet: {
+    'field.lrig': ['WX12-002#9020'], 'field.signi': [null, null, null], 'field.check': null,
+    'energy': ['WD01-013#9021', 'WD01-013#9022'],
+    'deck': ['WD01-013#9023', 'WD01-013#9024'],   // ENERGY_CHARGE_FROM_DECK のソース
+    'hand': [], 'actions_done': [], 'cpu_activated_effect_ids_this_turn': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9030'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV77CpuLrigActivated = async (page, H) => {
+  let fired = false;
+  let fin = null;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] ルリグの【起】を発動: 紅蓮乙女'))) fired = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const energyOnce = (fin?.guest?.energy ?? -1) === 1;   // 2枚のうち1枚だけ消費＝1回だけ発動の動かぬ証拠
+  const detail = `fired=${fired} / energy終値=${fin?.guest?.energy}（期待1＝2枚中1枚だけ消費） / `
+    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  H.log(`  v77lrigActivated ${detail}`);
+  if (!fired) return { pass: false, detail: `🔴CPU がルリグ【起】を撃たなかった（${detail}）` };
+  return { pass: energyOnce, detail };
+};
+
+scenarios.v77CpuActivatesPrintedLrigAbility = {
+  title: 'V-77(A) CPU がルリグ本来【起】を発動し、同一ターンに2回撃たない',
+  spec: v77CpuLrigActivatedSpec,
+  drive: (page, H) => driveV77CpuLrigActivated(page, H),
+};
+order.push('v77CpuActivatesPrintedLrigAbility');
+
+// (B) アイコン付きシグニ【起】＝WX19-050（コードメイズ ベルク・白×0・timing:['ATTACK_ARTS']のみ・
+// DOWN 対象=能力を持たない相手シグニ）。ATTACK_ARTS では撃たれる／MAIN では撃たれない（対照）。
+const v77IconLrigSpec = (phase) => ({
+  guestSet: {
+    'field.lrig': ['WD03-003#9040'],
+    'field.signi': [['WX19-050#9041'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'energy': [], 'hand': [], 'actions_done': [], 'cpu_activated_effect_ids_this_turn': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9050'],
+    'field.signi': [['WD01-013#9051'], null, null], 'field.signi_down': [false, false, false],   // 能力なしバニラ（対象）
+    'field.check': null, 'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: phase, turn_count: 2 },
+});
+
+const driveV77IconLrig = async (page, H, expectFired) => {
+  let fired = false;
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動: コードメイズ'))) fired = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const targetDown = (fin?.host?.signiDown ?? [])[0] === true;
+  const detail = `fired=${fired}（期待${expectFired}） / handedOver=${handedOver} / targetDown=${targetDown} / `
+    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  H.log(`  v77iconLrig ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  const ok = expectFired ? (fired && targetDown) : (!fired && !targetDown);
+  return { pass: ok, detail };
+};
+
+scenarios.v77CpuUsesIconAbilityInAttackArts = {
+  title: 'V-77(B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる',
+  spec: v77IconLrigSpec('ATTACK_ARTS'),
+  drive: (page, H) => driveV77IconLrig(page, H, true),
+};
+scenarios.v77CpuDoesNotUseIconAbilityInMain = {
+  title: 'V-77(B) 対照＝MAIN フェイズでは撃たれない（gate の timing 照合）',
+  spec: v77IconLrigSpec('MAIN'),
+  drive: (page, H) => driveV77IconLrig(page, H, false),
+};
+order.push('v77CpuUsesIconAbilityInAttackArts', 'v77CpuDoesNotUseIconAbilityInMain');
+
+// (C) 🔴コインが実際に減ること＝WX15-001-E3（真実の記憶 リル・コイン1・STUB{OPP_REVEAL_HAND_AND_LRIG_DECK}）。
+// 人間側でコイン1枚を持たせて発動→coins が1→0。対照＝コイン0枚では「【起】コイン1」ボタン自体が出ない。
+const v77CoinCostSpec = (hasCoin) => ({
+  hostSet: {
+    'field.lrig': ['WX15-001#9060'], 'field.signi': [null, null, null], 'field.check': null,
+    'coins': hasCoin ? 1 : 0, 'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9070'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV77CoinCostFires = async (page, H) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  const btn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
+  const btnCount = await btn.count();
+  if (btnCount === 0 || !(await btn.isVisible().catch(() => false))) {
+    return { pass: false, detail: `🔴「【起】コイン1」ボタンが出ない（対照で本来出るはずの状態）` };
+  }
+  await btn.click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+  const fired = await fireBtn.count() > 0 && await fireBtn.isEnabled().catch(() => false);
+  if (fired) await fireBtn.click({ timeout: 3000 }).catch(() => {});
+  await page.waitForTimeout(500);
+  const fin = await H.queryState();
+  const detail = `fired=${fired} / coins終値=${fin?.host?.coins}（期待0＝1枚消費） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-4))}`;
+  H.log(`  v77coinCost ${detail}`);
+  return { pass: fired && fin?.host?.coins === 0, detail };
+};
+
+const driveV77CoinCostGated = async (page, H) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  const btn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
+  const btnCount = await btn.count();
+  const visible = btnCount > 0 && await btn.isVisible().catch(() => false);
+  const detail = `「【起】コイン1」ボタン表示=${visible}（期待false＝コイン不足）`;
+  H.log(`  v77coinCostGated ${detail}`);
+  return { pass: !visible, detail };
+};
+
+scenarios.v77HumanCoinCostActuallyDeducted = {
+  title: 'V-77(C) 🔴人間側＝ルリグ【起】のコインコストを発動すると実際に coins が減る',
+  spec: v77CoinCostSpec(true),
+  drive: (page, H) => driveV77CoinCostFires(page, H),
+};
+scenarios.v77HumanCoinCostGatedWhenShort = {
+  title: 'V-77(C) 対照＝コインが足りないと「【起】コイン1」ボタン自体が出ない',
+  spec: v77CoinCostSpec(false),
+  drive: (page, H) => driveV77CoinCostGated(page, H),
+};
+order.push('v77HumanCoinCostActuallyDeducted', 'v77HumanCoinCostGatedWhenShort');
+
+// (D) 🔴使用条件つきのルリグ【起】が MAIN 窓で条件を見ること＝PR-466（懐古の巫女 タマヨリヒメ・
+// 条件＝自分の場に「新鋭の巫女 タマヨリヒメ」＝キー PR-K022 がある）。条件を満たさない盤面ではボタンが出ない。
+const v77ConditionSpec = (hasKey) => ({
+  hostSet: {
+    'field.lrig': ['PR-466#9080'], 'field.signi': [null, null, null],
+    'field.key_piece': hasKey ? 'PR-K022#9081' : null,
+    'field.check': null, 'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9090'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV77Condition = async (page, H, expectUsable) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
+  const count = await btn.count();
+  const visible = count > 0 && await btn.isVisible().catch(() => false);
+  const detail = `「【起】コストなし」ボタン表示=${visible}（期待${expectUsable}）`;
+  H.log(`  v77condition ${detail}`);
+  return { pass: visible === expectUsable, detail };
+};
+
+scenarios.v77HumanConditionHidesWhenUnmet = {
+  title: 'V-77(D) 🔴使用条件つきルリグ【起】＝条件（新鋭の巫女がいる）を満たさないとボタンが出ない',
+  spec: v77ConditionSpec(false),
+  drive: (page, H) => driveV77Condition(page, H, false),
+};
+scenarios.v77HumanConditionShowsWhenMet = {
+  title: 'V-77(D) 対照＝条件を満たせばボタンが出る',
+  spec: v77ConditionSpec(true),
+  drive: (page, H) => driveV77Condition(page, H, true),
+};
+order.push('v77HumanConditionHidesWhenUnmet', 'v77HumanConditionShowsWhenMet');
+// ── V-77 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
