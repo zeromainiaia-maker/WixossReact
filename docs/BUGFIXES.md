@@ -1,5 +1,40 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き559・Sonnet 5）— §7 実機検証を継続＝`V-75`(C)(D) 実機確認＋🔴実機検証中に真の engine バグを発見（Opusタスク12 (cxxxv) へ登録）
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規8本中7本 PASS・1本は意図的に赤**（実バグ待ち・2回連続で同じ結果）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ・engine 側は未修正のまま）。version 0.489→0.490。これで **`V-75` は (A)〜(D) すべて着手完了**（(C)-2 のみ engine バグ待ちで残る）。
+
+### 1. 🔴🔴新規発見＝`calcContinuousBlockedActions` がルリグ本体の CONTINUOUS `BLOCK_ACTION`（opponent対象）を一切拾わない恒久 no-op
+
+V-75(C)-2（`ARTS_LIMIT_1` の回帰確認＝`WX13-007`「対戦相手は各ターンに一度しかアーツを使用できない」）を実機で確認しようとしたところ、`actions_done:['USE_ARTS']` を注入しても host 側の2枚目アーツの「使用」ボタンが消えなかった（`v75ArtsLimit1SecondUseBlocked` FAIL）。
+
+**切り分け**＝`scripts/goldenTest.ts` と同じパターンで `calcContinuousBlockedActions` を最小構成（host=対戦相手・guest が `WX13-007` をセンタールリグに持つ）で単体スクリプト実行 → **host視点/guest視点どちらでも `forSelf`/`forOther` が完全に空集合**であることを確認（実機の観測と完全に一致・私の注入側の問題ではないことを確定）。
+
+**真因**＝`src/engine/effectEngine.ts:2757` の `scanField`（シグニゾーンのみ走査）と `:2788` の `scanLrigSelfBlocks`（`target.owner==='self'` のケースのみ処理）の2関数しか存在せず、**「ルリグ本体が持つ `target.owner:'opponent'` の CONTINUOUS `BLOCK_ACTION`」を処理する経路がどこにも無い**（シグニなら `scanField` に `else forSelf.add/forOther.add` の対の分岐があるが、ルリグには無い）。
+
+**live 母集団＝5件**（ルリグ本体の CONTINUOUS＋`target.owner:'opponent'` の `BLOCK_ACTION`）＝`WX04-005`（`DRAW_LIMIT_1`）／`WX05-011`（`USE_SPELL`）／`WX13-007`（`ARTS_LIMIT_1`）／`WXEX2-11`（`GUARD`）／`WD14-001`（`GUARD`）。⚠`GUARD`／`USE_SPELL`／`DRAW_LIMIT_1` は他経路で部分的に効いている可能性があるため、修正時は5件とも個別に実効性を確認すること。
+
+⚠**続き512 の既存 golden はこの穴を検出できていなかった**＝そのテストは「`BLOCK_ACTION`/`ARTS_LIMIT_1` という判定式が `artsUseGate.ts` に書かれていること」を固定していただけで、`calcContinuousBlockedActions` が実際にこの値を生成することは一度も検証していなかった（コメントで「実挙動は §7 実機検証」と明記されており、今回その通りに実機で穴が見つかった）。
+
+**対応**＝CLAUDE.md の規約に従い、その場では直さず **PLAN §3 Opusタスク12 (cxxxv) へ登録**。`v75ArtsLimit1SecondUseBlocked` は実バグ待ちとして**赤のまま既定 order に残す**（§7 冒頭 `V-01`〜`V-03` と同型の運用＝engine が直れば緑へ反転する）。
+
+### 2. V-75(C)-1 限定つきアーツ（回帰確認）＝実機PASS 2本
+
+`v75RestrictionMatchedShowsUse` / `v75RestrictionMismatchHidesUse` ＝WX02-019（クロス・ライフ・クロス・エルドラ限定）で、ルリグクラス一致（`WX02-011`＝エルドラ×マークⅡ）なら「使用」が出る／不一致（`WD01-001`＝タマ）だと出ないことを確認。`meetsRestriction` の回帰なし。
+
+### 3. V-75(C)-3 カード名封じ（回帰確認）＝実機PASS 2本
+
+`v75CardNameBlockedHidesUse` / `v75CardNameNotBlockedShowsUse` ＝`blocked_card_names`（このターン blacklist）にアーツ名を入れるとルリグデッキのカード詳細から「使用」ボタンが消えることを確認。`cardNameUseBlocked` への集約（続き498）の回帰なし。
+
+### 4. V-75(D) `altCostOppTurn`（相手ターン中の代替コスト）＝実機PASS 2本
+
+`v75AltCostOppTurnTriples` / `v75AltCostOwnTurnPrinted` ＝WX09-005（森羅万象・自ターン緑×1／相手ターン緑×3）で、相手（CPU）のターン中（`ATTACK_ARTS_OP`）はコスト表示が「緑×3」に、自分のターン（`MAIN`）では印刷コスト「緑×1」のままであることを確認。
+- 🔑**カード印字は全角数字**（`《緑》×１`）＝`energyCostToString` は印刷コストの表記をそのまま通す。文字列一致で判定するときは全角/半角に注意。
+
+### 5. ドライブ手法の型（次に触る人へ）
+
+人間側のルリグデッキ「使用」ボタンの可否確認は `my-lrig-dk`→`zone-card-0`→`getByRole('button',{name:'使用',exact:true})` の存在/表示で判定できる（`ArtsModal` は Phase1 をスキップして直接 Phase2＝コスト表示から開く設計）。コスト表示文字列は `getByText(/コスト: /)` で取得可能。
+
 ## 2026-08-18（続き558・Sonnet 5）— §7 実機検証を継続＝`V-75`(A)(B)（CPU が相手のアタックフェイズに応答アーツで守る）実機 PASS
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規2本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.488→0.489。ユーザー指示により V-75 (A)(B) で区切り、(C)(D) は未着手のまま次回へ。
