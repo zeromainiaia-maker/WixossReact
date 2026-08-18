@@ -18950,11 +18950,11 @@ scenarios.v75ArtsLimit1FirstUseShown = {
   spec: v75ArtsLimit1Spec(false),
   drive: (page, H) => driveV75ArtsLimit1(page, H, true),
 };
-// 🔴実バグ待ち（Opusタスク12 (cxxxv)・2026-08-18 続き559 で登録）＝`calcContinuousBlockedActions` が
-// ルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない恒久 no-op のため、
-// **このシナリオは赤のまま既定 order に置く**（engine が直れば緑へ反転する＝§7 冒頭 V-01〜V-03 と同型の運用）。
+// ✅**2026-08-19 続き567 で緑へ反転**（Opusタスク12 (cxxxv) を修正＝`calcContinuousBlockedActions` に
+// ルリグ本体の CONTINUOUS `BLOCK_ACTION{target.owner:'opponent'}` の経路を新設した）。
+// 従来はこの経路がどこにも無く恒久 no-op で、このシナリオを**赤のまま既定 order に置いて**待っていた。
 scenarios.v75ArtsLimit1SecondUseBlocked = {
-  title: 'V-75(C)-2 🔴実バグ待ち（Opusタスク12 cxxxv）＝WX13-007 の ARTS_LIMIT_1 が恒久 no-op で2枚目も「使用」が出てしまう',
+  title: 'V-75(C)-2 WX13-007 の ARTS_LIMIT_1＝1枚使用済みなら2枚目の「使用」が出ない',
   spec: v75ArtsLimit1Spec(true),
   drive: (page, H) => driveV75ArtsLimit1(page, H, false),
 };
@@ -19460,6 +19460,108 @@ scenarios.v78CpuGrowsButSkipsOnPlayWithoutCoin = {
   drive: (page, H) => driveV78CpuGrowOnPlay(page, H, false),
 };
 order.push('v78CpuGrowsAndPaysOnPlayCost', 'v78CpuGrowsButSkipsOnPlayWithoutCoin');
+
+// (D) 統合で拾えるようになったもの＝**グロウ色制限が CPU ターンでも効く**（2026-08-19 続き567）。
+// WX25-P3-034（断罪 遊月・壱・Lv1・赤緑・【常】赤かつ緑のルリグにしかグロウできない）をCPUのセンターに置き、
+//   (a) lrig_deck が WX25-P3-035（花咲乱 遊月・弐・Lv2・**赤緑**）＝制限を満たす → グロウする
+//   (b) lrig_deck が WX02-008（焔悔 遊月・弐・Lv2・**赤単**）＝制限に反する → **グロウしないままターンが進む**
+// ⚠従来 CPU は手書き再実装でグロウしており、この制限は**人間ターンでしか効いていなかった**（続き552d で統合）。
+// 🔴このシナリオを書く過程で `listGrowCandidates` の色分解バグを発見・修正（`Color` 列は「赤緑」の連結形式
+//   なのに `split(/[・,、]/)` で読んでおり、**満たしている札まで弾いて誰にもグロウできなかった**）。
+const v78CpuGrowColorRestrictSpec = (allowed) => ({
+  guestSet: {
+    'field.lrig': ['WX25-P3-034#9160'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': [allowed ? 'WX25-P3-035#9161' : 'WX02-008#9161'],
+    'energy': ['WD02-013#9162'],   // 赤エナ1枚（GrowCost《赤/緑》×1・《赤》×1 のどちらも払える）
+    'hand': [], 'coins': 0, 'actions_done': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9170'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
+});
+
+const driveV78CpuGrowColorRestrict = async (page, H, allowed) => {
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const top = fin?.guest?.lrigTop ?? '';
+  const grew = top.startsWith('WX25-P3-035') || top.startsWith('WX02-008');
+  const detail = `lrigTop=${top} / グロウした=${grew}（期待${allowed}） / handedOver=${handedOver}`;
+  H.log(`  v78growColor ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  return { pass: grew === allowed, detail };
+};
+
+scenarios.v78CpuGrowsWhenColorRestrictSatisfied = {
+  title: 'V-78(D) 対照＝色制限（赤かつ緑）を満たすLv2なら CPU はグロウする',
+  spec: v78CpuGrowColorRestrictSpec(true),
+  drive: (page, H) => driveV78CpuGrowColorRestrict(page, H, true),
+};
+scenarios.v78CpuSkipsGrowWhenColorRestrictViolated = {
+  title: 'V-78(D) 🔴色制限に反するLv2（赤単）には CPU もグロウしない（従来は人間ターンだけ効いていた）',
+  spec: v78CpuGrowColorRestrictSpec(false),
+  drive: (page, H) => driveV78CpuGrowColorRestrict(page, H, false),
+};
+order.push('v78CpuGrowsWhenColorRestrictSatisfied', 'v78CpuSkipsGrowWhenColorRestrictViolated');
+
+// (B) 場出し数制限（`LIMIT_ALL_FIELD_N`）＝**CPU 自身が超過するとき、人間と同じ選択エントリで解決して先へ進む**
+// （2026-08-19 続き567）。従来 CPU は手書き再実装の「レベル高優先で自動トラッシュ」で、続き552d の
+// `performGrow` 統合でスタックエントリ（`__field_limit_trash__`）に変わった＝**止まらないこと**が観測点。
+// 盤面＝CPU センターに WX14-019（Lv4・黒・効果なし）＋シグニ3体、ルリグデッキに WX04-005
+// （アルテマ/メイデン イオナ・Lv5・GrowCost《黒》×0・【グロウ】ライフクロス1枚以下・
+//  【常】すべてのプレイヤーはシグニを1体しか場に出せない）。⚠**ライフを1枚に絞らないとグロウ条件を満たさない**。
+const v78CpuFieldLimitSpec = () => ({
+  guestSet: {
+    'field.lrig': ['WX14-019#9180'],
+    'field.signi': [['WD02-013#9181'], ['WD02-013#9182'], ['WD02-013#9183']],
+    'field.check': null,
+    'lrig_deck': ['WX04-005#9184'],
+    'life_cloth': ['WD01-013#9185'],
+    'energy': [], 'hand': [], 'coins': 0, 'actions_done': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9190'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
+});
+
+const driveV78CpuFieldLimit = async (page, H) => {
+  let fin = null;
+  let handedOver = false;
+  let limitLog = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => /場出し数制限|トラッシュに置く/.test(String(l)))) limitLog = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const signiCount = (fin?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
+  const grew = (fin?.guest?.lrigTop ?? '').startsWith('WX04-005');
+  const detail = `グロウ=${grew} / CPU場のシグニ=${signiCount}体（期待1） / trash=${fin?.guest?.trash} / `
+    + `制限ログ=${limitLog} / handedOver=${handedOver}`;
+  H.log(`  v78fieldLimit ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない＝選択エントリで止まっている（${detail}）` };
+  if (!grew) return { pass: false, detail: `🔴グロウしなかった（${detail}）` };
+  return { pass: signiCount === 1, detail };
+};
+
+scenarios.v78CpuResolvesFieldLimitTrash = {
+  title: 'V-78(B) 場出し数制限で CPU 自身が超過＝選択エントリを自動応答で解決して3体→1体になり、止まらない',
+  spec: v78CpuFieldLimitSpec(),
+  drive: (page, H) => driveV78CpuFieldLimit(page, H),
+};
+order.push('v78CpuResolvesFieldLimitTrash');
 // ── V-78 END ──
 
 // ── §7 V-73（続き549・【常】のゲート「〜あるかぎり」が実際に効くこと）──

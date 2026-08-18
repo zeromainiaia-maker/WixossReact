@@ -19,7 +19,7 @@ import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectMultiAcceSigni } from '../src/engine/effectEngine';
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
-import { activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -84,7 +84,7 @@ interface DeployLimitTestOpts { placingState: PlayerState; cardNum: string; onEx
 import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash, underAnySigniCostCandidates, underSelfCostCandidates } from '../src/screens/battle/underAnySigniCost';
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
-import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
+import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
 import { canCardGuard } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
@@ -104,7 +104,7 @@ import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
-import { buildArtsPayerCtx, checkArtsUse } from '../src/screens/battle/artsUseGate';
+import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor } from '../src/screens/battle/artsUseGate';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
@@ -18783,7 +18783,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 46, 'ActiveCondition の型数（増えたら union に足した合図。46＝§5d-0 続き549 の IS_SELF_UP 追加後）');
+  eq(Object.keys(AC_TYPES).length, 47, 'ActiveCondition の型数（増えたら union に足した合図。47＝続き567 の LRIG_IS_DRIVE_STATE 追加後）');
   eq(Object.keys(C_TYPES).length, 121, 'Condition の型数（増えたら union に足した合図。121＝§6.4 O-25(d) の THIS_CARD_IS_CHARMED／ATTACK_ORDINAL_THIS_TURN 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
@@ -31236,6 +31236,82 @@ test('§6.4 O-3: `WX05-018-E1`（【常】相手のエナフェイズをスキ�
   const none = calcContinuousBlockedActions(me, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(resolveNextPhaseWithSkips('DRAW', me, none.forSelf), 'ENERGY', '対照: 居なければ飛ばさない');
 });
+
+test('§3 (cxxxv): ルリグ本体の CONTINUOUS `BLOCK_ACTION{owner:opponent}` が相手側の封じとして立つ（`WX13-007` ARTS_LIMIT_1）', () => withSavedCursor(() => {
+  // 🔴従来 `calcContinuousBlockedActions` は `scanField`（シグニのみ）と `scanLrigSelfBlocks`（self のみ）しか無く、
+  //   **ルリグ本体が相手へ課す常在は経路が無く恒久 no-op** だった（`V-75`(C)-2 実機FAIL で発見）。
+  const foe = mkState({ lrig: ['WX13-007'] });
+  const me = mkState({});
+  const r = calcContinuousBlockedActions(me, foe, true, effectsMap, cardMap as Map<string, CardData>);
+  ok(r.forSelf.has('ARTS_LIMIT_1'), '相手ルリグの常在が自分側の封じとして立つ');
+  // 消費地点（アーツ使用ゲート）まで届くこと＝1枚使った後は2枚目が撃てない。
+  ok(!isArtsUseBlockedFor({ ...me, actions_done: [] } as PlayerState, r.forSelf), '未使用なら1枚目は撃てる');
+  ok(isArtsUseBlockedFor({ ...me, actions_done: ['USE_ARTS'] } as PlayerState, r.forSelf), '1枚使用済みなら2枚目は封じ');
+  // 対照＝そのルリグが居なければ立たない。
+  const none = calcContinuousBlockedActions(me, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok(!none.forSelf.has('ARTS_LIMIT_1'), '対照: 居なければ封じは立たない');
+  // 逆向き（自分のルリグが持つ）＝相手側（forOther）に立つ。
+  const mine = calcContinuousBlockedActions(mkState({ lrig: ['WX13-007'] }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  ok(mine.forOther.has('ARTS_LIMIT_1') && !mine.forSelf.has('ARTS_LIMIT_1'), '自分のルリグなら相手側だけが封じられる');
+}));
+
+test('§7 V-78(D): 「《赤/緑》×１」のスラッシュ色コストはどちらか1枚で払える（24枚が恒久に払えなかった）', () => withSavedCursor(() => {
+  // 🔴`parseGrowCost` は色を `'赤/緑'` の1トークンで返すのに、照合が `cardColor.includes('赤/緑')` だったため
+  //   **どの色を出しても不一致**＝ルリグ13枚がグロウ不能・アーツ9枚とキー2枚が使用不能だった。
+  const cards = [...cardMap.values()];
+  const RED = findCard(c => c.Color === '赤');
+  const GREEN = findCard(c => c.Color === '緑');
+  const BLUE = findCard(c => c.Color === '青');
+  ok(canAffordGrowCost([RED], cards, '《赤/緑》×１'), '赤1枚で払える');
+  ok(canAffordGrowCost([GREEN], cards, '《赤/緑》×１'), '緑1枚でも払える');
+  ok(!canAffordGrowCost([BLUE], cards, '《赤/緑》×１'), '対照: 青1枚では払えない');
+  ok(canAffordGrowCost([RED, GREEN], cards, '《赤/緑》×２'), '2枚要求は赤＋緑の混在でも払える');
+  ok(!canAffordGrowCost([RED, BLUE], cards, '《赤/緑》×２'), '対照: 片方が青なら足りない');
+  // 単色コストの挙動は変えない（回帰）。
+  ok(canAffordGrowCost([RED], cards, '《赤》×１') && !canAffordGrowCost([BLUE], cards, '《赤》×１'), '単色は従来どおり');
+  eq(costColorMatches('赤', '無'), true, '《無》はどの色でも充当できる（従来どおり）');
+}));
+
+test('§7 V-78(D): グロウ色制限（「赤かつ緑のルリグにしかグロウできない」）が連結 Color 列を正しく読む', () => withSavedCursor(() => {
+  // 🔴`Color` 列は「赤緑」のような**連結形式**（区切り文字なし）なのに `split(/[・,、]/)` で読んでいたため、
+  //   `['赤緑']` になって **条件を満たす札まで弾き「どこにもグロウできない」**（過剰制限）になっていた。
+  const my = { ...mkState({ lrig: ['WX25-P3-034'], energy: 3 }), lrig_deck: ['WX25-P3-035', 'WX02-008'] } as PlayerState;
+  const cands = listGrowCandidates({ my, cardMap: cardMap as Map<string, CardData>, effectsMap }).map(c => c.CardNum);
+  ok(cands.includes('WX25-P3-035'), '赤緑のLv2（花咲乱 遊月・弐）はグロウ候補に出る');
+  ok(!cands.includes('WX02-008'), '対照: 赤単のLv2（焔悔 遊月・弐）は色制限で候補に出ない');
+}));
+
+test('§3 (cxxxv): `DRAW_LIMIT_<n>` に消費地点ができた（`WX04-005-E2`＝すべてのプレイヤーが1枚しか引けない）', () => withSavedCursor(() => {
+  // 🔴parser は `DRAW_LIMIT_1` を self / opponent の2本で生成していたのに、engine/UI の誰も読んでいなかった
+  //   （§3 (cxxxv) と同じ「未消費 id」クラス）。ルリグ本体の opponent 向け経路と同時に塞いだ。
+  const foe = mkState({ lrig: ['WX04-005'] });
+  const me = mkState({});
+  const r = calcContinuousBlockedActions(me, foe, true, effectsMap, cardMap as Map<string, CardData>);
+  ok(r.forSelf.has('DRAW_LIMIT_1'), '相手ルリグの「すべてのプレイヤー」制限が自分側にも立つ');
+  eq(drawPhaseLimitFromBlocked(r.forSelf), 1, 'ドローフェイズの上限が1枚として読める');
+  // 自分のルリグとして持つ場合も、self 側の BLOCK_ACTION で自分に立つ（「すべてのプレイヤー」なので両方）。
+  const mine = calcContinuousBlockedActions(mkState({ lrig: ['WX04-005'] }), mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
+  eq(drawPhaseLimitFromBlocked(mine.forSelf), 1, '持ち主自身も1枚に制限される');
+  eq(drawPhaseLimitFromBlocked(mine.forOther), 1, '相手も1枚に制限される');
+  // 対照＝居なければ上限なし（＝通常の2枚ドロー）。
+  eq(drawPhaseLimitFromBlocked(calcContinuousBlockedActions(me, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).forSelf),
+    undefined, '対照: 居なければ上限は付かない');
+}));
+
+test('§3 (cxxxv): `LRIG_IS_DRIVE_STATE` はドライブ状態のときだけ成立する（`WXEX2-11-E2` の【ガード】封じ）', () => withSavedCursor(() => {
+  // ⚠上の (cxxxv) 修正で経路が開いたぶん、**条件が落ちていると無条件でガード不能になる**（過剰実行）。
+  //   原文「このルリグがドライブ状態であるかぎり」＝シグニ側の `IS_DRIVE_STATE` では表せないので専用型を新設した。
+  const eff = effectsMap.get('WXEX2-11')!.find(e => e.effectId === 'WXEX2-11-E2')!;
+  eq(JSON.stringify(eff.activeCondition), JSON.stringify({ type: 'LRIG_IS_DRIVE_STATE' }), 'live に条件が載っている');
+  const rider = SIGNI;
+  const foeDrive = { ...mkState({ lrig: ['WXEX2-11'], signi: [rider, null, null] }), lrig_riding_signi: [rider] } as PlayerState;
+  const foeIdle = mkState({ lrig: ['WXEX2-11'], signi: [rider, null, null] });
+  const me = mkState({});
+  ok(calcContinuousBlockedActions(me, foeDrive, true, effectsMap, cardMap as Map<string, CardData>).forSelf.has('GUARD'),
+    'ドライブ状態なら【ガード】が封じられる');
+  ok(!calcContinuousBlockedActions(me, foeIdle, true, effectsMap, cardMap as Map<string, CardData>).forSelf.has('GUARD'),
+    '対照: ドライブ状態でなければ封じられない');
+}));
 
 test('§6.4 O-3: `WX16-001-E3` の「シグニアタックフェイズをスキップ」が engine に届く', () => {
   const eff = effectsMap.get('WX16-001')!.find(e => e.effectId === 'WX16-001-E3')!;

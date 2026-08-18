@@ -54,8 +54,13 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               const declaredRestrictLv = op.declared_guard_restrict_level;
               const declaredRestrictLvs = op.declared_guard_restrict_levels ?? [];
               const handGuardEnabled = my.hand_signi_guard_enabled;
-              // 相手のprevent_opp_guardフラグ（PREVENT_OPP_GUARD_THIS_TURN等）でガード禁止
-              const guardDisabledByOpp = op.prevent_opp_guard === true;
+              // 相手のprevent_opp_guardフラグ（PREVENT_OPP_GUARD_THIS_TURN等）でガード禁止。
+              // 🔴**CONTINUOUS の `BLOCK_ACTION{GUARD}` もここで見る**（2026-08-19 続き567・§3 (cxxxv)）＝
+              //   従来この dialog は `GUARD_MAX_LV<n>`（レベル上限）しか読まず、**素の `GUARD`（＝丸ごとガード不可）**
+              //   には消費地点が無かった＝`WD14-001`（トラッシュに＜悪魔＞18枚）／`WXEX2-11`（ドライブ状態）が恒久 no-op。
+              //   ⚠`contBlocked.forSelf` はルリグ本体の相手向け常在も含む（engine 側を同時に修正した）。
+              const guardBlockedOutright = (my.blocked_actions ?? []).includes('GUARD') || contBlocked.forSelf.has('GUARD');
+              const guardDisabledByOpp = op.prevent_opp_guard === true || guardBlockedOutright;
               // 相手フィールドのOPP_GUARD_COST_COLORLESS: 追加で無色エナ1枚必要
               const oppGuardExtraColorless = collectOppGuardExtraColorlessCost(op, my, battleCardMap, effectsMap, !isMyTurn);
               // 相手フィールドのEXTRA_GUARD_COST_FROM_HAND: 追加でガードカードを手札から捨てる必要

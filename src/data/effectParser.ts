@@ -1279,6 +1279,18 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // パターン3f-4: 「このルリグがドライブ状態であるかぎり、」（2026-08-19 続き567・§3 (cxxxv) と同時）
+  // 🔴従来は落ちて**無条件**（`WXEX2-11-E2`＝「対戦相手は【ガード】ができない」がドライブ状態を問わず立つ）。
+  // ⚠シグニ側の `IS_DRIVE_STATE` は使えない＝あちらは `sourceCardNum` が `lrig_riding_signi` に
+  //   含まれるかを見るので、ルリグ本体では常に false になる（専用の `LRIG_IS_DRIVE_STATE` を新設した）。
+  if (text.startsWith('このルリグがドライブ状態であるかぎり、')) {
+    return {
+      condition: { type: 'LRIG_IS_DRIVE_STATE' } as ActiveCondition,
+      rest: text.slice('このルリグがドライブ状態であるかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
   // パターン3f: 「このシグニがアクセされているかぎり、」「このシグニに【アクセ】が付いているかぎり、」（自身にアクセが付いている条件。G078／WXK04-080）
   // ⚠**「このシグニ**は**アクセされているかぎり」**（助詞違い）も受ける（2026-08-18）＝
   //   `WX15-038-E1`／`WX16-044-E2`／`WXEX1-70-E1` が**無条件で【ランサー】／バニッシュ耐性**だった。

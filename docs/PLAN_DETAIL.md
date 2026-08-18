@@ -24,6 +24,62 @@
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
   一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き566）。
 
+> **2026-08-19 続き568 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き567（§6.4 `O-19b`＝到達不能な `ArtsModal` Phase1 の削除）後 最新値（本行が直近の正）**：
+  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2295 据置**、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
+  fuzz 全0、lint **0 errors**（263→**262 warnings**＝Phase1 削除ぶん −1）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
+  manual-fields **0**、`parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**＝live 非改変なので
+  〔★0・未カバー0・wiring miss 193〕から動いていないはず）。
+  **live 効果総数 10693**（live JSON・CSV とも非改変＝変更は UI 3ファイルのみ）。version **0.498**。
+  **実機シナリオ総数 407 据置**（今回は実機未実行＝観測点 `V-81` を §7 に登録しただけ）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**＝
+  ドライバー側の不安定化を疑うが engine 側の回帰ではない。
+  🆕**Opusタスク12＝在庫3件据置**（(cxxxv)続き559／(cxxxvi)(cxxxvii)続き562で登録・未修正）＝**§6.4 が残0になったので次の Opus の最優先**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き567）。
+
+## 2026-08-19 整理㊺（Opusタスク12 (cxxxv)(cxxxvi) 残0クローズぶんの退避・続き568）
+
+> §3 Opusタスク12 の在庫2件を続き568 で修正した（どちらも §8 `O-1` の実機検証で見つかったもの＝
+> 直したことで `V-75`(C)-2 と `V-78`(C) 対照が緑になり、**`O-1` (g) の着手条件が満たされた**）。
+> 以下は**登録時の原文**（真因・母集団・提案）。**実際にどう直したかは `BUGFIXES.md` 2026-08-19（続き568）**。
+
+- 🔴**(cxxxvi) CPU グロウが「効果解決なしで state だけ変わる」ケースで GROW フェイズから先に進めなくなる（ターンが凍結）**（2026-08-18 続き562・V-78 実機検証で発見）。
+  - **再現手順**＝`v78CpuGrowsButSkipsOnPlayWithoutCoin`（`scripts/verifyBattleDrive.mjs`）＝CPU（guest）にコイン0枚・`WDK01-003`（コスト付き任意【出】＝`cost.coin:1`／`DRAW`）をグロウ先候補として持たせて GROW フェイズから開始。CPU はグロウ自体は実行する（ログに「[CPU] グロウ」「◯◯にグロウ」まで出る）が、そこから60秒（ポーリング上限）経ってもターンが先に進まない＝`handedOver` が立たない。
+  - **原因**＝`BattleScreen.tsx` の `performGrow`（6346行目〜）は、ON_PLAY 系エントリ（`autoPaidOnPlay`／`mandatoryOnPlay`／`fieldLimitEntries`／`growTriggerEntries` 等）が1件もない場合（`entries.length === 0`、6597行目）、`effect_stack` を一切動かさず `WRITE_STATE` だけ commit して return する。コスト付き任意【出】が**コイン不足で自動発火しなかった**場合はまさにこのケース（`costOnPlay.length = 0` に強制クリアされる＝6549行目）。ところが CPU ターンを進める `useEffect`（504行目〜、`cpuTimerRef` を再スケジュールする側）の依存配列（520〜529行目）は `turn_phase`／`active_user_id`／`field.check`／`field.lrig_attacked`／`signi_down`／`pending_*` などに限定されており、**グロウで変わる `field.lrig`（トップ/下敷き）・`lrig_deck`・`coins`・`actions_done` はどれも依存配列に含まれない**。よって WRITE_STATE 後の再レンダーでも useEffect の依存が1つも変化せず、CPU ターン処理の `setTimeout` が二度と積まれない＝GROW フェイズで永久凍結する。
+  - **対照確認**＝コイン1枚持たせた `v78CpuGrowsAndPaysOnPlayCost` は PASS する（コストが払える＝`autoPaidOnPlay` 経由で `effect_stack` にエントリが積まれ、`pending_effect`/`effect_stack` 絡みの別経路でスタックが解決されるたびに何かしら依存配列の対象が触れて useEffect が再起動する）。**「entries が空のまま state だけ変わる」経路に限って詰む**、という切り分けまで完了。
+  - **修正の型（提案）**＝(a) useEffect の依存配列に `guest_state.field.lrig`（トップカード等の軽量な要約値）や `guest_state.lrig_grew_this_turn` を足して、グロウ単体でも再起動できるようにする。または (b) `performGrow` 側で `entries.length === 0` でも「フェイズ遷移を促す」ための最小限の合図（例えばダミーの `ADVANCE_TURN` 相当）を書き込む。**golden ではこの `useEffect` 依存配列は踏めない**（React コンポーネント内なので実機検証でしか踏めない）。
+  - **live 影響範囲**＝「グロウ先に ON_PLAY 効果が無い」または「ON_PLAY 効果はあるがコスト不足等で発火しない」CPU グロウすべてが対象＝**CPU 対戦で頻繁に踏みうる**（対人戦は影響なし＝人間はモーダル操作で明示的に次へ進むため、このタイマー再スケジュール依存の穴を踏まない）。
+  - **§7 follow-up**＝直った後 `v78CpuGrowsButSkipsOnPlayWithoutCoin` を再実行して緑化を確認すること。
+- 🔴**(cxxxv) `calcContinuousBlockedActions` がルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない＝恒久 no-op**（2026-08-18 続き559・V-75(C)-2 実機検証で発見）。
+  - **再現手順**＝`WX13-007`（博愛の使者 サシェ・リュンヌ＝【常】「対戦相手は各ターンに一度しかアーツを使用できない」＝`WX13-007-E1`＝`BLOCK_ACTION{target:{owner:'opponent'},actionId:'ARTS_LIMIT_1'}`）を場（センタールリグ）に置いた状態で、`calcContinuousBlockedActions(host, guest, ...)`（host=対戦相手視点）を呼んでも `forSelf`/`forOther` ともに空集合が返る＝**ARTS_LIMIT_1 が一切効かない**。実機でも同型＝`actions_done:['USE_ARTS']` を注入しても host のルリグデッキ2枚目アーツの「使用」ボタンが消えない（`v75ArtsLimit1SecondUseBlocked` 実機FAIL・単体スクリプトの isolated 再現でも `forSelf`/`forOther` 空を確認済み）。
+  - **原因**＝`src/engine/effectEngine.ts:2757` の `scanField`（シグニゾーンのみ走査）と `:2788` の `scanLrigSelfBlocks`（`target.owner==='self'` のケースのみ処理）の2関数しか無く、**「ルリグ本体が持つ `target.owner:'opponent'` の CONTINUOUS `BLOCK_ACTION`」を処理する経路がどこにも無い**（シグニなら `scanField` の `else forSelf.add/forOther.add` 分岐で拾えるが、ルリグにはその対の分岐が無い）。
+  - **live 母集団＝5件**（ルリグ本体の CONTINUOUS＋`target.owner:'opponent'` の BLOCK_ACTION）＝`WX04-005`（アルテマ/メイデン イオナ・`DRAW_LIMIT_1`）／`WX05-011`（ミルルン・ティコ・`USE_SPELL`）／`WX13-007`（サシェ・リュンヌ・`ARTS_LIMIT_1`）／`WXEX2-11`（レイラ＝オーバードライブ・`GUARD`）／`WD14-001`（虚幸の閻魔 ウリス・`GUARD`）。⚠**`GUARD`／`USE_SPELL`／`DRAW_LIMIT_1` は他経路（`blocked_actions` 直書き等）で部分的に効いている可能性がある**ので、**5件とも個別に実効性を確認してから直す**こと（`ARTS_LIMIT_1` は今回 isolated スクリプトで完全な no-op を確認済み）。
+  - **修正の型（提案）**＝`scanLrigSelfBlocks` を拡張するか新関数を足し、ルリグ本体の CONTINUOUS `BLOCK_ACTION` で `target.owner==='opponent'` のケースも `(isMe ? forOther : forSelf)` へ振り分ける（シグニの `scanField` と対称の分岐を足すだけで良いはず）。**golden にトリップワイヤを追加**（`WX13-007` 等で `calcContinuousBlockedActions` の出力を直接固定）してから直すこと（続き512 の既存 golden は「判定式の存在」しか見ていない＝真の恒久 no-op を検出できていなかった教訓）。
+  - **§7 follow-up**＝直った後 `v75ArtsLimit1SecondUseBlocked` を再実行して緑化を確認すること（V-75(C)-2 の残り）。
+
+- **結末（続き568）**
+  - **(cxxxv)**＝`scanLrigSelfBlocks` を `scanLrigBlocks` に拡張し、`target.owner === 'opponent'` を `isMe ? forOther : forSelf` へ入れた。消費地点も同時に確認＝`ARTS_LIMIT_1`（`artsUseGate`）／`USE_SPELL`（`spellUseGate`）／`GROW`（`growLogic`）は既存、**`GUARD` と `DRAW_LIMIT_1` は消費地点が無かった**ので `GuardResponseDialog`（素の `GUARD`＝丸ごとガード不可）と人間／CPU 両方のドロー地点（新 `drawPhaseLimitFromBlocked`）へ配線した。⚠`WXEX2-11-E2` は条件節「このルリグがドライブ状態であるかぎり」が live から落ちており、**経路を開くと無条件でガード不能になる**ので、新型 `LRIG_IS_DRIVE_STATE`（シグニ用 `IS_DRIVE_STATE` はルリグ本体では常に false）を type/評価器/parser に足してから開いた（census 787→786）。実機 `v75ArtsLimit1SecondUseBlocked` が赤→緑。
+  - **(cxxxvi)**＝提案 (a) を採用＝CPU ターン駆動 useEffect の依存配列に**グロウで動く値**（`guest_state.field.lrig` の段数とトップ・`lrig_deck` 枚数・`coins`・`actions_done` 長）を足した。再スケジュールは clearTimeout→setTimeout なので多重発火しても実行は1回。実機 `v78CpuGrowsButSkipsOnPlayWithoutCoin` が赤→緑（`handedOver=true`）。
+
+## 2026-08-19 整理㊹（§7 `V-75`／`V-78` 完全消化ぶんの退避・続き568）
+
+> §8/`O-1` (a)(d) の実機検証。**続き568 で残っていた `V-75`(C)-2 と `V-78`(B)(D) をすべて緑にして残0クローズ**
+> （(C)-2 は Opusタスク12 (cxxxv)、`v78CpuGrowsButSkipsOnPlayWithoutCoin` は (cxxxvi) の engine 修正で反転）。
+> 🏁**これで `V-74`〜`V-78` が全部終わり、§8 `O-1` (g)「選択の精緻化」の着手条件が満たされた**。
+> 一次記録は `BUGFIXES.md` 2026-08-19（続き568）。追加シナリオ3本＝`v78CpuResolvesFieldLimitTrash`／
+> `v78CpuGrowsWhenColorRestrictSatisfied`／`v78CpuSkipsGrowWhenColorRestrictViolated`。
+
+
+
+- **✅ 続き568 の追記（消化した残り）**
+  - **`V-75`(C)-2**＝`v75ArtsLimit1SecondUseBlocked` が**赤→緑へ反転**（(cxxxv) 修正後に2回連続 PASS）。1枚目は「使用」が出て、`actions_done:['USE_ARTS']` の対照では出ない。
+  - **`V-78`(B)**＝`v78CpuResolvesFieldLimitTrash`＝`WX04-005`（すべてのプレイヤーはシグニ1体まで）へ CPU がグロウ → **場3体→1体・trash+2・`handedOver=true`**＝選択エントリ（`__field_limit_trash__`）を CPU の自動応答が解決して止まらないことを確認。⚠**ライフを1枚に絞らないと【グロウ】条件（ライフクロス1枚以下）を満たさない**。
+  - **`V-78`(D)**＝グロウ色制限が CPU ターンでも効くことを対で確認（`WX25-P3-034`＝赤かつ緑のルリグにしかグロウできない／候補が `WX25-P3-035`〔赤緑〕なら**グロウする**・`WX02-008`〔赤単〕なら**グロウしない**）。🔴このシナリオが**engine の実バグ2件**を炙り出した＝①`listGrowCandidates` の色分解（`Color` は「赤緑」の連結形式なのに `split(/[・,、]/)` で読んでおり**満たす札まで弾く**過剰制限）②`canAffordGrowCost` がスラッシュ色コスト（《赤/緑》×１＝**24枚**）を**どの色でも払えない**＝ルリグ13枚がグロウ不能・アーツ9枚とキー2枚が使用不能。どちらも修正して golden にトリップワイヤを追加。
+  - 📋**残した follow-up**＝(D) の `GROW_FROM_LEVEL0`／`GROW_COST_SUBSTITUTE_TRASH_SIGNI`／`SUPPRESS_CENTER_ON_PLAY` は未確認（原記述の「1枚でも実例で見られれば十分」に従い色制限1本で消化）。
+
 ## 2026-08-19 整理㊸（§7 決着済み `V-01`／`V-02`／`V-03`／`V-05`〜`V-14`／`V-18` の全文退避・続き567）
 
 > PLAN §7 にあった**決着済み15ブロックを verbatim で退避**（`V-01`〜`V-03`＝§3 実バグ待ちの残0クローズ分、

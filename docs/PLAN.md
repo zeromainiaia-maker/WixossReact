@@ -91,7 +91,7 @@
 
 > **✅消化済のタスク（1〜9・11・14・16〜19）は 2026-07-29／2026-08-02／2026-08-06 の整理で退避**＝完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節（1〜9・11・17〜19）／「2026-08-02 整理②」節（16＝timing 語彙センサス 🏁残0クローズ）／**「2026-08-06 整理③」節（14＝リファクタ Stage2→Stage3 純粋バトルコントローラ。⚠残作業は §7 実機通し確認のみ・手順は [BATTLE_CONTROLLER.md](./BATTLE_CONTROLLER.md)）**。生きているのは上表の **13・15・20・21**（**12 は常設受け口**）。**🚧次セッションは 21（§5d-0 工程改善）を最優先**＝それが済んでから **20（§5d）** の通常バッチへ戻る。**主戦場は 20（§5d）**＝2026-08-07 続き369 に §5c の文型バッチを店じまいして移した。
 
-🆕**Opusタスク12＝在庫3件**（2026-08-18 続き559/562・Sonnet 5 が §7 実機検証中に発見）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
+🆕**Opusタスク12＝在庫1件**（🏁**2026-08-19 続き568 で (cxxxv)(cxxxvi) を残0クローズ**＝原文と結末は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-19 整理㊺」。残るのは (cxxxvii) だけ）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
 
 - 🔴**(cxxxvii) 「隣にあるあなたのシグニ」の対象フィルタが未実装＝ゾーン隣接を無視して「自分の全シグニ（自分自身含む）」に過剰実装されている**（2026-08-18 続き562・V-73 実機検証で発見）。
   - **再現手順**＝`v73UpGateActiveShowsBuffedPower`（`scripts/verifyBattleDrive.mjs`）＝`WXDi-P04-050`（聖将　コウチュウ・パワー10000。【常】①「このシグニがアップ状態であるかぎり、このシグニのパワーは＋5000される」②「このシグニがアップ状態であるかぎり、**このシグニの隣にあるあなたのシグニ**のパワーを＋3000する」）を**単独で**（両隣とも空）場に出してアップ状態にすると、隣が無いのに②が自分自身に誤爆し、盤面のパワー表示が 10000+5000+3000=**18000**になる（ルール上の正しい表示は隣が無いので②は不発＝15000）。
@@ -99,19 +99,6 @@
   - **live 母集団＝2件**（原文に「隣にある」を含むカード）＝`WXDi-P04-050`（聖将　コウチュウ）／`WXDi-P00-053`（中装　ホタルマル・【常】「あなたのターンである間、隣にあるあなたのシグニのパワーを+3000」＝同型の過剰実装＝`target:{owner:self,count:'ALL'}`）。
   - **修正の型（提案）**＝`TargetFilter` にゾーン隣接（センターの `zi±1`）を表すフィルタを新設し、パーサに「隣にある」検出を追加、`matchesFilter`／候補列挙側でゾーンインデックス比較を実装する。2件しかないので golden にトリップワイヤ（単独配置で不発／隣接配置で発火の両方）を足してから直すこと。
   - **§7 follow-up**＝直った後 `v73UpGateActiveShowsBuffedPower` を再実行して緑化を確認すること。
-- 🔴**(cxxxvi) CPU グロウが「効果解決なしで state だけ変わる」ケースで GROW フェイズから先に進めなくなる（ターンが凍結）**（2026-08-18 続き562・V-78 実機検証で発見）。
-  - **再現手順**＝`v78CpuGrowsButSkipsOnPlayWithoutCoin`（`scripts/verifyBattleDrive.mjs`）＝CPU（guest）にコイン0枚・`WDK01-003`（コスト付き任意【出】＝`cost.coin:1`／`DRAW`）をグロウ先候補として持たせて GROW フェイズから開始。CPU はグロウ自体は実行する（ログに「[CPU] グロウ」「◯◯にグロウ」まで出る）が、そこから60秒（ポーリング上限）経ってもターンが先に進まない＝`handedOver` が立たない。
-  - **原因**＝`BattleScreen.tsx` の `performGrow`（6346行目〜）は、ON_PLAY 系エントリ（`autoPaidOnPlay`／`mandatoryOnPlay`／`fieldLimitEntries`／`growTriggerEntries` 等）が1件もない場合（`entries.length === 0`、6597行目）、`effect_stack` を一切動かさず `WRITE_STATE` だけ commit して return する。コスト付き任意【出】が**コイン不足で自動発火しなかった**場合はまさにこのケース（`costOnPlay.length = 0` に強制クリアされる＝6549行目）。ところが CPU ターンを進める `useEffect`（504行目〜、`cpuTimerRef` を再スケジュールする側）の依存配列（520〜529行目）は `turn_phase`／`active_user_id`／`field.check`／`field.lrig_attacked`／`signi_down`／`pending_*` などに限定されており、**グロウで変わる `field.lrig`（トップ/下敷き）・`lrig_deck`・`coins`・`actions_done` はどれも依存配列に含まれない**。よって WRITE_STATE 後の再レンダーでも useEffect の依存が1つも変化せず、CPU ターン処理の `setTimeout` が二度と積まれない＝GROW フェイズで永久凍結する。
-  - **対照確認**＝コイン1枚持たせた `v78CpuGrowsAndPaysOnPlayCost` は PASS する（コストが払える＝`autoPaidOnPlay` 経由で `effect_stack` にエントリが積まれ、`pending_effect`/`effect_stack` 絡みの別経路でスタックが解決されるたびに何かしら依存配列の対象が触れて useEffect が再起動する）。**「entries が空のまま state だけ変わる」経路に限って詰む**、という切り分けまで完了。
-  - **修正の型（提案）**＝(a) useEffect の依存配列に `guest_state.field.lrig`（トップカード等の軽量な要約値）や `guest_state.lrig_grew_this_turn` を足して、グロウ単体でも再起動できるようにする。または (b) `performGrow` 側で `entries.length === 0` でも「フェイズ遷移を促す」ための最小限の合図（例えばダミーの `ADVANCE_TURN` 相当）を書き込む。**golden ではこの `useEffect` 依存配列は踏めない**（React コンポーネント内なので実機検証でしか踏めない）。
-  - **live 影響範囲**＝「グロウ先に ON_PLAY 効果が無い」または「ON_PLAY 効果はあるがコスト不足等で発火しない」CPU グロウすべてが対象＝**CPU 対戦で頻繁に踏みうる**（対人戦は影響なし＝人間はモーダル操作で明示的に次へ進むため、このタイマー再スケジュール依存の穴を踏まない）。
-  - **§7 follow-up**＝直った後 `v78CpuGrowsButSkipsOnPlayWithoutCoin` を再実行して緑化を確認すること。
-- 🔴**(cxxxv) `calcContinuousBlockedActions` がルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない＝恒久 no-op**（2026-08-18 続き559・V-75(C)-2 実機検証で発見）。
-  - **再現手順**＝`WX13-007`（博愛の使者 サシェ・リュンヌ＝【常】「対戦相手は各ターンに一度しかアーツを使用できない」＝`WX13-007-E1`＝`BLOCK_ACTION{target:{owner:'opponent'},actionId:'ARTS_LIMIT_1'}`）を場（センタールリグ）に置いた状態で、`calcContinuousBlockedActions(host, guest, ...)`（host=対戦相手視点）を呼んでも `forSelf`/`forOther` ともに空集合が返る＝**ARTS_LIMIT_1 が一切効かない**。実機でも同型＝`actions_done:['USE_ARTS']` を注入しても host のルリグデッキ2枚目アーツの「使用」ボタンが消えない（`v75ArtsLimit1SecondUseBlocked` 実機FAIL・単体スクリプトの isolated 再現でも `forSelf`/`forOther` 空を確認済み）。
-  - **原因**＝`src/engine/effectEngine.ts:2757` の `scanField`（シグニゾーンのみ走査）と `:2788` の `scanLrigSelfBlocks`（`target.owner==='self'` のケースのみ処理）の2関数しか無く、**「ルリグ本体が持つ `target.owner:'opponent'` の CONTINUOUS `BLOCK_ACTION`」を処理する経路がどこにも無い**（シグニなら `scanField` の `else forSelf.add/forOther.add` 分岐で拾えるが、ルリグにはその対の分岐が無い）。
-  - **live 母集団＝5件**（ルリグ本体の CONTINUOUS＋`target.owner:'opponent'` の BLOCK_ACTION）＝`WX04-005`（アルテマ/メイデン イオナ・`DRAW_LIMIT_1`）／`WX05-011`（ミルルン・ティコ・`USE_SPELL`）／`WX13-007`（サシェ・リュンヌ・`ARTS_LIMIT_1`）／`WXEX2-11`（レイラ＝オーバードライブ・`GUARD`）／`WD14-001`（虚幸の閻魔 ウリス・`GUARD`）。⚠**`GUARD`／`USE_SPELL`／`DRAW_LIMIT_1` は他経路（`blocked_actions` 直書き等）で部分的に効いている可能性がある**ので、**5件とも個別に実効性を確認してから直す**こと（`ARTS_LIMIT_1` は今回 isolated スクリプトで完全な no-op を確認済み）。
-  - **修正の型（提案）**＝`scanLrigSelfBlocks` を拡張するか新関数を足し、ルリグ本体の CONTINUOUS `BLOCK_ACTION` で `target.owner==='opponent'` のケースも `(isMe ? forOther : forSelf)` へ振り分ける（シグニの `scanField` と対称の分岐を足すだけで良いはず）。**golden にトリップワイヤを追加**（`WX13-007` 等で `calcContinuousBlockedActions` の出力を直接固定）してから直すこと（続き512 の既存 golden は「判定式の存在」しか見ていない＝真の恒久 no-op を検出できていなかった教訓）。
-  - **§7 follow-up**＝直った後 `v75ArtsLimit1SecondUseBlocked` を再実行して緑化を確認すること（V-75(C)-2 の残り）。
 - **次に積まれるまで待機**（常設受け口）。Sonnet 側が engine/parser バグを見つけたらここへ足す。
 
 
@@ -154,13 +141,13 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-19・続き567・Opus 5）＝§6.4 `O-19b`＝到達不能な `ArtsModal` Phase1（アーツ一覧）を削除＝🏁§6.4 の worklist が残0**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors／warnings 263→**262**）。**live JSON・CSV とも非改変**（UI 3ファイルのみ）。version 0.497→0.498。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き567）。
-  - **✅ O-19b＝二択のうち①「消す」を採用**＝`ArtsModal.tsx` の Phase1（119行）と `BattleScreen.tsx` の `artsCandidates`（11行＋prop）を削除し、モーダルは `showArtsModal && pendingArtsCard &&` でガードした**単相**（コスト支払いだけ）になった。**②「一覧を戻す」を採らなかった理由**＝一覧を戻すと `artsUseGate.checkArtsUse` と並ぶ**2本目のコスト計算入口**が復活する（この二重化こそ `altCostOppTurn`／「使用時の任意支払い軽減」が片側にしか無かった真因）。将来一覧が欲しくなったら `listUsableArts` の戻り値を**描画するだけ**にすること。
-  - **挙動不変**（削除したのは到達不能コードのみ）＝観測点は §7 **`V-81`**（ルリグデッキ詳細「使用」→コスト選択→使用が通ること・コスト0アーツ含む）。
-  - ⚠**Phase2 の `specificAlreadyApplied`（二重適用防止）が依拠する「`pendingArtsEffectiveCost` は軽減適用後」という不変条件の出どころが `checkArtsUse.effectiveCostForModal` へ移った**（コメント更新済み）。gate の式を触るときはここを壊さない。
-  - **✅ 併せて §7 の消化済み53件を退避＝350行→220行**（全文15ブロック＝`V-01`〜`V-03`／`V-05`〜`V-14`／`V-18` を PLAN_DETAIL「2026-08-19 整理㊸」へ／1行サマリ38件は ID・続きNN・退避先だけの索引へ）。⚠`V-06`／`V-07`／`V-09` は**見出しに ✅ が無いのに中身は全て実機PASS**だった＝見出しの数え方だけが古く、worklist を実態より重く見せていた。
-  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 の在庫3件**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）＝**§6.4 が残0になったので、次の Opus セッションはこれが最優先**。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-81` を含む未検証約13件）。
+- **🆕 セッション（2026-08-19・続き568・Opus 5）＝§8/§6.4 `O-1` の続き＝Opusタスク12 (cxxxv)(cxxxvi) を残0クローズし `V-75`／`V-78` を実機で緑化＝🏁(g) の着手条件が満たされた**。ゲート全緑（**golden 2295→2300**・**census 787→786**〔`BASELINE_HIGH` 更新〕・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機7シナリオ ALL PASS（2回連続）／新規3本**。live JSON は **1効果だけ改変**（`WXEX2-11-E2` の条件節）・CSV 非改変。version 0.498→0.499。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き568）。
+  - **✅ (cxxxv)＝ルリグ本体の CONTINUOUS `BLOCK_ACTION{owner:'opponent'}` が恒久 no-op**（`scanField` はシグニだけ・`scanLrigSelfBlocks` は self だけで、**その対の分岐が無かった**）。`scanLrigBlocks` へ拡張し、**5枚ぶんの消費地点を1つずつ確認**＝`ARTS_LIMIT_1`／`USE_SPELL`／`GROW` は既存、🔴**`GUARD`（素の丸ごと封じ）と `DRAW_LIMIT_1` は消費地点が無かった**ので `GuardResponseDialog` と人間／CPU 両方のドロー地点（新 `drawPhaseLimitFromBlocked`）へ配線した。
+  - ⚠**経路を開くと過剰実行になる札があった**＝`WXEX2-11-E2`「このルリグがドライブ状態であるかぎり」の条件節が live から落ちていた。シグニ用 `IS_DRIVE_STATE` は**ルリグ本体では常に false** なので流用できず、新型 `LRIG_IS_DRIVE_STATE` を型/評価器/parser/ミラー表に足してから開いた（census −1）。
+  - **✅ (cxxxvi)＝CPU グロウの永久凍結**＝`performGrow` が entries 0件だと `WRITE_STATE` だけ commit するのに、CPU 駆動 useEffect の依存配列に**グロウで動く値が1つも入っていなかった**＝タイマーが再スケジュールされない。依存に `field.lrig`（段数・トップ）／`lrig_deck`／`coins`／`actions_done` を追加。
+  - **✅ `V-78`(B)(D) を新規シナリオ3本で消化**＝(B) 場出し数制限の選択エントリを CPU が自動応答で解決して**止まらない**（3体→1体）／(D) グロウ色制限が CPU ターンでも効く（対で確認）。🔴**その過程で engine バグをさらに2件発見・修正**＝①`listGrowCandidates` の色分解（`Color` は「赤緑」の連結形式なのに `split(/[・,、]/)`＝**満たす札まで弾く過剰制限**）②**スラッシュ色コスト `《赤/緑》×１` がどの色でも払えない**（母集団**24枚**＝ルリグ13がグロウ不能・アーツ9＋キー2が使用不能）→ 色照合を新 `costColorMatches()` に集約。
+  - **▶ 次の一手【Opus 側】**＝🏁**`V-74`〜`V-80` が全部緑になったので §8 `O-1` (g)「選択の精緻化」に着手できる**（盤面評価＝「強い順に撃つ」「守りの札を温存する」）。⚠評価関数を入れる前後で同じ実機シナリオを回して「悪手か故障か」を切り分けること。Opusタスク12 の在庫は **(cxxxvii) 1件のみ**。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（残＝`V-04`／`V-15`〜`V-17`／`V-19`／`V-20`〜`V-24`／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`／`V-63`／`V-81`）。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
@@ -169,20 +156,21 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-19 続き567（§6.4 `O-19b`＝到達不能な `ArtsModal` Phase1 の削除）後 最新値（本行が直近の正）**：
-  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2295 据置**、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
-  fuzz 全0、lint **0 errors**（263→**262 warnings**＝Phase1 削除ぶん −1）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、
-  manual-fields **0**、`parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
-  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**＝live 非改変なので
-  〔★0・未カバー0・wiring miss 193〕から動いていないはず）。
-  **live 効果総数 10693**（live JSON・CSV とも非改変＝変更は UI 3ファイルのみ）。version **0.498**。
-  **実機シナリオ総数 407 据置**（今回は実機未実行＝観測点 `V-81` を §7 に登録しただけ）。
-  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**＝
-  ドライバー側の不安定化を疑うが engine 側の回帰ではない。
-  🆕**Opusタスク12＝在庫3件据置**（(cxxxv)続き559／(cxxxvi)(cxxxvii)続き562で登録・未修正）＝**§6.4 が残0になったので次の Opus の最優先**。
+- **🆕 2026-08-19 続き568（§8 `O-1` の続き＝Opusタスク12 (cxxxv)(cxxxvi) 残0クローズ＋`V-75`／`V-78` 緑化）後 最新値（本行が直近の正）**：
+  **census 786**（787→786＝`WXEX2-11-E2` の条件節を拾ったぶん。`BASELINE_HIGH` も 786 へ更新）、**golden 2300**（+5＝ルリグ本体の相手向け封じ／`LRIG_IS_DRIVE_STATE` の成立・不成立／`DRAW_LIMIT_<n>` の上限／グロウ色制限の連結 Color／スラッシュ色コスト）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（262 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**）。
+  **live 効果総数 10693**（live JSON は `WXEX2-11-E2` の1効果だけ改変・CSV 非改変）。version **0.499**。
+  🆕**実機シナリオ総数 410**（+3＝`v78CpuResolvesFieldLimitTrash`／`v78CpuGrowsWhenColorRestrictSatisfied`／`v78CpuSkipsGrowWhenColorRestrictViolated`）。
+  🆕**実機 PASS（続き568 実測）＝7シナリオ ALL PASS（2回連続）**＝上の新規3本＋`v75ArtsLimit1FirstUseShown`／`v75ArtsLimit1SecondUseBlocked`（**赤→緑へ反転**）／`v78CpuGrowsAndPaysOnPlayCost`／`v78CpuGrowsButSkipsOnPlayWithoutCoin`（**赤→緑へ反転**）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**。
+  🆕**Opusタスク12＝在庫1件**（(cxxxvii) のみ。(cxxxv)(cxxxvi) は本セッションで残0クローズ）。
+  🏁**§8 `O-1`＝(a)〜(f) 消化済み＋実機検証（`V-74`〜`V-80`）完了＝残るのは (g) 選択の精緻化だけ**。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き567）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き568）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
@@ -224,17 +212,18 @@
   ⇒ **(e)(f) はどちらも実機で確認済み**。
 - [x] ✅**`V-79`(B)(D)・`V-80`(C・付与側) も実機 PASS**（2026-08-18 続き556）＝`V-79`/`V-80` は残0クローズ
   （詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉝」）。
-- [ ] 🔴**実機検証を続ける**（→ 下の ③）。⚠**人間側の挙動が変わる是正**がまだ3つ未検証
-  （【起】のエナ色照合／ルリグ【起】MAIN 窓の使用条件／CPU グロウの場出し数制限）＝**回帰があるならここに出る**（`V-74`〜`V-78`）。
+- [x] 🏁**`V-74`〜`V-78` は 2026-08-19 続き568 で全部緑＝(a)〜(f) の実機検証は完了**
+  （最後まで残っていた `V-75`(C)-2 と `V-78`(B)(D) を消化。詳細は PLAN_DETAIL「2026-08-19 整理㊹」）。
+  ⇒ **(g) の着手条件は満たされた**（下の項も参照）。
 - [x] ✅**(e) CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ**（2026-08-18 続き553）＝`ADVANCE_TURN_WITH_STATE` へ移し、
   `resolveNextPhaseAfterAttack` でキューを1件消化するようにした。**`hasCpuUnsupportedAction` の除外は撤去済み**
   （`CPU_UNSUPPORTED_ACTION_TYPES` は空集合＝受け口としてだけ残す）。観測点は §7 `V-79`。
 - [x] ✅**(f) 付与／継承のルリグ【起】**（2026-08-18 続き553）＝`lrigActivateGate` に収集源2本を新設し、
   人間のボタン生成と CPU の候補フィルタが同じ funnel を通るようにした。観測点は §7 `V-80`。
 - [ ] **(g) 選択の精緻化**（「強い順に撃つ」「守りの札を温存する」等）。現状はすべて**定義順／ゾーン順の決定論**で、
-  盤面評価をしていない。⚠**ここに手を付ける前に (a)〜(f) の実機検証（`V-74`〜`V-78`）を終える**こと
-  （`V-79`／`V-80` は続き556 で完了・土台が動いていない状態で評価関数を足すと、悪手なのか壊れているのかが切り分けられない）。
-  ⇒ **この待ちがあるので、Opus 側の次の一手は §6.4 ではなく下の ① へ戻るのが素直**。
+  盤面評価をしていない。🏁**2026-08-19 続き568 で着手条件（`V-74`〜`V-80` の実機検証）は満たされた**＝
+  **次に §8 を進めるならここが入口**。⚠着手時は「悪手なのか壊れているのか」を切り分けられるよう、
+  評価関数を入れる前後で同じ実機シナリオを回すこと（土台が緑であることは続き568 時点で確認済み）。
 
 **⚠ この領域で繰り返し踏んだ罠（次に触る人へ）**
 
@@ -271,7 +260,7 @@
 
 #### ② 【Opus 側】常設の受け口（在庫が積まれたら最優先へ繰り上げ）
 
-- [ ] **Opusタスク12**＝Sonnet が積んだ engine/parser バグの修正。**現在 在庫3件**（(cxxxv)＝`calcContinuousBlockedActions` がルリグ本体の opponent 対象 `BLOCK_ACTION` を拾わない・2026-08-18 続き559 で発見／(cxxxvi)＝CPU グロウが entries 空のケースで GROW フェイズ永久凍結・続き562 で発見／(cxxxvii)＝「隣にあるあなたのシグニ」の対象フィルタ未実装＝自分の全シグニに過剰実装・続き562 で発見）。
+- [ ] **Opusタスク12**＝Sonnet が積んだ engine/parser バグの修正。**現在 在庫1件**（(cxxxvii)＝「隣にあるあなたのシグニ」の対象フィルタ未実装＝自分の全シグニに過剰実装・2026-08-18 続き562 で発見）。🏁**(cxxxv)(cxxxvi) は 2026-08-19 続き568 で残0クローズ**（→ PLAN_DETAIL「2026-08-19 整理㊺」）。
 - [x] 🏁**§6.4 は残0**（`O-19b`＝到達不能な `ArtsModal` Phase1 の始末は 2026-08-19 続き567 で消化）。
   **`O-1`（CPU AI の拡張・→§8）は 2026-08-18 続き551〜553 で (a)〜(f) 消化**＝残る (g) は
   **実機検証（§7 `V-74`〜`V-80`）待ちで着手しない**（上の ⓪）。
@@ -280,10 +269,10 @@
 #### ③ 【Sonnet 側】§7 実機検証（`V-nn` が単一 worklist）
 
 - [ ] **未検証が約18件**（🆕**2026-08-19 続き567 で §7 から決着済み53件を退避**＝残っている行が worklist そのもの。消化の履歴は §7「■ 消化済み」索引と PLAN_DETAIL 各整理節）＝
-  **部分消化で残っているもの**＝`V-04`（残り12経路）／`V-15`（中央 diff 経路1本）／`V-16`（2シナリオ未緑）／`V-17`（夢限-Q- 反転）／`V-19`（4シナリオ赤・要追試）／`V-75`(C)-2（engine バグ待ちで別枠）／`V-78`(B)(D)／🆕`V-81`（続き567 の O-19b＝挙動不変の確認1点）。
+  **部分消化で残っているもの**＝`V-04`（残り12経路）／`V-15`（中央 diff 経路1本）／`V-16`（2シナリオ未緑）／`V-17`（夢限-Q- 反転）／`V-19`（4シナリオ赤・要追試）／🆕`V-81`（続き567 の O-19b＝挙動不変の確認1点）。🏁**`V-75`／`V-78` は続き568 で残0クローズ**（(C)-2 と (B)(D) を消化）。
   **未着手**＝`V-20`〜`V-24`／`V-28`／`V-29`／`V-30`（見送り分・続き566・ターン境界の跨ぎ確認は室注入の設計を見直してから）／`V-35`／`V-39`〜`V-45`・`V-58`（**ヘッドレスでは検証できない層**）／`V-63`（見送り分・続き542／564）。
   **新しい未検証UIが出たら §7 へ `V-<次番号>` で足す**（§4 と二重に持たない）。
-  📋**follow-up 在庫3件**＝`v15AttackPhaseEndCentralDiffToyLeftFires` が単独実行でも2回連続 FAIL（続き556 実測・ドライバー側の不安定化を疑う・詳細は BUGFIXES 続き556）／`V-75`(C)-2＝Opusタスク12 (cxxxv) の engine 修正待ち（`v75ArtsLimit1SecondUseBlocked` が赤のまま既定orderに残る）／`v76CpuSpellCutinPassProgresses`＝バッチ実行時のみ断続的フレーク（続き560 実測・単発では安定PASS）。
+  📋**follow-up 在庫2件**＝`v15AttackPhaseEndCentralDiffToyLeftFires` が単独実行でも2回連続 FAIL（続き556 実測・ドライバー側の不安定化を疑う・詳細は BUGFIXES 続き556）／`v76CpuSpellCutinPassProgresses`＝バッチ実行時のみ断続的フレーク（続き560 実測・単発では安定PASS）。
 - ⚠🆕**積む速度と消す速度が釣り合っていない**（2026-08-18 続き551 実測＝実機検証を実際に回した最後は
   **2026-08-14 続き481**で、以後 約69セッションぶんが未検証のまま積み上がった）。
   🔴**その一因が「ハーネスが全件 FAIL していた」こと**だと 2026-08-18 続き554 に判明（→ §7 冒頭の警告）。
@@ -842,28 +831,6 @@
 
 - **🔶 V-81** 続き567＝§6.4 `O-19b`＝**到達不能だった `ArtsModal` Phase1（アーツ一覧）を削除**（`artsCandidates` ごと）。**死にコードの除去なので挙動は不変のはず**＝観測点は「アーツが従来どおり使えること」1点。
   - [ ] **(A) 回帰**＝ルリグデッキ → カード詳細 →「使用」でアーツ使用モーダルが開き、**コスト選択 → アーツ使用**まで通ること（コスト0のアーツも Phase2 の「アーツ使用」ボタンで撃てること＝旧 Phase1 の「コスト0なら即実行」経路が無くなったので、ここだけは見ておく）。**未着手**。
-- **🔶 V-78** 続き552d＝§8/`O-1` (d) CPU グロウを `performGrow` へ統合（手書き再実装 約150行を削除）。**(A)(C) は続き562で実機PASS**。
-  - [x] **(A) 回帰**＝CPU が従来どおり Lv1→2→3… とグロウし、コインの獲得と支払いが従来と同じ。グロウ先ルリグの【出】が解決すること＝`v78CpuGrowsAndPaysOnPlayCost` で確認。
-  - [x] **(C) 🆕コスト付き任意【出】**＝コインだけで払えるものは自動で払って発動し、それ以外は発動しない＝同シナリオで確認。⚠**対照（コイン無し）で 🔴engineバグを発見**（Opusタスク12 (cxxxvi)＝GROWフェイズ永久凍結）。`v78CpuGrowsButSkipsOnPlayWithoutCoin` は修正待ちで赤のまま既定orderに残す。
-  - [ ] **(B) 🆕場出し数制限（`LIMIT_ALL_FIELD_N`）**＝CPU 自身が超過するとき、従来の「自動でレベル高優先トラッシュ」から人間と同じ選択エントリに変わった＝CPU の自動応答で解決して先へ進むこと（止まらないこと）。**未着手**。
-  - [ ] **(D) 🆕統合で拾えるようになったもの**＝グロウ色制限／`GROW_FROM_LEVEL0`／`GROW_COST_SUBSTITUTE_TRASH_SIGNI`／`SUPPRESS_CENTER_ON_PLAY` が CPU ターンでも効くこと（従来は人間ターンだけ効いていた）。1枚でも実例で見られれば十分。**未着手**。
-- **🔶 V-75** 続き552＝§8/`O-1` (a) CPU が相手のアタックフェイズに応答アーツで守る（v1）＋ アーツ使用ゲートの1本化。
-  **(A)(B)(D) と (C)-1/(C)-3 は実機 PASS 済み**（続き558/559）。**(C)-2 だけ engine 実バグ待ち**（Opusタスク12 (cxxxv)）。
-  - [x] **(A) CPU が守ること**＝CPU のルリグデッキに**アタックフェイズの守りアーツ**を入れ、**CPU の正面（`2-zi`）が
-    空いた状態**で人間がアタックフェイズへ入る → ログ `[CPU] アーツを使用: <カード名>` が出て効果が解決する。
-    ⚠**脅威が無い**（正面が全部埋まっている・ライフ2枚以上）ときは `[CPU] アーツを使用しない` が出る＝**対照**。
-    実機PASS＝`WX24-P1-021`（剣一炎敵）で確認。
-  - [x] **(B) 🔴止まらないこと（安全弁）**＝アーツを使ったあと **`ATTACK_ARTS_OP` から先へ進む**
-    （＝`cpu_used_card_nums_this_turn` が効いている）。実機PASS＝`ATTACK_SIGNI` へ自動進行することを確認。
-    🔑**罠**＝`hasIncomingThreat` は host 側シグニが**まだダウンしていない**（`ATTACK_ARTS_OP` はアタック解決**前**）
-    状態を見る＝down にすると偽陰性になる。
-  - [x] **(C)-1 限定つきアーツ／(C)-3 カード名封じは回帰なし**＝実機PASS 4本（`WX02-019`＝エルドラ限定の一致/不一致・
-    `blocked_card_names` の有無）。
-  - [x]/[ ] **(C)-2 `ARTS_LIMIT_1`（`WX13-007`）＝🔴engine 実バグを発見**（Opusタスク12 (cxxxv)）＝
-    `calcContinuousBlockedActions` がルリグ本体の opponent 対象 `BLOCK_ACTION` を一切拾わない恒久 no-op。
-    `v75ArtsLimit1SecondUseBlocked` は**実バグ待ちで赤のまま既定orderに残す**（engine が直れば緑へ反転する）。
-  - [x] **(D) `altCostOppTurn`（相手ターン中の代替コスト）は回帰なし**＝実機PASS 2本（`WX09-005`＝相手ターン緑×3／
-    自ターン緑×1・印刷コストのまま）。
 **■ 消化済み（索引のみ・全文は PLAN_DETAIL）**
 
 > 🆕**2026-08-19 続き567 で、決着済みの `V-nn` を §7 から全文ごと退避した**（15ブロック＝「2026-08-19 整理㊸」／
@@ -871,6 +838,7 @@
 > §7 を「生きている worklist」だけに保つ（§6.4 の「■ 消化済み」欄と同じ運用）。
 > ⚠**採番は固定**（消化しても番号を詰めない）。**同じ番号を再着手する前に、まず PLAN_DETAIL の該当節を読むこと。**
 
+- **全文退避＝[PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-19 整理㊹」**（2ブロック・続き568 で退避）＝`V-75`（(C)-2 まで緑＝続き568） ／ `V-78`（(B)(D) まで緑＝続き568）
 - **全文退避＝[PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-19 整理㊸」**（15ブロック・続き567 で退避）＝`V-01`（続き475/475b） ／ `V-02`（続き475d） ／ `V-03`（続き475g） ／ `V-05`（続き469） ／ `V-06`（続き471/473） ／ `V-07`（続き473） ／ `V-08`（続き470） ／ `V-09`①②ほか（続き469〜471/475d） ／ `V-10`（続き475/475c） ／ `V-11`（続き476） ／ `V-12`（続き477/478） ／ `V-13`（続き478） ／ `V-14`（続き479） ／ `V-18`（続き481）
 - **1行サマリ退避済み＝[PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-19 整理㊶」**（続き566）＝`V-31` ／ `V-32` ／ `V-33` ／ `V-34` ／ `V-36` ／ `V-37` ／ `V-38` ／ `V-46` ／ `V-47` ／ `V-48` ／ `V-49` ／ `V-50` ／ `V-51` ／ `V-52` ／ `V-54` ／ `V-55` ／ `V-57`
 - **1行サマリ退避済み＝[PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㊵」**（続き565）＝`V-53` ／ `V-56` ／ `V-59` ／ `V-60`

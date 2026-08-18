@@ -2,6 +2,7 @@
 import type { PlayerState, CardData } from '../../types';
 import type { CardEffect, StubAction } from '../../types/effects';
 import { getCardNum } from '../../engine/effectExecutor';
+import { splitColors } from '../../engine/execUtils';
 import { toHalfWidth } from './battleUtils';
 
 
@@ -298,9 +299,12 @@ export function listGrowCandidates(p: {
       // 【グロウ】条件（ライフクロス枚数・カード名・トラッシュ色数・エナ色種数・複数色制限）
       checkGrowCondition(extractGrowCondition(c.EffectText), my, currentLrig ?? undefined, cardMap) &&
       // グロウ色制限（「青かつ黒のルリグにしかグロウできない」等）
+      // 🔴**Color 列は「赤緑」のような連結形式**（区切り文字は入らない）＝2026-08-19 続き567 まで
+      //   `split(/[・,、]/)` で読んでおり `['赤緑']` になっていたため、**条件を満たす札まで弾いて
+      //   「どのルリグにもグロウできない」**（過剰制限）になっていた。色の分解は `splitColors` 1本に寄せる。
       (!colorRestrict || (() => {
-        const colors = colorRestrict.split(/かつ|と/).map(x => x.trim());
-        const cColors = (c.Color ?? '').split(/[・,、]/).map(x => x.trim());
+        const colors = colorRestrict.split(/かつ|と/).map(x => x.trim()).filter(Boolean);
+        const cColors = splitColors(c.Color);
         return colors.every(col => cColors.includes(col));
       })())
     );

@@ -1,5 +1,49 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き568・Opus 5）— §8/§6.4 `O-1` の続き＝Opusタスク12 (cxxxv)(cxxxvi) を残0クローズし、`V-75`／`V-78` を実機で緑化＝🏁(g) の着手条件が満たされた
+
+ゲート全緑（typecheck / golden **2300**（+2295→2300＝+5）/ smoke 10693 全0 / fuzz 全0 / census **786**（787→786・`BASELINE_HIGH` 更新）/ census:stubs 全0 / manual-fields 0 / lint 0 errors）＋**実機 7シナリオ ALL PASS（2回連続）／新規3本**。live JSON は **1効果だけ改変**（`WXEX2-11-E2` に条件節を追加）。CSV 非改変。version 0.498→0.499。
+
+`O-1` は (a)〜(f) 消化済みで**残るのは (g) 選択の精緻化だけ**だが、PLAN §4 ⓪ が「(g) は `V-74`〜`V-78` の実機検証を終えてから」と定めており、その検証が **engine バグ2件（Opusタスク12 (cxxxv)(cxxxvi)）で止まっていた**。そこで今回は**その2件を直して検証を完走させる**ところまでを `O-1` の続きとした。
+
+### 1. (cxxxv) ルリグ本体の CONTINUOUS `BLOCK_ACTION{owner:'opponent'}` が恒久 no-op だった
+
+**真因**＝`calcContinuousBlockedActions` には `scanField`（シグニゾーンのみ）と `scanLrigSelfBlocks`（`owner:'self'` のみ）しか無く、**「ルリグ本体が対戦相手へ課す常在」を処理する経路がどこにも無かった**（シグニなら `scanField` の `else` 分岐で拾える）。live 母集団5枚。
+
+**修正**＝`scanLrigSelfBlocks` → `scanLrigBlocks` に拡張し `else if (b.target.owner === 'opponent') (isMe ? forOther : forSelf).add(b.actionId)` を追加。**さらに 5枚ぶんの消費地点を1つずつ確認**した：
+
+| actionId | カード | 消費地点 | 続き568 の対応 |
+|---|---|---|---|
+| `ARTS_LIMIT_1` | `WX13-007` | `artsUseGate.isArtsUseBlockedFor` | 既存（経路が開いて初めて効いた） |
+| `USE_SPELL` | `WX05-011` | `spellUseGate.isSpellUseBlockedFor` | 既存 |
+| `GUARD` | `WXEX2-11`／`WD14-001` | **無かった** | `GuardResponseDialog` は `GUARD_MAX_LV<n>` しか読んでおらず、**素の `GUARD`（丸ごとガード不可）**に消費地点が無かった＝`guardDisabledByOpp` に合流させた |
+| `DRAW_LIMIT_1` | `WX04-005` | **無かった** | 新 `drawPhaseLimitFromBlocked()` を engine に足し、**人間の UP フェイズと CPU のドロー**の両方へ配線（片側だけだと「CPU だけ2枚引く」非対称になる） |
+
+⚠**経路を開くと今度は過剰実行になる札があった**＝`WXEX2-11-E2` は原文「**このルリグがドライブ状態であるかぎり**、対戦相手は【ガード】ができない」なのに live に条件が無く、そのままだと**無条件でガード不能**になる。シグニ用の `IS_DRIVE_STATE` は `sourceCardNum` が `lrig_riding_signi` に含まれるかを見る＝**ルリグ本体では常に false** なので流用できず、新型 **`LRIG_IS_DRIVE_STATE`**（型・`checkActiveCondition`・parser・`ACTIVE_CONDITION_TYPES` ミラー表）を足して `build:effects` で live へ反映（census 787→786・改変は**この1効果だけ**）。
+
+**実機**＝`v75ArtsLimit1SecondUseBlocked`（赤のまま既定 order に置いてあった）が**緑へ反転**＝2回連続 PASS。
+
+### 2. (cxxxvi) CPU グロウが「効果解決なしで state だけ変わる」と GROW フェイズで永久凍結
+
+**真因**＝`performGrow` は ON_PLAY 系エントリが0件だと `effect_stack` を積まず `WRITE_STATE` だけ commit する。ところが CPU ターン駆動 `useEffect` の依存配列は `turn_phase`／`pending_*`／`effect_stack` 等に限定されており、**グロウで動く値（`field.lrig`・`lrig_deck`・`coins`・`actions_done`）が1つも入っていない**＝再レンダーしても `setTimeout` が二度と積まれない。
+
+**修正**＝提案 (a)＝依存配列に `guest_state.field.lrig?.length` / `.at(-1)` / `lrig_deck?.length` / `coins` / `actions_done?.length` を追加。再スケジュールは clearTimeout→setTimeout なので多重発火しても実行は1回に畳まれる。**実機**＝`v78CpuGrowsButSkipsOnPlayWithoutCoin` が緑へ反転（`handedOver=true`）。
+
+### 3. `V-78`(B)(D) を新規シナリオで消化＝その過程で engine バグをさらに2件発見・修正
+
+- **(B) 場出し数制限**＝`v78CpuResolvesFieldLimitTrash`（新規）＝CPU が `WX04-005`（すべてのプレイヤーはシグニ1体まで）へグロウ → 選択エントリ `__field_limit_trash__` を CPU の自動応答が解決し **3体→1体・trash+2・ターンが進む**。⚠**ライフを1枚に絞らないと【グロウ】条件（ライフクロス1枚以下）を満たさない**。
+- **(D) グロウ色制限が CPU ターンでも効く**＝`v78CpuGrowsWhenColorRestrictSatisfied` / `v78CpuSkipsGrowWhenColorRestrictViolated`（新規・対）＝`WX25-P3-034`（【常】赤かつ緑のルリグにしかグロウできない）で、`WX25-P3-035`（赤緑）なら**グロウする**／`WX02-008`（赤単）なら**グロウしない**。
+- 🔴**発見1＝`listGrowCandidates` の色分解が壊れていた**＝`Color` 列は「赤緑」の**連結形式**なのに `split(/[・,、]/)` で読んでおり `['赤緑']` になる＝**条件を満たす札まで弾いて「どのルリグにもグロウできない」**（過剰制限）。`splitColors` に寄せて修正。
+- 🔴**発見2＝スラッシュ色コストが恒久に払えなかった**＝`《赤/緑》×１` は「どちらか1枚」なのに `cardColor.includes('赤/緑')` で照合していた＝**どの色を出しても不一致**。母集団 **24枚（ルリグ13＝グロウ不能／アーツ9＋キー2＝使用不能）**。色照合を新 `costColorMatches()` 1本に集約して `canAffordGrowCost` と `canAffordWithExtraCost` の両方から呼ぶようにした（綴りが割れると「一覧では払えるのに実行で弾かれる」になる）。
+
+### 4. golden（+5）
+
+`(cxxxv)` の3本（ルリグ本体の opponent 向け封じ／`LRIG_IS_DRIVE_STATE` の成立・不成立／`DRAW_LIMIT_<n>` の上限読み取り）＋ `V-78`(D) 由来の2本（グロウ色制限の連結 Color／スラッシュ色コストの充当と対照）。`ACTIVE_CONDITION_TYPES` の型数ミラーは 46→47。
+
+### 5. 現在地
+
+🏁**`V-74`〜`V-80` がすべて緑＝§8 `O-1` (g)「選択の精緻化」の着手条件が満たされた**。Opusタスク12 の在庫は **(cxxxvii) 1件のみ**。
+
 ## 2026-08-19（続き567・Opus 5）— §6.4 `O-19b`＝到達不能な `ArtsModal` Phase1（アーツ一覧）を削除＝🏁§6.4 の worklist が残0
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors・262 warnings）。**live JSON・CSV とも非改変**（変更は UI 3ファイル：`ArtsModal.tsx` / `BattleScreen.tsx` / `cardNameUseBlock.ts`）。version 0.497→0.498。

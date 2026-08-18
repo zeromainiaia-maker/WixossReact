@@ -422,6 +422,12 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       return ownerState.lrig_riding_signi?.includes(sourceCardNum) ?? false;
 
+    case 'LRIG_IS_DRIVE_STATE':
+      // このルリグがドライブ状態であるかぎり（＝自分のルリグが乗機シグニに乗っている）。
+      // ⚠`IS_DRIVE_STATE`（シグニ側）は sourceCardNum が `lrig_riding_signi` に載っているかを見るので
+      //   ルリグ本体では常に false になる＝ルリグ用はこちら（`WXEX2-11-E2`・§3 (cxxxv) と同時に新設）。
+      return (ownerState.lrig_riding_signi?.length ?? 0) > 0;
+
     case 'IS_SELF_AWAKENED':
       // このシグニが覚醒状態であるかぎり
       if (!sourceCardNum) return false;
@@ -2782,10 +2788,15 @@ export function calcContinuousBlockedActions(
   scanField(ownerState, otherState, isOwnerTurn, true);
   scanField(otherState, ownerState, !isOwnerTurn, false);
 
-  // センタールリグの self 対象 CONTINUOUS BLOCK_ACTION（グロウフェイズスキップ等）を拾う。
-  // scanField はシグニゾーンの opponent 対象ブロックのみ対象にするため、ルリグが自分自身へ
-  // 課す制約（「あなたのグロウフェイズをスキップする」= GROW など）はここで補完する。
-  const scanLrigSelfBlocks = (fieldOwner: PlayerState, fieldOther: PlayerState, isFieldOwnerTurn: boolean, isMe: boolean) => {
+  // センタールリグの CONTINUOUS BLOCK_ACTION を拾う。scanField はシグニゾーンしか見ないので、
+  // ルリグ本体が課す制約はここで補完する。**self / opponent の両向きを見る**：
+  //  - `self`     ＝ルリグが自分自身へ課す制約（「あなたのグロウフェイズをスキップする」= GROW など）
+  //  - `opponent` ＝ルリグが**対戦相手へ**課す制約（「対戦相手は各ターンに一度しかアーツを使用できない」など）
+  // 🔴**opponent 側は 2026-08-19 続き567 まで経路が無く恒久 no-op だった**（§3 (cxxxv)・`V-75`(C)-2 で発見）＝
+  //   シグニなら scanField の `else` 分岐で拾えるのに、ルリグにはその対の分岐が無かった。live 母集団5枚
+  //   （`WX04-005` DRAW_LIMIT_1／`WX05-011` USE_SPELL／`WX13-007` ARTS_LIMIT_1／`WXEX2-11`・`WD14-001` GUARD）。
+  // ⚠向きは**カードの持ち主から見て**決める＝ME のルリグが `opponent` を指すなら forOther、相手のルリグなら forSelf。
+  const scanLrigBlocks = (fieldOwner: PlayerState, fieldOther: PlayerState, isFieldOwnerTurn: boolean, isMe: boolean) => {
     if (fieldOwner.lrig_abilities_disabled) return;
     const lrigTop = fieldOwner.field.lrig.at(-1);
     if (!lrigTop) return;
@@ -2794,11 +2805,12 @@ export function calcContinuousBlockedActions(
       if (!checkActiveCondition(effect.activeCondition, fieldOwner, fieldOther, isFieldOwnerTurn, cardMap, lrigTop)) continue;
       for (const b of extractBlockActions(effect.action)) {
         if (b.target.owner === 'self') (isMe ? forSelf : forOther).add(b.actionId);
+        else if (b.target.owner === 'opponent') (isMe ? forOther : forSelf).add(b.actionId);
       }
     }
   };
-  scanLrigSelfBlocks(ownerState, otherState, isOwnerTurn, true);
-  scanLrigSelfBlocks(otherState, ownerState, !isOwnerTurn, false);
+  scanLrigBlocks(ownerState, otherState, isOwnerTurn, true);
+  scanLrigBlocks(otherState, ownerState, !isOwnerTurn, false);
 
   // ONE_ATTACK_PER_TURN: このシグニ自身にこの常在効果があり、すでにアタック済みならアタック不可
   for (const stack of ownerState.field.signi) {
@@ -3141,6 +3153,28 @@ export function applyLrigDrawPhaseReplacement(state: PlayerState, drawCount: num
     if (result === rep.fromCount) result = rep.toCount;
   }
   return result;
+}
+
+/**
+ * CONTINUOUS `BLOCK_ACTION{DRAW_LIMIT_<n>}` が課すドローフェイズの上限枚数（無ければ `undefined`）。
+ *
+ * 🔴**2026-08-19 続き567 まで消費地点が無く恒久 no-op だった**（§3 (cxxxv) と同じクラス＝
+ * parser は `DRAW_LIMIT_1` を生成するのに engine/UI の誰も読んでいなかった）。live 母集団は
+ * `WX04-005-E2`（「すべてのプレイヤーはドローフェイズにカードを１枚しか引くことができない」＝
+ * self と opponent の2本を SEQUENCE で出す）だけ。
+ *
+ * ⚠**人間と CPU の両方のドロー地点で使う**（片方だけだと「CPU だけ2枚引く」非対称になる）。
+ */
+export function drawPhaseLimitFromBlocked(blocked: Set<string> | undefined): number | undefined {
+  if (!blocked) return undefined;
+  let limit: number | undefined;
+  for (const id of blocked) {
+    const m = /^DRAW_LIMIT_(\d+)$/.exec(id);
+    if (!m) continue;
+    const n = parseInt(m[1], 10);
+    if (!Number.isNaN(n)) limit = limit === undefined ? n : Math.min(limit, n);
+  }
+  return limit;
 }
 
 /**

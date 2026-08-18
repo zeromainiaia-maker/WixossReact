@@ -206,6 +206,10 @@ export type ActiveCondition =
   | { type: 'IS_SELF_CHARMED' }                                 // このシグニに【チャーム】が付いているかぎり（WX04-096-E1）
   | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
+  // このルリグがドライブ状態であるかぎり（＝自分のルリグが乗機シグニに乗っている＝`lrig_riding_signi` が空でない）。
+  // ⚠`IS_DRIVE_STATE` は**シグニ側**（自分が乗られている）の条件なので、ルリグ本体には使えない
+  //   （`sourceCardNum` がルリグ番号になり `lrig_riding_signi` に含まれず**常に false**）＝専用型。`WXEX2-11-E2`。
+  | { type: 'LRIG_IS_DRIVE_STATE' }
   | { type: 'IS_SELF_AWAKENED' }                                // このシグニが覚醒状態であるかぎり
   | { type: 'IS_SELF_DOWN' }                                    // このシグニがダウン状態であるかぎり
   // このシグニがアップ状態であるかぎり（`IS_SELF_DOWN` の裏。`WXDi-P04-050-E1/E2`＝2026-08-18）。
@@ -431,7 +435,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
   HAND_DIFF: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
   EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_CHARMED: true,
-  IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
+  IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
   LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true,

@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き567・Opus 5）＝§6.4 `O-19b`＝到達不能な `ArtsModal` Phase1（アーツ一覧）を削除＝🏁§6.4 の worklist が残0**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors／warnings 263→**262**）。**live JSON・CSV とも非改変**（UI 3ファイルのみ）。version 0.497→0.498。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き567）。
+  - **✅ O-19b＝二択のうち①「消す」を採用**＝`ArtsModal.tsx` の Phase1（119行）と `BattleScreen.tsx` の `artsCandidates`（11行＋prop）を削除し、モーダルは `showArtsModal && pendingArtsCard &&` でガードした**単相**（コスト支払いだけ）になった。**②「一覧を戻す」を採らなかった理由**＝一覧を戻すと `artsUseGate.checkArtsUse` と並ぶ**2本目のコスト計算入口**が復活する（この二重化こそ `altCostOppTurn`／「使用時の任意支払い軽減」が片側にしか無かった真因）。将来一覧が欲しくなったら `listUsableArts` の戻り値を**描画するだけ**にすること。
+  - **挙動不変**（削除したのは到達不能コードのみ）＝観測点は §7 **`V-81`**（ルリグデッキ詳細「使用」→コスト選択→使用が通ること・コスト0アーツ含む）。
+  - ⚠**Phase2 の `specificAlreadyApplied`（二重適用防止）が依拠する「`pendingArtsEffectiveCost` は軽減適用後」という不変条件の出どころが `checkArtsUse.effectiveCostForModal` へ移った**（コメント更新済み）。gate の式を触るときはここを壊さない。
+  - **✅ 併せて §7 の消化済み53件を退避＝350行→220行**（全文15ブロック＝`V-01`〜`V-03`／`V-05`〜`V-14`／`V-18` を PLAN_DETAIL「2026-08-19 整理㊸」へ／1行サマリ38件は ID・続きNN・退避先だけの索引へ）。⚠`V-06`／`V-07`／`V-09` は**見出しに ✅ が無いのに中身は全て実機PASS**だった＝見出しの数え方だけが古く、worklist を実態より重く見せていた。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 の在庫3件**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）＝**§6.4 が残0になったので、次の Opus セッションはこれが最優先**。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-81` を含む未検証約13件）。
+
 - **🆕 セッション（2026-08-19・続き566・Sonnet 5）＝§7 実機検証を継続＝`V-38`／`V-36`／`V-49`／`V-47`／`V-31`／`V-32`／`V-34`／`V-37`／`V-33`／`V-48`／`V-50`／`V-46`／`V-52`／`V-51`／`V-57`／`V-54`／`V-55` の17件 ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規17件・計28シナリオ ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.496→0.497。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き566）。
   - **✅ V-38／V-36／V-33／V-47＝ルリグ・シグニのダメージシールド／アタック税4種は回帰なし**（`signi_attack_bans_this_turn`のappliesTo:'LRIG'／`BLOCK_FRONT_SIGNI_ATTACK`／`PREVENT_LOW_LEVEL_LRIG_DAMAGE`（キー走査込み）／手札0枚条件シールド＝いずれも既存の判定関数へ直接注入するだけで検証できた）。
   - **✅ V-49／V-48／V-50／V-46／V-52＝`granted_effects`/`lrig_granted_auto_effects`直接注入シリーズ**（`lrig_abilities_disabled`の付与能力抑止・ON_ATTACK_LRIG+UP・`own_effects_cannot_negate_signi_attack_this_turn`のシグニ限定確認・感染限定の部分強制アタック・`declared_guard_restrict_level`のガード制限）。

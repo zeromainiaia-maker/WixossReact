@@ -969,6 +969,30 @@ export function isMultiEna(cardNum: string, cards: CardData[], keywordGrants?: R
   return keywordGrants?.[cardNum]?.includes('マルチエナ') ?? false;
 }
 
+/**
+ * コストの色スロット1つを、支払いに出したカードの色で満たせるか。
+ *
+ * 🔴**「《赤/緑》×１」はスラッシュ＝どちらか1枚**（`WX14-010` 断罪 遊月・弐 など **24枚**＝
+ * ルリグ13／アーツ9／キー2）。2026-08-19 続き567 まで `cardColor.includes('赤/緑')` で照合しており
+ * **どの色を出しても不一致＝恒久に払えない**（そのルリグにグロウできない／そのアーツ・キーが使えない）だった。
+ *
+ * ⚠**色照合はこの1関数に集約する**（`canAffordGrowCost` と `canAffordWithExtraCost` で綴りが割れると、
+ * 「一覧では払えるのに実行で弾かれる」形の食い違いになる）。
+ */
+export function costColorMatches(
+  cardColor: string,
+  costColor: string,
+  opts?: { extraColor?: string; colorSubs?: { from: string[]; to: string }[] },
+): boolean {
+  if (costColor === '無') return true;
+  const wants = costColor.split('/').map(w => w.trim()).filter(Boolean);
+  return wants.some(w =>
+    w === '無' ||
+    cardColor.includes(w) ||
+    opts?.extraColor === w ||
+    (opts?.colorSubs?.some(sub => sub.to === cardColor && sub.from.includes(w)) ?? false));
+}
+
 export function canAffordGrowCost(
   energyNums: string[],
   cards: CardData[],
@@ -1018,8 +1042,7 @@ export function canAffordGrowCost(
     const rem: P[] = [];
     for (const p of pool) {
       if (needed > 0 && !p.isWild) {
-        const colorMatches = color === '無' || p.color.includes(color) || p.extraColor === color ||
-          (colorSubs?.some(s => s.to === p.color && s.from.includes(color)));
+        const colorMatches = costColorMatches(p.color, color, { extraColor: p.extraColor, colorSubs });
         if (colorMatches) { needed--; continue; }
       }
       rem.push(p);
@@ -1118,8 +1141,7 @@ export function canAffordWithExtraCost(
         // §6.4 O-10（続き512）＝無色のカードは支払いに使えない（追加コスト側も同じ規則）。
         if (banColorlessPay && cardColor === '無') { rem.push(n); continue; }
         const extraColor = extraColorMap?.get(n) ?? trashSubColors?.get(n);
-        const colorMatches = color === '無' || isTrashWild || cardColor.includes(color) || extraColor === color ||
-          (colorSubs?.some(s => s.to === cardColor && s.from.includes(color)));
+        const colorMatches = isTrashWild || costColorMatches(cardColor, color, { extraColor, colorSubs });
         if (colorMatches) { needed--; continue; }
       }
       rem.push(n);

@@ -4,7 +4,7 @@ import type { User } from '@supabase/supabase-js';
 import type { BattleStateRow, PlayerState, CardData, PendingSpell, PendingEffect, PendingInteractionDef, StackEntry, EffectStack, TurnPhase } from '../types';
 import type { CardEffect } from '../types/effects';
 import { buildEffectsMap } from '../data/effectParser';
-import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
+import { applyLrigDrawPhaseReplacement, calcFieldPowers, calcActiveCostMods, calcContinuousBlockedActions, calcContinuousSigniMutations, checkActiveCondition, collectLrigGrantedEffects, collectGrantedFromUnderSigni, collectGrantedFromLayer, collectGrantedFromAcce, collectGrantedFromSoul, collectColorlessOverrides, collectForcedTargets, collectProtectedZones, collectEnergyColorSubs, collectEnergyTrashSubstituteInfo, collectEichiStubEffects, collectOppGuardExtraColorlessCost, collectHandLimits, collectAbilityProtectedSigni, collectSpecificCardCostReductions, collectCrossStates, isCrossZoneActive, filterKizunaGated, isKizunaActive, cardHasCrossIcon, collectLrigNameAliases, collectDownProtectedSigni, collectArtsThresholdCostReductions, collectOppTurnArtsCostReductions, collectOppLrigAttackExtraCost, collectHandGuardIconClasses, collectBounceProtectedSigni, collectCopiedLrigAutoEffects, collectCopiedLrigContinuousEffects, collectAttackPhaseLevelOverrides, collectDrawLimits, drawPhaseLimitFromBlocked, collectOppEnergyColorRestriction, collectOppExtraGuardFromHand, collectBlockLowCostSpellCount, collectCenterZoneDeployRestrict, collectForcePlaceFrontZones, collectFrozenBanishOverrides, collectTrashFieldProtectedSigni, collectSelfTrashPreventNums, collectAbilityGainProtectedSigni, collectMultiAcceLimits, collectRiseBanishSubstituteSigni, collectAllColorSigniForField, collectFieldSigniExtraColors, collectGrowCostSubstitute, collectGuardAlternativeCost, collectAltAttackFlipSigni, collectOppTrashLoseColorClass, collectTreatAsClassAllZones, collectDeckTrashLevel1Nums, applyDeclaredZoneClassOverride,
 applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFrontMatches, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni,
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
@@ -529,6 +529,17 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     // F-3: CPU攻撃・人間防御の身代わり決定後にCPUバトル解決を再開（host=人間の決定を監視）
     !!bs?.host_state?.banish_substitute_choice,
     bs?.pending_effect, !!bs?.effect_stack, !!bs?.pending_spell,
+    // 🔴**「効果解決なしで state だけ変わる」CPU 行動でも再スケジュールする**（2026-08-19 続き567・§3 (cxxxvi)）＝
+    //   `performGrow` は ON_PLAY 系エントリが1件も無いと `effect_stack` を積まずに `WRITE_STATE` だけ commit する
+    //   （グロウ先に【出】が無い／コスト付き任意【出】がコイン不足で発火しない）。上の依存はどれも動かないので
+    //   **タイマーが二度と積まれず GROW フェイズで永久凍結**していた（`v78CpuGrowsButSkipsOnPlayWithoutCoin` で発見）。
+    //   ⚠**グロウで動く値を明示的に並べる**＝ルリグのトップ／段数／ルリグデッキ枚数／コイン／行動履歴。
+    //   再スケジュールは「clearTimeout してから setTimeout」なので、余計に発火しても実行は1回に畳まれる。
+    bs?.guest_state?.field?.lrig?.length,
+    bs?.guest_state?.field?.lrig?.at(-1),
+    bs?.guest_state?.lrig_deck?.length,
+    bs?.guest_state?.coins,
+    bs?.guest_state?.actions_done?.length,
   ]);
 
   // CPU対戦：CPU が respondPlayer として応答すべき pending_effect を自動解決
@@ -3595,9 +3606,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const drawBlocked = my.blocked_actions?.includes('DRAW') ?? false;
         // draw_limit: ターン内フラグ or 相手CONT LIMIT_OPP_DRAW_COUNT 効果の小さい方
         const contDrawLimit = collectDrawLimits(op, effectsMap, battleCardMap, true, my);
-        const effectiveDrawLimit = contDrawLimit !== undefined
-          ? (my.draw_limit !== undefined ? Math.min(my.draw_limit, contDrawLimit) : contDrawLimit)
-          : my.draw_limit;
+        // 🔴CONTINUOUS `BLOCK_ACTION{DRAW_LIMIT_<n>}`（`WX04-005-E2`）も上限として合流させる
+        //   （2026-08-19 続き567・§3 (cxxxv) と同じ「生成されるのに誰も読んでいない id」クラスだった）。
+        const blockDrawLimit = drawPhaseLimitFromBlocked(contBlocked.forSelf);
+        const effectiveDrawLimit = [my.draw_limit, contDrawLimit, blockDrawLimit]
+          .filter((n): n is number => n !== undefined)
+          .reduce<number | undefined>((min, n) => (min === undefined ? n : Math.min(min, n)), undefined);
         const replacedDrawCount = applyLrigDrawPhaseReplacement(my, drawCount);
         const effectiveDrawCount = effectiveDrawLimit !== undefined ? Math.min(replacedDrawCount, effectiveDrawLimit) : replacedDrawCount;
         const preventRefreshTrash = my.field.signi.some(s => {
@@ -10708,7 +10722,11 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
     // ─── UPフェイズ（ドロー）───
     if (phase === 'UP') {
-      appendBattleLogs([`[CPU] ${drawCount}枚ドロー`]);
+      // ⚠**ドロー上限は人間側と同じ funnel を通す**（2026-08-19 続き567）＝`DRAW_LIMIT_<n>` は
+      //   「すべてのプレイヤーは…1枚しか引けない」（`WX04-005-E2`）なので、片側だけだと CPU だけ2枚引く。
+      //   📋`collectDrawLimits`（`LIMIT_OPP_DRAW_COUNT`）と `draw_limit` は CPU 側では従来から未適用＝別の穴（§7 送り）。
+      const cpuDrawCount = Math.min(drawCount, drawPhaseLimitFromBlocked(cpuContBlockedSelf) ?? drawCount);
+      appendBattleLogs([`[CPU] ${cpuDrawCount}枚ドロー`]);
       const cpuPreventRefresh = cpuSt.field.signi.some(s => {
         const top = s?.at(-1);
         return top && (effectsMap.get(top) ?? []).some(e =>
@@ -10725,7 +10743,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       //   ②`last_effect_draw_source: undefined`＝ターンドローは「効果ドロー」ではないので、直後の ON_DRAW 収集で
       //     `drawBySourceStory` トリガー（`WX20-026-E3`）が前ターンの残値で誤発火しないようにする。
       let newCpuSt: PlayerState = {
-        ...drawCards(activateTurnStartScopedState(cpuSt), drawCount, cpuPreventRefresh),
+        ...drawCards(activateTurnStartScopedState(cpuSt), cpuDrawCount, cpuPreventRefresh),
         actions_done: ['DRAW'], last_effect_draw_source: undefined,
       };
       // UPKEEP_OR_NO_UP: CPUは支払えるなら自動で支払いセンタールリグをアップする
