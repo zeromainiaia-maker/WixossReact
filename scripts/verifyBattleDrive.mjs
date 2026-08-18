@@ -19803,26 +19803,30 @@ const v69EnergyWatcherSpec = (watcherCardNum) => ({
 
 const driveV69EnergyWatcher = async (page, H, zoneCount) => {
   for (const zoneIdx of [1, 2]) {
-    const clicked = await H.clickTestId(`my-signi-zone-${zoneIdx}`).catch(() => null);
-    H.log(`  v69watcher zone${zoneIdx} zoneClick=${clicked}`);
-    await page.waitForTimeout(500);
-    const btn = page.getByRole('button', { name: '【起】ダウン', exact: false }).first();
-    const btnVisible = await btn.count() && await btn.isVisible().catch(() => false);
-    H.log(`  v69watcher zone${zoneIdx} btnVisible=${btnVisible}`);
-    if (btnVisible) await btn.click({ timeout: 3000 }).catch(() => {});
+    let btnVisible = false;
+    // ゾーンクリック直後は前ゾーンのモーダル閉じ処理と競合することがある＝btn が見えるまでクリックを retry する。
+    for (let attempt = 0; attempt < 5 && !btnVisible; attempt++) {
+      const clicked = await H.clickTestId(`my-signi-zone-${zoneIdx}`).catch(() => null);
+      await page.waitForTimeout(500);
+      const btn = page.getByRole('button', { name: '【起】ダウン', exact: false }).first();
+      btnVisible = await btn.count() && await btn.isVisible().catch(() => false);
+      H.log(`  v69watcher zone${zoneIdx} attempt${attempt} zoneClick=${clicked} btnVisible=${btnVisible}`);
+      if (btnVisible) { await btn.click({ timeout: 3000 }).catch(() => {}); break; }
+      await page.waitForTimeout(400);
+    }
     await page.waitForTimeout(400);
     const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
     const fireEnabled = await fireBtn.count() && await fireBtn.isEnabled().catch(() => false);
     H.log(`  v69watcher zone${zoneIdx} fireEnabled=${fireEnabled}`);
     if (fireEnabled) await fireBtn.click({ timeout: 3000 }).catch(() => {});
     // モーダルが閉じてトップに戻るまで待つ（次のゾーンクリックが背景オーバーレイに吸われないように）。
-    for (let s = 0; s < 6; s++) {
-      await page.waitForTimeout(300);
+    for (let s = 0; s < 8; s++) {
+      await page.waitForTimeout(400);
       await H.stdStep();
       const stillOpen = await page.getByRole('button', { name: '発動', exact: true }).first().count();
       if (!stillOpen) break;
     }
-    await page.waitForTimeout(300);
+    await page.waitForTimeout(500);
   }
   let fin = null;
   for (let s = 0; s < 4; s++) {
