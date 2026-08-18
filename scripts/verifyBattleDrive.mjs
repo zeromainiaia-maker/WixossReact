@@ -20188,7 +20188,7 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
       // ⚠WXK09-018（Lv3）だと signiLevel(4) <= currentLrigLevel(3) を満たさず召喚不可＝
       //   常に「召喚」ボタンが出ずクリックが空振りしていた（続き565実測）。WD01-001（Lv4）に変更。
       'field.lrig': ['WD01-001#9920'], 'field.signi': [null, null, null], 'field.check': null,
-      'hand': ['WXEX1-44#9921', 'WX15-105#9922'], 'energy': ['WX15-105#9923', 'WD01-013#9924', 'WD01-013#9925'],
+      'hand': ['WXEX1-44#9921', 'WX15-105#9922'], 'energy': ['WX15-105#9923'],
       'lrig_deck': [], 'actions_done': [],
     },
     guestSet: {
