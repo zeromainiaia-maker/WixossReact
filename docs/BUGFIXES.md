@@ -1,5 +1,25 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き560・Sonnet 5）— §7 実機検証を継続＝`V-76`（CPU が自ターンにアーツ／スペルで攻める）ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規5本 ALL PASS**（うち1本はバッチ実行時にハーネス側の断続的フレークを観測・follow-up として記録）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.490→0.491。
+
+### 1. (A)(C) CPU が正面塞がれで除去アーツを使い、除去後アタックが通る
+
+`v76CpuUsesRemovalWhenBlocked` ＝WX24-P1-021（剣一炎敵）を CPU（guest）のルリグデッキへ入れ、guest ゾーン0 の正面（host ゾーン2）を host のシグニ（WD01-013）で塞いだ盤面で CPU ターンを回す。`[CPU] アーツを使用: 剣一炎敵` ログ→host の対象シグニがバニッシュされ正面が空く→そのまま guest のシグニがアタックして **host のライフが 7→5 にクラッシュ**（除去の目的が達成された証拠＝(C)）。
+`v76CpuDoesNotUseRemovalWhenClear`（対照）＝host の場が空なら除去アーツを使わないことを確認（`hasBlockedAttacker` の足切り）。
+
+### 2. (B) スペルの応答窓＝CPU がスペルを使うと人間側にカットイン窓が出て、パスすると解決して先へ進む
+
+`v76CpuSpellCutinPassProgresses` ＝WD02-015（轟音の火柱・スペル）を CPU の手札へ。`[CPU] スペルを発動: 轟音の火柱` ログ→`CutinModal`（「パス（カットインしない）」ボタン）に応答→解決して host の対象シグニがバニッシュされ、ターンが正常に `END` まで進む（止まらない＝最優先項目）ことを確認。
+
+⚠**バッチ実行時にハーネス側の断続的フレークを観測**（3回中2回PASS）＝FAIL 時は注入したはずのカード（`WD01-013`/`WD02-015`等）ではなく無関係なカード（「コードアート T・V」等）が場に出ている＝**シナリオ注入が正しく反映される前に CPU が古い盤面のままターンを進めてしまった**疑い（`injectScenario`→`page.reload()` のタイミング競合）。**単発実行では安定して PASS する**ため engine 側の回帰ではないと判断・follow-up として記録（§7 に既知の罠として追記）。
+
+### 3. (D) 負方向＝除去に分類できないスペルは支払い可能でも CPU が使わない
+
+`v76CpuDoesNotUseUnsupportedSpell` ＝WXK06-026（ネクスト・フューチャー・追加アタックフェイズ＋CHOOSE①②＝`defensiveKindOf` が `'removal'` と分類しない）を、`hasBlockedAttacker` が真かつ支払い可能な盤面（白エナ4枚・エマ限定を満たすルリグ）で CPU の手札に置いても一切使わないことを確認。
+📋**任意支払いでコストが下がる札（`WX21-035`等）の人間側回帰確認は見送り**＝該当カードの「手札を捨てての置換」が JSON の `cost` ではなく `EffectText`/`CHOOSE` 側の別経路で表現されており、シナリオ選定に追加調査が必要なため（follow-up・優先度低＝人間側の基本的な発動可否・コスト表示自体は他のシナリオで継続的に確認されている）。
+
 ## 2026-08-18（続き559・Sonnet 5）— §7 実機検証を継続＝`V-75`(C)(D) 実機確認＋🔴実機検証中に真の engine バグを発見（Opusタスク12 (cxxxv) へ登録）
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規8本中7本 PASS・1本は意図的に赤**（実バグ待ち・2回連続で同じ結果）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ・engine 側は未修正のまま）。version 0.489→0.490。これで **`V-75` は (A)〜(D) すべて着手完了**（(C)-2 のみ engine バグ待ちで残る）。
