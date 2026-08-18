@@ -21391,8 +21391,10 @@ scenarios.v55CheckZoneFlipTargetMissingConfirmsBug = {
     await page.waitForTimeout(600);
     const useClick = await H.clickTextOrBtn(['使用']);
     await page.waitForTimeout(400);
+    const useClick2 = await H.clickTextOrBtn(['使用']);
+    await page.waitForTimeout(400);
     const visibleBtnTexts = await page.locator('button:visible').allTextContents();
-    H.log(`  v55flipgrow 初手 dkClick=${dkClick} cardClick=${cardClick} useClick=${useClick} visibleButtons=${JSON.stringify(visibleBtnTexts)}`);
+    H.log(`  v55flipgrow 初手 dkClick=${dkClick} cardClick=${cardClick} useClick=${useClick} useClick2=${useClick2} visibleButtons=${JSON.stringify(visibleBtnTexts)}`);
     let fin = before;
     let sawNoTargetLog = false;
     for (let s = 0; s < 10; s++) {
