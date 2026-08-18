@@ -18950,12 +18950,60 @@ scenarios.v75ArtsLimit1FirstUseShown = {
   spec: v75ArtsLimit1Spec(false),
   drive: (page, H) => driveV75ArtsLimit1(page, H, true),
 };
+// 🔴実バグ待ち（Opusタスク12 (cxxxv)・2026-08-18 続き559 で登録）＝`calcContinuousBlockedActions` が
+// ルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない恒久 no-op のため、
+// **このシナリオは赤のまま既定 order に置く**（engine が直れば緑へ反転する＝§7 冒頭 V-01〜V-03 と同型の運用）。
 scenarios.v75ArtsLimit1SecondUseBlocked = {
-  title: 'V-75(C)-2 🔴WX13-007 の ARTS_LIMIT_1＝このターン1回使用済みなら2枚目の「使用」が出ない',
+  title: 'V-75(C)-2 🔴実バグ待ち（Opusタスク12 cxxxv）＝WX13-007 の ARTS_LIMIT_1 が恒久 no-op で2枚目も「使用」が出てしまう',
   spec: v75ArtsLimit1Spec(true),
   drive: (page, H) => driveV75ArtsLimit1(page, H, false),
 };
 order.push('v75ArtsLimit1FirstUseShown', 'v75ArtsLimit1SecondUseBlocked');
+
+// (C)-3 カード名封じ＝`blocked_card_names`（このターン blacklist）に対象アーツ名を入れると
+// アーツ一覧（ルリグデッキのカード詳細）から「使用」ボタンが消える（`cardNameUseBlocked` 1関数への集約の裏取り）。
+const v75CardNameBlockSpec = (blocked) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#8940'], 'field.signi': [null, null, null], 'field.check': null,
+    'lrig_deck': ['WX24-P1-021#8941'],   // 剣一炎敵（赤×1・使用条件なし）
+    'energy': ['WD02-013#8942'],   // 赤エナ1枚
+    'hand': [],
+    'blocked_card_names': blocked ? ['剣一炎敵'] : [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8950'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  // WX24-P1-021 の Timing は「アタックフェイズ」限定。
+  top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+});
+
+const driveV75CardNameBlock = async (page, H, expectUsable) => {
+  await page.waitForTimeout(600);
+  const openDk = await H.clickTestId('my-lrig-dk');
+  await page.waitForTimeout(500);
+  const opened = await H.clickTestId('zone-card-0');
+  await page.waitForTimeout(500);
+  const useBtn = page.getByRole('button', { name: '使用', exact: true }).first();
+  const count = await useBtn.count();
+  const visible = count > 0 && await useBtn.isVisible().catch(() => false);
+  const detail = `openDk=${openDk} / opened=${opened} / 使用ボタン表示=${visible}（期待${expectUsable}）`;
+  H.log(`  v75cardNameBlock ${detail}`);
+  if (!opened) return { pass: false, detail: `🔴モーダルが開かない（${detail}）` };
+  return { pass: visible === expectUsable, detail };
+};
+
+scenarios.v75CardNameBlockedHidesUse = {
+  title: 'V-75(C)-3 🔴カード名封じ＝blocked_card_names にカード名があると「使用」が出ない',
+  spec: v75CardNameBlockSpec(true),
+  drive: (page, H) => driveV75CardNameBlock(page, H, false),
+};
+scenarios.v75CardNameNotBlockedShowsUse = {
+  title: 'V-75(C)-3 対照＝blocked_card_names が空なら「使用」が出る',
+  spec: v75CardNameBlockSpec(false),
+  drive: (page, H) => driveV75CardNameBlock(page, H, true),
+};
+order.push('v75CardNameBlockedHidesUse', 'v75CardNameNotBlockedShowsUse');
 // ── V-75 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
