@@ -6,6 +6,30 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-18 整理㉞（§7 `V-74` 完全消化ぶんの退避・続き557）
+
+> PLAN §7 🅱 にあった `V-74` の全ブロックを verbatim で退避（残0クローズ）。PLAN 側には1行✅サマリだけ残す。
+
+- **✅ V-74 続き557 で (A)(B) とも実機 PASS＝残0クローズ**（`v74CpuSigniActivatedOncePerTurn`／`v74CpuSkipsHandDiscardCost`／`v74CpuAutoRespondsSelectTarget`／`v74HumanColorMismatchBlocked`／`v74HumanColorMatchEnabled`／`v74HumanAcceColorMismatchBlocked`／`v74HumanAcceColorMatchEnabled` の7本・2回連続 ALL PASS）。§8/`O-1` CPU がメインフェイズに【起】を撃つ（v1）＋ 🔴【起】エナコストの色照合の是正。
+  - **2つ観測した**。
+  - **(A) CPU 側**＝CPU の場に**コストなし（またはエナのみ）の【起】を持つシグニ**を置いた盤面で CPU ターンを回し、
+  (a)召喚が終わったあと**アタックフェイズへ行く前に**ログ `[CPU] 【起】を発動: <カード名>` が出て効果が解決する
+  (b)**同じ【起】が同一ターンに2回撃たれない**（⚠これが破れると画面が止まる＝無限ループの安全弁の確認）
+  (c)**手札捨てコストの【起】は撃たれない**（負方向＝`cpuActivate.ts` の allowlist。撃つと支払い内訳を
+  CPU が選べないので abort する）(d)**対象選択が要る【起】でも自動応答で最後まで解決する**
+  （既存の CPU 自動応答経路に載っていること）。⇒ **3シナリオで確認**（`v74CpuSigniActivatedOncePerTurn`＝(a)(b)・
+  `v74CpuSkipsHandDiscardCost`＝(c)・`v74CpuAutoRespondsSelectTarget`＝(d)）。
+    - 🔑**判定の罠**＝hand の最終値では判定しない（発動直後に CPU がドローしたカードを召喚してしまうことがある＝
+      正常な後続動作）。actionsDone もターン終了処理でクリアされる＝`handedOver` 後に読むと安全弁が効いていない
+      ように見える。**energy の最終値（永続的な物理量）＋ターン中に一度でも actionsDone に記録されたか**で見る。
+  - **(B) 人間側（🔴挙動が変わる方）**＝場のシグニ【起】で**エナコストの色が合っていないと発動ボタンが押せない**こと。
+  ⚠**従来は色照合が丸ごと効いておらず、枚数さえ合えば任意の色で撃てた**（`parseGrowCost` が読めない綴りを
+  渡していた）＝**対照は「色が合っているときは従来どおり撃てる」**。同じ是正を**エナゾーンの【起】（アクセ）**にも
+  当てているので、そちらも1本見る。⇒ **シグニ側・アクセ側それぞれ負方向＋対照の対で確認**
+  （`v74HumanColorMismatchBlocked`/`v74HumanColorMatchEnabled`・`v74HumanAcceColorMismatchBlocked`/`v74HumanAcceColorMatchEnabled`）。
+    - ⚠**ライフクラッシュ確認モーダルの罠**＝正面が空いていて直接ダメージが通るケースでは「エナに送る」ボタンへの
+      応答が要る（クリックリストに含め忘れるとポーリングが `handedOver` に到達せず永久 FAIL する）。
+
 ## 2026-08-18 整理㉝（§7 `V-79`／`V-80` 完全消化ぶんの退避・続き556）
 
 > PLAN §7 🅱／🅳 にあった `V-79`／`V-80` の全ブロックを verbatim で退避（両方とも残0クローズ）。PLAN 側には1行✅サマリだけ残す。
