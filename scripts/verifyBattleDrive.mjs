@@ -19218,23 +19218,29 @@ const v77IconLrigSpec = (phase) => ({
 });
 
 const driveV77IconLrig = async (page, H, expectFired) => {
+  // ⚠**host のダウン状態は host 自身の次の UP フェイズでアップされる**＝CPU ターンが完全に終わった
+  //   （`handedOver` になった）後の state で判定すると、既に UP 処理が走ってダウンが消えていることがある。
+  //   **fired を検出した直後のスナップショットで targetDown も同時に見る**（続き561 実測の教訓）。
   let fired = false;
+  let targetDownAtFire = false;
   let fin = null;
   let handedOver = false;
   for (let s = 0; s < 60; s++) {
     const st = await H.queryState();
     fin = st;
-    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動: コードメイズ'))) fired = true;
+    if (!fired && (st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動: コードメイズ'))) {
+      fired = true;
+      targetDownAtFire = (st?.host?.signiDown ?? [])[0] === true;
+    }
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
     await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
-  const targetDown = (fin?.host?.signiDown ?? [])[0] === true;
-  const detail = `fired=${fired}（期待${expectFired}） / handedOver=${handedOver} / targetDown=${targetDown} / `
+  const detail = `fired=${fired}（期待${expectFired}） / handedOver=${handedOver} / targetDownAtFire=${targetDownAtFire} / `
     + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
   H.log(`  v77iconLrig ${detail}`);
   if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
-  const ok = expectFired ? (fired && targetDown) : (!fired && !targetDown);
+  const ok = expectFired ? (fired && targetDownAtFire) : !fired;
   return { pass: ok, detail };
 };
 
