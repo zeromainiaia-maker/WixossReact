@@ -19403,52 +19403,61 @@ order.push('v77HumanConditionHidesWhenUnmet', 'v77HumanConditionShowsWhenMet');
 // ── V-77 END ──
 
 // ── §7 V-78（続き552d・§8/`O-1` (d) CPU グロウを `performGrow` へ統合）──
-// (A) 回帰＝CPU が従来どおりグロウし、グロウ先ルリグの【出】が解決すること。
-// WXDi-P09-015（レイラ＝ターボ・Lv1・効果0件・GrowCost赤×0）→WDK01-003（レイラ＝クラッチ・Lv2・
-// GrowCost赤×1・【出】手札を1枚捨てる：コインを得る）。手札に捨てる材料を1枚持たせ、コインが増えることで確認。
-const v78CpuGrowOnPlaySpec = {
+// (A)(C) 回帰＋コスト付き任意【出】＝WXDi-P09-015（レイラ＝ターボ・Lv1・効果0件・GrowCost赤×0）→
+// WDK01-003（レイラ＝コーナー・Lv2・GrowCost赤×1・【出】任意・cost.coin:1：カードを1枚引く）。
+// ⚠**手札は空にする**（召喚材料を持たせると CPU がそちらに気を取られて止まる/長引くことがある＝続き562実測）。
+// コインを1枚持たせて「コインだけで払える任意【出】は自動で払って発動する」ことを見る。
+const v78CpuGrowOnPlaySpec = (hasCoin) => ({
   guestSet: {
     'field.lrig': ['WXDi-P09-015#9130'], 'field.signi': [null, null, null], 'field.check': null,
     'lrig_deck': ['WDK01-003#9131'],
     'energy': ['WD02-013#9132'],   // 赤エナ1枚（GrowCost赤×1用）
-    'hand': ['WD01-013#9133'],     // 【出】の手札捨てコスト材料
-    'coins': 0, 'actions_done': [],
+    'hand': [],
+    'coins': hasCoin ? 1 : 0, 'actions_done': [],
   },
   hostSet: {
     'field.lrig': ['WD01-001#9140'], 'field.signi': [null, null, null], 'field.check': null,
     'hand': [], 'energy': [],
   },
   top: { active: 'cpu', turn_phase: 'GROW', turn_count: 2 },
-};
+});
 
-const driveV78CpuGrowOnPlay = async (page, H) => {
+const driveV78CpuGrowOnPlay = async (page, H, expectOnPlay) => {
   let grewLog = false;
   let fin = null;
   let handedOver = false;
   for (let s = 0; s < 60; s++) {
     const st = await H.queryState();
     fin = st;
-    if ((st?.logTail ?? []).some(l => String(l).includes('レイラ＝クラッチ') || String(l).includes('[CPU] グロウ'))) grewLog = true;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] グロウ'))) grewLog = true;
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
     await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
   const grewLrig = (fin?.guest?.lrigTop ?? '').startsWith('WDK01-003');
-  const onPlayResolved = (fin?.guest?.coins ?? 0) >= 1;   // 【出】手札を1枚捨てる：コインを得る
+  const coinsSpent = (fin?.guest?.coins ?? -1) === 0;          // コスト付き任意【出】が自動で払われた証拠
+  const handGrew = (fin?.guest?.hand ?? 0) >= 1;               // DRAW本体が解決した証拠
   const detail = `grewLog=${grewLog} / grewLrig=${grewLrig}（lrigTop=${fin?.guest?.lrigTop}） / `
-    + `coins終値=${fin?.guest?.coins}（期待≥1＝【出】解決の証拠） / handedOver=${handedOver} / `
-    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    + `coins終値=${fin?.guest?.coins}（期待${expectOnPlay ? 0 : 0}） / hand終値=${fin?.guest?.hand}（期待${expectOnPlay ? '≥1' : '参考'}） / `
+    + `handedOver=${handedOver} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
   H.log(`  v78cpuGrow ${detail}`);
   if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
-  return { pass: grewLrig && onPlayResolved, detail };
+  if (!grewLrig) return { pass: false, detail: `🔴グロウしなかった（${detail}）` };
+  const ok = expectOnPlay ? (coinsSpent && handGrew) : !handGrew;
+  return { pass: ok, detail };
 };
 
-scenarios.v78CpuGrowsAndOnPlayResolves = {
-  title: 'V-78(A) CPU が従来どおりグロウし、グロウ先ルリグの【出】が解決する（回帰確認）',
-  spec: v78CpuGrowOnPlaySpec,
-  drive: (page, H) => driveV78CpuGrowOnPlay(page, H),
+scenarios.v78CpuGrowsAndPaysOnPlayCost = {
+  title: 'V-78(A)(C) CPU が従来どおりグロウし、コインだけで払える任意【出】は自動で払って発動する',
+  spec: v78CpuGrowOnPlaySpec(true),
+  drive: (page, H) => driveV78CpuGrowOnPlay(page, H, true),
 };
-order.push('v78CpuGrowsAndOnPlayResolves');
+scenarios.v78CpuGrowsButSkipsOnPlayWithoutCoin = {
+  title: 'V-78(C) 対照＝コインが無ければ任意【出】は発動しない（グロウ自体は成立する）',
+  spec: v78CpuGrowOnPlaySpec(false),
+  drive: (page, H) => driveV78CpuGrowOnPlay(page, H, false),
+};
+order.push('v78CpuGrowsAndPaysOnPlayCost', 'v78CpuGrowsButSkipsOnPlayWithoutCoin');
 // ── V-78 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
