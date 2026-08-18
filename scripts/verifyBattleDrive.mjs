@@ -20198,7 +20198,14 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
   async drive(page, H) {
     await H.ensureMain();
     await page.waitForTimeout(600);
-    await H.clickTestId('my-hand-card-0');
+    // ⚠`my-hand-card-0` はDOM描画順であって spec.hand の配列順とは限らない（続き565実測＝
+    //   意図しないWX15-105が召喚された）。目的のカード名で直接クリックする。
+    const targetHandImg = page.locator('img[alt="コードオーダー　とんラー"]').last();
+    if (await targetHandImg.count() && await targetHandImg.isVisible().catch(() => false)) {
+      await targetHandImg.click({ force: true, timeout: 2000 }).catch(() => {});
+    } else {
+      await H.clickTestId('my-hand-card-0');
+    }
     let summoned = false;
     let fin = null;
     for (let s = 0; s < 20; s++) {
