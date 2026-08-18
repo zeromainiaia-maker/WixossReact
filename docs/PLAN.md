@@ -154,13 +154,17 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-18・続き563・Sonnet 5）＝§7 実機検証を継続＝`V-71`（傀儡状態で場に出す）／`V-70`（ON_HAND_ADDED の owner 2軸）／`V-69`（エナ差分 watcher の《ターン1回/2回》）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.493→0.494。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き563）。
-  - **✅ V-71＝STEAL_OPP_TRASH_PUPPET は回帰なし**（`WXK10-091`の【起】で相手トラッシュから条件に合う1枚だけが傀儡として場に出ることを確認＋`field.puppet_signi`直接注入で`sweepPuppets`＝場を離れた傀儡が持ち主のトラッシュへ回収されることを確認）。(d)のエクシード１＋`suppressOnPlay`は見送り（follow-up）。
-  - **✅ V-70＝ON_HAND_ADDED の owner 2軸は回帰なし**（`SPDi43-11`の付与【自】で、自分の効果（`WX01-045`のDRAW）による手札増加がダウン済みルリグを実際にアップさせることを確認。旧実装は`ON_PLAY`扱いで丸ごとno-opだった）。(b)(c)は見送り（follow-up）。
-  - **✅ V-69＝エナ差分watcherの《ターン1回/2回》は回帰なし**（`WXK04-028`は未使用時は誘発・1回使用済みなら誘発しない／対照`WXDi-P11-073`は1回使用済みでも2回目はまだ誘発。旧実装は「チャージのたびに撃てた」過剰発火）。🔑**判定式`actionsDone.filter(id=>id===effectId).length`の出現回数を`actions_done`へ直接注入すれば1アクションで境界を再現できる**＝2アクション連続クリックは実機タイミング競合で不安定だった型を置き換え。
-  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-66`〜`V-68`／それ以前の約40件**が未検証。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も要再現確認**（続き556 記録・未解決）。
+- **🆕 セッション（2026-08-18・続き564・Sonnet 5）＝§7 実機検証を継続＝`V-66`／`V-68`（既存赤の緑化確認）・`V-67`（ルリグ【起】《ダウン》）・`V-65`（相手シグニ自の支払えば通る回避）・`V-64`（引用付与のダメージ置換）・`V-61`（引用付与の条件つきシャドウ）・`V-62`（チャーム条件）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規10本 ALL PASS**（2〜3回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.494→0.495。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き564）。
+  - **✅ V-66／V-68＝既存の赤シナリオ（`v14MultiAcceLegacyStringOneLoads`／`v11CpuDeployPowerLimitWithControl`）が過去の修正で既に緑化済みであることを確認**（再実行のみ・新規コードなし）。
+  - **✅ V-67＝ルリグ【起】《ダウン》は回帰なし**（`WD08-001`で実際にlrig_downがtrueになり、2回目はボタンが消えることを確認）。🔑**ADD_TO_FIELDはSELECT_TARGET→SELECT_SIGNI_ZONEの2段階**＝`H.stdStep()`だけでは後者を素通りする＝`clickBtn('ゾーン1')`を追加して解消。
+  - **✅ V-65＝相手シグニ【自】の「支払えば通る」回避は回帰なし**（`blocked_actions`へ`PAY_GATE_OPP_SIGNI_AUTO`を直接注入し、窓が実際に出て支払えば本体が通ることを確認）。🔑**任意コストの支払いはエナ画像選択→payボタンの2段階**（未選択だとdisabled）／**支払い分はtrashへ移りボーナス充填と相殺するのでdeck消費量で判定**。
+  - **✅ V-64＝引用付与のダメージ置換は回帰なし**（`lrig_granted_auto_effects`へSTUB{DAMAGE_REPLACE_BY_COST}を直接注入し、CPU攻撃でhost.lifeが減らず手札を捨てて支払い、支払った瞬間に付与効果自体が消える＝loseAbility消費を確認）。
+  - **✅ V-61＝引用付与の条件つきシャドウ（対戦相手のターンの間）は回帰なし**（`granted_effects`へactiveCondition付きGRANT_KEYWORD{シャドウ}を直接注入し、バウンス対象化がブロックされることを確認）。⚠初回1回だけ原因不明FAILしたが、孤立スクリプトでの理論検証は全て一致・続く3回はPASS＝ハーネス側の一過性フレークと判断。
+  - **✅ V-62＝チャーム条件（THIS_CARD_IS_CHARMED）は回帰なし**（`WXK07-043`でチャーム付きなら追加ドロー発火・無しなら不発を確認）。
+  - 📋**follow-up＝V-63（O-29「同じ選択肢を複数回選ぶ」）は見送り**（`WX17-003`＝ARTS詠唱＋複数選択UI＋ベット階層で実機シナリオ化の複雑度が突出）。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-63`（見送り分）／`V-28`〜`V-60`／それ以前の約33件**が未検証。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も要再現確認**（続き556 記録・未解決）。
   - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫3件据置**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）＝**次の Opus セッションはまずこれを消化**。§6.4 は `O-19b`（小）・`O-1` は (g) のみ残。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-66`〜`V-68` から。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-63`（見送り分）または `V-60` から。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
