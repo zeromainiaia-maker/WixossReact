@@ -20896,6 +20896,73 @@ scenarios.v33KeyHighLevelShieldDoesNotPrevent = {
 order.push('v33KeyLowLevelShieldPreventsDamage', 'v33KeyHighLevelShieldDoesNotPrevent');
 // ── V-33 END ──
 
+// ── §7 V-48（O-10・続き566）(b)のみ ──
+// `WXDi-P00-026`（アシスト）【出】：センタールリグへ「【自】《ターン１回》：このルリグがアタックしたとき、
+// このルリグをアップする」を付与＝`GRANT_EFFECT{target:LRIG}`→`granted_effects[<lrig instId>]`。
+// アシスト詠唱を省略し直接注入＝(b)1回目のルリグアタック後にアップして2回目のアタックができる／
+// 《ターン１回》なので2回目のアタック後は再アップせず3回目は無い、を1本で見る。
+scenarios.v48GrantedUpOnAttackAllowsSecondAttack = {
+  title: 'V-48(b) 🔴付与「アタック時アップ」＝1回目後アップして2回目が撃てる／3回目は無い（ターン1回）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9940'], 'field.lrig_down': false, 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [],
+      'granted_effects': {
+        'WD01-001#9940': [{
+          effectId: 'WXDi-P00-026-sub-E1', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'], triggerScope: 'self',
+          mandatory: true, duration: 'INSTANT', parseStatus: 'AUTO', usageLimit: 'once_per_turn',
+          action: { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } },
+        }],
+      },
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9941'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9942', 'WD01-013#9943', 'WD01-013#9944', 'WD01-013#9945'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    async function attackWithCenterLrig() {
+      await H.clickTestId('my-lrig-slot-center');
+      await page.waitForTimeout(400);
+      const atk = page.locator('[data-testid^="card-action-"][data-action-label="アタック"]').first();
+      for (let k = 0; k < 15; k++) {
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) break;
+        await page.waitForTimeout(200);
+      }
+      const clickable = await atk.count() > 0 && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false);
+      if (clickable) await atk.click({ timeout: 2000 }).catch(() => {});
+      return clickable;
+    }
+    async function resolveOneAttack() {
+      let fin = await H.queryState();
+      for (let s = 0; s < 15; s++) {
+        await page.waitForTimeout(350);
+        const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+        fin = await H.queryState();
+        if (!did) break;
+      }
+      return fin;
+    }
+    const before = await H.queryState();
+    const atk1 = await attackWithCenterLrig();
+    const st1 = await resolveOneAttack();
+    const upAfter1 = st1?.host?.lrigDown === false;
+    let atk2 = false, st2 = before;
+    if (upAfter1) {
+      atk2 = await attackWithCenterLrig();
+      st2 = await resolveOneAttack();
+    }
+    const stayedDownAfter2 = st2?.host?.lrigDown === true;
+    const detail = `1回目クリック=${atk1} / 1回目後lrigDown=${st1?.host?.lrigDown}（期待false＝アップ） / 2回目クリック=${atk2}（期待true） / `
+      + `2回目後lrigDown=${st2?.host?.lrigDown}（期待true＝再アップせず3回目不可） / gLife=${before?.guest?.life}→${st2?.guest?.life}`;
+    H.log(`  v48upattack ${detail}`);
+    return { pass: atk1 && upAfter1 && atk2 && stayedDownAfter2, detail };
+  },
+};
+order.push('v48GrantedUpOnAttackAllowsSecondAttack');
+// ── V-48 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
