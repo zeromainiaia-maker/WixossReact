@@ -20062,6 +20062,63 @@ scenarios.v64DamageReplaceByCostPaysAndLosesAbility = {
 order.push('v64DamageReplaceByCostPaysAndLosesAbility');
 // ── V-64 END ──
 
+// ── §7 V-61（続き541・O-25(d) 引用付与のゲート条件・(d)相手ターンだけシャドウ）──
+// WXDi-P06-032/WXDi-P13-044 の【起】《白》：「次の対戦相手のターン終了時まで、このシグニは
+// 『【常】：対戦相手のターンの間、【シャドウ】を得る。』を得る」＝`buildGatedKeywordGrant` が
+// `activeCondition:{type:'TURN_OWNER',owner:'opponent'}` の CONTINUOUS GRANT_KEYWORD を組み立てて
+// `granted_effects` へ入れる（条件つきに変えた瞬間に付与ストアへ移る＝走査軸が漏れると
+// 「常時シャドウ」から「シャドウが一切効かない」へ裏返る、が本項目の最重要ポイント）。
+// ARTS/【起】詠唱を省略し、`granted_effects` へ直接注入する。host（SPDi43-11の【起】《ダウン》＝
+// 対戦相手のシグニ１体を対象とし手札に戻す）でhostのターン中にguestの唯一のシグニを対象化しようとし、
+// シャドウで候補から除外され「対象がない」まま何も起きないこと＝シャドウが機能していることを見る。
+scenarios.v61ConditionalShadowBlocksTargetingDuringOpponentTurn = {
+  title: 'V-61(d) 🔴引用付与の条件つきシャドウ（対戦相手のターンの間）が実際に対象化を防ぐ',
+  spec: {
+    hostSet: {
+      'field.lrig': ['SPDi43-11#9700'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9710'], 'field.signi': [['WD01-013#9970'], null, null], 'field.check': null,
+      'granted_effects': {
+        'WD01-013#9970': [{
+          effectId: 'v61shadow1', effectType: 'CONTINUOUS', duration: 'UNTIL_END_OF_TURN', mandatory: true,
+          activeCondition: { type: 'TURN_OWNER', owner: 'opponent' },
+          action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'シャドウ', duration: 'UNTIL_END_OF_TURN' },
+        }],
+      },
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await clickLrigImageAndWait(page, 'MC.LION　3rdVerse-ULT');
+    const downBtn = page.getByRole('button', { name: '【起】このルリグをダウン', exact: false }).first();
+    if (await downBtn.count() && await downBtn.isVisible().catch(() => false)) {
+      await downBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(400);
+    await H.clickBtn('発動', { exact: true });
+    let fin = null;
+    for (let s = 0; s < 8; s++) {
+      await page.waitForTimeout(400);
+      await H.stdStep();
+      fin = await H.queryState();
+      H.log(`  v61shadow[${s}] pendingEffect=${fin?.pendingEffect} candidates=${JSON.stringify(fin?.pendingCandidates)} gField=${JSON.stringify(fin?.guest?.fieldSigni)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-3))}`);
+    }
+    const stillOnField = (fin?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9970'));
+    const lrigDownNow = fin?.host?.lrigDown === true;
+    const detail = `stillOnField=${stillOnField}（期待true＝バウンスされていない） / lrigDownNow=${lrigDownNow} / `
+      + `gField=${JSON.stringify(fin?.guest?.fieldSigni)} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-4))}`;
+    H.log(`  v61shadow ${detail}`);
+    return { pass: stillOnField && lrigDownNow, detail };
+  },
+};
+order.push('v61ConditionalShadowBlocksTargetingDuringOpponentTurn');
+// ── V-61 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
