@@ -18831,7 +18831,6 @@ const v75AltCostSpec = (oppTurn) => ({
 });
 
 const driveV75AltCost = async (page, H, expectCost) => {
-  if (!page.url()) return { pass: false, detail: '不明' };
   await page.waitForTimeout(600);
   await H.clickTestId('my-lrig-dk');
   await page.waitForTimeout(500);
