@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き553・Opus 5）＝§8／§6.4 `O-1` の残り小物を (e)(f) 消化＝CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ ＋ 付与／継承のルリグ【起】を funnel へ寄せて CPU に載せた**。ゲート全緑（**golden 2291→2293**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.483→0.484。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き553）。
+  - **✅ (e) CPU の `ATTACK_LRIG`→`END` を `ADVANCE_TURN_WITH_STATE` へ**＝この1点だけ `SET_TURN_PHASE`（**フェイズしか書けない**）だったので、追加のアタックフェイズ（§6.4 O-3）の**キューを減らす手段が無く**、`resolveNextPhaseAfterAttack` を通すと無限ループになる構造だった。人間経路と**同じ4点**を1コミットで行うようにした＝①`ON_ATTACK_PHASE_END` 収集 ②`clearEndOfAttackPhaseDelayedTriggers` を両者へ ③予約を1件消化して `ATTACK_ARTS` へ ④2周目の `clearAttackPhaseScopedState`＋`ON_ATTACK_PHASE_START`。
+    🔴**ついでに塞いだ CPU 側の穴2つ**＝**`ON_ATTACK_PHASE_END` は CPU ターンで一度も収集されていなかった**（タスク12(lxvii) の5 timing に続く6本目・live 1効果＝`WX24-P2-075`）／**「このアタックフェイズの間」の遅延 watcher が CPU ターンだけ消えずに残っていた**。
+    ⭐**`CPU_UNSUPPORTED_ACTION_TYPES` は空集合になった**（受け口としては残す）＝`WXK06-026`／`WX22-010` を CPU が使えるようになった。
+    🔴**人間経路の順序も是正**＝`ON_ATTACK_PHASE_END` が `ON_ATTACK_PHASE_START` の**後**にあり、追加フェイズへ入るときだけ解決順が逆転し、離場履歴が消えた state を読んでいた。
+  - **✅ (f) ルリグ【起】の収集源3つを1つの funnel へ**＝続き552c で funnel 化したのは①センター本来だけで、②付与（live **92効果／63カード**）と③ルリグトラッシュ継承（宣言カード **3枚**＝`WX05-002`/`003`/`004`）は `BattleScreen` 側の**手書きの部分再実装**が残っていた。`lrigActivateGate.ts` に `collectGrantedLrigEffects`／`listActivatableGrantedLrigEffects`／`listActivatableInheritedLrigEffects` を足し、可否判定はすべて既存の `canActivateLrigEffect` を通す。CPU（`pickCpuLrigActivated`）は①→②→③の順で候補を連結。
+    🔴**塞いだ踏み倒し**＝**付与【起】はコイン／エクシード／`lrigDown`／【絆起】／【歌のカケラ】を1つも見ていなかった**（コインは続き552c で実行側が deduct するようにしたので、提示側が見ないと所持0でも撃てた）／**継承【起】は「継承済みの印」以外を何も見ていなかった**＝`costUnparsed`・コイン・エクシード・使用条件・封じを全部素通りして撃てた。
+  - **⏸ (g) 選択の精緻化は着手しない**＝PLAN 自身のガードレール「**(a)〜(d) の実機検証を終えてから**」に従う（土台が動いていない状態で盤面評価を足すと、悪手なのか壊れているのかを切り分けられない）。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を1本走らせる**。**`V-74`〜`V-80` の7本はこの6セッションで積んだもので1本も回していない**。⚠**人間側の挙動が変わる是正が6つ**に増えた（【起】のエナ色照合／ルリグ【起】のコイン／ルリグ【起】MAIN 窓の使用条件／CPU グロウの場出し数制限／🆕**付与・継承【起】の提示が厳しくなった**（`V-80`）／🆕**追加アタックフェイズの解決順**（`V-79`(D)））＝**回帰があるならここに出る**。
+  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（実機検証待ち）。⇒ 実質**§6.4 は `O-19b`（到達不能な `ArtsModal` Phase1 の始末・小）だけ**になったので、次は §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）。**未検証が約61件**（`V-79`・`V-80` を追加）。実機検証を実際に回した最後は **2026-08-14 続き481**のまま。
 - **🆕 セッション（2026-08-18・続き552〜552d・Opus 5）＝§8／§6.4 `O-1`（CPU AI）を (a)〜(d) すべて消化＝CPU がアーツ・スペル・【起】を使い、グロウも人間と同じ関数を通る（すべて v1）**。ゲート全緑（**golden 2278→2291**・census 787 据置・smoke 10693 全0・fuzz 全0・**同型★0**・census:stubs 全0・manual-fields 0・lint 0 errors）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.479→0.483。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き552／552b／552c／552d）。
   - **🏁 これで DESIGN §4「CPU は対人戦と同じ処理を使う」は達成＝CPU 独自の実行実装は残っていない**（残るのは「何を選ぶか」の `cpu*.ts` だけ）。毎回の型は同じ＝**①提示ゲートを pure 関数（`*Gate.ts`）へ抽出して人間と共有 →②実行を `perform*` へ owner パラメータ化（人間用は薄いラッパー）→③`cpu*.ts` で「何を選ぶか」だけを書く**。
   - **✅ (a) 応答アーツ（続き552）**＝`artsUseGate.ts`（限定／カード名封じ／`USE_ARTS`・`ARTS_LIMIT_1`／フェイズ×Timing／使用条件／実効コスト＋**`altCostOppTurn`**／支払い可否を1本に。`buildArtsPayerCtx` は人間の `useMemo` も CPU も同じ1本）／`performArts`／`cpuArts.ts`（守りの分類＝**無効化→除去→軽減**・⚠`STUB` は対象外／脅威判定＝**正面 `2 - zi` が空いたアップの相手シグニ**か**ライフ1枚以下**）。射程＝アタックフェイズ Timing の 428 のうち **214**。

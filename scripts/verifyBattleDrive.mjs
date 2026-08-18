@@ -4444,6 +4444,12 @@ const scenarios = {
         'field.lrig': ['WXK04-003#1'],
         'actions_done': [],
         'game_actions_done': [],
+        // 🆕**コイン1枚を持たせる**（2026-08-18 続き554）＝続き552c で `lrigActivateGate` に
+        //   《コインアイコン》の所持枚数チェックが入り、**coins=0 ではサプライズ側のボタンが出なくなった**
+        //   （＝それまでは所持0でも撃てる踏み倒しだった）。このシナリオは「ラベル表記」を見るものなので、
+        //   撃てる状態＝coins≥1 を明示して従来の観測意図を保つ。⚠**coins を消すと FAIL に戻る**（負方向は
+        //   `v80GrantedLrigActCoinGated` が付与【起】側で持つ）。
+        'coins': 1,
         'lrig_granted_auto_effects': [],
       },
       top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
@@ -18156,6 +18162,71 @@ order.push('v18SoulAttachedSelfAndLrigFire', 'v18SoulAttachedOtherOnlyLrigFires'
   'v19Wx07050WithDiscardDoPhaseAdvanceThenConfirmReturns', 'v19Wx16Re18WithDiscardDoPhaseAdvanceThenConfirmReturns');
 // ── V-18/V-19 Part D END ──
 
+// ── §7 V-80（続き553・§6.4 `O-1` (f)）＝付与ルリグ【起】の提示が funnel（lrigActivateGate）へ寄った ──
+// 🔴**この変更で人間側の提示が厳しくなった**＝従来 付与【起】は**コイン所持を1度も見ていなかった**ので、
+//   コイン0でも「【起】コイン1」ボタンが出て**踏み倒して撃てた**（実行側は続き552c から deduct する）。
+// 🔑**同じ spec の `coins` だけを 1↔0 で振る**＝対照（コストなしの付与【起】）は**どちらでも出る**ことを
+//   同時に見て、「gate が付与【起】を丸ごと殺した」のではなく「コイン軸だけが効いた」ことを分離する。
+// ⚠センタールリグは**効果0件**の `WD03-003` を使う（自前の【起】が無い＝ボタンの取り違えが起きない）。
+const V80_LRIG = 'WD03-003';            // コード・ピルルク・Ｍ（ルリグ Lv2 / Limit5 / 効果0件）
+const V80_LRIG_NAME = 'コード・ピルルク・Ｍ';
+const v80GrantedSpec = (coins) => ({
+  hostSet: {
+    'field.lrig': [`${V80_LRIG}#8600`],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'coins': coins,
+    'actions_done': [],
+    'game_actions_done': [],
+    'blocked_actions': [],
+    // 付与ストアへ直接注入する（effectsMap には載らない収集源＝`collectGrantedLrigEffects` の②）。
+    'lrig_granted_auto_effects': [
+      { effectId: 'V80-GRANT-FREE', effectType: 'ACTIVATED', timing: ['MAIN'],
+        action: { type: 'DRAW', owner: 'self', count: 1 },
+        duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL' },
+      { effectId: 'V80-GRANT-COIN', effectType: 'ACTIVATED', timing: ['MAIN'], cost: { coin: 1 },
+        action: { type: 'DRAW', owner: 'self', count: 1 },
+        duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL' },
+    ],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8601'], 'field.signi': [null, null, null], 'field.check': null,
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV80Granted = async (page, H, expectCoinBtn) => {
+  await H.ensureMain();
+  await page.waitForTimeout(800);
+  const lrigImg = page.locator(`img[alt="${V80_LRIG_NAME}"]`).first();
+  if (await lrigImg.count() && await lrigImg.isVisible().catch(() => false)) {
+    await lrigImg.click({ force: true, timeout: 3000 }).catch(() => {});
+  }
+  await page.waitForTimeout(800);
+  const freeBtn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
+  const coinBtn = page.getByRole('button', { name: '【起】コイン1', exact: false }).first();
+  const hasFree = (await freeBtn.count()) > 0 && await freeBtn.isVisible().catch(() => false);
+  const hasCoin = (await coinBtn.count()) > 0 && await coinBtn.isVisible().catch(() => false);
+  const st = await H.queryState();
+  H.log(`  v80 coins=${st?.host?.coins} granted=${JSON.stringify(st?.host?.grantedLrigAutoIds)} free=${hasFree} coin=${hasCoin}`);
+  const detail = `coins=${st?.host?.coins} / 対照「【起】コストなし」=${hasFree} / 「【起】コイン1」=${hasCoin}（期待${expectCoinBtn}）`;
+  if (!hasFree) return { pass: false, detail: `🔴対照が消えた＝付与【起】が丸ごと提示されていない（${detail}）` };
+  return { pass: hasCoin === expectCoinBtn, detail };
+};
+
+scenarios.v80GrantedLrigActCoinShown = {
+  title: 'V-80 付与ルリグ【起】＝コインが足りれば「【起】コイン1」が出る（対照）',
+  spec: v80GrantedSpec(1),
+  drive: (page, H) => driveV80Granted(page, H, true),
+};
+scenarios.v80GrantedLrigActCoinGated = {
+  title: 'V-80 付与ルリグ【起】＝🔴コイン0では「【起】コイン1」が消える（コストなしの付与【起】は残る）',
+  spec: v80GrantedSpec(0),
+  drive: (page, H) => driveV80Granted(page, H, false),
+};
+order.push('v80GrantedLrigActCoinShown', 'v80GrantedLrigActCoinGated');
+// ── V-80 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -18202,7 +18273,7 @@ try {
   if (!SHOTS_ON) { const raw = page.screenshot.bind(page); page.screenshot = (o) => (o?.path?.includes('-final') ? raw(o) : Promise.resolve(Buffer.alloc(0))); }
   const errors = [];
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message + ' || STACK: ' + String(e.stack ?? '').split(String.fromCharCode(10)).slice(0, 14).join(' >> ')));
 
   // 共通ヘルパー束（シナリオ drive に渡す）
   const H = {

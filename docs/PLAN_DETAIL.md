@@ -2484,6 +2484,20 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
+- **🆕 2026-08-18 続き553（§8／§6.4 `O-1` (e)(f)＝CPU の ATTACK_LRIG→END を state 込みへ／ルリグ【起】の収集源3つを funnel へ）後 最新値（本行が直近の正）**：
+  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2293**（+2）、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
+  fuzz 全0、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**（⚠**同型★・`census:goldentypes`・`census:wiring` は今回未再計測**＝
+  live 非改変なので続き552d 値〔★0・未カバー0・wiring miss 193〕から動いていないはず。数字が要るなら再計測すること）。
+  **live 効果総数 10693**（`live JSON・CSV とも非改変`＝engine/UI 側のみの変更）。version **0.484**。
+  🆕**CPU が撃てるルリグ【起】の収集源が3つに**＝センター本来（MAIN **425**／AA **83**・続き552c 据置）に加えて
+  **付与【起】 92効果／63カード**・**継承宣言カード 3枚**（`WX05-002`/`003`/`004`）。
+  🆕**`ON_ATTACK_PHASE_END` の live 母集団＝1効果**（`WX24-P2-075`。CPU ターンでも発火するようになった）。
+  🆕**`CPU_UNSUPPORTED_ACTION_TYPES` は 1→0 種**（＝CPU 進行が支えられない綴りは無くなった）。
+  CPU が使える応答アーツ **214/428**・攻めのアーツ（除去）メイン **174**／アタック **188**・スペル **123/427**・
+  シグニ【起】 MAIN **500/682**／AA **54/76** は続き552d 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き553）。
+
 - **2026-08-18 続き552〜552d（§8／§6.4 `O-1` (a)〜(d)＝CPU がアーツ／スペル／【起】を使い、グロウも共通経路へ）後 最新値**：
   **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2291**（+13）、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
   fuzz 全0、**同型★ 0**（265群 / 5986枚）、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、

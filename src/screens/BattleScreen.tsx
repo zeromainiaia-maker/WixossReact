@@ -1899,6 +1899,46 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bs?.turn_phase, bs?.effect_stack, bs?.pending_effect, bs?.global_phase, bs?.active_user_id, bs?.host_state, bs?.guest_state]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  /**
+   * §6.4 O-10（続き515）＝`CHECK_ZONE_FLIP_FREE_GROW` の予約（`pending_flip_grow_card`）を消費して
+   * **正規のグロウ経路**（`executeGrow`）でグロウする。
+   *
+   * 🔑engine 側で `field.lrig` へ直接 push すると、グロウ時トリガー（【出】）・リミット再計算・
+   * コイン獲得が**丸ごと落ちる**（`GROW_FREE` が「BattleScreen 処理」なのと同じ理由）。
+   * ⚠**多重発火ガード**＝予約は commit が返るまで state に残るので、同じ対象で2回走らないよう ref で締める。
+   * ⚠`freeCost:true`／`consumeGrowAction:false`＝「グロウコストを支払わずに」かつ通常グロウ枠を消費しない。
+   *
+   * ⚠🔴**この2つの hook は必ず `if (!bs) return` より前に置くこと**（2026-08-18 続き554・実機で発見）＝
+   *   後ろに置くと **bs 到着後の再レンダーで hook 数が増え**、React #310
+   *   "Rendered more hooks than during the previous render." で **BattleScreen が丸ごと落ちて画面が真っ黒**になる。
+   *   ⚠**typecheck も lint も golden も踏めない層**（`react-hooks/rules-of-hooks` は「早期 return の後ろの hook」を
+   *   検出しない）＝**実機で初めて出る**。この節の他の hook と同じく、必要な値は `bs` から**その場で導出**する
+   *   （`my`／`isMyTurn` は下の PLAYING セクションで定義されるので、**依存配列からは参照できない**）。
+   * ⚠effect の**本体**は render 後に走るので、後方で定義される `executeGrow` を参照してよい（TDZ に掛からない）。
+   *   掛かるのは**依存配列**（hook 呼び出し時に評価される）だけ。
+   */
+  const flipGrowRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!bs || bs.global_phase !== 'PLAYING') return;
+    const localIsHost = user.id === bs.host_id;
+    const localMy = localIsHost ? bs.host_state : bs.guest_state;
+    const target = localMy?.pending_flip_grow_card;
+    if (!target) { flipGrowRef.current = null; return; }
+    if (bs.active_user_id !== user.id || loading) return;
+    if (flipGrowRef.current === target) return;
+    const card = battleCardMap.get(target);
+    if (!card) return;                 // カードデータが無ければ何もしない（壊れたルリグを作らない）
+    flipGrowRef.current = target;
+    void executeGrow(card, new Set(), {
+      baseState: { ...localMy, pending_flip_grow_card: undefined },
+      freeCost: true,
+      consumeGrowAction: false,
+      instanceId: target,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bs?.host_state?.pending_flip_grow_card, bs?.guest_state?.pending_flip_grow_card,
+      bs?.active_user_id, loading, bs?.global_phase]);
+
   if (!bs) return (
     <div style={{ height: '100vh', display: 'flex', justifyContent: 'center', alignItems: 'center', backgroundColor: C.bgSetup, color: C.text }}>
       読み込み中...
@@ -7035,23 +7075,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
    * ⚠**多重発火ガード**＝予約は commit が返るまで state に残るので、同じ対象で2回走らないよう ref で締める。
    * ⚠`freeCost:true`／`consumeGrowAction:false`＝「グロウコストを支払わずに」かつ通常グロウ枠を消費しない。
    */
-  const flipGrowRef = useRef<string | null>(null);
-  useEffect(() => {
-    const target = my.pending_flip_grow_card;
-    if (!target) { flipGrowRef.current = null; return; }
-    if (!bs || bs.global_phase !== 'PLAYING' || !isMyTurn || loading) return;
-    if (flipGrowRef.current === target) return;
-    const card = battleCardMap.get(target);
-    if (!card) return;                 // カードデータが無ければ何もしない（壊れたルリグを作らない）
-    flipGrowRef.current = target;
-    void executeGrow(card, new Set(), {
-      baseState: { ...my, pending_flip_grow_card: undefined },
-      freeCost: true,
-      consumeGrowAction: false,
-      instanceId: target,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [my.pending_flip_grow_card, isMyTurn, loading, bs?.global_phase]);
+  // ⚠**実体は上の「Rules of Hooks 対策」ブロック**（`if (!bs) return` より前）へ移した（2026-08-18 続き554）。
 
   // ── キーピース起動効果 ──
   const executeKeyActivated = async (cardNum: string, effect: import('../types/effects').CardEffect, costIndices: Set<number>, discardIndices: Set<number> = new Set()) => {

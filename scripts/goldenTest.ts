@@ -5376,6 +5376,30 @@ test('§6.4 turn-scoped T5: CPU終了ルートでCPU/人間双方のターン値
   eq(humanStarted.signi_played_from_non_hand_this_turn, undefined, '人間の新ターン出自履歴');
 }));
 
+test('🔴BattleScreen: `if (!bs) return` より後ろに React hook を置かない（Rules of Hooks）', () => withSavedCursor(() => {
+  // 🔴**実機でしか出ないクラッシュのトリップワイヤ**（2026-08-18 続き554 に実機で発見）。
+  //   BattleScreen は `bs`（battle_states 行）が届く前に一度レンダーされ、`if (!bs) return <読み込み中>` で
+  //   打ち切る。**その後ろに hook を書くと bs 到着後の再レンダーで hook 数が増え**、React #310
+  //   "Rendered more hooks than during the previous render." で**画面が丸ごと真っ黒**になる。
+  //   ⚠**typecheck も lint も既存 golden も踏めない**＝`react-hooks/rules-of-hooks` は
+  //   「早期 return の後ろの hook」を検出しない（条件分岐の中の hook しか見ない）。
+  //   実害＝`scripts/verifyBattleDrive.mjs` の**全シナリオが盤面注入後の reload で落ちて**、
+  //   §7 実機検証 worklist（当時 61件）が丸ごと回せなくなっていた（§6.4 O-10・続き515 の混入）。
+  //   直し方＝その hook を「Rules of Hooks 対策」ブロック（早期 return より前）へ移し、
+  //   必要な値は `bs` から**その場で導出**する（`my`／`isMyTurn` は依存配列から参照できない）。
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const marker = String.fromCharCode(10) + '  if (!bs) return (';
+  const at = src.indexOf(marker);
+  ok(at > 0, '早期 return `if (!bs) return (` が見つかる（形が変わったらこのテストを更新する）');
+  const after = src.slice(at + marker.length);
+  // コンポーネント本体の直下＝インデント2スペースの行だけを見る（入れ子コンポーネントは対象外）。
+  const HOOKS = 'useState|useEffect|useLayoutEffect|useMemo|useCallback|useRef|useReducer|useContext|useSyncExternalStore|useTransition|useDeferredValue|useId';
+  // ⚠`useRef<string | null>(null)` のようなジェネリック呼び出しも拾う＝末尾は `(` か `<` のどちらか。
+  const re = new RegExp('^  (?:const [^=]+= )?(?:' + HOOKS + ')[<(]', 'gm');
+  const found = after.match(re) ?? [];
+  eq(found.length, 0, `🔴早期 return より後ろの hook: ${JSON.stringify(found.slice(0, 5))}`);
+}));
+
 test('§6.4 turn-scoped T6: 4ターン終了経路＋2開始経路＋2アタックフェイズ経路を全配線', () => withSavedCursor(() => {
   const battleSource = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
   const section = (start: string, end: string): string => {

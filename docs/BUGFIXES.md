@@ -1,5 +1,66 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き554・Opus 5）— 🔴🔴**BattleScreen が React #310 で丸ごと落ちていた（Rules of Hooks 違反）＝§7 実機検証が全件回せなくなっていた真因**／§6.4 `O-1` (f) を実機で確認（V-80 ALL PASS）
+
+ゲート全緑（typecheck / golden **2293→2294** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機3本 ALL PASS**。version 0.484→0.485。**live JSON・CSV とも非改変**。
+
+### 1. 🔴真因＝`if (!bs) return` より**後ろ**に hook が2つあった（`BattleScreen.tsx`）
+
+`§6.4 O-10`（続き515）で足した `CHECK_ZONE_FLIP_FREE_GROW` 消費の
+
+```ts
+const flipGrowRef = useRef<string | null>(null);
+useEffect(() => { ... }, [my.pending_flip_grow_card, isMyTurn, loading, bs?.global_phase]);
+```
+
+が、**PLAYING セクション（`if (!bs) return <読み込み中>` の後ろ）** に置かれていた。
+BattleScreen は `bs`（battle_states 行）が届く前に一度レンダーされて早期 return するので、
+**bs 到着後の再レンダーで hook 数が増える** → React **#310**
+「Rendered more hooks than during the previous render.」で**コンポーネントが丸ごと落ちて画面が真っ黒**になる。
+
+- **実害**＝`scripts/verifyBattleDrive.mjs` は盤面注入後に `page.reload()` する設計なので、
+  **この経路を必ず通る＝全シナリオが無条件で FAIL**していた。§7 実機検証 worklist（当時 **61件**）が
+  丸ごと回せない状態で、**2026-08-14 続き481 を最後に実機検証が1本も進んでいなかった説明がつく**。
+- ⚠**typecheck も lint も既存 golden も踏めない層**＝`react-hooks/rules-of-hooks` は
+  「条件分岐の中の hook」は見るが**「早期 return の後ろの hook」は検出しない**。
+- **切り分け手順（記録）**＝①新シナリオが落ちる →②**既存シナリオ `wxk04003Label` も同じ #310 で落ちる**ことを確認 →
+  ③`git checkout HEAD~1 -- src/` で**前コミットでも再現**＝自分の変更由来ではないと確定 →
+  ④`vite.config.ts` に一時的に `build:{minify:false}` を入れ、`pageerror` ハンドラに **stack を出す**ようにして
+  `at BattleScreen ... at Object.updateRef [as useRef]` を得た（＝BattleScreen 自身の useRef）。
+
+**直し方**＝2つの hook を「Rules of Hooks 対策」ブロック（早期 return より前）へ移設。
+⚠**依存配列は hook 呼び出し時に評価される**ので `my`／`isMyTurn`（PLAYING セクションで定義）は使えない＝
+`bs?.host_state?.pending_flip_grow_card` などへ書き換え、`my` は effect 本体で `bs` から導出する。
+⚠**effect の本体**は render 後に走るので、後方で定義される `executeGrow` の参照はそのままでよい（TDZ に掛からない）。
+
+### 2. golden トリップワイヤ（+1）
+
+**`🔴BattleScreen: if (!bs) return より後ろに React hook を置かない（Rules of Hooks）`** を追加。
+`if (!bs) return (` 以降の本文から**インデント2スペース**（＝コンポーネント直下）の React 組み込み hook 呼び出しを
+正規表現で数え、**0でなければ赤**。⚠ジェネリック（`useRef<T>(`）も拾うため末尾は `[<(]` で見る。
+**修正前のコミット（`HEAD`）に当てると 2件検出**することを確認済み＝計器として効いている。
+
+### 3. 実機検証（§7 `V-80` ＝ §6.4 `O-1` (f) の観測点）— **3本 ALL PASS**
+
+| シナリオ | 結果 | 観測 |
+|---|---|---|
+| `wxk04003Label`（既存） | ✅PASS | センタールリグ【起】のラベル2種が共存（`【起】コイン1`＋`【起】コストなし`） |
+| `v80GrantedLrigActCoinShown`（新規） | ✅PASS | coins=1 → 付与【起】の `【起】コイン1` が**出る**（対照の `【起】コストなし` も出る） |
+| `v80GrantedLrigActCoinGated`（新規） | ✅PASS | coins=0 → `【起】コイン1` が**消える**／`【起】コストなし` は**残る**＝コイン軸だけが効いた |
+
+- 新規2本は **`lrig_granted_auto_effects` へ ACTIVATED を直接注入**して付与【起】の収集源②だけを踏む。
+  センタールリグは**効果0件の `WD03-003`** を使う（自前の【起】が無い＝ボタンの取り違えが起きない）。
+- ⚠**既存 `wxk04003Label` の spec に `coins: 1` を足した**＝続き552c で入った《コインアイコン》所持チェックにより
+  **coins=0 ではボタンが出なくなった**（それまでは所持0でも撃てる踏み倒しだった）。シナリオ側が古かっただけで
+  engine/UI のバグではない。負方向は新規 `v80GrantedLrigActCoinGated` が持つ。
+- `verifyBattleDrive.mjs` の `pageerror` ハンドラは**stack を14行まで出す**ように恒久変更した
+  （今回の切り分けで決定的だったのがこれ＝`e.message` だけでは「Minified React error #NNN」しか出ない）。
+
+### 4. ⚠残（→ §7 `V-79`）
+
+`V-79`（§6.4 `O-1` (e)＝CPU の追加アタックフェイズ）は**未検証のまま**。CPU にスペルを撃たせる盤面が要るので
+シナリオ作成の手数が別途かかる。**`V-74`〜`V-78` も未検証のまま**（ただし**ハーネスが動く状態には戻った**）。
+
 ## 2026-08-18（続き553・Opus 5）— **§8／§6.4 `O-1` (e)(f)＝CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ ＋ 付与／継承のルリグ【起】を funnel へ寄せて CPU に載せる**
 
 ゲート全緑（typecheck / golden **2291→2293** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.483→0.484。続き551〜552d の直接の続き。
