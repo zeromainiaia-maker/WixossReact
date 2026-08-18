@@ -20199,11 +20199,10 @@ scenarios.v60OnPlayAcceToEnergyRecoversProportional = {
     await H.ensureMain();
     await page.waitForTimeout(600);
     // ⚠`my-hand-card-0` はDOM描画順であって spec.hand の配列順とは限らない（続き565実測＝
-    //   意図しないWX15-105が召喚された＝おそらくCardNum昇順ソート）。目的のカード名で直接クリックする。
-    const targetHandImg = page.locator('img[alt="コードオーダー　とんラー"]').first();
-    const targetVisible = await targetHandImg.count() && await targetHandImg.isVisible().catch(() => false);
-    if (targetVisible) await targetHandImg.click({ force: true, timeout: 2000 }).catch(() => {});
-    H.log(`  v60acce 初回クリック targetVisible=${targetVisible}`);
+    //   my-hand-card-0 をクリックすると WX15-105 が召喚された＝CardNum昇順ソートで index0=WX15-105
+    //   と判明。img直クリックは反応しなかった（クリックハンドラはラッパー側）ので my-hand-card-1 を使う。
+    const initClick = await H.clickTestId('my-hand-card-1');
+    H.log(`  v60acce 初回クリック initClick=${initClick}`);
     let summoned = false;
     let fin = null;
     for (let s = 0; s < 20; s++) {
