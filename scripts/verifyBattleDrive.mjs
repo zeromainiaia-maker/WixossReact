@@ -20102,7 +20102,7 @@ scenarios.v61ConditionalShadowBlocksTargetingDuringOpponentTurn = {
       const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=guest_state`, { headers: h });
       const row = (await r2.json())?.[0];
       return row?.guest_state?.granted_effects ?? 'MISSING';
-    }, { SUPA_URL: process.env.SUPA_URL_INJECT ?? SUPA_URL, ANON: process.env.SUPA_ANON_INJECT ?? ANON }).catch(e => `ERROR:${e.message}`);
+    }, { SUPA_URL, ANON }).catch(e => `ERROR:${e.message}`);
     H.log(`  v61shadow rawGranted(guest)=${JSON.stringify(rawGranted)}`);
     await H.ensureMain();
     await page.waitForTimeout(600);
