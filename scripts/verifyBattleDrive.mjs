@@ -21411,7 +21411,7 @@ scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
     return { pass: grew && sawOnPlayLog, detail };
   },
 };
-order.push('v55CheckZoneFlipTargetMissingConfirmsBug');
+order.push('v55CheckZoneFlipGrowsAndOnPlayFires');
 // ── V-55 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
