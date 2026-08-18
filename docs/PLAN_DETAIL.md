@@ -40,6 +40,43 @@
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
   一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き567）。
 
+> **2026-08-19 続き569 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き568（§8 `O-1` の続き＝Opusタスク12 (cxxxv)(cxxxvi) 残0クローズ＋`V-75`／`V-78` 緑化）後 最新値（本行が直近の正）**：
+  **census 786**（787→786＝`WXEX2-11-E2` の条件節を拾ったぶん。`BASELINE_HIGH` も 786 へ更新）、**golden 2300**（+5＝ルリグ本体の相手向け封じ／`LRIG_IS_DRIVE_STATE` の成立・不成立／`DRAW_LIMIT_<n>` の上限／グロウ色制限の連結 Color／スラッシュ色コスト）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（262 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**）。
+  **live 効果総数 10693**（live JSON は `WXEX2-11-E2` の1効果だけ改変・CSV 非改変）。version **0.499**。
+  🆕**実機シナリオ総数 410**（+3＝`v78CpuResolvesFieldLimitTrash`／`v78CpuGrowsWhenColorRestrictSatisfied`／`v78CpuSkipsGrowWhenColorRestrictViolated`）。
+  🆕**実機 PASS（続き568 実測）＝7シナリオ ALL PASS（2回連続）**＝上の新規3本＋`v75ArtsLimit1FirstUseShown`／`v75ArtsLimit1SecondUseBlocked`（**赤→緑へ反転**）／`v78CpuGrowsAndPaysOnPlayCost`／`v78CpuGrowsButSkipsOnPlayWithoutCoin`（**赤→緑へ反転**）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**。
+  🆕**Opusタスク12＝在庫1件**（(cxxxvii) のみ。(cxxxv)(cxxxvi) は本セッションで残0クローズ）。
+  🏁**§8 `O-1`＝(a)〜(f) 消化済み＋実機検証（`V-74`〜`V-80`）完了＝残るのは (g) 選択の精緻化だけ**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き568）。
+
+## 2026-08-19 整理㊻（§6.4 `O-1`／§7 `V-82` 完全消化ぶんの退避・続き569）
+
+> 🏁**§6.4 で唯一の大物だった `O-1`（CPU AI の拡張）が (a)〜(g) 全消化で残0クローズ**。
+> 以下は PLAN §6.4 の worklist 行を verbatim で退避したもの（(a)〜(f) の射程と是正の記録）。
+> **(g) の実装内容は `BUGFIXES.md` 2026-08-19（続き569）**。観測点は §7 `V-82`（実機2本 PASS 済み）。
+
+- **原記述（`O-1`）**：🚧**2026-08-18 続き551〜552 で着手**。✅**続き551＝シグニ【起】の能動使用 v1**（`signiActivateGate.ts`＝提示ゲートを人間と共有／`performSigniActivated`＝owner パラメータ化／`cpuActivate.ts`＝選択。射程は MAIN で撃てる 682 のうち **500**）。✅**続き552＝(a) 相手ターンの応答アーツ v1**（`artsUseGate.ts`＝提示＋コスト計算の funnel を人間と共有／`performArts`＝owner パラメータ化／`cpuArts.ts`＝守りの分類と脅威判定。射程はアタックフェイズ Timing の 428 のうち **214**）。✅**続き552b＝(b) 自ターンのアーツ／スペル v1**（`pickCpuOffensiveArts`＝攻めは除去だけ・足切りは `hasBlockedAttacker`／`spellUseGate.ts`＝スペルの提示＋コスト計算の funnel（`SpellCastModal` も同じ関数を通す）／`performSpell`＝owner パラメータ化／`cpuSpell.ts`。射程は攻めのアーツ 除去がメイン窓 **174**・アタック窓 **188**、スペルが 427枚中 **123**）。✅**続き552c＝(c) ルリグ【起】＋《アタックフェイズアイコン》付きシグニ【起】 v1**（`lrigActivateGate.ts`／`performLrigActivated`／`cpuLrigActivate.ts`／`pickCpuSigniActivated` の `phase` 引数化。射程はルリグ【起】 MAIN **425**・AA **83**、アイコン付きシグニ【起】 **54**。🔴同時にルリグ【起】のコスト踏み倒し3件を是正＝コイン82効果／MAIN 窓の使用条件／AA 窓の【絆起】等）。✅**続き552d＝(d) CPU グロウの統合**（手書き再実装 約150行を削除して `performGrow` へ。候補は `growLogic.listGrowCandidates`。🏁**これで DESIGN §4「CPU は対人戦と同じ処理」は達成＝CPU 独自の実行実装は残っていない**）。✅**続き553＝(e) CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ**（`ADVANCE_TURN_WITH_STATE`＋`resolveNextPhaseAfterAttack`＝追加アタックフェイズのキューを1件消化。🔴同時に CPU 側の穴2つを塞いだ＝`ON_ATTACK_PHASE_END` の未収集／アタックフェイズ遅延 watcher の消し忘れ。⭐`CPU_UNSUPPORTED_ACTION_TYPES` は**空集合**になった＝`ADD_EXTRA_ATTACK_PHASE` の除外を撤去）。✅**続き553＝(f) 付与／継承のルリグ【起】**（`collectGrantedLrigEffects`／`listActivatableGrantedLrigEffects`／`listActivatableInheritedLrigEffects` を `lrigActivateGate` に新設し、可否判定は既存の `canActivateLrigEffect` 1本へ。射程＝付与【起】**92効果/63カード**・継承宣言**3カード**。🔴付与は コイン/エクシード/`lrigDown`/【絆起】/【歌のカケラ】を、継承は**ほぼ全軸**を見ておらず踏み倒しで撃てた）。**残＝(g) 「強い順に撃つ」等の選択の精緻化 だけ**。⚠**(g) は §7 `V-74`〜`V-80` の実機検証を終えてから着手する**（土台が動いていない状態で盤面評価を足すと、悪手なのか壊れているのかを切り分けられない）。CPU 召喚の ON_PLAY 解決は「全配置後まとめて」の近似（人間は1枚ごと）。**§6.4 で唯一の大物＝単独フェーズ扱い**。詳細は §4「次の一手 ⓪」
+
+- **(g) 消化（続き569）＝`src/screens/battle/cpuBoardEval.ts`（選択だけの純関数）**
+  - **召喚**＝`pickCpuDeployCard`＝①いまの予算で置ける最大体数を出し ②その体数を落とさない札に絞り ③パワー最大（同点はレベル大→候補順）。旧＝レベル昇順の最初の1枚＝**わざと弱い順**に出しており強い札が腐っていた。
+  - **アタック**＝`pickCpuAttackZone`＝`life`（正面が空）→`winBattle`→`noEffect` の順。強制アタックは最優先、同点はゾーン昇順。旧＝`findIndex`＝ゾーン0から順。
+  - **応答アーツ**＝`responseArtsAllowedKinds`＝軽減（`prevent`）は**ライフ2枚以下**でだけ解禁＝温存。
+  - 🔑**教訓**＝当初は「格上の正面には撃たない」を入れたが、[公式ルール](https://www.takaratomy.co.jp/products/wixoss/library/rule/word_051/)は「パワーが**以上**なら相手をバニッシュ／**未満**なら**両方残る**」＝**格下で殴っても自分は落ちない**ので前提が誤り。**実機回帰4本**（`v12`×3・`v14`）が落ちて判明した＝「精緻化」は実機回帰とセットでしか入れられない。
+  - 📋**v2 以降の候補**＝アタック順への【自】誘発の価値／除去アーツの対象価値／グロウ先の選択／エナチャージの選択／踏み込み判断。
+
+- **§7 `V-82`（続き569 で新設・実機 PASS 済み）**
+  - `v82CpuDeploysStrongestWithinLimit`＝手札 Lv1×3＋Lv4(P15000)・リミット12 で場が `[P15000, Lv1, Lv1]` の3体になる（旧は Lv1×3 で Lv4 が手札に残る）。
+  - `v82CpuAttacksInValueOrder`＝正面が空のゾーンが**先に**アタックし、格上に阻まれるゾーンも**そのあと撃つ**（両方ダウン・両方生存・相手の壁も健在）。
+  - 📋**follow-up**＝応答アーツの温存（`prevent`）は golden だけで、実機シナリオは未作成（該当カードの盤面づくりが要る）。
+
 ## 2026-08-19 整理㊺（Opusタスク12 (cxxxv)(cxxxvi) 残0クローズぶんの退避・続き568）
 
 > §3 Opusタスク12 の在庫2件を続き568 で修正した（どちらも §8 `O-1` の実機検証で見つかったもの＝

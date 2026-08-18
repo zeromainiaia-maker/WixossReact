@@ -19564,6 +19564,106 @@ scenarios.v78CpuResolvesFieldLimitTrash = {
 order.push('v78CpuResolvesFieldLimitTrash');
 // ── V-78 END ──
 
+// ── §7 V-82（続き569・§8/`O-1` (g)「選択の精緻化」）──
+// (a) 召喚＝**盤面が最も強くなる札**を選ぶ（旧実装は「レベル昇順の最初の1枚」＝わざと弱い順に出していた）。
+//     CPU の手札に Lv1 P3000 ×3 と Lv4 P15000（どちらも効果なし・コストなし）を持たせ、
+//     センターは WX14-019（Lv4・リミット12）＝**3ゾーンぶんのリミットは十分にある**。
+//     旧＝Lv1 を3体並べて Lv4 は手札で腐る／新＝Lv4 を出したうえで残り2ゾーンも Lv1 で埋める。
+const v82CpuDeployStrongSpec = () => ({
+  guestSet: {
+    'field.lrig': ['WX14-019#9200'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': ['WD01-013#9201', 'WD02-013#9202', 'WD03-013#9203', 'WX01-053#9204'],
+    'energy': [], 'coins': 0, 'actions_done': [], 'lrig_deck': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9210'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV82CpuDeployStrong = async (page, H) => {
+  let fin = null;
+  let handedOver = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const zones = (fin?.guest?.fieldSigni ?? []).map(z => (z ?? []).at(-1) ?? null);
+  const hasBig = zones.some(z => String(z ?? '').startsWith('WX01-053'));
+  const filled = zones.filter(Boolean).length;
+  const detail = `場=${JSON.stringify(zones)} / Lv4(P15000)を出した=${hasBig}（期待true） / 体数=${filled}（期待3） / handedOver=${handedOver}`;
+  H.log(`  v82deploy ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  return { pass: hasBig && filled === 3, detail };
+};
+
+scenarios.v82CpuDeploysStrongestWithinLimit = {
+  title: 'V-82(a) CPU 召喚＝リミット内でいちばん強い札を出す（体数は落とさない）',
+  spec: v82CpuDeployStrongSpec(),
+  drive: (page, H) => driveV82CpuDeployStrong(page, H),
+};
+
+// (b) アタック＝**価値の高い順に殴る**（旧実装はゾーン0から順＝盤面を見ていなかった）。
+//     CPU のゾーン0（P3000）の正面（host ゾーン2）に P15000 を置き、CPU のゾーン2の正面（host ゾーン0）は空。
+//     ⚠公式ルールでは**格下で殴っても自分は落ちない**（両方残る）ので「撃たない」判断は入れていない＝
+//     観測点は**順序**＝ライフに通るゾーン2が**先に**アタックし、そのあとゾーン0も撃つ（両方ダウン）。
+//     ⚠facing は `2 - zi`（盤面は左右反転）。
+const v82CpuAttackChoiceSpec = () => ({
+  guestSet: {
+    'field.lrig': ['WX14-019#9220'],
+    'field.signi': [['WD01-013#9221'], null, ['WD02-013#9222']],
+    'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [], 'coins': 0, 'actions_done': [], 'lrig_deck': [],
+  },
+  hostSet: {
+    'field.lrig': ['WD01-001#9230'],
+    'field.signi': [null, null, ['WX01-053#9231']],   // guest ゾーン0 の正面＝P15000（格上）
+    'field.check': null, 'hand': [], 'energy': [],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+
+const driveV82CpuAttackChoice = async (page, H) => {
+  let fin = null;
+  let handedOver = false;
+  const attackOrder = [];
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    for (const l of (st?.logTail ?? [])) {
+      const m = String(l).match(/^\[CPU\] (.+) がアタック$/);
+      if (m && !attackOrder.includes(m[1])) attackOrder.push(m[1]);
+    }
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const down = fin?.guest?.signiDown ?? [];
+  const hostZ2 = (fin?.host?.fieldSigni ?? [])[2];
+  // WD02-013＝羅石　アイロン（ゾーン2・正面が空）／WD01-013＝小剣　ククリ（ゾーン0・格上の正面）。
+  const freeFirst = attackOrder[0] === '羅石　アイロン';
+  const bothAttacked = down[0] === true && down[2] === true;
+  const blockerAlive = !!(hostZ2 && hostZ2.length > 0);
+  const weakSurvived = String((fin?.guest?.fieldSigni ?? [])[0]?.at?.(-1) ?? '').startsWith('WD01-013');
+  const detail = `アタック順=${JSON.stringify(attackOrder)}（期待＝羅石　アイロンが先） / down=${JSON.stringify(down)} / `
+    + `格下で殴っても自分は残る=${weakSurvived} / host正面(P15000)健在=${blockerAlive} / handedOver=${handedOver}`;
+  H.log(`  v82attack ${detail}`);
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail}）` };
+  return { pass: freeFirst && bothAttacked && blockerAlive && weakSurvived, detail };
+};
+
+scenarios.v82CpuAttacksInValueOrder = {
+  title: 'V-82(b) CPU アタック＝ライフに通るシグニから先に殴る（格下も撃つ＝公式ルールでは損しない）',
+  spec: v82CpuAttackChoiceSpec(),
+  drive: (page, H) => driveV82CpuAttackChoice(page, H),
+};
+order.push('v82CpuDeploysStrongestWithinLimit', 'v82CpuAttacksInValueOrder');
+// ── V-82 END ──
+
 // ── §7 V-73（続き549・【常】のゲート「〜あるかぎり」が実際に効くこと）──
 // WX14-073（基本パワー5000。トラッシュにスペルがあるかぎり基本パワー8000＝POWER_SET＋activeCondition
 // TRASH_HAS_CARD）と WXDi-P04-050（パワー10000。このシグニがアップ状態であるかぎり＋5000＝POWER_MODIFY＋

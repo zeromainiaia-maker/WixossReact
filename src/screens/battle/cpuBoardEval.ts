@@ -33,12 +33,17 @@ export interface CpuDeployCandidate {
  * 「Lv1×3体（合計パワー小）」に固定され、**強い札は一生手札で腐る**（実測＝Lv4のP12000を持っていても
  * Lv1のP3000から出す）。かといって単純に「パワー最大」にすると**リミットを1枚で食い潰して場が埋まらない**。
  *
- * そこで **「他の残りゾーンぶんのレベルを先に取り置く」** ＝
- * `この札のレベル + （残りゾーン数-1 体ぶんの最小レベル合計） ≤ 残りリミット` を満たす札の中から
- * **パワー最大**を選ぶ（同点はレベル大 → 候補配列の順）。これで「埋まる体数は維持したまま、いちばん強い札」になる。
+ * そこで **「置ける体数」を落とさない範囲で最強**を選ぶ＝
+ *   ① まずリミット内で**最大何体置けるか**（`bestCount`）を出す（レベル昇順の貪欲＝最大体数はこれで最適）
+ *   ② その体数を維持できる札（＝`1 + 残りで置ける体数 >= bestCount`）だけに絞り
+ *   ③ その中で**パワー最大**（同点はレベル大 → 候補配列の順＝決定論）
  *
+ * ⚠**「体数」は残りゾーン数で頭打ちにする**（`zonesRemaining`）＝空きゾーンより多く数えると
+ * 取り置きが過剰になり、いつまでも弱い札しか出せなくなる。
  * ⚠**取り置きは「他の候補の実レベル」で計算する**（`1` 固定にしない）＝手札が Lv3 ばかりのときに
  * 「Lv1が来る前提」で取り置くと、結局2体目が置けずリミットだけ余る。
+ * 🔑体数が同じなら強い方が良い＝リミット5・Lv1(P3000)/Lv1(P2000)/Lv4(P12000) なら
+ * **Lv4＋Lv1（2体・合計15000）**を選ぶ（Lv1×2体＝2体・5000 と体数は同じ）。
  *
  * @param zonesRemaining このゾーンを**含む**、これから埋められる残ゾーン数（1以上）。
  * @returns 選んだ候補の `id`。置ける札が無ければ `null`。
@@ -52,58 +57,67 @@ export function pickCpuDeployCard(p: {
   const { candidates, remainingLimit, zonesRemaining } = p;
   const fits = candidates.filter(c => c.level <= remainingLimit);
   if (fits.length === 0) return null;
-  /** この札を出したあと、他の残りゾーンを埋めるために取り置くレベル合計。 */
-  const reserveFor = (pick: CpuDeployCandidate): number => {
-    const others = candidates.filter(c => c !== pick).map(c => c.level).sort((a, b) => a - b);
-    const k = Math.max(0, Math.min(zonesRemaining - 1, others.length));
-    return others.slice(0, k).reduce((s, lv) => s + lv, 0);
+  /** レベル昇順の貪欲＝この予算・枠数で置ける**最大体数**（最大体数問題は昇順貪欲が最適）。 */
+  const maxCount = (levels: readonly number[], budget: number, slots: number): number => {
+    let used = 0, n = 0;
+    for (const lv of [...levels].sort((a, b) => a - b)) {
+      if (n >= slots || used + lv > budget) break;
+      used += lv; n++;
+    }
+    return n;
   };
+  const bestCount = maxCount(candidates.map(c => c.level), remainingLimit, zonesRemaining);
   const better = (a: CpuDeployCandidate, b: CpuDeployCandidate) =>
     (b.power - a.power) || (b.level - a.level) || (candidates.indexOf(a) - candidates.indexOf(b));
-  // ①「残りゾーンを埋められる」札の中で最強。
-  const keepsBoardWide = fits.filter(c => c.level + reserveFor(c) <= remainingLimit);
+  // ①「置ける体数」を落とさない札の中で最強。
+  const keepsBoardWide = fits.filter(c => {
+    const others = candidates.filter(o => o !== c).map(o => o.level);
+    return 1 + maxCount(others, remainingLimit - c.level, zonesRemaining - 1) >= bestCount;
+  });
   if (keepsBoardWide.length > 0) return [...keepsBoardWide].sort(better)[0].id;
-  // ②どう置いても残りゾーンが埋まらないなら、**リミットに入る中で最強**を出す（1体でも強い方がよい）。
+  // ②理屈上ここには来ない（体数最大を達成する札は必ず1枚はある）が、保険として最強を出す。
   return [...fits].sort(better)[0].id;
 }
 
-/** アタック1回ぶんの見積り（`pickCpuAttackZone` の内部表現・golden から読めるよう export）。 */
+/**
+ * アタック1回ぶんの見積り（`pickCpuAttackZone` の内部表現・golden から読めるよう export）。
+ *
+ * 🔑**バトルの公式ルール**（[タカラトミー ルール解説「バトル」](https://www.takaratomy.co.jp/products/wixoss/library/rule/word_051/)）＝
+ * 「アタックしているシグニのパワーが**相手のシグニのパワー以上**の場合…相手のシグニをバニッシュします。
+ * **未満**の場合…**両方のシグニが残ります**」。
+ * ⚠つまり **同値はアタック側の勝ち**／**格下で殴っても自分は落ちない**（＝突っ込んでも損はしない）。
+ * engine の `myPower >= opPower` はこの規則どおりで、**ここは engine に合わせてある**。
+ * ⚠「相打ち」「自爆」という直感でこの表を書き換えないこと（実装も規則もそうなっていない）。
+ */
 export type CpuAttackValue =
   /** 正面が空＝ライフクロスに通る（最優先）。 */
   | 'life'
-  /** 正面にいるが**こちらのパワーが上**＝相手シグニを退けられる。 */
+  /** 正面にいて**こちらのパワーが以上**＝相手シグニをバニッシュできる（同値も勝ち）。 */
   | 'winBattle'
-  /** 正面と**同値**＝相打ち（v1 は撃たない）。 */
-  | 'trade'
-  /** 正面が**格上**＝自分だけ落ちる（v1 は撃たない）。 */
-  | 'suicide';
+  /** 正面が**格上**＝両方残る＝**何も起こらない**（損もしないので最後に撃つ）。 */
+  | 'noEffect';
 
 /** ゾーン1つのアタック価値。`facingPower` が `null` なら正面が空。 */
 export function cpuAttackValueOf(attackerPower: number, facingPower: number | null): CpuAttackValue {
   if (facingPower === null) return 'life';
-  if (attackerPower > facingPower) return 'winBattle';
-  if (attackerPower === facingPower) return 'trade';
-  return 'suicide';
+  return attackerPower >= facingPower ? 'winBattle' : 'noEffect';
 }
 
-const VALUE_ORDER: Record<CpuAttackValue, number> = { life: 0, winBattle: 1, trade: 2, suicide: 3 };
+const VALUE_ORDER: Record<CpuAttackValue, number> = { life: 0, winBattle: 1, noEffect: 2 };
 
 /**
- * CPU が**次にアタックさせるシグニのゾーン**を選ぶ（撃つ価値が無ければ `null`＝アタックステップを終える）。
+ * CPU が**次にアタックさせるシグニのゾーン**を選ぶ（アタックできる札が無ければ `null`）。
  *
- * 🔴**旧実装は `findIndex`＝ゾーン0から順に全部アタック**だった＝正面に格上がいても突っ込み、
- * **自分のシグニだけが落ちる**（相手は無傷でこちらの盤面だけ減る）。
+ * 🔴**旧実装は `findIndex`＝ゾーン0から順**＝盤面をまったく見ずに並び順で殴っていた。
  *
- * v1 の順序は **ライフに通る → 勝てるバトル →（撃たない）**：
- *   - `life`＝正面が空＝そのままライフクロスを削れる。**最優先**。
- *   - `winBattle`＝正面より強い＝相手の壁を退けられる。
- *   - `trade`（相打ち）／`suicide`（格上）＝**撃たない**＝盤面を残す。
- *     ⚠これは「打点を捨てる」判断でもある（相打ちで壁を退けたい局面はある）。v1 は**盤面維持に倒す**＝
- *     読みの浅い CPU が毎ターン自分の場を溶かして事故る方が体験として悪い、という判断。広げるなら
- *     「相手のライフが残り1ならトレードしてでも通す」等の条件つきで `trade` を解禁する。
+ * v1 は **価値の高い順に並べ替えるだけ**＝ `life`（ライフに通る）→ `winBattle`（相手を退けられる）→ `noEffect`。
+ * ⚠**「撃たない」判断は入れない**＝上記のとおり格下で殴っても**自分は落ちない**（両方残る）ので、
+ * 撃たない理由が無い（むしろ【自】「アタックしたとき」の誘発を捨てるぶん損）。**順序だけが利く**：
+ *   - ライフを先に削ると、**その後の盤面変動（ライフバーストで自分のシグニが退かされる等）に左右されない**。
+ *   - 勝てるバトルを先に済ませると、相手の壁が減った状態で残りの処理に入れる。
  *
- * ⚠**強制アタック（「可能ならばアタックしなければならない」）は無条件で最優先**＝ルール由来の義務なので
- * 価値評価より先。⚠**同点は必ずゾーン番号昇順**で解決する（実機シナリオの再現性）。
+ * ⚠**強制アタック（「可能ならばアタックしなければならない」）は無条件で最優先**＝ルール由来の義務。
+ * ⚠**同点は必ずゾーン番号昇順**で解決する（実機シナリオの再現性）。
  */
 export function pickCpuAttackZone(p: {
   /** `canSigniAttack` を通ったゾーン（**可否はここで再判定しない**）。 */
@@ -121,9 +135,8 @@ export function pickCpuAttackZone(p: {
   if (forced.length > 0) return forced[0];
   const scored = attackable
     .map(z => ({ z, v: cpuAttackValueOf(p.attackerPower(z), p.facingPower(z)) }))
-    .filter(s => s.v === 'life' || s.v === 'winBattle')
     .sort((a, b) => (VALUE_ORDER[a.v] - VALUE_ORDER[b.v]) || (a.z - b.z));
-  return scored.length > 0 ? scored[0].z : null;
+  return scored[0].z;
 }
 
 /**
@@ -133,13 +146,11 @@ export function pickCpuAttackZone(p: {
  * 「正面が空だと思って突っ込む」形の静かな誤判定になる（`hasIncomingThreat` と同じ罠）。
  */
 export function facingSigniPower(
-  attacker: PlayerState,
   defender: PlayerState,
   zone: number,
   powers: Map<string, number>,
   cardMap: Map<string, CardData>,
 ): number | null {
-  void attacker;
   const facing = defender.field.signi[2 - zone]?.at(-1);
   if (!facing) return null;
   return effectivePowerOf(facing, powers, cardMap);

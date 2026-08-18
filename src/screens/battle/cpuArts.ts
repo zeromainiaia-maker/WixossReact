@@ -239,6 +239,21 @@ function pickCpuArtsBy(
 
 const ALL_KINDS: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['negate', 'removal', 'prevent']);
 const REMOVAL_ONLY: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['removal']);
+/** 軽減（`prevent`）を温存する窓＝無効化と除去だけ許す。 */
+const KEEP_PREVENT: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['negate', 'removal']);
+
+/**
+ * 応答窓で**使ってよい分類**（§8 `O-1` (g)＝「守りの札を温存する」）。
+ *
+ * `prevent`（ダメージ軽減・肩代わり）は**ライフが実際に危ないときだけ**使う。ライフ7枚で
+ * 1点を軽減しても盤面は何も変わらず、**その札は二度と戻らない**＝終盤に本当に必要な場面で無くなる。
+ * v1 の線は **残りライフ2枚以下**（＝ダブルクラッシュ1回やルリグアタック2回で負ける射程）。
+ * ⚠`negate`（アタック無効）と `removal`（相手シグニ除去）は**盤面に残る効果**なので温存しない
+ * （除去は壁を1枚減らす＝次のターン以降も効く／無効化はそのアタック1回を丸ごと消す）。
+ */
+export function responseArtsAllowedKinds(actor: PlayerState): ReadonlySet<CpuDefensiveKind> {
+  return (actor.life_cloth?.length ?? 0) <= 2 ? ALL_KINDS : KEEP_PREVENT;
+}
 
 /**
  * CPU がいま使う**応答アーツ**を1枚選ぶ（相手ターンのアーツステップ・無ければ `null`）。
@@ -247,7 +262,8 @@ const REMOVAL_ONLY: ReadonlySet<CpuDefensiveKind> = new Set<CpuDefensiveKind>(['
  */
 export function pickCpuResponseArts(p: CpuArtsPickInput): CpuArtsChoice | null {
   if (!hasIncomingThreat(p.actor, p.opponent)) return null;
-  return pickCpuArtsBy(p, { isMyTurn: false, allowKinds: ALL_KINDS });
+  // §8 `O-1` (g)＝ライフに余裕があるうちは**軽減（`prevent`）を温存**する（`responseArtsAllowedKinds`）。
+  return pickCpuArtsBy(p, { isMyTurn: false, allowKinds: responseArtsAllowedKinds(p.actor) });
 }
 
 /**

@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き568・Opus 5）＝§8/§6.4 `O-1` の続き＝Opusタスク12 (cxxxv)(cxxxvi) を残0クローズし `V-75`／`V-78` を実機で緑化＝🏁(g) の着手条件が満たされた**。ゲート全緑（**golden 2295→2300**・**census 787→786**〔`BASELINE_HIGH` 更新〕・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機7シナリオ ALL PASS（2回連続）／新規3本**。live JSON は **1効果だけ改変**（`WXEX2-11-E2` の条件節）・CSV 非改変。version 0.498→0.499。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き568）。
+  - **✅ (cxxxv)＝ルリグ本体の CONTINUOUS `BLOCK_ACTION{owner:'opponent'}` が恒久 no-op**（`scanField` はシグニだけ・`scanLrigSelfBlocks` は self だけで、**その対の分岐が無かった**）。`scanLrigBlocks` へ拡張し、**5枚ぶんの消費地点を1つずつ確認**＝`ARTS_LIMIT_1`／`USE_SPELL`／`GROW` は既存、🔴**`GUARD`（素の丸ごと封じ）と `DRAW_LIMIT_1` は消費地点が無かった**ので `GuardResponseDialog` と人間／CPU 両方のドロー地点（新 `drawPhaseLimitFromBlocked`）へ配線した。
+  - ⚠**経路を開くと過剰実行になる札があった**＝`WXEX2-11-E2`「このルリグがドライブ状態であるかぎり」の条件節が live から落ちていた。シグニ用 `IS_DRIVE_STATE` は**ルリグ本体では常に false** なので流用できず、新型 `LRIG_IS_DRIVE_STATE` を型/評価器/parser/ミラー表に足してから開いた（census −1）。
+  - **✅ (cxxxvi)＝CPU グロウの永久凍結**＝`performGrow` が entries 0件だと `WRITE_STATE` だけ commit するのに、CPU 駆動 useEffect の依存配列に**グロウで動く値が1つも入っていなかった**＝タイマーが再スケジュールされない。依存に `field.lrig`（段数・トップ）／`lrig_deck`／`coins`／`actions_done` を追加。
+  - **✅ `V-78`(B)(D) を新規シナリオ3本で消化**＝(B) 場出し数制限の選択エントリを CPU が自動応答で解決して**止まらない**（3体→1体）／(D) グロウ色制限が CPU ターンでも効く（対で確認）。🔴**その過程で engine バグをさらに2件発見・修正**＝①`listGrowCandidates` の色分解（`Color` は「赤緑」の連結形式なのに `split(/[・,、]/)`＝**満たす札まで弾く過剰制限**）②**スラッシュ色コスト `《赤/緑》×１` がどの色でも払えない**（母集団**24枚**＝ルリグ13がグロウ不能・アーツ9＋キー2が使用不能）→ 色照合を新 `costColorMatches()` に集約。
+  - **▶ 次の一手【Opus 側】**＝🏁**`V-74`〜`V-80` が全部緑になったので §8 `O-1` (g)「選択の精緻化」に着手できる**（盤面評価＝「強い順に撃つ」「守りの札を温存する」）。⚠評価関数を入れる前後で同じ実機シナリオを回して「悪手か故障か」を切り分けること。Opusタスク12 の在庫は **(cxxxvii) 1件のみ**。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（残＝`V-04`／`V-15`〜`V-17`／`V-19`／`V-20`〜`V-24`／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`／`V-63`／`V-81`）。
+
 - **🆕 セッション（2026-08-19・続き567・Opus 5）＝§6.4 `O-19b`＝到達不能な `ArtsModal` Phase1（アーツ一覧）を削除＝🏁§6.4 の worklist が残0**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors／warnings 263→**262**）。**live JSON・CSV とも非改変**（UI 3ファイルのみ）。version 0.497→0.498。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き567）。
   - **✅ O-19b＝二択のうち①「消す」を採用**＝`ArtsModal.tsx` の Phase1（119行）と `BattleScreen.tsx` の `artsCandidates`（11行＋prop）を削除し、モーダルは `showArtsModal && pendingArtsCard &&` でガードした**単相**（コスト支払いだけ）になった。**②「一覧を戻す」を採らなかった理由**＝一覧を戻すと `artsUseGate.checkArtsUse` と並ぶ**2本目のコスト計算入口**が復活する（この二重化こそ `altCostOppTurn`／「使用時の任意支払い軽減」が片側にしか無かった真因）。将来一覧が欲しくなったら `listUsableArts` の戻り値を**描画するだけ**にすること。
   - **挙動不変**（削除したのは到達不能コードのみ）＝観測点は §7 **`V-81`**（ルリグデッキ詳細「使用」→コスト選択→使用が通ること・コスト0アーツ含む）。

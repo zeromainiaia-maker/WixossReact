@@ -105,7 +105,8 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor } from '../src/screens/battle/artsUseGate';
-import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts } from '../src/screens/battle/cpuArts';
+import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
+import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
 import { exceedPayableCount, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
@@ -31235,6 +31236,67 @@ test('§6.4 O-3: `WX05-018-E1`（【常】相手のエナフェイズをスキ�
   // 対照＝そのシグニが居なければ普通にエナフェイズへ入る。
   const none = calcContinuousBlockedActions(me, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(resolveNextPhaseWithSkips('DRAW', me, none.forSelf), 'ENERGY', '対照: 居なければ飛ばさない');
+});
+
+// ══════════════ §8 `O-1` (g) 選択の精緻化（`cpuBoardEval.ts`・続き569）══════════════
+// ⚠ここは**選択**だけの純関数（可否は `signiAttackGate` / `deployLimitBlockReason` が権威）＝
+//   合成入力で決定論を固定する。実カードを引かないので `withSavedCursor` も不要。
+
+test('§8 O-1(g): CPU 召喚は「残りゾーンを埋められる範囲でいちばん強い札」を選ぶ', () => {
+  // 🔴旧実装は**レベル昇順の最初の1枚**＝リミットが余っていても弱い札から出していた。
+  const cands = [
+    { id: 'w1', level: 1, power: 3000 },
+    { id: 'w2', level: 1, power: 2000 },
+    { id: 'big', level: 4, power: 12000 },
+  ];
+  // 残ゾーン1・リミット5＝体数の制約が無い＝**いちばん強い札**。
+  eq(pickCpuDeployCard({ candidates: cands, remainingLimit: 5, zonesRemaining: 1 }), 'big', '1ゾーンなら最強を出す');
+  // 残ゾーン3でもリミット5では**どうやっても2体まで**（1+1 か 4+1）＝体数が同じなら強い方＝big+Lv1。
+  eq(pickCpuDeployCard({ candidates: cands, remainingLimit: 5, zonesRemaining: 3 }), 'big', '体数が並ぶなら強い札（旧実装は必ず Lv1 から出していた）');
+  // 残ゾーン2・リミット6＝big(4)+w2(1)=5 ≤ 6 で両方入る＝**強い方から出せる**。
+  eq(pickCpuDeployCard({ candidates: cands, remainingLimit: 6, zonesRemaining: 2 }), 'big', 'リミットが足りるなら強い札を先に出す');
+  // どれも入らない＝null（呼び出し側はループを抜ける）。
+  eq(pickCpuDeployCard({ candidates: cands, remainingLimit: 0, zonesRemaining: 3 }), null, '入る札が無ければ null');
+  // 🔑**体数が落ちるなら強い札は出さない**＝Lv1×3体（3体）と big（1体＋残り0）なら前者。
+  const wide = [...cands, { id: 'w3', level: 1, power: 1000 }];
+  eq(pickCpuDeployCard({ candidates: wide, remainingLimit: 4, zonesRemaining: 3 }), 'w1', '体数が落ちる札は選ばない');
+  eq(pickCpuDeployCard({ candidates: wide, remainingLimit: 4, zonesRemaining: 1 }), 'big', '同じ手札でも残1ゾーンなら最強');
+  // 取り置きは**他候補の実レベル**で計算する（1固定にしない）＝Lv3しか無い手札で誤って取り置かない。
+  const heavy = [{ id: 'a', level: 3, power: 8000 }, { id: 'b', level: 3, power: 9000 }];
+  eq(pickCpuDeployCard({ candidates: heavy, remainingLimit: 4, zonesRemaining: 2 }), 'b',
+    '2体目が入らない盤面では「入る中で最強」を出す');
+});
+
+test('§8 O-1(g): CPU アタックは ライフに通る→勝てるバトル→それ以外 の順（公式ルール＝同値は勝ち・格下でも自分は落ちない）', () => {
+  // 🔑公式ルール（タカラトミー「バトル」）＝パワーが**以上**なら相手をバニッシュ／**未満**なら**両方残る**。
+  //   ＝同値はアタック側の勝ち／格下で殴っても損はしない（engine の `myPower >= opPower` と一致）。
+  //   ⚠だから「撃たない」判断は入れない＝順序だけを最適化する（撃たないと【自】アタック時誘発を捨てる）。
+  eq(cpuAttackValueOf(10000, null), 'life', '正面が空＝ライフ');
+  eq(cpuAttackValueOf(10000, 5000), 'winBattle', '格上＝勝てるバトル');
+  eq(cpuAttackValueOf(5000, 5000), 'winBattle', '同値も勝ち（公式ルールの「以上」）');
+  eq(cpuAttackValueOf(3000, 5000), 'noEffect', '格下＝両方残る＝何も起こらない');
+  const pick = (attackable: number[], atk: Record<number, number>, face: Record<number, number | null>, forced?: number[]) =>
+    pickCpuAttackZone({ attackable, forced, attackerPower: z => atk[z], facingPower: z => face[z] });
+  // ゾーン0は格上に阻まれる／ゾーン2は正面が空＝**2が先**（旧実装はゾーン昇順で0を選んでいた）。
+  eq(pick([0, 2], { 0: 3000, 2: 5000 }, { 0: 12000, 2: null }), 2, 'ライフに通る方を先に撃つ');
+  // 勝てるバトルとライフが両方あるならライフが先。
+  eq(pick([0, 1], { 0: 12000, 1: 5000 }, { 0: 3000, 1: null }), 1, 'ライフ > 勝てるバトル');
+  // 勝てるバトルと「何も起こらない」ならバトルが先。
+  eq(pick([0, 1], { 0: 3000, 1: 12000 }, { 0: 12000, 1: 8000 }), 1, '勝てるバトル > 何も起こらない');
+  // 全部「何も起こらない」でも**撃つ**（null にしない＝アタック時誘発を捨てない）。
+  eq(pick([0, 1], { 0: 3000, 1: 3000 }, { 0: 12000, 1: 12000 }), 0, '格下しか無くても撃つ（ゾーン昇順）');
+  // 強制アタックはルール由来の義務＝価値評価より先。
+  eq(pick([0, 1], { 0: 3000, 1: 12000 }, { 0: 12000, 1: null }, [0]), 0, '強制アタックが最優先');
+  // アタックできる札が無ければ null（呼び出し側はアタックステップを終える）。
+  eq(pick([], {}, {}), null, '候補が無ければ null');
+});
+
+test('§8 O-1(g): 応答アーツはライフに余裕があるうちは軽減（prevent）を温存する', () => {
+  const kinds = (life: number) => [...responseArtsAllowedKinds({ life_cloth: fill(life) } as unknown as PlayerState)].sort();
+  eq(JSON.stringify(kinds(7)), JSON.stringify(['negate', 'removal']), 'ライフ7＝軽減は温存する');
+  eq(JSON.stringify(kinds(3)), JSON.stringify(['negate', 'removal']), 'ライフ3＝まだ温存する');
+  eq(JSON.stringify(kinds(2)), JSON.stringify(['negate', 'prevent', 'removal']), 'ライフ2＝軽減も解禁');
+  eq(JSON.stringify(kinds(0)), JSON.stringify(['negate', 'prevent', 'removal']), 'ライフ0でも解禁のまま');
 });
 
 test('§3 (cxxxv): ルリグ本体の CONTINUOUS `BLOCK_ACTION{owner:opponent}` が相手側の封じとして立つ（`WX13-007` ARTS_LIMIT_1）', () => withSavedCursor(() => {

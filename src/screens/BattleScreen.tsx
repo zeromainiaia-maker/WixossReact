@@ -123,6 +123,7 @@ import { resolveSigniZonePlacement, activateNextTurnSigniZoneBlocks } from './ba
 import { clearUntilOppTurnEffects } from './battle/untilOppTurn';
 import { attackFieldTrashCost, canPayAttackFieldTrashCost, clearAttackFieldTrashCosts, deterministicAttackFieldTrashZones, payAttackFieldTrashCost } from './battle/attackFieldTrashCost';
 import { canSigniAttack, collectForcedAttackZones, signiAttackColorlessCost } from './battle/signiAttackGate';
+import { effectivePowerOf, facingSigniPower, pickCpuAttackZone, pickCpuDeployCard } from './battle/cpuBoardEval';
 import { listActivatableSigniEffects } from './battle/signiActivateGate';
 import { pickCpuSigniActivated, selectEnergyIndicesForCost } from './battle/cpuActivate';
 import { collectGrantedLrigEffects, listActivatableLrigEffects, listActivatableGrantedLrigEffects, listActivatableInheritedLrigEffects } from './battle/lrigActivateGate';
@@ -10924,11 +10925,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         fieldTotal += parseInt(topCard?.Level ?? '0') || 0;
       }
 
-      // 手札のシグニをコストの低い順（レベル低い順）でフィルタ
+      // 手札のシグニ（**順序はここで決めない**）。
+      // 🔴**旧実装は「レベル昇順」で並べて「入る最初の1枚」**＝リミットが余っていてもわざと弱い札から出しており、
+      //   強い札が一生手札で腐っていた。§8 `O-1` (g) で**盤面評価（`pickCpuDeployCard`）**へ置き換えた＝
+      //   「残りゾーンを埋められる範囲でいちばん強い札」を選ぶ。⚠**手札の並び順に依存しない**ように、
+      //   ここでのソートは**同点解決のための安定順（手札順）だけ**にする。
       const handSignis = cpuSt.hand
         .map((id, idx) => ({ id, idx, card: cards.find(c => c.CardNum === getCardNum(id)) }))
-        .filter(({ card }) => card && card.Type === 'シグニ')
-        .sort((a, b) => (parseInt(a.card!.Level) || 0) - (parseInt(b.card!.Level) || 0));
+        .filter(({ card }) => card && card.Type === 'シグニ');
 
       let newCpuSt = { ...cpuSt };
       // 配置したシグニの【出】/ON_PLAYトリガー（対人戦handleSummonSigniと同じ収集）
@@ -10959,7 +10963,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
 
         // 召喚できるシグニを探す（リミット内 かつ シグニLv ≤ ルリグLv かつ 配置制限を満たす）。
         // ⚠パワー上限（`signi_deploy_power_limit`）は従来 CPU が見ておらず、人間だけが縛られていた（続き405）。
-        const candidate = handSignis.find(({ id, card }) => {
+        // ⚠**可否（ここ）と選択（`pickCpuDeployCard`）を分ける**＝可否は人間と同じ gate 群が権威。
+        const placeable = handSignis.filter(({ id, card }) => {
           const lv = parseInt(card!.Level) || 0;
           if (lv > cpuLrigLevel || fieldTotal + lv > cpuLimit) return false;
           const power = card!.Power === '∞' ? Infinity : parseInt(card!.Power ?? '', 10);
@@ -10970,6 +10975,21 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             placementSource: 'normal_summon',
           }) === null;
         });
+        // §8 `O-1` (g)＝盤面評価で1枚選ぶ。**残ゾーン数**は「この先まだ空いていて置けるゾーンの数」＝
+        // 上限（`cpuFieldSigniLimit`）で頭打ちにする（取り置きが過剰にならないように）。
+        const emptyZonesAhead = newCpuSt.field.signi
+          .filter((stk, zi) => zi >= zone && (stk ?? []).length === 0).length;
+        const placedCount = newCpuSt.field.signi.filter(stk => (stk ?? []).length > 0).length;
+        const pickedId = pickCpuDeployCard({
+          candidates: placeable.map(({ id, card }) => ({
+            id,
+            level: parseInt(card!.Level) || 0,
+            power: card!.Power === '∞' ? Infinity : (parseInt(card!.Power ?? '', 10) || 0),
+          })),
+          remainingLimit: cpuLimit - fieldTotal,
+          zonesRemaining: Math.max(1, Math.min(emptyZonesAhead, cpuFieldSigniLimit - placedCount)),
+        });
+        const candidate = placeable.find(c => c.id === pickedId);
         if (!candidate) break;
 
         // エナ支払い（シグニのコスト）。ゾーン配置禁止の《無》回避コストと合わせて成立を確かめてから
@@ -11241,18 +11261,30 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       // まだダウンしていない（かつアタック可能な）シグニを1枚ずつアタック
       // ⚠「すでにダウン」判定も gate（`ALREADY_DOWN`）へ寄せた（§6.4 O-10）＝ここで先に落とすと
       //   【常】「ダウン状態でもアタックできる」が CPU 側にだけ効かない軸ズレになる。
-      const firstUp = cpuSt.field.signi.findIndex((stack) => {
+      // アタック**できる**ゾーン（可否＝人間ボタン／共通実行経路と同じ `signiAttackGate` に一本化。
+      // 旧実装は blocked_actions と場トラッシュコストしか見ておらず、付与「アタックできない」等の
+      // `cannotAttackSigni` 軸が CPU に効いていなかった）。アタック不可のシグニはダウンされず
+      // `performSigniAttack` が早期 return して無限ループするので、必ずここで落とす。
+      const cpuAttackable = cpuSt.field.signi.flatMap((stack, zi) => {
         const top = (stack ?? []).at(-1);
-        if (!top) return false;
-        // アタック不可のシグニはダウンされず performSigniAttack が早期returnして
-        // 無限ループするため、ここで候補から除外する。判定は人間ボタン／共通実行経路と
-        // 同じ signiAttackGate に一本化する（旧実装は blocked_actions と場トラッシュコストしか
-        // 見ておらず、付与「アタックできない」等の cannotAttackSigni 軸が CPU に効いていなかった）。
+        if (!top) return [];
         return canSigniAttack({
           attacker: cpuSt, defender: huSt, attackerNum: top,
           effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
-        });
+        }) ? [zi] : [];
       });
+      // §8 `O-1` (g)＝**どれで殴るかを盤面で選ぶ**（旧実装はゾーン0から順に全部＝格上の正面へ突っ込んで
+      // 自分だけ落ちていた）。優先は ライフに通る → 勝てるバトル →（撃たない）。強制アタックは最優先。
+      const cpuAttackPowers = calcFieldPowers(cpuSt, huSt, true, effectsMap, battleCardMap, bs.turn_phase);
+      const cpuDefenderPowers = calcFieldPowers(huSt, cpuSt, false, effectsMap, battleCardMap, bs.turn_phase);
+      const firstUp = pickCpuAttackZone({
+        attackable: cpuAttackable,
+        forced: collectForcedAttackZones({
+          attacker: cpuSt, defender: huSt, effectsMap, cardMap: battleCardMap, turnPhase: bs.turn_phase,
+        }),
+        attackerPower: zi => effectivePowerOf((cpuSt.field.signi[zi] ?? []).at(-1) ?? '', cpuAttackPowers, battleCardMap),
+        facingPower: zi => facingSigniPower(huSt, zi, cpuDefenderPowers, battleCardMap),
+      }) ?? -1;
 
       if (firstUp >= 0) {
         const myTopNum = (cpuSt.field.signi[firstUp] ?? []).at(-1)!;
