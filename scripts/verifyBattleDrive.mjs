@@ -18330,8 +18330,9 @@ const v79HastarliqSpec = {
 };
 
 const driveV79Hastarliq = async (page, H) => {
-  const before = await H.queryState();
-  const beforeHand = before?.guest?.hand ?? 0;
+  // ⚠**「before→after」の差分では見ない**（続き556 実測）＝CPU の自動進行は速く、この drive() の
+  //   最初の queryState() を打つ前に既に開始時本文（DRAW）が消化済みのことがある＝before の時点で
+  //   既に guestHand=1 になっているとdelta判定が偽陰性になる。**注入時の既知の初期値（0）からの絶対値**で見る。
   const phases = [];
   let handedOver = false;
   for (let s = 0; s < 60; s++) {
@@ -18343,15 +18344,15 @@ const driveV79Hastarliq = async (page, H) => {
   }
   const fin = await H.queryState();
   const sawSecondLap = phases.some(p => p === 'ATTACK_ARTS' || p === 'ATTACK_ARTS_OP');
-  const handGrew = (fin?.guest?.hand ?? 0) > beforeHand;
+  const drewMarker = (fin?.guest?.hand ?? 0) >= 1;   // 注入時のguest.hand=0からの絶対値で見る
   const hlZonesRemain = JSON.stringify(fin?.host?.hastarliqZones ?? []) === JSON.stringify([0]);
   const hlLogHit = (fin?.logTail ?? []).some(l => String(l).includes('ハスターリク'));
   const detail = `phases=${JSON.stringify(phases)} / 2周目=${sawSecondLap} / handedOver=${handedOver} / `
-    + `guestHand ${beforeHand}→${fin?.guest?.hand}（開始時本文=${handGrew}） / hastarliqZones残存=${hlZonesRemain} / ハスターリクログ=${hlLogHit}`;
+    + `guestHand=${fin?.guest?.hand}（開始時本文消化=${drewMarker}） / hastarliqZones残存=${hlZonesRemain} / ハスターリクログ=${hlLogHit}`;
   H.log(`  v79hastarliq ${detail}`);
   if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない（${detail})` };
   if (!sawSecondLap) return { pass: false, detail: `🔴2周目に入っていない（前提が崩れている）（${detail})` };
-  if (!handGrew) return { pass: false, detail: `🔴2周目の ON_ATTACK_PHASE_START が走っていない（開始時本文が消化されていない）（${detail})` };
+  if (!drewMarker) return { pass: false, detail: `🔴2周目の ON_ATTACK_PHASE_START が走っていない（開始時本文が消化されていない）（${detail})` };
   if (!hlZonesRemain || hlLogHit) return { pass: false, detail: `🔴2周目で【ハスターリク】が発動してしまった（${detail})` };
   return { pass: true, detail };
 };
