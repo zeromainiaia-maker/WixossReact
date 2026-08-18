@@ -18696,6 +18696,57 @@ scenarios.v74HumanColorMatchEnabled = {
   drive: (page, H) => driveV74HumanColorGate(page, H, 'コードアート　Ｒ・Ｍ・Ｎ', true),
 };
 order.push('v74HumanColorMismatchBlocked', 'v74HumanColorMatchEnabled');
+
+// (B) 続き＝**エナゾーンの【起】（アクセ）**にも同じ是正（`EnergyActivatedModal.tsx`）が当たっている。
+// WX17-075（コードイート タルタル・緑）をエナゾーンに置き、【起】《緑》×1 でシグニに【アクセ】する。
+// 支払い用エナの色を誤らせると「アクセ発動」が押せないこと（対照＝緑エナなら押せる）を見る。
+const v74HumanAcceColorGateSpec = (energyCardNum) => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#8860'],
+    'field.signi': [['WD01-013#8861'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null,
+    'energy': ['WX17-075#8862', `${energyCardNum}#8863`],
+    'hand': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8870'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+
+const driveV74HumanAcceColorGate = async (page, H, energyCardName, expectEnabled) => {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  const acceBtn = page.getByRole('button', { name: 'コードイート　タルタル【アクセ】', exact: false }).first();
+  let opened = false;
+  if (await acceBtn.count() && await acceBtn.isVisible().catch(() => false) && await acceBtn.isEnabled().catch(() => false)) {
+    await acceBtn.click({ timeout: 3000 }).catch(() => {});
+    opened = true;
+  }
+  await page.waitForTimeout(500);
+  const pickedEnergy = await H.clickModalImage(energyCardName);
+  await page.waitForTimeout(400);
+  const fireBtn = page.getByRole('button', { name: 'アクセ発動', exact: true }).first();
+  const btnCount = await fireBtn.count();
+  const enabled = btnCount > 0 ? await fireBtn.isEnabled().catch(() => false) : false;
+  const detail = `opened=${opened} / energy選択=${pickedEnergy} / アクセ発動ボタン存在=${btnCount > 0} / enabled=${enabled}（期待${expectEnabled}）`;
+  H.log(`  v74acceColorGate ${detail}`);
+  if (!opened || btnCount === 0) return { pass: false, detail: `🔴モーダルが開かない（${detail}）` };
+  return { pass: enabled === expectEnabled, detail };
+};
+
+scenarios.v74HumanAcceColorMismatchBlocked = {
+  title: 'V-74(B) 🔴人間側＝エナ【起】（アクセ）も色が合っていない（赤エナで緑コスト）と「アクセ発動」が押せない',
+  spec: v74HumanAcceColorGateSpec('WD02-013'),   // 羅石　アイロン＝赤エナ
+  drive: (page, H) => driveV74HumanAcceColorGate(page, H, '羅石　アイロン', false),
+};
+scenarios.v74HumanAcceColorMatchEnabled = {
+  title: 'V-74(B) 対照＝エナ【起】（アクセ）も色が合っている（緑エナで緑コスト）なら「アクセ発動」が押せる',
+  spec: v74HumanAcceColorGateSpec('WD04-009'),   // 幻獣　セイリュ＝緑エナ
+  drive: (page, H) => driveV74HumanAcceColorGate(page, H, '幻獣　セイリュ', true),
+};
+order.push('v74HumanAcceColorMismatchBlocked', 'v74HumanAcceColorMatchEnabled');
 // ── V-74 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
