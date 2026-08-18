@@ -91,10 +91,14 @@
 
 > **✅消化済のタスク（1〜9・11・14・16〜19）は 2026-07-29／2026-08-02／2026-08-06 の整理で退避**＝完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節（1〜9・11・17〜19）／「2026-08-02 整理②」節（16＝timing 語彙センサス 🏁残0クローズ）／**「2026-08-06 整理③」節（14＝リファクタ Stage2→Stage3 純粋バトルコントローラ。⚠残作業は §7 実機通し確認のみ・手順は [BATTLE_CONTROLLER.md](./BATTLE_CONTROLLER.md)）**。生きているのは上表の **13・15・20・21**（**12 は常設受け口**）。**🚧次セッションは 21（§5d-0 工程改善）を最優先**＝それが済んでから **20（§5d）** の通常バッチへ戻る。**主戦場は 20（§5d）**＝2026-08-07 続き369 に §5c の文型バッチを店じまいして移した。
 
-🏁🏁**Opusタスク12＝在庫0**（2026-08-18 続き546）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
-- **同セッションで残0クローズした6件**＝🏁**修正3件**〔(cxxxiv) 旧形式 `signi_acce` の正規化／(cxxxi) ルリグ【起】《ダウン》が実質無コスト＝live 27効果／(cxix) ON_HAND_ADDED の owner 2軸／(cxx) エナ差分 watcher の《ターン1回/2回》＝live 9効果〕（※(cxix)(cxx) を数えると修正は4件）／🟢**実体消滅2件**〔(cxxxii) は §6.4 O-3 続き487 で、(cxxii) は (cxxvii) 続き475d で、**登録から数日のうちに別バッチが原因ごと消していた**〕。
-- ⚠**残す教訓**＝(a) **在庫は寝かせるほど陳腐化する**＝着手時は必ず live を実測し直す（6件中2件は原因が既に消えていた）。 (b) **「1点で直る」見立ては消費側を数えてから信じる**＝(cxxxiv) の実害の本体は `.length` 誤読ではなく `[...cards]` の**1文字ずつ展開**で、正規化を読み出しユーティリティ全部＋state 流入口に置いて初めて塞がった。 (c) **廃止したフィールド名で注入している実機シナリオは緑でも無意味**（(cxxxii) の `v11CpuDeployPowerLimitWithControl`）＝機構を統合したら注入側も grep して追随させる。 (d) **支払い地点と提示地点は別々に数える**＝(cxxxi) は支払い1・提示4の計5地点で、支払いだけ直すと「撃てるのに何も起きない」に化ける。
-- ⚠**要実機検証5件**は §7「残る実機検証項目」へ `V-66`〜`V-70` で登録済み（うち `V-66`／`V-68` は**既存シナリオの再走**＝新規シナリオは3本）。
+🆕**Opusタスク12＝在庫1件**（2026-08-18 続き559・Sonnet 5 が §7 実機検証中に発見）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
+
+- 🔴**(cxxxv) `calcContinuousBlockedActions` がルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない＝恒久 no-op**（2026-08-18 続き559・V-75(C)-2 実機検証で発見）。
+  - **再現手順**＝`WX13-007`（博愛の使者 サシェ・リュンヌ＝【常】「対戦相手は各ターンに一度しかアーツを使用できない」＝`WX13-007-E1`＝`BLOCK_ACTION{target:{owner:'opponent'},actionId:'ARTS_LIMIT_1'}`）を場（センタールリグ）に置いた状態で、`calcContinuousBlockedActions(host, guest, ...)`（host=対戦相手視点）を呼んでも `forSelf`/`forOther` ともに空集合が返る＝**ARTS_LIMIT_1 が一切効かない**。実機でも同型＝`actions_done:['USE_ARTS']` を注入しても host のルリグデッキ2枚目アーツの「使用」ボタンが消えない（`v75ArtsLimit1SecondUseBlocked` 実機FAIL・単体スクリプトの isolated 再現でも `forSelf`/`forOther` 空を確認済み）。
+  - **原因**＝`src/engine/effectEngine.ts:2757` の `scanField`（シグニゾーンのみ走査）と `:2788` の `scanLrigSelfBlocks`（`target.owner==='self'` のケースのみ処理）の2関数しか無く、**「ルリグ本体が持つ `target.owner:'opponent'` の CONTINUOUS `BLOCK_ACTION`」を処理する経路がどこにも無い**（シグニなら `scanField` の `else forSelf.add/forOther.add` 分岐で拾えるが、ルリグにはその対の分岐が無い）。
+  - **live 母集団＝5件**（ルリグ本体の CONTINUOUS＋`target.owner:'opponent'` の BLOCK_ACTION）＝`WX04-005`（アルテマ/メイデン イオナ・`DRAW_LIMIT_1`）／`WX05-011`（ミルルン・ティコ・`USE_SPELL`）／`WX13-007`（サシェ・リュンヌ・`ARTS_LIMIT_1`）／`WXEX2-11`（レイラ＝オーバードライブ・`GUARD`）／`WD14-001`（虚幸の閻魔 ウリス・`GUARD`）。⚠**`GUARD`／`USE_SPELL`／`DRAW_LIMIT_1` は他経路（`blocked_actions` 直書き等）で部分的に効いている可能性がある**ので、**5件とも個別に実効性を確認してから直す**こと（`ARTS_LIMIT_1` は今回 isolated スクリプトで完全な no-op を確認済み）。
+  - **修正の型（提案）**＝`scanLrigSelfBlocks` を拡張するか新関数を足し、ルリグ本体の CONTINUOUS `BLOCK_ACTION` で `target.owner==='opponent'` のケースも `(isMe ? forOther : forSelf)` へ振り分ける（シグニの `scanField` と対称の分岐を足すだけで良いはず）。**golden にトリップワイヤを追加**（`WX13-007` 等で `calcContinuousBlockedActions` の出力を直接固定）してから直すこと（続き512 の既存 golden は「判定式の存在」しか見ていない＝真の恒久 no-op を検出できていなかった教訓）。
+  - **§7 follow-up**＝直った後 `v75ArtsLimit1SecondUseBlocked` を再実行して緑化を確認すること（V-75(C)-2 の残り）。
 - **次に積まれるまで待機**（常設受け口）。Sonnet 側が engine/parser バグを見つけたらここへ足す。
 
 
