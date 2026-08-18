@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き557・Sonnet 5）＝§7 実機検証を継続＝`V-74`（CPU がメインフェイズにシグニ【起】を撃つ＋エナコスト色照合の是正）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規7本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.487→0.488。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き557）。
+  - **✅ (A) CPU がメインフェイズにシグニ【起】を撃つ＝4項目を3シナリオで確認**（`v74CpuSigniActivatedOncePerTurn`／`v74CpuSkipsHandDiscardCost`／`v74CpuAutoRespondsSelectTarget`）＝発動→2回目は撃たれない／allowlist外コストは撃たない（負方向）／SELECT_TARGETでも自動応答で解決、の3点。
+  - 🔑**判定の罠（次に触る人へ）**＝hand の最終値では判定しない（発動直後に CPU がドローしたカードを召喚してしまうことがある）。actionsDone もターン終了処理でクリアされる＝`handedOver` 後に読むと安全弁が効いていないように見える。**energy の最終値（永続的な物理量）＋ターン中に一度でも actionsDone に記録されたか**で見るのが正しい。
+  - **✅ (B) 人間側＝エナコストの色照合が効いていること**（続き551の副産物バグの実機裏取り）＝シグニ側（`v74HumanColorMismatchBlocked`/`v74HumanColorMatchEnabled`）とエナゾーンの【起】＝アクセ側（`v74HumanAcceColorMismatchBlocked`/`v74HumanAcceColorMatchEnabled`）の両方で、色不一致なら「発動」系ボタンが disabled のまま、色一致なら enabled になることを確認。
+  - ⚠**ライフクラッシュ確認モーダルの罠**＝正面が空いていて直接ダメージが通るケースでは「エナに送る」ボタンへの応答が要る（クリックリストに含め忘れるとポーリングが `handedOver` に到達せず永久 FAIL する）。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。未検証は `V-75`〜`V-78`／それ以前の約49件。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も次に触る人が要再現確認**（続き556 記録・未解決）。
+  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（実機検証待ちはクローズ済み）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。
 - **🆕 セッション（2026-08-18・続き556・Sonnet 5）＝§7 実機検証を継続＝`V-79`(B)(D)・`V-80`(C・付与側) ALL PASS で両方とも残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規3本 ALL PASS**（既存7本の回帰確認込み）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.486→0.487。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き556）。
   - **✅ `V-79`(B)＝CPU の2周目でも `ON_ATTACK_PHASE_START` は走るが【ハスターリク】は発動しない**（`v79SecondLapHastarliqSuppressed`）＝開始時本文（DRAW）は消化される一方、【ハスターリク】は human 側と同じ扱いで発動しない（CPU の addedExtraPhase 分岐に直書きチェックが無い設計を実機で確認）。
   - **✅ `V-79`(D)＝人間側「1周目終了時→2周目開始時」の解決順**（`v79HumanOrderEndBeforeStart`）＝確定直後の `effect_stack.pendingTurn` の並びが `["WX24-P2-075-E1", "EXTRA_ATTACK_PHASE_START:..."]`＝終了→開始の順を実機で確認。**解決を待たず push 順を直接読む**手法で決定論的に判定。
