@@ -4,6 +4,11 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き561・Sonnet 5）＝§7 実機検証を継続＝`V-77`（CPU がルリグ【起】と《アタックフェイズアイコン》付きシグニ【起】を撃つ＋人間側のコスト是正3件）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規8本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.491→0.492。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き561）。
+  - **✅ (A) CPU がルリグ本来【起】を発動し、同一ターンに2回撃たない**（`v77CpuActivatesPrintedLrigAbility`）＝WX12-002-E3 で確認。🔑**判定の罠**＝action が `ENERGY_CHARGE_FROM_DECK` の場合、コスト消費と獲得が相殺されて `energy` の総数は変わらない＝**`trash` の枚数**で判定するのが正しい。
+  - **✅ (B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる**（`v77CpuUsesIconAbilityInAttackArts`）＝WX19-050 で確認。🔑**判定の罠×2**＝①host のダウンは host 自身の次の UP フェイズでアップされる＝ターン完全終了後に見ると消えていることがある②発動ログ検出と同じ瞬間はまだ効果解決前のことがある＝**fired後も継続して対象状態を監視**する。対照（MAINでは撃たれない）は**CPU側では決定論的に観測できない**（自動進行が速すぎる）ため**人間視点に切り替え**（`v77HumanIconLrigShownInAttackArts`/`HiddenInMain`）＝同じ `signiActivateGate` を呼ぶので同型の裏取りになる。
+  - **✅ (C)(D) 人間側のコスト是正＝コインが実際に減る／使用条件つきルリグ【起】が MAIN 窓で条件を見る＝回帰なし**（4本PASS）。🔑**ルリグ本体の【起】ボタンはルリグ画像をクリックして初めて表示される**（V-80 と同型の罠）。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫1件据置**（(cxxxv)＝`calcContinuousBlockedActions` 恒久 no-op・続き559 で登録・未修正）。
 - **🆕 セッション（2026-08-18・続き560・Sonnet 5）＝§7 実機検証を継続＝`V-76`（CPU が自ターンにアーツ／スペルで攻める）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規5本 ALL PASS**（うち1本はハーネス側の断続的フレークを観測・follow-up）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.490→0.491。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き560）。
   - **✅ (A)(C) CPU が正面塞がれで除去アーツを使い、除去後アタックが通る**（`v76CpuUsesRemovalWhenBlocked`／対照`v76CpuDoesNotUseRemovalWhenClear`）＝WX24-P1-021 で host シグニをバニッシュ→正面が空いて guest のシグニがアタック→**host ライフ 7→5**（除去の目的達成の証拠）。
   - **✅ (B) スペルの応答窓＝CPU がスペルを使うと人間側にカットイン窓が出て、パスで解決して先へ進む**（`v76CpuSpellCutinPassProgresses`）＝止まらないことを確認。⚠**バッチ実行時にハーネス側の断続的フレークを観測**（3回中2回PASS・FAIL時は注入と無関係なカードが場に出ている＝`injectScenario`→`reload` のタイミング競合疑い・単発では安定してPASS＝engine回帰ではない）。
