@@ -21222,7 +21222,7 @@ async function driveV51LeaveSubstitute(page, H) {
     await page.waitForTimeout(350);
     const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
     fin = await H.queryState();
-    H.log(`  v51leavesub[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+    H.log(`  v51leavesub[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} pendingOptions=${JSON.stringify(fin?.pendingOptions)} hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
     if (fin?.activeUser && fin.activeUser !== V79_CPU_ID) break;
   }
   return fin;
