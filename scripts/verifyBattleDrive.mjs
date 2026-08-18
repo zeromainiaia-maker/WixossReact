@@ -21444,11 +21444,11 @@ scenarios.v30LrigAbilitiesDisabledClearsAtTurnBoundary = {
     let crossedBoundary = false;
     for (let s = 0; s < 60; s++) {
       await page.waitForTimeout(300);
-      const did = await H.clickTextOrBtn(['ターン終了', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+      const did = await H.clickTextOrBtn(['ターン終了', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定', 'パス', 'スキップ']) || await H.stdStep();
       fin = await H.queryState();
       if (fin?.activeUser === V79_CPU_ID) crossedBoundary = true;
       const notDiscarded = (fin?.host?.handCards ?? []).includes('WD01-013#9971');
-      H.log(`  v30turnboundary[${s}] did=${did ?? 'なし'} activeUser=${fin?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} hLife=${fin?.host?.life} hHand=${fin?.host?.hand} notDiscarded=${notDiscarded}`);
+      H.log(`  v30turnboundary[${s}] did=${did ?? 'なし'} activeUser=${fin?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} phase=${fin?.turnPhase} pendingEffect=${fin?.pendingEffect} hLife=${fin?.host?.life} hHand=${fin?.host?.hand} notDiscarded=${notDiscarded}`);
       if (crossedBoundary && (fin?.host?.life ?? 7) < 7) break;
       if (crossedBoundary && !notDiscarded) break;
     }
