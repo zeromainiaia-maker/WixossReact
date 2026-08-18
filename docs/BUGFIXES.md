@@ -1,5 +1,22 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き563・Sonnet 5）— §7 実機検証を継続＝`V-71`（傀儡状態で場に出す・STEAL_OPP_TRASH_PUPPET）／`V-70`（ON_HAND_ADDED の owner 2軸）／`V-69`（エナ差分 watcher の《ターン1回/2回》）ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.493→0.494。
+
+### 1. V-71＝「傀儡状態であなたの場に出す」（STEAL_OPP_TRASH_PUPPET）は回帰なし（2本 ALL PASS）
+
+`WXK10-091`（【起】・cost.trash_self・puppetParams filter{level.max:3,cardClassExclude:'美巧'}）で確認。相手トラッシュに美巧Lv2（除外）／非美巧Lv4（除外）／非美巧Lv1（該当）の3枚を仕込み、該当1枚だけが傀儡として場に出て除外2枚は相手トラッシュに残ることを確認（`v71PuppetFilterPicksOnlyEligibleCard`）。さらに `sweepPuppets`（傀儡が場を離れると持ち主のトラッシュへ回収される）を、`field.puppet_signi` に「もう場に居ない傀儡」を直接注入し、別の【起】を1回発火させて `applyRefreshOnDone` の回収処理を踏む形で確認（`v71PuppetLeftFieldReturnsToTrueOwnerTrash`）。(d) のエクシード１＋`suppressOnPlay`の確認は見送り（follow-up・優先度低）。
+
+### 2. V-70＝ON_HAND_ADDED の owner 2軸（タスク12(cxix)）は回帰なし（1本 PASS・2回連続）
+
+`SPDi43-11`（MC.LION 3rdVerse-ULT）の【起】《ゲーム１回》バイブスMAXで「自分の効果でカードが手札に1枚以上増えたとき、このルリグをアップする」を付与し、ダウンさせておいたルリグが `WX01-045`（【起】cost.down_self・DRAW×1）の自分の効果ドローで実際にアップすることを確認（`v70OwnEffectHandAddedUpsLrig`）。旧実装は `ON_PLAY` 扱いで一度も発火しなかった（丸ごと no-op）。(b)《ターン2回》の境界と(c)相手効果では発火しないことの確認は見送り（follow-up・優先度低）。
+
+### 3. V-69＝エナ差分 watcher の《ターン1回/2回》（タスク12(cxx)）は回帰なし（3本 ALL PASS・2回連続）
+
+`WXK04-028`（【自】《ターン１回》：エナチャージをしたとき、エナチャージ１）と `WXDi-P11-073`（【自】《ターン２回》：エナゾーンにカードが置かれたとき、パワー+2000）で確認。usageLimit の判定が `actionsDone.filter(id => id === effectId).length` の出現回数で行われる（`triggerCollect.ts` の `mkLimitOk`）ことを利用し、`actions_done` へ「今ターン何回使用済みか」を直接注入することで境界を1アクションだけで再現：(a)-1 未使用なら1回目のエナチャージ（`WX01-049`【起】《ダウン》：デッキ最上をエナへ）で追加チャージが誘発する／(a)-2 既に1回使用済みなら誘発しない（旧実装は「チャージのたびに撃てた」過剰発火）／(b) `WXDi-P11-073` は1回使用済みでも2回目はまだ誘発してパワー+2000になる。
+🔑**ハーネス側の罠**＝当初「同一ターンに2回連続で【起】をクリックする」設計にしたところ、2回目のゾーンクリックが1回目のモーダル閉じ処理と競合して不安定だった（実機タイミング）。`actions_done` 直接注入で1アクションに削減して解消。
+
 ## 2026-08-18（続き562・Sonnet 5）— §7 実機検証を継続＝`V-78`（CPU グロウを `performGrow` へ統合）／`V-73`（【常】のゲート「〜あるかぎり」）／`V-72`（エナコストの集合制約）を実施・実バグ2件を発見
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規9本**（うち2本は engine 実バグ待ちで意図的に赤のまま既定orderに残す）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.492→0.493。
