@@ -19867,6 +19867,56 @@ scenarios.v69TwiceLimitStillFiresSecondUse = {
 order.push('v69OnceLimitFiresWhenUnused', 'v69OnceLimitBlocksWhenAlreadyUsed', 'v69TwiceLimitStillFiresSecondUse');
 // ── V-69 END ──
 
+// ── §7 V-67（続き546・タスク12(cxxxi)＝ルリグの【起】《ダウン》）──
+// WD08-001（混沌の鍵主 ウムル＝フィーラ）の【起】《ダウン》：トラッシュからシグニ1枚を場に出す＝E3。
+// (a) 効果が解決し、かつ host.field.lrig_down が実際に true になる（旧実装はここが false のまま＝実質無コスト）。
+// (b) 🔴同じ【起】が2回撃てない＝1回撃ったあとボタン自体が消える（usageLimitを持たない効果なので、
+//     封じているのは「ダウン済み」ゲートだけ＝ここが本命の観測点）。
+const v67LrigDownSpec = {
+  hostSet: {
+    'field.lrig': ['WD08-001#9960'], 'field.signi': [null, null, null], 'field.check': null,
+    'trash': ['WD01-013#9961'], 'hand': [], 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9970'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v67LrigDownAbilityActuallyDownsAndBlocksSecondUse = {
+  title: 'V-67(a)(b) WD08-001＝ルリグ【起】《ダウン》で実際にダウンし、2回目はボタンが消える',
+  spec: v67LrigDownSpec,
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await clickLrigImageAndWait(page, '混沌の鍵主　ウムル＝フィーラ');
+    const downBtn = page.getByRole('button', { name: '【起】このルリグをダウン', exact: false }).first();
+    const downBtnVisible1 = await downBtn.count() && await downBtn.isVisible().catch(() => false);
+    if (downBtnVisible1) await downBtn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    await H.clickBtn('発動', { exact: true });
+    let fin = null;
+    for (let s = 0; s < 8; s++) {
+      await page.waitForTimeout(400);
+      await H.stdStep();
+      fin = await H.queryState();
+    }
+    const placedOk = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WD01-013#9961'));
+    const lrigDownNow = fin?.host?.lrigDown === true;
+    // 2回目＝ルリグ画像を再クリックして【起】このルリグをダウン ボタンが消えていることを見る。
+    await clickLrigImageAndWait(page, '混沌の鍵主　ウムル＝フィーラ');
+    const downBtn2 = page.getByRole('button', { name: '【起】このルリグをダウン', exact: false }).first();
+    const downBtnVisible2 = await downBtn2.count() && await downBtn2.isVisible().catch(() => false);
+    const detail = `downBtnVisible1=${downBtnVisible1} / placedOk=${placedOk} / lrigDownNow=${lrigDownNow}（期待true） / `
+      + `downBtnVisible2=${downBtnVisible2}（期待false＝2回目は消える） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
+    H.log(`  v67lrigdown ${detail}`);
+    return { pass: downBtnVisible1 && placedOk && lrigDownNow && !downBtnVisible2, detail };
+  },
+};
+order.push('v67LrigDownAbilityActuallyDownsAndBlocksSecondUse');
+// ── V-67 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
