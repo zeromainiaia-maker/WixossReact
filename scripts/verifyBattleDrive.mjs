@@ -21448,7 +21448,7 @@ scenarios.v30LrigAbilitiesDisabledClearsAtTurnBoundary = {
       fin = await H.queryState();
       if (fin?.activeUser === V79_CPU_ID) crossedBoundary = true;
       const notDiscarded = (fin?.host?.handCards ?? []).includes('WD01-013#9971');
-      H.log(`  v30turnboundary[${s}] did=${did ?? 'なし'} activeUser=${fin?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} phase=${fin?.turnPhase} pendingEffect=${fin?.pendingEffect} hLife=${fin?.host?.life} hHand=${fin?.host?.hand} notDiscarded=${notDiscarded}`);
+      H.log(`  v30turnboundary[${s}] did=${did ?? 'なし'} activeUser=${fin?.activeUser === V79_CPU_ID ? 'cpu' : 'host'} phase=${fin?.turnPhase} pendingEffect=${fin?.pendingEffect} hLife=${fin?.host?.life} hHand=${fin?.host?.hand} notDiscarded=${notDiscarded} grantedIds=${JSON.stringify(fin?.host?.grantedLrigAutoIds)}`);
       if (crossedBoundary && (fin?.host?.life ?? 7) < 7) break;
       if (crossedBoundary && !notDiscarded) break;
     }
