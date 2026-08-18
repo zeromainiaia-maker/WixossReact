@@ -20962,6 +20962,74 @@ scenarios.v48GrantedUpOnAttackFiresAfterAttack = {
 order.push('v48GrantedUpOnAttackFiresAfterAttack');
 // ── V-48 END ──
 
+// ── §7 V-50（O-10・続き566）(a)のみ ──
+// `own_effects_cannot_negate_signi_attack_this_turn`（「このターン、あなたの効果によってシグニのアタック
+// は無効にならない」＝`WX24-P4-016-E3`）＝`effectExecutor.ts` の `NEGATE_ATTACK` 実行点が唯一の判定点。
+// 自分のシグニに「アタックしたとき、このアタックを無効にする」を直接付与（ちより系の実際の効果を模倣・
+// LBの有無条件は省略）し、フラグの有無でアタックが無効化されるかどうかの対照を見る。
+const v50NegateImmunitySpec = (immune) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9950'], 'field.signi': [['WD01-013#9951'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+    'own_effects_cannot_negate_signi_attack_this_turn': immune,
+    'granted_effects': {
+      'WD01-013#9951': [{
+        effectId: 'v50selfNegate1', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], triggerScope: 'self',
+        mandatory: true, duration: 'INSTANT', parseStatus: 'AUTO',
+        action: { type: 'NEGATE_ATTACK', target: { type: 'SIGNI', owner: 'self', count: 1 } },
+      }],
+    },
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9952'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9953', 'WD01-013#9954'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function driveV50NegateImmunity(page, H) {
+  const before = await H.queryState();
+  await H.clickTestId('my-signi-zone-0');
+  await page.waitForTimeout(500);
+  const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+  await atk.click({ timeout: 2000 }).catch(() => {});
+  let fin = await H.queryState();
+  let quietTicks = 0;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(350);
+    const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+    fin = await H.queryState();
+    H.log(`  v50negateimm[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} gLife=${fin?.guest?.life} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+    const settled = fin?.pendingEffect == null && fin?.host?.fieldCheck == null && fin?.guest?.fieldCheck == null;
+    quietTicks = settled ? quietTicks + 1 : 0;
+    if (quietTicks >= 3) break;
+  }
+  return { before, fin };
+}
+scenarios.v50NegateImmunityAttackGoesThrough = {
+  title: 'V-50(a) フラグあり＝自分の効果によるシグニアタック無効化は起きずアタックが通る',
+  spec: v50NegateImmunitySpec(true),
+  async drive(page, H) {
+    const { before, fin } = await driveV50NegateImmunity(page, H);
+    const pass = (fin?.guest?.life ?? 0) === (before?.guest?.life ?? 0) - 1;
+    const detail = `guest.life ${before?.guest?.life}→${fin?.guest?.life}（期待-1＝無効化されず通る）`;
+    H.log(`  v50negateimm ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v50NegateImmunityAbsentAttackNegated = {
+  title: 'V-50(a) 対照＝フラグが無ければ通常どおり自分の効果でアタックが無効になる',
+  spec: v50NegateImmunitySpec(false),
+  async drive(page, H) {
+    const { before, fin } = await driveV50NegateImmunity(page, H);
+    const pass = (fin?.guest?.life ?? -1) === (before?.guest?.life ?? 0);
+    const detail = `guest.life ${before?.guest?.life}→${fin?.guest?.life}（期待不変＝無効化された）`;
+    H.log(`  v50negateimm ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v50NegateImmunityAttackGoesThrough', 'v50NegateImmunityAbsentAttackNegated');
+// ── V-50 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
