@@ -4,6 +4,11 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き563・Sonnet 5）＝§7 実機検証を継続＝`V-71`（傀儡状態で場に出す）／`V-70`（ON_HAND_ADDED の owner 2軸）／`V-69`（エナ差分 watcher の《ターン1回/2回》）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規6本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.493→0.494。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き563）。
+  - **✅ V-71＝STEAL_OPP_TRASH_PUPPET は回帰なし**（`WXK10-091`の【起】で相手トラッシュから条件に合う1枚だけが傀儡として場に出ることを確認＋`field.puppet_signi`直接注入で`sweepPuppets`＝場を離れた傀儡が持ち主のトラッシュへ回収されることを確認）。(d)のエクシード１＋`suppressOnPlay`は見送り（follow-up）。
+  - **✅ V-70＝ON_HAND_ADDED の owner 2軸は回帰なし**（`SPDi43-11`の付与【自】で、自分の効果（`WX01-045`のDRAW）による手札増加がダウン済みルリグを実際にアップさせることを確認。旧実装は`ON_PLAY`扱いで丸ごとno-opだった）。(b)(c)は見送り（follow-up）。
+  - **✅ V-69＝エナ差分watcherの《ターン1回/2回》は回帰なし**（`WXK04-028`は未使用時は誘発・1回使用済みなら誘発しない／対照`WXDi-P11-073`は1回使用済みでも2回目はまだ誘発。旧実装は「チャージのたびに撃てた」過剰発火）。🔑**判定式`actionsDone.filter(id=>id===effectId).length`の出現回数を`actions_done`へ直接注入すれば1アクションで境界を再現できる**＝2アクション連続クリックは実機タイミング競合で不安定だった型を置き換え。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫3件据置**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）。
 - **🆕 セッション（2026-08-18・続き562・Sonnet 5）＝§7 実機検証を継続＝`V-78`（CPU グロウ統合の回帰確認）／`V-73`（【常】のゲート「〜あるかぎり」）／`V-72`（エナコストの集合制約）を実施＝🔴実機検証中に真の engine バグを2件発見（Opusタスク12 (cxxxvi)(cxxxvii) へ登録）**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規9本中7本 PASS・2本は意図的に赤**（実バグ待ち）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.492→0.493。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き562）。
   - **✅ V-78(A)(C) CPU グロウの回帰＝コスト付き任意【出】はコインだけで払えるものが自動発火**（`v78CpuGrowsAndPaysOnPlayCost`）＝WDK01-003 で確認。🔑hand最終値では判定しない（`N枚ドロー`ログで見る）。
   - 🔴**新規発見①＝CPU グロウが「entries が空のまま state だけ変わる」ケースで GROW フェイズから先に進めなくなる（永久凍結）**＝`v78CpuGrowsButSkipsOnPlayWithoutCoin`（コスト不足で任意【出】が発火しない対照）で発見。CPU ターンを進める `useEffect` の依存配列にグロウで変わる `field.lrig`／`lrig_deck`／`coins`／`actions_done` が1つも入っておらず、`WRITE_STATE` だけの commit では二度と再起動しない。**Opusタスク12 (cxxxvi) へ登録**。同シナリオは赤のまま既定orderに残す。
