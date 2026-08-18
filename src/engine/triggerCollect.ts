@@ -4110,26 +4110,12 @@ export function collectTurnTriggers(
   for (const stack of myState.field.signi) {
     if (!stack?.length) continue;
     const topNum = stack[stack.length - 1];
-    if (timing === 'ON_ATTACK_PHASE_END' && topNum.startsWith('WX24-P2-075')) {
-      console.error('DBGV79D self-scan', JSON.stringify({
-        topNum, ownAutoBlockedTurn, removed: myAbilitiesRemovedTurn.has(topNum),
-        effs: (ctx.effectsMap.get(topNum) ?? []).map(e => e.effectId),
-        left: myState.signi_left_field_this_attack_phase,
-      }));
-    }
     if (ownAutoBlockedTurn) continue;
     if (myAbilitiesRemovedTurn.has(topNum)) continue;
     for (const eff of (ctx.effectsMap.get(topNum) ?? [])) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
       if ((eff.triggerScope ?? 'self') !== 'self') continue;
       if (!kizunaOk(ctx, eff, myState, topNum)) continue;
-      if (topNum.startsWith('WX24-P2-075') && eff.effectId === 'WX24-P2-075-E1') {
-        console.error('DBGV79D found E1', JSON.stringify({
-          hasCond: !!eff.condition, condType: eff.condition?.type,
-          evalResult: eff.condition ? evalUseCondition(eff.condition, myState, opState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers) : null,
-          limitOk: limitOkMy(eff),
-        }));
-      }
       if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
       if (!limitOkMy(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
