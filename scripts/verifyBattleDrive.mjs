@@ -20713,6 +20713,64 @@ scenarios.v32EnergyPhaseUnblockedChargeHappens = {
 order.push('v32EnergyPhaseSkippedNoChargeHappens', 'v32EnergyPhaseUnblockedChargeHappens');
 // ── V-32 END ──
 
+// ── §7 V-34（O-3・続き566）(b)のみ（エナゾーン移動不可） ──
+// `opp_move_immunity`（`ZONE_MOVE_IMMUNITY`／期間つき「対戦相手の効果によってエナゾーンのカードは
+// 移動しない」＝`WXK10-083-E1`等）＝`activeOppMoveImmunityZones`（effectEngine.ts）が唯一の判定点で、
+// `effectExecutor.ts` の ENERGY_CARD/TRASH 経路（`applyTrashEnergy`）がこれを見て「エナ保護により効果なし」
+// にする。`WXDi-P08-059`【起】《ダウン》：対戦相手のエナ1枚をトラッシュ、で対戦相手（＝保護効果を持つ側）
+// のエナを狙い、(a)保護があれば不発 (b)保護が無ければ通常どおり奪えることを見る。
+const v34EnergyProtectSpec = (guestMoveImmunity) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9990'], 'field.signi': [['WXDi-P08-059#9991'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9992'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': ['WD01-013#9993'], 'opp_move_immunity': guestMoveImmunity,
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+async function driveV34EnergyProtect(page, H) {
+  await H.clickTestId('my-signi-zone-0');
+  await page.waitForTimeout(500);
+  const actBtn = page.locator('[data-testid^="card-action-"][data-action-label^="【起】"]').first();
+  await actBtn.click({ timeout: 2000 }).catch(() => {});
+  let fin = await H.queryState();
+  for (let s = 0; s < 15; s++) {
+    await page.waitForTimeout(400);
+    const did = await H.stdStep();
+    fin = await H.queryState();
+    if (!did) break;
+  }
+  return fin;
+}
+scenarios.v34EnergyMoveImmunityBlocksTrash = {
+  title: 'V-34(b) 保護あり＝`WXDi-P08-059`の対象エナトラッシュが不発',
+  spec: v34EnergyProtectSpec([{ zones: ['energy'], turnsRemaining: 2 }]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const fin = await driveV34EnergyProtect(page, H);
+    const pass = (fin?.guest?.energy ?? -1) === (before?.guest?.energy ?? 0);
+    const detail = `guest.energy ${before?.guest?.energy}→${fin?.guest?.energy}（期待不変＝保護で不発）`;
+    H.log(`  v34enaprotect ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v34EnergyMoveImmunityAbsentTrashFires = {
+  title: 'V-34(b) 対照＝保護が無ければ通常どおりエナが1枚トラッシュに落ちる',
+  spec: v34EnergyProtectSpec([]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const fin = await driveV34EnergyProtect(page, H);
+    const pass = (fin?.guest?.energy ?? 0) === (before?.guest?.energy ?? 1) - 1;
+    const detail = `guest.energy ${before?.guest?.energy}→${fin?.guest?.energy}（期待-1＝奪われた）`;
+    H.log(`  v34enaprotect ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v34EnergyMoveImmunityBlocksTrash', 'v34EnergyMoveImmunityAbsentTrashFires');
+// ── V-34 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
