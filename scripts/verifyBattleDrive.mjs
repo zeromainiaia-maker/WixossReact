@@ -20288,6 +20288,51 @@ scenarios.v59BerserkBlocksNextTurnNotThisTurn = {
 order.push('v59BerserkBlocksNextTurnNotThisTurn');
 // ── V-59 END ──
 
+// ── §7 V-56（続き516・O-10 実装）(a)のみ ──
+// WX25-CP1-060（宇沢レイサ）の【常】《相手ターン》：「対戦相手は、能力か効果で対象を選ぶ際、可能ならばこの
+// シグニを対象とする」＝STUB{FORCE_TARGET_SELF}（activeCondition:TURN_OWNER:opponent）。
+// guestにこのカード＋おとり1体を置き、hostのターン中にSPDi43-11の【起】《ダウン》（対戦相手のシグニ1体を
+// バウンス）を撃つと、候補がWX25-CP1-060だけに強制されることを見る（おとりは候補から外れる）。
+scenarios.v56ForceTargetSelfNarrowsCandidatesToForcedSigni = {
+  title: 'V-56(a) 🔴WX25-CP1-060＝相手ターン中、対象選択の候補がこのシグニだけに強制される',
+  spec: {
+    hostSet: {
+      'field.lrig': ['SPDi43-11#9960'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9970'], 'field.check': null,
+      'field.signi': [['WX25-CP1-060#9971'], ['WD01-013#9972'], null], 'field.signi_down': [false, false, false],
+      'hand': [], 'energy': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await clickLrigImageAndWait(page, 'MC.LION　3rdVerse-ULT');
+    const downBtn = page.getByRole('button', { name: '【起】このルリグをダウン', exact: false }).first();
+    if (await downBtn.count() && await downBtn.isVisible().catch(() => false)) {
+      await downBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(400);
+    await H.clickBtn('発動', { exact: true });
+    let fin = null;
+    for (let s = 0; s < 4; s++) {
+      await page.waitForTimeout(400);
+      fin = await H.queryState();
+      if (fin?.pendingEffect === 'SELECT_TARGET') break;
+    }
+    const candidates = fin?.pendingCandidates ?? [];
+    const forcedOnly = candidates.length === 1 && candidates[0] === 'WX25-CP1-060#9971';
+    const detail = `pendingEffect=${fin?.pendingEffect} / candidates=${JSON.stringify(candidates)}（期待["WX25-CP1-060#9971"]のみ） / forcedOnly=${forcedOnly}`;
+    H.log(`  v56forcetarget ${detail}`);
+    return { pass: forcedOnly, detail };
+  },
+};
+order.push('v56ForceTargetSelfNarrowsCandidatesToForcedSigni');
+// ── V-56 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
