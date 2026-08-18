@@ -20731,15 +20731,19 @@ const v34EnergyProtectSpec = (guestMoveImmunity) => ({
   top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
 });
 async function driveV34EnergyProtect(page, H) {
-  await H.clickTestId('my-signi-zone-0');
+  const opened = await H.clickTestId('my-signi-zone-0');
   await page.waitForTimeout(500);
   const actBtn = page.locator('[data-testid^="card-action-"][data-action-label^="【起】"]').first();
+  const btnCount = await actBtn.count();
+  const btnLabel = btnCount ? await actBtn.getAttribute('data-action-label') : null;
   await actBtn.click({ timeout: 2000 }).catch(() => {});
   let fin = await H.queryState();
+  H.log(`  v34enaprotect opened=${opened} btnCount=${btnCount} btnLabel=${btnLabel} pendingEffect=${fin?.pendingEffect}`);
   for (let s = 0; s < 15; s++) {
     await page.waitForTimeout(400);
     const did = await H.stdStep();
     fin = await H.queryState();
+    H.log(`  v34enaprotect[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} gEnergy=${fin?.guest?.energy} gTrash=${fin?.guest?.trash}`);
     if (!did) break;
   }
   return fin;
