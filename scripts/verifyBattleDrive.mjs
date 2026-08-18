@@ -20015,6 +20015,53 @@ scenarios.v65PayGateSkipBlocksAbility = {
 order.push('v65PayGateWindowAppearsAndPayingFires', 'v65PayGateSkipBlocksAbility');
 // ── V-65 END ──
 
+// ── §7 V-64（続き543・O-37「引用能力の置換3形」）──
+// WX24-P3-005 系＝「あなたがダメージを受ける場合、代わりに手札を1枚捨ててもよい。そうした場合、この
+// ルリグはこの能力を失う」＝ルリグ付与ストアの STUB{DAMAGE_REPLACE_BY_COST}（`lifeCrashReplace.ts`
+// `grantedPayCostReplacements`）。ARTS詠唱の手順を省略し、`lrig_granted_auto_effects` へ直接注入する
+// （既存の life_crash_replacements 系シナリオ群と同じ「置換宣言を直接注入してCPU攻撃で消費させる」型）。
+// (a) CPUシグニアタックでライフが減らず、代わりに手札1枚を捨てて支払う
+// (b) 支払った直後、付与効果自体が消える（loseAbility＝「このルリグはこの能力を失う」の消費確認）
+scenarios.v64DamageReplaceByCostPaysAndLosesAbility = {
+  title: 'V-64(a) 🔴引用付与のダメージ置換＝手札を捨てて支払い、支払った瞬間に能力を失う',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#1'], 'field.signi': [null, null, null], 'field.check': null,
+      'lrig_granted_auto_effects': [{
+        effectId: 'v64damageReplaceE1', effectType: 'CONTINUOUS', duration: 'UNTIL_OPP_TURN_END',
+        mandatory: true, parseStatus: 'MANUAL',
+        action: { type: 'STUB', id: 'DAMAGE_REPLACE_BY_COST', damageReplaceByCost: { options: [{ handDiscard: 1 }], loseAbility: true } },
+      }],
+      'hand': ['WD01-013#900'], 'energy': [], 'lrig_deck': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#2'], 'field.lrig_down': true,
+      'field.signi': [['WD01-013#201'], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+      'energy': [], 'hand': [], 'lrig_deck': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  },
+  async drive(page, H) {
+    let last = await H.queryState();
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(500);
+      const did = await H.clickBtn('エナに送る', { exact: true });
+      const st = await H.queryState();
+      last = st;
+      const abilityGone = !(st?.host?.lrigGranted ?? []).some(g => g.effectId === 'v64damageReplaceE1');
+      const discarded = !(st?.host?.handCards ?? []).includes('WD01-013#900');
+      H.log(`  v64dmgrepl[${s}] -> ${did ?? 'なし'} | hLife=${st?.host?.life} hHand=${st?.host?.hand} discarded=${discarded} abilityGone=${abilityGone} check=${st?.host?.fieldCheck ?? '-'} phase=${st?.turnPhase}`);
+      if (st?.host?.life === 7 && discarded && abilityGone) {
+        return { pass: true, detail: `host.life 7維持・手札を捨てて支払い・付与効果は消費済み（hHand=${st.host.hand}）` };
+      }
+      if ((st?.host?.life ?? 7) < 7 && st?.host?.fieldCheck == null) return { pass: false, detail: `【置換不発】host.life=${st.host.life}（期待7）` };
+    }
+    return { pass: false, detail: `ダメージ置換タイムアウト（hLife=${last?.host?.life} hHand=${JSON.stringify(last?.host?.handCards)} lrigGranted=${JSON.stringify(last?.host?.lrigGranted)} phase=${last?.turnPhase}）` };
+  },
+};
+order.push('v64DamageReplaceByCostPaysAndLosesAbility');
+// ── V-64 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
