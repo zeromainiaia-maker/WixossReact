@@ -21191,6 +21191,69 @@ scenarios.v52GuardRestrictDifferentLevelAllowsGuard = {
 order.push('v52GuardRestrictSameLevelBlocksGuard', 'v52GuardRestrictDifferentLevelAllowsGuard');
 // ── V-52 END ──
 
+// ── §7 V-51（O-10・続き566）(c)のみ（場離れの置換コスト） ──
+// `WX25-P2-059`【常】《相手ターン》：あなたの緑のシグニ１体が対戦相手の効果によって場を離れる場合、
+// 《緑》《無》を支払ってもよい。そうした場合、代わりにこのシグニはこの能力を失う＝
+// STUB{EFFECT_LEAVE_PAY_TO_LOSE_SELF_ABILITY}。`applyEffectLeavePayLoseSelfAbilitySubstitute`
+// （effectExecutor.ts）が唯一の判定点＝**完全自動適用**（対話なし・払えるなら必ず払う）。
+// 相手（CPU）の攻撃に granted_effects で「アタックしたとき、対象の相手シグニをバニッシュ」を直接付与し
+// （ARTS詠唱を省略）、host のエナで(a)払える＝場に残る(b)払えない＝バニッシュされてエナゾーンへ、を見る。
+const v51LeaveSubstituteSpec = (hostEnergy) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9991'], 'field.signi': [['WX25-P2-059#9992'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': hostEnergy, 'actions_done': [], 'lost_ability_effect_ids_this_turn': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9993'], 'field.signi': [['WD01-013#9994'], null, null], 'field.signi_down': [false, false, false],
+    'field.check': null, 'hand': [], 'energy': [], 'actions_done': [],
+    'granted_effects': {
+      'WD01-013#9994': [{
+        effectId: 'v51leaveAttack1', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'], triggerScope: 'self',
+        mandatory: true, duration: 'INSTANT', parseStatus: 'AUTO',
+        action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } } },
+      }],
+    },
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function driveV51LeaveSubstitute(page, H) {
+  let fin = await H.queryState();
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(350);
+    const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
+    fin = await H.queryState();
+    H.log(`  v51leavesub[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} hField=${JSON.stringify(fin?.host?.fieldSigni)} hEnergy=${JSON.stringify(fin?.host?.energyCards)} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+    if (fin?.activeUser && fin.activeUser !== V79_CPU_ID) break;
+  }
+  return fin;
+}
+scenarios.v51LeaveSubstitutePaysAndSurvives = {
+  title: 'V-51(c) 《緑》《無》を払える＝場離れが能力喪失に置換され場に残る',
+  spec: v51LeaveSubstituteSpec(['WD04-013#9995', 'WD01-013#9996']),
+  async drive(page, H) {
+    const fin = await driveV51LeaveSubstitute(page, H);
+    const survived = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX25-P2-059#9992'));
+    const paid = (fin?.host?.energyCards ?? []).length === 0;
+    const detail = `survived=${survived}（期待true） / paid=${paid}（期待true＝2枚とも支払済み） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
+    H.log(`  v51leavesub ${detail}`);
+    return { pass: survived && paid, detail };
+  },
+};
+scenarios.v51LeaveSubstituteUnpayableBanishesNormally = {
+  title: 'V-51(c) 対照＝払えない＝通常どおりバニッシュされる',
+  spec: v51LeaveSubstituteSpec([]),
+  async drive(page, H) {
+    const fin = await driveV51LeaveSubstitute(page, H);
+    const stillOnField = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX25-P2-059#9992'));
+    const banishedToEnergy = (fin?.host?.energyCards ?? []).includes('WX25-P2-059#9992');
+    const detail = `場に残っている=${stillOnField}（期待false） / エナゾーンにバニッシュ=${banishedToEnergy}（期待true） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
+    H.log(`  v51leavesub ${detail}`);
+    return { pass: !stillOnField && banishedToEnergy, detail };
+  },
+};
+order.push('v51LeaveSubstitutePaysAndSurvives', 'v51LeaveSubstituteUnpayableBanishesNormally');
+// ── V-51 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
