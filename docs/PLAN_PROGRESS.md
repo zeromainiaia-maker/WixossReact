@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き558・Sonnet 5）＝§7 実機検証を継続＝`V-75`(A)(B)（CPU が相手のアタックフェイズに応答アーツで守る）実機 PASS**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規2本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.488→0.489。**ユーザー指示により V-75 (A)(B) で区切り、(C)(D) は未着手のまま次回へ**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き558）。
+  - **✅ (A)(B) CPU が守り、止まらないこと**（`v75CpuDefendsWithArts`／`v75CpuDoesNotDefendWithoutThreat`）＝WX24-P1-021（剣一炎敵）を CPU のルリグデッキへ入れ、host の `ATTACK_ARTS_OP` フェイズで CPU が応答して host シグニをバニッシュ→そのまま次フェイズへ自動進行（止まらない）ことを確認。対照＝脅威が無ければ使わない。
+  - 🔑**判定の罠（次に触る人へ）**＝`hasIncomingThreat` は host 側シグニが**まだダウンしていない**（`ATTACK_ARTS_OP` はアタック解決**前**）状態を見る＝down にすると偽陰性になる。`life_cloth` は値を `undefined` にするのではなく**キーごと条件付きで省略する**（`...(cond ? {} : {...})`）＝`undefined` を渡すと `injectScenario` の既定7枚フィラーを上書きしてしまう（V-74で踏んだのと同型）。
+  - 📋**残＝(C)(D) は未着手**＝(C) 人間側の回帰確認（限定つきアーツ／`ARTS_LIMIT_1`／カード名封じ）(D) `altCostOppTurn`（相手ターン中の代替コスト）。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-75`(C)(D) から再開**。未検証は他に `V-76`〜`V-78`／それ以前の約49件。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も次に触る人が要再現確認**（続き556 記録・未解決）。
+  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（実機検証待ちはクローズ済み）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-75`(C)(D) から。
 - **🆕 セッション（2026-08-18・続き557・Sonnet 5）＝§7 実機検証を継続＝`V-74`（CPU がメインフェイズにシグニ【起】を撃つ＋エナコスト色照合の是正）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規7本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.487→0.488。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き557）。
   - **✅ (A) CPU がメインフェイズにシグニ【起】を撃つ＝4項目を3シナリオで確認**（`v74CpuSigniActivatedOncePerTurn`／`v74CpuSkipsHandDiscardCost`／`v74CpuAutoRespondsSelectTarget`）＝発動→2回目は撃たれない／allowlist外コストは撃たない（負方向）／SELECT_TARGETでも自動応答で解決、の3点。
   - 🔑**判定の罠（次に触る人へ）**＝hand の最終値では判定しない（発動直後に CPU がドローしたカードを召喚してしまうことがある）。actionsDone もターン終了処理でクリアされる＝`handedOver` 後に読むと安全弁が効いていないように見える。**energy の最終値（永続的な物理量）＋ターン中に一度でも actionsDone に記録されたか**で見るのが正しい。
