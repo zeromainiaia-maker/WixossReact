@@ -141,13 +141,13 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-18・続き559・Sonnet 5）＝§7 実機検証を継続＝`V-75`(C)(D) 実機確認＋🔴実機検証中に真の engine バグを発見（Opusタスク12 (cxxxv) へ登録）**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規8本中7本 PASS・1本は意図的に赤**（実バグ待ち・2回連続で同じ結果）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.489→0.490。**`V-75` は (A)〜(D) すべて着手完了**（(C)-2 のみ engine バグ待ちで残る）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き559）。
-  - 🔴🔴**新規発見＝`calcContinuousBlockedActions` がルリグ本体の CONTINUOUS `BLOCK_ACTION`（`target.owner:'opponent'`）を一切拾わない恒久 no-op**＝V-75(C)-2（`ARTS_LIMIT_1` の回帰確認）で `WX13-007` を実機に置いても2枚目アーツの「使用」が消えず発見。**単体スクリプトで `forSelf`/`forOther` が完全に空集合であることを確認**（実機の観測と一致・注入側の問題ではない）。真因は `effectEngine.ts` の `scanField`（シグニのみ）と `scanLrigSelfBlocks`（self対象のみ）の2関数しか無く、**ルリグ本体の opponent 対象 `BLOCK_ACTION` を処理する経路が構造的に無い**こと。live母集団5件（`WX04-005`／`WX05-011`／`WX13-007`／`WXEX2-11`／`WD14-001`）。**Opusタスク12 (cxxxv) へ登録**（その場では未修正）。`v75ArtsLimit1SecondUseBlocked` は実バグ待ちとして赤のまま既定orderに残す。
-  - **✅ (C)-1 限定つきアーツ／(C)-3 カード名封じ／(D) altCostOppTurn は回帰なし＝実機PASS 6本**（`v75RestrictionMatchedShowsUse`/`MismatchHidesUse`・`v75CardNameBlockedHidesUse`/`NotBlockedShowsUse`・`v75AltCostOppTurnTriples`/`OwnTurnPrinted`）。
-  - 🔑**罠**＝カード印字は全角数字（`《緑》×１`）＝文字列一致で判定するときは全角/半角に注意。人間側ルリグデッキの「使用」可否確認は `my-lrig-dk`→`zone-card-0`→`getByRole('button',{name:'使用'})` で判定できる（`ArtsModal` は Phase1 をスキップし直接コスト表示から開く）。
-  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-76`〜`V-78`／それ以前の約49件**が未検証。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も要再現確認**（続き556 記録・未解決）。
-  - **▶ 次の一手【Opus 側】**＝🆕**Opusタスク12 に新規在庫1件**（(cxxxv)＝上記の `calcContinuousBlockedActions` 恒久 no-op）＝**次の Opus セッションはまずこれを消化**。§6.4 は `O-19b`（小）・`O-1` は (g) のみ残。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-76` から。
+- **🆕 セッション（2026-08-18・続き560・Sonnet 5）＝§7 実機検証を継続＝`V-76`（CPU が自ターンにアーツ／スペルで攻める）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規5本 ALL PASS**（うち1本はハーネス側の断続的フレークを観測・follow-up）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.490→0.491。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き560）。
+  - **✅ (A)(C) CPU が正面塞がれで除去アーツを使い、除去後アタックが通る**（`v76CpuUsesRemovalWhenBlocked`／対照`v76CpuDoesNotUseRemovalWhenClear`）＝WX24-P1-021 で host シグニをバニッシュ→正面が空いて guest のシグニがアタック→**host ライフ 7→5**（除去の目的達成の証拠）。
+  - **✅ (B) スペルの応答窓＝CPU がスペルを使うと人間側にカットイン窓が出て、パスで解決して先へ進む**（`v76CpuSpellCutinPassProgresses`）＝止まらないことを確認。⚠**バッチ実行時にハーネス側の断続的フレークを観測**（3回中2回PASS・FAIL時は注入と無関係なカードが場に出ている＝`injectScenario`→`reload` のタイミング競合疑い・単発では安定してPASS＝engine回帰ではない）。
+  - **✅ (D) 負方向＝除去に分類できないスペルは支払い可能でも CPU が使わない**（`v76CpuDoesNotUseUnsupportedSpell`）＝WXK06-026（追加アタックフェイズ）で確認。📋**任意支払いでコストが下がる札の人間側回帰確認は見送り**（follow-up・優先度低）。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証を続ける**（§7 `V-nn`）。**`V-77`〜`V-78`／それ以前の約48件**が未検証。**`v15AttackPhaseEndCentralDiffToyLeftFires` の不安定化も要再現確認**（続き556 記録・未解決）。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫1件**（(cxxxv)＝`calcContinuousBlockedActions` 恒久 no-op・続き559 で登録）＝**次の Opus セッションはまずこれを消化**。§6.4 は `O-19b`（小）・`O-1` は (g) のみ残。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）を継続。`V-77` から。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
