@@ -19985,10 +19985,15 @@ scenarios.v65PayGateWindowAppearsAndPayingFires = {
   spec: v65PayGateSpec,
   async drive(page, H) {
     const { fin, windowSeen } = await driveV65PayGate(page, H, true);
-    const energyFinal = fin?.host?.energy ?? -1;
-    const detail = `windowSeen=${windowSeen}（期待true） / energy終値=${energyFinal}（期待2＝手動1+ボーナス1） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    // ⚠支払った分（filler）はtrashへ移り、ボーナスのエナチャージがそれを埋め合わせるため
+    //   energy枚数だけでは判定できない（filler消費とボーナス+1が相殺されて数字が変わらない）。
+    //   deckの消費量（WX01-049分1枚＋ボーナス分1枚=2枚）とtrashへの支払い移動で判定する。
+    const deckFinal = fin?.host?.deck ?? -1;
+    const paidCardInTrash = (fin?.host?.trashCards ?? []).includes('WD01-014#9983');
+    const detail = `windowSeen=${windowSeen}（期待true） / deck終値=${deckFinal}（期待0＝2枚とも消費＝ボーナスも発火） / `
+      + `paidCardInTrash=${paidCardInTrash}（期待true） / energy終値=${fin?.host?.energy} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
     H.log(`  v65paygate ${detail}`);
-    return { pass: windowSeen && energyFinal === 2, detail };
+    return { pass: windowSeen && deckFinal === 0 && paidCardInTrash, detail };
   },
 };
 scenarios.v65PayGateSkipBlocksAbility = {
