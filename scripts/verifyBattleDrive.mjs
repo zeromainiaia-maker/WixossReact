@@ -19919,6 +19919,85 @@ scenarios.v67LrigDownAbilityActuallyDownsAndBlocksSecondUse = {
 order.push('v67LrigDownAbilityActuallyDownsAndBlocksSecondUse');
 // ── V-67 END ──
 
+// ── §7 V-65（続き544・O-38「相手シグニ【自】の支払えば通る回避」）──
+// `blocked_actions` へ `PAY_GATE_OPP_SIGNI_AUTO:無`（`blockAction.ts` の signiAutoPayGateMarkers）を
+// guest 側へ直接注入する（SPDi43-01 を実際に撃つ手順を省略＝ゲートが「宣言済みで有効」な状態を作る）。
+// host の WXK04-028（【自】《ターン１回》：エナチャージをしたとき、エナチャージ１）を
+// WX01-049（【起】《ダウン》：デッキ最上をエナへ）で発火させ、
+// (a) 窓が実際に出る（「支払う（コスト: 《無》）」／「支払わない」の2択）
+// (b) 支払えば本体が通り、host.energy が2枚（手動ぶん+ボーナスぶん）になる
+// (c) 支払わなければ何も起きず host.energy は1枚（手動ぶんのみ）のまま
+// を見る。⚠旧実装はこの窓が一度も出ずに丸ごと止めていた（`BLOCK_OPP_SIGNI_AUTO` で無条件ブロック）。
+const v65PayGateSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#9980'], 'field.signi': [['WXK04-028#9981'], ['WX01-049#9982'], null],
+    'field.check': null, 'field.signi_down': [false, false, false],
+    'energy': ['WD01-014#9983'], 'deck': ['WD01-013#9984', 'WD01-013#9985'],
+    'hand': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9990'], 'field.signi': [null, null, null], 'field.check': null,
+    'blocked_actions': ['PAY_GATE_OPP_SIGNI_AUTO:無'],
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+async function driveV65PayGate(page, H, payChoice) {
+  await H.ensureMain();
+  await page.waitForTimeout(600);
+  await H.clickTestId('my-signi-zone-1').catch(() => {});
+  await page.waitForTimeout(500);
+  const downBtn = page.getByRole('button', { name: '【起】ダウン', exact: false }).first();
+  if (await downBtn.count() && await downBtn.isVisible().catch(() => false)) {
+    await downBtn.click({ timeout: 3000 }).catch(() => {});
+  }
+  await page.waitForTimeout(400);
+  await H.clickBtn('発動', { exact: true });
+  let fin = null;
+  let windowSeen = false;
+  for (let s = 0; s < 10; s++) {
+    await page.waitForTimeout(400);
+    const payBtn = page.getByRole('button', { name: /支払う/ }).first();
+    const skipBtn = page.getByRole('button', { name: '支払わない', exact: true }).first();
+    const payVisible = await payBtn.count() && await payBtn.isVisible().catch(() => false);
+    const skipVisible = await skipBtn.count() && await skipBtn.isVisible().catch(() => false);
+    if (payVisible || skipVisible) windowSeen = true;
+    let did = null;
+    if (payChoice && payVisible) { await payBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:支払う'; }
+    else if (!payChoice && skipVisible) { await skipBtn.click({ timeout: 3000 }).catch(() => {}); did = 'btn:支払わない'; }
+    if (!did) did = await H.stdStep();
+    fin = await H.queryState();
+    H.log(`  v65paygate[${s}] did=${did} windowSeen=${windowSeen} pendingEffect=${fin?.pendingEffect} energy=${fin?.host?.energy} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+  }
+  return { fin, windowSeen };
+}
+
+scenarios.v65PayGateWindowAppearsAndPayingFires = {
+  title: 'V-65(a)(b) 🔴支払えば通る窓が実際に出て、支払うと本体（エナチャージ）が通る',
+  spec: v65PayGateSpec,
+  async drive(page, H) {
+    const { fin, windowSeen } = await driveV65PayGate(page, H, true);
+    const energyFinal = fin?.host?.energy ?? -1;
+    const detail = `windowSeen=${windowSeen}（期待true） / energy終値=${energyFinal}（期待2＝手動1+ボーナス1） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    H.log(`  v65paygate ${detail}`);
+    return { pass: windowSeen && energyFinal === 2, detail };
+  },
+};
+scenarios.v65PayGateSkipBlocksAbility = {
+  title: 'V-65(c) 対照＝支払わなければ何も起きない（エナチャージ本体は不発）',
+  spec: v65PayGateSpec,
+  async drive(page, H) {
+    const { fin, windowSeen } = await driveV65PayGate(page, H, false);
+    const energyFinal = fin?.host?.energy ?? -1;
+    const detail = `windowSeen=${windowSeen}（期待true） / energy終値=${energyFinal}（期待1＝手動ぶんのみ） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    H.log(`  v65paygate ${detail}`);
+    return { pass: windowSeen && energyFinal === 1, detail };
+  },
+};
+order.push('v65PayGateWindowAppearsAndPayingFires', 'v65PayGateSkipBlocksAbility');
+// ── V-65 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
