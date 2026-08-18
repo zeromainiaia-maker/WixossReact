@@ -18421,6 +18421,61 @@ scenarios.v79HumanOrderEndBeforeStart = {
 order.push('v79HumanOrderEndBeforeStart');
 // ── V-79(D) END ──
 
+// ── §7 V-80(C)＝CPU が付与ルリグ【起】を撃つ ──
+// 🔑**収集源は `pickCpuLrigActivated` の②**（`collectGrantedLrigEffects`→`listActivatableGrantedLrigEffects`）＝
+//   V-80(A)(B) と**同じ注入経路**（`lrig_granted_auto_effects`）を CPU のセンタールリグへ乗せるだけで踏める。
+// ⚠センタールリグは V-80(A)(B) と同じ効果0件の `WD03-003` を使う（自前の【起】との取り違えを避ける）。
+// ⚠**手札・場のシグニを空にする**＝`tryCpuSigniActivated`／攻めのアーツが先に選ばれて
+//   `tryCpuLrigActivated` まで進まない事故を避ける（MAIN 窓の優先順は 召喚→シグニ【起】→ルリグ【起】→アーツ）。
+const v80CpuGrantedSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#8770'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': [`${V80_LRIG}#8771`], 'field.signi': [null, null, null], 'field.check': null,
+    'coins': 1, 'hand': [], 'energy': [], 'actions_done': [],
+    'cpu_activated_effect_ids_this_turn': [],
+    'lrig_granted_auto_effects': [
+      { effectId: 'V80C-GRANT-COIN', effectType: 'ACTIVATED', timing: ['MAIN'], cost: { coin: 1 },
+        action: { type: 'DRAW', owner: 'self', count: 1 },
+        duration: 'INSTANT', mandatory: false, parseStatus: 'MANUAL' },
+    ],
+  },
+  top: { active: 'cpu', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+const driveV80CpuGranted = async (page, H) => {
+  const before = await H.queryState();
+  const beforeCoins = before?.guest?.coins ?? 0;
+  const beforeHand = before?.guest?.hand ?? 0;
+  let fired = false;
+  let fin = before;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] ルリグの【起】を発動'))) { fired = true; break; }
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;   // ターンが人間へ渡った＝不発のまま終わった
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const coinsSpent = (fin?.guest?.coins ?? 0) < beforeCoins;
+  const handGrew = (fin?.guest?.hand ?? 0) > beforeHand;
+  const detail = `fired=${fired} / coins ${beforeCoins}→${fin?.guest?.coins}(spent=${coinsSpent}) / `
+    + `hand ${beforeHand}→${fin?.guest?.hand}(grew=${handGrew}) / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  H.log(`  v80cpuGranted ${detail}`);
+  if (!fired) return { pass: false, detail: `🔴CPU が付与ルリグ【起】を撃たなかった（${detail}）` };
+  return { pass: coinsSpent && handGrew, detail };
+};
+
+scenarios.v80CpuActivatesGrantedLrig = {
+  title: 'V-80(C) CPU が付与ルリグ【起】を撃つ（コイン支払い＋DRAW本体まで解決）',
+  spec: v80CpuGrantedSpec,
+  drive: (page, H) => driveV80CpuGranted(page, H),
+};
+order.push('v80CpuActivatesGrantedLrig');
+// ── V-80(C) END ──
+
 // ── V-79 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
