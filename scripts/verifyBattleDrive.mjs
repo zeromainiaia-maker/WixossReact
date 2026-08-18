@@ -18858,7 +18858,7 @@ scenarios.v75AltCostOppTurnTriples = {
 scenarios.v75AltCostOwnTurnPrinted = {
   title: 'V-75(D) 対照＝自分のターンでは印刷コスト（緑×1）のまま',
   spec: v75AltCostSpec(false),
-  drive: (page, H) => driveV75AltCost(page, H, '《緑》×1'),
+  drive: (page, H) => driveV75AltCost(page, H, '《緑》×１'),   // カード印字は全角数字（energyCostToString は印刷コストをそのまま通す）
 };
 order.push('v75AltCostOppTurnTriples', 'v75AltCostOwnTurnPrinted');
 
