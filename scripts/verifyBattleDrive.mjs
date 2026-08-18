@@ -18390,6 +18390,8 @@ const v79dOrderSpec = {
 const driveV79dOrder = async (page, H) => {
   await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_LRIG', effect_stack: null, pending_effect: null });
   await page.waitForTimeout(600);
+  const pre = await H.queryState();
+  H.log(`  v79dOrder pre-click host.signiLeftThisAttackPhase=${JSON.stringify(pre?.host?.signiLeftThisAttackPhase)} host.fieldSigni=${JSON.stringify(pre?.host?.fieldSigni)}`);
   let clicked = false;
   let orderIds = null;
   let lastSeen = null;
@@ -18404,7 +18406,7 @@ const driveV79dOrder = async (page, H) => {
     if (hasEnd && hasStart) { orderIds = ids; break; }
   }
   if (!orderIds) {
-    return { pass: false, detail: `🔴両エントリが揃わない（clicked=${clicked} last=${JSON.stringify(lastSeen?.stackPending)}/${JSON.stringify(lastSeen?.stackQueue)}）` };
+    return { pass: false, detail: `🔴両エントリが揃わない（clicked=${clicked} last=${JSON.stringify(lastSeen?.stackPending)}/${JSON.stringify(lastSeen?.stackQueue)} preLeft=${JSON.stringify(pre?.host?.signiLeftThisAttackPhase)}）` };
   }
   const idxEnd = orderIds.findIndex(i => i.includes('WX24-P2-075'));
   const idxStart = orderIds.findIndex(i => i.startsWith('EXTRA_ATTACK_PHASE_START'));
