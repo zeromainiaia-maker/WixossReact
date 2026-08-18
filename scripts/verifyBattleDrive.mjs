@@ -19176,6 +19176,9 @@ const v77CpuLrigActivatedSpec = {
 };
 
 const driveV77CpuLrigActivated = async (page, H) => {
+  // ⚠**energy の最終値では判定しない**＝action 自体が ENERGY_CHARGE_FROM_DECK（デッキから1枚エナへ）
+  //   なので、コストで払った1枚と action で得た1枚が相殺されて energy の総数は変わらない（続き561実測）。
+  //   **trash の枚数**（コストで払った分だけ増える・action はトラッシュを経由しない）で1回だけ発動したことを見る。
   let fired = false;
   let fin = null;
   for (let s = 0; s < 60; s++) {
@@ -19186,12 +19189,12 @@ const driveV77CpuLrigActivated = async (page, H) => {
     await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
-  const energyOnce = (fin?.guest?.energy ?? -1) === 1;   // 2枚のうち1枚だけ消費＝1回だけ発動の動かぬ証拠
-  const detail = `fired=${fired} / energy終値=${fin?.guest?.energy}（期待1＝2枚中1枚だけ消費） / `
+  const trashOnce = (fin?.guest?.trash ?? -1) === 1;   // コストで払った1枚だけがトラッシュへ＝1回だけ発動の動かぬ証拠
+  const detail = `fired=${fired} / trash終値=${fin?.guest?.trash}（期待1＝コスト1枚だけ消費） / energy終値=${fin?.guest?.energy}（参考） / `
     + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
   H.log(`  v77lrigActivated ${detail}`);
   if (!fired) return { pass: false, detail: `🔴CPU がルリグ【起】を撃たなかった（${detail}）` };
-  return { pass: energyOnce, detail };
+  return { pass: trashOnce, detail };
 };
 
 scenarios.v77CpuActivatesPrintedLrigAbility = {
