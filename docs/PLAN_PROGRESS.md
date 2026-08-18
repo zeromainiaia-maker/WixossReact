@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き562・Sonnet 5）＝§7 実機検証を継続＝`V-78`（CPU グロウ統合の回帰確認）／`V-73`（【常】のゲート「〜あるかぎり」）／`V-72`（エナコストの集合制約）を実施＝🔴実機検証中に真の engine バグを2件発見（Opusタスク12 (cxxxvi)(cxxxvii) へ登録）**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規9本中7本 PASS・2本は意図的に赤**（実バグ待ち）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.492→0.493。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き562）。
+  - **✅ V-78(A)(C) CPU グロウの回帰＝コスト付き任意【出】はコインだけで払えるものが自動発火**（`v78CpuGrowsAndPaysOnPlayCost`）＝WDK01-003 で確認。🔑hand最終値では判定しない（`N枚ドロー`ログで見る）。
+  - 🔴**新規発見①＝CPU グロウが「entries が空のまま state だけ変わる」ケースで GROW フェイズから先に進めなくなる（永久凍結）**＝`v78CpuGrowsButSkipsOnPlayWithoutCoin`（コスト不足で任意【出】が発火しない対照）で発見。CPU ターンを進める `useEffect` の依存配列にグロウで変わる `field.lrig`／`lrig_deck`／`coins`／`actions_done` が1つも入っておらず、`WRITE_STATE` だけの commit では二度と再起動しない。**Opusタスク12 (cxxxvi) へ登録**。同シナリオは赤のまま既定orderに残す。
+  - **✅ V-73(a)(b) WX14-073＝トラッシュにスペルが無いと基本パワー印刷値5000のまま／送ると8000になる**（PASS）。**✅(c) WXDi-P04-050＝ダウンで+5000が外れ印刷値10000に戻る**（PASS）。
+  - 🔴**新規発見②＝「隣にあるあなたのシグニ」の対象フィルタが未実装＝ゾーン隣接を無視して自分の全シグニ（自分自身含む）に過剰実装**＝`v73UpGateActiveShowsBuffedPower`（WXDi-P04-050 のアップ側）で発見。単独配置なのに隣接誤爆で 15000 のはずが 18000 になる。live母集団2件（`WXDi-P04-050`／`WXDi-P00-053`）。**Opusタスク12 (cxxxvii) へ登録**。同シナリオは赤のまま既定orderに残す。
+  - **✅ V-72 エナコストの集合制約（レベル distinct）は回帰なし**（3本 ALL PASS・2回連続）＝`WXDi-P09-008` で同レベル2枚目が弾かれる／異なる3レベルで発動可／2枚では発動不可を確認。🔑**ハーネス側の罠**＝エナと相手フィールドの対象カードで CardNum を重複させると `img[alt=]` ロケータが誤爆し選択状態が巻き戻る。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 に在庫3件**（(cxxxv)(cxxxvi)(cxxxvii)・続き559/562 で登録・未修正）。
 - **🆕 セッション（2026-08-18・続き561・Sonnet 5）＝§7 実機検証を継続＝`V-77`（CPU がルリグ【起】と《アタックフェイズアイコン》付きシグニ【起】を撃つ＋人間側のコスト是正3件）ALL PASS で残0クローズ**。ゲート全緑（**golden 2295 据置**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機新規8本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.491→0.492。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き561）。
   - **✅ (A) CPU がルリグ本来【起】を発動し、同一ターンに2回撃たない**（`v77CpuActivatesPrintedLrigAbility`）＝WX12-002-E3 で確認。🔑**判定の罠**＝action が `ENERGY_CHARGE_FROM_DECK` の場合、コスト消費と獲得が相殺されて `energy` の総数は変わらない＝**`trash` の枚数**で判定するのが正しい。
   - **✅ (B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる**（`v77CpuUsesIconAbilityInAttackArts`）＝WX19-050 で確認。🔑**判定の罠×2**＝①host のダウンは host 自身の次の UP フェイズでアップされる＝ターン完全終了後に見ると消えていることがある②発動ログ検出と同じ瞬間はまだ効果解決前のことがある＝**fired後も継続して対象状態を監視**する。対照（MAINでは撃たれない）は**CPU側では決定論的に観測できない**（自動進行が速すぎる）ため**人間視点に切り替え**（`v77HumanIconLrigShownInAttackArts`/`HiddenInMain`）＝同じ `signiActivateGate` を呼ぶので同型の裏取りになる。
