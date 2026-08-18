@@ -20445,6 +20445,70 @@ scenarios.v38LrigAttackBanUnpayableBlocks = {
 order.push('v38LrigAttackBanPayableFires', 'v38LrigAttackBanUnpayableBlocks');
 // ── V-38 END ──
 
+// ── §7 V-36（O-10・続き566）(c)のみ ──
+// `WXDi-P16-047`【常】：対戦相手は《無》を支払わないかぎり、このシグニの正面にあるシグニでアタックできない
+// ＝STUB{BLOCK_FRONT_SIGNI_ATTACK, value:1}（`effectEngine.ts` の `calcContinuousBlockedActions` が
+// `cannotAttackSigniUnlessPayColorless` へ集約）。カード詠唱は不要＝相手フィールドに直接置くだけで
+// 常時判定される。シグニ版は「払えない」だとボタン自体が生成されない（LRIG版の「アタック不可」表示とは
+// 挙動が異なる＝`canSigniAttack` が false を返し `[]`）。
+const v36FrontZoneSpec = (hostEnergy) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9996'], 'field.signi': [['WX15-105#9997'], null, null], 'field.check': null,
+    'hand': [], 'energy': hostEnergy, 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9998'], 'field.signi': [['WXDi-P16-047#9999'], null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'life_cloth': ['WD01-013#9995', 'WD01-013#9994'],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+scenarios.v36FrontSigniAttackPayableFires = {
+  title: 'V-36(c) 正面に`WXDi-P16-047`＝エナ1以上なら《無》×1を前払いしてアタックできる',
+  spec: v36FrontZoneSpec(['WD01-013#9993']),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-signi-zone-0');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+    const label = await atk.count() ? await atk.getAttribute('data-action-label') : null;
+    const visible = await atk.count() > 0 && await atk.isVisible().catch(() => false);
+    if (visible) await atk.click().catch(() => {});
+    let fin = before;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(300);
+      fin = await H.queryState();
+      if ((fin?.host?.signiDown ?? [])[0]) break;
+      const did = await H.stdStep() || await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']);
+      if (!did) { fin = await H.queryState(); if ((fin?.host?.signiDown ?? [])[0]) break; }
+    }
+    const paid = (before?.host?.energy ?? 0) - (fin?.host?.energy ?? 0) === 1;
+    const attacked = !!(fin?.host?.signiDown ?? [])[0];
+    const pass = label === 'アタック（《無》×1）' && attacked && paid;
+    const detail = `label=${label}（期待"アタック（《無》×1）"） / signiDown[0]=${attacked}（期待true） / エナ消費=${(before?.host?.energy ?? 0)}→${fin?.host?.energy}（1消費期待）`;
+    H.log(`  v36frontzone ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v36FrontSigniAttackUnpayableNoButton = {
+  title: 'V-36(c) 対照＝エナ0ならボタン自体が出ずアタックできない',
+  spec: v36FrontZoneSpec([]),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.clickTestId('my-signi-zone-0');
+    await page.waitForTimeout(500);
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+    const visible = await atk.count() > 0 && await atk.isVisible().catch(() => false);
+    await page.waitForTimeout(300);
+    const fin = await H.queryState();
+    const pass = !visible && !(fin?.host?.signiDown ?? [])[0];
+    const detail = `「アタック」ボタン可視=${visible}（期待false） / signiDown[0]=${(fin?.host?.signiDown ?? [])[0]}（期待false）`;
+    H.log(`  v36frontzone ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v36FrontSigniAttackPayableFires', 'v36FrontSigniAttackUnpayableNoButton');
+// ── V-36 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
