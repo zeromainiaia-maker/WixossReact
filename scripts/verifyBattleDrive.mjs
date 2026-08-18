@@ -19529,8 +19529,11 @@ const v72EnergyDistinctSpec = {
     'energy': ['WD01-013#9302', 'WD01-014#9303', 'WD01-012#9304', 'WD01-010#9305'],
     'hand': [], 'actions_done': [],
   },
+  // ⚠guest側の対象カードはエナ4枚（WD01-013/014/012/010）と**名前が被らない**カードにする＝被ると
+  // `img[alt="CardName"]`のロケータが背後の相手フィールドカードを拾い、モーダル外クリックで選択状態が
+  // 巻き戻る（続き562実測＝WD01-010を両方に使ったところ ✓ が0個に戻る事故）。
   guestSet: {
-    'field.lrig': ['WD01-001#9310'], 'field.signi': [['WD01-010#9311'], null, null], 'field.check': null,
+    'field.lrig': ['WD01-001#9310'], 'field.signi': [['WD02-010#9311'], null, null], 'field.check': null,
     'hand': [], 'energy': [],
   },
   top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
