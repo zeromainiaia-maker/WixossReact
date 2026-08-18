@@ -19244,15 +19244,37 @@ const driveV77IconLrig = async (page, H, expectFired) => {
   return { pass: ok, detail };
 };
 
+// 対照専用＝**MAIN フェイズにいる間だけ**観測する（CPU ターンは自動的に ATTACK_ARTS まで進むので、
+// ターン終了まで待つと「MAIN では発動しないが ATTACK_ARTS では正しく発動する」を「MAIN で発動した」と
+// 誤認してしまう＝続き561 実測の教訓）。MAIN を抜けた時点でループを打ち切り、その間 fired が立たないことを見る。
+const driveV77IconLrigMainOnly = async (page, H) => {
+  let fired = false;
+  let leftMain = false;
+  let fin = null;
+  for (let s = 0; s < 40; s++) {
+    const st = await H.queryState();
+    fin = st;
+    if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動: コードメイズ'))) fired = true;
+    if (st?.turnPhase && st.turnPhase !== 'MAIN') { leftMain = true; break; }
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;   // 稀に一瞬で END まで進む場合の保険
+    await page.waitForTimeout(300);
+  }
+  const detail = `fired=${fired}（期待false） / leftMain=${leftMain} / turnPhase末値=${fin?.turnPhase} / `
+    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-4))}`;
+  H.log(`  v77iconLrigMainOnly ${detail}`);
+  if (!leftMain) return { pass: false, detail: `🔴MAIN フェイズから先へ進んだのを観測できなかった（${detail}）` };
+  return { pass: !fired, detail };
+};
+
 scenarios.v77CpuUsesIconAbilityInAttackArts = {
   title: 'V-77(B) 《アタックフェイズアイコン》付きシグニ【起】は ATTACK_ARTS で撃たれる',
   spec: v77IconLrigSpec('ATTACK_ARTS'),
   drive: (page, H) => driveV77IconLrig(page, H, true),
 };
 scenarios.v77CpuDoesNotUseIconAbilityInMain = {
-  title: 'V-77(B) 対照＝MAIN フェイズでは撃たれない（gate の timing 照合）',
+  title: 'V-77(B) 対照＝MAIN フェイズの間は撃たれない（gate の timing 照合）',
   spec: v77IconLrigSpec('MAIN'),
-  drive: (page, H) => driveV77IconLrig(page, H, false),
+  drive: (page, H) => driveV77IconLrigMainOnly(page, H),
 };
 order.push('v77CpuUsesIconAbilityInAttackArts', 'v77CpuDoesNotUseIconAbilityInMain');
 
