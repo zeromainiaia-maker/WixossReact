@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き557・Sonnet 5）— §7 実機検証を継続＝`V-74`（CPU がメインフェイズにシグニ【起】を撃つ ＋ エナコスト色照合の是正）ALL PASS で残0クローズ
+
+ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規7本 ALL PASS**（2回連続）。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。version 0.487→0.488。続き556 の「▶ 次の一手【Sonnet 側】」を消化。
+
+### 1. (A) CPU がメインフェイズにシグニ【起】を撃つ＝4項目を3シナリオで確認
+
+- **`v74CpuSigniActivatedOncePerTurn`**（(a)(b)）＝WXK01-040（魔界の酒鬼 シュテンド・青Lv4・【起】《青》：DRAW1・`usageLimit:once_per_turn`）を CPU の場に置き、青エナ2枚（2回分）を持たせて MAIN を回す。`[CPU] 【起】を発動:` ログ→**エナが2枚中1枚だけ消費**（＝2回目が撃たれていない動かぬ証拠）を確認。
+  - 🔑**判定は hand の最終値では見ない**＝発動して1枚引いた直後、次のループで CPU がその引いたカードを**召喚してしまう**ことがある（正常な後続動作）ので hand は 0 に戻りうる。**actionsDone もターン終了（END処理）でクリアされる**ため、`handedOver` になった後に読むと安全弁が効いていないように見える（実際は効いている）。⇒ **energy の最終値**（永続的な物理量）と**ターン中に一度でも actionsDone に記録されたか**（ポーリング中に監視）の2点で見るのが正しい。
+- **`v74CpuSkipsHandDiscardCost`**（(c)・負方向）＝WX05-032（弩砲アヴェンジャー・cost が `handDiscardSigni` のみ＝`CPU_AUTO_PAYABLE_COST_KEYS` に無い）を CPU の場に置き、捨てる材料（＜ウェポン＞story）を手札に持たせても**CPU は一切撃たない**（`sawFireLog=false`）ことを確認。host 側にパワー8000以下のバニラ（WD01-013）を対象として置き、誤発動なら即バニッシュされる設計。
+- **`v74CpuAutoRespondsSelectTarget`**（(d)）＝WX07-029（幻獣 ウサ・【起】《緑》：エナから1枚を対象として手札へ＝`SELECT_TARGET` を要する）を緑エナ4枚（コスト1＋候補3）で回し、CPU の自動応答が対象選択まで含めて解決することを確認（hand≥1・energy が4→2）。
+
+### 2. (B) 人間側＝エナコストの色照合が効いていること（続き551の副産物バグの実機裏取り）
+
+続き551で発見・是正した「`parseGrowCost` は《色》×N形式しか読まず、`SigniActivatedModal.tsx`/`EnergyActivatedModal.tsx` が素の `赤1` 形式を渡していたため色照合が丸ごと死んでいた」バグを、実機UIで2対（シグニ側／アクセ側）×2本（負方向＋対照）の計4本で裏取りした。
+
+- **`v74HumanColorMismatchBlocked` / `v74HumanColorMatchEnabled`** ＝WXK01-040（青コスト×1）に**赤エナ**を選ぶと「発動」が disabled のまま、**青エナ**なら enabled になることを確認。
+- **`v74HumanAcceColorMismatchBlocked` / `v74HumanAcceColorMatchEnabled`** ＝WX17-075（コードイート タルタル・エナゾーンの【起】＝【アクセ】発動・緑コスト×1）でも同型の色照合が `EnergyActivatedModal.tsx` 側で効いていることを確認（赤エナで「アクセ発動」disabled／緑エナで enabled）。
+
+### 3. 使ったドライブ手法（次に同種を触る人へ）
+
+- CPU 側の観測は `V-79`/`V-80` と同じ「進行ボタン待ちポーリング」型（`アーツ終了`／`ガードしない`等をクリックし続けながら `queryState()` で ground truth を見る）。**ライフクラッシュ確認モーダルの「エナに送る」ボタンをクリックリストに含め忘れると `handedOver` にならず永久に FAIL する**（続き556 の V-15 問題とは無関係の別の罠＝正面が空いていて直接ダメージが通るケースで踏む）。
+- 人間側の【起】モーダル操作は `my-signi-zone-0` クリック→`【起】`始まりのアクションボタン→`SigniActivatedModal`/`EnergyActivatedModal` 内のエナ候補（`img[alt=カード名]`・`H.clickModalImage`）→「発動」/「アクセ発動」ボタンの `isEnabled()` で判定。testid は無いため`getByRole('button', {name: ...})`に依存する。
+
 ## 2026-08-18（続き556・Sonnet 5）— §7 実機検証を継続＝`V-79`(B)(D)・`V-80`(C・付与側) ALL PASS で残0クローズ
 
 ゲート全緑（typecheck / golden 2295 据置 / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機新規3本 ALL PASS**（既存7本の回帰確認込み）。version 0.486→0.487。**live JSON・CSV とも非改変**（`scripts/verifyBattleDrive.mjs` のみ）。続き555 の「▶ 次の一手【Sonnet 側】」を消化。
