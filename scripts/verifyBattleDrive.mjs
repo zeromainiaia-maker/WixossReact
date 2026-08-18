@@ -20738,13 +20738,15 @@ async function driveV34EnergyProtect(page, H) {
   const btnLabel = btnCount ? await actBtn.getAttribute('data-action-label') : null;
   await actBtn.click({ timeout: 2000 }).catch(() => {});
   let fin = await H.queryState();
+  const startEnergy = fin?.guest?.energy;
   H.log(`  v34enaprotect opened=${opened} btnCount=${btnCount} btnLabel=${btnLabel} pendingEffect=${fin?.pendingEffect}`);
   for (let s = 0; s < 15; s++) {
     await page.waitForTimeout(400);
     const did = await H.clickTextOrBtn(['発動', 'OK', 'はい', '確定', '決定']) || await H.stdStep();
     fin = await H.queryState();
     H.log(`  v34enaprotect[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} gEnergy=${fin?.guest?.energy} gTrash=${fin?.guest?.trash}`);
-    if (!did) break;
+    if (fin?.pendingEffect == null && fin?.guest?.energy !== startEnergy) break;
+    if (fin?.pendingEffect == null && fin?.host?.signiDown?.[0] && s >= 3) break;
   }
   return fin;
 }
