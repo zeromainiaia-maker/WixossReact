@@ -18510,6 +18510,9 @@ const v74OncePerTurnSpec = {
 };
 
 const driveV74OncePerTurn = async (page, H) => {
+  // ⚠**hand の最終値では判定しない**＝発動して1枚引いた後、次のループで CPU がその引いたカードを
+  //   召喚してしまうことがある（正常な後続動作）ので hand は 0 に戻りうる（続き556 実測）。
+  //   **energy の最終値**（2枚のうち何枚消費されたか）と **actionsDone の出現回数**で見る方が確実。
   let fired = false;
   let fin = null;
   for (let s = 0; s < 60; s++) {
@@ -18517,16 +18520,18 @@ const driveV74OncePerTurn = async (page, H) => {
     fin = st;
     if ((st?.logTail ?? []).some(l => String(l).includes('[CPU] 【起】を発動'))) fired = true;
     if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
-    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'エナに送る', 'スキップ']);
     await page.waitForTimeout(300);
   }
-  const onceOk = (fin?.guest?.hand ?? -1) === 1 && (fin?.guest?.energy ?? -1) === 1;
-  const actionsOk = (fin?.guest?.actionsDone ?? []).includes('WXK01-040-E2');
-  const detail = `fired=${fired} / hand終値=${fin?.guest?.hand}（期待1） / energy終値=${fin?.guest?.energy}（期待1） / `
-    + `actionsDone含む=${actionsOk} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
+  const energyOnce = (fin?.guest?.energy ?? -1) === 1;   // 2枚のうち1枚だけ消費＝1回だけ発動の動かぬ証拠
+  const actionsCount = (fin?.guest?.actionsDone ?? []).filter(id => id === 'WXK01-040-E2').length;
+  const detail = `fired=${fired} / energy終値=${fin?.guest?.energy}（期待1＝2枚中1枚だけ消費） / `
+    + `actionsDone出現回数=${actionsCount}（期待1） / hand終値=${fin?.guest?.hand}（参考） / `
+    + `logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-5))}`;
   H.log(`  v74once ${detail}`);
   if (!fired) return { pass: false, detail: `🔴CPU が【起】を撃たなかった（${detail}）` };
-  return { pass: onceOk && actionsOk, detail: onceOk && actionsOk ? detail : `🔴同一ターンに2回撃たれた疑い（${detail}）` };
+  const ok = energyOnce && actionsCount === 1;
+  return { pass: ok, detail: ok ? detail : `🔴同一ターンに2回撃たれた疑い（${detail}）` };
 };
 
 scenarios.v74CpuSigniActivatedOncePerTurn = {
