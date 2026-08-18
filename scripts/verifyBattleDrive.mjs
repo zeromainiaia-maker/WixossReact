@@ -20823,7 +20823,7 @@ async function driveV37GrantedAttackTax(page, H) {
     if (!did) did = await H.clickTextOrBtn(['支払わない', 'ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']);
     if (!did) did = await H.stdStep();
     fin = await H.queryState();
-    H.log(`  v37attacktax[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} hField=${JSON.stringify(fin?.host?.fieldSigni)} hTrash=${fin?.host?.trashCards} pendingOptions=${JSON.stringify(fin?.pendingOptions)}`);
+    H.log(`  v37attacktax[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} hField=${JSON.stringify(fin?.host?.fieldSigni)} hTrash=${JSON.stringify(fin?.host?.trashCards)} pendingCandidates=${JSON.stringify(fin?.pendingCandidates)} logTail=${JSON.stringify((fin?.logTail ?? []).slice(-3))}`);
     if (fin?.pendingEffect == null && (fin?.host?.signiDown ?? [])[0] && s >= 4) break;
   }
   return fin;
