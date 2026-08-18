@@ -19932,7 +19932,10 @@ const v65PayGateSpec = {
   hostSet: {
     'field.lrig': ['WD01-001#9980'], 'field.signi': [['WXK04-028#9981'], ['WX01-049#9982'], null],
     'field.check': null, 'field.signi_down': [false, false, false],
-    'energy': ['WD01-014#9983'], 'deck': ['WD01-013#9984', 'WD01-013#9985'],
+    // ⚠deckは2枚以下だと2回のエナチャージ（WX01-049分＋ボーナス分）で0枚になり、
+    //   「デッキ0枚→リフレッシュ」がtrashの中身をdeckへ戻してしまい判定が汚染される（続き563実測）。
+    //   余裕を持って5枚積む。
+    'energy': ['WD01-014#9983'], 'deck': ['WD01-013#9984', 'WD01-013#9985', 'WD01-013#9986', 'WD01-013#9987', 'WD01-013#9988'],
     'hand': [], 'actions_done': [],
   },
   guestSet: {
