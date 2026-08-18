@@ -20331,6 +20331,55 @@ scenarios.v56ForceTargetSelfNarrowsCandidatesToForcedSigni = {
 order.push('v56ForceTargetSelfNarrowsCandidatesToForcedSigni');
 // ── V-56 END ──
 
+// ── §7 V-53（O-18・続き565）──
+// WXDi-P03-052（コードアンチ　エレナ）【常】：すべてのプレイヤーは白ではないスペルを使用できない＝
+// STUB{BLOCK_NON_WHITE_SPELL}。ボタン生成側は `isSpellUseBlockedFor`（spellUseGate.ts）1関数に集約済み
+// （§6.4 O-18 続き513 で実装、実機は初）＝白スペル(WD01-015)は「発動」が出て、非白スペル(WD04-018・緑)
+// は出ないことを見る。
+const v53SpellBlockSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-002#9970'], 'field.signi': [['WXDi-P03-052#9971'], null, null], 'field.check': null,
+    'hand': ['WD01-015#9972', 'WD04-018#9973'], 'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9980'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+scenarios.v53NonWhiteSpellBlockAllowsWhiteSpell = {
+  title: 'V-53(a) WXDi-P03-052＝白以外スペル封じ中でも白スペルには「発動」が出る',
+  spec: v53SpellBlockSpec,
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    const opened = await H.clickTestId('my-hand-card-0');
+    await page.waitForTimeout(500);
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    const visible = await fireBtn.count() > 0 && await fireBtn.isVisible().catch(() => false);
+    const detail = `opened=${opened} / 白スペル(WD01-015)「発動」可視=${visible}（期待true）`;
+    H.log(`  v53spellblock ${detail}`);
+    return { pass: visible, detail };
+  },
+};
+scenarios.v53NonWhiteSpellBlockHidesGreenSpell = {
+  title: 'V-53(b) 🔴WXDi-P03-052＝白以外スペル封じ中は緑スペルに「発動」が出ない',
+  spec: v53SpellBlockSpec,
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    const opened = await H.clickTestId('my-hand-card-1');
+    await page.waitForTimeout(500);
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    const visible = await fireBtn.count() > 0 && await fireBtn.isVisible().catch(() => false);
+    const detail = `opened=${opened} / 緑スペル(WD04-018)「発動」可視=${visible}（期待false＝封じで出ない）`;
+    H.log(`  v53spellblock ${detail}`);
+    return { pass: !visible, detail };
+  },
+};
+order.push('v53NonWhiteSpellBlockAllowsWhiteSpell', 'v53NonWhiteSpellBlockHidesGreenSpell');
+// ── V-53 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
