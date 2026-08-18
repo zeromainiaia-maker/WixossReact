@@ -19380,6 +19380,7 @@ const v77ConditionSpec = (hasKey) => ({
 const driveV77Condition = async (page, H, expectUsable) => {
   await H.ensureMain();
   await page.waitForTimeout(600);
+  await clickLrigImageAndWait(page, '懐古の巫女　タマヨリヒメ');
   const btn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
   const count = await btn.count();
   const visible = count > 0 && await btn.isVisible().catch(() => false);
