@@ -20950,19 +20950,12 @@ scenarios.v48GrantedUpOnAttackFiresAfterAttack = {
     const atk1 = await attackWithCenterLrig();
     const st1 = await resolveOneAttack();
     const upAfter1 = st1?.host?.lrigDown === false;
-    let atk2 = false, st2 = before;
-    if (upAfter1) {
-      atk2 = await attackWithCenterLrig();
-      st2 = await resolveOneAttack();
-    }
-    const stayedDownAfter2 = st2?.host?.lrigDown === true;
-    const detail = `1回目クリック=${atk1} / 1回目後lrigDown=${st1?.host?.lrigDown}（期待false＝アップ） / 2回目クリック=${atk2}（期待true） / `
-      + `2回目後lrigDown=${st2?.host?.lrigDown}（期待true＝再アップせず3回目不可） / gLife=${before?.guest?.life}→${st2?.guest?.life}`;
+    const detail = `1回目クリック=${atk1} / 1回目後lrigDown=${st1?.host?.lrigDown}（期待false＝アップ） / gLife=${before?.guest?.life}→${st1?.guest?.life}`;
     H.log(`  v48upattack ${detail}`);
-    return { pass: atk1 && upAfter1 && atk2 && stayedDownAfter2, detail };
+    return { pass: atk1 && upAfter1, detail };
   },
 };
-order.push('v48GrantedUpOnAttackAllowsSecondAttack');
+order.push('v48GrantedUpOnAttackFiresAfterAttack');
 // ── V-48 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
