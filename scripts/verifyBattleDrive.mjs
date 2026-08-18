@@ -21238,7 +21238,7 @@ scenarios.v51LeaveSubstitutePaysAndSurvives = {
   title: 'V-51(c) 《緑》《無》を払える＝場離れが能力喪失に置換され場に残る',
   spec: v51LeaveSubstituteSpec(['WD04-013#9995', 'WD01-013#9996']),
   async drive(page, H) {
-    const fin = await driveV51LeaveSubstitute(page, H);
+    const fin = await driveV51LeaveSubstitute(page, H, true);
     const survived = (fin?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.includes('WX25-P2-059#9992'));
     const paid = (fin?.host?.energyCards ?? []).length === 0;
     const detail = `survived=${survived}（期待true） / paid=${paid}（期待true＝2枚とも支払済み） / hField=${JSON.stringify(fin?.host?.fieldSigni)}`;
