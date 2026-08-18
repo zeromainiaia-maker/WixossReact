@@ -19813,8 +19813,8 @@ const driveV69EnergyWatcher = async (page, H) => {
   await page.waitForTimeout(400);
   await H.clickBtn('発動', { exact: true });
   let fin = null;
-  for (let s = 0; s < 6; s++) {
-    await page.waitForTimeout(400);
+  for (let s = 0; s < 12; s++) {
+    await page.waitForTimeout(500);
     await H.stdStep();
     fin = await H.queryState();
   }
