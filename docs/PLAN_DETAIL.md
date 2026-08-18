@@ -6,6 +6,21 @@
 > **2026-08-15 続き499 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-15 続き498（§6.4 **O-3 クローズ**＝受け皿7種すべて解体）後 最新値（本行が直近の正）**：census **830 据置**（⚠**+3 は較正漏れだった**＝新語彙 `DECLARE_CARD_NAME_LOCK` を `vocabCensus` の「制限「できない」」キー表へ追加して 830 へ戻した。**受け皿 STUB を実装で置き換えるとその効果が STUB バケツから出て高シグナルへ昇格する**＝毎回仕分ける）、**golden 2057**（+7＝照応の state 復元1・`owner/all` の裏向き移送1・チェックゾーン往復1・シード開花の置換1・ルリグタイプの期間つき/恒久と実効クラス1・アタック禁止の補集合1・カード名 blacklist/whitelist 1。ほかに turn-scoped レジストリの T1 トリップワイヤと `ADD_EXTRA_ATTACK_PHASE` の live 形 assert を正方向へ更新）、smoke **10688 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、held **105枚 / 45群**（+1＝`WXEX2-09` は E1 を curated 値に温存したため fresh と差が残る）、lint **0 errors / 260 warnings**、**UNKNOWN 25ノード / 25カード**（据置）、`census:stubs` A群＝**15種/17件**（22種/24件から **−7種/−7件**＝O-3 の受け皿7種が残0。**無言 no-op は 0 のまま**）。🆕**live JSON changed 9効果/9カード**（`WXDi-P09-066`／`SPDi43-02`／`WX22-010`／`WDK07-Y07`／`WDK17-008`／`WDK17-001`／`WXDi-P08-030`／`PR-K046`／`WXEX2-09`。CSV 非改変）。🆕**挙動是正 9効果**（恒久 no-op 7／置く側と返す側の二重バグ1／往復ごと no-op 1・重複あり）＋**波及2**（カード名の使用封じがアーツ一覧と実行入口を素通り／`blocked_card_names` の失効が片側だけで1ターン長く残る）。🆕**新機構＝`RETURN_FACEDOWN_LRIG_ZONE_TO_HAND`／`FIELD_SIGNI_TO_CHECK_ZONE`／`GAIN_LRIG_TYPE`＋`lrig_gained_types_timed`＋`effectiveLrigClass`／`DECLARE_CARD_NAME_LOCK`＋`cardNameUseBlocked`＋`blocked_card_names_next_turn`＋`arts_name_whitelist_this_turn`／`SigniAttackBan.exceptCardNums`（＋`StubAction.bounceOccupant`・`StubAction.opponentSelects`・`PendingInteractionDef.CHOOSE.costlessOpponentChoice`）**。⚠**9経路とも実機未検証**（§7 送り）。⚠**残した近似**＝プレイヤーへの引用【起】付与（`WXDi-P09-066-E1` の早期回収）／強制アタック（`WXDi-P08-030-E1` の「可能ならばアタックしなければならず」）／チェックゾーン往復での付随物（チャーム・アクセ・ソウル）の離場扱い／宣言候補を公開領域に限定。⚠`census:goldentypes` は**未カバー2型**（`RESERVE_DRAW_PHASE_REPLACEMENT`／`SET_LRIG_BASE_LIMIT`＝続き492 で新設・**当時から未カバー**）＝簿記の「未カバー0」は stale だった。
 
+## 2026-08-18 整理㊳（§7 `V-71`／`V-70`／`V-69` 完全消化ぶんの退避・続き563）
+
+> PLAN §7 🅱 にあった `V-71`／`V-70`／`V-69` の全ブロックを verbatim で退避（残0クローズ）。PLAN 側には1行✅サマリだけ残す。
+
+- **✅ V-71 続き563 で実機 PASS（2本 ALL PASS・2回連続）＝残0クローズ**（`v71PuppetFilterPicksOnlyEligibleCard`／`v71PuppetLeftFieldReturnsToTrueOwnerTrash`）。「傀儡状態であなたの場に出す」8効果（`STEAL_OPP_TRASH_PUPPET`）が実際に効くことを確認。
+  - **(a)(b)**＝`WXK10-091`（【起】・cost.trash_self・puppetParams filter{level.max:3,cardClassExclude:'美巧'}）で、相手トラッシュに美巧Lv2（除外）／非美巧Lv4（除外）／非美巧Lv1（該当）の3枚を仕込み、**該当1枚だけが傀儡として自分の場に出て、除外2枚は相手トラッシュに残る**ことを確認。
+  - **(c)**＝`sweepPuppets`（傀儡が場を離れると、自分ではなく持ち主（対戦相手）のトラッシュに置かれる）を、`field.puppet_signi` に「もう場に居ない傀儡」を直接注入し（CORE_FIELD_KEYS には無いが spec.hostSet で明示指定すれば setPath が上書きする）、別の【起】（相手トラッシュが空で即done）を1回発火させて `applyRefreshOnDone` 内の回収処理を踏む形で確認。実際のバニッシュ連鎖より単体で機構を確認できる型。
+  - **(d)**（`WXEX2-23` のエクシード１＋`suppressOnPlay`）は見送り（follow-up・優先度低）。
+- **✅ V-70 続き563 で実機 PASS（1本・2回連続）＝残0クローズ**（`v70OwnEffectHandAddedUpsLrig`）。タスク12(cxix)（ON_HAND_ADDED の owner 2軸）を確認。
+  - `SPDi43-11`（MC.LION 3rdVerse-ULT）の【起】《ゲーム１回》バイブスMAXで「自分の効果でカードが手札に1枚以上増えたとき、このルリグをアップする」を付与し、事前にダウンさせておいたルリグが `WX01-045`（【起】cost.down_self・action DRAW×1＝自分の効果でのドロー）によって実際にアップすることを確認。**旧実装は `ON_PLAY` 扱いで一度も発火しなかった**（丸ごと no-op）。
+  - (b)《ターン2回》の境界と(c)相手効果では発火しないこと（`byOwnEffect`）の確認は見送り（follow-up・優先度低）。
+- **✅ V-69 続き563 で実機 PASS（3本 ALL PASS・2回連続）＝残0クローズ**（`v69OnceLimitFiresWhenUnused`／`v69OnceLimitBlocksWhenAlreadyUsed`／`v69TwiceLimitStillFiresSecondUse`）。タスク12(cxx)（エナ差分 watcher の《ターン1回/2回》）を確認。
+  - `WXK04-028`（【自】《ターン１回》：エナチャージをしたとき、エナチャージ１）は未使用なら1回目のエナチャージ（`WX01-049`【起】《ダウン》：デッキ最上をエナへ）で追加チャージが誘発し、**既に1回使用済みなら誘発しない**。**旧実装は「チャージのたびに撃てた」過剰発火**。対照 `WXDi-P11-073`（《ターン２回》）は1回使用済みでも**2回目はまだ誘発**してパワー+2000になる。
+  - 🔑**判定手法**＝usageLimit の判定は `actionsDone.filter(id => id === effectId).length` の出現回数（`triggerCollect.ts` の `mkLimitOk`）で行われる＝「今ターン何回使用済みか」を `actions_done` へ直接注入すれば**1アクションだけで境界を再現できる**。当初「同一ターンに2回連続で【起】をクリックする」設計にしたところ、2回目のゾーンクリックが1回目のモーダル閉じ処理と競合して実機タイミングが不安定だった（3回再現待ちで安定せず）＝`actions_done` 直接注入方式に変更して解消。
+
 ## 2026-08-18 整理㊲（§7 `V-73`／`V-72` 完全消化ぶんの退避・続き562）
 
 > PLAN §7 🅱 にあった `V-73`／`V-72` の全ブロックを verbatim で退避（残0クローズ）。PLAN 側には1行✅サマリだけ残す。`V-78` は (A)(C) だけ実施・(B)(D) は未着手のため PLAN 本体に🔶のまま残す。
