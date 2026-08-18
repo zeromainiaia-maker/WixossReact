@@ -19716,6 +19716,69 @@ scenarios.v71PuppetLeftFieldReturnsToTrueOwnerTrash = {
 order.push('v71PuppetFilterPicksOnlyEligibleCard', 'v71PuppetLeftFieldReturnsToTrueOwnerTrash');
 // ── V-71 END ──
 
+// ── §7 V-70（続き546・タスク12(cxix)＝ON_HAND_ADDED の owner 2軸）──
+// SPDi43-11（MC.LION 3rdVerse-ULT・ルリグLv3）の【起】《ゲーム１回》バイブスMAX（cost 白×0＝実質コストなし）で
+// 「【自】《ターン２回》：あなたの効果１つによってカードが合計１枚以上あなたの手札に移動したとき、
+// このルリグをアップする」を付与 → WX01-045（【起】cost.down_self・action DRAW×1）で自分の効果により
+// 手札を増やし、ダウンさせておいたルリグが実際にアップすることを見る（旧実装は ON_PLAY 扱いで丸ごと no-op だった）。
+const v70OwnHandAddedSpec = {
+  hostSet: {
+    'field.lrig': ['SPDi43-11#9800'], 'field.signi': [['WX01-045#9801'], null, null], 'field.check': null,
+    'field.lrig_down': true,   // 先にダウンさせておく＝UP アクションで実際に反転することを見る
+    'hand': [], 'deck': ['WD01-013#9802', 'WD01-013#9803', 'WD01-013#9804'],
+    'energy': [], 'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9810'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v70OwnEffectHandAddedUpsLrig = {
+  title: 'V-70(a) 自分の効果で手札が増えると付与済み【自】が発火してルリグがアップする',
+  spec: v70OwnHandAddedSpec,
+  async drive(page, H) {
+    await H.ensureMain();
+    await page.waitForTimeout(600);
+    await clickLrigImageAndWait(page, 'MC.LION　3rdVerse-ULT');
+    const grantBtn = page.getByRole('button', { name: '【起】コストなし', exact: false }).first();
+    if (await grantBtn.count() && await grantBtn.isVisible().catch(() => false)) {
+      await grantBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(400);
+    let did = await H.clickBtn('発動', { exact: true });
+    await page.waitForTimeout(500);
+    const afterGrant = await H.queryState();
+    const grantOk = (afterGrant?.logTail ?? []).some(l => String(l).includes('得る') || String(l).includes('バイブスMAX'));
+
+    await H.clickTestId('my-signi-zone-0').catch(() => {});
+    await page.waitForTimeout(400);
+    const drawBtn = page.getByRole('button', { name: '【起】ダウン', exact: false }).first();
+    if (await drawBtn.count() && await drawBtn.isVisible().catch(() => false)) {
+      await drawBtn.click({ timeout: 3000 }).catch(() => {});
+    }
+    await page.waitForTimeout(400);
+    did = await H.clickBtn('発動', { exact: true });
+    await page.waitForTimeout(600);
+    let fin = null;
+    for (let s = 0; s < 6; s++) {
+      await page.waitForTimeout(400);
+      await H.stdStep();
+      fin = await H.queryState();
+    }
+    const drewCard = (fin?.host?.hand ?? 0) >= 1;
+    const upLogged = (fin?.logTail ?? []).some(l => /をアップ/.test(String(l)));
+    const lrigNowUp = fin?.host?.lrigDown === false;
+    const detail = `grantOk=${grantOk} / drewCard=${drewCard}（hand=${fin?.host?.hand}） / upLogged=${upLogged} / `
+      + `lrigNowUp=${lrigNowUp}（期待true・開始はtrueだった） / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
+    H.log(`  v70handadded ${detail}`);
+    return { pass: drewCard && upLogged && lrigNowUp, detail };
+  },
+};
+order.push('v70OwnEffectHandAddedUpsLrig');
+// ── V-70 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
