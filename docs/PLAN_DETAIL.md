@@ -74,6 +74,23 @@
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
   一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き569）。
 
+> **2026-08-19 続き571 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き570（🏁Opusタスク12 (cxxxvii)＝ゾーン隣接フィルタ新設＝在庫0件）後 最新値（本行が直近の正）**：
+  **census 786 据置**（`BASELINE_HIGH` 786）、**golden 2305**（+2＝隣接の4方向対照／`adjacentToSelf` の用法 tripwire）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（262 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**）。
+  **live 効果総数 10693**（live 改変＝`WXDi-P04-050-E2`／`WXDi-P00-053-E1` の**2効果だけ**・CSV 非改変）。version **0.501**。
+  🆕**実機シナリオ総数 414**（+2＝`v73AdjacentNeighborGetsBuff`／`v73AdjacentDistantNoBuff`）。
+  🆕**実機 PASS（続き570 実測）＝`V-73` 6本 ALL PASS（2回連続）**＝新規2本＋`v73UpGateActiveShowsBuffedPower` が**赤→緑へ反転**（18000→15000）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**。
+  🏁**Opusタスク12＝在庫0件**／🏁**§6.4 残0**（`O-1` 含む）／🏁**§8 は (g) v1 まで完了**（v2 候補のみ）。
+  ⇒ **Opus 側の生きた worklist は §6.3／§6.2／タスク13 だけ**（どれも在庫を実測してから着手）。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き570）。
+
 ## 2026-08-19 整理㊼（Opusタスク12 (cxxxvii) 残0クローズぶんの退避・続き570）
 
 > 🏁**これで Opusタスク12 の在庫は0件**（常設の受け口として残す）。以下は**登録時の原文**。

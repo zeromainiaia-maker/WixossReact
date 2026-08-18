@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
 } from '../parserUtils';
 
 /**
@@ -1831,7 +1831,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         //   ＝「あなたの＜遊具＞のシグニを２体まで対象とし、それらを手札に戻す」で**自分の全シグニ**が
         //   候補になる過剰効果（`WDK05-T07-E1`／`WX24-P3-026-E1`／`WXDi-P02-047-E1`）。
         //   `excludeSelf`（「他の」）は載っていたのにクラスだけ落ちる＝被覆マトリクスが指した典型例。
-        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
+        //   🆕**色も同じ理由で落ちていた**（2026-08-19 続き571）＝`WD13-003-E2`「**対象のあなたの白の**シグニ１体を
+        //   手札に戻す」で**自分のどの色のシグニでも**戻せる過剰効果。⚠色は条件節・コスト節にも同じ綴りで出るので
+        //   **対象名詞句に隣接する色だけ**（`signiClauseColorFilter`）＝素の `parseColorFilter(t)` は使わない。
+        filter: { cardType: 'シグニ', ...parsePowerFilter(t), ...parseLevelFilter(t), ...parseLevelLteLastProcessed(t), ...parseStateFilter(t), ...parseNoAbilitiesFilter(t), ...signiClauseStoryFilter(t), ...signiClauseColorFilter(t), ...(isThisCard ? { thisCardOnly: true } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}) },
       },
       optional: t.includes('もよい'),
     };
@@ -3938,7 +3941,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const dbStoryM = dbClasses.length === 1
       ? dbSpan.match(/＜([^＞]+)＞の(?:[^。、シ]{0,10})?シグニ/)
       : null;
-    const filter: TargetFilter = { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
+    const filter: TargetFilter = { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(dbSpan.length > 0 ? dbSpan : t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
       // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
       //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
       ...parseGuardFilter(dbSpan), ...parseIconFilter(dbSpan) };
@@ -4039,7 +4042,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   丸ごと落ちており、**どのレベルのシグニでもデッキへ送れる**過剰効果だった（`WX16-066-BURST`／`WX19-026-BURST`／`WXK10-044-BURST`）。
     //   ⚠**対象名詞句に隣接するレベルだけ**（`signiClauseLevelFilter`）＝素の `parseLevelFilter(t)` だと
     //     ルリグのレベル条件・自身のレベル条件・【ビート】コストを引き込む。
-    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: all ? 'ALL' : 1, filter: { cardType: 'シグニ', ...signiClauseLevelFilter(t) } }, shuffle: false, position: 'top' } as TransferToDeckAction;
+    // 🆕**クラス／パワー／アイコン／色も同じ規律で拾う**（2026-08-19 続き571）＝レベルだけが配線されており、
+    //   `WX17-071-E1`「対戦相手の**＜精元＞の**シグニ１体を対象とし、それをデッキの一番上に置く」で
+    //   **どのシグニでもデッキ送りにできる**過剰効果だった（被覆マトリクス `cardClass × SIGNI[filter]` の実例）。
+    //   ⚠いずれも**対象名詞句に隣接する分だけ**（`signiClause*`）＝全文スキャンは条件節・コスト節を引き込む。
+    return { type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner, count: all ? 'ALL' : 1, filter: { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClausePowerFilter(t), ...signiClauseIconFilter(t), ...signiClauseColorFilter(t) } }, shuffle: false, position: 'top' } as TransferToDeckAction;
   }
 
   // ---- 対戦相手は自分のデッキの一番上を公開する ----

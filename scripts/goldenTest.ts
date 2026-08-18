@@ -105,6 +105,7 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor } from '../src/screens/battle/artsUseGate';
+import { signiClauseColorFilter } from '../src/data/parserUtils';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
@@ -31236,6 +31237,34 @@ test('§6.4 O-3: `WX05-018-E1`（【常】相手のエナフェイズをスキ�
   // 対照＝そのシグニが居なければ普通にエナフェイズへ入る。
   const none = calcContinuousBlockedActions(me, mkState({}), true, effectsMap, cardMap as Map<string, CardData>);
   eq(resolveNextPhaseWithSkips('DRAW', me, none.forSelf), 'ENERGY', '対照: 居なければ飛ばさない');
+});
+
+// ══════════════ §5d-0 (i) 第21バッチ＝対象名詞句フィルタの取りこぼし（続き571）══════════════
+test('§5d-0(i) 第21バッチ: 対象名詞句の色／クラス／パワーが落ちていた3効果に filter が載る', () => {
+  // 🔴どれも**過剰効果**（原文より広い対象を取れる）＝被覆マトリクス `cardClass/color/powerRange × SIGNI[filter]` の実例。
+  const bounce = effectsMap.get('WD13-003')!.find(e => e.effectId === 'WD13-003-E2')!;
+  const bounceStep = (bounce.action as { steps: { target: { filter: { color?: string } } }[] }).steps[0];
+  eq(bounceStep.target.filter.color, '白', '「対象のあなたの白のシグニ1体を手札に戻す」＝白限定');
+  const toDeck = effectsMap.get('WX17-071')!.find(e => e.effectId === 'WX17-071-E1')!;
+  eq((toDeck.action as { source: { filter: { story?: string } } }).source.filter.story, '精元',
+    '「対戦相手の＜精元＞のシグニ1体…デッキの一番上に置く」＝クラス限定');
+  const trap = effectsMap.get('WX16-041')!.find(e => e.effectId === 'WX16-041-E1')!;
+  const trapStep = (trap.action as { steps: { source?: { filter?: { powerRange?: { min?: number } } } }[] }).steps[1];
+  eq(trapStep.source?.filter?.powerRange?.min, 15000, '「対戦相手のパワー15000以上のシグニ1体」＝パワー限定');
+});
+
+test('§5d-0(i) 第21バッチ: `signiClauseColorFilter` は対象名詞句の色だけを拾う（条件節・参照句は拾わない）', () => {
+  eq(signiClauseColorFilter('対象のあなたの白のシグニ１体を手札に戻す').color, '白', '「対象の」前置形を拾う');
+  eq(signiClauseColorFilter('あなたの白のシグニ１体を対象とし、それを手札に戻す').color, '白', '「を対象とし」形も拾う');
+  // ⚠**条件節**（「エナゾーンに赤のカードがあるかぎり」）は対象ではない＝拾わない。
+  eq(signiClauseColorFilter('あなたのエナゾーンに赤のカードがあるかぎり、このシグニのパワーは＋2000される').color, undefined,
+    '条件節の色は拾わない');
+  // ⚠**参照句**（「対象のAと同じレベルの対象のB」）の色は B に付けてはいけない（`WXEX2-57-E1`）。
+  eq(signiClauseColorFilter('対象のあなたの緑の＜美巧＞のシグニ１体と同じレベルの対象の対戦相手のシグニ１体を手札に戻す').color, undefined,
+    '「と同じ」に続く参照句の色は拾わない');
+  // ⚠**コスト節**（「手札から白のシグニを1枚捨てる」）も対象ではない。
+  eq(signiClauseColorFilter('手札から白のシグニを１枚捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする').color, undefined,
+    'コスト節の色は拾わない');
 });
 
 test('§3 (cxxxvii): 「このシグニの隣にあるあなたのシグニ」は左右のゾーンだけ（自分自身・離れたゾーンには効かない）', () => withSavedCursor(() => {

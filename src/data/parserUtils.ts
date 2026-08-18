@@ -520,6 +520,34 @@ export function signiClauseLevelFilter(text: string): Partial<TargetFilter> {
 }
 
 /**
+ * 「〈色〉のシグニN体を対象とし」／「**対象の**〈あなた|対戦相手〉の〈色〉のシグニN体」の
+ * **対象名詞句に隣接する色だけ**を拾う（2026-08-19 続き571）。
+ * `signiClauseStoryFilter`（クラス）／`signiClauseLevelFilter`／`signiClausePowerFilter`／
+ * `signiClauseIconFilter` の5番目の兄弟。
+ *
+ * ⚠**素の `parseColorFilter(文全体)` を対象フィルタに使ってはいけない**＝この語彙は
+ *   ・**条件節**（「あなたのエナゾーンに**赤の**カードがあるかぎり」＝`WDA-F03-13-E1`／`WX02-034-BURST`）
+ *   ・**コスト節**（「手札から**白の**シグニを１枚捨てる」）
+ * にも同じ綴りで現れる。全文で拾うと**原文と逆の過小実行**（相手の白しか戻せない等）になる。
+ *
+ * ⚠**「対象の」前置形も受ける**＝`WD13-003-E2`「**対象のあなたの白の**シグニ１体を手札に戻す」は
+ *   「を対象とし」で終わらないので、兄弟たちの regex（末尾が `を?対象とし`）では拾えない。
+ *   この綴りは **BOUNCE／UP 系のビルダー**が使う形。
+ */
+const SIGNI_TARGET_ADJACENT_COLOR = /(?:([白赤青緑黒])の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし|対象の(?:あなた|対戦相手)の(?:他の)?([白赤青緑黒])の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体)/;
+export function signiClauseColorFilter(text: string): Partial<TargetFilter> {
+  const m = text.match(SIGNI_TARGET_ADJACENT_COLOR);
+  if (!m) return {};
+  // ⚠**「対象のAと同じ〈属性〉の対象のB」は A が参照側**＝色は B（実際の対象）に付けてはいけない。
+  //   `WXEX2-57-E1`「**対象のあなたの緑の＜美巧＞のシグニ１体と同じレベルの**対象の対戦相手のシグニ１体を
+  //   手札に戻す」で、素直に前置形を拾うと**相手の緑しか戻せない**過小実行になる（parserUtils のこの節の
+  //   冒頭が名指しで警告している誤配線例そのもの）。マッチ直後が「と同じ」なら参照句と判断して降りる。
+  if (m.index !== undefined && /^と同じ/.test(text.slice(m.index + m[0].length))) return {};
+  const color = m[1] ?? m[2];
+  return color ? { color } : {};
+}
+
+/**
  * 「〈…〉パワーN〔以上／以下〕のシグニN体を対象とし」の**対象名詞句に隣接するパワーだけ**を拾う（続き377n）。
  * `signiClauseStoryFilter`（クラス）／`signiClauseIconFilter`（アイコン）／`signiClauseLevelFilter`（レベル）の4番目の兄弟。
  *
