@@ -20092,6 +20092,18 @@ scenarios.v61ConditionalShadowBlocksTargetingDuringOpponentTurn = {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   async drive(page, H) {
+    // 診断＝注入した guest_state.granted_effects が実際にDBへ届いているかを直接確認する。
+    const rawGranted = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+      const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+      const roomId = (await r1.json())?.[0]?.id;
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=guest_state`, { headers: h });
+      const row = (await r2.json())?.[0];
+      return row?.guest_state?.granted_effects ?? 'MISSING';
+    }, { SUPA_URL: process.env.SUPA_URL_INJECT ?? SUPA_URL, ANON: process.env.SUPA_ANON_INJECT ?? ANON }).catch(e => `ERROR:${e.message}`);
+    H.log(`  v61shadow rawGranted(guest)=${JSON.stringify(rawGranted)}`);
     await H.ensureMain();
     await page.waitForTimeout(600);
     await clickLrigImageAndWait(page, 'MC.LION　3rdVerse-ULT');
