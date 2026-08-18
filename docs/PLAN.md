@@ -961,16 +961,8 @@
 - **V-67** 🆕**続き546＝タスク12(cxxxi)（ルリグの【起】《ダウン》）の3経路**＝(a)`WD08-001`（【起】《ダウン》：トラッシュからシグニ1枚を場に出す）を撃つと**効果が解決し、かつ `host.field.lrig_down` が true になる**（⚠**旧実装はここが false のまま**＝実質無コストだった。当時のシナリオはこれを「効果が走った証拠」に使っていたので永久 FAIL だった）(b)🔴**同じ【起】が2回撃てない**＝1回撃ったあと**ボタン自体が消える**（`usageLimit` を持たない効果なので、封じているのは「ダウン済み」ゲートだけ＝**ここが本命の観測点**）(c)ダウン後は**ルリグアタックもできない**（`lrig_down` が攻撃済みフラグと同一であることの確認）。⚠**アシストルリグには `down_self` の live 実例が0件**なので観測不要。
 - **V-68** 🆕**続き546＝タスク12(cxxxii) の副産物（廃止フィールド名で注入していたシナリオの是正）**＝`v11CpuDeployPowerLimitWithControl` を**新しい `signi_deploy_bans` 形で**回し直し、(a)制限側で **CPU が P7000 を召喚せず P3000 だけを置く**(b)対照（ban なし）では**両方置ける**＝負方向＋対照の対、を再確認する。⚠**旧フィールド名のままだと「制限側」が対照と同じ盤面になり、緑でも赤でも意味がない**（続き546 実測）。
 - **V-69** 🆕**続き546＝タスク12(cxx)（エナ差分 watcher の《ターン1回/2回》）の2経路**＝(a)`WXK04-028`（ON_ENERGY_CHARGE《ターン1回》）を場に置き、**同じターンにエナチャージを2回**行う → **1回目だけ発火し2回目は発火しない**（⚠**旧実装はチャージのたびに撃てた**）(b)`WXDi-P11-073`（《ターン2回》）は**2回目まで発火し3回目で止まる**＝境界の対照。⚠**ターンをまたぐと再び撃てる**ことも見る（`actions_done` のターン境界リセットに乗っていることの確認）。ON_POWER_THRESHOLD 側（`WX18-077`）も同型で1本あると望ましい。
-- **✅ V-80 続き554／556 で (A)(B)(C・付与側) は実機 PASS＝残0クローズ**（`wxk04003Label` / `v80GrantedLrigActCoinShown` / `v80GrantedLrigActCoinGated` / `v80CpuActivatesGrantedLrig` の4本）。§8/`O-1` (f) 付与／継承のルリグ【起】を funnel（`lrigActivateGate`）へ寄せた分の観測は完了。
-  - [x] **(A)(B)** 続き554＝付与【起】の提示（コイン軸）が正しく厳しくなったこと＝実機PASS 2本。
-  - [x] **(C) CPU が付与【起】を撃つ**＝続き556 実機PASS（`v80CpuActivatesGrantedLrig`）。`lrig_granted_auto_effects`（コスト《コイン》×1）を CPU のセンタールリグへ注入し MAIN フェイズを回すと、**`[CPU] ルリグの【起】を発動: <カード名>` のログ→コインが1→0→本体（DRAW）の「1枚ドロー」ログまで解決**（`pickCpuLrigActivated` の②`listActivatableGrantedLrigEffects` 経路を実機で確認）。
-  - 📋**継承【起】（`INHERIT_LRIG_TRASH_ABILITIES`＝③）の CPU 検証は未着手**＝宣言カードが `WX05-002`/`003`/`004` の3枚のみで、実際に「継承済み」の盤面（ルリグトラッシュへ落ちた履歴）を組む必要がありコストが高い。①②（本来／付与）は確認済みで③だけが `pickCpuLrigActivated` の同一ループの3番目という位置づけ＝**踏むなら別番号で**（優先度低）。
-- **✅ V-79 続き555／556 で (A)(B)(D) は実機 PASS＝残は (C) のみ取り下げ済みにつき残0クローズ**。
-  - [x] **(A)** 続き555＝`ATTACK_LRIG` 始まりで**2周してターンが人間へ渡る**／対照は `UP` へ直行（`v79CpuExtraAttackPhaseConsumed` / `v79CpuNoExtraAttackPhase`）。
-  - [x] **(B)** 続き556 実機PASS（`v79SecondLapHastarliqSuppressed`）＝CPU の2周目でも**開始時本文（`pending_extra_attack_phase_start_effects` 経由の DRAW）は消化される**（guest.hand が0→1）一方、**【ハスターリク】は発動しない**（`hastarliq_zones` が消費されず残存・関連ログなし）＝`BattleScreen.tsx:11322-11346`（CPU の addedExtraPhase 分岐）に HASTARLIQ 直書きチェックが無い設計（human 側の `phase !== 'ATTACK_LRIG'` ガードと同じ扱い）を実機で確認。
-  - [x] **(D)** 続き556 実機PASS（`v79HumanOrderEndBeforeStart`）＝人間が追加アタックフェイズへ入るとき、**スタックへの積み順が `WX24-P2-075-E1`（1周目終了時）→`EXTRA_ATTACK_PHASE_START:...`（2周目開始時）の順**（`stackPending` を確定直後に読む決定論的手法。解決自体は待たない）＝ `BattleScreen.tsx:4126-4173` の「終了→開始」順（2026-08-18 §6.4 O-1(e) で是正済み）を実機で確認。
-    - 🔑**実機注入の罠（次に触る人へ）**＝`SIGNI_LEFT_FIELD_THIS_ATTACK_PHASE` の `signi_left_field_this_attack_phase` 配列は **`battleCardNums`（`BattleScreen.tsx:700番台` の反応的ロード走査）に含まれない**＝離場した instanceId をそこにしか書かないと `battleCardMap` に載らず `matchesFilter` が undefined カードで即 false になり、条件つきの ON_ATTACK_PHASE_END が**静かに不発**する。**同じ instanceId を `trash` 等の既存走査対象にも置く**必要がある（実ゲームでは離場先が必ず手札/トラッシュ/デッキのどれかなので無害・直接注入だけの罠）。
-  - (C) は続き555 で実機シナリオを取り下げ済み（`WX24-P2-075` の本文が `optional` なため CPU の自動応答で盤面差分が出ない＝収集器の正しさは golden 側で固定）。
+- **✅ V-80 続き554／556 で (A)(B)(C・付与側) は実機 PASS＝残0クローズ**（詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉝」）。📋継承【起】側の CPU 検証だけ follow-up（優先度低）。
+- **✅ V-79 続き555／556 で (A)(B)(D) は実機 PASS＝(C) は取り下げ済みにつき残0クローズ**（詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉝」）。🔑実機注入の罠（`signi_left_field_this_attack_phase` は `battleCardNums` の反応的ロードに含まれない）も同節に記録。
 - **V-78** 🆕**続き552d＝§8/`O-1` (d) CPU グロウを `performGrow` へ統合（手書き再実装 約150行を削除）**。
   ⚠**回帰確認が主**（CPU の見た目の動きは変わらないのが正）だが、**3点だけ意図的に挙動が変わる**。
   **(A) 回帰**＝CPU が従来どおり Lv1→2→3… とグロウし、**コインの獲得と支払い**が従来と同じ。
