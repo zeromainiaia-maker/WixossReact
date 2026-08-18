@@ -20938,11 +20938,15 @@ scenarios.v48GrantedUpOnAttackFiresAfterAttack = {
     }
     async function resolveOneAttack() {
       let fin = await H.queryState();
-      for (let s = 0; s < 15; s++) {
+      let quietTicks = 0;
+      for (let s = 0; s < 25; s++) {
         await page.waitForTimeout(350);
         const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定']) || await H.stdStep();
         fin = await H.queryState();
-        if (!did) break;
+        H.log(`  v48upattack[${s}] did=${did ?? 'なし'} pendingEffect=${fin?.pendingEffect} hLrigDown=${fin?.host?.lrigDown} hCheck=${fin?.host?.fieldCheck} gCheck=${fin?.guest?.fieldCheck} gLife=${fin?.guest?.life} logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-2))}`);
+        const settled = fin?.pendingEffect == null && fin?.host?.fieldCheck == null && fin?.guest?.fieldCheck == null;
+        quietTicks = settled ? quietTicks + 1 : 0;
+        if (quietTicks >= 3) break;
       }
       return fin;
     }
