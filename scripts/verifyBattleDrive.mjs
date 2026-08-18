@@ -19803,15 +19803,26 @@ const v69EnergyWatcherSpec = (watcherCardNum) => ({
 
 const driveV69EnergyWatcher = async (page, H, zoneCount) => {
   for (const zoneIdx of [1, 2]) {
-    await H.clickTestId(`my-signi-zone-${zoneIdx}`).catch(() => {});
-    await page.waitForTimeout(400);
+    const clicked = await H.clickTestId(`my-signi-zone-${zoneIdx}`).catch(() => null);
+    H.log(`  v69watcher zone${zoneIdx} zoneClick=${clicked}`);
+    await page.waitForTimeout(500);
     const btn = page.getByRole('button', { name: '【起】ダウン', exact: false }).first();
-    if (await btn.count() && await btn.isVisible().catch(() => false)) {
-      await btn.click({ timeout: 3000 }).catch(() => {});
+    const btnVisible = await btn.count() && await btn.isVisible().catch(() => false);
+    H.log(`  v69watcher zone${zoneIdx} btnVisible=${btnVisible}`);
+    if (btnVisible) await btn.click({ timeout: 3000 }).catch(() => {});
+    await page.waitForTimeout(400);
+    const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+    const fireEnabled = await fireBtn.count() && await fireBtn.isEnabled().catch(() => false);
+    H.log(`  v69watcher zone${zoneIdx} fireEnabled=${fireEnabled}`);
+    if (fireEnabled) await fireBtn.click({ timeout: 3000 }).catch(() => {});
+    // モーダルが閉じてトップに戻るまで待つ（次のゾーンクリックが背景オーバーレイに吸われないように）。
+    for (let s = 0; s < 6; s++) {
+      await page.waitForTimeout(300);
+      await H.stdStep();
+      const stillOpen = await page.getByRole('button', { name: '発動', exact: true }).first().count();
+      if (!stillOpen) break;
     }
     await page.waitForTimeout(300);
-    await H.clickBtn('発動', { exact: true });
-    await page.waitForTimeout(600);
   }
   let fin = null;
   for (let s = 0; s < 4; s++) {
