@@ -19993,10 +19993,10 @@ scenarios.v65PayGateWindowAppearsAndPayingFires = {
     //   deckの消費量（WX01-049分1枚＋ボーナス分1枚=2枚）とtrashへの支払い移動で判定する。
     const deckFinal = fin?.host?.deck ?? -1;
     const paidCardInTrash = (fin?.host?.trashCards ?? []).includes('WD01-014#9983');
-    const detail = `windowSeen=${windowSeen}（期待true） / deck終値=${deckFinal}（期待0＝2枚とも消費＝ボーナスも発火） / `
+    const detail = `windowSeen=${windowSeen}（期待true） / deck終値=${deckFinal}（期待3＝5枚中2枚消費＝ボーナスも発火） / `
       + `paidCardInTrash=${paidCardInTrash}（期待true） / energy終値=${fin?.host?.energy} / logTail末尾=${JSON.stringify((fin?.logTail ?? []).slice(-6))}`;
     H.log(`  v65paygate ${detail}`);
-    return { pass: windowSeen && deckFinal === 0 && paidCardInTrash, detail };
+    return { pass: windowSeen && deckFinal === 3 && paidCardInTrash, detail };
   },
 };
 scenarios.v65PayGateSkipBlocksAbility = {
