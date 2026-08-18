@@ -74,9 +74,20 @@ CardData_Sheet*.csv（カードテキスト）
 
 **CPU は対人戦と同じ処理を使う。CPU 独自実装は順次統一していく**（CPU 強化の布石）。
 
-- **抽出パターン:** 本体を `perform*`（owner / attacker 等をパラメータ化）に抽出し、人間用 `handle*` は薄いラッパーにする。
-- 統一済み: シグニ/ルリグアタック・ガード応答・ライフバースト（CPU も発動）・スペルカットインパス・召喚【出】/ON_PLAY。
-- 落とし穴: 共通関数は行動不可時にダウンさせず早期 return するため、CPU 側は無限ループ防止の事前除外か戻り値での分岐が必須。
+- **抽出パターン:** 本体を `perform*`（owner / attacker 等をパラメータ化）に抽出し、人間用 `handle*`／`execute*` は薄いラッパーにする。
+  **提示（「いま使えるか」）は別の pure 関数（`*Gate.ts`）に切り出し、人間のボタン生成と CPU の候補フィルタが
+  同じ1本を呼ぶ**＝軸がずれると「人間には見えないのに CPU は使える」型の無言のズレになり、ゲートにも census にも映らない。
+- 統一済み: シグニ/ルリグアタック・ガード応答・ライフバースト（CPU も発動）・スペルカットインパス・召喚【出】/ON_PLAY／
+  🆕**シグニ【起】（`performSigniActivated`＋`signiActivateGate`）／アーツ（`performArts`＋`artsUseGate`）／
+  スペル（`performSpell`＋`spellUseGate`）／ルリグ【起】（`performLrigActivated`＋`lrigActivateGate`）／
+  センターグロウ（`performGrow`＋`growLogic.listGrowCandidates`）**（2026-08-18 続き551〜552d・§8 `O-1`）。
+  ⇒ **CPU 独自実装は残っていない**（残るのは「何を選ぶか」の CPU 側ロジック＝`cpu*.ts` だけ）。
+- 落とし穴1: 共通関数は行動不可時にダウンさせず早期 return するため、CPU 側は無限ループ防止の事前除外か戻り値での分岐が必須。
+  実際の作法＝**実行より先に「使った」履歴を commit する**（`cpu_used_card_nums_this_turn` /
+  `cpu_activated_effect_ids_this_turn`）＝履歴を実行の成否に委ねると同じ札を選び直して窓から出られなくなる。
+- 落とし穴2: **CPU にモーダルは出せない**（出すと人間の画面に相手のモーダルが出る）＝支払い内訳を人間が選ぶコストは
+  **CPU 側の allowlist で撃たない側へ倒す**。⚠allowlist に載せてよいのは**その実行経路が実際に払うキーだけ**
+  （載せると宣言だけして踏み倒す）。
 
 ---
 

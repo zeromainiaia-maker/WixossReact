@@ -109,6 +109,7 @@ import { cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCp
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
 import { pickCpuMainSpell } from '../src/screens/battle/cpuSpell';
 import { exceedPayableCount, listActivatableLrigEffects } from '../src/screens/battle/lrigActivateGate';
+import { canGrowNow, listGrowCandidates } from '../src/screens/battle/growLogic';
 import { CPU_LRIG_AUTO_PAYABLE_COST_KEYS, cpuCanAutoPayLrigCost, pickCpuLrigActivated } from '../src/screens/battle/cpuLrigActivate';
 
 // ── データ読み込み ──
@@ -39939,6 +39940,45 @@ test('O-1 cpuLrigActivate: CPU のルリグ【起】選択は「撃てる・自�
   eq(pick([mkLrigAct('L-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })]), null, 'エナ0では選ばない');
   const rich = pick([mkLrigAct('L-ENA', { cost: { energy: [{ color: '無', count: 2 }] } })], [], { energy: [SIGNI_L1, SIGNI_L2] });
   eq(rich?.costIndices.size, 2, 'エナ2枚ぶんの index が返る');
+}));
+
+// ── §8／§6.4 `O-1` (d)：グロウ候補ゲート（人間・CPU 共通） ─────────────────────
+test('O-1 growLogic: グロウ候補はレベル+1・クラス互換・【グロウ】条件・色制限で切れる', () => withSavedCursor(() => {
+  const cm = cardMap as Map<string, CardData>;
+  const lv = (n: string) => parseInt(cm.get(n)?.Level ?? '0', 10) || 0;
+  const lrig1 = findCard(c => c.Type === 'ルリグ' && c.Level === '1' && !!(c.CardClass ?? '').trim());
+  const cls1 = (cm.get(lrig1)?.CardClass ?? '').split(/[/／]/)[0].trim();
+  const lrig2Same = findCard(c => c.Type === 'ルリグ' && c.Level === '2'
+    && (c.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(cls1)
+    && !c.EffectText?.includes('【グロウ】'));
+  const lrig2Other = findCard(c => c.Type === 'ルリグ' && c.Level === '2'
+    && !(c.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(cls1));
+  const lrig3Same = findCard(c => c.Type === 'ルリグ' && c.Level === '3'
+    && (c.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(cls1));
+  const nums = (deck: string[], state: Partial<PlayerState> = {}) =>
+    listGrowCandidates({
+      my: { ...mkState({ lrig: [lrig1] }), lrig_deck: deck, ...state } as PlayerState,
+      cardMap: cm, effectsMap,
+    }).map(c => c.CardNum);
+  eq(lv(lrig1), 1, '前提：現センターは Lv1');
+  eq(nums([lrig2Same]).join(','), lrig2Same, 'レベル+1・同クラスは候補になる');
+  eq(nums([lrig3Same]).length, 0, '🔴レベル+2 は候補にならない');
+  eq(nums([lrig2Other]).length, 0, '🔴クラス互換が無ければ候補にならない');
+  eq(nums([lrig2Same, lrig2Same]).length, 1, '同じカード番号は1件に畳む');
+  eq(nums([findCard(c => c.Type === 'シグニ')]).length, 0, 'ルリグ以外は候補にならない');
+  // 横グロウ（ゲット・グロウ等）＝現センターと**同レベル**へ
+  const lrig1Same = findCard(c => c.Type === 'ルリグ' && c.Level === '1' && c.CardNum !== lrig1
+    && (c.CardClass ?? '').split(/[/／]/).map(x => x.trim()).includes(cls1));
+  eq(listGrowCandidates({
+    my: { ...mkState({ lrig: [lrig1] }), lrig_deck: [lrig1Same] } as PlayerState,
+    cardMap: cm, effectsMap, freeGrowFilter: 'same',
+  }).map(c => c.CardNum).join(','), lrig1Same, "freeGrowFilter:'same' は同レベルを候補にする");
+  // 封じの軸（`canGrowNow`）＝人間の進行ゲートと CPU が同じ関数を見る
+  ok(canGrowNow(mkState({}), new Set()), '素の状態ではグロウできる');
+  ok(!canGrowNow({ ...mkState({}), actions_done: ['GROW'] } as PlayerState, new Set()), 'このターン既にグロウ済み');
+  ok(!canGrowNow({ ...mkState({}), blocked_actions: ['GROW'] } as PlayerState, new Set()), '静的封じ');
+  ok(!canGrowNow(mkState({}), new Set(['GROW'])), 'CONTINUOUS 封じ（グロウフェイズスキップ常在）');
+  ok(!canGrowNow({ ...mkState({}), no_grow: true } as PlayerState, new Set()), 'no_grow フラグ');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
