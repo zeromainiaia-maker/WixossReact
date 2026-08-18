@@ -8081,7 +8081,7 @@ const trigCtx = (activeUserId: string | null, meId?: string): TrigCtx => ({
 // 既存テストは entries だけ見るのでこのヘルパーで .entries を取り出す。
 const cttEntries = (
   ctx: TrigCtx,
-  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
+  timing: 'ON_TURN_START' | 'ON_TURN_END' | 'ON_ATTACK_PHASE_START' | 'ON_ATTACK_PHASE_END' | 'ON_GROW_PHASE_START' | 'ON_MAIN_PHASE_START' | 'ON_LRIG_ATTACK_STEP_START',
   my: PlayerState, op: PlayerState,
 ) => collectTurnTriggers(ctx, timing, my, op).entries;
 // 続き135（Opusタスク12(x)/(vi-5)）で collectFieldTriggers/collectBloomTriggers/collectBanishTriggers/
@@ -8093,6 +8093,24 @@ const cbtEntries = (...a: Parameters<typeof collectBanishTriggers>) => collectBa
 const cpzEntries = (...a: Parameters<typeof collectPowerZeroTriggers>) => collectPowerZeroTriggers(...a).entries;
 const clgEntries = (...a: Parameters<typeof collectLrigGrowTriggers>) => collectLrigGrowTriggers(...a).entries;
 const hasEffect = (entries: StackEntry[], effectId: string) => entries.some(entry => entry.effectId === effectId);
+
+test('§6.4 O-1 (e): ON_ATTACK_PHASE_END は live 唯一の母集団 WX24-P2-075 で発火する（離場履歴の有無で対）', () => withSavedCursor(() => {
+  // 🔴**この timing は CPU ターンで一度も収集されていなかった**（続き553 で配線）。
+  //   BattleScreen 側の配線は上の T6 の契約テストが押さえるので、ここは**収集器そのもの**を見る。
+  // 原文＝「【自】：あなたのアタックフェイズ終了時、**そのアタックフェイズの間にあなたの＜遊具＞のシグニが
+  //   場を離れていた場合**、このシグニを場からデッキの一番下に置いてもよい。（略）」
+  const APE_SIGNI = 'WX24-P2-075';         // 壱ノ遊 キンギョスクイ（＜遊具＞ Lv1）
+  const APE_LEFT  = 'WX10-082#1';          // 壱ノ遊 ケンダマ（＜遊具＞＝filter 一致側）
+  const APE_OTHER = 'WD01-013#1';          // ＜遊具＞ではないシグニ（filter 不一致の対照）
+  const mk = (left: string[]): PlayerState =>
+    ({ ...mkState({ signi: [APE_SIGNI, null, null] }), signi_left_field_this_attack_phase: left }) as PlayerState;
+  const ids = (left: string[]) =>
+    cttEntries(trigCtx(HOST, HOST), 'ON_ATTACK_PHASE_END', mk(left), mkState({})).map(e => e.effectId);
+  eq(ids([APE_LEFT]).join(','), 'WX24-P2-075-E1', '＜遊具＞が場を離れていれば発火する');
+  eq(ids([]).length, 0, '🔴対照＝離場履歴が空なら発火しない（`condition` は収集時に評価される）');
+  eq(ids([APE_OTHER]).length, 0, '🔴対照＝＜遊具＞でないシグニの離場では発火しない（filter が効く）');
+}));
+
 
 test('第2波 excludeSelf: ON_ATTACK_SIGNI の3効果は他シグニで発火・watcher自身では非発火', () => withSavedCursor(() => {
   const cases = [

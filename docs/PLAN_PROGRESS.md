@@ -4,6 +4,18 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-18・続き554・Opus 5）＝🔴🔴`BattleScreen` が React #310 で丸ごと落ちていた（Rules of Hooks 違反）＝§7 実機検証が全件回せなくなっていた真因を発見・修正 ／ §6.4 `O-1` (f) を実機で確認（`V-80` ALL PASS）**。ゲート全緑（**golden 2293→2294**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）＋**実機3本 ALL PASS**。**live JSON・CSV とも非改変**。version 0.484→0.485。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き554）。
+  - **🔴 真因**＝`§6.4 O-10`（続き515）で足した `flipGrowRef`（`useRef`）＋`useEffect` が **`if (!bs) return` の後ろ**に置かれていた。BattleScreen は `bs` 到着前に一度レンダーして早期 return するので、**bs 到着後の再レンダーで hook 数が増える** → React **#310**「Rendered more hooks than during the previous render.」で**画面が真っ黒**。
+  - **🔴 実害**＝`verifyBattleDrive.mjs` は盤面注入後に `page.reload()` する設計＝**この経路を必ず通る**ので、**全シナリオが無条件 FAIL**。**§7 実機検証 worklist（61件）が丸ごと回せない状態**だった＝**2026-08-14 続き481 を最後に実機検証が1本も進んでいなかった説明がつく**。
+  - ⚠**typecheck も lint も既存 golden も踏めない層**＝`react-hooks/rules-of-hooks` は「条件分岐の中の hook」は見るが**「早期 return の後ろの hook」は見ない**。**実機でしか出ない**。
+  - **⭐ 切り分けの型（次に同種を踏んだ人へ）**＝①既存シナリオでも同じ error が出るか →②`git checkout HEAD~1 -- src/` で**前コミットでも再現するか**（＝自分の変更由来かの一発判定）→③`vite.config.ts` に一時 `build:{minify:false}` ＋ `pageerror` で **stack を出す**（`e.message` だけでは「Minified React error #NNN」しか出ない）。
+  - **✅ golden トリップワイヤ +1**＝`if (!bs) return (` 以降の**インデント2スペース**の React 組み込み hook を数えて **0でなければ赤**。⚠**修正前コミットに当てると2件検出**することを確認済み＝計器として効いている。
+  - **✅ 実機 `V-80`（§6.4 `O-1` (f) の観測点）＝3本 ALL PASS**＝`wxk04003Label`（既存・センター【起】ラベル2種共存）／🆕`v80GrantedLrigActCoinShown`（coins=1 で付与【起】の「コイン1」が**出る**）／🆕`v80GrantedLrigActCoinGated`（coins=0 で**消える**・対照の「コストなし」は**残る**＝コイン軸だけが効いた）。
+  - ⚠**既存 `wxk04003Label` の spec に `coins: 1` を足した**＝続き552c のコイン所持チェックで coins=0 ではボタンが出なくなったため（**シナリオが古かっただけ**でバグではない）。**寝かせたシナリオは仕様変更で腐る**＝実機 worklist を溜めるコストがここにも出ている。
+  - **✅ ハーネス恒久改善**＝`verifyBattleDrive.mjs` の `pageerror` ハンドラが **stack を14行まで出す**ようになった。
+  - **▶ 次の一手【最優先・担当を問わない】**＝🔴**実機検証をもっと回す**。**ハーネスは動く状態に戻った**ので、いまが一番安い。未検証は `V-79`（(e) CPU の追加アタックフェイズ・シナリオ未作成）／`V-74`〜`V-78`／それ以前の約56件。
+  - **▶ 次の一手【Opus 側】**＝`O-1` は **(g) だけが残**（実機検証待ち）。§6.4 は `O-19b`（小）だけ。⇒ §4「次の一手 ①」（「壊れ方」で機械検出＝条件節の脱落 残210 ほか）へ戻るのが素直。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証**（`V-nn` が単一 worklist）。⚠**「回しても全部 FAIL する」状態は解消済み**＝過去に FAIL と記録した実機結果があるなら、**#310 の巻き添えだった可能性を疑って回し直す**こと。
 - **🆕 セッション（2026-08-18・続き553・Opus 5）＝§8／§6.4 `O-1` の残り小物を (e)(f) 消化＝CPU の `ATTACK_LRIG`→`END` を state 込みコミットへ ＋ 付与／継承のルリグ【起】を funnel へ寄せて CPU に載せた**。ゲート全緑（**golden 2291→2293**・census 787 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。**live JSON・CSV とも非改変**（engine/UI 側のみ）。version 0.483→0.484。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き553）。
   - **✅ (e) CPU の `ATTACK_LRIG`→`END` を `ADVANCE_TURN_WITH_STATE` へ**＝この1点だけ `SET_TURN_PHASE`（**フェイズしか書けない**）だったので、追加のアタックフェイズ（§6.4 O-3）の**キューを減らす手段が無く**、`resolveNextPhaseAfterAttack` を通すと無限ループになる構造だった。人間経路と**同じ4点**を1コミットで行うようにした＝①`ON_ATTACK_PHASE_END` 収集 ②`clearEndOfAttackPhaseDelayedTriggers` を両者へ ③予約を1件消化して `ATTACK_ARTS` へ ④2周目の `clearAttackPhaseScopedState`＋`ON_ATTACK_PHASE_START`。
     🔴**ついでに塞いだ CPU 側の穴2つ**＝**`ON_ATTACK_PHASE_END` は CPU ターンで一度も収集されていなかった**（タスク12(lxvii) の5 timing に続く6本目・live 1効果＝`WX24-P2-075`）／**「このアタックフェイズの間」の遅延 watcher が CPU ターンだけ消えずに残っていた**。

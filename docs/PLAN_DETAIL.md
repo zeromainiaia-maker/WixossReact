@@ -2484,6 +2484,22 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
+- **🆕 2026-08-18 続き554（🔴BattleScreen の Rules of Hooks 違反＝実機ハーネス全件 FAIL の真因を修正／`V-80` 実機 ALL PASS）後 最新値（本行が直近の正）**：
+  **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2294**（+1＝Rules of Hooks トリップワイヤ）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（264 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  `parserWorklist` held **101枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes`・`census:wiring` は続き552d 以降 未再計測**＝live 非改変なので
+  〔★0・未カバー0・wiring miss 193〕から動いていないはず。数字が要るなら再計測すること）。
+  **live 効果総数 10693**（live JSON・CSV とも非改変）。version **0.485**。
+  🆕**実機ハーネス（`verifyBattleDrive.mjs`）＝復旧**。**続き554 以前は全シナリオが React #310 で無条件 FAIL**
+  （＝2026-08-14 続き481 以降に「実機で FAIL した」と記録された結果は**巻き添えを疑って回し直す**）。
+  🆕**実機シナリオ総数 315**（+2＝`v80GrantedLrigActCoinShown` / `v80GrantedLrigActCoinGated`）。
+  🆕**実機 PASS（続き554 実測）＝3/3**（`wxk04003Label` / `v80GrantedLrigActCoinShown` / `v80GrantedLrigActCoinGated`）。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-18（続き554）。
+
 - **🆕 2026-08-18 続き553（§8／§6.4 `O-1` (e)(f)＝CPU の ATTACK_LRIG→END を state 込みへ／ルリグ【起】の収集源3つを funnel へ）後 最新値（本行が直近の正）**：
   **census 787 据置**（`BASELINE_HIGH` 据置）、**golden 2293**（+2）、smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、
   fuzz 全0、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、

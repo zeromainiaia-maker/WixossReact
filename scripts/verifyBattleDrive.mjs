@@ -18227,6 +18227,89 @@ scenarios.v80GrantedLrigActCoinGated = {
 order.push('v80GrantedLrigActCoinShown', 'v80GrantedLrigActCoinGated');
 // ── V-80 END ──
 
+// ── §7 V-79（続き553・§6.4 `O-1` (e)）＝CPU の `ATTACK_LRIG`→`END` が追加アタックフェイズを消化する ──
+// 🔴**本命は「無限ループしないこと」**＝この遷移は続き553 まで `SET_TURN_PHASE`（フェイズしか書けない）で
+//   コミットしていたので `extra_attack_phases_this_turn` を減らせず、キューがあると `ATTACK_ARTS` へ戻り続けた。
+//   （当時は `hasCpuUnsupportedAction` で `ADD_EXTRA_ATTACK_PHASE` を含む札を CPU に選ばせないことで回避）。
+// 🔑**予約（キュー）を直接注入する**＝CPU に `WXK06-026` を撃たせる盤面を作らなくても、**直したその1点**を踏める
+//   （札の使用まで込みで見るのは `V-79` の別項＝CPU がスペルを撃つ側の観測）。
+// ⚠CPU のルリグは**ダウン済み**（＝アタック終了後）にする＝分岐が素直に「END への遷移」へ落ちる。
+// ⚠観測は**フェイズ列**＝`ATTACK_LRIG` から始めて **`ATTACK_ARTS` が再び現れる**ことが2周目の証拠
+//   （`PHASE_NEXT` は ATTACK_ARTS→ATTACK_SIGNI→ATTACK_LRIG→END の一方向なので、戻りは追加フェイズ以外にない）。
+const v79ExtraAtkSpec = (queued) => ({
+  hostSet: {
+    'field.lrig': ['WD03-003#8700'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'field.lrig_attacked': false,
+    'hand': [],
+    'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#8701'],
+    'field.lrig_down': true,          // ルリグアタック済み＝この分岐は「END への遷移」へ直行する
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'hand': [],
+    'energy': [],
+    'actions_done': [],
+    'extra_attack_phases_this_turn': queued ? [{ sourceCardNum: 'WXK06-026' }] : [],
+  },
+  top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+});
+
+const V79_CPU_ID = '00000000-0000-0000-0000-000000000001';   // battleUtils.CPU_PLAYER_ID
+const driveV79ExtraAtk = async (page, H, expectExtraPhase) => {
+  // ⚠**開始時の `activeUser` を基準にしない**（続き554 実測）＝注入→reload→2秒待ちの間に
+  //   CPU が END まで走り切ることがあり、「最初のサンプル時点でもう人間のターン」になる。
+  //   ターン終了の判定は **`activeUser !== CPU_PLAYER_ID`** の絶対条件で見る。
+  // ⚠**`ATTACK_ARTS_OP` は非ターンプレイヤー（＝人間）が進行ボタンを持つ**（`NON_TURN_PLAYER_PHASES`）＝
+  //   CPU のターンでもここで止まるので、ドライブ側が「アーツ終了」を押さないと**永久に進まない**
+  //   （押さないと『無限ループ』と誤診する）。
+  const phases = [];
+  let handedOver = false;
+  let logHit = false;
+  for (let s = 0; s < 60; s++) {
+    const st = await H.queryState();
+    if (st?.turnPhase && phases[phases.length - 1] !== st.turnPhase) phases.push(st.turnPhase);
+    if ((st?.logTail ?? []).some(l => String(l).includes('追加のアタックフェイズを開始する'))) logHit = true;
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) { handedOver = true; break; }
+    // 人間側の応答窓（アーツ終了／ガードしない等）を押して CPU ターンを前へ進める。
+    await H.clickTextOrBtn(['アーツ終了', 'ガードしない', 'しない', '使用しない', 'スキップ']);
+    await page.waitForTimeout(300);
+  }
+  const fin = await H.queryState();
+  // `ATTACK_LRIG` 始まりで `ATTACK_ARTS`／`ATTACK_ARTS_OP` が現れる＝アタックフェイズをもう1周した証拠
+  // （`PHASE_NEXT` は ATTACK_ARTS→ATTACK_ARTS_OP→ATTACK_SIGNI→ATTACK_LRIG→END の一方向で、
+  //  戻りの経路は追加アタックフェイズ以外に無い）。
+  const sawSecondLap = phases.some(p => p === 'ATTACK_ARTS' || p === 'ATTACK_ARTS_OP');
+  H.log(`  v79 phases=${JSON.stringify(phases)} handedOver=${handedOver} 2周目=${sawSecondLap} log=${logHit} gQueue=${fin?.guest?.extraAttackPhases}`);
+  const detail = `phases=${JSON.stringify(phases)} / ターンが人間へ渡った=${handedOver} / 2周目=${sawSecondLap}（期待${expectExtraPhase}） / ログ=${logHit} / 残キュー=${fin?.guest?.extraAttackPhases}`;
+  if (!handedOver) return { pass: false, detail: `🔴ターンが終わらない＝CPU 進行が止まった（無限ループの疑い）（${detail}）` };
+  if (sawSecondLap !== expectExtraPhase) return { pass: false, detail: `2周目の有無が期待と違う（${detail}）` };
+  if (logHit !== expectExtraPhase) return { pass: false, detail: `追加フェイズのログの有無が期待と違う（${detail}）` };
+  return { pass: true, detail };
+};
+
+scenarios.v79CpuExtraAttackPhaseConsumed = {
+  title: 'V-79 CPU の ATTACK_LRIG→END＝追加アタックフェイズを1件消化して2周し、ちゃんとターンが終わる',
+  spec: v79ExtraAtkSpec(true),
+  drive: (page, H) => driveV79ExtraAtk(page, H, true),
+};
+scenarios.v79CpuNoExtraAttackPhase = {
+  title: 'V-79 対照＝予約が無ければ CPU は2周せずそのまま END へ抜ける',
+  spec: v79ExtraAtkSpec(false),
+  drive: (page, H) => driveV79ExtraAtk(page, H, false),
+};
+order.push('v79CpuExtraAttackPhaseConsumed', 'v79CpuNoExtraAttackPhase');
+// §7 V-79(C)＝`ON_ATTACK_PHASE_END` の CPU ターン発火は**実機シナリオを取り下げた**（2026-08-18 続き554）。
+// live 母集団は1効果＝`WX24-P2-075` だけで、その本文が **`optional: true`（「置いてもよい」）** なので、
+// 収集されても **CPU の自動応答が「しない」側に倒れて盤面差分が出ない**＝実機からは観測できない
+// （収集器そのものは golden `§6.4 O-1 (e): ON_ATTACK_PHASE_END は …` が離場履歴の有無＋filter 不一致の
+//  3点で押さえている＝**そちらが正しい観測層**）。⚠実測＝ターンは正常に終わり、シグニは場に残ったまま。
+
+// ── V-79 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -18466,6 +18549,9 @@ try {
         fieldCharms: s.field?.signi_charms ?? null,   // 任意【出】の【チャーム】付与を見る（タスク12(lv)③）
         // 「このターンにシグニがバニッシュされている」履歴（タスク12(xciv) の `WX13-026` コスト軽減が読む）
         signiBanishedThisTurn: s.signi_banished_this_turn ?? 0,
+        // §6.4 O-3／O-1 (e)：追加アタックフェイズのキューと、その開始時本文の予約（V-79 の計器）。
+        extraAttackPhases: (s.extra_attack_phases_this_turn ?? []).length,
+        pendingExtraAttackStart: (s.pending_extra_attack_phase_start_effects ?? []).length,
         abilitiesRemoved: s.abilities_removed ?? [],
         keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
         // 続き475g：ピース解決時に載せ替える「このゲームの間」付与（`WXDi-P15-003-E2`）の観測用

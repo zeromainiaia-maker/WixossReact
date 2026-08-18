@@ -1,5 +1,42 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-18（続き555・Opus 5）— **§6.4 `O-1` (e) を実機で確認（`V-79` 本命2本 PASS）＋ `ON_ATTACK_PHASE_END` の収集器を golden で固定**
+
+ゲート全緑（typecheck / golden **2294→2295** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機5本 ALL PASS**。version 0.485→0.486。**live JSON・CSV とも非改変**（`scripts/` のみ）。続き553〜554 の直接の続き。
+
+### 1. 実機 `V-79`（§6.4 `O-1` (e)）＝**追加アタックフェイズで無限ループしない**
+
+| シナリオ | 結果 | 観測 |
+|---|---|---|
+| `v79CpuExtraAttackPhaseConsumed` | ✅PASS | `ATTACK_LRIG` 始まり → **`ATTACK_ARTS_OP` → `ATTACK_SIGNI` → `ATTACK_LRIG` → `END` → `UP`**＝**2周してターンが人間へ渡った**。ログ「追加のアタックフェイズを開始する」あり・**残キュー0** |
+| `v79CpuNoExtraAttackPhase`（対照） | ✅PASS | 予約なし → **`UP` へ直行**（2周しない・ログ無し） |
+
+- 🔑**予約（`extra_attack_phases_this_turn`）を直接注入する**型にした＝CPU に `WXK06-026` を撃たせる盤面を組まなくても
+  **続き553 で直したその1点**を踏める。`PHASE_NEXT` は一方向なので、`ATTACK_LRIG` 始まりで `ATTACK_ARTS*` が
+  再び現れること自体が2周の証拠になる。
+- ⚠**ドライブ側の落とし穴を2つ踏んだ（記録）**：
+  ① **`ATTACK_ARTS_OP` は非ターンプレイヤー（＝人間）が進行ボタンを持つ**（`NON_TURN_PLAYER_PHASES`）＝
+     CPU のターンでもここで止まる。**ドライブが「アーツ終了」を押さないと永久に進まず、無限ループと誤診する。**
+  ② **開始時の `activeUser` を基準にしない**＝注入→reload→2秒待ちの間に CPU が END まで走り切ることがあり、
+     「最初のサンプル時点でもう人間のターン」になる。ターン終了は **`activeUser !== CPU_PLAYER_ID`** の絶対条件で見る。
+- 計器追加＝`queryState` の `sideOf` に **`extraAttackPhases` / `pendingExtraAttackStart`**（キューの残数と開始時本文の予約数）。
+
+### 2. `ON_ATTACK_PHASE_END`（(e) で新規配線）＝**収集器は golden で固定・実機観測は取り下げ**
+
+golden **+1**＝`§6.4 O-1 (e): ON_ATTACK_PHASE_END は live 唯一の母集団 WX24-P2-075 で発火する（離場履歴の有無で対）`。
+①＜遊具＞が場を離れていれば発火 ②離場履歴が空なら発火しない ③**＜遊具＞でないシグニの離場では発火しない**
+（＝`condition` が**収集時に**評価され、`filter` も効いていることの3点固定）。
+
+⚠**実機シナリオは取り下げた**＝live 母集団の `WX24-P2-075` は本文が **`optional: true`（「置いてもよい」）** なので、
+収集されても**CPU の自動応答が「しない」側に倒れて盤面差分が出ない**＝実機からは観測できない
+（実測＝ターンは正常終了・シグニは場に残ったまま）。**原因の確定（CPU の optional 応答方針）は未調査・低優先**。
+→ **収集の正しさを見る層は golden が正**。実機は「フェイズ進行が壊れないこと」を見る層に絞った。
+
+### 3. ⚠残（→ §7）
+
+`V-79` の (B)（2周目の `ON_ATTACK_PHASE_START` が走り【ハスターリク】は走らない）と (D)（人間側の解決順の是正）、
+`V-80` の (C)（CPU が付与【起】・継承【起】を撃つ）は**未検証**。`V-74`〜`V-78` も未検証のまま。
+
 ## 2026-08-18（続き554・Opus 5）— 🔴🔴**BattleScreen が React #310 で丸ごと落ちていた（Rules of Hooks 違反）＝§7 実機検証が全件回せなくなっていた真因**／§6.4 `O-1` (f) を実機で確認（V-80 ALL PASS）
 
 ゲート全緑（typecheck / golden **2293→2294** / smoke 10693 全0 / fuzz 全0 / census 787 据置 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。**実機3本 ALL PASS**。version 0.484→0.485。**live JSON・CSV とも非改変**。
