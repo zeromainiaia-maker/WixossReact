@@ -20661,6 +20661,58 @@ scenarios.v31EnergyPayUnblockedAllowsArtsCast = {
 order.push('v31EnergyPayBlockedPreventsArtsCast', 'v31EnergyPayUnblockedAllowsArtsCast');
 // ── V-31 END ──
 
+// ── §7 V-32（O-3・続き566）(b)のみ ──
+// `WX05-018-E1`【常】：対戦相手は自分のエナフェイズをスキップする＝BLOCK_ACTION{actionId:'ENERGY_PHASE'}。
+// `attackStepPhase.ts` の `isPhaseSkipped`/`resolveNextPhaseWithSkips` が唯一の判定点（DRAW→ENERGY→GROW
+// のうちENERGYを飛ばす）。カード詠唱を省略し`blocked_actions`へ直接注入＝CPUのターンでエナチャージが
+// 一度も起きないことを見る（対照＝封じが無ければ通常どおりエナチャージが起きる）。
+const v32EnergyPhaseSkipSpec = (blocked) => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9985'], 'field.signi': [null, null, null], 'field.check': null, 'hand': [], 'energy': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9986'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': ['WD01-013#9987', 'WD01-014#9988'], 'energy': [], 'actions_done': [], 'blocked_actions': blocked,
+  },
+  top: { active: 'cpu', turn_phase: 'DRAW', turn_count: 2 },
+});
+async function driveV32PhaseSkip(page, H) {
+  let last = await H.queryState();
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(300);
+    const did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定', 'スキップ']) || await H.stdStep();
+    const st = await H.queryState();
+    last = st;
+    H.log(`  v32phaseskip[${s}] did=${did ?? 'なし'} phase=${st?.turnPhase} gEnergy=${st?.guest?.energy} activeUser=${st?.activeUser === V79_CPU_ID ? 'cpu' : 'host'}`);
+    if (st?.activeUser && st.activeUser !== V79_CPU_ID) break;
+  }
+  return last;
+}
+scenarios.v32EnergyPhaseSkippedNoChargeHappens = {
+  title: 'V-32(b) `ENERGY_PHASE`封じ＝CPUのターンでエナチャージが一度も起きない',
+  spec: v32EnergyPhaseSkipSpec(['ENERGY_PHASE']),
+  async drive(page, H) {
+    const fin = await driveV32PhaseSkip(page, H);
+    const pass = (fin?.guest?.energy ?? -1) === 0;
+    const detail = `guest.energy終値=${fin?.guest?.energy}（期待0＝一度もチャージせず）`;
+    H.log(`  v32phaseskip ${detail}`);
+    return { pass, detail };
+  },
+};
+scenarios.v32EnergyPhaseUnblockedChargeHappens = {
+  title: 'V-32(b) 対照＝封じが無ければ通常どおりエナチャージが起きる',
+  spec: v32EnergyPhaseSkipSpec([]),
+  async drive(page, H) {
+    const fin = await driveV32PhaseSkip(page, H);
+    const pass = (fin?.guest?.energy ?? 0) >= 1;
+    const detail = `guest.energy終値=${fin?.guest?.energy}（期待≥1＝チャージされた）`;
+    H.log(`  v32phaseskip ${detail}`);
+    return { pass, detail };
+  },
+};
+order.push('v32EnergyPhaseSkippedNoChargeHappens', 'v32EnergyPhaseUnblockedChargeHappens');
+// ── V-32 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
