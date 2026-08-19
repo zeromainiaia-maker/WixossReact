@@ -24943,6 +24943,7 @@ try {
         actionsDone: s.actions_done ?? [],
         lrigTrash: (s.lrig_trash ?? []).length,
         lrigTrashCards: s.lrig_trash ?? [],   // 続き475g：ピースが「使用後ルリグトラッシュへ」行くことの観測用
+        excludedCards: s.excluded ?? [],      // 続き586：V-58(d) COUNTER_TEAM_PIECE_AND_EXILE の観測用
         lrigUnder: Math.max(0, (s.field?.lrig ?? []).length - 1),
         lrigTop: (s.field?.lrig ?? []).at(-1) ?? null,
         lrigDeck: (s.lrig_deck ?? []).length,
