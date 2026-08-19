@@ -23570,6 +23570,7 @@ async function runUseSearchedSpellRound(page, H, { useIt }) {
   let summoned = false; let searched = false; let chose = false;
   for (let s = 0; s < 30; s++) {
     await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/v40b-${useIt ? 'use' : 'trash'}-${s}.png`, fullPage: true }).catch(() => {});
     let did = null;
     if (!summoned) {
       did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
