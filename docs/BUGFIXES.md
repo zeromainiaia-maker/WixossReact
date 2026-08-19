@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き581・Sonnet 5）— §7 実機検証（V-39）＝エナ支払いゲート2件は残0クローズ・🔴新規engineバグ1件を発見しOpusタスク12(cxliv)へ登録（未修正のため据置）
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ3本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
+
+### ✅ V-39 `WX25-P2-014-E1`（明星の使者　サシェ・モティエ）＝`OPP_LRIG_ATTACK_COST`の《無》×2前払いゲート・残0クローズ
+
+新規シナリオ2本（`v39LrigAttackCostBlocked`／`v39LrigAttackCostPaid`）。判定は`lrigAttackCostInfo`（`BattleScreen.tsx:13672-13679`）が**ボタンラベルに直接コストを出す**設計＝`my-lrig-slot-center`を開いて`data-action-label`を読むだけで決定論的に観測できる。guest（効果所持者）に`WX25-P2-014`（ルリグ）と＜宇宙＞シグニ`WX07-048`を、host（攻撃側）にエナ1枚（不足）／3枚（十分）を注入。①エナ1枚＝ボタン表示「アタック不可（《無》×2）」・クリックしても`hEnergy`／`hLrigDown`／`gLrigAttacked`は全て不変 ②エナ3枚＝ボタン表示「アタック（《無》×2）」・クリックで`hEnergy`が3→1（2枚消費）、`hLrigDown`がtrueに、続けて`gLrigAttacked`もtrueになる。各2回連続PASS。続き494（O-28）の「払えないときタダで通っていた」是正は実機でも機能している＝engineバグ0（この2件については）。
+
+### 🔴 V-39追加 `WX25-P2-014-E1`の「あなたの場に＜宇宙＞のシグニがあるかぎり」条件節が丸ごと未実装＝新規engineバグ発見
+
+原文＝「【常】《相手ターン》：**あなたの場に＜宇宙＞のシグニがあるかぎり**、対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない」。JSON側の`activeCondition`は`{type:'TURN_OWNER',owner:'opponent'}`のみで、宇宙シグニ所持を見るフィルタ条件が存在しない（`docs/effects-json-guide.md`語彙・`checkActiveCondition`（`effectEngine.ts`）の全ケース・`src/data/parsers/*.ts`を`grep`＝該当する条件型・パーサ規則ともに0件）。新規シナリオ`v39ConditionGapNoStorySigni`＝guestの場から＜宇宙＞シグニを完全に除いた（`field.signi:[null,null,null]`）盤面でも、host側のボタン表示は変わらず「アタック（《無》×2）」のまま＝**条件が無条件で常に成立している**ことを実機で確認（2回連続同一結果＝意図的FAILとして記録）。実害＝この効果を持つルリグ（現状liveは`WX25-P2-014`1枚のみ）が、本来ならゲートが掛からないはずの盤面（＜宇宙＞シグニ不在）でも対戦相手のルリグアタックを《無》×2の前払いなしでは阻む＝過剰実行。修正方針＝`collectOppLrigAttackExtraCost`（`effectEngine.ts:4539`）に`ownerState.field.signi`／`field.lrig`等から＜宇宙＞（story含む）フィルタの充足チェックを追加するか、`activeCondition`に汎用の「自分の場に〈story〉のシグニがあるかぎり」型（例＝`SELF_FIELD_HAS_STORY`）を新設してパーサ側（`parseSentencePart3.ts:314`付近の`OPP_LRIG_ATTACK_COST`規則）で前置の「あなたの場に＜○○＞のシグニがあるかぎり」節を`activeCondition`へ持ち上げる。**Opusタスク12(cxliv)として登録**（母集団はlive上1枚のみと推定されるが、同型の「自分の場に〈story〉があるかぎり」構文が他のSTUB/CONTINUOUS条件にも埋もれている可能性があり、修正時は横展開の要確認を含める）。
+
 ## 2026-08-19（続き580・Sonnet 5）— §7 実機検証4件追加（V-28 A群残り）＝`WX25-CP1-074`／`WX24-P4-014`②／`WXDi-P09-079`／`WXK11-001`②　全て残0クローズ・engineバグ0
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ6本・`order`登録済み）と `docs/PLAN.md` の簿記のみ。続き409〜413（O-13 A群・§6.4）で実装したが実機UI未検証のまま残っていた6件のうち、続き579の`WX16-021`に続き残り4件を消化＝これでA群は全件実機確認済み。
