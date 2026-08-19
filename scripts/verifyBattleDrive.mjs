@@ -12984,7 +12984,7 @@ async function injectScenario(page, spec) {
       active_user_id: top.active === 'cpu' ? CPU_PLAYER_ID : uid,
       turn_phase: top.turn_phase ?? 'MAIN',
       turn_count: top.turn_count ?? 2,
-      effect_stack: null, pending_effect: null, pending_spell: null,
+      effect_stack: null, pending_effect: null, pending_spell: top.pendingSpell ?? null,
       // ログもシナリオごとに白紙化する。前シナリオのログ行（「アーツ使用: …」等）が盤面テキストに残ると
       // clickTextOrBtn の部分一致テキストクリックがログ行を掴み続けて本来のUI操作に到達しない
       // （バッチ実行時のみ lrigundermoved が txt:使用 を空クリックし続けて FAIL した真因）。findLog の偽陽性も防ぐ。
