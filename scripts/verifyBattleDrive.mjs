@@ -22408,7 +22408,7 @@ scenarios.v58fCpuAutoPassesTeamPieceCutin = {
       await page.waitForTimeout(900);
       await page.screenshot({ path: `${SHOT}/v58fCutin-${s}.png`, fullPage: true });
       let did = null;
-      if (!did && !usedBtn) { did = await H.clickBtn('使用', { exact: true }); if (did) usedBtn = true; }
+      if (!did && !usedBtn) { did = await H.clickBtn('使用', { exact: false }); if (did) usedBtn = true; }
       if (!did) did = await H.clickTextOrBtn(['選択肢3', '選択肢2', '選択肢1']);
       if (!did) did = await H.stdStep();
       const st = await H.queryState();
