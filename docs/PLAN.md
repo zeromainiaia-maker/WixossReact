@@ -752,7 +752,7 @@
   - [x] **フェイズと上限のゲート**＝**実機PASS 2本**。①`underEnergyPayNotOfferedInMainPhase`＝**盤面を1文字も変えず `top.turn_phase` を `MAIN` にするだけ**で**下カードが候補から消える**（`artscost-energy-*` が2件・`title` 付き0件）＝`duringMyAttackPhase` ゲートが効いている。⚠**「0件だから効いた」ではなくエナ側2件が出ていることを同時に assert**（モーダル未描画との区別）。②`underEnergyPayPerTurnLimit`＝下カードを3枚置き、**`turn_off_zone_energy_paid_count` を 0→2 にするだけ**で **`title` 付き候補が 3→1** に減る＝**上限を候補生成の1点で切っている**（`offZonePayLimit`）。
     - 📋**相手のターン／カットイン窓／ターン跨ぎの復活は未検証**。
   - [x] 🔴**`WXDi-P10-041-E3` と噛み合うか**＝**実機検証実施→実バグ発見**（`v04TanabataLeaveFieldE3`）。下カードを払った後にタナバタが場を離れると、E3の発火ログは出るが**トラッシュ→エナの移動が一切起きない空振り**（`execTakeFromUnderSigni` が場を離れた後の自分自身を`field.signi`から見つけられずcands=0）。詳細は Opusタスク12 **(cxxxviii)** へ登録済み。
-  - [ ] 📋**未実装として送る（バグではない）**＝(a) 候補の**視覚的マーカーが `title` 属性だけ** (b) **残り上限より下カードが多いとき「どれを払うか」を選べない**（安全側の近似）(c) **CPU は下カードから支払わない**。
+  - [x] 📋**未実装として送る（バグではない）**＝(a) 候補の**視覚的マーカーが `title` 属性だけ** (b) **残り上限より下カードが多いとき「どれを払うか」を選べない**（安全側の近似）(c) **CPU は下カードから支払わない**。
 
 - **🔶 V-15 §6.3 J-4 フェイズ／アタック終了 timing（続き384）＝2026-08-14 続き480 で**機構は両方とも実機で確認・6シナリオ中5本が緑**（Codex 起案→Claude 実機検証）。**engine バグ0**。
   - [x] **アタック終了時の【自】が発火するか**（`WXK11-018-E2`）＝**実機PASS 3本**（`v15AttackEndBlockedFiresAndUpsOther`／`v15AttackEndDirectDamageDoesNotFire`／`v15AttackEndOncePerTurnConsumed`）。①正面にシグニがいてダメージが通らなかった場合＝**発火し、別の低Lvシグニだけが up**（＝**アップされるのが自分自身ではない**ことも確認）②**正面だけ空にした対照**＝life 7→6・確認フロー消化まで観測して**非発火** ③`actions_done` だけ変えた対照で**《ターン1回》消化済みなら再発火しない**。
