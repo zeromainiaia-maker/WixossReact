@@ -23129,6 +23129,63 @@ scenarios.cddtoControlDamageNormally = {
   async drive(page, H) { return driveCddto(page, H, false); },
 };
 order.push('cddtoBlocksDirectLifeDamage', 'cddtoControlDamageNormally');
+
+// §7 V-28 続き＝A群3件目`OPP_LRIG_DECK_TO_LRIG_TRASH`（`WX24-P4-014-E3`②・続き411）：
+// センタールリグ（Lv4）【起】《ゲーム1回》アンビション《赤×0》：《リコレクトアイコン》［4枚以上］
+// 以下の2つから1つを選ぶ。①相手ライフクロス1枚クラッシュ ②相手ライフクロス0枚なら、相手は自分の
+// ルリグデッキからカード1枚をルリグトラッシュに置く。ここでは②（相手ルリグデッキ選択モーダル＝
+// `opponentResponds`でCPUが自分で選ぶ）を検証。選ぶのはカードの持ち主で ctx の視点は反転しない
+// （execStubPart1.tsのコメント参照）＝候補・適用先とも guest（相手）のまま。
+scenarios.wx24p4014OppLrigDeckToTrash = {
+  title: 'V-28 WX24-P4-014-E3② OPP_LRIG_DECK_TO_LRIG_TRASH：相手ライフ0枚なら相手が自分のルリグデッキから1枚をルリグトラッシュへ',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WX24-P4-014#9901'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'lrig_trash': ['WD01-006#9902', 'WD01-007#9903', 'WD01-008#9904', 'WX16-021#9905'], // アーツ4枚＝RECOLLECT_GATE
+      'energy': [], 'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9910'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'life_cloth': [], // 0枚＝②の条件成立
+      'lrig_deck': ['WD01-002#9911', 'WD01-003#9912'],
+      'lrig_trash': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.ensureMain();
+    H.log('開始時 guest.lrigDeck:', before?.guest?.lrigDeckCards, 'guest.lrigTrash:', before?.guest?.lrigTrashCards);
+    let opened = false; let activated = false; let choiceMade = false;
+    for (let s = 0; s < 25; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); opened = true; }
+      else if (!activated) { did = await H.clickBtn('【起】', { exact: false }); if (did) activated = true; }
+      else if (!choiceMade) {
+        did = await H.clickTextOrBtn(['選択肢2']);
+        if (!did) did = await H.stdStep(['発動', '確定', '決定', 'OK', 'はい']);
+        if (did === 'btn:選択肢2' || did === 'txt:選択肢2') choiceMade = true;
+      } else {
+        did = await H.stdStep();
+      }
+      const st = await H.queryState();
+      H.log(`  p4014[${s}] -> ${did ?? 'なし'} | opened=${opened} activated=${activated} choiceMade=${choiceMade} gLrigDeck=${st?.guest?.lrigDeckCards} gLrigTrash=${st?.guest?.lrigTrashCards} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      const moved = (st?.guest?.lrigTrashCards ?? []).length > (before?.guest?.lrigTrashCards ?? []).length;
+      if (moved && !st?.pendingEffect) {
+        const deckShrunk = (st.guest.lrigDeckCards ?? []).length === (before.guest.lrigDeckCards ?? []).length - 1;
+        return { pass: deckShrunk, detail: `相手（guest）のルリグデッキから1枚がルリグトラッシュへ移動＝lrigDeck ${before.guest.lrigDeckCards.length}→${st.guest.lrigDeckCards.length} / lrigTrash ${before.guest.lrigTrashCards.length}→${st.guest.lrigTrashCards.length}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} activated=${activated} choiceMade=${choiceMade} gLrigTrash=${fin?.guest?.lrigTrashCards} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wx24p4014OppLrigDeckToTrash');
 // ── V-28 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
