@@ -23274,13 +23274,13 @@ scenarios.wxk11001ExileArtsSkipsOppSigniAttackStep = {
   async drive(page, H) {
     const before = await H.queryState();
     H.log('開始時 guest.blockedActions:', before?.guest?.blockedActions, 'host.lrigDeck:', before?.host?.lrigDeckCards);
-    let handOpened = false; let castDone = false; let exileChosen = false; let candPicked = false;
+    let handOpened = false; let cardOpened = false; let castDone = false; let exileChosen = false; let candPicked = false;
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(800);
       let did = null;
       if (!castDone) {
         if (!handOpened) { did = await H.clickTestId('my-lrig-dk'); handOpened = true; }
-        if (!did) did = await H.clickTestId('zone-card-0');
+        else if (!cardOpened) { did = await H.clickTestId('zone-card-0'); cardOpened = true; }
         const a0 = page.getByTestId('artscost-energy-0').first();
         if (!did && await a0.count() && await a0.isVisible().catch(() => false)) { await a0.click().catch(() => {}); did = 'artscost-energy-0'; }
         if (!did) {
