@@ -23322,6 +23322,174 @@ scenarios.wxk11001ExileArtsSkipsOppSigniAttackStep = {
 order.push('wxk11001ExileArtsSkipsOppSigniAttackStep');
 // ── V-28 END ──
 
+// §7 V-39（続き494＝O-28「払えないときタダで通っていた」是正・エナ0でルリグアタックできないことを対で見る）：
+// `WX25-P2-014`（明星の使者　サシェ・モティエ）＝【常】《相手ターン》：あなたの場に＜宇宙＞のシグニがあるかぎり、
+// 対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない。owner=guest・attacker=host。
+// ボタンラベルに《無》×N が直接出る設計（`lrigAttackCostInfo`＝BattleScreen.tsx:13672-13679）なので、
+// モーダルを開いて `data-action-label` を読むだけで判定できる（クリック列不要＝観測が単純）。
+scenarios.v39LrigAttackCostBlocked = {
+  title: 'V-39 WX25-P2-014：エナ不足（1枚）だとルリグアタック不可＝「アタック不可（《無》×2）」表示・クリックしても状態不変',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#39001'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD01-013#39002'],
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WX25-P2-014#39010'],
+      'field.signi': [['WX07-048#39011'], null, null],
+      'field.check': null,
+      'field.lrig_attacked': false,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let opened = false; let label = null; let clicked = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      if (opened && label === null) {
+        const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          label = await btn.getAttribute('data-action-label');
+          did = 'read:' + label;
+        }
+      }
+      if (label !== null && !clicked) {
+        const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await btn.count()) { await btn.click({ timeout: 1200 }).catch(() => {}); clicked = true; did = 'click:' + label; }
+      }
+      const st = await H.queryState();
+      H.log(`  v39blocked[${s}] -> ${did ?? 'なし'} | label=${label} clicked=${clicked} hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) hLrigDown=${st?.host?.lrigDown} gLrigAttacked=${st?.guest?.lrigAttacked}`);
+      if (label !== null && clicked) {
+        const unchanged = st.host.energy === before.host.energy && st.host.lrigDown === false && st.guest.lrigAttacked === false;
+        return {
+          pass: label === 'アタック不可（《無》×2）' && unchanged,
+          detail: `ボタン表示="${label}"・クリック後 hEnergy ${before.host.energy}→${st.host.energy} hLrigDown=${st.host.lrigDown} gLrigAttacked=${st.guest.lrigAttacked}（不変=${unchanged}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} label=${label} clicked=${clicked} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+scenarios.v39LrigAttackCostPaid = {
+  title: 'V-39対照 WX25-P2-014：エナ十分（3枚）だとルリグアタック可＝「アタック（《無》×2）」表示・クリックで2枚消費してダウン',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#39101'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD01-013#39102', 'WD01-013#39103', 'WD01-013#39104'],
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WX25-P2-014#39110'],
+      'field.signi': [['WX07-048#39111'], null, null],
+      'field.check': null,
+      'field.lrig_attacked': false,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let opened = false; let label = null; let clicked = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      if (opened && label === null) {
+        const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          label = await btn.getAttribute('data-action-label');
+          did = 'read:' + label;
+        }
+      }
+      if (label !== null && !clicked) {
+        const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await btn.count() && await btn.isEnabled().catch(() => false)) { await btn.click({ timeout: 1200 }).catch(() => {}); clicked = true; did = 'click:' + label; }
+      }
+      if (!did && clicked) did = await H.stdStep();
+      const st = await H.queryState();
+      H.log(`  v39paid[${s}] -> ${did ?? 'なし'} | label=${label} clicked=${clicked} hEnergy=${st?.host?.energy}(開始${before?.host?.energy}) hLrigDown=${st?.host?.lrigDown} gLrigAttacked=${st?.guest?.lrigAttacked}`);
+      if (clicked && st.host.lrigDown === true) {
+        const paid = before.host.energy - st.host.energy === 2;
+        return {
+          pass: label === 'アタック（《無》×2）' && paid,
+          detail: `ボタン表示="${label}"・クリックでアタック成立＝hEnergy ${before.host.energy}→${st.host.energy}（消費${before.host.energy - st.host.energy}）hLrigDown=${st.host.lrigDown} gLrigAttacked=${st.guest.lrigAttacked}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} label=${label} clicked=${clicked} hLrigDown=${fin?.host?.lrigDown} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// §7 V-39 追加調査：`WX25-P2-014-E1` の activeCondition は `{TURN_OWNER,opponent}` のみ
+// （`collectOppLrigAttackExtraCost`＝effectEngine.ts:4539）で、原文前半「あなたの場に＜宇宙＞のシグニが
+// あるかぎり」に相当する条件がJSON/engineのどこにも存在しない疑い（parser・engine双方grep済み＝0件）。
+// guest（効果所持者）の場から＜宇宙＞シグニを完全に除いても《無》×2 ゲートが掛かったままなら、
+// 「宇宙シグニがあるかぎり」条件が丸ごと未実装（過剰適用）という新規バグの実機確認になる。
+scenarios.v39ConditionGapNoStorySigni = {
+  title: 'V-39追加 WX25-P2-014：guestの場に＜宇宙＞シグニが無くても《無》×2ゲートが掛かるか（条件節の実装漏れ疑い）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#39201'],
+      'field.lrig_down': false,
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD01-013#39202', 'WD01-013#39203'],
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WX25-P2-014#39210'],
+      'field.signi': [null, null, null], // ＜宇宙＞シグニなし
+      'field.check': null,
+      'field.lrig_attacked': false,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false; let label = null;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(500);
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      if (opened && label === null) {
+        const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          label = await btn.getAttribute('data-action-label');
+          did = 'read:' + label;
+        }
+      }
+      H.log(`  v39gap[${s}] -> ${did ?? 'なし'} | label=${label}`);
+      if (label !== null) {
+        const gated = label !== 'アタック';
+        // 意図的FAIL＝「宇宙シグニ無しでもゲートが掛かる」を検出したら pass:false で記録し、
+        // 詳細に実バグの旨を明記する（この行はバグ発見の計器＝Opusタスク12へ登録して次回参照する）。
+        return {
+          pass: !gated,
+          detail: gated
+            ? `🔴実バグ疑い＝guestの場に＜宇宙＞シグニが無いのにボタン表示="${label}"（本来は無条件"アタック"のはず）＝「あなたの場に＜宇宙＞のシグニがあるかぎり」の条件節がengine/parserのどこにも実装されていない`
+            : `ボタン表示="${label}"＝宇宙シグニ無しでは無条件「アタック」（条件節は正しく機能・要再調査＝別経路で条件を見ている可能性）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} label=${label} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v39LrigAttackCostBlocked', 'v39LrigAttackCostPaid', 'v39ConditionGapNoStorySigni');
+// ── V-39 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
