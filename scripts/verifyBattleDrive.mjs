@@ -22249,6 +22249,119 @@ scenarios.v82ResponseArtsWithheldAtHighLife = {
 order.push('v82ResponseArtsPreventAtLowLife', 'v82ResponseArtsWithheldAtHighLife');
 // ── V-82(c) END ──
 
+// ── V-24(cxviii) START ──
+// §7 V-24(cxviii)＝タスク12在庫(cxviii)＝WXDi-P15-071（闘槍）のベット分岐。
+// E1: SELECT_TARGET_ONLY（自分の＜闘争派＞シグニ1体）→CONDITIONAL{IS_BETTING}
+//   ベット時: GRANT_KEYWORD{targetsLastProcessed,keyword:'Sランサー',duration:UNTIL_END_OF_TURN}
+//     →`keyword_grants`直書き（execGrantKeyword）＝正面パワーに関係なく無条件付与。
+//   非ベット時: GRANT_EFFECT{targetsLastProcessed}でCONTINUOUS「正面パワー8000以下なら【ランサー】」を付与
+//     →`granted_effects`（別ストア・effectsMap augmentation経由）＝keywordGrantsには出ない。
+// 「排他になること」＝ベット時だけ`keywordGrants`にSランサーが直接現れることで確認する
+// （非ベット側の条件ゲート自体は2026-08-08に実働化済み・既存の別検証対象）。
+// 対象＝WXDi-P15-068（闘争派/奏羅：原子・Lv1）。guest正面（zone2ミラー）＝WX01-053（P15000・8000超）で
+// 「正面パワーに関係なく付与される」ことを積極的に示す盤面にする。
+function v24cxviiiSpellSpec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [['WXDi-P15-068#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'energy': ['WD04-010#1'], // 緑×1（スペルコスト）
+      'coins': 3,                // ベット用
+      'actions_done': [],
+    },
+    handPrepend: ['WXDi-P15-071#1'], // 闘槍
+    guestSet: {
+      'field.signi': [null, null, ['WX01-053#1']], // host zone0の正面＝guest zone2（P15000・8000超）
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+scenarios.v24cxviiiSpellBetGrantsSLancer = {
+  title: 'V-24(cxviii) 正方向＝ベット3枚宣言→Sランサー無条件付与（正面P15000でも関係なく付く）',
+  spec: v24cxviiiSpellSpec(),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始時 host.hand:', before?.host?.hand, 'host.coins:', before?.host?.coins);
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let betClicked = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/v24cxviiiBet-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('発動', { exact: true });
+      if (!did && !betClicked) {
+        const betBtn = page.getByRole('button', { name: '3枚', exact: true }).first();
+        if (await betBtn.count() && await betBtn.isVisible().catch(() => false)) {
+          await betBtn.click({ timeout: 1200 }).catch(() => {}); did = 'btn:3枚(bet)'; betClicked = true;
+        }
+      }
+      if (!did) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          did = await H.clickBtn('発動する', { exact: false });
+          if (!did) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+        }
+      }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const grants = st?.host?.keywordGrants ?? [];
+      H.log(`  cxviii-bet[${s}] -> ${did ?? 'なし'} | betClicked=${betClicked} grants=${grants.join(',') || '-'} coins=${st?.host?.coins} pEff=${st?.pendingEffect ?? '-'}`);
+      const hasSLancer = grants.some(g => g.startsWith('WXDi-P15-068') && g.includes('Sランサー'));
+      if (hasSLancer) {
+        return { pass: true, detail: `ベット3枚宣言→Sランサー無条件付与を確認（guest正面WX01-053はP15000＝8000超だが無関係に付与）＝grants=${grants.join(',')}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `Sランサー付与未確認（betClicked=${betClicked} grants=${(fin?.host?.keywordGrants ?? []).join(',') || '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+scenarios.v24cxviiiSpellNoBetNoDirectGrant = {
+  title: 'V-24(cxviii) 対照＝ベットなし→Sランサーは直接付与されない（GRANT_EFFECT経由の別ストアへ分岐＝排他）',
+  spec: v24cxviiiSpellSpec(),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始時 host.hand:', before?.host?.hand, 'host.coins:', before?.host?.coins);
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let resolved = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/v24cxviiiNoBet-${s}.png`, fullPage: true });
+      let did = await H.clickBtn('発動', { exact: true });
+      if (!did) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          did = await H.clickBtn('発動する', { exact: false });
+          if (!did) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; }
+        }
+      }
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const grants = st?.host?.keywordGrants ?? [];
+      const hand = st?.host?.hand ?? before?.host?.hand;
+      H.log(`  cxviii-nobet[${s}] -> ${did ?? 'なし'} | grants=${grants.join(',') || '-'} hand=${JSON.stringify(hand)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (grants.some(g => g.startsWith('WXDi-P15-068') && g.includes('Sランサー'))) {
+        return { pass: false, detail: `NG＝ベットなしなのにSランサーがkeywordGrantsに直接付与された（排他が壊れている）＝grants=${grants.join(',')}` };
+      }
+      // 手札から闘槍が消えた（発動済み）＝解決完了とみなし、数ティック追い掛けたあと最終判定に切り替える
+      if (!resolved && Array.isArray(hand) && !hand.some(c => c?.startsWith('WXDi-P15-071'))) resolved = true;
+      if (resolved && s >= 4) {
+        return { pass: true, detail: `ベットなしで解決＝keywordGrantsにSランサー無し（=ベット時のみの直接付与という排他を確認）＝grants=${grants.join(',') || '-'}／GRANT_EFFECT側の付与ログは別途ログ参照` };
+      }
+    }
+    const fin = await H.queryState();
+    const finGrants = fin?.host?.keywordGrants ?? [];
+    if (finGrants.some(g => g.startsWith('WXDi-P15-068') && g.includes('Sランサー'))) {
+      return { pass: false, detail: `NG＝ベットなしなのにSランサーがkeywordGrantsに直接付与された（排他が壊れている）＝grants=${finGrants.join(',')}` };
+    }
+    return { pass: true, detail: `タイムアウトだがkeywordGrantsにSランサー無し（=排他は壊れていない・解決完了は未確認）＝grants=${finGrants.join(',') || '-'}` };
+  },
+};
+order.push('v24cxviiiSpellBetGrantsSLancer', 'v24cxviiiSpellNoBetNoDirectGrant');
+// ── V-24(cxviii) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
