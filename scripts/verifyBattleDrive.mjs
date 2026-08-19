@@ -22688,6 +22688,70 @@ scenarios.v58fCpuAutoPassesTeamPieceCutin = {
 order.push('v58fCpuAutoPassesTeamPieceCutin');
 // ── V-58(f) END ──
 
+// ── V-58(b) START ──
+// §7 V-58(b)（続き586）＝(f)の対照＝応答側（guest）が`WXDi-P05-006`の使用条件`LRIG_TEAM_COUNT{きゅるきゅるーん☆,gte 3}`
+// を満たさない（＜きゅるきゅるーん☆＞のアシストルリグが0体）とき、`collectPieceCutinCandidates`が候補0を返し
+// `pieceCutins.length>0`が成立しないため「カットインできる」窓が一切開かず、ピースが即時解決する＝負方向確認。
+// (f)と全く同じ host 側セットアップ（`WXDi-P04-002`）を使い、guest 側から assist_lrig_l/r（チーム構成員）だけを
+// 抜くことで team_piece_cutin_window の分岐に入らないことを見る。
+scenarios.v58bNoTeamMatchSkipsCutinWindow = {
+  title: 'V-58(b)対照 応答側がチーム条件（きゅるきゅるーん☆3体）を満たさない→窓は開かず即時解決',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'lrig_deck': ['WXDi-P04-002#1'], // 世界逆流
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD01-013#1'],
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['SPDi34-05#1'], // みこみこ（きゅるきゅるーん☆）単独＝チーム3体未満
+      'lrig_deck': ['WXDi-P05-006#1'], // カットイン候補カードは持つがLRIG_TEAM_COUNT条件を満たさない
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始時 host.lrigDeck:', before?.host?.lrigDeckCards, 'guest.lrigDeck:', before?.guest?.lrigDeckCards);
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    await page.waitForTimeout(600);
+    H.log('ピース(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+    let usedBtn = false;
+    let sawCutinWindowOpenLog = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/v58b-${s}.png`, fullPage: true });
+      let did = null;
+      if (!did) did = await H.clickBtn('使用', { exact: false });
+      if (!did) {
+        const c0 = page.getByTestId('keycost-energy-0').first();
+        if (await c0.count() && await c0.isVisible().catch(() => false)) { await c0.click().catch(() => {}); did = 'keycost-energy-0'; }
+      }
+      if (did === 'btn:使用') usedBtn = true;
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const tail = st?.logTail ?? [];
+      if (tail.some(l => l.includes('の使用にカットインできる'))) sawCutinWindowOpenLog = true;
+      H.log(`  v58b[${s}] -> ${did ?? 'なし'} | pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} cutinLog=${sawCutinWindowOpenLog} hLrigTrash=${st?.host?.lrigTrashCards} logTail末尾=${JSON.stringify(tail.slice(-2))}`);
+      if (usedBtn && !st?.pendingSpell && !st?.pendingEffect) {
+        return {
+          pass: !sawCutinWindowOpenLog,
+          detail: `窓ログ=${sawCutinWindowOpenLog}（期待false）・ピース即時解決＝hLrigTrash=${st.host.lrigTrashCards}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cutinLog=${sawCutinWindowOpenLog} pSpell=${fin?.pendingSpell ?? '-'} pEff=${fin?.pendingEffect ?? '-'} usedBtn=${usedBtn}）` };
+  },
+};
+order.push('v58bNoTeamMatchSkipsCutinWindow');
+// ── V-58(b) END ──
+
 // ── V-35(b)(c) START ──
 // §7 V-35(b)(c)（続き497＝O-3 是正）＝`WDK06-R09-E1`（メル＝マドラー・キー）：
 // 【自】対戦相手のターン終了時、このターンにアタックしたシグニを２体まで対象とし、
