@@ -1,6 +1,53 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-19（続き585・Sonnet 5）— §7 実機検証（V-20・V-30）＝V-20で「そうした場合」二段任意コストの入れ子ゲートが外れる新規engineバグを発見しOpusタスク12(cxlvii)へ登録・V-30はREAD側を残0クローズ（ターン境界越えは引き続きfollow-up）・V-45は未着手のまま据置
+## 2026-08-19（続き586・Sonnet 5）— §7 実機検証（V-45全4経路・V-58(a)〜(e)）＝V-45(c)で自己バニッシュ対価が相手シグニ2体バニッシュに化ける新規engineバグ(cxlviii)、V-58(d)(e)でカットイン応答の選択確定前にピースが解決してしまう新規UIレース(cxlix)を発見・登録。V-45(a)(b)とV-58(a)(b)(c)は残0クローズ。V-45(d)は静的確認のみでfollow-up、V-63は未着手のまま据置
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ7本＝V-45(a)2本・V-45(b)2本・V-45(c)1本・V-58(b)1本・V-58(a)(c)1本＝`v58acWindowOpensAndPassResolvesOriginal`＋V-58(d)(e)2本＝レースの再現手順として残置、`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。**`injectScenario`に`spec.top.pendingSpell`の注入経路を新設**（従来は`pending_spell`を常に`null`で上書きしていた＝ピース応答窓の応答側UIを直接テストするために必要だった）。
+
+### 🔴 V-45(c) `WX24-P4-052-E2`（羅原姫　Ｌａ）＝自己バニッシュを対価とする効果が、相手シグニを最大2体バニッシュする効果に化けている
+
+原文＝「【自】：このシグニがアタックしたとき、そのアタック終了時、対戦相手のパワー8000以下のシグニ１体を対象とし、**このシグニをバニッシュしてもよい**。そうした場合、**それをバニッシュする**。」＝対象（相手シグニ）を選んだ上で「このシグニ（＝自分自身）」を任意コストとしてバニッシュし、そうした場合に対象をバニッシュする、という**自己バニッシュを対価とする構造**。
+
+しかしJSON（`effects_WX24_26.json`）は
+```
+SEQUENCE[
+  BANISH{owner:'opponent', powerRange:{max:8000}, optional:true},
+  CONDITIONAL(IS_MY_TURN){ BANISH{owner:'opponent'} }  // フィルタなし
+]
+```
+という**「相手シグニを対象選択と同時に即バニッシュ（任意）→さらに無条件でもう1体（無フィルタ）を強制バニッシュ」**という構造になっており、**自分自身をバニッシュする語彙が一切現れない**＝相手シグニを最大2体バニッシュできてしまう（本来は相手シグニ0〜1体＋自分をバニッシュした場合のみ）。
+
+**実機確認（新規シナリオ`v45cDoubleOpponentBanishConfirmsMismatch`・2回連続PASS）**＝host中央に`WX24-P4-052`、guest側面(index0)にpower3000の`WD01-013`（1体目BANISH候補＝power<=8000フィルタを通過）、guest正面(index1)にpower15000の`WX01-053`（フィルタ対象外・コンバットでも戦闘負けしない壁）を配置してアタック。1体目BANISHの対象選択で`WD01-013`を選ぶと即座にバニッシュされ、続けて2体目の無条件BANISH（フィルタなし）で残る唯一の候補である`WX01-053`（power15000＝本来は原文のどの語彙にも該当しないはずの相手シグニ）まで選ばされてバニッシュされる＝**guest.fieldSigniが両方とも消滅**（`[null,null,null]`）。自分（host側）のシグニは一切バニッシュされない。
+
+**登録先＝Opusタスク12(cxlviii)**。表現段階（parser/effects JSON生成）での取り違えが濃厚＝「このシグニをバニッシュしてもよい」（自己参照の任意コスト）が「対戦相手のシグニをバニッシュする」語彙に、「そうした場合、それをバニッシュする」（①で選んだ対象を②で実行）が「フィルタなしの新規対象選択→バニッシュ」に、それぞれ誤変換されている疑い。修正は engine 側ではなく parser/effects JSON の表現訂正が本筋（Sonnet は手を出さない規約のため据置）。
+
+### 🔴 V-58(d)(e) `WXDi-P05-006-E1`（永遠♡不滅　きゅるきゅる～ん☆）＝カットイン応答窓でCHOOSE選択肢を確定する前に、応答側の`handleCutinUse`が元のピースを解決してしまうレース
+
+§6.4 O-10（続き518）のピース応答窓は、(f)（続き573・CPUが応答側のとき自動パスしてデッドロックしない）のみ実機検証済みで、応答側が実際に候補カードを選び①/②を選択する経路（(a)(c)(d)(e)）は「CPUは`cpuActivate.ts`にピース使用の自律ロジックが無く自発的にピースを使わない」ため、guestがキャスターになる自然経路が作れず**ヘッドレスでは検証できない層**として未着手のまま残されていた。
+
+**今回、`pending_spell`を直接注入する経路（`injectScenario`に`spec.top.pendingSpell`を新設）で「guestが使用中のピースにhostがカットイン応答できる」状態を直接作り、応答側UIを実機で駆動できるようにした**（`CutinModal`は`caster_id !== user.id`のときに出る＝`BattleScreen.tsx:10679`）。host側に`WXDi-P05-006`＋チーム3体（`LRIG_TEAM_COUNT{きゅるきゅるーん☆,gte3}`）を持たせ`team_piece_cutin_window:true`を注入、guest側はピース使用済み状態（`lrig_trash`にinstanceId）を模した。
+
+- **(a)(c)＝パス経路は正常＝2回連続PASS**（新規シナリオ`v58acWindowOpensAndPassResolvesOriginal`）。窓が開き「パス（カットインしない）」を選ぶと元のピースが普通に解決する。
+- **(b)＝チーム条件を満たさない応答側では窓が開かない＝2回連続PASS**（新規シナリオ`v58bNoTeamMatchSkipsCutinWindow`）。guestのアシストルリグ（チーム構成員）を0体にすると`collectPieceCutinCandidates`が候補0を返し、「カットインできる」ログが一切出ずピースが即時解決する。
+- **🔴(d)(e)＝候補カードを選んで「カットイン使用」→CHOOSE（①打ち消し+除外／②1ドロー+エナチャージ1）を選ぶ経路が不安定＝4回試行中1回だけ正しく解決し、残り3回は選択肢ボタンが出現する前後で`pending_spell`/`pending_effect`が両方とも先に空へ戻ってしまい、選択そのものが機能しない（①を選んでも`guest.excluded`が空のまま＝打ち消し＋除外が発生しない＝②を選んだときと区別が付かない）**。
+
+**原因の推定＝`BattleScreen.tsx:7787`（`handleCutinUse`のピース枝）の書き込み順序**＝
+```
+await persist.commit(reduceBattle(bs, { type:'WRITE_STATE', ..., markCutinResponseComplete: true }));
+await queueCardEffects(cutinInstanceId, ['ACTIVATED'], [...], paidPC, op);
+```
+`markCutinResponseComplete:true`が**CHOOSEのpending_effectを積む前に**`pending_spell.cutin_response_complete`を先に立ててしまう。`BattleScreen.tsx:1321-1326`の「応答完了→元の処理を継続」useEffect（`if (!bs.pending_spell?.cutin_response_complete || bs.effect_stack || bs.pending_effect || loading) return; handleCutinPassRef.current?.()`）は`loading`ガードで通常は守られるはずだが、実機では**「カットイン使用」クリック直後の再描画〜`queueCardEffects`のcommitが反映されるまでの間の窓で`resolvePendingPiece()`が先に呼ばれ、CHOOSE未確定のまま（＝`piece_use_countered`が立たないまま）ピースを通常解決してしまう**挙動が高頻度で再現した。`loading`のローカルstate反映タイミングとRealtime購読の到達順序に依存する非決定的レースの疑い。
+
+**登録先＝Opusタスク12(cxlix)**。再現シナリオ＝`v58dChoice1CountersAndExilesOriginal`／`v58eChoice2DrawsChargesThenOriginalResolves`（`scripts/verifyBattleDrive.mjs`に残置＝レースなので毎回失敗するとは限らないが、`FRESH=1`で数回実行すると高確率で選択肢確定前の早期解決を再現する）。修正方針の当たり＝`handleCutinUse`のピース枝で`markCutinResponseComplete`の書き込みを`queueCardEffects`完了後（CHOOSEのpending_effectが実際にDBへ反映された後）に遅らせる、または「応答完了」useEffectの発火条件に`pending_effect`がCHOOSE解決前の中間状態でないことをより厳密に確認する条件を足す。
+
+### V-45(a)(b)：残0クローズ（新規engineバグなし）
+
+- **(a) `WX25-P2-058-E1`**＝《アイヤイ★クイーン》（`WX25-P2-026`＝ルリグ）がいるときだけ、アタック終了時に《緑》《緑》《無》を払ってエナの＜遊具＞レベル2以下1枚と場所を入れ替えられる。新規シナリオ`v45aQueenPresentSwapsPosition`（クイーンあり＝スワップ成立）／`v45aQueenAbsentNoSwap`（クイーンなし＝提示自体なし・場は無傷）とも各2回連続PASS。
+- **(b) `WX25-P2-090-E1`**＝アタック終了時、エナのレベル1＜遊具＞を対象に、場のこのシグニをエナへ送ってもよい。そうした場合、対象をダウン状態で場に出す。新規シナリオ`v45bPaySwapsInDownEnergySigni`（支払う＝自分がエナへ・対象がダウン状態で場に出る）／`v45bSkipDoesNothing`（断る＝無傷）とも各2回連続PASS。
+
+### V-45(d)：静的確認のみ・実機シナリオはfollow-up
+
+`WX25-P3-038-E1`（サモン・ラビラント）は「デッキ上5枚を見て＜迷宮＞シグニを手札1枚＋場1枚まで出す」＋「その効果で出したシグニがターン終了時までON_ATTACK_SIGNIで相手シグニをバウンス、能力を持たなければ代わりにトラッシュ」という多段機構（`LOOK_PICK_CHAIN`＋`GRANT_EFFECT`＋`LAST_PROCESSED_MATCHES{noAbilities}`＋`targetsStored`のTRASH/BOUNCE分岐）。JSON構造を読む限り破綻は見当たらず（`effectExecutor.ts`に該当ハンドラ39箇所実装済み＝この効果専用に整備された形跡）、実機シナリオ化は「デッキ上5枚を安定して迷宮シグニで満たす」「コンバット列を介さず対象シグニを生存させたまま能力有無2パターンを作る」の両立が必要で複雑度が高いため、続き586では見送りfollow-up（優先度は残す）。
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ4本・旧V-20シナリオ2本の削除置換・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
 
