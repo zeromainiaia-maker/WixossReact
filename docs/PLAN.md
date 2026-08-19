@@ -135,13 +135,12 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-19・続き584・Sonnet 5）＝§7 実機検証（V-42・V-43・V-44）＝コア機構3件は残0クローズ・🔴V-44(a)で新規engineバグ（間欠）を発見しOpusタスク12(cxlvi)へ登録・V-45は未着手のままfollow-upへ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ4本・`order`登録済み）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き584）。
-  - **✅ V-42(a) 残0クローズ**＝`v42ZoneLimitedAttackBanCenterOnly`。ゾーン限定`SigniAttackBan`を直接注入→中央だけ「アタック（《無》×1）」・左右は無条件。2回連続PASS。engineバグ0。
-  - **✅ V-43(a) 残0クローズ**＝`v43SLancerDefeatsOpponentAtZeroLife`／`v43RegularLancerFizzlesAtZeroLife`。【Ｓランサー】は相手ライフ0枚のバトル勝利で相手を敗北させる／通常ランサーは効果消滅、を対で確認。各2回連続PASS。engineバグ0。
-  - **🔴 V-44(a) 新規engineバグ発見（間欠）**＝`v44SummonTwoResonasFromLrigDeck`。「２枚まで」選択後、1枚目配置の自動継続配置が**4回中2回発火せず**2枚目がルリグデッキに取り残される。**Opusタスク12(cxlvi)へ登録**（根本原因未特定＝選択順序と成否が完全相関するが原因はSonnet側では特定しきれず）。
-  - **📋 V-42(b)(c)(d)／V-43(b)(c)(d)／V-44(b)(c)(d)／V-45 全4経路は未着手のままfollow-up**（優先度低）。
-  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫9件**（(cxxxviii)〜(cxlvi)）据置。**🆕(cxlvi)＝`INTERNAL_PLACE_SUMMONED_RESONAS`の継続実行が間欠的に欠落する原因調査**（BUGFIXES 続き584）。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証の続き**（残＝`V-20`／`V-30`／`V-45`・`V-58`(a)〜(e)／`V-63`）。**V-19・V-20 は (cxl)(cxli) の、V-35(b)(c) は (cxliii) の Opus 修正待ち**＝次は `V-45`（4経路とも未着手＝遅延トリガー・特定カード存在条件・任意コスト・特殊配置が絡み複雑度が高い）／`V-30`（見送り分・室注入の設計を見直してから）から取る。**V-24・V-28・V-39・V-40・V-41・V-42・V-43・V-44 はコア決着＝§7 worklist から退役（各カードの残サブ項目はfollow-up）**。空きシグニゾーン3の召喚クラッシュ現象は未診断のまま残る＝再現手順は BUGFIXES 続き580 参照。
+- **🆕 セッション（2026-08-19・続き585・Sonnet 5）＝§7 実機検証（V-20・V-30）＝V-20は迂回経路で新規engineバグを発見しOpusタスク12(cxlvii)へ登録・V-30はREAD側を残0クローズ（境界越え自体はfollow-up）・V-45は未着手のまま据置**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ4本・旧V-20シナリオ2本を削除置換・`order`登録済み）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き585）。
+  - **🔴 V-20 新規engineバグ発見**＝`v20DiscardSkipFirstBlocksSecond`（意図的FAIL・2回連続再現）／`v20DiscardPayBothReturnsToField`（正常系・2回連続PASS）。旧シナリオは(cxli)未修正の受動捨て札経路で恒久FAILしていたため、能動discard経路（`WX16-042-E1`のTRASHアクション）へ迂回して本題に到達。「そうした場合」二段任意コストの入れ子ゲートが外れており、①をスキップしても②の提示を飛ばして③（ADD_TO_FIELD）が無条件で実行される＝**二段以上に連鎖した任意コスト全般に波及する構造バグ**。**Opusタスク12(cxlvii)へ登録**。
+  - **✅ V-30 READ側 残0クローズ**＝`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`。`abilities_removed`を直接注入→host自身の【起】ボタンがUIから消える／空なら通常表示、を対で確認。各2回連続PASS。engineバグ0。**境界越え自体（次ターン予約の昇格をライブなターン進行で確認）は続き566の室注入設計限界が未解消のままfollow-up**。
+  - **📋 V-45 は引き続き未着手**。副産物として(c)`WX24-P4-052-E1`のJSONが原文（自分自身を任意コストでバニッシュ）と食い違っている疑いを発見（未確定・要別途調査）。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫10件**（(cxxxviii)〜(cxlvii)）据置。**🆕(cxlvii)＝連鎖した任意コスト（そうした場合…そうした場合…）の`continuation`が無条件で次に進んでしまう構造を`effectExecutor.ts:4011-4016`で是正**（BUGFIXES 続き585）。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証の続き**（残＝`V-45`・`V-58`(a)〜(e)／`V-63`）。**V-19・V-20 は (cxl)(cxli)(cxlvii) の、V-35(b)(c) は (cxliii) の Opus 修正待ち**＝次は `V-45`（4経路とも未着手＝遅延トリガー・特定カード存在条件・任意コスト・特殊配置が絡み複雑度が高い）／`V-58`(a)〜(e)／`V-63`から取る。**V-24・V-28・V-30(READ側)・V-39・V-40・V-41・V-42・V-43・V-44 はコア決着＝§7 worklist から退役（各カードの残サブ項目はfollow-up）**。空きシグニゾーン3の召喚クラッシュ現象は未診断のまま残る＝再現手順は BUGFIXES 続き580 参照。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
