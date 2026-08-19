@@ -23274,15 +23274,17 @@ scenarios.wxk11001ExileArtsSkipsOppSigniAttackStep = {
   async drive(page, H) {
     const before = await H.queryState();
     H.log('開始時 guest.blockedActions:', before?.guest?.blockedActions, 'host.lrigDeck:', before?.host?.lrigDeckCards);
-    let handOpened = false; let cardOpened = false; let castDone = false; let exileChosen = false; let candPicked = false;
+    let handOpened = false; let castDone = false; let exileChosen = false; let candPicked = false;
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(800);
       let did = null;
+      if (!handOpened) { did = await H.clickTestId('my-lrig-dk'); handOpened = true; }
       if (!castDone) {
-        if (!handOpened) { did = await H.clickTestId('my-lrig-dk'); handOpened = true; }
-        else if (!cardOpened) { did = await H.clickTestId('zone-card-0'); cardOpened = true; }
-        const a0 = page.getByTestId('artscost-energy-0').first();
-        if (!did && await a0.count() && await a0.isVisible().catch(() => false)) { await a0.click().catch(() => {}); did = 'artscost-energy-0'; }
+        // アーツコスト（白1無1＝2枚）：候補を順に選んでから「アーツ使用」。
+        if (!did) {
+          const a0 = page.getByTestId('artscost-energy-0').first();
+          if (await a0.count() && await a0.isVisible().catch(() => false)) { await a0.click().catch(() => {}); did = 'artscost-energy-0'; }
+        }
         if (!did) {
           const a1 = page.getByTestId('artscost-energy-1').first();
           if (await a1.count() && await a1.isVisible().catch(() => false)) { await a1.click().catch(() => {}); did = 'artscost-energy-1'; }
@@ -23291,7 +23293,9 @@ scenarios.wxk11001ExileArtsSkipsOppSigniAttackStep = {
           const use = page.getByRole('button', { name: /アーツ使用/ }).first();
           if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; }
         }
-        if (!did) did = await H.clickTextOrBtn(['使用']);
+        if (!did) did = await H.clickTextOrBtn(['使用']);            // 詳細モーダルの「使用」→アーツモーダルへ
+        if (!did) did = await H.stdStep();
+        if (!did) did = await H.clickTestId('zone-card-0');          // モーダル未開時のみ：アーツを開く
         const st0 = await H.queryState();
         if ((st0?.host?.lrigDeckCards ?? []).length < (before?.host?.lrigDeckCards ?? []).length) castDone = true;
       } else if (!exileChosen) {
