@@ -24376,6 +24376,8 @@ async function driveV45a(page, H, hasQueen) {
       if (await el.count() && await el.isVisible().catch(() => false) && await el.isEnabled().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-pay'; }
       if (!did && !picked) { const p = await clickCandidateByPrefix(page, H, st0, 'WX24-P2-074', 'swap'); if (p) { did = p; picked = true; } }
       if (!did && picked && !confirmed) { did = await H.clickTextOrBtn(['決定']); if (did) confirmed = true; }
+      // REARRANGE_SIGNI（mode:'swap'）＝カード画像ボタンに data-testid が無いので alt テキストで狙う。
+      if (!did && confirmed) { did = await H.clickModalImage('参ノ遊姫　ベイゴマ'); }
     } else if (!hasQueen) {
       did = await H.clickTextOrBtn(['スキップ', '決定', 'OK']);
     }
