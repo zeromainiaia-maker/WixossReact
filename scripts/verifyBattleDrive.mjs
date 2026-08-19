@@ -23652,10 +23652,12 @@ function runDeclaredIconRound(discardCardBase) {
 }
 async function driveDeclaredIconRound(page, H, discardCardBase) {
   await H.ensureMain();
-  let picked = false; let handPicked = false;
+  let picked = false; let handPicked = false; let declareLog = null;
   for (let s = 0; s < 26; s++) {
     await page.waitForTimeout(800);
     await page.screenshot({ path: `${SHOT}/v40c-${discardCardBase}-${s}.png`, fullPage: true }).catch(() => {});
+    // ⚠ログパネルは直近数行しか常時表示しない（「▼」展開が要る）＝出た瞬間に確保しないと後続ログに押し出されて読めなくなる。
+    if (!declareLog) declareLog = await H.findLog(/宣言《.》/);
     let did = null;
     if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
     if (!did) {
@@ -23668,10 +23670,9 @@ async function driveDeclaredIconRound(page, H, discardCardBase) {
     }
     if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
     const st = await H.queryState();
-    H.log(`  v40c[${s}] -> ${did ?? 'なし'} | picked=${picked} handPicked=${handPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
+    H.log(`  v40c[${s}] -> ${did ?? 'なし'} | picked=${picked} handPicked=${handPicked} declareLog=${declareLog} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
     const resolved = (st?.host?.handCards ?? []).length === 0 && !st?.pendingEffect && picked;
     if (resolved) {
-      const declareLog = await H.findLog(/宣言《.》/);
       const declaredColor = declareLog?.match(/宣言《(.)》/)?.[1] ?? null;
       const banished = !(st?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
       const expectBanish = declaredColor !== null && declaredColor !== '白';
