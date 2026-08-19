@@ -11942,6 +11942,91 @@ scenarios.underEnergyPayPerTurnLimit = {
   },
 };
 
+// V-04④（続き567/PLAN §7）：下カードを1枚払った(=trash)あとタナバタが場を離れると、
+// E3（ON_LEAVE_FIELD・TAKE_FROM_UNDER_SIGNI fromThis:true）が「今も下にある」残り1枚だけをエナへ動かし、
+// 既にtrashへ行った支払い済みカードは二重に動かない（trashに留まる）ことを見る。
+// 噛み合わせの確認なので、E1払い自体はUIをやり直さずspecへ直接反映（支払い済み=trash、残り1枚=下）で注入する。
+const V04_UNDER_PAID = 'WD02-010#6001';   // 既に支払い済み＝trashに直接注入
+const V04_UNDER_REMAIN = 'WD02-010#6002'; // まだ下にある＝E3の対象
+const V04_LEAVE_TANABATA = 'WXDi-P10-041#6003';
+const V04_LEAVE_BOUNCER = 'WX21-057#6004'; // 小罠 ツララ（【出】自分のシグニ1体を対象とし手札に戻す・あや限定）
+
+const V04_LEAVE_SPEC = {
+  hostSet: {
+    'field.lrig': ['WX15-002#6005'],              // あや Lv4/Limit11（WX21-057限定）
+    'field.signi': [[V04_UNDER_REMAIN, V04_LEAVE_TANABATA], null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'hand': [],
+    'energy': [],
+    'trash': [V04_UNDER_PAID],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#6006'],
+    'field.signi': [null, null, null],
+    'field.signi_down': [false, false, false],
+    'field.check': null,
+    'field.key_piece': null,
+    'field.key_piece_extra': [],
+    'hand': [],
+    'energy': [],
+    'actions_done': [],
+    'game_actions_done': [],
+  },
+  handPrepend: [V04_LEAVE_BOUNCER],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v04TanabataLeaveFieldE3 = {
+  title: 'WXDi-P10-041-E3（下カード1枚払済＝trash＋残り1枚＝下、の状態でタナバタが場を離れる→残り1枚だけエナへ・trashは不変）',
+  spec: V04_LEAVE_SPEC,
+  async drive(page, H) {
+    const before = await H.queryState();
+    if (JSON.stringify(before?.host?.fieldSigni?.[0]) !== JSON.stringify([V04_UNDER_REMAIN, V04_LEAVE_TANABATA])) {
+      return { pass: false, detail: `タナバタ+下1枚の注入不成立=${JSON.stringify(before?.host?.fieldSigni?.[0])}` };
+    }
+    if (!before?.host?.trashCards?.includes(V04_UNDER_PAID)) {
+      return { pass: false, detail: `支払い済みカードのtrash注入不成立=${JSON.stringify(before?.host?.trashCards)}` };
+    }
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false;
+    for (let s = 0; s < 22; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/v04LeaveE3-${s}.png`, fullPage: true });
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-1');
+      if (!did) { // SELECT_TARGET（バウンス対象＝自分の場・pick-0=タナバタ(zone0)を選ぶ。pick-1=ツララ自身は避ける）
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const leftField = !(st?.host?.fieldSigni?.[0] ?? []).includes(V04_LEAVE_TANABATA);
+      const backInHand = (st?.host?.hand ?? []).includes(V04_LEAVE_TANABATA);
+      const remainToEnergy = (st?.host?.energyCards ?? []).includes(V04_UNDER_REMAIN);
+      const paidStaysInTrashOnly = (st?.host?.trashCards ?? []).includes(V04_UNDER_PAID)
+        && !(st?.host?.energyCards ?? []).includes(V04_UNDER_PAID);
+      const trashNotDup = (st?.host?.trashCards ?? []).filter(c => c === V04_UNDER_PAID).length <= 1;
+      H.log(`  v04lf[${s}] -> ${did ?? 'なし'} | leftField=${leftField} hand=${backInHand} remainEnergy=${remainToEnergy} paidTrashOnly=${paidStaysInTrashOnly} field=${JSON.stringify(st?.host?.fieldSigni)} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)}`);
+      if (leftField && backInHand && remainToEnergy && paidStaysInTrashOnly && trashNotDup) {
+        return { pass: true, detail: `タナバタがツララでバウンス→場を離れる→E3発火で残り下カード${V04_UNDER_REMAIN}だけエナへ（energy=${JSON.stringify(st.host.energyCards)}）。支払い済み${V04_UNDER_PAID}はtrashのまま不変（trash=${JSON.stringify(st.host.trashCards)}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `E3の噛み合わせ未確認（field=${JSON.stringify(fin?.host?.fieldSigni)} hand=${fin?.host?.hand} energy=${JSON.stringify(fin?.host?.energyCards)} trash=${JSON.stringify(fin?.host?.trashCards)}）` };
+  },
+};
+
 const V04_REG_ENERGY_KEEP = 'WD02-010#5021';
 const V04_REG_ENERGY_PAY = 'WD02-010#5022';
 const V04_KEY_PIECE = 'WXDi-P11-004#5023';
