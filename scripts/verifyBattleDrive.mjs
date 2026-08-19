@@ -24198,9 +24198,6 @@ async function driveV20(page, H, payBoth) {
       if (!step1PayCandPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay'); if (did) step1PayCandPicked = true; }
       if (!did) did = await H.clickTextOrBtn(['決定']);
       if ((st0?.host?.handCards ?? []).length === 0) step1PayPicked = true;
-    } else if (payBoth && !step2Chosen) {
-      did = await H.clickTestId('optcost-pay');
-      if (did) step2Chosen = true;
     } else if (payBoth && !step2E0) {
       const el = page.getByTestId('optcost-energy-0').first();
       if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-energy-0'; step2E0 = true; }
