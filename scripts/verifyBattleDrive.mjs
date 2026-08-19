@@ -22146,7 +22146,7 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
       'actions_done': [],
     },
     guestSet: {
-      'field.signi': [['WD01-013#1'], null, null], // 正面＝バニッシュ対象
+      'field.signi': [null, null, ['WD01-013#1']], // host zone0 の正面＝guest zone2（i↔2-i ミラー）
       'field.signi_down': [false, false, false],
     },
     top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
