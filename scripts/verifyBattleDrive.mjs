@@ -24166,11 +24166,12 @@ scenarios.v44SummonTwoResonasFromLrigDeck = {
       await page.screenshot({ path: `${SHOT}/v44a-${s}.png`, fullPage: true }).catch(() => {});
       let did = null;
       if (!castDone) {
-        if (!did) did = await H.clickTestId('zone-card-0');
         if (!did && !e0) { const el = page.getByTestId('artscost-energy-0').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e0'; e0 = true; } }
         if (!did && e0 && !e1) { const el = page.getByTestId('artscost-energy-1').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e1'; e1 = true; } }
         if (!did && e1 && !e2) { const el = page.getByTestId('artscost-energy-2').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e2'; e2 = true; } }
         if (!did && e2) did = await H.clickBtn('アーツ使用', { exact: false });
+        if (!did) did = await H.clickTextOrBtn(['使用']);
+        if (!did) did = await H.clickTestId('zone-card-0');
         const st0 = await H.queryState();
         if ((st0?.host?.lrigDeckCards ?? []).length < (before?.host?.lrigDeckCards ?? []).length) castDone = true;
       } else if (!picked) {
