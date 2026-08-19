@@ -22362,6 +22362,70 @@ scenarios.v24cxviiiSpellNoBetNoDirectGrant = {
 order.push('v24cxviiiSpellBetGrantsSLancer', 'v24cxviiiSpellNoBetNoDirectGrant');
 // ── V-24(cxviii) END ──
 
+// ── V-58(f) START ──
+// §7 V-58(f)（続き518＝O-10クローズ）＝カットイン窓（応答窓）の最優先確認点＝CPU戦でCPUが応答側のとき
+// 自動パスして進む（＝デッドロックしない）。BattleScreen.tsx:10672-10676「スペルカットインパス（人間の
+// スペルに対してCPUは常にパス）」＝`bs.pending_spell.caster_id !== CPU_PLAYER_ID` なら常に`handleCutinPass()`
+// を呼ぶ（＝guest側にWXDi-P05-006という使用可能な打ち消し候補があっても使わず常時パス）。
+// host（人間側driver）が【使用条件】【チーム】ピース（WXDi-P04-002＝コスト無×1・team条件は
+// effect.conditionに構造化されていない＝使用時ゲート無し）を使い、guest（CPU）に
+// ＜きゅるきゅるーん☆＞3体＋lrig_deckにWXDi-P05-006（LRIG_TEAM_COUNT>=3必須）を持たせて
+// カットイン候補を実在させた状態で窓が開く→CPUがパス→hostのピースが通常どおり解決することを見る。
+scenarios.v58fCpuAutoPassesTeamPieceCutin = {
+  title: 'V-58(f) CPU戦でCPUが応答側＝カットイン候補ありでも自動パスして元のピースが解決（デッドロックしない）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'lrig_deck': ['WXDi-P04-002#1'], // 世界逆流（【使用条件】【チーム】＜アンシエント・サプライズ＞）
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD01-013#1'], // 無×1（コスト）
+      'hand': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['SPDi34-05#1'],          // みこみこ（きゅるきゅるーん☆）
+      'field.assist_lrig_l': ['SPDi43-01#1'], // ゆかゆか☆さんさんきらきら（同チーム）
+      'field.assist_lrig_r': ['SPDi43-02#1'], // まほまほ☆さんさんちくちく（同チーム）
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
+      'lrig_deck': ['WXDi-P05-006#1'],        // 永遠♡不滅　きゅるきゅる～ん☆（カットイン候補）
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始時 host.lrigDeck:', before?.host?.lrigDeckCards, 'guest.lrigDeck:', before?.guest?.lrigDeckCards);
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    await page.waitForTimeout(600);
+    H.log('ピース(zone-card-0):', await H.clickTestId('zone-card-0') ?? '見つからず');
+    let usedBtn = false;
+    let sawCutinWindowOpenLog = false;
+    for (let s = 0; s < 25; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/v58fCutin-${s}.png`, fullPage: true });
+      let did = null;
+      if (!did && !usedBtn) { did = await H.clickBtn('使用', { exact: true }); if (did) usedBtn = true; }
+      if (!did) did = await H.clickTextOrBtn(['選択肢3', '選択肢2', '選択肢1']);
+      if (!did) did = await H.stdStep();
+      const st = await H.queryState();
+      const tail = st?.logTail ?? [];
+      if (!sawCutinWindowOpenLog && tail.some(l => l.includes('の使用にカットインできる'))) sawCutinWindowOpenLog = true;
+      H.log(`  v58f[${s}] -> ${did ?? 'なし'} | pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} cutinLog=${sawCutinWindowOpenLog} hLrigTrash=${st?.host?.lrigTrashCards} logTail末尾=${JSON.stringify(tail.slice(-2))}`);
+      if (sawCutinWindowOpenLog && !st?.pendingSpell && !st?.pendingEffect && usedBtn) {
+        return { pass: true, detail: `窓が開き（カットイン候補実在）→CPUが自動パス→ピースが解決完了（デッドロックなし）＝hLrigTrash=${st.host.lrigTrashCards}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `解決未完了（cutinLog=${sawCutinWindowOpenLog} pSpell=${fin?.pendingSpell ?? '-'} pEff=${fin?.pendingEffect ?? '-'} usedBtn=${usedBtn}）＝デッドロックの疑い` };
+  },
+};
+order.push('v58fCpuAutoPassesTeamPieceCutin');
+// ── V-58(f) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
