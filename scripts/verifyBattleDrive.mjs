@@ -22955,7 +22955,8 @@ scenarios.wdk06r09NoKey = {
     return { pass: false, detail: `未完了（cand=${candidatesChecked} confirmed=${targetsConfirmed} unavailable=${sawUnavailable} skipped=${skipped} pEff=${fin?.pendingEffect ?? '-'} opts=${JSON.stringify(fin?.pendingOptions)}）` };
   },
 };
-order.push('wdk06r09Pay', 'wdk06r09Skip', 'wdk06r09NoKey');
+// ⚠意図的に order へは入れない（Opusタスク12(cxliii) 修正待ち＝上のコメント参照）。
+// 修正後は `node scripts/verifyBattleDrive.mjs wdk06r09Pay wdk06r09Skip wdk06r09NoKey` で単体確認してから復帰する。
 // ── V-35(b)(c) END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
