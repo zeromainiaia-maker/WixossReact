@@ -23186,6 +23186,57 @@ scenarios.wx24p4014OppLrigDeckToTrash = {
   },
 };
 order.push('wx24p4014OppLrigDeckToTrash');
+
+// §7 V-28 続き＝A群4件目`PLAY_MILLED_SIGNI_DELAYED_TRASH`（`WXDi-P09-079-E1`・続き411）：
+// 【自】《ターン1回》：あなたのメインフェイズの間、あなたのデッキからレベル1のシグニ1枚がトラッシュに
+// 置かれたとき、そのシグニを場に出す（ターン終了時にトラッシュへ戻す予約もされる）。
+// 同カード自身の【出】《コインアイコン》（デッキ上から3枚トラッシュ）で自己完結してミルを起こす＝
+// 実プレイの召喚→ON_PLAYコスト（コイン）→ミル→ON_CARD_MILLED_FROM_DECK発火の連鎖を1本で見る。
+// ⚠配置は`findIndex`で空きゾーンへ自動配置（対話UIなし）＝ここでは配置成立の確認が主眼。
+scenarios.wxdip09079PlayMilledSigniOnPlacement = {
+  title: 'V-28 WXDi-P09-079-E1 PLAY_MILLED_SIGNI_DELAYED_TRASH：デッキ上から3枚ミル→レベル1シグニが自動で場に出る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9920'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'coins': 1,
+      'deck': ['WD01-013#9921', 'WD01-012#9922', 'WD01-012#9923', 'WD01-013#9924', 'WD01-013#9925'],
+      'trash': [], 'energy': [], 'actions_done': [],
+    },
+    handPrepend: ['WXDi-P09-079#9926'],
+    guestSet: { 'field.lrig': ['WD01-001#9930'], 'field.signi': [null, null, null], 'field.check': null },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let summoned = false; let placed = false;
+    for (let s = 0; s < 25; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!summoned) {
+        if (!did) did = await H.clickTestId('my-hand-card-0');
+        if (!did) did = await H.clickBtn('召喚', { exact: true });
+        if (!did) did = await H.clickTestId('summon-zone-1');
+        const st0 = await H.queryState();
+        if ((st0?.host?.fieldSigni ?? []).flat().some(c => c?.startsWith('WXDi-P09-079'))) summoned = true;
+      } else {
+        if (!did) did = await H.stdStep(['使う', '発動', '確定', '決定', 'OK', 'はい']);
+      }
+      const st = await H.queryState();
+      const trashHasLv1 = (st?.host?.trashCards ?? []).some(c => c.startsWith('WD01-013'));
+      const fieldHasLv1 = (st?.host?.fieldSigni ?? []).flat().some(c => c?.startsWith('WD01-013'));
+      H.log(`  p09079[${s}] -> ${did ?? 'なし'} | summoned=${summoned} hTrash=${JSON.stringify(st?.host?.trashCards)} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (summoned && fieldHasLv1 && !trashHasLv1 && !st?.pendingEffect) { placed = true; }
+      if (placed) {
+        return { pass: true, detail: `ミルされたレベル1シグニ(WD01-013)がトラッシュを経由せず場に自動配置＝fieldSigni=${JSON.stringify(st.host.fieldSigni)}・trash=${JSON.stringify(st.host.trashCards)}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（summoned=${summoned} hTrash=${JSON.stringify(fin?.host?.trashCards)} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wxdip09079PlayMilledSigniOnPlacement');
 // ── V-28 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
