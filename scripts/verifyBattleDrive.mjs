@@ -22393,7 +22393,7 @@ async function driveV24cxivLancerGate(page, H, gateShouldBeOn) {
     const st0 = await H.queryState();
     let did = null;
     if (!attacked) {
-      did = await openSigniAttack(page, H, 0);
+      did = await openSigniAttack(page, H, 1);
       if (did) attacked = true;
     }
     if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
@@ -22405,7 +22405,7 @@ async function driveV24cxivLancerGate(page, H, gateShouldBeOn) {
     await page.screenshot({ path: `${SHOT}/v24cxivLancerGate${gateShouldBeOn ? 'On' : 'Off'}-${s}.png`, fullPage: true }).catch(() => {});
     H.log(`  cxiv[${s}] -> did=${did ?? 'なし'} guestLife=${life} banished=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} pOpts=${JSON.stringify(st?.pendingOptions ?? null)} pCands=${JSON.stringify(st?.pendingCandidates ?? null)}`);
     if (attacked && s > 3 && st?.pendingEffect == null && st?.stackLen === 0) {
-      const gone = !(st?.guest?.fieldSigni?.[0]?.length);
+      const gone = !(st?.guest?.fieldSigni?.[1]?.length);
       if (!gone) continue; // まだバニッシュ未解決
       const dropped = typeof beforeLife === 'number' && typeof life === 'number' && life < beforeLife;
       if (gateShouldBeOn) {
