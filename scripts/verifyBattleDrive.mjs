@@ -22274,7 +22274,7 @@ scenarios.v24cxvHyperionAwakened = {
       'field.lrig': ['WD03-003#1'],
       'field.signi': [null, ['WXDi-P07-060#1'], null],
       'field.signi_down': [false, false, false],
-      'awakened_signi': ['WXDi-P07-060'],
+      'awakened_signi': ['WXDi-P07-060#1'],
       'actions_done': [],
     },
     guestSet: {
