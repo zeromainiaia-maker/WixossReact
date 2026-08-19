@@ -21808,6 +21808,48 @@ scenarios.v21ConditionPowerBelowThresholdNoCharge = {
 order.push('v21ConditionPowerBuffedReachesThreshold', 'v21ConditionPowerBelowThresholdNoCharge');
 // ── V-21 END ──
 
+// ── §7 V-22（続き572）＝isDisona パリティ移植：ディソナ限定CONTINUOUSバフが「ディソナだけ」に効くか ──
+// WXDi-P13-047-常：【常】あなたのターンの間、あなたの他の《ディソナアイコン》のシグニのパワーを＋3000する。
+// zone0=バフ元自身(印字12000・Dissona・「他の」対象外)／zone1=他のディソナ(印字2000→+3000で5000)／
+// zone2=非ディソナ(印字3000→据置)。旧実装はmatchesFilterがisDisonaを知らず全味方をバフしていたので、
+// zone2が据置のままであることが本題（旧実装なら3000→6000になっていたはず）。
+const V22_BUFFER = 'WXDi-P13-047#9601';
+const V22_OTHER_DISONA = 'WXDi-P13-078#9602';
+const V22_NON_DISONA = 'WD01-013#9603';
+scenarios.v22DisonaOnlyContinuousBuff = {
+  title: 'V-22 WXDi-P13-047：他のディソナだけ+3000・非ディソナ/自身は据置',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9600'], 'field.signi': [[V22_BUFFER], [V22_OTHER_DISONA], [V22_NON_DISONA]],
+      'field.signi_down': [false, false, false], 'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9610), 'life_cloth': v18v19Life(9620), 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9690'], 'field.signi': [null, null, null], 'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9650), 'life_cloth': v18v19Life(9660), 'actions_done': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.repatchTop({ active: 'host', turn_phase: 'MAIN', effect_stack: null, pending_effect: null });
+    await page.waitForTimeout(1200);
+    let last = {};
+    for (let s = 0; s < 12; s++) {
+      await page.waitForTimeout(500);
+      const readZone = async zi => (await page.getByTestId(`my-signi-zone-${zi}`).innerText().catch(() => '')).match(/[\d,，]{4,}/)?.[0]?.replace(/[,，]/g, '') ?? null;
+      const p0 = await readZone(0), p1 = await readZone(1), p2 = await readZone(2);
+      last = { p0, p1, p2 };
+      H.log(`  v22[${s}] -> 自身(zone0)=${p0} 他ディソナ(zone1)=${p1} 非ディソナ(zone2)=${p2}`);
+      if (p0 === '12000' && p1 === '5000' && p2 === '3000') {
+        return { pass: true, detail: `自身12000（他の対象外・据置）／他のディソナ2000→5000（+3000バフ）／非ディソナ3000据置＝isDisonaフィルタがディソナだけに正しく効いている` };
+      }
+    }
+    return { pass: false, detail: `期待どおりの表示パワーに到達せず（自身=${last.p0} 他ディソナ=${last.p1} 非ディソナ=${last.p2}・期待12000/5000/3000）` };
+  },
+};
+order.push('v22DisonaOnlyContinuousBuff');
+// ── V-22 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
