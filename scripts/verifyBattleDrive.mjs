@@ -24436,7 +24436,7 @@ function v45bSpec() {
   };
 }
 async function driveV45b(page, H, pay) {
-  let attacked = false; let zoneOpened = false;
+  let attacked = false; let zoneOpened = false; let emptyStreak = 0;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${SHOT}/v45b-${pay}-${s}.png`, fullPage: true }).catch(() => {});
