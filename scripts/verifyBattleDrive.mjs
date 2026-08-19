@@ -23210,12 +23210,12 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
   },
   async drive(page, H) {
     await H.ensureMain();
-    let summoned = false; let placed = false;
+    let summoned = false; let placed = false; let handOpened = false;
     for (let s = 0; s < 25; s++) {
       await page.waitForTimeout(800);
       let did = null;
       if (!summoned) {
-        if (!did) did = await H.clickTestId('my-hand-card-0');
+        if (!handOpened) { did = await H.clickTestId('my-hand-card-0'); handOpened = true; }
         if (!did) did = await H.clickBtn('召喚', { exact: true });
         if (!did) did = await H.clickTestId('summon-zone-1');
         const st0 = await H.queryState();
