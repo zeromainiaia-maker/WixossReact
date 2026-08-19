@@ -23925,6 +23925,7 @@ scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
     let energyPicked = false; let castDone = false;
     let discard1 = false; let banish1 = false; let repeatChosen = false;
     let discard2 = false; let banish2 = false; let stopChosen = false;
+    let d1Picked = false; let b1Picked = false; let d2Picked = false; let b2Picked = false;
     let candLog = [];
     for (let s = 0; s < 34; s++) {
       await page.waitForTimeout(800);
