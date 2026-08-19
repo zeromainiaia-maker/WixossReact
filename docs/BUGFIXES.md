@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き583・Sonnet 5）— §7 実機検証（V-41(b)）＝O-32実装のREPEAT.optional機構コアを残0クローズ・(a)(c)(d)は同機構の横展開のためfollow-upへ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ1本・共通ヘルパー`clickCandidateByPrefix`1本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
+
+### ✅ V-41(b) `WX16-042-E1`（ＵＮＬＵＣＫＹ）＝`RepeatAction.optional`（O-32）・残0クローズ
+
+新規シナリオ1本（`v41RepeatOptionalFiltersByLevelAndStops`）。手札にLv1／Lv2のシグニ2枚、相手場にLv1／Lv2／Lv3のシグニ3体を用意し、1周目（手札Lv1を捨てる→`pendingCandidates`が相手Lv1シグニ1体だけに絞られていることを直接確認→バニッシュ）→「繰り返す（残り2回まで）」を選択→2周目（手札Lv2を捨てる→候補が相手Lv2シグニ1体だけに絞られる→バニッシュ）→「繰り返さない」で3周目を打ち切り、を通しで実行。結果＝Lv1・Lv2の相手シグニは消滅・Lv3は無傷で残置・手札は空。**engineバグ0**（続き501のRepeatAction.optional実装＝「問うのは実行の前」の設計どおり動作、`levelEqLastProcessed`によるレベル一致フィルタも各周1件に正しく絞られている）。2回連続PASS。
+🔑**同じ候補（`pick-N`）を連打すると選択がトグルで外れて進まない**（📌21の再実例）＝1回押したら`picked`フラグで以後スキップし「決定」だけを押す構成にする必要がある。汎用ヘルパー`clickCandidateByPrefix(page,H,st0,prefix,tag)`＝`pendingCandidates`配列からプレフィックス一致するインスタンスの配列indexを割り出して`pick-{idx}`を押す（`data-card-num`属性でのマッチは今回は不発だったため配列indexベースに変更）。
+
+### 📋 V-41(a)(c)(d) は同一機構（O-32のRepeat/フィルタ配線）の横展開のためfollow-upへ
+
+`WXDi-CP01-024-E1`（アシストルリグの配置UIが別経路）／`WXDi-P07-007-E3`（相手側`opponentResponds`の3回連続応答）／`WXDi-CP02-047-E1`（対象選択3回・毎回別シグニ）はいずれも(b)で確認したコア機構（`RepeatAction`の反復制御＋`levelEqLastProcessed`等のフィルタ配線）の別カードでの適用に過ぎず、V-22・V-40(d)と同じ判断基準で個別検証は見送り（優先度低・follow-up）。
+
 ## 2026-08-19（続き582・Sonnet 5）— §7 実機検証（V-40）＝O-34実装5経路中4件は残0クローズ・🔴新規engineバグ1件（SEARCHモーダルcrash）を発見しOpusタスク12(cxlv)へ登録
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ8本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
