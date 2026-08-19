@@ -22263,6 +22263,80 @@ scenarios.pr426ConditionalPowerBuffOffWhenLifeAbove1 = {
   },
 };
 order.push('pr426ConditionalPowerBuffOffWhenLifeAbove1');
+
+// V-24(cxv) 続き＝`WXDi-P07-060-E3`（覚醒状態であるかぎり+2000。activeCondition:IS_SELF_AWAKENED）。
+// 印字3000→覚醒時5000。`ownerState.awakened_signi`（CardNum配列・effectEngine.ts:434）へ直接注入して判定。
+scenarios.v24cxvHyperionAwakened = {
+  title: 'V-24(cxv) 続き：WXDi-P07-060-E3＝覚醒状態なら印字3000→5000（+2000）',
+  spec: {
+    hostSet: {
+      'field.check': null,
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, ['WXDi-P07-060#1'], null],
+      'field.signi_down': [false, false, false],
+      'awakened_signi': ['WXDi-P07-060'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.check': null,
+      'field.signi': [null, ['WD01-013#900'], null],
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v24cxvHyperionAwakened-${s}.png`, fullPage: true }).catch(() => {});
+      const zoneText = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+      H.log(`  cxvAwk[${s}] -> zoneText=${JSON.stringify(zoneText.slice(0, 60))}`);
+      if (/5[,，]000/.test(zoneText)) {
+        return { pass: true, detail: `覚醒状態（awakened_signi内）で印字3000→5000（+2000）を確認（zoneText=${JSON.stringify(zoneText.slice(0, 60))}）` };
+      }
+    }
+    const fin = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+    return { pass: false, detail: `+2000反映未確認（zoneText=${JSON.stringify(fin.slice(0, 60))}）` };
+  },
+};
+order.push('v24cxvHyperionAwakened');
+
+// 対照＝覚醒していない（awakened_signiに含まれない）なら印字どおり3000のまま。
+scenarios.v24cxvHyperionNotAwakened = {
+  title: 'V-24(cxv) 続き 対照：WXDi-P07-060-E3＝覚醒していなければ印字3000のまま',
+  spec: {
+    hostSet: {
+      'field.check': null,
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, ['WXDi-P07-060#2'], null],
+      'field.signi_down': [false, false, false],
+      'awakened_signi': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.check': null,
+      'field.signi': [null, ['WD01-013#900'], null],
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v24cxvHyperionNotAwakened-${s}.png`, fullPage: true }).catch(() => {});
+      const zoneText = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+      H.log(`  cxvNotAwk[${s}] -> zoneText=${JSON.stringify(zoneText.slice(0, 60))}`);
+      if (/5[,，]000/.test(zoneText)) {
+        return { pass: false, detail: `🔴覚醒していないのに+2000が乗っている（zoneText=${JSON.stringify(zoneText.slice(0, 60))}）` };
+      }
+      if (/3[,，]000/.test(zoneText)) {
+        return { pass: true, detail: `覚醒していなければ印字どおり3000のまま（zoneText=${JSON.stringify(zoneText.slice(0, 60))}）` };
+      }
+    }
+    const fin = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+    return { pass: false, detail: `判定不能（zoneText=${JSON.stringify(fin.slice(0, 60))}）` };
+  },
+};
+order.push('v24cxvHyperionNotAwakened');
 // ── V-24(cxv) END ──
 
 // ── V-82(c) START ──
