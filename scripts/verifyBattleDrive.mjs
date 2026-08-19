@@ -23699,6 +23699,86 @@ scenarios.v40DeclaredIconHandDiscardBanishes = {
   async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD02-013', '赤'); },
 };
 order.push('v40DeclaredIconHandDiscardProtects', 'v40DeclaredIconHandDiscardBanishes');
+
+// V-40(d)：`PER_OWN_LRIG_COLOR_SCALE`＝`WXDi-P08-064-E1`（蒼天　カナロア・同一機構の`WX25-P3-050-E1`より
+// シンプルな横展開先）【出】：あなたの場にいる青のルリグ１体につき対戦相手のシグニを１体まで対象とし、
+// それらを凍結する。青ルリグ0体なら本体は一度も走らない（実装ソース `execStubPart1.ts:317`）。
+// 正＝センタールリグが青（1体）→FREEZE選択が1回出て対象が凍結される／負＝センタールリグが白（0体）→
+// 一度も発動せず対象は凍結されない、を対で見る。
+function v40dSpec(lrigNum) {
+  return {
+    hostSet: {
+      'field.lrig': [lrigNum],
+      'field.signi': [['WD01-013#40301'], null, null], // zone0にfillerを置き空きゾーンを2に減らす
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'actions_done': [],
+    },
+    handPrepend: ['WXDi-P08-064#40302'],
+    guestSet: {
+      'field.lrig': ['WD01-001#40320'],
+      'field.signi': [['WD01-012#40321'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveV40d(page, H, expectFreeze) {
+  await H.ensureMain();
+  H.log('手札クリック(WXDi-P08-064):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/v40d-${expectFreeze}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!summoned) {
+      did = await H.clickTestId('summon-zone-1', 'summon-zone-2');
+      if (did) summoned = true;
+      if (!did) {
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚';
+        }
+      }
+    }
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        else { did = await H.clickTextOrBtn(['決定']); }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+    const st = await H.queryState();
+    H.log(`  v40d[${s}] -> ${did ?? 'なし'} | summoned=${summoned} gSigniFrozen=${JSON.stringify(st?.guest?.signiFrozen)} pEff=${st?.pendingEffect ?? '-'}`);
+    const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P08-064')));
+    if (placed && !st?.pendingEffect) {
+      const frozen = !!(st.guest.signiFrozen ?? []).some(Boolean);
+      const noneLog = await H.findLog(/場に青のルリグがいないため何も起きない/);
+      return {
+        pass: frozen === expectFreeze,
+        detail: `凍結=${JSON.stringify(st.guest.signiFrozen)}（期待freeze=${expectFreeze}・実際=${frozen}）・不発ログ="${noneLog ?? '-'}"`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（summoned=${summoned} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v40PerOwnLrigColorScaleFires = {
+  title: 'V-40(d) WXDi-P08-064-E1：青ルリグ1体→FREEZEが1回発動し対象が凍結される',
+  spec: v40dSpec('WD03-003#40300'), // コード・ピルルク・Ｍ（青）
+  async drive(page, H) { return driveV40d(page, H, true); },
+};
+
+scenarios.v40PerOwnLrigColorScaleZero = {
+  title: 'V-40(d)対照 WXDi-P08-064-E1：青ルリグ0体（白）→一度も発動せず対象は凍結されない',
+  spec: v40dSpec('WD01-001#40310'), // 満月の巫女　タマヨリヒメ（白）
+  async drive(page, H) { return driveV40d(page, H, false); },
+};
+order.push('v40PerOwnLrigColorScaleFires', 'v40PerOwnLrigColorScaleZero');
 // ── V-40 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
