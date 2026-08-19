@@ -24257,6 +24257,63 @@ scenarios.v20DiscardPayBothReturnsToField = {
 order.push('v20DiscardSkipFirstBlocksSecond', 'v20DiscardPayBothReturnsToField');
 // ── V-20 END ──
 
+// V-30：ターン境界を跨いだ能力喪失（続き453＝`REMOVE_ABILITIES.until`）。
+// ⚠続き566の実測どおり `turn_phase:'END'` を直接注入すると room 正規化時に既にターン終端の失効処理が
+// 走ってしまい観測が壊れる（設計限界・室注入の見直しが要る＝未着手のまま）。今回は**READ側**＝
+// `abilities_removed` に積まれている間、実際に host 自身の【起】ボタンが UI から消えるかを直接検証する
+// （`signiActivateGate.ts:66`＝`my.abilities_removed?.includes(topNum)` なら候補ごと0件）。
+// `UNTIL_OPP_TURN_END`/`NEXT_TURN` の2スロット予約が正しく`abilities_removed`へ昇格することを実機の
+// ターン進行で確認する部分（真のターン境界越え）は引き続き未着手＝follow-up。
+function v30Spec(suppress) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#46000'],
+      'field.signi': [['WX02-044#46001'], null, null], // 大罪の所以 バアル（【起】《ダウン》：デッキ上公開）
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'abilities_removed': suppress ? ['WX02-044#46001'] : [],
+      'energy': [], 'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#46010'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveV30(page, H, suppress) {
+  let opened = false; let found = null;
+  for (let s = 0; s < 14 && found === null; s++) {
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: `${SHOT}/v30-${suppress}-${s}.png`, fullPage: true }).catch(() => {});
+    if (!opened) { const did = await H.clickTestId('my-signi-zone-0'); if (did) opened = true; }
+    if (opened) {
+      const btn = page.locator('[data-testid^="card-action-"][data-action-label*="起"]').first();
+      found = (await btn.count()) > 0 ? true : (found === null && s >= 3 ? false : null);
+    }
+  }
+  H.log(`  v30 suppress=${suppress} -> 【起】ボタン検出=${found}`);
+  return {
+    pass: suppress ? found === false : found === true,
+    detail: `abilities_removed注入=${suppress}・【起】ボタン検出=${found}（期待=${suppress ? false : true}）`,
+  };
+}
+
+scenarios.v30AbilityRemovedSuppressesActivated = {
+  title: 'V-30 abilities_removed：積まれている間【起】ボタンがUIから消える',
+  spec: v30Spec(true),
+  async drive(page, H) { return driveV30(page, H, true); },
+};
+
+scenarios.v30AbilityRemovedControlShowsActivated = {
+  title: 'V-30対照 abilities_removed空：【起】ボタンは通常どおり表示される',
+  spec: v30Spec(false),
+  async drive(page, H) { return driveV30(page, H, false); },
+};
+order.push('v30AbilityRemovedSuppressesActivated', 'v30AbilityRemovedControlShowsActivated');
+// ── V-30 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
