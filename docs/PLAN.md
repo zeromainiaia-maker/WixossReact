@@ -151,20 +151,20 @@
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
 - **🆕 2026-08-19 続き571（§5d-0 (i) 第21バッチ＝対象名詞句フィルタの取りこぼし）後 最新値（本行が直近の正）**：
-  **census 783**（786→783・`BASELINE_HIGH` も 783 へ更新）、**golden 2307**（+2＝直した3効果の live assert／`signiClauseColorFilter` の正負4方向）、
-  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（262 warnings）、
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
   `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
-  🆕**被覆マトリクス miss 190**（193→190。上位＝`cardClass × SIGNI[filter]` 15／`cardClass × (filter無)` 13／`color × SIGNI[filter]` 6／`cardClass × TRASH_CARD[filter]` 7）、
+  🆕**被覆マトリクス miss 190 据置**（今回は engine/parser 非改変のため未再計測）、
   `parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
   （⚠**同型★・`census:goldentypes` は続き552d 以降 未再計測**）。
-  **live 効果総数 10693**（live 改変＝`WD13-003-E2`／`WX16-041-E1`／`WX17-071-E1` の**3効果**・CSV 非改変）。version **0.502**。
-  **実機シナリオ総数 414 据置**（今回は実機未実行＝parser/データ層のみ）。
-  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・未解決・follow-up）**。
-  🏁**Opusタスク12＝在庫0件**／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
-  ⇒ **Opus 側の生きた worklist は §5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
+  **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
+  🆕**実機シナリオ総数 415**（414→415＝`v04TanabataLeaveFieldE3` を新設）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・続き572 で再確認・未解決・follow-up）**。
+  🆕**Opusタスク12＝在庫2件**（(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫2件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き571）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き572）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
