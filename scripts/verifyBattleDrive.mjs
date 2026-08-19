@@ -24036,7 +24036,10 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
       }
       labels[zi] = label;
       H.log(`  v42a zone${zi} -> label="${label}"`);
-      await H.closeModals();
+      // ⚠H.closeModals()（Escape＋「タップして閉じる」）はこのCardModal/StackModalには効かないことがある＝
+      // 同じ badge testid を再クリックしてトグルで閉じる（続き579〜580のバッジ系トグル挙動と同型）。
+      await H.clickTestId(`my-signi-zone-${zi}`);
+      await page.waitForTimeout(400);
     }
     const pass = labels[0] === 'アタック' && labels[1] === 'アタック（《無》×1）' && labels[2] === 'アタック';
     return {
