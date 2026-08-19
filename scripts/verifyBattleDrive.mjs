@@ -24342,7 +24342,7 @@ function v45aSpec(hasQueen) {
   };
 }
 async function driveV45a(page, H, hasQueen) {
-  let attacked = false;
+  let attacked = false; let zoneOpened = false;
   let e0 = false; let e1 = false; let e2 = false;
   let picked = false; let confirmed = false;
   for (let s = 0; s < 26; s++) {
@@ -24351,7 +24351,7 @@ async function driveV45a(page, H, hasQueen) {
     const st0 = await H.queryState();
     let did = null;
     if (!attacked) {
-      if (!did) { const did2 = await H.clickTestId('my-signi-zone-1'); if (did2) did = did2; }
+      if (!zoneOpened) { const did2 = await H.clickTestId('my-signi-zone-1'); if (did2) { did = did2; zoneOpened = true; } }
       if (!did) {
         const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
         if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
