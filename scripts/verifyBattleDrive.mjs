@@ -24191,7 +24191,7 @@ scenarios.v44SummonTwoResonasFromLrigDeck = {
         if (!did) did = await H.stdStep();
       }
       const st = await H.queryState();
-      H.log(`  v44a[${s}] -> ${did ?? 'なし'} | castDone=${castDone} p0=${p0} p1=${p1} picked=${picked} zonesPlaced=${zonesPlaced} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      H.log(`  v44a[${s}] -> ${did ?? 'なし'} | castDone=${castDone} p0=${p0} p1=${p1} picked=${picked} zonesPlaced=${zonesPlaced} hField=${JSON.stringify(st?.host?.fieldSigni)} hLrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)} pEff=${st?.pendingEffect ?? '-'} stackQueue=${JSON.stringify(st?.stackQueue)}`);
       const resonaCount = (st?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.some(n => n?.startsWith('WX08-008'))).length;
       if (picked && resonaCount >= 2 && !st?.pendingEffect) {
         return {
