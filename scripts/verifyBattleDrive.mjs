@@ -23230,7 +23230,6 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
       } else {
         if (!did) did = await H.clickTestId('optcost-pay');
         if (!did) did = await H.stdStep(['使う', '発動', '確定', '決定', 'OK', 'はい']);
-        if (!did && s < 12) H.log('  body:', await H.body());
       }
       const st = await H.queryState();
       const trashHasLv1 = (st?.host?.trashCards ?? []).some(c => c.startsWith('WD01-013'));
