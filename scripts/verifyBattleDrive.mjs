@@ -23993,6 +23993,58 @@ scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
 order.push('v41RepeatOptionalFiltersByLevelAndStops');
 // ── V-41 END ──
 
+// V-42(a)：O-33 実装＝`WX25-CP1-050-E1`（栗村アイリ）【自】：このシグニがアタックしたとき、あなたの場に他の
+// ＜ブルアカ＞のシグニがある場合、次の対戦相手のターンの間、対戦相手は《無》を支払わないかぎり、**中央の**
+// シグニゾーンにあるシグニでアタックできない。ゾーン限定banは`signi_attack_bans_this_turn`に`zones:[1]`
+// （中央＝ゾーン添字1）で持ち、判定地点でゾーンを引く設計（実装ソース `signiAttackBan.ts:20-31`）。
+// host（禁止を受ける側）の3ゾーンにシグニを置き、ban を直接注入して各ゾーンのアタックボタン表示を読む＝
+// 中央だけ「アタック（《無》×1）」・左右は無条件「アタック」。
+scenarios.v42ZoneLimitedAttackBanCenterOnly = {
+  title: 'V-42(a) WX25-CP1-050-E1：中央ゾーンだけ《無》×1のアタック税・左右は無条件（正方向＋対照）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#42000'],
+      'field.signi': [['WD01-013#42001'], ['WD01-012#42002'], ['WD01-010#42003']],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'signi_attack_bans_this_turn': [{ zones: [1], unlessPayColorless: 1 }],
+      'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#42010'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const labels = {};
+    for (const zi of [0, 1, 2]) {
+      let opened = false; let label = null;
+      for (let s = 0; s < 12 && label === null; s++) {
+        await page.waitForTimeout(500);
+        if (!opened) { const did = await H.clickTestId(`my-signi-zone-${zi}`); if (did) opened = true; }
+        if (opened) {
+          const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+          if (await btn.count() && await btn.isVisible().catch(() => false)) {
+            label = await btn.getAttribute('data-action-label');
+          }
+        }
+      }
+      labels[zi] = label;
+      H.log(`  v42a zone${zi} -> label="${label}"`);
+      await H.closeModals();
+    }
+    const pass = labels[0] === 'アタック' && labels[1] === 'アタック（《無》×1）' && labels[2] === 'アタック';
+    return {
+      pass,
+      detail: `zone0(左)="${labels[0]}"・zone1(中央)="${labels[1]}"・zone2(右)="${labels[2]}"`,
+    };
+  },
+};
+order.push('v42ZoneLimitedAttackBanCenterOnly');
+// ── V-42 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
