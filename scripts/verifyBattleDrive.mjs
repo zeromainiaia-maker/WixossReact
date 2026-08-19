@@ -24134,8 +24134,13 @@ order.push('v43SLancerDefeatsOpponentAtZeroLife', 'v43RegularLancerFizzlesAtZero
 // 出現条件を無視して場に出す。この方法で場に出たレゾナの【出】能力は発動しない。」＝`SUMMON_RESONA_FROM_LRIG_DECK`
 // （実装ソース `execStubPart3.ts:2991`）。旧実装は候補1枚固定（`candidates[0]`）だったため「２枚まで」の
 // 複数選択が効くこと（＝2枚とも場に出る）を実機で確認する。
+// 🔴実機で新規バグ発見（続き584・4回中2回再現＝約50%の間欠バグ）＝1枚目をSELECT_SIGNI_ZONEで配置した直後、
+// `INTERNAL_PLACE_SUMMONED_RESONAS`の継続（`execStubPart3.ts:3043-3054`＝空きゾーンが1つに減った場合は
+// 対話を挟まず自動配置する分岐）が**発火せず2枚目がルリグデッキに取り残される**ことがある（`pendingEffect`は
+// 正常に`-`へ戻り、UIは「完了した」ように見えるが実際には2枚目が場に出ていない＝黙って消えたわけではなく
+// ルリグデッキに残るが、原文の「２枚まで」を満たせていない過少実行）。詳細はBUGFIXES参照。
 scenarios.v44SummonTwoResonasFromLrigDeck = {
-  title: 'V-44(a) WX16-Re18-E1：ルリグデッキから「２枚まで」選ぶと2枚とも場に出る（旧実装は1枚固定）',
+  title: 'V-44(a) WX16-Re18-E1：ルリグデッキから「２枚まで」選ぶと2枚とも場に出る（🔴間欠バグあり・4回中2回再現）',
   spec: {
     hostSet: {
       'field.lrig': ['WD01-001#44000'],
