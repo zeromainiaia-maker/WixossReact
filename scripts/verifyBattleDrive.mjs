@@ -23627,18 +23627,18 @@ order.push('v40UseSearchedSpellOrTrashCrash');
 // アタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を
 // １枚選んでもよい。そうした場合、対戦相手は《白》《赤》《青》《緑》《黒》《無》から１つを宣言する。
 // あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする。
-// CPU（guest）が`opponentResponds:true`で自動宣言するため宣言色は制御できない＝
-// 「捨てたカードの色＝宣言色なら非バニッシュ／不一致ならバニッシュ」の**判定ロジックの自己整合性**を見る
+// 🔑CPU（guest）の`opponentResponds`自動応答は**常に選択肢の先頭を選ぶ**（`BattleScreen.tsx:634`
+// `inter.options.find(o=>o.available) ?? inter.options[0]`）＝候補順は`['白','赤','青','緑','黒','無']`
+// なので**常に《白》を宣言する**。よって捨てる手札の色を選ぶだけで正負の両方を決定論的に作れる
 // （実装ソース `execStubPart3.ts:2455`）。
-scenarios.v40DeclaredIconHandDiscardBanish = {
-  title: 'V-40(c) WXDi-P12-055-E1：対戦相手の色宣言→外れたときだけ対象がバニッシュされる（宣言色との整合を判定）',
-  spec: {
+function runDeclaredIconRound(discardCardBase) {
+  return {
     hostSet: {
       'field.lrig': ['WD01-001#40200'],
       'field.signi': [['WXDi-P12-055#40201'], null, null],
       'field.signi_down': [false, false, false],
       'field.check': null,
-      'hand': ['WD01-013#40202'], // 小剣ククリ（白）＝捨てる手札
+      'hand': [`${discardCardBase}#40202`],
       'actions_done': [],
     },
     guestSet: {
@@ -23648,45 +23648,56 @@ scenarios.v40DeclaredIconHandDiscardBanish = {
       'field.check': null,
     },
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
-  },
-  async drive(page, H) {
-    await H.ensureMain();
-    const before = await H.queryState();
-    let picked = false; let handPicked = false;
-    for (let s = 0; s < 26; s++) {
-      await page.waitForTimeout(800);
-      await page.screenshot({ path: `${SHOT}/v40DeclaredIconHandDiscardBanish-${s}.png`, fullPage: true }).catch(() => {});
-      let did = null;
-      if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
-      if (!did) {
-        const pick0 = page.getByTestId('pick-0').first();
-        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
-          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
-          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; if (!picked) picked = true; else handPicked = true; }
-          else { did = await H.clickTextOrBtn(['決定']); }
-        }
-      }
-      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
-      const st = await H.queryState();
-      H.log(`  v40c[${s}] -> ${did ?? 'なし'} | picked=${picked} handPicked=${handPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
-      const resolved = (st?.host?.handCards ?? []).length === 0 && !st?.pendingEffect && picked;
-      if (resolved) {
-        const declareLog = await H.findLog(/宣言《.》/);
-        const declaredColor = declareLog?.match(/宣言《(.)》/)?.[1] ?? null;
-        const banished = !(st?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
-        const expectBanish = declaredColor !== null && declaredColor !== '白';
-        const consistent = banished === expectBanish;
-        return {
-          pass: consistent,
-          detail: `宣言="${declareLog ?? '-'}"（declared=${declaredColor}）・対象banished=${banished}（期待=${expectBanish}）・gField=${JSON.stringify(st.guest.fieldSigni)}（整合=${consistent}）`,
-        };
+  };
+}
+async function driveDeclaredIconRound(page, H, discardCardBase) {
+  await H.ensureMain();
+  let picked = false; let handPicked = false;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/v40c-${discardCardBase}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+    if (!did) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; if (!picked) picked = true; else handPicked = true; }
+        else { did = await H.clickTextOrBtn(['決定']); }
       }
     }
-    const fin = await H.queryState();
-    return { pass: false, detail: `未完了（picked=${picked} handPicked=${handPicked} pEff=${fin?.pendingEffect ?? '-'}）` };
-  },
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+    const st = await H.queryState();
+    H.log(`  v40c[${s}] -> ${did ?? 'なし'} | picked=${picked} handPicked=${handPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
+    const resolved = (st?.host?.handCards ?? []).length === 0 && !st?.pendingEffect && picked;
+    if (resolved) {
+      const declareLog = await H.findLog(/宣言《.》/);
+      const declaredColor = declareLog?.match(/宣言《(.)》/)?.[1] ?? null;
+      const banished = !(st?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
+      const expectBanish = declaredColor !== null && declaredColor !== '白';
+      const consistent = banished === expectBanish;
+      return {
+        pass: consistent && declaredColor === '白',
+        detail: `宣言="${declareLog ?? '-'}"（declared=${declaredColor}）・対象banished=${banished}（期待=${expectBanish}）・gField=${JSON.stringify(st.guest.fieldSigni)}（整合=${consistent}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（picked=${picked} handPicked=${handPicked} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v40DeclaredIconHandDiscardProtects = {
+  title: 'V-40(c) WXDi-P12-055-E1：捨てた手札が宣言色《白》を持つ→バニッシュされない（対象は場に残る）',
+  spec: runDeclaredIconRound('WD01-013'), // 小剣ククリ（白）
+  async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD01-013'); },
 };
-order.push('v40DeclaredIconHandDiscardBanish');
+
+scenarios.v40DeclaredIconHandDiscardBanishes = {
+  title: 'V-40(c)対照 WXDi-P12-055-E1：捨てた手札が宣言色《白》を持たない（赤）→対象がバニッシュされる',
+  spec: runDeclaredIconRound('WD02-013'), // 羅石 アイロン（赤）
+  async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD02-013'); },
+};
+order.push('v40DeclaredIconHandDiscardProtects', 'v40DeclaredIconHandDiscardBanishes');
 // ── V-40 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
