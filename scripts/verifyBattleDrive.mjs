@@ -22752,6 +22752,92 @@ scenarios.v58bNoTeamMatchSkipsCutinWindow = {
 order.push('v58bNoTeamMatchSkipsCutinWindow');
 // ── V-58(b) END ──
 
+// ── V-58(a)(c)(d)(e) START ──
+// §7 V-58(a)(c)(d)(e)（続き586）＝応答窓の応答側UI本体。(f)はCPUが応答側で常時自動パスするため①②の分岐は
+// 通れない（BattleScreen.tsx:10672-10676）＝①②を通すには「窓の応答側＝クリック可能なhost」が要る。CPU（guest）
+// は`cpuActivate.ts`にピース使用の自律ロジックが無く自発的にピースを使わないため、guestが自然にキャスターになる
+// 経路は作れない。そこで`pending_spell`を直接注入（`top.pendingSpell`＝今回`injectScenario`に追加した経路）して
+// 「guestが使用中のピースにhostがカットイン応答できる」状態を直接作る＝`CutinModal`は`caster_id !== user.id`の
+//ときに出る（BattleScreen.tsx:10679）ので、host側クライアントに窓が実際に描画されるかどうかから確認できる。
+// host側に`WXDi-P05-006`（LRIG_TEAM_COUNT{きゅるきゅるーん☆,gte3}＋OPP_USING_TEAM_PIECE）とチーム3体を持たせ、
+// guest側はピース使用済み状態（lrig_trash にinstanceId）を模す。
+function v58responseSpec() {
+  return {
+    hostSet: {
+      'field.lrig': ['SPDi34-05#48600'],          // みこみこ（きゅるきゅるーん☆）
+      'field.assist_lrig_l': ['SPDi43-01#48601'], // 同チーム
+      'field.assist_lrig_r': ['SPDi43-02#48602'], // 同チーム
+      'field.assist_lrig_l_down': false,
+      'field.assist_lrig_r_down': false,
+      'lrig_deck': ['WXDi-P05-006#48603'],        // カットイン候補（応答側のクリック対象）
+      'team_piece_cutin_window': true,            // 窓が開いている状態を直接注入
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': [], 'hand': [], 'coins': 0,
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#48610'],
+      'lrig_trash': ['WXDi-P04-002#48699'],       // 使用済み（応答待ち）のピース本体
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: {
+      active: 'host', turn_phase: 'MAIN', turn_count: 2,
+      pendingSpell: { caster_id: CPU_PLAYER_ID, card_num: 'WXDi-P04-002#48699', kind: 'piece' },
+    },
+  };
+}
+async function driveV58Response(page, H, mode) {
+  let clickedCandidate = false; let usedCutinBtn = false; let chosen = (mode === 'pass');
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/v58resp-${mode}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (mode === 'pass') {
+      did = await H.clickTextOrBtn(['パス（カットインしない）', 'パス']);
+    } else if (!clickedCandidate) {
+      did = await H.clickModalImage('永遠♡不滅　きゅるきゅる～ん☆');
+      if (!did) did = await H.clickTextOrBtn(['永遠♡不滅']);
+      if (did) clickedCandidate = true;
+    } else if (!usedCutinBtn) {
+      did = await H.clickTextOrBtn(['カットイン使用']);
+      if (did) usedCutinBtn = true;
+    } else if (!chosen) {
+      const want = mode === 'choice1' ? ['選択肢1'] : ['選択肢2'];
+      did = await H.clickTextOrBtn(want);
+      if (did) chosen = true;
+    }
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    H.log(`  v58resp[${mode}][${s}] -> ${did ?? 'なし'} | clickedCandidate=${clickedCandidate} usedCutinBtn=${usedCutinBtn} chosen=${chosen} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} hLrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} hExcluded=${JSON.stringify(st?.host?.excludedCards)} gExcluded=${JSON.stringify(st?.guest?.excludedCards)} gLrigTrash=${JSON.stringify(st?.guest?.lrigTrashCards)} hHand=${st?.host?.handCards?.length} hCoins=${st?.host?.coins}`);
+    if (chosen && !st?.pendingSpell && !st?.pendingEffect) {
+      return {
+        pass: true,
+        detail: `mode=${mode} 完了＝hLrigTrash=${JSON.stringify(st.host.lrigTrashCards)} gExcluded=${JSON.stringify(st.guest.excludedCards)} gLrigTrash=${JSON.stringify(st.guest.lrigTrashCards)} hHand=${st.host.handCards?.length} hCoins=${st.host.coins}`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（mode=${mode} clickedCandidate=${clickedCandidate} usedCutinBtn=${usedCutinBtn} chosen=${chosen} pSpell=${fin?.pendingSpell ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+scenarios.v58acWindowOpensAndPassResolvesOriginal = {
+  title: 'V-58(a)(c) 窓が開く→パスで元のピースが普通に解決する',
+  spec: v58responseSpec(),
+  async drive(page, H) { return driveV58Response(page, H, 'pass'); },
+};
+scenarios.v58dChoice1CountersAndExilesOriginal = {
+  title: 'V-58(d) 選択肢①→元のピースは解決せずゲームから除外される',
+  spec: v58responseSpec(),
+  async drive(page, H) { return driveV58Response(page, H, 'choice1'); },
+};
+scenarios.v58eChoice2DrawsChargesThenOriginalResolves = {
+  title: 'V-58(e) 選択肢②→1ドロー＋エナチャージ1のあと元のピースも解決する',
+  spec: v58responseSpec(),
+  async drive(page, H) { return driveV58Response(page, H, 'choice2'); },
+};
+order.push('v58acWindowOpensAndPassResolvesOriginal', 'v58dChoice1CountersAndExilesOriginal', 'v58eChoice2DrawsChargesThenOriginalResolves');
+// ── V-58(a)(c)(d)(e) END ──
+
 // ── V-35(b)(c) START ──
 // §7 V-35(b)(c)（続き497＝O-3 是正）＝`WDK06-R09-E1`（メル＝マドラー・キー）：
 // 【自】対戦相手のターン終了時、このターンにアタックしたシグニを２体まで対象とし、
