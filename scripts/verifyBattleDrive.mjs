@@ -23012,10 +23012,12 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
     const before = await H.queryState();
     await H.ensureMain();
     H.log('開始時 guest.life:', before?.guest?.life);
-    let castDone = false; let advanced = false; let attacked = false;
+    let castDone = false; let advanced = false; let attacked = false; let closedLrigDk = false;
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(800);
       let did = null;
+      const st0 = await H.queryState();
+      if ((st0?.logTail ?? []).some(l => l.includes('驚天動地'))) castDone = true;
       if (!castDone) {
         // アーツはルリグデッキから使う：ルリグDKバッジ→カード→使用→アーツ使用（緑×0＝コスト選択不要）。
         const use = page.getByRole('button', { name: /アーツ使用/ }).first();
@@ -23025,19 +23027,17 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
         if (!did) did = await H.clickTextOrBtn(['使用']);
         if (!did) did = await H.clickTestId('zone-card-0');
         if (!did) did = await H.clickTestId('my-lrig-dk');
-        const stCast = await H.queryState();
-        if ((stCast?.logTail ?? []).some(l => l.includes('驚天動地'))) castDone = true;
+      } else if (!closedLrigDk) {
+        // castDone判定がstCast側の反映ラグで1手遅れ、次のフォールバックがmy-lrig-dkバッジを再クリックして
+        // ルリグデッキ一覧を再度開いてしまうことがある＝背面のフェイズボタンへのクリックを吸収する
+        // オーバーレイになる（実測＝locator.click timeoutで「subtree intercepts pointer events」）。
+        // 一覧が開いていれば同じバッジをもう一度押してトグルで閉じてから進める。
+        const dkOpen = await page.getByTestId('zone-card-0').count();
+        if (dkOpen > 0) { did = await H.clickTestId('my-lrig-dk'); }
+        closedLrigDk = true;
       } else if (!advanced) {
         await H.closeModals();
-        const advBtn = page.getByRole('button', { name: 'アタックフェイズへ', exact: true });
-        const advCnt = await advBtn.count();
-        const advVis = advCnt ? await advBtn.first().isVisible().catch(() => false) : false;
-        const advEn = advCnt ? await advBtn.first().isEnabled().catch(() => false) : false;
-        if (s < 10) H.log(`  advBtn count=${advCnt} visible=${advVis} enabled=${advEn}`);
-        if (advCnt && advVis && advEn) {
-          try { await advBtn.first().click({ timeout: 2000 }); did = 'btn:アタックフェイズへ(force)'; }
-          catch (e) { if (s < 6) H.log('  click失敗詳細:', String(e.message).slice(0, 500)); }
-        }
+        did = await H.clickTextOrBtn(['アタックフェイズへ']);
         const stAdv = await H.queryState();
         if (stAdv?.turnPhase === 'ATTACK_SIGNI') advanced = true;
       } else if (!attacked) {
