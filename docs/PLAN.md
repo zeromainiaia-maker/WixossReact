@@ -148,7 +148,7 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-19 続き578（§7 実機検証1件＝V-35(b)(c)＝🔴新規engineバグ1件を発見・Opusタスク12(cxliii)へ登録）後 最新値（本行が直近の正）**：
+- **🆕 2026-08-19 続き580（§7 実機検証6件＝V-28 A群6件全て残0クローズ・engineバグ0）後 最新値（本行が直近の正）**：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
   smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
   `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
@@ -156,12 +156,12 @@
   `parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
   （⚠**同型★・`census:goldentypes` は続き552d 以降 未再計測**）。
   **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
-  🆕**実機シナリオ定義総数 441**（438→441＝`wdk06r09Pay`／`wdk06r09Skip`／`wdk06r09NoKey`の3件を新設。**意図的FAILのため既定`order`には未登録＝既定バッチの実行数は438のまま**）。
-  **Opusタスク12＝在庫6件**（438→438の(cxxxviii)〜(cxlii)に加え🆕**(cxliii) `collectTurnTriggers`が`activeKeyAbilitySources`を呼ばず、キー起点【自】がON_TURN_END等7 timingで構造的に無言no-op**＝(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ／(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コスト非対応／(cxli) `confirmEndDiscard`がON_TRASH系トリガー未収集／(cxlii) `evalUseCondition`が`effectsMap`未伝搬で`SELF_LEVEL_THRESHOLD`が印字レベルへフォールバック）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  🆕**実機シナリオ定義総数 449**（441→449＝`wx16021SideAttackEmptyZoneNoButtonBeforeArts`／`wx16021SideAttackEmptyZoneDamageAfterArts`／`cddtoBlocksDirectLifeDamage`／`cddtoControlDamageNormally`／`wx24p4014OppLrigDeckToTrash`／`wxdip09079PlayMilledSigniOnPlacement`／`wxk11001ExileArtsSkipsOppSigniAttackStep`の7件＋V-35(b)(c)の3件〔`order`未登録〕）。**既定`order`実行数は438→445**（V-28の7件を追加登録・V-35(b)(c)は意図的に含めない）。
+  **Opusタスク12＝在庫6件 据置**（(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ／(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コスト非対応／(cxli) `confirmEndDiscard`がON_TRASH系トリガー未収集／(cxlii) `evalUseCondition`が`effectsMap`未伝搬で`SELF_LEVEL_THRESHOLD`が印字レベルへフォールバック／(cxliii) `collectTurnTriggers`が`activeKeyAbilitySources`を呼ばずキー起点【自】がON_TURN_END等7 timingで無言no-op）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
   ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫6件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き578）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き579・続き580）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
