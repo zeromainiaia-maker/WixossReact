@@ -24018,6 +24018,17 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
     top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
   },
   async drive(page, H) {
+    const rawBan = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token, uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}` };
+      const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+      const roomId = (await r1.json())?.[0]?.id;
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state`, { headers: h });
+      const row = (await r2.json())?.[0];
+      return row?.host_state?.signi_attack_bans_this_turn ?? null;
+    }, { SUPA_URL, ANON });
+    H.log('  v42a rawBan=', JSON.stringify(rawBan));
     const labels = {};
     for (const zi of [0, 1, 2]) {
       let opened = false; let label = null;
