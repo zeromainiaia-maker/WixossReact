@@ -22788,7 +22788,7 @@ function v58responseSpec() {
   };
 }
 async function driveV58Response(page, H, mode) {
-  let clickedCandidate = false; let usedCutinBtn = false; let chosen = (mode === 'pass');
+  let clickedCandidate = false; let usedCutinBtn = false; let chosen = (mode === 'pass'); let doneStreak = 0;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(800);
     await page.screenshot({ path: `${SHOT}/v58resp-${mode}-${s}.png`, fullPage: true }).catch(() => {});
