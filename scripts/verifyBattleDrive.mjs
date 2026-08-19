@@ -22433,6 +22433,77 @@ scenarios.v24cxivLancerGateOff = {
 order.push('v24cxivLancerGateOff');
 // ── V-24(cxiv) END ──
 
+// ── V-24(cxiii) START ──
+// §7 V-24(cxiii)＝WXK10-035（コードＶＬ　リゼ・ヘルエスタ）の効果耐性。
+// E1（subscriber_count<50）＝あなたの＜電機＞のシグニは対戦相手のレベル1以下のシグニの効果を受けない
+// （collectEffectImmuneSigni が GRANT_PROTECTION{sourceFilter:{level:{max:1}}} を読む＝BattleScreen.tsx:4762
+// の1箇所だけ）。wd07012 と同型＝guestの攻撃シグニにON_ATTACK_SIGNI granted BANISHを注入しCPU自動アタックで
+// 発火させ、host（電機）が候補から除外される（レベル1＝生存）／除外されない（レベル2＝バニッシュ）を見る。
+function v24cxiiiImmuneSpec(attackerCardNum) {
+  return {
+    hostSet: {
+      'field.check': null,
+      'field.signi': [null, null, ['WXK10-035#1']], // 自zone2＝攻撃側zone0の正面（wd07012と同型）
+      'field.signi_down': [false, false, false],
+      'subscriber_count': 0, // <50＝E1（レベル1以下のシグニの効果を受けない）が有効
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.check': null,
+      'field.signi': [[`${attackerCardNum}#1`], null, null],
+      'field.signi_down': [false, false, false],
+      'blocked_actions': [],
+      'granted_effects': {
+        [`${attackerCardNum}#1`]: [{
+          effectId: 'granted-v24cxiii-banish',
+          effectType: 'AUTO',
+          timing: ['ON_ATTACK_SIGNI'],
+          triggerScope: 'self',
+          duration: 'INSTANT',
+          mandatory: true,
+          action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' }, upToCount: false } },
+        }],
+      },
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_SIGNI', turn_count: 3 },
+  };
+}
+async function driveV24cxiii(page, H, expectImmune) {
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(1000);
+    await page.screenshot({ path: `${SHOT}/v24cxiii${expectImmune ? 'Immune' : 'NotImmune'}-${s}.png`, fullPage: true }).catch(() => {});
+    const st = await H.queryState();
+    H.log(`  cxiii[${s}] -> hostFieldSigni=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    await H.clickTextOrBtn(['ガードしない', 'しない', '使用しない', '通常通り', 'いいえ', 'スキップ']);
+    if (st?.pendingEffect == null && st?.stackLen === 0 && s > 2) {
+      const survived = !!(st?.host?.fieldSigni?.[2]?.length);
+      if (expectImmune) {
+        if (survived) return { pass: true, detail: `レベル1のシグニのBANISHは効果耐性で不発＝WXK10-035が生存を確認（fieldSigni=${JSON.stringify(st.host.fieldSigni)}）` };
+      } else {
+        if (!survived) return { pass: true, detail: `レベル2のシグニのBANISHは耐性対象外＝WXK10-035がバニッシュされたことを確認（fieldSigni=${JSON.stringify(st.host.fieldSigni)}）` };
+      }
+    }
+  }
+  const fin = await H.queryState();
+  const survived = !!(fin?.host?.fieldSigni?.[2]?.length);
+  if (expectImmune && !survived) return { pass: false, detail: `🔴レベル1のシグニの効果なのにバニッシュされた（耐性が効いていない。fieldSigni=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  if (!expectImmune && survived) return { pass: false, detail: `レベル2のシグニなのにバニッシュされなかった（過剰保護 or CPU未行動。fieldSigni=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+  return { pass: false, detail: `判定不能（fin.fieldSigni=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+scenarios.v24cxiiiLevel1Immune = {
+  title: 'V-24(cxiii) WXK10-035＝相手レベル1のシグニのBANISHは＜電機＞に効かない（効果耐性）',
+  spec: v24cxiiiImmuneSpec('WD01-013'), // Lv1 P3000
+  async drive(page, H) { return driveV24cxiii(page, H, true); },
+};
+order.push('v24cxiiiLevel1Immune');
+scenarios.v24cxiiiLevel2NotImmune = {
+  title: 'V-24(cxiii) 対照：WXK10-035＝相手レベル2のシグニのBANISHは＜電機＞に通常どおり効く',
+  spec: v24cxiiiImmuneSpec('WD01-012'), // Lv2 P7000
+  async drive(page, H) { return driveV24cxiii(page, H, false); },
+};
+order.push('v24cxiiiLevel2NotImmune');
+// ── V-24(cxiii) END ──
+
 // ── V-82(c) START ──
 // §7 V-82(c)（続き569＝§8 O-1 (g)＝CPUの選択を盤面評価へ）＝応答アーツの温存（`prevent`はライフ2枚以下でだけ解禁）。
 // `responseArtsAllowedKinds`（cpuArts.ts:254）＝life_cloth<=2ならALL_KINDS（prevent含む）、それ以外はKEEP_PREVENT
