@@ -1,5 +1,30 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き585・Sonnet 5）— §7 実機検証（V-20・V-30）＝V-20で「そうした場合」二段任意コストの入れ子ゲートが外れる新規engineバグを発見しOpusタスク12(cxlvii)へ登録・V-30はREAD側を残0クローズ（ターン境界越えは引き続きfollow-up）・V-45は未着手のまま据置
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ4本・旧V-20シナリオ2本の削除置換・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
+
+### 🔴 V-20 `WXDi-P10-039-E2`（蒼魔姫　リッチレーサー）＝「そうした場合」二段任意コストの入れ子ゲートが外れる新規engineバグを発見
+
+旧シナリオ（`v20DiscardSkipFirstBlocksSecond`／`v20DiscardPayBothReturnsToField`）は手札上限超過の受動捨て札経路（`confirmEndDiscard`）を使っていたためOpusタスク12(cxli)未修正の別バグで恒久FAILしていた。**能動的discard経路（`WX16-042-E1`のTRASHアクションで本カードを手札から捨てさせる）へ迂回**して初めて本題（二段の任意コスト）の実機検証にたどり着いた。
+
+原文＝「①手札を１枚捨ててもよい。そうした場合、②そのターン終了時、《青》《無》を支払ってもよい。そうした場合、③このカードをトラッシュから場に出す。」＝③は②が支払われたときだけ、②は①が支払われたときだけ提示されるべき**二段の入れ子**。JSON（`effects_WXDi.json`）は`SEQUENCE[STUB(OPTIONAL_COST,handDiscard), CONDITIONAL(IS_MY_TURN){STUB(OPTIONAL_COST,costColors)}, CONDITIONAL(IS_MY_TURN){ADD_TO_FIELD}]`という**フラットな3ステップ**で表現しており、②③とも`IS_MY_TURN`（常にtrue）でしかゲートされておらず、①の支払い可否に依存する構造になっていない。
+
+**実機で①を「スキップ」した場合の挙動＝②《青》《無》の支払い提示を完全に飛ばして、③「トラッシュから場に出すカードを選んでください」のSELECT_TARGETが出た**（2回連続再現）。①②とも「発動する」を選んだ場合は正しく③まで到達し場に復帰する（2回連続PASS＝こちらは正常）。
+
+**原因＝`effectExecutor.ts:4011-4016`の「任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)」ディスパッチが、STUBの直後のCONDITIONAL（＝②）だけを`conditional`として掴み、②より後ろの残りステップ（＝③）を無条件の`continuation`として`pending`に添付してしまう**。`needsInteraction`の`continuation`は「このCHOOSEがどちらに転んでも次に必ず実行される」ものとして扱われる設計のため、①を「スキップ」（`noopAction`）しても`continuation`（③のCONDITIONAL(IS_MY_TURN){ADD_TO_FIELD}）はその後必ず評価され、`IS_MY_TURN`が常にtrueなので無条件でADD_TO_FIELDへ進んでしまう。**この壊れ方は「二段以上に連鎖した任意コスト（そうした場合…そうした場合…）」で必ず起きる構造的な穴**であり、本カード固有の問題ではない。
+
+修正方針＝(a) `continuation`に「無条件で次に進む後続」と「pay側でしか進まない後続」を区別するフィールドを設ける（例＝`continuationOnPayOnly`）か、(b) パーサ側で②③のCONDITIONALを`PAID_ADDITIONAL_COST`で書き分け、`continuation`をこの条件の判定に使う設計へ寄せる（`effectExecutor.ts:4568`の`isAdditional = conditional4.condition.type === 'PAID_ADDITIONAL_COST'`分岐が既にこの区別を知っている＝Pattern④の仕組みをPattern（STUB→単純CONDITIONAL）側にも波及させる）。**Opusタスク12(cxlvii)として登録**。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v20DiscardSkipFirstBlocksSecond`（意図的FAIL・`order`登録済み）／`v20DiscardPayBothReturnsToField`（正常系PASS）。
+
+### ✅ V-30（続き453＝`REMOVE_ABILITIES.until`のターン境界2スロット寿命）＝READ側を残0クローズ・境界越え自体は引き続きfollow-up
+
+新規シナリオ2本（`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`）。`abilities_removed`に対象シグニのインスタンスを直接注入し、host自身の場シグニの【起】ボタン（`signiActivateGate.ts:66`が候補を0件に絞る設計）が実際にUIから消える／`abilities_removed`が空なら通常どおり表示される、を対で確認。各2回連続PASS。**engineバグ0（このREAD側は）**。
+🔑**続き566で確認済みの設計限界は今回も回避していない**＝`turn_phase:'END'`を直接注入するとroom正規化時にターン終端の失効処理が先走ってしまうため、`abilities_removed_next_turn`→`abilities_removed`への昇格（＝実際のターン境界越え）を実機のライブなターン進行で確認する部分は依然未着手。今回はREAD側（`abilities_removed`が積まれている「状態そのもの」が正しくUIへ反映されるか）だけを直接状態注入で検証した＝部分的な決着。境界越えの実機確認は室注入の設計を見直してから改めて着手する必要がある（follow-up・優先度は残す）。
+
+### 📋 V-45 は引き続き未着手
+
+4経路とも「そのアタック終了時」の遅延トリガー・特定カード存在条件・任意コスト・特殊配置が絡む。今回(c)`WX24-P4-052-E1`のJSONを覗いたところ、原文「このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする」（＝**自分自身**を任意コストとしてバニッシュ）に対し、JSON（`effects_WX24_26.json`のE2）は`BANISH{target:SIGNI,owner:opponent,optional:true}`→`CONDITIONAL(IS_MY_TURN){BANISH{target:SIGNI,owner:opponent}}`という**相手シグニを2回バニッシュする構造**になっており、「自分自身をバニッシュする」という語彙が一切現れていない＝**表現段階で原文と食い違っている疑いが濃い**（V-45(c)の検証意図だった「自分をバニッシュしてもアタックは通る」という前提自体が、この JSON では検証できない）。這是原因調査には別途着手が要る＝V-45全体を優先度低のままfollow-upへ据え置く。
+
 ## 2026-08-19（続き584・Sonnet 5）— §7 実機検証（V-42・V-43・V-44）＝コア機構3件は残0クローズ・🔴V-44(a)で新規engineバグ（間欠）を発見しOpusタスク12(cxlvi)へ登録・V-45は未着手のままfollow-upへ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ4本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
