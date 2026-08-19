@@ -23671,8 +23671,8 @@ scenarios.v40DeclaredIconHandDiscardBanish = {
       H.log(`  v40c[${s}] -> ${did ?? 'なし'} | picked=${picked} handPicked=${handPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
       const resolved = (st?.host?.handCards ?? []).length === 0 && !st?.pendingEffect && picked;
       if (resolved) {
-        const declareLog = await H.findLog(/を宣言/);
-        const declaredColor = declareLog?.match(/《(.)》を宣言/)?.[1] ?? null;
+        const declareLog = await H.findLog(/宣言《.》/);
+        const declaredColor = declareLog?.match(/宣言《(.)》/)?.[1] ?? null;
         const banished = !(st?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
         const expectBanish = declaredColor !== null && declaredColor !== '白';
         const consistent = banished === expectBanish;
