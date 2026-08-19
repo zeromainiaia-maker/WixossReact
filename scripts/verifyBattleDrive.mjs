@@ -23210,11 +23210,7 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   },
   async drive(page, H) {
-    const beforeCoins = await H.queryState();
-    H.log('注入直後 host.coins:', beforeCoins?.host?.coins);
     await H.ensureMain();
-    const afterEnsure = await H.queryState();
-    H.log('ensureMain後 host.coins:', afterEnsure?.host?.coins);
     let summoned = false; let placed = false; let handOpened = false;
     for (let s = 0; s < 25; s++) {
       await page.waitForTimeout(800);
