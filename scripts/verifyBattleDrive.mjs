@@ -22339,6 +22339,101 @@ scenarios.v24cxvHyperionNotAwakened = {
 order.push('v24cxvHyperionNotAwakened');
 // ── V-24(cxv) END ──
 
+// ── V-24(cxiv) START ──
+// §7 V-24(cxiv)＝条件つきキーワード付与（Opusタスク12(cxiv)修正済み＝execUtils.ts buildGatedKeywordGrant）。
+// 旧＝GRANT_QUOTED_ABILITY が「正面のシグニのパワーがN以下であるかぎり」等のゲート条件を落として
+// keyword_grants（無条件）へ入れていた＝正面が誰でも常時ランサーが付いていた。
+// 修正後は granted_effects へ「activeCondition:FRONT_SIGNI_POWER」付きCONTINUOUSとして入り、
+// collectContinuousGrantedKeywords が毎フレーム評価する（board上の静的バッジは無いためバトル結果で観測）。
+// WXDi-P11-071（翠将バーバリアン）＝「正面のシグニのパワーが3000以下であるかぎり、【ランサー】を得る」を
+// granted_effects へ直接注入（ONPLAYのコスト支払いUIを省略）し、【ランサー】の効果（バニッシュ時にライフ
+// クロス1枚クラッシュ）が正面パワーの閾値の上下でON/OFFすることを観測する。
+function v24cxivLancerGateSpec(frontCardNum, frontPower) {
+  return {
+    hostSet: {
+      'field.check': null,
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [['WXDi-P11-071#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'granted_effects': {
+        'WXDi-P11-071#1': [{
+          effectId: 'granted-v24cxiv-lancer-gate',
+          effectType: 'CONTINUOUS',
+          duration: 'UNTIL_END_OF_TURN',
+          mandatory: true,
+          activeCondition: { type: 'FRONT_SIGNI_POWER', operator: 'lte', value: 3000 },
+          action: {
+            type: 'GRANT_KEYWORD',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            keyword: 'ランサー',
+            duration: 'UNTIL_END_OF_TURN',
+          },
+        }],
+      },
+      // host が確実に勝てるよう十分にバフ（判定したいのは「勝敗」ではなく「ランサーのゲート」）。
+      'temp_power_mods': [{ cardNum: 'WXDi-P11-071#1', delta: 6000 }],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.check': null,
+      'field.signi': [[`${frontCardNum}#900`], null, null],
+      'field.signi_down': [false, false, false],
+      'life_cloth': ['WD01-013#800', 'WD01-013#801', 'WD01-013#802'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+async function driveV24cxivLancerGate(page, H, gateShouldBeOn) {
+  const before = await H.queryState();
+  const beforeLife = before?.guest?.lifeCloth ?? before?.guest?.life_cloth;
+  H.log('開始時 guest.lifeCloth:', beforeLife);
+  let attacked = false;
+  for (let s = 0; s < 40; s++) {
+    await page.waitForTimeout(250);
+    const st0 = await H.queryState();
+    let did = null;
+    if (!attacked) {
+      did = await openSigniAttack(page, H, 0);
+      if (did) attacked = true;
+    }
+    if (!did) did = await H.clickBtn('発動順序を確定', { exact: true });
+    if (!did) did = await H.clickBtn('ガードしない（ライフクロスクラッシュ）', { exact: true });
+    if (!did) did = await H.clickBtn('エナに送る', { exact: true });
+    if (!did) did = await H.stdStep();
+    const st = await H.queryState();
+    const life = st?.guest?.lifeCloth ?? st?.guest?.life_cloth;
+    H.log(`  cxiv[${s}] -> did=${did ?? 'なし'} guestLife=${life} banished=${JSON.stringify(st?.guest?.fieldSigni)}`);
+    if (attacked && s > 3 && st?.pendingEffect == null && st?.stackLen === 0) {
+      const gone = !(st?.guest?.fieldSigni?.[0]?.length);
+      if (!gone) continue; // まだバニッシュ未解決
+      const dropped = (beforeLife?.length ?? beforeLife) !== (life?.length ?? life)
+        ? true
+        : Array.isArray(beforeLife) && Array.isArray(life) ? life.length < beforeLife.length : false;
+      if (gateShouldBeOn) {
+        if (dropped) return { pass: true, detail: `正面パワー3000以下＝ランサー成立→バニッシュ後にライフクロスクラッシュを確認（before=${JSON.stringify(beforeLife)} after=${JSON.stringify(life)}）` };
+      } else {
+        if (!dropped) return { pass: true, detail: `正面パワー3000超＝ランサー不成立→バニッシュのみでライフクロス変化なしを確認（before=${JSON.stringify(beforeLife)} after=${JSON.stringify(life)}）` };
+        return { pass: false, detail: `🔴正面パワー3000超なのにライフクロスがクラッシュした（旧バグ＝ゲート無視で常時ランサー。before=${JSON.stringify(beforeLife)} after=${JSON.stringify(life)}）` };
+      }
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `判定不能（did未到達 or 未解決。fin.guest.lifeCloth=${JSON.stringify(fin?.guest?.lifeCloth ?? fin?.guest?.life_cloth)} fieldSigni=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+}
+scenarios.v24cxivLancerGateOn = {
+  title: 'V-24(cxiv) WXDi-P11-071＝正面パワー3000以下（ゲート成立）でランサー→バニッシュ時にライフクロスクラッシュ',
+  spec: v24cxivLancerGateSpec('WD01-013', 3000),
+  async drive(page, H) { return driveV24cxivLancerGate(page, H, true); },
+};
+order.push('v24cxivLancerGateOn');
+scenarios.v24cxivLancerGateOff = {
+  title: 'V-24(cxiv) 対照：WXDi-P11-071＝正面パワー3000超（ゲート不成立）ではランサー不発→ライフクロス変化なし',
+  spec: v24cxivLancerGateSpec('WD01-016', 5000),
+  async drive(page, H) { return driveV24cxivLancerGate(page, H, false); },
+};
+order.push('v24cxivLancerGateOff');
+// ── V-24(cxiv) END ──
+
 // ── V-82(c) START ──
 // §7 V-82(c)（続き569＝§8 O-1 (g)＝CPUの選択を盤面評価へ）＝応答アーツの温存（`prevent`はライフ2枚以下でだけ解禁）。
 // `responseArtsAllowedKinds`（cpuArts.ts:254）＝life_cloth<=2ならALL_KINDS（prevent含む）、それ以外はKEEP_PREVENT
