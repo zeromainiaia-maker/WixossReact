@@ -22376,7 +22376,7 @@ function v24cxivLancerGateSpec(frontCardNum, frontPower) {
     },
     guestSet: {
       'field.check': null,
-      'field.signi': [[`${frontCardNum}#900`], null, null],
+      'field.signi': [null, [`${frontCardNum}#900`], null],
       'field.signi_down': [false, false, false],
       'life_cloth': ['WD01-013#800', 'WD01-013#801', 'WD01-013#802'],
     },
