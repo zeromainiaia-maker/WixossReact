@@ -24164,7 +24164,7 @@ async function driveV20(page, H, payBoth) {
   let energyPicked = false; let castDone = false;
   let discardPicked = false; let discarded = false;
   let banishPicked = false; let banished = false;
-  let step1Chosen = false; let step1PayPicked = false;
+  let step1Chosen = false; let step1PayPicked = false; let step1PayCandPicked = false;
   let step2Chosen = false; let step2E0 = false; let step2E1 = false; let step2Confirmed = false;
   let zoned = false;
   for (let s = 0; s < 36; s++) {
