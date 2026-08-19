@@ -23572,11 +23572,14 @@ async function runUseSearchedSpellRound(page, H, { useIt }) {
     await page.waitForTimeout(800);
     let did = null;
     if (!summoned) {
-      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
-      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
-        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (did) summoned = true;
+      if (!did) {
+        const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+          await summonBtn.click().catch(() => {}); did = 'btn:召喚';
+        }
       }
-      if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
     }
     if (!did && summoned && !chose) {
       // CHOOSE（使う／トラッシュに置く）が先に出ていれば拾う。無ければ SEARCH ピッカー側を拾う。
