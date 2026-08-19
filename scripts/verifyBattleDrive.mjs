@@ -23060,6 +23060,74 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
   },
 };
 order.push('wx16021SideAttackEmptyZoneNoButtonBeforeArts', 'wx16021SideAttackEmptyZoneDamageAfterArts');
+
+// §7 V-28 続き＝A群1件目`CANNOT_DEAL_DAMAGE_TO_OPPONENT`（`WX25-CP1-074`）：
+// 【出】が他の＜ブルアカ＞シグニに「【常】：このシグニは対戦相手にダメージを与えない。」を付与する。
+// 判定点（`screens/battle/signiDamageGate.ts`）は2つのダメージ地点（ランサー等の追加クラッシュ／正面空の
+// 直接ライフアタック）で共通に呼ばれる＝ここでは(b)正面が空の直接ライフアタックで確認（付与は`granted_effects`で直接注入）。
+const CDDTO_ATTACKER = 'WD01-013#9801';
+function cddtoSpec(granted) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9800'],
+      'field.signi': [null, [CDDTO_ATTACKER], null], // 中央zone1＝相手の正面(2-1=1)を突く
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'granted_effects': granted ? {
+        [CDDTO_ATTACKER]: [{
+          effectId: 'granted-cddto-cont', effectType: 'CONTINUOUS', duration: 'UNTIL_END_OF_TURN', mandatory: true,
+          action: { type: 'STUB', id: 'CANNOT_DEAL_DAMAGE_TO_OPPONENT' },
+        }],
+      } : {},
+      'hand': [], 'energy': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9810'],
+      'field.signi': [null, null, null], // 全ゾーン空＝正面(zone1)も空＝直接ライフアタック経路
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+async function driveCddto(page, H, expectBlocked) {
+  const before = await H.queryState();
+  H.log('開始時 guest.life:', before?.guest?.life);
+  let attacked = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!attacked) {
+      did = await H.clickBtn('アタック', { exact: true });
+      if (did) attacked = true;
+    }
+    const st = await H.queryState();
+    H.log(`  cddto[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+    if (attacked && st?.pendingEffect == null && (st?.stackLen ?? 0) === 0 && s >= 3) {
+      const crashed = (st?.guest?.life ?? before.guest.life) < before.guest.life;
+      const ok = expectBlocked ? !crashed : crashed;
+      return {
+        pass: ok,
+        detail: expectBlocked
+          ? (crashed ? `🔴CANNOT_DEAL_DAMAGE_TO_OPPONENT付与中なのにguest.lifeが減った（${before.guest.life}→${st.guest.life}）` : `付与どおりダメージなし（guest.life ${before.guest.life}→${st.guest.life} 不変）`)
+          : (crashed ? `対照＝付与なしは通常どおりguest.life ${before.guest.life}→${st.guest.life}` : `🔴対照なのにダメージが通らなかった`),
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${attacked} gLife=${before.guest.life}→${fin?.guest?.life} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+scenarios.cddtoBlocksDirectLifeDamage = {
+  title: 'V-28 WX25-CP1-074 正方向：CANNOT_DEAL_DAMAGE_TO_OPPONENT付与中は正面空への直接アタックでもライフが減らない',
+  spec: cddtoSpec(true),
+  async drive(page, H) { return driveCddto(page, H, true); },
+};
+scenarios.cddtoControlDamageNormally = {
+  title: 'V-28 WX25-CP1-074 対照：付与なしなら正面空への直接アタックで通常どおりライフが減る',
+  spec: cddtoSpec(false),
+  async drive(page, H) { return driveCddto(page, H, false); },
+};
+order.push('cddtoBlocksDirectLifeDamage', 'cddtoControlDamageNormally');
 // ── V-28 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
