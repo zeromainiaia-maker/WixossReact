@@ -21806,9 +21806,9 @@ try {
     clickTextOrBtn: async (labels) => {
       for (const lbl of labels) {
         const b = page.getByRole('button', { name: lbl, exact: false }).first();
-        if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); return 'btn:' + lbl; }
+        if (await b.count() && await b.isVisible().catch(() => false)) { await b.click({ timeout: 1200 }).catch(() => {}); return 'btn:' + lbl; }
         const tx = page.getByText(lbl, { exact: false }).first();
-        if (await tx.count() && await tx.isVisible().catch(() => false)) { await tx.click().catch(() => {}); return 'txt:' + lbl; }
+        if (await tx.count() && await tx.isVisible().catch(() => false)) { await tx.click({ timeout: 1200 }).catch(() => {}); return 'txt:' + lbl; }
       }
       return null;
     },
