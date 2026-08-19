@@ -23675,11 +23675,11 @@ async function driveDeclaredIconRound(page, H, discardCardBase, discardColor) {
     if (resolved) {
       const declaredColor = declareLog?.match(/宣言《(.)》/)?.[1] ?? null;
       const banished = !(st?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
-      const expectBanish = declaredColor !== null && declaredColor !== '白';
+      const expectBanish = declaredColor !== null && declaredColor !== discardColor;
       const consistent = banished === expectBanish;
       return {
         pass: consistent && declaredColor === '白',
-        detail: `宣言="${declareLog ?? '-'}"（declared=${declaredColor}）・対象banished=${banished}（期待=${expectBanish}）・gField=${JSON.stringify(st.guest.fieldSigni)}（整合=${consistent}）`,
+        detail: `捨てた札の色=${discardColor}・宣言="${declareLog ?? '-'}"（declared=${declaredColor}）・対象banished=${banished}（期待=${expectBanish}）・gField=${JSON.stringify(st.guest.fieldSigni)}（整合=${consistent}）`,
       };
     }
   }
