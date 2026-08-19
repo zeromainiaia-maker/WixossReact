@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-19（続き572b・Sonnet 5）— §7 実機検証さらに5件（V-15残り／V-19再着手／V-20新規／V-21新規／V-22新規）＝実バグ2件発見・Opusタスク12へ登録・V-15/V-21/V-22残0クローズ
+## 2026-08-19（続き573・Sonnet 5）— §7 実機検証さらに5件（V-15残り／V-19再着手／V-20新規／V-21新規／V-22新規）＝実バグ2件発見・Opusタスク12へ登録・V-15/V-21/V-22残0クローズ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（共有ヘルパー2箇所のtimeout是正＋新規シナリオ7本）と `docs/PLAN.md` の簿記のみ。
 
