@@ -22146,7 +22146,9 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
       'actions_done': [],
     },
     guestSet: {
-      'field.signi': [null, null, ['WD01-013#1']], // host zone0 の正面＝guest zone2（i↔2-i ミラー）
+      // host zone0 の正面＝guest zone2（i↔2-i ミラー）。WX01-053はP15000＝バトルの勝敗（ホストP13000）では
+      // 負けない強さにし、それでもバニッシュされることでE2（無条件バニッシュ）の寄与を切り分ける。
+      'field.signi': [null, null, ['WX01-053#1']],
       'field.signi_down': [false, false, false],
     },
     top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
