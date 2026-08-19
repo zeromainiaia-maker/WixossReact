@@ -1,5 +1,32 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き574・Sonnet 5）— §7 実機検証さらに5件（V-23(a)(b)／V-24(cxvii)／V-29／V-81／V-82(c)）＝実バグ1件発見・6項目残0クローズ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ6本）と `docs/PLAN.md` の簿記のみ。
+
+### 1. ✅V-81 残0クローズ＝`O-19b`（ArtsModal Phase1削除）の回帰確認・コールドスタートのフレークを誤診しかけた記録
+
+既存シナリオ`wxk02029`（通常コストアーツ）と`negateAttackLrig`（`WXK10-012`・《緑》×０のコスト0アーツ）を実行。**初回試行は`negateAttackLrig`の「使用」ボタンが一度も出ずFAIL**したため、`git checkout fdc0b9c13~1 --`でO-19b直前のコードに戻して再実行→PASSし、一時は回帰と誤診しかけた。しかし**現在のHEADのままFRESH=1で再実行したところPASS**＝**コールドスタート起因のフレークで、O-19bによる回帰ではない**と判明（3連続PASSで確定）。engineバグ0。
+
+### 2. ✅V-29 残0クローズ＝相手応答モーダル（`REVEAL_AND_PICK{opponentResponds:true}`）の実表示
+
+新規シナリオ`wxex284OppResponds`＝`WXEX2-84`（真名の巫女 マユ）のエクシード2起動＝`TRASH{ALL}`で対戦相手シグニ全滅→`REVEAL_AND_PICK`でデッキ上2枚公開→`SEARCH`型interactionへ→CPU（guest）が自動応答して`SELECT_SIGNI_ZONE`を2回消化し2体とも場に配置。ソフトロックなし。2回連続PASS（8-10秒）。`opp_hand`のviewer視点バグ（Opusタスク12(cv)・2026-08-06クローズ済み）とは別の描画経路（SEARCH分岐）だが、こちらは正しく配線されていた。engineバグ0。
+
+### 3. ✅V-23(a)(b) 残0クローズ＝機構ギャップ7効果のうち2項目
+
+- **(a) ATTACH_CHARM複数ペア**＝新規シナリオ`wxex122AttachCharmMultiPair`＝`WXEX1-22`（ミュウ＝フォーゼ）の【起】コイン1で対戦相手トラッシュ3枚→対戦相手シグニ3体へ同時付与。`fieldCharms=["WD01-013#4","WD01-013#5","WD01-013#6"]`＝3ゾーンすべてに付与（旧「先頭1組だけ」の過小実行ではない）。2回連続PASS（5秒）。engineバグ0。
+- **(b) 「N体まで＝0体でもよい」キーワード付与の候補限定**＝新規シナリオ`wxdip09053GrantUpToTwo`＝`WXDi-P09-053`（羅星 タテーザ）の【出】で自分のLv1シグニ2体を召喚→SELECT_TARGET候補が`["WD01-013#1","WD01-013#2"]`（guest側の同名`WD01-013#3`は候補に一切含まれない＝**候補が自分のシグニだけに絞られている**ことを確認）→決定で2体とも「シャドウ」付与ログ確認。2回連続PASS（8-9秒）。⚠**観測の罠**＝`duration:UNTIL_OPP_TURN_END`のGRANT_KEYWORDは`keyword_grants`ではなく`keyword_grants_until_opp_turn`に書かれる（`execGrantKeyword`）ため、`queryState`の`keywordGrants`フィールドでは検出できず盤面ログでの判定に切り替えた（テスト側の観測ミス・engineは最初から正しい）。engineバグ0。
+
+### 4. ✅V-82(c) 残0クローズ＝CPUの応答アーツ温存（`prevent`はライフ2枚以下でだけ解禁）
+
+新規シナリオ2本（`v82ResponseArtsPreventAtLowLife`／`v82ResponseArtsWithheldAtHighLife`）＝`WX25-P1-008`（千里同風・コスト0のprevent専用アーツ）をguestのlrig_deckに置き、`ATTACK_ARTS_OP`へ直接注入。driverはクリック不要＝CPUが`responseArtsAllowedKinds`（`cpuArts.ts:254`＝ライフ<=2でだけprevent許可）どおりに自律判断することを確認（ライフ2枚→使用／ライフ4枚→温存）。各2回連続PASS（1秒）。engineバグ0。
+
+### 5. 🔴新規実バグ発見＝V-24(cxvii)＝`SELF_LEVEL_THRESHOLD`が`evalUseCondition`経由では実効レベルを見ない
+
+新規シナリオ`wx20re18DynamicLevelAttackBanish`（意図的FAIL・`order`登録済み）＝`WX20-Re18`（幻獣 アカズキン）にエナ10枚（印字Lv2+エナ5枚毎+1＝実効Lv4のはず）を持たせてアタック。**パワー表示は正しく13000（1000+3000×4）に補正される**が、**E2「【自】アタック時、正面をバニッシュ」（`condition:{SELF_LEVEL_THRESHOLD,gte,4}`）が一度も発火しない**。
+
+原因＝`collectAttackerSelfTriggers`（`triggerCollect.ts:3676`）が`condition`の成立判定に`evalUseCondition`（`execUtils.ts:2462`）を使うが、この関数が組み立てる`ExecCtx`に`effectsMap`が含まれない。`SELF_LEVEL_THRESHOLD`の実装（`execUtils.ts:2063`）は`ctx.effectsMap`があれば`calcSigniLevels`で実効レベルを計算する自己完結設計だが、`effectsMap`が常に`undefined`のため印字レベル（2）へフォールバックし続け`gte 4`が永久にfalseになる。E4（`activeCondition`・Lv5効果耐性）も別経路（`effectEngine.ts`の`checkActiveCondition`が要求する`effectiveLevels`を渡す呼び出し元が0件）で同型に壊れている。詳細・修正方針はOpusタスク12 **(cxlii)** へ登録。影響範囲は`SELF_LEVEL_THRESHOLD`を使う効果全体（現状live上は`WX20-Re18`のE2/E4のみと推定）。
+
 ## 2026-08-19（続き573・Sonnet 5）— §7 実機検証さらに5件（V-15残り／V-19再着手／V-20新規／V-21新規／V-22新規）＝実バグ2件発見・Opusタスク12へ登録・V-15/V-21/V-22残0クローズ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（共有ヘルパー2箇所のtimeout是正＋新規シナリオ7本）と `docs/PLAN.md` の簿記のみ。
