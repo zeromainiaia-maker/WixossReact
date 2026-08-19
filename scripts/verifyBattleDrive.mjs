@@ -23524,13 +23524,12 @@ scenarios.v40StripAttachedAndUnder = {
       await page.waitForTimeout(800);
       await page.screenshot({ path: `${SHOT}/v40StripAttachedAndUnder-${s}.png`, fullPage: true });
       let did = null;
-      if (!did && !chose) did = await H.clickBtn('発動', { exact: true });
-      if (!did && !chose) did = await H.clickBtn('発動する', { exact: true });
-      if (!did && !chose) did = await H.clickTextOrBtn(['使用']);
       if (!did && !chose) {
         const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
         if (await c3.count() && await c3.isVisible().catch(() => false)) { await c3.click().catch(() => {}); did = 'choose:選択肢3'; chose = true; }
       }
+      if (!did && !chose) did = await H.clickBtn('発動', { exact: true });
+      if (!did && !chose) did = await H.clickBtn('発動する', { exact: true });
       if (!did) {
         const pick0 = page.getByTestId('pick-0').first();
         if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
