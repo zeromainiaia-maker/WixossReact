@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き575・Sonnet 5）— §7 実機検証2件（V-24(cxviii)／V-58(f)）＝engineバグ0・両項目残0クローズ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ3本）と `docs/PLAN.md` の簿記のみ。
+
+### 1. ✅V-24(cxviii) 残0クローズ＝`WXDi-P15-071`（闘槍）のベット分岐の排他確認
+
+新規シナリオ2本（`v24cxviiiSpellBetGrantsSLancer`／`v24cxviiiSpellNoBetNoDirectGrant`）＝ベット3枚宣言→`execGrantKeyword`が`keyword_grants`へ`Sランサー`を直接書く（guest正面`WX01-053`はP15000＝原文の「正面パワー8000以下」ゲートを大きく超えているが**無条件**で付与＝ベット分岐の効果を確認）。対照＝ベットなしでSELECT_TARGET解決完了まで進めても`keywordGrants`にSランサーは一切現れない（非ベット側は`GRANT_EFFECT`経由で`granted_effects`という別ストアへ書かれるCONTINUOUS効果＝ベット時の直接付与とは排他）。各2回連続PASS（9-10秒）。engineバグ0。⚠非ベット側のCONTINUOUS条件ゲート（正面パワー8000以下でのみランサー表示）自体は2026-08-08に別途実働化・検証済みのため今回は再検証していない。
+
+### 2. ✅V-58(f) 残0クローズ＝CPU戦でCPUが応答側のとき自動パス（デッドロックしない）＝最優先確認点
+
+新規シナリオ`v58fCpuAutoPassesTeamPieceCutin`＝host（人間側）が`WXDi-P04-002`（【使用条件】【チーム】ピース）を使用。guest（CPU）はカットイン候補（`WXDi-P05-006`＋きゅるきゅるーん☆3体＝`LRIG_TEAM_COUNT>=3`充足）を実在させた盤面でも、`BattleScreen.tsx:10672-10676`（`bs.pending_spell.caster_id !== CPU_PLAYER_ID`なら無条件`handleCutinPass()`）により**常に自動パス**して窓を閉じ、元のピースが正常解決する（ログ「世界逆流の使用にカットインできる（相手の応答待ち）」→「[自分] 世界逆流 の【起】効果」→エナチャージ1）。2回連続PASS（10-11秒）。デッドロックなし。engineバグ0。📋V-58の(a)〜(e)（窓が開く条件／開かない対照／パス後解決／打ち消し選択／打ち消し失敗時の代替）は未着手のまま残置（最優先点(f)のみ今回消化）。
+
 ## 2026-08-19（続き574・Sonnet 5）— §7 実機検証さらに5件（V-23(a)(b)／V-24(cxvii)／V-29／V-81／V-82(c)）＝実バグ1件発見・6項目残0クローズ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ6本）と `docs/PLAN.md` の簿記のみ。
