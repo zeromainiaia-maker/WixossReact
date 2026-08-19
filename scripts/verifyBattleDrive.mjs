@@ -24485,6 +24485,83 @@ scenarios.v45bSkipDoesNothing = {
   async drive(page, H) { return driveV45b(page, H, false); },
 };
 order.push('v45bPaySwapsInDownEnergySigni', 'v45bSkipDoesNothing');
+
+// V-45(c)：`WX24-P4-052-E2`（羅原姫　Ｌａ）原文＝「このシグニがアタックしたとき、そのアタック終了時、対戦相手の
+// パワー8000以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする」＝
+// 対象を選んだ上で「このシグニ（＝自分自身）」を任意コストでバニッシュし、そうした場合に対象（相手シグニ）を
+// バニッシュする、という自己バニッシュを対価とする構造。しかしJSONは
+// `BANISH{owner:opponent,power<=8000,optional:true}`→`CONDITIONAL(IS_MY_TURN){BANISH{owner:opponent,無フィルタ}}`
+// という「相手シグニを対象選択と同時に即バニッシュ（任意）→さらに無条件でもう1体（無フィルタ）を強制バニッシュ」
+// という構造になっており、自分自身をバニッシュする語彙が一切ない＝相手シグニを最大2体バニッシュできてしまう
+// （本来は相手シグニ0〜1体・自分は対価で最大1体）。実機で最初のBANISH候補を選ぶと即座に相手シグニがバニッシュ
+// され、続けて2体目の無条件BANISHが発生する＝相手シグニ2体消滅を確認する。
+function v45cSpec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#48500'],
+      'field.signi': [null, ['WX24-P4-052#48501'], null], // 中央＝羅原姫Ｌａ
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'energy': [],
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#48510'],
+      // 正面(index1)＝直接ライフアタック回避、side(index0)＝もう1体の低パワー候補。両方power<=8000。
+      'field.signi': [['WD01-013#48511'], ['WD01-013#48512'], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [],
+      'life_cloth': ['WD01-013#48520', 'WD01-013#48521'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+async function driveV45c(page, H) {
+  let attacked = false; let zoneOpened = false; let emptyStreak = 0; let firstBanishPicked = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/v45c-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    const st0 = await H.queryState();
+    if (!attacked) {
+      if (!zoneOpened) { const d = await H.clickTestId('my-signi-zone-1'); if (d) { did = d; zoneOpened = true; } }
+      if (!did) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+          await atk.click({ timeout: 1500 }).catch(() => {}); did = 'action:アタック'; attacked = true;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
+    } else if (!firstBanishPicked && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+      // 1体目＝任意BANISHの対象選択（index0のWD01-013#48512を選ぶ）
+      did = await clickCandidateByPrefix(page, H, st0, 'WD01-013#48512', 'banish1');
+      if (did) { await H.clickTextOrBtn(['決定']).catch(() => {}); firstBanishPicked = true; }
+    } else if (firstBanishPicked) {
+      // 2体目＝無条件BANISH（残る候補=index1のWD01-013#48511）
+      did = await H.stdStep();
+    }
+    const st = await H.queryState();
+    H.log(`  v45c[${s}] -> ${did ?? 'なし'} | attacked=${attacked} firstBanishPicked=${firstBanishPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)}`);
+    emptyStreak = (attacked && !st?.pendingEffect) ? emptyStreak + 1 : 0;
+    if (attacked && !st?.pendingEffect && emptyStreak >= 3) {
+      const gField = st.guest.fieldSigni ?? [];
+      const remaining = gField.flat().filter(Boolean).length;
+      return {
+        pass: remaining === 0, // バグ確認シナリオ＝相手シグニ2体とも消える（0枚残り）ことを記録する
+        detail: `guest.fieldSigni=${JSON.stringify(gField)}・残数=${remaining}（原文どおりなら相手シグニは最大1体消滅・自分がバニッシュされうるが、実機は相手2体消滅＝(cxlviii)確認）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${attacked} firstBanishPicked=${firstBanishPicked} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+scenarios.v45cDoubleOpponentBanishConfirmsMismatch = {
+  title: 'V-45(c) WX24-P4-052-E2：JSON/原文不一致の実機確認＝自己バニッシュ対価ではなく相手シグニ2体を消滅させてしまう(cxlviii)',
+  spec: v45cSpec(),
+  async drive(page, H) { return driveV45c(page, H); },
+};
+order.push('v45cDoubleOpponentBanishConfirmsMismatch');
 // ── V-45 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
