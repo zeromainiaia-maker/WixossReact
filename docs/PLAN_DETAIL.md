@@ -1,5 +1,70 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-19 整理㊿（§7 決着済み `V-15`／`V-17`／`V-21`〜`V-23`／`V-28`／`V-29`／`V-39`〜`V-43`／`V-81`／`V-82` の全文退避・続き587）
+
+> **§7 の運用ルール（「消化したら行ごと PLAN_DETAIL へ退避して、ここには残さない」）に沿った定期整理**。
+> **14ブロックを verbatim で退避**した（PLAN §7 側には ID・決着した続きNN・退避先だけの索引行を残す）。
+> ⚠**採番は固定**（消化しても番号を詰めない）。**同じ番号を再着手する前に、まずこの節を読むこと。**
+> ⚠**ここに退避したブロックのうち、明示的に「follow-up・優先度低」と書いてある枝は未着手のまま**＝
+> `V-21`（持続側 `WX15-089/090/091` の据置確認）／`V-40`(d) 本体`WX25-P3-050-E1`／`V-41`(a)(c)(d)／
+> `V-42`(b)(c)(d)／`V-43`(b)(c)(d)。**踏むならこの節の原文を読んでから §7 へ `V-<次番号>` で立て直す**。
+> ⚠**発見済みの実バグは §3 Opusタスク12 側が正**＝`V-39`→(cxliv)／`V-40`(b)→(cxlv)。
+
+### 退避したブロック（原文ママ）
+
+- **🔶 V-15 §6.3 J-4 フェイズ／アタック終了 timing（続き384）＝2026-08-14 続き480 で**機構は両方とも実機で確認・6シナリオ中5本が緑**（Codex 起案→Claude 実機検証）。**engine バグ0**。
+  - [x] **アタック終了時の【自】が発火するか**（`WXK11-018-E2`）＝**実機PASS 3本**（`v15AttackEndBlockedFiresAndUpsOther`／`v15AttackEndDirectDamageDoesNotFire`／`v15AttackEndOncePerTurnConsumed`）。①正面にシグニがいてダメージが通らなかった場合＝**発火し、別の低Lvシグニだけが up**（＝**アップされるのが自分自身ではない**ことも確認）②**正面だけ空にした対照**＝life 7→6・確認フロー消化まで観測して**非発火** ③`actions_done` だけ変えた対照で**《ターン1回》消化済みなら再発火しない**。
+  - [x] **アタックフェイズ終了時の【自】が発火するか**（`WX24-P2-075-E1`）＝**機構は実機で確認**（`left=true`→`phaseEnd=true`→**`trigger=true`＝E1 発火**をログで観測）。**緑2本**＝`v15AttackPhaseEndBattlePathRecordsOpponentToy`（**バトル経路**の離場記録＝`resolvePendingSigniBattleFor`）／`v15AttackPhaseEndNoToyLeftDoesNotFire`（**同一盤面でアタックしなければ非発火**）。
+    - [x] 🔴**続き573＝`v15AttackPhaseEndCentralDiffToyLeftFires` を緑で固定・2回連続PASS（19秒）**。真因は3点重なったシナリオ側の未完（engineバグ0）＝①共有ヘルパー`H.clickTextOrBtn`/`H.clickZone`の`.click()`にtimeoutが無く📌19の規約から漏れていた（`決定`ボタンがdisabledのまま毎ティック既定30秒待ち＝これが「40秒/tick」の正体）→両方に`{timeout:1200}`を追加（全シナリオ共通ヘルパーの是正）②「デッキに加えるカードを選んでください」の候補（watcher自身1件）を`pick-0`でクリックしていなかった＝`決定(0/1)`が永久disabled③draw後に**E1原文後半「手札からレベル２以下の＜遊具＞を場に出してもよい」の`SELECT_SIGNI_ZONE`**が続けて出る＝`H.clickZone()`を追加して消化。**V-15 全項目 決着**。
+
+- **🔶 V-17 §6.3 J-5 単発機構（続き381）＝2026-08-14 続き480 で**コイン獲得は機構を実機で確認・5シナリオ中3本が緑**（Codex 起案→Claude 実機検証）。**engine バグ0**。
+  - [x] **コイン獲得で【自】が発火するか**（`SP27-007`）＝**実機PASS 3本**。①**人間 `executeGrow` の Coin 欄獲得**で発火（coins 0→2・draw・`actions_done` 1件）＝`v17CoinGainedHumanGrowFires` ②⚠**所持コインだけ5枚にした同一盤面**では**上限クランプ後の実増加0＝非発火**＝`v17CoinGainedHumanGrowAtCapDoesNotFire` ③**効果解決の中央 diff 経路**（`WXK07-006-E3` で coins 2→4）でも発火＝`v17CoinGainedEffectCentralDiffFires`。
+    - [x] **CPU がグロウしたとき（scope `any`）も発火する**＝🔑**実機ログで確認**（`[CPU] グロウ`→`[自分] …の【自】効果（コイン獲得時）`→`1枚ドロー`・`host.actions_done=["SP27-007-E1"]`）。⚠ただし**シナリオ `v17CoinGainedCpuGrowAnyScopeFires` は赤**＝CPU がそのままアタックまで進み settled 条件に到達しないため（**engine ではなく settle 条件の未完**）。
+    - [x] ⚠**コイン"支払い"では発火しない**＝**実機で確認**（`【自】効果（コイン支払時）` は出るが `SP27-007-E1` は `actions_done` に入らない）。⚠**シナリオ `v17CoinPaymentDoesNotFire` は赤**＝負方向を確定させる settle 条件に到達せずループ終端（同上）。
+  - [x] **夢限-Q- の反転機構が実機で通しで動くか**（`WXDi-P11-010A`→`B`）＝**続き571 で `mugenQFlip` 実行→実機PASS**（4秒）。`ON_GROW_PHASE_START`→`EFFECTIVE_LRIG_LIMIT_GTE(9)`成立→`MUGEN_Q_RESET_AND_FLIP`で`card_identity_overrides`がB面へ反転＋手札/エナ/トラッシュがリセット後B面E1で再構築（hHand=5・hEnergy=5・hTrash=0）まで確認。**engineバグ0**。**V-17 全項目 決着**。
+
+- **✅ V-21 `isDisona` 条件節グループ（続き379）＝続き573 で実機PASS・2回連続緑（各4-5秒）決着**。`WXDi-P13-078-E1`（【自】アタック時、あなたの場にパワー10000以上のディソナがあれば【エナチャージ1】）を新規シナリオ`v21ConditionPowerBuffedReachesThreshold`／`v21ConditionPowerBelowThresholdNoCharge`で検証＝印字2000の自分自身を`temp_power_mods`で+8000（実効10000）にしてアタック→エナ0→1（PASS）。対照は+6000（実効9000・未到達）→アタックしてもエナ0のまま（PASS）。**engineバグ0**（`Condition`評価が`ctx.effectivePowers`をバフ込みで見ている実装どおり）。持続側（`WX15-089/090/091`）の据置確認は未着手（follow-up・優先度低＝別ロジックのため今回のバグ発見には直結しない）。
+
+- **✅ V-22 `isDisona` パリティ移植（続き378）＝続き573 で実機PASS・2回連続緑（各2秒）決着**。`WXDi-P13-047-常`（【常】あなたのターンの間、他のディソナのパワー+3000）を新規シナリオ`v22DisonaOnlyContinuousBuff`で検証＝自身(印字12000)は「他の」対象外で据置・他のディソナ(印字2000)は+3000で表示5000・非ディソナ(印字3000)は据置3000、を1回の盤面注入で同時観測。**engineバグ0**（`matchesFilter`のisDisonaフィルタが正しく機能）。残り4効果（P12-044/P12-060/P13-009/P13-070）は同一機構（`isDisona`フィルタ）の横展開なので個別検証は不要と判断（同じ`matchesFilter`経路を通るため）。
+
+- **✅V-23 機構ギャップ7効果（続き377n）2件**＝engine/golden では固定済みだが `BattleScreen` の経路は計器に映らない。**続き572＝両方とも実機PASS（各2回連続）で決着**。
+  - [x] **ATTACH_CHARM の複数ペア付与が実機で描画されるか**（`WXK07-070`＝【出】でデッキ上2枚を自分のシグニ2体へ／`WXEX1-22-E2`＝相手のトラッシュ3枚を相手のシグニ3体へ）。**新規シナリオ`wxex122AttachCharmMultiPair`でPASS**＝`WXEX1-22`（ミュウ＝フォーゼ）の【起】コイン1を発動→guestの3ゾーンすべてに`fieldCharms=["WD01-013#4","WD01-013#5","WD01-013#6"]`が同時付与（旧「先頭1組だけ」の過小実行ではない）。engineバグ0。
+  - [x] **「N体まで＝0体でもよい」選択UIがキーワード付与でも出るか**（`WXDi-P00-004`＝パワー15000以上のシグニ2体まで【ランサー】／`WXDi-P09-053`＝レベル1のシグニ2体まで【シャドウ】）。**続き572＝`WXDi-P09-053`で実機PASS（2回連続）**＝新規シナリオ`wxdip09053GrantUpToTwo`。自分のLv1シグニ2体を召喚→ON_PLAYのSELECT_TARGET候補が`["WD01-013#1","WD01-013#2"]`（自分のシグニ2体だけ／guest側の同名`WD01-013#3`は候補に一切含まれない＝**候補が自分のシグニだけに絞られている**ことを確認）→決定で2体とも「シャドウ:{levelLte:2}（次の相手ターン終了まで）」の付与ログを確認。⚠**観測の罠**＝`duration:UNTIL_OPP_TURN_END`のGRANT_KEYWORDは`keyword_grants`ではなく`keyword_grants_until_opp_turn`に書かれる（`execGrantKeyword`）ため、queryStateの`keywordGrants`フィールドでは検出できず盤面ログで判定し直した（テスト側の観測ミス・engineは最初から正しかった）。engineバグ0。📋0体で確定できるかは`WXDi-P00-004`（ピース＝使用条件UI）側の検証として持ち越し（低優先）。
+
+- **✅V-28** 続き409〜413 の A群実装（相手ルリグデッキ選択モーダル・新規 CHOOSE 等）＝**続き579〜580で6件すべて実機PASS・残0クローズ**（`WX16-021`〔側面アタック空ゾーンダメージ・正方向＋対照〕／`WX25-CP1-074`〔CANNOT_DEAL_DAMAGE_TO_OPPONENT・正方向＋対照〕／`WX24-P4-014`②〔相手ルリグデッキ選択モーダル＝`opponentResponds`でCPU自動応答〕／`WXDi-P09-079`〔ミル済みレベル1シグニの自動配置〕／`WXK11-001`②〔ルリグデッキのアーツ除外→相手のシグニアタックステップ封じ〕）。engineバグ0。詳細はBUGFIXES 2026-08-19（続き579・続き580）。⚠**「エナ支払い元 funnel（14サイト＋14モーダル）」は別枠＝`V-04`側で6シナリオPASS済み・残経路は`V-04`の行を参照**（V-28とは別に管理）。
+
+- **✅V-29** 続き452＝相手応答モーダルの実表示（PvP の相手側／CPU 自動応答）＝`WXEX2-84-E2`。**続き572＝新規シナリオ`wxex284OppResponds`で実機PASS（2回連続）**。エクシード2発動→`TRASH{ALL}`で対戦相手シグニ全滅→`REVEAL_AND_PICK{opponentResponds:true}`がデッキ上2枚公開→`SEARCH`型interactionへ→CPU（guest）が自動応答して`SELECT_SIGNI_ZONE`を2回消化し2体とも場に配置（gDeck 10→8）。ソフトロックなし＝engineバグ0（`opp_hand`のviewer視点バグ＝Opusタスク12(cv)とは別経路のSEARCH分岐だが、こちらは正しく配線されていた）。
+
+- **✅ V-39** **続き494＝`OPP_LRIG_ATTACK_COST` の「払えないときタダで通っていた」是正**＝エナ0でルリグアタックできないことを対で見る。**続き581＝実機PASS・残0クローズ（想定と異なりヘッドレスで検証可能だった＝`lrigAttackCostInfo`がボタンラベルへ直接コストを出す設計のため`data-action-label`を読むだけで判定できた）**。`WX25-P2-014`（明星の使者　サシェ・モティエ）でエナ不足（1枚）＝「アタック不可（《無》×2）」表示・状態不変／エナ十分（3枚）＝「アタック（《無》×2）」表示・クリックで2枚消費してダウン、を各2回連続PASSで確認。**engineバグ0（このゲート自体は）**。🔴**ただし追加調査で新規engineバグ1件を発見**＝原文前半「あなたの場に＜宇宙＞のシグニがあるかぎり」の条件節が丸ごと未実装（＜宇宙＞シグニが無くても常時ゲートが掛かる）。**Opusタスク12(cxliv)へ登録**。詳細はBUGFIXES 2026-08-19続き581。
+
+- **✅ V-40 続き582＝5経路中4件 残0クローズ・(b)は新規engineバグ発見＝Opusタスク12(cxlv)へ登録**（原記述：続き500＝O-34 実装の5経路＝(a)`WX19-064-E1`③／`WX18-029-E1`(b)`WX20-077-E2`(c)`WXDi-P12-055-E1`(d)`WX25-P3-050-E1`(e)`WXK07-034-E1`。**「ヘッドレスでは検証できない層」ラベルは誤りだった**＝data-action-label・SEARCH/CHOOSEピッカーとも既存ヘルパーで駆動できた）。
+  - **✅(a) 残0クローズ**＝`v40StripAttachedAndUnder`。対象シグニ自身は場に残置・下カード/チャーム/アクセの3枚がトラッシュへ。2回連続PASS。engineバグ0。
+  - **🔴(b) 新規engineバグ発見**＝`v40UseSearchedSpellOrTrashCrash`（意図的FAIL・2回連続同一結果）。SEARCHモーダルが`inter.thenAction`未定義で`undefined.type`を読みcrash＝画面が真っ黒。**Opusタスク12(cxlv)へ登録**。
+  - **✅(c) 残0クローズ**＝`v40DeclaredIconHandDiscardProtects`／`v40DeclaredIconHandDiscardBanishes`。CPUの`opponentResponds`自動応答が常に候補先頭（＝《白》）を選ぶ性質を使い正負を決定論化。各2回連続PASS。engineバグ0。
+  - **✅(d) 残0クローズ**＝`v40PerOwnLrigColorScaleFires`／`v40PerOwnLrigColorScaleZero`（`WX25-P3-050-E1`より単純な同機構横展開先`WXDi-P08-064-E1`で検証）。青ルリグ1体→FREEZE1回発動／0体→無条件不発、を各2回連続PASS。engineバグ0。
+  - **✅(e) 残0クローズ**＝`v40DeckLevelOverrideBothChoicesReveal2`／`v40DeckLevelOverrideOnlyChoice2NoReveal`。印字Lv1のみのデッキで①②両方選択→Lv4扱いで2枚めくれる／①なし→0枚、を確認。engineバグ0。
+  - 📋**(d)の`WX25-P3-050-E1`本体（【チーム】3体・色別回数・赤節パワー12000以下）は同機構の横展開のため個別検証は見送り**（follow-up・優先度低）。
+
+- **✅ V-41 続き583＝(b)でO-32の核（`RepeatAction.optional`＋レベル一致フィルタ）を残0クローズ・(a)(c)(d)は同機構の横展開でfollow-up**（原記述：続き501＝O-32 実装の4経路＝(a)`WXDi-CP01-024-E1`（トラッシュ選択が最大3回出て、**同じパワーの札だけ**が候補になり**相手シグニの正面**ゾーンに出る）(b)`WX16-042-E1`（1回目のあと「繰り返す／繰り返さない」が出て、断れば手札は1枚しか減らない／バニッシュ候補が**捨てたシグニと同レベルだけ**に絞られる）(c)`WXDi-P07-007-E3`（相手側に3回とも応答が出る）(d)`WXDi-CP02-047-E1`（対象選択が3回・毎回別のシグニ）。**「ヘッドレスでは検証できない層」ラベルは誤りだった**）。
+  - **✅(b) 残0クローズ**＝`v41RepeatOptionalFiltersByLevelAndStops`。Lv1/Lv2の手札→相手Lv1/Lv2/Lv3シグニへ2周実行→各周のBANISH候補（`pendingCandidates`）が同レベル1体だけに絞られることを直接確認・「繰り返さない」で3周目を打ち切りLv3は無傷。2回連続PASS。engineバグ0。
+  - **📋(a)(c)(d) は同一機構の横展開のため個別検証は見送り**（follow-up・優先度低＝V-22/V-40(d)と同判断基準）。
+
+- **✅ V-42 続き584＝(a)を残0クローズ・(b)(c)(d)はfollow-up**（原記述：続き502＝O-33 実装の4経路＝(a)`WX25-CP1-050-E1`（次の相手ターンだけ**中央のシグニだけ**にアタックボタンの《無》×1 注記が出て、左右は無条件でアタックできる）(b)`WX24-P1-038-E2`／`WXDi-P03-027-E2`（自分のシグニは止まらない＝旧`owner:'any'`是正確認）(c)`WXK10-011-E1`（3択・選ばなかった選択肢が走らない）(d)横展開5枚。**「ヘッドレスでは検証できない層」ラベルは誤りだった**）。
+  - **✅(a) 残0クローズ**＝`v42ZoneLimitedAttackBanCenterOnly`。`signi_attack_bans_this_turn`にゾーン限定banを直接注入→中央だけ「アタック（《無》×1）」・左右は無条件「アタック」。2回連続PASS。engineバグ0。
+  - **📋(b)(c)(d) は未着手のまま follow-up**（優先度低）。
+
+- **✅ V-43 続き584＝(a)を残0クローズ・(b)(c)(d)はfollow-up**（原記述：続き503＝O-28 実装の4経路＝(a)**Sランサー26効果**（バトルに勝つとライフを追加クラッシュし、ライフが無ければ相手が敗北する＝通常ランサーとの対で見る。旧実装は綴りズレで格下げ／不発だった）(b)`WX24-P1-064-E1`（手札2枚以下のときだけ【アサシン】）(c)`WXK07-029-E1`（バニッシュ／手札戻しの両方が効かない）(d)`WXK08-049-E2`。**「ヘッドレスでは検証できない層」ラベルは誤りだった**）。
+  - **✅(a) 残0クローズ**＝`v43SLancerDefeatsOpponentAtZeroLife`／`v43RegularLancerFizzlesAtZeroLife`。`keyword_grants`で【Ｓランサー】相当を付与→相手ライフ0枚のバトル勝利で相手を敗北させる／通常ランサーは効果消滅で試合続行、を対で確認。各2回連続PASS。engineバグ0。
+  - **📋(b)(c)(d) は未着手のまま follow-up**（優先度低）。
+
+- **🔶 V-81** 続き567＝§6.4 `O-19b`＝**到達不能だった `ArtsModal` Phase1（アーツ一覧）を削除**（`artsCandidates` ごと）。**死にコードの除去なので挙動は不変のはず**＝観測点は「アーツが従来どおり使えること」1点。**続き572＝実機PASSで決着**。
+  - [x] **(A) 回帰**＝**実機PASS（3回連続）**。`wxk02029`（通常コスト・ルリグDK→zone-card-0→使用→Phase2でエナ選択→アーツ使用→CHOOSE→グロウ成立）と `negateAttackLrig`（`WXK10-012`・《緑》×０のコスト0アーツ→Phase2「アーツ使用」ボタンがエナ未選択でも直接使える）の両方で確認。⚠**初回試行は「使用」ボタンが一度も出ずFAIL**したが、`git checkout fdc0b9c13~1 --`でO-19b直前のコードに戻して再実行→PASSしたため一時は回帰を疑ったが、**現在のHEADのままFRESH=1で再実行したところPASS**＝**コールドスタート起因のフレークで、O-19bによる回帰ではない**と判明（3連続PASSで確定）。engineバグ0。
+
+- **🔶 V-82** 続き569＝§8/`O-1` (g) 選択の精緻化 v1（`cpuBoardEval.ts`）。**実機2本は PASS 済み**（詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-19 整理㊻」）。
+  - [x] **(a) 召喚**＝`v82CpuDeploysStrongestWithinLimit`＝リミット内でいちばん強い札を出しつつ体数は落とさない。
+  - [x] **(b) アタック順**＝`v82CpuAttacksInValueOrder`＝正面が空のシグニから先に殴る（格上に阻まれる側もそのあと撃つ）。
+  - [x] **(c) 応答アーツの温存**（`prevent` はライフ2枚以下でだけ解禁）。**続き572＝実機PASS（正方向・対照とも各2回連続）**。新規シナリオ`v82ResponseArtsPreventAtLowLife`（guestライフ2枚＝CPUが`WX25-P1-008`（千里同風・コスト0のprevent専用アーツ）を自律使用＝`lrigDeck→lrigTrash`）／`v82ResponseArtsWithheldAtHighLife`（guestライフ4枚＝対照・使わず温存）。driverはクリック不要＝`ATTACK_ARTS_OP`へ注入するだけでCPUが`responseArtsAllowedKinds`（ライフ<=2でのみprevent許可）どおりに自律判断することを確認。engineバグ0。
+
 ## 2026-08-19 整理㊾（§4 恒久指標・続き580時点値の退避・続き586）
 
 - **🆕 2026-08-19 続き580（§7 実機検証6件＝V-28 A群6件全て残0クローズ・engineバグ0）後 最新値**：
