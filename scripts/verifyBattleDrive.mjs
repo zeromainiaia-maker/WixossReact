@@ -24130,6 +24130,82 @@ scenarios.v43RegularLancerFizzlesAtZeroLife = {
 order.push('v43SLancerDefeatsOpponentAtZeroLife', 'v43RegularLancerFizzlesAtZeroLife');
 // ── V-43 END ──
 
+// V-44(a)：O-5 実装＝`WX16-Re18-E1`（レゾナンス・マーチ）「あなたのルリグデッキからレゾナを２枚まで
+// 出現条件を無視して場に出す。この方法で場に出たレゾナの【出】能力は発動しない。」＝`SUMMON_RESONA_FROM_LRIG_DECK`
+// （実装ソース `execStubPart3.ts:2991`）。旧実装は候補1枚固定（`candidates[0]`）だったため「２枚まで」の
+// 複数選択が効くこと（＝2枚とも場に出る）を実機で確認する。
+scenarios.v44SummonTwoResonasFromLrigDeck = {
+  title: 'V-44(a) WX16-Re18-E1：ルリグデッキから「２枚まで」選ぶと2枚とも場に出る（旧実装は1枚固定）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#44000'],
+      'field.signi': [['WD01-013#44007'], null, null], // zone0にfiller・空きは2ゾーン
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'lrig_deck': ['WX16-Re18#44001', 'WX08-008#44002', 'WX08-008#44003'],
+      'energy': ['WD01-013#44004', 'WD01-013#44005', 'WD01-012#44006'], // 白・白・無払い用
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#44010'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始時 host.lrigDeck:', before?.host?.lrigDeckCards);
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    let e0 = false; let e1 = false; let e2 = false; let castDone = false;
+    let p0 = false; let p1 = false; let picked = false;
+    let zonesPlaced = 0;
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v44a-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!castDone) {
+        if (!did) did = await H.clickTestId('zone-card-0');
+        if (!did && !e0) { const el = page.getByTestId('artscost-energy-0').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e0'; e0 = true; } }
+        if (!did && e0 && !e1) { const el = page.getByTestId('artscost-energy-1').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e1'; e1 = true; } }
+        if (!did && e1 && !e2) { const el = page.getByTestId('artscost-energy-2').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e2'; e2 = true; } }
+        if (!did && e2) did = await H.clickBtn('アーツ使用', { exact: false });
+        const st0 = await H.queryState();
+        if ((st0?.host?.lrigDeckCards ?? []).length < (before?.host?.lrigDeckCards ?? []).length) castDone = true;
+      } else if (!picked) {
+        const st0 = await H.queryState();
+        if (!p0 && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length >= 1) {
+          const el = page.getByTestId('pick-0').first();
+          if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'pick-0'; p0 = true; }
+        }
+        if (!did && p0 && !p1) {
+          const el = page.getByTestId('pick-1').first();
+          if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'pick-1'; p1 = true; }
+        }
+        if (!did && p0 && p1) { did = await H.clickTextOrBtn(['決定']); if (did) picked = true; }
+      } else {
+        did = await H.clickZone();
+        if (did) zonesPlaced++;
+        if (!did) did = await H.stdStep();
+      }
+      const st = await H.queryState();
+      H.log(`  v44a[${s}] -> ${did ?? 'なし'} | castDone=${castDone} p0=${p0} p1=${p1} picked=${picked} zonesPlaced=${zonesPlaced} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      const resonaCount = (st?.host?.fieldSigni ?? []).filter(z => Array.isArray(z) && z.some(n => n?.startsWith('WX08-008'))).length;
+      if (picked && resonaCount >= 2 && !st?.pendingEffect) {
+        return {
+          pass: resonaCount === 2,
+          detail: `場に出たレゾナ数=${resonaCount}（期待2）・hField=${JSON.stringify(st.host.fieldSigni)}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（castDone=${castDone} picked=${picked} zonesPlaced=${zonesPlaced} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v44SummonTwoResonasFromLrigDeck');
+// ── V-44 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
