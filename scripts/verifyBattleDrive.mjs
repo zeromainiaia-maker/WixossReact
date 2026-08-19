@@ -24185,6 +24185,10 @@ async function driveV20(page, H, payBoth) {
       if (!banishPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WD01-010', 'banish'); if (did) banishPicked = true; }
       if (!did) did = await H.clickTextOrBtn(['決定']);
       if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-010')))) banished = true;
+    } else if (await page.getByRole('button', { name: '繰り返さない', exact: true }).count()) {
+      // WX16-042自身のREPEAT.optional（V-41(b)と同型）＝バニッシュ確定後に必ず1回出る。
+      // このシナリオでは1回で十分＝毎回「繰り返さない」で打ち切ってWXDi-P10-039のON_TRASHへ進む。
+      did = await H.clickBtn('繰り返さない', { exact: true });
     } else if (!step1Chosen) {
       did = await H.clickTestId(payBoth ? 'optcost-pay' : 'optcost-skip');
       if (did) step1Chosen = true;
