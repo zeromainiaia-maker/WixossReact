@@ -757,7 +757,7 @@
 - **🔶 V-15 §6.3 J-4 フェイズ／アタック終了 timing（続き384）＝2026-08-14 続き480 で**機構は両方とも実機で確認・6シナリオ中5本が緑**（Codex 起案→Claude 実機検証）。**engine バグ0**。
   - [x] **アタック終了時の【自】が発火するか**（`WXK11-018-E2`）＝**実機PASS 3本**（`v15AttackEndBlockedFiresAndUpsOther`／`v15AttackEndDirectDamageDoesNotFire`／`v15AttackEndOncePerTurnConsumed`）。①正面にシグニがいてダメージが通らなかった場合＝**発火し、別の低Lvシグニだけが up**（＝**アップされるのが自分自身ではない**ことも確認）②**正面だけ空にした対照**＝life 7→6・確認フロー消化まで観測して**非発火** ③`actions_done` だけ変えた対照で**《ターン1回》消化済みなら再発火しない**。
   - [x] **アタックフェイズ終了時の【自】が発火するか**（`WX24-P2-075-E1`）＝**機構は実機で確認**（`left=true`→`phaseEnd=true`→**`trigger=true`＝E1 発火**をログで観測）。**緑2本**＝`v15AttackPhaseEndBattlePathRecordsOpponentToy`（**バトル経路**の離場記録＝`resolvePendingSigniBattleFor`）／`v15AttackPhaseEndNoToyLeftDoesNotFire`（**同一盤面でアタックしなければ非発火**）。
-    - [ ] 📋**残作業＝`v15AttackPhaseEndCentralDiffToyLeftFires` を緑で固定する**（**中央 diff 経路**）。E1 の発火までは観測できているが、**帰結（watcher のデッキ下移動・draw）の観測に到達しない**＝`決定` の押下が毎ティック約40秒かかり loop 予算を使い切る。**engine ではなくシナリオ側の未完**。
+    - [x] 🔴**続き572＝`v15AttackPhaseEndCentralDiffToyLeftFires` を緑で固定・2回連続PASS（19秒）**。真因は3点重なったシナリオ側の未完（engineバグ0）＝①共有ヘルパー`H.clickTextOrBtn`/`H.clickZone`の`.click()`にtimeoutが無く📌19の規約から漏れていた（`決定`ボタンがdisabledのまま毎ティック既定30秒待ち＝これが「40秒/tick」の正体）→両方に`{timeout:1200}`を追加（全シナリオ共通ヘルパーの是正）②「デッキに加えるカードを選んでください」の候補（watcher自身1件）を`pick-0`でクリックしていなかった＝`決定(0/1)`が永久disabled③draw後に**E1原文後半「手札からレベル２以下の＜遊具＞を場に出してもよい」の`SELECT_SIGNI_ZONE`**が続けて出る＝`H.clickZone()`を追加して消化。**V-15 全項目 決着**。
 
 - **🔶 V-16 §6.3 J-1 他能力の発動監視（続き383）＝2026-08-14 続き480 で**機構は実機で確認・シナリオは未緑**（Codex 起案→Claude 実機検証）。**続き571＝実バグ1件を発見**（Opusタスク12 **(cxxxix)**）。
   - [x] **他の能力の発動に反応して【自】が発火するか**（`WXEX1-77`）＝🔑**実機ログで成立を確認**＝`羅石　ガーネットを召喚`→`[自分] …の【出】/【自】効果`→**`[相手] アイン＝シュミット の【自】効果（能力発動時）`**→**`小剣　ククリをトラッシュへ`**（＝**発動の直後に監視側が解決され、手札1枚が落ちる**）。
