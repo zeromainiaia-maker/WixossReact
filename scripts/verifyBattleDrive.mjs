@@ -21850,6 +21850,91 @@ scenarios.v22DisonaOnlyContinuousBuff = {
 order.push('v22DisonaOnlyContinuousBuff');
 // ── V-22 END ──
 
+// ── §7 V-20（続き572）＝二段の任意：WXDi-P10-039「このカードが捨てられたとき」 ──
+// E2＝①手札を1枚捨ててもよい→そうした場合②《青》《無》を支払ってもよい→そうした場合③トラッシュから場に出る。
+// ①をスキップしたら②が出ない（engine Pattern⑤＝後続CONDITIONALなしのOPTIONAL_COSTはskipで残りステップ全スキップ）。
+const V20_CARD = 'WXDi-P10-039#9701';
+const V20_NAME = '蒼魔姫　リッチレーサー';
+const V20_FILLER = i => `WD01-013#${9710 + i}`;
+const v20Spec = () => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9700'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [V20_CARD, ...Array.from({ length: 7 }, (_, i) => V20_FILLER(i))],
+    'energy': ['WD03-014#9730', 'WD01-016#9731'], 'trash': [], 'deck': v18v19Deck(9740), 'life_cloth': v18v19Life(9750),
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9790'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9760), 'life_cloth': v18v19Life(9770), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'END', turn_count: 2 },
+});
+async function driveV20DiscardTrigger(page, H, payBoth) {
+  await H.repatchTop({ active: 'host', turn_phase: 'END', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const flow = { endClicked: false, cardPicked: false, discardConfirmed: false, step1Seen: false, step1Resolved: false, step2Seen: false };
+  let last = await H.queryState(); let finalTicks = 0;
+  for (let s = 0; s < 100; s++) {
+    await page.waitForTimeout(250); let did = null;
+    if (!flow.endClicked) { did = await H.clickBtn('ターン終了'); if (did) flow.endClicked = true; }
+    if (!did && flow.endClicked && !flow.cardPicked) {
+      did = await H.clickModalImage(V20_NAME); if (did) flow.cardPicked = true;
+    }
+    if (!did && flow.cardPicked && !flow.discardConfirmed) {
+      did = await H.clickBtn('1枚捨てて終了'); if (did) flow.discardConfirmed = true;
+    }
+    const st0 = await H.queryState();
+    const optPay = page.getByTestId('optcost-pay').first();
+    const optSkip = page.getByTestId('optcost-skip').first();
+    const optVisible = await optPay.count() && await optPay.isVisible().catch(() => false);
+    if (!did && flow.discardConfirmed && optVisible) {
+      flow.step1Seen ||= !flow.step1Resolved;
+      if (!flow.step1Resolved) {
+        did = await (payBoth ? optPay.click({ timeout: 1200 }).then(() => 'optcost-pay(1)').catch(() => null)
+          : optSkip.click({ timeout: 1200 }).then(() => 'optcost-skip(1)').catch(() => null));
+        if (did) flow.step1Resolved = true;
+      } else {
+        flow.step2Seen = true;
+        if (payBoth) did = await optPay.click({ timeout: 1200 }).then(() => 'optcost-pay(2)').catch(() => null);
+      }
+    }
+    if (!did) did = await clickDecideNofM(page);
+    if (!did) did = await H.stdStep();
+    if (!did) did = await H.clickZone();
+    const st = await H.queryState(); last = st;
+    const onField = (st?.host?.fieldSigni ?? []).some(stack => stack?.includes(V20_CARD));
+    const inTrash = (st?.host?.trashCards ?? []).includes(V20_CARD);
+    const settled = flow.discardConfirmed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0;
+    finalTicks = settled ? finalTicks + 1 : 0;
+    H.log(`  v20[${s}] -> ${did ?? 'なし'} | payBoth=${payBoth} step1Resolved=${flow.step1Resolved} step2Seen=${flow.step2Seen} onField=${onField} trash=${inTrash} settled=${settled}`);
+    if (finalTicks >= 3) {
+      if (!payBoth) {
+        const ok = flow.step1Resolved && !flow.step2Seen && inTrash && !onField;
+        return { pass: ok, detail: ok
+          ? `①スキップ→②の任意コスト提示なし・カードはトラッシュのまま（残りステップ全スキップを確認）`
+          : `期待と不一致（step2Seen=${flow.step2Seen} inTrash=${inTrash} onField=${onField}）` };
+      }
+      const ok = flow.step1Resolved && flow.step2Seen && onField && !inTrash;
+      return { pass: ok, detail: ok
+        ? `①②とも支払う→③トラッシュから場に復帰（onField=true・trash除去）`
+        : `期待と不一致（step2Seen=${flow.step2Seen} onField=${onField} inTrash=${inTrash}）` };
+    }
+  }
+  return { pass: false, detail: `settled未到達（payBoth=${payBoth} flow=${JSON.stringify(flow)} host=${JSON.stringify(last?.host)} logTail=${JSON.stringify(last?.logTail)}）` };
+}
+scenarios.v20DiscardSkipFirstBlocksSecond = {
+  title: 'V-20 対照：①手札捨てをスキップ→②《青》《無》の任意コスト提示なし・場復帰なし',
+  spec: v20Spec(),
+  drive: (page, H) => driveV20DiscardTrigger(page, H, false),
+};
+scenarios.v20DiscardPayBothReturnsToField = {
+  title: 'V-20 ①②とも支払う→③トラッシュから場に復帰',
+  spec: v20Spec(),
+  drive: (page, H) => driveV20DiscardTrigger(page, H, true),
+};
+order.push('v20DiscardSkipFirstBlocksSecond', 'v20DiscardPayBothReturnsToField');
+// ── V-20 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
