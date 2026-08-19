@@ -22779,6 +22779,17 @@ order.push('v58fCpuAutoPassesTeamPieceCutin');
 //            キーを払うと選んだ2体がバニッシュされる／自分のシグニは減らない。
 //   (b-skip) 同じ候補が出ても支払わなければ何も起きない（相手シグニ・自分のキーとも無傷）。
 //   (c)      場にキーが無ければ支払い枝（optcost-pay）が出ない/使えない。
+//
+// 🔴🆕2026-08-19＝3本とも実UIでタイムアウトFAIL（pendingEffect が一度も立たず、CPUターン終了が素通りして
+// 次ターンのUPフェイズへ進む＝ON_TURN_END トリガー自体が収集されていない）。原因は STUB 側ではなく
+// **収集側の配線漏れ**＝`src/engine/triggerCollect.ts` の `collectTurnTriggers`（ON_TURN_START/ON_TURN_END/
+// ON_ATTACK_PHASE_START・END/ON_GROW_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_START の共通収集器）は
+// 自陣・相手陣とも `field.signi` とセンタールリグ・付与ストアしか走査せず、`activeKeyAbilitySources()`
+// （`effectEngine.ts`＝`field.key_piece`＋`key_piece_extra`）を一度も呼んでいない。兄弟収集器の
+// `collectLrigGrowTriggers`（:671）と `collectSigniDownUpTriggers`（:2375）は `activeKeyAbilitySources` を
+// 呼んでおり、キー起点の【自】がそちらの timing では発火する非対称な穴。**Sonnetは engine を直さない規約**
+// のため据置＝Opusタスク12 (cxliii) へ登録（PLAN §3・§4）。**シナリオは残すが `order` には入れない**
+// （既定バッチは意図的FAILで汚さない＝続き436 の kokona* と同型の扱い。修正が着地したら order.push へ復帰）。
 const WDK06_GUEST_ATK1 = 'WD01-012#9611'; // このターンにアタックした（候補になるべき）
 const WDK06_GUEST_ATK2 = 'WD01-012#9612'; // 同上
 const WDK06_GUEST_SAFE = 'WD01-012#9613'; // 未アタック（候補に出てはいけない）
