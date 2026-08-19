@@ -23490,6 +23490,74 @@ scenarios.v39ConditionGapNoStorySigni = {
 order.push('v39LrigAttackCostBlocked', 'v39LrigAttackCostPaid', 'v39ConditionGapNoStorySigni');
 // ── V-39 END ──
 
+// §7 V-40（続き500＝O-34 実装の5経路）(a)：`STRIP_ATTACHED_AND_UNDER`＝`WX19-064-E1`③「シグニ１体を対象とし、
+// それに付いているすべてのカードと、下に置かれているすべてのカードをトラッシュに置く」。対象シグニ自身は
+// 場に残したまま、チャーム／アクセ／下カードだけを剥がす（ソウルはルリグトラッシュへ・実装ソース
+// `execStubPart1.ts:337`）。guest（対戦相手）の唯一のシグニに下カード・チャーム・アクセをすべて付けた盤面で、
+// host が WX19-064（青×0＝無償スペル）を発動→CHOOSE③→SELECT_TARGET（候補1体）を選ぶ。
+scenarios.v40StripAttachedAndUnder = {
+  title: 'V-40(a) WX19-064-E1③：付随物と下カードだけが落ち、対象シグニ自身は場に残る',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#40001'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': [], 'actions_done': [],
+    },
+    handPrepend: ['WX19-064#40002'],
+    guestSet: {
+      'field.lrig': ['WD01-001#40010'],
+      'field.signi': [['WD01-012#40011', 'WD01-013#40012'], null, null], // under=WD01-012／top=WD01-013
+      'field.signi_charms': ['WD01-013#40013', null, null],
+      'field.signi_acce': [['WD01-013#40014'], null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'charms:', JSON.stringify(before?.guest?.fieldCharms), 'acce:', JSON.stringify(before?.guest?.fieldAcce));
+    H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let chose = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!did && !chose) did = await H.clickBtn('発動', { exact: true });
+      if (!did && !chose) did = await H.clickTextOrBtn(['使用']);
+      if (!did && !chose) {
+        const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
+        if (await c3.count() && await c3.isVisible().catch(() => false)) { await c3.click().catch(() => {}); did = 'choose:選択肢3'; chose = true; }
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      H.log(`  v40a[${s}] -> ${did ?? 'なし'} | chose=${chose} gField=${JSON.stringify(st?.guest?.fieldSigni)} gCharms=${JSON.stringify(st?.guest?.fieldCharms)} gAcce=${JSON.stringify(st?.guest?.fieldAcce)} gTrash=${JSON.stringify(st?.guest?.trashCards)} pEff=${st?.pendingEffect ?? '-'}`);
+      const zone0 = st?.guest?.fieldSigni?.[0];
+      const stripped = Array.isArray(zone0) && zone0.length === 1 && zone0[0] === 'WD01-013#40012';
+      if (stripped && !st?.pendingEffect) {
+        const trashHas = (n) => (st.guest.trashCards ?? []).includes(n);
+        const correct = trashHas('WD01-012#40011') && trashHas('WD01-013#40013') && trashHas('WD01-013#40014')
+          && st.guest.fieldCharms?.[0] == null && (st.guest.fieldAcce?.[0] == null || st.guest.fieldAcce[0].length === 0);
+        return {
+          pass: correct,
+          detail: `シグニ自身は場に残置（zone0=${JSON.stringify(zone0)}）・トラッシュ=${JSON.stringify(st.guest.trashCards)}・charms=${JSON.stringify(st.guest.fieldCharms)}・acce=${JSON.stringify(st.guest.fieldAcce)}（正しさ=${correct}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（chose=${chose} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v40StripAttachedAndUnder');
+// ── V-40 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
