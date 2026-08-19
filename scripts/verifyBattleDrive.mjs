@@ -23198,7 +23198,8 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
   spec: {
     hostSet: {
       'field.lrig': ['WD01-001#9920'],
-      'field.signi': [null, null, null],
+      'field.signi': [['WD01-012#9927'], null, null], // zone0を埋めて空き2ゾーンに絞る（3ゾーン空きだとSELECT_SIGNI_ZONE経由でクラッシュ再現・要因切り分けは別途）
+      'field.signi_down': [false, false, false],
       'field.check': null,
       'coins': 1,
       'deck': ['WD01-013#9921', 'WD01-012#9922', 'WD01-012#9923', 'WD01-013#9924', 'WD01-013#9925'],
