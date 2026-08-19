@@ -24030,13 +24030,24 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
       return row?.host_state?.signi_attack_bans_this_turn ?? null;
     }, { SUPA_URL, ANON });
     H.log('  v42a rawBan=', JSON.stringify(rawBan));
+    const isModalOpen = async () => {
+      const tx = page.getByText(/タップ.{0,4}閉じる/).first();
+      return await tx.count() > 0 && await tx.isVisible().catch(() => false);
+    };
+    const ensureClosed = async () => {
+      for (let k = 0; k < 6 && await isModalOpen(); k++) {
+        await H.closeModals();
+        await page.waitForTimeout(300);
+      }
+    };
     const labels = {};
     for (const zi of [0, 1, 2]) {
+      await ensureClosed();
       let opened = false; let label = null;
       for (let s = 0; s < 12 && label === null; s++) {
         await page.waitForTimeout(500);
         await page.screenshot({ path: `${SHOT}/v42a-zone${zi}-${s}.png`, fullPage: true }).catch(() => {});
-        if (!opened) { const did = await H.clickTestId(`my-signi-zone-${zi}`); if (did) opened = true; }
+        if (!opened) { const did = await H.clickTestId(`my-signi-zone-${zi}`); if (did && await isModalOpen()) opened = true; }
         if (opened) {
           const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
           const cnt = await btn.count();
@@ -24048,10 +24059,7 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
       }
       labels[zi] = label;
       H.log(`  v42a zone${zi} -> label="${label}"`);
-      // ⚠H.closeModals()（Escape＋「タップして閉じる」）はこのCardModal/StackModalには効かないことがある＝
-      // 同じ badge testid を再クリックしてトグルで閉じる（続き579〜580のバッジ系トグル挙動と同型）。
-      await H.clickTestId(`my-signi-zone-${zi}`);
-      await page.waitForTimeout(400);
+      await ensureClosed();
     }
     const pass = labels[0] === 'アタック' && labels[1] === 'アタック（《無》×1）' && labels[2] === 'アタック';
     return {
