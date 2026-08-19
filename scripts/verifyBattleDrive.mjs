@@ -23522,6 +23522,7 @@ scenarios.v40StripAttachedAndUnder = {
     let chose = false;
     for (let s = 0; s < 24; s++) {
       await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v40StripAttachedAndUnder-${s}.png`, fullPage: true });
       let did = null;
       if (!did && !chose) did = await H.clickBtn('発動', { exact: true });
       if (!did && !chose) did = await H.clickBtn('発動する', { exact: true });
