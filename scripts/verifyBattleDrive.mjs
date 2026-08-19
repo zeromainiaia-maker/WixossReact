@@ -17474,6 +17474,10 @@ async function driveV15AttackPhaseEndCentral(page, H, leaveToy) {
     //   **「このまま進む」を候補に入れていないとここで永久に止まる**（続き479 実測＝316秒溶かした）。
     //   ⚠「戻る」は絶対に押さない（フェイズが戻る）。
     if (!did) did = await clickDecideNofM(page);
+    // ⚠triggerSeen後：「デッキに加えるカードを選んでください」で候補はwatcher自身1件のみ
+    //   （pick-0＝data-testid）。決定(0/1)は候補未選択のうちは常にdisabledなので、
+    //   H.clickTextOrBtnの「決定」が空振りし続ける＝先に候補をpickする。
+    if (!did && triggerSeen && (before?.pendingCandidates ?? []).includes(V15_PHASE_WATCHER)) did = await clickPendingInstance(page, H, V15_PHASE_WATCHER);
     if (!did) did = await H.clickTextOrBtn(['このまま進む', '発動順序を確定', '発動する', '発動しない', 'スキップ', '決定', '確定', 'OK', 'はい']);
     const st = await v15cQueryBattleState(page); last = st;
     leftSeen ||= (st?.host?.leftThisAttackPhase ?? []).includes('WDK05-T15') || (st?.host?.leftThisAttackPhase ?? []).includes(V15_PHASE_TOY);
