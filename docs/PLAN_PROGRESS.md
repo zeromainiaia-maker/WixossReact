@@ -4,6 +4,12 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き573・Sonnet 5）＝§7 実機検証さらに5件（V-15残り／V-19再着手／V-20新規／V-21新規／V-22新規）＝実バグ2件発見・Opusタスク12へ登録・V-15/V-21/V-22残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の共有ヘルパー2箇所是正＋新規シナリオ7本）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き573）。
+  - **✅ V-15 残0クローズ**＝真因3点（📌19未適用のtimeout漏れ／候補pick漏れ／後続SELECT_SIGNI_ZONE未処理）をすべてシナリオ・共有ヘルパー側で解消。2回連続PASS（19秒）。engineバグ0。
+  - **✅ V-21・V-22 残0クローズ**＝`isDisona`のバフ込み実効パワー判定・パリティ移植を新規シナリオで検証。いずれもengineバグ0（実装どおり）。
+  - **🔴 実バグ発見×2＝V-19再着手／V-20新規**＝(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コストを認識せず候補ピッカーが描画されない（`WX07-050`等）／(cxli) `confirmEndDiscard`（手札上限超過の終了時捨て札）がON_TRASH系トリガーを一切収集しない（`WXDi-P10-039`）。どちらもOpusタスク12へ登録。V-19・V-20はこの手前で止まっており未着手のまま。
+  - **▶ 次の一手**＝Opusタスク12 在庫4件（(cxxxviii)(cxxxix)(cxl)(cxli)）の修正／Sonnet側は§7実機検証の続き（V-23〜V-24／V-81／V-82(c)から）。（この節はSonnet続き574で更に前進＝V-23(a)(b)/V-29/V-81/V-82(c)残0クローズ・(cxlii)追加発見。詳細はPLAN.md §4の最新summary）
+
 - **🆕 セッション（2026-08-19・続き572・Sonnet 5）＝§7 実機検証の続き5件（V-04／V-15／V-16／V-17／V-19）＝実バグ2件発見・Opusタスク12へ登録・V-17残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の実機シナリオ追加・修正のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き572）。
   - **✅ V-17 残0クローズ**＝`mugenQFlip`（夢限-Q- 反転）を実行するだけで実機PASS（未実行のまま在庫化していた）。V-17 全項目 決着。
   - **✅ V-04 残り2項目 決着**＝新規シナリオ `v04TanabataLeaveFieldE3` で**実バグ発見**（`WXDi-P10-041-E3` の `TAKE_FROM_UNDER_SIGNI` がON_LEAVE_FIELD発火時に対象0件で空振り＝`effectExecutor.ts:6211`が「まだ場にある前提」で自分自身を探すため）→Opusタスク12 **(cxxxviii)**。未実装3点は文書化のみで決着。
