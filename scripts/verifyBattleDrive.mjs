@@ -24023,12 +24023,15 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
       let opened = false; let label = null;
       for (let s = 0; s < 12 && label === null; s++) {
         await page.waitForTimeout(500);
+        await page.screenshot({ path: `${SHOT}/v42a-zone${zi}-${s}.png`, fullPage: true }).catch(() => {});
         if (!opened) { const did = await H.clickTestId(`my-signi-zone-${zi}`); if (did) opened = true; }
         if (opened) {
           const btn = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
-          if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          const cnt = await btn.count();
+          if (cnt && await btn.isVisible().catch(() => false)) {
             label = await btn.getAttribute('data-action-label');
           }
+          H.log(`    zone${zi}[${s}] opened=${opened} btnCount=${cnt} body="${(await H.body()).slice(0, 150).replace(/\n/g, ' ')}"`);
         }
       }
       labels[zi] = label;
