@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き572・Sonnet 5）＝§7 実機検証の続き5件（V-04／V-15／V-16／V-17／V-19）＝実バグ2件発見・Opusタスク12へ登録・V-17残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の実機シナリオ追加・修正のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き572）。
+  - **✅ V-17 残0クローズ**＝`mugenQFlip`（夢限-Q- 反転）を実行するだけで実機PASS（未実行のまま在庫化していた）。V-17 全項目 決着。
+  - **✅ V-04 残り2項目 決着**＝新規シナリオ `v04TanabataLeaveFieldE3` で**実バグ発見**（`WXDi-P10-041-E3` の `TAKE_FROM_UNDER_SIGNI` がON_LEAVE_FIELD発火時に対象0件で空振り＝`effectExecutor.ts:6211`が「まだ場にある前提」で自分自身を探すため）→Opusタスク12 **(cxxxviii)**。未実装3点は文書化のみで決着。
+  - **✅ V-16 前進＝実バグ発見**＝`v16AbilitySpec` の `deck:[]`（📌22＝相手リフレッシュ誘発）を修正してウォッチャー本体の発火・解決を確認できたが、**`usageLimit:'once_per_turn'` の消化が `actions_done` へ永続化されない**（`BattleScreen.tsx:4844-4849` のマージが直後の `:4883`/`:4899` の `collectBoardDiffTriggers` 再代入で毎回消える＝ON_ABILITY_ACTIVATED系の《ターン1回》が事実上機能していない）→Opusタスク12 **(cxxxix)**。
+  - **➖ 変化なし**＝V-15②（決定ボタン無限ループを再現・新規知見なし）、V-19（召喚後の破棄コスト選択UIで `Timeout 3000ms exceeded` を繰り返しクラッシュ・本題未到達・follow-up）。
+  - **▶ 次の一手**＝Opusタスク12 在庫2件（(cxxxviii)(cxxxix)）の修正／Sonnet側は§7実機検証の続き。（この節はSonnet続き573で更に前進＝V-15/V-21/V-22残0クローズ・(cxl)(cxli)追加発見。詳細はPLAN.md §4の最新summary）
+
 - **🆕 セッション（2026-08-19・続き571・Opus 5）＝§5 P1／§5d-0 (i) 第21バッチ＝対象名詞句フィルタの取りこぼし3効果**（census **786→783**・被覆マトリクス miss **193→190**・golden **2305→2307**）。ゲート全緑（smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。live 改変**3効果**・CSV 非改変。version 0.501→0.502。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き571）。
   - **✅ 取ったセル**＝被覆マトリクス最上位 `cardClass × SIGNI[filter]`（miss 16 / has 437）。**16件を全数分類したら真の配線漏れは3件**で、残りはトラッシュ側・コスト節・条件節・トリガー主語への**クロス計上**だった＝計器の⚠「**miss 数＝見込み件数ではない**」の実例（取る前に `--cell` で原文を全部読む規律が効いた）。
   - **✅ 直した3効果はどれも過剰効果**＝`WD13-003-E2`（色）／`WX17-071-E1`（クラス）／`WX16-041-E1`（パワー）。**真因はビルダーごとに拾う語彙が違うこと**＝`parseSigniTarget` は全部合成するのに、インラインで filter を組むビルダーが一部しか合成していない（続き376d の BOUNCE ＜クラス＞欠落と**同型の再発**）。新 `signiClauseColorFilter`（対象名詞句に隣接する色だけ＋「対象の」前置形）を足して配線した。
