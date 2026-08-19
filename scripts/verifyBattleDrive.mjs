@@ -23038,6 +23038,10 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
       } else if (!advanced) {
         await H.closeModals();
         did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        // MAIN→ATTACK_ARTS（自分のアーツステップ）を経由する＝素の「アタックフェイズへ」1クリックでは
+        // ATTACK_SIGNIまで進まない。アーツを使わずスキップしてシグニアタックへ進める。
+        if (!did) did = await H.clickTextOrBtn(['アーツ終了→相手へ', 'アーツ終了', 'アーツステップ終了', 'シグニアタックへ']);
+        if (!did) did = await H.stdStep(['パス（カットインしない）', 'パス', 'スキップ']);
         const stAdv = await H.queryState();
         if (stAdv?.turnPhase === 'ATTACK_SIGNI') advanced = true;
       } else if (!attacked) {
