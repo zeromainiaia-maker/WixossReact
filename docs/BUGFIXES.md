@@ -1,5 +1,23 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き577・Sonnet 5）— §7 実機検証3件（V-24(cxiii)(cxiv)＋`WXDi-P07-060-E3`）＝engineバグ0・V-24 全5項目決着
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ7本＋切り分け用コントロール1本）と `docs/PLAN.md` の簿記のみ。
+
+### 1. ✅V-24(cxv) 続き＝`WXDi-P07-060-E3`（紅天 ヒュペリオン）の覚醒時+2000パワー
+
+新規シナリオ2本（`v24cxvHyperionAwakened`／`v24cxvHyperionNotAwakened`）。`ownerState.awakened_signi`へ直接注入して判定＝**この配列はCardNumではなくインスタンスID（`CardNum#N`）で保持される**（`execAwakenSigni`の実装確認・当初CardNumのみで注入してFAILし判明）。正しく`'WXDi-P07-060#1'`で注入すると印字3000→5000（+2000反映）、対照（未覚醒）では印字どおり3000のまま。各2回連続PASS（1秒）。engineバグ0。これで(cxv)は`PR-426-E3`と合わせて2カードとも決着。
+
+### 2. ✅V-24(cxiv) 残0クローズ＝条件つきキーワード付与（`buildGatedKeywordGrant`・Opusタスク12(cxiv)修正の実機確認）
+
+`WXDi-P11-071`（翠将バーバリアン＝「正面のシグニのパワーが3000以下であるかぎり、【ランサー】を得る」）へ、`execUtils.ts`の`buildGatedKeywordGrant`が生成する形と同じCONTINUOUS`granted_effects`（`activeCondition:FRONT_SIGNI_POWER`）を直接注入。ランサーの効果（バニッシュ時にライフクロス追加クラッシュ）が正面パワーの閾値でON/OFFすることをCPU自動アタックで観測（`openSigniAttack`）。⚠**ゾーン対応はミラー**（`2-zi`＝host zone0の正面はguest zone2）と気づかず初回はzone0同士で組んでFAILし、`BattleScreen.tsx:9403,9446`の`oppZi = 2 - zi`を確認して中央ゾーン（zone1＝不動点）に組み直した。`v24cxivLancerGateOn`＝正面パワー3000（ゲート成立）→バニッシュ後にライフクロス1枚クラッシュ／`v24cxivLancerGateOff`＝正面パワー5000（ゲート不成立）→バニッシュのみでライフクロス変化なし。各2回連続PASS（3-4秒）。**旧実装はゲート条件を無視した常時付与だったが、この対照が緑になったことで是正を確認**。engineバグ0。
+
+### 3. ✅V-24(cxiii) 残0クローズ＝`WXK10-035`（コードＶＬ　リゼ・ヘルエスタ）の効果耐性
+
+guestの攻撃シグニへ`ON_ATTACK_SIGNI`のgranted BANISH（対象：相手シグニ1体）を注入し、CPU自動アタック（`wd07012`と同型）で発火させ、hostの＜電機＞シグニ（WXK10-035自身）が候補から除外される（生存）／除外されない（バニッシュ）を観測。⚠**切り分けの罠**＝初回は正方向・コントロール（BANISH能力なし）の両方でWXK10-035が即座に消え「配置自体が不成立」と誤診しかけたが、ブラウザを介さない直接REST診断スクリプト（DB書き込み直後・3秒後の2点で照会）でDB上は正しく持続していると確認→**真因は印字パワー3000のWXK10-035が同パワー3000の攻撃側との通常バトルで（攻撃側有利の`myPower>=opPower`規則により）普通に負けていただけ**（BANISH能力とは無関係）。`temp_power_mods`でWXK10-035を+6000し通常バトルでは絶対に負けないようにしてから再検証。`v24cxiiiLevel1Immune`＝レベル1シグニ（`WD01-013`）のBANISHは効果耐性で不発→生存／`v24cxiiiLevel2NotImmune`＝レベル2シグニ（`WD01-012`）のBANISHは耐性対象外→通常どおりバニッシュ。各2回連続PASS（5秒）。**旧実装は`sourceFilter`が無く相手シグニの効果を全部受けない過剰保護だったが、この対照が緑になったことで是正（レベル1のみ）を確認**。engineバグ0。
+
+**V-24（タスク12在庫5件の残0クローズ）は今回で全5項目決着**＝(cxiii)(cxiv)(cxv)(cxviii)は実機PASS・残0クローズ、(cxvii)は続き572で実バグを発見しOpusタスク12(cxlii)へ登録済み。
+
 ## 2026-08-19（続き576・Sonnet 5）— §7 実機検証1件（V-24(cxv)）＝engineバグ0・残0クローズ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ2本）と `docs/PLAN.md`/`docs/PLAN_PROGRESS.md`/`docs/PLAN_DETAIL.md` の簿記のみ。
