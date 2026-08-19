@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き579・Sonnet 5）— §7 実機検証1件（V-28）＝`WX16-021`（驚天動地）残0クローズ・engineバグ0
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ2本・`order`登録済み）と `docs/PLAN.md` の簿記のみ。
+
+### ✅ V-28 `WX16-021`（驚天動地）＝空ゾーンへの側面アタックが正面扱いでダメージになる（正方向＋対照の対）・残0クローズ
+
+新規シナリオ2本（`wx16021SideAttackEmptyZoneNoButtonBeforeArts`／`wx16021SideAttackEmptyZoneDamageAfterArts`）。判定点（`screens/battle/sideAttackDamage.ts`の`sideAttackEmptyZoneDealsDamage`）は①側面アタックの空ゾーン先ボタン生成②`resolvePendingSigniBattleFor`の解決の2箇所から呼ばれる設計＝両方を実UIで確認。＜英知＞クラスのシグニ（`WX15-054`）に`keyword_grants`で【側面アタック】を直接付与し、guestの全ゾーンを空にした盤面で、(a)対照＝驚天動地未使用ならモーダルにアタックボタンは出るが側面アタック系ボタンは0個（空ゾーンは提示されない）(b)正方向＝MAINフェイズで驚天動地（緑×0）を使用後、ATTACK_SIGNIフェイズで「側面アタック→空きゾーン（ダメージ）」ボタンが出現し、クリックするとguest.life 7→6（ライフクロス1枚クラッシュ）。各2回連続PASS。engineバグ0。
+
+🔑**ハーネス側の罠×2**＝①MAINフェイズ注入から実際に攻撃可能になるまで**ATTACK_ARTS→ATTACK_ARTS_OPの2ステップ**を経由する（「アタックフェイズへ」1クリックでは`ATTACK_SIGNI`まで進まない＝`['アーツ終了→相手へ','アーツ終了','アーツステップ終了','シグニアタックへ']`を追加してスキップ）。②**castDone判定のDB反映ラグで1手遅れ**、次のフォールバックが`my-lrig-dk`バッジを再クリックしてルリグデッキ一覧を再度開いてしまい、背面のフェイズボタンへのクリックが吸収される（`locator.click: subtree intercepts pointer events`で実測）＝キャスト確認後に一覧が開いていればもう一度バッジを押してトグルで閉じる1手を明示的に挟んで解消。
+
 ## 2026-08-19（続き578・Sonnet 5）— §7 実機検証1件（V-35(b)(c)）＝🔴新規engineバグ1件を発見・Opusタスク12(cxliii)へ登録（未修正のため据置）
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ3本・`order`には未登録）と `docs/PLAN.md` の簿記のみ。
