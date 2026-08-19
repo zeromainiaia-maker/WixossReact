@@ -1,5 +1,26 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き580・Sonnet 5）— §7 実機検証4件追加（V-28 A群残り）＝`WX25-CP1-074`／`WX24-P4-014`②／`WXDi-P09-079`／`WXK11-001`②　全て残0クローズ・engineバグ0
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ6本・`order`登録済み）と `docs/PLAN.md` の簿記のみ。続き409〜413（O-13 A群・§6.4）で実装したが実機UI未検証のまま残っていた6件のうち、続き579の`WX16-021`に続き残り4件を消化＝これでA群は全件実機確認済み。
+
+### 1. ✅ `WX25-CP1-074`（佐城トモエ）＝`CANNOT_DEAL_DAMAGE_TO_OPPONENT`：正面空への直接アタックでもダメージ0（正方向＋対照）
+
+新規シナリオ2本（`cddtoBlocksDirectLifeDamage`／`cddtoControlDamageNormally`）。判定点（`screens/battle/signiDamageGate.ts`）の2ダメージ地点のうち「正面空の直接ライフアタック」を検証＝`granted_effects`でCONTINUOUS`CANNOT_DEAL_DAMAGE_TO_OPPONENT`をhostの攻撃シグニへ直接付与し、guestの正面ゾーンを空けて直接アタック。付与ありはguest.life不変（7→7）、付与なし（対照）は通常どおりguest.life 7→6。各2回連続PASS。engineバグ0。
+
+### 2. ✅ `WX24-P4-014-E3`②（閃華繚乱 花代・肆）＝`OPP_LRIG_DECK_TO_LRIG_TRASH`：相手ライフ0枚なら相手が自分のルリグデッキから1枚を自分でルリグトラッシュへ
+
+新規シナリオ1本（`wx24p4014OppLrigDeckToTrash`）。センタールリグ（Lv4）【起】《ゲーム1回》（`RECOLLECT_GATE minArts:4`＝ルリグトラッシュにアーツ4枚を直接注入して充足）を`my-lrig-slot-center`から発動し、CHOOSE②を選択→`opp_lrig_deck`のSELECT_TARGETインタラクションがCPU（guest）側で自動応答＝guest.lrigDeckCards 2→1・guest.lrigTrashCards 0→1を確認（**選ぶのはカードの持ち主＝相手**という`opponentResponds`の規約どおりCPUが自分で選ぶ）。2回連続PASS。engineバグ0。
+
+### 3. ✅ `WXDi-P09-079-E1`（コードオールド　ヴォイニ）＝`PLAY_MILLED_SIGNI_DELAYED_TRASH`：デッキ上から3枚ミル→レベル1シグニがトラッシュを経由せず自動で場に出る
+
+新規シナリオ1本（`wxdip09079PlayMilledSigniOnPlacement`）。同カード自身の【出】《コインアイコン》（デッキ上3枚トラッシュ）で自己完結してミルを起こす実プレイ連鎖＝召喚→ON_PLAYコスト（コイン）発動→ミル→`ON_CARD_MILLED_FROM_DECK`発火→配置。deck先頭にレベル1シグニ（`WD01-013`）を仕込み、召喚後に場へ自動配置（`findIndex`で空きゾーンへ・対話UIなし）されトラッシュには残らないことを確認（milledのレベル2札2枚はトラッシュに残る対照つき）。2回連続PASS。engineバグ0。
+🔑**ハーネス側の罠×3**＝①**空きシグニゾーンが3のまま召喚するとブラウザが確実にクラッシュする**（`page crashed`・3回連続再現）＝空きゾーンを2（zone0に filler を1体置く）に減らすと再現しない。**根本原因は未特定**（`SELECT_SIGNI_ZONE`の「ゾーンN」ロールボタン経由の描画に絡む疑い・別途切り分けが要る）。②`my-hand-card-0`／`zone-card-0`／`my-lrig-slot-center`等のバッジ系testidは**ガード無しで毎ループ再クリックすると開→閉のトグルを繰り返して後続のクリックを吸収する**（背面要素への`locator.click`が`subtree intercepts pointer events`でタイムアウト）＝一度だけ押すフラグが必須（続き579のWX16-021でも同型の罠を踏んだ）。③**ON_PLAYの任意コスト（コインアイコン等）は`SigniOnPlayCostModal`という専用モーダル**（ボタンは「スキップ」／「発動」・`data-testid`無し）で、`stdStep()`の既定ラベル（'スキップ'が先頭付近にある）に先に拾われると発動せずコストが素通りする＝「発動」ボタンを明示的に先に試すこと。
+
+### 4. ✅ `WXK11-001-E1`②（プリンセス・ディフェンス）＝`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`：ルリグデッキのアーツ1枚をゲームから除外→相手のシグニアタックステップを封じる
+
+新規シナリオ1本（`wxk11001ExileArtsSkipsOppSigniAttackStep`）。後段のスキップ機構（`BLOCK_ACTION{SIGNI_ATTACK_STEP, owner:'opponent'}`）は同カード①で既に動作確認済みのため、②の新規CHOOSE（「ゲームから除外する」/「そうしない」）＋ルリグデッキ選択モーダル（`self_lrig_deck`スコープ）を検証。guest（CPU）のアタックフェイズにhost（人間）が応答アーツとして使用（`ATTACK_ARTS_OP`＝v75と同型のresponse window）し、除外を選択→`pick-0`→「決定」でhost.lrigDeckCards 2→0（使用したアーツ自身＋除外した1枚）、guest.blockedActionsに`SIGNI_ATTACK_STEP`が追加されることを確認。2回連続PASS。engineバグ0。
+
 ## 2026-08-19（続き579・Sonnet 5）— §7 実機検証1件（V-28）＝`WX16-021`（驚天動地）残0クローズ・engineバグ0
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ2本・`order`登録済み）と `docs/PLAN.md` の簿記のみ。
