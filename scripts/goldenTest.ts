@@ -40319,6 +40319,102 @@ test('O-1 growLogic: グロウ候補はレベル+1・クラス互換・【グロ
   ok(!canGrowNow({ ...mkState({}), no_grow: true } as PlayerState, new Set()), 'no_grow フラグ');
 }));
 
+// ── Opusタスク12 第1バッチ：既存機構の入口配線 ────────────────────────────────
+test('task12(cxliii): collectTurnTriggers は自分／相手のキーを走査し、キー不在・能力喪失では発火しない', () => withSavedCursor(() => {
+  const selfKey = 'TEST-KEY-SELF';
+  const selfEffect = {
+    effectId: 'TEST-KEY-SELF-E1', effectType: 'AUTO', timing: ['ON_TURN_END'], triggerScope: 'self',
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+  } as CardEffect;
+  const runtimeEffects = new Map(effectsMap);
+  runtimeEffects.set(selfKey, [selfEffect]);
+  const turnPlayer = mkState({});
+  turnPlayer.field.key_piece = selfKey;
+  const opponent = mkState({});
+  opponent.field.key_piece = 'WDK06-R09';
+  const ctx = { ...trigCtx(HOST, HOST), turnPhase: 'END', effectsMap: runtimeEffects };
+  const both = collectTurnTriggers(ctx, 'ON_TURN_END', turnPlayer, opponent).entries;
+  ok(both.some(e => e.effectId === selfEffect.effectId && e.playerId === HOST), '自分側キーの self AUTO が発火しない');
+  ok(both.some(e => e.effectId === 'WDK06-R09-E1' && e.playerId === GUEST), '相手側キーの any_opp AUTO が発火しない');
+
+  const noKeys = collectTurnTriggers(ctx, 'ON_TURN_END', mkState({}), mkState({})).entries;
+  ok(!noKeys.some(e => e.effectId === selfEffect.effectId || e.effectId === 'WDK06-R09-E1'), 'キー不在で過剰発火した');
+  const disabledOpponent = { ...opponent, keys_abilities_disabled: true } as PlayerState;
+  const disabled = collectTurnTriggers(ctx, 'ON_TURN_END', turnPlayer, disabledOpponent).entries;
+  ok(!disabled.some(e => e.effectId === 'WDK06-R09-E1'), '能力を失った相手キーが発火した');
+}));
+
+test('task12(cxlii-a): WX20-Re18-E2 は実効Lv4で収集され、実効Lv3では収集されない', () => withSavedCursor(() => {
+  const collectAtEnergy = (energy: number) => {
+    const owner = mkState({ signi: ['WX20-Re18', null, null], energy });
+    const ctx = { ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' };
+    return collectAttackerSelfTriggers(ctx, owner, mkState({}), 'WX20-Re18', HOST);
+  };
+  ok(collectAtEnergy(10).some(e => e.effectId === 'WX20-Re18-E2'), 'エナ10枚＝実効Lv4でE2が収集されない');
+  ok(!collectAtEnergy(9).some(e => e.effectId === 'WX20-Re18-E2'), 'エナ9枚＝実効Lv3でE2が過剰収集された');
+}));
+
+test('task12(cxli): 手札上限のルール捨てでも fromZones=hand は発火し、効果起因限定は発火しない', () => withSavedCursor(() => {
+  const discarded = 'WXDi-P10-039';
+  const owner = mkState({});
+  owner.trash = [...owner.trash, discarded];
+  const baseCtx = { ...trigCtx(HOST, HOST), turnPhase: 'END' };
+  const ruleEntries = collectAnyZoneTrashSelfTriggers(baseCtx, discarded, HOST, false, 'hand', undefined, false);
+  ok(ruleEntries.some(e => e.effectId === 'WXDi-P10-039-E2'), 'fromZones=hand の自身ON_TRASHがルール捨てで発火しない');
+  ok(!collectAnyZoneTrashSelfTriggers(baseCtx, discarded, HOST, false, 'energy', undefined, false)
+    .some(e => e.effectId === 'WXDi-P10-039-E2'), 'fromZones=hand がエナ起点でも過剰発火した');
+
+  const effectOnly = {
+    effectId: 'TEST-RULE-DISCARD-EFFECT-ONLY', effectType: 'AUTO', timing: ['ON_TRASH'], triggerScope: 'self',
+    triggerCondition: { fromZones: ['hand'], byOwnEffect: true },
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true,
+  } as CardEffect;
+  const effectCtx = { ...baseCtx, effectsMap: new Map([[discarded, [effectOnly]]]) };
+  ok(!collectAnyZoneTrashSelfTriggers(effectCtx, discarded, HOST, false, 'hand', undefined, false)
+    .some(e => e.effectId === effectOnly.effectId), 'ルール捨てを自分の効果起因と誤認した');
+  ok(collectAnyZoneTrashSelfTriggers(effectCtx, discarded, HOST, false, 'hand', undefined, true)
+    .some(e => e.effectId === effectOnly.effectId), '自分の効果起因まで抑止した');
+}));
+
+test('task12(cxxxviii): 離場直前の下カードだけをトラッシュから移し、全destinationで複製しない', () => withSavedCursor(() => {
+  const source = 'WXDi-P10-041';
+  const under = 'WX18-062';
+  for (const destination of ['energy', 'hand', 'trash'] as const) {
+    const ctx = mkCtx({}, {}, source);
+    ctx.effectsMap = effectsMap;
+    ctx.ownerState.hand = [];
+    ctx.ownerState.energy = [];
+    ctx.ownerState.trash = [under, 'OTHER-TRASH'];
+    ctx.leftFieldUnderCards = [under];
+    const result = run({
+      type: 'TAKE_FROM_UNDER_SIGNI', destination, count: 1, fromThis: true,
+    } as EffectAction, ctx);
+    const copies = [
+      ...result.ownerState.hand, ...result.ownerState.energy, ...result.ownerState.trash,
+      ...result.ownerState.field.signi.flatMap(s => s ?? []),
+    ].filter(n => n === under).length;
+    eq(copies, 1, `${destination}: 離場下カードが複製／消失した`);
+    ok(result.ownerState[destination].includes(under), `${destination}: 指定destinationへ移っていない`);
+  }
+
+  const noSnapshot = mkCtx({}, {}, source);
+  noSnapshot.ownerState.energy = [];
+  noSnapshot.ownerState.trash = [under];
+  const noMove = run({ type: 'TAKE_FROM_UNDER_SIGNI', destination: 'energy', count: 1, fromThis: true } as EffectAction, noSnapshot);
+  ok(noMove.ownerState.trash.includes(under) && !noMove.ownerState.energy.includes(under), '離場スナップショット無しで過剰移動した');
+}));
+
+test('task12(cxxxviii): タナバタE3は原文どおり固定1枚で、最大9枚任意へ戻らない', () => {
+  const freshEffect = parseCardEffects(cardMap.get('WXDi-P10-041')!).find(e => e.effectId === 'WXDi-P10-041-E3');
+  const liveEffect = (effectsMap.get('WXDi-P10-041') ?? []).find(e => e.effectId === 'WXDi-P10-041-E3');
+  for (const [label, effect] of [['fresh', freshEffect], ['live', liveEffect]] as const) {
+    ok(!!effect && effect.action.type === 'TAKE_FROM_UNDER_SIGNI', `${label}: E3がTAKE_FROM_UNDER_SIGNIでない`);
+    const action = effect!.action as Extract<EffectAction, { type: 'TAKE_FROM_UNDER_SIGNI' }>;
+    eq(action.count, 1, `${label}: 原文「カード1枚」と不一致`);
+    eq(action.upToCount, undefined, `${label}: 原文に「まで」が無いのに任意枚数になった`);
+  }
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

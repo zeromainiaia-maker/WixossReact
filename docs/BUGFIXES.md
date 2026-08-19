@@ -1,5 +1,51 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-20（続き588・Opus 5＋Codex）— Opusタスク12 第1バッチ＝既存機構が特定入口にだけ届いていなかった配線漏れ6件を残0クローズ（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)）
+
+新しい action／Condition／PlayerState フィールドは作らず、既存ヘルパ・既存コンテキストだけを6入口へ通した。`npm run gates` 全緑（typecheck PASS / golden **2312** / smoke **10693**・全異常0 / fuzz 全異常0 / census **783** / census:stubs A群0・C群0 / manual-fields 0 / lint 0 errors・**263 warnings**）。`npm run regen` と `node scripts/groupSimilar.mjs --all` も実行し、カード単位の同型★は **0**。実機ハーネスはネットワーク遮断環境のため未実行で、既存 `scripts/verifyBattleDrive.mjs` は変更していない。
+
+### 修正した6件
+
+- **(cxl) `SigniOnPlayCostModal` の `handDiscardSigni` 配線**：`costs.ts` の既存 `matchesHandDiscardSigni`／`fmtHandDiscardSigniLabel` を候補絞り込み・必要枚数・表示・発動ボタンの完全支払いゲートへ接続。色／＜クラス＞／レベル（story配列を含む）のOR条件を自前再実装せず、75効果／71カードの【出】コストを既存支払い経路へ渡す。
+- **(cxliii) `collectTurnTriggers` のキー走査**：自陣 `self` と相手陣 `any_opp|any` の両ループに `activeKeyAbilitySources` を追加し、所有者の `playerId` と既存 `limitOkMy`／`limitOkOp` 規約を維持。キー能力喪失は同ヘルパが一元処理し、シグニ専用 `BLOCK_OWN_SIGNI_AUTO`／継続能力喪失集合はキーへ流用していない。
+- **(cxxxix) ON_ABILITY_ACTIVATED watcher の《ターン1回》永続化**：対話あり／なし両分岐の `collectBoardDiffTriggers` の after 引数を、once id マージ前の `hostState/guestState` からマージ後の `hostAcc/guestAcc` へ変更。before は関数内部の `bs.host_state/guest_state` のままなので盤面差分判定は変えず、`actions_done` だけを失わない。
+- **(cxli) 手札上限調整の ON_TRASH**：登録票の `collectTrashTriggers` 指定は実コードと不一致だった。同関数は field origin 専用で `fromZones:['hand']` を拒否するため、既存の `collectAnyZoneTrashSelfTriggers` を `confirmEndDiscard` へ接続した。ルール処理は `causeByOpponent=false`／`byEffectCause=false` とし、`byOwnEffect` を誤発火させない。トリガーがあれば `BEGIN_NEXT_TURN` より前にスタック解決し、既存 `end_turn_effects_resolved` を再入時に読むことでターン終了予約効果を二重適用せず、解決後に既存END自動進行へ戻す。
+- **(cxlii)(a) 実効レベル条件**：`evalUseCondition` の末尾に optional `effectsMap` を追加して `ExecCtx` へ渡し、liveで `SELF_LEVEL_THRESHOLD` を持つ `WX20-Re18-E2` の実害経路 `collectAttackerSelfTriggers` だけから供給。79 caller の一斉改修はせず、ホットループでの不要な `calcSigniLevels` を増やしていない。既に `effectiveLevels` を渡して正常な (b) `checkActiveCondition`／E4 経路は未変更。
+- **(cxxxviii) タナバタ E3**：`execTakeFromUnderSigni` は場に発火元が無い ON_LEAVE_FIELD 時だけ、既存 `leftFieldUnderCards` と movable な自トラッシュ候補の積集合へフォールバックし、scope を `self_trash` にする。`applyDirectAction` は選択カードを場下／トラッシュの両移動元から除いてから hand／energy／trash へ1回だけ置き、複製を防止。parser は原文の「N枚」と「まで」を読み、`WXDi-P10-041-E3` を固定1枚へ訂正した。
+
+### 調査で訂正した点・採用経路
+
+- 依頼時訂正どおり、`SELF_LEVEL_THRESHOLD` は live 2効果だけで、E4 activeCondition 経路は既に正常だったため未変更。
+- (cxli) の正しい既存入口は `collectAnyZoneTrashSelfTriggers`。live の `fromZones:['hand']` ON_TRASH 32効果を再走査したところ usageLimit 付きは0件で、同ヘルパが usage id を返さない既存仕様による今回の欠落は無い。
+- `build:effects` はタナバタ同カード E1 の live MANUAL／fresh PARTIAL 差によりカードを `_partial_fresh` へ隔離した。E1/E2を巻き込まず、検証済み fresh の **`WXDi-P10-041-E3` 1効果だけ**を `JSON.stringify` 直パッチで採用。live per-effect diff は changed 1／added 0／removed 0、outlier 0。最終 `build:effects`→`heldReview` 実測は held **103枚／42署名群**、`_partial_fresh` **6カード**で全てベースライン据置。
+
+### 回帰網と据置
+
+golden は5本追加（2307→2312）：(cxliii) 自他キー成立＋キー不在／能力喪失不成立、(cxlii) 実効Lv4成立＋Lv3不成立、(cxli) hand origin成立＋energy origin／効果起因限定不成立、(cxxxviii) 全destination単一実体＋スナップショット不在不成立、同E3 fresh/live固定1枚。React入口の (cxl)・(cxxxix) と `confirmEndDiscard` のスタック再入そのものは純粋goldenから直接叩けない。なお現行 `v20DiscardSkipFirstBlocksSecond` は既に `WX16-042-E1` の能動discardへ迂回済みで `confirmEndDiscard` を通らず、(cxli) の実機観測点にはなっていない（かつ (cxlvii) が残るためFAIL継続）。既存シナリオを変更しない指示に従い、(cxli) の専用実機確認は検証側へ引き渡す。
+
+**据置／非変更**：6件の据置は0件。別バッチ (cxliv)〜(cxlix)、`scripts/verifyBattleDrive.mjs`、`docs/PLAN.md`、`docs/PLAN_PROGRESS.md`、`buildEffectsJson.ts`、(cxlii)(b) は変更していない。今回の調査で新たに見つけたスコープ外の原文不一致は0件。
+
+### Claude 側の検証（CODEX_GUIDE §7・Codex の申告は鵜呑みにしない）
+
+ゲート・同型★・per-effect diff・held・エンコーディングをすべて**独立に再実行**し、Codex の申告値と一致することを確認した。
+
+- **per-effect 機械 diff**（全 `effects_*.json` をベースライン `206fb6d48` と比較）＝**changed 1 / added 0 / removed 0 / outlier 0**。唯一の変化は `WXDi-P10-041-E3` の `count:9, upToCount:true` → `count:1` で、原文「このシグニの下にあったカード**１枚**を対象とし」と一致。`build:effects` を再実行しても復元されない（parser が同じ値を吐くため PRESERVE 隔離下でも安定）。
+- **held 103枚／42署名群・`_partial_fresh` 6カード**＝報告直前の再実測でベースライン据置（ドリフト0）。
+- **エンコーディング**＝全変更ファイルで U+FFFD・3連続 `?`・先頭 BOM のいずれも新規増0（`docs/BUGFIXES.md` の `???` は 25→25 で既存分）。
+- **既存不変の機械的証明**＝`scripts/goldenTest.ts` は **+96/-0**（追加のみ）。`scripts/verifyBattleDrive.mjs`／`docs/PLAN.md`／`docs/PLAN_PROGRESS.md`／`scripts/buildEffectsJson.ts` は diff 空。
+
+**⚠ 投入した指示書のほうが誤っていた点（Codex の訂正が正しかった）**＝(cxli) で Claude は「`collectTrashTriggers` を呼べ」と書いたが、同関数には `if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('field')) continue;` があり **`fromZones:['hand']` を必ず弾く**（＝field origin 専用）。Codex の `collectAnyZoneTrashSelfTriggers` への差し替えが正しい。
+また Codex の「解決後は既存の END 自動進行へ戻る」も実コードで裏を取った＝`BattleScreen.tsx:1899` の「ON_TURN_END 解決後の自動フェーズ進行」useEffect が実在し、発火条件の `__TURN_END__` マーカーは `:3692`（早期 return より前）で付与済み。**`:11421` のコメントどおり CPU 経路が既に使っている定型**（「マーカーで1回だけ収集し、スタックを積んで return → 解決後の再入でこの先へ進む」）で、新機構ではなくソフトロックにもならない。
+
+**効き幅の実測**＝
+- **(cxliii)** 今回あらたに収集されるようになるのは **5効果／5キーカード**（`WDA-F04-10-E1` `WDK06-R09-E1` `WXK03-008-E3` `WXK04-025-CB-E1` `WXK10-006-E1`）。いずれも従来は**恒久 no-op**。
+- **(cxl)** `cost.handDiscardSigni` は live 全 136 効果、うち **ON_PLAY が 75効果／71カード**（登録票の「少なくとも3枚」は桁違いに過少）。残る 61 効果は MAIN／ATTACK_ARTS の ACTIVATED で別モーダル経由＝今回対象外。
+- **(cxlii)** `SELF_LEVEL_THRESHOLD` は live 2効果のみ（`WX20-Re18-E2`＝`condition`／同 E4＝`activeCondition`）。E4 の消費者 `collectEffectImmuneSigni`（`effectEngine.ts:5220`）は `:5297` で既に `levelsOf()` を渡しており、登録票の「caller 0件」は誤り（`effectEngine.ts:4067` も渡している）。
+
+### 🆕 別途見つけた計器の穴（未修正・PLAN §3 タスク13 隣接／要登録）
+
+`WXDi-P10-041-E3` の逆翻訳は「**このシグニの下のカードを取る**」で、**枚数（1枚 / 9枚まで）も destination（エナゾーン）も描いていない**。このため `count:9, upToCount:true` という過剰実行が **逆翻訳シートにも同型★にも一切映らず**生き残っていた。同じ理由で**今回の修正も逆翻訳では守れない**（golden の fresh/live 固定 assert が唯一の再発検知）。`TAKE_FROM_UNDER_SIGNI` の逆翻訳に枚数・`upToCount`・destination を出させるのが本筋。
+
 ## 2026-08-19（続き586・Sonnet 5）— §7 実機検証（V-45全4経路・V-58(a)〜(e)）＝V-45(c)で自己バニッシュ対価が相手シグニ2体バニッシュに化ける新規engineバグ(cxlviii)、V-58(d)(e)でカットイン応答の選択確定前にピースが解決してしまう新規UIレース(cxlix)を発見・登録。V-45(a)(b)とV-58(a)(b)(c)は残0クローズ。V-45(d)は静的確認のみでfollow-up、V-63は未着手のまま据置
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ7本＝V-45(a)2本・V-45(b)2本・V-45(c)1本・V-58(b)1本・V-58(a)(c)1本＝`v58acWindowOpensAndPassResolvesOriginal`＋V-58(d)(e)2本＝レースの再現手順として残置、`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。**`injectScenario`に`spec.top.pendingSpell`の注入経路を新設**（従来は`pending_spell`を常に`null`で上書きしていた＝ピース応答窓の応答側UIを直接テストするために必要だった）。

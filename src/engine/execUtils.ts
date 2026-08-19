@@ -2467,10 +2467,11 @@ export function evalUseCondition(
   sourceCardNum: string,
   currentPhase: string,
   effectivePowers?: Map<string, number>,
+  effectsMap?: Map<string, CardEffect[]>,
 ): boolean {
   const ctx: ExecCtx = {
     ownerState, otherState: oppState, cardMap,
-    effectivePowers, sourceCardNum, currentPhase, logs: [],
+    effectsMap, effectivePowers, sourceCardNum, currentPhase, logs: [],
   };
   return evalCondition(condition, ctx);
 }

@@ -4,6 +4,13 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き586・Sonnet 5）＝§7 実機検証（V-45全4経路・V-58(a)〜(e)）＝V-45(a)(b)とV-58(a)(b)(c)は残0クローズ・V-45(c)とV-58(d)(e)で新規バグ2件（(cxlviii)(cxlix)）を発見しOpusタスク12へ登録・V-45(d)は静的確認のみでfollow-up・V-63は未着手のまま据置**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ7本・`order`登録済み・`injectScenario`に`spec.top.pendingSpell`注入経路を新設）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き586）。
+  - **✅ V-45(a)(b) 残0クローズ**＝`v45aQueenPresentSwapsPosition`／`v45aQueenAbsentNoSwap`／`v45bPaySwapsInDownEnergySigni`／`v45bSkipDoesNothing`。各2回連続PASS。engineバグ0。
+  - **🔴 V-45(c) 新規engineバグ発見**＝`v45cDoubleOpponentBanishConfirmsMismatch`（2回連続PASS＝バグの実機再現に成功）。`WX24-P4-052-E2`は原文「このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする」（自己バニッシュを対価に対象の相手シグニをバニッシュ）だが、JSONは`BANISH{owner:opponent,power<=8000,optional:true}`→`CONDITIONAL{BANISH{owner:opponent,無フィルタ}}`という自己バニッシュ語彙が皆無の構造で、相手シグニを最大2体バニッシュしてしまう。**Opusタスク12(cxlviii)へ登録**。
+  - **📋 V-45(d) 静的確認のみ**＝`WX25-P3-038-E1`（`LOOK_PICK_CHAIN`＋`GRANT_EFFECT`＋`LAST_PROCESSED_MATCHES{noAbilities}`）はハンドラ実装済み・JSON構造も破綻なし。実機化はデッキ上5枚制御とコンバット回避を要し複雑度が高くfollow-up継続。
+  - **✅ V-58(a)(b)(c) 残0クローズ**＝`v58acWindowOpensAndPassResolvesOriginal`（窓が開く→パスで元のピース解決）／`v58bNoTeamMatchSkipsCutinWindow`（チーム条件未達→窓が開かず即時解決）とも各2回連続PASS。`pending_spell`直接注入により応答側UIをheadlessで初めて駆動できるようにした。engineバグ0。
+  - **🔴 V-58(d)(e) 新規UIレース発見**＝`v58dChoice1CountersAndExilesOriginal`／`v58eChoice2DrawsChargesThenOriginalResolves`（4回試行中1回のみ正しく解決）。`handleCutinUse`のピース枝（`BattleScreen.tsx:7787`）が`markCutinResponseComplete:true`を`queueCardEffects`実行前に書き込むため、CHOOSE未確定のまま「応答完了→元のピース解決」useEffectが先に走ってしまう疑い。**Opusタスク12(cxlix)へ登録**。
+
 - **🆕 セッション（2026-08-19・続き585・Sonnet 5）＝§7 実機検証（V-20・V-30）＝V-20は迂回経路で新規engineバグを発見しOpusタスク12(cxlvii)へ登録・V-30はREAD側を残0クローズ（境界越え自体はfollow-up）・V-45は未着手のまま据置**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ4本・旧V-20シナリオ2本を削除置換・`order`登録済み）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き585）。
   - **🔴 V-20 新規engineバグ発見**＝`v20DiscardSkipFirstBlocksSecond`（意図的FAIL・2回連続再現）／`v20DiscardPayBothReturnsToField`（正常系・2回連続PASS）。旧シナリオは(cxli)未修正の受動捨て札経路で恒久FAILしていたため、能動discard経路（`WX16-042-E1`のTRASHアクション）へ迂回して本題に到達。「そうした場合」二段任意コストの入れ子ゲートが外れており、①をスキップしても②の提示を飛ばして③（ADD_TO_FIELD）が無条件で実行される＝**二段以上に連鎖した任意コスト全般に波及する構造バグ**。**Opusタスク12(cxlvii)へ登録**。
   - **✅ V-30 READ側 残0クローズ**＝`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`。`abilities_removed`を直接注入→host自身の【起】ボタンがUIから消える／空なら通常表示、を対で確認。各2回連続PASS。engineバグ0。**境界越え自体（次ターン予約の昇格をライブなターン進行で確認）は続き566の室注入設計限界が未解消のままfollow-up**。

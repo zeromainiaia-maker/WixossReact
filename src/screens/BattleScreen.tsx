@@ -2565,8 +2565,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
   // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
   const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] =>
     pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent);
-  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand', causeSourceCardNum?: string): StackEntry[] =>
-    pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin, causeSourceCardNum);
+  const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand', causeSourceCardNum?: string, byEffectCause = true): StackEntry[] =>
+    pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin, causeSourceCardNum, byEffectCause);
   const collectTrashTriggers = (
     trashedCardNum: string,
     trashedPlayerId: string,
@@ -3715,6 +3715,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const facedownOpEND = resolveTurnEndFacedownReturns(op);
         const myEndState = facedownMyEND.state;
         const opEndState = facedownOpEND.state;
+        // 手札上限調整で発火した ON_TRASH を解決して END に戻った場合、①の予約型効果は適用済み。
+        // 既存マーカーを読み、永続フラグ（game_turn_end_trash_to_hand 等）の二重適用を防ぐ。
+        const turnEndEffectsAlreadyResolved = !!my.end_turn_effects_resolved;
         const logFacedownEND = (who: string, flipped: string[], trashed: string[]) => {
           if (flipped.length > 0) appendBattleLogs([`ターン終了時：${who}${flipped.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}を表向きにする`]);
           if (trashed.length > 0) appendBattleLogs([`ターン終了時：${who}${trashed.map(n => battleCardMap.get(getCardNum(n))?.CardName ?? n).join('・')}をトラッシュへ`]);
@@ -3741,14 +3744,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         let myTrashAfterCoinCheck = myTrashBeat;
         let myExcludedEND = myEndState.excluded;
         let myEnergyEND = myEndState.energy;
-        if ((my.turn_end_mill_count ?? 0) > 0) {
+        if (!turnEndEffectsAlreadyResolved && (my.turn_end_mill_count ?? 0) > 0) {
           const resolved = resolveTurnEndPreventionMill({ ...my, deck: myDeckPreLimit, trash: myTrashAfterCoinCheck });
           myDeckPreLimit = resolved.state.deck;
           myTrashAfterCoinCheck = resolved.state.trash;
           appendBattleLogs([`ターン終了時：デウスシールドの能力でデッキの上から${resolved.milled.length}枚をトラッシュへ`]);
         }
         // DRAW_AT_TURN_END: このターン終了時に引く（このシグニが場を離れていても引く）
-        if ((my.turn_end_draw_count ?? 0) > 0) {
+        if (!turnEndEffectsAlreadyResolved && (my.turn_end_draw_count ?? 0) > 0) {
           const nDrawEND = my.turn_end_draw_count!;
           const drawnEND = myDeckPreLimit.slice(0, nDrawEND);
           myDeckPreLimit = myDeckPreLimit.slice(nDrawEND);
@@ -3756,7 +3759,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           appendBattleLogs([`ターン終了時：カードを${drawnEND.length}枚引く`]);
         }
         // COIN_SPEND_CONDITION: ターン終了時にコイン消費チェック
-        if ((my.coin_condition_signi_instances ?? []).length > 0) {
+        if (!turnEndEffectsAlreadyResolved && (my.coin_condition_signi_instances ?? []).length > 0) {
           const coinSpent = (my.actions_done ?? []).includes('COIN_SPENT');
           if (!coinSpent) {
             // コイン未消費 → coin_condition_signi_instances のシグニをトラッシュ
@@ -3775,7 +3778,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
         let myLrigDeckReturned: string[] = [];
         // turn_end_field_trash_targets: ターン終了時にフィールドのシグニをトラッシュへ（TRASH_AT_TURN_END）
-        if ((my.turn_end_field_trash_targets ?? []).length > 0) {
+        if (!turnEndEffectsAlreadyResolved && (my.turn_end_field_trash_targets ?? []).length > 0) {
           const newFieldSigniTEFT = [...myFieldAfterCoinCheck.signi] as (string[] | null)[];
           const trashedTEFT: string[] = [];
           for (const targetId of my.turn_end_field_trash_targets!) {
@@ -3791,7 +3794,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         // turn_end_energy_trash_targets: ターン終了時にエナゾーンからトラッシュへ（TRASH_ENERGY_AT_TURN_END）
-        {
+        if (!turnEndEffectsAlreadyResolved) {
           const et = resolveTurnEndEnergyTrash({ ...my, energy: myEnergyEND, trash: myTrashAfterCoinCheck });
           if (et.trashed.length > 0) {
             myEnergyEND = et.state.energy;
@@ -3800,7 +3803,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         // turn_end_return_to_lrig_deck: 一時レゾナをルリグデッキへ戻す（§6.4 funnel＝2経路で同じ関数を通す）
-        {
+        if (!turnEndEffectsAlreadyResolved) {
           const ret = resolveTurnEndLrigDeckReturn({ ...my, field: myFieldAfterCoinCheck });
           if (ret.returned.length > 0) {
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: ret.state.field.signi };
@@ -3809,7 +3812,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         // turn_end_return_to_hand: 「ターン終了時、それを場から手札に戻す」（§6.4 O-10 続き509・funnel＝2経路）
-        {
+        if (!turnEndEffectsAlreadyResolved) {
           const rh = resolveTurnEndHandReturn({ ...my, field: myFieldAfterCoinCheck });
           if (rh.returned.length > 0) {
             myFieldAfterCoinCheck = { ...myFieldAfterCoinCheck, signi: rh.state.field.signi };
@@ -3820,7 +3823,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         // game_turn_end_trash_to_hand: ターン終了時、トラッシュから特定クラスシグニを手札へ（GAIN_ABILITY_THIS_GAME）
-        if (my.game_turn_end_trash_to_hand) {
+        if (!turnEndEffectsAlreadyResolved && my.game_turn_end_trash_to_hand) {
           const { class: ttCls, count: ttCnt } = my.game_turn_end_trash_to_hand;
           const ttMatches = myTrashAfterCoinCheck.filter(cn => {
             const c = battleCardMap.get(cn);
@@ -3834,7 +3837,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
         // flip_attack_signi_zones: フリップアタックで裏向きにしたシグニをターン終了時に表向きに戻す
-        if ((my.flip_attack_signi_zones ?? []).length > 0) {
+        if (!turnEndEffectsAlreadyResolved && (my.flip_attack_signi_zones ?? []).length > 0) {
           const newSigniDownFA = [...(myFieldAfterCoinCheck.signi_down ?? [false, false, false])] as [boolean, boolean, boolean];
           const unflipped: string[] = [];
           for (const zi of my.flip_attack_signi_zones!) {
@@ -4254,6 +4257,31 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       let myHandEND = myEndState.hand.filter((_, i) => !selectedEndDiscard.has(i));
       const myTrashEND = [...myTrashBeat, ...discardNums];
       appendBattleLogs([`手札上限超過（${myEndState.hand.length}枚→${myHandEND.length}枚）：${discardNums.map(n => battleCardMap.get(n)?.CardName ?? n).join('・')}を捨て`]);
+
+      // 手札上限調整は「手札→トラッシュ」のルール処理。場起点専用の collectTrashTriggers ではなく、
+      // fromZones:['hand'] を評価する既存 funnel を通す（効果／コスト起因ではないので byEffectCause=false）。
+      const ruleDiscardEntries = discardNums.flatMap(cn =>
+        collectAnyZoneTrashSelfTriggers(cn, user.id, false, 'hand', undefined, false));
+      if (ruleDiscardEntries.length > 0) {
+        const myAfterRuleDiscard: PlayerState = {
+          ...myEndState,
+          hand: myHandEND,
+          trash: myTrashEND,
+          field: { ...myEndState.field, beat_zone: [] },
+        };
+        const ruleDiscardStack = bs.effect_stack
+          ? pushToStack(bs.effect_stack, ruleDiscardEntries)
+          : initStack(bs.active_user_id ?? user.id, ruleDiscardEntries);
+        // BEGIN_NEXT_TURN より前に解決する。解決完了後は既存の END 自動進行が再開し、
+        // end_turn_effects_resolved マーカーにより予約型効果を二重適用せずターン境界へ進む。
+        await persist.commit(reduceBattle(bs, {
+          type: 'WRITE_STATE', myKey: stateKey, myState: myAfterRuleDiscard,
+          opp: { key: isHost ? 'guest_state' : 'host_state', state: opEndState },
+          effectStack: ruleDiscardStack,
+        }));
+        closeEndDiscard();
+        return;
+      }
 
       // ターン終了時に効果（コイン/場トラッシュ/トラッシュ→手札/フリップ復元）。
       // doPhaseAdvance（ENDフェーズ①）で解決済み（end_turn_effects_resolved）の場合は再実行しない
@@ -4880,7 +4908,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 同カード E3 の ON_DRAW（drawBySourceStory）が実機で一度も発火しなかった。
         // ⚠ pending_effect を残したままスタックに積むが、これは resume 側の中途収集と同じ扱い
         //   （pending 解決後にスタックが処理される）＝新しい実行順序を持ち込むものではない。
-        const midBd = collectBoardDiffTriggers(hostState, guestState, {
+        const midBd = collectBoardDiffTriggers(hostAcc, guestAcc, {
           causeOwnerId: entry.playerId,
           causeSourceCardNum: entry.cardNum,
           fieldTrashCostCards: result.fieldTrashCostCards,
@@ -4896,7 +4924,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         // 従来ここに全 collector が並んでいたが、resume 経路（handleEffectInteraction）と共通化するため
         // collectBoardDiffTriggers に集約した。action 型固有のもの（COLLAB/REVEAL_UNTIL_TO_FIELD/arts）は下に inline 据置。
         {
-          const bd = collectBoardDiffTriggers(hostState, guestState, {
+          const bd = collectBoardDiffTriggers(hostAcc, guestAcc, {
             causeOwnerId: entry.playerId,
             causeSourceCardNum: entry.cardNum,
             fieldTrashCostCards: result.fieldTrashCostCards,

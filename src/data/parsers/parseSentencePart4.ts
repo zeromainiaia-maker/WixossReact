@@ -1889,8 +1889,12 @@ export function parseSentencePart4(t: string): EffectAction | null {
     return { type: 'STUB', id: 'RULE_REMINDER_TEXT' } as StubAction;
 
   // ---- このシグニの下にあったカードをトラッシュからエナゾーンに置く ----
-  if (t.match(/このシグニの下にあったカード.*エナゾーンに置く/))
-    return { type: 'TAKE_FROM_UNDER_SIGNI', destination: 'energy', count: 9, upToCount: true, fromThis: true } as TakeFromUnderSigniAction;
+  const leftUnderToEnergyM = t.match(/このシグニの下にあったカード([０-９\d]+)枚(まで)?を対象とし.*エナゾーンに置く/);
+  if (leftUnderToEnergyM)
+    return {
+      type: 'TAKE_FROM_UNDER_SIGNI', destination: 'energy', count: parseNum(leftUnderToEnergyM[1]),
+      ...(leftUnderToEnergyM[2] ? { upToCount: true } : {}), fromThis: true,
+    } as TakeFromUnderSigniAction;
 
   // ---- 《ガードアイコン》を持たないシグニをデッキに加えてもよい ----
   if (t.match(/《ガードアイコン》を持たないシグニを.*枚まで.*デッキに加えてもよい/))

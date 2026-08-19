@@ -7,7 +7,7 @@ import { fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashS
 import { getCardNum, matchesFilter, analyzeBeatSigniCost } from '../../../engine/effectExecutor';
 import { beatSigniFromTrashCandidates, canSatisfyDiscardGroups } from '../../../engine/execUtils';
 import { C } from '../../../components/BoardComponents';
-import { canAffordGrowCost, canPayExceed, exceedPoolOf, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex } from '../costs';
+import { canAffordGrowCost, canPayExceed, exceedPoolOf, fmtHandDiscardSigniLabel, isMultiEna, energyTrashCostSatisfied, canAddEnergyTrashIndex, matchesHandDiscardSigni } from '../costs';
 import { matchesTrashArtsFromLrigDeckCost } from '../artsTrashCost';
 import { underAnySigniCostCandidates } from '../underAnySigniCost';
 import type { BattleModalCtx } from './types';
@@ -68,15 +68,17 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const pState = pendingSigniOnPlayCost.placedState;
               const pcEnergy = pState.energy;
               const energyTotal = (eff.cost?.energy ?? []).reduce((s, c) => s + c.count, 0);
-              // 手札コスト（discard=トラッシュ / handToEnergy=エナへ / handToUnderSelf=シグニの下へ。同時指定はない前提で選択UIを共用）
+              // 手札コスト（discard/handDiscardSigni=トラッシュ / handToEnergy=エナへ / handToUnderSelf=シグニの下へ。同時指定はない前提で選択UIを共用）
               const discardGroups = eff.cost?.discardGroups;
               const discardNeeded = discardGroups?.reduce((sum, group) => sum + group.count, 0) ?? eff.cost?.discard ?? 0;
+              const handDiscardSigni = eff.cost?.handDiscardSigni;
               const handToEnergyNeeded = eff.cost?.handToEnergy?.count ?? 0;
               const handToUnderNeeded  = eff.cost?.handToUnderSelf?.count ?? 0;
-              const handNeeded = discardNeeded + handToEnergyNeeded + handToUnderNeeded;
+              const handNeeded = discardNeeded + (handDiscardSigni?.count ?? 0) + handToEnergyNeeded + handToUnderNeeded;
               const handFilter = eff.cost?.discardFilter ?? eff.cost?.handToEnergy?.filter ?? eff.cost?.handToUnderSelf?.filter;
               const selectedHandCards = [...selectedSigniOnPlayDiscard].map(i => battleCardMap.get(getCardNum(pState.hand[i])));
               const discardGroupsOk = !discardGroups || canSatisfyDiscardGroups(selectedHandCards, discardGroups);
+              const handDiscardSigniOk = !handDiscardSigni || selectedHandCards.every(c => matchesHandDiscardSigni(c, handDiscardSigni));
               const handCostLabel = handToEnergyNeeded > 0 ? 'エナゾーンに置く' : handToUnderNeeded > 0 ? 'このシグニの下に置く' : '捨てる';
               const coinNeeded = eff.cost?.coin ?? 0;
               const exceedNeeded = eff.cost?.exceed ?? 0;
@@ -166,6 +168,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
               const canAfford = energyOk && coinOk && exceedOk && lrigDownOk && lrigDownVariableOk && lifeOk && charmOk && virusOk && charmVarOPOk && artsOkM && underTrashOk && beatTrashOkM && beatSelectOk
                 && selectedSigniOnPlayDiscard.size === handNeeded
                 && discardGroupsOk
+                && handDiscardSigniOk
                 // ⚠枚数だけでなく**集合制約**（「それぞれレベルの異なる」等）も見る＝共有判定は `costs.ts` の1本
                 && energyTrashCostSatisfied(pcEnergy, selectedSigniOnPlayEnergyTrash, eff.cost?.energyTrash, battleCardMap)
                 && fieldTrashSelectionSatisfied(
@@ -194,6 +197,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                             exceedNeeded > 0 ? `エクシード${exceedNeeded}` : null,
                             handNeeded > 0 ? discardGroups
                               ? discardGroups.map(g => `${filterLabel(g.filter) || 'カード'}${g.count}枚`).join('と') + `を${handCostLabel}`
+                              : handDiscardSigni ? `手札の${fmtHandDiscardSigniLabel(handDiscardSigni)}シグニ${handNeeded}枚を${handCostLabel}`
                               : `手札${handFilter ? `の${filterLabel(handFilter)}` : ''}${handNeeded}枚を${handCostLabel}` : null,
                             enaTrashNeeded > 0 ? `エナの${filterLabel(enaTrashFilter) || 'カード'}${enaTrashNeeded}枚トラッシュ` : null,
                             ftNeeded > 0 ? ftGroups?.length
@@ -307,7 +311,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                     <>
                       <p style={{ color: C.text, fontSize: 12, margin: 0 }}>
                         手札から{handCostLabel}カードを選択: {selectedSigniOnPlayDiscard.size} / {handNeeded}枚
-                        {discardGroups ? `（${discardGroups.map(g => `${filterLabel(g.filter) || 'カード'}${g.count}枚`).join('＋')}）` : handFilter ? `（${filterLabel(handFilter)}のみ）` : ''}
+                        {discardGroups ? `（${discardGroups.map(g => `${filterLabel(g.filter) || 'カード'}${g.count}枚`).join('＋')}）` : handDiscardSigni ? `（${fmtHandDiscardSigniLabel(handDiscardSigni)}シグニのみ）` : handFilter ? `（${filterLabel(handFilter)}のみ）` : ''}
                       </p>
                       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, overflowY: 'auto', maxHeight: 180 }}>
                         {pState.hand.map((num, i) => {
@@ -315,6 +319,7 @@ export function SigniOnPlayCostModal(p: SigniOnPlayCostModalProps) {
                           const isSel = selectedSigniOnPlayDiscard.has(i);
                           const matchesDiscardFilter = discardGroups
                             ? discardGroups.some(g => !g.filter || matchesFilter(c, g.filter))
+                            : handDiscardSigni ? matchesHandDiscardSigni(c, handDiscardSigni)
                             : !handFilter || matchesFilter(c, handFilter);
                           return (
                             <div key={i}

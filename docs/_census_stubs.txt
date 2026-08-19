@@ -31,7 +31,7 @@ live JSON の STUB id 種類 : 601（総ノード 2872 件）
         生成: src\data\parsers\parseSentencePart1.ts:1720
      1件   1枚  DEFERRED_REPEAT_ON_REVEALED_NAME  [生ID露出 1]
         カード: WXDi-CP01-033
-        生成: src\data\parsers\parseSentencePart4.ts:1954
+        生成: src\data\parsers\parseSentencePart4.ts:1958
 
 ==============================================================================
 【B】宣言型＝execStub ハンドラは無いが engine の別経路が id を読んでいる（実害なしの見込み・要目視）
@@ -86,10 +86,10 @@ live JSON の STUB id 種類 : 601（総ノード 2872 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:7371
+        消費: src\engine\effectExecutor.ts:7379
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:7373
+        消費: src\engine\effectExecutor.ts:7381
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66

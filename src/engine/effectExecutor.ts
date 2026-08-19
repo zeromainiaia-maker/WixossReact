@@ -6210,12 +6210,20 @@ function execPlaceUnderSigni(a: import('../types/effects').PlaceUnderSigniAction
 
 function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigniAction, ctx: ExecCtx): ExecResult {
   let cands: string[] = [];
+  let scope: TargetScope = 'self_field';
   if (a.fromThis && ctx.sourceCardNum) {
     const zoneIdx = ctx.ownerState.field.signi.findIndex(s => s?.includes(ctx.sourceCardNum!));
     if (zoneIdx !== -1) {
       const stack = ctx.ownerState.field.signi[zoneIdx]!;
       // under-cards = all except the last (top) card
       cands = stack.slice(0, -1).filter(cn => !a.filter || matchesFilter(ctx.cardMap.get(cn), a.filter));
+    } else {
+      // ON_LEAVE_FIELD では発火元は既に場を離れ、直前の下カードはルール処理でトラッシュにある。
+      // StackEntry→ExecCtx で運ばれた既存スナップショットとの積集合だけを候補にする。
+      const allowed = new Set(ctx.leftFieldUnderCards ?? []);
+      cands = movableTrashCandidates('self', ctx.ownerState, a.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones)
+        .filter(cn => allowed.has(cn));
+      scope = 'self_trash';
     }
   } else {
     ctx.ownerState.field.signi.forEach(stack => {
@@ -6226,7 +6234,7 @@ function execTakeFromUnderSigni(a: import('../types/effects').TakeFromUnderSigni
     });
   }
   if (cands.length === 0) return done(ctx);
-  return selectOrInteract(cands, a.count, a.upToCount ?? false, 'self_field', a, undefined, ctx);
+  return selectOrInteract(cands, a.count, a.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 function execNegateAttack(a: import('../types/effects').NegateAttackAction, ctx: ExecCtx): ExecResult {
@@ -9925,7 +9933,13 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         if (idx === -1 || idx === stack.length - 1) return stack; // 上にある or 最上位(シグニ自体)
         return [...stack.slice(0, idx), ...stack.slice(idx + 1)];
       }) as (string[] | null)[];
-      let newOwner = { ...ctx.ownerState, field: { ...ctx.ownerState.field, signi: newSigni } };
+      // ON_LEAVE_FIELD の fallback 候補は既にトラッシュにある。移動元を両方から除去してから
+      // destination へ1回だけ追加し、energy/hand/trash のどれでも複製を起こさない。
+      let newOwner = {
+        ...ctx.ownerState,
+        trash: ctx.ownerState.trash.filter(n => n !== cardNum),
+        field: { ...ctx.ownerState.field, signi: newSigni },
+      };
       const destLabel = ta.destination === 'hand' ? '手札' : ta.destination === 'energy' ? 'エナゾーン' : 'トラッシュ';
       if (ta.destination === 'hand') {
         newOwner = { ...newOwner, hand: [...newOwner.hand, cardNum] };

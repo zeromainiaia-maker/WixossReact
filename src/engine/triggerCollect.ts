@@ -884,7 +884,7 @@ export function collectDeckTrashSelfTriggers(
  */
 export function collectAnyZoneTrashSelfTriggers(
   ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand',
-  causeSourceCardNum?: string,
+  causeSourceCardNum?: string, byEffectCause = true,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
@@ -899,7 +899,7 @@ export function collectAnyZoneTrashSelfTriggers(
     if (!okByZones) continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
     // byOwnEffect（「あなたの効果によって/あなたがこのカードを捨てたとき」＝タスク16[C]機構②）: 対戦相手効果起因では発火しない。
-    if (eff.triggerCondition?.byOwnEffect && causeByOpponent) continue;
+    if (eff.triggerCondition?.byOwnEffect && (!byEffectCause || causeByOpponent)) continue;
     // trashSourceStory（「あなたの＜X＞のシグニの効果によって捨てられたとき」WXDi-P14-086）: 原因効果の発生源
     // カードが自分側の＜X＞のシグニのときのみ（発生源不明＝ガード/ルール処理では発火しない）。
     if (eff.triggerCondition?.trashSourceStory) {
@@ -3673,7 +3673,7 @@ export function collectAttackerSelfTriggers(
     .filter(e => !e.crossOnly || crossOk)
     .filter(e => !e.kizunaIcon || isKizunaActive(myState, attackerNum, ctx.cardMap))
     .filter(e => attackerSelfTriggerFilterOk(e, attackerCard, effectivePowers?.get(attackerNum)))
-    .filter(e => !e.condition || evalUseCondition(e.condition, myState, opState, ctx.cardMap, attackerNum, ctx.turnPhase, effectivePowers))
+    .filter(e => !e.condition || evalUseCondition(e.condition, myState, opState, ctx.cardMap, attackerNum, ctx.turnPhase, effectivePowers, ctx.effectsMap))
     .map(e => ({
       id: ctx.genId(), playerId: ownerId, cardNum: attackerNum, effectId: e.effectId,
       label: `${attackerCard?.CardName ?? attackerNum} の【自】効果（シグニアタック時）`,
@@ -4126,6 +4126,23 @@ export function collectTurnTriggers(
     }
   }
 
+  // 自分のキー（self）。`activeKeyAbilitySources` が全キー／単体キーの能力喪失を一元適用する。
+  // `BLOCK_OWN_SIGNI_AUTO` と `collectContinuousAbilitiesRemovedSigni` はシグニ限定なのでキーへは掛けない。
+  for (const topNum of activeKeyAbilitySources(myState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      if ((eff.triggerScope ?? 'self') !== 'self') continue;
+      if (!kizunaOk(ctx, eff, myState, topNum)) continue;
+      if (eff.condition && !evalUseCondition(eff.condition, myState, opState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
+      if (!limitOkMy(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: meId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
   // キーワードトークン効果（GRANT_KEYWORD で付与されたキーワードが ON_TURN_END 等を持つ場合）
   const KEYWORD_TOKEN_MAP: Record<string, string> = { 'みこみこ親衛隊': 'WX25-P3-TK03' };
   const myGrantsKT = myState.keyword_grants ?? {};
@@ -4186,6 +4203,21 @@ export function collectTurnTriggers(
       if (scope !== 'any_opp' && scope !== 'any') continue;
       if (!limitOkOp(eff)) continue;
       const cardName = ctx.cardMap.get(topNum)?.CardName ?? topNum;
+      entries.push({
+        id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
+        label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
+      });
+    }
+  }
+
+  // 相手のキー（any_opp / any）。能力喪失の規約は自分側と同じく `activeKeyAbilitySources` に集約済み。
+  for (const topNum of activeKeyAbilitySources(opState)) {
+    for (const eff of effsOf(ctx, topNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes(timing)) continue;
+      const scope = eff.triggerScope ?? 'self';
+      if (scope !== 'any_opp' && scope !== 'any') continue;
+      if (!limitOkOp(eff)) continue;
+      const cardName = ctx.cardMap.get(getCardNum(topNum))?.CardName ?? topNum;
       entries.push({
         id: ctx.genId(), playerId: opId, cardNum: topNum, effectId: eff.effectId,
         label: `${cardName} の【自】効果（${labelSuffix}）`, effect: eff,
