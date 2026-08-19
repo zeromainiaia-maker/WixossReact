@@ -23619,7 +23619,7 @@ const v40bSpec = {
     'field.check': null,
     'trash': ['WX04-037#40101'],
     'deck': ['WX04-038#40102', 'WD01-013#40103', 'WD01-013#40104'],
-    'energy': [], 'actions_done': [],
+    'energy': [], 'actions_done': [], 'hand': [],
   },
   handPrepend: ['WX20-077#40105'],
   guestSet: {
