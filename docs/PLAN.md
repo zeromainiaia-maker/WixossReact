@@ -157,7 +157,7 @@
   `parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
   （⚠**同型★・`census:goldentypes` は続き552d 以降 未再計測**）。
   **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
-  🆕**実機シナリオ総数 422**（415→422＝`v21ConditionPowerBuffedReachesThreshold`／`v21ConditionPowerBelowThresholdNoCharge`／`v22DisonaOnlyContinuousBuff`／`v20DiscardSkipFirstBlocksSecond`／`v20DiscardPayBothReturnsToField` を新設。他2件はV-15既存シナリオの修正）。
+  🆕**実機シナリオ総数 420**（415→420＝`v21ConditionPowerBuffedReachesThreshold`／`v21ConditionPowerBelowThresholdNoCharge`／`v22DisonaOnlyContinuousBuff`／`v20DiscardSkipFirstBlocksSecond`／`v20DiscardPayBothReturnsToField` の5件を新設。V-15は既存シナリオの修正のみ）。
   ✅**`v15AttackPhaseEndCentralDiffToyLeftFires` の2連続FAILは解消＝続き573で残0クローズ**（共有ヘルパー`H.clickTextOrBtn`/`H.clickZone`のtimeout漏れが真因）。
   🆕**Opusタスク12＝在庫4件**（(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ／(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コスト非対応／(cxli) `confirmEndDiscard`がON_TRASH系トリガー未収集）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
   ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫4件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
