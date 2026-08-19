@@ -22841,7 +22841,7 @@ scenarios.wdk06r09Pay = {
         if (pay) { did = pay; paid = true; }
       }
       const st = await H.queryState();
-      H.log(`  wdk06pay[${s}] -> ${did ?? 'なし'} | candOk=${candidatesChecked} picked=${[...picked]} confirmed=${targetsConfirmed} paid=${paid} gField=${JSON.stringify(st?.guest?.fieldSigni)} hKey=${st?.host?.keyPiece} hLrigTrash=${st?.host?.lrigTrashCards} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      H.log(`  wdk06pay[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} active=${st?.activeUser} viewer=${st?.viewerUserId} stackLen=${st?.stackLen} candOk=${candidatesChecked} picked=${[...picked]} confirmed=${targetsConfirmed} paid=${paid} gField=${JSON.stringify(st?.guest?.fieldSigni)} hKey=${st?.host?.keyPiece} hLrigTrash=${st?.host?.lrigTrashCards} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
       if (paid && !st?.pendingEffect) {
         const gAlive = (st?.guest?.fieldSigni ?? []).flat().filter(Boolean);
         const banishedBoth = !gAlive.includes(WDK06_GUEST_ATK1) && !gAlive.includes(WDK06_GUEST_ATK2) && gAlive.includes(WDK06_GUEST_SAFE);
