@@ -22226,6 +22226,43 @@ scenarios.pr426ConditionalPowerBuff = {
   },
 };
 order.push('pr426ConditionalPowerBuff');
+
+// 対照＝ライフクロス3枚（条件不成立）なら+4000が乗らず印字どおり8,000のまま
+// （旧実装＝常時適用だったので、この対照が緑になること自体が是正の確認）。
+scenarios.pr426ConditionalPowerBuffOffWhenLifeAbove1 = {
+  title: 'V-24(cxv) 対照：ライフクロス3枚（条件不成立）ではPR-426は印字8,000のまま',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, ['PR-426#2'], null],
+      'field.signi_down': [false, false, false],
+      'life_cloth': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [null, ['WD01-013#900'], null],
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/pr426Off-${s}.png`, fullPage: true }).catch(() => {});
+      const zoneText = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+      H.log(`  cxvOff[${s}] -> zoneText=${JSON.stringify(zoneText.slice(0, 60))}`);
+      if (/12[,，]000/.test(zoneText)) {
+        return { pass: false, detail: `🔴条件不成立（ライフ3枚）なのに+4000が乗っている（zoneText=${JSON.stringify(zoneText.slice(0, 60))}）` };
+      }
+      if (/8[,，]000/.test(zoneText)) {
+        return { pass: true, detail: `条件不成立（ライフ3枚）では印字どおり8,000のまま（zoneText=${JSON.stringify(zoneText.slice(0, 60))}）` };
+      }
+    }
+    const fin = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+    return { pass: false, detail: `判定不能（zoneText=${JSON.stringify(fin.slice(0, 60))}）` };
+  },
+};
+order.push('pr426ConditionalPowerBuffOffWhenLifeAbove1');
 // ── V-24(cxv) END ──
 
 // ── V-82(c) START ──
