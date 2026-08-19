@@ -22959,6 +22959,92 @@ scenarios.wdk06r09NoKey = {
 // 修正後は `node scripts/verifyBattleDrive.mjs wdk06r09Pay wdk06r09Skip wdk06r09NoKey` で単体確認してから復帰する。
 // ── V-35(b)(c) END ──
 
+// ── V-28 START ──
+// §7 V-28（続き412＝O-13 A群5件目・§6.4）＝`WX16-021`（驚天動地）：
+// 「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、
+// 代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える。」
+// 実装（`screens/battle/sideAttackDamage.ts`）は**2箇所**（①側面アタックの空ゾーン先ボタン生成
+// ②`resolvePendingSigniBattleFor`の解決）を同じ`sideAttackEmptyZoneDealsDamage`で判定する設計＝
+// 両方を実UIで見る（**負方向＋対照の対**）。【側面アタック】キーワード自体は`keyword_grants`で直接付与
+// （native付与元カードの正否はこのシナリオの対象外＝WX16-021単体の挙動を切り分ける）。
+const WX16021_ATTACKER = 'WX15-054#9701'; // 四英の掛算（精像：英知・Lv3）＝側面アタックを直接付与
+function wx16021Spec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9700'],
+      'field.signi': [null, [WX16021_ATTACKER], null], // 中央（zone1）に配置＝frontOpZone=2-1=1、隣接0/2が側面
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'keyword_grants': { [WX16021_ATTACKER]: ['側面アタック'] },
+      'lrig_deck': ['WX16-021#9702'],
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9710'],
+      'field.signi': [null, null, null], // 全ゾーン空＝側面アタック先(zone0/zone2)も前面(zone1)も空
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+scenarios.wx16021SideAttackEmptyZoneNoButtonBeforeArts = {
+  title: 'V-28 WX16-021 対照：驚天動地を使う前は空ゾーンへの側面アタックボタン自体が出ない',
+  spec: wx16021Spec(),
+  async drive(page, H) {
+    await H.ensureMain();
+    const opened = await H.clickTestId('my-signi-zone-1');
+    await page.waitForTimeout(700);
+    const cnt = await page.getByRole('button', { name: /側面アタック/ }).count();
+    await H.closeModals();
+    return {
+      pass: cnt === 0,
+      detail: cnt === 0
+        ? `驚天動地未使用＝側面アタックボタンは0個（emptyZoneDamages=false）＝空ゾーンは提示されない（opened=${opened}）`
+        : `【回帰】驚天動地未使用なのに側面アタックボタンが${cnt}個出た`,
+    };
+  },
+};
+scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
+  title: 'V-28 WX16-021 正方向：驚天動地を使うと空ゾーンへの側面アタックが正面扱いでダメージになる',
+  spec: wx16021Spec(),
+  async drive(page, H) {
+    const before = await H.queryState();
+    await H.ensureMain();
+    H.log('開始時 guest.life:', before?.guest?.life);
+    let castDone = false; let attacked = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!castDone) {
+        // アーツはルリグデッキから使う：ルリグDKバッジ→カード→使用→アーツ使用（緑×0＝コスト選択不要）。
+        const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click().catch(() => {}); did = 'btn:アーツ使用';
+        }
+        if (!did) did = await H.clickTextOrBtn(['使用']);
+        if (!did) did = await H.clickTestId('zone-card-0');
+        if (!did) did = await H.clickTestId('my-lrig-dk');
+        const stCast = await H.queryState();
+        if ((stCast?.logTail ?? []).some(l => l.includes('驚天動地'))) castDone = true;
+      } else if (!attacked) {
+        if (!did) did = await H.clickBtn('側面アタック→空きゾーン（ダメージ）', { exact: false });
+        if (!did) did = await H.clickTestId('my-signi-zone-1');
+        if (did === '側面アタック→空きゾーン（ダメージ）' || did?.startsWith('btn:側面アタック')) attacked = true;
+      }
+      const st = await H.queryState();
+      H.log(`  wx16021[${s}] -> ${did ?? 'なし'} | castDone=${castDone} attacked=${attacked} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'} logTail末尾=${JSON.stringify((st?.logTail ?? []).slice(-2))}`);
+      if (attacked && (st?.guest?.life ?? before.guest.life) < before.guest.life) {
+        return { pass: true, detail: `驚天動地使用後、空ゾーンへの側面アタックでguest.life ${before.guest.life}→${st.guest.life}（正面扱いダメージが通った）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（castDone=${castDone} attacked=${attacked} gLife=${before.guest.life}→${fin?.guest?.life} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wx16021SideAttackEmptyZoneNoButtonBeforeArts', 'wx16021SideAttackEmptyZoneDamageAfterArts');
+// ── V-28 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
