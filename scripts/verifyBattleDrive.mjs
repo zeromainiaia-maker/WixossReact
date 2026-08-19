@@ -23037,7 +23037,7 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
         if (did === '側面アタック→空きゾーン（ダメージ）' || did?.startsWith('btn:側面アタック')) attacked = true;
       }
       const st = await H.queryState();
-      H.log(`  wx16021[${s}] -> ${did ?? 'なし'} | castDone=${castDone} attacked=${attacked} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'} logTail末尾=${JSON.stringify((st?.logTail ?? []).slice(-2))}`);
+      H.log(`  wx16021[${s}] -> ${did ?? 'なし'} | castDone=${castDone} advanced=${advanced} attacked=${attacked} phase=${st?.turnPhase} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'} logTail末尾=${JSON.stringify((st?.logTail ?? []).slice(-2))}`);
       if (attacked && (st?.guest?.life ?? before.guest.life) < before.guest.life) {
         return { pass: true, detail: `驚天動地使用後、空ゾーンへの側面アタックでguest.life ${before.guest.life}→${st.guest.life}（正面扱いダメージが通った）` };
       }
