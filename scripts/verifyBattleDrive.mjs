@@ -22498,6 +22498,21 @@ scenarios.v24cxiiiLevel1Immune = {
   async drive(page, H) { return driveV24cxiii(page, H, true); },
 };
 order.push('v24cxiiiLevel1Immune');
+scenarios.v24cxiiiControlNoEffect = {
+  title: 'V-24(cxiii) 切り分け用コントロール：攻撃側に何のgranted_effectsも無い＝WXK10-035はCPUの通常アタックだけでは消えないはず',
+  spec: (() => { const s = v24cxiiiImmuneSpec('WD01-013'); s.guestSet = { ...s.guestSet, granted_effects: {} }; return s; })(),
+  async drive(page, H) {
+    const before0 = await H.queryState();
+    H.log('注入直後 host.fieldSigni:', JSON.stringify(before0?.host?.fieldSigni));
+    await page.waitForTimeout(3000);
+    const st = await H.queryState();
+    const survived = !!(st?.host?.fieldSigni?.[2]?.length);
+    return survived
+      ? { pass: true, detail: `コントロール＝BANISH能力なしのCPU通常アタックではWXK10-035は消えない（fieldSigni=${JSON.stringify(st.host.fieldSigni)}）` }
+      : { pass: false, detail: `🔴コントロールなのにWXK10-035が消えた＝配置自体が不成立の疑い（fieldSigni=${JSON.stringify(st.host.fieldSigni)}）` };
+  },
+};
+order.push('v24cxiiiControlNoEffect');
 scenarios.v24cxiiiLevel2NotImmune = {
   title: 'V-24(cxiii) 対照：WXK10-035＝相手レベル2のシグニのBANISHは＜電機＞に通常どおり効く',
   spec: v24cxiiiImmuneSpec('WD01-012'), // Lv2 P7000
