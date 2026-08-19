@@ -22129,6 +22129,61 @@ scenarios.wxex122AttachCharmMultiPair = {
 order.push('wxex122AttachCharmMultiPair');
 // ── V-23(a) END ──
 
+// ── V-24(cxvii) START ──
+// §7 V-24(cxvii)＝タスク12在庫(cxvii)＝WX20-Re18（幻獣 アカズキン）の動的レベル。
+// E1(STUB DYNAMIC_LEVEL_BY_ENERGY)＝印字Lv2＋エナゾーン5枚につき+1。エナ10枚→実効Lv4＝
+// E2「このシグニがアタックしたとき、正面のシグニをバニッシュする」が条件(SELF_LEVEL_THRESHOLD gte 4)で解禁される
+// はず（エナが足りない＝Lv2のままなら発火しないのが対照）。BattleScreenのレベル表示（calcSigniLevels）が
+// engineの判定（実効Lv4）と一致するかも screenshot で併せて見る。
+scenarios.wx20re18DynamicLevelAttackBanish = {
+  title: 'WX20-Re18-E2（動的レベル＝エナ10枚で実効Lv4→アタック時に正面シグニをバニッシュ）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [['WX20-Re18#1'], null, null],
+      'field.signi_down': [false, false, false],
+      'energy': Array.from({ length: 10 }, (_, i) => `WD05-009#${i + 1}`),
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD01-013#1'], null, null], // 正面＝バニッシュ対象
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 host.energy:', before?.host?.energy, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+    await page.screenshot({ path: `${SHOT}/wx20re18DynamicLevelAttackBanish-levelcheck.png`, fullPage: true });
+    let attacked = false;
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/wx20re18DynamicLevelAttackBanish-${s}.png`, fullPage: true });
+      let did = null;
+      if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+      if (!did && !attacked) {
+        const atkBtn = page.getByRole('button', { name: 'アタック', exact: true }).first();
+        if (await atkBtn.count() && await atkBtn.isVisible().catch(() => false)) { await atkBtn.click().catch(() => {}); did = 'btn:アタック'; attacked = true; }
+      }
+      if (!did && !attacked) {
+        const opened = await H.clickTestId('my-signi-zone-0');
+        if (opened) did = opened;
+      }
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい', 'エナに送る']);
+      const st = await H.queryState();
+      const gCnt = (st?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
+      H.log(`  v24cxvii[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} pEff=${st?.pendingEffect ?? '-'}`);
+      if (attacked && gCnt === 0) {
+        return { pass: true, detail: `実効Lv4（印字Lv2＋エナ10枚/5=+2）でアタック→正面のWD01-013をバニッシュ（gField 1→0・gTrash ${before?.guest?.trash}→${st?.guest?.trash}）` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `バニッシュ未確認（attacked=${attacked} gField=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wx20re18DynamicLevelAttackBanish');
+// ── V-24(cxvii) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
