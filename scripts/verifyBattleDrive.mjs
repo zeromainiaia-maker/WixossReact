@@ -24452,6 +24452,8 @@ async function driveV45b(page, H, pay) {
       if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
     } else {
       did = await H.clickTestId(pay ? 'optcost-pay' : 'optcost-skip');
+      // 支払った場合、続けてADD_TO_FIELDのSELECT_TARGET（候補1件）が出る＝pick-0→決定。
+      if (!did) did = await H.stdStep();
     }
     const st = await H.queryState();
     H.log(`  v45b[${s}] -> ${did ?? 'なし'} | pay=${pay} attacked=${attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energyCards} pEff=${st?.pendingEffect ?? '-'}`);
