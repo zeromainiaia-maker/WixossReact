@@ -21863,7 +21863,7 @@ try {
       for (const zi of [1, 2, 3]) {
         const b = page.getByRole('button', { name: new RegExp(`^ゾーン${zi}`) }).first();
         if (await b.count() && await b.isVisible().catch(() => false) && await b.isEnabled().catch(() => false)) {
-          await b.click().catch(() => {}); return 'btn:ゾーン' + zi;
+          await b.click({ timeout: 1200 }).catch(() => {}); return 'btn:ゾーン' + zi;
         }
       }
       return null;
