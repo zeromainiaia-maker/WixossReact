@@ -1,5 +1,36 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き582・Sonnet 5）— §7 実機検証（V-40）＝O-34実装5経路中4件は残0クローズ・🔴新規engineバグ1件（SEARCHモーダルcrash）を発見しOpusタスク12(cxlv)へ登録
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ9本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
+
+### ✅ V-40(a) `WX19-064-E1`③（ＰＵＬＬＩＮＧ）＝`STRIP_ATTACHED_AND_UNDER`・残0クローズ
+
+新規シナリオ1本（`v40StripAttachedAndUnder`）。guest唯一のシグニに下カード・チャーム・アクセを全種付けた盤面で、host が無償スペル（青×0）を発動→CHOOSE③→SELECT_TARGET（候補1体）。結果＝対象シグニ自身は場に残置（トップカードだけのスタックへ縮小）・下カード／チャーム／アクセの3枚が丸ごとトラッシュへ・`fieldCharms`/`fieldAcce`ともnullに戻る。2回連続PASS。engineバグ0。
+
+### 🔴 V-40(b) `WX20-077-E2`（ドライ＝アコニチン）＝`USE_SEARCHED_SPELL_OR_TRASH`＝新規engineバグ発見（画面が真っ黒になる）
+
+新規シナリオ1本（`v40UseSearchedSpellOrTrashCrash`・意図的FAIL）。ON_PLAYでSEARCH（デッキから《バイオレンス・スプラッシュ》を探す）が発火した瞬間、モーダルが描画されず画面全体が真っ黒（`pendingEffect=SEARCH`のまま`document.body.innerText`が空長のまま停止）になることを2回連続で確認。
+
+**真因＝パーサが生成する`SEARCH`アクションに必須フィールド`then`が無い。**`src/data/parsers/parseSentencePart3.ts:1856-1868`（「あなたのトラッシュにカード名に《X》を含むカードがある場合、あなたのデッキから《Y》N枚を探す」規則）が`SEARCH`アクションを`afterSearch`だけ持たせて生成し、`then`（`types/effects.ts:1356`で`then: EffectAction`＝必須宣言）を一度も設定していない。`EffectInteractionModal.tsx:119`（`const act = inter.thenAction; ... act.type === 'ADD_TO_HAND' ? ... `）が`inter.thenAction===undefined`のまま`.type`を読み`TypeError: Cannot read properties of undefined (reading 'type')`でReactごとcrashする（pageerrorで実機確認・スタックも一致）。**同じ前提の穴がpick解決側（`effectExecutor.ts:8189`以降の`pending.thenAction.type`無条件参照）にもあり、仮に描画をバイパスできてもresolver側でも同型でcrashする二重の穴。**
+
+母集団は実測で live 上この1件のみ（`then`欠落のSEARCHアクションを全JSON走査＝435件中1件）。修正方針＝(a) 当該パーサ規則に`then: {type:'ADD_TO_HAND', owner:'self'}`相当を明示的に足す（後続の`USE_SEARCHED_SPELL_OR_TRASH`が改めて使用/トラッシュへ振り分けるので、探索直後の一時的な受け皿として手札行きが自然）(b) 併せて`EffectInteractionModal.tsx:119`・`effectExecutor.ts:8189`以降を`thenAction`未定義でも安全にフォールバックするよう防御的にする（同型の parser 側の作り忘れが今後別カードで再発してもUI全体を落とさないため）。**Opusタスク12(cxlv)として登録**。
+
+### ✅ V-40(c) `WXDi-P12-055-E1`（透魔姫　ウリス）＝`DECLARED_ICON_HAND_DISCARD_BANISH`・残0クローズ
+
+新規シナリオ2本（`v40DeclaredIconHandDiscardProtects`／`v40DeclaredIconHandDiscardBanishes`）。CPU（guest）の`opponentResponds`自動応答は**候補配列の先頭を常に選ぶ**（`BattleScreen.tsx:634`）ため色宣言は常に《白》＝捨てる手札の色を選ぶだけで正負を決定論的に作れると判明。捨てた手札が《白》を持つ（小剣ククリ）→対象は場に残る／《白》を持たない（羅石アイロン＝赤）→対象がバニッシュされる、を各2回連続PASSで確認。engineバグ0。
+🔑ログパネルは直近数行しか常設表示しない＝宣言ログは出た瞬間に確保しないと後続ログに押し出されて`findLog`で拾えなくなる（実装時に1回踏んだ）。
+
+### ✅ V-40(d) `WXDi-P08-064-E1`（蒼天　カナロア＝`PER_OWN_LRIG_COLOR_SCALE`の同機構シンプル横展開先）・残0クローズ
+
+新規シナリオ2本（`v40PerOwnLrigColorScaleFires`／`v40PerOwnLrigColorScaleZero`）。センタールリグが青1体→ON_PLAYでFREEZE選択が1回出て対象凍結／センタールリグが白（青0体）→本体が一度も走らず「場に青のルリグがいないため何も起きない」ログのみ、を各2回連続PASSで確認。engineバグ0。
+🔑`placed`（召喚完了）判定の直後は ON_PLAY トリガー収集が`pending_effect`へ積まれるまで1〜数ティックのラグがある＝`placed && !pendingEffect`を即断すると偽陽性になる（3ティック様子を見てから確定する形に是正）。
+
+### ✅ V-40(e) `WXK07-034-E1`（ネビュラ・コネクト）＝`DECK_SIGNI_LEVEL_OVERRIDE_ALL`・残0クローズ
+
+新規シナリオ2本（`v40DeckLevelOverrideBothChoicesReveal2`／`v40DeckLevelOverrideOnlyChoice2NoReveal`）。デッキを印字Lv1シグニのみにした盤面で、①②両方選ぶ→Lv4扱いで2枚めくれて手札に加わる／①を選ばず②のみ→素のLv1のまま1枚も当たらず手札は増えない、を確認（後者は2回連続PASS・前者は1回目クリーンPASS後、環境要因のブラウザクラッシュを挟んで再実行し確認）。停止条件・当たり判定の両方が`deckSigniOverrideLevel`を読む設計どおり機能。engineバグ0。
+🔑multiSelect CHOOSE の確定後に出るSEARCHピッカーは`pick-0`を連打すると選択がトグルで外れて進まない（📌21の再実例）＝`pick-0`→`pick-1`の順に1回ずつ押す。
+
 ## 2026-08-19（続き581・Sonnet 5）— §7 実機検証（V-39）＝エナ支払いゲート2件は残0クローズ・🔴新規engineバグ1件を発見しOpusタスク12(cxliv)へ登録（未修正のため据置）
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ3本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
