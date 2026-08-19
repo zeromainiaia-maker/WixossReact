@@ -1256,6 +1256,69 @@ const scenarios = {
     },
   },
 
+  // §7 V-29（続き452＝相手応答モーダルの実表示・PvPの相手側／CPU自動応答）＝WXEX2-84-E2（エクシード2）＝
+  //   SEQUENCE[TRASH(対戦相手シグニALL), REVEAL_AND_PICK(対戦相手デッキ上2枚を公開・対戦相手が2枚まで選び場に出す・
+  //   opponentResponds:true)]。REVEAL_AND_PICK→execRevealAndPickはSEARCH型interaction＋opponentResponds:trueを
+  //   生成する（opp_handのviewer視点バグ=Opusタスク12(cv)とは別の描画経路＝EffectInteractionModalのSEARCH分岐）。
+  //   host側は起動ボタンを押すだけ＝相手（CPU）側の応答UIはCPU自動応答任せ（driverからは操作しない）。
+  wxex284OppResponds: {
+    title: 'WXEX2-84-E2（エクシード2＝対戦相手全シグニトラッシュ→対戦相手デッキ上2枚公開→対戦相手が2枚まで選び場に出す）',
+    spec: {
+      hostSet: {
+        'field.lrig': ['WD01-001#1', 'WD01-002#1', 'WXEX2-84#1'], // under2枚＝エクシード2
+        'field.signi': [null, null, null],
+        'energy': [],
+        'actions_done': [],
+      },
+      guestSet: {
+        'field.signi': [['WX01-053#1'], ['WX01-053#2'], null], // TRASH ALLの対象（2体）
+        'field.signi_down': [false, false, false],
+        'deck': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3', 'WD01-013#4', 'WD01-013#5',
+                 'WD01-013#6', 'WD01-013#7', 'WD01-013#8', 'WD01-013#9', 'WD01-013#10'],
+      },
+      top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    },
+    async drive(page, H) {
+      const before = await H.queryState();
+      H.log('開始時 guest.deck:', before?.guest?.deck, 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'guest.trash:', before?.guest?.trash);
+      await H.ensureMain();
+      const lrigImg = page.getByAltText('真名の巫女', { exact: false }).first();
+      if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
+      let fired = false;
+      let trashedAll = false;
+      for (let s = 0; s < 26; s++) {
+        await page.waitForTimeout(900);
+        await page.screenshot({ path: `${SHOT}/wxex284OppResponds-${s}.png`, fullPage: true });
+        let did = null;
+        if (!did) {
+          const actBtn = page.getByRole('button', { name: /【起】エクシード/ }).first();
+          if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】エクシード'; fired = true; }
+        }
+        if (!did) {
+          const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+          if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+        const st = await H.queryState();
+        const gFieldCount = (st?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
+        if (gFieldCount === 0 && (before?.guest?.fieldSigni ?? []).some(z => (z ?? []).length > 0)) trashedAll = true;
+        const deckShrunk = (st?.guest?.deck ?? 99) < (before?.guest?.deck ?? 0);
+        H.log(`  v29[${s}] -> ${did ?? 'なし'} | fired=${fired} trashedAll=${trashedAll} gDeck=${st?.guest?.deck}(開始${before?.guest?.deck}) gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+        // opponentResponds=true のSEARCH（REVEAL_AND_PICK）はCPU（guest）側が自動応答するのでdriverからは操作しない。
+        if (trashedAll && deckShrunk && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+          const placed = (st?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
+          const revealedGone = (before?.guest?.deck ?? 0) - (st?.guest?.deck ?? 0) === 2;
+          return {
+            pass: revealedGone,
+            detail: `エクシード2発動→対戦相手シグニ全滅（TRASH ALL）→デッキ上2枚公開→対戦相手(CPU)応答UI経由でgField=${placed}体配置（gDeck ${before?.guest?.deck}→${st?.guest?.deck}）`,
+          };
+        }
+      }
+      const fin = await H.queryState();
+      return { pass: false, detail: `完了未確認（fired=${fired} trashedAll=${trashedAll} gDeck=${fin?.guest?.deck} gField=${JSON.stringify(fin?.guest?.fieldSigni)} stack=${fin?.stackLen ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+    },
+  },
+
   // ⑨ ON_LRIG_UNDER_MOVED（C1・WXDi-P04-042）: 【自】＝あなたのターンの間、ルリグの下からカードが移動したとき（once_per_turn）。
   //    トリガー源＝アーツ WX05-007 ラスト・セレクト（タマ/イオナ限定・《白》《黒》：センタールリグの下から4枚をルリグトラッシュへ＋
   //    対戦相手シグニ1体トラッシュ）。guest シグニ場を空にすると TRASH 対象0→SEQUENCE が一気に done=true となり
