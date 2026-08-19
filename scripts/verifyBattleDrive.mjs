@@ -24408,6 +24408,79 @@ scenarios.v45aQueenAbsentNoSwap = {
   async drive(page, H) { return driveV45a(page, H, false); },
 };
 order.push('v45aQueenPresentSwapsPosition', 'v45aQueenAbsentNoSwap');
+
+// V-45(b)：`WX25-P2-090-E1`（壱ノ遊　カタカタ）【自】：このシグニがアタックしたとき、そのアタック終了時、
+// あなたのエナゾーンからレベル１の＜遊具＞のシグニ１枚を対象とし、場にあるこのシグニをエナゾーンに置いても
+// よい。そうした場合、それをダウン状態で場に出す。JSONは`STUB(OPTIONAL_COST,selfToEnergy)`→
+// `CONDITIONAL(IS_MY_TURN){ADD_TO_FIELD,asDown}`の2ステップのみ（V-20の「3ステップ以上の入れ子」バグは
+// 踏まない形）。支払う／断るを対で見る。
+function v45bSpec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#48000'],
+      'field.signi': [null, ['WX25-P2-090#48001'], null], // 中央＝壱ノ遊カタカタ
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'energy': ['WX24-P2-074#48002'], // レベル1＜遊具＞＝ADD_TO_FIELD対象
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#48010'],
+      'field.signi': [null, ['WD01-013#48011'], null], // 正面＝弱いシグニ（直接ライフアタック回避）
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [],
+      'life_cloth': ['WD01-013#48020', 'WD01-013#48021'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+async function driveV45b(page, H, pay) {
+  let attacked = false; let zoneOpened = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/v45b-${pay}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!attacked) {
+      if (!zoneOpened) { const d = await H.clickTestId('my-signi-zone-1'); if (d) { did = d; zoneOpened = true; } }
+      if (!did) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+          await atk.click({ timeout: 1500 }).catch(() => {}); did = 'action:アタック'; attacked = true;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
+    } else {
+      did = await H.clickTestId(pay ? 'optcost-pay' : 'optcost-skip');
+    }
+    const st = await H.queryState();
+    H.log(`  v45b[${s}] -> ${did ?? 'なし'} | pay=${pay} attacked=${attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energyCards} pEff=${st?.pendingEffect ?? '-'}`);
+    if (attacked && !st?.pendingEffect && s >= 4) {
+      const kataOnField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX25-P2-090')));
+      const swappedIn = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
+      const swappedInDown = (st.host.fieldSigni ?? []).findIndex(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
+      return {
+        pass: pay ? (swappedIn && !kataOnField) : (kataOnField && !swappedIn),
+        detail: `pay=${pay}・場=${JSON.stringify(st.host.fieldSigni)}・signiDown=${JSON.stringify(st.host.signiDown)}・エナ=${JSON.stringify(st.host.energyCards)}（期待swappedIn=${pay}, swapZoneIdx=${swappedInDown}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${attacked} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v45bPaySwapsInDownEnergySigni = {
+  title: 'V-45(b) WX25-P2-090-E1：支払う→自分がエナへ行きレベル1＜遊具＞がダウン状態で場に出る',
+  spec: v45bSpec(),
+  async drive(page, H) { return driveV45b(page, H, true); },
+};
+
+scenarios.v45bSkipDoesNothing = {
+  title: 'V-45(b)対照 WX25-P2-090-E1：断れば何も起きない（自分は場に残る）',
+  spec: v45bSpec(),
+  async drive(page, H) { return driveV45b(page, H, false); },
+};
+order.push('v45bPaySwapsInDownEnergySigni', 'v45bSkipDoesNothing');
 // ── V-45 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
