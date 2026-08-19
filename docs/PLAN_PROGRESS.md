@@ -4,6 +4,14 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き574・Sonnet 5）＝§7 実機検証さらに5件（V-23(a)(b)／V-24(cxvii)／V-29／V-81／V-82(c)）＝実バグ1件発見・6項目残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ6本のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き574）。
+  - **✅ V-81 残0クローズ**＝ArtsModal Phase1削除（`O-19b`）の回帰確認。初回FAILはコールドスタート起因のフレークと判明（3連続PASSで確定）。engineバグ0。
+  - **✅ V-29 残0クローズ**＝`WXEX2-84`エクシード2＝`REVEAL_AND_PICK{opponentResponds:true}`がCPU自動応答で正しく処理される（ソフトロックなし）。2回連続PASS。engineバグ0。
+  - **✅ V-23(a)(b) 残0クローズ**＝ATTACH_CHARM複数ペア付与（`WXEX1-22`）／「N体まで＝0体でもよい」の候補が自分のシグニだけに絞られること（`WXDi-P09-053`）を確認。各2回連続PASS。engineバグ0。
+  - **✅ V-82(c) 残0クローズ**＝CPUの応答アーツ温存（`responseArtsAllowedKinds`＝ライフ2枚以下でだけprevent解禁）を正方向・対照とも実機確認。各2回連続PASS。engineバグ0。
+  - **🔴 実バグ発見×1＝V-24(cxvii)**＝(cxlii) `evalUseCondition`が`effectsMap`を渡さないため`SELF_LEVEL_THRESHOLD`が実効レベルを計算できず印字レベルへフォールバックし続ける（`WX20-Re18`のE2アタック時バニッシュ・E4効果耐性がともに発火しない）。Opusタスク12へ登録。
+  - **▶ 次の一手**＝Opusタスク12在庫5件の修正待ち／Sonnet側は§7実機検証の続き（V-24残4項目／V-28〜V-30／V-35から）。（この節はSonnet続き575で更に前進＝V-24(cxviii)・V-58(f)残0クローズ。詳細はPLAN.md §4の最新summary）
+
 - **🆕 セッション（2026-08-19・続き573・Sonnet 5）＝§7 実機検証さらに5件（V-15残り／V-19再着手／V-20新規／V-21新規／V-22新規）＝実バグ2件発見・Opusタスク12へ登録・V-15/V-21/V-22残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の共有ヘルパー2箇所是正＋新規シナリオ7本）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き573）。
   - **✅ V-15 残0クローズ**＝真因3点（📌19未適用のtimeout漏れ／候補pick漏れ／後続SELECT_SIGNI_ZONE未処理）をすべてシナリオ・共有ヘルパー側で解消。2回連続PASS（19秒）。engineバグ0。
   - **✅ V-21・V-22 残0クローズ**＝`isDisona`のバフ込み実効パワー判定・パリティ移植を新規シナリオで検証。いずれもengineバグ0（実装どおり）。
