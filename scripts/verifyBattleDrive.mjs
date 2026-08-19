@@ -23093,13 +23093,14 @@ function cddtoSpec(granted) {
 async function driveCddto(page, H, expectBlocked) {
   const before = await H.queryState();
   H.log('開始時 guest.life:', before?.guest?.life);
-  let attacked = false;
+  let attacked = false; let opened = false;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(800);
     let did = null;
     if (!attacked) {
       did = await H.clickBtn('アタック', { exact: true });
       if (did) attacked = true;
+      else if (!opened) { did = await H.clickTestId('my-signi-zone-1'); opened = true; }
     }
     const st = await H.queryState();
     H.log(`  cddto[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
