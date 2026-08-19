@@ -22769,6 +22769,184 @@ scenarios.v58fCpuAutoPassesTeamPieceCutin = {
 order.push('v58fCpuAutoPassesTeamPieceCutin');
 // ── V-58(f) END ──
 
+// ── V-35(b)(c) START ──
+// §7 V-35(b)(c)（続き497＝O-3 是正）＝`WDK06-R09-E1`（メル＝マドラー・キー）：
+// 【自】対戦相手のターン終了時、このターンにアタックしたシグニを２体まで対象とし、
+// このキーを場からルリグトラッシュに置いてもよい。そうした場合、それらをバニッシュする。
+// 旧実装は対象・コスト・所有者の3点すべて誤りで「相手のターン終了時に自分のシグニを1体タダでバニッシュ」
+// していた（BUGFIXES 2026-08-15続き497）。是正後の3経路を実UIで確認する：
+//   (b-pay)  候補は「このターンにアタックした相手シグニ」だけ（未アタックの3体目は候補に出ない）／
+//            キーを払うと選んだ2体がバニッシュされる／自分のシグニは減らない。
+//   (b-skip) 同じ候補が出ても支払わなければ何も起きない（相手シグニ・自分のキーとも無傷）。
+//   (c)      場にキーが無ければ支払い枝（optcost-pay）が出ない/使えない。
+const WDK06_GUEST_ATK1 = 'WD01-012#9611'; // このターンにアタックした（候補になるべき）
+const WDK06_GUEST_ATK2 = 'WD01-012#9612'; // 同上
+const WDK06_GUEST_SAFE = 'WD01-012#9613'; // 未アタック（候補に出てはいけない）
+const WDK06_HOST_SIGNI = 'WD01-013#9601'; // 自分のシグニ（減ってはいけない対照）
+const WDK06_KEY = 'WDK06-R09#9602';
+function wdk06r09Spec(hasKey) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9600'],
+      'field.signi': [[WDK06_HOST_SIGNI], null, null],
+      'field.signi_down': [false, false, false],
+      'field.key_piece': hasKey ? WDK06_KEY : null,
+      'field.key_piece_extra': [],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'lrig_trash': [],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9610'],
+      'field.signi': [[WDK06_GUEST_ATK1], [WDK06_GUEST_ATK2], [WDK06_GUEST_SAFE]],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'attacked_signi_ids': [WDK06_GUEST_ATK1, WDK06_GUEST_ATK2],
+      'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'END', turn_count: 3 },
+  };
+}
+function wdk06r09CandidatesOk(cands) {
+  return Array.isArray(cands) && cands.length === 2
+    && cands.includes(WDK06_GUEST_ATK1) && cands.includes(WDK06_GUEST_ATK2)
+    && !cands.includes(WDK06_GUEST_SAFE);
+}
+scenarios.wdk06r09Pay = {
+  title: 'V-35(b) WDK06-R09-E1 pay：アタック済み2体だけ候補→キーを払うと両方バニッシュ・自分のシグニは無傷',
+  spec: wdk06r09Spec(true),
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.keyPiece:', before?.host?.keyPiece);
+    let candidatesChecked = false; const picked = new Set(); let targetsConfirmed = false; let paid = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const st0 = await H.queryState();
+      if (!targetsConfirmed && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+        if (!candidatesChecked) {
+          candidatesChecked = wdk06r09CandidatesOk(st0.pendingCandidates);
+          if (!candidatesChecked) return { pass: false, detail: `候補が不正: ${JSON.stringify(st0.pendingCandidates)}（期待=アタック済み2体のみ・未アタック3体目は含まない）` };
+        }
+        for (let i = 0; i < st0.pendingCandidates.length; i++) {
+          if (picked.has(i)) continue;
+          const p = await H.clickTestId(`pick-${i}`);
+          if (p) { picked.add(i); did = p; break; }
+        }
+        if (!did && picked.size >= st0.pendingCandidates.length) did = await H.clickBtn('決定');
+        if (did === 'btn:決定') targetsConfirmed = true;
+      }
+      if (!did && targetsConfirmed && !paid) {
+        const pay = await H.clickTestId('optcost-pay');
+        if (pay) { did = pay; paid = true; }
+      }
+      const st = await H.queryState();
+      H.log(`  wdk06pay[${s}] -> ${did ?? 'なし'} | candOk=${candidatesChecked} picked=${[...picked]} confirmed=${targetsConfirmed} paid=${paid} gField=${JSON.stringify(st?.guest?.fieldSigni)} hKey=${st?.host?.keyPiece} hLrigTrash=${st?.host?.lrigTrashCards} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      if (paid && !st?.pendingEffect) {
+        const gAlive = (st?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+        const banishedBoth = !gAlive.includes(WDK06_GUEST_ATK1) && !gAlive.includes(WDK06_GUEST_ATK2) && gAlive.includes(WDK06_GUEST_SAFE);
+        const keyGone = st.host.keyPiece == null && (st.host.lrigTrashCards ?? []).includes(WDK06_KEY);
+        const hostSigniIntact = (st.host.fieldSigni ?? []).flat().filter(Boolean).includes(WDK06_HOST_SIGNI);
+        const ok = candidatesChecked && banishedBoth && keyGone && hostSigniIntact;
+        return { pass: ok, detail: `候補限定=${candidatesChecked}・攻撃済み2体バニッシュ=${banishedBoth}（残存=${JSON.stringify(gAlive)}）・キー消費=${keyGone}・自分シグニ健在=${hostSigniIntact}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cand=${candidatesChecked} confirmed=${targetsConfirmed} paid=${paid} pEff=${fin?.pendingEffect ?? '-'} opts=${JSON.stringify(fin?.pendingOptions)}）` };
+  },
+};
+scenarios.wdk06r09Skip = {
+  title: 'V-35(b) WDK06-R09-E1 skip対照：同じ候補が出ても支払わなければ何も起きない',
+  spec: wdk06r09Spec(true),
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.keyPiece:', before?.host?.keyPiece);
+    let candidatesChecked = false; const picked = new Set(); let targetsConfirmed = false; let skipped = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const st0 = await H.queryState();
+      if (!targetsConfirmed && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+        if (!candidatesChecked) {
+          candidatesChecked = wdk06r09CandidatesOk(st0.pendingCandidates);
+          if (!candidatesChecked) return { pass: false, detail: `候補が不正: ${JSON.stringify(st0.pendingCandidates)}` };
+        }
+        for (let i = 0; i < st0.pendingCandidates.length; i++) {
+          if (picked.has(i)) continue;
+          const p = await H.clickTestId(`pick-${i}`);
+          if (p) { picked.add(i); did = p; break; }
+        }
+        if (!did && picked.size >= st0.pendingCandidates.length) did = await H.clickBtn('決定');
+        if (did === 'btn:決定') targetsConfirmed = true;
+      }
+      if (!did && targetsConfirmed && !skipped) {
+        const skip = await H.clickTestId('optcost-skip');
+        if (skip) { did = skip; skipped = true; }
+      }
+      const st = await H.queryState();
+      H.log(`  wdk06skip[${s}] -> ${did ?? 'なし'} | candOk=${candidatesChecked} confirmed=${targetsConfirmed} skipped=${skipped} gField=${JSON.stringify(st?.guest?.fieldSigni)} hKey=${st?.host?.keyPiece} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      if (skipped && !st?.pendingEffect) {
+        const gAlive = (st?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+        const untouched = [WDK06_GUEST_ATK1, WDK06_GUEST_ATK2, WDK06_GUEST_SAFE].every(c => gAlive.includes(c));
+        const keyIntact = st.host.keyPiece === WDK06_KEY;
+        const ok = candidatesChecked && untouched && keyIntact;
+        return { pass: ok, detail: `候補限定=${candidatesChecked}・skip後も相手シグニ3体健在=${untouched}（${JSON.stringify(gAlive)}）・自分のキー健在=${keyIntact}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cand=${candidatesChecked} confirmed=${targetsConfirmed} skipped=${skipped} pEff=${fin?.pendingEffect ?? '-'} opts=${JSON.stringify(fin?.pendingOptions)}）` };
+  },
+};
+scenarios.wdk06r09NoKey = {
+  title: 'V-35(c) WDK06-R09-E1 対照：場にキーが無ければ支払い枝（optcost-pay）が出ない/使えない',
+  spec: wdk06r09Spec(false),
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 host.keyPiece:', before?.host?.keyPiece);
+    let candidatesChecked = false; const picked = new Set(); let targetsConfirmed = false; let sawUnavailable = false; let skipped = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      const st0 = await H.queryState();
+      if (!targetsConfirmed && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+        if (!candidatesChecked) {
+          candidatesChecked = wdk06r09CandidatesOk(st0.pendingCandidates);
+          if (!candidatesChecked) return { pass: false, detail: `候補が不正: ${JSON.stringify(st0.pendingCandidates)}` };
+        }
+        for (let i = 0; i < st0.pendingCandidates.length; i++) {
+          if (picked.has(i)) continue;
+          const p = await H.clickTestId(`pick-${i}`);
+          if (p) { picked.add(i); did = p; break; }
+        }
+        if (!did && picked.size >= st0.pendingCandidates.length) did = await H.clickBtn('決定');
+        if (did === 'btn:決定') targetsConfirmed = true;
+      }
+      if (!did && targetsConfirmed && !skipped) {
+        const opts = (await H.queryState())?.pendingOptions ?? [];
+        const payOpt = opts.find(o => o.startsWith('pay:'));
+        sawUnavailable = payOpt == null || payOpt.endsWith('(disabled)');
+        if (!sawUnavailable) return { pass: false, detail: `【回帰】キーが無いのに有効なpay枝がある: ${JSON.stringify(opts)}` };
+        const payBtn = page.getByTestId('optcost-pay').first();
+        if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
+          return { pass: false, detail: '【回帰】キーが無いのにoptcost-payがenabled' };
+        }
+        const skip = await H.clickTestId('optcost-skip');
+        if (skip) { did = skip; skipped = true; }
+      }
+      const st = await H.queryState();
+      H.log(`  wdk06nokey[${s}] -> ${did ?? 'なし'} | candOk=${candidatesChecked} confirmed=${targetsConfirmed} unavailable=${sawUnavailable} skipped=${skipped} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      if (sawUnavailable && skipped && !st?.pendingEffect) {
+        const ok = candidatesChecked && sawUnavailable;
+        return { pass: ok, detail: `候補限定=${candidatesChecked}・キー無しではpay枝利用不能=${sawUnavailable}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cand=${candidatesChecked} confirmed=${targetsConfirmed} unavailable=${sawUnavailable} skipped=${skipped} pEff=${fin?.pendingEffect ?? '-'} opts=${JSON.stringify(fin?.pendingOptions)}）` };
+  },
+};
+order.push('wdk06r09Pay', 'wdk06r09Skip', 'wdk06r09NoKey');
+// ── V-35(b)(c) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
