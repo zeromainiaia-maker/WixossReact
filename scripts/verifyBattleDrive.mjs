@@ -22968,7 +22968,7 @@ scenarios.wdk06r09NoKey = {
 // 両方を実UIで見る（**負方向＋対照の対**）。【側面アタック】キーワード自体は`keyword_grants`で直接付与
 // （native付与元カードの正否はこのシナリオの対象外＝WX16-021単体の挙動を切り分ける）。
 const WX16021_ATTACKER = 'WX15-054#9701'; // 四英の掛算（精像：英知・Lv3）＝側面アタックを直接付与
-function wx16021Spec() {
+function wx16021Spec(turnPhase) {
   return {
     hostSet: {
       'field.lrig': ['WD01-001#9700'],
@@ -22985,14 +22985,13 @@ function wx16021Spec() {
       'field.signi_down': [false, false, false],
       'field.check': null,
     },
-    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+    top: { active: 'host', turn_phase: turnPhase, turn_count: 2 },
   };
 }
 scenarios.wx16021SideAttackEmptyZoneNoButtonBeforeArts = {
   title: 'V-28 WX16-021 対照：驚天動地を使う前は空ゾーンへの側面アタックボタン自体が出ない',
-  spec: wx16021Spec(),
+  spec: wx16021Spec('ATTACK_SIGNI'), // アタック系ボタンはATTACK_SIGNIフェイズでのみ生成される
   async drive(page, H) {
-    await H.ensureMain();
     const opened = await H.clickTestId('my-signi-zone-1');
     await page.waitForTimeout(700);
     const cnt = await page.getByRole('button', { name: /側面アタック/ }).count();
