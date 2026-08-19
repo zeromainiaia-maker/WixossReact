@@ -1,5 +1,26 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き584・Sonnet 5）— §7 実機検証（V-42・V-43・V-44）＝コア機構3件は残0クローズ・🔴V-44(a)で新規engineバグ（間欠）を発見しOpusタスク12(cxlvi)へ登録・V-45は未着手のままfollow-upへ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ4本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
+
+### ✅ V-42(a) `WX25-CP1-050-E1`（栗村アイリ）＝O-33のゾーン限定`SigniAttackBan`・残0クローズ
+
+新規シナリオ1本（`v42ZoneLimitedAttackBanCenterOnly`）。`signi_attack_bans_this_turn:[{zones:[1],unlessPayColorless:1}]`を直接注入し、host自身の3ゾーンのアタックボタン表示を読む＝中央（ゾーン添字1）だけ「アタック（《無》×1）」・左右は無条件「アタック」。2回連続PASS。**engineバグ0**（`signiAttackBan.ts:20-31`のゾーン限定判定は判定地点で毎回ゾーンを引き直す設計どおり）。
+🔑**ハーネス罠×2**＝(a) `signi_attack_bans_this_turn`のコストが払えない盤面（エナ0）だと`canSigniAttack`が`ATTACK_BAN_COST`でfalseを返し、**アタックボタンごと消える**（コスト注記つきで出るわけではない）＝コスト分のエナを盤面に用意しないと「観測できない」だけの偽陰性になる。(b) 場のシグニをタップして開く`CardModal`は`H.closeModals()`（Escape＋「タップして閉じる」クリック）が効かないことがあり、**同じzone-testidの再クリックもトグルで閉じない**（前のモーダルがそのまま残り、次のゾーンが開けなくなる）＝`isModalOpen()`（「タップして閉じる」の可視性）で閉じたことを確認してから次を開く構成が必須。
+
+### ✅ V-43(a) 【Ｓランサー】＝O-28の全角/半角綴りズレ是正・残0クローズ
+
+新規シナリオ2本（`v43SLancerDefeatsOpponentAtZeroLife`／`v43RegularLancerFizzlesAtZeroLife`）。`keyword_grants`で【Ｓランサー】相当（engine内部表記`Sランサー`）／通常【ランサー】をそれぞれ付与し、確実に勝てるバトル（P10000 vs P3000）を相手ライフ0枚の盤面で発生させる。Sランサーは「Sランサー：ライフなし → ダメージ → 相手の敗北」ログを出して`END_GAME`（相手勝者なし＝host勝利）まで到達、通常ランサーは「ランサー：ライフなし（効果消滅）」で試合が続く（負方向＋対照の対）。各2回連続PASS（`END_GAME`後は試合終了するためシナリオごとに`FRESH=1`で新規ルームが必要＝ゲーム終了系シナリオの実行上の注意点）。**engineバグ0**（`BattleScreen.tsx:9309-9319`の`isSLancer`分岐は正しく機能）。
+
+### 🔴 V-44(a) `WX16-Re18-E1`（レゾナンス・マーチ）＝O-5の複数枚配置で新規engineバグ発見（間欠・4回中2回再現）
+
+新規シナリオ1本（`v44SummonTwoResonasFromLrigDeck`）。ルリグデッキから【出】能力を発動させずレゾナを「２枚まで」場に出す効果＝SELECT_TARGETで2枚選択→1枚目をSELECT_SIGNI_ZONEで配置→**残り1枚は空きゾーンが1つに減った時点で対話なしに自動配置される設計**（`execStubPart3.ts:3043-3054`＝`emptyIdxIPSR.length>=2`のときだけ対話を挟み、それ未満なら`INTERNAL_PLACE_SUMMONED_RESONAS`の継続を`executeAction`で即時実行）。**4回の実行中2回、この自動配置が発火せず2枚目がルリグデッキに取り残まされたまま`pendingEffect`が`-`に戻って「完了」してしまう**ことを実測（`hLrigDeck`に2枚目のカードが残存＝`hField`の対応ゾーンはnullのまま）。再現するとき・しないときで**どちらのカードが1枚目として処理されるか（=`headIPSR`）が入れ替わっている**（1枚目=44002のときは常に成功・1枚目=44003のときは常に失敗、の4/4パターン一致）ことも確認したが、UI操作（`pick-0`→`pick-1`→「決定」の順）自体は毎回同一だったため、選択順序が非決定的に入れ替わる原因（`resumeSelectTarget`側のマルチセレクト順序が保存される経路 or `INTERNAL_PLACE_SUMMONED_RESONAS`の継続実行そのものの間欠的な欠落）はSonnet側では特定しきれず、**Opusタスク12(cxlvi)として登録**。実害＝「２枚まで」を選んでも約半分の確率で1枚しか場に出ない過少実行（プレイヤーへの実害は「２枚選んだのに1枚しか出ない」という体感バグ）。
+
+### 📋 V-45 は未着手のままfollow-upへ
+
+O-6/O-7実装の4経路（`WX25-P2-058`＝アタック終了時の遅延条件付き任意コスト＋場所入れ替え／`WX25-P2-090`／`WX24-P4-052`／`WX25-P3-038`）はいずれも遅延トリガー・特定カード存在条件・任意コスト・特殊配置が絡み複雑度が高く、今回のセッションでは着手を見送った（follow-up・優先度は残す）。
+
 ## 2026-08-19（続き583・Sonnet 5）— §7 実機検証（V-41(b)）＝O-32実装のREPEAT.optional機構コアを残0クローズ・(a)(c)(d)は同機構の横展開のためfollow-upへ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ1本・共通ヘルパー`clickCandidateByPrefix`1本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
