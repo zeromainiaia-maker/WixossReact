@@ -24333,7 +24333,10 @@ function v45aSpec(hasQueen) {
     },
     guestSet: {
       'field.lrig': ['WD01-001#47010'],
-      'field.signi': [null, null, null],
+      // 正面に弱いシグニを置く＝直接ライフアタックにすると「相手のライフクロスクラッシュ」確認モーダルが
+      // 割り込み、CPU応答待ちで長時間ハングする（続き586実測）。シグニ戦にして直接ダメージを避ける。
+      'field.signi': [null, ['WD01-013#47012'], null],
+      'field.signi_down': [false, false, false],
       'field.check': null,
       'hand': [],
       'life_cloth': ['WD01-013#47020', 'WD01-013#47021'],
