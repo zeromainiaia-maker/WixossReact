@@ -24507,8 +24507,10 @@ function v45cSpec() {
     },
     guestSet: {
       'field.lrig': ['WD01-001#48510'],
-      // 正面(index1)＝直接ライフアタック回避、side(index0)＝もう1体の低パワー候補。両方power<=8000。
-      'field.signi': [['WD01-013#48511'], ['WD01-013#48512'], null],
+      // 正面(index1)＝power15000の頑丈な壁（コンバットで戦闘負けしない＝ON_ATTACK_END時点でまだ場に残る。
+      // power15000なのでpower<=8000フィルタの1体目候補にはならない＝フィルタ通過するのはside(index0)のみ）
+      // side(index0)＝power3000の弱いシグニ＝1体目BANISH対象。
+      'field.signi': [['WD01-013#48511'], ['WX01-053#48512'], null],
       'field.signi_down': [false, false, false],
       'field.check': null,
       'hand': [],
@@ -24534,11 +24536,11 @@ async function driveV45c(page, H) {
       }
       if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
     } else if (!firstBanishPicked && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
-      // 1体目＝任意BANISHの対象選択（index0のWD01-013#48512を選ぶ）
-      did = await clickCandidateByPrefix(page, H, st0, 'WD01-013#48512', 'banish1');
+      // 1体目＝任意BANISHの対象選択（power<=8000でフィルタされ候補は側面のWD01-013#48511のみのはず）
+      did = await clickCandidateByPrefix(page, H, st0, 'WD01-013#48511', 'banish1');
       if (did) { await H.clickTextOrBtn(['決定']).catch(() => {}); firstBanishPicked = true; }
     } else if (firstBanishPicked) {
-      // 2体目＝無条件BANISH（残る候補=index1のWD01-013#48511）
+      // 2体目＝無条件BANISH（フィルタなし＝残る唯一の候補=正面のWX01-053#48512のはず）
       did = await H.stdStep();
     }
     const st = await H.queryState();
