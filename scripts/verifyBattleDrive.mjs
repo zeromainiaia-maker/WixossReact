@@ -23927,26 +23927,22 @@ scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
         if (!did && energyPicked) did = await H.clickBtn('発動する', { exact: true });
         if ((st0?.host?.handCards ?? []).length < 2) castDone = true; // スペル自身が手札から離れた
       } else if (!discard1) {
-        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-013"]').first();
-        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-013(hand)'; }
+        did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'hand-d1');
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if ((st0?.host?.handCards ?? []).length === 1) discard1 = true;
       } else if (!banish1) {
-        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-013"]').first();
-        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-013(banish)'; }
+        did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'banish1');
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-013')))) banish1 = true;
       } else if (!repeatChosen) {
         did = await H.clickBtn('繰り返す（残り2回まで）', { exact: true });
         if (did) repeatChosen = true;
       } else if (!discard2) {
-        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-012"]').first();
-        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-012(hand)'; }
+        did = await clickCandidateByPrefix(page, H, st0, 'WD01-012', 'hand-d2');
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if ((st0?.host?.handCards ?? []).length === 0) discard2 = true;
       } else if (!banish2) {
-        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-012"]').first();
-        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-012(banish)'; }
+        did = await clickCandidateByPrefix(page, H, st0, 'WD01-012', 'banish2');
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')))) banish2 = true;
       } else if (!stopChosen) {
