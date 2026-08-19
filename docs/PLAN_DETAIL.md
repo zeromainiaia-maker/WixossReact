@@ -1,5 +1,17 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+> **2026-08-19 続き573 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き572（§7 実機検証の続き5件＝実バグ2件発見・V-17残0クローズ）後 最新値**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  🆕**被覆マトリクス miss 190 据置**（今回は engine/parser 非改変のため未再計測）、
+  `parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**。
+  **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
+  🆕**実機シナリオ総数 415**（414→415＝`v04TanabataLeaveFieldE3` を新設）。
+  ⚠**`v15AttackPhaseEndCentralDiffToyLeftFires` が単独再実行で2回連続 FAIL（続き556 発見・続き572 で再確認・未解決・follow-up）**（→**続き573 で残0クローズ**）。
+  🆕**Opusタスク12＝在庫2件**（(cxxxviii)(cxxxix)）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+
 > **2026-08-19 続き572 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-19 続き571（§5 P1／§5d-0 (i) 第21バッチ）後 最新値**：
   **census 783**（786→783・`BASELINE_HIGH` も 783 へ更新）、**golden 2307**（+2＝直した3効果の live assert／`signiClauseColorFilter` の正負4方向）、
