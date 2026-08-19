@@ -1,5 +1,21 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-19 整理㊾（§4 恒久指標・続き580時点値の退避・続き586）
+
+- **🆕 2026-08-19 続き580（§7 実機検証6件＝V-28 A群6件全て残0クローズ・engineバグ0）後 最新値**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  🆕**被覆マトリクス miss 190 据置**（今回は engine/parser 非改変のため未再計測）、
+  `parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes` は続き552d 以降 未再計測**）。
+  **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
+  🆕**実機シナリオ定義総数 466**（464→466＝`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`の2件を新設・`order`登録済み）。**V-20の`v20DiscardSkipFirstBlocksSecond`／`v20DiscardPayBothReturnsToField`は同名のまま実装を能動discard経路へ全面置換**（既存カウントは不変）。**既定`order`実行数は461→463**。
+  **Opusタスク12＝在庫10件**（(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ／(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コスト非対応／(cxli) `confirmEndDiscard`がON_TRASH系トリガー未収集／(cxlii) `evalUseCondition`が`effectsMap`未伝搬で`SELF_LEVEL_THRESHOLD`が印字レベルへフォールバック／(cxliii) `collectTurnTriggers`が`activeKeyAbilitySources`を呼ばずキー起点【自】がON_TURN_END等7 timingで無言no-op／(cxliv) `WX25-P2-014-E1`の「あなたの場に＜宇宙＞のシグニがあるかぎり」条件節が丸ごと未実装＝`OPP_LRIG_ATTACK_COST`が宇宙シグニ不在でも常時ゲート／(cxlv) `WX20-077-E2`の`SEARCH`アクションに必須フィールド`then`が無くモーダルがcrashして画面が真っ黒になる／(cxlvi) `WX16-Re18-E1`のルリグデッキから複数レゾナを配置する継続が間欠的に発火せず2枚目が取り残される＝4回中2回再現／(cxlvii) `WXDi-P10-039-E2`の「そうした場合」二段任意コストの入れ子ゲートが外れ、①をスキップしても③が無条件で実行される＝連鎖した任意コスト全般に波及する構造バグ）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き585）。
+
 ## 2026-08-19 整理㊽（§7 `V-24` 全5項目決着ぶんの退避・続き577）
 
 - **V-24 🔴 タスク12 在庫5件の残0クローズ（2026-08-08）5件**＝engine/golden では固定済みだが、いずれも `BattleScreen` の経路にしか無く **golden では原理的に踏めない**（付与の合流・耐性コレクタの呼び出し・レベル表示）。
