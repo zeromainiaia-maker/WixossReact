@@ -23622,6 +23622,71 @@ scenarios.v40UseSearchedSpellOrTrashCrash = {
   },
 };
 order.push('v40UseSearchedSpellOrTrashCrash');
+
+// V-40(c)：`DECLARED_ICON_HAND_DISCARD_BANISH`＝`WXDi-P12-055-E1`（透魔姫　ウリス）【自】：あなたの
+// アタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を
+// １枚選んでもよい。そうした場合、対戦相手は《白》《赤》《青》《緑》《黒》《無》から１つを宣言する。
+// あなたはその選んだカードを捨て、そのカードが宣言されたアイコンを持たない場合、それをバニッシュする。
+// CPU（guest）が`opponentResponds:true`で自動宣言するため宣言色は制御できない＝
+// 「捨てたカードの色＝宣言色なら非バニッシュ／不一致ならバニッシュ」の**判定ロジックの自己整合性**を見る
+// （実装ソース `execStubPart3.ts:2455`）。
+scenarios.v40DeclaredIconHandDiscardBanish = {
+  title: 'V-40(c) WXDi-P12-055-E1：対戦相手の色宣言→外れたときだけ対象がバニッシュされる（宣言色との整合を判定）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#40200'],
+      'field.signi': [['WXDi-P12-055#40201'], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': ['WD01-013#40202'], // 小剣ククリ（白）＝捨てる手札
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#40210'],
+      'field.signi': [['WD01-012#40211'], null, null], // 対象候補（唯一）
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    let picked = false; let handPicked = false;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v40DeclaredIconHandDiscardBanish-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+          const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+          if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; if (!picked) picked = true; else handPicked = true; }
+          else { did = await H.clickTextOrBtn(['決定']); }
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      H.log(`  v40c[${s}] -> ${did ?? 'なし'} | picked=${picked} handPicked=${handPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
+      const resolved = (st?.host?.handCards ?? []).length === 0 && !st?.pendingEffect && picked;
+      if (resolved) {
+        const declareLog = await H.findLog(/を宣言/);
+        const declaredColor = declareLog?.match(/《(.)》を宣言/)?.[1] ?? null;
+        const banished = !(st?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
+        const expectBanish = declaredColor !== null && declaredColor !== '白';
+        const consistent = banished === expectBanish;
+        return {
+          pass: consistent,
+          detail: `宣言="${declareLog ?? '-'}"（declared=${declaredColor}）・対象banished=${banished}（期待=${expectBanish}）・gField=${JSON.stringify(st.guest.fieldSigni)}（整合=${consistent}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（picked=${picked} handPicked=${handPicked} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v40DeclaredIconHandDiscardBanish');
 // ── V-40 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
