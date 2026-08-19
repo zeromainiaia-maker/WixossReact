@@ -1,5 +1,18 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+> **2026-08-19 続き575 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き574（§7 実機検証さらに5件＝実バグ1件発見・V-23(a)(b)/V-29/V-81/V-82(c)残0クローズ）後 最新値**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  🆕**被覆マトリクス miss 190 据置**（今回は engine/parser 非改変のため未再計測）、
+  `parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**
+  （⚠**同型★・`census:goldentypes` は続き552d 以降 未再計測**）。
+  **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
+  🆕**実機シナリオ総数 426**（420→426＝`wxex284OppResponds`／`wxdip09053GrantUpToTwo`／`wxex122AttachCharmMultiPair`／`wx20re18DynamicLevelAttackBanish`（意図的FAIL・engine修正待ち）／`v82ResponseArtsPreventAtLowLife`／`v82ResponseArtsWithheldAtHighLife` の6件を新設）。
+  🆕**Opusタスク12＝在庫5件**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き574）。
+
 > **2026-08-19 続き573 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-19 続き572（§7 実機検証の続き5件＝実バグ2件発見・V-17残0クローズ）後 最新値**：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
