@@ -23875,6 +23875,21 @@ scenarios.v40DeckLevelOverrideOnlyChoice2NoReveal = {
 order.push('v40DeckLevelOverrideBothChoicesReveal2', 'v40DeckLevelOverrideOnlyChoice2NoReveal');
 // ── V-40 END ──
 
+// pendingCandidates（実配列＝表示順とは限らない・📌6）からプレフィックス一致するインスタンスの配列indexを
+// 割り出して pick-{idx} を押す＝`data-card-num` 属性より確実（同名カードでも instance id で一意）。
+async function clickCandidateByPrefix(page, H, st0, prefix, tag) {
+  const cands = st0?.pendingCandidates;
+  if (!Array.isArray(cands)) return null;
+  const idx = cands.findIndex(n => typeof n === 'string' && n.startsWith(prefix));
+  if (idx < 0) return null;
+  const el = page.getByTestId(`pick-${idx}`).first();
+  if (await el.count() && await el.isVisible().catch(() => false)) {
+    await el.click().catch(() => {});
+    return `pick-${idx}(${tag}:${prefix})`;
+  }
+  return null;
+}
+
 // V-41(b)：O-32 実装＝`WX16-042-E1`（ＵＮＬＵＣＫＹ）「手札からシグニを１枚捨てる。その後、捨てたシグニと
 // 同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。あなたはこの効果をあと２回まで繰り返して
 // もよい（合計最大3回）」＝`RepeatAction.optional`（続き501・実装ソース `effectExecutor.ts:4951`）。
