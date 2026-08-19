@@ -760,9 +760,9 @@
   - [x] **アタックフェイズ終了時の【自】が発火するか**（`WX24-P2-075-E1`）＝**機構は実機で確認**（`left=true`→`phaseEnd=true`→**`trigger=true`＝E1 発火**をログで観測）。**緑2本**＝`v15AttackPhaseEndBattlePathRecordsOpponentToy`（**バトル経路**の離場記録＝`resolvePendingSigniBattleFor`）／`v15AttackPhaseEndNoToyLeftDoesNotFire`（**同一盤面でアタックしなければ非発火**）。
     - [ ] 📋**残作業＝`v15AttackPhaseEndCentralDiffToyLeftFires` を緑で固定する**（**中央 diff 経路**）。E1 の発火までは観測できているが、**帰結（watcher のデッキ下移動・draw）の観測に到達しない**＝`決定` の押下が毎ティック約40秒かかり loop 予算を使い切る。**engine ではなくシナリオ側の未完**。
 
-- **🔶 V-16 §6.3 J-1 他能力の発動監視（続き383）＝2026-08-14 続き480 で**機構は実機で確認・シナリオは未緑**（Codex 起案→Claude 実機検証）。**engine バグ0**。
+- **🔶 V-16 §6.3 J-1 他能力の発動監視（続き383）＝2026-08-14 続き480 で**機構は実機で確認・シナリオは未緑**（Codex 起案→Claude 実機検証）。**続き571＝実バグ1件を発見**（Opusタスク12 **(cxxxix)**）。
   - [x] **他の能力の発動に反応して【自】が発火するか**（`WXEX1-77`）＝🔑**実機ログで成立を確認**＝`羅石　ガーネットを召喚`→`[自分] …の【出】/【自】効果`→**`[相手] アイン＝シュミット の【自】効果（能力発動時）`**→**`小剣　ククリをトラッシュへ`**（＝**発動の直後に監視側が解決され、手札1枚が落ちる**）。
-    - [ ] 📋**残作業＝`v16AbilityWatcherImmediatelyAfterOpponentOnPlay`／`…OncePerTurnSecondOnPlayIgnored` を緑で固定する**。🔴**盤面設計の作り直しが要る**＝spec の `deck: []` が効果解決中に**「相手リフレッシュ（デッキを再構築）」を誘発**し、さらに**手札・ライフ・埋め札がすべて同名 `WD01-013`** なので **instance 追跡が破綻**する（📌6 の「同名カードが複数並ぶ盤面」の実例）。⇒ **デッキに数枚積む＋埋め札を別カードにする**。
+    - [x] 🔴**続き571＝`v16AbilitySpec` の `deck: []` を修正**（host/guest とも数枚積む＝📌22是正）→**相手リフレッシュ誘発は解消**したが、**`v16AbilityWatcherImmediatelyAfterOpponentOnPlay` は別の理由でFAILのまま＝実バグ発見**。ウォッチャー自体は正しく発火・解決する（sourceLogs/watcherLogs/order/discardedすべて成立）が、**`usageLimit:'once_per_turn'` の消化が `actions_done` に永続化されない**（`BattleScreen.tsx:4844-4849` のマージが直後の `:4883`/`:4899` の `collectBoardDiffTriggers` 再代入で毎回消える）。詳細・修正方針は Opusタスク12 **(cxxxix)**。`…OncePerTurnSecondOnPlayIgnored`／`WX19-066` も同じ根本原因のため、Opus 修正後にまとめて再検証する。
   - [ ] 📋**`WX19-066` は未着手**（同 timing・action=`UP`）。
 
 - **🔶 V-17 §6.3 J-5 単発機構（続き381）＝2026-08-14 続き480 で**コイン獲得は機構を実機で確認・5シナリオ中3本が緑**（Codex 起案→Claude 実機検証）。**engine バグ0**。
