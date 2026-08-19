@@ -21752,6 +21752,62 @@ scenarios.v55CheckZoneFlipGrowsAndOnPlayFires = {
 order.push('v55CheckZoneFlipGrowsAndOnPlayFires');
 // ── V-55 END ──
 
+// ── §7 V-21（続き572）＝「あなたの場にパワーN以上の〜シグニがある場合」がバフ込みの実効パワーで判定されるか ──
+// WXDi-P13-078-E1：【自】このシグニがアタックしたとき、あなたの場にパワー10000以上の《ディソナアイコン》の
+// シグニがある場合、【エナチャージ１】をする。印字2000のこのシグニ自身をtemp_power_modsでバフし、
+// 10000到達／未到達で発火が分かれることを見る（負方向＋対照の対）。
+const V21_ATTACKER = 'WXDi-P13-078#9501';
+const v21Spec = buffed => ({
+  hostSet: {
+    'field.lrig': ['WD01-001#9500'], 'field.signi': [[V21_ATTACKER], null, null], 'field.signi_down': [false, false, false], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9510), 'life_cloth': v18v19Life(9520), 'actions_done': [],
+    'temp_power_mods': [{ cardNum: V21_ATTACKER, delta: buffed ? 8000 : 6000 }],
+  },
+  guestSet: {
+    'field.lrig': ['WD01-001#9590'], 'field.signi': [null, null, null], 'field.check': null,
+    'hand': [], 'energy': [], 'trash': [], 'deck': v18v19Deck(9550), 'life_cloth': v18v19Life(9560), 'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+});
+async function driveV21ConditionalCharge(page, H, buffed) {
+  await H.repatchTop({ active: 'host', turn_phase: 'ATTACK_SIGNI', effect_stack: null, pending_effect: null });
+  await page.waitForTimeout(600);
+  const opened = await v14OpenSigniActionLabels(page, H, 'my-signi-zone-0');
+  if (!opened.modalVisible || !opened.labels.includes('アタック')) return { pass: false, detail: `攻撃actionなし（labels=${JSON.stringify(opened.labels)}）` };
+  let attacked = false; let last = await H.queryState(); let finalTicks = 0;
+  for (let s = 0; s < 80; s++) {
+    await page.waitForTimeout(250); let did = null;
+    if (!attacked) { did = await H.clickBtn('アタック', { exact: true }); if (did) attacked = true; }
+    if (!did) did = await H.clickTextOrBtn(['ガードしない（ライフクロスクラッシュ）', 'エナに送る', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState(); last = st;
+    const chargeLog = (st?.logTail ?? []).some(l => /コノトキ.*【自】効果（能力発動時|コノトキ.*パワー10000以上/.test(l));
+    const lifeResolved = st?.guest?.life === 6 || (st?.host ? true : false);
+    const settled = attacked && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && (st?.guest?.life ?? 7) <= 6;
+    finalTicks = settled ? finalTicks + 1 : 0;
+    H.log(`  v21[${s}] -> ${did ?? 'なし'} | buffed=${buffed} attacked=${attacked} energy=${st?.host?.energy} settled=${settled}`);
+    if (finalTicks >= 2) {
+      const energyGained = (st?.host?.energy ?? 0) >= 1;
+      const ok = buffed ? energyGained : !energyGained;
+      return { pass: ok, detail: ok
+        ? (buffed ? `バフで実効パワー10000到達→アタック時条件成立→エナチャージ1（energy=${st.host.energy}）` : `バフ未達（実効9000）→条件不成立→エナチャージなし（energy=${st.host.energy}）`)
+        : `期待と不一致（buffed=${buffed} energy=${st?.host?.energy}）` };
+    }
+  }
+  return { pass: false, detail: `settled未到達（buffed=${buffed} host=${JSON.stringify(last?.host)} logTail=${JSON.stringify(last?.logTail)}）` };
+}
+scenarios.v21ConditionPowerBuffedReachesThreshold = {
+  title: 'V-21 WXDi-P13-078-E1：印字2000をバフで実効10000へ→アタック時条件成立しエナチャージ',
+  spec: v21Spec(true),
+  drive: (page, H) => driveV21ConditionalCharge(page, H, true),
+};
+scenarios.v21ConditionPowerBelowThresholdNoCharge = {
+  title: 'V-21 対照：実効9000（未到達）ではアタック時条件不成立でエナチャージなし',
+  spec: v21Spec(false),
+  drive: (page, H) => driveV21ConditionalCharge(page, H, false),
+};
+order.push('v21ConditionPowerBuffedReachesThreshold', 'v21ConditionPowerBelowThresholdNoCharge');
+// ── V-21 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
