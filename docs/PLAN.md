@@ -768,7 +768,7 @@
   - [x] **コイン獲得で【自】が発火するか**（`SP27-007`）＝**実機PASS 3本**。①**人間 `executeGrow` の Coin 欄獲得**で発火（coins 0→2・draw・`actions_done` 1件）＝`v17CoinGainedHumanGrowFires` ②⚠**所持コインだけ5枚にした同一盤面**では**上限クランプ後の実増加0＝非発火**＝`v17CoinGainedHumanGrowAtCapDoesNotFire` ③**効果解決の中央 diff 経路**（`WXK07-006-E3` で coins 2→4）でも発火＝`v17CoinGainedEffectCentralDiffFires`。
     - [x] **CPU がグロウしたとき（scope `any`）も発火する**＝🔑**実機ログで確認**（`[CPU] グロウ`→`[自分] …の【自】効果（コイン獲得時）`→`1枚ドロー`・`host.actions_done=["SP27-007-E1"]`）。⚠ただし**シナリオ `v17CoinGainedCpuGrowAnyScopeFires` は赤**＝CPU がそのままアタックまで進み settled 条件に到達しないため（**engine ではなく settle 条件の未完**）。
     - [x] ⚠**コイン"支払い"では発火しない**＝**実機で確認**（`【自】効果（コイン支払時）` は出るが `SP27-007-E1` は `actions_done` に入らない）。⚠**シナリオ `v17CoinPaymentDoesNotFire` は赤**＝負方向を確定させる settle 条件に到達せずループ終端（同上）。
-  - [ ] **夢限-Q- の反転機構が実機で通しで動くか**（`WXDi-P11-010A`→`B`）＝**既存シナリオ `mugenQFlip` を流すだけ**。⚠**未実行**。📋Codex がソース照合で**規約面の陳腐化3点**を報告済み（`guestSet` 不在で `'field.check': null` を満たさない／機構ログを必須条件にしていない／枚数保存 assert がない）＝**機構的には現行実装と整合**。
+  - [x] **夢限-Q- の反転機構が実機で通しで動くか**（`WXDi-P11-010A`→`B`）＝**続き571 で `mugenQFlip` 実行→実機PASS**（4秒）。`ON_GROW_PHASE_START`→`EFFECTIVE_LRIG_LIMIT_GTE(9)`成立→`MUGEN_Q_RESET_AND_FLIP`で`card_identity_overrides`がB面へ反転＋手札/エナ/トラッシュがリセット後B面E1で再構築（hHand=5・hEnergy=5・hTrash=0）まで確認。**engineバグ0**。**V-17 全項目 決着**。
 
 ### 🅲 未着手・通常
 
