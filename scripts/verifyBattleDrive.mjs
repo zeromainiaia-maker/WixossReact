@@ -23524,6 +23524,7 @@ scenarios.v40StripAttachedAndUnder = {
       await page.waitForTimeout(800);
       let did = null;
       if (!did && !chose) did = await H.clickBtn('発動', { exact: true });
+      if (!did && !chose) did = await H.clickBtn('発動する', { exact: true });
       if (!did && !chose) did = await H.clickTextOrBtn(['使用']);
       if (!did && !chose) {
         const c3 = page.getByRole('button', { name: '選択肢3', exact: true }).first();
