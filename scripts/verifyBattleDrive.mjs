@@ -23007,12 +23007,12 @@ scenarios.wx16021SideAttackEmptyZoneNoButtonBeforeArts = {
 };
 scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
   title: 'V-28 WX16-021 正方向：驚天動地を使うと空ゾーンへの側面アタックが正面扱いでダメージになる',
-  spec: wx16021Spec(),
+  spec: wx16021Spec('MAIN'), // MAINで驚天動地を使ってからATTACK_SIGNIへ進める
   async drive(page, H) {
     const before = await H.queryState();
     await H.ensureMain();
     H.log('開始時 guest.life:', before?.guest?.life);
-    let castDone = false; let attacked = false;
+    let castDone = false; let advanced = false; let attacked = false;
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(800);
       let did = null;
@@ -23027,6 +23027,10 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
         if (!did) did = await H.clickTestId('my-lrig-dk');
         const stCast = await H.queryState();
         if ((stCast?.logTail ?? []).some(l => l.includes('驚天動地'))) castDone = true;
+      } else if (!advanced) {
+        if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        const stAdv = await H.queryState();
+        if (stAdv?.turnPhase === 'ATTACK_SIGNI') advanced = true;
       } else if (!attacked) {
         if (!did) did = await H.clickBtn('側面アタック→空きゾーン（ダメージ）', { exact: false });
         if (!did) did = await H.clickTestId('my-signi-zone-1');
