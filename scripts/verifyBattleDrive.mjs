@@ -23943,7 +23943,7 @@ scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
           if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; energyPicked = true; }
         }
         if (!did && energyPicked) did = await H.clickBtn('発動する', { exact: true });
-        if ((st0?.host?.handCards ?? []).length < 2) castDone = true; // スペル自身が手札から離れた
+        if (!(st0?.host?.handCards ?? []).some(n => n?.startsWith('WX16-042'))) castDone = true; // スペル自身が手札から離れた
       } else if (!discard1) {
         did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'hand-d1');
         if (!did) did = await H.clickTextOrBtn(['決定']);
