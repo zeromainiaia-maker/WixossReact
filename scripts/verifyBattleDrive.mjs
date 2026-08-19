@@ -22353,7 +22353,7 @@ function v24cxivLancerGateSpec(frontCardNum, frontPower) {
     hostSet: {
       'field.check': null,
       'field.lrig': ['WD03-003#1'],
-      'field.signi': [['WXDi-P11-071#1'], null, null],
+      'field.signi': [null, ['WXDi-P11-071#1'], null], // zone1＝中央（`2-zi`ミラーの不動点＝正面はguest zone1）
       'field.signi_down': [false, false, false],
       'granted_effects': {
         'WXDi-P11-071#1': [{
