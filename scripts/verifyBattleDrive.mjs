@@ -23036,7 +23036,7 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
         if (s < 10) H.log(`  advBtn count=${advCnt} visible=${advVis} enabled=${advEn}`);
         if (advCnt && advVis && advEn) {
           try { await advBtn.first().click({ timeout: 2000 }); did = 'btn:アタックフェイズへ(force)'; }
-          catch (e) { H.log('  click失敗:', String(e.message).split('\n')[0]); }
+          catch (e) { if (s < 6) H.log('  click失敗詳細:', String(e.message).slice(0, 500)); }
         }
         const stAdv = await H.queryState();
         if (stAdv?.turnPhase === 'ATTACK_SIGNI') advanced = true;
