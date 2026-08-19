@@ -24195,7 +24195,7 @@ async function driveV20(page, H, payBoth) {
     } else if (payBoth && !step1PayPicked) {
       // ①のコスト＝手札1枚を捨てる（残っているのはWX19-064のみ）。ピック後も「決定」が必要＝
       // hand が実際に空になるまで（＝支払いが確定するまで）このブランチに留まる。
-      did = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay');
+      if (!step1PayCandPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay'); if (did) step1PayCandPicked = true; }
       if (!did) did = await H.clickTextOrBtn(['決定']);
       if ((st0?.host?.handCards ?? []).length === 0) step1PayPicked = true;
     } else if (payBoth && !step2Chosen) {
