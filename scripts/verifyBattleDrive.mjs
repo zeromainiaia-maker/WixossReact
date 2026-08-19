@@ -24212,6 +24212,123 @@ scenarios.v44SummonTwoResonasFromLrigDeck = {
 order.push('v44SummonTwoResonasFromLrigDeck');
 // ── V-44 END ──
 
+// V-20：`WXDi-P10-039-E2`（蒼魔姫　リッチレーサー）「このカードが捨てられたとき、手札を１枚捨ててもよい。
+// そうした場合、そのターン終了時、《青》《無》を支払ってもよい。そうした場合、このカードをトラッシュから
+// 場に出す。」＝二段の任意コスト。⚠**Opusタスク12(cxli)＝手札上限超過のターン終了時捨て札
+// （`confirmEndDiscard`）はON_TRASH系トリガーを一切収集しない未修正バグの経路を踏むと発火しない**ため、
+// 代わりに`WX16-042-E1`（ＵＮＬＵＣＫＹ）の「手札からシグニを１枚捨てる」TRASHアクション（central diff
+// 経由＝正しく発火する）でこのカードを捨てさせる経路に迂回する（PLAN §7 V-20 の迂回方針どおり）。
+function v20Spec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#45000'],
+      'field.signi': [['WD01-013#45001'], null, null], // zone0にfiller・空きは2ゾーン（ADD_TO_FIELD用）
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'energy': ['WD03-013#45002', 'WD03-013#45003', 'WD01-013#45004'], // 青・青・白（スペル代1＋②のコスト青無）
+      'hand': ['WXDi-P10-039#45005', 'WX19-064#45006'], // 捨てる対象（シグニ）／①のコスト用ダミー（非シグニ）
+      'actions_done': [],
+    },
+    handPrepend: ['WX16-042#45007'],
+    guestSet: {
+      'field.lrig': ['WD01-001#45010'],
+      'field.signi': [['WD01-010#45011'], null, null], // Lv3・WX16-042②のバニッシュ対象
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveV20(page, H, payBoth) {
+  await H.ensureMain();
+  H.log('手札クリック(WX16-042):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let energyPicked = false; let castDone = false;
+  let discardPicked = false; let discarded = false;
+  let banishPicked = false; let banished = false;
+  let step1Chosen = false; let step1PayPicked = false;
+  let step2Chosen = false; let step2E0 = false; let step2E1 = false; let step2Confirmed = false;
+  let zoned = false;
+  for (let s = 0; s < 36; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/v20-${payBoth}-${s}.png`, fullPage: true }).catch(() => {});
+    const st0 = await H.queryState();
+    let did = null;
+    if (!castDone) {
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+      if (!did && !energyPicked) { const el = page.getByTestId('spellcost-energy-0').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'spellcost-energy-0'; energyPicked = true; } }
+      if (!did && energyPicked) did = await H.clickBtn('発動する', { exact: true });
+      if (!(st0?.host?.handCards ?? []).some(n => n?.startsWith('WX16-042'))) castDone = true;
+    } else if (!discarded) {
+      if (!discardPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WXDi-P10-039', 'discard'); if (did) discardPicked = true; }
+      if (!did) did = await H.clickTextOrBtn(['決定']);
+      if (!(st0?.host?.handCards ?? []).some(n => n?.startsWith('WXDi-P10-039'))) discarded = true;
+    } else if (!banished) {
+      if (!banishPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WD01-010', 'banish'); if (did) banishPicked = true; }
+      if (!did) did = await H.clickTextOrBtn(['決定']);
+      if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-010')))) banished = true;
+    } else if (!step1Chosen) {
+      did = await H.clickTestId(payBoth ? 'optcost-pay' : 'optcost-skip');
+      if (did) step1Chosen = true;
+    } else if (payBoth && !step1PayPicked) {
+      // ①のコスト＝手札1枚を捨てる（残っているのはWX19-064のみ）。
+      const cand = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay');
+      if (cand) { did = cand; step1PayPicked = true; }
+      if (!did) did = await H.clickTextOrBtn(['決定']);
+      if (!did && (st0?.host?.handCards ?? []).length === 0) { step1PayPicked = true; did = 'auto-resolved'; }
+    } else if (payBoth && !step2Chosen) {
+      did = await H.clickTestId('optcost-pay');
+      if (did) step2Chosen = true;
+    } else if (payBoth && !step2E0) {
+      const el = page.getByTestId('optcost-energy-0').first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-energy-0'; step2E0 = true; }
+    } else if (payBoth && !step2E1) {
+      const el = page.getByTestId('optcost-energy-1').first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-energy-1'; step2E1 = true; }
+    } else if (payBoth && !step2Confirmed) {
+      const el = page.getByTestId('optcost-pay').first();
+      if (await el.count() && await el.isVisible().catch(() => false) && await el.isEnabled().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-pay(confirm)'; step2Confirmed = true; }
+    } else if (payBoth) {
+      did = await H.clickZone();
+      if (did) zoned = true;
+      if (!did) did = await H.stdStep();
+    }
+    const st = await H.queryState();
+    H.log(`  v20[${s}] -> ${did ?? 'なし'} | payBoth=${payBoth} discarded=${discarded} banished=${banished} step1=${step1Chosen} step2=${step2Chosen} zoned=${zoned} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+    if (!payBoth && step1Chosen && !st?.pendingEffect) {
+      const inTrash = (st.host.trashCards ?? []).some(n => n?.startsWith('WXDi-P10-039'));
+      const onField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
+      return {
+        pass: inTrash && !onField,
+        detail: `①スキップ後＝トラッシュに残置=${inTrash}・場に無い=${!onField}（②以降は出ないはず）・hHand=${JSON.stringify(st.host.handCards)}`,
+      };
+    }
+    if (payBoth && zoned && !st?.pendingEffect) {
+      const onField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
+      const inTrash = (st.host.trashCards ?? []).some(n => n?.startsWith('WXDi-P10-039'));
+      return {
+        pass: onField && !inTrash,
+        detail: `①②とも支払い＝場に復帰=${onField}・トラッシュに残っていない=${!inTrash}・hField=${JSON.stringify(st.host.fieldSigni)}`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（discarded=${discarded} banished=${banished} step1=${step1Chosen} step2=${step2Chosen} zoned=${zoned} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v20DiscardSkipFirstBlocksSecond = {
+  title: 'V-20 WXDi-P10-039-E2：①をスキップすると②は出ない（カードはトラッシュに残置）',
+  spec: v20Spec(),
+  async drive(page, H) { return driveV20(page, H, false); },
+};
+
+scenarios.v20DiscardPayBothReturnsToField = {
+  title: 'V-20対照 WXDi-P10-039-E2：①②とも支払うとトラッシュから場に復帰する',
+  spec: v20Spec(),
+  async drive(page, H) { return driveV20(page, H, true); },
+};
+order.push('v20DiscardSkipFirstBlocksSecond', 'v20DiscardPayBothReturnsToField');
+// ── V-20 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
