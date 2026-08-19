@@ -23848,7 +23848,7 @@ async function driveV40e(page, H, pickBoth) {
       if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
     }
     const st = await H.queryState();
-    H.log(`  v40e[${s}] -> ${did ?? 'なし'} | castDone=${castDone} c0=${c0Picked} c1=${c1Picked} confirmed=${confirmed} hHand=${st?.host?.handCards} hDeck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
+    H.log(`  v40e[${s}] -> ${did ?? 'なし'} | castDone=${castDone} c0=${c0Picked} c1=${c1Picked} confirmed=${confirmed} p0=${p0Picked} p1=${p1Picked} hHand=${st?.host?.handCards} hDeck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
     if (confirmed && !st?.pendingEffect) {
       const gained = (st.host.handCards ?? []).length - ((before?.host?.handCards ?? []).length - 1); // -1: 使ったスペル自身
       return {
