@@ -2,7 +2,7 @@
 
 ## 2026-08-19（続き582・Sonnet 5）— §7 実機検証（V-40）＝O-34実装5経路中4件は残0クローズ・🔴新規engineバグ1件（SEARCHモーダルcrash）を発見しOpusタスク12(cxlv)へ登録
 
-ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ9本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ8本・`order`登録済み）と `docs/PLAN.md`／本ファイルの簿記のみ。
 
 ### ✅ V-40(a) `WX19-064-E1`③（ＰＵＬＬＩＮＧ）＝`STRIP_ATTACHED_AND_UNDER`・残0クローズ
 
