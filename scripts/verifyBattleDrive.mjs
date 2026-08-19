@@ -22812,7 +22812,8 @@ async function driveV58Response(page, H, mode) {
     if (!did) did = await H.stdStep();
     const st = await H.queryState();
     H.log(`  v58resp[${mode}][${s}] -> ${did ?? 'なし'} | clickedCandidate=${clickedCandidate} usedCutinBtn=${usedCutinBtn} chosen=${chosen} pSpell=${st?.pendingSpell ?? '-'} pEff=${st?.pendingEffect ?? '-'} hLrigTrash=${JSON.stringify(st?.host?.lrigTrashCards)} hExcluded=${JSON.stringify(st?.host?.excludedCards)} gExcluded=${JSON.stringify(st?.guest?.excludedCards)} gLrigTrash=${JSON.stringify(st?.guest?.lrigTrashCards)} hHand=${st?.host?.handCards?.length} hCoins=${st?.host?.coins}`);
-    if (chosen && !st?.pendingSpell && !st?.pendingEffect) {
+    doneStreak = (chosen && !st?.pendingSpell && !st?.pendingEffect) ? doneStreak + 1 : 0;
+    if (doneStreak >= 2) {
       return {
         pass: true,
         detail: `mode=${mode} 完了＝hLrigTrash=${JSON.stringify(st.host.lrigTrashCards)} gExcluded=${JSON.stringify(st.guest.excludedCards)} gLrigTrash=${JSON.stringify(st.guest.lrigTrashCards)} hHand=${st.host.handCards?.length} hCoins=${st.host.coins}`,
