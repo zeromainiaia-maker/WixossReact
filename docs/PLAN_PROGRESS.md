@@ -4,6 +4,12 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き577・Sonnet 5）＝§7 実機検証3件（V-24(cxiii)(cxiv)＋`WXDi-P07-060-E3`）＝engineバグ0・V-24 全5項目決着**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ7本＋切り分け用コントロール1本のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き577）。
+  - **✅ V-24(cxv) 続き＝`WXDi-P07-060-E3`（覚醒で+2000）も残0クローズ**＝`awakened_signi`はインスタンスID（`CardNum#N`）で保持される仕様と判明（当初CardNumのみで注入しFAILし気づいた）。正しく注入すると印字3000→5000（+2000反映）／対照（未覚醒）では3000のまま。各2回連続PASS。
+  - **✅ V-24(cxiv) 残0クローズ**＝`WXDi-P11-071`の条件つきキーワード付与（`buildGatedKeywordGrant`の実機確認）＝正面パワー3000以下（ゲート成立）でランサー効果（バニッシュ時ライフクロス追加クラッシュ）が発動、正面パワー5000（ゲート不成立）では発動しない。各2回連続PASS。⚠**ゾーンはミラー**（`2-zi`）に気づかず初回FAIL＝中央ゾーン（zone1＝不動点）で再構成。
+  - **✅ V-24(cxiii) 残0クローズ**＝`WXK10-035`の効果耐性＝レベル1シグニのBANISHは効果耐性で不発（生存）、レベル2シグニのBANISHは耐性対象外（通常どおりバニッシュ）。各2回連続PASS。⚠**切り分けの罠**＝当初コントロールも含め全滅しWXK10-035の配置自体が不成立かと誤診しかけたが、直接REST診断で**印字パワー同値の通常バトルで普通に負けていただけ**（BANISHとは無関係）と判明＝`temp_power_mods`で通常バトル不敗にしてから再検証。
+  - **▶ 次の一手**＝Opusタスク12在庫5件の修正待ち／Sonnet側は§7実機検証の続き（V-20／V-28〜V-30／V-35／V-39〜V-45・V-58(a)〜(e)／V-63）。（この節はSonnet続き578で更に前進＝V-35(b)(c)を検証し新規engineバグ1件を発見・Opusタスク12(cxliii)へ登録。詳細はPLAN.md §4の最新summary）
+
 - **🆕 セッション（2026-08-19・続き576・Sonnet 5）＝§7 実機検証1件（V-24(cxv)）＝engineバグ0・正方向＋対照の2シナリオとも残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ2本のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き576）。
   - **✅ V-24(cxv) 残0クローズ（`PR-426-E3` のみ・`WXDi-P07-060-E3` は未着手）**＝`pr426ConditionalPowerBuff`（ライフクロス1枚＋中央ゾーンで表示パワー8,000→12,000）／`pr426ConditionalPowerBuffOffWhenLifeAbove1`（対照＝ライフクロス3枚では印字どおり8,000のまま）。各2回連続PASS。**旧＝常時適用だった条件節が正しく効いていることを確認**。
   - **▶ 次の一手**＝Opusタスク12在庫5件の修正待ち／Sonnet側は§7実機検証の続き（V-24残2項目＝(cxiii)(cxiv)＋`WXDi-P07-060-E3`／V-28〜V-30／V-35から）。（この節はSonnet続き577で更に前進＝V-24 全5項目決着。詳細はPLAN.md §4の最新summary）
