@@ -23221,9 +23221,10 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
         if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
         if (!did) did = await H.clickZone(); // 空きゾーン3＝SELECT_SIGNI_ZONE「ゾーンN」ボタンが要る
         // ON_PLAY《コインアイコン》の任意発動＝pay/skip。stdStep()の汎用「スキップ」に先を越されると
-        // ミルが起きずE1が発火しない＝pay側を先に試す。
+        // ミルが起きずE1が発火しない＝pay側を先に試す（既定ラベル一式も残す＝召喚確定に「スキップ」表記の
+        // 別ボタンが挟まる経路がある）。
         if (!did) did = await H.clickTestId('optcost-pay');
-        if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+        if (!did) did = await H.stdStep();
         const st0 = await H.queryState();
         if ((st0?.host?.fieldSigni ?? []).flat().some(c => c?.startsWith('WXDi-P09-079'))) summoned = true;
       } else {
