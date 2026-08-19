@@ -810,7 +810,9 @@
 
 - **✅V-29** 続き452＝相手応答モーダルの実表示（PvP の相手側／CPU 自動応答）＝`WXEX2-84-E2`。**続き572＝新規シナリオ`wxex284OppResponds`で実機PASS（2回連続）**。エクシード2発動→`TRASH{ALL}`で対戦相手シグニ全滅→`REVEAL_AND_PICK{opponentResponds:true}`がデッキ上2枚公開→`SEARCH`型interactionへ→CPU（guest）が自動応答して`SELECT_SIGNI_ZONE`を2回消化し2体とも場に配置（gDeck 10→8）。ソフトロックなし＝engineバグ0（`opp_hand`のviewer視点バグ＝Opusタスク12(cv)とは別経路のSEARCH分岐だが、こちらは正しく配線されていた）。
 
-- **V-30** **続き453＝ターン境界を跨いだ能力喪失**（次ターンでの発火抑止／2ターン後の復帰）。
+- **🔶 V-30 続き585＝READ側を残0クローズ・境界越え自体はfollow-up**（原記述：続き453＝ターン境界を跨いだ能力喪失＝次ターンでの発火抑止／2ターン後の復帰）。
+  - **✅ READ側 残0クローズ**＝`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`。`abilities_removed`を直接注入→host自身の【起】ボタンがUIから消える／空なら通常表示、を対で確認。各2回連続PASS。engineバグ0。
+  - **📋 境界越え自体（`abilities_removed_next_turn`→`abilities_removed`への昇格を実機のライブなターン進行で確認）は引き続きfollow-up**＝続き566の設計限界（`turn_phase:'END'`直接注入がroom正規化で先走る）が未解消のまま。
 
 - **V-35** **続き497＝遅延予約とキー払いの3経路**＝(a)`WXDi-P16-002-E1`（使った瞬間には引かず、**次の相手ターンが終わるとき**に1枚引き＋エナチャージ1＝負方向＋対照の対）(b)`WDK06-R09-E1`（相手のターン終了時に**相手のアタック済みシグニだけ**が候補に出る／キーを払えばバニッシュ・払わなければ何も起きない／**自分のシグニは一切減らない**）(c)キーが無い盤面で支払い枝が出ないこと。
   🔴**(b)(c) は続き578 で実機検証→3シナリオとも ON_TURN_END が一度も発火せずFAIL＝新規engineバグ発見**（`collectTurnTriggers` が `activeKeyAbilitySources` を呼ばずキーの【自】を7 timingで無言no-opにする配線漏れ＝WDK06-R09単体の問題ではない）。**Opusタスク12(cxliii) 修正待ち**（シナリオ`wdk06r09Pay`/`wdk06r09Skip`/`wdk06r09NoKey`は`verifyBattleDrive.mjs`に実装済み・`order`未登録。詳細はBUGFIXES 2026-08-19続き578）。(a)`WXDi-P16-002-E1`は未着手のまま残置（ルリグアーツ・条件`LRIG_TEAM_COUNT>=3`の盤面構築が要る）。
