@@ -23883,7 +23883,10 @@ async function clickCandidateByPrefix(page, H, st0, prefix, tag) {
   const idx = cands.findIndex(n => typeof n === 'string' && n.startsWith(prefix));
   if (idx < 0) return null;
   const el = page.getByTestId(`pick-${idx}`).first();
-  if (await el.count() && await el.isVisible().catch(() => false)) {
+  const cnt = await el.count();
+  const vis = cnt ? await el.isVisible().catch(() => false) : false;
+  H.log(`    clickCandidateByPrefix(${tag},${prefix}) idx=${idx} count=${cnt} visible=${vis}`);
+  if (cnt && vis) {
     await el.click().catch(() => {});
     return `pick-${idx}(${tag}:${prefix})`;
   }
