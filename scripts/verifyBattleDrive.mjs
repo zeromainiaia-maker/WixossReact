@@ -23837,13 +23837,13 @@ async function driveV40e(page, H, pickBoth) {
       // ⚠同じ候補を連打すると選択がトグルで外れて進まない（📌21）＝pick-0とpick-1を順に押す。
       const confirmReady2 = await page.getByRole('button', { name: /決定 \(2\/2\)/ }).count();
       if (confirmReady2) { did = await H.clickTextOrBtn(['決定']); }
-      if (!did) {
-        const pick1 = page.getByTestId('pick-1').first();
-        if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); did = 'pick:pick-1'; }
-      }
-      if (!did) {
+      if (!did && !p0Picked) {
         const pick0 = page.getByTestId('pick-0').first();
-        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; p0Picked = true; }
+      }
+      if (!did && p0Picked && !p1Picked) {
+        const pick1 = page.getByTestId('pick-1').first();
+        if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); did = 'pick:pick-1'; p1Picked = true; }
       }
       if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
     }
