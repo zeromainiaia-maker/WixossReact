@@ -12012,7 +12012,7 @@ scenarios.v04TanabataLeaveFieldE3 = {
       if (!did) did = await H.clickTextOrBtn(['発動', '発動する', '発動順序を確定', '確定', '決定', 'OK', 'はい']);
       const st = await H.queryState();
       const leftField = !(st?.host?.fieldSigni?.[0] ?? []).includes(V04_LEAVE_TANABATA);
-      const backInHand = (st?.host?.hand ?? []).includes(V04_LEAVE_TANABATA);
+      const backInHand = (st?.host?.handCards ?? []).includes(V04_LEAVE_TANABATA);
       const remainToEnergy = (st?.host?.energyCards ?? []).includes(V04_UNDER_REMAIN);
       const paidStaysInTrashOnly = (st?.host?.trashCards ?? []).includes(V04_UNDER_PAID)
         && !(st?.host?.energyCards ?? []).includes(V04_UNDER_PAID);
