@@ -24314,6 +24314,97 @@ scenarios.v30AbilityRemovedControlShowsActivated = {
 order.push('v30AbilityRemovedSuppressesActivated', 'v30AbilityRemovedControlShowsActivated');
 // ── V-30 END ──
 
+// V-45(a)：O-6/O-7 実装＝`WX25-P2-058-E1`（参ノ遊姫　ベイゴマ）【自】：このシグニがアタックしたとき、
+// そのアタック終了時、あなたの場に《アイヤイ★クイーン》がいる場合、あなたのエナゾーンからレベル２以下の
+// ＜遊具＞のシグニ１枚を対象とし、《緑》《緑》《無》を支払ってもよい。そうした場合、それと場にあるこのシグニ
+// の場所を入れ替える。JSONは`CONDITIONAL{HAS_CARD_IN_FIELD}{then:STUB(OPTIONAL_COST)}`という「包み形」
+// （実装ソース `effectExecutor.ts:3837-3867`＝ゲート不成立ならコストも本体も丸ごと読み飛ばす）に続けて
+// `CONDITIONAL(IS_MY_TURN){REARRANGE_SIGNI,swap}`が単純に1段だけ続く構造＝V-20で見つかった「二段連鎖」の
+// バグは踏まない形。《アイヤイ★クイーン》の有無で正負を対で見る。
+function v45aSpec(hasQueen) {
+  return {
+    hostSet: {
+      'field.lrig': [hasQueen ? 'WX25-P2-026#47000' : 'WD01-001#47000'],
+      'field.signi': [null, ['WX25-P2-058#47001'], null], // 中央＝参ノ遊姫ベイゴマ
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'energy': ['WD04-013#47002', 'WD04-013#47003', 'WD01-013#47004', 'WX24-P2-074#47005'], // 緑・緑・白（無）・スワップ対象（遊具Lv1）
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#47010'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+      'life_cloth': ['WD01-013#47020', 'WD01-013#47021'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+async function driveV45a(page, H, hasQueen) {
+  let attacked = false;
+  let e0 = false; let e1 = false; let e2 = false;
+  let picked = false; let confirmed = false;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/v45a-${hasQueen}-${s}.png`, fullPage: true }).catch(() => {});
+    const st0 = await H.queryState();
+    let did = null;
+    if (!attacked) {
+      if (!did) { const did2 = await H.clickTestId('my-signi-zone-1'); if (did2) did = did2; }
+      if (!did) {
+        const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+        if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+          await atk.click({ timeout: 1500 }).catch(() => {}); did = 'action:アタック'; attacked = true;
+        }
+      }
+      if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
+    } else if (hasQueen && !e0 && !e1 && !e2) {
+      const el = page.getByTestId('optcost-energy-0').first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e0'; e0 = true; }
+    } else if (hasQueen && e0 && !e1) {
+      const el = page.getByTestId('optcost-energy-1').first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e1'; e1 = true; }
+    } else if (hasQueen && e1 && !e2) {
+      const el = page.getByTestId('optcost-energy-2').first();
+      if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e2'; e2 = true; }
+    } else if (hasQueen && e2) {
+      const el = page.getByTestId('optcost-pay').first();
+      if (await el.count() && await el.isVisible().catch(() => false) && await el.isEnabled().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-pay'; }
+      if (!did && !picked) { const p = await clickCandidateByPrefix(page, H, st0, 'WX24-P2-074', 'swap'); if (p) { did = p; picked = true; } }
+      if (!did && picked && !confirmed) { did = await H.clickTextOrBtn(['決定']); if (did) confirmed = true; }
+    } else if (!hasQueen) {
+      did = await H.clickTextOrBtn(['スキップ', '決定', 'OK']);
+    }
+    const st = await H.queryState();
+    H.log(`  v45a[${s}] -> ${did ?? 'なし'} | hasQueen=${hasQueen} attacked=${attacked} e0=${e0} e1=${e1} e2=${e2} picked=${picked} confirmed=${confirmed} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energyCards} pEff=${st?.pendingEffect ?? '-'}`);
+    const swapped = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
+    const stayed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX25-P2-058')));
+    if (attacked && !st?.pendingEffect && (hasQueen ? (confirmed || swapped) : true) && s >= 6) {
+      return {
+        pass: hasQueen ? (swapped && !stayed) : (stayed && !swapped),
+        detail: `hasQueen=${hasQueen}・スワップ後の場=${JSON.stringify(st.host.fieldSigni)}・エナ=${JSON.stringify(st.host.energyCards)}（期待swapped=${hasQueen}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${attacked} picked=${picked} confirmed=${confirmed} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v45aQueenPresentSwapsPosition = {
+  title: 'V-45(a) WX25-P2-058-E1：アイヤイ★クイーンがいる→アタック終了時に緑緑無を払ってエナの遊具と場所を入れ替える',
+  spec: v45aSpec(true),
+  async drive(page, H) { return driveV45a(page, H, true); },
+};
+
+scenarios.v45aQueenAbsentNoSwap = {
+  title: 'V-45(a)対照 WX25-P2-058-E1：アイヤイ★クイーンがいない→入れ替え提示なし・シグニは場に残る',
+  spec: v45aSpec(false),
+  async drive(page, H) { return driveV45a(page, H, false); },
+};
+order.push('v45aQueenPresentSwapsPosition', 'v45aQueenAbsentNoSwap');
+// ── V-45 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
