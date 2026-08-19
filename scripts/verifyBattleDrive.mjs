@@ -17478,6 +17478,9 @@ async function driveV15AttackPhaseEndCentral(page, H, leaveToy) {
     //   （pick-0＝data-testid）。決定(0/1)は候補未選択のうちは常にdisabledなので、
     //   H.clickTextOrBtnの「決定」が空振りし続ける＝先に候補をpickする。
     if (!did && triggerSeen && (before?.pendingCandidates ?? []).includes(V15_PHASE_WATCHER)) did = await clickPendingInstance(page, H, V15_PHASE_WATCHER);
+    // ⚠E1後半＝手札からLv2以下＜遊具＞を場に出す任意効果（WX24-P2-075原文）。
+    //   戻ってきたWDK05-T15（Lv2）が手札にあるとSELECT_SIGNI_ZONEの「ゾーンN」が出る＝settled化に必須。
+    if (!did && triggerSeen) did = await H.clickZone();
     if (!did) did = await H.clickTextOrBtn(['このまま進む', '発動順序を確定', '発動する', '発動しない', 'スキップ', '決定', '確定', 'OK', 'はい']);
     const st = await v15cQueryBattleState(page); last = st;
     leftSeen ||= (st?.host?.leftThisAttackPhase ?? []).includes('WDK05-T15') || (st?.host?.leftThisAttackPhase ?? []).includes(V15_PHASE_TOY);
