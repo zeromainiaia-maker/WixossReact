@@ -22803,7 +22803,9 @@ async function driveV58Response(page, H, mode) {
       did = await H.clickTextOrBtn(['カットイン使用']);
       if (did) usedCutinBtn = true;
     } else if (!chosen) {
-      const want = mode === 'choice1' ? ['選択肢1'] : ['選択肢2'];
+      // WXDi-P05-006-E1のCHOOSEは選択肢が固有ラベル文言（choiceId='counter-piece'/'draw-energy'）で
+      // 汎用「選択肢N」テストIDが付かない＝EffectInteractionModalのopt.labelそのままがボタン文言になる。
+      const want = mode === 'choice1' ? ['打ち消し'] : ['エナチャージ'];
       did = await H.clickTextOrBtn(want);
       if (did) chosen = true;
     }
