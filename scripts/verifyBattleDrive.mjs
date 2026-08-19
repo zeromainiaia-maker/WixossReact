@@ -12017,9 +12017,13 @@ scenarios.v04TanabataLeaveFieldE3 = {
       const paidStaysInTrashOnly = (st?.host?.trashCards ?? []).includes(V04_UNDER_PAID)
         && !(st?.host?.energyCards ?? []).includes(V04_UNDER_PAID);
       const trashNotDup = (st?.host?.trashCards ?? []).filter(c => c === V04_UNDER_PAID).length <= 1;
-      H.log(`  v04lf[${s}] -> ${did ?? 'なし'} | leftField=${leftField} hand=${backInHand} remainEnergy=${remainToEnergy} paidTrashOnly=${paidStaysInTrashOnly} field=${JSON.stringify(st?.host?.fieldSigni)} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)}`);
+      const e3Log = await H.findLog(/タナバタ.*場を離れたとき|の【自】効果（場を離れたとき）|下.*エナ/);
+      H.log(`  v04lf[${s}] -> ${did ?? 'なし'} | leftField=${leftField} hand=${backInHand} remainEnergy=${remainToEnergy} paidTrashOnly=${paidStaysInTrashOnly} e3Log=${!!e3Log} field=${JSON.stringify(st?.host?.fieldSigni)} energy=${JSON.stringify(st?.host?.energyCards)} trash=${JSON.stringify(st?.host?.trashCards)}`);
       if (leftField && backInHand && remainToEnergy && paidStaysInTrashOnly && trashNotDup) {
         return { pass: true, detail: `タナバタがツララでバウンス→場を離れる→E3発火で残り下カード${V04_UNDER_REMAIN}だけエナへ（energy=${JSON.stringify(st.host.energyCards)}）。支払い済み${V04_UNDER_PAID}はtrashのまま不変（trash=${JSON.stringify(st.host.trashCards)}）` };
+      }
+      if (leftField && backInHand && trashNotDup && s >= 6) {
+        return { pass: false, st, detail: `【engine疑い】タナバタが場を離れた後、残り下カード${V04_UNDER_REMAIN}がエナではなくtrashへ（energy=${JSON.stringify(st.host.energyCards)} trash=${JSON.stringify(st.host.trashCards)}）＝E3(TAKE_FROM_UNDER_SIGNI destination:energy)が発火せず、既定の「下カードは場を離れるとtrashへ」ルールが優先された疑い。e3Log=${!!e3Log}` };
       }
     }
     const fin = await H.queryState();
