@@ -22176,7 +22176,7 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
       const gCnt = (st?.guest?.fieldSigni ?? []).filter(z => (z ?? []).length > 0).length;
       H.log(`  v24cxvii[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gField=${JSON.stringify(st?.guest?.fieldSigni)} gTrash=${st?.guest?.trash} pEff=${st?.pendingEffect ?? '-'}`);
       if (attacked && gCnt === 0) {
-        return { pass: true, detail: `実効Lv4（印字Lv2＋エナ10枚/5=+2）でアタック→正面のWD01-013をバニッシュ（gField 1→0・gTrash ${before?.guest?.trash}→${st?.guest?.trash}）` };
+        return { pass: true, detail: `実効Lv4（印字Lv2＋エナ10枚/5=+2）でアタック→P15000のWX01-053（バトルでは負けない強さ）が無条件でバニッシュされた＝E2の条件付き効果が寄与（gField 1→0・gTrash ${before?.guest?.trash}→${st?.guest?.trash}）` };
       }
     }
     const fin = await H.queryState();
