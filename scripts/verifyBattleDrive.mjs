@@ -23650,7 +23650,7 @@ function runDeclaredIconRound(discardCardBase) {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   };
 }
-async function driveDeclaredIconRound(page, H, discardCardBase) {
+async function driveDeclaredIconRound(page, H, discardCardBase, discardColor) {
   await H.ensureMain();
   let picked = false; let handPicked = false; let declareLog = null;
   for (let s = 0; s < 26; s++) {
