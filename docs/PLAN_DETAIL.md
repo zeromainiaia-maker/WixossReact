@@ -1,5 +1,15 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+> **2026-08-19 続き577 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
+- **🆕 2026-08-19 続き576（§7 実機検証1件＝V-24(cxv)残0クローズ・engineバグ0）後 最新値**：
+  census **783 据置**（`BASELINE_HIGH` 783 据置）、golden **2307 据置**、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  被覆マトリクス miss 190 据置、`parserWorklist` held **103枚 / 署名42群**、`docs/_partial_fresh.json` **6カード**。
+  live 効果総数 **10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
+  実機シナリオ総数 **431**（429→431＝`pr426ConditionalPowerBuff`／`pr426ConditionalPowerBuffOffWhenLifeAbove1` の2件を新設）。
+  Opusタスク12＝在庫5件 据置。一次記録は BUGFIXES.md 2026-08-19（続き576）。
+
 > **2026-08-19 続き575 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-19 続き574（§7 実機検証さらに5件＝実バグ1件発見・V-23(a)(b)/V-29/V-81/V-82(c)残0クローズ）後 最新値**：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
