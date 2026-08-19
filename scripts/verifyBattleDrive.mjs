@@ -22446,6 +22446,9 @@ function v24cxiiiImmuneSpec(attackerCardNum) {
       'field.signi': [null, null, ['WXK10-035#1']], // 自zone2＝攻撃側zone0の正面（wd07012と同型）
       'field.signi_down': [false, false, false],
       'subscriber_count': 0, // <50＝E1（レベル1以下のシグニの効果を受けない）が有効
+      // 印字3000のままだと攻撃側と同パワーで通常バトルだけで（旧＝BANISH能力と無関係に）バニッシュされてしまう
+      // ＝BANISH能力の効果耐性だけを切り分けるため、通常バトルでは絶対に負けないようバフする。
+      'temp_power_mods': [{ cardNum: 'WXK10-035#1', delta: 6000 }],
       'actions_done': [],
     },
     guestSet: {
