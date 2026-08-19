@@ -23833,11 +23833,16 @@ async function driveV40e(page, H, pickBoth) {
       if (!did && c0Picked && c1Picked) { did = await H.clickBtn('決定', { exact: true }); if (did) confirmed = true; }
     } else {
       // REVEAL_UNTILのSEARCHピッカー（当たれば2枚・当たらなければ0枚でそのまま完了）
-      const pick0 = page.getByTestId('pick-0').first();
-      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
-        const confirmReady = await page.getByRole('button', { name: /決定 \(2\/2\)/ }).count();
-        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
-        else { did = await H.clickTextOrBtn(['決定']); }
+      // ⚠同じ候補を連打すると選択がトグルで外れて進まない（📌21）＝pick-0とpick-1を順に押す。
+      const confirmReady2 = await page.getByRole('button', { name: /決定 \(2\/2\)/ }).count();
+      if (confirmReady2) { did = await H.clickTextOrBtn(['決定']); }
+      if (!did) {
+        const pick1 = page.getByTestId('pick-1').first();
+        if (await pick1.count() && await pick1.isVisible().catch(() => false)) { await pick1.click().catch(() => {}); did = 'pick:pick-1'; }
+      }
+      if (!did) {
+        const pick0 = page.getByTestId('pick-0').first();
+        if (await pick0.count() && await pick0.isVisible().catch(() => false)) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
       }
       if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
     }
