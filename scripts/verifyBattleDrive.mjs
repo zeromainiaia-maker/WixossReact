@@ -22325,7 +22325,7 @@ scenarios.v24cxviiiSpellNoBetNoDirectGrant = {
     const before = await H.queryState();
     H.log('開始時 host.hand:', before?.host?.hand, 'host.coins:', before?.host?.coins);
     H.log('スペル手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-    let resolved = false;
+    let sawTargetPick = false;
     for (let s = 0; s < 20; s++) {
       await page.waitForTimeout(900);
       await page.screenshot({ path: `${SHOT}/v24cxviiiNoBet-${s}.png`, fullPage: true });
@@ -22340,15 +22340,15 @@ scenarios.v24cxviiiSpellNoBetNoDirectGrant = {
       if (!did) did = await H.stdStep();
       const st = await H.queryState();
       const grants = st?.host?.keywordGrants ?? [];
-      const hand = st?.host?.hand ?? before?.host?.hand;
-      H.log(`  cxviii-nobet[${s}] -> ${did ?? 'なし'} | grants=${grants.join(',') || '-'} hand=${JSON.stringify(hand)} pEff=${st?.pendingEffect ?? '-'}`);
+      H.log(`  cxviii-nobet[${s}] -> ${did ?? 'なし'} | grants=${grants.join(',') || '-'} pEff=${st?.pendingEffect ?? '-'}`);
       if (grants.some(g => g.startsWith('WXDi-P15-068') && g.includes('Sランサー'))) {
         return { pass: false, detail: `NG＝ベットなしなのにSランサーがkeywordGrantsに直接付与された（排他が壊れている）＝grants=${grants.join(',')}` };
       }
-      // 手札から闘槍が消えた（発動済み）＝解決完了とみなし、数ティック追い掛けたあと最終判定に切り替える
-      if (!resolved && Array.isArray(hand) && !hand.some(c => c?.startsWith('WXDi-P15-071'))) resolved = true;
-      if (resolved && s >= 4) {
-        return { pass: true, detail: `ベットなしで解決＝keywordGrantsにSランサー無し（=ベット時のみの直接付与という排他を確認）＝grants=${grants.join(',') || '-'}／GRANT_EFFECT側の付与ログは別途ログ参照` };
+      // SELECT_TARGET（対象選択）を経由してから pendingEffect が空に戻った＝効果解決が完了した証拠
+      // （罠4＝機構が動いた証拠を必須条件にする。単なる手札枚数や盤面の静止では判定しない）。
+      if (st?.pendingEffect === 'SELECT_TARGET') sawTargetPick = true;
+      if (sawTargetPick && !st?.pendingEffect) {
+        return { pass: true, detail: `ベットなしで解決完了（SELECT_TARGET経由→pendingEffect解消を確認）＝keywordGrantsにSランサー無し（=ベット時のみの直接付与という排他を確認）＝grants=${grants.join(',') || '-'}` };
       }
     }
     const fin = await H.queryState();
