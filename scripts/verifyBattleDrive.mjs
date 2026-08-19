@@ -22385,8 +22385,8 @@ function v24cxivLancerGateSpec(frontCardNum, frontPower) {
 }
 async function driveV24cxivLancerGate(page, H, gateShouldBeOn) {
   const before = await H.queryState();
-  const beforeLife = before?.guest?.lifeCloth ?? before?.guest?.life_cloth;
-  H.log('開始時 guest.lifeCloth:', beforeLife);
+  const beforeLife = before?.guest?.life;
+  H.log('開始時 guest.life:', beforeLife);
   let attacked = false;
   for (let s = 0; s < 40; s++) {
     await page.waitForTimeout(250);
@@ -22401,24 +22401,23 @@ async function driveV24cxivLancerGate(page, H, gateShouldBeOn) {
     if (!did) did = await H.clickBtn('エナに送る', { exact: true });
     if (!did) did = await H.stdStep();
     const st = await H.queryState();
-    const life = st?.guest?.lifeCloth ?? st?.guest?.life_cloth;
-    H.log(`  cxiv[${s}] -> did=${did ?? 'なし'} guestLife=${life} banished=${JSON.stringify(st?.guest?.fieldSigni)}`);
+    const life = st?.guest?.life;
+    await page.screenshot({ path: `${SHOT}/v24cxivLancerGate${gateShouldBeOn ? 'On' : 'Off'}-${s}.png`, fullPage: true }).catch(() => {});
+    H.log(`  cxiv[${s}] -> did=${did ?? 'なし'} guestLife=${life} banished=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} pOpts=${JSON.stringify(st?.pendingOptions ?? null)} pCands=${JSON.stringify(st?.pendingCandidates ?? null)}`);
     if (attacked && s > 3 && st?.pendingEffect == null && st?.stackLen === 0) {
       const gone = !(st?.guest?.fieldSigni?.[0]?.length);
       if (!gone) continue; // まだバニッシュ未解決
-      const dropped = (beforeLife?.length ?? beforeLife) !== (life?.length ?? life)
-        ? true
-        : Array.isArray(beforeLife) && Array.isArray(life) ? life.length < beforeLife.length : false;
+      const dropped = typeof beforeLife === 'number' && typeof life === 'number' && life < beforeLife;
       if (gateShouldBeOn) {
-        if (dropped) return { pass: true, detail: `正面パワー3000以下＝ランサー成立→バニッシュ後にライフクロスクラッシュを確認（before=${JSON.stringify(beforeLife)} after=${JSON.stringify(life)}）` };
+        if (dropped) return { pass: true, detail: `正面パワー3000以下＝ランサー成立→バニッシュ後にライフクロスクラッシュを確認（before=${beforeLife} after=${life}）` };
       } else {
-        if (!dropped) return { pass: true, detail: `正面パワー3000超＝ランサー不成立→バニッシュのみでライフクロス変化なしを確認（before=${JSON.stringify(beforeLife)} after=${JSON.stringify(life)}）` };
-        return { pass: false, detail: `🔴正面パワー3000超なのにライフクロスがクラッシュした（旧バグ＝ゲート無視で常時ランサー。before=${JSON.stringify(beforeLife)} after=${JSON.stringify(life)}）` };
+        if (!dropped) return { pass: true, detail: `正面パワー3000超＝ランサー不成立→バニッシュのみでライフクロス変化なしを確認（before=${beforeLife} after=${life}）` };
+        return { pass: false, detail: `🔴正面パワー3000超なのにライフクロスがクラッシュした（旧バグ＝ゲート無視で常時ランサー。before=${beforeLife} after=${life}）` };
       }
     }
   }
   const fin = await H.queryState();
-  return { pass: false, detail: `判定不能（did未到達 or 未解決。fin.guest.lifeCloth=${JSON.stringify(fin?.guest?.lifeCloth ?? fin?.guest?.life_cloth)} fieldSigni=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+  return { pass: false, detail: `判定不能（did未到達 or 未解決。fin.guest.life=${fin?.guest?.life} fieldSigni=${JSON.stringify(fin?.guest?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
 }
 scenarios.v24cxivLancerGateOn = {
   title: 'V-24(cxiv) WXDi-P11-071＝正面パワー3000以下（ゲート成立）でランサー→バニッシュ時にライフクロスクラッシュ',
