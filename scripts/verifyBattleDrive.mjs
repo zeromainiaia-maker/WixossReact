@@ -24060,6 +24060,76 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
 order.push('v42ZoneLimitedAttackBanCenterOnly');
 // ── V-42 END ──
 
+// V-43(a)：O-28 実装＝【Ｓランサー】（全角）と engine 側 半角 `Sランサー` の綴りズレ是正（続き503）。
+// バトルに勝ち、相手のライフが0枚のとき、Sランサーは相手を敗北させる（通常ランサーは効果消滅するだけ）。
+// 旧実装は全角【Ｓランサー】がkeyword判定に一度も当たらず「ランサー」へ格下げされていた（実装ソース
+// `BattleScreen.tsx:9309-9319`＝`isSLancer`分岐）。keyword_grantsで直接付与し、ライフ0の相手へ勝利させて
+// 「Sランサー：ライフなし → ダメージ → 相手の敗北」ログの有無で正負を対で見る。
+function v43aSpec(keyword) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#43000'],
+      'field.signi': [null, ['WD01-010#43001'], null], // 中央＝P10000（Lv3）
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'keyword_grants': { 'WD01-010#43001': [keyword] },
+      'energy': [], 'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#43010'],
+      'field.signi': [null, ['WD01-013#43011'], null], // 正面＝P3000（Lv1）＝確実に負ける
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'life_cloth': [], // ライフ0枚
+      'hand': [], // ガード候補なし
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+async function driveV43a(page, H, keyword) {
+  H.log(`手札シグニゾーン1クリック(${keyword}):`, await H.clickTestId('my-signi-zone-1') ?? '見つからず');
+  let attacked = false;
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/v43a-${keyword}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!attacked) {
+      const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+      if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+        await atk.click({ timeout: 1500 }).catch(() => {}); did = 'action:アタック'; attacked = true;
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
+    const st = await H.queryState();
+    H.log(`  v43a[${s}] -> ${did ?? 'なし'} | attacked=${attacked} gLife=${st?.guest?.life} pEff=${st?.pendingEffect ?? '-'}`);
+    if (attacked) {
+      const winLog = await H.findLog(/Sランサー：ライフなし → ダメージ → 相手の敗北/);
+      const fizzleLog = await H.findLog(/ランサー：ライフなし（効果消滅）/);
+      if (winLog || fizzleLog) {
+        return {
+          pass: keyword === 'Sランサー' ? !!winLog : (!!fizzleLog && !winLog),
+          detail: `keyword=${keyword}・勝利ログ="${winLog ?? '-'}"・消滅ログ="${fizzleLog ?? '-'}"`,
+        };
+      }
+    }
+  }
+  return { pass: false, detail: `未完了（attacked=${attacked}）` };
+}
+
+scenarios.v43SLancerDefeatsOpponentAtZeroLife = {
+  title: 'V-43(a) 【Ｓランサー】：勝利＋相手ライフ0枚→相手を敗北させる',
+  spec: v43aSpec('Sランサー'),
+  async drive(page, H) { return driveV43a(page, H, 'Sランサー'); },
+};
+
+scenarios.v43RegularLancerFizzlesAtZeroLife = {
+  title: 'V-43(a)対照 【ランサー】：勝利＋相手ライフ0枚→効果消滅（敗北させない）',
+  spec: v43aSpec('ランサー'),
+  async drive(page, H) { return driveV43a(page, H, 'ランサー'); },
+};
+order.push('v43SLancerDefeatsOpponentAtZeroLife', 'v43RegularLancerFizzlesAtZeroLife');
+// ── V-43 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
