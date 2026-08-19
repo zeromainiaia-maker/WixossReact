@@ -21998,6 +21998,78 @@ scenarios.v20DiscardPayBothReturnsToField = {
 order.push('v20DiscardSkipFirstBlocksSecond', 'v20DiscardPayBothReturnsToField');
 // ── V-20 END ──
 
+// ── V-23(b) START ──
+// §7 V-23(b)（続き377n＝機構ギャップ7効果）＝「N体まで＝0体でもよい」選択UIがキーワード付与でも出るか。
+// WXDi-P09-053-E1（羅星 タテーザ）＝【出】自分のレベル1シグニを2体まで対象とし、次の対戦相手のターン終了時まで
+// 【シャドウ（レベル2以下）】を得る（GRANT_KEYWORD・upToCount:true）。旧はowner:'any'で相手シグニも対象に
+// 入っていた＝候補が自分のシグニだけに絞られていることを確認する（対戦相手にも同名Lv1シグニを置いて対照とする）。
+scenarios.wxdip09053GrantUpToTwo = {
+  title: 'WXDi-P09-053-E1（【出】自分のLv1シグニ2体まで【シャドウ】付与＝候補が自分のシグニだけであることを確認）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [['WD01-013#1'], ['WD01-013#2'], null],
+      'field.signi_down': [false, false, false],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD01-013#3'], null, null], // 同名Lv1シグニ＝対象に含まれてはいけない対照
+    },
+    handPrepend: ['WXDi-P09-053#1'],
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni), 'guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni));
+    await H.ensureMain();
+    H.log('手札クリック:', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false;
+    const picked = new Set();
+    let candidateSnapshot = null;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/wxdip09053GrantUpToTwo-${s}.png`, fullPage: true });
+      let did = null;
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) { await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (!did) {
+        const st0 = await H.queryState();
+        const cands = st0?.pendingCandidates ?? null;
+        if (Array.isArray(cands) && cands.length > 0) {
+          if (!candidateSnapshot) candidateSnapshot = cands;
+          for (let i = 0; i < cands.length; i++) {
+            if (picked.has(cands[i])) continue;
+            const p = page.getByTestId(`pick-${i}`).first();
+            if (await p.count() && await p.isVisible().catch(() => false)) {
+              await p.click({ timeout: 1200 }).catch(() => {});
+              picked.add(cands[i]); did = `pick:${cands[i]}`; break;
+            }
+          }
+        }
+      }
+      if (!did) did = await clickDecideNofM(page);
+      if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const grants = st?.host?.keywordGrants ?? [];
+      const shadowed = grants.filter(g => g.includes('シャドウ')).length;
+      H.log(`  v23b[${s}] -> ${did ?? 'なし'} | candidates=${JSON.stringify(candidateSnapshot)} picked=${JSON.stringify([...picked])} keywordGrants=${JSON.stringify(grants)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (shadowed >= 2 && !st?.pendingEffect) {
+        const candOk = candidateSnapshot && candidateSnapshot.length === 2
+          && candidateSnapshot.every(c => c.startsWith('WD01-013#1') || c.startsWith('WD01-013#2'));
+        return {
+          pass: !!candOk,
+          detail: `候補=${JSON.stringify(candidateSnapshot)}（自分のLv1シグニ2体だけ／guestの同名WD01-013#3は含まれず）→2体とも【シャドウ】付与済み（keywordGrants=${JSON.stringify(grants)}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `付与未確認（candidates=${JSON.stringify(candidateSnapshot)} keywordGrants=${JSON.stringify(fin?.host?.keywordGrants)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wxdip09053GrantUpToTwo');
+// ── V-23(b) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
