@@ -24193,11 +24193,11 @@ async function driveV20(page, H, payBoth) {
       did = await H.clickTestId(payBoth ? 'optcost-pay' : 'optcost-skip');
       if (did) step1Chosen = true;
     } else if (payBoth && !step1PayPicked) {
-      // ①のコスト＝手札1枚を捨てる（残っているのはWX19-064のみ）。
-      const cand = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay');
-      if (cand) { did = cand; step1PayPicked = true; }
+      // ①のコスト＝手札1枚を捨てる（残っているのはWX19-064のみ）。ピック後も「決定」が必要＝
+      // hand が実際に空になるまで（＝支払いが確定するまで）このブランチに留まる。
+      did = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay');
       if (!did) did = await H.clickTextOrBtn(['決定']);
-      if (!did && (st0?.host?.handCards ?? []).length === 0) { step1PayPicked = true; did = 'auto-resolved'; }
+      if ((st0?.host?.handCards ?? []).length === 0) step1PayPicked = true;
     } else if (payBoth && !step2Chosen) {
       did = await H.clickTestId('optcost-pay');
       if (did) step2Chosen = true;
