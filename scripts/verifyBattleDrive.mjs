@@ -24222,6 +24222,14 @@ async function driveV20(page, H, payBoth) {
         detail: `①スキップ後＝トラッシュに残置=${inTrash}・場に無い=${!onField}（②以降は出ないはず）・hHand=${JSON.stringify(st.host.handCards)}`,
       };
     }
+    // 🔴①をスキップしたのに②を飛ばして③（ADD_TO_FIELD）のSELECT_TARGETが出た＝実バグ確認。
+    if (!payBoth && step1Chosen && st?.pendingEffect === 'SELECT_TARGET'
+        && (st.pendingCandidates ?? []).some(n => n?.startsWith('WXDi-P10-039'))) {
+      return {
+        pass: false,
+        detail: `🔴実バグ確認＝①「スキップ」を選んだのに②《青》《無》の支払い提示を飛ばして③「トラッシュから場に出す」のSELECT_TARGETが出た（candidates=${JSON.stringify(st.pendingCandidates)}）＝「そうした場合」の入れ子ゲートが engine 側で外れている（詳細はBUGFIXES参照）`,
+      };
+    }
     if (payBoth && zoned && !st?.pendingEffect) {
       const onField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
       const inTrash = (st.host.trashCards ?? []).some(n => n?.startsWith('WXDi-P10-039'));
