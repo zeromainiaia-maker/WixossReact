@@ -24008,7 +24008,8 @@ scenarios.v42ZoneLimitedAttackBanCenterOnly = {
       'field.signi_down': [false, false, false],
       'field.check': null,
       'signi_attack_bans_this_turn': [{ zones: [1], unlessPayColorless: 1 }],
-      'energy': [], 'actions_done': [],
+      'energy': ['WD01-013#42004'], // 《無》×1を払える最低限（0枚だと支払不能でボタンごと消える＝別の観測になる）
+      'actions_done': [],
     },
     guestSet: {
       'field.lrig': ['WD01-001#42010'],
