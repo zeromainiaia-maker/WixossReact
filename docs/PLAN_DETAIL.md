@@ -1,5 +1,16 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-19 整理㊽（§7 `V-24` 全5項目決着ぶんの退避・続き577）
+
+- **V-24 🔴 タスク12 在庫5件の残0クローズ（2026-08-08）5件**＝engine/golden では固定済みだが、いずれも `BattleScreen` の経路にしか無く **golden では原理的に踏めない**（付与の合流・耐性コレクタの呼び出し・レベル表示）。
+  - [x] **(cxiv) 条件つきキーワード付与が `granted_effects` → augmented effectsMap 経由で実際にバッジ／アタック処理に効くか**＝**続き577＝実機PASS（2回連続・両シナリオとも）・engineバグ0**。`WXDi-P11-071`（「正面のシグニのパワーが3000以下であるかぎり、【ランサー】を得る」）へ`buildGatedKeywordGrant`相当のCONTINUOUS`granted_effects`を直接注入し、CPU自動アタックで観測。`v24cxivLancerGateOn`＝正面パワー3000（ゲート成立）→バニッシュ後にライフクロス1枚クラッシュ（ランサー効果）を確認／`v24cxivLancerGateOff`＝正面パワー5000（ゲート不成立）→バニッシュのみでライフクロス変化なし（旧＝正面が誰でも常時付いていたが是正済みと確認）。
+  - [x] **(cxiii) `WXK10-035` の効果耐性**＝**続き577＝実機PASS（2回連続・両シナリオとも）・engineバグ0**。guestの攻撃シグニへON_ATTACK_SIGNI granted BANISHを注入しCPU自動アタックで発火（host側はwd07012と同型・`temp_power_mods`で通常バトルでは絶対に負けないようバフして純粋にBANISH能力の耐性だけを切り分け）。`v24cxiiiLevel1Immune`＝レベル1シグニ（`WD01-013`）のBANISHは効果耐性で不発→WXK10-035が生存／`v24cxiiiLevel2NotImmune`＝レベル2シグニ（`WD01-012`）のBANISHは耐性対象外→通常どおりバニッシュ（旧＝`sourceFilter`が無く相手シグニの効果を全部受けない過剰保護だったが是正済みと確認）。
+  - [x] 🔴**(cxv) 条件つき常在パワーの出入り**＝`PR-426-E3`（ライフ1枚以下**かつ**中央ゾーンで＋4000）＝**実機検証実施→2件とも実機PASS（各2回連続）・engineバグ0**。`pr426ConditionalPowerBuff`＝ライフクロス1枚＋中央ゾーンで表示パワー8,000→12,000（+4000反映）／`pr426ConditionalPowerBuffOffWhenLifeAbove1`＝ライフクロス3枚（条件不成立）では印字どおり8,000のまま（旧＝常時適用だったが是正済みと確認）。**続き577＝`WXDi-P07-060-E3`（覚醒で+2000）も実機PASS（2回連続・両シナリオとも）・engineバグ0**。`v24cxvHyperionAwakened`＝`awakened_signi`（インスタンスID形式で保持）に含まれる状態で印字3000→5000（+2000反映）／`v24cxvHyperionNotAwakened`＝覚醒していなければ印字どおり3000のまま。
+  - [x] **(cxvii) `WX20-Re18` の動的レベル**＝エナ10枚（Lv4）／15枚（Lv5）で場に出し、**レベル表示・アタック時の正面バニッシュ（Lv4以上）・対戦相手の効果を受けない（Lv5以上）**が実効レベルどおりに切り替わるか。⚠`BattleScreen` のレベル表示は `calcSigniLevels` を別途呼ぶので **engine の判定と一致するか**も併せて見る。**続き572＝実機検証実施→新規実バグを発見**（`wx20re18DynamicLevelAttackBanish`）。**レベル表示・パワー補正（1000+3000×4=13000）は正しい**が、**E2（アタック時の正面バニッシュ）が発火しない**＝`evalUseCondition`（`collectAttackerSelfTriggers`が使う）が`effectsMap`を渡さないため`SELF_LEVEL_THRESHOLD`が実効レベルを計算できず印字レベル（2）にフォールバックし続ける。E4（Lv5効果耐性）も別経路（`checkActiveCondition`の`effectiveLevels`を渡すcallerが0件）で同型に壊れていると判明。詳細はOpusタスク12 **(cxlii)** へ登録済み。
+  - [x] **(cxviii) `WXDi-P15-071` のベット分岐**＝**ベットあり／なしで撃ち分け**、ベット時は【Ｓランサー】（無条件）、非ベット時は正面パワー8000以下ゲート付き【ランサー】＝**排他**になること。**続き573＝実機PASS（2回連続・両シナリオとも）**＝新規シナリオ`v24cxviiiSpellBetGrantsSLancer`（ベット3枚宣言→`keyword_grants`に`Sランサー`が直接書かれる。guest正面WX01-053がP15000＝8000超でも無関係に付与＝無条件を確認）／`v24cxviiiSpellNoBetNoDirectGrant`（ベットなし→SELECT_TARGET解決完了後も`keywordGrants`にSランサーなし＝非ベット側は`GRANT_EFFECT`経由の別ストア`granted_effects`へ分岐しており直接付与とは排他）。engineバグ0。⚠非ベット側のCONTINUOUS条件ゲート自体（正面パワー8000以下でのみランサー表示）は2026-08-08に別途実働化・検証済みのため今回は再検証していない。
+
+**V-24 全5項目決着**（(cxiii)(cxiv)(cxv)(cxviii)は残0クローズ・(cxvii)は実バグ発見しOpusタスク12(cxlii)へ登録済み）。
+
 > **2026-08-19 続き577 で PLAN §4 から退避した旧・恒久指標行**（直近の正は PLAN §4 の最新行）
 - **🆕 2026-08-19 続き576（§7 実機検証1件＝V-24(cxv)残0クローズ・engineバグ0）後 最新値**：
   census **783 据置**（`BASELINE_HIGH` 783 据置）、golden **2307 据置**、
