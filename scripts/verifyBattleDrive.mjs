@@ -22186,6 +22186,48 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
 order.push('wx20re18DynamicLevelAttackBanish');
 // ── V-24(cxvii) END ──
 
+// ── V-24(cxv) START ──
+// §7 V-24(cxv)＝タスク12在庫(cxv)＝条件つき常在パワーの出入り。
+// PR-426（篭手 エルゼ）E3＝CONTINUOUS activeCondition AND(life_cloth<=1, IS_SELF_IN_CENTER_ZONE)
+// → POWER_MODIFY(self,thisCardOnly,+4000)。印字8000→条件成立で12,000。旧＝常時適用（条件無視）だった。
+// hostのlife_clothを1枚にして中央ゾーン（signi zone1）に配置＝注入直後から条件成立＝
+// アタック等の操作なしで表示パワーがDOM（my-signi-zone-1）に反映されるかを見る。
+scenarios.pr426ConditionalPowerBuff = {
+  title: 'PR-426-E3（ライフクロス1枚以下＋中央ゾーンでのみ+4000＝条件つき常在パワー）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [null, ['PR-426#1'], null],
+      'field.signi_down': [false, false, false],
+      'life_cloth': ['WD01-013#1'],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [null, ['WD01-013#900'], null],
+      'field.signi_down': [false, false, false],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 host.lifeCloth:', before?.host?.lifeCloth ?? before?.host?.life_cloth, 'host.fieldSigni:', JSON.stringify(before?.host?.fieldSigni));
+    for (let s = 0; s < 15; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/pr426ConditionalPowerBuff-${s}.png`, fullPage: true }).catch(() => {});
+      const zoneText = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+      const st = await H.queryState();
+      H.log(`  cxv[${s}] -> zoneText=${JSON.stringify(zoneText.slice(0, 60))} hField=${JSON.stringify(st?.host?.fieldSigni)}`);
+      if (/12[,，]000/.test(zoneText)) {
+        return { pass: true, detail: `印字8000のPR-426が中央ゾーン＋ライフクロス1枚以下の条件成立で表示パワー12,000（+4000）を確認（zoneText=${JSON.stringify(zoneText.slice(0, 60))}）` };
+      }
+    }
+    const fin = await page.getByTestId('my-signi-zone-1').innerText().catch(() => '');
+    return { pass: false, detail: `+4000反映未確認（zoneText=${JSON.stringify(fin.slice(0, 60))}）` };
+  },
+};
+order.push('pr426ConditionalPowerBuff');
+// ── V-24(cxv) END ──
+
 // ── V-82(c) START ──
 // §7 V-82(c)（続き569＝§8 O-1 (g)＝CPUの選択を盤面評価へ）＝応答アーツの温存（`prevent`はライフ2枚以下でだけ解禁）。
 // `responseArtsAllowedKinds`（cpuArts.ts:254）＝life_cloth<=2ならALL_KINDS（prevent含む）、それ以外はKEEP_PREVENT
