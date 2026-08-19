@@ -23875,6 +23875,109 @@ scenarios.v40DeckLevelOverrideOnlyChoice2NoReveal = {
 order.push('v40DeckLevelOverrideBothChoicesReveal2', 'v40DeckLevelOverrideOnlyChoice2NoReveal');
 // ── V-40 END ──
 
+// V-41(b)：O-32 実装＝`WX16-042-E1`（ＵＮＬＵＣＫＹ）「手札からシグニを１枚捨てる。その後、捨てたシグニと
+// 同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。あなたはこの効果をあと２回まで繰り返して
+// もよい（合計最大3回）」＝`RepeatAction.optional`（続き501・実装ソース `effectExecutor.ts:4951`）。
+// レベルの異なる手札2枚（Lv1/Lv2）を用意し、①各周のBANISH候補が捨てたカードと同レベルの相手シグニ1体だけに
+// 絞られること（`pendingCandidates`を直接見る）②「繰り返す」を選ぶと次の周が起きる③最後に「繰り返さない」を
+// 選ぶと3周目は起きない（合計2回で打ち切り＝Lv3の相手シグニは無傷で残る）を1本で確認する。
+scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
+  title: 'V-41(b) WX16-042-E1：各周のバニッシュ候補は捨てたカードと同レベルのみ／「繰り返さない」で打ち切り',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#41100'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD03-013#41101'], // 青×1
+      'hand': ['WD01-013#41102', 'WD01-012#41103'], // Lv1／Lv2
+      'actions_done': [],
+    },
+    handPrepend: ['WX16-042#41104'],
+    guestSet: {
+      'field.lrig': ['WD01-001#41110'],
+      'field.signi': [['WD01-013#41111'], ['WD01-012#41112'], ['WD01-010#41113']], // Lv1／Lv2／Lv3
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    H.log('手札クリック(WX16-042):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let energyPicked = false; let castDone = false;
+    let discard1 = false; let banish1 = false; let repeatChosen = false;
+    let discard2 = false; let banish2 = false; let stopChosen = false;
+    let candLog = [];
+    for (let s = 0; s < 34; s++) {
+      await page.waitForTimeout(800);
+      await page.screenshot({ path: `${SHOT}/v41b-${s}.png`, fullPage: true }).catch(() => {});
+      const st0 = await H.queryState();
+      // pendingCandidates を毎ティック記録（BANISH の絞り込みを直接見る決め手）。
+      if (st0?.pendingEffect === 'SELECT_TARGET' && Array.isArray(st0.pendingCandidates)) {
+        const key = JSON.stringify(st0.pendingCandidates);
+        if (candLog.length === 0 || candLog[candLog.length - 1] !== key) candLog.push(key);
+      }
+      let did = null;
+      if (!castDone) {
+        if (!did) did = await H.clickBtn('発動', { exact: true });
+        if (!did && !energyPicked) {
+          const e0 = page.getByTestId('spellcost-energy-0').first();
+          if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; energyPicked = true; }
+        }
+        if (!did && energyPicked) did = await H.clickBtn('発動する', { exact: true });
+        if ((st0?.host?.handCards ?? []).length < 2) castDone = true; // スペル自身が手札から離れた
+      } else if (!discard1) {
+        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-013"]').first();
+        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-013(hand)'; }
+        if (!did) did = await H.clickTextOrBtn(['決定']);
+        if ((st0?.host?.handCards ?? []).length === 1) discard1 = true;
+      } else if (!banish1) {
+        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-013"]').first();
+        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-013(banish)'; }
+        if (!did) did = await H.clickTextOrBtn(['決定']);
+        if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-013')))) banish1 = true;
+      } else if (!repeatChosen) {
+        did = await H.clickBtn('繰り返す（残り2回まで）', { exact: true });
+        if (did) repeatChosen = true;
+      } else if (!discard2) {
+        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-012"]').first();
+        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-012(hand)'; }
+        if (!did) did = await H.clickTextOrBtn(['決定']);
+        if ((st0?.host?.handCards ?? []).length === 0) discard2 = true;
+      } else if (!banish2) {
+        const cand = page.locator('[data-testid^="pick-"][data-card-num="WD01-012"]').first();
+        if (await cand.count() && await cand.isVisible().catch(() => false)) { await cand.click().catch(() => {}); did = 'pick:WD01-012(banish)'; }
+        if (!did) did = await H.clickTextOrBtn(['決定']);
+        if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')))) banish2 = true;
+      } else if (!stopChosen) {
+        did = await H.clickBtn('繰り返さない', { exact: true });
+        if (did) stopChosen = true;
+      }
+      const st = await H.queryState();
+      H.log(`  v41b[${s}] -> ${did ?? 'なし'} | d1=${discard1} b1=${banish1} rep=${repeatChosen} d2=${discard2} b2=${banish2} stop=${stopChosen} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} pEff=${st?.pendingEffect ?? '-'}`);
+      if (stopChosen && !st?.pendingEffect) {
+        const gField = st.guest.fieldSigni ?? [];
+        const lv1Gone = !gField.some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-013')));
+        const lv2Gone = !gField.some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')));
+        const lv3Kept = gField.some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-010')));
+        const handEmpty = (st.host.handCards ?? []).length === 0;
+        // 各周のBANISH候補が単一（同レベルだけに絞られている）ことを候補ログから確認。
+        const banishCandLogs = candLog.filter(k => k.includes('WD01-013#41111') || k.includes('WD01-012#41112'));
+        const filteredOk = banishCandLogs.every(k => JSON.parse(k).length === 1);
+        const pass = lv1Gone && lv2Gone && lv3Kept && handEmpty && filteredOk;
+        return {
+          pass,
+          detail: `Lv1消滅=${lv1Gone} Lv2消滅=${lv2Gone} Lv3残置=${lv3Kept} 手札空=${handEmpty}・BANISH候補ログ=${JSON.stringify(banishCandLogs)}（各1件に絞られている=${filteredOk}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（d1=${discard1} b1=${banish1} rep=${repeatChosen} d2=${discard2} b2=${banish2} stop=${stopChosen} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v41RepeatOptionalFiltersByLevelAndStops');
+// ── V-41 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
