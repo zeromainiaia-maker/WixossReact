@@ -22996,12 +22996,13 @@ scenarios.wx16021SideAttackEmptyZoneNoButtonBeforeArts = {
     const opened = await H.clickTestId('my-signi-zone-1');
     await page.waitForTimeout(700);
     const cnt = await page.getByRole('button', { name: /側面アタック/ }).count();
+    const atkCnt = await page.getByRole('button', { name: 'アタック', exact: true }).count();
     await H.closeModals();
     return {
-      pass: cnt === 0,
-      detail: cnt === 0
-        ? `驚天動地未使用＝側面アタックボタンは0個（emptyZoneDamages=false）＝空ゾーンは提示されない（opened=${opened}）`
-        : `【回帰】驚天動地未使用なのに側面アタックボタンが${cnt}個出た`,
+      pass: cnt === 0 && atkCnt >= 1,
+      detail: cnt === 0 && atkCnt >= 1
+        ? `モーダル開通確認（アタックボタン${atkCnt}個）のうえで側面アタックボタンは0個（emptyZoneDamages=false）＝空ゾーンは提示されない（opened=${opened}）`
+        : `【異常】opened=${opened} atkCnt=${atkCnt} 側面アタック=${cnt}個`,
     };
   },
 };
