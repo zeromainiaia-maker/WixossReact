@@ -1,5 +1,26 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き572・Sonnet 5）— §7 実機検証の続き5件（V-04／V-15／V-16／V-17／V-19）＝実バグ2件発見・Opusタスク12へ登録・V-17残0クローズ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝今回はすべて `scripts/verifyBattleDrive.mjs` の実機シナリオ追加・修正と `docs/PLAN.md` の簿記のみ。
+
+### 1. ✅V-17 残0クローズ＝`mugenQFlip`（`WXDi-P11-010A`→`B` 夢限-Q- 反転）実機PASS
+
+既存シナリオを実行しただけ（未実行のまま在庫化していた）。`ON_GROW_PHASE_START`→`EFFECTIVE_LRIG_LIMIT_GTE(9)`成立→`MUGEN_Q_RESET_AND_FLIP`で`card_identity_overrides`がB面へ反転＋手札/エナ/トラッシュがリセット後B面E1で再構築（hHand=5・hEnergy=5・hTrash=0）。engineバグ0。V-17 全項目 決着。
+
+### 2. 🔴実バグ発見＝`WXDi-P10-041-E3`（V-04④）の `TAKE_FROM_UNDER_SIGNI` がON_LEAVE_FIELD発火時に空振り
+
+新規シナリオ `v04TanabataLeaveFieldE3` を追加（下カード1枚を払済＝trashへ、残り1枚は下に置いたまま、`WX21-057`（小罠 ツララ）でタナバタ自身をバウンスして場を離れさせる）。**発火ログ「[自分] 羅植姫　タナバタ の【自】効果（場を離れたとき）」は出るが、トラッシュ→エナの移動が一切起きない**。原文は「このシグニの下にあったカード１枚を対象とし、それをトラッシュからエナゾーンに置く」＝**ソースはトラッシュ**（場を離れる際の既定ルールで下カードは先にトラッシュへ落ちる。これ自体は正しい）。しかし `effectExecutor.ts:6211` `execTakeFromUnderSigni` は `a.fromThis` のとき `ctx.ownerState.field.signi` から `ctx.sourceCardNum`（＝このシグニ自身）を探して候補を作る実装＝ON_LEAVE_FIELDの時点で自分自身が既に`field.signi`から消えているため`zoneIdx===-1`→`cands=[]`→`return done(ctx)`で静かに空振り。根の原因はソースの取り違え（「まだ場にあるこのシグニの下」を前提にした実装と「場を離れた後にトラッシュにあるカード」を対象にする効果の不一致）。併せて `public/data/effects_WXDi.json` の `WXDi-P10-041-E3` は原文「１枚」なのに `count:9, upToCount:true` に化けている疑いもparser側で要確認。Opusタスク12 **(cxxxviii)** へ登録。実機シナリオ `v04TanabataLeaveFieldE3` を `order` に追加済み。
+
+### 3. 🔴実バグ発見＝ON_ABILITY_ACTIVATED（§6.3 J-1・V-16）の《ターン1回》が実質機能していない
+
+`v16AbilitySpec` の `deck: []` が「相手リフレッシュ（デッキを再構築）」を誘発し `actions_done` の追跡が壊れる問題（📌22）を host/guest ともデッキに数枚積むことで解消。これで `v16AbilityWatcherImmediatelyAfterOpponentOnPlay` はウォッチャー自体の発火・解決（sourceLogs/watcherLogs/order/discarded）はすべて成立するようになったが、別の理由で引き続きFAIL＝**`usageLimit:'once_per_turn'`の消化が`actions_done`へ永続化されない**。`BattleScreen.tsx`：①`:4728-4730`で`pureCollectAbilityActivatedTriggers`を呼び`aaHost`/`aaGuest`取得→②`:4844-4849`で`hostAcc`/`guestAcc`へ`usedOncePerTurnIds`を`actions_done`としてマージ→③**しかし数行後、`:4883`（`!result.done`分岐）と`:4899`（`else`分岐）の両方で`collectBoardDiffTriggers(hostState, guestState, …)`を呼び、その戻り値で`hostAcc`/`guestAcc`を丸ごと再代入**（`collectBoardDiffTriggers`は引数の`hostState`/`guestState`＝②のマージ**前**のベースから積み上げる＝`:3096`）。**②のマージは常にここで消える**＝ON_ABILITY_ACTIVATED系ウォッチャーの《ターン1回》制限は事実上いつも機能しない。`v16AbilityWatcherOncePerTurnSecondOnPlayIgnored`／`WX19-066`も同根本原因のため保留。Opusタスク12 **(cxxxix)** へ登録（修正方針も記載）。
+
+### 4. 変化なし／保留＝V-15②・V-19
+
+- **V-15②**（`v15AttackPhaseEndCentralDiffToyLeftFires`）＝既存の「決定ボタン無限ループ→ブラウザクラッシュ」を2回再現（FRESH=1でも同一パターン）。既存のPLAN記載（シナリオ側の未完）どおりで新規知見なし。
+- **V-19**（一時レゾナのターン終了返却）＝`v19Wx07050NoDiscardDoPhaseAdvanceReturns` を再実行したが、召喚後の破棄コスト対象「羅星　ハダル」画像クリックが毎ティック `Timeout 3000ms exceeded` を20+回繰り返してブラウザクラッシュ＝**本題（返却の是非）に到達できず**。カード名文字列自体は `CardData_Sheet1.csv` と完全一致（表記ズレではない）。観測側UI操作の不具合を疑うが未特定＝follow-up。
+
 ## 2026-08-19（続き571・Opus 5）— §5 P1／§5d-0 (i) 第21バッチ＝対象名詞句フィルタの取りこぼし（census 786→783・wiring miss 193→190）
 
 ゲート全緑（typecheck / golden **2307**（+2）/ smoke 10693 全0 / fuzz 全0 / census **783**（`BASELINE_HIGH` 更新）/ census:stubs 全0 / manual-fields 0 / lint 0 errors）。live 改変は**3効果**・CSV 非改変。version 0.501→0.502。
