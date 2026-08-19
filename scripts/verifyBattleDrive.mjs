@@ -22469,6 +22469,8 @@ function v24cxiiiImmuneSpec(attackerCardNum) {
   };
 }
 async function driveV24cxiii(page, H, expectImmune) {
+  const before0 = await H.queryState();
+  H.log('注入直後 host.fieldSigni:', JSON.stringify(before0?.host?.fieldSigni), 'guest.fieldSigni:', JSON.stringify(before0?.guest?.fieldSigni), 'active:', before0?.activeUser);
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(1000);
     await page.screenshot({ path: `${SHOT}/v24cxiii${expectImmune ? 'Immune' : 'NotImmune'}-${s}.png`, fullPage: true }).catch(() => {});
