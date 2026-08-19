@@ -23557,6 +23557,88 @@ scenarios.v40StripAttachedAndUnder = {
   },
 };
 order.push('v40StripAttachedAndUnder');
+
+// V-40(b)：`USE_SEARCHED_SPELL_OR_TRASH`＝`WX20-077-E2`（ドライ＝アコニチン）【出】：自トラッシュに
+// カード名に《リカブト》を含むカードがあれば、デッキから《バイオレンス・スプラッシュ》をサーチ→
+// シャッフル→「コストを支払わずに使用する／トラッシュに置く」のCHOOSE。どちらでも最終的に手札には残らない
+// （実装ソース `execStubPart1.ts:275`）。共通の召喚→SEARCHピック→CHOOSEの下地を関数化し、正負の枝を分ける。
+async function runUseSearchedSpellRound(page, H, { useIt }) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log('開始時 host.trash:', before?.host?.trashCards, 'host.deck:', before?.host?.deckCards ?? before?.host?.deck);
+  H.log('手札クリック(WX20-077):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false; let searched = false; let chose = false;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(800);
+    let did = null;
+    if (!summoned) {
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+      if (!did) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+    }
+    if (!did && summoned && !chose) {
+      // CHOOSE（使う／トラッシュに置く）が先に出ていれば拾う。無ければ SEARCH ピッカー側を拾う。
+      const wantLabel = useIt ? /コストを支払わずに使用する/ : /バイオレンス・スプラッシュをトラッシュに置く/;
+      const btn = page.getByRole('button', { name: wantLabel }).first();
+      if (await btn.count() && await btn.isVisible().catch(() => false)) { await btn.click().catch(() => {}); did = 'choose:' + (useIt ? '使用' : 'トラッシュ'); chose = true; }
+    }
+    if (!did && summoned && !searched && !chose) {
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(1\// }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        else { did = await H.clickTextOrBtn(['決定']); if (did) searched = true; }
+      }
+    }
+    if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    H.log(`  v40b[${s}] -> ${did ?? 'なし'} | summoned=${summoned} searched=${searched} chose=${chose} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} pEff=${st?.pendingEffect ?? '-'}`);
+    const inHand = (st?.host?.handCards ?? []).some(n => n?.startsWith('WX04-038'));
+    const inTrash = (st?.host?.trashCards ?? []).some(n => n?.startsWith('WX04-038'));
+    if (chose && !st?.pendingEffect && !inHand) {
+      const usedLog = await H.findLog(/バイオレンス・スプラッシュ.*(使用|効果)/);
+      return {
+        pass: inTrash && !inHand,
+        detail: `useIt=${useIt}・最終＝hand含む=${inHand} trash含む=${inTrash}・使用ログ="${usedLog ?? '-'}"（hTrash=${JSON.stringify(st.host.trashCards)}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（summoned=${summoned} searched=${searched} chose=${chose} hHand=${fin?.host?.handCards} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+const v40bSpec = {
+  hostSet: {
+    'field.lrig': ['WD01-001#40100'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+    'trash': ['WX04-037#40101'],
+    'deck': ['WX04-038#40102', 'WD01-013#40103', 'WD01-013#40104'],
+    'energy': [], 'actions_done': [],
+  },
+  handPrepend: ['WX20-077#40105'],
+  guestSet: {
+    'field.lrig': ['WD01-001#40110'],
+    'field.signi': [null, null, null],
+    'field.check': null,
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+};
+
+scenarios.v40UseSearchedSpellPlaysFree = {
+  title: 'V-40(b) WX20-077-E2：サーチしたバイオレンス・スプラッシュを「使う」→無償使用でトラッシュへ・手札に残らない',
+  spec: v40bSpec,
+  async drive(page, H) { return runUseSearchedSpellRound(page, H, { useIt: true }); },
+};
+
+scenarios.v40UseSearchedSpellTrashDirect = {
+  title: 'V-40(b)対照 WX20-077-E2：「トラッシュに置く」→無償使用せず直接トラッシュへ・手札に残らない',
+  spec: v40bSpec,
+  async drive(page, H) { return runUseSearchedSpellRound(page, H, { useIt: false }); },
+};
+order.push('v40UseSearchedSpellPlaysFree', 'v40UseSearchedSpellTrashDirect');
 // ── V-40 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
