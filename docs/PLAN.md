@@ -157,8 +157,8 @@
   （⚠**同型★・`census:goldentypes` は続き552d 以降 未再計測**）。
   **live 効果総数 10693**（今回 live/CSV とも非改変）。version **0.502 据置**。
   🆕**実機シナリオ定義総数 451**（448→451＝`v39LrigAttackCostBlocked`／`v39LrigAttackCostPaid`／`v39ConditionGapNoStorySigni`の3件を新設・全件`order`登録済み）。**既定`order`実行数は445→448**（V-39の3件を追加登録）。
-  **Opusタスク12＝在庫7件**（(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ／(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コスト非対応／(cxli) `confirmEndDiscard`がON_TRASH系トリガー未収集／(cxlii) `evalUseCondition`が`effectsMap`未伝搬で`SELF_LEVEL_THRESHOLD`が印字レベルへフォールバック／(cxliii) `collectTurnTriggers`が`activeKeyAbilitySources`を呼ばずキー起点【自】がON_TURN_END等7 timingで無言no-op／🆕(cxliv) `WX25-P2-014-E1`の「あなたの場に＜宇宙＞のシグニがあるかぎり」条件節が丸ごと未実装＝`OPP_LRIG_ATTACK_COST`が宇宙シグニ不在でも常時ゲート）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
-  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫7件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
+  **Opusタスク12＝在庫8件**（(cxxxviii) タナバタ`WXDi-P10-041-E3`のTAKE_FROM_UNDER_SIGNI空振り／(cxxxix) ON_ABILITY_ACTIVATEDの《ターン1回》永続化漏れ／(cxl) `SigniOnPlayCostModal`が`handDiscardSigni`コスト非対応／(cxli) `confirmEndDiscard`がON_TRASH系トリガー未収集／(cxlii) `evalUseCondition`が`effectsMap`未伝搬で`SELF_LEVEL_THRESHOLD`が印字レベルへフォールバック／(cxliii) `collectTurnTriggers`が`activeKeyAbilitySources`を呼ばずキー起点【自】がON_TURN_END等7 timingで無言no-op／(cxliv) `WX25-P2-014-E1`の「あなたの場に＜宇宙＞のシグニがあるかぎり」条件節が丸ごと未実装＝`OPP_LRIG_ATTACK_COST`が宇宙シグニ不在でも常時ゲート／🆕(cxlv) `WX20-077-E2`の`SEARCH`アクションに必須フィールド`then`が無くモーダルがcrashして画面が真っ黒になる）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫8件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
   一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き581）。
