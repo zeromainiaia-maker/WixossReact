@@ -22186,6 +22186,69 @@ scenarios.wx20re18DynamicLevelAttackBanish = {
 order.push('wx20re18DynamicLevelAttackBanish');
 // ── V-24(cxvii) END ──
 
+// ── V-82(c) START ──
+// §7 V-82(c)（続き569＝§8 O-1 (g)＝CPUの選択を盤面評価へ）＝応答アーツの温存（`prevent`はライフ2枚以下でだけ解禁）。
+// `responseArtsAllowedKinds`（cpuArts.ts:254）＝life_cloth<=2ならALL_KINDS（prevent含む）、それ以外はKEEP_PREVENT
+// （negate/removalのみ・prevent除外）。CPU（guest）を防御側にし、host（driver）がATTACK_ARTS_OPへ直接注入して
+// CPUの自動応答を観察する（driverはクリック不要＝CPUが自律的にアーツ使用/フェイズ進行を判断する）。
+// WX25-P1-008（千里同風・Timing=アタックフェイズ・コスト《緑》×0＝prevent専用の最も単純な応答アーツ）を使う。
+function v82ResponseArtsSpec(guestLifeCount) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#1'],
+      'field.signi': [['WD01-013#1'], null, null], // guest zone2（正面）が空＝脅威（hasIncomingThreat）
+      'field.signi_down': [false, false, false],
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#1'],
+      'field.signi': [null, null, null],
+      'lrig_deck': ['WX25-P1-008#1'],
+      'life_cloth': Array.from({ length: guestLifeCount }, (_, i) => `WD01-013#${i + 10}`),
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS_OP', turn_count: 2 },
+  };
+}
+async function driveV82ResponseArts(page, H, wantUsed) {
+  const before = await H.queryState();
+  H.log('開始時 guest.life:', before?.guest?.life, 'guest.lrigDeck:', before?.guest?.lrigDeckCards, 'guest.lrigTrash:', before?.guest?.lrigTrashCards);
+  for (let s = 0; s < 20; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/v82ResponseArts${wantUsed ? 'Low' : 'High'}Life-${s}.png`, fullPage: true });
+    // driverは何もクリックしない＝CPU（guest）が自律的にアーツ使用/フェイズ進行を判断する窓
+    const st = await H.queryState();
+    const used = (st?.guest?.lrigDeckCards ?? []).length === 0 && (st?.guest?.lrigTrashCards ?? []).length > 0;
+    H.log(`  v82ra[${s}] -> なし | lrigDeck=${st?.guest?.lrigDeckCards} lrigTrash=${st?.guest?.lrigTrashCards} turnPhase=${st?.turnPhase} pEff=${st?.pendingEffect ?? '-'}`);
+    if (st?.turnPhase && st.turnPhase !== 'ATTACK_ARTS_OP' && st.turnPhase !== 'ATTACK_ARTS') {
+      // 応答窓を通過（CPUがアーツ終了で進めた）＝この時点の used が最終結果
+      return used === wantUsed
+        ? { pass: true, detail: `応答窓通過後 turnPhase=${st.turnPhase}／used=${used}（期待どおり）＝lrigTrash=${JSON.stringify(st?.guest?.lrigTrashCards)}` }
+        : { pass: false, detail: `応答窓通過後 turnPhase=${st.turnPhase}／used=${used}（期待=${wantUsed}と不一致）＝lrigDeck=${JSON.stringify(st?.guest?.lrigDeckCards)} lrigTrash=${JSON.stringify(st?.guest?.lrigTrashCards)}` };
+    }
+    if (used && wantUsed) {
+      return { pass: true, detail: `CPUがWX25-P1-008を使用（lrigTrash=${JSON.stringify(st?.guest?.lrigTrashCards)}）＝life<=2でprevent解禁を確認` };
+    }
+  }
+  const fin = await H.queryState();
+  const usedFin = (fin?.guest?.lrigDeckCards ?? []).length === 0;
+  return {
+    pass: usedFin === wantUsed,
+    detail: `タイムアウト＝lrigDeck=${JSON.stringify(fin?.guest?.lrigDeckCards)} lrigTrash=${JSON.stringify(fin?.guest?.lrigTrashCards)} turnPhase=${fin?.turnPhase}（used=${usedFin} 期待=${wantUsed}）`,
+  };
+}
+scenarios.v82ResponseArtsPreventAtLowLife = {
+  title: 'V-82(c) 正方向＝guestライフ2枚（<=2）＝CPUがprevent応答アーツ（WX25-P1-008）を使う',
+  spec: v82ResponseArtsSpec(2),
+  drive: (page, H) => driveV82ResponseArts(page, H, true),
+};
+scenarios.v82ResponseArtsWithheldAtHighLife = {
+  title: 'V-82(c) 対照＝guestライフ4枚（>2）＝CPUがprevent応答アーツを温存（使わない）',
+  spec: v82ResponseArtsSpec(4),
+  drive: (page, H) => driveV82ResponseArts(page, H, false),
+};
+order.push('v82ResponseArtsPreventAtLowLife', 'v82ResponseArtsWithheldAtHighLife');
+// ── V-82(c) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
