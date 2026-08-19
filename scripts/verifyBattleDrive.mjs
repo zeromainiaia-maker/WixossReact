@@ -23814,6 +23814,7 @@ async function driveV40e(page, H, pickBoth) {
   const before = await H.queryState();
   H.log('手札クリック(WXK07-034):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
   let energyPicked = false; let castDone = false; let c1Picked = false; let c0Picked = !pickBoth; let confirmed = false;
+  let p0Picked = false; let p1Picked = false;
   for (let s = 0; s < 30; s++) {
     await page.waitForTimeout(800);
     await page.screenshot({ path: `${SHOT}/v40e-${pickBoth}-${s}.png`, fullPage: true }).catch(() => {});
