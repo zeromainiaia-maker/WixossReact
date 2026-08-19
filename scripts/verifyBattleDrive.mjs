@@ -23029,8 +23029,15 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
         if ((stCast?.logTail ?? []).some(l => l.includes('驚天動地'))) castDone = true;
       } else if (!advanced) {
         await H.closeModals();
-        did = await H.clickTextOrBtn(['アタックフェイズへ']);
-        if (s < 8) H.log('  body:', await H.body());
+        const advBtn = page.getByRole('button', { name: 'アタックフェイズへ', exact: true });
+        const advCnt = await advBtn.count();
+        const advVis = advCnt ? await advBtn.first().isVisible().catch(() => false) : false;
+        const advEn = advCnt ? await advBtn.first().isEnabled().catch(() => false) : false;
+        if (s < 10) H.log(`  advBtn count=${advCnt} visible=${advVis} enabled=${advEn}`);
+        if (advCnt && advVis && advEn) {
+          try { await advBtn.first().click({ timeout: 2000 }); did = 'btn:アタックフェイズへ(force)'; }
+          catch (e) { H.log('  click失敗:', String(e.message).split('\n')[0]); }
+        }
         const stAdv = await H.queryState();
         if (stAdv?.turnPhase === 'ATTACK_SIGNI') advanced = true;
       } else if (!attacked) {
