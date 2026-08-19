@@ -23782,6 +23782,91 @@ scenarios.v40PerOwnLrigColorScaleZero = {
   async drive(page, H) { return driveV40d(page, H, false); },
 };
 order.push('v40PerOwnLrigColorScaleFires', 'v40PerOwnLrigColorScaleZero');
+
+// V-40(e)：`DECK_SIGNI_LEVEL_OVERRIDE_ALL`＝`WXK07-034-E1`（ネビュラ・コネクト）：以下の２つから２つまで選ぶ。
+// ①このターン、あなたのデッキにあるシグニのレベルは４になる。②あなたのデッキを上からレベル４のシグニが
+// ２枚めくれるまで公開する。それらを手札に加え、残りをシャッフルしてデッキの一番下に置く。
+// デッキを印字レベル1のシグニだけにしておけば、①を選んだときだけ②が「レベル4扱い」で2枚めくれて手札が
+// 増え、①を選ばなければ②はデッキ全体を公開しても1枚も当たらず手札が増えない（実装ソース
+// `execStubPart3.ts:375`・停止条件と当たり判定の両方が `deckSigniOverrideLevel` を読む設計）。
+function v40eSpec() {
+  const deck = Array.from({ length: 6 }, (_, i) => `WD01-013#405${10 + i}`); // 印字Lv1のみ＝素の②は0枚当たり
+  return {
+    hostSet: {
+      'field.lrig': ['WX08-019#40400'], // ミュウ＝イサリス（ミュウ限定を満たす）
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'energy': ['WD05-013#40401'], // 黒×1（コスト）
+      'deck': deck,
+      'hand': [], 'actions_done': [],
+    },
+    handPrepend: ['WXK07-034#40402'],
+    guestSet: {
+      'field.lrig': ['WD01-001#40410'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+async function driveV40e(page, H, pickBoth) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  H.log('手札クリック(WXK07-034):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let energyPicked = false; let castDone = false; let c1Picked = false; let c0Picked = !pickBoth; let confirmed = false;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(800);
+    await page.screenshot({ path: `${SHOT}/v40e-${pickBoth}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!castDone) {
+      if (!did) did = await H.clickBtn('発動', { exact: true });
+      if (!did && !energyPicked) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) { await e0.click().catch(() => {}); did = 'spellcost-energy-0'; energyPicked = true; }
+      }
+      if (!did && energyPicked) did = await H.clickBtn('発動する', { exact: true });
+      const st0 = await H.queryState();
+      if ((st0?.host?.handCards ?? []).length < (before?.host?.handCards ?? []).length) castDone = true;
+    } else if (!confirmed) {
+      if (pickBoth && !c0Picked) { did = await H.clickBtn('選択肢1', { exact: true }); if (did) c0Picked = true; }
+      if (!did && !c1Picked) { did = await H.clickBtn('選択肢2', { exact: true }); if (did) c1Picked = true; }
+      if (!did && c0Picked && c1Picked) { did = await H.clickBtn('決定', { exact: true }); if (did) confirmed = true; }
+    } else {
+      // REVEAL_UNTILのSEARCHピッカー（当たれば2枚・当たらなければ0枚でそのまま完了）
+      const pick0 = page.getByTestId('pick-0').first();
+      if (await pick0.count() && await pick0.isVisible().catch(() => false)) {
+        const confirmReady = await page.getByRole('button', { name: /決定 \(2\/2\)/ }).count();
+        if (!confirmReady) { await pick0.click().catch(() => {}); did = 'pick:pick-0'; }
+        else { did = await H.clickTextOrBtn(['決定']); }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動順序を確定', '確定', 'OK', 'はい']);
+    }
+    const st = await H.queryState();
+    H.log(`  v40e[${s}] -> ${did ?? 'なし'} | castDone=${castDone} c0=${c0Picked} c1=${c1Picked} confirmed=${confirmed} hHand=${st?.host?.handCards} hDeck=${st?.host?.deck} pEff=${st?.pendingEffect ?? '-'}`);
+    if (confirmed && !st?.pendingEffect) {
+      const gained = (st.host.handCards ?? []).length - ((before?.host?.handCards ?? []).length - 1); // -1: 使ったスペル自身
+      return {
+        pass: pickBoth ? gained === 2 : gained === 0,
+        detail: `pickBoth=${pickBoth}・手札増分=${gained}（期待=${pickBoth ? 2 : 0}）・hHand=${JSON.stringify(st.host.handCards)}・hDeck残=${st.host.deck?.length}`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（castDone=${castDone} c0=${c0Picked} c1=${c1Picked} confirmed=${confirmed} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v40DeckLevelOverrideBothChoicesReveal2 = {
+  title: 'V-40(e) WXK07-034-E1：①②両方選ぶ→印字Lv1シグニがLv4扱いで2枚めくれ手札に加わる',
+  spec: v40eSpec(),
+  async drive(page, H) { return driveV40e(page, H, true); },
+};
+
+scenarios.v40DeckLevelOverrideOnlyChoice2NoReveal = {
+  title: 'V-40(e)対照 WXK07-034-E1：①を選ばない→②は素のLv1のままで1枚も当たらず手札は増えない',
+  spec: v40eSpec(),
+  async drive(page, H) { return driveV40e(page, H, false); },
+};
+order.push('v40DeckLevelOverrideBothChoicesReveal2', 'v40DeckLevelOverrideOnlyChoice2NoReveal');
 // ── V-40 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
