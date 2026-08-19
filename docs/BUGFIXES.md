@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き576・Sonnet 5）— §7 実機検証1件（V-24(cxv)）＝engineバグ0・残0クローズ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ2本）と `docs/PLAN.md`/`docs/PLAN_PROGRESS.md`/`docs/PLAN_DETAIL.md` の簿記のみ。
+
+### 1. ✅V-24(cxv) 残0クローズ＝`PR-426-E3`（篭手 エルゼ）の条件つき常在パワー（ライフクロス1枚以下＋中央ゾーンで＋4000）
+
+新規シナリオ2本。正方向＝`pr426ConditionalPowerBuff`＝`life_cloth`を1枚・PR-426（印字P8000）を中央ゾーン（`field.signi`のindex1）に注入直後、`my-signi-zone-1`のDOM表示が「12,000」（+4000反映）。アタック等の操作は不要＝CONTINUOUS効果は注入直後から即座に反映される。対照＝`pr426ConditionalPowerBuffOffWhenLifeAbove1`＝`life_cloth`を3枚（条件不成立）にすると表示は印字どおり「8,000」のまま。各2回連続PASS（1秒）。**旧実装は常時適用（条件無視）だったが、この対照が緑になったことで条件節が正しく効いていることを確認**。engineバグ0。⚠`WXDi-P07-060-E3`（覚醒で+2000）は同じ(cxv)の在庫記述に含まれていたが時間の都合で未着手のまま残す（次回はこちらから）。
+
 ## 2026-08-19（続き575・Sonnet 5）— §7 実機検証2件（V-24(cxviii)／V-58(f)）＝engineバグ0・両項目残0クローズ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ3本）と `docs/PLAN.md` の簿記のみ。
