@@ -21859,7 +21859,7 @@ const V20_FILLER = i => `WD01-013#${9710 + i}`;
 const v20Spec = () => ({
   hostSet: {
     'field.lrig': ['WD01-001#9700'], 'field.signi': [null, null, null], 'field.check': null,
-    'hand': [V20_CARD, ...Array.from({ length: 7 }, (_, i) => V20_FILLER(i))],
+    'hand': [V20_CARD, ...Array.from({ length: 6 }, (_, i) => V20_FILLER(i))],
     'energy': ['WD03-014#9730', 'WD01-016#9731'], 'trash': [], 'deck': v18v19Deck(9740), 'life_cloth': v18v19Life(9750),
     'actions_done': [],
   },
