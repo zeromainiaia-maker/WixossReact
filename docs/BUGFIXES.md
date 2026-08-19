@@ -1,5 +1,26 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き572b・Sonnet 5）— §7 実機検証さらに5件（V-15残り／V-19再着手／V-20新規／V-21新規／V-22新規）＝実バグ2件発見・Opusタスク12へ登録・V-15/V-21/V-22残0クローズ
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（共有ヘルパー2箇所のtimeout是正＋新規シナリオ7本）と `docs/PLAN.md` の簿記のみ。
+
+### 1. ✅V-15 残0クローズ＝`v15AttackPhaseEndCentralDiffToyLeftFires` 2回連続PASS（19秒）
+
+真因は3点の複合（engineバグ0・すべてシナリオ／共有ヘルパー側）。①`H.clickTextOrBtn`/`H.clickZone`の`.click()`にtimeoutが無く📌19の規約から漏れていた＝`決定`ボタンがdisabledのまま毎ティック既定30秒待ち（「40秒/tick」の正体）→両方に`{timeout:1200}`を追加（全シナリオ共通ヘルパーの是正・波及リスクは低いと判断＝もともと`.catch(()=>{})`で握りつぶし前提のコード）。②「デッキに加えるカードを選んでください」の候補（watcher自身1件）を`pick-0`でクリックしていなかった＝`決定(0/1)`が永久disabled。③draw後にE1原文後半「手札からレベル２以下の＜遊具＞を場に出してもよい」の`SELECT_SIGNI_ZONE`が続けて出る＝`H.clickZone()`呼び出しを追加。V-15 全項目 決着。
+
+### 2. ✅V-21・V-22 実機PASSで残0クローズ（`isDisona`まわりの実効パワー／パリティ、続き378-379の在庫）
+
+- **V-21**＝`WXDi-P13-078-E1`（【自】アタック時、あなたの場にパワー10000以上のディソナがあれば【エナチャージ1】）を新規シナリオ`v21ConditionPowerBuffedReachesThreshold`／`v21ConditionPowerBelowThresholdNoCharge`で検証。印字2000の自分自身を`temp_power_mods`で+8000（実効10000）にしてアタック→エナ0→1（PASS）。対照は+6000（実効9000・未到達）→エナ0のまま（PASS）。各4-5秒・2回連続緑。engineバグ0。
+- **V-22**＝`WXDi-P13-047-常`（【常】あなたのターンの間、他のディソナのパワー+3000）を新規シナリオ`v22DisonaOnlyContinuousBuff`で検証。自身(印字12000)は「他の」対象外で据置・他のディソナ(印字2000)は+3000で表示5000・非ディソナ(印字3000)は据置3000、を1回の盤面注入で同時観測。2秒・2回連続緑。engineバグ0。
+
+### 3. 🔴実バグ発見＝`SigniOnPlayCostModal`が`handDiscardSigni`コストを認識しない（V-19再着手で判明）
+
+`v19Wx07050NoDiscardDoPhaseAdvanceReturns`を`SHOTS=1`で再現・原因特定。`WX07-050`召喚後、「手札から＜宇宙＞のシグニを1枚捨てる」の候補ピッカーが一度も描画されない＝576秒/160ティック回しても`pendingSigniOnPlayCost`の手札コスト欄が現れず、`img[alt="羅星　ハダル"]`は候補ではなく画面下の通常手札表示に誤ヒットしていた（モーダルのオーバーレイに覆われ`click()`が毎ティック3秒timeout）。原因は`src/screens/battle/modals/SigniOnPlayCostModal.tsx:71-77`の手札コスト計算が`eff.cost?.discardGroups`／`discard`／`handToEnergy`／`handToUnderSelf`の4種類しか読まず、`WX07-050-E1`の`cost:{handDiscardSigni:{count:1,story:'宇宙'}}`を素通りして`handNeeded=0`に確定するため。同種コストを扱う他モーダル（`LrigGrantedModal.tsx`／`TrashActivatedModal.tsx`／`costs.ts`の`handDiscardSigni`ヘルパー）は正しく対応済み＝**`SigniOnPlayCostModal`だけの実装漏れ**。Opusタスク12 **(cxl)** へ登録。V-19はこの手前で止まっており未着手のまま。
+
+### 4. 🔴実バグ発見＝`confirmEndDiscard`（手札上限超過のターン終了時捨て札）がON_TRASH系トリガーを一切収集しない（V-20新規シナリオで判明）
+
+`WXDi-P10-039`（【自】このカードが捨てられたとき…の二段任意効果）を検証するため新規シナリオ2本（`v20DiscardSkipFirstBlocksSecond`／`v20DiscardPayBothReturnsToField`）を作成。手札8枚→上限6枚超過でこのカードを捨てさせたところ、捨て札確定の直後（tick2）でsettledが真になり、任意コスト提示（`optcost-pay`/`optcost-skip`）が一度も現れない＝トリガー収集自体が起きていない。`src/screens/BattleScreen.tsx:4232`の`confirmEndDiscard`を読むと、選択した捨て札を`myTrashEND`へ機械的に積むだけで`collectTrashTriggers`／`collectBoardDiffTriggers`のいずれも呼ばず直接`BEGIN_NEXT_TURN`をcommitしている（`collectBoardDiffTriggers(`の全11呼び出し箇所はいずれも`confirmEndDiscard`の範囲外）。他の捨て札経路（効果コストとしての`TRASH{asCost}`）はcentral diffを通るため正しく発火する＝**「手札上限超過でターン終了時に捨てる」経路だけがON_TRASH系トリガーを取りこぼす**。Opusタスク12 **(cxli)** へ登録。V-20はこの手前で止まっており未着手のまま。
+
 ## 2026-08-19（続き572・Sonnet 5）— §7 実機検証の続き5件（V-04／V-15／V-16／V-17／V-19）＝実バグ2件発見・Opusタスク12へ登録・V-17残0クローズ
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors）。engine/live 改変なし＝今回はすべて `scripts/verifyBattleDrive.mjs` の実機シナリオ追加・修正と `docs/PLAN.md` の簿記のみ。
