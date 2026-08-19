@@ -836,7 +836,7 @@
 - **🔶 V-82** 続き569＝§8/`O-1` (g) 選択の精緻化 v1（`cpuBoardEval.ts`）。**実機2本は PASS 済み**（詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-19 整理㊻」）。
   - [x] **(a) 召喚**＝`v82CpuDeploysStrongestWithinLimit`＝リミット内でいちばん強い札を出しつつ体数は落とさない。
   - [x] **(b) アタック順**＝`v82CpuAttacksInValueOrder`＝正面が空のシグニから先に殴る（格上に阻まれる側もそのあと撃つ）。
-  - [ ] 📋**(c) 応答アーツの温存**（`prevent` はライフ2枚以下でだけ解禁）は **golden のみ**＝実機シナリオ未作成。**未着手**。
+  - [x] **(c) 応答アーツの温存**（`prevent` はライフ2枚以下でだけ解禁）。**続き572＝実機PASS（正方向・対照とも各2回連続）**。新規シナリオ`v82ResponseArtsPreventAtLowLife`（guestライフ2枚＝CPUが`WX25-P1-008`（千里同風・コスト0のprevent専用アーツ）を自律使用＝`lrigDeck→lrigTrash`）／`v82ResponseArtsWithheldAtHighLife`（guestライフ4枚＝対照・使わず温存）。driverはクリック不要＝`ATTACK_ARTS_OP`へ注入するだけでCPUが`responseArtsAllowedKinds`（ライフ<=2でのみprevent許可）どおりに自律判断することを確認。engineバグ0。
 - **🔶 V-81** 続き567＝§6.4 `O-19b`＝**到達不能だった `ArtsModal` Phase1（アーツ一覧）を削除**（`artsCandidates` ごと）。**死にコードの除去なので挙動は不変のはず**＝観測点は「アーツが従来どおり使えること」1点。**続き572＝実機PASSで決着**。
   - [x] **(A) 回帰**＝**実機PASS（3回連続）**。`wxk02029`（通常コスト・ルリグDK→zone-card-0→使用→Phase2でエナ選択→アーツ使用→CHOOSE→グロウ成立）と `negateAttackLrig`（`WXK10-012`・《緑》×０のコスト0アーツ→Phase2「アーツ使用」ボタンがエナ未選択でも直接使える）の両方で確認。⚠**初回試行は「使用」ボタンが一度も出ずFAIL**したが、`git checkout fdc0b9c13~1 --`でO-19b直前のコードに戻して再実行→PASSしたため一時は回帰を疑ったが、**現在のHEADのままFRESH=1で再実行したところPASS**＝**コールドスタート起因のフレークで、O-19bによる回帰ではない**と判明（3連続PASSで確定）。engineバグ0。
 **■ 消化済み（索引のみ・全文は PLAN_DETAIL）**
