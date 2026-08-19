@@ -23616,7 +23616,8 @@ async function runUseSearchedSpellRound(page, H, { useIt }) {
 const v40bSpec = {
   hostSet: {
     'field.lrig': ['WD01-001#40100'],
-    'field.signi': [null, null, null],
+    // ⚠空きシグニゾーン3のまま召喚するとブラウザがクラッシュする既知の罠（続き580）＝zone0にfillerを置いて2に減らす。
+    'field.signi': [['WD01-013#40199'], null, null],
     'field.check': null,
     'trash': ['WX04-037#40101'],
     'deck': ['WX04-038#40102', 'WD01-013#40103', 'WD01-013#40104'],
