@@ -23727,7 +23727,7 @@ function v40dSpec(lrigNum) {
 async function driveV40d(page, H, expectFreeze) {
   await H.ensureMain();
   H.log('手札クリック(WXDi-P08-064):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-  let summoned = false;
+  let summoned = false; let placedSince = -1;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(800);
     await page.screenshot({ path: `${SHOT}/v40d-${expectFreeze}-${s}.png`, fullPage: true }).catch(() => {});
@@ -23754,7 +23754,10 @@ async function driveV40d(page, H, expectFreeze) {
     const st = await H.queryState();
     H.log(`  v40d[${s}] -> ${did ?? 'なし'} | summoned=${summoned} gSigniFrozen=${JSON.stringify(st?.guest?.signiFrozen)} pEff=${st?.pendingEffect ?? '-'}`);
     const placed = (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P08-064')));
-    if (placed && !st?.pendingEffect) {
+    // ⚠placed直後は ON_PLAY トリガー収集がまだ pending_effect へ積まれていない一瞬がある＝
+    //   「placed かつ pendingEffect無し」を即断せず、placed後に数ティック様子を見てから確定する。
+    if (placed && placedSince < 0) placedSince = s;
+    if (placed && !st?.pendingEffect && placedSince >= 0 && s - placedSince >= 3) {
       const frozen = !!(st.guest.signiFrozen ?? []).some(Boolean);
       const noneLog = await H.findLog(/場に青のルリグがいないため何も起きない/);
       return {
