@@ -22051,20 +22051,24 @@ scenarios.wxdip09053GrantUpToTwo = {
       if (!did) did = await clickDecideNofM(page);
       if (!did) did = await H.clickTextOrBtn(['決定', 'OK', 'はい']);
       const st = await H.queryState();
-      const grants = st?.host?.keywordGrants ?? [];
-      const shadowed = grants.filter(g => g.includes('シャドウ')).length;
-      H.log(`  v23b[${s}] -> ${did ?? 'なし'} | candidates=${JSON.stringify(candidateSnapshot)} picked=${JSON.stringify([...picked])} keywordGrants=${JSON.stringify(grants)} pEff=${st?.pendingEffect ?? '-'}`);
-      if (shadowed >= 2 && !st?.pendingEffect) {
+      // ⚠duration:UNTIL_OPP_TURN_END の GRANT_KEYWORD は `keyword_grants` ではなく
+      //   `keyword_grants_until_opp_turn` に書かれる（execGrantKeyword:3515）＝queryState の
+      //   `keywordGrants` は素通りする。盤面ログの行数（小剣 ククリへの付与が2件）で判定する。
+      const body = await H.fullBody();
+      const shadowCount = (body.match(/シャドウ.*小剣.*ククリ/g) ?? []).length;
+      H.log(`  v23b[${s}] -> ${did ?? 'なし'} | candidates=${JSON.stringify(candidateSnapshot)} picked=${JSON.stringify([...picked])} shadowLogCount=${shadowCount} pEff=${st?.pendingEffect ?? '-'}`);
+      if (shadowCount >= 2 && !st?.pendingEffect) {
         const candOk = candidateSnapshot && candidateSnapshot.length === 2
           && candidateSnapshot.every(c => c.startsWith('WD01-013#1') || c.startsWith('WD01-013#2'));
         return {
           pass: !!candOk,
-          detail: `候補=${JSON.stringify(candidateSnapshot)}（自分のLv1シグニ2体だけ／guestの同名WD01-013#3は含まれず）→2体とも【シャドウ】付与済み（keywordGrants=${JSON.stringify(grants)}）`,
+          detail: `候補=${JSON.stringify(candidateSnapshot)}（自分のLv1シグニ2体だけ／guestの同名WD01-013#3は含まれず）→2体とも【シャドウ】付与ログ確認（shadowLogCount=${shadowCount}）`,
         };
       }
     }
     const fin = await H.queryState();
-    return { pass: false, detail: `付与未確認（candidates=${JSON.stringify(candidateSnapshot)} keywordGrants=${JSON.stringify(fin?.host?.keywordGrants)} pEff=${fin?.pendingEffect ?? '-'}）` };
+    const bodyFin = await H.fullBody();
+    return { pass: false, detail: `付与未確認（candidates=${JSON.stringify(candidateSnapshot)} shadowLogCount=${(bodyFin.match(/シャドウ.*小剣.*ククリ/g) ?? []).length} pEff=${fin?.pendingEffect ?? '-'}）` };
   },
 };
 order.push('wxdip09053GrantUpToTwo');
