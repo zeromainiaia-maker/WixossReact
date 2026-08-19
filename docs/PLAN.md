@@ -140,8 +140,8 @@
   - **✅ V-04 残り2項目 決着**＝新規シナリオ `v04TanabataLeaveFieldE3` で**実バグ発見**（`WXDi-P10-041-E3` の `TAKE_FROM_UNDER_SIGNI` がON_LEAVE_FIELD発火時に対象0件で空振り＝`effectExecutor.ts:6211`が「まだ場にある前提」で自分自身を探すため）→Opusタスク12 **(cxxxviii)**。未実装3点は文書化のみで決着。
   - **✅ V-16 前進＝実バグ発見**＝`v16AbilitySpec` の `deck:[]`（📌22＝相手リフレッシュ誘発）を修正してウォッチャー本体の発火・解決を確認できたが、**`usageLimit:'once_per_turn'` の消化が `actions_done` へ永続化されない**（`BattleScreen.tsx:4844-4849` のマージが直後の `:4883`/`:4899` の `collectBoardDiffTriggers` 再代入で毎回消える＝ON_ABILITY_ACTIVATED系の《ターン1回》が事実上機能していない）→Opusタスク12 **(cxxxix)**。
   - **➖ 変化なし**＝V-15②（決定ボタン無限ループを再現・新規知見なし）、V-19（召喚後の破棄コスト選択UIで `Timeout 3000ms exceeded` を繰り返しクラッシュ・本題未到達・follow-up）。
-  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫2件**（(cxxxviii) タナバタE3の空振り／(cxxxix) ON_ABILITY_ACTIVATED《ターン1回》の永続化漏れ）。修正後は V-04④・V-16 の該当シナリオを再検証。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証の続き**（残＝`V-15`②／`V-19`〜`V-24`／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`／`V-63`／`V-81`／`V-82`(c)）。V-19 は次回 `SHOTS=1` で「羅星ハダル」モーダルの実描画を先に確認してから。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫4件**（(cxxxviii) タナバタE3の空振り／(cxxxix) ON_ABILITY_ACTIVATED《ターン1回》の永続化漏れ／(cxl) `SigniOnPlayCostModal` が `handDiscardSigni` コストを認識しない／(cxli) `confirmEndDiscard` がON_TRASH系トリガーを一切収集しない）。修正後は V-04④・V-16・V-19・V-20 の該当シナリオを再検証。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証の続き**（残＝`V-20`〜`V-24`／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`／`V-63`／`V-81`／`V-82`(c)）。**V-15・V-21・V-22 は続き572で決着**。**V-19・V-20 は (cxl)(cxli) の Opus 修正待ち**＝Sonnet側では現状これ以上進められない。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
