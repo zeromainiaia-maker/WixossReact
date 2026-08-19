@@ -22107,8 +22107,8 @@ scenarios.wxex122AttachCharmMultiPair = {
       await page.screenshot({ path: `${SHOT}/wxex122AttachCharmMultiPair-${s}.png`, fullPage: true });
       let did = null;
       if (!did) {
-        const actBtn = page.getByRole('button', { name: /【起】/ }).filter({ hasNotText: 'エクシード' }).first();
-        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+        const actBtn = page.getByRole('button', { name: /【起】.*コイン/ }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】コイン1'; }
       }
       if (!did) {
         const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
