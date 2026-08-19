@@ -23275,19 +23275,20 @@ scenarios.wxk11001ExileArtsSkipsOppSigniAttackStep = {
     const before = await H.queryState();
     H.log('開始時 guest.blockedActions:', before?.guest?.blockedActions, 'host.lrigDeck:', before?.host?.lrigDeckCards);
     let handOpened = false; let castDone = false; let exileChosen = false; let candPicked = false;
+    let energy0Picked = false; let energy1Picked = false;
     for (let s = 0; s < 30; s++) {
       await page.waitForTimeout(800);
       let did = null;
       if (!handOpened) { did = await H.clickTestId('my-lrig-dk'); handOpened = true; }
       if (!castDone) {
         // アーツコスト（白1無1＝2枚）：候補を順に選んでから「アーツ使用」。
-        if (!did) {
+        if (!did && !energy0Picked) {
           const a0 = page.getByTestId('artscost-energy-0').first();
-          if (await a0.count() && await a0.isVisible().catch(() => false)) { await a0.click().catch(() => {}); did = 'artscost-energy-0'; }
+          if (await a0.count() && await a0.isVisible().catch(() => false)) { await a0.click().catch(() => {}); did = 'artscost-energy-0'; energy0Picked = true; }
         }
-        if (!did) {
+        if (!did && energy0Picked && !energy1Picked) {
           const a1 = page.getByTestId('artscost-energy-1').first();
-          if (await a1.count() && await a1.isVisible().catch(() => false)) { await a1.click().catch(() => {}); did = 'artscost-energy-1'; }
+          if (await a1.count() && await a1.isVisible().catch(() => false)) { await a1.click().catch(() => {}); did = 'artscost-energy-1'; energy1Picked = true; }
         }
         if (!did) {
           const use = page.getByRole('button', { name: /アーツ使用/ }).first();
