@@ -22074,6 +22074,61 @@ scenarios.wxdip09053GrantUpToTwo = {
 order.push('wxdip09053GrantUpToTwo');
 // ── V-23(b) END ──
 
+// ── V-23(a) START ──
+// §7 V-23(a)（続き377n＝機構ギャップ7効果）＝ATTACH_CHARMの複数ペア付与が実機で描画されるか。
+// WXEX1-22-E2（ミュウ＝フォーゼ・【起】《コインアイコン》×1）＝対戦相手のトラッシュから3枚まで、
+// 対戦相手のシグニ3体までの【チャーム】にする（ペアi番目どうし対応・`execAttachCharm`は無選択で即done）。
+// `signi_charms`は1ゾーン1枚なので、2ゾーン以上に同時に付いた状態が実際にボードへ反映されるかを見る
+// （旧実装は charm/to とも先頭1件しか見ず常に1組だけになる過小実行だった＝続き377nで修正済み・観測点はここ）。
+scenarios.wxex122AttachCharmMultiPair = {
+  title: 'WXEX1-22-E2（【起】コイン1＝対戦相手トラッシュ3枚→対戦相手シグニ3体へ複数ペアでチャーム付与）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WXEX1-22#1'],
+      'coins': 1,
+      'actions_done': [],
+    },
+    guestSet: {
+      'field.signi': [['WD01-013#1'], ['WD01-013#2'], ['WD01-013#3']],
+      'field.signi_down': [false, false, false],
+      'field.signi_charms': [null, null, null],
+      'trash': ['WD01-013#4', 'WD01-013#5', 'WD01-013#6'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.fieldCharms:', JSON.stringify(before?.guest?.fieldCharms), 'guest.trash:', before?.guest?.trashCards);
+    await H.ensureMain();
+    const lrigImg = page.getByAltText('ミュウ＝フォーゼ', { exact: false }).first();
+    if (await lrigImg.count()) { await lrigImg.click({ force: true }).catch(() => {}); H.log('LRIGクリック: OK'); }
+    for (let s = 0; s < 20; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/wxex122AttachCharmMultiPair-${s}.png`, fullPage: true });
+      let did = null;
+      if (!did) {
+        const actBtn = page.getByRole('button', { name: /【起】/ }).filter({ hasNotText: 'エクシード' }).first();
+        if (await actBtn.count() && await actBtn.isVisible().catch(() => false)) { await actBtn.click().catch(() => {}); did = 'btn:【起】'; }
+      }
+      if (!did) {
+        const fireBtn = page.getByRole('button', { name: '発動', exact: true }).first();
+        if (await fireBtn.count() && await fireBtn.isVisible().catch(() => false) && await fireBtn.isEnabled().catch(() => false)) { await fireBtn.click().catch(() => {}); did = 'btn:発動'; }
+      }
+      if (!did) did = await H.clickTextOrBtn(['発動する', '確定', 'OK', 'はい']);
+      const st = await H.queryState();
+      const charmed = (st?.guest?.fieldCharms ?? []).filter(c => !!c).length;
+      H.log(`  v23a[${s}] -> ${did ?? 'なし'} | guest.fieldCharms=${JSON.stringify(st?.guest?.fieldCharms)} guest.trash=${st?.guest?.trashCards} stack=${st?.stackLen ?? '-'} pEff=${st?.pendingEffect ?? '-'}`);
+      if (charmed >= 3) {
+        return { pass: true, detail: `複数ペア付与＝guestの3ゾーンすべてにチャームが付いた（fieldCharms=${JSON.stringify(st?.guest?.fieldCharms)}）＝旧「先頭1組だけ」の過小実行ではない` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `複数ペア未確認（guest.fieldCharms=${JSON.stringify(fin?.guest?.fieldCharms)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wxex122AttachCharmMultiPair');
+// ── V-23(a) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
