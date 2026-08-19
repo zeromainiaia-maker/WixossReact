@@ -23946,22 +23946,22 @@ scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
         if (!did && energyPicked) did = await H.clickBtn('発動する', { exact: true });
         if (!(st0?.host?.handCards ?? []).some(n => n?.startsWith('WX16-042'))) castDone = true; // スペル自身が手札から離れた
       } else if (!discard1) {
-        did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'hand-d1');
+        if (!d1Picked) { did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'hand-d1'); if (did) d1Picked = true; }
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if ((st0?.host?.handCards ?? []).length === 1) discard1 = true;
       } else if (!banish1) {
-        did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'banish1');
+        if (!b1Picked) { did = await clickCandidateByPrefix(page, H, st0, 'WD01-013', 'banish1'); if (did) b1Picked = true; }
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-013')))) banish1 = true;
       } else if (!repeatChosen) {
         did = await H.clickBtn('繰り返す（残り2回まで）', { exact: true });
         if (did) repeatChosen = true;
       } else if (!discard2) {
-        did = await clickCandidateByPrefix(page, H, st0, 'WD01-012', 'hand-d2');
+        if (!d2Picked) { did = await clickCandidateByPrefix(page, H, st0, 'WD01-012', 'hand-d2'); if (did) d2Picked = true; }
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if ((st0?.host?.handCards ?? []).length === 0) discard2 = true;
       } else if (!banish2) {
-        did = await clickCandidateByPrefix(page, H, st0, 'WD01-012', 'banish2');
+        if (!b2Picked) { did = await clickCandidateByPrefix(page, H, st0, 'WD01-012', 'banish2'); if (did) b2Picked = true; }
         if (!did) did = await H.clickTextOrBtn(['決定']);
         if (!(st0?.guest?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-012')))) banish2 = true;
       } else if (!stopChosen) {
