@@ -12023,7 +12023,7 @@ scenarios.v04TanabataLeaveFieldE3 = {
       }
     }
     const fin = await H.queryState();
-    return { pass: false, detail: `E3の噛み合わせ未確認（field=${JSON.stringify(fin?.host?.fieldSigni)} hand=${fin?.host?.hand} energy=${JSON.stringify(fin?.host?.energyCards)} trash=${JSON.stringify(fin?.host?.trashCards)}）` };
+    return { pass: false, detail: `E3の噛み合わせ未確認（field=${JSON.stringify(fin?.host?.fieldSigni)} hand=${JSON.stringify(fin?.host?.handCards)} energy=${JSON.stringify(fin?.host?.energyCards)} trash=${JSON.stringify(fin?.host?.trashCards)}）` };
   },
 };
 
