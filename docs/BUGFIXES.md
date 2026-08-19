@@ -1,5 +1,17 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-19（続き578・Sonnet 5）— §7 実機検証1件（V-35(b)(c)）＝🔴新規engineバグ1件を発見・Opusタスク12(cxliii)へ登録（未修正のため据置）
+
+ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ3本・`order`には未登録）と `docs/PLAN.md` の簿記のみ。
+
+### 🔴 V-35(b)(c) `WDK06-R09-E1`（メル＝マドラー・キー）＝実UI検証でON_TURN_ENDが一度も発火せず新規engineバグを発見
+
+続き497（Opus）が是正した「【自】対戦相手のターン終了時、このターンにアタックしたシグニを２体まで対象とし、このキーを場からルリグトラッシュに置いてもよい。そうした場合、それらをバニッシュする」の実機検証（V-35(b)候補限定＋pay/skip・(c)キー無し対照）として新規シナリオ3本（`wdk06r09Pay`／`wdk06r09Skip`／`wdk06r09NoKey`）を実装。host にキー`WDK06-R09`を、guest に3体のシグニ（2体は`attacked_signi_ids`でアタック済み扱い）を注入し、`top:{active:'cpu', turn_phase:'END'}`でCPUターン終了を迎えさせたが、**3本ともpendingEffectが一度も立たず、CPUターン終了がそのまま素通りしてhostの次ターンUPフェイズへ進んだ**（`optcost-pay`/`optcost-skip`/`pick-N`のいずれも一度も出現しない＝タイムアウトFAIL）。
+
+原因はSTUB実行側（`trashOwnKey`／`attackedThisTurn`＝続き497で新設・execUtils.tsで確認済み）ではなく**収集側の配線漏れ**：`src/engine/triggerCollect.ts`の`collectTurnTriggers`（ON_TURN_START/ON_TURN_END/ON_ATTACK_PHASE_START・END/ON_GROW_PHASE_START/ON_MAIN_PHASE_START/ON_LRIG_ATTACK_STEP_STARTの共通収集器）は、自陣・相手陣とも`field.signi`のスタックとセンタールリグ・`grantedStoreWatchers`しか走査しておらず、`field.key_piece`／`key_piece_extra`（`effectEngine.ts`の`activeKeyAbilitySources()`）を一度も呼んでいない。兄弟の収集器`collectLrigGrowTriggers`（:671）と`collectSigniDownUpTriggers`（:2375）は`activeKeyAbilitySources`を呼んでキー起点の【自】を拾っているため、**キーの【自】能力はON_LRIG_GROW/ON_SIGNI_DOWN系のtimingでしか発火せず、ON_TURN_END等では構造的に無言no-op**という非対称な穴。`WDK06-R09-E1`単体の問題ではなく、field.key_piece上のAUTOでこの7 timingを持つカード全般に及ぶ。
+
+Sonnetはengine/parserバグをその場で直さない規約（CLAUDE.md）のため未修正のまま据置＝**Opusタスク12(cxliii)へ登録**（PLAN §3・§4）。修正方針は`collectTurnTriggers`内の自陣・相手陣スキャンへ`activeKeyAbilitySources(myState)`/`activeKeyAbilitySources(opState)`をシグニ走査と並列で追加すること（`triggerScope`の self/any_ally/any_opp/any 判定は既存のシグニ走査と同じ規約でよいはず）。3本のシナリオは`verifyBattleDrive.mjs`に残すが、意図的FAILで既定バッチを汚さないよう`order`には入れていない（続き436の`kokona*`と同型の扱い）＝修正後に`node scripts/verifyBattleDrive.mjs wdk06r09Pay wdk06r09Skip wdk06r09NoKey`で単体確認してから`order.push`へ復帰する。
+
 ## 2026-08-19（続き577・Sonnet 5）— §7 実機検証3件（V-24(cxiii)(cxiv)＋`WXDi-P07-060-E3`）＝engineバグ0・V-24 全5項目決着
 
 ゲート全緑（typecheck / golden 2307 / smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 全0 / manual-fields 0 / lint 0 errors 263 warnings 据置）。engine/live 改変なし＝`scripts/verifyBattleDrive.mjs`（新規シナリオ7本＋切り分け用コントロール1本）と `docs/PLAN.md` の簿記のみ。
