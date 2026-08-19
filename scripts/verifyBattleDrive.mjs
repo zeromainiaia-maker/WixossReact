@@ -23217,6 +23217,7 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
       if (!summoned) {
         if (!handOpened) { did = await H.clickTestId('my-hand-card-0'); handOpened = true; }
         if (!did) did = await H.clickBtn('召喚', { exact: true });
+        if (!did) did = await H.clickZone(); // 空きゾーン3＝SELECT_SIGNI_ZONE「ゾーンN」ボタンが要る
         if (!did) did = await H.clickTestId('summon-zone-1');
         const st0 = await H.queryState();
         if ((st0?.host?.fieldSigni ?? []).flat().some(c => c?.startsWith('WXDi-P09-079'))) summoned = true;
