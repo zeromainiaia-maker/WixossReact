@@ -16336,7 +16336,7 @@ order.push('underCostFiltersByColor', 'underCostUnavailableWhenNoRed', 'underCos
   'fieldDownCostRequiresThreeUpWhite', 'fieldDownCostPaysThreeAndWhite', 'optionalActivateSkipThenPay');
 // 続き472：V-04。A1/A2はturn_phaseだけ、A4はpaidCountだけの対照。Rはアーツ＋KeyUse代表経路。
 order.push('underEnergyPayOfferedInAttackPhase', 'underEnergyPayNotOfferedInMainPhase',
-  'underEnergyPayDeductsUnderCardOnly', 'underEnergyPayPerTurnLimit',
+  'underEnergyPayDeductsUnderCardOnly', 'underEnergyPayPerTurnLimit', 'v04TanabataLeaveFieldE3',
   'energyPayArtsDeductsSelectedOnly', 'energyPayKeyUseDeductsSelectedOnly');
 // 続き473：V-07① energyTrash（G1/G3統合＋G2）＋V-06② 捨てさせる向き。Hは同一specで応答だけを変える。
 order.push('energyTrashCostDeductsEnergyNotHand', 'energyTrashCostUnavailableWhenShort',
