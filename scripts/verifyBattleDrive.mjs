@@ -23245,6 +23245,76 @@ scenarios.wxdip09079PlayMilledSigniOnPlacement = {
   },
 };
 order.push('wxdip09079PlayMilledSigniOnPlacement');
+
+// §7 V-28 続き＝A群2件目`EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP`（`WXK11-001-E1`②・続き410）：
+// 「あなたのルリグデッキにあるコストの合計が2以上のアーツ1枚をゲームから除外してもよい。そうした場合、
+// このターン、シグニアタックステップをスキップする」。後段のスキップ機構（`BLOCK_ACTION{SIGNI_ATTACK_STEP,
+// owner:'opponent'}`）は同カード①で既に動いている＝ここでは②の任意コスト側（新規CHOOSE＋ルリグデッキ選択
+// モーダル）を実UIで確認する。相手（guest＝CPU）のアタックフェイズにhost（人間）が応答アーツとして使用
+// （`ATTACK_ARTS_OP`＝v75と同型のresponse window）＝除外を選ぶとguestのSIGNI_ATTACK_STEPが封じられることを見る。
+scenarios.wxk11001ExileArtsSkipsOppSigniAttackStep = {
+  title: 'V-28 WXK11-001-E1② EXILE_ARTS_FROM_LRIG_DECK_SKIP_SIGNI_STEP：ルリグデッキのアーツを除外→相手のシグニアタックステップを封じる',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#9940'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'lrig_deck': ['WXK11-001#9941', 'WD01-008#9942'], // 9942＝除外候補（アーツ・コスト合計2）
+      'energy': ['WD01-013#9943', 'WD01-013#9944'], // 白×2＝白1無1をまかなう
+      'hand': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9950'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'blocked_actions': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_ARTS_OP', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    H.log('開始時 guest.blockedActions:', before?.guest?.blockedActions, 'host.lrigDeck:', before?.host?.lrigDeckCards);
+    let handOpened = false; let castDone = false; let exileChosen = false; let candPicked = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(800);
+      let did = null;
+      if (!castDone) {
+        if (!handOpened) { did = await H.clickTestId('my-lrig-dk'); handOpened = true; }
+        if (!did) did = await H.clickTestId('zone-card-0');
+        const a0 = page.getByTestId('artscost-energy-0').first();
+        if (!did && await a0.count() && await a0.isVisible().catch(() => false)) { await a0.click().catch(() => {}); did = 'artscost-energy-0'; }
+        if (!did) {
+          const a1 = page.getByTestId('artscost-energy-1').first();
+          if (await a1.count() && await a1.isVisible().catch(() => false)) { await a1.click().catch(() => {}); did = 'artscost-energy-1'; }
+        }
+        if (!did) {
+          const use = page.getByRole('button', { name: /アーツ使用/ }).first();
+          if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) { await use.click().catch(() => {}); did = 'btn:アーツ使用'; }
+        }
+        if (!did) did = await H.clickTextOrBtn(['使用']);
+        const st0 = await H.queryState();
+        if ((st0?.host?.lrigDeckCards ?? []).length < (before?.host?.lrigDeckCards ?? []).length) castDone = true;
+      } else if (!exileChosen) {
+        did = await H.clickTextOrBtn(['ゲームから除外する']);
+        if (did) exileChosen = true;
+      } else if (!candPicked) {
+        did = await H.stdStep();
+        const st0 = await H.queryState();
+        if ((st0?.host?.lrigDeckCards ?? []).length < (before?.host?.lrigDeckCards ?? []).length - 1) candPicked = true;
+      } else {
+        did = await H.stdStep();
+      }
+      const st = await H.queryState();
+      H.log(`  wxk11001[${s}] -> ${did ?? 'なし'} | castDone=${castDone} exileChosen=${exileChosen} candPicked=${candPicked} gBlocked=${JSON.stringify(st?.guest?.blockedActions)} hLrigDeck=${st?.host?.lrigDeckCards} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
+      if ((st?.guest?.blockedActions ?? []).includes('SIGNI_ATTACK_STEP') && !st?.pendingEffect) {
+        return { pass: true, detail: `除外を選択→ルリグデッキから1枚除外(${before.host.lrigDeckCards.length}→${st.host.lrigDeckCards.length})→guest.blockedActionsにSIGNI_ATTACK_STEPが追加=${JSON.stringify(st.guest.blockedActions)}` };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（castDone=${castDone} exileChosen=${exileChosen} candPicked=${candPicked} gBlocked=${JSON.stringify(fin?.guest?.blockedActions)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('wxk11001ExileArtsSkipsOppSigniAttackStep');
 // ── V-28 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
