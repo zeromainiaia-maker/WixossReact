@@ -23028,7 +23028,9 @@ scenarios.wx16021SideAttackEmptyZoneDamageAfterArts = {
         const stCast = await H.queryState();
         if ((stCast?.logTail ?? []).some(l => l.includes('驚天動地'))) castDone = true;
       } else if (!advanced) {
+        if (!did) { const closed = await H.closeModals(); if (closed !== undefined) did = null; }
         if (!did) did = await H.clickTextOrBtn(['アタックフェイズへ']);
+        if (!did) H.log('  (アタックフェイズへ 未検出) body:', await H.body());
         const stAdv = await H.queryState();
         if (stAdv?.turnPhase === 'ATTACK_SIGNI') advanced = true;
       } else if (!attacked) {
