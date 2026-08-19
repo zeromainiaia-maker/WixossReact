@@ -17547,15 +17547,20 @@ const V16_SOURCE_A = 'WD02-011#8702';
 const V16_SOURCE_B = 'WD02-011#8703';
 const V16_DISCARD_A = 'WD01-013#8704';
 const V16_DISCARD_B = 'WD01-013#8705';
+// ⚠📌22（続き480）：deck:[] は効果解決中の任意ドロー/リフレッシュで「相手リフレッシュ（デッキを再構築）」を
+//   誘発し actions_done 等の追跡が壊れる（続き571 で v16 が実際に踏んだ＝doneCount が0のまま）。
+//   ⇒ host/guest とも deck に数枚積んでおく。
 const v16AbilitySpec = twoSources => ({
   hostSet: {
     'field.lrig': ['WD02-001#8700'], 'field.signi': [null, null, null], 'field.check': null,
     'hand': twoSources ? [V16_SOURCE_A, V16_SOURCE_B, V16_DISCARD_A, V16_DISCARD_B] : [V16_SOURCE_A, V16_DISCARD_A],
-    'energy': [], 'trash': [], 'deck': [], 'life_cloth': v15cLife(8710), 'actions_done': [],
+    'energy': [], 'trash': [], 'deck': ['WD01-013#8750', 'WD01-013#8751', 'WD01-013#8752', 'WD01-013#8753', 'WD01-013#8754'],
+    'life_cloth': v15cLife(8710), 'actions_done': [],
   },
   guestSet: {
     'field.lrig': ['WX13-002#8790'], 'field.signi': [[V16_WATCHER], null, null], 'field.check': null,
-    'hand': [], 'energy': [], 'trash': [], 'deck': [], 'life_cloth': v15cLife(8730), 'actions_done': [],
+    'hand': [], 'energy': [], 'trash': [], 'deck': ['WD01-013#8770', 'WD01-013#8771', 'WD01-013#8772', 'WD01-013#8773', 'WD01-013#8774'],
+    'life_cloth': v15cLife(8730), 'actions_done': [],
   },
   top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
 });
