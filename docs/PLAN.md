@@ -135,11 +135,10 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-19・続き575・Sonnet 5）＝§7 実機検証2件（V-24(cxviii)／V-58(f)）＝engineバグ0・両項目残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ3本のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き575）。
-  - **✅ V-24(cxviii) 残0クローズ**＝`WXDi-P15-071`のベット分岐＝ベット時は`keyword_grants`にSランサーが直接無条件付与、非ベット時は`granted_effects`経由の別ストアへ分岐しSランサーは一切現れない＝排他を確認。各2回連続PASS。engineバグ0。
-  - **✅ V-58(f) 残0クローズ**＝カットイン応答窓の最優先確認点＝CPU戦でCPUが応答側のとき、候補（`WXDi-P05-006`）が実在してもBattleScreen側の設計どおり常に自動パスし、元のピースが正常解決する（デッドロックしない）ことを確認。2回連続PASS。engineバグ0。📋V-58の(a)〜(e)は未着手のまま残置。
-  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫5件**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)）。修正後は V-04④・V-16・V-19・V-20・V-24(cxvii) の該当シナリオを再検証。
-  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証の続き**（残＝`V-20`／`V-24`（残3項目：(cxiii)(cxiv)(cxv)）／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`(a)〜(e)／`V-63`）。**V-19・V-20 は (cxl)(cxli) の Opus 修正待ち**＝Sonnet側では現状これ以上進められない＝次は `V-24` の残3項目／`V-28`〜`V-30` から取る。
+- **🆕 セッション（2026-08-19・続き576・Sonnet 5）＝§7 実機検証1件（V-24(cxv)）＝engineバグ0・正方向＋対照の2シナリオとも残0クローズ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ2本のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き576）。
+  - **✅ V-24(cxv) 残0クローズ（`PR-426-E3` のみ・`WXDi-P07-060-E3` は未着手）**＝`pr426ConditionalPowerBuff`（ライフクロス1枚＋中央ゾーンで表示パワー8,000→12,000）／`pr426ConditionalPowerBuffOffWhenLifeAbove1`（対照＝ライフクロス3枚では印字どおり8,000のまま）。各2回連続PASS。**旧＝常時適用だった条件節が正しく効いていることを確認**。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫5件**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)）据置。修正後は V-04④・V-16・V-19・V-20・V-24(cxvii) の該当シナリオを再検証。
+  - **▶ 次の一手【Sonnet 側】**＝**§7 実機検証の続き**（残＝`V-20`／`V-24`（残2項目：(cxiii)(cxiv)＋`WXDi-P07-060-E3`）／`V-28`〜`V-30`／`V-35`／`V-39`〜`V-45`・`V-58`(a)〜(e)／`V-63`）。**V-19・V-20 は (cxl)(cxli) の Opus 修正待ち**＝Sonnet側では現状これ以上進められない＝次は `V-24` の残り／`V-28`〜`V-30` から取る。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
