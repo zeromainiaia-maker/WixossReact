@@ -260,7 +260,7 @@
 
 #### ② 【Opus 側】常設の受け口（在庫が積まれたら最優先へ繰り上げ）
 
-- [ ] **Opusタスク12＝在庫9件**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)(cxliv)(cxlv)(cxlvi)）。**常設の受け口として残す**＝Sonnet が §7 実機検証で engine/parser バグを見つけたらここへ積む。
+- [ ] **Opusタスク12＝在庫10件**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)(cxliv)(cxlv)(cxlvi)(cxlvii)）。**常設の受け口として残す**＝Sonnet が §7 実機検証で engine/parser バグを見つけたらここへ積む。
 - [ ] **(cxxxviii) 続き571＝`WXDi-P10-041-E3`（V-04④）の `TAKE_FROM_UNDER_SIGNI` が ON_LEAVE_FIELD 発火時に空振りする**＝実機で確認（`v04TanabataLeaveFieldE3`・`scripts/verifyBattleDrive.mjs`）。原文「【自】：このシグニが場を離れたとき、このシグニの下にあったカード１枚を対象とし、それをトラッシュからエナゾーンに置く。」＝**ソースはトラッシュ**（場を離れる際の既定ルールで下カードは先にトラッシュへ落ちる。これ自体は正しく動作＝実機で確認済み）。**しかし E3 本体（`TAKE_FROM_UNDER_SIGNI` action・`fromThis:true`）は `effectExecutor.ts:6211` `execTakeFromUnderSigni` が `ctx.ownerState.field.signi` から `ctx.sourceCardNum`（＝このシグニ自身）を探して候補を作る実装**＝ON_LEAVE_FIELD の時点でこのシグニ自身が既に `field.signi` から消えているため `zoneIdx===-1`→`cands=[]`→`if (cands.length === 0) return done(ctx);` で**対象選択UIなし・トラッシュ→エナの移動なしのまま静かに空振り**（発火ログ「[自分] 羅植姫　タナバタ の【自】効果（場を離れたとき）」は出るが以降なにも起きない）。⚠**根の原因はソースの取り違え**＝`fromThis` は「まだ場にあるこのシグニの下」を前提にした実装（他の即時効果用）だが、この効果は「場を離れた**後**にトラッシュにあるカード」が対象＝別ソース（トラッシュ・かつ「このシグニの下にあった」という由来を保持する仕組み）が要る。**併せて parser 側も要確認**＝原文は「カード１枚」なのに JSON は `count:9, upToCount:true`（`public/data/effects_WXDi.json` の `WXDi-P10-041-E3`）＝1枚固定のはずが9枚まで化けている疑い。実機シナリオは `scripts/verifyBattleDrive.mjs` の `v04TanabataLeaveFieldE3`（`order` 登録済み）。
 - [x] 🏁**§6.4 は残0**（`O-19b`＝続き567・`O-1`＝続き569 で消化）。**§6.4 で唯一の大物だった `O-1`（CPU AI）も残0クローズ**。
 
