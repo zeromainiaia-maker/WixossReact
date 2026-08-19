@@ -23690,13 +23690,13 @@ async function driveDeclaredIconRound(page, H, discardCardBase, discardColor) {
 scenarios.v40DeclaredIconHandDiscardProtects = {
   title: 'V-40(c) WXDi-P12-055-E1：捨てた手札が宣言色《白》を持つ→バニッシュされない（対象は場に残る）',
   spec: runDeclaredIconRound('WD01-013'), // 小剣ククリ（白）
-  async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD01-013'); },
+  async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD01-013', '白'); },
 };
 
 scenarios.v40DeclaredIconHandDiscardBanishes = {
   title: 'V-40(c)対照 WXDi-P12-055-E1：捨てた手札が宣言色《白》を持たない（赤）→対象がバニッシュされる',
   spec: runDeclaredIconRound('WD02-013'), // 羅石 アイロン（赤）
-  async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD02-013'); },
+  async drive(page, H) { return driveDeclaredIconRound(page, H, 'WD02-013', '赤'); },
 };
 order.push('v40DeclaredIconHandDiscardProtects', 'v40DeclaredIconHandDiscardBanishes');
 // ── V-40 END ──
