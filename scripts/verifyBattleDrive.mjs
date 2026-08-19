@@ -24458,7 +24458,8 @@ async function driveV45b(page, H, pay) {
     }
     const st = await H.queryState();
     H.log(`  v45b[${s}] -> ${did ?? 'なし'} | pay=${pay} attacked=${attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energyCards} pEff=${st?.pendingEffect ?? '-'}`);
-    if (attacked && !st?.pendingEffect && s >= 4) {
+    emptyStreak = (attacked && !st?.pendingEffect) ? emptyStreak + 1 : 0;
+    if (attacked && !st?.pendingEffect && emptyStreak >= 3) {
       const kataOnField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX25-P2-090')));
       const swappedIn = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
       const swappedInDown = (st.host.fieldSigni ?? []).findIndex(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
