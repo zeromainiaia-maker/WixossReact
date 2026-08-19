@@ -4,6 +4,11 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-19・続き585・Sonnet 5）＝§7 実機検証（V-20・V-30）＝V-20は迂回経路で新規engineバグを発見しOpusタスク12(cxlvii)へ登録・V-30はREAD側を残0クローズ（境界越え自体はfollow-up）・V-45は未着手のまま据置**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ4本・旧V-20シナリオ2本を削除置換・`order`登録済み）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き585）。
+  - **🔴 V-20 新規engineバグ発見**＝`v20DiscardSkipFirstBlocksSecond`（意図的FAIL・2回連続再現）／`v20DiscardPayBothReturnsToField`（正常系・2回連続PASS）。旧シナリオは(cxli)未修正の受動捨て札経路で恒久FAILしていたため、能動discard経路（`WX16-042-E1`のTRASHアクション）へ迂回して本題に到達。「そうした場合」二段任意コストの入れ子ゲートが外れており、①をスキップしても②の提示を飛ばして③（ADD_TO_FIELD）が無条件で実行される＝**二段以上に連鎖した任意コスト全般に波及する構造バグ**。**Opusタスク12(cxlvii)へ登録**。
+  - **✅ V-30 READ側 残0クローズ**＝`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`。`abilities_removed`を直接注入→host自身の【起】ボタンがUIから消える／空なら通常表示、を対で確認。各2回連続PASS。engineバグ0。**境界越え自体（次ターン予約の昇格をライブなターン進行で確認）は続き566の室注入設計限界が未解消のままfollow-up**。
+  - **📋 V-45 は引き続き未着手**。副産物として(c)`WX24-P4-052-E1`のJSONが原文（自分自身を任意コストでバニッシュ）と食い違っている疑いを発見（未確定・要別途調査＝続き586で確定）。
+
 - **🆕 セッション（2026-08-19・続き584・Sonnet 5）＝§7 実機検証（V-42・V-43・V-44）＝コア機構3件は残0クローズ・🔴V-44(a)で新規engineバグ（間欠）を発見しOpusタスク12(cxlvi)へ登録・V-45は未着手のままfollow-upへ**。ゲート全緑（golden 2307 据置・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・lint 0 errors 263 warnings 据置）。engine/live 改変なし（`scripts/verifyBattleDrive.mjs` の新規シナリオ4本・`order`登録済み）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き584）。
   - **✅ V-42(a) 残0クローズ**＝`v42ZoneLimitedAttackBanCenterOnly`。ゾーン限定`SigniAttackBan`を直接注入→中央だけ「アタック（《無》×1）」・左右は無条件。2回連続PASS。engineバグ0。
   - **✅ V-43(a) 残0クローズ**＝`v43SLancerDefeatsOpponentAtZeroLife`／`v43RegularLancerFizzlesAtZeroLife`。【Ｓランサー】は相手ライフ0枚のバトル勝利で相手を敗北させる／通常ランサーは効果消滅、を対で確認。各2回連続PASS。engineバグ0。
