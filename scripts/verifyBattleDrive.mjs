@@ -23965,7 +23965,7 @@ scenarios.v41RepeatOptionalFiltersByLevelAndStops = {
         if (did) stopChosen = true;
       }
       const st = await H.queryState();
-      H.log(`  v41b[${s}] -> ${did ?? 'なし'} | d1=${discard1} b1=${banish1} rep=${repeatChosen} d2=${discard2} b2=${banish2} stop=${stopChosen} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} pEff=${st?.pendingEffect ?? '-'}`);
+      H.log(`  v41b[${s}] -> ${did ?? 'なし'} | d1=${discard1} b1=${banish1} rep=${repeatChosen} d2=${discard2} b2=${banish2} stop=${stopChosen} cands=${JSON.stringify(st?.pendingCandidates)} gField=${JSON.stringify(st?.guest?.fieldSigni)} hHand=${st?.host?.handCards} pEff=${st?.pendingEffect ?? '-'}`);
       if (stopChosen && !st?.pendingEffect) {
         const gField = st.guest.fieldSigni ?? [];
         const lv1Gone = !gField.some(z => Array.isArray(z) && z.some(n => n?.startsWith('WD01-013')));
