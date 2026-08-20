@@ -1,4 +1,4 @@
-findings 96件（HIGH 61/MED 35/LOW 0）・指摘ありカード 67枚（stub群 0/clean群 67）
+findings 167件（HIGH 104/MED 61/LOW 2）・指摘ありカード 126枚（stub群 0/clean群 126）
 
 ================================================================================
 ■ PR-046 星占の巫女　リメンバ・ナイト（group=clean）
@@ -5160,6 +5160,4332 @@ findings 96件（HIGH 61/MED 35/LOW 0）・指摘ありカード 67枚（stub群
         "story": "宇宙"
        }
       }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WD22-011-G フーリッシュ・マイアズマ（group=clean）
+【原文】以下の４つから２つまで選ぶ。
+        あなたのセンタールリグが＜グズ子＞の場合、代わりに３つまで選ぶ。
+        ①このターン、あなたのシグニ１体が効果によって場に出たとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。
+        ②あなたのシグニ２体をバニッシュする。
+        そうした場合、カードを２枚引く。
+        ③対戦相手のシグニ１体を対象とし、それのレベルがあなたの手札の枚数以下の場合、それをバニッシュする。
+        ④あなたのトラッシュからレベル３以下のシグニ１枚を対象とし、それを場に出す。
+        
+  ▶ [HIGH/WRONG] WD22-011-G-E1 「シグニ１体が効果によって場に出たとき」 選択肢①はこのターン中の場出しを待つ誘発効果だが、JSONでは選択時に即座にパワーを－7000している。
+  ▶ [MED/WRONG] WD22-011-G-E1 「そうした場合、カードを２枚引く」 選択肢②のドロー条件はシグニ2体をバニッシュできたことだが、JSONでは自分のターンであることを条件にしている。
+  ▶ [HIGH/MISSING] WD22-011-G-E1 「レベルがあなたの手札の枚数以下」 選択肢③の対象をバニッシュできるレベル条件がJSONに存在しない。
+【JSON】[
+ {
+  "effectId": "WD22-011-G-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 2
+    },
+    {
+     "color": "無",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 2,
+   "from_count": 4,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "delta": -7000
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 2,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "DRAW",
+         "owner": "self",
+         "count": 2
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c2",
+     "label": "選択肢3",
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c3",
+     "label": "選択肢4",
+     "action": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ",
+        "level": {
+         "max": 3
+        }
+       }
+      }
+     }
+    }
+   ],
+   "upTo": true,
+   "conditionChoose": {
+    "condition": {
+     "type": "LRIG_STORY",
+     "owner": "self",
+     "story": "グズ子"
+    },
+    "thenChooseCount": 3,
+    "thenUpTo": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WD23-013-A ワンモア・コール（group=clean）
+【原文】アンコール－《無》《無》あなたのデッキからカード１枚を探してデッキをシャッフルし、そのカードをデッキの一番上に置く。
+        
+  ▶ [HIGH/WRONG] WD23-013-A-E1 「デッキをシャッフルし、そのカードを」 原文はデッキをシャッフルしてから探したカードを一番上に置くが、JSONはカードを一番上に置いた後にafterSearchでデッキをシャッフルする順序になっている。
+【JSON】[
+ {
+  "effectId": "WD23-013-A-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {},
+   "maxCount": 1,
+   "upToTarget": false,
+   "revealPicked": false,
+   "then": {
+    "type": "TRANSFER_TO_DECK",
+    "source": {
+     "type": "DECK_CARD",
+     "owner": "self",
+     "count": 1
+    },
+    "shuffle": false,
+    "position": "top"
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WD23-024-E 幻水　ハイギョ（group=clean）
+【原文】【出】手札から《ライフバースト》を持つカードを１枚捨てる：あなたのデッキからカード１枚を探す。
+        その後、デッキをシャッフルし、そのカードをデッキの一番上に置く。
+        
+  ▶ [HIGH/WRONG] WD23-024-E-E1 「デッキをシャッフルし、そのカードを」 原文はデッキをシャッフルしてから探したカードを一番上に置くが、JSONはカードを一番上に置いた後にafterSearchでデッキをシャッフルする順序になっている。
+【JSON】[
+ {
+  "effectId": "WD23-024-E-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "discard": 1,
+   "discardFilter": {
+    "cardType": "カード",
+    "hasLifeBurst": true
+   }
+  },
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {},
+   "maxCount": 1,
+   "upToTarget": false,
+   "revealPicked": false,
+   "then": {
+    "type": "TRANSFER_TO_DECK",
+    "source": {
+     "type": "DECK_CARD",
+     "owner": "self",
+     "count": 1
+    },
+    "shuffle": false,
+    "position": "top"
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WD23-032-A 超罠　タコツボ（group=clean）
+【原文】【自】《ターン１回》：あなたの《トラップアイコン》が発動したとき、シグニ１体を対象とし、それをアップするかダウンする。
+        【自】《ターン１回》：あなたのシグニ１体がアタックしたとき、あなたのデッキの上からカードを２枚見る。
+        その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。
+        残りを好きな順番でデッキの一番上に戻す。
+        【トラップアイコン】：対戦相手のシグニ１体を対象とし、それをダウンし、カードを１枚引く。
+        
+【LB】：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。カードを１枚引く。
+  ▶ [HIGH/MISSING] WD23-032-A-E1 「アップするかダウンする」 原文では対象のシグニをアップするかダウンするか選べるが、JSONにはダウンする処理しかない。
+  ▶ [MED/WRONG] WD23-032-A-E2 「設置してもよい」 トラップとして設置する処理は任意だが、JSONのLOOK_PICK_CHAINでは1枚の選択が必須になっている。
+【JSON】[
+ {
+  "effectId": "WD23-032-A-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TRAP_ACTIVATE"
+  ],
+  "action": {
+   "type": "DOWN",
+   "target": {
+    "type": "SIGNI",
+    "owner": "any",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WD23-032-A-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "LOOK_PICK_CHAIN",
+     "owner": "self",
+     "revealCount": 2,
+     "stages": [
+      {
+       "pickCount": 1,
+       "then": "trap",
+       "pickNoun": "カード"
+      }
+     ],
+     "remainder": {
+      "location": "deck",
+      "position": "top"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "any_ally",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WD23-032-A-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "FREEZE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "down": true
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WD23-032-A-TRAP",
+  "effectType": "TRAP_ICON",
+  "timing": [
+   "ON_TRAP_ACTIVATE"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DOWN",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDA-F02-07 イコール・プライズ（group=clean）
+【原文】あなたの手札からそれぞれレベルの異なるシグニを３枚まで捨てる。
+        その後、この方法で捨てたシグニ１枚につきそれと同じレベルを持つ対戦相手のシグニ１体を対象とし、それらをバニッシュする。
+        （例えばレベル２とレベル３のシグニを捨てた場合レベル２のシグニ１体とレベル３のシグニ１体をバニッシュする）
+  ▶ [HIGH/WRONG] WDA-F02-07-E1 「捨てたシグニ１枚につき」 JSONは捨てた各シグニと同じレベルの相手シグニをそれぞれ1体バニッシュせず、最後に処理したレベルのシグニ1体だけをバニッシュする。
+【JSON】[
+ {
+  "effectId": "WDA-F02-07-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "self",
+      "count": 3,
+      "upToCount": true,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "selectionConstraint": {
+       "distinct": "level"
+      }
+     }
+    },
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "levelEqLastProcessed": true
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDA-F03-13 幻竜姫　スヴァローグ（group=clean）
+【原文】【常】：あなたのエナゾーンに白か青か緑か黒のカードがあるかぎり、このシグニのパワーは＋2000される。
+        【自】：対戦相手のエナゾーンにカード１枚が置かれたとき、そこに８枚以上のカードがある場合、あなたはそこから対象のカード１枚をトラッシュに置く。
+        【自】：このシグニがアタックしたとき、パワー12000以下のシグニ１体を対象とし、あなたと対戦相手のエナゾーンにあるカードの合計が７枚以下の場合、それをバニッシュする。
+        
+【LB】：対戦相手のエナゾーンから、カード１枚と【マルチエナ】を持つカード１枚を対象とし、それらをトラッシュに置く。
+  ▶ [HIGH/MISSING] WDA-F03-13-E1 「白か青か緑か黒のカードがある」 パワー＋2000を適用する条件である、自分のエナゾーンに白・青・緑・黒のいずれかのカードがあることがJSONにない。
+  ▶ [HIGH/MISSING] WDA-F03-13-E3 「カードの合計が７枚以下」 バニッシュする条件である、双方のエナゾーンのカード合計が7枚以下という判定がJSONにない。
+  ▶ [MED/WRONG] WDA-F03-13-E3 「シグニ１体を対象とし」 原文は所有者を限定していないシグニ1体を対象にするが、JSONは対戦相手のシグニだけに限定している。
+  ▶ [HIGH/WRONG] WDA-F03-13-BURST 「カード１枚と【マルチエナ】」 原文は相手のエナから通常のカード1枚と【マルチエナ】を持つカード1枚の計2枚をトラッシュに置くが、JSONは条件なしのカード1枚しか処理しない。
+【JSON】[
+ {
+  "effectId": "WDA-F03-13-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 2000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDA-F03-13-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_OPP_ENERGY_ADDED"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "ENERGY_COUNT",
+    "owner": "opponent",
+    "operator": "gte",
+    "value": 8
+   },
+   "then": {
+    "type": "TRASH",
+    "target": {
+     "type": "ENERGY_CARD",
+     "owner": "opponent",
+     "count": 1
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDA-F03-13-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "powerRange": {
+      "max": 12000
+     }
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WDA-F03-13-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "ENERGY_CARD",
+    "owner": "opponent",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDA-F04-10 双撃の記憶　リル（group=clean）
+【原文】【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上を公開する。
+        それがあなたのセンタールリグと共通する色を持つシグニの場合、それを手札に加える。
+        【起】このキーを場からルリグトラッシュに置く：《コインアイコン》《コインアイコン》を得る。
+        
+  ▶ [MED/MISSING] WDA-F04-10-E1 「共通する色を持つシグニ」 公開したシグニを手札に加える条件である、センタールリグと共通する色を持つことがJSONのフィルターにない。
+【JSON】[
+ {
+  "effectId": "WDA-F04-10-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_MAIN_PHASE_START"
+  ],
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 1,
+   "filter": {
+    "cardType": "シグニ"
+   },
+   "pickCount": 1,
+   "then": {
+    "type": "TRANSFER_TO_HAND",
+    "source": {
+     "type": "DECK_CARD",
+     "owner": "self",
+     "count": 1
+    }
+   },
+   "remainder": {
+    "location": "deck",
+    "position": "top"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDA-F04-10-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "trash_key": true
+  },
+  "action": {
+   "type": "GAIN_COIN",
+   "owner": "self",
+   "count": 2
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK01-001 レイラ＝フルスロットル（group=clean）
+【原文】【ライド】【出】《赤》：対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        【起】《コインアイコン》：あなたのデッキから＜乗機＞のシグニ１枚を探して場に出し、デッキをシャッフルする。
+        
+  ▶ [HIGH/MISSING]  「【ライド】」 原文のライド能力がJSONに存在しない。
+【JSON】[
+ {
+  "effectId": "WDK01-001-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK01-001-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "SEARCH",
+   "from": {
+    "location": "deck",
+    "owner": "self"
+   },
+   "filter": {
+    "cardType": "シグニ",
+    "story": "乗機"
+   },
+   "maxCount": 1,
+   "then": {
+    "type": "ADD_TO_FIELD",
+    "owner": "self"
+   },
+   "afterSearch": {
+    "type": "SHUFFLE_DECK",
+    "owner": "self"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK01-002 レイラ＝ブレーキ（group=clean）
+【原文】【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。
+        これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）（ルリグがシグニに乗っているかぎり、それらはドライブ状態である。
+        ドライブ状態のルリグはアタックできない）【出】《赤》：《コインアイコン》を得る。
+        
+  ▶ [HIGH/MISSING]  「【ライド】」 自分の＜乗機＞に乗りターン終了時までドライブ状態にするライド能力がJSONに存在しない。
+【JSON】[
+ {
+  "effectId": "WDK01-002-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "赤",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "GAIN_COIN",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK01-003 レイラ＝コーナー（group=clean）
+【原文】【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。
+        これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）（ルリグがシグニに乗っているかぎり、それらはドライブ状態である。
+        ドライブ状態のルリグはアタックできない）【出】《コインアイコン》：カードを１枚引く。
+        
+  ▶ [HIGH/MISSING]  「【ライド】」 自分の＜乗機＞に乗りターン終了時までドライブ状態にするライド能力がJSONに存在しない。
+【JSON】[
+ {
+  "effectId": "WDK01-003-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK01-004 レイラ＝クラッチ（group=clean）
+【原文】【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。
+        これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）（ルリグがシグニに乗っているかぎり、それらはドライブ状態である。
+        ドライブ状態のルリグはアタックできない）【出】手札を１枚捨てる：《コインアイコン》を得る。
+        
+  ▶ [HIGH/MISSING]  「【ライド】」 自分の＜乗機＞に乗りターン終了時までドライブ状態にするライド能力がJSONに存在しない。
+【JSON】[
+ {
+  "effectId": "WDK01-004-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "discard": 1
+  },
+  "action": {
+   "type": "GAIN_COIN",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK01-011 コードライド　ヤマテ（group=clean）
+【原文】【ドライブ常】：このシグニのパワーは＋3000され、このシグニは「【自】：このシグニがアタックしたとき、自身のパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        」を得る。
+        
+【LB】：対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。
+  ▶ [HIGH/WRONG] WDK01-011-E1-G 「自身のパワー以下」 付与されるアタック時能力のバニッシュ対象に「このシグニ自身のパワー以下」という条件がなく、任意の相手シグニを対象にできてしまう。
+【JSON】[
+ {
+  "effectId": "WDK01-011-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "IS_DRIVE_STATE"
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "thisCardOnly": true
+      }
+     },
+     "delta": 3000
+    },
+    {
+     "type": "GRANT_FIELD_SIGNI_ABILITY",
+     "thisCardOnly": true,
+     "abilities": [
+      {
+       "effectId": "WDK01-011-E1-G",
+       "effectType": "AUTO",
+       "timing": [
+        "ON_ATTACK_SIGNI"
+       ],
+       "action": {
+        "type": "BANISH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       },
+       "duration": "INSTANT",
+       "mandatory": true,
+       "parseStatus": "AUTO",
+       "triggerScope": "self"
+      }
+     ]
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK01-011-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "powerRange": {
+      "max": 12000
+     }
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK01-013 コードライド　トッキュウ（group=clean）
+【原文】【常】：あなたの場にドライブ状態のシグニがあるかぎり、このシグニのパワーは＋4000される。
+        （ルリグが乗っているシグニはドライブ状態である）
+  ▶ [HIGH/MISSING] WDK01-013-E1 「ドライブ状態のシグニがあるかぎり」 パワー＋4000を有効にする「自分の場にドライブ状態のシグニがある」という条件がJSONにありません。
+【JSON】[
+ {
+  "effectId": "WDK01-013-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "thisCardOnly": true
+    }
+   },
+   "delta": 4000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK03-001 四型絆娘　翠子（group=clean）
+【原文】【起】《コインアイコン》：あなたのルリグデッキから《異体同心　華代》１枚を場に出す。
+        【起】《ターン１回》《コインアイコン》：【エナチャージ２】
+  ▶ [HIGH/WRONG] WDK03-001-E1 「ルリグデッキから《異体同心　華代》」 ADD_TO_FIELDに移動元のルリグデッキとカード名《異体同心　華代》および枚数1の指定がなく、任意のカードを場に出す効果になっている。
+【JSON】[
+ {
+  "effectId": "WDK03-001-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self"
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK03-001-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 2
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ }
+]
+================================================================================
+■ WDK03-020 連鎖（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜怪異＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、対象の対戦相手のパワー8000以上のシグニ１体をバニッシュする。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK03-020-E1 「そうした場合」 後続のバニッシュ条件が自分のシグニを実際にトラッシュへ置けた場合ではなく、自分のターンであることになっている。
+【JSON】[
+ {
+  "effectId": "WDK03-020-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "怪異"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "BANISH",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ",
+           "powerRange": {
+            "min": 8000
+           }
+          },
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK04-007 バッド・ボンバー（group=clean）
+【原文】ターン終了時まで、対戦相手のすべてのシグニのパワーを－12000する。
+        （このアーツの後に場に出たシグニはこの効果の影響を受けない）（パワーが０以下のシグニはルールによってバニッシュされる）
+  ▶ [HIGH/WRONG] WDK04-007-E1 「ターン終了時まで」 対戦相手の全シグニへのパワー－12000の持続期間がターン終了時までではなくINSTANTになっている。
+【JSON】[
+ {
+  "effectId": "WDK04-007-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": -12000
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK04-011 超罠　ダークアリス（group=clean）
+【原文】【起】《ターン１回》《黒》：あなたのデッキの一番上を公開する。
+        その後、そのカードがレベルが偶数のシグニの場合、そのカードを手札に加える。
+        レベルが奇数のシグニの場合、そのカードをトラッシュに置き、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
+        
+【LB】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。
+  ▶ [MED/MISSING] WDK04-011-E1 「そのカードをトラッシュに置き」 公開したカードが奇数レベルのシグニだった場合に、そのカードをトラッシュへ置く処理が欠落している。
+  ▶ [MED/WRONG] WDK04-011-BURST 「ターン終了時まで」 ライフバーストによるパワー－10000の持続期間がターン終了時までではなくINSTANTになっている。
+【JSON】[
+ {
+  "effectId": "WDK04-011-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "REVEAL_DECK_TOP",
+     "owner": "self",
+     "count": 1
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "levelParity": "even"
+      }
+     },
+     "then": {
+      "type": "TRANSFER_TO_HAND",
+      "source": {
+       "type": "DECK_CARD",
+       "owner": "self",
+       "count": 1
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "levelParity": "odd",
+       "cardType": "シグニ"
+      }
+     },
+     "then": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": false
+      },
+      "delta": -8000
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK04-011-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -10000
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK04-014 大罠　ジャバウォック（group=clean）
+【原文】【自】：このシグニがアタックしたとき、このシグニが中央のシグニゾーンにある場合、あなたのデッキの一番上を公開する。
+        それをデッキの一番下に置いてもよい。
+        この方法で公開したカードがレベルが奇数のシグニの場合、ターン終了時まで、このシグニのパワーは＋5000され、このシグニは【ランサー】を得る。
+        （【ランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）
+【LB】：カードを１枚引く。
+  ▶ [MED/WRONG] WDK04-014-E1 「一番下に置いてもよい」 公開したカードをデッキの一番下へ置く処理が任意ではなく強制になっている。
+【JSON】[
+ {
+  "effectId": "WDK04-014-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "condition": {
+   "type": "THIS_CARD_IN_CENTER_ZONE"
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "LOOK_AND_REORDER",
+     "source": {
+      "location": "deck",
+      "owner": "self"
+     },
+     "count": 1,
+     "private": false,
+     "reorder": false,
+     "destination": {
+      "location": "deck",
+      "owner": "self",
+      "position": "bottom"
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_MATCHES",
+      "filter": {
+       "cardType": "シグニ",
+       "levelParity": "odd"
+      }
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "POWER_MODIFY",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "thisCardOnly": true
+         }
+        },
+        "delta": 5000
+       },
+       {
+        "type": "GRANT_KEYWORD",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "thisCardOnly": true
+         }
+        },
+        "keyword": "ランサー",
+        "duration": "UNTIL_END_OF_TURN"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WDK04-014-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK04-020 ウィッチ・ニッチ（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜トリック＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、あなたのトラッシュから対象の＜トリック＞のシグニ１枚を手札に加える。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK04-020-E1 「そうした場合」 後続の回収条件が自分のシグニを実際にトラッシュへ置けた場合ではなく、自分のターンであることになっている。
+【JSON】[
+ {
+  "effectId": "WDK04-020-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "トリック"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "TRANSFER_TO_HAND",
+         "source": {
+          "type": "TRASH_CARD",
+          "owner": "self",
+          "count": 1,
+          "upToCount": false,
+          "filter": {
+           "cardType": "シグニ",
+           "story": "トリック"
+          }
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK05-R01 来夢の巫女　リメンバ・ナイト（group=clean）
+【原文】【出】：対戦相手のすべてのシグニを凍結する。
+        【起】《ターン１回》《コインアイコン》：カードを３枚引き、手札からカード２枚を好きな順番でデッキの一番下に置く。
+        
+  ▶ [MED/WRONG] WDK05-R01-E2 「手札からカード２枚」 手札からデッキの一番下へ置く枚数が原文の2枚ではなく1枚になっている。
+【JSON】[
+ {
+  "effectId": "WDK05-R01-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "FREEZE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK05-R01-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 1
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 3
+    },
+    {
+     "type": "LOOK_AND_REORDER",
+     "source": {
+      "location": "hand",
+      "owner": "self"
+     },
+     "count": 1,
+     "private": true,
+     "reorder": false,
+     "destination": {
+      "location": "deck",
+      "owner": "self",
+      "position": "bottom"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ }
+]
+================================================================================
+■ WDK05-R14 皮英の潤滑　イグ・バナナン（group=clean）
+【原文】【出】：カードを１枚引き、手札からカード１枚をデッキの一番下に置く。
+        【起】《ターン１回》《青×0》：あなたのデッキの下からカードを２枚トラッシュに置く。
+        その後、この方法でトラッシュに置かれたシグニのレベルの合計が４の場合、対戦相手のシグニを２体まで対象とし、それらを凍結する。
+        （凍結されたシグニは次の自分のアップフェイズにアップしない）
+【LB】：カードを１枚引く。
+  ▶ [MED/WRONG] WDK05-R14-E2 「デッキの下からカードを２枚」 原文はデッキの下から2枚をトラッシュに置くが、JSONのTRASHにはデッキ下を指定する条件がなく、通常のデッキカード2枚を対象としている。
+【JSON】[
+ {
+  "effectId": "WDK05-R14-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    },
+    {
+     "type": "LOOK_AND_REORDER",
+     "source": {
+      "location": "hand",
+      "owner": "self"
+     },
+     "count": 1,
+     "private": true,
+     "reorder": false,
+     "destination": {
+      "location": "deck",
+      "owner": "self",
+      "position": "bottom"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK05-R14-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "DECK_CARD",
+      "owner": "self",
+      "count": 2
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LAST_PROCESSED_LEVEL_SUM",
+      "operator": "eq",
+      "value": 4
+     },
+     "then": {
+      "type": "FREEZE",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 2,
+       "filter": {
+        "cardType": "シグニ"
+       },
+       "upToCount": true
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK05-R14-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK05-R20 ＦＲＯＺＥＮ　ＦＩＮＧＥＲ（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜英知＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、対象の対戦相手の凍結状態のシグニ１体をバニッシュする。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK05-R20-E1 「そうした場合」 凍結シグニのバニッシュ条件が、自分の＜英知＞シグニを実際にトラッシュへ置いた場合ではなく、自分のターンであることになっている。
+【JSON】[
+ {
+  "effectId": "WDK05-R20-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "英知"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "BANISH",
+         "target": {
+          "type": "SIGNI",
+          "owner": "opponent",
+          "count": 1,
+          "filter": {
+           "cardType": "シグニ",
+           "isFrozen": true
+          },
+          "upToCount": false
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK05-T09 燃盛　遊月・鍵（group=clean）
+【原文】【常】：あなたのセンタールリグは以下の能力を得る。
+        【起】エクシード１（あなたのルリグの下からカードを１枚ルリグトラッシュに置く）：このターン、対戦相手はレベル１のシグニで【ガード】ができない。
+        【出】：対戦相手のエナゾーンから無色のカードを２枚まで対象とし、それらをトラッシュに置く。
+        【起】このキーを場からルリグトラッシュに置く：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。
+        
+  ▶ [HIGH/WRONG] WDK05-T09-E1-G 「レベル１のシグニで」 ガード禁止の対象がレベル1のシグニに限定されず、対戦相手のガード行為全般を禁止している。
+  ▶ [MED/WRONG] WDK05-T09-E3 「無色のカードを２枚まで」 トラッシュに置くエナの無色条件が欠落し、対戦相手の任意の色のエナを対象にできる。
+【JSON】[
+ {
+  "effectId": "WDK05-T09-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_LRIG_ABILITY",
+   "abilities": [
+    {
+     "effectId": "WDK05-T09-E1-G",
+     "effectType": "ACTIVATED",
+     "timing": [
+      "MAIN"
+     ],
+     "cost": {
+      "exceed": 1
+     },
+     "action": {
+      "type": "BLOCK_ACTION",
+      "target": {
+       "type": "PLAYER",
+       "owner": "opponent",
+       "count": 1
+      },
+      "actionId": "GUARD",
+      "until": "END_OF_TURN"
+     },
+     "duration": "INSTANT",
+     "mandatory": false,
+     "parseStatus": "AUTO"
+    }
+   ],
+   "rawText": "【起】エクシード１：このターン、対戦相手はレベル１のシグニで【ガード】ができない。"
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK05-T09-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "ENERGY_CARD",
+    "owner": "opponent",
+    "count": 2,
+    "upToCount": true
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK05-T09-E4",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "trash_key": true
+  },
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "ENERGY_CARD",
+    "owner": "opponent",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK05-T10 ヴィクティム・ディフェンス（group=clean）
+【原文】ベット―《コインアイコン》（このアーツを使用する際に《コインアイコン》を支払ってもよい）以下の２つから１つを選ぶ。
+        あなたがベットしていた場合、代わりに２つ選ぶ。
+        ①対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。
+        」を得る。
+        手札を２枚捨てる。
+        （手札が１枚以下で使用した場合すべて捨てる）②あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。
+        
+  ▶ [MED/WRONG] WDK05-T10-E1 「手札が１枚以下で使用した場合」 選択肢①の手札破棄が常に2枚指定で、手札が1枚以下なら残る手札をすべて捨てる処理を表現していない。
+【JSON】[
+ {
+  "effectId": "WDK05-T10-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "無",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "GRANT_KEYWORD",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        },
+        "keyword": "アタックできない",
+        "duration": "UNTIL_END_OF_TURN"
+       },
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "HAND_CARD",
+         "owner": "self",
+         "count": 2
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "TRANSFER_TO_HAND",
+      "source": {
+       "type": "TRASH_CARD",
+       "owner": "self",
+       "count": 1,
+       "upToCount": false,
+       "filter": {
+        "cardType": "シグニ"
+       }
+      }
+     }
+    }
+   ],
+   "betChoose": {
+    "thenChooseCount": 2,
+    "thenUpTo": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK05-T12 師の遊　ケロパッチン（group=clean）
+【原文】【出】《白》他のシグニ１体を場からデッキの一番上に置く：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+        
+  ▶ [HIGH/MISSING] WDK05-T12-E1 「他のシグニ１体を場から」 能力コストで他のシグニ1体を場からデッキの一番上に置く処理が欠落している。
+【JSON】[
+ {
+  "effectId": "WDK05-T12-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "BOUNCE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "optional": false
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK05-T13 讃の遊　パックンチョ（group=clean）
+【原文】【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。
+        そうした場合、あなたのデッキの一番上を公開する。
+        それがシグニの場合、それを場に出す。
+        
+  ▶ [HIGH/WRONG] WDK05-T13-E1 「そうした場合」 デッキ公開以降の処理条件が、このシグニを手札に戻した場合ではなく自分のターンであることになっている。
+  ▶ [HIGH/WRONG] WDK05-T13-E1 「それがシグニの場合」 公開したカードがシグニである場合だけ場に出す条件がなく、ADD_TO_FIELDが無条件で実行される。
+【JSON】[
+ {
+  "effectId": "WDK05-T13-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "BOUNCE",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ",
+       "thisCardOnly": true
+      }
+     },
+     "optional": true
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "LOOK_AND_REORDER",
+      "source": {
+       "location": "deck",
+       "owner": "self"
+      },
+      "count": 1,
+      "private": false,
+      "reorder": false,
+      "destination": {
+       "location": "deck",
+       "owner": "self",
+       "position": "top"
+      }
+     }
+    },
+    {
+     "type": "ADD_TO_FIELD",
+     "owner": "self"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ }
+]
+================================================================================
+■ WDK05-T14 讃の遊　ユキガッセン（group=clean）
+【原文】【出】：対戦相手のレベル３以下のシグニ１体を対象とし、あなたのターンにこのシグニがデッキから場に出た場合、それを手札に戻す。
+        
+【LB】：カードを１枚引く。
+  ▶ [HIGH/MISSING] WDK05-T14-E1 「あなたのターンに」 バウンスするための自分のターン中という条件が欠落している。
+  ▶ [HIGH/MISSING] WDK05-T14-E1 「デッキから場に出た場合」 このシグニがデッキから場に出た場合という発動元の条件が欠落している。
+【JSON】[
+ {
+  "effectId": "WDK05-T14-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "BOUNCE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ",
+     "level": {
+      "max": 3
+     }
+    }
+   },
+   "optional": false
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK05-T14-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK06-C08 タクティカル・パニッシュ（group=clean）
+【原文】対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。
+        あなたのトラッシュにカードが１５枚以上ある場合、代わりにターン終了時まで、それのパワーを－8000する。
+        （パワーが０以下のシグニはルールによってバニッシュされる）
+  ▶ [HIGH/WRONG] WDK06-C08-E1 「代わりに…－8000する」 トラッシュ15枚以上の場合は－3000を－8000に置換すべきだが、JSONは－3000の後に別対象も選べる－8000を加算し、さらに効果の持続時間もターン終了時までではなくINSTANTになっている。
+【JSON】[
+ {
+  "effectId": "WDK06-C08-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "delta": -3000
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "TRASH_COUNT",
+      "owner": "self",
+      "operator": "gte",
+      "value": 15
+     },
+     "then": {
+      "type": "POWER_MODIFY",
+      "target": {
+       "type": "SIGNI",
+       "owner": "any",
+       "count": 1
+      },
+      "delta": -8000
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK06-C14 魏軍の赤弓　カコウエン（group=clean）
+【原文】【出】手札を１枚捨てる：あなたのトラッシュからレベル３以下の＜武勇＞のシグニ１枚を対象とし、あなたのターンの場合、それを場に出す。
+        
+【LB】：カードを１枚引く。
+  ▶ [MED/WRONG] WDK06-C14-E1 「シグニ１枚を対象とし」 原文は自分のターンかどうかにかかわらず対象を選び、自分のターンの場合だけ場に出すが、JSONは自分のターンでない場合に対象選択自体を行わない。
+【JSON】[
+ {
+  "effectId": "WDK06-C14-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "discard": 1
+  },
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "TURN_OWNER",
+    "owner": "self"
+   },
+   "then": {
+    "type": "ADD_TO_FIELD",
+    "owner": "self",
+    "source": {
+     "type": "TRASH_CARD",
+     "owner": "self",
+     "count": 1,
+     "upToCount": false,
+     "filter": {
+      "cardType": "シグニ",
+      "level": {
+       "max": 3
+      },
+      "story": "武勇"
+     }
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK06-C14-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK06-C20 リサイクル・デッズ（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①あなたの＜武勇＞のシグニ１体を対象とし、それを場からトラッシュに置く。
+        そうした場合、あなたのデッキの上からカードを２枚トラッシュに置く。
+        その後、あなたのトラッシュから＜武勇＞のシグニ１枚を対象とし、それを場に出す。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK06-C20-E1 「そうした場合」 2枚をトラッシュに置く条件は対象のシグニを場からトラッシュに置けたことだが、JSONでは自分のターンであることを条件にしている。
+【JSON】[
+ {
+  "effectId": "WDK06-C20-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "武勇"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "TRASH",
+         "target": {
+          "type": "DECK_CARD",
+          "owner": "self",
+          "count": 2
+         }
+        }
+       },
+       {
+        "type": "ADD_TO_FIELD",
+        "owner": "self",
+        "source": {
+         "type": "TRASH_CARD",
+         "owner": "self",
+         "count": 1,
+         "upToCount": false,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "武勇"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK06-R01 凛武の記憶　リル（group=clean）
+【原文】【常】：あなたのターンの間、あなたの＜アーム＞のシグニのパワーを＋3000する。
+        【出】：あなたのデッキの上からカードを３枚見る。
+        その中から＜アーム＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。
+        その後、この方法で場に出たシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        【出】：あなたの場に《メル＝マドラー》がいる場合、【エナチャージ２】をする。
+        
+  ▶ [HIGH/MISSING] WDK06-R01-E2 「場に出たシグニのパワー以下」 バニッシュ対象に、この方法で場に出したシグニのパワー以下という条件が欠落している。
+【JSON】[
+ {
+  "effectId": "WDK06-R01-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "self"
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ",
+     "story": "アーム"
+    }
+   },
+   "delta": 3000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK06-R01-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "LOOK_PICK_CHAIN",
+     "owner": "self",
+     "revealCount": 3,
+     "stages": [
+      {
+       "filter": {
+        "cardType": "シグニ",
+        "story": "アーム"
+       },
+       "pickCount": 1,
+       "then": "field"
+      }
+     ],
+     "remainder": {
+      "location": "deck",
+      "position": "bottom"
+     }
+    },
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK06-R01-E3",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "HAS_CARD_IN_FIELD",
+    "owner": "self",
+    "filter": {
+     "cardName": "メル＝マドラー"
+    }
+   },
+   "then": {
+    "type": "ENERGY_CHARGE_FROM_DECK",
+    "owner": "self",
+    "count": 2
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK06-R11 極装　ハイメイル（group=clean）
+【原文】【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさなければ場に出せない）【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このターンにあなたが手札を２枚以上捨てていた場合、それをバニッシュする。
+        【起】《ターン１回》手札を１枚捨てる：カードを１枚引く。
+        
+【LB】：対戦相手のパワー13000以下のシグニ１体を対象とし、それをバニッシュする。
+  ▶ [HIGH/MISSING]  「あなたの赤のシグニ１体の上」 このシグニを自分の赤のシグニ1体の上に置かなければ場に出せないというライズ条件がJSONに存在しない。
+【JSON】[
+ {
+  "effectId": "WDK06-R11-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "TURN_HAND_DISCARD_GTE",
+    "value": 2
+   },
+   "then": {
+    "type": "BANISH",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "filter": {
+      "cardType": "シグニ"
+     },
+     "upToCount": false
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WDK06-R11-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "discard": 1
+  },
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK06-R11-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "powerRange": {
+      "max": 13000
+     }
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK07-E06 ドント・イート（group=clean）
+【原文】手札から＜調理＞のシグニを１枚捨てる。
+        そうした場合、対象の対戦相手のシグニ１体をダウンし、対象の対戦相手のシグニ１体をデッキの一番上に置く。
+        
+  ▶ [HIGH/WRONG] WDK07-E06-E1 「そうした場合」 捨てた場合の後続処理が自分のターンの場合に限定されており、相手ターンのアタックフェイズに使用するとダウンとデッキトップ送りが実行されない。
+【JSON】[
+ {
+  "effectId": "WDK07-E06-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN",
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "青",
+     "count": 2
+    },
+    {
+     "color": "無",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ",
+       "story": "調理"
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "DOWN",
+        "target": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         },
+         "upToCount": false
+        }
+       },
+       {
+        "type": "TRANSFER_TO_DECK",
+        "source": {
+         "type": "SIGNI",
+         "owner": "opponent",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ"
+         }
+        },
+        "shuffle": false,
+        "position": "top"
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK07-E13 コードイート　ポッキン（group=clean）
+【原文】【自】：あなたのターン終了時、このシグニに【アクセ】が付いている場合、カードを１枚引く。
+        
+  ▶ [MED/MISSING] WDK07-E13-E1 「あなたのターン終了時」 発動タイミングを自分のターン終了時に限定する条件がJSONにない。
+【JSON】[
+ {
+  "effectId": "WDK07-E13-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_TURN_END"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "THIS_CARD_IS_ACCED"
+   },
+   "then": {
+    "type": "DRAW",
+    "owner": "self",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK07-Y08 イクエス・ディフェンス（group=clean）
+【原文】ベット―《コインアイコン》ターン終了時まで、対象の対戦相手のシグニ１体は能力を失い、対象の対戦相手のシグニ１体は「【常】：アタックできない。
+        」を得る。
+        あなたがベットしていた場合、追加でターン終了時まで、対象の対戦相手のセンタールリグ１体は「【常】：アタックできない。
+        」を得る。
+        
+  ▶ [HIGH/MISSING] WDK07-Y08-E1 「シグニ１体は「【常】」 対戦相手のシグニ1体にターン終了時まで「アタックできない」を与える処理が欠落している。
+【JSON】[
+ {
+  "effectId": "WDK07-Y08-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 3
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "REMOVE_ABILITIES",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1
+     },
+     "until": "UNTIL_END_OF_TURN"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_BETTING"
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "LRIG",
+       "owner": "opponent",
+       "count": 1
+      },
+      "keyword": "アタックできない",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK07-Y13 羅植　クジャクソウ（group=clean）
+【原文】【出】エナゾーンから＜植物＞のシグニ２枚をトラッシュに置く：対戦相手のレベル３以下のシグニ１体を対象とし、あなたのターンの場合、それを手札に戻す。
+        
+  ▶ [LOW/WRONG] WDK07-Y13-E1 「シグニ１体を対象とし」 原文ではターン所有者の判定前に対象を選ぶが、JSONでは自分のターンの場合にだけ対象を選ぶ構造になっている。
+【JSON】[
+ {
+  "effectId": "WDK07-Y13-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energyTrash": {
+    "count": 2,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "植物"
+    }
+   }
+  },
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "TURN_OWNER",
+    "owner": "self"
+   },
+   "then": {
+    "type": "BOUNCE",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "upToCount": false,
+     "filter": {
+      "cardType": "シグニ",
+      "level": {
+       "max": 3
+      }
+     }
+    },
+    "optional": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK08-Y09 鍵型闘娘　翠子（group=clean）
+【原文】【常】：あなたのシグニのパワーを＋1000する。
+        【出】：あなたのデッキの上からカードを３枚公開する。
+        その中からすべての緑のカードをエナゾーンに置き、残りをトラッシュに置く。
+        【起】《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋20000する。
+        
+  ▶ [HIGH/WRONG] WDK08-Y09-E2 「すべての緑のカードをエナゾーンに置き」 公開した緑のカードをすべてエナゾーンに置く原文に対し、後続のENERGY_CHARGEの対象枚数が1枚になっている。
+【JSON】[
+ {
+  "effectId": "WDK08-Y09-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": 1000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK08-Y09-E2",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "REVEAL_AND_PICK",
+   "owner": "self",
+   "revealCount": 3,
+   "filter": {
+    "color": "緑"
+   },
+   "pickCount": "ALL",
+   "pickNoun": "カード",
+   "then": {
+    "type": "ENERGY_CHARGE",
+    "target": {
+     "type": "DECK_CARD",
+     "owner": "self",
+     "count": 1
+    }
+   },
+   "remainder": {
+    "location": "trash",
+    "position": "bottom"
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK08-Y09-E3",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS"
+  ],
+  "cost": {
+   "trash_key": true
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": 20000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK08-Y17 幻水　ケロモドキ（group=clean）
+【原文】【出】《緑》：あなたの手札から＜水獣＞のシグニを３枚公開する。
+        そうした場合、ターン終了時まで、このシグニのパワーを＋1000し、このシグニは【ランサー】を得る。
+        （【ランサー】か【Ｓランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロス１枚をクラッシュする。
+        対戦相手のライフクロスが無い場合【Ｓランサー】を持つシグニは代わりにダメージを与える）
+【LB】：カードを１枚引く。
+  ▶ [MED/MISSING] WDK08-Y17-E1 「パワーを＋1000し」 手札から水獣のシグニ3枚を公開した場合に、このシグニのパワーをターン終了時まで＋1000する処理が欠落している。
+  ▶ [MED/WRONG] WDK08-Y17-E1 「そうした場合」 後続効果の条件は水獣のシグニ3枚を公開できたことだが、JSONでは自分のターンであることを条件にしている。
+【JSON】[
+ {
+  "effectId": "WDK08-Y17-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "REVEAL",
+     "source": {
+      "type": "HAND_CARD",
+      "owner": "self",
+      "count": 3,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ",
+       "story": "水獣"
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "IS_MY_TURN"
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "SIGNI",
+       "owner": "self",
+       "count": 1,
+       "filter": {
+        "thisCardOnly": true
+       }
+      },
+      "keyword": "ランサー",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK08-Y17-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK10-006 ブラッディ・ストライク（group=clean）
+【原文】対戦相手のシグニ２体を対象とし、ターン終了時まで、それらのパワーをそれぞれ－15000する。
+        （１体のシグニだけに使用することはできない）
+  ▶ [HIGH/WRONG] WDK10-006-E1 「ターン終了時まで」 パワー－15000はターン終了時まで継続する効果だが、durationがINSTANTになっている。
+【JSON】[
+ {
+  "effectId": "WDK10-006-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 3
+    },
+    {
+     "color": "無",
+     "count": 3
+    }
+   ]
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 2,
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": -15000
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK10-007 サーベイジ・イリュージョン（group=clean）
+【原文】ターン終了時まで、対象の対戦相手のシグニ１体のパワーを－8000する。
+        対戦相手の場にキーがある場合、あなたのトラッシュから対象の＜龍獣＞のシグニ１枚を場に出す。
+        そのシグニの【出】能力は発動しない。
+        
+  ▶ [HIGH/WRONG] WDK10-007-E1 「ターン終了時まで」 パワー－8000はターン終了時まで継続する効果だが、durationがINSTANTになっている。
+【JSON】[
+ {
+  "effectId": "WDK10-007-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "POWER_MODIFY",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     },
+     "delta": -8000
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "HAS_KEY_IN_FIELD",
+      "owner": "opponent"
+     },
+     "then": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "HAS_CARD_IN_FIELD",
+         "owner": "opponent",
+         "filter": {
+          "cardType": "キー"
+         }
+        },
+        "then": {
+         "type": "ADD_TO_FIELD",
+         "owner": "self",
+         "source": {
+          "type": "TRASH_CARD",
+          "owner": "self",
+          "count": 1,
+          "upToCount": false,
+          "filter": {
+           "cardType": "シグニ",
+           "story": "龍獣"
+          }
+         },
+         "suppressOnPlay": true
+        }
+       }
+      ]
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK10-022 テクニカル・ボア（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜龍獣＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、あなたのトラッシュから対象の＜龍獣＞のシグニ１枚を手札に加える。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [HIGH/WRONG] WDK10-022-E1 「そうした場合」 手札回収の条件が「対象のシグニを実際にトラッシュへ置いた場合」ではなく、自分のターンであることになっている。
+【JSON】[
+ {
+  "effectId": "WDK10-022-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "龍獣"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "TRANSFER_TO_HAND",
+         "source": {
+          "type": "TRASH_CARD",
+          "owner": "self",
+          "count": 1,
+          "upToCount": false,
+          "filter": {
+           "cardType": "シグニ",
+           "story": "龍獣"
+          }
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK11-012 ＧＦ　クローネ（group=clean）
+【原文】【出】：対戦相手のシグニ１体を対象とし、あなたの場に《ＧＦ　イザベラ》がある場合、それを手札に戻す。
+        
+  ▶ [LOW/WRONG] WDK11-012-E1 「シグニ１体を対象とし」 原文では《ＧＦ　イザベラ》の有無を確認する前に対象を選ぶが、JSONでは条件成立時にだけ対象を選ぶ。
+【JSON】[
+ {
+  "effectId": "WDK11-012-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "HAS_CARD_IN_FIELD",
+    "owner": "self",
+    "filter": {
+     "cardName": "ＧＦ　イザベラ"
+    }
+   },
+   "then": {
+    "type": "BOUNCE",
+    "target": {
+     "type": "SIGNI",
+     "owner": "opponent",
+     "count": 1,
+     "upToCount": false,
+     "filter": {
+      "cardType": "シグニ"
+     }
+    },
+    "optional": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK11-022 モーニング・コール（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①あなたの＜英知＞のシグニ１体を対象とし、それを場からトラッシュに置く。
+        そうした場合、あなたのデッキから＜英知＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK11-022-E1 「そうした場合」 サーチの条件が対象のシグニを実際にトラッシュへ置いたことではなく、自分のターンであることになっている。
+【JSON】[
+ {
+  "effectId": "WDK11-022-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "英知"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "SEARCH",
+         "from": {
+          "location": "deck",
+          "owner": "self"
+         },
+         "filter": {
+          "cardType": "シグニ",
+          "story": "英知"
+         },
+         "maxCount": 1,
+         "then": {
+          "type": "SEQUENCE",
+          "steps": [
+           {
+            "type": "REVEAL"
+           },
+           {
+            "type": "ADD_TO_HAND",
+            "owner": "self"
+           }
+          ]
+         },
+         "afterSearch": {
+          "type": "SHUFFLE_DECK",
+          "owner": "self"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK12-011 羅菌　ヨウサン（group=clean）
+【原文】【常】：【チャーム】が付いているあなたのシグニのパワーを＋3000する。
+        【起】《ターン１回》《緑×0》：ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニは【ランサー】を得る。
+        
+【LB】：対戦相手のパワー8000以上のシグニ１体を対象とし、それをエナゾーンに置く。
+  ▶ [HIGH/WRONG] WDK12-011-E1 「【チャーム】が付いている」 パワー＋3000の対象から【チャーム】が付いているという条件が欠落し、自分の全シグニが対象になっている。
+  ▶ [HIGH/WRONG] WDK12-011-E2 「すべてのシグニは【ランサー】を得る」 【チャーム】付きの自分の全シグニに【ランサー】を与える効果が、自分のシグニ1体に「チャーム」というキーワードを与える効果になっている。
+【JSON】[
+ {
+  "effectId": "WDK12-011-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": 3000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK12-011-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "GRANT_KEYWORD",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1
+   },
+   "keyword": "チャーム",
+   "duration": "UNTIL_END_OF_TURN"
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK12-011-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEND_TO_ENERGY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "powerRange": {
+      "min": 8000
+     }
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK12-013 羅菌　ビオチン（group=clean）
+【原文】【常】：あなたのターンの間、【チャーム】が付いているあなたのシグニのパワーを＋3000する。
+        【起】《ターン２回》《緑》：あなたのトラッシュから対象の＜微菌＞のシグニ１枚を対象のあなたのシグニ１体の【チャーム】にする。
+        
+  ▶ [HIGH/WRONG] WDK12-013-E1 「【チャーム】が付いている」 パワー＋3000の対象から【チャーム】が付いているという条件が欠落し、自分のターン中は自分の全シグニが対象になっている。
+【JSON】[
+ {
+  "effectId": "WDK12-013-E1",
+  "effectType": "CONTINUOUS",
+  "activeCondition": {
+   "type": "TURN_OWNER",
+   "owner": "self"
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": "ALL",
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "delta": 3000
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK12-013-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "ATTACH_CHARM",
+   "charm": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "filter": {
+     "story": "微菌"
+    }
+   },
+   "to": {
+    "type": "SIGNI",
+    "owner": "self",
+    "count": 1
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "twice_per_turn"
+ }
+]
+================================================================================
+■ WDK12-022 修習（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜微菌＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、あなたのエナゾーンから対象のシグニ１枚を手札に加える。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK12-022-E1 「そうした場合」 シグニをトラッシュに置けた場合の条件が、自分のターンであることを判定する条件に置き換わっている。
+【JSON】[
+ {
+  "effectId": "WDK12-022-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "緑",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "微菌"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "TRANSFER_TO_HAND",
+         "source": {
+          "type": "ENERGY_CARD",
+          "owner": "self",
+          "count": 1,
+          "upToCount": false,
+          "filter": {
+           "cardType": "シグニ"
+          }
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK13-001 ミュウ＝バタフライ（group=clean）
+【原文】【出】：あなたのトラッシュから＜宇宙＞のシグニを２枚まで対象とし、それらを手札に加える。
+        【起】《ターン１回》手札から＜宇宙＞のシグニを１枚捨てる：以下の２つから１つを選ぶ。
+        ①対戦相手のレベル２以下のシグニ１体を対象とし、それをバニッシュする。
+        ②対戦相手のトラッシュにあるカード１枚を対象とし、それをゲームから除外する。
+        【起】《ゲーム１回》サイレント《コインアイコン》《コインアイコン》：対戦相手のシグニゾーンにある表向きのすべてのカードをトラッシュに置く。
+        
+  ▶ [HIGH/WRONG] WDK13-001-E3 「表向きのすべてのカード」 対戦相手のシグニゾーンにある表向きの全カードをトラッシュに置く効果が、対戦相手のシグニ1体だけをトラッシュに置く効果になっている。
+【JSON】[
+ {
+  "effectId": "WDK13-001-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "TRANSFER_TO_HAND",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 2,
+    "upToCount": true,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "宇宙"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK13-001-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "handDiscardSigni": {
+    "count": 1,
+    "story": "宇宙"
+   }
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "BANISH",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1,
+       "filter": {
+        "cardType": "シグニ",
+        "level": {
+         "max": 2
+        }
+       },
+       "upToCount": false
+      }
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "EXILE",
+      "target": {
+       "type": "TRASH_CARD",
+       "owner": "opponent",
+       "count": 1
+      }
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK13-001-E3",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "coin": 2
+  },
+  "action": {
+   "type": "TRASH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_game"
+ }
+]
+================================================================================
+■ WDK13-011 羅星　エスキモ（group=clean）
+【原文】【出】《黒》《黒》：あなたのデッキを上から公開されたシグニのレベルの合計が４以上になるまで公開する。
+        その中からシグニを２枚まで手札に加え、残りをトラッシュに置く。
+        【起】《ターン１回》手札から＜宇宙＞のシグニを１枚以上捨てる：この方法で捨てたシグニのレベルの合計と同じレベルを持つ対戦相手のシグニ１体を対象とし、それをバニッシュする。
+        
+【LB】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。
+  ▶ [MED/WRONG] WDK13-011-BURST 「ターン終了時まで」 ライフバーストのパワー－12000がターン終了時まで継続せず、INSTANTとして定義されている。
+【JSON】[
+ {
+  "effectId": "WDK13-011-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 1
+    },
+    {
+     "color": "黒",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "REVEAL_UNTIL",
+     "owner": "self",
+     "stopCondition": {
+      "kind": "levelSum",
+      "threshold": 4,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     },
+     "hit": {
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "count": 2,
+      "upToCount": true,
+      "destination": "hand"
+     },
+     "restDestination": "trash"
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK13-011-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "discardVariable": {
+    "min": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "宇宙"
+    }
+   }
+  },
+  "action": {
+   "type": "BANISH",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ",
+     "levelEqDiscardLevelSum": true
+    },
+    "upToCount": false
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO",
+  "usageLimit": "once_per_turn"
+ },
+ {
+  "effectId": "WDK13-011-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -12000
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK13-014 羅星　ウィッチヘッド（group=clean）
+【原文】【起】《ダウン》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。
+        【起】《ダウン》：対戦相手のレベル３のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。
+        （パワーが０以下のシグニはルールによってバニッシュされる）
+【LB】：カードを１枚引く。
+  ▶ [MED/WRONG] WDK13-014-E2 「対戦相手のレベル３」 対象が対戦相手のレベル3のシグニに限定されず、所有者を問わない任意の対象になっている。
+【JSON】[
+ {
+  "effectId": "WDK13-014-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "down_self": true
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -2000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK13-014-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "down_self": true
+  },
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "any",
+    "count": 1
+   },
+   "delta": -7000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK13-014-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "DRAW",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK13-015 羅星　シーガル（group=clean）
+【原文】【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計以下の場合、ターン終了時まで、それのパワーを－3000する。
+        
+【LB】：【エナチャージ１】
+  ▶ [HIGH/MISSING] WDK13-015-E1 「レベルの合計以下の場合」 自分の場のシグニのレベル合計が対戦相手以下の場合にだけパワーを下げる発動条件が欠落している。
+【JSON】[
+ {
+  "effectId": "WDK13-015-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_ATTACK_SIGNI"
+  ],
+  "action": {
+   "type": "POWER_MODIFY",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "filter": {
+     "cardType": "シグニ"
+    },
+    "upToCount": false
+   },
+   "delta": -3000
+  },
+  "duration": "UNTIL_END_OF_TURN",
+  "mandatory": true,
+  "parseStatus": "AUTO",
+  "triggerScope": "self"
+ },
+ {
+  "effectId": "WDK13-015-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "ENERGY_CHARGE_FROM_DECK",
+   "owner": "self",
+   "count": 1
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK13-022 コズミック・シンクロナイズ（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①あなたの＜宇宙＞のシグニ１体を対象とし、それを場からトラッシュに置く。
+        そうした場合、あなたのデッキの上からこの方法でトラッシュに置いたシグニのレベルと同じ枚数のカードを見る。
+        その中から１枚を手札に加え、残りを好きな順番でデッキの一番下に置く。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK13-022-E1 「そうした場合」 シグニをトラッシュに置けた場合の条件が、自分のターンであることを判定する条件に置き換わっている。
+【JSON】[
+ {
+  "effectId": "WDK13-022-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "宇宙"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "REVEAL_AND_PICK",
+         "owner": "self",
+         "revealCount": {
+          "$ref": "last_processed_level"
+         },
+         "pickCount": 1,
+         "then": {
+          "type": "ADD_TO_HAND",
+          "owner": "self"
+         },
+         "remainder": {
+          "location": "deck",
+          "position": "bottom"
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK14-009 奏楽の鍵主　ウムル（group=clean）
+【原文】【出】：あなたのデッキの上からカードを４枚トラッシュに置く。
+        その後、あなたのトラッシュからシグニ１枚を対象とし、それを場に出す。
+        あなたのセンタールリグが＜タウィル＞の場合、追加でシグニ１枚を対象とし、それを場に出す。
+        【起】《アタックフェイズアイコン》このキーを場からルリグトラッシュに置く：対戦相手のシグニ１体を対象とし、それをダウンする。
+        カードを１枚引く。
+        
+  ▶ [HIGH/WRONG] WDK14-009-E1 「追加でシグニ１枚を対象とし」 条件成立時の追加処理に、トラッシュの自分のシグニ1枚を対象として場に出すという出所・対象種別・枚数の指定がない。
+【JSON】[
+ {
+  "effectId": "WDK14-009-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "DECK_CARD",
+      "owner": "self",
+      "count": 4
+     }
+    },
+    {
+     "type": "ADD_TO_FIELD",
+     "owner": "self",
+     "source": {
+      "type": "TRASH_CARD",
+      "owner": "self",
+      "count": 1,
+      "upToCount": false,
+      "filter": {
+       "cardType": "シグニ"
+      }
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "LRIG_STORY",
+      "owner": "self",
+      "story": "タウィル"
+     },
+     "then": {
+      "type": "ADD_TO_FIELD",
+      "owner": "self"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK14-009-E2",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK_ARTS"
+  ],
+  "cost": {
+   "trash_key": true
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DOWN",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "DRAW",
+     "owner": "self",
+     "count": 1
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK14-012 炎魔の陽杖　トービエ（group=clean）
+【原文】【出】《ビートアイコン》［４枚以下］このシグニと他のシグニ１体を【ビート】にする：あなたのトラッシュから《炎魔の陽杖　トービエ》以外の＜悪魔＞のシグニ１枚を対象とし、それを場に出す。
+        （この能力はあなたの【ビート】が４枚以下であるかぎり有効になる。
+        コストの支払いで【ビート】が５枚以上になっても発動する）（【ビート】はターン終了時まであなたが持ち、その後トラッシュに置かれる）
+  ▶ [HIGH/MISSING] WDK14-012-E1 「このシグニと他のシグニ１体」 発動コストはこのシグニ自身と他のシグニ1体の計2体を【ビート】にするが、JSONはシグニ1体分のコストしか表現していない。
+【JSON】[
+ {
+  "effectId": "WDK14-012-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "condition": {
+   "type": "BEAT_CONDITION",
+   "condText": "４枚以下"
+  },
+  "cost": {
+   "beat_signi": 1
+  },
+  "action": {
+   "type": "ADD_TO_FIELD",
+   "owner": "self",
+   "source": {
+    "type": "TRASH_CARD",
+    "owner": "self",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ",
+     "story": "悪魔",
+     "excludeCardName": "炎魔の陽杖　トービエ"
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK15-008 ハイアングル・バズーカ（group=clean）
+【原文】あなたのシグニの下からカードを合計２枚までトラッシュに置く。
+        その後、この方法でトラッシュに置いたカード１枚につき対戦相手のシグニ１体を対象とし、それらをバニッシュする。
+        
+  ▶ [HIGH/WRONG] WDK15-008-E1 「シグニの下からカードを合計２枚まで」 原文は自分のシグニの下のカードを合計2枚までトラッシュに置くが、JSONは自分のシグニ本体を1体、必ずトラッシュに置く処理になっている。
+【JSON】[
+ {
+  "effectId": "WDK15-008-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 2
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "self",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "BANISH",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": {
+       "$ref": "last_processed_count"
+      },
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK15-022 ニュース・デリバリー（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜ウェポン＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、あなたのトラッシュから対象の＜ウェポン＞のシグニ１枚を手札に加える。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [HIGH/WRONG] WDK15-022-E1 「そうした場合」 選択肢①の回収条件が「シグニをトラッシュに置けた場合」ではなくIS_MY_TURNになっており、トラッシュ送りの成否と連動していない。
+【JSON】[
+ {
+  "effectId": "WDK15-022-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "ウェポン"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "TRANSFER_TO_HAND",
+         "source": {
+          "type": "TRASH_CARD",
+          "owner": "self",
+          "count": 1,
+          "upToCount": false,
+          "filter": {
+           "cardType": "シグニ",
+           "story": "ウェポン"
+          }
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK16-06S コードＶＬ　笹木咲（group=clean）
+【原文】【出】：あなたの場にカード名に《凛》を含むセンタールリグがいる場合、対戦相手は手札を１枚捨てる。
+        あなたの登録者数が１００万人を達成している場合、代わりに対戦相手の手札を１枚見ないで選び、捨てさせる。
+        
+【LB】：対戦相手のシグニ１体を対象とし、それをダウンする。対戦相手は手札を１枚捨てる。
+  ▶ [HIGH/MISSING] WDK16-06S-E1 「《凛》を含むセンタールリグ」 この出現時能力の発動条件である、場にカード名に《凛》を含むセンタールリグがいることがJSONにない。
+【JSON】[
+ {
+  "effectId": "WDK16-06S-E1",
+  "effectType": "AUTO",
+  "timing": [
+   "ON_PLAY"
+  ],
+  "action": {
+   "type": "CONDITIONAL",
+   "condition": {
+    "type": "SUBSCRIBER_COUNT",
+    "operator": "gte",
+    "value": 100
+   },
+   "then": {
+    "type": "TRASH",
+    "target": {
+     "type": "HAND_CARD",
+     "owner": "opponent",
+     "count": 1,
+     "blind": true
+    }
+   },
+   "else": {
+    "type": "TRASH",
+    "target": {
+     "type": "HAND_CARD",
+     "owner": "opponent",
+     "count": 1
+    }
+   }
+  },
+  "duration": "INSTANT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK16-06S-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "DOWN",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1,
+      "filter": {
+       "cardType": "シグニ"
+      },
+      "upToCount": false
+     }
+    },
+    {
+     "type": "TRASH",
+     "target": {
+      "type": "HAND_CARD",
+      "owner": "opponent",
+      "count": 1
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK16-06T コードＶＬ　椎名唯華（group=clean）
+【原文】【常】：あなたの場にカード名に《美兎》を含むセンタールリグがいるかぎり、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。
+        あなたの登録者数が１００万人を達成している場合、代わりに対戦相手のシグニ１体を対象とし、それを手札に戻す。
+        」を得る。
+        
+【LB】：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  ▶ [HIGH/MISSING] WDK16-06T-E1 「《美兎》を含むセンタールリグ」 能力を得る条件である、場にカード名に《美兎》を含むセンタールリグがいることがJSONにない。
+【JSON】[
+ {
+  "effectId": "WDK16-06T-E1",
+  "effectType": "CONTINUOUS",
+  "action": {
+   "type": "GRANT_FIELD_SIGNI_ABILITY",
+   "thisCardOnly": true,
+   "abilities": [
+    {
+     "effectId": "WDK16-06T-E1-G",
+     "effectType": "AUTO",
+     "timing": [
+      "ON_ATTACK_SIGNI"
+     ],
+     "action": {
+      "type": "CONDITIONAL",
+      "condition": {
+       "type": "SUBSCRIBER_COUNT",
+       "operator": "gte",
+       "value": 100
+      },
+      "then": {
+       "type": "BOUNCE",
+       "target": {
+        "type": "SIGNI",
+        "owner": "opponent",
+        "count": 1,
+        "upToCount": false,
+        "filter": {
+         "cardType": "シグニ"
+        }
+       },
+       "optional": false
+      },
+      "else": {
+       "type": "BOUNCE",
+       "target": {
+        "type": "SIGNI",
+        "owner": "opponent",
+        "count": 1,
+        "upToCount": false,
+        "filter": {
+         "cardType": "シグニ",
+         "level": {
+          "max": 3
+         }
+        }
+       },
+       "optional": false
+      }
+     },
+     "duration": "INSTANT",
+     "mandatory": true,
+     "parseStatus": "AUTO",
+     "triggerScope": "self"
+    }
+   ]
+  },
+  "duration": "PERMANENT",
+  "mandatory": true,
+  "parseStatus": "AUTO"
+ },
+ {
+  "effectId": "WDK16-06T-BURST",
+  "effectType": "LIFE_BURST",
+  "timing": [
+   "ON_LIFE_BURST"
+  ],
+  "action": {
+   "type": "BOUNCE",
+   "target": {
+    "type": "SIGNI",
+    "owner": "opponent",
+    "count": 1,
+    "upToCount": false,
+    "filter": {
+     "cardType": "シグニ"
+    }
+   },
+   "optional": false
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK16-09 マスト・ハイド（group=clean）
+【原文】ターン終了時まで、対象の対戦相手のシグニ１体は「【常】：アタックできない。
+        」を得る。
+        あなたの登録者数が７０万人を達成している場合、追加でターン終了時まで、対象の対戦相手のシグニ１体は「【常】：アタックできない。
+        」を得る。
+        あなたの登録者数が１００万人を達成している場合、追加でターン終了時まで、対象の対戦相手のセンタールリグ１体は「【常】：アタックできない。
+        」を得る。
+        
+  ▶ [MED/WRONG] WDK16-09-E1 「センタールリグ１体」 登録者数100万人時の対象がセンタールリグに限定されず、対戦相手のLRIG全般になっている。
+【JSON】[
+ {
+  "effectId": "WDK16-09-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "ATTACK"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "白",
+     "count": 1
+    },
+    {
+     "color": "無",
+     "count": 1
+    }
+   ]
+  },
+  "action": {
+   "type": "SEQUENCE",
+   "steps": [
+    {
+     "type": "GRANT_KEYWORD",
+     "target": {
+      "type": "SIGNI",
+      "owner": "opponent",
+      "count": 1
+     },
+     "keyword": "アタックできない",
+     "duration": "UNTIL_END_OF_TURN"
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "SUBSCRIBER_COUNT",
+      "operator": "gte",
+      "value": 70
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "SIGNI",
+       "owner": "opponent",
+       "count": 1
+      },
+      "keyword": "アタックできない",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    },
+    {
+     "type": "CONDITIONAL",
+     "condition": {
+      "type": "SUBSCRIBER_COUNT",
+      "operator": "gte",
+      "value": 100
+     },
+     "then": {
+      "type": "GRANT_KEYWORD",
+      "target": {
+       "type": "LRIG",
+       "owner": "opponent",
+       "count": 1
+      },
+      "keyword": "アタックできない",
+      "duration": "UNTIL_END_OF_TURN"
+     }
+    }
+   ]
+  },
+  "duration": "INSTANT",
+  "mandatory": false,
+  "parseStatus": "AUTO"
+ }
+]
+================================================================================
+■ WDK17-022 アクター・ワードローブ（group=clean）
+【原文】以下の２つから１つを選ぶ。
+        ①対象のあなたの＜美巧＞のシグニ１体を場からトラッシュに置く。
+        そうした場合、あなたのトラッシュから対象の＜美巧＞のシグニ１枚を手札に加える。
+        ②【エナチャージ１】（あなたのデッキの一番上のカードをエナゾーンに置く）
+  ▶ [MED/WRONG] WDK17-022-E1 「そうした場合」 選択肢①のトラッシュ回収条件が、シグニを実際にトラッシュへ置いたことではなく自分のターンであることになっている。
+【JSON】[
+ {
+  "effectId": "WDK17-022-E1",
+  "effectType": "ACTIVATED",
+  "timing": [
+   "MAIN"
+  ],
+  "cost": {
+   "energy": [
+    {
+     "color": "黒",
+     "count": 0
+    }
+   ]
+  },
+  "action": {
+   "type": "CHOOSE",
+   "choose_count": 1,
+   "from_count": 2,
+   "choices": [
+    {
+     "choiceId": "c0",
+     "label": "選択肢1",
+     "action": {
+      "type": "SEQUENCE",
+      "steps": [
+       {
+        "type": "TRASH",
+        "target": {
+         "type": "SIGNI",
+         "owner": "self",
+         "count": 1,
+         "filter": {
+          "cardType": "シグニ",
+          "story": "美巧"
+         }
+        }
+       },
+       {
+        "type": "CONDITIONAL",
+        "condition": {
+         "type": "IS_MY_TURN"
+        },
+        "then": {
+         "type": "TRANSFER_TO_HAND",
+         "source": {
+          "type": "TRASH_CARD",
+          "owner": "self",
+          "count": 1,
+          "upToCount": false,
+          "filter": {
+           "cardType": "シグニ",
+           "story": "美巧"
+          }
+         }
+        }
+       }
+      ]
+     }
+    },
+    {
+     "choiceId": "c1",
+     "label": "選択肢2",
+     "action": {
+      "type": "ENERGY_CHARGE_FROM_DECK",
+      "owner": "self",
+      "count": 1
      }
     }
    ]
