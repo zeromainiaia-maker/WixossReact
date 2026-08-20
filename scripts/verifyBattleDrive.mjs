@@ -24421,12 +24421,12 @@ async function driveV20(page, H, payBoth) {
     }
     const st = await H.queryState();
     H.log(`  v20[${s}] -> ${did ?? 'なし'} | payBoth=${payBoth} discarded=${discarded} banished=${banished} step1=${step1Chosen} step2=${step2Chosen} zoned=${zoned} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
-    if (!payBoth && step1Chosen && !st?.pendingEffect) {
+    if (!payBoth && step1Chosen && endClicks >= 3 && !st?.pendingEffect) {
       const inTrash = (st.host.trashCards ?? []).some(n => n?.startsWith('WXDi-P10-039'));
       const onField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
       return {
-        pass: inTrash && !onField,
-        detail: `①スキップ後＝トラッシュに残置=${inTrash}・場に無い=${!onField}（②以降は出ないはず）・hHand=${JSON.stringify(st.host.handCards)}`,
+        pass: inTrash && !onField && !sawPendingAfterSkip,
+        detail: `①スキップ→ターン終了を跨いでも②は出ない＝トラッシュに残置=${inTrash}・場に無い=${!onField}・skip後にpendingが出た=${sawPendingAfterSkip}（(cl) 予約非設置の確認・ターン終了${endClicks}回）・hHand=${JSON.stringify(st.host.handCards)}`,
       };
     }
     // 🔴①をスキップしたのに②を飛ばして③（ADD_TO_FIELD）のSELECT_TARGETが出た＝実バグ確認。
