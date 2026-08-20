@@ -67,6 +67,23 @@
 
 ## 2026-08-19 整理㊾（§4 恒久指標・続き580時点値の退避・続き586）
 
+- **2026-08-20 続き588（Opusタスク12 第1バッチ＝配線漏れ6件を残0クローズ）後 最新値（本行が直近の正）**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307→2312**（+5＝新設 golden 5本）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
+  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
+  🆕**同型★ 0**（`node scripts/groupSimilar.mjs --all` 再実行済み＝続き552d 以来の再計測）、
+  **被覆マトリクス miss 190 据置**（未再計測）、
+  `parserWorklist` held **103枚 / 署名42群 据置**、`docs/_partial_fresh.json` **6カード 据置**、
+  **live 効果総数 10693 据置**（live 変更は `WXDi-P10-041-E3` の1効果のみ＝per-effect diff **changed 1／added 0／removed 0／outlier 0**）。
+  version **0.502 据置**。**実機シナリオ定義総数 475 据置**（今回シナリオ非改変）。
+  （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  **Opusタスク12＝在庫6件**（(cxliv)(cxlv)(cxlvi)(cxlvii)(cxlviii)(cxlix)／🏁**(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii) を残0クローズ**）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫6件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
+  ⚠🔴**今回の6件はすべて実機未検証**（Codex 環境はネットワーク遮断で `verifyBattleDrive.mjs` を実行できない）＝**Sonnet 側 §7 の最優先**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き586）。（2026-08-20 続き589 で退避）
+
 - **🆕 2026-08-19 続き580（§7 実機検証6件＝V-28 A群6件全て残0クローズ・engineバグ0）後 最新値**：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307 据置**、
   smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings）、
@@ -3479,6 +3496,18 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 > 3. **engine/parser/decompiler を触ったら `npm run gates`・シート再生成は `npm run regen`**（§12）。バグは golden に1件足してから直す。
 
 ## 2026-08-20 整理㊾（Opusタスク12 第1バッチ＝配線漏れ6件の残0クローズ・登録行の原文を退避）
+
+### 🆕 第2バッチ（続き589）で残0クローズした3件の登録行原文と結末
+
+> **2026-08-20 続き589 に (cxliv)(cxlv)(cxlviii) を残0クローズ**（実装は Codex／指示書・検証・実機検証は Claude）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き589）。
+> **結末の対照**＝
+> - **(cxliv)**：登録は「新しい `activeCondition` 型を新設するか collector に＜宇宙＞判定を足せ」。**実測は parser も engine も完備で live が stale だっただけ**＝コード変更ゼロ・held 採用のみで解決。実機 `v39ConditionGapNoStorySigni` が FAIL→PASS 反転。
+> - **(cxlv)**：登録は「parser の `then` 欠落＋resolver にも同型の穴＝二重の穴」。**resolver（`resumeSearch`）は元から既定へフォールバックしており穴は無かった**＝parser 1行＋UI 防御2箇所で解決。実機は新 `v40UseSearchedSpellOrTrashResolves` で PASS。
+> - **(cxlviii)**：登録は「`WX24-P4-052-E2` 1枚の表現取り違え」。**実測は母集団18カード・誤り7効果**（parser 修正4＝`WX12-031-E1` `WXK11-030-E1` `WX24-P4-052-E2` `WX24-P4-104-E1`／fresh は正しく live だけ古い3＝`WX17-029-E1` `WX25-P1-083-E2` `WX25-P1-102-E2`）。真因は `parseSentencePart1.ts:1620` の `!t.includes('対戦相手')` 全文スキャン＋`WX10-048` の原文 whitelist。実機は新 `v45cPaySelfBanishRemovesOnlyFiltered`／`v45cSkipSelfBanishDoesNothing` の対で PASS。
+
+- [ ] **🆕(cxliv) 続き581＝`WX25-P2-014-E1`（明星の使者　サシェ・モティエ）の「あなたの場に＜宇宙＞のシグニがあるかぎり」条件節が丸ごと未実装**＝実機で確認（`v39ConditionGapNoStorySigni`・意図的FAIL）。原文「【常】《相手ターン》：**あなたの場に＜宇宙＞のシグニがあるかぎり**、対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない」に対し、JSONの`activeCondition`は`{type:'TURN_OWNER',owner:'opponent'}`のみ＝宇宙シグニ所持を見るフィルタが存在しない（`checkActiveCondition`の全ケース・`src/data/parsers/*.ts`を`grep`＝該当条件型・パーサ規則とも0件）。**原因＝`collectOppLrigAttackExtraCost`（`effectEngine.ts:4539`）が`checkActiveCondition`（TURN_OWNERのみ）しか見ておらず、＜宇宙＞シグニの有無を一切チェックしない**。実機シナリオ＝guestの場から＜宇宙＞シグニを完全に除いた盤面でも、hostのルリグアタックボタンは変わらず「アタック（《無》×2）」のまま＝条件が無条件で常時成立（2回連続で同一結果）。実害＝この効果を持つルリグ（現状liveは`WX25-P2-014`1枚）が、本来ゲートが掛からないはずの盤面（＜宇宙＞シグニ不在）でも対戦相手のルリグアタックを《無》×2の前払いなしでは阻む＝過剰実行。修正方針＝`collectOppLrigAttackExtraCost`に`ownerState.field`から＜宇宙＞（story）フィルタの充足チェックを追加するか、汎用の「自分の場に〈story〉のシグニがあるかぎり」型`activeCondition`を新設して`parseSentencePart3.ts:314`付近の`OPP_LRIG_ATTACK_COST`規則で前置節を持ち上げる。**修正時は同型構文（自分の場に〈story〉があるかぎり系の条件節）が他のSTUB/CONTINUOUSにも埋もれていないか横展開確認が要る**。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v39LrigAttackCostBlocked`／`v39LrigAttackCostPaid`（残0クローズ）／`v39ConditionGapNoStorySigni`（`order`登録済み・意図的FAIL）。詳細はBUGFIXES 2026-08-19続き581。
+- [ ] **🆕(cxlv) 続き582＝`WX20-077-E2`（ドライ＝アコニチン）の`SEARCH`アクションに必須フィールド`then`が無く、モーダルがcrashして画面が真っ黒になる**＝実機で確認（`v40UseSearchedSpellOrTrashCrash`・意図的FAIL・2回連続同一結果）。原文「あなたのトラッシュにカード名に《リカブト》を含むカードがある場合、あなたのデッキから《バイオレンス・スプラッシュ》を探す」の【出】でSEARCHが発火した瞬間、`pendingEffect=SEARCH`のまま画面が真っ黒（`document.body.innerText`がほぼ空）になり進行不能。**原因＝`src/data/parsers/parseSentencePart3.ts:1856-1868`が生成するSEARCHアクションに必須フィールド`then`（`types/effects.ts:1356`＝`then: EffectAction`）が無い**（`afterSearch`だけ設定）。`EffectInteractionModal.tsx:119`（`const act = inter.thenAction; ... act.type === ...`）が`undefined.type`を読みReactごとcrash（pageerrorのスタックと一致）。**同じ前提の穴がpick解決側（`effectExecutor.ts:8189`以降の`pending.thenAction.type`無条件参照）にもあり、描画をバイパスできても resolver 側でも同型でcrashする二重の穴**。母集団は実測で live 上この1件のみ（`then`欠落のSEARCHアクションを全JSON走査＝435件中1件）。修正方針＝(a) 当該パーサ規則に`then: {type:'ADD_TO_HAND', owner:'self'}`相当を明示的に足す（後続の`USE_SEARCHED_SPELL_OR_TRASH`が改めて使用/トラッシュへ振り分ける前提の一時受け皿として自然）(b) `EffectInteractionModal.tsx:119`・`effectExecutor.ts:8189`以降を`thenAction`未定義でも安全にフォールバックするよう防御的にする（同型のparser作り忘れが別カードで再発してもUI全体を落とさないため）。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v40UseSearchedSpellOrTrashCrash`（`order`登録済み）。詳細はBUGFIXES 2026-08-19続き582。
+
 
 > **2026-08-20 続き588 に (cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii) を残0クローズ**（実装は Codex／指示書と検証は Claude）。結末・教訓・検証内容は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き588）と [PLAN.md](./PLAN.md) §3 のクローズ節。以下は**登録時の原文**（PLAN §4 ② から退避）。⚠**3件は登録時の見立てが実測と食い違っていた**＝(cxl) の「少なくとも3枚」／(cxlii)(b) の「caller 0件」／(cxxxviii) の「別ソースの仕組みが要る」。読むときは結末側と必ず突き合わせること。
 

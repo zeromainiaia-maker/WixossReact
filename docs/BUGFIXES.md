@@ -30,6 +30,26 @@ live のベースライン `1a48fcc45` 比 per-effect diff は **changed 10 / ad
 
 golden は既存ブロックを削除・改変せず **+93/-0**、7テスト（A群4効果を各1 E2E、SEARCH live E2E、採用live構造、宇宙条件collector E2E）を追加して **2312→2319 PASS**。`npm run regen` 実行済み。`npm run gates` は typecheck PASS / golden **2319** / smoke **10693**・CRASH/HANG/INVARIANT全0 / fuzz 全0 / census **783（baseline 783）** / census:stubs A群0・C群0 / manual-fields 0 / lint **0 errors・263 warnings**。`node scripts/groupSimilar.mjs --all` は同型グループ **265**・総カード **5986**・同型★ **0**。報告直前の `build:effects`→`heldReview` 実測は held **99カード／40署名群**（103/42→99/40）、`_partial_fresh` **6カード**。
 
+### Claude 側の検証（CODEX_GUIDE §7・Codex の申告は鵜呑みにしない）
+
+ゲート・生パース diff・per-effect diff・held・エンコーディングを**すべて独立に再実行**し、Codex の申告値と一致することを確認した。**申告の外れは0件**。
+
+- 🆕**生パース diff（全10695効果・ベースライン `1a48fcc45` の parser と比較）＝changed 5 / added 0 / removed 0**。`git worktree` でベースラインを別ツリーに展開し、同一 CSV を両方の parser に通して effectId 単位で突き合わせた。変化は `WX12-031-E1` `WXK11-030-E1` `WX24-P4-052-E2` `WX24-P4-104-E1`（群A）と `WX20-077-E2`（群B）**だけ**＝ガード書き換えの波及は0。⚠**live の per-effect diff だけでは足りない**（held に落ちた変化は live に映らない＝CODEX_GUIDE §5-5b）ので、この生パース diff が本命の証明になる。
+- **live per-effect diff＝changed 10 / added 0 / removed 0 / outlier 0**（申告どおり。10効果の内訳も一致）。**`npm run build:effects` を再実行しても同じ10効果のまま**＝採用値が harvest マージで復元されないことを確認（Codex 側は `0xC0000142` でこの最終再測だけ実行できていなかった）。
+- **held 集合の before/after 差分＝103→99・消えたのは `WX17-029` `WX25-P1-083` `WX25-P1-102` `WX25-P2-014` の4枚のみ・🆕新規 held は0枚**。`_partial_fresh` 6カード据置。
+- **エンコーディング**＝全変更17ファイル（`docs/BUGFIXES.md` を含む）で U+FFFD・3連続 `?`・先頭 BOM のいずれも新規増0。
+- **既存不変の機械的証明**＝`scripts/goldenTest.ts` は **+93/-0**（追加のみ）。`docs/PLAN.md`／`docs/PLAN_PROGRESS.md`／`scripts/verifyBattleDrive.mjs` は Codex の作業中 diff 空。
+- ⚠**一度 lint が 227 errors で赤くなったが、原因は検証側（Claude）が作った `tmp_base_wt` ワークツリーと `tmp_*.ts`**＝eslint は `.` を走査するので**リポジトリ内に置いたベースライン worktree ごと lint される**。撤去したら 0 errors / 263 warnings へ復帰した。**生パース diff 用の worktree はリポジトリ外へ置くか、計測後すぐ `git worktree remove` する**こと。
+
+### 🆕 実機検証（`verifyBattleDrive.mjs`・3件とも PASS＝意図的FAILからの反転を確認）
+
+Codex 環境はネットワーク遮断で実機を回せないため Claude が引き取った。**3件とも修正が実機で効いていることを確認**。
+
+- **(cxliv) `v39ConditionGapNoStorySigni` ＝ FAIL→PASS 反転**。＜宇宙＞シグニ不在の盤面でルリグアタックボタンが「アタック（《無》×2）」→**「アタック」**（前払いゲート無し）に変わった＝条件節が実機で効いている。
+- **(cxlv) 旧 `v40UseSearchedSpellOrTrashCrash` → 新 `v40UseSearchedSpellOrTrashResolves` ＝ PASS**。SEARCH モーダルが正常描画され（「手札に加えるカードを1枚まで選んでください」＋候補《バイオレンス・スプラッシュ》）、既存の「使用/トラッシュ」二択まで到達し、トラッシュ枝で**手札に残らない**ことまで確認。⚠**旧シナリオは「SEARCH が pending のままなら FAIL」という記録専用**で、修正後も FAIL を返し続ける（＝シナリオの腐り）ため正常系へ書き換えた。**黒画面かどうかを本文長で判定していなかったので、スクリーンショットを見るまで「まだ壊れている」と誤読しかけた**＝バグ再現シナリオは**修正後にどう見えるか**まで書いておくこと。
+- **(cxlviii) 旧 `v45cDoubleOpponentBanishConfirmsMismatch` → 新 `v45cPaySelfBanishRemovesOnlyFiltered`／`v45cSkipSelfBanishDoesNothing`（支払い／辞退の対）＝両方 PASS**。①任意コストの候補列が **`["WX24-P4-052#48501"]`＝自分自身1体だけ**（旧バグでは相手シグニだった）②払うと **host 場が空になり、guest はパワー3000だけが消え 15000 は残る**（②の候補列も `["WD01-013#48511"]` だけ＝フィルタ外は候補にすら入らない）③辞退すると **自分も相手も1体も消えない**（did-it ゲート）。旧シナリオは「相手2体消滅で PASS」という記録専用だったので廃止。
+- ⚠**まだ実機未検証なのは続き588 の6件**（`v04TanabataLeaveFieldE3` ほか）＝§7 の最優先として据え置き。
+
 ## 2026-08-20（続き588・Opus 5＋Codex）— Opusタスク12 第1バッチ＝既存機構が特定入口にだけ届いていなかった配線漏れ6件を残0クローズ（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)）
 
 新しい action／Condition／PlayerState フィールドは作らず、既存ヘルパ・既存コンテキストだけを6入口へ通した。`npm run gates` 全緑（typecheck PASS / golden **2312** / smoke **10693**・全異常0 / fuzz 全異常0 / census **783** / census:stubs A群0・C群0 / manual-fields 0 / lint 0 errors・**263 warnings**）。`npm run regen` と `node scripts/groupSimilar.mjs --all` も実行し、カード単位の同型★は **0**。実機ハーネスはネットワーク遮断環境のため未実行で、既存 `scripts/verifyBattleDrive.mjs` は変更していない。

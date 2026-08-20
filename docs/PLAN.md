@@ -83,7 +83,7 @@
 
 | # | タスク | 種別 | 規模 | 残っている内容 |
 |---|---|---|---|---|
-| 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **在庫6件**＝(cxliv)(cxlv)(cxlvi)(cxlvii)(cxlviii)(cxlix)。🏁**2026-08-20 続き588（第1バッチ）で (cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii) を残0クローズ**（＝「既存機構が特定の入口にだけ届いていない配線漏れ」6件・実装は Codex／指示と検証は Claude）。**次は parser/表現系3件（(cxliv)(cxlv)(cxlviii)）を第2バッチに束ねる**のが機構的に揃う |
+| 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **在庫3件**＝(cxlvi)(cxlvii)(cxlix)。🏁**2026-08-20 続き589（第2バッチ）で (cxliv)(cxlv)(cxlviii) を残0クローズ**（＝parser／表現系＋stale live の採用・実装は Codex／指示と検証と実機検証は Claude）。🏁**続き588（第1バッチ）で (cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)**。**残る3件は機構がそれぞれ別なので1件ずつ切る**＝(cxlvi) は再現手順の確立が先／(cxlvii) は波及が広い構造／(cxlix) は UI レース |
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L | effect 構造そのものが原文とズレたカードの再parse。**🆕2026-08-07 続き369 で「低優先」を解除**＝§5d の欠落パターン D（重度混線）と同じ母集団で、§5c 店じまい後の主戦場のひとつ  🆕**続き377n 追加＝`WXK05-052-E1`**（「対戦相手のシグニを２体まで対象とし、**このシグニと同じシグニゾーンに【シード】がある場合**、次のターンの間、それらは「【常】：アタックできない。」を得る」＝**条件節の【シード】をキーワードと誤読**して「あなたのシグニ1体に【シード】を付与」に化けている。⚠**体数だけ広げると誤りを増幅**するので golden にトリップワイヤ設置済み）。 |
 | 21 | 🚧**§5d-0 工程改善3件（次セッション最優先・Opus）** | 計測＋スクリプト新設 | S（1セッション想定） | ①`npm run census:wiring` 常設化（語彙×入口の被覆マトリクス。試作で134件検出）②残1162の真バグ率を無作為20件で再測定 ③worklist を作業種別へ組み替え。**2026-08-07 続き375 でユーザー合意・通常バッチより優先**。設計・根拠・実測値は §5d-0 |
 | 20 | **§5d 1効果ずつの原文照合（新設・現在の主戦場）** | 原文照合＋JSON/parser | L（母集団 約874効果） | §5c の文型バッチが届かない**単発テール**。欠落パターン A〜D で分類し、**繰り返し出るパターンは parser へ還元**する。入口は §5d 末尾の照合済み12件 |
@@ -91,7 +91,7 @@
 
 > **✅消化済のタスク（1〜9・11・14・16〜19）は 2026-07-29／2026-08-02／2026-08-06 の整理で退避**＝完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-07-29 整理」節（1〜9・11・17〜19）／「2026-08-02 整理②」節（16＝timing 語彙センサス 🏁残0クローズ）／**「2026-08-06 整理③」節（14＝リファクタ Stage2→Stage3 純粋バトルコントローラ。⚠残作業は §7 実機通し確認のみ・手順は [BATTLE_CONTROLLER.md](./BATTLE_CONTROLLER.md)）**。生きているのは上表の **13・15・20・21**（**12 は常設受け口**）。**🚧次セッションは 21（§5d-0 工程改善）を最優先**＝それが済んでから **20（§5d）** の通常バッチへ戻る。**主戦場は 20（§5d）**＝2026-08-07 続き369 に §5c の文型バッチを店じまいして移した。
 
-**Opusタスク12＝在庫6件**（(cxliv)(cxlv)(cxlvi)(cxlvii)(cxlviii)(cxlix)）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
+**Opusタスク12＝在庫3件**（(cxlvi)(cxlvii)(cxlix)）。**この表には生きている行だけを置く**＝クローズ済み行の原文と結末の対照表は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-18 整理㉚」節。
 
 🏁**2026-08-20 続き588 に第1バッチ6件を残0クローズ＝(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)**（共通テーマ＝**「その語彙・機構は engine に実装済みで他の入口では動いているのに、この入口にだけ配線／受け渡しが無い」**。新しい action／Condition／state フィールドは1つも作らずに全件着地）。登録行の原文と結末の対照は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-20 整理㊾」節。一次記録は `BUGFIXES.md` 2026-08-20（続き588）。
 ⚠**6件が残した教訓**＝(a) **登録票の「見立て」は3件が実測と食い違っていた**＝(cxl) は「少なくとも3枚」が実測 **75効果/71カード**、(cxlii)(b) は「caller 0件」が実は**既に2箇所が渡していて正常**、(cxxxviii) は「新しい仕組みが要る」が実は**`ctx.leftFieldUnderCards` が既にあり消費実績もあった**。**着手前に必ず母集団を数え直す**。 (b) **Claude の指示書のほうが誤ることもある**＝(cxli) で指定した `collectTrashTriggers` は `fromZones` に `'field'` を含まない効果を必ず弾く **field origin 専用**で使えず、正しい入口は `collectAnyZoneTrashSelfTriggers` だった（Codex が実コードで訂正）。**「既存機構を流用せよ」と書くときは、その関数が対象の入口条件を通すかまで Claude 側で確認する**。 (c) **収集側を直したら解決側も見る**＝(cxxxviii) は `execTakeFromUnderSigni` だけ直すと、`applyDirectAction` が移動元をトラッシュから除かないため**空振りがカード複製バグに変わる**。 (d) **逆翻訳が情報を落としている箇所は計器が効かない**＝`TAKE_FROM_UNDER_SIGNI` の逆翻訳は枚数も destination も描かないので、`count:9` の過剰実行が**逆翻訳にも同型★にも一度も映らなかった**（→ 下の follow-up）。
@@ -140,15 +140,14 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-20・続き588・Opus 5＋Codex）＝Opusタスク12 第1バッチ＝「既存機構が特定の入口にだけ届いていない配線漏れ」6件を残0クローズ（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)）＝在庫12→6件**。ゲート全緑（**golden 2307→2312**・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・同型★0・lint 0 errors 263 warnings 据置）。live は **`WXDi-P10-041-E3` 1効果のみ変更**（per-effect diff changed 1／added 0／removed 0／outlier 0）・held 103枚/42署名群 据置。実装は Codex（`CODEX_GUIDE.md` の分担）・**指示書作成と検証は Claude**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き588）。
-  - **✅ (cxl) `SigniOnPlayCostModal` の `handDiscardSigni` 配線**＝`costs.ts` の既存ヘルパ（`matchesHandDiscardSigni`／`fmtHandDiscardSigniLabel`）を候補絞り込み・必要枚数・発動ボタンゲートへ接続。⚠**登録票の「少なくとも3枚」は桁違いに過少で、実測は ON_PLAY 75効果／71カード**（`handDiscardSigni` 全136効果中）＝このバッチ最大の実害だった。
-  - **✅ (cxliii) `collectTurnTriggers` のキー走査**＝自陣 `self`／相手陣 `any_opp|any` の両ループへ `activeKeyAbilitySources` を追加（お手本は `collectLrigGrowTriggers:671`／`collectSigniDownUpTriggers:2375`）。**恒久 no-op だった5効果／5キーカードが発火するようになった**（`WDA-F04-10-E1` `WDK06-R09-E1` `WXK03-008-E3` `WXK04-025-CB-E1` `WXK10-006-E1`）。
-  - **✅ (cxxxix) ON_ABILITY_ACTIVATED の《ターン1回》永続化**＝対話あり／なし**両分岐**の `collectBoardDiffTriggers` の after 引数を `hostState/guestState`→`hostAcc/guestAcc`（once id マージ後）へ。before は関数内部の `bs.*_state` のままなので盤面差分判定は不変。
-  - **✅ (cxli) 手札上限調整の ON_TRASH**＝`confirmEndDiscard` へ `collectAnyZoneTrashSelfTriggers` を接続（`byEffectCause=false`＝ルール処理）。⚠**Claude の指示書が誤っていた側**＝`collectTrashTriggers` は `fromZones` に `'field'` を含まない効果を必ず弾く field origin 専用で使えない。Codex が実コードで訂正。
-  - **✅ (cxlii)(a) 実効レベル条件**＝`evalUseCondition` に optional `effectsMap` を足し、実害経路 `collectAttackerSelfTriggers` **だけ**から供給（79 caller の一斉改修はしない＝`calcSigniLevels` をホットループで増やさない）。⚠**(b) は既に正常だった**（`collectEffectImmuneSigni:5297` が `levelsOf()` を渡している）＝登録票の「caller 0件」は誤りで、未変更。
-  - **✅ (cxxxviii) タナバタE3**＝既存の `ctx.leftFieldUnderCards`（ON_LEAVE_FIELD 発火元の離場直前の下カード・既に `fromLeftFieldUnder` で消費実績あり）へフォールバックし scope を `self_trash` に。⚠**解決側（`applyDirectAction:9933`）にも同じ穴があった**＝移動元をトラッシュからも除かないと**空振りが複製バグに変わる**ので両方修正。parser（`parseSentencePart4:1893`）も原文「カード**１枚**」どおり `count:9,upToCount:true`→`count:1` に訂正。
-  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫6件**（(cxliv)(cxlv)(cxlvi)(cxlvii)(cxlviii)(cxlix)）。**第2バッチは parser/表現系3件（(cxliv) 条件節の未実装／(cxlv) SEARCH の `then` 欠落／(cxlviii) 自己バニッシュ対価の取り違え）を1束にするのが機構的に揃っていて安全**。残る (cxlvi)（非決定的な間欠バグ）・(cxlvii)（二段任意コストの構造）・(cxlix)（UIレース）は個別に切る。
-  - **▶ 次の一手【Sonnet 側】**＝🔴**今回の6件はすべて実機未検証**＝`v04TanabataLeaveFieldE3`／`v16AbilityWatcherOncePerTurnSecondOnPlayIgnored`／`v19Wx07050NoDiscardDoPhaseAdvanceReturns`／`wx20re18DynamicLevelAttackBanish` の**意図的FAIL→PASS 反転確認**と、`wdk06r09Pay`／`wdk06r09Skip`／`wdk06r09NoKey` の**`order` 復帰**（`node scripts/verifyBattleDrive.mjs wdk06r09Pay wdk06r09Skip wdk06r09NoKey` で単体確認してから `order.push`）。⚠**(cxli) だけ観測点が無い**＝現行 `v20DiscardSkipFirstBlocksSecond` は能動 discard へ迂回済みで `confirmEndDiscard` を通らないため、**手札上限超過専用シナリオの新設が必要**。そのあと `V-63`／`V-45(d)` の follow-up へ。
+- **🆕 セッション（2026-08-20・続き589・Opus 5＋Codex）＝Opusタスク12 第2バッチ＝parser／表現系3件を残0クローズ（(cxliv)(cxlv)(cxlviii)）＝在庫6→3件**。ゲート全緑（**golden 2312→2319**・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・manual-fields 0・同型★0・lint 0 errors 263 warnings 据置）。live は **10効果のみ変更**（per-effect diff changed 10／added 0／removed 0／outlier 0）・held **103→99枚**（新規 held 0）。実装は Codex（`CODEX_GUIDE.md` の分担）・**指示書作成と検証と実機検証は Claude**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き589）。
+  - **✅ (cxlviii) 自己バニッシュ対価の取り違え（parser・4効果）**＝真因は `parseSentencePart1.ts:1620` の自己バニッシュ判定が **「断片のどこかに『対戦相手』があれば自己バニッシュ読みを捨てる」全文スキャン**＋`WX10-048` の**原文 whitelist**（§5-5c 違反）だったこと。**先行して相手シグニの対象宣言がある文では必ず外れ、自分ではなく相手を撃っていた**。構造判定 `hasThisSigniAsBanishObject`（`このシグニを[^を、。]*バニッシュ`）へ置換し、帰結の filter は既存 `applyLeadingOpponentDesignation` に「先頭が自己バニッシュ対価の木のときだけ」を足して継承。新型・新STUBは0。⚠**登録票は1枚と書いていたが実測は母集団18カード・誤り7効果**（うち3枚は fresh 側で既に正しく held 待ち＝下記）。
+  - **✅ (cxlv) `SEARCH` の `then` 欠落（parser1効果＋UI防御2箇所）**＝`parseSentencePart3.ts:1862` に `then: ADD_TO_HAND{self}` を追加（engine の `USE_SEARCHED_SPELL_OR_TRASH` が「手札経由」を前提と明記している側に合わせた）＋`EffectInteractionModal` の `thenAction` 無防御参照2箇所をヘルパ経由に。⚠**登録票の「resolver 側にも同型の穴」は誤り**＝`resumeSearch`（`effectExecutor.ts:8368`）は元から同じ既定へフォールバックしており、**crash するのは UI だけ**だった。
+  - **✅ (cxliv) ＜宇宙＞条件節（コード変更ゼロ）**＝**parser も engine も既に完備**（fresh は `AND[TURN_OWNER, HAS_CARD_IN_FIELD{story:'宇宙'}]` を出し、`collectOppLrigAttackExtraCost` は `checkActiveCondition` を呼んでいる）＝**live が held に落ちて古かっただけ**。⚠**登録票の「新条件型を新設せよ／collector に判定を足せ」は不要だった**＝**着手前に fresh parser の出力を実測すれば、機構実装ではなく採用作業だと分かる**（stale live の典型）。
+  - **✅ 同型の stale live 3枚も同時採用**＝`WX17-029-E1`／`WX25-P1-083-E2`／`WX25-P1-102-E2`（いずれも「相手シグニ1体をタダでバニッシュ」に化けていた）。カード単位採用の巻き添えは事前照合し、`WX25-P1-102-E1` は誤った self 対象→原文どおりの opponent へ改善する側だったので採用。
+  - **✅ 実機検証まで完了（3件とも PASS）**＝`v39ConditionGapNoStorySigni`（意図的FAIL→PASS 反転）／新 `v40UseSearchedSpellOrTrashResolves`／新 `v45cPaySelfBanishRemovesOnlyFiltered`＋`v45cSkipSelfBanishDoesNothing`（支払い／辞退の対）。⚠**旧シナリオ2本は「バグを再現したら PASS」という記録専用で修正後は必ず FAIL する**＝§7 の「シナリオの腐り」としてその場で書き換えた。**バグ再現シナリオには「修正後にどう見えるか」まで書いておくこと**（本セッションはスクショを見るまで「まだ壊れている」と誤読しかけた）。
+  - **▶ 次の一手【Opus 側】**＝**Opusタスク12 在庫3件**＝(cxlvi)（`WX16-Re18-E1` レゾナ2枚配置の継続が間欠的に落ちる＝**再現手順の確立が先**・4回中2回・1枚目のカード番号と相関）／(cxlvii)（`WXDi-P10-039-E2` 二段任意コストの入れ子ゲート＝`effectExecutor.ts:4011` のディスパッチが残ステップを無条件 continuation にする**構造的な穴**・波及が広い）／(cxlix)（`handleCutinUse` ピース枝の書き込み順序レース＝`BattleScreen.tsx:7787`）。**3件とも機構が別なので1件ずつ切る**。
+  - **▶ 次の一手【Sonnet 側】**＝🔴**続き588 の6件が実機未検証のまま**＝`v04TanabataLeaveFieldE3`／`v16AbilityWatcherOncePerTurnSecondOnPlayIgnored`／`v19Wx07050NoDiscardDoPhaseAdvanceReturns`／`wx20re18DynamicLevelAttackBanish` の意図的FAIL→PASS 反転確認と、`order` 未登録の `wdk06r09Pay`／`wdk06r09Skip`／`wdk06r09NoKey` の単体確認→`order.push` 復帰。⚠(cxli) は観測点が無いままなので**手札上限超過で捨てさせる専用シナリオの新設**が要る。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
@@ -157,22 +156,21 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-20 続き588（Opusタスク12 第1バッチ＝配線漏れ6件を残0クローズ）後 最新値（本行が直近の正）**：
-  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307→2312**（+5＝新設 golden 5本）、
+- **🆕 2026-08-20 続き589（Opusタスク12 第2バッチ＝parser／表現系3件を残0クローズ）後 最新値（本行が直近の正）**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2312→2319**（+7＝群A 4効果の支払い/辞退 E2E・SEARCH live E2E・採用live構造・＜宇宙＞条件 collector E2E）、
   smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
-  `census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**、manual-fields **0**、
-  🆕**同型★ 0**（`node scripts/groupSimilar.mjs --all` 再実行済み＝続き552d 以来の再計測）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**（再計測済み）、
   **被覆マトリクス miss 190 据置**（未再計測）、
-  `parserWorklist` held **103枚 / 署名42群 据置**、`docs/_partial_fresh.json` **6カード 据置**、
-  **live 効果総数 10693 据置**（live 変更は `WXDi-P10-041-E3` の1効果のみ＝per-effect diff **changed 1／added 0／removed 0／outlier 0**）。
-  version **0.502 据置**。**実機シナリオ定義総数 475 据置**（今回シナリオ非改変）。
+  `parserWorklist` held **103→99枚 / 署名42→40群**（新規 held 0）、`docs/_partial_fresh.json` **6カード 据置**、
+  **live 効果総数 10693 据置**（live 変更は10効果＝per-effect diff **changed 10／added 0／removed 0／outlier 0**。🆕**生パース diff は changed 5／added 0／removed 0**＝parser 変更の波及0）。
+  version **0.502 据置**。**実機シナリオ定義総数 475→476**（旧2本を廃し新3本＝`v40UseSearchedSpellOrTrashResolves`／`v45cPaySelfBanishRemovesOnlyFiltered`／`v45cSkipSelfBanishDoesNothing`）。
   （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
-  **Opusタスク12＝在庫6件**（(cxliv)(cxlv)(cxlvi)(cxlvii)(cxlviii)(cxlix)／🏁**(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii) を残0クローズ**）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
-  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫6件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
-  ⚠🔴**今回の6件はすべて実機未検証**（Codex 環境はネットワーク遮断で `verifyBattleDrive.mjs` を実行できない）＝**Sonnet 側 §7 の最優先**。
+  **Opusタスク12＝在庫3件**（(cxlvi)(cxlvii)(cxlix)／🏁**(cxliv)(cxlv)(cxlviii) を残0クローズ**）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫3件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
+  ✅**今回の3件は実機検証まで完了**（`v39ConditionGapNoStorySigni`／新 v40／新 v45c×2 が全 PASS）。⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-19（続き586）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き589）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
@@ -269,13 +267,12 @@
 
 #### ② 【Opus 側】常設の受け口（在庫が積まれたら最優先へ繰り上げ）
 
-- [ ] **Opusタスク12＝在庫6件**（(cxliv)(cxlv)(cxlvi)(cxlvii)(cxlviii)(cxlix)）。**常設の受け口として残す**＝Sonnet が §7 実機検証で engine/parser バグを見つけたらここへ積む。
+- [ ] **Opusタスク12＝在庫3件**（(cxlvi)(cxlvii)(cxlix)）。**常設の受け口として残す**＝Sonnet が §7 実機検証で engine/parser バグを見つけたらここへ積む。
   🏁**2026-08-20 続き588 に第1バッチ6件を残0クローズ**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)＝配線漏れファミリ）。登録行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-20 整理㊾」節、結末と教訓は §3 のクローズ節と `BUGFIXES.md` 2026-08-20（続き588）。
-  ▶**第2バッチの推奨束ね方**＝**parser/表現系3件（(cxliv) 条件節の未実装／(cxlv) SEARCH の `then` 欠落／(cxlviii) 自己バニッシュ対価の取り違え）**を1束にする（機構が揃う）。残る (cxlvi)（非決定的な間欠バグ＝再現手順の確立が先）・(cxlvii)（二段任意コストの構造＝波及が広い）・(cxlix)（UIレース）は**個別に切る**。
+  🏁**2026-08-20 続き589 に第2バッチ3件を残0クローズ**（(cxliv)(cxlv)(cxlviii)＝**parser／表現系**。登録行の原文と結末の対照は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-20 整理㊾」節）。⚠**3件が残した教訓**＝(a)**「機構が無い」という登録は疑う**＝(cxliv) は parser も engine も既に完備で **live が held に落ちて古かっただけ**だった（着手前に fresh parser の出力を1回実測すれば分かる）。(b)**登録票の母集団は当てにならない**＝(cxlviii) は「1枚」と書かれていたが実測 **18カード中7効果**（うち3枚は fresh 側で既に正しく held 待ち）。(c)**カード固有の原文を分岐ガードに埋め込むと、同じ文型の別カードが全部落ちる**＝真因は `!t.includes('対戦相手')` の全文スキャン＋`WX10-048` の whitelist だった（§5-5c）。(d)**バグ再現用の実機シナリオは修正後に必ず FAIL する**＝「修正後にどう見えるか」を書いておかないと、直っているのに壊れていると誤読する。
+  ▶**第3バッチは束ねない**＝残る3件は機構がそれぞれ別（間欠バグ／二段任意コストの構造／UIレース）。**(cxlvii) が最も波及が広い**（「そうした場合」が二段以上に連鎖する任意コスト全般の構造的な穴＝`effectExecutor.ts:4011` のディスパッチ）ので、着手するならここから。
 - [x] 🏁**§6.4 は残0**（`O-19b`＝続き567・`O-1`＝続き569 で消化）。**§6.4 で唯一の大物だった `O-1`（CPU AI）も残0クローズ**。
 
-- [ ] **🆕(cxliv) 続き581＝`WX25-P2-014-E1`（明星の使者　サシェ・モティエ）の「あなたの場に＜宇宙＞のシグニがあるかぎり」条件節が丸ごと未実装**＝実機で確認（`v39ConditionGapNoStorySigni`・意図的FAIL）。原文「【常】《相手ターン》：**あなたの場に＜宇宙＞のシグニがあるかぎり**、対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない」に対し、JSONの`activeCondition`は`{type:'TURN_OWNER',owner:'opponent'}`のみ＝宇宙シグニ所持を見るフィルタが存在しない（`checkActiveCondition`の全ケース・`src/data/parsers/*.ts`を`grep`＝該当条件型・パーサ規則とも0件）。**原因＝`collectOppLrigAttackExtraCost`（`effectEngine.ts:4539`）が`checkActiveCondition`（TURN_OWNERのみ）しか見ておらず、＜宇宙＞シグニの有無を一切チェックしない**。実機シナリオ＝guestの場から＜宇宙＞シグニを完全に除いた盤面でも、hostのルリグアタックボタンは変わらず「アタック（《無》×2）」のまま＝条件が無条件で常時成立（2回連続で同一結果）。実害＝この効果を持つルリグ（現状liveは`WX25-P2-014`1枚）が、本来ゲートが掛からないはずの盤面（＜宇宙＞シグニ不在）でも対戦相手のルリグアタックを《無》×2の前払いなしでは阻む＝過剰実行。修正方針＝`collectOppLrigAttackExtraCost`に`ownerState.field`から＜宇宙＞（story）フィルタの充足チェックを追加するか、汎用の「自分の場に〈story〉のシグニがあるかぎり」型`activeCondition`を新設して`parseSentencePart3.ts:314`付近の`OPP_LRIG_ATTACK_COST`規則で前置節を持ち上げる。**修正時は同型構文（自分の場に〈story〉があるかぎり系の条件節）が他のSTUB/CONTINUOUSにも埋もれていないか横展開確認が要る**。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v39LrigAttackCostBlocked`／`v39LrigAttackCostPaid`（残0クローズ）／`v39ConditionGapNoStorySigni`（`order`登録済み・意図的FAIL）。詳細はBUGFIXES 2026-08-19続き581。
-- [ ] **🆕(cxlv) 続き582＝`WX20-077-E2`（ドライ＝アコニチン）の`SEARCH`アクションに必須フィールド`then`が無く、モーダルがcrashして画面が真っ黒になる**＝実機で確認（`v40UseSearchedSpellOrTrashCrash`・意図的FAIL・2回連続同一結果）。原文「あなたのトラッシュにカード名に《リカブト》を含むカードがある場合、あなたのデッキから《バイオレンス・スプラッシュ》を探す」の【出】でSEARCHが発火した瞬間、`pendingEffect=SEARCH`のまま画面が真っ黒（`document.body.innerText`がほぼ空）になり進行不能。**原因＝`src/data/parsers/parseSentencePart3.ts:1856-1868`が生成するSEARCHアクションに必須フィールド`then`（`types/effects.ts:1356`＝`then: EffectAction`）が無い**（`afterSearch`だけ設定）。`EffectInteractionModal.tsx:119`（`const act = inter.thenAction; ... act.type === ...`）が`undefined.type`を読みReactごとcrash（pageerrorのスタックと一致）。**同じ前提の穴がpick解決側（`effectExecutor.ts:8189`以降の`pending.thenAction.type`無条件参照）にもあり、描画をバイパスできても resolver 側でも同型でcrashする二重の穴**。母集団は実測で live 上この1件のみ（`then`欠落のSEARCHアクションを全JSON走査＝435件中1件）。修正方針＝(a) 当該パーサ規則に`then: {type:'ADD_TO_HAND', owner:'self'}`相当を明示的に足す（後続の`USE_SEARCHED_SPELL_OR_TRASH`が改めて使用/トラッシュへ振り分ける前提の一時受け皿として自然）(b) `EffectInteractionModal.tsx:119`・`effectExecutor.ts:8189`以降を`thenAction`未定義でも安全にフォールバックするよう防御的にする（同型のparser作り忘れが別カードで再発してもUI全体を落とさないため）。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v40UseSearchedSpellOrTrashCrash`（`order`登録済み）。詳細はBUGFIXES 2026-08-19続き582。
 - [ ] **🆕(cxlvi) 続き584＝`WX16-Re18-E1`（レゾナンス・マーチ）のルリグデッキから複数レゾナを配置する継続が間欠的に発火せず2枚目が取り残される**＝実機で確認（`v44SummonTwoResonasFromLrigDeck`。4回実行中2回再現）。原文「あなたのルリグデッキからレゾナを２枚まで出現条件を無視して場に出す」＝SELECT_TARGETで2枚選択→1枚目をSELECT_SIGNI_ZONEで配置→**空きゾーンが1つに減った時点で対話を挟まず自動配置する設計**（`execStubPart3.ts:3043-3054`＝`emptyIdxIPSR.length>=2`のときだけ`needsInteraction`、未満なら`INTERNAL_PLACE_SUMMONED_RESONAS`の継続を`executeAction`で即時実行）。**再現時は2枚目がルリグデッキに残存したまま`pendingEffect`が`-`に戻り「完了」してしまう**（`hLrigDeck`に2枚目のカード番号が残る・対応する`hField`ゾーンはnullのまま）。**再現の有無は「どちらのカードが1枚目として処理されるか」と完全に相関**（1枚目=`44002`のときは4/4成功・1枚目=`44003`のときは4/4失敗）が判明したが、UI操作（`pick-0`→`pick-1`→「決定」）自体は毎回同一だったため、**選択順序が非決定的に入れ替わる理由（`resumeSelectTarget`のマルチセレクト順序保存経路／`INTERNAL_PLACE_SUMMONED_RESONAS`継続実行自体の間欠的欠落のどちらが真因か）はSonnet側では特定しきれず**、Opus側での追跡が要る。実害＝「２枚まで」を選んでも約半分の確率で1枚しか場に出ない過少実行。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v44SummonTwoResonasFromLrigDeck`（`order`登録済み）。詳細はBUGFIXES 2026-08-19続き584。
 - [ ] **🆕(cxlvii) 続き585＝`WXDi-P10-039-E2`（蒼魔姫　リッチレーサー）の「そうした場合」二段任意コストの入れ子ゲートが外れる**＝実機で確認（`v20DiscardSkipFirstBlocksSecond`・2回連続再現／`v20DiscardPayBothReturnsToField`は正常＝2回連続PASS）。原文「①手札を１枚捨ててもよい。そうした場合、②《青》《無》を支払ってもよい。そうした場合、③トラッシュから場に出す。」＝③は②が支払われたときだけ、②は①が支払われたときだけ提示されるべき二段の入れ子。JSONは`SEQUENCE[STUB(OPTIONAL_COST,handDiscard), CONDITIONAL(IS_MY_TURN){OPTIONAL_COST,costColors}, CONDITIONAL(IS_MY_TURN){ADD_TO_FIELD}]`というフラットな3ステップで、②③とも常にtrueの`IS_MY_TURN`でしかゲートされていない。**①を「スキップ」すると②の支払い提示を完全に飛ばして③のADD_TO_FIELDが無条件で実行される**（実機で確認）。**原因＝`effectExecutor.ts:4011-4016`の「任意コストパターン」ディスパッチが、STUB直後のCONDITIONAL（②）だけを`conditional`として掴み、それより後ろの残りステップ（③）を無条件`continuation`として`pending`に添付するため**、①を「スキップ」（noop）しても`continuation`（③）はCHOOSEの結果に関係なく必ず評価され、`IS_MY_TURN`が常にtrueなので無条件でADD_TO_FIELDへ進む。**二段以上に連鎖した任意コスト（そうした場合…そうした場合…）全般で必ず起きる構造的な穴**であり本カード固有ではない。修正方針＝(a)`continuation`に「無条件で次に進む」/「pay側でしか進まない」の区別フィールドを設ける、または(b)パーサ側で②③のCONDITIONALを`PAID_ADDITIONAL_COST`で書き分け、Pattern④（`effectExecutor.ts:4568`の`isAdditional`分岐）が既に持つ区別の仕組みをこちらのパターンにも波及させる。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v20DiscardSkipFirstBlocksSecond`（意図的FAIL・`order`登録済み）／`v20DiscardPayBothReturnsToField`（正常系）。詳細はBUGFIXES 2026-08-19続き585。
 - [ ] **§6.3／§6.2／タスク13**＝大型機構・意味照合監査・構造混線。**どれも在庫を実測してから**取る。
@@ -287,7 +284,7 @@
   `V-04`④ `v04TanabataLeaveFieldE3`（(cxxxviii)）／`V-16` `v16AbilityWatcherOncePerTurnSecondOnPlayIgnored`（(cxxxix)）／`V-19` `v19Wx07050NoDiscardDoPhaseAdvanceReturns`（(cxl)）／`wx20re18DynamicLevelAttackBanish`（(cxlii)）はいずれも `order` 登録済みなのでそのまま回す。
   `V-35`(b)(c)（(cxliii)）は **`order` 未登録**＝`node scripts/verifyBattleDrive.mjs wdk06r09Pay wdk06r09Skip wdk06r09NoKey` で単体確認してから `order.push` へ復帰させる。
   ⚠**(cxli) だけ観測点が無い**＝現行 `v20DiscardSkipFirstBlocksSecond` は `WX16-042-E1` の能動 discard へ迂回済みで `confirmEndDiscard` を通らない（かつ (cxlvii) 未修正でFAIL継続）＝**手札上限超過で捨てさせる専用シナリオの新設が要る**。
-  🔴**なお Opus のバグ修正待ちで止まっているもの**＝`V-20`（(cxlvii)）／`V-45`(c)（(cxlviii)）／`V-58`(d)(e)（(cxlix)）／`V-44`(a)（(cxlvi)）。
+  🔴**なお Opus のバグ修正待ちで止まっているもの**＝`V-20`（(cxlvii)）／`V-58`(d)(e)（(cxlix)）／`V-44`(a)（(cxlvi)）。🏁**`V-45`(c)（(cxlviii)）／`V-39` 追加（(cxliv)）／`V-40`(b)（(cxlv)）は 2026-08-20 続き589 で修正＋実機検証まで完了**（新シナリオ `v45cPaySelfBanishRemovesOnlyFiltered`／`v45cSkipSelfBanishDoesNothing`／`v40UseSearchedSpellOrTrashResolves` が全 PASS・`v39ConditionGapNoStorySigni` は意図的FAIL→PASS 反転）。
   🔶**Sonnet が今すぐ着手できるもの**＝`V-04`（残り12経路。⚠シグニ【起】は `SigniActivatedModal.tsx:265` に testid 追加が先）／`V-35`(a)（`WXDi-P16-002-E1`＝ルリグアーツ・`LRIG_TEAM_COUNT>=3` の盤面構築が要る）／`V-45`(d)（デッキ上5枚制御＋コンバット回避）／`V-58`(d)(e) の再現手順（シナリオは実装済み）／`V-63`（複雑度が高く続き564 で見送り済み）／`V-30` の境界越え（続き566 の設計限界が未解消）。
   **新しい未検証UIが出たら §7 へ `V-<次番号>` で足す**（§4 と二重に持たない）。
   📋**follow-up 在庫1件**＝`v76CpuSpellCutinPassProgresses`＝バッチ実行時のみ断続的フレーク（続き560 実測・単発では安定PASS）。🆕**`v15AttackPhaseEndCentralDiffToyLeftFires`（続き556 で FAIL していた分）は続き573 に緑で固定済み**＝在庫から外した（真因はシナリオ側の未完3点・engineバグ0。原文は PLAN_DETAIL「2026-08-19 整理㊿」の `V-15`）。
@@ -808,7 +805,7 @@
 
 - **V-45** **続き505＝O-6/O-7 実装の4経路**＝(a)`WX25-P2-058`（アタック**解決後**にダイアログが出る／《アイヤイ★クイーン》が居ないと出ない＝**負方向＋対照の対**／エナの＜遊具＞レベル2以下だけが候補／出したシグニの【出】が発動しない）(b)`WX25-P2-090`（支払うと自分がエナへ行き、エナのレベル1＜遊具＞が**ダウン状態で**場に出る／断れば何も起きない）(c)`WX24-P4-052`（自分をバニッシュしても**アタックは通る**＝アタック宣言時に走っていた旧挙動との対）(d)`WX25-P3-038`（**能力を消した**相手シグニがバウンスではなく**トラッシュ**へ）。
   - [x] **(a)(b) 続き586で残0クローズ**＝新規シナリオ`v45aQueenPresentSwapsPosition`／`v45aQueenAbsentNoSwap`／`v45bPaySwapsInDownEnergySigni`／`v45bSkipDoesNothing`（各2回連続PASS）。engineバグ0。
-  - [x] **(c) 続き586で実機確認＝新規engineバグ発見**＝新規シナリオ`v45cDoubleOpponentBanishConfirmsMismatch`（2回連続PASS＝バグを安定再現）。原文の自己バニッシュ対価が、JSON上は自己バニッシュ語彙皆無で相手シグニ最大2体バニッシュに化けている。**Opusタスク12(cxlviii)へ登録**（詳細はBUGFIXES 続き586）。
+  - [x] 🏁**(c) 残0クローズ（2026-08-20 続き589）**＝続き586 で発見した「原文の自己バニッシュ対価が相手シグニ最大2体バニッシュに化けている」バグ（Opusタスク12(cxlviii)）を parser で是正し、**実機で反転確認済み**。⚠**旧シナリオ `v45cDoubleOpponentBanishConfirmsMismatch` は「バグを再現したら PASS」という記録専用**で修正後は必ず FAIL するため廃止し、**支払い／辞退の対**へ書き換えた＝`v45cPaySelfBanishRemovesOnlyFiltered`（①候補が自分1体のみ→払うと自分が消え、パワー8000以下の相手1体だけが消え、15000は候補にも入らない）／`v45cSkipSelfBanishDoesNothing`（断れば did-it ゲートで何も起きない）。両方 PASS。
   - [ ] **(d) 📋続き586時点でも未着手＝静的確認のみ**。`LOOK_PICK_CHAIN`＋`GRANT_EFFECT`＋`LAST_PROCESSED_MATCHES{noAbilities}`はハンドラ実装済み・JSON構造も破綻なし。実機化はデッキ上5枚制御＋コンバット回避の両立が要り複雑度が高くfollow-up継続（優先度は残す）。
 
 - **V-58** **続き518＝O-10 クローズ（応答窓）の6経路**＝(a)相手が【使用条件】【チーム】のピースを使うと**カットイン窓が出る**（自分のルリグデッキに `WXDi-P05-006` があり、きゅるきゅるーん☆が3体そろっているとき）(b)**チーム条件を持たないピースでは窓が出ない**＝**負方向＋対照の対**（＝従来どおり即時解決）(c)パスすると元のピースが**普通に解決する** (d)①を選ぶと元のピースが**解決せずゲームから除外**される(e)②を選ぶと1ドロー＋エナチャージ1のあと**元のピースも解決する** (f)CPU 戦で CPU が応答側のとき**自動パスして進む**（＝デッドロックしない。⚠**ここが最優先の確認点**）。
