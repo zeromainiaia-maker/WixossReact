@@ -23669,7 +23669,7 @@ scenarios.v40UseSearchedSpellOrTrashResolves = {
   async drive(page, H) {
     await H.ensureMain();
     H.log('手札クリック(WX20-077):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-    let summoned = false; let modalSeen = false; let searchLabel = null; let chooseSeen = false; let emptyStreak = 0;
+    let summoned = false; let modalSeen = false; let chooseSeen = false; let emptyStreak = 0;
     for (let s = 0; s < 16; s++) {
       await page.waitForTimeout(700);
       await page.screenshot({ path: `${SHOT}/v40UseSearchedSpellOrTrash-${s}.png`, fullPage: true }).catch(() => {});
