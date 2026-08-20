@@ -6,10 +6,10 @@ PLAN §3 タスク8「semantic audit のスケールアップ」の残作業＝c
 
 - **実測でPLANの旧値「clean群残3,574枚」がstaleと判明**＝2026-08-09時点のスナップショット。今回 `semanticAuditExtract.mjs` で数え直すと総clean母集団は**3,344枚**（stub/manual側が2401→2631へ増えた分、cleanは目減りしていた）。§3-1「簿記を信用せず実測」の実例。
 - 既存パイロット（`scripts/archive/scratchpad/semantic_audit_101/manifest.json`）で監査済みのclean群100枚を`--exclude-file`で除外し、残り3,244枚を325バッチへ抽出（`tmp_semantic_audit_clean/`・gitignore対象の作業ディレクトリ）。
-- `scripts/semanticAuditRunCodex.mjs`でバッチ1〜20（200枚）を実行。CODEX_HOMEは既定の`~/.codex`（本体・`[windows] sandbox="elevated"`＋プロジェクトtrusted・認証は当日リフレッシュ済み）を使用＝`.codex-work`のauth.jsonは2026-08-08失効のまま未使用。1バッチ11〜48秒・失敗0件・findings計96件（67枚に指摘あり）。
+- `scripts/semanticAuditRunCodex.mjs`でバッチ1〜40（400枚）を実行（同一セッション内でユーザー指示により200枚→さらに200枚を追加投入）。CODEX_HOMEは既定の`~/.codex`（本体・`[windows] sandbox="elevated"`＋プロジェクトtrusted・認証は当日リフレッシュ済み）を使用＝`.codex-work`のauth.jsonは2026-08-08失効のまま未使用。1バッチ11〜48秒・失敗0件・findings計167件（バッチ1〜20＝96件／バッチ21〜40＝71件）。
 - 精度確認として3件（`PR-402`／`PR-464`／`PR-K056`）を`semanticAuditTriage.mjs`で裏取り＝**3件とも確定バグ**（`PR-402-E1`はアタック不能を解除する「トラッシュ15枚以上」条件が丸ごと欠落＝恒久`BLOCK_ACTION`／`PR-464-E1`はセンタールリグ「レベル4以上で赤」条件なしでパワー+5000とダブルクラッシュが常時付与）。パイロット時点のprecision実績（78〜84%）と整合的。
-- 成果物を`scripts/archive/scratchpad/semantic_audit_clean_round1/`へ記録＝`audited_clean_cards_cumulative.txt`（累積300枚＝パイロット100＋round1の200）／`findings.jsonl`／`findings_compact.txt`／`manifest.json`。残り**3,044枚**は同exclude-fileで`--groups clean --per-group all`を再実行しバッチ21から再開可能（コマンドはPLAN §3 タスク8行に記載）。
-- **今回は監査（findings収集）のみ**＝96件の個別修正はPLAN §6.2に worklist として追加（未着手）。CODEX_GUIDE.mdの役割分担どおり簿記・commitはClaude側で実施、Codexには監査バッチの実行のみを担わせた。
+- 成果物を`scripts/archive/scratchpad/semantic_audit_clean_round1/`へ記録＝`audited_clean_cards_cumulative.txt`（累積500枚＝パイロット100＋round1の400）／`findings.jsonl`／`findings_compact.txt`／`manifest.json`。残り**2,844枚**は同exclude-fileで`--groups clean --per-group all`を再実行しバッチ41から再開可能（コマンドはPLAN §3 タスク8行に記載）。
+- **今回は監査（findings収集）のみ**＝167件の個別修正はPLAN §6.2に worklist として追加（未着手）。CODEX_GUIDE.mdの役割分担どおり簿記・commitはClaude側で実施、Codexには監査バッチの実行のみを担わせた。
 
 ## 2026-08-20（続き590直後・Opusタスク12 (cl)・Codex）— 「そうした場合、そのターン終了時」の遅延予約を復元
 
