@@ -1,6 +1,6 @@
 # バグ修正記録 (BUGFIXES)
 
-## 2026-08-20（Sonnetタスク8・Codex）— semantic audit clean群 round1（200枚監査・修正はまだ）
+## 2026-08-20（Sonnetタスク8・Codex）— semantic audit clean群 round1（400枚監査・修正はまだ）
 
 PLAN §3 タスク8「semantic audit のスケールアップ」の残作業＝clean群への展開に着手した。ユーザー指示「少しずつ行うこと」に従い、今回はfindings収集のみ（修正は次段）。
 
