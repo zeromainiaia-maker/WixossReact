@@ -23690,7 +23690,6 @@ scenarios.v40UseSearchedSpellOrTrashResolves = {
           if (!modalSeen) {
             const body = await H.body();
             modalSeen = body.includes('手札に加えるカードを');
-            searchLabel = body.slice(0, 0) || null; // 本文全体は巨大なので判定だけを残す
             H.log(`    SEARCHモーダル描画=${modalSeen}（bodyText長=${body.length}）`);
           }
           did = await H.stdStep();                       // pick-0 → 決定
