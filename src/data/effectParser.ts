@@ -3489,6 +3489,74 @@ function rewriteNextOwnTurnEndBody(action: EffectAction, text: string): EffectAc
 }
 
 /**
+ * 「そのターン終了時、〈本文〉」の受け皿を、現在のターンだけ有効な遅延トリガーへ格上げする
+ * （タスク12(cl)）。「次の〜」2種と同じ2段構えで、宣言の検出は parseSentencePart1 が行う。
+ */
+function rewriteThisTurnEndBody(action: EffectAction, text: string): EffectAction {
+  const st = action as StubAction;
+  if (st?.type !== 'STUB' || st.id !== 'DEFERRED_THIS_TURN_END_BODY') return action;
+  const body = text.trim().replace(/^そのターン終了時[、,]/, '').replace(/。$/, '').trim();
+  if (!body) return action;
+  const inner = parseSingleSentence(body);
+  const s = JSON.stringify(inner);
+  if (s.includes('"UNKNOWN"') || s.includes('DEFERRED_')) return action;
+  return {
+    type: 'INSTALL_DELAYED_TRIGGER',
+    duration: 'THIS_TURN',
+    trigger: { timing: 'ON_TURN_END' },
+    effect: inner,
+  } as EffectAction;
+}
+
+/**
+ * 「そうした場合、そのターン終了時、A。そうした場合、B。」の後段 B を遅延本体へ畳む。
+ * 文型で入口を限定し、組み上がった木（INSTALL の直後にある did-it CONDITIONAL）で対応づける。
+ */
+function foldThisTurnEndContinuation(action: EffectAction, text: string): EffectAction {
+  if (!/そうした場合[、,]そのターン終了時[、,]/.test(text)) return action;
+
+  const appendToInstall = (node: EffectAction, continuation: EffectAction): EffectAction | null => {
+    if (node.type === 'INSTALL_DELAYED_TRIGGER' && node.trigger.timing === 'ON_TURN_END') {
+      const effect = node.effect.type === 'SEQUENCE'
+        ? { ...node.effect, steps: [...node.effect.steps, continuation] } as SequenceAction
+        : { type: 'SEQUENCE', steps: [node.effect, continuation] } as SequenceAction;
+      return { ...node, effect };
+    }
+    if (node.type === 'CONDITIONAL') {
+      const nested = appendToInstall(node.then, continuation);
+      return nested ? { ...node, then: nested } : null;
+    }
+    return null;
+  };
+
+  const walk = (node: EffectAction): EffectAction => {
+    if (node.type === 'SEQUENCE') {
+      const source = node.steps.map(walk);
+      const steps: EffectAction[] = [];
+      for (let i = 0; i < source.length; i++) {
+        const current = source[i];
+        const next = source[i + 1];
+        if (next?.type === 'CONDITIONAL' && next.condition.type === 'IS_MY_TURN') {
+          const folded = appendToInstall(current, next);
+          if (folded) {
+            steps.push(folded);
+            i++;
+            continue;
+          }
+        }
+        steps.push(current);
+      }
+      return { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') {
+      return { ...node, then: walk(node.then), ...(node.else ? { else: walk(node.else) } : {}) };
+    }
+    return node;
+  };
+  return walk(action);
+}
+
+/**
  * 「あなたの場にいる〈色〉のルリグ１体につき、〈効果〉」＝**倍率スケール**（§6.4 O-34(d)）。
  *
  * 本文を単独文として解いてから `PER_OWN_LRIG_COLOR_SCALE` で包み、engine が「その色のルリグ体数」だけ
@@ -3773,6 +3841,7 @@ function parseSingleSentence(text: string): EffectAction {
   action = rewriteAttackTaxKeywordGrant(action);
   action = rewriteNextOppTurnEndBody(action, text);
   action = rewriteNextOwnTurnEndBody(action, text);
+  action = rewriteThisTurnEndBody(action, text);
   action = rewritePerOwnLrigColorScale(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
@@ -8511,6 +8580,7 @@ function parseActionText(text: string): EffectAction {
     applyDeckTopMillTargetAnaphora(source,
       applySelectedTargetTrashReplacement(source, parseBase(source))));
   let parsed = parse(text);
+  parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。

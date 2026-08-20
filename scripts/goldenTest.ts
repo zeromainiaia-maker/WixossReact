@@ -40516,7 +40516,9 @@ const openTask12Cxlvii = () => {
     && c.CardNum !== source && c.CardNum !== discarded);
   const colorless = findCard(c => c.Type === 'シグニ' && c.CardNum !== source
     && c.CardNum !== discarded && c.CardNum !== blue);
-  const effect = (effectsMap.get(source) ?? []).find(e => e.effectId === 'WXDi-P10-039-E2')!;
+  const effect = parseCardEffects(cardMap.get(source)!).find(e => e.effectId === 'WXDi-P10-039-E2')!;
+  const liveEffect = (effectsMap.get(source) ?? []).find(e => e.effectId === 'WXDi-P10-039-E2')!;
+  eq(JSON.stringify(effect), JSON.stringify(liveEffect), 'fresh parser と採用済み live が一致しない');
   const base = mkCtx({}, {}, source);
   base.ownerState = {
     ...base.ownerState,
@@ -40529,6 +40531,44 @@ const openTask12Cxlvii = () => {
   return { source, discarded, blue, colorless, base, first };
 };
 
+const installTask12ClAfterFirstPay = (opened: ReturnType<typeof openTask12Cxlvii>) => {
+  const { source, discarded, base, first } = opened;
+  const discardPending = resumeOptionalCost('pay', [], first.pending, ctxAfter(first, base));
+  ok(!discardPending.done && discardPending.pending.type === 'SELECT_TARGET', '①で捨てる手札の選択へ進まない');
+  if (discardPending.done || discardPending.pending.type !== 'SELECT_TARGET') throw new Error('discard target missing');
+  const installed = resumeSelectTarget([discarded], discardPending.pending, ctxAfter(discardPending, base));
+  ok(installed.done, '①pay 直後に②の選択が即時に出ている');
+  eq(installed.ownerState.delayed_triggers?.length, 1, '①pay 後にターン終了時予約が設置されない');
+  eq(installed.ownerState.delayed_triggers?.[0].trigger.timing, 'ON_TURN_END', '予約 timing がターン終了時でない');
+  eq(installed.ownerState.delayed_triggers?.[0].sourceCardNum, source, '予約に発火元が保持されない');
+  return installed;
+};
+
+const fireTask12ClAtTurnEnd = (opened: ReturnType<typeof openTask12Cxlvii>, installed: ExecResult) => {
+  if (!installed.done) throw new Error('install unexpectedly pending');
+  const { source, base } = opened;
+  const ownTurn = collectTurnTriggers(
+    trigCtx(HOST, HOST), 'ON_TURN_END', installed.ownerState, installed.otherState,
+  ).entries.filter(e => e.effectId === 'DELAYED_TRIGGER' && e.cardNum === source);
+  const opponentTurn = collectTurnTriggers(
+    trigCtx(GUEST, GUEST), 'ON_TURN_END', installed.otherState, installed.ownerState,
+  ).entries.filter(e => e.effectId === 'DELAYED_TRIGGER' && e.cardNum === source);
+  eq(ownTurn.length, 1, '設置者自身のターン終了時に予約が収集されない');
+  eq(opponentTurn.length, 1, '相手ターン中に設置した非ターンプレイヤー側の予約が収集されない');
+  const fireCtx = {
+    ...base,
+    ownerState: installed.ownerState,
+    otherState: installed.otherState,
+    sourceCardNum: ownTurn[0].cardNum,
+    triggeringCardNum: ownTurn[0].cardNum,
+    currentPhase: 'END',
+  } as ExecCtx;
+  const second = executeEffect(ownTurn[0].effect, fireCtx);
+  ok(!second.done && second.pending.type === 'CHOOSE', 'ターン終了時の発火後に②《青》《無》の pay/skip が出ない');
+  if (second.done || second.pending.type !== 'CHOOSE') throw new Error('second optional cost missing');
+  return { second, fireCtx };
+};
+
 test('task12(cxlvii)(a) 二段任意コスト: ①skip なら手札・エナ不変で場に戻らない', () => withSavedCursor(() => {
   const { source, base, first } = openTask12Cxlvii();
   const result = finish(resumeOptionalCost('skip', [], first.pending, ctxAfter(first, base)), base);
@@ -40537,38 +40577,44 @@ test('task12(cxlvii)(a) 二段任意コスト: ①skip なら手札・エナ不�
   ok(result.ownerState.trash.includes(source), '①skip なのに発火元がトラッシュから消えた');
   ok(!result.ownerState.field.signi.some(s => s?.at(-1) === source),
     '🔴①skip なのに②を飛ばして無償で場へ戻った');
+  eq(result.ownerState.delayed_triggers, undefined, '①skip なのにターン終了時予約が設置された');
 }));
 
-test('task12(cxlvii)(b) 二段任意コスト: ①pay②skip なら手札だけ減って場に戻らない', () => withSavedCursor(() => {
-  const { source, discarded, base, first } = openTask12Cxlvii();
-  const discardPending = resumeOptionalCost('pay', [], first.pending, ctxAfter(first, base));
-  ok(!discardPending.done && discardPending.pending.type === 'SELECT_TARGET', '①で捨てる手札の選択へ進まない');
-  if (discardPending.done || discardPending.pending.type !== 'SELECT_TARGET') throw new Error('discard target missing');
-  const second = resumeSelectTarget([discarded], discardPending.pending, ctxAfter(discardPending, base));
-  ok(!second.done && second.pending.type === 'CHOOSE', '①pay 後に②《青》《無》の pay/skip が出ない');
-  if (second.done || second.pending.type !== 'CHOOSE') throw new Error('second optional cost missing');
-  const result = finish(resumeOptionalCost('skip', [], second.pending, ctxAfter(second, base)), base);
-  eq(result.ownerState.hand.length, 0, '①pay の手札コストが減っていない');
-  eq(result.ownerState.energy.length, 2, '②skip なのにエナが減った');
-  ok(result.ownerState.trash.includes(source) && result.ownerState.trash.includes(discarded),
+test('task12(cxlvii)(b) 二段任意コスト: ①pay は即時②を出さず予約し、ターン終了時に②を出す', () => withSavedCursor(() => {
+  const opened = openTask12Cxlvii();
+  const installed = installTask12ClAfterFirstPay(opened);
+  eq(installed.ownerState.hand.length, 0, '①pay の手札コストが減っていない');
+  eq(installed.ownerState.energy.length, 2, '予約設置時点で②のエナが減った');
+  ok(installed.ownerState.trash.includes(opened.source) && installed.ownerState.trash.includes(opened.discarded),
     '①の捨て札または発火元がトラッシュに残っていない');
-  ok(!result.ownerState.field.signi.some(s => s?.at(-1) === source), '🔴②skip なのに場へ戻った');
+  ok(!installed.ownerState.field.signi.some(s => s?.at(-1) === opened.source), '予約設置時点で場へ戻った');
+  fireTask12ClAtTurnEnd(opened, installed);
 }));
 
-test('task12(cxlvii)(c) 二段任意コスト: ①pay②pay なら両コストを払い場に戻る', () => withSavedCursor(() => {
-  const { source, discarded, blue, colorless, base, first } = openTask12Cxlvii();
-  const discardPending = resumeOptionalCost('pay', [], first.pending, ctxAfter(first, base));
-  if (discardPending.done || discardPending.pending.type !== 'SELECT_TARGET') throw new Error('discard target missing');
-  const second = resumeSelectTarget([discarded], discardPending.pending, ctxAfter(discardPending, base));
-  if (second.done || second.pending.type !== 'CHOOSE') throw new Error('second optional cost missing');
-  const paid = resumeOptionalCost('pay', [blue, colorless], second.pending, ctxAfter(second, base));
-  const result = finish(paid, base);
+test('task12(cxlvii)(c) 二段任意コスト: ①pay→ターン終了発火→②pay なら両コストを払い場に戻る', () => withSavedCursor(() => {
+  const opened = openTask12Cxlvii();
+  const installed = installTask12ClAfterFirstPay(opened);
+  const { second, fireCtx } = fireTask12ClAtTurnEnd(opened, installed);
+  const paid = resumeOptionalCost('pay', [opened.blue, opened.colorless], second.pending, ctxAfter(second, fireCtx));
+  const result = finish(paid, fireCtx);
   eq(result.ownerState.hand.length, 0, '①の手札コストが減っていない');
   eq(result.ownerState.energy.length, 0, '②の《青》《無》コストが減っていない');
-  ok(result.ownerState.field.signi.some(s => s?.at(-1) === source), '両方払っても場へ戻らない');
-  ok(!result.ownerState.trash.includes(source), '場へ戻した発火元がトラッシュにも残る複製になった');
-  ok([discarded, blue, colorless].every(n => result.ownerState.trash.includes(n)),
+  ok(result.ownerState.field.signi.some(s => s?.at(-1) === opened.source), '両方払っても場へ戻らない');
+  ok(!result.ownerState.trash.includes(opened.source), '場へ戻した発火元がトラッシュにも残る複製になった');
+  ok([opened.discarded, opened.blue, opened.colorless].every(n => result.ownerState.trash.includes(n)),
     '支払った手札・エナがトラッシュへ移っていない');
+}));
+
+test('task12(cl)(d) 遅延後の内側ゲート: ①pay→ターン終了発火→②skip なら場に戻らない', () => withSavedCursor(() => {
+  const opened = openTask12Cxlvii();
+  const installed = installTask12ClAfterFirstPay(opened);
+  const { second, fireCtx } = fireTask12ClAtTurnEnd(opened, installed);
+  const result = finish(resumeOptionalCost('skip', [], second.pending, ctxAfter(second, fireCtx)), fireCtx);
+  eq(result.ownerState.hand.length, 0, '①pay の手札コストが減っていない');
+  eq(result.ownerState.energy.length, 2, '②skip なのにエナが減った');
+  ok(result.ownerState.trash.includes(opened.source) && result.ownerState.trash.includes(opened.discarded),
+    '①の捨て札または発火元がトラッシュに残っていない');
+  ok(!result.ownerState.field.signi.some(s => s?.at(-1) === opened.source), '🔴遅延後の②skip なのに場へ戻った');
 }));
 
 test('task12(cxlvii)(d) 対照: 後続が独立の既存効果は任意コストskip後も実行する', () => withSavedCursor(() => {

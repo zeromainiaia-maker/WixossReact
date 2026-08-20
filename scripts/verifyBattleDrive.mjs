@@ -24345,7 +24345,13 @@ async function driveV20(page, H, payBoth) {
   let step1Chosen = false; let step1PayPicked = false; let step1PayCandPicked = false;
   let step2Chosen = false; let step2E0 = false; let step2E1 = false; let step2Confirmed = false;
   let zoned = false;
-  for (let s = 0; s < 36; s++) {
+  // 🆕(cl・続き591)＝原文「そうした場合、**そのターン終了時**、②《青》《無》を支払ってもよい」＝
+  //   ①を払っても②はその場では出ず、**ターン終了時の遅延トリガー**で出る。
+  //   `preEndPending`/`preEndOnField` は「①直後に即時解決していないこと」＝(cl) の回帰ガード。
+  let preEndChecked = false; let preEndPending = null; let preEndOnField = null;
+  let fired = false; let endClicks = 0;
+  const onFieldNow = st => (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
+  for (let s = 0; s < 44; s++) {
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${SHOT}/v20-${payBoth}-${s}.png`, fullPage: true }).catch(() => {});
     const st0 = await H.queryState();

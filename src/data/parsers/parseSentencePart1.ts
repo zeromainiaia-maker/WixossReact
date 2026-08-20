@@ -119,6 +119,12 @@ function hasThisSigniAsBanishObject(text: string): boolean {
 }
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
+  // ---- 「そのターン終了時、〜」＝いま解決中のターン終了時の遅延タイミング宣言（タスク12(cl)）----
+  // 「ターン終了時まで、」は持続期間なので対象外。ここでは本文を即時実行へ流さない受け皿だけを返し、
+  // 本文の parse と INSTALL_DELAYED_TRIGGER への詰め替えは parseSingleSentence の後処理が行う。
+  if (/^そのターン終了時[、,]/.test(t)) {
+    return { type: 'STUB', id: 'DEFERRED_THIS_TURN_END_BODY' } as StubAction;
+  }
   // ---- 「次の対戦相手のターン終了時、〜」＝**遅延タイミング宣言**（§6.4 O-3 続き493）----
   // 🔑**遅延の本体は絶対に即時実行しない**（続き488 の教訓）＝予約機構が入るまでは受け皿へ落として
   //   後続を実行させない。⚠🔴従来は本文が素通りで、`WXDi-P16-002-E1` は**使った瞬間に**1枚引き

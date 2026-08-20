@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-20（続き590直後・Opusタスク12 (cl)・Codex）— 「そうした場合、そのターン終了時」の遅延予約を復元
+
+`WXDi-P10-039-E2`（蒼魔姫 リッチレーサー）の「①手札を1枚捨ててもよい。そうした場合、**そのターン終了時**、②《青》《無》を支払ってもよい。そうした場合、③このカードをトラッシュから場に出す」が、live では①直後に②③を解決する `SEQUENCE` になっていた。CSV 12シートを大小英字対応のカード番号で再走査し、読込総数 **9284カード**、`そうした場合、そのターン終了時` は本効果1件だけと確認した。`WXDi-P08-010` の「ターン終了時**まで**」は持続期間なので変更していない。
+
+### parser・live・engine
+
+- `parseSentencePart1.ts` に、文頭 `そのターン終了時、` だけを受け止める parse-only STUB `DEFERRED_THIS_TURN_END_BODY` を追加した。既存の「次の対戦相手／あなたのターン終了時」と同じ2段構えで、`effectParser.ts` の後処理が本文を parse して既存 `INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN',trigger:{timing:'ON_TURN_END'}}` へ詰め替える。後続の「そうした場合、③」も tree 上で遅延 action の `effect` 内へ畳み、②③を `SEQUENCE` にした。カード番号・カード固有本文による分岐はない。
+- 生成・採用した `WXDi-P10-039-E2.action` は `SEQUENCE[OPTIONAL_COST(handDiscard:1), CONDITIONAL(IS_MY_TURN){INSTALL_DELAYED_TRIGGER(THIS_TURN,ON_TURN_END){SEQUENCE[OPTIONAL_COST(costColors:[青,無]), CONDITIONAL(IS_MY_TURN){ADD_TO_FIELD(TRASH_CARD,self,thisCardOnly)}]}}]`。新しい action 型・timing・PlayerState フィールドは作っていない。
+- `conditional:true` は付けなかった。`execInstallDelayedTrigger` の同フラグは `lastProcessedCards` の有無を別途見るが、今回は INSTALL 自体が①の OPTIONAL_COST の pay 枝である `conditional.then` 内にある。①skipでは INSTALL へ到達しないため、履歴依存の二重ゲートは不要。②③は発火時に既存 `execSequence` の任意コスト dispatcher へ入り直し、②skipで③を止める。
+- `collectTurnTriggers` の `ON_TURN_END` 遅延 watcher 収集だけを、ターンプレイヤー `myState` と非ターンプレイヤー `opState` の両方へ拡張し、entry の `playerId` は設置者を保持した。他の phase timing は既存どおりターンプレイヤー側だけ。これにより、相手ターン中に手札から捨てられて非ターンプレイヤー側へ設置された予約も発火する。
+- 人間ターンは `BattleScreen.doPhaseAdvance` の END 分岐で `collectTurnTriggers('ON_TURN_END', my, op)` をスタックへ積み、`return` して解決後に再入する。手札上限はその後の END②、`clearEndOfTurnDelayedTriggers` はさらに後の終了処理で両 player に適用される。CPU ターンも `collectCpuTurnTriggers('ON_TURN_END', cpuSt, huSt)` を同じくスタック解決してから、人間側・CPU側の順に clear する。したがって両ターン／両設置者で **ターン終了時効果→手札上限→終了・予約clear** の順を満たす。
+
+`heldReview --adopt WXDi-P10-039` 前に同居3効果を照合し、E1（相手のアタックフェイズ開始時に1枚引く）と BURST（相手のアップシグニ1体をデッキ下）は fresh/live 同値、変更は E2だけと確認して採用した。逆翻訳全体は「【自】このカードが手札からトラッシュに置かれたとき：手札からカードを1枚捨ててもよい。そうした場合、このターン、ターン終了時、《青》《無》を支払ってもよい。そうした場合、このシグニをトラッシュから場に出す」。`そのターン終了時` を decompiler が「このターン、ターン終了時」と展開し、「このカード」を「このシグニ」と正規化する表現差はあるが、発火時点・①②の任意性・③の帰結は原文と一致する。条件以外で見つけた原文との食い違いは **0件**。
+
+### golden 更新（続き590の3本を意味を落とさず改変）
+
+- (a) ①skip：手札・エナ不変／場に戻らない／`delayed_triggers` が設置されない。
+- (b) ①pay：手札だけ減り、直後は②の CHOOSEも場への復帰もなく予約1件だけを設置。純関数 `collectTurnTriggers` で設置者がターンプレイヤー／非ターンプレイヤーの両向きに各1件収集され、実際に entry.effect を実行すると②の CHOOSEが出る。
+- (c) ①pay→ON_TURN_END発火→②pay：手札1枚と《青》《無》を払い、発火元だけがトラッシュから場へ戻り複製しない。
+- (d) を追加し、①pay→発火→②skip：手札だけ減り、エナ不変・場へ戻らないことを固定した。
+- 対照 `WDK05-R11-E1` はブロック SHA-256 がベースライン／現行とも `5cd40ab07b2011a5156d02a5605c6745e8d9f1cfb67c56b36329b8f274ae04f3` で、1文字も変更していない。
+
+### 最終ゲート・差分監査・据置
+
+`npm run regen` 実行済み。`npm run gates` は typecheck PASS / golden **2325 / FAIL 0** / smoke **10693**・CRASH/HANG/INVARIANT全0 / fuzz全0 / census **783（baseline 783）** / census:stubs A群0・C群0 / manual-fields 0 / lint **0 errors・263 warnings**。`node scripts/groupSimilar.mjs --all` は総カード5986・同型グループ265・同型★ **0**。報告直前の `build:effects`→`heldReview` は **99カード／40署名群**、`_partial_fresh` **6カード**。
+
+ベースライン `8a872faba` 比 live per-effect diff は **changed 1（`WXDi-P10-039-E2`）/ added 0 / removed 0 / outlier 0**。held 集合は **99→99、added 0 / removed 0**（対象をカード単位で採用した結果、最終的な未採用集合の純増減なし）。`docs/_vocab_census.txt` は本効果が「ターン終了時」の STUB/MANUAL 群から外れた差、`docs/_census_stubs.txt` は parser 行追加による既存STUB生成位置の行番号追随、`docs/decompile_sheet8.txt` は対象E2の逆翻訳更新だけ。
+
+全変更ファイルの U+FFFD・3文字以上連続`?`・先頭BOMはベースライン比で新規増 **0**。`scripts/verifyBattleDrive.mjs`／`docs/PLAN.md`／`docs/PLAN_PROGRESS.md` は `git diff --exit-code 8a872faba -- ...` が **exit 0**。(cxlvi)・`WXDi-P08-010` は非変更。commit／push、実機シナリオ実行はしていない。
+
+⚠ `scripts/verifyBattleDrive.mjs` の既存2本は変更禁止のため腐ったまま。`v20DiscardPayBothReturnsToField` は①pay後すぐ②のエナ選択・③の場復帰へ進む前提なので、修正後は予約設置で pending が消え、ターンをENDまで進めないまま未完了になる。`v20DiscardSkipFirstBlocksSecond` は①skip直後に pendingなし・トラッシュ残置なら即PASSするため結果自体は今も成立しうるが、遅延予約の非設置を観測せずターン終了まで進めない旧即時解決前提の検査であり、(cl) の回帰ガードとしては腐っている。Claude 側で前者を「①pay→END→②pay→復帰」、後者を「①skip→予約なし（必要ならENDを跨いでも②なし）」へ書き換えて実機確認する必要がある。
+
 ## 2026-08-20（続き590・Opusタスク12 第3バッチ・Codex）— 未確定ゲートより先に継続が走る2件を修正（(cxlvii)(cxlix)）
 
 新しい action／Condition／PlayerState／STUB は作らず、(cxlvii) は二段任意コストだけを pay 枝へ入れ子化し、(cxlix) はピース応答の永続化を「支払い→応答効果投入→最新盤面取得→応答完了」の順へ固定した。live JSON は変更していない。
