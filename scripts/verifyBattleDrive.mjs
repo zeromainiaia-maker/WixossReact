@@ -24382,6 +24382,20 @@ async function driveV20(page, H, payBoth) {
       if (!step1PayCandPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay'); if (did) step1PayCandPicked = true; }
       if (!did) did = await H.clickTextOrBtn(['決定']);
       if ((st0?.host?.handCards ?? []).length === 0) step1PayPicked = true;
+    } else if (payBoth && !fired) {
+      // 🆕(cl)＝①を払った直後は**何も出ない**（予約されただけ）。ターン終了まで進めて②を出させる。
+      if (!preEndChecked) {
+        preEndPending = st0?.pendingEffect ?? '-';
+        preEndOnField = onFieldNow(st0);
+        preEndChecked = true;
+        H.log(`    (cl)①pay直後の観測: pEff=${preEndPending} 場に復帰済み=${preEndOnField}（どちらも「出ていない」が正）`);
+      }
+      if (st0?.pendingEffect) { fired = true; H.log(`    (cl)ターン終了時に②が発火（ターン終了クリック${endClicks}回）`); }
+      else {
+        did = await H.clickBtn('ターン終了', { exact: true });
+        if (!did) did = await H.clickTextOrBtn(['ターン終了', 'OK', 'はい']);
+        if (did) endClicks++;
+      }
     } else if (payBoth && !step2E0) {
       const el = page.getByTestId('optcost-energy-0').first();
       if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'optcost-energy-0'; step2E0 = true; }
