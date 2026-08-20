@@ -37,6 +37,7 @@ import type {
   DrawAction,
   RevealUntilAction,
   SigniAttackBanAction,
+  BanishAction,
 } from '../types/effects';
 
 /**
@@ -4907,6 +4908,16 @@ function findTailAction(a: EffectAction | null | undefined): EffectAction | null
   return a;
 }
 
+/** 自己バニッシュ対価が did-it 帰結の直前にある既存の正準木か。 */
+function hasLeadingSelfBanishCost(action: EffectAction): boolean {
+  if (action.type !== 'SEQUENCE') return false;
+  const first = (action as SequenceAction).steps[0];
+  return first?.type === 'BANISH'
+    && (first as BanishAction).optional === true
+    && (first as BanishAction).target.owner === 'self'
+    && (first as BanishAction).target.filter?.thisCardOnly === true;
+}
+
 // foldSuppressOnPlay（タスク12(xxix)・「そのシグニの【出】能力」クラスタの忠実表現化）：
 // 「〜を場に出す。その（それらの）シグニの【出】能力は発動しない」を、旧来 parser が別ステップとして吐く
 // 全体 BLOCK_ACTION{actionId:'ON_PLAY_ABILITY'}（engine から一切参照されない死アクション。しかも target が
@@ -6702,7 +6713,10 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
     return action;
   }
   const tgt = fin?.target ?? fin?.source;
-  if (!tgt || tgt.type !== 'SIGNI' || tgt.owner === 'opponent') return action;
+  if (!tgt || tgt.type !== 'SIGNI') return action;
+  // owner が既に opponent の木へ filter を後付けするのは、先頭が自己バニッシュ対価の形だけ。
+  // 一般の opponent 対象へ広げると、既存 held を多数増やす別バッチになる。
+  if (tgt.owner === 'opponent' && !hasLeadingSelfBanishCost(action)) return action;
   tgt.owner = 'opponent';
   // designation で「それ」の指し先が確定したので、トリガー元への自動対象フラグは撤去する。
   // 残すと engine が triggeringCardNum ?? sourceCardNum（＝【起】ではカード自身）へ解決して

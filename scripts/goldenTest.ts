@@ -20,6 +20,7 @@ import { collectDownProtectedSigni, collectAbilityProtectedSigni, collectAbility
 import { buildEffectsMap, parseCardEffects, abilityBlockTextOf, DISTINCT_BATCH5C, inferDistinctKind, distinctConstraintOf } from '../src/data/effectParser';
 import { parseRevealPickDescriptor } from '../src/data/parserUtils';
 import { drawPhaseLimitFromBlocked, activeFieldGrantKeywordsForSigni, activeKeyAbilitySources, activeOppMoveImmunityZones, applyLrigDrawPhaseReplacement, collectGrowCostReductions, calcFieldPowers, collectGrantedFromLayer, checkActiveCondition, calcActiveCostMods, collectCharmShieldSigni, applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, computeBanishedAttrs, calcContinuousBlockedActions, collectBanishSubstitutes, collectBanishPreventLoseAbility, collectFieldSigniExtraColors, collectSelfTrashPreventNums, collectEnergyTrashSubstituteInfo, collectEffectImmuneSigni, collectBanishEffectProtectedSigni, collectBanishBySourceProtectedSigni, canSelfPlay, calcContinuousSigniMutations, collectColorlessOverrides, collectContinuousAbilitiesRemovedSigni, collectContinuousGrantedKeywords, collectForcedFrontAttackZones, resolveForcedSigniAttack, collectIncreaseActCost, collectOppGuardExtraColorlessCost, collectAttackPhaseLevelOverrides, calcSigniLevels } from '../src/engine/effectEngine';
+import { collectOppLrigAttackExtraCost } from '../src/engine/effectEngine';
 import { fieldCandidates, evalCondition, evalUseCondition, banishDestination, banishRedirectOpts, matchesFilter, removeFromField, resolvePendingExiles, satisfiesSelectionConstraint, canAddToSelection, canSatisfyDiscardGroups, analyzeBeatSigniCost, payBeatSigniFromTrashCost, canPayOptionalCost, selectOptionalCostEnergy, resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, pendingRespondsOpponent, designatedZones, buildGatedKeywordGrant } from '../src/engine/execUtils';
 import {
   executeEffect, executeAction, getCardNum as getCardNumG,
@@ -40414,6 +40415,98 @@ test('task12(cxxxviii): タナバタE3は原文どおり固定1枚で、最大9�
     eq(action.upToCount, undefined, `${label}: 原文に「まで」が無いのに任意枚数になった`);
   }
 });
+
+// ── Opusタスク12 第2バッチ (cxlviii)：対象宣言の後ろにある自己バニッシュ対価 ──
+// 実害を効果ごとに実行して固定する：辞退なら相手無傷、支払いなら自分だけが先に消え、
+// 帰結は宣言フィルタ内の相手1体だけへ届く。
+const SELF_BANISH_COST_CASES: Array<{
+  cardNum: string;
+  effectId: string;
+  result: 'BANISH' | 'BOUNCE';
+  maxPower?: number;
+  maxLevel?: number;
+}> = [
+  { cardNum: 'WX24-P4-052', effectId: 'WX24-P4-052-E2', result: 'BANISH', maxPower: 8000 },
+  { cardNum: 'WX12-031', effectId: 'WX12-031-E1', result: 'BANISH' },
+  { cardNum: 'WXK11-030', effectId: 'WXK11-030-E1', result: 'BOUNCE', maxLevel: 3 },
+  { cardNum: 'WX24-P4-104', effectId: 'WX24-P4-104-E1', result: 'BANISH', maxPower: 7000 },
+];
+for (const spec of SELF_BANISH_COST_CASES) {
+  test(`task12(cxlviii): ${spec.effectId} 自己バニッシュ辞退/支払いと対象フィルタ`, () => withSavedCursor(() => {
+    const eff = (effectsMap.get(spec.cardNum) ?? []).find(e => e.effectId === spec.effectId)!;
+    const valid = findCard(c => c.Type === 'シグニ' && c.CardNum !== spec.cardNum
+      && (spec.maxPower === undefined || (parseInt(c.Power ?? '0', 10) || 0) <= spec.maxPower)
+      && (spec.maxLevel === undefined || (parseInt(c.Level ?? '0', 10) || 0) <= spec.maxLevel));
+    const invalid = spec.maxPower !== undefined
+      ? findCard(c => c.Type === 'シグニ' && (parseInt(c.Power ?? '0', 10) || 0) > spec.maxPower)
+      : spec.maxLevel !== undefined
+        ? findCard(c => c.Type === 'シグニ' && (parseInt(c.Level ?? '0', 10) || 0) > spec.maxLevel)
+        : undefined;
+    const make = () => mkCtx({ signi: [spec.cardNum, null, null] }, { signi: [valid, invalid ?? null, null] }, spec.cardNum);
+
+    const skipCtx = make();
+    let skipped = executeEffect(eff, skipCtx);
+    ok(!skipped.done && skipped.pending.type === 'SELECT_TARGET', `${spec.effectId}: 自己バニッシュ選択が出ない`);
+    skipped = resumeSelectTarget([], skipped.pending as never, ctxAfter(skipped, skipCtx));
+    ok(skipped.ownerState.field.signi.some(s => s?.at(-1) === spec.cardNum), `${spec.effectId}: 辞退したのに自分が消えた`);
+    ok(skipped.otherState.field.signi.some(s => s?.at(-1) === valid), `${spec.effectId}: 対価なしで相手が消えた`);
+
+    const payCtx = make();
+    let paid = executeEffect(eff, payCtx);
+    ok(!paid.done && paid.pending.type === 'SELECT_TARGET', `${spec.effectId}: 支払い選択が出ない`);
+    paid = resumeSelectTarget([spec.cardNum], paid.pending as never, ctxAfter(paid, payCtx));
+    ok(!paid.done && paid.pending.type === 'SELECT_TARGET', `${spec.effectId}: 支払い後の相手対象選択が出ない`);
+    if (!paid.done && paid.pending.type === 'SELECT_TARGET') {
+      ok(paid.pending.candidates.includes(valid), `${spec.effectId}: フィルタ内の相手が候補に入らない`);
+      if (invalid) ok(!paid.pending.candidates.includes(invalid), `${spec.effectId}: フィルタ外の相手が候補に入った`);
+      paid = resumeSelectTarget([valid], paid.pending, ctxAfter(paid, payCtx));
+    }
+    ok(!paid.ownerState.field.signi.some(s => s?.at(-1) === spec.cardNum), `${spec.effectId}: 対価を払っても自分が場に残った`);
+    ok(!paid.otherState.field.signi.some(s => s?.at(-1) === valid), `${spec.effectId}: 帰結が宣言対象へ届かない`);
+    if (spec.result === 'BOUNCE') ok(paid.otherState.hand.includes(valid), `${spec.effectId}: 対象が手札へ戻らない`);
+    else ok(paid.otherState.energy.includes(valid), `${spec.effectId}: 対象がバニッシュされない`);
+    if (invalid) ok(paid.otherState.field.signi.some(s => s?.at(-1) === invalid), `${spec.effectId}: フィルタ外の相手まで消えた`);
+  }));
+}
+
+test('task12(cxlv): WX20-077-E2 live SEARCH は thenAction を持ち、既存の使用/トラッシュ二択へ進む', () => withSavedCursor(() => {
+  const target = findCard(c => c.CardName === 'バイオレンス・スプラッシュ');
+  const rikabuto = findCard(c => (c.CardName ?? '').includes('リカブト'));
+  const eff = (effectsMap.get('WX20-077') ?? []).find(e => e.effectId === 'WX20-077-E2')!;
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.deck = [target, ...ctx.ownerState.deck];
+  ctx.ownerState.trash = [rikabuto];
+  let result = executeEffect(eff, ctx);
+  ok(!result.done && result.pending.type === 'SEARCH', 'live SEARCH interaction が出ない');
+  if (result.done || result.pending.type !== 'SEARCH') return;
+  eq(result.pending.thenAction.type, 'ADD_TO_HAND', 'UI が読む thenAction が欠落している');
+  result = resumeSearch([target], result.pending, ctxAfter(result, ctx));
+  ok(!result.done && result.pending.type === 'CHOOSE', '既存の使用/トラッシュ二択へ進まない');
+  if (!result.done && result.pending.type === 'CHOOSE') {
+    eq(result.pending.options.map(o => o.id).join('|'), 'use|trash', '二択の内容が変わった');
+  }
+}));
+
+test('task12(cxliv/cxlviii stale live): 限定採用4カードの構造不変条件', () => {
+  const story = (effectsMap.get('WX25-P2-014') ?? []).find(e => e.effectId === 'WX25-P2-014-E1')?.activeCondition;
+  ok(JSON.stringify(story).includes('"HAS_CARD_IN_FIELD"') && JSON.stringify(story).includes('"story":"宇宙"'),
+    'WX25-P2-014-E1: ＜宇宙＞在場条件が live に無い');
+  for (const [cardNum, effectId] of [
+    ['WX17-029', 'WX17-029-E1'], ['WX25-P1-083', 'WX25-P1-083-E2'], ['WX25-P1-102', 'WX25-P1-102-E2'],
+  ] as const) {
+    const eff = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(JSON.stringify(eff?.action ?? {}).includes('"thisCardOnly":true'), `${effectId}: 自己バニッシュが live に無い`);
+  }
+});
+
+test('task12(cxliv): OPP_LRIG_ATTACK_COST は＜宇宙＞在場で2、不在で0', () => withSavedCursor(() => {
+  const storySigni = findCard(c => c.Type === 'シグニ' && (c.CardClass ?? '').includes('宇宙'));
+  const without = mkState({ lrig: ['WX25-P2-014'] });
+  const withStory = mkState({ lrig: ['WX25-P2-014'], signi: [storySigni, null, null] });
+  const opponent = mkState({});
+  eq(collectOppLrigAttackExtraCost(withStory, opponent, cardMap, effectsMap, false), 2, '＜宇宙＞在場で追加《無》《無》にならない');
+  eq(collectOppLrigAttackExtraCost(without, opponent, cardMap, effectsMap, false), 0, '＜宇宙＞不在でも過剰にゲートが掛かる');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

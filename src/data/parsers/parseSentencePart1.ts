@@ -109,6 +109,15 @@ const TTH_FILTER_BATCH2_WAVE1_CARDS = new Set([
   'WXEX2-06',
 ]);
 
+/**
+ * バニッシュ動詞の直前の目的語が「このシグニ」かを判定する。
+ * 文の別節に「対戦相手」があるかではなく、同じ節で次の「を」を挟まず
+ * `このシグニを ... バニッシュ` と続く構造だけを見る。
+ */
+function hasThisSigniAsBanishObject(text: string): boolean {
+  return /このシグニを[^を、。]*バニッシュ/.test(text);
+}
+
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
   // ---- 「次の対戦相手のターン終了時、〜」＝**遅延タイミング宣言**（§6.4 O-3 続き493）----
   // 🔑**遅延の本体は絶対に即時実行しない**（続き488 の教訓）＝予約機構が入るまでは受け皿へ落として
@@ -1616,9 +1625,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     const owner: Owner = signiClauseOwner(t);
     const isOptional = t.includes('バニッシュしてもよい');
-    // 「このシグニをバニッシュする」＝自身のみ（任意選択でなく thisCardOnly）
-    if (/このシグニを(?:[^。、]*)?バニッシュ/.test(t) &&
-        (!t.includes('対戦相手') || /このシグニが対戦相手のシグニ１体をバニッシュしたとき、このシグニをバニッシュしてもよい/.test(t))) {
+    // 「このシグニをバニッシュする」＝自身のみ（任意選択でなく thisCardOnly）。
+    // ⚠文の別節に「対戦相手」があっても、バニッシュの目的語がこのシグニなら自己バニッシュ。
+    if (hasThisSigniAsBanishObject(t)) {
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } }, ...(isOptional ? { optional: true } : {}) };
     }
     // 「対戦相手は自分のシグニ1体を対象とし、それをバニッシュする」＝対戦相手が自分のシグニを選んでバニッシュ

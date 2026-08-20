@@ -1,5 +1,35 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-20（続き589・Opus 5＋Codex）— Opusタスク12 第2バッチ＝自己バニッシュ対価・SEARCH then・stale live 4カードを既存語彙だけで是正（(cxliv)(cxlv)(cxlviii)）
+
+新しい action／Condition／ActiveCondition／PlayerState／STUB は作らず、(cxlviii) の自己バニッシュ対価を既存 `BANISH{owner:'self',thisCardOnly:true,optional:true}`＋直後の `CONDITIONAL{IS_MY_TURN}` did-it ゲートへ直し、先行する相手対象宣言の filter を既存 `applyLeadingOpponentDesignation` で帰結へ継承した。(cxlv) は `WX20-077-E2` の `SEARCH.then` に既定の `ADD_TO_HAND{owner:'self'}` を明記し、UI の2読出しも同じ既定値へフォールバック。(cxliv) と fresh 側で既に正しかった自己バニッシュ3件は held から採用した。
+
+### 修正・採用した効果（per-effect）
+
+- **parser 修正4件**：`WX12-031-E1`、`WXK11-030-E1`、`WX24-P4-052-E2`、`WX24-P4-104-E1`。前段は自己バニッシュ任意対価となり、帰結は順に相手シグニの BANISH、Lv3以下 BOUNCE、P8000以下 BANISH、P7000以下 BANISH。前段を断れば did-it ゲートで帰結は起きず、支払えば自分だけが先に場を離れ、宣言 filter に合う相手1体だけが候補になることを4効果の engine E2E で固定した。
+- **SEARCH 1件**：`WX20-077-E2`。`SEARCH.then=ADD_TO_HAND(self)` を追加。live effect 実行で SEARCH pending が `thenAction` を持ち、resume 後も既存 `USE_SEARCHED_SPELL_OR_TRASH` の `use|trash` 二択が出ることを固定した。resolver の `resumeSearch` は元から同じフォールバックを持つため engine 挙動は変更していない。
+- **held 採用5効果／4カード**：`WX17-029-E1`、`WX25-P1-083-E2`、`WX25-P1-102-E1`、`WX25-P1-102-E2`、`WX25-P2-014-E1`。カード単位採用前に同居効果を全件照合し、`WX17-029-BURST/TRAP`、`WX25-P1-083-E1`、`WX25-P2-014-E2` は不変。`WX25-P1-102-E1` は従来の誤った self/trigger-source POWER_MODIFY から、原文の対象である opponent SIGNI へ fresh が同時に改善したため採用した。
+
+live のベースライン `1a48fcc45` 比 per-effect diff は **changed 10 / added 0 / removed 0 / outlier 0**（上記10効果のみ）。対照8カード `WX07-033` `WX10-048` `WX13-044` `WX13-052` `WX14-029` `WX15-039` `WX25-P1-069` `WX25-P2-057` は、カード内の全効果がベースラインと byte-equivalent な JSON 構造で変化0。
+
+### 真因確認・ガード一般化
+
+- **(cxliv)** 指示どおり parser／engine は既に完備していた。fresh の `WX25-P2-014-E1.activeCondition` は `AND[TURN_OWNER(opponent),HAS_CARD_IN_FIELD(self,{story:'宇宙'})]`。collector は既存 `checkActiveCondition` を呼ぶ。live だけ stale だったため採用のみとし、＜宇宙＞在場で追加《無》2、不在で0を collector E2E で固定した。
+- **(cxlv)** `effectExecutor.ts` の指摘箇所は SEARCH ではなく SELECT_TARGET resume で、SEARCH の `resumeSearch` は既に missing `thenAction` を ADD_TO_HAND へ補う。実際の crash 穴は parser の `then` 欠落と `EffectInteractionModal` の無防御参照2箇所だけだった。
+- **(cxlviii)** 旧ガード `このシグニを…バニッシュ && (!全文.includes('対戦相手') || WX10-048原文whitelist)` を、切出し関数 `hasThisSigniAsBanishObject` の `このシグニを[^を、。]*バニッシュ` に置換。別節の「対戦相手」ではなく、同じ節で次の目的格「を」を挟まずバニッシュ動詞へ届く目的語を見る。帰結 filter の継承も `SEQUENCE` 先頭が任意の self/thisCardOnly BANISH という木だけに限定した。一般 owner-opponent 木へ一度広げると held が +75 になることを途中検出したため、この構造ガードへ絞り、scope外で一時変化した8カードをベースラインへ復元した。
+
+依頼文の母集団「16枚」は現行CSVの機械再走査とは一致しない。`この(シグニ|カード)をバニッシュしてもよい` は **18カード**で、今回の誤り7＋対照8のほか、バニッシュ置換の別構造3カード（`WX20-055` `WXDi-CP01-032` `WXDi-P10-052`）がある。この3カードは今回の自己対価構造ではないため変更していない。
+
+### 逆翻訳照合・既知の表現差・据置
+
+10変更効果は帰結・条件・filter の意味が原文と一致した。ただし逆翻訳の逐語一致では、既存 decompiler／近似表現により次が残る：`WX24-P4-052-E2` の timing が「アタックしたアタック終了時」、`WX17-029-E1` が「そうした場合」を重複し `LOOK_AND_REORDER count:0` を表示、`WX20-077-E2` が「1枚」を「1枚まで」と表示、`WX25-P2-014-E1` が collector 実装済みでも `[STUB:コストアップ系（engine: コスト計算未実装）]` と表示する。また自己バニッシュ4件は原文の先行対象宣言をアクション木上の帰結 target として保持するため、逆翻訳では対象宣言が対価の後へ並ぶ。いずれも今回の engine E2E で実害側を固定し、別の逆翻訳改善へは拡張していない。
+
+**見送り／非変更**：今回指定された3群内の見送りは0件。明示的 scope 外の (cxlvi)(cxlvii)(cxlix)、held 残り99カード、`_partial_fresh` 6カード、置換構造3カードには手を出していない。途中の広すぎる継承で一時 live に入った scope 外8カード（`WXDi-P01-059` `WXDi-P03-058` `WXDi-P05-077` `WXDi-P09-062` `WX24-P1-004` `WX24-P1-042` `WX24-P3-066` `WX25-P1-092`）は全てベースラインへ復元。`scripts/verifyBattleDrive.mjs`、`docs/PLAN.md`、`docs/PLAN_PROGRESS.md` は SHA-256 同一で変更していない。commit／push も未実施。
+
+### 回帰網・ゲート
+
+golden は既存ブロックを削除・改変せず **+93/-0**、7テスト（A群4効果を各1 E2E、SEARCH live E2E、採用live構造、宇宙条件collector E2E）を追加して **2312→2319 PASS**。`npm run regen` 実行済み。`npm run gates` は typecheck PASS / golden **2319** / smoke **10693**・CRASH/HANG/INVARIANT全0 / fuzz 全0 / census **783（baseline 783）** / census:stubs A群0・C群0 / manual-fields 0 / lint **0 errors・263 warnings**。`node scripts/groupSimilar.mjs --all` は同型グループ **265**・総カード **5986**・同型★ **0**。報告直前の `build:effects`→`heldReview` 実測は held **99カード／40署名群**（103/42→99/40）、`_partial_fresh` **6カード**。
+
 ## 2026-08-20（続き588・Opus 5＋Codex）— Opusタスク12 第1バッチ＝既存機構が特定入口にだけ届いていなかった配線漏れ6件を残0クローズ（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)）
 
 新しい action／Condition／PlayerState フィールドは作らず、既存ヘルパ・既存コンテキストだけを6入口へ通した。`npm run gates` 全緑（typecheck PASS / golden **2312** / smoke **10693**・全異常0 / fuzz 全異常0 / census **783** / census:stubs A群0・C群0 / manual-fields 0 / lint 0 errors・**263 warnings**）。`npm run regen` と `node scripts/groupSimilar.mjs --all` も実行し、カード単位の同型★は **0**。実機ハーネスはネットワーク遮断環境のため未実行で、既存 `scripts/verifyBattleDrive.mjs` は変更していない。

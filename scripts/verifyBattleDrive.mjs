@@ -24642,12 +24642,13 @@ order.push('v45bPaySwapsInDownEnergySigni', 'v45bSkipDoesNothing');
 // V-45(c)：`WX24-P4-052-E2`（羅原姫　Ｌａ）原文＝「このシグニがアタックしたとき、そのアタック終了時、対戦相手の
 // パワー8000以下のシグニ１体を対象とし、このシグニをバニッシュしてもよい。そうした場合、それをバニッシュする」＝
 // 対象を選んだ上で「このシグニ（＝自分自身）」を任意コストでバニッシュし、そうした場合に対象（相手シグニ）を
-// バニッシュする、という自己バニッシュを対価とする構造。しかしJSONは
-// `BANISH{owner:opponent,power<=8000,optional:true}`→`CONDITIONAL(IS_MY_TURN){BANISH{owner:opponent,無フィルタ}}`
-// という「相手シグニを対象選択と同時に即バニッシュ（任意）→さらに無条件でもう1体（無フィルタ）を強制バニッシュ」
-// という構造になっており、自分自身をバニッシュする語彙が一切ない＝相手シグニを最大2体バニッシュできてしまう
-// （本来は相手シグニ0〜1体・自分は対価で最大1体）。実機で最初のBANISH候補を選ぶと即座に相手シグニがバニッシュ
-// され、続けて2体目の無条件BANISHが発生する＝相手シグニ2体消滅を確認する。
+// バニッシュする、という自己バニッシュを対価とする構造。
+// 🏁**2026-08-20 続き589（Opusタスク12(cxlviii)）で parser を是正済み**＝
+//   `SEQUENCE[BANISH{owner:self,thisCardOnly,optional}, CONDITIONAL{IS_MY_TURN}{BANISH{owner:opponent,power<=8000}}]`。
+// ⚠**旧シナリオ `v45cDoubleOpponentBanishConfirmsMismatch` は「バグを再現したら PASS」という記録用**で、
+//   修正後は構造ごと空振りする（1体目の候補が自分自身になるので相手を選べない）＝§7 の「シナリオの腐り」。
+//   **支払う／断るの対**（§5-21＝負方向テストは必ず対照とセット）へ書き換えた。
+// 盤面は旧シナリオのまま流用＝側面(index0)=power3000（フィルタ内）／正面(index1)=power15000（フィルタ外の対照）。
 function v45cSpec() {
   return {
     hostSet: {

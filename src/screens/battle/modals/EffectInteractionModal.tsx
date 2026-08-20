@@ -7,6 +7,13 @@ import { C } from '../../../components/BoardComponents';
 import { buildOptionalCostPayload, optionalCostOptions } from '../optionalCostUi';
 import { energyPayEntryLabel } from '../energyPaySource';
 import type { BattleModalCtx } from './types';
+import type { EffectAction } from '../../../types/effects';
+
+const DEFAULT_SEARCH_THEN_ACTION: EffectAction = { type: 'ADD_TO_HAND', owner: 'self' };
+
+function interactionThenAction(inter: { thenAction?: EffectAction }): EffectAction {
+  return inter.thenAction ?? DEFAULT_SEARCH_THEN_ACTION;
+}
 
 interface EffectInteractionModalProps {
   ctx: BattleModalCtx;
@@ -116,7 +123,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
           // 選択UIの説明文を生成（何のためにどこから選ぶか）
           const label = (() => {
             if (inter.type === 'SEARCH') {
-              const act = inter.thenAction;
+              const act = interactionThenAction(inter);
               const actionDesc =
                 act.type === 'ADD_TO_HAND'    ? '手札に加えるカードを' :
                 act.type === 'ADD_TO_FIELD'   ? '場に出すカードを' :
@@ -156,7 +163,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             const from = oppHandOwnerIsViewer ? 'あなたの手札から'
               : oppLrigDeckOwnerIsViewer ? 'あなたのルリグデッキから'
               : (scopeDesc[inter.targetScope] ?? '');
-            const act = inter.thenAction;
+            const act = interactionThenAction(inter);
             const actionDesc =
               act.type === 'BANISH'         ? 'バニッシュする' :
               act.type === 'BOUNCE'         ? '手札に戻す' :

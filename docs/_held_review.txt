@@ -3,8 +3,8 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［55枚］
-PR-Di017B SPDi43-12 WD07-006 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P1-083 WX25-P1-102 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK10-066 WXK11-019
+## （type増減なし＝値/構造変更） ［53枚］
+PR-Di017B SPDi43-12 WD07-006 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK10-066 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
@@ -229,24 +229,6 @@ WX17-005
   + [0].action.then.id = "DECLARE_CARD_NAME"
   + [0].action.else.type = "STUB"
   + [0].action.else.id = "MAKE_SERVANT_ZERO"
-
-## -CONDITIONAL -GRANT_KEYWORD -IS_MY_TURN -SIGNI -STUB ［1枚］
-WX17-029
---- WX17-029
-  原文: 【自】：対戦相手のターン終了時、このシグニをバニッシュしてもよい。そうした場合、あなたのデッキの上からカードを４枚見て、その中から１枚を【トラップ】としてあなたのシグニゾーンに設置する。残りを好きな順番でデッキの一番下に置く。【トラップアイコン】：あなたのトラッシュからカード１枚を対象とし、《無》を支払ってもよい。そうした場合、このカードはそれのトラップ能力
-  - [0].action.steps[0].target.upToCount = false
-  - [0].action.steps[3].type = "GRANT_KEYWORD"
-  - [0].action.steps[3].target.type = "SIGNI"
-  - [0].action.steps[3].target.owner = "self"
-  - [0].action.steps[3].target.count = 1
-  - [0].action.steps[3].keyword = "トラップアイコン"
-  - [0].action.steps[3].duration = "PERMANENT"
-  - [0].action.steps[4].type = "CONDITIONAL"
-  - [0].action.steps[4].condition.type = "IS_MY_TURN"
-  - [0].action.steps[4].then.type = "STUB"
-  - [0].action.steps[4].then.id = "TRAP_OPERATION"
-  ~ [0].action.steps[0].target.owner : "opponent" → "self"
-  …（他 1 行）
 
 ## +BANISH +CHOOSE +CONDITIONAL +DRAW +ENERGY_CARD +ENERGY_COUNT +LIFE_CRASH +SEQUENCE +SIGNI +TRASH ［1枚］
 WX19-005
@@ -495,19 +477,6 @@ WX25-P2-001
   ~ [0].action.type : "STUB" → "SEQUENCE"
   + [0].action.steps[0].type = "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
-
-## +AND +HAS_CARD_IN_FIELD ［1枚］
-WX25-P2-014
---- WX25-P2-014
-  原文: 【常】《相手ターン》：あなたの場に＜宇宙＞のシグニがあるかぎり、対戦相手は《無》《無》を支払わないかぎりルリグでアタックできない。【起】《ゲーム１回》レリーズ《白×0》：次のあなたのエナフェイズ終了時まで、このルリグのリミットを＋１する。次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットを－２する。,-
-  - [0].activeCondition.owner = "opponent"
-  ~ [0].activeCondition.type : "TURN_OWNER" → "AND"
-  + [0].activeCondition.conditions[0].type = "TURN_OWNER"
-  + [0].activeCondition.conditions[0].owner = "opponent"
-  + [0].activeCondition.conditions[1].type = "HAS_CARD_IN_FIELD"
-  + [0].activeCondition.conditions[1].owner = "self"
-  + [0].activeCondition.conditions[1].filter.cardType = "シグニ"
-  + [0].activeCondition.conditions[1].filter.story = "宇宙"
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069
