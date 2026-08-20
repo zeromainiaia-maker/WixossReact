@@ -664,7 +664,7 @@
 
 - [x] **系統①（相手デッキ削りの owner 取り違え）／系統②（GRANT_PROTECTION `count:ALL`）／スケールアップ（stub群 2,401枚 全数監査）＝✅完了**。完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-02 整理②」節（2026-08-02 退避）。findings は Opusタスク12 (xxvii)(xxviii)(xxix) に集約済み。
 - [ ] **パイロット findings の個別修正**（真バグ39件・要追精査3件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ標準ワークフロー。
-- [ ] 🆕**2026-08-20 clean群round1 findings（バッチ1〜240・2,400枚監査・999件）**＝`node scripts/semanticAuditTriage.mjs scripts/archive/scratchpad/semantic_audit_clean_round1` で精査→1カードずつ標準ワークフロー。スポット裏取り3件（`PR-402`／`PR-464`／`PR-K056`）は全件確認どおりの真バグ（`PR-402-E1`はアタック不能条件が丸ごと欠落で恒久ブロック、`PR-464-E1`はセンタールリグ条件なしでパワー+5000/ダブルクラッシュが常時発動）。**件数が大きいので着手時はバッチ単位（10枚区切り）で精査を分割すること**。Opusタスク12へ登録前に残りも triage 要。
+- [ ] 🆕**2026-08-20 clean群round1 findings（全325バッチ・3,244枚監査＝clean群全数完了・1,444件）**＝`node scripts/semanticAuditTriage.mjs scripts/archive/scratchpad/semantic_audit_clean_round1` で精査→1カードずつ標準ワークフロー。スポット裏取り3件（`PR-402`／`PR-464`／`PR-K056`）は全件確認どおりの真バグ（`PR-402-E1`はアタック不能条件が丸ごと欠落で恒久ブロック、`PR-464-E1`はセンタールリグ条件なしでパワー+5000/ダブルクラッシュが常時発動）。**件数が大きいので着手時はバッチ単位（10枚区切り）で精査を分割すること**。Opusタスク12へ登録前に残りも triage 要。
 
 ### 6.3 残・大型機構（個別カード・機構待ち）
 
