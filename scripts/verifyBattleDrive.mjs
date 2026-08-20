@@ -24440,9 +24440,11 @@ async function driveV20(page, H, payBoth) {
     if (payBoth && zoned && !st?.pendingEffect) {
       const onField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
       const inTrash = (st.host.trashCards ?? []).some(n => n?.startsWith('WXDi-P10-039'));
+      // 🆕(cl)＝「①直後には出ず、ターン終了時に出た」ことまで合格条件に含める（即時解決への退行ガード）。
+      const deferred = preEndPending === '-' && preEndOnField === false && endClicks > 0;
       return {
-        pass: onField && !inTrash,
-        detail: `①②とも支払い＝場に復帰=${onField}・トラッシュに残っていない=${!inTrash}・hField=${JSON.stringify(st.host.fieldSigni)}`,
+        pass: onField && !inTrash && deferred,
+        detail: `①②とも支払い＝場に復帰=${onField}・トラッシュに残っていない=${!inTrash}・(cl)①直後は未解決=${deferred}（pEff=${preEndPending} 場=${preEndOnField} ターン終了${endClicks}回で②が発火）・hField=${JSON.stringify(st.host.fieldSigni)}`,
       };
     }
   }
