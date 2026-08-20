@@ -23669,10 +23669,10 @@ scenarios.v40UseSearchedSpellOrTrashResolves = {
   async drive(page, H) {
     await H.ensureMain();
     H.log('手札クリック(WX20-077):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
-    let summoned = false;
-    for (let s = 0; s < 12; s++) {
+    let summoned = false; let modalSeen = false; let searchLabel = null; let chooseSeen = false; let emptyStreak = 0;
+    for (let s = 0; s < 16; s++) {
       await page.waitForTimeout(700);
-      await page.screenshot({ path: `${SHOT}/v40UseSearchedSpellOrTrashCrash-${s}.png`, fullPage: true }).catch(() => {});
+      await page.screenshot({ path: `${SHOT}/v40UseSearchedSpellOrTrash-${s}.png`, fullPage: true }).catch(() => {});
       let did = null;
       if (!summoned) {
         did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
@@ -23683,22 +23683,43 @@ scenarios.v40UseSearchedSpellOrTrashResolves = {
             await summonBtn.click().catch(() => {}); did = 'btn:召喚';
           }
         }
+      } else {
+        const st0 = await H.queryState();
+        if (st0?.pendingEffect === 'SEARCH') {
+          // 🔴回帰ガード＝ここでモーダルが描画されず本文が空なら (cxlv) の再発（React crash）。
+          if (!modalSeen) {
+            const body = await H.body();
+            modalSeen = body.includes('手札に加えるカードを');
+            searchLabel = body.slice(0, 0) || null; // 本文全体は巨大なので判定だけを残す
+            H.log(`    SEARCHモーダル描画=${modalSeen}（bodyText長=${body.length}）`);
+          }
+          did = await H.stdStep();                       // pick-0 → 決定
+        } else {
+          // 「使用する／トラッシュに置く」の二択（既存 USE_SEARCHED_SPELL_OR_TRASH）
+          const trashBtn = page.getByRole('button', { name: /トラッシュに置く/ }).first();
+          if (await trashBtn.count() && await trashBtn.isVisible().catch(() => false)) {
+            await trashBtn.click().catch(() => {}); did = 'btn:トラッシュに置く'; chooseSeen = true;
+          }
+          if (!did) did = await H.stdStep();
+        }
       }
       const st = await H.queryState();
-      H.log(`  v40b[${s}] -> ${did ?? 'なし'} | summoned=${summoned} pEff=${st?.pendingEffect ?? '-'}`);
-      if (summoned && st?.pendingEffect === 'SEARCH' && s >= 4) {
-        const bodyLen = (await H.body()).length;
+      H.log(`  v40b[${s}] -> ${did ?? 'なし'} | summoned=${summoned} modalSeen=${modalSeen} chooseSeen=${chooseSeen} pEff=${st?.pendingEffect ?? '-'} hand=${JSON.stringify(st?.host?.handCards)} trash=${JSON.stringify(st?.host?.trashCards)}`);
+      emptyStreak = (summoned && chooseSeen && !st?.pendingEffect) ? emptyStreak + 1 : 0;
+      if (emptyStreak >= 2) {
+        const inTrash = (st.host.trashCards ?? []).some(n => n.startsWith('WX04-038#40102'));
+        const inHand = (st.host.handCards ?? []).some(n => n.startsWith('WX04-038#40102'));
         return {
-          pass: false,
-          detail: `🔴実バグ確認＝pendingEffect=SEARCHのまま画面が進行不能（bodyText長=${bodyLen}＝ほぼ空＝黒画面）。原因＝SEARCHアクションに then が無く EffectInteractionModal.tsx:119 が undefined.type を読んでcrash（詳細はBUGFIXES参照）`,
+          pass: modalSeen && inTrash && !inHand,
+          detail: `SEARCHモーダル描画=${modalSeen}・二択到達=${chooseSeen}・《バイオレンス・スプラッシュ》trash=${inTrash}/hand=${inHand}（手札に残さないのが原文どおり）`,
         };
       }
     }
     const fin = await H.queryState();
-    return { pass: false, detail: `未完了（summoned=${summoned} pEff=${fin?.pendingEffect ?? '-'}）` };
+    return { pass: false, detail: `未完了（summoned=${summoned} modalSeen=${modalSeen} chooseSeen=${chooseSeen} pEff=${fin?.pendingEffect ?? '-'}）` };
   },
 };
-order.push('v40UseSearchedSpellOrTrashCrash');
+order.push('v40UseSearchedSpellOrTrashResolves');
 
 // V-40(c)：`DECLARED_ICON_HAND_DISCARD_BANISH`＝`WXDi-P12-055-E1`（透魔姫　ウリス）【自】：あなたの
 // アタックフェイズ開始時、このシグニがアップ状態の場合、対戦相手のシグニ１体を対象とし、あなたの手札を
