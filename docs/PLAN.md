@@ -664,7 +664,16 @@
 
 - [x] **系統①（相手デッキ削りの owner 取り違え）／系統②（GRANT_PROTECTION `count:ALL`）／スケールアップ（stub群 2,401枚 全数監査）＝✅完了**。完了行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-02 整理②」節（2026-08-02 退避）。findings は Opusタスク12 (xxvii)(xxviii)(xxix) に集約済み。
 - [ ] **パイロット findings の個別修正**（真バグ39件・要追精査3件＋stub群残20枚・clean群50枚の findings）＝`node scripts/semanticAuditTriage.mjs <outDir>` で精査→1カードずつ標準ワークフロー。
-- [ ] 🆕**2026-08-20 clean群round1 findings（全325バッチ・3,244枚監査＝clean群全数完了・1,444件）**＝`node scripts/semanticAuditTriage.mjs scripts/archive/scratchpad/semantic_audit_clean_round1` で精査→1カードずつ標準ワークフロー。スポット裏取り3件（`PR-402`／`PR-464`／`PR-K056`）は全件確認どおりの真バグ（`PR-402-E1`はアタック不能条件が丸ごと欠落で恒久ブロック、`PR-464-E1`はセンタールリグ条件なしでパワー+5000/ダブルクラッシュが常時発動）。**件数が大きいので着手時はバッチ単位（10枚区切り）で精査を分割すること**。Opusタスク12へ登録前に残りも triage 要。
+- [ ] 🆕**2026-08-20 clean群round1 findings 1,444件＝「quote クラスタ単位で束ねる」方針で消化する（2026-08-20 決定）**。⚠**旧記載の「10枚区切りのバッチ単位で精査」＝findings を頭から1件ずつ潰す進め方は禁止**（stub群 round3 が 2,799件を **222 HIGH quote クラスタ**に束ねて消化した勝ち筋を踏襲する）。成果物は `scripts/archive/scratchpad/semantic_audit_clean_round1/`。
+  - **実測プロファイル（2026-08-20 に `findings.jsonl` を集計）**＝1,444件／1,142 effect／**1,033カード**（1件のみ739枚・2件214枚・3件以上80枚・最大6件）。severity **HIGH 893**／MED 541／LOW 10。type WRONG 913／MISSING 522／EXTRA 9。**quote が2件以上重なるクラスタ153個で658件をカバー・残786件は単発 quote**。指摘キーワード＝対象filter 465／パワー 275／枚数・体数 245／owner 161／条件欠落 134／コスト 116／デッキ操作 56。セット別＝WX 629／WXDi 360／WXK 212／WXEX 76／他167。**パイロット precision 78〜84% と合わせた真バグ推定＝1,100〜1,200件・約800〜850カード**。
+  - ⚠**既知の偽陽性ファミリが84件混じっている**＝「duration が INSTANT」系（うちパワー修整68件）。**続き151 で「実バグではない」と確定済み**（duration 未設定の `POWER_MODIFY` は engine が `temp_power_mods` に入れる＝実質ターン終了時まで。LLM が `effect.duration` を見て誤検出する定番）。**段0 で機械的に落とす**。
+  - **段0（機械前処理・0.5〜1セッション）**＝quote／claim でクラスタ化して**クラスタ表を作る**（stub群の `clusters_high.txt` と同じ位置づけ＝同じ outDir に置く）＋上記の既知偽陽性ファミリ除去＋**既に閉じた系統との突き合わせ**〔C「そうした場合」37効果（続き394〜397）／`upTo` 38効果（(lxxxii) 第6波・2026-08-02）／照応先ロスト84枚（タスク12(xxix)(b)・続き223）〕。**この突き合わせを飛ばすと、既に直っている系統をもう一度 triage する**。
+  - **段1（クラスタ triage・3〜5セッション）**＝153クラスタを `node scripts/semanticAuditTriage.mjs scripts/archive/scratchpad/semantic_audit_clean_round1 <CardNum...>` で原文＋live JSON 照合し「真バグ／偽陽性／機構待ち」に3分類。**Codex へ2巡目として委譲可**＝監査本体は10枚/バッチ・10〜54秒・325バッチ失敗0の実績があり、1,033カード＝約104バッチで機械時間1〜2時間。Claude はスポット裏取りに専念する。
+  - **段2（クラスタ消化・15〜25セッション）**＝**parser 規則1本で N効果**を直す（stub群の勝ち筋＝1回で84枚採用の実績）→ `npm run build:effects` → `node scripts/heldReview.mjs --adopt` → `npm run gates`。⚠**JSON 手パッチ単独は禁止**＝parser 同修正か MANUAL 化とセット（[memory] parserworklist-semantics。MANUAL 側は `npx tsx scripts/syncManualLive.ts` 経由でないと live に届かない＝§3 タスク8 の道具）。
+  - **段3（単発テール786件・約600カード・60〜100セッション）**＝1カードずつ標準ワークフロー。⚠**着手前にもう一度 段2 へ寄せ直す**＝claim の語彙軸（対象filter 465／パワー 275／枚数 245）で括り直せば parser 規則に還元できる塊が残っている見込み（stub群でも「単発に見えた指摘」が systematic bug だった＝照応先ロスト84枚）。**ここが全体の7割**＝短縮の勘所は「段1を Codex へ委譲」と「段3を段2へ寄せる」の2つだけ。
+  - **段4**＝engine 新機構が要るものは §6.3／Opusタスク12 へ登録（その場では直さない）。
+  - **見積もり（2026-08-20 実測ベース）**＝現実線 **約90セッション・実働130〜180時間**（楽観56／悲観139。内訳＝段0:1／段1:5／段2:20／段3:65）。**HIGH 893件だけ先に閉じるなら 35〜50セッション**＝分割して着手するならこの線で切る。
+  - **スポット裏取り3件**（`PR-402`／`PR-464`／`PR-K056`）は全件確認どおりの真バグ（`PR-402-E1` はアタック不能を解除する「トラッシュ15枚以上」条件が丸ごと欠落で恒久ブロック、`PR-464-E1` はセンタールリグ条件なしでパワー+5000／ダブルクラッシュが常時発動）。
 
 ### 6.3 残・大型機構（個別カード・機構待ち）
 
