@@ -24673,11 +24673,12 @@ function v45cSpec() {
     top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
   };
 }
-async function driveV45c(page, H) {
-  let attacked = false; let zoneOpened = false; let emptyStreak = 0; let firstBanishPicked = false;
+async function driveV45c(page, H, pay) {
+  let attacked = false; let zoneOpened = false; let emptyStreak = 0; let selfPaid = false; let declined = false;
+  let firstCands = null; let secondCands = null;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(700);
-    await page.screenshot({ path: `${SHOT}/v45c-${s}.png`, fullPage: true }).catch(() => {});
+    await page.screenshot({ path: `${SHOT}/v45c-${pay}-${s}.png`, fullPage: true }).catch(() => {});
     let did = null;
     const st0 = await H.queryState();
     if (!attacked) {
@@ -24689,35 +24690,58 @@ async function driveV45c(page, H) {
         }
       }
       if (!did) did = await H.clickTextOrBtn(['ガードしない', 'しない', 'OK', '決定']);
-    } else if (!firstBanishPicked && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
-      // 1体目＝任意BANISHの対象選択（power<=8000でフィルタされ候補は側面のWD01-013#48511のみのはず）
-      did = await clickCandidateByPrefix(page, H, st0, 'WD01-013#48511', 'banish1');
-      if (did) { await H.clickTextOrBtn(['決定']).catch(() => {}); firstBanishPicked = true; }
-    } else if (firstBanishPicked) {
-      // 2体目＝無条件BANISH（フィルタなし＝残る唯一の候補=正面のWX01-053#48512のはず）
+    } else if (!selfPaid && !declined && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
+      // ①任意コスト＝**自己バニッシュ**の選択。候補は効果元シグニ1体だけであること自体が (cxlviii) の是正点。
+      if (!firstCands) firstCands = st0.pendingCandidates;
+      if (pay) {
+        did = await clickCandidateByPrefix(page, H, st0, 'WX24-P4-052#48501', 'selfCost');
+        if (did) { await H.clickTextOrBtn(['決定']).catch(() => {}); selfPaid = true; }
+      } else {
+        did = await H.clickTextOrBtn(['該当なし', '選ばない', 'スキップ']);
+        if (did) declined = true;
+      }
+    } else if (selfPaid) {
+      // ②帰結＝宣言フィルタ（パワー8000以下）に合う相手シグニだけを選ばせる。正面の15000は候補外が正。
+      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !secondCands) secondCands = st0.pendingCandidates;
       did = await H.stdStep();
     }
     const st = await H.queryState();
-    H.log(`  v45c[${s}] -> ${did ?? 'なし'} | attacked=${attacked} firstBanishPicked=${firstBanishPicked} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)}`);
-    emptyStreak = (attacked && !st?.pendingEffect) ? emptyStreak + 1 : 0;
-    if (attacked && !st?.pendingEffect && emptyStreak >= 3) {
-      const gField = st.guest.fieldSigni ?? [];
-      const remaining = gField.flat().filter(Boolean).length;
+    H.log(`  v45c[${s}] -> ${did ?? 'なし'} | pay=${pay} attacked=${attacked} selfPaid=${selfPaid} declined=${declined} hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} cands=${JSON.stringify(st?.pendingCandidates)}`);
+    emptyStreak = (attacked && !st?.pendingEffect && (selfPaid || declined)) ? emptyStreak + 1 : 0;
+    if (emptyStreak >= 3) {
+      const gFlat = (st.guest.fieldSigni ?? []).flat().filter(Boolean);
+      const hFlat = (st.host.fieldSigni ?? []).flat().filter(Boolean);
+      const selfGone = !hFlat.some(n => n.startsWith('WX24-P4-052'));
+      const weakGone = !gFlat.some(n => n.startsWith('WD01-013#48511'));   // power3000＝フィルタ内
+      const wallAlive = gFlat.some(n => n.startsWith('WX01-053#48512'));   // power15000＝フィルタ外の対照
+      // 1体目の候補が自分自身1体だけ＝自己バニッシュ対価として提示されている（旧バグでは相手シグニだった）
+      const firstIsSelfOnly = Array.isArray(firstCands) && firstCands.length === 1
+        && firstCands[0].startsWith('WX24-P4-052#48501');
+      const secondExcludesWall = !Array.isArray(secondCands)
+        || !secondCands.some(n => n.startsWith('WX01-053#48512'));
+      const pass = pay
+        ? (firstIsSelfOnly && selfGone && weakGone && wallAlive && secondExcludesWall)
+        : (firstIsSelfOnly && !selfGone && !weakGone && wallAlive);
       return {
-        pass: remaining === 0, // バグ確認シナリオ＝相手シグニ2体とも消える（0枚残り）ことを記録する
-        detail: `guest.fieldSigni=${JSON.stringify(gField)}・残数=${remaining}（原文どおりなら相手シグニは最大1体消滅・自分がバニッシュされうるが、実機は相手2体消滅＝(cxlviii)確認）`,
+        pass,
+        detail: `pay=${pay}・①候補=${JSON.stringify(firstCands)}（自分1体のみ=${firstIsSelfOnly}）・②候補=${JSON.stringify(secondCands)}（15000除外=${secondExcludesWall}）・host場=${JSON.stringify(st.host.fieldSigni)}・guest場=${JSON.stringify(st.guest.fieldSigni)}`,
       };
     }
   }
   const fin = await H.queryState();
-  return { pass: false, detail: `未完了（attacked=${attacked} firstBanishPicked=${firstBanishPicked} pEff=${fin?.pendingEffect ?? '-'}）` };
+  return { pass: false, detail: `未完了（pay=${pay} attacked=${attacked} selfPaid=${selfPaid} declined=${declined} pEff=${fin?.pendingEffect ?? '-'}）` };
 }
-scenarios.v45cDoubleOpponentBanishConfirmsMismatch = {
-  title: 'V-45(c) WX24-P4-052-E2：JSON/原文不一致の実機確認＝自己バニッシュ対価ではなく相手シグニ2体を消滅させてしまう(cxlviii)',
+scenarios.v45cPaySelfBanishRemovesOnlyFiltered = {
+  title: 'V-45(c) WX24-P4-052-E2：自己バニッシュを払う→自分が消え、パワー8000以下の相手1体だけが消える(cxlviii)',
   spec: v45cSpec(),
-  async drive(page, H) { return driveV45c(page, H); },
+  async drive(page, H) { return driveV45c(page, H, true); },
 };
-order.push('v45cDoubleOpponentBanishConfirmsMismatch');
+scenarios.v45cSkipSelfBanishDoesNothing = {
+  title: 'V-45(c)対照 WX24-P4-052-E2：自己バニッシュを断る→自分も相手も1体も消えない（did-itゲート）',
+  spec: v45cSpec(),
+  async drive(page, H) { return driveV45c(page, H, false); },
+};
+order.push('v45cPaySelfBanishRemovesOnlyFiltered', 'v45cSkipSelfBanishDoesNothing');
 // ── V-45 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
