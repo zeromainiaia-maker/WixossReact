@@ -24349,7 +24349,7 @@ async function driveV20(page, H, payBoth) {
   //   ①を払っても②はその場では出ず、**ターン終了時の遅延トリガー**で出る。
   //   `preEndPending`/`preEndOnField` は「①直後に即時解決していないこと」＝(cl) の回帰ガード。
   let preEndChecked = false; let preEndPending = null; let preEndOnField = null;
-  let fired = false; let endClicks = 0;
+  let fired = false; let endClicks = 0; let sawPendingAfterSkip = false;
   const onFieldNow = st => (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
   for (let s = 0; s < 44; s++) {
     await page.waitForTimeout(700);
