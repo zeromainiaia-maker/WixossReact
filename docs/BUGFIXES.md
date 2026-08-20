@@ -32,6 +32,28 @@
 
 ⚠ `scripts/verifyBattleDrive.mjs` の既存2本は変更禁止のため腐ったまま。`v20DiscardPayBothReturnsToField` は①pay後すぐ②のエナ選択・③の場復帰へ進む前提なので、修正後は予約設置で pending が消え、ターンをENDまで進めないまま未完了になる。`v20DiscardSkipFirstBlocksSecond` は①skip直後に pendingなし・トラッシュ残置なら即PASSするため結果自体は今も成立しうるが、遅延予約の非設置を観測せずターン終了まで進めない旧即時解決前提の検査であり、(cl) の回帰ガードとしては腐っている。Claude 側で前者を「①pay→END→②pay→復帰」、後者を「①skip→予約なし（必要ならENDを跨いでも②なし）」へ書き換えて実機確認する必要がある。
 
+### Claude 側の検証（CODEX_GUIDE §7）
+
+- ゲート全緑を独立実行で再現＝typecheck PASS / golden **2325**（2324→2325）／smoke 10693 全0 / fuzz 全0 / census 783 / census:stubs 0 / manual-fields 0 / lint **0 errors・263 warnings 据置** / 同型★ 0 / held 99 据置。
+- **live per-effect diff＝changed 1（`WXDi-P10-039-E2` のみ）/ added 0 / removed 0**（ベースライン `8a872faba` 比）。
+- **エンコーディング**＝全変更10ファイルで U+FFFD・3連続 `?`・先頭 BOM の新規増0。
+- 🆕**engine 変更（`triggerCollect.ts` の ON_TURN_END 両プレイヤー走査）の波及を独立確認**＝
+  (a) **二重収集は起きない**＝`ON_OPP_LIFE_CRASHED` の `op.delayed_triggers` 走査（`BattleScreen.tsx:11988`）は別 timing で、`ON_TURN_END` を読む経路は他に無い。
+  (b) **人間経路と CPU 経路は `__TURN_END__` マーカーで排他**（`BattleScreen.tsx:3688` と `:11446`）＝同じターン終了で両方は走らない。
+  (c) 🔑**`collectCpuTurnTriggers` は同じ純関数 `pureCollectTurnTriggers` の薄いラッパ**（`BattleScreen.tsx:2671`）＝**両プレイヤー走査は CPU 経路にも自動的に効く**＝タスク12(lxxii) の「片側漏れ」は起きない。
+  (d) **既存の `ON_TURN_END` 遅延トリガー3効果**（`SPDi43-02-E2`／`WXDi-P06-023-E2`／`WXDi-P16-051-E1`）は**いずれも設置者＝ターンプレイヤー**（【自】自分のアタックフェイズ開始時／【出】／【起】）＝**今回の両側走査で挙動は変わらない**。
+
+### 🆕 実機検証＝`v20` 2本を (cl) 仕様へ書き換えて両方 PASS
+
+Codex の申告どおり**既存2本は腐った**ので、Claude が書き換えて回した（Codex は指示どおり `verifyBattleDrive.mjs` を非改変）。
+
+- **`v20DiscardPayBothReturnsToField`（PASS）**＝①pay の**直後は pending が出ず場にも戻らない**ことを観測（＝(cl) の回帰ガード）→ **フェイズを END まで進めると②の CHOOSE が発火**→②pay→場に復帰・トラッシュに残らない。合格条件に「①直後は未解決」を**追加**した。
+- **`v20DiscardSkipFirstBlocksSecond`（PASS）**＝①skip →**END を実際に跨いでも**②の提示も③の対象も出ない（＝予約自体が設置されていない）・トラッシュ残置・場に出ない。
+- ⚠**書き換えで踏んだ罠3つ**（次にフェイズを跨ぐシナリオを書く人向け）＝
+  (1) **`ターン終了` ボタンは END フェイズにしか出ない**（`src/screens/battle/uiConstants.ts` の `PHASE_BTN` はフェイズごとに別ラベル＝`アタックフェイズへ`／`ルリグアタックへ`／`エンドフェイズへ`…）。1ラベルだけ叩く実装は MAIN で何も押せず「未完了」で落ちる。→ `advancePhaseV20` に**全ラベルを順に試す**形で切り出した。
+  (2) **確認ダイアログが挟まる**（「まだ攻撃していないシグニがいます→**このまま進む**」）。モーダル表示中は進行ボタンのクリックが**2秒タイムアウト**するので、**確認ダイアログを先に捌く**必要がある。
+  (3) 🔴**「skip 後に pending が出たら NG」は誤った判定**＝ターンが相手へ渡れば無関係な pending が普通に出る。**②の提示（`optcost-pay` の可視）か③の対象（効果元が候補）だけ**を異常とみなす形へ直した（最初この判定で偽 FAIL を出した）。
+
 ## 2026-08-20（続き590・Opusタスク12 第3バッチ・Codex）— 未確定ゲートより先に継続が走る2件を修正（(cxlvii)(cxlix)）
 
 新しい action／Condition／PlayerState／STUB は作らず、(cxlvii) は二段任意コストだけを pay 枝へ入れ子化し、(cxlix) はピース応答の永続化を「支払い→応答効果投入→最新盤面取得→応答完了」の順へ固定した。live JSON は変更していない。

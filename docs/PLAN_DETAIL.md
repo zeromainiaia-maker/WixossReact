@@ -67,6 +67,22 @@
 
 ## 2026-08-19 整理㊾（§4 恒久指標・続き580時点値の退避・続き586）
 
+- **2026-08-20 続き590（Opusタスク12 第3バッチ＝未確定ゲートより先に継続が走る2件を残0クローズ）後 最新値（本行が直近の正）**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2319→2324**（+5＝二段任意コストの①skip／①pay②skip／①pay②pay＋独立後続の対照＋応答順序）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**（再計測済み）、
+  **被覆マトリクス miss 190 据置**（未再計測）、
+  `parserWorklist` held **99枚 / 40署名群 据置**、`docs/_partial_fresh.json` **6カード 据置**、
+  **live 効果総数 10693 据置**（**live per-effect diff＝changed 0／added 0／removed 0**＝engine の解決順序だけの修正でデータ不変）。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**（今回シナリオ非改変＝既存の `v20`／`v58d`／`v58e` を回しただけ）。
+  （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  **Opusタスク12＝在庫2件**（(cxlvi)(cl)／🏁**(cxlvii)(cxlix) を残0クローズ**）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫2件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
+  ✅**今回の2件は実機検証まで完了**（群A 2/2・群B は3ラウンド 6/6 PASS）。⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き590）。（2026-08-20 続き591 で退避）
+
 - **2026-08-20 続き589（Opusタスク12 第2バッチ＝parser／表現系3件を残0クローズ）後 最新値（本行が直近の正）**：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2312→2319**（+7＝群A 4効果の支払い/辞退 E2E・SEARCH live E2E・採用live構造・＜宇宙＞条件 collector E2E）、
   smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
@@ -3512,6 +3528,13 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 > 3. **engine/parser/decompiler を触ったら `npm run gates`・シート再生成は `npm run regen`**（§12）。バグは golden に1件足してから直す。
 
 ## 2026-08-20 整理㊾（Opusタスク12 第1バッチ＝配線漏れ6件の残0クローズ・登録行の原文を退避）
+
+### 🆕 (cl)（続き591）で残0クローズした登録行原文と結末
+
+> **2026-08-20 続き591 に (cl) を残0クローズ**（実装は Codex／指示書・検証・実機検証・シナリオ書き換えは Claude）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き591／Codex 節は続き590 の直下）。
+> **結末**＝登録どおり「そのターン終了時」の遅延予約が丸ごと落ちていた。**母集団は live 1効果だけ**（`そうした場合、そのターン終了時` の全 CSV 走査＝9284カード中1件。`WXDi-P08-010` は「ターン終了時**まで**」＝持続期間で対象外）。**受け皿は既存**＝`INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN', trigger:{timing:'ON_TURN_END'}}` を live 3効果が既に使っていた＝**新 action 型・新 timing・新 state フィールドはゼロ**。engine 変更は `collectTurnTriggers` の `delayed_triggers` 走査を **`ON_TURN_END` のときだけ**両プレイヤー分へ広げた1箇所（`ON_TRASH` は相手ターン中にも起きるため）。
+
+- [ ] 🆕**(cl) 続き590＝`WXDi-P10-039-E2`（蒼魔姫　リッチレーサー）の②に「そのターン終了時」の遅延予約が無く、①解決の直後に②を提示している**＝原文は「①手札を1枚捨ててもよい。そうした場合、**そのターン終了時**、②《青》《無》を支払ってもよい。そうした場合、③トラッシュから場に出す」だが、live の action は `SEQUENCE[STUB{OPTIONAL_COST,handDiscard}, CONDITIONAL{IS_MY_TURN}{STUB{OPTIONAL_COST,costColors}}, CONDITIONAL{IS_MY_TURN}{ADD_TO_FIELD}]` で**遅延の宣言が丸ごと落ちている**（続き590 で Codex が (cxlvii) の作業中に発見・報告§5）。⚠**(cxlvii) の入れ子ゲート自体は続き590 で修正済み**＝残るのは**タイミングのズレだけ**（②③がターン終了時ではなく即時に解決する）。**着手前に母集団を数え直すこと**＝「そうした場合、そのターン終了時、」型が他に何件あるか未計測。遅延予約の受け皿は既存の `INSTALL_DELAYED_TRIGGER`／`delayed_triggers`（§6.3 の遅延機構）が使えるか実コードで確認してから設計する。実機シナリオは `v20DiscardSkipFirstBlocksSecond`／`v20DiscardPayBothReturnsToField`（どちらも現状 PASS＝**タイミングのズレは観測していない**ので、着手時は観測点も足す）。
 
 ### 🆕 第3バッチ（続き590）で残0クローズした2件の登録行原文と結末
 

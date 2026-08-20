@@ -24368,7 +24368,7 @@ async function driveV20(page, H, payBoth) {
   //   ①を払っても②はその場では出ず、**ターン終了時の遅延トリガー**で出る。
   //   `preEndPending`/`preEndOnField` は「①直後に即時解決していないこと」＝(cl) の回帰ガード。
   let preEndChecked = false; let preEndPending = null; let preEndOnField = null;
-  let fired = false; let endClicks = 0; let sawPendingAfterSkip = false;
+  let fired = false; let endClicks = 0; let sawPendingAfterSkip = false; let turnEnded = false;
   const onFieldNow = st => (st?.host?.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
   for (let s = 0; s < 44; s++) {
     await page.waitForTimeout(700);
@@ -24404,10 +24404,17 @@ async function driveV20(page, H, payBoth) {
     } else if (!payBoth && step1Chosen) {
       // 🆕(cl)＝①をスキップしたら**予約自体が設置されない**＝ターン終了を跨いでも②は出ない。
       //   ここまで見ないと「その場で②が出ないだけ」と区別できない（旧シナリオはそこで打ち切っていた）。
-      if (st0?.pendingEffect) sawPendingAfterSkip = true;
-      if (endClicks < 3) {
+      // ⚠**「pending が出た」だけでは判定にならない**＝ターンが相手へ渡れば無関係な pending が普通に出る。
+      //   ②の提示（任意コストの pay ボタン）か、③の対象（この効果元）が候補に出たときだけを異常とみなす。
+      if ((st0?.pendingCandidates ?? []).some(n => n?.startsWith('WXDi-P10-039'))) sawPendingAfterSkip = true;
+      if (await page.getByTestId('optcost-pay').first().count()
+          && await page.getByTestId('optcost-pay').first().isVisible().catch(() => false)) sawPendingAfterSkip = true;
+      // ⚠**実際に END を跨ぐまで**進める（「ターン終了」ボタンは END フェイズでしか出ない）＝
+      //   途中のフェイズで打ち切ると「その場で②が出ないだけ」しか見ていないことになる。
+      if (!turnEnded || endClicks < 8) {
         did = await advancePhaseV20(H);
         if (did) endClicks++;
+        if (did === 'btn:ターン終了') turnEnded = true;
       }
     } else if (payBoth && !fired) {
       // 🆕(cl)＝①を払った直後は**何も出ない**（予約されただけ）。ターン終了まで進めて②を出させる。
@@ -24438,12 +24445,12 @@ async function driveV20(page, H, payBoth) {
     }
     const st = await H.queryState();
     H.log(`  v20[${s}] -> ${did ?? 'なし'} | payBoth=${payBoth} discarded=${discarded} banished=${banished} step1=${step1Chosen} step2=${step2Chosen} zoned=${zoned} hHand=${st?.host?.handCards} hTrash=${st?.host?.trashCards} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
-    if (!payBoth && step1Chosen && endClicks >= 3 && !st?.pendingEffect) {
+    if (!payBoth && step1Chosen && turnEnded && endClicks >= 8 && !st?.pendingEffect) {
       const inTrash = (st.host.trashCards ?? []).some(n => n?.startsWith('WXDi-P10-039'));
       const onField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WXDi-P10-039')));
       return {
         pass: inTrash && !onField && !sawPendingAfterSkip,
-        detail: `①スキップ→ターン終了を跨いでも②は出ない＝トラッシュに残置=${inTrash}・場に無い=${!onField}・skip後にpendingが出た=${sawPendingAfterSkip}（(cl) 予約非設置の確認・ターン終了${endClicks}回）・hHand=${JSON.stringify(st.host.handCards)}`,
+        detail: `①スキップ→ターン終了を跨いでも②は出ない＝トラッシュに残置=${inTrash}・場に無い=${!onField}・skip後に②の提示/③の対象が出た=${sawPendingAfterSkip}（(cl) 予約非設置の確認・END到達=${turnEnded}・進行${endClicks}回）・hHand=${JSON.stringify(st.host.handCards)}`,
       };
     }
     // 🔴①をスキップしたのに②を飛ばして③（ADD_TO_FIELD）のSELECT_TARGETが出た＝実バグ確認。
