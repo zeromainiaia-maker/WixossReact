@@ -24336,6 +24336,25 @@ function v20Spec() {
     top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
   };
 }
+// 🆕(cl・続き591)＝MAIN から END まで進める。フェイズ進行ボタンのラベルは
+// `src/screens/battle/uiConstants.ts` の `PHASE_BTN` でフェイズごとに変わる（`ターン終了` は END でしか出ない）。
+// ⚠1つのラベルだけを叩く旧実装だと MAIN で何も押せず「未完了」で落ちる（続き591 で実際に踏んだ）。
+const V20_PHASE_BTNS = ['アタックフェイズへ', 'アーツ終了→相手へ', 'アーツ終了', 'ルリグアタックへ', 'エンドフェイズへ', 'ターン終了'];
+// ⚠フェイズ進行の途中に確認ダイアログが挟まる（「まだ攻撃していないシグニがいます→このまま進む」等）。
+//   モーダルが出ている間は進行ボタンのクリックが**タイムアウトする**ので、確認ダイアログを先に捌く。
+const V20_CONFIRM_BTNS = ['このまま進む', '進む', 'ガードしない', 'OK', 'はい'];
+async function advancePhaseV20(H) {
+  for (const label of V20_CONFIRM_BTNS) {
+    const did = await H.clickBtn(label, { exact: true });
+    if (did) return did;
+  }
+  for (const label of V20_PHASE_BTNS) {
+    const did = await H.clickBtn(label, { exact: true });
+    if (did) return did;
+  }
+  return null;
+}
+
 async function driveV20(page, H, payBoth) {
   await H.ensureMain();
   H.log('手札クリック(WX16-042):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
@@ -24387,8 +24406,7 @@ async function driveV20(page, H, payBoth) {
       //   ここまで見ないと「その場で②が出ないだけ」と区別できない（旧シナリオはそこで打ち切っていた）。
       if (st0?.pendingEffect) sawPendingAfterSkip = true;
       if (endClicks < 3) {
-        did = await H.clickBtn('ターン終了', { exact: true });
-        if (!did) did = await H.clickTextOrBtn(['ターン終了', 'OK', 'はい']);
+        did = await advancePhaseV20(H);
         if (did) endClicks++;
       }
     } else if (payBoth && !fired) {
@@ -24401,8 +24419,7 @@ async function driveV20(page, H, payBoth) {
       }
       if (st0?.pendingEffect) { fired = true; H.log(`    (cl)ターン終了時に②が発火（ターン終了クリック${endClicks}回）`); }
       else {
-        did = await H.clickBtn('ターン終了', { exact: true });
-        if (!did) did = await H.clickTextOrBtn(['ターン終了', 'OK', 'はい']);
+        did = await advancePhaseV20(H);
         if (did) endClicks++;
       }
     } else if (payBoth && !step2E0) {
