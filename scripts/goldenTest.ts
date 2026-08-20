@@ -102,6 +102,7 @@ import { TURN_SCOPED_STATE_FIELDS, activateTurnStartScopedState, clearAttackPhas
 import { resolveTurnEndHandReturn } from '../src/screens/battle/turnEndHandReturn';
 import { resolveTargetDodgeFlip } from '../src/screens/battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from '../src/screens/battle/pieceCutin';
+import { PIECE_CUTIN_COMMIT_ORDER } from '../src/screens/battle/pieceCutinCommit';
 import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate, wrapSigniAutoPayGate } from '../src/engine/blockAction';
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
@@ -40507,6 +40508,89 @@ test('task12(cxliv): OPP_LRIG_ATTACK_COST は＜宇宙＞在場で2、不在で0
   eq(collectOppLrigAttackExtraCost(withStory, opponent, cardMap, effectsMap, false), 2, '＜宇宙＞在場で追加《無》《無》にならない');
   eq(collectOppLrigAttackExtraCost(without, opponent, cardMap, effectsMap, false), 0, '＜宇宙＞不在でも過剰にゲートが掛かる');
 }));
+
+const openTask12Cxlvii = () => {
+  const source = 'WXDi-P10-039';
+  const discarded = findCard(c => c.Type === 'シグニ' && c.CardNum !== source);
+  const blue = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('青')
+    && c.CardNum !== source && c.CardNum !== discarded);
+  const colorless = findCard(c => c.Type === 'シグニ' && c.CardNum !== source
+    && c.CardNum !== discarded && c.CardNum !== blue);
+  const effect = (effectsMap.get(source) ?? []).find(e => e.effectId === 'WXDi-P10-039-E2')!;
+  const base = mkCtx({}, {}, source);
+  base.ownerState = {
+    ...base.ownerState,
+    hand: [discarded], energy: [blue, colorless], trash: [source],
+    field: { ...base.ownerState.field, signi: [null, null, null] },
+  };
+  const first = executeEffect(effect, base);
+  ok(!first.done && first.pending.type === 'CHOOSE', '①手札捨ての pay/skip が出ない');
+  if (first.done || first.pending.type !== 'CHOOSE') throw new Error('first optional cost missing');
+  return { source, discarded, blue, colorless, base, first };
+};
+
+test('task12(cxlvii)(a) 二段任意コスト: ①skip なら手札・エナ不変で場に戻らない', () => withSavedCursor(() => {
+  const { source, base, first } = openTask12Cxlvii();
+  const result = finish(resumeOptionalCost('skip', [], first.pending, ctxAfter(first, base)), base);
+  eq(result.ownerState.hand.length, 1, '①skip なのに手札が減った');
+  eq(result.ownerState.energy.length, 2, '①skip なのにエナが減った');
+  ok(result.ownerState.trash.includes(source), '①skip なのに発火元がトラッシュから消えた');
+  ok(!result.ownerState.field.signi.some(s => s?.at(-1) === source),
+    '🔴①skip なのに②を飛ばして無償で場へ戻った');
+}));
+
+test('task12(cxlvii)(b) 二段任意コスト: ①pay②skip なら手札だけ減って場に戻らない', () => withSavedCursor(() => {
+  const { source, discarded, base, first } = openTask12Cxlvii();
+  const discardPending = resumeOptionalCost('pay', [], first.pending, ctxAfter(first, base));
+  ok(!discardPending.done && discardPending.pending.type === 'SELECT_TARGET', '①で捨てる手札の選択へ進まない');
+  if (discardPending.done || discardPending.pending.type !== 'SELECT_TARGET') throw new Error('discard target missing');
+  const second = resumeSelectTarget([discarded], discardPending.pending, ctxAfter(discardPending, base));
+  ok(!second.done && second.pending.type === 'CHOOSE', '①pay 後に②《青》《無》の pay/skip が出ない');
+  if (second.done || second.pending.type !== 'CHOOSE') throw new Error('second optional cost missing');
+  const result = finish(resumeOptionalCost('skip', [], second.pending, ctxAfter(second, base)), base);
+  eq(result.ownerState.hand.length, 0, '①pay の手札コストが減っていない');
+  eq(result.ownerState.energy.length, 2, '②skip なのにエナが減った');
+  ok(result.ownerState.trash.includes(source) && result.ownerState.trash.includes(discarded),
+    '①の捨て札または発火元がトラッシュに残っていない');
+  ok(!result.ownerState.field.signi.some(s => s?.at(-1) === source), '🔴②skip なのに場へ戻った');
+}));
+
+test('task12(cxlvii)(c) 二段任意コスト: ①pay②pay なら両コストを払い場に戻る', () => withSavedCursor(() => {
+  const { source, discarded, blue, colorless, base, first } = openTask12Cxlvii();
+  const discardPending = resumeOptionalCost('pay', [], first.pending, ctxAfter(first, base));
+  if (discardPending.done || discardPending.pending.type !== 'SELECT_TARGET') throw new Error('discard target missing');
+  const second = resumeSelectTarget([discarded], discardPending.pending, ctxAfter(discardPending, base));
+  if (second.done || second.pending.type !== 'CHOOSE') throw new Error('second optional cost missing');
+  const paid = resumeOptionalCost('pay', [blue, colorless], second.pending, ctxAfter(second, base));
+  const result = finish(paid, base);
+  eq(result.ownerState.hand.length, 0, '①の手札コストが減っていない');
+  eq(result.ownerState.energy.length, 0, '②の《青》《無》コストが減っていない');
+  ok(result.ownerState.field.signi.some(s => s?.at(-1) === source), '両方払っても場へ戻らない');
+  ok(!result.ownerState.trash.includes(source), '場へ戻した発火元がトラッシュにも残る複製になった');
+  ok([discarded, blue, colorless].every(n => result.ownerState.trash.includes(n)),
+    '支払った手札・エナがトラッシュへ移っていない');
+}));
+
+test('task12(cxlvii)(d) 対照: 後続が独立の既存効果は任意コストskip後も実行する', () => withSavedCursor(() => {
+  const source = 'WDK05-R11';
+  const target = findCard(c => c.Type === 'シグニ' && c.CardNum !== source);
+  const effect = (effectsMap.get(source) ?? []).find(e => e.effectId === 'WDK05-R11-E1')!;
+  const base = mkCtx({}, { signi: [target, null, null] }, source);
+  const first = executeEffect(effect, base);
+  ok(!first.done && first.pending.type === 'CHOOSE', '対照効果の任意コスト選択が出ない');
+  if (first.done || first.pending.type !== 'CHOOSE') throw new Error('control optional cost missing');
+  const result = finish(resumeOptionalCost('skip', [], first.pending, ctxAfter(first, base)), base);
+  eq(result.ownerState.energy.length, base.ownerState.energy.length, 'skip なのに対照効果のエナが減った');
+  eq(result.ownerState.deck.length, base.ownerState.deck.length, 'skip なのに支払い枝のデッキ2枚トラッシュが走った');
+  ok(!result.otherState.field.signi.some(s => s?.at(-1) === target),
+    '🔴独立した後続BANISHまで支払い枝へ畳まれ、skip時に過小実行になった');
+  ok(result.otherState.energy.includes(target), '独立した後続BANISHの移動先が違う');
+}));
+
+test('task12(cxlix) ピース応答: 支払い→効果投入→最新盤面取得→完了フラグの順序を固定', () => {
+  eq(PIECE_CUTIN_COMMIT_ORDER.join('>'), 'payment>effects>fetch_latest>complete',
+    '🔴応答完了フラグが効果スタック投入または最新盤面取得より先に公開される');
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

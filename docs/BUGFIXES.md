@@ -1,5 +1,64 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-20（続き590・Opusタスク12 第3バッチ・Codex）— 未確定ゲートより先に継続が走る2件を修正（(cxlvii)(cxlix)）
+
+新しい action／Condition／PlayerState／STUB は作らず、(cxlvii) は二段任意コストだけを pay 枝へ入れ子化し、(cxlix) はピース応答の永続化を「支払い→応答効果投入→最新盤面取得→応答完了」の順へ固定した。live JSON は変更していない。
+
+### (cxlvii) 二段任意コストの継続ゲート
+
+`effectExecutor.ts` の直下形 `STUB → CONDITIONAL{IS_MY_TURN|PAID_ADDITIONAL_COST}` ディスパッチは、後続を全11個の CHOOSE 生成経路へ無条件 `continuation` として渡していた。`WXDi-P10-039-E2` は①手札1枚の任意捨て、②《青》《無》の任意支払い、③トラッシュから自身を場へ出す、の三段だが、①skipでも③が continuation として実行されていた。
+
+ディスパッチ冒頭に `isOptionalCostStub` を置き、既存 Pattern④/⑤ と同じ3 id（`OPTIONAL_COST`／`TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST`／`OPTIONAL_TRASH_ENERGY_CLASS`）だけを任意コストと判定。`conditional.then` がこの STUB かつ後続がある場合だけ、`then=SEQUENCE[then,...remaining]` として pay 枝へ畳み、外側 continuation を空にした。畳んだ内側は同じディスパッチへ再入するため、新しい語彙なしで二段の skip/pay が独立する。変換位置は11経路の分岐前で、全経路が同じ `conditional/cont` を読むため1箇所で成立した。Pattern④（離れた `PAID_ADDITIONAL_COST`）は変更していない。
+
+engine E2E は4本追加した。
+
+| 経路 | 手札 | エナ | 場 | トラッシュ |
+|---|---|---|---|---|
+| ①skip | 不変 | 不変 | 出ない | 発火元が残る |
+| ①pay→②skip | 1枚減る | 不変 | 出ない | 発火元＋捨てた1枚 |
+| ①pay→②pay | 1枚減る | 《青》《無》の2枚減る | 発火元が出る | 捨てた手札＋支払ったエナ（発火元は除去） |
+| 対照 `WDK05-R11-E1` の最初をskip | 不変 | 不変 | 独立した相手BANISHは実行 | 支払い枝のデッキ2枚トラッシュは不実行 |
+
+対照により「通常 action の後ろに独立ステップがある」既存25箇所を一律 pay 枝へ移す退行を固定した。live で二段任意コストに該当するのは `WXDi-P10-039-E2` 1効果だけ。なお原文には②の前に「そのターン終了時」があるが、現行 action には遅延予約が無く①解決直後に②を提示する既存不一致も確認した。今回の継続ゲートとは別機構なので修正していない。
+
+### (cxlix) ピース応答完了フラグの競合窓
+
+真因は「別クライアント」や `queueCardEffects` の効果欠落ではなく、同じ応答クライアント内の **DB commit 完了と Realtime→React state 反映の時間差**だった。`useBattlePersist.commit` は Supabase update の完了だけを待ち、`bs` は別の `postgres_changes` callback で更新される。旧順序は①支払い＋`cutin_response_complete:true` commit→②effect_stack commit→`finally setLoading(false)`。②のHTTP応答後、②のRealtime行が届く前に loading が落ちると、ローカル `bs` は①の「完了=true／effect_stackなし／pending_effectなし」のままで、`:1322` の useEffect が `handleCutinPass` を呼び元ピースを先に解決できた。4回中3回という間欠性はRealtime到着とfinallyの競争で説明できる。
+
+`src/screens/battle/pieceCutinCommit.ts` に薄い順序ヘルパを新設し、ピース枝を①支払いだけcommit→②`queueCardEffects`→③`fetchState`で最新行取得→④その最新 PlayerState と pending_spell を土台に完了フラグcommit、へ変更した。応答効果の `effect_stack` がDBへ入る前に完了フラグだけが見える状態は作られない。順序定数は golden で `payment>effects>fetch_latest>complete` を固定した。
+
+`:6130`／`:6147` のレゾナ・スペルカットイン経路は変更していない。効果なし枝は配置と完了フラグを同一commit（直ちに継続してよい）、効果あり枝は配置・effect_stack・完了フラグを同一commitで原子的に公開するため、今回の「フラグだけ先に届く」二段commit窓はない。
+
+**据置／非変更**：スコープ外 (cxlvi)、Pattern④、parser、live JSON、`scripts/verifyBattleDrive.mjs`、`docs/PLAN.md`、`docs/PLAN_PROGRESS.md` は変更していない。実機検証はネットワーク遮断のため未実行。`v20DiscardSkipFirstBlocksSecond` で①skip／①pay②skip／①pay②pay、`v58dChoice1CountersAndExilesOriginal` と `v58eChoice2DrawsChargesThenOriginalResolves` でCHOOSE確定前に元ピースが解決しないことを検証側で確認する必要がある。
+
+### 回帰網・最終ゲート・差分監査
+
+golden は既存ブロックを削除・改変せず **+84/-0**、群Aの実行E2E 4本と群Bの順序固定1本を追加して **2319→2324 / FAIL 0**。修正前は群A(a)が「①skipなのに発火元がトラッシュから消える」で意図的にFAILし、engine修正後に反転した。`npm run regen` 実行済み。`npm run gates` は typecheck PASS / golden **2324** / smoke **10693**・CRASH/HANG/INVARIANT全0 / fuzz 全0 / census **783（baseline 783）** / census:stubs A群0・C群0 / manual-fields 0 / lint **0 errors・263 warnings**。`node scripts/groupSimilar.mjs --all` は同型グループ **265**・総カード **5986**・同型★ **0**。報告直前の `build:effects`→`heldReview` 実測は held **99カード／40署名群**、`_partial_fresh` **6カード**で全て据置。
+
+ベースライン `957f7098c` 比 live per-effect diff は **changed 0 / added 0 / removed 0 / outlier 0**。エンコーディングは全変更6ファイルで U+FFFD・3文字以上連続`?`・先頭BOMの新規増0。`scripts/goldenTest.ts` は **+84/-0**、`scripts/verifyBattleDrive.mjs`／`docs/PLAN.md`／`docs/PLAN_PROGRESS.md` は SHA-256同一・diff空。`docs/_census_stubs.txt` は engine 行追加に追随した消費地点の行番号だけを再生成した。commit／pushは未実施。
+
+### Claude 側の検証（CODEX_GUIDE §7）
+
+ゲート・per-effect diff・エンコーディング・既存不変を**独立に再実行**し、Codex の申告値と一致することを確認した。**申告の外れは0件**。
+
+- ゲート全緑を独立実行で再現＝typecheck PASS / golden **2324**（2319→2324・+5本）／smoke 10693 全0 / fuzz 全0 / census 783（baseline 783）/ census:stubs A群0・C群0 / manual-fields 0 / lint **0 errors・263 warnings 据置** / 同型★ **0**。
+- **live per-effect diff＝changed 0 / added 0 / removed 0**（ベースライン `957f7098c` 比）＝**engine の解決順序だけを直し、データは1バイトも動かしていない**ことを機械確認。held 99／`_partial_fresh` 6 も据置。
+- **エンコーディング**＝全変更6ファイル（新規 `src/screens/battle/pieceCutinCommit.ts` を含む）で U+FFFD・3連続 `?`・先頭 BOM の新規増0。
+- **既存不変**＝`scripts/goldenTest.ts` は **+84/-0**（追加のみ）。`scripts/verifyBattleDrive.mjs`／`docs/PLAN.md`／`docs/PLAN_PROGRESS.md` は diff 空。
+- **`persist.fetchState()` は実在の既存 API**（`BattleScreen.tsx:413`／`:449` が既に使用）＝Codex が新設した呼び出しではないことを確認。
+
+### 🆕 実機検証（`verifyBattleDrive.mjs`）＝群A 2/2・群B 6/6 PASS
+
+- **(cxlvii) 群A**＝`v20DiscardSkipFirstBlocksSecond`（**意図的FAIL→PASS 反転**＝①スキップで発火元はトラッシュに残り場に出ない・手札も減らない）／`v20DiscardPayBothReturnsToField`（①②とも支払い→場に復帰・トラッシュに残らない）。**両方 PASS**。
+- **(cxlix) 群B**＝`v58dChoice1CountersAndExilesOriginal`／`v58eChoice2DrawsChargesThenOriginalResolves` を**3ラウンド連続で実行し 6/6 PASS**。⚠**修正前は4回中1回しか正しく解決しなかった**ので、6連続成功は偶然では説明しにくい（従来成功率 25% なら 0.25⁶≒0.02%）。**ただしレースは「存在しないこと」を証明できない**＝再発を疑ったらまずこの2本を数ラウンド回す。
+- ⚠**まだ実機未検証なのは続き588 の6件**（`v04TanabataLeaveFieldE3` ほか）＝§7 の最優先として据え置き。
+
+### ⚠ 残した弱点（正直な申告）
+
+- **群B の golden は `PIECE_CUTIN_COMMIT_ORDER` の並び順を assert するだけ**で、`completePieceCutinResponseAfterEffects` が実際にその順で呼ぶことまでは検査していない（定数がループを駆動しているので**並べ替えれば挙動も変わる**＝トリップワイヤとしては機能するが、§5-5d の「実行して検査する E2E」には届かない）。**`scripts/goldenTest.ts` の `test()` は同期関数しか取れず（`:264`）、async ヘルパを await できない**のが理由。**この経路の回帰検知は当面 `v58d`／`v58e` の実機実行に依存する**。
+- **新しい失敗モードが1つ増えた**＝`fetchLatest` が null を返すと応答完了フラグが**書かれないまま終わる**（従来は必ず書かれた）。`console.error` は出るが、実機では応答窓が閉じずに止まりうる。**Supabase 取得が落ちたときの挙動**は未検証。
+- Codex が別途申告した**原文不一致1件**＝`WXDi-P10-039-E2` の原文は②の前に「そのターン終了時」があるが、現行 action に遅延予約が無く①解決直後に②を提示する。**今回の継続ゲートとは別機構**なので未修正（要登録）。
+
 ## 2026-08-20（続き589・Opus 5＋Codex）— Opusタスク12 第2バッチ＝自己バニッシュ対価・SEARCH then・stale live 4カードを既存語彙だけで是正（(cxliv)(cxlv)(cxlviii)）
 
 新しい action／Condition／ActiveCondition／PlayerState／STUB は作らず、(cxlviii) の自己バニッシュ対価を既存 `BANISH{owner:'self',thisCardOnly:true,optional:true}`＋直後の `CONDITIONAL{IS_MY_TURN}` did-it ゲートへ直し、先行する相手対象宣言の filter を既存 `applyLeadingOpponentDesignation` で帰結へ継承した。(cxlv) は `WX20-077-E2` の `SEARCH.then` に既定の `ADD_TO_HAND{owner:'self'}` を明記し、UI の2読出しも同じ既定値へフォールバック。(cxliv) と fresh 側で既に正しかった自己バニッシュ3件は held から採用した。

@@ -67,6 +67,22 @@
 
 ## 2026-08-19 整理㊾（§4 恒久指標・続き580時点値の退避・続き586）
 
+- **2026-08-20 続き589（Opusタスク12 第2バッチ＝parser／表現系3件を残0クローズ）後 最新値（本行が直近の正）**：
+  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2312→2319**（+7＝群A 4効果の支払い/辞退 E2E・SEARCH live E2E・採用live構造・＜宇宙＞条件 collector E2E）、
+  smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**（再計測済み）、
+  **被覆マトリクス miss 190 据置**（未再計測）、
+  `parserWorklist` held **103→99枚 / 署名42→40群**（新規 held 0）、`docs/_partial_fresh.json` **6カード 据置**、
+  **live 効果総数 10693 据置**（live 変更は10効果＝per-effect diff **changed 10／added 0／removed 0／outlier 0**。🆕**生パース diff は changed 5／added 0／removed 0**＝parser 変更の波及0）。
+  version **0.502 据置**。**実機シナリオ定義総数 475→476**（旧2本を廃し新3本＝`v40UseSearchedSpellOrTrashResolves`／`v45cPaySelfBanishRemovesOnlyFiltered`／`v45cSkipSelfBanishDoesNothing`）。
+  （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  **Opusタスク12＝在庫3件**（(cxlvi)(cxlvii)(cxlix)／🏁**(cxliv)(cxlv)(cxlviii) を残0クローズ**）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫3件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
+  ✅**今回の3件は実機検証まで完了**（`v39ConditionGapNoStorySigni`／新 v40／新 v45c×2 が全 PASS）。⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き589）。（2026-08-20 続き590 で退避）
+
 - **2026-08-20 続き588（Opusタスク12 第1バッチ＝配線漏れ6件を残0クローズ）後 最新値（本行が直近の正）**：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2307→2312**（+5＝新設 golden 5本）、
   smoke **10693 / CRASH・HANG・INVARIANT 全0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
@@ -3496,6 +3512,15 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 > 3. **engine/parser/decompiler を触ったら `npm run gates`・シート再生成は `npm run regen`**（§12）。バグは golden に1件足してから直す。
 
 ## 2026-08-20 整理㊾（Opusタスク12 第1バッチ＝配線漏れ6件の残0クローズ・登録行の原文を退避）
+
+### 🆕 第3バッチ（続き590）で残0クローズした2件の登録行原文と結末
+
+> **2026-08-20 続き590 に (cxlvii)(cxlix) を残0クローズ**（実装は Codex／指示書・検証・実機検証は Claude）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き590）。
+> **結末の対照**＝
+> - **(cxlvii)**：登録は「二段以上に連鎖した任意コスト全般で必ず起きる構造的な穴」。**構造の指摘は正しかったが live 母集団は1効果だけ**（機械走査＝「任意コストSTUB→CONDITIONAL の後ろにステップがある」26件中、内側もまた任意コストなのは `WXDi-P10-039-E2` の1件のみ。残り25件は後続が原文でも独立＝**全部を pay 枝へ移すと過小実行に化ける**）。修正はディスパッチ冒頭8行の畳み替えのみ。**副次発見＝(cl) を新規登録**（②の「そのターン終了時」の遅延予約が落ちている）。
+> - **(cxlix)**：登録は「`markCutinResponseComplete` を `queueCardEffects` の前に書くレース」。**そのとおりで、窓の正体は「`persist.commit()` の DB 完了と React の Realtime 反映が別タイミング」**＝完了フラグだけが先にローカルへ届き、`effect_stack` 通知より先に `finally` で `loading=false` になる瞬間があった（**別クライアントではなく応答クライアント内**の競争）。`payment > effects > fetch_latest > complete` の順序ヘルパへ切り出して解消。⚠**golden は順序定数の assert 止まり**（`goldenTest.ts` の `test()` が同期関数しか取れない）＝回帰検知は `v58d`／`v58e` の実機実行に依存する。
+
+- [ ] **🆕(cxlvii) 続き585＝`WXDi-P10-039-E2`（蒼魔姫　リッチレーサー）の「そうした場合」二段任意コストの入れ子ゲートが外れる**＝実機で確認（`v20DiscardSkipFirstBlocksSecond`・2回連続再現／`v20DiscardPayBothReturnsToField`は正常＝2回連続PASS）。原文「①手札を１枚捨ててもよい。そうした場合、②《青》《無》を支払ってもよい。そうした場合、③トラッシュから場に出す。」＝③は②が支払われたときだけ、②は①が支払われたときだけ提示されるべき二段の入れ子。JSONは`SEQUENCE[STUB(OPTIONAL_COST,handDiscard), CONDITIONAL(IS_MY_TURN){OPTIONAL_COST,costColors}, CONDITIONAL(IS_MY_TURN){ADD_TO_FIELD}]`というフラットな3ステップで、②③とも常にtrueの`IS_MY_TURN`でしかゲートされていない。**①を「スキップ」すると②の支払い提示を完全に飛ばして③のADD_TO_FIELDが無条件で実行される**（実機で確認）。**原因＝`effectExecutor.ts:4011-4016`の「任意コストパターン」ディスパッチが、STUB直後のCONDITIONAL（②）だけを`conditional`として掴み、それより後ろの残りステップ（③）を無条件`continuation`として`pending`に添付するため**、①を「スキップ」（noop）しても`continuation`（③）はCHOOSEの結果に関係なく必ず評価され、`IS_MY_TURN`が常にtrueなので無条件でADD_TO_FIELDへ進む。**二段以上に連鎖した任意コスト（そうした場合…そうした場合…）全般で必ず起きる構造的な穴**であり本カード固有ではない。修正方針＝(a)`continuation`に「無条件で次に進む」/「pay側でしか進まない」の区別フィールドを設ける、または(b)パーサ側で②③のCONDITIONALを`PAID_ADDITIONAL_COST`で書き分け、Pattern④（`effectExecutor.ts:4568`の`isAdditional`分岐）が既に持つ区別の仕組みをこちらのパターンにも波及させる。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v20DiscardSkipFirstBlocksSecond`（意図的FAIL・`order`登録済み）／`v20DiscardPayBothReturnsToField`（正常系）。詳細はBUGFIXES 2026-08-19続き585。
 
 ### 🆕 第2バッチ（続き589）で残0クローズした3件の登録行原文と結末
 

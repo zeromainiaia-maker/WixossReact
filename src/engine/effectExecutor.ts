@@ -3806,6 +3806,14 @@ const DID_IT_GATED_TYPES = new Set<string>([
   'SEND_TO_ENERGY', 'LIFE_CRASH', 'EXILE',
 ]);
 
+const OPTIONAL_COST_STUB_IDS = new Set([
+  'OPTIONAL_COST', 'TARGET_OPP_SIGNI_OPTIONAL_COLOR_COST', 'OPTIONAL_TRASH_ENERGY_CLASS',
+]);
+
+function isOptionalCostStub(action: EffectAction): action is StubAction {
+  return action.type === 'STUB' && OPTIONAL_COST_STUB_IDS.has(action.id);
+}
+
 function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
   if (a.snapshotLastProcessedForConditionals) {
     const snapshotCtx = { ...ctx, lastProcessedCards: [...(ctx.lastProcessedCards ?? [])] };
@@ -4014,11 +4022,21 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       const nextStep = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
       if (nextStep?.type === 'CONDITIONAL' &&
           ['IS_MY_TURN', 'PAID_ADDITIONAL_COST'].includes((nextStep as ConditionalAction).condition.type)) {
-        const conditional = nextStep as ConditionalAction;
+        let conditional = nextStep as ConditionalAction;
         const remaining = a.steps.slice(i + 2);
-        const cont: EffectAction | undefined = remaining.length > 0
+        let cont: EffectAction | undefined = remaining.length > 0
           ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
           : undefined;
+        // 二段以上の任意コストだけは、後続を外側 CHOOSE の無条件 continuation にしない。
+        // pay 枝へ畳むことで内側の任意コストが同じ dispatcher に再入し、各 skip が後段を止める。
+        // 帰結が通常 action の25箇所は従来どおり cont に残し、独立した後続を過小実行にしない。
+        if (remaining.length > 0 && isOptionalCostStub(conditional.then)) {
+          conditional = {
+            ...conditional,
+            then: { type: 'SEQUENCE', steps: [conditional.then, ...remaining] } as SequenceAction,
+          };
+          cont = undefined;
+        }
         const noopAction: SequenceAction = { type: 'SEQUENCE', steps: [] };
         const stub = step as import('../types/effects').StubAction;
         const costColors = stub.costColors ?? [];

@@ -31,6 +31,7 @@ import { canOfferTrashActivate, payTrashActivateCost, trashActivateCostLabels } 
 import { isTrashImmuneByOpponent } from '../engine/execUtils';
 import { resolveTargetDodgeFlip } from './battle/targetDodgeFlip';
 import { collectPieceCutinCandidates } from './battle/pieceCutin';
+import { completePieceCutinResponseAfterEffects } from './battle/pieceCutinCommit';
 import { canPayUnderSelfTrash, payUnderAnySigniTrash, payUnderSelfTrash } from './battle/underAnySigniCost';
 import { buildEnergyPayPool, energyPoolCardNums, planEnergyPayment, type EnergyPayEntry } from './battle/energyPaySource';
 
@@ -7809,12 +7810,32 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           trash: [...my.trash, ...piecePay.paidNums],
         });
         appendBattleLogs([`[カットイン] ${cutinCard.CardName}を使用`]);
-        await persist.commit(reduceBattle(bs, {
-          type: 'WRITE_STATE',
-          myKey: isHost ? 'host_state' : 'guest_state', myState: paidPC,
-          markCutinResponseComplete: true,
-        }));
-        await queueCardEffects(cutinInstanceId, ['ACTIVATED'], ['MAIN', 'ATTACK', 'SPELL_CUTIN'], paidPC, op);
+        const stateKeyPC: PlayerStateKey = isHost ? 'host_state' : 'guest_state';
+        const completed = await completePieceCutinResponseAfterEffects<BattleStateRow>({
+          // 支払いは先に確定するが、この時点では応答完了を公開しない。
+          commitPayment: async () => {
+            await persist.commit(reduceBattle(bs, {
+              type: 'WRITE_STATE', myKey: stateKeyPC, myState: paidPC,
+            }));
+          },
+          queueEffects: async () => {
+            await queueCardEffects(cutinInstanceId, ['ACTIVATED'], ['MAIN', 'ATTACK', 'SPELL_CUTIN'], paidPC, op);
+          },
+          // commit の完了と Realtime の React state 反映は別タイミングなので、古い closure の bs を使わない。
+          fetchLatest: async () => {
+            const { data, error } = await persist.fetchState();
+            if (error) console.error('[handleCutinUse piece] 最新盤面の取得エラー:', error.message);
+            return data;
+          },
+          markComplete: async latest => {
+            const latestMyState = stateKeyPC === 'host_state' ? latest.host_state : latest.guest_state;
+            await persist.commit(reduceBattle(latest, {
+              type: 'WRITE_STATE', myKey: stateKeyPC, myState: latestMyState,
+              markCutinResponseComplete: true,
+            }));
+          },
+        });
+        if (!completed) console.error('[handleCutinUse piece] 応答完了フラグを書き込めませんでした');
         return;
       }
       const { caster_id, card_num, from_lrig_deck } = bs.pending_spell;
