@@ -24382,6 +24382,15 @@ async function driveV20(page, H, payBoth) {
       if (!step1PayCandPicked) { did = await clickCandidateByPrefix(page, H, st0, 'WX19-064', 'step1pay'); if (did) step1PayCandPicked = true; }
       if (!did) did = await H.clickTextOrBtn(['決定']);
       if ((st0?.host?.handCards ?? []).length === 0) step1PayPicked = true;
+    } else if (!payBoth && step1Chosen) {
+      // 🆕(cl)＝①をスキップしたら**予約自体が設置されない**＝ターン終了を跨いでも②は出ない。
+      //   ここまで見ないと「その場で②が出ないだけ」と区別できない（旧シナリオはそこで打ち切っていた）。
+      if (st0?.pendingEffect) sawPendingAfterSkip = true;
+      if (endClicks < 3) {
+        did = await H.clickBtn('ターン終了', { exact: true });
+        if (!did) did = await H.clickTextOrBtn(['ターン終了', 'OK', 'はい']);
+        if (did) endClicks++;
+      }
     } else if (payBoth && !fired) {
       // 🆕(cl)＝①を払った直後は**何も出ない**（予約されただけ）。ターン終了まで進めて②を出させる。
       if (!preEndChecked) {
