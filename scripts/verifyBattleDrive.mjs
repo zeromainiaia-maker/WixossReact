@@ -23641,8 +23641,13 @@ order.push('v40StripAttachedAndUnder');
 // （pageerror で実機確認）。`effectExecutor.ts:8189` 以降のpick解決側も同じ前提で `pending.thenAction.type`
 // を無条件参照しており、たとえ描画をバイパスできても resolver 側でも同様に crash する二重の穴。
 // 母集団は現状 live 上 `then` 欠落の SEARCH は1件のみ（`WX20-077-E2`）と実測済み。
-scenarios.v40UseSearchedSpellOrTrashCrash = {
-  title: 'V-40(b) WX20-077-E2：SEARCHアクションに then が無く、モーダル描画がクラッシュする（画面真っ黒）',
+// 🏁**2026-08-20 続き589（Opusタスク12(cxlv)）で修正済み**＝parser が `then: ADD_TO_HAND{self}` を出し、
+//   `EffectInteractionModal` も `thenAction` 未定義に耐えるようになった。⚠上記の「resolver 側にも同型の穴」は
+//   **実測で誤りだった**＝`resumeSearch`（`effectExecutor.ts:8368`）は元から同じ既定へフォールバックしている。
+// ⚠旧シナリオ ID は `v40UseSearchedSpellOrTrashCrash`（＝SEARCH が pending のままなら PASS を返さない記録用）。
+//   修正後はモーダルが正常描画されるので、**探す→手札へ→「使用/トラッシュ」二択→トラッシュ**まで通す正常系へ書き換えた。
+scenarios.v40UseSearchedSpellOrTrashResolves = {
+  title: 'V-40(b) WX20-077-E2：SEARCHモーダルが描画され、探した札が「使用/トラッシュ」二択まで進む(cxlv)',
   spec: {
     hostSet: {
       'field.lrig': ['WD01-001#40100'],
