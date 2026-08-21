@@ -1,0 +1,67 @@
+=== 段2 第2バッチ スコープ＝filter.hasCharm の配線漏れ（16効果）===
+出典＝npx tsx scripts/censusWiring.ts --key hasCharm（2026-08-22 の VOCAB 拡張版）。原文は docs/_effect_srctext.json（効果単位）。
+
+● WDK12-011-E1  parseStatus=AUTO  effectType=CONTINUOUS  action=POWER_MODIFY
+  原文: 【常】：【チャーム】が付いているあなたのシグニのパワーを＋3000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":3000}
+
+● WDK12-011-E2  parseStatus=AUTO  effectType=ACTIVATED  action=GRANT_KEYWORD
+  原文: 【起】《ターン１回》《緑×0》：ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニは【ランサー】を得る。
+  live: {"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"チャーム","duration":"UNTIL_END_OF_TURN"}
+
+● WDK12-013-E1  parseStatus=AUTO  effectType=CONTINUOUS  action=POWER_MODIFY
+  原文: 【常】：あなたのターンの間、【チャーム】が付いているあなたのシグニのパワーを＋3000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":3000}
+
+● WX07-031-E2  parseStatus=AUTO  effectType=CONTINUOUS  action=POWER_MODIFY
+  原文: 【常】：【チャーム】が付いているあなたのシグニのパワーを＋2000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000}
+
+● WX13-006A-E1  parseStatus=AUTO  effectType=CONTINUOUS  action=POWER_MODIFY
+  原文: 【常】：【チャーム】が付いている対戦相手のシグニのパワーを－5000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"delta":-5000}
+
+● WX13-006A-E3  parseStatus=AUTO  effectType=AUTO  action=POWER_MODIFY
+  原文: 【出】：ターン終了時まで、【チャーム】が付いている対戦相手のすべてのシグニのパワーを－10000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"delta":-10000}
+
+● WX25-P2-069-E2  parseStatus=AUTO  effectType=AUTO  action=REMOVE_ABILITIES
+  原文: 【出】：ターン終了時まで、【チャーム】が付いている対戦相手のすべてのシグニは能力を失う。
+  live: {"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"UNTIL_END_OF_TURN"}
+
+● WXDi-P11-009-E1  parseStatus=AUTO  effectType=CONTINUOUS  action=POWER_MODIFY
+  原文: 【常】：【チャーム】が付いている対戦相手のシグニのパワーを－3000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"delta":-3000}
+
+● WXDi-P11-TK05-E1  parseStatus=AUTO  effectType=AUTO  action=REMOVE_ABILITIES
+  原文: 【自】：各アタックフェイズ開始時、ターン終了時まで、【チャーム】が付いている対戦相手のすべてのシグニは能力を失う。
+  live: {"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"UNTIL_END_OF_TURN"}
+
+● WXDi-P11-TK05-E2  parseStatus=AUTO  effectType=AUTO  action=DRAW
+  原文: 【自】：【チャーム】が付いている対戦相手のシグニ１体がバニッシュされたとき、カードを１枚引く。
+  live: {"type":"DRAW","owner":"self","count":1}
+
+● WXDi-P11-TK06-E2  parseStatus=AUTO  effectType=AUTO  action=POWER_MODIFY
+  原文: 【出】：ターン終了時まで、【チャーム】が付いている対戦相手のすべてのシグニのパワーを－10000する。
+  live: {"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"delta":-10000}
+
+● WXEX2-24-E3  parseStatus=AUTO  effectType=ACTIVATED  action=GRANT_KEYWORD
+  原文: 【起】《アタックフェイズアイコン》《コインアイコン》：【チャーム】が付いている対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。
+  live: {"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"チャーム","duration":"UNTIL_END_OF_TURN"}
+
+● WXK07-050-E1  parseStatus=AUTO  effectType=ACTIVATED  action=SEQUENCE
+  原文: あなたのトラッシュから対象の＜微菌＞のシグニ１枚を対象のあなたのシグニ１体の【チャーム】にする。ターン終了時まで、【チャーム】が付いているあなたのすべてのシグニのパワーを＋3000する。ターン終了時まで、あなたのパワー10000以上のすべてのシグニは【ランサー】を得、15000以上のすべてのシグニは【Ｓランサー】を得る。（【Ｓランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスがある場合はそれを１枚クラッシュする。無い場合は対戦相手にダメージを与える）
+  live: {"type":"SEQUENCE","steps":[{"type":"ATTACH_CHARM","charm":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"story":"微菌"}},"to":{"type":"SIGNI","owner":"self","count":1}},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":3000},{"type":"GRANT_KEYWORD","target":{"type":"
+
+● WXK07-074-E1  parseStatus=AUTO  effectType=AUTO  action=CHOOSE
+  原文: 【自】《ターン１回》：【チャーム】が付いているあなたのシグニ１体がバニッシュされたとき、カードを１枚引くか【エナチャージ１】をする。
+  live: {"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}}]}
+
+● WXK07-077-E1  parseStatus=AUTO  effectType=AUTO  action=GRANT_KEYWORD
+  原文: 【出】：【チャーム】が付いているあなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋1000し、それは【ランサー】を得る。
+  live: {"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"チャーム","duration":"UNTIL_END_OF_TURN"}
+
+● WXK11-041-E3  parseStatus=AUTO  effectType=AUTO  action=SEND_TO_ENERGY
+  原文: 【自】《ターン１回》：【チャーム】が付いているシグニ１体がバニッシュされたとき、そのシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。
+  live: {"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerLtTrigger":true}}}
+

@@ -1,0 +1,6893 @@
+[
+ {
+  "axis": "(未分類)",
+  "n": 133,
+  "findings": [
+   {
+    "effectId": "WX11-052-E2",
+    "cardNum": "WX11-052",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEARCH",
+    "quote": "《サーバント　Ｙ》１枚",
+    "claim": "デッキから《サーバント　Ｙ》1枚を探して場に出す処理が欠落している。"
+   },
+   {
+    "effectId": "WX14-CB02-BURST",
+    "cardNum": "WX14-CB02",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEARCH",
+    "quote": "《暁月》１枚と《燦》１枚",
+    "claim": "ライフバーストで《暁月》に加えて《燦》1枚も探して手札に加える処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P04-034-E1",
+    "cardNum": "WXDi-P04-034",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "【ソウル】があり",
+    "claim": "エナをトラッシュに置くための条件である自分の場のソウル存在がJSONにない。"
+   },
+   {
+    "effectId": "WXK11-027-E1",
+    "cardNum": "WXK11-027",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BLOCK_ACTION",
+    "quote": "１８枚以上ないかぎり",
+    "claim": "トラッシュが18枚以上ならアタック可能になる条件がなく、常にアタックを禁止します。"
+   },
+   {
+    "effectId": "WXDi-P09-044-E2",
+    "cardNum": "WXDi-P09-044",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "１枚をこのシグニの下に置き",
+    "claim": "見た2枚のうち1枚をこのシグニの下に置く処理がなく、2枚をデッキ下へ並べ直す効果になっている。"
+   },
+   {
+    "effectId": "WX16-072-E1",
+    "cardNum": "WX16-072",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "アクセを持つシグニ１枚",
+    "claim": "公開した3枚からアクセアイコンを持つシグニ1枚を選んでエナゾーンに置く処理がなく、JSONでは3枚すべてをデッキの下に置く。"
+   },
+   {
+    "effectId": "WXEX2-24-E3",
+    "cardNum": "WXEX2-24",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "アタックできない",
+    "claim": "チャーム付きの対戦相手シグニにアタック禁止を与える効果が、自分のシグニにチャームのキーワードを与える効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P01-004-E1",
+    "cardNum": "WXDi-P01-004",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ADD_TO_LIFE",
+    "quote": "あなたのデッキをシャッフル",
+    "claim": "デッキをシャッフルしてから一番上をライフクロスに加える処理のうち、シャッフルが欠落している。"
+   },
+   {
+    "effectId": "WX26-CP1-023-E1",
+    "cardNum": "WX26-CP1-023",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "あなたの場にシグニがない場合",
+    "claim": "選択肢①を選べる条件である自分の場にシグニがないことがJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P11-051-E1",
+    "cardNum": "WXDi-P11-051",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "ウムル//メモリア》のパワーを＋4000",
+    "claim": "このシグニだけでなく、自分の《融合の儀　ウムル//メモリア》も＋4000する処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P06-077-E1",
+    "cardNum": "WXDi-P06-077",
+    "severity": "HIGH",
+    "type": "EXTRA",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンからこのカードを",
+    "claim": "別個の起動能力で行うべきこのカードの回収が、スペル本来の効果と同時に実行される。"
+   },
+   {
+    "effectId": "WX13-001-E4",
+    "cardNum": "WX13-001",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンからすべて",
+    "claim": "起動能力で自分のエナゾーンの全カードをトラッシュに置く処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P06-070-E1",
+    "cardNum": "WXDi-P06-070",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "エナゾーンから場に出ていた場合",
+    "claim": "エナチャージするための、このターンにこのシグニがエナゾーンから場に出たという条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P11-073-E2",
+    "cardNum": "WXDi-P11-073",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "カード１枚をエナゾーンに置き",
+    "claim": "見た3枚のうち1枚をエナゾーンに置く処理がなく、JSONではカードをデッキ下へ並べ替える処理だけになっている。"
+   },
+   {
+    "effectId": "WX20-002-E2",
+    "cardNum": "WX20-002",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "カード１枚を対象",
+    "claim": "原文はエナゾーンのアクセアイコンを持つカード1枚を選んでシグニのアクセにする効果だが、JSONはエナのカードを選択・移動せずシグニへ「アクセ」キーワードを付与している。"
+   },
+   {
+    "effectId": "WXDi-P15-050-E1",
+    "cardNum": "WXDi-P15-050",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "カードが合計２枚以上ある場合",
+    "claim": "第2選択肢を選ぶための、自分のシグニの下にカードが合計2枚以上あるという条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P11-079-E1",
+    "cardNum": "WXDi-P11-079",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "カードが付いているか下に",
+    "claim": "対象に「カードが付いている、または下にカードがある相手シグニ」という条件がなく、相手の任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WXDi-P10-062-E1",
+    "cardNum": "WXDi-P10-062",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "カードを１枚引いてもよい",
+    "claim": "原文ではドローは任意だが、JSONでは任意選択の指定がなく強制処理になっている。"
+   },
+   {
+    "effectId": "WX09-Re15-BURST",
+    "cardNum": "WX09-Re15",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "カードを２枚捨て",
+    "claim": "ライフバーストでカードを3枚引く前に手札を2枚捨てる処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P05-003-E1",
+    "cardNum": "WXDi-P05-003",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "か「手札を１枚捨てる。」",
+    "claim": "エナ1枚をトラッシュに置くか手札1枚を捨てるかを選ぶ処理と、それを合計3回行う処理が欠落している。"
+   },
+   {
+    "effectId": "WX08-011-E1",
+    "cardNum": "WX08-011",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "クロス状態のシグニ１体",
+    "claim": "バニッシュ対象にクロス状態の条件がなく、対戦相手の任意のシグニを対象にできる。"
+   },
+   {
+    "effectId": "WXEX2-27-E3",
+    "cardNum": "WXEX2-27",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "ゲーム１回",
+    "claim": "使用制限がゲーム1回ではなくターン1回になっている。"
+   },
+   {
+    "effectId": "WXK11-004-E1",
+    "cardNum": "WXK11-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "ゲームから除外する",
+    "claim": "相手のエナをゲームから除外せずトラッシュに置いています。"
+   },
+   {
+    "effectId": "WXEX1-08-E1",
+    "cardNum": "WXEX1-08",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GAIN_COIN",
+    "quote": "コインアイコンを得る",
+    "claim": "原文はコインを1枚得る効果だが、JSONは2枚得る指定になっている。"
+   },
+   {
+    "effectId": "WXK09-031-E2",
+    "cardNum": "WXK09-031",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "このカードをエナゾーンから",
+    "claim": "原文はエナゾーンに置かれたこのカード自身を手札に加えますが、JSONは自分のエナゾーンの任意のカード1枚を対象にできます。"
+   },
+   {
+    "effectId": "WXEX1-39-E2",
+    "cardNum": "WXEX1-39",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "このシグニとそれを",
+    "claim": "対象の相手シグニだけでなく、このシグニ自身もデッキの一番上に置く処理が欠落している。"
+   },
+   {
+    "effectId": "WX25-P2-069-E1",
+    "cardNum": "WX25-P2-069",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY_PER_FIELD",
+    "quote": "このシグニのパワー",
+    "claim": "パワーを増加する対象がこのシグニではなく、対戦相手のすべてのシグニになっています。"
+   },
+   {
+    "effectId": "WX26-CP1-054-E1",
+    "cardNum": "WX26-CP1-054",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CONDITIONAL",
+    "quote": "このシグニのパワーの半分以下",
+    "claim": "バニッシュ対象に必要な、このシグニのパワーの半分以下というパワー条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P12-073-E2",
+    "cardNum": "WXDi-P12-073",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "このシグニのパワーを",
+    "claim": "パワー＋4000の対象がこのシグニではなく、対戦相手のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WX16-027-E2",
+    "cardNum": "WX16-027",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このシグニの下からカード１枚",
+    "claim": "原文はこのシグニの下のカード1枚をトラッシュに置くが、JSONは対象とした相手シグニ自体をトラッシュに置く。"
+   },
+   {
+    "effectId": "WX17-035-LAYER-E1",
+    "cardNum": "WX17-035",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "このシグニの正面のシグニ",
+    "claim": "アタック時に能力を失わせる対象は正面の相手シグニだが、JSONでは自分のシグニ1体を対象としている。"
+   },
+   {
+    "effectId": "WXK05-035-E1",
+    "cardNum": "WXK05-035",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このシグニは対戦相手のルリグ",
+    "claim": "効果耐性の対象がこのシグニに限定されず、自分のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WXK11-048-E1",
+    "cardNum": "WXK11-048",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "このシグニよりパワーの低い",
+    "claim": "公開したシグニのパワーがこのシグニより低い場合だけ場に出せる条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK05-031-E2",
+    "cardNum": "WXK05-031",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このシグニをデッキの一番下に置く",
+    "claim": "デッキ下へ置く対象がこのシグニに限定されず、自分の任意のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WX10-096-E1",
+    "cardNum": "WX10-096",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このスペルがトラッシュにある場合",
+    "claim": "トラッシュにある場合だけ使用できる別個の起動能力が、スペル使用時の黒シグニ回収と連続して実行される単一効果になっている。"
+   },
+   {
+    "effectId": "WXK08-040-E1",
+    "cardNum": "WXK08-040",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "このスペルを手札に戻す",
+    "claim": "選択肢③は使用したこのスペルを手札に戻す効果だが、JSONでは自分のシグニ1体を手札に戻す効果になっている。"
+   },
+   {
+    "effectId": "WX25-P1-022-E2",
+    "cardNum": "WX25-P1-022",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "PLAY_FREE",
+    "quote": "このターン、あなたはそれらを使用",
+    "claim": "ターン中に対象のスペルを使用できる権利ではなく、効果解決時にスペルを使用する処理になっています。"
+   },
+   {
+    "effectId": "WXK05-016-E2",
+    "cardNum": "WXK05-016",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このターンに捨てたシグニ",
+    "claim": "場に出す対象に「このターンに捨てたシグニ」という条件がなく、自分のトラッシュの任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WX25-CP1-008-E1",
+    "cardNum": "WX25-CP1-008",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "このターン終了時、それをバニッシュ",
+    "claim": "選択肢④のバニッシュがターン終了時の遅延処理ではなく即時処理になっている。"
+   },
+   {
+    "effectId": "WXDi-D04-004-sub-E1",
+    "cardNum": "WXDi-D04-004",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "このルリグをアップする",
+    "claim": "アップ対象が能力を持つこのルリグに限定されず、自分のルリグ1体になっている。"
+   },
+   {
+    "effectId": "WX25-CP1-TK2A-E1",
+    "cardNum": "WX25-CP1-TK2A",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "これの上にある《鰐渕アカリ",
+    "claim": "パワー修正の対象にこのクラフトの上の《鰐渕アカリ（正月）》という条件がなく、任意のシグニを対象にしている。"
+   },
+   {
+    "effectId": "WX05-019-E3",
+    "cardNum": "WX05-019",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "シグニ１体が場からデッキに",
+    "claim": "JSONは相手のカードがデッキへ移動したことだけを条件としており、シグニであることと場からの移動であることが欠けている。"
+   },
+   {
+    "effectId": "WXDi-P15-079-E1",
+    "cardNum": "WXDi-P15-079",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "シグニ１枚を【ゲート】がある",
+    "claim": "JSONには見た5枚からシグニ1枚を【ゲート】のある自分のシグニゾーンに出す処理がなく、全カードをデッキ下に置く効果になっている。"
+   },
+   {
+    "effectId": "WDK06-C14-E1",
+    "cardNum": "WDK06-C14",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "シグニ１枚を対象とし",
+    "claim": "原文は自分のターンかどうかにかかわらず対象を選び、自分のターンの場合だけ場に出すが、JSONは自分のターンでない場合に対象選択自体を行わない。"
+   },
+   {
+    "effectId": "WXDi-P09-031-E1",
+    "cardNum": "WXDi-P09-031",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "シグニアタックステップをスキップ",
+    "claim": "原文はそのターンのシグニアタックステップ自体をスキップするが、JSONは自分プレイヤーの行動を対象とするBLOCK_ACTIONになっており、相手ターンに使用した場合の相手のステップを表現していない。"
+   },
+   {
+    "effectId": "WXK02-065-E1",
+    "cardNum": "WXK02-065",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "シグニが２体以上",
+    "claim": "エナチャージ２を行う条件である、このターンにシグニが2体以上場から手札に戻ったことの判定が欠落している。"
+   },
+   {
+    "effectId": "WD21-020-E1",
+    "cardNum": "WD21-020",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "シグニがめくれるまで公開し",
+    "claim": "シグニがめくれるまでデッキ上を公開する処理が、シグニ1枚をデッキ下へ移す処理として表現されている。"
+   },
+   {
+    "effectId": "WXDi-P13-010-E1",
+    "cardNum": "WXDi-P13-010",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CONDITIONAL",
+    "quote": "シグニゾーン１つに【ウィルス】１つを置き",
+    "claim": "条件成立時に対戦相手のシグニゾーンへ【ウィルス】1つを置く処理がJSONにありません。"
+   },
+   {
+    "effectId": "WXK05-051-E1",
+    "cardNum": "WXK05-051",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "シャッフルしてデッキの一番下",
+    "claim": "JSONの末尾処理はcountが0で、公開した3枚をシャッフルしてデッキの一番下へ置く処理を表現していない。"
+   },
+   {
+    "effectId": "WX11-052-E3",
+    "cardNum": "WX11-052",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "すべてのカードをゲームから除外",
+    "claim": "相手の手札とエナゾーンの全カードをゲームから除外すべきところ、いずれもトラッシュに置く処理になっている。"
+   },
+   {
+    "effectId": "WXK11-004-E1",
+    "cardNum": "WXK11-004",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "すべてのシグニを",
+    "claim": "対戦相手のすべてのシグニをゲームから除外する主要処理がありません。"
+   },
+   {
+    "effectId": "WX03-021-E1",
+    "cardNum": "WX03-021",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "すべてのシグニを場からトラッシュに置いてもよい",
+    "claim": "シグニをすべてトラッシュに置く処理が任意選択として表現されておらず、効果解決時に強制実行される構造になっている。"
+   },
+   {
+    "effectId": "WX25-P2-048-E1",
+    "cardNum": "WX25-P2-048",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "すべてのルリグをアップ",
+    "claim": "原文は自分のすべてのルリグをアップするが、JSONのUP対象はルリグ1体だけになっている。"
+   },
+   {
+    "effectId": "WXEX2-84-E1",
+    "cardNum": "WXEX2-84",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "すべてのルリグをこのカードの下に置き",
+    "claim": "ルリグトラッシュのすべてのルリグをこのカードの下に置く処理が欠落している。"
+   },
+   {
+    "effectId": "WXEX2-16-E3",
+    "cardNum": "WXEX2-16",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "すべての緑のアーツ",
+    "claim": "ルリグトラッシュからルリグデッキへ戻す緑のアーツがすべてではなく1枚になっている。"
+   },
+   {
+    "effectId": "WXEX1-38-BURST",
+    "cardNum": "WXEX1-38",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "スペル１枚を対象とし",
+    "claim": "ライフバーストでトラッシュのスペル1枚を手札に加える処理が欠落している。"
+   },
+   {
+    "effectId": "WX14-073-E2",
+    "cardNum": "WX14-073",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "スペルが３枚以上ある場合",
+    "claim": "パワーを－3000する条件である自分のトラッシュのスペル3枚以上がJSONにない。"
+   },
+   {
+    "effectId": "WX19-061-E1",
+    "cardNum": "WX19-061",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "スペルの場合、対戦相手の",
+    "claim": "公開したカードがスペルなら相手のデッキ最上部とライフクロス1枚を任意で入れ替える処理が欠落している。"
+   },
+   {
+    "effectId": "WXK11-006-E4",
+    "cardNum": "WXK11-006",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "UP",
+    "quote": "センタールリグ１体がアタック",
+    "claim": "発動契機がセンタールリグのアタックではなくシグニのアタックになっています。"
+   },
+   {
+    "effectId": "WXDi-P05-044-E1",
+    "cardNum": "WXDi-P05-044",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "センタールリグが白",
+    "claim": "パワーを＋5000する条件である、自分のセンタールリグが白であることがJSONにない。"
+   },
+   {
+    "effectId": "WXK03-008-E3",
+    "cardNum": "WXK03-008",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "FREEZE",
+    "quote": "センタールリグは以下の能力を得る",
+    "claim": "ターン終了時の凍結能力がセンタールリグへの付与能力ではなく、このキー自身の独立した自動能力として定義されている。"
+   },
+   {
+    "effectId": "WXDi-P11-078-E1",
+    "cardNum": "WXDi-P11-078",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "そのカードをトラッシュから",
+    "claim": "場に出せる対象が直前にトラッシュへ置いたタウィルではなく、トラッシュの任意のシグニになっている。"
+   },
+   {
+    "effectId": "WXDi-P10-075-E1",
+    "cardNum": "WXDi-P10-075",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "そのカードをトラッシュに置いてもよい",
+    "claim": "任意でデッキ最上段のカードをトラッシュに置く効果が、任意確認なしで任意のシグニ1体を強制的にトラッシュへ置く処理になっている。"
+   },
+   {
+    "effectId": "WDK04-011-E1",
+    "cardNum": "WDK04-011",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "そのカードをトラッシュに置き",
+    "claim": "公開したカードが奇数レベルのシグニだった場合に、そのカードをトラッシュへ置く処理が欠落している。"
+   },
+   {
+    "effectId": "WXEX2-31-E1",
+    "cardNum": "WXEX2-31",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "そのシグニと同じ名前",
+    "claim": "サーチ対象を場から離れたシグニと同名に限定する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK04-043-E2",
+    "cardNum": "WXK04-043",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "そのシグニのパワーを＋5000",
+    "claim": "原文は血晶武装状態になった自分のシグニ自身を強化するが、JSONの対象はowner:anyの任意のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WXDi-P02-078-E1",
+    "cardNum": "WXDi-P02-078",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "それとこのシグニを",
+    "claim": "対象とした相手シグニだけがデッキの一番下に置かれ、このシグニ自身を同時にデッキの一番下へ置く処理が欠落している。"
+   },
+   {
+    "effectId": "WX14-031-E3",
+    "cardNum": "WX14-031",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それのパワーを－3000",
+    "claim": "原文では最初に対象とした相手シグニのパワーを下げるが、JSONではパワー減少時に別の相手シグニを選べる。"
+   },
+   {
+    "effectId": "WX24-P3-041-E1",
+    "cardNum": "WX24-P3-041",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それのパワーを＋3000する",
+    "claim": "パワー上昇の対象がこの効果でトラッシュから場に出したシグニに関連付けられず、ownerがanyの別対象になっています。"
+   },
+   {
+    "effectId": "WX06-017-E2",
+    "cardNum": "WX06-017",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "それをアップするかダウンする",
+    "claim": "原文は任意のシグニ1体をアップまたはダウンする選択効果だが、JSONは自分のシグニ1体をダウンする効果に限定している。"
+   },
+   {
+    "effectId": "SP24-010-E1",
+    "cardNum": "SP24-010",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それをこの方法で場に出したシグニの",
+    "claim": "原文はエナゾーンのアクセアイコン持ちシグニ1枚を任意で、直前にデッキから出したシグニのアクセにするが、JSONは場の任意のシグニ1体に「アクセ」能力を恒久付与している。"
+   },
+   {
+    "effectId": "WX19-063-E1",
+    "cardNum": "WX19-063",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それをトラッシュに置いてもよい",
+    "claim": "見たデッキ最上部のカードを任意でトラッシュに置く効果が、相手のシグニ1体を強制的にトラッシュへ置く効果になっている。"
+   },
+   {
+    "effectId": "WX25-P1-002-E1",
+    "cardNum": "WX25-P1-002",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それを手札に戻す",
+    "claim": "ブースト時の手札戻しが能力を失わせた同じシグニを参照する指定になっておらず、別の相手シグニを選べる表現になっている。"
+   },
+   {
+    "effectId": "PR-470B-E1",
+    "cardNum": "PR-470B",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SELF_PLAY_RESTRICT",
+    "quote": "タマ》の効果以外によっては",
+    "claim": "《現実からの逃避　タマ》の効果による登場を許す例外が表現されず、never:trueにより一律に登場不能となっている。"
+   },
+   {
+    "effectId": "WXDi-P03-065-E1",
+    "cardNum": "WXDi-P03-065",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "デッキからカードが３枚以上",
+    "claim": "このターンに自分のデッキから3枚以上がトラッシュに置かれていた場合にのみ引く条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P07-064-E1",
+    "cardNum": "WXDi-P07-064",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "デッキの一番下に置く",
+    "claim": "公開した3枚をデッキの一番下に置く効果が、デッキの上に置く処理になっている。"
+   },
+   {
+    "effectId": "WDK01-013-E1",
+    "cardNum": "WDK01-013",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "ドライブ状態のシグニがあるかぎり",
+    "claim": "パワー＋4000を有効にする「自分の場にドライブ状態のシグニがある」という条件がJSONにありません。"
+   },
+   {
+    "effectId": "WX13-050-E1",
+    "cardNum": "WX13-050",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "トラッシュからカード１枚",
+    "claim": "トラッシュのカードを対象にする処理がなく、対象カードではなくデッキの一番上のカードをライフクロスに加える効果になっている。"
+   },
+   {
+    "effectId": "WX24-P2-040-E1",
+    "cardNum": "WX24-P2-040",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "トラッシュにあるいずれかのカードと同じ名前",
+    "claim": "対象シグニと同名のカードが対戦相手のトラッシュにあるという対象条件がJSONにありません。"
+   },
+   {
+    "effectId": "PR-402-E1",
+    "cardNum": "PR-402",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BLOCK_ACTION",
+    "quote": "トラッシュにカードが１５枚以上",
+    "claim": "アタック不能を解除するためのトラッシュ15枚以上という条件がなく、常にアタック不能になる。"
+   },
+   {
+    "effectId": "WD20-018-E1",
+    "cardNum": "WD20-018",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "トラッシュに置いてもよい",
+    "claim": "選択肢②の全シグニをトラッシュに置く処理が任意ではなく強制になっている。"
+   },
+   {
+    "effectId": "WX22-024-E2",
+    "cardNum": "WX22-024",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "バニッシュしてもよい",
+    "claim": "他のすべてのシグニをバニッシュする処理が任意ではなく強制になっている。"
+   },
+   {
+    "effectId": "WXDi-P07-042-E2",
+    "cardNum": "WXDi-P07-042",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "パワーの合計が30000以上",
+    "claim": "ターン終了時のドロー条件である、自分の場のシグニのパワー合計が30000以上であることがJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P13-043-E1",
+    "cardNum": "WXDi-P13-043",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "パワーを－5000する",
+    "claim": "対象としたシグニのパワーを－5000する処理がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P04-079-BURST",
+    "cardNum": "WXDi-P04-079",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "パワーを＋10000する",
+    "claim": "ライフバーストが二択になっておらず、あなたのすべてのシグニのパワーを＋10000する選択肢が欠落している。"
+   },
+   {
+    "effectId": "WX20-043-E1",
+    "cardNum": "WX20-043",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "ライフクロス１枚をクラッシュしてもよい",
+    "claim": "原文ではトラッシュにデメニギスを含むカードがある場合に任意でクラッシュするが、JSONでは条件成立時に強制でクラッシュする。"
+   },
+   {
+    "effectId": "WXK07-038-E1",
+    "cardNum": "WXK07-038",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "ライフクロスが対戦相手より多い",
+    "claim": "パワー上昇と耐性を適用する条件である、自分のライフクロスが相手より多いという判定が欠落している。"
+   },
+   {
+    "effectId": "WX24-P3-041-E1",
+    "cardNum": "WX24-P3-041",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "リミットアッパー１つを得る",
+    "claim": "原文はプレイヤーがリミットアッパーを1つ得る効果ですが、JSONは自分のシグニ1体へ同名キーワードを付与する効果になっています。"
+   },
+   {
+    "effectId": "WXEX1-59-E1",
+    "cardNum": "WXEX1-59",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "レイヤーアイコン１つにつき",
+    "claim": "原文は自分の場のレイヤーアイコン数だけエナチャージするが、JSONは常に1枚だけチャージする。"
+   },
+   {
+    "effectId": "WX24-P3-048-E1",
+    "cardNum": "WX24-P3-048",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "レベルが…数以下",
+    "claim": "手札に戻せる相手シグニのレベルが、ダウンしたシグニの数以下でなければならない条件がJSONにない。"
+   },
+   {
+    "effectId": "WX25-CP1-TK2A-E1",
+    "cardNum": "WX25-CP1-TK2A",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レベルを＋１し",
+    "claim": "《鰐渕アカリ（正月）》のレベルを1増加させる処理が欠落している。"
+   },
+   {
+    "effectId": "WXK03-066-E1",
+    "cardNum": "WXK03-066",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "一番下のカード",
+    "claim": "ライフクロスに加えるカードはデッキの一番下だが、JSONでは一番上から加える。"
+   },
+   {
+    "effectId": "WX22-045-E1",
+    "cardNum": "WX22-045",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "一番上のカードをエナゾーンに置き",
+    "claim": "リフレッシュ時にデッキの一番上のカードをエナゾーンへ置く処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P14-033-E1",
+    "cardNum": "WXDi-P14-033",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "一番上のカードをライフクロスに加える",
+    "claim": "トラッシュをデッキに戻してシャッフルした後、デッキの一番上のカード1枚をライフクロスに加える処理がありません。"
+   },
+   {
+    "effectId": "WXDi-P15-051-E1",
+    "cardNum": "WXDi-P15-051",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY_PER_FIELD",
+    "quote": "下にカードがあるあなたのシグニ",
+    "claim": "減少量の基準が、下にカードのある自分のシグニ数ではなく自分の全シグニ数になっている。"
+   },
+   {
+    "effectId": "WXDi-P06-067-E2",
+    "cardNum": "WXDi-P06-067",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "各プレイヤーは",
+    "claim": "原文では両プレイヤーがエナチャージ1をするが、JSONでは自分だけが行う。"
+   },
+   {
+    "effectId": "WXDi-P14-063-E2",
+    "cardNum": "WXDi-P14-063",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "各プレイヤーは【エナチャージ１】",
+    "claim": "自分のエナチャージ1しか定義されておらず、対戦相手がエナチャージ1をする処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P04-067-E1",
+    "cardNum": "WXDi-P04-067",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "各プレイヤーはカードを１枚引く",
+    "claim": "JSONは自分が1枚引く処理しかなく、対戦相手が1枚引く処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P01-039-E1",
+    "cardNum": "WXDi-P01-039",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "基本レベルは１になる",
+    "claim": "原文は常時の基本レベル変更だが、JSONはBLOCK_ACTIONによるSET_LEVEL_1をターン終了までの処理としている。"
+   },
+   {
+    "effectId": "SP15-001-E1",
+    "cardNum": "SP15-001",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "限定条件にあなたのセンタールリグ",
+    "claim": "原文はセンタールリグのルリグタイプを限定条件に持つ任意のカードを探すが、JSONはルリグカードだけを探す効果になっている。"
+   },
+   {
+    "effectId": "WD21-020-E1",
+    "cardNum": "WD21-020",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "公開したカードをシャッフルし",
+    "claim": "公開した全カードをシャッフルしてデッキの一番下に置く処理が欠落している。"
+   },
+   {
+    "effectId": "WXEX2-43-E3",
+    "cardNum": "WXEX2-43",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "合計２枚探して",
+    "claim": "原文はレベルの異なる対象を合計2枚探すが、JSONのmaxCountは1になっている。"
+   },
+   {
+    "effectId": "WXK01-042-E1",
+    "cardNum": "WXK01-042",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEND_TO_ENERGY",
+    "quote": "使用した２枚目のアーツ",
+    "claim": "そのターンに使用した2枚目のアーツである場合だけエナゾーンに置く条件がJSONにない。"
+   },
+   {
+    "effectId": "WX09-012-E2",
+    "cardNum": "WX09-012",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "PLAY_FREE_FROM_TRASH",
+    "quote": "使用してもよい",
+    "claim": "原文ではトラッシュのスペルを使用するか任意だが、JSONは強制効果になっている。"
+   },
+   {
+    "effectId": "WX25-P3-053-E1",
+    "cardNum": "WX25-P3-053",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "次とその次に",
+    "claim": "原文は次の2回のダメージをデッキ3枚のトラッシュ送りに置換する効果だが、JSONは登場時に直ちにデッキ3枚をトラッシュへ置くだけになっている。"
+   },
+   {
+    "effectId": "WX15-010-E1",
+    "cardNum": "WX15-010",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "次にバニッシュされる場合",
+    "claim": "原文はバニッシュの発生源を限定しないが、JSONは対戦相手によるバニッシュだけを防ぐ。"
+   },
+   {
+    "effectId": "WXK01-084-E1",
+    "cardNum": "WXK01-084",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "手札が１枚以下で",
+    "claim": "カードを引く条件である自分の手札が1枚以下という判定がJSONに無い。"
+   },
+   {
+    "effectId": "WDK05-T10-E1",
+    "cardNum": "WDK05-T10",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "手札が１枚以下で使用した場合",
+    "claim": "選択肢①の手札破棄が常に2枚指定で、手札が1枚以下なら残る手札をすべて捨てる処理を表現していない。"
+   },
+   {
+    "effectId": "WXK06-044-E1",
+    "cardNum": "WXK06-044",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DRAW",
+    "quote": "手札が１枚以上ある各プレイヤー",
+    "claim": "JSONは自分がカードを1枚引くだけで、手札がある各プレイヤーが手札1枚をデッキの一番下に置いてから1枚引く処理を表現していない。"
+   },
+   {
+    "effectId": "WXDi-P15-092-E1",
+    "cardNum": "WXDi-P15-092",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "手札が４枚以上ある場合",
+    "claim": "エナチャージを選ぶための手札4枚以上という条件がJSONにない。"
+   },
+   {
+    "effectId": "WX24-P3-044-E1",
+    "cardNum": "WX24-P3-044",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_LIFE",
+    "quote": "手札からカードを１枚",
+    "claim": "原文は手札のカード1枚をライフクロスに加えるが、JSONのfromTop:trueは手札からの移動を表していない。"
+   },
+   {
+    "effectId": "WXK09-031-E2",
+    "cardNum": "WXK09-031",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "手札に加えてもよい",
+    "claim": "原文では手札に加える処理は任意ですが、JSONではmandatoryがtrueで強制処理になっています。"
+   },
+   {
+    "effectId": "WX03-015-E1",
+    "cardNum": "WX03-015",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "場からトラッシュに置いてもよい",
+    "claim": "原文では自分の全シグニをトラッシュに置く処理は任意ですが、JSONのTRASHアクションは任意指定がなく強制処理になっています。"
+   },
+   {
+    "effectId": "WXDi-P08-068-E1",
+    "cardNum": "WXDi-P08-068",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "場に《羅星姫　タマゴ",
+    "claim": "使用条件にある指定された3種のシグニが自分の場にある場合という選択肢が欠落し、相手の手札条件も1枚以下ではなく1枚ちょうどになっている。"
+   },
+   {
+    "effectId": "WXK10-004-E1",
+    "cardNum": "WXK10-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "場以外のあなたの領域",
+    "claim": "領域移動耐性の対象が手札とエナゾーンだけに限定されており、デッキやトラッシュなど場以外の他の自領域が保護されない。"
+   },
+   {
+    "effectId": "WX11-032-E2",
+    "cardNum": "WX11-032",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "色の種類１つにつき＋4000",
+    "claim": "自身が持つ色の種類1つにつきパワーを＋4000する継続効果が欠落している。"
+   },
+   {
+    "effectId": "WX09-015-E1",
+    "cardNum": "WX09-015",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "正面のシグニ１体",
+    "claim": "原文では最初に対象とした正面の相手シグニを手札に戻すが、JSONは自分のシグニを手札に戻す。"
+   },
+   {
+    "effectId": "WX11-002-E1",
+    "cardNum": "WX11-002",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "他のシグニゾーンに移動",
+    "claim": "場のシグニが別のシグニゾーンへ移動した場合という移動元・移動先の条件がなく、任意のゾーン移動で発動する定義になっている。"
+   },
+   {
+    "effectId": "WX14-076-E1",
+    "cardNum": "WX14-076",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ATTACH_CHARM",
+    "quote": "対戦相手のトラッシュのカード",
+    "claim": "チャームにするカードが対戦相手のトラッシュの任意のカードではなく、自分のシグニとして指定されている。"
+   },
+   {
+    "effectId": "WXDi-P05-003-E1",
+    "cardNum": "WXDi-P05-003",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "対戦相手のルリグ１体",
+    "claim": "効果対象である対戦相手のルリグが設定されず、攻撃無効の対象が対戦相手のシグニになっている。"
+   },
+   {
+    "effectId": "WX24-P2-045-E1",
+    "cardNum": "WX24-P2-045",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DOWN",
+    "quote": "対戦相手のルリグ１体と",
+    "claim": "最初の出現時能力で対戦相手のルリグ1体をダウンする処理が欠落し、シグニだけをダウンします。"
+   },
+   {
+    "effectId": "WX11-018-E1",
+    "cardNum": "WX11-018",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "対戦相手の手札と、対戦相手のデッキ",
+    "claim": "選択肢③は対戦相手の手札と対戦相手のデッキの一番上を見る効果だが、JSONは自分のデッキの一番上だけを見る効果になっている。"
+   },
+   {
+    "effectId": "WXEX1-38-E1",
+    "cardNum": "WXEX1-38",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "対戦相手の手札を１枚",
+    "claim": "相手の手札から無作為に1枚をデッキ上へ置く効果が、相手のシグニ1体をデッキ上へ置く効果になっている。"
+   },
+   {
+    "effectId": "PR-242-E1",
+    "cardNum": "PR-242",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "対戦相手の選んだシグニ１枚",
+    "claim": "選択肢②で場に出すエナのシグニを対戦相手が選ぶ処理がありません。"
+   },
+   {
+    "effectId": "WXEX1-28-E1",
+    "cardNum": "WXEX1-28",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ATTACH_CHARM",
+    "quote": "対戦相手の他のシグニ",
+    "claim": "チャーム化するシグニと装着先を別の相手シグニにする制約がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P12-050-E1",
+    "cardNum": "WXDi-P12-050",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "対戦相手は【みこみこ親衛隊】",
+    "claim": "原文では対戦相手が【みこみこ親衛隊】を得るが、JSONでは任意のシグニ1体にキーワードを付与する効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P05-063-E1",
+    "cardNum": "WXDi-P05-063",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "対戦相手はカードを１枚引き",
+    "claim": "アタック時に対戦相手がカードを1枚引く処理が欠落している。"
+   },
+   {
+    "effectId": "WXK11-027-E2",
+    "cardNum": "WXK11-027",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "対戦相手は自分のシグニ",
+    "claim": "トラッシュに置くシグニを対戦相手が選ぶ指定がなく、効果の使用者が相手シグニを選ぶ構造です。"
+   },
+   {
+    "effectId": "WD06-009-E1",
+    "cardNum": "WD06-009",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "対戦相手より少ないかぎり",
+    "claim": "自分のライフクロスが対戦相手より少ない場合に限る適用条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P03-087-E2",
+    "cardNum": "WXDi-P03-087",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "中央のシグニゾーンに出す",
+    "claim": "このカードを出す場所が中央のシグニゾーンに限定されていない。"
+   },
+   {
+    "effectId": "WXK05-010-E1",
+    "cardNum": "WXK05-010",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "同じ選択肢を２回選んでもよい",
+    "claim": "JSONには同じ選択肢の重複選択を許可する指定がなく、原文どおり同一の選択肢を2回選べることを表現していない。"
+   },
+   {
+    "effectId": "WDK13-001-E3",
+    "cardNum": "WDK13-001",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "表向きのすべてのカード",
+    "claim": "対戦相手のシグニゾーンにある表向きの全カードをトラッシュに置く効果が、対戦相手のシグニ1体だけをトラッシュに置く効果になっている。"
+   },
+   {
+    "effectId": "WX13-027-E1",
+    "cardNum": "WX13-027",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "無色のシグニ",
+    "claim": "トラッシュから加えるシグニを無色に限定するフィルターが欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.story",
+  "n": 100,
+  "findings": [
+   {
+    "effectId": "WX10-001-E3",
+    "cardNum": "WX10-001",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "＜アーム＞と＜ウェポン＞",
+    "claim": "原文は＜アーム＞と＜ウェポン＞を1枚ずつ計2枚出すが、JSONは両クラスから合計1枚しか探して出さない。"
+   },
+   {
+    "effectId": "WXEX1-01-E2",
+    "cardNum": "WXEX1-01",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "＜アーム＞のシグニ",
+    "claim": "バニッシュ耐性の対象から＜アーム＞条件が欠落し、自分のシグニ1体だけを対象としている。"
+   },
+   {
+    "effectId": "WX02-050-E1",
+    "cardNum": "WX02-050",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "＜アーム＞のシグニ１枚と＜天使＞のシグニ１枚",
+    "claim": "原文はアーム1枚と天使1枚の合計2枚を探すが、JSONは両クラスのいずれか最大1枚しか探さない。"
+   },
+   {
+    "effectId": "WXDi-P00-026-E1",
+    "cardNum": "WXDi-P00-026",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_EFFECT",
+    "quote": "＜さんばか＞のルリグ１体",
+    "claim": "効果を与える対象に＜さんばか＞のクラス条件がなく、自分の任意のルリグを対象にできる。"
+   },
+   {
+    "effectId": "WX25-CP1-008-E1",
+    "cardNum": "WX25-CP1-008",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "＜ブルアカ＞のカード１枚につき",
+    "claim": "選択肢③の減少量がトラッシュの＜ブルアカ＞カード枚数ではなく、フィルターのない全カード枚数を参照している。"
+   },
+   {
+    "effectId": "WD20-018-E1",
+    "cardNum": "WD20-018",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "＜英知＞のシグニ１枚",
+    "claim": "選択肢①で公開した4枚から選ぶシグニに＜英知＞の条件がない。"
+   },
+   {
+    "effectId": "WX21-015-E3",
+    "cardNum": "WX21-015",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "＜空獣＞のシグニ１体",
+    "claim": "対象を自分のシグニに限定していますが、原文には所有者の限定がありません。"
+   },
+   {
+    "effectId": "WX08-036-E1",
+    "cardNum": "WX08-036",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "＜鉱石＞か＜宝石＞のシグニ",
+    "claim": "デッキ下へ戻す5枚は＜鉱石＞か＜宝石＞である必要があるが、JSONはその条件を欠き、代わりに原文にないパワー10000以下という条件を付けている。"
+   },
+   {
+    "effectId": "WXEX2-34-E1",
+    "cardNum": "WXEX2-34",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "＜鉱石＞のシグニ１体につきカードを１枚引き",
+    "claim": "場の＜鉱石＞の数だけカードを引く処理がなく、JSONは代わりに固定のエナチャージ1だけを行う。"
+   },
+   {
+    "effectId": "WX19-061-E1",
+    "cardNum": "WX19-061",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "＜水獣＞のシグニの場合",
+    "claim": "公開したカードが＜水獣＞のシグニならカードを1枚引く処理が欠落している。"
+   },
+   {
+    "effectId": "WXEX1-03-E1",
+    "cardNum": "WXEX1-03",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "＜天使＞のシグニ７枚",
+    "claim": "探した＜天使＞7枚をトラッシュに置くべきところ、TRASHの対象枚数が1枚になっている。"
+   },
+   {
+    "effectId": "WXEX2-03-E1",
+    "cardNum": "WXEX2-03",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "＜天使＞のシグニがある",
+    "claim": "＜天使＞の存在を条件に対戦相手のセンタールリグの能力を失わせる常時能力が実装アクションにない。"
+   },
+   {
+    "effectId": "WXEX2-55-E1",
+    "cardNum": "WXEX2-55",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BOUNCE",
+    "quote": "＜天使＞のシグニの数以下のレベル",
+    "claim": "戻せる相手シグニのレベルが、自分の場の＜天使＞のシグニ数以下に限定されていません。"
+   },
+   {
+    "effectId": "WX25-P3-083-E1",
+    "cardNum": "WX25-P3-083",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "＜天使＞のシグニを２体まで",
+    "claim": "選択肢②は＜天使＞のシグニを2体までアップする効果だが、JSONではクラス指定のないシグニ1体だけになっている。"
+   },
+   {
+    "effectId": "WXK09-049-E1",
+    "cardNum": "WXK09-049",
+    "severity": "HIGH",
+    "type": "EXTRA",
+    "actionType": "SEARCH",
+    "quote": "＜電機＞のシグニ１枚",
+    "claim": "サーチ対象に原文にないカード名「改造素材」の条件が追加されており、通常の＜電機＞シグニを探せない。"
+   },
+   {
+    "effectId": "WXK09-090-E1",
+    "cardNum": "WXK09-090",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "＜美巧＞のシグニ１枚を対象",
+    "claim": "最初にトラッシュからナナコビト以外の＜美巧＞1枚を対象として保持する処理がなく、後続の場に出すカードも指定されていない。"
+   },
+   {
+    "effectId": "WXEX1-40-E1",
+    "cardNum": "WXEX1-40",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "１０種類以上あるかぎり",
+    "claim": "シグニ効果への耐性は＜原子＞が10種類以上、ルリグ効果への耐性は15種類以上という別々の条件だが、JSONでは両方が無条件で付与される。"
+   },
+   {
+    "effectId": "WXK10-047-E1",
+    "cardNum": "WXK10-047",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "５種類以上あるかぎり",
+    "claim": "エナゾーンに共通するクラスを持つシグニが5種類以上あるという適用条件がなく、常にパワーが＋4000される。"
+   },
+   {
+    "effectId": "WX11-028-E1",
+    "cardNum": "WX11-028",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "あなたの＜ウェポン＞のシグニが",
+    "claim": "ドローの発動条件である「自分の＜ウェポン＞のシグニがライフクロスをクラッシュしたこと」がJSONになく、自分の他のカードによるクラッシュでも発動する。"
+   },
+   {
+    "effectId": "WXDi-P08-081-E1",
+    "cardNum": "WXDi-P08-081",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "あなたの＜悪魔＞のシグニ１体",
+    "claim": "選択肢①は自分の場の＜悪魔＞のシグニをトラッシュに置く効果だが、JSONは相手の＜悪魔＞のシグニをトラッシュに置いている。"
+   },
+   {
+    "effectId": "WX25-CP1-085-E1",
+    "cardNum": "WX25-CP1-085",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "あなたの黒の＜ブルアカ＞",
+    "claim": "黒かつ＜ブルアカ＞という条件はアタックする自分のシグニに対する条件だが、JSONでは弱体化対象である対戦相手のシグニに課している。"
+   },
+   {
+    "effectId": "WX14-031-E3",
+    "cardNum": "WX14-031",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたの他の＜天使＞",
+    "claim": "原文は自分の他の＜天使＞シグニをバニッシュするが、JSONは相手の＜天使＞シグニをバニッシュする。"
+   },
+   {
+    "effectId": "WXEX2-70-E1",
+    "cardNum": "WXEX2-70",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたの他の＜遊具＞のシグニ",
+    "claim": "任意でバニッシュする対象は自分の他の＜遊具＞ですが、JSONでは相手の＜遊具＞をバニッシュします。"
+   },
+   {
+    "effectId": "WXEX2-57-E1",
+    "cardNum": "WXEX2-57",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "あなたの緑の＜美巧＞のシグニ１体",
+    "claim": "基準として自分の緑の＜美巧＞のシグニ1体を対象にする処理がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P05-084-E1",
+    "cardNum": "WXDi-P05-084",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "エナゾーンから＜原子＞",
+    "claim": "エナゾーンから＜原子＞のシグニ1枚をトラッシュに置くコストがJSONから欠落している。"
+   },
+   {
+    "effectId": "WXEX1-14-E2",
+    "cardNum": "WXEX1-14",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンから＜植物＞",
+    "claim": "原文は自分のエナゾーンの＜植物＞シグニ3枚をトラッシュに置くが、JSONは相手の場の＜植物＞シグニ1体をトラッシュに置く処理になっている。"
+   },
+   {
+    "effectId": "WX24-P3-080-E1",
+    "cardNum": "WX24-P3-080",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "エナゾーンに＜美巧＞",
+    "claim": "パワーを＋5000するための「自分のエナゾーンに＜美巧＞のシグニがある」条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-CP02-094-E1",
+    "cardNum": "WXDi-CP02-094",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "カードが１枚以上トラッシュに",
+    "claim": "自分のデッキから＜ブルアカ＞のカードがこのターンに1枚以上トラッシュへ置かれていた場合という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX13-049-BURST",
+    "cardNum": "WX13-049",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEARCH",
+    "quote": "かスペル１枚",
+    "claim": "ライフバーストのサーチ対象からスペルの選択肢が欠落し、＜原子＞のシグニしか探せない。"
+   },
+   {
+    "effectId": "WX25-CP1-042-E2",
+    "cardNum": "WX25-CP1-042",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "クラッシュしたライフクロス１枚につき",
+    "claim": "捨てる枚数が、このターンに青の＜ブルアカ＞シグニがクラッシュした相手ライフクロスの枚数ではなく固定1枚になっている。"
+   },
+   {
+    "effectId": "WXK08-050-E2",
+    "cardNum": "WXK08-050",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TAKE_FROM_UNDER_SIGNI",
+    "quote": "このカードの上にある",
+    "claim": "原文はこのカードの上にある＜ウェポン＞へ黒2・ターン1回の起動能力を付与する常時能力だが、JSONは能力付与・対象・コスト・使用制限を表さず、下のシグニを手札に加える処理そのものになっている。"
+   },
+   {
+    "effectId": "WD15-023-E1",
+    "cardNum": "WD15-023",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "このターン、あなたの＜龍獣＞",
+    "claim": "原文はこのターン中に自分の＜龍獣＞が相手シグニをバニッシュした際に誘発する効果だが、JSONは使用時に相手の＜龍獣＞を即座にバニッシュする効果になっている。"
+   },
+   {
+    "effectId": "WXDi-CP01-045-E1",
+    "cardNum": "WXDi-CP01-045",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "この方法で",
+    "claim": "ドロー条件が、この効果でトラッシュに置いた2枚ではなく、由来を限定しない＜バーチャル＞のトラッシュ枚数判定になっている。"
+   },
+   {
+    "effectId": "WXDi-D02-20-E1",
+    "cardNum": "WXDi-D02-20",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "シグニが３体以上あるかぎり",
+    "claim": "自分の場に＜バーチャル＞のシグニが3体以上ある間だけ適用する条件が欠落し、常にパワーが＋5000される効果になっている。"
+   },
+   {
+    "effectId": "WXK06-030-E1",
+    "cardNum": "WXK06-030",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "シグニゾーンからカード１枚",
+    "claim": "原文では対戦相手のシグニゾーンのカード1枚を対象に保持するが、JSONは＜龍獣＞の対戦相手シグニだけを選んで即座にトラッシュへ置く。"
+   },
+   {
+    "effectId": "WX05-027-BURST",
+    "cardNum": "WX05-027",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "すべての＜天使＞",
+    "claim": "すべてのプレイヤーの＜天使＞をバニッシュする効果が、自分の＜天使＞1体だけをバニッシュする効果になっています。"
+   },
+   {
+    "effectId": "WX21-Re07-E1",
+    "cardNum": "WX21-Re07",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "すべての＜天使＞のシグニ",
+    "claim": "選択肢②は自分の全＜天使＞シグニに耐性を与えるが、JSONはクラス指定のない自分のシグニ1体だけを対象にしている。"
+   },
+   {
+    "effectId": "WX08-018-E1",
+    "cardNum": "WX08-018",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "すべての＜美巧＞のシグニ",
+    "claim": "原文は自分の＜美巧＞シグニすべてに耐性を与えるが、JSONはクラス指定なしの自分のシグニ1体だけを対象としている。"
+   },
+   {
+    "effectId": "WX15-010-E1",
+    "cardNum": "WX15-010",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "すべての＜武勇＞",
+    "claim": "原文は自分の＜武勇＞シグニすべてに付与するが、JSONはクラス条件なしの自分のシグニ1体だけを対象にする。"
+   },
+   {
+    "effectId": "WX09-049-E1",
+    "cardNum": "WX09-049",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "そうでない場合、カードを３枚引く",
+    "claim": "場の青シグニ3体が共通クラスを持つかの条件分岐がなく、4枚と3枚の両方を引く処理になっている。"
+   },
+   {
+    "effectId": "WD15-023-E1",
+    "cardNum": "WD15-023",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "その＜龍獣＞より低いレベル",
+    "claim": "バニッシュ対象を、誘発元となった自分の＜龍獣＞より低いレベルの相手シグニに限定する条件が欠落している。"
+   },
+   {
+    "effectId": "WXK03-079-E1",
+    "cardNum": "WXK03-079",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "それがレベルが奇数の",
+    "claim": "JSONはレベルが奇数という条件を欠き、さらに直前にトラッシュへ置いたカードではなくトラッシュにある任意の＜トリック＞シグニを場に出せる表現になっている。"
+   },
+   {
+    "effectId": "WX10-052-E3",
+    "cardNum": "WX10-052",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "それぞれ名前の異なる",
+    "claim": "手札コストに4枚の＜精元＞が互いに異なるカード名である条件がありません。"
+   },
+   {
+    "effectId": "WXK05-051-E1",
+    "cardNum": "WXK05-051",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "それぞれ名前の異なる＜植物＞",
+    "claim": "このシグニをアップする条件である、公開した3枚がすべて名前の異なる＜植物＞のシグニであることがJSONにない。"
+   },
+   {
+    "effectId": "WX25-P3-068-E1",
+    "cardNum": "WX25-P3-068",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "それとこのシグニのパワーを＋4000",
+    "claim": "他の＜天使＞だけが対象になっており、このシグニ自身のパワーを＋4000する処理が欠落している。"
+   },
+   {
+    "effectId": "WXEX2-70-E1",
+    "cardNum": "WXEX2-70",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それをエナゾーンに置く",
+    "claim": "自分の＜遊具＞をバニッシュした場合に対象の相手シグニをエナゾーンへ置くべきところ、JSONでは自分のデッキ上のカードをエナチャージします。"
+   },
+   {
+    "effectId": "WX22-Re02-E2",
+    "cardNum": "WX22-Re02",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "それをこのシグニの【アクセ】にする",
+    "claim": "エナゾーンのアクセアイコンを持つ＜調理＞シグニを対象としてこのシグニのアクセにする効果が、場の自分のシグニへ「アクセ」を付与する効果になっている。"
+   },
+   {
+    "effectId": "WX18-073-E2",
+    "cardNum": "WX18-073",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "それを手札に加え",
+    "claim": "JSONは公開した＜英知＞のシグニを手札に加えず、後続のデッキ上からのエナチャージだけを実行する。"
+   },
+   {
+    "effectId": "WXEX1-63-E1",
+    "cardNum": "WXEX1-63",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "ドライブ状態の＜乗機＞",
+    "claim": "選択肢②のバニッシュ対象にドライブ状態である条件がない。"
+   },
+   {
+    "effectId": "WXEX2-48-E1",
+    "cardNum": "WXEX2-48",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "トラッシュから＜悪魔＞のシグニ１枚",
+    "claim": "原文はトラッシュの＜悪魔＞のシグニをライフクロスに加えるが、JSONはデッキの一番上を加える効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P09-060-E1",
+    "cardNum": "WXDi-P09-060",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "パワー10000以上の＜地獣＞",
+    "claim": "バニッシュされたシグニが自分のパワー10000以上の＜地獣＞であるという発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX10-062-E1",
+    "cardNum": "WX10-062",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "パワー7000以下のシグニ",
+    "claim": "バニッシュ対象が原文にない＜ウェポン＞または＜アーム＞のシグニに限定されています。"
+   },
+   {
+    "effectId": "WXK10-073-E2",
+    "cardNum": "WXK10-073",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "レベル３以下の＜英知＞",
+    "claim": "トラッシュから戻す対象のレベル3以下という条件がJSONのfilterにない。"
+   },
+   {
+    "effectId": "WX09-Re20-E2",
+    "cardNum": "WX09-Re20",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_SET",
+    "quote": "レベル４の＜ウリス＞がいる場合",
+    "claim": "基本パワーを10000にするための、自分の場にレベル4の＜ウリス＞がいるという条件が欠落している。"
+   },
+   {
+    "effectId": "WX09-Re08-E1",
+    "cardNum": "WX09-Re08",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_SET",
+    "quote": "レベル４の＜タマ＞がいるかぎり",
+    "claim": "基本パワーを10000にするための、自分の場にレベル4の＜タマ＞がいるという条件が欠落している。"
+   },
+   {
+    "effectId": "SP27-017-E1",
+    "cardNum": "SP27-017",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "PLACE_UNDER_SIGNI",
+    "quote": "レベル４以下の＜天使＞",
+    "claim": "トラッシュから下に置く天使にレベル4以下という条件がない。"
+   },
+   {
+    "effectId": "WXEX2-34-E3",
+    "cardNum": "WXEX2-34",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "レベルの異なる＜鉱石＞",
+    "claim": "トラッシュから加える2枚を互いに異なるレベルに限定する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK09-082-E2",
+    "cardNum": "WXK09-082",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE",
+    "quote": "レベルの異なる＜電機＞",
+    "claim": "トラッシュから選ぶ2枚のレベルが互いに異なるという選択制約が欠落している。"
+   },
+   {
+    "effectId": "WX25-P1-088-E1",
+    "cardNum": "WX25-P1-088",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "共通するクラスを持たないかぎり",
+    "claim": "パワー＋3000の適用条件である、自分の全シグニがそれぞれ共通するクラスを持たないことがJSONにない。"
+   },
+   {
+    "effectId": "WX25-P1-097-E1",
+    "cardNum": "WX25-P1-097",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "共通するクラスを持たない緑のシグニ２枚",
+    "claim": "選択肢②で場に出す2枚が共通するクラスを持たないという選択制約がJSONにない。"
+   },
+   {
+    "effectId": "WXK10-038-E1",
+    "cardNum": "WXK10-038",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "共通するクラスを持ち",
+    "claim": "回収対象が、コストとして捨てたシグニと共通するクラスを持つ条件をJSONに含んでいない。"
+   },
+   {
+    "effectId": "WX09-057-E1",
+    "cardNum": "WX09-057",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "共通するクラスを持つ場合",
+    "claim": "追加の黒シグニ回収に必要な「場に共通クラスの黒シグニが3体ある」条件がなく、常に2枚回収する処理になっている。"
+   },
+   {
+    "effectId": "WXK04-090-E1",
+    "cardNum": "WXK04-090",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "公開しないかぎり、このシグニを",
+    "claim": "原文は手札の＜水獣＞シグニ1枚を公開するか、公開しなければこのシグニ自身をトラッシュに置く効果だが、JSONは公開処理と条件分岐がなく、自分の場の＜水獣＞シグニ1体を対象にトラッシュへ置く効果になっている。"
+   },
+   {
+    "effectId": "WX21-044-E2",
+    "cardNum": "WX21-044",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "効果によって手札から場に出た場合",
+    "claim": "手札から＜遊具＞のシグニの効果で場に出た場合という発動条件がなく、どの方法で場に出ても2枚エナチャージする。"
+   },
+   {
+    "effectId": "WX07-045-E2",
+    "cardNum": "WX07-045",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ATTACH_CHARM",
+    "quote": "好きな数の＜悪魔＞",
+    "claim": "原文では自分の＜悪魔＞のシグニを好きな数だけ対象にするが、JSONの対象数は「ALL」であり全ての＜悪魔＞を対象にする表現になっている。"
+   },
+   {
+    "effectId": "WX12-Re02-E1",
+    "cardNum": "WX12-Re02",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "好きな数対象とし",
+    "claim": "トラッシュからデッキ下へ置く＜原子＞シグニが好きな数ではなく1枚に固定されている。"
+   },
+   {
+    "effectId": "WX08-036-E2",
+    "cardNum": "WX08-036",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "合わせた枚数以下のレベル",
+    "claim": "原文はこの効果で落とした＜鉱石＞と＜宝石＞の枚数以下のレベルを持つシグニをバニッシュするが、JSONはレベル条件と落とした枚数との連動を欠き、対象自体を＜鉱石＞か＜宝石＞に限定している。"
+   },
+   {
+    "effectId": "WX18-031-E1",
+    "cardNum": "WX18-031",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LIFE_CRASH",
+    "quote": "合計２０枚以上ある場合",
+    "claim": "ライフクロスをクラッシュする条件である、トラッシュの＜鉱石＞と＜宝石＞のシグニが合計20枚以上という判定が欠落している。"
+   },
+   {
+    "effectId": "WX04-001-E2",
+    "cardNum": "WX04-001",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "BOUNCE",
+    "quote": "合計２枚捨てる",
+    "claim": "原文は＜アーム＞または＜ウェポン＞のシグニを合計2枚捨てるコストだが、JSONは各クラスを必ず1枚ずつ捨てる指定になっている。"
+   },
+   {
+    "effectId": "WX09-025-E1",
+    "cardNum": "WX09-025",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "合計３体ある場合",
+    "claim": "自分の場に＜鉱石＞か＜宝石＞のシグニが合計3体あるというバニッシュ条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-CP01-031-E1",
+    "cardNum": "WXDi-CP01-031",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_SET",
+    "quote": "合計５種類ある場合",
+    "claim": "場とエナゾーンに＜世怜音女学院＞のシグニが合計5種類ある場合という発動条件がなく、アタックフェイズ開始時に無条件で基本パワーが35000になる。"
+   },
+   {
+    "effectId": "WX09-017-BURST",
+    "cardNum": "WX09-017",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "合計した枚数×3000以下",
+    "claim": "原文は自分のトラッシュの＜鉱石＞と＜宝石＞の合計枚数から対象の上限パワーを算出するが、JSONは相手の＜鉱石＞または＜宝石＞だけを対象にしている。"
+   },
+   {
+    "effectId": "WX25-CP1-047-E1",
+    "cardNum": "WX25-CP1-047",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "黒の＜ブルアカ＞のシグニ",
+    "claim": "デッキ下へ戻す対象に黒の条件がなく、黒以外の＜ブルアカ＞シグニも選べる。"
+   },
+   {
+    "effectId": "WX22-002-E2",
+    "cardNum": "WX22-002",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "黒の＜天使＞がある場合",
+    "claim": "トラッシュのシグニを手札に加える処理に、自分の場に黒の＜天使＞があるという条件がない。"
+   },
+   {
+    "effectId": "PR-322-E1",
+    "cardNum": "PR-322",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "黒の＜天使＞のシグニ１枚と",
+    "claim": "デッキ下へ置くカードが1枚の無条件シグニになっており、黒の天使1枚と黒の古代兵器1枚という枚数・色・クラス条件を表現していません。"
+   },
+   {
+    "effectId": "WXDi-CP02-081-E1",
+    "cardNum": "WXDi-CP02-081",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "手札から＜ブルアカ＞",
+    "claim": "このターンに手札から＜ブルアカ＞のカードを1枚以上捨てていた場合という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX21-043-E2",
+    "cardNum": "WX21-043",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "手札から＜毒牙＞のシグニを１枚捨て",
+    "claim": "起動コストのうち、手札から＜毒牙＞のシグニ1枚を捨てる処理が欠落している。"
+   },
+   {
+    "effectId": "WXEX2-03-E1",
+    "cardNum": "WXEX2-03",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "場とトラッシュにある",
+    "claim": "＜古代兵器＞の存在条件がなく、対戦相手の場とトラッシュの全シグニではなくシグニ1体だけを対象としている。"
+   },
+   {
+    "effectId": "WX17-067-E1",
+    "cardNum": "WX17-067",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "場に＜凶蟲＞のシグニがある場合",
+    "claim": "自分の場に＜凶蟲＞のシグニがあるという発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX09-045-E1",
+    "cardNum": "WX09-045",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "場合、代わりに",
+    "claim": "JSONは場の赤シグニ3体が共通クラスを持つ条件と置換処理を表さず、8000以下と15000以下へのバニッシュを両方実行する。"
+   },
+   {
+    "effectId": "WX21-051-E1",
+    "cardNum": "WX21-051",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "色が合計２種類以上ある場合",
+    "claim": "自分の場の＜天使＞が持つ色が合計2種類以上というバニッシュの実行条件が欠落している。"
+   },
+   {
+    "effectId": "WX22-002-E2",
+    "cardNum": "WX22-002",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "青の＜天使＞がある場合",
+    "claim": "相手に手札1枚を捨てさせる処理に、自分の場に青の＜天使＞があるという条件がない。"
+   },
+   {
+    "effectId": "WX22-002-E2",
+    "cardNum": "WX22-002",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "赤の＜天使＞がある場合",
+    "claim": "赤の効果は自分の場に赤の＜天使＞があることを条件に任意の相手シグニをバニッシュするが、JSONは条件なしで相手の赤い＜天使＞だけを対象にしている。"
+   },
+   {
+    "effectId": "WD08-008-E1",
+    "cardNum": "WD08-008",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "選択したクラスを持つ",
+    "claim": "手札に加えるシグニを、条件を満たした際に選択したクラスに限定する処理がなく、任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WX19-021-E1",
+    "cardNum": "WX19-021",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "相手ターンの間、＋3000",
+    "claim": "＜ウェポン＞がある間、＜アーム＞のパワーを対戦相手のターン中＋3000する効果が欠落している。"
+   },
+   {
+    "effectId": "WX26-CP1-071-E1",
+    "cardNum": "WX26-CP1-071",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "他の＜プリオケ＞",
+    "claim": "手札が2枚以下の分岐では他の＜プリオケ＞が場にある条件を検査せず、条件を満たしていなくてもパワー3000以下をバニッシュできる。"
+   },
+   {
+    "effectId": "WX24-P1-048-E3",
+    "cardNum": "WX24-P1-048",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "他の＜悪魔＞のシグニ２体を場からトラッシュ",
+    "claim": "原文は他の＜悪魔＞2体をトラッシュに置かなければこのシグニをダウンする効果だが、JSONは他の＜悪魔＞2体を直接ダウンする効果になっている。"
+   },
+   {
+    "effectId": "WX25-P2-069-E1",
+    "cardNum": "WX25-P2-069",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY_PER_FIELD",
+    "quote": "他の＜凶蟲＞",
+    "claim": "加算数を数える際にこのシグニ自身を除外する条件がありません。"
+   },
+   {
+    "effectId": "WX05-044-E1",
+    "cardNum": "WX05-044",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "他の＜古代兵器＞をバニッシュ",
+    "claim": "起動コストで他の＜古代兵器＞のシグニ1体をバニッシュする処理が欠落しています。"
+   },
+   {
+    "effectId": "WX25-P2-054-E2",
+    "cardNum": "WX25-P2-054",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "他の＜電機＞のシグニ",
+    "claim": "自分の場に他の＜電機＞のシグニがあるという発動条件がありません。"
+   },
+   {
+    "effectId": "WXEX2-34-E1",
+    "cardNum": "WXEX2-34",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "他の＜宝石＞のシグニ１体につき",
+    "claim": "エナチャージ回数は他の＜宝石＞の数で決まるが、JSONでは常に1回になっている。"
+   },
+   {
+    "effectId": "WX21-051-E1",
+    "cardNum": "WX21-051",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "対戦相手のパワー3000以下のシグニ",
+    "claim": "バニッシュ対象に原文にない＜天使＞条件が付き、対戦相手の＜天使＞以外のパワー3000以下のシグニを対象にできない。"
+   },
+   {
+    "effectId": "WXDi-P11-047-E1",
+    "cardNum": "WXDi-P11-047",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "地獣＞のシグニを２枚まで",
+    "claim": "見た3枚から＜地獣＞のシグニを2枚までこのシグニの下に置く処理がJSONになく、全カードをデッキ下へ戻す効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P02-004-E1",
+    "cardNum": "WXDi-P02-004",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "天使＞のシグニが７種類以上",
+    "claim": "トラッシュに＜天使＞のシグニが7種類以上あるという使用条件がJSONにない。"
+   },
+   {
+    "effectId": "WXEX2-57-E1",
+    "cardNum": "WXEX2-57",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BOUNCE",
+    "quote": "同じレベルの対象の対戦相手",
+    "claim": "手札に戻す相手シグニが、対象にした自分の緑の＜美巧＞と同じレベルに限定されていません。"
+   },
+   {
+    "effectId": "WXK03-074-E1",
+    "cardNum": "WXK03-074",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "同じレベルを持つ対戦相手",
+    "claim": "JSONは対象シグニにも＜武勇＞条件を付けているが、原文では対象は数えた＜武勇＞シグニの枚数と同じレベルを持つ対戦相手のシグニであればクラスを問わない。"
+   },
+   {
+    "effectId": "WX06-018-BURST",
+    "cardNum": "WX06-018",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "枚数×3000」以下",
+    "claim": "原文は自分のトラッシュの＜ウェポン＞のシグニ数×3000以下のパワーを持つ相手シグニをバニッシュするが、JSONは＜ウェポン＞である相手シグニを対象としている。"
+   },
+   {
+    "effectId": "WX22-011-E1",
+    "cardNum": "WX22-011",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "緑と白の＜美巧＞のシグニがある場合",
+    "claim": "バウンスに必要な、自分の場に緑と白の＜美巧＞があるという条件がJSONにない。"
+   },
+   {
+    "effectId": "WX22-002-E2",
+    "cardNum": "WX22-002",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "緑の＜天使＞がある場合",
+    "claim": "デッキ上をエナゾーンに置く処理に、自分の場に緑の＜天使＞があるという条件がない。"
+   },
+   {
+    "effectId": "WX25-P3-080-E1",
+    "cardNum": "WX25-P3-080",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "緑の＜龍獣＞のシグニがあり",
+    "claim": "選択肢②の発動条件である、自分の場に緑の＜龍獣＞があることが欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "キーワード能力",
+  "n": 71,
+  "findings": [
+   {
+    "effectId": "WX10-053-E1",
+    "cardNum": "WX10-053",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "《サーバント》を含むあなたのすべて",
+    "claim": "選択肢②のパワー増加と【ランサー】付与が、《サーバント》を含むシグニに限られず自分の全シグニを対象にしています。"
+   },
+   {
+    "effectId": "WXK10-027-E1",
+    "cardNum": "WXK10-027",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "【Ｓランサー】を得る",
+    "claim": "原文はランサーを持つパワー15000以上の緑のシグニすべてにSランサーを与えるが、JSONは条件のない自分のシグニ1体に通常のランサーを与えている。"
+   },
+   {
+    "effectId": "WXDi-P15-048-E2",
+    "cardNum": "WXDi-P15-048",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "【アサシン】か【ダブルクラッシュ】",
+    "claim": "起動能力がアサシン付与だけになっており、ダブルクラッシュとの二択が表現されていない。"
+   },
+   {
+    "effectId": "WXDi-D01-011-E1",
+    "cardNum": "WXDi-D01-011",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "【アサシン】を得",
+    "claim": "対象のレベル1シグニにターン終了時までアサシンを与える処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-CP02-001-E1",
+    "cardNum": "WXDi-CP02-001",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "【シグニバリア】１つを得る",
+    "claim": "シグニバリアを1つ得る処理がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P02-055-E1",
+    "cardNum": "WXDi-P02-055",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "【シャドウ】と",
+    "claim": "対象に次の対戦相手のターン終了時まで【シャドウ】を与える処理が欠落している。"
+   },
+   {
+    "effectId": "SPDi43-09-E1",
+    "cardNum": "SPDi43-09",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "【ソウル】が付いているかぎり",
+    "claim": "シャドウを得るための「このシグニにソウルが付いている」条件がなく、JSONでは無条件に付与される。"
+   },
+   {
+    "effectId": "WXK11-053-E1",
+    "cardNum": "WXK11-053",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "【ダブルクラッシュ】",
+    "claim": "原文の常時能力【ダブルクラッシュ】がJSONに存在しない。"
+   },
+   {
+    "effectId": "WX08-061-E1",
+    "cardNum": "WX08-061",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "【ダブルクラッシュ】を持つ",
+    "claim": "アサシンを与える対象にダブルクラッシュを持つという条件がなく、自分の任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WXDi-D01-011-E1",
+    "cardNum": "WXDi-D01-011",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "【ダブルクラッシュ】を得",
+    "claim": "対象のレベル2シグニにターン終了時までダブルクラッシュを与える処理が欠落している。"
+   },
+   {
+    "effectId": "WX21-020-E1",
+    "cardNum": "WX21-020",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "【ダブルクラッシュ】を得る",
+    "claim": "選択肢③の＜天使＞のシグニ1体に【ダブルクラッシュ】を与える処理がありません。"
+   },
+   {
+    "effectId": "WXK03-052-E1",
+    "cardNum": "WXK03-052",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "【マルチエナ】を持つ",
+    "claim": "トラッシュに置くエナの対象から【マルチエナ】を持つカードという条件が欠落している。"
+   },
+   {
+    "effectId": "WX12-Re13-E1",
+    "cardNum": "WX12-Re13",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "【マルチエナ】を持つカード",
+    "claim": "選択肢②のエナゾーンからトラッシュに置く対象に【マルチエナ】を持つという条件がない。"
+   },
+   {
+    "effectId": "WX07-042-E1",
+    "cardNum": "WX07-042",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "DRAW",
+    "quote": "【ランサー】によって",
+    "claim": "JSONにはライフクロスが【ランサー】によってクラッシュされた場合という発動条件がなく、他の方法によるクラッシュでも発動する表現になっている。"
+   },
+   {
+    "effectId": "WXDi-D01-011-E1",
+    "cardNum": "WXDi-D01-011",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "【ランサー】を得る",
+    "claim": "対象のレベル3シグニにターン終了時までランサーを与える処理が欠落している。"
+   },
+   {
+    "effectId": "WX24-P3-055-E1",
+    "cardNum": "WX24-P3-055",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "＜美巧＞のシグニは",
+    "claim": "原文では自分のすべての＜美巧＞シグニにシャドウを与えるが、JSONの対象数は1体だけになっている。"
+   },
+   {
+    "effectId": "WX26-CP1-059-E1",
+    "cardNum": "WX26-CP1-059",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "１０枚以上あるかぎり",
+    "claim": "シャドウを得る条件がトラッシュのプリオケ10枚以上ではなく、パワー増加と同じ5枚以上になっている。"
+   },
+   {
+    "effectId": "WXK07-050-E1",
+    "cardNum": "WXK07-050",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "15000以上のすべて",
+    "claim": "Sランサーの対象にパワー15000以上という条件がなく、自分の全シグニへ付与される。"
+   },
+   {
+    "effectId": "WX25-P1-044-E1",
+    "cardNum": "WX25-P1-044",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "アサシン（パワー10000以下",
+    "claim": "付与するアサシン能力の対象条件である「正面のシグニのパワーが10000以下」が欠落しています。"
+   },
+   {
+    "effectId": "WX25-P1-059-E2",
+    "cardNum": "WX25-P1-059",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "アサシン（パワー12000以上",
+    "claim": "付与するアサシン能力のパワー12000以上という条件がJSONに表現されていない。"
+   },
+   {
+    "effectId": "WX25-CP1-090-E1",
+    "cardNum": "WX25-CP1-090",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "アサシン（パワー5000以下）",
+    "claim": "付与するアサシンに正面のシグニのパワーが5000以下という制限が記録されておらず、対象範囲が原文より広い。"
+   },
+   {
+    "effectId": "WXK11-006-E4",
+    "cardNum": "WXK11-006",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "UP",
+    "quote": "アタックがすべて【ガード】",
+    "claim": "アタック終了時かつアタックがすべてガードされていた場合という発動条件がありません。"
+   },
+   {
+    "effectId": "WX19-071-E1",
+    "cardNum": "WX19-071",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "あなたのシグニが【ランサー】によって",
+    "claim": "ライフクロスが自分のシグニの【ランサー】によってクラッシュされた場合に限る発動条件がなく、原因を問わず相手のライフクロスがクラッシュされると発動する。"
+   },
+   {
+    "effectId": "WX25-CP1-005-E1",
+    "cardNum": "WX25-CP1-005",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたのすべての＜ブルアカ＞",
+    "claim": "【シャドウ】の付与対象が自分の＜ブルアカ＞シグニすべてではなく、owner:anyの1体になっている。"
+   },
+   {
+    "effectId": "WXDi-P16-051-E2",
+    "cardNum": "WXDi-P16-051",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンにカードが無い場合、代わりに",
+    "claim": "Sランサー付与がエナゾーンにカードが無い場合の代替処理ではなく、条件なしで常に実行されるJSONになっています。"
+   },
+   {
+    "effectId": "WDA-F03-13-BURST",
+    "cardNum": "WDA-F03-13",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "カード１枚と【マルチエナ】",
+    "claim": "原文は相手のエナから通常のカード1枚と【マルチエナ】を持つカード1枚の計2枚をトラッシュに置くが、JSONは条件なしのカード1枚しか処理しない。"
+   },
+   {
+    "effectId": "WXDi-D03-004-E3",
+    "cardNum": "WXDi-D03-004",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "カードを１枚捨てないかぎり",
+    "claim": "対戦相手がガードアイコンを持つカード1枚を捨てることでダメージを防ぐ処理がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P11-051-E3",
+    "cardNum": "WXDi-P11-051",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "このカードの上にある《融合せし極門",
+    "claim": "原文はこのカードの上にある指定シグニへアタック時能力を与える効果だが、JSONは常時トラッシュからガード持ちシグニを手札に加える効果になっている。"
+   },
+   {
+    "effectId": "WX24-P3-042-E1",
+    "cardNum": "WX24-P3-042",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このターン、マルチエナを得る",
+    "claim": "エナゾーンのカードが得る【マルチエナ】の期限はこのターン中だが、JSONではPERMANENTになっている。"
+   },
+   {
+    "effectId": "WXDi-P14-070-E1",
+    "cardNum": "WXDi-P14-070",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "このピースの後に場に出たシグニにも影響",
+    "claim": "GRANT_KEYWORDの対象が解決時に場にいるシグニに限定されており、その後に場へ出る＜電音部＞のシグニへシャドウを与える継続的処理がない。"
+   },
+   {
+    "effectId": "WXDi-D04-007-E2",
+    "cardNum": "WXDi-D04-007",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "シグニ１体は【ランサー】を得る",
+    "claim": "自分のシグニ1体にランサーを与える処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P04-048-E1",
+    "cardNum": "WXDi-P04-048",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "シャドウ（レベル３のシグニ）",
+    "claim": "原文はレベル3のシグニだけを対象不可にするが、JSONはレベル3以下を対象不可にしている。"
+   },
+   {
+    "effectId": "WDK12-011-E2",
+    "cardNum": "WDK12-011",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "すべてのシグニは【ランサー】を得る",
+    "claim": "【チャーム】付きの自分の全シグニに【ランサー】を与える効果が、自分のシグニ1体に「チャーム」というキーワードを与える効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P02-060-E2",
+    "cardNum": "WXDi-P02-060",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "スペルが５枚以上ある場合",
+    "claim": "【アサシン】を得るための「自分のトラッシュにスペルが5枚以上」という条件が欠落している。"
+   },
+   {
+    "effectId": "WX12-046-E1",
+    "cardNum": "WX12-046",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "センタールリグが青で",
+    "claim": "【アサシン】を得る条件であるセンタールリグが青であることと手札が7枚以上であることがなく、常に【アサシン】を得る効果になっている。"
+   },
+   {
+    "effectId": "WX25-CP1-024-E1",
+    "cardNum": "WX25-CP1-024",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "そのアタックの間",
+    "claim": "ガード禁止の期間がそのアタック中ではなくターン終了時までになっている。"
+   },
+   {
+    "effectId": "WXDi-P08-048-E1",
+    "cardNum": "WXDi-P08-048",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それぞれ２枚以上あるかぎり",
+    "claim": "各レベルの下敷きが2枚以上という条件がなく、アサシンを無条件かつ任意のシグニに永続付与する定義になっている。"
+   },
+   {
+    "effectId": "WX20-062-E1",
+    "cardNum": "WX20-062",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それは【アサシン】を得る",
+    "claim": "付与する能力が【アサシン】ではなく【トラップアイコン】になっている。"
+   },
+   {
+    "effectId": "WX07-072-E1",
+    "cardNum": "WX07-072",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それは追加で【ランサー】",
+    "claim": "ランサーを得る対象は最初にパワーを上げた同じシグニだが、JSONでは別のシグニを選択できる。"
+   },
+   {
+    "effectId": "WXK01-049-E1",
+    "cardNum": "WXK01-049",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "ドライブ状態のシグニ１体",
+    "claim": "ダブルクラッシュを与える対象についてドライブ状態であるという条件がJSONにない。"
+   },
+   {
+    "effectId": "WX24-P4-079-E2",
+    "cardNum": "WX24-P4-079",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "パワー10000以下のシグニ",
+    "claim": "付与するランサーに、バニッシュ対象をパワー10000以下に限定する条件がありません。"
+   },
+   {
+    "effectId": "WXK07-050-E1",
+    "cardNum": "WXK07-050",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "パワー10000以上",
+    "claim": "パワー10000以上の自分のシグニすべてにランサーを与える処理がない。"
+   },
+   {
+    "effectId": "WX10-047-E1",
+    "cardNum": "WX10-047",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "パワー50000以上のシグニがある",
+    "claim": "ランサー付与に必要な「自分の場にパワー50000以上のシグニがあるかぎり」という条件が欠落し、常に付与される。"
+   },
+   {
+    "effectId": "WXDi-P07-045-E2",
+    "cardNum": "WXDi-P07-045",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "パワーが13000の場合",
+    "claim": "シャドウを得る発動条件である、このシグニのパワーがちょうど13000であることがJSONにない。"
+   },
+   {
+    "effectId": "WXDi-CP02-092-E2",
+    "cardNum": "WXDi-CP02-092",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "パワーを＋10000し",
+    "claim": "絆出能力によるターン終了時までのパワー＋10000が欠落し、Sランサー付与だけが実装されている。"
+   },
+   {
+    "effectId": "WXK07-077-E1",
+    "cardNum": "WXK07-077",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "パワーを＋1000し、それは【ランサー】を得る",
+    "claim": "JSONは対象のチャーム所持条件を欠き、＋1000と【ランサー】付与ではなく対象に【チャーム】を付与する効果になっている。"
+   },
+   {
+    "effectId": "WX24-D4-15-E1",
+    "cardNum": "WX24-D4-15",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "ランサー（パワー5000以下",
+    "claim": "付与するランサーの対象がパワー5000以下のシグニに限定される条件がなく、通常のランサーとして表現されている。"
+   },
+   {
+    "effectId": "WX25-CP1-076-E1",
+    "cardNum": "WX25-CP1-076",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "ランサー（パワー5000以下）",
+    "claim": "付与するランサーの対象条件「パワー5000以下」がJSONのkeywordに含まれていない。"
+   },
+   {
+    "effectId": "WX20-057-E1",
+    "cardNum": "WX20-057",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "ルリグが【ダブルクラッシュ】を持つかぎり",
+    "claim": "センタールリグが【ダブルクラッシュ】を持つ間だけ付与する条件がなく、常にこのシグニへ付与される。"
+   },
+   {
+    "effectId": "WDK05-T09-E1-G",
+    "cardNum": "WDK05-T09",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "レベル１のシグニで",
+    "claim": "ガード禁止の対象がレベル1のシグニに限定されず、対戦相手のガード行為全般を禁止している。"
+   },
+   {
+    "effectId": "WD15-010-E1",
+    "cardNum": "WD15-010",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベル１のシグニで【ガード】ができない",
+    "claim": "ガード禁止にレベル1のシグニという限定がなく、対戦相手によるすべてのガードを禁止している。"
+   },
+   {
+    "effectId": "WX18-039-E1",
+    "cardNum": "WX18-039",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "レベル２とレベル３のシグニ",
+    "claim": "JSONはレベル制限なしで対戦相手のガード行為全体を禁止しており、原文のレベル2・3のシグニだけを禁止する効果より対象範囲が広い。"
+   },
+   {
+    "effectId": "WXDi-P08-049-E1",
+    "cardNum": "WXDi-P08-049",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "レベル２のシグニ",
+    "claim": "原文はレベル2のシグニだけに対するシャドウだが、JSONはレベル2以下を対象外にする定義になっている。"
+   },
+   {
+    "effectId": "WXDi-D03-011-E1",
+    "cardNum": "WXDi-D03-011",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "レベル３のルリグ１体",
+    "claim": "原文は自分のレベル3ルリグ1体に能力を与えるが、JSONにはその対象・レベル条件がなく、ダブルクラッシュの付与対象もシグニになっている。"
+   },
+   {
+    "effectId": "PR-464-E1",
+    "cardNum": "PR-464",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "レベル４以上で赤であるかぎり",
+    "claim": "パワー上昇とダブルクラッシュ付与に必要な、センタールリグが赤かつレベル4以上という条件がない。"
+   },
+   {
+    "effectId": "WXDi-P15-063-E1",
+    "cardNum": "WXDi-P15-063",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "下にカードがある",
+    "claim": "アサシンを得る対象について、カードが下に置かれているシグニに限定する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P15-052-E1",
+    "cardNum": "WXDi-P15-052",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "合計３枚以上支払っていた場合",
+    "claim": "選択肢②はコイン3枚以上支払い済みを条件にこのシグニへＳランサーを付与する効果だが、JSONでは条件なくコイン1枚を得る効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P12-050-E2",
+    "cardNum": "WXDi-P12-050",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "手札が対戦相手より３枚以上多い",
+    "claim": "【シャドウ（シグニ）】を得る選択肢の発動条件である手札枚数差3枚以上が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P06-062-E1",
+    "cardNum": "WXDi-P06-062",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "手札の枚数が対戦相手以上",
+    "claim": "シャドウを得るための、自分の手札枚数が対戦相手以上であるという条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P08-071-E2",
+    "cardNum": "WXDi-P08-071",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "色が合計３種類以上",
+    "claim": "シャドウを得るために必要なエナゾーンの色が3種類以上という条件が欠落している。"
+   },
+   {
+    "effectId": "WD15-007-E1",
+    "cardNum": "WD15-007",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "正面のシグニのパワーが12000以上",
+    "claim": "正面のシグニのパワーが12000以上である間だけアサシンを得る条件がなく、自分の全シグニへ無条件に付与している。"
+   },
+   {
+    "effectId": "WX21-015-E1",
+    "cardNum": "WX21-015",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "他の＜空獣＞のシグニ",
+    "claim": "他の＜空獣＞がいる場合に得るべき「バニッシュされない」の代わりに、パワー＋2000を適用しています。"
+   },
+   {
+    "effectId": "WX21-015-E1",
+    "cardNum": "WX21-015",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "他の＜地獣＞のシグニ",
+    "claim": "他の＜地獣＞がいる場合のパワー＋2000と【ランサー】付与がありません。"
+   },
+   {
+    "effectId": "WD16-012-E1",
+    "cardNum": "WD16-012",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "対戦相手の手札が０枚",
+    "claim": "バニッシュ耐性を得る条件が欠落しており、JSONでは相手の手札枚数にかかわらず常にバニッシュされない。"
+   },
+   {
+    "effectId": "WXEX2-50-E1",
+    "cardNum": "WXEX2-50",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "対戦相手の場に【チャーム】があるかぎり",
+    "claim": "【シャドウ】を得るために対戦相手の場に【チャーム】が必要という条件がJSONにない。"
+   },
+   {
+    "effectId": "WX25-CP1-024-E1",
+    "cardNum": "WX25-CP1-024",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "置いてもよい。そうしなかった場合",
+    "claim": "相手による7枚のトラッシュ送りが任意選択になっておらず、さらに選ばなかった場合だけ適用するガード禁止が常に続けて適用される。"
+   },
+   {
+    "effectId": "WX25-P2-039-E1",
+    "cardNum": "WX25-P2-039",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "凍結状態のパワー12000以下",
+    "claim": "付与するアサシンから、正面のシグニが凍結状態かつパワー12000以下という適用条件が欠落している。"
+   },
+   {
+    "effectId": "WX25-P2-089-E1",
+    "cardNum": "WX25-P2-089",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "凍結状態のパワー8000以下",
+    "claim": "付与するアサシンの対象条件である「凍結状態かつパワー8000以下」がJSONに表現されていない。"
+   },
+   {
+    "effectId": "WXEX2-01-E2",
+    "cardNum": "WXEX2-01",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "同じレベルのシグニで",
+    "claim": "ガード禁止がダウンしたシグニと同じレベルに限定されず、対戦相手のガード全体を禁止している。"
+   },
+   {
+    "effectId": "WXDi-P11-054-E2",
+    "cardNum": "WXDi-P11-054",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_FIELD_SIGNI_ABILITY",
+    "quote": "白のカードが１５枚以上あるかぎり",
+    "claim": "シャドウ能力を得る条件である、自分のトラッシュに白のカードが15枚以上あることが欠落している。"
+   },
+   {
+    "effectId": "WXDi-P07-054-E2",
+    "cardNum": "WXDi-P07-054",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "白のシグニが７枚以上",
+    "claim": "シャドウ（赤）を得る条件である自分のトラッシュの白いシグニ7枚以上が欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "count/upTo",
+  "n": 51,
+  "findings": [
+   {
+    "effectId": "WXEX2-46-E1",
+    "cardNum": "WXEX2-46",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "【アクセ】１枚につき",
+    "claim": "エナチャージ回数は自分の【アクセ】の枚数と同数だが、JSONでは枚数を参照せず常に1回だけ行う。"
+   },
+   {
+    "effectId": "WXEX1-44-E1",
+    "cardNum": "WXEX1-44",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEND_TO_ENERGY",
+    "quote": "【アクセ】の枚数以下のレベル",
+    "claim": "対象を自分の【アクセ】枚数以下のレベルを持つ相手シグニに限定する条件が欠落している。"
+   },
+   {
+    "effectId": "WXEX1-22-E1",
+    "cardNum": "WXEX1-22",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "【チャーム】１枚につき１つまで",
+    "claim": "選べる効果数は相手の場のチャーム枚数に応じて0～3個だが、JSONは常に1個だけ選ぶ指定になっている。"
+   },
+   {
+    "effectId": "WX20-032-E1",
+    "cardNum": "WX20-032",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "LIFE_CRASH",
+    "quote": "１ターンに１枚までしかクラッシュされない",
+    "claim": "原文はライフクロスのクラッシュ枚数を各ターン1枚までに制限する常時効果だが、JSONは自分のライフクロス1枚をクラッシュする効果になっている。"
+   },
+   {
+    "effectId": "SPDi43-24-E1",
+    "cardNum": "SPDi43-24",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "１体につき対戦相手は手札を１枚捨てる",
+    "claim": "相手が捨てる枚数がこの効果でダウンしたシグニ数ではなく、常に1枚になっている。"
+   },
+   {
+    "effectId": "WD10-007-E1",
+    "cardNum": "WD10-007",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "２枚まで捨てる",
+    "claim": "原文はウェポンのシグニを0～2枚捨てられるが、JSONは2枚固定で「まで」を表現していない。"
+   },
+   {
+    "effectId": "WXK07-028-E1",
+    "cardNum": "WXK07-028",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "３枚ある場合、代わりに２つまで",
+    "claim": "チャームが3枚ある場合に選択肢を2つまで選べる処理がなく、常に1つしか選べない。"
+   },
+   {
+    "effectId": "WXK04-041-E1",
+    "cardNum": "WXK04-041",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "３枚まで探して",
+    "claim": "選択肢②は探した植物シグニを3枚までエナゾーンに置く効果だが、後続処理の対象枚数が1枚になっている。"
+   },
+   {
+    "effectId": "WXDi-P09-072-E1",
+    "cardNum": "WXDi-P09-072",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "４枚の場合、カードを１枚引く",
+    "claim": "1枚引く処理にライフクロスが4枚である条件がなく、枚数にかかわらず実行される。"
+   },
+   {
+    "effectId": "WXEX2-84-E1",
+    "cardNum": "WXEX2-84",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "アーツを２枚まで",
+    "claim": "ルリグデッキに加えるアーツが原文では2枚までだが、JSONでは必ず1枚になっている。"
+   },
+   {
+    "effectId": "WX16-022-E1",
+    "cardNum": "WX16-022",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "エナゾーンから対象の好きな枚数",
+    "claim": "原文は自分のエナゾーンのアクセアイコンを持つシグニを好きな枚数選ぶが、JSONはエナゾーンからカードを選ぶ処理もアクセアイコンの条件も表現していない。"
+   },
+   {
+    "effectId": "WXDi-P04-004-E1",
+    "cardNum": "WXDi-P04-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "カード１０枚につき１つ",
+    "claim": "選択数がトラッシュのカード10枚につき1つではなく、常に1つに固定されている。"
+   },
+   {
+    "effectId": "WX24-P3-033-E1",
+    "cardNum": "WX24-P3-033",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "カードを１枚まで",
+    "claim": "マジックボックスとして設置するカードは0枚も選べますが、JSONには「1枚まで」を示す任意選択指定がありません。"
+   },
+   {
+    "effectId": "WX25-P1-091-E1",
+    "cardNum": "WX25-P1-091",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_PICK_CHAIN",
+    "quote": "カードを１枚までエナゾーンに置き",
+    "claim": "エナゾーンへ置く枚数は0～1枚だが、JSONの第1段階には「まで」を表す任意枚数指定がない。"
+   },
+   {
+    "effectId": "WX25-P1-091-E1",
+    "cardNum": "WX25-P1-091",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_PICK_CHAIN",
+    "quote": "カードを１枚までトラッシュに置き",
+    "claim": "トラッシュへ置く枚数は0～1枚だが、JSONの第2段階には「まで」を表す任意枚数指定がない。"
+   },
+   {
+    "effectId": "WD06-007-E1",
+    "cardNum": "WD06-007",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "カードを４枚まで見て",
+    "claim": "原文は0～4枚を任意に見る効果だが、JSONは見る枚数が4枚固定になっている。"
+   },
+   {
+    "effectId": "WX11-047-E1",
+    "cardNum": "WX11-047",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "カードを５枚まで",
+    "claim": "サーチしたカードを最大5枚すべてエナゾーンに置くべきところ、後続のエナチャージ対象数が1枚になっている。"
+   },
+   {
+    "effectId": "WXDi-P11-077-E1",
+    "cardNum": "WXDi-P11-077",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "カードを好きな枚数",
+    "claim": "下のカードをトラッシュに置ける枚数が原文では任意の全枚数だが、JSONでは最大9枚に制限されている。"
+   },
+   {
+    "effectId": "WXK05-047-E1",
+    "cardNum": "WXK05-047",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BLOCK_ACTION",
+    "quote": "キーが２枚以上ないかぎり",
+    "claim": "JSONには自分の場のキーが2枚未満であるという適用条件がなく、キーの枚数にかかわらず常にアタックできない効果になっている。"
+   },
+   {
+    "effectId": "SPDi43-24-E1",
+    "cardNum": "SPDi43-24",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "この方法でダウンしたシグニ１体につき",
+    "claim": "ドロー枚数がこの効果でダウンしたシグニ数ではなく、自分の場のシグニ総数を参照している。"
+   },
+   {
+    "effectId": "WDK15-008-E1",
+    "cardNum": "WDK15-008",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "シグニの下からカードを合計２枚まで",
+    "claim": "原文は自分のシグニの下のカードを合計2枚までトラッシュに置くが、JSONは自分のシグニ本体を1体、必ずトラッシュに置く処理になっている。"
+   },
+   {
+    "effectId": "WX21-Re07-E1",
+    "cardNum": "WX21-Re07",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "シグニを１０枚まで探してトラッシュ",
+    "claim": "選択肢①は探したシグニを最大10枚すべてトラッシュに置く効果だが、JSONのTRASH対象数は1枚になっている。"
+   },
+   {
+    "effectId": "WXEX1-17-E2",
+    "cardNum": "WXEX1-17",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "シグニを２枚まで",
+    "claim": "原文はサーチしたシグニを2枚までエナゾーンに置くが、JSONの後続処理は対象枚数が1枚になっている。"
+   },
+   {
+    "effectId": "WXDi-P11-030-E1",
+    "cardNum": "WXDi-P11-030",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_PICK_CHAIN",
+    "quote": "シグニを２枚まで場に出し",
+    "claim": "原文は0～2枚を選べるが、JSONのpickCountは2枚固定で上限指定がない。"
+   },
+   {
+    "effectId": "WXK01-057-E1",
+    "cardNum": "WXK01-057",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_PICK_CHAIN",
+    "quote": "シグニを３枚まで場に出し",
+    "claim": "原文は0～3枚を選べますが、JSONのpickCountは3枚固定で上限選択を表していません。"
+   },
+   {
+    "effectId": "WD07-006-E1",
+    "cardNum": "WD07-006",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "シグニを３枚まで探してトラッシュ",
+    "claim": "原文は探した最大3枚すべてをトラッシュに置くが、JSONの後続TRASHは対象枚数が1枚になっている。"
+   },
+   {
+    "effectId": "WXDi-CP02-036-E1",
+    "cardNum": "WXDi-CP02-036",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "すべてのシグニ",
+    "claim": "原文は対戦相手の全シグニをデッキ下に置くが、JSONの対象枚数は1体だけである。"
+   },
+   {
+    "effectId": "WXDi-P10-007-E3",
+    "cardNum": "WXDi-P10-007",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "スペルを２枚までチェックゾーンに置き",
+    "claim": "合計コスト4以下のスペルを2枚まで選び、チェックゾーンから無償使用して残りをシャッフルする効果が、単なるデッキ上10枚の確認・デッキ上配置として表現されている。"
+   },
+   {
+    "effectId": "SPK01-08-E1",
+    "cardNum": "SPK01-08",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "その中から３枚を",
+    "claim": "4枚のうち正確に3枚をデッキ下へ置き、残り1枚をトラッシュに置く枚数配分がJSONで指定されていない。"
+   },
+   {
+    "effectId": "WXDi-P00-010-E1",
+    "cardNum": "WXDi-P00-010",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LOOK_PICK_CHAIN",
+    "quote": "それぞれ１枚まで",
+    "claim": "各色のシグニは0～1枚を選べるが、各stageに任意選択を示すupTo指定がない。"
+   },
+   {
+    "effectId": "PR-380-E1",
+    "cardNum": "PR-380",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "それぞれ１枚まで対象とし",
+    "claim": "アーツの選択が1枚までの任意選択ではなく、1枚を選ぶ定義になっています。"
+   },
+   {
+    "effectId": "WXDi-P12-073-E2",
+    "cardNum": "WXDi-P12-073",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CONDITIONAL",
+    "quote": "それを凍結し",
+    "claim": "手札枚数条件を満たした際に対象の相手シグニを凍結する処理が欠落している。"
+   },
+   {
+    "effectId": "PR-442-BURST",
+    "cardNum": "PR-442",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DRAW",
+    "quote": "デッキの枚数１０枚につき",
+    "claim": "ライフバーストのドロー枚数がデッキ10枚につき1枚ではなく、常に1枚になっている。"
+   },
+   {
+    "effectId": "WX13-030-BURST",
+    "cardNum": "WX13-030",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "パワー合計が10000以下",
+    "claim": "好きな数の相手シグニをパワー合計10000以下になるよう選ぶ効果が、パワー制限のない相手シグニ1体のバニッシュになっている。"
+   },
+   {
+    "effectId": "WXDi-P16-046-E2",
+    "cardNum": "WXDi-P16-046",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DOWN",
+    "quote": "ライフクロスの枚数が対戦相手より少ない場合",
+    "claim": "発動条件である自分のライフクロスが対戦相手より少ないことがJSONにありません。"
+   },
+   {
+    "effectId": "WDK03-001-E1",
+    "cardNum": "WDK03-001",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "ルリグデッキから《異体同心　華代》",
+    "claim": "ADD_TO_FIELDに移動元のルリグデッキとカード名《異体同心　華代》および枚数1の指定がなく、任意のカードを場に出す効果になっている。"
+   },
+   {
+    "effectId": "WD22-011-G-E1",
+    "cardNum": "WD22-011-G",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "レベルがあなたの手札の枚数以下",
+    "claim": "選択肢③の対象をバニッシュできるレベル条件がJSONに存在しない。"
+   },
+   {
+    "effectId": "WX11-030-E2",
+    "cardNum": "WX11-030",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "引いたカードの枚数まで",
+    "claim": "対象数がアタックフェイズ中に引いた枚数までではなく1体固定になっている。"
+   },
+   {
+    "effectId": "WXDi-P10-043-E1",
+    "cardNum": "WXDi-P10-043",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "下にあるカードの枚数以下",
+    "claim": "バニッシュ対象のレベルがこのシグニの下にあるカード枚数以下という条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P01-026-E1",
+    "cardNum": "WXDi-P01-026",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "好きな枚数のシグニを場に出し",
+    "claim": "両プレイヤーとも原文では公開したシグニから好きな枚数を選べるが、JSONのpickCount:\"ALL\"は該当するシグニすべてを場に出す指定になっている。"
+   },
+   {
+    "effectId": "WX05-010-E1",
+    "cardNum": "WX05-010",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "好きな枚数をトラッシュに置き",
+    "claim": "ライフクロスから任意枚数をトラッシュに置き、その枚数と同数を補充する処理がなく、代わりにデッキ上から常に1枚を追加している。"
+   },
+   {
+    "effectId": "WXDi-P14-027-E1",
+    "cardNum": "WXDi-P14-027",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "好きな枚数対象とし",
+    "claim": "トラッシュからデッキに戻せるシグニが好きな枚数ではなく1枚固定になっている。"
+   },
+   {
+    "effectId": "WD10-007-E1",
+    "cardNum": "WD10-007",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "捨てたシグニの枚数と同じ数",
+    "claim": "バニッシュする相手シグニの数は実際に捨てた枚数と同数であるべきだが、JSONでは1体固定になっている。"
+   },
+   {
+    "effectId": "WX20-065-E1",
+    "cardNum": "WX20-065",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "手札が１枚以下の場合",
+    "claim": "手札1枚以下は効果全体の発動条件だが、JSONではトラッシュに《Ｃ・Ｍ・Ｒ》があれば手札枚数に関係なく2枚引く。"
+   },
+   {
+    "effectId": "WX17-067-E1",
+    "cardNum": "WX17-067",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "手札が３枚以下で",
+    "claim": "手札が3枚以下という発動条件がなく、手札枚数にかかわらずカードを引く効果になっている。"
+   },
+   {
+    "effectId": "WXK09-030-E1",
+    "cardNum": "WXK09-030",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "手札が対戦相手より４枚以上多い",
+    "claim": "相手シグニをバニッシュするための手札枚数差条件がJSONに無く、アタック時に無条件でバニッシュします。"
+   },
+   {
+    "effectId": "WX24-P4-053-E1",
+    "cardNum": "WX24-P4-053",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "手札の枚数がエナより少ない場合",
+    "claim": "3つの選択肢それぞれにある手札枚数とエナ枚数の大小・同数条件がすべて欠落し、盤面に関係なく任意の選択肢を選べる。"
+   },
+   {
+    "effectId": "WDK14-009-E1",
+    "cardNum": "WDK14-009",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "追加でシグニ１枚を対象とし",
+    "claim": "条件成立時の追加処理に、トラッシュの自分のシグニ1枚を対象として場に出すという出所・対象種別・枚数の指定がない。"
+   },
+   {
+    "effectId": "WX22-024-E2",
+    "cardNum": "WX22-024",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "同じ数だけ",
+    "claim": "トラッシュから場に出す枚数が、バニッシュしたシグニの数ではなく常に1枚になっている。"
+   },
+   {
+    "effectId": "WX10-034-E1",
+    "cardNum": "WX10-034",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "同じ数だけエナゾーンから",
+    "claim": "手札に加える枚数がバニッシュしたシグニの数ではなく、常に1枚に固定されている。"
+   },
+   {
+    "effectId": "WX12-019-E2",
+    "cardNum": "WX12-019",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "枚数×2000以下",
+    "claim": "バニッシュ対象のパワー上限がなく、任意の対戦相手シグニを対象にできる。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.color",
+  "n": 45,
+  "findings": [
+   {
+    "effectId": "WXDi-P03-004-E1",
+    "cardNum": "WXDi-P03-004",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "《無》《無》《無》《無》《無》を支払い",
+    "claim": "選択肢②で無色エナ5を支払う処理がなく、ライフクロスを無償で手札に加えられる。"
+   },
+   {
+    "effectId": "WXDi-D08-011-E1",
+    "cardNum": "WXDi-D08-011",
+    "severity": "HIGH",
+    "type": "EXTRA",
+    "actionType": "SEQUENCE",
+    "quote": "【使用条件】あなたの場に白と赤のルリグがいる",
+    "claim": "原文にエナの支払いはないが、JSONには《無》3の使用コストが追加されている。"
+   },
+   {
+    "effectId": "WXDi-P09-069-E1",
+    "cardNum": "WXDi-P09-069",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_EFFECT",
+    "quote": "３種の指定シグニか青のシグニ",
+    "claim": "対象条件は指定された3種または青のシグニだが、JSONは色とカード名を同一filterに入れており論理和を表現できていない。"
+   },
+   {
+    "effectId": "WX22-Re06-E1",
+    "cardNum": "WX22-Re06",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたの黒のシグニ",
+    "claim": "トラッシュに置く自分のシグニに黒の色指定がなく、黒以外のシグニも選べる。"
+   },
+   {
+    "effectId": "PR-322-E2",
+    "cardNum": "PR-322",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "あなたの手札から黒のシグニ１枚",
+    "claim": "黒のシグニを手札から場に出す選択肢が欠落し、トラッシュから出す処理しかありません。"
+   },
+   {
+    "effectId": "WX25-P2-057-E1",
+    "cardNum": "WX25-P2-057",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "あなたの青のシグニ１体",
+    "claim": "バニッシュされたカードを自分の青のシグニに限定する発動条件がありません。"
+   },
+   {
+    "effectId": "PR-K044-E3",
+    "cardNum": "PR-K044",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "あなたの赤か緑のシグニ",
+    "claim": "選択肢①の対象が赤か緑のシグニではなく、緑のシグニだけに限定されている。"
+   },
+   {
+    "effectId": "WX10-038-E1",
+    "cardNum": "WX10-038",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_SET",
+    "quote": "あなたの赤のシグニ",
+    "claim": "対象が自分の赤のシグニすべてではなく、色指定のない自分のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WXDi-P12-039-E1",
+    "cardNum": "WXDi-P12-039",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "カード１枚と、そのカードと",
+    "claim": "見た5枚からカード1枚と、それと共通色を持たないカード1枚までをエナゾーンに置く処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P08-061-E1",
+    "cardNum": "WXDi-P08-061",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_EFFECT",
+    "quote": "か赤のシグニ１体",
+    "claim": "原文の対象は指定3名称または赤のシグニだが、JSONは色と名称を同時に要求するフィルターになっている。"
+   },
+   {
+    "effectId": "WX24-P4-038-sub-E1",
+    "cardNum": "WX24-P4-038",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "このルリグと共通する色",
+    "claim": "トラッシュから場に出すシグニに、この能力を得たルリグと共通する色を持つという条件がない。"
+   },
+   {
+    "effectId": "WDK08-Y09-E2",
+    "cardNum": "WDK08-Y09",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "すべての緑のカードをエナゾーンに置き",
+    "claim": "公開した緑のカードをすべてエナゾーンに置く原文に対し、後続のENERGY_CHARGEの対象枚数が1枚になっている。"
+   },
+   {
+    "effectId": "WXEX1-29-E2",
+    "cardNum": "WXEX1-29",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "センタールリグと共通する色",
+    "claim": "トラッシュに置く相手シグニが自分のセンタールリグと共通する色を持つという対象条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P10-070-E1",
+    "cardNum": "WXDi-P10-070",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE",
+    "quote": "それぞれ共通する色を持たず",
+    "claim": "対象2枚が互いに異なる色を持つ条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-D01-011-E1",
+    "cardNum": "WXDi-D01-011",
+    "severity": "HIGH",
+    "type": "EXTRA",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "デッキの上からカードを８枚見る",
+    "claim": "原文では8枚を見るだけだが、JSONには無色エナ8個の使用コストが追加されている。"
+   },
+   {
+    "effectId": "WXEX2-51-E3",
+    "cardNum": "WXEX2-51",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "パワー12000以下の黒のシグニ",
+    "claim": "トラッシュから場に出す黒のシグニについて、パワー12000以下という条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-D07-011-E1",
+    "cardNum": "WXDi-D07-011",
+    "severity": "HIGH",
+    "type": "EXTRA",
+    "actionType": "SEQUENCE",
+    "quote": "ライフクロス１枚をクラッシュする",
+    "claim": "原文に存在しない無色エナ1の使用コストが追加されている。"
+   },
+   {
+    "effectId": "WX25-CP1-088-E1",
+    "cardNum": "WX25-CP1-088",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベル３の黒のシグニの場合",
+    "claim": "アップ処理にレベル3かつ黒という条件がなく、付与対象と同じシグニを参照する指定もないため、自分のシグニ1体を無条件でアップする効果になっている。"
+   },
+   {
+    "effectId": "WXK09-058-E1",
+    "cardNum": "WXK09-058",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "レベル４の黒のシグニ",
+    "claim": "トラッシュから選ぶシグニのフィルターに黒の色指定が欠けている。"
+   },
+   {
+    "effectId": "WX20-079-E1",
+    "cardNum": "WX20-079",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベルの異なる黒のシグニ４枚",
+    "claim": "デッキの一番下に置く4枚のフィルターに黒の色指定が欠落している。"
+   },
+   {
+    "effectId": "PR-318-E1",
+    "cardNum": "PR-318",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "共通する色を持つカード１枚",
+    "claim": "原文はカード種別を問わないのに、検索対象がルリグだけに制限されています。"
+   },
+   {
+    "effectId": "WDA-F04-10-E1",
+    "cardNum": "WDA-F04-10",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "共通する色を持つシグニ",
+    "claim": "公開したシグニを手札に加える条件である、センタールリグと共通する色を持つことがJSONのフィルターにない。"
+   },
+   {
+    "effectId": "WX24-P1-013-E1",
+    "cardNum": "WX24-P1-013",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "共通する色を持つスペル",
+    "claim": "トラッシュから回収する対象が、場に出たシグニと共通する色のスペルではなく、色条件のないシグニになっている。"
+   },
+   {
+    "effectId": "WXDi-P11-003-E1",
+    "cardNum": "WXDi-P11-003",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "合計３種類以上の色を持つ",
+    "claim": "場のルリグ3体が合計3種類以上の色を持つという使用条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P03-085-E1",
+    "cardNum": "WXDi-P03-085",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "黒ではない対戦相手の",
+    "claim": "バニッシュ対象から黒のシグニを除外する条件が欠落している。"
+   },
+   {
+    "effectId": "WX11-032-E2",
+    "cardNum": "WX11-032",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "自身と共通する色を持つ",
+    "claim": "効果を受けない相手シグニを自身と共通する色を持つものに限定する条件がなく、全相手シグニからの保護になっている。"
+   },
+   {
+    "effectId": "PR-046-E3",
+    "cardNum": "PR-046",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "FREEZE",
+    "quote": "手札から白か青のシグニを１枚捨てる",
+    "claim": "起動コストである手札の白か青のシグニ1枚の捨札がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P09-070-E1",
+    "cardNum": "WXDi-P09-070",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "色が合計２種類以上あるかぎり",
+    "claim": "エナゾーンのカードが合計2種類以上の色を持つ場合だけパワーを上げる条件がなく、常に＋4000される。"
+   },
+   {
+    "effectId": "WXDi-P12-076-E1",
+    "cardNum": "WXDi-P12-076",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "色が合計３種類以上あるかぎり",
+    "claim": "パワー＋4000の適用条件である、自分の場のシグニが合計3種類以上の色を持つ条件が欠落しており、無条件に強化される。"
+   },
+   {
+    "effectId": "WX24-P4-033-E1",
+    "cardNum": "WX24-P4-033",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "青か黒のシグニ１体",
+    "claim": "選択肢②の対象に必要な青または黒の色条件がJSONから欠落している。"
+   },
+   {
+    "effectId": "WXDi-P03-030-E1",
+    "cardNum": "WXDi-P03-030",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "青と緑と黒のシグニがある場合",
+    "claim": "エナチャージの発動条件である自分の場に青・緑・黒のシグニがあることがJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P01-004-E1",
+    "cardNum": "WXDi-P01-004",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ADD_TO_LIFE",
+    "quote": "青と緑のルリグがいる",
+    "claim": "使用条件である自分の場に青と緑のルリグがいることがJSONに存在しない。"
+   },
+   {
+    "effectId": "WXK10-042-E1",
+    "cardNum": "WXK10-042",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY_PER_TRASH_COUNT",
+    "quote": "青のシグニ２枚につき",
+    "claim": "パワー減少量の算定対象に青のシグニという色条件がなく、全色のシグニを数えてしまう。"
+   },
+   {
+    "effectId": "WXDi-D01-007-E1",
+    "cardNum": "WXDi-D01-007",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "青のシグニがある場合",
+    "claim": "2枚引くための青のシグニの存在条件が欠落し、無条件でドローする。"
+   },
+   {
+    "effectId": "WX24-P4-031-E1",
+    "cardNum": "WX24-P4-031",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "赤か緑のシグニ１体",
+    "claim": "選択肢②の対象に必要な赤または緑の色条件がJSONから欠落している。"
+   },
+   {
+    "effectId": "WXEX1-31-E1",
+    "cardNum": "WXEX1-31",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "赤と青と緑のカードが１枚もない",
+    "claim": "エナゾーンとトラッシュに赤・青・緑のカードがない場合だけ有効となる条件がなく、保護効果が無条件になっている。"
+   },
+   {
+    "effectId": "WX25-P2-075-E1",
+    "cardNum": "WX25-P2-075",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "赤のスペルを使用していた場合",
+    "claim": "選択肢①の発動条件である赤のスペル使用済み判定がなく、代わりにバニッシュ対象を赤のシグニに限定している。"
+   },
+   {
+    "effectId": "WX09-045-E1",
+    "cardNum": "WX09-045",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "対戦相手のパワー15000以下",
+    "claim": "代替効果の対象は色を問わない相手シグニだが、JSONは赤のシグニに限定している。"
+   },
+   {
+    "effectId": "WX24-D2-11-E1",
+    "cardNum": "WX24-D2-11",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "対戦相手のパワー2000以下",
+    "claim": "原文は色を問わず相手のパワー2000以下のシグニを対象にするが、JSONは対象を赤のシグニに限定している。"
+   },
+   {
+    "effectId": "WDA-F03-13-E1",
+    "cardNum": "WDA-F03-13",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "白か青か緑か黒のカードがある",
+    "claim": "パワー＋2000を適用する条件である、自分のエナゾーンに白・青・緑・黒のいずれかのカードがあることがJSONにない。"
+   },
+   {
+    "effectId": "WX24-P4-035-E1",
+    "cardNum": "WX24-P4-035",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "白か緑のシグニ１体",
+    "claim": "選択肢②が白または緑の相手シグニに限定されず、ownerもanyのため自分のシグニを含む任意のシグニを対象にできる。"
+   },
+   {
+    "effectId": "WXDi-P05-049-BURST",
+    "cardNum": "WXDi-P05-049",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "白のルリグが２体以上いる場合",
+    "claim": "ライフバーストの手札に戻す効果に、自分の場の白のルリグが2体以上という発動条件がない。"
+   },
+   {
+    "effectId": "WXDi-P06-077-E1",
+    "cardNum": "WXDi-P06-077",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "緑のシグニ１体を対象とし",
+    "claim": "スペル本来の効果まで、美巧のシグニが場にあることを条件として実行する構造になっている。"
+   },
+   {
+    "effectId": "WXK10-028-BURST",
+    "cardNum": "WXK10-028",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "緑のシグニ１枚",
+    "claim": "どちらの選択肢にも対象を緑のシグニに限定するフィルターがない。"
+   },
+   {
+    "effectId": "WXDi-D01-007-E1",
+    "cardNum": "WXDi-D01-007",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "緑のシグニがある場合",
+    "claim": "エナチャージ2のための緑のシグニの存在条件が欠落し、無条件で実行する。"
+   }
+  ]
+ },
+ {
+  "axis": "timing/trigger",
+  "n": 45,
+  "findings": [
+   {
+    "effectId": "WXK07-055-CB-E1",
+    "cardNum": "WXK07-055-CB",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "《羅星　人生さんＢ》がある場合",
+    "claim": "アタック時効果の発動条件である、自分の場に《羅星　人生さんＢ》があることの判定がない。"
+   },
+   {
+    "effectId": "WX25-CP1-066-E1",
+    "cardNum": "WX25-CP1-066",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "《雷ちゃん》がない場合",
+    "claim": "自分の場に《雷ちゃん》がない場合に限る発動条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK07-028-E1",
+    "cardNum": "WXK07-028",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "【チャーム】が１枚以上ある場合",
+    "claim": "発動条件である自分の場のチャームが1枚以上という条件がJSONにない。"
+   },
+   {
+    "effectId": "WX15-049-E1",
+    "cardNum": "WX15-049",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "【トラップ】がない場合",
+    "claim": "効果の発動条件である自分の場に【トラップ】がないことの判定がJSONにない。"
+   },
+   {
+    "effectId": "WX05-020-E2",
+    "cardNum": "WX05-020",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "LIFE_CRASH",
+    "quote": "アーツの効果を受けたとき",
+    "claim": "原文は鉱石か宝石のシグニが相手のアーツ効果を受けたときに発動するが、JSONはそれらが場にいる状態で相手がアーツを使用しただけで発動する。"
+   },
+   {
+    "effectId": "WXK03-060-E1",
+    "cardNum": "WXK03-060",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "アタックしていなかった場合",
+    "claim": "自分のセンタールリグがそのターンにアタックしていなかった場合という発動条件が欠落し、無条件でエナチャージする。"
+   },
+   {
+    "effectId": "WX24-P3-055-E2",
+    "cardNum": "WX24-P3-055",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "アタック終了時",
+    "claim": "エナチャージをそのアタックの終了時に行うという遅延タイミングがJSONにない。"
+   },
+   {
+    "effectId": "WX03-031-E1",
+    "cardNum": "WX03-031",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "あなたのシグニが",
+    "claim": "発動条件に「あなたのシグニがライフクロスをクラッシュした」という原因の限定がなく、他の効果によるクラッシュでも発動し得る。"
+   },
+   {
+    "effectId": "WXK01-055-E1",
+    "cardNum": "WXK01-055",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "あなたのメインフェイズ",
+    "claim": "自分のメインフェイズであるという発動条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXK01-104-E1",
+    "cardNum": "WXK01-104",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "あなたのメインフェイズの場合",
+    "claim": "トラッシュから場に出せる条件である自分のメインフェイズ中という制限がJSONにない。"
+   },
+   {
+    "effectId": "WXK01-055-E1",
+    "cardNum": "WXK01-055",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "あなたの手札が２枚以下",
+    "claim": "手札が2枚以下であるという発動条件がJSONにありません。"
+   },
+   {
+    "effectId": "WX08-042-E2",
+    "cardNum": "WX08-042",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "エナゾーンから場に出たとき",
+    "claim": "自分のシグニがエナゾーンから場に出たときという発動条件がJSONに存在しない。"
+   },
+   {
+    "effectId": "WX05-022-E1",
+    "cardNum": "WX05-022",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BLOCK_ACTION",
+    "quote": "カードを手札に加える",
+    "claim": "原文は規定フェイズ外でカードを手札に加える行為も禁止するが、JSONはドローしか禁止していない。"
+   },
+   {
+    "effectId": "WXK03-059-E1",
+    "cardNum": "WXK03-059",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "かのように使用できる",
+    "claim": "原文は【ライド】の使用可能タイミングをメイン・アタックフェイズに拡張する効果だが、JSONは任意のシグニに【ライド】自体を付与している。"
+   },
+   {
+    "effectId": "WX05-022-E1",
+    "cardNum": "WX05-022",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "グロウフェイズとドローフェイズ以外",
+    "claim": "原文では相手自身のターン中かつグロウフェイズとドローフェイズを除いて禁止するが、JSONには自ターン条件とグロウフェイズの例外がない。"
+   },
+   {
+    "effectId": "WXDi-P11-TK04-E2",
+    "cardNum": "WXDi-P11-TK04",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "UP",
+    "quote": "このシグニがバトルによって",
+    "claim": "発動条件にこのシグニのバトルによるバニッシュという限定が表現されていない。"
+   },
+   {
+    "effectId": "WXK11-045-E1",
+    "cardNum": "WXK11-045",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY_PER_LRIG_LEVEL",
+    "quote": "このシグニが対戦相手の",
+    "claim": "対戦相手のライフクロスをこのシグニ自身がクラッシュした場合に限る発動条件がJSONにない。"
+   },
+   {
+    "effectId": "PR-206-E1",
+    "cardNum": "PR-206",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "このルリグが",
+    "claim": "ライフクロスをクラッシュした主体がこのルリグであるという発動条件が欠落しています。"
+   },
+   {
+    "effectId": "WXDi-P09-010-E3",
+    "cardNum": "WXDi-P09-010",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "シグニ１体が効果によって場に出たとき",
+    "claim": "原文は起動後、このターン中に自分のシグニが効果で場に出たとき発動する遅延効果だが、JSONは起動時に即座にパワーを減少させる。"
+   },
+   {
+    "effectId": "WXK02-040-E1",
+    "cardNum": "WXK02-040",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "シグニが２体以上場から手札に",
+    "claim": "このターンにシグニが2体以上場から手札に戻っていた場合という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WXK06-023-E1-G",
+    "cardNum": "WXK06-023",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "シグニが４回以上アタック",
+    "claim": "ターン終了時能力の発動条件である「このターンにシグニが4回以上アタックしていた場合」がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P11-TK04-E1",
+    "cardNum": "WXDi-P11-TK04",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "シグニがバトルによって",
+    "claim": "発動条件にバトルによるバニッシュという限定が表現されていない。"
+   },
+   {
+    "effectId": "WX18-056-E1",
+    "cardNum": "WX18-056",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "シグニが場からトラッシュに",
+    "claim": "このアタックフェイズ中に自分のシグニが場からトラッシュへ置かれていた場合に限る条件がなく、常に－7000される。"
+   },
+   {
+    "effectId": "WXDi-D04-004-sub-E1",
+    "cardNum": "WXDi-D04-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "そのアタック終了時",
+    "claim": "付与能力がアタック時に処理され、原文のアタック終了時かつ対戦相手にダメージを与えていない場合という発動条件を表現していない。"
+   },
+   {
+    "effectId": "WX24-P3-043-E1",
+    "cardNum": "WX24-P3-043",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "ダメージを受ける場合、代わりに",
+    "claim": "原文はダメージを受ける際の置換効果だが、JSONにはダメージを防ぐ処理も発動条件もない。"
+   },
+   {
+    "effectId": "WX15-Re15-E1",
+    "cardNum": "WX15-Re15",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "トラッシュにある場合にしか",
+    "claim": "このシグニがトラッシュにある場合だけ能力を使用できるという発動条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-D06-013-E1",
+    "cardNum": "WXDi-D06-013",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DOWN",
+    "quote": "バトル以外によって",
+    "claim": "バニッシュの原因がバトル以外であるという発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX19-029-E1",
+    "cardNum": "WX19-029",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DOWN",
+    "quote": "バニッシュされたか",
+    "claim": "アタックフェイズ中にこのシグニがバニッシュされた場合の発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX15-006-E1",
+    "cardNum": "WX15-006",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "バニッシュされたとき",
+    "claim": "原文はこのターン中に自分のシグニが自分の効果以外でバニッシュされたときに発動する遅延効果だが、JSONはアーツ使用時に相手シグニを即座にバニッシュする。"
+   },
+   {
+    "effectId": "WXK04-029-E2",
+    "cardNum": "WXK04-029",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "バニッシュされていた場合",
+    "claim": "エナチャージ1の発動条件である、このターンに対戦相手のシグニがバニッシュされていたことが表現されていない。"
+   },
+   {
+    "effectId": "WD21-017-E1",
+    "cardNum": "WD21-017",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "バニッシュされるか",
+    "claim": "発動タイミングが場からトラッシュに置かれた場合だけで、バニッシュされた場合が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P07-045-E1",
+    "cardNum": "WXDi-P07-045",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "パワーの合計が30000の場合",
+    "claim": "エナチャージ2の発動条件である、自分の場のシグニのパワー合計がちょうど30000であることがJSONにない。"
+   },
+   {
+    "effectId": "WXDi-CP02-048-E1",
+    "cardNum": "WXDi-CP02-048",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "パワーを－8000し",
+    "claim": "原文は対象のパワーをまず－8000し、さらにアタックフェイズ終了時に－5000する自動能力を与えるが、JSONは出現時に－5000する処理だけになっている。"
+   },
+   {
+    "effectId": "WXDi-P11-003-E1",
+    "cardNum": "WXDi-P11-003",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "メインフェイズ開始時",
+    "claim": "各メインフェイズ開始時に発動する条件と、一度選んだ選択肢を再選択できない制約がJSONにない。"
+   },
+   {
+    "effectId": "WXK02-034-E1",
+    "cardNum": "WXK02-034",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "効果によって２体以上バニッシュ",
+    "claim": "このターンに自分の効果で相手のシグニを2体以上バニッシュしていた場合という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P13-070-E2",
+    "cardNum": "WXDi-P13-070",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "FREEZE",
+    "quote": "効果によってカードを２枚以上",
+    "claim": "このターンに効果によってカードを2枚以上引いていた場合という発動条件が欠落し、無条件で相手のシグニを凍結する。"
+   },
+   {
+    "effectId": "WX09-Re07-E1",
+    "cardNum": "WX09-Re07",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "効果によってこのシグニが場を離れたとき",
+    "claim": "サーチと場出しが相手の効果でこのシグニが場を離れた時の誘発能力ではなく、場に指定クラスが3体いる間の常時アクションとして表現されている。"
+   },
+   {
+    "effectId": "WX11-045-E2",
+    "cardNum": "WX11-045",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "効果によってバニッシュ",
+    "claim": "効果によってバニッシュされた場合に限る発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX11-031-E1",
+    "cardNum": "WX11-031",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "UP",
+    "quote": "合計３体バニッシュ",
+    "claim": "このターンに空獣か地獣が相手シグニを合計3体バニッシュした場合という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P12-056-E1",
+    "cardNum": "WXDi-P12-056",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "合計７枚以上ある場合",
+    "claim": "エナゾーンとトラッシュにあるディソナアイコンのカードが合計7枚以上という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX15-048-E1",
+    "cardNum": "WX15-048",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "場に【トラップ】がある場合",
+    "claim": "カードを引くための発動条件である自分の場の【トラップ】の存在判定がJSONにない。"
+   },
+   {
+    "effectId": "WXK01-084-E1",
+    "cardNum": "WXK01-084",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "中央のシグニゾーンにある場合",
+    "claim": "このシグニが中央のシグニゾーンにあるという発動条件がJSONに無い。"
+   },
+   {
+    "effectId": "WX07-009-E1",
+    "cardNum": "WX07-009",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "同じ名前のシグニ２体",
+    "claim": "エナチャージの発動条件である「出現条件で同じ名前のシグニ2体をトラッシュに置いていた場合」がJSONに無く、出現時に無条件で2枚エナチャージする効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P04-081-E1",
+    "cardNum": "WXDi-P04-081",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "付いているカードか…下に",
+    "claim": "自分の場にシグニに付いているカードまたはシグニの下のカードがある場合という発動条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P02-070-E1",
+    "cardNum": "WXDi-P02-070",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "裏向きのカードがある場合",
+    "claim": "自分のシグニゾーンに裏向きのカードがある場合という発動条件がなく、無条件でカードを引く効果になっている。"
+   }
+  ]
+ },
+ {
+  "axis": "特殊機構",
+  "n": 43,
+  "findings": [
+   {
+    "effectId": "WX24-P3-054-E1",
+    "cardNum": "WX24-P3-054",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "［４枚以上］",
+    "claim": "リコレクト条件はルリグトラッシュのカードが4枚以上であることだが、JSONではアーツだけを数える条件になっている。"
+   },
+   {
+    "effectId": "WXDi-D03-004-E1",
+    "cardNum": "WXDi-D03-004",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "【チーム】＜NoLimit＞",
+    "claim": "原文のNoLimitチーム成立条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P01-038-E1",
+    "cardNum": "WXDi-P01-038",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "【チーム】＜うちゅうのはじまり＞",
+    "claim": "手札を捨てさせる自動能力に、チーム条件＜うちゅうのはじまり＞が表現されていない。"
+   },
+   {
+    "effectId": "WXDi-D02-04L-E1",
+    "cardNum": "WXDi-D02-04L",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "【チーム】＜さんばか＞",
+    "claim": "チーム起能力を使用するための＜さんばか＞チーム条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-D07-017-E1",
+    "cardNum": "WXDi-D07-017",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "【チーム】＜デウス・エクス・マキナ＞",
+    "claim": "チーム＜デウス・エクス・マキナ＞を成立させている条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P16-094-E1",
+    "cardNum": "WXDi-P16-094",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "【チーム】を持つシグニ",
+    "claim": "選択肢①の対象から【チーム】を持つという条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P00-009-E1",
+    "cardNum": "WXDi-P00-009",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "【チーム起】",
+    "claim": "起動能力を使用するためのチーム条件がJSONに表現されていない。"
+   },
+   {
+    "effectId": "WXDi-D06-004-E1",
+    "cardNum": "WXDi-D06-004",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "【チーム常】",
+    "claim": "チーム常能力として有効になるためのチーム条件がない。"
+   },
+   {
+    "effectId": "WXDi-CP02-001-E1",
+    "cardNum": "WXDi-CP02-001",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "【ドリームチーム】白のルリグ",
+    "claim": "白のルリグを1体以上含むドリームチーム使用条件と、指定ピースをこのゲーム中に使用済みである条件がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXDi-P04-034",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ハーモニー】黒のルリグ１体",
+    "claim": "黒のルリグをダウンしなければこのシグニをダウンするハーモニー処理がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXDi-D09-P16",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ハーモニー】白のルリグ１体",
+    "claim": "白のルリグをダウンしなければこのシグニをダウンするハーモニー効果がJSONに存在しない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXDi-P07-091",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】",
+    "claim": "＜武勇＞のシグニ1体の上に置かなければ場に出せないライズ条件がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXK05-035",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】あなたの＜アーム＞",
+    "claim": "＜アーム＞のシグニにエナゾーンとトラッシュの＜アーム＞を1枚ずつ重ねて場に出すライズ条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P03-085-E1",
+    "cardNum": "WXDi-P03-085",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "【ライズ】あなたの＜悪魔＞",
+    "claim": "＜悪魔＞のシグニの上に置くという場出し条件がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXDi-P11-061",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】あなたの＜原子＞のシグニ",
+    "claim": "＜原子＞のシグニ1体の上に置かなければ場に出せないライズ条件がJSONに存在しない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WX16-027",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】あなたの＜武勇＞",
+    "claim": "武勇のシグニ2体の上に置いて場に出すライズ条件がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXDi-D06-017",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】あなたのシグニ１体の上に置く",
+    "claim": "自分のシグニ1体の上に置かなければ場に出せないライズ条件が欠落している。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WX21-Re05",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】あなたのレベル１",
+    "claim": "レベル1の赤のシグニの上に置くライズ条件がJSONに存在しない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXK11-038",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "【ライズ】共通する色を持たない",
+    "claim": "共通する色を持たない自分のシグニ2体の上に置くライズ条件がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXDi-P15-048",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "＜解放派＞のシグニ１枚を下に重ねて",
+    "claim": "ライズによりトラッシュの＜解放派＞シグニ1枚を下に重ねて場に出す処理がJSONにない。"
+   },
+   {
+    "effectId": "WX24-P3-043-E1",
+    "cardNum": "WX24-P3-043",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "アシストルリグ２体をダウン",
+    "claim": "原文の対象はレベル1以上のアップ状態のアシストルリグ2体だが、JSONではシグニ1体になっている。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXK08-031",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "あなたのシグニ２体の上に置く",
+    "claim": "このカードを出すために自分のシグニ2体の上へ置く【ライズ】条件がJSONに存在しない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WDK06-R11",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "あなたの赤のシグニ１体の上",
+    "claim": "このシグニを自分の赤のシグニ1体の上に置かなければ場に出せないというライズ条件がJSONに存在しない。"
+   },
+   {
+    "effectId": "WX10-001-E2",
+    "cardNum": "WX10-001",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "エクシード１（赤のカード）",
+    "claim": "エクシードで赤のカードを使用するというコスト条件が欠落している。"
+   },
+   {
+    "effectId": "WX10-001-E1",
+    "cardNum": "WX10-001",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "エクシード１（白のカード）",
+    "claim": "エクシードで白のカードを使用するというコスト条件が欠落している。"
+   },
+   {
+    "effectId": "WXK10-014-E1",
+    "cardNum": "WXK10-014",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_EFFECT",
+    "quote": "エクシード２",
+    "claim": "対戦相手のシグニ1体をダウンする付与能力がJSONにない。"
+   },
+   {
+    "effectId": "PR-387-E1",
+    "cardNum": "PR-387",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "クロス条件に含まれるシグニ",
+    "claim": "ベット時にトラッシュから出すシグニについて、最初に場へ出したシグニのクロス条件に含まれるという対象制限がない。"
+   },
+   {
+    "effectId": "WX24-D5-07-E1",
+    "cardNum": "WX24-D5-07",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "それのパワーを－20000",
+    "claim": "リコレクト成立時の対象が対戦相手のシグニではなく自分のシグニとして定義されている。"
+   },
+   {
+    "effectId": "WX15-006-E1",
+    "cardNum": "WX15-006",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "ベットしていた場合",
+    "claim": "ライフクロス追加はベット済みかつ自分のシグニが条件どおりバニッシュされた場合だけだが、JSONでは無条件かつ即座に実行される。"
+   },
+   {
+    "effectId": "WD17-018-E1",
+    "cardNum": "WD17-018",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "ライズアイコンを持たない",
+    "claim": "選択肢①でバニッシュする自分の＜武勇＞に「ライズアイコンを持たない」という条件が欠落している。"
+   },
+   {
+    "effectId": "WD17-018-E1",
+    "cardNum": "WD17-018",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "ライズアイコンを持つ＜武勇＞",
+    "claim": "選択肢②でバニッシュする自分の＜武勇＞に「ライズアイコンを持つ」という条件が欠落している。"
+   },
+   {
+    "effectId": "SP23-009-E1",
+    "cardNum": "SP23-009",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "ライズアイコンを持つあなたのすべて",
+    "claim": "選択肢①はライズアイコンを持つ自分の全シグニが対象だが、JSONはアイコン条件がなく、任意の所有者のシグニ1体だけを対象にしている。"
+   },
+   {
+    "effectId": "SP23-009-E1",
+    "cardNum": "SP23-009",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "ライズアイコンを持つシグニ１体につき",
+    "claim": "選択肢②は自分のライズアイコン持ちシグニだけを数えるが、JSONは自分の全シグニを数えている。"
+   },
+   {
+    "effectId": "WX20-024-E1",
+    "cardNum": "WX20-024",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "ライズアイコンを持つシグニがあるかぎり",
+    "claim": "効果耐性を得るための、自分の場にライズアイコンを持つシグニがあるという条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P16-094-E1",
+    "cardNum": "WXDi-P16-094",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "ルリグ３体が同じチーム",
+    "claim": "場のルリグ3体が同じチームであるという発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX24-P2-043-E1",
+    "cardNum": "WX24-P2-043",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GROW_COST_REDUCTION",
+    "quote": "ルリグタイプは無視され",
+    "claim": "次のアシストルリグへのグロウでルリグタイプ条件を無視する効果がJSONにありません。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WX16-059",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "レベル１の赤のシグニ１体の上",
+    "claim": "ライズ元をレベル１の赤のシグニに限定する登場条件がJSONに存在しない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WX18-061",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "レベル２以下のシグニ１体の上",
+    "claim": "【ライズ】によってライズアイコンを持つ自分のレベル2以下のシグニの上に置く条件がJSONにない。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WXK11-053",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "レベルの異なる赤のシグニ３体",
+    "claim": "それぞれレベルの異なる自分の赤のシグニ3体を下敷きにする【ライズ】条件がJSONに存在しない。"
+   },
+   {
+    "effectId": "WXDi-P05-008-E1",
+    "cardNum": "WXDi-P05-008",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "レベルの合計１につき",
+    "claim": "アシストルリグのレベル合計に応じた回数ではなく、固定でエナチャージ1になっている。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "WX20-037",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "赤のシグニ２体の上に置く",
+    "claim": "このカードを自分の赤のシグニ2体の上に置いて出すライズ条件がJSONに存在しない。"
+   },
+   {
+    "effectId": "WX10-001-E3",
+    "cardNum": "WX10-001",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEARCH",
+    "quote": "白と赤のカード",
+    "claim": "エクシードで白と赤のカードを使用するというコスト条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-CP01-002-E1",
+    "cardNum": "WXDi-CP01-002",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "両方の【使用条件】",
+    "claim": "黒のルリグを含むドリームチームであること、およびリレーピース使用済みであることの使用条件が欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.level",
+  "n": 41,
+  "findings": [
+   {
+    "effectId": "WXDi-D06-011-E1",
+    "cardNum": "WXDi-D06-011",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "あなたのレベル３のルリグ１体",
+    "claim": "能力を得る対象が自分のレベル3のルリグ1体に限定されていない。"
+   },
+   {
+    "effectId": "WXDi-P03-049-E1",
+    "cardNum": "WXDi-P03-049",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "エナゾーンにレベル１のシグニ",
+    "claim": "パワー＋4000の適用条件である、自分のエナゾーンにレベル1のシグニがあることがJSONにありません。"
+   },
+   {
+    "effectId": "WX18-070-E1",
+    "cardNum": "WX18-070",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "エナゾーンに置くか手札に加える",
+    "claim": "JSONは公開したレベル4のシグニをエナゾーンに置く処理しかなく、手札に加える選択肢が欠落している。"
+   },
+   {
+    "effectId": "WXK07-104-E1",
+    "cardNum": "WXK07-104",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "すべてのシグニのレベルが偶数",
+    "claim": "自分の場の全シグニが偶数レベルという条件が欠落し、対象も相手シグニ1体ではなく全体になっている。"
+   },
+   {
+    "effectId": "WXDi-CP01-002-E1",
+    "cardNum": "WXDi-CP01-002",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRASH",
+    "quote": "センタールリグがレベル３以上",
+    "claim": "デッキを2434枚トラッシュに置くためのセンタールリグのレベル条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-D01-011-E1",
+    "cardNum": "WXDi-D01-011",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "それぞれ１枚まで場に出し",
+    "claim": "見たカードからレベル1・2・3のシグニをそれぞれ1枚まで場に出す処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P13-005-E1",
+    "cardNum": "WXDi-P13-005",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "ディソナの場合、代わりに",
+    "claim": "原文は捨てたカードがディソナならレベル制限なしのバニッシュに置き換えるが、JSONは条件なしでレベル1とレベル制限なしのバニッシュを両方実行する。"
+   },
+   {
+    "effectId": "WXDi-P01-039-E1",
+    "cardNum": "WXDi-P01-039",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "デッキとトラッシュにある",
+    "claim": "レベル変更の対象はデッキとトラッシュのレベル2・3シグニすべてだが、JSONは場所・元レベルを指定せず自分のシグニ1体を対象としている。"
+   },
+   {
+    "effectId": "WXK07-087-E2",
+    "cardNum": "WXK07-087",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "レベル１、レベル２、レベル３、レベル４",
+    "claim": "両者の場を通じてレベル1・2・3・4のシグニがすべて存在する場合にだけカードを引く条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXK11-004-E1",
+    "cardNum": "WXK11-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベル１につき",
+    "claim": "対象にできる相手のエナ枚数がセンタールリグのレベルまでではなく、相手のエナすべてになっています。"
+   },
+   {
+    "effectId": "WXDi-P14-004-E1",
+    "cardNum": "WXDi-P14-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "レベル１につき【エナチャージ２】",
+    "claim": "エナチャージ回数はセンタールリグのレベルに比例するが、JSONではレベルにかかわらずエナチャージ2固定になっている。"
+   },
+   {
+    "effectId": "WXDi-P08-049-E2",
+    "cardNum": "WXDi-P08-049",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "レベル１のシグニ１体",
+    "claim": "能力を失わせる対象のレベル1条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P10-036-E1",
+    "cardNum": "WXDi-P10-036",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "レベル１のシグニ１体につき１つ",
+    "claim": "選択回数は自分の場のレベル1シグニの数で決まるが、JSONでは常に1回になっている。"
+   },
+   {
+    "effectId": "WXDi-P03-066-E1",
+    "cardNum": "WXDi-P03-066",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レベル１のシグニが２枚以上",
+    "claim": "パワー＋4000の適用条件である、自分のトラッシュにレベル1のシグニが2枚以上あることがJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P07-040-E1",
+    "cardNum": "WXDi-P07-040",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "レベル１のシグニがある場合",
+    "claim": "ドローの発動条件である、自分の場にレベル1のシグニがあることがJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P01-039-E2",
+    "cardNum": "WXDi-P01-039",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "レベル１のシグニは",
+    "claim": "バニッシュ耐性の対象をレベル1のシグニに限定するフィルターがなく、自分の全シグニを保護している。"
+   },
+   {
+    "effectId": "WXDi-P16-085-E1",
+    "cardNum": "WXDi-P16-085",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "レベル１のシグニを１枚捨て",
+    "claim": "起動コストから手札のレベル1シグニ1枚を捨てる処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P14-051-E1",
+    "cardNum": "WXDi-P14-051",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "レベル２以下のすべて",
+    "claim": "REMOVE_ABILITIESの対象にレベル2以下というフィルターがなく、対戦相手の全シグニが能力を失う定義になっている。"
+   },
+   {
+    "effectId": "WXK05-065-E1",
+    "cardNum": "WXK05-065",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベル２以下の場合",
+    "claim": "原文は付いたアクセのレベルに応じてエナチャージかドローの一方だけを行うが、JSONはレベル条件なしで両方を行う。"
+   },
+   {
+    "effectId": "WXK07-053-E2",
+    "cardNum": "WXK07-053",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "LEVEL_MODIFY",
+    "quote": "レベル２以上の他のシグニ",
+    "claim": "レベル変更の対象にレベル2以上という条件と、このシグニ自身を除外する条件がない。"
+   },
+   {
+    "effectId": "WXDi-D05-011-E1",
+    "cardNum": "WXDi-D05-011",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "レベル３のルリグ１体を対象",
+    "claim": "能力を付与する対象が自分のレベル3のルリグ1体に限定されていない。"
+   },
+   {
+    "effectId": "WXK01-066-E1",
+    "cardNum": "WXK01-066",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_SET",
+    "quote": "レベル３以下のシグニ",
+    "claim": "対象をレベル3以下に限定するフィルターがJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P03-077-BURST",
+    "cardNum": "WXDi-P03-077",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベル３以下のシグニによって",
+    "claim": "原文はこのターン中に相手のレベル3以下のシグニから受ける全ダメージを防ぐが、JSONは発生源とレベルを限定せず次のダメージ1回だけを防ぐ。"
+   },
+   {
+    "effectId": "WXK05-035-E1",
+    "cardNum": "WXK05-035",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "レベル４のシグニが３枚あるかぎり",
+    "claim": "パワー上昇とルリグ効果への耐性に必要な「このシグニの下にレベル4のシグニが3枚ある」という適用条件がない。"
+   },
+   {
+    "effectId": "WXK03-078-E1",
+    "cardNum": "WXK03-078",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "レベルが奇数の",
+    "claim": "バニッシュ対象をレベルが奇数のシグニに限定する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P00-012-E1",
+    "cardNum": "WXDi-P00-012",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "レベルの合計が",
+    "claim": "対象が1体固定になっており、相手センタールリグのレベルを上限とするレベル合計内で好きな数を選ぶ処理が表現されていない。"
+   },
+   {
+    "effectId": "WX12-Re02-E1",
+    "cardNum": "WX12-Re02",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベルの合計が…数以下",
+    "claim": "バニッシュ対象が好きな数ではなく1体に固定され、対象のレベル合計をデッキ下へ置いた枚数以下にする制約も欠落している。"
+   },
+   {
+    "effectId": "WXDi-P13-076-E1",
+    "cardNum": "WXDi-P13-076",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レベルの合計が３",
+    "claim": "自分の場のルリグのレベル合計がちょうど3である間だけパワーを＋5000する条件が欠落している。"
+   },
+   {
+    "effectId": "WX11-033-BURST",
+    "cardNum": "WX11-033",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "レベルの合計が３以下",
+    "claim": "レベル合計3以下になる好きな数ではなく、レベル制限のない相手シグニ1体だけをバニッシュする効果になっている。"
+   },
+   {
+    "effectId": "WXDi-P08-034-E2",
+    "cardNum": "WXDi-P08-034",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DOWN",
+    "quote": "レベルの合計が４以下",
+    "claim": "対象とするシグニのレベル合計を4以下に制限する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK10-066-E2",
+    "cardNum": "WXK10-066",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "レベルの合計が５",
+    "claim": "デッキ下へ置く古代兵器2枚のレベル合計が5である条件がない。"
+   },
+   {
+    "effectId": "WXK07-088-E1",
+    "cardNum": "WXK07-088",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レベルの合計が５の場合",
+    "claim": "自分の場のシグニのレベル合計が5の場合にだけパワーを減らす条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXK10-085-E1",
+    "cardNum": "WXK10-085",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "レベルの合計が６の場合",
+    "claim": "エナチャージ1がレベル合計6の場合に限定されず、JSONでは常に実行される。"
+   },
+   {
+    "effectId": "WXDi-P13-076-E2",
+    "cardNum": "WXDi-P13-076",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レベルの合計が７",
+    "claim": "自分の場のルリグのレベル合計がちょうど7である間だけパワーを＋7000する条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P04-039-E2",
+    "cardNum": "WXDi-P04-039",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "レベルの合計が奇数の場合",
+    "claim": "エナチャージするためのルリグレベル合計が奇数という条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P04-039-E1",
+    "cardNum": "WXDi-P04-039",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "レベルの合計が偶数の場合",
+    "claim": "エナゾーンのシグニを手札に加えるためのルリグレベル合計が偶数という条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK07-053-E1",
+    "cardNum": "WXK07-053",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "レベルの合計と同じ場合",
+    "claim": "自分と対戦相手の場のシグニのレベル合計が同じ場合にのみ引くという条件がない。"
+   },
+   {
+    "effectId": "WDK13-015-E1",
+    "cardNum": "WDK13-015",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レベルの合計以下の場合",
+    "claim": "自分の場のシグニのレベル合計が対戦相手以下の場合にだけパワーを下げる発動条件が欠落している。"
+   },
+   {
+    "effectId": "WXK05-035-E2",
+    "cardNum": "WXK05-035",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "下にレベル１、レベル２、レベル３",
+    "claim": "原文は下にレベル1・2・3のシグニがある場合に任意の相手シグニをバニッシュするが、JSONは条件を欠き、対象をレベル3の相手シグニに限定している。"
+   },
+   {
+    "effectId": "WDK13-014-E2",
+    "cardNum": "WDK13-014",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "対戦相手のレベル３",
+    "claim": "対象が対戦相手のレベル3のシグニに限定されず、所有者を問わない任意の対象になっている。"
+   },
+   {
+    "effectId": "WXK07-082-E1",
+    "cardNum": "WXK07-082",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "無色ではないレベル４",
+    "claim": "対象から無色のシグニを除外する条件がJSONにありません。"
+   }
+  ]
+ },
+ {
+  "axis": "condition",
+  "n": 39,
+  "findings": [
+   {
+    "effectId": "WXK10-041-E3",
+    "cardNum": "WXK10-041",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "《ベリアル》以外",
+    "claim": "【ビート】にするシグニからこのカードと同名のシグニを除外する条件がない。"
+   },
+   {
+    "effectId": "WXK07-028-E1",
+    "cardNum": "WXK07-028",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "【チャーム】が３枚ある場合",
+    "claim": "選択肢③で相手シグニをバニッシュするために必要なチャーム3枚の条件が欠落している。"
+   },
+   {
+    "effectId": "WXK04-025-CB-E2",
+    "cardNum": "WXK04-025-CB",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "５枚以上トラッシュ",
+    "claim": "5枚以上の場合の処理が条件なしになっており、対象も相手のすべてのシグニではなく1体になっている。"
+   },
+   {
+    "effectId": "WX22-Re06-E1",
+    "cardNum": "WX22-Re06",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "９以上の場合",
+    "claim": "ライフクロス1枚をクラッシュする処理にレベル合計9以上の条件がなく、無条件で実行される。"
+   },
+   {
+    "effectId": "WXK04-025-CB-E2",
+    "cardNum": "WXK04-025-CB",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "９枚以上トラッシュ",
+    "claim": "9枚以上の場合に相手の全シグニへ被バニッシュ時能力を付与すべきところ、条件なしで相手のライフクロスを即座に1枚クラッシュしている。"
+   },
+   {
+    "effectId": "WXEX2-19-E1",
+    "cardNum": "WXEX2-19",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE",
+    "quote": "アクセアイコンを持つ",
+    "claim": "トラッシュからエナゾーンに置くシグニのアクセアイコン所持条件が欠落している。"
+   },
+   {
+    "effectId": "WXK03-062-E1",
+    "cardNum": "WXK03-062",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "あなたより２枚以上多い",
+    "claim": "パワー上昇と効果耐性に必要な、対戦相手の手札が自分より2枚以上多いという適用条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P13-067-E1",
+    "cardNum": "WXDi-P13-067",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "カードがある場合",
+    "claim": "選択肢②に必要な、相手の場のシグニに付いたカードまたはシグニの下のカードが存在する条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P11-068-E1",
+    "cardNum": "WXDi-P11-068",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "カードを２枚以上捨てていた場合",
+    "claim": "このターンに自分がカードを2枚以上捨てていた場合にだけパワーを上げる条件が欠落している。"
+   },
+   {
+    "effectId": "WX13-012-E1",
+    "cardNum": "WX13-012",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "クロス条件に含まれるすべて",
+    "claim": "選択肢①が、対象とした自分のシグニのクロス条件に含まれる各シグニを1枚ずつ探す効果ではなく、無条件のシグニ1枚だけを探す効果になっている。"
+   },
+   {
+    "effectId": "PR-205-E1",
+    "cardNum": "PR-205",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "このターンであなたの最初のリフレッシュ",
+    "claim": "そのターン最初のリフレッシュである場合だけバニッシュする条件が欠落しています。"
+   },
+   {
+    "effectId": "WX24-P4-038-sub-E2",
+    "cardNum": "WX24-P4-038",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "このルリグと同じレベル",
+    "claim": "バニッシュする相手シグニに、この能力を得たルリグと同じレベルという条件がない。"
+   },
+   {
+    "effectId": "WXDi-P15-088-E1",
+    "cardNum": "WXDi-P15-088",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "シグニが２体以上バニッシュ",
+    "claim": "JSONにはこのターンに相手のシグニが2体以上バニッシュされていた場合という条件がなく、ターン終了時に無条件でエナチャージする。"
+   },
+   {
+    "effectId": "WXK02-042-E1",
+    "cardNum": "WXK02-042",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "シグニが場から手札に戻っていた",
+    "claim": "このターンにシグニが場から手札に戻っていた場合という条件が欠落している。"
+   },
+   {
+    "effectId": "WXK09-036-E1",
+    "cardNum": "WXK09-036",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "シグニの下にカードがある場合",
+    "claim": "エナチャージ１を行う条件である「自分のシグニの下にカードがある」が欠落しており、無条件で処理される。"
+   },
+   {
+    "effectId": "WXK10-003-E1",
+    "cardNum": "WXK10-003",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "シグニの数が…２体以上少ない",
+    "claim": "選択肢③のバニッシュに必要な、自分の場のシグニが相手より2体以上少ないという条件が欠落している。"
+   },
+   {
+    "effectId": "SP27-010-E1",
+    "cardNum": "SP27-010",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "スペルを使用していた場合",
+    "claim": "選択肢②の追加ドローが、対戦相手のスペル使用条件なしで常に実行される。"
+   },
+   {
+    "effectId": "WX05-023-E3",
+    "cardNum": "WX05-023",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "そうしない場合",
+    "claim": "原文では指定の3枚を下に置けなかった場合だけ自身をトラッシュに置くが、JSONは3枚を置いた場合も無条件で自身をトラッシュに置く。"
+   },
+   {
+    "effectId": "WDK05-T13-E1",
+    "cardNum": "WDK05-T13",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それがシグニの場合",
+    "claim": "公開したカードがシグニである場合だけ場に出す条件がなく、ADD_TO_FIELDが無条件で実行される。"
+   },
+   {
+    "effectId": "WX06-016-BURST",
+    "cardNum": "WX06-016",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEARCH",
+    "quote": "それぞれ同じレベルの",
+    "claim": "探す天使のシグニ2枚が互いに同じレベルであるという条件が欠落している。"
+   },
+   {
+    "effectId": "WX24-P4-003-E1",
+    "cardNum": "WX24-P4-003",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "それと同じパワーのシグニ",
+    "claim": "トラッシュから加えるシグニに、手札へ戻した相手シグニと同じパワーという条件がありません。"
+   },
+   {
+    "effectId": "WX13-005B-E1",
+    "cardNum": "WX13-005B",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "チェックゾーンにスペル",
+    "claim": "対戦相手のチェックゾーンにスペルがある場合だけ発動する条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P12-082-E1",
+    "cardNum": "WXDi-P12-082",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "ディソナのシグニがある場合",
+    "claim": "選択肢①のエナチャージ1に必要な、自分の場にディソナシグニがあるという実行条件が欠落している。"
+   },
+   {
+    "effectId": "WDK05-T14-E1",
+    "cardNum": "WDK05-T14",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "デッキから場に出た場合",
+    "claim": "このシグニがデッキから場に出た場合という発動元の条件が欠落している。"
+   },
+   {
+    "effectId": "WXK01-072-E1",
+    "cardNum": "WXK01-072",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "ドライブ状態のシグニがある場合",
+    "claim": "自分の場にドライブ状態のシグニがある場合というバニッシュ条件がJSONに無く、無条件でバニッシュできる。"
+   },
+   {
+    "effectId": "WX17-046-E2",
+    "cardNum": "WX17-046",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "バニッシュしたシグニと同じパワー",
+    "claim": "追加でバニッシュする対象に、最初にバニッシュしたシグニと同じパワーという条件がない。"
+   },
+   {
+    "effectId": "WX14-025-E2",
+    "cardNum": "WX14-025",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "フレイスロ》を含むシグニが３体",
+    "claim": "相手の全シグニをバニッシュするための、自分の場に「フレイスロ」を含むシグニが3体ある条件が欠落している。"
+   },
+   {
+    "effectId": "WXK10-003-E1",
+    "cardNum": "WXK10-003",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "ライフクロスが…２枚以上少ない",
+    "claim": "選択肢④のライフクロッシュに必要な、自分のライフクロスが相手より2枚以上少ないという条件が欠落している。"
+   },
+   {
+    "effectId": "WX25-P3-109-E1",
+    "cardNum": "WX25-P3-109",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "LOOK_AND_REORDER",
+    "quote": "効果によって…トラッシュに",
+    "claim": "原文は効果によってトラッシュに置かれた場合だけ発動するが、JSONには移動原因を効果に限定する条件がない。"
+   },
+   {
+    "effectId": "WX22-Re06-E1",
+    "cardNum": "WX22-Re06",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "合計が６以上の場合",
+    "claim": "カードを2枚引く処理にレベル合計6以上の条件がなく、無条件で実行される。"
+   },
+   {
+    "effectId": "WX09-Re06-E1",
+    "cardNum": "WX09-Re06",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "LIFE_CRASH",
+    "quote": "最初のリフレッシュである場合",
+    "claim": "ライフクロスのクラッシュが即時実行になっており、このターン最初のリフレッシュ時にだけ発動する遅延条件が欠落している。"
+   },
+   {
+    "effectId": "SPK01-15-E2",
+    "cardNum": "SPK01-15",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "手札があなたより５枚以上多い場合",
+    "claim": "パワーを－10000するための、対戦相手の手札が自分より5枚以上多いという条件が欠落している。"
+   },
+   {
+    "effectId": "WXDi-D05-016-E2",
+    "cardNum": "WXDi-D05-016",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "手札が対戦相手より４枚以上多い場合",
+    "claim": "自分の手札が対戦相手より4枚以上多い場合だけ対象をバニッシュする条件がない。"
+   },
+   {
+    "effectId": "WX14-022-E1",
+    "cardNum": "WX14-022",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "場にシグニがない場合",
+    "claim": "手札のシグニ1枚を場に出す処理に、自分の場にシグニがいない条件がない。"
+   },
+   {
+    "effectId": "WXK08-023-E1",
+    "cardNum": "WXK08-023",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_FIELD_SIGNI_ABILITY",
+    "quote": "登録者数が１００万人",
+    "claim": "耐性を得るための登録者数100万人達成および中央のシグニゾーンにあるという条件が欠落している。"
+   },
+   {
+    "effectId": "WX25-P1-113-E1",
+    "cardNum": "WX25-P1-113",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "同じカード名の",
+    "claim": "選択肢②の対象に、デッキへ移動したシグニと同じカード名という条件がない。"
+   },
+   {
+    "effectId": "WX21-010-E1",
+    "cardNum": "WX21-010",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "同じパワーを持つ",
+    "claim": "対象とする相手シグニ2体が同じパワーを持つという条件がありません。"
+   },
+   {
+    "effectId": "WX13-013-E1",
+    "cardNum": "WX13-013",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "同じパワーを持つシグニ３体",
+    "claim": "対象3体のパワーがすべて同じでなければならない条件が欠落している。"
+   },
+   {
+    "effectId": "WXK11-023-BURST",
+    "cardNum": "WXK11-023",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "同じレベルのシグニ２枚",
+    "claim": "手札に加える2枚のシグニが互いに同じレベルであるという条件がありません。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.状態",
+  "n": 34,
+  "findings": [
+   {
+    "effectId": "WXK04-049-E2",
+    "cardNum": "WXK04-049",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "【アクセ】が付いている",
+    "claim": "JSONでは【アクセ】が付いている条件がなく、自分のすべてのシグニにパワー＋2000を適用している。"
+   },
+   {
+    "effectId": "WXK07-048-E1",
+    "cardNum": "WXK07-048",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "【チャーム】が付いていた場合",
+    "claim": "エナチャージ２を行う条件である、このシグニにチャームが付いていたことの判定がJSONにない。"
+   },
+   {
+    "effectId": "WXK07-082-E1",
+    "cardNum": "WXK07-082",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "【ライフバースト】を持たず",
+    "claim": "対象をライフバーストを持たないシグニに限定する条件がJSONにありません。"
+   },
+   {
+    "effectId": "WXDi-P13-037-E2",
+    "cardNum": "WXDi-P13-037",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "ADD_TO_LIFE",
+    "quote": "【ライフバースト】を持たないカード１枚",
+    "claim": "対象を【ライフバースト】を持たないカードに限定する条件がJSONにありません。"
+   },
+   {
+    "effectId": "WX14-049-E1",
+    "cardNum": "WX14-049",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "＜宇宙＞のレゾナの出現条件",
+    "claim": "発動条件である「＜宇宙＞のレゾナの出現条件によってトラッシュに置かれた」がなく、場からトラッシュに置かれただけで発動する。"
+   },
+   {
+    "effectId": "WX10-066-BURST",
+    "cardNum": "WX10-066",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "②対戦相手のレゾナ１体",
+    "claim": "ライフバーストの選択肢②にレゾナ条件がなく、対戦相手の任意のシグニを対象にできる。"
+   },
+   {
+    "effectId": "PR-380-E1",
+    "cardNum": "PR-380",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "アーツとレゾナをそれぞれ１枚まで",
+    "claim": "ルリグトラッシュからレゾナ1枚までをルリグデッキへ加える処理が欠落しています。"
+   },
+   {
+    "effectId": "WX16-073-E1",
+    "cardNum": "WX16-073",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "アクセされている",
+    "claim": "原文はアクセされている自分のシグニだけを強化するが、JSONはアクセ状態の条件なく自分の全シグニを＋2000する。"
+   },
+   {
+    "effectId": "WXDi-P07-056-E1",
+    "cardNum": "WXDi-P07-056",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "アップ状態であるかぎり",
+    "claim": "パワー＋4000の適用条件であるこのシグニがアップ状態であることが欠落している。"
+   },
+   {
+    "effectId": "WX08-053-E1",
+    "cardNum": "WX08-053",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "アップ状態のレゾナ１体",
+    "claim": "ダウンする対象にレゾナである条件がなく、アップ状態の任意の自分のシグニを選べる。"
+   },
+   {
+    "effectId": "WXEX2-05-E1",
+    "cardNum": "WXEX2-05",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "あなたの＜宇宙＞のレゾナ",
+    "claim": "付与対象が自分の＜宇宙＞のレゾナに限定されず、owner:anyの＜宇宙＞シグニになっている。"
+   },
+   {
+    "effectId": "WX14-CB02-E2",
+    "cardNum": "WX14-CB02",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたのアップ状態の＜アーム＞",
+    "claim": "ダウンする任意コストの対象が自分のアップ状態の＜アーム＞ではなく、対戦相手のアップ状態の＜アーム＞になっている。"
+   },
+   {
+    "effectId": "WX20-081-E1",
+    "cardNum": "WX20-081",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "あなたのレゾナは",
+    "claim": "バニッシュ耐性の対象が自分のすべてのレゾナではなく、レゾナ指定のない自分のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WX25-CP1-082-E1",
+    "cardNum": "WX25-CP1-082",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたの他のアップ状態",
+    "claim": "任意でダウンする対象は自分の他のアップ状態の＜ブルアカ＞シグニだが、JSONでは対戦相手のシグニを対象にしている。"
+   },
+   {
+    "effectId": "WX25-P2-088-E1",
+    "cardNum": "WX25-P2-088",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "ある場合、代わりに",
+    "claim": "凍結状態の相手シグニの有無による置換条件がなく、通常の捨て札と無作為の捨て札を両方連続して行う。"
+   },
+   {
+    "effectId": "WXK02-052-E1",
+    "cardNum": "WXK02-052",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "すでにそれが凍結状態である場合",
+    "claim": "原文は対象がすでに凍結状態なら凍結の代わりに1枚引くが、JSONは凍結状態に関係なく凍結後に必ず1枚引く。"
+   },
+   {
+    "effectId": "WX14-049-E1",
+    "cardNum": "WX14-049",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "そのレゾナは",
+    "claim": "保護対象は出現したそのレゾナ1体だが、JSONでは自分のシグニすべてになっている。"
+   },
+   {
+    "effectId": "PR-387-E1",
+    "cardNum": "PR-387",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "ダウン状態で場に出し",
+    "claim": "サーチしたシグニをダウン状態で場に出す指定がJSONにない。"
+   },
+   {
+    "effectId": "WXK11-028-E1",
+    "cardNum": "WXK11-028",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "ダウン状態で場に出す",
+    "claim": "白のシグニを場に出す場合にダウン状態で出す指定がありません。"
+   },
+   {
+    "effectId": "WXEX1-48-E2",
+    "cardNum": "WXEX1-48",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "ダウン状態のシグニが１体の場合",
+    "claim": "自分の場のダウン状態のシグニがちょうど1体であることが発動条件だが、JSONでは対象となる相手シグニ自身がダウン状態であることを要求している。"
+   },
+   {
+    "effectId": "WX15-038-E2",
+    "cardNum": "WX15-038",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "テキソスにアクセされている",
+    "claim": "《コードイート　テキソス》にアクセされている間だけ適用する条件が欠落し、パワー増加と耐性が無条件で適用される。"
+   },
+   {
+    "effectId": "WXDi-P04-026-E1",
+    "cardNum": "WXDi-P04-026",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_LIFE",
+    "quote": "トラッシュから【ライフバースト】を持たない",
+    "claim": "原文はトラッシュのライフバーストを持たないカードを対象にするが、JSONは対象元とフィルターを欠き、デッキ上からライフクロスに加える処理になっている。"
+   },
+   {
+    "effectId": "WX25-P2-052-E2",
+    "cardNum": "WX25-P2-052",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "レゾナとしても扱う",
+    "claim": "次の対戦相手のターン終了時まで、このシグニを効果で参照する際にレゾナとしても扱う能力を得る処理がありません。"
+   },
+   {
+    "effectId": "WX25-P1-051-E2",
+    "cardNum": "WX25-P1-051",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "感染状態のシグニ１体",
+    "claim": "能力を失わせる対象に感染状態であるという条件がない。"
+   },
+   {
+    "effectId": "WX13-052-E1",
+    "cardNum": "WX13-052",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "公開したシグニをダウン状態で場に出す",
+    "claim": "自身を任意でバニッシュした後、公開した＜遊具＞のシグニをダウン状態で場に出す処理がありません。"
+   },
+   {
+    "effectId": "WD21-017-E1",
+    "cardNum": "WD21-017",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "効果かレゾナの出現条件によって",
+    "claim": "移動原因を効果またはレゾナの出現条件に限定する発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX24-P3-048-E1",
+    "cardNum": "WX24-P3-048",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "好きな数ダウンする",
+    "claim": "原文はアップ状態の白のシグニを任意の数ダウンするが、JSONでは必ず1体だけダウンする。"
+   },
+   {
+    "effectId": "WXK05-052-E1",
+    "cardNum": "WXK05-052",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "次のターンの間、それらは",
+    "claim": "原文は同じゾーンに【シード】がある場合に相手のシグニ2体までへ次のターン中のアタック禁止を与えるが、JSONは自分のシグニ1体へ【シード】を永続付与する別の効果になっている。"
+   },
+   {
+    "effectId": "WX10-066-E1",
+    "cardNum": "WX10-066",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BANISH",
+    "quote": "対戦相手のレゾナ１体",
+    "claim": "バニッシュ対象のレゾナ条件がなく、対戦相手の任意のシグニを対象にできる。"
+   },
+   {
+    "effectId": "WXEX2-28-E1",
+    "cardNum": "WXEX2-28",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "代わりにアップ状態のこのシグニをダウン",
+    "claim": "原文は自分の＜ウェポン＞が相手効果で場を離れる際にこのシグニ自身をダウンする置換効果だが、JSONは相手のアップ状態の＜ウェポン＞をダウンする効果になっている。"
+   },
+   {
+    "effectId": "WXK02-086-E1",
+    "cardNum": "WXK02-086",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "凍結状態のシグニがある場合",
+    "claim": "対戦相手の場に凍結状態のシグニがある場合に限る発動条件がJSONにない。"
+   },
+   {
+    "effectId": "WXK05-053-E1-G",
+    "cardNum": "WXK05-053",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "同じシグニゾーンに【シード】",
+    "claim": "付与される自動能力のエナチャージ条件である、同じシグニゾーンに【シード】があることがJSONにないため、アタック時に無条件でエナチャージする。"
+   },
+   {
+    "effectId": "WX19-022-E1",
+    "cardNum": "WX19-022",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "能力を持たない",
+    "claim": "デッキの一番下に置く対象に「能力を持たないシグニ」という条件が欠落している。"
+   },
+   {
+    "effectId": "WX05-019-E2",
+    "cardNum": "WX05-019",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "能力を持たないシグニが２体以上",
+    "claim": "パワー＋3000の適用条件である、相手の能力を持たないシグニが2体以上という条件がJSONにない。"
+   }
+  ]
+ },
+ {
+  "axis": "cost",
+  "n": 26,
+  "findings": [
+   {
+    "effectId": "WX25-P1-022-E2",
+    "cardNum": "WX25-P1-022",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "PLAY_FREE",
+    "quote": "（コストは支払う）",
+    "claim": "原文では使用コストを支払う必要がありますが、JSONはignoreCost:trueでコストを無視します。"
+   },
+   {
+    "effectId": "WX21-031-CB-E1",
+    "cardNum": "WX21-031-CB",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "《究極　ニパ子》を１枚捨てる",
+    "claim": "手札から《究極　ニパ子》1枚を捨てる起動コストがありません。"
+   },
+   {
+    "effectId": "WX10-096-E1",
+    "cardNum": "WX10-096",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "【チャーム】１枚をトラッシュ",
+    "claim": "トラッシュからこのカードを回収する起動能力のコストである、自分の場のチャーム1枚をトラッシュに置く処理が表現されていない。"
+   },
+   {
+    "effectId": "WXDi-P11-051-E2",
+    "cardNum": "WXDi-P11-051",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "ウムル//メモリア》１体を場からトラッシュ",
+    "claim": "起動コストに必要な《融合の儀　ウムル//メモリア》1体を場からトラッシュに置く処理が欠落している。"
+   },
+   {
+    "effectId": "WX08-042-E1",
+    "cardNum": "WX08-042",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "COST_SUBSTITUTE",
+    "quote": "エナゾーンからこのシグニをトラッシュ",
+    "claim": "白1の代替コストはエナゾーンのこのシグニをトラッシュに置く処理だが、JSONは自身をバニッシュする処理になっている。"
+   },
+   {
+    "effectId": "WX21-044-E1",
+    "cardNum": "WX21-044",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "COST_SUBSTITUTE",
+    "quote": "エナゾーンからこのシグニをトラッシュに置いて",
+    "claim": "緑コストの代替はエナゾーンにあるこのカードをトラッシュへ置く処理だが、JSONでは自身をバニッシュするコストになっている。"
+   },
+   {
+    "effectId": "WX18-062-E1",
+    "cardNum": "WX18-062",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "コストか効果によって",
+    "claim": "JSONはシグニの下からトラッシュに置かれたことだけを条件とし、コストまたは効果によって置かれた場合という原因条件が欠落している。"
+   },
+   {
+    "effectId": "WX18-036-E3",
+    "cardNum": "WX18-036",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "このカードを手札から公開し",
+    "claim": "原文は手札のこのカード自身を公開してそのまま場に出す効果だが、JSONでは公開コストがなく、手札の任意のシグニを場に出せる。"
+   },
+   {
+    "effectId": "WXDi-P11-003-E1",
+    "cardNum": "WXDi-P11-003",
+    "severity": "MED",
+    "type": "EXTRA",
+    "actionType": "SEQUENCE",
+    "quote": "このゲームの間",
+    "claim": "原文にない無色1エナの使用コストがJSONに追加されている。"
+   },
+   {
+    "effectId": "WXDi-P07-046-E3",
+    "cardNum": "WXDi-P07-046",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "このシグニのパワーを－10000する",
+    "claim": "起動コストでこのシグニのパワーをターン終了時まで－10000する処理が欠落している。"
+   },
+   {
+    "effectId": "WXK08-046-E1",
+    "cardNum": "WXK08-046",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "このシグニを【ビート】にする",
+    "claim": "原文ではこのシグニ自身を【ビート】にするコストだが、JSONのbeat_signiは対象を自身に限定していない。"
+   },
+   {
+    "effectId": "WX21-031-CB-E2",
+    "cardNum": "WX21-031-CB",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "DOWN",
+    "quote": "このシグニを場から手札に戻す",
+    "claim": "このシグニを場から手札に戻す起動コストがありません。"
+   },
+   {
+    "effectId": "WXK08-043-E1",
+    "cardNum": "WXK08-043",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "サマエル》以外のシグニ",
+    "claim": "【ビート】にするコスト対象から同名カードを除外する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P10-007-E2",
+    "cardNum": "WXDi-P10-007",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "シグニ１枚とスペル１枚を捨てる",
+    "claim": "起動コストで手札のシグニ1枚とスペル1枚を捨てる処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-D08-004-E1",
+    "cardNum": "WXDi-D08-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "シグニ２体をダウンし《白》《無》を支払ってもよい",
+    "claim": "シグニ2体のダウンと《白》《無》の支払いは一体の任意コストだが、JSONはエナコストを欠落させたうえでシグニのダウンを強制実行する。"
+   },
+   {
+    "effectId": "WX25-CP1-016-E1",
+    "cardNum": "WX25-CP1-016",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "DRAW",
+    "quote": "シグニかスペルの、コストか効果によって",
+    "claim": "ドローの誘発条件に「シグニかスペルのコストまたは効果による捨て札」という原因の限定がなく、他の原因で手札を捨てた場合にも誘発する。"
+   },
+   {
+    "effectId": "WX05-016-E1",
+    "cardNum": "WX05-016",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "FORCE_END_TURN",
+    "quote": "すべてが支払われている場合",
+    "claim": "原文では5色の支払いはターン終了効果の条件だが、JSONでは能力の必須コストとなり、条件を満たさない使用自体ができない。"
+   },
+   {
+    "effectId": "WX24-P4-040-E2",
+    "cardNum": "WX24-P4-040",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "そのカードがコストの合計が１以下",
+    "claim": "捨てさせたカードがコスト合計1以下のスペルであるという条件と、その同じカードを使用する対応関係がなく、相手のトラッシュにある任意のスペルを使用できる。"
+   },
+   {
+    "effectId": "WX21-046-E1",
+    "cardNum": "WX21-046",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それぞれコストの合計が異なるスペル３枚",
+    "claim": "トラッシュからデッキへ戻す3枚にスペル指定と各カードのコスト合計が互いに異なる条件がなく、任意のカード3枚を戻せる。"
+   },
+   {
+    "effectId": "WXDi-P13-089-E3",
+    "cardNum": "WXDi-P13-089",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "EXILE",
+    "quote": "手札とエナゾーンとトラッシュ",
+    "claim": "起動コストは手札・エナゾーン・トラッシュから同名カードを各1枚除外する必要があるが、JSONにはトラッシュから1枚除外するコストしかない。"
+   },
+   {
+    "effectId": "WXDi-P12-031-E2",
+    "cardNum": "WXDi-P12-031",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "手札とエナゾーンにあるすべて",
+    "claim": "手札とエナゾーンの全カードをトラッシュに置くコストと、6枚以上置かれた場合だけバニッシュする条件が表現されていない。"
+   },
+   {
+    "effectId": "WXK08-027-E2",
+    "cardNum": "WXK08-027",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "手札を１枚捨て、他のシグニ１体",
+    "claim": "起動コストのうち手札1枚を捨てる処理と、他の自分のシグニ1体を場からトラッシュに置く処理が欠落している。"
+   },
+   {
+    "effectId": "PR-K056-E1",
+    "cardNum": "PR-K056",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "選んだ数だけ《青×1》増える",
+    "claim": "使用コストが選択数に応じて青1ずつ増える効果ではなく、選択数にかかわらず青1の固定コストになっている。"
+   },
+   {
+    "effectId": "WDK05-T12-E1",
+    "cardNum": "WDK05-T12",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "他のシグニ１体を場から",
+    "claim": "能力コストで他のシグニ1体を場からデッキの一番上に置く処理が欠落している。"
+   },
+   {
+    "effectId": "WX05-046-E1",
+    "cardNum": "WX05-046",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "配置し直してもよい",
+    "claim": "相手のシグニの再配置だけが任意ですが、JSONでは再配置アクションに任意指定がなく、コストを払った後は強制処理になります。"
+   },
+   {
+    "effectId": null,
+    "cardNum": "PR-K048",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "(none)",
+    "quote": "白か赤か青でしか支払えない",
+    "claim": "このキーを場に出す無色コストを白・赤・青でのみ支払えるという制限がJSONにない。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.cardName",
+  "n": 23,
+  "findings": [
+   {
+    "effectId": "WX20-063-E3",
+    "cardNum": "WX20-063",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "《Ne》を含むシグニ１体と",
+    "claim": "このシグニに加えて、カード名に《Ne》を含む自分のシグニ1体をバニッシュする処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P08-074-E1",
+    "cardNum": "WXDi-P08-074",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "《コードラビリンス　アト",
+    "claim": "選択肢②で場に出せるカードが指定された3種類に限定されず、任意のシグニになっている。"
+   },
+   {
+    "effectId": "WX20-050-E1",
+    "cardNum": "WX20-050",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "《ニャローブ》を含むシグニ",
+    "claim": "バニッシュ対象をカード名に《ニャローブ》を含む自分のシグニに限定するフィルターがない。"
+   },
+   {
+    "effectId": "WX26-CP1-073-E1",
+    "cardNum": "WX26-CP1-073",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "《プリンセス・ジール",
+    "claim": "トラッシュから場に出す対象のカード名指定が欠落し、任意のシグニを選べる効果になっている。"
+   },
+   {
+    "effectId": "WX26-CP1-089-E1",
+    "cardNum": "WX26-CP1-089",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "《プリンセス・ミーティア",
+    "claim": "トラッシュから場に出す対象のカード名指定が欠落しており、任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WX26-CP1-081-E1",
+    "cardNum": "WX26-CP1-081",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "《プリンセス・リップル",
+    "claim": "トラッシュから場に出す対象のカード名指定が欠落しており、任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WXEX1-60-E2",
+    "cardNum": "WXEX1-60",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "《フレイスロ》を含むシグニ",
+    "claim": "トラッシュからデッキに加える対象にカード名「フレイスロ」の条件がなく、任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WX20-074-E2",
+    "cardNum": "WX20-074",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "《ルシファル》を含むシグニがある場合",
+    "claim": "自分の場かトラッシュに《ルシファル》を含むシグニがある場合にのみパワーを－7000する条件が欠落している。"
+   },
+   {
+    "effectId": "WX26-CP1-097-E1",
+    "cardNum": "WX26-CP1-097",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "《花の騎士シンシア》１枚",
+    "claim": "トラッシュから場に出す対象のカード名指定が欠落しており、任意のシグニを選べる。"
+   },
+   {
+    "effectId": "WX26-CP1-065-E1",
+    "cardNum": "WX26-CP1-065",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "《花の騎士ピュリティ》",
+    "claim": "トラッシュから場に出す対象のカード名指定が欠落し、任意のシグニを選べる効果になっている。"
+   },
+   {
+    "effectId": "WX13-062-E1",
+    "cardNum": "WX13-062",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BOUNCE",
+    "quote": "《弓》を含むシグニが３体ある場合",
+    "claim": "自分の場にカード名が《弓》を含むシグニが3体ある場合に限る発動条件がなく、無条件でバウンスします。"
+   },
+   {
+    "effectId": "WX20-062-E1",
+    "cardNum": "WX20-062",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "《超罠ハニトラ》１体を対象",
+    "claim": "トラップ能力の対象が《超罠ハニトラ》に限定されず、通常の出現時能力の対象として任意の自分のシグニになっている。"
+   },
+   {
+    "effectId": "WDK16-06T-E1",
+    "cardNum": "WDK16-06T",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_FIELD_SIGNI_ABILITY",
+    "quote": "《美兎》を含むセンタールリグ",
+    "claim": "能力を得る条件である、場にカード名に《美兎》を含むセンタールリグがいることがJSONにない。"
+   },
+   {
+    "effectId": "WDK16-06S-E1",
+    "cardNum": "WDK16-06S",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CONDITIONAL",
+    "quote": "《凛》を含むセンタールリグ",
+    "claim": "この出現時能力の発動条件である、場にカード名に《凛》を含むセンタールリグがいることがJSONにない。"
+   },
+   {
+    "effectId": "WX10-053-E1",
+    "cardNum": "WX10-053",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "１体につき《無×2》減る",
+    "claim": "使用コスト軽減に、自分の場の《サーバント》を含むシグニの数を参照して1体につき無色2を減らす条件がありません。"
+   },
+   {
+    "effectId": "WX14-CB02-E1",
+    "cardNum": "WX14-CB02",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_PROTECTION",
+    "quote": "あなたの《燦》は",
+    "claim": "バニッシュ耐性の対象を《燦》に限定するカード名条件がなく、自分の任意のシグニが対象になっている。"
+   },
+   {
+    "effectId": "WX25-CP1-066-E2",
+    "cardNum": "WX25-CP1-066",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "あなたの《雷ちゃん》１体",
+    "claim": "強化対象が自分の《雷ちゃん》に限定されず、所有者を問わないシグニ1体になっている。"
+   },
+   {
+    "effectId": "WX09-034-E2",
+    "cardNum": "WX09-034",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "あなたのトラッシュに",
+    "claim": "トラッシュに《パルテノ》か《パルべック》を含むシグニがある間だけ＋5000する条件が欠落し、常に強化される。"
+   },
+   {
+    "effectId": "WX09-034-E1",
+    "cardNum": "WX09-034",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "あなたの場にカード名に",
+    "claim": "場に《パルテノ》か《パルべック》を含むシグニがある間だけ＋5000する条件が欠落し、常に強化される。"
+   },
+   {
+    "effectId": "WXK05-046-E1",
+    "cardNum": "WXK05-046",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "イゾウ１枚につき－1000",
+    "claim": "原文はトラッシュの《幕末の人斬り　イゾウ》だけを数えるが、JSONにはカード名による集計条件がなく、トラッシュの全カードを数える表現になっている。"
+   },
+   {
+    "effectId": "WX09-015-E1",
+    "cardNum": "WX09-015",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "カード名に《剣》を含む",
+    "claim": "バニッシュする自分のアップ状態のシグニに必要なカード名《剣》の条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P09-055-E1",
+    "cardNum": "WXDi-P09-055",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それが《コードハート",
+    "claim": "覚醒処理に指定された3種類のカード名である条件がなく、対象とした任意のシグニが覚醒する。"
+   },
+   {
+    "effectId": "WX14-058-E1",
+    "cardNum": "WX14-058",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_SET",
+    "quote": "レベル３以上の《フレイスロ》",
+    "claim": "基本パワーを10000にする条件である、自分の場にレベル3以上のカード名に《フレイスロ》を含むシグニがあることがJSONにない。"
+   }
+  ]
+ },
+ {
+  "axis": "action丸ごと欠落",
+  "n": 22,
+  "findings": [
+   {
+    "effectId": "WXK04-059-E1",
+    "cardNum": "WXK04-059",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "＜水獣＞のシグニ１枚を手札に加え",
+    "claim": "自分のトラッシュから＜水獣＞のシグニ1枚を手札に加える処理がJSONにない。"
+   },
+   {
+    "effectId": "WX09-021-BURST",
+    "cardNum": "WX09-021",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "＜毒牙＞のシグニ１枚を手札に加え",
+    "claim": "自分のトラッシュから＜毒牙＞のシグニ1枚を手札に加える処理がJSONにない。"
+   },
+   {
+    "effectId": "WXK06-030-E1",
+    "cardNum": "WXK06-030",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "８枚トラッシュに置かれるまで",
+    "claim": "デッキの上から＜龍獣＞のシグニが8枚置かれるまでカードをトラッシュに置く処理がJSONにない。"
+   },
+   {
+    "effectId": "WX15-097-E1",
+    "cardNum": "WX15-097",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "アクセを持つカード１枚",
+    "claim": "起動コストでエナゾーンからアクセアイコンを持つカード1枚をトラッシュに置く処理がJSONにない。"
+   },
+   {
+    "effectId": "SPDi43-24-E1",
+    "cardNum": "SPDi43-24",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "アップ状態の青のシグニを２体までダウン",
+    "claim": "選択肢を選ぶ前にアップ状態の青のシグニを2体までダウンする処理がJSONにない。"
+   },
+   {
+    "effectId": "WX22-001-E2",
+    "cardNum": "WX22-001",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "あなたの＜遊具＞のシグニ１体を",
+    "claim": "パワー減少の条件として自分の＜遊具＞シグニ1体を場からトラッシュに置く処理がJSONにない。"
+   },
+   {
+    "effectId": "WXK04-025-CB-E2",
+    "cardNum": "WXK04-025-CB",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンにあるすべて",
+    "claim": "起動コストで自分のエナゾーンにあるすべてのカードをトラッシュに置く処理がない。"
+   },
+   {
+    "effectId": "WXDi-P10-063-E1",
+    "cardNum": "WXDi-P10-063",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "エルドラ//メモリア》１体の下",
+    "claim": "解決後にこのスペルを指定されたシグニの下へ任意で置く処理がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-CP02-100-E1",
+    "cardNum": "WXDi-CP02-100",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "カード１枚をデッキの一番下に",
+    "claim": "トラッシュの＜ブルアカ＞のカード1枚をデッキの一番下に置く発動コストがJSONに実装されていない。"
+   },
+   {
+    "effectId": "WXDi-P16-094-E1",
+    "cardNum": "WXDi-P16-094",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "カードを２枚までエナゾーン",
+    "claim": "選択肢②に、見た5枚から2枚までをエナゾーンに置く処理がない。"
+   },
+   {
+    "effectId": "WXDi-CP02-001-E1",
+    "cardNum": "WXDi-CP02-001",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "カードを合計４枚",
+    "claim": "ルリグの下から合計4枚を任意でルリグトラッシュに置き、支払った場合に生徒1人との絆を得る後続処理がJSONにない。"
+   },
+   {
+    "effectId": "WX09-Re05-E1",
+    "cardNum": "WX09-Re05",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "カットインされたスペルは",
+    "claim": "この効果にカットインされたスペルをコスト増加の対象外にする処理がない。"
+   },
+   {
+    "effectId": "WX21-Re19-E2",
+    "cardNum": "WX21-Re19",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "このシグニを場からトラッシュに",
+    "claim": "任意でこのシグニを場からトラッシュに置き、置いた場合にだけ能力を付与する処理がJSONにない。"
+   },
+   {
+    "effectId": "WX14-062-E1",
+    "cardNum": "WX14-062",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "シグニ１枚とスペル１枚",
+    "claim": "デッキからスペル1枚を探して公開し手札に加える処理がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P03-019-E1",
+    "cardNum": "WXDi-P03-019",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "すべてのシグニを場からトラッシュに置き",
+    "claim": "発動コストである場の全シグニ、手札とエナゾーンの全カードをトラッシュに置く処理が実装されていない。"
+   },
+   {
+    "effectId": "WX05-023-BURST",
+    "cardNum": "WX05-023",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_HAND",
+    "quote": "スペル１枚と＜原子＞",
+    "claim": "原文はトラッシュからスペル1枚と原子のシグニ1枚の両方を手札に加えるが、JSONにはスペルを加える処理がない。"
+   },
+   {
+    "effectId": "WXDi-P11-078-E2",
+    "cardNum": "WXDi-P11-078",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ADD_TO_FIELD",
+    "quote": "タウィル//メモリア》１体",
+    "claim": "起動コストにタウィル1体を場からトラッシュに置く処理がない。"
+   },
+   {
+    "effectId": "WXDi-P06-038-E2",
+    "cardNum": "WXDi-P06-038",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "パワーを＋2000し",
+    "claim": "次の対戦相手のターン終了時までこのシグニのパワーを＋2000する処理がJSONにない。"
+   },
+   {
+    "effectId": "WXK03-070-E1",
+    "cardNum": "WXK03-070",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "モモイヌ》１枚と《幻怪",
+    "claim": "エナゾーンから指定されたモモイヌ、モモザル、モモキジを各1枚トラッシュに置く発動コストがJSONに実装されていない。"
+   },
+   {
+    "effectId": "WXDi-P03-004-E1",
+    "cardNum": "WXDi-P03-004",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "一番上を見て",
+    "claim": "選択肢を選ぶ前に自分のライフクロスの一番上を見る処理がない。"
+   },
+   {
+    "effectId": "WXDi-CP02-005-E1",
+    "cardNum": "WXDi-CP02-005",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "公開した生徒との絆を獲得",
+    "claim": "公開して手札に加えた生徒との絆を獲得する処理がJSONにない。"
+   },
+   {
+    "effectId": "WX21-045-E2",
+    "cardNum": "WX21-045",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_MODIFY",
+    "quote": "手札を１枚捨て",
+    "claim": "対戦相手が手札を1枚捨て、さらにデッキ上から3枚をトラッシュに置く処理が丸ごと欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "順序/構造",
+  "n": 17,
+  "findings": [
+   {
+    "effectId": "WXDi-P12-081-E1",
+    "cardNum": "WXDi-P12-081",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "15000の場合、代わりに",
+    "claim": "原文は通常エナチャージ1、パワー15000なら代わりに2だが、JSONは条件なしで1と2を連続実行して合計3枚をチャージする。"
+   },
+   {
+    "effectId": "WX14-057-E1",
+    "cardNum": "WX14-057",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CONDITIONAL",
+    "quote": "１体を対象とし、",
+    "claim": "原文は条件判定前に対象を選ぶが、JSONは条件成立後に対象を選ぶ処理になっている。"
+   },
+   {
+    "effectId": "WXDi-P09-074-E1",
+    "cardNum": "WXDi-P09-074",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "５枚以上ある場合、代わりに",
+    "claim": "手札が5枚以上なら＋3000の代わりに＋5000する効果だが、JSONは条件なしで＋3000と＋5000を両方実行し、後者の対象も自分の同じシグニに限定していない。"
+   },
+   {
+    "effectId": "WD06-009-E2",
+    "cardNum": "WD06-009",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンに置かれる場合",
+    "claim": "デッキ上からライフクロスを加える処理は置換が成立した場合だけ行うが、JSONではクラッシュ後に無条件で行われる。"
+   },
+   {
+    "effectId": "WX20-043-E1",
+    "cardNum": "WX20-043",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "エナゾーンに置かれる場合、代わりに",
+    "claim": "原文はクラッシュしたカードがエナゾーンへ置かれる場合にだけ、それをトラッシュへ置く置換処理とライフ追加を行うが、JSONでは置換処理がなく、条件やクラッシュの成否にかかわらずデッキ上をライフクロスに加える。"
+   },
+   {
+    "effectId": "WXK02-070-E1",
+    "cardNum": "WXK02-070",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "シャッフルし、そのシグニを",
+    "claim": "原文はデッキをシャッフルしてから選んだシグニを一番上に置くが、JSONはシグニを一番上に置いた後でafterSearchのシャッフルを行う順序になっている。"
+   },
+   {
+    "effectId": "WX13-005B-E1",
+    "cardNum": "WX13-005B",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "CHOOSE",
+    "quote": "スペルの効果より先に",
+    "claim": "チェックゾーンのスペルより先にこの出能力を発動する処理順序が表現されていない。"
+   },
+   {
+    "effectId": "WX12-004-E1",
+    "cardNum": "WX12-004",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それをバニッシュする",
+    "claim": "原文では先に対象としたシグニをバニッシュするが、JSONはライフクロスのクラッシュ後に改めて対象を選ぶため、対象の固定が表現されていない。"
+   },
+   {
+    "effectId": "WXK03-049-E1",
+    "cardNum": "WXK03-049",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEARCH",
+    "quote": "デッキをシャッフルし、そのシグニを",
+    "claim": "原文はデッキをシャッフルしてからサーチしたシグニを一番目か二番目に置くが、JSONはシグニを置いた後にafterSearchでデッキをシャッフルする順序になっている。"
+   },
+   {
+    "effectId": "WX11-002-E3",
+    "cardNum": "WX11-002",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "デッキをシャッフルする",
+    "claim": "対象をデッキに戻した後に対戦相手のデッキをシャッフルする処理がなく、shuffleもfalseになっている。"
+   },
+   {
+    "effectId": "WX06-013-E1",
+    "cardNum": "WX06-013",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "REVEAL_AND_PICK",
+    "quote": "一番上か一番下に置く",
+    "claim": "残りのカードを好きな順番でデッキの一番上または一番下に置く選択が、すべて一番上に置く処理になっている。"
+   },
+   {
+    "effectId": "WX25-P2-054-E1",
+    "cardNum": "WX25-P2-054",
+    "severity": "HIGH",
+    "type": "EXTRA",
+    "actionType": "SEQUENCE",
+    "quote": "覚醒状態の場合、代わりに",
+    "claim": "覚醒状態の判定と「代わりに」の分岐がなく、通常の5000以下バニッシュに加えて13000以下のシグニも常にバニッシュします。"
+   },
+   {
+    "effectId": "WXDi-P01-044-E2",
+    "cardNum": "WXDi-P01-044",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "代わりに…－10000する",
+    "claim": "トラッシュ20枚以上の場合は－5000の代わりに－10000する効果だが、JSONは－5000の後に－10000を追加して合計－15000にしている。"
+   },
+   {
+    "effectId": "WX25-P3-105-E1",
+    "cardNum": "WX25-P3-105",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "代わりに…－12000する",
+    "claim": "原文は条件成立時に同じ対象への－10000を－12000へ置換するが、JSONは－10000の後に任意の対象へ－12000を追加し、合計値と対象が異なる。"
+   },
+   {
+    "effectId": "SP27-012-E1",
+    "cardNum": "SP27-012",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "代わりにカードを２枚引く",
+    "claim": "天使の色に関する各条件と置換処理がなく、アタック時に無条件で合計3枚引く効果になっている。"
+   },
+   {
+    "effectId": "WD06-009-E2",
+    "cardNum": "WD06-009",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "代わりにそれをトラッシュへ置き",
+    "claim": "クラッシュしたカードをエナゾーンに置く代わりにトラッシュへ置く置換処理がなく、JSONは単にライフクロスをクラッシュして補充している。"
+   },
+   {
+    "effectId": "WXDi-P09-002-E1",
+    "cardNum": "WXDi-P09-002",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "置く順番は対戦相手が決める",
+    "claim": "複数のシグニをデッキ上に置く順番を対戦相手が決める指定がJSONにない。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.power",
+  "n": 16,
+  "findings": [
+   {
+    "effectId": "WXK04-025-CB-E2",
+    "cardNum": "WXK04-025-CB",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "１枚以上トラッシュ",
+    "claim": "対象1体の基本パワーを1にする処理が、エナを1枚以上トラッシュに置いた場合という条件なしで実行される。"
+   },
+   {
+    "effectId": "WXDi-P06-035-E2",
+    "cardNum": "WXDi-P06-035",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "３枚以上捨てた場合、代わりに",
+    "claim": "JSONでは2枚以上ならパワー10000以下をバニッシュした後さらに無条件で1体をバニッシュし、捨てた枚数による排他的な効果選択になっていない。"
+   },
+   {
+    "effectId": "WXEX2-62-E1",
+    "cardNum": "WXEX2-62",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "７以上の場合",
+    "claim": "パワー7000以下の相手シグニをバニッシュする処理が、落としたシグニのレベル合計7以上という条件なしで常に実行されます。"
+   },
+   {
+    "effectId": "WX06-022-E1",
+    "cardNum": "WX06-022",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "センタールリグが白で",
+    "claim": "基本パワー変更とバニッシュ耐性を得る条件である「センタールリグが白」かつ「自身が中央のシグニゾーンにある」がJSONにないため、効果が無条件で適用される。"
+   },
+   {
+    "effectId": "WX11-046-E2",
+    "cardNum": "WX11-046",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "それのパワー以下",
+    "claim": "2体目のバニッシュ対象を、先にバニッシュした自分のシグニのパワー以下に限定する条件が欠落している。"
+   },
+   {
+    "effectId": "WX09-Re18-E1",
+    "cardNum": "WX09-Re18",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "パワー10000以上のシグニ",
+    "claim": "選択肢①のサーチ対象にパワー10000以上という条件がなく、任意のシグニを探せる。"
+   },
+   {
+    "effectId": "WX25-P3-051-E1",
+    "cardNum": "WX25-P3-051",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "PREVENT_NEXT_DAMAGE",
+    "quote": "パワー15000以下",
+    "claim": "原文はこのターン中にパワー15000以下の相手シグニから受けるすべてのダメージを防ぐが、JSONは発生源やパワーを問わず次のダメージ1回だけを防ぐ。"
+   },
+   {
+    "effectId": "WX16-024-LAYER-E1",
+    "cardNum": "WX16-024",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "パワー15000以上のシグニ",
+    "claim": "効果元である相手シグニのパワーが15000以上という条件を、JSONは保護される自分のシグニ側のパワー条件として設定している。"
+   },
+   {
+    "effectId": "WX20-039-CB-E1",
+    "cardNum": "WX20-039-CB",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "パワー5000以下のシグニ１体",
+    "claim": "バニッシュ対象を対戦相手のパワー5000以下のシグニに限定する条件が欠落している。"
+   },
+   {
+    "effectId": "WXK10-066-E2",
+    "cardNum": "WXK10-066",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "パワー8000以下",
+    "claim": "パワー8000以下の条件がバニッシュ対象ではなく、トラッシュからデッキ下へ戻すシグニに誤って付いている。"
+   },
+   {
+    "effectId": "WXDi-CP02-035-E1",
+    "cardNum": "WXDi-CP02-035",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "パワーが15000以上の場合",
+    "claim": "手札を捨てさせる条件である移動対象のパワー15000以上判定がなく、JSONではパワーにかかわらず捨てさせる。"
+   },
+   {
+    "effectId": "WX09-Re07-E1",
+    "cardNum": "WX09-Re07",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEARCH",
+    "quote": "基本パワーは10000になり",
+    "claim": "条件成立中にこのシグニの基本パワーを10000にする効果が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P04-079-E1",
+    "cardNum": "WXDi-P04-079",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "基本パワーを10000にする",
+    "claim": "対戦相手のすべてのシグニの基本パワーをターン終了時まで10000にする処理が欠落している。"
+   },
+   {
+    "effectId": "WX06-CB02-E1",
+    "cardNum": "WX06-CB02",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "POWER_SET",
+    "quote": "手札が０枚であるかぎり",
+    "claim": "基本パワーを10000にする条件である「対戦相手の手札が0枚」がJSONに無く、常に適用される効果になっている。"
+   },
+   {
+    "effectId": "WXK02-051-E1",
+    "cardNum": "WXK02-051",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "場に出したシグニのパワー以下",
+    "claim": "バニッシュ対象を、この効果で場に出したシグニのパワー以下に限定する条件がない。"
+   },
+   {
+    "effectId": "WDK06-R01-E2",
+    "cardNum": "WDK06-R01",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "場に出たシグニのパワー以下",
+    "claim": "バニッシュ対象に、この方法で場に出したシグニのパワー以下という条件が欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "duration",
+  "n": 11,
+  "findings": [
+   {
+    "effectId": "WXDi-P02-055-E1",
+    "cardNum": "WXDi-P02-055",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "アタックできない。",
+    "claim": "対象に次の対戦相手のターン終了時までアタックできない能力を与える処理が欠落している。"
+   },
+   {
+    "effectId": "SP38-008-E1",
+    "cardNum": "SP38-008",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "グロウフェイズをスキップ",
+    "claim": "恒常的にグロウフェイズをスキップする効果なのに、GROW禁止の有効期限がターン終了時までになっている。"
+   },
+   {
+    "effectId": "WX04-016-E1",
+    "cardNum": "WX04-016",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "グロウフェイズをスキップする",
+    "claim": "原文は継続的にグロウフェイズをスキップさせるが、JSON内のブロック期限がターン終了時までになっている。"
+   },
+   {
+    "effectId": "WXDi-P11-003-E1",
+    "cardNum": "WXDi-P11-003",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "このゲームの間、あなたは以下",
+    "claim": "原文はゲーム中持続する自動能力の付与だが、JSONは使用時に選択肢を即時実行している。"
+   },
+   {
+    "effectId": "WDK07-Y08-E1",
+    "cardNum": "WDK07-Y08",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "シグニ１体は「【常】",
+    "claim": "対戦相手のシグニ1体にターン終了時まで「アタックできない」を与える処理が欠落している。"
+   },
+   {
+    "effectId": "WX15-002-sub-E1",
+    "cardNum": "WX15-002",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "そのアタックで",
+    "claim": "原文は宣言が外れた当該アタックのダメージだけを防ぐが、JSONはターン終了時まで全ダメージを防ぐ。"
+   },
+   {
+    "effectId": "WDK08-Y17-E1",
+    "cardNum": "WDK08-Y17",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "SEQUENCE",
+    "quote": "パワーを＋1000し",
+    "claim": "手札から水獣のシグニ3枚を公開した場合に、このシグニのパワーをターン終了時まで＋1000する処理が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P11-TK02-E2",
+    "cardNum": "WXDi-P11-TK02",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BLOCK_ACTION",
+    "quote": "合計一度しかアタックできない",
+    "claim": "相手が次のターンにシグニ全体で合計1回だけアタックできる制限ではなく、相手シグニ1体のアタックを禁止する効果になっている。"
+   },
+   {
+    "effectId": "WX25-P2-069-E1",
+    "cardNum": "WX25-P2-069",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY_PER_FIELD",
+    "quote": "次の対戦相手のターン終了時まで",
+    "claim": "パワー増加の継続期間が次の対戦相手のターン終了時までではなく、現在のターン終了時までです。"
+   },
+   {
+    "effectId": "WX24-P3-086-E1",
+    "cardNum": "WX24-P3-086",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "次の対戦相手のターン終了時まで、それ",
+    "claim": "パワー＋2000の対象が直前にエナゾーンから場へ出したシグニに関連付けられず、任意のプレイヤーのシグニを対象にできるJSONになっています。"
+   },
+   {
+    "effectId": "WX16-Re19-E2",
+    "cardNum": "WX16-Re19",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "LRIG_LIMIT_MODIFY",
+    "quote": "次の対戦相手のメインフェイズ",
+    "claim": "リミット減少の適用期間が次の対戦相手のメインフェイズ中ではなく、次のターンまでとして表現されている。"
+   }
+  ]
+ },
+ {
+  "axis": "owner/主語",
+  "n": 9,
+  "findings": [
+   {
+    "effectId": "WXK07-028-E1",
+    "cardNum": "WXK07-028",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "CHOOSE",
+    "quote": "②シグニ１体を対象とし",
+    "claim": "選択肢②は双方のシグニを対象にできるが、JSONでは自分のシグニに限定されている。"
+   },
+   {
+    "effectId": "WXK11-013-E3",
+    "cardNum": "WXK11-013",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "LRIG_LIMIT_MODIFY",
+    "quote": "お互いのセンタールリグ",
+    "claim": "リミット減少が双方のセンタールリグではなく自分のセンタールリグだけに適用されています。"
+   },
+   {
+    "effectId": "WDA-F03-13-E3",
+    "cardNum": "WDA-F03-13",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "BANISH",
+    "quote": "カードの合計が７枚以下",
+    "claim": "バニッシュする条件である、双方のエナゾーンのカード合計が7枚以下という判定がJSONにない。"
+   },
+   {
+    "effectId": "WX25-P1-079-E1",
+    "cardNum": "WX25-P1-079",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "クロス状態のすべてのシグニ",
+    "claim": "パワー修正の対象が自分のクロス状態の全シグニではなく、所有者不問のシグニ1体になっている。"
+   },
+   {
+    "effectId": "WX19-029-E1",
+    "cardNum": "WX19-029",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "DOWN",
+    "quote": "シグニ１体を対象",
+    "claim": "原文では所有者を問わないシグニ1体が対象だが、JSONでは自分のシグニだけに限定されている。"
+   },
+   {
+    "effectId": "WXDi-P09-036-E1",
+    "cardNum": "WXDi-P09-036",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_LRIG_ABILITY",
+    "quote": "シグニかルリグ１体がアタック",
+    "claim": "アタック無効の対象が対戦相手のシグニに限定されており、ルリグのアタックを正しく無効にできない。"
+   },
+   {
+    "effectId": "WXK01-001-E1",
+    "cardNum": "WXK01-001",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "ドライブ状態のシグニ",
+    "claim": "対象を自分のドライブ状態の全シグニに限定せず、任意所有者のシグニ1体としているうえ、パワー＋3000が欠落している。"
+   },
+   {
+    "effectId": "WXDi-P06-033-E1",
+    "cardNum": "WXDi-P06-033",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "DRAW",
+    "quote": "ライフクロスの枚数が同じ場合",
+    "claim": "ドローの発動条件である双方のライフクロス枚数が同じという条件がJSONにない。"
+   },
+   {
+    "effectId": "WX16-022-E1",
+    "cardNum": "WX16-022",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "GRANT_KEYWORD",
+    "quote": "好きな数のシグニの【アクセ】",
+    "claim": "原文は選んだカードを自分の好きな数のシグニへアクセとして付ける効果だが、JSONは任意の所有者のシグニ1体へ単にキーワードを付与している。"
+   }
+  ]
+ },
+ {
+  "axis": "アタック状態",
+  "n": 9,
+  "findings": [
+   {
+    "effectId": "WXK01-035-E1-G",
+    "cardNum": "WXK01-035",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "(none)",
+    "quote": "アタックしたすべてのシグニ",
+    "claim": "バニッシュ対象にこのターンにアタックしたシグニという条件がなく、場の全シグニを対象としている。"
+   },
+   {
+    "effectId": "WXDi-D03-004-E1",
+    "cardNum": "WXDi-D03-004",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "アタックしているあなたのシグニ",
+    "claim": "原文はアタック中の自分のシグニだけを強化するが、JSONは自分の全シグニを常時強化する。"
+   },
+   {
+    "effectId": "WX10-035-E1",
+    "cardNum": "WX10-035",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "このターン、あなたのシグニ１体がアタックしたとき",
+    "claim": "原文はこのターン中の各シグニのアタック時にエナチャージする遅延効果だが、JSONはスペル使用時に直ちに1枚だけエナチャージする効果になっている。"
+   },
+   {
+    "effectId": "WX25-CP1-085-E1",
+    "cardNum": "WX25-CP1-085",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "シグニ１体がアタックしたとき",
+    "claim": "原文は対象とした相手シグニを、このターン自分の黒の＜ブルアカ＞シグニがアタックするたびに弱体化する効果だが、JSONではアタックフェイズ開始時に一度だけ即時適用している。"
+   },
+   {
+    "effectId": "WX19-031-E1",
+    "cardNum": "WX19-031",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "センタールリグがアタックしたとき",
+    "claim": "triggerScopeがany_allyで、センタールリグ以外の味方ルリグのアタックでも誘発し得る。"
+   },
+   {
+    "effectId": "WXDi-P12-064-E1",
+    "cardNum": "WXDi-P12-064",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "そのシグニのパワーを",
+    "claim": "パワーを上げる対象がアタックしたディソナシグニに固定されず、任意のシグニ1体を選べる定義になっている。"
+   },
+   {
+    "effectId": "WX24-P3-055-E2",
+    "cardNum": "WX24-P3-055",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "ダメージを与えていなかった場合",
+    "claim": "アタックしたルリグがそのアタックでダメージを与えていなかった場合だけエナチャージする条件がJSONにない。"
+   },
+   {
+    "effectId": "WX20-046-E3",
+    "cardNum": "WX20-046",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "SEND_TO_ENERGY",
+    "quote": "パワーが20000以上の場合",
+    "claim": "アタックした緑のシグニのパワーが20000以上である場合に限る条件がJSONにない。"
+   },
+   {
+    "effectId": "WX24-P3-055-E2",
+    "cardNum": "WX24-P3-055",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "ルリグ１体がアタックしたとき",
+    "claim": "原文はルリグのアタックを契機とするが、JSONのタイミングはシグニのアタックになっている。"
+   }
+  ]
+ },
+ {
+  "axis": "プレイヤー選択",
+  "n": 6,
+  "findings": [
+   {
+    "effectId": "WX17-022-E1",
+    "cardNum": "WX17-022",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRANSFER_TO_DECK",
+    "quote": "あなたか対戦相手のトラッシュ",
+    "claim": "処理対象のプレイヤーを自分か対戦相手から選べる効果だが、JSONは自分のトラッシュだけを対象としている。"
+   },
+   {
+    "effectId": "WXDi-P04-005-E1",
+    "cardNum": "WXDi-P04-005",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "あなたか対戦相手は",
+    "claim": "トラッシュをデッキに戻すプレイヤーを自分か対戦相手から選べず、自分に固定されている。"
+   },
+   {
+    "effectId": "WX25-P1-022-E2",
+    "cardNum": "WX25-P1-022",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "PLAY_FREE",
+    "quote": "あなたと対戦相手のトラッシュ",
+    "claim": "使用可能にするスペルが対戦相手のトラッシュだけになっており、自分のトラッシュからの1枚が欠落しています。"
+   },
+   {
+    "effectId": "WX08-024-E2",
+    "cardNum": "WX08-024",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "LIFE_CRASH",
+    "quote": "あなたと対戦相手のライフクロス",
+    "claim": "原文は自分と対戦相手のライフクロスを各1枚クラッシュするが、JSONには対戦相手の1枚をクラッシュする処理しかない。"
+   },
+   {
+    "effectId": "WX25-P1-111-E1",
+    "cardNum": "WX25-P1-111",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "POWER_MODIFY",
+    "quote": "あなたの＜怪異＞のシグニ１体",
+    "claim": "原文は自分の＜怪異＞シグニに二つの能力のどちらかを付与するが、JSONは相手の＜怪異＞シグニのパワーを直接－8000している。"
+   },
+   {
+    "effectId": "WXDi-P03-071-BURST",
+    "cardNum": "WXDi-P03-071",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "どちらか１つを選ぶ",
+    "claim": "JSONは選択処理ではなく相手の手札1枚を捨てる処理だけになっており、選択肢①のダウンと選択肢②の2枚ドローが欠落している。"
+   }
+  ]
+ },
+ {
+  "axis": "能力種別(常/自/起)",
+  "n": 5,
+  "findings": [
+   {
+    "effectId": "WX16-041-E1",
+    "cardNum": "WX16-041",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "《トラップアイコン》：",
+    "claim": "トラップアイコン能力のデッキトップ送りが独立した能力ではなく、【出】能力の捨てるコストとサーチに続いて同時に実行される処理になっている。"
+   },
+   {
+    "effectId": "WX25-P3-085-E1",
+    "cardNum": "WX25-P3-085",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "GRANT_EFFECT",
+    "quote": "【出】【起】能力のコストとして",
+    "claim": "捨てられた原因を＜微菌＞のシグニの【出】または【起】能力のコストに限定する条件がJSONにない。"
+   },
+   {
+    "effectId": "WXDi-P07-058-E1",
+    "cardNum": "WXDi-P07-058",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "ENERGY_CHARGE_FROM_DECK",
+    "quote": "【出】能力を持つあなたのシグニ",
+    "claim": "自分の【出】能力を持つシグニが場に出たときという発動条件が欠落している。"
+   },
+   {
+    "effectId": "WX25-P2-055-E2",
+    "cardNum": "WX25-P2-055",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "REMOVE_ABILITIES",
+    "quote": "【常】能力を失う",
+    "claim": "原文では【常】能力だけを失いますが、JSONはこのシグニの能力全般を失わせます。"
+   },
+   {
+    "effectId": "WXDi-CP02-034-E1",
+    "cardNum": "WXDi-CP02-034",
+    "severity": "MED",
+    "type": "WRONG",
+    "actionType": "TRASH",
+    "quote": "発動しないことを選んでもよい",
+    "claim": "原文ではコストのない【出】能力を発動しないことを選べるが、JSONはmandatory:trueで強制としている。"
+   }
+  ]
+ },
+ {
+  "axis": "filter.hasIcon",
+  "n": 3,
+  "findings": [
+   {
+    "effectId": "WX10-060-E1",
+    "cardNum": "WX10-060",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "BOUNCE",
+    "quote": "《クロスアイコン》を持つ",
+    "claim": "通常効果の対象に《クロスアイコン》を持つシグニという条件がなく、相手の任意のシグニを戻せます。"
+   },
+   {
+    "effectId": "WXDi-P12-052-E2",
+    "cardNum": "WXDi-P12-052",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "TAKE_FROM_UNDER_SIGNI",
+    "quote": "《ディソナアイコン》のカード",
+    "claim": "このシグニの下からエナゾーンに置けるカードをディソナアイコン持ちに限定する条件が欠落している。"
+   },
+   {
+    "effectId": "WX15-057-E1",
+    "cardNum": "WX15-057",
+    "severity": "HIGH",
+    "type": "WRONG",
+    "actionType": "SEQUENCE",
+    "quote": "それが《アクセアイコン》を持つ",
+    "claim": "原文ではエナゾーンに置いたカードが《アクセアイコン》を持つシグニの場合だけ1枚引くが、JSONでは条件なしで必ず引く。"
+   }
+  ]
+ },
+ {
+  "axis": "usageLimit",
+  "n": 2,
+  "findings": [
+   {
+    "effectId": "WX05-020-E2",
+    "cardNum": "WX05-020",
+    "severity": "MED",
+    "type": "MISSING",
+    "actionType": "LIFE_CRASH",
+    "quote": "《ターン１回》",
+    "claim": "原文のターン1回制限がJSONにない。"
+   },
+   {
+    "effectId": "WXK10-014-E1",
+    "cardNum": "WXK10-014",
+    "severity": "HIGH",
+    "type": "MISSING",
+    "actionType": "GRANT_EFFECT",
+    "quote": "《ターン２回》エクシード１",
+    "claim": "トラッシュのシグニ1枚を手札に加えるターン2回の付与能力がJSONにない。"
+   }
+  ]
+ }
+]

@@ -1,0 +1,1033 @@
+[
+ {
+  "cardNum": "PR-402",
+  "effectId": "PR-402-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "パワー減少の条件が黒のシグニ7枚をデッキに戻せた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WD08-018",
+  "effectId": "WD08-018-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "デッキ上5枚をトラッシュに置く条件は自分のターンであることではなく、対象の自分のシグニを実際にバニッシュした場合である。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WD14-007",
+  "effectId": "WD14-007-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "ライフクロス追加の条件が自分のターンであることになっており、自分の＜悪魔＞のシグニをバニッシュできた場合という条件を正しく表現していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WD18-018",
+  "effectId": "WD18-018-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "選択肢①のサーチ条件が自分のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WD18-018",
+  "effectId": "WD18-018-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "選択肢②の相手シグニをバニッシュする条件が自分のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WD21-013",
+  "effectId": "WD21-013-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "レベル4シグニを探して場に出す条件が宇宙シグニ2体をトラッシュに置いた場合ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK03-020",
+  "effectId": "WDK03-020-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "後続のバニッシュ条件が自分のシグニを実際にトラッシュへ置けた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK04-020",
+  "effectId": "WDK04-020-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "後続の回収条件が自分のシグニを実際にトラッシュへ置けた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK05-R20",
+  "effectId": "WDK05-R20-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "凍結シグニのバニッシュ条件が、自分の＜英知＞シグニを実際にトラッシュへ置いた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK05-T13",
+  "effectId": "WDK05-T13-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "デッキ公開以降の処理条件が、このシグニを手札に戻した場合ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BOUNCE"
+  ]
+ },
+ {
+  "cardNum": "WDK06-C20",
+  "effectId": "WDK06-C20-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "2枚をトラッシュに置く条件は対象のシグニを場からトラッシュに置けたことだが、JSONでは自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK07-E06",
+  "effectId": "WDK07-E06-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "捨てた場合の後続処理が自分のターンの場合に限定されており、相手ターンのアタックフェイズに使用するとダウンとデッキトップ送りが実行されない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK08-Y17",
+  "effectId": "WDK08-Y17-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "後続効果の条件は水獣のシグニ3枚を公開できたことだが、JSONでは自分のターンであることを条件にしている。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:REVEAL"
+  ]
+ },
+ {
+  "cardNum": "WDK10-022",
+  "effectId": "WDK10-022-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札回収の条件が「対象のシグニを実際にトラッシュへ置いた場合」ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK11-022",
+  "effectId": "WDK11-022-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "サーチの条件が対象のシグニを実際にトラッシュへ置いたことではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK12-022",
+  "effectId": "WDK12-022-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "シグニをトラッシュに置けた場合の条件が、自分のターンであることを判定する条件に置き換わっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK15-022",
+  "effectId": "WDK15-022-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "選択肢①の回収条件が「シグニをトラッシュに置けた場合」ではなくIS_MY_TURNになっており、トラッシュ送りの成否と連動していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WDK17-022",
+  "effectId": "WDK17-022-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "選択肢①のトラッシュ回収条件が、シグニを実際にトラッシュへ置いたことではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX02-019",
+  "effectId": "WX02-019-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "手札をライフクロスに加える条件が、ライフクロスを手札へ移動できた場合ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_HAND"
+  ]
+ },
+ {
+  "cardNum": "WX02-026",
+  "effectId": "WX02-026-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "後続のサーチはシグニをトラッシュに置けた場合に行うべきだが、自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX02-037",
+  "effectId": "WX02-037-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "原文では自分の＜水獣＞を実際にバニッシュした場合に2枚引くが、JSONは自分のターンであることだけを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX02-045",
+  "effectId": "WX02-045-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "相手シグニのバニッシュ条件が「自分のシグニをバニッシュした場合」ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX04-006",
+  "effectId": "WX04-006-E3",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "原文は黒のシグニを実際にトラッシュへ置いた場合だけライフクロスを加えるが、JSONは自分のターンであることを条件としており、処理成功との連動を表現していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX05-045",
+  "effectId": "WX05-045-BURST",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札をすべて捨てた場合に全シグニをバニッシュする条件が、自分のターンである場合という無関係な条件になっています。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX06-001",
+  "effectId": "WX06-001-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "7枚をデッキ下に置けた場合ではなく、自分のターンであることを後続のバニッシュとシャッフルの条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX06-001",
+  "effectId": "WX06-001-E3",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "7枚をデッキ下に置けた場合ではなく、自分のターンであることをシャッフルの条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX08-053",
+  "effectId": "WX08-053-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "相手のシグニをトラッシュに置く条件がレゾナをダウンできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:DOWN"
+  ]
+ },
+ {
+  "cardNum": "WX09-Re09",
+  "effectId": "WX09-Re09-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "後続のサーチ条件が自分のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX09-Re13",
+  "effectId": "WX09-Re13-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "相手シグニをバニッシュする条件が自分のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX09-Re21",
+  "effectId": "WX09-Re21-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "相手シグニのパワーを下げる条件が自分のシグニを実際にバニッシュした場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX10-088",
+  "effectId": "WX10-088-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "チャームをトラッシュに置けた場合に後続処理を行うべきところ、自分のターンであることを条件にしている。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:REMOVE_CHARM"
+  ]
+ },
+ {
+  "cardNum": "WX12-014",
+  "effectId": "WX12-014-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "原文では任意のクラッシュを実行した場合だけライフクロスを加えるが、JSONでは自分のターンであることを条件としており、＜エルドラ＞条件やクラッシュの成否と連動していない。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:CONDITIONAL"
+  ]
+ },
+ {
+  "cardNum": "WX12-031",
+  "effectId": "WX12-031-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "後続の相手シグニのバニッシュ条件が自分のターンであることになっており、このシグニの任意バニッシュを実行しなかった場合でも相手をバニッシュできる。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX12-Re13",
+  "effectId": "WX12-Re13-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "両選択肢の後続処理条件が自分のターンであることになっており、自分のシグニを実際にバニッシュした場合という条件を表していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX12-Re16",
+  "effectId": "WX12-Re16-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札を捨てさせる条件が自ターン判定になっており、自分のシグニをバニッシュできた場合という条件を正しく表していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX12-Re18",
+  "effectId": "WX12-Re18-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "相手シグニをバニッシュする条件が自ターン判定になっており、自分のシグニをバニッシュできた場合という条件を正しく表していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX12-Re21",
+  "effectId": "WX12-Re21-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "両方の選択肢で後続処理の条件が自ターン判定になっており、指定した自分のシグニをバニッシュできた場合という条件を正しく表していない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX13-044",
+  "effectId": "WX13-044-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "全シグニのバニッシュ条件が「このシグニをバニッシュした場合」ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX13-047",
+  "effectId": "WX13-047-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "サーチの実行条件が対象のシグニをバニッシュできた場合ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX13-050",
+  "effectId": "WX13-050-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "ライフクロス追加の条件がライフクロスをトラッシュに置けた場合ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:LIFE_CRASH"
+  ]
+ },
+ {
+  "cardNum": "WX14-012",
+  "effectId": "WX14-012-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "原文は手札を2枚捨てられた場合に後続処理を行うが、JSONは支払い成否ではなく自分のターンかどうかで判定しているため、相手ターンのアタックフェイズでは後続処理が行われない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX14-030",
+  "effectId": "WX14-030-E1",
+  "severity": "MED",
+  "type": "MISSING",
+  "claim": "レベルの異なる非無色シグニ4枚をデッキに加えられた場合だけ選択肢を実行する条件が表現されていない。",
+  "verdict": "NO_IS_MY_TURN_SEQ"
+ },
+ {
+  "cardNum": "WX14-031",
+  "effectId": "WX14-031-E3",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "パワー減少の条件は自分の他の＜天使＞をバニッシュできたことだが、JSONでは自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX14-033",
+  "effectId": "WX14-033-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "自身をアップする条件は自分の他のシグニをバニッシュしたことだが、JSONでは自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX15-039",
+  "effectId": "WX15-039-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "トラッシュから＜遊具＞を場に出す処理が自身を実際にバニッシュした場合ではなくIS_MY_TURN条件に結び付けられている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX15-Re15",
+  "effectId": "WX15-Re15-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "4枚をデッキ下に置けた場合の後続処理が、自分のターンである場合という無関係な条件に置き換わっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX16-Re01",
+  "effectId": "WX16-Re01-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "両方の選択肢で後続効果の条件が対象のシグニを実際にバニッシュしたことではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX16-Re03",
+  "effectId": "WX16-Re03-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "サーチの条件が自身のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX16-Re08",
+  "effectId": "WX16-Re08-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "サーチの条件が自身のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX16-Re10",
+  "effectId": "WX16-Re10-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "各選択肢の後続処理の条件が指定した自分のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX17-023",
+  "effectId": "WX17-023-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "最初のバニッシュ条件は自分のシグニをトラッシュに置けた場合だが、JSONでは自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX19-074",
+  "effectId": "WX19-074-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "後続のエナチャージまたはドローの条件が「他のシグニをトラッシュに置けた場合」ではなく「自分のターンである場合」になっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX19-075",
+  "effectId": "WX19-075-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "エナチャージの条件が「他のシグニをトラッシュに置いた場合」ではなく「自分のターンである場合」になっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX19-076",
+  "effectId": "WX19-076-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "ドローの条件が「他のシグニをトラッシュに置いた場合」ではなく「自分のターンである場合」になっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WX19-080",
+  "effectId": "WX19-080-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "ウィルスを置く条件が「条件を満たす3枚をデッキに加えた場合」ではなく「自分のターンである場合」になっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX20-063",
+  "effectId": "WX20-063-E3",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "相手の全シグニをバニッシュする条件が2体のバニッシュ成功ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX20-079",
+  "effectId": "WX20-079-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "パワーを－7000する条件が4枚をデッキ下に置けた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX20-Re14",
+  "effectId": "WX20-Re14-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "カードを1枚引く条件が4枚をデッキ下に置けた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX21-026",
+  "effectId": "WX21-026-E3",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "場に出す条件が「異名かつ非無色のシグニ10枚をデッキに加えた場合」ではなく、自分のターンであることになっています。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX21-042",
+  "effectId": "WX21-042-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "下のカードを実際にトラッシュへ置けたことではなく自分のターンであることを条件にエナチャージするため、下にカードがない場合でも後続処理が行われうる。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:TAKE_FROM_UNDER_SIGNI"
+  ]
+ },
+ {
+  "cardNum": "WX21-046",
+  "effectId": "WX21-046-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "3枚を実際にデッキへ戻せたことではなく自分のターンであることを後続条件としており、戻せなくてもドローとパワー減少が行われうる。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WX22-029",
+  "effectId": "WX22-029-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "手札からエナゾーンに置く条件が、エナのシグニを手札に加えた場合ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_HAND"
+  ]
+ },
+ {
+  "cardNum": "WX22-049",
+  "effectId": "WX22-049-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "双方のデッキを3枚ずつトラッシュに置く条件が、自分のシグニをバニッシュできた場合ではなくIS_MY_TURNになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WX24-P4-005",
+  "effectId": "WX24-P4-005-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "相手のライフクロスをクラッシュする条件が、自分のライフクロスを実際にクラッシュした場合ではなくIS_MY_TURNになっています。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:LIFE_CRASH"
+  ]
+ },
+ {
+  "cardNum": "WX25-P2-063",
+  "effectId": "WX25-P2-063-E2",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "3枚をデッキの下に置けた場合だけバニッシュする依存条件がなく、自分のターンであれば移動の成否にかかわらずバニッシュします。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:CONDITIONAL"
+  ]
+ },
+ {
+  "cardNum": "WX25-P2-085",
+  "effectId": "WX25-P2-085-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札を捨てさせる条件が実際にこのシグニをダウンしたことではなくIS_MY_TURNになっているため、ダウンしなくても捨てさせる。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:DOWN"
+  ]
+ },
+ {
+  "cardNum": "WX25-P3-089",
+  "effectId": "WX25-P3-089-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "このシグニを実際にダウンした場合だけ能力を付与すべきだが、JSONの条件は自分のターンかどうかだけであり、ダウンしなかった場合にも付与される。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:DOWN"
+  ]
+ },
+ {
+  "cardNum": "WXDi-CP01-046",
+  "effectId": "WXDi-CP01-046-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "＋4000する条件が「対象をデッキ下に置いた場合」ではなくIS_MY_TURN判定になっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WXDi-D03-004",
+  "effectId": "WXDi-D03-004-E3",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "JSONはレベル2ルリグ2体を実際にダウンしたかを判定せず、自分のターンであればダメージ処理を行う。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:DOWN"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P00-021",
+  "effectId": "WXDi-P00-021-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "エナチャージの条件が対象をエナゾーンに置けた場合ではなく、自分のターンであることに置き換わっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:SEND_TO_ENERGY"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P00-023",
+  "effectId": "WXDi-P00-023-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "ライフクロス追加の条件が「7枚をデッキに加えた場合」ではなく自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P01-062",
+  "effectId": "WXDi-P01-062-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "手札を捨てる条件がバニッシュ成功時ではなくIS_MY_TURNになっており、ターンの所有者によって後続処理が誤って省略される。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P03-004",
+  "effectId": "WXDi-P03-004-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "ライフクロス補充の条件が無色エナ5の支払い成功ではなくIS_MY_TURNになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_HAND"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P07-090",
+  "effectId": "WXDi-P07-090-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "パワー減少の条件が「異なるレベルの天使3枚をデッキに加えた場合」ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P08-053",
+  "effectId": "WXDi-P08-053-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札に戻した場合の攻撃禁止付与がIS_MY_TURN条件になっており、相手のアタックフェイズ開始時には成立しない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BOUNCE"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P08-081",
+  "effectId": "WXDi-P08-081-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "パワー減少は自分の＜悪魔＞をトラッシュに置けた場合にのみ行うが、JSONは自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P11-075",
+  "effectId": "WXDi-P11-075-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "両選択肢の後続効果の条件が必要枚数を公開できたことではなく、自分のターンであることになっている。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:REVEAL"
+  ]
+ },
+ {
+  "cardNum": "WXDi-P16-078",
+  "effectId": "WXDi-P16-078-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "エナチャージの条件が実際にこのシグニをダウンした場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:DOWN"
+  ]
+ },
+ {
+  "cardNum": "WXEX1-03",
+  "effectId": "WXEX1-03-E2",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "7枚を実際にデッキへ戻した場合ではなく、自分のターンであることが対象をトラッシュに置く条件になっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WXEX1-14",
+  "effectId": "WXEX1-14-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "相手シグニをエナゾーンに置く条件は3枚をトラッシュに置けたことだが、JSONは自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WXEX1-21",
+  "effectId": "WXEX1-21-E2",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "5枚をトラッシュに置く条件は自分のシグニをバニッシュできたことだが、JSONは自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WXEX1-21",
+  "effectId": "WXEX1-21-E3",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "パワーを－20000する条件は＜古代兵器＞10枚をデッキに加えたことだが、JSONは自分のターンであることを条件にしており、相手ターンの起動時には適用されない。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ },
+ {
+  "cardNum": "WXEX1-28",
+  "effectId": "WXEX1-28-E2",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "＜凶蟲＞を手札に加える条件は相手のチャームをトラッシュに置けたことだが、JSONは自分のターンであることを条件にしている。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:REMOVE_CHARM"
+  ]
+ },
+ {
+  "cardNum": "WXEX1-63",
+  "effectId": "WXEX1-63-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "両選択肢の後続処理条件が直前のシグニをバニッシュできた場合ではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WXEX2-31",
+  "effectId": "WXEX2-31-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "後続のサーチはこのシグニをトラッシュに置いた場合だけ行うが、JSONは自分のターンであることを条件としており、任意処理を行わなくてもサーチできる。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WXK03-021",
+  "effectId": "WXK03-021-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "相手のエナをトラッシュに置く処理が、直前のバニッシュ成功時ではなく自分のターンであることだけを条件としており、手札を3枚以上捨てていない場合やバニッシュできなかった場合にも実行される。",
+  "verdict": "A_要調査(ゲート外)",
+  "kinds": [
+   "UNGATED:CONDITIONAL"
+  ]
+ },
+ {
+  "cardNum": "WXK03-052",
+  "effectId": "WXK03-052-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "エナのカードをトラッシュに置く条件は対象シグニのバニッシュ成功だが、JSONでは自分のターンであることを条件にしている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BANISH"
+  ]
+ },
+ {
+  "cardNum": "WXK03-066",
+  "effectId": "WXK03-066-E1",
+  "severity": "MED",
+  "type": "WRONG",
+  "claim": "ライフクロスをトラッシュに置けた場合という後続条件が、JSONでは自分のターンであることに置き換わっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:LIFE_CRASH"
+  ]
+ },
+ {
+  "cardNum": "WXK06-023",
+  "effectId": "WXK06-023-E2",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "レベル4シグニを場に出す条件が「このシグニを手札に戻した場合」ではなくIS_MY_TURNになっており、戻さなかった場合にも後続処理が実行され得る。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BOUNCE"
+  ]
+ },
+ {
+  "cardNum": "WXK06-034",
+  "effectId": "WXK06-034-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "レベル4の＜英知＞を場に出す条件が「このシグニを手札に戻した場合」ではなくIS_MY_TURNになっており、戻さなかった場合にも後続処理が実行され得る。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BOUNCE"
+  ]
+ },
+ {
+  "cardNum": "WXK06-036",
+  "effectId": "WXK06-036-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "レベル3の＜英知＞を場に出す条件が「このシグニを手札に戻した場合」ではなくIS_MY_TURNになっており、戻さなかった場合にも後続処理が実行され得る。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BOUNCE"
+  ]
+ },
+ {
+  "cardNum": "WXK10-032",
+  "effectId": "WXK10-032-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札の英知シグニを場に出す条件が自身をトラッシュに置いた場合ではなく自分のターンであることになっており、任意処理を行わなくても後続処理が実行され得る。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "TRASH(粗ゲート有:owner/typeで条件付)"
+  ]
+ },
+ {
+  "cardNum": "WXK10-061",
+  "effectId": "WXK10-061-E1",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "手札からシグニを出す条件が自身を手札に戻したことではなく自分のターンであることになっており、戻さなくても後続処理を実行できる。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:BOUNCE"
+  ]
+ },
+ {
+  "cardNum": "WXK10-066",
+  "effectId": "WXK10-066-E2",
+  "severity": "HIGH",
+  "type": "WRONG",
+  "claim": "バニッシュの条件が古代兵器2枚を指定どおりデッキ下へ置いたことではなく、自分のターンであることになっている。",
+  "verdict": "B_ゲート済(偽陽性候補)",
+  "kinds": [
+   "GATED:TRANSFER_TO_DECK"
+  ]
+ }
+]

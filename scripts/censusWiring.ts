@@ -94,6 +94,46 @@ const VOCAB: Vocab[] = [
     jsonRe: /"eachDistinctColor"\s*:|"sharedColor"\s*:\s*"none"/,
     note: '正準形は selectionConstraint.sharedColor（filter キーは表示用）' },
 
+  // --- 盤面状態フィルタ（execUtils.matchesFilter / effectEngine.matchesStateFilter） ---
+  // 2026-08-22 追加。**この群が VOCAB に無かったため `filter.hasCharm` の配線漏れが
+  // 被覆マトリクスに1件も出ていなかった**（続き592 の段2 第2バッチ割り直しで発覚）。
+  // ⚠**「census:wiring が0件だから穴はない」と読んではいけない**＝載っていない語彙は数えられない。
+  //
+  // ⚠⚠**状態語は3つの用法に分岐する。名詞句修飾に限定しないと既に正しい効果が永久に miss へ出る。**
+  //   ①**対象フィルタ**「アクセされている**あなたのシグニ**の…」＝`TargetFilter.hasAcce`（ここで数える）
+  //   ②**効果元の自己条件**「**この**シグニがアクセされている**かぎり**」＝`ActiveCondition.IS_SELF_ACCED`
+  //      ／`Condition.THIS_CARD_IS_ACCED`（別キー・別型。下で別計上）
+  //   ③**装着ホスト参照**「**これに**アクセされているシグニ」＝`TargetFilter.acceHost`（`types:739`・別キー）
+  //   実測＝素朴に `/アクセされて(いる|いた)/` で数えると **6件中5件が①以外**だった（2026-08-22）。
+  //   したがって①は「状態語＋（所有者）＋シグニ／ルリグ」の**連体修飾**に限定し、`に`直後は除外する。
+  // ⚠**トリガー側の「【チャーム】が付いているシグニがバニッシュされたとき」は別キー**＝
+  //   `triggerCondition.banishedHadCharm`（`types:3443`・`triggerCollect.ts:1182,1230` が消費）。
+  //   `jsonRe` に入れないと**正しく配線済みの3効果が miss として出続ける**（2026-08-22 段2 第2バッチで実際に出た）。
+  { key: 'hasCharm',   re: /(?<!この(?:シグニ|カード)に)【チャーム】が付いている(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}シグニ/,
+    jsonRe: /"hasCharm"\s*:|"banishedHadCharm"\s*:/,
+    note: '「このシグニに〜」形は isSelfCharmed／トリガー側は banishedHadCharm で配線済み扱い' },
+  { key: 'isSelfCharmed', re: /この(?:シグニ|カード)に【チャーム】が付いている/,
+    jsonRe: /"IS_SELF_CHARMED"|"THIS_CARD_IS_CHARMED"/,
+    note: 'ActiveCondition/Condition 側（TargetFilter ではない）' },
+  // ⚠除外は「これ／このシグニ／このカード」＋`に` に限定する。素朴に `(?<![にへ])` とすると
+  //   「あなたの**場に**アクセされているシグニがある場合」（`PR-384-E2`＝正しく配線済み）まで落ちて has=0 になり、
+  //   この計器は has=0 の語彙を「機構未実装」として表から捨てる＝**穴が丸ごと不可視になる**（2026-08-22 に実際に踏んだ）。
+  { key: 'hasAcce',    re: /(?<!(?:これ|この(?:シグニ|カード))に)アクセされて(?:いる|いた)(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}シグニ/,
+    note: '「このシグニが〜かぎり」は isSelfAcced／「これに〜」は acceHost で別計上' },
+  { key: 'isSelfAcced', re: /この(?:シグニ|カード)が[^。、]{0,24}アクセされて(?:いる|いた)/,
+    jsonRe: /"IS_SELF_ACCED"|"THIS_CARD_IS_ACCED"/,
+    note: 'ActiveCondition/Condition 側（TargetFilter ではない）' },
+  { key: 'acceHost',   re: /(?:これ|この(?:シグニ|カード))にアクセされて(?:いる|いた)/,
+    note: '装着ホスト参照（hasAcce とは別キー）' },
+  { key: 'infected',   re: /感染状態(?:の|である)(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}(?:シグニ|カード)/ },
+  { key: 'isFrozen',   re: /凍結状態(?:の|である)(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}(?:シグニ|ルリグ|カード)/ },
+  // ⚠**「アップ状態のルリグN体をダウンする：」は使用コスト**であって対象フィルタではない
+  //   （engine は `payLrigDownCost` が払う＝アップ判定は支払い機構に内包され、`filter.isUp` は要らない）。
+  //   除外しないと **9件中8件がコスト側**という誤検出になる（2026-08-22 実測＝この表 §④「コスト側のフィルタ」の実例）。
+  { key: 'isUp',       re: /アップ状態(?:の|である)(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}(?:シグニ|ルリグ|カード)(?![^。、]{0,6}をダウンする)/ },
+  // ⚠「ダウン状態**で場に出**」は配置時の姿勢指定であってフィルタではない（parserUtils:669 と同じ除外）。
+  { key: 'isDown',     re: /ダウン状態(?:の|である)(?!で場に出)(?:あなたの|対戦相手の|すべての)*[^。、]{0,10}(?:シグニ|ルリグ|カード)/ },
+
   // --- 動的比較（effectExecutor.resolveDynamicFilter） ---
   { key: 'levelEqTrigger',   re: /そのシグニと同じレベル/ },
   { key: 'levelLtTrigger',   re: /そのシグニより低いレベル/ },

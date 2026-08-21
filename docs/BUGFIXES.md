@@ -1,5 +1,27 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22：段2 第2バッチ — `filter.hasCharm` の対象配線漏れ13効果を是正
+
+`POWER_MODIFY`／`REMOVE_ABILITIES`／`GRANT_KEYWORD` の別ターゲット組み立て経路が、既存の
+`parseSigniTarget` にある「【チャーム】が付いている」規則を通らず、チャームなしシグニまで効果を受けていた。
+単文後処理 `bindCharmedSigniActionTarget` で対象名詞句を `parseSigniTarget` へ合流させ、13効果を採用。
+トリガー側3効果は既存 `triggerCondition.banishedHadCharm` で正しく配線済みのため据置。
+`WDK12-011-E2`／`WXEX2-24-E3`／`WXK07-077-E1` の誤った `keyword:"チャーム"` も本文の
+`ランサー`／`アタックできない`へ是正した。golden 2329/2329、smoke 10693/10693、fuzz異常0、
+census 781/781、held 99、同型★0。
+⚠**wiring hasCharm は miss 16→3 と出たが、残3は計器側の偽陽性**＝トリガー側は別キー `triggerCondition.banishedHadCharm`（`types/effects.ts:3443`／`triggerCollect.ts:1182,1230`）で配線済み。
+`censusWiring.ts` の `hasCharm` 行に `jsonRe` でそのキーを足して**miss 0 / has 26**＝配線漏れ完全解消（Claude 検証時に修正）。
+詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch2_report.md`。
+
+## 2026-08-21（段2 第1バッチ・Codex）— トラッシュ場出しの `cardName` 脱落を7効果で是正
+
+「あなたのトラッシュから《カード名》1枚を対象とし、それを場に出す」が、任意のシグニを出せる `ADD_TO_FIELD{source:TRASH_CARD}` に退化していた。既存の場出し parser に、単一対象句から一般捕獲したカード名を既存 `source.filter.cardName` へ戻す後処理を追加した。新しい型・フィールド・STUB・engine 変更はない。
+
+- 採用7効果：`WXDi-D02-22-E1`、`WX26-CP1-065/073/081/089/097-E1`、`PR-427-E3`。
+- 指示の18効果は原文対応表で再照合し、残り11効果は据置。うち群Bの5効果は投入前から `excludeCardName` が live に存在、6効果は scope のカード名が場出し対象ではないか、2枠選択で単一 filter にできない形だった。
+- E2E golden 2本を追加し、群Aは一致名が場に出て別名が残ること、群Bは除外名が残り別名の適合札が場に出ることを実行確認した。`gates` は golden 2327/2327、smoke 10693/10693、fuzz異常0、census 783、STUB A/C群0、manual-fields 0、lint 0 errors/260 warnings。同型★0、held 99枚/40署名群を維持した。
+- 詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch1_report.md`。
+
 ## 2026-08-20（Sonnetタスク8・Codex）— semantic audit clean群 全数完了（3,344枚・1,444件findings・修正はまだ）
 
 PLAN §3 タスク8「semantic audit のスケールアップ」の残作業＝clean群への展開に着手した。ユーザー指示「少しずつ行うこと」に従い、今回はfindings収集のみ（修正は次段）。

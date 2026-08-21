@@ -2754,6 +2754,32 @@ function injectSuperlativeIntoSigniTargets(action: EffectAction, sup: { key: 'po
   }
 }
 
+// 「【チャーム】が付いている〈owner〉の（すべての）シグニ」を action の対象へ戻す。
+// 状態語そのものは parseSigniTarget の既存規則へ委ね、POWER_MODIFY / REMOVE_ABILITIES /
+// GRANT_KEYWORD が個別に `hasCharm` を再実装しないよう、単文後処理で合流させる。
+// ⚠「…シグニ1体がバニッシュされたとき」はトリガー主語であり action の対象ではないため、
+//   下の「パワー／能力喪失／対象宣言／付与」終端に一致せず、この経路には入らない。
+function bindCharmedSigniActionTarget(action: EffectAction, text: string): EffectAction {
+  // 複合効果の「その後」節は今回の効果単位母集団外。前段との結合意味を変えない。
+  if (/^その後[、,]/.test(text.trim())) return action;
+  const nounM = text.match(/【チャーム】が付いている(?:(あなた|対戦相手)の)?(すべての)?シグニ(?:([０-９\d]+)体)?(?=のパワーを|は能力を失う|を対象とし|は【)/);
+  if (!nounM || !['POWER_MODIFY', 'REMOVE_ABILITIES', 'GRANT_KEYWORD'].includes(action.type)) return action;
+  const owner: Owner = nounM[1] === '対戦相手' ? 'opponent' : 'self';
+  const parsed = parseSigniTarget(nounM[0], owner);
+  const current = (action as unknown as { target: EffectTarget }).target;
+  // 「シグニのパワーを」は無冠詞でも集合全体。既存 action の ALL を保ち、明示の
+  // 「すべて／N体」だけ parseSigniTarget の count で上書きする。
+  parsed.count = nounM[2] || nounM[3] ? parsed.count : current.count;
+  const rebound = { ...action, target: parsed } as EffectAction;
+  if (rebound.type === 'GRANT_KEYWORD') {
+    const token = text.match(/【([^】]+)】を得る(?:。)?$/)?.[1];
+    const quoted = text.match(/[「『]【常】：([^。」』]+)[。]?[」』]を得る/)?.[1];
+    if (token && !['常', '出', '起', '自'].includes(token)) rebound.keyword = token;
+    else if (quoted) rebound.keyword = quoted;
+  }
+  return rebound;
+}
+
 // 先頭「ターン終了時まで、」で始まる文の action 内 duration/until を復元する。
 // Inner の共通プレフィックス除去（`^ターン終了時まで、`）で期間句が消え、GRANT_KEYWORD 等の
 // action 内 duration が PERMANENT に化けるため（WX25-P2-062 の内側 duration＝続き77 Sonnet観測(d)）、
@@ -3843,6 +3869,7 @@ function parseSingleSentence(text: string): EffectAction {
   action = rewriteNextOwnTurnEndBody(action, text);
   action = rewriteThisTurnEndBody(action, text);
   action = rewritePerOwnLrigColorScale(action, text);
+  action = bindCharmedSigniActionTarget(action, text);
   const sup = parseSuperlative(text);
   if (sup) injectSuperlativeIntoSigniTargets(action, sup);
   const trimmed = text.trim();
@@ -6828,6 +6855,46 @@ function applyLeadingTrashHandAnaphora(text: string, action: EffectAction): Effe
   return action;
 }
 
+// 「あなたのトラッシュから〈カード名指定／《X》以外〉のシグニ1枚を対象とし、
+// それを場に出す」＝既存 ADD_TO_FIELD の source filter へ対象名詞句の名前制約を戻す。
+// 対象句と場出しが同じ効果内にあり、単一の TRASH_CARD source が既に生成された場合だけ補正する。
+// 「それぞれ」（名前指定1枠＋レベル指定1枠）は単一 filter で表せないため、ここでは扱わない。
+function applyLeadingTrashFieldNameAnaphora(text: string, action: EffectAction): EffectAction {
+  if (!/トラッシュから/.test(text) || !/場に出/.test(text) || /それぞれ/.test(text)) return action;
+
+  let nameFilter: Partial<TargetFilter> = {};
+  const designation = text.match(/あなたのトラッシュから([^。]{1,80}?)枚(?:まで)?を?対象とし/);
+  if (designation) {
+    const span = designation[1];
+    nameFilter = { ...parseExcludeCardNameFilter(span) };
+    if (!nameFilter.excludeCardName) {
+      const contains = span.match(/カード名に《([^》]+)》を含む/);
+      const exact = span.match(/^《([^》]{3,})》(?:[０-９\d]+)?$/);
+      if (contains) nameFilter.cardName = contains[1];
+      else if (exact) nameFilter.cardName = exact[1];
+    }
+  } else if (/トラッシュからそのシグニを場に出/.test(text)) {
+    // 場を離れた「カード名に《X》を含むシグニ」への照応（WXEX2-51 型）。
+    const triggerName = text.match(/カード名に《([^》]+)》を含むシグニ[^。]*場を離れたとき/);
+    if (triggerName) nameFilter.cardName = triggerName[1];
+  }
+  if (!nameFilter.cardName && !nameFilter.excludeCardName) return action;
+
+  const hits: import('../types/effects').AddToFieldAction[] = [];
+  const visit = (node: EffectAction): void => {
+    if (node.type === 'ADD_TO_FIELD' && node.source?.type === 'TRASH_CARD' && node.source.owner === 'self') hits.push(node);
+    if (node.type === 'SEQUENCE') node.steps.forEach(visit);
+    else if (node.type === 'CONDITIONAL') {
+      visit(node.then);
+      if (node.else) visit(node.else);
+    } else if (node.type === 'CHOOSE') node.choices.forEach(choice => visit(choice.action));
+  };
+  visit(action);
+  if (hits.length !== 1) return action;
+  hits[0].source!.filter = { ...(hits[0].source!.filter ?? {}), ...nameFilter };
+  return action;
+}
+
 // ===== 「それのレベル１につき」族（Opusタスク12(liii)）=====
 //
 // 「〈シグニ〉１体を対象とし、**それのレベル１につき**〈X〉」＝対象シグニのレベルが倍率になる文型。
@@ -8574,8 +8641,9 @@ function parseActionText(text: string): EffectAction {
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
+          applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))));
   const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,
     applyDeckTopMillTargetAnaphora(source,
       applySelectedTargetTrashReplacement(source, parseBase(source))));

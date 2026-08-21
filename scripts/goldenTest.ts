@@ -13164,6 +13164,39 @@ test('§5d(A) excludeCardName:「《カード名》以外の」が36効果に載
   ok(!matchesFilter(c('幻蟲　キアハ'), { excludeCardName: '幻蟲　キアハ' }), '同名は除外される');
   ok(matchesFilter(c('幻蟲　ゲンゴロ'), { excludeCardName: '幻蟲　キアハ' }), '別名は通る');
 });
+
+// 段2 第1バッチ：トラッシュ場出しの名前制約を、live 効果の実行候補で両方向固定する。
+test('stage2 batch1 E2E: cardName 指定は一致シグニだけをトラッシュ場出し候補にする', () => withSavedCursor(() => {
+  const wanted = [...cardMap.entries()].find(([, c]) => c.CardName === '花の騎士ピュリティ')?.[0];
+  const other = findCard(c => isSigni(c) && c.CardName !== '花の騎士ピュリティ');
+  ok(!!wanted, '花の騎士ピュリティがカード表に存在');
+  const effect = (effectsMap.get('WX26-CP1-065') ?? []).find(e => e.effectId === 'WX26-CP1-065-E1');
+  ok(!!effect, 'WX26-CP1-065-E1 live effect');
+  if (!wanted || !effect) return;
+  const ctx = mkCtx({ signi: [null, null, null] }, {}, 'WX26-CP1-065');
+  ctx.ownerState.trash = [other, wanted];
+  const result = run(effect.action, ctx);
+  ok(result.ownerState.field.signi.some(slot => slot?.at(-1) === wanted), '一致名は場に出る');
+  ok(result.ownerState.trash.includes(other), '別名シグニは候補外でトラッシュに残る');
+  ok(!result.ownerState.trash.includes(wanted), '一致名はトラッシュから取り除かれる');
+}));
+
+test('stage2 batch1 E2E: excludeCardName は同名を除外し別名の適合シグニを候補にする', () => withSavedCursor(() => {
+  const excluded = [...cardMap.entries()].find(([, c]) => c.CardName === 'ドライ＝アリサエマ')?.[0];
+  const allowed = [...cardMap.entries()].find(([, c]) => isSigni(c) && c.CardName !== 'ドライ＝アリサエマ'
+    && Number(c.Level) <= 3 && c.CardClass?.includes('毒牙'))?.[0];
+  ok(!!excluded && !!allowed, '除外名と別名のレベル3以下＜毒牙＞を用意');
+  const effect = (effectsMap.get('WX20-048') ?? []).find(e => e.effectId === 'WX20-048-E1');
+  ok(!!effect, 'WX20-048-E1 live effect');
+  if (!excluded || !allowed || !effect) return;
+  const ctx = mkCtx({ signi: [null, null, null] }, {}, 'WX20-048');
+  ctx.ownerState.trash = [excluded, allowed];
+  const result = run(effect.action, ctx);
+  ok(result.ownerState.field.signi.some(slot => slot?.at(-1) === allowed), '別名適合札は場に出る');
+  ok(result.ownerState.trash.includes(excluded), '除外名は候補外でトラッシュに残る');
+  ok(!result.ownerState.trash.includes(allowed), '別名適合札はトラッシュから取り除かれる');
+}));
+
 // 【ビート】コストの「《X》以外のシグニ1体を【ビート】にする」（`WDK14-014`／`WXK08-043`／`WXK10-041`）は
 // cost.beat_signi が count しか持たないため JSON に語彙が載らないが、**engine が EffectText から除外名を読む**
 // （`analyzeBeatSigniCost` の `excludedName`）＝据置で正しい。census にだけ残る形なので回帰を固定する。
@@ -33435,6 +33468,7 @@ test('task12(lxxxiii) wave 7 WXK06-024-E1: opponent power minus protects only ot
   const source = 'WXK06-024';
   const other = findCard(c => isSigni(c) && c.CardNum !== source && c.CardNum !== 'WX13-006A');
   const protectedSide = mkState({ signi: [source, other, null] });
+  protectedSide.field.signi_charms = ['CHARM-SOURCE', 'CHARM-OTHER', null];
   const decreasingSide = mkState({ signi: ['WX13-006A', null, null] });
   const baseline = calcFieldPowers(mkState(), protectedSide, true, effectsMap, cardMap as Map<string, CardData>);
   const powers = calcFieldPowers(decreasingSide, protectedSide, true, effectsMap, cardMap as Map<string, CardData>);
@@ -40637,6 +40671,31 @@ test('task12(cxlix) ピース応答: 支払い→効果投入→最新盤面取�
   eq(PIECE_CUTIN_COMMIT_ORDER.join('>'), 'payment>effects>fetch_latest>complete',
     '🔴応答完了フラグが効果スタック投入または最新盤面取得より先に公開される');
 });
+
+// 段2 第2バッチ：live action を実行し、チャーム有無の両方向を固定する。
+test('stage2 batch2 E2E: REMOVE_ABILITIES はチャーム付き相手シグニだけに適用する', () => withSavedCursor(() => {
+  const charmed = fresh(), plain = fresh();
+  const effect = (effectsMap.get('WX25-P2-069') ?? []).find(e => e.effectId === 'WX25-P2-069-E2');
+  ok(!!effect, 'WX25-P2-069-E2 live effect');
+  if (!effect) return;
+  const ctx = mkCtx({}, { signi: [charmed, plain, null] }, 'WX25-P2-069');
+  ctx.otherState.field.signi_charms = ['CHARM', null, null];
+  const result = run(effect.action, ctx);
+  ok(result.otherState.abilities_removed?.includes(charmed), 'チャーム付きシグニは能力を失う');
+  ok(!result.otherState.abilities_removed?.includes(plain), 'チャームなしシグニは能力を失わない');
+}));
+
+test('stage2 batch2 E2E: GRANT_KEYWORD はチャーム付き自シグニだけにランサーを付与する', () => withSavedCursor(() => {
+  const charmed = fresh(), plain = fresh();
+  const effect = (effectsMap.get('WDK12-011') ?? []).find(e => e.effectId === 'WDK12-011-E2');
+  ok(!!effect, 'WDK12-011-E2 live effect');
+  if (!effect) return;
+  const ctx = mkCtx({ signi: [charmed, plain, null] }, {}, 'WDK12-011');
+  ctx.ownerState.field.signi_charms = ['CHARM', null, null];
+  const result = run(effect.action, ctx);
+  ok(result.ownerState.keyword_grants?.[charmed]?.includes('ランサー'), 'チャーム付きシグニはランサーを得る');
+  ok(!result.ownerState.keyword_grants?.[plain]?.includes('ランサー'), 'チャームなしシグニはランサーを得ない');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
