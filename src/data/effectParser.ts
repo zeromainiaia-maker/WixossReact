@@ -1113,7 +1113,7 @@ function parseActiveCondition(text: string): ConditionParseResult {
   }
 
   // パターン3b: 「あなたの場に〜クラスのシグニが(合計)?N体あるかぎり、」（クラス数体条件 / ＜X＞か＜Y＞の合計指定を含む）
-  const fieldClassCountM = text.match(/^あなたの場に(?:他の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:合計)?([０-９\d]+)体あるかぎり、/);
+  const fieldClassCountM = text.match(/^あなたの場に(?:他の)?((?:＜[^＞]+＞(?:か)?)+)のシグニが(?:合計)?([０-９\d]+)体(?:以上)?あるかぎり、/);
   if (fieldClassCountM) {
     const storyFilter = parseStoryFilter(fieldClassCountM[1]);
     return {
@@ -1458,18 +1458,50 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 「エナゾーンに白か青か…のカードがあるかぎり」＝列挙色のいずれか1枚以上。
+  const enaAnyColorM = text.match(/^あなたのエナゾーンに((?:[白赤青緑黒]か)+[白赤青緑黒])のカードがあるかぎり、/);
+  if (enaAnyColorM) {
+    const colors = enaAnyColorM[1].split('か');
+    return {
+      condition: { type: 'OR', conditions: colors.map(color => ({
+        type: 'ENERGY_HAS_CARD' as const, owner: 'self' as const, filter: { color },
+      })) },
+      rest: text.slice(enaAnyColorM[0].length), conditionFound: true,
+    };
+  }
+
+  // 「エナゾーンにあるカードが持つ色が合計N種類以上あるかぎり」＝色の種類数。
+  const activeEnaColorTypesM = text.match(/^あなたのエナゾーンにあるカードが持つ色が合計([０-９\d]+)種類以上あるかぎり、/);
+  if (activeEnaColorTypesM) {
+    return {
+      condition: { type: 'ENERGY_COLOR_TYPES', owner: 'self', operator: 'gte', value: parseNum(activeEnaColorTypesM[1]) },
+      rest: text.slice(activeEnaColorTypesM[0].length), conditionFound: true,
+    };
+  }
+
   // パターン5b: 「あなたのエナゾーンにあるカードが対戦相手よりN枚以上多いかぎり、」
   const enaDiffM = text.match(/^あなたのエナゾーンにあるカードが対戦相手より([０-９\d]+)枚以上多いかぎり、/);
   if (enaDiffM) {
     return { condition: { type: 'ENA_DIFF', operator: 'gte', value: parseNum(enaDiffM[1]) }, rest: text.slice(enaDiffM[0].length), conditionFound: true };
   }
 
-  // パターン5c: 「あなたの手札がN枚以上/以下(である)?(ある)?かぎり、」（「以上あるかぎり」「N枚以下であるかぎり」も含む。G086）
-  const handCountM = text.match(/^あなたの手札が([０-９\d]+)枚(以上あるかぎり|以下あるかぎり|以上であるかぎり|以下であるかぎり|以上かぎり|以下かぎり|あるかぎり)、/);
+  // パターン5c: 「(あなた|対戦相手)の手札がN枚以上/以下/ちょうどであるかぎり」。
+  const handCountM = text.match(/^(あなた|対戦相手)の手札が([０-９\d]+)枚(以上あるかぎり|以下あるかぎり|以上であるかぎり|以下であるかぎり|以上かぎり|以下かぎり|であるかぎり|あるかぎり)、/);
   if (handCountM) {
-    const val = parseNum(handCountM[1]);
-    const op: CompareOp = handCountM[2].startsWith('以上') ? 'gte' : handCountM[2].startsWith('以下') ? 'lte' : 'eq';
-    return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: op, value: val }, rest: text.slice(handCountM[0].length), conditionFound: true };
+    const val = parseNum(handCountM[2]);
+    const op: CompareOp = handCountM[3].startsWith('以上') ? 'gte' : handCountM[3].startsWith('以下') ? 'lte' : 'eq';
+    return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: handCountM[1] === 'あなた' ? 'self' : 'opponent', operator: op, value: val }, rest: text.slice(handCountM[0].length), conditionFound: true };
+  }
+
+  // 「センタールリグが〈色〉で、手札がN枚以上あるかぎり」＝両方を満たす複合条件。
+  const centerColorHandM = text.match(/^あなたのセンタールリグが(白|赤|青|緑|黒)で、あなたの手札が([０-９\d]+)枚(以上|以下)あるかぎり、/);
+  if (centerColorHandM) {
+    return {
+      condition: { type: 'AND', conditions: [
+        { type: 'LRIG_COLOR', owner: 'self', color: centerColorHandM[1] },
+        { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: centerColorHandM[3] === '以上' ? 'gte' : 'lte', value: parseNum(centerColorHandM[2]) },
+      ] }, rest: text.slice(centerColorHandM[0].length), conditionFound: true,
+    };
   }
 
   // パターン5d: 「対戦相手の手札がN枚以上/以下であるかぎり、」
@@ -1497,9 +1529,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     const op: CompareOp = centerLrigLevelM[3] === '以上' ? 'gte' : centerLrigLevelM[3] === '以下' ? 'lte' : 'eq';
     return { condition: { type: 'LRIG_LEVEL', owner, operator: op, value: val }, rest: text.slice(centerLrigLevelM[0].length), conditionFound: true };
   }
-  const handZeroM = text.match(/^あなたの手札が０枚であるかぎり、/);
-  if (handZeroM) {
-    return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'self', operator: 'eq', value: 0 }, rest: text.slice(handZeroM[0].length), conditionFound: true };
+
+  // センタールリグのレベルと色を同時に要求する複合条件。
+  const centerLrigLevelColorM = text.match(/^あなたのセンタールリグがレベル([０-９\d]+)(以上|以下)で(白|赤|青|緑|黒)であるかぎり、/);
+  if (centerLrigLevelColorM) {
+    return {
+      condition: { type: 'AND', conditions: [
+        { type: 'LRIG_LEVEL', owner: 'self', operator: centerLrigLevelColorM[2] === '以上' ? 'gte' : 'lte', value: parseNum(centerLrigLevelColorM[1]) },
+        { type: 'LRIG_COLOR', owner: 'self', color: centerLrigLevelColorM[3] },
+      ] }, rest: text.slice(centerLrigLevelColorM[0].length), conditionFound: true,
+    };
   }
 
   // パターン7: 「あなたの手札が対戦相手よりN枚以上多いかぎり、」（handGenMより先に評価）
@@ -1509,6 +1548,14 @@ function parseActiveCondition(text: string): ConditionParseResult {
       condition: { type: 'HAND_DIFF', operator: 'gte', value: parseNum(handDiffM[1]) },
       rest: text.slice(handDiffM[0].length),
       conditionFound: true,
+    };
+  }
+
+  const oppHandDiffM = text.match(/^対戦相手の手札があなたより([０-９\d]+)枚以上多いかぎり、/);
+  if (oppHandDiffM) {
+    return {
+      condition: { type: 'HAND_DIFF', operator: 'lte', value: -parseNum(oppHandDiffM[1]) },
+      rest: text.slice(oppHandDiffM[0].length), conditionFound: true,
     };
   }
 
@@ -2150,6 +2197,11 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   語彙が無くアーツ使用時に無条件で3ドローする過剰効果だった（WX20-005・タスク12(xxxix)）。
   [/あなたの手札が対戦相手より少ない場合/,
     () => ({ type: 'HAND_DIFF', operator: 'lt', value: 0 })],
+  // HAND_DIFF は self−opponent。相手がN枚以上多い＝diff<=-N、自分がN枚以上多い＝diff>=N。
+  [/対戦相手の手札があなたより([０-９\d]+)枚以上多い場合/,
+    g => ({ type: 'HAND_DIFF', operator: 'lte', value: -parseNum(g[0]) })],
+  [/あなたの手札が対戦相手より([０-９\d]+)枚以上多い場合/,
+    g => ({ type: 'HAND_DIFF', operator: 'gte', value: parseNum(g[0]) })],
   // 「あなたの手札が対戦相手より多い場合」＝self−opp>0（HAND_DIFF{gt,0}）。少ない側の対称形。
   //   WX24-P2-022 の「多い場合バニッシュ／少ない場合ハンデス」二分岐の前段が無条件バニッシュだった。
   [/あなたの手札が対戦相手より多い場合/,
@@ -2363,6 +2415,9 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   `WXEX1-38-E2` は３種類ゲートが落ちて**無条件バニッシュ**だった（§6.4・2026-08-10）。
   [/あなたのトラッシュにスペルが([０-９\d]+)種類以上ある場合/,
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'スペル' }, minCount: parseNum(g[0]), distinctName: true })],
+  // 「N枚」は素の枚数（上の「N種類」と混同しない）。
+  [/あなたのトラッシュにスペルが([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'スペル' }, minCount: parseNum(g[0]) })],
   // 「あなたの場にあるシグニが持つ色が合計N種類以上ある場合」＝場のシグニが持つ色の異なり数
   //   （`HAS_CARD_IN_FIELD.distinctColors`）。`WXDi-P13-036-E1` の「代わりに」ゲート。
   [/あなたの場にある(他の)?シグニが持つ色が合計([０-９\d]+)種類以上ある場合/,

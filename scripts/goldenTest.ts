@@ -3251,6 +3251,35 @@ test('§6.2 段2: 「あなたのすべての〈修飾〉シグニは【K】を�
   eq(String(gk.target.count), 'ALL', 'SP23-009-E1① は全体付与');
   eq(gk.target.filter?.hasIcon, 'ライズ', 'SP23-009-E1① は《ライズアイコン》限定を保つ（落とすと過大付与）');
 });
+// ── §6.2 段2 第7バッチ（2026-08-22）：条件節の閾値は**原文から読む**（regex に数字を決め打ちしない）──
+// Codex 版は「スコープ外を動かさない」ために `(５)枚` `(２)種類` と**閾値を regex に埋め込んで**おり、
+// 同じ文型で閾値だけ違う5効果が意図的に取り残されていた（`WX14-073-E2`＝スペル3枚／
+// `WXDi-P08-071-E2`＝色3種類／`WXDi-P04-010-E3`・`WXDi-D09-P04-E1`・`WXDi-P12-050-E2`＝手札差3枚）。
+// このテストは**同じ規則が別の閾値でも効く**ことを固定する＝決め打ちへ戻したら落ちる。
+test('§6.2 段2-7: 条件節の閾値は原文から読む（同じ文型・別の数字が両方 live に載る）', () => {
+  type AC = NonNullable<CardEffect['activeCondition']>;
+  const ecTypes = (id: string, card: string) => {
+    const a = manualEffect(card, id).activeCondition as AC | undefined;
+    const flat = JSON.stringify(a);
+    const m = flat?.match(/"ENERGY_COLOR_TYPES"[^}]*"value":(\d+)/);
+    return m ? Number(m[1]) : null;
+  };
+  eq(ecTypes('WXDi-P09-070-E1', 'WXDi-P09-070'), 2, 'エナの色 2種類以上（閾値2）');
+  eq(ecTypes('WXDi-P08-071-E2', 'WXDi-P08-071'), 3, 'エナの色 3種類以上（閾値3）＝決め打ちなら null になる');
+  const handDiff = (card: string, id: string) => {
+    const m = JSON.stringify(manualEffect(card, id)).match(/"HAND_DIFF","operator":"(\w+)","value":(-?\d+)/);
+    return m ? `${m[1]}${m[2]}` : null;
+  };
+  eq(handDiff('WXK09-030', 'WXK09-030-E1'), 'gte4', '自分が4枚以上多い');
+  eq(handDiff('WXDi-P04-010', 'WXDi-P04-010-E3'), 'gte3', '自分が3枚以上多い（同じ文型・別の閾値）');
+  eq(handDiff('SPK01-15', 'SPK01-15-E2'), 'lte-5', '相手が5枚以上多い＝符号が反転する（HAND_DIFF は self−opponent）');
+  const trashSpell = (card: string, id: string) => {
+    const m = JSON.stringify(manualEffect(card, id)).match(/"TRASH_HAS_CARD"[^}]*"cardType":"スペル"\},"minCount":(\d+)/);
+    return m ? Number(m[1]) : null;
+  };
+  eq(trashSpell('WXDi-P02-060', 'WXDi-P02-060-E2'), 5, 'トラッシュのスペル5枚以上');
+  eq(trashSpell('WX14-073', 'WX14-073-E2'), 3, 'トラッシュのスペル3枚以上（同じ文型・別の閾値）');
+});
 test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P12000→敵P3000除去・P12000残存・WXDi-P01-020）', () => {
   const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtAnyAlly: true } } } as EffectAction, ctx);
@@ -40868,6 +40897,50 @@ test('stage2 batch5: アップ/ダウンの2択が CHOOSE で表現され、対�
   const t = (lv?.action as { choices?: Array<{ action?: { target?: { filter?: { level?: unknown } } } }> })?.choices?.[0]?.action?.target;
   eq(JSON.stringify(t?.filter?.level), JSON.stringify({ max: 3 }), 'WXK11-039-E2: レベル3以下が対象に載る');
 });
+
+// ── §6.2 段2 第7バッチ: 条件節脱落による無条件発火 ──
+test('段2-7 A: PR-464-E1 は赤Lv4以上の中央ルリグが無ければパワー+5000しない', () => withSavedCursor(() => {
+  const redLv4 = findCard(c => c.Type === 'ルリグ' && c.Level === '4' && c.Color?.includes('赤'));
+  const cm = cardMap as Map<string, CardData>;
+  const miss = mkState({ signi: ['PR-464', null, null] });
+  const hit = mkState({ signi: ['PR-464', null, null], lrig: [redLv4] });
+  eq(calcFieldPowers(miss, mkState({}), true, effectsMap, cm).get('PR-464'), 5000,
+    '条件不成立なら実行経路で+5000されない');
+  eq(calcFieldPowers(hit, mkState({}), true, effectsMap, cm).get('PR-464'), 10000,
+    '赤Lv4中央ルリグなら+5000される');
+}));
+
+test('段2-7 B: HAND_DIFF は self−opponent の向きで両方向を実行ゲートする', () => withSavedCursor(() => {
+  const conditionOf = (cardNum: string, effectId: string): Condition => {
+    const effect = (effectsMap.get(cardNum) ?? []).find(e => e.effectId === effectId);
+    ok(effect?.action.type === 'CONDITIONAL', `${effectId}: CONDITIONAL が載る`);
+    return (effect!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition;
+  };
+  const executesDraw = (condition: Condition, selfHand: number, oppHand: number) => {
+    const ctx = mkCtx({ hand: selfHand }, { hand: oppHand });
+    return run({ type: 'CONDITIONAL', condition, then: { type: 'DRAW', owner: 'self', count: 1 } }, ctx).ownerState.hand.length;
+  };
+  const oppMore = conditionOf('SPK01-15', 'SPK01-15-E2');
+  eq(executesDraw(oppMore, 2, 7), 3, '相手が5枚多い（diff=-5）なら発動');
+  eq(executesDraw(oppMore, 3, 7), 3, '相手が4枚多い（diff=-4）では不発');
+  const selfMore = conditionOf('WXK09-030', 'WXK09-030-E1');
+  eq(executesDraw(selfMore, 7, 3), 8, '自分が4枚多い（diff=4）なら発動');
+  eq(executesDraw(selfMore, 6, 3), 6, '自分が3枚多い（diff=3）では不発');
+}));
+
+test('段2-7 C: WXDi-P02-060-E2 はトラッシュのスペル5枚未満なら発動しない', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P02-060') ?? []).find(e => e.effectId === 'WXDi-P02-060-E2');
+  ok(effect?.action.type === 'CONDITIONAL', 'C1: CONDITIONAL が載る');
+  const condition = (effect!.action as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition;
+  const spell = findCard(c => c.Type === 'スペル');
+  const executesDraw = (count: number) => {
+    const ctx = mkCtx({ hand: 2 }, {});
+    ctx.ownerState.trash = Array(count).fill(spell);
+    return run({ type: 'CONDITIONAL', condition, then: { type: 'DRAW', owner: 'self', count: 1 } }, ctx).ownerState.hand.length;
+  };
+  eq(executesDraw(4), 2, 'スペル4枚では不発');
+  eq(executesDraw(5), 3, 'スペル5枚なら発動');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

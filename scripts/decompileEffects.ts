@@ -657,6 +657,13 @@ function condJa(c?: any): string {
     case 'HAND_DIFF':
       if (c.value === 0 && c.operator === 'lt') return 'あなたの手札が対戦相手より少ない';
       if (c.value === 0 && c.operator === 'gt') return 'あなたの手札が対戦相手より多い';
+      // 🔑**負の value は「対戦相手のほうが多い」を表す**（diff = 自分 − 相手）。
+      // 素直に `${value}枚${op}多い` と書くと **「-5枚以下多い」** という無意味な日本語になり、
+      // 原文（「対戦相手の手札があなたより５枚以上多い場合」）と一致しているのに**ズレて見える**。
+      // 次の意味照合監査を誤誘導するので、主語を入れ替えて正の枚数で描く（2026-08-22・段2 第7バッチ）。
+      if (c.value < 0 && (c.operator === 'lte' || c.operator === 'lt')) {
+        return `対戦相手の手札があなたより${numJa(-c.value)}枚${c.operator === 'lte' ? '以上' : 'より多く'}多い`;
+      }
       return `あなたの手札が対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     case 'ENA_DIFF': return `あなたのエナが対戦相手より${numJa(c.value)}枚${opJa(c.operator)}多い`;
     // ── §5b「逆翻訳の英語ID漏れ0」の残テール（2026-08-07 §5c 消化のついでに一括意味文化）──
