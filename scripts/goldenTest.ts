@@ -40995,6 +40995,63 @@ test('段2-9 A1/A2: self離脱は対戦相手の効果起因だけ収集する',
   }
 });
 
+// 段2 第11バッチ: REVEAL / TAKE_FROM_UNDER_SIGNI / REMOVE_CHARM / ADD_TO_FIELD /
+// FIELD_SIGNI_TO_ACCE も、実カードの「そうした場合」を空振り/成功の両方向で固定する。
+test('段2 第11バッチ: did-it追加5型は空振りで後段不発／成功で発火（両方向E2E）', () => {
+  const gated = (step: EffectAction): EffectAction => ({ type: 'SEQUENCE', steps: [
+    step,
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as EffectAction);
+  const water = SIGNI_L1;
+  const host = SIGNI_L2;
+  const acce = SIGNI_L3;
+
+  const reveal = gated({ type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction);
+  eq(run(reveal, mkCtx({ hand: 0 }, {})).ownerState.hand.length, 0, 'REVEAL空振り→後段不発');
+  const revealCtx = mkCtx({ hand: 0 }, {}); revealCtx.ownerState.hand = [water];
+  eq(run(reveal, revealCtx).ownerState.hand.length, 2, 'REVEAL成功→公開札を残して1枚引く');
+
+  const under = gated({ type: 'TAKE_FROM_UNDER_SIGNI', destination: 'trash', count: 1, fromThis: true } as EffectAction);
+  eq(run(under, mkCtx({ signi: [water, null, null], hand: 0 }, {}, water)).ownerState.hand.length, 0, '下カードなし→後段不発');
+  const underCtx = mkCtx({ signi: [water, null, null], hand: 0 }, {}, water); underCtx.ownerState.field.signi[0] = [acce, water];
+  eq(run(under, underCtx).ownerState.hand.length, 1, '下カード移動成功→後段発火');
+
+  const charm = gated({ type: 'REMOVE_CHARM', targetOwner: 'opponent', count: 1 } as EffectAction);
+  eq(run(charm, mkCtx({ hand: 0 }, { signi: [host, null, null] })).ownerState.hand.length, 0, 'チャームなし→後段不発');
+  const charmCtx = mkCtx({ hand: 0 }, { signi: [host, null, null] });
+  charmCtx.otherState.field.signi_charms = [acce, null, null];
+  eq(run(charm, charmCtx).ownerState.hand.length, 1, 'チャーム除去成功→後段発火');
+
+  const add = gated({ type: 'ADD_TO_FIELD', owner: 'self', source: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } } } as EffectAction);
+  eq(run(add, mkCtx({ hand: 0 }, {})).ownerState.hand.length, 0, '場出し候補なし→後段不発');
+  const addCtx = mkCtx({ hand: 0 }, {}); addCtx.ownerState.hand = [water];
+  const addDone = run(add, addCtx);
+  eq(addDone.ownerState.field.signi.filter(Boolean).length, 1, 'ADD_TO_FIELD成功盤面');
+  eq(addDone.ownerState.hand.length, 1, 'ADD_TO_FIELD成功→後段発火');
+
+  const toAcce = gated({ type: 'FIELD_SIGNI_TO_ACCE', sourceOwner: 'self', targetSigniOwner: 'self', sourceFilter: { cardType: 'シグニ' }, targetFilter: { cardType: 'シグニ' } } as EffectAction);
+  eq(run(toAcce, mkCtx({ signi: [null, null, null], hand: 0 }, {})).ownerState.hand.length, 0, 'アクセ元なし→後段不発');
+  const acceDone = run(toAcce, mkCtx({ signi: [acce, host, null], hand: 0 }, {}));
+  eq(acceDone.ownerState.field.signi_acce?.flat().filter(Boolean).length, 1, 'FIELD_SIGNI_TO_ACCE成功盤面');
+  eq(acceDone.ownerState.hand.length, 1, 'FIELD_SIGNI_TO_ACCE成功→後段発火');
+});
+
+test('段2 第11バッチ: REVEAL optional は辞退でき、辞退時だけ「そうした場合」を落とす', () => {
+  const water = SIGNI_L1;
+  const action = { type: 'SEQUENCE', steps: [
+    { type: 'REVEAL', source: { type: 'HAND_CARD', owner: 'self', count: 1, filter: { cardType: 'シグニ' } }, optional: true },
+    { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'DRAW', owner: 'self', count: 1 } },
+  ] } as EffectAction;
+  const base = mkCtx({ hand: 0 }, {}); base.ownerState.hand = [water];
+  const pending = executeAction(action, base);
+  ok(!pending.done && pending.pending.type === 'SELECT_TARGET' && pending.pending.optional, '任意公開の選択UI');
+  if (pending.done || pending.pending.type !== 'SELECT_TARGET') return;
+  const skip = resumeSelectTarget([], pending.pending, { ...base, ownerState: pending.ownerState, otherState: pending.otherState, logs: pending.logs, lastProcessedCards: pending.lastProcessedCards });
+  eq(skip.ownerState.hand.length, 1, '辞退→公開札だけが残り後段ドローなし');
+  const pay = resumeSelectTarget([water], pending.pending, { ...base, ownerState: pending.ownerState, otherState: pending.otherState, logs: pending.logs, lastProcessedCards: pending.lastProcessedCards });
+  eq(pay.ownerState.hand.length, 2, '公開→公開札を残して後段ドロー');
+});
+
 test('段2-9 A3: 全領域ON_TRASHは対戦相手効果起因だけ収集する', () => {
   const yes = collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WX25-P1-060', HOST, true, 'hand');
   const no = collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WX25-P1-060', HOST, false, 'hand');

@@ -1,5 +1,88 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き603）：§6.2 段2 第11バッチ＝「そうした場合」ゲートが engine のどの慣例にも拾われず素通りしていた14効果
+
+**このバッチの最大の成果は実装ではなく「母集団の訂正」。** PLAN §4 は次バッチの題材を
+「『そうした場合』→`IS_MY_TURN` 誤変換は live 全体で **998効果**・うち967が真バグの疑い」と書いていたが、
+**実測すると実害は 29効果しかなかった**（969 は engine の慣例エンコードで既に守られている）。
+残 OPEN **984→980**。census **742 据置**。golden **2353→2355**。
+
+### 998 の内訳（`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch11_population.mjs` で再現可能）
+
+| 区分 | 件数 | 消費地点 |
+|---|---|---|
+| `IS_MY_TURN` は evalCondition で**常時 true** | — | `execUtils.ts:2143` ＝「相手ターンだと後段が撃てない」**過小実行は存在しない**。実害は片方向（前段が空振り／辞退でも後段が撃てる過剰実行）だけ |
+| 直前が STUB → 汎用「任意コスト」intercept が `CONDITIONAL{IS_MY_TURN}` を did-it ゲートとして消費 | **647** | `effectExecutor.ts:4034`（入口）＋`:4502-4545`（**どの stub.id にも一致しなかったときの catch-all。必ず `needsInteraction` を返す**） |
+| 離れた `OPTIONAL_COST` 系（Pattern ④）／条件包み形 | **84** | `:4651` ／ `:3869` |
+| 直前が `DID_IT_GATED_TYPES` → 既存 did-it ゲート | **247** | `:3816` ＋ `:4886` |
+| 使用時コスト軽減の no-op マーカー（`ARTS_COST_REDUCTION_BY_EFFECT`） | **24** | `effectParser.ts:14989-15008`＝支払いは `useTimeCost.ts`＋`SpellCastModal`/`ArtsModal` 側 |
+| **どれにも拾われず素通り＝実害** | **29** | 今回のスコープ |
+
+🔑**教訓＝「JSON に語彙があるか」だけで母集団を数えると桁が変わる。**
+CLAUDE.md の「型にキーがあることは実装の証拠にならない」の**裏返し**＝
+**「JSON が変な値でも、engine 側が慣例として正しく消費していることがある」**。
+段2 の母集団は必ず**消費地点まで見て**数える。
+
+### 何が壊れていたか（A群14効果）
+
+前段が**空振り（候補0件）**でも直後の `CONDITIONAL{IS_MY_TURN}`＝「そうした場合」が `true` で通り、
+**後段が撃てていた**。前段の型が `DID_IT_GATED_TYPES` に入っていないだけ。
+
+- **REVEAL 5**＝`WDK08-Y17-E1`／`WX22-044-E1`／`WXDi-P10-045-E1`／`WXDi-P11-075-E1`／`WXK05-044-E1`
+- **TAKE_FROM_UNDER_SIGNI 3**＝`WX21-042-E2`／`WXEX1-35-E2`／`WXDi-P08-044-E2`
+- **REMOVE_CHARM 2**＝`WX10-088-E1`／`WXEX1-28-E2`
+- **ADD_TO_FIELD 3**＝`WX20-034-CB-E1`／`WX20-039-CB-E1`／`WXK05-024-E3`
+- **FIELD_SIGNI_TO_ACCE 1**＝`WXEX2-19-E2`
+
+### 直し方（engine のみ・parser と JSON は変更0）
+
+1. `DID_IT_GATED_TYPES`（`effectExecutor.ts:3816`）へ上の5型を追加。
+2. **空振りが `return done(ctx)` で直前ステップの記録を持ち越す型**（REVEAL / TAKE_FROM_UNDER_SIGNI /
+   REMOVE_CHARM / FIELD_SIGNI_TO_ACCE）はステップ実行の直前に `lastProcessedCards: []` を入れる
+   （既存の TRASH・DOWN と同じ形）。**ADD_TO_FIELD だけは事前リセットしない**＝動的 `countFromZone` が
+   直前の記録を読むため。代わりに `applyToField` が**実際に配置できた札だけ**を記録するようにした。
+3. 副産物＝**`RevealAction.optional` が死にフィールドだった**（`execReveal:1310` が `src.upToCount` しか
+   `selectOrInteract` へ渡さず、「公開して**もよい**」を**辞退できなかった**）。
+   `execAddToField:2951` の `(a.optional ?? false) || (src.upToCount ?? false)` に合わせて修正。
+
+golden は5型すべてに**空振り／成功の両方向 E2E**＋任意 REVEAL の**辞退／実行**を追加（+2 test）。
+
+### 🔴 1件だけ「過剰実行 → 恒久 no-op」へ裏返った
+
+`WXDi-P11-075-E1` ①（「手札からレベル１、レベル２、レベル３のシグニを１枚ずつ公開する」）は
+**live が source 無しの素の `{type:'REVEAL'}`**＝公開処理そのものが元から no-op で、
+`execReveal:1316` は `lastProcessedCards` を書かない。事前リセットを入れた結果**必ず空振り判定**になり、
+後段の【エナチャージ１】が**発生しなくなった**。⇒ 台帳では当該 finding を**閉じていない**。
+parser 側で「L1/L2/L3 を1枚ずつ」を表せるようにする別バッチの題材。
+
+### 見送り（B群8効果・理由つき）
+
+- **`COUNTER_SPELL` 3**（`WX22-008-E2`／`WXK05-004-E1`／`WXK06-016-E1`）＝⚠**`DID_IT_GATED_TYPES` に
+  足してはいけない**。`effectExecutor.ts:7355` は `case 'COUNTER_SPELL': return done(ctx);` の
+  **engine 側 no-op**（打ち消し本体は BattleScreen）で `lastProcessedCards` を一度も書かないため、
+  足すと**ゲートが常時成立＝後段が永久に不発**＝過剰実行が過小実行へ裏返る。
+- **`ENERGY_CHARGE_FROM_DECK` 1**（`WXK06-078-E1`）＝原文の「して**もよい**」が JSON に無い＝parser 側。
+- **`GRANT_KEYWORD` 3**（`WX21-025-E2`／`WX21-036-E1`／`WXEX1-67-E1`）＝【トラップアイコン】節を
+  `GRANT_KEYWORD` に化かした parser の構造誤り。
+- **`WXK05-070-E1`** ＝STUB が `CONDITIONAL` に包まれており `:4034` の intercept（直下 STUB 限定）にも
+  `OPT_IDS_WRAP`（3 id 限定）にも入らない＝包み形の許可 id を広げる別機構。
+
+### 非バグと確認（C群7効果）
+
+`SPDi43-21-E1`／`WX07-003-E1`／`WX17-030-E1`／`WXDi-D09-P17-E1`（先頭 `OPTIONAL_ACTIVATE`→Pattern ⑤）、
+`WX25-CP1-046-E2`／`WXK08-053-E1`／`WXDi-P14-085-E1`（`OPTIONAL_COST` 系→包み形／Pattern ⑤）。
+
+### 検証で潰した副作用（Claude 側）
+
+- bare `{type:'REVEAL'}` は live に **278件**あるが、ほぼ `SEARCH.then = SEQUENCE[REVEAL, ADD_TO_HAND]` で
+  **`applyDirectAction:9766` 経路＝`execSequence` を通らない**＝事前リセットは届かない。**回帰なし**。
+- `execSequence` 経路の REVEAL は16件だけ。bare 4件のうち3件は後続が
+  `CONDITIONAL{DECK_TOP_MATCHES}`＝IS_MY_TURN でないのでゲート対象外・かつ lastProcessed を読まない＝無害。
+- `applyToField` の記録追加は呼び出し元が `src.count === 'ALL'` の1経路のみ。後段が lastProcessed を読む
+  ADD_TO_FIELD 3効果はいずれも原文が「**それを**場に出す→**それの**〜」＝精密化で退化なし。
+
+報告＝`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch11_report.md`（末尾に Claude 検証節）。
+
 ## 2026-08-22（続き602）：§6.2 段2 第10バッチ＝「**この**シグニを〜」が「自分の**任意の**シグニ1体」に化けていた24効果
 
 **1つの文型で18効果**という、久しぶりに「1規則でN効果」が成立した塊。残 OPEN **995→984**。census **742 据置**。golden **2350→2353**。

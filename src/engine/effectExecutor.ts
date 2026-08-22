@@ -1307,7 +1307,7 @@ function execReveal(a: import('../types/effects').RevealAction, ctx: ExecCtx): E
         ],
       });
     }
-    return selectOrInteract(cands, revealCount, src.upToCount ?? false, scope, { type: 'REVEAL' }, undefined, ctx,
+    return selectOrInteract(cands, revealCount, (a.optional ?? false) || (src.upToCount ?? false), scope, { type: 'REVEAL' }, undefined, ctx,
       false, { selectionConstraint: src.selectionConstraint });
   }
   return done(addLog(ctx, 'カードを公開'));
@@ -2891,6 +2891,7 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
   const srcDefined = src!;
   function applyToField(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
+    const placed: string[] = [];
     for (const n of selected) {
       const s = ownerState(tgtOwner, cur);
       // 空きゾーンがない場合は移動させずスキップ（カード消失防止）
@@ -2941,8 +2942,9 @@ function execAddToField(a: AddToFieldAction, ctx: ExecCtx): ExecResult {
       }
       cur = addLog(setOwnerState(tgtOwner, newS, cur),
         `${cur.cardMap.get(n)?.CardName ?? n}をフィールドに出す`);
+      placed.push(n);
     }
-    return cur;
+    return { ...cur, lastProcessedCards: placed };
   }
 
   const count = src.count === 'ALL' ? cands.length : resolveCountRef(src.count, ctx, src.countFromZone);
@@ -3814,6 +3816,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
 const DID_IT_GATED_TYPES = new Set<string>([
   'BANISH', 'BOUNCE', 'DOWN', 'FREEZE', 'TRANSFER_TO_DECK', 'TRANSFER_TO_HAND',
   'SEND_TO_ENERGY', 'LIFE_CRASH', 'EXILE',
+  'REVEAL', 'TAKE_FROM_UNDER_SIGNI', 'REMOVE_CHARM', 'ADD_TO_FIELD', 'FIELD_SIGNI_TO_ACCE',
 ]);
 
 const OPTIONAL_COST_STUB_IDS = new Set([
@@ -4818,6 +4821,13 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
     if (step.type === 'DOWN') {
       const dA = step as DownAction;
       if (dA.target.owner === 'self') cur = { ...cur, lastProcessedCards: [] };
+    }
+    // did-it ゲート追加型は、候補0件や配置不能の done(ctx) が直前ステップの記録を持ち越さないよう
+    // 実行直前に空へ倒す。成功時は各 direct/選択再開経路が選択カードを必ず書き直す。
+    if (step.type === 'REVEAL' || step.type === 'TAKE_FROM_UNDER_SIGNI'
+        || step.type === 'REMOVE_CHARM'
+        || step.type === 'FIELD_SIGNI_TO_ACCE') {
+      cur = { ...cur, lastProcessedCards: [] };
     }
     const ctxBeforeStep = cur;
     const result = executeAction(step, cur);
