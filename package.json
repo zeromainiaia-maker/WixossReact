@@ -26,6 +26,7 @@
     "census:timing": "tsx scripts/timingCensus.ts",
     "census:wiring": "tsx scripts/censusWiring.ts",
     "census:goldentypes": "tsx scripts/goldenTypeCoverage.ts",
+    "census:cards": "node scripts/cardProgressCensus.mjs",
     "census:stubs": "tsx scripts/censusStubs.ts"
   },
   "dependencies": {
