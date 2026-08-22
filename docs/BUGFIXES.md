@@ -1,5 +1,12 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22：§6.2 段2 第12バッチ＝対象限定【アサシン】の括弧条件脱落
+
+- `AssassinScope` に `powerGte` / `levelLte` を追加し、`hasApplicableAssassin` の実判定まで配線。Shadow前例と同じ `keyword:{json}` 形式でscope text parser/encoderを追加した。
+- `stripRuleParens` 前処理を通常カード・アーツ・スペルの3経路へ配線し、live 12 effectsをscope付きへ是正。
+- 投入前見立てを訂正：`WX25-P2-084-E1` は開始時からmanual/liveともscope付き、`WX25-P1-111-E1` は付与二択自体がparserで落ちる別バグ。実脱落は14/14でなく12/14。
+- golden 2355→2356。census 742、smoke 10693異常0、fuzz全0、stubs A/C 0、manual-fields 0、lint 260 warnings、同型★0、held/partial/idset 92/15/46、live総数10693を維持。詳細は `tmp_stage2_batch12_report.md`。
+
 ## 2026-08-22（続き603）：§6.2 段2 第11バッチ＝「そうした場合」ゲートが engine のどの慣例にも拾われず素通りしていた14効果
 
 **このバッチの最大の成果は実装ではなく「母集団の訂正」。** PLAN §4 は次バッチの題材を

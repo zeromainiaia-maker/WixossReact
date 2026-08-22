@@ -41185,6 +41185,27 @@ test('段2-10 B3: このシグニのデッキ下移動は効果元だけを移�
   ok(!!miss.ownerState.field.signi[0], 'WXK05-031-E2: 効果元不在なら他をデッキへ移さない');
 }));
 
+test('段2-12: 対象限定アサシンは powerLte / powerGte / levelLte を正負両方向で判定する', () => {
+  const power5000 = findCard(c => isSigni(c) && c.Power === '5000');
+  const power6000 = findCard(c => isSigni(c) && c.Power === '6000');
+  const lowPower = mkState({ signi: [power5000, null, null] });
+  const highPower = mkState({ signi: [power6000, null, null] });
+  ok(hasApplicableAssassin(['アサシン:{"powerLte":5000}'], lowPower, cardMap), 'powerLte: 境界値なら成立');
+  ok(!hasApplicableAssassin(['アサシン:{"powerLte":5000}'], highPower, cardMap), 'powerLte: 上回れば不成立');
+  ok(hasApplicableAssassin(['アサシン'], highPower, cardMap), 'powerLte 負方向の同盤面でも無条件なら成立');
+
+  const power12000 = mkState({ signi: [SIGNI_P12000, null, null] });
+  ok(hasApplicableAssassin(['アサシン:{"powerGte":12000}'], power12000, cardMap), 'powerGte: 境界値なら成立');
+  ok(!hasApplicableAssassin(['アサシン:{"powerGte":12000}'], highPower, cardMap), 'powerGte: 下回れば不成立');
+  ok(hasApplicableAssassin(['アサシン'], highPower, cardMap), 'powerGte 負方向の同盤面でも無条件なら成立');
+
+  const level2 = mkState({ signi: [SIGNI_L2, null, null] });
+  const level3 = mkState({ signi: [SIGNI_L3, null, null] });
+  ok(hasApplicableAssassin(['アサシン:{"levelLte":2}'], level2, cardMap), 'levelLte: 境界値なら成立');
+  ok(!hasApplicableAssassin(['アサシン:{"levelLte":2}'], level3, cardMap), 'levelLte: 上回れば不成立');
+  ok(hasApplicableAssassin(['アサシン'], level3, cardMap), 'levelLte 負方向の同盤面でも無条件なら成立');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

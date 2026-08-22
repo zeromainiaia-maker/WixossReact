@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き603・Opus 5＋Codex）＝段2 第11バッチ＝「そうした場合」ゲートが engine のどの慣例にも拾われず素通りしていた14効果**。🔑**最大の成果は実装ではなく「母集団の訂正」**＝前セッションが本節に書いた「998効果・うち967が真バグ疑い」は**誤り**で、**実害は29効果**だった（969 は engine の慣例エンコードが既に守っている）。**残 OPEN 984→980**／段2 消化 103→107。ゲート全緑（**golden 2353→2355**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。**parser と live JSON は変更0**（engine のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き603）。
+  - 🔴🔑**998 の内訳**（`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch11_population.mjs` で再現）＝**`IS_MY_TURN` は `execUtils.ts:2143` で常時 true**（＝「相手ターンだと後段が撃てない」過小実行は**存在しない**。実害は片方向だけ）／直前 STUB の汎用「任意コスト」intercept が消費 **647**（`effectExecutor.ts:4034` 入口＋`:4502-4545` の**catch-all**＝どの stub.id にも一致しなくても必ず `needsInteraction` を返す）／Pattern ④・条件包み **84**／既存 did-it ゲート **247**／使用時コスト軽減の no-op マーカー **24**／**素通り＝実害 29**。
+  - 🔑**教訓＝CLAUDE.md「型にキーがあることは実装の証拠にならない」の裏返し**＝**「JSON が変な値でも engine が慣例として正しく消費していることがある」**。**段2 の母集団は必ず消費地点まで見て数える**（JSON の語彙だけで数えると桁が変わる）。
+  - **実害**＝前段が**空振り（候補0件）**でも「そうした場合」が通り後段が撃てた。前段の型が `DID_IT_GATED_TYPES` に無いだけ＝**REVEAL 5／TAKE_FROM_UNDER_SIGNI 3／REMOVE_CHARM 2／ADD_TO_FIELD 3／FIELD_SIGNI_TO_ACCE 1**。直しは①集合へ5型追加 ②空振りが `done(ctx)` で記録を持ち越す型だけ事前リセット（⚠**ADD_TO_FIELD は除外**＝動的 `countFromZone` が直前記録を読む。代わりに `applyToField` が**配置できた札だけ**を記録）。
+  - 🆕**副産物＝`RevealAction.optional` が死にフィールドだった**（`execReveal:1310` が `src.upToCount` しか渡さず「公開して**もよい**」を辞退できなかった）。`execAddToField:2951` の書き方に合わせて修正。
+  - 🔴**1件だけ「過剰実行→恒久 no-op」へ裏返った**＝`WXDi-P11-075-E1` ①は live が **source 無しの素の `REVEAL`**（公開処理自体が元から no-op）で、事前リセット後は必ず空振り判定になる。⇒**台帳では当該 finding を閉じていない**。parser 側で「L1/L2/L3 を1枚ずつ公開」を表す別バッチの題材。
+  - ⚠**見送り B群8**＝**`COUNTER_SPELL` 3 は `DID_IT_GATED_TYPES` に足してはいけない**（`:7355` が engine 側 no-op で `lastProcessedCards` を書かない＝足すと**後段が永久に不発**＝過剰が過小へ裏返る）／`ENERGY_CHARGE_FROM_DECK` 1 と `GRANT_KEYWORD` 3 は parser 側の別軸／`WXK05-070-E1` は包み形の許可 id 拡張。**非バグ確認 C群7**＝Pattern ⑤・包み形が既にゲート済み。
+  - **▶ 次の一手【Opus 側】＝段2 第12バッチ**。⚠**「そうした場合」軸は今回で枯れた**（残15＝B群8＋C群7 で、B群は前段の型ごとに別機構）。**次の題材は台帳から取り直す**＝`node scripts/archive/semanticAuditLedger.mjs --axis` で残 980 を軸別に見て、**parser の構造的な穴1か所**で15〜25効果になる塊を選ぶ。手順は据置（§3-1 実測 →§3-3 engine 実測 ⚠**消費地点まで見て母集団を数える**（今回の教訓）→ §5 番号引用の指示書 → Codex → 独立検証 → 台帳）。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件が未検証＝最優先）。
+
+
 - **🆕 セッション（2026-08-22・続き602・Opus 5＋Codex）＝段2 第10バッチ＝「**この**シグニを〜」が「自分の**任意の**シグニ1体」に化けていた24効果**。🔑**1つの文型で18効果**＝久しぶりに「1規則でN効果」が成立した塊。**残 OPEN 995→984**／段2 消化 92→103。ゲート全緑（**golden 2350→2353**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き602）。
   - **実害**＝「（アップ状態の）**この**シグニをダウンしてもよい」の `thisCardOnly` が落ち、**自傷コストを他のシグニに肩代わりさせられた**。3件は別の節の修飾が誤付着し、**うち2件は `owner:'opponent'`＝相手のシグニをダウンできた**。
   - 🔴🔑**Claude の先回りメモが誤っていて、engine に本当の穴があった**＝指示書に「`execDown` は `thisCardOnly` 実装済み（`:3296`）」と書いたが、**その行は隣の `execUp`**（`rawCandsUp`／`applyUp` を使っている）。**`execDown` にも `TRANSFER_TO_DECK` にも分岐は無く、live に既にあった `DOWN + thisCardOnly` の13効果がずっと無制限だった**（＝CLAUDE.md「**型にキーがあることは実装の証拠にならない**」の実例。どの計器にも映らない）。Codex が実コードを読んで発見・修正。**先回りメモが覆されたのは通算7回目**。⇒ CODEX_GUIDE §5 に `2′` として登録（**行番号を書くときは『その行がどの関数の中か』を確かめる**＝`sed` の範囲指定は隣の関数へはみ出す）。

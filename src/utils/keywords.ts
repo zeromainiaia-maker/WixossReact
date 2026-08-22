@@ -82,6 +82,8 @@ export function hasKeyword(
 export interface AssassinScope {
   isFrozen?: boolean;
   powerLte?: number;
+  powerGte?: number;
+  levelLte?: number;
   /**
    * 「あなたの手札がN枚以下であるかぎり、このシグニは【アサシン】を得る」（`WX24-P1-064-E1`・§6.4 O-28）。
    * ⚠**相手盤面ではなくアタック側の状態**を見る唯一のスコープ＝`hasApplicableAssassin` の
@@ -133,11 +135,44 @@ export function hasApplicableAssassin(
       if (scope.isFrozen && !(opponentState.field.signi_frozen?.[zoneIdx] ?? false)) return false;
       const power = effectivePowers?.get(cardNum) ?? parseInt((cardMap.get(cardNum) ?? cardMap.get(baseCardNum(cardNum)))?.Power ?? '', 10);
       if (scope.powerLte !== undefined && (!Number.isFinite(power) || power > scope.powerLte)) return false;
+      if (scope.powerGte !== undefined && (!Number.isFinite(power) || power < scope.powerGte)) return false;
+      if (scope.levelLte !== undefined) {
+        const level = parseInt((cardMap.get(cardNum) ?? cardMap.get(baseCardNum(cardNum)))?.Level ?? '', 10);
+        if (!Number.isFinite(level) || level > scope.levelLte) return false;
+      }
       return true;
     });
     if (matches) return true;
   }
   return false;
+}
+
+/** 「【アサシン（X）】」の括弧内テキスト X を AssassinScope に変換する。 */
+export function parseAssassinScopeText(inner: string): AssassinScope | null {
+  const s = inner.trim();
+  const half = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  let m: RegExpMatchArray | null;
+  const isFrozen = s.startsWith('凍結状態の');
+  const rest = isFrozen ? s.slice('凍結状態の'.length) : s;
+  if (rest === 'シグニ' && isFrozen) return { isFrozen: true };
+  if ((m = rest.match(/^パワー([０-９\d]+)以下のシグニ$/))) {
+    return { ...(isFrozen ? { isFrozen: true } : {}), powerLte: parseInt(half(m[1]), 10) };
+  }
+  if ((m = rest.match(/^パワー([０-９\d]+)以上のシグニ$/))) {
+    return { ...(isFrozen ? { isFrozen: true } : {}), powerGte: parseInt(half(m[1]), 10) };
+  }
+  if (!isFrozen && (m = rest.match(/^レベル([０-９\d]+)以下のシグニ$/))) {
+    return { levelLte: parseInt(half(m[1]), 10) };
+  }
+  return null;
+}
+
+/** stripRuleParens より前に、本文中の対象限定アサシンを既存の keyword JSON 形式へ符号化する。 */
+export function encodeAssassinScopesInText(text: string): string {
+  return text.replace(/【アサシン（([^）]*)）】/g, (_full, inner: string) => {
+    const scope = parseAssassinScopeText(inner);
+    return `【${encodeAssassinKeyword(scope)}】`;
+  });
 }
 
 /**

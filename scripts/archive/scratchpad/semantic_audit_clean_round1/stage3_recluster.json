@@ -53,7 +53,7 @@
     "cardNum": "WX16-072",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "LOOK_AND_REORDER",
+    "actionType": "REVEAL_AND_PICK",
     "quote": "アクセを持つシグニ１枚",
     "claim": "公開した3枚からアクセアイコンを持つシグニ1枚を選んでエナゾーンに置く処理がなく、JSONでは3枚すべてをデッキの下に置く。"
    },
@@ -125,7 +125,7 @@
     "cardNum": "WXDi-P11-073",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "LOOK_AND_REORDER",
+    "actionType": "REVEAL_AND_PICK",
     "quote": "カード１枚をエナゾーンに置き",
     "claim": "見た3枚のうち1枚をエナゾーンに置く処理がなく、JSONではカードをデッキ下へ並べ替える処理だけになっている。"
    },
@@ -512,7 +512,7 @@
     "cardNum": "WX14-073",
     "severity": "MED",
     "type": "MISSING",
-    "actionType": "POWER_MODIFY",
+    "actionType": "CONDITIONAL",
     "quote": "スペルが３枚以上ある場合",
     "claim": "パワーを－3000する条件である自分のトラッシュのスペル3枚以上がJSONにない。"
    },
@@ -629,7 +629,7 @@
     "cardNum": "WX06-017",
     "severity": "HIGH",
     "type": "WRONG",
-    "actionType": "DOWN",
+    "actionType": "CHOOSE",
     "quote": "それをアップするかダウンする",
     "claim": "原文は任意のシグニ1体をアップまたはダウンする選択効果だが、JSONは自分のシグニ1体をダウンする効果に限定している。"
    },
@@ -1445,7 +1445,7 @@
     "cardNum": "WX24-P3-080",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "POWER_MODIFY",
+    "actionType": "CONDITIONAL",
     "quote": "エナゾーンに＜美巧＞",
     "claim": "パワーを＋5000するための「自分のエナゾーンに＜美巧＞のシグニがある」条件がJSONにありません。"
    },
@@ -1814,7 +1814,7 @@
     "cardNum": "WX18-031",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "LIFE_CRASH",
+    "actionType": "CONDITIONAL",
     "quote": "合計２０枚以上ある場合",
     "claim": "ライフクロスをクラッシュする条件である、トラッシュの＜鉱石＞と＜宝石＞のシグニが合計20枚以上という判定が欠落している。"
    },
@@ -2084,7 +2084,7 @@
     "cardNum": "WX22-011",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "BOUNCE",
+    "actionType": "CONDITIONAL",
     "quote": "緑と白の＜美巧＞のシグニがある場合",
     "claim": "バウンスに必要な、自分の場に緑と白の＜美巧＞があるという条件がJSONにない。"
    },
@@ -2414,7 +2414,7 @@
     "cardNum": "WXDi-P02-060",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "GRANT_KEYWORD",
+    "actionType": "CONDITIONAL",
     "quote": "スペルが５枚以上ある場合",
     "claim": "【アサシン】を得るための「自分のトラッシュにスペルが5枚以上」という条件が欠落している。"
    },
@@ -3167,7 +3167,7 @@
     "cardNum": "WXK09-030",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "BANISH",
+    "actionType": "CONDITIONAL",
     "quote": "手札が対戦相手より４枚以上多い",
     "claim": "相手シグニをバニッシュするための手札枚数差条件がJSONに無く、アタック時に無条件でバニッシュします。"
    },
@@ -3881,7 +3881,7 @@
     "cardNum": "WX19-029",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "DOWN",
+    "actionType": "CHOOSE",
     "quote": "バニッシュされたか",
     "claim": "アタックフェイズ中にこのシグニがバニッシュされた場合の発動条件が欠落している。"
    },
@@ -3953,7 +3953,7 @@
     "cardNum": "WXDi-P13-070",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "FREEZE",
+    "actionType": "CONDITIONAL",
     "quote": "効果によってカードを２枚以上",
     "claim": "このターンに効果によってカードを2枚以上引いていた場合という発動条件が欠落し、無条件で相手のシグニを凍結する。"
    },
@@ -5033,7 +5033,7 @@
     "cardNum": "WXK01-072",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "BANISH",
+    "actionType": "CONDITIONAL",
     "quote": "ドライブ状態のシグニがある場合",
     "claim": "自分の場にドライブ状態のシグニがある場合というバニッシュ条件がJSONに無く、無条件でバニッシュできる。"
    },
@@ -5051,7 +5051,7 @@
     "cardNum": "WX14-025",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "BANISH",
+    "actionType": "CONDITIONAL",
     "quote": "フレイスロ》を含むシグニが３体",
     "claim": "相手の全シグニをバニッシュするための、自分の場に「フレイスロ」を含むシグニが3体ある条件が欠落している。"
    },
@@ -5096,7 +5096,7 @@
     "cardNum": "SPK01-15",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "POWER_MODIFY",
+    "actionType": "CONDITIONAL",
     "quote": "手札があなたより５枚以上多い場合",
     "claim": "パワーを－10000するための、対戦相手の手札が自分より5枚以上多いという条件が欠落している。"
    },
@@ -5105,7 +5105,7 @@
     "cardNum": "WXDi-D05-016",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "BANISH",
+    "actionType": "CONDITIONAL",
     "quote": "手札が対戦相手より４枚以上多い場合",
     "claim": "自分の手札が対戦相手より4枚以上多い場合だけ対象をバニッシュする条件がない。"
    },
@@ -5300,7 +5300,7 @@
     "cardNum": "WX25-P2-088",
     "severity": "HIGH",
     "type": "WRONG",
-    "actionType": "SEQUENCE",
+    "actionType": "CONDITIONAL",
     "quote": "ある場合、代わりに",
     "claim": "凍結状態の相手シグニの有無による置換条件がなく、通常の捨て札と無作為の捨て札を両方連続して行う。"
    },
@@ -5444,7 +5444,7 @@
     "cardNum": "WXK02-086",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "DRAW",
+    "actionType": "CONDITIONAL",
     "quote": "凍結状態のシグニがある場合",
     "claim": "対戦相手の場に凍結状態のシグニがある場合に限る発動条件がJSONにない。"
    },
@@ -5816,7 +5816,7 @@
     "cardNum": "WX13-062",
     "severity": "HIGH",
     "type": "MISSING",
-    "actionType": "BOUNCE",
+    "actionType": "CONDITIONAL",
     "quote": "《弓》を含むシグニが３体ある場合",
     "claim": "自分の場にカード名が《弓》を含むシグニが3体ある場合に限る発動条件がなく、無条件でバウンスします。"
    },
@@ -6593,7 +6593,7 @@
     "cardNum": "WX19-029",
     "severity": "MED",
     "type": "WRONG",
-    "actionType": "DOWN",
+    "actionType": "CHOOSE",
     "quote": "シグニ１体を対象",
     "claim": "原文では所有者を問わないシグニ1体が対象だが、JSONでは自分のシグニだけに限定されている。"
    },
