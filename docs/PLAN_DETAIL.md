@@ -3122,6 +3122,24 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
+- **2026-08-22 続き593（段2 第3バッチ＝盤面状態フィルタの配線漏れ）後の値**（続き594 で退避）：
+  **census 781→776**（`BASELINE_HIGH` 776 へ更新）、**golden 2329→2334**（新規 E2E 5本）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、lint **0 errors**（260 warnings 据置）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
+  **被覆マトリクス（`census:wiring`）＝盤面状態語彙の miss は `hasAcce` 0／`infected` 0／`hasCharm` 0／`isDown` 0／
+  `isSelfCharmed` 0／`isFrozen` 1／`isUp` 2／`isSelfAcced` 1／`acceHost` 3**（残りは全部 機構待ちか構造ガード。
+  ⚠**全体の miss 合計は未再計測**＝前回値 190 は状態語彙の是正ぶんだけずれている）、
+  `parserWorklist` held **99枚 / 40署名群 据置**、`docs/_partial_fresh.json` **6カード 据置**、
+  **live 効果総数 10693 据置**（per-effect diff **changed 14／added 0／removed 0**）。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。
+  （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  **Opusタスク12＝在庫1件**（(cxlvi)）／🏁**§6.4 は (O-37)(O-38) を新規登録**（下記 §6.4）／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は §6.2 段2（第4バッチ）・Opusタスク12 在庫1件・§5d-0 (i) の残セル・§6.3・タスク13**。
+  ⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
+  AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き593）。
+
 - **2026-08-20 続き591（Opusタスク12 (cl)＝「そのターン終了時」の遅延予約を残0クローズ）後の値**（2026-08-22 続き593 で退避）：
   **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2324→2325**（(cxlvii) の3本を遅延仕様へ更新＋②skip を1本追加）、
   smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、

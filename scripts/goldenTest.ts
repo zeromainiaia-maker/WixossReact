@@ -3655,7 +3655,7 @@ test('UNKNOWN第6バッチ A1: 「すべての」が名詞より前でも天使�
   const freshEff = parseCardEffects(cardMap.get('WX21-028')!).find(e => e.effectId === 'WX21-028-E1')!;
   const rap = freshEff.action as import('../src/types/effects').RevealAndPickAction;
   eq(`${rap.type}/${rap.revealCount}/${rap.pickCount}/${rap.filter?.story}/${rap.filter?.cardType}/${rap.then.type}/${rap.remainder?.location}/${rap.remainder?.position}`,
-    'REVEAL_AND_PICK/2/ALL/天使/シグニ/ENERGY_CHARGE/deck/bottom', 'A1 fresh構造');
+    'REVEAL_AND_PICK/2/ALL/天使/シグニ/ADD_TO_ENERGY/deck/bottom', 'A1 fresh構造');   // 2026-08-22 段2 第4バッチ：エナ行きの正準形は ADD_TO_ENERGY
 
   const angel = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('天使'));
   const nonAngel = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('天使'));
@@ -4149,7 +4149,7 @@ test('§6.4 E2E PR-457-E1: 上2枚の共通色カードをすべてエナ、残�
   const effect = parseCardEffects(cardMap.get('PR-457')!).find(e => e.effectId === 'PR-457-E1')!;
   const reveal = effect.action as Extract<EffectAction, { type: 'REVEAL_AND_PICK' }>;
   eq(`${reveal.revealCount}/${reveal.pickCount}/${JSON.stringify(reveal.filter)}/${reveal.then.type}/${reveal.remainder?.position}`,
-    '2/ALL/{"colorMatchesLrig":true}/ENERGY_CHARGE/bottom', '共通色ALLをエナへ');
+    '2/ALL/{"colorMatchesLrig":true}/ADD_TO_ENERGY/bottom', '共通色ALLをエナへ');   // 同上
   const lrig = findCard(c => c.Type === 'ルリグ' && (c.Color ?? '').includes('赤'));
   const match = findCard(c => (c.Color ?? '').includes('赤') && c.CardNum !== lrig);
   const mismatch = findCard(c => !(c.Color ?? '').includes('赤'));
@@ -6926,7 +6926,7 @@ const xlviWave7Cases = [
   { cardNum: 'WX11-037', effectId: 'WX11-037-E1',
     want: 'DECLARE_CARD_NAME|{"nameEqDeclaredName":true}|1|-|カード|-|ADD_TO_HAND|deck/bottom' },
   { cardNum: 'WX13-054', effectId: 'WX13-054-E1',
-    want: 'DECLARE_CARD_NAME|{"nameEqDeclaredName":true}|ALL|-|カード|-|ENERGY_CHARGE|deck/bottom' },
+    want: 'DECLARE_CARD_NAME|{"nameEqDeclaredName":true}|ALL|-|カード|-|ADD_TO_ENERGY|deck/bottom' },   // 同上
   { cardNum: 'PR-431', effectId: 'PR-431-E2',
     want: 'DECLARE_CLASS|{"classEqDeclaredClass":true,"cardType":"シグニ"}|1|-|-|-|ADD_TO_HAND|trash/bottom' },
   { cardNum: 'WX24-P1-035', effectId: 'WX24-P1-035-E1',
@@ -40765,6 +40765,68 @@ test('stage2 batch3: 凍結条件の「代わりに」は then/else の置換に
   eq(a?.condition?.filter?.isFrozen, true, '条件は相手の場の凍結シグニ');
   eq(a?.then?.target?.blind, true, '成立時は見ないで選んで捨てさせる');
   eq(a?.else?.target?.blind, undefined, '不成立時は通常の手札1枚捨て');
+});
+
+// ── 段2 第4バッチ（デッキ公開 pick のエナ行き）─────────────────────────────
+// ①「その中から〈修飾〉のカードをN枚**エナゾーンに置き**、残りを…」＝pick 動詞が「手札に加える」系しか
+//   無かったため、汎用 LOOK_AND_REORDER に飲まれて**エナに1枚も置かれない**（＝見て戻すだけの no-op）だった。
+test('stage2 batch4: デッキ公開 pick のエナ行きが REVEAL_AND_PICK{then:ADD_TO_ENERGY} になる', () => {
+  const cases: Array<[string, string, unknown]> = [
+    ['WX25-P2-096-E1', 'level', { max: 2 }],
+    ['WX25-P2-091-E1', 'story', '遊具'],
+    ['WX16-072-E1', 'hasIcon', 'アクセ'],
+  ];
+  for (const [id, key, want] of cases) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === id);
+    ok(!!eff, `${id} live effect`);
+    const a = eff?.action as { type?: string; filter?: Record<string, unknown>; then?: { type?: string } };
+    eq(a?.type, 'REVEAL_AND_PICK', `${id}: pick が消えていない`);
+    eq(a?.then?.type, 'ADD_TO_ENERGY', `${id}: 選んだカードがエナへ行く`);
+    eq(JSON.stringify(a?.filter?.[key]), JSON.stringify(want), `${id}: ${key} 条件が載る`);
+  }
+});
+
+// ②🔴`REVEAL_AND_PICK.then` に `ENERGY_CHARGE{DECK_CARD}` を**二度と生やさない**ための計器ゲート。
+//   engine の `execEnergyCharge` は HAND_CARD / TRASH_CARD 以外を `fieldCandidates` へ落とす＝
+//   公開して選んだカードではなく**自分の場のシグニがエナへ飛ぶ**別物になる（`effectExecutor.ts:2046`）。
+//   `resumeSearch` が明示 case を持つのは `ADD_TO_ENERGY`（`:9512`）。
+test('stage2 batch4: live 全体に REVEAL_AND_PICK{then:ENERGY_CHARGE{DECK_CARD}} が1件も無い', () => {
+  const bad: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      const visit = (n: unknown): void => {
+        if (!n || typeof n !== 'object') return;
+        const o = n as { type?: string; then?: { type?: string; target?: { type?: string } } };
+        if (o.type === 'REVEAL_AND_PICK' && o.then?.type === 'ENERGY_CHARGE' && o.then.target?.type === 'DECK_CARD') {
+          bad.push(e.effectId);
+        }
+        for (const v of Object.values(n as Record<string, unknown>)) {
+          if (Array.isArray(v)) v.forEach(visit); else visit(v);
+        }
+      };
+      visit(e.action);
+    }
+  }
+  eq(bad.join(','), '', 'エナ行きの then は ADD_TO_ENERGY に統一されている');
+});
+
+// ── 段2 第5バッチ：「それをアップするかダウンする」の2択が DOWN 固定に潰れていた ────────────
+// 規則が**完全一致**（`^シグニ１体を対象とし、…$`）だったため、トリガー句が残る形と修飾語つきが
+// すべてこぼれ、**アップの選択肢が消えて DOWN 固定**になっていた（live 4効果）。
+test('stage2 batch5: アップ/ダウンの2択が CHOOSE で表現され、対象の修飾語も載る', () => {
+  const ids = ['WD23-032-A-E1', 'WX06-017-E2', 'WX19-029-E1', 'WXK11-039-E2', 'WX22-027-E1'];
+  for (const id of ids) {
+    const eff = [...effectsMap.values()].flat().find(e => e.effectId === id);
+    ok(!!eff, `${id} live effect`);
+    const a = eff?.action as { type?: string; choices?: Array<{ action?: { type?: string; target?: { filter?: Record<string, unknown> } } }> };
+    eq(a?.type, 'CHOOSE', `${id}: DOWN 固定ではなく2択`);
+    eq(a?.choices?.[0]?.action?.type, 'UP', `${id}: 選択肢1 = アップ`);
+    eq(a?.choices?.[1]?.action?.type, 'DOWN', `${id}: 選択肢2 = ダウン`);
+  }
+  // 修飾語（「レベル３以下の」）が対象へ載っていること
+  const lv = [...effectsMap.values()].flat().find(e => e.effectId === 'WXK11-039-E2');
+  const t = (lv?.action as { choices?: Array<{ action?: { target?: { filter?: { level?: unknown } } } }> })?.choices?.[0]?.action?.target;
+  eq(JSON.stringify(t?.filter?.level), JSON.stringify({ max: 3 }), 'WXK11-039-E2: レベル3以下が対象に載る');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

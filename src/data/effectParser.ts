@@ -4466,11 +4466,25 @@ function parseSingleSentenceInner(text: string): EffectAction {
     }
   }
 
-  // 「シグニ1体を対象とし、それをアップするかダウンする」＝同じ対象への2択。
-  // 単純な末尾動詞規則へ落とすと DOWN 固定かつ owner:self になるため先に捕捉する（WX22-027）。
-  if (/^シグニ[１1]体を対象とし[、,]\s*それをアップするかダウンする[。.]?$/.test(t)) {
+  // 「〈修飾〉シグニN体を対象とし、それ（ら）をアップするかダウンする」＝同じ対象への2択。
+  // 単純な末尾動詞規則へ落とすと **DOWN 固定**になるため先に捕捉する（WX22-027）。
+  // 🆕2026-08-22（段2 第5バッチ）＝**完全一致だったので修飾語つきが全部こぼれていた**
+  //   （`WXK11-039-E2` の「レベル３以下の」ほか live 4効果が `DOWN` 固定＝**アップの選択肢が消えていた**）。
+  //   対象名詞句は既存 `parseSigniTarget` に委ね、ここは2択の器だけを作る。
+  //   ⚠可変枚数形（「引いたカードの枚数までの数のシグニ」＝`WX11-030-E2`）は count が動的参照なので対象外。
+  {
+   // ⚠**トリガー句が残ったまま届く形がある**（`WD23-032-A-E1`「《トラップアイコン》が発動したとき、」）＝
+   //   先頭アンカーだけだと落ちる。「〜たとき、」の直後から対象名詞句を取り直す。
+   // ⚠可変枚数（「引いたカードの枚数までの数のシグニ」＝`WX11-030-E2`）は count が動的参照なので**対象外**
+   //   （ここで拾うと count:1 に潰れて過少実行になる）。
+   const udM = /枚数までの数の/.test(t) ? null
+     : t.match(/(?:^|(?:たとき|の間)[、,])([^。、]*)シグニ(?:を)?([０-９\d]*)体?を?対象とし[、,]\s*それ(?:ら)?をアップするかダウンする[。.]?$/);
+   if (udM) {
+    const span = `${udM[1]}シグニ${udM[2] ? `${udM[2]}体` : ''}`;
+    const parsed = parseSigniTarget(span, 'any');
     const target: EffectTarget = {
-      type: 'SIGNI', owner: 'any', count: 1, filter: { cardType: 'シグニ' }, upToCount: false,
+      type: 'SIGNI', owner: 'any', count: udM[2] ? parseNum(udM[2]) : 1,
+      filter: parsed.filter ?? { cardType: 'シグニ' }, upToCount: false,
     };
     return {
       type: 'CHOOSE',
@@ -4481,6 +4495,7 @@ function parseSingleSentenceInner(text: string): EffectAction {
         { choiceId: 'c1', label: 'ダウンする', action: { type: 'DOWN', target } },
       ],
     } as EffectAction;
+   }
   }
 
   // トップレベル動作選択「（カードをN枚）引くか<B>」→ CHOOSE（§4タスク4）。
@@ -9729,6 +9744,11 @@ function parseActionTextInner(text: string): EffectAction {
   //      ⚠「手札に加えるか場に出し」（選択形）は次の REVEAL_AND_PICK 規則の担当＝ここでは除外する。
   {
     // 「２枚まで場に出し」と「１枚を場に出し」（上限なし＝ちょうどN枚）の両語形を取る
+    // ⚠**「公開する」綴りへ広げてはいけない**（2026-08-22 段2 第4バッチで実測して撤回）＝
+    //   「公開する」形は**後段の別規則が既に `REVEAL_AND_PICK` を作っている**（`WX14-046-E1`／`WXK01-039-E2`／
+    //   `SP27-004-E1,-E2`）。ここを広げると先に食って `LOOK_PICK_CHAIN` へ**乗り換えるだけ**になり、
+    //   実益ゼロで逆翻訳の表現だけが割れる。唯一直る `WX11-026-E2` は前段が条件節（「ライフクロスが1枚以下の
+    //   場合」）で、この規則の前段平坦化が条件を STUB に潰す＝**据置**（§6.2 段2 の未消化に残す）。
     const fp = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚見る。\s*その中から((?:(?!手札に加える)[^。])*?)シグニを?([０-９\d]+)枚(まで)?を?場に出し、残り[^。]*?(デッキの一番下|デッキの一番上|トラッシュ|エナゾーン)[^。]*?。/);
     // ⚠ガード：後続に**引用能力の付与**（「【自】…」を得る）を含む札は対象外にする。前後文を
     //   parseActionText で平坦化すると引用の**中身が即時実行のステップに化ける**（WX24-P2-001＝
@@ -10373,8 +10393,14 @@ function parseActionTextInner(text: string): EffectAction {
             ...(splitDesc.pickUpTo ? { pickUpTo: true } : {}),
             ...(splitDesc.noun !== 'シグニ' ? { pickNoun: splitDesc.noun } : {}),
             ...(splitDesc.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
+            // 🔴**エナ行きの正準形は `ADD_TO_ENERGY`**（2026-08-22 段2 第4バッチで統一）。
+            //   旧 `ENERGY_CHARGE{target:{DECK_CARD}}` は **engine では場のシグニを候補にする**
+            //   （`execEnergyCharge` は HAND_CARD / TRASH_CARD 以外を `fieldCandidates` へ落とす＝
+            //    `effectExecutor.ts:2046`）＝**公開して選んだカードはエナに行かず、代わりに自分の場の
+            //   シグニが飛ぶ**別物だった。`resumeSearch` が明示 case を持つのは `ADD_TO_ENERGY` の方
+            //   （`effectExecutor.ts:9512`＝picked をデッキ/トラッシュから抜いてエナへ）。live 実績も34対4。
             then: splitDesc.dest === 'energy'
-              ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' as Owner, count: 1 } } as EnergyChargeAction
+              ? { type: 'ADD_TO_ENERGY', owner: 'self' } as import('../types/effects').AddToEnergyAction
               : splitDesc.dest === 'field'
               ? { type: 'ADD_TO_FIELD', owner: 'self' } as import('../types/effects').AddToFieldAction
               : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction,
@@ -10404,7 +10430,7 @@ function parseActionTextInner(text: string): EffectAction {
         // pick 動詞は「手札に加える」に加え **「手札に加えるかエナゾーンに置く」**（＝`handOrEnergy`・タスク12(xlvi)(d)）
         // も受ける。engine 機構は第5波で入っており、従来はこの規則が hand-or-energy を弾いていたせいで
         // 下の汎用 LOOK_AND_REORDER に飲まれ **pick が丸ごと no-op** だった（`WX24-P1-039-E2`）。
-        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|白か黒の|《ガードアイコン》を持たない|《ライズアイコン》を持つ|《ディソナアイコン》の|【ライフバースト】を持つ|(?:あなたの)?場に(?:いる|ある)ルリグと共通する色を持つ|(?:あなたの)?センタールリグと共通する色を持たない|(?:あなたの)?センタールリグと共通する色を持つ)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(手札に加えるかエナゾーンに置[きく]|エナゾーンに置くか手札に加える?|手札に加える|手札に加え)、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
+        const pk = nextS.match(/^その中から((?:(?:＜[^＞]+＞|[白赤青緑黒]|無色|レベル[０-９\d]+(?:以上|以下)?)の|白か黒の|《ガードアイコン》を持たない|《ライズアイコン》を持つ|《アクセアイコン》を持つ|《ディソナアイコン》の|【ライフバースト】を持つ|(?:あなたの)?場に(?:いる|ある)ルリグと共通する色を持つ|(?:あなたの)?センタールリグと共通する色を持たない|(?:あなたの)?センタールリグと共通する色を持つ)*)(シグニ|カード|スペル)?を?([０-９\d]+|すべて|好きな枚数)枚?(まで)?を?(?:公開し)?(手札に加えるかエナゾーンに置[きく]|エナゾーンに置くか手札に加える?|手札に加える|手札に加え|エナゾーンに置[きく])、残りを(?:(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)|デッキに加えてシャッフル)/);
         // ドリームチーム等の後続効果を伴う複合形は、この早期 return で後続を落とすため対象外。
         // ⚠ 後続文を一律に SEQUENCE へ足すのは不可＝「この方法で〜した場合、」等の**条件付き**後続が
         //   parseSingleSentence で条件ごと落ちて無条件実行になる（WX25-CP1-025-E1 の BOUNCE 等21効果で実測）。
@@ -10422,6 +10448,7 @@ function parseActionTextInner(text: string): EffectAction {
             ...parseStoryFilter(filterSrc), ...parseColorFilter(filterSrc), ...parseLevelFilter(filterSrc),
             ...(/《ガードアイコン》を持たない/.test(filterSrc) ? { noGuard: true } : {}),
             ...(/《ライズアイコン》を持つ/.test(filterSrc) ? { hasRiseIcon: true } : {}),
+            ...(/《アクセアイコン》を持つ/.test(filterSrc) ? { hasIcon: 'アクセ' as const } : {}),
             ...(/《ディソナアイコン》/.test(filterSrc) ? { isDisona: true } : {}),
             ...(/【ライフバースト】を持つ/.test(filterSrc) ? { hasLifeBurst: true } : {}),
             ...(/白か黒/.test(filterSrc) ? { color: ['白', '黒'] } : {}),
@@ -10445,8 +10472,17 @@ function parseActionTextInner(text: string): EffectAction {
             ...(pickUpTo ? { pickUpTo: true } : {}),
             // 原文が「シグニ」でなく「カード」「スペル」を拾う形なら逆翻訳の名詞を保持（既定は「シグニ」・G236）。
             ...(pk[2] === 'カード' ? { pickNoun: 'カード' } : pk[2] === 'スペル' ? { pickNoun: 'スペル' } : {}),
-            ...(/エナゾーン/.test(pk[5]) ? { handOrEnergy: true } : {}),
-            then: { type: 'ADD_TO_HAND', owner: 'self' },
+            // ⚠`handOrEnergy`（1枚ずつ手札かエナかを選ぶ対話）は**複合形**「手札に加えるかエナゾーンに置く」だけ。
+            //   単独の「エナゾーンに置き」まで立てると、原文に無い選択肢が生えて過剰実行になる。
+            ...(/手札に加え/.test(pk[5]) && /エナゾーン/.test(pk[5]) ? { handOrEnergy: true } : {}),
+            // 🆕2026-08-22（段2 第4バッチ）＝**単独のエナ行き**。従来は pick 動詞が「手札に加える」系しか無く、
+            //   「その中から〈修飾〉のシグニ1枚を**エナゾーンに置き**、残りを…」は下の汎用 LOOK_AND_REORDER に
+            //   飲まれて**pick が丸ごと消えた単なる並べ替え**に退化していた（＝エナに1枚も置かれない no-op）。
+            //   engine 側は `resumeSearch` の `ADD_TO_ENERGY` 分岐（`effectExecutor.ts:9512`）が実装済みで、
+            //   同形の live が34件ある（＝受け皿は最初から在る）。
+            then: /^エナゾーンに置/.test(pk[5])
+              ? { type: 'ADD_TO_ENERGY', owner: 'self' }
+              : { type: 'ADD_TO_HAND', owner: 'self' },
             remainder: pk[6] ? remainder : { location: 'deck', position: 'bottom' },
           } as RevealAndPickAction;
           if (!pk[6]) {
@@ -11577,7 +11613,7 @@ function parseActionTextInner(text: string): EffectAction {
         const restDest = rpp?.restDest ?? 'deck_bottom';
         const thenDest = rpp?.then ?? 'hand';
         const thenAction: EffectAction = thenDest === 'energy'
-          ? { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self' as Owner, count: 1 } } as EnergyChargeAction
+          ? { type: 'ADD_TO_ENERGY', owner: 'self' } as import('../types/effects').AddToEnergyAction
           : thenDest === 'field'
             ? { type: 'ADD_TO_FIELD', owner: 'self' } as import('../types/effects').AddToFieldAction
             : { type: 'ADD_TO_HAND', owner: 'self' } as import('../types/effects').AddToHandAction;
@@ -15023,7 +15059,7 @@ function foldColorMatchAllToEnergy(action: EffectAction, sourceText: string): Ef
   return {
     type: 'REVEAL_AND_PICK', owner: 'self', revealCount,
     filter: { colorMatchesLrig: true }, pickCount: 'ALL', pickNoun: 'カード',
-    then: { type: 'ENERGY_CHARGE', target: { type: 'DECK_CARD', owner: 'self', count: 1 } },
+    then: { type: 'ADD_TO_ENERGY', owner: 'self' },
     remainder: { location: 'deck', position: 'bottom' },
   } as RevealAndPickAction;
 }
@@ -15431,6 +15467,23 @@ function restoreElidedSwapSource(text: string): string {
       (_m, src: string, cnt: string, cost: string, asDown: string | undefined) =>
         `${cost}。そうした場合、${src}${cnt}を${asDown ?? ''}場に出す`,
     );
+}
+
+
+// `REVEAL_AND_PICK.then` の「エナゾーンに置く」を正準形へ寄せる（上のループから呼ぶ）。
+function normalizeRevealPickEnergyThen(node: EffectAction): void {
+  if (!node || typeof node !== 'object') return;
+  const obj = node as unknown as Record<string, unknown>;
+  if (obj.type === 'REVEAL_AND_PICK') {
+    const then = obj.then as { type?: string; target?: { type?: string } } | undefined;
+    if (then?.type === 'ENERGY_CHARGE' && then.target?.type === 'DECK_CARD') {
+      obj.then = { type: 'ADD_TO_ENERGY', owner: 'self' };
+    }
+  }
+  for (const v of Object.values(obj)) {
+    if (Array.isArray(v)) v.forEach(x => normalizeRevealPickEnergyThen(x as EffectAction));
+    else if (v && typeof v === 'object') normalizeRevealPickEnergyThen(v as EffectAction);
+  }
 }
 
 export function parseCardEffects(card: CardData): CardEffect[] {
@@ -15843,6 +15896,13 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // ⚠**live データ側も1綴りに寄せる**＝`hasKeyword` 側の吸収（safety net）だけに頼ると、
     //   直接比較する読み手（表示・キーワード集合）が綴りごとに分岐して無言でズレる。
     normalizeGrantKeywordSpelling(e.action);
+    // 🔴`REVEAL_AND_PICK.then` のエナ行きを正準形 `ADD_TO_ENERGY` へ揃える（2026-08-22 段2 第4バッチ）。
+    // 旧 `ENERGY_CHARGE{target:{DECK_CARD}}` は **engine では場のシグニが候補になる**（`execEnergyCharge` は
+    // HAND_CARD / TRASH_CARD 以外を `fieldCandidates` へ落とす＝`effectExecutor.ts:2046`）＝公開して選んだ
+    // カードはエナに行かず、代わりに**自分の場のシグニが飛ぶ**別物だった。`resumeSearch` が明示 case を
+    // 持つのは `ADD_TO_ENERGY`（`effectExecutor.ts:9512`）。⚠生成箇所が複数あるので**後処理1本で根絶する**
+    // （個別の枝に書くと、次に枝が増えたときまた漏れる＝実際 `10541` の局所修正では届いていなかった）。
+    normalizeRevealPickEnergyThen(e.action);
     normalizeOnPlayAbilitySuppression(e, card.EffectText ?? '');
   }
 
