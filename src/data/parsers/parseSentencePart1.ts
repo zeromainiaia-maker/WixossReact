@@ -3930,7 +3930,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   WXK07-028）は引用能力付与の別系統＝タスク12(lii) の対象外として据置。
       target: { type: 'SIGNI', owner: 'self', count: 1, ...(hasOtherSelfSigniNoun(t) ? { filter: { excludeSelf: true } } : {}) },
       from,
-      sourceOwner: 'opponent',
+      // 「対戦相手の効果によって」等が明記された形だけ相手限定。
+      // 単なる「バニッシュされない」は効果の発生源オーナーを問わない（バトル／ルール処理は別経路）。
+      sourceOwner: /対戦相手の[^。]*(?:効果|能力)[^。]*バニッシュされない/.test(t) ? 'opponent' : 'any',
       duration: 'PERMANENT',
     } as GrantProtectionAction;
   }

@@ -1714,7 +1714,7 @@ export interface GrantProtectionAction {
   sourceCostMin?: number; // 保護元カード（アーツ/スペル）の使用コスト合計がN以上の効果のみ保護する（「対戦相手のコストの合計が５以上の、アーツとスペルの効果を受けない」WX15-031）。collectEffectImmuneSigni が解決中ソースカードの Cost 合計で判定
   sourceFilter?: TargetFilter; // 保護元カードの属性で耐性を絞る（sourceCostMin の一般化）。collectEffectImmuneSigni が解決中ソースカードの CardData を matchesFilter で判定し、非マッチなら保護しない（WXEX2-36「ライズアイコンを持たない対戦相手のシグニの効果を受けない」／WXK11-021「ライフバーストではない…」）
   sourceEffectType?: 'LIFE_BURST'; // 発生源カードの属性ではなく、現在解決中の効果種別を限定する（WX11-027「対戦相手のライフバーストの効果」）
-  sourceOwner?: Owner; // 誰の効果から保護するか
+  sourceOwner?: 'self' | 'opponent' | 'any'; // 誰の効果から保護するか（any＝発生源オーナーを問わない。ルール／バトルは含めない）
   fromAll?: boolean;   // true = すべての効果から保護（exceptSource 以外）
   exceptSource?: { sourceType: string; sourceOwner: Owner }; // fromAll 時の例外
   duration: EffectDuration;

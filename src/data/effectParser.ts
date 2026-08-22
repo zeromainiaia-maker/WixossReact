@@ -8487,7 +8487,7 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
       keyword(1, 'ダブルクラッシュ'), keyword(2, 'アサシン'), keyword(3, 'ランサー'),
       { type: 'CONDITIONAL', condition: lastSigniLevel(4), then: {
         type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1 },
-        from: ['BANISH'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN',
+        from: ['BANISH'], sourceOwner: 'any', duration: 'UNTIL_END_OF_TURN',
       } },
     ] });
   }

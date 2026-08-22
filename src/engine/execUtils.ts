@@ -59,6 +59,8 @@ export interface ExecCtx {
   otherBounceProtectedNums?: string[];
   // GRANT_PROTECTION from=['BANISH'/'any']: 相手効果でバニッシュされないシグニ
   otherBanishProtectedNums?: Set<string>;
+  // sourceOwner:any のバニッシュ耐性。効果主自身のシグニを効果でバニッシュする経路だけで使う。
+  ownBanishProtectedNums?: Set<string>;
   // CHARM_PROTECTION（WX04-052-E1）: バニッシュされる際にチャーム1枚をトラッシュして場に残るシグニ（両プレイヤー分）
   charmShieldNums?: Set<string>;
   // GRANT_PROTECTION from=['ルリグ'/'シグニ'…] 完全効果耐性（「対戦相手の、ルリグとシグニの効果を受けない」）:

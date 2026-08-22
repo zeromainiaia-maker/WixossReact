@@ -3754,7 +3754,7 @@ export function collectAbilityProtectedSigni(
       // GRANT_PROTECTION アクション: from に 'シグニ' を含み sourceOwner='opponent' → このシグニを保護
       if (eff.action.type === 'GRANT_PROTECTION') {
         const gp = eff.action as GrantProtectionAction;
-        if (gp.sourceOwner === 'opponent' && (gp.from?.includes('シグニ') || gp.from?.includes('any'))) {
+        if ((gp.sourceOwner === 'opponent' || gp.sourceOwner === 'any') && (gp.from?.includes('シグニ') || gp.from?.includes('any'))) {
           // subjectFilter: フィルタ一致シグニを保護
           if (gp.subjectFilter) {
             for (const s2 of state.field.signi) {
@@ -4892,6 +4892,7 @@ export function collectBanishEffectProtectedSigni(
   effectsMap: Map<string, import('../types/effects').CardEffect[]>,
   cardMap: Map<string, CardData>,
   effectivePowers?: Map<string, number>,
+  effectSourceOwner: 'self' | 'opponent' | 'rule' = 'opponent',
 ): Set<string> {
   // activeCondition に実効パワー参照（SELF_POWER_THRESHOLD 等）があると、渡さない限り**表記パワーへ
   // フォールバック**して「バフしても条件が真にならない」過小実行になる（タスク12(cxii)）。
@@ -4909,7 +4910,11 @@ export function collectBanishEffectProtectedSigni(
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf())) continue;
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
-      if (gp.sourceOwner !== 'opponent') continue;
+      // rule は従来どおり opponent 指定だけを受理し、any をルール処理（power<=0）へ広げない。
+      // 効果解決では any または実際の効果オーナーに一致する保護だけを受理する。
+      if (effectSourceOwner === 'rule'
+        ? gp.sourceOwner !== 'opponent'
+        : gp.sourceOwner !== 'any' && gp.sourceOwner !== effectSourceOwner) continue;
       // bySourceType/bySourceLevel（「レベル2以下のルリグとシグニの効果によって…」等）は
       // 発生源カードを知る効果解決文脈でのみ
       // 評価する（collectBanishBySourceProtectedSigni）。バトル・他コンテキストの本コレクタでは適用しない。
@@ -4999,7 +5004,7 @@ export function collectBanishBySourceProtectedSigni(
       if (eff.action.type !== 'GRANT_PROTECTION') continue;
       const gp = eff.action as import('../types/effects').GrantProtectionAction;
       if ((!gp.bySourceType && gp.bySourceLevel === undefined) || !gp.from?.includes('BANISH')) continue;
-      if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
+      if (gp.sourceOwner && gp.sourceOwner !== 'opponent' && gp.sourceOwner !== 'any') continue;
       if (!sourceConstraintsMatch(gp.bySourceType, gp.bySourceLevel)) continue;
       if (!checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum)) continue;
       if (gp.subjectFilter) {
@@ -5024,7 +5029,7 @@ export function collectBanishBySourceProtectedSigni(
       const grant = JSON.parse(keyword.slice(prefix.length)) as Pick<GrantProtectionAction,
         'from' | 'sourceOwner' | 'bySourceType' | 'bySourceLevel'>;
       if (!grant.from?.includes('BANISH')) return false;
-      if (grant.sourceOwner && grant.sourceOwner !== 'opponent') return false;
+      if (grant.sourceOwner && grant.sourceOwner !== 'opponent' && grant.sourceOwner !== 'any') return false;
       return sourceConstraintsMatch(grant.bySourceType, grant.bySourceLevel);
     } catch {
       return false;
@@ -5280,7 +5285,7 @@ export function collectEffectImmuneSigni(
       // GRANT_PROTECTION が11効果あり、無条件に一般化するとそれらまで挙動変更するため。
       const isOtherSigniNonLbProtection = gp.subjectOwner === 'self'
         && gp.subjectFilter?.excludeSelf === true
-        && gp.sourceOwner === 'opponent'
+        && (gp.sourceOwner === 'opponent' || gp.sourceOwner === 'any')
         && gp.sourceFilter?.hasLifeBurst === false
         && gp.from?.length === 1 && gp.from[0] === 'シグニ';
       return isOtherSigniNonLbProtection ? [gp] : [];
@@ -5300,7 +5305,7 @@ export function collectEffectImmuneSigni(
                                 eff.activeCondition ? powersOf() : undefined, undefined, undefined,
                                 eff.activeCondition ? levelsOf() : undefined)) continue;
       for (const gp of protections) {
-        if (gp.sourceOwner && gp.sourceOwner !== 'opponent') continue;
+        if (gp.sourceOwner && gp.sourceOwner !== 'opponent' && gp.sourceOwner !== 'any') continue;
 
         // この解決中のソース種別が耐性対象に含まれるか判定
         const blocked = gp.fromAll

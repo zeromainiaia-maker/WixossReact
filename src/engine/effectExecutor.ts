@@ -1086,12 +1086,24 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
       }
     }
   }
-  // 'any' でも相手側の候補には相手側の保護を効かせる（自分側候補には効かない＝Set は相手番号のみ）
-  const banishProtected = tgt.owner !== 'self' ? new Set(ctx.otherBanishProtectedNums ?? []) : new Set<string>();
+  // owner:any は両側が候補になる。相手側は opponent/any、自分側は any の保護集合を使う。
+  const banishProtected = new Set<string>([
+    ...(tgt.owner !== 'self' ? ctx.otherBanishProtectedNums ?? [] : []),
+    ...(tgt.owner !== 'opponent' ? ctx.ownBanishProtectedNums ?? [] : []),
+  ]);
   if (tgt.owner !== 'self') {
     const grants = ctx.otherState.keyword_grants ?? {};
     for (const [cardNum, kws] of Object.entries(grants)) {
-      if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('BANISH') || kw.includes('any')) && kw.endsWith(':opponent'))) {
+      if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('BANISH') || kw.includes('any'))
+        && (kw.endsWith(':opponent') || kw.endsWith(':any')))) {
+        banishProtected.add(cardNum);
+      }
+    }
+  }
+  if (tgt.owner !== 'opponent') {
+    const grants = ctx.ownerState.keyword_grants ?? {};
+    for (const [cardNum, kws] of Object.entries(grants)) {
+      if (kws.some(kw => kw.startsWith('PROTECTION:') && (kw.includes('BANISH') || kw.includes('any')) && kw.endsWith(':any'))) {
         banishProtected.add(cardNum);
       }
     }

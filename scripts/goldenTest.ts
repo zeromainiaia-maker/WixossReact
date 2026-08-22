@@ -36059,7 +36059,7 @@ test('wave2 A4 WD21-001-E1: one resumed reveal selects one shared target and onl
   const ctx4 = mkCtx({ signi: ['WD01-013', 'WD01-012', null], deckTop: ['WD01-009'] }, {}, 'WD21-001');
   let r4 = resumeWave2Look(startWave2('WD21-001', 'WD21-001-E1', ctx4), ctx4);
   if (!r4.done && r4.pending.type === 'SELECT_TARGET') r4 = resumeSelectTarget(['WD01-012'], r4.pending, wave2Ctx(ctx4, r4));
-  ok((r4.ownerState.keyword_grants?.['WD01-012'] ?? []).includes('PROTECTION:BANISH:opponent'), 'level 4 grants banish protection');
+  ok((r4.ownerState.keyword_grants?.['WD01-012'] ?? []).includes('PROTECTION:BANISH:any'), 'level 4 grants source-unlimited banish protection');
   const no = mkCtx({ signi: ['WD01-013', null, null], deckTop: ['WD03-015'] }, {}, 'WD21-001');
   const rn = resumeWave2Look(startWave2('WD21-001', 'WD21-001-E1', no), no);
   ok(rn.done && Object.keys(rn.ownerState.keyword_grants ?? {}).length === 0, 'spell reveal grants nothing');
@@ -41757,6 +41757,90 @@ test('段2 第19バッチ 発火側: 追加した SHUFFLE_DECK が PR-470A-E1 �
   const host = mkState({ signi: ['PR-470A', null, null] });
   ok(has(collectDeckShuffledTriggers(trigCtx(HOST), HOST, host).entries, 'PR-470A-E1'), 'PR-470A-E1 が self シャッフルで収集される');
 });
+
+// ── §6.2 段2 第21バッチ：「バニッシュされない」の発生源オーナー無限定 ──
+const batch21Ids = [
+  'WD16-012-E1','WD20-011-E1','WD21-001-E1','WD23-022-E-E2','WDK08-Y11-E1',
+  'WX08-018-E1','WX08-029-E2','WX09-013-E1','WX11-034-E1','WX12-037-E1','WX14-CB02-E1',
+  'WX13-029-E1','WX15-010-E1','WX16-026-E1','WX16-037-E1','WX16-044-E2','WX17-072-E1','WX21-Re07-E1',
+  'WXEX1-76-E2','WXEX2-38-E1','WXEX2-44-E1','WXEX2-47-E2','WX25-P2-055-E1',
+  'WXDi-P03-018-E1','WXK03-026-E3','WXK07-043-E1','WXK08-023-E1',
+] as const;
+
+function batch21BanishProtection(action: EffectAction): GrantProtectionAction | undefined {
+  if (action.type === 'GRANT_PROTECTION' && action.from?.includes('BANISH')) return action;
+  if (action.type === 'SEQUENCE') {
+    for (const step of action.steps) { const hit = batch21BanishProtection(step); if (hit) return hit; }
+  }
+  if (action.type === 'CONDITIONAL') return batch21BanishProtection(action.then)
+    ?? (action.else ? batch21BanishProtection(action.else) : undefined);
+  if (action.type === 'CHOOSE') {
+    for (const choice of action.choices) { const hit = batch21BanishProtection(choice.action); if (hit) return hit; }
+  }
+  if (action.type === 'GRANT_FIELD_SIGNI_ABILITY') {
+    for (const ability of action.abilities) { const hit = batch21BanishProtection(ability.action); if (hit) return hit; }
+  }
+  return undefined;
+}
+
+for (const effectId of batch21Ids) {
+  test(`段2 第21バッチ E2E: ${effectId} は相手効果・自分効果を防ぎルール処理へ広がらない`, () => withSavedCursor(() => {
+    const cardNum = effectId === 'WD23-022-E-E2' ? 'WD23-022-E' : effectId.replace(/-E\d.*$/, '');
+    const eff = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId);
+    if (!eff) throw new Error(`${effectId} が存在`);
+    const protection = batch21BanishProtection(eff.action);
+    if (!protection) throw new Error(`${effectId}: BANISH 保護が存在`);
+    eq(protection.sourceOwner, 'any', `${effectId}: 明示値 any`);
+
+    // 条件・付与タイミングそのものは各既存goldenの担当。ここでは採用した実liveの保護leafを
+    // CONTINUOUS宣言へ載せ、効果オーナー軸の両方向と rule 非拡張を同じleafで実行固定する。
+    const harness = new Map<string, CardEffect[]>([[cardNum, [{
+      effectId: `${effectId}-HARNESS`, effectType: 'CONTINUOUS', action: protection,
+      duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
+    } as CardEffect]]]);
+    const protectedState = mkState({ signi: [cardNum, null, null] });
+    const empty = mkState({});
+    const fromOpponent = collectBanishEffectProtectedSigni(protectedState, empty, true, harness, cardMap);
+    const fromSelf = collectBanishEffectProtectedSigni(protectedState, empty, true, harness, cardMap, undefined, 'self');
+    const fromRule = collectBanishEffectProtectedSigni(protectedState, empty, true, harness, cardMap, undefined, 'rule');
+    ok(fromOpponent.has(cardNum), `${effectId}: 相手効果を今も防ぐ`);
+    ok(fromSelf.has(cardNum), `${effectId}: 自分効果も防ぐ`);
+    ok(!fromRule.has(cardNum), `${effectId}: power<=0等のルール処理へは広げない`);
+
+    const banishOpponent = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction;
+    const oppCtx = mkCtx({}, { signi: [cardNum, null, null] });
+    oppCtx.otherBanishProtectedNums = fromOpponent;
+    const oppResult = run(banishOpponent, oppCtx);
+    eq(oppResult.otherState.field.signi[0]?.at(-1), cardNum, `${effectId}: 相手効果E2Eで生存`);
+
+    const banishSelf = { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } } as EffectAction;
+    const selfCtx = mkCtx({ signi: [cardNum, null, null] }, {});
+    selfCtx.ownBanishProtectedNums = fromSelf;
+    const selfResult = run(banishSelf, selfCtx);
+    eq(selfResult.ownerState.field.signi[0]?.at(-1), cardNum, `${effectId}: 自分効果E2Eで生存`);
+  }));
+}
+
+const batch21OpponentOnly = ['WXDi-P03-074-E1','WXDi-P10-046-E1','WXDi-CP01-038-E1','WXDi-P16-054-E1'] as const;
+for (const effectId of batch21OpponentOnly) {
+  test(`段2 第21バッチ 据置契約: ${effectId} は相手効果限定のまま`, () => {
+    const cardNum = effectId.replace(/-E\d.*$/, '');
+    const actualId = effectId === 'WXDi-P16-054-E1' ? 'WXDi-P16-054-E1b' : effectId;
+    const eff = findEffectDeep(effectsMap.get(cardNum) ?? [], actualId);
+    if (!eff) throw new Error(`${effectId} が存在`);
+    const protection = batch21BanishProtection(eff.action);
+    if (!protection) throw new Error(`${effectId}: BANISH 保護が存在`);
+    eq(protection.sourceOwner, 'opponent', `${effectId}: opponent 据置`);
+    const harness = new Map<string, CardEffect[]>([[cardNum, [{ ...eff, effectType: 'CONTINUOUS', activeCondition: undefined, action: protection }]]]);
+    const st = mkState({ signi: [cardNum, null, null] });
+    if (protection.bySourceType || protection.bySourceLevel !== undefined) {
+      ok(collectBanishBySourceProtectedSigni(st, mkState(), true, harness, cardMap, 'シグニ', SIGNI_L1).has(cardNum), '指定された相手シグニ効果は防ぐ');
+    } else {
+      ok(collectBanishEffectProtectedSigni(st, mkState(), true, harness, cardMap).has(cardNum), '相手効果は防ぐ');
+      ok(!collectBanishEffectProtectedSigni(st, mkState(), true, harness, cardMap, undefined, 'self').has(cardNum), '自分効果は防がない');
+    }
+  });
+}
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

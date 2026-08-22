@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22：§6.2 段2 第21バッチ＝「バニッシュされない」の相手効果限定
+
+発生源限定のない「バニッシュされない」が `sourceOwner:'opponent'` になっていた指定27効果をCSV再実測。26件を修正し、指定外同型 `WX13-029-E1` を追加発見・採用した。`WXK09-047-E1` はBANISH耐性leaf自体が欠落し、既存leafが明記された相手アーツ耐性なのでownerだけ変えると退化するため見送り。採用27効果は `sourceOwner:'any'` を明示し、相手効果・自分効果の双方で生存、power≤0ルール処理には非適用をper-effect E2E固定した。限定4効果は `opponent` 据置。
+
+`npm run gates` 全緑：golden **2441/2441**、census **708/708**、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 2回とも全0、stubs A/C 0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **88/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch21_report.md`。
+
 ## 2026-08-22：§6.2 段2 第20バッチ＝デッキ探索の「手札に加えるか場に出す」選択肢脱落11効果
 
 指定13効果をCSV原文と実行経路まで再実測。11効果の `SEARCH → ADD_TO_FIELD` に文型ベースで `handOrField:true` を付け、`execSearch` から既存の `resumeSearch` 二択へ伝播させた。各効果について手札枝・場枝・場が満杯のときの手札枝を実行固定した。`WXEX2-49-E2` は既に `PICK_FROM_TRASHED_CARDS.dest:'hand_or_field'` の専用経路で正しく実装済みだったため非採用、`SP27-005-E1` は reveal-until 自体が未構造化でSEARCH用フラグでは直らないため据置。
