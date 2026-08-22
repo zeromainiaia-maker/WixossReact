@@ -300,6 +300,54 @@ export function parseHandDiffLevelFilter(text: string): Partial<TargetFilter> {
   return /枚数の差以下のレベルを持つ/.test(text) ? { levelLteHandDiff: true } : {};
 }
 
+/**
+ * 「〈自分のゾーンの枚数〉×N 以下のパワー」／「〈枚数〉以下のレベル」を動的 TargetFilter にする。
+ * クラス名・カード名・乗数はすべて本文の捕捉値で、対象カード固有の語は持たない。
+ */
+export function parseDynamicCountLimit(text: string): Partial<TargetFilter> {
+  const sourceFilter = (span: string): TargetFilter | undefined => {
+    const clean = span
+      .replace(/^[のを]/, '')
+      .replace(/(?:の|を(?:合計した|合わせた))$/, '')
+      .trim();
+    if (!clean) return undefined;
+    const filter = extractNounPhraseFilter(clean);
+    return Object.keys(filter).length > 0 ? filter : undefined;
+  };
+
+  const zonePower = text.match(/パワーが「あなたの(トラッシュ|手札)(?:にある)?(.+?)枚数[×xX]([０-９\d]+)」以下の/);
+  if (zonePower) {
+    const filter = sourceFilter(zonePower[2]);
+    return {
+      powerLteZoneCount: {
+        zone: zonePower[1] === '手札' ? 'hand' : 'trash', owner: 'self',
+        ...(filter ? { filter } : {}), per: parseNum(zonePower[3]),
+      },
+    };
+  }
+
+  const processedPower = text.match(/パワーが「この(?:方法|効果)でトラッシュに置(?:いた|かれた)カードの枚数[×xX]([０-９\d]+)」以下の/);
+  if (processedPower) return { powerLteLastProcessedCount: parseNum(processedPower[1]) };
+
+  const processedLevel = text.match(/この(?:方法|効果)でトラッシュに置かれた(.+?)(?:の|を(?:合計した|合わせた))枚数以下のレベル/);
+  if (processedLevel) return { levelLteLastProcessedCount: sourceFilter(processedLevel[1]) ?? true };
+
+  const fieldLevel = text.match(/あなたの場にある(.+?)の(?:枚数|数)以下のレベル/);
+  if (fieldLevel) {
+    return { levelLteZoneCount: { zone: 'field', owner: 'self', filter: sourceFilter(fieldLevel[1]) } };
+  }
+  if (/あなたのシグニゾーンにあるカードの数以下のレベル/.test(text)) {
+    return { levelLteZoneCount: { zone: 'field', owner: 'self', filter: { cardType: 'シグニ' } } };
+  }
+  if (/あなたの【アクセ】の枚数以下のレベル/.test(text)) {
+    return { levelLteZoneCount: { zone: 'acce', owner: 'self' } };
+  }
+  if (/【トラップ】の数以下のレベル/.test(text)) {
+    return { levelLteZoneCount: { zone: 'trap', owner: 'self' } };
+  }
+  return {};
+}
+
 // 「(この|自身)シグニより〔パワーの低い/高い・低いレベル/レベルの高い〕」＝効果元シグニ自身を基準にした動的比較。
 // resolveDynamicFilter が sourceCardNum の実効パワー/レベルで powerRange/level へ解決する。
 // ⚠自己参照（このシグニ/自身）に限定＝「その/あなたのいずれか/表記されている/センタールリグ」等の別基準は対象外

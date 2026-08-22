@@ -164,7 +164,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -12377,6 +12377,73 @@ function isKnownUnwiredAutoTrigger(text: string): boolean {
   ].some(re => re.test(text));
 }
 
+/**
+ * 盤面枚数で動くパワー／レベル上限を、対象 action の最後の SIGNI leaf にだけ載せる。
+ * 同じ句に現れるクラスは「数え元」であり、対象クラスではないため隣接対象句にクラスが無いときは誤付着を除く。
+ */
+function applyDynamicCountTargetLimit(action: EffectAction, sourceText: string): EffectAction {
+  const dynamic = parseDynamicCountLimit(sourceText);
+  const hasDynamic = Object.keys(dynamic).length > 0;
+  const eqProcessedCount = /この方法でトラッシュに置かれた.+?枚数と同じレベル/.test(sourceText);
+  if (hasDynamic || eqProcessedCount) {
+    const leaves: Array<{ filter?: TargetFilter }> = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      const target = obj.target as { type?: string; filter?: TargetFilter } | undefined;
+      if (['BANISH', 'BOUNCE', 'SEND_TO_ENERGY', 'TRASH'].includes(String(obj.type)) && target?.type === 'SIGNI') {
+        leaves.push(target);
+      }
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) value.forEach(walk);
+        else if (value && typeof value === 'object') walk(value);
+      }
+    };
+    walk(action);
+    const target = leaves.at(-1);
+    if (target) {
+      const filter: TargetFilter = { ...(target.filter ?? { cardType: 'シグニ' }) };
+      const targetStory = eqProcessedCount ? undefined : signiClauseStoryFilter(sourceText).story;
+      if (targetStory === undefined) {
+        delete filter.story;
+        delete filter.cardClass;
+      } else {
+        filter.story = targetStory;
+      }
+      target.filter = { ...filter, ...dynamic };
+    }
+  }
+
+  // 「【トラップ】の数」は数え元であり、キーワード付与ではない。先頭語の誤分割で生えた付与だけを除く。
+  if (/【トラップ】の数以下のレベル/.test(sourceText) && action.type === 'SEQUENCE') {
+    action = {
+      ...action,
+      steps: action.steps.filter(step => !(step.type === 'GRANT_KEYWORD' && step.keyword === 'トラップ')),
+    };
+  }
+
+  // 「エナからN枚まで置いてもよい。その後」はコストではなく0..N枚の効果処理。
+  // 既存 TRASH の upToCount が実選択枚数を lastProcessedCards に残すため、任意コスト機構は変更しない。
+  const energyUpTo = sourceText.match(/あなたのエナゾーンから(.+?)のカードを([０-９\d]+)枚までトラッシュに置いてもよい。その後/);
+  if (energyUpTo && action.type === 'SEQUENCE') {
+    const idx = action.steps.findIndex(step => step.type === 'STUB' && step.id === 'OPTIONAL_COST'
+      && Object.keys(step).length === 2);
+    if (idx >= 0) {
+      const sourceFilter = extractNounPhraseFilter(`${energyUpTo[1]}のカード`);
+      const steps = [...action.steps];
+      steps[idx] = {
+        type: 'TRASH',
+        target: {
+          type: 'ENERGY_CARD', owner: 'self', count: parseNum(energyUpTo[2]), upToCount: true,
+          ...(Object.keys(sourceFilter).length > 0 ? { filter: sourceFilter } : {}),
+        },
+      };
+      action = { ...action, steps };
+    }
+  }
+  return action;
+}
+
 function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
   const typeM = block.match(/^【(クロス)?(ドライブ|チーム|絆)?(常|出|起|自|ガード)】/);
   if (!typeM) return null;
@@ -14437,6 +14504,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       };
     }
   }
+  resolvedAction = applyDynamicCountTargetLimit(resolvedAction, actionText);
   if (leadingTurnOwnerActionCond) {
     resolvedAction = { type: 'CONDITIONAL', condition: leadingTurnOwnerActionCond, then: resolvedAction };
   }
@@ -15401,7 +15469,7 @@ function parseBurstEffect(card: CardData): CardEffect | null {
   if (!card.BurstText || card.BurstText === '-') return null;
   const raw = stripRuleParens(card.BurstText).replace(/^：/, '').trim();
   if (!raw) return null;
-  const action = parseActionText(raw);
+  const action = applyDynamicCountTargetLimit(parseActionText(raw), raw);
   const burstFb = consumeSilentFallbacks();
   logSilentFallbacks(`${card.CardNum}-BURST`, burstFb);
   return {

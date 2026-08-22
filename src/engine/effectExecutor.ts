@@ -13,7 +13,7 @@ import {
   canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
-  sourceAbilityText, deckSigniOverrideLevel,
+  sourceAbilityText, deckSigniOverrideLevel, countFromZone,
 } from './execUtils';
 export type { ExecCtx, ExecResult };
 export { matchesFilter, getCardNum, removeFromField, evalUseCondition, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost };
@@ -2324,10 +2324,11 @@ function resolveDynamicFilter(
     result = value == null || !Number.isFinite(value) ? noMatch(rest) : { ...rest, level: value };
   }
   if (result.levelEqLastProcessed || result.nameEqLastProcessed
-      || result.levelEqLastProcessedCount || result.levelEqLastProcessedLevelSum) {
+      || result.levelEqLastProcessedCount || result.levelLteLastProcessedCount || result.levelEqLastProcessedLevelSum) {
     const {
       levelEqLastProcessed: levelEq, nameEqLastProcessed: nameEq,
       levelEqLastProcessedCount: countFilter,
+      levelLteLastProcessedCount: lteCountFilter,
       levelEqLastProcessedLevelSum: levelSum, ...rest
     } = result;
     const processed = lastProcessedCards ?? [];
@@ -2337,11 +2338,14 @@ function resolveDynamicFilter(
       result = nameEq
         ? (ref?.CardName ? { ...rest, cardName: ref.CardName } : noMatch(rest))
         : (!isNaN(level) ? { ...rest, level } : noMatch(rest));
-    } else if (countFilter) {
-      const count = countFilter === true
+    } else if (countFilter || lteCountFilter) {
+      const selectedFilter = countFilter || lteCountFilter;
+      const count = selectedFilter === true
         ? processed.length
-        : processed.filter(n => matchesFilter(cardMap.get(getCardNum(n)), countFilter)).length;
-      result = processed.length > 0 ? { ...rest, level: count } : noMatch(rest);
+        : processed.filter(n => matchesFilter(cardMap.get(getCardNum(n)), selectedFilter)).length;
+      result = lteCountFilter
+        ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: count } }
+        : processed.length > 0 ? { ...rest, level: count } : noMatch(rest);
     } else if (levelSum) {
       const levels = processed.map(n => parseInt(cardMap.get(getCardNum(n))?.Level ?? '', 10));
       result = levels.length > 0 && levels.every(Number.isFinite)
@@ -2560,6 +2564,21 @@ function resolveDynamicFilter(
     const { powerLteRevealedSigniLevelSum: mult, ...rest } = result;
     const sum = ownerSt.last_revealed_signi_level_sum ?? 0;
     result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max: sum * mult } };
+  }
+  if (result.powerLteZoneCount) {
+    const { powerLteZoneCount: spec, ...rest } = result;
+    const max = countFromZone(spec, ownerSt, otherSt ?? ownerSt, cardMap);
+    result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max } };
+  }
+  if (result.levelLteZoneCount) {
+    const { levelLteZoneCount: spec, ...rest } = result;
+    const max = countFromZone(spec, ownerSt, otherSt ?? ownerSt, cardMap);
+    result = { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max } };
+  }
+  if (result.powerLteLastProcessedCount != null) {
+    const { powerLteLastProcessedCount: mult, ...rest } = result;
+    const max = (lastProcessedCards?.length ?? 0) * mult;
+    result = { ...rest, powerRange: { ...(rest.powerRange ?? {}), max } };
   }
   if (result.levelLteFieldVirusCount && otherSt) {
     const ownVirus = (ownerSt.field.signi_virus ?? []).reduce((s, v) => s + (v ?? 0), 0);

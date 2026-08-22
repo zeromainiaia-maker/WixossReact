@@ -119,6 +119,21 @@ function anyOfJa(list: any[]): string {
   return list.map((s: any) => `${filterJa(s)}${([] as string[]).concat(s.cardType ?? []).join('か') || 'カード'}`).join('か');
 }
 
+function countFromZoneJa(spec: any): string {
+  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', acce: '【アクセ】', trap: '【トラップ】' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
+  const noun = spec?.filter
+    ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || 'カード'}`
+    : 'カード';
+  return `あなたの${zone}にある${noun}の枚数${spec?.per && spec.per !== 1 ? `×${spec.per}` : ''}`;
+}
+
+function lastProcessedCountJa(spec: any): string {
+  const noun = spec && spec !== true
+    ? `${filterJa(spec)}${([] as string[]).concat(spec.cardType ?? []).join('か') || 'カード'}`
+    : 'カード';
+  return `この方法で処理した${noun}の枚数`;
+}
+
 function filterJa(f?: any): string {
   if (!f) return '';
   const parts: string[] = [];
@@ -154,6 +169,9 @@ function filterJa(f?: any): string {
   if (f.levelRange?.max != null) parts.push(`レベル${f.levelRange.max}以下の`);
   if (f.levelRange?.min != null) parts.push(`レベル${f.levelRange.min}以上の`);
   if (f.powerLteRevealedSigniLevelSum != null) parts.push(`パワーが「この方法で公開したシグニのレベルの合計×${f.powerLteRevealedSigniLevelSum}」以下の`);
+  if (f.powerLteZoneCount) parts.push(`パワーが「${countFromZoneJa(f.powerLteZoneCount)}」以下の`);
+  if (f.powerLteLastProcessedCount != null) parts.push(`パワーが「この方法で処理したカードの枚数×${f.powerLteLastProcessedCount}」以下の`);
+  if (f.levelLteZoneCount) parts.push(`${countFromZoneJa(f.levelLteZoneCount)}以下のレベルを持つ`);
   if (f.powerRange?.max != null) parts.push(`パワー${f.powerRange.max}以下の`);
   if (f.powerRange?.min != null) parts.push(`パワー${f.powerRange.min}以上の`);
   if (f.costMin != null && f.costMax != null && f.costMin === f.costMax) parts.push(`コストの合計が${f.costMax}の`);
@@ -185,7 +203,8 @@ function filterJa(f?: any): string {
   if (f.levelEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じレベルの');
   if (f.levelEqLastDownedLrig) parts.push('この方法でダウンしたルリグと同じレベルの');
   if (f.nameEqLastProcessed) parts.push('直前にこの方法で処理したカードと同じ名前の');
-  if (f.levelEqLastProcessedCount) parts.push('この方法で処理したカードの枚数と同じレベルの');
+  if (f.levelEqLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelEqLastProcessedCount)}と同じレベルの`);
+  if (f.levelLteLastProcessedCount) parts.push(`${lastProcessedCountJa(f.levelLteLastProcessedCount)}以下のレベルを持つ`);
   if (f.levelEqLastProcessedLevelSum) parts.push('この方法で処理したカードのレベル合計と同じレベルの');
   if (f.levelEqLrig === 'self') parts.push('あなたのセンタールリグと同じレベルの');
   if (f.levelEqLrig === 'opponent') parts.push('対戦相手のセンタールリグと同じレベルの');

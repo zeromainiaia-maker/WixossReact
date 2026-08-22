@@ -142,17 +142,7 @@ export function sourceAbilityText(ctx: ExecCtx): string {
 
 export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFromZone): number {
   if (fromZone) {
-    const state = ownerState(fromZone.owner, ctx);
-    const cards = fromZone.zone === 'field'
-      ? [
-          ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
-          ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
-        ]
-      : fromZone.zone === 'energy' ? state.energy
-      : fromZone.zone === 'trash' ? state.trash
-      : state.lrig_trash ?? [];
-    return cards.filter(cardNum => !fromZone.filter || matchesFilter(ctx.cardMap.get(cardNum), fromZone.filter)).length
-      * (fromZone.per ?? 1);
+    return countFromZone(fromZone, ctx.ownerState, ctx.otherState, ctx.cardMap);
   }
   if (typeof n === 'number') return n;
   if (n.$ref === 'seven_minus_self_life_count') return Math.max(0, 7 - ctx.ownerState.life_cloth.length);
@@ -186,6 +176,29 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
   }
   console.warn(`[effectExecutor] unknown numeric ref: ${n.$ref}`);
   return 0;
+}
+
+/** CountFromZone の唯一の解決器。動的対象上限と動的 action 枚数の双方が同じ盤面定義を使う。 */
+export function countFromZone(
+  fromZone: CountFromZone,
+  ownerSt: PlayerState,
+  otherSt: PlayerState,
+  cardMap: Map<string, CardData>,
+): number {
+  const state = fromZone.owner === 'self' ? ownerSt : otherSt;
+  const cards = fromZone.zone === 'field'
+    ? [
+        ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+        ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+      ]
+    : fromZone.zone === 'hand' ? state.hand
+    : fromZone.zone === 'energy' ? state.energy
+    : fromZone.zone === 'trash' ? state.trash
+    : fromZone.zone === 'lrig_trash' ? state.lrig_trash ?? []
+    : fromZone.zone === 'acce' ? (state.field.signi_acce ?? []).flatMap(slot => slot ?? [])
+    : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
+  return cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter)).length
+    * (fromZone.per ?? 1);
 }
 
 // 「それのレベル１につき」族（タスク12(liii)）の倍率。対象は常に単数なので最大値＝そのカードのレベル。

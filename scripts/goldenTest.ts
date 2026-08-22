@@ -9340,6 +9340,12 @@ test('続き376d: 「あなたの＜X＞のシグニN体を対象とし手札に
 //   `WXEX2-57-E1` は別の対象、のクラスを**相手シグニの対象フィルタ**に付けてしまい、
 //   「相手の＜X＞しか戻せない」**過小実行**になる。続き372 の「部分filter禁止ガードが全文を見ていた」と同型。
 test('続き376d トリップワイヤ: 対象名詞句に隣接しないクラスは対象フィルタに載せない', () => withSavedCursor(() => {
+  // 対象filter直下の story だけが「対象クラス限定」。
+  // powerLteZoneCount/levelLteZoneCount の内側filterは枚数の数え元なので再帰探索しない。
+  const hasDirectTargetStory = (filters: unknown[]) => filters.some(filter =>
+    !!filter && typeof filter === 'object' && Object.prototype.hasOwnProperty.call(filter, 'story'));
+  eq(hasDirectTargetStory([{ cardType: 'シグニ', story: '__tripwire_probe__' }]), true,
+    '対象filter直下のstoryを見逃さない対照');
   for (const [card, effId] of [
     ['WX14-016', 'WX14-016-E1'], ['WX22-011', 'WX22-011-E1'],
     ['WXEX2-55', 'WXEX2-55-E1'], ['WXEX2-57', 'WXEX2-57-E1'],
@@ -9353,7 +9359,7 @@ test('続き376d トリップワイヤ: 対象名詞句に隣接しないクラ�
       Object.values(obj).forEach(v => Array.isArray(v) ? v.forEach(visit) : visit(v));
     };
     visit(e?.action);
-    eq(/"story"/.test(JSON.stringify(targetFilters)), false,
+    eq(hasDirectTargetStory(targetFilters), false,
       `${effId}: 別の節のクラスを対象フィルタに引き込まない`);
   }
 }));
@@ -42328,6 +42334,195 @@ test('段2 第24バッチ 見送り契約: 3体犠牲・エナ3枚はlive/fresh�
     eq(threeEnergy.target?.owner, 'opponent', 'WXEX1-14-E2: 3枚完済不能のため据置');
   }
 });
+
+// 段2 第26バッチ：枚数で動く対象上限。
+// live JSON の静的形を手で写さず、CSV からの fresh parse → executor の対象選択までを通す。
+function batch26FreshEffect(effectId: string): CardEffect {
+  const cardNum = effectId.replace(/-(?:E\d+|BURST)$/, '');
+  const card = cardMap.get(cardNum);
+  if (!card) throw new Error(`${effectId}: card missing`);
+  const effect = parseCardEffects(card).find(candidate => candidate.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+}
+
+function batch26Cards(filter: Parameters<typeof matchesFilter>[1], count: number, exclude: string[] = []): string[] {
+  const found: string[] = [];
+  for (const card of cardMap.values()) {
+    if (exclude.includes(card.CardNum) || found.includes(card.CardNum) || !matchesFilter(card, filter)) continue;
+    found.push(card.CardNum);
+    if (found.length === count) return found;
+  }
+  throw new Error(`batch26 fixture missing: ${JSON.stringify(filter)} x${count}`);
+}
+
+function batch26TargetAction(effectId: string): Extract<EffectAction, { target: unknown }> {
+  const effect = batch26FreshEffect(effectId);
+  const wanted = effectId === 'WXEX2-55-E1' || effectId === 'WXEX1-67-E1' ? 'BOUNCE'
+    : effectId === 'WXEX1-44-E1' ? 'SEND_TO_ENERGY'
+    : effectId === 'WXK11-017-E2' ? 'TRASH' : 'BANISH';
+  const action = findActionByType(effect.action, wanted);
+  if (!action || !('target' in action)) throw new Error(`${effectId}: ${wanted} target missing`);
+  return action as Extract<EffectAction, { target: unknown }>;
+}
+
+function batch26AssertTargetPending(effectId: string, action: EffectAction, ctx: ExecCtx, exact: string, over: string): ExecResult {
+  const result = executeEffect({ effectId, effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', `${effectId}: 上限内が2体あるので対象選択`);
+  if (result.done || result.pending.type !== 'SELECT_TARGET') return result;
+  ok(result.pending.candidates.includes(exact), `${effectId}: ①上限ちょうどは候補`);
+  ok(!result.pending.candidates.includes(over), `${effectId}: ②上限+1以上は候補外`);
+  const resolved = resumeSelectTarget([exact], result.pending, ctxAfter(result, ctx));
+  ok(!fieldTops(resolved.otherState).includes(exact) || !fieldTops(resolved.ownerState).includes(exact), `${effectId}: 選んだ上限ちょうどを処理`);
+  return resolved;
+}
+
+const batch26PowerSpecs = [
+  ['WX06-018-BURST', 3000, true],
+  ['WX09-017-BURST', 3000, true],
+  ['WX11-041-E2', 1000, true],
+  ['WX17-Re02-E2', 1000, true],
+  ['WX12-019-E2', 2000, false],
+  ['WX17-027-E3', 4000, false],
+  ['WX17-027-BURST', 4000, false],
+] as const;
+
+for (const [effectId, per, classWasMisattached] of batch26PowerSpecs) {
+  test(`段2 第26バッチ E2E: ${effectId} はゾーン枚数×${per}でパワー上限`, () => withSavedCursor(() => {
+    const action = batch26TargetAction(effectId) as Extract<EffectAction, { type: 'BANISH' }>;
+    const countRef = action.target.filter?.powerLteZoneCount;
+    ok(!!countRef, `${effectId}: powerLteZoneCount`);
+    eq(countRef!.per, per, `${effectId}: 乗数`);
+    const ceiling = 12000;
+    const sourceCount = ceiling / per;
+    const source = countRef!.filter ? batch26Cards(countRef!.filter, 1)[0] : batch26Cards({ cardType: 'シグニ' }, 1)[0];
+    const targetBase = { cardType: 'シグニ', powerRange: { min: ceiling, max: ceiling } } as const;
+    const exact = batch26Cards(
+      classWasMisattached && countRef!.filter ? { ...targetBase, not: countRef!.filter } : targetBase,
+      1,
+      [source],
+    )[0];
+    const exact2 = batch26Cards(targetBase, 1, [source, exact])[0];
+    const over = batch26Cards({ cardType: 'シグニ', powerRange: { min: ceiling + 1 } }, 1, [source, exact, exact2])[0];
+    const ctx = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [exact, exact2, over], hand: 0, trash: 0, energy: 0 });
+    if (countRef!.zone === 'hand') ctx.ownerState.hand = Array(sourceCount).fill(source);
+    else ctx.ownerState.trash = Array(sourceCount).fill(source);
+    batch26AssertTargetPending(effectId, action, ctx, exact, over);
+    if (classWasMisattached) ok(!matchesFilter(cardMap.get(exact), countRef!.filter!), `${effectId}: ④数え元クラス外の対象も上限内なら候補`);
+
+    const zero = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [exact, null, null], hand: 0, trash: 0, energy: 0 });
+    zero.ownerState.hand = [];
+    zero.ownerState.trash = [];
+    const missed = run(action, zero);
+    ok(fieldTops(missed.otherState).includes(exact), `${effectId}: ③枚数0は上限0で空振り`);
+  }));
+}
+
+const batch26LevelSpecs = [
+  ['WXEX2-55-E1', 'field'],
+  ['WXEX1-44-E1', 'acce'],
+  ['WXK11-017-E2', 'field'],
+  ['WXEX1-67-E1', 'trap'],
+] as const;
+
+for (const [effectId, zone] of batch26LevelSpecs) {
+  test(`段2 第26バッチ E2E: ${effectId} は${zone}枚数でレベル上限`, () => withSavedCursor(() => {
+    const action = batch26TargetAction(effectId) as Extract<EffectAction, { type: 'BOUNCE' | 'SEND_TO_ENERGY' | 'TRASH' }>;
+    const countRef = action.target.filter?.levelLteZoneCount;
+    ok(!!countRef, `${effectId}: levelLteZoneCount`);
+    eq(countRef!.zone, zone, `${effectId}: 数え元zone`);
+    const exacts = batch26Cards({ cardType: 'シグニ', level: 2 }, 2);
+    const over = batch26Cards({ cardType: 'シグニ', level: 3 }, 1, exacts)[0];
+    const ctx = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [exacts[0], exacts[1], over], hand: 0, trash: 0, energy: 0 });
+    const sources = countRef!.filter ? batch26Cards(countRef!.filter, 2, [...exacts, over]) : batch26Cards({ cardType: 'シグニ' }, 2, [...exacts, over]);
+    if (zone === 'field') ctx.ownerState.field.signi = sources.map(num => [num]);
+    else if (zone === 'acce') ctx.ownerState.field.signi_acce = [[sources[0]], [sources[1]], null];
+    else ctx.ownerState.field.signi_traps = [sources[0], sources[1], null];
+    batch26AssertTargetPending(effectId, action, ctx, exacts[0], over);
+
+    const zero = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [exacts[0], null, null], hand: 0, trash: 0, energy: 0 });
+    zero.ownerState.field.signi = [null, null, null];
+    zero.ownerState.field.signi_acce = [null, null, null];
+    zero.ownerState.field.signi_traps = [null, null, null];
+    const missed = run(action, zero);
+    ok(fieldTops(missed.otherState).includes(exacts[0]), `${effectId}: ③枚数0は上限0で空振り`);
+    if (effectId === 'WXEX1-67-E1') ok(!findActionByType(batch26FreshEffect(effectId).action, 'GRANT_KEYWORD'), `${effectId}: 数え元のトラップを付与にしない`);
+  }));
+}
+
+test('段2 第26バッチ E2E: WX25-CP1-080-E1 は実際にエナから置いた枚数×4000', () => withSavedCursor(() => {
+  const effect = batch26FreshEffect('WX25-CP1-080-E1');
+  const seq = effect.action as SequenceAction;
+  const trash = seq.steps[0] as Extract<EffectAction, { type: 'TRASH' }>;
+  const banish = seq.steps[1] as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(trash.target.type, 'ENERGY_CARD', '実処理はエナからトラッシュ');
+  eq(trash.target.upToCount, true, '0..4枚の任意選択');
+  eq(banish.target.filter?.powerLteLastProcessedCount, 4000, '直前の実処理枚数×4000');
+  const energy = batch26Cards({ story: 'ブルアカ' }, 4);
+  const exacts = batch26Cards({ cardType: 'シグニ', powerRange: { min: 12000, max: 12000 } }, 2, energy);
+  const over = batch26Cards({ cardType: 'シグニ', powerRange: { min: 12001 } }, 1, [...energy, ...exacts])[0];
+  const ctx = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [exacts[0], exacts[1], over], hand: 0, trash: 0, energy: 0 });
+  ctx.ownerState.energy = energy;
+  const pick = executeEffect(effect, ctx);
+  ok(!pick.done && pick.pending.type === 'SELECT_TARGET', '最初に0..4枚のエナ選択');
+  if (pick.done || pick.pending.type !== 'SELECT_TARGET') return;
+  const target = resumeSelectTarget(energy.slice(0, 3), pick.pending, ctxAfter(pick, ctx));
+  ok(!target.done && target.pending.type === 'SELECT_TARGET', '3枚実処理後に対象選択');
+  if (target.done || target.pending.type !== 'SELECT_TARGET') return;
+  ok(target.pending.candidates.includes(exacts[0]), '① 3枚×4000=12000は候補');
+  ok(!target.pending.candidates.includes(over), '② 12000超は候補外');
+  const resolved = resumeSelectTarget([exacts[0]], target.pending, ctxAfter(target, ctx));
+  ok(!fieldTops(resolved.otherState).includes(exacts[0]), '上限ちょうどをバニッシュ');
+
+  const zeroCtx = mkCtx({ hand: 0, trash: 0, energy: 0 }, { signi: [exacts[0], null, null], hand: 0, trash: 0, energy: 0 });
+  zeroCtx.ownerState.energy = energy;
+  const zeroPick = executeEffect(effect, zeroCtx);
+  ok(!zeroPick.done && zeroPick.pending.type === 'SELECT_TARGET', '0枚も選べる');
+  if (zeroPick.done || zeroPick.pending.type !== 'SELECT_TARGET') return;
+  const zero = resumeSelectTarget([], zeroPick.pending, ctxAfter(zeroPick, zeroCtx));
+  ok(fieldTops(zero.otherState).includes(exacts[0]), '③ 0枚実処理は上限0で空振り');
+}));
+
+test('段2 第26バッチ E2E: WX08-036-E2 は実際にミルした鉑石／宝石枚数以下レベル', () => withSavedCursor(() => {
+  const effect = batch26FreshEffect('WX08-036-E2');
+  const banish = findActionByType(effect.action, 'BANISH')!;
+  const sourceFilter = banish.target.filter?.levelLteLastProcessedCount;
+  ok(!!sourceFilter && sourceFilter !== true, 'levelLteLastProcessedCount に鉑石／宝石filter');
+  eq(banish.target.owner, 'any', 'owner:any を維持');
+  eq(banish.target.filter?.story, undefined, '数え元クラスを対象へ誤付着しない');
+  const milled = batch26Cards(sourceFilter as Parameters<typeof matchesFilter>[1], 2);
+  const fillers = batch26Cards({ not: sourceFilter as Parameters<typeof matchesFilter>[1] }, 3, milled);
+  const exacts = batch26Cards({ cardType: 'シグニ', level: 2, not: sourceFilter as Parameters<typeof matchesFilter>[1] }, 2, [...milled, ...fillers]);
+  const over = batch26Cards({ cardType: 'シグニ', level: 3 }, 1, [...milled, ...fillers, ...exacts])[0];
+  const ctx = exactDeckCtx([...milled, ...fillers], 'WX08-036');
+  ctx.otherState.field.signi = [[exacts[0]], [exacts[1]], [over]];
+  const target = executeEffect(effect, ctx);
+  ok(!target.done && target.pending.type === 'SELECT_TARGET', 'ミル後に対象選択');
+  if (target.done || target.pending.type !== 'SELECT_TARGET') return;
+  ok(target.pending.candidates.includes(exacts[0]), '① 実処理2枚と同じLv2は候補');
+  ok(!target.pending.candidates.includes(over), '② Lv3は候補外');
+  ok(!matchesFilter(cardMap.get(exacts[0]), sourceFilter as Parameters<typeof matchesFilter>[1]), '④ 鉑石／宝石以外も上限内なら候補');
+  const resolved = resumeSelectTarget([exacts[0]], target.pending, ctxAfter(target, ctx));
+  ok(!fieldTops(resolved.otherState).includes(exacts[0]), '選んだLv2をバニッシュ');
+
+  const zeroCtx = exactDeckCtx(fillers, 'WX08-036');
+  zeroCtx.otherState.field.signi = [[exacts[0]], null, null];
+  const zero = finish(executeEffect(effect, zeroCtx), zeroCtx);
+  ok(fieldTops(zero.otherState).includes(exacts[0]), '③ 該当ミル0枚は上限0で空振り');
+}));
+
+test('段2 第26バッチ 併修正: WXK03-074-E1 は数え元の＜武勇＞を対象へ限定しない', () => withSavedCursor(() => {
+  const action = batch26TargetAction('WXK03-074-E1') as Extract<EffectAction, { type: 'BANISH' }>;
+  const sourceFilter = action.target.filter?.levelEqLastProcessedCount;
+  ok(!!sourceFilter && sourceFilter !== true, 'levelEqLastProcessedCount の武勇filterは維持');
+  eq(action.target.filter?.story, undefined, '対象クラス限定は除去');
+  const processed = batch26Cards(sourceFilter as Parameters<typeof matchesFilter>[1], 2);
+  const exacts = batch26Cards({ cardType: 'シグニ', level: 2, not: sourceFilter as Parameters<typeof matchesFilter>[1] }, 2, processed);
+  const over = batch26Cards({ cardType: 'シグニ', level: 3 }, 1, [...processed, ...exacts])[0];
+  const ctx = mkCtx({}, { signi: [exacts[0], exacts[1], over] });
+  ctx.lastProcessedCards = processed;
+  batch26AssertTargetPending('WXK03-074-E1', action, ctx, exacts[0], over);
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

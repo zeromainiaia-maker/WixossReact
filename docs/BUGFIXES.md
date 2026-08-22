@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第26バッチ＝ゾーン枚数で動くパワー／レベル上限の脱落13効果
+
+トラッシュ・手札・場・アクセ・トラップの枚数、または直前に実際にトラッシュに置いた枚数を上限にする13効果が、上限なしの対象選択へ潰れていた。既存 `TargetFilter` family に `powerLteZoneCount` / `levelLteZoneCount` / `powerLteLastProcessedCount` / `levelLteLastProcessedCount` を追加し、`CountFromZone` の共通解決器から `powerRange.max` / `level.max` へ解決。0枚時は上限0として空振りする。数え元のクラスが対象自体へ誤付着していた A1〜A4/C5 と `WXK03-074-E1` も除去した。
+
+`WX25-CP1-080-E1` は原文の0〜4枚のエナ移動を既存 `TRASH{ENERGY_CARD,upToCount:true}` で実行し、その `lastProcessedCards` を×4000の上限に使用。`WX08-036-E2` は実際にミルされた＜鉱石／宝石＞のみを数える。`WXEX1-67-E1` の先頭 `GRANT_KEYWORD{トラップ}` は「【トラップ】の数」を付与と誤分割したものなので除去。同効果の「《青》を支払ってもよい」の欠落は動的上限と別の既存問題として本バッチでは拡張せず、`CONDITIONAL{IS_MY_TURN}` を維持した。
+
+全13効果で上限ちょうど／超過／0枚を fresh parse → executor のE2Eで固定し、誤付着群は数え元クラス外の上限内対象も固定。生パース変化は指定13効果＋許可された `WXK03-074-E1` の14件だけ、curated JSON の変化も同じ14件だけ。golden **2478/2478**、census **693/693**（701→693）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、stubs A群🔴0／C群0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **87/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch26_report.md`。
+
 ## 2026-08-23：§6.2 段2 第25バッチ＝集合主語のGRANT_KEYWORDが単体付与へ潰れていた
 
 「あなたの（すべての）＜クラス＞のシグニは【キーワード】を得る」と「あなたのすべてのシグニ…それらは【キーワード】を得る」を文型ベースで集合化し、指定7効果の `owner/count/filter` を是正。生パースで同型 `WXEX2-07-E1` も1件だけ発見し、CSV照合後に採用した。`WXEX2-11-E4` は既存 `isDrive` をexecutor候補抽出へ接続して自分のドライブ状態だけに限定。`WX25-CP1-005-E1` は既存の全ブルアカplainシャドウを重複させず、欠落していた全体+5000と `levelGte:3` scopeを復元した。`WXEX2-70-E1` は任意の自己＜遊具＞犠牲を局所parseし、誤った自分デッキトップENERGY_CHARGEを相手対象のSEND_TO_ENERGYへ採用した。

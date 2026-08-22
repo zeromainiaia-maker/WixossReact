@@ -160,7 +160,7 @@ export interface Variable {
 export type NumberOrRef = number | { $ref: string; filter?: TargetFilter };
 
 export interface CountFromZone {
-  zone: 'field' | 'energy' | 'trash' | 'lrig_trash';
+  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'acce' | 'trap';
   owner: Owner;
   filter?: TargetFilter;
   per?: number;
@@ -683,6 +683,7 @@ export interface TargetFilter {
   levelEqualsVar?: 'charm_trash_count' | 'field_trash_level' | 'cost_hand_to_energy_level' | 'cost_energy_trash_level_sum'; // 直前コストの既存 last_* 記録とレベルが一致するか
   nameEqLastProcessed?: boolean; // 直前に処理した先頭カードのカード名と完全一致。参照不能時は空ヒット
   levelEqLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数と表記レベルが一致
+  levelLteLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数以下のレベル。0枚ならlevel.max=0
   levelEqLastProcessedLevelSum?: boolean; // 直前に処理したカードの表記レベル合計と一致
   levelEqLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベルと一致。参照不能時は空ヒット
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。resolveDynamicFilterがpowerRange.maxへ解決）
@@ -786,6 +787,11 @@ export interface TargetFilter {
   // B2 動的閾値: パワーが「この方法で公開したシグニのレベルの合計×N」以下 → powerRange.max に解決（数値=乗数N。WX17-028「×1000」）。
   // 直前の REVEAL_DECK_TOP が ownerState.last_revealed_signi_level_sum に記録した合計を読む。
   powerLteRevealedSigniLevelSum?: number;
+  // パワー／レベルが〈自分の指定ゾーンの一致枚数×per〉以下。resolveDynamicFilter が静的 range へ解決する。
+  powerLteZoneCount?: CountFromZone;
+  levelLteZoneCount?: CountFromZone;
+  // パワーが直前に実処理したカード枚数×N以下（数値=N）。空ならpowerRange.max=0。
+  powerLteLastProcessedCount?: number;
 }
 
 // ===== ターゲット =====
