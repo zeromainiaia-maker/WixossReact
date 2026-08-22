@@ -12,7 +12,7 @@ import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, re
 import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
-import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers } from '../engine/triggerCollect';
+import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource, detectTrashAdded } from '../engine/boardDiff';
 import { hasApplicableLancer, hasKeyword, hasBanishResist } from '../utils/keywords';
@@ -1441,20 +1441,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       try {
         const entries: StackEntry[] = [];
         // ON_REVEALED_FROM_HAND: 公開されたカード自身のAUTO効果（まだ手札にあるもののみ）
-        for (const cn of revealedHJ) {
-          if (!localMy.hand.includes(cn)) continue;
-          for (const eff of (effectsMap.get(cn) ?? [])) {
-            if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_REVEALED_FROM_HAND')) continue;
-            entries.push({
-              id: generateUUID(),
-              playerId: user.id,
-              cardNum: cn,
-              effectId: eff.effectId,
-              label: `${battleCardMap.get(cn)?.CardName ?? cn}【自】手札公開時`,
-              effect: eff,
-            });
-          }
-        }
+        entries.push(...pureCollectRevealedFromHandTriggers(
+          mkTrigCtx(), revealedHJ, localMy, user.id,
+          localMy.hand_revealed_just_source_card_num ?? undefined,
+        ));
         // ON_SELF_REVEAL_FROM_HAND: あなたが自分の効果で手札からカードを公開したとき、場のシグニ自身のAUTO効果が反応（G198）
         // （hand_revealed_just は1回の公開処理ごとに立つので「同時に複数公開でも一度しか発動しない」が自然に満たされる）
         if (revealedHJ.length > 0) {
@@ -1485,6 +1475,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const cleared: PlayerState = {
           ...localMy,
           hand_revealed_just: null,
+          hand_revealed_just_source_card_num: null,
           hand_discarded_just: null,
           hand_discarded_just_by_opp: null,
           hand_discarded_just_cause_owner_id: null,
@@ -2564,8 +2555,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     pureCollectLeaveFieldTriggers(mkTrigCtx(), leftCardNum, leftUnder, leftPlayerId, afterHostState, afterGuestState, causeOwnerId, leftBeforeState, leftZoneIdx);
 
   // ON_TRASH ファミリ（Stage2 で pure 化＝triggerCollect.ts。ここは薄いラッパ）。
-  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false): StackEntry[] =>
-    pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent);
+  const collectDeckTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, causeSourceCardNum?: string): StackEntry[] =>
+    pureCollectDeckTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, causeSourceCardNum);
   const collectAnyZoneTrashSelfTriggers = (trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false, origin: 'hand' | 'energy' | 'under_signi' = 'hand', causeSourceCardNum?: string, byEffectCause = true): StackEntry[] =>
     pureCollectAnyZoneTrashSelfTriggers(mkTrigCtx(), trashedCardNum, trashedPlayerId, causeByOpponent, origin, causeSourceCardNum, byEffectCause);
   const collectTrashTriggers = (
@@ -3143,10 +3134,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     }
     // デッキ→トラッシュ（ミル）の ON_TRASH（カード自身・triggerScope:self）
     for (const cardNum of detectDeckTrashed(beforeHost, h)) {
-      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp));
+      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.host_id, hostTrashedByOpp, causeSourceCardNum));
     }
     for (const cardNum of detectDeckTrashed(beforeGuest, g)) {
-      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp));
+      entries.push(...collectDeckTrashSelfTriggers(cardNum, bs.guest_id, guestTrashedByOpp, causeSourceCardNum));
     }
     // 手札→トラッシュ／エナ→トラッシュの ON_TRASH（self・fromZones 指定）。
     // causeSourceCardNum＝原因効果の発生源カード（「あなたの＜X＞のシグニの効果によって捨てられたとき」の判定用）。

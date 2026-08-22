@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き606・Opus 5＋Codex）＝段2 第14バッチ＝**「あなたの場に＜クラス＞のシグニがある場合」という条件節が丸ごと落ち、その中のクラス修飾が対象へ誤付着していた10効果**。**残 OPEN 970→959**／段2 消化 117→**128**（finding 11本＝これまでで最多）。**census 742→733**（ベースライン更新）・**golden 2358→2360**・held **92→91**・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き606）。
+  - 🔑**1つの根から2つの症状が出る**＝①条件が消えて**無条件発火（過剰実行）** ②条件節の中のクラス修飾が**直前の「対象」へ誤付着（過小実行）**。`WX09-025-E1` は「対戦相手のパワー8000以下のシグニ1体を対象とし、あなたの場に＜鉱石＞か＜宝石＞が合計3体ある場合」なのに、live は **＜鉱石＞か＜宝石＞が「相手のシグニ」の条件に化けて**いた＝**本来倒せる相手が倒せない**。同じ誤付着が `WX21-051-E1`／`WXDi-CP02-085-E2` にも。**両方直して初めて原文と一致する。**
+  - **受け皿は完備だった**＝`HAS_CARD_IN_FIELD` は `Condition`（`types/effects.ts:305`・評価器 `execUtils.ts:1713`）と `ActiveCondition`（`:183`・評価器 `effectEngine.ts:147`）の**両方**にあり、`excludeSelf`／`minCount`／`distinctNames`／`distinctColors` まで実装済み。**parser 側だけの作業。**
+  - **読み分けの実例**＝「か」→`story` 配列／「合計3体」→`minCount`／「2種類以上」→`distinctColors`／「名前の異なる」→`distinctNames`／「**他の**」→`excludeSelf`／【常】→`activeCondition`（union が別なので入れる場所を間違えると評価器に届かない）。
+  - 🔴**Claude 側のベースラインが2つ誤っていた**＝①**lint は元から 261**（続き605 の `BattleScreen.tsx` 改変ぶんを恒久指標へ反映し忘れ、260 のまま指示書へ書いた）＝今回の増減は0 ②**held の申告 +3 は stale**（fresh と live が完全一致＝採用済みなのに `_held_fresh.json` が再生成されていないだけ）。`build:effects` を回し直して **92→91**（`WXEX2-03` 解消）。⚠**CODEX_GUIDE §6「held の申告値は報告直前に再実行した実測値であること」が守られていない**＝続き252 と同じ再発。
+  - ✅**見送り判断が正しかった**＝A2群3件（`WX21-032-E1`／`SP27-012-E1`／`WX21-039-E1`）の「**このシグニと共通する色を持たない**他の＜天使＞」は**効果元との色比較**で、`NO_COMMON_COLOR_AMONG_FIELD_SIGNI`（場全体の相互比較）とは別物。**`story` だけ消すと過剰化する**ので誤付着も直さず据置＝片方だけ直す退化を避けた。
+  - **▶ 次の一手【Opus 側】＝段2 第15バッチ＝「あなたの＜X＞のシグニの効果によって〜されたとき」の原因クラス限定**（8効果）。🔑**この機構は timing ごとに別フィールドで既に3本実装済み**（`trashSourceStory`／`banishedSourceStory`／`powerDecreaseSourceStory`）＝**写す見本がリポジトリ内にある**。生えていないのは `ON_REVEALED_FROM_HAND`(4)／`ON_TRASH`+`fromZones:['deck']`(3)／`ON_CARD_MILLED_FROM_DECK`(1)。⚠**`ON_REVEALED_FROM_HAND` は原因カードを一切記録していない**（`hand_revealed_just` はカード番号の配列のみ・収集は `BattleScreen.tsx:1443` にインライン）＝**記録の受け皿から作り、判定を純関数へ切り出す**。
+  - **▶ その次の候補**＝`SP27-012-E1`／`WX21-039-E1` の**「代わりに」置換が効かず両方実行される**群。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件が未検証＝最優先）。
+
+
 - **🆕 セッション（2026-08-22・続き605・Opus 5＋Codex）＝段2 第13バッチ＝**【ランサー（制限）】の括弧が落ちて「無条件ランサー」になっていた11効果**（受け皿の新設＋配線6箇所）。**残 OPEN 975→970**／段2 消化 112→117。ゲート全緑（**golden 2356→2358**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き605）。
   - **実害**＝原文 `【ランサー（パワー5000以下のシグニ）】` の括弧が落ち、**どんなパワーの相手をバトルでバニッシュしてもライフが割れた**＝毎バトル確定1点。`WX25-CP1-081-E1` に至っては「そうした場合〜を得る」節ごと落ちていた（**付与自体が無かった**）。
   - 🔑**前バッチ（アサシン）との違い＝受け皿が無かった**＝`signiAttackKeywords.ts:48` は素の boolean、`BattleScreen.tsx:9341` が無条件で割る。**`LancerScope`／encode／decode／`hasApplicableLancer` を新設し、6箇所へ配線**（parser 4入口＝通常/アーツ/スペル/SONG、`signiAttackKeywords`、`BattleScreen`、`BoardComponents`、`boardDiff`、`decompileEffects`）。

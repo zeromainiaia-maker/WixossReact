@@ -1,5 +1,72 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き607）：§6.2 段2 第15バッチ＝「あなたの＜X＞のシグニの効果によって」の原因クラス限定が落ちていた8効果
+
+**同じ「原因クラス限定」でも、落ちている原因が timing ごとに3種類あった**のが今回の発見。
+残 OPEN **959→952**。census **733 据置**。golden **2360→2362**。held **91 据置**。
+
+### 何が壊れていたか
+
+「このカードが**あなたの＜龍獣＞のシグニの効果によって**手札から公開されたとき」の**原因限定**が落ち、
+live は「**誰の・どんな経緯でも**公開されれば発火」だった。クラスシナジー前提の能力が無条件に撃てる。
+
+### 🔑 機構は timing ごとに別フィールドで既に4本あった
+
+| 既存フィールド | timing | collector |
+|---|---|---|
+| `trashSourceStory` | `ON_TRASH`（手札経路） | `collectAnyZoneTrashSelfTriggers` |
+| `banishedSourceStory` | `ON_BANISH` | `collectBanishTriggers` |
+| `powerDecreaseSourceStory` | `ON_OPP_POWER_DECREASED` | `collectPowerDecreaseTriggers` |
+| `milledSourceStory` | `ON_CARD_MILLED_FROM_DECK` | `collectMillTriggers` |
+
+⇒ **落ち方は3種類でそれぞれ原因が違った**：
+
+1. **`ON_REVEALED_FROM_HAND`＝機構ごと新設**（4効果）。
+   `hand_revealed_just` は**公開されたカード番号の配列だけ**で**原因カードを一切記録していなかった**。
+   収集も `BattleScreen.tsx` にインラインで `triggerCondition` を見ていなかった。
+2. **`ON_TRASH` + `fromZones:['deck']`＝既存フィールドの collector 漏れ**（3効果）。
+   `trashSourceStory` のゲートが**手札経路の collector にしか無かった**。
+3. **`ON_CARD_MILLED_FROM_DECK`＝既存フィールドの live 漏れ＋fail-open**（1効果）。
+
+⚠**Claude は「生えていない3 timing」と書いたが誤り**＝`milledSourceStory` は型・parser・collector とも既存だった。
+**「機構が無い」と決めつける前に、timing 別の類似フィールドを全部探すこと。**
+
+### 直し方（配線6箇所）
+
+`revealSourceStory` を既存4本と同じ命名で新設し、`hand_revealed_just_source_card_num` を
+`PlayerState` へ追加。記録は `execStubPart3.ts:3466`／`:3482` の**2箇所**（`execStubPart1.ts:4979` と
+`effectExecutor.ts:4157` は入口で代入していない＝Claude の「3箇所」は誤り）。
+収集は **pure `collectRevealedFromHandTriggers` へ切り出して golden から叩けるように**した
+（続き605 の `hasApplicableLancer` と同じ設計＝BattleScreen は React で golden から叩けないため）。
+
+### ✅ 過小実行への裏返りは無い
+
+新 collector のゲートは **`if (reqStory) {…}` の内側だけ**＝
+**`revealSourceStory` を持たない既存の `ON_REVEALED_FROM_HAND` 効果は素通り**する
+（続き605 の `hasApplicableLancer([], p)===false` のような「空なら全部落ちる」形になっていない）。
+記録側も**代入2箇所とクリア1箇所が両フィールドを揃えて操作**しており、
+**前の公開の発生源が残る stale 経路は無い**（実コードで全代入を列挙して確認）。
+
+### 🟡 スコープ外の既存効果を1件変えている（申告済み・妥当だが要監視）
+
+`collectMillTriggers` の `milledSourceStory` 判定を **fail-open → fail-closed** へ反転した。
+⚠**元のコメントは明示的に逆の判断を書いていた**（「未設定は発生源不明として従来どおり発火させる（過剰側に倒す）。
+ここで落とすと部分実装が過少発火の退化になる」）＝**文書化された決定の反転**。
+
+- 影響は **`WX24-P3-030-E1` の1件だけ**（`milledSourceStory` を持つ live 効果は2件）。
+- 原文が「あなたの＜悪魔＞のシグニの効果**１つによって**」＝**原因の特定が意味の一部**なので
+  **fail-closed の方が原文に忠実**で、他3本の規約とも揃う。
+- ⚠`last_effect_mill_source` の書き手は **`effectExecutor.ts:6858` の1箇所だけ**＝
+  **他のミル経路で落ちると発火しなくなる**。⇒ **§7 の実機検証項目**（golden は両方向を固定済み）。
+
+### ⚠ 原因限定の規約が2種類混在していることが判明
+
+`trashSourceStory`／`banishedSourceStory`／`milledSourceStory` は **fail-closed**（原因不明なら発火しない）、
+**`powerDecreaseSourceStory` だけ fail-open**（原因不明でも発火する）。
+Codex はこれを**変更せず指摘だけした**（スコープ遵守）。**次に触るときに揃えるか判断する。**
+
+報告＝`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch15_report.md`（末尾に Claude 検証節）。
+
 ## 2026-08-22（続き606）：§6.2 段2 第14バッチ＝「場に＜クラス＞のシグニがある場合」の条件節が落ち、クラス修飾が対象へ誤付着していた10効果
 
 **1つの根から過剰実行と過小実行の両方が出る**のが今回の特徴。残 OPEN **970→959**。
@@ -12179,77 +12246,6 @@ E1 の MANUAL は温存される）。
 - **`docs/_partial_fresh.json` 10→3カード**、held **145 据置**（新規3件 `WXK08-066`/`WDK04-017`/`WDK05-T17` を同セッションで採用）
 - live JSON が変わった効果 **8**（うち `WX12-024-E3` はキー順のみ）。残り11効果は
   **parser を live と一致させた側**＝以後の parser 改善が効果単位マージで自動的に届くようになった
-
-## 2026-08-07 — **§5d-0(iv) 第15バッチ**＝**`_partial_fresh` 行列の parser 側を直す**・7効果（census 960→**957**）（Opus 5・続き377j）
-
-続き377i で新設したレビュー行列 `docs/_partial_fresh.json` の残り12カードは、いずれも
-**「live には正しい形があるのに parser だけが退化している」**もの。ここを手で採用しても意味がない
-（fresh が退化側だから）ので、**parser を直して live と一致させ、行列から落とす**方針を取った。
-一致させれば以後の parser 改善も効果単位マージで自動的に届く。
-
-⭐**ポイント＝行列に残るものは「採用待ち」ではなく「parser のバグ台帳」として読む。**
-
-### ① 「（あなた|対戦相手）のエナゾーンにあるカードがN枚（以上|以下）であるかぎり」＝条件の無言脱落（4効果）
-
-旧規則は **「あなたの」「N枚以上」「あるかぎり」** の**1形だけ**を見ていた：
-
-```ts
-const enaM = text.match(/^あなたのエナゾーンにカードが([０-９\d]+)枚以上あるかぎり、/);
-```
-
-**所有者が対戦相手／閾値が以下／語尾が「であるかぎり」** の変種は丸ごと素通りし、
-`activeCondition` が落ちて**無条件発火**していた：
-
-| 効果 | 原文 | 旧挙動 |
-|---|---|---|
-| `WX10-042-E1` | 相手エナ3枚以下であるかぎり、基本パワー8000 | **常に**基本パワー8000 |
-| `WX10-064-E1` | 相手エナ2枚以下であるかぎり、基本パワー5000 | **常に**基本パワー5000 |
-| `WX24-P2-067-E1` | 相手エナ3枚以下であるかぎり、パワー＋4000 | **常に**＋4000 |
-| `WX04-002-E1` | 相手エナ4枚以下であるかぎり、あなたのシグニ＋2000 | **常に**＋2000 |
-
-いずれも「**相手のエナが少ないときだけ強くなる**」設計の札が**常時強い**状態だった。
-所有者・不等号・語尾をまとめて許す規則に置き換えた（既存の「N枚以上」規則の直前に置く）。
-
-### ② 🔴「〔X〕以外の効果を受けない」＝保護範囲が原文とちょうど反対（2効果）
-
-```ts
-if (t.includes('アーツ')) from.push('アーツ');   // ← 「アーツ以外の」でも当たる
-```
-
-「対戦相手の、**アーツ以外の**効果を受けない」を `from:['アーツ']`＝
-**「アーツの効果だけ受けない」**と読んでいた。正しい表現は既存の `fromAll` ＋ `exceptSource`
-（同ファイルの「ルリグ以外からの効果を受けない」規則と同型）で、`WX12-018-E1` の live は
-**既にその形を持っていた**＝parser だけが退化していた典型。`WX09-017-E2` も同型。
-
-⚠**種別語（アーツ/スペル/シグニ/ルリグ）に限る**＝「**自身**以外の効果を受けない」（`WX17-001-E1`）は
-`sourceType` の語彙が無いので触らない（golden にトリップワイヤを置いた）。
-
-### ③ 効果単位マージが期待どおり働いた
-
-parser を直したあと `npm run build:effects` を回すだけで、**混在カード（MANUAL/PARTIAL 同居）4効果が
-自動収穫**された。続き377i の粒度変更が無ければ、この4件は手作業の採用が必要だった。
-
-### ④ 残り10カードの仕分け（在庫登録）
-
-`_partial_fresh` は **12→10カード**。残りは1件ずつ性質が違う：
-
-- **機構ギャップ**（fresh が STUB／`UNKNOWN` へ落ちる）＝`WXK07-031`／`WXK10-075`／`WDK17-009`
-- **`manualEffects.ts` のソースが live より古い**（続き377h と同じ逆パターン）＝`WX04-093`／`WD14-011`
-- **単発の parser 穴**＝`WX04-003`（2グループの手札捨てコスト）／`WX11-026`（条件節が後続文まで届かない）／
-  `WXK10-017`（`suppressOnPlay` 脱落）／`WXK10-022`（`nonColorless`＋`DECK_TOP_MATCHES` 構造）／
-  `SP27-015`（`acceHost` 脱落）
-
-同系統で **live 側にも残っている穴**を全CSV走査で計測済み＝`suppressOnPlay` 4／`nonColorless` 5／
-いずれも STUB 経路が主で、素直に直せるのは `WXK09-029-BURST` の1件（`extractNounPhraseFilter` 側の
-取りこぼし）。§5d-0 (ii)/(iii) へ登録した。
-
-### 検証
-
-- `npm run gates` 全緑。census **960→957**（`BASELINE_HIGH` 更新）、golden **1450→1452**（+2＝新規則の固定＋
-  「自身以外」トリップワイヤ）、smoke 10679 全0・SKIP0、fuzz 全0、同型★**0 据置**（265群）、
-  manual field loss 0、held **144→145枚／71群**、被覆マトリクス miss **318 据置**、
-  lint 0 errors/**248 warnings**（キャッシュ削除後の実測）。
-- live の変更は **7効果**（自動収穫4＋`WX09-017` 採用1＋`WX12-018-E1` の形整合2）。A/B で意図した箇所のみを確認。
 
 ## 2026-08-07 — **§5d-0(iv) 第14バッチ**＝**収穫マージを「カード単位温存」から「効果単位温存」へ**・70効果（census 972→**960**・被覆マトリクス miss 319→318）（Opus 5・続き377i）
 

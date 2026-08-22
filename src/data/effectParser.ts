@@ -13718,6 +13718,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         }
       }
       if (timing[0] === 'ON_TRASH') {
+        // デッキ→トラッシュ自己反応の原因クラス限定。手札経路の trashSourceStory と同じフィールドを使う。
+        const deckTrashSource = actionText.match(/このカードがあなたの＜([^＞]+)＞のシグニの効果によってデッキからトラッシュに置かれたとき/);
+        if (deckTrashSource) {
+          extractedTriggerCondObj = {
+            ...(extractedTriggerCondObj ?? {}),
+            fromZones: ['deck'],
+            trashSourceStory: deckTrashSource[1],
+            ...(/あなたのメインフェイズの間/.test(actionText) ? { duringMainPhase: true } : {}),
+          };
+        }
         // 「レゾナの出現条件のために、〜トラッシュに置かれたとき」: レゾナ出現条件の支払い時のみ発火
         if (/レゾナの出現条件のために/.test(actionText)) {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), forResonaCondition: true };
@@ -13801,6 +13811,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_REVEALED_FROM_HAND') {
+        const revealSource = actionText.match(/このカードがあなたの＜([^＞]+)＞のシグニの効果によって手札から公開されたとき/);
+        if (revealSource) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), revealSourceStory: revealSource[1] };
+        }
         const m = actionText.match(/このカードが.{0,40}手札から公開されたとき[、,]\s*(.+)/s);
         if (m) actionText = m[1];
       }

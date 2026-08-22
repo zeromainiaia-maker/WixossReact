@@ -861,19 +861,53 @@ const condHas = (c: Condition | undefined, t: string): boolean =>
  */
 export function collectDeckTrashSelfTriggers(
   ctx: TrigCtx, trashedCardNum: string, trashedPlayerId: string, causeByOpponent = false,
+  causeSourceCardNum?: string,
 ): StackEntry[] {
   const entries: StackEntry[] = [];
   for (const eff of (ctx.effectsMap.get(trashedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_TRASH')) continue;
     if ((eff.triggerScope ?? 'self') !== 'self') continue;
     if (eff.triggerCondition?.byOpponentEffect && !causeByOpponent) continue;
+    if (eff.triggerCondition?.trashSourceStory) {
+      if (causeByOpponent) continue;
+      const source = causeSourceCardNum ? ctx.cardMap.get(getCardNum(causeSourceCardNum)) : undefined;
+      if (!source || source.Type !== 'シグニ' || !(source.CardClass ?? '').includes(eff.triggerCondition.trashSourceStory)) continue;
+    }
     // fromZones 指定があり 'deck' を含まない場合はデッキからでは発火しない
     if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('deck')) continue;
+    if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
     const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
     entries.push({
       id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
       label: `${cardName} の【トラッシュ時】効果（デッキから）`, effect: eff,
     });
+  }
+  return entries;
+}
+
+/** 手札から公開されたカード自身の ON_REVEALED_FROM_HAND を収集する。 */
+export function collectRevealedFromHandTriggers(
+  ctx: TrigCtx,
+  revealedCardNums: string[],
+  ownerState: PlayerState,
+  ownerId: string,
+  causeSourceCardNum?: string,
+): StackEntry[] {
+  const entries: StackEntry[] = [];
+  for (const cardNum of revealedCardNums) {
+    if (!ownerState.hand.includes(cardNum)) continue;
+    for (const eff of effsOf(ctx, cardNum)) {
+      if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_REVEALED_FROM_HAND')) continue;
+      const reqStory = eff.triggerCondition?.revealSourceStory;
+      if (reqStory) {
+        const source = causeSourceCardNum ? ctx.cardMap.get(getCardNum(causeSourceCardNum)) : undefined;
+        if (!source || source.Type !== 'シグニ' || !(source.CardClass ?? '').includes(reqStory)) continue;
+      }
+      entries.push({
+        id: ctx.genId(), playerId: ownerId, cardNum, effectId: eff.effectId,
+        label: `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}【自】手札公開時`, effect: eff,
+      });
+    }
   }
   return entries;
 }
@@ -1696,15 +1730,12 @@ export function collectMillTriggers(
       if (turnOwner === 'opponent' && isControllerTurn) continue;
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // 発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
-      // ⚠last_effect_mill_source は execMill 以外の経路では埋まらない＝**未設定は発生源不明として従来どおり発火**
-      //   させる（過剰側に倒す）。ここで落とすと部分実装が過少発火の退化になる。
+      // last_effect_mill_source が無い経路は原因不明。原因限定付き効果は保守側へ倒して非発火。
       const reqMillStory = eff.triggerCondition?.milledSourceStory;
       if (reqMillStory) {
         const millSrc = (owner === 'opponent' ? otherState : controllerState).last_effect_mill_source;
-        if (millSrc) {
-          const cls = ctx.cardMap.get(getCardNum(millSrc))?.CardClass ?? '';
-          if (!cls.includes(reqMillStory)) continue;
-        }
+        const source = millSrc ? ctx.cardMap.get(getCardNum(millSrc)) : undefined;
+        if (!source || source.Type !== 'シグニ' || !(source.CardClass ?? '').includes(reqMillStory)) continue;
       }
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, topNum)) continue;
       if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, topNum, ctx.turnPhase, ctx.effectivePowers)) continue;
@@ -1739,6 +1770,7 @@ export function collectMillTriggers(
     if (turnOwner === 'self' && !isControllerTurn) continue;
     if (turnOwner === 'opponent' && isControllerTurn) continue;
     if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+    if (eff.triggerCondition?.milledSourceStory) continue;
     if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, '')) continue;
     if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, '', ctx.turnPhase, ctx.effectivePowers)) continue;
     if (!limitOk(eff)) continue;

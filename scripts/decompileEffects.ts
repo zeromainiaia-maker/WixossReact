@@ -3318,7 +3318,11 @@ function effJa(e: Eff): string {
         : sdTc?.byOpponentEffect ? '対戦相手の効果によって'
         : sdTc?.byOwnEffect ? 'あなたの効果によって' : '';
       const turnJa = sdTc?.turnOwner === 'self' ? 'あなたのターンの間、' : sdTc?.turnOwner === 'opponent' ? '対戦相手のターンの間、' : '';
-      s = `${turnJa}${causeJa}このカードが捨てられたとき`;
+      const deckOnly = sdTc?.fromZones?.length === 1 && sdTc.fromZones[0] === 'deck';
+      const phaseJa = sdTc?.duringMainPhase ? 'あなたのメインフェイズの間、' : turnJa;
+      s = deckOnly
+        ? `${phaseJa}このカードが${causeJa}デッキからトラッシュに置かれたとき`
+        : `${phaseJa}${causeJa}このカードが捨てられたとき`;
     }
     // ON_DRAW の限定軸（「アタックフェイズの間に」「あなたのターンの間、あなたの効果によって」WX11-030/WXK10-040）
     if (t === 'ON_DRAW' && (e.triggerScope ?? 'self') === 'self'
@@ -3352,7 +3356,7 @@ function effJa(e: Eff): string {
     // ON_SPELL_USE は triggerFilter.color を使用スペルの色として反映（「あなたが緑のスペルを使用したとき」）
     if (t === 'ON_SPELL_USE' && e.triggerFilter?.color) s = `あなたが${[].concat(e.triggerFilter.color).join('・')}のスペルを使用したとき`;
     // ON_TRASH の発生源限定（fromZones）を反映（「このカードが手札かデッキからトラッシュに置かれたとき」）
-    if (t === 'ON_TRASH' && e.triggerCondition?.fromZones) {
+    if (t === 'ON_TRASH' && e.triggerCondition?.fromZones && !e.triggerCondition?.trashSourceStory) {
       const zoneJa: Record<string, string> = { hand: '手札', deck: 'デッキ', energy: 'エナ', field: '場', under_signi: 'シグニの下' };
       const zones = e.triggerCondition.fromZones.map((z: string) => zoneJa[z] ?? z).join('か');
       s = s.replace('トラッシュに置かれたとき', `${zones}からトラッシュに置かれたとき`);
@@ -3499,7 +3503,13 @@ function effJa(e: Eff): string {
       const mo = e.triggerCondition?.milledDeckOwner ?? 'any';
       const mc = e.triggerCondition?.milledMinCount ?? 1;
       const who = mo === 'self' ? 'あなたの' : mo === 'opponent' ? '対戦相手の' : 'いずれかのプレイヤーの';
-      s = `${who}デッキからカードが${mc}枚以上トラッシュに置かれたとき`;
+      const source = e.triggerCondition?.milledSourceStory
+        ? `あなたの＜${e.triggerCondition.milledSourceStory}＞のシグニの効果によって`
+        : '';
+      s = `${source}${who}デッキからカードが${mc}枚以上トラッシュに置かれたとき`;
+    }
+    if (t === 'ON_REVEALED_FROM_HAND' && e.triggerCondition?.revealSourceStory) {
+      s = `このカードがあなたの＜${e.triggerCondition.revealSourceStory}＞のシグニの効果によって手札から公開されたとき`;
     }
     // ON_CARD_MOVED_TO_DECK の宛先デッキ・枚数・発生源限定（movedToDeckOwner/MinCount/FromTrash）
     if (t === 'ON_CARD_MOVED_TO_DECK') {

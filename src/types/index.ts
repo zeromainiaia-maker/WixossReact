@@ -719,6 +719,8 @@ export interface PlayerState {
   acce_just_done?: string | null;
   // 効果による手札公開直後にセット: 公開された手札カードのCardNum（BattleScreenでON_REVEALED_FROM_HANDトリガー検出用）
   hand_revealed_just?: string[] | null;
+  // hand_revealed_just を起こした効果の発生源カード。原因限定付き公開時トリガーは未設定時に非発火。
+  hand_revealed_just_source_card_num?: string | null;
   // 効果による手札捨て直後にセット: 捨てられたカードのCardNum（BattleScreenでON_HAND_DISCARDEDトリガー検出用）
   hand_discarded_just?: string[] | null;
   // 上の hand_discarded_just が「**対戦相手の**効果によるもの」かどうか（このプレイヤー視点）。

@@ -35,7 +35,7 @@ import {
   type ExecCtx, type ExecResult,
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
-import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers } from '../src/engine/triggerCollect';
+import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
 import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
@@ -10291,6 +10291,26 @@ test('Stage2 ON_TRASH: fromZones=[deck] は場からでは非発火・デッキ�
   eq(has(collectTrashTriggers(trigCtx(HOST), 'WX02-073', HOST, host, guest).entries, 'WX02-073-E1'), false, '場からは非発火');
   eq(has(collectDeckTrashSelfTriggers(trigCtx(HOST), 'WX02-073', HOST), 'WX02-073-E1'), true, 'デッキから発火');
 });
+test('段2-15 ON_TRASH deck: 原因クラス一致だけ発火し、別クラス・原因不明・メイン外は非発火', () => {
+  const source = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('古代兵器'))!;
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('古代兵器'))!;
+  const ctx = trigCtx(HOST);
+  eq(has(collectDeckTrashSelfTriggers(ctx, 'WX25-P1-099', HOST, false, source), 'WX25-P1-099-E1'), true, '古代兵器原因');
+  eq(has(collectDeckTrashSelfTriggers(ctx, 'WX25-P1-099', HOST, false, other), 'WX25-P1-099-E1'), false, '別クラス原因');
+  eq(has(collectDeckTrashSelfTriggers(ctx, 'WX25-P1-099', HOST), 'WX25-P1-099-E1'), false, '原因不明');
+  eq(has(collectDeckTrashSelfTriggers({ ...ctx, turnPhase: 'ATTACK_SIGNI' }, 'WX25-P1-099', HOST, false, source), 'WX25-P1-099-E1'), false, 'メイン外');
+});
+test('段2-15 ON_REVEALED_FROM_HAND: 原因クラス一致だけ発火し、別クラス・原因不明は非発火', () => {
+  const source = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('龍獣'))!;
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('龍獣'))!;
+  const owner = mkState({ hand: 0 });
+  owner.hand = ['WX22-036'];
+  const ctx = trigCtx(HOST);
+  const fire = (cause?: string) => has(collectRevealedFromHandTriggers(ctx, ['WX22-036'], owner, HOST, cause), 'WX22-036-E1');
+  eq(fire(source), true, '龍獣原因');
+  eq(fire(other), false, '別クラス原因');
+  eq(fire(), false, '原因不明');
+});
 test('Stage2 ON_TRASH: fromAnyZone + byOpponentEffect ゲート（WX04-035-E2）', () => {
   const c = collectAnyZoneTrashSelfTriggers;
   eq(has(c(trigCtx(HOST), 'WX04-035', HOST, true, 'hand'), 'WX04-035-E2'), true, '相手効果起因で発火');
@@ -11234,7 +11254,7 @@ test('Stage2 ON_CARD_MILLED_FROM_DECK: 発生源クラス限定（WX24-P3-030-E1
   };
   eq(fire(akuma!), true, '悪魔シグニの効果によるミルでは発火するはず');
   eq(fire(other!), false, '悪魔以外の効果によるミルでは発火しないはず（従来はここが過剰発火）');
-  eq(fire(undefined), true, '発生源不明（execMill 以外の経路）は従来どおり発火するはず');
+  eq(fire(undefined), false, '発生源不明（execMill 以外の経路）は原因限定を満たさず非発火');
 });
 
 test('Stage2 ON_OPP_ARTS_USE/ON_ARTS_USE: 自シグニが発火（WXK11-019-E2 / WXK01-059-E2）', () => {

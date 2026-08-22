@@ -3431,7 +3431,7 @@ export interface CardEffect {
     leftStateFilter?: TargetFilter; // ON_LEAVE_FIELD の離脱シグニ状態限定（「対戦相手の凍結状態のシグニが場を離れたとき」WXEX1-30/WXDi-P03-040 等）。離脱**直前**の盤面状態（matchesStateFilter＝isFrozen/infected/hasCharm 等）で判定。banishedFilter の ON_LEAVE_FIELD 版。バトル離脱（除去前 state 未渡し）では判定材料が無いため保守的に非発火
     exceedCostPaidByPlayer?: boolean; // ON_EXCEED_COST の「あなたがエクシードのコストを支払ったとき」変種（場のシグニが反応。WXDi-P06-078）。省略時は既存の「このカードがエクシードのコストとして置かれたとき」（コストカード自身）。⚠ルリグ起動のエクシード支払い経路のみ検出（アーツ/スペルのカットイン exceed は未検出の近似）
     // ON_CARD_MILLED_FROM_DECK の発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
-    // engine は last_effect_mill_source の CardClass で判定し、発生源不明のときは従来どおり発火する（過剰側に倒す）。
+    // engine は last_effect_mill_source の CardClass で判定し、発生源不明のときは非発火（原因限定を保守側へ倒す）。
     milledSourceStory?: string;
     milledMinCount?: number;                        // ON_CARD_MILLED_FROM_DECK の発火に必要な、その効果解決で対象デッキからトラッシュに置かれた最低枚数（省略=1）。「合計N枚」型はこの解決単位での近似（cf. TODO §3.5）
     movedToDeckOwner?: 'self' | 'opponent' | 'any';  // ON_CARD_MOVED_TO_DECK の宛先デッキ（トリガー所有者から見た self/opponent/any）。省略=any
@@ -3452,6 +3452,7 @@ export interface CardEffect {
     placedOnGateZone?: boolean;                       // 「対戦相手のシグニN体が【ゲート】があるシグニゾーンに出たとき」（WXK10-044）＝トリガー元シグニの持ち主の own_gate_zones に当該ゾーンが含まれる場合のみ発火（同上。⚠WXK迷宮のゲート設置が未配線の間は発火しない＝旧 ON_PLAY self 幻覚よりは正直な no-op）
     lrigAttackGuarded?: boolean;                      // 「このルリグのアタックが【ガード】されたとき」＝防御側の「あなたが【ガード】したとき」と同じ ON_GUARD 上で攻撃側ルリグだけを収集
     trashSourceStory?: string;                        // ON_TRASH 自己discard反応の発生源限定「あなたの＜X＞のシグニの効果によってこのカードが捨てられたとき」（WXDi-P14-086）＝原因効果の発生源カード（中央diff の causeSourceCardNum）の CardClass に X を含むときのみ発火
+    revealSourceStory?: string;                       // ON_REVEALED_FROM_HAND 自己反応の発生源限定「あなたの＜X＞のシグニの効果によって手札から公開されたとき」＝公開原因カードの CardClass に X を含むときのみ発火
   };
 
   // CONTINUOUS 用：常時効果がいつ適用されるか

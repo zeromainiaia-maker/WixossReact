@@ -3464,6 +3464,7 @@ export function execStubPart3(
     const newOwnerMRFH: PlayerState = {
       ...ctx.ownerState,
       hand_revealed_just: [...(ctx.ownerState.hand_revealed_just ?? []), ...revealedMRFH],
+      hand_revealed_just_source_card_num: ctx.sourceCardNum ?? null,
     };
     return done(addLog({ ...ctx, ownerState: newOwnerMRFH },
       `手札から${revealedMRFH.map(cn => ctx.cardMap.get(cn)?.CardName ?? cn).join('・')}を公開`));
@@ -3479,6 +3480,7 @@ export function execStubPart3(
     const newOwnerOHRN: PlayerState = {
       ...ctx.ownerState,
       hand_revealed_just: [...(ctx.ownerState.hand_revealed_just ?? []), ...matchingOHRN],
+      hand_revealed_just_source_card_num: ctx.sourceCardNum ?? null,
     };
     return done(addLog({ ...ctx, ownerState: newOwnerOHRN, lastProcessedCards: matchingOHRN },
       `手札「${nameOHRN}」を公開（${matchingOHRN.length}枚）`));
