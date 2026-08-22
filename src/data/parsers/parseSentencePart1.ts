@@ -120,23 +120,24 @@ function hasThisSigniAsBanishObject(text: string): boolean {
 
 /**
  * 「対戦相手の〈修飾〉シグニN体を対象とし、あなたの〈修飾〉シグニ1体を
- * 〈バニッシュ／場からトラッシュに置く〉」の後半＝必須の自己犠牲だけを局所抽出する。
+ * 〈バニッシュ／場からトラッシュに置く〉」の後半＝自己犠牲だけを局所抽出する。
  *
  * 全文を `parseSigniTarget` へ渡すと、先行する相手側の owner・level・盤面状態まで後半へ混入する。
  * ここでは主語が明示された後半名詞句だけを渡し、カード番号やクラス名には依存しない。
- * count>1 は現行の必須選択UIが候補不足時に完済不能を表せないため据え置く。
- * 任意犠牲も別の pay/skip 経路なので、この必須形の規則では扱わない。
+ * count>1 は現行の選択UIが候補不足時に完済不能を表せないため据え置く。
+ * 「バニッシュしてもよい」は既存の optional pay/skip 経路へ渡す。
  */
-function parseRequiredSelfSigniSacrifice(
+function parseSelfSigniSacrifice(
   text: string,
-): { verb: 'BANISH' | 'TRASH'; target: EffectTarget } | null {
+): { verb: 'BANISH' | 'TRASH'; target: EffectTarget; optional: boolean } | null {
   const m = text.match(
-    /対戦相手の(?:(?![。、]|シグニ|ルリグ).){0,32}シグニ(?:を)?[０-９\d]+体を?対象とし、((?:レゾナではない)?あなたの(?:(?![。、]|シグニ|ルリグ).){0,32}シグニ(?:を)?([０-９\d]+)体)を(バニッシュする|場からトラッシュに置く)/,
+    /対戦相手の(?:(?![。、]|シグニ|ルリグ).){0,32}シグニ(?:を)?[０-９\d]+体を?対象とし、((?:レゾナではない)?あなたの(?:(?![。、]|シグニ|ルリグ).){0,32}シグニ(?:を)?([０-９\d]+)体)を(バニッシュする|バニッシュしてもよい|場からトラッシュに置く)/,
   );
   if (!m || parseNum(m[2]) !== 1 || !/＜[^＞]+＞/.test(m[1])) return null;
   return {
-    verb: m[3] === 'バニッシュする' ? 'BANISH' : 'TRASH',
+    verb: m[3].startsWith('バニッシュ') ? 'BANISH' : 'TRASH',
     target: parseSigniTarget(m[1], 'self'),
+    optional: m[3].endsWith('してもよい'),
   };
 }
 
@@ -1645,9 +1646,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     if (t.match(/トラッシュに置いたシグニ[０-９\d]*体?につき対戦相手のシグニ[０-９\d]*体?を.*バニッシュ/)) {
       return { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'last_processed_count' }, filter: { cardType: 'シグニ' }, upToCount: true } };
     }
-    const selfSacrifice = parseRequiredSelfSigniSacrifice(t);
+    const selfSacrifice = parseSelfSigniSacrifice(t);
     if (selfSacrifice?.verb === 'BANISH') {
-      return { type: 'BANISH', target: selfSacrifice.target };
+      return { type: 'BANISH', target: selfSacrifice.target, ...(selfSacrifice.optional ? { optional: true } : {}) };
     }
     if (t.match(/すべてのシグニをバニッシュ/)) {
       // ⚠**全文スキャン禁止**（続き377・(i)配線ギャップ 第6バッチ）。従来は owner も filter も文全体から取っており、
@@ -1824,9 +1825,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- トラッシュに置く（直接除去）----
   if (t.includes('トラッシュに置く') || t.includes('トラッシュに置く')) {
-    const selfSacrifice = parseRequiredSelfSigniSacrifice(t);
+    const selfSacrifice = parseSelfSigniSacrifice(t);
     if (selfSacrifice?.verb === 'TRASH') {
-      return { type: 'TRASH', target: selfSacrifice.target };
+      return { type: 'TRASH', target: selfSacrifice.target, ...(selfSacrifice.optional ? { optional: true } : {}) };
     }
     // ---- 「〈対象宣言〉を対象とし、〈誰か〉のデッキの一番上のカードをトラッシュに置く」（§6.4 O-35）----
     // 🔴従来はこのブロック末尾の「シグニ・ルリグをトラッシュへ」フォールバックが
@@ -3453,6 +3454,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
             ...(kwAllSelfIconM ? { hasIcon: kwAllSelfIconM[1] as NonNullable<TargetFilter['hasIcon']> } : {}),
           }
         : null;
+      // 「あなたの（すべての）＜クラス＞のシグニは」も枚数選択ではなく集合主語。
+      // 「N体を対象とし」は末尾が「は／が」ではないため拾わず、単体付与を全体化しない。
+      // ドライブ状態は既存の TargetFilter.isDrive を使い、直前の「＜乗機＞のシグニに乗り」と混ぜない。
+      const kwCollectiveSelfM = t.match(/あなたの(?:すべての)?(?:他の)?((?:(?:＜[^＞]+＞[とかや]?)+の|[白赤青緑黒]の|《ディソナアイコン》の|ドライブ状態の)+)シグニ(?:は|が)/);
+      const kwCollectiveSelfFilter: TargetFilter | null = kwCollectiveSelfM
+        ? {
+            cardType: 'シグニ',
+            ...parseStoryFilter(kwCollectiveSelfM[1]), ...parseColorFilter(kwCollectiveSelfM[1]),
+            ...(kwCollectiveSelfM[1].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
+            ...(kwCollectiveSelfM[1].includes('ドライブ状態') ? { isDrive: true } : {}),
+          }
+        : null;
+      // 「あなたのすべてのシグニのパワーを…し、それらは【K】を得る」の代名詞も同じ集合を指す。
+      const kwAllSelfPronoun = /あなたのすべてのシグニ[^。]*、それらは【[^】]+】を(?:得る|持つ)/.test(t);
       const kwZoneM = t.match(/あなたの(中央|左|右)のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニ/);
       const kwZoneFilter: TargetFilter | null = kwZoneM
         ? {
@@ -3475,6 +3490,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : kwZoneFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwZoneFilter }
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
         : kwAllSelfSpecFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwAllSelfSpecFilter }
+        : kwCollectiveSelfFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwCollectiveSelfFilter }
+        : kwAllSelfPronoun ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
         // ⚠**枚数付きの枝だけ filter を落としていた**（続き377c）＝下の `kwSelfSigni` 枝には
         //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
         //   `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
@@ -3535,6 +3552,30 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         && !/シグニ[０-９\d]+体/.test(t) && !/を対象とし/.test(t)
         ? { ...kwTarget0, count: 'ALL' }
         : kwTarget0;
+      // 同じ集合主語を明示して「全体のパワー±N、全体は【K】を得る」と続く形は2ステップ。
+      // 「それらは」の別文型へは広げず、左右の修飾句が文字どおり一致する場合だけ合成する。
+      const collectiveModifier = String.raw`((?:(?:＜[^＞]+＞[とかや]?)+の|[白赤青緑黒]の|《ディソナアイコン》の)*)`;
+      const collectivePowerM = t.match(new RegExp(
+        `あなたのすべての${collectiveModifier}シグニのパワーを([＋+－-])([０-９\\d,]+)し、あなたのすべての\\1シグニは`,
+      ));
+      const withCollectivePower = (grant: EffectAction): EffectAction => {
+        if (!collectivePowerM || kwTarget.type !== 'SIGNI' || kwTarget.owner !== 'self' || kwTarget.count !== 'ALL') return grant;
+        const filter: TargetFilter = {
+          cardType: 'シグニ',
+          ...parseStoryFilter(collectivePowerM[1]), ...parseColorFilter(collectivePowerM[1]),
+          ...(collectivePowerM[1].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
+        };
+        if (JSON.stringify(filter) !== JSON.stringify(kwTarget.filter ?? { cardType: 'シグニ' })) return grant;
+        const magnitude = parseNum(collectivePowerM[3].replace(/,/g, ''));
+        const delta = collectivePowerM[2] === '＋' || collectivePowerM[2] === '+' ? magnitude : -magnitude;
+        return {
+          type: 'SEQUENCE',
+          steps: [
+            { type: 'POWER_MODIFY', target: kwTarget, delta, duration: dur },
+            grant,
+          ],
+        };
+      };
       const fieldCondition = /その正面のシグニに【[^】]+】が付いているかぎり/.test(t)
         ? { type: 'FRONT_SIGNI_HAS_CHARM' as const }
         : undefined;
@@ -3581,12 +3622,12 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           return { type: 'SEQUENCE', steps: kwSteps } as EffectAction;
         }
       }
-      return {
+      return withCollectivePower({
         type: 'GRANT_KEYWORD', target: kwTarget, keyword: kwGrantName, duration: dur,
         ...(nextTurnOwner ? { nextTurnOwner } : {}),
         ...(thisAndNextTurn ? { appliesThisTurn: true } : {}),
         ...(fieldCondition ? { fieldCondition } : {}),
-      };
+      });
     }
   }
 

@@ -42140,7 +42140,175 @@ test('段2 第24バッチ E2E: WXDi-P08-081-E1 c0 は＜悪魔＞を場からト
   });
 }));
 
-test('段2 第24バッチ 見送り契約: 任意犠牲・3体犠牲・エナ3枚はlive/freshとも据え置く', () => {
+// ── §6.2 段2 第25バッチ：集合主語のキーワード付与と任意自己犠牲 ──
+function batch25Keyword(effectId: string): Extract<EffectAction, { type: 'GRANT_KEYWORD' }> {
+  const cardNum = effectId.replace(/-E\d.*$/, '');
+  const effect = effectsMap.get(cardNum)?.find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: live effect`);
+  const grant = findActionByType(effect.action, 'GRANT_KEYWORD');
+  if (!grant) throw new Error(`${effectId}: GRANT_KEYWORD`);
+  return grant;
+}
+
+function assertBatch25ContinuousClassGrant(
+  effectId: string,
+  story: string,
+  keyword: string,
+  sourceZone: 'signi' | 'lrig',
+  setup?: (state: PlayerState, matching: string[]) => PlayerState,
+): { state: PlayerState; matching: string[]; mismatch: string; granted: Record<string, string[]> } {
+  const cardNum = effectId.replace(/-E\d.*$/, '');
+  const sourceIsMatching = matchesFilter(cardMap.get(cardNum), { cardType: 'シグニ', story });
+  const extra = batch23ClassSigni(story, sourceIsMatching ? 1 : 2, [cardNum]);
+  const matching = sourceIsMatching ? [cardNum, extra[0]] : extra;
+  eq(matching.length, 2, `${effectId}: ${story} fixture 2体`);
+  const mismatch = batch23OtherSigni(story, [cardNum, ...matching]);
+  let state = mkState({
+    signi: [matching[0], matching[1], mismatch],
+    ...(sourceZone === 'lrig' ? { lrig: [cardNum] } : {}),
+  });
+  if (setup) state = setup(state, matching);
+  const effect = effectsMap.get(cardNum)!.find(e => e.effectId === effectId)!;
+  const grant = batch25Keyword(effectId);
+  eq(grant.target.owner, 'self', `${effectId}: owner=self`);
+  eq(grant.target.count, 'ALL', `${effectId}: count=ALL`);
+  eq(grant.target.filter?.story, story, `${effectId}: story=${story}`);
+  const granted = collectContinuousGrantedKeywords(
+    state, mkState(), true, new Map([[cardNum, [effect]]]), cardMap,
+  );
+  ok(matching.every(num => (granted[num] ?? []).includes(keyword)), `${effectId}: 一致2体が両方${keyword}`);
+  ok(!(granted[mismatch] ?? []).includes(keyword), `${effectId}: 不一致は${keyword}を得ない`);
+  return { state, matching, mismatch, granted };
+}
+
+test('段2 第25バッチ E2E: WXEX1-46-E1 は＜悪魔＞2体だけにアサシンを与え、攻撃判定も消費する', () => withSavedCursor(() => {
+  const { state, matching, mismatch, granted } = assertBatch25ContinuousClassGrant('WXEX1-46-E1', '悪魔', 'アサシン', 'signi');
+  ok(getSigniAttackKeywordState(matching[1], state, mkState(), cardMap, new Map(), granted[matching[1]]).isAssassin, '一致シグニは正面を無視できる');
+  ok(!getSigniAttackKeywordState(mismatch, state, mkState(), cardMap, new Map(), granted[mismatch]).isAssassin, '不一致シグニは正面を無視できない');
+}));
+
+test('段2 第25バッチ E2E: WXEX1-71-E1 は英知=8で＜英知＞2体だけにランサー', () => withSavedCursor(() => {
+  assertBatch25ContinuousClassGrant('WXEX1-71-E1', '英知', 'ランサー', 'signi', (state, matching) => ({
+    ...state, eichi_level_options: { [matching[0]]: [4], [matching[1]]: [4] },
+  }));
+}));
+
+test('段2 第25バッチ E2E: WX24-P3-055-E1 は指定ルリグ下で＜美巧＞2体だけにレベル3以上シャドウ', () => withSavedCursor(() => {
+  assertBatch25ContinuousClassGrant(
+    'WX24-P3-055-E1', '美巧', 'シャドウ:{"levelGte":3}', 'signi',
+    state => ({ ...state, field: { ...state.field, lrig: ['WX24-P3-026'] } }),
+  );
+}));
+
+test('段2 第25バッチ E2E: WXEX2-07-E1 outlierも＜宝石＞2体だけにダブルクラッシュ', () => withSavedCursor(() => {
+  assertBatch25ContinuousClassGrant('WXEX2-07-E1', '宝石', 'ダブルクラッシュ', 'lrig');
+}));
+
+for (const [effectId, keyword] of [
+  ['SPDi47-04-E2', 'シャドウ:{"powerLte":10000}'],
+  ['WX24-P4-020-E3', 'シャドウ:{"selfPowerHalfLte":true,"cardType":"シグニ"}'],
+] as const) {
+  test(`段2 第25バッチ E2E: ${effectId} は自分の全シグニだけに期間シャドウ`, () => withSavedCursor(() => {
+    const own = [fresh(), fresh()];
+    const opponent = fresh();
+    const grant = batch25Keyword(effectId);
+    eq(grant.target.owner, 'self', `${effectId}: owner=self`);
+    eq(grant.target.count, 'ALL', `${effectId}: count=ALL`);
+    const applied = run(grant, mkCtx({ signi: [own[0], own[1], null] }, { signi: [opponent, null, null] }));
+    ok(own.every(num => applied.ownerState.keyword_grants_until_opp_turn?.[num]?.includes(keyword)), `${effectId}: 自分2体へ付与`);
+    ok(!applied.otherState.keyword_grants_until_opp_turn?.[opponent]?.includes(keyword), `${effectId}: 相手へ付与しない`);
+    const expired = clearUntilOppTurnEffects(applied.ownerState);
+    ok(own.every(num => !expired.keyword_grants_until_opp_turn?.[num]?.includes(keyword)), `${effectId}: 次の相手ターン終了時に失効`);
+  }));
+}
+
+test('段2 第25バッチ E2E: WXEX2-11-E4 は自分のドライブ状態2体だけにダブルクラッシュ', () => withSavedCursor(() => {
+  const own = [fresh(), fresh(), fresh()];
+  const opponent = fresh();
+  const ctx = mkCtx({ signi: own }, { signi: [opponent, null, null] });
+  ctx.ownerState.lrig_riding_signi = own.slice(0, 2);
+  ctx.otherState.lrig_riding_signi = [opponent];
+  const grant = batch25Keyword('WXEX2-11-E4');
+  eq(grant.target.owner, 'self', 'WXEX2-11-E4: owner=self');
+  eq(grant.target.count, 'ALL', 'WXEX2-11-E4: count=ALL');
+  eq(grant.target.filter?.isDrive, true, 'WXEX2-11-E4: isDrive=true');
+  eq(grant.target.filter?.story, undefined, 'WXEX2-11-E4: 乗機クラスへ誤限定しない');
+  const applied = run(grant, ctx);
+  ok(own.slice(0, 2).every(num => applied.ownerState.keyword_grants?.[num]?.includes('ダブルクラッシュ')), 'ドライブ2体へ付与');
+  ok(!applied.ownerState.keyword_grants?.[own[2]]?.includes('ダブルクラッシュ'), '非ドライブは得ない');
+  ok(!applied.otherState.keyword_grants?.[opponent]?.includes('ダブルクラッシュ'), '相手ドライブは得ない');
+  ok(getSigniAttackKeywordState(own[0], applied.ownerState, applied.otherState, cardMap, new Map()).isDoubleCrush, '攻撃処理がダブルクラッシュを消費');
+}));
+
+test('段2 第25バッチ E2E: WX25-CP1-005-E1 は＜ブルアカ＞2体だけを+5000しレベル3以上シャドウ', () => withSavedCursor(() => {
+  const matching = batch23ClassSigni('ブルアカ', 2);
+  const mismatch = batch23OtherSigni('ブルアカ', matching);
+  const effect = effectsMap.get('WX25-CP1-005')!.find(e => e.effectId === 'WX25-CP1-005-E1')!;
+  const power = findActionByType(effect.action, 'POWER_MODIFY');
+  const grants: Extract<EffectAction, { type: 'GRANT_KEYWORD' }>[] = [];
+  const walk = (action: EffectAction): void => {
+    if (action.type === 'GRANT_KEYWORD') grants.push(action);
+    else if (action.type === 'SEQUENCE') action.steps.forEach(walk);
+    else if (action.type === 'CONDITIONAL') { walk(action.then); if (action.else) walk(action.else); }
+    else if (action.type === 'CHOOSE') action.choices.forEach(choice => walk(choice.action));
+  };
+  walk(effect.action);
+  const shadow = grants.find(grant => grant.keyword.startsWith('シャドウ'))!;
+  const sLancer = grants.find(grant => grant.keyword === 'Sランサー')!;
+  ok(!!power, 'POWER_MODIFYを追加');
+  eq(power!.target.count, 'ALL', 'パワー対象は全ブルアカ');
+  eq(power!.target.filter?.story, 'ブルアカ', 'パワー対象クラス');
+  eq(power!.delta, 5000, 'パワー+5000');
+  eq(shadow.target.count, 'ALL', 'シャドウ対象は全ブルアカ');
+  eq(shadow.keyword, 'シャドウ:{"levelGte":3}', 'シャドウのレベル3以上スコープ');
+  eq(sLancer.target.count, 1, '追加Sランサーは1体のまま');
+
+  const ctx = mkCtx({ signi: [matching[0], matching[1], mismatch] }, {});
+  const powered = run(power!, ctx);
+  ok(matching.every(num => powered.ownerState.power_mods_until_opp_turn?.some(mod => mod.cardNum === num && mod.delta === 5000)), 'ブルアカ2体を両方+5000');
+  ok(!powered.ownerState.power_mods_until_opp_turn?.some(mod => mod.cardNum === mismatch), '非ブルアカは+5000しない');
+  const shadowed = run(shadow, ctx);
+  ok(matching.every(num => shadowed.ownerState.keyword_grants_until_opp_turn?.[num]?.includes(shadow.keyword)), 'ブルアカ2体へシャドウ');
+  ok(!shadowed.ownerState.keyword_grants_until_opp_turn?.[mismatch]?.includes(shadow.keyword), '非ブルアカはシャドウを得ない');
+}));
+
+test('段2 第25バッチ E2E: WXEX2-70-E1 は任意で他の自分の＜遊具＞を犠牲にし、相手対象をエナへ送る', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WXEX2-70')!.find(e => e.effectId === 'WXEX2-70-E1')!;
+  ok(effect.action.type === 'SEQUENCE', 'WXEX2-70-E1: SEQUENCE');
+  const sequence = effect.action as SequenceAction;
+  const cost = sequence.steps[0] as Extract<EffectAction, { type: 'BANISH' }>;
+  eq(cost.type, 'BANISH', '第1ステップはBANISH');
+  eq(cost.target.owner, 'self', '犠牲owner=self');
+  eq(cost.target.count, 1, '犠牲1体');
+  eq(cost.target.filter?.story, '遊具', '犠牲は遊具');
+  eq(cost.target.filter?.excludeSelf, true, 'このシグニ自身を除外');
+  eq(cost.target.filter?.level, undefined, '相手対象のレベル条件を混ぜない');
+  eq(cost.optional, true, '任意性を維持');
+  const send = findActionByType(sequence.steps[1], 'SEND_TO_ENERGY')!;
+  eq(send.target.owner, 'opponent', '送る対象は相手');
+  eq(send.target.filter?.level?.max, 3, '相手レベル3以下');
+
+  const sacrifice = batch23ClassSigni('遊具', 1, ['WXEX2-70'])[0];
+  const opponent = findCard(card => card.Type === 'シグニ' && Number(card.Level) <= 3 && card.CardNum !== sacrifice);
+  const paidCtx = mkCtx(
+    { signi: ['WXEX2-70', sacrifice, null], hand: 0, trash: 0, energy: 0 },
+    { signi: [opponent, null, null], hand: 0, trash: 0, energy: 0 },
+    'WXEX2-70',
+  );
+  const paid = run(effect.action, paidCtx);
+  ok(paid.ownerState.energy.includes(sacrifice), '自分の遊具をバニッシュしてエナへ置く');
+  ok(paid.ownerState.field.signi.some(stack => stack?.at(-1) === 'WXEX2-70'), '効果元自身は残る');
+  ok(paid.otherState.energy.includes(opponent), '対象にした相手シグニを相手エナへ置く');
+
+  const unpaid = run(effect.action, mkCtx(
+    { signi: ['WXEX2-70', null, null], hand: 0, trash: 0, energy: 0 },
+    { signi: [opponent, null, null], hand: 0, trash: 0, energy: 0 },
+    'WXEX2-70',
+  ));
+  ok(unpaid.otherState.field.signi.some(stack => stack?.at(-1) === opponent), '犠牲なしなら相手対象を動かさない');
+}));
+
+test('段2 第24バッチ 見送り契約: 3体犠牲・エナ3枚はlive/freshとも据え置く', () => {
   const firstStep = (effect: CardEffect | undefined): EffectAction & { target?: EffectTarget; optional?: boolean } => {
     const action = effect?.action;
     ok(action?.type === 'SEQUENCE', `${effect?.effectId}: SEQUENCE`);
@@ -42152,9 +42320,6 @@ test('段2 第24バッチ 見送り契約: 任意犠牲・3体犠牲・エナ3�
   const fresh = (cardNum: string, effectId: string) => firstStep(freshEffect(cardNum, effectId));
 
   for (const get of [live, fresh]) {
-    const optional = get('WXEX2-70', 'WXEX2-70-E1');
-    eq(optional.target?.owner, 'opponent', 'WXEX2-70-E1: 任意犠牲はこのバッチで採用しない');
-    eq(optional.optional, true, 'WXEX2-70-E1: optional維持');
     const threeField = get('WX07-039', 'WX07-039-E2');
     eq(threeField.target?.owner, 'opponent', 'WX07-039-E2: 3体完済不能のため据置');
     eq(threeField.target?.count, 1, 'WX07-039-E2: live/freshの既存構造を固定');

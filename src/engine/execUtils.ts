@@ -1287,6 +1287,10 @@ export function fieldCandidates(
       const isPuppet = (state.field.puppet_signi ?? []).includes(cardNum);
       if (filter.isPuppet !== isPuppet) return [];
     }
+    if (filter?.isDrive !== undefined) {
+      const isDrive = (state.lrig_riding_signi ?? []).includes(cardNum);
+      if (filter.isDrive !== isDrive) return [];
+    }
     // 「このターンにアタックしたシグニ」（§6.4 O-3・`WDK06-R09-E1`）。
     // ⚠`attacked_signi_ids` は**アタックした側の state** に積まれる＝候補を作る `state` と同じ側なので
     //   ここで判定できる（`matchesFilter` は card 単体しか見られないので state を持つこの層で扱う）。

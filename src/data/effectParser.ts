@@ -15097,7 +15097,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   // アンコール／ベット／ブースト（任意追加エナ）のプレフィックスを除去してから解析
   const isBet = /^ベット[―─]/.test(card.EffectText);
-  const stripped = stripRuleParens(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText)))
+  const stripped = stripRuleParens(encodeShadowScopesInText(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText))))
     .replace(/^(?:アンコール－|ベット[―─]|ブースト[―─])(?:《[^》]+》)*\s*/, '');
   // ピースの印刷済み【使用条件】は区切りなしで本文へ直結するため、先頭節を文型テーブルで
   // condition へ持ち上げ、同時に本文から除去する。CardEffect.condition は BattleScreen の

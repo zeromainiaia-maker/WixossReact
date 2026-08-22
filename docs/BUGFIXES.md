@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第25バッチ＝集合主語のGRANT_KEYWORDが単体付与へ潰れていた
+
+「あなたの（すべての）＜クラス＞のシグニは【キーワード】を得る」と「あなたのすべてのシグニ…それらは【キーワード】を得る」を文型ベースで集合化し、指定7効果の `owner/count/filter` を是正。生パースで同型 `WXEX2-07-E1` も1件だけ発見し、CSV照合後に採用した。`WXEX2-11-E4` は既存 `isDrive` をexecutor候補抽出へ接続して自分のドライブ状態だけに限定。`WX25-CP1-005-E1` は既存の全ブルアカplainシャドウを重複させず、欠落していた全体+5000と `levelGte:3` scopeを復元した。`WXEX2-70-E1` は任意の自己＜遊具＞犠牲を局所parseし、誤った自分デッキトップENERGY_CHARGEを相手対象のSEND_TO_ENERGYへ採用した。
+
+CONTINUOUSはexecutorを通らず `collectContinuousGrantedKeywords` が直接読むこと、ACTIVATEDの `count:'ALL'` は選択UIなしで全候補へ付与すること、`UNTIL_OPP_TURN_END` が専用storeから期限境界で消えることを実コードとE2Eで確認。各効果で一致2体／不一致／相手側を固定し、アサシンとダブルクラッシュは攻撃判定まで実行した。生パース変化集合は指定8件＋同型1件だけ、未説明outlier 0。
+
+B1/B2の先行パワー加算、B3の搭乗機構、`WXEX2-07-E1` の引用「バニッシュされない」は別機構として据置。`npm run gates` 全緑：golden **2464/2464**、census **701/701**、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 全0、stubs A群🔴0／C群0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **87/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch25_report.md`。
+
 ## 2026-08-23：§6.2 段2 第24バッチ＝「相手を対象→あなたの＜クラス＞1体を犠牲」のowner混線
 
 先行する「対戦相手のシグニ1体を対象とし」のowner・level・感染状態が、後続の自己犠牲へ混入していた9効果を原文照合。クラス明示・必須・場の1体犠牲だけを局所parseする一般規則を追加し、`WX14-031-E3`／`WX22-001-E2`／`WXEX2-18-E2`／`WXEX2-27-E2`／`WXEX2-79-E2`／`WXDi-P08-081-E1 c0` の6効果を `owner:'self'` へ修正。非レゾナを復元し、相手側のlevel/infected誤付着を除去、`excludeSelf` と `CONDITIONAL{IS_MY_TURN}` は維持した。全カード生パース差分は6効果だけ・outlier 0。
