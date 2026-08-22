@@ -5507,6 +5507,10 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
     cands = cands.filter(n => n !== ctx.sourceCardNum);
   }
+  if (a.targetsLastProcessed) {
+    const previous = new Set(ctx.lastProcessedCards ?? []);
+    return done(applyProtection(cands.filter(n => previous.has(n)), ctx));
+  }
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
   const count = resolveNum(tgt.count);
   return selectOrInteract(cands, count, false, gpScope, a, undefined, ctx);
@@ -6735,6 +6739,13 @@ function execRemoveAbilities(a: RemoveAbilitiesAction, ctx: ExecCtx): ExecResult
   }
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
   if (thisCardRestrict !== null) cands = cands.filter(n => thisCardRestrict!.includes(n));
+  if (a.targetsLastProcessed) {
+    const previous = new Set(ctx.lastProcessedCards ?? []);
+    const selected = cands.filter(n => previous.has(n));
+    if (selected.length === 0) return done(ctx);
+    const newS = applyAbilitiesRemoval(a, state, selected);
+    return done(addLog({ ...setOwnerState(tgtOwner, newS, ctx), lastProcessedCards: selected }, `${selected.length}`));
+  }
   if (cands.length === 0) return done(ctx);
   // count:'ALL'（または thisCardOnly/frontOfSelf で対象が確定済み）は全候補に適用。
   // count が数値（「対戦相手のシグニ1体を対象とし」等。G085）は選択して該当数だけに適用する。

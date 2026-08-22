@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第27バッチ＝「パワーを＋Nし、それ（ら）は…を得る」の前半脱落14効果
+
+能動の連用中止形「〈対象〉のパワーを±Nし、それ／それら／このシグニは【K】を得る」を既存キーワード付与枝へ合成し、指定A群10・B群4の全14効果へ `POWER_MODIFY` を復元した。選択対象は前半が残す `lastProcessedCards` を後段の `GRANT_KEYWORD` / `GRANT_PROTECTION` / `REMOVE_ABILITIES` が再利用し、A10の3つの「対象のあなたの＜天使＞」だけは原文どおり独立選択を維持。A4は CONTINUOUS の `SEQUENCE` を `calcFieldPowers` と `collectContinuousGrantedKeywords` の両方で読み、`matchesStateFilter` まで通してドライブ状態だけに+3000／ダブルクラッシュを適用する。B4は既存 `frontOfSelf` で正面の相手シグニだけを能力喪失させた。
+
+B1/B2の保護期間も原文どおりターン終了時までへ是正し、B3は owner 反転を直して同じ自シグニへ+5000・能力喪失・シャドウ・アタック不可を次の相手ターン終了時まで付与。全14効果に engine E2E を各1本追加し、実効パワーと後段付与の同時成立、対象外、ターン境界を両方向で固定した。全カード生パースの採用差分は指定14効果、未採用 outlier は同型の `WXDi-CP02-092-E2` 1件（カード単位の原文/live個数差では兄弟効果に相殺され母集団から漏れた）だけ。
+
+**検証側（Claude）の追加採用**＝上の未採用 outlier `WXDi-CP02-092-E2`（「ターン終了時まで、このシグニのパワーを＋10000し、このシグニは【Ｓランサー】を得る」）は原文照合の結果まったくの同型・同根で fresh が原文どおりだったため `heldReview --adopt` で採用し、E2E golden も1本足した（CODEX_GUIDE §5 `5b′`＝held に落ちた同型の改善を寝かせない）。採用は計15効果。
+
+`npm run gates` 全緑：golden **2493/2493**（2478→2493）、census **681/681**（693→681）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、stubs無言no-op 0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **87/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch27_report.md`。
+
 ## 2026-08-23：§6.2 段2 第26バッチ＝ゾーン枚数で動くパワー／レベル上限の脱落13効果
 
 トラッシュ・手札・場・アクセ・トラップの枚数、または直前に実際にトラッシュに置いた枚数を上限にする13効果が、上限なしの対象選択へ潰れていた。既存 `TargetFilter` family に `powerLteZoneCount` / `levelLteZoneCount` / `powerLteLastProcessedCount` / `levelLteLastProcessedCount` を追加し、`CountFromZone` の共通解決器から `powerRange.max` / `level.max` へ解決。0枚時は上限0として空振りする。数え元のクラスが対象自体へ誤付着していた A1〜A4/C5 と `WXK03-074-E1` も除去した。

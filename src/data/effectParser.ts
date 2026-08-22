@@ -14661,7 +14661,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
 
   // ON_ZONE_MOVED self-scope: 主語「このシグニ」＝移動したシグニ自身。POWER_MODIFY(self,count:1) を
   // トリガー源（移動シグニ）に自動対象化（targetsTriggerSource）。engine は triggeringCardNum で解決。
-  if (timing?.[0] === 'ON_ZONE_MOVED' && extractedTriggerScope === 'self') {
+  if (timing?.[0] === 'ON_ZONE_MOVED' && extractedTriggerScope === 'self' && !/を対象とし/.test(actionText)) {
     const markSelfPM = (a: EffectAction): EffectAction => {
       if (a.type === 'POWER_MODIFY') {
         const pm = a as import('../types/effects').PowerModifyAction;

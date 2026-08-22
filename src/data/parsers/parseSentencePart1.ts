@@ -168,6 +168,18 @@ function removeAbilitiesTargetNounPhraseFilter(t: string, owner: Owner): TargetF
 }
 
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
+  // 能動の連用中止形「〈対象〉のパワーを±Nし、それ（ら）は…を得る」の前半を共通抽出する。
+  // 受動形「このシグニのパワーは±Nされ、」は effectParser.parseContinuousQuotedGrant の担当。
+  const activeRenyoPower = (): { delta: number; duration: EffectDuration } | null => {
+    const m = t.match(/パワーを([＋+－-])([０-９\d,，]+)し、(?:それ|それら|このシグニ)は/);
+    if (!m) return null;
+    const magnitude = parseNum(m[2].replace(/[,，]/g, ''));
+    const delta = m[1] === '－' || m[1] === '-' ? -magnitude : magnitude;
+    const duration: EffectDuration = /次の(?:対戦相手|相手)の?ターン終了時まで/.test(t)
+      ? 'UNTIL_OPP_TURN_END'
+      : /ターン終了時まで/.test(t) ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+    return { delta, duration };
+  };
   // ---- 「そのターン終了時、〜」＝いま解決中のターン終了時の遅延タイミング宣言（タスク12(cl)）----
   // 「ターン終了時まで、」は持続期間なので対象外。ここでは本文を即時実行へ流さない受け皿だけを返し、
   // 本文の parse と INSTALL_DELAYED_TRIGGER への詰め替えは parseSingleSentence の後処理が行う。
@@ -619,6 +631,29 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   //   **自分のプレイヤーの【出】をターン終了まで丸ごと封じる**大幅な誤りだった。既存 `abilityTypes` 語彙で表現する。
   // ⚠下の能力消去ブロックより前に置く（そちらの owner 判定は「対戦相手」の語が無いと 'self' に落ちるため）。
   {
+    // 「このシグニのパワーを±Nし、このシグニの正面…は能力を失う」＝自己強化と正面能力喪失の複合。
+    // 先に取らないと汎用 ability-loss 枝が後半だけを self/count:1 として返す。
+    const frontCompoundM = t.match(/このシグニのパワーを([＋+－-])([０-９\d,，]+)し、このシグニの正面のシグニゾーンにあるシグニは能力を失う/);
+    if (frontCompoundM) {
+      const magnitude = parseNum(frontCompoundM[2].replace(/[,，]/g, ''));
+      const delta = frontCompoundM[1] === '－' || frontCompoundM[1] === '-' ? -magnitude : magnitude;
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          {
+            type: 'POWER_MODIFY',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            delta,
+            duration: 'UNTIL_END_OF_TURN',
+          } as PowerModifyAction,
+          {
+            type: 'REMOVE_ABILITIES',
+            target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', frontOfSelf: true } },
+            until: 'UNTIL_END_OF_TURN',
+          } as RemoveAbilitiesAction,
+        ],
+      } as SequenceAction;
+    }
     const frontRemoveM = t.match(/^このシグニの正面のシグニ(?:の【([常自起出])】能力は発動しない|は能力を失う)/);
     if (frontRemoveM) {
       return {
@@ -627,6 +662,30 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         until: 'PERMANENT',
         ...(frontRemoveM[1] ? { abilityTypes: [frontRemoveM[1] as '常' | '自' | '起' | '出'] } : {}),
       } as RemoveAbilitiesAction;
+    }
+  }
+
+  // 「対象のシグニを強化し、それは能力を失い、【K】と引用【常】を得る」＝4 leaf が同一対象。
+  // 値やカード番号ではなく文型で取り、最初の POWER_MODIFY が選んだ対象を既存 lastProcessed で束ねる。
+  {
+    const lossAndGrantsM = t.match(/(あなた|対戦相手)のシグニ([０-９\d]+)体を対象とし、[^。]*?それのパワーを([＋+－-])([０-９\d,，]+)し、それは能力を失い、【([^】]+)】と「【常】：([^」]+?)。?」を得る/);
+    if (lossAndGrantsM) {
+      const owner: Owner = lossAndGrantsM[1] === 'あなた' ? 'self' : 'opponent';
+      const count = parseNum(lossAndGrantsM[2]);
+      const magnitude = parseNum(lossAndGrantsM[4].replace(/[,，]/g, ''));
+      const delta = lossAndGrantsM[3] === '－' || lossAndGrantsM[3] === '-' ? -magnitude : magnitude;
+      const duration: EffectDuration = /次の(?:対戦相手|相手)の?ターン終了時まで/.test(t)
+        ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+      const target: EffectTarget = { type: 'SIGNI', owner, count };
+      return {
+        type: 'SEQUENCE',
+        steps: [
+          { type: 'POWER_MODIFY', target, delta, duration } as PowerModifyAction,
+          { type: 'REMOVE_ABILITIES', target, targetsLastProcessed: true, until: duration } as RemoveAbilitiesAction,
+          { type: 'GRANT_KEYWORD', target, targetsLastProcessed: true, keyword: lossAndGrantsM[5], duration } as GrantKeywordAction,
+          { type: 'GRANT_KEYWORD', target, targetsLastProcessed: true, keyword: lossAndGrantsM[6], duration } as GrantKeywordAction,
+        ],
+      } as SequenceAction;
     }
   }
 
@@ -3146,7 +3205,21 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const target: EffectTarget = hasFilter
       ? { type: 'SIGNI', owner: 'self', count: protCount, filter: signiFilter }
       : { type: 'SIGNI', owner: 'self', count: protCount };
-    return { type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
+    const renyoPower = activeRenyoPower();
+    if (!renyoPower) {
+      return { type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: 'PERMANENT' } as GrantProtectionAction;
+    }
+    const protection: GrantProtectionAction = {
+      type: 'GRANT_PROTECTION', target, from, sourceOwner: 'opponent', duration: renyoPower.duration,
+    };
+    const selectable = typeof target.count === 'number' && !target.filter?.thisCardOnly;
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'POWER_MODIFY', target, delta: renyoPower.delta, duration: renyoPower.duration },
+        { ...protection, ...(selectable ? { targetsLastProcessed: true } : {}) },
+      ],
+    };
   }
 
   // ---- チアガール変換 ----
@@ -3268,7 +3341,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       if (convM) return { type: 'STUB', id: 'CONVERT_ENERGY_COLOR', value: convM[1] } as StubAction;
     }
     const saM = t.match(/^【([^】]+)】[（(]?/);
-    if (saM && !['常','出','起','自','ガード','エナチャージ'].includes(saM[1]) && !saM[1].match(/^エナチャージ/)) {
+    const leadingAttachedTarget = /^【[^】]+】が付いている[^。、]*シグニ[０-９\d]+体(?:まで)?を対象とし/.test(t);
+    if (saM && !leadingAttachedTarget && !['常','出','起','自','ガード','エナチャージ'].includes(saM[1]) && !saM[1].match(/^エナチャージ/)) {
       const dur: EffectDuration = t.includes('ターン終了時まで') ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
       const target: EffectTarget = { type: 'SIGNI', owner: 'self', count: 1 };
       return { type: 'GRANT_KEYWORD', target, keyword: saM[1], duration: dur };
@@ -3363,6 +3437,33 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 「【ライフバースト】を持つ…シグニ1体につき…（引く/エナに置く）」のような per-field 構文は
   // キーワード付与ではなく条件修飾。part3 の *_PER_FIELD_COUNT に委譲する。
   const isPerFieldCount = t.includes('体につき') && (t.includes('引く') || t.includes('エナゾーンに置'));
+  // 同じ修飾対象句を3回明示する形は、それぞれ独立に対象を選ぶ。照応で束ねず3 action を並べる。
+  // 「同じシグニを選ぶこともできる」は独立選択の裏返しであり、targetsLastProcessed を付けない。
+  const independentPowerTwoKeywordsM = t.match(/(対象の(あなた|対戦相手)の((?:(?:＜[^＞]+＞[とかや]?)+の|[白赤青緑黒]の)*)シグニ([０-９\d]+)体)のパワーを([＋+－-])([０-９\d,，]+)し、\1は【([^】]+)】を得、\1は【([^】]+)】を得る/);
+  if (independentPowerTwoKeywordsM) {
+    const owner: Owner = independentPowerTwoKeywordsM[2] === 'あなた' ? 'self' : 'opponent';
+    const filter: TargetFilter = {
+      cardType: 'シグニ',
+      ...parseStoryFilter(independentPowerTwoKeywordsM[3]),
+      ...parseColorFilter(independentPowerTwoKeywordsM[3]),
+    };
+    const target: EffectTarget = {
+      type: 'SIGNI', owner, count: parseNum(independentPowerTwoKeywordsM[4]),
+      ...(Object.keys(filter).length > 1 ? { filter } : {}),
+    };
+    const magnitude = parseNum(independentPowerTwoKeywordsM[6].replace(/[,，]/g, ''));
+    const delta = independentPowerTwoKeywordsM[5] === '－' || independentPowerTwoKeywordsM[5] === '-' ? -magnitude : magnitude;
+    const duration: EffectDuration = /次の(?:対戦相手|相手)の?ターン終了時まで/.test(t)
+      ? 'UNTIL_OPP_TURN_END' : 'UNTIL_END_OF_TURN';
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        { type: 'POWER_MODIFY', target, delta, duration } as PowerModifyAction,
+        { type: 'GRANT_KEYWORD', target, keyword: independentPowerTwoKeywordsM[7], duration } as GrantKeywordAction,
+        { type: 'GRANT_KEYWORD', target, keyword: independentPowerTwoKeywordsM[8], duration } as GrantKeywordAction,
+      ],
+    } as SequenceAction;
+  }
   if (!isPerFieldCount && (t.includes('を得る') || t.includes('を持つ'))) {
     const kwM = t.match(/【([^】]+)】/);
     // 「【X】を持つ**〈カード/シグニ/…〉**」＝**保有条件（対象を絞るフィルタ）**であって付与ではない（タスク12(lxvi)②）。
@@ -3383,9 +3484,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   「【アサシン】**か**【ダブルクラッシュ】を得る」の後段だけを採る ③`WXK02-057`/`WXDi-P11-071`/`WXDi-P13-044`
     //   の「『【常】：〜かぎり、【K】を得る。』を得る」＝**条件付き引用付与**の STUB を無条件 GRANT_KEYWORD へ潰す
     //   （内側の条件が丸ごと落ちる過剰実行）。実測 36カード中 16カードが退化した。**下の保有フィルタ除外のまま据置。**
-    const kwGrantName = kwM && !['常','出','起','自','ガード'].includes(kwM[1]) && isPossessionFilterKw(kwM[1])
+    const attachedTargetKeyword = t.match(/【([^】]+)】が付いている[^。、]*シグニ[０-９\d]+体(?:まで)?を対象とし/);
+    const kwGrantName = kwM && !['常','出','起','自','ガード'].includes(kwM[1])
+      && (isPossessionFilterKw(kwM[1]) || !!attachedTargetKeyword)
       ? [...t.matchAll(/【([^】]+)】/g)].map(m => m[1])
-          .find(k => !['常','出','起','自','ガード'].includes(k) && !isPossessionFilterKw(k))
+          .find(k => !['常','出','起','自','ガード'].includes(k) && !isPossessionFilterKw(k) && k !== attachedTargetKeyword?.[1])
       : kwM?.[1];
     if (kwM && kwGrantName && !['常','出','起','自','ガード'].includes(kwGrantName)) {
       const nextOpponentTurn = t.includes('次の対戦相手のターンの間');
@@ -3422,7 +3525,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   `kwSigniFilter` は `parseLevelFilter(t)` 等を**全文**から取るので、`WD21-001-E1`
       //   「あなたのシグニ１体を対象とし、…この方法で公開したカードが**レベル１のシグニの場合**、【ダブルクラッシュ】を得る」の
       //   **条件節のレベル**を対象へ載せてしまい、原文と逆の過小実行になる。**対象名詞句に隣接する語彙だけ**を合成する。
-      const kwCountSelfFilter: TargetFilter = { cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) };
+      const kwCountSelfFilter: TargetFilter = {
+        cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t),
+        ...(/【チャーム】が付いているあなたの[^。、]*シグニ[０-９\d]+体(?:まで)?を対象とし/.test(t) ? { hasCharm: true } : {}),
+      };
       // 「あなたの〔中央|左|右〕のシグニゾーンにある[＜X＞の]シグニは【K】を得る」＝**ゾーン限定の全体付与**。
       // ⚠POWER_MODIFY 側には中央ゾーンの専用枝があるのに、付与側には**中央すら無く**全部が既定の
       //   `owner:'any'/count:1` へ潰れていた＝「中央ゾーンのシグニだけがランサー」が「どちらかのシグニ1体」に化け、
@@ -3466,6 +3572,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
             ...(kwCollectiveSelfM[1].includes('ドライブ状態') ? { isDrive: true } : {}),
           }
         : null;
+      const kwCollectiveSelfPronounM = t.match(/あなたの((?:(?:＜[^＞]+＞[とかや]?)+の|[白赤青緑黒]の|《ディソナアイコン》の|ドライブ状態の)+)シグニのパワーを[＋+－-][０-９\d,，]+し、それらは/);
+      const kwCollectiveSelfPronounFilter: TargetFilter | null = kwCollectiveSelfPronounM
+        ? {
+            cardType: 'シグニ',
+            ...parseStoryFilter(kwCollectiveSelfPronounM[1]), ...parseColorFilter(kwCollectiveSelfPronounM[1]),
+            ...(kwCollectiveSelfPronounM[1].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
+            ...(kwCollectiveSelfPronounM[1].includes('ドライブ状態') ? { isDrive: true } : {}),
+          }
+        : null;
       // 「あなたのすべてのシグニのパワーを…し、それらは【K】を得る」の代名詞も同じ集合を指す。
       const kwAllSelfPronoun = /あなたのすべてのシグニ[^。]*、それらは【[^】]+】を(?:得る|持つ)/.test(t);
       const kwZoneM = t.match(/あなたの(中央|左|右)のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニ/);
@@ -3491,6 +3606,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
         : kwAllSelfSpecFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwAllSelfSpecFilter }
         : kwCollectiveSelfFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwCollectiveSelfFilter }
+        : kwCollectiveSelfPronounFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwCollectiveSelfPronounFilter }
         : kwAllSelfPronoun ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
         // ⚠**枚数付きの枝だけ filter を落としていた**（続き377c）＝下の `kwSelfSigni` 枝には
         //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
@@ -3559,20 +3675,30 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         `あなたのすべての${collectiveModifier}シグニのパワーを([＋+－-])([０-９\\d,]+)し、あなたのすべての\\1シグニは`,
       ));
       const withCollectivePower = (grant: EffectAction): EffectAction => {
-        if (!collectivePowerM || kwTarget.type !== 'SIGNI' || kwTarget.owner !== 'self' || kwTarget.count !== 'ALL') return grant;
-        const filter: TargetFilter = {
-          cardType: 'シグニ',
-          ...parseStoryFilter(collectivePowerM[1]), ...parseColorFilter(collectivePowerM[1]),
-          ...(collectivePowerM[1].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
-        };
-        if (JSON.stringify(filter) !== JSON.stringify(kwTarget.filter ?? { cardType: 'シグニ' })) return grant;
-        const magnitude = parseNum(collectivePowerM[3].replace(/,/g, ''));
-        const delta = collectivePowerM[2] === '＋' || collectivePowerM[2] === '+' ? magnitude : -magnitude;
+        const activePower = activeRenyoPower();
+        if (!collectivePowerM && !activePower) return grant;
+        if (collectivePowerM) {
+          if (kwTarget.type !== 'SIGNI' || kwTarget.owner !== 'self' || kwTarget.count !== 'ALL') return grant;
+          const filter: TargetFilter = {
+            cardType: 'シグニ',
+            ...parseStoryFilter(collectivePowerM[1]), ...parseColorFilter(collectivePowerM[1]),
+            ...(collectivePowerM[1].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
+          };
+          if (JSON.stringify(filter) !== JSON.stringify(kwTarget.filter ?? { cardType: 'シグニ' })) return grant;
+        }
+        const magnitude = collectivePowerM ? parseNum(collectivePowerM[3].replace(/,/g, '')) : 0;
+        const delta = activePower?.delta
+          ?? (collectivePowerM![2] === '＋' || collectivePowerM![2] === '+' ? magnitude : -magnitude);
+        const duration = activePower?.duration ?? dur;
+        const selectable = typeof kwTarget.count === 'number' && !kwTarget.filter?.thisCardOnly;
+        const boundGrant = grant.type === 'GRANT_KEYWORD' && selectable
+          ? { ...grant, targetsLastProcessed: true }
+          : grant;
         return {
           type: 'SEQUENCE',
           steps: [
-            { type: 'POWER_MODIFY', target: kwTarget, delta, duration: dur },
-            grant,
+            { type: 'POWER_MODIFY', target: kwTarget, delta, duration },
+            boundGrant,
           ],
         };
       };

@@ -42524,6 +42524,242 @@ test('段2 第26バッチ 併修正: WXK03-074-E1 は数え元の＜武勇＞を
   batch26AssertTargetPending('WXK03-074-E1', action, ctx, exacts[0], over);
 }));
 
+// ── §6.2 段2 第27バッチ：能動連用中止「パワーを＋Nし、それ（ら）は…を得る」 ──
+function batch27Effect(effectId: string): CardEffect {
+  for (const effects of effectsMap.values()) {
+    const effect = effects.find(candidate => candidate.effectId === effectId);
+    if (effect) return effect;
+  }
+  throw new Error(`${effectId}: live effect missing`);
+}
+
+function batch27PowerGrantSequence(action: EffectAction): SequenceAction {
+  if (action.type === 'SEQUENCE') {
+    const powerIndex = action.steps.findIndex(step => step.type === 'POWER_MODIFY');
+    if (powerIndex >= 0 && action.steps.some(step => step.type === 'GRANT_KEYWORD' || step.type === 'GRANT_PROTECTION')) {
+      return { ...action, steps: action.steps.slice(powerIndex) };
+    }
+    for (const step of action.steps) {
+      try { return batch27PowerGrantSequence(step); } catch { /* continue */ }
+    }
+  }
+  if (action.type === 'CONDITIONAL') {
+    try { return batch27PowerGrantSequence(action.then); } catch { /* continue */ }
+    if (action.else) return batch27PowerGrantSequence(action.else);
+  }
+  throw new Error('POWER_MODIFY + grant sequence missing');
+}
+
+function batch27TurnEnd(state: PlayerState): PlayerState {
+  // BattleScreen の全 turn-end 経路と同じ、現在ターン用ストアの破棄。
+  return { ...clearTurnEndScopedState(state), temp_power_mods: [], keyword_grants: {} };
+}
+
+function batch27Power(state: PlayerState, other: PlayerState, cardNum: string): number {
+  return calcFieldPowers(state, other, true, new Map(), cardMap).get(cardNum) ?? 0;
+}
+
+function batch27AssertPowerKeyword(
+  effectId: string,
+  action: EffectAction,
+  ctx: ExecCtx,
+  target: string,
+  delta: number,
+  keyword: string,
+  long: boolean,
+): ExecResult {
+  const before = batch27Power(ctx.ownerState, ctx.otherState, target);
+  const applied = run(action, ctx);
+  eq(batch27Power(applied.ownerState, applied.otherState, target), before + delta, `${effectId}: 実効パワー`);
+  const grantStore = long ? applied.ownerState.keyword_grants_until_opp_turn : applied.ownerState.keyword_grants;
+  ok(grantStore?.[target]?.includes(keyword) ?? false, `${effectId}: 後段付与も同じ解決で有効`);
+  if (long) {
+    const crossed = batch27TurnEnd(applied.ownerState);
+    eq(batch27Power(crossed, applied.otherState, target), before + delta, `${effectId}: 自ターン終了ではパワー維持`);
+    ok(crossed.keyword_grants_until_opp_turn?.[target]?.includes(keyword) ?? false, `${effectId}: 自ターン終了では付与維持`);
+    const expired = clearUntilOppTurnEffects(crossed);
+    eq(batch27Power(expired, applied.otherState, target), before, `${effectId}: 次の相手ターン終了でパワー失効`);
+    ok(!expired.keyword_grants_until_opp_turn?.[target]?.includes(keyword), `${effectId}: 次の相手ターン終了で付与失効`);
+  } else {
+    const expired = batch27TurnEnd(applied.ownerState);
+    eq(batch27Power(expired, applied.otherState, target), before, `${effectId}: ターン終了でパワー失効`);
+    ok(!expired.keyword_grants?.[target]?.includes(keyword), `${effectId}: ターン終了で付与失効`);
+  }
+  return applied;
+}
+
+test('段2 第27バッチ E2E: WX24-D4-04-E1 は同じ自シグニを+3000しランサー', () => withSavedCursor(() => {
+  const target = fresh();
+  const effect = batch27Effect('WX24-D4-04-E1');
+  batch27AssertPowerKeyword(effect.effectId, effect.action, mkCtx({ signi: [target, null, null] }, {}), target, 3000, 'ランサー', false);
+}));
+
+for (const [effectId, delta, keyword] of [
+  ['SPDi47-04-E2', 10000, 'シャドウ:{"powerLte":10000}'],
+  ['WX24-P4-020-E3', 5000, 'シャドウ:{"selfPowerHalfLte":true,"cardType":"シグニ"}'],
+] as const) {
+  test(`段2 第27バッチ E2E: ${effectId} は全自シグニを強化し期間シャドウ`, () => withSavedCursor(() => {
+    const own = [fresh(), fresh()];
+    const effect = batch27Effect(effectId);
+    const compound = batch27PowerGrantSequence(effect.action);
+    const before2 = Number(cardMap.get(own[1])?.Power ?? 0);
+    const applied = batch27AssertPowerKeyword(effectId, compound, mkCtx({ signi: [own[0], own[1], null] }, {}), own[0], delta, keyword, true);
+    eq(batch27Power(applied.ownerState, applied.otherState, own[1]), before2 + delta, `${effectId}: count=ALL の2体目も強化`);
+    ok(applied.ownerState.keyword_grants_until_opp_turn?.[own[1]]?.includes(keyword) ?? false, `${effectId}: count=ALL の2体目も付与`);
+  }));
+}
+
+test('段2 第27バッチ E2E: WXK01-001-E1 はドライブ状態だけを+3000しダブルクラッシュ', () => withSavedCursor(() => {
+  const effect = batch27Effect('WXK01-001-E1');
+  const own = [fresh(), fresh()];
+  const state = mkState({ signi: [own[0], own[1], null], lrig: ['WXK01-001'] });
+  state.lrig_riding_signi = [own[0]];
+  const other = mkState();
+  const base0 = Number(cardMap.get(own[0])?.Power ?? 0);
+  const base1 = Number(cardMap.get(own[1])?.Power ?? 0);
+  const map = new Map([['WXK01-001', [effect]]]);
+  const powers = calcFieldPowers(state, other, true, map, cardMap);
+  eq(powers.get(own[0]), base0 + 3000, 'ドライブ状態は+3000');
+  eq(powers.get(own[1]), base1, '非ドライブは加算されない');
+  const granted = collectContinuousGrantedKeywords(state, other, true, map, cardMap);
+  ok(granted[own[0]]?.includes('ダブルクラッシュ') ?? false, 'ドライブ状態はダブルクラッシュ');
+  ok(!granted[own[1]]?.includes('ダブルクラッシュ'), '非ドライブはダブルクラッシュを得ない');
+  ok(getSigniAttackKeywordState(own[0], state, other, cardMap, map, granted[own[0]]).isDoubleCrush, '攻撃処理も付与を消費');
+}));
+
+test('段2 第27バッチ E2E: WXK07-077-E1 はチャーム付き同一対象だけを+1000しランサー', () => withSavedCursor(() => {
+  const target = fresh();
+  const otherOwn = fresh();
+  const ctx = mkCtx({ signi: [target, otherOwn, null] }, {}, 'WXK07-077');
+  ctx.ownerState.field.signi_charms = [[fresh()], null, null];
+  const effect = batch27Effect('WXK07-077-E1');
+  const applied = batch27AssertPowerKeyword(effect.effectId, effect.action, ctx, target, 1000, 'ランサー', false);
+  ok(!applied.ownerState.temp_power_mods?.some(mod => mod.cardNum === otherOwn), 'チャームなしには加算しない');
+}));
+
+test('段2 第27バッチ E2E: WXK07-028-E1 c0 はowner:anyの同一対象を+3000しランサー', () => withSavedCursor(() => {
+  const target = fresh();
+  const effect = batch27Effect('WXK07-028-E1');
+  ok(effect.action.type === 'CHOOSE', 'CHOOSE');
+  const choice = (effect.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[0].action;
+  const applied = run(choice, mkCtx({}, { signi: [target, null, null] }));
+  ok(applied.otherState.temp_power_mods?.some(mod => mod.cardNum === target && mod.delta === 3000) ?? false, '無指定対象として相手シグニも+3000');
+  ok(applied.otherState.keyword_grants?.[target]?.includes('ランサー') ?? false, '同じ相手シグニへランサー');
+  const ended = batch27TurnEnd(applied.otherState);
+  ok(!ended.temp_power_mods?.some(mod => mod.cardNum === target), 'ターン終了で加算失効');
+  ok(!ended.keyword_grants?.[target]?.includes('ランサー'), 'ターン終了で付与失効');
+}));
+
+test('段2 第27バッチ E2E: WDK08-Y17-E1 は公開後に自身を+1000しランサー', () => withSavedCursor(() => {
+  const source = 'WDK08-Y17';
+  const water = batch26Cards({ cardType: 'シグニ', story: '水獣' }, 3, [source]);
+  const ctx = mkCtx({ signi: [source, null, null], hand: 0 }, {}, source);
+  ctx.ownerState.hand = water;
+  const effect = batch27Effect('WDK08-Y17-E1');
+  batch27AssertPowerKeyword(effect.effectId, effect.action, ctx, source, 1000, 'ランサー', false);
+}));
+
+test('段2 第27バッチ E2E: WXDi-P06-038-E2 は自身を+2000し期間シャドウ', () => withSavedCursor(() => {
+  const source = 'WXDi-P06-038';
+  const effect = batch27Effect('WXDi-P06-038-E2');
+  batch27AssertPowerKeyword(effect.effectId, effect.action, mkCtx({ signi: [source, null, null] }, {}, source), source, 2000, 'シャドウ:{"levelGte":3}', true);
+}));
+
+test('段2 第27バッチ E2E: WXDi-CP02-092-E2 は自身を+10000しＳランサー（検証側で追加採用した同型 outlier）', () => withSavedCursor(() => {
+  const source = 'WXDi-CP02-092';
+  const effect = batch27Effect('WXDi-CP02-092-E2');
+  batch27AssertPowerKeyword(effect.effectId, effect.action, mkCtx({ signi: [source, null, null] }, {}, source), source, 10000, 'Sランサー', false);
+}));
+
+test('段2 第27バッチ E2E: WX25-CP1-078-E1 は他の緑ブルアカだけを+3000しシャドウ', () => withSavedCursor(() => {
+  const source = 'WX25-CP1-078';
+  const target = batch26Cards({ cardType: 'シグニ', story: 'ブルアカ', color: '緑' }, 1, [source])[0];
+  const effect = batch27Effect('WX25-CP1-078-E1');
+  const applied = batch27AssertPowerKeyword(effect.effectId, effect.action, mkCtx({ signi: [source, target, null] }, {}, source), target, 3000, 'シャドウ:{"levelGte":3}', false);
+  ok(!applied.ownerState.temp_power_mods?.some(mod => mod.cardNum === source), 'excludeSelf が効果元を除外');
+}));
+
+test('段2 第27バッチ E2E: WX21-020-E1 c2 は3処理を別々に対象選択できる', () => withSavedCursor(() => {
+  const effect = batch27Effect('WX21-020-E1');
+  ok(effect.action.type === 'CHOOSE', 'CHOOSE');
+  const action = (effect.action as Extract<EffectAction, { type: 'CHOOSE' }>).choices[2].action;
+  const angels = batch26Cards({ cardType: 'シグニ', story: '天使' }, 3);
+  const ctx = mkCtx({ signi: angels }, {});
+  const first = executeEffect({ ...effect, action }, ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', 'パワー対象を選択');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  const second = resumeSelectTarget([angels[0]], first.pending, ctxAfter(first, ctx));
+  ok(!second.done && second.pending.type === 'SELECT_TARGET', 'ランサー対象を独立選択');
+  if (second.done || second.pending.type !== 'SELECT_TARGET') return;
+  const third = resumeSelectTarget([angels[1]], second.pending, ctxAfter(second, ctx));
+  ok(!third.done && third.pending.type === 'SELECT_TARGET', 'ダブルクラッシュ対象を独立選択');
+  if (third.done || third.pending.type !== 'SELECT_TARGET') return;
+  const done = resumeSelectTarget([angels[2]], third.pending, ctxAfter(third, ctx));
+  ok(done.done, '3処理解決');
+  ok(done.ownerState.temp_power_mods?.some(mod => mod.cardNum === angels[0] && mod.delta === 5000) ?? false, '1体目だけ+5000');
+  ok(done.ownerState.keyword_grants?.[angels[1]]?.includes('ランサー') ?? false, '2体目にランサー');
+  ok(done.ownerState.keyword_grants?.[angels[2]]?.includes('ダブルクラッシュ') ?? false, '3体目にダブルクラッシュ');
+}));
+
+for (const [effectId, delta, sourceType] of [
+  ['WX16-Re09-E1', 3000, 'スペル'],
+  ['WXK03-042-E2', 2000, 'シグニ'],
+] as const) {
+  test(`段2 第27バッチ E2E: ${effectId} は同じ対象へパワー加算と効果耐性`, () => withSavedCursor(() => {
+    const target = fresh();
+    const untouched = fresh();
+    const effect = batch27Effect(effectId);
+    const ctx = mkCtx({ signi: [target, untouched, null] }, {});
+    const before = batch27Power(ctx.ownerState, ctx.otherState, target);
+    const applied = run(effect.action, ctx);
+    eq(batch27Power(applied.ownerState, applied.otherState, target), before + delta, `${effectId}: 実効パワー`);
+    const immune = collectEffectImmuneSigni(applied.ownerState, applied.otherState, cardMap, new Map(), true, sourceType);
+    ok(immune.has(target), `${effectId}: 選んだ対象は耐性を得る`);
+    ok(!immune.has(untouched), `${effectId}: 選ばなかった対象は耐性を得ない`);
+    const ended = batch27TurnEnd(applied.ownerState);
+    eq(batch27Power(ended, applied.otherState, target), before, `${effectId}: ターン終了でパワー失効`);
+    ok(!collectEffectImmuneSigni(ended, applied.otherState, cardMap, new Map(), true, sourceType).has(target), `${effectId}: ターン終了で耐性失効`);
+  }));
+}
+
+test('段2 第27バッチ E2E: WXDi-P02-055-E1 は自シグニ同一対象へ4処理を期間付与', () => withSavedCursor(() => {
+  const target = fresh();
+  const opponent = fresh();
+  const effect = batch27Effect('WXDi-P02-055-E1');
+  const ctx = mkCtx({ signi: [target, null, null] }, { signi: [opponent, null, null] });
+  const before = batch27Power(ctx.ownerState, ctx.otherState, target);
+  const applied = run(effect.action, ctx);
+  eq(batch27Power(applied.ownerState, applied.otherState, target), before + 5000, '自シグニを+5000');
+  ok(applied.ownerState.abilities_removed?.includes(target) ?? false, '自シグニは即時に能力を失う');
+  ok(applied.ownerState.abilities_removed_next_turn?.includes(target) ?? false, '次の相手ターンにも能力喪失を予約');
+  ok(applied.ownerState.keyword_grants_until_opp_turn?.[target]?.includes('シャドウ') ?? false, 'シャドウ付与');
+  ok(applied.ownerState.keyword_grants_until_opp_turn?.[target]?.includes('アタックできない') ?? false, 'アタック不可付与');
+  ok(!applied.otherState.power_mods_until_opp_turn?.some(mod => mod.cardNum === opponent), 'owner反転せず相手は変更しない');
+  const crossed = batch27TurnEnd(applied.ownerState);
+  eq(batch27Power(crossed, applied.otherState, target), before + 5000, '自ターン終了では+5000維持');
+  const expired = clearUntilOppTurnEffects(crossed);
+  eq(batch27Power(expired, applied.otherState, target), before, '次の相手ターン終了で+5000失効');
+  ok(!expired.keyword_grants_until_opp_turn?.[target]?.includes('シャドウ'), '次の相手ターン終了で付与失効');
+}));
+
+test('段2 第27バッチ E2E: WX25-P3-054-E1 は自身を+3000し正面の相手だけ能力喪失', () => withSavedCursor(() => {
+  const source = 'WX25-P3-054';
+  const front = fresh();
+  const offLane = fresh();
+  const effect = batch27Effect('WX25-P3-054-E1');
+  const ctx = mkCtx({ signi: [source, null, null] }, { signi: [offLane, null, front] }, source);
+  const before = batch27Power(ctx.ownerState, ctx.otherState, source);
+  const applied = run(effect.action, ctx);
+  eq(batch27Power(applied.ownerState, applied.otherState, source), before + 3000, '自身を+3000');
+  ok(applied.otherState.abilities_removed?.includes(front) ?? false, '正面の相手シグニは能力喪失');
+  ok(!applied.otherState.abilities_removed?.includes(offLane), '正面でない相手は能力を失わない');
+  ok(!applied.ownerState.abilities_removed?.includes(source), '自分側を誤って能力喪失しない');
+  const ownerEnded = batch27TurnEnd(applied.ownerState);
+  const oppEnded = batch27TurnEnd(applied.otherState);
+  eq(batch27Power(ownerEnded, oppEnded, source), before, 'ターン終了で+3000失効');
+  ok(!oppEnded.abilities_removed?.includes(front), 'ターン終了で能力喪失も失効');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

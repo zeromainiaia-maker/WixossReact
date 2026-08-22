@@ -1712,6 +1712,7 @@ export type ProtectionSourceType = 'シグニ' | 'ルリグ' | 'スペル' | '�
 export interface GrantProtectionAction {
   type: 'GRANT_PROTECTION';
   target?: EffectTarget;          // 一時付与（AUTO/ACTIVATED）: 特定ターゲットに付与
+  targetsLastProcessed?: boolean; // 「それ」= 直前の POWER_MODIFY 等で選んだ同一シグニへ無選択で付与
   targetsTriggerSource?: boolean; // 「そのレゾナ」等、トリガー元シグニ（ctx.triggeringCardNum）へ無選択で付与
   subjectFilter?: TargetFilter;   // CONTINUOUS用: このフィルターの全シグニを保護
   subjectOwner?: Owner;           // subjectFilter の所有者（省略時: 'self'）
@@ -1977,6 +1978,7 @@ export interface RemoveAbilitiesAction {
    */
   alsoKeys?: boolean;
   until: EffectDuration;
+  targetsLastProcessed?: boolean; // 「それ」= 直前の POWER_MODIFY 等で選んだ同一シグニへ無選択で適用
   targetsTriggerSource?: boolean; // 「そのシグニ」= トリガー元シグニ（場に出た相手シグニ等）へ無選択で適用（ctx.triggeringCardNum → ctx.sourceCardNum）
 }
 

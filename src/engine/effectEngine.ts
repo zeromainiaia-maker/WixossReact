@@ -4090,24 +4090,33 @@ export function collectContinuousGrantedKeywords(
     if (abilitiesRemoved.has(srcNum)) continue; // 能力喪失シグニはキーワードを付与しない
     for (const eff of effectsMap.get(srcNum) ?? []) {
       if (eff.effectType !== 'CONTINUOUS') continue;
-      if (eff.action.type !== 'GRANT_KEYWORD') continue;
-      const gk = eff.action as import('../types/effects').GrantKeywordAction;
-      // 自分のシグニへの付与のみ（owner:opponent のデバフ系キーワードはバッジ対象外）。
-      // 場全体付与は target.count === 'ALL' で表現されるため owner は self/any のみ対象（Owner型に 'all' は無い）。
-      if (gk.target.owner !== 'self' && gk.target.owner !== 'any') continue;
-      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, powersOf(), undefined, undefined, levelsOf())) continue;
-      // 「このルリグは【X】を得る」型。発生源自身＝自分のセンタールリグへ動的付与する。
-      if (gk.target.type === 'LRIG') {
-        if (lrigTop && srcNum === lrigTop) add(lrigTop, gk.keyword);
-        continue;
-      }
-      const targetsAll = gk.target.count === 'ALL';
-      for (const num of signiTops) {
-        if (abilitiesRemoved.has(num)) continue; // 能力喪失シグニは新たにキーワードを得ない
-        if (gk.target.filter && !matchesFilter(cardMap.get(num), gk.target.filter)) continue;
-        // count:1（「このシグニ」想定）は発生源シグニ自身のみ。count:ALL は条件一致の全シグニ。
-        if (!targetsAll && !(signiSet.has(srcNum) && num === srcNum)) continue;
-        add(num, gk.keyword);
+      // 「パワーを＋Nし、それらは【K】を得る」の CONTINUOUS は SEQUENCE 直下に両 leaf を置く。
+      // calcFieldPowers と同じく、分岐評価を要しない SEQUENCE だけを展開する。
+      const actions = eff.action.type === 'SEQUENCE' ? eff.action.steps : [eff.action];
+      for (const action of actions) {
+        if (action.type !== 'GRANT_KEYWORD') continue;
+        const gk = action as import('../types/effects').GrantKeywordAction;
+        // 自分のシグニへの付与のみ（owner:opponent のデバフ系キーワードはバッジ対象外）。
+        // 場全体付与は target.count === 'ALL' で表現されるため owner は self/any のみ対象（Owner型に 'all' は無い）。
+        if (gk.target.owner !== 'self' && gk.target.owner !== 'any') continue;
+        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, srcNum, powersOf(), undefined, undefined, levelsOf())) continue;
+        // 「このルリグは【X】を得る」型。発生源自身＝自分のセンタールリグへ動的付与する。
+        if (gk.target.type === 'LRIG') {
+          if (lrigTop && srcNum === lrigTop) add(lrigTop, gk.keyword);
+          continue;
+        }
+        const targetsAll = gk.target.count === 'ALL';
+        for (let zoneIdx = 0; zoneIdx < ownerState.field.signi.length; zoneIdx++) {
+          const num = ownerState.field.signi[zoneIdx]?.at(-1);
+          if (!num) continue;
+          if (abilitiesRemoved.has(num)) continue; // 能力喪失シグニは新たにキーワードを得ない
+          if (gk.target.filter && !matchesFilter(cardMap.get(num), gk.target.filter)) continue;
+          // isDrive 等のゾーン状態語は cardData だけでは判定できないため、POWER_MODIFY と同じ funnel を通す。
+          if (!matchesStateFilter(ownerState, zoneIdx, gk.target.filter)) continue;
+          // count:1（「このシグニ」想定）は発生源シグニ自身のみ。count:ALL は条件一致の全シグニ。
+          if (!targetsAll && !(signiSet.has(srcNum) && num === srcNum)) continue;
+          add(num, gk.keyword);
+        }
       }
     }
   }
