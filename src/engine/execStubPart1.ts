@@ -776,7 +776,7 @@ export function execStubPart1(
   if (stub.id === 'ARTS_COST_REDUCTION_BY_EFFECT' || stub.id === 'ARTS_COST_REDUCTION_BY_CENTER_LRIG') {
     return done(ctx); // コストは支払い時点で計算済み、ここでは何もしない
   }
-  // 数字宣言：CHOOSE UI で 1〜5 を選択し declared_guard_restrict_level に保存
+  // 数字宣言：CHOOSE UI で 1〜5 を選択し declared_number に保存する（ガード制限は伴わない・§6.4 O-41）
   if (stub.id === 'DECLARE_NUMBER') {
     // 宣言した数字をPlayerStateに保存するSETアクションを各選択肢に
     const setAction = (n: number): StubAction => ({
@@ -804,10 +804,10 @@ export function execStubPart1(
     const levels = [...new Set([...(ctx.ownerState.declared_guard_restrict_levels ?? []), val])];
     return done({ ...ctx, ownerState: { ...ctx.ownerState, declared_guard_restrict_levels: levels } });
   }
-  // 数字宣言（ガード制限を伴わない汎用版・タスク12(xlvi)(c)）。「数字１つを宣言する。…宣言した数字と同じ
+  // 数字宣言（宣言できる数字を絞れる版・タスク12(xlvi)(c)）。「数字１つを宣言する。…宣言した数字と同じ
   // レベルを持つシグニを手札に加える」（PR-434）のように宣言値を filter に使うだけの効果はこちら。
-  // DECLARE_NUMBER を使うと declared_guard_restrict_level が立ち「相手がそのレベルでガードできない」
-  // 過剰実行になる（GuardResponseDialog が参照する）。
+  // ⚠**§6.4 O-41 以降、保存先は `DECLARE_NUMBER` と同じ `declared_number`**（ガード制限の巻き添えは解消済み）＝
+  //   残る違いは `numberChoices` で選択肢を絞れる点だけ。
   if (stub.id === 'DECLARE_NUMBER_PLAIN') {
     const choices = stub.numberChoices?.length ? [...new Set(stub.numberChoices)] : [1, 2, 3, 4, 5];
     const options = choices.map(n => ({
@@ -821,11 +821,17 @@ export function execStubPart1(
     const valP = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_number: valP } }, `数字「${valP}」を宣言`));
   }
-  // DECLARE_NUMBER の宣言値を PlayerState に格納
+  // DECLARE_NUMBER の宣言値を PlayerState に格納する。
+  // 🔴**2026-08-22（§6.4 O-41）まで `declared_guard_restrict_level` へ書いており、宣言しただけで
+  //   「対戦相手はそのレベルのシグニでガードできない」が付いていた**＝`DECLARE_NUMBER` を使う live 30カードの
+  //   うち原文にガード制限があるのは2枚（`WX10-009`／`WX19-054`）だけで、残り28枚は原文に無い過剰実行だった
+  //   （消費 funnel を通るのは `DECK_TOP_CHECK_LEVEL_HAND` 1本きり）。
+  // ⚠**宣言値は `declared_number`／ガード制限は `declared_guard_restrict_level(s)` と役割を分ける**。
+  //   ガード制限が要る2枚は原文の該当文が `BLOCK_ACTION{GUARD_LV_DECLARED}` を別に立てる。
   if (stub.id === 'SET_DECLARED_NUMBER') {
     const val = typeof stub.value === 'number' ? stub.value : parseInt(String(stub.value ?? '0'));
-    const newOwner = { ...ctx.ownerState, declared_guard_restrict_level: val };
-    return done(addLog({ ...ctx, ownerState: newOwner }, `数字「${val}」を宣言（相手はLv${val}シグニでガード不可）`));
+    const newOwner = { ...ctx.ownerState, declared_number: val };
+    return done(addLog({ ...ctx, ownerState: newOwner }, `数字「${val}」を宣言`));
   }
   // TK3_DECLARE_DISCARD: 数字を宣言し、対戦相手の手札から宣言レベルのシグニをすべて捨てさせる
   // （WX25-P1-TK3 ダーク・アナライズ：「数字1つを宣言する。対戦相手の手札を見て、宣言した数字と同じレベルを持つすべてのシグニを捨てさせる」）

@@ -924,8 +924,8 @@ function actionJa(a?: Action, effectType?: string): string {
         ARTS_AND_SPELL: 'アーツとスペルを使用できない',
         USE_ARTS_EXCEPT_OPP_TURN: '対戦相手のターン以外でアーツを使用できない',
         SIGNI_ACTIVATED_ABILITY: '場にあるシグニの【起】能力を使用できない',
-        GUARD_MAX_LV2: 'レベル２以下のシグニで【ガード】ができない',
-        GUARD_MAX_LV1: 'レベル１以下のシグニで【ガード】ができない',
+        GUARD_LV_DECLARED: '宣言された数字と同じレベルのシグニで【ガード】ができない',
+        GUARD_LV_LAST_DOWNED: 'この方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない',
         DRAW_LIMIT_1: 'ドローフェイズにカードを１枚しか引くことができない',
         DRAW_OUTSIDE_DRAW_PHASE: '自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたり手札に加えることができない',
         DRAW_OR_ADD_TO_HAND_BY_EFFECT: '自分の効果によって、カードを引いたりカードを手札に加えることができない',
@@ -949,7 +949,18 @@ function actionJa(a?: Action, effectType?: string): string {
         MAIN_PHASE: 'メインフェイズをスキップする',
         ATTACK_PHASE: 'アタックフェイズをスキップする',
       };
-      const pred = predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
+      // §6.4 O-41: レベル限定つきガード禁止は id が可変（`GUARD_MAX_LV<n>` ＝n以下／`GUARD_LV<n>[_<m>…]` ＝
+      // そのレベルちょうど・列挙）なので predMap では表せない。⚠**表を増やす方式に戻さないこと**＝
+      // 表に無いレベルが出た瞬間に生の英語 id（`「GUARD_LV3」を行えない`）が逆翻訳へ漏れる。
+      const toFullWidth = (n: string) => n.replace(/\d/g, d => String.fromCharCode(d.charCodeAt(0) + 0xFEE0));
+      const guardMaxLv = a.actionId.match(/^GUARD_MAX_LV(\d+)$/);
+      const guardExactLv = a.actionId.match(/^GUARD_LV(\d+(?:_\d+)*)$/);
+      const guardPred = guardMaxLv
+        ? `レベル${toFullWidth(guardMaxLv[1])}以下のシグニで【ガード】ができない`
+        : guardExactLv
+        ? `${guardExactLv[1].split('_').map(n => `レベル${toFullWidth(n)}`).join('と')}のシグニで【ガード】ができない`
+        : undefined;
+      const pred = guardPred ?? predMap[a.actionId] ?? `「${a.actionId}」を行えない`;
       // §6.4 O-16: ゾーン限定（`zoneSource:'designated'`）を落とすと**「相手のシグニは全部アタックできない」
       // と同じ文**になり、逆翻訳がゾーン継続と全体禁止を区別できない（engine を直しても計器に映らない）。
       const subj = a.target?.type === 'SIGNI'

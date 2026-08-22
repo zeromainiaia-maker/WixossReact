@@ -488,16 +488,35 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   }
 
   // ---- ガード不可 ----
+  // 🔴**「〈レベル限定〉のシグニで【ガード】ができない」を素の `GUARD` に落とすと「ガードそのものができない」
+  //   ＝原文より遥かに強い過剰実行に化ける**（§6.4 O-41・2026-08-22）。live 実測で 6効果がこの形だった。
+  //   限定の表し方は actionId の文字列で持つ（`blocked_actions` も CONTINUOUS の `forSelf` も
+  //   `Set<string>` の経路なので、型フィールドを足しても常在側に届かない）。
+  //     `GUARD_MAX_LV<n>` ＝レベル n **以下**（従来からある形）
+  //     `GUARD_LV<n>` / `GUARD_LV<n>_<m>` ＝そのレベル**ちょうど**／列挙
+  //     `GUARD_LV_DECLARED` ＝宣言された数字と同じレベル（実行時に解決）
+  //     `GUARD_LV_LAST_DOWNED` ＝この方法でダウンしたシグニと同じレベル（実行時に解決）
   if (t.match(/対戦相手は(?:.*シグニで)?【ガード】ができない/)) {
     const until: BlockActionAction['until'] = t.includes('次の') ? 'NEXT_TURN' : 'END_OF_TURN';
+    const blockGuard = (actionId: string): BlockActionAction =>
+      ({ type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId, until });
     // 「レベルN以下のシグニで【ガード】ができない」はレベル制限ガード（GUARD_MAX_LVN）として扱う。
     // この一般ルールを先に評価するため、ここで判別しないと後段の専用ルールに到達せず
     // 全ガード禁止(GUARD)に誤分類される（WX01-004 等で発生していた不具合）。
     const lvM = t.match(/レベル([０-９\d]+)以下のシグニで【ガード】ができない/);
-    if (lvM) {
-      return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: `GUARD_MAX_LV${parseNum(lvM[1])}`, until };
+    if (lvM) return blockGuard(`GUARD_MAX_LV${parseNum(lvM[1])}`);
+    // ⚠列挙（「レベル２とレベル３の」）を**ちょうど1つ**より先に判定する。逆順にすると
+    //   `レベル３のシグニで` だけが拾われてレベル２ぶんが落ちる（過小実行）。
+    const lvEnum = t.match(/(レベル[０-９\d]+(?:とレベル[０-９\d]+)+)のシグニで【ガード】ができない/);
+    if (lvEnum) {
+      const levels = [...new Set([...lvEnum[1].matchAll(/レベル([０-９\d]+)/g)].map(m => parseNum(m[1])))];
+      return blockGuard(`GUARD_LV${levels.sort((x, y) => x - y).join('_')}`);
     }
-    return { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until };
+    const lvExact = t.match(/レベル([０-９\d]+)のシグニで【ガード】ができない/);
+    if (lvExact) return blockGuard(`GUARD_LV${parseNum(lvExact[1])}`);
+    if (/宣言された数字と同じレベルのシグニで【ガード】ができない/.test(t)) return blockGuard('GUARD_LV_DECLARED');
+    if (/この方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない/.test(t)) return blockGuard('GUARD_LV_LAST_DOWNED');
+    return blockGuard('GUARD');
   }
 
   // ---- §3タスク6 D（置換ルール）: バニッシュ防止＋能力喪失（能力消去ブロックより前に置く＝「この能力を失う」を先取りさせない）----

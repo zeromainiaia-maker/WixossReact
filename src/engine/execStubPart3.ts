@@ -2099,7 +2099,7 @@ export function execStubPart3(
       type: 'CHOOSE', options: optsDNR, count: 1,
     });
   }
-  // DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_guard_restrict_level に保存
+  // DECLARE_NUMBER_POWER: パワー値宣言（3000〜15000）→ declared_number に保存（§6.4 O-41 で改名）
   if (stub.id === 'DECLARE_NUMBER_POWER') {
     const setDNP = (n: number): StubAction => ({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: n });
     const optsDNP = [3000, 5000, 7000, 10000, 12000, 15000].map(n => ({

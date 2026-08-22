@@ -4,7 +4,7 @@ import type { PlayerState } from '../../../types';
 import { LRIG_BARRIER_CARD, countBarrierTokens } from '../../../engine/execUtils';
 import { collectOppGuardExtraColorlessCost, collectOppExtraGuardFromHand, collectGuardAlternativeCost, type ContinuousBlockResult } from '../../../engine/effectEngine';
 import { C } from '../../../components/BoardComponents';
-import { canCardGuard } from '../guard';
+import { canCardGuard, makeGuardLevelBlocker } from '../guard';
 import type { BattleModalCtx } from './types';
 
 interface GuardResponseDialogProps {
@@ -46,11 +46,10 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
               手札の「ガード」を持つカードをトラッシュに送り攻撃を防ぐか、ライフクロスをクラッシュします
             </p>
             {(() => {
-              const guardBlockedMax = [...(my.blocked_actions ?? []), ...contBlocked.forSelf]
-                .reduce((max, a) => {
-                  const m = a.match(/^GUARD_MAX_LV(\d+)/);
-                  return m ? Math.max(max, parseInt(m[1])) : max;
-                }, -1);
+              // §6.4 O-41: レベル限定つきガード禁止（`GUARD_MAX_LV<n>` ＝n以下／`GUARD_LV<n>[_<m>…]` ＝ちょうど・列挙）。
+              // ⚠**判定は純関数へ切り出してある**（`makeGuardLevelBlocker`）＝§5-20 の定石。JSX の中に置くと
+              //   golden から両方向（掛かる／掛からない）を検証できず、限定の脱落＝過剰実行が計器に映らない。
+              const guardBlockedByLevel = makeGuardLevelBlocker([...(my.blocked_actions ?? []), ...contBlocked.forSelf]);
               const declaredRestrictLv = op.declared_guard_restrict_level;
               const declaredRestrictLvs = op.declared_guard_restrict_levels ?? [];
               const handGuardEnabled = my.hand_signi_guard_enabled;
@@ -91,8 +90,8 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                     myHandGuardClasses.some(cls => card?.CardClass?.includes(cls));
                   const isGuardable = canCardGuard(num, my, battleCardMap, effectsMap) || (handGuardEnabled && card?.Type === 'シグニ') || classGuardable;
                   if (!isGuardable) return false;
-                  if (guardBlockedMax >= 0 && parseInt(card?.Level ?? '-1') <= guardBlockedMax) return false;
                   const guardLevel = parseInt(card?.Level ?? '-1');
+                  if (guardBlockedByLevel(guardLevel)) return false;
                   if (declaredRestrictLv !== undefined && guardLevel === declaredRestrictLv) return false;
                   if (declaredRestrictLvs.includes(guardLevel)) return false;
                   return true;

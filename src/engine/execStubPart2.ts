@@ -135,15 +135,15 @@ export function execStubPart2(
   }
   // デッキトップを公開してレベル一致なら手札に加える
   if (stub.id === 'DECK_TOP_CHECK_LEVEL_HAND') {
-    const declaredLv = ctx.ownerState.declared_guard_restrict_level;
+    const declaredLv = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level;
     if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし'));
     const topCard = ctx.ownerState.deck[0];
     const topData = ctx.cardMap.get(topCard);
     const topLv = parseInt(topData?.Level ?? '-1');
     if (declaredLv !== undefined && topData?.Type === 'シグニ' && topLv === declaredLv) {
       const newDeck = ctx.ownerState.deck.slice(1);
-      // 宣言数字はこのデッキトップ判定で消費。ガード制限フィールド（declared_guard_restrict_level）に
-      // 残すと「数字宣言だけの効果」で原文にないガード制限が漏れるためクリアする。
+      // 宣言数字はこのデッキトップ判定で消費する。⚠**§6.4 O-41 で宣言値の保存先は `declared_number` へ分離済み**
+      //   ＝この consume は旧保存先（`declared_guard_restrict_level`）に残った値を掃除する後方互換の1本。
       const newOwner = consumeDeclaredGuardRestrictLevel({ ...ctx.ownerState, deck: newDeck, hand: [...ctx.ownerState.hand, topCard] });
       return done(addLog({ ...ctx, ownerState: newOwner },
         `デッキトップ公開：${topData?.CardName ?? topCard}（Lv${topLv}）→手札`));
@@ -156,7 +156,7 @@ export function execStubPart2(
   }
   // 相手の手札のシグニを見て捨てさせる（宣言数字フィルタ or 有色フィルタ）
   if (stub.id === 'LOOK_OPP_HAND_DISCARD_SIGNI') {
-    const declaredLvLOD = ctx.ownerState.declared_guard_restrict_level;
+    const declaredLvLOD = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level;
     const oppHandLOD = ctx.otherState.hand;
     const candsLOD = oppHandLOD.filter(cn => {
       const c = ctx.cardMap.get(cn);
@@ -176,7 +176,7 @@ export function execStubPart2(
   // デッキ上を公開し、宣言したレベルのシグニならエナゾーンへ
   if (stub.id === 'DECK_TOP_CHECK_LEVEL_ENERGY') {
     if (ctx.ownerState.deck.length === 0) return done(addLog(ctx, 'デッキなし（DECK_TOP_CHECK_LEVEL_ENERGY）'));
-    const declaredLvDTE = ctx.ownerState.declared_guard_restrict_level;
+    const declaredLvDTE = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level;
     const topCardDTE = ctx.ownerState.deck[0];
     const topDataDTE = ctx.cardMap.get(topCardDTE);
     const topLvDTE = parseInt(topDataDTE?.Level ?? '-1');
@@ -980,7 +980,7 @@ export function execStubPart2(
   }
   // 宣言した数だけデッキ上からトラッシュへ
   if (stub.id === 'DECK_TOP_DECLARED_NUM_TRASH') {
-    const declaredNumDTDT = ctx.ownerState.declared_guard_restrict_level ?? 1;
+    const declaredNumDTDT = ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level ?? 1;
     const topCardsDTDT = ctx.ownerState.deck.slice(0, declaredNumDTDT);
     if (topCardsDTDT.length === 0) return done(addLog(ctx, 'デッキなし（DECK_TOP_DECLARED_NUM_TRASH）'));
     const newOwnerDTDT = {

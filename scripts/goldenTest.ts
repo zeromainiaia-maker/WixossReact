@@ -86,7 +86,7 @@ import { canPayUnderAnySigniTrash, canPayUnderSelfTrash, payUnderAnySigniTrash, 
 import { reduceBattle } from '../src/screens/battle/controller/battleController';
 import type { BattleStateRow, EffectStack, PendingSpell } from '../src/types';
 import { computeArtsEffectiveCost, activatedDiscardCostRecord, activatedDiscardPaidCount, activatedEnergyTrashPaidCount, canAffordGrowCost, canAffordWithExtraCost, canPayExceed, costColorMatches, exceedPoolOf, isMultiEna, parseBoostCost, paySelectedExceed } from '../src/screens/battle/costs';
-import { canCardGuard } from '../src/screens/battle/guard';
+import { canCardGuard, makeGuardLevelBlocker } from '../src/screens/battle/guard';
 import { clearEndOfAttackEffects, clearEndOfAttackPhaseDelayedTriggers } from '../src/screens/battle/attackDuration';
 import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consumeTriggeredGrantedAutos, reserveGrantedAutoUsage } from '../src/screens/battle/grantedAuto';
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
@@ -7082,9 +7082,13 @@ test('(xlvi)(c) 宣言参照 filter は宣言値だけを候補にし、未宣�
   } finally { cursor = savedCursor; }
 });
 
-// 🔴 DECLARE_NUMBER をそのまま使うと「対戦相手はそのレベルのシグニでガードできない」という原文に無い
-//    制限まで付く（GuardResponseDialog が declared_guard_restrict_level を読む）。PLAIN 版はそれを立てない。
-test('(xlvi)(c) DECLARE_NUMBER_PLAIN は declared_number だけを立て、ガード制限は立てない', () => {
+// 🔴 かつて DECLARE_NUMBER は宣言値を `declared_guard_restrict_level`（＝ガード制限）へ書いており、
+//    「対戦相手はそのレベルのシグニでガードできない」という原文に無い制限まで付いていた。PLAIN 版は
+//    その巻き添えを避けるために分けた枝。
+// ✅**§6.4 O-41（2026-08-22）で両者とも `declared_number` へ統一**＝ガード制限は原文に該当文がある効果だけが
+//    `BLOCK_ACTION{GUARD_LV_DECLARED}` で別に立てる。⚠この対照を「DECLARE_NUMBER は制限を立てる」に
+//    戻してはいけない（28カードの過剰実行がそのまま復活する）。
+test('(xlvi)(c) DECLARE_NUMBER_PLAIN / DECLARE_NUMBER はどちらも declared_number だけを立てる', () => {
   const savedCursor = cursor;
   try {
     const step = (id: string, optionIdx: number) => {
@@ -7101,10 +7105,11 @@ test('(xlvi)(c) DECLARE_NUMBER_PLAIN は declared_number だけを立て、ガ�
     eq((plain.ownerState as { declared_number?: number }).declared_number, 3, 'declared_number に格納');
     eq((plain.ownerState as { declared_guard_restrict_level?: number }).declared_guard_restrict_level, undefined,
       '🔴ガード制限フィールドは立てない（原文に無い制限を付けない）');
-    // 対照：従来の DECLARE_NUMBER はガード制限用（この経路は変えていない）
+    // 対照：DECLARE_NUMBER も同じ保存先（§6.4 O-41）＝残る違いは PLAIN が選択肢を絞れる点だけ。
     const guard = step('DECLARE_NUMBER', 2);
-    eq((guard.ownerState as { declared_guard_restrict_level?: number }).declared_guard_restrict_level, 3,
-      'DECLARE_NUMBER は従来どおりガード制限を立てる');
+    eq((guard.ownerState as { declared_number?: number }).declared_number, 3, 'DECLARE_NUMBER も declared_number');
+    eq((guard.ownerState as { declared_guard_restrict_level?: number }).declared_guard_restrict_level, undefined,
+      '🔴宣言しただけでガード制限は立たない');
   } finally { cursor = savedCursor; }
 });
 
@@ -41319,6 +41324,162 @@ test('段2-16 WXDi-P10-054-E1 E2E: ＜プリパラ＞のトリガー元だけ+40
   eq(stage2B16Power(run(effect.action, board(pripara)), 'self', pripara), 4000, '該当トリガー元は合計+4000');
   eq(stage2B16Power(run(effect.action, board(other)), 'self', other), 2000, '非該当トリガー元は基本形だけ');
 });
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+ * §6.4 O-41: 「〈レベル限定〉のシグニで【ガード】ができない」（2026-08-22）
+ *
+ * 🔴**旧実装は限定を丸ごと落として素の `GUARD` を吐いていた**＝「対戦相手はガードそのものができない」
+ *   ＝原文より遥かに強い過剰実行。live 実測6効果（`WD15-010` `WDK05-T09` `WX18-039` `WX10-009`
+ *   `WX19-054` `WXEX2-01`）。`GUARD_MAX_LV<n>`（n 以下）だけが既存で、ちょうど／列挙／動的が無かった。
+ * ⚠**両方向を必ず見る**＝「掛かる」だけを見ると、限定が広がりすぎた（＝過剰のまま）ケースを見逃す。
+ * ══════════════════════════════════════════════════════════════════════════════ */
+
+const o41Guard = (text: string): string | undefined => {
+  const eff = parseCardEffects({ CardNum: 'TEST-O41', Type: 'シグニ', EffectText: text } as unknown as CardData)[0];
+  const found = JSON.stringify(eff.action).match(/"actionId":"(GUARD[^"]*)"/);
+  return found?.[1];
+};
+
+test('§6.4 O-41 parser: レベル限定つきガード禁止を素の GUARD へ潰さない', () => {
+  eq(o41Guard('【常】：対戦相手はレベル２以下のシグニで【ガード】ができない。'), 'GUARD_MAX_LV2', '以下（従来形）');
+  eq(o41Guard('【常】：対戦相手はレベル１のシグニで【ガード】ができない。'), 'GUARD_LV1', 'ちょうど');
+  // ⚠列挙は「ちょうど1つ」より先に判定する。逆順だと `レベル３` だけ拾ってレベル２が落ちる（過小）。
+  eq(o41Guard('【常】：対戦相手はレベル２とレベル３のシグニで【ガード】ができない。'), 'GUARD_LV2_3', '列挙');
+  eq(o41Guard('【常】：対戦相手は宣言された数字と同じレベルのシグニで【ガード】ができない。'), 'GUARD_LV_DECLARED', '宣言値');
+  eq(o41Guard('【常】：対戦相手はこの方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない。'),
+     'GUARD_LV_LAST_DOWNED', '直前ダウン札');
+  // 対照：限定の無い原文は従来どおり素の GUARD（ここを一緒に潰すと今度は過小になる）。
+  eq(o41Guard('【常】：対戦相手は【ガード】ができない。'), 'GUARD', '限定なしは素の GUARD のまま');
+});
+
+test('§6.4 O-41 live: 6効果が限定つき id に載っている（素の GUARD へ戻ったら落ちる）', () => {
+  const idOf = (cardNum: string, effectId: string): string | undefined => {
+    const eff = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId);
+    return JSON.stringify(eff?.action).match(/"actionId":"(GUARD[^"]*)"/)?.[1];
+  };
+  eq(idOf('WD15-010', 'WD15-010-E1'), 'GUARD_LV1', 'WD15-010「レベル１のシグニで」');
+  eq(idOf('WDK05-T09', 'WDK05-T09-E1-G'), 'GUARD_LV1', 'WDK05-T09（付与された【起】の中）');
+  eq(idOf('WX18-039', 'WX18-039-E1'), 'GUARD_LV2_3', 'WX18-039「レベル２とレベル３の」');
+  eq(idOf('WX10-009', 'WX10-009-E3'), 'GUARD_LV_DECLARED', 'WX10-009（数字宣言）');
+  eq(idOf('WX19-054', 'WX19-054-E1'), 'GUARD_LV_DECLARED', 'WX19-054（数字宣言）');
+  eq(idOf('WXEX2-01', 'WXEX2-01-E2'), 'GUARD_LV_LAST_DOWNED', 'WXEX2-01（この方法でダウンした）');
+});
+
+test('§6.4 O-41 消費地点: makeGuardLevelBlocker が「以下」と「ちょうど」を弁別する', () => {
+  const exact = makeGuardLevelBlocker(['GUARD_LV2_3']);
+  ok(exact(2) && exact(3), '列挙されたレベルは掛かる');
+  ok(!exact(1) && !exact(4), '⚠対照: 列挙外は掛からない（ここが通ると「以下」に化けている）');
+  const max = makeGuardLevelBlocker(['GUARD_MAX_LV2']);
+  ok(max(1) && max(2), '以下は下のレベルにも掛かる');
+  ok(!max(3), '対照: 上限より上は掛からない');
+  ok(makeGuardLevelBlocker(['GUARD_LV1:NEXT_TURN'])(1), ':NEXT_TURN 付きでも読める');
+  // 🔴実行時解決の2種は**この経路に来てはいけない**（数字を含まないので regex にも掛からない）。
+  const dyn = makeGuardLevelBlocker(['GUARD_LV_DECLARED', 'GUARD_LV_LAST_DOWNED']);
+  ok(![0, 1, 2, 3, 4, 5].some(dyn), '動的 id を静的レベルとして読み違えない');
+  ok(![0, 1, 2, 3, 4, 5].some(makeGuardLevelBlocker(['GUARD'])), '素の GUARD はレベル制限ではない');
+});
+
+test('§6.4 O-41 engine: GUARD_LV_DECLARED は宣言値を、GUARD_LV_LAST_DOWNED は直前ダウン札のレベルを積む', () => {
+  const declared: EffectAction = { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+    actionId: 'GUARD_LV_DECLARED', until: 'END_OF_TURN' };
+  const ctxD = mkCtx({}, {});
+  ctxD.ownerState.declared_number = 3;
+  eq(JSON.stringify(run(declared, ctxD).ownerState.declared_guard_restrict_levels), '[3]', '宣言値が制限レベルになる');
+  // ⚠**書き込み先は効果元側**＝dialog は防御側から見て `op.declared_guard_restrict_levels` を読む。
+  eq(run(declared, ctxD).otherState.declared_guard_restrict_levels, undefined, '相手側には書かない');
+  // ⚠レベルが未確定なら**制限を課さない**。ここで素の GUARD へ倒すと O-41 が直した過剰実行に戻る。
+  eq(run(declared, mkCtx({}, {})).ownerState.declared_guard_restrict_levels, undefined, '未宣言なら制限なし');
+
+  const lastDowned: EffectAction = { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+    actionId: 'GUARD_LV_LAST_DOWNED', until: 'END_OF_TURN' };
+  const ctxL = mkCtx({}, {});
+  ctxL.lastProcessedCards = [SIGNI_L4];
+  eq(JSON.stringify(run(lastDowned, ctxL).ownerState.declared_guard_restrict_levels), '[4]', 'ダウンした札のレベル');
+  eq(run(lastDowned, mkCtx({}, {})).ownerState.declared_guard_restrict_levels, undefined, '空振りなら制限なし');
+});
+
+test('§6.4 O-41 常在経路: WX18-039 のレベル限定が CONTINUOUS の forSelf に届く', () => withSavedCursor(() => {
+  // 🔴`blocked_actions` と違い CONTINUOUS は `Set<string>` で運ばれる＝**actionId の文字列に限定を載せる**
+  //   理由がここ。型フィールドにしていたら常在（【常】）側だけ限定が落ちて過剰実行のまま残る。
+  const me = mkState({});
+  const foe = mkState({ lrig: [findCard(c => c.Type === 'ルリグ')], signi: ['WX18-039', null, null] });
+  const forSelf = calcContinuousBlockedActions(me, foe, true, effectsMap, cardMap as Map<string, CardData>).forSelf;
+  ok(forSelf.has('GUARD_LV2_3'), '限定つき id がそのまま届く');
+  ok(!forSelf.has('GUARD'), '⚠対照: 素の GUARD は立たない（立つと丸ごとガード不可＝過剰実行）');
+  ok(makeGuardLevelBlocker(forSelf)(2) && !makeGuardLevelBlocker(forSelf)(4), '消費側で正しく2/3だけ封じる');
+}));
+
+test('§6.4 O-41 巻き添え解消: DECLARE_NUMBER はガード制限を立てない', () => {
+  // 🔴旧 `SET_DECLARED_NUMBER` は宣言値を `declared_guard_restrict_level`（＝ガード制限）へ書いていた＝
+  //   `DECLARE_NUMBER` を使う live 30カードのうち原文にガード制限があるのは2枚だけで、残り28枚は
+  //   原文に無いガード制限が付いていた（消費 funnel を通るのは `DECK_TOP_CHECK_LEVEL_HAND` 1本きり）。
+  const ctx = mkCtx({}, {});
+  const r = run({ type: 'STUB', id: 'SET_DECLARED_NUMBER', value: 2 } as StubAction as EffectAction, ctx);
+  eq(r.ownerState.declared_number, 2, '宣言値は declared_number へ入る');
+  eq(r.ownerState.declared_guard_restrict_level, undefined, 'ガード制限は立たない');
+  eq(r.ownerState.declared_guard_restrict_levels, undefined, '複数形にも立たない');
+});
+
+
+test('§6.4 O-41 E2E: WXEX2-01-E2 はダウンしたシグニのレベルだけを封じ、空振りなら封じない', () => withSavedCursor(() => {
+  // 🔑ここが機構の一番細い所＝**「そうした場合」ゲート（`CONDITIONAL{IS_MY_TURN}`）を越えて
+  //   `lastProcessedCards` が BLOCK_ACTION まで届くか**。届かないと「レベル未確定＝制限なし」に倒れて
+  //   静かな過小実行になる（限定つき id を吐けているだけでは検出できない）。
+  const eff = findEffectDeep(effectsMap.get('WXEX2-01') ?? [], 'WXEX2-01-E2')!;
+  const hit = mkCtx({ lrig: ['WXEX2-01'], signi: [SIGNI_L3, null, null] }, {}, 'WXEX2-01');
+  const rHit = finish(executeEffect(eff, hit), hit);
+  eq(JSON.stringify(rHit.ownerState.declared_guard_restrict_levels), '[3]', 'ダウンしたレベル３だけ封じる');
+  // ⚠対照: アップ状態のシグニが居なければ did-it ゲートで止まり、制限は一切課されない。
+  const missState = mkState({ lrig: ['WXEX2-01'], signi: [SIGNI_L3, null, null], down: [true, false, false] });
+  const miss = { ...mkCtx({}, {}, 'WXEX2-01'), ownerState: missState } as ExecCtx;
+  const rMiss = finish(executeEffect(eff, miss), miss);
+  eq(rMiss.ownerState.declared_guard_restrict_levels, undefined, '空振りならガード制限は付かない');
+}));
+
+
+test('§6.4 O-41 E2E: WX10-009-E3 は宣言した数字と同じレベルだけを封じる', () => withSavedCursor(() => {
+  // 🔑細い所＝**宣言 CHOOSE を挟んで `declared_number` が BLOCK_ACTION まで残るか**。
+  //   宣言と制限を1つの STUB に束ねるのを止めた（§6.4 O-41）ので、この受け渡しが新しい継ぎ目になる。
+  const eff = findEffectDeep(effectsMap.get('WX10-009') ?? [], 'WX10-009-E3')!;
+  const ctx = mkCtx({ lrig: ['WX10-009'] }, {}, 'WX10-009');
+  const r = finish(executeEffect(eff, ctx), ctx);
+  const declared = r.ownerState.declared_number;
+  ok(typeof declared === 'number', '数字が宣言されている');
+  eq(JSON.stringify(r.ownerState.declared_guard_restrict_levels), JSON.stringify([declared]),
+    '封じるのは宣言した数字と同じレベルだけ');
+  // 🔴対照: 素の `GUARD` へ戻ると「ガードそのものができない」＝blocked_actions 側に立つ。
+  ok(!(r.otherState.blocked_actions ?? []).includes('GUARD'), '丸ごとガード不可にはしない');
+}));
+
+
+test('§6.4 O-41 派生: SEQUENCE 内の DECLARE_NUMBER が黙って飛ばされない', () => withSavedCursor(() => {
+  // 🔴`execSequence` は `DECLARE_NUMBER` を横取りし、**次が `GRANT_KEYWORD` でなければ `continue` で
+  //   宣言そのものを捨てていた**（2026-08-22 §6.4 O-41 で発見）＝`SEQUENCE` に入った瞬間に一度も
+  //   数字を宣言せず、宣言値を読む後段（`levelEqDeclaredNumber` / `DECK_TOP_CHECK_LEVEL_*` /
+  //   `useDeclaredCount`）が軒並み空振りする無言の no-op。裸の `DECLARE_NUMBER` だけが CHOOSE に届くので
+  //   ⚠**両方の置かれ方を見ないと検出できない**。
+  const inSequence: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction as EffectAction,
+    { type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 },
+      actionId: 'GUARD_LV_DECLARED', until: 'END_OF_TURN' },
+  ] };
+  const ctx = mkCtx({}, {});
+  const r = finish(run(inSequence, ctx), ctx);
+  ok(typeof r.ownerState.declared_number === 'number', 'SEQUENCE の中でも宣言が起きる');
+  eq(JSON.stringify(r.ownerState.declared_guard_restrict_levels), JSON.stringify([r.ownerState.declared_number]),
+    '宣言値が後段へ渡る');
+
+  // ⚠対照: 次が `GRANT_KEYWORD` のときは従来どおり横取りする（シャドウのパワー宣言＝1000〜20000 の別 UI）。
+  const shadowSeq: EffectAction = { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'DECLARE_NUMBER' } as StubAction as EffectAction,
+    { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      keyword: 'シャドウ', duration: 'UNTIL_END_OF_TURN' } as EffectAction,
+  ] };
+  const shadowCtx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
+  const r0 = run(shadowSeq, shadowCtx);
+  ok(JSON.stringify(r0.logs).includes('シャドウが適用されるパワー'), 'シャドウ経路は横取りのまま');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

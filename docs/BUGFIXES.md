@@ -1,5 +1,62 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き609）：§6.4 O-41＝「〈レベル限定〉のシグニで【ガード】ができない」の限定が丸ごと落ちていた6効果
+
+**限定が落ちると素の `GUARD`（＝ガードそのものができない）と同じ挙動になる**＝原文より遥かに強い過剰実行。
+golden **2366→2375**。census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・lint 0 errors / 261 warnings 据置。
+
+### 母集団は登録行の「10効果」ではなく **6効果**
+
+着手前に CSV と live の**両方**を数え直した（CODEX_GUIDE §5 の原則③⑤）。
+`WX01-004-E3`／`WX18-040-E1` は原文が「レベルN**以下**」で `GUARD_MAX_LV<n>` が**従来から実装済み**、
+`WD21-009-E1` は `MANUAL` で `STUB{DECLARE_TWO_GUARD_LEVELS}` を使っており **`BLOCK_ACTION` を持たない**
+（登録時に JSON の先頭だけを見て誤認していた）、`WDK05-T09-E1` / `-E1-G` は**同一カードを2行に数えていた**。
+
+真に壊れていた6効果＝`WD15-010-E1`（レベル１）／`WDK05-T09-E1-G`（レベル１）／`WX18-039-E1`（レベル２と３）／
+`WX10-009-E3`・`WX19-054-E1`（宣言された数字）／`WXEX2-01-E2`（この方法でダウンしたシグニ）。
+
+### 直し方＝**型フィールドではなく actionId の文字列**に限定を載せる
+
+常在（【常】）側は `calcContinuousBlockedActions` が `ContinuousBlockResult.forSelf`＝**`Set<string>`** で
+actionId だけを運ぶ。`BlockActionAction` に型フィールドを足しても `WX18-039`（【常】）には**届かない**
+（既存の `GUARD_MAX_LV<n>` が文字列語彙なのも同じ理由）。
+
+| actionId | 意味 | 解決 |
+|---|---|---|
+| `GUARD_LV<n>` | そのレベル**ちょうど** | parse 時 |
+| `GUARD_LV<n>_<m>…` | レベルの**列挙**（`GUARD_LV2_3`） | parse 時 |
+| `GUARD_LV_DECLARED` | 宣言された数字と同じレベル | 実行時（`declared_number`） |
+| `GUARD_LV_LAST_DOWNED` | この方法でダウンしたシグニと同じレベル | 実行時（`lastProcessedCards`） |
+
+- `src/data/parsers/parseSentencePart1.ts`＝ガード不可ルールを5分岐に。⚠**列挙を「ちょうど1つ」より先に判定する**（逆順だと `レベル３` だけ拾ってレベル２が落ちる＝過小）。
+- `src/engine/effectExecutor.ts` `execBlockAction`＝動的2種を先取りし、**効果元（`ctx.ownerState`）**の `declared_guard_restrict_levels` へ積む（dialog は防御側から見て `op.` を読む）。⚠**レベル未確定なら制限を課さない**。
+- `src/screens/battle/guard.ts` `makeGuardLevelBlocker`＝**消費地点を純関数へ切り出し**（§5-20 の定石）。JSX 内に置くと golden から両方向を検証できない。
+- `scripts/decompileEffects.ts`＝`GUARD_MAX_LV1`/`LV2` の**2行だけの表引きを regex 化**（表に無いレベルが出た瞬間に生の英語 id が逆翻訳へ漏れる）。
+
+### 🔴 派生：`SEQUENCE` 内の `DECLARE_NUMBER` が**一度も宣言していなかった**（無言 no-op）
+
+`GUARD_LV_DECLARED` の E2E を書いたら `declared_number` が `undefined` のままで、
+ログに「数字を宣言（スキップ：次ステップが GRANT_KEYWORD でないため）」が出た。
+
+`execSequence` は `STUB{DECLARE_NUMBER}` を横取りし、**次が `GRANT_KEYWORD`（シャドウのパワー宣言）でなければ
+`continue` で宣言そのものを捨てていた**。`DECLARE_NUMBER` を持つ live 30カードのほとんどが `SEQUENCE` の中で、
+宣言値を読む後段（`levelEqDeclaredNumber` / `DECK_TOP_CHECK_LEVEL_*` / `useDeclaredCount`）が**軒並み空振り**していた。
+⚠**裸の `DECLARE_NUMBER` だけは CHOOSE に届く**ので既存 golden も片側しか踏んでおらず、計器に一切映らなかった。
+⇒ 横取りを「次が `GRANT_KEYWORD` のときだけ」に絞り、それ以外は**素通りではなく通常の STUB 実行へ落とす**。
+
+### 巻き添えの解消：宣言値とガード制限のフィールドを分離
+
+旧 `SET_DECLARED_NUMBER` は宣言値を **`declared_guard_restrict_level`（＝ガード制限）** へ書いていた。
+`DECLARE_NUMBER` を使う30カードのうち**原文にガード制限があるのは2枚だけ**で、消費 funnel を通るのは
+`DECK_TOP_CHECK_LEVEL_HAND` 1本きり。⇒ **宣言値は `declared_number`／ガード制限は `declared_guard_restrict_level(s)`**
+と役割を分け、読み手5箇所を `declared_number ?? declared_guard_restrict_level` に（後方互換つき）。
+
+### ⚠ 次に触る人へ
+
+- `census:wiring` の `levelExact × BLOCK_ACTION{PLAYER}`（miss=3 / has=0）は**恒久的な偽陽性**。
+  `target.filter.level` を足して黙らせないこと（`target` は `PLAYER` で、レベルが属するのはガードする側のカード）。
+- 実機観測点＝§7 **`V-84`**（レベル限定がガード応答UIで効くか）／**`V-85`**（宣言 UI が新しく30カードで出る＝**入力待ちが新規に発生する**）。
+
 ## 2026-08-22（続き608）：§6.2 段2 第16バッチ＝「〜の場合、代わりに」の置換が効かず両方実行されていた7効果
 
 **このバッチの肝は修正そのものより「触ってはいけない8効果」の識別**だった。

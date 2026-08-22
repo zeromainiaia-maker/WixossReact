@@ -3390,6 +3390,24 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
     return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, prevent_opp_guard: true } },
       '相手はこのアタックの間【ガード】できない'));
   }
+  // §6.4 O-41: レベルが**実行時にしか決まらない**ガード制限。
+  //   `GUARD_LV_DECLARED`    ＝「対戦相手は宣言された数字と同じレベルのシグニで【ガード】ができない」
+  //   `GUARD_LV_LAST_DOWNED` ＝「対戦相手はこの方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない」
+  // ⚠**書き込み先は効果元（`ctx.ownerState`）**＝`GuardResponseDialog` は防御側から見た
+  //   `op.declared_guard_restrict_levels` を読む。`a.target.owner`（＝相手）側に書くと誰も読まない。
+  // ⚠**レベルが確定しないときは制限を課さない**（fail-open ではなく「制限なし」）＝
+  //   ここで素の `GUARD` に倒すと「ガードそのものができない」に化ける（この機構が直した過剰実行そのもの）。
+  if (a.actionId === 'GUARD_LV_DECLARED' || a.actionId === 'GUARD_LV_LAST_DOWNED') {
+    const levelOf = (cn: string): number => parseInt(ctx.cardMap.get(cn)?.Level ?? '', 10);
+    const found = a.actionId === 'GUARD_LV_DECLARED'
+      ? [ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level]
+      : (ctx.lastProcessedCards ?? []).map(levelOf);
+    const levels = found.filter((n): n is number => typeof n === 'number' && Number.isFinite(n));
+    if (levels.length === 0) return done(addLog(ctx, 'ガード制限のレベルが未確定＝制限は課されない'));
+    const merged = [...new Set([...(ctx.ownerState.declared_guard_restrict_levels ?? []), ...levels])];
+    return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, declared_guard_restrict_levels: merged } },
+      `対戦相手はレベル${levels.join('・')}のシグニで【ガード】ができない`));
+  }
   // シグニへのアタックブロック（ATTACK）は keyword_grants 経由で処理する。
   // blocked_actions に 'ATTACK'（カードIDなし）で追加しても CPU の
   // 'ATTACK:${topId}' チェックと一致しないため。また、CPU ターン開始の
@@ -3472,7 +3490,11 @@ function execBlockAction(a: BlockActionAction, ctx: ExecCtx): ExecResult {
   const id = a.until === 'NEXT_TURN' ? `${a.actionId}:NEXT_TURN` : a.actionId;
   const blocked = [...(state.blocked_actions ?? []), id];
   const newS: PlayerState = { ...state, blocked_actions: blocked };
-  const baseId = a.actionId.replace(/^PLAY_SIGNI_POWER_(\d+)_OR_MORE$/, 'パワー$1以上のシグニ出し封じ');
+  const baseId = a.actionId
+    .replace(/^PLAY_SIGNI_POWER_(\d+)_OR_MORE$/, 'パワー$1以上のシグニ出し封じ')
+    // §6.4 O-41: レベル限定つきガード禁止（`GUARD_MAX_LV<n>` ＝n以下／`GUARD_LV<n>[_<m>…]` ＝ちょうど・列挙）。
+    .replace(/^GUARD_MAX_LV(\d+)$/, 'レベル$1以下のシグニでガード封じ')
+    .replace(/^GUARD_LV(\d+(?:_\d+)*)$/, (_m, lv: string) => `レベル${lv.split('_').join('・')}のシグニでガード封じ`);
   const label = BLOCK_ACTION_LABELS[baseId] ?? baseId;
   const who = a.target.owner === 'self' ? '自分' : '相手';
   const until = a.until === 'END_OF_TURN' ? '（ターン終了時まで）' : a.until === 'NEXT_TURN' ? '（次の自分ターンまで）' : '';
@@ -4010,30 +4032,32 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
       continue;
     }
     // DECLARE_NUMBER: 数字を宣言し、次のGRANT_KEYWORD(シャドウ:{declaredNumberPowerEq:true})に反映
-    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'DECLARE_NUMBER') {
-      const nextDN = i + 1 < a.steps.length ? a.steps[i + 1] : undefined;
+    // ⚠**この横取りは「次が GRANT_KEYWORD」＝シャドウのパワー宣言のときだけ**。
+    // 🔴**2026-08-22（§6.4 O-41）まで、それ以外は `continue` で宣言そのものを黙って飛ばしていた**＝
+    //   `SEQUENCE` の中の `DECLARE_NUMBER` は**一度も数字を宣言しないまま**後段へ進み、宣言値を読む
+    //   `levelEqDeclaredNumber` / `DECK_TOP_CHECK_LEVEL_*` / `useDeclaredCount` が軒並み空振りしていた
+    //   （live で `DECLARE_NUMBER` を持つ30カードのほとんどがこの形）。裸の `DECLARE_NUMBER` だけが
+    //   `execStub` 側の CHOOSE に届いていたので、golden も片側しか踏んでいなかった。
+    //   フォールバックは**素通りではなく通常の STUB 実行**＝下の汎用ステップ実行に落として CHOOSE を出す。
+    if (step.type === 'STUB' && (step as import('../types/effects').StubAction).id === 'DECLARE_NUMBER'
+        && i + 1 < a.steps.length && a.steps[i + 1]?.type === 'GRANT_KEYWORD') {
+      const grantDN = a.steps[i + 1] as GrantKeywordAction;
       const remaining = a.steps.slice(i + 2);
       const cont: EffectAction | undefined = remaining.length > 0
         ? (remaining.length === 1 ? remaining[0] : { type: 'SEQUENCE', steps: remaining } as SequenceAction)
         : undefined;
-      if (nextDN?.type === 'GRANT_KEYWORD') {
-        const grantDN = nextDN as GrantKeywordAction;
-        const powerValues = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000, 20000];
-        const optsDN = powerValues.map(pw => ({
-          id: String(pw),
-          label: String(pw),
-          available: true,
-          action: (cont
-            ? { type: 'SEQUENCE', steps: [{ ...grantDN, keyword: encodeShadowKeyword({ powerEq: pw }) } as EffectAction, cont] } as SequenceAction
-            : { ...grantDN, keyword: encodeShadowKeyword({ powerEq: pw }) }) as EffectAction,
-        }));
-        return needsInteraction(addLog(cur, '数字を宣言してください（シャドウが適用されるパワー）'), {
-          type: 'CHOOSE', options: optsDN, count: 1,
-        });
-      }
-      // GRANT_KEYWORD が続かない場合: 無条件シャドウとして付与し続行
-      cur = addLog(cur, '数字を宣言（スキップ：次ステップが GRANT_KEYWORD でないため）');
-      continue;
+      const powerValues = [1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000, 12000, 15000, 20000];
+      const optsDN = powerValues.map(pw => ({
+        id: String(pw),
+        label: String(pw),
+        available: true,
+        action: (cont
+          ? { type: 'SEQUENCE', steps: [{ ...grantDN, keyword: encodeShadowKeyword({ powerEq: pw }) } as EffectAction, cont] } as SequenceAction
+          : { ...grantDN, keyword: encodeShadowKeyword({ powerEq: pw }) }) as EffectAction,
+      }));
+      return needsInteraction(addLog(cur, '数字を宣言してください（シャドウが適用されるパワー）'), {
+        type: 'CHOOSE', options: optsDN, count: 1,
+      });
     }
     // 任意コストパターン: STUB(各種任意コスト) → CONDITIONAL(IS_MY_TURN|PAID_ADDITIONAL_COST)
     // IS_MY_TURN は旧パーサーのプレースホルダー、PAID_ADDITIONAL_COST は明示的な支払い結果条件。
@@ -6832,7 +6856,8 @@ function execMill(a: MILLAction, ctx: ExecCtx): ExecResult {
     : a.countPerStoredTargets !== undefined
     ? (ctx.storedTargetCards ?? []).length * a.countPerStoredTargets
     : a.useDeclaredCount
-    ? (ctx.ownerState.declared_guard_restrict_level ?? 0)
+    // 宣言値は `declared_number` が正（`declared_guard_restrict_level` は**ガード制限専用**へ分離した＝§6.4 O-41）。
+    ? (ctx.ownerState.declared_number ?? ctx.ownerState.declared_guard_restrict_level ?? 0)
     : a.countPlusLastDownedLrigLevelSum
     // 「この方法でダウンしたルリグのレベルの合計に１を加えた枚数」＝記録が無ければ 0体ダウン＝count のみ。
     ? a.count + (ctx.seqVars?.lastDownedLrigLevelSum ?? ctx.ownerState.last_lrig_down_level_sum ?? 0)

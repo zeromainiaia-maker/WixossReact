@@ -3933,6 +3933,28 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ### ㉛-1 旧「📊 恒久指標」の退避本文（続き548 以前の計測行＋旧指標）
 
+- **🆕 2026-08-22 続き608（段2 第16バッチまで＝続き603〜608 の6バッチ完了）後 最新値（本行が直近の正）**：
+  **census 730/730**（`BASELINE_HIGH` 更新済み・セッション開始時 742）、**golden 2366**（同 2350）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings**
+  （⚠**261 が正**＝続き605 の `BattleScreen.tsx` 改変で1本増えており、続き606 で訂正）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
+  `_held_fresh` **88**（同 92）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🔴**engine/UI の改変（セッション累計）**＝`DID_IT_GATED_TYPES` へ5型追加＋事前リセット（603）／
+  `AssassinScope` へ `powerGte`・`levelLte`（604）／`LancerScope` 新設と配線6箇所（605）／
+  `revealSourceStory`＋`hand_revealed_just_source_card_num`＋pure collector 抽出、
+  `collectDeckTrashSelfTriggers` のゲート、`collectMillTriggers` の fail-closed 化（607）／
+  `execPowerModify{targetsTriggerSource}` の `lastProcessedCards` 記録（608）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 947**／段2 消化 **141**／真バグ確定 934／
+  HIGH・MED・LOW＝**627・312・8**／段0 除去 232／段1 偽陽性 125。
+  📊**母集団の切り方＝5原則**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-41`／`O-42`／`O-43`／🆕`O-44`**。**§6.3 の新規は🆕`L`**（共通色比較）。
+  **Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋🆕`V-83`**（`WX24-P3-030-E1` のミル誘発）。
+
 - **旧・2026-08-18 続き548（§5d-0 (ii)＝コスト節の集合制約7効果＋盤面状態の条件節3効果）後 最新値**：**census 796**（799→796 実数更新・`BASELINE_HIGH` 更新済み）、**golden 2261**（+15＝`cost.energyTrash` の集合制約 live 7効果／`energyTrashCostSatisfied`・`canAddEnergyTrashIndex` の純関数契約（**制約違反は払えない・選べない**＋制約なしは従来どおり）／**支払いUI3経路すべてが共有判定を通る**ソース走査＋旧写経ゼロ／盤面状態の条件節 live 3効果／`checkActiveCondition` の負方向（覚醒していない・レベル違い）／**`isPuppet` でルリグを数えない** parity）、smoke **10693 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**（据置）、manual-fields **0**、被覆マトリクス miss **197 据置**（この層は census:wiring の語彙表に無い＝コスト節・条件節なので数字は動かない）。🆕**新設した関数**＝`energyTrashConstraintOf`（`effectParser.ts`）／`energyTrashCostSatisfied`・`canAddEnergyTrashIndex`・`energyTrashSelectedNums`（`screens/battle/costs.ts`）＝**新しい型も新しいアクション型も0本**（`SelectionConstraint` も `isAwakened`/`isPuppet` も既存）。**live JSON changed 10効果/10カード**（収穫マージ自動採用9＋held 採用1＝`WXK09-061`。CSV 非改変）。⚠**10効果すべて実機未検証**（§7 `V-72` 送り＝エナコストの集合制約は UI 層なので golden が踏めない）。
 - **旧・2026-08-18 続き547（§5d-0 (i) 第20バッチ＝「それぞれ〜異なる」の軸取り違え7効果＋「傀儡状態で場に出す」8効果）後 最新値**：**census 799 据置**（ベースライン 799）、**golden 2246**（+21＝`DISTINCT_BATCH5C` の全40件で「表の値＝原文から導いた値」／`distinctConstraintOf` の4軸／live 7効果の実値／傀儡 live 8効果の STUB 化＋絞り込み＋旧形（自分トラッシュ ADD_TO_FIELD）へ戻っていないこと／`WXEX2-23-E4` の `suppressOnPlay` 畳み込み／engine の `puppetParams.filter` が候補を絞ること＋filter 無しは従来どおり／連体「傀儡状態の」がトリガー文のままであること）、smoke **10693 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、lint **0 errors**（264 warnings）、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**（据置）、manual-fields **0**、🆕**被覆マトリクス miss 242→197**（`npm run census:wiring`。⚠PLAN 旧記載の 541／291 は古い）。🆕**新設した関数**＝`inferDistinctKind`／`distinctConstraintOf`（`effectParser.ts`・export）＝**新しいアクション型も新しい engine 経路も0本**（`STEAL_OPP_TRASH_PUPPET` は既存・足したのは `puppetParams.filter` 1キーだけ）。**live JSON changed 15効果/15カード**（held 採用14＋`_partial_fresh` から外科パッチ1＝`WXEX2-23-E4`。CSV 非改変）。⚠**15効果すべて実機未検証**（§7 `V-71` 送り＝傀儡8効果。「それぞれ〜異なる」7効果は選択集合制約なので UI 側の拒否挙動が要確認）。
 - **旧・2026-08-18 続き546（🏁🏁**Opusタスク12 在庫0**＝engine/parser の実バグ4件を修正・2件は実体消滅を確認）後 最新値**：**census 799 据置**（ベースライン 799）、**golden 2225**（+4＝旧形式 `signi_acce` を1枚として扱う全経路／ルリグ【起】《ダウン》の母集団27件と自己ダウン支払い／`ON_HAND_ADDED` の owner 2軸＋付与ストア end-to-end＋対照の非反転／エナ差分 watcher の母集団9件＋**ソース照合で push 地点3つ**）、smoke **10693 / SKIP 0**、fuzz 全0、**同型★ 0**（265群）、lint **0 errors**、`census:stubs` **A群 4種/5件（すべて明示 defer・無言 no-op 0）／C群 0**（据置）、manual-fields **0**、`parserWorklist` held **122**（据置）。🆕**新設した関数**＝`normalizeAcceSlot`／`normalizeAcceSlots`（`src/utils/acce.ts`）・`payLrigDownSelfCost`（`screens/battle/lrigDownCost.ts`）＝**新しい型も新しい engine 経路も0本**。**live JSON changed 1効果/1カード**（`SPDi43-11`。CSV 非改変）。🆕**挙動是正 37効果**（ルリグ【起】《ダウン》27＝実質無コスト／エナ差分 watcher 9＝撃ち放題／`SPDi43-11-sub-E1` 1＝恒久 no-op）＋**旧形式 `signi_acce` のデータ破壊**。⚠**5件とも実機未検証**（§7 `V-66`〜`V-70` 送り）。
@@ -4042,6 +4064,89 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 > 1. **自分のモデル側のタスク表（§3）から取る**。**Opus の主戦場＝§6.3 の機構実装（機構単位・実IDは `docs/_p1_classification.txt`）＋タスク12 の生き残り在庫**＝🏁**現存0件**（2026-08-08 に (cxv)(cxiii)(cxiv)(cxvii)(cxviii) を残0クローズ＝受け口は空。⚠この行が挙げていた (lv)/(lxvi)/(lxxxviii)/(xciii)/(xciv)/(xcvi)/(xcvii)/(c) は 2026-08-06 に全件残0クローズ済み＝§3 の在庫表が正）。**🏁(xcii)(xcv)(lxvii)(xcviii)(lxviii)(xcix) は 2026-08-04 に残0クローズ**。**(lxx)／(lxxviii)／(lxxxiii)／🏁(lxxxii) は 2026-08-02 に残0クローズ＝§3 の表から退避済み**（完了行原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-02 整理③」）。それ以外の残0在庫の完了行原文は同ファイルの各整理節。**🏁タスク16 も残0クローズ**。**Sonnet の主力は タスク1（§7 実機検証）**＝未検証UIの単一 worklist は §7 に集約。⚠**§6.3 H と続き298〜Batch F の全件が UI 未検証**。
 > 2. **手順はスキルに従う**＝`/audit-card <CardNum>`（BEHAVIOR_AUDIT 1カード監査1巡）・`/baton`（セッション終了時の簿記）。散文の記憶で回さない。⚠`/census-batch` は P1宣言により**新規バッチを切らない**（census 外の計器から新系統が見つかった場合のみ）。
 > 3. **engine/parser/decompiler を触ったら `npm run gates`・シート再生成は `npm run regen`**（§12）。バグは golden に1件足してから直す。
+
+## 2026-08-22 整理51：§6.4 `O-41`（レベル限定つき【ガード】禁止）の残0クローズ（続き609）
+
+**登録行の原文（PLAN §6.4 から退避）**
+
+> | **O-41** | 🔴**「〈限定〉のシグニで【ガード】ができない」の限定が型にも engine にも無い** | M | **2026-08-22 続き594 実測＝live 10効果**（`WD15-010-E1`／`WDK05-T09-E1(-G)`／`WX01-004-E3`／`WX18-039-E1`／`WX18-040-E1`＝レベル固定・以下・列挙／`WX10-009-E3`／`WX19-054-E1`／`WD21-009-E1`＝**宣言された数字と同じレベル**／`WXEX2-01-E2`＝**この方法でダウンしたシグニと同じレベル**）。`BlockActionAction` に `filter` が無く、**全部「相手はガードそのものができない」に化けている**＝原文より遥かに強い過剰実行。⚠**parser だけでは直せない**＝①型に限定を足す ②ガード宣言UI／engine のガード可否判定がその限定を読む、の2点セット。動的形（宣言数字・この方法でダウンした）は `resolveDynamicFilter` の既存語彙（`levelEqLastDownedLrig` 等）と同じ枠で解ける見込み |
+
+### ⚠ 登録時の母集団は「10効果」だったが、実測は **6効果**（CODEX_GUIDE §5 の5原則③⑤をそのまま踏んだ）
+
+着手前に CSV（`grep 'ガード】ができない'`）と live JSON の**両方**を数え直したところ、登録行の10件のうち **4件は着手不要**だった：
+
+| 登録された効果 | 実測 | 理由 |
+|---|---|---|
+| `WX01-004-E3` | ✅既に正しい | 原文「レベル２以下」＝`GUARD_MAX_LV2` が**従来から実装済み** |
+| `WX18-040-E1` | ✅既に正しい | 同上（`GUARD_MAX_LV1`） |
+| `WD21-009-E1` | ✅既に正しい | `MANUAL` で `STUB{DECLARE_TWO_GUARD_LEVELS}` を使っており **`BLOCK_ACTION` を持たない**。登録時は JSON の先頭300字だけを見て「素の GUARD」と誤認していた（原則③＝完全一致で数えない） |
+| `WDK05-T09-E1` / `-E1-G` | 実体1件 | 同一カードの外側【常】と内側【起】＝**1効果を2行に数えていた** |
+
+⇒ **真に壊れていたのは6効果**（`WD15-010-E1` `WDK05-T09-E1-G` `WX18-039-E1` `WX10-009-E3` `WX19-054-E1` `WXEX2-01-E2`）。
+
+### 受け皿は「半分建っていた」＝設計判断は**型フィールドではなく actionId の文字列**
+
+登録行の見立て（「①型に限定を足す ②UI が読む」の2点セット）は**半分だけ正しかった**。実測すると：
+
+- `GUARD_MAX_LV<n>`（レベル n **以下**）は **parser → `blocked_actions` → `GuardResponseDialog`** が既に通っていた。
+- 動的形の受け皿も既にあった＝`declared_guard_restrict_level(s)` と `ADD_DECLARED_GUARD_LEVEL`。
+
+🔑**`BlockActionAction` に型フィールドを足す案は却下した**。理由＝**常在（【常】）側は `calcContinuousBlockedActions` が
+`ContinuousBlockResult.forSelf`＝`Set<string>` で actionId だけを運ぶ**ので、型フィールドを足しても
+`WX18-039`（【常】・レベル２とレベル３）には**届かない**。既存の `GUARD_MAX_LV<n>` が文字列語彙なのも同じ理由。
+
+**足した語彙（4種）**
+| actionId | 意味 | 解決 |
+|---|---|---|
+| `GUARD_LV<n>` | そのレベル**ちょうど** | parse 時 |
+| `GUARD_LV<n>_<m>…` | レベルの**列挙**（`GUARD_LV2_3`） | parse 時 |
+| `GUARD_LV_DECLARED` | 宣言された数字と同じレベル | 実行時（`declared_number`） |
+| `GUARD_LV_LAST_DOWNED` | この方法でダウンしたシグニと同じレベル | 実行時（`lastProcessedCards`） |
+
+**触った場所**
+- `src/data/parsers/parseSentencePart1.ts` ガード不可ルール＝5分岐。⚠**列挙を「ちょうど1つ」より先に**判定する（逆順だと `レベル３` だけ拾ってレベル２が落ちる＝過小）。
+- `src/engine/effectExecutor.ts` `execBlockAction`＝動的2種を先取りし、効果元（`ctx.ownerState`）の `declared_guard_restrict_levels` へ積む。⚠**レベル未確定なら制限を課さない**（素の `GUARD` へ倒すと O-41 が直した過剰実行に戻る）。ログラベルも `GUARD_*` を日本語化。
+- `src/screens/battle/guard.ts` `makeGuardLevelBlocker`＝**消費地点を純関数へ切り出し**（§5-20 の定石）。JSX の中に置くと golden から両方向を検証できない。
+- `src/screens/battle/modals/GuardResponseDialog.tsx`＝その純関数を呼ぶだけに縮小。
+- `scripts/decompileEffects.ts`＝`GUARD_MAX_LV<n>` の**表引き（LV1/LV2 だけの2行）を regex 化**。⚠表に無いレベルが出た瞬間に生の英語 id が逆翻訳へ漏れるため、表を増やす方式へ戻さない。
+
+### 🔴 派生で見つけた無言 no-op：`SEQUENCE` 内の `DECLARE_NUMBER` が**一度も宣言していなかった**
+
+`GUARD_LV_DECLARED` の E2E を書いたら `declared_number` が `undefined` のままで、ログに
+**「数字を宣言（スキップ：次ステップが GRANT_KEYWORD でないため）」** が出ていた。
+
+`execSequence`（`effectExecutor.ts`）は `STUB{DECLARE_NUMBER}` を横取りし、**次ステップが `GRANT_KEYWORD`
+（＝シャドウのパワー宣言）でなければ `continue` で宣言そのものを捨てていた**。
+`DECLARE_NUMBER` を持つ live 30カードの**ほとんどが `SEQUENCE` の中**なので、
+宣言値を読む後段（`levelEqDeclaredNumber` / `DECK_TOP_CHECK_LEVEL_*` / `useDeclaredCount`）が**軒並み空振り**していた。
+
+⚠**裸の `DECLARE_NUMBER` だけは `execStub` 側の CHOOSE に届く**ので、golden も片側しか踏んでおらず
+（`(xlvi)(c)` は裸で実行していた）**計器に一切映らなかった**。
+⇒ 横取りを「次が `GRANT_KEYWORD` のときだけ」に絞り、それ以外は**素通りではなく通常の STUB 実行へ落とす**。
+
+### 巻き添えの解消：宣言値とガード制限のフィールドを分けた
+
+旧 `SET_DECLARED_NUMBER` は宣言値を **`declared_guard_restrict_level`（＝ガード制限）** へ書いていた。
+`DECLARE_NUMBER` を使う30カードのうち**原文にガード制限があるのは2枚だけ**（`WX10-009`／`WX19-054`）で、
+消費 funnel（`consumeDeclaredGuardRestrictLevel`）を通るのは `DECK_TOP_CHECK_LEVEL_HAND` **1本きり**だった。
+
+⇒ **宣言値は `declared_number` / ガード制限は `declared_guard_restrict_level(s)`** と役割を分離し、
+読み手5箇所を `declared_number ?? declared_guard_restrict_level` へ（後方互換のフォールバック付き）。
+ガード制限は原文に該当文がある2枚だけが `BLOCK_ACTION{GUARD_LV_DECLARED}` で**明示的に**立てる。
+
+### 計器
+
+golden **2366→2375**（+9・O-41 で8本＋既存契約テスト1本を新契約へ書き換え）。
+census 730/730 据置・smoke 10693 全異常0／SKIP 0・fuzz 全0・`census:stubs` A群🔴0／C群0・manual-fields 0・lint 0 errors / 261 warnings。
+逆翻訳（`npm run regen`）で6効果とも**原文どおりの日本語**が出ることを確認済み。
+
+### ⚠ 次に触る人へ
+
+- `census:wiring` の **`levelExact × BLOCK_ACTION{PLAYER}`（miss=3 / has=0）は恒久的な偽陽性**。
+  `target.filter.level` を足して黙らせないこと（`target` は `PLAYER` で、レベルが属するのはガードする側のカード）。
+- 実機観測点は §7 **`V-84`**（レベル限定がUIで効くか）と **`V-85`**（宣言 UI が新しく30カードで出る）。
+  ⚠`V-85` は**入力待ちが新規に発生する変更**なので、CPU・自動解決経路で止まらないかを実機で見る。
+
 
 ## 2026-08-20 整理㊾（Opusタスク12 第1バッチ＝配線漏れ6件の残0クローズ・登録行の原文を退避）
 
