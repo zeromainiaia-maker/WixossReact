@@ -1,0 +1,236 @@
+=== 段1 第24バッチ（単発）＝全軸 の 1〜43件目 ===
+残 43件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WX06-013-E1  [MED/WRONG]  後悔の公開　アン＝サード  action=REVEAL_AND_PICK  軸=順序/構造
+  原文: 【出】：あなたのデッキの上からカードを２枚公開する。その中から＜美巧＞のシグニ１枚を手札に加える。残りを好きな順番でデッキの一番上か一番下に置く。
+  指摘: 「一番上か一番下に置く」 残りのカードを好きな順番でデッキの一番上または一番下に置く選択が、すべて一番上に置く処理になっている。
+  live: {"effectId":"WX06-013-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":2,"filter":{"cardType":"シグニ","story":"美巧"},"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S002】 WXDi-CP02-005-E1  [HIGH/MISSING]  連邦生徒会  action=REVEAL_AND_PICK  軸=action丸ごと欠落
+  原文: あなたのデッキの上からカードを３枚見る。その中から＜ブルアカ＞のシグニ１枚を公開し手札に加え、残りを好きな順番でデッキの一番下に置く。この方法で公開した生徒との絆を獲得する。（その生徒の【絆】能力が有効になる）
+  指摘: 「公開した生徒との絆を獲得」 公開して手札に加えた生徒との絆を獲得する処理がJSONにない。
+  live: {"effectId":"WXDi-CP02-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"filter":{"story":"ブルアカ","cardType":"シグニ"},"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S003】 WXK02-070-E1  [HIGH/WRONG]  仁の遊　ヘンガオ  action=SEARCH  軸=順序/構造
+  原文: 【出】：あなたのデッキからレベル２以下のシグニ１枚を探してもよい。そうした場合、デッキをシャッフルし、そのシグニを公開しデッキの一番上に置く。
+  LB  : ：カードを１枚引く。
+  指摘: 「シャッフルし、そのシグニを」 原文はデッキをシャッフルしてから選んだシグニを一番上に置くが、JSONはシグニを一番上に置いた後でafterSearchのシャッフルを行う順序になっている。
+  live: {"effectId":"WXK02-070-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":2}},"maxCount":1,"upToTarget":true,"revealPicked":true,"then":{"type":"TRANSFER_TO_DECK","source":{"type":"DECK_CARD","owner":"self","count":1},"shuffle":false,"position":"top"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S004】 WXK03-049-E1  [HIGH/WRONG]  讃の遊　ゴムショット  action=SEARCH  軸=順序/構造
+  原文: 【出】：あなたのデッキから＜遊具＞のシグニ１枚を探してもよい。そうした場合、デッキをシャッフルし、そのシグニを公開しデッキの上から一番目かニ番目に置く。
+  LB  : ：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  指摘: 「デッキをシャッフルし、そのシグニを」 原文はデッキをシャッフルしてからサーチしたシグニを一番目か二番目に置くが、JSONはシグニを置いた後にafterSearchでデッキをシャッフルする順序になっている。
+  live: {"effectId":"WXK03-049-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"遊具"},"maxCount":1,"upToTarget":true,"revealPicked":true,"then":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"top","label":"デッキの一番上に置く","action":{"type":"TRANSFER_TO_DECK","source":{"type":"DECK_CARD","owner":"self","count":1},"shuffle":false,"position":"top"}},{"choiceId":"second","label":"デッキの上から二番目に置く","action":{"type":"TRANSFER_TO_DECK","source":{"type":"DECK_CARD","owner":"self","count":1},"shuffle":false,"position":"second"}}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration"
+==============================================================================
+【S005】 WX20-046-E3  [HIGH/MISSING]  幻獣　ゾウガメ  action=SEND_TO_ENERGY  軸=アタック状態
+  原文: 《クロスアイコン》《幻獣　ウサ》の右【クロス常】：このシグニの基本パワーは20000になる。【自】《ターン１回》：あなたがエナゾーンからカード１枚を手札に加えたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【自】：あなたの緑のシグニ１体がアタックしたとき、対戦相手のシグニ１体を対象とし、アタックしたそのシグニのパワーが20000以上の場合、それをエナゾーンに置く。
+  LB  : ：対戦相手のパワー8000以上のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「パワーが20000以上の場合」 アタックした緑のシグニのパワーが20000以上である場合に限る条件がJSONにない。
+  live: {"effectId":"WX20-046-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_ally","triggerFilter":{"color":"緑"}}
+==============================================================================
+【S006】 WX24-P3-086-E1  [HIGH/WRONG]  写本  action=SEQUENCE(SEQUENCE/ADD_TO_FIELD/ENERGY_CARD)  軸=duration
+  原文: あなたのエナゾーンから＜美巧＞のシグニ１枚を対象とし、それを場に出す。次の対戦相手のターン終了時まで、それのパワーを＋2000する。
+  LB  : ：【エナチャージ１】をする。その後、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加えるか場に出す。
+  指摘: 「次の対戦相手のターン終了時まで、それ」 パワー＋2000の対象が直前にエナゾーンから場へ出したシグニに関連付けられず、任意のプレイヤーのシグニを対象にできるJSONになっています。
+  live: {"effectId":"WX24-P3-086-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"美巧"}}},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":2000,"duration":"UNTIL_OPP_TURN_END"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S007】 WX20-039-CB-E1  [MED/MISSING]  丹乃遊　≡ハッカドール２号≡  action=SEQUENCE(SEQUENCE/ADD_TO_FIELD/HAND_CARD)  軸=filter.power
+  原文: 【出】：対戦相手のパワー5000以下のシグニ１体を対象とし、あなたの手札から赤ではないレベル３以下の＜遊具＞のシグニ１枚を場に出してもよい。そうした場合、その対戦相手のシグニをバニッシュする。
+  指摘: 「パワー5000以下のシグニ１体」 バニッシュ対象を対戦相手のパワー5000以下のシグニに限定する条件が欠落している。
+  live: {"effectId":"WX20-039-CB-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3},"story":"遊具","colorExclude":"赤"}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S008】 WX20-063-E3  [HIGH/MISSING]  羅原　Ｘｅ  action=SEQUENCE(SEQUENCE/BANISH/SIGNI)  軸=filter.cardName
+  原文: 【自】：対戦相手がスペルを使用したとき、対戦相手は手札を１枚捨てる。【出】他の＜原子＞のシグニ１体を場からトラッシュに置く：あなたのデッキからコストの合計が０のスペル１枚を探して公開し手札に加え、デッキをシャッフルする。【起】《アタックフェイズアイコン》《青×0》：あなたのカード名に《Ne》を含むシグニ１体とこのシグニをバニッシュする。そうした場合、対戦相手のすべてのシグニをバニッシュする。
+  指摘: 「《Ne》を含むシグニ１体と」 このシグニに加えて、カード名に《Ne》を含む自分のシグニ1体をバニッシュする処理が欠落している。
+  live: {"effectId":"WX20-063-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S009】 WX20-050-E1  [MED/MISSING]  大拳　ニャックル  action=SEQUENCE(SEQUENCE/BANISH/SIGNI)  軸=filter.cardName
+  原文: 【自】：このシグニがアタックしたとき、あなたのカード名に《ニャローブ》を含むシグニ１体をバニッシュしてもよい。そうした場合、このシグニをアップする。【自】：対戦相手のターンの間、このシグニが場を離れたとき、あなたのデッキからカード名に《ニャローブ》を含むシグニ１枚を探して公開し手札に加えるか場に出し、デッキをシャッフルする。
+  指摘: 「《ニャローブ》を含むシグニ」 バニッシュ対象をカード名に《ニャローブ》を含む自分のシグニに限定するフィルターがない。
+  live: {"effectId":"WX20-050-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S010】 WX11-046-E2  [HIGH/MISSING]  幻獣　アクティルフ  action=SEQUENCE(SEQUENCE/BANISH/SIGNI)  軸=filter.power
+  原文: 《クロスアイコン》《幻獣　アクティックス》の左【出】：あなたの＜空獣＞か＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000する。【クロス自】：このシグニが《ヘブン》したとき、あなたのシグニ１体を対象とし、それをバニッシュする。その後、それのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  LB  : ：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  指摘: 「それのパワー以下」 2体目のバニッシュ対象を、先にバニッシュした自分のシグニのパワー以下に限定する条件が欠落している。
+  live: {"effectId":"WX11-046-E2","effectType":"AUTO","timing":["ON_HEAVEN"],"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","crossOnly":true}
+==============================================================================
+【S011】 WX25-P2-054-E1  [HIGH/EXTRA]  コードハート　ＤンドウバＶ２  action=SEQUENCE(SEQUENCE/CONDITIONAL/HAS_CARD_IN_FIELD)  軸=順序/構造
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《ララ・ルーThird》がいる場合、対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。このシグニが覚醒状態の場合、代わりに対戦相手のパワー13000以下のシグニ１体を対象とし、それをバニッシュする。【自】：このシグニがアタックしたとき、あなたの場に他の＜電機＞のシグニがあり対戦相手のエナゾーンにカードが２枚以上ある場合、対戦相手は自分のエナゾーンからカード１枚を選びトラッシュに置く。
+  指摘: 「覚醒状態の場合、代わりに」 覚醒状態の判定と「代わりに」の分岐がなく、通常の5000以下バニッシュに加えて13000以下のシグニも常にバニッシュします。
+  live: {"effectId":"WX25-P2-054-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"ララ・ルーThird"}},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false}}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":13000}},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S012】 SP27-012-E1  [HIGH/WRONG]  悲劇の予言　§テティス§  action=SEQUENCE(SEQUENCE/DRAW)  軸=順序/構造
+  原文: 【自】：このシグニがアタックしたとき、あなたの場にこのシグニと共通する色を持たない他の＜天使＞のシグニがある場合、カードを１枚引く。あなたの場にそれぞれ共通する色を持たない＜天使＞のシグニが３体ある場合、代わりにカードを２枚引く。
+  指摘: 「代わりにカードを２枚引く」 天使の色に関する各条件と置換処理がなく、アタック時に無条件で合計3枚引く効果になっている。
+  live: {"effectId":"SP27-012-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"DRAW","owner":"self","count":2}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S013】 WXDi-P12-081-E1  [HIGH/WRONG]  翠英　マッドグ//ディソナ  action=SEQUENCE(SEQUENCE/ENERGY_CHARGE_FROM_DECK)  軸=順序/構造
+  原文: 【自】：このシグ二がアタックしたとき、【エナチャージ１】をする。このシグニのパワーが15000の場合、代わりに【エナチャージ２】をする。
+  指摘: 「15000の場合、代わりに」 原文は通常エナチャージ1、パワー15000なら代わりに2だが、JSONは条件なしで1と2を連続実行して合計3枚をチャージする。
+  live: {"effectId":"WXDi-P12-081-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S014】 WX15-057-E1  [HIGH/WRONG]  コードイート　バーガー  action=SEQUENCE(SEQUENCE/ENERGY_CHARGE_FROM_DECK/DRAW)  軸=filter.hasIcon
+  原文: 【起】《ダウン》：あなたのデッキの一番上のカードをエナゾーンに置く。それが《アクセアイコン》を持つシグニの場合、追加でカードを１枚引く。
+  指摘: 「それが《アクセアイコン》を持つ」 原文ではエナゾーンに置いたカードが《アクセアイコン》を持つシグニの場合だけ1枚引くが、JSONでは条件なしで必ず引く。
+  live: {"effectId":"WX15-057-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WXDi-P04-079-E1  [HIGH/MISSING]  豪槍  action=SEQUENCE(SEQUENCE/GRANT_KEYWORD/SIGNI)  軸=filter.power
+  原文: あなたのシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。ターン終了時まで、対戦相手のすべてのシグニは能力を失い、それらの基本パワーを10000にする。
+  LB  : ：どちらか１つを選ぶ。①ターン終了時まで、あなたのすべてのシグニのパワーを＋10000する。②あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一番下に置く。
+  指摘: 「基本パワーを10000にする」 対戦相手のすべてのシグニの基本パワーをターン終了時まで10000にする処理が欠落している。
+  live: {"effectId":"WXDi-P04-079-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"白","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"UNTIL_END_OF_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WD06-009-E2  [MED/WRONG]  幻水　シィラ  action=SEQUENCE(SEQUENCE/LIFE_CRASH/ADD_TO_LIFE)  軸=順序/構造
+  原文: 【常】：あなたのライフクロスが対戦相手より少ないかぎり、あなたのシグニのパワーを＋1000する。【出】《青》：あなたのライフクロス１枚をクラッシュする。この方法でチェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにそれをトラッシュへ置きあなたのデッキの一番上のカードをライフクロスに加える。
+  LB  : ：カードを２枚引き、手札を１枚捨てる。
+  指摘: 「エナゾーンに置かれる場合」 デッキ上からライフクロスを加える処理は置換が成立した場合だけ行うが、JSONではクラッシュ後に無条件で行われる。
+  live: {"effectId":"WD06-009-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WD06-009-E2  [HIGH/WRONG]  幻水　シィラ  action=SEQUENCE(SEQUENCE/LIFE_CRASH/ADD_TO_LIFE)  軸=順序/構造
+  原文: 【常】：あなたのライフクロスが対戦相手より少ないかぎり、あなたのシグニのパワーを＋1000する。【出】《青》：あなたのライフクロス１枚をクラッシュする。この方法でチェックゾーンに置かれたカードがエナゾーンに置かれる場合、代わりにそれをトラッシュへ置きあなたのデッキの一番上のカードをライフクロスに加える。
+  LB  : ：カードを２枚引き、手札を１枚捨てる。
+  指摘: 「代わりにそれをトラッシュへ置き」 クラッシュしたカードをエナゾーンに置く代わりにトラッシュへ置く置換処理がなく、JSONは単にライフクロスをクラッシュして補充している。
+  live: {"effectId":"WD06-009-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S018】 WX12-004-E1  [MED/WRONG]  龍導波  action=SEQUENCE(SEQUENCE/LIFE_CRASH/CONDITIONAL)  軸=順序/構造
+  原文: 対戦相手のシグニ１体を対象とし、あなたのライフクロス１枚をクラッシュする。そうした場合、それをバニッシュする。あなたのセンタールリグが＜ユヅキ＞で、この方法でクラッシュしたカードが【ライフバースト】を持っていた場合、あなたのデッキの一番上のカードをライフクロスに加える。（ライフバーストはアーツの処理後に発動する）
+  指摘: 「それをバニッシュする」 原文では先に対象としたシグニをバニッシュするが、JSONはライフクロスのクラッシュ後に改めて対象を選ぶため、対象の固定が表現されていない。
+  live: {"effectId":"WX12-004-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":1},{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true},{"type":"SEQUENCE","snapshotLastProcessedForConditionals":true,"steps":[{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":1},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}},{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"LRIG_NAME_CONTAINS","owner":"self","name":"ユヅキ"},{"type":"LAST_PROCESSED_HAS_BURST"}]},"then":{"type
+==============================================================================
+【S019】 WDK06-R01-E2  [HIGH/MISSING]  凛武の記憶　リル  action=SEQUENCE(SEQUENCE/LOOK_PICK_CHAIN/BANISH)  軸=filter.power
+  原文: 【常】：あなたのターンの間、あなたの＜アーム＞のシグニのパワーを＋3000する。【出】：あなたのデッキの上からカードを３枚見る。その中から＜アーム＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。その後、この方法で場に出たシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：あなたの場に《メル＝マドラー》がいる場合、【エナチャージ２】をする。
+  指摘: 「場に出たシグニのパワー以下」 バニッシュ対象に、この方法で場に出したシグニのパワー以下という条件が欠落している。
+  live: {"effectId":"WDK06-R01-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":3,"stages":[{"filter":{"cardType":"シグニ","story":"アーム"},"pickCount":1,"then":"field"}],"remainder":{"location":"deck","position":"bottom"}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S020】 WX25-P1-079-E1  [HIGH/WRONG]  交差の飛来  action=SEQUENCE(SEQUENCE/LOOK_PICK_CHAIN/INSTALL_DELAYED_TRIGGER)  軸=owner/主語
+  原文: あなたのデッキの上からカードを５枚見る。その中から＜ウェポン＞のシグニ１枚を場に出し、残りを好きな順番でデッキの一番下に置く。次のあなたのアタックフェイズ開始時、次の対戦相手のターン終了時まで、あなたのクロス状態のすべてのシグニのパワーを＋3000する。
+  LB  : ：対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「クロス状態のすべてのシグニ」 パワー修正の対象が自分のクロス状態の全シグニではなく、所有者不問のシグニ1体になっている。
+  live: {"effectId":"WX25-P1-079-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","story":"ウェポン"},"pickCount":1,"then":"field"}],"remainder":{"location":"deck","position":"bottom"}},{"type":"INSTALL_DELAYED_TRIGGER","duration":"THIS_TURN","trigger":{"timing":"ON_ATTACK_PHASE_START"},"effect":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":3000,"duration":"UNTIL_OPP_TURN_END"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S021】 WXDi-P09-074-E1  [HIGH/WRONG]  幻水　ウツボ  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=順序/構造
+  原文: 【出】：あなたのシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000する。あなたの手札が５枚以上ある場合、代わりにターン終了時まで、それのパワーを＋5000する。【出】《コインアイコン》《コインアイコン》：あなたのエナゾーンからシグニ１枚を対象とし、それを手札に加える。
+  LB  : ：【エナチャージ１】をする。このターン、次にあなたがシグニによってダメージを受ける場合、代わりにダメージを受けない。
+  指摘: 「５枚以上ある場合、代わりに」 手札が5枚以上なら＋3000の代わりに＋5000する効果だが、JSONは条件なしで＋3000と＋5000を両方実行し、後者の対象も自分の同じシグニに限定していない。
+  live: {"effectId":"WXDi-P09-074-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":3000},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":5000}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S022】 WXDi-P09-055-E1  [HIGH/WRONG]  ハウリング・シャウト  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=filter.cardName
+  原文: あなたのシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋5000する。それが《コードハート　LION//メモリア》か《幻獣　LOVIT//メモリア》か《爆砲　WOLF//メモリア》の場合、それは覚醒する。
+  LB  : ：対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。
+  指摘: 「それが《コードハート」 覚醒処理に指定された3種類のカード名である条件がなく、対象とした任意のシグニが覚醒する。
+  live: {"effectId":"WXDi-P09-055-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":5000,"duration":"UNTIL_OPP_TURN_END"},{"type":"AWAKEN_SIGNI"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S023】 WX25-P3-105-E1  [HIGH/WRONG]  凶魔　ナベリウス  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=順序/構造
+  原文: 【出】《黒》《無》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。あなたのトラッシュにカードが１５枚以上ある場合、代わりにターン終了時まで、それのパワーを－12000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  LB  : ：あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを手札に加えるか場に出す。
+  指摘: 「代わりに…－12000する」 原文は条件成立時に同じ対象への－10000を－12000へ置換するが、JSONは－10000の後に任意の対象へ－12000を追加し、合計値と対象が異なる。
+  live: {"effectId":"WX25-P3-105-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-10000},{"type":"CONDITIONAL","condition":{"type":"TRASH_COUNT","owner":"self","operator":"gte","value":15},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":-12000}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S024】 WX06-022-E1  [HIGH/MISSING]  大槍　トライデ  action=SEQUENCE(SEQUENCE/POWER_SET/SIGNI)  軸=filter.power
+  原文: 【常】：あなたのセンタールリグが白で、このシグニが中央のシグニゾーンにあるかぎり、このシグニの基本パワーは10000になり、このシグニは「【常】：このシグニは対戦相手の効果によってバニッシュされない。」を得る。
+  指摘: 「センタールリグが白で」 基本パワー変更とバニッシュ耐性を得る条件である「センタールリグが白」かつ「自身が中央のシグニゾーンにある」がJSONにないため、効果が無条件で適用される。
+  live: {"effectId":"WX06-022-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["シグニ","アーツ","スペル","ルリグ"],"sourceOwner":"opponent","duration":"PERMANENT"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S025】 WDK07-Y08-E1  [HIGH/MISSING]  イクエス・ディフェンス  action=SEQUENCE(SEQUENCE/REMOVE_ABILITIES/SIGNI)  軸=duration
+  原文: ベット―《コインアイコン》ターン終了時まで、対象の対戦相手のシグニ１体は能力を失い、対象の対戦相手のシグニ１体は「【常】：アタックできない。」を得る。あなたがベットしていた場合、追加でターン終了時まで、対象の対戦相手のセンタールリグ１体は「【常】：アタックできない。」を得る。
+  指摘: 「シグニ１体は「【常】」 対戦相手のシグニ1体にターン終了時まで「アタックできない」を与える処理が欠落している。
+  live: {"effectId":"WDK07-Y08-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"白","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":1},"until":"UNTIL_END_OF_TURN"},{"type":"CONDITIONAL","condition":{"type":"IS_BETTING"},"then":{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"opponent","count":1},"keyword":"アタックできない","duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S026】 WXK02-051-E1  [HIGH/MISSING]  円弧の精炎  action=SEQUENCE(SEQUENCE/SEARCH/ADD_TO_FIELD)  軸=filter.power
+  原文: あなたのデッキから《ライズアイコン》を持つシグニ１枚を探して場に出し、デッキをシャッフルする。その後、この方法で場に出したシグニのパワー以下の対戦相手のシグニ１体を対象とし、それをバニッシュする。（【ライズ】の条件を満たさなければ場に出せない）
+  指摘: 「場に出したシグニのパワー以下」 バニッシュ対象を、この効果で場に出したシグニのパワー以下に限定する条件がない。
+  live: {"effectId":"WXK02-051-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","hasIcon":"ライズ"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S027】 WX16-041-E1  [HIGH/WRONG]  大罠　アリババ  action=SEQUENCE(SEQUENCE/SEARCH/REVEAL)  軸=能力種別(常/自/起)
+  原文: 【出】手札から《トラップアイコン》を持つカードを１枚捨てる：あなたのデッキから＜トリック＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。《トラップアイコン》：対戦相手のパワー15000以上のシグニ１体を対象とし、それをデッキの一番上に置く。
+  LB  : ：あなたのデッキから《トラップアイコン》を持つカード１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「《トラップアイコン》：」 トラップアイコン能力のデッキトップ送りが独立した能力ではなく、【出】能力の捨てるコストとサーチに続いて同時に実行される処理になっている。
+  live: {"effectId":"WX16-041-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"discard":1,"discardFilter":{"cardType":"カード","hasIcon":"トラップ"}},"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"トリック"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":15000}}},"shuffle":false,"position":"top"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S028】 WXK04-059-E1  [HIGH/MISSING]  奪取  action=SEQUENCE(SEQUENCE/SEND_TO_ENERGY/SIGNI)  軸=action丸ごと欠落
+  原文: 対象の対戦相手のシグニ１体をエナゾーンに置く。あなたのトラッシュから対象の＜水獣＞のシグニ１枚を手札に加え、カードを１枚引く。
+  指摘: 「＜水獣＞のシグニ１枚を手札に加え」 自分のトラッシュから＜水獣＞のシグニ1枚を手札に加える処理がJSONにない。
+  live: {"effectId":"WXK04-059-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":4}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1}},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S029】 WXK03-070-E1  [HIGH/MISSING]  幻怪　モモタロ  action=SEQUENCE(SEQUENCE/SEND_TO_ENERGY/SIGNI)  軸=action丸ごと欠落
+  原文: 【出】エナゾーンから《幻怪　モモイヌ》１枚と《幻怪　モモザル》１枚と《幻怪　モモキジ》１枚をトラッシュに置く：対象の対戦相手のシグニ１体をエナゾーンに置き、対象の対戦相手のシグニ１体を手札に戻す。
+  指摘: 「モモイヌ》１枚と《幻怪」 エナゾーンから指定されたモモイヌ、モモザル、モモキジを各1枚トラッシュに置く発動コストがJSONに実装されていない。
+  live: {"effectId":"WXK03-070-E1","effectType":"AUTO","timing":["ON_PLAY"],"costUnparsed":true,"action":{"type":"SEQUENCE","steps":[{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S030】 WXDi-CP02-035-E1  [MED/WRONG]  角楯カリン[ターゲット、排除する]  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/SIGNI)  軸=filter.power
+  原文: 【出】：対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。それのパワーが15000以上の場合、対戦相手は手札を１枚捨てる。（複数の【出】能力と【絆出】能力は好きな順番で発動できる）【絆出】手札から＜ブルアカ＞のカードを１枚捨てる：カードを２枚引く。
+  指摘: 「パワーが15000以上の場合」 手札を捨てさせる条件である移動対象のパワー15000以上判定がなく、JSONではパワーにかかわらず捨てさせる。
+  live: {"effectId":"WXDi-CP02-035-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom"},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S031】 WXEX1-60-E2  [HIGH/WRONG]  轟炎　フレイスロ准尉  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/TRASH_CARD)  軸=filter.cardName
+  原文: 【自】《ターン１回》：あなたのカード名に《フレイスロ》を含むシグニがアタックしたとき、カード名に《フレイスロ》を含む他のシグニ１体を対象とし、それをアップする。【出】：あなたのトラッシュからカード名に《フレイスロ》を含むシグニを５枚まで対象とし、それらをデッキに加えてシャッフルする。その後、この方法でデッキに加えた枚数と同じレベルを持つ対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「《フレイスロ》を含むシグニ」 トラッシュからデッキに加える対象にカード名「フレイスロ」の条件がなく、任意のシグニを選べる。
+  live: {"effectId":"WXEX1-60-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":5,"upToCount":true,"filter":{"cardType":"シグニ"}},"shuffle":true},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","levelEqLastProcessedCount":true},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S032】 WXDi-P04-005-E1  [HIGH/WRONG]  イノセントバトル  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/TRASH_CARD)  軸=プレイヤー選択
+  原文: （ピースはあなたの場にルリグが３体いると使用できる）あなたか対戦相手は自分のトラッシュにあるすべてのカードをデッキに加えてシャッフルする。あなたはカードを１枚引く。
+  指摘: 「あなたか対戦相手は」 トラッシュをデッキに戻すプレイヤーを自分か対戦相手から選べず、自分に固定されている。
+  live: {"effectId":"WXDi-P04-005-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S033】 WXEX2-62-E1  [HIGH/WRONG]  羅星　サンスポット  action=SEQUENCE(SEQUENCE/TRASH/DECK_CARD)  軸=filter.power
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの上からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が７の場合、対戦相手のライフクロス１枚をクラッシュする。７以上の場合、対戦相手のパワー7000以下のシグニ１体を対象とし、それをバニッシュする。【出】《赤》：あなたのデッキからレベル１の＜宇宙＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  LB  : ：カードを１枚引く。
+  指摘: 「７以上の場合」 パワー7000以下の相手シグニをバニッシュする処理が、落としたシグニのレベル合計7以上という条件なしで常に実行されます。
+  live: {"effectId":"WXEX2-62-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":2}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_LEVEL_SUM","operator":"eq","value":7},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":7000}},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S034】 WXDi-P06-035-E2  [HIGH/WRONG]  紅魔姫　シヴァ  action=SEQUENCE(SEQUENCE/TRASH/HAND_CARD)  軸=filter.power
+  原文: 【自】：あなたのメインフェイズ以外でこのシグニが場を離れたとき、カードを１枚引く。【出】：手札をすべて捨てる。その後、この方法でカードを２枚捨てた場合、対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。３枚以上捨てた場合、代わりに対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「３枚以上捨てた場合、代わりに」 JSONでは2枚以上ならパワー10000以下をバニッシュした後さらに無条件で1体をバニッシュし、捨てた枚数による排他的な効果選択になっていない。
+  live: {"effectId":"WXDi-P06-035-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_COUNT_GTE","value":2},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S035】 WX14-062-E1  [HIGH/MISSING]  ＳＴＡＲ　ＡＲＲＯＷ  action=SEQUENCE(SEQUENCE/TRASH/HAND_CARD)  軸=action丸ごと欠落
+  原文: 対戦相手の手札を１枚見ないで選び、捨てさせる。カードを１枚引き、あなたのデッキからシグニ１枚とスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「シグニ１枚とスペル１枚」 デッキからスペル1枚を探して公開し手札に加える処理がJSONにない。
+  live: {"effectId":"WX14-062-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":2},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}]}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S036】 WX19-031-E1  [MED/WRONG]  大盾　アキレウス  action=SEQUENCE(SEQUENCE/TRASH/SIGNI)  軸=アタック状態
+  原文: 【自】：あなたのセンタールリグがアタックしたとき、このシグニを場からトラッシュに置いてもよい。そうした場合、そのルリグをアップする。
+  指摘: 「センタールリグがアタックしたとき」 triggerScopeがany_allyで、センタールリグ以外の味方ルリグのアタックでも誘発し得る。
+  live: {"effectId":"WX19-031-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"UP","target":{"type":"LRIG","owner":"self","count":1}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_ally"}
+==============================================================================
+【S037】 WXDi-P12-052-E2  [MED/MISSING]  コードオーダー　ズットモ//ディソナ  action=TAKE_FROM_UNDER_SIGNI  軸=filter.hasIcon
+  原文: 【常】：あなたの場に《メル＝椿姫》がいるかぎり、このシグニのパワーはこのシグニの下にあるカード１枚につき＋5000される。【自】：あなたのアタックフェイズ開始時、このシグニの下から《ディソナアイコン》のカードを１枚までエナゾーンに置く。【出】：あなたのデッキの上からカードを２枚このシグニの下に置く。（表向きで置く）【起】《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》：ターン終了時まで、このシグニは【ランサー】を得る。
+  LB  : ：対戦相手のパワー7000以上のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「《ディソナアイコン》のカード」 このシグニの下からエナゾーンに置けるカードをディソナアイコン持ちに限定する条件が欠落している。
+  live: {"effectId":"WXDi-P12-052-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"TAKE_FROM_UNDER_SIGNI","destination":"energy","count":1,"upToCount":true,"fromThis":true},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S038】 WX17-022-E1  [HIGH/WRONG]  整理整頓  action=TRANSFER_TO_DECK  軸=プレイヤー選択
+  原文: あなたか対戦相手のトラッシュにあるすべてのカードをデッキに加え、そのプレイヤーはデッキをシャッフルする。
+  指摘: 「あなたか対戦相手のトラッシュ」 処理対象のプレイヤーを自分か対戦相手から選べる効果だが、JSONは自分のトラッシュだけを対象としている。
+  live: {"effectId":"WX17-022-E1","effectType":"ACTIVATED","timing":["ATTACK","SPELL_CUTIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":"ALL"},"shuffle":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S039】 WX11-002-E3  [MED/MISSING]  純白の巫女　ユキ  action=TRANSFER_TO_DECK  軸=順序/構造
+  原文: 【自】《ターン１回》：場にあるシグニ１体があなたの効果によって他のシグニゾーンに移動したとき、あなたのデッキの一番上のカードをエナゾーンに置く。【起】《メインフェイズアイコン》《アタックフェイズアイコン》エクシード１：対戦相手のすべてのシグニを好きなように配置し直す。【起】《ターン１回》エクシード２：対戦相手のシグニ１体を対象とし、それをデッキに戻し、対戦相手は自分のデッキをシャッフルする。
+  指摘: 「デッキをシャッフルする」 対象をデッキに戻した後に対戦相手のデッキをシャッフルする処理がなく、shuffleもfalseになっている。
+  live: {"effectId":"WX11-002-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":2},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S040】 WXDi-P09-002-E1  [MED/MISSING]  宇宙級母性  action=TRANSFER_TO_DECK  軸=順序/構造
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ（あなたの場にいるルリグ３体がこの条件を満たす）対戦相手のすべてのシグニをデッキの一番上に置く。（置く順番は対戦相手が決める）
+  指摘: 「置く順番は対戦相手が決める」 複数のシグニをデッキ上に置く順番を対戦相手が決める指定がJSONにない。
+  live: {"effectId":"WXDi-P09-002-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":6}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S041】 WX05-023-BURST  [HIGH/MISSING]  羅原　Ｕ  action=TRANSFER_TO_HAND  軸=action丸ごと欠落
+  原文: 【常】：このシグニはアタックできない。【常】：このシグニのパワーはこのシグニの下にあるカード１枚につき＋2000される。【出】：あなたのトラッシュから《羅原　Ｕ》以外の＜原子＞のシグニ３枚を対象とし、それらをこのシグニの下に置く。そうしない場合、このシグニを場からトラッシュに置く。【起】《ダウン》：このシグニの下からカード１枚を対象とし、それを手札に加える。その後、このシグニの下にカードが無い場合、対戦相手のシグニ１体を対象とし、このシグニとそれをバニッシュする。
+  LB  : ：あなたのトラッシュからスペル１枚と＜原子＞のシグニ１枚を対象とし、それらを手札に加える。
+  指摘: 「スペル１枚と＜原子＞」 原文はトラッシュからスペル1枚と原子のシグニ1枚の両方を手札に加えるが、JSONにはスペルを加える処理がない。
+  live: {"effectId":"WX05-023-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"原子"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S042】 WXDi-P03-071-BURST  [HIGH/WRONG]  羅石　ラピスラズリ  action=TRASH  軸=プレイヤー選択
+  原文: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、手札から赤の＜宝石＞のシグニ１枚を場に出してもよい。そのシグニの【出】能力は発動しない。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンする。対戦相手は手札を１枚捨てる。②カードを２枚引く。
+  指摘: 「どちらか１つを選ぶ」 JSONは選択処理ではなく相手の手札1枚を捨てる処理だけになっており、選択肢①のダウンと選択肢②の2枚ドローが欠落している。
+  live: {"effectId":"WXDi-P03-071-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S043】 WXDi-CP02-034-E1  [MED/WRONG]  一之瀬アスナ(バニーガール)  action=TRASH  軸=能力種別(常/自/起)
+  原文: 【出】：対戦相手の手札を２枚見ないで選び、捨てさせる。【出】《無》：ターン終了時まで、対戦相手のすべてのシグニのパワーを－3000する。（【出】能力と【絆出】能力の：の左側はコストである。コストを支払わず発動しないことを選んでもよい）【絆出】手札から＜ブルアカ＞のカードを１枚捨てる：カードを２枚引く。
+  指摘: 「発動しないことを選んでもよい」 原文ではコストのない【出】能力を発動しないことを選べるが、JSONはmandatory:trueで強制としている。
+  live: {"effectId":"WXDi-CP02-034-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":2,"blind":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}

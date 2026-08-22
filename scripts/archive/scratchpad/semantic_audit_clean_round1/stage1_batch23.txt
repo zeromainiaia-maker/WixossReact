@@ -1,0 +1,245 @@
+=== 段1 第23バッチ（単発）＝全軸 の 1〜44件目 ===
+残 87件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 null  [HIGH/MISSING]  レイラ＝フルスロットル  action=(live無)  軸=(軸なし)
+  原文: 【ライド】【出】《赤》：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《コインアイコン》：あなたのデッキから＜乗機＞のシグニ１枚を探して場に出し、デッキをシャッフルする。
+  指摘: 「【ライド】」 原文のライド能力がJSONに存在しない。
+  live: null
+==============================================================================
+【S002】 null  [HIGH/MISSING]  レイラ＝ブレーキ  action=(live無)  軸=(軸なし)
+  原文: 【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）（ルリグがシグニに乗っているかぎり、それらはドライブ状態である。ドライブ状態のルリグはアタックできない）【出】《赤》：《コインアイコン》を得る。
+  指摘: 「【ライド】」 自分の＜乗機＞に乗りターン終了時までドライブ状態にするライド能力がJSONに存在しない。
+  live: null
+==============================================================================
+【S003】 null  [HIGH/MISSING]  レイラ＝コーナー  action=(live無)  軸=(軸なし)
+  原文: 【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）（ルリグがシグニに乗っているかぎり、それらはドライブ状態である。ドライブ状態のルリグはアタックできない）【出】《コインアイコン》：カードを１枚引く。
+  指摘: 「【ライド】」 自分の＜乗機＞に乗りターン終了時までドライブ状態にするライド能力がJSONに存在しない。
+  live: null
+==============================================================================
+【S004】 null  [HIGH/MISSING]  レイラ＝クラッチ  action=(live無)  軸=(軸なし)
+  原文: 【ライド】（ターン終了時まで、このルリグは対象のあなたの＜乗機＞のシグニ１体に乗る。これはコストが《赤×0》の【起】能力で、１ターンに一度、このルリグがドライブ状態でない場合に使用できる）（ルリグがシグニに乗っているかぎり、それらはドライブ状態である。ドライブ状態のルリグはアタックできない）【出】手札を１枚捨てる：《コインアイコン》を得る。
+  指摘: 「【ライド】」 自分の＜乗機＞に乗りターン終了時までドライブ状態にするライド能力がJSONに存在しない。
+  live: null
+==============================================================================
+【S005】 WX15-002-sub-E1  [HIGH/WRONG]  みらくるあーや！Ⅳ  action=(live無)  軸=duration
+  原文: 【自】：あなたのメインフェイズ開始時、あなたのデッキの上からカードを２枚見る。その中からカード１枚を【トラップ】としてあなたのシグニゾーンに設置してもよい。残りを好きな順番でデッキの一番下に置く。【出】ホログラフ《コインアイコン》《コインアイコン》：このゲームの間、このルリグは「【自】：対戦相手のセンタールリグ１体がアタックしたとき、対戦相手はあなたのデッキの一番上のカードが《トラップアイコン》を持つか持たないかを宣言する。あなたのデッキの一番上を公開する。宣言が外れた場合、そのアタックであなたはダメージを受けない。」を得る。
+  指摘: 「そのアタックで」 原文は宣言が外れた当該アタックのダメージだけを防ぐが、JSONはターン終了時まで全ダメージを防ぐ。
+  live: null
+==============================================================================
+【S006】 WX16-024-LAYER-E1  [HIGH/WRONG]  幻怪姫　カラテン  action=(live無)  軸=filter.power
+  原文: 【レイヤー】あなたの＜怪異＞のシグニは《レイヤーアイコン》の能力を得る《レイヤーアイコン》【常】：このシグニは対戦相手のパワー15000以上のシグニの効果を受けない。《レイヤーアイコン》【自】：このシグニが対戦相手の効果によって場を離れたとき、カードを２枚引く。
+  LB  : ：あなたのデッキから＜怪異＞のシグニを１枚探して公開し、手札に加えるか場に出し、デッキをシャッフルする。
+  指摘: 「パワー15000以上のシグニ」 効果元である相手シグニのパワーが15000以上という条件を、JSONは保護される自分のシグニ側のパワー条件として設定している。
+  live: null
+==============================================================================
+【S007】 null  [HIGH/MISSING]  紅将姫　ノブナガ  action=(live無)  軸=(軸なし)
+  原文: 【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさなければ場に出せない）【出】《赤》：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。【起】《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。（アタックによるダメージでライフクロスを２枚クラッシュする）
+  指摘: 「赤のシグニ１体の上に置く」 赤のシグニ1体の上に置かなければ場に出せない【ライズ】条件がJSONに存在しない。
+  live: null
+==============================================================================
+【S008】 null  [HIGH/MISSING]  紅将　ギルガメジ  action=(live無)  軸=(軸なし)
+  原文: 【ライズ】あなたの赤のシグニ１体の上に置く（この条件を満たさなければ場に出せない）【出】《赤》《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。（アタックによるダメージでライフクロスを２枚クラッシュする）【起】《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》：ターン終了時まで、このシグニは【アサシン】を得る。（このシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える）
+  指摘: 「赤のシグニ１体の上に置く」 赤のシグニ1体の上に置かなければ場に出せないライズ条件が欠落している。
+  live: null
+==============================================================================
+【S009】 WX15-097-E1  [MED/MISSING]  コードイート　ヤキサンマ  action=BANISH  軸=action丸ごと欠落
+  原文: 【起】《ダウン》エナゾーンから《アクセアイコン》を持つカード１枚をトラッシュに置く：対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「アクセを持つカード１枚」 起動コストでエナゾーンからアクセアイコンを持つカード1枚をトラッシュに置く処理がJSONにない。
+  live: {"effectId":"WX15-097-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"min":12000}},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WXDi-P03-019-E1  [HIGH/MISSING]  DJ.LOVIT-RE-EDIT  action=BANISH  軸=action丸ごと欠落
+  原文: 【出】すべてのシグニを場からトラッシュに置き、手札とエナゾーンにあるすべてのカードをトラッシュに置く：対戦相手のすべてのシグニをバニッシュする。
+  指摘: 「すべてのシグニを場からトラッシュに置き」 発動コストである場の全シグニ、手札とエナゾーンの全カードをトラッシュに置く処理が実装されていない。
+  live: {"effectId":"WXDi-P03-019-E1","effectType":"AUTO","timing":["ON_PLAY"],"costUnparsed":true,"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 SP38-008-E1  [HIGH/WRONG]  轟炎　花代・爾転  action=BLOCK_ACTION  軸=duration
+  原文: 【常】：あなたのグロウフェイズをスキップする。【常】《自分ターン》：あなたの中央のシグニゾーンにあるシグニのパワーを＋5000する。【起】《ゲーム１回》《赤》《赤》《赤》：このターン、次にこのルリグがアタックしたとき、そのアタックの間、対戦相手は【ガード】ができない。
+  指摘: 「グロウフェイズをスキップ」 恒常的にグロウフェイズをスキップする効果なのに、GROW禁止の有効期限がターン終了時までになっている。
+  live: {"effectId":"SP38-008-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"self","count":1},"actionId":"GROW","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 WX04-016-E1  [MED/WRONG]  三式豊潤娘　緑姫  action=BLOCK_ACTION  軸=duration
+  原文: 【常】：あなたのグロウフェイズをスキップする。【常】：あなたの＜空獣＞と＜地獣＞のシグニのパワーを＋2000する。
+  指摘: 「グロウフェイズをスキップする」 原文は継続的にグロウフェイズをスキップさせるが、JSON内のブロック期限がターン終了時までになっている。
+  live: {"effectId":"WX04-016-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"self","count":1},"actionId":"GROW","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S013】 WXDi-P11-TK02-E2  [HIGH/WRONG]  白羅星姫　フルムーン  action=BLOCK_ACTION  軸=duration
+  原文: 【出現条件】《メインフェイズアイコン》手札とエナゾーンからシグニを合計３枚トラッシュに置く【常】：対戦相手のターンの間、あなたの他のシグニは【シャドウ（シグニ）】を得る。（それらのシグニは対戦相手のシグニによって対象にされない）【出】：次の対戦相手のターンの間、対戦相手はシグニアタックステップにシグニで合計一度しかアタックできない。
+  指摘: 「合計一度しかアタックできない」 相手が次のターンにシグニ全体で合計1回だけアタックできる制限ではなく、相手シグニ1体のアタックを禁止する効果になっている。
+  live: {"effectId":"WXDi-P11-TK02-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BLOCK_ACTION","target":{"type":"SIGNI","owner":"opponent","count":1},"actionId":"ATTACK","until":"NEXT_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S014】 WX10-060-E1  [HIGH/WRONG]  クロス・バウンス  action=BOUNCE  軸=filter.hasIcon
+  原文: 《クロスアイコン》を持つ対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  LB  : ：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  指摘: 「《クロスアイコン》を持つ」 通常効果の対象に《クロスアイコン》を持つシグニという条件がなく、相手の任意のシグニを戻せます。
+  live: {"effectId":"WX10-060-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WX13-062-E1  [HIGH/MISSING]  巨弓　ハラダヌ  action=BOUNCE  軸=filter.cardName
+  原文: 【出】：対戦相手のレベル２以下のシグニ１体を対象とし、あなたの場にカード名に《弓》を含むシグニが３体ある場合、それを手札に戻す。
+  指摘: 「《弓》を含むシグニが３体ある場合」 自分の場にカード名が《弓》を含むシグニが3体ある場合に限る発動条件がなく、無条件でバウンスします。
+  live: {"effectId":"WX13-062-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":2}}},"optional":false},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WX09-Re18-E1  [MED/WRONG]  増援  action=CHOOSE(CHOOSE/SEARCH/SEQUENCE)  軸=filter.power
+  原文: 以下の２つから１つを選ぶ。①あなたのデッキからパワー10000以上のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。②あなたのデッキの上からカードを２枚エナゾーンに置く。
+  指摘: 「パワー10000以上のシグニ」 選択肢①のサーチ対象にパワー10000以上という条件がなく、任意のシグニを探せる。
+  live: {"effectId":"WX09-Re18-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WDK16-06S-E1  [HIGH/MISSING]  コードＶＬ　笹木咲  action=CONDITIONAL  軸=filter.cardName
+  原文: 【出】：あなたの場にカード名に《凛》を含むセンタールリグがいる場合、対戦相手は手札を１枚捨てる。あなたの登録者数が１００万人を達成している場合、代わりに対戦相手の手札を１枚見ないで選び、捨てさせる。
+  LB  : ：対戦相手のシグニ１体を対象とし、それをダウンする。対戦相手は手札を１枚捨てる。
+  指摘: 「《凛》を含むセンタールリグ」 この出現時能力の発動条件である、場にカード名に《凛》を含むセンタールリグがいることがJSONにない。
+  live: {"effectId":"WDK16-06S-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"SUBSCRIBER_COUNT","operator":"gte","value":100},"then":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"else":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S018】 WX14-057-E1  [MED/WRONG]  爆炎　フレイスロ伍長  action=CONDITIONAL  軸=順序/構造
+  原文: 【出】：対戦相手のパワー3000以下のシグニ１体を対象とし、あなたのトラッシュにカード名に《フレイスロ》を含むシグニが５枚以上ある場合、それをバニッシュする。
+  LB  : ：カードを１枚引く。
+  指摘: 「１体を対象とし、」 原文は条件判定前に対象を選ぶが、JSONは条件成立後に対象を選ぶ処理になっている。
+  live: {"effectId":"WX14-057-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardName":"フレイスロ"},"minCount":5},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S019】 WXK05-046-E1  [HIGH/WRONG]  幕末の人斬り　イゾウ  action=CONDITIONAL  軸=filter.cardName
+  原文: 【自】：このカードがあなたのデッキからトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、あなたのターンの場合、ターン終了時まで、それのパワーをあなたのトラッシュにある《幕末の人斬り　イゾウ》１枚につき－1000する。
+  LB  : ：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－3000する。
+  指摘: 「イゾウ１枚につき－1000」 原文はトラッシュの《幕末の人斬り　イゾウ》だけを数えるが、JSONにはカード名による集計条件がなく、トラッシュの全カードを数える表現になっている。
+  live: {"effectId":"WXK05-046-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"CONDITIONAL","condition":{"type":"TURN_OWNER","owner":"self"},"then":{"type":"POWER_MODIFY_PER_TRASH_COUNT","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerUnit":-1000,"unitSize":1,"trashOwner":"self","until":"UNTIL_END_OF_TURN"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"fromZones":["deck"]}}
+==============================================================================
+【S020】 WXDi-P06-033-E1  [MED/MISSING]  幻水姫　シィラ  action=DRAW  軸=owner/主語
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたと対戦相手のライフクロスの枚数が同じ場合、カードを１枚引く。【自】《相手ターン》《ターン１回》：シグニ１体がアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。【出】《白》：あなたのデッキの上からカードを３枚見る。その中からカードを１枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。
+  LB  : ：対戦相手のアップ状態のシグニ１体を対象とし、それをトラッシュに置く。
+  指摘: 「ライフクロスの枚数が同じ場合」 ドローの発動条件である双方のライフクロス枚数が同じという条件がJSONにない。
+  live: {"effectId":"WXDi-P06-033-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S021】 WXDi-P07-058-E1  [HIGH/MISSING]  幻怪　カラテン  action=ENERGY_CHARGE_FROM_DECK  軸=能力種別(常/自/起)
+  原文: 【自】《ターン１回》：【出】能力を持つあなたのシグニ１体が場に出たとき、【エナチャージ１】をする。（その【出】能力より先にこの能力を発動できる）【起】《ターン１回》《白》《無》《コインアイコン》《コインアイコン》：あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「【出】能力を持つあなたのシグニ」 自分の【出】能力を持つシグニが場に出たときという発動条件が欠落している。
+  live: {"effectId":"WXDi-P07-058-E1","effectType":"AUTO","timing":[],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S022】 WX10-035-E1  [HIGH/WRONG]  光輝  action=ENERGY_CHARGE_FROM_DECK  軸=アタック状態
+  原文: このターン、あなたのシグニ１体がアタックしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。
+  LB  : ：あなたの場にあるシグニの数に１を加えた枚数のカードをデッキの上からエナゾーンに置く。
+  指摘: 「このターン、あなたのシグニ１体がアタックしたとき」 原文はこのターン中の各シグニのアタック時にエナチャージする遅延効果だが、JSONはスペル使用時に直ちに1枚だけエナチャージする効果になっている。
+  live: {"effectId":"WX10-035-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S023】 WX25-P3-085-E1  [MED/MISSING]  羅菌　ユーグレナ  action=GRANT_EFFECT  軸=能力種別(常/自/起)
+  原文: 【自】：あなたの＜微菌＞のシグニの【出】【起】能力のコストとしてこのカードが捨てられたとき、あなたの＜微菌＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、カードを１枚引く。」を得る。
+  LB  : ：対戦相手のルリグ１体を対象とし、それをダウンする。
+  指摘: 「【出】【起】能力のコストとして」 捨てられた原因を＜微菌＞のシグニの【出】または【起】能力のコストに限定する条件がJSONにない。
+  live: {"effectId":"WX25-P3-085-E1","effectType":"AUTO","timing":["ON_DISCARDED_AS_COST"],"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"微菌"},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-P3-085-sub-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"costUnparsed":true,"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"discardCostSourceStory":"微菌"}}
+==============================================================================
+【S024】 WDK16-06T-E1  [HIGH/MISSING]  コードＶＬ　椎名唯華  action=GRANT_FIELD_SIGNI_ABILITY  軸=filter.cardName
+  原文: 【常】：あなたの場にカード名に《美兎》を含むセンタールリグがいるかぎり、このシグニは「【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、それを手札に戻す。あなたの登録者数が１００万人を達成している場合、代わりに対戦相手のシグニ１体を対象とし、それを手札に戻す。」を得る。
+  LB  : ：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  指摘: 「《美兎》を含むセンタールリグ」 能力を得る条件である、場にカード名に《美兎》を含むセンタールリグがいることがJSONにない。
+  live: {"effectId":"WDK16-06T-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","thisCardOnly":true,"abilities":[{"effectId":"WDK16-06T-E1-G","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CONDITIONAL","condition":{"type":"SUBSCRIBER_COUNT","operator":"gte","value":100},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false},"else":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":{"max":3}}},"optional":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}]},"d
+==============================================================================
+【S025】 WXK01-001-E1  [HIGH/WRONG]  レイラ＝デッドエンド  action=GRANT_KEYWORD  軸=owner/主語
+  原文: 【ライド】【常】：あなたのドライブ状態のシグニのパワーを＋3000し、それらは【ダブルクラッシュ】を得る。【起】《ゲーム１回》ドーピング《コインアイコン》《コインアイコン》：手札を２枚捨てる。この方法で手札を２枚捨てた場合、ターン終了時まで、このルリグは「【常】：対戦相手の効果を受けない。」を得、このターン、対戦相手は【ガード】ができない。
+  指摘: 「ドライブ状態のシグニ」 対象を自分のドライブ状態の全シグニに限定せず、任意所有者のシグニ1体としているうえ、パワー＋3000が欠落している。
+  live: {"effectId":"WXK01-001-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"any","count":1},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S026】 WXDi-P06-038-E2  [HIGH/MISSING]  翠美姫　アン//メモリア  action=GRANT_KEYWORD  軸=action丸ごと欠落
+  原文: 【自】《ターン１回》：あなたのエナゾーンから効果によってカード１枚が他の領域に移動したとき、【エナチャージ１】をする。【出】《白》：次の対戦相手のターン終了時まで、このシグニのパワーを＋2000し、このシグニは【シャドウ（レベル３以上のシグニ）】を得る。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②カードを１枚引く。
+  指摘: 「パワーを＋2000し」 次の対戦相手のターン終了時までこのシグニのパワーを＋2000する処理がJSONにない。
+  live: {"effectId":"WXDi-P06-038-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"levelGte\":3}","duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S027】 WXDi-P09-036-E1  [HIGH/WRONG]  あーやのホログラフ！  action=GRANT_LRIG_ABILITY  軸=owner/主語
+  原文: 【出】：ターン終了時まで、このルリグは「【自】：対戦相手のシグニかルリグ１体がアタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。この方法で公開されたカードがどちらも【ライフバースト】を持っているか、どちらも【ライフバースト】を持っていない場合、そのアタックを無効にする。」を得る。
+  指摘: 「シグニかルリグ１体がアタック」 アタック無効の対象が対戦相手のシグニに限定されており、ルリグのアタックを正しく無効にできない。
+  live: {"effectId":"WXDi-P09-036-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-P09-036-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI","ON_ATTACK_LRIG"],"action":{"type":"REVEAL_BOTH_DECK_TOPS","matchAction":{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1},"attackingOnly":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_opp"}],"rawText":"【自】：対戦相手のシグニかルリグ１体がアタックしたとき、あなたと対戦相手は自分のデッキの一番上を公開し、そのカードをデッキの一番下に置く。この方法で公開されたカードがどちらも【ライフバースト】を持っているか、どちらも【ライフバースト】を持っていない場合、そのアタックを無効にする。"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S028】 WX14-CB02-E1  [HIGH/WRONG]  暁月  action=GRANT_PROTECTION  軸=filter.cardName
+  原文: 【常】：あなたの《燦》はバニッシュされない。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのアップ状態の＜アーム＞のシグニ１体をダウンしてもよい。そうした場合、それを手札に戻す。
+  LB  : ：あなたのデッキから《暁月》１枚と《燦》１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「あなたの《燦》は」 バニッシュ耐性の対象を《燦》に限定するカード名条件がなく、自分の任意のシグニが対象になっている。
+  live: {"effectId":"WX14-CB02-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S029】 WX08-024-E2  [HIGH/MISSING]  羅石　サンスト  action=LIFE_CRASH  軸=プレイヤー選択
+  原文: 《クロスアイコン》《羅石　ムンスト》の右【クロス常】：このシグニの基本パワーは15000になる。【起】手札から＜鉱石＞か＜宝石＞のシグニを合計３枚捨てる：あなたと対戦相手のライフクロス１枚をクラッシュする。【クロス自】：このシグニが《ヘブン》したとき、ターン終了時まで、このシグニは【アサシン】を得る。
+  LB  : ：対戦相手のシグニのうち、最も小さいパワーを持つシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「あなたと対戦相手のライフクロス」 原文は自分と対戦相手のライフクロスを各1枚クラッシュするが、JSONには対戦相手の1枚をクラッシュする処理しかない。
+  live: {"effectId":"WX08-024-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"handDiscardSigni":{"story":["鉱石","宝石"],"count":3}},"action":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S030】 SPDi01-133-E1  [HIGH/MISSING]  コードアンチ　スイシャ  action=LOOK_AND_REORDER  軸=(軸なし)
+  原文: 【出】：あなたのデッキの上からカードを３枚見る。その中からカード１枚をトラッシュに置き、カード１枚をデッキの一番上に戻し、残りを好きな順番でデッキの一番下に置く。
+  LB  : ：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一番下に置く。
+  指摘: 「カード１枚をデッキの一番上に戻し」 見たカードのうち1枚をデッキの一番上に戻す処理がJSONにない。
+  live: {"effectId":"SPDi01-133-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":3,"private":true,"reorder":true,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S031】 SPDi01-133-E1  [HIGH/WRONG]  コードアンチ　スイシャ  action=LOOK_AND_REORDER  軸=(軸なし)
+  原文: 【出】：あなたのデッキの上からカードを３枚見る。その中からカード１枚をトラッシュに置き、カード１枚をデッキの一番上に戻し、残りを好きな順番でデッキの一番下に置く。
+  LB  : ：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一番下に置く。
+  指摘: 「カード１枚をトラッシュに置き」 JSONはトラッシュ送りをcanTrashとしているだけで、必ず1枚をトラッシュに置く処理を表現していない。
+  live: {"effectId":"SPDi01-133-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":3,"private":true,"reorder":true,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S032】 WXK11-013-E3  [HIGH/WRONG]  因果の均衡　ウルトゥムＶＳリワト  action=LRIG_LIMIT_MODIFY  軸=owner/主語
+  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：あなたのすべてのシグニを場からトラッシュに置く。その後、あなたのトラッシュからこの方法でトラッシュに置いたシグニと同じ枚数までシグニを対象とし、それらを場に出す。【常】：センタールリグのリミットは１減る。（お互いのセンタールリグに影響する）
+  指摘: 「お互いのセンタールリグ」 リミット減少が双方のセンタールリグではなく自分のセンタールリグだけに適用されています。
+  live: {"effectId":"WXK11-013-E3","effectType":"CONTINUOUS","action":{"type":"LRIG_LIMIT_MODIFY","owner":"self","delta":-1,"until":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S033】 WX16-Re19-E2  [MED/WRONG]  白羅星　ネプチューン  action=LRIG_LIMIT_MODIFY  軸=duration
+  原文: 【出現条件】《メインフェイズアイコン》レゾナではないレベル２以下の＜宇宙＞のシグニ２体をあなたの場からトラッシュに置く【出】：あなたのデッキからレベル１のシグニ１枚を探して場に出し、デッキをシャッフルする。【出】：次の対戦相手のメインフェイズの間、対戦相手のセンタールリグのリミットは１減る。
+  指摘: 「次の対戦相手のメインフェイズ」 リミット減少の適用期間が次の対戦相手のメインフェイズ中ではなく、次のターンまでとして表現されている。
+  live: {"effectId":"WX16-Re19-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LRIG_LIMIT_MODIFY","owner":"opponent","delta":-1,"until":"NEXT_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S034】 WX25-CP1-066-E2  [HIGH/WRONG]  白石ウタハ  action=POWER_MODIFY  軸=filter.cardName
+  原文: 【起】手札から＜ブルアカ＞のカードを１枚捨てる：あなたの場に《雷ちゃん》がない場合、クラフトの《雷ちゃん》１つを場に出す。【起】このシグニを場からトラッシュに置く：あなたの《雷ちゃん》１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋4000する。【絆自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  LB  : ：対戦相手のルリグ１体を対象とし、それをダウンする。
+  指摘: 「あなたの《雷ちゃん》１体」 強化対象が自分の《雷ちゃん》に限定されず、所有者を問わないシグニ1体になっている。
+  live: {"effectId":"WX25-CP1-066-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"trash_self":true},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":4000,"duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S035】 WX25-P1-111-E1  [HIGH/WRONG]  クロック・スパイラル  action=POWER_MODIFY  軸=プレイヤー選択
+  原文: あなたの＜怪異＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン（パワー8000以下のシグニ）】か「【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。」を得る。
+  LB  : ：対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する。
+  指摘: 「あなたの＜怪異＞のシグニ１体」 原文は自分の＜怪異＞シグニに二つの能力のどちらかを付与するが、JSONは相手の＜怪異＞シグニのパワーを直接－8000している。
+  live: {"effectId":"WX25-P1-111-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","story":"怪異"},"upToCount":false},"delta":-8000},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S036】 WX09-034-E2  [HIGH/WRONG]  コードアンチ　ロポリス  action=POWER_MODIFY  軸=filter.cardName
+  原文: 【常】：あなたの場にカード名に《パルテノ》か《パルべック》を含むシグニがあるかぎり、このシグニのパワーは＋5000される。【常】：あなたのトラッシュにカード名に《パルテノ》か《パルべック》を含むシグニがあるかぎり、このシグニのパワーは＋5000される。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このシグニのパワーが20000以上の場合、それをバニッシュする。
+  指摘: 「あなたのトラッシュに」 トラッシュに《パルテノ》か《パルべック》を含むシグニがある間だけ＋5000する条件が欠落し、常に強化される。
+  live: {"effectId":"WX09-034-E2","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S037】 WX09-034-E1  [HIGH/WRONG]  コードアンチ　ロポリス  action=POWER_MODIFY  軸=filter.cardName
+  原文: 【常】：あなたの場にカード名に《パルテノ》か《パルべック》を含むシグニがあるかぎり、このシグニのパワーは＋5000される。【常】：あなたのトラッシュにカード名に《パルテノ》か《パルべック》を含むシグニがあるかぎり、このシグニのパワーは＋5000される。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このシグニのパワーが20000以上の場合、それをバニッシュする。
+  指摘: 「あなたの場にカード名に」 場に《パルテノ》か《パルべック》を含むシグニがある間だけ＋5000する条件が欠落し、常に強化される。
+  live: {"effectId":"WX09-034-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S038】 WXDi-CP02-100-E1  [HIGH/MISSING]  愛清フウカ  action=POWER_MODIFY  軸=action丸ごと欠落
+  原文: 【出】トラッシュから＜ブルアカ＞のカード１枚をデッキの一番下に置く：あなたの＜ブルアカ＞のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋2000する。【絆自】：あなたのアタックフェイズ開始時、対戦相手のデッキの上からカードを２枚トラッシュに置く。
+  LB  : ：あなたのトラッシュからシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「カード１枚をデッキの一番下に」 トラッシュの＜ブルアカ＞のカード1枚をデッキの一番下に置く発動コストがJSONに実装されていない。
+  live: {"effectId":"WXDi-CP02-100-E1","effectType":"AUTO","timing":["ON_PLAY"],"costUnparsed":true,"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"ブルアカ"},"upToCount":false},"delta":2000,"duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S039】 WXDi-P12-064-E1  [MED/WRONG]  紅天　アノウズ//ディソナ  action=POWER_MODIFY  軸=アタック状態
+  原文: 【自】《ターン１回》：あなたの《ディソナアイコン》のシグニ１体がアタックしたとき、ターン終了時まで、そのシグニのパワーを＋5000する。
+  LB  : ：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「そのシグニのパワーを」 パワーを上げる対象がアタックしたディソナシグニに固定されず、任意のシグニ1体を選べる定義になっている。
+  live: {"effectId":"WXDi-P12-064-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":5000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_ally","triggerFilter":{"isDisona":true},"usageLimit":"once_per_turn"}
+==============================================================================
+【S040】 WX21-045-E2  [HIGH/MISSING]  羅菌　ＲＳ  action=POWER_MODIFY  軸=action丸ごと欠落
+  原文: 【自】《ターン１回》：対戦相手の場にある【ウィルス】が１つ以上取り除かれたとき、対戦相手のシグニゾーン１つに【ウィルス】１つを置く。【起】《ターン１回》対戦相手の場にある【ウィルス】３つを取り除く：対戦相手のシグニ１体を対象とし、対戦相手は手札を１枚捨て、対戦相手はデッキの上からカードを３枚トラッシュに置き、ターン終了時まで、それのパワーを－5000する。
+  LB  : ：カードを１枚引く。
+  指摘: 「手札を１枚捨て」 対戦相手が手札を1枚捨て、さらにデッキ上から3枚をトラッシュに置く処理が丸ごと欠落している。
+  live: {"effectId":"WX21-045-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"removeOppVirus":3},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S041】 WX14-058-E1  [HIGH/MISSING]  小炎　フレイスロ二等兵  action=POWER_SET  軸=filter.cardName
+  原文: 【常】：あなたの場にレベル３以上のカード名に《フレイスロ》を含むシグニがあるかぎり、このシグニの基本パワーは10000になる。
+  指摘: 「レベル３以上の《フレイスロ》」 基本パワーを10000にする条件である、自分の場にレベル3以上のカード名に《フレイスロ》を含むシグニがあることがJSONにない。
+  live: {"effectId":"WX14-058-E1","effectType":"CONTINUOUS","action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S042】 WX06-CB02-E1  [HIGH/MISSING]  コードアート　Ｔ・Ａ・Ｐ  action=POWER_SET  軸=filter.power
+  原文: 【常】：対戦相手の手札が０枚であるかぎり、このシグニの基本パワーは10000になる。【出】：対戦相手の手札を見る。
+  LB  : ：対戦相手の手札を見て１枚選び、捨てさせる。
+  指摘: 「手札が０枚であるかぎり」 基本パワーを10000にする条件である「対戦相手の手札が0枚」がJSONに無く、常に適用される効果になっている。
+  live: {"effectId":"WX06-CB02-E1","effectType":"CONTINUOUS","action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S043】 WX25-P3-051-E1  [HIGH/WRONG]  レイラ・ザ・トルネード  action=PREVENT_NEXT_DAMAGE  軸=filter.power
+  原文: 【出】：このターン、あなたは対戦相手のパワー15000以下のシグニによってダメージを受けない。
+  指摘: 「パワー15000以下」 原文はこのターン中にパワー15000以下の相手シグニから受けるすべてのダメージを防ぐが、JSONは発生源やパワーを問わず次のダメージ1回だけを防ぐ。
+  live: {"effectId":"WX25-P3-051-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"PREVENT_NEXT_DAMAGE","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S044】 WXDi-P10-063-E1  [MED/MISSING]  INVESTIGATE  action=REVEAL_AND_PICK  軸=action丸ごと欠落
+  原文: あなたのデッキの上からカードを３枚見る。その中から１枚を手札に加え、残りを好きな順番でデッキの一番上に戻す。このスペルをチェックゾーンからあなたの《コードオーダー　エルドラ//メモリア》１体の下に置いてもよい。
+  LB  : ：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。カードを１枚引く。
+  指摘: 「エルドラ//メモリア》１体の下」 解決後にこのスペルを指定されたシグニの下へ任意で置く処理がJSONにない。
+  live: {"effectId":"WXDi-P10-063-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":3,"pickCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}

@@ -1,0 +1,221 @@
+=== 段1 第12バッチ（単発）＝軸「timing/trigger」 の 1〜40件目 ===
+残 40件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WXK06-023-E1-G  [HIGH/MISSING]  ＧＦ　ハウス  action=(live無)  軸=timing/trigger
+  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【自】：あなたのターン終了時、このターンにシグニが４回以上アタックしていた場合、対戦相手にダメージを与える。」を得る。【自】：このシグニがアタックしたとき、このシグニを場から手札に戻してもよい。そうした場合、あなたの手札から《ＧＦ　ハウス》以外のレベル４のシグニ１枚を場に出す。そのシグニの【出】能力は発動しない。
+  LB  : ：手札を１枚捨てる。対象の対戦相手のシグニ１体をトラッシュに置く。
+  指摘: 「シグニが４回以上アタック」 ターン終了時能力の発動条件である「このターンにシグニが4回以上アタックしていた場合」がJSONにない。
+  live: null
+==============================================================================
+【S002】 WXDi-D04-004-sub-E1  [HIGH/WRONG]  MC.LION-3rdVerse  action=(live無)  軸=timing/trigger
+  原文: 【チーム】＜CardJockey＞【チーム出】：あなたのデッキの上からカードを４枚見る。その中からカードを２枚まで手札に加え、残りをトラッシュに置く。【起】《ゲーム１回》《白×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、そのアタック終了時、そのアタックによって対戦相手にダメージが与えられていなかった場合、あなたのアップ状態のレベル２のルリグ１体をダウンしてもよい。そうした場合、このルリグをアップする。」を得る。
+  指摘: 「そのアタック終了時」 付与能力がアタック時に処理され、原文のアタック終了時かつ対戦相手にダメージを与えていない場合という発動条件を表現していない。
+  live: null
+==============================================================================
+【S003】 WX25-CP1-066-E1  [HIGH/MISSING]  白石ウタハ  action=ADD_TO_FIELD  軸=timing/trigger
+  原文: 【起】手札から＜ブルアカ＞のカードを１枚捨てる：あなたの場に《雷ちゃん》がない場合、クラフトの《雷ちゃん》１つを場に出す。【起】このシグニを場からトラッシュに置く：あなたの《雷ちゃん》１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋4000する。【絆自】：あなたのアタックフェイズ開始時、アップ状態のこのシグニをダウンしてもよい。そうした場合、カードを１枚引く。
+  LB  : ：対戦相手のルリグ１体を対象とし、それをダウンする。
+  指摘: 「《雷ちゃん》がない場合」 自分の場に《雷ちゃん》がない場合に限る発動条件がJSONにない。
+  live: {"effectId":"WX25-CP1-066-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"discard":1,"discardFilter":{"story":"ブルアカ"}},"action":{"type":"ADD_TO_FIELD","owner":"self","cardName":"雷ちゃん"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S004】 WXK01-055-E1  [MED/MISSING]  魔海の船員　ティーチ  action=ADD_TO_FIELD  軸=timing/trigger
+  原文: 【自】：このカードが手札からトラッシュに置かれたとき、あなたの手札が２枚以下であなたのメインフェイズの場合、このシグニをトラッシュから場に出してもよい。
+  LB  : ：カードを１枚引く。
+  指摘: 「あなたのメインフェイズ」 自分のメインフェイズであるという発動条件がJSONにありません。
+  live: {"effectId":"WXK01-055-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","triggerCondition":{"fromZones":["hand"]}}
+==============================================================================
+【S005】 WXK01-104-E1  [MED/MISSING]  大罠　イシゴエ  action=ADD_TO_FIELD  軸=timing/trigger
+  原文: 【自】：このカードがデッキからトラッシュに置かれたとき、あなたのメインフェイズの場合、このカードをトラッシュから場に出してもよい。
+  指摘: 「あなたのメインフェイズの場合」 トラッシュから場に出せる条件である自分のメインフェイズ中という制限がJSONにない。
+  live: {"effectId":"WXK01-104-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","triggerCondition":{"fromZones":["deck"]}}
+==============================================================================
+【S006】 WXK01-055-E1  [MED/MISSING]  魔海の船員　ティーチ  action=ADD_TO_FIELD  軸=timing/trigger
+  原文: 【自】：このカードが手札からトラッシュに置かれたとき、あなたの手札が２枚以下であなたのメインフェイズの場合、このシグニをトラッシュから場に出してもよい。
+  LB  : ：カードを１枚引く。
+  指摘: 「あなたの手札が２枚以下」 手札が2枚以下であるという発動条件がJSONにありません。
+  live: {"effectId":"WXK01-055-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","triggerCondition":{"fromZones":["hand"]}}
+==============================================================================
+【S007】 WD21-017-E1  [HIGH/WRONG]  羅星　≡センヤ≡  action=BANISH  軸=timing/trigger
+  原文: 【自】：このシグニが効果かレゾナの出現条件によって、バニッシュされるか場からトラッシュに置かれたとき、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。
+  LB  : ：カードを１枚引く。
+  指摘: 「バニッシュされるか」 発動タイミングが場からトラッシュに置かれた場合だけで、バニッシュされた場合が欠落している。
+  live: {"effectId":"WD21-017-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"fromZones":["field"]}}
+==============================================================================
+【S008】 WX05-022-E1  [HIGH/MISSING]  コードラブハート　Ｃ・Ｍ・Ｒ  action=BLOCK_ACTION  軸=timing/trigger
+  原文: 【常】：対戦相手は自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたりカードを手札に加えることができない。【起】《ターン１回》手札をすべて捨てる：対戦相手のシグニ１体を対象とし、この方法で手札を２枚以上捨てた場合、それをバニッシュする。
+  LB  : ：対戦相手のセンタールリグ１体を対象とし、それをダウンし凍結する。
+  指摘: 「カードを手札に加える」 原文は規定フェイズ外でカードを手札に加える行為も禁止するが、JSONはドローしか禁止していない。
+  live: {"effectId":"WX05-022-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"DRAW_OUTSIDE_DRAW_PHASE","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S009】 WX05-022-E1  [MED/WRONG]  コードラブハート　Ｃ・Ｍ・Ｒ  action=BLOCK_ACTION  軸=timing/trigger
+  原文: 【常】：対戦相手は自分のターンの間、グロウフェイズとドローフェイズ以外でカードを引いたりカードを手札に加えることができない。【起】《ターン１回》手札をすべて捨てる：対戦相手のシグニ１体を対象とし、この方法で手札を２枚以上捨てた場合、それをバニッシュする。
+  LB  : ：対戦相手のセンタールリグ１体を対象とし、それをダウンし凍結する。
+  指摘: 「グロウフェイズとドローフェイズ以外」 原文では相手自身のターン中かつグロウフェイズとドローフェイズを除いて禁止するが、JSONには自ターン条件とグロウフェイズの例外がない。
+  live: {"effectId":"WX05-022-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"DRAW_OUTSIDE_DRAW_PHASE","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WX24-P3-043-E1  [HIGH/WRONG]  アシスト・ディフェンス  action=DOWN  軸=timing/trigger
+  原文: このターン、あなたがダメージを受ける場合、代わりにあなたのレベル１以上のアップ状態のアシストルリグ２体をダウンしてもよい。
+  指摘: 「ダメージを受ける場合、代わりに」 原文はダメージを受ける際の置換効果だが、JSONにはダメージを防ぐ処理も発動条件もない。
+  live: {"effectId":"WX24-P3-043-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"無","count":2}]},"action":{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","level":{"min":1},"isUp":true},"upToCount":false},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 WXDi-D06-013-E1  [MED/MISSING]  羅原　Ｈｅｇ  action=DOWN  軸=timing/trigger
+  原文: 【自】：このシグニがバトル以外によってバニッシュされたとき、対戦相手のルリグ１体を対象とし、それをダウンする。
+  指摘: 「バトル以外によって」 バニッシュの原因がバトル以外であるという発動条件が欠落している。
+  live: {"effectId":"WXDi-D06-013-E1","effectType":"AUTO","timing":["ON_BANISH"],"action":{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 WXK02-034-E1  [HIGH/MISSING]  極装　バルムング  action=DRAW  軸=timing/trigger
+  原文: 【自】：あなたのアタックフェイズ開始時、このターンにあなたの効果によって対戦相手のシグニを２体以上バニッシュしていた場合、カードを１枚引く。【出】《赤》：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。
+  LB  : ：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
+  指摘: 「効果によって２体以上バニッシュ」 このターンに自分の効果で相手のシグニを2体以上バニッシュしていた場合という発動条件が欠落している。
+  live: {"effectId":"WXK02-034-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S013】 WXDi-P12-056-E1  [HIGH/MISSING]  聖天　タウィル//ディソナ  action=DRAW  軸=timing/trigger
+  原文: 【自】：このシグニがアタックしたとき、あなたのエナゾーンとトラッシュに《ディソナアイコン》のカードが合計７枚以上ある場合、カードを１枚引く。
+  指摘: 「合計７枚以上ある場合」 エナゾーンとトラッシュにあるディソナアイコンのカードが合計7枚以上という発動条件が欠落している。
+  live: {"effectId":"WXDi-P12-056-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S014】 WX15-048-E1  [HIGH/MISSING]  中罠　コンルス  action=DRAW  軸=timing/trigger
+  原文: 【出】：あなたの場に【トラップ】がある場合、カードを１枚引く。
+  指摘: 「場に【トラップ】がある場合」 カードを引くための発動条件である自分の場の【トラップ】の存在判定がJSONにない。
+  live: {"effectId":"WX15-048-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WXK01-084-E1  [HIGH/MISSING]  魔海の吸盤　オクトパス  action=DRAW  軸=timing/trigger
+  原文: 【自】：あなたのターン終了時、あなたの手札が１枚以下でこのシグニが中央のシグニゾーンにある場合、カードを１枚引く。
+  指摘: 「中央のシグニゾーンにある場合」 このシグニが中央のシグニゾーンにあるという発動条件がJSONに無い。
+  live: {"effectId":"WXK01-084-E1","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WXDi-P02-070-E1  [HIGH/MISSING]  大罠　ウソスイ  action=DRAW  軸=timing/trigger
+  原文: 【出】：あなたのシグニゾーンに裏向きのカードがある場合、カードを１枚引く。
+  指摘: 「裏向きのカードがある場合」 自分のシグニゾーンに裏向きのカードがある場合という発動条件がなく、無条件でカードを引く効果になっている。
+  live: {"effectId":"WXDi-P02-070-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WX24-P3-055-E2  [HIGH/MISSING]  翠美姫　スイボク  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【常】：あなたの場に《回想の階層　アン＝サード》がいるかぎり、あなたの＜美巧＞のシグニは【シャドウ（レベル３以上のシグニ）】を得る。【自】《ターン１回》：ルリグ１体がアタックしたとき、そのアタック終了時、そのアタックによってそのルリグがダメージを与えていなかった場合、あなたは【エナチャージ１】をする。
+  指摘: 「アタック終了時」 エナチャージをそのアタックの終了時に行うという遅延タイミングがJSONにない。
+  live: {"effectId":"WX24-P3-055-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S018】 WX03-031-E1  [MED/WRONG]  幻獣　ベイア  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【自】：あなたのシグニが対戦相手のライフクロス１枚をクラッシュしたとき、あなたのデッキの一番上のカードをエナゾーンに置く。【出】：ターン終了時まで、あなたのすべてのシグニのパワーを＋5000する。
+  指摘: 「あなたのシグニが」 発動条件に「あなたのシグニがライフクロスをクラッシュした」という原因の限定がなく、他の効果によるクラッシュでも発動し得る。
+  live: {"effectId":"WX03-031-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S019】 WX08-042-E2  [HIGH/MISSING]  美しき弦奏　コントラ  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【常】：あなたが《白》を支払う際、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい。【自】：あなたのシグニ１体がエナゾーンから場に出たとき、あなたのデッキの一番上のカードをエナゾーンに置く。（このシグニがエナゾーンから場に出たときも、この能力は発動する）
+  指摘: 「エナゾーンから場に出たとき」 自分のシグニがエナゾーンから場に出たときという発動条件がJSONに存在しない。
+  live: {"effectId":"WX08-042-E2","effectType":"AUTO","timing":[],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S020】 WXDi-P11-TK04-E1  [MED/WRONG]  緑参ノ遊姫　アスレ【ＨＡＲＤ】  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【出現条件】《メインフェイズアイコン》手札とエナゾーンからシグニを合計３枚トラッシュに置く【自】《ターン１回》：あなたのシグニがバトルによって対戦相手のシグニ１体をバニッシュしたとき、【エナチャージ１】をする。【自】：このシグニがバトルによって対戦相手のシグニ１体をバニッシュしたとき、このシグニをアップする。（レゾナでありクラフトであるシグニはリムーブできず場を離れるとゲームから除外される）
+  指摘: 「シグニがバトルによって」 発動条件にバトルによるバニッシュという限定が表現されていない。
+  live: {"effectId":"WXDi-P11-TK04-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_ally","usageLimit":"once_per_turn","appearanceCondition":{"rawText":"《メインフェイズアイコン》手札とエナゾーンからシグニを合計３枚トラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["hand","energy"],"count":3,"filter":{"cardType":"シグニ"}},"paymentShape":"REQUIRES_NEW_FLOW"}}
+==============================================================================
+【S021】 WXK04-029-E2  [MED/MISSING]  紅蓮の使い魔　宮本武蔵  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【自】：このシグニがアタックしたとき、このシグニよりパワーの高い対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】：このターンに対戦相手のシグニがバニッシュされていた場合、【エナチャージ１】をする。
+  LB  : ：カードを１枚引く。あなたのライフクロスが４枚以下の場合、追加で【エナチャージ１】をする。
+  指摘: 「バニッシュされていた場合」 エナチャージ1の発動条件である、このターンに対戦相手のシグニがバニッシュされていたことが表現されていない。
+  live: {"effectId":"WXK04-029-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S022】 WXDi-P07-045-E1  [MED/MISSING]  翠英姫　ママ//メモリア  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるシグニのパワーの合計が30000の場合、【エナチャージ２】をする。【自】：このシグニがアタックしたとき、このシグニのパワーが13000の場合、次の対戦相手のターン終了時まで、このシグニは【シャドウ（パワー10000以下のシグニ）】を得る。【起】《コインアイコン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋3000する。
+  指摘: 「パワーの合計が30000の場合」 エナチャージ2の発動条件である、自分の場のシグニのパワー合計がちょうど30000であることがJSONにない。
+  live: {"effectId":"WXDi-P07-045-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S023】 WX11-045-E2  [MED/MISSING]  肆ノ遊　タコアゲ  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【自】：このシグニが効果によって場に出たとき、あなたのシグニ１体を対象とし、それをアップする。【自】：このシグニが効果によってバニッシュされたとき、あなたのデッキの一番上のカードをエナゾーンに置く。
+  LB  : ：どちらか１つを選ぶ。①あなたのエナゾーンからシグニを２枚まで対象とし、それらを手札に加える。②【エナチャージ１】
+  指摘: 「効果によってバニッシュ」 効果によってバニッシュされた場合に限る発動条件が欠落している。
+  live: {"effectId":"WX11-045-E2","effectType":"AUTO","timing":["ON_BANISH"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S024】 WX07-009-E1  [HIGH/MISSING]  白羅星　ジュピタ  action=ENERGY_CHARGE_FROM_DECK  軸=timing/trigger
+  原文: 【出現条件】《メインフェイズアイコン》レゾナではない白のシグニ２体をあなたの場からトラッシュに置く【出】：このレゾナの出現条件で同じ名前のシグニ２体をトラッシュに置いていた場合、あなたのデッキの上からカードを２枚エナゾーンに置く。【出】：ターン終了時まで、対戦相手のすべてのシグニは能力を失う。
+  指摘: 「同じ名前のシグニ２体」 エナチャージの発動条件である「出現条件で同じ名前のシグニ2体をトラッシュに置いていた場合」がJSONに無く、出現時に無条件で2枚エナチャージする効果になっている。
+  live: {"effectId":"WX07-009-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","appearanceCondition":{"rawText":"《メインフェイズアイコン》レゾナではない白のシグニ２体をあなたの場からトラッシュに置く","timings":["MAIN"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","color":"白","excludeResona":true}}},"paymentShape":"SINGLE_ZONE"}}
+==============================================================================
+【S025】 WXDi-P13-070-E2  [HIGH/MISSING]  羅石　レイ//ディソナ  action=FREEZE  軸=timing/trigger
+  原文: 【常】：あなたの手札が４枚以上あるかぎり、あなたの他の《ディソナアイコン》のシグニのパワーを＋2000する。【自】：あなたのアタックフェイズ開始時、このターンにあなたが効果によってカードを２枚以上引いていた場合、対戦相手のシグニ１体を対象とし、それを凍結する。
+  指摘: 「効果によってカードを２枚以上」 このターンに効果によってカードを2枚以上引いていた場合という発動条件が欠落し、無条件で相手のシグニを凍結する。
+  live: {"effectId":"WXDi-P13-070-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S026】 WXK03-059-E1  [HIGH/WRONG]  コードライド　レーサーバイク  action=GRANT_KEYWORD  軸=timing/trigger
+  原文: 【常】：あなたは【ライド】を《メインフェイズアイコン》と《アタックフェイズアイコン》を持つかのように使用できる。
+  指摘: 「かのように使用できる」 原文は【ライド】の使用可能タイミングをメイン・アタックフェイズに拡張する効果だが、JSONは任意のシグニに【ライド】自体を付与している。
+  live: {"effectId":"WXK03-059-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"any","count":1},"keyword":"ライド","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S027】 WXK02-040-E1  [HIGH/MISSING]  讃の遊　タケウマ  action=GRANT_KEYWORD  軸=timing/trigger
+  原文: 【自】：このシグニがアタックしたとき、このターンにシグニが２体以上場から手札に戻っていた場合、ターン終了時まで、このシグニは【アサシン】を得る。（【アサシン】を持つシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える）
+  LB  : ：どちらか１つを選ぶ。①対戦相手のレベル１のシグニ１体を対象とし、それを手札に戻す。②【エナチャージ１】
+  指摘: 「シグニが２体以上場から手札に」 このターンにシグニが2体以上場から手札に戻っていた場合という発動条件が欠落している。
+  live: {"effectId":"WXK02-040-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S028】 WX05-020-E2  [HIGH/WRONG]  羅輝石　ダイヤブライド  action=LIFE_CRASH  軸=timing/trigger
+  原文: 【自】《ターン１回》：このシグニが１ターンにライフクロスを合計２枚以上クラッシュしたとき、このシグニをアップする。【自】《ターン１回》：あなたの＜鉱石＞か＜宝石＞のシグニ１体が対戦相手のアーツの効果を受けたとき、対戦相手にダメージを与える。（対戦相手のライフクロスがない場合、あなたはゲームに勝利する）
+  LB  : ：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。あなたのライフクロスが２枚以下の場合、追加で対戦相手のライフクロス１枚をクラッシュする。
+  指摘: 「アーツの効果を受けたとき」 原文は鉱石か宝石のシグニが相手のアーツ効果を受けたときに発動するが、JSONはそれらが場にいる状態で相手がアーツを使用しただけで発動する。
+  live: {"effectId":"WX05-020-E2","effectType":"AUTO","timing":["ON_OPP_ARTS_USE"],"triggerScope":"self","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":["鉱石","宝石"]}},"action":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S029】 WXK07-055-CB-E1  [HIGH/MISSING]  羅星　人生さんR  action=LOOK_AND_REORDER  軸=timing/trigger
+  原文: 【自】：このシグニがアタックしたとき、あなたの場に《羅星　人生さんＢ》がある場合、あなたのデッキの上からカードを５枚見る。その中から１枚をトラッシュに置き、残りを好きな順番でデッキの一番上に戻す。【出】：あなたのデッキの上からカードを２枚見る。その中から１枚をトラッシュに置き、残りをデッキの一番上に戻す。
+  LB  : ：カードを１枚引く。
+  指摘: 「《羅星　人生さんＢ》がある場合」 アタック時効果の発動条件である、自分の場に《羅星　人生さんＢ》があることの判定がない。
+  live: {"effectId":"WXK07-055-CB-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":5,"private":true,"reorder":true,"canTrash":true,"destination":{"location":"deck","owner":"self","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S030】 WXK11-045-E1  [MED/MISSING]  羅星　ルシファスター  action=POWER_MODIFY_PER_LRIG_LEVEL  軸=timing/trigger
+  原文: 【自】：このシグニが対戦相手のライフクロス１枚をクラッシュしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを対戦相手のセンタールリグのレベル１につき－1000する。
+  LB  : ：カードを１枚引く。
+  指摘: 「このシグニが対戦相手の」 対戦相手のライフクロスをこのシグニ自身がクラッシュした場合に限る発動条件がJSONにない。
+  live: {"effectId":"WXK11-045-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"POWER_MODIFY_PER_LRIG_LEVEL","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerLevel":-1000,"lrigOwner":"opponent"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S031】 WXDi-P09-010-E3  [HIGH/WRONG]  絶歌の駄姫　グズ子  action=POWER_MODIFY  軸=timing/trigger
+  原文: 【出】：あなたのデッキの上からカードを５枚見る。その中からカード１枚をトラッシュに置き、残りを好きな順番でデッキの一番下に置く。【起】《ターン１回》《黒》《無》：あなたのトラッシュからシグニ１枚を対象とし、それを場に出す。【起】《ゲーム１回》《黒×0》：このターン、あなたのシグニ１体が効果によって場に出たとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
+  指摘: 「シグニ１体が効果によって場に出たとき」 原文は起動後、このターン中に自分のシグニが効果で場に出たとき発動する遅延効果だが、JSONは起動時に即座にパワーを減少させる。
+  live: {"effectId":"WXDi-P09-010-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-8000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_game"}
+==============================================================================
+【S032】 WX18-056-E1  [HIGH/MISSING]  惨之遊　†シガラヤキ†  action=POWER_MODIFY  軸=timing/trigger
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、このアタックフェイズの間にあなたのシグニが場からトラッシュに置かれていた場合、ターン終了時まで、それのパワーを－7000する。
+  指摘: 「シグニが場からトラッシュに」 このアタックフェイズ中に自分のシグニが場からトラッシュへ置かれていた場合に限る条件がなく、常に－7000される。
+  live: {"effectId":"WX18-056-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S033】 WXDi-CP02-048-E1  [HIGH/WRONG]  銀鏡イオリ(水着)  action=POWER_MODIFY  軸=timing/trigger
+  原文: 【出】：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000し、それは「【自】：アタックフェイズ終了時、ターン終了時まで、このシグニのパワーを－5000する。」を得る。【絆出】：あなたのトラッシュから＜ブルアカ＞のカード１枚を対象とし、それを手札に加える。
+  指摘: 「パワーを－8000し」 原文は対象のパワーをまず－8000し、さらにアタックフェイズ終了時に－5000する自動能力を与えるが、JSONは出現時に－5000する処理だけになっている。
+  live: {"effectId":"WXDi-CP02-048-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-5000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S034】 WXDi-P04-081-E1  [MED/MISSING]  幻蟲　カミキリムシ  action=POWER_MODIFY  軸=timing/trigger
+  原文: 【出】：あなたの場に、シグニに付いているカードかシグニの下に置かれているカードがある場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－1000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  指摘: 「付いているカードか…下に」 自分の場にシグニに付いているカードまたはシグニの下のカードがある場合という発動条件が欠落している。
+  live: {"effectId":"WXDi-P04-081-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-1000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S035】 WX09-Re07-E1  [HIGH/WRONG]  巨弓　ヤエキリ  action=SEARCH  軸=timing/trigger
+  原文: 【常】：あなたの場に＜アーム＞か＜ウェポン＞のシグニが合計３体あるかぎり、このシグニの基本パワーは10000になり、このシグニは「【自】：対戦相手の効果によってこのシグニが場を離れたとき、あなたのデッキからレベル３以下の＜アーム＞か＜ウェポン＞のシグニ１枚を探して場に出し、デッキをシャッフルする。」を得る。
+  LB  : ：あなたのデッキから＜アーム＞か＜ウェポン＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「効果によってこのシグニが場を離れたとき」 サーチと場出しが相手の効果でこのシグニが場を離れた時の誘発能力ではなく、場に指定クラスが3体いる間の常時アクションとして表現されている。
+  live: {"effectId":"WX09-Re07-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":["アーム","ウェポン"]},"minCount":3},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","level":{"max":3},"story":["アーム","ウェポン"]},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S036】 WX15-006-E1  [HIGH/WRONG]  愛別離苦  action=SEQUENCE(SEQUENCE/BLOCK_ACTION/PLAYER)  軸=timing/trigger
+  原文: このアーツは対戦相手のターンにしか使用できない。ベット―《コインアイコン》このターン、あなたのシグニ１体があなたの効果以外によってバニッシュされたとき、対戦相手のシグニ１体を対象とし、それをバニッシュする。あなたがベットしていた場合、このターン、あなたのシグニ１体があなたの効果以外によってバニッシュされたとき、追加であなたのデッキの一番上のカードをライフクロスに加える。
+  指摘: 「バニッシュされたとき」 原文はこのターン中に自分のシグニが自分の効果以外でバニッシュされたときに発動する遅延効果だが、JSONはアーツ使用時に相手シグニを即座にバニッシュする。
+  live: {"effectId":"WX15-006-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"self","count":1},"actionId":"USE_ARTS_EXCEPT_OPP_TURN","until":"PERMANENT"},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S037】 WX15-Re15-E1  [HIGH/MISSING]  コードアンチ　メイジ  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/TRASH_CARD)  軸=timing/trigger
+  原文: 【起】《アタックフェイズアイコン》《黒》《黒》《無》：あなたのトラッシュからそれぞれレベルの異なる無色ではないシグニ４枚をデッキの一番下に置く。そうした場合、このシグニをトラッシュから場に出し、デッキをシャッフルする。（この能力は、このシグニがトラッシュにある場合にしか使用できない）
+  LB  : ：あなたのデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュから無色ではないシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「トラッシュにある場合にしか」 このシグニがトラッシュにある場合だけ能力を使用できるという発動条件が欠落している。
+  live: {"effectId":"WX15-Re15-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ","nonColorless":true},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}},{"type":"SHUFFLE_DECK","owner":"self"}]}}]},"duration":"INSTANT","
+==============================================================================
+【S038】 PR-206-E1  [HIGH/MISSING]  宿業の花嫁　アルフォウ  action=SEQUENCE(SEQUENCE/TRASH/DECK_CARD)  軸=timing/trigger
+  原文: 【自】：このルリグが対戦相手のライフクロス１枚をクラッシュしたとき、各プレイヤーは自分のデッキの上からカードを５枚トラッシュに置く。
+  指摘: 「このルリグが」 ライフクロスをクラッシュした主体がこのルリグであるという発動条件が欠落しています。
+  live: {"effectId":"PR-206-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":5}},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":5}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S039】 WXDi-P11-TK04-E2  [MED/WRONG]  緑参ノ遊姫　アスレ【ＨＡＲＤ】  action=UP  軸=timing/trigger
+  原文: 【出現条件】《メインフェイズアイコン》手札とエナゾーンからシグニを合計３枚トラッシュに置く【自】《ターン１回》：あなたのシグニがバトルによって対戦相手のシグニ１体をバニッシュしたとき、【エナチャージ１】をする。【自】：このシグニがバトルによって対戦相手のシグニ１体をバニッシュしたとき、このシグニをアップする。（レゾナでありクラフトであるシグニはリムーブできず場を離れるとゲームから除外される）
+  指摘: 「このシグニがバトルによって」 発動条件にこのシグニのバトルによるバニッシュという限定が表現されていない。
+  live: {"effectId":"WXDi-P11-TK04-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S040】 WX11-031-E1  [HIGH/MISSING]  幻獣神　ウルティム  action=UP  軸=timing/trigger
+  原文: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、このターンにあなたの＜空獣＞か＜地獣＞のシグニが対戦相手のシグニを合計３体バニッシュしていた場合、このシグニをアップする。
+  LB  : ：次のターンの間、あなたの中央のシグニゾーンにあるシグニのパワーは＋5000され、それは【ランサー】を得る。
+  指摘: 「合計３体バニッシュ」 このターンに空獣か地獣が相手シグニを合計3体バニッシュした場合という発動条件が欠落している。
+  live: {"effectId":"WX11-031-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}

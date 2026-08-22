@@ -1,0 +1,22 @@
+| # | effectId | action型 | 軸 | sev/type | quote |
+|---|---|---|---|---|---|
+| S001 | WXK05-053-E1-G | (live無) | filter.状態 | HIGH/MISSING | 同じシグニゾーンに【シード】 |
+| S002 | WXDi-P04-026-E1 | ADD_TO_LIFE | filter.状態 | HIGH/WRONG | トラッシュから【ライフバースト】を持たない |
+| S003 | WXEX1-48-E2 | BANISH | filter.状態 | HIGH/WRONG | ダウン状態のシグニが１体の場合 |
+| S004 | WX10-066-E1 | BANISH | filter.状態 | HIGH/WRONG | 対戦相手のレゾナ１体 |
+| S005 | WX10-066-BURST | CHOOSE(CHOOSE/BANISH/SIGNI) | filter.状態 | HIGH/WRONG | ②対戦相手のレゾナ１体 |
+| S006 | WXEX2-28-E1 | DOWN | filter.状態 | HIGH/WRONG | 代わりにアップ状態のこのシグニをダウン |
+| S007 | WXK07-048-E1 | ENERGY_CHARGE_FROM_DECK | filter.状態 | HIGH/MISSING | 【チャーム】が付いていた場合 |
+| S008 | WXEX2-05-E1 | GRANT_KEYWORD | filter.状態 | MED/WRONG | あなたの＜宇宙＞のレゾナ |
+| S009 | WXK05-052-E1 | GRANT_KEYWORD | filter.状態 | HIGH/WRONG | 次のターンの間、それらは |
+| S010 | WX20-081-E1 | GRANT_PROTECTION | filter.状態 | HIGH/WRONG | あなたのレゾナは |
+| S011 | WXK04-049-E2 | POWER_MODIFY | filter.状態 | HIGH/WRONG | 【アクセ】が付いている |
+| S012 | WXDi-P07-056-E1 | POWER_MODIFY | filter.状態 | MED/MISSING | アップ状態であるかぎり |
+| S013 | WX25-P2-052-E2 | POWER_MODIFY | filter.状態 | HIGH/MISSING | レゾナとしても扱う |
+| S014 | WX05-019-E2 | POWER_MODIFY | filter.状態 | HIGH/MISSING | 能力を持たないシグニが２体以上 |
+| S015 | WX13-052-E1 | REVEAL_AND_PICK | filter.状態 | HIGH/MISSING | 公開したシグニをダウン状態で場に出す |
+| S016 | WX08-053-E1 | SEQUENCE(SEQUENCE/DOWN/SIGNI) | filter.状態 | MED/WRONG | アップ状態のレゾナ１体 |
+| S017 | WX14-CB02-E2 | SEQUENCE(SEQUENCE/DOWN/SIGNI) | filter.状態 | HIGH/WRONG | あなたのアップ状態の＜アーム＞ |
+| S018 | WXK02-052-E1 | SEQUENCE(SEQUENCE/FREEZE/SIGNI) | filter.状態 | HIGH/WRONG | すでにそれが凍結状態である場合 |
+| S019 | WX15-038-E2 | SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI) | filter.状態 | HIGH/MISSING | テキソスにアクセされている |
+| S020 | WX19-022-E1 | TRANSFER_TO_DECK | filter.状態 | MED/WRONG | 能力を持たない |

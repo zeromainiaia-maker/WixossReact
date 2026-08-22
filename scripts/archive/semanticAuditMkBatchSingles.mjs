@@ -32,12 +32,21 @@ const closed = new Set(R('stage2_closed.txt').split('\n').map(l => l.replace(/#.
 const triaged = new Set();
 for (const f of readdirSync(DIR).filter(n => /^stage1_batch\d+_triage\.md$/.test(n))) {
   for (const line of R(f).split('\n')) {
-    const m = line.match(/^\|\s*([A-Za-z0-9][A-Za-z0-9-]*?-(?:E\d+[a-z]?|BURST|CB-E\d+|[A-Z]{2,}))\s*\|\s*(?:AUTO|MANUAL|PARTIAL)\s*\|/);
+    // ⚠先頭の finding 連番列（`| S001 | …`）を許す＝単発バッチ（第8〜）の分類表。
+    // ⚠ここは semanticAuditLedger.mjs と**同じ regex のコピー**＝片方だけ直すと
+    //   「台帳では triage 済みなのに切り出しツールが同じ40件をまた出す」二重投入になる。
+    // ⚠parseStatus 列で anchor しない（`(live無)`／`読取不能（live null）` が入る行がある）。
+    //   分類列に anchor する＝semanticAuditLedger.mjs と**同じ regex**。片方だけ直すと二重投入になる。
+    // ⚠識別子列は effectId とは限らない（`effectId:null` の finding は CardNum で書かれる）。
+    //   台帳 semanticAuditLedger.mjs と**同じ regex**。片方だけ直すと二重投入になる。
+    const m = line.match(/^\|(?:\s*[A-Z]\d+\s*\|)?\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*\|[^|]*\|\s*[^|]*?(?:真バグ|偽陽性|機構待ち|要追調査)/);
     if (m) triaged.add(m[1]);
   }
 }
 const open = findings.filter(f =>
-  !removed.has(`${f.effectId} ${f.quote}`) && !closed.has(f.effectId) && !triaged.has(f.effectId));
+  !removed.has(`${f.effectId} ${f.quote}`) && !closed.has(f.effectId)
+  // effectId が null の finding は CardNum で triage 済み判定する（でないと永久に再投入される）。
+  && !triaged.has(f.effectId) && !(!f.effectId && triaged.has(f.cardNum)));
 
 // ── 段3 の軸（欠落語彙キー）を貼る ──
 const axisOf = new Map();

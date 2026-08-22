@@ -1,0 +1,114 @@
+=== 段1 第21バッチ（単発）＝軸「filter.状態」 の 1〜20件目 ===
+残 20件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WXK05-053-E1-G  [HIGH/MISSING]  羅植　ゼフィラン  action=(live無)  軸=filter.状態
+  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、「【自】：このシグニがアタックしたとき、同じシグニゾーンに【シード】がある場合、【エナチャージ１】をする。」を得る。
+  指摘: 「同じシグニゾーンに【シード】」 付与される自動能力のエナチャージ条件である、同じシグニゾーンに【シード】があることがJSONにないため、アタック時に無条件でエナチャージする。
+  live: null
+==============================================================================
+【S002】 WXDi-P04-026-E1  [HIGH/WRONG]  マキナリペア  action=ADD_TO_LIFE  軸=filter.状態
+  原文: 【出】：あなたのトラッシュから【ライフバースト】を持たないカード１枚を対象とし、それをライフクロスに加える。
+  指摘: 「トラッシュから【ライフバースト】を持たない」 原文はトラッシュのライフバーストを持たないカードを対象にするが、JSONは対象元とフィルターを欠き、デッキ上からライフクロスに加える処理になっている。
+  live: {"effectId":"WXDi-P04-026-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S003】 WXEX1-48-E2  [HIGH/WRONG]  コードアンチ　マカナ  action=BANISH  軸=filter.状態
+  原文: 【自】：このカードがデッキからトラッシュに置かれたとき、このカードをトラッシュから場に出してもよい。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの場にあるダウン状態のシグニが１体の場合、それをバニッシュする。【起】《アタックフェイズアイコン》このシグニを場からトラッシュに置く：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。
+  LB  : ：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－12000する。
+  指摘: 「ダウン状態のシグニが１体の場合」 自分の場のダウン状態のシグニがちょうど1体であることが発動条件だが、JSONでは対象となる相手シグニ自身がダウン状態であることを要求している。
+  live: {"effectId":"WXEX1-48-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isDown":true},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S004】 WX10-066-E1  [HIGH/WRONG]  降星の炎岩  action=BANISH  軸=filter.状態
+  原文: 対戦相手のレゾナ１体を対象とし、それをバニッシュする。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手のレゾナ１体を対象とし、それをバニッシュする。
+  指摘: 「対戦相手のレゾナ１体」 バニッシュ対象のレゾナ条件がなく、対戦相手の任意のシグニを対象にできる。
+  live: {"effectId":"WX10-066-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S005】 WX10-066-BURST  [HIGH/WRONG]  降星の炎岩  action=CHOOSE(CHOOSE/BANISH/SIGNI)  軸=filter.状態
+  原文: 対戦相手のレゾナ１体を対象とし、それをバニッシュする。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。②対戦相手のレゾナ１体を対象とし、それをバニッシュする。
+  指摘: 「②対戦相手のレゾナ１体」 ライフバーストの選択肢②にレゾナ条件がなく、対戦相手の任意のシグニを対象にできる。
+  live: {"effectId":"WX10-066-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S006】 WXEX2-28-E1  [HIGH/WRONG]  極槍　グングニレ  action=DOWN  軸=filter.状態
+  原文: 【常】：あなたの＜ウェポン＞のシグニ１体が対戦相手の効果によって場を離れる場合、代わりにアップ状態のこのシグニをダウンしてもよい。【出】《白》：このシグニをチアガールにする。【起】《ターン１回》《赤》：あなたのデッキから＜ウェポン＞のシグニ１枚を探して場に出す。その後、あなたのデッキからそれよりレベルの高い＜ウェポン＞のシグニ１枚を探して場に出し、デッキをシャッフルする。
+  LB  : ：あなたのトラッシュから＜ウェポン＞のシグニを２枚まで対象とし、それらを手札に加える。
+  指摘: 「代わりにアップ状態のこのシグニをダウン」 原文は自分の＜ウェポン＞が相手効果で場を離れる際にこのシグニ自身をダウンする置換効果だが、JSONは相手のアップ状態の＜ウェポン＞をダウンする効果になっている。
+  live: {"effectId":"WXEX2-28-E1","effectType":"CONTINUOUS","action":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","story":"ウェポン","isUp":true},"upToCount":false},"optional":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S007】 WXK07-048-E1  [HIGH/MISSING]  羅菌　カリム  action=ENERGY_CHARGE_FROM_DECK  軸=filter.状態
+  原文: 【自】：対戦相手のターンの間、このシグニがバニッシュされたとき、このシグニに【チャーム】が付いていた場合、【エナチャージ２】をする。
+  LB  : ：【エナチャージ１】
+  指摘: 「【チャーム】が付いていた場合」 エナチャージ２を行う条件である、このシグニにチャームが付いていたことの判定がJSONにない。
+  live: {"effectId":"WXK07-048-E1","effectType":"AUTO","timing":["ON_BANISH"],"activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":2},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S008】 WXEX2-05-E1  [MED/WRONG]  祈願の使者　サシェ・プレンヌ  action=GRANT_KEYWORD  軸=filter.状態
+  原文: 【常】：あなたの＜宇宙＞のレゾナは【アサシン】を得る。【自】《ターン１回》：あなたのレゾナ１体が場を離れたとき、あなたのデッキから＜宇宙＞のシグニ１枚を探して場に出し、デッキをシャッフルする。【起】《ターン１回》《アタックフェイズアイコン》《コインアイコン》：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  指摘: 「あなたの＜宇宙＞のレゾナ」 付与対象が自分の＜宇宙＞のレゾナに限定されず、owner:anyの＜宇宙＞シグニになっている。
+  live: {"effectId":"WXEX2-05-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","story":"宇宙"}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S009】 WXK05-052-E1  [HIGH/WRONG]  羅植　クレマチス  action=GRANT_KEYWORD  軸=filter.状態
+  原文: 【出】：対戦相手のシグニを２体まで対象とし、このシグニと同じシグニゾーンに【シード】がある場合、次のターンの間、それらは「【常】：アタックできない。」を得る。
+  指摘: 「次のターンの間、それらは」 原文は同じゾーンに【シード】がある場合に相手のシグニ2体までへ次のターン中のアタック禁止を与えるが、JSONは自分のシグニ1体へ【シード】を永続付与する別の効果になっている。
+  live: {"effectId":"WXK05-052-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"シード","duration":"PERMANENT"},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WX20-081-E1  [HIGH/WRONG]  幻蟲　タランチュラ  action=GRANT_PROTECTION  軸=filter.状態
+  原文: 【常】：あなたのレゾナは対戦相手の効果によってバニッシュされない。【自】：このシグニがアタックしたとき、【チャーム】が付いている対戦相手のシグニ１体を対象とし、あなたの場にカード名に《アラクネ・パイダ》を含むシグニがある場合、ターン終了時まで、それのパワーを－7000する。
+  指摘: 「あなたのレゾナは」 バニッシュ耐性の対象が自分のすべてのレゾナではなく、レゾナ指定のない自分のシグニ1体になっている。
+  live: {"effectId":"WX20-081-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 WXK04-049-E2  [HIGH/WRONG]  コードイート　エッグアイス  action=POWER_MODIFY  軸=filter.状態
+  原文: 【常】：あなたの＜調理＞のシグニのパワーを＋1000する。【常】：【アクセ】が付いているあなたのシグニのパワーを＋2000する。
+  指摘: 「【アクセ】が付いている」 JSONでは【アクセ】が付いている条件がなく、自分のすべてのシグニにパワー＋2000を適用している。
+  live: {"effectId":"WXK04-049-E2","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 WXDi-P07-056-E1  [MED/MISSING]  聖美　ガクブチ  action=POWER_MODIFY  軸=filter.状態
+  原文: 【常】：対戦相手のターンの間、このシグニがアップ状態であるかぎり、このシグニのパワーは＋4000される。【自】《ターン１回》：あなたのルリグ１体がアタックしたとき、あなたのシグニ１体を対象とし、それをアップする。
+  指摘: 「アップ状態であるかぎり」 パワー＋4000の適用条件であるこのシグニがアップ状態であることが欠落している。
+  live: {"effectId":"WXDi-P07-056-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S013】 WX25-P2-052-E2  [HIGH/MISSING]  羅星闘姫　ミルキィウェイ  action=POWER_MODIFY  軸=filter.状態
+  原文: 【自】：このシグニがアタックしたとき、あなたの場に《明星の使者　サシェ・モティエ》がいる場合、パワーがこのシグニのパワーの半分以下の対戦相手のシグニ１体を対象とし、それを手札に戻す。【起】《ターン１回》エナゾーンから＜宇宙＞のシグニ２枚をトラッシュに置く：次の対戦相手のターン終了時まで、このシグニのパワーは＋10000され、このシグニは「【常】：あなたの効果１つによってこのシグニを参照する場合、レゾナとしても扱う。」を得る。
+  指摘: 「レゾナとしても扱う」 次の対戦相手のターン終了時まで、このシグニを効果で参照する際にレゾナとしても扱う能力を得る処理がありません。
+  live: {"effectId":"WX25-P2-052-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energyTrash":{"count":2,"filter":{"cardType":"シグニ","story":"宇宙"}}},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":10000,"duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S014】 WX05-019-E2  [HIGH/MISSING]  コードラビリンス　ルーブル  action=POWER_MODIFY  軸=filter.状態
+  原文: 【常】：このシグニの正面のシグニは能力を失う。　【常】：対戦相手の場に能力を持たないシグニが２体以上あるかぎり、このシグニのパワーは＋3000される。【自】：対戦相手のシグニ１体が場からデッキに移動したとき、あなたのデッキから＜迷宮＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  LB  : ：次のあなたのターンの間、対戦相手の場にあるシグニは能力を失う。カードを１枚引く。
+  指摘: 「能力を持たないシグニが２体以上」 パワー＋3000の適用条件である、相手の能力を持たないシグニが2体以上という条件がJSONにない。
+  live: {"effectId":"WX05-019-E2","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WX13-052-E1  [HIGH/MISSING]  参ノ遊　コイノボリ  action=REVEAL_AND_PICK  軸=filter.状態
+  原文: 【自】：このシグニが対戦相手のシグニ１体をバニッシュしたとき、あなたのデッキの一番上を公開する。それが＜遊具＞のシグニの場合、このシグニをバニッシュしてもよい。そうした場合、この効果で公開したシグニをダウン状態で場に出す。
+  指摘: 「公開したシグニをダウン状態で場に出す」 自身を任意でバニッシュした後、公開した＜遊具＞のシグニをダウン状態で場に出す処理がありません。
+  live: {"effectId":"WX13-052-E1","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","story":"遊具"},"pickCount":1,"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly":true}},"optional":true},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S016】 WX08-053-E1  [MED/WRONG]  ホワイト・アウト  action=SEQUENCE(SEQUENCE/DOWN/SIGNI)  軸=filter.状態
+  原文: 対象のあなたのアップ状態のレゾナ１体をダウンする。そうした場合、対象の対戦相手のシグニ１体をトラッシュに置く。
+  指摘: 「アップ状態のレゾナ１体」 ダウンする対象にレゾナである条件がなく、アップ状態の任意の自分のシグニを選べる。
+  live: {"effectId":"WX08-053-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","isUp":true},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WX14-CB02-E2  [HIGH/WRONG]  暁月  action=SEQUENCE(SEQUENCE/DOWN/SIGNI)  軸=filter.状態
+  原文: 【常】：あなたの《燦》はバニッシュされない。【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのアップ状態の＜アーム＞のシグニ１体をダウンしてもよい。そうした場合、それを手札に戻す。
+  LB  : ：あなたのデッキから《暁月》１枚と《燦》１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「あなたのアップ状態の＜アーム＞」 ダウンする任意コストの対象が自分のアップ状態の＜アーム＞ではなく、対戦相手のアップ状態の＜アーム＞になっている。
+  live: {"effectId":"WX14-CB02-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","story":"アーム","isUp":true},"upToCount":false},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S018】 WXK02-052-E1  [HIGH/WRONG]  空英の仮定　リソキタ  action=SEQUENCE(SEQUENCE/FREEZE/SIGNI)  軸=filter.状態
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、それを凍結する。すでにそれが凍結状態である場合、代わりにカードを１枚引く。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のシグニ１体を対象とし、それをダウンし凍結する。②【エナチャージ１】
+  指摘: 「すでにそれが凍結状態である場合」 原文は対象がすでに凍結状態なら凍結の代わりに1枚引くが、JSONは凍結状態に関係なく凍結後に必ず1枚引く。
+  live: {"effectId":"WXK02-052-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S019】 WX15-038-E2  [HIGH/MISSING]  コードオーダー　ステキ  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=filter.状態
+  原文: 【常】：このシグニはアクセされているかぎり、【ランサー】を得る。【常】：このシグニが《コードイート　テキソス》にアクセされているかぎり、このシグニのパワーは＋3000され、このシグニは対戦相手のシグニの効果を受けない。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のパワー12000以上のシグニ１体を対象とし、それをバニッシュする。②【エナチャージ２】
+  指摘: 「テキソスにアクセされている」 《コードイート　テキソス》にアクセされている間だけ適用する条件が欠落し、パワー増加と耐性が無条件で適用される。
+  live: {"effectId":"WX15-038-E2","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S020】 WX19-022-E1  [MED/WRONG]  コードラビリンス　ノイヴァン  action=TRANSFER_TO_DECK  軸=filter.状態
+  原文: 【出】《白》：能力を持たない対戦相手のシグニ１体を対象とし、それをデッキの一番下に置く。【起】《アタックフェイズアイコン》《ダウン》：対戦相手のシグニ１体を対象とし、それをダウンする。【起】《アタックフェイズアイコン》《白》《白》《無》手札からこのカードを捨てる：能力を持たない対戦相手のシグニ１体を対象とし、それを手札に戻す。この能力はあなたのセンタールリグが＜イオナ＞の場合にしか使用できない。
+  LB  : ：カードを１枚引く。ターン終了時まで、対戦相手のセンタールリグとすべてのシグニは能力を失い、新たに得られない。
+  指摘: 「能力を持たない」 デッキの一番下に置く対象に「能力を持たないシグニ」という条件が欠落している。
+  live: {"effectId":"WX19-022-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}

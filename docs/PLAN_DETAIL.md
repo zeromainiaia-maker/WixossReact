@@ -1,5 +1,32 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-22 整理（§4 恒久指標・続き594時点値の退避・続き596）
+
+- **🆕 2026-08-22 続き594（タスク8 台帳新設＋段2 第4・第5バッチ）後 最新値（本行が直近の正）**：
+  **census 776→773**（`BASELINE_HIGH` 773）、**golden 2334→2337**、smoke **10693 / 全異常0 / SKIP 0**、
+  fuzz 全0、lint **0 errors**（260 warnings 据置）、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、
+  **同型★ 0**、`parserWorklist` held **99→97枚**、`docs/_partial_fresh.json` **6カード 据置**、
+  **live 効果総数 10693 据置**（per-effect diff **changed 16／added 0／removed 0**）。
+  🆕**Sonnetタスク8 の残 OPEN＝1,080件**（`node scripts/archive/semanticAuditLedger.mjs` で実測。
+  内訳＝段1 で真バグ確定 405／未 triage の単発 662／HIGH 715・MED 357・LOW 8／影響 784カード・858効果）。
+  **被覆マトリクス（`census:wiring`）の盤面状態語彙**＝`hasAcce` 0／`infected` 0／`hasCharm` 0／`isDown` 0／
+  `isSelfCharmed` 0／`isFrozen` 1／`isUp` 2／`isSelfAcced` 1／`acceHost` 3（続き593 から据置。
+  ⚠**全体の miss 合計は未再計測**）。version **0.502 据置**。**実機シナリオ定義総数 476 据置**。
+  （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  **Opusタスク12＝在庫1件**（(cxlvi)）／**§6.4 は `O-39`／`O-40` の2件**／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は §6.2 段2（第6バッチ）・§6.4 O-39/O-40・Opusタスク12 在庫1件・§5d-0 (i)・§6.3**。
+  ⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  🆕**カード単位の進捗（`npm run census:cards`・2026-08-22 続き595 新設）**＝母数 **全6712枚**
+  （効果テキストあり **6031** ／ バニラ 681 ／ live に効果 **5975枚・10693効果**）。
+  効果の `parseStatus`＝**AUTO 9548 (89.3%) ／ MANUAL 1120 (10.5%) ／ PARTIAL 25 (0.2%) ／ UNKNOWN 0**。
+  懸念フラグ別＝**census 604枚 ／ 意味照合の未消化 777枚 ／ held 97 ／ partial 6**
+  ⇒ **どのフラグも立たないカード 4833 / 5975（80.9%）**。意味照合監査のカバレッジ **5745/5975（96.2%）**。
+  ⚠**STUB を「未実装」と数えない**（数えると 80.9%→52.2% に化ける。無言 no-op は `census:stubs` A群🔴＝0）。
+  ⚠「効果テキストがあるのに live に効果が無い」56枚は**実害なし**（【マルチエナ】等の括弧注釈だけ）。
+  CPU の射程は続き553 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き594）。
+
+---
+
 ## 2026-08-19 整理㊿（§7 決着済み `V-15`／`V-17`／`V-21`〜`V-23`／`V-28`／`V-29`／`V-39`〜`V-43`／`V-81`／`V-82` の全文退避・続き587）
 
 > **§7 の運用ルール（「消化したら行ごと PLAN_DETAIL へ退避して、ここには残さない」）に沿った定期整理**。

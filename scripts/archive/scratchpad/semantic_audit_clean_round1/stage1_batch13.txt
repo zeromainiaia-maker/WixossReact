@@ -1,0 +1,207 @@
+=== 段1 第13バッチ（単発）＝軸「filter.level」 の 1〜37件目 ===
+残 37件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WXDi-P16-085-E1  [HIGH/MISSING]  羅原　Pb  action=ADD_TO_FIELD  軸=filter.level
+  原文: 【起】手札からレベル１のシグニを１枚捨て、このシグニを場からトラッシュに置く：あなたのトラッシュからレベル３のシグニ１枚を対象とし、それを場に出す。
+  LB  : ：あなたのトラッシュから《ガードアイコン》を持たないレベル２以下のシグニ１枚を対象とし、それを手札に加えるか場に出す。
+  指摘: 「レベル１のシグニを１枚捨て」 起動コストから手札のレベル1シグニ1枚を捨てる処理が欠落している。
+  live: {"effectId":"WXDi-P16-085-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"trash_self":true},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":3}}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S002】 WXK03-078-E1  [MED/MISSING]  超罠　モラン  action=BANISH  軸=filter.level
+  原文: 【出】《黒》：レベルが奇数の対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「レベルが奇数の」 バニッシュ対象をレベルが奇数のシグニに限定する条件がJSONにない。
+  live: {"effectId":"WXK03-078-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S003】 WXDi-P00-012-E1  [HIGH/WRONG]  タウィル＝バースト  action=BANISH  軸=filter.level
+  原文: 【出】：対戦相手のシグニを、レベルの合計が対戦相手のセンタールリグのレベル以下になるように好きな数対象とし、それらをバニッシュする。
+  指摘: 「レベルの合計が」 対象が1体固定になっており、相手センタールリグのレベルを上限とするレベル合計内で好きな数を選ぶ処理が表現されていない。
+  live: {"effectId":"WXDi-P00-012-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S004】 WX11-033-BURST  [HIGH/WRONG]  弱者の必滅　ディアボロス  action=BANISH  軸=filter.level
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のレベル３以下のシグニ１体を対象とし、それをバニッシュする。【出】：あなたは手札を２枚捨てる。【起】《黒》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのレベルを－１する。（レベルは０未満にはならない）
+  LB  : ：対戦相手のシグニを、レベルの合計が３以下になるように好きな数対象とし、それらをバニッシュする。
+  指摘: 「レベルの合計が３以下」 レベル合計3以下になる好きな数ではなく、レベル制限のない相手シグニ1体だけをバニッシュする効果になっている。
+  live: {"effectId":"WX11-033-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S005】 WXK05-035-E2  [HIGH/WRONG]  極装　オニマル  action=BANISH  軸=filter.level
+  原文: 【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつを重ね、その上に置く【常】：このシグニの下にレベル４のシグニが３枚あるかぎり、このシグニのパワーは＋2000され、このシグニは対戦相手のルリグの効果を受けない。【出】：対戦相手のシグニ１体を対象とし、このシグニの下にレベル１、レベル２、レベル３のシグニがある場合、それをバニッシュする。
+  LB  : ：手札を２枚捨て、カードを３枚引く。
+  指摘: 「下にレベル１、レベル２、レベル３」 原文は下にレベル1・2・3のシグニがある場合に任意の相手シグニをバニッシュするが、JSONは条件を欠き、対象をレベル3の相手シグニに限定している。
+  live: {"effectId":"WXK05-035-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":3},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S006】 WXDi-P01-039-E1  [HIGH/WRONG]  羅星姫　サタン  action=BLOCK_ACTION  軸=filter.level
+  原文: 【常】：あなたのデッキとトラッシュにあるレベル３とレベル２のシグニの基本レベルは１になる。【常】：あなたのターンの間、対戦相手の効果によってあなたのレベル１のシグニはバニッシュされない。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のシグニを２体まで対象とし、それらをダウンする。②カードを１枚引く。
+  指摘: 「デッキとトラッシュにある」 レベル変更の対象はデッキとトラッシュのレベル2・3シグニすべてだが、JSONは場所・元レベルを指定せず自分のシグニ1体を対象としている。
+  live: {"effectId":"WXDi-P01-039-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"SIGNI","owner":"self","count":1},"actionId":"SET_LEVEL_1","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S007】 WXDi-P14-004-E1  [HIGH/WRONG]  ハピネス・フロート  action=CHOOSE(CHOOSE/SEQUENCE/ADD_TO_FIELD)  軸=filter.level
+  原文: 【使用条件】【ドリームチーム】合計３種類以上の色を持つ（あなたの場にいるルリグ３体がこの条件を満たす）以下の２つから１つを選ぶ。①あなたのエナゾーンからシグニを２枚まで対象とし、それらを場に出す。ターン終了時まで、あなたのすべてのシグニは【Ｓランサー】を得る。②あなたのトラッシュにあるすべてのカードをデッキに加えてシャッフルする。あなたのセンタールリグのレベル１につき【エナチャージ２】をする。
+  指摘: 「レベル１につき【エナチャージ２】」 エナチャージ回数はセンタールリグのレベルに比例するが、JSONではレベルにかかわらずエナチャージ2固定になっている。
+  live: {"effectId":"WXDi-P14-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}]},"condition":{"type":"FIELD_LRIG_COLOR_COUNT","owner":"self","operator":"gte","value":3,"minLrigs":3},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":2,"upToCount":true,"filter":{"cardType":"シグニ"}}},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"keyword":"Sランサー","duration":"UNTIL_END_OF_TURN"}]}},{"choiceId":"c1","l
+==============================================================================
+【S008】 WXDi-P10-036-E1  [HIGH/WRONG]  羅星姫　アンドロメダ  action=CHOOSE(CHOOSE/TRASH/ENERGY_CARD)  軸=filter.level
+  原文: 【自】：あなたのアタックフェイズ開始時、以下の２つからあなたの場にあるレベル１のシグニ１体につき１つ選ぶ。①対戦相手のエナゾーンにカードが２枚以上ある場合、対戦相手は自分のエナゾーンからカード１枚を選びトラッシュに置く。②あなたのレベル１のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それのパワーを＋10000する。
+  LB  : ：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「レベル１のシグニ１体につき１つ」 選択回数は自分の場のレベル1シグニの数で決まるが、JSONでは常に1回になっている。
+  live: {"effectId":"WXDi-P10-036-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1},"opponentSelects":true},"condition":{"type":"ENERGY_COUNT","owner":"opponent","operator":"gte","value":2}},{"choiceId":"c1","label":"選択肢2","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","level":1},"upToCount":false},"delta":10000,"duration":"UNTIL_OPP_TURN_END"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S009】 WXDi-P08-034-E2  [MED/MISSING]  ピルルク/D-E  action=DOWN  軸=filter.level
+  原文: 【出】：対戦相手のシグニ１体を対象とし、それをダウンする。【出】《青》《無》《無》《無》《無》：レベルの合計が４以下になるように対戦相手のシグニを２体まで対象とし、それらをダウンする。
+  指摘: 「レベルの合計が４以下」 対象とするシグニのレベル合計を4以下に制限する条件がJSONにない。
+  live: {"effectId":"WXDi-P08-034-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"青","count":1},{"color":"無","count":1},{"color":"無","count":1},{"color":"無","count":1},{"color":"無","count":1}]},"action":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":2,"filter":{"cardType":"シグニ"},"upToCount":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WXK07-087-E2  [HIGH/MISSING]  羅星　クラビュラ  action=DRAW  軸=filter.level
+  原文: 【常】：あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計以下であるかぎり、このシグニのパワーは＋5000される。【出】《黒》：場にレベル１、レベル２、レベル３、レベル４のシグニがある場合、カードを１枚引く。（対戦相手の場にあるシグニも参照する）
+  指摘: 「レベル１、レベル２、レベル３、レベル４」 両者の場を通じてレベル1・2・3・4のシグニがすべて存在する場合にだけカードを引く条件がJSONにありません。
+  live: {"effectId":"WXK07-087-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 WXDi-P07-040-E1  [MED/MISSING]  羅星姫　ペガサス  action=DRAW  軸=filter.level
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にレベル１のシグニがある場合、カードを１枚引く。【自】：このシグニがアタックしたとき、あなたのトラッシュにレベル１のシグニが１０枚以上ある場合、【エナチャージ１】をする。【起】エナゾーンからレベル１のシグニ４枚をトラッシュに置く：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+  指摘: 「レベル１のシグニがある場合」 ドローの発動条件である、自分の場にレベル1のシグニがあることがJSONにない。
+  live: {"effectId":"WXDi-P07-040-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S012】 WXK07-053-E1  [HIGH/MISSING]  羅星　メガビュウ  action=DRAW  軸=filter.level
+  原文: 【自】：このシグニがアタックしたとき、あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計と同じ場合、カードを１枚引く。【出】：レベル２以上の他のシグニ１体を対象とし、ターン終了時まで、それのレベルを－１する。
+  指摘: 「レベルの合計と同じ場合」 自分と対戦相手の場のシグニのレベル合計が同じ場合にのみ引くという条件がない。
+  live: {"effectId":"WXK07-053-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S013】 WXDi-P04-039-E2  [HIGH/MISSING]  翠英姫　ニュートン  action=ENERGY_CHARGE_FROM_DECK  軸=filter.level
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にいるルリグのレベルの合計が偶数の場合、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加える。【出】：あなたの場にいるルリグのレベルの合計が奇数の場合、【エナチャージ１】をする。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②【エナチャージ１】
+  指摘: 「レベルの合計が奇数の場合」 エナチャージするためのルリグレベル合計が奇数という条件がJSONにない。
+  live: {"effectId":"WXDi-P04-039-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S014】 WXDi-D06-011-E1  [MED/WRONG]  salvage　the　future  action=GRANT_LRIG_ABILITY  軸=filter.level
+  原文: 【使用条件】【チーム】＜DIAGRAM＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１つを選ぶ。①対戦相手のデッキの上からカードを１５枚トラッシュに置く。②あなたのトラッシュから《ガードアイコン》を持たないシグニを３枚まで対象とし、それらを手札に加える。』
+  指摘: 「あなたのレベル３のルリグ１体」 能力を得る対象が自分のレベル3のルリグ1体に限定されていない。
+  live: {"effectId":"WXDi-D06-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"DIAGRAM","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D06-011-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":15}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRANSFER_TO_HAND","s
+==============================================================================
+【S015】 WXDi-D05-011-E1  [HIGH/MISSING]  はんぱない★ディストラクション  action=GRANT_LRIG_ABILITY  軸=filter.level
+  原文: 【使用条件】【チーム】＜うちゅうのはじまり＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【自】：このルリグがアタックしたとき、以下の２つから１つを選ぶ。この効果を対戦相手のセンタールリグのレベルと同じ回数行う。（１回ずつ行う。同じ選択肢を選んでもよい）①カードを１枚引く。②対戦相手の手札を１枚見ないで選び、捨てさせる。』
+  指摘: 「レベル３のルリグ１体を対象」 能力を付与する対象が自分のレベル3のルリグ1体に限定されていない。
+  live: {"effectId":"WXDi-D05-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"うちゅうのはじまり","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D05-011-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent"
+==============================================================================
+【S016】 WXDi-P01-039-E2  [HIGH/WRONG]  羅星姫　サタン  action=GRANT_PROTECTION  軸=filter.level
+  原文: 【常】：あなたのデッキとトラッシュにあるレベル３とレベル２のシグニの基本レベルは１になる。【常】：あなたのターンの間、対戦相手の効果によってあなたのレベル１のシグニはバニッシュされない。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のシグニを２体まで対象とし、それらをダウンする。②カードを１枚引く。
+  指摘: 「レベル１のシグニは」 バニッシュ耐性の対象をレベル1のシグニに限定するフィルターがなく、自分の全シグニを保護している。
+  live: {"effectId":"WXDi-P01-039-E2","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"self"},"action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WXK07-053-E2  [MED/MISSING]  羅星　メガビュウ  action=LEVEL_MODIFY  軸=filter.level
+  原文: 【自】：このシグニがアタックしたとき、あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計と同じ場合、カードを１枚引く。【出】：レベル２以上の他のシグニ１体を対象とし、ターン終了時まで、それのレベルを－１する。
+  指摘: 「レベル２以上の他のシグニ」 レベル変更の対象にレベル2以上という条件と、このシグニ自身を除外する条件がない。
+  live: {"effectId":"WXK07-053-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LEVEL_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":-1,"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S018】 WXDi-P03-049-E1  [MED/MISSING]  羅星　タイポ  action=POWER_MODIFY  軸=filter.level
+  原文: 【常】《相手ターン》：あなたのエナゾーンにレベル１のシグニがあるかぎり、このシグニのパワーは＋4000される。
+  LB  : ：対戦相手のシグニ１体を対象とし、ターン終了時まで、それは「【常】：アタックできない。」を得る。カードを１枚引く。
+  指摘: 「エナゾーンにレベル１のシグニ」 パワー＋4000の適用条件である、自分のエナゾーンにレベル1のシグニがあることがJSONにありません。
+  live: {"effectId":"WXDi-P03-049-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S019】 WXK07-104-E1  [HIGH/WRONG]  中罠　ハンプティ・ダンプティ  action=POWER_MODIFY  軸=filter.level
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの場にあるすべてのシグニのレベルが偶数の場合、ターン終了時まで、それのパワーを－4000する。
+  LB  : ：カードを１枚引く。
+  指摘: 「すべてのシグニのレベルが偶数」 自分の場の全シグニが偶数レベルという条件が欠落し、対象も相手シグニ1体ではなく全体になっている。
+  live: {"effectId":"WXK07-104-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false},"delta":-4000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S020】 WXDi-P03-066-E1  [MED/MISSING]  羅星　ハイドラス  action=POWER_MODIFY  軸=filter.level
+  原文: 【常】：あなたのトラッシュにレベル１のシグニが２枚以上あるかぎり、このシグニのパワーは＋4000される。
+  LB  : ：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一番下に置く。
+  指摘: 「レベル１のシグニが２枚以上」 パワー＋4000の適用条件である、自分のトラッシュにレベル1のシグニが2枚以上あることがJSONにありません。
+  live: {"effectId":"WXDi-P03-066-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S021】 WXDi-P13-076-E1  [HIGH/MISSING]  翠英　ママ//ディソナ  action=POWER_MODIFY  軸=filter.level
+  原文: 【常】：あなたの場にいるルリグのレベルの合計が３であるかぎり、このシグニのパワーは＋5000される。【常】：あなたの場にいるルリグのレベルの合計が７であるかぎり、このシグニのパワーは＋7000される。
+  指摘: 「レベルの合計が３」 自分の場のルリグのレベル合計がちょうど3である間だけパワーを＋5000する条件が欠落している。
+  live: {"effectId":"WXDi-P13-076-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S022】 WXK07-088-E1  [HIGH/MISSING]  羅星　リング  action=POWER_MODIFY  軸=filter.level
+  原文: 【出】《黒》：対戦相手のシグニ１体を対象とし、あなたの場にあるシグニのレベルの合計が５の場合、ターン終了時まで、それのパワーを－3000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  指摘: 「レベルの合計が５の場合」 自分の場のシグニのレベル合計が5の場合にだけパワーを減らす条件がJSONにありません。
+  live: {"effectId":"WXK07-088-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-3000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S023】 WXDi-P13-076-E2  [HIGH/MISSING]  翠英　ママ//ディソナ  action=POWER_MODIFY  軸=filter.level
+  原文: 【常】：あなたの場にいるルリグのレベルの合計が３であるかぎり、このシグニのパワーは＋5000される。【常】：あなたの場にいるルリグのレベルの合計が７であるかぎり、このシグニのパワーは＋7000される。
+  指摘: 「レベルの合計が７」 自分の場のルリグのレベル合計がちょうど7である間だけパワーを＋7000する条件が欠落している。
+  live: {"effectId":"WXDi-P13-076-E2","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":7000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S024】 WDK13-015-E1  [HIGH/MISSING]  羅星　シーガル  action=POWER_MODIFY  軸=filter.level
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたの場にあるシグニのレベルの合計が対戦相手の場にあるシグニのレベルの合計以下の場合、ターン終了時まで、それのパワーを－3000する。
+  LB  : ：【エナチャージ１】
+  指摘: 「レベルの合計以下の場合」 自分の場のシグニのレベル合計が対戦相手以下の場合にだけパワーを下げる発動条件が欠落している。
+  live: {"effectId":"WDK13-015-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-3000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S025】 WDK13-014-E2  [MED/WRONG]  羅星　ウィッチヘッド  action=POWER_MODIFY  軸=filter.level
+  原文: 【起】《ダウン》：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。【起】《ダウン》：対戦相手のレベル３のシグニ１体を対象とし、ターン終了時まで、それのパワーを－7000する。（パワーが０以下のシグニはルールによってバニッシュされる）
+  LB  : ：カードを１枚引く。
+  指摘: 「対戦相手のレベル３」 対象が対戦相手のレベル3のシグニに限定されず、所有者を問わない任意の対象になっている。
+  live: {"effectId":"WDK13-014-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S026】 WXK01-066-E1  [MED/MISSING]  中罠　ツナワタ  action=POWER_SET  軸=filter.level
+  原文: 【出】：対戦相手のレベル３以下のシグニ１体を対象とし、ターン終了時まで、それの基本パワーを2000にする。（そのシグニのパワーが＋か-されている場合、2000にしてから＋か-する）
+  指摘: 「レベル３以下のシグニ」 対象をレベル3以下に限定するフィルターがJSONにありません。
+  live: {"effectId":"WXK01-066-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"opponent","count":1},"value":2000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S027】 WX18-070-E1  [HIGH/MISSING]  羅星　≡スペースパ≡  action=REVEAL_AND_PICK  軸=filter.level
+  原文: 【自】：このシグニがアタックしたとき、あなたのデッキの一番上を公開する。それがレベル４のシグニの場合、それをあなたのエナゾーンに置くか手札に加える。
+  LB  : ：カードを１枚引く。
+  指摘: 「エナゾーンに置くか手札に加える」 JSONは公開したレベル4のシグニをエナゾーンに置く処理しかなく、手札に加える選択肢が欠落している。
+  live: {"effectId":"WX18-070-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ","level":4},"pickCount":1,"then":{"type":"ADD_TO_ENERGY","owner":"self"},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S028】 WXDi-P13-005-E1  [HIGH/WRONG]  BRAIN　HEARTS  action=SEQUENCE(SEQUENCE/DRAW/TRASH)  軸=filter.level
+  原文: カードを２枚引き、手札を１枚捨てる。その後、対戦相手のレベル１のシグニ１体を対象とし、それをバニッシュする。この効果によって捨てたカードが《ディソナアイコン》の場合、代わりに対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「ディソナの場合、代わりに」 原文は捨てたカードがディソナならレベル制限なしのバニッシュに置き換えるが、JSONは条件なしでレベル1とレベル制限なしのバニッシュを両方実行する。
+  live: {"effectId":"WXDi-P13-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":2}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1}}]},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":1},"upToCount":false}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S029】 WXK05-065-E1  [HIGH/WRONG]  コードイート　ティラミス  action=SEQUENCE(SEQUENCE/ENERGY_CHARGE_FROM_DECK/DRAW)  軸=filter.level
+  原文: 【自】《ターン１回》：このシグニに【アクセ】が付いたとき、それがレベル２以下の【アクセ】の場合、【エナチャージ１】をする。レベル３以上の【アクセ】の場合、カードを１枚引く。
+  LB  : ：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  指摘: 「レベル２以下の場合」 原文は付いたアクセのレベルに応じてエナチャージかドローの一方だけを行うが、JSONはレベル条件なしで両方を行う。
+  live: {"effectId":"WXK05-065-E1","effectType":"AUTO","timing":["ON_ACCE"],"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S030】 WXDi-P03-077-BURST  [HIGH/WRONG]  コードメイズ　アクフク  action=SEQUENCE(SEQUENCE/ENERGY_CHARGE_FROM_DECK/PREVENT_NEXT_DAMAGE)  軸=filter.level
+  原文: -
+  LB  : ：【エナチャージ１】をする。このターン、あなたは対戦相手のレベル３以下のシグニによってダメージを受けない。
+  指摘: 「レベル３以下のシグニによって」 原文はこのターン中に相手のレベル3以下のシグニから受ける全ダメージを防ぐが、JSONは発生源とレベルを限定せず次のダメージ1回だけを防ぐ。
+  live: {"effectId":"WXDi-P03-077-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"PREVENT_NEXT_DAMAGE","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S031】 WXK05-035-E1  [HIGH/MISSING]  極装　オニマル  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=filter.level
+  原文: 【ライズ】あなたの＜アーム＞のシグニ１体にエナゾーンとトラッシュにある＜アーム＞のシグニ１枚ずつを重ね、その上に置く【常】：このシグニの下にレベル４のシグニが３枚あるかぎり、このシグニのパワーは＋2000され、このシグニは対戦相手のルリグの効果を受けない。【出】：対戦相手のシグニ１体を対象とし、このシグニの下にレベル１、レベル２、レベル３のシグニがある場合、それをバニッシュする。
+  LB  : ：手札を２枚捨て、カードを３枚引く。
+  指摘: 「レベル４のシグニが３枚あるかぎり」 パワー上昇とルリグ効果への耐性に必要な「このシグニの下にレベル4のシグニが3枚ある」という適用条件がない。
+  live: {"effectId":"WXK05-035-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["ルリグ"],"sourceOwner":"opponent","duration":"PERMANENT"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S032】 WXK10-066-E2  [HIGH/MISSING]  コードアンチ　ネフティス  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/TRASH_CARD)  軸=filter.level
+  原文: 【出】：あなたのデッキから＜古代兵器＞のシグニを１枚まで探してトラッシュに置き、デッキをシャッフルする。【起】《ターン１回》手札から＜古代兵器＞のシグニを１枚捨てる：対戦相手のパワー8000以下のシグニ１体を対象とし、あなたのトラッシュからレベルの合計が５になるように＜古代兵器＞のシグニ２枚を好きな順番でデッキの一番下に置く。そうした場合、それをバニッシュする。
+  指摘: 「レベルの合計が５」 デッキ下へ置く古代兵器2枚のレベル合計が5である条件がない。
+  live: {"effectId":"WXK10-066-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"handDiscardSigni":{"count":1,"story":"古代兵器"}},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":2,"filter":{"cardType":"シグニ","powerRange":{"max":8000},"story":"古代兵器"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S033】 WXK10-085-E1  [HIGH/WRONG]  小罠　トカゲビル  action=SEQUENCE(SEQUENCE/TRASH/DECK_CARD)  軸=filter.level
+  原文: 【出】：あなたのデッキの上からカードを２枚トラッシュに置く。その後、この方法でトラッシュに置かれたシグニのレベルの合計が４の場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。レベルの合計が６の場合、【エナチャージ１】をする。
+  LB  : ：【エナチャージ１】
+  指摘: 「レベルの合計が６の場合」 エナチャージ1がレベル合計6の場合に限定されず、JSONでは常に実行される。
+  live: {"effectId":"WXK10-085-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":2}},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_LEVEL_SUM","operator":"eq","value":4},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-2000}},{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S034】 WXK11-004-E1  [HIGH/WRONG]  大器晩熟  action=SEQUENCE(SEQUENCE/TRASH/ENERGY_CARD)  軸=filter.level
+  原文: あなたのセンタールリグのレベル１につき対戦相手のエナゾーンにあるカードを１枚まで対象とし、対戦相手のすべてのシグニをゲームから除外する。エナゾーンにあるそれらをゲームから除外する。
+  指摘: 「レベル１につき」 対象にできる相手のエナ枚数がセンタールリグのレベルまでではなく、相手のエナすべてになっています。
+  live: {"effectId":"WXK11-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":4},{"color":"無","count":4}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":"ALL"}},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S035】 WXK07-082-E1  [MED/WRONG]  羅星　ベイル  action=TRANSFER_TO_DECK  軸=filter.level
+  原文: 【出】：あなたのトラッシュから【ライフバースト】を持たず無色ではないレベル４のシグニ１枚を対象とし、それをデッキの一番上に置く。
+  指摘: 「無色ではないレベル４」 対象から無色のシグニを除外する条件がJSONにありません。
+  live: {"effectId":"WXK07-082-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":4}},"shuffle":false,"position":"top"},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S036】 WXDi-P04-039-E1  [HIGH/MISSING]  翠英姫　ニュートン  action=TRANSFER_TO_HAND  軸=filter.level
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にいるルリグのレベルの合計が偶数の場合、あなたのエナゾーンからシグニを１枚まで対象とし、それを手札に加える。【出】：あなたの場にいるルリグのレベルの合計が奇数の場合、【エナチャージ１】をする。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②【エナチャージ１】
+  指摘: 「レベルの合計が偶数の場合」 エナゾーンのシグニを手札に加えるためのルリグレベル合計が偶数という条件がJSONにない。
+  live: {"effectId":"WXDi-P04-039-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"TRANSFER_TO_HAND","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":true,"filter":{"cardType":"シグニ"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S037】 WXDi-CP01-002-E1  [HIGH/MISSING]  世怜音女学院　Moon　Night  action=TRASH  軸=filter.level
+  原文: 【使用条件】【ドリームチーム】黒のルリグを１体以上含む【使用条件】このゲームの間にあなたがリレーピースを使用している（両方の【使用条件】を満たさなければならない）あなたのセンタールリグがレベル３以上の場合、対戦相手のデッキの上からカードを２４３４枚トラッシュに置く。
+  指摘: 「センタールリグがレベル３以上」 デッキを2434枚トラッシュに置くためのセンタールリグのレベル条件が欠落している。
+  live: {"effectId":"WXDi-CP01-002-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":2434}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}

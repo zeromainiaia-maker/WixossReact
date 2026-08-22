@@ -1,0 +1,20 @@
+| # | effectId | action型 | 軸 | sev/type | quote |
+|---|---|---|---|---|---|
+| S001 | WDK05-T09-E1-G | (live無) | キーワード能力 | HIGH/WRONG | レベル１のシグニで |
+| S002 | WX25-CP1-005-E1 | SEQUENCE(SEQUENCE/ADD_TO_FIELD/ENERGY_CARD) | キーワード能力 | HIGH/WRONG | あなたのすべての＜ブルアカ＞ |
+| S003 | WXDi-P14-070-E1 | SEQUENCE(SEQUENCE/ADD_TO_FIELD/TRASH_CARD) | キーワード能力 | MED/MISSING | このピースの後に場に出たシグニにも影響 |
+| S004 | WXK03-052-E1 | SEQUENCE(SEQUENCE/BANISH/SIGNI) | キーワード能力 | MED/WRONG | 【マルチエナ】を持つ |
+| S005 | WXDi-P16-051-E2 | SEQUENCE(SEQUENCE/CONDITIONAL/HAS_CARD_IN_FIELD) | キーワード能力 | HIGH/WRONG | エナゾーンにカードが無い場合、代わりに |
+| S006 | WX10-053-E1 | SEQUENCE(SEQUENCE/COST_REDUCTION/CHOOSE) | キーワード能力 | HIGH/WRONG | 《サーバント》を含むあなたのすべて |
+| S007 | WXEX2-01-E2 | SEQUENCE(SEQUENCE/DOWN/SIGNI) | キーワード能力 | HIGH/WRONG | 同じレベルのシグニで |
+| S008 | WX24-P3-042-E1 | SEQUENCE(SEQUENCE/ENERGY_CHARGE_FROM_DECK/GRANT_KEYWORD) | キーワード能力 | HIGH/WRONG | このターン、マルチエナを得る |
+| S009 | WD15-010-E1 | SEQUENCE(SEQUENCE/GRANT_KEYWORD/LRIG) | キーワード能力 | HIGH/WRONG | レベル１のシグニで【ガード】ができない |
+| S010 | WX25-P2-039-E1 | SEQUENCE(SEQUENCE/LOOK_PICK_CHAIN/GRANT_KEYWORD) | キーワード能力 | HIGH/WRONG | 凍結状態のパワー12000以下 |
+| S011 | WX26-CP1-059-E1 | SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI) | キーワード能力 | MED/WRONG | １０枚以上あるかぎり |
+| S012 | WX07-072-E1 | SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI) | キーワード能力 | HIGH/WRONG | それは追加で【ランサー】 |
+| S013 | PR-464-E1 | SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI) | キーワード能力 | HIGH/MISSING | レベル４以上で赤であるかぎり |
+| S014 | WX20-062-E1 | SEQUENCE(SEQUENCE/SEARCH/REVEAL) | キーワード能力 | HIGH/WRONG | それは【アサシン】を得る |
+| S015 | WX25-CP1-024-E1 | SEQUENCE(SEQUENCE/TRASH/DECK_CARD) | キーワード能力 | MED/WRONG | そのアタックの間 |
+| S016 | WX25-CP1-024-E1 | SEQUENCE(SEQUENCE/TRASH/DECK_CARD) | キーワード能力 | HIGH/WRONG | 置いてもよい。そうしなかった場合 |
+| S017 | WXDi-P11-051-E3 | TRANSFER_TO_HAND | キーワード能力 | HIGH/WRONG | このカードの上にある《融合せし極門 |
+| S018 | WDA-F03-13-BURST | TRASH | キーワード能力 | HIGH/WRONG | カード１枚と【マルチエナ】 |

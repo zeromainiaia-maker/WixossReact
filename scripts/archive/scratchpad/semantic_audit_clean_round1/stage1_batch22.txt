@@ -1,0 +1,99 @@
+=== 段1 第22バッチ（単発）＝軸「キーワード能力」 の 1〜18件目 ===
+残 18件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WDK05-T09-E1-G  [HIGH/WRONG]  燃盛　遊月・鍵  action=(live無)  軸=キーワード能力
+  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】エクシード１（あなたのルリグの下からカードを１枚ルリグトラッシュに置く）：このターン、対戦相手はレベル１のシグニで【ガード】ができない。【出】：対戦相手のエナゾーンから無色のカードを２枚まで対象とし、それらをトラッシュに置く。【起】このキーを場からルリグトラッシュに置く：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。
+  指摘: 「レベル１のシグニで」 ガード禁止の対象がレベル1のシグニに限定されず、対戦相手のガード行為全般を禁止している。
+  live: null
+==============================================================================
+【S002】 WX25-CP1-005-E1  [HIGH/WRONG]  あの日……あの時を……  action=SEQUENCE(SEQUENCE/ADD_TO_FIELD/ENERGY_CARD)  軸=キーワード能力
+  原文: あなたのエナゾーンから＜ブルアカ＞のシグニを３枚まで対象とし、それらを場に出す。次の対戦相手のターン終了時まで、あなたのすべての＜ブルアカ＞のシグニのパワーを＋5000し、あなたのすべての＜ブルアカ＞のシグニは【シャドウ（レベル３以上のシグニ）】を得る。《リコレクトアイコン》［４枚以上］その後、追加であなたのシグニ１体を対象とし、ターン終了時まで、それは【Ｓランサー】を得る。（【Ｓランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスがある場合はそれを１枚クラッシュする。無い場合は対戦相手にダメージを与える）
+  指摘: 「あなたのすべての＜ブルアカ＞」 【シャドウ】の付与対象が自分の＜ブルアカ＞シグニすべてではなく、owner:anyの1体になっている。
+  live: {"effectId":"WX25-CP1-005-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","story":"ブルアカ"}}},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ","story":"ブルアカ"}},"keyword":"シャドウ","duration":"UNTIL_OPP_TURN_END"},{"type":"RECOLLECT_GATE","minArts":4},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"Sランサー","duration":"UNTIL_END_OF_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO
+==============================================================================
+【S003】 WXDi-P14-070-E1  [MED/MISSING]  ちゅーにんぐあっぷ！  action=SEQUENCE(SEQUENCE/ADD_TO_FIELD/TRASH_CARD)  軸=キーワード能力
+  原文: あなたのトラッシュから＜電音部＞のシグニを３枚まで対象とし、それらを場に出す。あなたのセンタールリグがレベル３以上の場合、次の対戦相手のターンの間、あなたの＜電音部＞のシグニは【シャドウ】を得る。（このピースの後に場に出たシグニにも影響を与える）（【シャドウ】を持つシグニは対戦相手によって対象にされない）
+  指摘: 「このピースの後に場に出たシグニにも影響」 GRANT_KEYWORDの対象が解決時に場にいるシグニに限定されており、その後に場へ出る＜電音部＞のシグニへシャドウを与える継続的処理がない。
+  live: {"effectId":"WXDi-P14-070-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":3}]},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":3,"upToCount":true,"filter":{"cardType":"シグニ","story":"電音部"}}},{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":3},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ","story":"電音部"}},"keyword":"シャドウ","duration":"NEXT_TURN","nextTurnOwner":"opponent"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S004】 WXK03-052-E1  [MED/WRONG]  極装　ラーヴァテイン  action=SEQUENCE(SEQUENCE/BANISH/SIGNI)  軸=キーワード能力
+  原文: 【出】手札から＜アーム＞のシグニを２枚捨てる：対象の対戦相手のシグニ１体をバニッシュする。そうした場合、対戦相手のエナゾーンから対象の【マルチエナ】を持つカード１枚をトラッシュに置く。（バニッシュするシグニとエナゾーンのカードを先に選ぶ。バニッシュできなかった場合はエナゾーンのカードをトラッシュに置くことができない）
+  指摘: 「【マルチエナ】を持つ」 トラッシュに置くエナの対象から【マルチエナ】を持つカードという条件が欠落している。
+  live: {"effectId":"WXK03-052-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"handDiscardSigni":{"count":2,"story":"アーム"}},"action":{"type":"SEQUENCE","steps":[{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S005】 WXDi-P16-051-E2  [HIGH/WRONG]  コードラビリンス　トビラ  action=SEQUENCE(SEQUENCE/CONDITIONAL/HAS_CARD_IN_FIELD)  軸=キーワード能力
+  原文: 【起】《ターン１回》手札を２枚捨てる：このターン終了時、カードを２枚引くか【エナチャージ２】をする。【起】《緑》《無》：あなたの場に《収斂せし扉　アト＝トレ》がいる場合、ターン終了時まで、このシグニは【ランサー】を得る。あなたのエナゾーンにカードが無い場合、代わりにターン終了時まで、このシグニは【Ｓランサー】を得る。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。②【エナチャージ１】
+  指摘: 「エナゾーンにカードが無い場合、代わりに」 Sランサー付与がエナゾーンにカードが無い場合の代替処理ではなく、条件なしで常に実行されるJSONになっています。
+  live: {"effectId":"WXDi-P16-051-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"収斂せし扉　アト＝トレ"}},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"}},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"Sランサー","duration":"UNTIL_END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S006】 WX10-053-E1  [HIGH/WRONG]  集結する守護  action=SEQUENCE(SEQUENCE/COST_REDUCTION/CHOOSE)  軸=キーワード能力
+  原文: このスペルの使用コストはあなたの場にあるカード名に《サーバント》を含むシグニ１体につき《無×2》減る。以下の２つから１つを選ぶ。①あなたのトラッシュからカード名に《サーバント》を含むシグニを２枚まで対象とし、それらを手札に加える。②ターン終了時まで、カード名に《サーバント》を含むあなたのすべてのシグニのパワーを＋5000し、それらは【ランサー】を得る。
+  指摘: 「《サーバント》を含むあなたのすべて」 選択肢②のパワー増加と【ランサー】付与が、《サーバント》を含むシグニに限られず自分の全シグニを対象にしています。
+  live: {"effectId":"WX10-053-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":7}]},"action":{"type":"SEQUENCE","steps":[{"type":"COST_REDUCTION","targetCardType":"スペル","reduction":[{"color":"無","count":2}],"duration":"PERMANENT"},{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"①サーバントを手札へ","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true}}},{"choiceId":"c1","label":"②全サーバント+5000+ランサー","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL"},"delta":5000},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":
+==============================================================================
+【S007】 WXEX2-01-E2  [HIGH/WRONG]  祝輪の巫女　タマヨリヒメ  action=SEQUENCE(SEQUENCE/DOWN/SIGNI)  軸=キーワード能力
+  原文: 【自】《ターン１回》：アタックフェイズの間、あなたのシグニ１体がダウン状態になったとき、＜アーム＞か＜ウェポン＞のシグニ１体を対象とし、それとこのルリグをアップする。【自】：このルリグがアタックしたとき、あなたのアップ状態のシグニ１体をダウンしてもよい。そうした場合、このターン、対戦相手はこの方法でダウンしたシグニと同じレベルのシグニで【ガード】ができない。【起】《アタックフェイズアイコン》エクシード２：あなたのデッキから＜アーム＞か＜ウェポン＞のシグニ１枚を探して場に出し、デッキをシャッフルする。
+  指摘: 「同じレベルのシグニで」 ガード禁止がダウンしたシグニと同じレベルに限定されず、対戦相手のガード全体を禁止している。
+  live: {"effectId":"WXEX2-01-E2","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","isUp":true},"upToCount":false},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S008】 WX24-P3-042-E1  [HIGH/WRONG]  マルチ・チャージング  action=SEQUENCE(SEQUENCE/ENERGY_CHARGE_FROM_DECK/GRANT_KEYWORD)  軸=キーワード能力
+  原文: 【エナチャージ３】をする。このターン、あなたのエナゾーンにあるカードは【マルチエナ】を得る。
+  指摘: 「このターン、マルチエナを得る」 エナゾーンのカードが得る【マルチエナ】の期限はこのターン中だが、JSONではPERMANENTになっている。
+  live: {"effectId":"WX24-P3-042-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":3},{"type":"GRANT_KEYWORD","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"keyword":"マルチエナ","duration":"PERMANENT"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S009】 WD15-010-E1  [HIGH/WRONG]  一覇二鳥  action=SEQUENCE(SEQUENCE/GRANT_KEYWORD/LRIG)  軸=キーワード能力
+  原文: ターン終了時まで、あなたのセンタールリグは【ダブルクラッシュ】を得る。このターン、対戦相手はレベル１のシグニで【ガード】ができない。
+  指摘: 「レベル１のシグニで【ガード】ができない」 ガード禁止にレベル1のシグニという限定がなく、対戦相手によるすべてのガードを禁止している。
+  live: {"effectId":"WD15-010-E1","effectType":"ACTIVATED","timing":["MAIN","ATTACK"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_KEYWORD","target":{"type":"LRIG","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"},{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WX25-P2-039-E1  [HIGH/WRONG]  バヨネット・ショット  action=SEQUENCE(SEQUENCE/LOOK_PICK_CHAIN/GRANT_KEYWORD)  軸=キーワード能力
+  原文: あなたのデッキの上からカードを５枚見る。その中から＜武勇＞のシグニを１枚まで公開し手札に加え、＜武勇＞のシグニを１枚まで場に出し、残りを好きな順番でデッキの一番下に置く。ターン終了時まで、この方法で場に出たシグニは【アサシン（凍結状態のパワー12000以下のシグニ）】を得る。（【アサシン（凍結状態のパワー12000以下のシグニ）】を持つシグニがアタックすると、正面のシグニが凍結状態でパワー12000以下の場合、バトルをせず対戦相手にダメージを与える）
+  指摘: 「凍結状態のパワー12000以下」 付与するアサシンから、正面のシグニが凍結状態かつパワー12000以下という適用条件が欠落している。
+  live: {"effectId":"WX25-P2-039-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"LOOK_PICK_CHAIN","owner":"self","revealCount":5,"stages":[{"filter":{"cardType":"シグニ","story":"武勇"},"pickCount":1,"then":"hand"},{"filter":{"cardType":"シグニ","story":"武勇"},"pickCount":1,"then":"field"}],"remainder":{"location":"deck","position":"bottom"}},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN","targetsLastProcessed":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"PARTIAL"}
+==============================================================================
+【S011】 WX26-CP1-059-E1  [MED/WRONG]  プリンセス・ミーティア＆ヴィオラ  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=キーワード能力
+  原文: 【常】：あなたのトラッシュに＜プリオケ＞のカードが５枚以上あるかぎり、このシグニのパワーは＋3000される。１０枚以上あるかぎり、このシグニは【シャドウ（パワー10000以下のシグニ）】を得る。【出】《無》：あなたのトラッシュからレベル２以下の＜プリオケ＞のシグニ１枚を対象とし、それを場に出すかエナゾーンに置く。
+  LB  : ：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、ターン終了時まで、それのパワーを－15000する。②カードを１枚引く。
+  指摘: 「１０枚以上あるかぎり」 シャドウを得る条件がトラッシュのプリオケ10枚以上ではなく、パワー増加と同じ5枚以上になっている。
+  live: {"effectId":"WX26-CP1-059-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"story":"プリオケ"},"minCount":5},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":3000},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"powerLte\":10000}","duration":"PERMANENT"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 WX07-072-E1  [HIGH/WRONG]  爆打  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=キーワード能力
+  原文: シグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000する。あなたの場にクロス状態のシグニがある場合、ターン終了時まで、それは追加で【ランサー】を得る。
+  LB  : ：あなたのデッキから《クロスアイコン》を持つシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「それは追加で【ランサー】」 ランサーを得る対象は最初にパワーを上げた同じシグニだが、JSONでは別のシグニを選択できる。
+  live: {"effectId":"WX07-072-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"any","count":1},"delta":5000},{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","crossState":true}},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"any","count":1},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S013】 PR-464-E1  [HIGH/MISSING]  絶影の追跡者　エリナ  action=SEQUENCE(SEQUENCE/POWER_MODIFY/SIGNI)  軸=キーワード能力
+  原文: 【常】：あなたのセンタールリグがレベル４以上で赤であるかぎり、このシグニのパワーは＋5000され、このシグニは【ダブルクラッシュ】を得る。【出】：対戦相手のパワー3000以下のシグニ１体を対象とし、対戦相手の場にシグニが３体ある場合、それをバニッシュする。
+  LB  : ：カードを１枚引く。
+  指摘: 「レベル４以上で赤であるかぎり」 パワー上昇とダブルクラッシュ付与に必要な、センタールリグが赤かつレベル4以上という条件がない。
+  live: {"effectId":"PR-464-E1","effectType":"CONTINUOUS","action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":5000},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ダブルクラッシュ","duration":"PERMANENT"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S014】 WX20-062-E1  [HIGH/WRONG]  中罠　ハニーガール  action=SEQUENCE(SEQUENCE/SEARCH/REVEAL)  軸=キーワード能力
+  原文: 【出】：あなたのデッキからカード名に《ハニトラ》を含むシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。【トラップアイコン】《超罠ハニトラ》１体を対象とし、ターン終了時まで、それは【アサシン】を得る。（【アサシン】を持つシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える）
+  指摘: 「それは【アサシン】を得る」 付与する能力が【アサシン】ではなく【トラップアイコン】になっている。
+  live: {"effectId":"WX20-062-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","cardName":"ハニトラ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"トラップアイコン","duration":"UNTIL_END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WX25-CP1-024-E1  [MED/WRONG]  春原シュン[悪い子はどこですか？]  action=SEQUENCE(SEQUENCE/TRASH/DECK_CARD)  軸=キーワード能力
+  原文: 【自】：このルリグがアタックしたとき、対戦相手は自分のデッキの上からカードを７枚トラッシュに置いてもよい。そうしなかった場合、そのアタックの間、対戦相手は【ガード】ができない。【起】《ゲーム１回》《黒×0》：あなたのトラッシュから《ガードアイコン》を持たないカードを３枚まで対象とし、それらをエナゾーンに置く。【絆起】《ゲーム１回》《黒×0》：あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「そのアタックの間」 ガード禁止の期間がそのアタック中ではなくターン終了時までになっている。
+  live: {"effectId":"WX25-CP1-024-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":7}},{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WX25-CP1-024-E1  [HIGH/WRONG]  春原シュン[悪い子はどこですか？]  action=SEQUENCE(SEQUENCE/TRASH/DECK_CARD)  軸=キーワード能力
+  原文: 【自】：このルリグがアタックしたとき、対戦相手は自分のデッキの上からカードを７枚トラッシュに置いてもよい。そうしなかった場合、そのアタックの間、対戦相手は【ガード】ができない。【起】《ゲーム１回》《黒×0》：あなたのトラッシュから《ガードアイコン》を持たないカードを３枚まで対象とし、それらをエナゾーンに置く。【絆起】《ゲーム１回》《黒×0》：あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「置いてもよい。そうしなかった場合」 相手による7枚のトラッシュ送りが任意選択になっておらず、さらに選ばなかった場合だけ適用するガード禁止が常に続けて適用される。
+  live: {"effectId":"WX25-CP1-024-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":7}},{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WXDi-P11-051-E3  [HIGH/WRONG]  融合の儀　タウィル//メモリア  action=TRANSFER_TO_HAND  軸=キーワード能力
+  原文: 【常】：あなたの場に《融合の儀　ウムル//メモリア》があるかぎり、このシグニとあなたの《融合の儀　ウムル//メモリア》のパワーを＋4000する。【起】このシグニと《融合の儀　ウムル//メモリア》１体を場からトラッシュに置く：あなたの手札から白か黒のシグニ１枚を場に出す。【常】：このカードの上にある《融合せし極門　ウトゥルス//メモリア》は「【自】：このシグニがアタックしたとき、あなたのトラッシュから《ガードアイコン》を持つシグニ１枚を対象とし、それを手札に加える。」を得る。
+  指摘: 「このカードの上にある《融合せし極門」 原文はこのカードの上にある指定シグニへアタック時能力を与える効果だが、JSONは常時トラッシュからガード持ちシグニを手札に加える効果になっている。
+  live: {"effectId":"WXDi-P11-051-E3","effectType":"CONTINUOUS","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","hasGuard":true}}},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S018】 WDA-F03-13-BURST  [HIGH/WRONG]  幻竜姫　スヴァローグ  action=TRASH  軸=キーワード能力
+  原文: 【常】：あなたのエナゾーンに白か青か緑か黒のカードがあるかぎり、このシグニのパワーは＋2000される。【自】：対戦相手のエナゾーンにカード１枚が置かれたとき、そこに８枚以上のカードがある場合、あなたはそこから対象のカード１枚をトラッシュに置く。【自】：このシグニがアタックしたとき、パワー12000以下のシグニ１体を対象とし、あなたと対戦相手のエナゾーンにあるカードの合計が７枚以下の場合、それをバニッシュする。
+  LB  : ：対戦相手のエナゾーンから、カード１枚と【マルチエナ】を持つカード１枚を対象とし、それらをトラッシュに置く。
+  指摘: 「カード１枚と【マルチエナ】」 原文は相手のエナから通常のカード1枚と【マルチエナ】を持つカード1枚の計2枚をトラッシュに置くが、JSONは条件なしのカード1枚しか処理しない。
+  live: {"effectId":"WDA-F03-13-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}

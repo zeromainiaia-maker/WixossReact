@@ -1,0 +1,175 @@
+=== 段1 第16バッチ（単発）＝軸「filter.color」 の 1〜32件目 ===
+残 32件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WX24-P4-038-sub-E1  [MED/WRONG]  憧れへの挑戦  action=(live無)  軸=filter.color
+  原文: ターン終了時まで、あなたのすべてのルリグは以下の能力を得る。『【起】《ターン１回》《ダウン》：あなたのトラッシュからこのルリグと共通する色を持つシグニ１枚を対象とし、それを場に出す。【起】《ターン１回》《ダウン》：このルリグと同じレベルの対戦相手のシグニ１体を対象とし、それをバニッシュする。』
+  指摘: 「このルリグと共通する色」 トラッシュから場に出すシグニに、この能力を得たルリグと共通する色を持つという条件がない。
+  live: null
+==============================================================================
+【S002】 WXDi-P01-004-E1  [HIGH/MISSING]  code:L/O  action=ADD_TO_LIFE  軸=filter.color
+  原文: 【使用条件】あなたの場に青と緑のルリグがいるあなたのライフクロスが０枚の場合、あなたのデッキをシャッフルし一番上のカードをライフクロスに加える。
+  指摘: 「青と緑のルリグがいる」 使用条件である自分の場に青と緑のルリグがいることがJSONに存在しない。
+  live: {"effectId":"WXDi-P01-004-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":3}]},"condition":{"type":"LIFE_COUNT","owner":"self","operator":"eq","value":0},"action":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S003】 WX24-D2-11-E1  [HIGH/WRONG]  羅闘石　アイロン  action=BANISH  軸=filter.color
+  原文: 【自】：このシグニがアタックしたとき、このターンにあなたが赤のアーツを使用していた場合、対戦相手のパワー2000以下のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「対戦相手のパワー2000以下」 原文は色を問わず相手のパワー2000以下のシグニを対象にするが、JSONは対象を赤のシグニに限定している。
+  live: {"effectId":"WX24-D2-11-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"ARTS_USED_THIS_TURN","owner":"self","color":"赤"},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":2000},"color":"赤"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S004】 WXDi-P05-049-BURST  [HIGH/MISSING]  コードメイズ　ルヴダビ  action=BOUNCE  軸=filter.color
+  原文: 【常】：このシグニのパワーはあなたの場にいる白のルリグ１体につき＋2000される。
+  LB  : ：あなたの場に白のルリグが２体以上いる場合、対戦相手のパワー10000以下のシグニ１体を対象とし、それを手札に戻す。
+  指摘: 「白のルリグが２体以上いる場合」 ライフバーストの手札に戻す効果に、自分の場の白のルリグが2体以上という発動条件がない。
+  live: {"effectId":"WXDi-P05-049-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ","powerRange":{"max":10000}}},"optional":false},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S005】 WX25-P2-075-E1  [HIGH/WRONG]  コードアート　Bルーンマシン  action=CHOOSE(CHOOSE/BANISH/SIGNI)  軸=filter.color
+  原文: 【自】：あなたのアタックフェイズ開始時、以下の２つから１つを選ぶ。①このターンにあなたが赤のスペルを使用していた場合、対戦相手のパワー3000以下のシグニ１体を対象とし、それをバニッシュする。②このシグニが覚醒状態の場合、対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「赤のスペルを使用していた場合」 選択肢①の発動条件である赤のスペル使用済み判定がなく、代わりにバニッシュ対象を赤のシグニに限定している。
+  live: {"effectId":"WX25-P2-075-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":3000},"color":"赤"},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},"condition":{"type":"THIS_CARD_IS_AWAKENED"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S006】 WX24-P4-031-E1  [MED/WRONG]  バツ・ウォーター  action=CHOOSE(CHOOSE/DOWN/CENTER_LRIG_OR_SIGNI)  軸=filter.color
+  原文: 以下の２つから１つを選ぶ。①対戦相手のルリグかシグニ１体を対象とし、それをダウンする。②対戦相手の赤か緑のシグニ１体を対象とし、それをデッキの一番下に置く。
+  指摘: 「赤か緑のシグニ１体」 選択肢②の対象に必要な赤または緑の色条件がJSONから欠落している。
+  live: {"effectId":"WX24-P4-031-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":1},{"color":"無","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DOWN","target":{"type":"CENTER_LRIG_OR_SIGNI","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"TRANSFER_TO_DECK","source":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"shuffle":false,"position":"bottom"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S007】 WX25-P2-057-E1  [HIGH/MISSING]  羅原姫　Pt  action=CHOOSE(CHOOSE/DRAW/SEQUENCE)  軸=filter.color
+  原文: 【自】《ターン１回》：あなたの青のシグニ１体がバニッシュされたとき、以下の２つから１つを選ぶ。①カードを１枚引く。②あなたの手札からレベル１のシグニ１枚をダウン状態で場に出す。そのシグニの【出】能力は発動しない。【自】：対戦相手のターン終了時、このシグニをバニッシュしてもよい。そうした場合、対戦相手は手札を１枚捨てる。
+  LB  : ：対戦相手のアップ状態のシグニ１体を対象とし、それをデッキの一番下に置く。
+  指摘: 「あなたの青のシグニ１体」 バニッシュされたカードを自分の青のシグニに限定する発動条件がありません。
+  live: {"effectId":"WX25-P2-057-E1","effectType":"AUTO","timing":["ON_BANISH"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DRAW","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":1}},"asDown":true,"suppressOnPlay":true}]}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S008】 PR-K044-E3  [MED/WRONG]  焔型闘娘　花代＆緑子  action=CHOOSE(CHOOSE/GRANT_KEYWORD/SIGNI)  軸=filter.color
+  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをバニッシュし、【エナチャージ１】をする。【出】：以下の３つから２つまで選ぶ。①あなたの赤か緑のシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。②対戦相手のシグニ１体を対象とし、それをエナゾーンに置く。③あなたのトラッシュから赤か緑のカードを合計２枚まで対象とし、それらを手札に加える。
+  指摘: 「あなたの赤か緑のシグニ」 選択肢①の対象が赤か緑のシグニではなく、緑のシグニだけに限定されている。
+  live: {"effectId":"PR-K044-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"緑"}},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":true,"filter":{}}}}],"upTo":true},"duration":"UNTIL_END_OF_TURN","man
+==============================================================================
+【S009】 WX24-P4-033-E1  [MED/WRONG]  飛花落葉  action=CHOOSE(CHOOSE/NEGATE_ATTACK/SIGNI)  軸=filter.color
+  原文: 以下の２つから１つを選ぶ。①対戦相手のシグニ１体を対象とし、このターン、次にそれがアタックしたとき、そのアタックを無効にする。②対戦相手の青か黒のシグニ１体を対象とし、それをエナゾーンに置く。
+  指摘: 「青か黒のシグニ１体」 選択肢②の対象に必要な青または黒の色条件がJSONから欠落している。
+  live: {"effectId":"WX24-P4-033-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"NEGATE_ATTACK","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEND_TO_ENERGY","target":{"type":"SIGNI","owner":"opponent","count":1}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WXK10-028-BURST  [MED/WRONG]  幻水電　エレクトイール  action=CHOOSE(CHOOSE/TRANSFER_TO_HAND/ENERGY_CARD)  軸=filter.color
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのデッキから緑のシグニ１枚を探してエナゾーンに置き、デッキをシャッフルする。【起】《ターン１回》《緑》《緑》：このシグニよりパワーの低い対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  LB  : ：あなたのエナゾーンから緑のシグニ１枚を対象とし、それを手札に加えるか場に出す。
+  指摘: 「緑のシグニ１枚」 どちらの選択肢にも対象を緑のシグニに限定するフィルターがない。
+  live: {"effectId":"WXK10-028-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"hand","label":"手札に加える","action":{"type":"TRANSFER_TO_HAND","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}},{"choiceId":"field","label":"場に出す","action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"ENERGY_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 WXDi-P10-070-E1  [MED/WRONG]  枝折  action=ENERGY_CHARGE  軸=filter.color
+  原文: あなたのトラッシュからそれぞれ共通する色を持たず無色ではないシグニ２枚を対象とし、それらをエナゾーンに置く。【自】：あなたのターンの間、このカードが捨てられたとき、シグニ１体を対象とし、ターン終了時まで、それのパワーを＋2000する。
+  LB  : ：対戦相手のパワー7000以上のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「それぞれ共通する色を持たず」 対象2枚が互いに異なる色を持つ条件がJSONにない。
+  live: {"effectId":"WXDi-P10-070-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"ENERGY_CHARGE","target":{"type":"TRASH_CARD","owner":"self","count":2,"upToCount":false,"filter":{"cardType":"シグニ","nonColorless":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 PR-046-E3  [HIGH/MISSING]  星占の巫女　リメンバ・ナイト  action=FREEZE  軸=filter.color
+  原文: 【常】：対戦相手のルリグの【起】能力の使用コストは《無×1》増える。【出】：対戦相手のシグニ１体を対象とし、それを凍結する。【起】《無》《無》手札から白か青のシグニを１枚捨てる：シグニ１体を対象とし、それを凍結する。【起】《ダウン》：対戦相手の凍結状態のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「手札から白か青のシグニを１枚捨てる」 起動コストである手札の白か青のシグニ1枚の捨札がJSONにありません。
+  live: {"effectId":"PR-046-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1},{"color":"無","count":1}]},"action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"any","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S013】 WXDi-P09-069-E1  [MED/WRONG]  LIVELY　LIVE  action=GRANT_EFFECT  軸=filter.color
+  原文: あなたの《羅菌姫　みこみこ//メモリア》か《中罠　ゆかゆか//メモリア》か《羅原　まほまほ//メモリア》か青のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それは「【自】《ターン１回》：このシグニが対戦相手の、能力か効果の対象になったとき、対戦相手の手札を１枚見ないで選び、捨てさせる。」を得る。
+  LB  : ：対戦相手のシグニ１体を対象とし、それをダウンし凍結する。対戦相手は手札を１枚捨てる。
+  指摘: 「３種の指定シグニか青のシグニ」 対象条件は指定された3種または青のシグニだが、JSONは色とカード名を同一filterに入れており論理和を表現できていない。
+  live: {"effectId":"WXDi-P09-069-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":0}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"青","cardNames":["羅菌姫　みこみこ//メモリア","中罠　ゆかゆか//メモリア","羅原　まほまほ//メモリア"]},"upToCount":false},"duration":"UNTIL_OPP_TURN_END","effect":{"effectId":"WXDi-P09-069-sub-E1","effectType":"AUTO","timing":["ON_TARGETED"],"costUnparsed":true,"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}},"duration":"INSTANT","mandatory":false,"parseStatus
+==============================================================================
+【S014】 WXDi-P08-061-E1  [HIGH/WRONG]  楽天の共鳴  action=GRANT_EFFECT  軸=filter.color
+  原文: あなたの《紅天姫　ヒラナ//メモリア》か《幻水　アキノ//メモリア》か《羅石　レイ//メモリア》か赤のシグニ１体を対象とし、ターン終了時まで、それは「【自】《ターン１回》：このシグニがアタックしたとき、対戦相手のパワー5000以下のシグニ１体を対象とし、それをバニッシュする。」を得る。
+  指摘: 「か赤のシグニ１体」 原文の対象は指定3名称または赤のシグニだが、JSONは色と名称を同時に要求するフィルターになっている。
+  live: {"effectId":"WXDi-P08-061-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","color":"赤","cardNames":["紅天姫　ヒラナ//メモリア","幻水　アキノ//メモリア","羅石　レイ//メモリア"]},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WXDi-P08-061-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"costUnparsed":true,"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":5000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self","usag
+==============================================================================
+【S015】 WX11-032-E2  [HIGH/WRONG]  羅植姫　スノロップ  action=GRANT_PROTECTION  軸=filter.color
+  原文: 【常】：このシグニはあなたのエナゾーンにあるカードの色を追加で持つ。【常】：このシグニのパワーは自身が持つ色の種類１つにつき＋4000され、このシグニは自身と共通する色を持つ対戦相手のシグニの効果を受けない。【自】：対戦相手のターン終了時、このシグニのパワーが20000で、あなたのライフクロスが２枚以下の場合、あなたのデッキの一番上のカードをライフクロスに加える。
+  LB  : ：あなたのトラッシュからカードを２枚まで対象とし、それらをエナゾーンに置く。
+  指摘: 「自身と共通する色を持つ」 効果を受けない相手シグニを自身と共通する色を持つものに限定する条件がなく、全相手シグニからの保護になっている。
+  live: {"effectId":"WX11-032-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WXDi-P12-039-E1  [HIGH/MISSING]  アイヤイ　ミラクルローリング  action=LOOK_AND_REORDER  軸=filter.color
+  原文: 【出】：あなたのデッキの上からカードを５枚見る。その中からカード１枚と、そのカードと共通する色を持たないカードを１枚までエナゾーンに置き、残りを好きな順番でデッキの一番下に置く。
+  指摘: 「カード１枚と、そのカードと」 見た5枚からカード1枚と、それと共通色を持たないカード1枚までをエナゾーンに置く処理が欠落している。
+  live: {"effectId":"WXDi-P12-039-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"LOOK_AND_REORDER","source":{"location":"deck","owner":"self"},"count":5,"private":true,"reorder":true,"canTrash":false,"destination":{"location":"deck","owner":"self","position":"bottom"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WXK10-042-E1  [MED/MISSING]  堕ちし蒼天　ネフィリム  action=POWER_MODIFY_PER_TRASH_COUNT  軸=filter.color
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーをあなたのトラッシュにある青のシグニ２枚につき－1000する。【出】：各プレイヤーは手札を１枚捨てる。
+  指摘: 「青のシグニ２枚につき」 パワー減少量の算定対象に青のシグニという色条件がなく、全色のシグニを数えてしまう。
+  live: {"effectId":"WXK10-042-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"POWER_MODIFY_PER_TRASH_COUNT","target":{"type":"SIGNI","owner":"opponent","count":1},"deltaPerUnit":-1000,"unitSize":2,"trashOwner":"self","countFilter":{"cardType":"シグニ"},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S018】 WXDi-P09-070-E1  [HIGH/MISSING]  翠天　カスガノカミ  action=POWER_MODIFY  軸=filter.color
+  原文: 【常】：あなたのエナゾーンにあるカードが持つ色が合計２種類以上あるかぎり、このシグニのパワーは＋4000される。
+  指摘: 「色が合計２種類以上あるかぎり」 エナゾーンのカードが合計2種類以上の色を持つ場合だけパワーを上げる条件がなく、常に＋4000される。
+  live: {"effectId":"WXDi-P09-070-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S019】 WXDi-P12-076-E1  [HIGH/MISSING]  アイン＝サンガ//ディソナ  action=POWER_MODIFY  軸=filter.color
+  原文: 【常】：あなたの場にあるシグニが持つ色が合計３種類以上あるかぎり、このシグニのパワーは＋4000される。【起】《ダウン》：あなたのエナゾーンから《ディソナアイコン》のシグニ１枚を対象とし、それを場に出す。
+  指摘: 「色が合計３種類以上あるかぎり」 パワー＋4000の適用条件である、自分の場のシグニが合計3種類以上の色を持つ条件が欠落しており、無条件に強化される。
+  live: {"effectId":"WXDi-P12-076-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S020】 WDA-F03-13-E1  [HIGH/MISSING]  幻竜姫　スヴァローグ  action=POWER_MODIFY  軸=filter.color
+  原文: 【常】：あなたのエナゾーンに白か青か緑か黒のカードがあるかぎり、このシグニのパワーは＋2000される。【自】：対戦相手のエナゾーンにカード１枚が置かれたとき、そこに８枚以上のカードがある場合、あなたはそこから対象のカード１枚をトラッシュに置く。【自】：このシグニがアタックしたとき、パワー12000以下のシグニ１体を対象とし、あなたと対戦相手のエナゾーンにあるカードの合計が７枚以下の場合、それをバニッシュする。
+  LB  : ：対戦相手のエナゾーンから、カード１枚と【マルチエナ】を持つカード１枚を対象とし、それらをトラッシュに置く。
+  指摘: 「白か青か緑か黒のカードがある」 パワー＋2000を適用する条件である、自分のエナゾーンに白・青・緑・黒のいずれかのカードがあることがJSONにない。
+  live: {"effectId":"WDA-F03-13-E1","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S021】 WX10-038-E1  [HIGH/WRONG]  極剣　クララス  action=POWER_SET  軸=filter.color
+  原文: 【常】：あなたの赤のシグニの基本パワーを15000にする。【常】：あなたの場に赤のシグニがあるかぎり、このシグニの基本パワーは15000になる。
+  指摘: 「あなたの赤のシグニ」 対象が自分の赤のシグニすべてではなく、色指定のない自分のシグニ1体になっている。
+  live: {"effectId":"WX10-038-E1","effectType":"CONTINUOUS","action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":15000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S022】 WDA-F04-10-E1  [MED/MISSING]  双撃の記憶　リル  action=REVEAL_AND_PICK  軸=filter.color
+  原文: 【自】：あなたのメインフェイズ開始時、あなたのデッキの一番上を公開する。それがあなたのセンタールリグと共通する色を持つシグニの場合、それを手札に加える。【起】このキーを場からルリグトラッシュに置く：《コインアイコン》《コインアイコン》を得る。
+  指摘: 「共通する色を持つシグニ」 公開したシグニを手札に加える条件である、センタールリグと共通する色を持つことがJSONのフィルターにない。
+  live: {"effectId":"WDA-F04-10-E1","effectType":"AUTO","timing":["ON_MAIN_PHASE_START"],"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":1,"filter":{"cardType":"シグニ"},"pickCount":1,"then":{"type":"TRANSFER_TO_HAND","source":{"type":"DECK_CARD","owner":"self","count":1}},"remainder":{"location":"deck","position":"top"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S023】 PR-318-E1  [HIGH/WRONG]  紡績する知識  action=SEARCH  軸=filter.color
+  原文: あなたのデッキからあなたのセンタールリグと共通する色を持つカード１枚を探して公開し手札に加え、デッキをシャッフルする。
+  LB  : ：カードを１枚引く。
+  指摘: 「共通する色を持つカード１枚」 原文はカード種別を問わないのに、検索対象がルリグだけに制限されています。
+  live: {"effectId":"PR-318-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"ルリグ","colorMatchesLrig":true},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S024】 PR-322-E2  [HIGH/MISSING]  白亜の鍵主　ウルトゥム  action=SEQUENCE(SEQUENCE/ADD_TO_FIELD/TRASH_CARD)  軸=filter.color
+  原文: 【起】《ターン１回》《黒×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュから黒の＜天使＞のシグニ１枚と黒の＜古代兵器＞のシグニ１枚を好きな順番でデッキの一番下に置く。そうした場合、それをトラッシュに置く。【起】《アタックフェイズアイコン》エクシード２：あなたのトラッシュから黒のシグニ１枚を対象とし、それを場に出すかあなたの手札から黒のシグニ１枚を場に出す。この方法で場に出たシグニの【出】能力は発動しない。
+  指摘: 「あなたの手札から黒のシグニ１枚」 黒のシグニを手札から場に出す選択肢が欠落し、トラッシュから出す処理しかありません。
+  live: {"effectId":"PR-322-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"exceed":2},"action":{"type":"SEQUENCE","steps":[{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}},"suppressOnPlay":true}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S025】 WX25-CP1-088-E1  [HIGH/WRONG]  天雨アコ(ドレス)  action=SEQUENCE(SEQUENCE/GRANT_EFFECT/SIGNI)  軸=filter.color
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜ブルアカ＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のデッキの上からカードを３枚トラッシュに置く。」を得る。それがレベル３の黒のシグニの場合、それをアップする。【絆常】：このシグニのパワーは＋4000される。
+  LB  : ：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－8000する。
+  指摘: 「レベル３の黒のシグニの場合」 アップ処理にレベル3かつ黒という条件がなく、付与対象と同じシグニを参照する指定もないため、自分のシグニ1体を無条件でアップする効果になっている。
+  live: {"effectId":"WX25-CP1-088-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"GRANT_EFFECT","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"ブルアカ","excludeSelf":true},"upToCount":false},"duration":"UNTIL_END_OF_TURN","effect":{"effectId":"WX25-CP1-088-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":3}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}},{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUT
+==============================================================================
+【S026】 WXDi-D07-011-E1  [HIGH/EXTRA]  TRIGGER　OF　VICTORY  action=SEQUENCE(SEQUENCE/LIFE_CRASH/TRANSFER_TO_HAND)  軸=filter.color
+  原文: 【使用条件】【チーム】＜デウス・エクス・マキナ＞＆全員レベル１以上対戦相手のライフクロス１枚をクラッシュする。その後、あなたのトラッシュから《ガードアイコン》を持たないシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「ライフクロス１枚をクラッシュする」 原文に存在しない無色エナ1の使用コストが追加されている。
+  live: {"effectId":"WXDi-D07-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"デウス・エクス・マキナ","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","noGuard":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S027】 WXDi-D08-011-E1  [HIGH/EXTRA]  GO　TO　the　TOP!  action=SEQUENCE(SEQUENCE/SEARCH/REVEAL)  軸=filter.color
+  原文: 【使用条件】あなたの場に白と赤のルリグがいるあなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。対戦相手のセンタールリグがレベル３以上の場合、対戦相手は自分のエナゾーンからカード３枚を選びトラッシュに置く。（２枚以下の場合、それらをすべて選ぶ）
+  指摘: 「【使用条件】あなたの場に白と赤のルリグがいる」 原文にエナの支払いはないが、JSONには《無》3の使用コストが追加されている。
+  live: {"effectId":"WXDi-D08-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":3}]},"condition":{"type":"AND","conditions":[{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":["ルリグ","アシストルリグ"],"color":"白"}},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":["ルリグ","アシストルリグ"],"color":"赤"}}]},"action":{"type":"SEQUENCE","steps":[{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ"},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},{"type":"CONDITIONAL","condition":{"type":"LRIG_LEVEL","owner":"o
+==============================================================================
+【S028】 WX20-079-E1  [MED/WRONG]  コードアンチ　ソトホート  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/TRASH_CARD)  軸=filter.color
+  原文: 【起】《ターン１回》《アタックフェイズアイコン》《黒×0》：対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれレベルの異なる黒のシグニ４枚をシャッフルしてデッキの一番下に置く。そうした場合、ターン終了時まで、それのパワーを－7000する。この能力はあなたのトラッシュにカード名に《ヨグソトス》を含むカードがある場合にしか使用できない。【起】《アタックフェイズアイコン》《黒》《黒》：このシグニをトラッシュから場に出す。この能力はあなたの場にカード名に《ヨグソトス》を含むシグニがある場合にしか使用できない。
+  指摘: 「レベルの異なる黒のシグニ４枚」 デッキの一番下に置く4枚のフィルターに黒の色指定が欠落している。
+  live: {"effectId":"WX20-079-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"condition":{"type":"TRASH_HAS_CARD","owner":"self","filter":{"cardName":"ヨグソトス"}},"cost":{"energy":[{"color":"黒","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"filter":{"cardType":"シグニ"},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":-7000}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit"
+==============================================================================
+【S029】 WXEX2-51-E3  [MED/WRONG]  彷徨変異の超悪　ソユラギ  action=SEQUENCE(SEQUENCE/TRASH/DECK_CARD)  軸=filter.color
+  原文: 【自】：アタックフェイズの間、あなたのカード名に《ユラギ》を含むシグニ１体が場を離れたとき、あなたのトラッシュからそのシグニより低いレベルを持つカード名に《ユラギ》を含むシグニを１枚まで対象とし、それを場に出す。【自】：このシグニがアタックしたとき、他のすべてのシグニをバニッシュする。【出】：各プレイヤーは自分のデッキの上からカードを３枚トラッシュに置く。その後、あなたのトラッシュからパワー12000以下の黒のシグニ１枚を対象とし、それを場に出す。
+  LB  : ：あなたのトラッシュから黒のシグニ１枚を対象とし、それを手札に加えるか場に出す。
+  指摘: 「パワー12000以下の黒のシグニ」 トラッシュから場に出す黒のシグニについて、パワー12000以下という条件がJSONにありません。
+  live: {"effectId":"WXEX2-51-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":3}},{"type":"TRASH","target":{"type":"DECK_CARD","owner":"opponent","count":3}}]},{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","color":"黒"}}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S030】 WXK09-058-E1  [MED/WRONG]  白雪の童話　プリンス・キッス  action=TRANSFER_TO_DECK  軸=filter.color
+  原文: 【出】：あなたのトラッシュからレベル４の黒のシグニ１枚を対象とし、それをデッキの一番下に置く。【起】《黒》《黒》このシグニを場からトラッシュに置く：あなたのデッキからレベル４のシグニ１枚を探して場に出し、デッキをシャッフルする。
+  指摘: 「レベル４の黒のシグニ」 トラッシュから選ぶシグニのフィルターに黒の色指定が欠けている。
+  live: {"effectId":"WXK09-058-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","level":4}},"shuffle":false,"position":"bottom"},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S031】 WX24-P1-013-E1  [HIGH/WRONG]  ロストコード・ピルルク  action=TRANSFER_TO_HAND  軸=filter.color
+  原文: 【自】《自分ターン》《ターン１回》：あなたの＜電機＞のシグニ１体が場に出たとき、あなたのトラッシュからそのシグニと共通する色を持つスペル１枚を対象とし、それを手札に加える。【起】《ゲーム１回》アプリ《青×0》：カードを３枚引き、手札からスペルを好きな枚数捨てる。この方法で捨てたカード１枚につき対戦相手は手札を１枚捨てる。
+  指摘: 「共通する色を持つスペル」 トラッシュから回収する対象が、場に出たシグニと共通する色のスペルではなく、色条件のないシグニになっている。
+  live: {"effectId":"WX24-P1-013-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_ally","triggerFilter":{"story":"電機"},"triggerCondition":{"turnOwner":"self"},"usageLimit":"once_per_turn"}
+==============================================================================
+【S032】 WXEX1-29-E2  [HIGH/MISSING]  幻視の大天使　ラミエル  action=TRASH  軸=filter.color
+  原文: 【自】：対戦相手のシグニ１体が場からトラッシュに置かれたとき、あなたのターンの場合、【エナチャージ１】をする。【自】：このシグニがアタックしたとき、あなたのセンタールリグと共通する色を持つ対戦相手のシグニ１体を対象とし、それをトラッシュに置く。【出】：対戦相手のシグニ１体を対象とし、あなたの場に＜天使＞のシグニが３体ある場合、それをトラッシュに置く。
+  LB  : ：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。
+  指摘: 「センタールリグと共通する色」 トラッシュに置く相手シグニが自分のセンタールリグと共通する色を持つという対象条件がJSONにない。
+  live: {"effectId":"WXEX1-29-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}

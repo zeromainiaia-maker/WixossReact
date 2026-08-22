@@ -1,0 +1,221 @@
+=== 段1 第10バッチ（単発）＝軸「キーワード能力」 の 1〜40件目 ===
+残 58件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 WDK05-T09-E1-G  [HIGH/WRONG]  燃盛　遊月・鍵  action=(live無)  軸=キーワード能力
+  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】エクシード１（あなたのルリグの下からカードを１枚ルリグトラッシュに置く）：このターン、対戦相手はレベル１のシグニで【ガード】ができない。【出】：対戦相手のエナゾーンから無色のカードを２枚まで対象とし、それらをトラッシュに置く。【起】このキーを場からルリグトラッシュに置く：対戦相手のエナゾーンからカード１枚を対象とし、それをトラッシュに置く。
+  指摘: 「レベル１のシグニで」 ガード禁止の対象がレベル1のシグニに限定されず、対戦相手のガード行為全般を禁止している。
+  live: null
+==============================================================================
+【S002】 WX18-039-E1  [HIGH/WRONG]  極剣　イツクトモ  action=BLOCK_ACTION  軸=キーワード能力
+  原文: 【常】：対戦相手はレベル２とレベル３のシグニで【ガード】ができない。
+  指摘: 「レベル２とレベル３のシグニ」 JSONはレベル制限なしで対戦相手のガード行為全体を禁止しており、原文のレベル2・3のシグニだけを禁止する効果より対象範囲が広い。
+  live: {"effectId":"WX18-039-E1","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTION","target":{"type":"PLAYER","owner":"opponent","count":1},"actionId":"GUARD","until":"END_OF_TURN"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S003】 WXDi-P15-052-E1  [HIGH/WRONG]  羅星姫　フラドウズ//THE DOOR  action=CHOOSE(CHOOSE/GRANT_KEYWORD/SIGNI)  軸=キーワード能力
+  原文: 【起】《緑》：あなたの場に《闘争者カーニバル　#T#》がいる場合、以下の２つから１つを選ぶ。①ターン終了時まで、このシグニは【ランサー】を得る。②このターンにあなたが《コインアイコン》を合計３枚以上支払っていた場合、ターン終了時まで、このシグニは【Ｓランサー】を得る。【起】《コインアイコン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋3000する。
+  LB  : ：対戦相手のパワー7000以上のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「合計３枚以上支払っていた場合」 選択肢②はコイン3枚以上支払い済みを条件にこのシグニへＳランサーを付与する効果だが、JSONでは条件なくコイン1枚を得る効果になっている。
+  live: {"effectId":"WXDi-P15-052-E1","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"闘争者カーニバル　#T#"}},"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"GAIN_COIN","owner":"self","count":1}}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S004】 WXDi-P12-050-E2  [MED/MISSING]  羅菌姫　ミコオシ//ディソナ  action=CHOOSE(CHOOSE/TRASH/HAND_CARD)  軸=キーワード能力
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場に《みこみこ☆さんさんまぜまぜ》がいる場合、対戦相手は【みこみこ親衛隊】１つを得る。【自】：このシグニがアタックしたとき、以下の２つから１つを選ぶ。①対戦相手は手札を１枚捨てる。②あなたの手札が対戦相手より３枚以上多い場合、次の対戦相手のターン終了時まで、このシグニは【シャドウ（シグニ）】を得る。
+  LB  : ：対戦相手のルリグ１体を対象とし、それを凍結する。
+  指摘: 「手札が対戦相手より３枚以上多い」 【シャドウ（シグニ）】を得る選択肢の発動条件である手札枚数差3枚以上が欠落している。
+  live: {"effectId":"WXDi-P12-050-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"cardType\":\"シグニ\"}","duration":"UNTIL_OPP_TURN_END"}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S005】 WX25-CP1-090-E1  [MED/WRONG]  鬼方カヨコ(ドレス)  action=CONDITIONAL  軸=キーワード能力
+  原文: 【出】《黒》：あなたの場に他の＜ブルアカ＞のシグニがある場合、ターン終了時まで、このシグニは【アサシン（パワー5000以下のシグニ）】を得る。（【アサシン（パワー5000以下のシグニ）】を持つシグニがアタックすると、正面のシグニがパワー5000以下の場合、バトルをせず対戦相手にダメージを与える）【絆自】：あなたのアタックフェイズ開始時、対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－2000する。
+  指摘: 「アサシン（パワー5000以下）」 付与するアサシンに正面のシグニのパワーが5000以下という制限が記録されておらず、対象範囲が原文より広い。
+  live: {"effectId":"WX25-CP1-090-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"ブルアカ"},"excludeSelf":true},"then":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"}},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S006】 WX07-042-E1  [MED/WRONG]  幻獣　ラクダ  action=DRAW  軸=キーワード能力
+  原文: 【自】：あなたのシグニが【ランサー】によって対戦相手のライフクロスをクラッシュしたとき、カードを１枚引く。【起】《ターン１回》ターン終了時まで、このシグニのパワーを5000減らす：ターン終了時まで、このシグニは【ランサー】を得る。
+  指摘: 「【ランサー】によって」 JSONにはライフクロスが【ランサー】によってクラッシュされた場合という発動条件がなく、他の方法によるクラッシュでも発動する表現になっている。
+  live: {"effectId":"WX07-042-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S007】 WXDi-P11-054-E2  [HIGH/MISSING]  聖将　アストルフォ  action=GRANT_FIELD_SIGNI_ABILITY  軸=キーワード能力
+  原文: 【常】：あなたの場にあるすべてのシグニが白であるかぎり、このシグニのパワーは＋4000される。【常】：あなたのトラッシュに白のカードが１５枚以上あるかぎり、このシグニは「【常】：対戦相手のターンの間、【シャドウ（このシグニのパワー以下のシグニ）】を得る。」を得る。（このシグニは自身のパワー以下の対戦相手のシグニによって対象にされない）
+  指摘: 「白のカードが１５枚以上あるかぎり」 シャドウ能力を得る条件である、自分のトラッシュに白のカードが15枚以上あることが欠落している。
+  live: {"effectId":"WXDi-P11-054-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_FIELD_SIGNI_ABILITY","thisCardOnly":true,"abilities":[{"effectId":"WXDi-P11-054-E2-G","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"シャドウ:{\"selfPowerLte\":true}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}]},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S008】 WXK10-027-E1  [HIGH/WRONG]  幻怪菌　ヅチグモ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：【ランサー】を持つあなたのパワー15000以上の緑のシグニは【Ｓランサー】を得る。【自】：このシグニがアタックしたとき、表記されているパワーよりパワーの高いあなたの緑のシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。【出】：あなたの他のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋3000する。
+  LB  : ：このターン、次にあなたがダメージを受ける場合、代わりにダメージを受けない。
+  指摘: 「【Ｓランサー】を得る」 原文はランサーを持つパワー15000以上の緑のシグニすべてにSランサーを与えるが、JSONは条件のない自分のシグニ1体に通常のランサーを与えている。
+  live: {"effectId":"WXK10-027-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ランサー","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S009】 WXDi-P15-048-E2  [HIGH/MISSING]  紅将姫　シモン・バール//THE DOOR  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【ライズ】あなたのトラッシュにある＜解放派＞のシグニ１枚を下に重ねて場に出す（空いているシグニゾーンに出す）【出】《赤》《赤》：あなたの場に《自由の記憶　解放者リル》がいる場合、対戦相手のパワー12000以下のシグニ１体を対象とし、それをバニッシュする。【起】《無》《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》《コインアイコン》：ターン終了時まで、このシグニは【アサシン】か【ダブルクラッシュ】を得る。
+  LB  : ：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「【アサシン】か【ダブルクラッシュ】」 起動能力がアサシン付与だけになっており、ダブルクラッシュとの二択が表現されていない。
+  live: {"effectId":"WXDi-P15-048-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":1}],"coin":5},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 SPDi43-09-E1  [HIGH/MISSING]  大装　Ｄクラーケン  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：このシグニは【ソウル】が付いているかぎり、【シャドウ（レベル２以下のシグニ）】を得る。【自】：あなたのアタックフェイズ開始時、あなたの場に《デウス・スリーNEO》がいる場合、対戦相手のシグニ１体を対象とし、ターン終了時まで、それは能力を失い、それのパワーを－5000する。
+  指摘: 「【ソウル】が付いているかぎり」 シャドウを得るための「このシグニにソウルが付いている」条件がなく、JSONでは無条件に付与される。
+  live: {"effectId":"SPDi43-09-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"シャドウ:{\"levelLte\":2}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 WXK11-053-E1  [HIGH/MISSING]  コードライド　トレインキャノン  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【ライズ】それぞれレベルの異なるあなたの赤のシグニ３体の上に置く【常】：【アサシン】【ダブルクラッシュ】
+  LB  : ：対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「【ダブルクラッシュ】」 原文の常時能力【ダブルクラッシュ】がJSONに存在しない。
+  live: {"effectId":"WXK11-053-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 WX08-061-E1  [MED/WRONG]  旋嵐の双撃  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: あなたの【ダブルクラッシュ】を持つシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。（【アサシン】を持つシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える）
+  指摘: 「【ダブルクラッシュ】を持つ」 アサシンを与える対象にダブルクラッシュを持つという条件がなく、自分の任意のシグニを選べる。
+  live: {"effectId":"WX08-061-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S013】 WX24-P3-055-E1  [HIGH/WRONG]  翠美姫　スイボク  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：あなたの場に《回想の階層　アン＝サード》がいるかぎり、あなたの＜美巧＞のシグニは【シャドウ（レベル３以上のシグニ）】を得る。【自】《ターン１回》：ルリグ１体がアタックしたとき、そのアタック終了時、そのアタックによってそのルリグがダメージを与えていなかった場合、あなたは【エナチャージ１】をする。
+  指摘: 「＜美巧＞のシグニは」 原文では自分のすべての＜美巧＞シグニにシャドウを与えるが、JSONの対象数は1体だけになっている。
+  live: {"effectId":"WX24-P3-055-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"回想の階層　アン＝サード"}},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"美巧"}},"keyword":"シャドウ:{\"levelGte\":3}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S014】 WX25-P1-059-E2  [MED/WRONG]  大罠　トロイ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【起】《ターン１回》《緑×0》：対戦相手のシグニ１体と、対戦相手のエナゾーンからそれと同じレベルのシグニ１枚を対象とし、それらの場所を入れ替える。この方法で場に出たシグニの【出】能力は発動しない。【起】《緑》《無》：ターン終了時まで、このシグニは【アサシン（パワー12000以上のシグニ）】を得る。
+  指摘: 「アサシン（パワー12000以上」 付与するアサシン能力のパワー12000以上という条件がJSONに表現されていない。
+  live: {"effectId":"WX25-P1-059-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"無","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WXDi-D04-007-E2  [HIGH/MISSING]  DJ.LOVIT-MIX  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【出】：対戦相手のパワー8000以下のシグニ１体を対象とし、それをバニッシュする。【出】：ターン終了時まで、対象のあなたのシグニ１体は【アサシン】を得、対象のあなたのシグニ１体は【ランサー】を得る。（【アサシン】を持つシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える。【ランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）
+  指摘: 「シグニ１体は【ランサー】を得る」 自分のシグニ1体にランサーを与える処理が欠落している。
+  live: {"effectId":"WXDi-D04-007-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WXDi-P04-048-E1  [MED/WRONG]  聖将　ギエン  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：このシグニは中央のシグニゾーンにあるかぎり、【シャドウ（レベル３のシグニ）】を得る。（このシグニは対戦相手のレベル３のシグニによって対象にされない）
+  指摘: 「シャドウ（レベル３のシグニ）」 原文はレベル3のシグニだけを対象不可にするが、JSONはレベル3以下を対象不可にしている。
+  live: {"effectId":"WXDi-P04-048-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_IN_CENTER_ZONE"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"シャドウ:{\"levelLte\":3}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S017】 WXDi-P02-060-E2  [HIGH/MISSING]  コードアート　Ｓトーブ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：あなたのトラッシュにスペルがあるかぎり、このシグニのパワーは＋3000される。【出】《赤》《赤》《赤》：あなたのトラッシュにスペルが５枚以上ある場合、ターン終了時まで、このシグニは【アサシン】を得る。（【アサシン】を持つシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える）
+  指摘: 「スペルが５枚以上ある場合」 【アサシン】を得るための「自分のトラッシュにスペルが5枚以上」という条件が欠落している。
+  live: {"effectId":"WXDi-P02-060-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"赤","count":1},{"color":"赤","count":1},{"color":"赤","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S018】 WX12-046-E1  [HIGH/MISSING]  幻水　アオリイカ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：あなたのセンタールリグが青で、あなたの手札が７枚以上あるかぎり、このシグニは【アサシン】を得る。【自】：あなたのターン終了時、あなたの手札が７枚以上ある場合、このシグニを場からトラッシュに置く。
+  LB  : ：どちらか１つを選ぶ。①カードを１枚引く。②【エナチャージ１】
+  指摘: 「センタールリグが青で」 【アサシン】を得る条件であるセンタールリグが青であることと手札が7枚以上であることがなく、常に【アサシン】を得る効果になっている。
+  live: {"effectId":"WX12-046-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S019】 WXK01-049-E1  [MED/MISSING]  コードライド　セグエイ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【出】《赤》：あなたのドライブ状態のシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。（【ダブルクラッシュ】を持つシグニがアタックによってダメージを与えた場合ライフクロスを１枚ではなく２枚クラッシュする）
+  LB  : ：カードを１枚引く。
+  指摘: 「ドライブ状態のシグニ１体」 ダブルクラッシュを与える対象についてドライブ状態であるという条件がJSONにない。
+  live: {"effectId":"WXK01-049-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"赤","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S020】 WX24-P4-079-E2  [MED/WRONG]  幻獣　ヘラジカ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それのパワーを＋5000する。【出】《緑》《緑》：ターン終了時まで、このシグニは【ランサー（パワー10000以下のシグニ）】を得る。（【ランサー（パワー10000以下のシグニ）】を持つシグニがバトルでパワー10000以下のシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）
+  指摘: 「パワー10000以下のシグニ」 付与するランサーに、バニッシュ対象をパワー10000以下に限定する条件がありません。
+  live: {"effectId":"WX24-P4-079-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"緑","count":1},{"color":"緑","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S021】 WX10-047-E1  [HIGH/MISSING]  幻獣　フラミー  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：あなたの場にパワー50000以上のシグニがあるかぎり、あなたのシグニは【ランサー】を得る。【出】：シグニ１体を対象とし、ターン終了時まで、それのパワーを＋10000する。【起】《緑》：ターン終了時まで、あなたのすべてのシグニのパワーを＋10000する。
+  LB  : ：次のターンの間、あなたのシグニのパワーを＋10000する。
+  指摘: 「パワー50000以上のシグニがある」 ランサー付与に必要な「自分の場にパワー50000以上のシグニがあるかぎり」という条件が欠落し、常に付与される。
+  live: {"effectId":"WX10-047-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"ランサー","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S022】 WXDi-P07-045-E2  [MED/MISSING]  翠英姫　ママ//メモリア  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの場にあるシグニのパワーの合計が30000の場合、【エナチャージ２】をする。【自】：このシグニがアタックしたとき、このシグニのパワーが13000の場合、次の対戦相手のターン終了時まで、このシグニは【シャドウ（パワー10000以下のシグニ）】を得る。【起】《コインアイコン》：次の対戦相手のターン終了時まで、このシグニのパワーを＋3000する。
+  指摘: 「パワーが13000の場合」 シャドウを得る発動条件である、このシグニのパワーがちょうど13000であることがJSONにない。
+  live: {"effectId":"WXDi-P07-045-E2","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"powerLte\":10000}","duration":"UNTIL_OPP_TURN_END"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S023】 WXDi-CP02-092-E2  [HIGH/MISSING]  桑上カホ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたのデッキの一番上を公開する。そのカードが＜ブルアカ＞の場合、【エナチャージ１】をする。【絆出】《緑》《緑》《無》：ターン終了時まで、このシグニのパワーを＋10000し、このシグニは【Ｓランサー】を得る。（【Ｓランサー】を持つシグニがバトルでシグニをバニッシュしたとき、対戦相手のライフクロスがある場合はそれを１枚クラッシュする。無い場合は対戦相手にダメージを与える）
+  LB  : ：対戦相手のパワー7000以上のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「パワーを＋10000し」 絆出能力によるターン終了時までのパワー＋10000が欠落し、Sランサー付与だけが実装されている。
+  live: {"effectId":"WXDi-CP02-092-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"緑","count":1},{"color":"緑","count":1},{"color":"無","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"Sランサー","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","kizunaIcon":true}
+==============================================================================
+【S024】 WX24-D4-15-E1  [HIGH/WRONG]  幻闘獣　ミスザク  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【出】《緑》：ターン終了時まで、このシグニは【ランサー（パワー5000以下のシグニ）】を得る。（【ランサー（パワー5000以下のシグニ）】を持つシグニがバトルでパワー5000以下のシグニをバニッシュしたとき、対戦相手のライフクロス１枚をクラッシュする）
+  指摘: 「ランサー（パワー5000以下」 付与するランサーの対象がパワー5000以下のシグニに限定される条件がなく、通常のランサーとして表現されている。
+  live: {"effectId":"WX24-D4-15-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"緑","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S025】 WX25-CP1-076-E1  [MED/WRONG]  秋泉モミジ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【出】エナゾーンから＜ブルアカ＞のカード１枚をトラッシュに置く：ターン終了時まで、このシグニは【ランサー（パワー5000以下のシグニ）】を得る。（【ランサー（パワー5000以下のシグニ）】を持つシグニがバトルでパワー5000以下のシグニをバニッシュしたとき、対戦相手のライフクロスを１枚クラッシュする）【絆常】：このシグニのパワーは＋4000される。
+  指摘: 「ランサー（パワー5000以下）」 付与するランサーの対象条件「パワー5000以下」がJSONのkeywordに含まれていない。
+  live: {"effectId":"WX25-CP1-076-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energyTrash":{"count":1,"filter":{"story":"ブルアカ"}}},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S026】 WX20-057-E1  [HIGH/MISSING]  爆砲　バレルボム  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：あなたのセンタールリグが【ダブルクラッシュ】を持つかぎり、このシグニは【ダブルクラッシュ】を得る。
+  指摘: 「ルリグが【ダブルクラッシュ】を持つかぎり」 センタールリグが【ダブルクラッシュ】を持つ間だけ付与する条件がなく、常にこのシグニへ付与される。
+  live: {"effectId":"WX20-057-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S027】 WXDi-P08-049-E1  [MED/WRONG]  聖美　チョウコクトー  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：対戦相手のターンの間、このシグニは【シャドウ（レベル２のシグニ）】を得る。（このシグニは対戦相手のレベル２のシグニによって対象にされない）【自】：対戦相手のアタックフェイズ開始時、対戦相手のレベル１のシグニ１体を対象とし、ターン終了時まで、それは能力を失う。
+  LB  : ：ターン終了時まで、対戦相手のすべてのシグニは能力を失う。カードを１枚引く。
+  指摘: 「レベル２のシグニ」 原文はレベル2のシグニだけに対するシャドウだが、JSONはレベル2以下を対象外にする定義になっている。
+  live: {"effectId":"WXDi-P08-049-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"levelLte\":2}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S028】 WXDi-P15-063-E1  [MED/MISSING]  解放の弾丸  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 下にカードがあるあなたの＜解放派＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。（【アサシン】を持つシグニがアタックすると正面のシグニとバトルをせず対戦相手にダメージを与える）
+  LB  : ：対戦相手のアップ状態のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「下にカードがある」 アサシンを得る対象について、カードが下に置かれているシグニに限定する条件がJSONにない。
+  live: {"effectId":"WXDi-P15-063-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1},{"color":"無","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"解放派"}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S029】 WXDi-P06-062-E1  [HIGH/MISSING]  蒼美　ふたせ//メモリア  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：対戦相手のターンの間、あなたの手札の枚数が対戦相手の手札の枚数以上であるかぎり、このシグニは【シャドウ（レベル２以下のシグニ）】を得る。（このシグニは対戦相手のレベル２以下のシグニによって対象にされない）
+  LB  : ：対戦相手のルリグかシグニ１体を対象とする。このターン、それがアタックしたとき、対戦相手が手札を３枚捨てないかぎり、そのアタックを無効にする。
+  指摘: 「手札の枚数が対戦相手以上」 シャドウを得るための、自分の手札枚数が対戦相手以上であるという条件がJSONにない。
+  live: {"effectId":"WXDi-P06-062-E1","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"levelLte\":2}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S030】 WXDi-P08-071-E2  [HIGH/MISSING]  羅踊植　ハイビス  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：このシグニのパワーはあなたのエナゾーンにあるカードが持つ色の種類１つにつき＋1000される。（無色は色に含まれない）【常】《相手ターン》：あなたのエナゾーンにあるカードが持つ色が合計３種類以上あるかぎり、このシグニは【シャドウ（レベル２以下のシグニ）】を得る。
+  LB  : ：【エナチャージ１】をする。このターン、次にあなたがシグニによってダメージを受ける場合、代わりにダメージを受けない。
+  指摘: 「色が合計３種類以上」 シャドウを得るために必要なエナゾーンの色が3種類以上という条件が欠落している。
+  live: {"effectId":"WXDi-P08-071-E2","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"levelLte\":2}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S031】 WXEX2-50-E1  [HIGH/MISSING]  大幻蟲　エンマコロギ  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：対戦相手の場に【チャーム】があるかぎり、このシグニは【シャドウ】を得る。【出】《黒》：このシグニをチアガールにする。【起】《ターン１回》《黒×0》：対戦相手のトラッシュからシグニ１枚を対象とし、それを対戦相手の場に出す。その後、あなたのトラッシュからこの方法で場に出たシグニ以下のレベルを持つ＜凶蟲＞のシグニ１枚を対象とし、それを場に出す。
+  LB  : ：あなたのトラッシュから＜凶蟲＞のシグニを２枚まで対象とし、それらを手札に加える。
+  指摘: 「対戦相手の場に【チャーム】があるかぎり」 【シャドウ】を得るために対戦相手の場に【チャーム】が必要という条件がJSONにない。
+  live: {"effectId":"WXEX2-50-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S032】 WX25-P2-089-E1  [MED/MISSING]  ブレイブ・スティンガー  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: あなたの＜武勇＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン（凍結状態のパワー8000以下のシグニ）】を得る。（【アサシン（凍結状態のパワー8000以下のシグニ）】を持つシグニがアタックすると、正面のシグニが凍結状態でパワー8000以下の場合、バトルをせず対戦相手にダメージを与える）
+  LB  : ：対戦相手のシグニを２体まで対象とし、それらをダウンする。
+  指摘: 「凍結状態のパワー8000以下」 付与するアサシンの対象条件である「凍結状態かつパワー8000以下」がJSONに表現されていない。
+  live: {"effectId":"WX25-P2-089-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"武勇"}},"keyword":"アサシン","duration":"UNTIL_END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S033】 WXDi-P07-054-E2  [HIGH/MISSING]  聖天　タウィル//メモリア  action=GRANT_KEYWORD  軸=キーワード能力
+  原文: 【常】：あなたのトラッシュに＜天使＞のシグニが７枚以上あるかぎり、このシグニのパワーは＋4000される。【常】：対戦相手のターンの間、あなたのトラッシュに白のシグニが７枚以上あるかぎり、このシグニは【シャドウ（赤）】を得る。（このシグニは対戦相手の赤の能力と効果によって対象にされない）
+  LB  : ：あなたのデッキの上からカードを３枚見る。その中からシグニ１枚を公開し手札に加えるか場に出し、残りを好きな順番でデッキの一番下に置く。
+  指摘: 「白のシグニが７枚以上」 シャドウ（赤）を得る条件である自分のトラッシュの白いシグニ7枚以上が欠落している。
+  live: {"effectId":"WXDi-P07-054-E2","effectType":"CONTINUOUS","activeCondition":{"type":"TURN_OWNER","owner":"opponent"},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ:{\"color\":\"赤\"}","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S034】 WXDi-D03-004-E3  [HIGH/MISSING]  頂点へ一歩　ヒラナ  action=GRANT_LRIG_ABILITY  軸=キーワード能力
+  原文: 【チーム】＜NoLimit＞【チーム常】：アタックしているあなたのシグニのパワーを＋2000する。【出】：カードを１枚引き、【エナチャージ１】をする。【起】《ゲーム１回》《赤×0》：ターン終了時まで、このルリグは「【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つカードを１枚捨てないかぎり、対戦相手にダメージを与える。」を得る。
+  指摘: 「カードを１枚捨てないかぎり」 対戦相手がガードアイコンを持つカード1枚を捨てることでダメージを防ぐ処理がJSONにない。
+  live: {"effectId":"WXDi-D03-004-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D03-004-sub-E1","effectType":"AUTO","timing":["ON_ATTACK_LRIG"],"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"self","count":2,"filter":{"isUp":true,"level":2}},"optional":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}],"rawText":"【自】：このルリグがアタックしたとき、あなたのアップ状態のレベル２のルリグ２体をダウンしてもよい。そうした場合、対戦相手が《ガードアイコン》を持つカードを１枚捨てないかぎり、対戦
+==============================================================================
+【S035】 WXDi-D03-011-E1  [HIGH/WRONG]  Glory　Grow  action=GRANT_LRIG_ABILITY  軸=キーワード能力
+  原文: 【使用条件】【チーム】＜NoLimit＞＆全員レベル１以上あなたのレベル３のルリグ１体を対象とし、ターン終了時まで、それは以下の能力を得る。『【常】：【ダブルクラッシュ】（アタックによるダメージでライフクロスを２枚クラッシュする）【常】：対戦相手は【ガード】ができない。』
+  指摘: 「レベル３のルリグ１体」 原文は自分のレベル3ルリグ1体に能力を与えるが、JSONにはその対象・レベル条件がなく、ダブルクラッシュの付与対象もシグニになっている。
+  live: {"effectId":"WXDi-D03-011-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":0}]},"condition":{"type":"AND","conditions":[{"type":"LRIG_TEAM_COUNT","owner":"self","team":"NoLimit","operator":"gte","value":3},{"type":"LRIG_LEVEL","owner":"self","operator":"gte","value":1}]},"action":{"type":"GRANT_LRIG_ABILITY","abilities":[{"effectId":"WXDi-D03-011-sub-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"},{"effectId":"WXDi-D03-011-sub-E2","effectType":"CONTINUOUS","action":{"type":"BLOCK_ACTIO
+==============================================================================
+【S036】 WD16-012-E1  [HIGH/MISSING]  コードアート　Ｍ・Ｗ・Ｏ  action=GRANT_PROTECTION  軸=キーワード能力
+  原文: 【常】：対戦相手の手札が０枚であるかぎり、このシグニはバニッシュされない。【出】：各プレイヤーは手札を１枚捨てる。【出】：あなたの手札が２枚より少ない場合、その差の分だけカードを引く。
+  LB  : ：カードを１枚引く。対戦相手は手札を１枚捨てる。
+  指摘: 「対戦相手の手札が０枚」 バニッシュ耐性を得る条件が欠落しており、JSONでは相手の手札枚数にかかわらず常にバニッシュされない。
+  live: {"effectId":"WD16-012-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","target":{"type":"SIGNI","owner":"self","count":1},"from":["BANISH"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S037】 WX21-015-E1  [HIGH/WRONG]  緑幻獣　トナカイ  action=POWER_MODIFY  軸=キーワード能力
+  原文: 【出現条件】《メインフェイズアイコン》合計２枚のレゾナではない＜空獣＞か＜地獣＞のシグニをあなたのエナゾーンと場からトラッシュに置く【常】：あなたの場に他の＜空獣＞のシグニがあるかぎり、このシグニは「【常】：バニッシュされない。」を得、あなたの場に他の＜地獣＞のシグニがあるかぎり、このシグニのパワーは＋2000され、このシグニは【ランサー】を得る。【出】：＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。【出】：＜空獣＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。
+  指摘: 「他の＜空獣＞のシグニ」 他の＜空獣＞がいる場合に得るべき「バニッシュされない」の代わりに、パワー＋2000を適用しています。
+  live: {"effectId":"WX21-015-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"空獣"},"excludeSelf":true},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO","appearanceCondition":{"rawText":"《メインフェイズアイコン》合計２枚のレゾナではない＜空獣＞か＜地獣＞のシグニをあなたのエナゾーンと場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["energy","field"],"count":2,"filter":{"cardType":"シグニ","story":["空獣","地獣"],"excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"}}
+==============================================================================
+【S038】 WX21-015-E1  [HIGH/MISSING]  緑幻獣　トナカイ  action=POWER_MODIFY  軸=キーワード能力
+  原文: 【出現条件】《メインフェイズアイコン》合計２枚のレゾナではない＜空獣＞か＜地獣＞のシグニをあなたのエナゾーンと場からトラッシュに置く【常】：あなたの場に他の＜空獣＞のシグニがあるかぎり、このシグニは「【常】：バニッシュされない。」を得、あなたの場に他の＜地獣＞のシグニがあるかぎり、このシグニのパワーは＋2000され、このシグニは【ランサー】を得る。【出】：＜地獣＞のシグニ１体を対象とし、ターン終了時まで、それは【ランサー】を得る。【出】：＜空獣＞のシグニ１体を対象とし、ターン終了時まで、それは「【常】：バニッシュされない。」を得る。
+  指摘: 「他の＜地獣＞のシグニ」 他の＜地獣＞がいる場合のパワー＋2000と【ランサー】付与がありません。
+  live: {"effectId":"WX21-015-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"空獣"},"excludeSelf":true},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO","appearanceCondition":{"rawText":"《メインフェイズアイコン》合計２枚のレゾナではない＜空獣＞か＜地獣＞のシグニをあなたのエナゾーンと場からトラッシュに置く","timings":["MAIN"],"cost":{},"combinedTrash":{"zones":["energy","field"],"count":2,"filter":{"cardType":"シグニ","story":["空獣","地獣"],"excludeResona":true}},"paymentShape":"REQUIRES_NEW_FLOW"}}
+==============================================================================
+【S039】 WXDi-CP02-001-E1  [HIGH/MISSING]  ティーパーティー  action=REVEAL_AND_PICK  軸=キーワード能力
+  原文: 【使用条件】【ドリームチーム】白のルリグを１体以上含む【使用条件】このゲームの間にあなたが《連邦生徒会》か《クロノス報道部》を使用しているあなたのデッキの上からカードを５枚見る。その中からカードを１枚まで手札に加え、残りを好きな順番でデッキの一番下に置く。【シグニバリア】１つを得る。（あなたが次にシグニからダメージを受ける場合、代わりに【シグニバリア】１つを消費し、そのダメージを受けない）その後、あなたのルリグの下からカードを合計４枚ルリグトラッシュに置いてもよい。そうした場合、好きな生徒１人との絆を獲得する。
+  指摘: 「【シグニバリア】１つを得る」 シグニバリアを1つ得る処理がJSONにない。
+  live: {"effectId":"WXDi-CP02-001-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"無","count":0}]},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":5,"pickCount":1,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"deck","position":"bottom"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S040】 WX19-071-E1  [MED/WRONG]  幻獣　カッコウ  action=SEARCH  軸=キーワード能力
+  原文: 【自】《ターン１回》：あなたのシグニが【ランサー】によって対戦相手のライフクロスをクラッシュしたとき、あなたのデッキから＜空獣＞か＜地獣＞のシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「あなたのシグニが【ランサー】によって」 ライフクロスが自分のシグニの【ランサー】によってクラッシュされた場合に限る発動条件がなく、原因を問わず相手のライフクロスがクラッシュされると発動する。
+  live: {"effectId":"WX19-071-E1","effectType":"AUTO","timing":["ON_OPP_LIFE_CRASHED"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":["空獣","地獣"]},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}

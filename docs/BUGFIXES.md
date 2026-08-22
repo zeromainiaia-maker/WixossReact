@@ -1,5 +1,92 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き596）：Sonnetタスク8 **段1 triage 完走**（単発17バッチ）＋台帳ツールの取りこぼしバグ2件
+
+意味照合監査 clean群 round1 の段1 triage を **第8〜24バッチ（単発段17本）** で完走した。
+**未 triage 662 → 0**。ゲートは17回とも全緑・**engine/parser/JSON への変更は0行**（triage 専任バッチのため）。
+
+### 何をしたか
+
+Codex へ17バッチを逐次委譲した（並列にしない＝**前バッチの検証結果を次の指示書に載せるフィードバック
+ループが品質の本体**だから。第3バッチの劣化を第4バッチで回復させたのがこの仕組み）。
+各バッチで Claude 側が①母集団の実測 ②engine 事実の grep 実測（先回りメモ）③指示書 ④検証 を担当。
+
+**単発段(8-24) 通算＝真バグ 567 / 偽陽性 34 / 機構待ち 216**（延べ・重複計上あり）。
+クラスタ段(1-7) と合わせて **findings 1,444 のうち未 triage 0**。
+
+### 🔴 発見・修正した計器バグ2件（**どちらも「取りこぼしを永久に再投入し続ける」型**）
+
+いずれも `scripts/archive/semanticAuditLedger.mjs` と `scripts/archive/semanticAuditMkBatchSingles.mjs`
+の**取り込み regex が同一コピー**であることに起因する。**片方だけ直すと二重投入になる**ため両方に
+理由コメントを入れた。
+
+1. **`parseStatus` 列で anchor していた**（第18バッチ切り出し時に発覚）
+   分類表の3列目に `AUTO|MANUAL|PARTIAL` を要求していたが、実際には `(live無)`（第15バッチ16件・
+   Claude がそう書けと指示した）／`読取不能（live null）`（第17バッチ2件）等が入る行があり、
+   **計41件が丸ごと未 triage のまま残っていた**。
+   → **分類列（真バグ／偽陽性／機構待ち／要追調査）で anchor する**形へ変更。**41件回収**。
+
+2. **`effectId: null` の finding 23件が構造的に除外できなかった**（第23バッチ切り出し時に発覚）
+   出現条件系（【ライズ】【ハーモニー】【ライド】）は効果ではないので `effectId` が `null`。
+   報告書には CardNum が書かれるが、①識別子 regex が `-E1`/`-BURST` 終端しか受け付けない
+   ②除外判定が `f.effectId`（=null）で引く、の2点で**第15バッチで triage 済みの16件が
+   第23バッチへ再登場した**。
+   → 識別子列を緩め、`effectId` が null なら `cardNum` で引くよう変更。**さらに47件回収**。
+   あわせて第20バッチ報告書の識別子 `null` を実カード番号 `PR-K048` へ訂正。
+
+⚠**教訓＝「計器が0件だから穴はない」と読んではいけない**（CLAUDE.md の `census:wiring` と同じ罠）。
+**バッチを切り出したら過去バッチとの識別子重複を機械照合する**のが唯一の検出手段だった。
+
+### 🔴 Claude の先回りメモが誤っていた件（通算6回・すべて Codex が実測で覆した）
+
+| # | Claude の誤り | 実測（Codex が発見・Claude が独立確認） |
+|---|---|---|
+| 第9 | 「S032 の争点は `then.count:1` が7枚に対応していないこと」 | `resumeSearch` は `for (const id of picked) applyDirectAction(thenAction, id, cur)`（`effectExecutor.ts:8608-8612`）＝**then を picked 1枚ずつ適用**。偽陽性 |
+| 第10 | 「`アサシン` は符号化できるから【アサシン（パワー12000以上）】は parser の真バグ」 | `AssassinScope` は `isFrozen`/`powerLte`/`selfHandLte` の3つだけで **`powerGte` が無い**（`keywords.ts:82-92`）。機構待ち |
+| 第10 | 「filter 無し `count:1` は source 固定に化けるので偽陽性が出るはず」 | 効果元が**スペル**（`WX08-061`）だと `sourceCardNum` が SIGNI 候補に入らず自動枝が発動しない |
+| 第11/13 | 「総和制約は engine に無い」 | 🔴**`totalPowerMax`(`effects.ts:837`) / `totalLevelMax`(`:839`) が実装済み**。消費は `effectExecutor.ts:1187-1207`、強制は `:8179-8196`、**parser も既に生成**（`parseSentencePart1.ts:1649,1662`）。**探した場所が違った**（`SelectionConstraint` の中だけを見た。総和は `EffectTarget` 側で `selectionConstraint` の3行隣） |
+| 第15 | メモが条件語彙の狭さしか書いていなかった | `getRiseFilter` の入口 regex `/【ライズ】(.+?)（この条件/s` ＝**「（この条件…）」の括弧が無いカードは `null` を返して通常召喚へ素通り** |
+| 第20 | 「`energyTrashSelf` が在るのに `banish_self` を使った真バグ」 | `collectEnergyTrashSubstituteInfo`（`effectEngine.ts:3472-3485`）が `COST_SUBSTITUTE{substituteCost.banish_self}` を**エナ内インスタンスの色 override** として扱い、通常のエナ支払いがそのカードを trash へ送る。**`banish_self` がこの文脈の正しい既存表現**。偽陽性 |
+
+🔑**この6件はすべて「Claude が指示書に書いた誤りを Codex が実コードで止めた」**＝
+**指示書の誤りを止める仕組みが実際に機能している**ことの実証。
+⇒ CODEX_GUIDE のガードレールに **「先回りメモの引用行は自分で開いて確認する。食い違ったら
+あなたの実測を採用して報告§8 に書く（加点）」** を毎回入れ続けること。
+
+### 🆕 品質検出の道具＝**根拠列のユニーク率**
+
+「偽陽性0」は第3バッチ（低品質と評価された回）と同じ形なので、機械で判別する方法を確立した。
+分類表の「根拠」列をユニーク数で測る：
+
+| | 根拠行 | ユニーク | |
+|---|---:|---:|---|
+| 第3（低品質） | 107 | **40** | 🔴 62%が定型文（「live JSONの対象・条件・枚数・owner・順序が原文と不一致」が4行で同一） |
+| 第8〜24 | 各20〜49 | **全て100%** | ✅ |
+
+⇒ **偽陽性0 でも根拠が固有なら受け入れてよい**。第10・13・16・21・22 の偽陽性0 はこれで妥当と判定した。
+
+### 🆕 段2 の設計図が出た（`stage1_batch24_triage.md` §9）
+
+Codex に**簿記をさせず**、24バッチを通した当事者としての総括だけを書かせた。
+①軸ごとの機構充足度（parser だけで進む軸／engine が先の軸に二分）②**段2 の実装バッチ候補21単位**
+（影響 finding 数・配線先関数名・依存つき）③最初に取るべき1本 ④**triage 判定を信用してよい範囲**
+⑤parser の系統的な壊れ方 上位5。
+
+**軸ごとの機構待ち率**＝cost 66.7%／timing-trigger 62.5%／condition 47.2%／filter.level 45.9%／
+特殊機構 39.4%／count-upTo 39.1%／(未分類) 35.6%／filter.状態 25.0%／filter.story 24.7%／
+キーワード能力 22.4%／filter.color 18.8%／filter.power 15.4%／順序-構造 14.3%／
+**filter.cardName・action丸ごと欠落・filter.hasIcon・プレイヤー選択・owner主語・能力種別＝0%**。
+
+**Codex の推奨＝最初は「instance 保持の共通基盤」**（`storedTargetCards`／`lastProcessedCards`／
+`execAddToField`／delayed trigger）＝**12件以上を解放し、後続の動的 filter と LOOK partition が
+「どの instance を参照するか」を再実装せずに済む**。次点は動的 power/level family。
+
+### 検証（Claude 側・CODEX_GUIDE §7）
+
+17バッチすべてで①ゲート独立実行 ②台帳再測 ③根拠ユニーク率 ④スコープ外変更の有無 を確認。
+偽陽性がブロックで出た回はその中核主張を実コードで裏取りした（第11＝`execLookPickChain` の
+`maxPick`／第24＝`resumeSearch` の deck-placement 特例）。**スコープ外変更は17回とも0件。**
+
 ## 2026-08-22（続き595）：タスク8 の進め方を「効率順」に組み替え＋道具2本
 
 続き594 の実測を振り返ってボトルネックを2つ特定し、次セッションからの手順を §6.2 に確定した。

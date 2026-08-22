@@ -1,0 +1,114 @@
+=== 段1 第20バッチ（単発）＝軸「cost」 の 1〜21件目 ===
+残 21件中の切り出し。**quote がカード固有なので、同じ action 型で隣り合わせてある**。
+⚠クラスタではないので「共通の根拠」を横展開しないこと＝**1件ずつ live JSON と原文を照合する**。
+
+==============================================================================
+【S001】 null  [MED/MISSING]  ５ｔｈ　Ａｎｎｉｖ．Ｈｅｒｏｉｎｅｓ  action=(live無)  軸=cost
+  原文: このキーを場に出すための《無》コストは白か赤か青でしか支払えない。【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード３：あなたのデッキからシグニを３枚まで探して場に出し、デッキをシャッフルする。【出】：対戦相手のシグニ１体を対象とし、それを手札に戻す。対戦相手の手札を１枚見ないで選び、捨てさせる。あなたのデッキからシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「白か赤か青でしか支払えない」 このキーを場に出す無色コストを白・赤・青でのみ支払えるという制限がJSONにない。
+  live: null
+==============================================================================
+【S002】 WX18-036-E3  [HIGH/WRONG]  夢国の招待　ドリーミー  action=ADD_TO_FIELD  軸=cost
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュに＜悪魔＞のシグニが１３枚以上ある場合、それをトラッシュに置く。【出】《黒》《黒》：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《アタックフェイズアイコン》このカードを手札から公開し、あなたの＜悪魔＞のシグニ２体を場からトラッシュに置く：このシグニをあなたの手札から場に出す。
+  LB  : ：あなたのトラッシュから＜悪魔＞のシグニ１枚を対象とし、それを手札に加えるか場に出す。
+  指摘: 「このカードを手札から公開し」 原文は手札のこのカード自身を公開してそのまま場に出す効果だが、JSONでは公開コストがなく、手札の任意のシグニを場に出せる。
+  live: {"effectId":"WX18-036-E3","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"fieldTrash":{"count":2,"filter":{"cardType":"シグニ","story":"悪魔"}}},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"HAND_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S003】 WXK08-046-E1  [MED/WRONG]  炎魔の走牛　アグニ  action=ADD_TO_FIELD  軸=cost
+  原文: 【起】《ビートアイコン》［４枚以下］このシグニを【ビート】にする：あなたのトラッシュからレベル２の赤の＜悪魔＞のシグニ１枚を対象とし、それを場に出す。
+  指摘: 「このシグニを【ビート】にする」 原文ではこのシグニ自身を【ビート】にするコストだが、JSONのbeat_signiは対象を自身に限定していない。
+  live: {"effectId":"WXK08-046-E1","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"BEAT_CONDITION","condText":"４枚以下"},"cost":{"beat_signi":1},"action":{"type":"ADD_TO_FIELD","owner":"self","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","level":2,"color":"赤","story":"悪魔"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S004】 WXDi-P10-007-E2  [HIGH/MISSING]  ミルルン・セツナ  action=BANISH  軸=cost
+  原文: 【常】：対戦相手のスペルの使用コストは《無×1》増える。【起】《ターン１回》《青》シグニ１枚とスペル１枚を捨てる：対戦相手のシグニ１体を対象とし、それをバニッシュする。【起】《ゲーム１回》《青×0》：あなたのデッキの上からカードを１０枚見る。その中からコストの合計が４以下になるようにスペルを２枚までチェックゾーンに置き、残りをデッキに加えてシャッフルする。この方法でチェックゾーンに置いたスペルを好きな順番でコストを支払わずに使用する。
+  指摘: 「シグニ１枚とスペル１枚を捨てる」 起動コストで手札のシグニ1枚とスペル1枚を捨てる処理が欠落している。
+  live: {"effectId":"WXDi-P10-007-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S005】 WXDi-P12-031-E2  [HIGH/MISSING]  レイラ・ザ・乱舞  action=BANISH  軸=cost
+  原文: 【出】：対戦相手のシグニ１体を対象とし、それをバニッシュする。【出】手札とエナゾーンにあるすべてのカードをトラッシュに置く：この方法でカードが６枚以上トラッシュに置かれた場合、対戦相手のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「手札とエナゾーンにあるすべて」 手札とエナゾーンの全カードをトラッシュに置くコストと、6枚以上置かれた場合だけバニッシュする条件が表現されていない。
+  live: {"effectId":"WXDi-P12-031-E2","effectType":"AUTO","timing":["ON_PLAY"],"costUnparsed":true,"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S006】 WDK05-T12-E1  [HIGH/MISSING]  師の遊　ケロパッチン  action=BOUNCE  軸=cost
+  原文: 【出】《白》他のシグニ１体を場からデッキの一番上に置く：対戦相手のシグニ１体を対象とし、それを手札に戻す。
+  指摘: 「他のシグニ１体を場から」 能力コストで他のシグニ1体を場からデッキの一番上に置く処理が欠落している。
+  live: {"effectId":"WDK05-T12-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"upToCount":false,"filter":{"cardType":"シグニ"}},"optional":false},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S007】 PR-K056-E1  [HIGH/WRONG]  メモリアル・ファイブ  action=CHOOSE(CHOOSE/DOWN/SIGNI)  軸=cost
+  原文: 以下の５つから５つまで選ぶ。このアーツの使用コストは選んだ数だけ《青×1》増える。①対戦相手のレベル３以下のシグニ１体を対象とし、それをダウンする。②対戦相手のレベル４以上のシグニ１体を対象とし、それをダウンする。③対戦相手のすべてのシグニを凍結する。④対戦相手は手札を１枚捨てる。⑤カードを１枚引く。
+  指摘: 「選んだ数だけ《青×1》増える」 使用コストが選択数に応じて青1ずつ増える効果ではなく、選択数にかかわらず青1の固定コストになっている。
+  live: {"effectId":"PR-K056-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"青","count":1}]},"action":{"type":"CHOOSE","choose_count":5,"from_count":5,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"max":3}},"upToCount":false}}},{"choiceId":"c1","label":"選択肢2","action":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","level":{"min":4}},"upToCount":false}}},{"choiceId":"c2","label":"選択肢3","action":{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}}
+==============================================================================
+【S008】 WX18-062-E1  [MED/WRONG]  肥後の虎将　カトキヨ  action=CHOOSE(CHOOSE/ENERGY_CHARGE_FROM_DECK/DRAW)  軸=cost
+  原文: 【自】：このカードがコストか効果によってシグニの下からトラッシュに置かれたとき、あなたのデッキの一番上のカードをエナゾーンに置くかカードを１枚引く。
+  指摘: 「コストか効果によって」 JSONはシグニの下からトラッシュに置かれたことだけを条件とし、コストまたは効果によって置かれた場合という原因条件が欠落している。
+  live: {"effectId":"WX18-062-E1","effectType":"AUTO","timing":["ON_TRASH"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1}},{"choiceId":"c1","label":"選択肢2","action":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self","triggerCondition":{"fromZones":["under_signi"]}}
+==============================================================================
+【S009】 WX08-042-E1  [HIGH/WRONG]  美しき弦奏　コントラ  action=COST_SUBSTITUTE  軸=cost
+  原文: 【常】：あなたが《白》を支払う際、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい。【自】：あなたのシグニ１体がエナゾーンから場に出たとき、あなたのデッキの一番上のカードをエナゾーンに置く。（このシグニがエナゾーンから場に出たときも、この能力は発動する）
+  指摘: 「エナゾーンからこのシグニをトラッシュ」 白1の代替コストはエナゾーンのこのシグニをトラッシュに置く処理だが、JSONは自身をバニッシュする処理になっている。
+  live: {"effectId":"WX08-042-E1","effectType":"CONTINUOUS","action":{"type":"COST_SUBSTITUTE","originalCost":[{"color":"白","count":1}],"substituteCost":{"banish_self":true},"optional":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S010】 WX21-044-E1  [HIGH/WRONG]  惨之遊　†シャテキ†  action=COST_SUBSTITUTE  軸=cost
+  原文: 【常】：このシグニがエナゾーンにあるかぎり、あなたは《緑》を支払う際、代わりにあなたのエナゾーンからこのシグニをトラッシュに置いてもよい。【出】：このシグニが＜遊具＞のシグニの効果によって手札から場に出た場合、あなたのデッキの上からカードを２枚エナゾーンに置く。【出】：このシグニが＜遊具＞のシグニの効果によってトラッシュから場に出た場合、あなたのトラッシュから＜遊具＞のシグニ１枚を対象とし、それを手札に加える。
+  LB  : ：あなたのトラッシュから＜遊具＞のシグニ１枚を対象とし、それを手札に加える。
+  指摘: 「エナゾーンからこのシグニをトラッシュに置いて」 緑コストの代替はエナゾーンにあるこのカードをトラッシュへ置く処理だが、JSONでは自身をバニッシュするコストになっている。
+  live: {"effectId":"WX21-044-E1","effectType":"CONTINUOUS","action":{"type":"COST_SUBSTITUTE","originalCost":[{"color":"緑","count":1}],"substituteCost":{"banish_self":true},"optional":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S011】 WX21-031-CB-E2  [HIGH/MISSING]  究極　ニパ子  action=DOWN  軸=cost
+  原文: 【起】《ターン１回》《白》《ダウン》手札から《究極　ニパ子》を１枚捨てる：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。このシグニをアップする。【起】《アタックフェイズアイコン》《白》このシグニを場から手札に戻す：対戦相手のシグニ１体を対象とし、それをダウンする。
+  指摘: 「このシグニを場から手札に戻す」 このシグニを場から手札に戻す起動コストがありません。
+  live: {"effectId":"WX21-031-CB-E2","effectType":"ACTIVATED","timing":["ATTACK_ARTS"],"cost":{"energy":[{"color":"白","count":1}]},"action":{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S012】 WXK08-043-E1  [MED/MISSING]  炎魔の悪意　サマエル  action=DRAW  軸=cost
+  原文: 【出】《ビートアイコン》［４枚以下］《炎魔の悪意　サマエル》以外のシグニ１体を【ビート】にする：カードを１枚引く。
+  指摘: 「サマエル》以外のシグニ」 【ビート】にするコスト対象から同名カードを除外する条件がJSONにない。
+  live: {"effectId":"WXK08-043-E1","effectType":"AUTO","timing":["ON_PLAY"],"condition":{"type":"BEAT_CONDITION","condText":"４枚以下"},"cost":{"beat_signi":1},"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S013】 WX25-CP1-016-E1  [MED/WRONG]  月雪ミヤコ[自走式閃光ドローン]  action=DRAW  軸=cost
+  原文: 【自】《ターン１回》：シグニかスペルの、コストか効果によってあなたが手札を１枚捨てたとき、カードを１枚引く。【起】《ゲーム１回》《青×0》：対戦相手のルリグ１体を対象とし、それを凍結する。次の対戦相手のターンの間、対戦相手はルリグの【起】能力を使用できない。【絆起】《ゲーム１回》《青×0》：カードを２枚引く。
+  指摘: 「シグニかスペルの、コストか効果によって」 ドローの誘発条件に「シグニかスペルのコストまたは効果による捨て札」という原因の限定がなく、他の原因で手札を捨てた場合にも誘発する。
+  live: {"effectId":"WX25-CP1-016-E1","effectType":"AUTO","timing":["ON_HAND_DISCARDED"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S014】 WXDi-P13-089-E3  [HIGH/MISSING]  夢限//ディソナ  action=EXILE  軸=cost
+  原文: 【常】：【マルチエナ】【自】《ターン１回》：対戦相手のターンの間、このシグニが対戦相手のシグニの、能力か効果の対象になったとき、そのシグニが場にある場合、そのシグニをゲームから除外する。【起】手札とエナゾーンとトラッシュにある《夢限//ディソナ》を１枚ずつゲームから除外する：対戦相手のシグニ１体を対象とし、それをゲームから除外する。（この能力はこのシグニが場にある場合にしか使用できない）
+  指摘: 「手札とエナゾーンとトラッシュ」 起動コストは手札・エナゾーン・トラッシュから同名カードを各1枚除外する必要があるが、JSONにはトラッシュから1枚除外するコストしかない。
+  live: {"effectId":"WXDi-P13-089-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"trashExile":{"count":1,"filter":{"cardName":"夢限//ディソナ"}}},"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S015】 WX05-016-E1  [HIGH/WRONG]  エンドホール  action=FORCE_END_TURN  軸=cost
+  原文: このアーツの使用コストで《白》《赤》《青》《緑》《黒》すべてが支払われている場合、このターンを終了する。（効果やルールによってターンが終了した時点で、チェックゾーンのカードはトラッシュに置かれ、ターンプレイヤーは手札を６枚になるように捨てて、「このターン」「ターン終了時まで」といった効果は終了する）
+  指摘: 「すべてが支払われている場合」 原文では5色の支払いはターン終了効果の条件だが、JSONでは能力の必須コストとなり、条件を満たさない使用自体ができない。
+  live: {"effectId":"WX05-016-E1","effectType":"ACTIVATED","timing":["SPELL_CUTIN"],"cost":{"energy":[{"color":"白","count":1},{"color":"赤","count":1},{"color":"青","count":1},{"color":"緑","count":1},{"color":"黒","count":1}]},"action":{"type":"FORCE_END_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S016】 WXDi-P07-046-E3  [HIGH/MISSING]  ドライ＝パトラ  action=POWER_MODIFY  軸=cost
+  原文: 【出】《緑》：あなたのエナゾーンからシグニ１枚を対象とし、それを手札に加える。【出】《黒》：あなたのトラッシュから緑のシグニ１枚を対象とし、それを場に出す。【起】《ターン１回》《無》ターン終了時まで、このシグニのパワーを－10000する：対戦相手のシグニ１体を対象とし、ターン終了時まで、それのパワーを－10000する。この能力はこのシグニのパワーが20000以上の場合にしか使用できない。
+  指摘: 「このシグニのパワーを－10000する」 起動コストでこのシグニのパワーをターン終了時まで－10000する処理が欠落している。
+  live: {"effectId":"WXDi-P07-046-E3","effectType":"ACTIVATED","timing":["MAIN"],"condition":{"type":"SELF_POWER_GTE","value":20000},"cost":{"energy":[{"color":"無","count":1}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-10000},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S017】 WXK08-027-E2  [HIGH/MISSING]  炎魔の総統　アミィ  action=REVEAL_AND_PICK  軸=cost
+  原文: 【出】：対戦相手のパワー8000以下のシグニ１体を対象とし、あなたの場にそれぞれレベルの異なるシグニが３体ある場合、それをバニッシュする。【起】《ターン１回》手札を１枚捨て、他のシグニ１体を場からトラッシュに置き、エナゾーンからカード１枚をトラッシュに置く：あなたのデッキの上からカードを４枚公開する。その中からそれぞれレベルの異なるシグニを４枚まで手札に加え、残りをトラッシュに置く。
+  LB  : ：対戦相手のパワー10000以下のシグニ１体を対象とし、それをバニッシュする。
+  指摘: 「手札を１枚捨て、他のシグニ１体」 起動コストのうち手札1枚を捨てる処理と、他の自分のシグニ1体を場からトラッシュに置く処理が欠落している。
+  live: {"effectId":"WXK08-027-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energyTrash":{"count":1}},"action":{"type":"REVEAL_AND_PICK","owner":"self","revealCount":4,"filter":{"eachDistinctLevel":true,"cardType":"シグニ"},"pickCount":4,"pickUpTo":true,"then":{"type":"ADD_TO_HAND","owner":"self"},"remainder":{"location":"trash","position":"bottom"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}
+==============================================================================
+【S018】 WX05-046-E1  [MED/WRONG]  コードメイズ　サグファミ  action=SEQUENCE(SEQUENCE/REARRANGE_SIGNI/SIGNI)  軸=cost
+  原文: 【出】手札から＜迷宮＞のシグニを１枚捨てる：対戦相手のすべてのシグニを好きなように配置し直してもよい。カードを１枚引く。
+  LB  : ：【エナチャージ１】
+  指摘: 「配置し直してもよい」 相手のシグニの再配置だけが任意ですが、JSONでは再配置アクションに任意指定がなく、コストを払った後は強制処理になります。
+  live: {"effectId":"WX05-046-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"handDiscardSigni":{"count":1,"story":"迷宮"}},"action":{"type":"SEQUENCE","steps":[{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}},{"type":"DRAW","owner":"self","count":1}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+==============================================================================
+【S019】 WX21-046-E1  [HIGH/WRONG]  コードアート　†Ｈ・Ｐ・Ｌ†  action=SEQUENCE(SEQUENCE/TRANSFER_TO_DECK/TRASH_CARD)  軸=cost
+  原文: 【自】：このシグニがアタックしたとき、対戦相手のシグニ１体を対象とし、あなたのトラッシュからそれぞれコストの合計が異なるスペル３枚をデッキに加えてシャッフルする。そうした場合、カードを１枚引き、ターン終了時まで、それのパワーを－8000する。
+  LB  : ：あなたのデッキからスペル１枚を探して公開し手札に加え、デッキをシャッフルする。
+  指摘: 「それぞれコストの合計が異なるスペル３枚」 トラッシュからデッキへ戻す3枚にスペル指定と各カードのコスト合計が互いに異なる条件がなく、任意のカード3枚を戻せる。
+  live: {"effectId":"WX21-046-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":3},"shuffle":true},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":1},{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"delta":-8000}]}}]},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
+==============================================================================
+【S020】 WX24-P4-040-E2  [HIGH/WRONG]  ミルルン☆スティール  action=SEQUENCE(SEQUENCE/TRASH/HAND_CARD)  軸=cost
+  原文: 【出】：カードを２枚引く。【出】：対戦相手の手札を見て１枚選び、捨てさせる。そのカードがコストの合計が１以下のスペルの場合、対戦相手のトラッシュからそのスペルをコストを支払わずに使用してもよい。（コストの合計とは、カードの左上のエナコストの数字の合計である。例えばコストが《白×1》《無×1》の場合、コストの合計は２である）
+  指摘: 「そのカードがコストの合計が１以下」 捨てさせたカードがコスト合計1以下のスペルであるという条件と、その同じカードを使用する対応関係がなく、相手のトラッシュにある任意のスペルを使用できる。
+  live: {"effectId":"WX24-P4-040-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"actingPlayerSelects":true}},{"type":"PLAY_FREE","source":"opp_trash","filter":{"cardType":"スペル"},"ignoreCost":true,"ignoreRestrictions":true,"optional":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+==============================================================================
+【S021】 WX21-031-CB-E1  [HIGH/MISSING]  究極　ニパ子  action=SEQUENCE(SEQUENCE/TRASH/SIGNI)  軸=cost
+  原文: 【起】《ターン１回》《白》《ダウン》手札から《究極　ニパ子》を１枚捨てる：対戦相手のシグニ１体を対象とし、それをトラッシュに置く。このシグニをアップする。【起】《アタックフェイズアイコン》《白》このシグニを場から手札に戻す：対戦相手のシグニ１体を対象とし、それをダウンする。
+  指摘: 「《究極　ニパ子》を１枚捨てる」 手札から《究極　ニパ子》1枚を捨てる起動コストがありません。
+  live: {"effectId":"WX21-031-CB-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"白","count":1}],"down_self":true},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"UP","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO","usageLimit":"once_per_turn"}

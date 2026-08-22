@@ -9,7 +9,7 @@
  * ## 入力（すべて scripts/archive/scratchpad/semantic_audit_clean_round1/）
  * - `findings.jsonl`          … 監査の生 findings（1,444件・不変）
  * - `clusters_stage0.json`    … 段0 の機械前処理（OPEN / 除去の判定）
- * - `stage1_batch*_triage.md` … 段1 の分類表（`| effectId | parseStatus | 分類 | …`）
+ * - `stage1_batch*_triage.md` … 段1 の分類表（`| effectId | parseStatus | 分類 | …`。単発バッチは先頭に `| S001 |` の連番列が付く）
  * - `stage2_closed.txt`       … 段2 で**実際に live が直った** effectId（1行1件・`#` はコメント）
  *                                ⚠バッチを1本回したらここに追記する。これが唯一の消化記録。
  *
@@ -38,10 +38,21 @@ for (const rowsLike of Object.values(stage0.excluded ?? {})) {
 const verdicts = new Map(); // effectId -> Set<分類>
 for (const f of fs.readdirSync(DIR).filter(n => /^stage1_batch\d+_triage\.md$/.test(n))) {
   for (const line of read(f).split('\n')) {
-    const m = line.match(/^\|\s*([A-Za-z0-9][A-Za-z0-9-]*?-(?:E\d+[a-z]?|BURST|CB-E\d+|[A-Z]{2,}))\s*\|\s*(AUTO|MANUAL|PARTIAL)\s*\|\s*([^|]+?)\s*\|/);
+    // ⚠先頭に finding 連番列（`| S001 | …`）が付く形も許す＝**単発バッチ（第8〜）の分類表**。
+    // クラスタ段（第1〜7）は effectId 始まりだったが、単発は明細 txt との突き合わせに連番が要るので
+    // 列が1本増えた。ここを固定していると**そのバッチ全件が「未 triage」に落ちて残件を過大に数える**。
+    // ⚠**parseStatus 列で anchor しない**＝`(live無)` `読取不能（live null）` 等が入る行があり、
+    //   `AUTO|MANUAL|PARTIAL` 固定にすると**その行が丸ごと未 triage に落ちて次バッチへ再投入される**
+    //   （2026-08-22 実測＝第15バッチの16件・第17バッチの2件が二重投入されかけた）。
+    //   代わりに**分類列に「真バグ／偽陽性／機構待ち／要追調査」が含まれること**で anchor する。
+    // ⚠**識別子列は effectId とは限らない**＝`effectId:null` の finding（23件・出現条件系）は
+    //   報告書に **CardNum** が書かれる。`-E1`/`-BURST` 終端を要求すると**その行が落ちて永久に
+    //   未 triage のまま再投入される**（2026-08-22 実測＝第15バッチの16件が第23バッチへ再登場）。
+    //   分類列で anchor しているので識別子側は緩くてよい。
+    const m = line.match(/^\|(?:\s*[A-Z]\d+\s*\|)?\s*([A-Za-z0-9][A-Za-z0-9._-]*)\s*\|[^|]*\|\s*([^|]*?(?:真バグ|偽陽性|機構待ち|要追調査)[^|]*?)\s*\|/);
     if (!m) continue;
     const set = verdicts.get(m[1]) ?? new Set();
-    for (const v of m[3].split(/[＋+・]/).map(s => s.trim())) if (v) set.add(v);
+    for (const v of m[2].split(/[＋+・]/).map(s => s.trim())) if (v) set.add(v);
     verdicts.set(m[1], set);
   }
 }
@@ -63,7 +74,8 @@ if (fs.existsSync(path.join(DIR, 'stage3_recluster.json'))) {
 
 const rows = findings.map(f => {
   const key = `${f.effectId} ${f.quote}`;
-  const v = verdicts.get(f.effectId);
+  // effectId が null の finding（出現条件系）は報告書側が CardNum で書くのでそちらで引く。
+  const v = verdicts.get(f.effectId) ?? (f.effectId ? undefined : verdicts.get(f.cardNum));
   const state =
     closed.has(f.effectId) ? '✅消化'
     : removedKeys.has(key) ? '段0除去'
