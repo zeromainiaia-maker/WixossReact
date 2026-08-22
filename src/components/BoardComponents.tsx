@@ -422,9 +422,10 @@ export function getSigniStatusKeywords(
   // （実際に付与された場合は keywordGrants / dynamicKeywords 側で動的に検出されるため、未発動時にバッジが誤表示されない）
   const has = (kw: string) => {
     if (keywordAbilitiesRemoved?.[topNum]?.some(removed => kw === removed || kw.startsWith(`${removed}:`))) return false;
-    if (granted.includes(kw)) return true;
-    if (dynamic.includes(kw)) return true;
-    if (fieldKeywords?.includes(kw)) return true;
+    const matches = (value: string) => value === kw || value.startsWith(`${kw}:`);
+    if (granted.some(matches)) return true;
+    if (dynamic.some(matches)) return true;
+    if (fieldKeywords?.some(matches)) return true;
     const stripped = text.replace(new RegExp(`【${kw}】(を得る|を得て|を持|を与え)`, 'g'), '');
     return stripped.includes(`【${kw}】`);
   };

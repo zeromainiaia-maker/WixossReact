@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き604・Opus 5＋Codex）＝段2 第12バッチ＝**【アサシン（制限）】の括弧内が丸ごと落ちて「無条件アサシン」になっていた12効果**。**残 OPEN 980→975**／段2 消化 107→112。ゲート全緑（**golden 2355→2356**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き604）。
+  - **実害**＝原文 `【アサシン（パワー10000以下のシグニ）】` の括弧が落ち `{"keyword":"アサシン"}`＝**無条件アサシン**になっていた。アサシンは「正面とバトルせず直接ダメージ」なので、**どんな相手が正面にいても素通りしてライフを削れる**。`WX25-P1-059` は**パワー12000以上**＝条件の向きが逆で、落とすと原文と真逆の盤面で撃てる。
+  - 🔑**受け皿は既に完成していた**＝`AssassinScope`／`encodeAssassinKeyword`／`hasApplicableAssassin`／消費地点（`signiAttackKeywords.ts:45`→`BattleScreen.tsx:8962`）はすべて実装済みで、**`アサシン（X）` を `アサシン:{json}` へ符号化する parser 側だけが無かった**。**シャドウに完全な前例**（`parseShadowScopeText`／`encodeShadowScopesInText`／`effectParser.ts:15790`）があり、それを写すだけで済んだ。
+  - **足りない軸2つを新設**＝`powerGte`（パワー12000**以上**）と `levelLte`（レベル２以下）を**型と `hasApplicableAssassin` の両方**へ（§5-14＝片方だけだと死にフラグ）。
+  - ✅**Codex が Claude の計測ミスを2つ正した**＝①実脱落は **12/14**（`WX25-P2-084-E1` は元から scope 付きで正しかった＝Claude の regex が完全一致だったための誤判定）②**`effectParser.ts:15790` だけではアーツとスペルを通らない**＝`parseArtsEffect`／`parseSpellEffect` にも配線が要る（Burst は母集団0で据置）。
+  - 🔴**申告漏れ1件**＝`parseStatus` が3件変わっている（`WX25-P1-044-E1`／`WX25-P2-039-E1` が PARTIAL→AUTO、`WX25-P1-062-E1` が MANUAL→AUTO）のに報告に無い。**いずれも改善方向**（`WX25-P1-062-E1` は `duration` PERMANENT→UNTIL_END_OF_TURN と `thisCardOnly` 追加も伴い原文に3軸とも合致）で、3件とも `manualEffects.ts` に実体が無い**live だけの刻印**（§6.4 `O-42` 族）だった。**続き603 と同じ弱点＝「同じ効果の別軸が動いた」ことが落ちる。**
+  - **▶ 次の一手【Opus 側】＝段2 第13バッチ＝同型のランサー版**（`【ランサー（パワーN以下のシグニ）】` 12カード / live 10効果）。⚠**アサシンと違い受け皿が無い**（`signiAttackKeywords.ts:48` は素の boolean・`BattleScreen.tsx:9341` が無条件でライフを割る）＝**判定と配線ごと新設**が要る。🔑**スコープの判定対象は「バトルで倒した相手」でアタック宣言時には未確定**＝`isLancer` を boolean に潰さない設計にする。⚠`hasKeyword` は既に前方一致（`keywords.ts:62-65`）なので**`ランサー:{json}` を入れても既存の `has('ランサー')` は壊れない**。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件が未検証＝最優先）。
+
+
 - **🆕 セッション（2026-08-22・続き603・Opus 5＋Codex）＝段2 第11バッチ＝「そうした場合」ゲートが engine のどの慣例にも拾われず素通りしていた14効果**。🔑**最大の成果は実装ではなく「母集団の訂正」**＝前セッションが本節に書いた「998効果・うち967が真バグ疑い」は**誤り**で、**実害は29効果**だった（969 は engine の慣例エンコードが既に守っている）。**残 OPEN 984→980**／段2 消化 103→107。ゲート全緑（**golden 2353→2355**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。**parser と live JSON は変更0**（engine のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き603）。
   - 🔴🔑**998 の内訳**（`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch11_population.mjs` で再現）＝**`IS_MY_TURN` は `execUtils.ts:2143` で常時 true**（＝「相手ターンだと後段が撃てない」過小実行は**存在しない**。実害は片方向だけ）／直前 STUB の汎用「任意コスト」intercept が消費 **647**（`effectExecutor.ts:4034` 入口＋`:4502-4545` の**catch-all**＝どの stub.id にも一致しなくても必ず `needsInteraction` を返す）／Pattern ④・条件包み **84**／既存 did-it ゲート **247**／使用時コスト軽減の no-op マーカー **24**／**素通り＝実害 29**。
   - 🔑**教訓＝CLAUDE.md「型にキーがあることは実装の証拠にならない」の裏返し**＝**「JSON が変な値でも engine が慣例として正しく消費していることがある」**。**段2 の母集団は必ず消費地点まで見て数える**（JSON の語彙だけで数えると桁が変わる）。

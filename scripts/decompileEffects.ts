@@ -24,6 +24,7 @@ import Papa from 'papaparse';
 import type { CardData } from '../src/types';
 import { mergeManualEffects, MANUAL_EFFECTS } from '../src/data/manualEffects';
 import { parseUseTimeCostReduction } from '../src/screens/battle/useTimeCost';
+import { decodeLancerKeyword } from '../src/utils/keywords';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Eff = any;
@@ -1067,9 +1068,10 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${sourceJa}${maxJa}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': {
-      // ランサー:N → 「ランサー（パワーN以下のシグニ）」（hasKeyword は 'ランサー:' プレフィックスで検出）
-      const kw = typeof a.keyword === 'string' && a.keyword.startsWith('ランサー:')
-        ? `ランサー（パワー${a.keyword.slice('ランサー:'.length)}以下のシグニ）` : a.keyword;
+      const lancerScope = typeof a.keyword === 'string' ? decodeLancerKeyword(a.keyword) : null;
+      const kw = lancerScope?.powerLte !== undefined
+        ? `ランサー（パワー${lancerScope.powerLte}以下のシグニ）`
+        : a.keyword;
       const kwBase = typeof a.keyword === 'string' ? a.keyword.replace(/^ランサー:.*/, 'ランサー') : String(a.keyword ?? '');
       const durJa = a.duration === 'UNTIL_END_OF_TURN' ? '（ターン終了時まで）'
         : a.duration === 'NEXT_TURN'

@@ -6,6 +6,7 @@ import { activeFieldGrantKeywordsForSigni } from '../../engine/effectEngine';
 export interface SigniAttackKeywordState {
   isAssassin: boolean;
   isLancer: boolean;
+  lancerKeywords: string[];
   isSLancer: boolean;
   isDoubleCrush: boolean;
   isTripleCrush: boolean;
@@ -31,7 +32,7 @@ export function getSigniAttackKeywordState(
       attacker.abilities_removed, attacker.keyword_abilities_removed)
     || continuous.some(value => value === keyword || value.startsWith(`${keyword}:`));
 
-  const assassinKeywords = new Set<string>([
+  const attackKeywords = new Set<string>([
     ...(attacker.keyword_grants?.[cardNum] ?? []),
     ...(attacker.keyword_grants_until_opp_turn?.[cardNum] ?? []),
     ...activeFieldKeywords,
@@ -44,8 +45,9 @@ export function getSigniAttackKeywordState(
   return {
     isAssassin: !attacker.abilities_removed?.includes(cardNum)
       // ⚠`attacker` も渡す＝「あなたの手札がN枚以下であるかぎり」（`selfHandLte`）は**アタック側**の条件（§6.4 O-28）。
-      && hasApplicableAssassin(assassinKeywords, defender, cardMap, effectivePowers, attacker),
+      && hasApplicableAssassin(attackKeywords, defender, cardMap, effectivePowers, attacker),
     isLancer: has('ランサー'),
+    lancerKeywords: [...attackKeywords].filter(keyword => keyword === 'ランサー' || keyword.startsWith('ランサー:')),
     isSLancer: has('Sランサー'),
     isDoubleCrush: has('ダブルクラッシュ'),
     isTripleCrush: has('トリプルクラッシュ'),

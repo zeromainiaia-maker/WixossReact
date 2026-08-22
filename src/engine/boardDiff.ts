@@ -571,8 +571,9 @@ export function detectKeywordGained(before: PlayerState, after: PlayerState): { 
   for (const [cardNum, kws] of Object.entries(aft)) {
     const had = new Set(bef[cardNum] ?? []);
     for (const kw of kws) {
-      if (!had.has(kw) && (KEYWORD_GAINED_TARGETS as readonly string[]).includes(kw)) {
-        out.push({ cardNum, keyword: kw });
+      const target = KEYWORD_GAINED_TARGETS.find(name => kw === name || kw.startsWith(`${name}:`));
+      if (!had.has(kw) && target) {
+        out.push({ cardNum, keyword: target });
       }
     }
   }

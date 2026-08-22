@@ -15,7 +15,7 @@ import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrow
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers } from '../engine/triggerCollect';
 import { detectBanishedSigni, detectPlacedSigni, detectBloomedSigni, detectFacedownFlipped, detectEnergyFromTrash, detectNewlyArmored, detectLeftFieldSigni, detectTrashedSigni, detectDeckTrashed, detectHandTrashed, detectEnergyTrashed, detectUnderSigniTrashed, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone, countRefresh, detectPowerDecrease, detectPowerDecreaseSources, countMilledFromDeck, detectMilledFromDeck, countMovedToDeck, countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyFrozen, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectPlacedFromEnergy, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded } from '../engine/boardDiff';
 import { detectEnergyAddedWithSource, detectTrashAdded } from '../engine/boardDiff';
-import { hasKeyword, hasBanishResist } from '../utils/keywords';
+import { hasApplicableLancer, hasKeyword, hasBanishResist } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, hasAcceAt, normalizeAcceSlots } from '../utils/acce';
 import { C, HandCards, PlayerField } from '../components/BoardComponents';
 import type { CardAction } from '../components/BoardComponents';
@@ -8945,7 +8945,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         }
       }
-      const { isAssassin, isLancer, isSLancer, isTripleCrush, isDoubleCrush, isShoot } =
+      const { isAssassin, isLancer, lancerKeywords, isSLancer, isTripleCrush, isDoubleCrush, isShoot } =
         getSigniAttackKeywordState(myTopNum, myS, opS, battleCardMap, effectivePowers, contGrantedKeywords);
 
       // アサシン：正面シグニを無視してライフへ直接アタック
@@ -9341,9 +9341,10 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           // ランサー/Sランサー：バトル勝利後に追加でライフを1枚クラッシュ
           // ⚠「このシグニは対戦相手にダメージを与えない」（WX25-CP1-074 が付与）はここも止める
           //   ＝止めないと「バトルに勝ったときだけダメージが通る」半端な近似になる。
-          if ((isLancer || isSLancer) && cannotDealDamageToOpp) {
+          const lancerApplies = isSLancer || (isLancer && hasApplicableLancer(lancerKeywords, opPower));
+          if (lancerApplies && cannotDealDamageToOpp) {
             appendBattleLogs([`${myCardName}は対戦相手にダメージを与えない（${isSLancer ? 'Sランサー' : 'ランサー'}のクラッシュなし）`]);
-          } else if (isLancer || isSLancer) {
+          } else if (lancerApplies) {
             const label = isSLancer ? 'Sランサー' : 'ランサー';
             const { newState: afterCrash, crashed, prevented, crashOpponentInstead } = crashOneLife(newOpState, { type: 'signi', level: parseInt(battleCardMap.get(myTopNum)?.Level ?? '', 10) || undefined }, myTopNum);
             if (crashOpponentInstead) {

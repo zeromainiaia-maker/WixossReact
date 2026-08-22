@@ -171,7 +171,7 @@ import { parseSentencePart2 } from './parsers/parseSentencePart2';
 import { parseSentencePart3 } from './parsers/parseSentencePart3';
 import { parseSentencePart4 } from './parsers/parseSentencePart4';
 import { parseAppearanceCondition } from './appearanceConditionParser';
-import { encodeAssassinScopesInText, encodeShadowScopesInText, normalizeKeywordName } from '../utils/keywords';
+import { encodeAssassinScopesInText, encodeLancerScopesInText, encodeShadowScopesInText, normalizeKeywordName } from '../utils/keywords';
 
 // ---- 「その中から…」の pick 節を **複数群**（LOOK_PICK_CHAIN の stages）へ分解する（タスク12(xlvi)(h)(a)）----
 // 受ける形だけを明示的に書く。どれにも当たらない／名詞句に未知の修飾語が残る場合は null を返し、
@@ -14748,7 +14748,7 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
   // アンコール／ベット／ブースト（任意追加エナ）のプレフィックスを除去してから解析
   const isBet = /^ベット[―─]/.test(card.EffectText);
-  const stripped = stripRuleParens(encodeAssassinScopesInText(card.EffectText))
+  const stripped = stripRuleParens(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText)))
     .replace(/^(?:アンコール－|ベット[―─]|ブースト[―─])(?:《[^》]+》)*\s*/, '');
   // ピースの印刷済み【使用条件】は区切りなしで本文へ直結するため、先頭節を文型テーブルで
   // condition へ持ち上げ、同時に本文から除去する。CardEffect.condition は BattleScreen の
@@ -15016,7 +15016,7 @@ function stripUseTimeCostReductionStep(action: EffectAction, text: string): Effe
 
 function parseSpellEffect(card: CardData): CardEffect | null {
   if (!card.EffectText || card.EffectText === '-') return null;
-  const stripped = stripRuleParens(encodeAssassinScopesInText(card.EffectText));
+  const stripped = stripRuleParens(encodeLancerScopesInText(encodeAssassinScopesInText(card.EffectText)));
   const { cleaned, condition } = extractUseCondition(stripped);
   const action = stripUseTimeCostReductionStep(
     stripUseTimeOptionalCostStep(parseActionText(condition ? cleaned : stripped), stripped), stripped);
@@ -15787,7 +15787,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // シグニ・ルリグ・その他：EffectTextを複数ブロックに分割して解析
     if (card.EffectText && card.EffectText !== '-') {
       // 対象限定キーワードのスコープ条件を stripRuleParens で括弧除去される前に符号化する
-      let effectText = restoreElidedSwapSource(encodeAssassinScopesInText(encodeShadowScopesInText(card.EffectText)));
+      let effectText = restoreElidedSwapSource(encodeLancerScopesInText(encodeAssassinScopesInText(encodeShadowScopesInText(card.EffectText))));
       // 【歌のカケラ】は下段で独立した SONG effect として解析する。通常能力ブロックへ残すと、
       // 直前の【自】等へ歌本文が連結され、E1 に UNKNOWN/STUB が漏れる（WX26-CP1-061）。
       effectText = effectText.replace(/【歌のカケラ】：.+?(?=（【|。【[常出起自ガ]】|$)/gs, '');
@@ -15879,7 +15879,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     // 句点+効果マーカー または ルールテキスト括弧 で区切る（「」内の【自】で止めない）
     const songM = card.EffectText.match(/【歌のカケラ】：(.+?)(?=（【|。【[常出起自ガ]】|$)/s);
     if (songM) {
-      const raw = stripRuleParens(songM[1]).trim();
+      const raw = stripRuleParens(encodeLancerScopesInText(songM[1])).trim();
       if (raw) {
         const action = parseActionText(raw);
         const grantPartial = expandGrantEffectRawTexts(action, card.CardNum);
@@ -16057,6 +16057,26 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   applyQuotedFrontPowerGrantBatch(card.CardNum, effects);
   applyResultConditionalWave2(card.CardNum, effects);
   applyResultConditionalWave3(card.CardNum, effects);
+
+  // WX25-CP1-081-E1 は「ランサーと引用能力を得る」の複合付与で、generic parser が
+  // 任意コストだけを残して両付与を落とす。今回の対象であるランサーだけを支払い後へ復旧し、
+  // 引用能力の欠落は別機構として温存する。
+  if (card.CardNum === 'WX25-CP1-081') {
+    const effect = effects.find(e => e.effectId === 'WX25-CP1-081-E1');
+    if (effect?.action.type === 'SEQUENCE'
+        && !JSON.stringify(effect.action).includes('ランサー:{\\"powerLte\\":10000}')) {
+      effect.action.steps.push({
+        type: 'CONDITIONAL',
+        condition: { type: 'PAID_ADDITIONAL_COST' },
+        then: {
+          type: 'GRANT_KEYWORD',
+          target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+          keyword: 'ランサー:{"powerLte":10000}',
+          duration: 'UNTIL_END_OF_TURN',
+        },
+      });
+    }
+  }
 
   for (const e of effects) {
     let folded = foldDeckSearchToTop(e.action, card.EffectText ?? '');

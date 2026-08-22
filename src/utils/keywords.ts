@@ -175,6 +175,56 @@ export function encodeAssassinScopesInText(text: string): string {
   });
 }
 
+export interface LancerScope {
+  powerLte?: number;
+}
+
+const LANCER_PREFIX = 'ランサー:';
+
+export function encodeLancerKeyword(scope: LancerScope | null): string {
+  if (!scope || Object.keys(scope).length === 0) return 'ランサー';
+  return LANCER_PREFIX + JSON.stringify(scope);
+}
+
+export function decodeLancerKeyword(keyword: string): LancerScope | null {
+  if (keyword === 'ランサー') return {};
+  if (!keyword.startsWith(LANCER_PREFIX)) return null;
+  // 初期の手修正2枚（WX26-CP1-088/091）が持つ旧形式も同じ制限として読む。
+  const legacyPower = keyword.slice(LANCER_PREFIX.length).match(/^\d+$/)?.[0];
+  if (legacyPower) return { powerLte: parseInt(legacyPower, 10) };
+  try {
+    return JSON.parse(keyword.slice(LANCER_PREFIX.length)) as LancerScope;
+  } catch {
+    return null;
+  }
+}
+
+/** バトルでバニッシュした相手シグニに対して、いずれかのランサー制限が適用されるか。 */
+export function hasApplicableLancer(keywords: Iterable<string>, defenderPower: number): boolean {
+  for (const keyword of keywords) {
+    const scope = decodeLancerKeyword(keyword);
+    if (scope === null) continue;
+    if (Object.keys(scope).length === 0) return true;
+    if (scope.powerLte !== undefined && Number.isFinite(defenderPower) && defenderPower <= scope.powerLte) return true;
+  }
+  return false;
+}
+
+/** 「【ランサー（X）】」の括弧内テキスト X を LancerScope に変換する。 */
+export function parseLancerScopeText(inner: string): LancerScope | null {
+  const half = (x: string) => x.replace(/[０-９]/g, c => String.fromCharCode(c.charCodeAt(0) - 0xFEE0));
+  const match = inner.trim().match(/^パワー([０-９\d]+)以下のシグニ$/);
+  return match ? { powerLte: parseInt(half(match[1]), 10) } : null;
+}
+
+/** stripRuleParens より前に、本文中の対象限定ランサーを keyword JSON 形式へ符号化する。 */
+export function encodeLancerScopesInText(text: string): string {
+  return text.replace(/【ランサー（([^）]*)）】/g, (_full, inner: string) => {
+    const scope = parseLancerScopeText(inner);
+    return `【${encodeLancerKeyword(scope)}】`;
+  });
+}
+
 /**
  * シグニがシャドウを持つかチェックする（hasKeyword の糖衣構文）。
  */

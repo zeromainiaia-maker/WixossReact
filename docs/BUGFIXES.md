@@ -1,5 +1,65 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き605）：§6.2 段2 第13バッチ＝【ランサー（制限）】の括弧が落ちて「無条件ランサー」だった11効果
+
+前バッチ（アサシン）と同じ文型だが、**アサシンと違い受け皿が一切無かった**ので機構ごと新設した。
+残 OPEN **975→970**。census **742 据置**。golden **2356→2358**。
+
+### 何が壊れていたか
+
+原文 `【ランサー（パワー5000以下のシグニ）】` の括弧が落ちて `{"keyword":"ランサー"}`＝無条件形。
+ランサーは「バトルで相手シグニをバニッシュしたとき追加でライフを1枚クラッシュする」能力なので、
+**どんなパワーの相手を倒してもライフが割れる＝毎バトル確定1点**になっていた。
+`WX25-CP1-081-E1` は括弧どころか **「そうした場合、〜を得る」節ごと落ちて付与自体が無かった**。
+
+### 直し方（`LancerScope` 新設＋配線6箇所）
+
+`hasKeyword` は既に前方一致（`keywords.ts:62-65`）なので **`ランサー:{json}` を入れても
+「ランサーを持っているか」を見る既存コードは壊れない**。足りなかったのは判定と消費地点：
+
+| 配線先 | 何をしたか |
+|---|---|
+| `src/utils/keywords.ts` | `LancerScope` / `encodeLancerKeyword` / `decodeLancerKeyword` / `parseLancerScopeText` / `encodeLancerScopesInText` / **`hasApplicableLancer`** を新設。旧形式 `ランサー:N` も互換 decode |
+| `src/data/effectParser.ts` | `stripRuleParens` の**前**に符号化。⚠**入口は4つ**＝通常ブロック・`parseArtsEffect`・`parseSpellEffect`・**SONG** |
+| `src/screens/battle/signiAttackKeywords.ts` | `isLancer` を boolean に潰さず **`lancerKeywords: string[]`** を運ぶ |
+| `src/screens/BattleScreen.tsx:9344` | **バニッシュ確定後**に `hasApplicableLancer(lancerKeywords, opPower)` を評価してから割る |
+| `src/components/BoardComponents.tsx` | 完全一致だったため**盤面バッジ「槍」が消える退化**になる → 前方一致へ |
+| `src/engine/boardDiff.ts` | 完全一致だったため **`ON_KEYWORD_GAINED` が誘発しなくなる過小実行** → 前方一致へ |
+| `scripts/decompileEffects.ts` | 逆翻訳を JSON/旧数値の両形式に対応 |
+
+🔑**設計上の肝＝スコープの判定対象は「バトルで倒した相手」であり、アタック宣言時には確定していない。**
+アサシンの `hasApplicableAssassin`（相手の場を走査）とは**評価タイミングが違う**ので、
+`isLancer` を「スコープつき boolean」に潰してはいけない。
+
+### 🔴 「過剰実行 → 恒久 no-op」への裏返りを実測で潰した
+
+`hasApplicableLancer([], p)` は **false** を返すので、**`isLancer=true` なのに `lancerKeywords` が空**という
+経路が1本でもあれば、**無条件ランサーが丸ごと不発**になる（過剰実行が過小実行へ裏返る＝どの計器にも映らない）。
+`isLancer` は `hasKeyword` 由来、`lancerKeywords` は `attackKeywords` 由来で**別の集合**なので、目視では足りない。
+
+⇒ **原文に「ランサー」を含むシグニ101枚＋付与3形式（`ランサー` / `ランサー:{json}` / 旧 `ランサー:N`）を
+実際に `getSigniAttackKeywordState` へ通して 0件**を確認した。
+⚠**この整合は暗黙の不変条件**＝`attackKeywords` の作り方か `hasKeyword` の走査軸を将来変えると静かに壊れる。
+**`lancerKeywords` を足す側と `isLancer` を出す側は同じ集合から作り続けること。**
+
+### Claude の見立てが3件訂正された
+
+1. **母集団の実体は 13効果**（Claude は10と書いた）＝`WX26-CP1-088`／`WX26-CP1-091` には
+   **旧形式 `ランサー:5000` の MANUAL が既にあった**。⚠**`"keyword":"ランサー"` の完全一致で数えたのが原因で、
+   続き604 とまったく同じ計測ミスを2回続けた**（→ PLAN §4 恒久指標に注記）。
+   本当に付与ごと落ちていたのは `WX25-CP1-081-E1` の1件だけ。
+2. **parser 入口は4つ**（Claude は「15790 付近」としか書けていなかった）。
+3. **`BoardComponents.tsx` と `boardDiff.ts` は「無傷のはず」ではなく実際に修正が要った。**
+   Claude の配線表は両者を「確認」としか書いておらず、**必要な修正2件を見落としていた**。
+
+### 残置
+
+`WX26-CP1-088/091` は MANUAL なので live を書き換えず、decoder が旧形式を吸収する形にした
+＝**同じ意味に2表現がある状態**。いずれ正準形へ寄せるのが望ましい。
+条件以外の食い違い4件（`WX24-P3-085-E1` の LB なし分岐ほか）はスコープ外として未修正・報告済み。
+
+報告＝`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch13_report.md`（末尾に Claude 検証節）。
+
 ## 2026-08-22：§6.2 段2 第12バッチ＝対象限定【アサシン】の括弧条件脱落
 
 - `AssassinScope` に `powerGte` / `levelLte` を追加し、`hasApplicableAssassin` の実判定まで配線。Shadow前例と同じ `keyword:{json}` 形式でscope text parser/encoderを追加した。

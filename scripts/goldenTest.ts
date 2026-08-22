@@ -92,7 +92,7 @@ import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consum
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
-import { hasApplicableAssassin, hasKeyword, normalizeKeywordName, textHasKeyword } from '../src/utils/keywords';
+import { encodeLancerScopesInText, hasApplicableAssassin, hasApplicableLancer, hasKeyword, normalizeKeywordName, textHasKeyword } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
@@ -27594,7 +27594,7 @@ test('(xlvi) 第15波: 歌本文の重複混入6枚は通常能力を保持し�
     'WX26-CP1-068': ['"ON_ATTACK_SIGNI"', '"type":"CHOOSE"', '"type":"DRAW"', '"type":"ENERGY_CHARGE_FROM_DECK"'],
     'WX26-CP1-069': ['"ON_PLAY"', '"powerRange":{"max":5000}'],
     'WX26-CP1-076': ['"ON_TURN_END"', '"type":"POWER_MODIFY_PER_HAND_COUNT"', '"owner":"self"', '"story":"プリオケ"', '"excludeSelf":true'],
-    'WX26-CP1-084': ['"ON_ATTACK_PHASE_START"', '"id":"OPTIONAL_TRASH_ENERGY_CLASS"', '"keyword":"ランサー"'],
+    'WX26-CP1-084': ['"ON_ATTACK_PHASE_START"', '"id":"OPTIONAL_TRASH_ENERGY_CLASS"', '"keyword":"ランサー:{\\"powerLte\\":5000}"'],
     'WX26-CP1-092': ['"ON_TURN_END"', '"type":"TRASH"', '"type":"LAST_PROCESSED_MATCHES"', '"delta":5000'],
     'WX26-CP1-093': ['"ON_PLAY"', '"type":"TRASH_HAS_CARD"', '"delta":-5000', '"delta":-3000'],
   };
@@ -27611,7 +27611,7 @@ test('(xlvi) 第15波: 歌本文の重複混入6枚は通常能力を保持し�
     if (cardNum === 'WX26-CP1-068') ok(!e1Json.includes('"type":"BLOCK_ACTION"'), `${cardNum}: E1から歌のガード禁止を除去`);
     if (cardNum === 'WX26-CP1-069') ok(!e1Json.includes('"powerRange":{"max":10000}'), `${cardNum}: E1から歌のバニッシュを除去`);
     if (cardNum === 'WX26-CP1-076') ok(!e1Json.includes('"type":"GRANT_EFFECT"'), `${cardNum}: E1から歌の能力付与を除去`);
-    if (cardNum === 'WX26-CP1-084') eq((e1Json.match(/"keyword":"ランサー"/g) ?? []).length, 1, `${cardNum}: E1の本来のランサーだけ残る`);
+    if (cardNum === 'WX26-CP1-084') eq((e1Json.match(/"keyword":"ランサー:/g) ?? []).length, 1, `${cardNum}: E1の本来のランサーだけ残る`);
     if (cardNum === 'WX26-CP1-092') ok(!e1Json.includes('"type":"TRANSFER_TO_HAND"'), `${cardNum}: E1から歌の回収を除去`);
     if (cardNum === 'WX26-CP1-093') eq((e1Json.match(/"type":"POWER_MODIFY"/g) ?? []).length, 2, `${cardNum}: E1は通常の-3000/-5000分岐だけ残る`);
     ok(songJson.length > 0, `${cardNum}: SONG本文は空でない`);
@@ -41204,6 +41204,21 @@ test('段2-12: 対象限定アサシンは powerLte / powerGte / levelLte を正
   ok(hasApplicableAssassin(['アサシン:{"levelLte":2}'], level2, cardMap), 'levelLte: 境界値なら成立');
   ok(!hasApplicableAssassin(['アサシン:{"levelLte":2}'], level3, cardMap), 'levelLte: 上回れば不成立');
   ok(hasApplicableAssassin(['アサシン'], level3, cardMap), 'levelLte 負方向の同盤面でも無条件なら成立');
+});
+
+test('段2-13: 対象限定ランサーは倒した相手のパワーに対して正負両方向で判定する', () => {
+  const scoped = ['ランサー:{"powerLte":5000}'];
+  ok(hasApplicableLancer(scoped, 5000), 'パワー5000を倒した場合はライフをクラッシュする');
+  ok(!hasApplicableLancer(scoped, 6000), '同じ能力でパワー6000を倒した場合はライフをクラッシュしない');
+  ok(hasApplicableLancer(['ランサー'], 6000), '同じパワー6000でも無条件ランサーならクラッシュする');
+});
+
+test('段2-13: ランサー括弧制限を strip 前の keyword JSON へ符号化する', () => {
+  eq(
+    encodeLancerScopesInText('【ランサー（パワー５０００以下のシグニ）】'),
+    '【ランサー:{"powerLte":5000}】',
+    '全角数字を含む括弧制限を符号化',
+  );
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
