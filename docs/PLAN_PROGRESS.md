@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き605・Opus 5＋Codex）＝段2 第13バッチ＝**【ランサー（制限）】の括弧が落ちて「無条件ランサー」になっていた11効果**（受け皿の新設＋配線6箇所）。**残 OPEN 975→970**／段2 消化 112→117。ゲート全緑（**golden 2356→2358**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き605）。
+  - **実害**＝原文 `【ランサー（パワー5000以下のシグニ）】` の括弧が落ち、**どんなパワーの相手をバトルでバニッシュしてもライフが割れた**＝毎バトル確定1点。`WX25-CP1-081-E1` に至っては「そうした場合〜を得る」節ごと落ちていた（**付与自体が無かった**）。
+  - 🔑**前バッチ（アサシン）との違い＝受け皿が無かった**＝`signiAttackKeywords.ts:48` は素の boolean、`BattleScreen.tsx:9341` が無条件で割る。**`LancerScope`／encode／decode／`hasApplicableLancer` を新設し、6箇所へ配線**（parser 4入口＝通常/アーツ/スペル/SONG、`signiAttackKeywords`、`BattleScreen`、`BoardComponents`、`boardDiff`、`decompileEffects`）。
+  - 🔑**設計上の肝＝スコープの判定対象は「バトルで倒した相手」でアタック宣言時には未確定**＝`isLancer` を boolean に潰さず `lancerKeywords: string[]` を運び、バニッシュ確定後に `hasApplicableLancer(lancerKeywords, opPower)` で判定する形にした。
+  - 🔴**Claude が最も心配した「過剰実行→恒久 no-op への裏返り」を実測で潰した**＝`hasApplicableLancer([], p)` は false なので、**`isLancer=true` なのに `lancerKeywords` が空**の経路が1本でもあると無条件ランサーが丸ごと不発になる。**原文に「ランサー」を含むシグニ101枚＋付与3形式を実行して 0件**を確認（`tmp_b13_probe.ts`）。⚠**この整合は暗黙の不変条件**＝`attackKeywords` の作り方か `hasKeyword` の走査軸を変えると静かに壊れる。**同じ集合から作り続けること。**
+  - ✅**Codex が Claude の見立てを3件訂正**＝①母集団の実体は **13効果**（`WX26-CP1-088`／`WX26-CP1-091` に**旧形式 `ランサー:5000` の MANUAL が既にあった**＝**続き604 と同じ計測ミスを2回続けた**）②parser 入口は**4つ**（SONG を含む）③**`BoardComponents.tsx` と `boardDiff.ts` は「無傷のはず」ではなく実際に修正が要った**（完全一致比較＝**盤面バッジが消える退化**と**`ON_KEYWORD_GAINED` が誘発しない過小実行**）。
+  - ⚠**同じ意味に2表現が残った**＝`WX26-CP1-088/091` は MANUAL なので live を書き換えず、decoder が旧形式 `ランサー:N` も読む形にした。いずれ正準形へ寄せるのが望ましい。
+  - **▶ 次の一手【Opus 側】＝段2 第14バッチ**。⚠**括弧つきキーワード軸は アサシン／ランサーで枯れた**（シャドウ79件は既に機構つきで実装済み・Ｓランサーの括弧つきは0件）。**次は台帳から取り直す**＝`node scripts/archive/semanticAuditLedger.mjs --axis` の `キーワード能力`（残 約60件）か `filter.story`（90件）。🆕**未検証の候補**＝「**すべての〈修飾〉のシグニ**」を対象に取る文で live が `count:1` になっている **29効果**（粗い実測のみ。要 triage）。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件が未検証＝最優先）。
+
+
 - **🆕 セッション（2026-08-22・続き604・Opus 5＋Codex）＝段2 第12バッチ＝**【アサシン（制限）】の括弧内が丸ごと落ちて「無条件アサシン」になっていた12効果**。**残 OPEN 980→975**／段2 消化 107→112。ゲート全緑（**golden 2355→2356**・census 742 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き604）。
   - **実害**＝原文 `【アサシン（パワー10000以下のシグニ）】` の括弧が落ち `{"keyword":"アサシン"}`＝**無条件アサシン**になっていた。アサシンは「正面とバトルせず直接ダメージ」なので、**どんな相手が正面にいても素通りしてライフを削れる**。`WX25-P1-059` は**パワー12000以上**＝条件の向きが逆で、落とすと原文と真逆の盤面で撃てる。
   - 🔑**受け皿は既に完成していた**＝`AssassinScope`／`encodeAssassinKeyword`／`hasApplicableAssassin`／消費地点（`signiAttackKeywords.ts:45`→`BattleScreen.tsx:8962`）はすべて実装済みで、**`アサシン（X）` を `アサシン:{json}` へ符号化する parser 側だけが無かった**。**シャドウに完全な前例**（`parseShadowScopeText`／`encodeShadowScopesInText`／`effectParser.ts:15790`）があり、それを写すだけで済んだ。

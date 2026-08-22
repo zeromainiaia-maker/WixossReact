@@ -6535,6 +6535,91 @@ function applyBoardZoneStateBatch3(cardNum: string, effects: CardEffect[]): void
   if (cardNum === 'WX22-038') { const e = find('WX22-038-E1'); if (e?.action.type === 'SEARCH') { e.action.filter = { cardType: 'スペル', costMin: 2 }; gate(e.effectId, trash('原子', 7, true)); } }
 }
 
+// 段2 第14バッチ：
+// 「あなたの場に＜クラス＞のシグニがある場合／あるかぎり」が対象句へ吸われる文型を、
+// 原文照合済みの効果だけ既存 HAS_CARD_IN_FIELD へ戻す。汎用の story 抽出を緩めると
+// 正しい対象修飾まで条件へ移すため、effectId をチョークポイントにする。
+function applyFieldStoryConditionBatch14(cardNum: string, effects: CardEffect[]): void {
+  const find = (id: string) => effects.find(e => e.effectId === id);
+  const and = (a: Condition | undefined, b: Condition): Condition => a ? { type: 'AND', conditions: [a, b] } : b;
+  const field = (story: string | string[], extra: Partial<Extract<Condition, { type: 'HAS_CARD_IN_FIELD' }>> = {}): Condition => ({
+    type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story }, ...extra,
+  });
+  const activeField = (story: string, extra: Partial<Extract<ActiveCondition, { type: 'HAS_CARD_IN_FIELD' }>> = {}): ActiveCondition => ({
+    type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story }, ...extra,
+  });
+  const gate = (id: string, condition: Condition): void => {
+    const e = find(id);
+    if (e) e.condition = and(e.condition, condition);
+  };
+
+  if (cardNum === 'WX17-067') gate('WX17-067-E1', {
+    type: 'AND', conditions: [
+      { type: 'HAND_COUNT', owner: 'self', operator: 'lte', value: 3 },
+      field('凶蟲'),
+    ],
+  });
+  if (cardNum === 'WX25-P2-054') gate('WX25-P2-054-E2', {
+    type: 'AND', conditions: [
+      field('電機', { excludeSelf: true }),
+      { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 2 },
+    ],
+  });
+  if (cardNum === 'WX25-P3-080') {
+    const e = find('WX25-P3-080-E1');
+    if (e?.action.type === 'CHOOSE' && e.action.choices[1]) {
+      e.action.choices[1].condition = and(e.action.choices[1].condition, {
+        type: 'AND', conditions: [
+          field('龍獣', { filter: { cardType: 'シグニ', color: '緑', story: '龍獣' } }),
+          { type: 'ENERGY_COUNT', owner: 'opponent', operator: 'gte', value: 2 },
+        ],
+      });
+    }
+  }
+  if (cardNum === 'WX26-CP1-068') gate('WX26-CP1-068-E1', field('プリオケ', { excludeSelf: true }));
+  if (cardNum === 'WXDi-CP02-085') {
+    const e = find('WXDi-CP02-085-E2');
+    if (e?.action.type === 'BANISH') {
+      delete e.action.target.filter?.story;
+      gate(e.effectId, {
+        type: 'AND', conditions: [
+          { type: 'SELF_POWER_GTE', operator: 'gte', value: 5000 },
+          field('ブルアカ', { excludeSelf: true }),
+        ],
+      });
+    }
+  }
+  if (cardNum === 'WX09-025') {
+    const e = find('WX09-025-E1');
+    if (e?.action.type === 'BANISH') {
+      delete e.action.target.filter?.story;
+      gate(e.effectId, field(['鉱石', '宝石'], { minCount: 3 }));
+    }
+  }
+  if (cardNum === 'WX14-024') {
+    const e = find('WX14-024-E1');
+    if (e) e.activeCondition = activeField('美巧', { filter: { cardType: 'シグニ', color: '緑', story: '美巧' }, minCount: 2 });
+  }
+  if (cardNum === 'WXEX2-03') {
+    const e = find('WXEX2-03-E1');
+    if (e?.action.type === 'GRANT_LRIG_ABILITY') {
+      const granted = e.action.abilities[0];
+      if (granted?.action.type === 'REMOVE_ABILITIES') {
+        granted.activeCondition = activeField('天使');
+        granted.action.target = { type: 'LRIG', owner: 'opponent', count: 1 };
+      }
+    }
+  }
+  if (cardNum === 'WXK05-033') gate('WXK05-033-E1', field('植物', { minCount: 3, distinctNames: true }));
+  if (cardNum === 'WX21-051') {
+    const e = find('WX21-051-E1');
+    if (e?.action.type === 'BANISH') {
+      delete e.action.target.filter?.story;
+      gate(e.effectId, field('天使', { minCount: 2, distinctColors: true }));
+    }
+  }
+}
+
 // タスク12(xlvi) 第11波：複合・条件つき look-pick のうち、既存 REVEAL_AND_PICK だけで
 // 忠実に表現できる3効果を effectId 固定で修復する。一般化すると「この方法で」の後段条件や
 // 任意コスト境界を落として無条件実行へ退化しうるため、原文照合済みの3点だけをチョークポイントにする。
@@ -16036,6 +16121,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   applyReferenceAttributeBatch2(card.CardNum, effects);
   applyBoardZoneStateBatch3(card.CardNum, effects);
+  applyFieldStoryConditionBatch14(card.CardNum, effects);
   applyConditionalLookPickWave11(card.CardNum, effects);
   applyLookPickProportionalDiscardWave12(card.CardNum, effects);
   applyDeclaredColorLookPickWave13(card.CardNum, effects);

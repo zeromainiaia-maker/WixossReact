@@ -1,11 +1,9 @@
 # timing 語彙センサス＝【自】が ON_PLAY へ誤フォールバックした効果のクラスタ表
 # 生成: npm run census:timing（scripts/timingCensus.ts）
 # 上位＝parser に timing 語彙が無い候補。engine に収集関数が既にあれば regex 1本で直る（続き75の ON_SIGNI_BANISH_OPPONENT が実例＝31枚）。
-# 総数: 3 効果 / 3 クラスタ
+# 総数: 2 効果 / 2 クラスタ
 
    1  てあなたのデッキから＜X＞のシグニN枚がトラッシュに置かれたとき
       例: WXK10-052-E1
    1  あなたのデッキからレベルNのシグニN枚がトラッシュに置かれたとき
       例: WXDi-P09-079-E1
-   1  たの効果Nつによってカードが合計N枚以上あなたの手札に移動したとき
-      例: SPDi43-11-sub-E1

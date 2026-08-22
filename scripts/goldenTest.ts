@@ -25964,9 +25964,10 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     // `triggerScope:'any_ally'` ＋ `triggerCondition.placedFromTrash` を書くようになったので
     // **予告どおりこの集合から抜けた**（＝自身の【出】ではなく味方シグニ登場の watcher に確定）。
     eq(eligible.length, 1454, '段階2 mandatory集合');
-    // 1404→1403＝上と同じ WX25-P1-061-E1 の1件（`condition` を持たない側だったので同数だけ減る）
-    eq(eligible.length - conditional.length, 1403, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
-    eq(conditional.length, 51, '段階2 condition/activeConditionあり（クラス種類数ゲートを含む）');
+    // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
+    // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
+    eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
+    eq(conditional.length, 53, '段階2 condition/activeConditionあり（段2-14の場クラス条件を含む）');
     eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
@@ -41219,6 +41220,33 @@ test('段2-13: ランサー括弧制限を strip 前の keyword JSON へ符号�
     '【ランサー:{"powerLte":5000}】',
     '全角数字を含む括弧制限を符号化',
   );
+});
+
+test('段2-14: Condition 側の場クラス条件は成立時だけ本体を実行する（WX17-067-E1）', () => {
+  const effect = effectsMap.get('WX17-067')!.find(e => e.effectId === 'WX17-067-E1')!;
+  const wrapped = { type: 'CONDITIONAL', condition: effect.condition!, then: effect.action } as EffectAction;
+  const bug = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('凶蟲'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('凶蟲'));
+  const board = (fieldCard: string) => {
+    const ctx = mkCtx({ hand: 3, signi: [fieldCard, null, null] }, {});
+    ctx.ownerState.deck = [SIGNI_L1];
+    return ctx;
+  };
+  eq(run(wrapped, board(bug)).ownerState.hand.length, 4, '手札3枚かつ＜凶蟲＞ありなら1枚引く');
+  eq(run(wrapped, board(other)).ownerState.hand.length, 3, '同じ手札枚数でも＜凶蟲＞なしなら引かない');
+});
+
+test('段2-14: ActiveCondition 側の場クラス条件は成立時だけ常在パワーを適用する（WX14-024-E1）', () => {
+  const source = 'WX14-024';
+  const beauty = [...cardMap.values()].filter(c => isSigni(c) && c.Color?.includes('緑') && (c.CardClass ?? '').includes('美巧') && c.CardNum !== source);
+  ok(beauty.length >= 2, '緑の＜美巧＞試験カードが2枚存在');
+  const miss = mkState({ signi: [source, beauty[0]?.CardNum ?? SIGNI, null] });
+  const hit = mkState({ signi: [source, beauty[0]?.CardNum ?? SIGNI, beauty[1]?.CardNum ?? SIGNI_L1] });
+  const base = parseInt((cardMap.get(source)?.Power ?? '0').replace(/[^0-9]/g, ''), 10);
+  eq(calcFieldPowers(miss, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(source), base,
+    '他の緑＜美巧＞が1体だけなら基本パワーを変えない');
+  eq(calcFieldPowers(hit, mkState({}), true, effectsMap, cardMap as Map<string, CardData>).get(source), 12000,
+    '場の緑＜美巧＞が合計2体以上なら基本パワー12000');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
