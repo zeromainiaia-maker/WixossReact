@@ -16200,10 +16200,43 @@ export function parseCardEffects(card: CardData): CardEffect[] {
         }
         const e = parseBlock(card.CardNum, block, i);
         if (e) {
+          // §6.2 段2 第22バッチ：場のレベル合計条件。近い名前の英知／直前処理札の語彙は参照先が違うため使わない。
+          const fieldLevelConditions: Record<string, Condition | ActiveCondition> = {
+            'WXK07-084-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'lte', compareTo: 'opponent' },
+            'WXK07-087-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'lte', compareTo: 'opponent' },
+            'WXK07-090-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'lte', compareTo: 'opponent' },
+            'WXDi-P13-076-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'lrig', operator: 'eq', value: 3 },
+            'WXDi-P13-076-E2': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'lrig', operator: 'eq', value: 7 },
+            'WXK07-053-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'eq', compareTo: 'opponent' },
+            'WDK13-015-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'lte', compareTo: 'opponent' },
+            'WXK07-088-E1': { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', operator: 'eq', value: 5 },
+          };
+          const levelGate = fieldLevelConditions[e.effectId];
+          if (levelGate) {
+            if (e.effectType === 'CONTINUOUS') {
+              const ac = levelGate as ActiveCondition;
+              e.activeCondition = e.activeCondition ? { type: 'AND', conditions: [ac, e.activeCondition] } : ac;
+            } else {
+              const c = levelGate as Condition;
+              e.condition = e.condition ? { type: 'AND', conditions: [c, e.condition] } : c;
+            }
+          }
+          if (e.effectId === 'WX09-Re08-E1') {
+            const ac: ActiveCondition = { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: ['ルリグ', 'アシストルリグ'], story: 'タマ', level: 4 } };
+            e.activeCondition = e.activeCondition ? { type: 'AND', conditions: [ac, e.activeCondition] } : ac;
+          }
+          if (e.effectId === 'WXK05-047-E1') {
+            const ac: ActiveCondition = { type: 'HAS_KEY_IN_FIELD', owner: 'self', operator: 'lte', value: 1 };
+            e.activeCondition = e.activeCondition ? { type: 'AND', conditions: [ac, e.activeCondition] } : ac;
+          }
           if (printedTeam && /^【チーム(?:自|起|出)】/.test(block)) {
             const teamCondition: Condition = { type: 'LRIG_TEAM_COUNT', owner: 'self', team: printedTeam, operator: 'gte', value: 3 };
             // 能力固有の「パワーN以上の場合」等も同じトップレベルゲート。上書きせず両方を要求する。
             e.condition = e.condition ? { type: 'AND', conditions: [teamCondition, e.condition] } : teamCondition;
+          }
+          if (printedTeam && /^【チーム常】/.test(block)) {
+            const teamCondition: ActiveCondition = { type: 'LRIG_TEAM_COUNT', owner: 'self', team: printedTeam, operator: 'gte', value: 3 };
+            e.activeCondition = e.activeCondition ? { type: 'AND', conditions: [teamCondition, e.activeCondition] } : teamCondition;
           }
           logSourceText(e.effectId, block);
           effects.push(e);

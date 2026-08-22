@@ -18981,8 +18981,8 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 47, 'ActiveCondition の型数（増えたら union に足した合図。47＝続き567 の LRIG_IS_DRIVE_STATE 追加後）');
-  eq(Object.keys(C_TYPES).length, 121, 'Condition の型数（増えたら union に足した合図。121＝§6.4 O-25(d) の THIS_CARD_IS_CHARMED／ATTACK_ORDINAL_THIS_TURN 追加後）');
+  eq(Object.keys(AC_TYPES).length, 49, 'ActiveCondition の型数（49＝第22バッチ FIELD_LEVEL_SUM／LRIG_TEAM_COUNT 追加後）');
+  eq(Object.keys(C_TYPES).length, 122, 'Condition の型数（122＝第22バッチ FIELD_LEVEL_SUM 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
   //    ネストした `AND`/`OR` の子まで降りる（PR-426-E3 は AND の**子**が Condition 型だった）。
@@ -41640,13 +41640,55 @@ test('段2 第17バッチ: 【チーム自／起／出】31能力だけに LRIG_
   }
 });
 
-test('段2 第17バッチ契約: LRIG_TEAM_COUNT は ActiveCondition 未実装なので【チーム常】6能力へ載せない', () => {
-  ok(!('LRIG_TEAM_COUNT' in (ACTIVE_CONDITION_TYPES as Record<string, true>)), 'ActiveCondition の許可表に未搭載');
-  for (const cardNum of ['WXDi-D03-004','WXDi-D06-004','WXDi-P00-041','WXDi-P01-035','WXDi-P02-009','WXDi-P16-090']) {
-    const continuous = effectsMap.get(cardNum)!.filter(e => e.effectType === 'CONTINUOUS');
-    ok(continuous.length > 0, `${cardNum}: 【チーム常】候補が存在`);
-    ok(continuous.every(e => (e.activeCondition as { type?: string } | undefined)?.type !== 'LRIG_TEAM_COUNT'),
-      `${cardNum}: 未実装型を activeCondition に書かない`);
+test('段2 第22バッチ契約: LRIG_TEAM_COUNT 実装後は【チーム常】6能力だけに成立ゲートが載る', () => {
+  ok('LRIG_TEAM_COUNT' in (ACTIVE_CONDITION_TYPES as Record<string, true>), 'ActiveCondition の許可表に実装済み');
+  const ids = ['WXDi-D03-004-E1','WXDi-D06-004-E1','WXDi-P00-041-E1','WXDi-P01-035-E1','WXDi-P02-009-E1','WXDi-P16-090-E1'];
+  const has = (c: ActiveCondition | undefined): boolean => !!c && (c.type === 'LRIG_TEAM_COUNT'
+    || ((c.type === 'AND' || c.type === 'OR') && c.conditions.some(has)));
+  for (const id of ids) {
+    const eff = effectsMap.get(id.replace(/-E\d.*$/, ''))!.find(e => e.effectId === id)!;
+    ok(has(eff.activeCondition), `${id}: LRIG_TEAM_COUNT が既存条件を上書きせず搭載`);
+  }
+});
+
+test('段2 第22バッチ: FIELD_LEVEL_SUM／チーム／タマ／キー条件は成立・不成立の両方向を評価する', () => {
+  const cardOf = (type: 'シグニ' | 'ルリグ', level: number, pred: (c: CardData) => boolean = () => true) =>
+    [...cardMap.values()].find(c => c.Type.includes(type) && parseInt(c.Level, 10) === level && pred(c))!.CardNum;
+  const s1 = cardOf('シグニ', 1), s2 = cardOf('シグニ', 2), s3 = cardOf('シグニ', 3);
+  const l1 = cardOf('ルリグ', 1), l2 = cardOf('ルリグ', 2), l3 = cardOf('ルリグ', 3);
+  const ac = (id: string) => effectsMap.get(id.replace(/-E\d.*$/, ''))!.find(e => e.effectId === id)!.activeCondition!;
+  const cond = (id: string) => effectsMap.get(id.replace(/-E\d.*$/, ''))!.find(e => e.effectId === id)!.condition!;
+  const chk = (c: ActiveCondition, me: StateOpts, op: StateOpts = {}) => checkActiveCondition(c, mkState(me), mkState(op), true, cardMap);
+  for (const id of ['WXK07-084-E1','WXK07-087-E1','WXK07-090-E1']) {
+    ok(chk(ac(id), { signi: [s1, null, null] }, { signi: [s2, null, null] }), `${id}: 自分合計以下で成立`);
+    ok(!chk(ac(id), { signi: [s3, null, null] }, { signi: [s2, null, null] }), `${id}: 自分合計超過で不成立`);
+  }
+  ok(chk(ac('WXDi-P13-076-E1'), { lrig: [l1], assistL: [l2] }), 'WXDi-P13-076-E1: ルリグ合計3で成立');
+  ok(!chk(ac('WXDi-P13-076-E1'), { lrig: [l1] }), 'WXDi-P13-076-E1: 合計1で不成立');
+  ok(chk(ac('WXDi-P13-076-E2'), { lrig: [l2], assistL: [l2], assistR: [l3] }), 'WXDi-P13-076-E2: ルリグ合計7で成立');
+  ok(!chk(ac('WXDi-P13-076-E2'), { lrig: [l3] }), 'WXDi-P13-076-E2: 合計3で不成立');
+  const evalC = (id: string, me: StateOpts, op: StateOpts = {}) => evalCondition(cond(id), { ...mkCtx(me, op), cardMap });
+  ok(evalC('WXK07-053-E1', { signi: [s2, null, null] }, { signi: [s2, null, null] }), 'WXK07-053-E1: 同値で成立');
+  ok(!evalC('WXK07-053-E1', { signi: [s1, null, null] }, { signi: [s2, null, null] }), 'WXK07-053-E1: 非同値で不成立');
+  ok(evalC('WDK13-015-E1', { signi: [s1, null, null] }, { signi: [s2, null, null] }), 'WDK13-015-E1: 以下で成立');
+  ok(!evalC('WDK13-015-E1', { signi: [s3, null, null] }, { signi: [s2, null, null] }), 'WDK13-015-E1: 超過で不成立');
+  ok(evalC('WXK07-088-E1', { signi: [s2, s3, null] }), 'WXK07-088-E1: 合計5で成立');
+  ok(!evalC('WXK07-088-E1', { signi: [s1, s3, null] }), 'WXK07-088-E1: 合計4で不成立');
+  const tama4 = cardOf('ルリグ', 4, c => c.CardClass.includes('タマ'));
+  ok(chk(ac('WX09-Re08-E1'), { lrig: [tama4] }), 'WX09-Re08-E1: レベル4＜タマ＞で成立');
+  ok(!chk(ac('WX09-Re08-E1'), { lrig: [l3] }), 'WX09-Re08-E1: 非タマ／非レベル4で不成立');
+  ok(chk(ac('WXK05-047-E1'), {}), 'WXK05-047-E1: キー0枚で攻撃禁止が成立');
+  const key = [...cardMap.values()].find(c => c.Type.includes('キー'))!.CardNum;
+  const twoKeys = mkState({}); twoKeys.field.key_piece = key; twoKeys.field.key_piece_extra = [key];
+  ok(!checkActiveCondition(ac('WXK05-047-E1'), twoKeys, mkState({}), true, cardMap), 'WXK05-047-E1: キー2枚で攻撃禁止が不成立');
+  for (const id of ['WXDi-D03-004-E1','WXDi-D06-004-E1','WXDi-P00-041-E1','WXDi-P01-035-E1','WXDi-P02-009-E1','WXDi-P16-090-E1']) {
+    const teamNode = (c: ActiveCondition): ActiveCondition => c.type === 'AND' ? c.conditions.find(x => x.type === 'LRIG_TEAM_COUNT')! : c;
+    const node = teamNode(ac(id));
+    const team = node.type === 'LRIG_TEAM_COUNT' ? node.team : '';
+    const members = [...cardMap.values()].filter(c => c.Type.includes('ルリグ') && (c.Team ?? '').replace(/･/g, '・').split('・').includes(team)).slice(0, 3).map(c => c.CardNum);
+    eq(members.length, 3, `${id}: テスト用チーム3体`);
+    ok(chk(node, { lrig: [members[0]], assistL: [members[1]], assistR: [members[2]] }), `${id}: 同チーム3体で成立`);
+    ok(!chk(node, { lrig: [members[0]], assistL: [members[1]] }), `${id}: 2体で不成立`);
   }
 });
 

@@ -448,6 +448,12 @@ function condJa(c?: any): string {
     case 'LRIG_LEVEL': return `${ownerJa(c.owner)}センタールリグがレベル${numJa(c.value)}${opJa(c.operator)}`;
     case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
+    case 'FIELD_LEVEL_SUM': {
+      const subject = `${ownerJa(c.owner)}場にある${c.target === 'lrig' ? 'ルリグ' : 'シグニ'}のレベルの合計`;
+      return c.compareTo === 'opponent'
+        ? `${subject}が対戦相手の場にある${c.target === 'lrig' ? 'ルリグ' : 'シグニ'}のレベルの合計${opJa(c.operator)}`
+        : `${subject}が${numJa(c.value)}${opJa(c.operator)}`;
+    }
     case 'TRASH_HAS_CARD':
       if (c.distinctClasses)
         return `${ownerJa(c.owner)}トラッシュにあるシグニが持つクラスが合計${numJa(c.minCount ?? 1)}種類以上ある`;
@@ -494,7 +500,9 @@ function condJa(c?: any): string {
       if (c.distinctNames && c.distinctPhraseJa === 'kinds')
         return `${ownerJa(c.owner)}場に${filterJa(c.filter)}シグニが${numJa(c.minCount ?? 1)}種類以上ある`;
       return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
-    case 'HAS_KEY_IN_FIELD': return `${ownerJa(c.owner)}場にキーがある`;
+    case 'HAS_KEY_IN_FIELD': return c.operator && c.value !== undefined
+      ? `${ownerJa(c.owner)}場にキーが${numJa(c.value)}枚${opJa(c.operator)}`
+      : `${ownerJa(c.owner)}場にキーがある`;
     case 'ENERGY_HAS_CARD': return `${ownerJa(c.owner)}エナゾーンに${filterJa(c.filter)}${c.filter?.cardType === 'シグニ' ? 'シグニ' : 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
     case 'PAID_ADDITIONAL_COST': return '（コストを支払った場合）';
     case 'CARDS_DRAWN_BY_EFFECT': return `このターン効果で${numJa(c.value)}枚${opJa(c.operator)}引いた`;

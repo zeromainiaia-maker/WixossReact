@@ -1862,6 +1862,19 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const cntLTC = lrigNumsLTC.filter(n => (ctx.cardMap.get(getCardNum(n))?.Team ?? '').includes(cond.team)).length;
       return cmp(cntLTC, cond.operator, cond.value);
     }
+    case 'FIELD_LEVEL_SUM': {
+      const sum = (state: PlayerState): number => {
+        const nums = cond.target === 'signi'
+          ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
+          : lrigZoneTops(state.field).filter((n): n is string => !!n);
+        return nums.reduce((total, n) => total + (parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0), 0);
+      };
+      const lhsState = st(cond.owner);
+      const rhs = cond.compareTo === 'opponent'
+        ? (cond.owner === 'self' ? sum(ctx.otherState) : sum(ctx.ownerState))
+        : cond.value;
+      return rhs !== undefined && cmp(sum(lhsState), cond.operator, rhs);
+    }
     case 'LRIG_ANY_TEAM_COUNT': {
       // 【使用条件】【チーム】いずれかのチーム＝場のルリグ（センター＋アシストL/R）のうち
       // **同じ1つのチーム**に属する体数が value 以上。⚠`Team` は「A・B」のような複数所属表記が

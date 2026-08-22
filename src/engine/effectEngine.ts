@@ -2,6 +2,7 @@ import type { PlayerState, CardData, TurnPhase, FieldGrant } from '../types';
 import type {
   CardEffect,
   ActiveCondition,
+  CompareOp,
   EffectAction,
   PowerModifyAction,
   PowerModifyPerStackAction,
@@ -72,6 +73,14 @@ export function checkActiveCondition(
   effectiveLevels?: Map<string, number>,
 ): boolean {
   if (!cond) return true;
+  const compare = (a: number, op: CompareOp, b: number): boolean => {
+    switch (op) {
+      case 'gte': return a >= b; case 'lte': return a <= b;
+      case 'gt': return a > b; case 'lt': return a < b;
+      case 'eq': return a === b; case 'neq': return a !== b;
+    }
+    return false;
+  };
   switch (cond.type) {
     case 'OR':
       return cond.conditions.some(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase, effectiveLevels));
@@ -177,7 +186,29 @@ export function checkActiveCondition(
     }
     case 'HAS_KEY_IN_FIELD': {
       const f = (cond.owner === 'self' ? ownerState : otherState).field;
-      return f.key_piece != null || (f.key_piece_extra?.length ?? 0) > 0;
+      const count = (f.key_piece != null ? 1 : 0) + (f.key_piece_extra?.length ?? 0);
+      return cond.operator && cond.value !== undefined ? compare(count, cond.operator, cond.value) : count > 0;
+    }
+    case 'FIELD_LEVEL_SUM': {
+      const sum = (state: PlayerState): number => {
+        const nums = cond.target === 'signi'
+          ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
+          : lrigZoneTops(state.field).filter((n): n is string => !!n);
+        return nums.reduce((total, n) => total + (cond.target === 'signi' && effectiveLevels?.has(n)
+          ? effectiveLevels.get(n)!
+          : (parseInt(cardMap.get(n)?.Level ?? '0', 10) || 0)), 0);
+      };
+      const lhsState = cond.owner === 'self' ? ownerState : otherState;
+      const rhs = cond.compareTo === 'opponent'
+        ? sum(cond.owner === 'self' ? otherState : ownerState)
+        : cond.value;
+      return rhs !== undefined && compare(sum(lhsState), cond.operator, rhs);
+    }
+    case 'LRIG_TEAM_COUNT': {
+      const field = (cond.owner === 'self' ? ownerState : otherState).field;
+      const count = lrigZoneTops(field).filter((n): n is string => !!n)
+        .filter(n => (cardMap.get(n)?.Team ?? '').replace(/･/g, '・').split('・').includes(cond.team)).length;
+      return compare(count, cond.operator, cond.value);
     }
     // 「あなたの場にあるすべてのシグニが〈色〉/＜C＞/《X》であるかぎり、」（§6.4 O-35）。
     // `Condition` 側（evalConditionForContinuous:998／execUtils:1672）と**同じ式**＝各スタック頂点が

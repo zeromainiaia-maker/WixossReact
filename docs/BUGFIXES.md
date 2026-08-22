@@ -28435,3 +28435,6 @@ effects JSON ⇔ CardData CSV の全件照合で発見した誤りを系統的�
 - 表現不能4件（`WX09-045-E1`／`WXDi-P06-084-E1`／`WXDi-P16-089-E1`／`WXDi-P00-037-E1`）は近似語彙へ寄せず据置。触ってはいけない群は変更0。
 - golden 2387/0、census 708/708、smoke 10693全0、fuzz全0、stubs A/C 0、manual-fields 0、lint 0 errors/261 warnings、同型★0、held/partial/idset 88/15/46、manual drift削除候補86。
 - 詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch18_report.md`。
+# 2026-08-22（続き615）§6.2 段2 第22バッチ：O-43 ActiveCondition 条件語彙不足16効果
+
+`FIELD_LEVEL_SUM` を Condition/ActiveCondition と両評価器へ追加し、【チーム常】用 `LRIG_TEAM_COUNT` を ActiveCondition/評価器へ実装。レベル合計8、チーム常6、level4＜タマ＞1、キー2枚未満1の計16効果へ条件を復元した。既存条件2件は AND 合成。golden は全16件の成立／不成立を固定し、旧「未実装なので載せない」契約を実装済み契約へ更新。census 708→702、held 88据置、全ゲート緑。報告：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch22_report.md`。
