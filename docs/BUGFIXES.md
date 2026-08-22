@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22：§6.2 段2 第19バッチ＝「デッキをシャッフルし一番上…」の先行シャッフル脱落19効果
+
+指定21効果をCSV原文とliveで再実測。「（あなたの）デッキをシャッフルし一番上…」を、同じ CHOOSE/CONDITIONAL 枝内の `SHUFFLE_DECK → ADD_TO_LIFE/REVEAL`にする一般後処理を追加した。`WD21-001` は既存のレベル別構造化 override が一般出力を後から上書きするため、その既存構造の先頭に同じ既存 action を置いた。
+
+19効果を採用。2効果は見送り：`WXDi-D04-011-E1` は PARTIAL で live が引用付与 STUB のため、シャッフルだけを局所同期できない。`WXDi-P10-006-E3` は指定前提と異なりliveにデッキ上公開/手札化自体がなく、キーワード分岐も別内容へ崩れているため、シャッフル単体を追加せず据置。
+
+liveの `ON_DECK_SHUFFLED` 保持者は `PR-470A-E1` の1効果のみ。各採用効果のE2Eで `deck_shuffled_count` が1増えること、デッキ順ではなくゾーン跨ぎの多重集合が不変なことを固定。カウンタ不変時は検出されず、増加時だけ `collectDeckShuffledTriggers` が `PR-470A-E1` を収集する両方向も固定した。
+
+`npm run gates` 全緑：golden **2408/2408**、census **708/708**、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 2回とも全0、stubs A/C 0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **88/15/46**、manual drift 削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch19_report.md`。
+
 ## 2026-08-22（続き610・段2 第17バッチ）：【チーム自／起／出】の成立条件欠落31能力（Codex 実装／Claude 検証）
 
 カード先頭の `【チーム】＜X＞` 宣言と能力ブロック先頭の `【チーム自／起／出】` を一般規則で結び、トップレベル `condition: LRIG_TEAM_COUNT{owner:'self',team:X,operator:'gte',value:3}` を31能力へ復元。指定33能力との差2件は `WXDi-P16-088/092` の括弧内ルール説明を能力として重複計上したもの。能力固有条件2件はANDで保持し、curated差分4件はcondition-only同期で巻き込みを回避した。【チーム常】6件はActiveCondition未実装のため据置。
@@ -28413,4 +28423,3 @@ effects JSON ⇔ CardData CSV の全件照合で発見した誤りを系統的�
 - 表現不能4件（`WX09-045-E1`／`WXDi-P06-084-E1`／`WXDi-P16-089-E1`／`WXDi-P00-037-E1`）は近似語彙へ寄せず据置。触ってはいけない群は変更0。
 - golden 2387/0、census 708/708、smoke 10693全0、fuzz全0、stubs A/C 0、manual-fields 0、lint 0 errors/261 warnings、同型★0、held/partial/idset 88/15/46、manual drift削除候補86。
 - 詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch18_report.md`。
-

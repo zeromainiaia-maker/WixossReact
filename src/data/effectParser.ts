@@ -8447,6 +8447,9 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
       } },
     ] });
   }
+  // WD21-001 has an existing structured override for its four level-dependent outcomes.
+  // Keep that richer structure, but preserve the general shuffle-before-top ordering which the
+  // override would otherwise mask.
   if (cardNum === 'WD21-001') {
     const keyword = (level: number, name: 'ダブルクラッシュ' | 'アサシン' | 'ランサー'): EffectAction => ({
       type: 'CONDITIONAL', condition: lastSigniLevel(level), then: {
@@ -8454,7 +8457,8 @@ function applyResultConditionalWave2(cardNum: string, effects: CardEffect[]): vo
       },
     });
     setAction('WD21-001-E1', { type: 'SEQUENCE', steps: [
-      publicTop('top'), keyword(1, 'ダブルクラッシュ'), keyword(2, 'アサシン'), keyword(3, 'ランサー'),
+      { type: 'SHUFFLE_DECK', owner: 'self' }, publicTop('top'),
+      keyword(1, 'ダブルクラッシュ'), keyword(2, 'アサシン'), keyword(3, 'ランサー'),
       { type: 'CONDITIONAL', condition: lastSigniLevel(4), then: {
         type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 1 },
         from: ['BANISH'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN',
@@ -8864,6 +8868,83 @@ function foldStructuredRevealUntil(text: string, parsed: EffectAction): EffectAc
   return removeStructuredRevealConsequence(replaced, fold) ?? parsed;
 }
 
+/**
+ * Compound/choice parsers sometimes consume the whole sentence before the fragment parser sees
+ * 「デッキをシャッフルし一番上…」.  Insert the shuffle beside the already parsed top-deck action,
+ * keeping it inside the same CHOOSE/CONDITIONAL branch.  This is deliberately syntax-based: no
+ * card ids or card-specific values are used.
+ */
+function prependShuffleBeforeTopDeckAction(text: string, parsed: EffectAction): EffectAction {
+  if (!/(?:あなたの)?デッキをシャッフルし[、,]?一番上(?:のカード)?を/.test(text)) return parsed;
+
+  const isTopDeckAction = (node: EffectAction): boolean =>
+    (node.type === 'ADD_TO_LIFE' && node.fromTop === true)
+    || node.type === 'REVEAL_DECK_TOP'
+    || (node.type === 'LOOK_AND_REORDER'
+      && node.source?.location === 'deck' && node.source.owner === 'self'
+      && node.count === 1 && node.private === false);
+  let inserted = false;
+  const visit = (node: EffectAction): EffectAction => {
+    if (inserted) return node;
+    if (isTopDeckAction(node)) {
+      inserted = true;
+      return { type: 'SEQUENCE', steps: [{ type: 'SHUFFLE_DECK', owner: 'self' }, node] } as SequenceAction;
+    }
+    if (node.type === 'SEQUENCE') {
+      const steps = [...node.steps];
+      for (let i = 0; i < steps.length && !inserted; i++) {
+        if (isTopDeckAction(steps[i])) {
+          if (i > 0 && steps[i - 1].type === 'SHUFFLE_DECK') { inserted = true; break; }
+          steps.splice(i, 0, { type: 'SHUFFLE_DECK', owner: 'self' });
+          inserted = true;
+          break;
+        }
+        steps[i] = visit(steps[i]);
+      }
+      return { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') {
+      return { ...node, then: visit(node.then), ...(node.else && !inserted ? { else: visit(node.else) } : node.else ? { else: node.else } : {}) };
+    }
+    if (node.type === 'CHOOSE') {
+      const choices = node.choices.map(choice => inserted ? choice : { ...choice, action: visit(choice.action) });
+      return { ...node, choices };
+    }
+    if (node.type === 'GRANT_LRIG_ABILITY') {
+      const abilities = node.abilities.map(ability => inserted ? ability : { ...ability, action: visit(ability.action) });
+      return { ...node, abilities };
+    }
+    return node;
+  };
+
+  // 「ライフクロスが0枚の場合」は同じ効果内の別 choice にも ADD_TO_LIFE があり得る。
+  // 先に LIFE_COUNT=0 でゲートされた枝だけを探索し、別 choice の手札→ライフを誤って包まない。
+  if (/ライフクロスが[０0]枚の場合/.test(text)) {
+    const preferLifeZero = (node: EffectAction): EffectAction => {
+      if (inserted) return node;
+      if (node.type === 'CONDITIONAL' && node.condition.type === 'LIFE_COUNT'
+          && node.condition.owner === 'self' && node.condition.operator === 'eq' && node.condition.value === 0) {
+        return { ...node, then: visit(node.then) };
+      }
+      if (node.type === 'CHOOSE') {
+        return { ...node, choices: node.choices.map(choice => {
+          if (inserted) return choice;
+          if (choice.condition?.type === 'LIFE_COUNT' && choice.condition.owner === 'self'
+              && choice.condition.operator === 'eq' && choice.condition.value === 0) {
+            return { ...choice, action: visit(choice.action) };
+          }
+          return { ...choice, action: preferLifeZero(choice.action) };
+        }) };
+      }
+      if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(preferLifeZero) };
+      if (node.type === 'CONDITIONAL') return { ...node, then: preferLifeZero(node.then), ...(node.else ? { else: preferLifeZero(node.else) } : {}) };
+      return node;
+    };
+    parsed = preferLifeZero(parsed);
+  }
+  return inserted ? parsed : visit(parsed);
+}
+
 function parseActionText(text: string): EffectAction {
   // 引用内の複合【常】「あなたの他のシグニは<耐性節>、それらのパワーを±Nする」。
   // rawText は外側 GRANT_FIELD_SIGNI_ABILITY の組み立て後に parseBlock で単独再パースされるため、
@@ -8910,6 +8991,7 @@ function parseActionText(text: string): EffectAction {
     applyDeckTopMillTargetAnaphora(source,
       applySelectedTargetTrashReplacement(source, parseBase(source))));
   let parsed = parse(text);
+  parsed = prependShuffleBeforeTopDeckAction(text, parsed);
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を

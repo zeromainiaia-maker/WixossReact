@@ -35982,6 +35982,9 @@ test('wave2 A3 WDK04-015-E1: resumed odd reveal encloses optional cost and self 
 }));
 
 test('wave2 A4 WD21-001-E1: one resumed reveal selects one shared target and only its level branch', () => withSavedCursor(() => {
+  const savedRandom = Math.random;
+  Math.random = () => 0.999999; // SHUFFLE_DECK は実行するが、この既存レベル分岐テストでは入力順を保つ
+  try {
   const cases = [
     ['WD01-013', 'ダブルクラッシュ'], ['WD01-012', 'アサシン'], ['WD01-010', 'ランサー'],
   ] as const;
@@ -36002,6 +36005,9 @@ test('wave2 A4 WD21-001-E1: one resumed reveal selects one shared target and onl
   const no = mkCtx({ signi: ['WD01-013', null, null], deckTop: ['WD03-015'] }, {}, 'WD21-001');
   const rn = resumeWave2Look(startWave2('WD21-001', 'WD21-001-E1', no), no);
   ok(rn.done && Object.keys(rn.ownerState.keyword_grants ?? {}).length === 0, 'spell reveal grants nothing');
+  } finally {
+    Math.random = savedRandom;
+  }
 }));
 
 test('wave2 A5 WX24-P4-043-E1: resumed level-1 reveal gates down placement; draw branch remains live', () => withSavedCursor(() => {
@@ -41621,6 +41627,78 @@ test('段2 第17バッチ E2E: 【チーム起】は同チーム3体でだけ候
   ok(ids(3).includes('WXDi-D02-04L-E1'), '成立: 3体なら【チーム起】を提示');
   ok(!ids(2).includes('WXDi-D02-04L-E1'), '不成立: 2体なら提示しない');
 }));
+
+// ── §6.2 段2 第19バッチ：「デッキをシャッフルし一番上…」 ──
+// Math.random() の結果順は一切 assert しない。実 live 効果から該当枝の2ステップを取り出し、
+// deck_shuffled_count の delta とゾーンを跨ぐ多重集合不変で E2E 固定する。
+const batch19Ids = [
+  'WD21-001-E1','WX24-P3-038-E1','WX24-P4-005-E1','WX24-P4-019-E3','WX25-P2-026-E2',
+  'WX25-P3-008-E1','WX25-P3-036-E2','WX25-CD1-04-E2','WXDi-D04-010-E1',
+  'WXDi-P01-004-E1','WXDi-P03-004-E1','WXDi-P04-008-E1','WXDi-P06-030-E1','WXDi-P08-008-E3',
+  'WXDi-P12-009-E2','WXDi-P12-035-E2','WXDi-P16-006-E1','WXDi-P16-012-E3',
+  'WXDi-CP02-040-E1',
+] as const;
+
+const isBatch19TopAction = (a: EffectAction): boolean =>
+  (a.type === 'ADD_TO_LIFE' && a.fromTop === true)
+  || a.type === 'REVEAL_DECK_TOP'
+  || (a.type === 'LOOK_AND_REORDER' && a.source.location === 'deck' && a.source.owner === 'self'
+    && a.count === 1 && a.private === false);
+
+function batch19Segment(a: EffectAction): EffectAction | undefined {
+  if (a.type === 'SEQUENCE') {
+    for (let i = 0; i + 1 < a.steps.length; i++) {
+      if (a.steps[i].type === 'SHUFFLE_DECK' && isBatch19TopAction(a.steps[i + 1])) {
+        return { type: 'SEQUENCE', steps: [a.steps[i], a.steps[i + 1]] } as SequenceAction;
+      }
+    }
+    for (const step of a.steps) { const hit = batch19Segment(step); if (hit) return hit; }
+  }
+  if (a.type === 'CONDITIONAL') return batch19Segment(a.then) ?? (a.else ? batch19Segment(a.else) : undefined);
+  if (a.type === 'CHOOSE') {
+    for (const choice of a.choices) { const hit = batch19Segment(choice.action); if (hit) return hit; }
+  }
+  if (a.type === 'GRANT_LRIG_ABILITY') {
+    for (const ability of a.abilities) { const hit = batch19Segment(ability.action); if (hit) return hit; }
+  }
+  return undefined;
+}
+
+for (const effectId of batch19Ids) {
+  test(`段2 第19バッチ E2E: ${effectId} は取得/公開の直前に1回シャッフル`, () => withSavedCursor(() => {
+    const cardNum = effectId.replace(/-E\d.*$/, '');
+    const eff = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId);
+    if (!eff) throw new Error(`${effectId} が存在`);
+    const segment = batch19Segment(eff.action);
+    if (!segment) throw new Error(`${effectId}: SHUFFLE_DECK → デッキ一番上処理が同一枝に存在`);
+    const ctx = mkCtx({}, {}, cardNum);
+    ctx.ownerState.deck_shuffled_count = 7;
+    const multiset = (s: PlayerState) => [...s.deck, ...s.life_cloth, ...s.hand].sort().join(',');
+    const before = multiset(ctx.ownerState);
+    const r = run(segment, ctx);
+    eq(r.ownerState.deck_shuffled_count, 8, `${effectId}: シャッフルは1回`);
+    eq(multiset(r.ownerState), before, `${effectId}: 順序ではなく多重集合が不変`);
+  }));
+}
+
+test('段2 第19バッチ 非発火側: 一番上処理だけでは ON_DECK_SHUFFLED を誘発しない', () => {
+  const ctx = mkCtx({}, {});
+  ctx.ownerState.deck_shuffled_count = 4;
+  const noShuffle = run({ type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true } as EffectAction, ctx);
+  eq(noShuffle.ownerState.deck_shuffled_count, 4, '一番上をライフに加えるだけなら counter 不変');
+  eq(detectDeckShuffled(ctx.ownerState, noShuffle.ownerState), false, 'delta 0 はシャッフル非検出');
+  const host = mkState({ signi: ['PR-470A', null, null] });
+  eq(collectDeckShuffledTriggers(trigCtx(HOST), HOST, host).entries.length > 0, true, 'collector 自体の観測対象は PR-470A');
+});
+
+test('段2 第19バッチ 発火側: 追加した SHUFFLE_DECK が PR-470A-E1 の誘発経路を開く', () => {
+  const eff = effectsMap.get('WXDi-P06-030')!.find(e => e.effectId === 'WXDi-P06-030-E1')!;
+  const ctx = mkCtx({}, {}, 'WXDi-P06-030');
+  const r = run(batch19Segment(eff.action)!, ctx);
+  ok(detectDeckShuffled(ctx.ownerState, r.ownerState), '効果解決の counter delta を検出');
+  const host = mkState({ signi: ['PR-470A', null, null] });
+  ok(has(collectDeckShuffledTriggers(trigCtx(HOST), HOST, host).entries, 'PR-470A-E1'), 'PR-470A-E1 が self シャッフルで収集される');
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
