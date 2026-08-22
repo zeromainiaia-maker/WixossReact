@@ -6933,9 +6933,15 @@ test('続き379 E2E: WXDi-P13-078-E1 はバフ込みパワー10000のディソ�
   eq(yesResult.ownerState.deck.length, yesCtx.ownerState.deck.length - 1, 'デッキ上1枚がエナへ移る');
 }));
 
-test('batch19 tripwire: WXEX2-18-E2 structural mix is not constrained on the wrong opponent target', () => {
+test('batch19 tripwire: WXEX2-18-E2 excludeResona is attached only to the self sacrifice, not the opponent target', () => {
   const effect = batch19Effect('WXEX2-18', 'WXEX2-18-E2');
-  eq(batch19Count(effect, '"excludeResona":true'), 0, 'wrong opponent BANISH target remains untouched');
+  ok(effect.action.type === 'SEQUENCE', '犠牲→そうした場合のSEQUENCE');
+  const first = effect.action.type === 'SEQUENCE' ? effect.action.steps[0] as EffectAction & { target?: EffectTarget } : undefined;
+  const second = effect.action.type === 'SEQUENCE' ? effect.action.steps[1] : undefined;
+  eq(first?.target?.owner, 'self', 'excludeResona の対象は自分の犠牲側');
+  eq(first?.target?.filter?.excludeResona, true, '非レゾナ限定を犠牲側に保持');
+  eq(batch19Count(second, '"excludeResona":true'), 0, '後段の相手対象へは誤付着しない');
+  eq(batch19Count(effect, '"excludeResona":true'), 1, '効果全体で正しい1箇所だけ');
 });
 
 const runEffect = (a: EffectAction, ctx: ExecCtx): ExecResult =>
@@ -42022,6 +42028,141 @@ test('段2 第23バッチ engine配線: 既存WX05-014-E1の期間subjectFilter�
   ok(immune.has(matching[0]) && immune.has(matching[1]), '発動後に場へ出た美巧2体もシグニ効果耐性');
   ok(!immune.has(mismatch), '発動後に場へ出た非美巧は非保護');
 }));
+
+// ── §6.2 段2 第24バッチ：「相手を対象→あなたの＜クラス＞1体を犠牲」の owner 混線 ──
+type Batch24Case = {
+  cardNum: string;
+  effectId: string;
+  story: string;
+  sourceOnField?: boolean;
+  choiceId?: string;
+  costType: 'BANISH' | 'TRASH';
+  bodyFired: (result: ExecResult, opponent: string) => boolean;
+};
+
+function batch24RootAndSequence(c: Batch24Case): { root: EffectAction; sequence: SequenceAction } {
+  const effect = effectsMap.get(c.cardNum)?.find(e => e.effectId === c.effectId);
+  ok(!!effect, `${c.effectId}: live effect`);
+  const root = effect!.action;
+  const branch = c.choiceId && root.type === 'CHOOSE'
+    ? root.choices.find(choice => choice.choiceId === c.choiceId)?.action
+    : root;
+  ok(branch?.type === 'SEQUENCE', `${c.effectId}: 犠牲→そうした場合のSEQUENCE`);
+  return { root, sequence: branch as SequenceAction };
+}
+
+function runBatch24RequiredSacrifice(c: Batch24Case): void {
+  const { root, sequence } = batch24RootAndSequence(c);
+  const cost = sequence.steps[0] as EffectAction & { target?: EffectTarget };
+  eq(cost.type, c.costType, `${c.effectId}: 第1ステップ型`);
+  eq(cost.target?.owner, 'self', `${c.effectId}: ①犠牲owner=self`);
+  eq(cost.target?.count, 1, `${c.effectId}: ①犠牲1体`);
+  eq(cost.target?.filter?.story, c.story, `${c.effectId}: ①犠牲クラス`);
+  const gate = sequence.steps[1] as EffectAction & { condition?: Condition };
+  eq(gate.type, 'CONDITIONAL', `${c.effectId}: 「そうした場合」ラッパーを維持`);
+  eq(gate.condition?.type, 'IS_MY_TURN', `${c.effectId}: did-it慣例エンコードを維持`);
+
+  const sacrifice = findCard(card => card.Type === 'シグニ'
+    && card.CardNum !== c.cardNum
+    && matchesFilter(card, cost.target?.filter ?? { cardType: 'シグニ', story: c.story }));
+  const opponent = findCard(card => card.Type === 'シグニ' && card.CardNum !== sacrifice && card.CardNum !== c.cardNum);
+  const ownField = (includeSacrifice: boolean) => c.sourceOnField
+    ? [c.cardNum, ...(includeSacrifice ? [sacrifice] : []), null].slice(0, 3) as (string | null)[]
+    : [includeSacrifice ? sacrifice : null, null, null];
+  const ctx = (includeSacrifice: boolean) => mkCtx(
+    { signi: ownField(includeSacrifice), hand: 0, trash: 0, energy: 0 },
+    { signi: [opponent, null, null], hand: 0, trash: 0, energy: 0 },
+    c.cardNum,
+  );
+
+  // ① 第1ステップ単体：自分の該当クラスだけが消え、相手盤面は犠牲処理では減らない。
+  const paidOnly = run(cost, ctx(true));
+  ok(!paidOnly.ownerState.field.signi.some(stack => stack?.at(-1) === sacrifice), `${c.effectId}: ①自分の犠牲が場を離れる`);
+  ok(paidOnly.otherState.field.signi.some(stack => stack?.at(-1) === opponent), `${c.effectId}: ①相手盤面は犠牲処理で減らない`);
+  const paidDestination = c.costType === 'BANISH' ? paidOnly.ownerState.energy : paidOnly.ownerState.trash;
+  ok(paidDestination.includes(sacrifice), `${c.effectId}: ①犠牲が正しい移動先へ行く`);
+
+  // ② 全文：支払い成功時だけ本体が動く。
+  const paid = run(root, ctx(true));
+  ok(c.bodyFired(paid, opponent), `${c.effectId}: ②支払い成功で本体発火`);
+
+  // ③ 対照：該当クラスを用意できないと本体は動かない。
+  const unpaid = run(root, ctx(false));
+  ok(!c.bodyFired(unpaid, opponent), `${c.effectId}: ③犠牲なしでは本体不発`);
+}
+
+test('段2 第24バッチ E2E: WX14-031-E3 は他の＜天使＞を犠牲にして初めて-3000', () => withSavedCursor(() => {
+  runBatch24RequiredSacrifice({
+    cardNum: 'WX14-031', effectId: 'WX14-031-E3', story: '天使', sourceOnField: true, costType: 'BANISH',
+    bodyFired: (result, opponent) => !!result.otherState.temp_power_mods?.some(mod => mod.cardNum === opponent && mod.delta === -3000),
+  });
+}));
+
+test('段2 第24バッチ E2E: WX22-001-E2 は＜遊具＞を場からトラッシュに置いて初めて-12000', () => withSavedCursor(() => {
+  runBatch24RequiredSacrifice({
+    cardNum: 'WX22-001', effectId: 'WX22-001-E2', story: '遊具', costType: 'TRASH',
+    bodyFired: (result, opponent) => !!result.otherState.temp_power_mods?.some(mod => mod.cardNum === opponent && mod.delta === -12000),
+  });
+}));
+
+test('段2 第24バッチ E2E: WXEX2-18-E2 は非レゾナ＜遊具＞を犠牲にして初めて相手をエナへ送る', () => withSavedCursor(() => {
+  const { sequence } = batch24RootAndSequence({
+    cardNum: 'WXEX2-18', effectId: 'WXEX2-18-E2', story: '遊具', costType: 'BANISH', bodyFired: () => false,
+  });
+  const cost = sequence.steps[0] as EffectAction & { target?: EffectTarget };
+  eq(cost.target?.filter?.excludeResona, true, 'WXEX2-18-E2: レゾナではないを復元');
+  runBatch24RequiredSacrifice({
+    cardNum: 'WXEX2-18', effectId: 'WXEX2-18-E2', story: '遊具', costType: 'BANISH',
+    bodyFired: (result, opponent) => result.otherState.energy.includes(opponent)
+      && !result.otherState.field.signi.some(stack => stack?.at(-1) === opponent),
+  });
+}));
+
+test('段2 第24バッチ E2E: WXEX2-27-E2 は＜遊具＞を場からトラッシュに置いて初めて相手をトラッシュ', () => withSavedCursor(() => {
+  runBatch24RequiredSacrifice({
+    cardNum: 'WXEX2-27', effectId: 'WXEX2-27-E2', story: '遊具', costType: 'TRASH',
+    bodyFired: (result, opponent) => result.otherState.trash.includes(opponent)
+      && !result.otherState.field.signi.some(stack => stack?.at(-1) === opponent),
+  });
+}));
+
+test('段2 第24バッチ E2E: WXEX2-79-E2 は他の＜微菌＞を犠牲にして初めて相手のパワーを下げる', () => withSavedCursor(() => {
+  runBatch24RequiredSacrifice({
+    cardNum: 'WXEX2-79', effectId: 'WXEX2-79-E2', story: '微菌', sourceOnField: true, costType: 'BANISH',
+    bodyFired: (result, opponent) => !!result.otherState.temp_power_mods?.some(mod => mod.cardNum === opponent && mod.delta < 0),
+  });
+}));
+
+test('段2 第24バッチ E2E: WXDi-P08-081-E1 c0 は＜悪魔＞を場からトラッシュに置いて初めて-10000', () => withSavedCursor(() => {
+  runBatch24RequiredSacrifice({
+    cardNum: 'WXDi-P08-081', effectId: 'WXDi-P08-081-E1', choiceId: 'c0', story: '悪魔', costType: 'TRASH',
+    bodyFired: (result, opponent) => !!result.otherState.temp_power_mods?.some(mod => mod.cardNum === opponent && mod.delta === -10000),
+  });
+}));
+
+test('段2 第24バッチ 見送り契約: 任意犠牲・3体犠牲・エナ3枚はlive/freshとも据え置く', () => {
+  const firstStep = (effect: CardEffect | undefined): EffectAction & { target?: EffectTarget; optional?: boolean } => {
+    const action = effect?.action;
+    ok(action?.type === 'SEQUENCE', `${effect?.effectId}: SEQUENCE`);
+    return (action as SequenceAction).steps[0] as EffectAction & { target?: EffectTarget; optional?: boolean };
+  };
+  const live = (cardNum: string, effectId: string) => firstStep(effectsMap.get(cardNum)?.find(effect => effect.effectId === effectId));
+  const freshEffect = (cardNum: string, effectId: string) =>
+    parseCardEffects(cardMap.get(cardNum)!).find(effect => effect.effectId === effectId);
+  const fresh = (cardNum: string, effectId: string) => firstStep(freshEffect(cardNum, effectId));
+
+  for (const get of [live, fresh]) {
+    const optional = get('WXEX2-70', 'WXEX2-70-E1');
+    eq(optional.target?.owner, 'opponent', 'WXEX2-70-E1: 任意犠牲はこのバッチで採用しない');
+    eq(optional.optional, true, 'WXEX2-70-E1: optional維持');
+    const threeField = get('WX07-039', 'WX07-039-E2');
+    eq(threeField.target?.owner, 'opponent', 'WX07-039-E2: 3体完済不能のため据置');
+    eq(threeField.target?.count, 1, 'WX07-039-E2: live/freshの既存構造を固定');
+    const threeEnergy = get('WXEX1-14', 'WXEX1-14-E2');
+    eq(threeEnergy.target?.type, 'SIGNI', 'WXEX1-14-E2: ENERGY_CARD化をこのバッチで採用しない');
+    eq(threeEnergy.target?.owner, 'opponent', 'WXEX1-14-E2: 3枚完済不能のため据置');
+  }
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

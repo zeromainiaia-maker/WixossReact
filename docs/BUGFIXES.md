@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第24バッチ＝「相手を対象→あなたの＜クラス＞1体を犠牲」のowner混線
+
+先行する「対戦相手のシグニ1体を対象とし」のowner・level・感染状態が、後続の自己犠牲へ混入していた9効果を原文照合。クラス明示・必須・場の1体犠牲だけを局所parseする一般規則を追加し、`WX14-031-E3`／`WX22-001-E2`／`WXEX2-18-E2`／`WXEX2-27-E2`／`WXEX2-79-E2`／`WXDi-P08-081-E1 c0` の6効果を `owner:'self'` へ修正。非レゾナを復元し、相手側のlevel/infected誤付着を除去、`excludeSelf` と `CONDITIONAL{IS_MY_TURN}` は維持した。全カード生パース差分は6効果だけ・outlier 0。
+
+`WXEX2-70-E1` は任意形かつカード単位adoptでスコープ外の第2ステップまで変わるため据置。`WX07-039-E2`／`WXEX1-14-E2` はcount=3の候補不足時にUI soft-lock／外部resume部分支払いがあり、全額支払いを保証できないため据置。各採用効果は「自分の犠牲だけが消える／支払いで本体発火／犠牲なしで本体不発」の3方向E2E、見送り3効果は非採用契約で固定した。
+
+`npm run gates` 全緑：golden **2455/2455**、census **702/702**、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 全0、stubs A群🔴0／C群0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **88/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch24_report.md`。
+
 ## 2026-08-23：§6.2 段2 第23バッチ＝クラス集合のBANISH耐性が単体付与へ潰れていた4効果
 
 「あなたの（すべての／他の）＜クラス＞のシグニは…バニッシュされない」が `GRANT_PROTECTION.target{count:1}` へ潰れていた `WX08-018-E1`／`WX21-Re07-E1 c1`／`WXEX1-01-E2`／`WX22-Re04-E2 c2` を、既存 `subjectFilter{story}`＋`subjectOwner:'self'` へ正規化。B2の `excludeSelf`、第21バッチの `sourceOwner:any`、外側ターン条件、durationは維持した。全カード生パース差分は4効果だけ・outlier 0。
