@@ -4933,9 +4933,12 @@ export function collectBanishEffectProtectedSigni(
   const powersOf = (): Map<string, number> =>
     (_powers ??= calcFieldPowers(state, otherState, isOwnerTurn, effectsMap, cardMap));
   const protected_ = new Set<string>();
-  for (const stack of state.field.signi) {
-    if (!stack?.length) continue;
-    const sourceNum = stack[stack.length - 1];
+  // BANISH耐性の宣言元はシグニに限らない（WXEX1-01-E2 はセンタールリグ）。
+  const sourceNums = [
+    ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+    ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+  ];
+  for (const sourceNum of sourceNums) {
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf())) continue;
@@ -4954,7 +4957,8 @@ export function collectBanishEffectProtectedSigni(
       if (gp.subjectFilter) {
         for (const s2 of state.field.signi) {
           const top2 = s2?.at(-1);
-          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protected_.add(top2);
+          if (top2 && (!gp.subjectFilter.excludeSelf || top2 !== sourceNum)
+              && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protected_.add(top2);
         }
       } else if (gp.target?.owner === 'self' && gp.target?.count === 1) {
         protected_.add(sourceNum);
@@ -4964,6 +4968,23 @@ export function collectBanishEffectProtectedSigni(
           if (top2) protected_.add(top2);
         }
       }
+    }
+  }
+  // AUTO/ACTIVATED の集合耐性は field_grants_active に保護キーワードとして保持される。
+  // filter は activeFieldGrantKeywordsForSigni が毎回評価するため、付与後に場へ出たシグニも対象になる。
+  const fieldKeywordBlocks = (keyword: string): boolean => {
+    if (!keyword.startsWith('PROTECTION:')) return false;
+    const [, fromRaw = '', owner = ''] = keyword.split(':');
+    const from = fromRaw.split(',').filter(Boolean);
+    if (!from.includes('BANISH') && !from.includes('any')) return false;
+    return effectSourceOwner === 'rule'
+      ? owner === 'opponent'
+      : owner === 'any' || owner === effectSourceOwner;
+  };
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top && activeFieldGrantKeywordsForSigni(state, otherState, top, cardMap).some(fieldKeywordBlocks)) {
+      protected_.add(top);
     }
   }
   // PREVENT_SELF_MOVE_BY_OPP: バニッシュも含む場移動禁止（STUB）
@@ -5027,8 +5048,11 @@ export function collectBanishBySourceProtectedSigni(
     bySourceType: GrantProtectionAction['bySourceType'],
     bySourceLevel: GrantProtectionAction['bySourceLevel'],
   ): boolean => matchesSource(bySourceType) && matchesSourceLevel(bySourceLevel);
-  for (const stack of state.field.signi) {
-    const sourceNum = stack?.at(-1);
+  const sourceNums = [
+    ...state.field.signi.flatMap(stack => stack?.at(-1) ? [stack.at(-1)!] : []),
+    ...(state.field.lrig.at(-1) ? [state.field.lrig.at(-1)!] : []),
+  ];
+  for (const sourceNum of sourceNums) {
     if (!sourceNum) continue;
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
@@ -5041,7 +5065,8 @@ export function collectBanishBySourceProtectedSigni(
       if (gp.subjectFilter) {
         for (const s2 of state.field.signi) {
           const top2 = s2?.at(-1);
-          if (top2 && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protected_.add(top2);
+          if (top2 && (!gp.subjectFilter.excludeSelf || top2 !== sourceNum)
+              && matchesFilter(cardMap.get(top2), gp.subjectFilter)) protected_.add(top2);
         }
       } else if (gp.target?.count === 'ALL') {
         for (const s2 of state.field.signi) { const top2 = s2?.at(-1); if (top2) protected_.add(top2); }
@@ -5072,6 +5097,10 @@ export function collectBanishBySourceProtectedSigni(
       const top = stack?.at(-1);
       if (top && (store[top] ?? []).some(grantedMatches)) protected_.add(top);
     }
+  }
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top && activeFieldGrantKeywordsForSigni(state, otherState, top, cardMap).some(grantedMatches)) protected_.add(top);
   }
   return protected_;
 }
@@ -5400,6 +5429,10 @@ export function collectEffectImmuneSigni(
     }
     const lrigTop = state.field.lrig?.at(-1);
     if (lrigTop && (store[lrigTop] ?? []).some(protMatches)) immune.add(lrigTop);
+  }
+  for (const stack of state.field.signi) {
+    const top = stack?.at(-1);
+    if (top && activeFieldGrantKeywordsForSigni(state, opponentState, top, cardMap).some(protMatches)) immune.add(top);
   }
   return immune;
 }

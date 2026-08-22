@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第23バッチ＝クラス集合のBANISH耐性が単体付与へ潰れていた4効果
+
+「あなたの（すべての／他の）＜クラス＞のシグニは…バニッシュされない」が `GRANT_PROTECTION.target{count:1}` へ潰れていた `WX08-018-E1`／`WX21-Re07-E1 c1`／`WXEX1-01-E2`／`WX22-Re04-E2 c2` を、既存 `subjectFilter{story}`＋`subjectOwner:'self'` へ正規化。B2の `excludeSelf`、第21バッチの `sourceOwner:any`、外側ターン条件、durationは維持した。全カード生パース差分は4効果だけ・outlier 0。
+
+parserだけ直すと AUTO/ACTIVATED の subjectFilter-only が executor でno-opになること、ルリグ発生源のBANISH宣言をcollectorが走査しないことも実測。既存 `field_grants_active`／`granted_effects` を流用して期間集合付与と「他の」の動的除外を配線し、BANISH/by-source/完全効果耐性collectorへ接続した。副次的に、既に正しいsubjectFilterを持つ `WX05-014-E1` の期間付与も後続＜美巧＞へ実際に効くようになった。
+
+`WX15-010-E1` は「次にバニッシュされる場合」の1回消費語彙が `GrantProtectionAction` に無く、story/allだけ足すと全武勇へ無制限耐性を広げるため丸ごと据置。負のgoldenで固定した。
+
+`npm run gates` 全緑：golden **2448/2448**、census **702/702**、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz 全0、stubs A群🔴0／C群0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **88/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch23_report.md`。
+
 ## 2026-08-22：§6.2 段2 第21バッチ＝「バニッシュされない」の相手効果限定
 
 発生源限定のない「バニッシュされない」が `sourceOwner:'opponent'` になっていた指定27効果をCSV再実測。26件を修正し、指定外同型 `WX13-029-E1` を追加発見・採用した。`WXK09-047-E1` はBANISH耐性leaf自体が欠落し、既存leafが明記された相手アーツ耐性なのでownerだけ変えると退化するため見送り。採用27効果は `sourceOwner:'any'` を明示し、相手効果・自分効果の双方で生存、power≤0ルール処理には非適用をper-effect E2E固定した。限定4効果は `opponent` 据置。

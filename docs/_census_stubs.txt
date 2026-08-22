@@ -86,10 +86,10 @@ live JSON の STUB id 種類 : 600（総ノード 2880 件）
         消費: src\screens\battle\targetDodgeFlip.ts:46
      1件   1枚  GUARD_ALT_HAND_REPLACE
         カード: WX24-P4-026
-        消費: src\engine\effectExecutor.ts:7469
+        消費: src\engine\effectExecutor.ts:7495
      1件   1枚  HOLOGRAPH_REVEAL_REPLACE
         カード: WX16-004
-        消費: src\engine\effectExecutor.ts:7471
+        消費: src\engine\effectExecutor.ts:7497
      1件   1枚  LIMIT_ALL_FIELD_1
         カード: WX04-005
         消費(id正規表現): src\screens\battle\fieldLimit.ts:66
@@ -116,7 +116,7 @@ live JSON の STUB id 種類 : 600（総ノード 2880 件）
         消費: src\engine\execUtils.ts:1423
      1件   1枚  TREAT_AS_CLASS_ALL_ZONES
         カード: WXDi-CP02-103
-        消費: src\engine\effectEngine.ts:6956
+        消費: src\engine\effectEngine.ts:6989
      1件   1枚  UNDER_CARD_AS_ENERGY_COST
         カード: WXDi-P10-041
         消費: src\screens\battle\energyPaySource.ts:43

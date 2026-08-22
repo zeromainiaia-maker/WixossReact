@@ -41836,30 +41836,33 @@ for (const effectId of batch21Ids) {
 
     // 条件・付与タイミングそのものは各既存goldenの担当。ここでは採用した実liveの保護leafを
     // CONTINUOUS宣言へ載せ、効果オーナー軸の両方向と rule 非拡張を同じleafで実行固定する。
-    const harness = new Map<string, CardEffect[]>([[cardNum, [{
+    const protectedNum = protection.subjectFilter
+      ? findCard(card => card.Type === 'シグニ' && matchesFilter(card, protection.subjectFilter))
+      : cardNum;
+    const harness = new Map<string, CardEffect[]>([[protectedNum, [{
       effectId: `${effectId}-HARNESS`, effectType: 'CONTINUOUS', action: protection,
       duration: 'PERMANENT', mandatory: true, parseStatus: 'MANUAL',
     } as CardEffect]]]);
-    const protectedState = mkState({ signi: [cardNum, null, null] });
+    const protectedState = mkState({ signi: [protectedNum, null, null] });
     const empty = mkState({});
     const fromOpponent = collectBanishEffectProtectedSigni(protectedState, empty, true, harness, cardMap);
     const fromSelf = collectBanishEffectProtectedSigni(protectedState, empty, true, harness, cardMap, undefined, 'self');
     const fromRule = collectBanishEffectProtectedSigni(protectedState, empty, true, harness, cardMap, undefined, 'rule');
-    ok(fromOpponent.has(cardNum), `${effectId}: 相手効果を今も防ぐ`);
-    ok(fromSelf.has(cardNum), `${effectId}: 自分効果も防ぐ`);
-    ok(!fromRule.has(cardNum), `${effectId}: power<=0等のルール処理へは広げない`);
+    ok(fromOpponent.has(protectedNum), `${effectId}: 相手効果を今も防ぐ`);
+    ok(fromSelf.has(protectedNum), `${effectId}: 自分効果も防ぐ`);
+    ok(!fromRule.has(protectedNum), `${effectId}: power<=0等のルール処理へは広げない`);
 
     const banishOpponent = { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction;
-    const oppCtx = mkCtx({}, { signi: [cardNum, null, null] });
+    const oppCtx = mkCtx({}, { signi: [protectedNum, null, null] });
     oppCtx.otherBanishProtectedNums = fromOpponent;
     const oppResult = run(banishOpponent, oppCtx);
-    eq(oppResult.otherState.field.signi[0]?.at(-1), cardNum, `${effectId}: 相手効果E2Eで生存`);
+    eq(oppResult.otherState.field.signi[0]?.at(-1), protectedNum, `${effectId}: 相手効果E2Eで生存`);
 
     const banishSelf = { type: 'BANISH', target: { type: 'SIGNI', owner: 'self', count: 'ALL' } } as EffectAction;
-    const selfCtx = mkCtx({ signi: [cardNum, null, null] }, {});
+    const selfCtx = mkCtx({ signi: [protectedNum, null, null] }, {});
     selfCtx.ownBanishProtectedNums = fromSelf;
     const selfResult = run(banishSelf, selfCtx);
-    eq(selfResult.ownerState.field.signi[0]?.at(-1), cardNum, `${effectId}: 自分効果E2Eで生存`);
+    eq(selfResult.ownerState.field.signi[0]?.at(-1), protectedNum, `${effectId}: 自分効果E2Eで生存`);
   }));
 }
 
@@ -41883,6 +41886,142 @@ for (const effectId of batch21OpponentOnly) {
     }
   });
 }
+
+// ── §6.2 段2 第23バッチ：クラス集合へのBANISH耐性 ──
+function batch23ClassSigni(story: string, count: number, excluded: string[] = []): string[] {
+  return [...cardMap.values()]
+    .filter(card => card.Type === 'シグニ' && matchesFilter(card, { cardType: 'シグニ', story }) && !excluded.includes(card.CardNum))
+    .slice(0, count)
+    .map(card => card.CardNum);
+}
+
+function batch23OtherSigni(story: string, excluded: string[] = []): string {
+  return findCard(card => card.Type === 'シグニ' && !matchesFilter(card, { cardType: 'シグニ', story }) && !excluded.includes(card.CardNum));
+}
+
+function batch23Protection(effectId: string, choiceId?: string): GrantProtectionAction {
+  const cardNum = effectId.replace(/-E\d.*$/, '');
+  const effect = findEffectDeep(effectsMap.get(cardNum) ?? [], effectId);
+  if (!effect) throw new Error(`${effectId} が存在`);
+  if (choiceId && effect.action.type === 'CHOOSE') {
+    const choice = effect.action.choices.find(c => c.choiceId === choiceId);
+    if (choice?.action.type === 'GRANT_PROTECTION') return choice.action;
+  }
+  const protection = batch21BanishProtection(effect.action);
+  if (!protection) throw new Error(`${effectId}: BANISH保護が存在`);
+  return protection;
+}
+
+function assertBatch23TemporaryAll(effectId: string, story: string, choiceId?: string): void {
+  const matching = batch23ClassSigni(story, 2);
+  eq(matching.length, 2, `${effectId}: ${story} fixture 2体`);
+  const mismatch = batch23OtherSigni(story, matching);
+  const protection = batch23Protection(effectId, choiceId);
+  const applied = run(protection, mkCtx({ signi: [matching[0], matching[1], mismatch] }, {}, effectId.replace(/-E\d.*$/, '')));
+  const protectedNums = collectBanishEffectProtectedSigni(
+    applied.ownerState, applied.otherState, true, new Map(), cardMap, undefined, 'self',
+  );
+  ok(protectedNums.has(matching[0]) && protectedNums.has(matching[1]), `${effectId}: クラス一致2体を両方保護`);
+  ok(!protectedNums.has(mismatch), `${effectId}: クラス不一致は非保護`);
+
+  const banishCtx = mkCtx({}, {});
+  banishCtx.otherState = applied.ownerState;
+  banishCtx.otherBanishProtectedNums = protectedNums;
+  const result = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, banishCtx);
+  ok(result.otherState.field.signi.some(stack => stack?.at(-1) === matching[0]), `${effectId}: 一致1体目がBANISHを免れる`);
+  ok(result.otherState.field.signi.some(stack => stack?.at(-1) === matching[1]), `${effectId}: 一致2体目がBANISHを免れる`);
+  ok(!result.otherState.field.signi.some(stack => stack?.at(-1) === mismatch), `${effectId}: 不一致はBANISHされる`);
+}
+
+test('段2 第23バッチ E2E: WX08-018-E1 は＜美巧＞2体だけをターン中BANISH耐性にする', () => withSavedCursor(() => {
+  assertBatch23TemporaryAll('WX08-018-E1', '美巧');
+}));
+
+test('段2 第23バッチ E2E: WX21-Re07-E1 c1 は相手ターンだけ＜天使＞2体をBANISH耐性にする', () => withSavedCursor(() => {
+  assertBatch23TemporaryAll('WX21-Re07-E1', '天使', 'c1');
+  const effect = effectsMap.get('WX21-Re07')!.find(e => e.effectId === 'WX21-Re07-E1')!;
+  const selfTurnCtx = mkCtx({}, {}, 'WX21-Re07'); selfTurnCtx.isOwnerTurn = true;
+  const selfTurn = executeAction(effect.action, selfTurnCtx);
+  ok(!selfTurn.done && selfTurn.pending.type === 'CHOOSE', '自分ターンも他方の選択肢は提示される');
+  if (!selfTurn.done && selfTurn.pending.type === 'CHOOSE') {
+    eq(selfTurn.pending.options.find(option => option.id === 'c1')?.available, false, '自分ターンは耐性選択肢c1が使用不可');
+  }
+  const oppTurnCtx = mkCtx({}, {}, 'WX21-Re07'); oppTurnCtx.isOwnerTurn = false;
+  const oppTurn = executeAction(effect.action, oppTurnCtx);
+  if (!oppTurn.done && oppTurn.pending.type === 'CHOOSE') {
+    eq(oppTurn.pending.options.find(option => option.id === 'c1')?.available, true, '相手ターンは耐性選択肢c1が使用可');
+  } else ok(false, '相手ターンにCHOOSEが提示される');
+}));
+
+test('段2 第23バッチ E2E: WXEX1-01-E2 は相手ターンだけ＜アーム＞2体をBANISH耐性にする', () => withSavedCursor(() => {
+  const matching = batch23ClassSigni('アーム', 2);
+  const mismatch = batch23OtherSigni('アーム', matching);
+  const state = mkState({ signi: [matching[0], matching[1], mismatch], lrig: ['WXEX1-01'] });
+  const effect = effectsMap.get('WXEX1-01')!.find(e => e.effectId === 'WXEX1-01-E2')!;
+  const harness = new Map<string, CardEffect[]>([['WXEX1-01', [effect]]]);
+  const protectedNums = collectBanishEffectProtectedSigni(state, mkState(), false, harness, cardMap);
+  ok(protectedNums.has(matching[0]) && protectedNums.has(matching[1]), '相手ターンはアーム2体を両方保護');
+  ok(!protectedNums.has(mismatch), '非アームは非保護');
+  eq(collectBanishEffectProtectedSigni(state, mkState(), true, harness, cardMap).size, 0, '自分ターンはactiveCondition不成立');
+
+  const banishCtx = mkCtx({}, {}); banishCtx.otherState = state; banishCtx.otherBanishProtectedNums = protectedNums;
+  const result = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, banishCtx);
+  ok(result.otherState.field.signi.some(stack => stack?.at(-1) === matching[0])
+    && result.otherState.field.signi.some(stack => stack?.at(-1) === matching[1]), 'アーム2体はE2Eで生存');
+  ok(!result.otherState.field.signi.some(stack => stack?.at(-1) === mismatch), '非アームはE2EでBANISH');
+}));
+
+test('段2 第23バッチ E2E: WX22-Re04-E2 c2 は他の＜英知＞だけを保護し自身を除外する', () => withSavedCursor(() => {
+  // 実カード自身は本文フォールバックでもBANISH耐性を検出されるため、action単体のexcludeSelfを
+  // 同じ＜英知＞で耐性本文を持たないホストへ載せて、他経路の干渉を除く。
+  const source = findCard(card => card.Type === 'シグニ'
+    && matchesFilter(card, { cardType: 'シグニ', story: '英知' })
+    && !/バニッシュされない/.test((card.EffectText ?? '') + (card.BurstText ?? '')));
+  const matching = batch23ClassSigni('英知', 2, [source]);
+  const protection = batch23Protection('WX22-Re04-E2', 'c2');
+  const applied = run(protection, mkCtx({ signi: [source, matching[0], matching[1]] }, {}, source));
+  const runtimeEffects = applied.ownerState.granted_effects?.[source] ?? [];
+  eq(runtimeEffects.length, 1, '効果元がクラス集合へのCONTINUOUS耐性を得る');
+  const runtimeMap = new Map<string, CardEffect[]>([[source, runtimeEffects]]);
+  const protectedNums = collectBanishEffectProtectedSigni(applied.ownerState, applied.otherState, true, runtimeMap, cardMap);
+  ok(protectedNums.has(matching[0]) && protectedNums.has(matching[1]), '他の英知2体を両方保護');
+  ok(!protectedNums.has(source), '効果元自身はexcludeSelfで非保護');
+
+  // 3面上限のため、クラス対照は「効果元＋英知＋非英知」の別の合法盤面で固定する。
+  const mismatch = batch23OtherSigni('英知', [source, ...matching]);
+  const contrastState = { ...applied.ownerState, field: {
+    ...applied.ownerState.field, signi: [[source], [matching[0]], [mismatch]],
+  } } as PlayerState;
+  const contrastProtected = collectBanishEffectProtectedSigni(contrastState, applied.otherState, true, runtimeMap, cardMap);
+  ok(contrastProtected.has(matching[0]) && !contrastProtected.has(mismatch), '後から変わった盤面でも英知だけを動的保護');
+  const banishCtx = mkCtx({}, {}); banishCtx.otherState = contrastState; banishCtx.otherBanishProtectedNums = contrastProtected;
+  const result = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL' } } as EffectAction, banishCtx);
+  ok(result.otherState.field.signi.some(stack => stack?.at(-1) === matching[0]), '英知はE2Eで生存');
+  ok(!result.otherState.field.signi.some(stack => stack?.at(-1) === mismatch), '非英知はE2EでBANISH');
+  ok(!result.otherState.field.signi.some(stack => stack?.at(-1) === source), '効果元自身もE2EでBANISH');
+}));
+
+test('段2 第23バッチ 見送り契約: WX15-010-E1 は1回消費語彙が無いため集合耐性へ広げない', () => {
+  const protection = batch23Protection('WX15-010-E1');
+  eq(protection.subjectFilter, undefined, '＜武勇＞subjectFilterを足さない');
+  eq(protection.target?.count, 1, '従来の単体近似を維持');
+  ok(JSON.stringify(protection).includes('BANISH'), 'BANISH耐性leaf自体は維持');
+});
+
+test('段2 第23バッチ engine配線: 既存WX05-014-E1の期間subjectFilterは後続＜美巧＞にも効く', () => withSavedCursor(() => {
+  const effect = effectsMap.get('WX05-014')!.find(e => e.effectId === 'WX05-014-E1')!;
+  if (effect.action.type !== 'GRANT_PROTECTION') throw new Error('WX05-014-E1: GRANT_PROTECTIONが存在');
+  const action = effect.action;
+  const applied = run(action, mkCtx({}, {}, 'WX05-014'));
+  const matching = batch23ClassSigni('美巧', 2);
+  const mismatch = batch23OtherSigni('美巧', matching);
+  const afterEntries = { ...applied.ownerState, field: {
+    ...applied.ownerState.field, signi: [[matching[0]], [matching[1]], [mismatch]],
+  } } as PlayerState;
+  const immune = collectEffectImmuneSigni(afterEntries, applied.otherState, cardMap, new Map(), true, 'シグニ');
+  ok(immune.has(matching[0]) && immune.has(matching[1]), '発動後に場へ出た美巧2体もシグニ効果耐性');
+  ok(!immune.has(mismatch), '発動後に場へ出た非美巧は非保護');
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

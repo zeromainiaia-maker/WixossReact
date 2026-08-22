@@ -5416,14 +5416,40 @@ function protectionKeyword(a: GrantProtectionAction): string {
 }
 
 function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult {
-  // subjectFilter のみの場合は CONTINUOUS 用宣言（effectEngine 側で処理）→ no-op
-  if (!a.target && a.subjectFilter) {
-    return done(addLog(ctx, `効果耐性宣言（${a.from?.join('/')}保護）`));
-  }
-  if (!a.target) return done(ctx);
   // 効果耐性はキーワード付与として扱う
-  const tgt = a.target;
   const keyword = protectionKeyword(a);
+  // AUTO/ACTIVATED の subjectFilter は、そのターン中に場へ出た後続シグニにも効く場レベル付与へ載せる。
+  // CONTINUOUS 宣言は executeAction を通らず effectEngine が直接読むため、ここへ来るのは期間付与だけ。
+  // excludeSelf は FieldGrant が発生源identityを保持しないため、能力を得た発生源シグニ自身の
+  // granted_effects へ CONTINUOUS 宣言を積む。これなら後から場に出た一致シグニも毎回評価しつつ、
+  // collector が sourceNum を使って「他の」を厳密に除外できる。
+  if (!a.target && a.subjectFilter?.excludeSelf && (a.subjectOwner ?? 'self') === 'self'
+      && ctx.sourceCardNum && ctx.ownerState.field.signi.some(stack => stack?.at(-1) === ctx.sourceCardNum)) {
+    const grantedEffect: CardEffect = {
+      effectId: `${ctx.sourceCardNum}-GRANTED-PROTECTION`,
+      effectType: 'CONTINUOUS', action: a, duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
+    };
+    return execGrantEffect({
+      type: 'GRANT_EFFECT',
+      target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+      effect: grantedEffect,
+      duration: a.duration,
+    } as GrantEffectAction, ctx);
+  }
+  if (!a.target && a.subjectFilter && !a.subjectFilter.excludeSelf) {
+    const target: EffectTarget = {
+      type: 'SIGNI', owner: a.subjectOwner ?? 'self', count: 'ALL', filter: a.subjectFilter,
+    };
+    const applied = applyActiveFieldGrant(target, { kind: 'keyword', keyword, filter: a.subjectFilter }, ctx);
+    if (applied.applied) {
+      return done(addLog(applied.ctx, `対象集合に効果耐性（${a.from?.join('/')}）を付与`));
+    }
+  }
+  // 発生源が場にいない等、動的宣言を保持できない異常系だけは解決時点の集合へ fail-safe 付与する。
+  const tgt: EffectTarget | undefined = a.target ?? (a.subjectFilter ? {
+    type: 'SIGNI', owner: a.subjectOwner ?? 'self', count: 'ALL', filter: a.subjectFilter,
+  } : undefined);
+  if (!tgt) return done(ctx);
   // UNTIL_OPP_TURN_END は長期ストア keyword_grants_until_opp_turn へ（次の相手ターン終了時までクリアされない）
   const gkey = a.duration === 'UNTIL_OPP_TURN_END' ? 'keyword_grants_until_opp_turn' : 'keyword_grants';
 

@@ -3920,6 +3920,27 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       ? from[0] as 'シグニ' | 'ルリグ' | 'スペル' | 'アーツ'
       : undefined;
     if (bySourceType) { from.length = 0; from.push('BANISH'); }
+    // 「あなたの（すべての／他の）＜CLASS＞のシグニは…」は、対象を取る1体付与ではなく
+    // フィルタ一致集合への保護宣言。引用内の「次にバニッシュされる場合」は1回消費の別語彙が
+    // GrantProtectionAction に無いため、恒久耐性へ広げず従来形を維持する。
+    // 「N体を対象とし」は引用能力を選択対象へ付与する別系統なので、集合宣言へ巻き込まない。
+    const classM = t.match(/あなたの(?:すべての)?(?:他の)?＜([^＞]+)＞のシグニは/);
+    const isOneShotBanishProtection = /次にバニッシュされる場合/.test(t);
+    const hasExplicitSigniTargets = /シグニ[０-９\d]+体(?:まで)?を対象とし/.test(t);
+    if (classM && !isOneShotBanishProtection && !hasExplicitSigniTargets) {
+      return {
+        type: 'GRANT_PROTECTION',
+        ...(bySourceType ? { bySourceType } : {}),
+        subjectFilter: {
+          cardType: 'シグニ', story: classM[1],
+          ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}),
+        },
+        subjectOwner: 'self',
+        from,
+        sourceOwner: /対戦相手の[^。]*(?:効果|能力)[^。]*バニッシュされない/.test(t) ? 'opponent' : 'any',
+        duration: 'PERMANENT',
+      } as GrantProtectionAction;
+    }
     return {
       type: 'GRANT_PROTECTION',
       ...(bySourceType ? { bySourceType } : {}),
