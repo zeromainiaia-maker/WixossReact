@@ -1163,12 +1163,61 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
-  // 「あなたの場に《ライズアイコン》を持つシグニが3体あるかぎり、」
-  // ＝ライズアイコン持ちシグニ3体の条件（WXEX1-35）。別枚数の既存カードは今回の採用対象に混ぜない。
-  const fieldRiseCountM = text.match(/^(?:このシグニは)?あなたの場に《ライズアイコン》を持つシグニが[３3]体あるかぎり、/);
+  // 段2-8: 「場のカード」を主語にした常在条件。値（閾値・名前・色）は必ず原文から読む。
+  const fieldNoAbilitiesM = text.match(/^(あなた|対戦相手)の場に能力を持たないシグニが(?:([０-９\d]+)体以上)?あるかぎり、/);
+  if (fieldNoAbilitiesM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldNoAbilitiesM[1] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ', noAbilities: true }, ...(fieldNoAbilitiesM[2] ? { minCount: parseNum(fieldNoAbilitiesM[2]) } : {}) },
+    rest: text.slice(fieldNoAbilitiesM[0].length), conditionFound: true,
+  };
+  const fieldRiseM = text.match(/^(あなた|対戦相手)の場に《ライズアイコン》を持つシグニがあるかぎり、/);
+  if (fieldRiseM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldRiseM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', hasRiseIcon: true } },
+    rest: text.slice(fieldRiseM[0].length), conditionFound: true,
+  };
+  const fieldNamedLevelM = text.match(/^(あなた|対戦相手)の場にレベル([０-９\d]+)以上のカード名に《([^》]+)》を含むシグニがあるかぎり、/);
+  if (fieldNamedLevelM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldNamedLevelM[1] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ', cardName: fieldNamedLevelM[3], levelRange: { min: parseNum(fieldNamedLevelM[2]) } } },
+    rest: text.slice(fieldNamedLevelM[0].length), conditionFound: true,
+  };
+  const fieldDistinctColorsM = text.match(/^(あなた|対戦相手)の場にあるシグニが持つ色が合計([０-９\d]+)種類以上あるかぎり、/);
+  if (fieldDistinctColorsM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldDistinctColorsM[1] === '対戦相手' ? 'opponent' : 'self',
+      filter: { cardType: 'シグニ' }, distinctColors: true, minCount: parseNum(fieldDistinctColorsM[2]) },
+    rest: text.slice(fieldDistinctColorsM[0].length), conditionFound: true,
+  };
+  const fieldCharmM = text.match(/^(あなた|対戦相手)の場に【チャーム】があるかぎり、/);
+  if (fieldCharmM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldCharmM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', hasCharm: true } },
+    rest: text.slice(fieldCharmM[0].length), conditionFound: true,
+  };
+  const fieldDriveM = text.match(/^(あなた|対戦相手)の場にドライブ状態のシグニがあるかぎり、/);
+  if (fieldDriveM) return {
+    condition: { type: 'HAS_CARD_IN_FIELD', owner: fieldDriveM[1] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isDrive: true } },
+    rest: text.slice(fieldDriveM[0].length), conditionFound: true,
+  };
+  const fieldTwoColorsM = text.match(/^(あなた|対戦相手)の場に([白赤青緑黒])と([白赤青緑黒])のシグニがあるかぎり、/);
+  if (fieldTwoColorsM) {
+    const owner = fieldTwoColorsM[1] === '対戦相手' ? 'opponent' : 'self';
+    return { condition: { type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner, filter: { cardType: 'シグニ', color: fieldTwoColorsM[2] } },
+      { type: 'HAS_CARD_IN_FIELD', owner, filter: { cardType: 'シグニ', color: fieldTwoColorsM[3] } },
+    ] }, rest: text.slice(fieldTwoColorsM[0].length), conditionFound: true };
+  }
+  const fieldPowerCountM = text.match(/^(あなた|対戦相手)の場にパワー([０-９\d]+)以上のシグニがあるかぎり、/);
+  if (fieldPowerCountM) return {
+    condition: { type: 'FIELD_SIGNI_POWER_COUNT', owner: fieldPowerCountM[1] === '対戦相手' ? 'opponent' : 'self',
+      minPower: parseNum(fieldPowerCountM[2]), operator: 'gte', value: 1 },
+    rest: text.slice(fieldPowerCountM[0].length), conditionFound: true,
+  };
+
+  // 「あなたの場に《ライズアイコン》を持つシグニがN体あるかぎり、」
+  // ＝ライズアイコン持ちシグニN体の条件。閾値は原文から読む。
+  const fieldRiseCountM = text.match(/^(?:このシグニは)?あなたの場に《ライズアイコン》を持つシグニが([０-９\d]+)体あるかぎり、/);
   if (fieldRiseCountM) {
     return {
-      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasRiseIcon: true }, minCount: 3 },
+      condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', hasRiseIcon: true }, minCount: parseNum(fieldRiseCountM[1]) },
       rest: text.slice(fieldRiseCountM[0].length),
       conditionFound: true,
     };
@@ -1374,6 +1423,11 @@ function parseActiveCondition(text: string): ConditionParseResult {
       conditionFound: true,
     };
   }
+  const trashNotM = text.match(/^あなたのトラッシュにカードが([０-９\d]+)枚以上ないかぎり、/);
+  if (trashNotM) return {
+    condition: { type: 'COUNT_THRESHOLD', location: 'trash', owner: 'self', operator: 'lt', value: parseNum(trashNotM[1]) },
+    rest: text.slice(trashNotM[0].length), conditionFound: true,
+  };
 
   // パターン4a2: 「あなたのルリグトラッシュに〔アーツ/スペル/シグニ/カード〕が(N枚以上)?あるかぎり、」（ルリグトラッシュ枚数条件。WDK03-015/WXK01-098）
   const lrigTrashM = text.match(/^あなたのルリグトラッシュに(アーツ|スペル|シグニ|カード)が(?:([０-９\d]+)枚以上)?あるかぎり、/);
@@ -2112,6 +2166,25 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 段2-8: 場のカードを主語にした条件。閾値・名前・色・クラスは原文から取得する。
+  [/(あなた|対戦相手)の場に能力を持たないシグニが(?:([０-９\d]+)体以上)?ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', noAbilities: true }, ...(g[1] ? { minCount: parseNum(g[1]) } : {}) })],
+  [/(あなた|対戦相手)の場にドライブ状態のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isDrive: true } })],
+  [/(あなた|対戦相手)の場にカード名に《([^》]+)》を含むシグニが([０-９\d]+)体(?:以上)?ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', cardName: g[1] }, minCount: parseNum(g[2]) })],
+  [/(あなた|対戦相手)の場に([白赤青緑黒])と([白赤青緑黒])の＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[1], story: g[3] } },
+      { type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[2], story: g[3] } },
+    ] })],
+  [/(あなた|対戦相手)の場に([白赤青緑黒])と([白赤青緑黒])のシグニがある場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[1] } },
+      { type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[2] } },
+    ] })],
+  [/(あなた|対戦相手)の場に([白赤青緑黒])のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', color: g[1] } })],
   // 「このシグニが〔左|右|左か右〕のシグニゾーンに〔ある場合|出たとき〕」＝効果元の位置ゲート（続き377l）。
   //   activeCondition 版（`IS_SELF_IN_SIDE_ZONE`・parseActiveCondition のパターン6c-2）の**実行時**対応。
   //   ⚠従来この語彙が無く条件節ごと落ちて**無条件発火**していた＝`WXK03-071-E2`（相手のアーツ使用時に

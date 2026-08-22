@@ -9276,7 +9276,15 @@ test('続き376d トリップワイヤ: 対象名詞句に隣接しないクラ�
     ['WXEX2-55', 'WXEX2-55-E1'], ['WXEX2-57', 'WXEX2-57-E1'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
-    eq(/"story"/.test(JSON.stringify(e?.action ?? {})), false,
+    const targetFilters: unknown[] = [];
+    const visit = (node: unknown) => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      if (obj.target && typeof obj.target === 'object') targetFilters.push((obj.target as Record<string, unknown>).filter);
+      Object.values(obj).forEach(v => Array.isArray(v) ? v.forEach(visit) : visit(v));
+    };
+    visit(e?.action);
+    eq(/"story"/.test(JSON.stringify(targetFilters)), false,
       `${effId}: 別の節のクラスを対象フィルタに引き込まない`);
   }
 }));
@@ -40940,6 +40948,37 @@ test('段2-7 C: WXDi-P02-060-E2 はトラッシュのスペル5枚未満なら�
   };
   eq(executesDraw(4), 2, 'スペル4枚では不発');
   eq(executesDraw(5), 3, 'スペル5枚なら発動');
+}));
+
+// ── §6.2 段2 第8バッチ：場のカード条件／否定閾値の engine 実行ゲート ──
+test('段2-8 A状態語: WDK01-013-E1 はドライブ状態のシグニがいる場合だけ有効', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WDK01-013') ?? []).find(e => e.effectId === 'WDK01-013-E1')!;
+  ok(!!effect.activeCondition, 'activeCondition が live に載る');
+  const plain = mkState({ signi: ['WDK01-013', SIGNI, null] });
+  const driven = mkState({ signi: ['WDK01-013', SIGNI, null] });
+  driven.lrig_riding_signi = [SIGNI];
+  eq(checkActiveCondition(effect.activeCondition!, plain, mkState({}), true, cardMap), false, 'ドライブ無しでは不成立');
+  eq(checkActiveCondition(effect.activeCondition!, driven, mkState({}), true, cardMap), true, '別のドライブ状態シグニがいれば成立');
+}));
+
+test('段2-8 A複色: WX20-Re07-E2 は白1体＋黒1体で成立し、白2体では不成立', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX20-Re07') ?? []).find(e => e.effectId === 'WX20-Re07-E2')!;
+  const white1 = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白'));
+  const white2 = findCard(c => c.Type === 'シグニ' && c.Color?.includes('白') && c.CardNum !== white1);
+  const black = findCard(c => c.Type === 'シグニ' && c.Color?.includes('黒'));
+  eq(checkActiveCondition(effect.activeCondition!, mkState({ signi: [white1, black, null] }), mkState({}), true, cardMap), true,
+    'AND の各枝は別々のシグニで満たせる');
+  eq(checkActiveCondition(effect.activeCondition!, mkState({ signi: [white1, white2, null] }), mkState({}), true, cardMap), false,
+    '白だけでは黒の枝が不成立');
+}));
+
+test('段2-8 C反転: PR-402-E1 はトラッシュ14枚ならアタック不能、15枚なら解除', () => withSavedCursor(() => {
+  const blocked = (trash: number) => {
+    const self = mkState({ signi: ['PR-402', null, null], trash });
+    return calcContinuousBlockedActions(self, mkState({}), true, effectsMap, cardMap).cannotAttackSigni;
+  };
+  ok(blocked(14).has('PR-402'), '14枚（15枚未満）では実行結果にアタック不能が載る');
+  ok(!blocked(15).has('PR-402'), '15枚では条件が外れ、アタック不能が解除される');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
