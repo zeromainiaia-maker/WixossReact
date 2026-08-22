@@ -3,17 +3,69 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［53枚］
-PR-Di017B SPDi43-12 WD07-006 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX20-053 WX24-D2-11 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P12-054 WXDi-P14-057 WXDi-P15-044 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK10-066 WXK11-019
+## （type増減なし＝値/構造変更） ［54枚］
+PR-Di017B SP23-009 SPDi43-12 SPDi43-27 WD07-006 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX24-D2-11 WX24-P2-002 WX25-CP1-005 WX25-CP1-039 WX25-CP1-080 WX25-P1-056 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P14-057 WXDi-P15-084 WXEX1-26 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK10-066 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
+  ~ [0].parseStatus : "AUTO" → "MANUAL"
+--- SP23-009
+  原文: 以下の２つから１つを選ぶ。①ターン終了時まで、《ライズアイコン》を持つあなたのすべてのシグニは【ダブルクラッシュ】を得る。②あなたの場にある《ライズアイコン》を持つシグニ１体につきカードを１枚引く。,-
+  ~ [0].action.choices[0].action.target.owner : "any" → "self"
+  ~ [0].action.choices[0].action.target.count : 1 → "ALL"
+  + [0].action.choices[0].action.target.filter.cardType = "シグニ"
+  + [0].action.choices[0].action.target.filter.hasIcon = "ライズ"
 --- SPDi43-12
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
---- WD07-006
-  原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
-  ~ [0].action.then.target.count : 1 → 3
+
+## +SIGNI +STUB×2 ［4枚］
+WX25-P2-018 WXDi-P12-029 WXK07-012 WXK10-104
+--- WX25-P2-018
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの＜電機＞のシグニ１体を対象とし、以下の２つから１つを選ぶ。①ターン終了時まで、それを覚醒状態にする。②《赤》《無》を支払ってもよい。そうした場合、ターン終了時まで、それは【ダブルクラッシュ】を得る。【起】《ゲーム１回》アンチェイン《ダウン》：あなたの赤のシグニ１体を対象とし、次の対戦相手のターン終了時まで、それ
+  - [1].action.steps[0].target.type = "SIGNI"
+  - [1].action.steps[0].target.owner = "self"
+  - [1].action.steps[0].target.count = 1
+  - [1].action.steps[0].target.filter.cardType = "シグニ"
+  - [1].action.steps[0].target.filter.color = "赤"
+  - [1].action.steps[0].keyword = "アサシン"
+  - [1].action.steps[0].duration = "UNTIL_OPP_TURN_END"
+  - [1].action.steps[1].target.type = "SIGNI"
+  - [1].action.steps[1].target.owner = "self"
+  - [1].action.steps[1].target.count = 1
+  - [1].action.steps[1].target.filter.cardType = "シグニ"
+  - [1].action.steps[1].target.filter.color = "赤"
+  …（他 29 行）
+--- WXDi-P12-029
+  原文: 【出】：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】と【ダブルクラッシュ】を得る。,-
+  - [0].action.steps[0].target.type = "SIGNI"
+  - [0].action.steps[0].target.owner = "self"
+  - [0].action.steps[0].target.count = 1
+  - [0].action.steps[0].keyword = "アサシン"
+  - [0].action.steps[0].duration = "UNTIL_END_OF_TURN"
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  - [0].action.steps[1].keyword = "ダブルクラッシュ"
+  - [0].action.steps[1].duration = "UNTIL_END_OF_TURN"
+  ~ [0].action.steps[0].type : "GRANT_KEYWORD" → "STUB"
+  + [0].action.steps[0].id = "SELECT_TARGET_ONLY"
+  …（他 19 行）
+--- WXK07-012
+  原文: アンコール－《コインアイコン》《コインアイコン》以下の２つから１つを選ぶ。①あなたのトラッシュから＜原子＞のシグニを２枚まで対象とし、それらを手札に加える。②あなたの＜原子＞のシグニ１体を対象とし、ターン終了時まで、それは【アサシン】と【ダブルクラッシュ】を得る。,-
+  - [0].action.choices[1].action.steps[0].target.type = "SIGNI"
+  - [0].action.choices[1].action.steps[0].target.owner = "self"
+  - [0].action.choices[1].action.steps[0].target.count = 1
+  - [0].action.choices[1].action.steps[0].target.filter.cardType = "シグニ"
+  - [0].action.choices[1].action.steps[0].target.filter.story = "原子"
+  - [0].action.choices[1].action.steps[0].keyword = "アサシン"
+  - [0].action.choices[1].action.steps[0].duration = "UNTIL_END_OF_TURN"
+  - [0].action.choices[1].action.steps[1].target.type = "SIGNI"
+  - [0].action.choices[1].action.steps[1].target.owner = "self"
+  - [0].action.choices[1].action.steps[1].target.count = 1
+  - [0].action.choices[1].action.steps[1].target.filter.cardType = "シグニ"
+  - [0].action.choices[1].action.steps[1].target.filter.story = "原子"
+  …（他 29 行）
 
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
@@ -92,39 +144,6 @@ WDK06-C08 WX25-P3-105 WXDi-P01-044
   - [1].action.steps[1].condition.operator = "gte"
   - [1].action.steps[1].condition.value = 20
   …（他 24 行）
-
-## +CHOOSE +SIGNI +UP ［2枚］
-WX06-017 WX19-029
---- WX06-017
-  原文: 【常】：このシグニのパワーはあなたの場にある他の＜アーム＞のシグニ１体につき＋1000される。【自】：あなたの＜アーム＞のシグニ１体がバニッシュされたとき、シグニ１体を対象とし、それをアップするかダウンする。【出】《白》：あなたのデッキからカード名に《拳》を含むシグニ１枚を探して公開し手札に加え、デッキをシャッフルする。,：対戦相手のシグニ１体を対象とし、そ
-  - [1].action.target.type = "SIGNI"
-  - [1].action.target.owner = "self"
-  - [1].action.target.count = 1
-  - [1].action.target.filter.cardType = "シグニ"
-  - [1].action.target.upToCount = false
-  ~ [1].action.type : "DOWN" → "CHOOSE"
-  + [1].action.choose_count = 1
-  + [1].action.from_count = 2
-  + [1].action.choices[0].choiceId = "c0"
-  + [1].action.choices[0].label = "アップする"
-  + [1].action.choices[0].action.type = "UP"
-  + [1].action.choices[0].action.target.type = "SIGNI"
-  …（他 12 行）
---- WX19-029
-  原文: 【自】：アタックフェイズの間、このシグニがバニッシュされたか効果によって場からトラッシュに置かれたとき、シグニ１体を対象とし、それをアップするかダウンする。【起】《アタックフェイズアイコン》《黒》《黒》手札から＜遊具＞のシグニを２枚捨てる：このシグニをあなたのトラッシュからダウン状態で場に出す。,：あなたのトラッシュから＜遊具＞のシグニ１枚を対象とし、それを
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "self"
-  - [0].action.target.count = 1
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.upToCount = false
-  ~ [0].action.type : "DOWN" → "CHOOSE"
-  + [0].action.choose_count = 1
-  + [0].action.from_count = 2
-  + [0].action.choices[0].choiceId = "c0"
-  + [0].action.choices[0].label = "アップする"
-  + [0].action.choices[0].action.type = "UP"
-  + [0].action.choices[0].action.target.type = "SIGNI"
-  …（他 12 行）
 
 ## +DURING_ATTACK_PHASE ［2枚］
 WXEX2-09 WXEX2-30

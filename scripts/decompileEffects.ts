@@ -1079,6 +1079,10 @@ function actionJa(a?: Action, effectType?: string): string {
       if (a.target?.filter?.thisCardOnly) return `このシグニは【${kw}】を持つ${durJa}`;
       // targetsLastProcessed:「それ」= 直前に選択/処理したシグニへ付与
       if (a.targetsLastProcessed) return `それは【${kw}】を得る${durJa}`;
+      // targetsStored:「それ」= 先行の `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS` で固定した同一対象。
+      // ⚠これを書かないと「〈対象〉1体を対象とする。そして〈対象〉1体に【A】を与える。そして〈対象〉1体に【B】を与える」
+      //   と**3回別々に選ぶ**ように読めてしまい、逆翻訳が原文（「それは【A】と【B】を得る」）から離れる。
+      if (a.targetsStored) return `それは【${kw}】を得る${durJa}`;
       // targetsTriggerSource:「それ（トリガー元シグニ）」へ付与
       if (a.targetsTriggerSource) return `それ（トリガー元シグニ）は【${kw}】を得る${durJa}`;
       if (a.fieldCondition?.type === 'FRONT_SIGNI_HAS_CHARM') {

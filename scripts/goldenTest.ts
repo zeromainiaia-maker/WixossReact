@@ -3211,6 +3211,46 @@ test('GRANT_KEYWORD excludeSelf: 効果元自身は対象外・他の味方の�
   ok(!(g[SIGNI_P3000] ?? []).includes('シャドウ'), `効果元自身には付与しない got=${JSON.stringify(g[SIGNI_P3000])}`);
   ok((g[SIGNI_P12000] ?? []).includes('シャドウ'), `他の味方には付与 got=${JSON.stringify(g[SIGNI_P12000])}`);
 });
+// ── §6.2 段2（2026-08-22）：「それ」の identity と「あなたのすべての〈修飾〉シグニ」の全体付与 ──
+// ①「〈対象〉１体を対象とし、それは【A】と【B】を得る」は**同一の1体**が両方を得る。従来は N 本の
+//   GRANT_KEYWORD を素で並べていたので、対象が選択のときは**1体目に【A】・2体目に【B】**と分裂した。
+//   正準形＝`SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈付与〉{targetsStored}`。
+// ②「あなたのすべての〈修飾〉シグニは【K】を得る」は `owner:'self'/count:'ALL'`。従来は「すべての」と
+//   「シグニ」の間にクラス句・色句が挟まると全部の枝から外れて `{owner:'any', count:1}` へ潰れ、
+//   **全体付与が「どちらかのシグニ1体」に化けた**（しかも相手のシグニにも付けられた）。
+test('§6.2 段2: 「それは【A】と【B】を得る」は同一対象へ＝SELECT_TARGET_ONLY→STORE→targetsStored', () => {
+  type GK = Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  type SEQ = Extract<EffectAction, { type: 'SEQUENCE' }>;
+  const seq = manualEffect('WXDi-P12-029', 'WXDi-P12-029-E1').action as SEQ;
+  eq(seq.type, 'SEQUENCE', 'WXDi-P12-029-E1 は SEQUENCE');
+  eq((seq.steps[0] as { id?: string }).id, 'SELECT_TARGET_ONLY', '1段目＝対象宣言');
+  eq((seq.steps[1] as { id?: string }).id, 'STORE_LAST_PROCESSED_TARGETS', '2段目＝対象の固定');
+  const kws = seq.steps.slice(2) as GK[];
+  eq(kws.map(k => k.keyword).join(','), 'アサシン,ダブルクラッシュ', '付与は原文の2つ');
+  ok(kws.every(k => k.targetsStored === true), '両方が targetsStored＝同一対象へ付く（分裂しない）');
+  // 色限定つきも同じ形（「あなたの赤のシグニ１体を対象とし…【アサシン】と【シャドウ】を得る」）
+  const seq2 = manualEffect('WX25-P2-018', 'WX25-P2-018-E2').action as SEQ;
+  eq((seq2.steps[0] as { id?: string; selectTarget?: { filter?: { color?: string } } }).selectTarget?.filter?.color, '赤',
+    'WX25-P2-018-E2 の対象宣言に色限定が載る');
+  ok((seq2.steps.slice(2) as GK[]).every(k => k.targetsStored === true), 'WX25-P2-018-E2 も同一対象へ');
+});
+test('§6.2 段2: 「あなたのすべての〈修飾〉シグニは【K】を得る」は self/ALL＋修飾語つき', () => {
+  type GK = Extract<EffectAction, { type: 'GRANT_KEYWORD' }>;
+  type SEQ = Extract<EffectAction, { type: 'SEQUENCE' }>;
+  // ＜宇宙＞＝クラス句が「すべての」と「シグニ」の間に挟まる形
+  const seq = manualEffect('WXEX1-26', 'WXEX1-26-E2').action as SEQ;
+  for (const st of seq.steps as GK[]) {
+    eq(st.target.owner, 'self', 'WXEX1-26-E2 は自分のシグニだけ（相手には付かない）');
+    eq(String(st.target.count), 'ALL', 'WXEX1-26-E2 は全体付与');
+    eq(st.target.filter?.story, '宇宙', 'WXEX1-26-E2 は＜宇宙＞限定を保つ');
+  }
+  // 《ライズアイコン》を持つ＝「あなたのすべての」の**前**に置かれる限定句
+  const choose = manualEffect('SP23-009', 'SP23-009-E1').action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const gk = choose.choices[0].action as GK;
+  eq(gk.target.owner, 'self', 'SP23-009-E1① は自分のシグニだけ');
+  eq(String(gk.target.count), 'ALL', 'SP23-009-E1① は全体付与');
+  eq(gk.target.filter?.hasIcon, 'ライズ', 'SP23-009-E1① は《ライズアイコン》限定を保つ（落とすと過大付与）');
+});
 test('powerLtAnyAlly: 自分の最大パワー未満のみ対象（ally max P12000→敵P3000除去・P12000残存・WXDi-P01-020）', () => {
   const ctx = mkCtx({ signi: [SIGNI_P3000, SIGNI_P12000, null] }, { signi: [SIGNI_P3000, SIGNI_P12000, null] });
   const r = run({ type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerLtAnyAlly: true } } } as EffectAction, ctx);

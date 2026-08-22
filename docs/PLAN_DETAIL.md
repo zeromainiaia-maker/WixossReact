@@ -3149,6 +3149,32 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
+- **🆕 2026-08-22 続き597（§6.4 O-39／O-40 残0クローズ）後 最新値（本行が直近の正）**：
+  **census 772/772**（`BASELINE_HIGH` **773→772**＝O-39 の解凍で `WXDi-CP02-072-BURST` の `isUp` が live へ届いた）、
+  **golden 2337 据置**、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、lint **0 errors**（260 warnings 据置）、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**（🆕**parseStatus 違反 0 のゲートを同居**）、**同型★ 0**、
+  `parserWorklist` held合計 **120 据置**（LOSS 107／VALUE 11／ADD 2）、**live 効果総数 10693 据置**。
+  🆕**レビュー待ち行列の3本立て**＝`docs/_held_fresh.json` **97→94カード**／`docs/_partial_fresh.json` **6→15カード**／
+  🆕`docs/_idset_fresh.json` **46カード**（O-39 で新設＝**それまでどの計器にも出ていなかった母集団**）。
+  ⚠**`_partial_fresh` が増えたのは退化ではない**＝id 集合ズレのカードが初めて効果単位のレビューに載ったため。
+  🆕**`manualEffects.ts` 451カード557効果 → 450カード550効果**（O-40 で死荷重7件を削除）。
+  **live の変更は2効果だけ**（`WX05-021-E2` の `thisCardOnly`／`WXDi-CP02-072-BURST` の `isUp`）＝**engine は無改変**。
+  🏁**§6.4 `O-39`／`O-40` 残0クローズ**／🆕**`O-42` を新規登録**（parser 出力と実体同一の manual エントリ **87効果**・
+  うち80件は live も凍っている）／**§6.4 の生きた worklist は `O-41`／`O-42` の2件**。
+  **意味照合タスク8（§6.2 段2）は続き596 から据置**＝残 OPEN 1,044／真バグ確定 1,031／HIGH・MED・LOW＝702・334・8／
+  影響 754カード・830効果／段0 除去 232／段2 消化 43。
+  **被覆マトリクス（`census:wiring`）**＝続き593 から据置（⚠**全体の miss 合計は未再計測**）。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  **Opusタスク12＝在庫1件**（(cxlvi)）／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は §6.2 段2（`stage1_batch24_triage.md` §9 が設計図）・§6.4 O-41/O-42・
+  Opusタスク12 在庫1件・§5d-0 (i)・§6.3**。
+  ⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  **カード単位の進捗（`npm run census:cards`）**＝続き595 から据置（母数 全6712枚／効果テキストあり 6031／
+  バニラ 681／live に効果 5975枚・10693効果。AUTO 9548 (89.3%)／MANUAL 1120 (10.5%)／PARTIAL 25 (0.2%)／UNKNOWN 0。
+  どのフラグも立たないカード 4833/5975＝80.9%）。
+  ⚠**STUB を「未実装」と数えない**（数えると 80.9%→52.2% に化ける。無言 no-op は `census:stubs` A群🔴＝0）。
+  CPU の射程は続き553 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き597）。
+
 - **🆕 2026-08-22 続き596（段1 triage 完走・単発17バッチ）後 最新値（本行が直近の正）**：
   **census 773/773 据置**（`BASELINE_HIGH` 773）、**golden 2337 据置**、smoke **10693 / 全異常0 / SKIP 0**、
   fuzz 全0、lint **0 errors**（260 warnings 据置）、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、

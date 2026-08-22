@@ -3356,6 +3356,32 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   `owner:'any'/count:1` へ潰れていた＝「中央ゾーンのシグニだけがランサー」が「どちらかのシグニ1体」に化け、
       //   CONTINUOUS では効果元自身へ解決される（`WX05-034`／`WX10-036`／`WX11-031`／`WD15-002`／
       //   `WXDi-P06-009`／`WXK10-078-E2`＝live も同じ穴）。ゾーンの語彙が入ったので3方向まとめて配線する。
+      // 「（《アイコン》を持つ）あなたのすべての〈修飾〉シグニ(は|が)」＝**全体付与**（2026-08-22・§6.2 段2）。
+      // ⚠既存の `kwAllSelf` は「あなたのシグニすべて／あなたのシグニは」形しか見ないので、
+      //   **「すべての」と「シグニ」の間にクラス句・色句が挟まる**と全部の枝から外れて
+      //   既定の `{owner:'any', count:1}` へ潰れていた＝**全体付与が「どちらかのシグニ1体」に化ける**
+      //   （`WXEX1-26-E2`「あなたのすべての＜宇宙＞のシグニは【アサシン】と【ダブルクラッシュ】を得る」
+      //   ／`WX25-CP1-005-E1`／`SP23-009-E1`）。しかも `owner:'any'` なので**相手のシグニにも付く**。
+      // ⚠修飾語は**捕捉した span からだけ**読む（`kwSigniFilter` の全文スキャンを使うと
+      //   条件節のレベル等を対象へ引き込む＝続き377c の教訓）。
+      // ⚠**「あなたのすべての」の直前に置かれる限定句は `《X アイコン》を持つ` だけを読む**＝
+      //   `signiClauseIconFilter` は「〜を対象とし」を要求するのでこの語形では使えない（合成しても常に空）。
+      //   読めない限定句（`【チャーム】が付いている` 等）が前置されている文はこの枝から**降りる**
+      //   ＝限定を落として `count:'ALL'` にすると**原文より広い全体付与**になり、
+      //   従来の `count:1`（過小）より悪い方向へ倒れる。
+      const kwAllSelfSpecM = t.match(/(《(?:ライズ|クロス|アクセ)アイコン》を持つ)?あなたのすべての((?:(?:＜[^＞]+＞[とかや]?)+の|[白赤青緑黒]の|《ディソナアイコン》の)*)シグニ(?:は|が)/);
+      const kwAllSelfUnreadablePrefix = !!kwAllSelfSpecM
+        && /(?:が付いている|を持つ|状態の|ではない)$/.test(t.slice(0, t.indexOf(kwAllSelfSpecM[0])) + (kwAllSelfSpecM[1] ?? ''))
+        && !kwAllSelfSpecM[1];
+      const kwAllSelfIconM = kwAllSelfSpecM?.[1]?.match(/《(ライズ|クロス|アクセ)アイコン》/);
+      const kwAllSelfSpecFilter: TargetFilter | null = kwAllSelfSpecM && !kwAllSelfUnreadablePrefix
+        ? {
+            cardType: 'シグニ',
+            ...parseStoryFilter(kwAllSelfSpecM[2]), ...parseColorFilter(kwAllSelfSpecM[2]),
+            ...(kwAllSelfSpecM[2].includes('《ディソナアイコン》') ? { isDisona: true } : {}),
+            ...(kwAllSelfIconM ? { hasIcon: kwAllSelfIconM[1] as NonNullable<TargetFilter['hasIcon']> } : {}),
+          }
+        : null;
       const kwZoneM = t.match(/あなたの(中央|左|右)のシグニゾーンにある((?:《ディソナアイコン》の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の)*)シグニ/);
       const kwZoneFilter: TargetFilter | null = kwZoneM
         ? {
@@ -3377,6 +3403,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         : t.includes('センタールリグ') ? { type: 'LRIG', owner: 'self', count: 1 }
         : kwZoneFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwZoneFilter }
         : kwAllSelf ? { type: 'SIGNI', owner: 'self', count: 'ALL' }
+        : kwAllSelfSpecFilter ? { type: 'SIGNI', owner: 'self', count: 'ALL', filter: kwAllSelfSpecFilter }
         // ⚠**枚数付きの枝だけ filter を落としていた**（続き377c）＝下の `kwSelfSigni` 枝には
         //   `kwHasFilter` が付いているのに、先に当たる `kwCountSelfM`（「あなたのシグニ**N体**」）には無く、
         //   `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
@@ -3394,7 +3421,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const kwSpec = signiClauseTargetSpec(t);
       // 所有者は**既定の 'any' へ潰れたときだけ**上書きする（既存の枝が決めた所有者は動かさない）。
       const kwSpecOwnerOk = kwSpec && target.type === 'SIGNI' && target.owner === 'any'
-        && !kwAllSelf && !kwZoneFilter && !target.filter?.thisCardOnly;
+        && !kwAllSelf && !kwAllSelfSpecFilter && !kwZoneFilter && !target.filter?.thisCardOnly;
       // 体数・上限は「N体まで」が対象句に隣接しているときだけ。count:'ALL' の全体付与には触らない。
       // ⚠体数は**対象句の所有者と枝の所有者が一致するときだけ**上書きする＝食い違うのは
       //   「対象句と付与句が別の action に属している」誤parseの徴候で、そこで体数だけ広げると
@@ -3450,15 +3477,37 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           .map(m => m[1])
           .filter(k => !['常','出','起','自','ガード'].includes(k));
         if (runKw.length >= 2) {
-          return {
-            type: 'SEQUENCE',
-            steps: runKw.map(k => ({
-              type: 'GRANT_KEYWORD', target: kwTarget, keyword: k, duration: dur,
-              ...(nextTurnOwner ? { nextTurnOwner } : {}),
-              ...(thisAndNextTurn ? { appliesThisTurn: true } : {}),
-              ...(fieldCondition ? { fieldCondition } : {}),
-            })),
-          };
+          const kwSteps = runKw.map(k => ({
+            type: 'GRANT_KEYWORD', target: kwTarget, keyword: k, duration: dur,
+            ...(nextTurnOwner ? { nextTurnOwner } : {}),
+            ...(thisAndNextTurn ? { appliesThisTurn: true } : {}),
+            ...(fieldCondition ? { fieldCondition } : {}),
+          }));
+          // 🔴**「１体を対象とし、それは【A】と【B】を得る」は同一の1体が両方を得る**（2026-08-22・§6.2 段2）。
+          //   従来は N 本の GRANT_KEYWORD を素で並べていたので、対象が**選択**のときは
+          //   **1体目に【A】・2体目に【B】と別々のシグニへ付けられた**（＝原文の「それ」が分裂する）。
+          //   ⚠engine 側は既に道具が揃っている＝正準形
+          //   `SELECT_TARGET_ONLY → STORE_LAST_PROCESSED_TARGETS → 〈付与〉{targetsStored}`
+          //   （`rewriteAttackTaxKeywordGrant` と同じ組み立て。`execGrantKeyword` は `targetsStored` を
+          //   候補フィルタに使い、選択UIを出さず storedTargetCards の同一対象へ付ける）。
+          //   ⚠**選択が発生しない形はそのまま**＝`count:'ALL'`（場全体への叙述）と `thisCardOnly`
+          //   （効果元自身）は対象集合が一意なので、宣言ステップを挟むと**無駄な対話が増えるだけ**。
+          //   ⚠`SELECT_TARGET_ONLY` が扱えるのは SIGNI / LRIG / CENTER_LRIG_OR_SIGNI だけ
+          //   （取りこぼすと `lastProcessedCards: []` → STORE が空 → 本体が丸ごと no-op になる）。
+          const kwSelectable = typeof kwTarget.count === 'number'
+            && !kwTarget.filter?.thisCardOnly
+            && (kwTarget.type === 'SIGNI' || kwTarget.type === 'LRIG' || kwTarget.type === 'CENTER_LRIG_OR_SIGNI');
+          if (kwSelectable) {
+            return {
+              type: 'SEQUENCE',
+              steps: [
+                { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: kwTarget },
+                { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+                ...kwSteps.map(st => ({ ...st, targetsStored: true })),
+              ],
+            } as EffectAction;
+          }
+          return { type: 'SEQUENCE', steps: kwSteps } as EffectAction;
         }
       }
       return {
