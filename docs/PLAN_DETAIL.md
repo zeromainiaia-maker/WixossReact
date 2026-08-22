@@ -1,5 +1,34 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-23 整理（§4 恒久指標・続き615時点値の退避・続き621）
+
+- **🆕 2026-08-22 続き615（段2 第22バッチ＝§6.4 `O-43` 残0クローズ）後 最新値（本行が直近の正）**：
+  **census 702/702**（`BASELINE_HIGH` 更新済み・セッション開始時 730）、**golden 2442**（同 2366）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
+  `_held_fresh` **88 据置**／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  **`censusManualDrift` の削除候補（§6.4 `O-42` の母集団）＝86 据置**。
+  🔴**engine の改変（セッション累計）**＝`execBlockAction` に `GUARD_LV_DECLARED`／`GUARD_LV_LAST_DOWNED`（609）／
+  `execSequence` の `DECLARE_NUMBER` 横取りを `GRANT_KEYWORD` 直前のみへ限定＋`SET_DECLARED_NUMBER` の保存先を `declared_number` へ分離（609）／
+  `SearchAction.handOrField` と `execSearch` の引き渡し（613）／`GrantProtectionAction.sourceOwner:'any'` と消費地点6箇所＋`effectSourceOwner` 引数（614）／
+  `FIELD_LEVEL_SUM` を両 union・両評価器へ新設＋`LRIG_TEAM_COUNT` を `ActiveCondition` へ（615）。
+  🆕**条件型の数＝`ActiveCondition` 49／`Condition` 122**（golden のトリップワイヤが正）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 905**／段2 消化 **184**／真バグ確定 892／
+  HIGH・MED・LOW＝**606・291・8**／段0 除去 231／段1 偽陽性 125。
+  📊**母集団の切り方＝5原則＋α**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない
+  ⑥🆕**原文の括弧内ルール説明を能力として数えない**（続き610）。
+  🆕🔑**続き614 で確立＝「直す前に、消費地点が“省略値”をどう扱うかを読む」**＝`sourceOwner` を消すと
+  6箇所中3箇所が `!== 'opponent'` で continue して**27効果の耐性が丸ごと死ぬ**（過小→恒久 no-op の裏返り・計器に映らない）。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-42`／`O-44`**（🏁`O-41` は続き609、🏁`O-43` は続き615 で残0クローズ）。
+  **§6.3 の新規は `L`**（共通色比較・**6バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠`levelExact × BLOCK_ACTION{PLAYER}` の3件は恒久的な偽陽性）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`（宣言 UI が新規に30カードで出る）＋`V-84`（レベル限定つきガード禁止）＋`V-83`**。
+  ⚠**`.codex-work`（有料 Codex）は 2026-08-28 21:58 まで利用上限**＝当面は `CODEX_HOME=C:/Users/zerom/.codex` で投げる。
+
+
 ## 2026-08-22 整理（§4 恒久指標・続き594時点値の退避・続き596）
 
 - **🆕 2026-08-22 続き594（タスク8 台帳新設＋段2 第4・第5バッチ）後 最新値（本行が直近の正）**：
