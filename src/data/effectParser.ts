@@ -15988,6 +15988,11 @@ export function parseCardEffects(card: CardData): CardEffect[] {
       const layerAbilities: CardEffect[] = [];
       const layerBlocks: string[] = [];
       const allBlocks = splitEffectBlocks(stripKeywordPrefixes(stripRuleParens(effectText)));
+      // 印刷済み【チーム】宣言は、直後以外も含む各【チーム自／起／出】能力の有効条件。
+      // 能力本文やカード番号では分岐せず、宣言されたチーム名と能力ブロックのマーカーだけを結ぶ。
+      // 【チーム常】は ActiveCondition 側に LRIG_TEAM_COUNT が未実装なので、無条件成立への退化を
+      // 避けるためここでは意図的に対象外（Condition を消費する3種だけ）。
+      const printedTeam = card.EffectText.match(/^【チーム】＜([^＞]+)＞/)?.[1]?.replace(/･/g, '・');
       for (let i = 0; i < allBlocks.length; i++) {
         const block = allBlocks[i];
         if (layerM && block.startsWith('《レイヤーアイコン》')) {
@@ -16014,7 +16019,15 @@ export function parseCardEffects(card: CardData): CardEffect[] {
           }
         }
         const e = parseBlock(card.CardNum, block, i);
-        if (e) { logSourceText(e.effectId, block); effects.push(e); }
+        if (e) {
+          if (printedTeam && /^【チーム(?:自|起|出)】/.test(block)) {
+            const teamCondition: Condition = { type: 'LRIG_TEAM_COUNT', owner: 'self', team: printedTeam, operator: 'gte', value: 3 };
+            // 能力固有の「パワーN以上の場合」等も同じトップレベルゲート。上書きせず両方を要求する。
+            e.condition = e.condition ? { type: 'AND', conditions: [teamCondition, e.condition] } : teamCondition;
+          }
+          logSourceText(e.effectId, block);
+          effects.push(e);
+        }
       }
 
       if (layerM && layerAbilities.length > 0) {

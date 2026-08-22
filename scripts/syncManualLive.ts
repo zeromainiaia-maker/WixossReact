@@ -13,6 +13,8 @@
  * ## 使い方
  *   npx tsx scripts/syncManualLive.ts <CardNum> [<CardNum> ...]   # 同期する
  *   npx tsx scripts/syncManualLive.ts --dry <CardNum> ...          # 差分だけ表示（書き込まない）
+ *   npx tsx scripts/syncManualLive.ts --condition-only <CardNum>:<EffectId> ...
+ *     # fresh/manual 合成結果のトップレベル condition だけを既存 live effect へ同期する
  *
  * ## 規約
  * - **カード単位**で `mergeManualEffects(parseCardEffects(row))` の結果をそのまま live へ書く
@@ -33,7 +35,9 @@ const EFFECT_FILES = ['effects_WX.json', 'effects_WXDi.json', 'effects_WX24_26.j
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry');
-const ids = args.filter(a => !a.startsWith('--'));
+const conditionOnly = args.includes('--condition-only');
+const specs = args.filter(a => !a.startsWith('--'));
+const ids = conditionOnly ? [...new Set(specs.map(s => s.split(':', 1)[0]))] : specs;
 if (ids.length === 0) {
   console.error('使い方: npx tsx scripts/syncManualLive.ts [--dry] <CardNum> [<CardNum> ...]');
   process.exit(1);
@@ -64,7 +68,16 @@ for (const id of ids) {
     if (!j[id]) continue;
     found = true;
     const appearance = j[id][0]?.appearanceCondition;
-    const next = fresh.map((e, i) => (i === 0 && appearance ? { ...e, appearanceCondition: appearance } : e));
+    let next = fresh.map((e, i) => (i === 0 && appearance ? { ...e, appearanceCondition: appearance } : e));
+    if (conditionOnly) {
+      next = j[id].map(existing => {
+        const spec = specs.find(s => s.startsWith(`${id}:`));
+        if (!spec || existing.effectId !== spec.slice(id.length + 1)) return existing;
+        const generated = fresh.find(e => e.effectId === existing.effectId);
+        if (!generated?.condition) throw new Error(`${spec}: fresh/manual 合成結果に condition が無い`);
+        return { ...existing, condition: generated.condition };
+      });
+    }
     if (JSON.stringify(j[id]) === JSON.stringify(next)) { console.log(`  = ${id}: 差分なし（${f}）`); break; }
     console.log(`  ~ ${id}（${f}）`);
     console.log(`      OLD ${JSON.stringify(j[id]).slice(0, 240)}`);

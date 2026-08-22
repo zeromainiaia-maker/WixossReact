@@ -140,15 +140,18 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-22・続き609・Opus 5）＝§6.4 `O-41` 残0クローズ**＝「〈レベル限定〉のシグニで【ガード】ができない」の限定が丸ごと落ち、**素の `GUARD`（＝ガードそのものができない）に化けていた6効果**を決着。**golden 2366→2375**。census 730/730・smoke 10693 全異常0／SKIP 0・fuzz 全0・同型★ 0・lint 0 errors（261 warnings）はすべて据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き609）、詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-22 整理51」。
+- **🆕 セッション（2026-08-22・続き610・Opus 5＋Codex）＝段2 第17バッチ＝印刷済み【チーム自／起／出】の成立ゲート欠落 31能力**（Codex 実装／Claude 検証）。**残 OPEN 947→941**／段2 消化 **141→147**。**census 730→713**（`BASELINE_HIGH` 更新済み）／**golden 2375→2380**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、held/partial/idset **88/15/46** はいずれも据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き610）、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch17_report.md`。
 
-  - 🔑**母集団は登録行の「10効果」ではなく 6効果**（着手前に CSV と live の両方で数え直した＝CODEX_GUIDE §5 原則③⑤）。`WX01-004-E3`／`WX18-040-E1` は原文が「レベルN**以下**」で `GUARD_MAX_LV<n>` が**従来から実装済み**、`WD21-009-E1` は `MANUAL` で `STUB{DECLARE_TWO_GUARD_LEVELS}` を使い **`BLOCK_ACTION` を持たない**（登録時に JSON 先頭だけを見た誤認）、`WDK05-T09-E1`/`-E1-G` は**同一カードを2行に数えていた**。
-  - 🔑**設計判断＝型フィールドではなく actionId の文字列に限定を載せる**。常在（【常】）側は `calcContinuousBlockedActions` が `forSelf`＝**`Set<string>`** で actionId だけを運ぶので、`BlockActionAction` に型を足しても `WX18-039`（【常】・レベル２と３）には**届かない**。⇒ `GUARD_LV<n>`（ちょうど）／`GUARD_LV<n>_<m>`（列挙）／`GUARD_LV_DECLARED`（宣言値・実行時解決）／`GUARD_LV_LAST_DOWNED`（直前ダウン札・実行時解決）の4語彙。消費地点は**純関数 `makeGuardLevelBlocker`**（`src/screens/battle/guard.ts`）へ切り出して golden から両方向テスト（§5-20 の定石）。
-  - 🔴**派生で無言 no-op を1件発見・修正**＝`execSequence` は `STUB{DECLARE_NUMBER}` を横取りし、**次が `GRANT_KEYWORD` でなければ `continue` で宣言そのものを捨てていた**。`DECLARE_NUMBER` を持つ live 30カードのほとんどが `SEQUENCE` の中で、宣言値を読む後段（`levelEqDeclaredNumber` / `DECK_TOP_CHECK_LEVEL_*` / `useDeclaredCount`）が**軒並み空振り**していた。⚠**裸の `DECLARE_NUMBER` だけは CHOOSE に届く**ので既存 golden も片側しか踏んでおらず計器に映らなかった＝**「同じ型でも置かれ方で経路が変わる」型の穴**。
-  - ✅**巻き添えの解消**＝宣言値を `declared_number`／ガード制限を `declared_guard_restrict_level(s)` に**役割分離**（旧実装は宣言しただけでガード制限が立ち、原文に該当文があるのは30カード中2枚だけだった）。
-  - ⚠**`census:wiring` の `levelExact × BLOCK_ACTION{PLAYER}`（miss=3 / has=0）は恒久的な偽陽性**＝`target.filter.level` を足して黙らせないこと（`target` は `PLAYER` で、レベルが属するのは**ガードする側のカード**）。§6.4「監視だけしている項目」に登録済み。
-  - **▶ 次の一手【Opus 側】＝段2 第17バッチ**。候補（PLAN 内に登録済み・**着手前に必ず再実測**）：①**チームルリグ3体条件7件**（MANUAL・`HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}`・続き608 の「代わりに」機構がそのまま使える） ②**§6.3 `L`**＝「このシグニと共通する色を持たない他の＜X＞」（**4バッチ連続で保留**・残3効果・`noCommonColorWithSelf` を**両 union へ**） ③`census:wiring` の `levelExact`／`powerRange` セル（⚠**用法 triage が要る**＝今回の O-41 のように「別の形で解決済み」の偽陽性が混ざる）。§6.4 の残りは `O-42`／`O-43`／`O-44`。
-  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで🆕**`V-85`**（続き609 で**宣言 UI が新しく30カードで出る**＝入力待ちが新規発生。CPU・自動解決経路で止まらないか）、🆕**`V-84`**（レベル限定がガード応答UIで効くか）、`V-83`。
+  - 🔑**バグの正体**＝【チーム】は「センター＋左右アシスト3体が同じチームなら【チーム○】能力が有効」というゲート。**live はその条件を1つも持っておらず、チーム未成立でも常に有効**だった（`WXDi-P16-093-E1` の1件だけが例外的に正しかった）。⚠**逆翻訳では気付けない**＝能力本体の文は正しく出るので、欠けているのは「有効になる前提」だけ。census の `機構:チーム` 高シグナルが **25→4** に落ちたのが実測値。
+  - 🔑**受け皿は完成済み＝parser だけの作業**。`Condition.LRIG_TEAM_COUNT` は型も評価器（`execUtils.ts:1856`＝CSV の `Team` 列を照合）も実装済みで、`【自】`＝`triggerCollect` の各 collector／`【起】`＝`signiActivateGate:148`・`lrigActivateGate:102`／`【出】`＝`collectPlacedSelfOnPlayTriggers` が `eff.condition` を評価する。
+  - 🔑**本体は「どの能力ブロックに付けるか」の弁別**＝同じカードに素の【出】【起】【自】が並ぶ（`WXDi-P00-040` は【チーム自】と素の【自】が同居）。**カード単位で付けると今度は過小実行**になる。parser 規則は「カード先頭の `【チーム】＜X＞` 宣言」×「ブロック先頭の `【チーム自|起|出】`」の2点だけで決め、カード固有の本文を regex に埋めていない。
+  - ⚠**投入前の実測で候補行を2点訂正した**（CODEX_GUIDE §3-1）＝①候補①「チームルリグ3体条件7件」（`WXDi-D01-021` 他）は**7件とも既に正しかった**（第16バッチの `CONDITIONAL{LRIG_TEAM_COUNT, then/else}` 正準形）。②候補行の実装案 `HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}` は**誤り**＝`TargetFilter` に `team` が無く「チーム名を問わずルリグ3体」に化ける。
+  - ⚠**Codex が母集団を訂正**＝指示書の「33能力」は `WXDi-P16-088`／`P16-092` の**括弧内ルール説明**（「…がいるなら【チーム自】が有効になる」）を能力として重複計上したもので、実体は **31能力/31カード**。
+  - 🔴**Claude 検証で1件差し戻し**＝`WXDi-P02-030` の `manualEffects.ts` エントリが **parser 出力と実体同一**＝§6.4 `O-40`／`O-42` の**影武者コピーを新規に作っていた**（`censusManualDrift` の削除候補 86→87）。削除して parser に任せ 86 へ戻した。⚠**「PRESERVE 対象だから manual へ写す」を機械的にやらない**＝写す前に削除候補を見る（`WXDi-P16-048` は parser が出せない本体を持つので manual が正しい、という対照がある）。
+  - **【チーム常】6能力は据置**＝`ActiveCondition` union に `LRIG_TEAM_COUNT` が無く、型だけ足すと `checkActiveCondition` の**未知型＝無条件成立**へ落ちる（§6.4 `O-43` と同じ「片側の union だけ育っている」根）。**非採用そのものを golden で契約固定済み**。
+  - 🆕**新規発見・未修正3件**＝`WXDi-P00-037-E1`（原文は相手手札3枚まで見て1枚をデッキ下／live は相手シグニ1体をデッキ下）、`WXDi-P16-087-E1`・`WXDi-P16-089-E1`（どちらも**第16バッチと同型の「代わりに」置換が両方実行**）。
+  - **▶ 次の一手【Opus 側】＝段2 第18バッチ**。候補（**着手前に必ず再実測**）：①🆕**上の新規発見3件＋第16バッチ同型の残り**（「代わりに」置換＝機構は続き608 で完成済み・parser だけ） ②**§6.4 `O-43`(a)〜(c) と【チーム常】6件をまとめて `ActiveCondition` 側の語彙不足として1本で消化**（`LRIG_TEAM_COUNT`／`FIELD_LEVEL_SUM`／`LRIG_NAME_CONTAINS`／`HAS_KEY_IN_FIELD` の枚数＝**型・評価器・golden ミラーの3点セット**。⚠評価器に case が無いと**無条件成立**に落ちる） ③**§6.3 `L`**＝共通色比較（**5バッチ連続で保留**・残3効果）。§6.4 の残りは `O-42`／`O-43`／`O-44`。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`**（続き609 で宣言 UI が新しく30カードで出る＝入力待ちが新規発生）、**`V-84`**（レベル限定つきガード禁止）、`V-83`。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
@@ -157,27 +160,25 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-22 続き609（§6.4 `O-41` 残0クローズ）後 最新値（本行が直近の正）**：
-  **census 730/730 据置**、**golden 2375**（セッション開始時 2366＝O-41 で8本追加＋既存契約テスト1本を新契約へ書き換え）、
-  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+- **🆕 2026-08-22 続き610（段2 第17バッチ＝【チーム自／起／出】成立ゲート）後 最新値（本行が直近の正）**：
+  **census 713/713**（`BASELINE_HIGH` 更新済み・セッション開始時 730。`機構:チーム` 高シグナルが **25→4**）、
+  **golden 2380**（同 2375）、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
   `_held_fresh` **88 据置**／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
-  🔴**engine/UI の改変（続き609）**＝`execBlockAction` に `GUARD_LV_DECLARED`／`GUARD_LV_LAST_DOWNED` の
-  実行時解決を新設（書き込み先は**効果元**の `declared_guard_restrict_levels`）／
-  `execSequence` の `DECLARE_NUMBER` 横取りを**「次が `GRANT_KEYWORD` のときだけ」に限定**（無言 no-op の修正）／
-  `SET_DECLARED_NUMBER` の保存先を `declared_guard_restrict_level`→**`declared_number`** へ分離（読み手5箇所に後方互換フォールバック）／
-  `src/screens/battle/guard.ts` に**純関数 `makeGuardLevelBlocker`** を新設し `GuardResponseDialog` をその呼び出しへ縮小。
-  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 947 据置**／段2 消化 **141 据置**／真バグ確定 934／
-  HIGH・MED・LOW＝**627・312・8**／段0 除去 232／段1 偽陽性 125（**続き609 は §6.4 の作業なので段2 の数字は動かない**）。
+  🆕**`censusManualDrift` の削除候補（§6.4 `O-42` の母集団）＝86**（Codex が 87 に増やしたのを検証で差し戻した）。
+  🔵**engine 改変なし**（続き610 は parser＋`manualEffects`＋`syncManualLive --condition-only` のみ）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 941**／段2 消化 **147**／真バグ確定 928／
+  HIGH・MED・LOW＝**625・308・8**／段0 除去 231／段1 偽陽性 125。
   📊**母集団の切り方＝5原則**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
   ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない。
-  🆕**続き609 は ③⑤ をそのまま踏んだ**＝O-41 の登録行「live 10効果」が実測 **6効果**（既に正しい2件＋別機構で解決済み1件＋二重計上1件）。
+  🆕**続き610 で6つ目が要ることが判明＝⑥「原文の括弧内ルール説明」を能力として数えない**
+  （指示書の33能力は実測31＝`WXDi-P16-088`／`P16-092` の「…がいるなら【チーム自】が有効になる」を重複計上していた。Codex が訂正）。
   ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
-  **§6.4 の生きた worklist は `O-42`／`O-43`／`O-44`**（🏁**`O-41` は続き609 で残0クローズ**）。**§6.3 の新規は `L`**（共通色比較・**4バッチ連続で保留中**）。
+  **§6.4 の生きた worklist は `O-42`／`O-43`／`O-44`**（🏁`O-41` は続き609 で残0クローズ）。**§6.3 の新規は `L`**（共通色比較・**5バッチ連続で保留中**）。
   **Opusタスク12＝在庫1件**（(cxlvi)）。
-  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る＝🆕`levelExact × BLOCK_ACTION{PLAYER}` の3件は**恒久的な偽陽性**と判明済み）／**`census:timing` フォールバック 2効果**。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る＝`levelExact × BLOCK_ACTION{PLAYER}` の3件は恒久的な偽陽性）／**`census:timing` フォールバック 2効果**。
   version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
-  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋🆕`V-85`（宣言 UI が新しく30カードで出る＝入力待ちが新規発生）＋🆕`V-84`（レベル限定つきガード禁止）＋`V-83`**。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`（宣言 UI が新規に30カードで出る）＋`V-84`（レベル限定つきガード禁止）＋`V-83`**。
 
 ## 5. フェーズ1残作業：表現（P1）
 
@@ -574,6 +575,7 @@
   - 🆕🏁**段2 第2バッチ＝`filter.hasCharm` の配線漏れ（採用13／据置3）＝2026-08-22 完了**。報告＝`stage2_batch2_report.md`（末尾に Claude 検証節）。
   - 🆕🏁**段2 第3バッチ＝盤面状態フィルタの残り配線漏れ（採用10効果＋二重ゲート解消4効果）＝2026-08-22 続き593 完了**。報告＝`stage2_batch3_report.md`。
   - 🆕🏁**段2 第4バッチ＝「デッキ公開→その中から〈修飾〉をエナゾーンへ」の pick 脱落（12効果）＝2026-08-22 続き594 完了**。🔴副産物＝**エナ行きの正準形を `ADD_TO_ENERGY` へ統一**（旧 `ENERGY_CHARGE{DECK_CARD}` は engine では場のシグニが候補＝別物）。⚠**「公開する」綴りへの規則拡張は実測して撤回**＝既に別経路が作っている表現を乗り換えるだけだった。
+  - 🆕🏁**段2 第17バッチ＝印刷済み【チーム自／起／出】の成立ゲートが丸ごと落ちて「チーム未成立でも常に有効」になっていた（live 31能力）＝2026-08-22 続き610 完了**（Codex 実装／Claude 検証）。報告＝`stage2_batch17_report.md`。🔑**受け皿は完成済みで parser だけの作業**＝`Condition.LRIG_TEAM_COUNT` は型・評価器（`execUtils.ts:1856`）とも実装済みで、`【自】`＝`triggerCollect` の各 collector／`【起】`＝`signiActivateGate:148`・`lrigActivateGate:102`／`【出】`＝`collectPlacedSelfOnPlayTriggers` が `eff.condition` を評価する。🔑**本体は「どの能力ブロックに付けるか」の弁別**＝同じカードに素の【出】【起】【自】が並ぶので、カード単位で付けると今度は過小実行になる（`WXDi-P00-040` は【チーム自】と素の【自】が同居）。⚠**PLAN の候補行が挙げていた `HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}` は誤り**＝`TargetFilter` に `team` が無く「チーム名を問わずルリグ3体」に化ける。⚠**同じ候補行の「チームルリグ3体条件7件」（`WXDi-D01-021` 他）は実測で7件とも既に正しかった**（`CONDITIONAL{LRIG_TEAM_COUNT, then/else}`＝第16バッチの正準形）。⚠**Codex が母集団を訂正**＝指示書の「33能力」は `WXDi-P16-088`／`P16-092` の**括弧内ルール説明**の【チーム自】を能力として重複計上したもので、実体は **31能力**。🔴**Claude 検証で1件差し戻し**＝`WXDi-P02-030` の `manualEffects.ts` エントリは parser 出力と実体同一＝**§6.4 `O-40`／`O-42` の影武者コピーを新規に作っていた**（`censusManualDrift` の削除候補が 86→87）。削除して parser に任せ 86 へ戻した（live の condition は `--condition-only` 同期済みなので変わらない）。**【チーム常】6能力は据置**＝`ActiveCondition` union に `LRIG_TEAM_COUNT` が無く、型だけ足すと `checkActiveCondition` の**未知型＝無条件成立**に落ちる（§6.4 `O-43` と同じ根）。非採用そのものを golden で契約固定済み。🆕**新規発見・未修正3件**＝`WXDi-P00-037-E1`（原文は相手手札3枚まで見て1枚をデッキ下／live は相手シグニ1体をデッキ下）／`WXDi-P16-087-E1`・`WXDi-P16-089-E1`（どちらも**第16バッチと同型の「代わりに」置換が両方実行**）。⇒ **次の段2 バッチの種**。
   - 🆕🏁**段2 第16バッチ＝「〜の場合、代わりに」の置換が効かず基本形と強化形が両方実行されていた（live 7効果）＝2026-08-22 続き608 完了**。報告＝`stage2_batch16_report.md`（末尾に Claude 検証節）。🔑**肝は「触ってはいけない8効果」の識別**＝「代わりに」には **(a) `CONDITIONAL{then,else}` の正準形**と **(b) 差分加算**（合計すると原文どおり）の2通りがあり**どちらも正しい**。**一見バグに見えて正しい群を投入前に検算して指示書へ明示**した（§5-17 の逆）。⚠`DRAW`／`ENERGY_CHARGE_FROM_DECK` は差分で表せない＝(a) 一択。⚠**`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` は名前どおりではない**（追加コスト条件も識別する）。
   - 🆕🏁**段2 第15バッチ＝「あなたの＜X＞のシグニの効果によって」の原因クラス限定（live 8効果・配線6箇所）＝2026-08-22 続き607 完了**。報告＝`stage2_batch15_report.md`（末尾に Claude 検証節）。🔑**この機構は timing ごとに別フィールドで既に4本あった**（`trashSourceStory`／`banishedSourceStory`／`powerDecreaseSourceStory`／`milledSourceStory`）＝**「機構が無い」と決めつける前に timing 別の類似フィールドを全部探す**。落ち方は3種類（機構ごと新設／collector 漏れ／live 漏れ＋fail-open）。⚠**原因限定の規約が2種類混在**＝`powerDecreaseSourceStory` だけ fail-open。⚠**`milledSourceStory` の fail-closed 化はスコープ外の `WX24-P3-030-E1` の挙動を変える**（原文には忠実・§7 で実機確認）。
   - 🆕🏁**段2 第14バッチ＝「場に＜クラス＞のシグニがある場合」の条件節脱落＋クラス修飾の対象誤付着（live 10効果）＝2026-08-22 続き606 完了**。報告＝`stage2_batch14_report.md`（末尾に Claude 検証節）。🔑**1つの根から過剰実行と過小実行の両方が出る**＝条件が消えるだけでなく、条件節の中のクラス修飾が**直前の対象へ誤付着**する（`WX09-025-E1`／`WX21-051-E1`／`WXDi-CP02-085-E2`）。**両方直して初めて原文と一致する。** 受け皿（`HAS_CARD_IN_FIELD`）は両 union・両評価器に完備＝parser だけの作業。⚠**「共通する色を持たない」は効果元との比較**で `NO_COMMON_COLOR_AMONG_FIELD_SIGNI`（場全体の相互比較）とは別物＝3件は据置が正しい。

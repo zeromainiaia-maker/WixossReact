@@ -25991,8 +25991,8 @@ test('task12(xxix) NEGATE_THAT_ATTACK はアタッカー側 state へ登録す�
     eq(eligible.length, 1454, '段階2 mandatory集合');
     // 1404→1403＝WX25-P1-061-E1、1403→1401＝段2-14 の mandatory AUTO 2効果へ
     // 脱落していたトップレベル condition を復元（ほかは optional／選択肢条件／activeCondition）。
-    eq(eligible.length - conditional.length, 1401, '段階2 condition/activeConditionなし（action内CONDITIONAL 7件は別）');
-    eq(conditional.length, 53, '段階2 condition/activeConditionあり（段2-14の場クラス条件を含む）');
+    eq(eligible.length - conditional.length, 1396, '段階2 condition/activeConditionなし（第17バッチのmandatoryチームゲート5件を除く）');
+    eq(conditional.length, 58, '段階2 condition/activeConditionあり（第17バッチのmandatoryチームゲート5件を含む）');
     eq(optionalCost.length, 965, '任意costあり（第15波の可変枚数2効果を含む）');
     // 16→17＝続き424 で `WX12-010-E3`（「対戦相手のすべてのシグニを好きなように配置し直してもよい」）が
     //   live へ復活した分。**先例 `WX04-041-E2` が同一文型・同一形（mandatory:false＋REARRANGE optional）**。
@@ -41479,6 +41479,83 @@ test('§6.4 O-41 派生: SEQUENCE 内の DECLARE_NUMBER が黙って飛ばされ
   const shadowCtx = mkCtx({ signi: [SIGNI, null, null] }, {}, SIGNI);
   const r0 = run(shadowSeq, shadowCtx);
   ok(JSON.stringify(r0.logs).includes('シャドウが適用されるパワー'), 'シャドウ経路は横取りのまま');
+}));
+
+// ── §6.2 段2 第17バッチ：印刷済み【チーム自／起／出】の成立ゲート ──
+test('段2 第17バッチ: 【チーム自／起／出】31能力だけに LRIG_TEAM_COUNT が載る', () => {
+  const expected = [
+    'WXDi-D01-004-E1','WXDi-D02-04L-E1','WXDi-D02-13A-E1','WXDi-D02-16T-E1',
+    'WXDi-D04-004-E1','WXDi-D05-004-E1','WXDi-D07-017-E1','WXDi-P00-009-E1',
+    'WXDi-P00-015-E1','WXDi-P00-033-E1','WXDi-P00-036-E1','WXDi-P00-037-E1',
+    'WXDi-P00-040-E1','WXDi-P01-037-E1','WXDi-P01-038-E1','WXDi-P01-044-E1',
+    'WXDi-P02-016-E1','WXDi-P02-023-E1','WXDi-P02-030-E1','WXDi-P03-009-E1',
+    'WXDi-P03-016-E1','WXDi-P03-023-E1','WXDi-P03-030-E1','WXDi-P05-039-E1',
+    'WXDi-P16-048-E1','WXDi-P16-086-E1','WXDi-P16-087-E1','WXDi-P16-088-E1',
+    'WXDi-P16-089-E1','WXDi-P16-091-E1','WXDi-P16-092-E1',
+  ].sort();
+  const hasTeamGate = (c: Condition | undefined): boolean => !!c && (c.type === 'LRIG_TEAM_COUNT'
+    || ((c.type === 'AND' || c.type === 'OR') && c.conditions.some(hasTeamGate)));
+  const actual = [...effectsMap.values()].flat()
+    .filter(e => hasTeamGate(e.condition) && /^WXDi-/.test(e.effectId)
+      && cardMap.get(e.effectId.replace(/-E\d.*$/, ''))?.EffectText?.startsWith('【チーム】'))
+    .map(e => e.effectId).sort();
+  eq(actual.join(','), [...expected, 'WXDi-P16-093-E1'].sort().join(','),
+    '印刷済みチーム能力の condition 母集団（既存正準例1本を含み、説明括弧内の語は能力に数えない）');
+  for (const id of expected) {
+    const cardNum = id.replace(/-E\d.*$/, '');
+    const eff = effectsMap.get(cardNum)!.find(e => e.effectId === id)!;
+    const team = cardMap.get(cardNum)!.EffectText.match(/^【チーム】＜([^＞]+)＞/)![1].replace(/･/g, '・');
+    const teamGate = eff.condition?.type === 'AND'
+      ? eff.condition.conditions.find(c => c.type === 'LRIG_TEAM_COUNT')
+      : eff.condition;
+    eq(JSON.stringify(teamGate), JSON.stringify({ type: 'LRIG_TEAM_COUNT', owner: 'self', team, operator: 'gte', value: 3 }), `${id}: 宣言チーム3体`);
+  }
+});
+
+test('段2 第17バッチ契約: LRIG_TEAM_COUNT は ActiveCondition 未実装なので【チーム常】6能力へ載せない', () => {
+  ok(!('LRIG_TEAM_COUNT' in (ACTIVE_CONDITION_TYPES as Record<string, true>)), 'ActiveCondition の許可表に未搭載');
+  for (const cardNum of ['WXDi-D03-004','WXDi-D06-004','WXDi-P00-041','WXDi-P01-035','WXDi-P02-009','WXDi-P16-090']) {
+    const continuous = effectsMap.get(cardNum)!.filter(e => e.effectType === 'CONTINUOUS');
+    ok(continuous.length > 0, `${cardNum}: 【チーム常】候補が存在`);
+    ok(continuous.every(e => (e.activeCondition as { type?: string } | undefined)?.type !== 'LRIG_TEAM_COUNT'),
+      `${cardNum}: 未実装型を activeCondition に書かない`);
+  }
+});
+
+test('段2 第17バッチ E2E: 【チーム自】は同チーム3体でだけ収集される', () => withSavedCursor(() => {
+  const team = 'うちゅうのはじまり';
+  const members = [...cardMap.values()].filter(c => c.Type.includes('ルリグ') && (c.Team ?? '').includes(team)).slice(0, 3).map(c => c.CardNum);
+  eq(members.length, 3, 'テスト用チームルリグ3体');
+  const collect = (count: 2 | 3) => cttEntries(
+    { ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' }, 'ON_ATTACK_PHASE_START',
+    mkState({ signi: ['WXDi-P01-038', null, null], lrig: [members[0]], assistL: [members[1]], assistR: count === 3 ? [members[2]] : [] }),
+    mkState({}),
+  );
+  ok(hasEffect(collect(3), 'WXDi-P01-038-E1'), '成立: 3体なら【チーム自】を収集');
+  ok(!hasEffect(collect(2), 'WXDi-P01-038-E1'), '不成立: 2体なら収集しない');
+}));
+
+test('段2 第17バッチ E2E: 【チーム出】は同チーム3体でだけ収集される', () => withSavedCursor(() => {
+  const team = 'NoLimit';
+  const members = [...cardMap.values()].filter(c => c.Type.includes('ルリグ') && (c.Team ?? '').includes(team)).slice(0, 3).map(c => c.CardNum);
+  const collect = (count: 2 | 3) => collectPlacedSelfOnPlayTriggers(
+    { ...trigCtx(HOST, HOST), turnPhase: 'MAIN' }, 'WXDi-P16-087',
+    mkState({ signi: ['WXDi-P16-087', null, null], lrig: [members[0]], assistL: [members[1]], assistR: count === 3 ? [members[2]] : [] }),
+    mkState({}), HOST, { placedByEffect: false, sourceIsSigni: false },
+  ).entries;
+  ok(hasEffect(collect(3), 'WXDi-P16-087-E1'), '成立: 3体なら【チーム出】を収集');
+  ok(!hasEffect(collect(2), 'WXDi-P16-087-E1'), '不成立: 2体なら収集しない');
+}));
+
+test('段2 第17バッチ E2E: 【チーム起】は同チーム3体でだけ候補になる', () => withSavedCursor(() => {
+  const source = 'WXDi-D02-04L';
+  const members = [...cardMap.values()].filter(c => c.Type.includes('ルリグ') && (c.Team ?? '').includes('さんばか') && c.CardNum !== source).slice(0, 2).map(c => c.CardNum);
+  const ids = (count: 2 | 3) => {
+    const my = mkState({ lrig: [source], assistL: [members[0]], assistR: count === 3 ? [members[1]] : [], signi: [SIGNI, null, null] });
+    return listActivatableLrigEffects({ my, op: mkState({}), phase: 'MAIN', effectsMap, cardMap: cardMap as Map<string, CardData>, blockedSelf: new Set<string>() }).map(e => e.effectId);
+  };
+  ok(ids(3).includes('WXDi-D02-04L-E1'), '成立: 3体なら【チーム起】を提示');
+  ok(!ids(2).includes('WXDi-D02-04L-E1'), '不成立: 2体なら提示しない');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

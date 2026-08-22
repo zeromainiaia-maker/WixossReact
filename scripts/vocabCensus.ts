@@ -93,7 +93,8 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 730; // 2026-08-22 段2 第16バッチ＝「条件の場合、代わりに強化形」の置換を7効果で復元し、欠落していた条件3件が census から解消（733→730）。旧履歴は直下。
+const BASELINE_HIGH = 713; // 2026-08-22 段2 第17バッチ＝印刷済み【チーム自／起／出】31能力へチーム3体ゲートを復元し、条件欠落17件が census から解消（730→713）。旧履歴は直下。
+// 旧・段2 第16バッチ: const BASELINE_HIGH = 730; // 「条件の場合、代わりに強化形」の置換を7効果で復元し、欠落していた条件3件が census から解消（733→730）。
 // 旧・続き601後: const BASELINE_HIGH = 742; // 段2 第9バッチ（誘発限定5＋本体条件5）
 // 旧・続き601(codex): const BASELINE_HIGH = 742; // 誘発限定5＋本体条件9で −5
 // 旧・段2 第8バッチ: const BASELINE_HIGH = 747; // 「場のカード」条件節の脱落26効果で −14。held の同族7効果追加採用を含む。

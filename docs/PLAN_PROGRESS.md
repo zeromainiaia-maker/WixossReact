@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き609・Opus 5）＝§6.4 `O-41` 残0クローズ**＝「〈レベル限定〉のシグニで【ガード】ができない」の限定が丸ごと落ち、**素の `GUARD`（＝ガードそのものができない）に化けていた6効果**を決着。**golden 2366→2375**。census 730/730・smoke 10693 全異常0／SKIP 0・fuzz 全0・同型★ 0・lint 0 errors（261 warnings）はすべて据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き609）、詳細は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-22 整理51」。
+
+  - 🔑**母集団は登録行の「10効果」ではなく 6効果**（着手前に CSV と live の両方で数え直した＝CODEX_GUIDE §5 原則③⑤）。`WX01-004-E3`／`WX18-040-E1` は原文が「レベルN**以下**」で `GUARD_MAX_LV<n>` が**従来から実装済み**、`WD21-009-E1` は `MANUAL` で `STUB{DECLARE_TWO_GUARD_LEVELS}` を使い **`BLOCK_ACTION` を持たない**（登録時に JSON 先頭だけを見た誤認）、`WDK05-T09-E1`/`-E1-G` は**同一カードを2行に数えていた**。
+  - 🔑**設計判断＝型フィールドではなく actionId の文字列に限定を載せる**。常在（【常】）側は `calcContinuousBlockedActions` が `forSelf`＝**`Set<string>`** で actionId だけを運ぶので、`BlockActionAction` に型を足しても `WX18-039`（【常】・レベル２と３）には**届かない**。⇒ `GUARD_LV<n>`（ちょうど）／`GUARD_LV<n>_<m>`（列挙）／`GUARD_LV_DECLARED`（宣言値・実行時解決）／`GUARD_LV_LAST_DOWNED`（直前ダウン札・実行時解決）の4語彙。消費地点は**純関数 `makeGuardLevelBlocker`**（`src/screens/battle/guard.ts`）へ切り出して golden から両方向テスト（§5-20 の定石）。
+  - 🔴**派生で無言 no-op を1件発見・修正**＝`execSequence` は `STUB{DECLARE_NUMBER}` を横取りし、**次が `GRANT_KEYWORD` でなければ `continue` で宣言そのものを捨てていた**。`DECLARE_NUMBER` を持つ live 30カードのほとんどが `SEQUENCE` の中で、宣言値を読む後段（`levelEqDeclaredNumber` / `DECK_TOP_CHECK_LEVEL_*` / `useDeclaredCount`）が**軒並み空振り**していた。⚠**裸の `DECLARE_NUMBER` だけは CHOOSE に届く**ので既存 golden も片側しか踏んでおらず計器に映らなかった＝**「同じ型でも置かれ方で経路が変わる」型の穴**。
+  - ✅**巻き添えの解消**＝宣言値を `declared_number`／ガード制限を `declared_guard_restrict_level(s)` に**役割分離**（旧実装は宣言しただけでガード制限が立ち、原文に該当文があるのは30カード中2枚だけだった）。
+  - ⚠**`census:wiring` の `levelExact × BLOCK_ACTION{PLAYER}`（miss=3 / has=0）は恒久的な偽陽性**＝`target.filter.level` を足して黙らせないこと（`target` は `PLAYER` で、レベルが属するのは**ガードする側のカード**）。§6.4「監視だけしている項目」に登録済み。
+  - **▶ 次の一手【Opus 側】＝段2 第17バッチ**。候補（PLAN 内に登録済み・**着手前に必ず再実測**）：①**チームルリグ3体条件7件**（MANUAL・`HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}`・続き608 の「代わりに」機構がそのまま使える） ②**§6.3 `L`**＝「このシグニと共通する色を持たない他の＜X＞」（**4バッチ連続で保留**・残3効果・`noCommonColorWithSelf` を**両 union へ**） ③`census:wiring` の `levelExact`／`powerRange` セル（⚠**用法 triage が要る**＝今回の O-41 のように「別の形で解決済み」の偽陽性が混ざる）。§6.4 の残りは `O-42`／`O-43`／`O-44`。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで🆕**`V-85`**（続き609 で**宣言 UI が新しく30カードで出る**＝入力待ちが新規発生。CPU・自動解決経路で止まらないか）、🆕**`V-84`**（レベル限定がガード応答UIで効くか）、`V-83`。
+
 - **🆕 セッション（2026-08-22・続き603〜608・Opus 5＋Codex）＝段2 を6バッチ連投**（第11〜16バッチ）。**残 OPEN 984→947**（**−37**）／段2 消化 **92→141**。**census 742→730**／**golden 2350→2366**／**held 92→88**。smoke 10693 全異常0・fuzz 全0・同型★ 0・lint 0 errors（261 warnings）は全バッチで維持。各バッチの一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き603〜608）、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch11〜16_report.md`（いずれも末尾に Claude 検証節）。
 
   | # | 題材 | live 修正 | 一言 |

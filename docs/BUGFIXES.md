@@ -1,5 +1,21 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き610・段2 第17バッチ）：【チーム自／起／出】の成立条件欠落31能力（Codex 実装／Claude 検証）
+
+カード先頭の `【チーム】＜X＞` 宣言と能力ブロック先頭の `【チーム自／起／出】` を一般規則で結び、トップレベル `condition: LRIG_TEAM_COUNT{owner:'self',team:X,operator:'gte',value:3}` を31能力へ復元。指定33能力との差2件は `WXDi-P16-088/092` の括弧内ルール説明を能力として重複計上したもの。能力固有条件2件はANDで保持し、curated差分4件はcondition-only同期で巻き込みを回避した。【チーム常】6件はActiveCondition未実装のため据置。
+
+golden **2375→2380**、census **730→713**、smoke 10693全異常0／SKIP0、fuzz全0、stubs A/C 0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **88/15/46**。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch17_report.md`。
+
+### Claude 側の検証で差し戻した1件
+
+🔴**`WXDi-P02-030` の `manualEffects.ts` エントリは parser 出力と実体同一だった**＝`npx tsx scripts/censusManualDrift.ts` の「削除候補（§6.4 `O-40`）」が **86→87** に増えていた。PRESERVE 対象（`PARTIAL`）へ condition を届けるために足したものだが、**parser も同じ実体を出せるようになった時点で影武者コピーになる**＝その効果だけ以後の parser 改善が永久に届かない（§6.4 `O-42` の母集団そのもの）。⇒ **manual エントリを削除して parser に任せ、削除候補を 86 へ戻した**。live 側の condition は `syncManualLive.ts --condition-only` で既に入っており、`PARTIAL` の温存で維持されるので**挙動は変わらない**（`build:effects` 後に再確認済み）。
+⚠**同じ状況で `WXDi-P16-048` は削除候補に載らない**＝こちらは parser が出せない curated 本体を持つので manual エントリが正しい。**「PRESERVE だから manual へ写す」を機械的にやらない**＝写す前に `censusManualDrift` の削除候補を見る。
+
+### 新規発見・未修正3件（次の段2 バッチの種）
+
+- `WXDi-P00-037-E1`＝原文は「相手の手札を3枚まで見て、そのうち1枚をデッキの下」だが live は「相手のシグニ1体をデッキの下」。
+- `WXDi-P16-087-E1` / `WXDi-P16-089-E1`＝どちらも**第16バッチと同型**（「〜の場合、代わりに」の置換が効かず基本形と強化形が**両方実行**）。
+
 ## 2026-08-22（続き609）：§6.4 O-41＝「〈レベル限定〉のシグニで【ガード】ができない」の限定が丸ごと落ちていた6効果
 
 **限定が落ちると素の `GUARD`（＝ガードそのものができない）と同じ挙動になる**＝原文より遥かに強い過剰実行。

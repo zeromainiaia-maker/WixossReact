@@ -7,6 +7,14 @@ import type { CardEffect, SequenceAction, ChooseAction, GrantLrigAbilityAction }
  * - 存在しない effectId は末尾に追加
  */
 export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
+  // 2026-08-22 段2 第17バッチ: PRESERVE 対象の【チーム自】へ印刷済みチーム成立条件を届ける。
+  // ⚠`WXDi-P02-030` は**ここに置かない**＝parser が同一の実体（condition 込み）を出せるようになったので、
+  //   manual へ写すと §6.4 O-40／O-42 の「parser 出力と実体同一な影武者コピー」を新規に作ることになる
+  //   （`npx tsx scripts/censusManualDrift.ts` の「削除候補」に即座に載る＝以後その効果だけ parser 改善が届かない）。
+  //   live 側は `syncManualLive.ts --condition-only` で既に条件を受け取っており、`PARTIAL` の温存で維持される。
+  "WXDi-P16-048": [
+    {"effectId":"WXDi-P16-048-E1","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"condition":{"type":"LRIG_TEAM_COUNT","owner":"self","team":"夢限少女","operator":"gte","value":3},"action":{"type":"CHOOSE","choose_count":2,"from_count":3,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"シャドウ","duration":"UNTIL_OPP_TURN_END"}},{"choiceId":"c1","label":"選択肢2","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1}},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":8000}},"upToCount":false}}}]}},{"choiceId":"c2","label":"選択肢3","action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":1,"blind":true}}}],"upTo":true},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"self"},
+  ],
   // §6.3 E-2 第2波: 対戦相手のセンタールリグへ2能力をゲーム中恒久付与する。
   "WXK03-001": [
     {"effectId":"WXK03-001-E3","effectType":"ACTIVATED","timing":["MAIN"],"action":{"type":"GRANT_LRIG_ABILITY","targetOwner":"opponent","targetedCenter":true,"permanent":true,"abilities":[{"effectId":"WXK03-001-E3-GRANT-DRAW","effectType":"CONTINUOUS","action":{"type":"DRAW_PHASE_REPLACEMENT","fromCount":1,"toCount":2},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},{"effectId":"WXK03-001-E3-GRANT-END","effectType":"AUTO","timing":["ON_TURN_END"],"triggerScope":"self","action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","handDiscard":{"count":1,"filter":{"color":"無"}}},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[]},"else":{"type":"LIFE_CRASH","owner":"self","count":1,"triggerBurst":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}],"rawText":"「【常】：あなたがドローフェイズにカードを１枚引く場合、代わりに２枚引く。」と「【自】：あなたのターン終了時、手札から無色のカードを１枚捨ててもよい。そうしなかった場合、このルリグはあなたにダメージを与える。」"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_game"},

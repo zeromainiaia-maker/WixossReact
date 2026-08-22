@@ -3933,6 +3933,28 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 
 ### ㉛-1 旧「📊 恒久指標」の退避本文（続き548 以前の計測行＋旧指標）
 
+- **🆕 2026-08-22 続き609（§6.4 `O-41` 残0クローズ）後 最新値（本行が直近の正）**：
+  **census 730/730 据置**、**golden 2375**（セッション開始時 2366＝O-41 で8本追加＋既存契約テスト1本を新契約へ書き換え）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
+  `_held_fresh` **88 据置**／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🔴**engine/UI の改変（続き609）**＝`execBlockAction` に `GUARD_LV_DECLARED`／`GUARD_LV_LAST_DOWNED` の
+  実行時解決を新設（書き込み先は**効果元**の `declared_guard_restrict_levels`）／
+  `execSequence` の `DECLARE_NUMBER` 横取りを**「次が `GRANT_KEYWORD` のときだけ」に限定**（無言 no-op の修正）／
+  `SET_DECLARED_NUMBER` の保存先を `declared_guard_restrict_level`→**`declared_number`** へ分離（読み手5箇所に後方互換フォールバック）／
+  `src/screens/battle/guard.ts` に**純関数 `makeGuardLevelBlocker`** を新設し `GuardResponseDialog` をその呼び出しへ縮小。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 947 据置**／段2 消化 **141 据置**／真バグ確定 934／
+  HIGH・MED・LOW＝**627・312・8**／段0 除去 232／段1 偽陽性 125（**続き609 は §6.4 の作業なので段2 の数字は動かない**）。
+  📊**母集団の切り方＝5原則**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない。
+  🆕**続き609 は ③⑤ をそのまま踏んだ**＝O-41 の登録行「live 10効果」が実測 **6効果**（既に正しい2件＋別機構で解決済み1件＋二重計上1件）。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-42`／`O-43`／`O-44`**（🏁**`O-41` は続き609 で残0クローズ**）。**§6.3 の新規は `L`**（共通色比較・**4バッチ連続で保留中**）。
+  **Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る＝🆕`levelExact × BLOCK_ACTION{PLAYER}` の3件は**恒久的な偽陽性**と判明済み）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋🆕`V-85`（宣言 UI が新しく30カードで出る＝入力待ちが新規発生）＋🆕`V-84`（レベル限定つきガード禁止）＋`V-83`**。
+
 - **🆕 2026-08-22 続き608（段2 第16バッチまで＝続き603〜608 の6バッチ完了）後 最新値（本行が直近の正）**：
   **census 730/730**（`BASELINE_HIGH` 更新済み・セッション開始時 742）、**golden 2366**（同 2350）、
   smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings**
