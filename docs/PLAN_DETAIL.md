@@ -3150,6 +3150,29 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
 
+- **🆕 2026-08-22 続き607（段2 第15バッチ＝原因クラス限定の3形態・live 8効果）後 最新値（本行が直近の正）**：
+  **census 733/733 据置**、**golden 2360→2362**、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
+  **lint 0 errors / 261 warnings 据置**、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
+  **live 効果総数 10693 据置**。**live の変更は8効果**（`parseStatus` 変化0）。
+  `_held_fresh` **91 据置**（集合でも不変）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🔴**engine/UI の配線6箇所**＝`types/effects.ts`（`revealSourceStory`）／`types/index.ts`（`hand_revealed_just_source_card_num`）／
+  `execStubPart3.ts:3466,3482`（記録2箇所）／`triggerCollect.ts`（pure `collectRevealedFromHandTriggers` 新設＋
+  `collectDeckTrashSelfTriggers` にゲート追加＋`collectMillTriggers` を fail-closed 化）／
+  `BattleScreen.tsx`（インライン収集を pure collector へ置換）／`decompileEffects.ts`（逆翻訳）。
+  🟡**スコープ外の既存1効果（`WX24-P3-030-E1`）の挙動が変わった**＝`milledSourceStory` の fail-open→fail-closed 反転。
+  **原文には忠実だが `last_effect_mill_source` の書き手は1箇所だけ**＝§7 の実機検証項目。
+  ⚠🆕**原因限定の規約が2種類混在している**＝`trashSourceStory`／`banishedSourceStory`／`milledSourceStory` は fail-closed、
+  **`powerDecreaseSourceStory` だけ fail-open**。次に触るときに揃えるか判断する。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 952**／段2 消化 **135**／真バグ確定 939／
+  HIGH・MED・LOW＝**632・312・8**／段0 除去 232／段1 偽陽性 125。
+  📊**母集団の切り方**＝消費地点まで見て数える（603）＋CSV を見る（604）＋完全一致で数えない（605）＋
+  同義の語彙を全部列挙してから数える（606）＋🆕**「機構が無い」と決めつける前に timing 別の類似フィールドを全部探す**（607）。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-41`／`O-42`／`O-43`**。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る）／**`census:timing` フォールバック 2効果**（ほぼ枯れた）。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+
 - **🆕 2026-08-22 続き606（段2 第14バッチ＝「場に＜クラス＞のシグニがある場合」の条件節脱落＋クラス修飾の対象誤付着・live 10効果）後 最新値（本行が直近の正）**：
   **census 742→733**（`BASELINE_HIGH` 更新済み）、**golden 2358→2360**、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
   **lint 0 errors / 261 warnings**（⚠**261 が正**＝続き605 で `BattleScreen.tsx` を触ったぶん1本増えており、

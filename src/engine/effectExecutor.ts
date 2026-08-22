@@ -1627,7 +1627,13 @@ function execPowerModify(a: PowerModifyAction, ctx: ExecCtx): ExecResult {
       const newS: PlayerState = { ...s, [powerModKey]: mods };
       // 選択UIを経ないため handleEffectInteraction の ON_TARGETED 収集を通らない。
       // 自動対象化したシグニを surface し、BattleScreen の done 分岐で ON_TARGETED を収集させる（続き137・タスク12(xx)）。
-      const withTgt = { ...setOwnerState(tgtOwner, newS, ctx), autoTargetedCards: [...(ctx.autoTargetedCards ?? []), autoNum] };
+      // 自動対象でも「直前に処理したそのシグニ」は後続の置換条件から参照できるようにする。
+      // 選択経路の POWER_MODIFY と同じく、実際に修正した1体を lastProcessedCards に残す。
+      const withTgt = {
+        ...setOwnerState(tgtOwner, newS, ctx),
+        lastProcessedCards: [autoNum],
+        autoTargetedCards: [...(ctx.autoTargetedCards ?? []), autoNum],
+      };
       return done(addLog(withTgt,
         `${ctx.cardMap.get(autoNum)?.CardName ?? autoNum}のパワー${delta > 0 ? '+' : ''}${delta}`));
     }

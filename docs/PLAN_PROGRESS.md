@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き607・Opus 5＋Codex）＝段2 第15バッチ＝**「あなたの＜X＞のシグニの効果によって〜されたとき」の原因クラス限定が落ちていた8効果**（受け皿の新設＋配線6箇所）。**残 OPEN 959→952**／段2 消化 128→**135**。ゲート全緑（**golden 2360→2362**・census 733 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 261 warnings・held 91 据置）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き607）。
+  - **実害**＝「このカードが**あなたの＜龍獣＞のシグニの効果によって**手札から公開されたとき」の原因限定が落ち、**誰の・どんな経緯の公開でも発火**していた。クラスシナジー前提の能力が無条件に撃てる。
+  - 🔑**機構は timing ごとに別フィールドで既に4本あった**＝`trashSourceStory`（`collectAnyZoneTrashSelfTriggers`）／`banishedSourceStory`（`collectBanishTriggers`）／`powerDecreaseSourceStory`（`collectPowerDecreaseTriggers`）／`milledSourceStory`（`collectMillTriggers`）。落ちていた形は3種類で**それぞれ原因が違った**＝①**公開＝機構ごと新設**（`revealSourceStory`）②**deck ON_TRASH＝既存フィールドの collector 漏れ**（`collectDeckTrashSelfTriggers` にゲートが無い）③**mill＝既存フィールドの live 漏れ＋fail-open**。
+  - 🔴**`ON_REVEALED_FROM_HAND` は原因カードを記録していなかった**＝`hand_revealed_just` はカード番号の配列だけ、収集も `BattleScreen.tsx` にインライン。**`hand_revealed_just_source_card_num` を新設し、収集を pure `collectRevealedFromHandTriggers` へ切り出して golden から叩けるようにした**（続き605 の `hasApplicableLancer` と同じ設計）。⚠**代入2箇所とクリア1箇所が両フィールドを揃えて操作している**ことを実測で確認＝前の公開の発生源が残る stale 経路は無い。
+  - ✅**過小実行への裏返りは無い**＝新 collector のゲートは `if (reqStory) {…}` の内側だけ＝**`revealSourceStory` を持たない既存効果は素通り**（続き605 の「空なら全部落ちる」形になっていない）。
+  - 🟡**スコープ外の既存効果を1件変えている（申告済み・妥当だが要監視）**＝`milledSourceStory` の判定を **fail-open → fail-closed** へ反転。⚠**元のコメントは明示的に逆の判断を書いていた**（「未設定は発生源不明として従来どおり発火させる。ここで落とすと部分実装が過少発火の退化になる」）＝**文書化された決定の反転**。影響は `WX24-P3-030-E1` の1件だけで、原文が「＜悪魔＞のシグニの効果**１つによって**」＝原因特定が意味の一部なので**fail-closed の方が原文に忠実**。ただし `last_effect_mill_source` の書き手は `effectExecutor.ts:6858` の**1箇所だけ**＝**他のミル経路で落ちると発火しなくなる**⇒**§7 の実機検証項目へ**。
+  - ✅**Codex が Claude の見立てを3件訂正**＝①「生えていない3 timing」は誤り（`milledSourceStory` は既存）②`hand_revealed_just` の書き手は3箇所ではなく**2箇所**③**「既存規約はすべて fail-closed」も誤り**＝`powerDecreaseSourceStory` は**現状 fail-open**（変更せず指摘だけ＝スコープ遵守）。⚠**規約が2種類混在していることが判明した**＝次に触るときに揃えるか判断する。
+  - **▶ 次の一手【Opus 側】＝段2 第16バッチ**。候補＝①**「代わりに」置換が効かず両方実行される群**（`SP27-012-E1`／`WX21-039-E1` ほか。続き606 で残置）②**チームルリグ3体条件7件**（MANUAL・`HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}` で書けることは調査済み）③`census:wiring` の `levelExact`／`powerRange` セル。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件＋🆕`WX24-P3-030-E1` のミル誘発）。
+
+
 - **🆕 セッション（2026-08-22・続き606・Opus 5＋Codex）＝段2 第14バッチ＝**「あなたの場に＜クラス＞のシグニがある場合」という条件節が丸ごと落ち、その中のクラス修飾が対象へ誤付着していた10効果**。**残 OPEN 970→959**／段2 消化 117→**128**（finding 11本＝これまでで最多）。**census 742→733**（ベースライン更新）・**golden 2358→2360**・held **92→91**・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き606）。
   - 🔑**1つの根から2つの症状が出る**＝①条件が消えて**無条件発火（過剰実行）** ②条件節の中のクラス修飾が**直前の「対象」へ誤付着（過小実行）**。`WX09-025-E1` は「対戦相手のパワー8000以下のシグニ1体を対象とし、あなたの場に＜鉱石＞か＜宝石＞が合計3体ある場合」なのに、live は **＜鉱石＞か＜宝石＞が「相手のシグニ」の条件に化けて**いた＝**本来倒せる相手が倒せない**。同じ誤付着が `WX21-051-E1`／`WXDi-CP02-085-E2` にも。**両方直して初めて原文と一致する。**
   - **受け皿は完備だった**＝`HAS_CARD_IN_FIELD` は `Condition`（`types/effects.ts:305`・評価器 `execUtils.ts:1713`）と `ActiveCondition`（`:183`・評価器 `effectEngine.ts:147`）の**両方**にあり、`excludeSelf`／`minCount`／`distinctNames`／`distinctColors` まで実装済み。**parser 側だけの作業。**

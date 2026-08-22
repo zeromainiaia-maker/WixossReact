@@ -11921,6 +11921,76 @@ function parseActionTextInner(text: string): EffectAction {
     }
   }
 
+  // 段2 第16バッチ：「基本形。条件の場合、代わりに強化形」は二択。
+  // 文ごとの先行パースがすでに `base → conditional(full enhanced)` または同型2連発を作った
+  // 狭い形だけを、原文に書かれた条件を保った置換へ畳む。数値はすべて原文から取得する。
+  // 対象依存条件は base 実行後でないと評価できないため差分加算、それ以外は then/else を使う。
+  {
+    const base = steps[0];
+    const second = steps[1];
+    if (steps.length === 2 && base?.type === 'POWER_MODIFY' && second?.type === 'CONDITIONAL'
+        && !second.else && second.then?.type === 'POWER_MODIFY'
+        && second.condition.type === 'TRASH_COUNT') {
+      const bp = base as import('../types/effects').PowerModifyAction;
+      const ep = second.then as import('../types/effects').PowerModifyAction;
+      if (typeof bp.delta === 'number' && typeof ep.delta === 'number') {
+        steps[1] = {
+          ...second,
+          then: {
+            type: 'POWER_MODIFY', target: JSON.parse(JSON.stringify(bp.target)),
+            delta: ep.delta - bp.delta, targetsLastProcessed: true,
+          } as import('../types/effects').PowerModifyAction,
+        };
+      }
+    }
+
+    if (steps.length === 2 && base?.type === 'POWER_MODIFY' && second?.type === 'POWER_MODIFY') {
+      const bp = base as import('../types/effects').PowerModifyAction;
+      const ep = second as import('../types/effects').PowerModifyAction;
+      const handM = text.match(/あなたの手札が([０-９\d]+)枚以上ある場合、代わりに/);
+      const triggerStoryM = text.match(/そのシグニが＜([^＞]+)＞の場合、代わりに/);
+      if (handM) {
+        const then = JSON.parse(JSON.stringify(bp)) as import('../types/effects').PowerModifyAction;
+        then.delta = ep.delta;
+        steps.splice(0, 2, {
+          type: 'CONDITIONAL',
+          condition: { type: 'HAND_COUNT', owner: 'self', operator: 'gte', value: parseNum(handM[1]) },
+          then, else: bp,
+        });
+      } else if (triggerStoryM && typeof bp.delta === 'number' && typeof ep.delta === 'number') {
+        const triggerBase = {
+          ...bp,
+          target: { type: 'SIGNI', owner: 'self', count: 1 },
+          targetsTriggerSource: true,
+        } as import('../types/effects').PowerModifyAction;
+        steps.splice(0, 2,
+          triggerBase,
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_MATCHES', filter: { story: triggerStoryM[1] } },
+            then: {
+              type: 'POWER_MODIFY', target: JSON.parse(JSON.stringify(triggerBase.target)),
+              delta: ep.delta - bp.delta, targetsLastProcessed: true,
+            } as import('../types/effects').PowerModifyAction,
+          });
+      }
+    }
+
+    if (steps.length === 2 && base?.type === 'ENERGY_CHARGE_FROM_DECK'
+        && second?.type === 'ENERGY_CHARGE_FROM_DECK') {
+      const emptyEnergy = /あなたのエナゾーンにカードがない場合、代わりに/.test(text);
+      const exactPowerM = text.match(/このシグニのパワーが([０-９\d]+)の場合、代わりに/);
+      const condition: Condition | null = emptyEnergy
+        ? { type: 'ENERGY_COUNT', owner: 'self', operator: 'eq', value: 0 }
+        : exactPowerM
+          ? { type: 'SELF_POWER_GTE', operator: 'eq', value: parseNum(exactPowerM[1]) }
+          : null;
+      if (condition) {
+        steps.splice(0, 2, { type: 'CONDITIONAL', condition, then: second, else: base });
+      }
+    }
+  }
+
   // 先頭文の条件節が**後続文まで及ぶ**形（続き377k）。
   // 「あなたのライフクロスが１枚以下の場合、あなたのデッキの上からカードを３枚公開する。その中から…、
   //  残りを好きな順番でデッキの一番上に戻す。」のように、後続文が先頭文の結果（公開集合／選んだカード）を

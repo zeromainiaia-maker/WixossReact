@@ -41269,6 +41269,57 @@ test('段2-14: ActiveCondition 側の場クラス条件は成立時だけ常在�
     '場の緑＜美巧＞が合計2体以上なら基本パワー12000');
 });
 
+// 段2 第16バッチ：「基本形。条件の場合、代わりに強化形」は加算でなく二択。
+const stage2B16Effect = (cardNum: string, effectId: string) => {
+  const e = effectsMap.get(cardNum)?.find(x => x.effectId === effectId);
+  if (!e) throw new Error(`${effectId} not found`);
+  return e;
+};
+const stage2B16Power = (r: ExecResult, owner: 'self' | 'opponent', cardNum: string) => {
+  const st = owner === 'self' ? r.ownerState : r.otherState;
+  return (st.temp_power_mods ?? []).filter(m => m.cardNum === cardNum).reduce((n, m) => n + m.delta, 0);
+};
+
+test('段2-16 WDK06-C08-E1 E2E: trash 15枚なら合計-8000、14枚なら-3000だけ', () => {
+  const target = findCard(c => isSigni(c) && c.CardNum !== 'WDK06-C08');
+  const board = (trashCount: number) => {
+    const ctx = mkCtx({}, { signi: [target, null, null] }, 'WDK06-C08');
+    ctx.ownerState.trash = Array(trashCount).fill(SIGNI_L1);
+    return run(stage2B16Effect('WDK06-C08', 'WDK06-C08-E1').action, ctx);
+  };
+  eq(stage2B16Power(board(15), 'opponent', target), -8000, '成立時は-3000+-5000＝-8000');
+  eq(stage2B16Power(board(14), 'opponent', target), -3000, '不成立時は基本形だけ');
+});
+
+test('段2-16 WX25-CP1-020-E1 E2E: エナ0枚なら2枚、1枚なら1枚だけチャージ', () => {
+  const effect = stage2B16Effect('WX25-CP1-020', 'WX25-CP1-020-E1');
+  const empty = mkCtx({}, {}, 'WX25-CP1-020');
+  empty.ownerState.energy = [];
+  const hit = run(effect.action, empty);
+  eq(hit.ownerState.energy.length, 2, '成立時は強化形2枚だけ');
+  const miss = mkCtx({}, {}, 'WX25-CP1-020');
+  miss.ownerState.energy = [SIGNI_L1];
+  const out = run(effect.action, miss);
+  eq(out.ownerState.energy.length, 2, '不成立時は既存1枚+基本形1枚');
+});
+
+test('段2-16 WXDi-P09-074-E1 E2E: 手札5枚なら+5000、4枚なら+3000だけ', () => {
+  const effect = stage2B16Effect('WXDi-P09-074', 'WXDi-P09-074-E1');
+  const target = findCard(c => isSigni(c) && c.CardNum !== 'WXDi-P09-074');
+  const board = (hand: number) => mkCtx({ hand, signi: [target, null, null] }, {}, 'WXDi-P09-074');
+  eq(stage2B16Power(run(effect.action, board(5)), 'self', target), 5000, '成立時は強化形だけ');
+  eq(stage2B16Power(run(effect.action, board(4)), 'self', target), 3000, '不成立時は基本形だけ');
+});
+
+test('段2-16 WXDi-P10-054-E1 E2E: ＜プリパラ＞のトリガー元だけ+4000、非該当は+2000', () => {
+  const effect = stage2B16Effect('WXDi-P10-054', 'WXDi-P10-054-E1');
+  const pripara = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('プリパラ'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('プリパラ'));
+  const board = (source: string) => mkCtx({ signi: [source, null, null] }, {}, source);
+  eq(stage2B16Power(run(effect.action, board(pripara)), 'self', pripara), 4000, '該当トリガー元は合計+4000');
+  eq(stage2B16Power(run(effect.action, board(other)), 'self', other), 2000, '非該当トリガー元は基本形だけ');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

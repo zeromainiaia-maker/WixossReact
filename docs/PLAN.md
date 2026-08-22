@@ -140,15 +140,15 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-22・続き607・Opus 5＋Codex）＝段2 第15バッチ＝**「あなたの＜X＞のシグニの効果によって〜されたとき」の原因クラス限定が落ちていた8効果**（受け皿の新設＋配線6箇所）。**残 OPEN 959→952**／段2 消化 128→**135**。ゲート全緑（**golden 2360→2362**・census 733 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 261 warnings・held 91 据置）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き607）。
-  - **実害**＝「このカードが**あなたの＜龍獣＞のシグニの効果によって**手札から公開されたとき」の原因限定が落ち、**誰の・どんな経緯の公開でも発火**していた。クラスシナジー前提の能力が無条件に撃てる。
-  - 🔑**機構は timing ごとに別フィールドで既に4本あった**＝`trashSourceStory`（`collectAnyZoneTrashSelfTriggers`）／`banishedSourceStory`（`collectBanishTriggers`）／`powerDecreaseSourceStory`（`collectPowerDecreaseTriggers`）／`milledSourceStory`（`collectMillTriggers`）。落ちていた形は3種類で**それぞれ原因が違った**＝①**公開＝機構ごと新設**（`revealSourceStory`）②**deck ON_TRASH＝既存フィールドの collector 漏れ**（`collectDeckTrashSelfTriggers` にゲートが無い）③**mill＝既存フィールドの live 漏れ＋fail-open**。
-  - 🔴**`ON_REVEALED_FROM_HAND` は原因カードを記録していなかった**＝`hand_revealed_just` はカード番号の配列だけ、収集も `BattleScreen.tsx` にインライン。**`hand_revealed_just_source_card_num` を新設し、収集を pure `collectRevealedFromHandTriggers` へ切り出して golden から叩けるようにした**（続き605 の `hasApplicableLancer` と同じ設計）。⚠**代入2箇所とクリア1箇所が両フィールドを揃えて操作している**ことを実測で確認＝前の公開の発生源が残る stale 経路は無い。
-  - ✅**過小実行への裏返りは無い**＝新 collector のゲートは `if (reqStory) {…}` の内側だけ＝**`revealSourceStory` を持たない既存効果は素通り**（続き605 の「空なら全部落ちる」形になっていない）。
-  - 🟡**スコープ外の既存効果を1件変えている（申告済み・妥当だが要監視）**＝`milledSourceStory` の判定を **fail-open → fail-closed** へ反転。⚠**元のコメントは明示的に逆の判断を書いていた**（「未設定は発生源不明として従来どおり発火させる。ここで落とすと部分実装が過少発火の退化になる」）＝**文書化された決定の反転**。影響は `WX24-P3-030-E1` の1件だけで、原文が「＜悪魔＞のシグニの効果**１つによって**」＝原因特定が意味の一部なので**fail-closed の方が原文に忠実**。ただし `last_effect_mill_source` の書き手は `effectExecutor.ts:6858` の**1箇所だけ**＝**他のミル経路で落ちると発火しなくなる**⇒**§7 の実機検証項目へ**。
-  - ✅**Codex が Claude の見立てを3件訂正**＝①「生えていない3 timing」は誤り（`milledSourceStory` は既存）②`hand_revealed_just` の書き手は3箇所ではなく**2箇所**③**「既存規約はすべて fail-closed」も誤り**＝`powerDecreaseSourceStory` は**現状 fail-open**（変更せず指摘だけ＝スコープ遵守）。⚠**規約が2種類混在していることが判明した**＝次に触るときに揃えるか判断する。
-  - **▶ 次の一手【Opus 側】＝段2 第16バッチ**。候補＝①**「代わりに」置換が効かず両方実行される群**（`SP27-012-E1`／`WX21-039-E1` ほか。続き606 で残置）②**チームルリグ3体条件7件**（MANUAL・`HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}` で書けることは調査済み）③`census:wiring` の `levelExact`／`powerRange` セル。
-  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件＋🆕`WX24-P3-030-E1` のミル誘発）。
+- **🆕 セッション（2026-08-22・続き608・Opus 5＋Codex）＝段2 第16バッチ＝**「〜の場合、代わりに〈強化形〉」の置換が効かず基本形と強化形が両方実行されていた7効果**。**残 OPEN 952→947**／段2 消化 135→**141**。**census 733→730**（ベースライン更新）・**golden 2362→2366**・**held 91→88**・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 261 warnings。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き608）。
+  - **実害**＝「パワーを**−5000**する。トラッシュが20枚以上ある場合、代わりに**−10000**する」（`WXDi-P01-044-E2`）が **合計 −15000** になっていた。さらに悪い形として**条件節ごと落ちて素の2連発**（`WXDi-P09-074-E1`＝＋3000 と ＋5000 を無条件に両方／`WXDi-P12-081-E1`＝EC1 と EC2 で合計3枚）。
+  - 🔑**このバッチの肝は「触ってはいけない8効果」の識別**＝parser には「代わりに」の表し方が**2通りあり、どちらも正しい**。**(a) 正準形** `CONDITIONAL{cond, then:強化, else:基本}`（live に `else` 193箇所）と、**(b) 差分加算** `SEQUENCE[基本, CONDITIONAL{cond, then:差分だけ}]`（加減算で表せる型のみ・**合計すると原文どおり**）。`WX08-032-BURST` は −8000 と −7000 で**合計 −15000＝原文どおり**。**一見バグに見えて正しい8件**を投入前に検算して「直すな・正準化もするな」と明記し、**live diff に1件も入っていない**ことを確認した（§5-17 の逆＝**変な形に見えても既存実装が正しいことがある**）。
+  - **直し方の使い分け**＝`DRAW`／`ENERGY_CHARGE_FROM_DECK` は「基本＋差分」で表せない（枚数の意味が変わる）ので **(a) 一択**、`POWER_MODIFY` はどちらでも可。`WXDi-P10-054-E1` だけ **(b)**（「そのシグニ」＝トリガー元を base で確定してから差分＋2000）。
+  - 🔴**engine を1箇所だけ改変**＝`execPowerModify` の `targetsTriggerSource` 分岐に `lastProcessedCards:[autoNum]` を追加（(b) 形で同一対象を指すため）。**影響範囲は極小**＝live 全体で `POWER_MODIFY{targetsTriggerSource}` は**5ステップ**しかなく、**後段が `lastProcessed` を参照するのは本バッチの1効果だけ**＝巻き込み0を実測。
+  - ✅**Codex が Claude の見立てを3件訂正**＝①算術（26 = 8＋11＋**7**、Claude は B群を9と書いた）②**`WX25-P3-014-E1`／`WX25-P3-069-E1` は既に正しかった**（両枝とも `storedTargetCards` の同一対象＝Claude の検出器の偽陽性）③**`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` は名前どおりではない**（センターレベル条件と追加コスト条件の2系統を識別）＝**名前から機構を推測すると外す**。
+  - ⚠**続き606 と同じ軸で見送り**＝`WX21-039-E1`／`SP27-012-E1` の「**このシグニと共通する色を持たない**他の＜天使＞」は既存語彙で表せず、Codex も独立に同じ結論に到達して未修正のまま残した。**この軸は3バッチ連続で保留＝機構を作るなら §6.3 へ登録する候補。**
+  - **▶ 次の一手【Opus 側】＝段2 第17バッチ**。候補＝①**チームルリグ3体条件7件**（MANUAL・`HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}` で書けることは続き606 で調査済み・置換本体とセット）②**「共通する色を持たない」軸**の機構化（3バッチ保留中）③`census:wiring` の `levelExact`／`powerRange` セル。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件＋`WX24-P3-030-E1` のミル誘発）。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
@@ -157,28 +157,27 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-22 続き607（段2 第15バッチ＝原因クラス限定の3形態・live 8効果）後 最新値（本行が直近の正）**：
-  **census 733/733 据置**、**golden 2360→2362**、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
+- **🆕 2026-08-22 続き608（段2 第16バッチ＝「代わりに」の置換が効かず両方実行・live 7効果）後 最新値（本行が直近の正）**：
+  **census 733→730**（`BASELINE_HIGH` 更新済み）、**golden 2362→2366**、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
   **lint 0 errors / 261 warnings 据置**、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
-  **live 効果総数 10693 据置**。**live の変更は8効果**（`parseStatus` 変化0）。
-  `_held_fresh` **91 据置**（集合でも不変）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
-  🔴**engine/UI の配線6箇所**＝`types/effects.ts`（`revealSourceStory`）／`types/index.ts`（`hand_revealed_just_source_card_num`）／
-  `execStubPart3.ts:3466,3482`（記録2箇所）／`triggerCollect.ts`（pure `collectRevealedFromHandTriggers` 新設＋
-  `collectDeckTrashSelfTriggers` にゲート追加＋`collectMillTriggers` を fail-closed 化）／
-  `BattleScreen.tsx`（インライン収集を pure collector へ置換）／`decompileEffects.ts`（逆翻訳）。
-  🟡**スコープ外の既存1効果（`WX24-P3-030-E1`）の挙動が変わった**＝`milledSourceStory` の fail-open→fail-closed 反転。
-  **原文には忠実だが `last_effect_mill_source` の書き手は1箇所だけ**＝§7 の実機検証項目。
-  ⚠🆕**原因限定の規約が2種類混在している**＝`trashSourceStory`／`banishedSourceStory`／`milledSourceStory` は fail-closed、
-  **`powerDecreaseSourceStory` だけ fail-open**。次に触るときに揃えるか判断する。
-  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 952**／段2 消化 **135**／真バグ確定 939／
-  HIGH・MED・LOW＝**632・312・8**／段0 除去 232／段1 偽陽性 125。
+  **live 効果総数 10693 据置**。**live の変更は7効果**（`parseStatus` 変化0）。
+  `_held_fresh` **91→88**（3解消・**新規0**）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🔴**engine を1箇所改変**＝`execPowerModify` の `targetsTriggerSource` 分岐に `lastProcessedCards:[autoNum]`
+  （`effectExecutor.ts:1627-1636`）。**live 全体で該当ステップは5件・後段の消費者は1件だけ**＝巻き込み0を実測。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 947**／段2 消化 **141**／真バグ確定 934／
+  HIGH・MED・LOW＝**627・312・8**／段0 除去 232／段1 偽陽性 125。
   📊**母集団の切り方**＝消費地点まで見て数える（603）＋CSV を見る（604）＋完全一致で数えない（605）＋
-  同義の語彙を全部列挙してから数える（606）＋🆕**「機構が無い」と決めつける前に timing 別の類似フィールドを全部探す**（607）。
+  同義の語彙を全部列挙してから数える（606）＋timing 別の類似フィールドを全部探す（607）＋
+  🆕**「変な形＝バグ」と決めつけない**（608）＝**同じ意味を2通りで表す実装がある**（「代わりに」の (a) 正準形と
+  (b) 差分加算）。**投入前に検算して「触ってはいけない群」を指示書へ明示する。**
   ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  ⚠🆕**「このシグニと共通する色を持たない他の＜X＞」軸は3バッチ連続で保留**（606・608）＝
+  既存語彙で表せない。**機構を作るなら §6.3 へ登録する。**
+  ⚠**原因限定の規約が2種類混在**＝`powerDecreaseSourceStory` だけ fail-open（続き607）。
   **§6.4 の生きた worklist は `O-41`／`O-42`／`O-43`**。**Opusタスク12＝在庫1件**（(cxlvi)）。
-  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る）／**`census:timing` フォールバック 2効果**（ほぼ枯れた）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠用法 triage が要る）／**`census:timing` フォールバック 2効果**。
   version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
-  ⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  ⚠🔴**続き588 の6件＋`WX24-P3-030-E1` は実機未検証**＝**Sonnet 側 §7 の最優先**。
 
 ## 5. フェーズ1残作業：表現（P1）
 
@@ -575,6 +574,7 @@
   - 🆕🏁**段2 第2バッチ＝`filter.hasCharm` の配線漏れ（採用13／据置3）＝2026-08-22 完了**。報告＝`stage2_batch2_report.md`（末尾に Claude 検証節）。
   - 🆕🏁**段2 第3バッチ＝盤面状態フィルタの残り配線漏れ（採用10効果＋二重ゲート解消4効果）＝2026-08-22 続き593 完了**。報告＝`stage2_batch3_report.md`。
   - 🆕🏁**段2 第4バッチ＝「デッキ公開→その中から〈修飾〉をエナゾーンへ」の pick 脱落（12効果）＝2026-08-22 続き594 完了**。🔴副産物＝**エナ行きの正準形を `ADD_TO_ENERGY` へ統一**（旧 `ENERGY_CHARGE{DECK_CARD}` は engine では場のシグニが候補＝別物）。⚠**「公開する」綴りへの規則拡張は実測して撤回**＝既に別経路が作っている表現を乗り換えるだけだった。
+  - 🆕🏁**段2 第16バッチ＝「〜の場合、代わりに」の置換が効かず基本形と強化形が両方実行されていた（live 7効果）＝2026-08-22 続き608 完了**。報告＝`stage2_batch16_report.md`（末尾に Claude 検証節）。🔑**肝は「触ってはいけない8効果」の識別**＝「代わりに」には **(a) `CONDITIONAL{then,else}` の正準形**と **(b) 差分加算**（合計すると原文どおり）の2通りがあり**どちらも正しい**。**一見バグに見えて正しい群を投入前に検算して指示書へ明示**した（§5-17 の逆）。⚠`DRAW`／`ENERGY_CHARGE_FROM_DECK` は差分で表せない＝(a) 一択。⚠**`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` は名前どおりではない**（追加コスト条件も識別する）。
   - 🆕🏁**段2 第15バッチ＝「あなたの＜X＞のシグニの効果によって」の原因クラス限定（live 8効果・配線6箇所）＝2026-08-22 続き607 完了**。報告＝`stage2_batch15_report.md`（末尾に Claude 検証節）。🔑**この機構は timing ごとに別フィールドで既に4本あった**（`trashSourceStory`／`banishedSourceStory`／`powerDecreaseSourceStory`／`milledSourceStory`）＝**「機構が無い」と決めつける前に timing 別の類似フィールドを全部探す**。落ち方は3種類（機構ごと新設／collector 漏れ／live 漏れ＋fail-open）。⚠**原因限定の規約が2種類混在**＝`powerDecreaseSourceStory` だけ fail-open。⚠**`milledSourceStory` の fail-closed 化はスコープ外の `WX24-P3-030-E1` の挙動を変える**（原文には忠実・§7 で実機確認）。
   - 🆕🏁**段2 第14バッチ＝「場に＜クラス＞のシグニがある場合」の条件節脱落＋クラス修飾の対象誤付着（live 10効果）＝2026-08-22 続き606 完了**。報告＝`stage2_batch14_report.md`（末尾に Claude 検証節）。🔑**1つの根から過剰実行と過小実行の両方が出る**＝条件が消えるだけでなく、条件節の中のクラス修飾が**直前の対象へ誤付着**する（`WX09-025-E1`／`WX21-051-E1`／`WXDi-CP02-085-E2`）。**両方直して初めて原文と一致する。** 受け皿（`HAS_CARD_IN_FIELD`）は両 union・両評価器に完備＝parser だけの作業。⚠**「共通する色を持たない」は効果元との比較**で `NO_COMMON_COLOR_AMONG_FIELD_SIGNI`（場全体の相互比較）とは別物＝3件は据置が正しい。
   - 🆕🏁**段2 第13バッチ＝【ランサー（制限）】の括弧スコープ機構を新設して6箇所へ配線（live 11効果）＝2026-08-22 続き605 完了**。報告＝`stage2_batch13_report.md`（末尾に Claude 検証節）。🔑**アサシンと違い受け皿が無かった**＝判定・消費地点・盤面バッジ・`ON_KEYWORD_GAINED`・逆翻訳まで全部要った。🔑**判定対象は「バトルで倒した相手」でアタック宣言時には未確定**＝`isLancer` を boolean に潰さず配列を運ぶ。⚠**`isLancer=true` なのに `lancerKeywords` が空だと無条件ランサーが恒久 no-op へ裏返る**＝シグニ101枚＋付与3形式で0件を実測（暗黙の不変条件なので将来 `attackKeywords` を触るときは再確認）。⚠**`BoardComponents`／`boardDiff` の完全一致比較は「無傷」ではない**（バッジ消失と誘発漏れ）。
