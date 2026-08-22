@@ -140,15 +140,14 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-21〜22・続き592・Opus 5＋Codex）＝Sonnetタスク8「clean群 findings 1,444件」の段0→段1完走→段3再クラスタ化→段2着手（2バッチ）**。ゲート全緑（**golden 2325→2329**・**census 783→781**〔`BASELINE_HIGH` 更新済〕・smoke 10693 全0・fuzz 全0・census:stubs 全0・同型★0・held 99 据置・lint 0 errors 260 warnings 据置）。**実装は Codex 9バッチ／指示書・段0・再クラスタ化・計器拡張・全検証・簿記は Claude**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-21〜22、詳細は §6.2。
-  - **🏁段0（機械前処理）**＝1,444 → **OPEN 1,212件**。除去232件のうち🆕**`FP_DIDIT_GATE` 122件は PLAN 未記載だった最大の偽陽性ファミリ**（「そうした場合」の慣例エンコード `CONDITIONAL{IS_MY_TURN}` を engine の did-it ゲートが処理する）。再現＝`node scripts/archive/semanticAuditStage0.mjs`。
-  - **🏁段1（クラスタ triage）＝147クラスタ・463 findings を7バッチで完走**＝**真バグ365／偽陽性98／機構待ち69**。🔑**全体の偽陽性率 21.2% がパイロット precision の帯（16〜22%）にちょうど収まった**＝triage 全体の妥当性の裏付け。
-  - **🏁段3の「段2 へ寄せ直す」再クラスタ化**＝軸を3案実測して**「欠落語彙キー軸」**を採用（quote 正規化も claim 正規化も効かなかった）。**未分類18%まで圧縮・5件以上のサブ群38個/302件**。✅**実証＝`filter.cardName × ADD_TO_FIELD` の5件は live がバイト一致の systematic bug で、生データへ戻すと母集団は約15効果**（findings は標本）。再現＝`node scripts/archive/semanticAuditRecluster.mjs`。
-  - **🚀段2（実装）2バッチ**＝①`cardName` 脱落（採用7／据置11）②`filter.hasCharm` の配線漏れ（採用13／据置3）。🎯**②は `census:wiring --key hasCharm` が miss 16→0 で結果を裏付けた**＝**段2 は今後この形（計器の before/after を報告させる）で回す**。
-  - **🔧計器を2本拡張**＝`censusWiring.ts` の `VOCAB` に**盤面状態フィルタ9語彙**を追加（それまで**追跡対象外**＝「0件だから穴はない」と読めなかった）。⚠**素朴に足すと miss 82件に見えたが精査で実30件**＝状態語の3用法分岐／コスト側フィルタ／`has===0` で表から消える罠を全部踏んで直した（理由はソースコメント）。
-  - ⚠🔴**Claude 側が4回まちがえた（全部 PLAN に記録済み）**＝(a)**母集団をカード全文で数えた**（`hasCharm` 68→実17）＝**効果単位の `docs/_effect_srctext.json` で数える** (b)スコープ抽出の `/"cardName"/` が `"excludeCardName"` に一致せず既に正しい5件を混ぜた (c)did-it ゲートの `CONDITIONAL` アンラップ（`effectExecutor.ts:4832`）を見落とした (d)`hasCharm` の VOCAB に同義の別キー `banishedHadCharm` を入れ忘れた。**(a)〜(d) はいずれも Codex の原文/実コード再照合で訂正された。**
-  - **▶ 次の一手【Opus 側】**＝**段2 第3バッチ**。候補＝計器が示す残り配線漏れ（`isFrozen` 3／`isUp` 3／`infected` 2／`hasAcce` 2／`acceHost` 2／`isSelfAcced` 2）／`SHUFFLE_DECK` 前置44効果（**未検証＝投入前に効果単位で数え直す**）／🔴**`stripRuleParens` follow-up**（`《カード名（…）》` の括弧を剥がす＝**内側保護と全角→半角正規化を必ずセットで**。片方だけは過剰実行→過小実行の付け替え）。
-  - **▶ 次の一手【Sonnet 側】**＝**段1 で切り出した機構待ち69件**の §6.3／Opusタスク12 への登録整理。⚠**`collectLeaveFieldTriggers` は3バッチ跨ぎで収束**＝(clii) は単発でなく「self スコープループにゲート群が面で欠けている」課題として扱う。
+- **🆕 セッション（2026-08-22・続き593・Opus 5 単独）＝Sonnetタスク8 段2 第3バッチ＝盤面状態フィルタの残り配線漏れを消化（採用10効果＋二重ゲート解消4効果）**。ゲート全緑（**golden 2329→2334**・**census 781→776**〔`BASELINE_HIGH` 更新済〕・smoke 10693 全0・fuzz 全0・census:stubs 全0・同型★0・**held 99／`_partial_fresh` 6 据置**・lint 0 errors 260 warnings 据置）。live per-effect diff **changed 14 / added 0 / removed 0**。**Codex 委譲なし＝実装・検証・簿記すべて Claude**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き593）、詳細は `stage2_batch3_report.md`。
+  - **🔑 直した穴は3つ、いずれも「1か所の読み落とし」**＝①**能力喪失の汎用枝が対象名詞句の修飾語を1つも読んでいなかった**（`target` を owner/count だけで手組みし `parseSigniTarget` を通らない）＝レベル/パワー/感染状態が落ちて**相手シグニなら誰でも**能力を奪えた5効果 ②「アクセされている〈owner〉のシグニのパワーを＋N」の `hasAcce` 脱落2効果（**所有者語が状態語の前に来る語順**が規則に無かった） ③「〈owner〉の場に凍結状態のシグニがある場合」の**無冠詞形の条件節が無かった**3効果（うち `WX25-P2-088-E1` は🔴**「代わりに」が別ステップ化して手札を2回捨てさせていた**）。
+  - **🎯 計器 before/after（段2 の標準検証形式）**＝`census:wiring --key` で **`hasAcce` miss 2→0／`infected` 2→0／`isFrozen` 3→1／`isUp` 3→2**。⚠**miss には「既に正しい効果」が混ざっていた**＝計器側の偽陽性3件（`infectedOnly` 専用キー／離場トリガーの `leftStateFilter.hasAcce`／コスト側除外の綴り漏れ「を**好きな数**ダウンする」）を `censusWiring.ts` で是正。⚠**除外を広げすぎると穴ごと消える**＝`を[^。、]{0,6}ダウン(する|し)` まで緩めたら正しい効果まで落ちて **has 165→135** になった（実測して最小限へ戻した）。
+  - **🆕 `gate()` が同一条件の CONDITIONAL を剥がすようになった**＝id 名指しの手動ゲート表と一般規則が**二重掛け**になり、逆翻訳が条件を2回出していた（4効果）。**収集時ゲート（`activeCondition`）側を残す**＝実行時 CONDITIONAL では「能力自体を発動させない」を表せない。
+  - ⚠🔴**新しく見つけた構造的な穴2つ（次バッチの worklist・§6.4 に登録）**＝(a)**収穫マージの「effectId 集合が変わるカードは丸ごと温存」で parser 改善が永久に届かないカードが45件**（多くは id 命名 `E1b`↔`E2` の食い違いだが、`WXDi-CP02-072` の【絆常】と `WXDi-P04-040` は**live に効果そのものが無い**） (b)**`manualEffects.ts` の「AUTO 影武者コピー」5件**が parser 改善を遮る（`mergeManualEffects` は `parseStatus` を見ずに id 一致で常に manual 側が勝つ）。今回 `WX24-P1-050-E2` は手で写して届かせた。
+  - ⚠**golden は「修正前データで実際に落ちるか」を確かめてから採る**＝新規5本のうち1本が**vacuous に PASS**していた（フィルタ無しでも候補の先頭がたまたま正解だった）＝感染シグニをゾーン0以外へ置く形へ書き直した。
+  - **▶ 次の一手【Opus 側】**＝**段2 第4バッチ**。候補＝①上の(a)45カード／(b)影武者4件＝**「parser は直っているのに live へ届かない」系の構造ガード**（計器も golden も緑のまま隠れる型なので優先度が高い） ②`SHUFFLE_DECK` 前置44効果（**未検証＝投入前に効果単位で数え直す**） ③🔴`stripRuleParens` follow-up（`《カード名（…）》` の括弧剥がし＝**内側保護と全角→半角正規化を必ずセットで**）。
+  - **▶ 次の一手【Sonnet 側】**＝続き592 から据置＝**段1 で切り出した機構待ち69件**の §6.3／Opusタスク12 への登録整理（⚠`collectLeaveFieldTriggers` は3バッチ跨ぎで収束＝(clii) は「self スコープループにゲート群が面で欠けている」課題として扱う）。§7 実機検証（続き588 の6件が未検証）も主力のまま。
 
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
@@ -157,21 +156,23 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-20 続き591（Opusタスク12 (cl)＝「そのターン終了時」の遅延予約を残0クローズ）後 最新値（本行が直近の正）**：
-  **census 783 据置**（`BASELINE_HIGH` 783 据置）、**golden 2324→2325**（(cxlvii) の3本を遅延仕様へ更新＋②skip を1本追加）、
-  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、lint **0 errors**（263 warnings 据置）、
+- **🆕 2026-08-22 続き593（段2 第3バッチ＝盤面状態フィルタの配線漏れ）後 最新値（本行が直近の正）**：
+  **census 781→776**（`BASELINE_HIGH` 776 へ更新）、**golden 2329→2334**（新規 E2E 5本）、
+  smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、lint **0 errors**（260 warnings 据置）、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
-  **被覆マトリクス miss 190 据置**（未再計測）、
+  **被覆マトリクス（`census:wiring`）＝盤面状態語彙の miss は `hasAcce` 0／`infected` 0／`hasCharm` 0／`isDown` 0／
+  `isSelfCharmed` 0／`isFrozen` 1／`isUp` 2／`isSelfAcced` 1／`acceHost` 3**（残りは全部 機構待ちか構造ガード。
+  ⚠**全体の miss 合計は未再計測**＝前回値 190 は状態語彙の是正ぶんだけずれている）、
   `parserWorklist` held **99枚 / 40署名群 据置**、`docs/_partial_fresh.json` **6カード 据置**、
-  **live 効果総数 10693 据置**（per-effect diff **changed 1／added 0／removed 0／outlier 0**＝`WXDi-P10-039-E2` のみ）。
-  version **0.502 据置**。**実機シナリオ定義総数 476 据置**（`v20` 2本は**定義数を変えず中身を (cl) 仕様へ書き換え**）。
+  **live 効果総数 10693 据置**（per-effect diff **changed 14／added 0／removed 0**）。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。
   （⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
-  **Opusタスク12＝在庫1件**（(cxlvi)／🏁**(cl) を残0クローズ**）／🏁**§6.4 残0**／🏁**§8 は (g) v1 まで完了**。
-  ⇒ **Opus 側の生きた worklist は Opusタスク12 在庫1件・§5d-0 (i) の残セル・§6.3／§6.2／タスク13**。
-  ✅**(cl) は実機検証まで完了**。⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
+  **Opusタスク12＝在庫1件**（(cxlvi)）／🏁**§6.4 は (O-37)(O-38) を新規登録**（下記 §6.4）／🏁**§8 は (g) v1 まで完了**。
+  ⇒ **Opus 側の生きた worklist は §6.2 段2（第4バッチ）・Opusタスク12 在庫1件・§5d-0 (i) の残セル・§6.3・タスク13**。
+  ⚠🔴**続き588 の6件は依然として実機未検証**＝**Sonnet 側 §7 の最優先**。
   CPU の射程（応答アーツ 214/428・攻めのアーツ メイン174/アタック188・スペル 123/427・シグニ【起】 MAIN 500/682・
   AA 54/76・ルリグ【起】 MAIN 425/AA 83・付与【起】 92効果/63カード・継承宣言 3カード）は続き553 据置。
-  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き591）。
+  一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き593）。
 
 **常設の計器（数字ではなく「見方」＝陳腐化しないもの）**
 
@@ -272,7 +273,8 @@
   🏁**2026-08-20 続き588 に第1バッチ6件を残0クローズ**（(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)＝配線漏れファミリ）。登録行の原文は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-20 整理㊾」節、結末と教訓は §3 のクローズ節と `BUGFIXES.md` 2026-08-20（続き588）。
   🏁**2026-08-20 続き589 に第2バッチ3件を残0クローズ**（(cxliv)(cxlv)(cxlviii)＝**parser／表現系**。登録行の原文と結末の対照は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-20 整理㊾」節）。⚠**3件が残した教訓**＝(a)**「機構が無い」という登録は疑う**＝(cxliv) は parser も engine も既に完備で **live が held に落ちて古かっただけ**だった（着手前に fresh parser の出力を1回実測すれば分かる）。(b)**登録票の母集団は当てにならない**＝(cxlviii) は「1枚」と書かれていたが実測 **18カード中7効果**（うち3枚は fresh 側で既に正しく held 待ち）。(c)**カード固有の原文を分岐ガードに埋め込むと、同じ文型の別カードが全部落ちる**＝真因は `!t.includes('対戦相手')` の全文スキャン＋`WX10-048` の whitelist だった（§5-5c）。(d)**バグ再現用の実機シナリオは修正後に必ず FAIL する**＝「修正後にどう見えるか」を書いておかないと、直っているのに壊れていると誤読する。
   ▶**第3バッチは束ねない**＝残る3件は機構がそれぞれ別（間欠バグ／二段任意コストの構造／UIレース）。**(cxlvii) が最も波及が広い**（「そうした場合」が二段以上に連鎖する任意コスト全般の構造的な穴＝`effectExecutor.ts:4011` のディスパッチ）ので、着手するならここから。
-- [x] 🏁**§6.4 は残0**（`O-19b`＝続き567・`O-1`＝続き569 で消化）。**§6.4 で唯一の大物だった `O-1`（CPU AI）も残0クローズ**。
+- [x] 🏁**§6.4 は一度 残0 になった**（`O-19b`＝続き567・`O-1`＝続き569 で消化。**唯一の大物だった `O-1`（CPU AI）も残0クローズ**）。
+  ⚠🆕**2026-08-22 続き593 に `O-39`／`O-40` を新規登録**＝どちらも「**parser は直っているのに live へ届かない**」構造ガード（収穫マージの effectId 集合ガード45カード／`manualEffects.ts` の AUTO 影武者コピー5件）。**計器も golden も緑のまま隠れる型**なので優先度は高い。
 
 - [ ] **🆕(cxlvi) 続き584＝`WX16-Re18-E1`（レゾナンス・マーチ）のルリグデッキから複数レゾナを配置する継続が間欠的に発火せず2枚目が取り残される**＝実機で確認（`v44SummonTwoResonasFromLrigDeck`。4回実行中2回再現）。原文「あなたのルリグデッキからレゾナを２枚まで出現条件を無視して場に出す」＝SELECT_TARGETで2枚選択→1枚目をSELECT_SIGNI_ZONEで配置→**空きゾーンが1つに減った時点で対話を挟まず自動配置する設計**（`execStubPart3.ts:3043-3054`＝`emptyIdxIPSR.length>=2`のときだけ`needsInteraction`、未満なら`INTERNAL_PLACE_SUMMONED_RESONAS`の継続を`executeAction`で即時実行）。**再現時は2枚目がルリグデッキに残存したまま`pendingEffect`が`-`に戻り「完了」してしまう**（`hLrigDeck`に2枚目のカード番号が残る・対応する`hField`ゾーンはnullのまま）。**再現の有無は「どちらのカードが1枚目として処理されるか」と完全に相関**（1枚目=`44002`のときは4/4成功・1枚目=`44003`のときは4/4失敗）が判明したが、UI操作（`pick-0`→`pick-1`→「決定」）自体は毎回同一だったため、**選択順序が非決定的に入れ替わる理由（`resumeSelectTarget`のマルチセレクト順序保存経路／`INTERNAL_PLACE_SUMMONED_RESONAS`継続実行自体の間欠的欠落のどちらが真因か）はSonnet側では特定しきれず**、Opus側での追跡が要る。実害＝「２枚まで」を選んでも約半分の確率で1枚しか場に出ない過少実行。実機シナリオは`scripts/verifyBattleDrive.mjs`の`v44SummonTwoResonasFromLrigDeck`（`order`登録済み）。詳細はBUGFIXES 2026-08-19続き584。
 - [ ] **§6.3／§6.2／タスク13**＝大型機構・意味照合監査・構造混線。**どれも在庫を実測してから**取る。
@@ -703,6 +705,11 @@
   - **段1（クラスタ triage・3〜5セッション）**＝153クラスタを `node scripts/semanticAuditTriage.mjs scripts/archive/scratchpad/semantic_audit_clean_round1 <CardNum...>` で原文＋live JSON 照合し「真バグ／偽陽性／機構待ち」に3分類。**Codex へ2巡目として委譲可**＝監査本体は10枚/バッチ・10〜54秒・325バッチ失敗0の実績があり、1,033カード＝約104バッチで機械時間1〜2時間。Claude はスポット裏取りに専念する。
   - **段2（クラスタ消化・15〜25セッション）**＝**parser 規則1本で N効果**を直す（stub群の勝ち筋＝1回で84枚採用の実績）→ `npm run build:effects` → `node scripts/heldReview.mjs --adopt` → `npm run gates`。⚠**JSON 手パッチ単独は禁止**＝parser 同修正か MANUAL 化とセット（[memory] parserworklist-semantics。MANUAL 側は `npx tsx scripts/syncManualLive.ts` 経由でないと live に届かない＝§3 タスク8 の道具）。
   - 🆕🏁**段2 第2バッチ＝`filter.hasCharm` の配線漏れ（採用13／据置3）＝2026-08-22 完了**。報告＝`stage2_batch2_report.md`（末尾に Claude 検証節）。
+  - 🆕🏁**段2 第3バッチ＝盤面状態フィルタの残り配線漏れ（採用10効果＋二重ゲート解消4効果）＝2026-08-22 続き593 完了**。報告＝`stage2_batch3_report.md`。
+    - 🔑**軸は「状態語」だが直した場所は3か所**＝①能力喪失の汎用枝が**対象名詞句の修飾語を1つも読んでいなかった**（レベル/パワー/感染状態＝5効果）②`hasAcce` の語順違い（2効果）③「〈owner〉の場に凍結状態のシグニがある場合」の無冠詞形の条件節（3効果）。**findings は標本**なので `docs/_effect_srctext.json` で綴りごとに全数を数え直してから入った（38/4/5/140件）。
+    - 🎯**計器 before/after**＝`hasAcce` miss 2→**0**／`infected` 2→**0**／`isFrozen` 3→1／`isUp` 3→2（残りは機構待ちと O-39）。⚠**miss には既に正しい効果が混ざる**＝計器側の偽陽性3件（専用キー `infectedOnly`／`leftStateFilter.hasAcce`／コスト側除外の綴り漏れ）を同時に潰した。⚠**除外を広げすぎると穴ごと消える**（`isUp` の has が 165→135 に落ちた実測あり）。
+    - ⚠**golden は「修正前データで実際に落ちるか」を確かめてから採る**＝新規5本のうち1本が vacuous に PASS していた（フィルタ無しでも候補の先頭がたまたま正解だった）。**対象を候補の先頭以外へ置く**と検知できる。
+    - 🆕**構造ガード2件を新規発見＝§6.4 `O-39`／`O-40` へ登録**（「parser は直っているのに live へ届かない」型＝計器も golden も緑のまま隠れる）。
     - 🎯**計器で結果が裏付けられた初のバッチ**＝`census:wiring --key hasCharm` が **miss 16 → 0 ／ has 10 → 26**＝**配線漏れ完全解消**。**申告値と計器が一致**＝数え間違いが起きていないことの機械的証明。**段2 は今後この形（計器の before/after を報告させる）で回す。**
     - golden **2327→2329**（E2E +2）・census **783→781**（`BASELINE_HIGH` 更新済み・旧値はコメント保存）・held 99維持・同型★0・lint 増減0・**スコープ外変更0**。
     - **parser は `bindCharmedSigniActionTarget` 1関数**＝🔑**指示どおり `parseSigniTarget` を呼んで合流**（regex を各 action の組み立て箇所へ複製しない）・3 action 型に限定・**`count` を保存**（既存の `ALL` を1体に狭めない）・「その後、」節を除外。
@@ -787,6 +794,8 @@
 
 | ID | 項目 | 規模 | ブロッカー／次の一手 |
 |---|---|---|---|
+| **O-39** | 🔴**収穫マージの構造ガードで parser 改善が永久に live へ届かないカード 45件** | M | **2026-08-22 続き593 実測**＝`buildEffectsJson.ts` は「**effectId 集合が変わるカードは丸ごと温存**」（`sameIdSet` 判定）。手修正カード45件がこれに掛かり、AUTO 効果の parser 改善が**一切届かない**（held にも `_partial_fresh` にも出ない＝**計器も golden も緑のまま隠れる**）。多くは id 命名の食い違い（live `E1b` ↔ fresh `E2`）だけなので**live 側の id を fresh の綴りへ寄せれば解ける**が、`WXDi-CP02-072`（【絆常】`-E2`）と `WXDi-P04-040`（`-E2`）は**live に効果そのものが無い**＝先に原文照合が要る。⚠`syncManualLive` は使えないカードがある＝**live に MANUAL があるのに `manualEffects.ts` には無い**（手で live を直した歴史）＝同期すると手修正を潰す。実例＝`WXDi-CP02-072-BURST` の `isUp` は parser では直っているのに届いていない |
+| **O-40** | 🔴**`manualEffects.ts` の「AUTO 影武者コピー」5件が parser 改善を遮る** | S | `mergeManualEffects` は **`parseStatus` を見ず id 一致で常に manual 側が勝つ**ので、`parseStatus:"AUTO"` と書かれた**古いコピー**が parser の最新出力を永久に上書きする。実測5件＝`WX24-P1-050-E2`（**2026-08-22 続き593 で手で写して解消**）／`WX24-P1-050-BURST`／`WX24-P2-057-E3`／`WXDi-P10-044-E2`／`WXDi-P10-044-E3`。**残り4件は未点検**＝parser 出力と突き合わせて、同じなら manual 側から**削除**して parser に任せる（消せば以後この穴は再発しない） |
 
 **■ 監視だけしている項目（着手不要・壊れたら気付く）**
 - 🆕**`census:stubs` は C群（逆翻訳の生ID露出）も 0 でゲート**（2026-08-18 続き545・§6.4 O-12 完了時に追加）＝新しい STUB を足して**日本語の表示語彙を書き忘れる**と赤で止まる。直し方は①ハンドラ直前に `// <ID>: 日本語の説明` を書いて `node scripts/genStubsMd.mjs`（STUBS.md 経由で自動反映）②ハンドラを持たない宣言型は `scripts/decompileEffects.ts` の `miscStubMap` に足す。⚠**どちらも `npm run regen` まで回すこと**（計器は逆翻訳シートの実出力を読む）。

@@ -118,6 +118,32 @@ function hasThisSigniAsBanishObject(text: string): boolean {
   return /このシグニを[^を、。]*バニッシュ/.test(text);
 }
 
+/**
+ * 「能力喪失」汎用枝の**対象名詞句**だけを取り出してフィルタへ戻す（2026-08-22 段2 第3バッチ）。
+ *
+ * ⚠**文全体を `parseSigniTarget` へ渡してはいけない**＝「あなたの場に他の＜微菌＞のシグニがある場合、
+ *   対戦相手のシグニ１体を対象とし…」の**条件節**の修飾語（クラス・色・状態）まで対象へ引き込み、
+ *   原文と逆の過小実行になる（`WX25-P3-071-E1` ほか実測5効果がこの形）。
+ *   ⇒ 対象句を含む**読点区切りの1節**に限り、さらに所有者語が汎用枝の owner 判定と一致する場合だけ採る。
+ * ⚠終端（「を対象とし」「は能力を失う」）まで span に含める＝`parseSigniTarget` の集合判定
+ *   （無冠詞の「シグニのパワーを」＝全体）と同じ規約でここも数える。
+ */
+function removeAbilitiesTargetNounPhraseFilter(t: string, owner: Owner): TargetFilter | undefined {
+  const ownerWord = owner === 'opponent' ? '対戦相手' : 'あなた';
+  for (const clause of t.split(/[、。]/)) {
+    if (!/シグニ/.test(clause)) continue;
+    if (!/(?:を[０-９\d]*体?(?:まで)?を?対象とし|(?:は|が)[^。]{0,16}能力を(?:失|新たに得られない))/.test(clause)) continue;
+    const np = clause.match(/(あなた|対戦相手)の[^。、]*?シグニ(?:[０-９\d]+体(?:まで)?)?/);
+    if (!np || np[1] !== ownerWord) continue;
+    const filter = parseSigniTarget(np[0], owner).filter;
+    if (!filter) return undefined;
+    // `cardType` だけ（＝修飾語なし）なら情報が増えないので触らない。
+    const keys = Object.keys(filter).filter(k => k !== 'cardType');
+    return keys.length > 0 ? filter : undefined;
+  }
+  return undefined;
+}
+
 export function parseSentencePart1(t: string, cardNum?: string): EffectAction | null {
   // ---- 「そのターン終了時、〜」＝いま解決中のターン終了時の遅延タイミング宣言（タスク12(cl)）----
   // 「ターン終了時まで、」は持続期間なので対象外。ここでは本文を即時実行へ流さない受け皿だけを返し、
@@ -698,6 +724,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       until: dur,
       ...(keysAndSigni ? { alsoKeys: true } : {}),
     } as RemoveAbilitiesAction;
+    // 🆕対象名詞句の修飾語を戻す（2026-08-22 段2 第3バッチ）。この汎用枝は target を owner/count だけで
+    // 手組みするため、**「対戦相手の〈レベル／パワー／状態〉のシグニ」の修飾語が丸ごと落ちて**
+    // 相手シグニなら誰でも能力を奪える過剰実行になっていた（実測5効果＝`WXDi-P08-049-E2` レベル1／
+    // `WXDi-P14-051-E1` レベル2以下／`WX24-P1-050-E2` パワー10000以下／`WX25-CP1-084-E1` レベル2以下／
+    // `WX25-P1-051-E2` 感染状態）。engine 側は `fieldCandidates`（`execUtils:1241`）と
+    // `collectContinuousAbilitiesRemovedSigni`（`effectEngine:5579`）が両方ともこの filter を読む。
+    const npFilter = removeAbilitiesTargetNounPhraseFilter(t, owner);
+    if (npFilter) ra.target.filter = { ...npFilter, ...(ra.target.filter ?? {}) };
     // 「この方法でダウンしたルリグと同じレベルの対戦相手のすべてのシグニは能力を失う」（WX25-P1-112）＝
     // レベル条件が丸ごと落ち、相手シグニ**全体**から能力を奪う過剰効果になっていた（タスク12(cix)）。
     if (/この方法でダウンしたルリグと同じレベルの/.test(t)) {

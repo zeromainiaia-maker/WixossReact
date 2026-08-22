@@ -3,9 +3,28 @@
 
 --- 語彙キー別サマリ（miss 降順）---
   miss   has  語彙キー
-     0    26  hasCharm  ※「このシグニに〜」形は isSelfCharmed／トリガー側は banishedHadCharm で配線済み扱い
-     0        合計
+     2   163  isUp
+     2        合計
 
 --- セル別明細（miss 降順・上位のみ stdout／全量は docs/_census_wiring.txt）---
+  miss=  1 has=   0  isUp × DRAW_PER_FIELD_COUNT[countFilter]  （同入口に配線済みなし＝機構未実装の可能性）
+  miss=  1 has=   4  isUp × TRASH{HAND_CARD}  （同入口の配線済みは僅少＝先に用法分類を）
+  miss=  1 has= 161  isUp × SIGNI[filter]  ★★同入口に20件以上の配線済み＝穴がほぼ確実
+  miss=  1 has=  34  isUp × BOUNCE{SIGNI}  ★★同入口に20件以上の配線済み＝穴がほぼ確実
 
 ===== セル別 全明細 =====
+
+## isUp × DRAW_PER_FIELD_COUNT[countFilter]   miss=1 has=0
+   MISS SPDi43-24-E1	【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の青のシグニを２体までダウンし、以下の２つから１つを選ぶ。①この方法でダウンしたシグニ１体につきカードを１枚引く。②この方法でダウンしたシグニ１体につき対戦相手は
+
+## isUp × TRASH{HAND_CARD}   miss=1 has=4
+   MISS SPDi43-24-E1	【自】：あなたのアタックフェイズ開始時、あなたのアップ状態の青のシグニを２体までダウンし、以下の２つから１つを選ぶ。①この方法でダウンしたシグニ１体につきカードを１枚引く。②この方法でダウンしたシグニ１体につき対戦相手は
+   （配線済み見本: WX25-P2-085-E1, WX25-P3-089-E1, WXDi-P04-052-BURST, WXDi-CP02-079-E1）
+
+## isUp × SIGNI[filter]   miss=1 has=161
+   MISS WXDi-CP02-072-BURST	：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。②カードを１枚引く。
+   （配線済み見本: WX09-015-E1, WX11-025-E2, WX14-CB02-E2, WXEX2-01-E2, WXEX2-28-E1, WX24-P1-040-E2, WX24-P1-041-BURST, WX24-P1-047-BURST …）
+
+## isUp × BOUNCE{SIGNI}   miss=1 has=34
+   MISS WXDi-CP02-072-BURST	：どちらか１つを選ぶ。①対戦相手のアップ状態のシグニ１体を対象とし、それを手札に戻す。②カードを１枚引く。
+   （配線済み見本: WX09-015-E1, WX14-CB02-E2, WX24-P1-057-BURST, WX24-P2-065-BURST, WX24-P3-065-BURST, WX24-P4-061-BURST, WX25-P1-071-BURST, WX25-P2-053-BURST …）

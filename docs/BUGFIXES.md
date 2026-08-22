@@ -1,5 +1,73 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き593）：段2 第3バッチ — 盤面状態フィルタの残り配線漏れ10効果＋二重ゲート4効果
+
+続き592 の「▶ 次の一手【Opus 側】＝計器が示す残り配線漏れ」を消化した。3つの穴を1か所ずつ塞いだ。
+
+### ① 能力喪失の汎用枝が**対象名詞句の修飾語を1つも読んでいなかった**（5効果）
+
+`parseSentencePart1.ts` の「能力を失う」汎用枝は `target` を `owner`／`count` だけで手組みしており、
+`parseSigniTarget` を通らないので**レベル・パワー・状態語がすべて落ちていた**＝相手シグニなら誰でも
+能力を奪える（あるいは相手全体から奪う）過剰実行。`removeAbilitiesTargetNounPhraseFilter` を新設し、
+**対象句を含む読点区切りの1節だけ**を `parseSigniTarget` へ渡してフィルタを戻す。
+⚠全文を渡すと「あなたの場に他の＜微菌＞のシグニがある場合、対戦相手のシグニ1体を対象とし」の**条件節**の
+修飾語まで対象へ引き込む（`WX25-P3-071-E1` ほか）ので、節分割と**所有者語の一致**を必須にした。
+是正＝`WX25-P1-051-E2`（感染状態）／`WXDi-P08-049-E2`（レベル1）／`WXDi-P14-051-E1`（レベル2以下）／
+`WX25-CP1-084-E1`（レベル2以下）／`WX24-P1-050-E2`（パワー10000以下）。
+
+### ② 「アクセされている〈owner〉のシグニのパワーを＋N」の `hasAcce` 脱落（2効果）
+
+前バッチの `bindCharmedSigniActionTarget`（チャーム用）を**アクセと語順違い**へ拡張した。
+`WX16-031-E2`「**あなたの**アクセされているシグニ…」は所有者語が状態語の**前**に来る綴りで、
+規則に一致せず汎用枝の `owner:'any' / count:1` へ落ちていた（どちらの場の1体か不定の別物）。
+`WX16-073-E1` は `count:'ALL'` まで来ていたが `hasAcce` が無く**自分の全シグニ**が＋2000だった。
+
+### ③ 「〈owner〉の場に凍結状態のシグニがある場合」の条件節が無かった（3効果）
+
+`STATE_CONDITION_CLAUSES` には「N体以上ある場合」しかなく、**無冠詞形の規則だけが欠けていた**
+（`WX12-Re15-E1` は id 名指しの手動ゲートで個別に塞いであった＝穴の存在が見えにくかった）。
+一般規則を追加して `WXK02-086-E1`（無条件ドロー）／`WXDi-P09-065-E1`（無条件で相手手札公開）／
+🔴`WX25-P2-088-E1`（**「代わりに」が別ステップ化して手札を2回捨てさせていた**）を是正。
+最後の1件は `CONDITIONAL{then:見ないで1枚捨てさせる, else:通常の1枚捨て}` になった。
+
+### ④ 手動ゲートと一般規則の**二重ゲート**を解消（4効果）
+
+`gate()`（`activeCondition` を id 名指しで付ける表）に、**同一条件の実行時 CONDITIONAL を剥がす**処理を足した。
+一般規則が同じ条件節を読めるようになると二重掛けになり、逆翻訳が
+「《…かぎり》このシグニが場に出たとき：…いるなら、…」と条件を2回出していた（`WX25-P3-071-E1` で実確認）。
+収集時ゲート（`activeCondition`＝不成立なら能力自体が発動しない）を残す。
+`WXDi-P00-044-E2`／`WXK03-040-E1`／`WX25-P1-062-E2`／`WX25-P3-071-E1` の4効果が単一表現になった。
+
+### 計器の偽陽性を3つ潰した（`censusWiring.ts`）
+
+`census:wiring` の miss には**既に正しい効果**が混ざっていた＝(a)`FORCE_SIGNI_ATTACK` の専用キー
+`infectedOnly`（`WX16-047-E1`） (b)離場トリガーの `triggerCondition.leftStateFilter.hasAcce`（`WX20-071-E1`）
+(c)コスト側除外の綴り漏れ「アップ状態のルリグ**を好きな数**ダウンする：」（`WX24-P4-103-E1`）。
+⚠(c) を `を[^。、]{0,6}ダウン(する|し)` まで緩めたら効果側 DOWN の正しい対象まで落ちて **has 165→135** になった。
+この計器は `has===0` の語彙を表から捨てるので、除外を広げると**穴ごと不可視**になる（最小限に戻した）。
+
+結果（`--key` 単位）＝`hasAcce` miss 2→**0**／`infected` miss 2→**0**／`isFrozen` miss 3→**1**（残りは
+`COST_INCREASE` のスケール機構待ち）／`isUp` miss 3→2（残りは機構待ち1・下記の構造ガード1）。
+
+### 見つけたが直していない構造的な穴（次バッチの worklist）
+
+- 🔴**収穫マージの「effectId 集合が変わるカードは丸ごと温存」で parser 改善が永久に届かないカードが45件**。
+  多くは id 命名の食い違い（live `E1b` ↔ fresh `E2`）だが、`WXDi-CP02-072`（【絆常】）と `WXDi-P04-040` は
+  **live に効果そのものが無い**。`WXDi-CP02-072-BURST` の `isUp` は parser では既に直っているのに届かない。
+  ⚠live の `-E1` は `manualEffects.ts` に無い MANUAL なので `syncManualLive` を使うと手修正を潰す。
+- 🔴**`manualEffects.ts` の「AUTO 影武者コピー」5件**＝`mergeManualEffects` は `parseStatus` を見ずに
+  id 一致で常に manual 側が勝つため、AUTO と書かれた古いコピーが parser 改善を遮る。
+  今回 `WX24-P1-050-E2` がこれで、手で同じ修正を写して届かせた（残り4件は未点検）。
+
+### ゲート
+
+`npm run gates` 全緑。golden **2329→2334**（新規E2E 5本。うち4本は**修正前 live に戻すと実際に FAIL する**ことを
+確認済み＝vacuous でない。1本は初版が vacuous に PASS したため感染シグニをゾーン0以外へ置く形に書き直した）、
+census **781→776**（`BASELINE_HIGH` 同期）、smoke 10693 全0、fuzz 全0、census:stubs A群🔴0/C群0、
+manual-fields 0、同型★**0**、held **99 据置**、`_partial_fresh` **6 据置**、lint 0 errors/260 warnings 据置。
+live per-effect diff＝**changed 14 / added 0 / removed 0**。
+詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch3_report.md`。
+
 ## 2026-08-22：段2 第2バッチ — `filter.hasCharm` の対象配線漏れ13効果を是正
 
 `POWER_MODIFY`／`REMOVE_ABILITIES`／`GRANT_KEYWORD` の別ターゲット組み立て経路が、既存の

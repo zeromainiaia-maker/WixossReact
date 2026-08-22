@@ -2254,6 +2254,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   //   isFrozen 状態フィルタ＝execUtils が signi_frozen を走査・実装済）。従来は無条件発火（WXDi-P02-065/071 等）。
   [/(あなた|対戦相手)の場に凍結状態のシグニが([０-９\d]+)体以上ある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isFrozen: true }, minCount: parseNum(g[1]) })],
+  // 🆕「(あなた|対戦相手)の場に凍結状態のシグニがある場合」＝上の無冠詞形（1体以上）。2026-08-22 段2 第3バッチ。
+  //   従来は**この形の規則だけが無く**、条件が丸ごと落ちて無条件発火の過剰効果だった
+  //   （`WXK02-086-E1` のドロー／`WXDi-P09-065-E1` の相手手札公開／`WX25-P2-088-E1` の「代わりに」置換）。
+  //   ⚠原文照合＝この綴りは全CSVで4効果だけで、うち `WX12-Re15-E1` は id 名指しの手動ゲート（`gate()`）で
+  //     塞いであった＝一般規則が入ったので手動ゲートは撤去する（残すと activeCondition と CONDITIONAL の二重掛け）。
+  [/(あなた|対戦相手)の場に凍結状態のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', isFrozen: true } })],
   // 「対戦相手の〈ゾーン〉があなたより多い場合」＝両プレイヤーの枚数比較（cmp(自分, operator, 相手) なので 'lt'）。
   //   従来は無条件発火（WX15-033／WX17-040／WX18-032／WXK11-031＝全CSVでこの4枚だけ・タスク12(lxiii)）。
   //   ⚠「の枚数」の有無は表記ゆれ（`WX18-032-E1`／`WXK11-031-E1` は「対戦相手のライフクロスがあなたより多い場合」）。
@@ -2754,22 +2761,29 @@ function injectSuperlativeIntoSigniTargets(action: EffectAction, sup: { key: 'po
   }
 }
 
-// 「【チャーム】が付いている〈owner〉の（すべての）シグニ」を action の対象へ戻す。
+// 「【チャーム】が付いている／アクセされている〈owner〉の（すべての）シグニ」を action の対象へ戻す。
 // 状態語そのものは parseSigniTarget の既存規則へ委ね、POWER_MODIFY / REMOVE_ABILITIES /
-// GRANT_KEYWORD が個別に `hasCharm` を再実装しないよう、単文後処理で合流させる。
+// GRANT_KEYWORD が個別に `hasCharm` / `hasAcce` を再実装しないよう、単文後処理で合流させる。
 // ⚠「…シグニ1体がバニッシュされたとき」はトリガー主語であり action の対象ではないため、
 //   下の「パワー／能力喪失／対象宣言／付与」終端に一致せず、この経路には入らない。
+// 🆕2026-08-22（段2 第3バッチ）＝**所有者語が状態語の前に来る語順**（「あなたの**アクセされている**シグニの
+//   パワーを＋2000する」＝`WX16-031-E2`）を追加した。状態語が先の語順（`WX16-073-E1`）しか見ていなかったため、
+//   前者は汎用枝の `owner:'any' / count:1` へ落ちて**どちらの場のシグニ1体か不定**という別物になっていた。
+// ⚠「これ／このシグニにアクセされている」は**装着ホスト参照**（`acceHost`）で別キー＝除外する。
 function bindCharmedSigniActionTarget(action: EffectAction, text: string): EffectAction {
   // 複合効果の「その後」節は今回の効果単位母集団外。前段との結合意味を変えない。
   if (/^その後[、,]/.test(text.trim())) return action;
-  const nounM = text.match(/【チャーム】が付いている(?:(あなた|対戦相手)の)?(すべての)?シグニ(?:([０-９\d]+)体)?(?=のパワーを|は能力を失う|を対象とし|は【)/);
+  const nounM = text.match(/(?:(あなた|対戦相手)の)?(?:【チャーム】が付いている|(?<!(?:これ|この(?:シグニ|カード))に)アクセされている)(?:(あなた|対戦相手)の)?(すべての)?シグニ(?:([０-９\d]+)体)?(?=のパワーを|は能力を失う|を対象とし|は【)/);
   if (!nounM || !['POWER_MODIFY', 'REMOVE_ABILITIES', 'GRANT_KEYWORD'].includes(action.type)) return action;
-  const owner: Owner = nounM[1] === '対戦相手' ? 'opponent' : 'self';
+  const ownerWord = nounM[1] ?? nounM[2];
+  const owner: Owner = ownerWord === '対戦相手' ? 'opponent' : 'self';
   const parsed = parseSigniTarget(nounM[0], owner);
   const current = (action as unknown as { target: EffectTarget }).target;
-  // 「シグニのパワーを」は無冠詞でも集合全体。既存 action の ALL を保ち、明示の
-  // 「すべて／N体」だけ parseSigniTarget の count で上書きする。
-  parsed.count = nounM[2] || nounM[3] ? parsed.count : current.count;
+  // 「シグニのパワーを」は無冠詞でも集合全体（`parseSigniTarget` と同じ規約）。明示の「すべて／N体」か、
+  // この無冠詞パワー修正のときだけ parseSigniTarget の count を採り、それ以外は既存 action の count を保つ。
+  parsed.count = nounM[3] || nounM[4] ? parsed.count
+    : (action.type === 'POWER_MODIFY' && /シグニのパワーを/.test(text)) ? 'ALL'
+    : current.count;
   const rebound = { ...action, target: parsed } as EffectAction;
   if (rebound.type === 'GRANT_KEYWORD') {
     const token = text.match(/【([^】]+)】を得る(?:。)?$/)?.[1];
@@ -15837,7 +15851,18 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   // 収集時に判定可能な盤面条件は activeCondition、出自記録を使う条件だけは実行時 CONDITIONAL に置く。
   const gate = (id: string, condition: ActiveCondition): void => {
     const effect = effects.find(e => e.effectId === id);
-    if (effect) effect.activeCondition = condition;
+    if (!effect) return;
+    effect.activeCondition = condition;
+    // 🆕2026-08-22（段2 第3バッチ）＝**同じ条件の実行時 CONDITIONAL が既にあるなら剥がす**。
+    // 一般規則（STATE_CONDITION_CLAUSES）が後から同じ条件節を読めるようになると、ここの手動ゲートと
+    // 二重掛けになり、逆翻訳に条件が2回出る（`WXK09-083-E1` の撤去メモと同じ問題）。
+    // ⚠**手動ゲート側を残す**＝収集時に効かせるのがこの表の目的（`activeCondition` は
+    //   `collectPlacedSelfOnPlayTriggers` が評価する＝不成立なら能力自体が発動しない。golden の
+    //   「mandatory【出】先頭ゲート」テストが両方向で固定している）。
+    const act = effect.action as { type?: string; condition?: unknown; then?: EffectAction; else?: EffectAction };
+    if (act?.type === 'CONDITIONAL' && !act.else && JSON.stringify(act.condition) === JSON.stringify(condition)) {
+      effect.action = act.then as EffectAction;
+    }
   };
   const wrap = (id: string, condition: Condition): void => {
     const effect = effects.find(e => e.effectId === id);
@@ -15847,6 +15872,10 @@ export function parseCardEffects(card: CardData): CardEffect[] {
     { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: 'ウェポン' }, excludeSelf: true },
     { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: 'アーム' }, excludeSelf: true },
   ] });
+  // ⚠`WX12-Re15-E1` は一般規則（STATE_CONDITION_CLAUSES の「〈owner〉の場に凍結状態のシグニがある場合」）が
+  //   同じ条件を CONDITIONAL で組めるようになった後も**ここを残す**＝収集時ゲート（activeCondition）は
+  //   実行時 CONDITIONAL では代替できない（不成立なら能力自体を発動させない）。重複ぶんの CONDITIONAL は
+  //   上の `gate()` が剥がす。
   gate('WX12-Re15-E1', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true } });
   // 原文「このシグニがアタックフェイズの間に場に出た場合」＝アタックフェイズ全体（`ATTACK_ARTS_OP` も含む。
   // 相手のアーツ応答窓で効果によって出た場合も原文どおり成立させる）。タスク12(cvii)

@@ -40697,6 +40697,76 @@ test('stage2 batch2 E2E: GRANT_KEYWORD はチャーム付き自シグニだけ�
   ok(!result.ownerState.keyword_grants?.[plain]?.includes('ランサー'), 'チャームなしシグニはランサーを得ない');
 }));
 
+// ── 段2 第3バッチ（盤面状態フィルタの配線漏れ）＝live action を実行して両方向で固定する ──
+// ①能力喪失の汎用枝は target を owner/count だけで手組みしており、**対象名詞句の修飾語を1つも読んでいなかった**
+//   （感染状態・レベル・パワーが落ちて「相手シグニなら誰でも」選べる過剰実行）。
+test('stage2 batch3 E2E: REMOVE_ABILITIES は感染状態の相手シグニだけを候補にする（WX25-P1-051-E2）', () => withSavedCursor(() => {
+  const infected = fresh(), plain = fresh();
+  const effect = (effectsMap.get('WX25-P1-051') ?? []).find(e => e.effectId === 'WX25-P1-051-E2');
+  ok(!!effect, 'WX25-P1-051-E2 live effect');
+  if (!effect) return;
+  // ⚠感染側を**ゾーン0以外**に置く＝filter が無いと候補の先頭（ゾーン0の非感染）を掴むので、
+  //   同じ並びだと配線漏れでもテストが通ってしまう（実測＝修正前データで vacuous に PASS した）。
+  const ctx = mkCtx({}, { signi: [plain, infected, null] }, 'WX25-P1-051');
+  ctx.otherState.field.signi_virus = [0, 1, 0];
+  const result = run(effect.action, ctx);
+  ok(result.otherState.abilities_removed?.includes(infected), '感染状態のシグニは能力を失う');
+  ok(!result.otherState.abilities_removed?.includes(plain), '非感染のシグニは能力を失わない');
+}));
+
+test('stage2 batch3 E2E: REMOVE_ABILITIES のレベル上限が効く（WXDi-P14-051-E1＝レベル2以下のすべて）', () => withSavedCursor(() => {
+  const lv2 = findCard(c => isSigni(c) && c.Level === '2');
+  const lv4 = findCard(c => isSigni(c) && c.Level === '4');
+  const effect = (effectsMap.get('WXDi-P14-051') ?? []).find(e => e.effectId === 'WXDi-P14-051-E1');
+  ok(!!effect, 'WXDi-P14-051-E1 live effect');
+  if (!effect) return;
+  const ctx = mkCtx({}, { signi: [lv2, lv4, null] }, 'WXDi-P14-051');
+  const result = run(effect.action, ctx);
+  ok(result.otherState.abilities_removed?.includes(lv2), 'レベル2は能力を失う');
+  ok(!result.otherState.abilities_removed?.includes(lv4), 'レベル4は能力を失わない');
+}));
+
+// ②「アクセされている〈owner〉のシグニのパワーを＋N」＝CONTINUOUS の hasAcce（所有者語が状態語の前後どちらでも同じ形へ）。
+test('stage2 batch3 E2E: hasAcce の＋2000 はアクセ済みシグニだけに乗る（WX16-073-E1）', () => withSavedCursor(() => {
+  const source = 'WX16-073';
+  const other = findCard(c => isSigni(c) && c.CardNum !== source);
+  const cm = cardMap as Map<string, CardData>;
+  const my = mkState({ signi: [source, other, null] });
+  my.field.signi_acce = [null, null, null];
+  const base = calcFieldPowers(my, mkState({}), true, effectsMap, cm);
+  my.field.signi_acce = ['ACCE-CARD', null, null];
+  const withAcce = calcFieldPowers(my, mkState({}), true, effectsMap, cm);
+  eq(withAcce.get(source)! - base.get(source)!, 2000, 'アクセ済みは＋2000');
+  eq(withAcce.get(other)! - base.get(other)!, 0, 'アクセなしは加算されない');
+}));
+
+// ③「〈owner〉の場に凍結状態のシグニがある場合」＝無冠詞形の条件節（従来は語彙が無く無条件発火）。
+test('stage2 batch3 E2E: 相手の場に凍結シグニがある場合だけ引く（WXK02-086-E1）', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXK02-086') ?? []).find(e => e.effectId === 'WXK02-086-E1');
+  ok(!!effect, 'WXK02-086-E1 live effect');
+  if (!effect) return;
+  const mk = (frozen: boolean): ExecCtx => {
+    const ctx = mkCtx({}, { signi: [fresh(), null, null] }, 'WXK02-086');
+    ctx.ownerState.deck = fill(5);
+    ctx.otherState.field.signi_frozen = [frozen, false, false];
+    return ctx;
+  };
+  const yes = mk(true), no = mk(false);
+  eq(run(effect.action, yes).ownerState.hand.length, yes.ownerState.hand.length + 1, '凍結あり=1枚引く');
+  eq(run(effect.action, no).ownerState.hand.length, no.ownerState.hand.length, '凍結なし=引かない');
+}));
+
+// ④「〜がある場合、代わりに」＝置換（従来は条件節が落ちて**2回捨てる**過剰実行だった）。
+test('stage2 batch3: 凍結条件の「代わりに」は then/else の置換になる（WX25-P2-088-E1）', () => {
+  const effect = (effectsMap.get('WX25-P2-088') ?? []).find(e => e.effectId === 'WX25-P2-088-E1');
+  ok(!!effect, 'WX25-P2-088-E1 live effect');
+  const a = effect?.action as { type?: string; condition?: { type?: string; filter?: { isFrozen?: boolean } }; then?: { target?: { blind?: boolean } }; else?: { target?: { blind?: boolean } } };
+  eq(a?.type, 'CONDITIONAL', 'SEQUENCE（2回捨て）ではなく CONDITIONAL');
+  eq(a?.condition?.filter?.isFrozen, true, '条件は相手の場の凍結シグニ');
+  eq(a?.then?.target?.blind, true, '成立時は見ないで選んで捨てさせる');
+  eq(a?.else?.target?.blind, undefined, '不成立時は通常の手札1枚捨て');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

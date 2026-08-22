@@ -4,6 +4,16 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-21〜22・続き592・Opus 5＋Codex）＝Sonnetタスク8「clean群 findings 1,444件」の段0→段1完走→段3再クラスタ化→段2着手（2バッチ）**。ゲート全緑（**golden 2325→2329**・**census 783→781**〔`BASELINE_HIGH` 更新済〕・smoke 10693 全0・fuzz 全0・census:stubs 全0・同型★0・held 99 据置・lint 0 errors 260 warnings 据置）。**実装は Codex 9バッチ／指示書・段0・再クラスタ化・計器拡張・全検証・簿記は Claude**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-21〜22、詳細は §6.2。
+  - **🏁段0（機械前処理）**＝1,444 → **OPEN 1,212件**。除去232件のうち🆕**`FP_DIDIT_GATE` 122件は PLAN 未記載だった最大の偽陽性ファミリ**（「そうした場合」の慣例エンコード `CONDITIONAL{IS_MY_TURN}` を engine の did-it ゲートが処理する）。再現＝`node scripts/archive/semanticAuditStage0.mjs`。
+  - **🏁段1（クラスタ triage）＝147クラスタ・463 findings を7バッチで完走**＝**真バグ365／偽陽性98／機構待ち69**。🔑**全体の偽陽性率 21.2% がパイロット precision の帯（16〜22%）にちょうど収まった**＝triage 全体の妥当性の裏付け。
+  - **🏁段3の「段2 へ寄せ直す」再クラスタ化**＝軸を3案実測して**「欠落語彙キー軸」**を採用（quote 正規化も claim 正規化も効かなかった）。**未分類18%まで圧縮・5件以上のサブ群38個/302件**。✅**実証＝`filter.cardName × ADD_TO_FIELD` の5件は live がバイト一致の systematic bug で、生データへ戻すと母集団は約15効果**（findings は標本）。再現＝`node scripts/archive/semanticAuditRecluster.mjs`。
+  - **🚀段2（実装）2バッチ**＝①`cardName` 脱落（採用7／据置11）②`filter.hasCharm` の配線漏れ（採用13／据置3）。🎯**②は `census:wiring --key hasCharm` が miss 16→0 で結果を裏付けた**＝**段2 は今後この形（計器の before/after を報告させる）で回す**。
+  - **🔧計器を2本拡張**＝`censusWiring.ts` の `VOCAB` に**盤面状態フィルタ9語彙**を追加（それまで**追跡対象外**＝「0件だから穴はない」と読めなかった）。⚠**素朴に足すと miss 82件に見えたが精査で実30件**＝状態語の3用法分岐／コスト側フィルタ／`has===0` で表から消える罠を全部踏んで直した（理由はソースコメント）。
+  - ⚠🔴**Claude 側が4回まちがえた（全部 PLAN に記録済み）**＝(a)**母集団をカード全文で数えた**（`hasCharm` 68→実17）＝**効果単位の `docs/_effect_srctext.json` で数える** (b)スコープ抽出の `/"cardName"/` が `"excludeCardName"` に一致せず既に正しい5件を混ぜた (c)did-it ゲートの `CONDITIONAL` アンラップ（`effectExecutor.ts:4832`）を見落とした (d)`hasCharm` の VOCAB に同義の別キー `banishedHadCharm` を入れ忘れた。**(a)〜(d) はいずれも Codex の原文/実コード再照合で訂正された。**
+  - **▶ 次の一手【Opus 側】**＝**段2 第3バッチ**。候補＝計器が示す残り配線漏れ（`isFrozen` 3／`isUp` 3／`infected` 2／`hasAcce` 2／`acceHost` 2／`isSelfAcced` 2）／`SHUFFLE_DECK` 前置44効果（**未検証＝投入前に効果単位で数え直す**）／🔴**`stripRuleParens` follow-up**（`《カード名（…）》` の括弧を剥がす＝**内側保護と全角→半角正規化を必ずセットで**。片方だけは過剰実行→過小実行の付け替え）。
+  - **▶ 次の一手【Sonnet 側】**＝**段1 で切り出した機構待ち69件**の §6.3／Opusタスク12 への登録整理。⚠**`collectLeaveFieldTriggers` は3バッチ跨ぎで収束**＝(clii) は単発でなく「self スコープループにゲート群が面で欠けている」課題として扱う。
+
 - **セッション（2026-08-20・続き591・Opus 5＋Codex）＝Opusタスク12 (cl)＝「そうした場合、そのターン終了時、」の遅延予約が丸ごと落ちていた件を残0クローズ＝在庫2→1件**。ゲート全緑（**golden 2324→2325**・census 783 据置・smoke 10693 全0・fuzz 全0・census:stubs 全0・同型★0・lint 0 errors 263 warnings 据置）。live per-effect diff **changed 1**（`WXDi-P10-039-E2` のみ）・held 99 据置。実装は Codex・**指示書作成と検証と実機検証とシナリオ書き換えは Claude**。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-20（続き591／Codex 節は続き590 の直下）。
   - **✅ 直し方＝新機構ゼロ**＝②③を既存 `INSTALL_DELAYED_TRIGGER{duration:'THIS_TURN', trigger:{timing:'ON_TURN_END'}}` の `effect` へ畳み込み、①の pay 枝から設置する。**この形は live 3効果が既に使っている**（`SPDi43-02-E2`／`WXDi-P06-023-E2`／`WXDi-P16-051-E1`）＝受け皿は最初から在った。parser 側は「次の対戦相手／あなたのターン終了時、」の**兄弟2つと同じ2段構え**（受け皿STUB＋後処理で詰め替え）に揃えた。
   - **✅ engine は1箇所だけ**＝`collectTurnTriggers` の `delayed_triggers` 走査を **`ON_TURN_END` のときだけ両プレイヤー分**に広げた（このカードは `ON_TRASH` 発火＝**相手ターン中に捨てられることもある**ため）。⚠**他の timing は従来どおりターンプレイヤーのみ**＝発火範囲を広げない。🔑**`collectCpuTurnTriggers` は同じ純関数の薄いラッパなので CPU 経路にも自動で効く**＝タスク12(lxxii) の「片側漏れ」は再発しない（Claude が独立確認）。
