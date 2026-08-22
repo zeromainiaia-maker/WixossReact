@@ -3010,9 +3010,35 @@ function upgradeToOppTurnEnd(a: EffectAction | undefined): void {
 // 包み直し、source を両枝で共有する（MANUAL 正解 3枚＝WX04-038-BURST 等と同形）。
 // 「デッキ上から公開し手札に加えるか場に出し」系は上流で REVEAL_AND_PICK(handOrField) に解決済みで
 // この関数へ到達しないため衝突しない。
-const HAND_OR_FIELD_RE = /手札に加えるか、?場に出す|場に出すか、?手札に加える/;
+const HAND_OR_FIELD_RE = /手札に加えるか、?場に出(?:す|し)|場に出すか、?手札に加える/;
 function wrapHandOrField(action: EffectAction, text: string): EffectAction {
   if (!HAND_OR_FIELD_RE.test(text)) return action;
+  // デッキ探索の「公開し、手札に加えるか場に出し」は SEARCH 自身の pending に二択を載せる。
+  // CHOOSE の choices には潜らない（「以下のNつから」の選択肢境界は別母集団）。SEQUENCE / CONDITIONAL
+  // だけを辿ることで、任意コストや「そうした場合」の包み形でも同じ文型を安全に拾う。
+  const markDeckSearch = (a: EffectAction): EffectAction => {
+    if (a.type === 'SEARCH') {
+      const search = a as SearchAction;
+      if (search.from.location === 'deck' && search.then.type === 'ADD_TO_FIELD') {
+        return { ...search, handOrField: true } as SearchAction;
+      }
+      return a;
+    }
+    if (a.type === 'SEQUENCE') {
+      return { ...a, steps: (a as SequenceAction).steps.map(markDeckSearch) } as SequenceAction;
+    }
+    if (a.type === 'CONDITIONAL') {
+      const conditional = a as import('../types/effects').ConditionalAction;
+      return {
+        ...conditional,
+        then: markDeckSearch(conditional.then),
+        ...(conditional.else ? { else: markDeckSearch(conditional.else) } : {}),
+      } as import('../types/effects').ConditionalAction;
+    }
+    return a;
+  };
+  const marked = markDeckSearch(action);
+  if (marked !== action) return marked;
   // top-level が source 付き hand-transfer のときだけ包む（複合文は個別文で個々に処理される）。
   if (action.type !== 'TRANSFER_TO_HAND' || !(action as TransferToHandAction).source) return action;
   const src = (action as TransferToHandAction).source;

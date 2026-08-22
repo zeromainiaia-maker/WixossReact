@@ -1057,7 +1057,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // then（SEQUENCE）に REVEAL/ADD_TO_HAND があれば「公開し手札に加える」を反映
       const thenSteps = a.then?.type === 'SEQUENCE' ? (a.then.steps ?? []) : (a.then ? [a.then] : []);
       const reveal = thenSteps.some((s: any) => s?.type === 'REVEAL') ? '公開し' : '';
-      const dest = thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
+      const dest = a.handOrField ? '手札に加えるか場に出す'
+        : thenSteps.some((s: any) => s?.type === 'ADD_TO_HAND') ? '手札に加える'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_FIELD') ? '場に出す'
         : thenSteps.some((s: any) => s?.type === 'TRASH') ? 'トラッシュに置く'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_ENERGY' || s?.type === 'ENERGY_CHARGE') ? 'エナゾーンに置く'

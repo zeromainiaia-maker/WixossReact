@@ -3831,6 +3831,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     optional: a.upToTarget !== false,
     revealPicked: a.revealPicked,
     thenAction: a.then,
+    ...(a.handOrField ? { handOrField: true } : {}),
     afterAction: a.afterSearch,
     selectionConstraint: a.selectionConstraint,
   });

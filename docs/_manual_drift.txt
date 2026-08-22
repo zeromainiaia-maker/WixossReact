@@ -1,6 +1,6 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-22T14:04:28.262Z
+生成: 2026-08-22T14:12:44.028Z
 manualEffects エントリ 451 カード / 乖離 47 カード・52 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
@@ -45,7 +45,7 @@ manualEffects エントリ 451 カード / 乖離 47 カード・52 効果
   fresh: {"effectId":"WXDi-CP02-TK02A-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
 --- WX04-029-BURST (parser由来)
   live : {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"hand","label":"手札に加える","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId"
-  fresh: {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+  fresh: {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"},"handOrField":true},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
 --- WD07-012-E2 (parser由来) ⚠STUB増
   live : {"effectId":"WD07-012-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"TRANSFER_TO_DECK","source":{"type":"TRASH_CARD","owner":"self","count":4,"upToCount":false,"filter":{"cardType":"シグニ","story":"古代兵器","eachDistinctLevel":true},"selectionConstraint":{"distinct":"level"}},"shuffle":false,"position":"bottom"},{"type":"POWER_MODIFY",
   fresh: {"effectId":"WD07-012-E2","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TRADE_BANISH_SELF_SIGNI"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"selectionConstraint":{"distinct":"level"}},"delta":-1000

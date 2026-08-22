@@ -6110,6 +6110,64 @@ test('REVEAL_AND_PICK handOrField: 手札/場の選択肢を提示し消失な�
   eq(r.ownerState.deck.length + r.ownerState.hand.length, before, 'handOrField でも消失なし');
   eq(r.ownerState.hand.length, ctx.ownerState.hand.length + 1, '手札選択でピック1枚が手札へ');
 });
+test('第20バッチ SEARCH handOrField: 採用11効果ごとに手札枝・場枝・満杯時の手札枝をE2E固定', () => withSavedCursor(() => {
+  const ids = [
+    'WX08-023-BURST', 'WX09-016-BURST', 'WX09-CB02-E2', 'WX11-026-BURST',
+    'WX16-024-BURST', 'WX17-Re01-E1', 'WX20-023-BURST', 'WX20-050-E2',
+    'WXK08-024-BURST', 'WXK08-040-BURST', 'WXK11-022-BURST',
+  ];
+  const findSearch = (a: EffectAction): import('../src/types/effects').SearchAction | undefined => {
+    if (a.type === 'SEARCH') return a as import('../src/types/effects').SearchAction;
+    if (a.type === 'SEQUENCE') {
+      for (const step of (a as SequenceAction).steps) { const found = findSearch(step); if (found) return found; }
+    }
+    if (a.type === 'CONDITIONAL') return findSearch((a as import('../src/types/effects').ConditionalAction).then);
+    return undefined;
+  };
+  const stepCtx = (base: ExecCtx, r: ExecResult): ExecCtx => ({
+    ...base, ownerState: r.ownerState, otherState: r.otherState, logs: r.logs,
+    lastProcessedCards: r.lastProcessedCards,
+  });
+  for (const effectId of ids) {
+    const effect = [...effectsMap.values()].flat().find(e => e.effectId === effectId)!;
+    const search = findSearch(effect.action)!;
+    ok(!!search && search.handOrField === true, `${effectId}: SEARCH.handOrField=true`);
+    const picked = findCard(c => matchesFilter(c, search.filter));
+
+    const runToChoice = (full: boolean) => {
+      const occupied = full ? [SIGNI_L1, SIGNI_L2, SIGNI_L3] : [null, null, null];
+      const ctx = mkCtx({ deckTop: [picked], signi: occupied }, {});
+      const selecting = executeAction(search as EffectAction, ctx);
+      ok(!selecting.done && selecting.pending.type === 'SEARCH', `${effectId}: SEARCH pending`);
+      const choice = resumeSearch([picked], selecting.pending as never, stepCtx(ctx, selecting));
+      ok(!choice.done && choice.pending.type === 'CHOOSE', `${effectId}: 手札／場 CHOOSE pending`);
+      return { ctx, choice };
+    };
+
+    const hand = runToChoice(false);
+    const handDone = finish(resumeChoose('hand', hand.choice.pending as never, stepCtx(hand.ctx, hand.choice)), hand.ctx);
+    ok(handDone.ownerState.hand.includes(picked), `${effectId}: 手札枝で手札へ入る`);
+
+    const field = runToChoice(false);
+    const fieldDone = finish(resumeChoose('field', field.choice.pending as never, stepCtx(field.ctx, field.choice)), field.ctx);
+    ok(fieldDone.ownerState.field.signi.some(z => z?.includes(picked)), `${effectId}: 場枝で場へ出る`);
+
+    const full = runToChoice(true);
+    const options = (full.choice.pending as { options: { id: string; available?: boolean }[] }).options;
+    eq(options.find(o => o.id === 'hand')?.available, true, `${effectId}: 満杯でも手札枝は選べる`);
+    eq(options.find(o => o.id === 'field')?.available, false, `${effectId}: 満杯では場枝だけ無効`);
+    const fullDone = finish(resumeChoose('hand', full.choice.pending as never, stepCtx(full.ctx, full.choice)), full.ctx);
+    ok(fullDone.ownerState.hand.includes(picked), `${effectId}: 満杯時も手札へ入る`);
+  }
+}));
+test('第20バッチ非採用: SP27-005はreveal-until未構造化のまま／WXEX2-49は既存hand_or_field経路を維持', () => {
+  const sp = effectsMap.get('SP27-005')!.find(e => e.effectId === 'SP27-005-E1')!;
+  const ex = effectsMap.get('WXEX2-49')!.find(e => e.effectId === 'WXEX2-49-E2')!;
+  const spJson = JSON.stringify(sp.action);
+  const exJson = JSON.stringify(ex.action);
+  ok(!spJson.includes('handOrField') && !spJson.includes('REVEAL_UNTIL'), 'SP27-005-E1: 今回は誤ってSEARCH用経路へ載せない');
+  ok(exJson.includes('PICK_FROM_TRASHED_CARDS') && exJson.includes('"dest":"hand_or_field"'), 'WXEX2-49-E2: 既存の専用二択経路を維持');
+});
 test('LOOK_PICK_CHAIN dual-pick: hand+field ステージで手札1・場1・消失なし（続き36）', () => {
   const ctx = mkCtx({ deckTop: [SIGNI, SIGNI_L2, SIGNI_P3000] }, {});
   const before = ctx.ownerState.deck.length + ctx.ownerState.hand.length;

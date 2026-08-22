@@ -1352,6 +1352,7 @@ export interface SearchAction {
   upToTarget?: boolean;  // true: maxCount まで任意（0枚可）／false: maxCount 枚必須。省略時は既存互換で任意
   selectionConstraint?: SelectionConstraint;
   revealPicked?: boolean; // 探したカードを公開する（SEARCH UI 後に公開ログへ記録）
+  handOrField?: boolean; // 探したシグニを「手札に加える or 場に出す」から選ぶ。true のとき then は行き先選択の基準だけに使う
   // 見つかったカードに対して行う処理（REVEAL→ADD_TO_HAND など）
   then: EffectAction;
   // サーチ完了後に行う処理（SHUFFLE_DECK など）
