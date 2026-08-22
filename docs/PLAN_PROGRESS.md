@@ -4,6 +4,17 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-22・続き608・Opus 5＋Codex）＝段2 第16バッチ＝**「〜の場合、代わりに〈強化形〉」の置換が効かず基本形と強化形が両方実行されていた7効果**。**残 OPEN 952→947**／段2 消化 135→**141**。**census 733→730**（ベースライン更新）・**golden 2362→2366**・**held 91→88**・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 261 warnings。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き608）。
+  - **実害**＝「パワーを**−5000**する。トラッシュが20枚以上ある場合、代わりに**−10000**する」（`WXDi-P01-044-E2`）が **合計 −15000** になっていた。さらに悪い形として**条件節ごと落ちて素の2連発**（`WXDi-P09-074-E1`＝＋3000 と ＋5000 を無条件に両方／`WXDi-P12-081-E1`＝EC1 と EC2 で合計3枚）。
+  - 🔑**このバッチの肝は「触ってはいけない8効果」の識別**＝parser には「代わりに」の表し方が**2通りあり、どちらも正しい**。**(a) 正準形** `CONDITIONAL{cond, then:強化, else:基本}`（live に `else` 193箇所）と、**(b) 差分加算** `SEQUENCE[基本, CONDITIONAL{cond, then:差分だけ}]`（加減算で表せる型のみ・**合計すると原文どおり**）。`WX08-032-BURST` は −8000 と −7000 で**合計 −15000＝原文どおり**。**一見バグに見えて正しい8件**を投入前に検算して「直すな・正準化もするな」と明記し、**live diff に1件も入っていない**ことを確認した（§5-17 の逆＝**変な形に見えても既存実装が正しいことがある**）。
+  - **直し方の使い分け**＝`DRAW`／`ENERGY_CHARGE_FROM_DECK` は「基本＋差分」で表せない（枚数の意味が変わる）ので **(a) 一択**、`POWER_MODIFY` はどちらでも可。`WXDi-P10-054-E1` だけ **(b)**（「そのシグニ」＝トリガー元を base で確定してから差分＋2000）。
+  - 🔴**engine を1箇所だけ改変**＝`execPowerModify` の `targetsTriggerSource` 分岐に `lastProcessedCards:[autoNum]` を追加（(b) 形で同一対象を指すため）。**影響範囲は極小**＝live 全体で `POWER_MODIFY{targetsTriggerSource}` は**5ステップ**しかなく、**後段が `lastProcessed` を参照するのは本バッチの1効果だけ**＝巻き込み0を実測。
+  - ✅**Codex が Claude の見立てを3件訂正**＝①算術（26 = 8＋11＋**7**、Claude は B群を9と書いた）②**`WX25-P3-014-E1`／`WX25-P3-069-E1` は既に正しかった**（両枝とも `storedTargetCards` の同一対象＝Claude の検出器の偽陽性）③**`CONDITIONAL_MULTI_CHOOSE_BY_CENTER_LEVEL_GTE` は名前どおりではない**（センターレベル条件と追加コスト条件の2系統を識別）＝**名前から機構を推測すると外す**。
+  - ⚠**続き606 と同じ軸で見送り**＝`WX21-039-E1`／`SP27-012-E1` の「**このシグニと共通する色を持たない**他の＜天使＞」は既存語彙で表せず、Codex も独立に同じ結論に到達して未修正のまま残した。**この軸は3バッチ連続で保留＝機構を作るなら §6.3 へ登録する候補。**
+  - **▶ 次の一手【Opus 側】＝段2 第17バッチ**。候補＝①**チームルリグ3体条件7件**（MANUAL・`HAS_CARD_IN_FIELD{cardType:['ルリグ','アシストルリグ'],minCount:3}` で書けることは続き606 で調査済み・置換本体とセット）②**「共通する色を持たない」軸**の機構化（3バッチ保留中）③`census:wiring` の `levelExact`／`powerRange` セル。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件＋`WX24-P3-030-E1` のミル誘発）。
+
+
 - **🆕 セッション（2026-08-22・続き607・Opus 5＋Codex）＝段2 第15バッチ＝**「あなたの＜X＞のシグニの効果によって〜されたとき」の原因クラス限定が落ちていた8効果**（受け皿の新設＋配線6箇所）。**残 OPEN 959→952**／段2 消化 128→**135**。ゲート全緑（**golden 2360→2362**・census 733 据置・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 261 warnings・held 91 据置）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き607）。
   - **実害**＝「このカードが**あなたの＜龍獣＞のシグニの効果によって**手札から公開されたとき」の原因限定が落ち、**誰の・どんな経緯の公開でも発火**していた。クラスシナジー前提の能力が無条件に撃てる。
   - 🔑**機構は timing ごとに別フィールドで既に4本あった**＝`trashSourceStory`（`collectAnyZoneTrashSelfTriggers`）／`banishedSourceStory`（`collectBanishTriggers`）／`powerDecreaseSourceStory`（`collectPowerDecreaseTriggers`）／`milledSourceStory`（`collectMillTriggers`）。落ちていた形は3種類で**それぞれ原因が違った**＝①**公開＝機構ごと新設**（`revealSourceStory`）②**deck ON_TRASH＝既存フィールドの collector 漏れ**（`collectDeckTrashSelfTriggers` にゲートが無い）③**mill＝既存フィールドの live 漏れ＋fail-open**。
