@@ -10488,7 +10488,8 @@ const ARM_SIGNI = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('ア�
 const NONARM_SIGNI = findCard(c => isSigni(c) && !!c.CardClass && !(c.CardClass ?? '').includes('アーム'));
 test('Stage2 ON_LEAVE_FIELD: self 離脱で自身発火（WX06-016-E2）', () => {
   const host = mkState({}); const guest = mkState({});
-  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), 'WX06-016', [], HOST, host, guest).entries, 'WX06-016-E2'), true, 'self発火');
+  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), 'WX06-016', [], HOST, host, guest, GUEST).entries, 'WX06-016-E2'), true, '相手効果によるself離脱で発火');
+  eq(has(collectLeaveFieldTriggers(trigCtx(HOST), 'WX06-016', [], HOST, host, guest).entries, 'WX06-016-E2'), false, '原因なしでは不発');
 });
 test('Stage2 ON_LEAVE_FIELD: any_ally triggerFilter(story:アーム) 一致時のみ発火（WX11-035-E1）', () => {
   const host = mkState({ signi: ['WX11-035', null, null] }); const guest = mkState({});
@@ -40979,6 +40980,78 @@ test('段2-8 C反転: PR-402-E1 はトラッシュ14枚ならアタック不能�
   };
   ok(blocked(14).has('PR-402'), '14枚（15枚未満）では実行結果にアタック不能が載る');
   ok(!blocked(15).has('PR-402'), '15枚では条件が外れ、アタック不能が解除される');
+}));
+
+// ── §6.2 段2 第9バッチ：誘発限定＋本体条件 ──
+test('段2-9 A1/A2: self離脱は対戦相手の効果起因だけ収集する', () => {
+  for (const [cardNum, effectId] of [['WX06-016', 'WX06-016-E2'], ['WXK11-023', 'WXK11-023-E1']] as const) {
+    const host = mkState({}); const guest = mkState({});
+    const collect = (causeOwnerId?: string) => collectLeaveFieldTriggers(
+      trigCtx(HOST), cardNum, [], HOST, host, guest, causeOwnerId,
+    ).entries.some(e => e.effectId === effectId);
+    eq(collect(GUEST), true, `${effectId}: 相手効果なら発火`);
+    eq(collect(HOST), false, `${effectId}: 自分効果では不発`);
+    eq(collect(), false, `${effectId}: 効果起因でなければ不発`);
+  }
+});
+
+test('段2-9 A3: 全領域ON_TRASHは対戦相手効果起因だけ収集する', () => {
+  const yes = collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WX25-P1-060', HOST, true, 'hand');
+  const no = collectAnyZoneTrashSelfTriggers(trigCtx(HOST), 'WX25-P1-060', HOST, false, 'hand');
+  eq(yes.some(e => e.effectId === 'WX25-P1-060-E2'), true, '相手効果なら発火');
+  eq(no.some(e => e.effectId === 'WX25-P1-060-E2'), false, '自分効果では不発');
+});
+
+test('段2-9 A4/A5: ON_BANISHは味方scopeと属性filterの両方で限定する', () => {
+  const beast10k = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('地獣') && parseInt(c.Power ?? '0', 10) >= 10000);
+  const lowBeast = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('地獣') && parseInt(c.Power ?? '0', 10) < 10000);
+  const blue = findCard(c => isSigni(c) && c.Color?.includes('青'));
+  const nonBlue = findCard(c => isSigni(c) && !c.Color?.includes('青'));
+  const host = mkState({ signi: ['WXDi-P09-060', 'WX25-P2-057', null] }); const guest = mkState({});
+  const hasId = (card: string, owner: string, id: string) => collectBanishTriggers(trigCtx(HOST), card, owner, host, guest).entries.some(e => e.effectId === id);
+  eq(hasId(beast10k, HOST, 'WXDi-P09-060-E1'), true, 'A4: 味方の地獣10000以上で発火');
+  eq(hasId(lowBeast, HOST, 'WXDi-P09-060-E1'), false, 'A4: 10000未満では不発');
+  eq(hasId(beast10k, GUEST, 'WXDi-P09-060-E1'), false, 'A4: 相手シグニでは不発');
+  eq(hasId(blue, HOST, 'WX25-P2-057-E1'), true, 'A5: 味方の青で発火');
+  eq(hasId(nonBlue, HOST, 'WX25-P2-057-E1'), false, 'A5: 青以外では不発');
+  eq(hasId(blue, GUEST, 'WX25-P2-057-E1'), false, 'A5: 相手の青では不発');
+});
+
+test('段2-9 B1-B9: 各live条件をengine実行し成立／不成立を固定する', () => withSavedCursor(() => {
+  const cond = (card: string, id: string): Condition => {
+    const a = (effectsMap.get(card) ?? []).find(e => e.effectId === id)?.action;
+    ok(a?.type === 'CONDITIONAL', `${id}: CONDITIONAL`);
+    return (a as Extract<EffectAction, { type: 'CONDITIONAL' }>).condition;
+  };
+  const fires = (condition: Condition, ctx: ExecCtx) => {
+    const before = ctx.ownerState.hand.length;
+    return run({ type: 'CONDITIONAL', condition, then: { type: 'DRAW', owner: 'self', count: 1 } }, ctx).ownerState.hand.length === before + 1;
+  };
+  const prioke = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('プリオケ'));
+  const plain = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('プリオケ'));
+  const disona = findCard(c => isSigni(c) && c.Story === 'Dissona');
+  const ore = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('鉱石'));
+  const gem = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('宝石'));
+  const bikou = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('美巧'));
+  const cases: Array<[string, Condition, ExecCtx, ExecCtx]> = [
+    ['B1', cond('WX26-CP1-054','WX26-CP1-054-E1'), mkCtx({signi:[prioke,null,null]}, {}, 'WX26-CP1-054'), mkCtx({signi:[plain,null,null]}, {}, 'WX26-CP1-054')],
+    ['B2', cond('WXDi-P13-010','WXDi-P13-010-E1'), mkCtx({signi:[disona,null,null]}, {}, 'WXDi-P13-010'), mkCtx({signi:[plain,null,null]}, {}, 'WXDi-P13-010')],
+    ['B3', cond('WX26-CP1-071','WX26-CP1-071-E1'), mkCtx({signi:['WX26-CP1-071',prioke,null]}, {}, 'WX26-CP1-071'), mkCtx({signi:['WX26-CP1-071',null,null]}, {}, 'WX26-CP1-071')],
+    ['B4', cond('WXDi-P13-009','WXDi-P13-009-E2'), mkCtx({signi:[disona,disona,null]}, {}, 'WXDi-P13-009'), mkCtx({signi:[disona,null,null]}, {}, 'WXDi-P13-009')],
+    ['B5', cond('WX18-031','WX18-031-E1'), mkCtx({trash:20}, {}, 'WX18-031'), mkCtx({trash:19}, {}, 'WX18-031')],
+    ['B6', cond('WXDi-P06-067','WXDi-P06-067-E2'), mkCtx({energy:5}, {}, 'WXDi-P06-067'), mkCtx({energy:6}, {}, 'WXDi-P06-067')],
+    ['B7', cond('WX24-P3-080','WX24-P3-080-E1'), mkCtx({}, {}, 'WX24-P3-080'), mkCtx({}, {}, 'WX24-P3-080')],
+    ['B8', cond('WXDi-P13-070','WXDi-P13-070-E2'), mkCtx({}, {}, 'WXDi-P13-070'), mkCtx({}, {}, 'WXDi-P13-070')],
+    ['B9', cond('WX20-065','WX20-065-E1'), mkCtx({hand:1}, {}, 'WX20-065'), mkCtx({hand:2}, {}, 'WX20-065')],
+  ];
+  cases[4][2].ownerState.trash = Array.from({length:20}, (_,i) => i % 2 ? gem : ore);
+  cases[4][3].ownerState.trash = Array.from({length:19}, (_,i) => i % 2 ? gem : ore);
+  cases[6][2].ownerState.energy = [bikou]; cases[6][3].ownerState.energy = [plain];
+  cases[7][2].ownerState.cards_drawn_by_effect_this_turn = 2; cases[7][3].ownerState.cards_drawn_by_effect_this_turn = 1;
+  for (const [label, condition, yes, no] of cases) {
+    eq(fires(condition, yes), true, `${label}: 成立時に実行`);
+    eq(fires(condition, no), false, `${label}: 不成立時は不実行`);
+  }
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -1387,6 +1387,9 @@ export function collectLeaveFieldTriggers(
     // leftStateFilter（離脱直前の状態限定・「このシグニがアクセされていた場合」等）: 離脱カード自身のゾーンで評価。
     //   従来は self スコープ経路が未評価で無条件発火していた（WX20-071 の hasAcce ゲート）。
     if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
+    // byOpponentEffect（「対戦相手の効果によってこのシグニが場を離れたとき」）:
+    // self スコープでも、離脱原因がカード所有者の相手側の効果である場合だけ発火する。
+    if (eff.triggerCondition?.byOpponentEffect && (causeOwnerId === undefined || causeOwnerId === leftPlayerId)) continue;
     if (eff.condition && !evalUseCondition(eff.condition, ownerStateAfter, otherStateAfter, ctx.cardMap, leftCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
     if (!selfLimitOk(eff)) continue;
     entries.push({

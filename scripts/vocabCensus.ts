@@ -93,7 +93,9 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 747; // 2026-08-22 段2 第8バッチ（「場のカード」条件節の脱落 **26効果**）で **−14**。749→747 は Claude が **held に取り残されていた同族7効果**を追加採用したぶん（⚠CODEX_GUIDE §5-5b＝**held に落ちた fresh の変化は live に映らない**。held が 94→106 に増えたのを1件ずつ原文照合したら、`FIELD_SIGNI_POWER_COUNT` の相手側3効果ほか7件が「正しいのに未採用」で寝ていた）。旧履歴は直下。
+const BASELINE_HIGH = 742; // 2026-08-22 段2 第9バッチ（**誘発の限定** 5効果＋**本体の条件** 5効果）で **−5**。既存の `triggerCondition{byOpponentEffect,fromAnyZone}` / `triggerFilter` と `Condition` 語彙だけで限定を復元（新型0）。⚠**live の変更は計24効果**＝上記10＋**`triggerFilter.cardType` が付いた12効果**（`ON_BANISH` の「あなたの＜X＞の**シグニ**1体が」）＋held から採用1。この12は `isPureSuperset` として収穫マージが自動採用したもので、**Codex はこれを「live diff を10に保つため」手で HEAD へ戻していた**（＝無損失な改善の取り消し）。`npm run build:effects` を回して復元した。旧履歴は直下。
+// 旧・続き601(codex): const BASELINE_HIGH = 742; // 誘発限定5＋本体条件9で −5
+// 旧・段2 第8バッチ: const BASELINE_HIGH = 747; // 「場のカード」条件節の脱落26効果で −14。held の同族7効果追加採用を含む。
 // 旧・続き600(codex): const BASELINE_HIGH = 749; // 2026-08-22 段2 第8バッチ（「場のカード」条件節の脱落）で **−12**。指定16効果＋一般化で拾った同族3効果を既存 HAS_CARD_IN_FIELD/FIELD_SIGNI_POWER_COUNT/COUNT_THRESHOLD に復元。閾値・名前・色・クラスは原文から読み、値の決め打ちはしない。旧履歴は直下。
 // 旧・段2 第7バッチ: const BASELINE_HIGH = 761; // 条件節の欠落＝無条件発火17効果を是正。閾値一般化を含む。
 // 旧・続き599(codex): const BASELINE_HIGH = 765; // 2026-08-22 §6.2 段2 第7バッチ（条件節脱落による無条件発火12効果）で **−6**＝【常】activeCondition と【自】【起】condition を既存語彙で復元し、原文の枚数・色・場・HAND_DIFF 閾値が live に載った副産物。旧履歴は直下。

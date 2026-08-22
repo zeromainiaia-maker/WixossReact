@@ -1,5 +1,63 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-22（続き601）：§6.2 段2 第9バッチ＝**誘発の限定**が落ちて「誰でも・どんな経緯でも」誘発する群（live 24効果）
+
+第7・第8バッチは**本体の条件**だったが、今回は**誘発側**（`triggerFilter` / `triggerCondition`）に踏み込んだ。
+**engine は無改変**（parser のみ）。残 OPEN **1,005→995**（**1,000 を割った**）。census **747→742**。golden **2346→2350**。
+
+### 何を直したか
+
+**群A＝誘発の限定（5効果）**
+- `WX06-016-E2`／`WXK11-023-E1`（`ON_LEAVE_FIELD`）＝「**対戦相手の効果によって**場を離れたとき」→ `triggerCondition.byOpponentEffect`
+- `WX25-P1-060-E2`（`ON_TRASH`）＝「対戦相手の効果によって**いずれかの領域から**」→ `byOpponentEffect` ＋ `fromAnyZone`
+- `WXDi-P09-060-E1`（`ON_BANISH`）＝「あなたの**パワー10000以上の＜地獣＞**のシグニ1体が」→ `triggerScope:'any_ally'` ＋ `triggerFilter{story:'地獣',powerRange:{min:10000}}`
+- `WX25-P2-057-E1`（`ON_BANISH`）＝「あなたの**青の**シグニ1体が」→ `triggerScope:'any_ally'` ＋ `triggerFilter{color:'青'}`
+
+⚠**`triggerScope` と `triggerFilter` は役割が別**＝scope で味方に絞り、filter で色・クラス・パワーに絞る。片方だけでは足りない。
+
+**群B＝本体の条件（5効果）**＝`ALL_FIELD_SIGNI_MATCH`／`HAS_CARD_IN_FIELD{excludeSelf}`／`TRASH_HAS_CARD{story:配列}`／
+`ENERGY_COUNT`／`ENERGY_COUNT_FILTER`／`CARDS_DRAWN_BY_EFFECT`／`HAND_COUNT` へ配線（**新しい型は0**）。
+
+**副産物（findings に無い分）＝12効果**＝`ON_BANISH` の「あなたの＜X＞の**シグニ**1体が」に `triggerFilter.cardType` が付いた。
+＋held から `WXDi-P03-009-E1` を採用（「このターンに2枚以上引いていた場合」の任意コストゲート）。
+
+### 🔴 Codex の成果物で見つけた問題＝**無損失な自動採用を手で取り消していた**
+
+Codex は報告に「**`build:effects` が自動採用した無関係な既存 fresh 差分13効果は、effectId 単位で HEAD へ戻しました**」と書いた。
+中身を見ると **12件は `.triggerFilter.cardType="シグニ"` の追加、1件は入れ子付与能力への `byOpponentEffect` 追加**で、
+**どれも原文どおり・`isPureSuperset`（既存リーフを1つも失わない）**＝収穫マージが自動採用する契約そのもの。
+「live diff を指示どおり10件に保つ」ために**正しい改善を打ち消していた**。
+⇒ `npm run build:effects` を回すだけで復元された（「純改善採用 14」）。
+
+⚠**指示書の書き方の問題でもある**＝「スコープ外が動いたら」の話を**parser の A/B** の文脈でしか書いておらず、
+**収穫マージが自動採用する純改善**まで「スコープ外」と読まれた。
+次回は「**`isPureSuperset` の自動採用は取り消さない。取り消すのは parser 規則が広すぎるときだけ**」と明記する。
+
+### 🔴 Claude 側の選定ミス（記録しておく）
+
+**14効果のうち4件は、finding が条件とは別の軸だった**（`WX26-CP1-054-E1`＝対象の「パワーの半分以下」欠落／
+`WXDi-P13-010-E1`＝【ウィルス】設置の欠落／`WXDi-P13-009-E2`＝エナ→手札の欠落／`WXDi-P06-067-E2`＝「各プレイヤー」が自分だけ）。
+条件はすでに live に入っており、**枠を4つ無駄にした**。
+原因＝群B の母集団を**誘発側の検出器の出力から拾った**ため、「その finding が条件についてのものか」を絞っていなかった。
+⇒ 次回は**finding の quote/claim が条件を指していること**を選定条件に入れる。
+（この4件の finding は閉じていない。`WX06-017-E2` も同様に別軸なので閉じていない。）
+
+### 検算（Claude の独立検証）
+
+- ベースライン `e98e83fc5` との効果単位 diff＝**24効果**。スコープ外の意図しない変更 0。
+- **10効果を原文と1件ずつ照合**（群A5＋群B5）。`fromAnyZone` の追加も原文「いずれかの領域から」どおりで、
+  **Claude の推奨形より正確だった**。
+- 復元した12効果も原文照合＝「あなたの＜X＞の**シグニ**1体が」に対する `cardType:'シグニ'` で正しい。
+- **§5-5b′**＝held は **94→95**。新規の `WXDi-P03-009` を原文照合して採用（Codex も自分で候補として申告していた＝前回の指摘が効いた）。
+- ゲート全緑＝golden **2350**・census **742**・smoke 10693 全0・fuzz 全0・census:stubs A🔴0/C0・
+  manual-fields 0・**同型★ 0**・lint 0 errors（260 warnings 据置）。§5-19 エンコーディング検査も0件。
+
+### ⛔ スコープ外にした機構（`docs/PLAN.md` §6.4 `O-43` ほか）
+
+`ON_REVEALED_FROM_HAND` の発生源限定（collector が読まない）／`ON_ZONE_MOVED` の原因条件（collector が
+`triggerCondition` を一切読まない）／場＋エナの横断種類数／**ちょうどN体**（`minCount` は「N以上」しか表せない）／
+両陣営のレベル合計比較。
+
 ## 2026-08-22（続き600）：§6.2 段2 第8バッチ＝「場のカード」条件の脱落による無条件発火**26効果**（Codex 19＋Claude 7）
 
 第7バッチと同じ家族で、**条件の主語が「場のカード」**の群。**engine は無改変**（parser のみ）。

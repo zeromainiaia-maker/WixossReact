@@ -2166,6 +2166,25 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 段2-9: 盤面・各領域・ターン履歴を主語にした条件。値は原文から取得し、既存 Condition 語彙へ落とす。
+  [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
+    g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
+  [/あなたの場にあるすべてのシグニが《ディソナアイコン》の場合/,
+    () => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', isDisona: true } })],
+  [/あなたの場に他の＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, excludeSelf: true })],
+  [/あなたの場に《ディソナアイコン》のシグニが([０-９\d]+)体以上ある場合/,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', isDisona: true }, minCount: parseNum(g[0]) })],
+  [/あなたのトラッシュに＜([^＞]+)＞と＜([^＞]+)＞のシグニが合計([０-９\d]+)枚以上ある場合/,
+    g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: [g[0], g[1]] }, minCount: parseNum(g[2]) })],
+  [/あなたのエナゾーンにあるカードが([０-９\d]+)枚以下の場合/,
+    g => ({ type: 'ENERGY_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) })],
+  [/あなたのエナゾーンに＜([^＞]+)＞のシグニがある場合/,
+    g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, operator: 'gte', value: 1 })],
+  [/このターンにあなたが効果によってカードを([０-９\d]+)枚以上引いていた場合/,
+    g => ({ type: 'CARDS_DRAWN_BY_EFFECT', owner: 'self', operator: 'gte', value: parseNum(g[0]) })],
+  [/あなたの手札が([０-９\d]+)枚以下の場合/,
+    g => ({ type: 'HAND_COUNT', owner: 'self', operator: 'lte', value: parseNum(g[0]) })],
   // 段2-8: 場のカードを主語にした条件。閾値・名前・色・クラスは原文から取得する。
   [/(あなた|対戦相手)の場に能力を持たないシグニが(?:([０-９\d]+)体以上)?ある場合/,
     g => ({ type: 'HAS_CARD_IN_FIELD', owner: g[0] === '対戦相手' ? 'opponent' : 'self', filter: { cardType: 'シグニ', noAbilities: true }, ...(g[1] ? { minCount: parseNum(g[1]) } : {}) })],
@@ -12725,6 +12744,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       // ON_LEAVE_FIELD「あなたの＜X＞のシグニN体が対戦相手の効果によって場を離れたとき」（WX19-026）＝
       //   any_ally＋byOpponentEffect＋triggerFilter（story/他の）。
       if (timing[0] === 'ON_LEAVE_FIELD') {
+        // 自身の離脱原因限定。triggerScope は既定 self のまま保持する。
+        if (/対戦相手の効果によってこのシグニが場を離れたとき|このシグニが対戦相手の効果によって場を離れたとき/.test(trigText)) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOpponentEffect: true };
+        }
         // 「あなたの他のシグニが場を離れたとき」＝味方 watcher。既存 collector は
         // triggerFilter.excludeSelf を離脱カードと watcher の instance ID で評価する。
         const otherAllyLeave = trigText.match(/あなたの(他の)(?:＜([^＞]+)＞の)?シグニ(?:[０-９\d]+体)?が場を離れたとき/);
@@ -12995,6 +13018,12 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (/あなたのターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'self';
         else if (/対戦相手のターンの間[、,]/.test(trigText)) sdCond.turnOwner = 'opponent';
         extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), ...sdCond };
+      }
+      // 「対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき」＝
+      // 移動元を限定せず、各 ON_TRASH self collector の既存原因ゲートを使う。
+      if (timing[0] === 'ON_TRASH'
+          && /このカードが対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき[、,]あなたのエナゾーンにあるカードが[０-９\d]+枚以下の場合/.test(trigText)) {
+        extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOpponentEffect: true, fromAnyZone: true };
       }
       // 「コインをベットしたとき」は一般のコイン支払いと区別する。
       if (timing.includes('ON_COIN_PAID') && /ベットしたとき/.test(trigText)) {
@@ -13508,6 +13537,19 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
           extractedTriggerScope = 'any_opp';
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), banishedHadCharm: true };
           actionText = charmOppBanM[1];
+        }
+        // 「あなたの〔属性〕のシグニがバニッシュされたとき」＝味方watcher。
+        // scopeで陣営、filterで色・クラス・パワーを独立に限定する。
+        const allyFilteredBanM = actionText.match(/^あなたの(?:(?:パワー([０-９\d]+)以上の)?＜([^＞]+)＞の|([白赤青緑黒])の)シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
+        if (allyFilteredBanM) {
+          extractedTriggerScope = 'any_ally';
+          extractedTriggerFilter = {
+            cardType: 'シグニ',
+            ...(allyFilteredBanM[1] ? { powerRange: { min: parseNum(allyFilteredBanM[1]) } } : {}),
+            ...(allyFilteredBanM[2] ? { story: allyFilteredBanM[2] } : {}),
+            ...(allyFilteredBanM[3] ? { color: allyFilteredBanM[3] } : {}),
+          };
+          actionText = allyFilteredBanM[4];
         }
         // 効果起因限定。「＜X＞のシグニ」がある場合は発生源カードの Type/CardClass も collector で照合する。
         const ownEffectM = actionText.match(/^あなたの(?:＜([^＞]+)＞のシグニの)?効果によって(.+)/s);
@@ -14353,6 +14395,52 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
   if (silentFb.length > 0) {
     logSilentFallbacks(`${cardNum}-E${index + 1}`, silentFb);
     if (parseStatus === 'AUTO') parseStatus = 'PARTIAL';
+  }
+
+  // ON_TRASH の原因限定は、同じ誘発句を持つ別効果へ広げず、本体のエナ枚数条件まで構造化できた文型に限定する。
+  if (timing?.[0] === 'ON_TRASH'
+      && /このカードが対戦相手の効果によっていずれかの領域からトラッシュに置かれたとき/.test(trigText)
+      && resolvedAction.type === 'CONDITIONAL'
+      && resolvedAction.condition.type === 'ENERGY_COUNT') {
+    extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), byOpponentEffect: true, fromAnyZone: true };
+  }
+
+  // 「Aの場合、base。Bの場合、代わりにalt」では B は A の内側の置換条件。
+  // 文分割の置換組み立ては従来 B を外側、Aをelseへ反転していたため、A不成立でもBだけでaltが実行できた。
+  if (resolvedAction.type === 'CONDITIONAL'
+      && resolvedAction.condition.type === 'TRASH_HAS_CARD'
+      && resolvedAction.else?.type === 'CONDITIONAL'
+      && resolvedAction.else.condition.type === 'HAND_COUNT') {
+    const replacement = resolvedAction;
+    const baseGate = resolvedAction.else;
+    resolvedAction = {
+      type: 'CONDITIONAL',
+      condition: baseGate.condition,
+      then: {
+        type: 'CONDITIONAL',
+        condition: replacement.condition,
+        then: replacement.then,
+        else: baseGate.then,
+      },
+    };
+  }
+  // 同じ2文型の盤面条件base＋手札条件replacement。盤面条件は効果全体の外側に置く。
+  if (resolvedAction.type === 'CONDITIONAL'
+      && resolvedAction.condition.type === 'HAND_COUNT'
+      && resolvedAction.else?.type === 'CONDITIONAL'
+      && resolvedAction.else.condition.type === 'HAS_CARD_IN_FIELD') {
+    const replacement = resolvedAction;
+    const baseGate = resolvedAction.else;
+    resolvedAction = {
+      type: 'CONDITIONAL',
+      condition: baseGate.condition,
+      then: {
+        type: 'CONDITIONAL',
+        condition: replacement.condition,
+        then: replacement.then,
+        else: baseGate.then,
+      },
+    };
   }
 
   return {

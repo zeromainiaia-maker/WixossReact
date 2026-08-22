@@ -16,51 +16,6 @@ PR-Di017B SPDi43-12 WD07-006 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-0
   原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
   ~ [0].action.then.target.count : 1 → 3
 
-## +CONDITIONAL +HAS_CARD_IN_FIELD ［4枚］
-WX12-041 WX13-062 WXDi-D01-007 WXK01-051
---- WX12-041
-  原文: 【出】：対戦相手の場に能力を持たないシグニがある場合、あなたのデッキの一番上のカードをエナゾーンに置く。,-
-  - [0].action.owner = "self"
-  - [0].action.count = 1
-  ~ [0].action.type : "ENERGY_CHARGE_FROM_DECK" → "CONDITIONAL"
-  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.condition.owner = "opponent"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.noAbilities = true
-  + [0].action.then.type = "ENERGY_CHARGE_FROM_DECK"
-  + [0].action.then.owner = "self"
-  + [0].action.then.count = 1
---- WX13-062
-  原文: 【出】：対戦相手のレベル２以下のシグニ１体を対象とし、あなたの場にカード名に《弓》を含むシグニが３体ある場合、それを手札に戻す。,-
-  - [0].action.target.type = "SIGNI"
-  - [0].action.target.owner = "opponent"
-  - [0].action.target.count = 1
-  - [0].action.target.upToCount = false
-  - [0].action.target.filter.cardType = "シグニ"
-  - [0].action.target.filter.level.max = 2
-  - [0].action.optional = false
-  ~ [0].action.type : "BOUNCE" → "CONDITIONAL"
-  + [0].action.condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.condition.owner = "self"
-  + [0].action.condition.filter.cardType = "シグニ"
-  + [0].action.condition.filter.cardName = "弓"
-  …（他 9 行）
---- WXDi-D01-007
-  原文: 【出】：あなたの場に赤のシグニがある場合、対戦相手のパワー１００００以下のシグニ１体を対象とし、それをバニッシュする。青のシグニがある場合、カードを２枚引く。緑のシグニがある場合、【エナチャージ２】をする。,-
-  - [0].action.steps[0].target.type = "SIGNI"
-  - [0].action.steps[0].target.owner = "opponent"
-  - [0].action.steps[0].target.count = 1
-  - [0].action.steps[0].target.filter.cardType = "シグニ"
-  - [0].action.steps[0].target.filter.powerRange.max = 10000
-  - [0].action.steps[0].target.filter.color = "赤"
-  - [0].action.steps[0].target.upToCount = false
-  ~ [0].action.steps[0].type : "BANISH" → "CONDITIONAL"
-  + [0].action.steps[0].condition.type = "HAS_CARD_IN_FIELD"
-  + [0].action.steps[0].condition.owner = "self"
-  + [0].action.steps[0].condition.filter.cardType = "シグニ"
-  + [0].action.steps[0].condition.filter.color = "赤"
-  …（他 7 行）
-
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
 --- WX06-CB03
@@ -90,33 +45,6 @@ WX06-CB03 WX21-056 WX21-061
   + [0].action.abilities[0].action.steps[0].target.count = 1
   + [0].action.abilities[0].action.steps[0].target.filter.thisCardOnly = true
   + [0].action.abilities[0].action.steps[0].optional = true
-
-## +FIELD_SIGNI_POWER_COUNT -HAS_CARD_IN_FIELD ［3枚］
-WX15-089 WX15-090 WX15-091
---- WX15-089
-  原文: 【常】：対戦相手の場にパワー10000以上のシグニがあるかぎり、このシグニの基本パワーは12000になる。,-
-  - [0].activeCondition.filter.cardType = "シグニ"
-  - [0].activeCondition.filter.powerRange.min = 10000
-  ~ [0].activeCondition.type : "HAS_CARD_IN_FIELD" → "FIELD_SIGNI_POWER_COUNT"
-  + [0].activeCondition.minPower = 10000
-  + [0].activeCondition.operator = "gte"
-  + [0].activeCondition.value = 1
---- WX15-090
-  原文: 【常】：対戦相手の場にパワー7000以上のシグニがあるかぎり、このシグニの基本パワーは8000になる。,-
-  - [0].activeCondition.filter.cardType = "シグニ"
-  - [0].activeCondition.filter.powerRange.min = 7000
-  ~ [0].activeCondition.type : "HAS_CARD_IN_FIELD" → "FIELD_SIGNI_POWER_COUNT"
-  + [0].activeCondition.minPower = 7000
-  + [0].activeCondition.operator = "gte"
-  + [0].activeCondition.value = 1
---- WX15-091
-  原文: 【常】：対戦相手の場にパワー3000以上のシグニがあるかぎり、このシグニの基本パワーは5000になる。,-
-  - [0].activeCondition.filter.cardType = "シグニ"
-  - [0].activeCondition.filter.powerRange.min = 3000
-  ~ [0].activeCondition.type : "HAS_CARD_IN_FIELD" → "FIELD_SIGNI_POWER_COUNT"
-  + [0].activeCondition.minPower = 3000
-  + [0].activeCondition.operator = "gte"
-  + [0].activeCondition.value = 1
 
 ## -SEQUENCE ［3枚］
 WDK06-C08 WX25-P3-105 WXDi-P01-044
@@ -336,6 +264,23 @@ WXDi-P00-040
   - [1].condition.filter.cardType = "シグニ"
   - [1].condition.minCount = 7
   - [1].condition.distinctClasses = true
+
+## +CARDS_DRAWN_BY_EFFECT +CONDITIONAL ［1枚］
+WXDi-P03-009
+--- WXDi-P03-009
+  原文: 【チーム】＜NoLimit＞【チーム自】：あなたのアタックフェイズ開始時、このターンにあなたが効果によってカードを２枚以上引いていた場合、レベル２以下のシグニ１体を対象とし、《青》《無》を支払ってもよい。そうした場合、それをデッキの一番下に置く。【出】：カードを１枚引き【エナチャージ１】をする。【起】《ゲーム１回》アップ状態のレベル２のルリグ２体をダウンする
+  - [0].action.steps[0].id = "OPTIONAL_COST"
+  - [0].action.steps[0].costColors[0] = "青"
+  - [0].action.steps[0].costColors[1] = "無"
+  ~ [0].action.steps[0].type : "STUB" → "CONDITIONAL"
+  + [0].action.steps[0].condition.type = "CARDS_DRAWN_BY_EFFECT"
+  + [0].action.steps[0].condition.owner = "self"
+  + [0].action.steps[0].condition.operator = "gte"
+  + [0].action.steps[0].condition.value = 2
+  + [0].action.steps[0].then.type = "STUB"
+  + [0].action.steps[0].then.id = "OPTIONAL_COST"
+  + [0].action.steps[0].then.costColors[0] = "青"
+  + [0].action.steps[0].then.costColors[1] = "無"
 
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
