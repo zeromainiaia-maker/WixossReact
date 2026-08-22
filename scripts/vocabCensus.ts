@@ -93,7 +93,8 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 671; // 2026-08-23 段2 第28バッチ＝【常】の「〜かぎり／〜の場合」で脱落していた activeCondition と【自】の厳密パワー条件、対象のキーワード／ドライブ限定を復元（681→671）。ソウル・アクセ名・アーツ使用回数・下カード枚数・センタールリグのキーワード・エナのレベル網羅・手札相対枚数・白シグニ7枚を型／評価器／golden同時実装。旧履歴は直下。
+const BASELINE_HIGH = 659; // 2026-08-23 §6.4 O-42 第1バッチ＝manual 影武者解除で露出した色フィルタ計器の偽陽性を較正。単値 color だけでなく正規表現の color 配列も認識し、正しく複数色を表現済みの13効果を除外（671→659。WX05-004-E3 の MANUAL解除による可視化+1を含む純減12）。旧履歴は直下。
+// 旧・段2 第28バッチ: const BASELINE_HIGH = 671; // 【常】の activeCondition と【自】の厳密パワー条件、対象のキーワード／ドライブ限定を復元（681→671）。
 // 旧・段2 第27バッチ: const BASELINE_HIGH = 681; // 能動連用中止「パワーを＋Nし、それ（ら）は…を得る」で脱落していた POWER_MODIFY を後段付与と同時復元（693→681）。
 // 旧・段2 第26バッチ: const BASELINE_HIGH = 693; // ゾーン／直前処理枚数で動くパワー・レベル上限13効果を復元（701→693）。
 // 旧・段2 第25バッチ: const BASELINE_HIGH = 701; // 集合主語のGRANT_KEYWORDとブルアカ全体+5000／スコープを復元（702→701）。
@@ -621,7 +622,9 @@ const PATTERNS: Pattern[] = [
     extraOk: (js, t) => {
       const colors = [...t.matchAll(/([白赤青緑黒])の(?:シグニ|カード|スペル|ルリグ)/g)].map(m => m[1]);
       if (/無色の(シグニ|カード)/.test(t)) colors.push('無');
-      return colors.every(c => js.includes(`"color":"${c}`) || js.includes('"colors"')
+      // `color` は単値だけでなく複数色フィルタの配列も正規表現。WX05-004-E3 の
+      // 「白、赤、青、緑、黒のカード」は後者なので、MANUAL 解除で偽陽性へ移さない。
+      return colors.every(c => new RegExp(`"color":(?:"${c}"|\\[[^\\]]*"${c}"[^\\]]*\\])`).test(js) || js.includes('"colors"')
         || js.includes('colorMatchesLrig') || js.includes('nonColorless'));
     },
   },

@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.4 O-42 第1バッチ＝parser と実体同一の manual 影武者48効果を解除
+
+`censusManualDrift` の削除候補86効果を再実測し、指定48効果が全件含まれることを確認した。各効果について `MANUAL_EFFECTS` と `parseCardEffects` 生出力を `parseStatus` だけ除外して独立比較し、値・配列・フィールド集合が全件一致したため `manualEffects.ts` から削除。live が MANUAL だった40効果は `effects_WX.json` の刻印だけを AUTO へ戻した（既にAUTOだった8効果は live 不変）。開始HEADとの効果単位比較は live総数10693据置、変更40効果、`parseStatus` 除外差分0件。manualEffects は451→432カード、削除候補は86→38、乖離5区分は23/20/4/3/2据置。
+
+再発防止として、残38効果を明示許容リストにした O-42 tripwire（増減ともFAIL）と、解除後の parser/live を実行するE2E 3本（`WX05-003-E3` 不足分ドロー、`WX05-004-E2` デッキトップ→ライフ、`WX01-002-E1` 白赤成立時だけ全体+3000）を追加。MANUAL解除で `WX05-004-E3` が census の色フィルタ偽陽性へ移ったため、単値 `color` だけでなく正規表現の `color:[…]` も認識するよう計器を較正し、既存12効果を含む13偽陽性を除外した（高シグナル671→659、BASELINE_HIGHも更新）。golden 2515/2515、smoke 10693異常0、fuzz全0、lint 0 errors/261 warnings、同型★0、STUB A/C群0、manual-fields 0。報告は `scripts/archive/scratchpad/semantic_audit_clean_round1/o42_batch1_report.md`。
+
 ## 2026-08-23：§6.2 段2 第28バッチ＝「〜かぎり／〜の場合」の条件脱落による無条件付与
 
 指定A群7・B群2・C群5をCSV原文、live、実行経路で再照合し、C2 `WD15-007-E1` を除く13効果を採用した。`IS_SELF_SOUL_ATTACHED`、`ENERGY_EACH_LEVEL_FILTER_GTE`、ActiveCondition版 `ARTS_USED_THIS_TURN{minCount}` を新設し、既存 `IS_SELF_ACCED`（カード名限定）、`THIS_CARD_HAS_UNDER`（枚数）、`SELF_HAS_KEYWORD`（センタールリグ主語）、Condition版 `ARTS_USED_THIS_TURN`（回数）を拡張。すべて `checkActiveCondition` / `evalCondition` の評価器と成立・不成立E2Eを同時実装した。B群は既存 `HAND_DIFF` / `TRASH_HAS_CARD` を `AND` で `TURN_OWNER` と合成した。

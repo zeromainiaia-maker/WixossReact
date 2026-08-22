@@ -1,7 +1,7 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-22T23:22:22.992Z
-manualEffects エントリ 451 カード / 乖離 47 カード・52 効果
+生成: 2026-08-22T23:53:29.309Z
+manualEffects エントリ 432 カード / 乖離 47 カード・52 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。
@@ -184,7 +184,7 @@ manualEffects エントリ 451 カード / 乖離 47 カード・52 効果
   live : {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true}}
   fresh: {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
 
-## 🆕削除候補：parser 出力と実体同一になった manual エントリ（86）（§6.4 O-40）
+## 🆕削除候補：parser 出力と実体同一になった manual エントリ（38）（§6.4 O-40）
   ＝parser が追いついたので manualEffects.ts から消してよい。放置すると **その効果だけ以後の parser 改善が届かない**。
   WDK08-Y11 / WDK08-Y11-E2
   WXDi-P06-031 / WXDi-P06-031-E2
@@ -193,9 +193,6 @@ manualEffects エントリ 451 カード / 乖離 47 カード・52 効果
   WD17-009 / WD17-009-E2
   WXDi-P04-049 / WXDi-P04-049-BURST
   WX25-P2-060 / WX25-P2-060-E2
-  WXDi-P12-054 / WXDi-P12-054-E2
-  WXDi-P15-044 / WXDi-P15-044-E1
-  WXK06-048 / WXK06-048-E1
   WXK04-002 / WXK04-002-E2
   WXK04-028 / WXK04-028-E1
   WDK08-L15 / WDK08-L15-E1
@@ -213,55 +210,10 @@ manualEffects エントリ 451 カード / 乖離 47 カード・52 効果
   WXK04-070 / WXK04-070-E1
   WX13-034 / WX13-034-E2
   WX16-045 / WX16-045-E1
-  WX04-071 / WX04-071-E1
-  WX04-078 / WX04-078-E1
-  WX04-079 / WX04-079-E1
-  WX04-089 / WX04-089-E1
-  WX04-096 / WX04-096-E1
-  WX04-096 / WX04-096-BURST
-  WX04-098 / WX04-098-E1
-  WX05-001 / WX05-001-E2
-  WX05-002 / WX05-002-E1
-  WX05-002 / WX05-002-E2
-  WX05-002 / WX05-002-E3
-  WX05-003 / WX05-003-E1
-  WX05-003 / WX05-003-E3
-  WX05-004 / WX05-004-E1
-  WX05-004 / WX05-004-E2
-  WX05-004 / WX05-004-E3
-  WX05-005 / WX05-005-E1
-  WX05-006 / WX05-006-E1
-  WX05-008 / WX05-008-E1
-  WX05-008 / WX05-008-E2
-  WX05-008 / WX05-008-E3
-  WX04-088 / WX04-088-E2
-  WX04-052 / WX04-052-E1
-  WX04-052 / WX04-052-BURST
-  WX04-041 / WX04-041-E1
-  WX04-040 / WX04-040-E1
-  WX04-035 / WX04-035-BURST
   WX24-D3-25 / WX24-D3-25-BURST
   SPDi37-06 / SPDi37-06-BURST
   WX12-010 / WX12-010-E1
-  WX04-031 / WX04-031-E1
-  WX04-031 / WX04-031-E2
-  WX04-032 / WX04-032-E1
-  WX04-033 / WX04-033-E1
-  WX04-033 / WX04-033-E2
-  WX04-033 / WX04-033-E3
-  WX04-033 / WX04-033-BURST
   WD03-011 / WD03-011-E1
-  WX01-030 / WX01-030-E1
-  WX01-085 / WX01-085-E1
-  WX01-085 / WX01-085-BURST
-  WX01-037 / WX01-037-E1
-  WX01-033 / WX01-033-E1
-  WX01-033 / WX01-033-E3
-  WX01-032 / WX01-032-E1
-  WX01-034 / WX01-034-E1
-  WX01-029 / WX01-029-E3
-  WX01-002 / WX01-002-E1
-  WX01-025 / WX01-025-E1
   WXDi-P06-007 / WXDi-P06-007-E2
   WX10-018 / WX10-018-E1
   WX19-045 / WX19-045-E1

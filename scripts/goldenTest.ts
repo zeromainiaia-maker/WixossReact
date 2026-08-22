@@ -42973,6 +42973,77 @@ for (const [effectId, exactDelta, missDelta] of [
   }));
 }
 
+// §6.4 O-42 の未消化在庫。バッチで消していく。増やしてはいけない。
+const O42_KNOWN_REDUNDANT_MANUAL = [
+  'WDK08-Y11-E2', 'WXDi-P06-031-E2', 'WXK11-029-E1', 'WX12-038-BURST', 'WD17-009-E2',
+  'WXDi-P04-049-BURST', 'WX25-P2-060-E2', 'WXK04-002-E2', 'WXK04-028-E1', 'WDK08-L15-E1',
+  'WXK04-042-E2', 'WXK08-005-E5', 'WXK04-011-E1', 'WXK04-012-E1', 'WXK04-013-E2',
+  'WXK05-011-E2', 'WDK08-L01-E3', 'WDK08-L02-E2', 'WDK08-L03-E2', 'WDK08-L04-E2',
+  'WXK05-023-E1', 'WXK04-070-E1', 'WX13-034-E2', 'WX16-045-E1', 'WX24-D3-25-BURST',
+  'SPDi37-06-BURST', 'WX12-010-E1', 'WD03-011-E1', 'WXDi-P06-007-E2', 'WX10-018-E1',
+  'WX19-045-E1', 'WXDi-P06-034-E2', 'WXDi-P14-053-E1', 'WX26-CP1-048-E1', 'WX24-P2-044-E1',
+  'WXDi-P11-010B-E1', 'WXK09-003-E1', 'WX20-028-E1',
+] as const;
+
+function o42StableBody(value: unknown): string {
+  const normalize = (item: unknown): unknown => {
+    if (Array.isArray(item)) return item.map(normalize);
+    if (!item || typeof item !== 'object') return item;
+    return Object.fromEntries(Object.entries(item as Record<string, unknown>)
+      .filter(([key, child]) => key !== 'parseStatus' && child !== undefined)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, child]) => [key, normalize(child)]));
+  };
+  return JSON.stringify(normalize(value));
+}
+
+test('§6.4 O-42 tripwire: parser と実体同一の manual 影武者コピーは既知38効果から増減しない', () => {
+  eq(O42_KNOWN_REDUNDANT_MANUAL.length, 38, '既知在庫リストの件数');
+  const redundant: string[] = [];
+  for (const [cardNum, manualEffects] of Object.entries(MANUAL_EFFECTS)) {
+    const card = cardMap.get(cardNum);
+    if (!card) continue;
+    const rawById = new Map(parseCardEffects(card).map(effect => [effect.effectId, effect]));
+    for (const manual of manualEffects) {
+      const raw = rawById.get(manual.effectId);
+      if (raw && o42StableBody(manual) === o42StableBody(raw)) redundant.push(manual.effectId);
+    }
+  }
+  eq(redundant.sort().join(','), [...O42_KNOWN_REDUNDANT_MANUAL].sort().join(','),
+    '新しい影武者コピーが増えた、または既知在庫が減ったら許容リストを更新する');
+});
+
+test('§6.4 O-42 E2E: WX05-003-E3 は手札が6枚になるまで不足分だけ引く', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX05-003') ?? []).find(candidate => candidate.effectId === 'WX05-003-E3')!;
+  const ctx = mkCtx({ hand: 4 }, {}, 'WX05-003');
+  const beforeDeck = ctx.ownerState.deck.length;
+  const result = run(effect.action, ctx);
+  eq(result.ownerState.hand.length, 6, '手札4枚から2枚引く');
+  eq(result.ownerState.deck.length, beforeDeck - 2, 'デッキ消費も2枚');
+}));
+
+test('§6.4 O-42 E2E: WX05-004-E2 はデッキトップ1枚をライフクロスへ加える', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX05-004') ?? []).find(candidate => candidate.effectId === 'WX05-004-E2')!;
+  const top = fresh();
+  const ctx = mkCtx({ deckTop: [top], life: 2 }, {}, 'WX05-004');
+  const result = run(effect.action, ctx);
+  eq(result.ownerState.life_cloth.length, 3, 'ライフクロスが1枚増える');
+  eq(result.ownerState.life_cloth.at(-1), top, 'デッキトップがライフクロスへ移る');
+}));
+
+test('§6.4 O-42 E2E: WX01-002-E1 は白と赤の両方が場にあるときだけ全自シグニを+3000', () => withSavedCursor(() => {
+  const source = 'WX01-002';
+  const white = findCard(card => card.Type === 'シグニ' && card.Color === '白');
+  const red = findCard(card => card.Type === 'シグニ' && card.Color === '赤' && card.CardNum !== white);
+  const baseWhite = Number(cardMap.get(white)?.Power);
+  const active = mkState({ lrig: [source], signi: [white, red, null] });
+  const activePowers = calcFieldPowers(active, mkState({}), true, effectsMap, cardMap);
+  eq(activePowers.get(white), baseWhite + 3000, '白と赤がそろえば+3000');
+  const inactive = mkState({ lrig: [source], signi: [white, null, null] });
+  const inactivePowers = calcFieldPowers(inactive, mkState({}), true, effectsMap, cardMap);
+  eq(inactivePowers.get(white), baseWhite, '赤が欠ければ強化しない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

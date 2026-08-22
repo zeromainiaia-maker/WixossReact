@@ -319,15 +319,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX25-P2-060": [
     {"effectId":"WX25-P2-060-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energyTrash":{"count":1,"filter":{"cardType":"シグニ","story":"凶蟲"}}},"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
   ],
-  "WXDi-P12-054": [
-    {"effectId":"WXDi-P12-054-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"CONDITIONAL","condition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardName":"残黒の巫女　タマヨリヒメ"}},"then":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-  ],
-  "WXDi-P15-044": [
-    {"effectId":"WXDi-P15-044-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"END_OF_TURN"},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-  ],
-  "WXK06-048": [
-    {"effectId":"WXK06-048-E1","effectType":"AUTO","timing":["ON_PLAY"],"cost":{"energy":[{"color":"黒","count":1},{"color":"黒","count":1}]},"action":{"type":"SEQUENCE","steps":[{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"}},"targetsLastProcessed":true,"redirectTo":"trash","until":"END_OF_TURN"}]},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
-  ],
   // PLAN §6.3 sub-case (b): Carnival -Q- ignores opponent effects. The
   // own-other-source part of "except itself" is near-inert and intentionally
   // deferred; sourceOwner keeps the lrig's own effects from being blocked.
@@ -660,9 +651,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WX04-071-E1 羅石 トパズ（シグニ 精羅：宝石）【起】《赤》このシグニを場からトラッシュに置く：あなたのデッキからコストの合計が1以下の赤のスペル1枚を探して公開し手札に加え、シャッフルする。
   //   filter.costMax=1（matchesFilter が card.Cost の《色×N》合計＝コイン除外で判定）。
-  "WX04-071": [
-    {"effectId":"WX04-071-E1","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"赤","count":1}],"trash_self":true},"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"スペル","color":"赤","costMax":1},"maxCount":1,"then":{"type":"SEQUENCE","steps":[{"type":"REVEAL"},{"type":"ADD_TO_HAND","owner":"self"}]},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
-  ],
 
   // WX04-072-E1 幻竜 エキドナ（シグニ 精生：龍獣）【起】このシグニを場からトラッシュに置く：対戦相手のエナゾーンから【マルチエナ】を持つカード1枚を対象とし、それをトラッシュに置く。
   //   target.filter.keyword='マルチエナ'（WX04-068 と同型）。BURST: カードを1枚引く。
@@ -687,21 +675,12 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX04-078-E1 コードアート R・P・G（シグニ 精械：電機）【常】対戦相手の場に凍結状態のシグニがあるかぎり、このシグニの基本パワーは10000になる。
   //   activeCondition HAS_CARD_IN_FIELD(owner:opponent, filter:isFrozen) 欠落で常時10000になっていた。
   //   ※ checkActiveCondition/evalUseCondition の HAS_CARD_IN_FIELD を matchesStateFilter 併用に拡張（isFrozen等の状態フィルタ対応）。
-  "WX04-078": [
-    {"effectId":"WX04-078-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"opponent","filter":{"cardType":"シグニ","isFrozen":true}},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
 
   // WX04-079-E1 羅原 F（シグニ 精羅：原子）【常】あなたの場に＜原子＞のシグニが3体あるかぎり、あなたのシグニのパワーを+2000する。
   //   activeCondition の minCount:3 欠落で「1体以上」になっていた。
-  "WX04-079": [
-    {"effectId":"WX04-079-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"原子"},"minCount":3},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
 
   // WX04-089-E1 未解決の逸脱 シュレリス（シグニ 精像：美巧）【常】あなたの場に＜美巧＞のシグニが3体あるかぎり、あなたのシグニのパワーを+2000する。
   //   activeCondition の minCount:3 欠落で「1体以上」になっていた（WX04-079 と同型）。
-  "WX04-089": [
-    {"effectId":"WX04-089-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"美巧"},"minCount":3},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":"ALL","filter":{"cardType":"シグニ"}},"delta":2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
 
   // WX04-093 惰眠（スペル -）デッキの上からシグニがめくれるまで公開→そのシグニを場に出し、残りをトラッシュ。これを3回繰り返す。
   //   旧: SEQUENCE(STUB DECK_REVEAL_UNTIL / REVEALED_SIGNI_TO_FIELD_REST_TRASH / REPEAT_EFFECT) で未実装。
@@ -727,16 +706,11 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E1【常】このシグニに【チャーム】が付いているかぎり、基本パワーは12000になる（activeCondition IS_SELF_CHARMED 欠落で常時12000だった）。
   //  E2【起】《ダウン》：あなたの＜悪魔＞のシグニ1体を対象とし、デッキの一番上をそれの【チャーム】にしてもよい（旧: 対象クラス絞り＜悪魔＞欠落）。
   "WX04-096": [
-    {"effectId":"WX04-096-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_CHARMED"},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":12000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX04-096-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"down_self":true},"action":{"type":"ATTACH_CHARM","charm":{"type":"DECK_CARD","owner":"self","count":1},"to":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","cardClass":"悪魔"}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WX04-096-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"DRAW","owner":"self","count":1},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX04-098 堕落の吐露 マイモン（シグニ 精像：悪魔）
   //  E1【常】このシグニに【チャーム】が付いているかぎり、基本パワーは10000になる（activeCondition IS_SELF_CHARMED 欠落で常時10000だった。WX04-096-E1 と同型）。
-  "WX04-098": [
-    {"effectId":"WX04-098-E1","effectType":"CONTINUOUS","activeCondition":{"type":"IS_SELF_CHARMED"},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  ],
 
   // WX04-099 ツヴァイ＝サリナ（シグニ 精武：毒牙）
   //  E1【自】対戦相手のターンの間、このシグニが対戦相手のレベル2以下のシグニとバトルしたとき、そのシグニをバニッシュする（自身がバトルでバニッシュされても発動）。
@@ -770,7 +744,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E3【起】エクシード5：エナをすべてトラッシュ＋手札をすべて捨て、追加の1ターンを得る。
   "WX05-001": [
     {"effectId":"WX05-001-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"PLACE_LRIGS_UNDER_CENTER","owner":"self"},{"type":"TRANSFER_TO_DECK","source":{"type":"LRIG_TRASH_CARD","owner":"self","count":"ALL","filter":{"cardType":"アーツ","color":["白","黒"]}},"shuffle":false,"destination":"lrig_deck"}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-001-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":1},"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX05-001-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":"ALL"}},{"type":"STUB","id":"GAIN_EXTRA_TURN"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
@@ -778,20 +751,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  【グロウ】「センタールリグがカード名に《花代》を含む」はグロウ条件（checkGrowCondition が EffectText から処理）。
   //  E1【常】このルリグはルリグトラッシュにあるルリグの【起】能力を持つ（COPY_LRIG_TRASH_ACTIVATED。BattleScreen のルリグメニューが継承【起】を提示）。
   //  E2【常】あなたのシグニは【ダブルクラッシュ】を得る。 E3【起】エクシード5：相手シグニをパワー合計30000以下になるよう好きな数バニッシュ。
-  "WX05-002": [
-    {"effectId":"WX05-002-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"COPY_LRIG_TRASH_ACTIVATED"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-002-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":"ALL"},"keyword":"ダブルクラッシュ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-002-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"totalPowerMax":30000}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
-  ],
 
   // WX05-003 コード・ピルルク ACRO（ルリグ ピルルク Lv5）
   //  【グロウ】「センタールリグがカード名に《ピルルク》を含む」はグロウ条件（checkGrowCondition）。
   //  E1【常】ルリグトラッシュのルリグの【起】能力を持つ（COPY_LRIG_TRASH_ACTIVATED）。
   //  E2【出】対戦相手は手札をすべて捨てる（旧: 1枚のみ＝誤）。 E3【起】エクシード5：手札が6枚より少ない場合、差の分だけ引く（旧: 1枚固定＝誤。untilHandCount で本実装）。
   "WX05-003": [
-    {"effectId":"WX05-003-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"COPY_LRIG_TRASH_ACTIVATED"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-003-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"HAND_CARD","owner":"opponent","count":"ALL"}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-003-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"DRAW","owner":"self","count":0,"untilHandCount":6},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX05-004 五型緑姫（ルリグ 緑子 Lv5）
@@ -799,11 +765,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E1【常】ルリグトラッシュのルリグの【起】能力を持つ（COPY_LRIG_TRASH_ACTIVATED）。
   //  E2【出】デッキの一番上をライフクロスに加える。 E3【起】エクシード5：各プレイヤーは自分のエナの白赤青緑黒のカードをすべてトラッシュ。
   //  実装は正しく（確認）、durable 化のため MANUAL 登録。
-  "WX05-004": [
-    {"effectId":"WX05-004-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"COPY_LRIG_TRASH_ACTIVATED"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-004-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-004-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL","filter":{"color":["白","赤","青","緑","黒"]}}},{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":"ALL","filter":{"color":["白","赤","青","緑","黒"]}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
-  ],
 
   // WX05-005 黒点の巫女 タマヨリヒメ（ルリグ タマ Lv5）
   //  グロウ条件「トラッシュに黒のカードが10枚以上ある」はグロウ時ゲート（checkGrowCondition・511行）で処理。グロウ後はE1は常時発動。
@@ -811,7 +772,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E2【起】《黒》エナゾーンから黒のカード1枚をトラッシュ：対戦相手のシグニ1体をトラッシュ。コストは energy 黒×1 ＋ energyTrash(黒×1)（旧: energyTrash 欠落）。
   //  E3【起】エクシード5：対戦相手のセンタールリグと全シグニをダウン。
   "WX05-005": [
-    {"effectId":"WX05-005-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"CHANGE_ALL_SIGNI_COLOR_TO_BLACK"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-005-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"黒","count":1}],"energyTrash":{"count":1,"filter":{"color":"黒"}}},"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX05-005-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"DOWN","target":{"type":"LRIG","owner":"opponent","count":1}},{"type":"DOWN","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"},"upToCount":false}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
@@ -824,7 +784,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E3【起】エクシード5：手札1枚を選ぶ→相手が色を宣言→公開し宣言色を持たない場合のみ相手の全シグニをトラッシュ。
   //    旧: SEQUENCE末尾に無条件 TRASH があり常に全シグニ消失＝誤。条件判定は OPP_DECLARE_CHOICE→INTERNAL_ODC_COLOR_CHECK が担う（送り先をエナ→トラッシュに是正）。
   "WX05-006": [
-    {"effectId":"WX05-006-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"ENERGY_CARD","owner":"self","count":"ALL"},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-006-E2","effectType":"CONTINUOUS","action":{"type":"STUB","id":"IGNORE_LRIG_RESTRICTION_ARTS"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX05-006-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":5},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"CHOOSE_HAND_CARD"},{"type":"STUB","id":"OPP_DECLARE_CHOICE"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
@@ -842,11 +801,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  グロウ条件「センタールリグがカード名に《遊月》を含む」は checkGrowCondition（EffectText経由）で処理。本カードは名前が遊月・伍のため常に成立。
   //  E1【出】対戦相手のエナを3枚まで対象としトラッシュ（旧: count:1＝「3枚まで」欠落の誤）。
   //  E2【起】《ターン1回》エクシード1：相手エナ1枚トラッシュ。 E3【起】エクシード2：手札の赤スペル1枚をコストなしで使用。
-  "WX05-008": [
-    {"effectId":"WX05-008-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":3,"upToCount":true}},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX05-008-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":1},"action":{"type":"TRASH","target":{"type":"ENERGY_CARD","owner":"opponent","count":1}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL","usageLimit":"once_per_turn"},
-    {"effectId":"WX05-008-E3","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"exceed":2},"action":{"type":"PLAY_FREE","source":"hand","filter":{"cardType":"スペル","color":"赤"},"ignoreCost":true,"optional":false},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
-  ],
 
   // WX04-082-E1 コードアート S・M・L（シグニ 精械：電機）【自】このシグニの正面のシグニがアタックしたとき、アタックしたそのシグニを凍結する。
   //   旧AUTO: timing ON_ATTACK_SIGNI（このシグニがアタック時）＋対象 self（誤）。正しくは防御側・正面シグニが、アタッカー（正面のシグニ）を凍結。
@@ -883,7 +837,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E2【起】《緑×3》：ターン終了時まで、このシグニは【ランサー】を得る（旧: 対象「あなたのシグニ1体」誤→ thisCardOnly に修正）。
   "WX04-088": [
     {"effectId":"WX04-088-E1","effectType":"CONTINUOUS","activeCondition":{"type":"SELF_HAS_KEYWORD","keyword":"ランサー"},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX04-088-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"energy":[{"color":"緑","count":1},{"color":"緑","count":1},{"color":"緑","count":1}]},"action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"ランサー","duration":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX04-056-E1 大壊 アクス（シグニ 精武：アーム）【常】あなたの他の＜アーム＞のシグニのパワー+2000。
@@ -901,9 +854,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E1【常】＜悪魔＞シグニがバニッシュされる場合、代わりに付いている【チャーム】1枚をトラッシュしてもよい（チャーム盾）。
   //  E2【出】デッキトップをこのシグニの【チャーム】にしてもよい。BURST：デッキ上3枚トラッシュ→トラッシュから＜悪魔＞シグニ1枚を手札へ。
   "WX04-052": [
-    {"effectId":"WX04-052-E1","effectType":"CONTINUOUS","action":{"type":"CHARM_PROTECTION","signiFilter":{"cardType":"シグニ","story":"悪魔"},"optional":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX04-052-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"ATTACH_CHARM","optional":true,"charm":{"type":"DECK_CARD","owner":"self","count":1},"to":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WX04-052-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"DECK_CARD","owner":"self","count":3}},{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"upToCount":false,"filter":{"cardType":"シグニ","story":"悪魔"}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // WX04-050-E1 非可視の現実 キュビ（シグニ 精像：美巧）【起】《ダウン》：デッキ上から＜美巧＞シグニがめくれるまで公開→手札に加え、公開した他のカードをシャッフルしてデッキ下へ。
@@ -925,7 +876,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX04-041 コードメイズ スカイジュ（シグニ 精械：迷宮）
   //  E1【常】場に他の＜迷宮＞がある限り基本パワー10000。E2【出】対戦相手のすべてのシグニを好きなように配置し直してもよい（再配置UI）。
   "WX04-041": [
-    {"effectId":"WX04-041-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"迷宮"},"excludeSelf":true},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":10000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX04-041-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"opponent","count":"ALL"},"optional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
@@ -933,7 +883,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //  E1【常】場に＜ウェポン＞がある限り基本パワー15000。E2【起】場から＜アーム＞1体＋＜ウェポン＞1体トラッシュ→相手シグニ1体バニッシュ。
   //  BURST：手札から＜アーム＞1枚＋＜ウェポン＞1枚を捨てたら、相手シグニ1体を手札に戻し、相手シグニ1体をバニッシュ。
   "WX04-040": [
-    {"effectId":"WX04-040-E1","effectType":"CONTINUOUS","activeCondition":{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"ウェポン"}},"action":{"type":"POWER_SET","target":{"type":"SIGNI","owner":"self","count":1},"value":15000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX04-040-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"fieldTrashGroups":[{"count":1,"filter":{"cardType":"シグニ","story":"アーム"}},{"count":1,"filter":{"cardType":"シグニ","story":"ウェポン"}}]},"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
     {"effectId":"WX04-040-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CONDITIONAL","condition":{"type":"AND","conditions":[{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"アーム"},"operator":"gte","value":1},{"type":"HAND_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"ウェポン"},"operator":"gte","value":1}]},"then":{"type":"SEQUENCE","steps":[{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"アーム"}}},{"type":"TRASH","target":{"type":"HAND_CARD","owner":"self","count":1,"filter":{"cardType":"シグニ","story":"ウェポン"}}},{"type":"BOUNCE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}},{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false}}]}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
@@ -960,7 +909,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   "WX04-035": [
     {"effectId":"WX04-035-E1","effectType":"CONTINUOUS","action":{"type":"GRANT_PROTECTION","subjectFilter":{"cardType":"シグニ","story":"美巧"},"subjectOwner":"self","from":["ルリグ","シグニ"],"sourceOwner":"opponent","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX04-035-E2","effectType":"AUTO","timing":["ON_TRASH"],"triggerScope":"self","triggerCondition":{"byOpponentEffect":true,"fromAnyZone":true},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["緑"]},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"TRANSFER_TO_HAND","source":{"type":"TRASH_CARD","owner":"self","count":1,"filter":{"thisCardOnly":true}}}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"},
-    {"effectId":"WX04-035-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEQUENCE","steps":[{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},{"type":"CONDITIONAL","condition":{"type":"ENERGY_COUNT_FILTER","owner":"self","filter":{"cardType":"シグニ","story":"美巧"},"operator":"gte","value":5},"then":{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   ],
 
   // G154「TOO BADLY」（スペル WX24-D3-25 / SPDi37-06）。
@@ -1286,25 +1234,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   旧パース誤り: 1段目（マルチエナ・エナトラッシュ）が欠落しバニッシュのみ。
   'WX04-031': [
     {
-      effectId: 'WX04-031-E1',
-      effectType: 'CONTINUOUS',
-      activeCondition: { type: 'COUNT_THRESHOLD', owner: 'opponent', location: 'energy', operator: 'lte', value: 4 },
-      action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'ダブルクラッシュ', duration: 'PERMANENT' },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-    {
-      effectId: 'WX04-031-E2',
-      effectType: 'AUTO',
-      timing: ['ON_ATTACK_SIGNI'],
-      triggerScope: 'self',
-      action: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } },
-      duration: 'INSTANT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-    {
       effectId: 'WX04-031-BURST',
       effectType: 'LIFE_BURST',
       timing: ['ON_LIFE_BURST'],
@@ -1323,20 +1252,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // BURST「対戦相手のエナから対象のカード1枚をトラッシュ。対戦相手のエナが4枚以下の場合、パワー10000以下のシグニ1体をバニッシュ」
   //   旧パース誤り: バニッシュが無条件（「エナ4枚以下の場合」条件が欠落）。エナトラッシュ後に ENERGY_COUNT(opponent≤4) で条件化。
   'WX04-032': [
-    {
-      effectId: 'WX04-032-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '赤', count: 5 }] },
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'STUB', id: 'ARTS_COST_REDUCTION_BY_EFFECT' },
-        { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ', powerRange: { max: 10000 } } } },
-        { type: 'CONDITIONAL', condition: { type: 'IS_MY_TURN' }, then: { type: 'TRASH', target: { type: 'ENERGY_CARD', owner: 'opponent', count: 1 } } },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
     {
       effectId: 'WX04-032-BURST',
       effectType: 'LIFE_BURST',
@@ -1358,47 +1273,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   旧パース誤り: timing が ON_TURN_END（本文「ターン終了時まで」を誤検出）＋対象 owner:any/count:1。正: ON_SPELL_USE・自分の全＜原子＞シグニ。
   // BURST「カードを1枚引く。その後、あなたの場に＜原子＞のシグニがある場合、対戦相手のシグニ1体をバニッシュする」
   //   旧パース誤り: ＜原子＞条件をバニッシュ対象に取り違え（無条件で相手の＜原子＞シグニをバニッシュ）。正: 場に＜原子＞がある場合に相手シグニ1体をバニッシュ。
-  'WX04-033': [
-    {
-      effectId: 'WX04-033-E1',
-      effectType: 'CONTINUOUS',
-      action: { type: 'COST_INCREASE', targetCardType: 'スペル', targetOwner: 'opponent', amount: [{ color: '無', count: 1 }], duration: 'PERMANENT' },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-    {
-      effectId: 'WX04-033-E2',
-      effectType: 'AUTO',
-      timing: ['ON_SPELL_USE'],
-      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', story: '原子' } }, delta: 2000 },
-      duration: 'UNTIL_END_OF_TURN',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-    {
-      effectId: 'WX04-033-E3',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { fieldDown: { count: 2, filter: { cardType: 'シグニ', isUp: true, story: '原子' } } },
-      action: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-    {
-      effectId: 'WX04-033-BURST',
-      effectType: 'LIFE_BURST',
-      timing: ['ON_LIFE_BURST'],
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'DRAW', owner: 'self', count: 1 },
-        { type: 'CONDITIONAL', condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', story: '原子' } }, then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false, filter: { cardType: 'シグニ' } } } },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX04-034 SHORT（スペル）以下の3つから1つを選ぶ
   //   ①相手シグニ1体対象・名前の異なる＜原子＞シグニ2枚捨て→バニッシュ ②2体・4枚 ③3体・6枚
@@ -1531,19 +1405,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   LIFE_CRASH self（triggerBurst:false＝トラッシュへ）が lastProcessedCards を残し、相手 LIFE_CRASH を conditional:true でゲート。
   'WX01-030': [
     {
-      effectId: 'WX01-030-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '赤', count: 3 }] },
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ', powerRange: { max: 12000 } }, upToCount: false } },
-        { type: 'GRANT_KEYWORD', target: { type: 'LRIG', owner: 'self', count: 1 }, keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN' },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-    {
       effectId: 'WX01-030-BURST',
       effectType: 'LIFE_BURST',
       timing: ['ON_LIFE_BURST'],
@@ -1563,27 +1424,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   //   一致しない誤り（原文「それら」＝同じ対象）。engine の FREEZE は signi_down も立てる（ダウン込み）ため、
   //   単一の FREEZE(down:true) で「同じ対象をダウン＆凍結」を表現（FREEZE は down:true のときのみダウンも行う）。
   //   E1「対戦相手のすべてのシグニをダウンし凍結する」も単一 FREEZE(ALL, down:true) に整理。
-  'WX01-085': [
-    {
-      effectId: 'WX01-085-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '青', count: 1 }] },
-      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ' }, upToCount: false }, down: true },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-    {
-      effectId: 'WX01-085-BURST',
-      effectType: 'LIFE_BURST',
-      timing: ['ON_LIFE_BURST'],
-      action: { type: 'FREEZE', target: { type: 'SIGNI', owner: 'opponent', count: 2, filter: { cardType: 'シグニ' }, upToCount: true }, down: true },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX01-036 巨弓　カタパル（シグニ）
   // E1【出】：デッキトップを見る。それがレベル2以下のシグニで自分の場に他のシグニがない場合、出してもよい。
@@ -1688,22 +1528,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX01-037 忘得ぬ幻想　ヴァルキリー（シグニ）
   // E1【起】《ダウン》：デッキから《忘得ぬ幻想　ヴァルキリー》以外のレベル3以下のシグニ1枚を探して公開し手札に加えシャッフル。
   //   旧JSONは filter.cardName（＝ヴァルキリーを探す）になっており「以外」が反映されず逆。→ excludeCardName に修正。
-  'WX01-037': [
-    {
-      effectId: 'WX01-037-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { down_self: true },
-      action: { type: 'SEARCH', from: { location: 'deck', owner: 'self' },
-        filter: { cardType: 'シグニ', level: { max: 3 }, excludeCardName: '忘得ぬ幻想　ヴァルキリー' },
-        maxCount: 1,
-        then: { type: 'SEQUENCE', steps: [{ type: 'REVEAL' }, { type: 'ADD_TO_HAND', owner: 'self' }] },
-        afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' } },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX01-038 ゲット・ダンタリアン（スペル）
   // 「デッキから白のシグニ1枚と赤のシグニ1枚を探して公開し手札に加え、デッキをシャッフルする。」
@@ -1735,28 +1559,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // E2/BURST はパーサー生成を維持。
   // E3【起】《緑》《緑》：あなたのトラッシュからすべての緑のカードをデッキに加えてシャッフルする。
   //   旧JSONは source に色フィルタが無く全色のカードを対象にしていた（過剰）。→ filter:{color:'緑'} を付与。
-  'WX01-033': [
-    {
-      effectId: 'WX01-033-E1',
-      effectType: 'AUTO',
-      timing: ['ON_SPELL_USE'],
-      triggerFilter: { color: '緑' },
-      action: { type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1 },
-      duration: 'INSTANT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-    {
-      effectId: 'WX01-033-E3',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '緑', count: 1 }, { color: '緑', count: 1 }] },
-      action: { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 'ALL', filter: { color: '緑' } }, shuffle: true },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX01-031 コードハート　Ｖ・Ａ・Ｃ（シグニ）
   // E1【常】：あなたが使用する青のスペルのコストは《無×1》減る。
@@ -1802,42 +1604,10 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // 「対戦相手は手札を2枚捨てる。その後、対戦相手の手札が0枚の場合、カードを1枚引く。」
   // 旧JSONは「対戦相手の手札が0枚の場合」を IS_MY_TURN に誤パース（スペルは自ターン使用＝常時ドローの過剰）。
   // → CONDITIONAL を HAND_COUNT(opponent eq 0) に修正。TRASH 後に評価されるので捨てた結果0枚を正しく判定。
-  'WX01-032': [
-    {
-      effectId: 'WX01-032-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '青', count: 2 }, { color: '無', count: 1 }] },
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'opponent', count: 2 } },
-        { type: 'CONDITIONAL', condition: { type: 'HAND_COUNT', owner: 'opponent', operator: 'eq', value: 0 },
-          then: { type: 'DRAW', owner: 'self', count: 1 } },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX01-034 修復（スペル）
   // 「あなたのデッキの一番上のカードをライフクロスに加える。その後、あなたのエナゾーンにカードが10枚以上ある場合、追加であなたのデッキの一番上のカードをライフクロスに加える。」
   // 旧JSONは2回目のADD_TO_LIFEが無条件（エナ10枚以上条件が欠落）だった。→ 2枚目を CONDITIONAL{ENERGY_COUNT self gte 10} でゲート。
-  'WX01-034': [
-    {
-      effectId: 'WX01-034-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '緑', count: 3 }] },
-      action: { type: 'SEQUENCE', steps: [
-        { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true },
-        { type: 'CONDITIONAL', condition: { type: 'ENERGY_COUNT', owner: 'self', operator: 'gte', value: 10 },
-          then: { type: 'ADD_TO_LIFE', owner: 'self', count: 1, fromTop: true } },
-      ] },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX01-029 羅輝石　アダマスフィア（シグニ）
   // E1【自】：あなたの赤のシグニがアタックしたとき、ターン終了時まで、それのパワーを＋2000する。
@@ -1853,19 +1623,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 1 }, delta: 2000, targetsTriggerSource: true },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-    {
-      // E3【起】《赤》《赤》：ターン終了時まで、このシグニは【ダブルクラッシュ】を得る。
-      // 旧JSONは target owner:self count:1（任意自シグニに見える・フィルタ無し）＋keyword duration:PERMANENT。
-      // → 「このシグニ」を thisCardOnly で明示、keyword duration を UNTIL_END_OF_TURN に。
-      effectId: 'WX01-029-E3',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '赤', count: 1 }, { color: '赤', count: 1 }] },
-      action: { type: 'GRANT_KEYWORD', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } }, keyword: 'ダブルクラッシュ', duration: 'UNTIL_END_OF_TURN' },
-      duration: 'UNTIL_END_OF_TURN',
-      mandatory: false,
       parseStatus: 'MANUAL',
     },
   ],
@@ -1892,20 +1649,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   // WX01-002 暁の巫女　タマヨリヒメ（ルリグ）
   // E1【常】：あなたの場に白と赤のシグニがあるかぎり、あなたのシグニのパワーを＋3000する。
   // 旧JSONは activeCondition 欠落で常時+3000だった。→ AND[白シグニがいる, 赤シグニがいる]。E2/E3 はパーサー生成を維持。
-  'WX01-002': [
-    {
-      effectId: 'WX01-002-E1',
-      effectType: 'CONTINUOUS',
-      activeCondition: { type: 'AND', conditions: [
-        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '白' } },
-        { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', color: '赤' } },
-      ] },
-      action: { type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ' } }, delta: 3000 },
-      duration: 'PERMANENT',
-      mandatory: true,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WD04-013 / WD04-015（シグニ）: アタック時、このシグニのパワーがN以上の場合のみエナチャージ。
   // 旧JSONは条件（SELF_POWER_GTE）欠落で常時チャージだった。
@@ -1958,27 +1701,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
 
   // WX01-025 サルベージ（アーツ）
   // あなたのトラッシュからあなたのセンタールリグと共通する色を持つシグニ１枚を対象とし、それを手札に加える。
-  'WX01-025': [
-    {
-      effectId: 'WX01-025-E1',
-      effectType: 'ACTIVATED',
-      timing: ['MAIN'],
-      cost: { energy: [{ color: '無', count: 1 }] },
-      action: {
-        type: 'TRANSFER_TO_HAND',
-        source: {
-          type: 'TRASH_CARD',
-          owner: 'self',
-          count: 1,
-          upToCount: false,
-          filter: { cardType: 'シグニ', colorMatchesLrig: true },
-        },
-      },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
 
   // WX11-026 聖火の祭壇　ヘスチア（自己復活）
   // 【自】：あなたのライフクロス１枚がクラッシュされたとき、このシグニをあなたのトラッシュから場に出してもよい。
