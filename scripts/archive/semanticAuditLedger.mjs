@@ -10,7 +10,9 @@
  * - `findings.jsonl`          … 監査の生 findings（1,444件・不変）
  * - `clusters_stage0.json`    … 段0 の機械前処理（OPEN / 除去の判定）
  * - `stage1_batch*_triage.md` … 段1 の分類表（`| effectId | parseStatus | 分類 | …`。単発バッチは先頭に `| S001 |` の連番列が付く）
- * - `stage2_closed.txt`       … 段2 で**実際に live が直った** effectId（1行1件・`#` はコメント）
+ * - `stage2_closed.txt`       … 段2 で**実際に live が直った**もの（1行1件・`#` はコメント）
+ *                                ・`EFFECTID`            ＝その効果の finding を全部閉じる
+ *                                ・`EFFECTID :: <quote>` ＝その finding 1本だけ閉じる（quote 前方一致）
  *                                ⚠バッチを1本回したらここに追記する。これが唯一の消化記録。
  *
  * ## 使い方
@@ -59,10 +61,27 @@ for (const f of fs.readdirSync(DIR).filter(n => /^stage1_batch\d+_triage\.md$/.t
 
 // 段2：消化済み（live が実際に直った effectId）
 const closedPath = path.join(DIR, 'stage2_closed.txt');
-const closed = new Set(
-  fs.existsSync(closedPath)
-    ? read('stage2_closed.txt').split('\n').map(l => l.replace(/#.*$/, '').trim()).filter(Boolean)
-    : []);
+// ⚠**閉じる単位は「効果」と「finding」の2段**（2026-08-22 に finding 単位を追加）。
+//   `EFFECTID`            … その効果の finding を**すべて**閉じる（従来どおり）
+//   `EFFECTID :: <quote>` … その quote の finding **1本だけ**閉じる（前方一致）
+//   後者が無いと、**1効果に複数 finding が付いた効果は全軸を直すまで1件も閉じられず**、
+//   実際の進捗より台帳が悲観的に出る（続き598 実測＝9効果を直したのに閉じられたのは2件）。
+//   残 OPEN の内訳は 673効果が finding 1本／155効果が2本以上なので、効くのは約2割。
+const closedAll = new Set();                 // 効果ごと閉じる
+const closedOne = new Map();                 // effectId -> [quote 前方一致, …]
+if (fs.existsSync(closedPath)) {
+  for (const raw of read('stage2_closed.txt').split(/\r?\n/)) {
+    const line = raw.replace(/#.*$/, '').trim();
+    if (!line) continue;
+    const m = line.match(/^(\S+)\s*::\s*(.+)$/);
+    if (m) closedOne.set(m[1], [...(closedOne.get(m[1]) ?? []), m[2].trim()]);
+    else closedAll.add(line);
+  }
+}
+/** その finding は段2 で消化済みか（効果ごと／finding 単体のどちらでも）。 */
+const isClosed = f => closedAll.has(f.effectId)
+  || (closedOne.get(f.effectId) ?? []).some(q => String(f.quote ?? '').startsWith(q));
+const closed = closedAll;                    // 既存の参照（統計表示）との互換
 
 // 段3：欠落語彙キー軸（再クラスタ化の結果を再利用）
 const axisOf = new Map();            // stage3_recluster.json は [{axis, n, findings:[…]}] の配列
@@ -77,7 +96,7 @@ const rows = findings.map(f => {
   // effectId が null の finding（出現条件系）は報告書側が CardNum で書くのでそちらで引く。
   const v = verdicts.get(f.effectId) ?? (f.effectId ? undefined : verdicts.get(f.cardNum));
   const state =
-    closed.has(f.effectId) ? '✅消化'
+    isClosed(f) ? '✅消化'
     : removedKeys.has(key) ? '段0除去'
     : v?.has('偽陽性') && !v.has('真バグ') ? '偽陽性(段1)'
     : v?.has('機構待ち') && !v.has('真バグ') ? '機構待ち(段1)'
