@@ -41054,6 +41054,80 @@ test('段2-9 B1-B9: 各live条件をengine実行し成立／不成立を固定�
   }
 }));
 
+// ── §6.2 段2 第10バッチ：「このシグニ」が任意の自シグニ1体へ広がる退化 ──
+test('段2-10 A/B4: （アップ状態の）このシグニのDOWNは効果元だけを実行し、候補不在なら他を選ばない', () => withSavedCursor(() => {
+  const ids = [
+    'WX11-025-E2', 'WXDi-P06-049-E1', 'WXDi-P09-054-E1', 'WXDi-P15-092-E1',
+    'WXDi-P16-078-E1', 'WXDi-CP02-073-E2', 'WXDi-CP02-075-E2', 'WXDi-CP02-081-E2',
+    'WX24-P1-069-E1', 'WX24-P3-077-E1', 'WX25-P2-085-E1', 'WX25-CP1-066-E3',
+    'WX25-CP1-070-E2', 'WXEX2-28-E1', 'WX25-P1-093-E1', 'WX24-P2-093-E1',
+    'WXDi-CP01-029-E3',
+  ];
+  const findDown = (node: unknown): Extract<EffectAction, { type: 'DOWN' }> | undefined => {
+    if (!node || typeof node !== 'object') return undefined;
+    const a = node as EffectAction;
+    if (a.type === 'DOWN' && a.target?.filter?.thisCardOnly) return a;
+    for (const value of Object.values(node as Record<string, unknown>)) {
+      if (Array.isArray(value)) {
+        for (const child of value) { const found = findDown(child); if (found) return found; }
+      } else {
+        const found = findDown(value); if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  for (const id of ids) {
+    const card = id.replace(/-E\d+$/, '');
+    const ally = findCard(c => isSigni(c) && c.CardNum !== card);
+    const action = findDown(manualEffect(card, id).action);
+    ok(!!action, `${id}: thisCardOnly DOWN が live に載る`);
+    const hit = run(action!, mkCtx({ signi: [card, ally, null] }, {}, card));
+    eq(hit.ownerState.field.signi_down[0], true, `${id}: 効果元だけダウン`);
+    eq(hit.ownerState.field.signi_down[1], false, `${id}: 他の自シグニは肩代わりしない`);
+    const miss = run(action!, mkCtx({ signi: [ally, null, null] }, {}, card));
+    eq(miss.ownerState.field.signi_down[0], false, `${id}: 効果元不在なら候補0で不成立`);
+  }
+}));
+
+test('段2-10 B1/B2: このシグニのTRASHは効果元だけを移し、候補不在なら他を選ばない', () => withSavedCursor(() => {
+  const findTrash = (node: unknown): Extract<EffectAction, { type: 'TRASH' }> | undefined => {
+    if (!node || typeof node !== 'object') return undefined;
+    const a = node as EffectAction;
+    if (a.type === 'TRASH' && a.target?.filter?.thisCardOnly) return a;
+    for (const value of Object.values(node as Record<string, unknown>)) {
+      if (Array.isArray(value)) {
+        for (const child of value) { const found = findTrash(child); if (found) return found; }
+      } else {
+        const found = findTrash(value); if (found) return found;
+      }
+    }
+    return undefined;
+  };
+  for (const [card, id] of [['WX13-043', 'WX13-043-E2'], ['WXDi-P07-049', 'WXDi-P07-049-E2']] as const) {
+    const ally = findCard(c => isSigni(c) && c.CardNum !== card);
+    const action = findTrash(manualEffect(card, id).action)!;
+    eq(action?.target.filter?.thisCardOnly, true, `${id}: thisCardOnly が live に載る`);
+    const hit = run(action, mkCtx({ signi: [card, ally, null] }, {}, card));
+    eq(hit.ownerState.field.signi[0], null, `${id}: 効果元をトラッシュ`);
+    ok(!!hit.ownerState.field.signi[1], `${id}: 他の自シグニは残る`);
+    const miss = run(action, mkCtx({ signi: [ally, null, null] }, {}, card));
+    ok(!!miss.ownerState.field.signi[0], `${id}: 効果元不在なら他をトラッシュしない`);
+  }
+}));
+
+test('段2-10 B3: このシグニのデッキ下移動は効果元だけを移し、候補不在なら他を選ばない', () => withSavedCursor(() => {
+  const card = 'WXK05-031';
+  const ally = findCard(c => isSigni(c) && c.CardNum !== card);
+  const seq = manualEffect(card, 'WXK05-031-E2').action as Extract<EffectAction, { type: 'SEQUENCE' }>;
+  const action = seq.steps[0] as Extract<EffectAction, { type: 'TRANSFER_TO_DECK' }>;
+  eq(action.source.filter?.thisCardOnly, true, 'WXK05-031-E2: thisCardOnly が live に載る');
+  const hit = run(action, mkCtx({ signi: [card, ally, null] }, {}, card));
+  eq(hit.ownerState.field.signi[0], null, 'WXK05-031-E2: 効果元をデッキ下へ移す');
+  ok(!!hit.ownerState.field.signi[1], 'WXK05-031-E2: 他の自シグニは残る');
+  const miss = run(action, mkCtx({ signi: [ally, null, null] }, {}, card));
+  ok(!!miss.ownerState.field.signi[0], 'WXK05-031-E2: 効果元不在なら他をデッキへ移さない');
+}));
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

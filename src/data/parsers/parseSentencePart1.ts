@@ -547,6 +547,13 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 色コスト（「《緑》《無》を支払ってもよい」）／手札捨て（「「手札を２枚捨てる」を行ってもよい」）。
       const colors = [...costText.matchAll(/《([白赤青緑黒無])》/g)].map(m => m[1]);
       const handM = costText.match(/手札を([０-９\d]+)枚捨てる/);
+      // この宣言型の consumer が支払えるのは色エナ／手札捨てだけ。たとえば
+      // 「代わりにアップ状態のこのシグニをダウンしてもよい」は自己DOWNの置換コストであり、
+      // costFields が空の宣言へ丸めると engine の `paidLabels.length === 0` で恒久 no-op になる。
+      // 表現できない支払いはここで先取りせず、後続の動詞別ビルダーへ渡す。
+      if (colors.length === 0 && !handM) {
+        // fall through
+      } else {
       const victimFilter: TargetFilter = { cardType: 'シグニ' };
       const colM = victimDesc.match(/^(白|赤|青|緑|黒)の$/);
       if (colM) victimFilter.color = colM[1];
@@ -560,6 +567,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           ...(handM ? { handDiscard: parseNum(handM[1]) } : {}),
         },
       } as StubAction;
+      }
     }
   }
 
@@ -2323,6 +2331,20 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ⚠「それをダウン状態で場に出す」（WX14-029＝エナから down 配置）は /をダウン/ に誤マッチして
   //   DOWN に潰れていた＝ADD_TO_FIELD asDown（下のエナ/手札ビルダ）の領分なので除外。
   if ((t.includes('ダウンする') || t.match(/をダウン/)) && !t.includes('ダウン状態で場に出')) {
+    // 「（アップ状態の）このシグニをダウン」＝効果元自身。全文から owner/story/power を拾うと、
+    // 前置きの誘発主語や別対象の修飾がこの対象へ誤付着する（段2 第10バッチ）。
+    // 対象が2つある「それとこのシグニ」はこの単一対象規則では先取りしない。
+    const downThisM = t.match(/(アップ状態の)?このシグニをダウン(?:する|してもよい)/);
+    if (downThisM && !t.includes('それとこのシグニ')) {
+      return {
+        type: 'DOWN',
+        target: {
+          type: 'SIGNI', owner: 'self', count: 1,
+          filter: { cardType: 'シグニ', ...(downThisM[1] ? { isUp: true } : {}), thisCardOnly: true },
+        },
+        ...(t.includes('ダウンしてもよい') ? { optional: true } : {}),
+      };
+    }
     // 「（この／）シグニ／カードの正面のシグニ」＝正面は定義上**対戦相手のゾーン**（WDA-F02-17-E2「このシグニの
     //   正面のシグニ１体を対象とし、それをダウンする」）。従来 fallback で owner:'self'＝自分のシグニをダウンに化けていた。
     const isFrontOfSelf = /(?:この)?(?:シグニ|カード)の正面の[^、。]*シグニ/.test(t);
@@ -3570,6 +3592,18 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     return { type: 'TRASH', target: { type: 'HAND_CARD', owner: 'self', count: 'ALL' } };
   }
 
+  // ---- このシグニを場からトラッシュに置く（自己トラッシュ）----
+  // 条件節や別対象の修飾を読む汎用規則より先に、対象名詞句だけで効果元自身へ固定する。
+  // 「それとこのシグニ」（二対象）と「Aか、このシグニ」（二択）は別機構なので先取りしない。
+  const isPlainTrashThis = /^このシグニを場からトラッシュに置く/.test(t);
+  const isLrigConditionTrashThis = /センタールリグが[^。]+の場合、このシグニを場からトラッシュに置く/.test(t);
+  const isPublicZoneConditionTrashThis = /公開領域に[^。]+がある場合、このシグニを場からトラッシュに置く/.test(t);
+  if ((isPlainTrashThis || isLrigConditionTrashThis || isPublicZoneConditionTrashThis)
+      && !t.includes('それとこのシグニ')
+      && !/か、このシグニを場からトラッシュに置く/.test(t)) {
+    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } };
+  }
+
   // ---- 自分のシグニを場からトラッシュ（ストーリー・色フィルタ付き）----
   if (t.match(/あなたの.+シグニ.+場からトラッシュに置く/) && !t.includes('対戦相手')) {
     const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t) };
@@ -3597,13 +3631,6 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // ---- このシグニを手札に加える（自己バウンス）----
   if (t.match(/このシグニを手札に加える/)) {
     return { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'self', count: 1 } };
-  }
-
-  // ---- このシグニを場からトラッシュに置く（自己トラッシュ）----
-  // 🔴`thisCardOnly` が無いと**自分のシグニ1体を選ぶ**形になり、**このシグニ以外**も落とせてしまう
-  //   （§6.4 O-31・続き537 で発見。すぐ下の「これをトラッシュに置く」は最初から付けていた＝取りこぼし）。
-  if (t.match(/^このシグニを場からトラッシュに置く/)) {
-    return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } } };
   }
 
   // ---- パワー閾値トリガー後の「これをトラッシュに置く」（WX09-019）----
@@ -4008,6 +4035,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 「シグニ」があっても場のシグニを指さない。句をまたいだ誤結合をここで除外する。
   const isRevealedRemainderToDeckBottom =
     /残りを(?:好きな順番で|シャッフルして)?デッキの一番下に置く/.test(t);
+  if (/このシグニをデッキの一番下に置く/.test(t) && !t.includes('それとこのシグニ')) {
+    return {
+      type: 'TRANSFER_TO_DECK',
+      source: { type: 'SIGNI', owner: 'self', count: 1, filter: { cardType: 'シグニ', thisCardOnly: true } },
+      shuffle: false,
+      position: 'bottom',
+    } as TransferToDeckAction;
+  }
   if (!isRevealedRemainderToDeckBottom && t.match(/デッキの一番下に置く/) && (t.includes('シグニ') || t.includes('それ'))) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const cM = t.match(/([０-９\d]+)体/);

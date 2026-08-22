@@ -6988,7 +6988,8 @@ function applyLeadingOpponentDesignation(text: string, action: EffectAction): Ef
   if (!tgt || tgt.type !== 'SIGNI') return action;
   // owner が既に opponent の木へ filter を後付けするのは、先頭が自己バニッシュ対価の形だけ。
   // 一般の opponent 対象へ広げると、既存 held を多数増やす別バッチになる。
-  if (tgt.owner === 'opponent' && !hasLeadingSelfBanishCost(action)) return action;
+  const selfDownBetweenDesignation = /を対象とし、[^。]*このシグニをダウンしてもよい。そうした場合、それ/.test(scan);
+  if (tgt.owner === 'opponent' && !hasLeadingSelfBanishCost(action) && !selfDownBetweenDesignation) return action;
   tgt.owner = 'opponent';
   // designation で「それ」の指し先が確定したので、トリガー元への自動対象フラグは撤去する。
   // 残すと engine が triggeringCardNum ?? sourceCardNum（＝【起】ではカード自身）へ解決して

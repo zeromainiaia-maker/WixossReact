@@ -4,6 +4,15 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-22・続き601・Opus 5＋Codex）＝段2 第9バッチ＝**誘発の限定**（live 24効果）。🏁**残 OPEN 1,005→995＝初めて1,000を割った**／段2 消化 82→92。ゲート全緑（**golden 2346→2350・census 747→742**・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。**engine は無改変**（parser のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き601）。
+  - 🔑**第7・8バッチは「本体の条件」だったが、今回は誘発側（`triggerFilter`／`triggerCondition`）へ踏み込んだ**＝「**対戦相手の効果によって**場を離れたとき」「あなたの**パワー10000以上の＜地獣＞の**シグニがバニッシュされたとき」等の限定が落ち、**誰でも・どんな経緯でも誘発**していた群。⚠**`triggerScope`（味方に絞る）と `triggerFilter`（色・クラス・パワーに絞る）は役割が別で両方要る**。
+  - ⚠**timing ごとに collector が読むキーが違う**＝着手前に `triggerCollect.ts` の参照行まで確認した（`ON_LEAVE_FIELD`+`byOpponentEffect`=1352／`ON_BANISH`+`triggerFilter`=834／`ON_TRASH`+`byOpponentEffect`=869）。**読まない2件（`ON_REVEALED_FROM_HAND`／`ON_ZONE_MOVED`）はスコープ外**にした。
+  - 🔴**Codex が「無損失な自動採用」を手で取り消していた**＝報告に「`build:effects` が自動採用した無関係な差分13効果を effectId 単位で HEAD へ戻した」とあったが、中身は **12件が `triggerFilter.cardType` の追加・1件が入れ子付与への `byOpponentEffect`** で**すべて原文どおり・`isPureSuperset`**。「live diff を指示どおり10件に保つ」ために正しい改善を打ち消していた。⇒ `build:effects` を回すだけで復元（純改善採用14）。**CODEX_GUIDE §5 に `13′` として登録**。
+  - 🔴**Claude 側の選定ミスも記録した**＝14効果中**4件は finding が条件とは別の軸**（対象の「パワーの半分以下」欠落／【ウィルス】設置の欠落など）で、条件は既に live に入っており**枠を4つ無駄にした**。原因＝群B の母集団を**誘発側の検出器の出力から拾い**、「その finding が条件についてか」を絞らなかった。**§5 に `3-4′` として登録**。
+  - ✅**前回の指摘が効いた**＝Codex は §6-8 に従って held の増減（94→95）を自分で申告し、**新規1カードを「正しいが scope 外・次バッチ候補」と判定**していた（前回は7効果を取りこぼした箇所）。Claude が原文照合して採用。
+  - **▶ 次の一手【Opus 側】＝段2 第10バッチ**。⚠**母集団の切り方を直す**＝「HIGH＋残finding1本＋live AUTO」に加えて**finding の quote/claim が当該機構を指していること**を必須にする。指示書には **§5-13′（自動採用を戻さない）** を追記済み。機構が要る分は §6.4 `O-43`。
+  - **▶ 次の一手【Sonnet 側】**＝据置＝§7 実機検証（続き588 の6件が未検証＝最優先）。
+
 - **セッション（2026-08-22・続き600・Opus 5＋Codex）＝段2 第8バッチ＝「場のカード」条件の脱落 26効果**（Codex 19＋Claude 7）。**残 OPEN 1,024→1,005／段2 消化 63→82**。ゲート全緑（**golden 2343→2346・census 761→747**・smoke 10693 全0・fuzz 全0・同型★ 0・lint 0 errors 260 warnings）。**engine は無改変**（parser のみ）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き600）。
   - **既存語彙だけで配線**（**新しい条件型は0**）＝`HAS_CARD_IN_FIELD`（`noAbilities`／`isDrive`／`hasCharm`／`cardName`／`hasRiseIcon`／`levelRange`／`color`＋`story`／`distinctColors`／`minCount`）／`FIELD_SIGNI_POWER_COUNT`／`COUNT_THRESHOLD`。⚠**「AとBのシグニがある」は AND の2枝**（別々の体でよい）／⚠**否定「N枚以上ないかぎり」は operator 反転**（`ActiveCondition` に `negate` が無い）。
   - ✅**前回のフィードバックが効いた**＝第7バッチで問題だった「閾値の決め打ち」は再発せず、Codex はスコープ外3件を**全部バッチへ追加**し、**既存のライズ3体専用規則まで一般化**した。指示書に具体コード付きで禁止を書いたことと golden の逆戻り検知が効いた。

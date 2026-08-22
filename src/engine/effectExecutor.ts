@@ -3236,6 +3236,12 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   //   execBanish（208-225）と同型＝filter から剥がして frontRestrict で絞る。
   let downFilter = a.target.filter;
   let frontRestrict: string[] | null = null;
+  let downThisCardRestrict: string[] | null = null;
+  if (downFilter?.thisCardOnly) {
+    const { thisCardOnly: _t, ...rest } = downFilter;
+    downFilter = rest;
+    downThisCardRestrict = ctx.sourceCardNum ? [ctx.sourceCardNum] : [];
+  }
   if (downFilter?.frontOfSelf) {
     const { frontOfSelf: _f, ...rest } = downFilter;
     downFilter = rest;
@@ -3254,6 +3260,7 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   // targetsStored: 先行の SELECT_TARGET_ONLY で固定した対象だけに絞る（「それをダウンする」。タスク12(lxiv)）
   if (a.targetsStored) cands = cands.filter(n => (ctx.storedTargetCards ?? []).includes(n));
   if (frontRestrict !== null) cands = cands.filter(n => frontRestrict!.includes(n));
+  if (downThisCardRestrict !== null) cands = cands.filter(n => downThisCardRestrict!.includes(n));
 
   function applyDown(selected: string[], c: ExecCtx): ExecCtx {
     let cur = c;
@@ -3272,6 +3279,9 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
   }
 
   if (a.target.count === 'ALL') return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
+  if (downThisCardRestrict !== null) {
+    return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
+  }
   const count = resolveNum(a.target.count);
   // optional:「ダウンしてもよい」（スキップ可。スキップ時は resumeSelectTarget が後続の「そうした場合」を除去）
   const downOptional = a.optional || (a.target.upToCount ?? false);
@@ -5265,8 +5275,13 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     // 任意コスト「他のシグニをデッキの一番下に置く」。fieldCandidates 自体は効果元を知らないため、
     // フィルターから制御フラグを外し、通常の場候補を作った後で sourceCardNum を除く。
     const deckExcludeSelf = srcFilter?.excludeSelf === true;
+    const deckThisCardOnly = srcFilter?.thisCardOnly === true;
     if (deckExcludeSelf && srcFilter) {
       const { excludeSelf: _e, ...rest } = srcFilter;
+      srcFilter = rest;
+    }
+    if (deckThisCardOnly && srcFilter) {
+      const { thisCardOnly: _t, ...rest } = srcFilter;
       srcFilter = rest;
     }
     // frontOfSelf: 効果元シグニの正面（相手ゾーン 2-zi）だけをデッキへ移す。
@@ -5293,6 +5308,7 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
     }
     let cands = fieldCandidates(state, srcFilter, ctx.cardMap, ctx.effectivePowers);
     if (deckExcludeSelf && ctx.sourceCardNum) cands = cands.filter(n => n !== ctx.sourceCardNum);
+    if (deckThisCardOnly) cands = ctx.sourceCardNum ? cands.filter(n => n === ctx.sourceCardNum) : [];
     if (gateFrontRestrict !== null) cands = cands.filter(n => gateFrontRestrict!.includes(n));
     if (selfFrontRestrict !== null) cands = cands.filter(n => selfFrontRestrict!.includes(n));
     // 任意コスト前に固定した対象だけをデッキへ（タスク12(liii)＝「それのレベル１につき…そうした場合、
@@ -5317,6 +5333,8 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
       }
       return cur;
     }
+
+    if (deckThisCardOnly) return done({ ...applyToBottom(cands, ctx), lastProcessedCards: cands });
 
     if (src.count === 'ALL') {
       // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
