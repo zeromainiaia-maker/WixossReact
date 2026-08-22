@@ -1,24 +1,24 @@
 # manualEffects.ts ↔ live JSON 乖離センサス（§6.3 K）
 
-生成: 2026-08-15T00:48:38.687Z
-manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
+生成: 2026-08-22T06:03:07.752Z
+manualEffects エントリ 450 カード / 乖離 47 カード・51 効果
 
 ⚠一括同期は不可＝乖離は双方向。LIVE_ONLY / LIVE_RICHER / fresh_*退化 は **live のほうが新しい**候補。
 ⚠判定は原文照合が必須。signals は優先順位づけのヒントであって判定ではない。
 
 ## 区分ごとの件数
-  CHANGED        21 効果  （manual定義 8 / parser由来 13）
-  FRESH_ONLY     18 効果  （manual定義 0 / parser由来 18）
-  LIVE_ONLY       5 効果  （manual定義 0 / parser由来 5）
-  FRESH_GAIN      3 効果  （manual定義 2 / parser由来 1）
+  CHANGED        23 効果  （manual定義 8 / parser由来 15）
+  FRESH_ONLY     20 効果  （manual定義 0 / parser由来 20）
+  LIVE_ONLY       4 効果  （manual定義 0 / parser由来 4）
   LIVE_RICHER     2 効果  （manual定義 1 / parser由来 1）
+  FRESH_GAIN      2 効果  （manual定義 2 / parser由来 0）
 
 ## 強シグナル別（原文照合の着手順）
   STUB増                     5 効果 : SP27-015-E1 WD07-012-E2 WX13-040-E1 WDK17-009-E2 WX25-P3-062-E1
   STUB減                     3 効果 : WXK05-030-E1 WXDi-P02-039-E1 WXK07-031-E1
   fresh_UNKNOWN退化           1 効果 : WXK07-031-E1
 
-## CHANGED（21 効果）
+## CHANGED（23 効果）
 --- WXK05-025-E1 (parser由来)
   live : {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":2,"private":true,"reorder":true,"destination":{"location":"deck","owner":"self","position":"bottom"}},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"
   fresh: {"effectId":"WXK05-025-E1","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"SEQUENCE","steps":[{"type":"DRAW","owner":"self","count":2},{"type":"LOOK_AND_REORDER","source":{"location":"hand","owner":"self"},"count":1,"private":true,"reorder":false,"destination":{"location":"deck","owner":"self","position":"bottom"}}]},{"type":"FREEZE","target":{"type":"SIGNI","owner":"opponent","
@@ -40,6 +40,9 @@ manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
 --- SP27-015-E1 (parser由来) ⚠STUB増
   live : {"effectId":"SP27-015-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"FIELD_SIGNI_TO_ACCE","sourceOwner":"self","targetSigniOwner":"self","sourceThisCard":true,"targetFilter":{"cardType":"シグニ","excludeSelf":true},"reattachPreviousAcceOptional":true},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
   fresh: {"effectId":"SP27-015-E1","effectType":"ACTIVATED","timing":["ATTACK_ARTS","MAIN"],"cost":{"energy":[{"color":"緑","count":0}]},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"ACCE_FROM_HAND"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"STUB","id":"ACCE_OP"}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+--- WXDi-CP02-TK02A-E2 (parser由来)
+  live : {"effectId":"WXDi-CP02-TK02A-E2","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_opp"}
+  fresh: {"effectId":"WXDi-CP02-TK02A-E2","effectType":"AUTO","timing":["ON_SIGNI_BANISH_OPPONENT"],"action":{"type":"BANISH","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","powerRange":{"max":10000}},"upToCount":false}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
 --- WX04-029-BURST (parser由来)
   live : {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"hand","label":"手札に加える","action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_HAND","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}}},{"choiceId"
   fresh: {"effectId":"WX04-029-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"SEARCH","from":{"location":"deck","owner":"self"},"filter":{"cardType":"シグニ","story":"迷宮"},"maxCount":1,"then":{"type":"ADD_TO_FIELD","owner":"self"},"afterSearch":{"type":"SHUFFLE_DECK","owner":"self"}},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
@@ -60,7 +63,10 @@ manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
   fresh: {"effectId":"WDK17-009-E2","effectType":"ACTIVATED","timing":["MAIN"],"cost":{"trash_key":true},"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LOOK_OPP_LIFE_TOP"},{"type":"STUB","id":"CONDITIONAL_ARTS_COST"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
 --- PR-Di017B-E1 (manual定義)
   live : {"effectId":"PR-Di017B-E1","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TARGET_ONLY"},{"type":"STUB","id":"OPTIONAL_COST","costColors":[],"costText":"手札を３枚捨てる"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
-  fresh: {"effectId":"PR-Di017B-E1","effectType":"AUTO","timing":["ATTACK"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TARGET_ONLY"},{"type":"STUB","id":"OPTIONAL_COST","costColors":[],"costText":"手札を３枚捨てる"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
+  fresh: {"effectId":"PR-Di017B-E1","effectType":"AUTO","timing":["ATTACK"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"TARGET_ONLY"},{"type":"STUB","id":"OPTIONAL_COST","costColors":[],"costText":"手札を３枚捨てる"}]},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+--- WXK10-039-E2 (parser由来)
+  live : {"effectId":"WXK10-039-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
+  fresh: {"effectId":"WXK10-039-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":2,"filter":{"cardType":"シグニ","story":"原子"}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
 --- WD23-023-E-E2 (parser由来)
   live : {"effectId":"WD23-023-E-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false},{"type":"CONDITIONAL","condition":{"type":"LAST_PROCESSED_HAS_BURST"},"then":{"type":"ADD_TO_LIFE","owner":"opponent","count":1,"fromTop":true}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL","triggerCondition":{"byEffect":tru
   fresh: {"effectId":"WD23-023-E-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"SEQUENCE","steps":[{"type":"LIFE_CRASH","owner":"opponent","count":1,"triggerBurst":false},{"type":"ADD_TO_LIFE","owner":"self","count":1,"fromTop":true}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"byEffect":true}}
@@ -83,7 +89,7 @@ manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
   live : {"effectId":"WXK07-031-E1","effectType":"CONTINUOUS","action":{"type":"STUB","id":"PREVENT_SIGNI_MOVE_BY_OPP_EXCEPT_BANISH"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
   fresh: {"effectId":"WXK07-031-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE","owner":"self"},"action":{"type":"UNKNOWN","raw":"対戦相手の効果はバニッシュ以外であなたの＜宇宙＞のシグニを場から移動させない"},"duration":"PERMANENT","mandatory":true,"parseStatus":"UNKNOWN"}
 
-## FRESH_ONLY（18 効果）
+## FRESH_ONLY（20 効果）
 --- WD01-016-E2 (parser由来)
   live : （無し）
   fresh: {"effectId":"WD01-016-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
@@ -138,8 +144,14 @@ manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
 --- WXK01-122-E2 (parser由来)
   live : （無し）
   fresh: {"effectId":"WXK01-122-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1},"keyword":"マルチエナ","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"}
+--- WXDi-CP02-TK02A-E3 (parser由来)
+  live : （無し）
+  fresh: {"effectId":"WXDi-CP02-TK02A-E3","effectType":"AUTO","timing":["ON_TURN_END"],"action":{"type":"EXILE","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"any_opp"}
+--- WXDi-P04-040-E2 (parser由来)
+  live : （無し）
+  fresh: {"effectId":"WXDi-P04-040-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"OPTIONAL_COST","costColors":["無","無","無"],"unlessPay":true},{"type":"CONDITIONAL","condition":{"type":"PAID_ADDITIONAL_COST"},"then":{"type":"SEQUENCE","steps":[]},"else":{"type":"TRASH","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"cardType":"シグニ","thisCardOnly
 
-## LIVE_ONLY（5 効果）
+## LIVE_ONLY（4 効果）
 --- PR-426-E3 (parser由来)
   live : {"effectId":"PR-426-E3","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"COUNT_THRESHOLD","location":"life_cloth","owner":"self","operator":"lte","value":1},{"type":"IS_SELF_IN_CENTER_ZONE"}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   fresh: （無し）
@@ -152,20 +164,6 @@ manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
 --- WX20-072-E3P (parser由来)
   live : {"effectId":"WX20-072-E3P","effectType":"CONTINUOUS","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"acceHost":true,"cardName":"コードオーダーウェディング"}},"delta":1000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
   fresh: （無し）
---- WXK10-039-E2 (parser由来)
-  live : {"effectId":"WXK10-039-E2","effectType":"CONTINUOUS","action":{"type":"GRANT_KEYWORD","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"keyword":"アサシン","duration":"PERMANENT"},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"}
-  fresh: （無し）
-
-## FRESH_GAIN（3 効果）
---- WX05-021-E2 (parser由来)
-  live : {"effectId":"WX05-021-E2","effectType":"AUTO","timing":["ON_ENERGY_TO_TRASH"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1},"delta":4000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"energyTrashedOwner":"opponent"}}
-  fresh: {"effectId":"WX05-021-E2","effectType":"AUTO","timing":["ON_ENERGY_TO_TRASH"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"self","count":1,"filter":{"thisCardOnly":true}},"delta":4000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerCondition":{"energyTrashedOwner":"opponent"}}
---- WX05-025-E2 (manual定義)
-  live : {"effectId":"WX05-025-E2","effectType":"AUTO","timing":["ON_GUARD","ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
-  fresh: {"effectId":"WX05-025-E2","effectType":"AUTO","timing":["ON_GUARD","ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
---- WX10-018-E1 (manual定義)
-  live : {"effectId":"WX10-018-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"STUB","id":"NEGATE_NTH_ATTACK"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
-  fresh: {"effectId":"WX10-018-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"STUB","id":"NEGATE_NTH_ATTACK","negateNthAttack":{"count":2,"signi":true,"lrig":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
 
 ## LIVE_RICHER（2 効果）
 --- WX20-072-E3 (manual定義)
@@ -174,3 +172,101 @@ manualEffects エントリ 451 カード / 乖離 45 カード・49 効果
 --- WX12-023-E2 (parser由来)
   live : {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"MANUAL","triggerScope":"any_ally","triggerCondition":{"placedFromTrash":true}}
   fresh: {"effectId":"WX12-023-E2","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ"},"upToCount":false},"delta":-7000},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO"}
+
+## FRESH_GAIN（2 効果）
+--- WX05-025-E2 (manual定義)
+  live : {"effectId":"WX05-025-E2","effectType":"AUTO","timing":["ON_GUARD","ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT"],"action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
+  fresh: {"effectId":"WX05-025-E2","effectType":"AUTO","timing":["ON_GUARD","ON_OPP_SIGNI_ATTACK_NEGATED_BY_EFFECT"],"triggerScope":"self","action":{"type":"ENERGY_CHARGE_FROM_DECK","owner":"self","count":1},"duration":"INSTANT","mandatory":true,"parseStatus":"MANUAL"}
+--- WX10-018-E1 (manual定義)
+  live : {"effectId":"WX10-018-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"STUB","id":"NEGATE_NTH_ATTACK"},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+  fresh: {"effectId":"WX10-018-E1","effectType":"ACTIVATED","timing":["ATTACK"],"cost":{"energy":[{"color":"緑","count":2}]},"action":{"type":"STUB","id":"NEGATE_NTH_ATTACK","negateNthAttack":{"count":2,"signi":true,"lrig":true}},"duration":"INSTANT","mandatory":false,"parseStatus":"MANUAL"}
+
+## 🆕削除候補：parser 出力と実体同一になった manual エントリ（87）（§6.4 O-40）
+  ＝parser が追いついたので manualEffects.ts から消してよい。放置すると **その効果だけ以後の parser 改善が届かない**。
+  WDK08-Y11 / WDK08-Y11-E2
+  WXDi-P06-031 / WXDi-P06-031-E2
+  WXK11-029 / WXK11-029-E1
+  WX12-038 / WX12-038-BURST
+  WD17-009 / WD17-009-E2
+  WXDi-P04-049 / WXDi-P04-049-BURST
+  WX25-P2-060 / WX25-P2-060-E2
+  WXDi-P12-054 / WXDi-P12-054-E2
+  WXDi-P15-044 / WXDi-P15-044-E1
+  WXK06-048 / WXK06-048-E1
+  WXK04-002 / WXK04-002-E2
+  WXK04-028 / WXK04-028-E1
+  WDK08-L15 / WDK08-L15-E1
+  WXK04-042 / WXK04-042-E2
+  WXK08-005 / WXK08-005-E5
+  WXK04-011 / WXK04-011-E1
+  WXK04-012 / WXK04-012-E1
+  WXK04-013 / WXK04-013-E2
+  WXK05-011 / WXK05-011-E2
+  WDK08-L01 / WDK08-L01-E3
+  WDK08-L02 / WDK08-L02-E2
+  WDK08-L03 / WDK08-L03-E2
+  WDK08-L04 / WDK08-L04-E2
+  WXK05-023 / WXK05-023-E1
+  WXK04-070 / WXK04-070-E1
+  WX13-034 / WX13-034-E2
+  WX16-045 / WX16-045-E1
+  WX04-071 / WX04-071-E1
+  WX04-078 / WX04-078-E1
+  WX04-079 / WX04-079-E1
+  WX04-089 / WX04-089-E1
+  WX04-096 / WX04-096-E1
+  WX04-096 / WX04-096-BURST
+  WX04-098 / WX04-098-E1
+  WX05-001 / WX05-001-E2
+  WX05-002 / WX05-002-E1
+  WX05-002 / WX05-002-E2
+  WX05-002 / WX05-002-E3
+  WX05-003 / WX05-003-E1
+  WX05-003 / WX05-003-E3
+  WX05-004 / WX05-004-E1
+  WX05-004 / WX05-004-E2
+  WX05-004 / WX05-004-E3
+  WX05-005 / WX05-005-E1
+  WX05-006 / WX05-006-E1
+  WX05-008 / WX05-008-E1
+  WX05-008 / WX05-008-E2
+  WX05-008 / WX05-008-E3
+  WX04-088 / WX04-088-E2
+  WX04-052 / WX04-052-E1
+  WX04-052 / WX04-052-BURST
+  WX04-041 / WX04-041-E1
+  WX04-040 / WX04-040-E1
+  WX04-035 / WX04-035-BURST
+  WX24-D3-25 / WX24-D3-25-BURST
+  SPDi37-06 / SPDi37-06-BURST
+  WX12-010 / WX12-010-E1
+  WX04-031 / WX04-031-E1
+  WX04-031 / WX04-031-E2
+  WX04-032 / WX04-032-E1
+  WX04-033 / WX04-033-E1
+  WX04-033 / WX04-033-E2
+  WX04-033 / WX04-033-E3
+  WX04-033 / WX04-033-BURST
+  WD03-011 / WD03-011-E1
+  WX01-030 / WX01-030-E1
+  WX01-085 / WX01-085-E1
+  WX01-085 / WX01-085-BURST
+  WX01-037 / WX01-037-E1
+  WX01-033 / WX01-033-E1
+  WX01-033 / WX01-033-E3
+  WX01-032 / WX01-032-E1
+  WX01-034 / WX01-034-E1
+  WX01-029 / WX01-029-E3
+  WX01-025 / WX01-025-E1
+  WXDi-P06-007 / WXDi-P06-007-E2
+  WX10-018 / WX10-018-E1
+  WX19-045 / WX19-045-E1
+  WXDi-P06-034 / WXDi-P06-034-E2
+  WXDi-P14-053 / WXDi-P14-053-E1
+  WX26-CP1-048 / WX26-CP1-048-E1
+  WX25-CP1-062 / WX25-CP1-062-E2
+  WD14-011 / WD14-011-E1
+  WX24-P2-044 / WX24-P2-044-E1
+  WXDi-P11-010B / WXDi-P11-010B-E1
+  WXK09-003 / WXK09-003-E1
+  WX20-028 / WX20-028-E1

@@ -194,18 +194,13 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
   ],
   "WX24-P1-050": [
     {"effectId":"WX24-P1-050-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX24-P1-050-E2","effectType":"AUTO","timing":["ON_ATTACK_PHASE_START"],"action":{"type":"REMOVE_ABILITIES","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ","powerRange":{"max":10000}}},"until":"UNTIL_END_OF_TURN"},"duration":"UNTIL_END_OF_TURN","mandatory":true,"parseStatus":"AUTO","triggerScope":"any"},
-    {"effectId":"WX24-P1-050-BURST","effectType":"LIFE_BURST","timing":["ON_LIFE_BURST"],"action":{"type":"CHOOSE","choose_count":1,"from_count":2,"choices":[{"choiceId":"c0","label":"選択肢1","action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","isUp":true},"upToCount":false},"delta":-15000}},{"choiceId":"c1","label":"選択肢2","action":{"type":"DRAW","owner":"self","count":1}}]},"duration":"INSTANT","mandatory":false,"parseStatus":"AUTO"}
   ],
   "WX24-P2-057": [
     {"effectId":"WX24-P2-057-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-3000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
     {"effectId":"WX24-P2-057-E2","effectType":"CONTINUOUS","activeCondition":{"type":"AND","conditions":[{"type":"DURING_ATTACK_PHASE","owner":"self"},{"type":"HAS_CARD_IN_FIELD","owner":"self","filter":{"cardType":"シグニ","story":"迷宮"},"excludeSelf":true}]},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-4000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WX24-P2-057-E3","effectType":"AUTO","timing":["ON_PLAY"],"action":{"type":"REARRANGE_SIGNI","target":{"type":"SIGNI","owner":"opponent","count":"ALL"}},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO"}
   ],
   "WXDi-P10-044": [
     {"effectId":"WXDi-P10-044-E1","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"POWER_MODIFY","target":{"type":"SIGNI","owner":"opponent","count":1,"filter":{"cardType":"シグニ","frontOfSelf":true}},"delta":-2000},"duration":"PERMANENT","mandatory":true,"parseStatus":"MANUAL"},
-    {"effectId":"WXDi-P10-044-E2","effectType":"CONTINUOUS","activeCondition":{"type":"DURING_ATTACK_PHASE"},"action":{"type":"BANISH_REDIRECT","target":{"type":"SIGNI","owner":"opponent","count":"ALL","filter":{"cardType":"シグニ"}},"redirectTo":"trash","until":"PERMANENT","frontOnly":true},"duration":"PERMANENT","mandatory":true,"parseStatus":"AUTO"},
-    {"effectId":"WXDi-P10-044-E3","effectType":"AUTO","timing":["ON_ATTACK_SIGNI"],"action":{"type":"SEQUENCE","steps":[{"type":"STUB","id":"LRIG_UNDER_CARD_OP"},{"type":"CONDITIONAL","condition":{"type":"IS_MY_TURN"},"then":{"type":"SHUFFLE_DECK","owner":"self"}}]},"duration":"INSTANT","mandatory":true,"parseStatus":"AUTO","triggerScope":"self"}
   ],
   "WXK11-029": [
     // §6.3「正面」サブ機構(b): 「このシグニの正面のシグニの【出】能力は発動しない」。
@@ -2539,7 +2534,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'LIFE_CRASH', owner: 'opponent', count: 1, triggerBurst: true },
       duration: 'INSTANT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2586,7 +2581,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as SequenceAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2601,7 +2596,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'GRID_REVEAL_PLUS' },
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2696,7 +2691,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as SequenceAction,
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2741,7 +2736,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'FORCE_END_TURN' },
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2794,7 +2789,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as GrantLrigAbilityAction,
       duration: 'UNTIL_END_OF_TURN',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2848,51 +2843,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as SequenceAction,
       duration: 'INSTANT',
       mandatory: true,
-      parseStatus: 'AUTO',
-    },
-    {
-      effectId: 'WX01-057-BURST',
-      effectType: 'LIFE_BURST',
-      timing: ['ON_LIFE_BURST'],
-      action: { type: 'DRAW', owner: 'self', count: 1 },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'AUTO',
-    },
-  ],
-
-  // WXK04-060 羅植 ガウラ: ON_BANISH は「対戦相手のターンの間」のみ。
-  // curated overlay でも parser と同じ構造化SEED二択を維持し、旧REVEAL_PICK_PLAYへ戻さない。
-  'WXK04-060': [
-    {
-      effectId: 'WXK04-060-E1',
-      effectType: 'AUTO',
-      timing: ['ON_BANISH'],
-      activeCondition: { type: 'TURN_OWNER', owner: 'opponent' },
-      action: {
-        type: 'SEQUENCE',
-        steps: [
-          {
-            type: 'LOOK_AND_REORDER',
-            source: { location: 'deck', owner: 'self' },
-            count: 1,
-            private: true,
-            reorder: false,
-            destination: { location: 'deck', owner: 'self', position: 'top' },
-          } as import('../types/effects').LookAndReorderAction,
-          {
-            type: 'CHOOSE', choose_count: 1, from_count: 2,
-            choices: [
-              { choiceId: 'seed', label: '【シード】としてシグニゾーンに出す',
-                action: { type: 'STUB', id: 'INTERNAL_SEED_FROM_DECK_TOP_PLACE' } as import('../types/effects').StubAction },
-              { choiceId: 'skip', label: '出さない', action: { type: 'SEQUENCE', steps: [] } as SequenceAction },
-            ],
-          } as import('../types/effects').ChooseAction,
-        ],
-      } as SequenceAction,
-      duration: 'INSTANT',
-      mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2959,7 +2910,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'OPP_ZONE_PLACEMENT_RESTRICT' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -2980,7 +2931,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as SequenceAction,
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3004,7 +2955,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as SequenceAction,
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3025,7 +2976,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as SequenceAction,
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3038,7 +2989,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'ACCE_BANISH_SUBSTITUTE' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3053,7 +3004,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'OPP_DRAW_LIMIT_PER_TURN' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
     {
       effectId: 'WX25-P2-TK05-E2',
@@ -3081,7 +3032,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       } as ChooseAction,
       duration: 'INSTANT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3094,7 +3045,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'CARDS_OUTSIDE_ENERGY_BECOME_WHITE' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3107,7 +3058,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'RESTRICT_CHARMED_SIGNI_ACTIVATED' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3123,7 +3074,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       },
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
       crossOnly: true,
     },
   ],
@@ -3141,7 +3092,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       },
       duration: 'INSTANT',
       mandatory: false,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3154,7 +3105,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'ENERGY_NON_COLORLESS_ALL_COLORS' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3167,7 +3118,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'OPP_CENTER_LRIG_LIMIT_SET_5' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 
@@ -3182,7 +3133,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'REDIRECT_ATTACK_TO_SELF_ZONE' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
     {
       effectId: 'WXDi-CP02-TK01A-E2',
@@ -3190,7 +3141,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'BATTLE_LEAVE_REPLACE_WITH_DOWN' } as import('../types/effects').StubAction,
       duration: 'PERMANENT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
     {
       effectId: 'WXDi-CP02-TK01A-E3',
@@ -3203,7 +3154,7 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       action: { type: 'STUB', id: 'REMOVE_SELF_SIGNI_FROM_GAME' } as import('../types/effects').StubAction,
       duration: 'INSTANT',
       mandatory: true,
-      parseStatus: 'AUTO',
+      parseStatus: 'MANUAL',
     },
   ],
 

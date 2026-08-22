@@ -83,13 +83,28 @@ type Row = {
 };
 
 const rows: Row[] = [];
+/** parser 出力と実体同一になった manual エントリ（§6.4 O-40＝削除候補）。 */
+const redundantManual: string[] = [];
 const noCard: string[] = [];
 const notInLive: string[] = [];
 
 for (const cardNum of Object.keys(MANUAL_EFFECTS)) {
   const card = cards.get(cardNum);
   if (!card) { noCard.push(cardNum); continue; }
-  const fresh = mergeManualEffects(cardNum, parseCardEffects({ ...(card as unknown as CardData), effects: [] } as CardData));
+  const rawParsed = parseCardEffects({ ...(card as unknown as CardData), effects: [] } as CardData);
+  const fresh = mergeManualEffects(cardNum, rawParsed);
+  // ── §6.4 O-40：**parser 出力と実体同一になった manual エントリ＝死荷重**（2026-08-22 新設）──
+  // `mergeManualEffects` は id 一致で常に manual を勝たせるので、parser が追いついた後も
+  // **その効果だけ parser の以後の改善を受け取れなくなる**（内容が同じうちは誰も気付けない）。
+  // ⇒ 実体が一致したら **manualEffects.ts から消して parser に任せる**のが正しい（消せば穴が再発しない）。
+  // ⚠刻印（parseStatus）は比較から外す＝manual 側は MANUAL、parser 側は AUTO で当然ずれる。
+  {
+    const rawById = new Map(rawParsed.map(e => [e.effectId, e]));
+    for (const m of MANUAL_EFFECTS[cardNum] ?? []) {
+      const r = rawById.get(m.effectId);
+      if (r && same(leaves(m), leaves(r))) redundantManual.push(`${cardNum} / ${m.effectId}`);
+    }
+  }
   const cur = live.get(cardNum);
   if (!cur) { notInLive.push(cardNum); continue; }
   const manualIds = new Set((MANUAL_EFFECTS[cardNum] ?? []).map(e => e.effectId));
@@ -309,6 +324,10 @@ for (const [k, v] of [...byKind].sort((a, b) => b[1].length - a[1].length)) {
   }
   out.push('');
 }
+out.push(`## 🆕削除候補：parser 出力と実体同一になった manual エントリ（${redundantManual.length}）（§6.4 O-40）`);
+out.push('  ＝parser が追いついたので manualEffects.ts から消してよい。放置すると **その効果だけ以後の parser 改善が届かない**。');
+for (const r of redundantManual) out.push(`  ${r}`);
+out.push('');
 if (noCard.length) out.push(`## CSV に無い manual エントリ（${noCard.length}）: ${noCard.join(' ')}`, '');
 if (notInLive.length) out.push(`## live JSON に無いカード（${notInLive.length}）: ${notInLive.join(' ')}`, '');
 
@@ -317,4 +336,5 @@ console.log(`manualEffects ${Object.keys(MANUAL_EFFECTS).length} カード / 乖
 for (const [k, v] of [...byKind].sort((a, b) => b[1].length - a[1].length)) {
   console.log(`  ${k.padEnd(12)} ${String(v.length).padStart(4)} 効果（manual定義 ${v.filter(r => r.fromManual).length} / parser由来 ${v.filter(r => !r.fromManual).length}）`);
 }
+console.log(`  削除候補（parser 出力と実体同一・§6.4 O-40） ${redundantManual.length} 効果`);
 console.log('明細: docs/_manual_drift.txt');

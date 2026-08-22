@@ -31,7 +31,14 @@ for (const f of EFFECT_FILES) {
 }
 
 // 値を「リーフパス→値」の平坦マップへ。配列は添字パスで表す。
+// ⚠**値が `undefined` のキーは存在しないものとして扱う**（2026-08-22・§6.4 O-39 の作業中に発見）＝
+//   live は JSON 由来なので `undefined` を持ち得ないが、parser 出力は `{ upToCount: undefined }` のような
+//   明示 undefined を持つことがある。弾かないと **`isPureSuperset` が「fresh にだけ在るリーフ」を数えて
+//   実体の変わらない差分を「純改善」として採用**し（`WXDi-P13-050-E1` はキー順だけが変わった）、
+//   `equalIgnoringParseStatus` も同じ理由で偽の差分を報告する。`censusManualDrift.ts` は同じ罠を
+//   初版で踏んでおり（223件の誤検出）、そこと同じ規約に揃える。
 function leafMap(o: any, pre = '', out: Map<string, any> = new Map()): Map<string, any> {
+  if (o === undefined) { return out; }
   if (Array.isArray(o)) {
     o.forEach((v, i) => leafMap(v, `${pre}[${i}]`, out));
   } else if (o && typeof o === 'object') {
@@ -135,7 +142,7 @@ for (const r of rows) {
 //   - それ以外（損失/値変更/混在）→ existing 温存し、レポートに記録（人が後でレビュー）
 const report: Record<string, string[]> = {
   adopted_new: [], adopted_gain: [], adopted_partial: [], adopted_manual_add: [], preserved_manual: [],
-  preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [],
+  preserved_emptyFresh: [], preserved_held: [], preserved_metaOnly: [], preserved_idset: [],
 };
 // 【出現条件】は実効果ではなくカード単位メタデータ。richness ガードが MANUAL 効果を
 // 温存したカードでも失わないよう、fresh から独立して最後に重ねる。
@@ -160,6 +167,10 @@ const heldFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
 // 混在カード（MANUAL/PARTIAL 同居）のうち、AUTO 効果に superset ではない差分が残るカードの fresh。
 // ＝効果単位マージでは自動採用できない「値変更/構造変更」の**第2のレビュー待ち行列**（続き377i 新設）。
 const partialFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
+// id 集合がズレた混在カードの fresh（§6.4 O-39）。旧実装はここでカード丸ごと温存して**どの計器にも出さなかった**。
+// ＝「live 固有の手書き効果がある」「parser が粗い重複効果を吐く」「id 命名が食い違う」の3系統が混ざるので、
+// 自動採用はせず**人が読む索引**として出す（`docs/_idset_fresh.json`＋レポートの該当節）。
+const idsetFresh: Record<string, ReturnType<typeof parseCardEffects>> = {};
 for (const id of allIds) {
   let existing = existingEffects.get(id);
   const fresh = result[id];
@@ -199,14 +210,28 @@ for (const id of allIds) {
     //   ＝続き377g/h で刈った stale live の**本体**）。
     //   効果単位に落としても安全性は変わらない＝①MANUAL/PARTIAL の効果は**絶対に触らない**
     //   ②残りの AUTO 効果も `isPureSuperset`（既存リーフを1つも失わない）を**個別に**通ったものだけ採る。
-    //   ⚠effectId の集合が変わるカード（効果の増減＝構造変更）は従来どおり**カード丸ごと温存**する。
+    //   🆕**2026-08-22（§6.4 `O-39`）＝「effectId の集合が変わるカードはカード丸ごと温存」をやめた**。
+    //   旧実装は `exIds` と `frIds` を**添字で**突き合わせ、1つでもズレたら `continue` していたため、
+    //   **そのカードの AUTO 効果は parser 改善を永久に受け取れず、しかも held にも `_partial_fresh` にも
+    //   出ない**（＝計器も golden も緑のまま隠れる第5の死角。実測46カード）。内訳＝
+    //   ①live `-E1b` ↔ fresh `-E2` の**id 命名違い**11 ②**live 固有の手書き効果**（`-TRAP`/`-E3P`/`-ACT`）15
+    //   ③**fresh 側にだけ在る粗い重複**（【マルチエナ】札の `-E2`＝`thisCardOnly` 無し）20。
+    //   ②③はカードとして正しい状態なのに、道連れで①の AUTO 効果まで凍っていた。
+    //   ⇒ **突き合わせを添字から `effectId` へ変える**＝id が一致する効果だけを個別に判定し、
+    //   **片側にしか無い id は触らない**（fresh 固有 id を勝手に足さない＝重複 `-E2` は載らない／
+    //   live 固有 id は温存＝手書き効果を消さない）。安全性は変わらない＝MANUAL/PARTIAL は不可侵、
+    //   AUTO も `isPureSuperset` を個別に通ったものだけ採る。
+    //   ⚠**id 集合がズレたカードは `docs/_idset_fresh.json` に必ず出す**（黙って温存しないための計器）。
     const exIds = existing.map(e => e?.effectId);
     const frIds = fresh.map(e => e?.effectId);
-    const sameIdSet = exIds.length === frIds.length && exIds.every((v, i) => v === frIds[i]);
-    if (!sameIdSet) { result[id] = existing as ReturnType<typeof parseCardEffects>; report.preserved_manual.push(id); continue; }
+    const freshById = new Map<string, ReturnType<typeof parseCardEffects>[number]>();
+    for (const fr of fresh) if (fr?.effectId !== undefined && !freshById.has(fr.effectId)) freshById.set(fr.effectId, fr);
+    const exIdSet2 = new Set(exIds);
+    const onlyLive = exIds.filter(v => !freshById.has(v as string));
+    const onlyFresh = frIds.filter(v => !exIdSet2.has(v));
     let gained = false;
-    const merged = existing.map((ex, i) => {
-      const fr = fresh[i];
+    const merged = existing.map(ex => {
+      const fr = freshById.get(ex?.effectId as string);
       if (PRESERVE_STATUSES.has(ex?.parseStatus)) return ex;   // 手修正は不可侵
       if (!fr || equalIgnoringParseStatus(ex, fr)) return ex;  // 実体同一（キー順/刻印差のみ）
       if (!isPureSuperset(ex, fr)) return ex;                  // 損失リスクのある差分は温存
@@ -216,9 +241,16 @@ for (const id of allIds) {
     result[id] = merged as ReturnType<typeof parseCardEffects>;
     // 混在カードのうち「MANUAL/PARTIAL ではない効果に superset ではない差分が残っている」ものは、
     // held と同じく**人のレビュー待ち**。held キュー（_held_fresh.json）とは母集団が違うので別ファイルへ出す。
-    const needsReview = existing.some((ex, i) => !PRESERVE_STATUSES.has(ex?.parseStatus)
-      && fresh[i] && !equalIgnoringParseStatus(ex, fresh[i]) && !isPureSuperset(ex, fresh[i]));
+    const needsReview = existing.some(ex => {
+      if (PRESERVE_STATUSES.has(ex?.parseStatus)) return false;
+      const fr = freshById.get(ex?.effectId as string);
+      return !!fr && !equalIgnoringParseStatus(ex, fr) && !isPureSuperset(ex, fr);
+    });
     if (needsReview) partialFresh[id] = fresh;
+    if (onlyLive.length || onlyFresh.length) {
+      idsetFresh[id] = fresh;
+      report.preserved_idset.push(`${id}（liveのみ=[${onlyLive.join(',')}] / freshのみ=[${onlyFresh.join(',')}]）`);
+    }
     (gained ? report.adopted_partial : report.preserved_manual).push(id);
     continue;
   }
@@ -247,7 +279,8 @@ if (wx24p2047Choice1) {
 }
 writeFileSync(join(root, 'docs', '_held_fresh.json'), JSON.stringify(heldFresh), 'utf-8');
 writeFileSync(join(root, 'docs', '_partial_fresh.json'), JSON.stringify(partialFresh), 'utf-8');
-console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 効果単位採用 ${report.adopted_partial.length} / 手書き効果の新規追加 ${report.adopted_manual_add.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length}`);
+writeFileSync(join(root, 'docs', '_idset_fresh.json'), JSON.stringify(idsetFresh), 'utf-8');
+console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改善採用 ${report.adopted_gain.length} / 効果単位採用 ${report.adopted_partial.length} / 手書き効果の新規追加 ${report.adopted_manual_add.length} / 温存(手修正) ${report.preserved_manual.length} / 温存(要レビュー) ${report.preserved_held.length} / 温存(fresh空) ${report.preserved_emptyFresh.length} / 温存(parseStatusのみ差) ${report.preserved_metaOnly.length} / id集合ズレ(要レビュー) ${report.preserved_idset.length}`);
 // レポート出力（採用・保留の全カードIDを残し、何も黙って変えない）
 {
   const lines: string[] = [];
@@ -265,6 +298,8 @@ console.log(`収穫マージ: 新規採用 ${report.adopted_new.length} / 純改
   section('温存：要レビュー（再生成で損失/値変更/混在＝パーサー改善候補）', report.preserved_held);
   section('温存：パーサーが効果0（既存維持）', report.preserved_emptyFresh);
   section('温存：parseStatusのみ差（PARTIAL刻印＝実体同一）', report.preserved_metaOnly);
+  section('要レビュー：effectId 集合が live と fresh でズレた混在カード（§6.4 O-39・fresh は docs/_idset_fresh.json）',
+    report.preserved_idset);
   writeFileSync(join(root, 'docs', 'effects_merge_report.md'), lines.join('\n'), 'utf-8');
   console.log('レポート: docs/effects_merge_report.md');
 }
