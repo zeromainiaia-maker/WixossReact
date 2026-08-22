@@ -28407,3 +28407,10 @@ effects JSON ⇔ CardData CSV の全件照合で発見した誤りを系統的�
 - 指定16効果に加え、一般化した規則で同族3効果（`WX11-034-E1`／`WX11-053-E1`／`WX18-030-E1`）も原文どおり復元。閾値・カード名・色・クラスは regex に決め打ちせず原文から読む。
 - 否定「N枚以上ないかぎり」は `COUNT_THRESHOLD{operator:'lt'}`、複色「AとB」は別々の `HAS_CARD_IN_FIELD` を `AND` で表現。engine 実行 golden 3件を追加した。
 - `npm run gates` 全緑（golden 2346/2346、smoke 10693/全0、fuzz 全0、census 761→749、stubs/manual-fields 0、lint 0 errors/260 warnings）。`npm run regen`／`groupSimilar --all` の逆翻訳割れ0。
+## 2026-08-22（続き611）：§6.2 段2 第18バッチ＝「〈条件〉の場合、代わりに〈強化形〉」の排他分岐6効果
+
+- 基本形と強化形が両方走っていた6効果（`WX13-058-E2`／`WX22-020-E2`／`WX25-P2-078-E1`／`WXK02-052-E1`／`WXDi-P13-005-E1`／`WXDi-P16-087-E1`）を、既存 `CONDITIONAL{then,else}` と対象snapshotで排他的にした。
+- 表現不能4件（`WX09-045-E1`／`WXDi-P06-084-E1`／`WXDi-P16-089-E1`／`WXDi-P00-037-E1`）は近似語彙へ寄せず据置。触ってはいけない群は変更0。
+- golden 2387/0、census 708/708、smoke 10693全0、fuzz全0、stubs A/C 0、manual-fields 0、lint 0 errors/261 warnings、同型★0、held/partial/idset 88/15/46、manual drift削除候補86。
+- 詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch18_report.md`。
+

@@ -41325,6 +41325,70 @@ test('段2-16 WXDi-P10-054-E1 E2E: ＜プリパラ＞のトリガー元だけ+40
   eq(stage2B16Power(run(effect.action, board(other)), 'self', other), 2000, '非該当トリガー元は基本形だけ');
 });
 
+// 段2 第18バッチ：「代わりに」の成立／不成立で片方だけが実行されることを盤面差分で固定。
+test('段2-18 WX13-058-E2 E2E: ダイオ姫ありは全体、なしは単体だけを-1000/ルリグLv', () => {
+  const eff = stage2B16Effect('WX13-058', 'WX13-058-E2');
+  const a = findCard(c => isSigni(c)), b = findCard(c => isSigni(c) && c.CardNum !== a);
+  const dio = findCard(c => isSigni(c) && (c.CardName ?? '').includes('ダイオ姫'));
+  const board = (hit: boolean) => { const c = mkCtx({ lrig: [SIGNI_L1] }, { signi: [a, b, null] }, 'WX13-058'); c.ownerState.trash = hit ? [dio] : []; return run(eff.action, c); };
+  const yes = board(true), no = board(false);
+  ok(stage2B16Power(yes, 'opponent', a) < 0 && stage2B16Power(yes, 'opponent', b) < 0, '成立時は全体だけ');
+  eq([stage2B16Power(no, 'opponent', a), stage2B16Power(no, 'opponent', b)].filter(n => n < 0).length, 1, '不成立時は単体1体だけ');
+});
+
+test('段2-18 WX22-020-E2 E2E: ドライブ時12000、非ドライブ時7000上限だけ', () => {
+  const eff = stage2B16Effect('WX22-020', 'WX22-020-E2');
+  const low = findCard(c => isSigni(c) && +(c.Power ?? 0) <= 7000), high = findCard(c => isSigni(c) && +(c.Power ?? 0) > 7000 && +(c.Power ?? 0) <= 12000);
+  const board = (drive: boolean) => { const c = mkCtx({ signi: ['WX22-020', null, null] }, { signi: [high, low, null] }, 'WX22-020'); c.ownerState.lrig_riding_signi = drive ? ['WX22-020'] : []; return run(eff.action, c); };
+  ok(board(true).otherState.energy.includes(high), '成立時は12000枝で高い対象もバニッシュ');
+  const no = board(false); ok(no.otherState.field.signi.some(s => s?.at(-1) === high) && no.otherState.energy.includes(low), '不成立時は7000枝だけ');
+});
+
+test('段2-18 WX25-P2-078-E1 E2E: 覚醒時3枚まで、非覚醒時1枚だけトラッシュ', () => {
+  const eff = stage2B16Effect('WX25-P2-078', 'WX25-P2-078-E1');
+  const energy = [SIGNI_L1, SIGNI_L2, SIGNI_L3];
+  const board = (awake: boolean) => { const c = mkCtx({ signi: ['WX25-P2-078', null, null] }, {}, 'WX25-P2-078'); c.otherState.energy = [...energy]; c.ownerState.awakened_signi = awake ? ['WX25-P2-078'] : []; return run(eff.action, c); };
+  const yes = board(true), no = board(false);
+  eq(yes.otherState.trash.filter(c => energy.includes(c)).length, 3, '成立時は強化形3枚だけ');
+  eq(no.otherState.trash.filter(c => energy.includes(c)).length, 1, '不成立時は基本形1枚だけ');
+});
+
+test('段2-18 WXK02-052-E1 E2E: 既凍結なら1ドローだけ、未凍結なら凍結だけ', () => withSavedCursor(() => {
+  const eff = stage2B16Effect('WXK02-052', 'WXK02-052-E1');
+  const target = findCard(c => isSigni(c));
+  const board = (frozen: boolean) => { const c = mkCtx({}, { signi: [target, null, null] }, 'WXK02-052'); c.ownerState.deck = fill(3); c.otherState.field.signi_frozen = [frozen, false, false]; return run(eff.action, c); };
+  const yes = board(true), no = board(false);
+  eq(yes.ownerState.hand.length - no.ownerState.hand.length, 1, '既凍結だけ1枚ドロー'); ok(yes.otherState.field.signi_frozen?.[0], '既凍結対象はそのまま');
+  ok(no.otherState.field.signi_frozen?.[0], '未凍結は凍結する');
+}));
+
+test('段2-18 WXDi-P13-005-E1 E2E: 捨て札ディソナなら無制限、非ディソナならLv1だけ', () => {
+  const eff = stage2B16Effect('WXDi-P13-005', 'WXDi-P13-005-E1');
+  const cond = (eff.action as Extract<EffectAction, {type:'SEQUENCE'}>).steps[1];
+  const lv1 = SIGNI_L1, lv3 = SIGNI_L3, disona = findCard(c => isSigni(c) && c.Story === 'Dissona'), plain = findCard(c => isSigni(c) && c.Story !== 'Dissona');
+  const board = (discarded: string) => { const c = mkCtx({}, { signi: [lv3, lv1, null] }, 'WXDi-P13-005'); c.lastProcessedCards = [discarded]; return run(cond, c); };
+  ok(board(disona).otherState.energy.includes(lv3), '成立時はレベル制限なし枝だけ');
+  const no = board(plain); ok(no.otherState.field.signi.some(s => s?.at(-1) === lv3) && no.otherState.energy.includes(lv1), '不成立時はLv1枝だけ');
+});
+
+test('段2-18 WXDi-P16-087-E1 E2E: Lv合計3以下は+5000だけ、4以上はバニッシュだけ', () => {
+  const eff = stage2B16Effect('WXDi-P16-087', 'WXDi-P16-087-E1');
+  const seq = eff.action as Extract<EffectAction, {type:'SEQUENCE'}>, cond = seq.steps[1];
+  const foe = findCard(c => isSigni(c) && +(c.Power ?? 0) <= 2000);
+  const board = (cards: string[]) => { const c = mkCtx({ signi: ['WXDi-P16-087', null, null] }, { signi: [foe, null, null] }, 'WXDi-P16-087'); c.lastProcessedCards = cards; return run(cond, c); };
+  const longPower = (r: ExecResult) => (r.ownerState.power_mods_until_opp_turn ?? []).filter(m => m.cardNum === 'WXDi-P16-087').reduce((n,m) => n + m.delta, 0);
+  const low = board([SIGNI_L1, SIGNI_L2]); eq(longPower(low), 5000, '3以下は+5000'); ok(low.otherState.field.signi.some(s => s?.at(-1) === foe), '3以下はバニッシュしない');
+  const high = board([SIGNI_L2, SIGNI_L3]); eq(longPower(high), 0, '4以上は+5000しない'); ok(high.otherState.energy.includes(foe), '4以上はバニッシュ');
+});
+
+test('段2-18 据置契約: 表現不能4効果は誤った近似語彙へ変更しない', () => {
+  const raw = (c: string, e: string) => JSON.stringify(stage2B16Effect(c, e).action);
+  ok(!raw('WX09-045','WX09-045-E1').includes('CONDITIONAL'), '共通クラス条件は未表現のまま');
+  ok(!raw('WXDi-P06-084','WXDi-P06-084-E1').includes('CONDITIONAL'), '場全体attached/under ORは未表現のまま');
+  ok(!raw('WXDi-P16-089','WXDi-P16-089-E1').includes('CONDITIONAL'), 'ソウル限定をattached全般へ広げない');
+  ok(raw('WXDi-P00-037','WXDi-P00-037-E1').includes('"source":{"type":"SIGNI"'), '相手手札処理の語彙が無い間は誤本体を勝手に別語彙へ変えない');
+});
+
 
 /* ══════════════════════════════════════════════════════════════════════════════
  * §6.4 O-41: 「〈レベル限定〉のシグニで【ガード】ができない」（2026-08-22）

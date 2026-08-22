@@ -11928,6 +11928,51 @@ function parseActionTextInner(text: string): EffectAction {
   {
     const base = steps[0];
     const second = steps[1];
+
+    // 段2 第18バッチ：動詞／対象数／対象上限が変わる置換も、原文条件を then/else に載せる。
+    // いずれも文ごとの parser が「基本形→強化形」の2ステップを既に正しく作った場合だけ畳む。
+    if (steps.length === 2 && base?.type === 'POWER_MODIFY_PER_LRIG_LEVEL'
+        && second?.type === 'POWER_MODIFY_PER_LRIG_LEVEL') {
+      const name = text.match(/あなたのトラッシュにカード名に《([^》]+)》を含むシグニがある場合、代わりに/);
+      if (name) {
+        steps.splice(0, 2, {
+          type: 'CONDITIONAL',
+          condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', cardName: name[1] } },
+          then: second, else: base,
+        });
+      }
+    }
+
+    if (steps.length === 2 && base?.type === 'BANISH' && second?.type === 'BANISH'
+        && /このシグニがドライブ状態の場合、代わりに/.test(text)) {
+      steps.splice(0, 2, {
+        type: 'CONDITIONAL', condition: { type: 'IS_DRIVE_STATE' }, then: second, else: base,
+      });
+    }
+
+    if (steps.length === 2 && base?.type === 'TRASH' && second?.type === 'TRASH'
+        && /このシグニが覚醒状態の場合、代わりに/.test(text)) {
+      steps.splice(0, 2, {
+        type: 'CONDITIONAL', condition: { type: 'THIS_CARD_IS_AWAKENED' }, then: second, else: base,
+      });
+    }
+
+    // 「対象とし、それを凍結。すでにそれが凍結なら代わりに1枚引く」は、状態判定より先に
+    // 対象を一度だけ固定する。FREEZE 後に判定すると必ず真になるため、既存の対象snapshot正準形を使う。
+    if (steps.length === 2 && base?.type === 'FREEZE' && second?.type === 'DRAW'
+        && /すでにそれが凍結状態である場合、代わりにカードを[１1]枚引く/.test(text)) {
+      const freeze = base as import('../types/effects').FreezeAction;
+      steps.splice(0, 2,
+        { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: JSON.parse(JSON.stringify(freeze.target)) } as EffectAction,
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
+        {
+          type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_MATCHES', filter: { isFrozen: true } },
+          then: second,
+          else: { ...freeze, targetsStored: true },
+        } as import('../types/effects').ConditionalAction,
+      );
+    }
     if (steps.length === 2 && base?.type === 'POWER_MODIFY' && second?.type === 'CONDITIONAL'
         && !second.else && second.then?.type === 'POWER_MODIFY'
         && second.condition.type === 'TRASH_COUNT') {
@@ -11987,6 +12032,33 @@ function parseActionTextInner(text: string): EffectAction {
           : null;
       if (condition) {
         steps.splice(0, 2, { type: 'CONDITIONAL', condition, then: second, else: base });
+      }
+    }
+
+    // 先行のドロー＋手札捨てが lastProcessedCards を残す2種。後続の二択だけを畳み、
+    // 入れ子SEQUENCEの結果snapshotをそのまま両枝の条件評価に使う。
+    if (steps.length === 3 && steps[0]?.type === 'SEQUENCE'
+        && steps[1]?.type === 'BANISH' && steps[2]?.type === 'BANISH') {
+      if (/この効果によって捨てたカードが《ディソナアイコン》の場合、代わりに/.test(text)) {
+        steps.splice(1, 2, {
+          type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { isDisona: true } },
+          then: steps[2], else: steps[1],
+        });
+      } else if (/レベルの合計が[３3]以下の場合/.test(text) && /レベルの合計が[４4]以上の場合/.test(text)) {
+        steps.splice(1, 2, {
+          type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'lte', value: 3 },
+          then: steps[1], else: steps[2],
+        });
+      }
+    }
+    if (steps.length === 3 && steps[0]?.type === 'SEQUENCE'
+        && steps[1]?.type === 'CONDITIONAL' && !(steps[1] as import('../types/effects').ConditionalAction).else
+        && steps[2]?.type === 'BANISH'
+        && /レベルの合計が[３3]以下の場合/.test(text) && /レベルの合計が[４4]以上の場合/.test(text)) {
+      const low = steps[1] as import('../types/effects').ConditionalAction;
+      if (low.condition.type === 'LAST_PROCESSED_LEVEL_SUM' && low.condition.operator === 'lte'
+          && low.condition.value === 3) {
+        steps.splice(1, 2, { ...low, else: steps[2] });
       }
     }
   }
