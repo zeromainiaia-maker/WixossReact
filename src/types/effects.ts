@@ -204,7 +204,8 @@ export type ActiveCondition =
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number } // センタールリグのレベル条件
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
   | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
-  | { type: 'IS_SELF_ACCED' }                                   // このシグニにアクセが付いているかぎり
+  | { type: 'IS_SELF_ACCED'; cardName?: string }                // このシグニにアクセが付いているかぎり（cardName指定時はそのカード名のアクセ限定）
+  | { type: 'IS_SELF_SOUL_ATTACHED' }                           // このシグニに【ソウル】が付いているかぎり
   | { type: 'IS_SELF_CHARMED' }                                 // このシグニに【チャーム】が付いているかぎり（WX04-096-E1）
   | { type: 'IS_SELF_ACCE_CARD' }                               // このカードがアクセとして装着されているかぎり（アクセカード側の条件）
   | { type: 'IS_DRIVE_STATE' }                                  // このシグニがドライブ状態（ルリグに乗られている）であるかぎり
@@ -223,8 +224,8 @@ export type ActiveCondition =
   // ⚠Condition 側にも同型あり＝両方揃えて更新すること（`HAND_DIFF` と同じ運用）。
   | { type: 'IS_SELF_IN_SIDE_ZONE'; side: 'left' | 'right' | 'either' }
   | { type: 'TURN_HAND_DISCARD_GTE'; value: number }            // このターンにあなたが手札をN枚以上捨てている場合
-  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter }      // このシグニの下にカードがあるかぎり（filter=「下にレベルNのシグニがあるかぎり」等の下カード条件。WX24-P1-043）
-  | { type: 'SELF_HAS_KEYWORD'; keyword: string }              // このシグニが【keyword】を持っているかぎり（WX04-088-E1）
+  | { type: 'THIS_CARD_HAS_UNDER'; filter?: TargetFilter; minCount?: number } // このシグニの下にカードがN枚以上あるかぎり（省略=1。filter指定時は一致カードを数える）
+  | { type: 'SELF_HAS_KEYWORD'; keyword: string; subject?: 'self' | 'center_lrig' } // 自身またはセンタールリグが【keyword】を持っているかぎり
   | { type: 'HAS_BOND'; cardName?: string }                    // 絆アイコン：このカード名との絆を獲得している（cardName省略=このカード自身）
   | { type: 'SUBSCRIBER_COUNT'; operator: CompareOp; value: number }  // 登録者数条件（N万人以上等）
   | { type: 'VIRUS_COUNT'; owner: Owner; operator: CompareOp; value: number } // 場の【ウィルス】数条件（「対戦相手の場に【ウィルス】がない場合」等）
@@ -232,9 +233,11 @@ export type ActiveCondition =
   | { type: 'SAME_ZONE_HAS_GATE' }                              // このシグニと同じシグニゾーンにTHE DOOR【ゲート】があるかぎり（own_gate_zones）
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                    // 指定プレイヤーの場にTHE DOOR【ゲート】があるかぎり（own_gate_zones が非空）
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
+  | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number } // エナゾーンにレベル帯の各レベルごとに一致カードがN枚以上あるかぎり
   | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner } // このターンにシグニが場から手札に戻っていた場合（turn_signi_returned_to_hand。G087）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number } // このターンにアーツを使用した回数（省略=1。minCount指定時はturn_arts_used_namesを数える）
   | { type: 'BEAT_CONDITION'; condText: string }               // 《ビートアイコン》[条件]：自分の【ビート】が条件を満たすかぎり（CONTINUOUS の常時能力ゲート。【常】《ビート》系）
   | { type: 'DURING_ATTACK_PHASE'; owner?: Owner }             // 「[あなたの/対戦相手の]アタックフェイズの間、」有効な常在効果（CONTINUOUS）。owner:'self'=あなたのアタックフェイズのみ／'opponent'=対戦相手のアタックフェイズのみ／省略=どちらのアタックフェイズでも。engine は calcFieldPowers に渡された turnPhase（ATTACK_ARTS/ATTACK_ARTS_OP/ATTACK_SIGNI/ATTACK_LRIG）で判定＝省略すると相手ターン中も過剰適用になっていた（WX25-CP1-082-E3/WX24-P1-050-E1 ほか9効果・タスク12）。turnPhase 未指定の呼び出し元では従来どおり true（過小実行を避ける）
   | { type: 'AND'; conditions: ActiveCondition[] };             // 複合条件（すべてを満たす）
@@ -283,7 +286,7 @@ export type Condition =
   // （hand_trashed_by_opp_this_turn / energy_trashed_by_opp_this_turn）。WXDi-P02-005 の「代わりに」ゲート。
   | { type: 'HAND_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
   | { type: 'ENERGY_TRASHED_BY_OPP'; owner: Owner; operator: CompareOp; value: number }
-  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string } // このターンに owner がアーツを使用していた場合（turn_arts_used）。color 指定時は当該色のアーツを使用していた場合（turn_arts_used_colors。WX24-D1-11〜D4-11）
+  | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number } // このターンに owner がアーツを使用していた場合（minCount指定時はturn_arts_used_namesを数える）
   | { type: 'NO_OTHER_ARTS_USED_THIS_TURN'; exceptCardName: string }
   | { type: 'SPELL_USED_THIS_TURN'; owner: Owner; minCount?: number } // このターンに owner がスペルを使用した回数（actions_done の 'USE_SPELL' マーカー参照。省略=1）
   // ── §3 タスク6「代わりに」B1残（per-target 値すり替えのターン中イベント counter／コスト参照）。いずれも
@@ -437,12 +440,12 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
   HAND_DIFF: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
-  EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_CHARMED: true,
+  EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_SOUL_ATTACHED: true, IS_SELF_CHARMED: true,
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
   THIS_CARD_HAS_UNDER: true, SELF_HAS_KEYWORD: true, HAS_BOND: true, SUBSCRIBER_COUNT: true, VIRUS_COUNT: true,
-  LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true,
-  TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, BEAT_CONDITION: true,
+  LRIG_COLOR: true, SAME_ZONE_HAS_GATE: true, FIELD_HAS_GATE: true, ENERGY_HAS_CARD: true, ENERGY_EACH_LEVEL_FILTER_GTE: true,
+  TRASH_HAS_CARD: true, LRIG_TRASH_COUNT: true, SIGNI_RETURNED_TO_HAND_THIS_TURN: true, ARTS_USED_THIS_TURN: true, BEAT_CONDITION: true,
   DURING_ATTACK_PHASE: true, AND: true,
 };
 

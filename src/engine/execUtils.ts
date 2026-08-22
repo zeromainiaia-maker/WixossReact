@@ -1270,7 +1270,19 @@ export function fieldCandidates(
     if (filter?.noAbilities !== undefined) {
       if (filter.noAbilities !== hasNoAbility(cardNum, cardMap, state)) return [];
     }
-    const filterForCard = filter?.noAbilities !== undefined ? { ...filter, noAbilities: undefined } : filter;
+    // 対象の「【K】を持つ」は印字だけでなく、解決済みの一時付与ストアも現在の所持として扱う。
+    const wantedKeywords = filter?.keyword
+      ? (Array.isArray(filter.keyword) ? filter.keyword : [filter.keyword])
+      : [];
+    const dynamicKeywords = [
+      ...(state.keyword_grants?.[cardNum] ?? []),
+      ...(state.keyword_grants_until_opp_turn?.[cardNum] ?? []),
+    ];
+    const dynamicKeywordMatch = wantedKeywords.length > 0 && wantedKeywords.some(keyword => dynamicKeywords.includes(keyword));
+    const filterForCard = filter?.noAbilities !== undefined || dynamicKeywordMatch
+      ? { ...filter, ...(filter?.noAbilities !== undefined ? { noAbilities: undefined } : {}),
+          ...(dynamicKeywordMatch ? { keyword: undefined } : {}) }
+      : filter;
     // ゾーン状態に依存するフィルター（infected / hasAcce / hasCharm）
     if (filter?.infected !== undefined) {
       const infected = (state.field.signi_virus?.[zoneIdx] ?? 0) > 0;
@@ -1719,6 +1731,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(st(cond.owner).energy_trashed_by_opp_this_turn ?? 0, cond.operator, cond.value);
     case 'ARTS_USED_THIS_TURN': {
       const artsSt = st(cond.owner);
+      if (cond.minCount !== undefined) return (artsSt.turn_arts_used_names ?? []).length >= cond.minCount;
       // color 指定時は当該色のアーツを使用していた場合のみ（turn_arts_used_colors）
       if (cond.color) return (artsSt.turn_arts_used_colors ?? []).includes(cond.color);
       return artsSt.turn_arts_used === true;

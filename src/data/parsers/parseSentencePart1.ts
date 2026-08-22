@@ -3514,6 +3514,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
         || /あなたの他の(?:[白赤青緑黒]の|＜[^＞]+＞か?の?)*シグニ/.test(t);
       const kwOppSigni = t.includes('対戦相手のシグニ') || /対戦相手の(?:[白赤青緑黒]の|＜[^＞]+＞か?)+の?シグニ/.test(t)
         || /対戦相手の他の(?:[白赤青緑黒]の|＜[^＞]+＞か?の?)*シグニ/.test(t);
+      const kwTargetPossessionM = t.match(/(?:あなた|対戦相手)の【([^】]+)】を持つシグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/);
+      const kwTargetDrive = /(?:あなた|対戦相手)のドライブ状態のシグニ(?:[０-９\d]+体)?(?:まで)?を対象とし/.test(t);
       // 単体シグニ付与に付くクラス/色/レベルフィルタ（＜鉱石＞か＜宝石＞か＜ウェポン＞ 等）
       // 《ライズ／クロス／アクセアイコン》（続き377c）＝**対象名詞句に隣接**するときだけ（`signiClauseIconFilter`）。
       //   落ちると `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
@@ -3528,6 +3530,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const kwCountSelfFilter: TargetFilter = {
         cardType: 'シグニ', ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t),
         ...(/【チャーム】が付いているあなたの[^。、]*シグニ[０-９\d]+体(?:まで)?を対象とし/.test(t) ? { hasCharm: true } : {}),
+        ...(kwTargetPossessionM ? { keyword: kwTargetPossessionM[1] } : {}),
+        ...(kwTargetDrive ? { isDrive: true } : {}),
       };
       // 「あなたの〔中央|左|右〕のシグニゾーンにある[＜X＞の]シグニは【K】を得る」＝**ゾーン限定の全体付与**。
       // ⚠POWER_MODIFY 側には中央ゾーンの専用枝があるのに、付与側には**中央すら無く**全部が既定の
@@ -3637,7 +3641,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   「＜空獣＞か＜地獣＞のシグニ」の OR（`story:["空獣","地獣"]`）を最後の1クラスへ潰してしまう
       //   （実測 A/B で `WX02-055-E1`／`WX04-069-E1`／`WX05-041-E1`／`WX19-042-E1`／`WX19-070-E1`／`WXEX2-43-E1` が退化）。
       const kwSpecFilterRaw: TargetFilter = kwSpec
-        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) }
+        ? { ...signiClausePowerFilter(t), ...signiClauseLevelFilter(t), ...signiClauseStoryFilter(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t),
+            ...(kwTargetPossessionM ? { keyword: kwTargetPossessionM[1] } : {}),
+            ...(kwTargetDrive ? { isDrive: true } : {}) }
         : {};
       const kwSpecFilter: TargetFilter = Object.fromEntries(
         Object.entries(kwSpecFilterRaw).filter(([k]) => (target.filter as Record<string, unknown> | undefined)?.[k] === undefined),

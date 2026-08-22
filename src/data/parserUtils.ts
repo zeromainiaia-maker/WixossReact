@@ -127,6 +127,7 @@ export function parseStateFilter(text: string): Partial<TargetFilter> {
   if (text.includes('凍結状態')) f.isFrozen = true;
   if (text.includes('アップ状態')) f.isUp = true;
   if (text.includes('ダウン状態') && !text.includes('ダウン状態で場に出')) f.isDown = true;
+  if (text.includes('ドライブ状態')) f.isDrive = true;
   return f;
 }
 

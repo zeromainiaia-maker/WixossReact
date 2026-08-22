@@ -1271,6 +1271,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 「トラッシュに〈色〉のシグニがN枚以上」＝色・種別・枚数を同時に限定する。
+  const trashColorSigniM = text.match(/^あなたのトラッシュに([白赤青緑黒])のシグニが([０-９\d]+)枚以上あるかぎり、/);
+  if (trashColorSigniM) {
+    return {
+      condition: { type: 'TRASH_HAS_CARD', owner: 'self',
+        filter: { cardType: 'シグニ', color: trashColorSigniM[1] }, minCount: parseNum(trashColorSigniM[2]) },
+      rest: text.slice(trashColorSigniM[0].length), conditionFound: true,
+    };
+  }
+
   // パターン3g: 「あなたのトラッシュに＜X＞(か＜Y＞)*の〔シグニ|カード〕がN枚以上あるかぎり、」（トラッシュのクラス指定枚数条件。G090）
   // ⚠**「カード」形を受けていなかった**（2026-08-18 実測）＝`WX26-CP1-059-E1`／`WXDi-CP02-097-E1` が
   //   丸ごと落ちて**無条件で成立**していた。名詞が「カード」のときは `cardType` を課さない（シグニ以外も数える）。
@@ -1302,6 +1312,23 @@ function parseActiveCondition(text: string): ConditionParseResult {
       condition: { type: 'TURN_HAND_DISCARD_GTE', value: parseNum(turnDiscardM[1]) } as ActiveCondition,
       rest: text.slice(turnDiscardM[0].length),
       conditionFound: true,
+    };
+  }
+
+  // 「このターンにあなたがアーツをN回以上使用していた場合」＝使用回数台帳を読む常在条件。
+  const turnArtsCountM = text.match(/^このターンにあなたがアーツを([０-９\d]+)回以上使用していた場合、/);
+  if (turnArtsCountM) {
+    return {
+      condition: { type: 'ARTS_USED_THIS_TURN', owner: 'self', minCount: parseNum(turnArtsCountM[1]) },
+      rest: text.slice(turnArtsCountM[0].length), conditionFound: true,
+    };
+  }
+
+  // 「このシグニは【ソウル】が付いているかぎり」＝効果元シグニの付属状態。
+  if (text.startsWith('このシグニは【ソウル】が付いているかぎり、')) {
+    return {
+      condition: { type: 'IS_SELF_SOUL_ATTACHED' },
+      rest: text.slice('このシグニは【ソウル】が付いているかぎり、'.length), conditionFound: true,
     };
   }
 
@@ -1338,6 +1365,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
       condition: { type: 'LRIG_IS_DRIVE_STATE' } as ActiveCondition,
       rest: text.slice('このルリグがドライブ状態であるかぎり、'.length),
       conditionFound: true,
+    };
+  }
+
+  // カード名限定アクセ。「《X》にアクセされているかぎり」は単なるアクセ有無より強い条件なので先取りする。
+  const namedAcceM = text.match(/^このシグニが《([^》]+)》にアクセされているかぎり、/);
+  if (namedAcceM) {
+    return {
+      condition: { type: 'IS_SELF_ACCED', cardName: namedAcceM[1] },
+      rest: text.slice(namedAcceM[0].length), conditionFound: true,
     };
   }
 
@@ -1385,6 +1421,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
   const fieldGenM = text.match(/^あなたの場に.+があるかぎり、/);
   if (fieldGenM) {
     return { condition: undefined, rest: text.slice(fieldGenM[0].length), conditionFound: true };
+  }
+
+  // 「このシグニはこの下にカードがN枚以上あるかぎり」＝下カード枚数条件。
+  const underCountM = text.match(/^このシグニはこの下にカードが([０-９\d]+)枚以上あるかぎり、/);
+  if (underCountM) {
+    return {
+      condition: { type: 'THIS_CARD_HAS_UNDER', minCount: parseNum(underCountM[1]) },
+      rest: text.slice(underCountM[0].length), conditionFound: true,
+    };
   }
 
   // パターン3z-3: 「このシグニの下にカードがあるかぎり、」（2026-08-18・§5d-0）
@@ -1486,6 +1531,19 @@ function parseActiveCondition(text: string): ConditionParseResult {
     };
   }
 
+  // 「レベルA～Bの＜X＞のシグニがそれぞれN枚以上あるかぎり」＝レベル帯を各レベルごとに数える。
+  const enaEachLevelM = text.match(/^あなたのエナゾーンにレベル([０-９\d]+)[～〜]([０-９\d]+)の＜([^＞]+)＞のシグニがそれぞれ([０-９\d]+)枚以上あるかぎり、/);
+  if (enaEachLevelM) {
+    const lo = parseNum(enaEachLevelM[1]), hi = parseNum(enaEachLevelM[2]);
+    const levels: number[] = [];
+    for (let level = lo; level <= hi; level++) levels.push(level);
+    return {
+      condition: { type: 'ENERGY_EACH_LEVEL_FILTER_GTE', owner: 'self',
+        filter: { cardType: 'シグニ', story: enaEachLevelM[3] }, levels, minEach: parseNum(enaEachLevelM[4]) },
+      rest: text.slice(enaEachLevelM[0].length), conditionFound: true,
+    };
+  }
+
   // パターン5a2: 「あなたのエナゾーンに(レベルNの)?＜X＞(か＜Y＞)*のシグニが(N枚)?あるかぎり、」（クラス指定エナ存在条件。G038）
   // ⚠**レベル前置を受けていなかった**（2026-08-18 実測）＝「あなたのエナゾーンに**レベル４の**＜電機＞のシグニが
   //   あるかぎり」が丸ごと落ちて**無条件でパワー＋3000**だった（`WXK09-082-E1`／`WXK09-086-E1`）。
@@ -1547,6 +1605,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: handCountM[1] === 'あなた' ? 'self' : 'opponent', operator: op, value: val }, rest: text.slice(handCountM[0].length), conditionFound: true };
   }
 
+  // 「あなたの手札の枚数が対戦相手の手札の枚数以上」＝self-opponent >= 0。
+  if (text.startsWith('あなたの手札の枚数が対戦相手の手札の枚数以上であるかぎり、')) {
+    return {
+      condition: { type: 'HAND_DIFF', operator: 'gte', value: 0 },
+      rest: text.slice('あなたの手札の枚数が対戦相手の手札の枚数以上であるかぎり、'.length),
+      conditionFound: true,
+    };
+  }
+
   // 「センタールリグが〈色〉で、手札がN枚以上あるかぎり」＝両方を満たす複合条件。
   const centerColorHandM = text.match(/^あなたのセンタールリグが(白|赤|青|緑|黒)で、あなたの手札が([０-９\d]+)枚(以上|以下)あるかぎり、/);
   if (centerColorHandM) {
@@ -1582,6 +1649,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
     const val = parseNum(centerLrigLevelM[2]);
     const op: CompareOp = centerLrigLevelM[3] === '以上' ? 'gte' : centerLrigLevelM[3] === '以下' ? 'lte' : 'eq';
     return { condition: { type: 'LRIG_LEVEL', owner, operator: op, value: val }, rest: text.slice(centerLrigLevelM[0].length), conditionFound: true };
+  }
+
+  // センタールリグの印字／付与済みキーワードを主語にする条件（効果元シグニ自身とは別軸）。
+  const centerLrigKeywordM = text.match(/^あなたのセンタールリグが【([^】]+)】を持つかぎり、/);
+  if (centerLrigKeywordM) {
+    return {
+      condition: { type: 'SELF_HAS_KEYWORD', subject: 'center_lrig', keyword: centerLrigKeywordM[1] },
+      rest: text.slice(centerLrigKeywordM[0].length), conditionFound: true,
+    };
   }
 
   // センタールリグのレベルと色を同時に要求する複合条件。
@@ -8972,6 +9048,25 @@ function prependShuffleBeforeTopDeckAction(text: string, parsed: EffectAction): 
 }
 
 function parseActionText(text: string): EffectAction {
+  // 【常】：【K1】【K2】… の列挙形。動詞を省略した印字は各キーワードを自身が恒久的に持つ。
+  const bareKeywordList = text.trim().replace(/。$/, '').match(/^((?:【(?:ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ(?::\{[^}]*\})?|バニッシュ耐性|シールド|チャーム)】){2,})$/);
+  if (bareKeywordList) {
+    const keywords = [...bareKeywordList[1].matchAll(/【([^】]+)】/g)].map(match => match[1]);
+    const targetType = _parsingBaseType.includes('ルリグ') ? 'LRIG' as const : 'SIGNI' as const;
+    return {
+      type: 'SEQUENCE',
+      steps: keywords.map(keyword => ({
+        type: 'GRANT_KEYWORD' as const,
+        target: {
+          type: targetType, owner: 'self' as const, count: 1,
+          ...(targetType === 'SIGNI' ? { filter: { thisCardOnly: true } } : {}),
+        },
+        keyword,
+        duration: 'PERMANENT' as const,
+      })),
+    } as SequenceAction;
+  }
+
   // 引用内の複合【常】「あなたの他のシグニは<耐性節>、それらのパワーを±Nする」。
   // rawText は外側 GRANT_FIELD_SIGNI_ABILITY の組み立て後に parseBlock で単独再パースされるため、
   // 外側 node.abilities への fixup では届かない。内側文そのものを既存2語彙の SEQUENCE にする。
@@ -14187,6 +14282,20 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     default: return null;
   }
 
+  // 「このシグニのパワーがNの場合」＝ちょうどN。以上条件へ広げず operator:eq を明示する。
+  if (actionText && /このシグニのパワーが([０-９\d]+)の場合、/.test(actionText)
+      && !/代わりに/.test(actionText)
+      && !/その後、?このシグニのパワーが/.test(actionText)
+      && (!costStr || costStr === '-')
+      && (actionText.match(/パワーが[０-９\d]+の場合/g) ?? []).length === 1) {
+    const pm = actionText.match(/このシグニのパワーが([０-９\d]+)の場合、/)!;
+    const powCond = { type: 'SELF_POWER_GTE', operator: 'eq', value: parseNum(pm[1]) } as const;
+    extractedTriggerCondition = extractedTriggerCondition
+      ? { type: 'AND', conditions: [extractedTriggerCondition, powCond] }
+      : powCond;
+    actionText = actionText.replace(/、?このシグニのパワーが[０-９\d]+の場合、/, '、').replace(/^、/, '');
+  }
+
   // 「このシグニのパワーがN以上の場合、」= SELF_POWER_GTE 条件に昇格（WXK05-073 等19枚の系統）。
   // ⚠読点「、」必須＝「〜の場合にしか使用できない」（使用条件文・extractUseCondition の領分）への誤マッチを防ぐ。
   // ⚠「代わりに」昇格型（WXDi-P01-054/WXDi-P02-061等）・多段閾値型（PR-470A等）は別構造のため除外（ガード）。
@@ -14443,6 +14552,7 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     } else {
     // 複数条件を繰り返しパースして AND で結合する
     let remaining = actionText;
+    const continuousSelfKeywordSubject = /^このシグニは/.test(actionText);
     const parsedConds: ActiveCondition[] = [];
     let anyFound = false;
     let anyFailed = false;
@@ -14459,6 +14569,16 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     else activeCondition = { type: 'AND', conditions: parsedConds };
     // CONTINUOUS 限定の引用能力付与（このシグニは/場全体「Q」を得る）を先に試す（GRANT_FIELD_SIGNI_ABILITY）
     resolvedAction = parseContinuousQuotedGrant(remaining || actionText) ?? parseActionText(remaining || actionText);
+    const selfConditionGrant = activeCondition?.type === 'IS_SELF_SOUL_ATTACHED'
+      || (activeCondition?.type === 'THIS_CARD_HAS_UNDER' && activeCondition.minCount !== undefined);
+    if (continuousSelfKeywordSubject && selfConditionGrant && resolvedAction.type === 'GRANT_KEYWORD'
+        && resolvedAction.target.type === 'SIGNI' && resolvedAction.target.owner === 'self'
+        && resolvedAction.target.count === 1) {
+      resolvedAction = {
+        ...resolvedAction,
+        target: { ...resolvedAction.target, filter: { ...(resolvedAction.target.filter ?? {}), thisCardOnly: true } },
+      };
+    }
     // 「対戦相手は《無》×Nを支払わないかぎり、このシグニの正面にあるシグニでアタックできない」（§6.4 O-31）。
     // 🔴支払い句は**この条件剥がしのループで消える**（条件にならないまま落ちる）ので、帰結の STUB だけが残り
     //   「払っても正面はアタックできない」過剰実行になっていた。**剥がす前のブロック本文**から枚数を復元する。

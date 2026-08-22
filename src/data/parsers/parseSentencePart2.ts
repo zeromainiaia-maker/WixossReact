@@ -2121,10 +2121,12 @@ export function parseSentencePart2(t: string): EffectAction | null {
   const kwThrFilter = kwTgtPhraseM
     ? { ...parsePowerFilter(kwTgtPhraseM[1]), ...parseLevelFilter(kwTgtPhraseM[1]), ...parseStateFilter(kwTgtPhraseM[1]), ...parseColorFilter(kwTgtPhraseM[1]) }
     : {};
+  const kwPossessionM = kwTgtPhraseM?.[1].match(/【([^】]+)】を持つ/);
+  const kwPossessionFilter = kwPossessionM ? { keyword: kwPossessionM[1] } : {};
   // 《ライズ／クロス／アクセアイコン》（続き377c）＝上の `kwTgtPhraseM` は「あなたの」と「シグニ」の**間**しか見ないので、
   //   「**《ライズアイコン》を持つ**あなたのシグニ１体を対象とし」のように**「あなたの」より前**に付く修飾を取りこぼす。
   //   `signiClauseIconFilter` は対象名詞句への隣接だけを見るので条件節（「場に…が２体あるかぎり」）は入らない。
-  const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter, ...signiClauseIconFilter(t) };
+  const kwMergedFilter = { ...(kwOtherTarget ? { excludeSelf: true } : {}), ...kwThrFilter, ...kwPossessionFilter, ...signiClauseIconFilter(t) };
   const kwTargetFilter = Object.keys(kwMergedFilter).length > 0 ? { filter: kwMergedFilter } : {};
   // 「シグニをN体まで対象とし」＝上限指定（0体でもよい）。engine は `upToCount` を見て選択UIを任意化する
   // （落とすと `WXDi-P09-053-E1`「あなたのレベル１のシグニを２体まで対象とし」が**2体を強制選択**になる）。

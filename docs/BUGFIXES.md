@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第28バッチ＝「〜かぎり／〜の場合」の条件脱落による無条件付与
+
+指定A群7・B群2・C群5をCSV原文、live、実行経路で再照合し、C2 `WD15-007-E1` を除く13効果を採用した。`IS_SELF_SOUL_ATTACHED`、`ENERGY_EACH_LEVEL_FILTER_GTE`、ActiveCondition版 `ARTS_USED_THIS_TURN{minCount}` を新設し、既存 `IS_SELF_ACCED`（カード名限定）、`THIS_CARD_HAS_UNDER`（枚数）、`SELF_HAS_KEYWORD`（センタールリグ主語）、Condition版 `ARTS_USED_THIS_TURN`（回数）を拡張。すべて `checkActiveCondition` / `evalCondition` の評価器と成立・不成立E2Eを同時実装した。B群は既存 `HAND_DIFF` / `TRASH_HAS_CARD` を `AND` で `TURN_OWNER` と合成した。
+
+CONTINUOUS の消費経路も個別確認し、A3の `SEQUENCE` 内 `GRANT_PROTECTION` を `collectEffectImmuneSigni` が読めなかった穴を、自己対象の対シグニ保護に限定して配線。A4は既存 `collectBanishEffectProtectedSigni`、キーワード群は `collectContinuousGrantedKeywords` が `activeCondition` を評価する。対象側は既存 `TargetFilter.keyword` / `isDrive` を parser に載せ、`fieldCandidates` が印字済み・解決済み付与キーワードの双方を読むようにした。
+
+全カード生パースでは同根3効果 `WDK01-007-E1`（ドライブ限定）／`PR-K021-E2/E3`（パワー8000/12000ちょうど）もCSV照合後に採用し、live変更は計16効果。追加outlier `WX20-038-E1` は fresh が二キーワードを1効果へ束ねる一方、liveは `E1b` MANUALですでにダブルクラッシュを保持するため非採用。C2は付与先ごとの「その正面のシグニのパワー12000以上」を既存 `fieldCondition` / ActiveCondition で正しく表せず、durationだけ直す部分採用もしなかった。D群3効果はトップレベル差分0を確認した。
+
+`npm run gates` 全緑：golden **2511/2511**（2493→2511）、census **671/671**（681→671）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、stubs無言no-op 0、manual-fields 0、lint 0 errors / 261 warnings、同型★0、held/partial/idset **87/15/46**、manual drift削除候補86。詳細：`scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch28_report.md`。
+
 ## 2026-08-23：§6.2 段2 第27バッチ＝「パワーを＋Nし、それ（ら）は…を得る」の前半脱落14効果
 
 能動の連用中止形「〈対象〉のパワーを±Nし、それ／それら／このシグニは【K】を得る」を既存キーワード付与枝へ合成し、指定A群10・B群4の全14効果へ `POWER_MODIFY` を復元した。選択対象は前半が残す `lastProcessedCards` を後段の `GRANT_KEYWORD` / `GRANT_PROTECTION` / `REMOVE_ABILITIES` が再利用し、A10の3つの「対象のあなたの＜天使＞」だけは原文どおり独立選択を維持。A4は CONTINUOUS の `SEQUENCE` を `calcFieldPowers` と `collectContinuousGrantedKeywords` の両方で読み、`matchesStateFilter` まで通してドライブ状態だけに+3000／ダブルクラッシュを適用する。B4は既存 `frontOfSelf` で正面の相手シグニだけを能力喪失させた。

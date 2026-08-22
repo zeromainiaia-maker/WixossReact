@@ -18993,7 +18993,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 49, 'ActiveCondition の型数（49＝第22バッチ FIELD_LEVEL_SUM／LRIG_TEAM_COUNT 追加後）');
+  eq(Object.keys(AC_TYPES).length, 52, 'ActiveCondition の型数（52＝第28バッチ SOUL／ARTS回数／エナ各レベル追加後）');
   eq(Object.keys(C_TYPES).length, 122, 'Condition の型数（122＝第22バッチ FIELD_LEVEL_SUM 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
@@ -42759,6 +42759,219 @@ test('段2 第27バッチ E2E: WX25-P3-054-E1 は自身を+3000し正面の相�
   eq(batch27Power(ownerEnded, oppEnded, source), before, 'ターン終了で+3000失効');
   ok(!oppEnded.abilities_removed?.includes(front), 'ターン終了で能力喪失も失効');
 }));
+
+// ── §6.2 段2 第28バッチ：「〜かぎり／場合」の条件脱落と対象限定 ──
+function batch28Effect(effectId: string): CardEffect {
+  for (const effects of effectsMap.values()) {
+    const effect = effects.find(candidate => candidate.effectId === effectId);
+    if (effect) return effect;
+  }
+  throw new Error(`${effectId}: live effect missing`);
+}
+
+function batch28ContinuousKeywords(source: string, state: PlayerState, other = mkState({}), isOwnerTurn = true) {
+  return collectContinuousGrantedKeywords(state, other, isOwnerTurn, effectsMap, cardMap);
+}
+
+for (const [effectId, source, keyword] of [
+  ['SPDi43-09-E1', 'SPDi43-09', 'シャドウ:{"levelLte":2}'],
+  ['SPDi43-10-E1', 'SPDi43-10', 'シャドウ:{"artsCostLte":1}'],
+] as const) {
+  test(`段2 第28バッチ E2E: ${effectId} はソウル付き自身だけに付与`, () => withSavedCursor(() => {
+    const otherSigni = fresh();
+    const noSoul = mkState({ signi: [source, otherSigni, null] });
+    ok(!batch28ContinuousKeywords(source, noSoul)[source]?.includes(keyword), `${effectId}: ソウルなしで過剰付与`);
+    const withSoul = mkState({ signi: [source, otherSigni, null] });
+    withSoul.field.signi_soul = [fresh(), null, null];
+    const grants = batch28ContinuousKeywords(source, withSoul);
+    ok(grants[source]?.includes(keyword) ?? false, `${effectId}: ソウル付きで付与されない`);
+    ok(!grants[otherSigni]?.includes(keyword), `${effectId}: 別シグニへ付与`);
+  }));
+}
+
+test('段2 第28バッチ E2E: WX15-038-E2 はテキソス限定で+3000と対シグニ効果耐性', () => withSavedCursor(() => {
+  const source = 'WX15-038';
+  const wrongAcce = fresh();
+  const make = (acce: string) => {
+    const state = mkState({ signi: [source, null, null] });
+    state.field.signi_acce = [[acce], null, null];
+    return state;
+  };
+  const wrong = make(wrongAcce);
+  const wrongPower = calcFieldPowers(wrong, mkState({}), true, effectsMap, cardMap).get(source);
+  eq(wrongPower, Number(cardMap.get(source)?.Power), '別名アクセでは+3000しない');
+  ok(!collectEffectImmuneSigni(wrong, mkState({}), cardMap, effectsMap, true, 'シグニ').has(source), '別名アクセで耐性を得ない');
+  const exact = make('WX15-058');
+  eq(calcFieldPowers(exact, mkState({}), true, effectsMap, cardMap).get(source), Number(cardMap.get(source)?.Power) + 3000, 'テキソスで+3000');
+  ok(collectEffectImmuneSigni(exact, mkState({}), cardMap, effectsMap, true, 'シグニ').has(source), 'テキソスで対シグニ効果耐性');
+  ok(!collectEffectImmuneSigni(exact, mkState({}), cardMap, effectsMap, true, 'スペル').has(source), 'スペル効果まで遮断しない');
+}));
+
+test('段2 第28バッチ E2E: WXK03-026-E3 はアーツ3回ちょうどからバニッシュ耐性', () => {
+  const source = 'WXK03-026';
+  const protectedAt = (count: number) => {
+    const state = mkState({ signi: [source, null, null] });
+    state.turn_arts_used = count > 0;
+    state.turn_arts_used_names = Array.from({ length: count }, (_, i) => `ARTS-${i}`);
+    return collectBanishEffectProtectedSigni(state, mkState({}), true, effectsMap, cardMap).has(source);
+  };
+  ok(!protectedAt(2), '2回で過剰保護');
+  ok(protectedAt(3), '3回で保護されない');
+});
+
+test('段2 第28バッチ E2E: WDK15-011-E1 は下3枚ちょうどで自身だけダブルクラッシュ', () => withSavedCursor(() => {
+  const source = 'WDK15-011';
+  const otherSigni = fresh();
+  const grantedAt = (underCount: number) => {
+    const state = mkState({ signi: [source, otherSigni, null] });
+    state.field.signi[0] = [...fill(underCount), source];
+    return batch28ContinuousKeywords(source, state);
+  };
+  ok(!grantedAt(2)[source]?.includes('ダブルクラッシュ'), '下2枚で過剰付与');
+  const exact = grantedAt(3);
+  ok(exact[source]?.includes('ダブルクラッシュ') ?? false, '下3枚で付与されない');
+  ok(!exact[otherSigni]?.includes('ダブルクラッシュ'), '別シグニへ付与');
+}));
+
+test('段2 第28バッチ E2E: WX20-057-E1 はセンタールリグの印字／付与ダブルクラッシュを読む', () => withSavedCursor(() => {
+  const source = 'WX20-057';
+  const plainLrig = findCard(card => card.Type === 'ルリグ' && !(card.EffectText ?? '').includes('【ダブルクラッシュ】'));
+  const printedLrig = findCard(card => card.Type === 'ルリグ' && (card.EffectText ?? '').includes('【ダブルクラッシュ】'));
+  const plain = mkState({ signi: [source, null, null], lrig: [plainLrig] });
+  ok(!batch28ContinuousKeywords(source, plain)[source]?.includes('ダブルクラッシュ'), 'ルリグが持たないのに付与');
+  const printed = mkState({ signi: [source, null, null], lrig: [printedLrig] });
+  ok(batch28ContinuousKeywords(source, printed)[source]?.includes('ダブルクラッシュ') ?? false, '印字キーワードを読まない');
+  plain.keyword_grants = { [plainLrig]: ['ダブルクラッシュ'] };
+  ok(batch28ContinuousKeywords(source, plain)[source]?.includes('ダブルクラッシュ') ?? false, '付与ストアを読まない');
+}));
+
+test('段2 第28バッチ E2E: WXK09-080-E1 は電機Lv1〜4を各1枚そろえたときだけランサー', () => {
+  const source = 'WXK09-080';
+  const byLevel = [1, 2, 3, 4].map(level => findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('電機') && Number(card.Level) === level));
+  const state = mkState({ signi: [source, null, null] });
+  state.energy = byLevel.slice(0, 3);
+  ok(!batch28ContinuousKeywords(source, state)[source]?.includes('ランサー'), 'Lv4欠けで過剰付与');
+  state.energy = byLevel;
+  ok(batch28ContinuousKeywords(source, state)[source]?.includes('ランサー') ?? false, 'Lv1〜4網羅で付与されない');
+});
+
+test('段2 第28バッチ E2E: WXDi-P06-062-E1 は相手ターンかつ手札self>=opponentだけシャドウ', () => {
+  const source = 'WXDi-P06-062';
+  const owner = mkState({ signi: [source, null, null], hand: 4 });
+  const equal = mkState({ hand: 4 });
+  ok(batch28ContinuousKeywords(source, owner, equal, false)[source]?.includes('シャドウ:{"levelLte":2}') ?? false, '相手ターン・同数で付与されない');
+  ok(!batch28ContinuousKeywords(source, owner, mkState({ hand: 5 }), false)[source]?.includes('シャドウ:{"levelLte":2}'), '手札が少ないのに過剰付与');
+  ok(!batch28ContinuousKeywords(source, owner, equal, true)[source]?.includes('シャドウ:{"levelLte":2}'), '自ターンに過剰付与');
+});
+
+test('段2 第28バッチ E2E: WXDi-P07-054-E2 は相手ターンかつ白シグニ7枚ちょうどでシャドウ', () => withSavedCursor(() => {
+  const source = 'WXDi-P07-054';
+  const whites = batch26Cards({ cardType: 'シグニ', color: '白' }, 7, [source]);
+  const state = mkState({ signi: [source, null, null] });
+  state.trash = whites.slice(0, 6);
+  ok(!batch28ContinuousKeywords(source, state, mkState({}), false)[source]?.includes('シャドウ:{"color":"赤"}'), '白シグニ6枚で過剰付与');
+  state.trash = whites;
+  ok(batch28ContinuousKeywords(source, state, mkState({}), false)[source]?.includes('シャドウ:{"color":"赤"}') ?? false, '白シグニ7枚で付与されない');
+  ok(!batch28ContinuousKeywords(source, state, mkState({}), true)[source]?.includes('シャドウ:{"color":"赤"}'), '自ターンに過剰付与');
+}));
+
+test('段2 第28バッチ E2E: WXDi-P07-045-E2 はパワー13000ちょうどだけ収集・解決', () => {
+  const source = 'WXDi-P07-045';
+  const effect = batch28Effect('WXDi-P07-045-E2');
+  const collectAt = (delta: number) => {
+    const owner = mkState({ signi: [source, null, null] });
+    owner.temp_power_mods = [{ cardNum: source, delta }];
+    const other = mkState({});
+    const powers = calcFieldPowers(owner, other, true, effectsMap, cardMap);
+    return collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' }, owner, other, source, HOST, powers);
+  };
+  ok(collectAt(3000).some(entry => entry.effectId === effect.effectId), '13000で収集されない');
+  ok(!collectAt(3001).some(entry => entry.effectId === effect.effectId), '13001で過剰収集');
+  const resolved = run(effect.action, mkCtx({ signi: [source, null, null] }, {}, source));
+  ok(resolved.ownerState.keyword_grants_until_opp_turn?.[source]?.includes('シャドウ:{"powerLte":10000}') ?? false, '成立時の解決で付与されない');
+});
+
+test('段2 第28バッチ 非採用契約: WD15-007-E1 はper-target正面条件の偽ActiveConditionを作らない', () => {
+  const effect = batch28Effect('WD15-007-E1');
+  eq(effect.activeCondition, undefined, '全体ゲートへ誤昇格');
+  eq(effect.action.type, 'GRANT_KEYWORD', '未実装の動的場付与へ偽装');
+  if (effect.action.type === 'GRANT_KEYWORD') {
+    eq(effect.action.duration, 'PERMANENT', '後発シグニを扱えないままdurationだけ変更');
+    eq(effect.action.fieldCondition, undefined, '正面パワーを表せないfieldConditionを捏造');
+  }
+});
+
+test('段2 第28バッチ E2E: WX08-061-E1 はダブルクラッシュ所持シグニだけを対象化', () => withSavedCursor(() => {
+  const effect = batch28Effect('WX08-061-E1');
+  const printed = findCard(card => card.Type === 'シグニ' && (card.EffectText ?? '').includes('【ダブルクラッシュ】'));
+  const plain = findCard(card => card.Type === 'シグニ' && !(card.EffectText ?? '').includes('【ダブルクラッシュ】') && card.CardNum !== printed);
+  const applied = run(effect.action, mkCtx({ signi: [printed, plain, null] }, {}));
+  ok(applied.ownerState.keyword_grants?.[printed]?.includes('アサシン') ?? false, '印字DC対象に付与されない');
+  ok(!applied.ownerState.keyword_grants?.[plain]?.includes('アサシン'), '非所持対象へ過剰付与');
+  const dynamic = mkCtx({ signi: [plain, null, null] }, {});
+  dynamic.ownerState.keyword_grants = { [plain]: ['ダブルクラッシュ'] };
+  ok(run(effect.action, dynamic).ownerState.keyword_grants?.[plain]?.includes('アサシン') ?? false, '付与済みDCを所持として読まない');
+}));
+
+for (const effectId of ['WXK01-049-E1', 'WDK01-007-E1'] as const) {
+  test(`段2 第28バッチ E2E: ${effectId} はドライブ状態だけへダブルクラッシュ`, () => withSavedCursor(() => {
+    const effect = batch28Effect(effectId);
+    const grant = effect.action.type === 'SEQUENCE'
+      ? effect.action.steps.find(step => step.type === 'GRANT_KEYWORD' && step.keyword === 'ダブルクラッシュ')
+      : effect.action;
+    ok(grant?.type === 'GRANT_KEYWORD', `${effectId}: DC grant missing`);
+    if (!grant || grant.type !== 'GRANT_KEYWORD') return;
+    const drive = fresh(), plain = fresh();
+    const ctx = mkCtx({ signi: [drive, plain, null] }, {});
+    ctx.ownerState.lrig_riding_signi = [drive];
+    const applied = run(grant, ctx);
+    ok(applied.ownerState.keyword_grants?.[drive]?.includes('ダブルクラッシュ') ?? false, 'ドライブ対象へ付与されない');
+    ok(!applied.ownerState.keyword_grants?.[plain]?.includes('ダブルクラッシュ'), '非ドライブへ過剰付与');
+  }));
+}
+
+for (const effectId of ['WXK11-053-E1', 'WX20-038-E1'] as const) {
+  test(`段2 第28バッチ E2E: ${effectId} は自身だけにアサシンとダブルクラッシュ`, () => withSavedCursor(() => {
+    const source = effectId.slice(0, effectId.lastIndexOf('-E'));
+    const other = fresh();
+    const grants = batch28ContinuousKeywords(source, mkState({ signi: [source, other, null] }));
+    ok(grants[source]?.includes('アサシン') ?? false, '自身にアサシンが無い');
+    ok(grants[source]?.includes('ダブルクラッシュ') ?? false, '自身にダブルクラッシュが無い');
+    ok(!grants[other]?.includes('アサシン') && !grants[other]?.includes('ダブルクラッシュ'), '別シグニへ過剰付与');
+  }));
+}
+
+for (const [effectId, exactDelta, missDelta] of [
+  ['PR-K021-E2', 3000, 2999],
+  ['PR-K021-E3', 7000, 6999],
+] as const) {
+  test(`段2 第28バッチ E2E: ${effectId} は指定パワーちょうどだけ収集`, () => withSavedCursor(() => {
+    const source = 'PR-K021';
+    const collectAt = (delta: number) => {
+      const owner = mkState({ signi: [source, null, null] });
+      owner.temp_power_mods = [{ cardNum: source, delta }];
+      const other = mkState({});
+      const powers = calcFieldPowers(owner, other, true, effectsMap, cardMap);
+      return collectAttackerSelfTriggers({ ...trigCtx(HOST, HOST), turnPhase: 'ATTACK_SIGNI' }, owner, other, source, HOST, powers);
+    };
+    ok(collectAt(exactDelta).some(entry => entry.effectId === effectId), 'ちょうどで収集されない');
+    ok(!collectAt(missDelta).some(entry => entry.effectId === effectId), '1手前で過剰収集');
+    const effect = batch28Effect(effectId);
+    if (effectId.endsWith('-E2')) {
+      const ctx = mkCtx({ signi: [source, null, null], energy: 0 }, {}, source);
+      const before = ctx.ownerState.energy.length;
+      eq(run(effect.action, ctx).ownerState.energy.length, before + 1, '成立効果をengineで解決できない');
+    } else {
+      const white = batch26Cards({ color: '白' }, 2);
+      const colorless = batch26Cards({ color: '無' }, 2, white);
+      const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+      ctx.ownerState.energy = [...white, ...colorless];
+      const initial = executeEffect(effect, ctx);
+      ok(!initial.done, '任意コスト窓まで解決されない');
+      finishPayingCosts(initial, ctx);
+    }
+  }));
+}
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

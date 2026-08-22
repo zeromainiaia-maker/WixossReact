@@ -431,7 +431,17 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
       if (zoneIdx < 0) return false;
-      return hasAcceAt(ownerState.field, zoneIdx);
+      if (!cond.cardName) return hasAcceAt(ownerState.field, zoneIdx);
+      return acceCardsAt(ownerState.field, zoneIdx).some(num => {
+        const bare = num.includes('#') ? num.slice(0, num.indexOf('#')) : num;
+        return cardMap.get(num)?.CardName === cond.cardName || cardMap.get(bare)?.CardName === cond.cardName;
+      });
+    }
+
+    case 'IS_SELF_SOUL_ATTACHED': {
+      if (!sourceCardNum) return false;
+      const zoneIdx = ownerState.field.signi.findIndex(s => s?.at(-1) === sourceCardNum);
+      return zoneIdx >= 0 && (ownerState.field.signi_soul?.[zoneIdx] ?? null) !== null;
     }
 
     case 'IS_SELF_ACCE_CARD': {
@@ -502,21 +512,24 @@ export function checkActiveCondition(
       if (!sourceCardNum) return false;
       const stack = ownerState.field.signi.find(s => s?.at(-1) === sourceCardNum);
       if (!stack || stack.length <= 1) return false;
-      if (!cond.filter) return true;
-      return stack.slice(0, -1).some(cn => {
+      const under = stack.slice(0, -1);
+      const matched = !cond.filter ? under : under.filter(cn => {
         const base = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
         return matchesFilter(cardMap.get(base), cond.filter);
       });
+      return matched.length >= (cond.minCount ?? 1);
     }
 
-    case 'SELF_HAS_KEYWORD':
-      // このシグニが【keyword】を持っているかぎり（印字・付与いずれも。WX04-088-E1「ランサーを持っているかぎり基本パワー10000」）
-      if (!sourceCardNum) return false;
-      return hasKeyword(sourceCardNum, cond.keyword, cardMap,
+    case 'SELF_HAS_KEYWORD': {
+      // 自身またはセンタールリグが【keyword】を持っているかぎり（印字・解決済み付与の両方）。
+      const subjectNum = cond.subject === 'center_lrig' ? ownerState.field.lrig.at(-1) : sourceCardNum;
+      if (!subjectNum) return false;
+      return hasKeyword(subjectNum, cond.keyword, cardMap,
         ownerState.keyword_grants, undefined,
         ownerState.keyword_grants_until_opp_turn,
-        activeFieldGrantKeywordsForSigni(ownerState, otherState, sourceCardNum, cardMap),
+        cond.subject === 'center_lrig' ? undefined : activeFieldGrantKeywordsForSigni(ownerState, otherState, subjectNum, cardMap),
         ownerState.abilities_removed, ownerState.keyword_abilities_removed);
+    }
 
     case 'HAS_BOND': {
       const name = cond.cardName ?? (sourceCardNum ? cardMap.get(sourceCardNum)?.CardName : undefined);
@@ -576,6 +589,18 @@ export function checkActiveCondition(
       return matched >= (cond.minCount ?? 1);
     }
 
+    case 'ENERGY_EACH_LEVEL_FILTER_GTE': {
+      const enaState = cond.owner === 'self' ? ownerState : otherState;
+      const matched = enaState.energy.filter(cn => {
+        const bare = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
+        return matchesFilter(cardMap.get(cn) ?? cardMap.get(bare), cond.filter);
+      });
+      return cond.levels.every(level => matched.filter(cn => {
+        const bare = cn.includes('#') ? cn.slice(0, cn.indexOf('#')) : cn;
+        return Number((cardMap.get(cn) ?? cardMap.get(bare))?.Level) === level;
+      }).length >= cond.minEach);
+    }
+
     case 'TRASH_HAS_CARD': {
       const trashState = cond.owner === 'self' ? ownerState : otherState;
       const matched = trashState.trash.filter(cn => matchesFilter(cardMap.get(cn), cond.filter)).length;
@@ -621,6 +646,13 @@ export function checkActiveCondition(
 
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN':
       return (cond.owner === 'self' ? ownerState : otherState).turn_signi_returned_to_hand === true;
+
+    case 'ARTS_USED_THIS_TURN': {
+      const artsState = cond.owner === 'self' ? ownerState : otherState;
+      if (cond.minCount !== undefined) return (artsState.turn_arts_used_names ?? []).length >= cond.minCount;
+      if (cond.color) return (artsState.turn_arts_used_colors ?? []).includes(cond.color);
+      return artsState.turn_arts_used === true;
+    }
 
     case 'AND':
       return cond.conditions.every(c => checkActiveCondition(c, ownerState, otherState, isOwnerTurn, cardMap, sourceCardNum, effectivePowers, oppTrashColorLoss, turnPhase, effectiveLevels));
@@ -5357,7 +5389,14 @@ export function collectEffectImmuneSigni(
         && (gp.sourceOwner === 'opponent' || gp.sourceOwner === 'any')
         && gp.sourceFilter?.hasLifeBurst === false
         && gp.from?.length === 1 && gp.from[0] === 'シグニ';
-      return isOtherSigniNonLbProtection ? [gp] : [];
+      // 「このシグニのパワーは＋Nされ、このシグニは相手シグニの効果を受けない」のような
+      // 自身対象の直下 leaf も同じく分岐を持たない。同型だけを許可し、他の11効果へ一般化しない。
+      const isSelfSigniProtection = gp.target?.type === 'SIGNI'
+        && gp.target.owner === 'self' && gp.target.count === 1
+        && !gp.subjectFilter
+        && (gp.sourceOwner === 'opponent' || gp.sourceOwner === 'any')
+        && gp.from?.length === 1 && gp.from[0] === 'シグニ';
+      return isOtherSigniNonLbProtection || isSelfSigniProtection ? [gp] : [];
     }
     if (action.type === 'SEQUENCE') {
       return (action as import('../types/effects').SequenceAction).steps.flatMap(step => extractGrantProtections(step, true));

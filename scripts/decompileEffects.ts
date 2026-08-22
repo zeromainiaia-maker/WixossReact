@@ -481,7 +481,10 @@ function condJa(c?: any): string {
         return `${ownerJa(c.owner)}トラッシュにカード名に《${c.filter.cardName}》を含む${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '枚以上' : ''}ある`;
       return `${ownerJa(c.owner)}トラッシュに${c.distinctName ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${c.filter?.cardType ?? 'カード'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + (c.distinctName ? '種類以上' : '枚以上') : ''}ある`;
     case 'SIGNI_RETURNED_TO_HAND_THIS_TURN': return 'このターンにシグニが場から手札に戻っていた';
-    case 'ARTS_USED_THIS_TURN': { const artsColor = (c as { color?: string }).color; return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsColor ? `${artsColor}の` : ''}アーツを使用していた`; }
+    case 'ARTS_USED_THIS_TURN': {
+      const artsCondition = c as { color?: string; minCount?: number };
+      return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}が${artsCondition.color ? `${artsCondition.color}の` : ''}アーツを${(artsCondition.minCount ?? 1) > 1 ? `${numJa(artsCondition.minCount!)}回以上` : ''}使用していた`;
+    }
     case 'SPELL_USED_THIS_TURN': return `このターンに${c.owner === 'opponent' ? '対戦相手' : 'あなた'}がスペルを${c.minCount && c.minCount > 1 ? `${numJa(c.minCount)}枚以上` : ''}使用していた`;
     case 'TRASH_COUNT': return `${ownerJa(c.owner)}トラッシュにカードが${numJa(c.value)}枚${opJa(c.operator)}`;
     case 'LAST_PROCESSED_HAS_BURST': return `そのカードが【ライフバースト】を${c.negate ? '持たない' : '持つ'}`;
@@ -685,6 +688,7 @@ function condJa(c?: any): string {
     case 'HAND_DIFF':
       if (c.value === 0 && c.operator === 'lt') return 'あなたの手札が対戦相手より少ない';
       if (c.value === 0 && c.operator === 'gt') return 'あなたの手札が対戦相手より多い';
+      if (c.value === 0 && c.operator === 'gte') return 'あなたの手札の枚数が対戦相手の手札の枚数以上';
       // 🔑**負の value は「対戦相手のほうが多い」を表す**（diff = 自分 − 相手）。
       // 素直に `${value}枚${op}多い` と書くと **「-5枚以下多い」** という無意味な日本語になり、
       // 原文（「対戦相手の手札があなたより５枚以上多い場合」）と一致しているのに**ズレて見える**。
@@ -711,9 +715,10 @@ function condJa(c?: any): string {
     case 'THIS_CARD_FROM_NON_HAND_THIS_TURN': return 'このターンにこのシグニが手札以外の領域から場に出ていた';
     case 'EICHI_LEVEL_SUM': return `英知（＜英知＞シグニのレベル合計）が${numJa(c.value)}${opJa(c.operator)}`;
     case 'VIRUS_COUNT': return `${ownerJa(c.owner)}場の【ウィルス】が${numJa(c.value)}${opJa(c.operator)}`;
-    case 'SELF_HAS_KEYWORD': return `このシグニが【${c.keyword}】を持っている`;
+    case 'SELF_HAS_KEYWORD': return `${c.subject === 'center_lrig' ? 'あなたのセンタールリグ' : 'このシグニ'}が【${c.keyword}】を持っている`;
     case 'IS_SELF_ARMORED': return 'このシグニが血晶武装状態';
-    case 'IS_SELF_ACCED': return 'このシグニに【アクセ】が付いている';
+    case 'IS_SELF_ACCED': return c.cardName ? `このシグニが《${c.cardName}》にアクセされている` : 'このシグニに【アクセ】が付いている';
+    case 'IS_SELF_SOUL_ATTACHED': return 'このシグニに【ソウル】が付いている';
     case 'IS_SELF_ACCE_CARD': return 'このカードが【アクセ】として付いている';
     case 'IS_SELF_CHARMED': return 'このシグニに【チャーム】が付いている';
     case 'IS_SELF_AWAKENED': return 'このシグニが覚醒状態';
@@ -1120,6 +1125,7 @@ function actionJa(a?: Action, effectType?: string): string {
               ? '（次の対戦相手のターンの間）'
               : '（次のターンの間）'
         : a.duration === 'UNTIL_OPP_TURN_END' ? '（次の相手ターン終了時まで）'
+        : a.duration === 'PERMANENT' ? ''
         // action内 duration が curated JSON で落ちている場合、原文の該当付与文から期間注記を復元（§5b・タスクA）。
         // 【${kwBase}[^】]*】＝【アサシン（パワー3000以下のシグニ）】等の括弧付きキーワード変種も拾う。
         : restoreLeadDuration(new RegExp(`【${kwBase}[^】]*】[^。]*?(?:得る|持つ)`));
@@ -1337,7 +1343,7 @@ function actionJa(a?: Action, effectType?: string): string {
         return actionJa(a.steps[0]);
       }
       // 空文字ステップ（engine が no-op スキップする説明テキスト系STUB等）は結合から除外する。
-      const pairs = a.steps.map((s: any) => ({ step: s, part: actionJa(s) as string })).filter((p: any) => p.part !== '');
+      const pairs = a.steps.map((s: any) => ({ step: s, part: actionJa(s, effectType) as string })).filter((p: any) => p.part !== '');
       if (pairs.length === 0) return '何もしない';
       return pairs.reduce((acc: string, { step, part }: any, i: number) => {
         if (i === 0) return part;
@@ -3687,7 +3693,7 @@ function effJa(e: Eff): string {
   // 「〜の間」で終わる活性条件（アタックフェイズ/ターンの間）は「〜かぎり」を付けず前置きとして描く
   // 既に「〜かぎり」で終わる活性条件（FRONT_SIGNI 等が節ごと生成する型）は二重付与しない。
   const actCond = e.activeCondition
-    ? (acJa.endsWith('間') || acJa.endsWith('かぎり') ? `《${acJa}》` : `《${acJa}${/[いる]$/.test(acJa) ? '' : 'である'}かぎり》`)
+    ? (acJa.endsWith('間') || acJa.endsWith('かぎり') ? `《${acJa}》` : `《${acJa}${/[いるた]$/.test(acJa) ? '' : 'である'}かぎり》`)
     : '';
   const cost = e.cost ? `〈${costJa(e.cost)}〉` : '';
   const limit = e.usageLimit && e.usageLimit !== 'unlimited' && !(e.timing || []).includes('ON_OPP_ENERGY_ADDED') ? `《${e.usageLimit}》` : '';
