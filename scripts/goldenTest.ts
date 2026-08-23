@@ -11492,6 +11492,24 @@ test('Stage2 ON_CARD_MILLED_FROM_DECK: 発生源クラス限定（WX24-P3-030-E1
   eq(fire(undefined), false, '発生源不明（execMill 以外の経路）は原因限定を満たさず非発火');
 });
 
+// 🔴V-83（2026-08-24・実機で恒久 no-op を確認して修正）＝上の collector テストは
+// **`last_effect_mill_source` が既に書かれている前提**なので、**書き手側の穴を1件も検知できなかった**。
+// 実測＝＜悪魔＞シグニの自デッキミルは `TRASH{DECK_CARD}` 経路が35枚以上・`MILL` 経路はわずか2枚で、
+// 発生源を書いていたのは `execMill` だけ＝`WX24-P3-030-E1` はほぼ全ての実カードで発火しなかった。
+// ⇒ **両方のミル経路が発生源を書くこと**をここで固定する（片方だけ直すと同じ穴がもう一度開く）。
+test('V-83 ミルの発生源記録: MILL と TRASH{DECK_CARD} の両経路が last_effect_mill_source を書く', () => {
+  const src = 'WX02-070#1';   // 真実の死神 アニマ（精像：悪魔）
+  const deck5 = ['WD01-013#91', 'WD01-013#92', 'WD01-013#93', 'WD01-013#94', 'WD01-013#95'];
+  const byMill = run({ type: 'MILL', owner: 'self', count: 3 } as unknown as EffectAction,
+    mkCtx({ deck: deck5 }, {}, src));
+  eq(byMill.ownerState.last_effect_mill_source, src, 'MILL 経路が発生源を書いていない');
+  const byTrash = run({ type: 'TRASH', target: { type: 'DECK_CARD', owner: 'self', count: 3 } } as unknown as EffectAction,
+    mkCtx({ deck: deck5, trash: [] }, {}, src));
+  eq(byTrash.ownerState.last_effect_mill_source, src,
+     'TRASH{DECK_CARD} 経路が発生源を書いていない（V-83 の恒久 no-op はこれが原因）');
+  eq(byTrash.ownerState.trash.length, 3, 'TRASH{DECK_CARD} が3枚トラッシュへ送っていない');
+});
+
 test('Stage2 ON_OPP_ARTS_USE/ON_ARTS_USE: 自シグニが発火（WXK11-019-E2 / WXK01-059-E2）', () => {
   const host1 = mkState({ signi: ['WXK11-019', null, null] }); const guest1 = mkState({});
   eq(has(collectOppArtsUseTriggers(trigCtx(HOST, HOST), host1, guest1, true), 'WXK11-019-E2'), true, '相手アーツ使用で発火');

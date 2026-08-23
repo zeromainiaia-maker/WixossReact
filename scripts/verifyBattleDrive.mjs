@@ -25067,6 +25067,350 @@ scenarios.v84GuardLv2And3ContinuousHidesOnlyThose = {
 order.push('v84GuardLv1BlockedHidesOnlyLevelOne', 'v84GuardNoBlockShowsBothLevels', 'v84GuardLv2And3ContinuousHidesOnlyThose');
 // ── V-84 END ──
 
+// ── V-85（§5.1）数字宣言（`DECLARE_NUMBER`）が実機で本当に宣言 UI を出すか ────────────────────────
+// 続き609 まで `execSequence` は `DECLARE_NUMBER` を横取りし、**次ステップが `GRANT_KEYWORD` でなければ
+// `continue` で宣言そのものを捨てていた**（無言 no-op）＝宣言値を読む後段が軒並み空振りしていた。
+// 「横取りはシャドウのパワー宣言のときだけ、それ以外は通常の STUB 実行へ落とす」へ直した結果、
+// **live で `DECLARE_NUMBER` を持つ30カード／31効果（2026-08-24 実測・見立てと一致）**で宣言 CHOOSE が新しく出る。
+//
+// 🔑**リスクの所在＝宣言 UI が「新しく増える」**＝これまで素通りしていた箇所で入力待ちが発生する。
+//   ⚠**CPU 側・自動解決経路で止まらないか**が最優先の確認点（smoke は SKIP 0 だが実機のスタック解決は別経路）。
+//   ⇒ (c) を **CPU が宣言者になる盤面**にして、デッドロックしないことと宣言値が実際に効くことを同時に見る。
+const V85_LRIG = 'WX10-009#85001';        // 縛魔炎　花代・参（【起】《ダウン》：数字１つを宣言）
+const V85_SPELL = 'WX08-067#85020';       // ＰＥＥＰＩＮＧ　ＤＥＣＩＤＥ（スペル・《青》×１）
+const V85_BLUE_ENERGY = 'WD03-009#85021'; // コードアート　Ｒ・Ｍ・Ｎ（青）＝スペルコスト用のエナ
+const V85_OPP_LV1 = 'WD01-013#85030';     // 小剣　ククリ（白 Lv1）＝**宣言値と不一致・有色**の対照
+const V85_OPP_LV4A = 'WD03-009#85031';    // コードアート　Ｒ・Ｍ・Ｎ（青 Lv4）
+const V85_OPP_LV4B = 'WX01-053#85032';    // 極剣　ゴッドイーター（白 Lv4）
+const V85_WATCHER = 'WX19-054#85040';     // 弩砲　テイザー（【自】センタールリグがアタックしたとき数字宣言）
+
+// (a) ルリグ【起】＝宣言 CHOOSE が出て、選んだ値が `declared_number` と `declared_guard_restrict_levels` へ入る。
+scenarios.v85LrigActDeclareNumberShowsChoiceUi = {
+  title: 'V-85(a) WX10-009-E3【起】《ダウン》＝1〜5の宣言UIが出て、選んだ3が declared_number とガード制限レベルへ入る',
+  spec: {
+    hostSet: {
+      'field.lrig': [V85_LRIG],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#85010'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let acted = false; let declared = false; let optionsSeen = null;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v85a-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (!opened) {
+        did = await H.clickTestId('my-lrig-slot-center');
+        if (did) opened = true;
+      } else if (!acted) {
+        // ⚠ラベル照合は `data-action-label` の前方一致で（§4.4 の2＝`getByRole(..., {exact:true})` は常に 0 件）。
+        const act = page.locator('[data-testid^="card-action-"][data-action-label^="【起】"]').first();
+        if (await act.count() && await act.isVisible().catch(() => false) && await act.isEnabled().catch(() => false)) {
+          await act.click({ timeout: 1500 }).catch(() => {}); did = 'action:【起】'; acted = true;
+        }
+      } else if (!declared) {
+        if ((st0?.pendingOptions ?? []).length) {
+          if (!optionsSeen) optionsSeen = st0.pendingOptions;
+          did = await clickExactVisibleText(page, '3を宣言');
+          if (did) declared = true;
+        } else {
+          did = await H.clickTextOrBtn(['発動', '決定', 'OK']);
+        }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v85a[${s}] -> ${did ?? 'なし'} | opened=${opened} acted=${acted} declared=${declared} opts=${JSON.stringify(st?.pendingOptions ?? [])} declNum=${st?.host?.declaredNumber ?? '-'} restrict=${JSON.stringify(st?.host?.declaredGuardRestrictLevels ?? [])} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (declared && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+        // 🔑**5択そのものが出たこと**を必須条件にする＝宣言が起きたかどうかは結果の数字だけでは
+        //   区別できない（旧バグは「宣言せず素通り」なので UI が出ないまま後段が走っていた）。
+        const optOk = Array.isArray(optionsSeen) && optionsSeen.length === 5
+          && optionsSeen.every((o, i) => o.startsWith(`num_${i + 1}:`));
+        const numOk = st.host.declaredNumber === 3;
+        const restrictOk = JSON.stringify(st.host.declaredGuardRestrictLevels) === JSON.stringify([3]);
+        return {
+          pass: optOk && numOk && restrictOk,
+          detail: `宣言UI=${JSON.stringify(optionsSeen)}（5択=${optOk}）／declared_number=${st.host.declaredNumber}(=3:${numOk})／declared_guard_restrict_levels=${JSON.stringify(st.host.declaredGuardRestrictLevels)}(=[3]:${restrictOk})`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} acted=${acted} declared=${declared} opts=${JSON.stringify(fin?.pendingOptions ?? [])} declNum=${fin?.host?.declaredNumber ?? '-'} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// (b) スペル＝宣言値が後段のフィルタへ実際に届く（旧バグでは宣言が起きず「有色シグニ全部」に化けていた）。
+scenarios.v85SpellDeclaredLevelFiltersOppHand = {
+  title: 'V-85(b) WX08-067＝4を宣言→相手手札の候補が「レベル4のシグニ2枚だけ」に絞られ、Lv1の有色シグニは候補外',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#85002'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [V85_SPELL],
+      'energy': [V85_BLUE_ENERGY],   // 《青》×1 をちょうど払える
+      'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#85010'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      // ⚠**3枚とも有色**にする＝旧バグ（宣言が起きない）のフォールバックは「有色シグニ全部」なので、
+      //   無色を混ぜると差が出ない。Lv1 の1枚が**宣言値と不一致で落ちる**ことが本項の観測点。
+      'hand': [V85_OPP_LV1, V85_OPP_LV4A, V85_OPP_LV4B],
+      'trash': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    let opened = false; let declared = false; let candsSeen = null; let picked = false; let energyPicked = false;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v85b-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (!opened) {
+        did = await H.clickTestId('my-hand-card-0');
+        if (did) opened = true;
+      }
+      if (!did && !declared) {
+        if ((st0?.pendingOptions ?? []).some(o => o.startsWith('num_'))) {
+          did = await clickExactVisibleText(page, '4を宣言');
+          if (did) declared = true;
+        }
+      }
+      if (!did && !declared) {
+        // スペル使用：CardModal「発動」→ **コストエナを先に選ぶ** →「発動する」。
+        // ⚠**順番を逆にすると無限空振りする**＝未選択のとき「発動する」は disabled だが
+        //   `H.clickTextOrBtn` は enabled を見ないので**毎ティック成功したことにして**エナ選択に到達しない（実測）。
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          if (!energyPicked) { await e0.click().catch(() => {}); energyPicked = true; did = 'spellcost-energy-0'; }
+          else {
+            const cast = page.getByRole('button', { name: '発動する', exact: true }).first();
+            if (await cast.count() && await cast.isEnabled().catch(() => false)) { await cast.click().catch(() => {}); did = 'btn:発動する'; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動']);
+      }
+      if (!did && declared) {
+        if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !candsSeen) candsSeen = st0.pendingCandidates;
+        if (candsSeen && !picked) {
+          did = await clickPendingInstance(page, H, V85_OPP_LV4A);
+          if (did) { await clickExactVisibleText(page, '決定 (1/1)').catch(() => {}); picked = true; }
+        }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v85b[${s}] -> ${did ?? 'なし'} | opened=${opened} declared=${declared} cands=${JSON.stringify(st?.pendingCandidates ?? null)} declNum=${st?.host?.declaredNumber ?? '-'} gHand=${JSON.stringify(st?.guest?.handCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (picked && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+        const set = new Set(candsSeen ?? []);
+        const candOk = set.size === 2 && set.has(V85_OPP_LV4A) && set.has(V85_OPP_LV4B) && !set.has(V85_OPP_LV1);
+        const discarded = (st.guest.trashCards ?? []).includes(V85_OPP_LV4A);
+        const lv1Kept = (st.guest.handCards ?? []).includes(V85_OPP_LV1);
+        return {
+          pass: candOk && discarded && lv1Kept && st.host.declaredNumber === 4,
+          detail: `宣言=4(${st.host.declaredNumber})／候補=${JSON.stringify(candsSeen)}（Lv4の2枚だけ=${candOk}・Lv1の有色シグニは候補外）／捨てさせた=${discarded}／Lv1は手札に残存=${lv1Kept}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} declared=${declared} cands=${JSON.stringify(candsSeen)} gHand=${JSON.stringify(fin?.guest?.handCards)}（開始 ${JSON.stringify(before?.guest?.handCards)}） pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// (c) 🔑**CPU が宣言者になる経路**＝デッドロックしないこと＋宣言値が相手（＝人間側）のガード候補に効くこと。
+//   `WX19-054`【自】《ターン１回》「あなたのセンタールリグがアタックしたとき、数字１つを宣言する」を
+//   guest（CPU）の場に置く。CPU の CHOOSE 自動応答は**先頭の available を選ぶ**（`BattleScreen.tsx` の
+//   pending_effect 自動解決）＝`num_1` ＝レベル1が宣言される。
+scenarios.v85CpuAutoDeclaresAndBlocksThatGuardLevel = {
+  title: 'V-85(c) WX19-054＝CPUが宣言側でも止まらず、宣言値(1)のガードカードだけが候補から消える',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#85003'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': ['WD01-017#85050', 'WD01-016#85051'],  // Lv1 サーバント Ｏ／Lv2 サーバント Ｄ
+      'energy': [], 'trash': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#85010'],
+      'field.lrig_down': false,
+      'field.signi': [[V85_WATCHER], null, null],
+      'field.check': null,
+      'hand': [], 'actions_done': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let seen = null; let dialogSeen = false; let declaredAt = null;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(900);
+      await page.screenshot({ path: `${SHOT}/v85c-${s}.png`, fullPage: true }).catch(() => {});
+      const st = await H.queryState();
+      if (declaredAt === null && (st?.guest?.declaredGuardRestrictLevels ?? []).length) declaredAt = s;
+      const banner = page.getByText('ルリグに攻撃された！').first();
+      const open = await banner.count() && await banner.isVisible().catch(() => false);
+      if (open) {
+        dialogSeen = true;
+        const a = await readGuardCandidates(page);
+        await page.waitForTimeout(600);
+        const b = await readGuardCandidates(page);
+        if (JSON.stringify(a) === JSON.stringify(b)) { seen = b; break; }
+      }
+      H.log(`  v85c[${s}] -> open=${open} gDeclNum=${st?.guest?.declaredNumber ?? '-'} gRestrict=${JSON.stringify(st?.guest?.declaredGuardRestrictLevels ?? [])} lrigAttacked=${st?.host?.lrigAttacked} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (!open) await H.stdStep();
+    }
+    const fin = await H.queryState();
+    if (!dialogSeen || seen === null) {
+      return { pass: false, detail: `🔴ガード応答ダイアログ未到達＝CPU 側の宣言 CHOOSE で止まった疑い（gRestrict=${JSON.stringify(fin?.guest?.declaredGuardRestrictLevels ?? [])} pEff=${fin?.pendingEffect ?? '-'} stack=${fin?.stackLen ?? '-'}）` };
+    }
+    // 🔑**機構が動いた証拠を必須条件に入れる**（§4.4 の4）＝盤面（＝候補が1枚）だけでは
+    //   「宣言が効いた」と「そもそもLv1が手札に無い」の区別がつかない。
+    const declaredOk = JSON.stringify(fin.guest.declaredGuardRestrictLevels) === JSON.stringify([1]);
+    const lv1Hidden = !seen.includes('WD01-017#85050');
+    const lv2Shown = seen.includes('WD01-016#85051');
+    await H.clickTextOrBtn(['ガードしない']).catch(() => {});
+    for (let k = 0; k < 6; k++) {
+      await page.waitForTimeout(700);
+      const st2 = await H.queryState();
+      if (!st2?.host?.fieldCheck) break;
+      await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', '手札に加える', 'OK']).catch(() => {});
+    }
+    return {
+      pass: declaredOk && lv1Hidden && lv2Shown && seen.length === 1,
+      detail: `CPU が自動宣言（declared_number=${fin.guest.declaredNumber}／guard制限=${JSON.stringify(fin.guest.declaredGuardRestrictLevels)}=[1]:${declaredOk}・デッドロックなし・宣言観測ティック=${declaredAt}）／ガード候補=${JSON.stringify(seen)}（Lv1消えた=${lv1Hidden}・Lv2残った=${lv2Shown}）`,
+    };
+  },
+};
+order.push('v85LrigActDeclareNumberShowsChoiceUi', 'v85SpellDeclaredLevelFiltersOppHand', 'v85CpuAutoDeclaresAndBlocksThatGuardLevel');
+// ── V-85 END ──
+
+// ── V-83（§5.1）`WX24-P3-030-E1` のミル誘発が fail-closed 化で不発になっていないか ─────────────────
+// 続き607 で `collectMillTriggers` の `milledSourceStory` 判定を **fail-open → fail-closed** へ反転した
+// （原因不明なら発火しない）。**元のコメントは明示的に逆の判断**を書いていたので文書化された決定の反転にあたる。
+//
+// 🔑**リスクの所在**＝`last_effect_mill_source` の書き手は **`execMill`（`effectExecutor.ts`）の1箇所だけ**。
+//   **その経路を通らないミル（`TRASH{DECK_CARD}` 等）で落ちると恒久 no-op**になる。
+// **母集団（2026-08-24 実測）**＝`milledSourceStory` を持つ live 効果は **2件**（`WX24-P3-030-E1`／`WX24-P3-087-E1`。
+//   登録票の見立ては1件）。一方、＜悪魔＞シグニの自デッキミルは **`TRASH{DECK_CARD}` 経路が圧倒的多数**で
+//   `MILL` 経路は2枚だけ＝**ほぼ全部が恒久 no-op になる形**だった（本セッションで engine を修正）。
+//
+// 🔑**対照は「盤面を1文字も変えず原因だけを外す」**（§4.4 の3）＝
+//   `WX02-070`（精像：**悪魔** Lv2 黒）と `WXDi-P00-075`（奏械：**バーチャル** Lv1 黒）は
+//   **【出】の原文が同一**（「あなたのデッキの上からカードを３枚トラッシュに置く」）＝**クラスだけが違う**。
+const V83_LRIG = 'WX24-P3-030#83001';        // 黒想の花嫁　アルフォウ（【自】＜悪魔＞のシグニの効果でミルしたとき）
+const V83_DEMON = 'WX02-070#83010';          // 真実の死神　アニマ（精像：悪魔・【出】デッキ上3枚トラッシュ）
+const V83_NON_DEMON = 'WXDi-P00-075#83011';  // コード２４３４　メリッサ・キンレンカ（奏械：バーチャル・同じ【出】）
+
+function v83Spec(handSigni) {
+  return {
+    hostSet: {
+      'field.lrig': [V83_LRIG],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [handSigni],
+      'energy': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#83020'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  };
+}
+
+/**
+ * 手札のシグニを召喚して【出】ミルを起こし、`WX24-P3-030-E1` が誘発するかを見る。
+ * `expectTrigger` が false のときは**誘発しないこと**を見る（対照）。
+ */
+async function driveV83(page, H, id, { expectTrigger }) {
+  await H.ensureMain();
+  const before = await H.queryState();
+  let opened = false; let summoned = false; let zoned = false; let chose = false;
+  let choiceSeen = null; let idleAfterMill = 0; let milledSeen = false;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    const st0 = await H.queryState();
+    if (!opened) {
+      did = await H.clickTestId('my-hand-card-0');
+      if (did) opened = true;
+    } else if (!summoned) {
+      did = await H.clickBtn('召喚', { exact: true });
+      if (did) summoned = true;
+    } else if (!zoned) {
+      did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (did) zoned = true;
+    } else {
+      // 誘発の CHOOSE（手札に加える／エナゾーンへ）。⚠**選択肢が出たこと自体**が誘発の証拠。
+      const opts = st0?.pendingOptions ?? [];
+      if (opts.some(o => o.startsWith('hand:'))) {
+        if (!choiceSeen) choiceSeen = opts;
+        // エナへ倒す＝トラッシュ→エナの移動で**盤面差分としても観測できる**（手札は召喚で動くので紛らわしい）。
+        did = await clickExactVisibleText(page, 'エナゾーンへ');
+        if (did) chose = true;
+      }
+    }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+    const st = await H.queryState();
+    // ⚠**sticky にする**＝回収（トラッシュ→エナ）でトラッシュが減るので、その場の枚数比較だと
+    //   「ミルが起きた」判定が**選択の直後に false へ戻り**、返却条件に到達しない（実測で踏んだ）。
+    if ((st?.host?.trash ?? 0) >= (before?.host?.trash ?? 0) + 3) milledSeen = true;
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | zoned=${zoned} milled=${milledSeen} chose=${chose} hTrash=${st?.host?.trash} hEnergy=${st?.host?.energy} opts=${JSON.stringify(st?.pendingOptions ?? [])} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!zoned || !milledSeen) continue;
+    // ミルが済んで盤面が落ち着いたか（負方向の判定は「動かないこと」なので数ティック待つ）
+    idleAfterMill = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idleAfterMill + 1 : 0;
+    if (chose || idleAfterMill >= 3) {
+      const fin = st;
+      const energyGained = (fin.host.energy ?? 0) - (before.host.energy ?? 0);
+      const trashDelta = (fin.host.trash ?? 0) - (before.host.trash ?? 0);
+      const fired = (fin.logTail ?? []).some(l => l.includes('黒想の花嫁') && l.includes('【自】効果'));
+      if (expectTrigger) {
+        return {
+          pass: !!choiceSeen && chose && energyGained === 1 && trashDelta === 2 && fired,
+          detail: `＜悪魔＞のミルで誘発=${fired}／選択肢=${JSON.stringify(choiceSeen)}／エナ+${energyGained}（=1）・トラッシュ+${trashDelta}（3ミル−1回収=2）`,
+        };
+      }
+      return {
+        pass: !choiceSeen && !fired && energyGained === 0 && trashDelta === 3,
+        detail: `対照（非＜悪魔＞）＝誘発しない=${!fired}／選択肢なし=${!choiceSeen}／エナ+${energyGained}（=0）・トラッシュ+${trashDelta}（=3＝ミルだけ）`,
+      };
+    }
+  }
+  const fin2 = await H.queryState();
+  return { pass: false, detail: `未完了（opened=${opened} summoned=${summoned} zoned=${zoned} chose=${chose} hTrash=${fin2?.host?.trash}（開始 ${before?.host?.trash}） pEff=${fin2?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v83DemonMillTriggersAlfou = {
+  title: 'V-83 WX24-P3-030-E1＝＜悪魔＞シグニの【出】ミル（TRASH{DECK_CARD}経路）で誘発し、トラッシュから1枚をエナへ',
+  spec: v83Spec(V83_DEMON),
+  async drive(page, H) { return driveV83(page, H, 'v83demon', { expectTrigger: true }); },
+};
+
+scenarios.v83NonDemonMillDoesNotTrigger = {
+  title: 'V-83対照 同じ【出】原文の非＜悪魔＞（バーチャル）でミルしても誘発しない',
+  spec: v83Spec(V83_NON_DEMON),
+  async drive(page, H) { return driveV83(page, H, 'v83ctl', { expectTrigger: false }); },
+};
+order.push('v83DemonMillTriggersAlfou', 'v83NonDemonMillDoesNotTrigger');
+// ── V-83 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -25319,6 +25663,12 @@ try {
         lrigFrozen: s.field?.lrig_frozen ?? false,
         negatedAttacks: s.negated_attacks ?? [],
         blockedActions: s.blocked_actions ?? [],
+        // V-85（§5.1・2026-08-24）＝数字宣言の計器。`declared_number` は宣言値そのもの、
+        // `declared_guard_restrict_level(s)` は `GUARD_LV_DECLARED` が解決した「ガードできないレベル」。
+        // ⚠**役割が違う2つを混ぜない**（§6.4 O-41 で分離済み＝宣言しただけでガード制限が付くのが旧バグ）。
+        declaredNumber: s.declared_number ?? null,
+        declaredGuardRestrictLevels: s.declared_guard_restrict_levels ?? [],
+        declaredGuardRestrictLevel: s.declared_guard_restrict_level ?? null,
         handTrashedByOpp: s.hand_trashed_by_opp_this_turn ?? 0,
         energyTrashedByOpp: s.energy_trashed_by_opp_this_turn ?? 0,
         delayedTriggers: s.delayed_triggers ?? [],

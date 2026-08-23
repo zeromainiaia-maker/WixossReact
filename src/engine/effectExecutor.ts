@@ -2076,6 +2076,16 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       ...state,
       deck: state.deck.slice(count),
       trash: [...state.trash, ...took],
+      // 🔴**V-83（2026-08-24）＝ここに発生源を書いていなかったのが恒久 no-op の真因**。
+      //   `ON_CARD_MILLED_FROM_DECK` の誘発判定そのものは BattleScreen の**盤面差分**（デッキ減＋トラッシュ増）で
+      //   行うので `MILL` でも `TRASH{DECK_CARD}` でも発火するが、発生源限定
+      //   （`triggerCondition.milledSourceStory`＝「あなたの＜悪魔＞のシグニの効果１つによって」）は
+      //   `last_effect_mill_source` を見て **fail-closed**（原因不明なら非発火）で判定する。
+      //   ⚠**書き手は `execMill` の1箇所だけ**だったので、＜悪魔＞シグニの自デッキミルの**ほぼ全部**
+      //   （`TRASH{DECK_CARD}` 経路・実測35枚以上／`MILL` 経路はわずか2枚）が誘発しなかった。
+      //   ⚠**書き込み先はミルされたデッキの持ち主**（`tgt.owner` 側の state）＝読み手が
+      //   `milledDeckOwner` で選ぶ state と一致させる（`triggerCollect.ts` の `collectMillTriggers`）。
+      last_effect_mill_source: ctx.sourceCardNum,
     };
     return done({ ...addLog(setOwnerState(tgt.owner, newS, ctx), `デッキトップ${count}枚をトラッシュへ`), lastProcessedCards: took });
   }
@@ -9683,7 +9693,9 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
         const di = s.deck.indexOf(cardNum);
         if (di >= 0) {
           const newDeck = [...s.deck]; newDeck.splice(di, 1);
-          const newS: PlayerState = { ...s, deck: newDeck, trash: [...s.trash, cardNum] };
+          // V-83（2026-08-24）＝選択解決後の1枚ずつ経路（`SEARCH`→`then:TRASH{DECK_CARD}`／`LOOK_PICK_CHAIN` の
+          // trash ステージ）も**同じ理由で発生源を記録する**（上の inline 経路と揃える）。
+          const newS: PlayerState = { ...s, deck: newDeck, trash: [...s.trash, cardNum], last_effect_mill_source: ctx.sourceCardNum };
           return done(addLog(setOwnerState(owner, newS, ctx), `${ctx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をトラッシュへ`));
         }
         return done(ctx);
