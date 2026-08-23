@@ -167,6 +167,24 @@ export function collectLrigFlipTriggers(
     }));
 }
 
+/**
+ * 「あなたのメインフェイズの間（`duringMainPhase`）／あなたのメインフェイズ以外で（`outsideMainPhase`）」の共通ゲート。
+ * ⚠**「あなたの」＝その【自】の持ち主視点**なので、フェイズだけでなく**ターンプレイヤーも見る**。
+ *   従来は全 collector が `ctx.turnPhase` だけを見ていたため、**対戦相手のメインフェイズ**を
+ *   「あなたのメインフェイズ」に数えていた（`duringMainPhase`＝過剰発火／`outsideMainPhase`＝過小発火）。
+ * ownerPlayerId＝その効果が誰の【自】か（= entry.playerId と同じ基準）。
+ * ⚠`collectFieldTriggers` の any_ally/any_opp ループだけは例外（そこは owner 視点がズレるため
+ *   ターン限定を後段の `effectStack.turnGateOk` に委ねる規約＝ソース内コメント参照）。
+ */
+function mainPhaseGateOk(eff: CardEffect, ctx: TrigCtx, ownerPlayerId: string): boolean {
+  const tc = eff.triggerCondition;
+  if (!tc?.duringMainPhase && !tc?.outsideMainPhase) return true;
+  const isOwnMainPhase = ctx.turnPhase === 'MAIN' && ctx.activeUserId === ownerPlayerId;
+  if (tc.duringMainPhase && !isOwnMainPhase) return false;
+  if (tc.outsideMainPhase && isOwnMainPhase) return false;
+  return true;
+}
+
 /** 手札からの通常召喚で自身の mandatory【出】として積める構造か。 */
 export function isMandatoryOwnOnPlayForNormalSummon(eff: CardEffect): boolean {
   return eff.effectType === 'AUTO'
@@ -898,7 +916,7 @@ export function collectDeckTrashSelfTriggers(
     }
     // fromZones 指定があり 'deck' を含まない場合はデッキからでは発火しない
     if (eff.triggerCondition?.fromZones && !eff.triggerCondition.fromZones.includes('deck')) continue;
-    if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+    if (!mainPhaseGateOk(eff, ctx, trashedPlayerId)) continue;
     const cardName = ctx.cardMap.get(trashedCardNum)?.CardName ?? trashedCardNum;
     entries.push({
       id: ctx.genId(), playerId: trashedPlayerId, cardNum: trashedCardNum, effectId: eff.effectId,
@@ -1153,6 +1171,13 @@ export function collectBanishTriggers(
   const limitOkMy = mkLimitOk(myAfterState.actions_done, isHost ? usedHostIds : usedGuestIds);
   const limitOkOp = mkLimitOk(opAfterState.actions_done, isHost ? usedGuestIds : usedHostIds);
   const banishedZone = prevOwnerState?.field.signi.findIndex(s => s?.at(-1) === banishedCardNum) ?? -1;
+  // バニッシュ**直前**にこのシグニの下にあったカード（ライズの土台）。バニッシュ後は下カードもトラッシュへ
+  // 落ちて関連付けが消えるため、収集時にスナップショットして `underLeftCard` を解決する
+  //   （`WXK10-054-E1`「このシグニの下にあった＜ウェポン＞のシグニ1枚を手札に加える」＝
+  //    従来はトラッシュの＜ウェポン＞なら**無関係な札でも回収できる過剰効果**だった＝意味照合 段1 第4バッチ E018）。
+  const banishedUnder = banishedZone >= 0
+    ? ((prevOwnerState?.field.signi[banishedZone] ?? []).slice(0, -1))
+    : [];
   const isFrontOfWatcher = (watcherNum: string, watcherState: PlayerState): boolean => {
     if (banishedZone < 0) return false;
     const watcherZone = watcherState.field.signi.findIndex(s => s?.at(-1) === watcherNum);
@@ -1174,7 +1199,7 @@ export function collectBanishTriggers(
         if (g.filter && !matchesFilter(hostCard, g.filter)) continue;
         for (const ab of g.abilities) {
           if (ab.effectType !== 'AUTO' || !ab.timing?.includes('ON_BANISH')) continue;
-          if (ab.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
+          if (!mainPhaseGateOk(ab, ctx, banishedPlayerId)) continue;
           if (ab.activeCondition && !checkActiveCondition(ab.activeCondition, ownerAfter, otherAfter, isBanishedOwnerTurn, ctx.cardMap, banishedCardNum)) continue;
           const frontNum = otherAfter.field.signi[2 - zi]?.at(-1); // 正面（前ゾーン 2-zi）の相手シグニ
           entries.push({
@@ -1189,7 +1214,7 @@ export function collectBanishTriggers(
   // 1. バニッシュされたカード自身の ON_BANISH 効果
   for (const eff of (ctx.effectsMap.get(banishedCardNum) ?? [])) {
     if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_BANISH')) continue;
-    if (eff.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
+    if (!mainPhaseGateOk(eff, ctx, banishedPlayerId)) continue;
     const selfScope = eff.triggerScope ?? 'self';
     if (selfScope !== 'self') {
       // any_ally（「あなたの＜悪魔＞のシグニ1体がバニッシュされたとき」）は**被バニッシュ側自身も母集団に含む**
@@ -1216,7 +1241,11 @@ export function collectBanishTriggers(
     const cardName = ctx.cardMap.get(banishedCardNum)?.CardName ?? banishedCardNum;
     entries.push({
       id: ctx.genId(), playerId: banishedPlayerId, cardNum: banishedCardNum, effectId: eff.effectId,
-      label: `${cardName} の【バニッシュ時】効果`, effect: eff,
+      label: `${cardName} の【バニッシュ時】効果`,
+      // underLeftCard 等の「離場カード基準」動的フィルタは ON_LEAVE_FIELD と同じ規約で収集時に確定する。
+      effect: resolveLeaveFieldDynamicFilters(ctx.cardMap, eff, ctx.cardMap.get(getCardNum(banishedCardNum)), banishedUnder),
+      // 場を離れた後に「このシグニの下から」を参照する action（execTakeFromUnderSigni の fallback）用スナップショット。
+      leftFieldUnderCards: [...banishedUnder],
     });
   }
 
@@ -1230,8 +1259,7 @@ export function collectBanishTriggers(
       if (!banishedOwnerIsMe && scope !== 'any_opp'  && scope !== 'any') continue;
       // duringAttackPhase＝アタックフェイズ中のバニッシュのみ発火（「（対戦相手の）アタックフェイズの間、」WX18-002/WXEX1-18）。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
-      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
-      if (eff.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
+      if (!mainPhaseGateOk(eff, ctx, meId)) continue;
       // turnOwner＝反応側（me）のターン限定（'self'＝自分ターン／'opponent'＝相手ターン。「対戦相手のアタックフェイズ」等）。
       if (eff.triggerCondition?.turnOwner === 'self' && !isMyTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isMyTurn) continue;
@@ -1279,8 +1307,7 @@ export function collectBanishTriggers(
       if (banishedOwnerIsMe  && scope !== 'any_opp'  && scope !== 'any') continue;
       // duringAttackPhase / turnOwner（反応側＝opId 視点）を section2 と対称に評価。
       if (eff.triggerCondition?.duringAttackPhase && !(ctx.turnPhase ?? '').startsWith('ATTACK')) continue;
-      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
-      if (eff.triggerCondition?.outsideMainPhase && ctx.turnPhase === 'MAIN') continue;
+      if (!mainPhaseGateOk(eff, ctx, opId)) continue;
       if (eff.triggerCondition?.turnOwner === 'self' && !isOpTurn) continue;
       if (eff.triggerCondition?.turnOwner === 'opponent' && isOpTurn) continue;
       if (eff.triggerCondition?.banishedFrontOfSelf && !isFrontOfWatcher(topNum, opAfterState)) continue;
@@ -1444,9 +1471,23 @@ export function collectLeaveFieldTriggers(
     // leftStateFilter（離脱直前の状態限定・「このシグニがアクセされていた場合」等）: 離脱カード自身のゾーンで評価。
     //   従来は self スコープ経路が未評価で無条件発火していた（WX20-071 の hasAcce ゲート）。
     if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
+    // 🔑**cause／フェイズ／行き先ゲートは self スコープでも面で評価する**（Opusタスク12 (clii)）。
+    //   この collector の self ループは「watcher ループにはあるゲートが self には無い」穴を通算5回出した
+    //   （`turnOwner`／`leftStateFilter`／`byOpponentEffect`／`outsideMainPhase`／`leftToZone`）。
+    //   ⚠**ゲートが無い＝JSON に条件を足しても恒久 no-op**（条件が効かないまま過剰発火し、計器にも映らない）。
     // byOpponentEffect（「対戦相手の効果によってこのシグニが場を離れたとき」）:
     // self スコープでも、離脱原因がカード所有者の相手側の効果である場合だけ発火する。
     if (eff.triggerCondition?.byOpponentEffect && (causeOwnerId === undefined || causeOwnerId === leftPlayerId)) continue;
+    // byOwnEffect（「あなたの効果によってこのシグニが場を離れたとき」）: 離脱カード所有者自身の効果が原因のときのみ
+    //  （バトル・ルール処理・対戦相手の効果では発火しない）。
+    if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== leftPlayerId) continue;
+    // byEffect（「効果によってこのシグニが場を離れたとき」）: 任意の効果起因のみ（バトル/ルール処理では発火しない）。
+    if (eff.triggerCondition?.byEffect && causeOwnerId === undefined) continue;
+    // outsideMainPhase / duringMainPhase（「あなたのメインフェイズ以外で／の間、このシグニが場を離れたとき」
+    //  `WXDi-P06-035-E1`／`WXDi-P13-053-E1`）: 離脱カード所有者視点のメインフェイズで絞る。
+    if (!mainPhaseGateOk(eff, ctx, leftPlayerId)) continue;
+    // leftToZone（「場から手札に戻ったとき」等の行き先限定）: watcher ループと同じ規約で self にも適用。
+    if (!leftToZoneOk(eff, ownerStateAfter, leftCardNum)) continue;
     if (eff.condition && !evalUseCondition(eff.condition, ownerStateAfter, otherStateAfter, ctx.cardMap, leftCardNum, ctx.turnPhase, ctx.effectivePowers)) continue;
     if (!selfLimitOk(eff)) continue;
     entries.push({
@@ -1495,6 +1536,10 @@ export function collectLeaveFieldTriggers(
       if (eff.triggerCondition?.byOpponentEffect && causeOwnerId === leftPlayerId) continue;
       // byEffect（「味方のシグニが効果によって場を離れたとき」）: 任意の効果起因のみ（バトル/ルール処理では発火しない）。
       if (eff.triggerCondition?.byEffect && causeOwnerId === undefined) continue;
+      // byOwnEffect（「あなたの効果によってあなたのシグニが場を離れたとき」）: watcher 側（＝離脱カードと同陣営）の効果が原因のときのみ。
+      if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== leftPlayerId) continue;
+      // outsideMainPhase / duringMainPhase（watcher 所有者視点のメインフェイズ）。
+      if (!mainPhaseGateOk(eff, ctx, leftPlayerId)) continue;
       // leftStateFilter（離脱直前の状態限定・凍結/感染/チャーム等）。
       if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
       // usageLimit（《ターン1回/2回》）＝呼び出し側が usedHostIds/usedGuestIds を actions_done へ書き戻す（続き104 と同型）。
@@ -1538,6 +1583,8 @@ export function collectLeaveFieldTriggers(
       if (eff.triggerCondition?.byOwnEffect && causeOwnerId !== oppId) continue;
       // byEffect（「対戦相手のシグニが**効果によって**場を離れたとき」WXK11-017）: 任意の効果起因のみ（バトル/ルール処理では発火しない）。
       if (eff.triggerCondition?.byEffect && causeOwnerId === undefined) continue;
+      // outsideMainPhase / duringMainPhase（watcher＝相手側所有者視点のメインフェイズ）。
+      if (!mainPhaseGateOk(eff, ctx, oppId)) continue;
       // leftStateFilter（「対戦相手の**凍結状態の**シグニが場を離れたとき」WXEX1-30/WXDi-P03-040）: 離脱直前の状態で絞る。
       if (!leftStateOk(eff.triggerCondition?.leftStateFilter)) continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, oppStateAfter, ownerStateAfter, oppIsTurn, ctx.cardMap, topNum)) continue;
@@ -1751,7 +1798,7 @@ export function collectMillTriggers(
       const turnOwner = eff.triggerCondition?.turnOwner;
       if (turnOwner === 'self' && !isControllerTurn) continue;
       if (turnOwner === 'opponent' && isControllerTurn) continue;
-      if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+      if (!mainPhaseGateOk(eff, ctx, controllerId)) continue;
       // 発生源限定「あなたの＜X＞のシグニの効果１つによって」（powerDecreaseSourceStory と同型）。
       // last_effect_mill_source が無い経路は原因不明。原因限定付き効果は保守側へ倒して非発火。
       const reqMillStory = eff.triggerCondition?.milledSourceStory;
@@ -1792,7 +1839,7 @@ export function collectMillTriggers(
     const turnOwner = eff.triggerCondition?.turnOwner;
     if (turnOwner === 'self' && !isControllerTurn) continue;
     if (turnOwner === 'opponent' && isControllerTurn) continue;
-    if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
+    if (!mainPhaseGateOk(eff, ctx, controllerId)) continue;
     if (eff.triggerCondition?.milledSourceStory) continue;
     if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, controllerState, otherState, isControllerTurn, ctx.cardMap, '')) continue;
     if (eff.condition && !evalUseCondition(eff.condition, controllerState, otherState, ctx.cardMap, '', ctx.turnPhase, ctx.effectivePowers)) continue;
@@ -3824,6 +3871,8 @@ export function collectFieldTriggers(
       //   ターン限定は**収集後段の `effectStack.turnGateOk`** が entry.playerId（＝watcher の持ち主）基準で
       //   全コレクタ共通に評価する。ここで足すと ON_PLAY の「相手ターン中の特殊召喚」等が二重ゲートで落ちる
       //   （この関数の `isOwnerTurnForTrigger` は**トリガー元**側の視点なので watcher 基準とはズレる）。
+      // ⚠**同じ理由で `mainPhaseGateOk`（ターンプレイヤーも見る owner 相対版）もここでは使わない**＝
+      //   このループはフェイズだけを見る（Opusタスク12 (clii) で他 collector を owner 相対へ揃えたときの明示的な例外）。
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // placedDown（G144）: トリガー元シグニがダウン状態で出ていなければ発火しない。
       if (eff.triggerCondition?.placedDown && event === 'ON_PLAY') {
@@ -3878,7 +3927,7 @@ export function collectFieldTriggers(
       const scope = eff.triggerScope ?? 'self';
       if (scope !== 'any' && scope !== 'any_opp') continue;
       if (!byEffectTriggerOk(eff)) continue;
-      // ⚠ally 側と同じ理由で `turnOwner` はここで見ない（`effectStack.turnGateOk` が担当）。
+      // ⚠ally 側と同じ理由で `turnOwner` も owner 相対の `mainPhaseGateOk` もここでは使わない（後段の `turnGateOk` が担当）。
       if (eff.triggerCondition?.duringMainPhase && ctx.turnPhase !== 'MAIN') continue;
       // MOVE_TO_ATTACKER_FRONT / MOVE_TO_OTHER_SIGNI_ZONE は専用ハンドラ（二重発火防止）。
       const oeStub = eff.action as StubAction;

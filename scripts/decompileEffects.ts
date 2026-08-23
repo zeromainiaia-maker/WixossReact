@@ -1946,7 +1946,16 @@ function actionJa(a?: Action, effectType?: string): string {
       // 選んだ複数枚どうしの相互差異（「共通する色を持たない…２枚まで」WX21-024-E1）。段2 第42バッチ。
       return `${puFrom}${constraintJa(a.selectionConstraint)}${a.filter ? filterJa(a.filter) : ''}${puNoun}を${puCnt}このシグニの下に置く`;
     }
-    case 'TAKE_FROM_UNDER_SIGNI': return 'このシグニの下のカードを取る';
+    case 'TAKE_FROM_UNDER_SIGNI': {
+      // 🔴**枚数・`upToCount`・destination・`fromThis` を必ず出す**（PLAN §3 follow-up①・Opusタスク12 (cli)）。
+      //   旧実装は 'このシグニの下のカードを取る' の固定文で、`count:1` と `count:9,upToCount:true` が
+      //   **同じ文字列**になっていた＝過剰実行（9枚まで払える誤 parse）が逆翻訳にも同型★にも一度も映らなかった。
+      const tuFrom = a.fromThis ? 'このシグニの下から' : 'あなたのシグニの下から';
+      const tuNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
+      const tuCnt = a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
+      const tuDest: Record<string, string> = { hand: '手札に加える', energy: 'エナゾーンに置く', trash: 'トラッシュに置く' };
+      return `${tuFrom}${a.filter ? filterJa(a.filter) : ''}${tuNoun}を${tuCnt}${tuDest[a.destination] ?? `${a.destination}へ置く`}`;
+    }
     case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
     case 'REVEAL': {
       // ⚠**「手札を全部見せる」と「手札から条件つきで好きな枚数見せる」は別物**（段2 第42バッチ）＝

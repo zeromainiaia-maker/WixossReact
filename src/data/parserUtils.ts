@@ -350,6 +350,21 @@ export function parseDynamicCountLimit(text: string): Partial<TargetFilter> {
   return {};
 }
 
+/**
+ * 「このシグニ／このカードの**下にあった**〜」＝**離場（バニッシュ）直前に自分の下にあったカード**に限定する
+ * 名詞句修飾（`WX17-055-E1` ライズの下から蘇生／`WXK10-054-E1` ライズの下から回収／`SPK01-02-E2`）。
+ *
+ * 呼び出し側は **`source.fromLeftFieldUnder`**（＝実行時に `ctx.leftFieldUnderCards` と積集合を取る既存機構・
+ * `effectExecutor.ts:2723`／`:2980`）へ落とす。`leftFieldUnderCards` は collector が離場/バニッシュ**直前**に
+ * スナップショットして StackEntry で運ぶ（離場後は下カードもトラッシュへ落ちて関連付けが消えるため）。
+ * ⚠**インスタンス単位で解く**＝`TargetFilter.underLeftCard`（カード名へ解決する旧語彙）ではなくこちらを使う。
+ * ⚠この修飾を落とすと「トラッシュの同クラスなら何でも回収できる」過剰効果になる（意味照合 段1 第4バッチ E018）。
+ * ⚠名詞句スパンに対して呼ぶこと（全文だと別文の「このシグニの下から」＝コスト文を巻き込む）。
+ */
+export function isUnderLeftCardPhrase(text: string): boolean {
+  return /この(?:シグニ|カード)の下にあった/.test(text);
+}
+
 // 「(この|自身)シグニより〔パワーの低い/高い・低いレベル/レベルの高い〕」＝効果元シグニ自身を基準にした動的比較。
 // resolveDynamicFilter が sourceCardNum の実効パワー/レベルで powerRange/level へ解決する。
 // ⚠自己参照（このシグニ/自身）に限定＝「その/あなたのいずれか/表記されている/センタールリグ」等の別基準は対象外

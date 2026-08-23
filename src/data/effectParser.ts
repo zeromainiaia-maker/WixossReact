@@ -14626,6 +14626,13 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         const leaveScan = actionText.replace(/^(対戦相手|あなた)のターンの間、/, (_m, who) => {
           extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), turnOwner: who === '対戦相手' ? 'opponent' : 'self' };
           return '';
+        // 「あなたのメインフェイズ以外で」前置き＝離脱カード所有者のメインフェイズ以外に限定
+        //   （`WXDi-P06-035-E1`／`WXDi-P13-053-E1` 等）。engine は `collectLeaveFieldTriggers` の
+        //   self/any_ally/any_opp 全ループが `mainPhaseGateOk` で評価する（Opusタスク12 (clii)）。
+        //   ⚠**主語 regex より先に剥がす**（`^` アンカーが外れると scope 既定 self へ退化する）。
+        }).replace(/^あなたのメインフェイズ以外で/, () => {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), outsideMainPhase: true };
+          return '';
         }).replace(/場から離れ?たとき/g, '場を離れたとき'); // 「場から離れた」＝「場を離れた」（WX12-015）
         // 前置き（アタックフェイズの間）＋主語（このシグニ / あなたの[他の][カード名に《X》を含む|＜Y＞の]シグニ）＋「が場を離れたとき、」を
         // まとめて解釈し、duringAttackPhase / scope / triggerFilter を抽出したうえで **actionText からトリガー句を除去** する
@@ -14881,6 +14888,15 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
         if (m) actionText = m[1];
       }
       if (timing[0] === 'ON_BANISH') {
+        // 「あなたのメインフェイズ以外で」前置き＝**その効果の持ち主のメインフェイズ以外**に限定（`WXDi-P06-077-sub-E1`／
+        //   `WX21-071-E1`／`WXDi-P03-003` の付与能力）。engine は `collectBanishTriggers` の全ループが
+        //   `mainPhaseGateOk` で評価する。⚠**先頭で剥がす**＝残すと下の主語 regex（すべて `^` アンカー）が
+        //   まとめて外れて scope/フィルタごと落ちる。
+        const outsideMainBanM = actionText.match(/^あなたのメインフェイズ以外で(.+)/s);
+        if (outsideMainBanM) {
+          extractedTriggerCondObj = { ...(extractedTriggerCondObj ?? {}), outsideMainPhase: true };
+          actionText = outsideMainBanM[1];
+        }
         const frontBanM = actionText.match(/^このシグニの正面(?:にある|の)シグニ(?:[０-９\d]+体)?がバニッシュされたとき[、,]\s*(.+)/s);
         if (frontBanM) {
           extractedTriggerScope = 'any_opp';

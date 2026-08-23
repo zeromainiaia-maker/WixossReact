@@ -83,7 +83,7 @@
 
 | # | タスク | 種別 | 規模 | 残っている内容 |
 |---|---|---|---|---|
-| 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **在庫3件**＝(cxlvi)／🆕**(clii)**＝`collectLeaveFieldTriggers` の **self スコープループが cause ゲート（`byOpponentEffect`／`byOwnEffect`／`byEffect`）を評価しない**＝「対戦相手の効果によって場を離れたとき」が原因を問わず発火する（`WX06-016-E2`／`WXK11-023-E1`・`triggerCollect.ts:1375-1398`。⚠**同ループは `turnOwner`・`leftStateFilter` でも同じ穴を出した実績があり系統**）／🆕**(cli)**＝`TAKE_FROM_UNDER_SIGNI` が `lastProcessedCards` を記録しないため「そうした場合」を条件化できない（`WX21-042-E2`・2026-08-21 続き592 の段1 triage で発見。§3 follow-up①〔同 action の逆翻訳が枚数・destination を落とす〕と同じカード群なので**同時に消化するのが得**）。🏁**2026-08-20 続き591 で (cl) を残0クローズ**（「そうした場合、そのターン終了時、」の遅延予約＝既存 `INSTALL_DELAYED_TRIGGER{ON_TURN_END}` へ畳み込み・実機検証済み）。🏁続き590 で (cxlvii)(cxlix)／続き589 で (cxliv)(cxlv)(cxlviii)／続き588 で (cxxxviii)〜(cxliii)。⚠**残る (cxlvi) は Codex に投げられない**（実機でしか再現しない非決定的バグ＝切り分けに `verifyBattleDrive.mjs` が要るが Codex 環境はネットワーク遮断）＝**Claude が再現条件を確定させるのが先** |
+| 12 | **Sonnet が積んだ engine/parser バグの修正（常設受け口）** | 可変 | 可変 | **在庫1件**＝(cxlvi)。🏁**2026-08-23 続き635 で (clii)(cli) を残0クローズ**＝**(clii)＝`collectLeaveFieldTriggers` の self ループへゲート群を面で配線**（`byOwnEffect`／`byEffect`／`outsideMainPhase`・`duringMainPhase`／`leftToZone`。`byOpponentEffect` は段2 第9バッチで先行着地済みだった＝**着手前に実測して分かった**）＋**同 collector の any_ally／any_opp ループにも main phase ゲートを追加**＋**D014（「あなたのメインフェイズ以外で」）を parser に実装**＝live 10効果へ着地（母集団は3件ではなく**12カード**だった）＋**E018（「このシグニの下にあった」）を既存 `source.fromLeftFieldUnder` へ配線**＝`WX17-055`／`WXK10-054`／`SPK01-02` の3効果（⚠**新語彙 `underLeftCard` を作りかけたが、インスタンス単位で解く既存機構があった**）＋`collectBanishTriggers` が**バニッシュ直前の下カードを snapshot** するようにした。🔑**「あなたのメインフェイズ」はフェイズだけでなくターンプレイヤーも見る**（`mainPhaseGateOk`）＝旧実装は相手のメインフェイズを「あなたのメイン」に数えており `duringMainPhase`＝過剰／`outsideMainPhase`＝過小だった。⚠`collectFieldTriggers` の any_ally/any_opp だけは例外（ターン限定を後段 `turnGateOk` に委ねる規約）。**(cli)** は実測すると**engine 側は段2 第11バッチで既に直っていた**（`DID_IT_GATED_TYPES` 収録＋事前 reset）＝golden にトリップワイヤを1本足し、`applyDirectAction` の直接経路にも記録を追加し、**follow-up①（逆翻訳に枚数・destination）を実装**して残0。 🏁**2026-08-20 続き591 で (cl) を残0クローズ**（「そうした場合、そのターン終了時、」の遅延予約＝既存 `INSTALL_DELAYED_TRIGGER{ON_TURN_END}` へ畳み込み・実機検証済み）。🏁続き590 で (cxlvii)(cxlix)／続き589 で (cxliv)(cxlv)(cxlviii)／続き588 で (cxxxviii)〜(cxliii)。⚠**残る (cxlvi) は Codex に投げられない**（実機でしか再現しない非決定的バグ＝切り分けに `verifyBattleDrive.mjs` が要るが Codex 環境はネットワーク遮断）＝**Claude が再現条件を確定させるのが先** |
 | 13 | §5b 混線テール（実測823カード・16テーマ分類済み） | JSON再parse（1カードずつ） | L | effect 構造そのものが原文とズレたカードの再parse。**🆕2026-08-07 続き369 で「低優先」を解除**＝§5d の欠落パターン D（重度混線）と同じ母集団で、§5c 店じまい後の主戦場のひとつ  🆕**続き377n 追加＝`WXK05-052-E1`**（「対戦相手のシグニを２体まで対象とし、**このシグニと同じシグニゾーンに【シード】がある場合**、次のターンの間、それらは「【常】：アタックできない。」を得る」＝**条件節の【シード】をキーワードと誤読**して「あなたのシグニ1体に【シード】を付与」に化けている。⚠**体数だけ広げると誤りを増幅**するので golden にトリップワイヤ設置済み）。 |
 | 21 | 🚧**§5d-0 工程改善3件（次セッション最優先・Opus）** | 計測＋スクリプト新設 | S（1セッション想定） | ①`npm run census:wiring` 常設化（語彙×入口の被覆マトリクス。試作で134件検出）②残1162の真バグ率を無作為20件で再測定 ③worklist を作業種別へ組み替え。**2026-08-07 続き375 でユーザー合意・通常バッチより優先**。設計・根拠・実測値は §5d-0 |
 | 20 | **§5d 1効果ずつの原文照合（新設・現在の主戦場）** | 原文照合＋JSON/parser | L（母集団 約874効果） | §5c の文型バッチが届かない**単発テール**。欠落パターン A〜D で分類し、**繰り返し出るパターンは parser へ還元**する。入口は §5d 末尾の照合済み12件 |
@@ -96,7 +96,7 @@
 🏁**2026-08-20 続き588 に第1バッチ6件を残0クローズ＝(cxxxviii)(cxxxix)(cxl)(cxli)(cxlii)(cxliii)**（共通テーマ＝**「その語彙・機構は engine に実装済みで他の入口では動いているのに、この入口にだけ配線／受け渡しが無い」**。新しい action／Condition／state フィールドは1つも作らずに全件着地）。登録行の原文と結末の対照は [PLAN_DETAIL.md](./PLAN_DETAIL.md)「2026-08-20 整理㊾」節。一次記録は `BUGFIXES.md` 2026-08-20（続き588）。
 ⚠**6件が残した教訓**＝(a) **登録票の「見立て」は3件が実測と食い違っていた**＝(cxl) は「少なくとも3枚」が実測 **75効果/71カード**、(cxlii)(b) は「caller 0件」が実は**既に2箇所が渡していて正常**、(cxxxviii) は「新しい仕組みが要る」が実は**`ctx.leftFieldUnderCards` が既にあり消費実績もあった**。**着手前に必ず母集団を数え直す**。 (b) **Claude の指示書のほうが誤ることもある**＝(cxli) で指定した `collectTrashTriggers` は `fromZones` に `'field'` を含まない効果を必ず弾く **field origin 専用**で使えず、正しい入口は `collectAnyZoneTrashSelfTriggers` だった（Codex が実コードで訂正）。**「既存機構を流用せよ」と書くときは、その関数が対象の入口条件を通すかまで Claude 側で確認する**。 (c) **収集側を直したら解決側も見る**＝(cxxxviii) は `execTakeFromUnderSigni` だけ直すと、`applyDirectAction` が移動元をトラッシュから除かないため**空振りがカード複製バグに変わる**。 (d) **逆翻訳が情報を落としている箇所は計器が効かない**＝`TAKE_FROM_UNDER_SIGNI` の逆翻訳は枚数も destination も描かないので、`count:9` の過剰実行が**逆翻訳にも同型★にも一度も映らなかった**（→ 下の follow-up）。
 
-- [ ] 🆕**follow-up①（計器）＝`TAKE_FROM_UNDER_SIGNI` の逆翻訳に枚数・`upToCount`・destination を出させる**。現状は「このシグニの下のカードを取る」だけで、`count:1` と `count:9,upToCount:true` が**同じ文字列**になる＝過剰実行が計器に映らない。同型★でも検出できない。
+- [x] 🏁**follow-up①（計器）＝`TAKE_FROM_UNDER_SIGNI` の逆翻訳に枚数・`upToCount`・destination・`fromThis` を出させた**（2026-08-23 続き635・`decompileEffects.ts`）。旧「このシグニの下のカードを取る」固定文では `count:1` と `count:9,upToCount:true` が同じ文字列だった。⚠**実装後に出た「9枚まで」2件（`WX17-026-E2`／`WXDi-P11-077-E1`）は過剰実行ではなく「好きな枚数」の慣例エンコード**（上限9）＝計器の読み方として記録。
 - [ ] 🆕**follow-up②（観測点）＝(cxli) の実機シナリオが存在しない**。現行 `v20DiscardSkipFirstBlocksSecond` は `WX16-042-E1` の能動 discard へ迂回済みで `confirmEndDiscard` を通らない＝**手札上限超過で捨てさせる専用シナリオの新設が要る**（§7 の Sonnet 作業）。
 - **以降も常設受け口として残す**＝Sonnet 側が engine/parser バグを見つけたらここへ足す。
 
@@ -140,21 +140,21 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-23・続き634・Opus 5）＝段2 を3バッチ（第41〜43）＋PC 落ちからの復旧**。**残 OPEN 746→734**（**−12**）／段2 消化 **363→406**／**live 修正 43効果**。**census 608 据置**／**golden 2639→2647**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、文型★ 323 据置、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、**held 82→81**、partial/idset **15/46** 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23。
+- **🆕 セッション（2026-08-23・続き635・Opus 5）＝Opusタスク12 の在庫 (clii)+(cli) を残0クローズ**（在庫 **3→1**＝残るは (cxlvi) のみ）。**golden 2647→2651**（新規4本＝すべてトリップワイヤ確認済み）／**census 608 据置**／**live 修正 13効果**（outsideMainPhase 10＋fromLeftFieldUnder 3）。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、文型★ 323 据置、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors、**held 81 据置**、partial/idset **15/46** 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23。
 
-  | # | 題材 | live 修正 | 一言 |
+  | 件 | 中身 | live 修正 | 一言 |
   |---|---|---:|---|
-  | 41 | **集合主語**（「すべての〈X〉」）が `count:1` へ潰れる | 3 | 共有ヘルパ `hasAllSubject` を新設。⚠条件節「すべてのシグニが〜の場合」は別語彙なので除外 |
-  | 42 | **選択集合の相互差異**（「それぞれレベルの異なる」）が**死にキー**へ落ちる | 18 | `TargetFilter.eachDistinct*` は **engine に消費が1行も無い**死にキー＝型ごと削除し `SelectionConstraint` へ一本化 |
-  | 43 | **「N枚まで」が上限として届かず必ずN枚選ばされる** | 22 | `LOOK_PICK_CHAIN` 版。**per-card 手書きテーブル**が原文を読まず stages を直書きしていた |
+  | (clii) | `collectLeaveFieldTriggers` の **self ループにゲート群が面で欠けていた** | 10 | `byOwnEffect`／`byEffect`／`outsideMainPhase`・`duringMainPhase`／`leftToZone` を追加。watcher 2ループにも main phase ゲート |
+  | (clii) D014 | 「あなたのメインフェイズ以外で」を parser が落としていた | （同上） | **母集団は登録票の3件ではなく12カード**＝ON_LEAVE_FIELD／ON_BANISH／引用付与の3経路すべてに効いた |
+  | (clii) E018 | 「このシグニの**下にあった**」が落ちて**トラッシュの同クラスなら何でも回収**できた | 3 | 新語彙を作らず既存 `source.fromLeftFieldUnder` へ配線＋`collectBanishTriggers` に離場直前 snapshot |
+  | (cli) | `TAKE_FROM_UNDER_SIGNI` の「そうした場合」 | 0 | **実測したら engine は段2 第11バッチで既に直っていた**＝golden にトリップワイヤ＋直接経路の記録＋逆翻訳の計器化（follow-up①） |
 
-  - 🔴**PC が第42バッチ中に落ちた**。復旧時に**作業ツリーの parser 変更を全数 diff して退化を1件検出**＝正規表現の **`それぞれ?` が「それぞ」＋任意の「れ」**（`(?:それぞれ)?` のつもりの誤記）になっており、「それぞれ」の付かない綴りを取りこぼしたうえ `WX11-052-E3` の**コスト解析そのものを落として**いた（`costUnparsed`）。⚠**中断からの再開は「続きを書く」前に必ず `build:effects` → effectId 単位の全数 diff を回す**（この退化はゲート全緑をすり抜けた）。
-  - 🔑**「受け皿は完成しているのに parser が配線していない」型が第42・43でも連続で当たった**（通算7〜8回）＝第42（`SelectionConstraint.distinct`/`sharedColor` は engine・選択補助・選択UI・逆翻訳のすべてが消費済み）／第43（`stage.pickUpTo` は engine も逆翻訳も消費済み）。**在庫の「型はあるが live 利用が極端に少ない語彙を数える計器」は依然として最優先**（続き633 から持ち越し）。
-  - 🔑**per-card 手書きテーブルは同じ壊れ方を繰り返す**＝第43 の真因は `LOOK_PICK_CHAIN_WAVE2_CARDS` の switch と `applyFinalLookPickWave17` が**原文を読まずに stages を直書き**していたこと。PLAN §5d-0 (i) の `DISTINCT_BATCH5C`（7効果が原文と食い違い）と**同じ失敗モード**。⇒ **表は「どの効果に載せるか」のオプトインだけにし、値は原文から導く**。
-  - 🔑**MANUAL/PARTIAL のカード単位 PRESERVE は parser 改善を永久に凍らせる**＝第43 の22効果のうち **17件が PRESERVE 側**で、**うち11件は fresh が既に正しいのに live が凍っていた**（held にも `_partial_fresh` にも出ない）。⇒ **parser を直したら「fresh は直ったか」と「live に届いたか」を別々に測る**。届かない分は `effectId` アンカーの外科パッチで入れる。
-  - ⚠**簿記が第40バッチで止まっていた**（ユーザー指摘）＝第41〜43 はコミット済みだが §4 に入っていなかった。**バッチを跨いだら `/baton` を回す**。
-  - 🔴**▶ 次の一手【Opus 側】＝OPEN 優先を継続**（母集団は `findings.jsonl` 側から切る／`node scripts/archive/semanticAuditLedger.mjs --axis` で切り直す）。**在庫の探索系**＝①**「型はあるが live 利用が極端に少ない語彙」の計器（最優先・8回連続で当たっている型）**②引用能力 STUB の展開（`GRANT_ABILITY_INNER_TEXT` live 34件）③count>1 の全数支払い機構④§6.3 `L` 共通色比較（残3効果）。§6.4 の残りは **`O-44`／`O-45`／`O-46`**（後2つは第42バッチで登録）。
-  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`／`V-84`／`V-83`**。🔴**続き616〜634 の計21バッチ（第23〜43）がすべて実機未検証**。特に**実機経路へ直接触ったもの**＝**第34／第37／第38／第40** に加え、🆕**第42（同レベル/同色を重ねて選べないか＝選択UIが候補を絞るか）／第43（「N枚まで」で0枚を選んで決定できるか・22効果）**。
+  - 🔑**「あなたのメインフェイズ」はフェイズだけでなくターンプレイヤーも見る**（新ヘルパ `mainPhaseGateOk`）＝旧実装は全 collector が `ctx.turnPhase` だけを見ており、**対戦相手のメインフェイズを「あなたのメイン」に数えていた**（`duringMainPhase`＝過剰発火／`outsideMainPhase`＝過小発火）。ON_TRASH／ON_BANISH／ミルの各 collector も同じ規約へ揃えた。⚠**`collectFieldTriggers` の any_ally/any_opp だけは例外**（ターン限定を後段 `effectStack.turnGateOk` へ委ねる既存規約＝ソースに明示コメントを残した）。
+  - 🔑**登録票の見立ては3件とも実測とズレていた**（§3 の教訓(a)がまた当たった）＝(clii) の `byOpponentEffect` は**段2 第9バッチで先行着地済み**／D014 の母集団は 3件ではなく **12カード**／(cli) の engine 側は**第11バッチで解決済み**。**着手前に必ず実測**。
+  - 🔑**新語彙を作る前に既存機構を探す**＝E018 は `TargetFilter.underLeftCard`（カード名へ解決する旧語彙）を一度 parser へ配線したが、**`source.fromLeftFieldUnder`（インスタンス単位で `ctx.leftFieldUnderCards` と積集合を取る）が既に engine の2経路に実装済み**だったので差し替えた（名前一致より厳密）。⚠一度 live に載った `underLeftCard` は held 経由で巻き取った。
+  - **▶ 次の一手【Opus 側】**＝①**「型はあるが live 利用が極端に少ない語彙」の計器**（9回連続で当たっている型・最優先）②段2 の OPEN 消化継続（残 734）③引用能力 STUB の展開④§6.3 `L`。**Opusタスク12 の在庫は (cxlvi) 1件**（実機でしか再現しない非決定的バグ＝Claude が再現条件を確定させるのが先）。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。🆕**`V-86`（今回の3経路）を新設**。続き588 の6件／`V-85`／`V-84`／`V-83` も未消化。🔴続き616〜634 の21バッチも実機未検証のまま。
+
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の
@@ -162,14 +162,16 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-23 続き634（段2 第41〜43バッチ＝集合主語／選択集合の相互差異／「N枚まで」）後 最新値（本行が直近の正）**：
-  **census 608/608 据置**、**golden 2647**（続き633 は 2639）、
-  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+- **🆕 2026-08-23 続き635（Opusタスク12 (clii)+(cli) 残0クローズ）後 最新値（本行が直近の正）**：
+  **census 608/608 据置**、**golden 2651**（続き634 は 2647）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors 据置**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0／文型★ 323 据置**、
   **live カード 5975 / 効果総数 10693 据置**。
-  `_held_fresh` **81**（同 82）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
-  `censusManualDrift` **削除候補 0 据置**（§6.4 `O-42` 残0クローズ済み・トリップワイヤ稼働中）。
-  **残 OPEN 734**（続き633 は 746）。
+  `_held_fresh` **81 据置**／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  **残 OPEN 734 据置**（今回は段2 バッチではない）。
+
+  > **以下は続き632〜634 から持ち越した参照ブロック**（engine 改変の累計／意味照合の残 OPEN 内訳／台帳の書式／母集団10原則）。
+  > 今回（続き635）は段2 バッチではないので数字は据置＝**上の1行が最新の指標**。
 
   🔴**engine／実機の改変（セッション累計・第33〜40）**＝
   `pickUpTo` を `SEARCH` pending の `optional` へ配線／`LOOK_AND_REORDER.upToCount`＝見る枚数を 0..N から選ぶ（第34）／
@@ -579,20 +581,20 @@
     - **段1 第1バッチ＝上位10クラスタ・101 findings・94カード**を Codex へ委譲。結果 **真バグ36／偽陽性65／機構待ち0／要追調査0**（全件 `parseStatus:AUTO`）。報告＝`scripts/archive/scratchpad/semantic_audit_clean_round1/stage1_batch1_triage.md`（末尾に Claude の検証節）。**Codex は既存ファイルを1つも変更せずゲート全緑**。
     - ⚠**Codex の判定に誤り1件**＝`WX14-030-E1` を「DID-IT で救済される」と偽陽性にしたが、live には `CONDITIONAL{IS_MY_TURN}` プレースホルダ自体が無く（`SEQUENCE[TRANSFER_TO_DECK, CHOOSE]`）ゲートは発火しない＝**真バグ**。**クラスタの共通根拠を構造の違う1件へそのまま適用した**（§5-5e と同型）＝**クラスタ triage は「共通根拠が構造として成立するか」を1件ずつ見る**。
     - **段2 の束ね候補（parser 規則1本で複数件）**＝hasCharm 8件（型・engine とも実装済み＝`effectEngine.ts:754`／parser が生成していないだけ）／`SHUFFLE_DECK` 前置 7件／`GRANT_PROTECTION` duration 3件／`owner:any` 3件。⚠**「バニッシュされない」7件は段2 前に表現の正準化が要る**（collector が `sourceOwner:'opponent'` 必須＝`effectEngine.ts:4912`・「全原因耐性」の表し方が未確定）。
-    - **Opusタスク12 へ送る engine バグ1件**＝`WX21-042-E2`＝`TAKE_FROM_UNDER_SIGNI` が `lastProcessedCards` を記録しないため「そうした場合」を条件化できない（§3 follow-up① と同じカード群）。
+    - **Opusタスク12 へ送る engine バグ1件**＝`WX21-042-E2`＝`TAKE_FROM_UNDER_SIGNI` が `lastProcessedCards` を記録しないため「そうした場合」を条件化できない（§3 follow-up① と同じカード群）。🏁**2026-08-23 続き635 で残0クローズ**＝⚠**実測すると engine は段2 第11バッチで既に直っていた**（`DID_IT_GATED_TYPES` 収録＋事前 reset）。golden にトリップワイヤ（成功＝エナ+1／空振り＝据置の対）を足し、`applyDirectAction` の直接経路にも記録を追加、follow-up①（逆翻訳）も実装。**「在庫票の見立てを実測で潰す」が今回も効いた**（§3 の教訓(a)）。
     - 🆕**段1 第2バッチ＝未消化クラスタ上位20・101 findings・97カード**（Codex 委譲・検証済み）。結果 **真バグ88／偽陽性13／機構待ち0（→検証で最低2件は機構待ちへ訂正）／要追調査0**。報告＝`stage1_batch2_triage.md`（末尾に Claude の検証節）。ゲート全緑・既存ファイル変更0。
     - ⚠**比率が第1バッチ（36/65）から反転した理由＝母集団の性質差**。第1バッチは engine の慣例エンコード（did-it ゲート／`temp_power_mods`／`POWER_SET` 自動適用）にぶつかるクラスタが大半、**第2バッチは「条件・フィルタが live JSON から単純に脱落している」ファミリが大半**。サンプリング裏取りで真バグ側の判定を確認済み＝**過大申告ではない**。
-    - 🔴**Codex の「機構待ち0」は誤り＝`byOpponentEffect` は collector ごとに self スコープでの消費有無が違う**。`collectTrashTriggers`（`triggerCollect.ts:931`）は `:954-955` で self を通し `:970` でゲートするので **ON_TRASH は JSON/parser 修正で足りる**が、**`collectLeaveFieldTriggers`（`:1344`）は cause ゲートを any_ally ループ（`:1433-1435`）と opponent ループ（`:1476-1480`）にしか持たず、self スコープループ（`:1375-1398`）は `duringAttackPhase`／`turnOwner`／`leftStateFilter`／`condition` しか評価しない**＝`WX06-016-E2`／`WXK11-023-E1` に `byOpponentEffect:true` を足しても**恒久 no-op**。→ **Opusタスク12 (clii) へ登録**。
+    - 🔴**Codex の「機構待ち0」は誤り＝`byOpponentEffect` は collector ごとに self スコープでの消費有無が違う**。`collectTrashTriggers`（`triggerCollect.ts:931`）は `:954-955` で self を通し `:970` でゲートするので **ON_TRASH は JSON/parser 修正で足りる**が、**`collectLeaveFieldTriggers`（`:1344`）は cause ゲートを any_ally ループ（`:1433-1435`）と opponent ループ（`:1476-1480`）にしか持たず、self スコープループ（`:1375-1398`）は `duringAttackPhase`／`turnOwner`／`leftStateFilter`／`condition` しか評価しない**＝`WX06-016-E2`／`WXK11-023-E1` に `byOpponentEffect:true` を足しても**恒久 no-op**。→ **Opusタスク12 (clii) へ登録**。🏁**2026-08-23 続き635 で残0クローズ**（self ループへ cause／main phase／leftToZone ゲートを面で配線）。
     - ⚠**この collector は同じ穴を3回出している**＝ソース内コメントが「従来は self スコープ経路が `turnOwner` を評価せず過剰発火」「同 `leftStateFilter` 未評価で無条件発火」と記録。**`byOpponentEffect` は3件目＝単発ではなく系統として直す**（§5-15 の型）。
     - ⚠**段2 の原則**＝**Codex の修正提案は分類の根拠であって実装指示ではない**。条件を JSON へ足す前に、**その timing の collector が self スコープでそのフィールドを読むか**を必ず確認する（読まないと条件が効かず**過剰実行のまま**＝ゲートにも計器にも映らない）。
     - 🆕**段1 第3バッチ＝未消化クラスタ上位40・107 findings・101カード**（Codex 委譲・検証済み）。結果 **真バグ107／偽陽性0／機構待ち25（真バグと重複計上）／要追調査0**。報告＝`stage1_batch3_triage.md`。ゲート全緑・既存ファイル変更0。
     - 🔴**事故＝報告書ファイルが `undefined`（10バイト）で着地していた**。中身は `codex_task_sem3.log` の diff ハンクから復元した（254行・49KB）。**標準出力のサマリだけは正常に出るので、サマリを見ているだけでは気付けない**＝**次バッチの指示書に「報告書を書いた後に `wc -c` で読み返して中身を確認する」を入れる**。
     - 🟡**証拠の質が落ちた＝「根拠」列が全行テンプレート**（第1・第2バッチは1行ごとに engine の `ファイル:行` が入っていた）。**偽陽性0はパイロット precision 78〜84% に対する外れ値**。母集団による説明（段0 で232件除去＋第1バッチが慣例系クラスタを食い切った残り）は成り立ち、**独立スポット照合3件はいずれも真バグを支持**したが、**段2 がこのバッチの行を消費する前に対象効果ごとに live JSON を再照合すること**（第1・第2バッチの行はその必要が薄い）。
     - 🔑**検証で判明した非対称＝`execUp` は `target.filter.thisCardOnly` を明示処理する（`effectExecutor.ts:3295-3300`）が、`execDown` の SIGNI 分岐にはそれが無く `selectOrInteract` に落ちる（`:3273-3279`）**＝「このシグニをダウン」は `thisCardOnly` を書かないと**任意の自分シグニを選べてしまう**。第1バッチの `POWER_SET` 自動適用（`:1701`）の類推は効かない。
-    - 🟢**主成果＝機構待ち 10クラスタ/25件の切り出し**（parser では直せず engine 配線が先＝**段2 の parser 作業から外す分**）。不足配線の明細は報告書の検証節の表。⚠**D014（`collectLeaveFieldTriggers` へ outsideMainPhase ゲート）は Opusタスク12 (clii) と同じループ＝まとめて直す。**
+    - 🟢**主成果＝機構待ち 10クラスタ/25件の切り出し**（parser では直せず engine 配線が先＝**段2 の parser 作業から外す分**）。不足配線の明細は報告書の検証節の表。⚠**D014（`collectLeaveFieldTriggers` へ outsideMainPhase ゲート）は Opusタスク12 (clii) と同じループ＝まとめて直す。** 🏁**2026-08-23 続き635 で (clii) と同時に消化**＝engine ゲート＋parser 規則（「あなたのメインフェイズ以外で」）で **live 10効果**へ着地（母集団は D014 の3件ではなく 12カードだった＝**着手前に数え直した**）。
     - 🆕🟢**段1 第4バッチ＝未消化クラスタ上位20・40 findings・39カード**（Codex 委譲・検証済み）。結果 **真バグ30／偽陽性10／機構待ち15（重複計上）／要追調査0**。**品質が第1・第2バッチ水準へ回復**＝成果物正常着地（28,254 bytes）・根拠列がテンプレートでない・**偽陽性 25%＝パイロット precision 78〜84% と同水準**・当初の見立てから変えた件を4件自主申告。⚠**バッチを 40クラスタ→20クラスタ（107→40 findings）へ縮めたのが効いた**＝件数を減らして1件ごとの証拠を厚くする方が総合的な収量は高い。
     - 🔑**検証で判明＝`analyzeBeatSigniCost`（`execUtils.ts:1012-1013`）は `cardMap` の `EffectText` を regex で読んで `includeSelf` を立てる**＝`cost.beat_signi:1` は「他1体ぶん」で自分ぶんは**実行時に原文から加算される**。**JSON を見るだけでは絶対に分からないコスト機構**なので、【ビート】コストの finding は必ずここを見る。
-    - 🔑🔴**`collectLeaveFieldTriggers` が3バッチ連続で不足配線に挙がった**（第2＝cause ゲート／第3 D014＝outsideMainPhase／第4 E018＝離場直前 under cards の snapshot）。**Opusタスク12 (clii) は単発ではなく「この collector の self スコープループにゲート群が面で欠けている」課題**として扱う（ソース内コメントが `turnOwner`・`leftStateFilter` の前科を記録＝通算5系統目）。
+    - 🏁**2026-08-23 続き635 で3件（cause ゲート／D014／E018）をまとめて消化**＝E018 は新語彙を作らず既存の `source.fromLeftFieldUnder`（インスタンス単位で `ctx.leftFieldUnderCards` と積集合）へ配線し、`collectBanishTriggers` にも離場直前 snapshot を持たせた。 🔑🔴**`collectLeaveFieldTriggers` が3バッチ連続で不足配線に挙がった**（第2＝cause ゲート／第3 D014＝outsideMainPhase／第4 E018＝離場直前 under cards の snapshot）。**Opusタスク12 (clii) は単発ではなく「この collector の self スコープループにゲート群が面で欠けている」課題**として扱う（ソース内コメントが `turnOwner`・`leftStateFilter` の前科を記録＝通算5系統目）。
     - 🔑**「全原因バニッシュ耐性」は第1バッチ C010（7件）＋第4バッチ E020（2件）＝計9件が同じ表現の正準化待ち**（`collectBanishEffectProtectedSigni` が `sourceOwner:'opponent'` 必須＝`effectEngine.ts:4912`）。**段2 の前に表現を決める。**
     - 🆕🟢**段1 第5バッチ＝クラスタ91〜110位・40 findings・40カード**（Codex 委譲・検証済み）。結果 **真バグ36／偽陽性4／機構待ち8（重複計上）／要追調査0**。第4バッチの水準を維持（成果物正常・根拠列が行ごとに固有・見立て変更が**両方向**に4件）。**副産物＝条件以外の食い違い4件**（`WXDi-P08-081-E1`／`WXK06-030-E1`／`WXDi-P01-044-E2`／`WX08-036-E1`）。⚠**段2 で該当効果を触るときは finding の指摘だけ直すと残りが残る。**
     - 🔑**検証で確定＝`resumeSearch` には「探す→シャッフル→探した札をデッキ上へ」の専用分岐がある**（`effectExecutor.ts:8466-8468`＝`afterAction===SHUFFLE_DECK && isDeckPlacementFromSearch(thenAction)` なら **SHUFFLE_DECK を先に実行してから instanceId で top を確定**）。**JSON の `then`→`afterSearch` の表面順だけ見ると必ず誤検出する形。**
@@ -868,6 +870,10 @@
 > どれも **engine/golden では固定済み・実機だけ未確認**＝「ヘッドレスでは検証できない層」。
 > ⚠着手前に **📌「実機シナリオを書くときの必読」**（下）を読むこと。
 
+- 🆕**V-86 続き635＝Opusタスク12 (clii)(cli) の3経路（未着手・engine/golden は固定済み）**
+  - **(a) 「あなたのメインフェイズ以外で」＝`WXDi-P06-035`**（【自】メインフェイズ以外でこのシグニが場を離れたとき、カードを1枚引く）。**自分のメインフェイズ中にバウンス／バニッシュしても引かない**／**自分のアタックフェイズ中に離れたら引く**／🔑**対戦相手のメインフェイズ中に離れたら引く**（＝旧実装が落としていた枝。相手ターンに離す手段が要る）。同型は `WXDi-P13-053`（相手デッキを4枚トラッシュ）。**ON_BANISH 版は `WXDi-P09-071`／`WXDi-P11-042`／`WXDi-P12-046`**。
+  - **(b) 「このシグニの下にあったカード」＝`WXK10-054`**（ライズ。バニッシュされたとき、下にあった＜ウェポン＞1枚を手札に加える）。**トラッシュに無関係な＜ウェポン＞を積んだ状態で、候補が下にあった1枚だけになること**を見る（旧実装は無関係な札も回収できた）。同型は `WX17-055`（トラッシュから場に出す）／`SPK01-02`（2枚まで手札）。
+  - **(c) 「そうした場合」＝`WX21-042`**（アタックしたとき、下からカード1枚をトラッシュ→そうした場合エナチャージ1）。**下にカードがある盤面＝エナが1枚増える／下が空の盤面＝増えない**の対。⚠`WX21-042-E1`（【出】でトラッシュから＜龍獣＞を2枚まで下に置く）で盤面を作れる。
 - **🔶 V-30 続き585＝READ側を残0クローズ・境界越え自体はfollow-up**（原記述：続き453＝ターン境界を跨いだ能力喪失＝次ターンでの発火抑止／2ターン後の復帰）。
   - **✅ READ側 残0クローズ**＝`v30AbilityRemovedSuppressesActivated`／`v30AbilityRemovedControlShowsActivated`。`abilities_removed`を直接注入→host自身の【起】ボタンがUIから消える／空なら通常表示、を対で確認。各2回連続PASS。engineバグ0。
   - **📋 境界越え自体（`abilities_removed_next_turn`→`abilities_removed`への昇格を実機のライブなターン進行で確認）は引き続きfollow-up**＝続き566の設計限界（`turn_phase:'END'`直接注入がroom正規化で先走る）が未解消のまま。

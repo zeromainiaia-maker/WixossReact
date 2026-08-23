@@ -10705,6 +10705,83 @@ test('Stage2 ON_LEAVE_FIELD levelLtTrigger 解決: 離脱カード基準で leve
   eq((f.level as { max: number }).max, lv - 1, `離脱レベル${lv}→level.max=${lv - 1}`);
   eq(f.cardName, 'ユラギ', 'cardName ユラギ を保持（低レベルのユラギのみ配置）');
 });
+// ── Opusタスク12 (clii)：collectLeaveFieldTriggers の self スコープに面で欠けていたゲート群 ──
+// この collector は「watcher ループにはあるゲートが self ループに無い」穴を通算5回出した
+//（turnOwner／leftStateFilter／byOpponentEffect／outsideMainPhase／leftToZone）。
+// ⚠ゲートが無い＝JSON に条件を足しても恒久 no-op（条件が効かないまま過剰発火し、計器にも映らない）。
+test('タスク12(clii) ON_LEAVE_FIELD outsideMainPhase: 自分のメインフェイズ中だけ非発火・相手のメインフェイズでは発火（WXDi-P06-035-E1）', () => {
+  const parsed = parseCardEffects(cardMap.get('WXDi-P06-035')!).find(e => e.effectId === 'WXDi-P06-035-E1')!;
+  eq(parsed.triggerCondition?.outsideMainPhase, true, 'parser が「あなたのメインフェイズ以外で」→outsideMainPhase を出さない');
+  const host = mkState({}); const guest = mkState({});
+  const at = (activeUserId: string, turnPhase: string) => ({ ...trigCtx(activeUserId), turnPhase });
+  const fired = (activeUserId: string, turnPhase: string) =>
+    has(collectLeaveFieldTriggers(at(activeUserId, turnPhase), 'WXDi-P06-035', [], HOST, host, guest).entries, 'WXDi-P06-035-E1');
+  eq(fired(HOST, 'MAIN'), false, '自分のメインフェイズ中の離脱で発火した（outsideMainPhase 違反）');
+  eq(fired(HOST, 'ATTACK_SIGNI'), true, '自分のアタックフェイズ中の離脱で発火しない');
+  // 「**あなたの**メインフェイズ以外」＝ターンプレイヤーも見る。相手のメインフェイズは「あなたのメイン以外」。
+  eq(fired(GUEST, 'MAIN'), true, '対戦相手のメインフェイズ中の離脱で発火しない（フェイズだけを見る旧実装の穴）');
+});
+test('タスク12(clii) ON_LEAVE_FIELD self スコープの cause ゲート: byOwnEffect/byEffect を評価する', () => {
+  const LEAVER = 'SYNTH-LEAVE-01';
+  const mkEff = (id: string, tc: Record<string, boolean>): CardEffect => ({
+    effectId: id, effectType: 'AUTO', timing: ['ON_LEAVE_FIELD'], triggerScope: 'self',
+    triggerCondition: tc, action: { type: 'DRAW', owner: 'self', count: 1 },
+    duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL',
+  } as unknown as CardEffect);
+  const augmented = new Map(effectsMap);
+  augmented.set(LEAVER, [mkEff('SYN-OWN', { byOwnEffect: true }), mkEff('SYN-ANY', { byEffect: true })]);
+  const host = mkState({}); const guest = mkState({});
+  const ctxOf = (cause?: string) => collectLeaveFieldTriggers(
+    { ...trigCtx(HOST), effectsMap: augmented }, LEAVER, [], HOST, host, guest, cause,
+  ).entries;
+  eq(has(ctxOf(HOST), 'SYN-OWN'), true, 'byOwnEffect: 自分の効果が原因でも発火しない');
+  eq(has(ctxOf(GUEST), 'SYN-OWN'), false, 'byOwnEffect: 対戦相手の効果が原因でも発火した');
+  eq(has(ctxOf(undefined), 'SYN-OWN'), false, 'byOwnEffect: バトル/ルール処理（原因なし）でも発火した');
+  eq(has(ctxOf(HOST), 'SYN-ANY'), true, 'byEffect: 効果起因なのに発火しない');
+  eq(has(ctxOf(GUEST), 'SYN-ANY'), true, 'byEffect: 相手の効果起因なのに発火しない');
+  eq(has(ctxOf(undefined), 'SYN-ANY'), false, 'byEffect: バトル/ルール処理（原因なし）でも発火した');
+});
+// ── Opusタスク12 (clii)/E018：離場・バニッシュ**直前**の下カードをスナップショットして候補を限定する ──
+test('タスク12(clii) ON_BANISH fromLeftFieldUnder: バニッシュ直前に下にあったカードだけを回収する（WXK10-054-E1）', () => {
+  const parsed = parseCardEffects(cardMap.get('WXK10-054')!).find(e => e.effectId === 'WXK10-054-E1')!;
+  eq((parsed.action as { source: { fromLeftFieldUnder?: boolean } }).source.fromLeftFieldUnder, true,
+    'parser が「このシグニの下にあった」→source.fromLeftFieldUnder を出さない');
+  const weapons = [...cardMap.values()].filter(c => isSigni(c) && (c.CardClass ?? '').includes('ウェポン') && c.CardNum !== 'WXK10-054');
+  ok(weapons.length >= 2, '＜ウェポン＞テストカード不足');
+  const under = weapons[0].CardNum;   // 下にあった＝回収できる
+  const decoy = weapons[1].CardNum;   // 無関係な＜ウェポン＞＝回収できてはいけない
+  const prev = mkState({});
+  prev.field.signi[0] = [under, 'WXK10-054'];
+  const after = mkState({});
+  after.trash = [decoy, under]; // decoy を先頭に置く＝限定が効かなければ decoy が選ばれる
+  const guest = mkState({});
+  const entry = collectBanishTriggers(trigCtx(HOST, HOST), 'WXK10-054', HOST, after, guest, prev)
+    .entries.find(e => e.effectId === 'WXK10-054-E1');
+  ok(!!entry, 'WXK10-054-E1 が収集されない');
+  eq(entry!.leftFieldUnderCards?.join(','), under, 'バニッシュ直前の下カードが StackEntry に載らない');
+  const ctx: ExecCtx = { ...mkCtx({}, {}, 'WXK10-054'), ownerState: after, otherState: guest,
+    leftFieldUnderCards: entry!.leftFieldUnderCards };
+  const res = run(entry!.effect.action, ctx);
+  ok(res.ownerState.hand.includes(under), '下にあった＜ウェポン＞を回収できない');
+  ok(!res.ownerState.hand.includes(decoy), '下にあったカード以外の＜ウェポン＞まで回収した（過剰実行）');
+});
+// ── Opusタスク12 (cli)：TAKE_FROM_UNDER_SIGNI が処理カードを記録し「そうした場合」が条件として効く ──
+test('タスク12(cli) TAKE_FROM_UNDER_SIGNI の did-it ゲート: 下にカードがある時だけ「そうした場合」が走る（WX21-042-E2）', () => {
+  const eff = parseCardEffects(cardMap.get('WX21-042')!).find(e => e.effectId === 'WX21-042-E2')!;
+  const underCard = findCard(c => isSigni(c) && c.CardNum !== 'WX21-042');
+  const withUnder = mkCtx({}, {}, 'WX21-042');
+  withUnder.ownerState.field.signi[0] = [underCard, 'WX21-042'];
+  const before = withUnder.ownerState.energy.length;
+  const hit = run(eff.action, withUnder);
+  ok(hit.ownerState.trash.includes(underCard), '下のカードがトラッシュに置かれていない');
+  eq(hit.ownerState.energy.length, before + 1, '「そうした場合」のエナチャージが走らない（記録漏れ＝過小実行）');
+  // 空振り側＝下にカードが無ければ「そうした場合」は走らない。
+  const noUnder = mkCtx({}, {}, 'WX21-042');
+  noUnder.ownerState.field.signi[0] = ['WX21-042'];
+  const before2 = noUnder.ownerState.energy.length;
+  const miss = run(eff.action, noUnder);
+  eq(miss.ownerState.energy.length, before2, '下にカードが無いのに「そうした場合」が走った（過剰実行）');
+});
 test('Stage2 ON_LEAVE_FIELD levelEqTrigger: ルリグ《ママ♥５》がアタック中の英知離脱だけを同レベルへ解決（WX21-004-E2）', () => {
   const savedCursor = cursor;
   try {

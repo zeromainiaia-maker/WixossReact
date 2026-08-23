@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, isUnderLeftCardPhrase, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
 } from '../parserUtils';
 
 /**
@@ -2758,7 +2758,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const upToM = t.match(/([０-９\d]+)枚まで/);
     const cM = t.match(/([０-９\d]+)枚を対象/);
     const count = upToM ? parseNum(upToM[1]) : (cM ? parseNum(cM[1]) : 1);
-    return { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter } };
+    return { type: 'TRANSFER_TO_HAND', source: { type: 'TRASH_CARD', owner: 'self', count, upToCount: !!upToM, filter,
+      // 「このシグニ/カードの下にあった〜」＝離場・バニッシュ直前の下カードだけ（`WXK10-054-E1`／`SPK01-02-E2`）。
+      ...(isUnderLeftCardPhrase(spanTxt) ? { fromLeftFieldUnder: true } : {}) } };
   }
 
   // ---- トラッシュ → デッキ（全回収+シャッフル）----
@@ -3000,7 +3002,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   // 任意トラッシュカードを出す汎用版（下の handler）と区別する。
   if ((t.includes('このシグニ') || t.includes('このカード')) && t.includes('トラッシュから')
       && (t.includes('場に出') || t.includes('シグニゾーンに出'))
-      && !/このシグニより/.test(t)) { // 「このシグニより低いレベル/パワー」は自己蘇生でなく比較フィルタ（下の汎用 trash→field へ）
+      && !/このシグニより/.test(t) // 「このシグニより低いレベル/パワー」は自己蘇生でなく比較フィルタ（下の汎用 trash→field へ）
+      // 「この**シグニの下にあった**シグニ1枚」＝自分自身ではなく**下にあった別のカード**（`WX17-055-E1` フンババ）。
+      // ⚠ここで外さないと `thisCardOnly` に化けて**離場した自分自身を蘇生する別物**になる（意味照合 段1 第4バッチ E018）。
+      && !/この(?:シグニ|カード)の下にあった/.test(t)) {
     const asDown = t.includes('ダウン状態で');
     return {
       type: 'ADD_TO_FIELD', owner: 'self',
@@ -3080,7 +3085,9 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const placeOwner: Owner = toOppField ? 'opponent' : 'self';
     // 「場に出してもよい」＝任意（optional）。「そうした場合」の did-it ゲートと組む／単独でも「出す/出さない」を
     //   選べる（engine execAddToField が optional で 0枚選択＝スキップを許可・§3 タスク12(vii)系）。down 変種は asDown も付与。
-    return { type: 'ADD_TO_FIELD', owner: placeOwner, source: { type: 'TRASH_CARD', owner: placeOwner, count, upToCount: !!upToM, filter },
+    return { type: 'ADD_TO_FIELD', owner: placeOwner, source: { type: 'TRASH_CARD', owner: placeOwner, count, upToCount: !!upToM, filter,
+        // 「このシグニの下にあった〜」＝離場直前の下カードだけ（`WX17-055-E1`）。実行時に ctx.leftFieldUnderCards と積集合。
+        ...(isUnderLeftCardPhrase(t) ? { fromLeftFieldUnder: true } : {}) },
       ...(t.includes('ダウン状態で場に出') ? { asDown: true } : {}),
       ...(t.includes('場に出してもよい') ? { optional: true } : {}) };
   }

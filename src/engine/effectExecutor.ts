@@ -10346,7 +10346,11 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       } else {
         newOwner = { ...newOwner, trash: [...newOwner.trash, cardNum] };
       }
-      return done(addLog({ ...ctx, ownerState: newOwner },
+      // 「そうした場合」ゲート（`DID_IT_GATED_TYPES`）は**処理したカードを記録した型だけ**が空振りを判定できる。
+      // `resumeSelectTarget` は picked をまとめて書き直すが、`applyDirectAction` を直接呼ぶ経路
+      //（REPEAT／perCard 等）では記録が残らず、成功しても後段の「そうした場合」が空振り扱いへ倒れる
+      //（Opusタスク12 (cli)＝`WX21-042-E2`「下からカード1枚をトラッシュに置く。そうした場合、…エナゾーンに置く」）。
+      return done(addLog({ ...ctx, ownerState: newOwner, lastProcessedCards: [cardNum] },
         `${ctx.cardMap.get(cardNum)?.CardName ?? cardNum}${destLabel}`));
     }
     case 'REMOVE_ABILITIES': {

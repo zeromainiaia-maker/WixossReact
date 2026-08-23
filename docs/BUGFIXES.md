@@ -1,5 +1,28 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：Opusタスク12 (clii)(cli) 残0クローズ＝`collectLeaveFieldTriggers` の self ループに**ゲート群が面で欠けていた**／「あなたのメインフェイズ」がターンプレイヤーを見ていなかった
+
+**(clii) 症状**＝ON_LEAVE_FIELD の self スコープ（＝離れたカード自身の【自】）が、watcher ループには在るゲートをいくつも評価していなかった。**ゲートが無い＝JSON に条件を足しても恒久 no-op**（条件が効かないまま過剰発火し、`census` にも `census:stubs` にも映らない）。この collector は同じ穴を**通算5回**出している（`turnOwner`／`leftStateFilter`／`byOpponentEffect`／`outsideMainPhase`／`leftToZone`）ので、**単発ではなく面で埋めた**。
+
+**直したもの（`src/engine/triggerCollect.ts`）**：
+- self ループへ **`byOwnEffect`**（原因＝離脱カード所有者自身の効果のみ）／**`byEffect`**（効果起因のみ＝バトル・ルール処理では非発火）／**`leftToZone`**（行き先限定）／**main phase ゲート**を追加。
+- any_ally／any_opp の watcher ループにも **main phase ゲート**を追加（any_ally には `byOwnEffect` も）。
+- 新ヘルパ **`mainPhaseGateOk(eff, ctx, ownerPlayerId)`**＝🔑**「あなたのメインフェイズ」はフェイズだけでなくターンプレイヤーも見る**。旧実装は全 collector が `ctx.turnPhase` だけを見ており、**対戦相手のメインフェイズを「あなたのメイン」に数えていた**（`duringMainPhase`＝過剰発火／`outsideMainPhase`＝過小発火）。ON_TRASH（デッキミル自身）・ON_BANISH（アクセ付与／被バニッシュ自身／自陣 watcher／相手陣 watcher）・ON_CARD_MILLED_FROM_DECK（場 watcher／プレイヤー付与）も同じ規約へ揃えた。
+- ⚠**`collectFieldTriggers` の any_ally/any_opp ループだけは例外**＝ターン限定を後段の `effectStack.turnGateOk`（entry.playerId 基準）へ委ねる既存規約があり、ここで owner 相対にすると二重ゲートで落ちる。**ソースに明示コメントを残した**（タスク12(xcix) で一度足して差し戻した前科がある）。
+
+**(clii) D014「あなたのメインフェイズ以外で」**＝engine 側に消費（`outsideMainPhase`）はあったが **parser が一度も生成していなかった**。ON_LEAVE_FIELD（トリガー句の前処理チェーン）と ON_BANISH（主語 regex より**前**で剥がす＝残すと `^` アンカーが全滅して scope 既定 self へ退化する）に規則を追加。**引用付与の内側（`GRANT_EFFECT` の rawText → `parseBlock`）にも同じ規則が効く**。⚠**母集団は登録票の3効果ではなく 12カード**＝live 10効果へ着地（残り2枚は MANUAL 温存と `WXDi-P03-003` の既存 MANUAL）。
+
+**(clii) E018「このシグニの下にあった〜」**＝離場・バニッシュ直前に下にあったカードへの限定が落ち、**トラッシュの同クラスなら何でも回収できる過剰効果**だった（`WX17-055`／`WXK10-054`／`SPK01-02`）。⚠**新語彙 `TargetFilter.underLeftCard`（収集時にカード名へ解決する旧語彙）を一度 parser へ配線したが、`source.fromLeftFieldUnder`（実行時に `ctx.leftFieldUnderCards` と**インスタンス単位**で積集合を取る）が既に engine の2経路（`effectExecutor.ts:2723`／`:2980`）に実装済み**だったので差し替えた。あわせて **`collectBanishTriggers` がバニッシュ直前の下カードを snapshot** して `leftFieldUnderCards` に載せるようにした（従来は ON_LEAVE_FIELD だけが持っていた）。
+
+**(cli) `TAKE_FROM_UNDER_SIGNI` の「そうした場合」**＝⚠**実測すると engine 側は §6.2 段2 第11バッチで既に直っていた**（`DID_IT_GATED_TYPES` に収録済み＋ステップ実行前の `lastProcessedCards` リセット。成功時は `resumeSelectTarget` が picked を書き直す）。今回は
+- **golden にトリップワイヤ**を追加（下にカードがある＝エナ+1／下が空＝据置の対）。
+- `applyDirectAction` の `TAKE_FROM_UNDER_SIGNI` でも `lastProcessedCards` を記録（`resumeSelectTarget` を通らない直接経路の保険）。
+- 🆕**PLAN §3 follow-up①（計器）を実装**＝逆翻訳が枚数・`upToCount`・destination・`fromThis` を出すようにした（`scripts/decompileEffects.ts`）。旧固定文では `count:1` と `count:9,upToCount:true` が**同じ文字列**で、過剰実行が計器にも同型★にも映らなかった。⚠実装後に出た「9枚まで」2件（`WX17-026-E2`／`WXDi-P11-077-E1`）は**過剰実行ではなく「好きな枚数」の慣例エンコード**（上限9）。
+
+**教訓**＝🔑**登録票の見立ては3件とも実測とズレていた**（(clii) の `byOpponentEffect` は段2 第9バッチで先行着地済み／D014 の母集団は3→12カード／(cli) は engine 済み）。**着手前に必ず実測する**（§3 の教訓(a) がまた当たった）。🔑**新語彙を作る前に既存機構を探す**（E018）。
+
+**ゲート**＝`npm run gates` 全緑（**golden 2651**＝新規4本／census 608/608 据置／smoke 10693 全異常0／fuzz 全0／同型★0・文型★323 据置／`census:stubs` A群🔴0・C群0／manual-fields 0／lint 0 errors）。新規 golden は**engine を一時的に旧実装へ戻して FAIL することを確認済み**（トリップワイヤとして機能する）。**要実機検証＝PLAN §7 `V-86`**。
+
 ## 2026-08-23：§6.2 段2 第43バッチ＝`LOOK_PICK_CHAIN` の「N枚**まで**」が上限として届かず**必ずN枚選ばされる**22効果
 
 **症状**＝原文が「その中から〈X〉を**N枚まで**手札に加え」＝**0枚でもよい上限**なのに、live の `LookPickChainStage` に `pickUpTo` が無く、engine が `SEARCH{optional}` を出さない＝**ちょうどN枚を必ず選ばされる**過剰実行だった。`WXDi-P16-008-E2`「カードを１枚まで手札に加え、カードを１枚までトラッシュに置き」は**捨てたくない札しか公開されなくても必ず1枚トラッシュ送り**になる。⚠**逆翻訳にも型にも異常として出ない**（構造は正しく、任意性だけが消える）＝シートを眺めても気付けない偽陰性。
