@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.4 O-42 第2バッチ＝manual 影武者37効果を解除、live本文不一致1効果を残置
+
+開始HEAD `b08a24640` で `censusManualDrift` の削除候補38効果と指定集合が完全一致することを再実測し、全38効果について `MANUAL_EFFECTS` と `parseCardEffects` 生出力を `parseStatus` 除外で独立比較して一致を確認した。さらに開始live本文とも比較したところ、`WX10-018-E1` だけは live の `NEGATE_NTH_ATTACK` に `negateNthAttack:{count:2,signi:true,lrig:true}` が無く、解除すると `parseStatus` 以外も変わることを検出。依頼の不変条件に従って同効果は manual / live `MANUAL` を残し、残る37効果だけを `manualEffects.ts` から削除して live 刻印を `MANUAL→AUTO` へ戻した。
+
+開始HEADとの効果単位比較は live総数 **10693→10693**、追加0、削除0、変更37効果、**`parseStatus` 除外差分0**。manualEffects は **432→412カード**、削除候補は **38→1**、乖離5区分は **23/20/4/3/2据置**。O-42 tripwire は残1を固定し、`WX10-018-E1` のlive本文不一致理由をコメントへ明記した。既存 `WX20-028-E1` golden は manual 直参照から live `effectsMap` 参照へ切り替えて同じ collector 契約を維持。新規実行E2Eは `WD17-009-E2`（自身+3000）、`WX12-038-BURST`（デッキトップ→エナ）、`WXDi-P11-010B-E1`（5ドロー＋エナチャージ5）の3本。
+
+`npm run regen` と `npm run gates` は全緑。golden **2518/2518**、census **659/659**、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A群/C群0、manual-fields 0、held/partial/idset **87/15/46**。O-42 は不変条件優先で**残1・未クローズ**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/o42_batch2_report.md`。
+
 ## 2026-08-23：§6.4 O-42 第1バッチ＝parser と実体同一の manual 影武者48効果を解除
 
 `censusManualDrift` の削除候補86効果を再実測し、指定48効果が全件含まれることを確認した。各効果について `MANUAL_EFFECTS` と `parseCardEffects` 生出力を `parseStatus` だけ除外して独立比較し、値・配列・フィールド集合が全件一致したため `manualEffects.ts` から削除。live が MANUAL だった40効果は `effects_WX.json` の刻印だけを AUTO へ戻した（既にAUTOだった8効果は live 不変）。開始HEADとの効果単位比較は live総数10693据置、変更40効果、`parseStatus` 除外差分0件。manualEffects は451→432カード、削除候補は86→38、乖離5区分は23/20/4/3/2据置。

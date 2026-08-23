@@ -10015,7 +10015,7 @@ test('ON_HAND_ADDED movedSelf: 移動カード自身が手札から発火（WD12
 
 test('PLAN §6.3 WX20-028-E1: 好きな枚数のアクセ宣言は既存MULTI_ACCE_LIMIT collectorへ届く', () => {
   withSavedCursor(() => {
-    const e1 = MANUAL_EFFECTS['WX20-028']!.find(e => e.effectId === 'WX20-028-E1')!;
+    const e1 = (effectsMap.get('WX20-028') ?? []).find(e => e.effectId === 'WX20-028-E1')!;
     eq(e1.action.type, 'STUB');
     eq((e1.action as StubAction).id, 'MULTI_ACCE_LIMIT');
     eq((e1.action as StubAction).value, 'ALL');
@@ -42973,16 +42973,10 @@ for (const [effectId, exactDelta, missDelta] of [
   }));
 }
 
-// §6.4 O-42 の未消化在庫。バッチで消していく。増やしてはいけない。
+// §6.4 O-42 の残件。ここに effectId が増えたら、また影武者コピーが生えたということ。
+// WX10-018-E1 は parser/manual に negateNthAttack がある一方、開始 live に無く、parseStatus 以外も変わるため解除しない。
 const O42_KNOWN_REDUNDANT_MANUAL = [
-  'WDK08-Y11-E2', 'WXDi-P06-031-E2', 'WXK11-029-E1', 'WX12-038-BURST', 'WD17-009-E2',
-  'WXDi-P04-049-BURST', 'WX25-P2-060-E2', 'WXK04-002-E2', 'WXK04-028-E1', 'WDK08-L15-E1',
-  'WXK04-042-E2', 'WXK08-005-E5', 'WXK04-011-E1', 'WXK04-012-E1', 'WXK04-013-E2',
-  'WXK05-011-E2', 'WDK08-L01-E3', 'WDK08-L02-E2', 'WDK08-L03-E2', 'WDK08-L04-E2',
-  'WXK05-023-E1', 'WXK04-070-E1', 'WX13-034-E2', 'WX16-045-E1', 'WX24-D3-25-BURST',
-  'SPDi37-06-BURST', 'WX12-010-E1', 'WD03-011-E1', 'WXDi-P06-007-E2', 'WX10-018-E1',
-  'WX19-045-E1', 'WXDi-P06-034-E2', 'WXDi-P14-053-E1', 'WX26-CP1-048-E1', 'WX24-P2-044-E1',
-  'WXDi-P11-010B-E1', 'WXK09-003-E1', 'WX20-028-E1',
+  'WX10-018-E1',
 ] as const;
 
 function o42StableBody(value: unknown): string {
@@ -42997,8 +42991,8 @@ function o42StableBody(value: unknown): string {
   return JSON.stringify(normalize(value));
 }
 
-test('§6.4 O-42 tripwire: parser と実体同一の manual 影武者コピーは既知38効果から増減しない', () => {
-  eq(O42_KNOWN_REDUNDANT_MANUAL.length, 38, '既知在庫リストの件数');
+test('§6.4 O-42 tripwire: parser と実体同一の manual 影武者コピーは既知1効果から増減しない', () => {
+  eq(O42_KNOWN_REDUNDANT_MANUAL.length, 1, '既知在庫リストの件数');
   const redundant: string[] = [];
   for (const [cardNum, manualEffects] of Object.entries(MANUAL_EFFECTS)) {
     const card = cardMap.get(cardNum);
@@ -43012,6 +43006,38 @@ test('§6.4 O-42 tripwire: parser と実体同一の manual 影武者コピー�
   eq(redundant.sort().join(','), [...O42_KNOWN_REDUNDANT_MANUAL].sort().join(','),
     '新しい影武者コピーが増えた、または既知在庫が減ったら許容リストを更新する');
 });
+
+test('§6.4 O-42 batch2 E2E: WD17-009-E2 は自身だけをターン終了時まで+3000', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WD17-009') ?? []).find(candidate => candidate.effectId === 'WD17-009-E2')!;
+  eq(effect.parseStatus, 'AUTO', 'manual 解除後の live 刻印');
+  const result = run(effect.action, mkCtx({ signi: ['WD17-009', null, null] }, {}, 'WD17-009'));
+  const mods = result.ownerState.temp_power_mods ?? [];
+  ok(mods.some(mod => mod.cardNum === 'WD17-009' && mod.delta === 3000), '効果元自身に+3000');
+  eq(mods.filter(mod => mod.delta === 3000).length, 1, '他のシグニへ波及しない');
+}));
+
+test('§6.4 O-42 batch2 E2E: WX12-038-BURST はデッキトップ1枚をエナへ置く', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WX12-038') ?? []).find(candidate => candidate.effectId === 'WX12-038-BURST')!;
+  eq(effect.parseStatus, 'AUTO', 'manual 解除後の live 刻印');
+  const top = fresh();
+  const ctx = mkCtx({ deckTop: [top], energy: 0 }, {}, 'WX12-038');
+  const beforeDeck = ctx.ownerState.deck.length;
+  const result = run(effect.action, ctx);
+  eq(result.ownerState.energy.length, 1, 'エナが1枚増える');
+  eq(result.ownerState.energy[0], top, 'デッキトップと移動カードが一致');
+  eq(result.ownerState.deck.length, beforeDeck - 1, 'デッキが1枚減る');
+}));
+
+test('§6.4 O-42 batch2 E2E: WXDi-P11-010B-E1 は5枚ドローして5枚エナチャージする', () => withSavedCursor(() => {
+  const effect = (effectsMap.get('WXDi-P11-010B') ?? []).find(candidate => candidate.effectId === 'WXDi-P11-010B-E1')!;
+  eq(effect.parseStatus, 'AUTO', 'manual 解除後の live 刻印');
+  const ctx = mkCtx({ hand: 0, energy: 0 }, {}, 'WXDi-P11-010B');
+  const beforeDeck = ctx.ownerState.deck.length;
+  const result = run(effect.action, ctx);
+  eq(result.ownerState.hand.length, 5, '5枚ドロー');
+  eq(result.ownerState.energy.length, 5, '5枚エナチャージ');
+  eq(result.ownerState.deck.length, beforeDeck - 10, '合計10枚をデッキから移動');
+}));
 
 test('§6.4 O-42 E2E: WX05-003-E3 は手札が6枚になるまで不足分だけ引く', () => withSavedCursor(() => {
   const effect = (effectsMap.get('WX05-003') ?? []).find(candidate => candidate.effectId === 'WX05-003-E3')!;
