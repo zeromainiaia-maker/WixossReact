@@ -320,9 +320,17 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
           target = { type: 'CENTER_LRIG_OR_SIGNI', owner, count: cm ? parseNum(cm[1]) : 1, ...(cm?.[2] ? { upToCount: true } : {}) };
         } else if (/シグニ/.test(pre)) {
           target = parseSigniTarget(pre, owner);
-          // parseSigniTarget はカード名フィルタを扱わない＝《名前》指定（WXDi-P08-061 等）をここで合成
+          // parseSigniTarget はカード名フィルタを扱わない＝《名前》指定をここで合成。
+          // 「《A》か《B》か色のシグニ」は名前群と色のORであり、同一filterへ平坦に置くとANDになる。
           const nameF = parseNameFilter(pre);
-          if (Object.keys(nameF).length > 0) target = { ...target, filter: { ...target.filter, ...nameF } };
+          const nameOrColorM = pre.match(/((?:《[^》]+》か)+)([白赤青緑黒])のシグニ/);
+          if (nameOrColorM) {
+            const names = [...nameOrColorM[1].matchAll(/《([^》]+)》/g)].map(m => m[1]);
+            const { color: _color, cardName: _cardName, cardNames: _cardNames, ...common } = target.filter ?? {};
+            target = { ...target, filter: { ...common, anyOf: [{ cardNames: names }, { color: nameOrColorM[2] }] } };
+          } else if (Object.keys(nameF).length > 0) {
+            target = { ...target, filter: { ...target.filter, ...nameF } };
+          }
         } else if (/ルリグ/.test(pre)) {
           target = { type: 'LRIG', owner, count: 1 };
         }
@@ -1111,7 +1119,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const filterStr = m1[2].trim();
       const filter: TargetFilter | undefined =
         filterStr === 'カード' ? undefined
-        : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) }
+        : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...parseColorFilter(filterStr) }
         : filterStr.includes('スペル') ? { cardType: 'スペル' }
         : undefined;
       return {
@@ -1133,7 +1141,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 数える母集団の絞り込みが落ちると**下げ幅が過大になる**（＝過剰効果）。
       const filter: TargetFilter | undefined =
         filterStr.includes('シグニ')
-          ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...(/無色ではない/.test(filterStr) ? { nonColorless: true } : {}) }
+          ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...parseColorFilter(filterStr), ...(/無色ではない/.test(filterStr) ? { nonColorless: true } : {}) }
           : undefined;
       return {
         type: 'POWER_MODIFY_PER_TRASH_COUNT',
@@ -1157,7 +1165,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       const filterStr = m[3].trim();
       const filter: TargetFilter | undefined =
         filterStr === 'カード' ? undefined
-        : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr) }
+        : filterStr.includes('シグニ') ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...parseColorFilter(filterStr) }
         : filterStr.includes('スペル') ? { cardType: 'スペル' }
         : filterStr.match(/[赤青緑黒白]/u) ? { color: filterStr.replace(/のカード|のシグニ/g, '').trim() }
         : undefined;
@@ -1201,7 +1209,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       // 数える母集団の絞り込みが落ちると**下げ幅が過大になる**（＝過剰効果）。
       const filter: TargetFilter | undefined =
         filterStr.includes('シグニ')
-          ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...(/無色ではない/.test(filterStr) ? { nonColorless: true } : {}) }
+          ? { cardType: 'シグニ', ...parseStoryFilter(filterStr), ...parseColorFilter(filterStr), ...(/無色ではない/.test(filterStr) ? { nonColorless: true } : {}) }
           : undefined;
       return {
         type: 'POWER_MODIFY_PER_TRASH_COUNT',
@@ -1620,7 +1628,8 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     const colorEnergyM = t.match(/対戦相手の([白赤青緑黒]か[白赤青緑黒])のシグニ([０-９\d]+)体を対象とし.*エナゾーンに置く/);
     if (colorEnergyM) {
-      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorEnergyM[2]) } } as SendToEnergyAction;
+      return { type: 'SEND_TO_ENERGY', target: { type: 'SIGNI', owner: 'opponent', count: parseNum(colorEnergyM[2]),
+        filter: { cardType: 'シグニ', color: colorEnergyM[1].split('か') } } } as SendToEnergyAction;
     }
     // 対戦相手は自分のシグニN体を選びエナゾーンに置く
     if (t.match(/対戦相手は自分のシグニ[０-９\d]*体?を選びエナゾーンに置く/)) {
@@ -1735,6 +1744,11 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       if (/《ライズアイコン》を持たない/.test(banishAllSpan)) banishAllFilter.noRiseIcon = true;
       else if (/《ライズアイコン》を持つ/.test(banishAllSpan)) banishAllFilter.hasRiseIcon = true;
       if (/無色ではない/.test(banishAllSpan)) banishAllFilter.nonColorless = true;
+      const excludedColor = banishAllSpan.match(/([白青赤緑黒])ではない/)?.[1];
+      if (excludedColor) {
+        delete banishAllFilter.color;
+        banishAllFilter.colorExclude = excludedColor;
+      }
       return { type: 'BANISH', target: { type: 'SIGNI', owner, count: 'ALL', filter: banishAllFilter } };
     }
     // 「対戦相手のシグニN体を対象とし、このシグニとそれをバニッシュする」＝選んだ相手シグニ＋自身を共にバニッシュ（WX03-032-E2）
@@ -1921,7 +1935,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     }
     // 「あなたの（XかYの）シグニを好きな数対象とし、それらを（場から）トラッシュに置く」= 好きな数選択
     if (t.match(/あなたの(?:.+の)?シグニを好きな数対象とし/)) {
-      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
+      const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t) };
       return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
     }
     // デッキからトラッシュ
@@ -2373,7 +2387,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
                t.match(/対戦相手の(?:他の)?(?:[白赤青緑黒]の|(?:＜[^＞]+＞[とか])*＜[^＞]+＞の|感染状態の)?(?:すべての)?シグニのパワーを/)) {
       target = { type: 'SIGNI', owner: 'opponent', count: 'ALL', filter: { cardType: 'シグニ', ...parseColorFilter(t), ...parseStoryFilter(t), ...(t.includes('感染状態') ? { infected: true } : {}) } };
       if (/対戦相手の他の/.test(t)) excludeSelf = true;
-    } else if (t.match(/対戦相手の(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
+    } else if (t.match(/対戦相手の(?:(?:[白赤青緑黒])(?:か|または)(?:[白赤青緑黒])の|感染状態の|アップ状態の|ダウン状態の|凍結状態の)?シグニ([０-９\d]+)体/) || t.match(/対戦相手の感染状態のシグニ/)) {
       // 状態接頭辞（アップ/ダウン/凍結状態の）は parseSigniTarget が isUp/isDown/isFrozen として抽出する
       target = parseSigniTarget(t, 'opponent');
     } else if (t.match(/あなたの(?:感染状態の|アップ状態の|ダウン状態の|凍結状態の)?(?:(?:＜[^＞]+＞[とか])*＜[^＞]+＞の|[白赤青緑黒]の|レベル[０-９\d]+(?:以上|以下)?の)?シグニ([０-９\d]+)体/)) {
@@ -2413,6 +2427,14 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   const powerSetM = t.match(/(?:基本)?パワーは([０-９\d]+)になる/)
                  ?? t.match(/(?:基本)?パワーを([０-９\d]+)にする/);
   if (powerSetM) {
+    const collectiveColor = t.match(/あなたの([白青赤緑黒])のシグニの(?:基本)?パワーを/);
+    if (collectiveColor) {
+      return {
+        type: 'POWER_SET',
+        target: { type: 'SIGNI', owner: 'self', count: 'ALL', filter: { cardType: 'シグニ', color: collectiveColor[1] } },
+        value: parseNum(powerSetM[1]),
+      };
+    }
     const owner: Owner = signiClauseOwner(t);
     const cM = t.match(/シグニ([０-９\d]+)体/);
     const count = cM ? parseNum(cM[1]) : 1;
@@ -2698,6 +2720,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     // 既存入口の挙動は保ったまま、今回追加した合成語彙だけを共通抽出器から配線する。
     const spanColors = [...new Set([...spanTxt.matchAll(/([白赤青緑黒])(?=[のか])/g)].map(m => m[1]))];
     if (spanColors.length === 1 && spanTxt.includes(`${spanColors[0]}の`)) filter.color = spanColors[0];
+    if (Array.isArray(extracted.color)) filter.color = extracted.color;
     // 「《カード名》以外の〜」（§5d パターンA・続き371）。旧実装は ＜龍獣＞1枚のためだけの narrow regex で、
     // 同型の10効果（`WX16-025-E3`／`WX18-081-E2`／`WXK07-081-E2` 等）が**自分自身も回収できる過剰効果**だった。
     Object.assign(filter, parseExcludeCardNameFilter(trashTargetPhrase));
@@ -2710,7 +2733,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   ⚠したがって**文全体 `t` を渡す**（名詞句だけだと「その後」を見失い lastProcessed を横取りする）。
     Object.assign(filter, parseTriggerComparison(t, { allowLevelEq: true }));
     if (useBatch2FilterComposition) {
-      if (Array.isArray(extracted.color) || extracted.color === '無') filter.color = extracted.color;
+      if (extracted.color === '無') filter.color = extracted.color;
       if (extracted.cardName) filter.cardName = extracted.cardName;
       if (extracted.excludeCardName) filter.excludeCardName = extracted.excludeCardName;
       if (extracted.nonColorless) filter.nonColorless = true;
@@ -2790,6 +2813,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filterParts: TargetFilter = {
       ...parseCardTypeFilter(energySpan),
       ...parseStoryFilter(energySpan),
+      ...parseColorFilter(energySpan),
       ...signiClauseDisonaFilter(energySpan),
       ...parseColorMatchesLrig(energySpan),
       // 「エナゾーンから《カード名》以外の〜」（§5d パターンA・続き371）＝`WXEX1-34-E3`／`WXK05-027-E1`
@@ -3521,7 +3545,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
       //   落ちると `WX15-070-E1`「《ライズアイコン》を持つあなたのシグニ１体を対象とし…【ダブルクラッシュ】を得る」で
       //   **どのシグニにも付与できる**過剰効果になる。全文スキャンにすると `WX18-030-E1`「場に…が２体あるかぎり」の
       //   **条件節**を対象へ引き込むので、隣接判定は外せない。
-      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) };
+      const kwSigniFilter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t), ...signiClauseColorFilter(t), ...parseLevelFilter(t), ...parsePrintedComparison(t), ...signiClauseIconFilter(t), ...signiClauseDisonaFilter(t) };
       const kwHasFilter = Object.keys(kwSigniFilter).length > 1;
       // ⚠「あなたのシグニ**N体**」枝は **`kwSigniFilter` を使ってはいけない**（続き377c で A/B により判明）＝
       //   `kwSigniFilter` は `parseLevelFilter(t)` 等を**全文**から取るので、`WD21-001-E1`
@@ -3868,7 +3892,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
 
   // ---- 自分の（XかYの）シグニを好きな数トラッシュ ----
   if (t.match(/あなたの(?:.+の)?シグニを好きな数対象とし.*トラッシュに置く/)) {
-    const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t) };
+    const filter: TargetFilter = { cardType: 'シグニ', ...parseStoryFilter(t), ...parseColorFilter(t) };
     return { type: 'TRASH', target: { type: 'SIGNI', owner: 'self', count: 'ALL', upToCount: true, filter } };
   }
 
@@ -4322,7 +4346,7 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     const filter: TargetFilter = { cardType: 'シグニ', ...signiClauseLevelFilter(t), ...(lvM ? { level: parseNum(lvM[1]) } : {}), ...parsePowerFilter(dbSpan.length > 0 ? dbSpan : t), ...parseStateFilter(t), ...(dbStoryM ? { story: dbStoryM[1] } : {}), ...(hasOtherSelfSigniNoun(t) ? { excludeSelf: true } : {}), ...(/無色ではない/.test(t) ? { nonColorless: true } : {}),
       // 《ガードアイコン》（続き377b）＝クラスと同じく **`dbSpan`（トラッシュから〜デッキの一番下）に限る**。
       //   `WXDi-P11-074-E2`「トラッシュから《ガードアイコン》を持たないシグニを３枚まで」で丸ごと落ちていた。
-      ...parseGuardFilter(dbSpan), ...parseIconFilter(dbSpan) };
+      ...(dbClasses.length <= 1 ? parseColorFilter(dbSpan) : {}), ...signiClauseColorFilter(t), ...parseGuardFilter(dbSpan), ...parseIconFilter(dbSpan) };
     // 枚数は「N体」（場のシグニ）だけを見ていたため、**トラッシュから「N枚」**の形が全部 count:1 へ潰れ、
     //   「３枚まで」が1枚しか動かせない**過小実行**になっていた（続き377b・実測8効果＝`WDK09-013-E2`／
     //   `WX06-001-E2`／`WX06-001-E3`／`WX08-036-E1`／`WX25-CP1-047-E1`／`WXDi-P11-074-E2`／`WXK06-041-E2`／

@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第33バッチ＝対象・移動元・集計対象の色指定／色OR／色否定23効果
+
+未closed `findings.jsonl` を母集団の正に切り替え、CSV原文から色名詞466効果をBOM除去付きで再走査した。指定16効果と、同じparser規則で見つかった7効果を採用。`TargetFilter.color:string|string[]`、`colorExclude`、`anyOf` は型・`execUtils.matchesFilter`・`effectEngine.matchesFilter`・動的filter解決に既に実装済みだったため、新しいaction型やengine変更は加えずparser配線だけで直した。
+
+単色脱落はfield／trash／energyの対象・sourceと`POWER_MODIFY_PER_TRASH_COUNT.countFilter`へ色を載せ、`WX10-038-E1` は赤すべての`POWER_SET`へ復旧。色ORは `['赤','緑']` 等を対象句・トラッシュ回収句へ配線し、`PR-K044-E3` は選択肢1と3を同時修正。`WX24-P4-035-E1` は色だけでなく`owner:any→opponent`も是正。名称3種か色の2効果は平坦ANDを`anyOf:[{cardNames},{color}]`へ、`WXDi-P03-085-E1` は`colorExclude:'黒'`へ移した。`WX25-CP1-088-E1` は既存の直前対象保存・条件評価・同一対象アップ経路へ組み替えた。原文に無い赤限定2効果はtargetからだけ除去した。
+
+live差分は23 effectIdだけで、追加・削除・同カード別効果の巻き込み0。`WXEX2-51-E3`（欠落はパワー12000以下）と`PR-322-E2`（欠落は手札から出す枝）は色機構外として据置し、非採用契約をgolden固定した。条件外不一致として `WX22-Re06-E1` の段階閾値、`WX09-045-E1` の排他的置換、`WX10-022-E1` の使用コスト、`WX25-CP1-047-E1` の動的枚数逆翻訳表示を申告した。
+
+採用23効果の成立／不成立E2Eと、据置2件の非採用契約を追加。`npm run regen`／`npm run gates` 全緑。golden **2588/2588**（2563→2588）、census **630/630**（640→630、定数更新）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A群/C群0、manual-fields 0、held/partial/idset **83/15/46**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch33_report.md`。
+
 ## 2026-08-23：§6.2 段2 第32バッチ＝合計レベルexact 7節＋SEARCH上限、§6.4 O-42クローズ
 
 `SelectionConstraint` に `totalLevelExact` / `totalLevelMax` を追加し、候補提示時の組み合わせ存在確認、UI/CPUの選択完了判定、`resumeSelectTarget` / `resumeSearch` の外部応答再検証を共通化した。「レベルの合計がNになるように」は上限へ丸めず、`WXEX1-36-E2`、`WXEX1-45-BURST`、`WXK10-066-E2`、`WDK13-008-E1` の2選択肢、`PR-K043-E1`、`WXDi-P08-045-E2` へ exact を配線。`WXEX1-45-E3` は同じSEARCH経路へ `totalLevelMax:5` を配線した。必須形で達成可能な組み合わせが無い場合は既存の空候補と同じ0枚完了、任意コスト形はpay不可（または不正resumeを0枚化）かつ後段を走らせないfail-closedとした。

@@ -93,7 +93,8 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 640; // 2026-08-23 段2 第32バッチ＝「レベルの合計がNになるように」のexact選択7節とSEARCH上限1効果を復元し、高シグナル欠落2件を解消（642→640）。候補提示・完了判定・resume再検証と、達成不能時の0枚fail-closedを共通SelectionConstraint経路へ配線。旧履歴は直下。
+const BASELINE_HIGH = 630; // 2026-08-23 段2 第33バッチ＝対象・移動元・集計対象の色限定／色OR／色否定23効果を既存TargetFilter経路へ復元し、高シグナル欠落10件を解消（640→630）。旧履歴は直下。
+// 旧・段2 第32バッチ: const BASELINE_HIGH = 640; // 「レベルの合計がNになるように」のexact選択7節とSEARCH上限1効果を復元（642→640）。
 // 旧・段2 第31バッチ: const BASELINE_HIGH = 642; // 「レベルの合計がN以下」の選択上限5効果と、B3の欠落BANISH耐性を復元（647→642）。
 // 旧・段2 第30バッチ: const BASELINE_HIGH = 647; // 対象レベル奇偶3効果と盤面のレベル/パワー集約条件10効果を復元し、高シグナル欠落9件を解消（656→647）。
 // 旧・段2 第29バッチ: const BASELINE_HIGH = 656; // 引用能力付与に飲まれていた外側の POWER_MODIFY / POWER_SET を12効果へ復元し、うち3効果が高シグナル欠落から解消（659→656）。

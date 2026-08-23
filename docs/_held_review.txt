@@ -3,18 +3,22 @@
 # 採用: node scripts/heldReview.mjs --adopt ID1,ID2,… ／ グループごと: --adopt-sig "署名"
 # 各グループ先頭3枚に 原文＋leaf diff を表示＝spot-check してから署名単位で採用する
 
-## （type増減なし＝値/構造変更） ［50枚］
-PR-Di017B SPDi43-12 WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX10-062 WX13-031 WX17-009 WX24-D2-11 WX24-P1-048 WX24-P2-002 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
+## （type増減なし＝値/構造変更） ［55枚］
+PR-Di017B PR-K044 SPDi43-12 WD07-006 WX05-023 WX05-025 WX07-029 WX08-036 WX09-045 WX10-038 WX10-062 WX13-031 WX17-009 WX24-D2-11 WX24-P1-048 WX24-P2-002 WX24-P4-029 WX24-P4-035 WX25-CP1-039 WX25-CP1-080 WX25-P1-072 WX25-P1-073 WX25-P1-076 WX25-P2-049 WX25-P2-TK06 WX25-P3-003 WX25-P3-085 WXDi-CP01-006 WXDi-CP02-033 WXDi-CP02-050 WXDi-CP02-054 WXDi-D06-010 WXDi-D09-H07 WXDi-P00-037 WXDi-P02-018 WXDi-P05-005 WXDi-P06-011 WXDi-P06-013 WXDi-P08-061 WXDi-P08-072 WXDi-P09-005 WXDi-P09-006 WXDi-P09-069 WXDi-P10-030 WXDi-P11-064 WXDi-P14-057 WXDi-P15-084 WXK01-020 WXK01-044 WXK03-006 WXK05-040 WXK08-056 WXK09-040 WXK09-084 WXK11-019
 --- PR-Di017B
   原文: 【自】：あなたのアタックフェイズ開始時、対戦相手のシグニ1体を対象とし、手札を3枚捨ててもよい。そうした場合、それをトラッシュに置く。,-
   ~ [0].timing[0] : "ON_ATTACK_PHASE_START" → "ATTACK"
   ~ [0].parseStatus : "AUTO" → "MANUAL"
+--- PR-K044
+  原文: 【常】：あなたのセンタールリグは以下の能力を得る。【起】《アタックフェイズアイコン》エクシード２：対戦相手のシグニ１体を対象とし、それをバニッシュし、【エナチャージ１】をする。【出】：以下の３つから２つまで選ぶ。①あなたの赤か緑のシグニ１体を対象とし、ターン終了時まで、それは【ダブルクラッシュ】を得る。②対戦相手のシグニ１体を対象とし、それをエナゾーンに置く
+  - [1].action.choices[0].action.target.filter.color = "緑"
+  + [1].action.choices[0].action.target.filter.color[0] = "赤"
+  + [1].action.choices[0].action.target.filter.color[1] = "緑"
+  + [1].action.choices[2].action.source.filter.color[0] = "赤"
+  + [1].action.choices[2].action.source.filter.color[1] = "緑"
 --- SPDi43-12
   原文: 【起】《ダウン》：あなたのシグニ１体を対象とし、ターン終了時まで、それは【アサシン】を得る。【起】《ゲーム１回》バイブスMAX《赤×0》：ターン終了時まで、このルリグは「【自】《ターン２回》：あなたの効果１つによって対戦相手のエナゾーンからカードが合計１枚以上トラッシュに置かれたとき、このルリグをアップする。」を得る。,-
   - [1].action.abilities[0].costUnparsed = true
---- WD07-006
-  原文: あなたのデッキからそれぞれレベルの異なるシグニを３枚まで探してトラッシュに置き、デッキをシャッフルする。,-
-  ~ [0].action.then.target.count : 1 → 3
 
 ## +SIGNI +TRASH -STUB ［3枚］
 WX06-CB03 WX21-056 WX21-061
@@ -339,6 +343,24 @@ WX25-P2-001
   ~ [0].action.type : "STUB" → "SEQUENCE"
   + [0].action.steps[0].type = "STUB"
   + [0].action.steps[0].id = "GAIN_ABILITY_THIS_GAME"
+
+## +CONDITIONAL +LAST_PROCESSED_MATCHES +STUB ［1枚］
+WX25-CP1-088
+--- WX25-CP1-088
+  原文: 【自】：あなたのアタックフェイズ開始時、あなたの他の＜ブルアカ＞のシグニ１体を対象とし、ターン終了時まで、それは「【自】：このシグニがアタックしたとき、対戦相手のデッキの上からカードを３枚トラッシュに置く。」を得る。それがレベル３の黒のシグニの場合、それをアップする。【絆常】：このシグニのパワーは＋4000される。,：対戦相手のシグニ１体を対象とし、ターン終
+  - [0].action.steps[1].target.type = "SIGNI"
+  - [0].action.steps[1].target.owner = "self"
+  - [0].action.steps[1].target.count = 1
+  ~ [0].action.steps[1].type : "UP" → "STUB"
+  + [0].action.steps[1].id = "STORE_LAST_PROCESSED_TARGETS"
+  + [0].action.steps[2].type = "CONDITIONAL"
+  + [0].action.steps[2].condition.type = "LAST_PROCESSED_MATCHES"
+  + [0].action.steps[2].condition.filter.cardType = "シグニ"
+  + [0].action.steps[2].condition.filter.level = 3
+  + [0].action.steps[2].condition.filter.color = "黒"
+  + [0].action.steps[2].then.type = "UP"
+  + [0].action.steps[2].then.target.type = "SIGNI"
+  …（他 3 行）
 
 ## +LOOK_AND_REORDER -HAND_CARD -TRANSFER_TO_DECK ［1枚］
 WXK03-069

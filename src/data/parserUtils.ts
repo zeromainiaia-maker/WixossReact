@@ -585,6 +585,8 @@ export function signiClauseLevelFilter(text: string): Partial<TargetFilter> {
  */
 const SIGNI_TARGET_ADJACENT_COLOR = /(?:([白赤青緑黒])の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし|対象の(?:あなた|対戦相手)の(?:他の)?([白赤青緑黒])の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体)/;
 export function signiClauseColorFilter(text: string): Partial<TargetFilter> {
+  const orM = text.match(/([白赤青緑黒])(?:か|または)([白赤青緑黒])の(?:[^。、シ]{0,10})?シグニ(?:を)?[０-９\d]*体(?:まで)?を?対象とし/);
+  if (orM) return { color: [...new Set([orM[1], orM[2]])] };
   const m = text.match(SIGNI_TARGET_ADJACENT_COLOR);
   if (!m) return {};
   // ⚠**「対象のAと同じ〈属性〉の対象のB」は A が参照側**＝色は B（実際の対象）に付けてはいけない。
@@ -667,6 +669,9 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
     ...parseLevelFilter(text),
     ...parseHandDiffLevelFilter(text),
     ...parseColorFilter(text),
+    // 「赤か緑のシグニN体を対象とし」は単色抽出だと後半色だけへ潰れる。
+    // 対象名詞句に隣接するORだけを後勝ちで載せ、条件節・コスト節の色は拾わない。
+    ...signiClauseColorFilter(text),
     ...parseStoryFilter(text),
     // 《ライズ／クロス／アクセアイコン》＝**対象名詞句に隣接**するときだけ（続き377c）。全文スキャンだと
     // 「あなたの場に《ライズアイコン》を持つシグニが２体ある場合、…対戦相手のシグニ１体を対象とし」の

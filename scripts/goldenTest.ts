@@ -43703,6 +43703,206 @@ test('段2 第32バッチ 構造契約: exact 7効果はtotalLevelExact、B1だ�
   ok(b1.includes('totalLevelMax') && !b1.includes('totalLevelExact'), 'B1だけは「以下」の上限キー');
 });
 
+// ── §6.2 段2 第33バッチ: 対象フィルタの色指定／色OR／色否定 ──
+function batch33Signi(id: string, color: string, level = 2, power = 5000, story = '', cardName = id): string {
+  return batch31SyntheticCard(id, 'シグニ', {
+    Color: color, Level: String(level), Power: String(power), CardClass: story ? `奏武：${story}` : '', CardName: cardName,
+  });
+}
+
+function batch33Step(action: EffectAction, index: number): EffectAction {
+  if (action.type !== 'SEQUENCE') throw new Error(`SEQUENCEではない: ${action.type}`);
+  const step = action.steps[index];
+  if (!step) throw new Error(`step ${index}なし`);
+  return step;
+}
+
+function batch33Choice(action: EffectAction, index: number): EffectAction {
+  if (action.type !== 'CHOOSE') throw new Error(`CHOOSEではない: ${action.type}`);
+  const choice = action.choices[index];
+  if (!choice) throw new Error(`choice ${index}なし`);
+  return choice.action;
+}
+
+function batch33CandidateContrast(action: EffectAction, ctx: ExecCtx, allowed: string, denied: string, label: string): ExecResult {
+  const offer = executeEffect({ effectId: `b33-${label}`, effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!offer.done && offer.pending.type === 'SELECT_TARGET', `${label}: 対象選択を提示`);
+  if (offer.done || offer.pending.type !== 'SELECT_TARGET') throw new Error(`${label}: SELECT_TARGETなし`);
+  ok(offer.pending.candidates.includes(allowed), `${label}: 原文適合カードを候補に含む`);
+  ok(!offer.pending.candidates.includes(denied), `${label}: 色違い／条件違いカードを候補から除く`);
+  return finish(resumeSelectTarget([allowed], offer.pending, ctxAfter(offer, ctx)), ctx);
+}
+
+type Batch33SimpleCase = {
+  cardNum: string;
+  effectId: string;
+  action: () => EffectAction;
+  zone: 'selfField' | 'opponentField' | 'selfTrash' | 'selfEnergy';
+  allowedColor: string;
+  deniedColor: string;
+  level?: number;
+  story?: string;
+};
+
+const batch33SimpleCases: Batch33SimpleCase[] = [
+  { cardNum: 'PR-K044', effectId: 'PR-K044-E3', action: () => batch33Choice(manualEffect('PR-K044', 'PR-K044-E3').action, 0), zone: 'selfField', allowedColor: '赤', deniedColor: '青' },
+  { cardNum: 'WX24-P4-033', effectId: 'WX24-P4-033-E1', action: () => batch33Choice(manualEffect('WX24-P4-033', 'WX24-P4-033-E1').action, 1), zone: 'opponentField', allowedColor: '青', deniedColor: '赤' },
+  { cardNum: 'WX24-P4-031', effectId: 'WX24-P4-031-E1', action: () => batch33Choice(manualEffect('WX24-P4-031', 'WX24-P4-031-E1').action, 1), zone: 'opponentField', allowedColor: '緑', deniedColor: '青' },
+  { cardNum: 'WX24-P4-035', effectId: 'WX24-P4-035-E1', action: () => batch33Choice(manualEffect('WX24-P4-035', 'WX24-P4-035-E1').action, 1), zone: 'opponentField', allowedColor: '白', deniedColor: '黒' },
+  { cardNum: 'WX24-P4-029', effectId: 'WX24-P4-029-E1', action: () => batch33Choice(manualEffect('WX24-P4-029', 'WX24-P4-029-E1').action, 1), zone: 'opponentField', allowedColor: '青', deniedColor: '赤' },
+  { cardNum: 'WX10-022', effectId: 'WX10-022-E1', action: () => batch33Choice(batch33Step(manualEffect('WX10-022', 'WX10-022-E1').action, 1), 2), zone: 'selfTrash', allowedColor: '白', deniedColor: '赤' },
+  { cardNum: 'WX12-016', effectId: 'WX12-016-E1', action: () => manualEffect('WX12-016', 'WX12-016-E1').action, zone: 'selfTrash', allowedColor: '黒', deniedColor: '緑' },
+  { cardNum: 'WX20-022', effectId: 'WX20-022-BURST', action: () => batch33Choice(manualEffect('WX20-022', 'WX20-022-BURST').action, 0), zone: 'selfTrash', allowedColor: '赤', deniedColor: '青' },
+  { cardNum: 'WXK10-002', effectId: 'WXK10-002-E1', action: () => batch33Step(batch33Choice(manualEffect('WXK10-002', 'WXK10-002-E1').action, 4), 1), zone: 'selfTrash', allowedColor: '白', deniedColor: '緑' },
+  { cardNum: 'WD18-007', effectId: 'WD18-007-E1', action: () => batch33Step(manualEffect('WD18-007', 'WD18-007-E1').action, 0), zone: 'selfEnergy', allowedColor: '緑', deniedColor: '青' },
+];
+
+for (const spec of batch33SimpleCases) {
+  test(`段2 第33バッチ E2E: ${spec.effectId} は適合色を許可し色違いを拒否`, () => withSavedCursor(() => {
+    const allowed = batch33Signi(`B33-${spec.effectId}-OK`, spec.allowedColor, spec.level ?? 2, 5000, spec.story ?? '');
+    const denied = batch33Signi(`B33-${spec.effectId}-NG`, spec.deniedColor, spec.level ?? 2, 5000, spec.story ?? '');
+    const ctx = mkCtx(
+      { signi: spec.zone === 'selfField' ? [denied, allowed, null] : undefined },
+      { signi: spec.zone === 'opponentField' ? [denied, allowed, null] : undefined },
+      spec.cardNum,
+    );
+    if (spec.zone === 'selfTrash') ctx.ownerState.trash = [denied, allowed];
+    if (spec.zone === 'selfEnergy') ctx.ownerState.energy = [denied, allowed];
+    const done = batch33CandidateContrast(spec.action(), ctx, allowed, denied, spec.effectId);
+    ok(done.lastProcessedCards?.includes(allowed) === true, `${spec.effectId}: 適合色を実処理`);
+  }));
+}
+
+test('段2 第33バッチ E2E: WX22-Re06-E1 は自分の黒シグニだけを好きな数トラッシュ', () => withSavedCursor(() => {
+  const black = batch33Signi('B33-WX22-BLACK', '黒'), red = batch33Signi('B33-WX22-RED', '赤');
+  const action = batch33Step(manualEffect('WX22-Re06', 'WX22-Re06-E1').action, 0);
+  const done = run(action, mkCtx({ signi: [red, black, null] }, {}, 'WX22-Re06'));
+  ok(done.ownerState.trash.includes(black), '黒はトラッシュへ');
+  ok(done.ownerState.field.signi.some(stack => stack?.at(-1) === red), '赤は場に残る');
+}));
+
+test('段2 第33バッチ E2E: WXK09-058-E1 はレベル4黒だけをデッキ下へ', () => withSavedCursor(() => {
+  const black = batch33Signi('B33-K09-BLACK', '黒', 4), red = batch33Signi('B33-K09-RED', '赤', 4);
+  const ctx = mkCtx({}, {}, 'WXK09-058'); ctx.ownerState.trash = [red, black];
+  const done = run(manualEffect('WXK09-058', 'WXK09-058-E1').action, ctx);
+  ok(done.ownerState.deck.includes(black), 'レベル4黒はデッキ下へ');
+  ok(done.ownerState.trash.includes(red), 'レベル4赤はトラッシュに残る');
+}));
+
+test('段2 第33バッチ E2E: WXK10-028-BURST は両選択肢とも緑だけをエナから移す', () => withSavedCursor(() => {
+  const green = batch33Signi('B33-K28-GREEN', '緑'), black = batch33Signi('B33-K28-BLACK', '黒');
+  for (const choiceIndex of [0, 1]) {
+    const ctx = mkCtx({}, {}, 'WXK10-028');
+    ctx.ownerState.energy = [black, green];
+    const action = batch33Choice(manualEffect('WXK10-028', 'WXK10-028-BURST').action, choiceIndex);
+    const done = batch33CandidateContrast(action, ctx, green, black, `WXK10-028-BURST-${choiceIndex}`);
+    ok(done.lastProcessedCards?.includes(green) === true, `選択肢${choiceIndex + 1}: 緑を実処理`);
+  }
+}));
+
+test('段2 第33バッチ E2E: WX20-079-E1 はレベルの異なる黒4枚だけをデッキ下へ', () => withSavedCursor(() => {
+  const blacks = [1, 2, 3, 4].map(level => batch33Signi(`B33-WX20-B${level}`, '黒', level));
+  const red = batch33Signi('B33-WX20-RED', '赤', 1);
+  const ctx = mkCtx({}, {}, 'WX20-079');
+  ctx.ownerState.trash = [red, ...blacks];
+  const action = batch33Step(manualEffect('WX20-079', 'WX20-079-E1').action, 0);
+  const offer = executeEffect({ effectId: 'b33-wx20', effectType: 'AUTO', action, duration: 'INSTANT', mandatory: true } as CardEffect, ctx);
+  ok(!offer.done && offer.pending.type === 'SELECT_TARGET', '4枚選択を提示');
+  if (offer.done || offer.pending.type !== 'SELECT_TARGET') return;
+  ok(!offer.pending.candidates.includes(red) && blacks.every(card => offer.pending.candidates.includes(card)), '黒4枚だけが候補');
+  const done = finish(resumeSelectTarget(blacks, offer.pending, ctxAfter(offer, ctx)), ctx);
+  ok(blacks.every(card => done.ownerState.deck.includes(card)) && done.ownerState.trash.includes(red), '黒4枚だけを移動');
+}));
+
+test('段2 第33バッチ collector E2E: WX10-038-E1 は赤すべてを15000にし、青を変えない', () => withSavedCursor(() => {
+  const red = batch33Signi('B33-WX10-RED', '赤', 2, 7000), blue = batch33Signi('B33-WX10-BLUE', '青', 2, 8000);
+  const state = mkState({ signi: ['WX10-038', red, blue] });
+  const powers = calcFieldPowers(state, mkState({}), true, effectsMap, cardMap);
+  eq(powers.get('WX10-038'), 15000, '効果元を含む赤1体目');
+  eq(powers.get(red), 15000, '赤2体目も15000');
+  eq(powers.get(blue), 8000, '青は印刷パワーのまま');
+}));
+
+test('段2 第33バッチ E2E: WXK10-042-E1 はトラッシュの青2枚につき-1000（他色を数えない）', () => withSavedCursor(() => {
+  const target = batch33Signi('B33-K42-TARGET', '白');
+  const blue1 = batch33Signi('B33-K42-B1', '青'), blue2 = batch33Signi('B33-K42-B2', '青');
+  const red1 = batch33Signi('B33-K42-R1', '赤'), red2 = batch33Signi('B33-K42-R2', '赤');
+  const action = manualEffect('WXK10-042', 'WXK10-042-E1').action;
+  const blueCtx = mkCtx({}, { signi: [target, null, null] }, 'WXK10-042'); blueCtx.ownerState.trash = [blue1, blue2, red1, red2];
+  const blueDone = run(action, blueCtx);
+  ok((blueDone.otherState.temp_power_mods ?? []).some(mod => mod.cardNum === target && mod.delta === -1000), '青2枚だけで-1000');
+  const redCtx = mkCtx({}, { signi: [target, null, null] }, 'WXK10-042'); redCtx.ownerState.trash = [red1, red2];
+  ok(!(run(action, redCtx).otherState.temp_power_mods ?? []).some(mod => mod.cardNum === target && mod.delta !== 0), '青0枚なら減少なし');
+}));
+
+test('段2 第33バッチ E2E: WX25-CP1-088-E1 は選択したレベル3黒だけをアップ', () => withSavedCursor(() => {
+  const eligible = batch33Signi('B33-CP088-OK', '黒', 3, 9000, 'ブルアカ');
+  const ineligible = batch33Signi('B33-CP088-NG', '赤', 3, 9000, 'ブルアカ');
+  const yes = run(manualEffect('WX25-CP1-088', 'WX25-CP1-088-E1').action, mkCtx({ signi: [eligible, null, null], down: [true, false, false] }, {}, 'WX25-CP1-088'));
+  eq(yes.ownerState.field.signi_down[0], false, 'レベル3黒はアップ');
+  const no = run(manualEffect('WX25-CP1-088', 'WX25-CP1-088-E1').action, mkCtx({ signi: [ineligible, null, null], down: [true, false, false] }, {}, 'WX25-CP1-088'));
+  eq(no.ownerState.field.signi_down[0], true, '同じ盤面で色だけ外すとアップしない');
+}));
+
+for (const spec of [
+  { cardNum: 'WX09-045', effectId: 'WX09-045-E1', action: () => batch33Step(manualEffect('WX09-045', 'WX09-045-E1').action, 1), max: 15000 },
+  { cardNum: 'WX24-D2-11', effectId: 'WX24-D2-11-E1', action: () => manualEffect('WX24-D2-11', 'WX24-D2-11-E1').action, max: 2000 },
+] as const) {
+  test(`段2 第33バッチ E2E: ${spec.effectId} は色を問わずパワー上限だけで対象化`, () => withSavedCursor(() => {
+    const allowed = batch33Signi(`B33-${spec.effectId}-BLUE`, '青', 2, spec.max);
+    const denied = batch33Signi(`B33-${spec.effectId}-OVER`, '赤', 2, spec.max + 1000);
+    const done = batch33CandidateContrast(spec.action(), mkCtx({}, { signi: [denied, allowed, null] }, spec.cardNum), allowed, denied, spec.effectId);
+    ok(done.lastProcessedCards?.includes(allowed) === true, '非赤でも上限内なら実処理');
+  }));
+}
+
+test('段2 第33バッチ E2E: WXDi-P03-085-E1 は黒ではない相手シグニだけを全バニッシュ', () => withSavedCursor(() => {
+  const black = batch33Signi('B33-P03-BLACK', '黒', 1, 3000), green = batch33Signi('B33-P03-GREEN', '緑', 1, 3000);
+  const done = run(manualEffect('WXDi-P03-085', 'WXDi-P03-085-E1').action, mkCtx({}, { signi: [black, green, null] }, 'WXDi-P03-085'));
+  ok(done.otherState.field.signi.some(stack => stack?.at(-1) === black), '黒は場に残る');
+  ok(!done.otherState.field.signi.some(stack => stack?.at(-1) === green), '非黒はバニッシュ');
+}));
+
+for (const spec of [
+  { cardNum: 'WXDi-P09-069', effectId: 'WXDi-P09-069-E1', color: '青', name: '羅菌姫　みこみこ//メモリア' },
+  { cardNum: 'WXDi-P08-061', effectId: 'WXDi-P08-061-E1', color: '赤', name: '紅天姫　ヒラナ//メモリア' },
+] as const) {
+  test(`段2 第33バッチ anyOf E2E: ${spec.effectId} は指定名または${spec.color}を許可しAND化しない`, () => withSavedCursor(() => {
+    const byColor = batch33Signi(`B33-${spec.effectId}-COLOR`, spec.color, 2, 5000, '', '別名');
+    const byName = batch33Signi(`B33-${spec.effectId}-NAME`, '緑', 2, 5000, '', spec.name);
+    const denied = batch33Signi(`B33-${spec.effectId}-NG`, '緑', 2, 5000, '', '無関係');
+    const ctx = mkCtx({ signi: [denied, byColor, byName] }, {}, spec.cardNum);
+    const offer = executeEffect(manualEffect(spec.cardNum, spec.effectId), ctx);
+    ok(!offer.done && offer.pending.type === 'SELECT_TARGET', '付与対象を提示');
+    if (offer.done || offer.pending.type !== 'SELECT_TARGET') return;
+    ok(offer.pending.candidates.includes(byColor) && offer.pending.candidates.includes(byName), '色枝と名称枝の双方を候補化');
+    ok(!offer.pending.candidates.includes(denied), 'どちらにも合わないカードを除外');
+    const done = finish(resumeSelectTarget([byName], offer.pending, ctxAfter(offer, ctx)), ctx);
+    ok(done.lastProcessedCards?.includes(byName) === true, '色違いの指定名称を実処理');
+  }));
+}
+
+test('段2 第33バッチ E2E: WX25-CP1-047-E1 は黒かつ＜ブルアカ＞だけをトラッシュから戻す', () => withSavedCursor(() => {
+  const allowed = batch33Signi('B33-CP047-OK', '黒', 2, 5000, 'ブルアカ');
+  const denied = batch33Signi('B33-CP047-NG', '赤', 2, 5000, 'ブルアカ');
+  const ctx = mkCtx({}, {}, 'WX25-CP1-047'); ctx.ownerState.trash = [denied, allowed];
+  const action = batch33Step(manualEffect('WX25-CP1-047', 'WX25-CP1-047-E1').action, 0);
+  const done = batch33CandidateContrast(action, ctx, allowed, denied, 'WX25-CP1-047-E1');
+  ok(done.ownerState.deck.includes(allowed) && done.ownerState.trash.includes(denied), '黒ブルアカだけをデッキ下へ');
+}));
+
+test('段2 第33バッチ 据置契約: WXEX2-51-E3 はパワー12000以下が未表現なので採用扱いにしない', () => {
+  const encoded = JSON.stringify(manualEffect('WXEX2-51', 'WXEX2-51-E3').action);
+  ok(encoded.includes('"color":"黒"'), '既存の黒指定は保持');
+  ok(!encoded.includes('"powerRange":{"max":12000}'), '別軸のパワー上限欠落を据置として固定');
+});
+
+test('段2 第33バッチ 据置契約: PR-322-E2 は手札から出す選択肢が未表現なので採用扱いにしない', () => {
+  const encoded = JSON.stringify(manualEffect('PR-322', 'PR-322-E2').action);
+  ok(encoded.includes('"type":"TRASH_CARD"') && encoded.includes('"color":"黒"'), '既存トラッシュ枝の黒指定は保持');
+  ok(!encoded.includes('"type":"HAND_CARD"'), '別軸の手札枝欠落を据置として固定');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

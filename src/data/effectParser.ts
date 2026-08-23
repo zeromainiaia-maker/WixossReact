@@ -9122,6 +9122,55 @@ function prependContinuousBasePowerSet(text: string, parsed: EffectAction): Effe
   } as SequenceAction;
 }
 
+/**
+ * 「それがレベルNの色のシグニの場合、それをアップする」は、直前の付与対象を
+ * 保存してから同じカードの属性を判定し、同じカードだけをアップする。
+ */
+function wireSelectedSigniConditionalUp(text: string, parsed: EffectAction): EffectAction {
+  const conditionM = text.match(/それがレベル([０-９\d]+)の([白青赤緑黒])のシグニの場合、それをアップする/);
+  if (!conditionM || parsed.type !== 'SEQUENCE') return parsed;
+  const upIndex = parsed.steps.findLastIndex(step => step.type === 'UP');
+  if (upIndex <= 0) return parsed;
+  const up = parsed.steps[upIndex];
+  if (up.type !== 'UP' || up.target.type !== 'SIGNI') return parsed;
+  return {
+    ...parsed,
+    steps: [
+      ...parsed.steps.slice(0, upIndex),
+      { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+      {
+        type: 'CONDITIONAL',
+        condition: {
+          type: 'LAST_PROCESSED_MATCHES',
+          filter: { cardType: 'シグニ', level: parseNum(conditionM[1]), color: conditionM[2] },
+        },
+        then: { ...up, targetsStored: true },
+      },
+      ...parsed.steps.slice(upIndex + 1),
+    ],
+  } as SequenceAction;
+}
+
+/**
+ * 置換条件側の色を、読点後の別対象へ漏らさない。対象節に同じ色指定が明記される
+ * 文は触らず、既に組まれた SEQUENCE の置換先（末尾 BANISH）だけを狭く補正する。
+ */
+function stripReplacementConditionColor(text: string, parsed: EffectAction): EffectAction {
+  const conditionM = text.match(/あなたの場に([白青赤緑黒])のシグニが[０-９\d]+体あり、[^。]*場合、代わりに/);
+  if (!conditionM || parsed.type !== 'SEQUENCE') return parsed;
+  const replacementText = text.slice((conditionM.index ?? 0) + conditionM[0].length);
+  if (replacementText.includes(`${conditionM[1]}のシグニ`)) return parsed;
+  const lastIndex = parsed.steps.findLastIndex(step => step.type === 'BANISH');
+  if (lastIndex < 0) return parsed;
+  const banish = parsed.steps[lastIndex];
+  if (banish.type !== 'BANISH' || banish.target.type !== 'SIGNI'
+      || banish.target.filter?.color !== conditionM[1]) return parsed;
+  const { color: _leakedColor, ...filter } = banish.target.filter;
+  const steps = [...parsed.steps];
+  steps[lastIndex] = { ...banish, target: { ...banish.target, filter } };
+  return { ...parsed, steps };
+}
+
 function parseActionText(text: string): EffectAction {
   // 【常】：【K1】【K2】… の列挙形。動詞を省略した印字は各キーワードを自身が恒久的に持つ。
   const bareKeywordList = text.trim().replace(/。$/, '').match(/^((?:【(?:ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ(?::\{[^}]*\})?|バニッシュ耐性|シールド|チャーム)】){2,})$/);
@@ -9192,6 +9241,8 @@ function parseActionText(text: string): EffectAction {
   parsed = prependShuffleBeforeTopDeckAction(text, parsed);
   parsed = foldThisTurnEndContinuation(parsed, text);
   parsed = foldStructuredRevealUntil(text, parsed);
+  parsed = wireSelectedSigniConditionalUp(text, parsed);
+  parsed = stripReplacementConditionColor(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {
