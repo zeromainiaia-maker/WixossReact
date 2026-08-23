@@ -36,9 +36,10 @@ import {
 } from '../src/engine/effectExecutor';
 import { collectTargetedTriggers, collectLrigGrowTriggers, collectCoinPaidTriggers, collectPowerZeroTriggers, collectArmorTriggers, collectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers, collectTrashTriggers, collectBanishTriggers, collectLeaveFieldTriggers, collectDrawTriggers, collectOppDrawTriggers, collectMillTriggers, collectCharmToTrashTriggers, collectMagicBoxFlippedTriggers, collectAcceToTrashTriggers, collectAttachedTriggers, collectCoinGainedTriggers, collectAbilityActivatedTriggers, collectAttackEndTriggers, collectEnergyToTrashTriggers, collectRefreshTriggers, collectPowerDecreaseTriggers, collectMoveToDeckTriggers, collectFreezeTriggers, collectSelfEventTriggers, collectZoneMovedTriggers, collectDriveBecameTriggers, collectBeatBecameTriggers, collectHandDiscardTriggers, collectOppArtsUseTriggers, collectArtsUseTriggers, collectFieldTriggers, collectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers, collectTurnTriggers, collectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers, collectDeckShuffledTriggers, collectKeywordGainedTriggers, collectSigniDownUpTriggers, collectHandAddedTriggers, collectEnergyToFieldTriggers, collectLifeClothAddedTriggers, collectLifeClothMovedTriggers, collectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers, collectOppResourceLossTriggers, collectAttackerSelfTriggers, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, optionalOnPlayCostStub, wrapOptionalOnPlay, applyAbilityCostReduction, type TrigCtx } from '../src/engine/triggerCollect';
 import { battleBanisherMatchesTrigger, collectTrapActivateTriggers, collectTrapSetTriggers, collectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers, collectTrashAddedTriggers, collectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers, collectRevealedFromHandTriggers } from '../src/engine/triggerCollect';
-import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk } from '../src/engine/triggerCollect';
+import { collectLrigFlipTriggers, collectOppLifeCrashedTriggers, attackerSelfTriggerFilterOk, oppLifeCrashSourceMatches } from '../src/engine/triggerCollect';
 import { countLrigUnderMoved, detectDeckShuffled, detectKeywordGained, detectNewlyDowned, detectNewlyUpped, detectHandAdded, detectLifeClothAdded, detectLifeClothMoved, detectEnergyAdded, detectEnergyAddedWithSource, detectUnderSigniTrashed, detectTrashAdded } from '../src/engine/boardDiff';
 import { computeFieldSigniLimit, fieldTrashGroupsAffordable, fieldTrashGroupsSelectableZones, fieldTrashSelectableZones, fieldTrashSelectionSatisfied, reduceFieldSigniToLimit } from '../src/screens/battle/fieldLimit';
+import { battleOppLifeCrashSourceMatches } from '../src/screens/battle/lifeCrashTriggers';
 import { acceCardsAt, allAcceCards, cloneAcceSlots, countAcce, findAcceZone, hasAcceAt } from '../src/utils/acce';
 import { collectOppDeclaredLrigLimitDelta, computeEffectiveLrigLimit } from '../src/screens/battle/lrigLimit';
 import { MAYU_ENCOUNTER_B, prepareMayuEncounter } from '../src/screens/battle/mayuEncounter';
@@ -15556,6 +15557,110 @@ test('付与ストア共通走査: ON_OPP_LIFE_CRASHED の付与【自】が発�
   eq(hasEffect(collectOppLifeCrashedTriggers(trigCtx(HOST, HOST), crasher, HOST).entries, inner.effectId), true, '付与された ON_OPP_LIFE_CRASHED が発火');
   const bare = { ...crasher, lrig_granted_auto_effects: undefined };
   eq(hasEffect(collectOppLifeCrashedTriggers(trigCtx(HOST, HOST), bare, HOST).entries, inner.effectId), false, '付与前は非発火');
+}));
+
+// ── 段2 第37バッチ：ON_OPP_LIFE_CRASHED は timing 名だけではクラッシュ主体を表さない。
+// engine collector と BattleScreen のインライン経路は oppLifeCrashSourceMatches を共有し、
+// 明示 self＝watcher instance 一致／any_ally＝実クラッシュ源への filter 適用を同じ規約で行う。
+test('段2 第37バッチ parser契約: A/B群6効果はクラッシュ主体をscope/filterへ載せる', () => withSavedCursor(() => {
+  const parsed = (cardNum: string, effectId: string) => parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+  const aPlain = parsed('WX03-031', 'WX03-031-E1');
+  eq(aPlain.triggerScope, 'any_ally', 'WX03-031: あなたのシグニ＝any_ally');
+  eq(aPlain.triggerFilter?.cardType, 'シグニ', 'WX03-031: ルリグ/効果クラッシュを除くSIGNI filter');
+  const aWeapon = parsed('WX11-028', 'WX11-028-E1');
+  eq(aWeapon.triggerScope, 'any_ally', 'WX11-028: あなたの＜ウェポン＞のシグニ＝any_ally');
+  eq(aWeapon.triggerFilter?.cardType, 'シグニ', 'WX11-028: SIGNI filter');
+  eq(aWeapon.triggerFilter?.story, 'ウェポン', 'WX11-028: ＜ウェポン＞ filter');
+  for (const [cardNum, effectId] of [
+    ['PR-206', 'PR-206-E1'],
+    ['WXK11-045', 'WXK11-045-E1'],
+    ['WX05-027', 'WX05-027-E1'],
+    ['WX18-032', 'WX18-032-E1'],
+  ] as const) {
+    const effect = parsed(cardNum, effectId);
+    eq(effect.triggerScope, 'self', `${effectId}: このカード自身＝明示self`);
+    eq(effect.triggerFilter?.thisCardOnly, true, `${effectId}: source個体一致マーカー`);
+  }
+}));
+
+test('段2 第37バッチ engine両方向: any_allyは実クラッシュ源のSIGNI/＜ウェポン＞条件で発火を分ける', () => withSavedCursor(() => {
+  const parsed = (cardNum: string, effectId: string) => parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+  const runCrash = (watcher: string, effect: CardEffect, source: string) => {
+    const ctx = { ...trigCtx(HOST, HOST), effectsMap: new Map([[watcher, [effect]]]) };
+    const state = mkState({ signi: [watcher, null, null] });
+    return collectOppLifeCrashedTriggers(ctx, state, HOST, source).entries.some(e => e.effectId === effect.effectId);
+  };
+  const plain = parsed('WX03-031', 'WX03-031-E1');
+  eq(runCrash('WX03-031', plain, 'WX05-027'), true, 'SIGNIがクラッシュ→発火');
+  eq(runCrash('WX03-031', plain, 'PR-206'), false, 'ルリグがクラッシュ→非発火');
+  const weapon = parsed('WX11-028', 'WX11-028-E1');
+  eq(runCrash('WX11-028', weapon, 'WX11-028'), true, '＜ウェポン＞SIGNIがクラッシュ→発火');
+  eq(runCrash('WX11-028', weapon, 'WX03-031'), false, '非＜ウェポン＞SIGNIがクラッシュ→非発火');
+}));
+
+test('段2 第37バッチ engine両方向: 明示selfはwatcher自身のinstanceだけ発火する', () => withSavedCursor(() => {
+  const parsed = (cardNum: string, effectId: string) => parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+  for (const [cardNum, effectId, other] of [
+    ['PR-206', 'PR-206-E1', 'WX03-031'],
+    ['WXK11-045', 'WXK11-045-E1', 'WX05-027'],
+    ['WX05-027', 'WX05-027-E1', 'WX18-032'],
+    ['WX18-032', 'WX18-032-E1', 'WX05-027'],
+  ] as const) {
+    const effect = parsed(cardNum, effectId);
+    const ctx = { ...trigCtx(HOST, HOST), effectsMap: new Map([[cardNum, [effect]]]) };
+    const state = cardNum === 'PR-206'
+      ? ({ ...mkState({}), field: { ...mkState({}).field, lrig: [cardNum] } } as PlayerState)
+      : mkState({ signi: [cardNum, null, null] });
+    eq(collectOppLifeCrashedTriggers(ctx, state, HOST, cardNum).entries.some(e => e.effectId === effectId), true,
+      `${effectId}: watcher自身がクラッシュ→発火`);
+    eq(collectOppLifeCrashedTriggers(ctx, state, HOST, other).entries.some(e => e.effectId === effectId), false,
+      `${effectId}: 別instanceがクラッシュ→非発火`);
+  }
+  const sameCardEffect = parsed('WX05-027', 'WX05-027-E1');
+  const watcherInstance = 'WX05-027#1';
+  const otherInstance = 'WX05-027#2';
+  const sameCardCtx = { ...trigCtx(HOST, HOST), effectsMap: new Map([[watcherInstance, [sameCardEffect]]]) };
+  const sameCardState = mkState({ signi: [watcherInstance, null, null] });
+  eq(collectOppLifeCrashedTriggers(sameCardCtx, sameCardState, HOST, watcherInstance).entries.some(e => e.effectId === sameCardEffect.effectId), true,
+    '同一カードのwatcher instance自身がクラッシュ→発火');
+  eq(collectOppLifeCrashedTriggers(sameCardCtx, sameCardState, HOST, otherInstance).entries.some(e => e.effectId === sameCardEffect.effectId), false,
+    '同じCardNumでも別instanceがクラッシュ→非発火');
+}));
+
+test('段2 第37バッチ 二重経路契約: engine collectorとBattleScreenは同じsource predicateを使う', () => {
+  const eff = parseCardEffects(cardMap.get('WX11-028')!).find(e => e.effectId === 'WX11-028-E1')!;
+  const ctx = { ...trigCtx(HOST, HOST), effectsMap: new Map([['WX11-028', [eff]]]) };
+  const state = mkState({ signi: ['WX11-028', null, null] });
+  for (const [source, expected] of [['WX11-028', true], ['WX03-031', false]] as const) {
+    const engineResult = collectOppLifeCrashedTriggers(ctx, state, HOST, source).entries.some(e => e.effectId === eff.effectId);
+    const battleResult = battleOppLifeCrashSourceMatches(eff, 'WX11-028', source, cardMap as Map<string, CardData>);
+    eq(engineResult, expected, `engine collector ${source}`);
+    eq(battleResult, expected, `BattleScreen実機predicate ${source}`);
+    eq(battleResult, engineResult, `同一盤面の二重経路一致 ${source}`);
+  }
+  const battleSource = fs.readFileSync(join(process.cwd(), 'src/screens/BattleScreen.tsx'), 'utf8');
+  ok(battleSource.includes('battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap)'),
+    '実機のoppCrashSourcesループが検証済みのBattleScreen predicateを呼ぶ');
+});
+
+test('段2 第37バッチ 既存self非退化契約: source個体マーカーのないscope:selfは従来どおり原因を限定しない', () => {
+  const legacy = { effectId: 'legacy', effectType: 'AUTO', timing: ['ON_OPP_LIFE_CRASHED'], triggerScope: 'self',
+    action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO' } as CardEffect;
+  eq(oppLifeCrashSourceMatches(legacy, 'WX25-P2-009', 'WX03-031', cardMap as Map<string, CardData>), true,
+    '既存のscope:self単独をwatcher一致へ読み替えない');
+});
+
+test('段2 第37バッチ C群据置契約: ランサー原因を運ばない間は死フラグを生成しない', () => withSavedCursor(() => {
+  for (const [cardNum, effectId] of [['WX07-042', 'WX07-042-E1'], ['WX19-071', 'WX19-071-E1']] as const) {
+    const eff = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId)!;
+    eq(eff.triggerScope, undefined, `${effectId}: ランサー原因をany_allyへ誤近似しない`);
+    eq((eff.triggerCondition as Record<string, unknown> | undefined)?.crashCause, undefined,
+      `${effectId}: consumerの無いcrashCause死フラグを出さない`);
+    const ctx = { ...trigCtx(HOST, HOST), effectsMap: new Map([[cardNum, [eff]]]) };
+    const state = mkState({ signi: [cardNum, null, null] });
+    eq(collectOppLifeCrashedTriggers(ctx, state, HOST, 'WX03-031').entries.some(e => e.effectId === effectId), true,
+      `${effectId}: 現状は通常クラッシュも拾う既知の過剰実行（原因funnel実装時に本テストを反転）`);
+  }
 }));
 test('付与ストア共通走査: ON_LEAVE_FIELD any_ally の付与【自】が味方シグニ離脱で発火（続き404・WX25-P2-049-E1）', () => withSavedCursor(() => {
   const inner = grantedInner('WX25-P2-049', 'WX25-P2-049-E1');

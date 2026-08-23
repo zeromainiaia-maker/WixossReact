@@ -36,6 +36,29 @@ export interface TrigCtx {
   genId: () => string;
 }
 
+/**
+ * ON_OPP_LIFE_CRASHED の発火源限定を、headless collector と BattleScreen の実機経路で共有する。
+ *
+ * - `self` + `triggerFilter.thisCardOnly`：クラッシュ源 instance が watcher 自身である場合だけ。
+ * - `any_ally`：クラッシュ源カードへ triggerFilter を適用する。
+ * - 上記マーカーなし：受動形や既存の別用途 `self` の挙動を維持する。
+ *
+ * crashSourceCardNum が無い旧状態は従来どおり通す。通常の check-zone funnel は source を保持しており、
+ * 今回の限定は source がある実イベントで fail-closed になる。
+ */
+export function oppLifeCrashSourceMatches(
+  effect: CardEffect,
+  watcherNum: string,
+  crashSourceCardNum: string | undefined,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (!crashSourceCardNum) return true;
+  if (effect.triggerScope === 'self' && effect.triggerFilter?.thisCardOnly) return crashSourceCardNum === watcherNum;
+  if (effect.triggerScope !== 'any_ally') return true;
+  if (effect.triggerFilter?.excludeSelf && crashSourceCardNum === watcherNum) return false;
+  return matchesFilter(cardMap.get(getCardNum(crashSourceCardNum)), effect.triggerFilter);
+}
+
 const effsOf = (ctx: TrigCtx, n: string): CardEffect[] =>
   ctx.effectsMap.get(n) ?? ctx.effectsMap.get(getCardNum(n)) ?? [];
 
@@ -3443,10 +3466,7 @@ export function collectOppLifeCrashedTriggers(
       : (ctx.effectsMap.get(watcher) ?? []);
     for (const eff of watcherEffs) {
       if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
-      if (eff.triggerScope === 'any_ally' && crashSourceCardNum) {
-        if (eff.triggerFilter?.excludeSelf && crashSourceCardNum === watcher) continue;
-        if (!matchesFilter(ctx.cardMap.get(crashSourceCardNum), eff.triggerFilter)) continue;
-      }
+      if (!oppLifeCrashSourceMatches(eff, watcher, crashSourceCardNum, ctx.cardMap)) continue;
       if (!limitOk(eff)) continue;
       entries.push({ id: ctx.genId(), playerId: crasherId, cardNum: watcher, effectId: eff.effectId,
         label: `${ctx.cardMap.get(watcher)?.CardName ?? watcher}【自】相手ライフクラッシュ時`, effect: eff,

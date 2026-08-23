@@ -9004,6 +9004,31 @@ function foldStructuredRevealUntil(text: string, parsed: EffectAction): EffectAc
 }
 
 /**
+ * 「あなたの[他の][色][＜クラス＞の]シグニ[N体]が対戦相手のライフクロスをクラッシュしたとき」
+ * の主体を ON_OPP_LIFE_CRASHED の source filter へ落とす。
+ *
+ * 【ランサー】等の原因語や、ドライブ状態／レゾナではない等の未配線修飾が残る文は null にして、
+ * 原因・状態限定を黙って捨てた any_ally へ広げない。
+ */
+function parseAllyLifeCrashSubject(text: string): { filter: TargetFilter } | null {
+  const m = text.match(/^あなたの(.{0,40}?)シグニ(?:[０-９\d一二三四五六七八九]+体)?が対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュした(?:とき|場合)/);
+  if (!m) return null;
+  let rest = m[1];
+  const filter: TargetFilter = { cardType: 'シグニ' };
+  const take = (re: RegExp, apply: (mm: RegExpMatchArray) => void): void => {
+    const mm = rest.match(re);
+    if (!mm) return;
+    apply(mm);
+    rest = rest.replace(re, '');
+  };
+  take(/他の/, () => { filter.excludeSelf = true; });
+  take(/＜([^＞]+)＞の/, mm => { filter.story = mm[1]; });
+  take(/([白赤青緑黒])の/, mm => { filter.color = mm[1]; });
+  if (rest.length > 0) return null;
+  return { filter };
+}
+
+/**
  * Compound/choice parsers sometimes consume the whole sentence before the fragment parser sees
  * 「デッキをシャッフルし一番上…」.  Insert the shuffle beside the already parsed top-deck action,
  * keeping it inside the same CHOOSE/CONDITIONAL branch.  This is deliberately syntax-based: no
@@ -14386,13 +14411,22 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       if (timing[0] === 'ON_LIFE_CRASHED' || timing[0] === 'ON_OPP_LIFE_CRASHED') {
         if (timing[0] === 'ON_LIFE_CRASHED') extractedTriggerScope = 'self';
         if (timing[0] === 'ON_OPP_LIFE_CRASHED') {
-          const allyCrashM = actionText.match(/あなたの(他の)(?:＜([^＞]+)＞の)シグニが対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュしたとき/);
-          if (allyCrashM) {
+          // 既存の「あなたの他の＜story＞のシグニ」は従来 JSON を維持する。
+          const existingAllyCrash = actionText.match(/あなたの(他の)(?:＜([^＞]+)＞の)シグニが対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュしたとき/);
+          const allyCrash = existingAllyCrash ? null : parseAllyLifeCrashSubject(actionText);
+          if (existingAllyCrash) {
             extractedTriggerScope = 'any_ally';
             extractedTriggerFilter = {
-              ...(allyCrashM[2] ? { story: allyCrashM[2] } : {}),
-              ...(allyCrashM[1] ? { excludeSelf: true } : {}),
+              ...(existingAllyCrash[2] ? { story: existingAllyCrash[2] } : {}),
+              ...(existingAllyCrash[1] ? { excludeSelf: true } : {}),
             };
+          } else if (allyCrash) {
+            extractedTriggerScope = 'any_ally';
+            extractedTriggerFilter = allyCrash.filter;
+          } else if (/この(?:シグニ|ルリグ)が対戦相手のライフ(?:クロス)?(?:[０-９\d]+枚)?をクラッシュした(?:とき|場合)/.test(actionText)) {
+            // 従来の scope:self 単独と区別する。collector は thisCardOnly 付きだけ watcher===crashSource を照合する。
+            extractedTriggerScope = 'self';
+            extractedTriggerFilter = { thisCardOnly: true };
           }
         }
         // 「あなたのシグニが対戦相手のライフクロスをクラッシュしたとき」（能動態）もカバー

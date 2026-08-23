@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第37バッチ＝ライフクロスクラッシュ主体の限定32効果
+
+`ON_OPP_LIFE_CRASHED` がクラッシュ原因を表さないのに、原文の「あなたのシグニが」「このシグニ／ルリグが」という主体限定をJSONとcollectorが持っていなかった過剰発火を是正した。A群は既存 `triggerScope:'any_ally'`＋`triggerFilter`、自己同一性は既存 `triggerFilter.thisCardOnly` を明示マーカーとして使い、`oppLifeCrashSourceMatches` で実クラッシュ源instanceと照合する。`collectOppLifeCrashedTriggers` と `BattleScreen` の実機 `oppCrashSources` ループを同じpredicateへ配線した。`triggerScope:'self'` 単独を別用途で持つ既存2効果は意味を変えず、同一CardNumの別instanceも非発火に固定した。
+
+findings対象は `WX03-031-E1`,`WX11-028-E1`,`PR-206-E1`,`WXK11-045-E1`,`WX05-027-E1`,`WX18-032-E1` の6件を閉じ、一般文型で同時に26効果を採用した。【ランサー】原因はcheck-zone funnelが原因種別を運ばないため `WX07-042-E1`,`WX19-071-E1`（同型 `WX19-028-E1`）を据置し、死フラグを生成しない契約をgolden固定。golden **2618/2618**、census **621/621**（622→621）、smoke **10693/10693**・異常/SKIP 0、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A/C 0、manual-fields 0、held/partial/idset **83/15/46**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch37_report.md`。
+
 ## 2026-08-23：§6.2 段2 第36バッチ＝ライフクロス枚数の相対比較／固定枚数ゲート7効果
 
 CSV 6712枚をBOM除去付きで全走査し、相対比10節・固定枚数19節を抽出。既存機構で正しい相対比3節と `LIFE_COUNT` 済み18節を差し引き、指定6効果と同規則の `WXK07-036-E1` を効果単位で採用した。既存 `Condition.LIFE_COMPARE_OPP` を新型に分裂させず、`value?:number`（既存省略は0）を持つ符号付き差 `self - opponent` として `ActiveCondition` にも共通化。`checkActiveCondition` / `evalConditionForContinuous` / `evalCondition` の3経路と評価可能型表へ配線し、「2枚以上少ない」は `lte,-2`、「同じ」は `eq,0` で固定した。

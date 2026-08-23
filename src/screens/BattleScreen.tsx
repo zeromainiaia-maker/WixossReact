@@ -45,6 +45,7 @@ interface Props {
 
 import { CPU_PLAYER_ID, CPU_ACTION_DELAY, generateUUID, shuffle, InstanceMap, parsePowerVal, assignInstanceIds, assignGuestInstanceIds, drawCards, jankenWinner, isSelectedBanishRedirect, isSelectedBattleBanishRedirect, isSelectedPowerZeroBanishRedirect, keyActivatedTimingMatchesPhase, canUseArtsCondition, hasActivePreventDamageWindow } from './battle/battleUtils';
 import { applyAbilityCostReduction } from '../engine/triggerCollect';
+import { battleOppLifeCrashSourceMatches } from './battle/lifeCrashTriggers';
 import { isEnaMultiStripped, activatedDiscardCostRecord, activatedEnergyTrashPaidCount, fmtHandDiscardSigniLabel, fmtDiscardFilterLabel, parseGrowCost, applyGrowCostReduction, isMultiEna, canAffordGrowCost, parseCoinCost, parseEncoreCost, computeArtsEffectiveCost, canAffordWithExtraCost, findCounterSpellMaxCost, paySelectedExceed } from './battle/costs';
 import { findGrowFreeAction, extractGrowCondition, applyGrowEffect, lrigClassesCompatible, meetsRestriction, effectiveLrigClass, listGrowCandidates, canGrowNow } from './battle/growLogic';
 import { cardNameUseBlocked } from './battle/cardNameUseBlock';
@@ -11956,10 +11957,7 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       for (const topNum of oppCrashSources) {
         for (const eff of effectsMap.get(topNum) ?? []) {
           if (eff.effectType !== 'AUTO' || !eff.timing?.includes('ON_OPP_LIFE_CRASHED')) continue;
-          if (eff.triggerScope === 'any_ally' && crashSourceCardNum) {
-            if (eff.triggerFilter?.excludeSelf && crashSourceCardNum === topNum) continue;
-            if (!matchesFilter(battleCardMap.get(crashSourceCardNum), eff.triggerFilter)) continue;
-          }
+          if (!battleOppLifeCrashSourceMatches(eff, topNum, crashSourceCardNum, battleCardMap)) continue;
           if (eff.kizunaIcon && !isKizunaActive(op, topNum, battleCardMap)) continue; // 【絆自】は絆獲得時のみ
           if (eff.condition?.type === 'OPP_LIFE_CRASH_EVENT_GTE' && oppCrashEventSize < eff.condition.value) continue;
           if (!oppLimitOk(eff)) continue;
