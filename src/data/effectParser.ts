@@ -9176,13 +9176,13 @@ function parseActionText(text: string): EffectAction {
   };
   const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
-    applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
+    applyThisWayTrashOutcomeGuards(source, applyTotalLevelSelectionWiring(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
       applyLeadingSelfComparison(source,
         applyLeadingTrashHandAnaphora(source,
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
-            applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))));
+            applyLeadingOpponentDesignation(source, parseActionTextInner(source))))))))))))))))))))));
   const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
     applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,
@@ -9453,6 +9453,149 @@ function applyUpperBoundSelectionWiring(text: string, action: EffectAction): Eff
         };
         action = replace(action);
       }
+    }
+  }
+
+  return action;
+}
+
+/**
+ * 「レベルの合計がNになるように」選ぶ文型を、全選択経路で共通の SelectionConstraint へ配線する。
+ * exact は上限では代用せず、旧 STUB がコストを別物として実行していた2形は
+ * SELECT_TARGET_ONLY → STORE → OPTIONAL_COST → PAID_ADDITIONAL_COST の正準形へ組み替える。
+ */
+function applyTotalLevelSelectionWiring(text: string, action: EffectAction): EffectAction {
+  const nodesOfType = (root: unknown, type: string): Record<string, unknown>[] => {
+    const found: Record<string, unknown>[] = [];
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const obj = node as Record<string, unknown>;
+      if (obj.type === type) found.push(obj);
+      for (const value of Object.values(obj)) {
+        if (Array.isArray(value)) value.forEach(visit);
+        else visit(value);
+      }
+    };
+    visit(root);
+    return found;
+  };
+  const withConstraint = (
+    node: Record<string, unknown>,
+    key: 'selectionConstraint',
+    kind: 'exact' | 'max',
+    value: number,
+  ): void => {
+    const previous = (node[key] ?? {}) as Record<string, unknown>;
+    node[key] = {
+      ...previous,
+      ...(kind === 'exact' ? { totalLevelExact: value } : { totalLevelMax: value }),
+    };
+  };
+
+  // デッキ検索。exact と「以下」は同じ SEARCH 経路で消費するが、意味は別キーに保つ。
+  const searchClauses = [...text.matchAll(/デッキからレベルの合計が([０-９\d]+)(以下)?になるように([^。、]{0,64}?)シグニを([０-９\d]+)枚まで探し/g)];
+  const searches = nodesOfType(action, 'SEARCH').filter(node => {
+    const from = node.from as Record<string, unknown> | undefined;
+    return from?.location === 'deck' && from.owner === 'self';
+  });
+  if (searchClauses.length === 1 && searches.length === 1) {
+    const clause = searchClauses[0];
+    searches[0].maxCount = parseNum(clause[4]);
+    withConstraint(searches[0], 'selectionConstraint', clause[2] ? 'max' : 'exact', parseNum(clause[1]));
+  }
+
+  // 場のシグニを合計ちょうどN・M体まで対象とする形。
+  const fieldExact = [...text.matchAll(/対戦相手のシグニを[、,]?レベルの合計が([０-９\d]+)になるように([０-９\d]+)体まで対象とし/g)];
+  const banishes = nodesOfType(action, 'BANISH').filter(node => {
+    const target = node.target as Record<string, unknown> | undefined;
+    return target?.type === 'SIGNI' && target.owner === 'opponent';
+  });
+  if (fieldExact.length === 1 && banishes.length === 1) {
+    const target = banishes[0].target as Record<string, unknown>;
+    target.count = parseNum(fieldExact[0][2]);
+    target.upToCount = true;
+    withConstraint(target, 'selectionConstraint', 'exact', parseNum(fieldExact[0][1]));
+  }
+
+  // トラッシュから手札へ。「選択肢」内の複数節は原文順と action tree 順を1対1対応させる。
+  const trashHandClauses = [...text.matchAll(/トラッシュから[^。、]{0,64}?シグニを[、,]?レベルの合計が([０-９\d]+)になるように([０-９\d]+)枚まで対象とし/g)];
+  const trashHandActions = nodesOfType(action, 'TRANSFER_TO_HAND').filter(node => {
+    const source = node.source as Record<string, unknown> | undefined;
+    return source?.type === 'TRASH_CARD' && source.owner === 'self';
+  });
+  if (trashHandClauses.length > 0 && trashHandClauses.length === trashHandActions.length) {
+    trashHandClauses.forEach((clause, index) => {
+      const source = trashHandActions[index].source as Record<string, unknown>;
+      source.count = parseNum(clause[2]);
+      source.upToCount = true;
+      withConstraint(source, 'selectionConstraint', 'exact', parseNum(clause[1]));
+    });
+  }
+
+  // 対象を先に固定し、トラッシュから合計ちょうどNをデッキ下へ戻せた場合だけ同じ対象を処理する。
+  const trashDeckClause = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]+体)を対象とし、あなたのトラッシュからレベルの合計が([０-９\d]+)になるように([^、。]*?シグニ)([０-９\d]+)枚を[^。]*?デッキの一番下に置く。そうした場合、それをバニッシュする/);
+  if (trashDeckClause && action.type === 'SEQUENCE') {
+    const transfers = nodesOfType(action, 'TRANSFER_TO_DECK').filter(node => {
+      const source = node.source as Record<string, unknown> | undefined;
+      return source?.type === 'TRASH_CARD' && source.owner === 'self';
+    });
+    const legacyGates = action.steps.filter(step => step.type === 'CONDITIONAL');
+    if (transfers.length === 1 && legacyGates.length === 1) {
+      const target = parseSigniTarget(trashDeckClause[1], 'opponent');
+      const transfer = transfers[0] as unknown as import('../types/effects').TransferToDeckAction;
+      const source = { ...transfer.source, count: parseNum(trashDeckClause[4]) };
+      // 対象側のパワー条件が source へ誤付着していた場合だけ落とす。
+      const sourceFilter = { ...(source.filter ?? {}) };
+      if (!/パワー/.test(trashDeckClause[3])) delete sourceFilter.powerRange;
+      source.filter = sourceFilter;
+      source.selectionConstraint = {
+        ...(source.selectionConstraint ?? {}),
+        totalLevelExact: parseNum(trashDeckClause[2]),
+      };
+      const outcome = (legacyGates[0] as unknown as import('../types/effects').ConditionalAction).then;
+      return {
+        ...action,
+        steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { ...transfer, source },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: parseNum(trashDeckClause[4]), verbJa: 'デッキの下に置いた' },
+            then: bindToStoredTarget(outcome, target),
+          },
+        ],
+      } as SequenceAction;
+    }
+  }
+
+  // 任意コスト2形。旧 STUB は「手札1枚」／「自分の場のシグニ」を払う別実装なので置換する。
+  const optionalClause = text.match(/(対戦相手の[^、。]*?シグニ[０-９\d]+体)を対象とし、(?:あなたの)?(手札|エナゾーン)からレベルの合計が([０-９\d]+)になるように([^、。]*?シグニ)を好きな枚数(捨て|トラッシュに置い)てもよい。そうした場合、それを(デッキの一番下に置く|バニッシュする)/);
+  if (optionalClause && action.type === 'SEQUENCE') {
+    const legacyId = optionalClause[2] === '手札' ? 'TARGET_AND_DISCARD_HAND' : 'TRADE_BANISH_SELF_SIGNI';
+    const stubs = nodesOfType(action, 'STUB').filter(node => node.id === legacyId);
+    const gates = action.steps.filter(step => step.type === 'CONDITIONAL');
+    if (stubs.length === 1 && gates.length === 1) {
+      const target = parseSigniTarget(optionalClause[1], 'opponent');
+      const filter = parsePickNounPhraseFilter(optionalClause[4].replace(/を$/, ''), 'シグニ') ?? { cardType: 'シグニ' };
+      const selectionConstraint = { totalLevelExact: parseNum(optionalClause[3]) };
+      const cost = optionalClause[2] === '手札'
+        ? { handDiscard: { count: 'ALL' as const, upToCount: true, filter, selectionConstraint } }
+        : { energyTrash: { count: 'ALL' as const, upToCount: true, filter, selectionConstraint } };
+      const outcome = (gates[0] as import('../types/effects').ConditionalAction).then;
+      return {
+        ...action,
+        steps: [
+          { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target },
+          { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+          { type: 'STUB', id: 'OPTIONAL_COST', ...cost },
+          {
+            type: 'CONDITIONAL',
+            condition: { type: 'PAID_ADDITIONAL_COST' },
+            then: bindToStoredTarget(outcome, target),
+          },
+        ],
+      } as SequenceAction;
     }
   }
 

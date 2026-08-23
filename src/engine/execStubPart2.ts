@@ -4299,7 +4299,7 @@ export function execStubPart2(
     const entryFRP = {
       cardNum: targetFRP, zoneIndex: zoneFRP, sourceCardNum: ctx.sourceCardNum ?? '',
       colorlessCost: typeof stub.value === 'number' ? stub.value : 2,
-      handDiscard: stub.handDiscard?.count ?? 2,
+      handDiscard: typeof stub.handDiscard?.count === 'number' ? stub.handDiscard.count : 2,
     };
     return done(addLog({
       ...ctx,

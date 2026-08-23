@@ -9,7 +9,7 @@ applyContinuousBaseLevelOverride, banishRedirectAppliesFrom, banishRedirectFront
 collectCharmShieldSigni,
 collectEffectImmuneSigni, collectContinuousGrantedKeywords, collectContinuousAbilitiesRemovedSigni, collectBanishSubstitutes, collectBanishPreventLoseAbility, resolveForcedSigniAttack, collectGrowCostReductions, matchesStateFilter, canSelfPlay} from '../engine/effectEngine';
 import { executeEffect, applyRefreshOnDone, resumeSelectTarget, resumeSearch, resumeChoose, resumeOptionalCost, resumeOpponentPayOptional, resumeLookAndReorder, resumeSelectZone, resumeSelectSigniZone, resumeSelectVirusZone, resumeRevealCards, resumeRearrangeSigni, removeFromField, getCardNum, evalUseCondition, matchesFilter, payBeatSigniCost, payBeatSigniFromTrashCost, type ExecCtx, type ExecResult } from '../engine/effectExecutor';
-import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
+import { getRiseFilter, matchesRiseFilter, splitColors, LRIG_BARRIER_CARD, SIGNI_BARRIER_CARD, countBarrierTokens, addBarrierTokens, removeOneBarrierToken, sweepPuppets, resolvePendingExiles, canAddToSelection, findValidConstrainedSelection, canSatisfyDiscardGroups, selectOptionalCostEnergy, pendingRespondsOpponent } from '../engine/execUtils';
 import { initStack, pushToStack, confirmTurnOrder, confirmOppOrder, shiftQueue, isReadyToResolve, isStackDone } from '../engine/effectStack';
 import { collectTargetedTriggers as pureCollectTargetedTriggers, collectLrigGrowTriggers as pureCollectLrigGrowTriggers, collectLrigFlipTriggers as pureCollectLrigFlipTriggers, collectCoinPaidTriggers as pureCollectCoinPaidTriggers, collectPowerZeroTriggers as pureCollectPowerZeroTriggers, collectArmorTriggers as pureCollectArmorTriggers, collectDeckTrashSelfTriggers as pureCollectDeckTrashSelfTriggers, collectAnyZoneTrashSelfTriggers as pureCollectAnyZoneTrashSelfTriggers, collectTrashTriggers as pureCollectTrashTriggers, collectBanishTriggers as pureCollectBanishTriggers, collectLeaveFieldTriggers as pureCollectLeaveFieldTriggers, collectDrawTriggers as pureCollectDrawTriggers, collectOppDrawTriggers as pureCollectOppDrawTriggers, collectMillTriggers as pureCollectMillTriggers, collectCharmToTrashTriggers as pureCollectCharmToTrashTriggers, collectMagicBoxFlippedTriggers as pureCollectMagicBoxFlippedTriggers, collectAcceToTrashTriggers as pureCollectAcceToTrashTriggers, collectCoinGainedTriggers as pureCollectCoinGainedTriggers, collectAbilityActivatedTriggers as pureCollectAbilityActivatedTriggers, collectAttackEndTriggers as pureCollectAttackEndTriggers, collectAttachedTriggers as pureCollectAttachedTriggers, collectEnergyToTrashTriggers as pureCollectEnergyToTrashTriggers, collectRefreshTriggers as pureCollectRefreshTriggers, collectPowerDecreaseTriggers as pureCollectPowerDecreaseTriggers, collectMoveToDeckTriggers as pureCollectMoveToDeckTriggers, collectFreezeTriggers as pureCollectFreezeTriggers, collectSelfEventTriggers as pureCollectSelfEventTriggers, collectZoneMovedTriggers as pureCollectZoneMovedTriggers, collectDriveBecameTriggers as pureCollectDriveBecameTriggers, collectBeatBecameTriggers as pureCollectBeatBecameTriggers, collectHandDiscardTriggers as pureCollectHandDiscardTriggers, collectOppArtsUseTriggers as pureCollectOppArtsUseTriggers, collectArtsUseTriggers as pureCollectArtsUseTriggers, collectFieldTriggers as pureCollectFieldTriggers, collectPlacedSelfOnPlayTriggers as pureCollectPlacedSelfOnPlayTriggers, collectAssistOnPlayTriggers as pureCollectAssistOnPlayTriggers, collectOptionalNoCostOnPlayForGrow, collectBloomTriggers as pureCollectBloomTriggers, collectTurnTriggers as pureCollectTurnTriggers, collectAllyPlayOrOppDiscardTriggers as pureCollectAllyPlayOrOppDiscardTriggers, collectMaterialUsedByPlayerTriggers as pureCollectMaterialUsedByPlayerTriggers, collectMaterialUsedOnSigniTriggers as pureCollectMaterialUsedOnSigniTriggers, collectBanishOppByEffectTriggers as pureCollectBanishOppByEffectTriggers, collectLrigUnderMovedTriggers as pureCollectLrigUnderMovedTriggers, collectDeckShuffledTriggers as pureCollectDeckShuffledTriggers, collectKeywordGainedTriggers as pureCollectKeywordGainedTriggers, collectSigniDownUpTriggers as pureCollectSigniDownUpTriggers, recordSigniDownedThisTurn, collectHandAddedTriggers as pureCollectHandAddedTriggers, collectTrashAddedTriggers as pureCollectTrashAddedTriggers, collectEnergyToFieldTriggers as pureCollectEnergyToFieldTriggers, collectLifeClothAddedTriggers as pureCollectLifeClothAddedTriggers, collectLifeClothMovedTriggers as pureCollectLifeClothMovedTriggers, collectOppEnergyAddedTriggers as pureCollectOppEnergyAddedTriggers, collectLrigAttackDefenderTriggers as pureCollectLrigAttackDefenderTriggers, collectAllyLrigAttackTriggers as pureCollectAllyLrigAttackTriggers, collectSigniCrashTotalTriggers as pureCollectSigniCrashTotalTriggers, collectOppResourceLossTriggers as pureCollectOppResourceLossTriggers, collectBattleBanishDelayedTriggers as pureCollectBattleBanishDelayedTriggers, collectSigniAttackDelayedTriggers as pureCollectSigniAttackDelayedTriggers, battleBanisherMatchesTrigger, isMandatoryOwnOnPlayForNormalSummon, isOptionalOwnOnPlayForNormalSummon, isSigniOwnOnPlaySuppressed, wrapOptionalOnPlay, type TrigCtx, type TargetedOrigin } from '../engine/triggerCollect';
 import { collectTrapActivateTriggers as pureCollectTrapActivateTriggers, collectTrapSetTriggers as pureCollectTrapSetTriggers, collectLrigAttackGuardedTriggers as pureCollectLrigAttackGuardedTriggers, collectEnergyAddedSelfTriggers as pureCollectEnergyAddedSelfTriggers, collectAttackerSelfTriggers as pureCollectAttackerSelfTriggers, collectRevealedFromHandTriggers as pureCollectRevealedFromHandTriggers } from '../engine/triggerCollect';
@@ -616,10 +616,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         } else {
           const count = typeof inter.count === 'number' ? inter.count : 1;
           const shuffled = [...inter.candidates].sort(() => Math.random() - 0.5);
-          for (const n of shuffled) {
-            if (selected.length >= count) break;
-            if (canAddToSelection(selected, n, inter.selectionConstraint, new Map(cards.map(c => [c.CardNum, c])))) selected.push(n);
-          }
+          const cpuMap = new Map(cards.map(c => [c.CardNum, c] as const));
+          const exactPick = inter.selectionConstraint?.totalLevelExact !== undefined
+            ? findValidConstrainedSelection(shuffled, inter.optional ? 0 : count, count, inter.selectionConstraint, cpuMap)
+            : null;
+          if (exactPick) selected = exactPick;
+          else for (const n of shuffled) {
+              if (selected.length >= count) break;
+              if (canAddToSelection(selected, n, inter.selectionConstraint, cpuMap)) selected.push(n);
+            }
         }
       } else if (inter.type === 'CHOOSE') {
         if (inter.multiSelect) {
@@ -651,10 +656,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       } else if (inter.type === 'SEARCH') {
         const count = inter.maxPick ?? 0;
-        for (const n of inter.visibleCards) {
-          if (selected.length >= count) break;
-          if (canAddToSelection(selected, n, inter.selectionConstraint, new Map(cards.map(c => [c.CardNum, c])))) selected.push(n);
-        }
+        const cpuMap = new Map(cards.map(c => [c.CardNum, c] as const));
+        const exactPick = inter.selectionConstraint?.totalLevelExact !== undefined
+          ? findValidConstrainedSelection(inter.visibleCards, inter.optional ? 0 : count, count, inter.selectionConstraint, cpuMap)
+          : null;
+        if (exactPick) selected = exactPick;
+        else for (const n of inter.visibleCards) {
+            if (selected.length >= count) break;
+            if (canAddToSelection(selected, n, inter.selectionConstraint, cpuMap)) selected.push(n);
+          }
       } else if (inter.type === 'LOOK_AND_REORDER') {
         selected = [...inter.cards];
       }

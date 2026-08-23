@@ -857,6 +857,10 @@ export interface SelectionConstraint {
   distinct?: 'level' | 'name' | 'class';
   same?: 'name';
   sharedColor?: 'all' | 'none';
+  /** 選択したカードのレベル合計をちょうど N にする。候補単体ではなく選択集合全体の制約。 */
+  totalLevelExact?: number;
+  /** 選択したカードのレベル合計を N 以下にする（SEARCH／コストを含む共通経路）。 */
+  totalLevelMax?: number;
 }
 
 // ===== アクション =====
@@ -2906,7 +2910,7 @@ export interface StubAction {
   handDiscardCountFromTargetLevel?: boolean;
   /** Filter for a target-level-derived hand discard cost. */
   handDiscardFilter?: TargetFilter;
-  handDiscard?: { count: number; filter?: TargetFilter };
+  handDiscard?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 手札から条件一致カードを選んで公開する（手札には残す）。 */
   handReveal?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: 手札からエナゾーンへ置く任意コスト。 */
@@ -3014,7 +3018,7 @@ export interface StubAction {
   /** OPTIONAL_COST: 対象のレベル1につき繰り返す単位エナコスト（例 ['無']）。 */
   costColorsPerTargetLevel?: string[];
   /** OPTIONAL_COST: エナゾーンからトラッシュへ置く任意コスト。 */
-  energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   /** OPTIONAL_COST: energyTrash.count を対象シグニのレベルにする。 */
   energyTrashCountFromTargetLevel?: boolean;
   /** OPTIONAL_COST: energyTrash の候補を「対象と同じレベル」に限定（「それと同じレベルの緑のシグニ」）。 */

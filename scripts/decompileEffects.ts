@@ -308,7 +308,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     return `${own}${filterJa(t.filter)}${u}をレベルの合計が${t.totalLevelMax}以下になるように${mPick}`.trim();
   }
   const counter = (loc || t.type === 'KEY') ? '枚' : '体';
-  const setConstraint = t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
+  const setConstraint = t.selectionConstraint?.totalLevelExact !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelExact}になるように`
+    : t.selectionConstraint?.totalLevelMax !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelMax}以下になるように`
+    : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
     : t.selectionConstraint?.distinct ? `それぞれ${t.selectionConstraint.distinct === 'level' ? 'レベル' : t.selectionConstraint.distinct === 'name' ? '名前' : 'クラス'}の異なる`
     : '';
@@ -334,6 +336,8 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
 }
 
 function constraintJa(c?: import('../src/types/effects').SelectionConstraint): string {
+  if (c?.totalLevelExact !== undefined) return `レベルの合計が${c.totalLevelExact}になるように`;
+  if (c?.totalLevelMax !== undefined) return `レベルの合計が${c.totalLevelMax}以下になるように`;
   if (c?.sharedColor === 'all') return '共通する色を持つ';
   if (c?.sharedColor === 'none') return '共通する色を持たない';
   if (c?.distinct === 'class') return '共通するクラスを持たない';
@@ -1114,7 +1118,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const sourceJa = a.maxCount?.$ref === 'last_processed_count' && a.from?.location === 'trash'
         ? `${ownerJa(a.from?.owner)}トラッシュから`
         : `${ownerJa(a.from?.owner)}デッキから`;
-      return `${sourceJa}${maxJa}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
+      return `${sourceJa}${maxJa}${constraintJa(a.selectionConstraint)}${filterJa(a.filter)}${noun}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
     }
     case 'GRANT_KEYWORD': {
       const lancerScope = typeof a.keyword === 'string' ? decodeLancerKeyword(a.keyword) : null;
@@ -2280,11 +2284,14 @@ function actionJa(a?: Action, effectType?: string): string {
           const nounET = ([] as string[]).concat(a.energyTrash.filter?.cardType ?? 'カード').join('か');
           // 選択制約（「共通するクラスを持たない」等）も出す＝出さないと原文照合で制約の有無が判定できない
           const scET = a.energyTrash.selectionConstraint;
-          const cET = scET?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
+          const cET = scET?.totalLevelExact !== undefined ? `レベルの合計が${scET.totalLevelExact}になるように`
+            : scET?.totalLevelMax !== undefined ? `レベルの合計が${scET.totalLevelMax}以下になるように`
+            : scET?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
             : scET?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
             : scET?.distinct ? `それぞれ${scET.distinct === 'level' ? 'レベル' : scET.distinct === 'name' ? '名前' : 'クラス'}の異なる`
             : '';
-          return `${headOC}あなたのエナゾーンから${cET}${fET}${nounET}${a.energyTrash.count}枚をトラッシュに置いてもよい`;
+          const countET = a.energyTrash.count === 'ALL' ? '好きな枚数' : `${a.energyTrash.count}枚`;
+          return `${headOC}あなたのエナゾーンから${cET}${fET}${nounET}を${countET}トラッシュに置いてもよい`;
         }
         if (a.handReveal) {
           const fHR = a.handReveal.filter ? filterJa(a.handReveal.filter) : '';
@@ -2305,7 +2312,8 @@ function actionJa(a?: Action, effectType?: string): string {
           const fHD = a.handDiscard.filter ? filterJa(a.handDiscard.filter) : '';
           // filterJa は名詞（シグニ/カード）を含まないので cardType から補う
           const nounHD = ([] as string[]).concat(a.handDiscard.filter?.cardType ?? 'カード').join('か');
-          const bodyHD = `手札から${fHD}${nounHD}を${a.handDiscard.count}枚捨て`;
+          const countHD = a.handDiscard.count === 'ALL' ? '好きな枚数' : `${a.handDiscard.count}枚`;
+          const bodyHD = `手札から${constraintJa(a.handDiscard.selectionConstraint)}${fHD}${nounHD}を${countHD}捨て`;
           return `${headOC}${costJaOC ? `${costJaOC}を支払い` : ''}${bodyHD}てもよい`;
         }
         return `${headOC}${costJaOC || 'コスト'}を支払ってもよい`;

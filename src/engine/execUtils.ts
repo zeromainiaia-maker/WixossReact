@@ -220,14 +220,14 @@ export function maxCardLevel(cardNums: string[] | undefined, ctx: ExecCtx): numb
 // 対象が取れなかった（level=0）ときは「0個払って発動」ではなく **支払い不可** に倒す。
 export interface OptionalCostSpec {
   costColors: string[];
-  handDiscard?: { count: number; filter?: TargetFilter };
+  handDiscard?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   handReveal?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   handToEnergy?: { count: number; filter?: TargetFilter };
   handToUnderSelf?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   // ⚠これは**解決後**の runtime 型＝`src/types/effects.ts` の JSON payload 型とは**別物**。
   //   片方にキーを足しただけでは `resolveOptionalCostSpec` が落として黙って無視される（続き422 で実際に踏んだ）。
   underAnySigniTrash?: { count: number; fromThis?: boolean; filter?: TargetFilter };
-  energyTrash?: { count: number; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
+  energyTrash?: { count: number | 'ALL'; upToCount?: boolean; filter?: TargetFilter; selectionConstraint?: SelectionConstraint };
   fieldTrash?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldToDeckBottom?: { count: number; filter?: TargetFilter; excludeSelf?: boolean };
   fieldTrashGroups?: { count: number; filter?: TargetFilter }[];
@@ -276,6 +276,7 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
   const energyTrash = a.energyTrash
     ? {
         count: a.energyTrashCountFromTargetLevel ? level : a.energyTrash.count,
+        upToCount: a.energyTrash.upToCount,
         // 「それと同じレベルの緑のシグニ」＝候補側にも対象のレベルを課す（翠英　マキトミ）
         filter: a.energyTrashSameLevelAsTarget ? { ...a.energyTrash.filter, level } : a.energyTrash.filter,
         selectionConstraint: a.energyTrash.selectionConstraint,
@@ -296,20 +297,38 @@ export function resolveOptionalCostSpec(a: StubAction, ctx: ExecCtx): OptionalCo
 
 function hasValidConstrainedSelection(
   candidates: string[],
-  count: number,
+  count: number | 'ALL',
   constraint: SelectionConstraint | undefined,
   cardMap: Map<string, CardData>,
 ): boolean {
-  if (!constraint) return candidates.length >= count;
-  const pick = (start: number, selected: string[]): boolean => {
-    if (selected.length === count) return true;
+  const minCount = count === 'ALL' ? 0 : count;
+  const maxCount = count === 'ALL' ? candidates.length : count;
+  if (!constraint) return candidates.length >= minCount;
+  return findValidConstrainedSelection(candidates, minCount, maxCount, constraint, cardMap) !== null;
+}
+
+/** 選択集合制約を満たす組み合わせを探す。候補提示前 fail-closed と CPU 選択で共用する。 */
+export function findValidConstrainedSelection(
+  candidates: string[],
+  minCount: number,
+  maxCount: number,
+  constraint: SelectionConstraint | undefined,
+  cardMap: Map<string, CardData>,
+): string[] | null {
+  if (!constraint) return candidates.length >= minCount ? candidates.slice(0, Math.min(maxCount, candidates.length)) : null;
+  const selected: string[] = [];
+  const find = (start: number): boolean => {
+    if (selected.length >= minCount && satisfiesSelectionConstraint(selected, constraint, cardMap)) return true;
+    if (selected.length >= maxCount) return false;
     for (let i = start; i < candidates.length; i++) {
-      if (canAddToSelection(selected, candidates[i], constraint, cardMap)
-        && pick(i + 1, [...selected, candidates[i]])) return true;
+      if (!canAddToSelection(selected, candidates[i], constraint, cardMap)) continue;
+      selected.push(candidates[i]);
+      if (find(i + 1)) return true;
+      selected.pop();
     }
     return false;
   };
-  return pick(0, []);
+  return find(0) ? [...selected] : null;
 }
 
 // 支払い可能か（エナ色・手札・エナゾーンの在庫）。handDiscardGroups は呼び出し側の既存判定に残す。
@@ -325,7 +344,8 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.handDiscard) {
     const matching = ctx.ownerState.hand.filter(n =>
       !spec.handDiscard!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.handDiscard!.filter));
-    if (matching.length < spec.handDiscard.count) return false;
+    if (spec.handDiscard.count !== 'ALL' && matching.length < spec.handDiscard.count) return false;
+    if (!hasValidConstrainedSelection(matching, spec.handDiscard.count, spec.handDiscard.selectionConstraint, ctx.cardMap)) return false;
   }
   if (spec.handReveal) {
     const matching = ctx.ownerState.hand.filter(n =>
@@ -336,7 +356,7 @@ export function canAffordOptionalCostSpec(spec: OptionalCostSpec, ctx: ExecCtx):
   if (spec.energyTrash) {
     const matching = ctx.ownerState.energy.filter(n =>
       !spec.energyTrash!.filter || matchesFilter(ctx.cardMap.get(getCardNum(n)), spec.energyTrash!.filter));
-    if (matching.length < spec.energyTrash.count) return false;
+    if (spec.energyTrash.count !== 'ALL' && matching.length < spec.energyTrash.count) return false;
     if (!hasValidConstrainedSelection(matching, spec.energyTrash.count, spec.energyTrash.selectionConstraint, ctx.cardMap)) return false;
   }
   if (spec.handToEnergy) {
@@ -454,7 +474,9 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
   return [
     ...(spec.handDiscard ? [{
       type: 'TRASH', asCost: true,
-      target: { type: 'HAND_CARD', owner: 'self', count: spec.handDiscard.count, filter: spec.handDiscard.filter },
+      target: { type: 'HAND_CARD', owner: 'self', count: spec.handDiscard.count,
+        ...(spec.handDiscard.upToCount ? { upToCount: true } : {}),
+        filter: spec.handDiscard.filter, selectionConstraint: spec.handDiscard.selectionConstraint },
     } as EffectAction] : []),
     ...(spec.handReveal ? [{
       type: 'REVEAL',
@@ -465,7 +487,9 @@ export function optionalCostPaySteps(spec: OptionalCostSpec): EffectAction[] {
     } as EffectAction] : []),
     ...(spec.energyTrash ? [{
       type: 'TRASH', asCost: true,
-      target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count, filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
+      target: { type: 'ENERGY_CARD', owner: 'self', count: spec.energyTrash.count,
+        ...(spec.energyTrash.upToCount ? { upToCount: true } : {}),
+        filter: spec.energyTrash.filter, selectionConstraint: spec.energyTrash.selectionConstraint },
     } as EffectAction] : []),
     ...(spec.handToEnergy ? [{
       type: 'ENERGY_CHARGE', asCost: true,
@@ -2695,6 +2719,13 @@ export function selectOrInteract(
   // （従来は done(ctx) で**直前ステップの残留値をそのまま持ち越して**いたため、後続の
   //  CONDITIONAL{IS_MY_TURN}＝「そうした場合」ゲートがすり抜けて過剰発火していた＝タスク12(xxix)③）。
   if (filteredCands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+  // exact 合計制約は、成立する組み合わせが無い盤面で選択UIを出すと決定不能になる。
+  // optional（「まで／好きな枚数」）でも exact>0 は0枚を成立扱いにせず、空処理へ fail-closed。
+  if (extra?.selectionConstraint?.totalLevelExact !== undefined
+      && findValidConstrainedSelection(filteredCands, optional ? 0 : count, count,
+        extra.selectionConstraint, ctx.cardMap) === null) {
+    return done({ ...ctx, lastProcessedCards: [] });
+  }
   return needsInteraction(ctx, {
     type: 'SELECT_TARGET',
     candidates: filteredCands,
@@ -2726,8 +2757,15 @@ export function satisfiesSelectionConstraint(
   constraint: SelectionConstraint | undefined,
   cardMap: Map<string, CardData>,
 ): boolean {
-  if (!constraint || nums.length < 2) return true;
+  if (!constraint) return true;
   const cards = nums.map(n => cardMap.get(getCardNum(n)));
+  const levelSum = (): number => cards.reduce((sum, card) => {
+    const level = parseInt(card?.Level ?? '', 10);
+    return sum + (Number.isFinite(level) ? level : 0);
+  }, 0);
+  if (constraint.totalLevelExact !== undefined && levelSum() !== constraint.totalLevelExact) return false;
+  if (constraint.totalLevelMax !== undefined && levelSum() > constraint.totalLevelMax) return false;
+  if (nums.length < 2) return true;
   if (constraint.same === 'name') {
     const values = cards.map(c => `${c?.CardName ?? ''}`);
     if (new Set(values).size !== 1) return false;
@@ -2784,7 +2822,17 @@ export function canAddToSelection(
   constraint: SelectionConstraint | undefined,
   cardMap: Map<string, CardData>,
 ): boolean {
-  return satisfiesSelectionConstraint([...selected, candidate], constraint, cardMap);
+  if (!constraint) return true;
+  const next = [...selected, candidate];
+  const { totalLevelExact, totalLevelMax, ...setConstraint } = constraint;
+  if (!satisfiesSelectionConstraint(next, setConstraint, cardMap)) return false;
+  const sum = next.reduce((total, n) => {
+    const level = parseInt(cardMap.get(getCardNum(n))?.Level ?? '', 10);
+    return total + (Number.isFinite(level) ? level : 0);
+  }, 0);
+  if (totalLevelExact !== undefined && sum > totalLevelExact) return false;
+  if (totalLevelMax !== undefined && sum > totalLevelMax) return false;
+  return true;
 }
 
 /**

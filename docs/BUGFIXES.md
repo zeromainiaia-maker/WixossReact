@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第32バッチ＝合計レベルexact 7節＋SEARCH上限、§6.4 O-42クローズ
+
+`SelectionConstraint` に `totalLevelExact` / `totalLevelMax` を追加し、候補提示時の組み合わせ存在確認、UI/CPUの選択完了判定、`resumeSelectTarget` / `resumeSearch` の外部応答再検証を共通化した。「レベルの合計がNになるように」は上限へ丸めず、`WXEX1-36-E2`、`WXEX1-45-BURST`、`WXK10-066-E2`、`WDK13-008-E1` の2選択肢、`PR-K043-E1`、`WXDi-P08-045-E2` へ exact を配線。`WXEX1-45-E3` は同じSEARCH経路へ `totalLevelMax:5` を配線した。必須形で達成可能な組み合わせが無い場合は既存の空候補と同じ0枚完了、任意コスト形はpay不可（または不正resumeを0枚化）かつ後段を走らせないfail-closedとした。
+
+`WXK10-066-E2` は相手のパワー8000以下という条件がトラッシュ候補へ誤付着していたため除去し、対象固定→exact 2枚をデッキ下→実際に2枚置けた場合だけ同じ対象をバニッシュする正準形へ変更。`TARGET_AND_DISCARD_HAND` は相手対象＋手札1枚、`TRADE_BANISH_SELF_SIGNI` は自分の場のシグニ犠牲という別実装だったため、A6/A7を既存 `SELECT_TARGET_ONLY` / `STORE_LAST_PROCESSED_TARGETS` / `OPTIONAL_COST` / `PAID_ADDITIONAL_COST` へ置換した。実装中に `energyTrash.upToCount` が runtime spec で落ちる死フラグと、不正exact支払いを0枚化してもpay後段が走る穴を検出し、前者を引き継ぎ、後者を実処理枚数ゲートで閉じた。
+
+§6.4 `O-42` の残1 `WX10-018-E1` は `syncManualLive.ts` で `negateNthAttack:{count:2,signi:true,lrig:true}` をliveへ届け、manualエントリを削除して `MANUAL→AUTO`。トリップワイヤは許容0を維持し、センタールリグを含む1・2回目だけを無効化し3回目は通すE2Eを固定した。削除候補 **1→0**、manualEffects **412→411カード**で `O-42` をクローズ。
+
+全カード生パース差分は指定7 effectIdだけ、指定外outlier 0。live差分は指定8 effectId（上記7＋C1）、追加/削除0。`npm run regen`／`npm run gates` 全緑。golden **2563/2563**（2555→2563）、census **640/640**（642→640、定数・コメント更新）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A群/C群0、manual-fields 0、held/partial/idset **86/15/46**（held −1は `WXK10-066` のfresh/live一致）、Condition/ActiveCondition **122/52**据置。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch32_report.md`。
+
 ## 2026-08-23：§6.2 段2 第31バッチ＝合計レベル上限5効果とアーツ使用コスト上限3効果
 
 CSV原文の「レベルの合計がN以下になるように」を `EffectTarget.totalLevelMax` へ配線し、`WX11-033-BURST`／`WXK06-010-E1`／`WXK10-050-E2`／`WXDi-P08-034-E2`／`WX24-P2-006-E1` の5効果を是正した。開始時の実装調査で `totalLevelMax` の実消費は `execBanish` だけと判明したため、`execGrantKeyword`／`execSendToEnergy`／`execDown` に候補レベルmetadataを渡す選択経路を追加し、共通 `resumeSelectTarget` の合計再検証まで接続。候補0枚は空処理で閉じる。`WXK10-050-E2` の `ENERGY_BY_LEVEL_SUM_LIMIT` は実装済みだったが「自分のエナ全体のレベル超過を捨てる」別機能であり、原文どおり相手シグニ2体までをエナ送りする action へ置換した。`WXEX1-45-E3` は `SEARCH` に集合レベル制約の受け皿がないため、死フィールドや上限近似を足さず据置。

@@ -188,7 +188,9 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             }
             if (inter.selectionConstraint) {
               const c = inter.selectionConstraint;
-              const constraintJa = c.distinct === 'level' ? 'それぞれレベルの異なる'
+              const constraintJa = c.totalLevelExact !== undefined ? `レベルの合計が${c.totalLevelExact}になるように`
+                : c.totalLevelMax !== undefined ? `レベルの合計が${c.totalLevelMax}以下になるように`
+                : c.distinct === 'level' ? 'それぞれレベルの異なる'
                 : c.distinct === 'name' ? 'それぞれ名前の異なる'
                 : c.distinct === 'class' ? 'それぞれクラスの異なる'
                 : c.sharedColor === 'all' ? '全てに共通する色を持つ'
@@ -356,7 +358,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                   })}
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  {inter.type === 'SELECT_TARGET' && inter.optional && (
+                  {inter.type === 'SELECT_TARGET' && inter.optional
+                    && inter.selectionConstraint?.totalLevelExact === undefined && (
                     <button onClick={() => handleEffectInteraction([])}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,
@@ -364,7 +367,7 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
                       スキップ
                     </button>
                   )}
-                  {inter.type === 'SEARCH' && (
+                  {inter.type === 'SEARCH' && inter.selectionConstraint?.totalLevelExact === undefined && (
                     <button onClick={() => handleEffectInteraction([])}
                       disabled={loading}
                       style={{ flex: 1, padding: '10px 0', borderRadius: 8, border: C.borderUI,

@@ -10,7 +10,7 @@ import {
   trashCandidates, energyCandidates, evalCondition, selectOrInteract, canPayOptionalCost,
   costSlotIsAny, energyMatchesCostSlot,
   evalUseCondition, banishDestination, banishRedirectOpts, sweepPuppets, payBeatSigniCost, payBeatSigniFromTrashCost, addToBeatZone, analyzeBeatSigniCost,
-  canAddToSelection, fieldCandidatesByOwner, sideOfFieldCard,
+  canAddToSelection, findValidConstrainedSelection, satisfiesSelectionConstraint, fieldCandidatesByOwner, sideOfFieldCard,
   resolveOptionalCostSpec, canAffordOptionalCostSpec, optionalCostPaySteps, optionalCostExtraLabels, selectOptionalCostEnergy,
   movableTrashCandidates, isOwnTrashMoveLocked, hasNoAbility, lrigZoneTops, designatedZones,
   sourceAbilityText, deckSigniOverrideLevel, countFromZone,
@@ -135,6 +135,22 @@ function freezeStoredTargets(action: EffectAction, ctx: ExecCtx): EffectAction {
   }
   if (action.type === 'SEQUENCE') return { ...action, steps: action.steps.map(s => freezeStoredTargets(s, ctx)) };
   return action;
+}
+
+// exact 合計の任意コストは、外部応答を resume 側で再検証して不正集合を0枚へ倒す。
+// pay を選んだ事実だけで後段を走らせず、実際に有効な支払い札が処理された場合だけ帰結へ進む。
+function guardExactOptionalSelectionPayment(
+  spec: import('./execUtils').OptionalCostSpec,
+  paidAction: EffectAction,
+): EffectAction {
+  const exact = spec.handDiscard?.selectionConstraint?.totalLevelExact
+    ?? spec.energyTrash?.selectionConstraint?.totalLevelExact;
+  if (exact === undefined || exact <= 0) return paidAction;
+  return {
+    type: 'CONDITIONAL',
+    condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1 },
+    then: paidAction,
+  } as ConditionalAction;
 }
 
 // ===== 個別アクション実行 =====
@@ -1861,7 +1877,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       // 「好きな数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全トラッシュにしない）
       if (tgt.upToCount) {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
-        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false,
+          { selectionConstraint: tgt.selectionConstraint });
       }
       // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
       //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
@@ -1934,7 +1951,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       // resumeSelectTarget が lastProcessedCards を記録するため「この方法で手札をN枚以上捨てた場合」条件と連鎖できる。
       if (tgt.upToCount) {
         if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
-        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false,
+          { selectionConstraint: tgt.selectionConstraint });
       }
       if (a.optional) {
         const trashAll = { ...a, optional: false } as TrashAction;
@@ -1959,7 +1977,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
-    return selectOrInteract(cands, count, (a.optional || a.target.upToCount) ?? false, scope, a, undefined, ctx, opponentResponds);
+    return selectOrInteract(cands, count, (a.optional || a.target.upToCount) ?? false, scope, a, undefined, ctx, opponentResponds,
+      { selectionConstraint: tgt.selectionConstraint });
   }
 
   if (tgt.type === 'ENERGY_CARD') {
@@ -2008,6 +2027,11 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // 「そのカード」は既にトリガーで一意に決まっており、対象を取らないため選択UIを出さず直接処理する。
     if (triggerRestrict !== null) return done({ ...applyTrashEnergy(cands, ctx), lastProcessedCards: cands });
     if (tgt.count === 'ALL') {
+      if (tgt.upToCount) {
+        if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+        return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false,
+          { selectionConstraint: tgt.selectionConstraint });
+      }
       if (a.optional) {
         const trashAll = { ...a, optional: false } as TrashAction;
         const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
@@ -2024,7 +2048,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     const count = resolveCountRef(tgt.count, ctx, tgt.countFromZone);
     // opponentSelects: 「対戦相手は自分のエナから1枚を対象とし、それをトラッシュに置く」→ 対戦相手が選ぶ（WX04-009）
     const oppResponds = !!a.opponentSelects && tgt.owner === 'opponent';
-    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, oppResponds);
+    return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, oppResponds,
+      { selectionConstraint: tgt.selectionConstraint });
   }
 
   if (tgt.type === 'DECK_CARD') {
@@ -3892,6 +3917,15 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   // フィルタがある場合は一致カードのみ表示、ない場合は全体を公開
   const visibleCards = pool.filter(n => matchesFilter(searchCardMap.get(n), resolvedFilter));
 
+  // exact 合計を作れないときは選択不能UIを出さず、0枚探索としてシャッフルまで進める。
+  if (a.selectionConstraint?.totalLevelExact !== undefined
+      && findValidConstrainedSelection(visibleCards, a.upToTarget === false ? maxPick : 0, maxPick,
+        a.selectionConstraint, searchCardMap) === null) {
+    const emptyCtx = { ...ctx, lastProcessedCards: [] };
+    if (a.afterSearch) return executeAction(a.afterSearch, emptyCtx);
+    return done(emptyCtx);
+  }
+
   return needsInteraction(ctx, {
     type: 'SEARCH',
     visibleCards,
@@ -4613,7 +4647,7 @@ function execSequence(a: SequenceAction, ctx: ExecCtx): ExecResult {
           cur.ownerState.hand.filter(n => !g.filter || matchesFilter(cur.cardMap.get(getCardNum(n)), g.filter)).length >= g.count);
         const canAfford = canAffordOptionalCostSpec(spec, cur)
           && hasMaregabi && groupsAffordable && exceedPoolCount >= exceed;
-        const paidAction = freezeStoredTargets(conditional.then, cur);
+        const paidAction = guardExactOptionalSelectionPayment(spec, freezeStoredTargets(conditional.then, cur));
         const costActions: EffectAction[] = [
           ...(exceed > 0 ? [{ type: 'STUB', id: 'INTERNAL_PAY_EXCEED', value: exceed } as EffectAction] : []),
           ...optionalCostPaySteps(spec),
@@ -8351,7 +8385,7 @@ export function applyRefreshOnDone(
 // ===== インタラクション解決（UIから呼ばれる） =====
 
 // SELECT_TARGET: selected[] export
- export function resumeSelectTarget(
+export function resumeSelectTarget(
   selected: string[],
   pending: PendingInteractionDef & { type: 'SELECT_TARGET' },
   ctx: ExecCtx,
@@ -8386,6 +8420,8 @@ export function applyRefreshOnDone(
       if (canAddToSelection(accepted, n, pending.selectionConstraint, ctx.cardMap)) accepted.push(n);
     }
     selected = accepted;
+    // exact は prefix 判定（候補追加）と最終判定を分ける。N-1/N+1 は1枚も処理しない。
+    if (!satisfiesSelectionConstraint(selected, pending.selectionConstraint, ctx.cardMap)) selected = [];
   }
   // 選択されたカードに thenAction を個別適用
   let cur = ctx;
@@ -8554,12 +8590,15 @@ export function resumeSearch(
   pending: PendingInteractionDef & { type: 'SEARCH' },
   ctx: ExecCtx,
 ): ExecResult {
+  picked = picked.slice(0, pending.maxPick);
   if (pending.selectionConstraint) {
     const accepted: string[] = [];
     for (const n of picked) {
       if (canAddToSelection(accepted, n, pending.selectionConstraint, ctx.cardMap)) accepted.push(n);
     }
     picked = accepted;
+    // 外部応答でも exact/max を再検証し、不正集合は部分採用せず0枚へ倒す。
+    if (!satisfiesSelectionConstraint(picked, pending.selectionConstraint, ctx.cardMap)) picked = [];
   }
   let cur = ctx;
   // §6.4 O-2: 公開元デッキ／残り札の行き先の持ち主。既定 'self'＝従来挙動（live の公開系は全件 self）。

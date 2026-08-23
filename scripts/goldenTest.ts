@@ -10998,7 +10998,7 @@ const MANUAL_DRIFT_KNOWN = new Set([
   'WX24-P4-045-E1', 'WXEX2-71-E2', 'WXEX2-71-E3',   // git 履歴で live が後（--date 判定）
   // ── 未判定＝§6.3 K の残 worklist（`--date` の機械判定＋原文照合で1件ずつ decide する）──
   'PR-Di017B-E1',       // UNDATED（manual ブロックが blame で取れない）
-  'WX05-025-E2', 'WX10-018-E1', 'WX13-040-E1', 'WX14-064-E1',       // UNDATED（manual 側の日付が取れない）
+  'WX05-025-E2', 'WX13-040-E1', 'WX14-064-E1',       // UNDATED（manual 側の日付が取れない）
   // ⚠2026-08-11（続き424）に **`WXK04-003-DECORE` / `WXK04-042-E1b` / `WXK05-030-MULTIENA` は解消**。
   //   原因は buildEffectsJson が「手書き効果の**新規追加**」だけを黙って捨てていたこと（§6.4 第4の死角）。
   'WXDi-P02-039-E1', 'WXEX1-66-E2',                                  // SAME_TIME＝同一 commit で分岐（要原文照合）
@@ -22910,8 +22910,15 @@ test('NEGATE_NTH_ATTACK: WX10-018 はシグニ/ルリグ共有2回を設定', ()
   const effect = (cardMap.get('WX10-018')?.effects ?? []).find(e => e.effectId === 'WX10-018-E1');
   ok(!!effect, 'WX10-018-E1が必要');
   if (!effect) return;
+  eq(effect.parseStatus, 'AUTO', 'manual解除後のlive刻印');
   const result = run(effect.action, mkCtx({}, {}, 'WX10-018'));
   eq(JSON.stringify(result.ownerState.negate_opp_attacks), JSON.stringify({ remaining: 2, signi: true, lrig: true }));
+  const first = consumeNthAttackNegation(result.ownerState, 'lrig');
+  ok(first.negated && first.remaining === 1, '一度目のセンタールリグ攻撃を無効化');
+  const second = consumeNthAttackNegation(first.defender, 'signi');
+  ok(second.negated && second.remaining === 0, '二度目のシグニ攻撃を無効化');
+  const third = consumeNthAttackNegation(second.defender, 'lrig');
+  ok(!third.negated && third.remaining === 0, '三度目の攻撃は無効化しない');
 });
 
 test('NEGATE_NTH_ATTACK: SP27-016 の②選択後はシグニ/ルリグ共有1回を設定', () => {
@@ -43149,11 +43156,8 @@ test('段2 第29バッチ 非採用契約: WD16-014-E1 は期間つきPOWER_SET�
   ok(!JSON.stringify(effect.action).includes('POWER_SET'), 'ターン終了失効不能な基本パワー固定を入れない');
 });
 
-// §6.4 O-42 の残件。ここに effectId が増えたら、また影武者コピーが生えたということ。
-// WX10-018-E1 は parser/manual に negateNthAttack がある一方、開始 live に無く、parseStatus 以外も変わるため解除しない。
-const O42_KNOWN_REDUNDANT_MANUAL = [
-  'WX10-018-E1',
-] as const;
+// §6.4 `O-42` は残0でクローズ。ここに effectId が増えたら、また影武者コピーが生えたということ。
+const O42_KNOWN_REDUNDANT_MANUAL = [] as const;
 
 function o42StableBody(value: unknown): string {
   const normalize = (item: unknown): unknown => {
@@ -43167,8 +43171,8 @@ function o42StableBody(value: unknown): string {
   return JSON.stringify(normalize(value));
 }
 
-test('§6.4 O-42 tripwire: parser と実体同一の manual 影武者コピーは既知1効果から増減しない', () => {
-  eq(O42_KNOWN_REDUNDANT_MANUAL.length, 1, '既知在庫リストの件数');
+test('§6.4 O-42 tripwire: parser と実体同一の manual 影武者コピーは残0を維持', () => {
+  eq(O42_KNOWN_REDUNDANT_MANUAL.length, 0, '既知在庫リストの件数');
   const redundant: string[] = [];
   for (const [cardNum, manualEffects] of Object.entries(MANUAL_EFFECTS)) {
     const card = cardMap.get(cardNum);
@@ -43500,21 +43504,203 @@ test('段2 第31バッチ B3 E2E: WXK09-047-E1 は各レベル2枚条件でバ�
   ok(!collectEffectImmuneSigni(inactive.ownerState, inactive.otherState, cardMap, new Map(), true, 'アーツ', batch31LowArts).has(source), '条件不成立ならコスト1アーツ耐性も得ない');
 });
 
-test('段2 第31バッチ 非採用契約: SEARCH と exact 合計5効果を totalLevelMax で近似しない', () => {
-  const held = [
-    manualEffect('WXEX1-45', 'WXEX1-45-E3'),
-    manualEffect('WXEX1-36', 'WXEX1-36-E2'),
-    manualEffect('WXK10-066', 'WXK10-066-E2'),
-    manualEffect('WDK13-008', 'WDK13-008-E1'),
-    manualEffect('PR-K043', 'PR-K043-E1'),
-    manualEffect('WXDi-P08-045', 'WXDi-P08-045-E2'),
-  ];
-  for (const effect of held) {
-    const encoded = JSON.stringify(effect.action);
-    ok(!encoded.includes('totalLevelMax'), `${effect.effectId}: 以下へ丸めない`);
-    ok(!encoded.includes('totalLevelExact'), `${effect.effectId}: 未実装 exact を装わない`);
+// ── §6.2 段2 第32バッチ: 選択したカードのレベル合計 exact/max ──
+function batch32Signi(id: string, level: number, story: '宇宙' | '英知' | '古代兵器' = '宇宙'): string {
+  const prefix = story === '宇宙' ? '精羅' : story === '英知' ? '精像' : '精械';
+  return batch31SyntheticCard(id, 'シグニ', { Level: String(level), CardClass: `${prefix}：${story}` });
+}
+
+function batch32Search(effect: CardEffect, deck: string[], picked: string[]): ExecResult {
+  const ctx = mkCtx({}, {}, effect.effectId.split('-E')[0]);
+  ctx.ownerState.deck = [...deck];
+  const offered = executeEffect(effect, ctx);
+  if (offered.done) return offered;
+  ok(offered.pending.type === 'SEARCH', `${effect.effectId}: SEARCHを提示`);
+  if (offered.pending.type !== 'SEARCH') throw new Error(`${effect.effectId}: SEARCHではない`);
+  return finish(resumeSearch(picked, offered.pending, ctxAfter(offered, ctx)), ctx);
+}
+
+test('段2 第32バッチ A1 E2E: WXEX1-36-E2 は合計8だけを検索し、7/9と達成不能を空処理にする', () => withSavedCursor(() => {
+  const effect = manualEffect('WXEX1-36', 'WXEX1-36-E2');
+  const l3 = batch32Signi('B32-A1-L3', 3), l5 = batch32Signi('B32-A1-L5', 5);
+  const l7 = batch32Signi('B32-A1-L7', 7), l9 = batch32Signi('B32-A1-L9', 9);
+  const exact = batch32Search(effect, [l3, l5, l7, l9], [l3, l5]);
+  ok(exact.ownerState.hand.includes(l3) && exact.ownerState.hand.includes(l5), '合計8を手札に加える');
+  const under = batch32Search(effect, [l7, l9], [l7]);
+  ok(!under.ownerState.hand.includes(l7), '合計7は取れない');
+  const over = batch32Search(effect, [l7, l9], [l9]);
+  ok(!over.ownerState.hand.includes(l9), '合計9は取れない');
+  const impossible = batch32Search(effect, [l3, l7], [l3, l7]);
+  ok(impossible.done && !impossible.ownerState.hand.includes(l3), '合計8を作れない盤面は待機せず0枚');
+}));
+
+function batch32Banish(effect: CardEffect, field: string[], picked: string[]): ExecResult {
+  const ctx = mkCtx({}, { signi: field }, effect.effectId.split('-')[0]);
+  const offered = executeEffect(effect, ctx);
+  if (offered.done) return offered;
+  ok(offered.pending.type === 'SELECT_TARGET', `${effect.effectId}: SELECT_TARGETを提示`);
+  if (offered.pending.type !== 'SELECT_TARGET') throw new Error(`${effect.effectId}: SELECT_TARGETではない`);
+  return finish(resumeSelectTarget(picked, offered.pending, ctxAfter(offered, ctx)), ctx);
+}
+
+test('段2 第32バッチ A2 E2E: WXEX1-45-BURST は2体までの合計4だけをバニッシュし、3/5と達成不能を拒否', () => withSavedCursor(() => {
+  const effect = manualEffect('WXEX1-45', 'WXEX1-45-BURST');
+  const l1 = batch32Signi('B32-A2-L1', 1), l2 = batch32Signi('B32-A2-L2', 2);
+  const l3 = batch32Signi('B32-A2-L3', 3), l4 = batch32Signi('B32-A2-L4', 4);
+  const exact = batch32Banish(effect, [l1, l3], [l1, l3]);
+  ok(!exact.otherState.field.signi.some(stack => stack?.at(-1) === l1 || stack?.at(-1) === l3), '合計4の2体を処理');
+  const under = batch32Banish(effect, [l1, l2], [l1, l2]);
+  ok(under.otherState.field.signi.some(stack => stack?.at(-1) === l1), '合計3は処理しない');
+  const over = batch32Banish(effect, [l1, l4], [l1, l4]);
+  ok(over.otherState.field.signi.some(stack => stack?.at(-1) === l4), '合計5は処理しない');
+  const impossible = batch32Banish(effect, [l1, l2], []);
+  ok(impossible.done && impossible.otherState.field.signi.some(stack => stack?.at(-1) === l1), '達成不能は待機せず0体');
+}));
+
+function batch32TrashDeck(trash: string[], picked: string[]): { result: ExecResult; target: string } {
+  const effect = manualEffect('WXK10-066', 'WXK10-066-E2');
+  const target = batch31SyntheticCard(`B32-A3-T-${trash.join('-')}`, 'シグニ', { Level: '2', Power: '8000' });
+  const ctx = mkCtx({}, { signi: [target, null, null] }, 'WXK10-066');
+  ctx.ownerState.trash = [...trash];
+  const targetOffer = executeEffect(effect, ctx);
+  ok(!targetOffer.done && targetOffer.pending.type === 'SELECT_TARGET', 'A3: 相手対象を先に選ぶ');
+  if (targetOffer.done || targetOffer.pending.type !== 'SELECT_TARGET') throw new Error('A3: 対象選択なし');
+  const sourceOffer = resumeSelectTarget([target], targetOffer.pending, ctxAfter(targetOffer, ctx));
+  if (sourceOffer.done) return { result: sourceOffer, target };
+  ok(sourceOffer.pending.type === 'SELECT_TARGET', 'A3: トラッシュ2枚を選ぶ');
+  if (sourceOffer.pending.type !== 'SELECT_TARGET') throw new Error('A3: source選択なし');
+  return { result: finish(resumeSelectTarget(picked, sourceOffer.pending, ctxAfter(sourceOffer, ctx)), ctx), target };
+}
+
+test('段2 第32バッチ A3 E2E: WXK10-066-E2 はトラッシュ合計5の2枚を戻せた場合だけ固定対象をバニッシュ', () => withSavedCursor(() => {
+  const l2 = batch32Signi('B32-A3-L2', 2, '古代兵器'), l3 = batch32Signi('B32-A3-L3', 3, '古代兵器');
+  const l2b = batch32Signi('B32-A3-L2B', 2, '古代兵器'), l4 = batch32Signi('B32-A3-L4', 4, '古代兵器');
+  const exact = batch32TrashDeck([l2, l3], [l2, l3]);
+  ok(!exact.result.otherState.field.signi.some(stack => stack?.at(-1) === exact.target), '合計5なら固定対象をバニッシュ');
+  ok(exact.result.ownerState.deck.slice(-2).includes(l2) && exact.result.ownerState.deck.slice(-2).includes(l3), '選択2枚をデッキ下へ');
+  const under = batch32TrashDeck([l2, l2b], [l2, l2b]);
+  ok(under.result.otherState.field.signi.some(stack => stack?.at(-1) === under.target), '合計4なら対象は残る');
+  const over = batch32TrashDeck([l2, l4], [l2, l4]);
+  ok(over.result.otherState.field.signi.some(stack => stack?.at(-1) === over.target), '合計6なら対象は残る');
+  const impossible = batch32TrashDeck([l2], []);
+  ok(impossible.result.done && impossible.result.otherState.field.signi.some(stack => stack?.at(-1) === impossible.target), '達成不能は後段も走らない');
+}));
+
+function batch32ChooseTrash(choiceId: 'c0' | 'c1', trash: string[], picked: string[], withKey: boolean): ExecResult {
+  const effect = manualEffect('WDK13-008', 'WDK13-008-E1');
+  const ctx = mkCtx({}, {}, 'WDK13-008');
+  ctx.ownerState.trash = [...trash];
+  if (withKey) ctx.otherState.field.key_piece = batch31SyntheticCard('B32-KEY', 'キー', {});
+  const choice = executeEffect(effect, ctx);
+  ok(!choice.done && choice.pending.type === 'CHOOSE', `A4/A5: ${choiceId}を選べる`);
+  if (choice.done || choice.pending.type !== 'CHOOSE') throw new Error('A4/A5: CHOOSEなし');
+  const offered = resumeChoose(choiceId, choice.pending, ctxAfter(choice, ctx));
+  if (offered.done) return offered;
+  ok(offered.pending.type === 'SELECT_TARGET', `A4/A5: ${choiceId}のトラッシュ選択`);
+  if (offered.pending.type !== 'SELECT_TARGET') throw new Error('A4/A5: SELECT_TARGETなし');
+  return finish(resumeSelectTarget(picked, offered.pending, ctxAfter(offered, ctx)), ctx);
+}
+
+test('段2 第32バッチ A4 E2E: WDK13-008-E1① は合計7だけを手札へ加え、6/8と達成不能を拒否', () => withSavedCursor(() => {
+  const l3 = batch32Signi('B32-A4-L3', 3), l4 = batch32Signi('B32-A4-L4', 4);
+  const l6 = batch32Signi('B32-A4-L6', 6), l8 = batch32Signi('B32-A4-L8', 8);
+  const exact = batch32ChooseTrash('c0', [l3, l4], [l3, l4], false);
+  ok(exact.ownerState.hand.includes(l3) && exact.ownerState.hand.includes(l4), '合計7を手札へ');
+  ok(!batch32ChooseTrash('c0', [l6], [l6], false).ownerState.hand.includes(l6), '合計6を拒否');
+  ok(!batch32ChooseTrash('c0', [l8], [l8], false).ownerState.hand.includes(l8), '合計8を拒否');
+  const impossible = batch32ChooseTrash('c0', [l3], [], false);
+  ok(impossible.done && !impossible.ownerState.hand.includes(l3), '達成不能は0枚');
+}));
+
+test('段2 第32バッチ A5 E2E: WDK13-008-E1② は相手キー時だけ合計12を手札へ加え、11/13を拒否', () => withSavedCursor(() => {
+  const l4 = batch32Signi('B32-A5-L4', 4), l8 = batch32Signi('B32-A5-L8', 8);
+  const l11 = batch32Signi('B32-A5-L11', 11), l13 = batch32Signi('B32-A5-L13', 13);
+  const exact = batch32ChooseTrash('c1', [l4, l8], [l4, l8], true);
+  ok(exact.ownerState.hand.includes(l4) && exact.ownerState.hand.includes(l8), '相手キーあり・合計12を手札へ');
+  ok(!batch32ChooseTrash('c1', [l11], [l11], true).ownerState.hand.includes(l11), '合計11を拒否');
+  ok(!batch32ChooseTrash('c1', [l13], [l13], true).ownerState.hand.includes(l13), '合計13を拒否');
+  const noKey = batch32ChooseTrash('c1', [l4, l8], [l4, l8], false);
+  ok(noKey.done && !noKey.ownerState.hand.includes(l4), '相手キーなしなら選択自体を実行しない');
+  const impossible = batch32ChooseTrash('c1', [l4], [], true);
+  ok(impossible.done && !impossible.ownerState.hand.includes(l4), '達成不能は0枚');
+}));
+
+function batch32OptionalExact(cardNum: 'PR-K043' | 'WXDi-P08-045', zone: 'hand' | 'energy', cards: string[], picked: string[]): { result: ExecResult; target: string; payAvailable: boolean } {
+  const effectId = cardNum === 'PR-K043' ? 'PR-K043-E1' : 'WXDi-P08-045-E2';
+  const effect = manualEffect(cardNum, effectId);
+  const target = batch31SyntheticCard(`B32-${cardNum}-TARGET-${cards.join('-')}`, 'シグニ', { Level: '2', Power: '5000' });
+  const ctx = mkCtx({}, { signi: [target, null, null] }, cardNum);
+  ctx.ownerState[zone] = [...cards];
+  const targetOffer = executeEffect(effect, ctx);
+  ok(!targetOffer.done && targetOffer.pending.type === 'SELECT_TARGET', `${effectId}: 相手対象を選ぶ`);
+  if (targetOffer.done || targetOffer.pending.type !== 'SELECT_TARGET') throw new Error(`${effectId}: 対象選択なし`);
+  const payOffer = resumeSelectTarget([target], targetOffer.pending, ctxAfter(targetOffer, ctx));
+  ok(!payOffer.done && payOffer.pending.type === 'CHOOSE', `${effectId}: 任意コストを提示`);
+  if (payOffer.done || payOffer.pending.type !== 'CHOOSE') throw new Error(`${effectId}: コスト選択なし`);
+  const payAvailable = payOffer.pending.options.find(option => option.id === 'pay')?.available !== false;
+  if (!payAvailable) {
+    return { result: finish(resumeOptionalCost('skip', [], payOffer.pending, ctxAfter(payOffer, ctx)), ctx), target, payAvailable };
   }
-  eq(held[0].action.type, 'SEARCH', 'A2はSEARCH受け皿ができるまで据置');
+  const selection = resumeOptionalCost('pay', [], payOffer.pending, ctxAfter(payOffer, ctx));
+  ok(!selection.done && selection.pending.type === 'SELECT_TARGET', `${effectId}: 支払いカードを選ぶ`);
+  if (selection.done || selection.pending.type !== 'SELECT_TARGET') throw new Error(`${effectId}: 支払い選択なし`);
+  return {
+    result: finish(resumeSelectTarget(picked, selection.pending, ctxAfter(selection, ctx)), ctx),
+    target,
+    payAvailable,
+  };
+}
+
+test('段2 第32バッチ A6 E2E: PR-K043-E1 は手札合計7を払った場合だけ固定対象をデッキ下へ置く', () => withSavedCursor(() => {
+  const l3 = batch32Signi('B32-A6-L3', 3), l4 = batch32Signi('B32-A6-L4', 4);
+  const l6 = batch32Signi('B32-A6-L6', 6), l8 = batch32Signi('B32-A6-L8', 8);
+  const exact = batch32OptionalExact('PR-K043', 'hand', [l3, l4, l6, l8], [l3, l4]);
+  ok(!exact.result.otherState.field.signi.some(stack => stack?.at(-1) === exact.target), '合計7を払えば対象を場から移す');
+  ok(exact.result.ownerState.trash.includes(l3) && exact.result.ownerState.trash.includes(l4), '選択した手札を捨てる');
+  const under = batch32OptionalExact('PR-K043', 'hand', [l3, l4, l6], [l6]);
+  ok(under.result.otherState.field.signi.some(stack => stack?.at(-1) === under.target), '合計6では後段を走らせない');
+  const over = batch32OptionalExact('PR-K043', 'hand', [l3, l4, l8], [l8]);
+  ok(over.result.otherState.field.signi.some(stack => stack?.at(-1) === over.target), '合計8では後段を走らせない');
+  const impossible = batch32OptionalExact('PR-K043', 'hand', [l3], []);
+  ok(!impossible.payAvailable && impossible.result.otherState.field.signi.some(stack => stack?.at(-1) === impossible.target), '達成不能ならpay不可・0枚・後段なし');
+}));
+
+test('段2 第32バッチ A7 E2E: WXDi-P08-045-E2 はエナ合計8を払った場合だけ固定対象をバニッシュ', () => withSavedCursor(() => {
+  const l3 = batch32Signi('B32-A7-L3', 3), l5 = batch32Signi('B32-A7-L5', 5);
+  const l7 = batch32Signi('B32-A7-L7', 7), l9 = batch32Signi('B32-A7-L9', 9);
+  const exact = batch32OptionalExact('WXDi-P08-045', 'energy', [l3, l5, l7, l9], [l3, l5]);
+  ok(!exact.result.otherState.field.signi.some(stack => stack?.at(-1) === exact.target), '合計8を払えば対象をバニッシュ');
+  ok(exact.result.ownerState.trash.includes(l3) && exact.result.ownerState.trash.includes(l5), '選択したエナをトラッシュへ');
+  const under = batch32OptionalExact('WXDi-P08-045', 'energy', [l3, l5, l7], [l7]);
+  ok(under.result.otherState.field.signi.some(stack => stack?.at(-1) === under.target), '合計7では後段を走らせない');
+  const over = batch32OptionalExact('WXDi-P08-045', 'energy', [l3, l5, l9], [l9]);
+  ok(over.result.otherState.field.signi.some(stack => stack?.at(-1) === over.target), '合計9では後段を走らせない');
+  const impossible = batch32OptionalExact('WXDi-P08-045', 'energy', [l3], []);
+  ok(!impossible.payAvailable && impossible.result.otherState.field.signi.some(stack => stack?.at(-1) === impossible.target), '達成不能ならpay不可・0枚・後段なし');
+}));
+
+test('段2 第32バッチ B1 E2E: WXEX1-45-E3 は合計上限5ちょうどを検索し、6を拒否し、0枚でも完了', () => withSavedCursor(() => {
+  const effect = manualEffect('WXEX1-45', 'WXEX1-45-E3');
+  const l2 = batch32Signi('B32-B1-L2', 2, '英知'), l3 = batch32Signi('B32-B1-L3', 3, '英知');
+  const l6 = batch32Signi('B32-B1-L6', 6, '英知');
+  const exact = batch32Search(effect, [l2, l3, l6], [l2, l3]);
+  ok(exact.ownerState.hand.includes(l2) && exact.ownerState.hand.includes(l3), '上限ちょうど5を手札へ');
+  ok(!batch32Search(effect, [l6], [l6]).ownerState.hand.includes(l6), '上限+1を拒否');
+  const zero = batch32Search(effect, [], []);
+  ok(zero.done && (zero.lastProcessedCards?.length ?? 0) === 0, '候補0枚でも例外・待機なし');
+}));
+
+test('段2 第32バッチ 構造契約: exact 7効果はtotalLevelExact、B1だけtotalLevelMaxを持つ', () => {
+  const exactIds = [
+    ['WXEX1-36', 'WXEX1-36-E2'], ['WXEX1-45', 'WXEX1-45-BURST'], ['WXK10-066', 'WXK10-066-E2'],
+    ['WDK13-008', 'WDK13-008-E1'], ['PR-K043', 'PR-K043-E1'], ['WXDi-P08-045', 'WXDi-P08-045-E2'],
+  ] as const;
+  for (const [cardNum, effectId] of exactIds) {
+    const encoded = JSON.stringify(manualEffect(cardNum, effectId).action);
+    ok(encoded.includes('totalLevelExact'), `${effectId}: exactキーが必要`);
+  }
+  const b1 = JSON.stringify(manualEffect('WXEX1-45', 'WXEX1-45-E3').action);
+  ok(b1.includes('totalLevelMax') && !b1.includes('totalLevelExact'), 'B1だけは「以下」の上限キー');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -2247,29 +2247,6 @@ export const MANUAL_EFFECTS: Record<string, CardEffect[]> = {
       parseStatus: 'MANUAL',
     },
   ],
-
-
-  // WX10-018 暴風警報（アーツ・使用タイミング＝アタックフェイズ）
-  // このターン、対戦相手のシグニかセンタールリグがアタックしたとき、
-  //   1度目か2度目の場合、そのアタックを無効にする。
-  //   STUB NEGATE_NTH_ATTACK＝シグニ/センタールリグの共有カウントで2回まで自動無効化（対応済み）
-  'WX10-018': [
-    {
-      effectId: 'WX10-018-E1',
-      effectType: 'ACTIVATED',
-      timing: ['ATTACK'],
-      cost: { energy: [{ color: '緑', count: 2 }] },
-      action: {
-        type: 'STUB',
-        id: 'NEGATE_NTH_ATTACK',
-        negateNthAttack: { count: 2, signi: true, lrig: true },
-      },
-      duration: 'INSTANT',
-      mandatory: false,
-      parseStatus: 'MANUAL',
-    },
-  ],
-
   // WX10-053 集結する守護（スペル）
   // コストはサーバントシグニ1体につき《無×2》減る（PARTIAL近似）。
   // ①トラッシュからサーバントシグニを2枚まで手札に。②サーバント全シグニ+5000+ランサー。
