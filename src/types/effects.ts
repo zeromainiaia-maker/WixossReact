@@ -202,6 +202,7 @@ export type ActiveCondition =
   | { type: 'SELF_LEVEL_THRESHOLD'; operator: CompareOp; value: number }
   | { type: 'FRONT_SIGNI_POWER'; operator: CompareOp; value: number } // このシグニの正面（相手ゾーン 2-zi）のシグニの実効パワーが条件を満たすかぎり（正面が空なら不成立。SP27-002-E3）
   | { type: 'HAND_DIFF'; operator: CompareOp; value: number }  // 自分の手札と相手の手札の差
+  | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp; value?: number } // 自分のライフクロス−相手のライフクロスの符号付き差。value省略＝0（Condition側と同型）
   | { type: 'ENA_DIFF'; operator: CompareOp; value: number }   // 自分のエナと相手のエナの差
   | { type: 'ENERGY_COLOR_TYPES'; owner: Owner; operator: CompareOp; value: number } // エナゾーンのカードが持つ色の種類数（WX05-006「エナゾーンのカードの色が3種類以上」）
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number } // センタールリグのレベル条件
@@ -381,7 +382,7 @@ export type Condition =
   | { type: 'THIS_CARD_FROM_DECK' } // このシグニがデッキから場に出た場合
   | { type: 'LAST_PROCESSED_SHARES_COLOR_WITH_LRIG'; owner: Owner } // 直前に処理したカード（lastProcessed）が指定プレイヤーのセンタールリグと共通する色を持つ場合（WX26-CP1-048）
   | { type: 'FIELD_SIGNI_POWER_COUNT'; owner: Owner; minPower: number; operator: CompareOp; value: number } // 場のシグニのうちパワーがminPower以上のものの数（「シグニ3体がそれぞれ15000以上」等）
-  | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp }
+  | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp; value?: number } // 自分のライフクロス−相手のライフクロスの符号付き差。既存値省略は0
   // 両プレイヤーの手札/エナ枚数を直接比較する（cmp(自分, operator, 対戦相手)＝LIFE_COMPARE_OPP と同じ向き）。
   // 「対戦相手の手札があなたより多い場合」＝自分 lt 相手。閾値比較の HAND_COUNT/ENERGY_COUNT（値と比べる）とは別物。
   | { type: 'HAND_COMPARE_OPP'; operator: CompareOp }
@@ -442,7 +443,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true,
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
-  HAND_DIFF: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
+  HAND_DIFF: true, LIFE_COMPARE_OPP: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
   EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_SOUL_ATTACHED: true, IS_SELF_CHARMED: true,
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,

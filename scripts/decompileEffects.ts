@@ -595,7 +595,13 @@ function condJa(c?: any): string {
     case 'SELF_LEVEL_THRESHOLD': return `このシグニのレベルが${numJa(c.value)}${opJa(c.operator)}`;
     case 'THIS_CARD_FROM_TRASH': return 'このシグニがトラッシュから場に出た';
     case 'FIELD_SIGNI_POWER_COUNT': return `${ownerJa(c.owner)}場にパワー${c.minPower}以上のシグニが${numJa(c.value)}体${opJa(c.operator)}`;
-    case 'LIFE_COMPARE_OPP': return `自分のライフが対戦相手${opJa(c.operator)}`;
+    case 'LIFE_COMPARE_OPP': {
+      const value = c.value ?? 0;
+      if (value < 0 && c.operator === 'lte') return `自分のライフクロスが対戦相手より${numJa(-value)}枚以上少ない`;
+      if (value > 0 && c.operator === 'gte') return `自分のライフクロスが対戦相手より${numJa(value)}枚以上多い`;
+      if (value === 0 && c.operator === 'eq') return '自分と対戦相手のライフクロスの枚数が同じ';
+      return `自分のライフクロスが対戦相手${opJa(c.operator)}`;
+    }
     case 'HAND_COMPARE_OPP': return `自分の手札が対戦相手${opJa(c.operator)}`;
     case 'ENERGY_COMPARE_OPP': return `自分のエナが対戦相手${opJa(c.operator)}`;
     case 'EFFECTIVE_LRIG_LIMIT_GTE': return `このルリグのリミットが${numJa(c.value)}以上`;

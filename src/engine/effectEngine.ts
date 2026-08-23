@@ -337,6 +337,20 @@ export function checkActiveCondition(
       return false;
     }
 
+    case 'LIFE_COMPARE_OPP': {
+      const diff = ownerState.life_cloth.length - otherState.life_cloth.length;
+      const value = cond.value ?? 0;
+      switch (cond.operator) {
+        case 'gte': return diff >= value;
+        case 'lte': return diff <= value;
+        case 'gt':  return diff >  value;
+        case 'lt':  return diff <  value;
+        case 'eq':  return diff === value;
+        case 'neq': return diff !== value;
+      }
+      return false;
+    }
+
     case 'ENA_DIFF': {
       const enaDiff = ownerState.energy.length - otherState.energy.length;
       switch (cond.operator) {
@@ -1064,6 +1078,8 @@ function evalConditionForContinuous(
       const count = st(cond.owner).life_cloth.length;
       return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
     }
+    case 'LIFE_COMPARE_OPP':
+      return cmp(ownerState.life_cloth.length - otherState.life_cloth.length, cond.operator, cond.value ?? 0);
     case 'ENERGY_COUNT': {
       const count = st(cond.owner).energy.length;
       return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);

@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第36バッチ＝ライフクロス枚数の相対比較／固定枚数ゲート7効果
+
+CSV 6712枚をBOM除去付きで全走査し、相対比10節・固定枚数19節を抽出。既存機構で正しい相対比3節と `LIFE_COUNT` 済み18節を差し引き、指定6効果と同規則の `WXK07-036-E1` を効果単位で採用した。既存 `Condition.LIFE_COMPARE_OPP` を新型に分裂させず、`value?:number`（既存省略は0）を持つ符号付き差 `self - opponent` として `ActiveCondition` にも共通化。`checkActiveCondition` / `evalConditionForContinuous` / `evalCondition` の3経路と評価可能型表へ配線し、「2枚以上少ない」は `lte,-2`、「同じ」は `eq,0` で固定した。
+
+`WXDi-P09-072-E1` の主語省略後続枝「4枚の場合」は、直前の `LIFE_COUNT` の owner を継承する一般規則で `eq,4` へ復元。live差分は `WXK07-036-E1`,`WXK07-038-E1`,`WD06-009-E1`,`WXDi-P16-046-E2`,`WXDi-P06-033-E1`,`WXK10-003-E1`,`WXDi-P09-072-E1` の7効果だけ。`SP38-002-E1` の後半はゲート以前にライフ保護自体が別actionへ退化しており、比較条件だけの部分修正をせず据置。`WXK10-003-E1` は選択肢④を閉じたが、選択肢③の場のシグニ数差は別軸なのでfindingを残した。
+
+成立／不成立の対照goldenを9本追加。`npm run regen` / `npm run gates` 全緑（golden **2612/2612**、census **622/622**＝626→622で定数更新、smoke **10693/10693**・異常/SKIP 0、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A/C 0、manual-fields 0、held/partial/idset **83/15/46**）。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch36_report.md`。
+
 ## 2026-08-23：§6.2 段2 第35バッチ＝動的な枚数（「同じ数だけ」「N枚につき」）9効果
 
 CSV原文の指定6文型をBOM除去付きで全走査し、findings側OPENの指定9 effect（実数15 findings）を修正した。直前処理数は既存 `NumberOrRef`、領域比例数は既存 `CountFromZone` を使い、従来の乗数 `per` と意味が逆になる除数を `unitSize` として分離した。`countFromZone` は `floor(該当枚数/unitSize)*per`、不正unitと数え元0は明示的に0へ倒す。`CHOOSE.countChoose`、DOWN/UP、動的レベル合計exact、好きな枚数のトラッシュ→デッキ、任意全BANISHをexecutorへ配線し、アタックフェイズ内ドロー累計も境界reset付きで追加した。live構造差分は `WX22-024-E2`,`WX10-034-E1`,`WXDi-P14-027-E1`,`WX11-030-E2`,`SPDi43-24-E1`,`PR-442-BURST`,`WXDi-P04-004-E1`,`WXEX2-46-E1`,`WXEX1-22-E1` の9件だけ。

@@ -18994,7 +18994,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 52, 'ActiveCondition の型数（52＝第28バッチ SOUL／ARTS回数／エナ各レベル追加後）');
+  eq(Object.keys(AC_TYPES).length, 53, 'ActiveCondition の型数（53＝第36バッチ LIFE_COMPARE_OPP 追加後）');
   eq(Object.keys(C_TYPES).length, 122, 'Condition の型数（122＝第22バッチ FIELD_LEVEL_SUM 追加後）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
@@ -44205,6 +44205,129 @@ test('段2 第35バッチ engine両方向: アタックフェイズドロー累�
   const cleared = clearAttackPhaseScopedState(drawn.ownerState);
   const zero = executeAction(downAction, { ...withTargets, ownerState: cleared });
   ok(zero.done && zero.otherState.field.signi_down.every(x => !x), '新しいアタックフェイズは0体・対話なし');
+}));
+
+// ── 段2 第36バッチ：ライフクロス枚数の相対比較／固定枚数比較 ──
+const freshBatch36 = (cardNum: string, effectId: string): CardEffect => {
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} fresh not found`);
+  return effect;
+};
+
+test('段2 第36バッチ parser契約: 対象7効果はfresh木へLIFE_COMPARE_OPPまたはLIFE_COUNTを出す', () => {
+  for (const [cardNum, effectId, needles] of [
+    ['WXK07-038', 'WXK07-038-E1', ['"type":"AND"', '"type":"LIFE_COMPARE_OPP"', '"operator":"gt"', '"value":0']],
+    ['WD06-009', 'WD06-009-E1', ['"type":"LIFE_COMPARE_OPP"', '"operator":"lt"', '"value":0']],
+    ['WXDi-P16-046', 'WXDi-P16-046-E2', ['"type":"CONDITIONAL"', '"type":"LIFE_COMPARE_OPP"', '"operator":"lt"']],
+    ['WXDi-P06-033', 'WXDi-P06-033-E1', ['"type":"LIFE_COMPARE_OPP"', '"operator":"eq"', '"value":0']],
+    ['WXK10-003', 'WXK10-003-E1', ['"choiceId":"c3"', '"type":"LIFE_COMPARE_OPP"', '"operator":"lte"', '"value":-2']],
+    ['WXDi-P09-072', 'WXDi-P09-072-E1', ['"type":"LIFE_COUNT"', '"operator":"eq"', '"value":4']],
+    ['WXK07-036', 'WXK07-036-E1', ['"type":"LIFE_COMPARE_OPP"', '"operator":"gt"', '"id":"OPTIONAL_COST"']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch36(cardNum, effectId));
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+});
+
+test('段2 第36バッチ engine両方向: LIFE_COMPARE_OPPはself−opponentの符号付き差を両経路で評価', () => withSavedCursor(() => {
+  const more = mkCtx({ life: 5 }, { life: 4 });
+  const equal = mkCtx({ life: 4 }, { life: 4 });
+  const twoFewer = mkCtx({ life: 2 }, { life: 4 });
+  const oneFewer = mkCtx({ life: 3 }, { life: 4 });
+  const plainGt = { type: 'LIFE_COMPARE_OPP', operator: 'gt', value: 0 } as const;
+  const atLeastTwoFewer = { type: 'LIFE_COMPARE_OPP', operator: 'lte', value: -2 } as const;
+
+  ok(evalCondition(plainGt, more), 'Condition: 5−4=1 > 0 で成立');
+  ok(!evalCondition(plainGt, equal), 'Condition: 4−4=0 で不成立');
+  ok(evalCondition(atLeastTwoFewer, twoFewer), 'Condition: 2−4=-2 <= -2 で成立');
+  ok(!evalCondition(atLeastTwoFewer, oneFewer), 'Condition: 3−4=-1 で不成立');
+  ok(checkActiveCondition(plainGt, more.ownerState, more.otherState, true, cardMap), 'ActiveCondition: 5>4 で成立');
+  ok(!checkActiveCondition(plainGt, equal.ownerState, equal.otherState, true, cardMap), 'ActiveCondition: 同数で不成立');
+  ok(ACTIVE_CONDITION_TYPES.LIFE_COMPARE_OPP && CONDITION_TYPES.LIFE_COMPARE_OPP, '両方の評価可能型テーブルへ登録');
+}));
+
+test('段2 第36バッチ E2E: WXK07-038-E1 は自ターンかつライフが多いときだけ+1000と対戦相手効果バニッシュ耐性', () => withSavedCursor(() => {
+  const source = 'WXK07-038';
+  const base = Number(cardMap.get(source)?.Power ?? 0);
+  const active = mkState({ signi: [source, null, null], life: 5 });
+  const inactive = mkState({ signi: [source, null, null], life: 4 });
+  const opponent = mkState({ life: 4 });
+  eq(calcFieldPowers(active, opponent, true, effectsMap, cardMap).get(source), base + 1000, '5>4なら+1000');
+  eq(calcFieldPowers(inactive, opponent, true, effectsMap, cardMap).get(source), base, '同数なら+1000なし');
+  const activeGranted = collectGrantedFromLayer(active, opponent, true, effectsMap, cardMap).get(source) ?? [];
+  const inactiveGranted = collectGrantedFromLayer(inactive, opponent, true, effectsMap, cardMap).get(source) ?? [];
+  const withActiveGrant = new Map(effectsMap); withActiveGrant.set(source, [...(effectsMap.get(source) ?? []), ...activeGranted]);
+  const withInactiveGrant = new Map(effectsMap); withInactiveGrant.set(source, [...(effectsMap.get(source) ?? []), ...inactiveGranted]);
+  ok(collectBanishEffectProtectedSigni(active, opponent, true, withActiveGrant, cardMap).has(source), '5>4なら対戦相手効果からバニッシュされない');
+  ok(!collectBanishEffectProtectedSigni(inactive, opponent, true, withInactiveGrant, cardMap).has(source), '同数なら耐性なし');
+}));
+
+test('段2 第36バッチ E2E: WD06-009-E1 はライフが少ないときだけ自分の全シグニを+1000', () => withSavedCursor(() => {
+  const source = 'WD06-009';
+  const ally = SIGNI_L1;
+  const owner = (life: number) => mkState({ signi: [source, ally, null], life });
+  const opponent = mkState({ life: 4 });
+  const base = Number(cardMap.get(ally)?.Power ?? 0);
+  eq(calcFieldPowers(owner(3), opponent, true, effectsMap, cardMap).get(ally), base + 1000, '3<4なら+1000');
+  eq(calcFieldPowers(owner(4), opponent, true, effectsMap, cardMap).get(ally), base, '同数なら+1000なし');
+}));
+
+test('段2 第36バッチ E2E: WXDi-P16-046-E2 はライフが少ないときだけ対戦相手のシグニをダウン', () => withSavedCursor(() => {
+  const target = SIGNI_L1;
+  const action = manualEffect('WXDi-P16-046', 'WXDi-P16-046-E2').action;
+  const active = run(action, mkCtx({ life: 3 }, { life: 4, signi: [target, null, null] }, 'WXDi-P16-046'));
+  const inactive = run(action, mkCtx({ life: 4 }, { life: 4, signi: [target, null, null] }, 'WXDi-P16-046'));
+  ok(active.otherState.field.signi_down[0] === true, '3<4ならダウン');
+  ok(inactive.otherState.field.signi_down[0] === false, '同数ならダウンしない');
+}));
+
+test('段2 第36バッチ E2E: WXDi-P06-033-E1 はライフが同じときだけ1枚引く', () => withSavedCursor(() => {
+  const action = manualEffect('WXDi-P06-033', 'WXDi-P06-033-E1').action;
+  const equalCtx = mkCtx({ life: 4, hand: 0 }, { life: 4 }, 'WXDi-P06-033'); equalCtx.ownerState.hand = [];
+  const diffCtx = mkCtx({ life: 3, hand: 0 }, { life: 4 }, 'WXDi-P06-033'); diffCtx.ownerState.hand = [];
+  eq(run(action, equalCtx).ownerState.hand.length, 1, '同数なら1枚引く');
+  eq(run(action, diffCtx).ownerState.hand.length, 0, '異なるなら引かない');
+}));
+
+test('段2 第36バッチ E2E: WXK10-003-E1 の選択肢④はライフが2枚以上少ないときだけ選択可', () => withSavedCursor(() => {
+  const action = manualEffect('WXK10-003', 'WXK10-003-E1').action;
+  const offer = (selfLife: number) => executeAction(action, mkCtx({ life: selfLife }, { life: 4 }, 'WXK10-003'));
+  const active = offer(2);
+  ok(!active.done && active.pending.type === 'CHOOSE', '2枚少ない盤面で選択肢を提示');
+  if (!active.done && active.pending.type === 'CHOOSE') {
+    ok(active.pending.options.find(option => option.id === 'c3')?.available !== false, 'diff=-2で選択肢④は選択可');
+    const ctx = mkCtx({ life: 2 }, { life: 4 }, 'WXK10-003');
+    const crashed = resumeChoose('c3', active.pending, ctxAfter(active, ctx));
+    ok(crashed.done && crashed.otherState.life_cloth.length === 3, '選択肢④で対戦相手のライフを1枚クラッシュ');
+  }
+  const inactive = offer(3);
+  ok(!inactive.done && inactive.pending.type === 'CHOOSE'
+    && inactive.pending.options.find(option => option.id === 'c3')?.available === false, 'diff=-1で選択肢④は選択不可');
+}));
+
+test('段2 第36バッチ E2E: WXDi-P09-072-E1 はライフがちょうど4枚のときだけ1枚引く', () => withSavedCursor(() => {
+  const action = manualEffect('WXDi-P09-072', 'WXDi-P09-072-E1').action;
+  const at = (life: number) => { const ctx = mkCtx({ life, hand: 0 }, {}, 'WXDi-P09-072'); ctx.ownerState.hand = []; return run(action, ctx); };
+  eq(at(4).ownerState.hand.length, 1, '4枚ちょうどなら1枚引く');
+  eq(at(3).ownerState.hand.length, 0, '3枚なら引かない');
+  eq(at(5).ownerState.hand.length, 0, '5枚ならEC1だけで引かない');
+}));
+
+test('段2 第36バッチ E2E: WXK07-036-E1 はライフが多いときだけ赤エナ支払いを提示し、支払うとバニッシュ', () => withSavedCursor(() => {
+  const target = findCard(card => card.Type === 'シグニ' && Number(card.Level) <= 2);
+  const red = findCard(card => card.Color?.includes('赤'));
+  const effect = manualEffect('WXK07-036', 'WXK07-036-E1');
+  const makeCtx = (life: number) => {
+    const ctx = mkCtx({ life }, { life: 4, signi: [target, null, null] }, 'WXK07-036');
+    ctx.ownerState.energy = [red];
+    return ctx;
+  };
+  const activeCtx = makeCtx(5);
+  const paid = finishPayingCosts(executeEffect(effect, activeCtx), activeCtx);
+  ok(!paid.otherState.field.signi.some(stack => stack?.at(-1) === target), '5>4で赤を支払うと保存対象をバニッシュ');
+  const inactiveCtx = makeCtx(4);
+  const inactive = finishPayingCosts(executeEffect(effect, inactiveCtx), inactiveCtx);
+  ok(inactive.otherState.field.signi.some(stack => stack?.at(-1) === target), '同数なら支払い提示もバニッシュもしない');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

@@ -156,7 +156,8 @@ function isBatch1OnlyClause(re: RegExp): boolean {
   //   引き続きゲート内＝`ライフクロスが[０-９\d]` を含む source だけを batch1 限定にする。
   // ⚠両者を直接比べる形（「あなたのライフクロスが対戦相手のライフクロス以下の場合」＝LIFE_COMPARE_OPP）も
   //   ゲート外＝閾値形ではないので batch1 限定の理由が無い（§6.4・2026-08-10・`WXDi-CP01-026-E1`）。
-  const lifeCompare = re.source.includes('あなたのライフクロス(?:の枚数)?が対戦相手のライフクロス');
+  const lifeCompare = re.source.includes('あなたのライフクロス(?:の枚数)?が対戦相手のライフクロス')
+    || re.source.includes('あなたと対戦相手のライフクロスの枚数が同じ');
   // ⚠「(あなた|対戦相手)のターンの場合」はゲートから外した（§6.4 O-36・2026-08-17 続き534）。
   //   allowlist 外に23効果あり、条件が丸ごと落ちて**ターンを問わず発火する過剰実行**だった。
   //   A/B（全5971カードの fresh 差分）で影響を実測してから外している。
@@ -1632,6 +1633,21 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return { condition: { type: 'COUNT_THRESHOLD', location: 'hand', owner: 'opponent', operator: op, value: val }, rest: text.slice(oppHandM[0].length), conditionFound: true };
   }
 
+  // 自分と相手のライフクロス差。無閾値は厳密な大小、N枚以上は符号付き差で評価する。
+  const lifeDiffM = text.match(/^あなたのライフクロス(?:の枚数)?が対戦相手より(?:([０-９\d]+)枚以上)?(多い|少ない)かぎり、/);
+  if (lifeDiffM) {
+    const threshold = lifeDiffM[1] ? parseNum(lifeDiffM[1]) : 0;
+    const more = lifeDiffM[2] === '多い';
+    return {
+      condition: {
+        type: 'LIFE_COMPARE_OPP',
+        operator: lifeDiffM[1] ? (more ? 'gte' : 'lte') : (more ? 'gt' : 'lt'),
+        value: more ? threshold : -threshold,
+      },
+      rest: text.slice(lifeDiffM[0].length), conditionFound: true,
+    };
+  }
+
   // パターン5d2: 「(あなた|対戦相手)のライフクロスがN枚(以上|以下|)であるかぎり、」
   const lifeCountM = text.match(/^(あなた|対戦相手)のライフクロスが([０-９\d]+)枚(以上|以下)?(?:であるかぎり|かぎり)、/);
   if (lifeCountM) {
@@ -2213,6 +2229,10 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
   if (countOnly && previous?.type === 'LAST_PROCESSED_MATCHES') {
     return { condition: { ...previous, operator: 'eq', value: parseNum(countOnly[1]) }, rest: m[2] };
   }
+  // 直前枝が「ライフクロスN枚」のときだけ、後続の主語省略「M枚の場合」を同じLIFE_COUNTの別枝と読む。
+  if (countOnly && previous?.type === 'LIFE_COUNT') {
+    return { condition: { ...previous, operator: 'eq', value: parseNum(countOnly[1]) }, rest: m[2] };
+  }
   const amongColor = desc.match(/^その中に(白|赤|青|緑|黒)のカードがある$/);
   if (amongColor) return { condition: { type: 'LAST_PROCESSED_MATCHES', filter: { color: amongColor[1] } }, rest: m[2] };
   // 盤面状態・コスト・カウント語を含む desc は別種の条件＝多分岐の枝ではない（誤変換を防ぐ）。
@@ -2241,6 +2261,13 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
+  // 自分−相手の符号付きライフ差。両条件表へ同じ規則を供給し、AUTO/ACTIVATEDの枝条件を落とさない。
+  [/あなたのライフクロス(?:の枚数)?が対戦相手より([０-９\d]+)枚以上(多い|少ない)場合/,
+    g => ({ type: 'LIFE_COMPARE_OPP', operator: g[1] === '多い' ? 'gte' : 'lte', value: (g[1] === '多い' ? 1 : -1) * parseNum(g[0]) })],
+  [/あなたのライフクロス(?:の枚数)?が対戦相手より(多い|少ない)場合/,
+    g => ({ type: 'LIFE_COMPARE_OPP', operator: g[0] === '多い' ? 'gt' : 'lt', value: 0 })],
+  [/あなたと対戦相手のライフクロスの枚数が同じ場合/,
+    () => ({ type: 'LIFE_COMPARE_OPP', operator: 'eq', value: 0 })],
   // 段2-9: 盤面・各領域・ターン履歴を主語にした条件。値は原文から取得し、既存 Condition 語彙へ落とす。
   // 段2-30: 「合計が偶数/奇数」と「すべてが偶数/奇数」は別語彙。
   // 前者は空盤面の合計0も偶数、後者は ALL_FIELD_SIGNI_MATCH の既存契約どおり空盤面false。
@@ -12361,10 +12388,12 @@ function parseActionTextInner(text: string): EffectAction {
       const prevStepE = steps[steps.length - 1] as { type?: string };
       const prevIsLpmChainE = steps.length > 0 && prevStepE?.type === 'CONDITIONAL' &&
         (prevStepE as import('../types/effects').ConditionalAction).condition?.type === 'LAST_PROCESSED_MATCHES';
-      const previousLpm = prevIsLpmChainE
+      const previousLpm = prevStepE?.type === 'CONDITIONAL'
         ? (prevStepE as import('../types/effects').ConditionalAction).condition
         : undefined;
-      const branch = prevIsLpmChainE ? parseBareBranchCondition(clean, previousLpm) : null;
+      const branch = (prevIsLpmChainE || previousLpm?.type === 'LIFE_COUNT')
+        ? parseBareBranchCondition(clean, previousLpm)
+        : null;
       if (branch) {
         steps.push({ type: 'CONDITIONAL', condition: branch.condition, then: parseSingleSentence(branch.rest) });
       } else {

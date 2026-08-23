@@ -2205,7 +2205,7 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return cmp(cnt, cond.operator, cond.value);
     }
     case 'LIFE_COMPARE_OPP':
-      return cmp(s.life_cloth.length, cond.operator, o.life_cloth.length);
+      return cmp(s.life_cloth.length - o.life_cloth.length, cond.operator, cond.value ?? 0);
     // 手札/エナの両プレイヤー比較（LIFE_COMPARE_OPP と同じ向き＝cmp(自分, op, 相手)）。タスク12(lxiii)
     case 'HAND_COMPARE_OPP':
       return cmp(s.hand.length, cond.operator, o.hand.length);
