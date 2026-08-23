@@ -26369,6 +26369,249 @@ order.push('v30NextTurnReservationPromotesAndExpires', 'v30NoReservationStaysEmp
 // シナリオ2本の腐り修正で3本とも緑になった。
 order.push('wdk06r09Pay', 'wdk06r09Skip', 'wdk06r09NoKey');
 
+// ── V-44(c)(d)（§5.1 🅳）＝レゾナ召喚の**候補絞り込み**を実機で見る ─────────────────────────────
+// §6.4 O-5 の是正点＝旧実装は**カード全文 regex でクラスだけを読み `candidates[0]` を1枚だけ自動で出す**形で、
+//   ②レベル・色の絞り込みが落ちて**どのレゾナでも出せた**（`WX07-050-E1`＝過剰）
+//   ③クラスの OR（「＜空獣＞か＜地獣＞」）は includes に当たらず**無条件**（`WX19-028-E3`）だった。
+// いまは parser が渡す `resonaSummon.filter` だけを見る（`execStubPart3.ts`）＝**候補列そのもの**が観測点。
+//
+// ⚠**候補がちょうど必要数なら選択モーダルを出さない**（`candsSRLD.length === pickCountSRLD && !upTo`）＝
+//   **絞り込みに合う札を2枚以上入れておかないと `pendingCandidates` が観測できない**（実測で設計に折り込んだ）。
+const V44_SRC_C = 'WX07-050#4401';        // 羅星 アルヘナ（【出】手札の＜宇宙＞1枚を捨てる：Lv3以下の白レゾナ1枚）
+const V44_COST_C = 'WX07-052#4402';       // 羅星 ハダル（＜宇宙＞＝捨てるコスト用）
+const V44_OK_C1 = 'WX10-008#4403';        // 白羅星 プルート（白 Lv3）＝**条件に合う**
+const V44_OK_C2 = 'WX08-008#4404';        // 白羅星 マーズ（白 Lv1）＝**条件に合う**
+const V44_NG_LEVEL = 'WX07-006#4405';     // 白羅星 サタン（白 **Lv4**）＝レベルで落ちる
+const V44_NG_COLOR = 'WX09-011#4406';     // 赤爆忍 カクヤ（**赤** Lv2）＝色で落ちる
+
+const V44_SRC_D = 'WX19-028#4410';        // 幻獣神 クジャク（【出】＜空獣＞か＜地獣＞のレゾナ1枚）
+const V44_OK_D1 = 'WX09-013#4411';        // 緑幻獣 モモ（精生：空獣/地獣）
+const V44_OK_D2 = 'WX21-015#4412';        // 緑幻獣 トナカイ（精生：空獣/地獣）
+const V44_NG_D = 'WX08-021#4413';         // 黒幻蟲 サソリス（精生：**凶蟲**）＝クラスで落ちる
+
+// (c) レベル3以下の白のレゾナだけが候補
+scenarios.v44ResonaFilterLevelAndColor = {
+  title: 'V-44(c) WX07-050-E1：候補が「レベル3以下の白のレゾナ」だけ（Lv4の白・Lv2の赤は候補外）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD01-001#4490'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'lrig_deck': [V44_OK_C1, V44_OK_C2, V44_NG_LEVEL, V44_NG_COLOR],
+      'lrig_trash': [],
+      'hand': [V44_SRC_C, V44_COST_C],
+      'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4450', 'WD01-013#4451', 'WD01-013#4452', 'WD01-013#4453'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#4491'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#4470', 'WD01-013#4471', 'WD01-013#4472', 'WD01-013#4473'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let summoned = false; let zoned = false; let costPicked = false; let fired = false;
+    let candsSeen = null;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v44c-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !candsSeen
+          && !st0.pendingCandidates.includes(V44_COST_C)) candsSeen = st0.pendingCandidates;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      else if (!costPicked) {
+        // 【出】コスト＝手札の＜宇宙＞シグニ1枚（`SigniOnPlayCostModal`。(cxl) で配線済み）
+        did = await H.clickModalImage('羅星　ハダル');
+        if (did) costPicked = true;
+      } else if (!fired) { did = await H.clickBtn('発動'); if (did) fired = true; }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v44c[${s}] -> ${did ?? 'なし'} | zoned=${zoned} cost=${costPicked} fired=${fired} cands=${JSON.stringify(st?.pendingCandidates ?? null)} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (candsSeen) {
+        const set = new Set(candsSeen);
+        const ok = set.size === 2 && set.has(V44_OK_C1) && set.has(V44_OK_C2)
+          && !set.has(V44_NG_LEVEL) && !set.has(V44_NG_COLOR);
+        return {
+          pass: ok,
+          detail: `候補=${JSON.stringify(candsSeen)}／Lv3以下の白2枚だけ=${ok}（Lv4の白 ${V44_NG_LEVEL} と Lv2の赤 ${V44_NG_COLOR} は候補外）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `候補未観測（opened=${opened} summoned=${summoned} zoned=${zoned} cost=${costPicked} fired=${fired} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// (d) ＜空獣＞と＜地獣＞の**両方**が候補（クラスの OR）／別クラスは候補外
+scenarios.v44ResonaFilterClassOr = {
+  title: 'V-44(d) WX19-028-E3：候補が＜空獣＞／＜地獣＞のレゾナだけ（別クラスのレゾナは候補外）',
+  spec: {
+    hostSet: {
+      // ⚠**限定とリミットの両方を満たすルリグにする**＝`WX19-028` は「緑子限定」の **Lv4**。
+      //   限定違反やリミット不足だと**「召喚」ボタンがそもそも出ない**（実測で24ティック空振りした）。
+      'field.lrig': ['WD04-001#4492'],   // 四ノ娘 緑姫（Lv4・limit 11）
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'lrig_deck': [V44_OK_D1, V44_OK_D2, V44_NG_D],
+      'lrig_trash': [],
+      'hand': [V44_SRC_D],
+      'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4460', 'WD01-013#4461', 'WD01-013#4462', 'WD01-013#4463'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#4493'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#4480', 'WD01-013#4481', 'WD01-013#4482', 'WD01-013#4483'],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let summoned = false; let zoned = false; let candsSeen = null;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v44d-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !candsSeen) candsSeen = st0.pendingCandidates;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-0'); if (did) zoned = true; }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v44d[${s}] -> ${did ?? 'なし'} | zoned=${zoned} cands=${JSON.stringify(st?.pendingCandidates ?? null)} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (candsSeen) {
+        const set = new Set(candsSeen);
+        const ok = set.size === 2 && set.has(V44_OK_D1) && set.has(V44_OK_D2) && !set.has(V44_NG_D);
+        return {
+          pass: ok,
+          detail: `候補=${JSON.stringify(candsSeen)}／＜空獣＞か＜地獣＞の2枚だけ=${ok}（別クラス ${V44_NG_D} は候補外）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `候補未観測（opened=${opened} summoned=${summoned} zoned=${zoned} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v44ResonaFilterLevelAndColor', 'v44ResonaFilterClassOr');
+// ── V-44(c)(d) END ──
+
+// ── V-44(b)（§5.1 🅳）＝「好きな枚数」は**空きシグニゾーン数で頭打ち**になる ────────────────────
+// `WX13-007-E3`【起】《アタックフェイズアイコン》エクシード２：
+//   「あなたのルリグデッキから**好きな枚数**の＜宇宙＞のレゾナを出現条件を無視して場に出す」
+//   ＝`resonaSummon:{count:'ALL', upTo:true, filter:{story:'宇宙'}}`。
+// 🔑**観測点は「候補は3枚あるのに選べるのは空きゾーン数（2枚）まで」**＝
+//   `execStubPart3.ts` の `pickCountSRLD = Math.min(want, cands.length, emptyZones)`。
+//   旧実装は `candidates[0]` を1枚だけ自動配置していたので「好きな枚数」が1枚に潰れていた。
+// ⚠**シグニを1体置いて空きゾーンを2にする**＝3枚とも出せてしまうと上限の検証にならない。
+const V44B_LRIG = 'WX13-007#4420';          // 博愛の使者 サシェ・リュンヌ（Lv5・limit 12・【起】エクシード2）
+const V44B_UNDER = ['WD01-001#4421', 'WD01-002#4422'];  // エクシード2ぶんの下カード
+const V44B_BLOCKER = 'WD01-013#4423';       // 空きゾーンを2に減らすための自分のシグニ
+const V44B_R1 = 'WX10-008#4424';            // 白羅星 プルート（宇宙）
+const V44B_R2 = 'WX08-008#4425';            // 白羅星 マーズ（宇宙）
+const V44B_R3 = 'WX11-013#4426';            // 白羅星 エリス（宇宙）
+
+scenarios.v44ResonaAnyCountCappedByEmptyZones = {
+  title: 'V-44(b) WX13-007-E3：「好きな枚数」は空きシグニゾーン数（2）で頭打ちになる（候補は3枚）',
+  spec: {
+    hostSet: {
+      'field.lrig': [...V44B_UNDER, V44B_LRIG],
+      'field.signi': [[V44B_BLOCKER], null, null],   // 空きは2ゾーン
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'lrig_deck': [V44B_R1, V44B_R2, V44B_R3],
+      'lrig_trash': [],
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4440', 'WD01-013#4441', 'WD01-013#4442', 'WD01-013#4443'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#4494'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#4445', 'WD01-013#4446', 'WD01-013#4447', 'WD01-013#4448'],
+    },
+    // ⚠**《アタックフェイズアイコン》付き【起】**なので ATTACK_ARTS でしか出ない。
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  },
+  async drive(page, H) {
+    let opened = false; let acted = false; let fired = false;
+    let candsSeen = null; let label = null; const picked = new Set(); let confirmed = false;
+    for (let s = 0; s < 30; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v44b-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !candsSeen) candsSeen = st0.pendingCandidates;
+      if (!opened) { did = await H.clickTestId('my-lrig-slot-center'); if (did) opened = true; }
+      else if (!acted) {
+        // ⚠**コストまで含めてラベルを指定する**＝`WX13-007` は【起】を2つ持ち、
+        //   `E2`（エクシード**1**：自分のシグニ1体を手札に戻す）が先に並ぶ。前方一致 `【起】` だと
+        //   そちらを撃ってしまい、**空きゾーンを増やしたうえで別の効果を検証してしまう**（実測で踏んだ）。
+        const act = page.locator('[data-testid^="card-action-"][data-action-label^="【起】エクシード2"]').first();
+        if (await act.count() && await act.isVisible().catch(() => false) && await act.isEnabled().catch(() => false)) {
+          await act.click({ timeout: 1500 }).catch(() => {}); did = 'action:【起】エクシード2'; acted = true;
+        }
+      } else if (!fired) { did = await H.clickBtn('発動', { exact: true }); if (did) fired = true; }
+      else if (candsSeen && !confirmed) {
+        // ⚠**候補は1つにつき1回だけ押す**（押し直すとトグルで外れる＝V-19/V-35 で踏んだ罠）。
+        //   3枚すべて押しにいって「2枚しか入らない」ことをラベルで確かめるのが本項の観測点。
+        // ⚠🔴**押せなかったからといって「決定」へ進まない**＝`pendingCandidates` は DB 由来なので
+        //   **DOM より先に真になる**（§4.4 の7）。1ティック目は `pick-*` がまだ描画されておらず、
+        //   そこで決定を押すと**0枚で確定**してしまう（実測＝`決定 (0/2)` で完了して FAIL）。
+        if (picked.size < candsSeen.length) {
+          for (let i = 0; i < candsSeen.length; i++) {
+            if (picked.has(i)) continue;
+            const p = await H.clickTestId(`pick-${i}`);
+            if (p) { picked.add(i); did = p; }
+            break;
+          }
+        } else {
+          label = await page.locator('button', { hasText: /^決定/ }).first().textContent().catch(() => null);
+          did = await clickDecideNofM(page);
+          if (did) confirmed = true;
+        }
+      }
+      // ⚠**ゾーン選択を先に試す**＝`stdStep` が毎ティック別のボタンを掴んで truthy を返すと
+      //   `clickZone()` に到達せず `SELECT_SIGNI_ZONE` のまま空振りする（実測で30ティック止まった）。
+      if (!did) did = await H.clickZone();
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v44b[${s}] -> ${did ?? 'なし'} | acted=${acted} fired=${fired} picked=${[...picked]} label=${label} cands=${JSON.stringify(st?.pendingCandidates ?? null)} hField=${JSON.stringify(st?.host?.fieldSigni)} lrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      // ⚠**配置が終わったら判定する**＝出したレゾナ自身の【出】（`SEARCH` 等）がそのまま続くので、
+      //   `!pendingEffect` を待つとこのシナリオの観測点と無関係な効果の解決待ちで空振りする。
+      const placedNow = (st?.host?.fieldSigni ?? []).flat().filter(Boolean)
+        .filter(n => [V44B_R1, V44B_R2, V44B_R3].includes(n));
+      if (confirmed && placedNow.length >= 2 && st?.pendingEffect !== 'SELECT_SIGNI_ZONE') {
+        const placed = placedNow;
+        const leftInDeck = (st.host.lrigDeckCards ?? []).filter(n => [V44B_R1, V44B_R2, V44B_R3].includes(n));
+        const candOk = Array.isArray(candsSeen) && candsSeen.length === 3;
+        const labelOk = typeof label === 'string' && /\/2\)/.test(label);   // 「決定 (2/2)」＝上限2
+        return {
+          pass: candOk && labelOk && placed.length === 2 && leftInDeck.length === 1,
+          detail: `候補=${JSON.stringify(candsSeen)}（3枚=${candOk}）／確定ラベル="${label}"（上限2=${labelOk}）／`
+            + `場に出た=${JSON.stringify(placed)}（2枚が正）／ルリグデッキ残=${JSON.stringify(leftInDeck)}（1枚が正）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} acted=${acted} fired=${fired} picked=${[...picked]} label=${label} cands=${JSON.stringify(candsSeen)} hField=${JSON.stringify(fin?.host?.fieldSigni)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v44ResonaAnyCountCappedByEmptyZones');
+// ── V-44(b) END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
