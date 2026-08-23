@@ -155,8 +155,12 @@ export function GuardResponseDialog(p: GuardResponseDialogProps) {
                   {guardCards.length > 0 ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflowY: 'auto', maxHeight: '40vh' }}>
                       {guardCards.map(({ num, i, card }) => (
+                        // V-84（§5.1）＝レベル限定つき【ガード】禁止は「候補から消えたか」でしか観測できない。
+                        // ⚠カード名テキストで照合すると全角文字・同名別レベルで壊れる＝**インスタンスIDを属性で出す**。
                         <button key={i} onClick={() => handleGuardResponse(i)}
                           disabled={loading}
+                          data-testid={`guard-card-${i}`}
+                          data-card-num={num}
                           style={{ display: 'flex', alignItems: 'center', gap: 10,
                             padding: '8px 12px', borderRadius: 8, border: C.borderUI,
                             backgroundColor: loading ? C.disabled : C.bgButton,

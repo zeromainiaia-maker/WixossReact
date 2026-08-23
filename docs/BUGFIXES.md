@@ -1,5 +1,37 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24（続き637）：V-84 残0クローズ＝**レベル限定つき【ガード】禁止は実機でも「そのレベルだけ」を弾く**（engine バグ0）／副産物で**既存ガードシナリオ2本の腐り**を発見・修正
+
+**取った項目**＝PLAN §5.1 🅱 の最上位 **V-84「レベル限定つき【ガード】禁止が、ガード応答UIで実際にそのレベルだけを弾くか」**（§6.4 O-41 の消費地点）。golden は `makeGuardLevelBlocker` の両方向を押さえてあるが、**UI に出る候補の絞り込みは実機でしか見えない**層。
+
+### 1. 観測できるようにした（`GuardResponseDialog.tsx`）
+ガード候補のボタンに **`data-testid="guard-card-<i>"` ＋ `data-card-num`** を付けた。
+⚠**カード名テキストで照合しない**＝全角文字（`サーバント　Ｏ`）と同名別レベルで壊れる。V-04 の「`SigniActivatedModal` にエナ候補の testid が無く決定論的に選べない」と同じ形＝**踏むなら testid 追加が先**。
+
+### 2. 実機シナリオ3本（すべて PASS・2回連続＋順序入れ替えでも安定）
+| id | 見るもの | 結果 |
+|---|---|---|
+| `v84GuardLv1BlockedHidesOnlyLevelOne` | `blocked_actions:['GUARD_LV1']`＋手札 Lv1/Lv2 | 候補=**Lv2 のみ**（Lv1 が消え、Lv2 は押せる） |
+| `v84GuardNoBlockShowsBothLevels` | 🔑**対照**＝盤面を1文字も変えず制限だけ外す | 候補=**Lv1＋Lv2 の両方** |
+| `v84GuardLv2And3ContinuousHidesOnlyThose` | `WX18-039`【常】を**相手場に実カードで置く**＋手札 Lv1〜Lv4 | 候補=**Lv1 と Lv4 だけ**（Lv2/Lv3 が消える） |
+
+- 🔑**リスクの所在（登録票）＝素の `GUARD` へ転落すると `guardBlockedOutright` で全候補が消え、「限定が効いていない」と「そもそもガードできない」が画面上は同じに見える**。⇒ 3本とも**押せる側が残ること**を同じ run で assert し、「使用できるガードカードが手札にありません」が出ていたら FAIL にする判定を入れた（§4.4 の3＝負方向は必ず対照とセット）。
+- ⚠**`WD15-010` は【起】アーツで「このターン」＝使った側のターンにしか効かない**＝CPU に使わせる盤面は作れない。`execBlockAction` は `until:'END_OF_TURN'` のとき `blocked_actions` へ **actionId をそのまま**積む（`GUARD_LV1`）ので、**その実行結果を直接注入**して消費地点を運転した。**CONTINUOUS 側（`WX18-039`）は実カードで通した**＝2つある入口の両方を踏んでいる。
+- ⚠**ガード応答ダイアログは防御側の画面にしか出ない**＝host を防御側にするため CPU のルリグアタック（`top.active:'cpu'` ＋ `turn_phase:'ATTACK_LRIG'`）で開く。
+
+### 3. 🔴副産物＝既存 `guardExtraColorless{Sufficient,Insufficient}` が**腐っていた**（2つの独立した原因）
+回帰確認で両方 FAIL。**どちらも engine ではなくシナリオ側**（§5.1 の切り分け(a)）で、その場で直した。
+
+1. **`field.check` を固定していなかった**（§4.4 の1）＝直前シナリオのライフクラッシュ確認モーダルが全画面を覆い、ガード応答ダイアログが `!my.field.check` で抑止されて**そもそも開かない**（`lrigAttacked=false` に見える）。⇒ **hostSet/guestSet 両方**に `'field.check': null` を追加。
+2. 🆕**`field.signi` を固定していなかった**＝`field.signi` は `CORE_FIELD_KEYS` なので**注入で消えず引き継がれる**。V-84(b) が置いた `WX18-039`（【常】レベル２と３でガード不可）が残り、**手札の サーバント Ｄ（Lv2）が「正しく」候補から消えて** FAIL していた。⇒ 両シナリオの host/guest に `'field.signi': [null,null,null]` を追加。
+   - 🔑**教訓＝`field.check` だけでなく `field.signi` も注入で引き継がれる**。CORE_FIELD_KEYS（`lrig` `signi` `assist_lrig_*` `check` `key_piece*` `free_zone` `beat_zone`）は**全部そう**で、**使うシナリオが自分で固定しない限り前シナリオの盤面が残る**。「前シナリオが置いた常在能力が今回の判定を正しく変えてしまう」形は**バグに見える FAIL を作る**ので、盤面依存の判定をするシナリオは必ず自分で `field.*` を書き切る。
+4. V-84 側も**自分で後始末する**ようにした＝「ガードしない」の後にライフクラッシュ確認（`field.check`）を「エナに送る」まで消化してから抜ける（次シナリオを覆わない）。
+
+### 検証
+- `npm run gates` **全緑**（typecheck / golden 2651 / smoke 10693 全0・SKIP0 / fuzz 全0 / census 608 / census:stubs A群🔴0・C群0 / manual-fields 0 / lint 0 errors）。
+- 実機 `node scripts/verifyBattleDrive.mjs v84GuardLv2And3ContinuousHidesOnlyThose guardExtraColorlessSufficient v84GuardLv1BlockedHidesOnlyLevelOne guardExtraColorlessInsufficient v84GuardNoBlockShowsBothLevels` → **5/5 PASS を2回連続**（順序を入れ替えた並びでも安定＝位置依存フレークなし）。
+- **engine/parser のバグは0件**＝O-41 の実装は実機でも原文どおりに効いていた。
+
 ## 2026-08-23（続き636）：Opusタスク12 (cxlvi) 残0クローズ＝**「２枚まで選んだのに1枚しか出ない」の正体は engine ではなく UI の選択リセット**（無関係な盤面更新で複数枚選択が全部消える）
 
 **症状（続き584 の登録票）**＝`WX16-Re18-E1`（レゾナンス・マーチ）で「レゾナ２枚まで」を2枚選ぶと、**4回中2回だけ**1枚しか場に出ず2枚目がルリグデッキに取り残される。登録時の見立ては「1枚目配置後の自動継続配置（`INTERNAL_PLACE_SUMMONED_RESONAS`）が間欠的に発火しない engine バグ」。

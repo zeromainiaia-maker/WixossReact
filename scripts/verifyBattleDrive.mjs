@@ -6208,10 +6208,20 @@ const scenarios = {
         'hand': ['WD01-016#1'], // サーバント Ｄ（Guard=1・バニラ）
         'energy': ['WD01-013#1', 'WD01-013#2', 'WD01-013#3'], // 《無》×3をちょうど払える
         'trash': [],
+        'field.signi': [null, null, null],   // ⚠2026-08-24（V-84）＝前シナリオの盤面を引き継がない
+        // ⚠2026-08-24（V-84）＝§4.4 の1。`field.check` は CORE_FIELD_KEYS でリセットされないので、
+        //   直前シナリオのライフクラッシュ確認モーダルが残るとガード応答ダイアログが `!my.field.check` で
+        //   抑止され、全画面オーバーレイでクリックも通らない（このシナリオが実際に腐っていた）。
+        'field.check': null,
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],
         'field.lrig_down': false, // ルーム再利用で前シナリオのルリグアタック済み(down)状態が残っているとCPUが今回アタックしない対策
+        'field.check': null,      // ⚠2026-08-24（V-84）＝§4.4 の1（hostSet/guestSet の両方に入れる）
+        // ⚠2026-08-24（V-84）＝`field.signi` は CORE_FIELD_KEYS で**引き継がれる**。前シナリオが置いた
+        //   `WX18-039`（【常】レベル２とレベル３でガード不可）が残ると Lv2 のサーバント Ｄ が正しく候補から
+        //   消え、このシナリオが「ガードできない」で FAIL する（実際に踏んだ）＝盤面は必ず自分で固定する。
+        'field.signi': [null, null, null],
         'lrig_granted_auto_effects': [
           { effectId: 'WX24-P3-069-E1-G', effectType: 'CONTINUOUS',
             action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS', count: 3 },
@@ -6252,10 +6262,17 @@ const scenarios = {
         'hand': ['WD01-016#1'],
         'energy': ['WD01-013#1', 'WD01-013#2'], // 2枚<3＝ガードブロック
         'trash': [],
+        'field.signi': [null, null, null],   // ⚠2026-08-24（V-84）＝前シナリオの盤面を引き継がない
+        'field.check': null,   // ⚠2026-08-24（V-84）＝§4.4 の1。上の Sufficient と同じ理由
       },
       guestSet: {
         'field.lrig': ['WD03-002#1'],
         'field.lrig_down': false, // ルーム再利用で前シナリオのルリグアタック済み(down)状態が残っているとCPUが今回アタックしない対策
+        'field.check': null,      // ⚠2026-08-24（V-84）＝§4.4 の1（hostSet/guestSet の両方に入れる）
+        // ⚠2026-08-24（V-84）＝`field.signi` は CORE_FIELD_KEYS で**引き継がれる**。前シナリオが置いた
+        //   `WX18-039`（【常】レベル２とレベル３でガード不可）が残ると Lv2 のサーバント Ｄ が正しく候補から
+        //   消え、このシナリオが「ガードできない」で FAIL する（実際に踏んだ）＝盤面は必ず自分で固定する。
+        'field.signi': [null, null, null],
         'lrig_granted_auto_effects': [
           { effectId: 'WX24-P3-069-E1-G', effectType: 'CONTINUOUS',
             action: { type: 'STUB', id: 'OPP_GUARD_COST_COLORLESS', count: 3 },
@@ -24911,6 +24928,144 @@ scenarios.v45cSkipSelfBanishDoesNothing = {
 };
 order.push('v45cPaySelfBanishRemovesOnlyFiltered', 'v45cSkipSelfBanishDoesNothing');
 // ── V-45 END ──
+
+// ── V-84（§5.1）レベル限定つき【ガード】禁止が、ガード応答UIで実際にそのレベルだけを弾くか ──────────
+// §6.4 O-41 で「レベル限定つきガード禁止」を actionId の文字列（`GUARD_MAX_LV<n>` ＝n以下／
+// `GUARD_LV<n>[_<m>…]` ＝ちょうど・列挙）に載せ、消費は `makeGuardLevelBlocker`（`src/screens/battle/guard.ts`）
+// 1本に統一した。golden は両方向を押さえてあるが、**UI に出る候補の絞り込みは実機でしか見えない**。
+//
+// 🔑**リスクの所在**＝限定が落ちて素の `GUARD`（＝丸ごとガード不可）へ倒れると `guardBlockedOutright` 側で
+//   **全候補が消える**＝「限定が効いていない」と「そもそもガードできない」が**画面上は同じに見える**。
+//   ⇒ どのシナリオも**押せる側が残ること**を同じ run の中で必ず assert する（§4.4 の3＝負方向は対照とセット）。
+//
+// ⚠**ガード応答ダイアログは防御側の画面にしか出ない**＝host（人間側）を防御側にするため CPU の
+//   ルリグアタック（`top.active:'cpu'` ＋ `turn_phase:'ATTACK_LRIG'`）で開く（`guardExtraColorless*` と同じ形）。
+// ⚠`WD15-010` は【起】アーツで「このターン」＝**使った側のターン**にしか効かない＝CPU が使う盤面は作れない。
+//   `execBlockAction` は `until:'END_OF_TURN'` のとき `blocked_actions` へ **actionId をそのまま**積む
+//   （`effectExecutor.ts` 末尾）ので、**その実行結果である `blocked_actions:['GUARD_LV1']` を直接注入**して
+//   消費地点（＝`makeGuardLevelBlocker` ＋ dialog の候補フィルタ）を運転する。
+// ⚠`WX18-039`【常】は CONTINUOUS ＝相手フィールドのシグニとして置けば `contBlocked.forSelf` 経由で届く
+//   （`effectEngine.ts` の `scanField`）＝**注入ではなく実カードで**同じ機構のもう一方の入口を通す。
+//
+// ガード候補は `data-testid="guard-card-<i>"` ＋ `data-card-num` で読む（本セッションで dialog に付与）。
+const V84_LV1 = 'WD01-017#84001';   // サーバント Ｏ  Lv1 Guard=1
+const V84_LV2 = 'WD01-016#84002';   // サーバント Ｄ  Lv2 Guard=1
+const V84_LV3 = 'WX01-100#84003';   // サーバント Ｔ  Lv3 Guard=1
+const V84_LV4 = 'WX01-051#84004';   // サーバント Ｑ  Lv4 Guard=1
+
+function v84Spec({ hand, blocked = [], guestSigni = [null, null, null] }) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#84090'],
+      'field.signi': [null, null, null],
+      // ⚠§4.4 の1＝`field.check` は CORE_FIELD_KEYS でリセットされない＝前シナリオのライフクラッシュ確認
+      //   モーダルが全画面を覆い、ガードのボタンが1つもクリックできなくなる。
+      'field.check': null,
+      'hand': hand,
+      'blocked_actions': blocked,
+      'energy': [],
+      'trash': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#84091'],
+      'field.lrig_down': false,   // ルーム再利用でルリグがダウン残留していると CPU が今回アタックしない
+      'field.signi': guestSigni,
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'cpu', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  };
+}
+
+/** ガード応答ダイアログに出ているガード候補を**インスタンスID**で読む（DOM の描画待ちつき＝§4.4 の7）。 */
+async function readGuardCandidates(page) {
+  return await page.locator('[data-testid^="guard-card-"]').evaluateAll(
+    els => els.map(e => e.getAttribute('data-card-num')));
+}
+
+/**
+ * ガード応答ダイアログが開くまで進め、候補集合を読んで期待集合と突き合わせる。
+ * `expectShown` が空でないことを呼び出し側で必ず要求する＝**丸ごとガード不可への転落を FAIL にする**。
+ */
+async function driveV84(page, H, id, { expectShown, expectHidden }) {
+  let seen = null; let dialogSeen = false; let noCardMsg = false;
+  for (let s = 0; s < 24; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    const st = await H.queryState();
+    const banner = page.getByText('ルリグに攻撃された！').first();
+    const open = await banner.count() && await banner.isVisible().catch(() => false);
+    if (open) {
+      dialogSeen = true;
+      // ⚠`H.queryState()` は Supabase を直接照会するので DOM より先に真になる（§4.4 の7）＝
+      //   候補が0件に見える瞬間があるため、**2回連続で同じ集合が読めるまで**確定しない。
+      const a = await readGuardCandidates(page);
+      await page.waitForTimeout(600);
+      const b = await readGuardCandidates(page);
+      const msg = page.getByText('使用できるガードカードが手札にありません').first();
+      noCardMsg = !!(await msg.count()) && await msg.isVisible().catch(() => false);
+      if (JSON.stringify(a) === JSON.stringify(b)) { seen = b; break; }
+    }
+    H.log(`  ${id}[${s}] -> open=${open} lrigAttacked=${st?.host?.lrigAttacked} hHand=${JSON.stringify(st?.host?.handCards)} blocked=${JSON.stringify(st?.host?.blockedActions)} pEff=${st?.pendingEffect ?? '-'}`);
+    if (!open) await H.stdStep();
+  }
+  if (!dialogSeen || seen === null) {
+    const fin = await H.queryState();
+    return { pass: false, detail: `ガード応答ダイアログ未到達（dialogSeen=${dialogSeen} lrigAttacked=${fin?.host?.lrigAttacked} phase=${fin?.turnPhase} active=${fin?.activeUser}）` };
+  }
+  const shownOk = expectShown.every(n => seen.includes(n));
+  const hiddenOk = expectHidden.every(n => !seen.includes(n));
+  const exactOk = seen.length === expectShown.length;
+  // 「ガードしない」で解決してルームを次シナリオへ渡せる状態に戻す（ダイアログを開いたまま抜けない）。
+  // ⚠**そのまま抜けるとライフクラッシュ確認（`field.check`）が残り、次シナリオを覆う**＝§4.4 の1。
+  //   `field.check` は injectScenario がリセットしないので、**自分で「エナに送る」まで消化する**。
+  await H.clickTextOrBtn(['ガードしない']).catch(() => {});
+  for (let k = 0; k < 6; k++) {
+    await page.waitForTimeout(700);
+    const st = await H.queryState();
+    if (!st?.host?.fieldCheck) break;
+    await H.clickTextOrBtn(['エナに送る', 'トラッシュに送る', '手札に加える', 'OK']).catch(() => {});
+  }
+  const outright = noCardMsg && expectShown.length > 0;
+  return {
+    pass: shownOk && hiddenOk && exactOk && !outright,
+    detail: `候補=${JSON.stringify(seen)}／残るべき=${JSON.stringify(expectShown)}(${shownOk})・消えるべき=${JSON.stringify(expectHidden)}(${hiddenOk})・件数一致=${exactOk}`
+      + (outright ? '／🔴「使用できるガードカードが手札にありません」＝素の GUARD へ転落した疑い' : ''),
+  };
+}
+
+scenarios.v84GuardLv1BlockedHidesOnlyLevelOne = {
+  title: 'V-84(a) WD15-010「レベル１のシグニで【ガード】ができない」＝Lv1だけが候補から消え、Lv2は押せる',
+  spec: v84Spec({ hand: [V84_LV1, V84_LV2], blocked: ['GUARD_LV1'] }),
+  async drive(page, H) {
+    return driveV84(page, H, 'v84lv1', { expectShown: [V84_LV2], expectHidden: [V84_LV1] });
+  },
+};
+
+// 🔑**対照**＝盤面を1文字も変えず `blocked_actions` だけを外す（§4.4 の3）。
+// これが無いと「Lv1 がそもそも候補に出ない盤面だった」との区別がつかない。
+scenarios.v84GuardNoBlockShowsBothLevels = {
+  title: 'V-84(a)対照 制限なし＝同じ手札でLv1とLv2の両方が候補に出る',
+  spec: v84Spec({ hand: [V84_LV1, V84_LV2], blocked: [] }),
+  async drive(page, H) {
+    return driveV84(page, H, 'v84ctl', { expectShown: [V84_LV1, V84_LV2], expectHidden: [] });
+  },
+};
+
+scenarios.v84GuardLv2And3ContinuousHidesOnlyThose = {
+  title: 'V-84(b) WX18-039【常】「レベル２とレベル３」＝Lv2/Lv3だけが消え、Lv1とLv4は残る（CONTINUOUS経路）',
+  spec: v84Spec({
+    hand: [V84_LV1, V84_LV2, V84_LV3, V84_LV4],
+    guestSigni: [['WX18-039#84010'], null, null],
+  }),
+  async drive(page, H) {
+    return driveV84(page, H, 'v84lv23', {
+      expectShown: [V84_LV1, V84_LV4], expectHidden: [V84_LV2, V84_LV3],
+    });
+  },
+};
+order.push('v84GuardLv1BlockedHidesOnlyLevelOne', 'v84GuardNoBlockShowsBothLevels', 'v84GuardLv2And3ContinuousHidesOnlyThose');
+// ── V-84 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

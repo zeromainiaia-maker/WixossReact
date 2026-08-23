@@ -4,6 +4,12 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-23・続き636・Opus 5）＝Opusタスク12 の最後の在庫 (cxlvi) を残0クローズ**。engine 無改変・修正は `BattleScreen.tsx` 1行の deps。gates 全緑（golden 2651／census 608／smoke 10693 全0／fuzz 全0／lint 0 errors）。実機は新規プローブ1本＋強化1本＋回帰7本すべて PASS。
+  - **(cxlvi)「２枚まで選んだのに1枚しか場に出ない」の正体は engine ではなく UI の選択リセット**（`WX16-Re18-E1`）＝「pending_effect が変わったら選択をリセット」する `useEffect` の deps が **`bs?.pending_effect` のオブジェクト同一性**で、realtime は行更新のたび新しいオブジェクトを渡すため**無関係な行更新でも選択が消えていた**。
+  - ⚠`useMemo` の deps は `bs` 丸ごと（`bs?.pending_effect` だと React Compiler が最適化をスキップして lint error）。
+
+**▶ 次の一手**＝**§5.1 の実機未検証の返済から取る**（2026-08-23 のユーザー決定＝返済優先）。溜まっているのは **V エントリ 13件＋続き616〜634 の21バッチ**。
+
 - **セッション（2026-08-23・続き635・Opus 5）＝Opusタスク12 の在庫 (clii)+(cli) を残0クローズ**（在庫 **3→1**＝残るは (cxlvi) のみ）。**golden 2647→2651**（新規4本＝すべてトリップワイヤ確認済み）／**census 608 据置**／**live 修正 13効果**（outsideMainPhase 10＋fromLeftFieldUnder 3）。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、文型★ 323 据置、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors、**held 81 据置**、partial/idset **15/46** 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23。
 
   | 件 | 中身 | live 修正 | 一言 |
