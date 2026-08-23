@@ -26612,6 +26612,221 @@ scenarios.v44ResonaAnyCountCappedByEmptyZones = {
 order.push('v44ResonaAnyCountCappedByEmptyZones');
 // ── V-44(b) END ──
 
+// ── V-45(d)（§5.1 🅳）＝「**能力を持たない**相手シグニはバウンスではなく**トラッシュ**へ」 ─────────
+// `WX25-P3-038-E1`（サモン・ラビラント）が付与する能力：
+//   「【自】：このシグニがアタックしたとき、対戦相手のパワー8000以下のシグニ１体を対象とし、それを手札に戻す。
+//     **それが能力を持たない場合、代わりにそれをトラッシュに置く。**」
+//   ＝`CONDITIONAL{LAST_PROCESSED_MATCHES{noAbilities}} then:TRASH else:BOUNCE`。
+//
+// 🔑**観測点は付与された能力の分岐だけ**なので、アーツ本体（デッキ上5枚の LOOK_PICK_CHAIN）は通さず
+//   **`granted_effects` へ直接注入**して踏む。PLAN が「デッキ上5枚制御＋コンバット回避の両立が要り
+//   複雑度が高い」として follow-up にしていた部分を、観測点を分離することで解消した。
+// ⚠**`noAbilities` の判定は印字**（`effects` 0件かつ EffectText/BurstText が空か `-`）＝
+//   バニラのシグニが「能力を持たない」側、効果テキストを持つシグニが「持つ」側（`execUtils.ts`）。
+// ⚠**攻撃側は正面の壁に勝たせる**（O-47 修正後は負けても相打ちでも消える）＝+1000 して確実に勝たせる。
+const V45D_ATTACKER = 'WX01-053#4501';    // 極剣 ゴッドイーター（P15000）＝付与先
+const V45D_WALL = 'WX01-053#4502';        // 正面の壁（P15000・パワー8000超なので対象フィルタ外）
+const V45D_VANILLA = 'WD01-013#4503';     // 小剣 ククリ（P3000・**能力なし**）→ トラッシュへ
+const V45D_HAS_ABILITY = 'WX21-042#4504'; // 幻竜 ＃アマルガ＃（P2000・**能力あり**）→ 手札へ
+
+const V45D_GRANTED = {
+  effectId: 'WX25-P3-038-sub-E1', effectType: 'AUTO', timing: ['ON_ATTACK_SIGNI'],
+  action: { type: 'SEQUENCE', steps: [
+    { type: 'STUB', id: 'SELECT_TARGET_ONLY',
+      selectTarget: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+        filter: { cardType: 'シグニ', powerRange: { max: 8000 } } } },
+    { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' },
+    { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter: { noAbilities: true } },
+      then: { type: 'TRASH', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+        filter: { cardType: 'シグニ', powerRange: { max: 8000 } } }, targetsStored: true },
+      else: { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, upToCount: false,
+        filter: { cardType: 'シグニ', powerRange: { max: 8000 } } }, optional: false, targetsStored: true } },
+  ] },
+  duration: 'INSTANT', mandatory: true, parseStatus: 'MANUAL', triggerScope: 'self',
+};
+
+function v45dSpec(target) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#4590'],
+      'field.signi': [null, [V45D_ATTACKER], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      // 付与は `GRANT_EFFECT{duration:UNTIL_END_OF_TURN}` が書き込む store と同じ形（instanceId → CardEffect[]）。
+      'granted_effects': { [V45D_ATTACKER]: [V45D_GRANTED] },
+      'temp_power_mods': [{ cardNum: V45D_ATTACKER, delta: 1000 }],  // 正面の壁(15000)に勝って生き残る
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4550', 'WD01-013#4551', 'WD01-013#4552', 'WD01-013#4553'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#4591'],
+      // zone0 ＝対象（パワー8000以下）／zone1（正面）＝パワー15000の壁＝**対象フィルタ外**
+      'field.signi': [[target], [V45D_WALL], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4570', 'WD01-013#4571', 'WD01-013#4572', 'WD01-013#4573'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+
+async function driveV45d(page, H, id, target, expectTrash) {
+  const state = { zoneOpened: false, attacked: false };
+  let candsSeen = null; let resolved = false;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = await v86Attack(page, H, state, 1);
+    const st0 = await H.queryState();
+    if (Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length && !candsSeen) candsSeen = st0.pendingCandidates;
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+    const st = await H.queryState();
+    const inTrash = (st?.guest?.trashCards ?? []).includes(target);
+    const inHand = (st?.guest?.handCards ?? []).includes(target);
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | attacked=${state.attacked} trash=${inTrash} hand=${inHand} cands=${JSON.stringify(st?.pendingCandidates ?? null)} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (inTrash || inHand) resolved = true;
+    if (resolved) {
+      // 🔑**対象フィルタも同時に見る**＝パワー15000の壁が候補に混ざっていたら絞り込みが効いていない。
+      const wallExcluded = !Array.isArray(candsSeen) || !candsSeen.includes(V45D_WALL);
+      return {
+        pass: (expectTrash ? (inTrash && !inHand) : (inHand && !inTrash)) && wallExcluded,
+        detail: `対象=${target}（能力${expectTrash ? 'なし' : 'あり'}）→ トラッシュ=${inTrash}／手札=${inHand}`
+          + `（期待は${expectTrash ? 'トラッシュ' : '手札'}）／候補=${JSON.stringify(candsSeen)}（P15000の壁は候補外=${wallExcluded}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${state.attacked} cands=${JSON.stringify(candsSeen)} gField=${JSON.stringify(fin?.guest?.fieldSigni)} gTrash=${JSON.stringify(fin?.guest?.trashCards)} gHand=${JSON.stringify(fin?.guest?.handCards)}）` };
+}
+
+scenarios.v45dNoAbilityTargetGoesToTrash = {
+  title: 'V-45(d) WX25-P3-038 付与能力：能力を持たない相手シグニは手札ではなく**トラッシュ**へ',
+  spec: v45dSpec(V45D_VANILLA),
+  drive: (page, H) => driveV45d(page, H, 'v45dTrash', V45D_VANILLA, true),
+};
+scenarios.v45dAbilityTargetBouncesToHand = {
+  title: 'V-45(d)対照 能力を持つ相手シグニは通常どおり**手札**へ戻る',
+  spec: v45dSpec(V45D_HAS_ABILITY),
+  drive: (page, H) => driveV45d(page, H, 'v45dBounce', V45D_HAS_ABILITY, false),
+};
+order.push('v45dNoAbilityTargetGoesToTrash', 'v45dAbilityTargetBouncesToHand');
+// ── V-45(d) END ──
+
+// ── V-63（§5.1 🅳）＝§6.4 O-29「同じ選択肢を複数回選ぶ」 ─────────────────────────────────────
+// **母集団（2026-08-24 実測）＝`allowRepeat` を持つ live 効果は 2件だけ**
+//   （`WX17-003-E1`＝2つまで／ベット時4つまで・`WX22-016-E1`＝ベットしたコイン1枚につき1つ）。
+// 原文（`WX17-003`）＝「以下から**２つまで**選ぶ。**同じ選択肢を２回選んでもよい。**
+//   あなたがベットしていた場合、代わりに**４つまで**選ぶ。」
+// 🔴**旧実装は1つずつ2周を強制**していたので「まで」が効くこと自体が新しい（PLAN §5.1 の登録票）。
+//
+// 🔑**観測点は「同じ選択肢を2回選べて、効果が2回走る」**＝①（相手シグニ1体を手札に戻す＋手札1枚捨てる）を
+//   ×2 にすると **相手シグニが2体戻り・自分の手札が2枚減る**＝盤面差分で決定論的に見える。
+//   ⚠②（ルリグに「アタックできない」付与）は**2回選んでも同じ結果**なので観測点にならない。
+// UI は `repeat-choice-{choiceId}` ／ `repeat-choice-confirm`（`EffectInteractionModal`）。
+const V63_ARTS = 'WX17-003#6301';        // ネームレス・フィア―（アーツ・《白》×3《無》×1・アタックフェイズ）
+const V63_ENERGY = ['WD01-013#6302', 'WD01-013#6303', 'WD01-013#6304', 'WD01-013#6305'];
+const V63_HAND = ['WD01-013#6306', 'WD01-013#6307'];   // ①の「手札を1枚捨てる」を2回ぶん
+const V63_OPP = ['WD01-012#6310', 'WD01-012#6311'];    // ①のバウンス対象を2体
+
+scenarios.v63SameChoiceTwiceRunsEffectTwice = {
+  title: 'V-63(a) WX17-003-E1：同じ選択肢①を2回選べて効果が2回走る（相手2体バウンス＋手札2枚捨て）',
+  spec: {
+    hostSet: {
+      // ⚠**限定を満たすルリグにする**＝`WX17-003` は **ドーナ限定**。満たさないと
+      //   ルリグデッキでカードを開いても**「使用」ボタンがそもそも出ない**（実測で40ティック空振りした）。
+      'field.lrig': ['WX16-001#6390'],   // ドーナ ＦＯＵＲＴＨ（Lv4・limit 11・白）
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'lrig_deck': [V63_ARTS],
+      'lrig_trash': [],
+      'hand': V63_HAND,
+      'energy': V63_ENERGY,
+      'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#6350', 'WD01-013#6351', 'WD01-013#6352', 'WD01-013#6353'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#6391'],
+      'field.signi': [[V63_OPP[0]], [V63_OPP[1]], null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#6370', 'WD01-013#6371', 'WD01-013#6372', 'WD01-013#6373'],
+    },
+    // アーツは【アタックフェイズ】タイミング＝`ATTACK_ARTS` で使う。
+    top: { active: 'host', turn_phase: 'ATTACK_ARTS', turn_count: 2 },
+  },
+  async drive(page, H) {
+    const before = await H.queryState();
+    let opened = false; let cardOpened = false; let used = false;
+    const energyPicked = new Set(); let cast = false;
+    let repeatSeen = null; let addedTwice = 0; let confirmed = false;
+    for (let s = 0; s < 40; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v63-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-lrig-dk'); if (did) opened = true; }
+      else if (!cardOpened) {
+        const card = page.locator('[data-testid^="zone-card-"][data-card-num="WX17-003"]').first();
+        if (await card.count() && await card.isVisible().catch(() => false)) {
+          await card.click({ timeout: 1500 }).catch(() => {}); did = 'zone-card:WX17-003'; cardOpened = true;
+        }
+      } else if (!used) {
+        const use = page.locator('[data-testid^="card-action-"][data-action-label="使用"]').first();
+        if (await use.count() && await use.isVisible().catch(() => false) && await use.isEnabled().catch(() => false)) {
+          await use.click({ timeout: 1500 }).catch(() => {}); did = 'action:使用'; used = true;
+        }
+      } else if (!cast) {
+        // アーツコストは4枚＝`artscost-energy-{i}` を1枚ずつ（押し直すとトグルで外れる）。
+        if (energyPicked.size < 4) {
+          for (let i = 0; i < 4; i++) {
+            if (energyPicked.has(i)) continue;
+            const p = await H.clickTestId(`artscost-energy-${i}`);
+            if (p) { energyPicked.add(i); did = p; }
+            break;
+          }
+        } else { did = await H.clickBtn('アーツ使用'); if (did) cast = true; }
+      } else if (!confirmed) {
+        // 🔑**回数 UI**＝`repeat-choice-c0` を2回押して `決定 (2/2)` にしてから確定する。
+        const btn = page.getByTestId('repeat-choice-c0').first();
+        if (await btn.count() && await btn.isVisible().catch(() => false)) {
+          if (!repeatSeen) {
+            repeatSeen = await page.getByTestId('repeat-choice-confirm').first().textContent().catch(() => null);
+          }
+          if (addedTwice < 2 && await btn.isEnabled().catch(() => false)) {
+            await btn.click({ timeout: 1500 }).catch(() => {}); addedTwice++; did = `repeat-choice-c0#${addedTwice}`;
+          } else {
+            const conf = page.getByTestId('repeat-choice-confirm').first();
+            const label = await conf.textContent().catch(() => null);
+            if (await conf.isEnabled().catch(() => false) && /\(2\/2\)/.test(label ?? '')) {
+              await conf.click({ timeout: 1500 }).catch(() => {}); did = `repeat-confirm:${label}`; confirmed = true;
+            }
+          }
+        }
+      }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      const gField = (st?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+      H.log(`  v63[${s}] -> ${did ?? 'なし'} | cast=${cast} added=${addedTwice} confirmed=${confirmed} gField=${JSON.stringify(gField)} gHand=${st?.guest?.hand} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (confirmed && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+        const bouncedBoth = V63_OPP.every(n => (st.guest.handCards ?? []).includes(n)) && gField.length === 0;
+        const discardedTwo = st.host.hand === (before.host.hand ?? 0) - 2;
+        // 🔑**「2つまで」の上限が UI に出ていたこと**も必須にする（1つずつ2周を強制する旧実装との差）。
+        const capOk = typeof repeatSeen === 'string' && /\(0\/2\)/.test(repeatSeen);
+        return {
+          pass: bouncedBoth && discardedTwo && capOk,
+          detail: `回数UIの初期ラベル="${repeatSeen}"（上限2=${capOk}）／①を2回選択→相手2体とも手札へ=${bouncedBoth}（guest hand=${JSON.stringify(st.guest.handCards)}）／自分の手札 ${before.host.hand}→${st.host.hand}（2枚捨て=${discardedTwo}）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（used=${used} energy=${energyPicked.size} cast=${cast} added=${addedTwice} confirmed=${confirmed} label=${repeatSeen} gField=${JSON.stringify((fin?.guest?.fieldSigni ?? []).flat().filter(Boolean))} hHand=${fin?.host?.hand} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v63SameChoiceTwiceRunsEffectTwice');
+// ── V-63 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
