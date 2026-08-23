@@ -7036,9 +7036,15 @@ function applyFinalLookPickWave17(cardNum: string, effects: CardEffect[]): void 
       type: 'LOOK_PICK_CHAIN',
       owner: 'self',
       revealCount: 5,
+      // ⚠**原文は「それぞれ１枚**まで**公開し」＝上限（0枚でもよい）**（段2 第43バッチ）。
+      //   `pickUpTo` を書き落とすと engine は各段でちょうど1枚を要求し、色が合うカードが無い段で
+      //   選択が成立しない＝**ルリグの色に合う札を引けていないと機能しない**別物になる。
+      //   ⚠この per-card テーブルは `parseActionText` の後段パス（`applyLookPickUpTo`）より**後**に
+      //   action を丸ごと差し替えるので、原文から導く共通パスが届かない＝ここで明示するしかない。
       stages: [0, 1, 2].map(index => ({
         filter: { colorMatchesLrigIndex: index },
         pickCount: 1,
+        pickUpTo: true,
         then: 'hand',
         handOrEnergy: true,
       })),
@@ -9340,6 +9346,62 @@ function applyMutualDistinctSelection(text: string, parsed: EffectAction): Effec
   return parsed;
 }
 
+/**
+ * `LOOK_PICK_CHAIN` の各ステージへ原文の「N枚**まで**」（＝上限。0枚でもよい）を戻す後段パス
+ * （§6.2 段2 第43バッチ）。
+ *
+ * 🔑**受け皿は完成しているのに parser が配線していなかった穴**＝`LookPickChainStage.pickUpTo` は
+ *   engine（`effectExecutor` が `SEARCH{optional:true}` に落とす）・逆翻訳（`stageJa` の「まで」）が
+ *   消費済み。にもかかわらず**ステージを手書きの表で組む経路**（`LOOK_PICK_CHAIN_WAVE2_CARDS` の
+ *   per-card switch）と一部のビルダーが `pickUpTo` を書き落としており、`WXDi-P16-008-E2`
+ *   「その中からカードを１枚まで手札に加え、カードを１枚までトラッシュに置き」は
+ *   **手札1枚とトラッシュ1枚を必ず選ばされる**過剰実行だった（捨てたくない札しか無くても捨てる）。
+ *
+ * ⚠**ビルダーごとに直さない**＝`LOOK_PICK_CHAIN` を組む入口が10以上あり、per-card 手書き表まで
+ *   ある（PLAN §5d-0 (i) の「種別を表に手書きしない」と同じ失敗）。原文から導く1本のパスにする。
+ * ⚠**枚数の出現を「その中から〜残りを」のピック節に限定する**＝限定しないと
+ *   「デッキの上からカードを**５枚**見る」の公開枚数まで数えて対応がずれる。
+ * ⚠**ステージ数と枚数が完全に一致するときしか触らない**（曖昧なら何もしない＝取りこぼす方に倒す）。
+ */
+function applyLookPickUpTo(text: string, parsed: EffectAction): EffectAction {
+  const chains: LookPickStage[][] = [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const obj = node as Record<string, unknown>;
+    if (obj.type === 'LOOK_PICK_CHAIN' && Array.isArray(obj.stages)) chains.push(obj.stages as LookPickStage[]);
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(parsed);
+  // ⚠**ピック節と chain は本数が一致するときだけ対応づける**（択一カードは「その中から〜残りを」が
+  //   選択肢ごとに現れ、chain も選択肢ごとに立つ＝`WX26-CP1-019-E1` は 2節 × 2ステージ）。
+  const clauses = [...text.matchAll(/その中から(.+?)、\s*残りを/g)].map(m => m[1]);
+  if (!chains.length || chains.length !== clauses.length) return parsed;
+  chains.forEach((stages, i) => applyUpToClause(clauses[i], stages));
+  return parsed;
+}
+
+/** ピック節1つ ↔ `LOOK_PICK_CHAIN` 1本の対応で「まで」を配る。曖昧なら何もしない（取りこぼす方に倒す）。 */
+function applyUpToClause(clause: string, stages: LookPickStage[]): void {
+  // ⚠**「1つでも載っていたら降りる」にしない**＝ビルダーが**片方のステージにだけ** pickUpTo を書く形が実在し
+  //   （`WXDi-P02-020-E1`「カードを１枚まで手札に加え、シグニを２枚まで場に出し」）、降りると残り半分が
+  //   永久に固定枚数のままになる。全ステージに載っているときだけ何もしない（冪等）。
+  if (stages.length === 0 || stages.every(st => st.pickUpTo)) return;
+  const picks = [...clause.matchAll(/([０-９\d]+)枚(まで)?/g)].map(m => ({ n: parseNum(m[1]), upTo: m[2] === 'まで' }));
+  if (!picks.some(p => p.upTo)) return;
+  // 規則①＝出現と枚数がステージへ1対1で対応する（「カードを1枚まで手札に加え、カードを1枚までトラッシュに置き」）
+  if (picks.length === stages.length && picks.every((p, i) => p.n === stages[i].pickCount)) {
+    picks.forEach((p, i) => { if (p.upTo) stages[i].pickUpTo = true; });
+    return;
+  }
+  // 規則②＝「それぞれN枚まで」が1つだけで全ステージが同じ枚数（「ルリグ1体につき…それぞれ1枚まで公開し」）
+  const eachM = clause.match(/それぞれ([０-９\d]+)枚まで/);
+  if (eachM && [...clause.matchAll(/([０-９\d]+)枚まで/g)].length === 1
+      && stages.every(st => st.pickCount === parseNum(eachM[1]))) {
+    for (const st of stages) st.pickUpTo = true;
+  }
+}
+
 function applyExplicitSelectionGroups(text: string, parsed: EffectAction): EffectAction {
   const groups = parseExplicitSelectionGroups(text);
   if (!groups) {
@@ -9523,6 +9585,7 @@ function parseActionText(text: string): EffectAction {
   parsed = stripReplacementConditionColor(text, parsed);
   parsed = applyExplicitSelectionGroups(text, parsed);
   parsed = applyMutualDistinctSelection(text, parsed);
+  parsed = applyLookPickUpTo(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {

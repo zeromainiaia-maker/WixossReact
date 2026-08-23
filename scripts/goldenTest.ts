@@ -3910,7 +3910,9 @@ test('§6.4 reveal-until 9効果: 停止条件・ヒット先・残り先が liv
   eq(c1Pick.type, 'LOOK_PICK_CHAIN', 'C1 live: 「見て」は非公開の LOOK_PICK_CHAIN');
   eq(c1Pick.owner, 'opponent', 'C1 live: 掘るのは相手のデッキ');
   eq(c1Pick.opponentResponds, true, 'C1 live: 選ぶのは相手自身');
-  eq(JSON.stringify(c1Pick.stages), JSON.stringify([{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field' }]), 'C1 live: シグニ1枚まで場出し');
+  // ⚠**「1枚**まで**」＝上限（0枚でもよい）**＝`pickUpTo` を落とすと engine は SEARCH を必須にし、
+  //   出したくない札しか公開されなくても**相手に必ず場出しさせる**別物になる（段2 第43バッチ）。
+  eq(JSON.stringify(c1Pick.stages), JSON.stringify([{ filter: { cardType: 'シグニ' }, pickCount: 1, then: 'field', pickUpTo: true }]), 'C1 live: シグニ1枚まで場出し（まで＝上限）');
   eq(JSON.stringify(c1Pick.remainder), JSON.stringify({ location: 'deck', position: 'bottom' }), 'C1 live: 残りはデッキの一番下');
   // ⚠E1 は PARTIAL のまま＝同じ効果の1つ目の内側能力（「対戦相手の場にあるキーとシグニは能力を失い、
   //   新たに得られない」→ REMOVE_ABILITIES{count:1, PERMANENT}）が別軸で未忠実なのでレビュー印を落とさない。
@@ -6180,6 +6182,60 @@ test('LOOK_PICK_CHAIN dual-pick: hand+field ステージで手札1・場1・消�
   eq(r.ownerState.hand.length, ctx.ownerState.hand.length + 1, '1枚が手札へ');
   eq(r.ownerState.field.signi.filter(Boolean).length, 1, '1枚が場へ');
   eq(r.ownerState.deck.length + r.ownerState.hand.length + r.ownerState.field.signi.filter(Boolean).length, before, '公開カード消失なし（deck+hand+field 保存）');
+});
+// ── §6.2 段2 第43バッチ：`LOOK_PICK_CHAIN` の「N枚**まで**」（上限＝0枚でもよい）────────────────
+// 原文の「まで」が `stage.pickUpTo` に届いておらず、engine が**ちょうどN枚を必ず選ばせる**過剰実行だった
+// 22効果。⚠**この壊れ方は逆翻訳にも live の型にも異常として出ない**（構造は正しく、任意性だけが消える）
+// ので、①ステージ単位の枚数契約 ②engine が `SEARCH{optional}` を出すこと の両方を固定する。
+const batch43UpToCases: [string, string, number][] = [
+  // [CardNum, effectId, 「まで」が立つべきステージ数]
+  ['SP38-006', 'SP38-006-E1-G2', 1], ['WXDi-P02-020', 'WXDi-P02-020-E1', 2],
+  ['WXDi-P06-053', 'WXDi-P06-053-E1', 2], ['WXDi-P06-068', 'WXDi-P06-068-E1', 1],
+  ['WXDi-P08-050', 'WXDi-P08-050-E1', 1], ['WXDi-P13-027', 'WXDi-P13-027-E1', 2],
+  ['WXDi-P14-077', 'WXDi-P14-077-E2', 2], ['WXDi-P14-079', 'WXDi-P14-079-E2', 2],
+  ['WXDi-P15-005', 'WXDi-P15-005-E1', 3], ['WXDi-P16-008', 'WXDi-P16-008-E2', 2],
+  ['WXDi-P16-035', 'WXDi-P16-035-E1', 2], ['WXDi-CP02-025', 'WXDi-CP02-025-E1', 2],
+  ['WX24-P1-017', 'WX24-P1-017-E1', 2], ['WX24-P1-026', 'WX24-P1-026-E1', 2],
+  ['WX24-P1-029', 'WX24-P1-029-E1', 2], ['WX24-P3-037', 'WX24-P3-037-E1', 2],
+  ['WX25-P1-035', 'WX25-P1-035-E1', 2], ['WX25-P1-039', 'WX25-P1-039-E1', 2],
+  ['WX25-P1-043', 'WX25-P1-043-E1', 2], ['WX26-CP1-001', 'WX26-CP1-001-E1', 2],
+  ['WX26-CP1-019', 'WX26-CP1-019-E1', 4], ['WX26-CP1-021', 'WX26-CP1-021-E1', 2],
+];
+test('段2 第43バッチ: 「N枚まで」の LOOK_PICK_CHAIN が live で pickUpTo を保つ（22効果）', () => {
+  for (const [num, id, want] of batch43UpToCases) {
+    const eff = (effectsMap.get(num) ?? []).find(e => e.effectId === id)
+      ?? findEffectDeep(effectsMap.get(num) ?? [], id);
+    ok(!!eff, `${id}: live 効果が存在`);
+    const stages: { pickUpTo?: boolean }[] = [];
+    const walk = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) { node.forEach(walk); return; }
+      const o = node as Record<string, unknown>;
+      if (o.type === 'LOOK_PICK_CHAIN' && Array.isArray(o.stages)) stages.push(...(o.stages as { pickUpTo?: boolean }[]));
+      for (const v of Object.values(o)) walk(v);
+    };
+    walk(eff!.action);
+    eq(stages.filter(st => st.pickUpTo).length, want, `${id}: 「まで」が立つステージ数`);
+  }
+});
+test('段2 第43バッチ: pickUpTo のステージは任意 SEARCH（0枚で抜けられる）／対照＝無しは必須', () => {
+  const pick = matchingCard({ cardType: 'シグニ' });
+  const mk = (upTo: boolean): EffectAction => ({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 1,
+    stages: [{ filter: { cardType: 'シグニ' }, pickCount: 1, ...(upTo ? { pickUpTo: true } : {}), then: 'hand' }],
+    remainder: { location: 'deck', position: 'bottom' },
+  } as unknown as EffectAction);
+  const ctxUp = mkCtx({ deckTop: [pick] }, {});
+  const up = executeEffect({ effectId: 'T', effectType: 'AUTO', action: mk(true), duration: 'INSTANT', mandatory: true } as unknown as CardEffect, ctxUp);
+  ok(!up.done && up.pending.type === 'SEARCH' && up.pending.optional === true, 'pickUpTo → optional な SEARCH');
+  if (!up.done && up.pending.type === 'SEARCH') {
+    const skipped = resumeSearch([], up.pending, { ...ctxUp, ownerState: up.ownerState, otherState: up.otherState, logs: up.logs });
+    ok(skipped.done, '0枚選択で完了する');
+    ok(!skipped.ownerState.hand.includes(pick), '0枚選択では手札に入らない');
+  }
+  const ctxReq = mkCtx({ deckTop: [pick] }, {});
+  const req = executeEffect({ effectId: 'T', effectType: 'AUTO', action: mk(false), duration: 'INSTANT', mandatory: true } as unknown as CardEffect, ctxReq);
+  ok(!req.done && req.pending.type === 'SEARCH' && !req.pending.optional, '対照: pickUpTo 無しは必須 SEARCH');
 });
 test('dual-pick 構造固定（WX24-P1-017/WX25-P3-038 が LOOK_PICK_CHAIN[hand,field]・bare LOOK_AND_REORDER に戻っていない）', () => {
   for (const num of ['WX24-P1-017', 'WX25-P3-038']) {
