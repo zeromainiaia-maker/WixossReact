@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第39バッチ＝静的／参照値／合計レベル条件25効果
+
+- `TargetFilter` のセンタールリグ以下、効果元と同レベル、手札枚数以下、効果元の下カード枚数以下を `resolveDynamicFilter` へ配線。参照不在は空ヒット、枚数0は `level.max:0` へ fail-closed とした。静的上限、exact シャドウ、直前処理レベル一致も原文の向きへ復元した。
+- `SelectionConstraint.totalLevelMaxRef` と動的 `totalLevelExactRef` を全選択経路で実行前に解決し、`last_processed_level_sum` と退避済み対象の合計条件を評価可能にした。多段分岐は途中 action に参照値を上書きされない。新しい action 型は追加していない。
+- OPEN対象17効果と同規則8効果を採用。`WXDi-D02-07LT-E1` の `levelRange`、`WXEX2-01-E2` の同レベルガード禁止は既実装の偽陽性として固定し、`WD15-023-E1` と `WXDi-P03-077-BURST` は必要な遅延／発生源機構が無いため据置。golden **2632/2632**、census **617→611**、smoke/fuzz/同型★/STUB/manual-fields 全0、lint **0 errors / 261 warnings**、held/partial/idset **83/15/46**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch39_report.md`。
+
 ## 2026-08-23：§6.2 段2 第38バッチ＝「A1枚とB1枚」が合計1枚へ潰れる群割当23効果
 
 - `SelectionConstraint.groups` を新設し、1回の選択集合を filter ごとの容量へ重複なく割り当てる executor／UI／逆翻訳を配線した。`SEARCH` を2本へ分けないため、デッキ公開・シャッフル・`afterSearch` は1回のまま。

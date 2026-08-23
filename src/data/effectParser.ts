@@ -17155,6 +17155,169 @@ function applyDynamicActionCountBatch35(card: CardData, effects: CardEffect[]): 
   }
 }
 
+/**
+ * 段2 第39バッチ：対象の静的レベルと、盤面／直前処理を参照するレベル条件を配線する。
+ * 原文の文型と既存 action 木の両方をゲートにし、カード番号や固定閾値には依存しない。
+ */
+function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  if (!/(?:レベル[０-９\d]+以下の＜[^＞]+＞のシグニ[^。]*下に置く|対戦相手のレベル[０-９\d]+以下のシグニ[^。]*基本パワー|センタールリグのレベル以下の対戦相手のシグニ|手札の枚数以下の場合|ダウンしたシグニの数以下|このシグニの下にあるカードの枚数以下|同じレベルの対象の対戦相手のシグニ|レベルの合計がこの方法で(?:デッキの一番下に置いたシグニの数以下|トラッシュに置いたシグニのレベルの合計と等しく|捨てられたシグニのレベルの合計と等しく)|レベルの合計が[０-９\d]+(?:以上|以下)?の場合|。[０-９\d]+(?:以上|以下)?の場合|シグニの効果を受けない|このルリグと同じレベル)/.test(allText)) return;
+  const lastCount = { $ref: 'last_processed_count' } as const;
+  const lastLevelSum = { $ref: 'last_processed_level_sum' } as const;
+  const operatorOf = (suffix: string | undefined): CompareOp =>
+    suffix === '以上' ? 'gte' : suffix === '以下' ? 'lte' : 'eq';
+
+  for (const effect of effects) {
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    const action = effect.action;
+
+    // トラッシュの「レベルN以下の＜クラス＞」をシグニの下へ置く。
+    const underStatic = source.match(/トラッシュからレベル([０-９\d]+)以下の＜[^＞]+＞のシグニ[^。]*下に置く/);
+    if (underStatic && action.type === 'PLACE_UNDER_SIGNI' && action.source === 'trash') {
+      action.filter = { ...(action.filter ?? {}), level: { max: parseNum(underStatic[1]) } };
+    }
+
+    // POWER_SET は通常の target parser を通らないため、同じ静的上限をここで補う。
+    const powerSetStatic = source.match(/対戦相手のレベル([０-９\d]+)以下のシグニ[^。]*基本パワー/);
+    if (powerSetStatic && action.type === 'POWER_SET' && action.target.type === 'SIGNI') {
+      action.target.filter = {
+        ...(action.target.filter ?? {}), cardType: 'シグニ', level: { max: parseNum(powerSetStatic[1]) },
+      };
+    }
+
+    // センタールリグの表記レベル以下。
+    if (/あなたのセンタールリグのレベル以下の対戦相手のシグニ/.test(source)
+        && (action.type === 'BOUNCE' || action.type === 'BANISH') && action.target.type === 'SIGNI') {
+      action.target.filter = { ...(action.target.filter ?? {}), cardType: 'シグニ', levelLteLrig: 'self' };
+    }
+
+    // 「手札の枚数以下」は差分キーとは別軸。選択肢のうち相手シグニをバニッシュする枝だけへ付ける。
+    if (/それのレベルがあなたの手札の枚数以下の場合/.test(source) && action.type === 'CHOOSE') {
+      const branch = action.choices.map(c => c.action).find((a): a is BanishAction =>
+        a.type === 'BANISH' && a.target.owner === 'opponent');
+      if (branch) branch.target.filter = { ...(branch.target.filter ?? {}), cardType: 'シグニ', levelLteHandCount: true };
+    }
+
+    // 好きな数ダウン→実際にダウンした枚数以下。
+    if (/アップ状態の[^。]*シグニを好きな数ダウンする。?その後、レベルがこの方法でダウンしたシグニの数以下/.test(source)
+        && action.type === 'SEQUENCE' && action.steps[0]?.type === 'DOWN' && action.steps[1]?.type === 'BOUNCE') {
+      action.steps[0].target.count = 'ALL';
+      action.steps[0].target.upToCount = true;
+      action.steps[1].target.filter = {
+        ...(action.steps[1].target.filter ?? {}), cardType: 'シグニ', levelLteLastProcessedCount: true,
+      };
+    }
+
+    // 効果元シグニの下の枚数以下。
+    if (/レベルがこのシグニの下にあるカードの枚数以下の対戦相手のシグニ/.test(source)
+        && action.type === 'BANISH' && action.target.type === 'SIGNI') {
+      action.target.filter = { ...(action.target.filter ?? {}), cardType: 'シグニ', levelLteUnderSelfCount: true };
+    }
+
+    // 先に自分のシグニを対象宣言し、その表記レベルと一致する相手シグニだけを戻す。
+    const sameLevelPair = source.match(/対象のあなたの(白|赤|青|緑|黒)の＜([^＞]+)＞のシグニ１体と同じレベルの対象の対戦相手のシグニ１体を手札に戻す/);
+    if (sameLevelPair && action.type === 'BOUNCE' && action.target.type === 'SIGNI') {
+      effect.action = {
+        type: 'SEQUENCE', steps: [
+          {
+            type: 'STUB', id: 'SELECT_TARGET_ONLY',
+            selectTarget: {
+              type: 'SIGNI', owner: 'self', count: 1,
+              filter: { cardType: 'シグニ', color: sameLevelPair[1], story: sameLevelPair[2] },
+            },
+          } as StubAction,
+          {
+            ...action,
+            target: { ...action.target, filter: { ...(action.target.filter ?? {}), cardType: 'シグニ', levelEqLastProcessed: true } },
+          },
+        ],
+      } as SequenceAction;
+      continue;
+    }
+
+    // 好きな数をデッキ下へ→その実処理枚数以下になるレベル合計で好きな数バニッシュ。
+    if (/レベルの合計がこの方法でデッキの一番下に置いたシグニの数以下になるように好きな数/.test(source)
+        && action.type === 'SEQUENCE' && action.steps[0]?.type === 'TRANSFER_TO_DECK'
+        && action.steps[1]?.type === 'BANISH') {
+      action.steps[0].source.count = 'ALL';
+      action.steps[0].source.upToCount = true;
+      action.steps[1].target.count = 'ALL';
+      action.steps[1].target.upToCount = true;
+      action.steps[1].target.selectionConstraint = {
+        ...(action.steps[1].target.selectionConstraint ?? {}), totalLevelMaxRef: lastCount,
+      };
+    }
+
+    // 直前にトラッシュへ置いたシグニのレベル合計と、対象集合のレベル合計を一致させる。
+    if (/レベルの合計がこの方法でトラッシュに置いたシグニのレベルの合計と等しくなるように好きな数/.test(source)
+        && action.type === 'SEQUENCE' && action.steps[1]?.type === 'TRASH') {
+      action.steps[1].target.count = 'ALL';
+      action.steps[1].target.upToCount = true;
+      action.steps[1].target.selectionConstraint = {
+        ...(action.steps[1].target.selectionConstraint ?? {}), totalLevelExactRef: lastLevelSum,
+      };
+    }
+    if (/レベルの合計がこの方法で捨てられたシグニのレベルの合計と等しくなるように[０-９\d]+枚まで/.test(source)
+        && action.type === 'SEQUENCE' && action.steps[1]?.type === 'TRANSFER_TO_HAND') {
+      action.steps[1].source.selectionConstraint = {
+        ...(action.steps[1].source.selectionConstraint ?? {}), totalLevelExactRef: lastLevelSum,
+      };
+    }
+
+    // レベル合計の多段分岐。前の枝が lastProcessedCards を上書きするため、最初の処理結果を退避して全枝で読む。
+    const thresholds = [...source.matchAll(/(?:レベルの合計が|。)([０-９\d]+)(以上|以下)?の場合/g)]
+      .map(m => ({ value: parseNum(m[1]), operator: operatorOf(m[2]) }));
+    if (thresholds.length >= 2 && action.type === 'SEQUENCE'
+        && action.steps.length === thresholds.length + 1
+        && action.steps[1]?.type === 'CONDITIONAL'
+        && action.steps[1].condition.type === 'LAST_PROCESSED_LEVEL_SUM') {
+      const first = action.steps[0];
+      const branches = action.steps.slice(1).map((step, index): EffectAction => {
+        const body = step.type === 'CONDITIONAL' ? step.then : step;
+        return {
+          type: 'CONDITIONAL',
+          condition: { type: 'LAST_PROCESSED_LEVEL_SUM', ...thresholds[index], source: 'stored_targets' },
+          then: body,
+        } as ConditionalAction;
+      });
+      action.steps = [
+        first,
+        { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as StubAction,
+        ...branches,
+      ];
+    }
+  }
+
+  // レイヤー付与内の「相手のレベルN以下のシグニの効果を受けない」。sourceFilter は collector が直接読む。
+  const layerProtection = allText.match(/対戦相手のレベル([０-９\d]+)以下のシグニの効果を受けない/);
+  if (layerProtection) {
+    for (const effect of effects) {
+      if (effect.action.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
+      for (const ability of effect.action.abilities) {
+        if (ability.action.type !== 'GRANT_PROTECTION') continue;
+        ability.action.sourceFilter = {
+          ...(ability.action.sourceFilter ?? {}), cardType: 'シグニ', level: { max: parseNum(layerProtection[1]) },
+        };
+      }
+    }
+  }
+
+  // 付与先ルリグ自身（センター／アシストを問わない）と同じレベル。
+  for (const effect of effects) {
+    if (effect.action.type !== 'GRANT_LRIG_ABILITY'
+        || !/このルリグと同じレベルの対戦相手のシグニ/.test(effect.action.rawText ?? '')) continue;
+    for (const ability of effect.action.abilities) {
+      if (ability.action.type === 'BANISH' && ability.action.target.type === 'SIGNI') {
+        ability.action.target.filter = {
+          ...(ability.action.target.filter ?? {}), cardType: 'シグニ', levelEqSelf: true,
+        };
+      }
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
@@ -17706,6 +17869,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   gate('WDK09-017-E1', { type: 'IS_SELF_IN_CENTER_ZONE' });
 
   applyDynamicActionCountBatch35(card, effects);
+  applyLevelConditionsBatch39(card, effects);
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。

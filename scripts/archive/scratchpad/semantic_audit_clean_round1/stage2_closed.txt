@@ -444,3 +444,25 @@ WXK11-006-E1 # findings外・同規則で原文照合して採用
 WDA-F03-13-BURST
 PR-322-E1
 # WX07-042-E1 / WX19-071-E1 は【ランサー】原因funnel未実装のため据置（OPEN維持）
+
+# 段2 第39バッチ（2026-08-23・Codex）：静的／参照値／合計レベル条件（対象17効果＋偽陽性2効果＋同規則1効果を記帳）
+SP27-017-E1
+WXK01-066-E1
+WX16-053-LAYER-E1
+WXDi-D02-07LT-E1 # levelRange.max は matchesFilter が既に評価するため偽陽性
+WXDi-P04-048-E1
+WXDi-P08-049-E1
+WX20-Re19-E1
+WXEX2-63-E1
+WX24-P4-038-sub-E2
+WD22-011-G-E1 :: レベルがあなたの手札の枚数以下 # 遅延誘発／選択肢②の条件findingはOPEN継続
+WX24-P3-048-E1
+WXDi-P10-043-E1
+WXEX2-57-E1
+WXEX2-01-E2 # GUARD_LV_LAST_DOWNED が同レベルだけを禁止済みのため偽陽性
+WX22-Re06-E1
+WX12-Re02-E1
+WX17-026-E2
+WXDi-P02-003-E1
+WXEX2-62-E1
+WXK10-085-E1 # findings内・同規則で原文照合して採用

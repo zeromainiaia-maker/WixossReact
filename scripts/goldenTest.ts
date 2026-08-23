@@ -93,7 +93,7 @@ import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consum
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
-import { encodeLancerScopesInText, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, textHasKeyword } from '../src/utils/keywords';
+import { encodeLancerScopesInText, evaluateShadowScope, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, parseShadowScopeText, textHasKeyword } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
@@ -38230,6 +38230,9 @@ test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が�
     'CHOOSE.count',
     // 段2 第35バッチ：execDown が pending 生成前に resolveCountRef し、静的 totalLevelExact へ変換する。
     'SIGNI.totalLevelExactRef',
+    // 段2 第39バッチ：selectOrInteract が pending/CPU 選択前に resolveCountRef し、静的制約へ変換する。
+    'SIGNI.totalLevelMaxRef',
+    'TRASH_CARD.totalLevelExactRef',
   ]);
   const found = new Map<string, string[]>();
   const walk = (node: unknown, types: string[], key: string, who: string): void => {
@@ -44581,6 +44584,166 @@ test('段2 第38バッチ 据置契約: 依存filter・レベル別場出し・�
   ok(dependent.type === 'LOOK_AND_REORDER', '1枚目依存の共通色なしは群制約へ誤変換しない');
   ok(levels.type === 'LOOK_AND_REORDER', 'レベル1/2/3各1枚は第39バッチと重なるため据置');
   ok(cross.type === 'CHOOSE' && JSON.stringify(cross).includes('"maxCount":1'), '動的クロス構成枚数は固定groupsへ誤変換しない');
+});
+
+// ── 段2 第39バッチ：レベル条件（静的上限／参照値比較／合計制約） ──
+const freshBatch39 = freshBatch38;
+
+test('段2 第39バッチ parser契約: 採用17効果へ正しい向きのレベル条件を配線する', () => {
+  for (const [cardNum, effectId, needles] of [
+    ['SP27-017', 'SP27-017-E1', ['"story":"天使"', '"level":{"max":4}']],
+    ['WXK01-066', 'WXK01-066-E1', ['"POWER_SET"', '"level":{"max":3}']],
+    ['WX16-053', 'WX16-053-LAYER', ['"WX16-053-LAYER-E1"', '"sourceFilter":{"cardType":"シグニ","level":{"max":2}}']],
+    ['WXDi-P04-048', 'WXDi-P04-048-E1', ['シャドウ:{\\"levelEq\\":3}']],
+    ['WXDi-P08-049', 'WXDi-P08-049-E1', ['シャドウ:{\\"levelEq\\":2}']],
+    ['WX20-Re19', 'WX20-Re19-E1', ['"levelLteLrig":"self"']],
+    ['WXEX2-63', 'WXEX2-63-E1', ['"levelLteLrig":"self"']],
+    ['WX24-P4-038', 'WX24-P4-038-E1', ['"WX24-P4-038-sub-E2"', '"levelEqSelf":true']],
+    ['WD22-011-G', 'WD22-011-G-E1', ['"levelLteHandCount":true']],
+    ['WX24-P3-048', 'WX24-P3-048-E1', ['"count":"ALL"', '"levelLteLastProcessedCount":true']],
+    ['WXDi-P10-043', 'WXDi-P10-043-E1', ['"levelLteUnderSelfCount":true']],
+    ['WXEX2-57', 'WXEX2-57-E1', ['"SELECT_TARGET_ONLY"', '"levelEqLastProcessed":true']],
+    ['WX12-Re02', 'WX12-Re02-E1', ['"totalLevelMaxRef":{"$ref":"last_processed_count"}']],
+    ['WX17-026', 'WX17-026-E2', ['"totalLevelExactRef":{"$ref":"last_processed_level_sum"}']],
+    ['WXDi-P02-003', 'WXDi-P02-003-E1', ['"totalLevelExactRef":{"$ref":"last_processed_level_sum"}']],
+    ['WX22-Re06', 'WX22-Re06-E1', ['"value":6,"operator":"gte","source":"stored_targets"', '"color":"黒"']],
+    ['WXEX2-62', 'WXEX2-62-E1', ['"value":7,"operator":"gte","source":"stored_targets"']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch39(cardNum, effectId));
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+});
+
+test('段2 第39バッチ 偽陽性契約: levelRange は有効、同レベルガード禁止は既実装', () => {
+  const d02 = freshBatch39('WXDi-D02-07LT', 'WXDi-D02-07LT-E1');
+  const encoded = JSON.stringify(d02);
+  ok(encoded.includes('"levelRange":{"max":2}'), 'levelRange.max=2 を保持');
+  ok(matchesFilter(cardMap.get(SIGNI_L2), { levelRange: { max: 2 } }), 'levelRange 成立方向: Lv2 は候補');
+  ok(!matchesFilter(cardMap.get(SIGNI_L3), { levelRange: { max: 2 } }), 'levelRange 不成立方向: Lv3 は候補外');
+  const guard = freshBatch39('WXEX2-01', 'WXEX2-01-E2');
+  ok(JSON.stringify(guard).includes('"actionId":"GUARD_LV_LAST_DOWNED"'), '同レベルだけガード禁止する既存 action を保持');
+});
+
+test('段2 第39バッチ held増分契約: 同じ文型で直る8効果も原文どおり採用する', () => {
+  for (const [cardNum, effectId, needles] of [
+    ['WXDi-P09-043', 'WXDi-P09-043-E1', ['シャドウ:{\\"levelEq\\":1}', 'シャドウ:{\\"levelEq\\":2}']],
+    ['WXDi-P09-049', 'WXDi-P09-049-E1', ['シャドウ:{\\"levelEq\\":1}']],
+    ['WXDi-P13-058', 'WXDi-P13-058-E1', ['シャドウ:{\\"levelEq\\":1}', 'シャドウ:{\\"levelEq\\":2}']],
+    ['WXDi-CP01-034', 'WXDi-CP01-034-E1', ['シャドウ:{\\"levelEq\\":1}']],
+    ['WXDi-CP02-067', 'WXDi-CP02-067-E1', ['シャドウ:{\\"levelEq\\":1}']],
+    ['WXDi-CP02-067', 'WXDi-CP02-067-E2', ['シャドウ:{\\"levelEq\\":1}']],
+    ['WXEX2-81', 'WXEX2-81-E3', ['"level":{"max":4}', '"story":"天使"']],
+    ['WXK10-085', 'WXK10-085-E1', ['"value":4,"operator":"eq","source":"stored_targets"', '"value":6,"operator":"eq","source":"stored_targets"']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch39(cardNum, effectId));
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+});
+
+test('段2 第39バッチ engine両方向: ルリグ／手札／下カード／直前処理の参照値で候補を限定し、参照不在は空ヒット', () => {
+  const candidates = (action: EffectAction, ctx: ExecCtx): string[] => {
+    const result = executeAction(action, ctx);
+    return result.done || result.pending.type !== 'SELECT_TARGET' ? [] : result.pending.candidates;
+  };
+  const lrig2 = findCard(card => card.Type === 'ルリグ' && card.Level === '2');
+  const centerAction = freshBatch39('WXEX2-63', 'WXEX2-63-E1').action;
+  eq(candidates(centerAction, mkCtx({ lrig: [lrig2] }, { signi: [SIGNI_L2, SIGNI_L3, null] }, 'WXEX2-63')).join(','), SIGNI_L2,
+    'センタールリグLv2以下はLv2だけ');
+  eq(candidates(centerAction, mkCtx({}, { signi: [SIGNI_L2, SIGNI_L3, null] }, 'WXEX2-63')).length, 0,
+    'センタールリグ不在は無制限でなく空ヒット');
+
+  const handAction = (freshBatch39('WD22-011-G', 'WD22-011-G-E1').action as import('../src/types/effects').ChooseAction).choices[2].action;
+  const handCtx = mkCtx({ hand: 2 }, { signi: [SIGNI_L2, SIGNI_L3, null] }, 'WD22-011-G');
+  eq(candidates(handAction, handCtx).join(','), SIGNI_L2, '手札2枚ならLv2だけ');
+  eq(candidates(handAction, mkCtx({ hand: 0 }, { signi: [SIGNI_L1, SIGNI_L2, null] }, 'WD22-011-G')).length, 0,
+    '手札0枚は level.max=0 で空ヒット');
+
+  const underAction = freshBatch39('WXDi-P10-043', 'WXDi-P10-043-E1').action;
+  const underCtx = mkCtx({ signi: ['WXDi-P10-043', null, null] }, { signi: [SIGNI_L2, SIGNI_L3, null] }, 'WXDi-P10-043');
+  underCtx.ownerState.field.signi[0] = [SIGNI_L1, SIGNI_L2, 'WXDi-P10-043'];
+  eq(candidates(underAction, underCtx).join(','), SIGNI_L2, '下カード2枚ならLv2だけ');
+  eq(candidates(underAction, mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] })).length, 0,
+    '効果元不在は無制限でなく空ヒット');
+
+  const lteLast: EffectAction = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { levelLteLastProcessedCount: true } } };
+  eq(candidates(lteLast, { ...mkCtx({}, { signi: [SIGNI_L2, SIGNI_L3, null] }), lastProcessedCards: [SIGNI_L1, SIGNI_L2] }).join(','), SIGNI_L2,
+    '直前処理2枚以下はLv2だけ');
+  eq(candidates(lteLast, { ...mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }), lastProcessedCards: [] }).length, 0,
+    '直前処理0枚は level.max=0 で空ヒット');
+
+  const eqLast: EffectAction = { type: 'BOUNCE', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { levelEqLastProcessed: true } } };
+  eq(candidates(eqLast, { ...mkCtx({}, { signi: [SIGNI_L2, SIGNI_L3, null] }), lastProcessedCards: [SIGNI_L2] }).join(','), SIGNI_L2,
+    '直前シグニと同じLv2だけ');
+  eq(candidates(eqLast, { ...mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }), lastProcessedCards: [] }).length, 0,
+    '直前シグニ不在は空ヒット');
+
+  const granted = freshBatch39('WX24-P4-038', 'WX24-P4-038-E1').action;
+  if (granted.type !== 'GRANT_LRIG_ABILITY') throw new Error('grant action not found');
+  const sameSelf = granted.abilities.find(a => a.effectId.endsWith('sub-E2'))!.action;
+  eq(candidates(sameSelf, mkCtx({}, { signi: [SIGNI_L2, SIGNI_L3, null] }, lrig2)).join(','), SIGNI_L2,
+    '付与先ルリグLv2と同じLv2だけ');
+  eq(candidates(sameSelf, mkCtx({}, { signi: [SIGNI_L2, SIGNI_L3, null] })).length, 0,
+    '付与先ルリグ参照不在は空ヒット');
+});
+
+test('段2 第39バッチ engine両方向: 動的なレベル合計 exact/max を全選択経路で固定値へ解決する', () => {
+  const exact: EffectAction = {
+    type: 'TRASH', target: {
+      type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true,
+      selectionConstraint: { totalLevelExactRef: { $ref: 'last_processed_level_sum' } },
+    },
+  };
+  const exactCtx = { ...mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, SIGNI_L4] }), lastProcessedCards: [SIGNI_L1, SIGNI_L2] };
+  const exactOffer = executeAction(exact, exactCtx);
+  if (exactOffer.done || exactOffer.pending.type !== 'SELECT_TARGET') throw new Error('exact selection not offered');
+  eq(exactOffer.pending.selectionConstraint?.totalLevelExact, 3, '直前レベル合計1+2を exact=3 へ解決');
+  ok(satisfiesSelectionConstraint([SIGNI_L1, SIGNI_L2], exactOffer.pending.selectionConstraint, cardMap), '成立方向: Lv1+Lv2=3');
+  ok(!satisfiesSelectionConstraint([SIGNI_L4], exactOffer.pending.selectionConstraint, cardMap), '不成立方向: Lv4≠3');
+
+  const max: EffectAction = {
+    type: 'BANISH', target: {
+      type: 'SIGNI', owner: 'opponent', count: 'ALL', upToCount: true,
+      selectionConstraint: { totalLevelMaxRef: { $ref: 'last_processed_count' } },
+    },
+  };
+  const maxCtx = { ...mkCtx({}, { signi: [SIGNI_L2, SIGNI_L3, null] }), lastProcessedCards: [SIGNI_L1, SIGNI_L2] };
+  const maxOffer = executeAction(max, maxCtx);
+  if (maxOffer.done || maxOffer.pending.type !== 'SELECT_TARGET') throw new Error('max selection not offered');
+  eq(maxOffer.pending.selectionConstraint?.totalLevelMax, 2, '直前2枚を max=2 へ解決');
+  ok(satisfiesSelectionConstraint([SIGNI_L2], maxOffer.pending.selectionConstraint, cardMap), '成立方向: Lv2<=2');
+  ok(!satisfiesSelectionConstraint([SIGNI_L3], maxOffer.pending.selectionConstraint, cardMap), '不成立方向: Lv3>2');
+  const zero = executeAction(max, { ...mkCtx({}, { signi: [SIGNI_L1, null, null] }), lastProcessedCards: [] });
+  if (zero.done || zero.pending.type !== 'SELECT_TARGET') throw new Error('zero max selection not offered');
+  eq(zero.pending.selectionConstraint?.totalLevelMax, 0, '数え元0枚は max=0 へ明示的に倒す');
+  ok(!satisfiesSelectionConstraint([SIGNI_L1], zero.pending.selectionConstraint, cardMap), '数え元0枚で正レベルは選べない');
+});
+
+test('段2 第39バッチ engine両方向: 多段レベル合計は退避元を読み、枝の副作用で参照が変わらない', () => {
+  const ctx = { ...mkCtx({}, {}), storedTargetCards: [SIGNI_L3, SIGNI_L4], lastProcessedCards: [SIGNI_L1] };
+  ok(evalCondition({ type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'gte', value: 7, source: 'stored_targets' }, ctx),
+    '成立方向: 退避したLv3+Lv4は7以上');
+  ok(!evalCondition({ type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'gte', value: 8, source: 'stored_targets' }, ctx),
+    '不成立方向: 退避した合計7は8以上でない');
+  ok(!evalCondition({ type: 'LAST_PROCESSED_LEVEL_SUM', operator: 'gte', value: 7 }, ctx),
+    '対照: 上書き後のlastProcessed Lv1を誤参照しない');
+});
+
+test('段2 第39バッチ engine両方向: レベル一致シャドウとレベル上限つき効果耐性を厳密に評価する', () => {
+  const scope = parseShadowScopeText('レベル３のシグニ');
+  if (!scope) throw new Error('shadow scope not parsed');
+  ok(evaluateShadowScope(scope, cardMap.get(SIGNI_L3), 'WXDi-P04-048', mkState({}), cardMap), '成立方向: Lv3発生源を遮る');
+  ok(!evaluateShadowScope(scope, cardMap.get(SIGNI_L2), 'WXDi-P04-048', mkState({}), cardMap), '不成立方向: Lv2発生源は遮らない');
+
+  const freshMap = new Map(effectsMap);
+  const layer = freshBatch39('WX16-053', 'WX16-053-LAYER');
+  if (layer.action.type !== 'GRANT_FIELD_SIGNI_ABILITY') throw new Error('layer action not found');
+  // collector の sourceFilter 消費だけを分離して検証するため、付与後の内側能力を保持シグニへ直接載せる。
+  freshMap.set('WX16-053', [layer.action.abilities[0]]);
+  const protectedState = mkState({ signi: ['WX16-053', null, null] });
+  const low = collectEffectImmuneSigni(protectedState, mkState({}), cardMap, freshMap, true, 'シグニ', SIGNI_L2);
+  const high = collectEffectImmuneSigni(protectedState, mkState({}), cardMap, freshMap, true, 'シグニ', SIGNI_L3);
+  ok(low.has('WX16-053'), '成立方向: Lv2シグニ効果から保護');
+  ok(!high.has('WX16-053'), '不成立方向: Lv3シグニ効果からは保護しない');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

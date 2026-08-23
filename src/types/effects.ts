@@ -405,7 +405,7 @@ export type Condition =
   | { type: 'COND_STUB'; raw: string }
   | { type: 'LAST_PROCESSED_COUNT_GTE'; value: number; verbJa?: string; negate?: boolean; omitGteJa?: boolean } // この方法で直前に処理したカード枚数がN以上。negate=true は「N枚処理しなかった」＝N未満（否定3件）。verbJa/omitGteJa は decompiler 表示専用
   | { type: 'LAST_PROCESSED_SIGNI_LEVEL_PARITY_DIFFERS_FROM_DECLARED' } // 公開されたシグニがあり、そのレベル偶奇が declared_number(偶=0/奇=1) と異なる
-  | { type: 'LAST_PROCESSED_LEVEL_SUM'; operator: CompareOp; value: number }   // lastProcessedCardsのシグニレベル合計とNの比較（operator省略時eqだった旧LAST_PROCESSED_LEVEL_SUM_EQを一般化・続き160）
+  | { type: 'LAST_PROCESSED_LEVEL_SUM'; operator: CompareOp; value: number; source?: 'last_processed' | 'stored_targets' }   // lastProcessedCards（source:'stored_targets' は明示退避した対象）のシグニレベル合計とNの比較
   | { type: 'TRASHED_DISTINCT_LEVELS_GTE'; count: number; allSigniDistinct?: boolean; allSameLevel?: boolean }   // 相異なるレベルがcount種以上。allSigniDistinct は処理した全シグニのレベルが相異なる（WXK09-100）、allSameLevel はシグニ1枚以上かつ全て同レベル
   | { type: 'TRASHED_STORY_COUNT_GTE'; story: string; count: number }  // この方法でトラッシュ(lastProcessedCards)した＜story＞のシグニがcount体以上（WX03-021）
   | { type: 'LAST_PROCESSED_POWER_GTE'; value: number; addDelta?: number }  // 直前に選択/処理したシグニ(lastProcessedCards[0])のパワー(+addDelta)がvalue以上（WX03-046「それのパワーが15000以上」。addDeltaで直前の+パワーを加味）
@@ -693,6 +693,8 @@ export interface TargetFilter {
   levelLteLastProcessedCount?: TargetFilter | true; // 直前に処理した枚数（true）または指定filter一致枚数以下のレベル。0枚ならlevel.max=0
   levelEqLastProcessedLevelSum?: boolean; // 直前に処理したカードの表記レベル合計と一致
   levelEqLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベルと一致。参照不能時は空ヒット
+  levelLteLrig?: 'self' | 'opponent'; // 指定側センタールリグの表記レベル以下。参照不能時は空ヒット
+  levelEqSelf?: boolean; // 効果元カード（付与先ルリグを含む）の表記レベルと一致。参照不能時は空ヒット
   powerLteSelf?: boolean; // 効果元シグニの実効パワー以下（「自身のパワー以下の対戦相手のシグニ」。resolveDynamicFilterがpowerRange.maxへ解決）
   powerLtSelf?: boolean;  // 効果元シグニの実効パワーより低い（「このシグニ/自身よりパワーの低い」。resolveDynamicFilterがpowerRange.maxへ解決）
   powerGtSelf?: boolean;  // 効果元シグニの実効パワーより高い（「このシグニよりパワーの高い」。resolveDynamicFilterがpowerRange.min:N+1へ解決。WXK04-029）
@@ -773,6 +775,8 @@ export interface TargetFilter {
   underLeftCard?: boolean;      // 場を離れたカードの下にあったカード → cardNames:[...] に解決（フンババ）
   levelLteFieldVirusCount?: boolean; // レベルが場（両プレイヤー）にある【ウィルス】の数以下 → level:{max:N}に解決（WX16-005）
   levelLteHandDiff?: boolean; // レベルが自分と対戦相手の手札枚数の差（self−opp）以下 → level:{max:N}に解決（「その枚数の差以下のレベルを持つ」WXK10-045。HAND_DIFF{gt,0} ゲート前提で差≥1）
+  levelLteHandCount?: boolean; // レベルが効果使用者の現在の手札枚数以下。0枚なら level.max=0
+  levelLteUnderSelfCount?: boolean; // レベルが効果元シグニの下にあるカード枚数以下。効果元不在は空ヒット、0枚なら level.max=0
   powerLteLastProcessed?: boolean; // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー以下 → powerRange.max に解決（「ダウンしたそのシグニのパワー以下」WD04-018）
   powerLtLastProcessed?: boolean;  // パワーが直前に処理したシグニ（lastProcessedCards[0]）の実効パワー未満 → powerRange.max:N-1 に解決（「その後、そのシグニよりパワーの低い」＝場に出たシグニ基準。参照不能なら空ヒット。WXDi-P08-031）
   levelLteLastProcessed?: boolean; // レベルが直前に処理したシグニ（lastProcessedCards[0]）のレベル以下 → level.max に解決（「この方法で場に出たシグニのレベル以下」WX25-P1-039 等）
@@ -874,6 +878,8 @@ export interface SelectionConstraint {
   totalLevelExactRef?: NumberOrRef;
   /** 選択したカードのレベル合計を N 以下にする（SEARCH／コストを含む共通経路）。 */
   totalLevelMax?: number;
+  /** 実行時に解決するレベル合計の上限（「この方法で処理した枚数以下」）。 */
+  totalLevelMaxRef?: NumberOrRef;
 }
 
 // ===== アクション =====

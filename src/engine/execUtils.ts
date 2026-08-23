@@ -168,6 +168,12 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
       ? cards.filter(cardNum => matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length
       : cards.length;
   }
+  if (n.$ref === 'last_processed_level_sum') {
+    return (ctx.lastProcessedCards ?? []).reduce((sum, cardNum) => {
+      const level = Number.parseInt(ctx.cardMap.get(getCardNum(cardNum))?.Level ?? '', 10);
+      return sum + (Number.isFinite(level) ? level : 0);
+    }, 0);
+  }
   if (n.$ref === 'cards_drawn_this_attack_phase') {
     return Math.max(0, ctx.ownerState.cards_drawn_this_attack_phase ?? 0);
   }
@@ -2331,10 +2337,12 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       return Number.isFinite(level) && Math.abs(level % 2) !== declared;
     }
     case 'LAST_PROCESSED_LEVEL_SUM': {
-      // lastProcessedCardsのシグニのレベル合計と value を operator で比較（合計がN／N以上／N以下。WD21-012等）
-      const processed = ctx.lastProcessedCards ?? [];
+      // 多段分岐は前枝の処理で lastProcessedCards が上書きされるため、明示退避した対象も参照できる。
+      const processed = cond.source === 'stored_targets'
+        ? (ctx.storedTargetCards ?? [])
+        : (ctx.lastProcessedCards ?? []);
       const sum = processed.reduce((acc, cn) => {
-        const c = ctx.cardMap.get(cn);
+        const c = ctx.cardMap.get(getCardNum(cn));
         if (c?.Type !== 'シグニ') return acc;
         return acc + (parseInt(c.Level ?? '0', 10) || 0);
       }, 0);
@@ -2676,6 +2684,19 @@ export function selectOrInteract(
   opponentResponds = false,
   extra?: { totalPowerMax?: number; candidatePowers?: Record<string, number>; totalLevelMax?: number; candidateLevels?: Record<string, number>; selectionConstraint?: SelectionConstraint },
 ): ExecResult {
+  // 動的な合計制約は pending を作る前に固定値へ解決する。これにより field/trash/hand の
+  // どの選択経路でも UI・CPU・resume が同じ SelectionConstraint を検証する。
+  const rawConstraint = extra?.selectionConstraint;
+  let resolvedExtra = extra;
+  if (rawConstraint?.totalLevelExactRef !== undefined || rawConstraint?.totalLevelMaxRef !== undefined) {
+    const { totalLevelExactRef, totalLevelMaxRef, ...staticConstraint } = rawConstraint;
+    const selectionConstraint: SelectionConstraint = {
+      ...staticConstraint,
+      ...(totalLevelExactRef !== undefined ? { totalLevelExact: resolveCountRef(totalLevelExactRef, ctx) } : {}),
+      ...(totalLevelMaxRef !== undefined ? { totalLevelMax: resolveCountRef(totalLevelMaxRef, ctx) } : {}),
+    };
+    resolvedExtra = { ...extra, selectionConstraint };
+  }
   // シャドウ：相手フィールドを対象とする効果からシャドウ持ちシグニを除外
   // both_field（owner:'any'）でも相手側の候補にはシャドウを適用する（自分側候補は対象外）
   let filteredCands = candidates;
@@ -2729,9 +2750,9 @@ export function selectOrInteract(
   if (filteredCands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
   // exact 合計制約は、成立する組み合わせが無い盤面で選択UIを出すと決定不能になる。
   // optional（「まで／好きな枚数」）でも exact>0 は0枚を成立扱いにせず、空処理へ fail-closed。
-  if (extra?.selectionConstraint?.totalLevelExact !== undefined
+  if (resolvedExtra?.selectionConstraint?.totalLevelExact !== undefined
       && findValidConstrainedSelection(filteredCands, optional ? 0 : count, count,
-        extra.selectionConstraint, ctx.cardMap) === null) {
+        resolvedExtra.selectionConstraint, ctx.cardMap) === null) {
     return done({ ...ctx, lastProcessedCards: [] });
   }
   return needsInteraction(ctx, {
@@ -2743,11 +2764,11 @@ export function selectOrInteract(
     thenAction,
     continuation,
     ...(opponentResponds ? { opponentResponds: true } : {}),
-    ...(extra?.totalPowerMax !== undefined ? { totalPowerMax: extra.totalPowerMax } : {}),
-    ...(extra?.candidatePowers ? { candidatePowers: extra.candidatePowers } : {}),
-    ...(extra?.totalLevelMax !== undefined ? { totalLevelMax: extra.totalLevelMax } : {}),
-    ...(extra?.candidateLevels ? { candidateLevels: extra.candidateLevels } : {}),
-    ...(extra?.selectionConstraint ? { selectionConstraint: extra.selectionConstraint } : {}),
+    ...(resolvedExtra?.totalPowerMax !== undefined ? { totalPowerMax: resolvedExtra.totalPowerMax } : {}),
+    ...(resolvedExtra?.candidatePowers ? { candidatePowers: resolvedExtra.candidatePowers } : {}),
+    ...(resolvedExtra?.totalLevelMax !== undefined ? { totalLevelMax: resolvedExtra.totalLevelMax } : {}),
+    ...(resolvedExtra?.candidateLevels ? { candidateLevels: resolvedExtra.candidateLevels } : {}),
+    ...(resolvedExtra?.selectionConstraint ? { selectionConstraint: resolvedExtra.selectionConstraint } : {}),
   });
 }
 

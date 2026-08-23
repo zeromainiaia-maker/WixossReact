@@ -1253,7 +1253,8 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     // 「好きな数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全バニッシュにしない）。execTrash と同じ慣例。
     if (tgt.upToCount) {
       if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
-      return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx);
+      return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false,
+        { selectionConstraint: tgt.selectionConstraint });
     }
     // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
     //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
@@ -2405,11 +2406,23 @@ function resolveDynamicFilter(
         : noMatch(rest);
     }
   }
-  if (result.levelEqLrig) {
-    const { levelEqLrig: side, ...rest } = result;
+  if (result.levelEqLrig || result.levelLteLrig) {
+    const { levelEqLrig, levelLteLrig, ...rest } = result;
+    const side = levelEqLrig ?? levelLteLrig!;
     const state = side === 'self' ? ownerSt : otherSt;
     const lrig = state?.field.lrig.at(-1);
     const level = lrig ? parseInt(cardMap.get(getCardNum(lrig))?.Level ?? '', 10) : NaN;
+    result = !isNaN(level)
+      ? (levelEqLrig
+          ? { ...rest, level }
+          : { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: level } })
+      : noMatch(rest);
+  }
+  if (result.levelEqSelf) {
+    const { levelEqSelf: _self, ...rest } = result;
+    const level = sourceCardNum
+      ? parseInt(cardMap.get(getCardNum(sourceCardNum))?.Level ?? '', 10)
+      : NaN;
     result = !isNaN(level) ? { ...rest, level } : noMatch(rest);
   }
   // powerLteSelf / powerLtSelf / powerGtSelf: 効果元シグニの実効パワーを基準に powerRange へ解決
@@ -2644,6 +2657,22 @@ function resolveDynamicFilter(
     const diff = ownerSt.hand.length - otherSt.hand.length;
     const { levelLteHandDiff: _, ...rest } = result;
     result = { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: Math.max(0, diff) } };
+  }
+  if (result.levelLteHandCount) {
+    const { levelLteHandCount: _hand, ...rest } = result;
+    result = { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: ownerSt.hand.length } };
+  }
+  if (result.levelLteUnderSelfCount) {
+    const { levelLteUnderSelfCount: _under, ...rest } = result;
+    const stack = sourceCardNum
+      ? ownerSt.field.signi.find(s => {
+          const top = s?.at(-1);
+          return top === sourceCardNum || (!!top && getCardNum(top) === getCardNum(sourceCardNum));
+        })
+      : undefined;
+    result = stack
+      ? { ...rest, level: { ...(typeof rest.level === 'object' ? rest.level : {}), max: Math.max(0, stack.length - 1) } }
+      : noMatch(rest);
   }
   return result;
 }
