@@ -18229,7 +18229,7 @@ async function driveV19ReturnAtTurnEnd(page, H, { source, resona, withDiscard })
   const before = await v15cQueryBattleState(page);
   const isArts = source === V19_ARTS;
   const flow = { opened: false, cardOpened: false, actionClicked: false, cast: false, discardPicked: false,
-    costFired: false, zonePicked: false, endClicked: false, endDiscardPicked: false, endDiscardConfirmed: false };
+    costFired: false, zonePicked: false, resonaPicked: false, endClicked: false, endDiscardPicked: false, endDiscardConfirmed: false };
   const artsEnergy = new Set(); let placed = null; let placedExtra = null; let last = before;
   for (let s = 0; s < 160 && !placed; s++) {
     await page.waitForTimeout(250); let did = null;
@@ -18261,6 +18261,23 @@ async function driveV19ReturnAtTurnEnd(page, H, { source, resona, withDiscard })
     // 🔑**レゾナの配置先は `SELECT_SIGNI_ZONE`＝`EffectInteractionModal.tsx:911` の「ゾーンN」ボタン**であって、
     //   通常召喚の `summon-zone-{zi}`（`SigniSummonZoneModal`）**ではない**（続き480 実測＝ここで `zonePicked` が
     //   永久に立たず配置に到達しなかった）。既存 `H.clickZone()` が「^ゾーンN」を走査するので**そちらを先に試す**。
+    // 🆕**アーツ経路はレゾナの「選択」が挟まる**（2026-08-24・V-19）＝`WX16-Re18-E1` は
+    //   「ルリグデッキからレゾナを**２枚まで**出す」なので、**候補ピッカー → 決定 → ゾーン選択**の3手。
+    //   ⚠(cxlvi)/V-44(a) が閉じて2枚選べるようになった以降、**候補を選ばないと何も起きない**
+    //   （旧ドライバは候補ステップを持たず「戻す対象のレゾナがない」で空振りしていた）。
+    //   ⚠**`isArts` に限定する**＝WX07-050 側（既に緑）の手順へ 決定 クリックを混ぜない。
+    // ⚠🔴**候補クリックは1回だけ**＝もう一度押すと**トグルで選択が外れ**、永久に決定へ到達しない
+    //   （§4.4 の既出＝`clickDecideNofM` のコメントと同型。実測で25ティック toggle し続けた）。
+    // ⚠**枚数入りのラベルで確定する**（V-44 の教訓）＝`upTo` は 0枚でも「決定」できるので、
+    //   素の `決定` を押すと**0枚で完了**して「レゾナが出ない」FAIL が「間欠バグ」に見える。
+    if (!did && isArts && flow.cast && !flow.resonaPicked) {
+      const stp = await H.queryState();
+      if (Array.isArray(stp?.pendingCandidates) && stp.pendingCandidates.includes(resona)) {
+        did = await clickPendingInstance(page, H, resona);
+        if (did) flow.resonaPicked = true;
+      }
+    }
+    if (!did && isArts && flow.resonaPicked) did = await clickExactVisibleText(page, '決定 (1/1)');
     if (!did) { did = await H.clickZone(); if (did) flow.zonePicked = true; }
     if (!did) { did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2'); if (did) flow.zonePicked = true; }
     if (!did) did = await H.clickBtn('発動順序を確定');
@@ -18280,17 +18297,38 @@ async function driveV19ReturnAtTurnEnd(page, H, { source, resona, withDiscard })
   }
 
   await page.keyboard.press('Escape').catch(() => {});
-  await H.repatchTop({ active: 'host', turn_phase: 'END', effect_stack: null, pending_effect: null });
   await page.waitForTimeout(600);
   let finalTicks = 0;
   for (let s = 0; s < 120; s++) {
     await page.waitForTimeout(250); let did = null;
-    if (!flow.endClicked) { did = await H.clickBtn('ターン終了'); if (did) flow.endClicked = true; }
-    if (!did && withDiscard && flow.endClicked && !flow.endDiscardPicked) {
-      did = await H.clickModalImage('小剣　ククリ'); if (did) flow.endDiscardPicked = true;
-    }
-    if (!did && withDiscard && flow.endDiscardPicked && !flow.endDiscardConfirmed) {
-      did = await H.clickBtn('1枚捨てて終了'); if (did) flow.endDiscardConfirmed = true;
+    // 🔴**`turn_phase:'END'` の直接注入はやめた（2026-08-24・V-19）**＝room 正規化に負けて MAIN へ戻され、
+    //   「ターン終了」ボタンが一度も出ないまま120ティック空振りする（§5.1 が V-30 で既に「設計限界」と
+    //   書いていた現象を、ここでも間欠 FAIL の形で踏んだ）。**フェイズボタンを実際に歩く**ほうが速くて確実。
+    // ⚠**「このまま進む」を先に押す**（ルリグ未アタックの確認ダイアログ＝§4.4 の 8c）。
+    // 🔴**手札上限超過モーダルは `flow.endClicked` でゲートしない**（2026-08-24・V-19 で間欠 FAIL の真因）＝
+    //   このモーダルは**「ターン終了」を押す前に出ることがある**（どのフェイズ遷移で手札上限チェックに
+    //   入るかは盤面次第）。ゲートすると**モーダルに覆われて「ターン終了」を押せず、捨て札にも進めない**
+    //   デッドロックになる（120ティック空振り＝263秒）。**モーダルが出ていたらそれを最優先で処理する。**
+    const overLimit = page.getByText('手札上限超過').first();
+    const discardModalOpen = await overLimit.count() && await overLimit.isVisible().catch(() => false);
+    if (discardModalOpen) {
+      flow.endClicked = true;   // ここまで来た＝ターン終了処理に入っている
+      if (!flow.endDiscardPicked) {
+        // ⚠**instance をハードコードしない**＝`v19Wx07Spec` と `v19ArtsSpec` は捨て札用手札の base が違う
+        //   （9310 / 9410）ので、片方に合わせると**もう片方だけが永久に空振りする**（実測で踏んだ）。
+        //   このシナリオは「1枚捨てられたこと」しか見ないので**先頭の候補**でよい。
+        const cell = page.locator('[data-testid^="enddiscard-hand-"]').first();
+        if (await cell.count() && await cell.isVisible().catch(() => false)) {
+          const picked = await cell.getAttribute('data-card-num').catch(() => null);
+          await cell.click({ timeout: 1500 }).catch(() => {}); did = `enddiscard:${picked ?? '?'}`; flow.endDiscardPicked = true;
+        }
+      } else if (!flow.endDiscardConfirmed) {
+        did = await H.clickBtn('1枚捨てて終了'); if (did) flow.endDiscardConfirmed = true;
+      }
+    } else if (!flow.endClicked) {
+      did = await H.clickTextOrBtn(['このまま進む']);
+      if (!did) { const t = await H.clickBtn('ターン終了'); if (t) { did = t; flow.endClicked = true; } }
+      if (!did) did = await H.clickTextOrBtn(['エンドフェイズへ', 'ルリグアタックへ', 'アーツ終了→相手へ', 'アーツ終了', 'アタックフェイズへ']);
     }
     const st = await v15cQueryBattleState(page); last = st;
     const returned = st.host.lrigDeck.includes(resona) && st.host.lrigDeck.length === placed.host.lrigDeck.length + 1;
@@ -18301,7 +18339,7 @@ async function driveV19ReturnAtTurnEnd(page, H, { source, resona, withDiscard })
     const pathDone = flow.endClicked && (!withDiscard || flow.endDiscardConfirmed);
     const settled = pathDone && returned && leftField && notTrash && returnLog && !st.pendingEffect && st.stackLen === 0;
     finalTicks = settled ? finalTicks + 1 : 0;
-    H.log(`  v19.end[${s}] -> ${did ?? 'なし'} | discard=${withDiscard} returned=${returned} fieldGone=${leftField} notTrash=${notTrash} trashDelta=${trashDelta} log=${returnLog}`);
+    H.log(`  v19.end[${s}] -> ${did ?? 'なし'} | discard=${withDiscard} modal=${discardModalOpen} picked=${flow.endDiscardPicked}/${flow.endDiscardConfirmed} returned=${returned} fieldGone=${leftField} notTrash=${notTrash} trashDelta=${trashDelta} log=${returnLog}`);
     if (finalTicks >= 3) {
       const extra = await v18v19QueryExtras(page);
       const conserved = v18v19CountBoth(st, extra, resona) === 1;

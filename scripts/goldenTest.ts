@@ -38106,6 +38106,24 @@ test('§6.4 一時レゾナ: ターン終了処理2経路の両方で funnel を
   eq(calls, 2, `ターン終了処理2経路の両方から呼ぶ（現在 ${calls} 箇所）`);
 });
 
+// 🔴V-19（2026-08-24・実機でカード消失を確認して修正）＝**上のテストは「funnel を呼ぶ」までしか見ておらず、
+// 「戻り値を lrig_deck へ永続化する」側の穴を検知できなかった**。実害＝一時レゾナが
+// **場からは消えるがルリグデッキにも戻らない＝カードがゲームから消滅**（手札上限内のターンだけ発生）。
+// ⚠**呼び出し2箇所に対して永続化サイトは3箇所**＝`doPhaseAdvance` は「手札上限超過で中断する枝」と
+//   「通常どおり最後まで組み立てる枝」の**2つの出口**を持ち、`confirmEndDiscard` が3つ目。
+//   **1つでも欠けると「手札が◯枚のターンだけ消える」型の無言の不整合になる。**
+test('V-19 一時レゾナ: funnel の戻り値が全ターン終了出口で lrig_deck へ永続化される（3サイト）', () => {
+  const src = fs.readFileSync(join(root, 'src/screens/BattleScreen.tsx'), 'utf8');
+  const vars = [...src.matchAll(/(\w+)\s*=\s*ret\.returned;/g)].map(m => m[1]);
+  eq(vars.length, 2, `funnel の戻り値を受ける変数が2つ見つからない（${vars.join(',')}）`);
+  for (const v of vars) {
+    ok(src.includes(`lrig_deck: [...myEndState.lrig_deck, ...${v}]`),
+       `${v} が lrig_deck へ永続化されていない＝場から消えたレゾナがどこにも戻らない`);
+  }
+  const sites = (src.match(/lrig_deck: \[\.\.\.myEndState\.lrig_deck, \.\.\./g) ?? []).length;
+  eq(sites, 3, `ターン終了の出口3つ（上限超過で中断／通常／confirmEndDiscard）すべてで戻し入れる（現在 ${sites} 箇所）`);
+});
+
 
 // ══════════════════════════════════════════════════════════════════════════════
 // §6.4 UNKNOWN 消化: 任意コストが UNKNOWN に落ちて「タダで本体が撃てる」形（続き434）

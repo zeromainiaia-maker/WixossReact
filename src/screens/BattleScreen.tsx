@@ -3943,6 +3943,13 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           turn_end_mill_count: undefined,
           damage_replace_mill: undefined,  // ターン内ダメージ置換（REPLACE_NEXT_DAMAGE_WITH_MILL）をリセット
           life_crash_replacements: undefined, // §6.4 ライフクラッシュ置換の宣言をリセット（このターン限定）
+          // 🔴**V-19（2026-08-24）＝ここに `lrig_deck` の戻し入れが無く、一時レゾナが「場から消えるが
+          //   ルリグデッキにも戻らない」＝カードが消失していた**（実機で再現）。`myFieldAfterCoinCheck` は
+          //   上の `resolveTurnEndLrigDeckReturn` で**レゾナを除いた場**になっているのに、`...myEndState` の
+          //   `lrig_deck` は元のまま＝戻り先がどこにも無い状態で永続化されていた。
+          //   ⚠**手札上限**超過側（`openEndDiscard` 直前）と `confirmEndDiscard` 側には既に同じ加算がある
+          //   ＝**3経路のうちこの1本だけが抜けていた**（「手札が少ないターンだけ消える」型の無言の不整合）。
+          ...(myLrigDeckReturned.length > 0 ? { lrig_deck: [...myEndState.lrig_deck, ...myLrigDeckReturned] } : {}),
           turn_end_return_to_lrig_deck: undefined, last_summoned_resonas: undefined, // 一時レゾナ返却の残骸をリセット
           life_burst_double_next: undefined, // ライフバースト2回発動フラグをリセット
           lrig_granted_auto_effects: clearTurnGrantedLrigAbilities(my).lrig_granted_auto_effects, // ターン終了時まで付与されたルリグ能力をクリア（「このゲームの間」付与は残す）
