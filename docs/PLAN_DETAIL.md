@@ -3179,6 +3179,42 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
 
+- **🆕 2026-08-23 続き621（段2 第26バッチ＝動的な上限の復元）後 最新値（本行が直近の正）**：
+  **census 693/693**（`BASELINE_HIGH` 更新済み・セッション開始時 702）、**golden 2478**（同 2442）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
+  `_held_fresh` **87**（セッション開始時 88＝`WXEX2-70` が採用され離脱）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  **`censusManualDrift` の削除候補（§6.4 `O-42` の母集団）＝86 据置**。
+  🔴**engine の改変（セッション累計）**＝`execGrantProtection` が `subjectFilter`-only を no-op にしていたのを
+  `field_grants_active`／`granted_effects` へ配線＋BANISH collector 2本にルリグ発生源と `excludeSelf` を追加（616）／
+  `TargetFilter.isDrive` を `fieldCandidates` の消費地点へ追加（620）／
+  `TargetFilter` に `powerLteZoneCount`／`levelLteZoneCount`／`powerLteLastProcessedCount`／`levelLteLastProcessedCount` を新設し
+  `resolveDynamicFilter` へ解決を配線、`CountFromZone.zone` に `hand`／`acce`／`trap` を追加、
+  `resolveCountRef` と `resolveDynamicFilter` を共通 `countFromZone`（`execUtils.ts`）へ統一（621）。
+  🆕**条件型の数＝`ActiveCondition` 49／`Condition` 122 据置**（golden のトリップワイヤが正）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 883**／段2 消化 **207**／真バグ確定 872／
+  HIGH・MED・LOW＝**585・290・8**／段0 除去 231／段1 偽陽性 125。
+  📊**母集団の切り方＝5原則＋α**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない
+  ⑥原文の括弧内ルール説明を能力として数えない（続き610）
+  ⑦🆕**再帰探索で入れ子まで拾わない＝トップレベルの action から見る**（続き616＝【レイヤー】18／【アクセ】2 を誤って「潰れている」と数えかけた）
+  ⑧🆕**既存の受け皿型を先に一覧化してから引き算する**（続き621＝`POWER_MODIFY_PER_FIELD`／`countFromZone`／`DRAW_PER_FIELD_COUNT` 等を知らずに「スケーリング脱落」を数えると 13件が 170件に膨れる）。
+  🆕🔑**続き616 で確立＝「同じ語彙でも CONTINUOUS 経路と AUTO/ACTIVATED 経路で消費地点が別」**＝
+  `GRANT_PROTECTION.subjectFilter` は collector が CONTINUOUS だけ直接読み、`executeAction` 側は**ログだけの no-op** だった。
+  **parser を直した瞬間に保護が丸ごと消えて恒久 no-op へ裏返る**（続き614 の「省略値をどう扱うか」と同型の罠）。
+  🆕🔑**続き621 で確立＝「動的な上限」は fail-closed でなければ直したことにならない**＝
+  枚数0のとき上限0（候補なし）を golden で固定する。fail-open だと JSON だけ直って過剰実行のまま。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-42`／`O-44`**（🏁`O-41` は続き609、🏁`O-43` は続き615 で残0クローズ）。
+  **§6.3 の新規は `L`**（共通色比較・**7バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠`levelExact × BLOCK_ACTION{PLAYER}` の3件は恒久的な偽陽性）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`＋`V-84`＋`V-83`＋🆕今回の5バッチ全部**
+  （耐性の集合付与／犠牲側 owner／キーワードの集合付与／動的上限の4系統）。
+  ⚠**`.codex-work`（有料 Codex）は 2026-08-28 21:58 まで利用上限**＝当面は `CODEX_HOME=C:/Users/zerom/.codex`（＝既定なので環境変数なしの `codex exec`）で投げる。
+  🆕**続き616〜621 の投入コマンド（実績）**＝`codex exec -C "C:/Users/zerom/WixossReact" -c sandbox_mode="danger-full-access" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`
+  （`~/.codex/config.toml` は `sandbox_mode` 未設定・`model_reasoning_effort="low"` なので **`-c` で両方とも上書きする**）。
+
 - **🆕 2026-08-22 続き608（段2 第16バッチ＝「代わりに」の置換が効かず両方実行・live 7効果）後 最新値（本行が直近の正）**：
   **census 733→730**（`BASELINE_HIGH` 更新済み）、**golden 2362→2366**、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
   **lint 0 errors / 261 warnings 据置**、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、

@@ -140,23 +140,24 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-23・続き616〜621・Opus 5＋Codex）＝段2 を5バッチ連投**（第23〜26バッチ＋第24の積み残し回収）。**残 OPEN 905→883**（**−22**）／段2 消化 **184→207**。**census 702→693**／**golden 2442→2478**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、`_partial_fresh` 15／`_idset_fresh` 46／`censusManualDrift` 削除候補 **86** は全バッチで維持（`_held_fresh` は 88→87＝`WXEX2-70` が採用され離脱）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch23〜26_report.md`。
+- **🆕 セッション（2026-08-23・続き622〜626・Opus 5＋Codex）＝段2 を2バッチ＋§6.4 `O-42` を2バッチで残1まで消化**（計5投入・うち1回は Codex が正しく起動を拒否して再投入）。**残 OPEN 883→855**（**−28**）／段2 消化 **207→236**。**census 671→659**／**golden 2442→2518**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、held/partial/idset **87/15/46** は全バッチで維持。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch27〜28_report.md` ／ `o42_batch1〜2_report.md`。
 
   | # | 題材 | live 修正 | 一言 |
   |---|---|---:|---|
-  | 23 | 集合主語の BANISH 耐性が「あなたのシグニ1体」へ潰れる | 4 | 🔴**parser だけ直すと保護が丸ごと消える**＝executor が `subjectFilter`-only を**ログだけの no-op** にしていた |
-  | 24 | 「相手を対象→あなたの＜X＞1体を犠牲」の犠牲側 owner 反転 | 6 | 自分の盤面を削る**代償**が相手の盤面を削る**利益**に化けていた |
-  | 25 | `GRANT_KEYWORD` の集合主語が `count:1` | 9 | 第23の**同じ根の別 action**。Codex が同型 `WXEX2-07-E1` を追加発見 |
-  | 26 | 〈ゾーンの枚数〉で動くパワー／レベル上限が丸ごと消失 | 13+1 | **1つの根から過剰実行と過小実行が同時に出る**（上限消失＋数え元クラスの誤付着） |
+  | 27 | 「〜のパワーを＋Ｎし、それ（ら）は…を得る」で**前半の `POWER_MODIFY` が丸ごと脱落** | 15 | 逆翻訳に付与だけ正しく出るので**偽陰性**。owner 反転・正面判定・保護期間も同時是正 |
+  | 28 | 【常】の「〜であるかぎり」条件が丸ごと落ちて**無条件付与** | 16 | `ActiveCondition` 新設3＋既存4拡張を**型・評価器・両方向golden の3点セット**で |
+  | O-42① | parser が追いついた manual 影武者コピー | 48 | 削除候補 **86→38**。`manualEffects.ts` は**278行の純削除** |
+  | O-42② | 同（完結） | 37 | 削除候補 **38→1**。`manualEffects` **451→412カード** |
 
-  - 🔑**このセッションで確立した最大の型＝「同じ語彙でも CONTINUOUS 経路と AUTO/ACTIVATED 経路で消費地点が別」**。第23バッチが決定的な実例＝`GRANT_PROTECTION.subjectFilter` は engine の collector が **CONTINUOUS だけ**直接読んでおり、`executeAction` を通る AUTO/ACTIVATED では `execGrantProtection` が「CONTINUOUS 用宣言」として**ログを出して終了**していた。**parser を直した瞬間に保護が丸ごと消えて恒久 no-op へ裏返る**ところだった（続き614 の `sourceOwner` 省略値と同型の罠）。⇒ **既存 `field_grants_active` / `granted_effects` へ配線**して解消し、副産物として**それまで完全に死んでいた `WX05-014-E1`（「このターン、あなたの＜美巧＞のシグニは…効果を受けない」）も蘇生**した。
-  - 🔑**「主語の集合が潰れる」は1つの根で複数 action に出る**＝第23（`GRANT_PROTECTION`）→第25（`GRANT_KEYWORD`）で**同じ判定式を別の分岐へ写すだけ**で13効果が直った。⚠**逆に、集合化してよいのは主語が集合の形だけ**＝「このシグニは」「N体を対象とし」を巻き込むと単体付与が全体付与へ化けて過剰実行になるので、両バッチとも除外ガードを入れている。
-  - 🔑**「動的上限」は既存ファミリへフィールドを足すだけで足りた**（第26）＝`TargetFilter` には `powerLteSelf`／`levelLteFieldVirusCount`／`powerLteRevealedSigniLevelSum` など**同型が10本以上**あり、`resolveDynamicFilter` が `powerRange.max`／`level.max` へ解決する。新設は `powerLteZoneCount`／`levelLteZoneCount`／`powerLteLastProcessedCount`／`levelLteLastProcessedCount` の4本と `CountFromZone.zone` の `hand`／`acce`／`trap`。**`resolveCountRef` と `resolveDynamicFilter` が共通の `countFromZone` を使う**よう統一した（列挙値を足したとき片方だけ未対応になるのを構造的に防ぐ）。⚠**0枚のとき上限0＝fail-closed** を golden で固定（fail-open だと「直したつもりで過剰実行のまま」）。
-  - ⚠**投入前の実測で PLAN の候補行が丸ごと消えた**（CODEX_GUIDE §3-1）＝第23バッチの候補①「常在の段階置換5件」は **5件とも既に正しく実装済み**だった（`WXEX1-33-E2`＋`E2b` 等）。さらに候補に見えた**【レイヤー】18効果と【アクセ】ホスト形2効果も全部正しかった**（外側の `GRANT_FIELD_SIGNI_ABILITY`／`GRANT_ACCE_HOST_ABILITY` が集合化を担当）。🆕**再帰探索で入れ子まで拾うと「潰れている」ように見える**＝**トップレベルの action から確かめる**こと。
-  - ⚠**Codex は5バッチで2回 Claude の見立てを訂正した**＝①第25バッチ C1（`WX25-CP1-005-E1` は「live は Ｓランサーだけ」ではなく、シャドウ leaf は既にあり欠けていたのは +5000 と `levelGte:3` スコープ）②第24バッチで指示書の「必須形」限定が任意形を取りこぼすことを次バッチで自己回収。**Claude 側の原因＝JSON を先頭だけ見て書いた**（CODEX_GUIDE §3-3 に登録）。
-  - 🆕**新規発見・未修正**＝`SPDi47-04-E2`／`WX24-P4-020-E3`（「あなたのすべてのシグニのパワーを＋N し、**それらは**【K】を得る」の**代名詞形**はパワー加算が合成されない）／`WXEX2-11-E4`（「このルリグは全＜乗機＞へ乗る」搭乗機構）／`WXEX2-07-E1`（＜宝石＞への引用 CONTINUOUS バニッシュ耐性）／`WXEX1-67-E1`（任意《青》支払いの脱落）／`WX07-039-E2`・`WXEX1-14-E2`（**count>1 の全数支払い**を engine が表現できない＝機構待ち）／`WX15-010-E1`（「次にバニッシュされる場合」の**1回消費**語彙が無い＝機構待ち）。**いずれも非採用を golden で契約固定済み。**
-  - **▶ 次の一手【Opus 側】＝段2 第27バッチ**。候補（**着手前に必ず再実測**）：①🆕**「あなたのすべてのシグニ…、それらは【K】を得る」の代名詞形でパワー加算が落ちる2件**（第25バッチの積み残し・合成規則の後方参照ガードを緩めるだけ） ②🆕**count>1 の全数支払い機構**（`WX07-039-E2` 3体／`WXEX1-14-E2` エナ3枚＝engine 側の作業。§6.4 へ登録候補） ③**§6.3 `L`**＝共通色比較（**7バッチ連続で保留**・残3効果）。§6.4 の残りは `O-42`／`O-44`。
-  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`**（続き609 で宣言 UI が新規に30カードで出る）、**`V-84`**（レベル限定つきガード禁止）、**`V-83`**。🆕**今回の5バッチはすべて実機未検証**（耐性の集合付与／犠牲側 owner／キーワードの集合付与／動的上限の4系統）。
+  - 🔑**このセッション最大の型＝「実体は同じだが所有者が違う」死荷重の掃除に、機械検証できる不変条件を1本立てた**（`O-42`）。`mergeManualEffects` は `parseStatus` を見ず effectId 一致で常に manual を勝たせるので、**parser が追いついた後もその効果だけ以後の改善を永久に受け取れない**（内容が同じうちは誰も気付けない）。85効果を解除した際の安全性は **「live の変化は `parseStatus:MANUAL→AUTO` だけ。`action`/`cost`/`condition`/`timing` は1バイトも変わらない」**という不変条件に載せ、**両バッチとも per-effect diff で 0件を機械確認**した（40件＋37件）。⇒ **この形は「掃除系バッチ」の定型にできる**＝先に不変条件を書き、それを破る効果は候補から外させる。
+  - 🔑**再発防止をリストではなくトリップワイヤで置いた**＝`MANUAL_EFFECTS × parseCardEffects` を**毎回再導出**して既知在庫と**集合一致**を assert する golden（`O42_KNOWN_REDUNDANT_MANUAL`・現在1件）。**新しい影武者コピーが生えた瞬間に落ちる**ので、CODEX_GUIDE §5 `10′`（影武者を機械的に作るな）が**人の記憶ではなくゲートで守られる**ようになった。
+  - 🔑**「集合主語が単体へ潰れる」に続いて「合成の前半が丸ごと落ちる」も1つの根で複数 action に出た**（第27）＝`GRANT_KEYWORD` / `GRANT_PROTECTION` / `REMOVE_ABILITIES` の**後段付与はどれも正しく出ていて、前半の `POWER_MODIFY` だけが無言で消える**。既存の受け皿は受動形（`このシグニのパワーは＋Nされ、…`）しか無く、**能動の連用中止形「…のパワーを＋Ｎし、」がどの枝にも当たっていなかった**。
+  - ⚠**Codex が Claude の見立てを2回訂正**＝①第27の母集団を**カード単位の「原文 `パワーを＋` 出現数 vs live `POWER_MODIFY` ノード数」**で数えたため、**兄弟効果に個数を相殺された `WXDi-CP02-092-E2` が漏れていた**（検証側で追加採用）②第28の A3 は `IS_SELF_ACCED{cardName}` 拡張だけでは足りず、**`collectEffectImmuneSigni` が `SEQUENCE` 内の自己対象 `GRANT_PROTECTION` を走査していない配線穴**があった（条件を付けても保護が一度も有効にならないところだった）。🆕**母集団の切り方に⑨を追加**＝**カード単位の「個数差」で数えない**（兄弟効果が相殺する）。
+  - ⚠**Claude 側の投入前実測が効いた例**＝第28の候補10件のうち**3件（`WX16-051-LAYER`／`WXEX2-59-LAYER`／`WXEX1-70-E3`）は既に正しかった**（入れ子の `abilities[]` に `SELF_POWER_THRESHOLD` が載っている／別ブロックの `GRANT_ACCE_HOST_ABILITY` を誤って突き合わせた）。指示書に D群として「触るな」と書き、**実際に差分0**。CODEX_GUIDE §3-3⁶ の再発。
+  - ⚠**計器の偽陽性を1つ較正した**（`O-42①`）＝MANUAL 解除で露出。census の色チェックが **`"color"` を単値の完全一致でしか見ておらず、複数色フィルタの配列形（`["白","黒"]`＝「白か黒のシグニ」）を欠落と誤検出**していた。live 24効果で配列形が正しく使われていることを原文照合してから較正（671→659）。**CODEX_GUIDE §3-3‴ の再発**。
+  - 🆕**新規発見・未修正**＝`WX10-018-E1`（**live 本文が manual/parser より貧しい**＝素の `STUB{NEGATE_NTH_ATTACK}` で `negateNthAttack{count:2,signi,lrig}` の payload が無い。`O-42` の削除候補に残っている唯一の1件）／`WD15-007-E1`（「その正面のシグニのパワーが12000以上であるかぎり」は**付与先ごとの動的条件**で既存 `fieldCondition`／`ActiveCondition` では表せず据置＝非採用契約を golden 化済み）／`WXDi-P04-079-BURST`（BurstText の `CHOOSE` が丸ごと消えて②だけになっている）／第27 C群の引用能力 STUB 群（`WX08-073-E1`／`WX24-P1-014-E1`／`WX24-P1-078-E1`／`WXDi-P06-059-E1`／`PR-K076-E2`／`WX26-CP1-024-E1`）。
+  - **▶ 次の一手【Opus 側】**（**着手前に必ず再実測**）：①🆕**`WX10-018-E1` の live 本文欠落**＝`O-42` 残1の正体。`syncManualLive.ts` 経由で manual の payload を live へ届ければ削除候補0でクローズできる ②🆕**引用能力 STUB（`GRANT_ABILITY_INNER_TEXT` live 34件）の展開**＝第27 C群がそのまま母集団 ③**count>1 の全数支払い機構**（`WX07-039-E2` 3体／`WXEX1-14-E2` エナ3枚＝engine 側） ④**§6.3 `L`**＝共通色比較（**8バッチ連続で保留**・残3効果）。§6.4 の残りは `O-44`。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`**、**`V-84`**、**`V-83`**。🆕**続き616〜621 の5バッチ＋今回の第27・第28バッチはすべて実機未検証**（耐性／キーワードの集合付与・犠牲側 owner・動的上限・**パワー加算と付与の合成**・**常在の条件つき付与**の6系統）。⚠**`O-42` の85効果は刻印だけの変更なので実機影響は無い**が、**以後は parser 出力が直接 live に載る**ので、次に parser を触ったときの回帰先が広がっている点に注意。
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の
@@ -164,41 +165,49 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-23 続き621（段2 第26バッチ＝動的な上限の復元）後 最新値（本行が直近の正）**：
-  **census 693/693**（`BASELINE_HIGH` 更新済み・セッション開始時 702）、**golden 2478**（同 2442）、
-  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
-  `_held_fresh` **87**（セッション開始時 88＝`WXEX2-70` が採用され離脱）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
-  **`censusManualDrift` の削除候補（§6.4 `O-42` の母集団）＝86 据置**。
-  🔴**engine の改変（セッション累計）**＝`execGrantProtection` が `subjectFilter`-only を no-op にしていたのを
-  `field_grants_active`／`granted_effects` へ配線＋BANISH collector 2本にルリグ発生源と `excludeSelf` を追加（616）／
-  `TargetFilter.isDrive` を `fieldCandidates` の消費地点へ追加（620）／
-  `TargetFilter` に `powerLteZoneCount`／`levelLteZoneCount`／`powerLteLastProcessedCount`／`levelLteLastProcessedCount` を新設し
-  `resolveDynamicFilter` へ解決を配線、`CountFromZone.zone` に `hand`／`acce`／`trap` を追加、
-  `resolveCountRef` と `resolveDynamicFilter` を共通 `countFromZone`（`execUtils.ts`）へ統一（621）。
-  🆕**条件型の数＝`ActiveCondition` 49／`Condition` 122 据置**（golden のトリップワイヤが正）。
-  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 883**／段2 消化 **207**／真バグ確定 872／
-  HIGH・MED・LOW＝**585・290・8**／段0 除去 231／段1 偽陽性 125。
+- **🆕 2026-08-23 続き626（§6.4 `O-42` 第2バッチ＝manual 影武者の解除完結）後 最新値（本行が直近の正）**：
+  **census 659/659**（`BASELINE_HIGH` 更新済み・セッション開始時 693。**うち −12 は計器の偽陽性較正**＝下記）、
+  **golden 2518**（同 2442）、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
+  **lint 0 errors / 261 warnings 据置**、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
+  **live 効果総数 10693 据置**。`_held_fresh` **87 据置**／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🆕**`censusManualDrift`＝削除候補 86→**1**（§6.4 `O-42` ほぼ残0）／乖離 23/20/4/3/2（計52効果・47カード）据置／
+  `manualEffects` **451→412 カード**（`manualEffects.ts` は 474行の純削除）。
+  🆕**条件型の数＝`Condition` 122 据置／`ActiveCondition` 49→**52**（golden のトリップワイヤが正）。
+  🔴**engine の改変（セッション累計）**＝`GRANT_PROTECTION` / `REMOVE_ABILITIES` に `targetsLastProcessed` を新設して
+  `lastProcessedCards` の消費経路を追加（622）／`collectContinuousGrantedKeywords` が CONTINUOUS `SEQUENCE` 内の
+  `GRANT_KEYWORD` を収集し `matchesStateFilter` まで通す（622）／`collectEffectImmuneSigni` が `SEQUENCE` 内の
+  自己対象 `GRANT_PROTECTION` を読めなかった穴を配線（623）／`checkActiveCondition` に
+  `IS_SELF_SOUL_ATTACHED`・`ENERGY_EACH_LEVEL_FILTER_GTE`・`ARTS_USED_THIS_TURN{minCount}` を新設し、
+  `IS_SELF_ACCED{cardName}`／`THIS_CARD_HAS_UNDER{minCount}`／`SELF_HAS_KEYWORD{subject}` を拡張（623）／
+  `fieldCandidates` が `TargetFilter.keyword`（印字済み＋解決済み付与の双方）を評価（623）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 855**（セッション開始時 883・**closed effectId 202→231**）／段2 消化 **236**／
+  HIGH・MED・LOW＝**538・349・9**（`stage2_closed.txt` の effectId を除いた同一計算での実測）。
   📊**母集団の切り方＝5原則＋α**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
   ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない
   ⑥原文の括弧内ルール説明を能力として数えない（続き610）
-  ⑦🆕**再帰探索で入れ子まで拾わない＝トップレベルの action から見る**（続き616＝【レイヤー】18／【アクセ】2 を誤って「潰れている」と数えかけた）
-  ⑧🆕**既存の受け皿型を先に一覧化してから引き算する**（続き621＝`POWER_MODIFY_PER_FIELD`／`countFromZone`／`DRAW_PER_FIELD_COUNT` 等を知らずに「スケーリング脱落」を数えると 13件が 170件に膨れる）。
-  🆕🔑**続き616 で確立＝「同じ語彙でも CONTINUOUS 経路と AUTO/ACTIVATED 経路で消費地点が別」**＝
-  `GRANT_PROTECTION.subjectFilter` は collector が CONTINUOUS だけ直接読み、`executeAction` 側は**ログだけの no-op** だった。
-  **parser を直した瞬間に保護が丸ごと消えて恒久 no-op へ裏返る**（続き614 の「省略値をどう扱うか」と同型の罠）。
-  🆕🔑**続き621 で確立＝「動的な上限」は fail-closed でなければ直したことにならない**＝
-  枚数0のとき上限0（候補なし）を golden で固定する。fail-open だと JSON だけ直って過剰実行のまま。
+  ⑦再帰探索で入れ子まで拾わない＝トップレベルの action から見る（続き616・**続き623 で再発**）
+  ⑧既存の受け皿型を先に一覧化してから引き算する（続き621）
+  ⑨🆕**カード単位の「個数差」で数えない**（続き622＝原文の `パワーを＋` 出現数 vs live の `POWER_MODIFY` ノード数で数えたら、
+  **兄弟効果に個数を相殺された `WXDi-CP02-092-E2` が母集団から漏れた**。Codex が生パース差分で発見）
+  🆕🔑**続き624〜626 で確立＝「掃除系バッチは先に不変条件を書く」**＝`O-42` の85効果解除は
+  **「live の変化は `parseStatus:MANUAL→AUTO` だけ。それ以外は1バイトも変わらない」**を指示書に明記し、
+  **per-effect diff で 0件を機械確認**した（40件＋37件とも達成）。**破る効果は候補から外させる**運用で
+  `WX10-018-E1` 1件だけが正しく残置された（live 本文が manual/parser より貧しい＝別の実バグ）。
+  🆕🔑**再発防止はリストでなくトリップワイヤで置く**＝`MANUAL_EFFECTS × parseCardEffects` を毎回再導出して
+  既知在庫と**集合一致**を assert する golden（`O42_KNOWN_REDUNDANT_MANUAL`）。**新しい影武者が生えた瞬間に落ちる。**
   ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
-  **§6.4 の生きた worklist は `O-42`／`O-44`**（🏁`O-41` は続き609、🏁`O-43` は続き615 で残0クローズ）。
-  **§6.3 の新規は `L`**（共通色比較・**7バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **§6.4 の生きた worklist は `O-44`**（🏁`O-41` は続き609、🏁`O-43` は続き615、🏁`O-42` は続き626 で残1までクローズ）。
+  **§6.3 の新規は `L`**（共通色比較・**8バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
   **`census:wiring` miss 合計 194**（続き606 実測・⚠`levelExact × BLOCK_ACTION{PLAYER}` の3件は恒久的な偽陽性）／**`census:timing` フォールバック 2効果**。
   version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
-  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`＋`V-84`＋`V-83`＋🆕今回の5バッチ全部**
-  （耐性の集合付与／犠牲側 owner／キーワードの集合付与／動的上限の4系統）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`＋`V-84`＋`V-83`＋続き616〜621 の5バッチ＋🆕続き622・623 の2バッチ**
+  （耐性／キーワードの集合付与・犠牲側 owner・動的上限・**パワー加算と付与の合成**・**常在の条件つき付与**の6系統）。
   ⚠**`.codex-work`（有料 Codex）は 2026-08-28 21:58 まで利用上限**＝当面は `CODEX_HOME=C:/Users/zerom/.codex`（＝既定なので環境変数なしの `codex exec`）で投げる。
-  🆕**続き616〜621 の投入コマンド（実績）**＝`codex exec -C "C:/Users/zerom/WixossReact" -c sandbox_mode="danger-full-access" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`
+  **続き616〜626 の投入コマンド（実績）**＝`codex exec -C "C:/Users/zerom/WixossReact" -c sandbox_mode="danger-full-access" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`
   （`~/.codex/config.toml` は `sandbox_mode` 未設定・`model_reasoning_effort="low"` なので **`-c` で両方とも上書きする**）。
+  ⚠🆕**投入前に必ず `git status --porcelain` を空にする**＝続き624 で Claude が投入前に計器（`censusManualDrift.ts`）を回したせいで
+  `docs/_manual_drift.txt` に**生成時刻1行の差分**が残り、**Codex が「ユーザーの既存変更を無断で破棄しない」と判断して起動を拒否した**
+  （判断自体は正しい）。**計器を回したら `git checkout` してから投げる。**
 ## 5. フェーズ1残作業：表現（P1）
 
 > **🏁 P1完了宣言済み（2026-07-23）＝[P1_COMPLETION_ROADMAP.md](./P1_COMPLETION_ROADMAP.md) 冒頭の宣言節が正**。census 高シグナル 1581 を「**§6.3 正式送り 282／粗網のみ偽陽性 116／長テール単発・別節偽陽性 1183**」へ3分類（機械分類の実IDは `docs/_p1_classification.txt`）。根拠＝最短ルートのバッチ1〜5＋再クラスタリング生存バッチ（11「相手が選ぶ」43・6「数量比例」27）を全消化・バッチ2〜4は投入前実測で枯渇（別節表現済みの census 偽陽性主体）＝「1 parser規則→N効果」の系統クラスタが出尽くした＝逓減限界。**以後この節の worklist から新規バッチは切らない**＝census は回帰ゲート（`BASELINE_HIGH＝**宣言当時 1580／現在は §4 恒久指標の1行が正**`）としてのみ維持し、残バグは BEHAVIOR_AUDIT／semantic audit／PARTIAL 計器／§7 実機で単発発見→直修正する。§6.3 送り282効果の消化先は §6.3 台帳（P2/P3）。
@@ -731,7 +740,7 @@
 | ID | 項目 | 規模 | ブロッカー／次の一手 |
 |---|---|---|---|
 | **O-44** | 🆕**「原因効果の発生源クラス」限定の規約が2種類混在している（fail-open と fail-closed）** | S | **2026-08-22 続き607 実測**＝同じ意味の限定が **timing ごとに別フィールド**で4本ある（`trashSourceStory` / `banishedSourceStory` / `powerDecreaseSourceStory` / `milledSourceStory`）が、**原因不明のときの倒し方が揃っていない**。`trashSourceStory`・`banishedSourceStory`・`milledSourceStory` は **fail-closed**（発火しない＝過小側）、**`powerDecreaseSourceStory` だけ fail-open**（発火する＝過剰側）。⚠**続き607 で `milledSourceStory` を fail-open→fail-closed へ揃えた際、元コメントが明示的に逆の判断を書いていた**（「部分実装が過少発火の退化になる」）＝**どちらが正しいかはカードの原文次第**（「効果**１つによって**」のように原因特定が意味の一部なら fail-closed が忠実）。**残る非対称は `powerDecreaseSourceStory` 1本**。⚠**着手前に、その語彙を使う live 効果の原文を全部読んでから決める**（機械的に揃えない）。実機観測点は §7 `V-83`。 |
-| **O-42** | 🆕**parser 出力と実体同一になった manual エントリ 87効果**（うち80件は live も凍っている） | M | **2026-08-22 続き597 実測**＝`npx tsx scripts/censusManualDrift.ts` の新設節「削除候補」。`mergeManualEffects` は id 一致で常に manual を勝たせるので、**parser が追いついた後もその効果だけ以後の改善を受け取れない**（内容が同じうちは誰も気付けない）。**7件（刻印 AUTO）は続き597 で削除済み**。🔴**残80件は刻印 `MANUAL`＝live 側も `PRESERVE_STATUSES` で凍っている**ので、manual から消すだけでは解けない＝**live の刻印を AUTO へ戻す＝手修正の保護を80効果ぶん外す**判断が要る。⚠一括でやらない＝**golden に契約テストがある効果から**（`WXK04-060` は4件あった）バッチで。着手前に必ず再実測（parser が退化していれば逆に危険）
+| 🏁**O-42** | ✅**parser 出力と実体同一になった manual 影武者コピー＝残1**（2026-08-23 続き624〜626 で 86→1） | — | **続き624＝48効果／続き626＝37効果を解除**（`manualEffects.ts` は474行の純削除・451→412カード）。**安全性は不変条件で担保**＝「live の変化は `parseStatus:MANUAL→AUTO` だけ、それ以外は1バイトも変わらない」を per-effect diff で**両バッチとも0件**確認。🔴**残1＝`WX10-018-E1`**＝**live 本文が manual/parser より貧しい**（素の `STUB{NEGATE_NTH_ATTACK}` で `negateNthAttack{count:2,signi:true,lrig:true}` の payload が無い）ため、解除すると `parseStatus` 以外も変わる＝不変条件に反するので残置した。⇒ **これは影武者ではなく「manual が live へ届いていない」別種のバグ**なので、`npx tsx scripts/syncManualLive.ts WX10-018` で payload を届ければ残0になる。**再発防止は golden のトリップワイヤ**（`O42_KNOWN_REDUNDANT_MANUAL`＝`MANUAL_EFFECTS × parseCardEffects` を毎回再導出して集合一致を assert）＝**新しい影武者が生えたら FAIL する**ので、以後この worklist を人が見張る必要はない。詳細は `o42_batch1_report.md` / `o42_batch2_report.md`。 |
 
 **■ 監視だけしている項目（着手不要・壊れたら気付く）**
 - 🆕**`census:wiring` の `levelExact × BLOCK_ACTION{PLAYER}`（miss=3 / has=0）は恒久的な偽陽性**（2026-08-22 続き609・O-41 決着時）＝`WD15-010-E1`／`WDK05-T09-E1`／`WX18-039-E1` は**レベル限定を actionId の文字列に載せて**解決済み。⚠**`target.filter.level` を足して計器を黙らせないこと**＝この `target` は `PLAYER` であり、レベルが属するのは**ガードする側のカード**でプレイヤーではない（意味を壊す埋め合わせになる）。常在（【常】）側は `ContinuousBlockResult.forSelf`＝`Set<string>` で運ばれるので、そもそも型フィールドでは届かない。

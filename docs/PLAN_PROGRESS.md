@@ -4,6 +4,24 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-23・続き616〜621・Opus 5＋Codex）＝段2 を5バッチ連投**（第23〜26バッチ＋第24の積み残し回収）。**残 OPEN 905→883**（**−22**）／段2 消化 **184→207**。**census 702→693**／**golden 2442→2478**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、`_partial_fresh` 15／`_idset_fresh` 46／`censusManualDrift` 削除候補 **86** は全バッチで維持（`_held_fresh` は 88→87＝`WXEX2-70` が採用され離脱）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch23〜26_report.md`。
+
+  | # | 題材 | live 修正 | 一言 |
+  |---|---|---:|---|
+  | 23 | 集合主語の BANISH 耐性が「あなたのシグニ1体」へ潰れる | 4 | 🔴**parser だけ直すと保護が丸ごと消える**＝executor が `subjectFilter`-only を**ログだけの no-op** にしていた |
+  | 24 | 「相手を対象→あなたの＜X＞1体を犠牲」の犠牲側 owner 反転 | 6 | 自分の盤面を削る**代償**が相手の盤面を削る**利益**に化けていた |
+  | 25 | `GRANT_KEYWORD` の集合主語が `count:1` | 9 | 第23の**同じ根の別 action**。Codex が同型 `WXEX2-07-E1` を追加発見 |
+  | 26 | 〈ゾーンの枚数〉で動くパワー／レベル上限が丸ごと消失 | 13+1 | **1つの根から過剰実行と過小実行が同時に出る**（上限消失＋数え元クラスの誤付着） |
+
+  - 🔑**このセッションで確立した最大の型＝「同じ語彙でも CONTINUOUS 経路と AUTO/ACTIVATED 経路で消費地点が別」**。第23バッチが決定的な実例＝`GRANT_PROTECTION.subjectFilter` は engine の collector が **CONTINUOUS だけ**直接読んでおり、`executeAction` を通る AUTO/ACTIVATED では `execGrantProtection` が「CONTINUOUS 用宣言」として**ログを出して終了**していた。**parser を直した瞬間に保護が丸ごと消えて恒久 no-op へ裏返る**ところだった（続き614 の `sourceOwner` 省略値と同型の罠）。⇒ **既存 `field_grants_active` / `granted_effects` へ配線**して解消し、副産物として**それまで完全に死んでいた `WX05-014-E1`（「このターン、あなたの＜美巧＞のシグニは…効果を受けない」）も蘇生**した。
+  - 🔑**「主語の集合が潰れる」は1つの根で複数 action に出る**＝第23（`GRANT_PROTECTION`）→第25（`GRANT_KEYWORD`）で**同じ判定式を別の分岐へ写すだけ**で13効果が直った。⚠**逆に、集合化してよいのは主語が集合の形だけ**＝「このシグニは」「N体を対象とし」を巻き込むと単体付与が全体付与へ化けて過剰実行になるので、両バッチとも除外ガードを入れている。
+  - 🔑**「動的上限」は既存ファミリへフィールドを足すだけで足りた**（第26）＝`TargetFilter` には `powerLteSelf`／`levelLteFieldVirusCount`／`powerLteRevealedSigniLevelSum` など**同型が10本以上**あり、`resolveDynamicFilter` が `powerRange.max`／`level.max` へ解決する。新設は `powerLteZoneCount`／`levelLteZoneCount`／`powerLteLastProcessedCount`／`levelLteLastProcessedCount` の4本と `CountFromZone.zone` の `hand`／`acce`／`trap`。**`resolveCountRef` と `resolveDynamicFilter` が共通の `countFromZone` を使う**よう統一した（列挙値を足したとき片方だけ未対応になるのを構造的に防ぐ）。⚠**0枚のとき上限0＝fail-closed** を golden で固定（fail-open だと「直したつもりで過剰実行のまま」）。
+  - ⚠**投入前の実測で PLAN の候補行が丸ごと消えた**（CODEX_GUIDE §3-1）＝第23バッチの候補①「常在の段階置換5件」は **5件とも既に正しく実装済み**だった（`WXEX1-33-E2`＋`E2b` 等）。さらに候補に見えた**【レイヤー】18効果と【アクセ】ホスト形2効果も全部正しかった**（外側の `GRANT_FIELD_SIGNI_ABILITY`／`GRANT_ACCE_HOST_ABILITY` が集合化を担当）。🆕**再帰探索で入れ子まで拾うと「潰れている」ように見える**＝**トップレベルの action から確かめる**こと。
+  - ⚠**Codex は5バッチで2回 Claude の見立てを訂正した**＝①第25バッチ C1（`WX25-CP1-005-E1` は「live は Ｓランサーだけ」ではなく、シャドウ leaf は既にあり欠けていたのは +5000 と `levelGte:3` スコープ）②第24バッチで指示書の「必須形」限定が任意形を取りこぼすことを次バッチで自己回収。**Claude 側の原因＝JSON を先頭だけ見て書いた**（CODEX_GUIDE §3-3 に登録）。
+  - 🆕**新規発見・未修正**＝`SPDi47-04-E2`／`WX24-P4-020-E3`（「あなたのすべてのシグニのパワーを＋N し、**それらは**【K】を得る」の**代名詞形**はパワー加算が合成されない）／`WXEX2-11-E4`（「このルリグは全＜乗機＞へ乗る」搭乗機構）／`WXEX2-07-E1`（＜宝石＞への引用 CONTINUOUS バニッシュ耐性）／`WXEX1-67-E1`（任意《青》支払いの脱落）／`WX07-039-E2`・`WXEX1-14-E2`（**count>1 の全数支払い**を engine が表現できない＝機構待ち）／`WX15-010-E1`（「次にバニッシュされる場合」の**1回消費**語彙が無い＝機構待ち）。**いずれも非採用を golden で契約固定済み。**
+  - **▶ 次の一手【Opus 側】＝段2 第27バッチ**。候補（**着手前に必ず再実測**）：①🆕**「あなたのすべてのシグニ…、それらは【K】を得る」の代名詞形でパワー加算が落ちる2件**（第25バッチの積み残し・合成規則の後方参照ガードを緩めるだけ） ②🆕**count>1 の全数支払い機構**（`WX07-039-E2` 3体／`WXEX1-14-E2` エナ3枚＝engine 側の作業。§6.4 へ登録候補） ③**§6.3 `L`**＝共通色比較（**7バッチ連続で保留**・残3効果）。§6.4 の残りは `O-42`／`O-44`。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`**（続き609 で宣言 UI が新規に30カードで出る）、**`V-84`**（レベル限定つきガード禁止）、**`V-83`**。🆕**今回の5バッチはすべて実機未検証**（耐性の集合付与／犠牲側 owner／キーワードの集合付与／動的上限の4系統）。
+
 - **🆕 セッション（2026-08-22・続き609〜615・Opus 5＋Codex）＝§6.4 `O-41` 残0クローズ＋段2 を5バッチ連投**（第18〜22バッチ）。**残 OPEN 947→905**（**−42**）／段2 消化 **141→184**。**census 730→702**／**golden 2366→2442**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、held/partial/idset **88/15/46**、`censusManualDrift` 削除候補 **86** は全バッチで維持。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-22（続き609〜615）、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch18〜22_report.md`。
 
   | # | 題材 | live 修正 | 一言 |
