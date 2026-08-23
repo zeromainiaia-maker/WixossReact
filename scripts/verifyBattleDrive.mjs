@@ -24796,6 +24796,10 @@ function v45bSpec() {
       'field.lrig': ['WD01-001#48000'],
       'field.signi': [null, ['WX25-P2-090#48001'], null], // 中央＝壱ノ遊カタカタ
       'field.signi_down': [false, false, false],
+      // ⚠**2026-08-24（O-47）＝素のままだと P3000 vs P3000 の「相打ち」でアタッカーも消える**。
+      //   このシナリオが見たいのは「自分をエナへ送る任意コストを払う／断る」の対なので、
+      //   **バトル結果に観測を潰させない**よう +1000 して確実に勝たせる（盤面の他は一切変えない）。
+      'temp_power_mods': [{ cardNum: 'WX25-P2-090#48001', delta: 1000 }],
       'field.check': null,
       'energy': ['WX24-P2-074#48002'], // レベル1＜遊具＞＝ADD_TO_FIELD対象
       'hand': [], 'actions_done': [],
@@ -24812,7 +24816,11 @@ function v45bSpec() {
   };
 }
 async function driveV45b(page, H, pay) {
-  let attacked = false; let zoneOpened = false; let emptyStreak = 0;
+  // 🔴**§4.4 の5＝効果が走り出す前に完了判定してはいけない。** `attacked && !pendingEffect` は
+  //   「アタック直後（トリガーが立つ前）」でも真なので、`emptyStreak` だけで返すと**バッチ位置によって
+  //   3秒で早期 return して FAIL する**（2026-08-24 実測＝単体と pay→skip 順では PASS・別の並びでのみ FAIL）。
+  //   ⇒ **任意コストの CHOOSE を1度観測してから**しか完了判定に入らない。
+  let attacked = false; let zoneOpened = false; let emptyStreak = 0; let choiceSeen = false;
   for (let s = 0; s < 20; s++) {
     await page.waitForTimeout(700);
     await page.screenshot({ path: `${SHOT}/v45b-${pay}-${s}.png`, fullPage: true }).catch(() => {});
@@ -24834,8 +24842,9 @@ async function driveV45b(page, H, pay) {
     }
     const st = await H.queryState();
     H.log(`  v45b[${s}] -> ${did ?? 'なし'} | pay=${pay} attacked=${attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} hEnergy=${st?.host?.energyCards} pEff=${st?.pendingEffect ?? '-'}`);
-    emptyStreak = (attacked && !st?.pendingEffect) ? emptyStreak + 1 : 0;
-    if (attacked && !st?.pendingEffect && emptyStreak >= 3) {
+    if (st?.pendingEffect) choiceSeen = true;
+    emptyStreak = (attacked && choiceSeen && !st?.pendingEffect) ? emptyStreak + 1 : 0;
+    if (attacked && choiceSeen && !st?.pendingEffect && emptyStreak >= 3) {
       const kataOnField = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX25-P2-090')));
       const swappedIn = (st.host.fieldSigni ?? []).some(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
       const swappedInDown = (st.host.fieldSigni ?? []).findIndex(z => Array.isArray(z) && z.some(n => n?.startsWith('WX24-P2-074')));
@@ -24846,7 +24855,7 @@ async function driveV45b(page, H, pay) {
     }
   }
   const fin = await H.queryState();
-  return { pass: false, detail: `未完了（attacked=${attacked} pEff=${fin?.pendingEffect ?? '-'}）` };
+  return { pass: false, detail: `未完了（attacked=${attacked} choiceSeen=${choiceSeen} pEff=${fin?.pendingEffect ?? '-'}）` };
 }
 
 scenarios.v45bPaySwapsInDownEnergySigni = {
@@ -24887,7 +24896,11 @@ function v45cSpec() {
       // 正面(index1)＝power15000の頑丈な壁（コンバットで戦闘負けしない＝ON_ATTACK_END時点でまだ場に残る。
       // power15000なのでpower<=8000フィルタの1体目候補にはならない＝フィルタ通過するのはside(index0)のみ）
       // side(index0)＝power3000の弱いシグニ＝1体目BANISH対象。
-      'field.signi': [['WD01-013#48511'], ['WX01-053#48512'], null],
+      // ⚠**2026-08-24（O-47）＝正面に P15000 を置くとアタッカー（P12000）が敗北して消え**、
+      //   `ON_ATTACK_END` の「そのアタック終了時」本体が走らなくなる（従来はアタッカーが不当に生き残っていた）。
+      //   ⇒ **正面（中央）は弱い別札**にしてアタッカーを勝たせ、**フィルタ外の対照 P15000 は別ゾーンへ退避**する。
+      //   （host の中央は guest の中央と正面が対応する＝§4.4 の 8e）
+      'field.signi': [['WD01-013#48511'], ['WX21-042#48513'], ['WX01-053#48512']],
       'field.signi_down': [false, false, false],
       'field.check': null,
       'hand': [],
@@ -26091,7 +26104,12 @@ async function driveV86C(page, H, id, withUnder) {
     if (!state.attacked) continue;
     idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
     if (idle >= 4) {
-      const gained = (st.host.energy ?? 0) - (before.host.energy ?? 0);
+      // ⚠**2026-08-24（O-47 修正後）＝アタッカー(P2000)は壁(P15000)に負けて自分もエナゾーンへ行く**ので、
+      //   素のエナ枚数差は +1 されてしまう。**「そうした場合」で増えたぶんだけ**を数えるため、
+      //   アタッカー自身のカードをエナから除いて比較する。
+      const enaNow = (st.host.energyCards ?? []).filter(n => n !== V86_AMALGA).length;
+      const enaBefore = (before.host.energyCards ?? []).filter(n => n !== V86_AMALGA).length;
+      const gained = enaNow - enaBefore;
       const underTrashed = (st.host.trashCards ?? []).includes(V86_UNDER_DRAGON);
       if (withUnder) {
         return {
@@ -26122,6 +26140,130 @@ scenarios.v86DidItGateBlocksWhenUnderEmpty = {
 order.push('v86OwnMainPhaseLeaveDoesNotDraw', 'v86OppMainPhaseLeaveDraws', 'v86AttackPhaseLeaveDraws',
   'v86UnderCardOnlyIsRecoverable', 'v86DidItGateChargesWhenUnderExists', 'v86DidItGateBlocksWhenUnderEmpty');
 // ── V-86 END ──
+
+// ── O-47 / O-48（§5.3）バトル結果のルール修正 ────────────────────────────────────────────────
+// **O-47**＝「バトルではパワーの低いシグニがバニッシュされる。パワーが同じ場合は**両方**」。
+//   従来 `resolvePendingSigniBattleFor` は `myPower >= opPower` で**防御側だけ**を消し、負けたときは
+//   `「…はバトルに敗北」` とログするだけで**アタッカーが場に残り続けていた**（V-86 の実機ログで発見）。
+// **O-48**＝バニッシュの行き先は**トップ1枚だけ**で、**下にあったカードはトラッシュ**へ。
+//   従来はスタック全部をエナゾーンへ送っていた＝`fromLeftFieldUnder`（live 4効果）がバトル経路で恒久 no-op。
+//
+// ⚠**gates（golden/smoke/fuzz）はこの層を守れない**＝`resolvePendingSigniBattleFor` は BattleScreen 側の
+//   React 関数なので純粋 golden から叩けない。**この3本が唯一の回帰トリップワイヤ**。
+// ⚠**正面ゾーンは host と guest で index が一致しない**（§4.4 の 8e）＝**中央（zone1）同士**を使う。
+const O47_BIG = 'WX01-053#4701';    // 極剣 ゴッドイーター（P15000）
+const O47_SMALL = 'WD01-013#4702';  // 小剣 ククリ（P3000）
+const O47_TIE_A = 'WD01-013#4703';  // 同名同パワー＝相打ちの対
+const O47_TIE_B = 'WD01-013#4704';
+const O48_RISE = 'WXK10-054#4710';       // 弩書 ピカトリクス（P13000・ライズ）
+// ⚠**下に置く札は「トップの ON_BANISH が回収できない」ものにする**＝`WXK10-054-E1` は
+//   「下にあった**＜ウェポン＞**を手札に」なので、＜ウェポン＞を下に置くと**トラッシュに落ちた直後に回収されて
+//   `trash=[]` に見え**、O-48 の観測点（トラッシュに落ちたか）が潰れる（実測で踏んだ）。
+//   `WD01-013`＝精武：**アーム**なのでフィルタに掛からずトラッシュに残る。
+const O48_UNDER = 'WD01-013#4711';       // 小剣 ククリ（＜ウェポン＞ではない＝回収されない）
+
+function o47Spec(hostCenter, guestCenter) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#4790'],
+      'field.signi': [null, hostCenter, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4750', 'WD01-013#4751', 'WD01-013#4752', 'WD01-013#4753'],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#4791'],
+      'field.signi': [null, guestCenter, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#4770', 'WD01-013#4771', 'WD01-013#4772', 'WD01-013#4773'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+
+async function driveO47(page, H, id, check) {
+  const before = await H.queryState();
+  const state = { zoneOpened: false, attacked: false };
+  let idle = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = await v86Attack(page, H, state, 1);
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+    const st = await H.queryState();
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | attacked=${state.attacked} hField=${JSON.stringify(st?.host?.fieldSigni)} gField=${JSON.stringify(st?.guest?.fieldSigni)} hEnergy=${JSON.stringify(st?.host?.energyCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!state.attacked) continue;
+    idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+    if (idle >= 4) return check(st, before);
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${state.attacked} hField=${JSON.stringify(fin?.host?.fieldSigni)} gField=${JSON.stringify(fin?.guest?.fieldSigni)}）` };
+}
+
+// (1) 負け＝アタッカーだけが消え、防御側は残る（従来はどちらも残っていた）
+scenarios.o47AttackerLosesIsBanished = {
+  title: 'O-47 バトルで負けたアタッカーがバニッシュされる（防御側は残る）',
+  spec: o47Spec([O47_SMALL], [O47_BIG]),
+  drive: (page, H) => driveO47(page, H, 'o47lose', (st) => {
+    const attackerGone = v86HasLeftField(st?.host, O47_SMALL);
+    const inEnergy = (st.host.energyCards ?? []).includes(O47_SMALL);   // 🔑行き先はエナゾーン
+    const defenderStays = (st.guest.fieldSigni ?? []).some(z => (z ?? []).includes(O47_BIG));
+    return {
+      pass: attackerGone && inEnergy && defenderStays,
+      detail: `負け＝アタッカー(P3000)が場を離れた=${attackerGone}／エナゾーンへ=${inEnergy}／防御側(P15000)は残存=${defenderStays}（host場=${JSON.stringify(st.host.fieldSigni)} guest場=${JSON.stringify(st.guest.fieldSigni)}）`,
+    };
+  }),
+};
+
+// (2) 相打ち＝同値なら**両方**消える（従来は防御側だけ消えていた）
+scenarios.o47TieBanishesBoth = {
+  title: 'O-47 パワーが同じなら両方バニッシュされる（相打ち）',
+  spec: o47Spec([O47_TIE_A], [O47_TIE_B]),
+  drive: (page, H) => driveO47(page, H, 'o47tie', (st) => {
+    const mineGone = v86HasLeftField(st?.host, O47_TIE_A);
+    const theirsGone = v86HasLeftField(st?.guest, O47_TIE_B);
+    return {
+      pass: mineGone && theirsGone,
+      detail: `相打ち＝アタッカーが離場=${mineGone}／防御側も離場=${theirsGone}（host場=${JSON.stringify(st.host.fieldSigni)} guest場=${JSON.stringify(st.guest.fieldSigni)}・host energy=${JSON.stringify(st.host.energyCards)} guest energy=${JSON.stringify(st.guest.energyCards)}）`,
+    };
+  }),
+};
+
+// (3) 🔑**対照**＝勝てばアタッカーは残る（過剰に消していないことを同じ形で確かめる）
+scenarios.o47AttackerWinsStaysOnField = {
+  title: 'O-47対照 バトルに勝ったアタッカーは場に残る（過剰バニッシュしていない）',
+  spec: o47Spec([O47_BIG], [O47_SMALL]),
+  drive: (page, H) => driveO47(page, H, 'o47win', (st) => {
+    const attackerStays = (st.host.fieldSigni ?? []).some(z => (z ?? []).includes(O47_BIG));
+    const defenderGone = v86HasLeftField(st?.guest, O47_SMALL);
+    return {
+      pass: attackerStays && defenderGone,
+      detail: `勝ち＝アタッカー(P15000)は場に残存=${attackerStays}／防御側(P3000)がバニッシュ=${defenderGone}`,
+    };
+  }),
+};
+
+// (4) O-48＝バトルで倒したライズの**下のカードはトラッシュへ**（トップだけがエナ）
+scenarios.o48BattleBanishSendsUnderCardsToTrash = {
+  title: 'O-48 バトルのバニッシュはトップだけエナ・下にあったカードはトラッシュへ',
+  spec: o47Spec([O47_BIG], [O48_UNDER, O48_RISE]),
+  drive: (page, H) => driveO47(page, H, 'o48', (st) => {
+    const topInEnergy = (st.guest.energyCards ?? []).includes(O48_RISE);
+    const underInTrash = (st.guest.trashCards ?? []).includes(O48_UNDER);
+    const underNotInEnergy = !(st.guest.energyCards ?? []).includes(O48_UNDER);
+    return {
+      pass: topInEnergy && underInTrash && underNotInEnergy,
+      detail: `トップ(${O48_RISE})→エナ=${topInEnergy}／下(${O48_UNDER})→トラッシュ=${underInTrash}（エナに混ざっていない=${underNotInEnergy}）・guest energy=${JSON.stringify(st.guest.energyCards)} trash=${JSON.stringify(st.guest.trashCards)}`,
+    };
+  }),
+};
+
+order.push('o47AttackerLosesIsBanished', 'o47TieBanishesBoth', 'o47AttackerWinsStaysOnField',
+  'o48BattleBanishSendsUnderCardsToTrash');
+// ── O-47 / O-48 END ──
 
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }

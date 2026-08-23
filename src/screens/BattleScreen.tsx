@@ -8891,6 +8891,9 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       const cannotDealDamageToOpp = signiCannotDealDamageToOpponent(myS, myTopNum, effectsMap);
       let banishedOpCardNum: string | null = null;
       let banishedOpUnderCards: string[] = [];
+      // §5.3 O-47：バトルで負けた／相打ちになったアタッカー自身のバニッシュ（従来は一切消えなかった）。
+      let banishedMyCardNum: string | null = null;
+      let banishedMyUnderCards: string[] = [];
 
       // タスク12(xliv)(a)：BANISH_REDIRECT の target.filter（レベル/凍結/感染/チャーム限定）を評価するため、
       // 被バニッシュシグニの属性を除去前の opS 盤面から取る（凍結/チャーム/感染はゾーン添字状態＝バニッシュ後は消える）。
@@ -9338,15 +9341,27 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
             checkActiveCondition(eff.activeCondition, opS, myS, false, battleCardMap, opTopCardNum ?? ''),
           );
           const anyRedirect = redirectBanish || redirectBanishToHand || redirectBanishToExile || frozenToDeckBottom || frozenToTrash || banishBySelftToTrash || banishToLrigTrash || energyToDeckBottom || defenderLeaveExile;
+          // 🔴**§5.3 O-48（2026-08-24 V-86(b) で発見・実機で確認）＝バニッシュの行き先はトップ1枚だけ**。
+          //   ルール＝「ライズのシグニが場を離れるとき、**下にあったカードはトラッシュ**に置かれる」。
+          //   従来は `...opStack`（スタック全部）をエナ／手札／デッキ／ルリグトラッシュへ送っており、
+          //   **下のカードがトラッシュに落ちない**＝`fromLeftFieldUnder`（「このシグニの下にあった…」＝live 4効果）が
+          //   **バトルで倒された場合に限り候補0件で恒久 no-op** になっていた。
+          //   ⚠**engine 側（`effectExecutor` の効果バニッシュ）は元から正しい**＝壊れていたのはこのバトル経路だけ。
+          //   ⚠`banishedOpUnderCards` は上で `stack.slice(0,-1)` として既に確定済み（トリガー収集も同じ値を使う）。
+          const opTopOnly = opTopCardNum ? [opTopCardNum] : [];
+          const opUnderToTrash = banishedOpUnderCards;
           newOpState = {
             ...opS,
-            hand: redirectBanishToHand ? [...opS.hand, ...opStack] : opS.hand,
-            deck: (frozenToDeckBottom || energyToDeckBottom) ? [...opS.deck, ...opStack] : opS.deck,
-            energy: anyRedirect ? opS.energy : [...opS.energy, ...opStack],
-            lrig_trash: banishToLrigTrash ? [...opS.lrig_trash, ...opStack] : opS.lrig_trash,
-            trash: (redirectBanish || frozenToTrash || banishBySelftToTrash || defenderLeaveExile)
-              ? [...opS.trash, ...opStack, ...banishExtraTrash]
-              : (banishExtraTrash.length > 0 ? [...opS.trash, ...banishExtraTrash] : opS.trash),
+            hand: redirectBanishToHand ? [...opS.hand, ...opTopOnly] : opS.hand,
+            deck: (frozenToDeckBottom || energyToDeckBottom) ? [...opS.deck, ...opTopOnly] : opS.deck,
+            energy: anyRedirect ? opS.energy : [...opS.energy, ...opTopOnly],
+            lrig_trash: banishToLrigTrash ? [...opS.lrig_trash, ...opTopOnly] : opS.lrig_trash,
+            trash: [
+              ...opS.trash,
+              ...((redirectBanish || frozenToTrash || banishBySelftToTrash || defenderLeaveExile) ? opTopOnly : []),
+              ...opUnderToTrash,
+              ...banishExtraTrash,
+            ],
             field: {
               ...opS.field,
               signi: newOpSigni,
@@ -9405,6 +9420,46 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           }
         } else {
           appendBattleLogs([`${myCardName}はバトルに敗北`]);
+        }
+
+        // 🔴**§5.3 O-47（2026-08-24 V-86 の道中で発見・実機ログで確認）＝負けた／相打ちのアタッカーもバニッシュされる。**
+        //   ルール＝「バトルではパワーの低いシグニがバニッシュされる。パワーが同じ場合は**両方**」。
+        //   従来この関数は `myPower >= opPower` で**防御側だけ**を消し、負けたときは
+        //   `「…はバトルに敗北」` とログするだけで**アタッカーが場に残り続けていた**
+        //   （実測ログ＝`シヴァ（10000）vs ゴッドイーター（15000）` → 敗北ログ → シヴァは場に残存）。
+        //   ⚠**攻撃側・防御側とも人間/CPU が同じ関数を通る**ので、この1点で全対戦に効く。
+        // ⚠**行き先はトップ＝エナゾーン／下にあったカード＝トラッシュ**（O-48 と同じルール）。
+        // 📋**防御側が持つバニッシュ先変更（`banish_redirect` 等）のアタッカー側ミラーは未実装**＝
+        //   既定の行き先だけを実装した（§5.3 O-49 へ follow-up として登録）。
+        if (myPower <= opPower && (newMyState.field.signi[zoneIndex] ?? []).at(-1) === myTopNum) {
+          const myStackAB = newMyState.field.signi[zoneIndex] ?? [];
+          banishedMyCardNum = myTopNum;
+          banishedMyUnderCards = myStackAB.slice(0, -1);
+          const newMySigniAB = [...newMyState.field.signi] as (string[] | null)[];
+          newMySigniAB[zoneIndex] = null;
+          const newMyDownAB   = [...(newMyState.field.signi_down   ?? [false, false, false])];
+          const newMyFrozenAB = [...(newMyState.field.signi_frozen ?? [false, false, false])];
+          const newMyCharmsAB = [...(newMyState.field.signi_charms ?? [null, null, null])];
+          const newMyAcceAB   = cloneAcceSlots(newMyState.field);
+          newMyDownAB[zoneIndex] = false;
+          newMyFrozenAB[zoneIndex] = false;
+          const myExtraTrashAB: string[] = [];
+          if (newMyCharmsAB[zoneIndex]) { myExtraTrashAB.push(newMyCharmsAB[zoneIndex]!); newMyCharmsAB[zoneIndex] = null; }
+          if (newMyAcceAB[zoneIndex])   { myExtraTrashAB.push(...newMyAcceAB[zoneIndex]!); newMyAcceAB[zoneIndex] = null; }
+          newMyState = {
+            ...newMyState,
+            energy: [...newMyState.energy, myTopNum],
+            trash: [...newMyState.trash, ...banishedMyUnderCards, ...myExtraTrashAB],
+            field: {
+              ...newMyState.field,
+              signi: newMySigniAB,
+              signi_down:   newMyDownAB,
+              signi_frozen: newMyFrozenAB,
+              signi_charms: newMyCharmsAB,
+              signi_acce:   newMyAcceAB,
+            },
+          };
+          appendBattleLogs([`${myCardName}がバニッシュされた（バトル${myPower === opPower ? '相打ち' : '敗北'}）`]);
         }
       } else if (isSideAttack && !sideAttackEmptyZoneDealsDamage(myS, myTopNum, battleCardMap)) {
         // ─── 側面アタックで対象シグニゾーンが空 → 何も起こらない（バトルもダメージもなし）───
@@ -9606,6 +9661,25 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         if (usedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...usedMine];
         if (usedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...usedOpp] };
       }
+      // §5.3 O-47：**アタッカー自身がバニッシュされた**ぶんの ON_BANISH も同じ funnel で収集する。
+      // ⚠盤面だけ直してトリガーを配線しないと、「消えるようになったのに【自】が誰も反応しない」という
+      //   別の無言の穴を新しく作ることになる（防御側と同型の2本＝ON_BANISH と ON_LEAVE_FIELD を張る）。
+      if (banishedMyCardNum) {
+        const banishResMine = collectBanishTriggers(
+          banishedMyCardNum,
+          attackerId,
+          newHostState,
+          newGuestState,
+          myS, // アタッカーのバトル前状態
+          undefined,
+          opTopCardNum ?? undefined,
+        );
+        banishEntries.push(...banishResMine.entries);
+        const usedMineAB = attackerIsHost ? banishResMine.usedHostIds : banishResMine.usedGuestIds;
+        const usedOppAB  = attackerIsHost ? banishResMine.usedGuestIds : banishResMine.usedHostIds;
+        if (usedMineAB.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...usedMineAB];
+        if (usedOppAB.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...usedOppAB] };
+      }
 
       // ON_SIGNI_BANISH_BATTLE / ON_SIGNI_BANISH_OPPONENT: （バトルで）相手シグニをバニッシュしたとき
       // scope 'self'（デフォルト）はバニッシュしたアタッカー自身のみ、'any_ally'/'any' は自フィールド全シグニ。
@@ -9730,6 +9804,15 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         const lfUsedOpp  = attackerIsHost ? lfSA.usedGuestIds : lfSA.usedHostIds;
         if (lfUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...lfUsedMine];
         if (lfUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...lfUsedOpp] };
+      }
+      // §5.3 O-47：アタッカー自身の ON_LEAVE_FIELD（防御側と同型）。
+      if (banishedMyCardNum) {
+        const lfMine = collectLeaveFieldTriggers(banishedMyCardNum, banishedMyUnderCards, attackerId, newHostState, newGuestState);
+        leaveEntriesSA.push(...lfMine.entries);
+        const lfmUsedMine = attackerIsHost ? lfMine.usedHostIds : lfMine.usedGuestIds;
+        const lfmUsedOpp  = attackerIsHost ? lfMine.usedGuestIds : lfMine.usedHostIds;
+        if (lfmUsedMine.length > 0) newMyState.actions_done = [...(newMyState.actions_done ?? []), ...lfmUsedMine];
+        if (lfmUsedOpp.length > 0)  newOpState = { ...newOpState, actions_done: [...(newOpState.actions_done ?? []), ...lfmUsedOpp] };
       }
 
       // ON_SIGNI_BATTLE: 実際にバトルが行われた場合、参加した両シグニ（攻撃側=myTopNum / 防御側=opTopCardNum）で発火。
