@@ -1,5 +1,65 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-24（続き637b）：§5.1 🅱 を残0クローズ＝V-85／V-83／V-04／V-16／V-87 の5件（**実バグ1件を発見・修正**／新規実機シナリオ11本）
+
+**取った項目**＝PLAN §5.1「実機未検証の返済」🅱 の**残り全部**。V-84（同日・続き637a）に続き、🅱 は**在庫0**になった。
+
+### 総括
+| 項目 | 結果 | engineバグ |
+|---|---|---|
+| V-85 数字宣言（`DECLARE_NUMBER`） | 新規3本・2回連続PASS | 0 |
+| V-83 ミル誘発の fail-closed | 新規2本・**🔴実バグ発見→修正** | **1** |
+| V-04 エナ支払い元の一本化 | **母数を15と実測確定**＋golden静的ゲート＋新規2本・3回連続PASS | 0 |
+| V-16 他能力の発動監視 | 既存2本が (cxxxix) 修正後にPASS＋新規2本・2回連続PASS | 0 |
+| V-87 手札上限超過の捨て札 | 新規2本・2回連続PASS | 0 |
+
+---
+
+### V-85 数字宣言（`DECLARE_NUMBER`）＝実機でも宣言 UI が出る（engine バグ0）
+**母集団（実測）＝live 30カード／31効果**（登録票の見立て「30カード」と一致）。
+- `v85LrigActDeclareNumberShowsChoiceUi`＝`WX10-009-E3`【起】《ダウン》で **`num_1`〜`num_5` の5択が出る**ことを assert し、3を選ぶと `declared_number=3` と `declared_guard_restrict_levels=[3]` が立つ。
+  - 🔑**「5択が出たこと」自体を必須条件にする**＝旧バグは「宣言せず素通り」なので、結果の数字だけ見ても区別できない。
+- `v85SpellDeclaredLevelFiltersOppHand`＝`WX08-067`（スペル）で4を宣言→**相手手札の候補がレベル4の2枚だけ**に絞られ、Lv1の**有色**シグニは候補外。⚠**3枚とも有色**にしてある＝旧バグのフォールバックは「有色シグニ全部」なので、無色を混ぜると差が出ない。
+- `v85CpuAutoDeclaresAndBlocksThatGuardLevel`＝**登録票が最優先と書いていた「CPU 側で止まらないか」**を返済。`WX19-054`（【自】センタールリグがアタックしたとき数字宣言）を CPU の場に置くと、CPU の CHOOSE 自動応答が先頭の `num_1` を選び、**デッドロックせず**に人間側のガード候補から Lv1 だけが消える。
+- 計器追加＝`queryState` に `declaredNumber` / `declaredGuardRestrictLevel(s)`。
+- ⚠**シナリオの罠**＝スペルは**エナを先に選んでから**「発動する」を押す。逆にすると disabled ボタンを `clickTextOrBtn` が「押せた」と報告し続けて**無限空振り**する（26ティック空振りした）。
+
+### V-83 🔴実バグ＝`TRASH{DECK_CARD}` がミル発生源を書かず、`WX24-P3-030-E1` が**恒久 no-op** だった
+**登録票の「リスクの所在」が的中した。**
+- **症状**＝＜悪魔＞シグニの【出】でデッキをミルしても `WX24-P3-030-E1`（黒想の花嫁 アルフォウ）が**一度も誘発しない**。実機で再現（`v83DemonMillTriggersAlfou` が修正前は FAIL）。
+- **真因**＝`ON_CARD_MILLED_FROM_DECK` の誘発判定は BattleScreen の**盤面差分**（デッキ減＋トラッシュ増）なのでどの経路でも発火するが、発生源限定（`triggerCondition.milledSourceStory`）は `last_effect_mill_source` を **fail-closed**（原因不明なら非発火）で見る。ところが**その書き手は `execMill` の1箇所だけ**だった。
+  - 🔴**実測＝＜悪魔＞シグニの自デッキミルは `TRASH{DECK_CARD}` 経路が35枚以上・`MILL` 経路はわずか2枚**＝ほぼ全部が恒久 no-op。
+- **修正**＝`effectExecutor.ts` の **DECK_CARD トラッシュ2経路**（inline の一括／選択解決後の1枚ずつ）に `last_effect_mill_source: ctx.sourceCardNum` を追加。書き込み先は**ミルされたデッキの持ち主**（読み手が `milledDeckOwner` で選ぶ state と一致させる）。
+- **golden +1**＝「MILL と TRASH{DECK_CARD} の**両経路**が発生源を書く」。⚠**既存の golden は collector 側だけ**（`last_effect_mill_source` が既に書かれている前提）で、**書き手側の穴を1件も検知できなかった**。修正前に落ちることを確認済み。
+- **対照が理想的だった**＝`WX02-070`（精像：**悪魔**）と `WXDi-P00-075`（奏械：**バーチャル**）は**【出】の原文が同一**（「あなたのデッキの上からカードを３枚トラッシュに置く」）＝クラスだけが違う。
+- ⚠**シナリオの罠**＝「ミルが起きた」を**その場のトラッシュ枚数比較**で見ると、回収（トラッシュ→エナ）で減った瞬間に false へ戻り返却条件に到達しない。**sticky フラグにする**。
+
+### V-04 エナ支払い元の一本化＝**母数を確定**し、母集団は静的ゲートで守る
+- 🔴**資料間の食い違いを実測で決着**＝**`planEnergyPayment(...)` の呼び出しは 15サイト**（`BattleScreen.tsx` 14 ＝ グロウ／アーツ使用／キー・ピース使用／キー【起】／アシストグロウ／アシスト【起】／スペル／カットイン(ピース)／カットイン(アーツ)／シグニ【起】／エナ【起】／手札【起】／【出】コスト／ルリグ付与【起】 ＋ `battle/trashActivateCost.ts` 1 ＝ トラッシュ自己起動【起】）。docstring の「17本」「13本」・旧 PLAN の「14本」は**どれも支払いサイト数ではなかった**ので注記を付けて是正。
+- **golden トリップワイヤ③**＝**全15サイトが `applyTo` を呼んでいる**ことを静的に固定（呼び忘れ＝エナが1枚も減らない＝ただで撃てる）。サイトが増えたら件数 assert でも落ちる。⚠**実機は1経路ずつしか踏めない**ので、母集団はここで守るのが正しい配分。実測時点で 15/15 が `applyTo` 済み。
+- **実機2本**（3回連続PASS）＝`v04SpellPayDeductsSelectedOnly`／`v04SigniActPayDeductsSelectedOnly`。**同名エナ2枚**から index1 を選び、**残った instanceId まで** assert（「1枚も減らない」＝applyTo忘れ と「別の1枚が減る」＝index取り違え を撃ち分ける）。
+- **`SigniActivatedModal.tsx` に `signiactcost-energy-{i}` ＋ `data-card-num` を追加**＝PLAN が「踏むなら testid 追加が先」と名指ししていた地点を解消。
+- ⚠**シナリオの罠（§4.4 の5）**＝「発動」を押した直後は DB 未更新で `pendingEffect==null && stackLen===0` が**開始前の値のまま真**。**効果が走り出したことを1度観測してから**しか完了判定に入らないゲートを追加（1回目PASS・2回目FAILの位置依存フレークを実際に踏んだ）。
+
+### V-16 他能力の発動監視＝**母集団2効果を両方カバーして残0**
+- **母集団（実測）＝`ON_ABILITY_ACTIVATED` を持つ live 効果は 2件だけ**（`WXEX1-77-E1`／`WX19-066-E1`）。
+- 既存2本（`v16AbilityWatcher*`）は **(cxxxix) の修正（2026-08-20 続き588）以降 PASS**＝`usageLimit:'once_per_turn'` が `actions_done` へ永続化されることを実機で確認（`doneCount=1`）。
+- 新規2本で `WX19-066-E1` を返済＝`v16EichiAbilityActivatedUpsWatcher`／`v16NonEichiAbilityDoesNotUpWatcher`。
+  - 🔑**対照は「クラス条件だけを外す」**＝どちらの盤面でも **AUTO 能力は必ず1つ発動する**。違うのは「その能力が `EICHI_LEVEL_SUM` を持つか」だけ＝**何も起きない盤面で緑になる**負方向テストにしない。
+  - ⚠`EICHI_LEVEL_SUM` は**ちょうど N**＝場の＜英知＞シグニのレベル合計。watcher(3)＋attacker(2)＋filler(1)=6 に合わせて `WD20-013-E2`（英知=6）を発動させた。
+
+### V-87 手札上限超過の捨て札＝`confirmEndDiscard` 経路を初めて実機で踏んだ
+- **母集団（実測）＝`ON_TRASH` かつ `fromZones` に `hand` を含む live 効果は 32件**（(cxli) の記録と一致）。
+- 登録票どおり**既存 `v20DiscardSkipFirstBlocksSecond` は能動 discard へ迂回していて `confirmEndDiscard` を通らない**ので、専用シナリオを新設した＝`v87EndDiscardTriggersHandTrashAuto`／`v87EndDiscardPlainCardNoTrigger`。
+- 採用カード＝`WX13-076`（コードアート Ｂ・Ｅ・Ｃ）「【自】：このカードがあなたの手札からトラッシュに置かれたとき、対戦相手のシグニ１体を対象とし、それを凍結する」＝**盤面差分（凍結フラグ）で決定論的に観測できる**条件なし・コストなしの形。
+- 🔑**対照は「同じ手順で別の1枚を捨てる」**＝盤面も枚数も手順も同一。「捨てなかったら何も起きない」では手順ごと通っていなくても緑になる。
+- **`EndDiscardModal.tsx` に `enddiscard-hand-{i}` ＋ `data-card-num` を追加**（手札にフィラー同名5枚がある盤面では index も画像も一意にならない）。
+- ⚠**シナリオの罠**＝ルリグ未アタックのまま END へ進めると**「まだルリグが攻撃していません／このまま進みますか？」の確認ダイアログ**が挟まる。その裏のヘッダーボタンを押し続けても永久に進まない（30ティック空振りした）＝**確認ダイアログを先に処理する**。
+
+### 検証
+- `npm run gates` **全緑**（typecheck / **golden 2653**（+2＝V-83 の発生源記録・V-04 の applyTo 静的ゲート） / smoke 10693 全0・SKIP0 / fuzz 全0 / census 608 / census:stubs A群🔴0・C群0 / manual-fields 0 / lint 0 errors）。
+- 実機＝**新規11本＋既存2本（V-16）が各2〜3回連続 PASS**。V-83 は修正前に FAIL することを確認済み（バグ再現→修正→反転確認）。
+
 ## 2026-08-24（続き637）：V-84 残0クローズ＝**レベル限定つき【ガード】禁止は実機でも「そのレベルだけ」を弾く**（engine バグ0）／副産物で**既存ガードシナリオ2本の腐り**を発見・修正
 
 **取った項目**＝PLAN §5.1 🅱 の最上位 **V-84「レベル限定つき【ガード】禁止が、ガード応答UIで実際にそのレベルだけを弾くか」**（§6.4 O-41 の消費地点）。golden は `makeGuardLevelBlocker` の両方向を押さえてあるが、**UI に出る候補の絞り込みは実機でしか見えない**層。

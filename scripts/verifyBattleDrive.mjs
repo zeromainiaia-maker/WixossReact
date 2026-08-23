@@ -25568,6 +25568,213 @@ scenarios.v04SigniActPayDeductsSelectedOnly = {
 order.push('v04SpellPayDeductsSelectedOnly', 'v04SigniActPayDeductsSelectedOnly');
 // ── V-04 END ──
 
+// ── V-16（§5.1）J-1 他能力の発動監視＝残っていた `WX19-066` の返済 ─────────────────────────────
+// **母集団（2026-08-24 実測）＝`ON_ABILITY_ACTIVATED` を持つ live 効果は 2件だけ**
+//   （`WXEX1-77-E1`＝既に実機PASS／`WX19-066-E1`＝ここで返す）。
+// `WX19-066-E1`＝【自】《ターン１回》「あなたの**【自】の【英知】能力**が発動したとき、このシグニをアップする」
+//   `triggerCondition` は3つ＝`activatedAbilityOwner:'self'`／`activatedAbilityKind:'AUTO'`／`activatedAbilityEichi:true`。
+//   `hasEichi` は**発動した効果の `activeCondition`/`condition` に `EICHI_LEVEL_SUM` があるか**で判定する
+//   （`triggerCollect.ts` の `collectAbilityActivatedTriggers`）。
+//
+// 🔑**対照は「クラス条件だけを外す」**（§4.4 の3）＝どちらの盤面でも**AUTO 能力は必ず1つ発動する**。
+//   違うのは「その能力が【英知】条件を持つか」だけ＝**何も起きない盤面で緑になる**負方向テストにしない。
+const V16B_WATCHER = 'WX19-066#16002';    // 答英の採点 ＃アカペン＃（Lv3 英知・ダウン状態で置く）
+const V16B_EICHI_ATK = 'WD20-013#16001';  // 具英の角測 ＃ブンドキ＃（Lv2 英知・【自】英知=6 でエナチャージ）
+const V16B_FILLER = 'WX17-074#16003';     // 折英の線形 ＃オレセン＃（Lv1 英知・【常】英知=8 なので6では不発）
+const V16B_PLAIN_ATK = 'WX24-P3-090#16004'; // 凶魔 アオヒゲ（Lv2 黒・【自】アタック時にデッキ2枚トラッシュ＝英知条件なし）
+const V16B_WALL = 'WX01-053#16010';       // 極剣 ゴッドイーター（Lv4 白 power15000）＝正面の壁
+
+// 英知レベル合計＝ちょうど6 のとき `WD20-013-E2`（エナチャージ）が発動する。
+// ⚠**合計は場の＜英知＞シグニ全部**＝watcher(3)＋attacker(2)＋filler(1)=6 で意図どおり。
+//   attacker を非＜英知＞へ差し替える対照側では合計 3+1=4 になるが、**watcher の発火条件は合計に依存しない**
+//   （依存するのは発動した側の効果）ので対照として成立する。
+function v16bSpec(attacker) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD02-001#16090'],
+      'field.signi': [[attacker], [V16B_WATCHER], [V16B_FILLER]],
+      'field.signi_down': [false, true, false],   // watcher を**ダウン**で置く（UP されたことを見る）
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#16050', 'WD01-013#16051', 'WD01-013#16052', 'WD01-013#16053', 'WD01-013#16054'],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#16091'],
+      'field.signi': [[V16B_WALL], null, null],   // host zone0 の正面（同 index）
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_SIGNI', turn_count: 2 },
+  };
+}
+
+async function driveV16Eichi(page, H, id, { expectUp }) {
+  const before = await H.queryState();
+  let zoneOpened = false; let attacked = false; let abilitySeen = false; let idle = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(600);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    if (!zoneOpened) { did = await H.clickTestId('my-signi-zone-0'); if (did) zoneOpened = true; }
+    else if (!attacked) {
+      const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+      if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+        await atk.click({ timeout: 1500 }).catch(() => {}); did = 'action:アタック'; attacked = true;
+      }
+    }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+    const st = await H.queryState();
+    // 🔑**「AUTO 能力が1つ発動した」ことを両シナリオで必須にする**＝これが無いと対照側は
+    //   「アタックすら通っていない」だけで緑になる（§4.4 の3・4）。
+    const abilityLog = (st?.logTail ?? []).some(l => /ブンドキ|アオヒゲ/.test(l) && l.includes('効果'));
+    if (abilityLog) abilitySeen = true;
+    const watcherUp = (st?.host?.signiDown ?? [])[1] === false;
+    const watcherLog = (st?.logTail ?? []).some(l => l.includes('アカペン') && l.includes('能力発動時'));
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | attacked=${attacked} abilityLog=${abilitySeen} watcherUp=${watcherUp} watcherLog=${watcherLog} down=${JSON.stringify(st?.host?.signiDown)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!attacked || !abilitySeen) continue;
+    idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+    if (idle >= 3) {
+      const doneCount = (st.host.actionsDone ?? []).filter(a => String(a).includes('WX19-066-E1')).length;
+      if (expectUp) {
+        return {
+          pass: watcherUp && watcherLog && doneCount === 1,
+          detail: `【英知】AUTO の発動で watcher が起きた=${watcherUp}／watcherログ=${watcherLog}／actions_done に1件=${doneCount}（down=${JSON.stringify(st.host.signiDown)}・開始 ${JSON.stringify(before?.host?.signiDown)}）`,
+        };
+      }
+      return {
+        pass: !watcherUp && !watcherLog,
+        detail: `対照（英知条件を持たない AUTO が発動）＝watcher はダウンのまま=${!watcherUp}／watcherログなし=${!watcherLog}（AUTO能力自体は発動済み=${abilitySeen}・down=${JSON.stringify(st.host.signiDown)}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${attacked} abilityLog=${abilitySeen} down=${JSON.stringify(fin?.host?.signiDown)} logs=${JSON.stringify(fin?.logTail ?? [])}）` };
+}
+
+scenarios.v16EichiAbilityActivatedUpsWatcher = {
+  title: 'V-16 WX19-066-E1：【英知】条件つき【自】が発動すると watcher（ダウン状態）がアップする',
+  spec: v16bSpec(V16B_EICHI_ATK),
+  drive: (page, H) => driveV16Eichi(page, H, 'v16eichi', { expectUp: true }),
+};
+scenarios.v16NonEichiAbilityDoesNotUpWatcher = {
+  title: 'V-16対照 英知条件を持たない【自】が発動しても watcher はダウンのまま（activatedAbilityEichi）',
+  spec: v16bSpec(V16B_PLAIN_ATK),
+  drive: (page, H) => driveV16Eichi(page, H, 'v16plain', { expectUp: false }),
+};
+order.push('v16EichiAbilityActivatedUpsWatcher', 'v16NonEichiAbilityDoesNotUpWatcher');
+// ── V-16(WX19-066) END ──
+
+// ── V-87（§5.1）手札上限超過の捨て札が `confirmEndDiscard` 経路で ON_TRASH を誘発するか ─────────
+// 旧 Opusタスク12 **(cxli)** の観測点。`collectAnyZoneTrashSelfTriggers` を `confirmEndDiscard` へ接続したが、
+// **既存の `v20DiscardSkipFirstBlocksSecond` は `WX16-042-E1` の能動 discard へ迂回していて
+// `confirmEndDiscard` を通らない**＝この経路は実機で一度も踏まれていなかった（PLAN の登録票どおり）。
+//
+// **母集団（2026-08-24 実測）＝`ON_TRASH` かつ `triggerCondition.fromZones` に `hand` を含む live 効果は 32件**
+//   （(cxli) の記録と一致）。うち**条件も任意コストも持たない素直な形**を選んで踏む。
+// 採用＝`WX13-076`（コードアート Ｂ・Ｅ・Ｃ）「【自】：このカードがあなたの手札からトラッシュに置かれたとき、
+//   対戦相手のシグニ１体を対象とし、それを凍結する。」＝**盤面差分（凍結フラグ）で決定論的に観測できる**。
+//
+// 🔑**対照は「同じ手順で別の札を捨てる」**（§4.4 の3）＝盤面も枚数も手順も同一で、**捨てた1枚だけ**が違う。
+//   「捨てなかったら何も起きない」では手順ごと通っていなくても緑になる。
+const V87_TRIGGER = 'WX13-076#8701';   // コードアート Ｂ・Ｅ・Ｃ（Lv1 青・手札からトラッシュで相手1体を凍結）
+const V87_PLAIN = 'WD01-013#8702';     // 小剣 ククリ（バニラ）＝対照で捨てる札
+const V87_FILLER = ['WD01-013#8703', 'WD01-013#8704', 'WD01-013#8705', 'WD01-013#8706', 'WD01-013#8707'];
+const V87_OPP_SIGNI = 'WD01-013#8710';
+
+// 手札 7枚（上限6）＝ちょうど1枚捨てさせる。⚠**deck を空にしない**（§4.4 📌22＝リフレッシュ誘発で追跡が壊れる）。
+function v87Spec() {
+  return {
+    hostSet: {
+      'field.lrig': ['WD03-003#8700'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [V87_TRIGGER, V87_PLAIN, ...V87_FILLER],
+      'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#8750', 'WD01-013#8751', 'WD01-013#8752', 'WD01-013#8753', 'WD01-013#8754'],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#8790'],
+      'field.signi': [[V87_OPP_SIGNI], null, null],
+      'field.signi_frozen': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [],
+      'deck': ['WD01-013#8770', 'WD01-013#8771', 'WD01-013#8772', 'WD01-013#8773', 'WD01-013#8774'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  };
+}
+
+async function driveV87(page, H, id, discardInstance, { expectFreeze }) {
+  const before = await H.queryState();
+  let modalSeen = false; let picked = false; let confirmed = false; let idle = 0;
+  for (let s = 0; s < 30; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = null;
+    const overLimit = page.getByText('手札上限超過').first();
+    const open = await overLimit.count() && await overLimit.isVisible().catch(() => false);
+    if (open) {
+      modalSeen = true;
+      if (!picked) {
+        // ⚠**インスタンスIDで狙う**＝手札にはフィラー（同名バニラ）が5枚あるので index も画像も一意にならない。
+        const cell = page.locator(`[data-testid^="enddiscard-hand-"][data-card-num="${discardInstance}"]`).first();
+        if (await cell.count() && await cell.isVisible().catch(() => false)) {
+          await cell.click({ timeout: 1500 }).catch(() => {}); did = `enddiscard:${discardInstance}`; picked = true;
+        }
+      } else if (!confirmed) {
+        const btn = page.getByRole('button', { name: '1枚捨てて終了', exact: true }).first();
+        if (await btn.count() && await btn.isEnabled().catch(() => false)) {
+          await btn.click({ timeout: 1500 }).catch(() => {}); did = 'btn:1枚捨てて終了'; confirmed = true;
+        }
+      }
+    } else if (!modalSeen) {
+      // ATTACK_LRIG →「エンドフェイズへ」→（必要なら）「ターン終了」で `doPhaseAdvance` を通す。
+      // ⚠**確認ダイアログを先に処理する**＝ルリグ未アタックのまま進めると
+      //   「まだルリグが攻撃していません／このままエンドフェイズへ進みますか？」が挟まり、
+      //   その裏のヘッダーボタンを押し続けても永久に進まない（実測で30ティック空振りした）。
+      did = await H.clickTextOrBtn(['このまま進む']);
+      if (!did) did = await H.clickTextOrBtn(['エンドフェイズへ', 'ターン終了']);
+    }
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+    const st = await H.queryState();
+    const frozen = (st?.guest?.signiFrozen ?? [])[0] === true;
+    const discarded = (st?.host?.trashCards ?? []).includes(discardInstance);
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | modal=${modalSeen} picked=${picked} confirmed=${confirmed} discarded=${discarded} frozen=${frozen} hHand=${st?.host?.hand} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!confirmed) continue;
+    idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+    if (idle >= 3) {
+      // 🔑**「捨てられたこと」を必須条件にする**＝`confirmEndDiscard` を通っていない緑を作らない。
+      const freezeLog = (st.logTail ?? []).some(l => l.includes('凍結'));
+      if (expectFreeze) {
+        return {
+          pass: modalSeen && discarded && frozen,
+          detail: `手札上限超過モーダル=${modalSeen}／${discardInstance} を捨てた=${discarded}／相手シグニが凍結=${frozen}（ログ=${freezeLog}）・手札 ${before?.host?.hand}→${st.host.hand}`,
+        };
+      }
+      return {
+        pass: modalSeen && discarded && !frozen,
+        detail: `対照（同じ手順でバニラを捨てた）＝捨てた=${discarded}／凍結は起きない=${!frozen}・手札 ${before?.host?.hand}→${st.host.hand}`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（modal=${modalSeen} picked=${picked} confirmed=${confirmed} hHand=${fin?.host?.hand} frozen=${JSON.stringify(fin?.guest?.signiFrozen)} pEff=${fin?.pendingEffect ?? '-'}）` };
+}
+
+scenarios.v87EndDiscardTriggersHandTrashAuto = {
+  title: 'V-87 手札上限超過の捨て札（confirmEndDiscard 経路）で WX13-076-E1 が誘発し相手シグニが凍結する',
+  spec: v87Spec(),
+  drive: (page, H) => driveV87(page, H, 'v87fire', V87_TRIGGER, { expectFreeze: true }),
+};
+scenarios.v87EndDiscardPlainCardNoTrigger = {
+  title: 'V-87対照 同じ盤面・同じ手順でバニラを捨てると凍結は起きない',
+  spec: v87Spec(),
+  drive: (page, H) => driveV87(page, H, 'v87ctl', V87_PLAIN, { expectFreeze: false }),
+};
+order.push('v87EndDiscardTriggersHandTrashAuto', 'v87EndDiscardPlainCardNoTrigger');
+// ── V-87 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

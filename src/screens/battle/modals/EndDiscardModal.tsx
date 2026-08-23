@@ -43,7 +43,10 @@ export function EndDiscardModal(p: EndDiscardModalProps) {
                 const c = battleCardMap.get(num);
                 const isSel = selectedEndDiscard.has(i);
                 return (
-                  <div key={i}
+                  // V-87（§5.1・2026-08-24）＝手札上限超過の捨て札は `confirmEndDiscard` 経路でしか通らず、
+                  // **どの札を捨てたか**で ON_TRASH（`fromZones:['hand']`）の発火が変わる。
+                  // 他の支払い/選択モーダルと綴りを揃えて決定論的に選べるようにする。
+                  <div key={i} data-testid={`enddiscard-hand-${i}`} data-card-num={num}
                     onClick={() => setSelectedEndDiscard(prev => {
                       const next = new Set(prev);
                       if (next.has(i)) { next.delete(i); return next; }
