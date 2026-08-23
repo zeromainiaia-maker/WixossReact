@@ -166,7 +166,7 @@ function isBatch1OnlyClause(re: RegExp): boolean {
     || (re.source.includes('あなたのライフクロス') && re.source.includes('対戦相手のエナゾーン'));
 }
 import {
-  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter,
+  parseNum, parseSignedNum, parseLevelFilter, parseColorFilter, parseStoryFilter, parseGuardFilter, parseIconFilter, parseNameFilter, parseExcludeCardNameFilter, parseEnergyCosts, toHalf, stripRuleParens, parseSuperlative, parseSelfComparison, parseTriggerComparison, parseSigniTarget, parseColorMatchesLrig, parseOrPickDescriptor, parsePickNounPhraseFilter, isSplitTopBottomReorder, parseRevealPickDescriptor, hasOtherSelfSigniNoun, extractNounPhraseFilter, signiZoneIndexJa, parseDynamicCountLimit, signiClauseStoryFilter, selectionConstraintFromPhrase, stripReferenceColorPhrase,
 } from './parserUtils';
 import { parseSentencePart1, parseSelfPlayRestrict } from './parsers/parseSentencePart1';
 import { parseSentencePart2 } from './parsers/parseSentencePart2';
@@ -443,7 +443,9 @@ function extractUseCondition(text: string): { cleaned: string; condition?: Condi
  */
 function energyTrashConstraintOf(phrase: string | undefined): { selectionConstraint: SelectionConstraint } | null {
   if (!phrase) return null;
-  if (/それぞれ異なるクラスを持つ|それぞれ共通するクラスを持たない/.test(phrase)) return { selectionConstraint: { distinct: 'class' } };
+  if (/それぞれ異なるクラスを持つ|(?:それぞれ)?共通するクラスを持たない/.test(phrase)) return { selectionConstraint: { distinct: 'class' } };
+  // ⚠「持たない」を「持つ」より**先**に見る（部分文字列ではないが、追加時に順序を崩さないための明示）。
+  if (/共通する色を持たない/.test(phrase)) return { selectionConstraint: { sharedColor: 'none' } };
   if (/共通する色を持つ/.test(phrase)) return { selectionConstraint: { sharedColor: 'all' } };
   if (/レベルの異なる/.test(phrase)) return { selectionConstraint: { distinct: 'level' } };
   if (/名前の異なる/.test(phrase)) return { selectionConstraint: { distinct: 'name' } };
@@ -582,12 +584,12 @@ function parseCost(costStr: string): EffectCost | undefined {
     cost.energyTrashAll = true;
   }
   // エナゾーンから[フィルター]シグニN枚をトラッシュに置く → energyTrash（前置き形）
-  const etM = !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:(それぞれ異なるクラスを持つ|共通する色を持つ|それぞれ?レベルの異なる|名前の異なる|それぞれ共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/) : null;
+  const etM = !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:(それぞれ異なるクラスを持つ|(?:それぞれ)?共通する色を持たない|共通する色を持つ|(?:それぞれ)?レベルの異なる|(?:それぞれ)?名前の異なる|(?:それぞれ)?共通するクラスを持たない)?(?:レベル([０-９\d]+)の)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をトラッシュに置く/) : null;
   // エナゾーンから後置き形（「シグニN枚をエナゾーンからトラッシュに置く」）
   // ⚠**「それぞれレベルの異なる」を捕捉する**（2026-08-18・§5d-0 (ii)）＝旧実装は非捕捉グループで
   //   飲み込んでいたため `WD18-001-E2`「それぞれレベルの異なる＜調理＞のシグニ４枚をエナゾーンから
   //   トラッシュに置く」が**同じレベル4枚でも払える**コストになっていた。
-  const etRevM = !etM && !cost.energyTrashAll ? costStr.match(/(?:(それぞれ?レベルの異なる|それぞれ?名前の異なる)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をエナゾーンからトラッシュに置く/) : null;
+  const etRevM = !etM && !cost.energyTrashAll ? costStr.match(/(?:((?:それぞれ)?レベルの異なる|(?:それぞれ)?名前の異なる)?(?:＜([^＞]+)＞の)?)?シグニ([０-９\d]+)枚をエナゾーンからトラッシュに置く/) : null;
   // エナゾーンから＜クラス＞のカードN枚をトラッシュ（カード型）
   const etCardM = !etM && !etRevM && !cost.energyTrashAll ? costStr.match(/エナゾーンから(?:＜([^＞]+)＞の)?カード([０-９\d]+)枚をトラッシュに置く/) : null;
   // エナゾーンから【keyword】を持つカードN枚をトラッシュ（キーワード型）
@@ -9276,6 +9278,68 @@ function groupUnionFilter(groups: SelectionGroupSpec[]): TargetFilter {
  * 単一 filter/count へ潰れた action に、原文の群割当を戻す。
  * action 型は増やさず、SEARCH/各ゾーン選択が共有する SelectionConstraint を使う。
  */
+/**
+ * 「それぞれレベル／名前／クラスの異なる」「（それぞれ）共通する色を持たない」＝**選んだ複数枚どうし**の
+ * 相互差異を live へ届ける後段パス（§6.2 段2 第42バッチ）。
+ *
+ * 🔑**受け皿は完成しているのに parser が配線していなかった穴**（続き629〜633 で7回連続で当たった型）＝
+ *   `SelectionConstraint.distinct` / `sharedColor` は `satisfiesSelectionConstraint`（engine）・
+ *   `canAddToSelection`（選択補助）・選択UI・逆翻訳のすべてが消費済み。にもかかわらず対象句を組む
+ *   個別ビルダー（トラッシュ回収／エナチャージ／下に置く／公開）は**枚数と filter しか運ばず**、
+ *   `WXK09-082-E2`「トラッシュからレベルの異なる＜電機＞のシグニ２枚をエナゾーンに置く」は
+ *   **同レベル2枚でも払える**過剰実行だった。
+ *
+ * ⚠**ビルダーごとに配線しない**＝対象句を組む入口が10以上あり、1つずつ足すと必ず取りこぼす。
+ *   代わりに**枚数2以上の選択スロットがちょうど1つのときだけ**制約を載せる（曖昧なら何もしない）。
+ * ⚠**制約句が2文以上に現れる効果は受けない**＝どの選択に掛かるか本文だけでは決まらない
+ *   （`WX04-034-E1` の3段テキスト等）。取りこぼす方に倒す。
+ * ⚠**「〈参照カード〉と共通する色／クラスを持[たつ]」は別語彙**（1枚ごとの参照比較）なので
+ *   `stripReferenceColorPhrase` で必ず落としてから判定する。
+ * ⚠既に `selectionConstraint` を持つノードは触らない（`groups` 等を上書きしない＝冪等）。
+ */
+function applyMutualDistinctSelection(text: string, parsed: EffectAction): EffectAction {
+  // ⚠**「相互差異語が本文にある」だけでは足りない**＝同じ語が「トラッシュにあるそれぞれレベルの異なる
+  //   ＜毒牙＞のシグニ**１枚につき**－3000」のように**数量参照**にも使われる（`WX14-048-E1` で実測）。
+  //   その形に選択制約を載せると、**別の文の選択**（同効果の選択肢①のトラッシュ回収2枚）へ勝手に
+  //   「レベルの異なる」が付く。⇒ 差異語の直後の名詞句が**2枚以上の選択**である形だけを受ける。
+  const phraseRe = /((?:それぞれ)?(?:名前|レベル|クラス)の異なる|(?:それぞれ)?共通する(?:色|クラス)を持たない|(?:それぞれ)?異なるクラスを持つ|(?:それぞれ)?共通する色を持つ)((?:(?!、)[^。]){0,40}?)(?:([０-９\d]+)(?:枚|体)|(好きな枚数|すべて))/g;
+  const found: SelectionConstraint[] = [];
+  for (const sentence of text.split('。').map(part => part.trim()).filter(Boolean)) {
+    for (const m of stripReferenceColorPhrase(sentence).matchAll(phraseRe)) {
+      if (m[3] !== undefined && parseNum(m[3]) < 2) continue; // 「１枚につき」＝数量参照
+      const constraint = selectionConstraintFromPhrase(m[1]);
+      if (constraint) found.push(constraint);
+    }
+  }
+  if (found.length !== 1) return parsed;
+  const sc = found[0];
+  // 「N枚まで」「好きな枚数」も相互差異の対象＝上限が2以上あれば同名/同レベルを重ねられてしまう。
+  const multi = (count: unknown): boolean => count === 'ALL' || (typeof count === 'number' && count >= 2);
+  const slots: (() => void)[] = [];
+  const visit = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    const obj = node as Record<string, unknown> & { type?: string };
+    if (obj.selectionConstraint === undefined) {
+      if (obj.type === 'REVEAL_AND_PICK' && multi(obj.pickCount)) slots.push(() => { obj.selectionConstraint = sc; });
+      else if (obj.type === 'PLACE_UNDER_SIGNI' && multi(obj.count)) slots.push(() => { obj.selectionConstraint = sc; });
+      else if (obj.type === 'SEARCH' && multi(obj.maxCount)) slots.push(() => { obj.selectionConstraint = sc; });
+    }
+    for (const key of ['target', 'source'] as const) {
+      const slot = obj[key] as (Record<string, unknown> | undefined);
+      if (slot && typeof slot === 'object' && !Array.isArray(slot)
+          && typeof slot.type === 'string' && slot.selectionConstraint === undefined && multi(slot.count)) {
+        slots.push(() => { slot.selectionConstraint = sc; });
+      }
+    }
+    for (const value of Object.values(obj)) visit(value);
+  };
+  visit(parsed);
+  if (slots.length !== 1) return parsed;
+  slots[0]();
+  return parsed;
+}
+
 function applyExplicitSelectionGroups(text: string, parsed: EffectAction): EffectAction {
   const groups = parseExplicitSelectionGroups(text);
   if (!groups) {
@@ -9458,6 +9522,7 @@ function parseActionText(text: string): EffectAction {
   parsed = wireSelectedSigniConditionalUp(text, parsed);
   parsed = stripReplacementConditionColor(text, parsed);
   parsed = applyExplicitSelectionGroups(text, parsed);
+  parsed = applyMutualDistinctSelection(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {
@@ -11517,6 +11582,7 @@ function parseActionTextInner(text: string): EffectAction {
             owner: 'self',
             revealCount: parseNum(cM[1]),
             ...(Object.keys(splitDesc.filter).length > 0 ? { filter: splitDesc.filter } : {}),
+            ...(splitDesc.selectionConstraint ? { selectionConstraint: splitDesc.selectionConstraint } : {}),
             pickCount: splitDesc.pickCount,
             ...(splitDesc.pickUpTo ? { pickUpTo: true } : {}),
             ...(splitDesc.noun !== 'シグニ' ? { pickNoun: splitDesc.noun } : {}),
@@ -12767,6 +12833,7 @@ function parseActionTextInner(text: string): EffectAction {
           owner: 'self',
           revealCount: look.count,
           ...(rpp?.filter ? { filter: rpp.filter } : {}),
+          ...(rpp?.selectionConstraint ? { selectionConstraint: rpp.selectionConstraint } : {}),
           pickCount,
           ...(rpp?.pickUpTo ? { pickUpTo: true } : {}),
           ...(rpp?.pickNoun ? { pickNoun: rpp.pickNoun } : {}),

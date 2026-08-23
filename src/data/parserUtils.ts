@@ -1,4 +1,4 @@
-import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost } from '../types/effects';
+import type { Owner, EffectTarget, TargetFilter, StubAction, EnergyCost, SelectionConstraint } from '../types/effects';
 
 // costColors から実際の色名だけを抽出（カード名を除外、《赤×2》→["赤","赤"]に展開）
 export function extractCostColors(text: string): string[] {
@@ -73,6 +73,7 @@ export function makeRevealPickStub(t: string): StubAction {
       // ⚠`desc.dest==='field'` を落とすと「場に出す」が黙って「手札に加える」になる（旧実装のバグ）。
       then: desc ? (desc.dest === 'energy' ? 'energy' : desc.dest === 'field' ? 'field' : 'hand') : then,
       ...(desc && Object.keys(desc.filter).length > 0 ? { filter: desc.filter } : {}),
+      ...(desc?.selectionConstraint ? { selectionConstraint: desc.selectionConstraint } : {}),
       ...(desc?.pickUpTo ? { pickUpTo: true } : {}),
       ...(desc && desc.noun !== 'シグニ' ? { pickNoun: desc.noun } : {}),
       ...(desc?.dest === 'hand_or_energy' ? { handOrEnergy: true } : {}),
@@ -888,14 +889,49 @@ export function parseOrPickDescriptor(desc: string): { filter: TargetFilter; nou
 //   否定修飾を取りこぼして**意味を反転**させるため、絞り込みを増やすより取りこぼす方に倒す。
 export interface RevealPickDescriptor {
   filter: TargetFilter;
+  /** 「それぞれレベルの異なる」等＝選んだ複数枚どうしの相互差異（§6.2 段2 第42バッチ）。 */
+  selectionConstraint?: SelectionConstraint;
   pickCount: number | 'ALL';
   pickUpTo: boolean;
   noun: 'シグニ' | 'スペル' | 'カード';
   dest: 'hand' | 'energy' | 'field' | 'hand_or_energy';
 }
 
+/**
+ * 「それぞれレベル／名前／クラスの異なる」「共通する色（クラス）を持たない」＝**選んだ複数枚どうし**の
+ * 相互差異制約（§6.2 段2 第42バッチ）。
+ *
+ * 🔑**受け皿は完成しているのに parser が配線していなかった型の穴**＝`SelectionConstraint.distinct` /
+ *   `sharedColor` は engine（`satisfiesSelectionConstraint`）・選択補助（`canAddToSelection`）・
+ *   選択UI（`EffectInteractionModal`）・逆翻訳（`constraintJa`）のすべてが消費済み。にもかかわらず
+ *   名詞句修飾の経路だけは **`TargetFilter.eachDistinctColor` / `eachDistinctLevel`（engine に消費が
+ *   1行も無い死にキー）** へ書いており、`WXK08-027-E2`「それぞれレベルの異なるシグニを４枚まで手札に加え」は
+ *   **同じレベルのシグニ4枚でも取れる**過剰実行だった。
+ *
+ * ⚠**「〈参照カード〉と共通する色／クラスを持[たつ]」は別語彙**＝1枚ごとの参照比較
+ *   （`colorNotMatchesLrig` / `classMatchesDiscardSigni` 等）。`stripReferenceColorPhrase` で必ず先に
+ *   落としてから呼ぶ＝混ぜると「センタールリグと共通する色を持たないカード１枚」が**選択集合の制約**に
+ *   化けて意味が変わる（しかも count:1 では黙って無効化される）。
+ * ⚠**「共通するクラスを持つ」は受けない**＝`SelectionConstraint` に「全員が同じクラスを共有する」枠が無い
+ *   （`sharedColor` の class 版が未実装）。無いものを近い語へ寄せると過小/過剰のどちらかに倒れる。
+ */
+export function selectionConstraintFromPhrase(span: string): SelectionConstraint | undefined {
+  if (/それぞれ異なるクラスを持つ|共通するクラスを持たない|クラスの異なる/.test(span)) return { distinct: 'class' };
+  if (/共通する色を持たない/.test(span)) return { sharedColor: 'none' };
+  if (/レベルの異なる/.test(span)) return { distinct: 'level' };
+  if (/名前の異なる/.test(span)) return { distinct: 'name' };
+  if (/共通する色を持つ/.test(span)) return { sharedColor: 'all' };
+  return undefined;
+}
+
+/** 「〈参照カード〉と共通する色／クラスを持[たつ]」＝1枚ごとの参照比較（用法A）を落とす。 */
+export function stripReferenceColorPhrase(text: string): string {
+  return text.replace(/[^、。]{0,24}と共通する(?:色|クラス)を持(?:たない|つ|ち)/g, '');
+}
+
 // 記述子の先頭から1トークンずつ食べる規則表。全消費できなければ呼び出し側で null 扱い。
-const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: { filter: TargetFilter; classes: string[]; colors: string[] }) => boolean }[] = [
+type RevealPickAcc = { filter: TargetFilter; classes: string[]; colors: string[]; selectionConstraint?: SelectionConstraint };
+const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: RevealPickAcc) => boolean }[] = [
   { re: /^＜([^＞]+)＞の?/, apply: (m, a) => { a.classes.push(m[1]); return true; } },
   { re: /^([白赤青緑黒])の?/, apply: (m, a) => { a.colors.push(m[1]); return true; } },
   { re: /^レベル[０-９\d]+(?:以上|以下)?の?/, apply: (m, a) => { Object.assign(a.filter, parseLevelFilter(m[0])); return true; } },
@@ -917,8 +953,13 @@ const REVEAL_PICK_DESC_RULES: { re: RegExp; apply: (m: RegExpMatchArray, acc: { 
   // engine は `resolveDiscardLevelFilter` が caster の `last_discarded_signi_class` で解決する（SEARCH 経路は実装済み）。
   // ⚠落とすと `WXK10-029-E2` は**公開3枚から何でも2枚拾える**過剰効果になる（コストで捨てたクラスの縛りが消える）。
   { re: /^(?:この能力の)?(?:コスト|この方法)で捨てたシグニと共通するクラスを持(?:つ|ち)/, apply: (_m, a) => { a.filter.classMatchesDiscardSigni = true; return true; } },
-  { re: /^共通する色を持たない/, apply: (_m, a) => { a.filter.eachDistinctColor = true; return true; } },
-  { re: /^それぞれレベルの異なる/, apply: (_m, a) => { a.filter.eachDistinctLevel = true; return true; } },
+  // 選択集合の相互差異（§6.2 段2 第42バッチ）。⚠**参照比較の規則より後ろに置く**＝上の
+  // 「センタールリグと共通する色を持たない」は `と` を含む別トークンで、先着優先の `.find` が拾う。
+  { re: /^(?:それぞれ)?共通する色を持たない/, apply: (_m, a) => { a.selectionConstraint = { sharedColor: 'none' }; return true; } },
+  { re: /^(?:それぞれ)?共通するクラスを持たない/, apply: (_m, a) => { a.selectionConstraint = { distinct: 'class' }; return true; } },
+  { re: /^(?:それぞれ)?異なるクラスを持つ/, apply: (_m, a) => { a.selectionConstraint = { distinct: 'class' }; return true; } },
+  { re: /^(?:それぞれ)?レベルの異なる/, apply: (_m, a) => { a.selectionConstraint = { distinct: 'level' }; return true; } },
+  { re: /^(?:それぞれ)?名前の異なる/, apply: (_m, a) => { a.selectionConstraint = { distinct: 'name' }; return true; } },
   // 宣言参照（タスク12(xlvi)(c)）。⚠具体形（数字／クラス）を裸の「宣言した」より**前**に置く
   // （`.find` の先着優先なので順序を入れ替えると「宣言した数字と同じレベルを持つ」が名前一致に化ける）。
   { re: /^宣言した数字と同じレベルを持つ/, apply: (_m, a) => { a.filter.levelEqDeclaredNumber = true; return true; } },
@@ -935,8 +976,8 @@ export function parsePickNounPhraseFilter(desc: string, noun: string): TargetFil
   return revealPickDescFilter(desc, noun);
 }
 
-function revealPickDescFilter(desc: string, noun: string): TargetFilter | null {
-  const acc = { filter: {} as TargetFilter, classes: [] as string[], colors: [] as string[] };
+function revealPickDescParts(desc: string, noun: string): { filter: TargetFilter; selectionConstraint?: SelectionConstraint } | null {
+  const acc: RevealPickAcc = { filter: {} as TargetFilter, classes: [], colors: [] };
   let rest = desc;
   while (rest.length > 0) {
     const rule = REVEAL_PICK_DESC_RULES.find(r => r.re.test(rest));
@@ -948,11 +989,18 @@ function revealPickDescFilter(desc: string, noun: string): TargetFilter | null {
   // 複数クラス／複数色の並列（「＜天使＞と＜悪魔＞の」）は AND か OR か記述子だけでは決まらない＝受けない。
   if (acc.classes.length > 1 || acc.colors.length > 1) return null;
   return {
-    ...acc.filter,
-    ...(acc.classes.length === 1 ? { story: acc.classes[0] } : {}),
-    ...(acc.colors.length === 1 ? { color: acc.colors[0] } : {}),
-    ...nounCardType(noun),
+    filter: {
+      ...acc.filter,
+      ...(acc.classes.length === 1 ? { story: acc.classes[0] } : {}),
+      ...(acc.colors.length === 1 ? { color: acc.colors[0] } : {}),
+      ...nounCardType(noun),
+    },
+    ...(acc.selectionConstraint ? { selectionConstraint: acc.selectionConstraint } : {}),
   };
+}
+
+function revealPickDescFilter(desc: string, noun: string): TargetFilter | null {
+  return revealPickDescParts(desc, noun)?.filter ?? null;
 }
 
 /**
@@ -1012,6 +1060,7 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   // ＜＞《》【】の内側を除いた「か」があれば OR 記述子（「青か黒のスペル」）として解く。
   const bare = desc.replace(/＜[^＞]*＞|《[^》]*》|【[^】]*】/g, '');
   let filter: TargetFilter | null;
+  let selectionConstraint: SelectionConstraint | undefined;
   let outNoun = noun;
   if (bare.includes('か')) {
     const or = parseOrPickDescriptor(desc + noun);
@@ -1019,7 +1068,9 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
     filter = or.filter;
     outNoun = or.noun;
   } else {
-    filter = revealPickDescFilter(desc, noun);
+    const parts = revealPickDescParts(desc, noun);
+    filter = parts?.filter ?? null;
+    selectionConstraint = parts?.selectionConstraint;
   }
   if (!filter) return null;
 
@@ -1031,6 +1082,7 @@ export function parseRevealPickDescriptor(t: string): RevealPickDescriptor | nul
   const dest: RevealPickDescriptor['dest'] = toHand && toEnergy ? 'hand_or_energy' : toField ? 'field' : toEnergy ? 'energy' : 'hand';
   return {
     filter,
+    ...(selectionConstraint ? { selectionConstraint } : {}),
     pickCount,
     pickUpTo: prefixAll ? m[1] === '好きな枚数' : m[5] === 'まで' || m[4] === '好きな枚数',
     noun: outNoun,

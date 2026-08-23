@@ -655,8 +655,11 @@ export interface TargetFilter {
   hasCrossIcon?: boolean; // 《クロスアイコン》を持つシグニ（EffectText が《クロスアイコン》で始まる）。matchesFilter で判定（WX07-002 等「クロスアイコンを持つシグニが場に出たとき」triggerFilter）
   hasRiseIcon?: boolean;  // 《ライズアイコン》を持つシグニ（EffectText に【ライズ】を含む）。matchesFilter で判定（WX16-026 等「ライズアイコンを持つシグニが場に出たとき」triggerFilter）
   noRiseIcon?: boolean;   // 《ライズアイコン》を持たないシグニ（hasRiseIcon の否定）。matchesFilter で判定（WX16-038-E2「ライズアイコンを持たない＜武勇＞のシグニ」）
-  eachDistinctColor?: boolean; // 選択した複数枚がそれぞれ共通する色を持たない（G240）。逆翻訳の表示用＋選択補助（engine は per-card 判定しないため厳密enforce はTODO）
-  eachDistinctLevel?: boolean; // 選択した複数枚がそれぞれレベルの異なる（G256「それぞれレベルの異なる＜X＞のシグニ2枚」）。逆翻訳の表示用＋選択補助（厳密enforce はTODO）
+  // ⚠🔴**`eachDistinctColor` / `eachDistinctLevel` は 2026-08-23（段2 第42バッチ）で削除**＝
+  //   parser だけが書いて **engine に消費が1行も無い死にキー**だった（＝制約が黙って消える過剰実行）。
+  //   選択集合の相互差異は `SelectionConstraint.distinct` / `sharedColor` が正準形で、
+  //   `satisfiesSelectionConstraint`（engine）・`canAddToSelection`（選択補助）・選択UI・逆翻訳のすべてが消費済み。
+  //   同じ意味の受け皿を TargetFilter 側に増やさないこと（候補**単体**の述語しか書けない層なので相互差異は表せない）。
   isDown?:    boolean;
   isUp?:      boolean; // アップ状態（ダウンしていない）
   isDrive?:   boolean; // ドライブ状態のシグニ（ownerState.lrig_riding_signi に含まれる＝ルリグに乗られている乗機シグニ）。matchesStateFilter で判定（「あなたのドライブ状態のシグニ」WXEX1-37）
@@ -1819,6 +1822,8 @@ export interface RevealAndPickAction {
   revealCount: NumberOrRef;
   filter?: TargetFilter;
   pickCount: number | 'ALL';
+  /** 公開札から選ぶ複数枚どうしの相互差異（「それぞれレベルの異なるシグニを４枚まで」WXK08-027-E2）。§6.2 段2 第42バッチ。 */
+  selectionConstraint?: SelectionConstraint;
   pickUpTo?: boolean; // pickCount を「N枚まで」（上限）として扱う（G236）。逆翻訳に「まで」を付与
   pickNoun?: string;  // ピック対象の名詞（既定「シグニ」）。色一致で任意カードを拾う等は「カード」（G236）
   then: EffectAction;
@@ -3192,6 +3197,8 @@ export interface StubAction {
     // ピック対象の絞り込み（タスク12(xlvi)(h)）。融合規則が filter を運ばず「どのカードでも拾える」
     // 過剰実行になっていたため、pick 記述子から復元して REVEAL_AND_PICK へ渡す。
     filter?: TargetFilter;
+    /** 選んだ複数枚どうしの相互差異（「それぞれレベルの異なるシグニを４枚まで」）。§6.2 段2 第42バッチ。 */
+    selectionConstraint?: SelectionConstraint;
     pickUpTo?: boolean;    // 「N枚まで」（上限）
     pickNoun?: string;     // 逆翻訳の名詞（既定「シグニ」）
     handOrEnergy?: boolean; // 「手札に加えるかエナゾーンに置く」＝1枚ずつ対話選択

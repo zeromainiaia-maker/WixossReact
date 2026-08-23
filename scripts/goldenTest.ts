@@ -6466,13 +6466,16 @@ test('(xlvi) WXDi-P12-001-E1: ディソナ pick の後続【シグニバリア�
 // 「間違った filter」は検出できない**（filter の**消失**だけを検出する）ので、内容はここで原文どおりに固定する。
 const xlviWave5Cases = [
   { cardNum: 'WX21-028', effectId: 'WX21-028-BURST', why: '＜天使＞2枚まで・残りトラッシュ（PRESERVE 外科採用）',
-    want: '{"eachDistinctColor":true,"story":"天使","cardType":"シグニ"}|2|true|false|trash/bottom' },
+    want: '{"story":"天使","cardType":"シグニ"}|2|true|false|trash/bottom',
+    // 「共通する色を持たない」＝**選んだ2枚どうし**の制約＝候補単体の述語である filter には書けない（段2 第42バッチ）。
+    wantConstraint: '{"sharedColor":"none"}' },
   { cardNum: 'WX21-037', effectId: 'WX21-037-E2', why: '青か黒のスペル（OR記述子）',
     want: '{"color":["青","黒"],"cardType":"スペル"}|1|false|false|deck/bottom' },
   { cardNum: 'WX22-030', effectId: 'WX22-030-E1', why: '《アクセアイコン》を持つシグニ',
     want: '{"hasIcon":"アクセ","cardType":"シグニ"}|1|false|false|deck/bottom' },
   { cardNum: 'WXK08-027', effectId: 'WXK08-027-E2', why: 'それぞれレベルの異なるシグニ4枚まで',
-    want: '{"eachDistinctLevel":true,"cardType":"シグニ"}|4|true|false|trash/bottom' },
+    want: '{"cardType":"シグニ"}|4|true|false|trash/bottom',
+    wantConstraint: '{"distinct":"level"}' },
   { cardNum: 'WDK01-008', effectId: 'WDK01-008-E1', why: '＜乗機＞のシグニ3枚まで（CHOOSE 内・従来は1枚固定）',
     want: '{"story":"乗機","cardType":"シグニ"}|3|true|false|deck/bottom' },
   // handOrEnergy 群（オートパイロットは先頭 available 選択肢＝手札を選ぶので手札着地で見る）
@@ -6501,6 +6504,10 @@ for (const spec of xlviWave5Cases) {
       const rem0 = reveal!.remainder!;
       eq(`${JSON.stringify(filter)}|${reveal!.pickCount}|${!!reveal!.pickUpTo}|${!!reveal!.handOrEnergy}|${rem0.location}/${rem0.position}`,
         spec.want, `${spec.effectId}: filter/枚数/上限/手札orエナ/残り先が原文どおり`);
+      // ⚠**相互差異は filter ではなく `selectionConstraint`**（段2 第42バッチ）＝旧実装は `TargetFilter.eachDistinct*`
+      //   という**engine に消費が1行も無い死にキー**へ書いており、同レベル4枚でも取れる過剰実行だった。
+      eq(JSON.stringify(reveal!.selectionConstraint ?? null), (spec as { wantConstraint?: string }).wantConstraint ?? 'null',
+        `${spec.effectId}: 選択集合の相互差異が正準形（selectionConstraint）で載る`);
       const declared = reveal!.pickCount as number;
       const revealN = reveal!.revealCount as number;
       ok(typeof declared === 'number' && declared >= 1, `${spec.effectId}: pickCount は実数`);
@@ -6510,10 +6517,14 @@ for (const spec of xlviWave5Cases) {
       ok(wantPick >= 1, `${spec.effectId}: 該当枠を1枚以上確保`);
       const matching: string[] = [];
       const nonMatching: string[] = [];
+      // ⚠相互差異つきの札では**制約を満たす組**を用意する（同レベル／同色を混ぜると engine が正しく弾き、
+      //   「該当分だけ手札へ」が落ちる＝制約が効いていることの裏返し）。段2 第42バッチ。
+      const sc = reveal!.selectionConstraint;
       for (const c of cardMap.values()) {
         const hit = matchesFilter(c, filter);
-        if (hit && matching.length < wantPick) matching.push(c.CardNum);
-        else if (!hit && nonMatching.length < revealN - wantPick) nonMatching.push(c.CardNum);
+        if (hit && matching.length < wantPick) {
+          if (satisfiesSelectionConstraint([...matching, c.CardNum], sc, cardMap)) matching.push(c.CardNum);
+        } else if (!hit && nonMatching.length < revealN - wantPick) nonMatching.push(c.CardNum);
         if (matching.length >= wantPick && nonMatching.length >= revealN - wantPick) break;
       }
       eq(matching.length, wantPick, `${spec.effectId}: filter 成立カードを ${wantPick} 枚用意`);

@@ -5943,6 +5943,9 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     visibleCards: pickable,
     maxPick,
     ...(a.pickUpTo ? { optional: true } : {}),
+    // 選んだ複数枚どうしの相互差異（「それぞれレベルの異なるシグニを４枚まで」）。§6.2 段2 第42バッチ。
+    // resumeSearch（:8757）が `satisfiesSelectionConstraint` で検査し、選択UIも候補を絞る。
+    ...(a.selectionConstraint ? { selectionConstraint: a.selectionConstraint } : {}),
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
     ...(a.handOrEnergy ? { handOrEnergy: true } : {}),

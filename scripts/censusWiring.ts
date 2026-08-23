@@ -81,18 +81,19 @@ const VOCAB: Vocab[] = [
   { key: 'noAbilities',      re: /能力を持たない/ },
   { key: 'levelParity',      re: /レベルが(奇数|偶数)|(奇数|偶数)のレベル/ },
   { key: 'excludeCardName',  re: /《[^》]+》以外の/ },
-  // ⚠**「それぞれ〜異なる」も2つの綴りが併存している**（2026-08-18 実測＝trap (h) の4例目）＝
-  //   `TargetFilter.eachDistinctLevel` は**逆翻訳の表示と選択補助だけ**で厳密 enforce は TODO なのに対し、
-  //   `SelectionConstraint{distinct:'level'}`（`SearchAction`/`target`/`source` 直下）は
-  //   `satisfiesSelectionConstraint`（execUtils）と `resumeSearch` が**実際に不正な集合を拒否する正準形**。
-  //   キー名照合だけだと **正準形で書けている20効果を miss と誤検出**していた（miss 29 のうち 20）。
+  // ⚠**「それぞれ〜異なる」の受け皿は `SelectionConstraint` 一本**（2026-08-23・段2 第42バッチ）＝
+  //   旧 `TargetFilter.eachDistinctLevel` / `eachDistinctColor` は **engine に消費が1行も無い死にキー**
+  //   だったので型ごと削除した。正準形 `SelectionConstraint{distinct:'level'}`（`SearchAction`/`target`/
+  //   `source`/`REVEAL_AND_PICK` 直下）は `satisfiesSelectionConstraint`（execUtils）と `resumeSearch` が
+  //   **実際に不正な集合を拒否する**。⚠キー名照合だけだと正準形で書けている効果を miss と誤検出する。
   //   `distinctLevels` は `HAS_CARD_IN_FIELD` 条件側の同義キー（`WXK08-027-E1`）。
-  { key: 'eachDistinctLevel', re: /それぞれレベルの異なる/,
-    jsonRe: /"eachDistinctLevel"\s*:|"distinct"\s*:\s*"level"|"distinctLevels"\s*:/,
-    note: '正準形は selectionConstraint.distinct（filter キーは表示用）' },
-  { key: 'eachDistinctColor', re: /それぞれ共通する色を持たない/,
-    jsonRe: /"eachDistinctColor"\s*:|"sharedColor"\s*:\s*"none"/,
-    note: '正準形は selectionConstraint.sharedColor（filter キーは表示用）' },
+  //   ⚠原文は「それぞれ」が付かない綴り（「レベルの異なる＜電機＞のシグニ２枚」WXK09-082-E2）も併存する。
+  { key: 'eachDistinctLevel', re: /(?:それぞれ)?レベルの異なる/,
+    jsonRe: /"distinct"\s*:\s*"level"|"distinctLevels"\s*:/,
+    note: '正準形は selectionConstraint.distinct' },
+  { key: 'eachDistinctColor', re: /(?:それぞれ)?共通する色を持たない/,
+    jsonRe: /"sharedColor"\s*:\s*"none"/,
+    note: '正準形は selectionConstraint.sharedColor' },
 
   // --- 盤面状態フィルタ（execUtils.matchesFilter / effectEngine.matchesStateFilter） ---
   // 2026-08-22 追加。**この群が VOCAB に無かったため `filter.hasCharm` の配線漏れが

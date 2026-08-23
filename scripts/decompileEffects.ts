@@ -165,7 +165,6 @@ function filterJa(f?: any): string {
   if (f.isFrozen) parts.push('凍結状態の');
   if (f.isPuppet) parts.push('傀儡状態の');
   if (f.attackedThisTurn) parts.push('このターンにアタックした');
-  if (f.eachDistinctLevel) parts.push('それぞれレベルの異なる');
   if (f.color) parts.push(`《${[].concat(f.color).join('・')}》の`);
   if (f.colorExclude) parts.push(`《${[].concat(f.colorExclude).join('・')}》以外の`);
   if (f.cardClass) parts.push(`＜${[].concat(f.cardClass).join('・')}＞の`);
@@ -234,7 +233,6 @@ function filterJa(f?: any): string {
   if (f.hasRiseIcon) parts.push('《ライズアイコン》を持つ');
   if (f.noRiseIcon) parts.push('《ライズアイコン》を持たない');
   if (f.hasCrossIcon) parts.push('《クロスアイコン》を持つ');
-  if (f.eachDistinctColor) parts.push('それぞれ共通する色を持たず');
   if (f.nonColorless) parts.push('無色ではない');
   if (f.excludeResona) parts.push('レゾナではない');
   if (f.isDisona) parts.push('《ディソナアイコン》を持つ');
@@ -571,7 +569,10 @@ function condJa(c?: any): string {
       // 原文どおりに戻す（既定の「それぞれ名前の異なる〜がN体いる」形＝WX12-Re01 と意味は同一）
       if (c.distinctNames && c.distinctPhraseJa === 'kinds')
         return `${ownerJa(c.owner)}場に${filterJa(c.filter)}シグニが${numJa(c.minCount ?? 1)}種類以上ある`;
-      return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
+      // ⚠**`distinctLevels` を描く**（段2 第42バッチ）＝engine（execUtils:1836）は「一致シグニの**レベルの種類数**」を
+      //   minCount と比べているのに逆翻訳は体数条件に丸めており、`WXK08-027-E1`「あなたの場にそれぞれレベルの
+      //   異なるシグニが３体ある場合」が**ただの3体以上**に見えて原文照合で気づけなかった。
+      return `${ownerJa(c.owner)}場に${c.excludeSelf ? '他の' : ''}${c.distinctNames ? 'それぞれ名前の異なる' : ''}${c.distinctLevels ? 'それぞれレベルの異なる' : ''}${filterJa(c.filter)}${(c.filter?.isResona || c.filter?.cardType === 'レゾナ') ? 'レゾナ' : 'シグニ'}が${c.minCount && c.minCount > 1 ? numJa(c.minCount) + '体以上' : ''}いる`;
     case 'HAS_KEY_IN_FIELD': return c.operator && c.value !== undefined
       ? `${ownerJa(c.owner)}場にキーが${numJa(c.value)}枚${opJa(c.operator)}`
       : `${ownerJa(c.owner)}場にキーがある`;
@@ -1536,6 +1537,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const filterStr = rapFilter?.anyOf && Object.keys(rapFilter).length === 1
         ? anyOfJa(rapFilter.anyOf)
         : rapFilter ? filterJa(rapFilter) + (a.pickNoun ?? 'シグニ') : 'カード';
+      // 選んだ複数枚どうしの相互差異（「その中からそれぞれレベルの異なるシグニを４枚まで」WXK08-027-E2）。
+      // ⚠旧実装は `TargetFilter.eachDistinct*`（engine に消費が無い死にキー）を描いていた＝段2 第42バッチで正準形へ。
+      const rapConstraint = constraintJa(a.selectionConstraint);
       const revealJa = rapCnt?.$ref === 'last_processed_level'
         ? `${ownerJa(rapOwner)}デッキの上からこの方法でトラッシュに置いたシグニのレベルと同じ枚数のカードを見て`
         : rapCnt?.$ref === 'last_processed_count'
@@ -1582,7 +1586,7 @@ function actionJa(a?: Action, effectType?: string): string {
           ? '。それらのシグニの【出】能力は発動しない' : '';
         // §6.4 O-2: 選ぶ主体を明示する。`owner` だけを描くと `opponentResponds` の有無で
         // 逆翻訳が同じ文になり、「相手のデッキを**自分が**覗く」との区別が消える（偽陰性）。
-        return `${revealJa}、${a.opponentResponds ? '対戦相手はその中から' : 'その中から'}${filterStr}を${pickN}${placeVerb}${remJa}${suppress}`;
+        return `${revealJa}、${a.opponentResponds ? '対戦相手はその中から' : 'その中から'}${rapConstraint}${filterStr}を${pickN}${placeVerb}${remJa}${suppress}`;
       }
       // 別効果系（公開カードが条件）＝「それが[filter]の場合、[then]」。1枚公開時は残り句を省く（原文も省く）。
       if (a.then) {
@@ -1590,7 +1594,7 @@ function actionJa(a?: Action, effectType?: string): string {
         const otherwise = a.elseAction ? `。そうでない場合、${actionJa(a.elseAction)}` : '';
         return `${revealJa}、それが${filterStr}の場合、${actionJa(a.then)}${otherwise}${condRem}`;
       }
-      return `${revealJa}、その中から${filterStr}を${pickN}処理する${remJa}`;
+      return `${revealJa}、その中から${rapConstraint}${filterStr}を${pickN}処理する${remJa}`;
     }
     case 'REARRANGE_SIGNI': return rearrangeSigniJa(a);
     case 'CHARM_PROTECTION':
@@ -1939,14 +1943,23 @@ function actionJa(a?: Action, effectType?: string): string {
       const puFrom = puLoc[a.source] ?? `${a.source}から`;
       const puNoun = a.filter?.cardType && !Array.isArray(a.filter.cardType) ? a.filter.cardType : 'カード';
       const puCnt = a.count != null ? `${a.count}枚${a.upToCount ? 'まで' : ''}` : '';
-      return `${puFrom}${a.filter ? filterJa(a.filter) : ''}${puNoun}を${puCnt}このシグニの下に置く`;
+      // 選んだ複数枚どうしの相互差異（「共通する色を持たない…２枚まで」WX21-024-E1）。段2 第42バッチ。
+      return `${puFrom}${constraintJa(a.selectionConstraint)}${a.filter ? filterJa(a.filter) : ''}${puNoun}を${puCnt}このシグニの下に置く`;
     }
     case 'TAKE_FROM_UNDER_SIGNI': return 'このシグニの下のカードを取る';
     case 'STACK_SPELL': return 'トラッシュからスペルをこのカードの下に置く';
-    case 'REVEAL':
-      if (a.source?.type === 'HAND_CARD' && a.source.count === 'ALL') return `${ownerJa(a.source.owner)}手札を公開する${a.optional ? '（してもよい）' : ''}`;
-      if (a.source?.type === 'HAND_CARD') return `${ownerJa(a.source.owner)}手札から${filterJa(a.source.filter)}シグニ${a.source.count ?? 1}枚を公開する${a.optional ? '（してもよい）' : ''}`;
+    case 'REVEAL': {
+      // ⚠**「手札を全部見せる」と「手札から条件つきで好きな枚数見せる」は別物**（段2 第42バッチ）＝
+      //   filter 付きの count:'ALL' まで無条件公開に丸めると、`WXK10-081-E2`「それぞれ名前の異なる
+      //   ＜水獣＞のシグニを好きな枚数公開する」が**手札全公開**に見えて原文照合で気づけない。
+      if (a.source?.type === 'HAND_CARD' && a.source.count === 'ALL' && !a.source.filter) return `${ownerJa(a.source.owner)}手札を公開する${a.optional ? '（してもよい）' : ''}`;
+      if (a.source?.type === 'HAND_CARD') {
+        // 「N枚まで」（upToCount）と選んだ複数枚どうしの相互差異（selectionConstraint）を落とさない。
+        const revCnt = a.source.count === 'ALL' ? 'を好きな枚数' : `${a.source.count ?? 1}枚${a.source.upToCount ? 'まで' : ''}を`;
+        return `${ownerJa(a.source.owner)}手札から${constraintJa(a.source.selectionConstraint)}${filterJa(a.source.filter)}シグニ${revCnt}公開する${a.optional ? '（してもよい）' : ''}`;
+      }
       return `${ownerJa(a.owner)}デッキの上を公開する`;
+    }
     case 'GRANT_LRIG_ABILITY': {
       if (a.abilities?.length === 1 && a.abilities[0]?.consumeOnTrigger
           && a.abilities[0]?.timing?.includes('ON_ATTACK_LRIG')) {
