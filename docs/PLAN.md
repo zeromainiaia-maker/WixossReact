@@ -140,28 +140,21 @@
 
 ### 📍 進捗サマリ（最新1件のみ・過去は別ファイル）
 > **運用ルール（2026-07-07〜）**：この節には**直近の作業1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いま置いてある要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の「過去セッション要約」**先頭**へ移す（新しいものが上）→②この節を今回の作業の要約へ丸ごと書き換える。過去の全セッション要約（旧・要約①②を含む）は [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) に集約済み。
-- **🆕 セッション（2026-08-23・続き632〜633・Opus 5＋Codex）＝段2 を8バッチ連投（第33〜40）＋台帳書式の是正**。**残 OPEN 876→746**（**−130**）／段2 消化 **247→363**／**live 修正 175効果**。**census 640→608**／**golden 2563→2639**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、**held 86→82**、partial/idset **15/46** は全バッチ維持。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch33〜40_report.md`。
+- **🆕 セッション（2026-08-23・続き634・Opus 5）＝段2 を3バッチ（第41〜43）＋PC 落ちからの復旧**。**残 OPEN 746→734**（**−12**）／段2 消化 **363→406**／**live 修正 43効果**。**census 608 据置**／**golden 2639→2647**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、文型★ 323 据置、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、**held 82→81**、partial/idset **15/46** 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23。
 
   | # | 題材 | live 修正 | 一言 |
   |---|---|---:|---|
-  | 33 | 対象・移動元・集計対象の**色指定／色OR／色否定** | 23 | engine 改変ゼロ＝`color[]`（配列＝OR）と `colorExclude` を parser から配線しただけ |
-  | 34 | **「N枚まで」が N 枚固定**（0枚を選べない） | 33 | 🔑`pickUpTo` は型も parser もあるのに **engine に消費が1行も無かった** |
-  | 35 | **動的な枚数**（「同じ数だけ」「N枚につき」） | 9 | `CountFromZone.unitSize`（除数）を新設。既存 `per`（乗数）と意味が逆なので分離 |
-  | 36 | **ライフクロス枚数の比較条件** | 7 | `LIFE_COMPARE_OPP` を新設し**評価器3経路すべて**へ配線 |
-  | 37 | ライフクロスを**誰がクラッシュしたか**の限定 | 32 | engine collector と実機 BattleScreen の**重複実装を共通 predicate** へ集約 |
-  | 38 | **「＜A＞1枚と＜B＞1枚」が合計1枚に潰れる** | 23 | `SelectionConstraint.groups` を新設＝1回の探索で群ごとに割り当てる |
-  | 39 | **レベル条件**（静的上限・参照値比較・レベル合計） | 25 | 【シャドウ（レベルN）】が `levelLte`＝**N以下**になっていた（正しくは**ちょうどN**） |
-  | 40 | **持続期間（duration）** の脱落・取り違え | 19 | `END_OF_ATTACK` を `until`／`prevent_damage_windows` へ足し `clearEndOfAttackEffects` で消費 |
+  | 41 | **集合主語**（「すべての〈X〉」）が `count:1` へ潰れる | 3 | 共有ヘルパ `hasAllSubject` を新設。⚠条件節「すべてのシグニが〜の場合」は別語彙なので除外 |
+  | 42 | **選択集合の相互差異**（「それぞれレベルの異なる」）が**死にキー**へ落ちる | 18 | `TargetFilter.eachDistinct*` は **engine に消費が1行も無い**死にキー＝型ごと削除し `SelectionConstraint` へ一本化 |
+  | 43 | **「N枚まで」が上限として届かず必ずN枚選ばされる** | 22 | `LOOK_PICK_CHAIN` 版。**per-card 手書きテーブル**が原文を読まず stages を直書きしていた |
 
-  - 🔴🔑**このセッション最大の教訓＝「台帳に書いた」と「台帳が動いた」は別**。`stage2_closed.txt` の `ID :: 句` は **`findings.jsonl` の `quote` への前方一致**でしか閉じないのに、Codex は `::` の右へ**原文の要約・説明文**を書いていた。**63行中55行が空振り**し、56効果を直したのに残 OPEN が動かなかった（第35は9行全滅＝0件）。⇒ 実データで突き合わせて是正し、CODEX_GUIDE §4 へ**2書式の表**、§5 `28` へ事故を登録。**第36以降は Codex が部分クローズ（`ID :: 実quote` ＋残り軸を `#` コメント）を正しく使い分けている。** ⚠**バッチの締めでは必ず `node scripts/archive/semanticAuditLedger.mjs` を実行して残 OPEN が実際に減ったかを見ること。**
-  - 🔑**「受け皿はあるのに配線されていない」型の穴が**このセッションだけで5バッチ**当たった**（続き629 で見つけた型と同じ）＝第33（`TargetFilter.color` の配列 OR は `matchesFilter` が消費済み）／第34（`pickUpTo` は型・parser・逆翻訳にあるのに **engine に消費ゼロ**）／第35（`$ref:'last_processed_count'` と `CountFromZone`）／第39（**動的レベル比較キーが既に12個**あった）／第40（`UNTIL_OPP_TURN_END`・`END_OF_ATTACK`）。⇒ **在庫の「型はあるが live 利用が極端に少ない語彙を数える計器」は最優先で作るべき**（通算6回連続で当たっている）。
-  - 🆕**受け皿が本当に無かったのは第38だけ**＝`SearchAction` は `filter`／`maxCount` が1つずつで「群ごとの割当」を表せなかった。Claude が3案（SEQUENCE 2本／`groups[]` 新設／stages へ寄せる）を提示し、Codex は **`groups[]` 新設**を選択（**デッキ探索・公開・シャッフルを1回に保てる**のが決め手）。副産物として `CENTER_LRIG_OR_SIGNI` の「`count:2` だとルリグ2体が選べる」穴も塞がった。
-  - ⚠**母集団の拡張は OPEN を動かさない**＝175効果のうち **findings 母集団に載っていたのは約半分**。残りは「同じ parser 規則で一緒に直った」拡張分＝**実バグだが標本外**。🔴**2026-08-23 ユーザー決定＝この拡張採用は外さない**（「見つけたバグをわざと直さない」取引はしない）。**OPEN の減りが採用効果数より小さいのは仕様と割り切る。**
-  - 🆕**据置・偽陽性の判断が的確**＝第39 `WXDi-D02-07LT-E1`（`levelRange` は `matchesFilter` の両実装が honor 済み＝**偽陽性**）／第40 `SP38-008-E1`・`WX04-016-E1`（`effectType:CONTINUOUS` なので `until:'END_OF_TURN'` でも毎評価で再収集される＝**偽陽性**）／第34 C群4件（`execSearch` は `maxPick`＋`optional` を持ち `then` はカード単位 payload＝**偽陽性**）。**いずれも Claude が実コードで再確認済み。** 第37 C群（【ランサー】原因）は**死フラグを出さないことと現状が既知の過剰実行であることを golden で契約化**し、**機構実装時にテストを反転する旨**まで書いてある（§5-4 の理想形）。
-  - ⚠**Codex が Claude の見立てを訂正／超えた点**＝第34 は `WXEX2-84-E1` に **`TRANSFER_TO_DECK.destination:'lrig_deck'` と `lrig_trash` スコープを新設**（指示書は parser 配線だけを想定）。第36 は Claude 案の `LIFE_DIFF` ではなく **`LIFE_COMPARE_OPP`** として両 union ＋評価器3経路へ配線。第37 は BattleScreen の重複実装を**共通 predicate 化**。
-  - 🆕**`.codex-work` のトークン残量が尽きかけたため第40 は既定の `~/.codex` で実行し、問題なく完走**（`-c model_reasoning_effort="high"` の指定だけ必要。`.codex` は `[windows] sandbox = "elevated"` ＋ 当プロジェクト `trusted` なので**サンドボックスフラグ不要**）。
-  - 🔴**▶ 次の一手【Opus 側】＝OPEN 優先を継続**（母集団は `findings.jsonl` 側から切る）。⚠**`stage3_worklist_open.md` は残 OPEN 876 時点なので使わず、`node scripts/archive/semanticAuditLedger.mjs --axis` で切り直す**。**残 OPEN 746 の軸内訳**＝(軸なし)244／(未分類)105／`filter.story` 60／`キーワード能力` 43／`condition` 30／`timing/trigger` 30／`特殊機構` 27／`filter.状態` 25／`cost` 22／`action丸ごと欠落` 19。**今回の8バッチで `filter.color`・`count/upTo`・`filter.level`・`duration` はほぼ枯れた**。⚠**`SEQUENCE` を含む群は器なので内側の実 action 型でもう一段割ってから取る**。**在庫の探索系**＝①**「型はあるが live 利用が極端に少ない語彙」の計器（最優先）**②引用能力 STUB の展開（`GRANT_ABILITY_INNER_TEXT` live 34件）③count>1 の全数支払い機構④§6.3 `L` 共通色比較（**10バッチ連続で保留**・残3効果）。§6.4 の残りは `O-44` のみ。
-  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`／`V-84`／`V-83`**。🔴**続き616〜633 の計18バッチ（第23〜40）がすべて実機未検証**。特に**実機経路へ直接触ったもの**＝**第34（「N枚まで」で0枚を選んで決定できるか）／第37（別のシグニがクラッシュしても発動しないか＋主体を差し替えると発動する対照）／第38（群割当＝各条件の枚数に収まる組み合わせしか決定できないか）／第40（`END_OF_ATTACK` がアタック終了で実際に切れるか）**。
+  - 🔴**PC が第42バッチ中に落ちた**。復旧時に**作業ツリーの parser 変更を全数 diff して退化を1件検出**＝正規表現の **`それぞれ?` が「それぞ」＋任意の「れ」**（`(?:それぞれ)?` のつもりの誤記）になっており、「それぞれ」の付かない綴りを取りこぼしたうえ `WX11-052-E3` の**コスト解析そのものを落として**いた（`costUnparsed`）。⚠**中断からの再開は「続きを書く」前に必ず `build:effects` → effectId 単位の全数 diff を回す**（この退化はゲート全緑をすり抜けた）。
+  - 🔑**「受け皿は完成しているのに parser が配線していない」型が第42・43でも連続で当たった**（通算7〜8回）＝第42（`SelectionConstraint.distinct`/`sharedColor` は engine・選択補助・選択UI・逆翻訳のすべてが消費済み）／第43（`stage.pickUpTo` は engine も逆翻訳も消費済み）。**在庫の「型はあるが live 利用が極端に少ない語彙を数える計器」は依然として最優先**（続き633 から持ち越し）。
+  - 🔑**per-card 手書きテーブルは同じ壊れ方を繰り返す**＝第43 の真因は `LOOK_PICK_CHAIN_WAVE2_CARDS` の switch と `applyFinalLookPickWave17` が**原文を読まずに stages を直書き**していたこと。PLAN §5d-0 (i) の `DISTINCT_BATCH5C`（7効果が原文と食い違い）と**同じ失敗モード**。⇒ **表は「どの効果に載せるか」のオプトインだけにし、値は原文から導く**。
+  - 🔑**MANUAL/PARTIAL のカード単位 PRESERVE は parser 改善を永久に凍らせる**＝第43 の22効果のうち **17件が PRESERVE 側**で、**うち11件は fresh が既に正しいのに live が凍っていた**（held にも `_partial_fresh` にも出ない）。⇒ **parser を直したら「fresh は直ったか」と「live に届いたか」を別々に測る**。届かない分は `effectId` アンカーの外科パッチで入れる。
+  - ⚠**簿記が第40バッチで止まっていた**（ユーザー指摘）＝第41〜43 はコミット済みだが §4 に入っていなかった。**バッチを跨いだら `/baton` を回す**。
+  - 🔴**▶ 次の一手【Opus 側】＝OPEN 優先を継続**（母集団は `findings.jsonl` 側から切る／`node scripts/archive/semanticAuditLedger.mjs --axis` で切り直す）。**在庫の探索系**＝①**「型はあるが live 利用が極端に少ない語彙」の計器（最優先・8回連続で当たっている型）**②引用能力 STUB の展開（`GRANT_ABILITY_INNER_TEXT` live 34件）③count>1 の全数支払い機構④§6.3 `L` 共通色比較（残3効果）。§6.4 の残りは **`O-44`／`O-45`／`O-46`**（後2つは第42バッチで登録）。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`／`V-84`／`V-83`**。🔴**続き616〜634 の計21バッチ（第23〜43）がすべて実機未検証**。特に**実機経路へ直接触ったもの**＝**第34／第37／第38／第40** に加え、🆕**第42（同レベル/同色を重ねて選べないか＝選択UIが候補を絞るか）／第43（「N枚まで」で0枚を選んで決定できるか・22効果）**。
 ### 📊 恒久指標（最新1件のみ・履歴は PLAN_DETAIL）
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の
@@ -169,13 +162,15 @@
 > （それ以前は「2026-08-15 整理⑰」「2026-08-02 整理②」）。⚠**溜め始めたら破綻する**＝続き550 の整理時点で
 > 計測行15本＋ポインタ37本まで膨れており、cold start が最初に読む節が一番古い状態だった。
 
-- **🆕 2026-08-23 続き633（段2 第38〜40バッチ＝群割当／レベル条件／持続期間）後 最新値（本行が直近の正）**：
-  **census 608/608**（`BASELINE_HIGH` 更新済み・セッション開始時 640）、**golden 2639**（同 2563）、
+- **🆕 2026-08-23 続き634（段2 第41〜43バッチ＝集合主語／選択集合の相互差異／「N枚まで」）後 最新値（本行が直近の正）**：
+  **census 608/608 据置**、**golden 2647**（続き633 は 2639）、
   smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
-  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live カード 5975 / 効果総数 10693 据置**。
-  `_held_fresh` **82**（同 86）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0／文型★ 323 据置**、
+  **live カード 5975 / 効果総数 10693 据置**。
+  `_held_fresh` **81**（同 82）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
   `censusManualDrift` **削除候補 0 据置**（§6.4 `O-42` 残0クローズ済み・トリップワイヤ稼働中）。
-  **条件型の数＝`Condition` 122 据置／`ActiveCondition` 53**（続き632 の `LIFE_COMPARE_OPP` 分）。
+  **残 OPEN 734**（続き633 は 746）。
+
   🔴**engine／実機の改変（セッション累計・第33〜40）**＝
   `pickUpTo` を `SEARCH` pending の `optional` へ配線／`LOOK_AND_REORDER.upToCount`＝見る枚数を 0..N から選ぶ（第34）／
   `TRANSFER_TO_DECK` に `destination:'lrig_deck'` と `self/opp_lrig_trash` スコープ（第34）／
