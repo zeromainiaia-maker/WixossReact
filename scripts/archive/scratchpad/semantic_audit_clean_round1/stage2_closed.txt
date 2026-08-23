@@ -466,3 +466,23 @@ WX17-026-E2
 WXDi-P02-003-E1
 WXEX2-62-E1
 WXK10-085-E1 # findings内・同規則で原文照合して採用
+
+# 段2 第40バッチ（2026-08-23・Codex）：持続期間の脱落・取り違え（対象14効果＋同規則4 findingを記帳）
+WX09-021-BURST
+WX24-P3-039-E1
+WX24-P3-040-E1 :: ターン終了時まで # 選択肢②の表記パワー差findingはOPEN継続
+WXDi-P05-052-E1 :: ターン終了時まで # 残りを好きな順番で戻すfindingはOPEN継続
+WX07-023-E2
+WX14-049-E1 :: 次のあなたのターンまで # 出現条件と「そのレゾナ」対象findingはOPEN継続
+WX25-CP1-024-E1
+WX15-002-sub-E1
+SP38-008-E3
+WXDi-P07-009-E1
+WX21-Re19-E2 :: 次のあなたのターンまで # 任意トラッシュ／そうした場合findingはOPEN継続
+WX25-P2-069-E1
+SP38-008-E1 # CONTINUOUS collector が場にある各評価時にGROW禁止を再収集するため偽陽性
+WX04-016-E1 # CONTINUOUS collector が場にある各評価時にGROW禁止を再収集するため偽陽性
+WX26-CP1-014-E1 # findings内・同規則で原文照合して採用
+WXDi-P09-053-E1 # findings内・同規則で原文照合して採用
+WXEX1-27-E2 # findings内・同規則で原文照合して採用
+WXK10-104-E1 :: ターン終了時まで # 回数・対象共有・センタールリグ対象・耐性範囲findingはOPEN継続

@@ -6696,12 +6696,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         newTrash = [...newTrash, ...stack];
         newSigni[zi] = null;
       }
-      const newMyState: PlayerState = {
+      const newMyState: PlayerState = clearEndOfAttackEffects({
         ...my,
         field: { ...my.field, signi: newSigni },
         trash: newTrash,
         actions_done: [...(my.actions_done ?? []), 'REMOVE'],
-      };
+      });
       const stateKey = isHost ? 'host_state' : 'guest_state';
       // ON_TRASH トリガー（フィールドから直接トラッシュ）
       // リムーブはルール処理でコスト/効果起因ではない（fromFieldByCostOrEffect/byEffect は発火しない。G204）
@@ -8403,12 +8403,12 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
         }
       }
       const attackerName = battleCardMap.get(my.field.signi[attackZone]?.at(-1) ?? '')?.CardName ?? '';
-      const newMyState: PlayerState = {
+      const newMyState: PlayerState = clearEndOfAttackEffects({
         ...my,
         field: { ...my.field, signi_down: newSigniDown as [boolean, boolean, boolean] },
         flip_attack_signi_zones: flipZones,
         attacked_signi_ids: [...(my.attacked_signi_ids ?? []), my.field.signi[attackZone]?.at(-1) ?? ''],
-      };
+      });
       appendBattleLogs([`フリップアタック：${attackerName}がアタック（${flippedCards.join('・')}を裏向き）`]);
       // 正面の相手シグニとバトル（通常アタックと同じ処理だがアサシン的に直接ダメージ）
       const opZone = 2 - attackZone;
@@ -11808,12 +11808,14 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
           return;
         }
       }
+      // 防御側の「そのアタックで」ダメージ無効も、ガード有無／ダメージ成否を問わずここで失効する。
+      newMyState = clearEndOfAttackEffects(newMyState);
       // MULTI_DAMAGE_ON_LRIG_ATTACK: 攻撃側に残りアタック回数があれば再トリガー
       const oppStateKey = stateKey === 'host_state' ? 'guest_state' : 'host_state';
       let newOpState: PlayerState = clearEndOfAttackEffects(op);
       if (op.lrig_attack_remaining && op.lrig_attack_remaining > 0) {
         const rem = op.lrig_attack_remaining - 1;
-        newOpState = { ...op, lrig_attack_remaining: rem > 0 ? rem : undefined };
+        newOpState = { ...newOpState, lrig_attack_remaining: rem > 0 ? rem : undefined };
         // バースト処理中でない場合は即座に再アタック、バースト中はcheck解消後に再表示
         newMyState = { ...newMyState, field: { ...newMyState.field, lrig_attacked: true } };
         appendBattleLogs([`ルリグアタック継続（残り${rem}回）`]);

@@ -10663,7 +10663,7 @@ function parseActionTextInner(text: string): EffectAction {
     if (declTopM && (['トラップ', 'ライズ', 'クロス', 'アクセ'] as const).some(i => i === declTopM[1])) {
       return {
         type: 'DECLARE_DECK_TOP_ICON', icon: declTopM[1], deckOwner: 'self',
-        onWrongAction: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'ALL' },
+        onWrongAction: { type: 'PREVENT_DAMAGE', owner: 'self', until: 'END_OF_ATTACK', scope: 'ALL' },
       } as unknown as EffectAction;
     }
   }
@@ -17318,6 +17318,167 @@ function applyLevelConditionsBatch39(card: CardData, effects: CardEffect[]): voi
   }
 }
 
+/**
+ * 段2 第40バッチ：期間句を、その action を実際に保持するストアの語彙へ落とす。
+ * wrapper だけを辿り、GRANT_* の abilities 内側には潜らない（外側付与期間との混同を防ぐ）。
+ */
+function applyDurationsBatch40(card: CardData, effects: CardEffect[]): void {
+  const allText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  if (!/(?:ターン終了時まで|次の対戦相手のターン終了時まで|次のあなたのターンまで|そのアタックの間|対戦相手のターンの間)/.test(allText)) return;
+  const signed = (text: string): number => (text.startsWith('－') || text.startsWith('-') ? -1 : 1) * parseNum(text.slice(1));
+
+  const outerActions = (action: EffectAction): EffectAction[] => {
+    const out: EffectAction[] = [action];
+    if (action.type === 'SEQUENCE') for (const step of action.steps) out.push(...outerActions(step));
+    else if (action.type === 'CHOOSE') for (const choice of action.choices) out.push(...outerActions(choice.action));
+    else if (action.type === 'CONDITIONAL') {
+      out.push(...outerActions(action.then));
+      if (action.else) out.push(...outerActions(action.else));
+    } else if (action.type === 'REPEAT') out.push(...outerActions(action.action));
+    else if (action.type === 'DECLARE_DECK_TOP_ICON' && action.onWrongAction) out.push(...outerActions(action.onWrongAction));
+    return out;
+  };
+
+  for (const effect of effects) {
+    const source = _collectSourceText
+      ? (_sourceTextLog.get(effect.effectId) ?? allText)
+      : abilityBlockTextOf(card, effect.effectId);
+    const actions = outerActions(effect.action);
+
+    // 複数段 LOOK と「表記パワー相違」選択肢を持つ形。句だけで全 POWER_MODIFY へ広げず、
+    // 期間句が係る枝を action 木で一意に限定する。
+    if (/対戦相手のシグニ[０-９\d]+体を対象とし、ターン終了時まで、それのパワー/.test(source)
+        && effect.action.type === 'SEQUENCE'
+        && effect.action.steps[0]?.type === 'POWER_MODIFY'
+        && effect.action.steps[1]?.type === 'LOOK_PICK_CHAIN') {
+      effect.action.steps[0].duration = 'UNTIL_END_OF_TURN';
+    }
+    if (/表記されているパワーと異なるパワー/.test(source)
+        && effect.action.type === 'CHOOSE'
+        && effect.action.choices[0]?.action.type === 'POWER_MODIFY'
+        && effect.action.choices.some(choice => choice.action.type === 'BANISH')) {
+      effect.action.choices[0].action.duration = 'UNTIL_END_OF_TURN';
+    }
+
+    // LIFE BURST の「トラッシュから＜X＞を手札、その後相手シグニを短期修整」。
+    // 旧木はクラス filter を相手側へ誤って載せ、前半移動も落としていた。
+    const trashThenPower = source.match(/あなたのトラッシュから対象の＜([^＞]+)＞のシグニ([０-９\d]+)枚を手札に加え、ターン終了時まで、対象の対戦相手のシグニ([０-９\d]+)体のパワーを([＋－][０-９\d]+)する/);
+    if (trashThenPower && effect.effectType === 'LIFE_BURST' && effect.action.type === 'POWER_MODIFY') {
+      effect.action = {
+        type: 'SEQUENCE', steps: [
+          {
+            type: 'TRANSFER_TO_HAND',
+            source: {
+              type: 'TRASH_CARD', owner: 'self', count: parseNum(trashThenPower[2]), upToCount: false,
+              filter: { cardType: 'シグニ', story: trashThenPower[1] },
+            },
+          } as TransferToHandAction,
+          {
+            type: 'POWER_MODIFY',
+            target: {
+              type: 'SIGNI', owner: 'opponent', count: parseNum(trashThenPower[3]),
+              filter: { cardType: 'シグニ' }, upToCount: false,
+            },
+            delta: signed(trashThenPower[4]), duration: 'UNTIL_END_OF_TURN',
+          } as PowerModifyAction,
+        ],
+      } as SequenceAction;
+      continue;
+    }
+
+    // 期間つき効果耐性。action の duration が executor の keyword store 選択を決める。
+    for (const action of actions) {
+      if (action.type !== 'GRANT_PROTECTION') continue;
+      if (/次のあなたのターンまで[^。]*効果を受けない/.test(source)) {
+        action.duration = 'UNTIL_OPP_TURN_END';
+      } else if (/ターン終了時まで[^。]*効果を受けない/.test(source)) {
+        action.duration = 'UNTIL_END_OF_TURN';
+      }
+      if (/あなたのレゾナ[０-９\d]+体を対象/.test(source) && action.target?.type === 'SIGNI') {
+        action.target.filter = { ...(action.target.filter ?? {}), cardType: 'レゾナ' };
+      }
+    }
+
+    // センタールリグへの外側付与期間。引用能力の内側 duration には触れない。
+    for (const action of actions) {
+      if (action.type !== 'GRANT_LRIG_ABILITY') continue;
+      if (effect.timing?.includes('ON_TURN_END') && /次のあなたのターンまで、あなたのセンタールリグ/.test(source)) {
+        action.duration = 'UNTIL_OPP_TURN_END';
+      } else if (effect.action.type === 'SEQUENCE' && /②ターン終了時まで、あなたのセンタールリグ/.test(source)) {
+        action.duration = 'UNTIL_END_OF_TURN';
+        action.targetedCenter = true;
+      }
+    }
+
+    // 相手はデッキ上N枚を落としてもよい／しなければ現在のアタックだけガード不可。
+    const millOrNoGuard = source.match(/対戦相手は自分のデッキの上からカードを([０-９\d]+)枚トラッシュに置いてもよい。そうしなかった場合、そのアタックの間、対戦相手は【ガード】ができない/);
+    const priorOpponentMill = effect.action.type === 'SEQUENCE'
+      ? effect.action.steps.find(step => step.type === 'TRASH'
+        && step.target.type === 'DECK_CARD' && step.target.owner === 'opponent')
+      : undefined;
+    if (millOrNoGuard && effect.action.type === 'SEQUENCE'
+        && priorOpponentMill
+        && effect.action.steps.some(step => step.type === 'BLOCK_ACTION' && step.actionId === 'GUARD')) {
+      effect.action = {
+        type: 'CHOOSE', choose_count: 1, from_count: 2,
+        opponentResponds: true, costlessOpponentChoice: true,
+        choices: [
+          { choiceId: 'mill', label: `デッキの上から${parseNum(millOrNoGuard[1])}枚をトラッシュに置く`, action: priorOpponentMill },
+          { choiceId: 'no_guard', label: '置かず、このアタックではガードしない', action: {
+            type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until: 'END_OF_ATTACK',
+          } },
+        ],
+      } as ChooseAction;
+      continue;
+    }
+
+    // 「このターン、次にこのルリグがアタック」＝一回消費の付与AUTO。発火後の禁止だけ END_OF_ATTACK。
+    if (/このターン、次にこのルリグがアタックしたとき、そのアタックの間、対戦相手は【ガード】ができない/.test(source)
+        && effect.action.type === 'BLOCK_ACTION' && effect.action.actionId === 'GUARD') {
+      effect.action = {
+        type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_END_OF_TURN', abilities: [{
+          effectId: `${effect.effectId}-next-attack`, effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+          action: {
+            type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until: 'END_OF_ATTACK',
+          },
+          duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO', consumeOnTrigger: true,
+        }],
+      } as GrantLrigAbilityAction;
+      continue;
+    }
+
+    // 長期付与の中身だけが相手ターン中に有効。直接キーワードを長期付与すると自分ターンにも有効になる。
+    if (/次の対戦相手のターン終了時まで[^。]*【常】：対戦相手のターンの間[^。]*【シャドウ/.test(source)
+        && effect.action.type === 'GRANT_KEYWORD') {
+      const old = effect.action;
+      effect.action = {
+        type: 'GRANT_EFFECT', target: old.target, duration: 'UNTIL_OPP_TURN_END', effect: {
+          effectId: `${effect.effectId}-opp-turn`, effectType: 'CONTINUOUS',
+          action: {
+            type: 'GRANT_KEYWORD',
+            target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+            keyword: old.keyword, duration: 'PERMANENT',
+          },
+          activeCondition: { type: 'TURN_OWNER', owner: 'opponent' },
+          duration: 'PERMANENT', mandatory: true, parseStatus: 'AUTO',
+        },
+      };
+      continue;
+    }
+
+    // 自分自身を、場の「他の＜X＞」1体につき修整する長期形。
+    const perOther = source.match(/次の対戦相手のターン終了時まで、このシグニのパワーをあなたの場にある他の＜([^＞]+)＞のシグニ[０-９\d]+体につき([＋－][０-９\d]+)する/);
+    if (perOther && effect.action.type === 'POWER_MODIFY_PER_FIELD') {
+      effect.action.target = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
+      effect.action.deltaPerUnit = signed(perOther[2]);
+      effect.action.countFilter = { cardType: 'シグニ', story: perOther[1] };
+      effect.action.countOwner = 'self';
+      effect.action.excludeSelf = true;
+      effect.action.duration = 'UNTIL_OPP_TURN_END';
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
@@ -17870,6 +18031,7 @@ export function parseCardEffects(card: CardData): CardEffect[] {
 
   applyDynamicActionCountBatch35(card, effects);
   applyLevelConditionsBatch39(card, effects);
+  applyDurationsBatch40(card, effects);
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。

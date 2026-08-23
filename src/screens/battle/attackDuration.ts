@@ -1,9 +1,15 @@
 import type { PlayerState } from '../../types';
 
 /** Clear only effects whose lifetime is the just-resolved attack. */
-export function clearEndOfAttackEffects(attacker: PlayerState): PlayerState {
-  if (!attacker.prevent_opp_guard) return attacker;
-  return { ...attacker, prevent_opp_guard: undefined };
+export function clearEndOfAttackEffects(state: PlayerState): PlayerState {
+  const windows = state.prevent_damage_windows?.filter(w => w.expires !== 'END_OF_ATTACK');
+  const unchangedWindows = windows?.length === state.prevent_damage_windows?.length;
+  if (!state.prevent_opp_guard && unchangedWindows) return state;
+  return {
+    ...state,
+    prevent_opp_guard: undefined,
+    prevent_damage_windows: windows?.length ? windows : undefined,
+  };
 }
 
 /** Clear delayed watchers whose lifetime is the attack phase that just ended. */

@@ -44746,6 +44746,145 @@ test('段2 第39バッチ engine両方向: レベル一致シャドウとレベ�
   ok(!high.has('WX16-053'), '不成立方向: Lv3シグニ効果からは保護しない');
 });
 
+// ── 段2 第40バッチ：持続期間（duration）の脱落・取り違え ──
+const freshBatch40 = freshBatch39;
+
+test('段2 第40バッチ parser契約: 対象12効果と同文型10効果の期間受け皿を原文どおりにする', () => {
+  for (const [cardNum, effectId, needles] of [
+    ['WX09-021', 'WX09-021-BURST', ['"TRANSFER_TO_HAND"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WX24-P3-039', 'WX24-P3-039-E1', ['"delta":-8000,"duration":"UNTIL_END_OF_TURN"']],
+    ['WX24-P3-040', 'WX24-P3-040-E1', ['"choiceId":"c0"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WXDi-P05-052', 'WXDi-P05-052-E1', ['"GRANT_LRIG_ABILITY"', '"targetedCenter":true']],
+    ['WX07-023', 'WX07-023-E2', ['"cardType":"レゾナ"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WX14-049', 'WX14-049-E1', ['"GRANT_PROTECTION"', '"duration":"UNTIL_OPP_TURN_END"']],
+    ['WX25-CP1-024', 'WX25-CP1-024-E1', ['"costlessOpponentChoice":true', '"until":"END_OF_ATTACK"']],
+    ['WX15-002', 'WX15-002-E2', ['"PREVENT_DAMAGE"', '"until":"END_OF_ATTACK"']],
+    ['SP38-008', 'SP38-008-E3', ['"consumeOnTrigger":true', '"until":"END_OF_ATTACK"']],
+    ['WXDi-P07-009', 'WXDi-P07-009-E1', ['"GRANT_EFFECT"', '"owner":"opponent"']],
+    ['WX21-Re19', 'WX21-Re19-E2', ['"GRANT_LRIG_ABILITY"', '"duration":"UNTIL_OPP_TURN_END"']],
+    ['WX25-P2-069', 'WX25-P2-069-E1', ['"thisCardOnly":true', '"excludeSelf":true', '"duration":"UNTIL_OPP_TURN_END"']],
+    ['WX08-017', 'WX08-017-E1', ['"GRANT_PROTECTION"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WX17-025', 'WX17-025-E3', ['"GRANT_PROTECTION"', '"duration":"UNTIL_OPP_TURN_END"']],
+    ['WX24-P1-029', 'WX24-P1-029-E1', ['"POWER_MODIFY"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WX25-P1-043', 'WX25-P1-043-E1', ['"POWER_MODIFY"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WX26-CP1-014', 'WX26-CP1-014-E1', ['"POWER_MODIFY"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WXDi-P09-006', 'WXDi-P09-006-E2', ['"consumeOnTrigger":true', '"until":"END_OF_ATTACK"']],
+    ['WXDi-P09-053', 'WXDi-P09-053-E1', ['"GRANT_EFFECT"', '"owner":"opponent"']],
+    ['WXEX1-27', 'WXEX1-27-E2', ['"GRANT_PROTECTION"', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WXEX1-58', 'WXEX1-58-E1', ['"GRANT_PROTECTION"', '"duration":"UNTIL_OPP_TURN_END"']],
+    ['WXK10-104', 'WXK10-104-E1', ['"GRANT_PROTECTION"', '"duration":"UNTIL_END_OF_TURN"']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch40(cardNum, effectId));
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+});
+
+test('段2 第40バッチ engine両方向: ターン末の短期修整・耐性はそのターン中だけ有効', () => {
+  const power = executeAction({
+    type: 'POWER_MODIFY', target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+    delta: 3000, duration: 'UNTIL_END_OF_TURN',
+  }, mkCtx({ signi: [SIGNI_L1, null, null] }, {}));
+  if (!power.done) throw new Error('short power did not finish');
+  ok((power.ownerState.temp_power_mods ?? []).some(m => m.cardNum === SIGNI_L1), '成立方向: 解決ターン中は短期パワー修整が有効');
+  const powerEnded = clearTurnEndScopedState({ ...power.ownerState, temp_power_mods: [] });
+  ok(!(powerEnded.temp_power_mods ?? []).some(m => m.cardNum === SIGNI_L1), '不成立方向: 実ターン末経路を越えると短期パワー修整は失効');
+
+  const protection = executeAction({
+    type: 'GRANT_PROTECTION', target: { type: 'SIGNI', owner: 'self', count: 'ALL' },
+    from: ['アーツ'], sourceOwner: 'opponent', duration: 'UNTIL_END_OF_TURN',
+  }, mkCtx({ signi: [SIGNI_L2, null, null] }, {}));
+  if (!protection.done) throw new Error('short protection did not finish');
+  ok((protection.ownerState.keyword_grants?.[SIGNI_L2] ?? []).some(k => k.startsWith('PROTECTION:')), '成立方向: 解決ターン中は耐性が有効');
+  const protectionEnded = clearTurnEndScopedState({ ...protection.ownerState, keyword_grants: {} });
+  ok(!(protectionEnded.keyword_grants?.[SIGNI_L2] ?? []).some(k => k.startsWith('PROTECTION:')), '不成立方向: 実ターン末経路を越えると耐性は失効');
+});
+
+test('段2 第40バッチ engine両方向: UNTIL_OPP_TURN_END は通常ターン末を跨ぎ、専用境界だけで失効', () => {
+  const perField: EffectAction = {
+    type: 'POWER_MODIFY_PER_FIELD',
+    target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+    deltaPerUnit: 2000, countFilter: { cardType: 'シグニ' }, countOwner: 'self', excludeSelf: true,
+    duration: 'UNTIL_OPP_TURN_END',
+  };
+  const applied = executeAction(perField, mkCtx({ signi: [SIGNI_L1, SIGNI_L2, null] }, {}, SIGNI_L1));
+  if (!applied.done) throw new Error('long power did not finish');
+  eq(applied.ownerState.power_mods_until_opp_turn?.find(m => m.cardNum === SIGNI_L1)?.delta, 2000, '成立方向: 他の1体ぶんを効果元自身へ長期付与');
+  const crossed = clearTurnEndScopedState(applied.ownerState);
+  eq(crossed.power_mods_until_opp_turn?.find(m => m.cardNum === SIGNI_L1)?.delta, 2000, '成立方向: 通常ターン末では残る');
+  ok(!(clearUntilOppTurnEffects(crossed).power_mods_until_opp_turn ?? []).some(m => m.cardNum === SIGNI_L1), '不成立方向: 次の相手ターン終了境界で消える');
+
+  const longLrig = executeAction({
+    type: 'GRANT_LRIG_ABILITY', duration: 'UNTIL_OPP_TURN_END', abilities: [{
+      effectId: 'batch40-long-lrig', effectType: 'AUTO', timing: ['ON_ATTACK_LRIG'],
+      action: { type: 'DRAW', owner: 'self', count: 1 }, duration: 'INSTANT', mandatory: true, parseStatus: 'AUTO',
+    }],
+  }, mkCtx({ lrig: ['WX21-Re19'] }, {}));
+  if (!longLrig.done) throw new Error('long lrig grant did not finish');
+  eq(longLrig.ownerState.lrig_granted_auto_effects_until_opp_turn?.length ?? 0, 1, '成立方向: 長期ルリグ能力ストアへ入る');
+  eq(clearTurnGrantedLrigAbilities(longLrig.ownerState).lrig_granted_auto_effects_until_opp_turn?.length ?? 0, 1, '成立方向: 通常の付与能力クリアでは残る');
+  eq(clearUntilOppTurnEffects(longLrig.ownerState).lrig_granted_auto_effects_until_opp_turn?.length ?? 0, 0, '不成立方向: 専用境界で消える');
+});
+
+test('段2 第40バッチ engine両方向: END_OF_ATTACK は攻撃中だけ有効で、ターン効果は巻き込まない', () => {
+  const guard = executeAction({
+    type: 'BLOCK_ACTION', target: { type: 'PLAYER', owner: 'opponent', count: 1 }, actionId: 'GUARD', until: 'END_OF_ATTACK',
+  }, mkCtx({}, {}));
+  if (!guard.done) throw new Error('attack guard block did not finish');
+  ok(guard.ownerState.prevent_opp_guard === true, '成立方向: アタック中はガード不可');
+  ok(!clearEndOfAttackEffects(guard.ownerState).prevent_opp_guard, '不成立方向: アタック終了でガード不可は失効');
+
+  const damage = executeAction({ type: 'PREVENT_DAMAGE', owner: 'self', until: 'END_OF_ATTACK', scope: 'ALL' }, mkCtx({}, {}));
+  if (!damage.done) throw new Error('attack damage prevention did not finish');
+  ok(hasActivePreventDamageWindow(damage.ownerState, 'ALL'), '成立方向: アタック中はダメージ無効');
+  ok(!hasActivePreventDamageWindow(clearEndOfAttackEffects(damage.ownerState), 'ALL'), '不成立方向: アタック終了でダメージ無効は失効');
+  const turnWindow = executeAction({ type: 'PREVENT_DAMAGE', owner: 'self', until: 'UNTIL_END_OF_TURN', scope: 'ALL' }, mkCtx({}, {}));
+  if (!turnWindow.done) throw new Error('turn damage prevention did not finish');
+  ok(hasActivePreventDamageWindow(clearEndOfAttackEffects(turnWindow.ownerState), 'ALL'), '対照: ターン末ウィンドウはアタック終了で消さない');
+});
+
+test('段2 第40バッチ engine両方向: 次のルリグアタック時だけガード禁止AUTOを一回消費する', () => {
+  const effect = freshBatch40('SP38-008', 'SP38-008-E3');
+  const installed = executeAction(effect.action, mkCtx({ lrig: ['SP38-008'] }, {}));
+  if (!installed.done) throw new Error('next attack grant did not finish');
+  ok(!installed.ownerState.prevent_opp_guard, '不成立方向: 起動直後はまだガード禁止でない');
+  const collected = collectAttackingLrigGrantedAutos(installed.ownerState, 'me', 'SP38-008', () => 'batch40-stack');
+  eq(collected.triggered.length, 1, '成立方向: 次のアタックで1件収集');
+  const consumed = consumeTriggeredGrantedAutos(installed.ownerState, collected.triggered);
+  eq(collectAttackingLrigGrantedAutos(consumed, 'me', 'SP38-008', () => 'again').triggered.length, 0, '不成立方向: 同じ付与は次々回に発火しない');
+  const blocked = executeAction(collected.triggered[0].action, { ...mkCtx({}, {}), ownerState: consumed });
+  if (!blocked.done) throw new Error('collected guard block did not finish');
+  ok(blocked.ownerState.prevent_opp_guard === true, '成立方向: 収集されたアタック中はガード不可');
+  ok(!clearEndOfAttackEffects(blocked.ownerState).prevent_opp_guard, '不成立方向: そのアタック終了で解除');
+});
+
+test('段2 第40バッチ engine両方向: 長期GRANT_EFFECT内の相手ターン条件を毎回評価する', () => {
+  const target = findCard(card => isSigni(card) && card.Level === '3' && card.Color === '白');
+  const action = freshBatch40('WXDi-P07-009', 'WXDi-P07-009-E1').action;
+  const applied = finish(executeAction(action, mkCtx({ signi: [target, null, null] }, {}, 'WXDi-P07-009')), mkCtx({ signi: [target, null, null] }, {}, 'WXDi-P07-009'));
+  if (!applied.done) throw new Error('conditional shadow grant did not finish');
+  const kws = (state: PlayerState, ownerTurn: boolean) => collectContinuousGrantedKeywords(state, applied.otherState, ownerTurn, new Map(), cardMap)[target] ?? [];
+  ok(!kws(applied.ownerState, true).some(k => k.startsWith('シャドウ:')), '不成立方向: 自分ターン中はシャドウを得ない');
+  ok(kws(applied.ownerState, false).some(k => k.startsWith('シャドウ:')), '成立方向: 対戦相手ターン中だけシャドウを得る');
+  ok(!kws(clearUntilOppTurnEffects(applied.ownerState), false).some(k => k.startsWith('シャドウ:')), '不成立方向: 長期境界後は相手ターンでも得ない');
+});
+
+test('段2 第40バッチ 偽陽性／据置契約: 常時グロウスキップは再収集され、D群の別主因は変えない', () => {
+  for (const cardNum of ['SP38-008', 'WX04-016']) {
+    const effectId = `${cardNum}-E1`;
+    const effect = freshBatch40(cardNum, effectId);
+    const local = new Map(effectsMap);
+    local.set(cardNum, [effect]);
+    const field = mkState({ lrig: [cardNum] });
+    ok(calcContinuousBlockedActions(field, mkState({}), true, local, cardMap).forSelf.has('GROW'), `${effectId}: 成立方向・場にある間はグロウを封じる`);
+    ok(calcContinuousBlockedActions(clearTurnEndScopedState(field), mkState({}), true, local, cardMap).forSelf.has('GROW'), `${effectId}: 成立方向・ターン末後も再収集される`);
+    ok(!calcContinuousBlockedActions(mkState({}), mkState({}), true, local, cardMap).forSelf.has('GROW'), `${effectId}: 不成立方向・場を離れれば封じない`);
+  }
+  const lastProcessed = freshBatch40('WX24-P3-086', 'WX24-P3-086-E1');
+  ok(!JSON.stringify(lastProcessed).includes('targetsLastProcessed'), 'WX24-P3-086-E1 は対象束縛が主因なので duration バッチでは据置');
+  const attackEnd = freshBatch40('WXDi-D04-004', 'WXDi-D04-004-E2');
+  ok(JSON.stringify(attackEnd).includes('WXDi-D04-004-sub-E1') && !JSON.stringify(attackEnd).includes('ON_ATTACK_END'), 'WXDi-D04-004-sub-E1 は発動タイミングが主因なので据置');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

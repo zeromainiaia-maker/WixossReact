@@ -5194,6 +5194,7 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
     // ⚠**選択数が1のときは意味が無い**ので立てない（`multiSelect` が付かず単発UIになるため）。
     ...(a.allowRepeat && effectiveCount > 1 ? { allowRepeat: true, multiSelect: true } : {}),
     ...(a.opponentResponds ? { opponentResponds: true } : {}),
+    ...(a.costlessOpponentChoice ? { costlessOpponentChoice: true } : {}),
   } as PendingInteractionDef & { type: 'CHOOSE' });
 }
 
@@ -6469,13 +6470,15 @@ function execCostIncrease(a: CostIncreaseAction, ctx: ExecCtx): ExecResult {
 }
 
 function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): ExecResult {
-  // cardNumxcludeSelf
+  // excludeSelf は「カウント対象から効果元自身を除く」。thisCardOnly では対象そのものは除外しない。
   const tgtOwnerForExclude = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const tgtStatePre = ownerState(tgtOwnerForExclude, ctx);
   const tgtCandsPre = a.target.count !== 'ALL'
     ? fieldCandidates(tgtStatePre, a.target.filter, ctx.cardMap, ctx.effectivePowers)
     : [];
-  const excludeCardNum = a.excludeSelf && tgtCandsPre.length > 0 ? tgtCandsPre[0] : undefined;
+  const excludeCardNum = a.excludeSelf
+    ? (a.target.filter?.thisCardOnly ? ctx.sourceCardNum : tgtCandsPre[0])
+    : undefined;
 
   const countSigniInState = (s: PlayerState) => s.field.signi.filter(stack => {
     if (!stack || stack.length === 0) return false;
@@ -6495,21 +6498,27 @@ function execPowerModifyPerField(a: PowerModifyPerFieldAction, ctx: ExecCtx): Ex
   const tgtOwner = a.target.owner === 'any' ? 'self' : a.target.owner as Owner;
   const state = ownerState(tgtOwner, ctx);
   let cands = fieldCandidates(state, a.target.filter, ctx.cardMap, ctx.effectivePowers, ctx.allColorSigniNums, ctx.fieldSigniExtraColors);
-  if (a.excludeSelf && ctx.sourceCardNum) cands = cands.filter(cn => cn !== ctx.sourceCardNum);
+  if (a.excludeSelf && ctx.sourceCardNum && !a.target.filter?.thisCardOnly) {
+    cands = cands.filter(cn => cn !== ctx.sourceCardNum);
+  }
 
   function applyMod(selected: string[], c: ExecCtx): ExecCtx {
     const s = ownerState(tgtOwner, c);
-    const mods = [...(s.temp_power_mods ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
-    return addLog(setOwnerState(tgtOwner, { ...s, temp_power_mods: mods }, c),
+    const key = a.duration === 'UNTIL_OPP_TURN_END' ? 'power_mods_until_opp_turn' : 'temp_power_mods';
+    const mods = [...(s[key] ?? []), ...selected.map(cardNum => ({ cardNum, delta }))];
+    return addLog(setOwnerState(tgtOwner, { ...s, [key]: mods }, c),
       `${delta > 0 ? '+' : ''}${delta}（フィールド${fieldCount}体）`);
   }
 
   if (a.target.count === 'ALL') return done(applyMod(cands, ctx));
+  if (a.target.filter?.thisCardOnly && ctx.sourceCardNum && cands.includes(ctx.sourceCardNum)) {
+    return done(applyMod([ctx.sourceCardNum], ctx));
+  }
   const cnt = resolveNum(a.target.count);
   const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
   // 選択後は解決済み delta の POWER_MODIFY を適用（applyDirectAction が直接処理。
   // PER_FIELD case 欠落による default 再入＝同一SELECT_TARGET無限再発行を回避。続き93）。
-  const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta };
+  const pmAction: PowerModifyAction = { type: 'POWER_MODIFY', target: a.target, delta, duration: a.duration };
   return selectOrInteract(cands, cnt, a.target.upToCount ?? false, scope, pmAction, undefined, ctx);
 }
 
@@ -8321,7 +8330,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
       const scopePD = pd.scope ?? (pd.until === 'NEXT_TURN' ? 'LRIG' : 'ALL');
       // §6.4 O-3 続き492: 「次のあなたのメインフェイズまで」はターン境界を跨ぐ（相手のターンを丸ごと含む）。
       const expiresPD = pd.untilNextMainPhase ? 'MY_NEXT_MAIN_PHASE'
-        : pd.until === 'NEXT_TURN' ? 'NEXT_TURN_START' : 'MY_TURN_END';
+        : pd.until === 'NEXT_TURN' ? 'NEXT_TURN_START'
+          : pd.until === 'END_OF_ATTACK' ? 'END_OF_ATTACK' : 'MY_TURN_END';
       const tgtOwnerPD: Owner = pd.owner === 'opponent' ? 'opponent' : 'self';
       const sPD = ownerState(tgtOwnerPD, ctx);
       const newSPD: PlayerState = {
@@ -8329,7 +8339,8 @@ export function executeAction(action: EffectAction, ctx: ExecCtx): ExecResult {
         prevent_damage_windows: [...(sPD.prevent_damage_windows ?? []), { scope: scopePD, expires: expiresPD }],
       };
       const periodJaPD = pd.untilNextMainPhase ? '次のあなたのメインフェイズまで'
-        : pd.until === 'NEXT_TURN' ? '次のターンの間' : 'このターン';
+        : pd.until === 'NEXT_TURN' ? '次のターンの間'
+          : pd.until === 'END_OF_ATTACK' ? 'そのアタックで' : 'このターン';
       return done(addLog(setOwnerState(tgtOwnerPD, newSPD, ctx),
         `${periodJaPD}、${tgtOwnerPD === 'self' ? 'あなた' : '対戦相手'}は${scopePD === 'LRIG' ? 'ルリグアタックによるダメージ' : 'ダメージ'}を受けない`));
     }

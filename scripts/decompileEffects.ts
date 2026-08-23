@@ -1317,14 +1317,19 @@ function actionJa(a?: Action, effectType?: string): string {
       const protSelfOnly = effectType === 'CONTINUOUS' && !a.subjectFilter && !a.target;
       const subject = protThisOnly || protSelfOnly ? 'このシグニ'
         : a.target ? targetJa(a.target) : subjOwnerJa + filterJa(a.subjectFilter) + subjNoun;
-      if (a.sourceEffectType === 'LIFE_BURST') return `${subject}は${ownerJa(a.sourceOwner)}ライフバーストの効果を受けない`;
+      const protectionDurationJa = effectType !== 'CONTINUOUS'
+        ? a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、'
+          : a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、' : ''
+        : '';
+      const timedProtection = (body: string): string => `${protectionDurationJa}${body}`;
+      if (a.sourceEffectType === 'LIFE_BURST') return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}ライフバーストの効果を受けない`);
       if (a.fromAll && a.exceptSource) {
         const exceptOwner = ownerJa(a.exceptSource.sourceOwner);
-        return `${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`;
+        return timedProtection(`${subject}は${exceptOwner}${a.exceptSource.sourceType}以外からの効果を受けない`);
       }
       // 例外なしの fromAll＝「〜の効果を受けない」。`from` が空なので下の軸トークン分岐へ落ちると
       // 軸リストが空になり **「対戦相手の効果によってない」** という壊れた文になっていた（3効果）。
-      if (a.fromAll) return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
+      if (a.fromAll) return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}効果を受けない`);
       const fromArr: string[] = a.from ?? [];
       const srcTypes = ['ルリグ', 'シグニ', 'スペル', 'アーツ'];
       const srcTokens = fromArr.filter(f => srcTypes.includes(f));
@@ -1341,11 +1346,11 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcLvJa = srcLvMax !== undefined ? `レベル${srcLvMax}以下の` : '';
       // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
       if (srcTokens.length > 0) {
-        if (costMaxJa) return `${subject}は${costMaxJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`;
-        return `${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`;
+        if (costMaxJa) return timedProtection(`${subject}は${costMaxJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`);
+        return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`);
       }
       if (fromArr.includes('any')) {
-        return `${subject}は${ownerJa(a.sourceOwner)}効果を受けない`;
+        return timedProtection(`${subject}は${ownerJa(a.sourceOwner)}効果を受けない`);
       }
       // 軸トークン（BANISH/BOUNCE/DOWN）→「対戦相手の効果によってバニッシュされない」等。
       // bySourceType/bySourceLevel は発生源の複数種別と表記レベル制限を両方描く。
@@ -1364,9 +1369,6 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcQ = byTypes.length > 0
         ? `${byLevelJa}${byTypes.join('と')}の`
         : byLevelJa ? `${byLevelJa}カードの` : '';
-      const protectionDurationJa = effectType !== 'CONTINUOUS' && a.duration === 'UNTIL_OPP_TURN_END'
-        ? '次の対戦相手のターン終了時まで、'
-        : '';
       return `${protectionDurationJa}${subject}は${ownerJa(a.sourceOwner)}${srcQ}効果によって${axes.join('・')}ない`;
     }
     case 'GRANT_FIELD_SHADOW': return `${filterJa(a.filter)}${ownerJa(a.targetOwner)}シグニは【${a.keyword}】を得る`;
@@ -1722,8 +1724,9 @@ function actionJa(a?: Action, effectType?: string): string {
       const cf = filterJa(a.countFilter);
       const countTypes = ([] as string[]).concat(a.countFilter?.cardType ?? []);
       const countUnit = countTypes.some(t => t === 'ルリグ' || t === 'アシストルリグ') ? 'ルリグ' : 'シグニ';
-      const continuous = effectType === 'CONTINUOUS';
-      return `${targetJa(a.target, 'シグニ', !continuous && a.excludeSelf)}のパワーを${ownerJa(a.countOwner)}場の${continuous && a.excludeSelf ? '他の' : ''}${cf}${countUnit}1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
+      const durationPMF = a.duration === 'UNTIL_OPP_TURN_END' ? '次の対戦相手のターン終了時まで、'
+        : a.duration === 'UNTIL_END_OF_TURN' ? 'ターン終了時まで、' : '';
+      return `${durationPMF}${targetJa(a.target, 'シグニ')}のパワーを${ownerJa(a.countOwner)}場の${a.excludeSelf ? '他の' : ''}${cf}${countUnit}1体につき${d >= 0 ? '＋' : '－'}${Math.abs(d)}する`;
     }
     case 'POWER_MODIFY_PER_LEVEL_SUM': {
       // 「対象のパワーを〈countOwner〉の場の〈countFilter〉シグニのレベル1につき±Nする」
@@ -1817,7 +1820,8 @@ function actionJa(a?: Action, effectType?: string): string {
       // 範囲（あらゆるダメージ／ルリグアタックのみ）を原文どおり出す
       const whoPD = a.owner === 'opponent' ? '対戦相手' : 'あなた';
       const periodPD = a.untilNextMainPhase ? '次のあなたのメインフェイズまで、'
-        : a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、' : 'このターン、';
+        : a.until === 'NEXT_TURN' ? '次の対戦相手のターンの間、'
+          : a.until === 'END_OF_ATTACK' ? 'そのアタックで' : 'このターン、';
       if ((a.scope ?? (a.until === 'NEXT_TURN' ? 'LRIG' : 'ALL')) === 'LRIG')
         return `${periodPD}${whoPD}は対戦相手のルリグによってダメージを受けない`;
       return `${periodPD}${whoPD}はダメージを受けない`;
@@ -1946,7 +1950,9 @@ function actionJa(a?: Action, effectType?: string): string {
     case 'GRANT_LRIG_ABILITY': {
       if (a.abilities?.length === 1 && a.abilities[0]?.consumeOnTrigger
           && a.abilities[0]?.timing?.includes('ON_ATTACK_LRIG')) {
-        return 'このターン、次にこのルリグがアタックしたとき、このルリグをアップする';
+        const nextAction = a.abilities[0].action;
+        const body = nextAction.type === 'UP' ? 'このルリグをアップする' : actionJa(nextAction);
+        return `このターン、次にこのルリグがアタックしたとき、${body}`;
       }
       const glaInner = (a.abilities || []).map(effJa).join(' / ') || a.rawText || '';
       // ⚠**省略時の既定（ターン終了時まで）も明示する**（§6.4 O-25・続き538）＝engine は duration 省略の

@@ -1471,6 +1471,8 @@ export interface ChooseAction {
    */
   allowRepeat?: boolean;
   opponentResponds?: boolean; // true = 対戦相手が選択する（「対戦相手はカードを1枚引くか【エナチャージ1】してもよい」等）
+  /** 支払いを伴わない相手選択。PendingInteraction へ渡し、相手任意コスト経路への誤配線を防ぐ。 */
+  costlessOpponentChoice?: boolean;
 }
 
 export interface ChoiceOption {
@@ -1893,6 +1895,8 @@ export interface PowerModifyPerFieldAction {
   countFilter: TargetFilter;  // カウントするシグニのフィルタ
   countOwner: Owner;          // カウントするフィールドのオーナー（'any'=両プレイヤー）
   excludeSelf?: boolean;      // true=ターゲット自身をカウントから除外
+  /** 省略時は従来どおりターン終了時まで。長期値は power_mods_until_opp_turn へ格納する。 */
+  duration?: EffectDuration;
 }
 
 // チャームを消費してバニッシュを防ぐ
@@ -2083,11 +2087,12 @@ export interface PowerModifyPerEnergyAction {
 // 期間中プレイヤーはダメージを受けない（期間内は回数無制限＝1回消費の PREVENT_NEXT_DAMAGE とは別物）
 // scope: 'ALL'＝あらゆるダメージ（「このターン、あなたはダメージを受けない」）
 //        'LRIG'＝ルリグアタックによるダメージのみ（「対戦相手のルリグはあなたにダメージを与えない」）
-// until: 'UNTIL_END_OF_TURN'＝この（発動）ターンの終わりまで／'NEXT_TURN'＝次のターンの間
+// until: 'UNTIL_END_OF_TURN'＝この（発動）ターンの終わりまで／'NEXT_TURN'＝次のターンの間／
+//        'END_OF_ATTACK'＝現在解決中のアタック終了時まで
 export interface PreventDamageAction {
   type: 'PREVENT_DAMAGE';
   owner: Owner;
-  until: EffectDuration;
+  until: EffectDuration | 'END_OF_ATTACK';
   scope?: 'ALL' | 'LRIG';
   /**
    * 「次のあなたのメインフェイズまで」（`WXK01-002-E2`・§6.4 O-3 続き492）＝**ターン境界を跨ぐ**期間。

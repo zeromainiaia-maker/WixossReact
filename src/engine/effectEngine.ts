@@ -4146,7 +4146,14 @@ export function collectContinuousGrantedKeywords(
   if (lrigTop) sources.push(lrigTop);
   for (const srcNum of sources) {
     if (abilitiesRemoved.has(srcNum)) continue; // 能力喪失シグニはキーワードを付与しない
-    for (const eff of effectsMap.get(srcNum) ?? []) {
+    // 実行時 GRANT_EFFECT の CONTINUOUS も同じ収集器で読む。短期／次の相手ターン終了時までの
+    // ストアを落とすと、JSON に能力を積んでも activeCondition を評価する経路がなく恒久 no-op になる。
+    const sourceEffects = [
+      ...(effectsMap.get(srcNum) ?? []),
+      ...(ownerState.granted_effects?.[srcNum] ?? []),
+      ...(ownerState.granted_effects_until_opp_turn?.[srcNum] ?? []),
+    ];
+    for (const eff of sourceEffects) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       // 「パワーを＋Nし、それらは【K】を得る」の CONTINUOUS は SEQUENCE 直下に両 leaf を置く。
       // calcFieldPowers と同じく、分岐評価を要しない SEQUENCE だけを展開する。

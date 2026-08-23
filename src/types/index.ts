@@ -479,7 +479,7 @@ export interface PlayerState {
   // NEXT_TURN_START は予約（消費側は無視）→次のグローバルターン開始時に NEXT_TURN_END へ昇格→その終了時に消滅。
   // MY_NEXT_MAIN_PHASE（§6.4 O-3 続き492）＝「次のあなたのメインフェイズまで」＝ターン境界を**跨いで**残り、
   //   自分が次にメインフェイズへ入る1点（`clearMainPhaseScopedState`）で消える。相手ターン中も有効。
-  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE' }[];
+  prevent_damage_windows?: { scope: 'ALL' | 'LRIG'; expires: 'END_OF_ATTACK' | 'MY_TURN_END' | 'NEXT_TURN_START' | 'NEXT_TURN_END' | 'MY_NEXT_MAIN_PHASE' }[];
   /**
    * 「次のあなたのメインフェイズまで、このルリグの基本リミットは N になる」（`WXK01-002-E2`・§6.4 O-3）。
    * 印刷リミットを**置き換える**（`lrig_limit_mod` の加算とは別軸）＝`computeEffectiveLrigLimit` の

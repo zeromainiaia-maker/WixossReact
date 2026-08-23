@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第40バッチ＝持続期間（duration）の脱落・取り違え
+
+- CSV 6712行をSheet8のBOM除去付きで走査し、期間6句の母集団2201効果を既存のaction局所duration/until、delayed trigger、CONTINUOUS再収集、INSTANT解決型へ仕分けた。残OPENの指定16効果は、A/B/Cの12効果を修正、CONTINUOUSグロウスキップ2効果を既実装の偽陽性として閉じ、D群2効果はtarget binding／attack-end timingが主因のため据置。
+- `UNTIL_END_OF_TURN` と `UNTIL_OPP_TURN_END` を `temp_power_mods` / `power_mods_until_opp_turn`、keyword/granted-effect/lrig-autoの短期・長期storeへ正しく振り分けた。`END_OF_ATTACK` は既存語彙を使い、ガード禁止とdamage windowを攻撃終了時に双方のstateから消す。長期 `GRANT_EFFECT` 内のCONTINUOUS条件もcollectorへ配線した。新しいaction型は追加していない。
+- 指定12効果と同規則6効果をlive修正。`SP38-008-E1` / `WX04-016-E1` はJSON不変、同規則fresh 10効果は全件原文照合し、MANUAL温存4件も列挙した。台帳は26 findings / 18 effectIdを正しいquote前方一致で閉じ、残OPEN **772→746**。golden **2632→2639**、census **611→608**、smoke/fuzz/同型★/STUB無言A/C/manual-fields全0、lint **0 errors / 261 warnings**、held/partial/idset **83/15/46→82/15/46**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch40_report.md`。
+
 ## 2026-08-23：§6.2 段2 第39バッチ＝静的／参照値／合計レベル条件25効果
 
 - `TargetFilter` のセンタールリグ以下、効果元と同レベル、手札枚数以下、効果元の下カード枚数以下を `resolveDynamicFilter` へ配線。参照不在は空ヒット、枚数0は `level.max:0` へ fail-closed とした。静的上限、exact シャドウ、直前処理レベル一致も原文の向きへ復元した。
