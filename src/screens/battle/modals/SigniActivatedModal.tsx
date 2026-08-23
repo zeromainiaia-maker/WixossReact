@@ -274,7 +274,12 @@ export function SigniActivatedModal(p: SigniActivatedModalProps) {
                           const trashColor = myEnergyTrashSubInfo.colorOverrideMap.get(num);
                           const borderColor = isSel ? '#f44336' : isTrashWild ? '#4caf50' : trashColor ? '#9c27b0' : isWild ? '#ffcc00' : undefined;
                           return (
-                            <div key={i} title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
+                            // V-04（§5.1・2026-08-24）＝**シグニ【起】だけ testid が無く、同名エナを決定論的に
+                            // 選べなかった**（PLAN が「踏むなら testid 追加が先」と名指ししていた地点）。
+                            // 他の支払いモーダル（`spellcost-energy-{i}` / `artscost-energy-{i}`）と綴りを揃える。
+                            // ⚠`i` は **pool の index**（＝先頭 `my.energy.length` 件はエナゾーンと同順）。
+                            <div key={i} data-testid={`signiactcost-energy-${i}`} data-card-num={num}
+                              title={energyPayEntryLabel(payEntry, battleCardMap) ?? undefined}
                               onClick={() => setSelectedSigniActivatedCost(prev => {
                                 const next = new Set(prev);
                                 if (next.has(i)) { next.delete(i); return next; }

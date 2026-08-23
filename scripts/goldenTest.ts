@@ -37508,6 +37508,30 @@ test('§6.4 エナ支払い元: BattleScreen に my.energy 直控除が1件も�
      `色エナコストの控除は planEnergyPayment 一本。直控除が残っている: ${hits.map(h => h.n).join(',')}`);
 });
 
+// トリップワイヤ③＝**`applyTo` の呼び忘れ検出**（V-04・2026-08-24）。
+// 🔑`planEnergyPayment` は「計画」を返すだけで、控除は `applyTo(state)` を当てて初めて起きる設計
+// （`energyPaySource.ts` の安全弁）＝**呼び忘れるとエナが1枚も減らない＝ただでアーツ／スペル／【起】が撃てる**。
+// 実機シナリオは1経路ずつしか踏めないので、**母集団（＝全支払いサイト）を静的に押さえる**のがここの役目。
+// **母数の実測（2026-08-24）＝15サイト**（`BattleScreen.tsx` 14 ＋ `battle/trashActivateCost.ts` 1）。
+// ⚠**資料の数字は当てにしない**＝`energyPaySource.ts` の docstring は「モーダル17本」、別のコメントは13本、
+//   旧 PLAN は14本と食い違っていた（どれも支払いサイト数そのものではなかった）。
+test('§6.4 エナ支払い元: planEnergyPayment の結果が全サイトで applyTo されている（15サイト）', () => {
+  const files = ['src/screens/BattleScreen.tsx', 'src/screens/battle/trashActivateCost.ts'];
+  const missing: string[] = [];
+  let sites = 0;
+  for (const f of files) {
+    const src = fs.readFileSync(join(root, f), 'utf8');
+    const bound = [...src.matchAll(/const\s+([A-Za-z0-9_]+)\s*=\s*planEnergyPayment\(/g)].map(m => m[1]);
+    const total = [...src.matchAll(/planEnergyPayment\(/g)].length;
+    // 「const に束縛せずに呼ぶ」形が出てきたら applyTo を追跡できない＝それ自体を落とす。
+    eq(bound.length, total, `${f}: planEnergyPayment の戻り値を const に束縛していない呼び出しがある`);
+    sites += total;
+    for (const n of bound) if (!src.includes(`${n}.applyTo(`)) missing.push(`${f}:${n}`);
+  }
+  eq(missing.length, 0, `applyTo を呼んでいない支払いサイト（エナが減らない＝ただで撃てる）: ${missing.join(', ')}`);
+  eq(sites, 15, `支払いサイト数が変わった（現在 ${sites}）。増えたサイトも applyTo を呼んでいるか確認してから数を更新すること`);
+});
+
 // トリップワイヤ②＝同じスタックを2つのコスト機構が index で触ると必ずズレる（BattleScreen の cutin 経路）
 test('§6.4 エナ支払い元: UNDER_CARD_AS_ENERGY_COST と underSelfTrash を同じカードが持たない', () => {
   const both: string[] = [];

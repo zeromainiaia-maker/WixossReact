@@ -25411,6 +25411,163 @@ scenarios.v83NonDemonMillDoesNotTrigger = {
 order.push('v83DemonMillTriggersAlfou', 'v83NonDemonMillDoesNotTrigger');
 // ── V-83 END ──
 
+// ── V-04（§5.1）エナ支払い元の一本化＝残っていた支払い経路の実機返済 ────────────────────────────
+// **母数を実測して確定した（2026-08-24）＝支払いサイトは 15本**
+//   （`BattleScreen.tsx` の `planEnergyPayment(...)` 14 ＋ `battle/trashActivateCost.ts` 1）。
+//   ⚠**資料の数字は当てにならない**＝`energyPaySource.ts` の docstring は「モーダル17本」、別コメントは13本、
+//   旧 PLAN は14本と食い違っていた（どれも「支払いサイト数」そのものではなかった）。
+// **全15サイトが `applyTo` を呼んでいることは goldenTest のトリップワイヤ③で静的に固定した**
+//   （＝「呼び忘れるとエナが1枚も減らない＝ただで撃てる」を母集団まるごと守る）。
+//   ⇒ ここ（実機）は**同名エナを決定論的に選んで「選んだ1枚だけが減る」**ことを、
+//     既検証の2経路（アーツ／キー使用）に加えて **スペル**と**シグニ【起】**で踏む。
+// 🔑**シグニ【起】は PLAN が「踏むなら testid 追加が先」と名指ししていた地点**＝本セッションで
+//   `SigniActivatedModal.tsx` に `signiactcost-energy-{i}` ＋ `data-card-num` を追加して踏めるようにした。
+const V04_ENA_A = 'WD01-013#4001';   // 小剣 ククリ（白 Lv1・バニラ）＝**同名2枚**にして index 指定を試す
+const V04_ENA_B = 'WD01-013#4002';
+const V04_SPELL = 'WX08-067#4010';   // ＰＥＥＰＩＮＧ ＤＥＣＩＤＥ（《青》×１）
+const V04_BLUE_A = 'WD03-009#4011';  // コードアート Ｒ・Ｍ・Ｎ（青）＝同名2枚
+const V04_BLUE_B = 'WD03-009#4012';
+const V04_ACT_SIGNI = 'WX25-CP1-082#4020';  // 里浜ウミカ（【起】《無》×１：このシグニのパワー＋5000）
+
+// (1) スペル経路（`spellPay`）＝**同名エナ2枚のうち index 1 だけ**が減る。
+scenarios.v04SpellPayDeductsSelectedOnly = {
+  title: 'V-04 スペル経路＝同名エナ2枚から index1 を選ぶと、その1枚だけがトラッシュへ（もう1枚は残る）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-003#4090'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [V04_SPELL],
+      'energy': [V04_BLUE_A, V04_BLUE_B],
+      'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#4091'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': ['WD03-009#4030'],   // 宣言4で候補になる Lv4 シグニ1枚（効果を完走させるため）
+      'trash': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    let opened = false; let energyPicked = false; let cast = false; let declared = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v04spell-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      if (!did && !cast) {
+        // ⚠**エナを先に選ぶ**（未選択だと「発動する」は disabled＝押しても進まない）。
+        const e1 = page.getByTestId('spellcost-energy-1').first();
+        if (await e1.count() && await e1.isVisible().catch(() => false)) {
+          if (!energyPicked) { await e1.click().catch(() => {}); energyPicked = true; did = 'spellcost-energy-1'; }
+          else {
+            const btn = page.getByRole('button', { name: '発動する', exact: true }).first();
+            if (await btn.count() && await btn.isEnabled().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:発動する'; cast = true; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動']);
+      }
+      if (!did && cast && !declared && (st0?.pendingOptions ?? []).some(o => o.startsWith('num_'))) {
+        did = await clickExactVisibleText(page, '4を宣言');
+        if (did) declared = true;
+      }
+      if (!did) did = await H.stdStep(['決定 (1/1)', '決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v04spell[${s}] -> ${did ?? 'なし'} | picked=${energyPicked} cast=${cast} hEnergy=${JSON.stringify(st?.host?.energyCards)} hTrash=${JSON.stringify(st?.host?.trashCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (cast && !st?.pendingEffect && (st?.stackLen ?? 0) === 0 && (st?.host?.energy ?? 9) < (before?.host?.energy ?? 0)) {
+        const ena = st.host.energyCards ?? [];
+        // 🔑**「エナが減った」だけでは足りない**＝`applyTo` 忘れは「1枚も減らない」で出るが、
+        //   index の取り違えは「別の1枚が減る」で出る。**残った instanceId まで assert する**。
+        const keptRight = ena.length === 1 && ena[0] === V04_BLUE_A;
+        const paidRight = (st.host.trashCards ?? []).includes(V04_BLUE_B);
+        return {
+          pass: keptRight && paidRight,
+          detail: `スペル経路：エナ ${before.host.energy}→${st.host.energy}／残ったのは ${JSON.stringify(ena)}（index0=${V04_BLUE_A} のはず: ${keptRight}）／支払った ${V04_BLUE_B} がトラッシュ=${paidRight}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（opened=${opened} picked=${energyPicked} cast=${cast} hEnergy=${JSON.stringify(fin?.host?.energyCards)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+
+// (2) シグニ【起】経路（`signiActPay`）＝**PLAN が「testid 追加が先」と名指ししていた地点**。
+scenarios.v04SigniActPayDeductsSelectedOnly = {
+  title: 'V-04 シグニ【起】経路＝同名エナ2枚から index1 を選ぶと、その1枚だけが減る（testid 追加で決定論化）',
+  spec: {
+    hostSet: {
+      'field.lrig': ['WD03-002#4092'],
+      'field.signi': [[V04_ACT_SIGNI], null, null],
+      'field.check': null,
+      'hand': [],
+      'energy': [V04_ENA_A, V04_ENA_B],
+      'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#4093'],
+      'field.signi': [null, null, null],
+      'field.check': null,
+      'hand': [],
+    },
+    top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+  },
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    let zoneOpened = false; let acted = false; let energyPicked = false; let fired = false; let startedSeen = false;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v04act-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!zoneOpened) { did = await H.clickTestId('my-signi-zone-0'); if (did) zoneOpened = true; }
+      else if (!acted) {
+        const act = page.locator('[data-testid^="card-action-"][data-action-label^="【起】"]').first();
+        if (await act.count() && await act.isVisible().catch(() => false) && await act.isEnabled().catch(() => false)) {
+          await act.click({ timeout: 1500 }).catch(() => {}); did = 'action:【起】'; acted = true;
+        }
+      } else if (!fired) {
+        const e1 = page.getByTestId('signiactcost-energy-1').first();
+        if (await e1.count() && await e1.isVisible().catch(() => false)) {
+          if (!energyPicked) { await e1.click().catch(() => {}); energyPicked = true; did = 'signiactcost-energy-1'; }
+          else {
+            const btn = page.getByRole('button', { name: '発動', exact: true }).first();
+            if (await btn.count() && await btn.isEnabled().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:発動'; fired = true; }
+          }
+        }
+      }
+      if (!did) did = await H.stdStep(['決定', 'OK']);
+      const st = await H.queryState();
+      H.log(`  v04act[${s}] -> ${did ?? 'なし'} | acted=${acted} picked=${energyPicked} fired=${fired} hEnergy=${JSON.stringify(st?.host?.energyCards)} powerMods=${JSON.stringify(st?.host?.powerMods)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      // 🔴§4.4 の5＝**クリック前から成立している条件で判定しない**。「発動」を押した直後は
+      //   DB がまだ更新されておらず `pendingEffect==null && stackLen===0` が**開始前の値のまま真**なので、
+      //   そこで返すと「エナ 2→2・効果も走っていない」で FAIL する（2回目の実行で実際に踏んだ）。
+      //   **効果が走り出したことを1度でも観測してから**しか完了判定に入らない。
+      if (fired && ((st?.stackLen ?? 0) > 0 || st?.pendingEffect
+                    || (st?.host?.energy ?? 99) < (before?.host?.energy ?? 0))) startedSeen = true;
+      if (fired && startedSeen && !st?.pendingEffect && (st?.stackLen ?? 0) === 0) {
+        const ena = st.host.energyCards ?? [];
+        const keptRight = ena.length === 1 && ena[0] === V04_ENA_A;
+        const paidRight = (st.host.trashCards ?? []).includes(V04_ENA_B);
+        // 🔑**効果が実際に走った証拠**も要る（§4.4 の4）＝エナだけ見ると「支払いだけして空振り」を見逃す。
+        const buffed = (st.host.powerMods ?? []).some(m => m.startsWith(`${V04_ACT_SIGNI}:5000`));
+        return {
+          pass: keptRight && paidRight && buffed,
+          detail: `シグニ【起】経路：エナ ${before.host.energy}→${st.host.energy}／残ったのは ${JSON.stringify(ena)}（index0=${V04_ENA_A} のはず: ${keptRight}）／支払った ${V04_ENA_B} がトラッシュ=${paidRight}／効果も走った（+5000）=${buffed}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（zoneOpened=${zoneOpened} acted=${acted} picked=${energyPicked} fired=${fired} started=${startedSeen} hEnergy=${JSON.stringify(fin?.host?.energyCards)} powerMods=${JSON.stringify(fin?.host?.powerMods)} pEff=${fin?.pendingEffect ?? '-'}）` };
+  },
+};
+order.push('v04SpellPayDeductsSelectedOnly', 'v04SigniActPayDeductsSelectedOnly');
+// ── V-04 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 

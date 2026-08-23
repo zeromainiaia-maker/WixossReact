@@ -5,7 +5,7 @@ import type { CardEffect, StubAction } from '../../types/effects';
  * 「エナコストの支払い元」を1本にまとめる funnel（§6.4「エナ支払い元の一本化」）。
  *
  * ■ なぜ要るか
- *   支払いモーダル17本が `my.energy` を直接読み、候補生成（`my.energy.map(...)`）も
+ *   支払いモーダル（当時17本と記録）が `my.energy` を直接読み、候補生成（`my.energy.map(...)`）も
  *   控除（選んだ index を `my.energy` から除去）も各所に散っていた。
  *   「エナゾーン以外を支払い元にする」語彙（`UNDER_CARD_AS_ENERGY_COST`＝`WXDi-P10-041`）は
  *   **どのコスト支払い経路にも等しく効く**ので、半分だけ配線すると
@@ -15,6 +15,16 @@ import type { CardEffect, StubAction } from '../../types/effects';
  *   `buildEnergyPayPool` が返す配列は **先頭 `my.energy.length` 件がエナゾーンそのもの・同じ順**。
  *   よって既存の `costIndices:Set<number>`（＝`my.energy` への index）はそのまま pool への index として通る。
  *   追加の支払い元は末尾に並ぶだけなので、**追加元が0件のとき pool は `my.energy` と完全に等価**。
+ *
+ * ■ 支払いサイトの母数（V-04・2026-08-24 実測）
+ *   **`planEnergyPayment(...)` の呼び出しは 15 サイト**＝`screens/BattleScreen.tsx` 14
+ *   （グロウ／アーツ使用／キー・ピース使用／キー【起】／アシストグロウ／アシスト【起】／スペル／
+ *     カットイン(ピース)／カットイン(アーツ)／シグニ【起】／エナ【起】／手札【起】／【出】コスト／
+ *     ルリグ付与【起】）＋ `screens/battle/trashActivateCost.ts` 1（トラッシュ自己起動【起】）。
+ *   ⚠**この節以外の数字（上の「17本」等）は当時のモーダル本数の記録であって支払いサイト数ではない**
+ *   ＝資料間で 17/14/13 と食い違っていたので実測して確定した。
+ *   **全15サイトが `applyTo` を呼んでいることは `scripts/goldenTest.ts` のトリップワイヤ③が静的に固定する**
+ *   （サイトが増えたらそこも落ちるので、数を更新する前に `applyTo` を確認すること）。
  *
  * ■ 安全弁（PLAN §4 教訓 (m)「安全弁はコメントの規律ではなく関数の戻り値にする」）
  *   控除は `planEnergyPayment(...).applyTo(state)` で**サイトが state を組み立てた「あと」に**当てる。
@@ -125,7 +135,7 @@ export function buildEnergyPayPool(my: PlayerState, ctx: EnergyPoolContext): Ene
     const stack = my.field.signi[src.zone] ?? [];
     // 最上段（シグニ本体）は支払い元にならない。
     // ⚠**このターンの残り上限ぶんしか pool に載せない**＝1回の支払いで上限超過を選べない
-    //   （「1ターンに3つまで」の enforcement を候補生成の1点に閉じ込める＝13本のモーダルの
+    //   （「1ターンに3つまで」の enforcement を候補生成の1点に閉じ込める＝各支払いモーダルの
     //     トグルに検算を撒かない）。副作用として残り2枚のとき下カード3枚のうち上2枚しか
     //     選べない（どれを払うかは選べない）＝過払いにはならない安全側の近似。
     stack.slice(0, -1).slice(0, Number.isFinite(remaining) ? remaining : undefined)
