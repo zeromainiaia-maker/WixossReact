@@ -1,5 +1,20 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：台帳の書式ミスで段2 第33〜35バッチが1件も閉じていなかった（残 OPEN 862→825）
+
+**症状**＝56効果を直して `stage2_closed.txt` にも追記したのに、`node scripts/archive/semanticAuditLedger.mjs` の残 OPEN が動かなかった（第35バッチに至っては9行すべて空振りで **0件**）。
+
+**真因**＝台帳の閉じ方は2書式しかない。`EFFECTID` 単体＝その効果の finding を全部閉じる／`EFFECTID :: <quote>` ＝**`findings.jsonl` の `quote` フィールドへの前方一致**で1本だけ閉じる（`semanticAuditLedger.mjs` の `closedAll` / `closedOne`）。ところが Codex は `::` の右へ**原文の要約・説明文**を書いていた（例＝実 quote が `同じ数だけ` なのに `バニッシュしてもよい／バニッシュしたシグニと同じ数だけ場に出す` と記載）。**63行中55行が空振り**。CODEX_GUIDE §4 のテンプレが `effectId :: 原文の該当句` としか書いておらず、前方一致であることを伝えていなかった。
+
+**直し方**＝3バッチ分の行を実データで突き合わせて書き直した。各効果について `findings.jsonl` の全 finding を引き、**live JSON を1件ずつ読んで「その finding が本当に解消したか」を判定**してから、①全部解消＝`ID` 単体 ②一部だけ＝`ID :: <実 quote>` ＋ 残りが何軸かを `#` コメント ③findings 母集団外（同規則で一緒に直った分）＝`#` コメント行として記録のみ、へ振り分けた。
+
+- 兄弟 finding も解消していた例＝`WX22-024-E2` の `optional`／`WXDi-P04-004-E1` の `duration`／`WD10-007-E1` の `$ref`／`PR-380-E1` のレゾナ処理
+- 未解消のため据置＝`WXEX2-84-E1`「すべてのルリグを下に置く」／`WX24-P4-035-E1` の duration／`WX22-Re06-E1` のレベル合計3分岐／`WX20-079-E1` の「そうした場合」ゲート
+
+**再発防止**＝CODEX_GUIDE §4「台帳の更新」に2書式の表を追加し、「採用前に `findings.jsonl` から `quote` を実際に引け」と明記。§5 の実績表 `28` に事故として登録。第36・37バッチでは Codex が部分クローズ（`WXK10-003-E1 :: ライフクロスが…２枚以上少ない`）を正しく使い分けた。
+
+**教訓**＝**「台帳に書いた」と「台帳が動いた」は別**。バッチの締めでは必ず `semanticAuditLedger.mjs` を実行して**残 OPEN が実際に減ったか**を確認する。
+
 ## 2026-08-23：§6.2 段2 第37バッチ＝ライフクロスクラッシュ主体の限定32効果
 
 `ON_OPP_LIFE_CRASHED` がクラッシュ原因を表さないのに、原文の「あなたのシグニが」「このシグニ／ルリグが」という主体限定をJSONとcollectorが持っていなかった過剰発火を是正した。A群は既存 `triggerScope:'any_ally'`＋`triggerFilter`、自己同一性は既存 `triggerFilter.thisCardOnly` を明示マーカーとして使い、`oppLifeCrashSourceMatches` で実クラッシュ源instanceと照合する。`collectOppLifeCrashedTriggers` と `BattleScreen` の実機 `oppCrashSources` ループを同じpredicateへ配線した。`triggerScope:'self'` 単独を別用途で持つ既存2効果は意味を変えず、同一CardNumの別instanceも非発火に固定した。

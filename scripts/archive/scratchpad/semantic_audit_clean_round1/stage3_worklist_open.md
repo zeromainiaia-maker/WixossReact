@@ -1,5 +1,10 @@
 # 残 OPEN の worklist（2026-08-23 続き631 時点で再計算）
 
+> 🔴🔴**2026-08-23 続き632 で数字が古くなった＝残 OPEN 876 → 813。**
+> 続き632 の段2 第33〜37バッチで **`filter.color × CHOOSE` / `count/upTo` / `timing/trigger × ライフクラッシュ`** の
+> サブ群は消化済み。**着手前に `node scripts/archive/semanticAuditLedger.mjs --axis` で切り直すこと**
+> （下の表をそのまま使うと消化済みの群を取ってしまう）。残る大きい群は PLAN §4 の「次の一手」に列挙してある。
+
 > **これは `stage3_worklist.md` を「まだ閉じていない findings だけ」で作り直したもの。**
 > 元の worklist は 2026-08-21 続き592 時点の数字なので、**着手前にこちらを見る**。
 > 再現＝`stage3_recluster.json` を flatten し、`stage2_closed.txt` の effectId を除いて

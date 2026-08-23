@@ -1,5 +1,49 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-23 整理（§4 恒久指標・続き631時点値の退避・続き632）
+
+- **🆕 2026-08-23 続き631（段2 第32バッチ＝レベル合計 exact の機構新設／`O-42` 残0クローズ）後 最新値（本行が直近の正）**：
+  **census 640/640**（`BASELINE_HIGH` 更新済み・セッション開始時 659）、**golden 2563**（同 2518）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live 効果総数 10693 据置**。
+  `_held_fresh` **86**（同 87）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🏁**`censusManualDrift` 削除候補＝0**（§6.4 `O-42` 残0クローズ）／`manualEffects` **411 カード**（同 412）。
+  **条件型の数＝`Condition` 122／`ActiveCondition` 52 据置**（golden のトリップワイヤが正）。
+  🔴**engine の改変（セッション累計）**＝`execStubPart1` が引用【自】内の `SET_OPP_SIGNI_POWER_BY_SELF_POWER` を許可し長期 store へ（627）／
+  `collectGrantedFromLayer` が CONTINUOUS 引用付与を当該ブロックから展開（627）／
+  `FIELD_LEVEL_SUM` に `parity` と `lrigRole` を追加し `checkActiveCondition`／`evalCondition` へ配線（628）／
+  `ALL_FIELD_SIGNI_MATCH` が `levelParity` を受ける（628）／
+  **`totalLevelMax` の消費を `execBanish` 以外（`execGrantKeyword`／`execSendToEnergy`／`execDown`）へ実装**（629）／
+  `GRANT_PROTECTION` の AUTO 期間付与で `protectionKeyword` が `sourceFilter` を捨てていた穴を配線（629）／
+  **`SelectionConstraint` に `totalLevelExact`／`totalLevelMax` を新設**し SEARCH・コスト経路・移動経路の
+  候補提示／完了可否／resume 再検証へ配線（631）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 876**（セッション開始時 883・**closed effectId 231→247**）／段2 消化 **247**／
+  HIGH・MED・LOW＝**524・343・9**（`stage2_closed.txt` の effectId を除いた同一計算での実測）。
+  🔴🔴**⚠この数字の読み方**＝**このセッションの41効果のうち audit の母集団に載っているのは16件だけ**。
+  残りは Claude が**自作計器と `census:clusters`** から切った母集団で、**実バグだが構造的に OPEN を動かさない**。
+  **OPEN を進捗指標にするなら、母集団を `findings.jsonl`（`stage3_worklist.md` 第2層＝38サブ群・302件）から切ること。**
+  📊**母集団の切り方＝5原則＋α**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない
+  ⑥原文の括弧内ルール説明を能力として数えない ⑦再帰探索で入れ子まで拾わない ⑧既存の受け皿型を先に一覧化して引き算する
+  ⑨カード単位の「個数差」で数えない（兄弟効果が相殺する）
+  ⑩🆕**自作走査では `CardData_Sheet8.csv` の先頭 BOM を必ず剥がす**（続き627＝剥がさないとそのシートが丸ごと
+  キー `undefined` へ落ち、第27バッチの母集団から `WXDi-P13-061-E1` が静かに漏れていた）
+  🆕🔑**続き629 で確立＝「受け皿はあるのに parser が配線していない」型の穴は既存の計器に映らない**＝
+  `EffectTarget.totalLevelMax` は engine 実装済みなのに live 利用が1枚だけだった（11カードで過剰実行）。
+  `census` にも `census:wiring` にも出ない。⇒ **「型はあるが live 利用が極端に少ない語彙」を数える計器**が要る。
+  🆕🔑**続き629 の再確認＝「engine 実装済み」を Claude が先回りで書くと死フラグを生む**＝
+  `totalLevelMax` を読むのは `execBanish` だけで、他3経路は未消費だった（§5-14。**先回りメモが覆された通算11回目**）。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-44` のみ**（🏁`O-41` 続き609／🏁`O-43` 続き615／🏁**`O-42` 続き631 で残0クローズ**）。
+  **§6.3 の新規は `L`**（共通色比較・**9バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`＋`V-84`＋`V-83`＋続き616〜631 の計10バッチ（第23〜32）全部**。
+  特に**第31・第32 は対象選択 UI（候補提示・完了可否・resume）に触っている**ので観測点を §7 へ追加すべき。
+  ⚠**`.codex-work`（有料 Codex）は 2026-08-28 21:58 まで利用上限**＝当面は既定 `~/.codex`（環境変数なしの `codex exec`）で投げる。
+  **投入コマンド（実績）**＝`codex exec -C "C:/Users/zerom/WixossReact" -c sandbox_mode="danger-full-access" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`
+  ⚠**投入前に必ず `git status --porcelain` を空にする**（続き624＝計器の生成時刻1行の差分で Codex が起動を拒否した。判断自体は正しい）。
+
 ## 2026-08-23 整理（§4 恒久指標・続き615時点値の退避・続き621）
 
 - **🆕 2026-08-22 続き615（段2 第22バッチ＝§6.4 `O-43` 残0クローズ）後 最新値（本行が直近の正）**：

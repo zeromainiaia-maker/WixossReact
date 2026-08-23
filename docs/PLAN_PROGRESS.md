@@ -4,6 +4,26 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-23・続き627〜631・Opus 5＋Codex）＝段2 を4バッチ＋§6.4 `O-42` 残0クローズ**（第29〜32バッチ）。**残 OPEN 883→876**（**−7**／⚠下の🔴を必ず読む）／段2 消化 **236→247**。**census 659→640**／**golden 2518→2563**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、partial/idset **15/46** は全バッチ維持（held は 87→86）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch29〜32_report.md`。
+
+  | # | 題材 | live 修正 | 一言 |
+  |---|---|---:|---|
+  | 29 | 引用能力つき合成で**外側のパワー操作が丸ごと消える** | 12 | 第27の続き＝飲み込む側が `STUB{GRANT_ABILITY_INNER_TEXT}` に変わっただけ |
+  | 30 | 盤面**集約値**（レベル／パワーの合計・偶奇）の条件とフィルタ脱落 | 13 | `census:clusters` の該当率上位2パターンから |
+  | 31 | 「レベルの合計がN以下」の上限／相手アーツの**コスト上限**脱落 | 8 | 🔴**受け皿があるのに parser が配線していない**型の穴 |
+  | 32 | 「レベルの合計が**Nになる**ように」＝ちょうどN の機構新設 ＋ `O-42` 残0 | 8 | `SelectionConstraint` に `totalLevelExact` を新設 |
+
+  - 🔴🔑**このセッション最大の教訓＝「台帳を更新しないと、直っているのに数字が動かない」**。第29〜31バッチの**指示書から `stage2_closed.txt` の更新指示が抜けていた**（第28で Codex が自発的にやったので Claude が油断した）。**33効果を直したのに closed は 231 のまま**で、ユーザーの「OPEN は減らないの？」で発覚。⇒ CODEX_GUIDE §4 のテンプレへ「台帳の更新（段2 バッチでは必須）」節を追加し、§5 `28` に登録。
+  - 🔴🔑**あわせて構造的な問題が判明＝この4バッチの41効果のうち、audit の母集団（`findings.jsonl`）に載っているのは16件だけ**。Claude が母集団を**自作計器（CSV原文 × live JSON の走査）と `census:clusters`** から切ったため。**実バグではあるが、その切り方では OPEN は構造的に動かない**（第32バッチは8効果全件が母集団外＝OPEN 0）。⇒ **OPEN を進捗指標にするバッチでは母集団を `findings.jsonl` 側から切る**（`stage3_worklist.md` の第2層＝38サブ群・302件が束ねてある）か、**「今回は OPEN を動かさない探索バッチだ」と最初に宣言する**かのどちらかにする。**census は 659→640 と着実に下がっており、成果自体は別の計器に出ている。**
+  - 🔑**「受け皿はあるのに parser が配線していない」型の穴が2つ見つかった**（第31）＝`EffectTarget.totalLevelMax` は executor に候補提示も resume 検証もあるのに **live で使っているのは1枚だけ**（11カードで落ちて上限なしの過剰実行）／`GRANT_PROTECTION.sourceFilter` ＋ `TargetFilter.costMax` は既存なのに「コスト合計1以下の相手アーツの効果を受けない」が**どんなアーツからも守る**過剰実行だった。⇒ **`census` にも `census:wiring` にも出ない穴**なので、**「型はあるが live 利用が極端に少ない語彙」を数える**のが次の計器候補。
+  - ⚠**Codex が Claude の見立てを訂正したのは4バッチで7件**。**最も重要だったのは第31**＝「engine は `totalLevelMax` 完備／A群は parser 専業」と書いたが、**実際に読むのは `execBanish` だけ**で `execGrantKeyword` / `execSendToEnergy` / `execDown` は未消費だった。**指示書どおりに進めていたら死フラグを4件書いて「JSON だけ直って挙動は変わらない」ところだった**（§5-14）。Codex は engine 側を実装してから採用した。**Claude の先回りメモが覆されたのは通算11回目。**
+  - ⚠**Claude の計測器のバグを1つ発見・是正**＝**`CardData_Sheet8.csv` だけ先頭に UTF-8 BOM があり**、剥がさないとヘッダ先頭が `﻿CardNum` になって**そのシートのカードが丸ごとキー `undefined` へ落ちて母集団から静かに消える**。**第27バッチの母集団から `WXDi-P13-061-E1` が漏れていた**（第29で回収）。⇒ **自作走査スクリプトでは必ず BOM を剥がす**（CODEX_GUIDE のガードレールにも記載済み）。
+  - 🆕**据置の判断が3件とも的確**＝`WD16-014-E1`（`PowerSetAction` に `duration` が無く「ターン終了時まで」を表せない）／`WXK05-028-E2`（「公開領域の表向きカードを全数判定」する語彙が engine に無い）／第31 C群5件（「ちょうどN」を `totalLevelMax` で近似すると合計未満を許す過剰実行になる）。**いずれも非採用契約を golden で固定済み**で、第32では C群が正式に機構化された＝**据置は永久放置ではない**。
+  - 🏁**§6.4 `O-42` 残0クローズ**（第32）＝残1の `WX10-018-E1` は**影武者ではなく「manual が live へ届いていない」別種のバグ**だった。`execStubPart3` のフォールバックが `lrig:false` に倒れて**センタールリグのアタックが無効化されない過小実行**。`syncManualLive` で payload を届けて解消。**トリップワイヤ（許容リスト空・本体は残置）が今後を見張る。**
+  - 🆕**新規発見・未修正**＝`WX24-P4-040-E2`／`WXDi-P10-007-E3`（「コスト合計N以下のスペルを無償使用」の未実装）／`WX16-034-LAYER`・`WXK09-047-E1` の周辺（第31で一部のみ是正）／第29 C群の `WXDi-P10-034-E1`・`WXDi-P15-002-E1`（パワー操作が別 STUB の payload に飲まれている）。
+  - 🔴**▶ 次の一手【Opus 側】＝OPEN 優先（2026-08-23 ユーザー決定）**。**母集団は必ず `findings.jsonl` 側から切る**＝自作計器や `census:clusters` から切ると**実バグは見つかるが OPEN は構造的に動かない**（続き627〜631 で41効果中25件が母集団外だった）。**着手先は 🆕`scripts/archive/scratchpad/semantic_audit_clean_round1/stage3_worklist_open.md`**＝残 OPEN 876 で作り直したサブ群表（5件以上が27群・200件）。⚠**旧 `stage3_worklist.md` は続き592 時点の数字なので使わない**。**最初の1バッチは ⭐印の狭い群から**＝`filter.story × POWER_MODIFY × MISSING`（6件・`WXK10-047-E1` ほか）か `timing/trigger × ENERGY_CHARGE_FROM_DECK × MISSING`（6件・`WXK03-060-E1` ほか）。⚠**`SEQUENCE` を含む群は器なので信号が弱い＝内側の実 action 型でもう一段割ってから取る**。⚠**各バッチの指示書に「`stage2_closed.txt` を更新せよ」を必ず入れる**（CODEX_GUIDE §4「台帳の更新」）。**在庫として残す探索系の題材**（OPEN は動かないので後回し）＝①「型はあるが live 利用が極端に少ない語彙」を数える計器の新設（続き629 の穴が `census`／`census:wiring` に映らなかったため）②引用能力 STUB の展開（`GRANT_ABILITY_INNER_TEXT` live 34件）③count>1 の全数支払い機構（`WX07-039-E2`／`WXEX1-14-E2`）④§6.3 `L`＝共通色比較（**9バッチ連続で保留**・残3効果）。§6.4 の残りは `O-44` のみ。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`**／**`V-84`**／**`V-83`**。🔴**続き616〜631 の**計10バッチ**（第23〜32）がすべて実機未検証**。特に**第31・第32 は engine の対象選択 UI（`totalLevelMax` / `totalLevelExact` の候補提示・完了可否・resume）に触っている**ので、**実機で「上限を超える組み合わせが選べないこと」を確かめる観測点を §7 に追加すべき**。
+
 - **🆕 セッション（2026-08-23・続き622〜626・Opus 5＋Codex）＝段2 を2バッチ＋§6.4 `O-42` を2バッチで残1まで消化**（計5投入・うち1回は Codex が正しく起動を拒否して再投入）。**残 OPEN 883→855**（**−28**）／段2 消化 **207→236**。**census 671→659**／**golden 2442→2518**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、held/partial/idset **87/15/46** は全バッチで維持。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch27〜28_report.md` ／ `o42_batch1〜2_report.md`。
 
   | # | 題材 | live 修正 | 一言 |
