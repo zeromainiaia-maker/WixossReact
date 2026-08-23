@@ -241,8 +241,6 @@
 > ⚠**着手前に §4.4 の28項を読む。** ⚠**`verifyBattleDrive.mjs` は必ず明示シナリオIDで実行する**（引数なしのフルバッチはフリーズ報告あり）。
 > **FAIL を見たときの切り分け3分類**＝(a)**シナリオの腐り**〔仕様変更に spec が追いついていない＝§4.4 の26〕は**その場で直す** (b)**engine/parser のバグ**も**その場で直す**（§2.4） (c)**未実装**は §5.3 へ登録。
 
-### 🅲 未着手・通常
-
 ### 5.2 意味照合監査（semantic audit）の段2 消化
 
 > **母集団＝残 OPEN 734件**（`node scripts/archive/semanticAuditLedger.mjs` の実測が唯一の正。セッション開始時876／段2 消化363／HIGH・MED・LOW＝509・229・8／影響カード558・効果593）。原文 vs effects JSON を LLM で意味比較して見つけた指摘の worklist。仕組みは [SEMANTIC_AUDIT.md](./SEMANTIC_AUDIT.md)、Codex 運用は [CODEX_GUIDE.md](./CODEX_GUIDE.md)。
