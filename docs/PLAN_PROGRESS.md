@@ -4,6 +4,24 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-23・続き632・Opus 5＋Codex）＝段2 を5バッチ連投＋台帳書式の是正**（第33〜37バッチ）。**残 OPEN 876→813**（**−63**）／段2 消化 **247→292**／**live 修正 108効果**。**census 640→621**／**golden 2563→2618**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、**held 86→83**、partial/idset **15/46** は全バッチ維持。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch33〜37_report.md`。
+
+  | # | 題材 | live 修正 | 一言 |
+  |---|---|---:|---|
+  | 33 | 対象・移動元・集計対象の**色指定／色OR／色否定**の脱落・誤付着 | 23 | engine 改変ゼロ＝`color[]`（配列＝OR）と `colorExclude` を parser から配線しただけ |
+  | 34 | **「N枚まで」が N 枚固定**（0枚を選べない／固定枚数を強制） | 33 | 🔑`pickUpTo` は型も parser もあるのに **engine に消費が1行も無かった** |
+  | 35 | **動的な枚数**（「同じ数だけ」「N枚につき」）が固定1枚 | 9 | `CountFromZone.unitSize`（除数）を新設。既存 `per`（乗数）と意味が逆なので分離 |
+  | 36 | **ライフクロス枚数の比較条件**が丸ごと欠落 | 7 | `LIFE_COMPARE_OPP` を新設し**評価器3経路すべて**へ配線 |
+  | 37 | ライフクロスを**誰がクラッシュしたか**の限定が欠落 | 32 | 配線先2箇所（engine collector と実機 BattleScreen）を**共通 predicate** へ集約 |
+
+  - 🔴🔑**このセッション最大の教訓＝「台帳に書いた」と「台帳が動いた」は別**。`stage2_closed.txt` の `ID :: 句` は **`findings.jsonl` の `quote` への前方一致**でしか閉じないのに、Codex は `::` の右へ**原文の要約・説明文**を書いていた。**63行中55行が空振り**し、56効果を直したのに残 OPEN が 862 のまま動かなかった（第35は9行全滅＝0件）。⇒ 実データで突き合わせて是正（**862→825**）し、CODEX_GUIDE §4 へ**2書式の表**、§5 `28` へ事故を登録。**第36・37 では Codex が部分クローズを正しく使い分けた。** ⚠**バッチの締めでは必ず `node scripts/archive/semanticAuditLedger.mjs` を実行して残 OPEN が実際に減ったかを見ること。**
+  - 🔑**「受け皿はあるのに配線されていない」型の穴が3バッチ連続で出た**（続き629 で見つけた型と同じ）＝第33（`TargetFilter.color` の配列 OR は `matchesFilter` が消費済みなのに parser が出していない）／第34（`pickUpTo` は型・parser・逆翻訳にあるのに **engine に消費ゼロ**＝UI が「ちょうど N 枚」を要求していた）／第35（`$ref:'last_processed_count'` と `CountFromZone`）。⇒ **在庫の「型はあるが live 利用が極端に少ない語彙を数える計器」の優先度を上げてよい**（4回連続で当たっている）。
+  - ⚠**母集団の拡張は OPEN を動かさない**＝108効果のうち **findings 母集団に載っていたのは45件**。残りは「同じ parser 規則で一緒に直った」拡張分＝**実バグだが標本外**。前回（41効果で −7）より改善したが、**採用効果の約4割しか OPEN に効かない**のは findings が3,344枚を1周見た**標本**である以上は構造的。⇒ **OPEN の減りを最大化したいならスコープ内だけに絞る運用に切り替えられるが、それは「見つけたバグをわざと直さない」取引になる**（ユーザー判断待ち・現状は拡張を歓迎する運用のまま）。
+  - 🆕**据置の判断が的確**＝第33 `WXEX2-51-E3`（欠落はパワー上限）／`PR-322-E2`（欠落は手札からの枝）＝**§5-3-4′「その finding が今回の機構についてか」判定が効いた**。第37 C群2件（【ランサー】原因）は funnel がキーワードを運ばないため据置＝**死フラグ（consumer の無い `crashCause`）を出さないことと、現状が既知の過剰実行であることを golden で契約化**し、**機構実装時にテストを反転する旨まで書いてある**（§5-4 の理想形）。第34 C群4件は**偽陽性**（`execSearch` は `maxPick`＋`optional` を持ち `then` はカード単位 payload＝既に正しい）＝Claude も実コードで再確認。
+  - ⚠**Codex が Claude の見立てを訂正／超えた点**＝第34 は `WXEX2-84-E1` に対し **`TRANSFER_TO_DECK.destination:'lrig_deck'` と `lrig_trash` スコープを新設**して解いた（指示書は parser 配線だけを想定していた）。第36 は Claude 案の `LIFE_DIFF` ではなく **`LIFE_COMPARE_OPP`** として `Condition`／`ActiveCondition` 両 union ＋評価器3経路へ配線。第37 は BattleScreen の重複実装を**共通 predicate 化**して二重実装の食い違いを構造的に消した。
+  - 🔴**▶ 次の一手【Opus 側】＝OPEN 優先を継続**（母集団は `findings.jsonl` 側から切る）。**着手先は `stage3_worklist_open.md`**（⚠**残 OPEN 876 時点の表なので、着手前に `semanticAuditLedger.mjs --axis` で切り直すこと**）。**今回の5バッチで消えた群**＝`filter.color × CHOOSE`／`count/upTo`／`timing/trigger × ライフクラッシュ`。**残る大きい群**＝`(未分類) × SEQUENCE × WRONG`（26）／`特殊機構 × (none) × MISSING`（16＝チーム／ライズ／リコレクト／ハーモニー／エクシード。**機構ごとに割る**）／`filter.story × SEQUENCE × WRONG`（12）／`キーワード能力 × SEQUENCE × WRONG`（12）。⚠**`SEQUENCE` を含む群は器なので内側の実 action 型でもう一段割ってから取る**。**在庫の探索系**＝①「型はあるが live 利用が極端に少ない語彙」の計器（**優先度↑**）②引用能力 STUB の展開（`GRANT_ABILITY_INNER_TEXT` live 34件）③count>1 の全数支払い機構④§6.3 `L` 共通色比較（**10バッチ連続で保留**・残3効果）。§6.4 の残りは `O-44` のみ。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`／`V-84`／`V-83`**。🔴**続き616〜632 の計15バッチ（第23〜37）がすべて実機未検証**。特に**第34（選択 UI の 0枚選択可）・第36（条件ゲート）・第37（クラッシュ主体の限定）は実機経路に直接触っている**ので観測点を §7 に追加すべき＝**第34＝「N枚まで」で0枚を選んで決定できること**／**第37＝別のシグニがクラッシュしても発動せず、同じ盤面で主体を差し替えると発動すること（対照つき）**。
+
 - **🆕 セッション（2026-08-23・続き627〜631・Opus 5＋Codex）＝段2 を4バッチ＋§6.4 `O-42` 残0クローズ**（第29〜32バッチ）。**残 OPEN 883→876**（**−7**／⚠下の🔴を必ず読む）／段2 消化 **236→247**。**census 659→640**／**golden 2518→2563**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、partial/idset **15/46** は全バッチ維持（held は 87→86）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch29〜32_report.md`。
 
   | # | 題材 | live 修正 | 一言 |

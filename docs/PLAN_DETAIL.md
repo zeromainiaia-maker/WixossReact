@@ -1,5 +1,50 @@
 # PLAN_DETAIL — 消化済みバッチ・完了項目の詳細台帳
 
+## 2026-08-23 整理（§4 恒久指標・続き632時点値の退避・続き633）
+
+- **🆕 2026-08-23 続き632（段2 第33〜37バッチ＝5連投／台帳書式の是正）後 最新値（本行が直近の正）**：
+  **census 621/621**（`BASELINE_HIGH` 更新済み・セッション開始時 640）、**golden 2618**（同 2563）、
+  smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
+  `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、**live カード 5975 / 効果総数 10693 据置**。
+  `_held_fresh` **83**（同 86）／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  `censusManualDrift` **削除候補 0 据置**（§6.4 `O-42` は残0クローズ済み・トリップワイヤ稼働中）。
+  **条件型の数＝`Condition` 122 据置／`ActiveCondition` 52→53**（`LIFE_COMPARE_OPP` の新設分）。
+  🔴**engine／実機の改変（セッション累計）**＝
+  `execRevealAndPick`／`LOOK_PICK_CHAIN` が `pickUpTo` を `SEARCH` pending の `optional` へ配線（第34）／
+  `LOOK_AND_REORDER` の `upToCount`＝見る枚数を 0..N から選ぶ `CHOOSE`（第34）／
+  `TRANSFER_TO_DECK` に `destination:'lrig_deck'` と `self/opp_lrig_trash` スコープを新設（第34）／
+  `CountFromZone.unitSize`（除数）と `SelectionConstraint.totalLevelExactRef` を新設（第35）／
+  `cards_drawn_this_attack_phase` を新設し `turnScopedState` へ `attack-phase-start` 境界で登録（第35）／
+  `execDown`／`execUp`／`CHOOSE.countChoose` を `resolveCountRef` へ移行（第35）／
+  **`LIFE_COMPARE_OPP` を新設**し `effectEngine.ts:340`・`effectEngine.ts:1081`・`execUtils.ts:2207` の**3経路**へ配線（第36）／
+  **`oppLifeCrashSourceMatches` を新設**し engine collector（`triggerCollect.ts:3469`）と
+  実機 BattleScreen（`BattleScreen.tsx:11960` 経由 `battle/lifeCrashTriggers.ts`）を**共通 predicate** へ集約（第37）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 813**（セッション開始時 876）／段2 消化 **292**／
+  HIGH・MED・LOW＝**551・254・8**／影響カード **595** ・効果 **642**（`semanticAuditLedger.mjs` の実測）。
+  🔴🔑**台帳（`stage2_closed.txt`）の書式は2種類しかない**（`semanticAuditLedger.mjs` の `closedAll`／`closedOne`）＝
+  **`EFFECTID` 単体**＝その効果の finding を全部閉じる／**`EFFECTID :: <quote>`**＝
+  **`findings.jsonl` の `quote` への前方一致**で1本だけ閉じる。**`::` の右に説明文を書くと1件も閉じない**
+  （続き632 実測＝63行中55行が空振り。CODEX_GUIDE §4 に2書式の表、§5 `28` に事故を登録済み）。
+  ⚠**バッチの締めでは必ず `node scripts/archive/semanticAuditLedger.mjs` を実行して残 OPEN が減ったかを見る。**
+  ⚠**live 修正数と OPEN の減りは一致しない**＝続き632 は108効果を直したが母集団に載っていたのは45件
+  （残りは同じ parser 規則で一緒に直った標本外の実バグ）。**OPEN を進捗指標にするなら母集団は必ず `findings.jsonl` 側から切る。**
+  📊**母集団の切り方＝10原則**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない
+  ⑥原文の括弧内ルール説明を能力として数えない ⑦再帰探索で入れ子まで拾わない ⑧既存の受け皿型を先に一覧化して引き算する
+  ⑨カード単位の「個数差」で数えない ⑩`CardData_Sheet8.csv` の先頭 BOM を必ず剥がす
+  🔑**続き629〜632 で4回連続で当たった型＝「受け皿はあるのに parser／engine が配線していない」穴は既存の計器に映らない**
+  （`census` にも `census:wiring` にも出ない）。⇒ **「型はあるが live 利用が極端に少ない語彙」を数える計器**の優先度を上げる。
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-44` のみ**。**§6.3 の新規は `L`**（共通色比較・**10バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`＋`V-84`＋`V-83`＋続き616〜632 の計15バッチ（第23〜37）全部**。
+  特に**第34（0枚選択可の UI）・第36（条件ゲート）・第37（クラッシュ主体の限定）は実機経路に直接触っている**。
+  ⚠**`.codex-work`（有料 Codex）は続き632 で5連投とも正常動作**（続き631 が記録した 2026-08-28 までの利用上限には当たらなかった）。
+  **投入コマンド（実績）**＝`CODEX_HOME="C:/Users/zerom/.codex-work" codex exec -C "C:/Users/zerom/WixossReact" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`
+  （`.codex-work` の config に `sandbox_mode` があるので `-c sandbox_mode=…` は**付けない**＝Claude 側の分類器に弾かれない）。
+  ⚠**投入前に必ず `git status --porcelain` を空にする**（続き624＝計器の生成時刻1行の差分で Codex が起動を拒否した。判断自体は正しい）。
+
 ## 2026-08-23 整理（§4 恒久指標・続き631時点値の退避・続き632）
 
 - **🆕 2026-08-23 続き631（段2 第32バッチ＝レベル合計 exact の機構新設／`O-42` 残0クローズ）後 最新値（本行が直近の正）**：

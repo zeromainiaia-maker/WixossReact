@@ -1,8 +1,8 @@
 # 残 OPEN の worklist（2026-08-23 続き631 時点で再計算）
 
-> 🔴🔴**2026-08-23 続き632 で数字が古くなった＝残 OPEN 876 → 813。**
-> 続き632 の段2 第33〜37バッチで **`filter.color × CHOOSE` / `count/upTo` / `timing/trigger × ライフクラッシュ`** の
-> サブ群は消化済み。**着手前に `node scripts/archive/semanticAuditLedger.mjs --axis` で切り直すこと**
+> 🔴🔴**2026-08-23 続き632〜633 で数字が古くなった＝残 OPEN 876 → 746。**
+> 続き632〜633 の段2 第33〜40バッチで **`filter.color` / `count/upTo` / `filter.level` / `duration` /
+> `timing/trigger × ライフクラッシュ`** のサブ群はほぼ枯れた。**着手前に `node scripts/archive/semanticAuditLedger.mjs --axis` で切り直すこと**
 > （下の表をそのまま使うと消化済みの群を取ってしまう）。残る大きい群は PLAN §4 の「次の一手」に列挙してある。
 
 > **これは `stage3_worklist.md` を「まだ閉じていない findings だけ」で作り直したもの。**
