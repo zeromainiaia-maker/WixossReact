@@ -25813,6 +25813,316 @@ scenarios.v87EndDiscardPlainCardNoTrigger = {
 order.push('v87EndDiscardTriggersHandTrashAuto', 'v87EndDiscardPlainCardNoTrigger');
 // ── V-87 END ──
 
+// ── V-86（§5.1 🅳）続き635 の3経路を実機で返す ──────────────────────────────────────────────
+// **母集団（2026-08-24 実測）**
+//   (a) `triggerCondition.outsideMainPhase` ＝ **9効果**（登録票の見立ては同型2＋ON_BANISH版3＝5枚）。
+//       `WXDi-P06-035-E1` `WXDi-P13-053-E1` `WXDi-P06-040-E3` `WXDi-P13-049-E1` `WX24-P4-051-E2`
+//       `WX25-P3-060-E1`（ON_LEAVE_FIELD）／`WXDi-P09-071-E1` `WXDi-P11-042-E2` `WXDi-P12-046-E2`（ON_BANISH）
+//   (b) `fromLeftFieldUnder`（「このシグニの下にあったカード」）＝ **4効果**
+//       （`WXK10-054-E1` `WX17-055-E1` `SPK01-02-E2` `WXDi-P06-039-E1`）
+//
+// 🔑**(a) の判定は `mainPhaseGateOk`＝`turnPhase==='MAIN' && activeUserId === 効果の持ち主`**
+//   （`triggerCollect.ts`）。つまり「**自分の**メインフェイズ」であって「メインフェイズ」ではない。
+//   ⇒ **相手のメインフェイズ中に離れたら発火する**（旧実装が落としていた枝）＝(a2) がその観測点。
+const V86_SHIVA = 'WXDi-P06-035#8601';    // 紅魔姫 シヴァ（Lv3 赤 P10000・【自】メインフェイズ以外で場を離れたら1ドロー）
+// ⚠**host のゾーン index と guest のゾーン index は「正面」で一致しない**（盤面が180度回っている）＝
+//   1ゾーンだけ壁を置くと**アタックが正面素通りでライフクラッシュ**になり、バトル敗北を作れない
+//   （実測＝`紅魔姫 シヴァがライフをクラッシュ` で battle が起きなかった）。**3ゾーンとも壁**にして
+//   どの対応でも必ずバトルになるようにする。
+const V86_WALLS = [['WX01-053#8610'], ['WX01-053#8611'], ['WX01-053#8612']];  // 極剣 ゴッドイーター（P15000）×3
+// ⚠**「同じゾーンへの上書き召喚」では場を離れさせられない**＝`SigniSummonZoneModal` は
+//   **占有ゾーンのボタンを disabled** にする（実測＝ゾーン1が灰色で押せない）。
+//   ⇒ **「あなたの他のシグニ1体をトラッシュに置く」【出】**（`WX11-085`・excludeSelf なので候補は watcher 1体だけ）
+//     を自分のメインフェイズに撃って離場させる。
+const V86_TRASHER = 'WX11-085#8602';      // １３回目の金曜 ホッケーマスク（Lv1 黒・ウリス限定・【出】他のシグニ1体をトラッシュ）
+const V86_URIS = 'WD05-002#8692';         // 阿鼻の閻魔 ウリス（Lv3・limit 8）＝ウリス限定を満たすルリグ
+const V86_SPELL = 'WX01-046#8603';        // ＢＡＤ ＣＯＮＤＩＴＩＯＮ（《青》×1・ピルルク限定・相手シグニ1体バニッシュ）
+const V86_BLUE = 'WD03-009#8604';         // コードアート Ｒ・Ｍ・Ｎ（青）＝スペルコスト用エナ
+const V86_PICA = 'WXK10-054#8620';        // 弩書 ピカトリクス（Lv4 黒 P13000・ライズ・下にあった＜ウェポン＞を回収）
+const V86_UNDER_WEAPON = 'WDK15-016#8621';// 小書 トンコウ（Lv1 黒 ＜ウェポン＞ バニラ）＝**下に置く**1枚
+const V86_TRASH_WEAPON = 'WX04-070#8622'; // 小砲 デリン（Lv1 赤 ＜ウェポン＞ バニラ）＝**下にあったことがない**対照
+const V86_AMALGA = 'WX21-042#8630';       // 幻竜 ＃アマルガ＃（Lv1 緑 P2000・アタック時に下から1枚→そうした場合エナチャージ1）
+const V86_UNDER_DRAGON = 'WDK10-016#8631';// 幻竜 インプ（Lv1 黒 ＜龍獣＞ バニラ）＝下に置く1枚
+
+function v86Base({ hostSigni, hostHand = [], hostEnergy = [], hostTrash = [], hostLrig = 'WD03-003#8690',
+                   guestSigni = [null, null, null], guestHand = [], guestTrash = [], phase = 'MAIN', active = 'host' }) {
+  return {
+    hostSet: {
+      'field.lrig': [hostLrig],
+      'field.signi': hostSigni,
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': hostHand, 'energy': hostEnergy, 'trash': hostTrash, 'actions_done': [],
+      'deck': ['WD01-013#8650', 'WD01-013#8651', 'WD01-013#8652', 'WD01-013#8653', 'WD01-013#8654'],
+    },
+    guestSet: {
+      'field.lrig': ['WD03-002#8691'],
+      'field.signi': guestSigni,
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': guestHand, 'energy': [], 'trash': guestTrash, 'actions_done': [],
+      'deck': ['WD01-013#8670', 'WD01-013#8671', 'WD01-013#8672', 'WD01-013#8673', 'WD01-013#8674'],
+    },
+    top: { active, turn_phase: phase, turn_count: 2 },
+  };
+}
+
+/**
+ * そのインスタンスが**場を離れたか**。
+ * 🔴**バニッシュの行き先はエナゾーン**（トラッシュではない）＝`trashCards` だけを見ると
+ *   「離れていない」と誤判定する（実測で a2/a3 が偽陰性になった）。場に無い＋トラッシュかエナに居る、で見る。
+ */
+function v86HasLeftField(side, instanceId) {
+  const onField = (side?.fieldSigni ?? []).some(stack => (stack ?? []).includes(instanceId));
+  const moved = (side?.trashCards ?? []).includes(instanceId) || (side?.energyCards ?? []).includes(instanceId);
+  return !onField && moved;
+}
+
+/** 指定ゾーンのシグニでアタックする（既存の v45c/v16 と同じ確定クリック列）。 */
+async function v86Attack(page, H, state, zone = 0) {
+  if (!state.zoneOpened) { const d = await H.clickTestId(`my-signi-zone-${zone}`); if (d) { state.zoneOpened = true; return d; } }
+  if (!state.attacked) {
+    const atk = page.locator('[data-testid^="card-action-"][data-action-label^="アタック"]').first();
+    if (await atk.count() && await atk.isVisible().catch(() => false) && await atk.isEnabled().catch(() => false)) {
+      await atk.click({ timeout: 1500 }).catch(() => {}); state.attacked = true; return 'action:アタック';
+    }
+  }
+  return null;
+}
+
+// ── (a1) 負方向＝**自分の**メインフェイズ中に離れたら引かない ────────────────────────────────
+// 場を離れさせる手段は**同じゾーンへの上書き召喚**（トラッシュへ行く＝ON_LEAVE_FIELD）。
+scenarios.v86OwnMainPhaseLeaveDoesNotDraw = {
+  title: 'V-86(a1)対照 WXDi-P06-035-E1：自分のメインフェイズ中に場を離れてもドローしない',
+  spec: v86Base({ hostSigni: [[V86_SHIVA], null, null], hostHand: [V86_TRASHER], hostLrig: V86_URIS }),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    let opened = false; let summoned = false; let zoned = false; let idle = 0;
+    for (let s = 0; s < 24; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v86a1-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      else if (!summoned) { did = await H.clickBtn('召喚', { exact: true }); if (did) summoned = true; }
+      else if (!zoned) { did = await H.clickTestId('summon-zone-1', 'summon-zone-2'); if (did) zoned = true; }
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK']);
+      const st = await H.queryState();
+      const left = v86HasLeftField(st?.host, V86_SHIVA);
+      H.log(`  v86a1[${s}] -> ${did ?? 'なし'} | zoned=${zoned} left=${left} hHand=${st?.host?.hand} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (!left) continue;   // 🔑「場を離れたこと」を必須条件にする（離れていなければ何も検証していない）
+      idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+      if (idle >= 3) {
+        // 手札は召喚で1枚減るだけ＝ドローしていれば 1 になる。
+        return {
+          pass: st.host.hand === 0,
+          detail: `自分のメインフェイズで離場（場を離れた=${left}）→ 手札 ${before.host.hand}→${st.host.hand}（召喚で−1のみ＝ドローなしが正）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（zoned=${zoned} hTrash=${JSON.stringify(fin?.host?.trashCards)} hHand=${fin?.host?.hand}）` };
+  },
+};
+
+// ── (a2) 🔑正方向＝**対戦相手の**メインフェイズ中に離れたら引く（旧実装が落としていた枝）──────
+// watcher を guest 側に置き、host が自分のメインフェイズにスペルでバニッシュする。
+// guest から見ると「自分のメインフェイズ以外」＝発火するのが正。
+scenarios.v86OppMainPhaseLeaveDraws = {
+  title: 'V-86(a2)🔑 WXDi-P06-035-E1：対戦相手のメインフェイズ中に場を離れたらドローする',
+  spec: v86Base({
+    hostSigni: [null, null, null], hostHand: [V86_SPELL], hostEnergy: [V86_BLUE],
+    guestSigni: [[V86_SHIVA], null, null], guestHand: [],
+  }),
+  async drive(page, H) {
+    await H.ensureMain();
+    const before = await H.queryState();
+    let opened = false; let energyPicked = false; let cast = false; let idle = 0;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v86a2-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      if (!did && !cast) {
+        // ⚠エナを先に選ぶ（未選択だと「発動する」は disabled＝§4.4 の 8b）。
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          if (!energyPicked) { await e0.click().catch(() => {}); energyPicked = true; did = 'spellcost-energy-0'; }
+          else {
+            const btn = page.getByRole('button', { name: '発動する', exact: true }).first();
+            if (await btn.count() && await btn.isEnabled().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:発動する'; cast = true; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動']);
+      }
+      if (!did) did = await H.stdStep(['決定 (1/1)', '決定', 'OK']);
+      const st = await H.queryState();
+      const left = v86HasLeftField(st?.guest, V86_SHIVA);
+      H.log(`  v86a2[${s}] -> ${did ?? 'なし'} | cast=${cast} left=${left} gHand=${st?.guest?.hand} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (!left) continue;
+      idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+      if (idle >= 3) {
+        return {
+          pass: st.guest.hand === 1,
+          detail: `相手のメインフェイズで離場（guest trashへ=${left}）→ guest 手札 ${before.guest.hand}→${st.guest.hand}（+1＝ドローが正）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${cast} gTrash=${JSON.stringify(fin?.guest?.trashCards)} gHand=${fin?.guest?.hand}）` };
+  },
+};
+
+// ── (a3) 正方向＝自分のアタックフェイズ中に離れたら引く ────────────────────────────────────
+// ── (a3) 正方向＝**アタックフェイズ中**に離れたら引く（＝ゲートは「MAIN かどうか」なので相の違いを見る）──
+// 🔴**攻撃側は負けてもバニッシュされない**（本セッションで判明した engine の別バグ＝PLAN §5.3 へ登録）ので、
+//   「自分のシグニがバトルに負けて離場」は実機で作れない。**host が勝って guest の watcher を落とす**形にする。
+//   guest 視点では `activeUserId`=host かつ `turnPhase`≠MAIN ＝ **自分のメインフェイズ以外**なので発火が正。
+// ⚠**正面ゾーンは host index と guest index が一致しない**（盤面が180度回転）＝**中央（zone1）同士だけは対応する**。
+scenarios.v86AttackPhaseLeaveDraws = {
+  title: 'V-86(a3) WXDi-P06-035-E1：アタックフェイズ中に場を離れたらドローする（中央ゾーンのバトル）',
+  spec: v86Base({
+    hostSigni: [null, ['WX01-053#8613'], null], hostHand: [],
+    guestSigni: [null, [V86_SHIVA], null], phase: 'ATTACK_SIGNI',
+  }),
+  async drive(page, H) {
+    const before = await H.queryState();
+    const state = { zoneOpened: false, attacked: false };
+    let idle = 0;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v86a3-${s}.png`, fullPage: true }).catch(() => {});
+      let did = await v86Attack(page, H, state, 1);
+      if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+      const st = await H.queryState();
+      const left = v86HasLeftField(st?.guest, V86_SHIVA);
+      H.log(`  v86a3[${s}] -> ${did ?? 'なし'} | attacked=${state.attacked} left=${left} gHand=${st?.guest?.hand} gField=${JSON.stringify(st?.guest?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (!left) continue;
+      idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+      if (idle >= 3) {
+        return {
+          pass: st.guest.hand === 1,
+          detail: `アタックフェイズ中にバトルで離場（場を離れた=${left}）→ guest 手札 ${before.guest.hand}→${st.guest.hand}（+1＝ドローが正）`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（attacked=${state.attacked} gField=${JSON.stringify(fin?.guest?.fieldSigni)} gHand=${fin?.guest?.hand}）` };
+  },
+};
+
+// ── (b) 「このシグニの下にあったカード」＝候補が下にあった1枚だけになる ─────────────────────
+// 🔑**トラッシュに無関係な＜ウェポン＞を先に積んでおく**＝旧実装はそれも回収できた（過剰実行）。
+// 🔴**バトル経路では検証できない**（本セッションで判明）＝バトルのバニッシュは**スタックごと**エナゾーンへ
+//   送るので（`BattleScreen.tsx` の `energy: [...opS.energy, ...opStack]`）、原文が要求する
+//   「あなたの**トラッシュから**このシグニの下にあった…」の候補が構造的に0件になる。
+//   ルール上は「ライズのシグニが場を離れるとき、**下にあったカードはトラッシュ**へ」＝engine の別バグ
+//   （PLAN §5.3 へ登録）。⇒ ここは**効果によるバニッシュ**（スペル）で経路を通す。
+scenarios.v86UnderCardOnlyIsRecoverable = {
+  title: 'V-86(b) WXK10-054-E1：バニッシュ時の候補が「下にあった＜ウェポン＞」1枚だけ（トラッシュの無関係な＜ウェポン＞は候補外）',
+  spec: v86Base({
+    hostSigni: [null, null, null], hostHand: [V86_SPELL], hostEnergy: [V86_BLUE],
+    guestSigni: [null, [V86_UNDER_WEAPON, V86_PICA], null],
+    // ⚠**無関係な＜ウェポン＞は guest のトラッシュに積む**（回収するのは効果の持ち主＝guest 側）。
+    guestTrash: [V86_TRASH_WEAPON],
+  }),
+  async drive(page, H) {
+    await H.ensureMain();
+    let opened = false; let energyPicked = false; let cast = false; let candsSeen = null; let idle = 0;
+    for (let s = 0; s < 26; s++) {
+      await page.waitForTimeout(700);
+      await page.screenshot({ path: `${SHOT}/v86b-${s}.png`, fullPage: true }).catch(() => {});
+      let did = null;
+      const st0 = await H.queryState();
+      if (cast && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length
+          && !st0.pendingCandidates.includes(V86_PICA) && !candsSeen) candsSeen = st0.pendingCandidates;
+      if (!opened) { did = await H.clickTestId('my-hand-card-0'); if (did) opened = true; }
+      if (!did && !cast) {
+        const e0 = page.getByTestId('spellcost-energy-0').first();
+        if (await e0.count() && await e0.isVisible().catch(() => false)) {
+          if (!energyPicked) { await e0.click().catch(() => {}); energyPicked = true; did = 'spellcost-energy-0'; }
+          else {
+            const btn = page.getByRole('button', { name: '発動する', exact: true }).first();
+            if (await btn.count() && await btn.isEnabled().catch(() => false)) { await btn.click().catch(() => {}); did = 'btn:発動する'; cast = true; }
+          }
+        }
+        if (!did) did = await H.clickTextOrBtn(['発動']);
+      }
+      if (!did) did = await H.stdStep(['決定 (1/1)', '決定', 'OK']);
+      const st = await H.queryState();
+      const banished = v86HasLeftField(st?.guest, V86_PICA);
+      H.log(`  v86b[${s}] -> ${did ?? 'なし'} | cast=${cast} banished=${banished} cands=${JSON.stringify(st?.pendingCandidates ?? null)} gHand=${JSON.stringify(st?.guest?.handCards)} gTrash=${JSON.stringify(st?.guest?.trashCards)} gEnergy=${JSON.stringify(st?.guest?.energyCards)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+      if (!banished) continue;
+      idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+      if (idle >= 3) {
+        const set = new Set(candsSeen ?? []);
+        const onlyUnder = set.size === 1 && set.has(V86_UNDER_WEAPON);
+        const recovered = (st.guest.handCards ?? []).includes(V86_UNDER_WEAPON);
+        const unrelatedStays = (st.guest.trashCards ?? []).includes(V86_TRASH_WEAPON);
+        return {
+          pass: onlyUnder && recovered && unrelatedStays,
+          detail: `候補=${JSON.stringify(candsSeen)}（下にあった1枚だけ=${onlyUnder}）／手札へ回収=${recovered}／無関係な＜ウェポン＞はトラッシュに残存=${unrelatedStays}／guest trash=${JSON.stringify(st.guest.trashCards)} energy=${JSON.stringify(st.guest.energyCards)}`,
+        };
+      }
+    }
+    const fin = await H.queryState();
+    return { pass: false, detail: `未完了（cast=${cast} cands=${JSON.stringify(candsSeen)} gHand=${JSON.stringify(fin?.guest?.handCards)} gTrash=${JSON.stringify(fin?.guest?.trashCards)} gEnergy=${JSON.stringify(fin?.guest?.energyCards)}）` };
+  },
+};
+
+// ── (c) 「そうした場合」＝下にカードがある／無いの対 ──────────────────────────────────────
+function v86cSpec(withUnder) {
+  return v86Base({
+    hostSigni: [withUnder ? [V86_UNDER_DRAGON, V86_AMALGA] : [V86_AMALGA], null, null],
+    guestSigni: V86_WALLS, phase: 'ATTACK_SIGNI',
+  });
+}
+async function driveV86C(page, H, id, withUnder) {
+  const before = await H.queryState();
+  const state = { zoneOpened: false, attacked: false };
+  let idle = 0;
+  for (let s = 0; s < 26; s++) {
+    await page.waitForTimeout(700);
+    await page.screenshot({ path: `${SHOT}/${id}-${s}.png`, fullPage: true }).catch(() => {});
+    let did = await v86Attack(page, H, state);
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない']);
+    const st = await H.queryState();
+    H.log(`  ${id}[${s}] -> ${did ?? 'なし'} | attacked=${state.attacked} hEnergy=${st?.host?.energy} hTrash=${JSON.stringify(st?.host?.trashCards)} hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'}`);
+    if (!state.attacked) continue;
+    idle = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? idle + 1 : 0;
+    if (idle >= 4) {
+      const gained = (st.host.energy ?? 0) - (before.host.energy ?? 0);
+      const underTrashed = (st.host.trashCards ?? []).includes(V86_UNDER_DRAGON);
+      if (withUnder) {
+        return {
+          pass: gained === 1 && underTrashed,
+          detail: `下にカードあり＝下から1枚トラッシュ(${underTrashed})→「そうした場合」でエナ +${gained}（=1 が正）`,
+        };
+      }
+      return {
+        pass: gained === 0,
+        detail: `対照：下が空＝トラッシュに置けないので「そうした場合」が成立せずエナ +${gained}（=0 が正・アタックは実行済み=${state.attacked}）`,
+      };
+    }
+  }
+  const fin = await H.queryState();
+  return { pass: false, detail: `未完了（attacked=${state.attacked} hEnergy=${fin?.host?.energy} hField=${JSON.stringify(fin?.host?.fieldSigni)}）` };
+}
+scenarios.v86DidItGateChargesWhenUnderExists = {
+  title: 'V-86(c) WX21-042-E2：下にカードがある→トラッシュに置けて「そうした場合」のエナチャージが走る',
+  spec: v86cSpec(true),
+  drive: (page, H) => driveV86C(page, H, 'v86c1', true),
+};
+scenarios.v86DidItGateBlocksWhenUnderEmpty = {
+  title: 'V-86(c)対照 WX21-042-E2：下が空→「そうした場合」が成立せずエナは増えない',
+  spec: v86cSpec(false),
+  drive: (page, H) => driveV86C(page, H, 'v86c0', false),
+};
+
+order.push('v86OwnMainPhaseLeaveDoesNotDraw', 'v86OppMainPhaseLeaveDraws', 'v86AttackPhaseLeaveDraws',
+  'v86UnderCardOnlyIsRecoverable', 'v86DidItGateChargesWhenUnderExists', 'v86DidItGateBlocksWhenUnderEmpty');
+// ── V-86 END ──
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
