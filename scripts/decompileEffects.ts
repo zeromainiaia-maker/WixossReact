@@ -269,6 +269,15 @@ function filterJa(f?: any): string {
   return [...new Set(parts)].join('');
 }
 
+function selectionGroupsJa(groups?: Array<{ filter?: any; count: number }>, counter = '枚'): string {
+  if (!groups?.length) return '';
+  return groups.map(group => {
+    const cardType = group.filter?.cardType;
+    const noun = cardType ? ([] as string[]).concat(cardType).join('か') : 'カード';
+    return `${filterJa(group.filter)}${noun}${group.count}${counter}`;
+  }).join('と');
+}
+
 // transferGroups は群ごとの filter しか持たないため、移動元ゾーンは source から前置きする
 // （落とすと逆翻訳から「あなたのトラッシュから」が消えて、どこから回収するのか読めなくなる）
 const TRANSFER_ZONE_JA: Record<string, string> = {
@@ -324,6 +333,9 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     return `${own}${filterJa(t.filter)}${u}をレベルの合計が${t.totalLevelMax}以下になるように${mPick}`.trim();
   }
   const counter = (loc || t.type === 'KEY') ? '枚' : '体';
+  if (t.selectionConstraint?.groups?.length) {
+    return `${own}${selectionGroupsJa(t.selectionConstraint.groups, counter)}${loc}`.trim();
+  }
   const setConstraint = t.selectionConstraint?.totalLevelExact !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelExact}になるように`
     : t.selectionConstraint?.totalLevelExactRef?.$ref === 'last_processed_count' ? 'レベルの合計がこの方法で処理した枚数と同じになるように'
     : t.selectionConstraint?.totalLevelMax !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelMax}以下になるように`
@@ -375,7 +387,14 @@ function costJa(c?: any): string {
   if (c.exceed != null) parts.push(`エクシード${c.exceed}`);
   if (c.down_self) parts.push('《ダウン》');
   if (c.trash_self) parts.push('このシグニを場からトラッシュに置く');
-  if (c.discard != null) parts.push(c.discardFilter ? `手札から${filterJa(c.discardFilter)}カード${c.discard}枚を捨てる` : `手札${c.discard}枚を捨てる`);
+  if (c.discard != null) {
+    if (Array.isArray(c.discardFilter?.story)) {
+      parts.push(`手札から${c.discardFilter.story.map((story: string) => `＜${story}＞`).join('か')}のシグニを合計${c.discard}枚捨てる`);
+    } else {
+      const noun = typeof c.discardFilter?.cardType === 'string' ? c.discardFilter.cardType : 'カード';
+      parts.push(c.discardFilter ? `手札から${filterJa(c.discardFilter)}${noun}${c.discard}枚を捨てる` : `手札${c.discard}枚を捨てる`);
+    }
+  }
   if (c.handDiscardSigni) parts.push(`手札から${filterJa(c.handDiscardSigni)}シグニ${c.handDiscardSigni.count}枚を捨てる`);
   if (c.handToEnergy) parts.push(`手札から${filterJa(c.handToEnergy.filter)}シグニ${c.handToEnergy.count}枚をエナゾーンに置く`);
   if (c.handToUnderSelf) parts.push(`手札から${constraintJa(c.handToUnderSelf.selectionConstraint)}${filterJa(c.handToUnderSelf.filter)}カード${c.handToUnderSelf.count}枚をこのシグニの下に置く`);
@@ -578,6 +597,7 @@ function condJa(c?: any): string {
       if (c.verbJa === '__internal__') return '';
       if (c.negate && c.verbJa === '捨てた') return `この方法で手札を${numJa(c.value)}枚捨てなかった`;
       if (c.negate && c.verbJa === 'チャームをトラッシュに置いた') return `この方法で【チャーム】${numJa(c.value)}枚がトラッシュに置かれなかった`;
+      if (c.negate && c.verbJa === '手札に加えた') return `この方法でカードを${numJa(c.value)}枚も手札に加えていない`;
       if (c.verbJa === 'このシグニをバニッシュしていた') return 'この効果でこのシグニをバニッシュしていた';
       return `この方法でカードを${numJa(c.value)}枚${c.omitGteJa ? '' : '以上'}${c.verbJa ?? '処理した'}`;
     }
@@ -843,6 +863,9 @@ function actionJa(a?: Action, effectType?: string): string {
       if (t?.type === 'SIGNI' && a.targetsTriggerSource) return 'それ（トリガー元シグニ）をトラッシュに置く';
       if (t?.type === 'SIGNI') return `${targetJa(t)}をトラッシュに置く${a.opponentSelects && t?.owner === 'opponent' ? '（相手が選ぶ）' : ''}${a.optional ? '（してもよい）' : ''}`;
       if (t?.type === 'ENERGY_CARD' && t?.owner === 'opponent' && t?.filter?.isTriggerSource) return 'そのカードをトラッシュに置く';
+      if (t?.type === 'ENERGY_CARD' && t.selectionConstraint?.groups?.length) {
+        return `${ownerJa(t.owner)}エナゾーンから${selectionGroupsJa(t.selectionConstraint.groups)}をトラッシュに置く`;
+      }
       // untilHandCount:「手札がN枚になるように捨てる」＝固定枚数ではなく実行時の差（タスク12(lxiv)②）
       if (t?.type === 'HAND_CARD' && a.untilHandCount !== undefined) {
         return `${ownerJa(t.owner)}手札が${a.untilHandCount}枚になるようにカードを捨てる`;
@@ -1139,6 +1162,10 @@ function actionJa(a?: Action, effectType?: string): string {
         : thenSteps.some((s: any) => s?.type === 'TRASH') ? 'トラッシュに置く'
         : thenSteps.some((s: any) => s?.type === 'ADD_TO_ENERGY' || s?.type === 'ENERGY_CHARGE') ? 'エナゾーンに置く'
         : '処理する';
+      if (a.selectionConstraint?.groups?.length) {
+        const source = a.from?.location === 'trash' ? `${ownerJa(a.from?.owner)}トラッシュから` : `${ownerJa(a.from?.owner)}デッキから`;
+        return `${source}${selectionGroupsJa(a.selectionConstraint.groups)}を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
+      }
       if (a.maxCount?.$ref === 'last_processed_count' && /捨てたカード[１1]枚につき/.test(currentCardText)) {
         return `捨てたカード１枚につき${ownerJa(a.from?.owner)}デッキから${filterJa(a.filter)}${noun}１枚を探して${reveal}${dest}${a.afterSearch ? '（その後シャッフル）' : ''}`;
       }

@@ -190,7 +190,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
             }
             if (inter.selectionConstraint) {
               const c = inter.selectionConstraint;
-              const constraintJa = c.totalLevelExact !== undefined ? `レベルの合計が${c.totalLevelExact}になるように`
+              const constraintJa = c.groups?.length ? '指定された各条件の枚数に収まるように'
+                : c.totalLevelExact !== undefined ? `レベルの合計が${c.totalLevelExact}になるように`
                 : c.totalLevelMax !== undefined ? `レベルの合計が${c.totalLevelMax}以下になるように`
                 : c.distinct === 'level' ? 'それぞれレベルの異なる'
                 : c.distinct === 'name' ? 'それぞれ名前の異なる'

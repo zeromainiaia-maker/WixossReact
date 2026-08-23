@@ -418,4 +418,29 @@ PR-206-E1
 WXK11-045-E1
 WX05-027-E1
 WX18-032-E1
+
+# 段2 第38バッチ（2026-08-23・Codex）：種別ごとに1枚ずつ取る群割当（段2へ20件記帳、残OPENは18件減）
+WX02-050-E1
+WX04-001-E2
+WX05-023-BURST
+WX06-002-E1
+WX10-001-E3 :: ＜アーム＞と＜ウェポン＞ # 「白と赤のカード」コストfindingはOPEN継続
+WX10-041-E1
+WX11-027-BURST # findings外・同規則で原文照合して採用
+WX11-052-E2
+WX12-Re07-E1 # findings外・同規則で原文照合して採用
+WX14-062-E1
+WX14-CB02-BURST
+WXEX1-01-E3
+WXEX1-38-BURST
+WXEX1-53-E2
+WXEX2-14-E1 # findings外・同規則で原文照合して採用
+WXEX2-43-E3
+WXDi-P10-007-E2
+WX25-P2-047-E1
+WX25-P3-002-E1 # findings外・同規則で原文照合して採用
+WXK01-003-E3
+WXK11-006-E1 # findings外・同規則で原文照合して採用
+WDA-F03-13-BURST
+PR-322-E1
 # WX07-042-E1 / WX19-071-E1 は【ランサー】原因funnel未実装のため据置（OPEN維持）

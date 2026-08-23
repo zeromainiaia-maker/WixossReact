@@ -781,15 +781,13 @@ function parseCost(costStr: string): EffectCost | undefined {
     const exLrigM = costStr.match(/ルリグデッキにある(?:＜([^＞]+)＞の)?ルリグ([０-９\d]+)枚をゲームから除外する/);
     if (exLrigM) cost.exileLrigFromLrigDeck = { count: parseNum(exLrigM[2]), ...(exLrigM[1] ? { story: exLrigM[1] } : {}) };
   }
-  // 手札から＜A＞と＜B＞のシグニを合計N枚捨てる → discardGroups
-  if (!cost.handDiscardSigni && !cost.discardGroups) {
+  // 手札から＜A＞と＜B＞のシグニを合計N枚捨てる → 2クラスの OR から合計N枚。
+  // 「各1枚」ではないため discardGroups に割ると A/B を1枚ずつ強制してしまう。
+  if (!cost.handDiscardSigni && !cost.discard && !cost.discardFilter && !cost.discardGroups) {
     const hdsAndM = costStr.match(/手札から＜([^＞]+)＞と＜([^＞]+)＞のシグニを合計([０-９\d]+)枚捨てる/);
     if (hdsAndM) {
-      const perGroup = Math.floor(parseNum(hdsAndM[3]) / 2);
-      cost.discardGroups = [
-        { count: perGroup, filter: { cardType: 'シグニ', story: hdsAndM[1] } },
-        { count: perGroup, filter: { cardType: 'シグニ', story: hdsAndM[2] } },
-      ];
+      cost.discard = parseNum(hdsAndM[3]);
+      cost.discardFilter = { cardType: 'シグニ', story: [hdsAndM[1], hdsAndM[2]] };
     }
   }
   // 手札から〈名詞句A〉N枚と〈名詞句B〉M枚を捨てる → discardGroups
@@ -800,7 +798,7 @@ function parseCost(costStr: string): EffectCost | undefined {
   //   〔カード名〕のどの組み合わせでも同じ経路で拾う（続き377k）。
   //   ⚠スパンは「手札から」と枚数の間だけ＝条件節を含まないので名詞句用の抽出器を安全に使える。
   if (!cost.handDiscardSigni && !cost.discardGroups) {
-    const hdsGroupM = costStr.match(/手札から([^：。、]{1,24}?)([０-９\d]+|一)枚と([^：。、]{1,24}?)([０-９\d]+|一)枚を捨てる/);
+    const hdsGroupM = costStr.match(/(?:手札から)?([^：。、]{1,24}?)([０-９\d]+|一)枚と([^：。、]{1,24}?)([０-９\d]+|一)枚を捨てる/);
     if (hdsGroupM) {
       const gA = extractNounPhraseFilter(hdsGroupM[1]);
       const gB = extractNounPhraseFilter(hdsGroupM[3]);
@@ -9220,6 +9218,173 @@ function stripReplacementConditionColor(text: string, parsed: EffectAction): Eff
   return { ...parsed, steps };
 }
 
+type SelectionGroupSpec = NonNullable<SelectionConstraint['groups']>[number];
+
+/** 「A1枚とB1枚」「AとBを1枚ずつ」を、1回の選択内で割り当てる群へ読む。 */
+function parseExplicitSelectionGroups(text: string): SelectionGroupSpec[] | null {
+  const classFilter = (color: string | undefined, story: string): TargetFilter => ({
+    cardType: 'シグニ', story, ...(color ? { color } : {}),
+  });
+  let m = text.match(/(?:([白赤青緑黒])の)?＜([^＞]+)＞のシグニ([０-９\d]+)枚と(?:([白赤青緑黒])の)?＜([^＞]+)＞のシグニ([０-９\d]+)枚/);
+  if (m) return [
+    { filter: classFilter(m[1], m[2]), count: parseNum(m[3]) },
+    { filter: classFilter(m[4], m[5]), count: parseNum(m[6]) },
+  ];
+  m = text.match(/(?:([白赤青緑黒])の)?＜([^＞]+)＞と(?:([白赤青緑黒])の)?＜([^＞]+)＞のシグニを([０-９\d]+)枚ずつ/);
+  if (m) return [
+    { filter: classFilter(m[1], m[2]), count: parseNum(m[5]) },
+    { filter: classFilter(m[3], m[4]), count: parseNum(m[5]) },
+  ];
+  m = text.match(/(?:([白赤青緑黒])の)?＜([^＞]+)＞のシグニ([０-９\d]+)枚とスペル([０-９\d]+)枚/);
+  if (m) return [
+    { filter: classFilter(m[1], m[2]), count: parseNum(m[3]) },
+    { filter: { cardType: 'スペル' }, count: parseNum(m[4]) },
+  ];
+  m = text.match(/スペル([０-９\d]+)枚と(?:([白赤青緑黒])の)?＜([^＞]+)＞のシグニ([０-９\d]+)枚/);
+  if (m) return [
+    { filter: { cardType: 'スペル' }, count: parseNum(m[1]) },
+    { filter: classFilter(m[2], m[3]), count: parseNum(m[4]) },
+  ];
+  m = text.match(/シグニ([０-９\d]+)枚とスペル([０-９\d]+)枚/);
+  if (m) return [
+    { filter: { cardType: 'シグニ' }, count: parseNum(m[1]) },
+    { filter: { cardType: 'スペル' }, count: parseNum(m[2]) },
+  ];
+  m = text.match(/《([^》]+)》([０-９\d]+)枚と《([^》]+)》([０-９\d]+)枚/);
+  if (m) return [
+    { filter: { cardName: m[1] }, count: parseNum(m[2]) },
+    { filter: { cardName: m[3] }, count: parseNum(m[4]) },
+  ];
+  m = text.match(/カード([０-９\d]+)枚と【([^】]+)】を持つカード([０-９\d]+)枚/);
+  if (m) return [
+    { count: parseNum(m[1]) },
+    { filter: { keyword: m[2] }, count: parseNum(m[3]) },
+  ];
+  m = text.match(/ルリグ([０-９\d]+)体と(?:対戦相手の)?シグニ([０-９\d]+)体/);
+  if (m) return [
+    { filter: { cardType: 'ルリグ' }, count: parseNum(m[1]) },
+    { filter: { cardType: 'シグニ' }, count: parseNum(m[2]) },
+  ];
+  return null;
+}
+
+function groupUnionFilter(groups: SelectionGroupSpec[]): TargetFilter {
+  return { anyOf: groups.map(group => group.filter ?? {}) };
+}
+
+/**
+ * 単一 filter/count へ潰れた action に、原文の群割当を戻す。
+ * action 型は増やさず、SEARCH/各ゾーン選択が共有する SelectionConstraint を使う。
+ */
+function applyExplicitSelectionGroups(text: string, parsed: EffectAction): EffectAction {
+  const groups = parseExplicitSelectionGroups(text);
+  if (!groups) {
+    // 既存 distinct:'level' が受け皿になる「レベルの異なる対象を合計N枚」は枚数だけ復元する。
+    const total = text.match(/レベルの異なる[^。]*?を合計([０-９\d]+)枚探して/);
+    if (!total) return parsed;
+    const rewriteDistinctSearch = (node: EffectAction): EffectAction => {
+      if (node.type === 'SEARCH' && node.selectionConstraint?.distinct === 'level') {
+        return { ...node, maxCount: parseNum(total[1]) };
+      }
+      if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(rewriteDistinctSearch) };
+      if (node.type === 'CONDITIONAL') return { ...node, then: rewriteDistinctSearch(node.then), ...(node.else ? { else: rewriteDistinctSearch(node.else) } : {}) };
+      return node;
+    };
+    return rewriteDistinctSearch(parsed);
+  }
+  // 複数文を持つ効果では、別の文の action へ群を漏らさない。群句と動詞が同じ句点内にある文だけを使う。
+  const sentences = text.split('。').map(sentence => sentence.trim()).filter(Boolean);
+  const groupsFor = (clause: RegExp): SelectionGroupSpec[] | null => {
+    for (const sentence of sentences) {
+      if (!clause.test(sentence)) continue;
+      const local = parseExplicitSelectionGroups(sentence);
+      if (local) return local;
+    }
+    return null;
+  };
+  const withGroups = (current: SelectionConstraint | undefined, local: SelectionGroupSpec[]): SelectionConstraint => ({ ...current, groups: local });
+  const rewrite = (node: EffectAction): EffectAction => {
+    const searchGroups = groupsFor(/(?:デッキ|トラッシュ)から.*探して/);
+    if (node.type === 'SEARCH' && searchGroups) {
+      return {
+        ...node,
+        filter: groupUnionFilter(searchGroups),
+        maxCount: searchGroups.reduce((sum, group) => sum + group.count, 0),
+        selectionConstraint: withGroups(node.selectionConstraint, searchGroups),
+      };
+    }
+    const handGroups = groupsFor(/(?:トラッシュ|エナゾーン)から.*手札に加える/);
+    if (node.type === 'TRANSFER_TO_HAND' && handGroups) {
+      return {
+        ...node,
+        source: {
+          ...node.source,
+          count: handGroups.reduce((sum, group) => sum + group.count, 0),
+          filter: groupUnionFilter(handGroups),
+          selectionConstraint: withGroups(node.source.selectionConstraint, handGroups),
+        },
+      };
+    }
+    const deckGroups = groupsFor(/(?:デッキに加えて|デッキの一番下に置く)/);
+    if (node.type === 'TRANSFER_TO_DECK' && deckGroups) {
+      return {
+        ...node,
+        source: {
+          ...node.source,
+          count: deckGroups.reduce((sum, group) => sum + group.count, 0),
+          selectionConstraint: withGroups(node.source.selectionConstraint, deckGroups),
+        },
+      };
+    }
+    const energyGroups = groupsFor(/エナゾーンから.*それらをトラッシュに置く/);
+    if (node.type === 'TRASH' && node.target.type === 'ENERGY_CARD' && energyGroups) {
+      return {
+        ...node,
+        target: {
+          ...node.target,
+          count: energyGroups.reduce((sum, group) => sum + group.count, 0),
+          filter: groupUnionFilter(energyGroups),
+          selectionConstraint: withGroups(node.target.selectionConstraint, energyGroups),
+        },
+      };
+    }
+    // 引用能力の句点（「【常】：アタックできない。」）が対象句と「を得る」の間に入るため、
+    // GRANT だけは全文で結び直す。対象型 CENTER_LRIG_OR_SIGNI に限定して他 action へは漏らさない。
+    const grantGroups = groupsFor(/ルリグ.*と.*シグニ.*(?:得る|与える)/)
+      ?? (/ルリグ[０-９\d]+体と(?:対戦相手の)?シグニ[０-９\d]+体[\s\S]*?を得る/.test(text) ? groups : null);
+    if (node.type === 'GRANT_KEYWORD' && node.target.type === 'CENTER_LRIG_OR_SIGNI' && grantGroups) {
+      return {
+        ...node,
+        target: {
+          ...node.target,
+          count: grantGroups.reduce((sum, group) => sum + group.count, 0),
+          selectionConstraint: withGroups(node.target.selectionConstraint, grantGroups),
+        },
+      };
+    }
+    if (node.type === 'SEQUENCE') {
+      const steps = node.steps.map(rewrite);
+      // 「そうした場合」は両群を実際に処理できた場合だけ。IS_MY_TURN は従来の仮ゲート。
+      if (/そうした場合/.test(text)) {
+        for (let i = 1; i < steps.length; i++) {
+          const prev = steps[i - 1];
+          const cur = steps[i];
+          const groupedPrev = (prev.type === 'TRANSFER_TO_DECK' && prev.source.selectionConstraint?.groups)
+            || (prev.type === 'TRANSFER_TO_HAND' && prev.source.selectionConstraint?.groups);
+          if (groupedPrev && cur.type === 'CONDITIONAL' && cur.condition.type === 'IS_MY_TURN') {
+            const required = groupedPrev.reduce((sum, group) => sum + group.count, 0);
+            steps[i] = { ...cur, condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: required } };
+          }
+        }
+      }
+      return { ...node, steps };
+    }
+    if (node.type === 'CONDITIONAL') return { ...node, then: rewrite(node.then), ...(node.else ? { else: rewrite(node.else) } : {}) };
+    return node;
+  };
+  return rewrite(parsed);
+}
+
 function parseActionText(text: string): EffectAction {
   // 【常】：【K1】【K2】… の列挙形。動詞を省略した印字は各キーワードを自身が恒久的に持つ。
   const bareKeywordList = text.trim().replace(/。$/, '').match(/^((?:【(?:ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ(?::\{[^}]*\})?|バニッシュ耐性|シールド|チャーム)】){2,})$/);
@@ -9292,6 +9457,7 @@ function parseActionText(text: string): EffectAction {
   parsed = foldStructuredRevealUntil(text, parsed);
   parsed = wireSelectedSigniConditionalUp(text, parsed);
   parsed = stripReplacementConditionColor(text, parsed);
+  parsed = applyExplicitSelectionGroups(text, parsed);
   // 専用分岐が SEQUENCE / 引用付与の外側を組んだ後でも、「あなたの他の…シグニ」の対象制約を
   // 実対象へ届ける。型を限定し、同じ文中の相手対象（除去先など）へは伝播させない。
   if (hasOtherSelfSigniNoun(text)) {
@@ -10742,7 +10908,7 @@ function parseActionTextInner(text: string): EffectAction {
   //      従来はどの規則にも掛からず LOOK_AND_REORDER+STUB へ落ち、融合で**単一 filter 無し pick**へ潰れていた
   //      （＝どのカードでも1枚拾える過剰実行＋2群目の消失）。群ごとの filter/枚数/行き先を stages で保つ。
   {
-    const mg = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚(?:見る|公開する)。\s*その中から(.+?)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)に置く。/);
+    const mg = text.match(/(?:あなたの)?デッキの上からカードを([０-９\d]+)枚(?:見る|公開する)。\s*その中から(.+?)、残りを(?:好きな順番で|シャッフルして)?(デッキの一番上|デッキの一番下|トラッシュ)(?:に置く|に戻す)。/);
     const mgStages = mg ? parseLookPickGroups(mg[2]) : null;
     if (mg && mgStages && mg.index !== undefined) {
       const remainder: import('../types/effects').LookPickChainAction['remainder'] =
@@ -10762,7 +10928,18 @@ function parseActionTextInner(text: string): EffectAction {
       };
       if (beforeMg) pushFlatMg(parseActionText(beforeMg));
       stepsMg.push(lpcMg);
-      if (afterMg) pushFlatMg(parseActionText(afterMg));
+      if (afterMg) {
+        const parsedAfter = parseActionText(afterMg);
+        if (/^この方法でシグニを[０-９\d]+枚も手札に加えていない場合、/.test(afterMg)) {
+          stepsMg.push({
+            type: 'CONDITIONAL',
+            condition: { type: 'LAST_PROCESSED_COUNT_GTE', value: 1, negate: true, verbJa: '手札に加えた' },
+            then: parsedAfter,
+          } as ConditionalAction);
+        } else {
+          pushFlatMg(parsedAfter);
+        }
+      }
       return stepsMg.length === 1 ? stepsMg[0] : { type: 'SEQUENCE', steps: stepsMg } as SequenceAction;
     }
   }

@@ -2760,6 +2760,38 @@ function cardColors(card: CardData | undefined): Set<string> {
   return new Set(raw.split(/[・／/,\s]+/).map(s => s.trim()).filter(s => s && s !== '無' && s !== '無色'));
 }
 
+/**
+ * 選択カードを groups の容量へ1枚ずつ割り当てられるか。
+ * 1枚が複数 filter に一致する場合があるため、先頭一致の貪欲法ではなく小規模バックトラックで判定する。
+ */
+function canAssignSelectionGroups(
+  nums: string[],
+  groups: NonNullable<SelectionConstraint['groups']>,
+  cardMap: Map<string, CardData>,
+): boolean {
+  if (nums.length === 0) return true;
+  if (groups.length === 0 || nums.length > groups.reduce((sum, group) => sum + group.count, 0)) return false;
+  const remaining = groups.map(group => group.count);
+  const candidates = nums.map(num => groups
+    .map((group, index) => ({ group, index }))
+    .filter(({ group }) => matchesFilter(cardMap.get(getCardNum(num)), group.filter))
+    .map(({ index }) => index));
+  if (candidates.some(indices => indices.length === 0)) return false;
+  // 制約の強いカードから割り当てると分岐数を抑えられる。
+  candidates.sort((a, b) => a.length - b.length);
+  const assign = (cardIndex: number): boolean => {
+    if (cardIndex >= candidates.length) return true;
+    for (const groupIndex of candidates[cardIndex]) {
+      if (remaining[groupIndex] <= 0) continue;
+      remaining[groupIndex]--;
+      if (assign(cardIndex + 1)) return true;
+      remaining[groupIndex]++;
+    }
+    return false;
+  };
+  return assign(0);
+}
+
 export function satisfiesSelectionConstraint(
   nums: string[],
   constraint: SelectionConstraint | undefined,
@@ -2773,6 +2805,7 @@ export function satisfiesSelectionConstraint(
   }, 0);
   if (constraint.totalLevelExact !== undefined && levelSum() !== constraint.totalLevelExact) return false;
   if (constraint.totalLevelMax !== undefined && levelSum() > constraint.totalLevelMax) return false;
+  if (constraint.groups && !canAssignSelectionGroups(nums, constraint.groups, cardMap)) return false;
   if (nums.length < 2) return true;
   if (constraint.same === 'name') {
     const values = cards.map(c => `${c?.CardName ?? ''}`);

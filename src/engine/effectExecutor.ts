@@ -1904,7 +1904,8 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
     // 「各プレイヤーは自分のシグニ1体を対象とし、それをトラッシュ」：相手のシグニは相手自身が選ぶ（WX04-025）
     const oppRespondsField = !!a.opponentSelects && tgt.owner === 'opponent';
     // optional:「場からトラッシュに置いてもよい」＝スキップ可。スキップ時は後続の CONDITIONAL(IS_MY_TURN)=「そうした場合」を実行しない（WXK10-055-E1）
-    return selectOrInteract(cands, count, a.optional ?? false, scope, a, undefined, ctx, oppRespondsField);
+  return selectOrInteract(cands, count, a.optional ?? false, scope, a, undefined, ctx, oppRespondsField,
+    { selectionConstraint: tgt.selectionConstraint });
   }
 
   if (tgt.type === 'HAND_CARD') {
@@ -3795,7 +3796,8 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
   // 「N体**まで**を対象とし」＝上限（0体でもよい）。第3引数を `false` に固定していたため、
   // parser が `upToCount` を載せても**死にフラグ**で N体の強制選択のままだった（続き377m の実測）。
   // BANISH（`:516`）と同じく `upToCount` を optional として渡す（GRANT_KEYWORD に `optional` フィールドは無い）。
-  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx);
+  return selectOrInteract(cands, count, tgt.upToCount ?? false, scope, a, undefined, ctx, false,
+    { selectionConstraint: tgt.selectionConstraint });
 }
 
 function execGrantEffect(a: GrantEffectAction, ctx: ExecCtx): ExecResult {
@@ -3899,6 +3901,25 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     resolvedFilter = { ...resolveDiscardLevelFilter(resolvedFilter, ctx.ownerState) };
     resolvedFilter = { ...resolveDynamicFilter(resolvedFilter, searchOwnerSt, ctx.cardMap, searchOtherSt, ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum) };
   }
+  // 「A1枚とB1枚」は1回の探索で候補をまとめて提示し、SelectionConstraint.groups が
+  // 選択集合の割当を検証する。SEQUENCE の SEARCH 2本へ割ると公開・シャッフル・afterSearch が
+  // 二重になるため、群 filter もこの1回の探索コンテキストで動的解決する。
+  const resolvedSelectionConstraint = a.selectionConstraint?.groups
+    ? {
+        ...a.selectionConstraint,
+        groups: a.selectionConstraint.groups.map(group => {
+          if (!group.filter) return group;
+          const searchOwnerSt = a.from.owner === 'self' ? ctx.ownerState : ctx.otherState;
+          const searchOtherSt = a.from.owner === 'self' ? ctx.otherState : ctx.ownerState;
+          const discarded = resolveDiscardLevelFilter(group.filter, ctx.ownerState);
+          return {
+            ...group,
+            filter: resolveDynamicFilter(discarded, searchOwnerSt, ctx.cardMap, searchOtherSt,
+              ctx.lastProcessedCards, ctx.effectivePowers, ctx.sourceCardNum, ctx.triggeringCardNum),
+          };
+        }),
+      }
+    : a.selectionConstraint;
 
   // TREAT_AS_LEVEL1_IN_DECK_TRASH: デッキ/トラッシュ内でレベル1シグニとして扱うカードのオーバーライド
   let searchCardMap = ctx.cardMap;
@@ -3936,19 +3957,23 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
   }
 
   // 1
-  const hasVisible = pool.some(n => matchesFilter(searchCardMap.get(n), resolvedFilter));
+  const groupFilters = resolvedSelectionConstraint?.groups?.map(group => group.filter);
+  const matchesSearchPool = (n: string): boolean => groupFilters?.length
+    ? groupFilters.some(filter => matchesFilter(searchCardMap.get(getCardNum(n)), filter))
+    : matchesFilter(searchCardMap.get(getCardNum(n)), resolvedFilter);
+  const hasVisible = pool.some(matchesSearchPool);
   if (!hasVisible) {
     if (a.afterSearch) return executeAction(a.afterSearch, ctx);
     return done(ctx);
   }
 
   // フィルタがある場合は一致カードのみ表示、ない場合は全体を公開
-  const visibleCards = pool.filter(n => matchesFilter(searchCardMap.get(n), resolvedFilter));
+  const visibleCards = pool.filter(matchesSearchPool);
 
   // exact 合計を作れないときは選択不能UIを出さず、0枚探索としてシャッフルまで進める。
-  if (a.selectionConstraint?.totalLevelExact !== undefined
+  if (resolvedSelectionConstraint?.totalLevelExact !== undefined
       && findValidConstrainedSelection(visibleCards, a.upToTarget === false ? maxPick : 0, maxPick,
-        a.selectionConstraint, searchCardMap) === null) {
+        resolvedSelectionConstraint, searchCardMap) === null) {
     const emptyCtx = { ...ctx, lastProcessedCards: [] };
     if (a.afterSearch) return executeAction(a.afterSearch, emptyCtx);
     return done(emptyCtx);
@@ -3963,7 +3988,7 @@ function execSearch(a: SearchAction, ctx: ExecCtx): ExecResult {
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
     afterAction: a.afterSearch,
-    selectionConstraint: a.selectionConstraint,
+    selectionConstraint: resolvedSelectionConstraint,
   });
 }
 
@@ -5915,8 +5940,9 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
   const deck0 = ownerState(owner, ctx).deck;
   const revealed: string[] = a._revealed ?? deck0.slice(0, Math.min(resolveCountRef(a.revealCount, ctx), deck0.length));
   if (revealed.length === 0) return done(ctx);
-  const cur = isCont ? ctx : addLog(ctx, `デッキ上${revealed.length}枚を見る`);
+  let cur = isCont ? ctx : addLog(ctx, `デッキ上${revealed.length}枚を見る`);
   let prevPicks: string[] = isCont ? (cur.lastProcessedCards ?? []) : [];
+  const completedPicks: string[] = [...(a._picked ?? []), ...prevPicks];
   // then:'deck_top' のピックは盤面を動かさずここで予約し、remainder 処理でまとめて一番上へ置く。
   // 直前ステージが deck_top だった再入（_pendingTop）でだけ lastProcessedCards を予約へ移す。
   const topReserved: string[] = [...(a._topReserved ?? []), ...(a._pendingTop ? prevPicks : [])];
@@ -5962,6 +5988,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       if (stageMax === 0) { stages = stages.slice(1); prevPicks = []; continue; }
     }
     const cont = { type: 'LOOK_PICK_CHAIN', owner, revealCount: a.revealCount, stages: stages.slice(1), remainder: a.remainder, _revealed: revealed,
+      ...(completedPicks.length > 0 ? { _picked: completedPicks } : {}),
       ...(topReserved.length > 0 ? { _topReserved: topReserved } : {}),
       ...(a.opponentResponds ? { opponentResponds: true } : {}),
       ...(stage.then === 'deck_top' ? { _pendingTop: true } : {}) } as import('../types/effects').LookPickChainAction;
@@ -5978,6 +6005,9 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       ...(a.opponentResponds ? { opponentResponds: true } : {}),
     });
   }
+  // 後続の「この方法で1枚も〜していない／N枚〜した場合」は最後の stage だけでなく、
+  // 1度の公開から選んだ全 stage の合計を見る。
+  cur = { ...cur, lastProcessedCards: completedPicks };
   // 残り（公開してまだデッキにあるカード）を remainder へ。
   // then:'deck_top' の予約分は「残り」から外し、remainder を動かしたあとのデッキの一番上に置く。
   const state = ownerState(owner, cur);
@@ -8556,9 +8586,17 @@ export function resumeSelectTarget(
       } as unknown as EffectAction, { isBanish: ask.isBanish }), cur);
     }
   }
+  // 複数枚を「デッキに加えてシャッフル」は全カードを加えた後に1回だけシャッフルする。
+  // per-card applyDirectAction に shuffle:true を渡すと、同じ1回の選択に対してシャッフルが枚数分発生する。
+  const batchShuffleTransfer = pending.thenAction.type === 'TRANSFER_TO_DECK'
+    && (pending.thenAction as TransferToDeckAction).shuffle
+    && (pending.thenAction as TransferToDeckAction).destination !== 'lrig_deck';
+  const perCardAction: EffectAction = batchShuffleTransfer
+    ? { ...(pending.thenAction as TransferToDeckAction), shuffle: false }
+    : pending.thenAction;
   for (const cardNum of selected) {
     // thenActionを単一カードに適用するため、フィルタなしで直接適用
-    const result = applyDirectAction(pending.thenAction, cardNum, cur);
+    const result = applyDirectAction(perCardAction, cardNum, cur);
     if (!result.done) {
       // FIELD_SIGNI_TO_ACCE は「アクセ元→host」の2段選択。外側SEQUENCEの後続
       // （そうした場合のDRAW等）を2段目へ運ぶ。既存actionのresume挙動は変更しない。
@@ -8577,6 +8615,10 @@ export function resumeSelectTarget(
       return result;
     }
     cur = { ...cur, ownerState: result.ownerState, otherState: result.otherState, logs: result.logs, fieldTrashCostCards: result.fieldTrashCostCards ?? cur.fieldTrashCostCards, trapActivated: result.trapActivated ?? cur.trapActivated, trapSetOwners: result.trapSetOwners ?? cur.trapSetOwners };
+  }
+  if (batchShuffleTransfer && selected.length > 0) {
+    const shuffled = execShuffleDeck({ type: 'SHUFFLE_DECK', owner: (pending.thenAction as TransferToDeckAction).source.owner as Owner }, cur);
+    cur = { ...cur, ownerState: shuffled.ownerState, otherState: shuffled.otherState, logs: shuffled.logs };
   }
   cur = { ...cur, lastProcessedCards: selected };
   // selfTrashCost: 「このシグニを場からトラッシュに置いてもよい。そうした場合、それらをバニッシュする」

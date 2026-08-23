@@ -9391,7 +9391,21 @@ test('続き376d トリップワイヤ: 複数クラス／付与対象のクラ�
     ['PR-322', 'PR-322-E1'], ['WX08-036', 'WX08-036-E1'], ['WXDi-P16-069', 'WXDi-P16-069-E2'],
   ] as const) {
     const e = (effectsMap.get(card) ?? []).find(x => x.effectId === effId);
-    eq(/"story"/.test(JSON.stringify(e?.action ?? {})), false,
+    const sourceFilters: unknown[] = [];
+    const visit = (node: unknown): void => {
+      if (!node || typeof node !== 'object') return;
+      const record = node as Record<string, unknown>;
+      const source = record.source as { filter?: unknown } | undefined;
+      if (source?.filter) sourceFilters.push(source.filter);
+      for (const [key, value] of Object.entries(record)) {
+        // 群割当は今回の正しい受け皿。旧トリップワイヤは source.filter への片側誤配線だけを監視する。
+        if (key === 'selectionConstraint') continue;
+        if (Array.isArray(value)) value.forEach(visit);
+        else visit(value);
+      }
+    };
+    visit(e?.action);
+    eq(sourceFilters.some(filter => !!filter && /"story"/.test(JSON.stringify(filter))), false,
       `${effId}: 曖昧なクラスを source フィルタに引き込まない（過小実行を作らない）`);
   }
 }));
@@ -44434,6 +44448,140 @@ test('段2 第36バッチ E2E: WXK07-036-E1 はライフが多いときだけ赤
   const inactive = finishPayingCosts(executeEffect(effect, inactiveCtx), inactiveCtx);
   ok(inactive.otherState.field.signi.some(stack => stack?.at(-1) === target), '同数なら支払い提示もバニッシュもしない');
 }));
+
+// ── 段2 第38バッチ：異なる filter から1枚ずつ選ぶ群制約 ──
+const freshBatch38 = (cardNum: string, effectId: string): CardEffect => {
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} fresh not found`);
+  return effect;
+};
+
+test('段2 第38バッチ parser契約: 各群1枚・合計2枚・逆向きORを区別する', () => {
+  for (const [cardNum, effectId, needles] of [
+    ['WX02-050', 'WX02-050-E1', ['"maxCount":2', '"story":"アーム"', '"story":"天使"', '"groups"']],
+    ['WX10-001', 'WX10-001-E3', ['"maxCount":2', '"type":"ADD_TO_FIELD"', '"groups"']],
+    ['WX14-062', 'WX14-062-E1', ['"cardType":"シグニ"', '"cardType":"スペル"', '"groups"']],
+    ['WX14-CB02', 'WX14-CB02-BURST', ['"cardName":"暁月"', '"cardName":"燦"', '"maxCount":2']],
+    ['WDA-F03-13', 'WDA-F03-13-BURST', ['"count":2', '"keyword":"マルチエナ"', '"groups"']],
+    ['WX25-P2-047', 'WX25-P2-047-E1', ['"cardType":"ルリグ"', '"cardType":"シグニ"', '"groups"']],
+    ['WXEX2-43', 'WXEX2-43-E3', ['"maxCount":2', '"distinct":"level"']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch38(cardNum, effectId));
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+  const inverse = freshBatch38('WX04-001', 'WX04-001-E2').cost as EffectCost;
+  eq(inverse.discard, 2, '合計2枚はdiscard=2');
+  ok(!inverse.discardGroups && Array.isArray(inverse.discardFilter?.story), '合計2枚は各群1枚へ分割しない');
+});
+
+test('段2 第38バッチ engine両方向: SEARCHは各群1枚ずつ計2枚を取り、片群0枚なら他方1枚で停止', () => withSavedCursor(() => {
+  const arm = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('アーム'));
+  const angel = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('天使'));
+  const arm2 = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('アーム') && card.CardNum !== arm);
+  const action: EffectAction = {
+    type: 'SEARCH', from: { location: 'deck', owner: 'self' },
+    filter: { anyOf: [{ cardType: 'シグニ', story: 'アーム' }, { cardType: 'シグニ', story: '天使' }] },
+    maxCount: 2,
+    selectionConstraint: { groups: [
+      { filter: { cardType: 'シグニ', story: 'アーム' }, count: 1 },
+      { filter: { cardType: 'シグニ', story: '天使' }, count: 1 },
+    ] },
+    then: { type: 'ADD_TO_HAND', owner: 'self' }, afterSearch: { type: 'SHUFFLE_DECK', owner: 'self' },
+  };
+  const bothCtx = mkCtx({ hand: 0 }, {}); bothCtx.ownerState.hand = []; bothCtx.ownerState.deck = [arm, angel, arm2];
+  const bothOffer = executeAction(action, bothCtx);
+  if (bothOffer.done || bothOffer.pending.type !== 'SEARCH') throw new Error('2群探索対話なし');
+  const both = resumeSearch([arm, angel], bothOffer.pending, ctxAfter(bothOffer, bothCtx));
+  ok(both.done && both.ownerState.hand.includes(arm) && both.ownerState.hand.includes(angel), 'A/Bを1枚ずつ計2枚取得');
+
+  const oneCtx = mkCtx({ hand: 0 }, {}); oneCtx.ownerState.hand = []; oneCtx.ownerState.deck = [arm];
+  const oneOffer = executeAction(action, oneCtx);
+  if (oneOffer.done || oneOffer.pending.type !== 'SEARCH') throw new Error('片群だけの探索対話なし');
+  const one = resumeSearch([arm], oneOffer.pending, ctxAfter(oneOffer, oneCtx));
+  ok(one.done && one.ownerState.hand.length === 1 && one.ownerState.hand[0] === arm, 'Bが0枚でもAの1枚を取得して終了');
+
+  const invalidCtx = mkCtx({ hand: 0 }, {}); invalidCtx.ownerState.hand = []; invalidCtx.ownerState.deck = [arm, arm2];
+  const invalidOffer = executeAction(action, invalidCtx);
+  if (invalidOffer.done || invalidOffer.pending.type !== 'SEARCH') throw new Error('同群2枚の探索対話なし');
+  const invalid = resumeSearch([arm, arm2], invalidOffer.pending, ctxAfter(invalidOffer, invalidCtx));
+  eq(invalid.ownerState.hand.length, 1, '同じ群の2枚を計2枚としては処理しない');
+}));
+
+test('段2 第38バッチ engine負方向: overlapping群は1枚を二重計上せず必須群へ割り当てる', () => {
+  const multi = findCard(card => card.EffectText?.includes('【マルチエナ】'));
+  const normal = findCard(card => card.CardNum !== multi && !card.EffectText?.includes('【マルチエナ】'));
+  const normal2 = findCard(card => card.CardNum !== normal && card.CardNum !== multi && !card.EffectText?.includes('【マルチエナ】'));
+  const constraint = { groups: [{ count: 1 }, { filter: { keyword: 'マルチエナ' }, count: 1 }] } as const;
+  ok(satisfiesSelectionConstraint([normal, multi], constraint, cardMap), '通常1＋マルチ1は成立');
+  ok(!satisfiesSelectionConstraint([normal, normal2], constraint, cardMap), '通常2枚はマルチ群を満たさない');
+});
+
+test('段2 第38バッチ E2E: LOOK_PICK_CHAINは2群合計を保持し、片群0でも空振り扱いにしない', () => withSavedCursor(() => {
+  const source = 'WX10-041';
+  const arm = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('アーム'));
+  const weapon = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('ウェポン'));
+  const action = freshBatch38(source, 'WX10-041-E1').action;
+  const bothCtx = mkCtx({ signi: [source, null, null], hand: 0 }, {}, source);
+  bothCtx.ownerState.hand = []; bothCtx.ownerState.deck = [arm, weapon];
+  const first = executeAction(action, bothCtx);
+  if (first.done || first.pending.type !== 'SEARCH') throw new Error('arm stageなし');
+  const second = resumeSearch([arm], first.pending, ctxAfter(first, bothCtx));
+  if (second.done || second.pending.type !== 'SEARCH') throw new Error('weapon stageなし');
+  const both = resumeSearch([weapon], second.pending, ctxAfter(second, bothCtx));
+  ok(both.done && both.ownerState.hand.length === 2 && both.lastProcessedCards?.length === 2, '2群2枚と合計結果を保持');
+  ok(!both.ownerState.field.signi_down[0], '1枚以上加えたので自身をダウンしない');
+
+  const oneCtx = mkCtx({ signi: [source, null, null], hand: 0 }, {}, source);
+  oneCtx.ownerState.hand = []; oneCtx.ownerState.deck = [arm];
+  const oneFirst = executeAction(action, oneCtx);
+  if (oneFirst.done || oneFirst.pending.type !== 'SEARCH') throw new Error('片群arm stageなし');
+  const one = resumeSearch([arm], oneFirst.pending, ctxAfter(oneFirst, oneCtx));
+  ok(one.done && one.ownerState.hand.length === 1 && !one.ownerState.field.signi_down[0], 'weapon 0枚でもarm取得を空振りにしない');
+}));
+
+test('段2 第38バッチ engine両方向: デッキ戻し2群は1回だけシャッフルし、片群不足では後段を発火しない', () => withSavedCursor(() => {
+  const arm = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('アーム'));
+  const weapon = findCard(card => card.Type === 'シグニ' && card.CardClass?.includes('ウェポン'));
+  const target = SIGNI_L1;
+  const action = freshBatch38('WXEX1-53', 'WXEX1-53-E2').action;
+  const bothCtx = mkCtx({}, { signi: [target, null, null] }); bothCtx.ownerState.trash = [arm, weapon];
+  const offer = executeAction(action, bothCtx);
+  if (offer.done || offer.pending.type !== 'SELECT_TARGET') throw new Error('2群デッキ戻し選択なし');
+  const bouncedOffer = resumeSelectTarget([arm, weapon], offer.pending, ctxAfter(offer, bothCtx));
+  const both = finish(bouncedOffer, ctxAfter(bouncedOffer, bothCtx));
+  ok(both.ownerState.deck_shuffled_count === 1, '2枚を加えた後のシャッフルは1回');
+  ok(both.otherState.hand.includes(target), '両群を戻した場合だけ保存対象をバウンス');
+
+  const oneCtx = mkCtx({}, { signi: [target, null, null] }); oneCtx.ownerState.trash = [arm];
+  const oneOffer = executeAction(action, oneCtx);
+  if (oneOffer.done || oneOffer.pending.type !== 'SELECT_TARGET') throw new Error('片群デッキ戻し選択なし');
+  const one = resumeSelectTarget([arm], oneOffer.pending, ctxAfter(oneOffer, oneCtx));
+  ok(one.done && !one.otherState.hand.includes(target), '片群1枚だけでは「そうした場合」を発火しない');
+}));
+
+test('段2 第38バッチ engine両方向: CENTER_LRIG_OR_SIGNIは各カードタイプ1体ずつだけ選べる', () => withSavedCursor(() => {
+  const lrig = findCard(card => card.Type === 'ルリグ');
+  const signiA = SIGNI_L1;
+  const signiB = SIGNI_L2;
+  const action = freshBatch38('WX25-P2-047', 'WX25-P2-047-E1').action;
+  const ctx = mkCtx({}, { lrig: [lrig], signi: [signiA, signiB, null] });
+  const offer = executeAction(action, ctx);
+  if (offer.done || offer.pending.type !== 'SELECT_TARGET') throw new Error('ルリグ＋シグニ選択なし');
+  ok(satisfiesSelectionConstraint([lrig, signiA], offer.pending.selectionConstraint, cardMap), 'ルリグ1＋シグニ1は成立');
+  ok(!satisfiesSelectionConstraint([signiA, signiB], offer.pending.selectionConstraint, cardMap), 'シグニ2体は不成立');
+  const doneResult = resumeSelectTarget([lrig, signiA], offer.pending, ctxAfter(offer, ctx));
+  ok(doneResult.done && (doneResult.otherState.keyword_grants?.[lrig] ?? []).includes('アタックできない')
+    && (doneResult.otherState.keyword_grants?.[signiA] ?? []).includes('アタックできない'), '両タイプへ付与');
+}));
+
+test('段2 第38バッチ 据置契約: 依存filter・レベル別場出し・動的クロスは既存木のまま', () => {
+  const dependent = freshBatch38('WXDi-P12-039', 'WXDi-P12-039-E1').action;
+  const levels = freshBatch38('WXDi-D01-011', 'WXDi-D01-011-E1').action;
+  const cross = freshBatch38('WX13-012', 'WX13-012-E1').action;
+  ok(dependent.type === 'LOOK_AND_REORDER', '1枚目依存の共通色なしは群制約へ誤変換しない');
+  ok(levels.type === 'LOOK_AND_REORDER', 'レベル1/2/3各1枚は第39バッチと重なるため据置');
+  ok(cross.type === 'CHOOSE' && JSON.stringify(cross).includes('"maxCount":1'), '動的クロス構成枚数は固定groupsへ誤変換しない');
+});
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

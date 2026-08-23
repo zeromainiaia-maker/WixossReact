@@ -858,6 +858,13 @@ export interface EffectTarget {
 }
 
 export interface SelectionConstraint {
+  /**
+   * 1回の選択集合を filter ごとの上限へ割り当てる。
+   * 「＜A＞1枚と＜B＞1枚」「シグニ1枚とスペル1枚」のように、単一の aggregate filter では
+   * 配分を表せない対象に使う。各カードは1群にだけ割り当てられ、count はその群の上限。
+   * 選択自体が任意／候補不足の場合は、満たせる群だけを選べる（必須枚数は action 側の count が担う）。
+   */
+  groups?: Array<{ filter?: TargetFilter; count: number }>;
   distinct?: 'level' | 'name' | 'class';
   same?: 'name';
   sharedColor?: 'all' | 'none';
@@ -1785,6 +1792,7 @@ export interface LookPickChainAction {
   stages: LookPickChainStage[];
   remainder: { location: CardLocation; position: 'top' | 'bottom' | 'any'; shuffle?: boolean };
   _revealed?: string[]; // 内部用: 段間 continuation で公開済みカードを引き継ぐ（JSONには書かない）
+  _picked?: string[];   // 内部用: 完了済み stages の全選択（最終 lastProcessedCards／後続条件用）
   _topReserved?: string[]; // 内部用: then:'deck_top' で確定済みの「一番上へ戻す」カード（JSONには書かない）
   _pendingTop?: boolean;   // 内部用: 直前ステージが then:'deck_top'（再入時に lastProcessedCards を予約へ移す）
   /**
