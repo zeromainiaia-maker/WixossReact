@@ -92,7 +92,7 @@ import { clearTurnGrantedLrigAbilities, collectAttackingLrigGrantedAutos, consum
 import { parseChoiceOptionsFromText } from '../src/engine/choiceTextParser';
 import { conditionClauseExtraOk, replacementClauseExtraOk } from './vocabCensus';
 import { appearancePayment, getMainSingleZoneResonaCandidate, getSpellCutinResonaCandidates, payResonaAppearanceAndPlace, validateResonaSelection } from '../src/screens/battle/resonaSummon';
-import { encodeLancerScopesInText, hasApplicableAssassin, hasApplicableLancer, hasKeyword, normalizeKeywordName, textHasKeyword } from '../src/utils/keywords';
+import { encodeLancerScopesInText, hasApplicableAssassin, hasApplicableLancer, hasBanishResist, hasKeyword, normalizeKeywordName, textHasKeyword } from '../src/utils/keywords';
 import { detectBanishedSigni, detectPlacedSigni, detectTrashedSigni, detectDeckTrashed, countRefresh, detectPowerDecrease, detectNewlyFrozen, countMovedToDeck, countCharmsToTrash, countMagicBoxesFlipped, countAcceToTrash, countCoinsGained, detectSoulAttached, detectCardAttached, countEnergyToTrash, countEnergyLeftZone } from '../src/engine/boardDiff';
 import { collectReturnableAssistLrigTops } from '../src/engine/assistLrig';
 import { getSigniAttackKeywordState } from '../src/screens/battle/signiAttackKeywords';
@@ -43392,6 +43392,129 @@ test('段2 第30バッチ 非採用契約: WXK05-028-E2 は公開領域全体を
   eq(effect.action.type, 'BANISH', '公開領域の一部だけを見る近似CONDITIONALへ変えない');
   ok(!JSON.stringify(effect).includes('ALL_FIELD_SIGNI_MATCH'), '場だけの全数奇数条件へ狭めない');
   ok(!JSON.stringify(effect).includes('FIELD_LEVEL_SUM'), '合計パリティとも混同しない');
+});
+
+// ── §6.2 段2 第31バッチ: 合計レベル上限／アーツ使用コスト上限 ──
+type Batch31LevelCase = {
+  cardNum: string;
+  effectId: string;
+  max: number;
+  kind: 'BANISH' | 'GRANT_KEYWORD' | 'SEND_TO_ENERGY' | 'DOWN';
+};
+const batch31LevelCases: Batch31LevelCase[] = [
+  { cardNum: 'WX11-033', effectId: 'WX11-033-BURST', max: 3, kind: 'BANISH' },
+  { cardNum: 'WXK06-010', effectId: 'WXK06-010-E1', max: 6, kind: 'GRANT_KEYWORD' },
+  { cardNum: 'WXK10-050', effectId: 'WXK10-050-E2', max: 6, kind: 'SEND_TO_ENERGY' },
+  { cardNum: 'WXDi-P08-034', effectId: 'WXDi-P08-034-E2', max: 4, kind: 'DOWN' },
+  { cardNum: 'WX24-P2-006', effectId: 'WX24-P2-006-E1', max: 5, kind: 'DOWN' },
+];
+
+function batch31SyntheticCard(id: string, type: string, fields: Partial<CardData>): string {
+  cardMap.set(id, {
+    CardNum: id, CardName: id, Type: type, Level: '0', Power: '1000', Cost: '', Color: '無', CardClass: '',
+    ...fields,
+  } as CardData);
+  return id;
+}
+
+function batch31Pending(effect: CardEffect, ctx: ExecCtx): Extract<ExecResult, { done: false }> {
+  const result = executeEffect(effect, ctx);
+  ok(!result.done && result.pending.type === 'SELECT_TARGET', `${effect.effectId}: SELECT_TARGET を提示`);
+  if (result.done || result.pending.type !== 'SELECT_TARGET') throw new Error(`${effect.effectId}: pendingなし`);
+  return result;
+}
+
+function batch31WasApplied(kind: Batch31LevelCase['kind'], result: ExecResult, card: string): boolean {
+  const zone = result.otherState.field.signi.findIndex(stack => stack?.at(-1) === card);
+  if (kind === 'BANISH' || kind === 'SEND_TO_ENERGY') return zone < 0 && result.otherState.energy.includes(card);
+  if (kind === 'GRANT_KEYWORD') return result.otherState.keyword_grants?.[card]?.includes('アタックできない') ?? false;
+  return zone >= 0 && result.otherState.field.signi_down[zone] === true;
+}
+
+for (const spec of batch31LevelCases) {
+  test(`段2 第31バッチ A E2E: ${spec.effectId} は合計${spec.max}を許可・${spec.max + 1}を拒否・空候補で閉じる`, () => withSavedCursor(() => {
+    const exactA = batch31SyntheticCard(`B31-${spec.effectId}-L1`, 'シグニ', { Level: '1' });
+    const exactB = batch31SyntheticCard(`B31-${spec.effectId}-L${spec.max - 1}`, 'シグニ', { Level: String(spec.max - 1) });
+    const over = batch31SyntheticCard(`B31-${spec.effectId}-L${spec.max + 1}`, 'シグニ', { Level: String(spec.max + 1) });
+    const effect = manualEffect(spec.cardNum, spec.effectId);
+
+    const exactCtx = mkCtx({}, { signi: [over, exactA, exactB] }, spec.cardNum);
+    const exactPending = batch31Pending(effect, exactCtx);
+    eq(exactPending.pending.candidates[0], over, `${spec.effectId}: 高レベル候補を先頭に置く`);
+    eq(exactPending.pending.totalLevelMax, spec.max, `${spec.effectId}: pending上限`);
+    const exact = finish(resumeSelectTarget([exactA, exactB], exactPending.pending, ctxAfter(exactPending, exactCtx)), exactCtx);
+    ok(batch31WasApplied(spec.kind, exact, exactA), `${spec.effectId}: 合計上限ちょうどの1枚目を処理`);
+    ok(batch31WasApplied(spec.kind, exact, exactB), `${spec.effectId}: 合計上限ちょうどの2枚目を処理`);
+
+    const overCtx = mkCtx({}, { signi: [over, exactA, exactB] }, spec.cardNum);
+    const overPending = batch31Pending(effect, overCtx);
+    const rejected = finish(resumeSelectTarget([over], overPending.pending, ctxAfter(overPending, overCtx)), overCtx);
+    ok(!batch31WasApplied(spec.kind, rejected, over), `${spec.effectId}: 上限を1超える選択を処理しない`);
+
+    const zero = executeEffect(effect, mkCtx({}, {}, spec.cardNum));
+    ok(zero.done, `${spec.effectId}: 候補0枚でも例外・待機なし`);
+    eq(zero.lastProcessedCards?.length ?? 0, 0, `${spec.effectId}: 候補0枚は空処理`);
+  }));
+}
+
+const batch31LowArts = batch31SyntheticCard('B31-ARTS-COST1', 'アーツ', { Cost: '《白》×1' });
+const batch31HighArts = batch31SyntheticCard('B31-ARTS-COST2', 'アーツ', { Cost: '《白》×2' });
+
+test('段2 第31バッチ B1 E2E: WX16-034-LAYER は怪異への入れ子能力でコスト1だけを防ぐ', () => {
+  const source = 'WX16-034';
+  const state = mkState({ signi: [source, null, null] });
+  const granted = collectGrantedFromLayer(state, mkState({}), true, effectsMap, cardMap);
+  ok((granted.get(source) ?? []).some(effect => effect.effectId === 'WX16-034-LAYER-E1'), '内側 ability を付与');
+  const augmented = new Map(effectsMap);
+  augmented.set(source, [...(augmented.get(source) ?? []), ...(granted.get(source) ?? [])]);
+  ok(collectEffectImmuneSigni(state, mkState({}), cardMap, augmented, true, 'アーツ', batch31LowArts).has(source), 'コスト合計1のアーツを防ぐ');
+  ok(!collectEffectImmuneSigni(state, mkState({}), cardMap, augmented, true, 'アーツ', batch31HighArts).has(source), 'コスト合計2のアーツは防がない');
+});
+
+test('段2 第31バッチ B2 E2E: WX21-040-E2 は英知=11のときだけコスト1を防ぐ', () => {
+  const e4a = batch31SyntheticCard('B31-EICHI-L4A', 'シグニ', { Level: '4', CardClass: '精像：英知' });
+  const e4b = batch31SyntheticCard('B31-EICHI-L4B', 'シグニ', { Level: '4', CardClass: '精像：英知' });
+  const active = mkState({ signi: ['WX21-040', e4a, e4b] });
+  const inactive = mkState({ signi: ['WX21-040', e4a, null] });
+  ok(collectEffectImmuneSigni(active, mkState({}), cardMap, effectsMap, true, 'アーツ', batch31LowArts).has('WX21-040'), '英知=11かつコスト1を防ぐ');
+  ok(!collectEffectImmuneSigni(active, mkState({}), cardMap, effectsMap, true, 'アーツ', batch31HighArts).has('WX21-040'), '英知=11でもコスト2は防がない');
+  ok(!collectEffectImmuneSigni(inactive, mkState({}), cardMap, effectsMap, true, 'アーツ', batch31LowArts).has('WX21-040'), '英知=7ではコスト1も防がない');
+});
+
+test('段2 第31バッチ B3 E2E: WXK09-047-E1 は各レベル2枚条件でバニッシュ耐性＋コスト1アーツ耐性', () => {
+  const source = 'WXK09-047';
+  const energy = [1, 2, 3, 4].flatMap(level => [0, 1].map(copy =>
+    batch31SyntheticCard(`B31-DENKI-L${level}-${copy}`, 'シグニ', { Level: String(level), CardClass: '精械：電機' })));
+  const effect = manualEffect(source, 'WXK09-047-E1');
+  const activeCtx = mkCtx({ signi: [source, null, null], energy: 0 }, {}, source);
+  activeCtx.ownerState.energy = energy;
+  const applied = run(effect.action, activeCtx);
+  ok(hasBanishResist(source, cardMap, applied.ownerState.keyword_grants), '条件成立時に「バニッシュされない」を得る');
+  ok(collectEffectImmuneSigni(applied.ownerState, applied.otherState, cardMap, new Map(), true, 'アーツ', batch31LowArts).has(source), '条件成立時にコスト1アーツを防ぐ');
+  ok(!collectEffectImmuneSigni(applied.ownerState, applied.otherState, cardMap, new Map(), true, 'アーツ', batch31HighArts).has(source), '条件成立時もコスト2アーツは防がない');
+
+  const inactiveCtx = mkCtx({ signi: [source, null, null], energy: 0 }, {}, source);
+  inactiveCtx.ownerState.energy = energy.slice(0, -1);
+  const inactive = run(effect.action, inactiveCtx);
+  ok(!hasBanishResist(source, cardMap, inactive.ownerState.keyword_grants), 'レベル4が1枚ならバニッシュ耐性を得ない');
+  ok(!collectEffectImmuneSigni(inactive.ownerState, inactive.otherState, cardMap, new Map(), true, 'アーツ', batch31LowArts).has(source), '条件不成立ならコスト1アーツ耐性も得ない');
+});
+
+test('段2 第31バッチ 非採用契約: SEARCH と exact 合計5効果を totalLevelMax で近似しない', () => {
+  const held = [
+    manualEffect('WXEX1-45', 'WXEX1-45-E3'),
+    manualEffect('WXEX1-36', 'WXEX1-36-E2'),
+    manualEffect('WXK10-066', 'WXK10-066-E2'),
+    manualEffect('WDK13-008', 'WDK13-008-E1'),
+    manualEffect('PR-K043', 'PR-K043-E1'),
+    manualEffect('WXDi-P08-045', 'WXDi-P08-045-E2'),
+  ];
+  for (const effect of held) {
+    const encoded = JSON.stringify(effect.action);
+    ok(!encoded.includes('totalLevelMax'), `${effect.effectId}: 以下へ丸めない`);
+    ok(!encoded.includes('totalLevelExact'), `${effect.effectId}: 未実装 exact を装わない`);
+  }
+  eq(held[0].action.type, 'SEARCH', 'A2はSEARCH受け皿ができるまで据置');
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

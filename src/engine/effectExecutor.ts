@@ -1476,6 +1476,18 @@ function execSendToEnergy(a: SendToEnergyAction, ctx: ExecCtx): ExecResult {
     if (cands.length === 0) return done(addLog(ctx, 'このシグニが場にないためエナ送りをスキップ'));
     return done({ ...applySend(cands, ctx), lastProcessedCards: cands });
   }
+  // 「レベルの合計がN以下になるようにM体まで」: 候補の提示時と resume 時の双方で
+  // 合計上限を強制する。BANISH と同じ pending 語彙を使い、0候補は空処理で閉じる。
+  if (tgt.totalLevelMax !== undefined) {
+    if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+    const candidateLevels: Record<string, number> = {};
+    for (const n of cands) candidateLevels[n] = parseInt(ctx.cardMap.get(n)?.Level ?? '0', 10) || 0;
+    const maxPick = typeof tgt.count === 'number' ? Math.min(tgt.count, cands.length) : cands.length;
+    return selectOrInteract(cands, maxPick, true, scope, a, undefined, ctx, false, {
+      totalLevelMax: tgt.totalLevelMax,
+      candidateLevels,
+    });
+  }
   if (tgt.count === 'ALL') {
     // §6.4 離場置換の対話化（続き430）＝適用前に被害側へまとめて問い、決定を刻んでから**同じ action を再入**する
     //   （count:'ALL' 経路は候補が盤面から再導出されるので、適用前に戻っても選び直しにはならない）。
@@ -3317,6 +3329,18 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
     return cur;
   }
 
+  // 「レベルの合計がN以下になるようにM体まで」: BANISH/SEND_TO_ENERGY と同じ
+  // SELECT_TARGET metadata を渡し、resumeSelectTarget の再検証も必ず通す。
+  if (a.target.totalLevelMax !== undefined) {
+    if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+    const candidateLevels: Record<string, number> = {};
+    for (const n of cands) candidateLevels[n] = parseInt(ctx.cardMap.get(n)?.Level ?? '0', 10) || 0;
+    const maxPick = typeof a.target.count === 'number' ? Math.min(a.target.count, cands.length) : cands.length;
+    return selectOrInteract(cands, maxPick, true, scope, a, undefined, ctx, false, {
+      totalLevelMax: a.target.totalLevelMax,
+      candidateLevels,
+    });
+  }
   if (a.target.count === 'ALL') return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
   if (downThisCardRestrict !== null) {
     return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
@@ -3693,6 +3717,19 @@ function execGrantKeyword(a: GrantKeywordAction, ctx: ExecCtx): ExecResult {
         : `【${a.keyword}】は新たに得られない`);
   }
 
+  // 「レベルの合計がN以下になるように好きな数」: count:'ALL' の自動全付与より先に
+  // 選択へ落とす。上限を無視した外部応答も resumeSelectTarget が再検証する。
+  if (tgt.totalLevelMax !== undefined) {
+    if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+    const candidateLevels: Record<string, number> = {};
+    for (const n of cands) candidateLevels[n] = parseInt(ctx.cardMap.get(n)?.Level ?? '0', 10) || 0;
+    const maxPick = typeof tgt.count === 'number' ? Math.min(tgt.count, cands.length) : cands.length;
+    const scope: TargetScope = tgtOwner === 'self' ? 'self_field' : 'opp_field';
+    return selectOrInteract(cands, maxPick, true, scope, a, undefined, ctx, false, {
+      totalLevelMax: tgt.totalLevelMax,
+      candidateLevels,
+    });
+  }
   // LRIGは選択UIを出さず自動付与
   if (tgt.type === 'LRIG') return cands.length > 0 ? done(applyGrant(cands, ctx)) : done(ctx);
   if (a.targetsStored || tgt.count === 'ALL') return done(applyGrant(cands, ctx));
@@ -5431,6 +5468,17 @@ function protectionKeyword(a: GrantProtectionAction): string {
       bySourceLevel: a.bySourceLevel,
     })}`;
   }
+  // AUTO/ACTIVATED の期間付与でも、解決中ソースカードの属性制約を失わない。
+  // CONTINUOUS は collectEffectImmuneSigni が action を直接読むが、こちらは keyword store が消費地点。
+  if (a.sourceFilter || a.sourceCostMin !== undefined || a.sourceEffectType) {
+    return `PROTECTION_FILTERED:${JSON.stringify({
+      from: a.from ?? [],
+      sourceOwner: a.sourceOwner,
+      sourceFilter: a.sourceFilter,
+      sourceCostMin: a.sourceCostMin,
+      sourceEffectType: a.sourceEffectType,
+    })}`;
+  }
   return `PROTECTION:${(a.from ?? []).join(',')}:${a.sourceOwner ?? ''}`;
 }
 
@@ -5502,6 +5550,11 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
   const protectionCandidates = fieldCandidatesByOwner(tgt.owner, tgt.filter, ctx);
   let cands = protectionCandidates.cands;
   const gpScope = protectionCandidates.scope;
+  // thisCardOnly は matchesFilter のカード属性ではないため、効果元 identity で明示的に絞る。
+  // 「このシグニは耐性を得る」を別の自シグニへ付け替えられないよう、選択UIも出さず即適用する。
+  if (tgt.filter?.thisCardOnly) {
+    cands = ctx.sourceCardNum ? cands.filter(n => n === ctx.sourceCardNum) : [];
+  }
   // excludeSelf:「あなたの他のシグニ」への一時耐性付与では、効果元自身を候補から除く。
   // フィールド省略時の従来候補集合は変えず、明示された場合だけ additive に絞る。
   if (tgt.filter?.excludeSelf && ctx.sourceCardNum) {
@@ -5511,6 +5564,7 @@ function execGrantProtection(a: GrantProtectionAction, ctx: ExecCtx): ExecResult
     const previous = new Set(ctx.lastProcessedCards ?? []);
     return done(applyProtection(cands.filter(n => previous.has(n)), ctx));
   }
+  if (tgt.filter?.thisCardOnly) return done(applyProtection(cands, ctx));
   if (tgt.count === 'ALL') return done(applyProtection(cands, ctx));
   const count = resolveNum(tgt.count);
   return selectOrInteract(cands, count, false, gpScope, a, undefined, ctx);

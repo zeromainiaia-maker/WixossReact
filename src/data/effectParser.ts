@@ -29,6 +29,7 @@ import type {
   StubAction,
   Condition,
   GrantKeywordAction,
+  GrantProtectionAction,
   PowerModifyAction,
   TransferToHandAction,
   TransferToDeckAction,
@@ -9173,7 +9174,7 @@ function parseActionText(text: string): EffectAction {
       ],
     } as SequenceAction;
   };
-  const parseBase = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
+  const parseBaseRaw = (source: string): EffectAction => parseQuotedOtherSigniProtectionAndPower(source)
     ?? applyOpponentPayThenOnPay(source, applyTargetAndDiscardHandCost(source, applyUnderThisTrashOptionalCost(source, applyFieldDownOptionalCost(source, applyOptionalDeckMillCost(source, applySelfTrashOptionalCost(source, applyOptionalActivateGate(source, applyOptionalHandDiscardCost(source,
     applyThisWayTrashOutcomeGuards(source, applyUpperBoundSelectionWiring(source, bindTargetedCountAndDoubleMinus(source, applyOtherTargetOptionalKeyword(source, applyDroppedEnergyDesignation(source, applyDroppedTargetDesignation(source,
     applyTargetLevelScaling(source,
@@ -9182,6 +9183,8 @@ function parseActionText(text: string): EffectAction {
           applyLeadingTrashFieldNameAnaphora(source,
           applyLeadingSelfDesignationToPowerModify(source,
             applyLeadingOpponentDesignation(source, parseActionTextInner(source)))))))))))))))))))));
+  const parseBase = (source: string): EffectAction => applyEnergyEachLevelGate(source,
+    applyArtsCostProtectionWiring(source, parseBaseRaw(source)));
   const parse = (source: string): EffectAction => applySameLevelInsideLastProcessedGate(source,
     applyDeckTopMillTargetAnaphora(source,
       applySelectedTargetTrashReplacement(source, parseBase(source))));
@@ -9409,7 +9412,112 @@ function applyUpperBoundSelectionWiring(text: string, action: EffectAction): Eff
     }
   }
 
+  // 「（対戦相手のシグニを、）レベルの合計がN以下になるように好きな数/N体まで対象」。
+  // 上限・枚数は原文から取り、実際に totalLevelMax を消費する場シグニ action だけへ配線する。
+  // SEARCH 等には同名の死フィールドを載せず、exact「Nになるように」もこの規則では受理しない。
+  const levelSumClauses = [...text.matchAll(/(?:対戦相手のシグニを[、,]?レベルの合計が([０-９\d]+)以下になるように(好きな数|[０-９\d]+体まで)|レベルの合計が([０-９\d]+)以下になるように対戦相手のシグニを(好きな数|[０-９\d]+体まで))対象とし/g)];
+  if (levelSumClauses.length === 1) {
+    const clause = levelSumClauses[0];
+    const max = parseNum(clause[1] ?? clause[3]);
+    const countText = clause[2] ?? clause[4];
+    const count: number | 'ALL' = countText === '好きな数'
+      ? 'ALL'
+      : parseNum(countText.replace(/体まで$/, ''));
+    const supportedTypes = new Set(['BANISH', 'GRANT_KEYWORD', 'SEND_TO_ENERGY', 'DOWN']);
+    const supported = [...supportedTypes].flatMap(type => nodesOfType(action, type)).filter(node => {
+      const target = node.target as Record<string, unknown> | undefined;
+      return target?.type === 'SIGNI' && target.owner === 'opponent';
+    });
+    if (supported.length === 1) {
+      const target = supported[0].target as Record<string, unknown>;
+      target.count = count;
+      target.upToCount = true;
+      target.totalLevelMax = max;
+    } else if (supported.length === 0) {
+      // 旧専用 STUB は「自分のエナ全体のレベル合計超過を捨てる」別機能だった。
+      // 本文と対象句が一意なときだけ、正しい場シグニ選択 action へ置換する。
+      const stubs = nodesOfType(action, 'STUB').filter(node => node.id === 'ENERGY_BY_LEVEL_SUM_LIMIT');
+      if (stubs.length === 1 && count !== 'ALL') {
+        const replacement: EffectAction = {
+          type: 'SEND_TO_ENERGY',
+          target: {
+            type: 'SIGNI', owner: 'opponent', count, upToCount: true,
+            filter: { cardType: 'シグニ' }, totalLevelMax: max,
+          },
+        };
+        const replace = (node: EffectAction): EffectAction => {
+          if (node.type === 'STUB' && node.id === 'ENERGY_BY_LEVEL_SUM_LIMIT') return replacement;
+          if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(replace) };
+          if (node.type === 'CONDITIONAL') return { ...node, then: replace(node.then), ...(node.else ? { else: replace(node.else) } : {}) };
+          return node;
+        };
+        action = replace(action);
+      }
+    }
+  }
+
   return action;
+}
+
+/** 「コストの合計がN以下の対戦相手のアーツ」だけを sourceFilter.costMax へ配線する。 */
+function applyArtsCostProtectionWiring(text: string, action: EffectAction): EffectAction {
+  const clauses = [...text.matchAll(/コストの合計が([０-９\d]+)以下の対戦相手のアーツの効果を受けない/g)];
+  if (clauses.length !== 1) return action;
+  const protections: GrantProtectionAction[] = [];
+  const visit = (node: EffectAction): void => {
+    if (node.type === 'GRANT_PROTECTION') protections.push(node);
+    else if (node.type === 'SEQUENCE') node.steps.forEach(visit);
+    else if (node.type === 'CONDITIONAL') { visit(node.then); if (node.else) visit(node.else); }
+  };
+  visit(action);
+  const arts = protections.filter(p => p.from?.length === 1 && p.from[0] === 'アーツ'
+    && (p.sourceOwner === 'opponent' || p.sourceOwner === 'any'));
+  if (arts.length !== 1) return action;
+  const protection = arts[0];
+  protection.sourceFilter = { ...(protection.sourceFilter ?? {}), costMax: parseNum(clauses[0][1]) };
+
+  // 1つの効果で「バニッシュされない」と上のアーツ耐性を同時に得る引用形。
+  // 既存 parser が後者だけを残すため、2 leaf を正しく復元し、付与先を「このシグニ」に固定する。
+  const paired = /このシグニは「【常】：バニッシュされない。?」と「【常】：コストの合計が[０-９\d]+以下の対戦相手のアーツの効果を受けない。?」を得る/.test(text);
+  if (paired && protection.target?.type === 'SIGNI' && protection.target.owner === 'self') {
+    protection.target = { ...protection.target, count: 1, filter: { thisCardOnly: true } };
+    return {
+      type: 'SEQUENCE',
+      steps: [
+        {
+          type: 'GRANT_KEYWORD',
+          target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+          keyword: 'バニッシュされない', duration: 'PERMANENT',
+        },
+        protection,
+      ],
+    } as SequenceAction;
+  }
+  return action;
+}
+
+/** AUTO/ACTIVATED の「エナに各レベルがそれぞれN枚以上ある場合」を解決時 Condition にする。 */
+function applyEnergyEachLevelGate(text: string, action: EffectAction): EffectAction {
+  const clauses = [...text.matchAll(/あなたのエナゾーンにレベル([０-９\d]+)[～〜]([０-９\d]+)の＜([^＞]+)＞のシグニがそれぞれ([０-９\d]+)枚以上ある場合/g)];
+  if (clauses.length !== 1) return action;
+  const c = clauses[0];
+  const levels: number[] = [];
+  for (let level = parseNum(c[1]); level <= parseNum(c[2]); level++) levels.push(level);
+  const condition: Condition = {
+    type: 'ENERGY_EACH_LEVEL_FILTER_GTE', owner: 'self',
+    filter: { cardType: 'シグニ', story: c[3] }, levels, minEach: parseNum(c[4]),
+  };
+  const alreadyWired = (node: EffectAction): boolean => {
+    if (node.type === 'CONDITIONAL') {
+      if (node.condition.type === 'ENERGY_EACH_LEVEL_FILTER_GTE') return true;
+      return alreadyWired(node.then) || (!!node.else && alreadyWired(node.else));
+    }
+    if (node.type === 'SEQUENCE') return node.steps.some(alreadyWired);
+    if (node.type === 'CHOOSE') return node.choices.some(choice => alreadyWired(choice.action));
+    return false;
+  };
+  if (alreadyWired(action)) return action;
+  return { type: 'CONDITIONAL', condition, then: action };
 }
 
 // 「他の自シグニ1体を対象」とした後に、STUB が対象を読まず発生源自身／全体へ作用する2文型。

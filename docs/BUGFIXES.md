@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第31バッチ＝合計レベル上限5効果とアーツ使用コスト上限3効果
+
+CSV原文の「レベルの合計がN以下になるように」を `EffectTarget.totalLevelMax` へ配線し、`WX11-033-BURST`／`WXK06-010-E1`／`WXK10-050-E2`／`WXDi-P08-034-E2`／`WX24-P2-006-E1` の5効果を是正した。開始時の実装調査で `totalLevelMax` の実消費は `execBanish` だけと判明したため、`execGrantKeyword`／`execSendToEnergy`／`execDown` に候補レベルmetadataを渡す選択経路を追加し、共通 `resumeSelectTarget` の合計再検証まで接続。候補0枚は空処理で閉じる。`WXK10-050-E2` の `ENERGY_BY_LEVEL_SUM_LIMIT` は実装済みだったが「自分のエナ全体のレベル超過を捨てる」別機能であり、原文どおり相手シグニ2体までをエナ送りする action へ置換した。`WXEX1-45-E3` は `SEARCH` に集合レベル制約の受け皿がないため、死フィールドや上限近似を足さず据置。
+
+アーツ耐性3効果は `GRANT_PROTECTION.sourceFilter:{costMax:1}` へ配線した。`matchesFilter` は `CardData.Cost` の `《色》×N` を合計しコインを除外するため、原文の「コストの合計」と一致する。CONTINUOUS の `WX16-034-LAYER`（内側ability）／`WX21-040-E2`（既存 `EICHI_LEVEL_SUM=11` 維持）は `collectEffectImmuneSigni` が action を直接評価し、AUTO の `WXK09-047-E1` は期間keywordに sourceFilterを直列化して同collectorで評価する経路を追加。同効果は欠落していた各レベル1～4の＜電機＞2枚条件、付与先 `thisCardOnly`、引用「バニッシュされない」も同時復元した。exact「レベルの合計がNになるように」のC群5効果は、SEARCH・複数ゾーン移動・任意コストを横断する exact 集合選択機構が必要なため (b) 据置とし、`totalLevelMax` 近似をしない契約をgolden固定した。
+
+全カード生パース差分は指定8効果＋既存MANUAL相当へparserが追いついた `WDK13-007-E1` の計9効果、未説明outlier 0。採用8効果は上限内／超過／0候補またはアーツコスト1／2の両方向E2Eを追加。`npm run regen`／`npm run gates` 全緑。golden **2555/2555**（2546→2555）、census **642/642**（647→642、定数・コメント更新）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A群/C群0、manual-fields 0、held/partial/idset **87/15/46**、manualEffects 412カード・削除候補1（`WX10-018-E1`）、Condition/ActiveCondition **122/52**据置。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch31_report.md`。
+
 ## 2026-08-23：§6.2 段2 第30バッチ＝レベル／パワー集約条件とレベル奇偶フィルタの脱落
 
 対象レベル奇偶3効果、直前カード奇偶1効果、盤面レベル合計の偶奇3効果、全数レベル偶数1効果、パワー合計閾値3効果、アシストルリグの多段レベル合計1効果をCSV原文とlive JSONで再照合した。既存 `TargetFilter.levelParity`／`LAST_PROCESSED_MATCHES`／`ALL_FIELD_SIGNI_MATCH` を流用し、`FIELD_LEVEL_SUM` は union数を増やさず `parity`・`metric:'power'`・`lrigRole:'assist'` を追加。AUTO/ACTIVATED側は `evalCondition`、CONTINUOUS側は `checkActiveCondition` の同じ `FIELD_LEVEL_SUM` caseで評価する。パワー合計は既存 `FIELD_SIGNI_POWER_COUNT` と同じく `effectivePowers` 優先、空盤面は合計0＝偶数、全数一致は既存契約どおり非空を要求してfalseとした。

@@ -1264,6 +1264,10 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcTokens = fromArr.filter(f => srcTypes.includes(f));
       // sourceCostMin:「コストの合計がN以上の、アーツとスペルの効果を受けない」（WX15-031）
       const costMinJa = a.sourceCostMin !== undefined ? `コストの合計が${a.sourceCostMin}以上の、` : '';
+      // sourceFilter.costMax:「コストの合計がN以下の対戦相手のアーツの効果を受けない」。
+      // 発生源カードを matchesFilter する実装と同じ制約を描き、無制限アーツ耐性との偽同一を防ぐ。
+      const srcCostMax = (a.sourceFilter as { costMax?: number } | undefined)?.costMax;
+      const costMaxJa = srcCostMax !== undefined ? `コストの合計が${srcCostMax}以下の` : '';
       // sourceFilter の**レベル上限**（「対戦相手のレベルN以下のシグニの効果を受けない」WXK10-035）。
       // これを描かないと、レベル1以下版とレベル2以下版が逆翻訳で**同じ文**になり
       // 「engine は区別しているのに原文照合では見えない」偽陰性になる（タスク12(cxiii)）。
@@ -1271,6 +1275,7 @@ function actionJa(a?: Action, effectType?: string): string {
       const srcLvJa = srcLvMax !== undefined ? `レベル${srcLvMax}以下の` : '';
       // ソース種別（ルリグ/シグニ等）の効果耐性 →「対戦相手の、ルリグとシグニの効果を受けない」
       if (srcTokens.length > 0) {
+        if (costMaxJa) return `${subject}は${costMaxJa}${ownerJa(a.sourceOwner)}${srcTokens.join('と')}の効果を受けない`;
         return `${subject}は${ownerJa(a.sourceOwner)}${costMinJa || (srcLvJa ? '' : '、')}${srcLvJa}${srcTokens.join('と')}の効果を受けない`;
       }
       if (fromArr.includes('any')) {

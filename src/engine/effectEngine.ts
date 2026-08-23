@@ -5478,6 +5478,25 @@ export function collectEffectImmuneSigni(
   // 'PROTECTION:<種別>:<owner>' を読み、解決中ソース種別が該当する場の自シグニ／センタールリグを免疫に加える。
   // （WX04-064「あなたのセンタールリグとあなたのシグニはアーツの効果を受けない」UNTIL_OPP_TURN_END 等）
   const protMatches = (kw: string): boolean => {
+    if (kw.startsWith('PROTECTION_FILTERED:')) {
+      try {
+        const spec = JSON.parse(kw.slice('PROTECTION_FILTERED:'.length)) as {
+          from?: string[];
+          sourceOwner?: string;
+          sourceFilter?: import('../types/effects').TargetFilter;
+          sourceCostMin?: number;
+          sourceEffectType?: import('../types/effects').CardEffect['effectType'];
+        };
+        if (spec.sourceOwner && spec.sourceOwner !== 'opponent' && spec.sourceOwner !== 'any') return false;
+        if (!sourceMatches(spec.from)) return false;
+        if (spec.sourceFilter && !matchesFilter(srcCard, spec.sourceFilter)) return false;
+        if (spec.sourceCostMin !== undefined && !matchesFilter(srcCard, { costMin: spec.sourceCostMin })) return false;
+        if (spec.sourceEffectType && spec.sourceEffectType !== sourceEffectType) return false;
+        return true;
+      } catch {
+        return false;
+      }
+    }
     if (!kw.startsWith('PROTECTION:')) return false;
     const parts = kw.split(':');
     const ownerStr = parts[2] ?? '';
