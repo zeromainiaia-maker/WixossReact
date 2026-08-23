@@ -24286,7 +24286,21 @@ scenarios.v44SummonTwoResonasFromLrigDeck = {
           const el = page.getByTestId('pick-1').first();
           if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'pick-1'; p1 = true; }
         }
-        if (!did && p0 && p1) { did = await H.clickTextOrBtn(['決定']); if (did) picked = true; }
+        if (!did && p0 && p1) {
+          // ⚠**押す前に「決定 (n/2)」を読む**（Opusタスク12(cxlvi)）＝選択が2枚そろっていない状態で
+          //   押すと `upTo` のこの効果は 1枚でも確定でき、「2枚まで選んだのに1枚しか出ない」FAIL を
+          //   「間欠バグ」に見せてしまう。ラベルを記録しておけば原因が一目で分かる。
+          const cb = page.getByRole('button', { name: /^決定/ }).first();
+          const cLabel = (await cb.count()) ? (await cb.innerText().catch(() => '')).replace(/\s+/g, '') : '(なし)';
+          H.log('  決定ラベル:', cLabel);
+          if (!/\(2\/2\)/.test(cLabel)) {
+            // 選択が欠けている＝クリックが1回落ちた。押さずに選び直す（次ループで pick を再試行）。
+            H.log('  🔴選択が2枚そろっていないので押さずに再選択する');
+            p0 = false; p1 = false;
+          } else {
+            did = await H.clickTextOrBtn(['決定']); if (did) picked = true;
+          }
+        }
       } else {
         did = await H.clickZone();
         if (did) zonesPlaced++;
@@ -24307,6 +24321,80 @@ scenarios.v44SummonTwoResonasFromLrigDeck = {
   },
 };
 order.push('v44SummonTwoResonasFromLrigDeck');
+
+// Opusタスク12(cxlvi)＝「２枚まで選んだのに1枚しか出ない」の再現プローブ。
+// 仮説＝**選択中に無関係な battle_states の更新が届くと、複数枚選択が黙って全部消える**
+//   （`BattleScreen.tsx` の「pending_effect が変わったら選択をリセット」useEffect が
+//    `bs?.pending_effect` の**オブジェクト同一性**を deps にしており、realtime は毎回
+//    新しいオブジェクトを渡すので、内容が同じでもリセットが走る）。
+// 手順＝pick-0 を選ぶ →「決定 (1/2)」を読む → **同値の turn_count を書き戻すだけの行更新**を投げる →
+//   もう一度ラベルを読む。**選択が生き残っていれば PASS**（修正前は (0/2) に戻る＝FAIL）。
+scenarios.v44SelectionSurvivesUnrelatedStateUpdate = {
+  title: 'V-44(a) 追加：複数枚選択中に無関係な盤面更新が来ても選択が消えない（Opusタスク12(cxlvi)）',
+  spec: scenarios.v44SummonTwoResonasFromLrigDeck.spec,
+  async drive(page, H) {
+    await H.ensureMain();
+    H.log('ルリグDK:', await H.clickTestId('my-lrig-dk') ?? '見つからず');
+    const before = await H.queryState();
+    let e0 = false; let e1 = false; let e2 = false; let castDone = false;
+    for (let s = 0; s < 20 && !castDone; s++) {
+      await page.waitForTimeout(700);
+      let did = null;
+      if (!did && !e0) { const el = page.getByTestId('artscost-energy-0').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e0'; e0 = true; } }
+      if (!did && e0 && !e1) { const el = page.getByTestId('artscost-energy-1').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e1'; e1 = true; } }
+      if (!did && e1 && !e2) { const el = page.getByTestId('artscost-energy-2').first(); if (await el.count() && await el.isVisible().catch(() => false)) { await el.click().catch(() => {}); did = 'e2'; e2 = true; } }
+      if (!did && e2) did = await H.clickBtn('アーツ使用', { exact: false });
+      if (!did) did = await H.clickTextOrBtn(['使用']);
+      if (!did) did = await H.clickTestId('zone-card-0');
+      const st = await H.queryState();
+      if (st?.pendingEffect === 'SELECT_TARGET') castDone = true;
+      H.log(`  probe-cast[${s}] -> ${did ?? 'なし'} | pEff=${st?.pendingEffect ?? '-'} hLrigDeck=${JSON.stringify(st?.host?.lrigDeckCards)}`);
+    }
+    if (!castDone) return { pass: false, detail: 'SELECT_TARGET まで到達しなかった（アーツ使用に失敗）' };
+    const confirmLabel = async () => {
+      const b = page.getByRole('button', { name: /^決定/ }).first();
+      if (!(await b.count())) return '(決定ボタンなし)';
+      return (await b.innerText().catch(() => '')).replace(/\s+/g, '');
+    };
+    const pick0 = page.getByTestId('pick-0').first();
+    let pickReady = false;
+    for (let k = 0; k < 10 && !pickReady; k++) {
+      await page.waitForTimeout(500);
+      pickReady = (await pick0.count()) > 0 && await pick0.isVisible().catch(() => false);
+    }
+    if (!pickReady) return { pass: false, detail: 'pick-0 が出ていない' };
+    await pick0.click();
+    await page.waitForTimeout(400);
+    const l1 = await confirmLabel();
+    H.log('  選択直後のラベル:', l1);
+    // 無関係な行更新＝turn_count を**同じ値**で書き戻すだけ（盤面は1ビットも変えない）。
+    const patched = await page.evaluate(async ({ SUPA_URL, ANON }) => {
+      const key = Object.keys(localStorage).find(k => /^sb-.*-auth-token$/.test(k));
+      const sess = JSON.parse(localStorage.getItem(key)); const token = sess.access_token; const uid = sess.user?.id;
+      const h = { apikey: ANON, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
+      const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'PLAYINGルームなし' };
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=turn_count`, { headers: h });
+      const turnCount = (await r2.json())?.[0]?.turn_count;
+      const r3 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}`, {
+        method: 'PATCH', headers: h, body: JSON.stringify({ turn_count: turnCount }),
+      });
+      return { ok: r3.ok, status: r3.status, turnCount };
+    }, { SUPA_URL, ANON });
+    H.log('  無関係な行更新:', JSON.stringify(patched));
+    await page.waitForTimeout(1800);
+    const l2 = await confirmLabel();
+    H.log('  行更新後のラベル:', l2);
+    const kept = l1 === l2 && /\(1\/2\)/.test(l2);
+    return {
+      pass: kept,
+      detail: kept
+        ? `選択が維持された（${l1} → ${l2}）`
+        : `🔴選択が消えた（${l1} → ${l2}）＝無関係な battle_states 更新で effectSelectedNums がリセットされている`,
+    };
+  },
+};
+order.push('v44SelectionSurvivesUnrelatedStateUpdate');
 // ── V-44 END ──
 
 // V-20：`WXDi-P10-039-E2`（蒼魔姫　リッチレーサー）「このカードが捨てられたとき、手札を１枚捨ててもよい。

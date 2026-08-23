@@ -1,5 +1,38 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23（続き636）：Opusタスク12 (cxlvi) 残0クローズ＝**「２枚まで選んだのに1枚しか出ない」の正体は engine ではなく UI の選択リセット**（無関係な盤面更新で複数枚選択が全部消える）
+
+**症状（続き584 の登録票）**＝`WX16-Re18-E1`（レゾナンス・マーチ）で「レゾナ２枚まで」を2枚選ぶと、**4回中2回だけ**1枚しか場に出ず2枚目がルリグデッキに取り残される。登録時の見立ては「1枚目配置後の自動継続配置（`INTERNAL_PLACE_SUMMONED_RESONAS`）が間欠的に発火しない engine バグ」。
+
+**⚠見立ては誤りだった（2つとも）**：
+1. **engine は正しい**＝`executeEffect`→`resumeSelectTarget`→`resumeSelectSigniZone` を headless で直接叩き、**選択順2通り × 配置ゾーン2通りの4通りすべてで2枚とも配置**されることを確認（`lrig_deck` も空になる）。
+2. **「間欠・非決定的」でもない**＝原因が分かれば**決定論的に再現できる**。
+
+**真因**＝`BattleScreen.tsx` の「pending_effect が変わったらカード選択をリセット」`useEffect` が **`bs?.pending_effect` のオブジェクト同一性**を deps にしていた。realtime は `battle_states` の行が更新されるたび `setBs(payload.new as BattleStateRow)` で**毎回新しいオブジェクト**を渡すので、**pending の中身が1ビットも変わっていなくてもこの effect が再実行され、`setEffectSelectedNums([])` が選択中の複数枚を黙って全部消す**。
+- 相手の操作・CPU タイマー・realtime 再購読（`SUBSCRIBED` 時の再フェッチ）など、**選択中に届く行更新なら何でも**引き金になる＝「4回中2回」の正体。
+- しかも **`upTo`（「N枚まで」）の効果は 0〜1枚でも「決定」できる**ので、プレイヤーは2枚選んだつもりのまま**過少実行で完了**する（選択が消えたことに気づけない）。
+
+**再現（決定論的）**＝新規実機シナリオ **`v44SelectionSurvivesUnrelatedStateUpdate`**：pick-0 を選んで「決定 (1/2)」を読む → **`turn_count` を同値で書き戻すだけ**の PATCH（盤面は1ビットも変えない）を投げる → もう一度ラベルを読む。**修正前＝決定(1/2) → 決定(0/2)**。
+
+**直し方**＝**内容の同一性キーを deps にする**。
+```ts
+const pendingEffectKey = useMemo(() => (bs?.pending_effect ? JSON.stringify(bs.pending_effect) : null), [bs]);
+useEffect(() => { setEffectSelectedNums([]); … }, [pendingEffectKey]);
+```
+⚠**`useMemo` の deps は `bs` 丸ごとにする**＝`[bs?.pending_effect]` と書くと React Compiler が「推論した依存（`bs`）より狭い」と判定して**最適化をスキップし lint error**（`Compilation Skipped: Existing memoization could not be preserved`）になる。毎更新で再計算されるが、**返る文字列が同じなら useEffect は再実行されない**ので目的は達する。
+⚠**確定後の明示リセットは残す**（`handleEffectInteraction` 末尾の `setEffectSelectedNums([])`）＝内容が同一な pending が連続したときにキーが変わらないため、リセットはこちらが担う。
+
+**検証**＝実機（`verifyBattleDrive.mjs`）
+- `v44SelectionSurvivesUnrelatedStateUpdate`＝**修正前 FAIL（1/2→0/2）→ 修正後 PASS（1/2 のまま）**＝反転確認。
+- `v44SummonTwoResonasFromLrigDeck`＝**3回連続 PASS**（従来は4回中2回 FAIL）。あわせて**「決定」を押す前にラベルが `(2/2)` か確かめ、欠けていたら押さずに選び直す**ようシナリオを強化した（押すと `upTo` は少ない枚数でも通り、FAIL が「間欠」に見えてしまうため）。
+- 回帰（BattleScreen 全体に効く変更なので modal 経路を横断確認）＝`ontargeted`／`v20DiscardPayBothReturnsToField`／`v20DiscardSkipFirstBlocksSecond`／`v45cPaySelfBanishRemovesOnlyFiltered`／`v45cSkipSelfBanishDoesNothing`／`v58dChoice1CountersAndExilesOriginal`／`v58eChoice2DrawsChargesThenOriginalResolves` の**7本すべて PASS**。
+- `npm run gates` 全緑（golden 2651 / census 608 据置 / smoke 10693 全0 / fuzz 全0 / lint 0 errors・warnings 270→269）。
+
+**教訓**：
+- 🔑**「間欠」と報告されたバグはまず決定論化を試す**＝engine を headless で全条件叩いて潰し、残った差分（＝UI/永続化層）へ**外から刺激を1発入れる**プローブを書くと再現する。**(cxlix) の「レース」と同型の層**（`persist.commit` と React 反映が別タイミング）で、この層は golden では守れない＝**実機シナリオを回帰トリップワイヤとして残す**。
+- 🔑**React の deps に「realtime で毎回作り直されるオブジェクト」を置かない**＝行が更新されるたび**入力途中の UI 状態が消える**。この `BattleScreen.tsx` には同型の `useEffect` が他にもあるが、`bs?.effect_stack`（`stackOrderIds`）と `LOOK_AND_REORDER`（`lookReorder*`）は**中身が同じなら state を作り直さない `same` ガードを内側に持っている**＝無防備だったのは `setEffectSelectedNums([])` だけだった。
+- 🔑**登録票の「見立て」は今回も実測と食い違った**（§3 の教訓(a)・続き635 に続き2セッション連続）。
+
 ## 2026-08-23：Opusタスク12 (clii)(cli) 残0クローズ＝`collectLeaveFieldTriggers` の self ループに**ゲート群が面で欠けていた**／「あなたのメインフェイズ」がターンプレイヤーを見ていなかった
 
 **(clii) 症状**＝ON_LEAVE_FIELD の self スコープ（＝離れたカード自身の【自】）が、watcher ループには在るゲートをいくつも評価していなかった。**ゲートが無い＝JSON に条件を足しても恒久 no-op**（条件が効かないまま過剰発火し、`census` にも `census:stubs` にも映らない）。この collector は同じ穴を**通算5回**出している（`turnOwner`／`leftStateFilter`／`byOpponentEffect`／`outsideMainPhase`／`leftToZone`）ので、**単発ではなく面で埋めた**。

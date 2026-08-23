@@ -1254,6 +1254,23 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
     return collectHandGuardIconClasses(myS, battleCardMap, effectsMap, opS, myTurn);
   }, [bs, battleCardMap, effectsMap, user.id]);
 
+  // pending_effect の**中身**の同一性キー。
+  // 🔴**オブジェクト同一性（`bs?.pending_effect`）を deps にしてはいけない**（Opusタスク12 (cxlvi)）＝
+  //   realtime は `battle_states` の行が更新されるたびに `setBs(payload.new)` で**新しいオブジェクト**を渡すので、
+  //   pending が1ビットも変わっていなくても下の useEffect が再実行され、
+  //   **プレイヤーが選択中の複数枚（`effectSelectedNums`）が黙って全部消える**。
+  //   実害＝「２枚まで選ぶ」で選択途中に無関係な行更新（相手の操作・CPU タイマー・realtime 再購読）が届くと
+  //   選択が 0 に戻り、`upTo` の効果は 0/1 枚でも「決定」できてしまうため**過少実行のまま完了する**
+  //   （`WX16-Re18-E1`＝「2枚選んだのに1枚しか場に出ない」の正体。実機プローブ
+  //    `v44SelectionSurvivesUnrelatedStateUpdate` で「決定(1/2)→決定(0/2)」を決定論的に再現した）。
+  //   ⚠deps は `bs` 丸ごとにする（`bs?.pending_effect` だと React Compiler が
+  //     「推論した依存（bs）より狭い」と判定して最適化をスキップし lint error になる）。
+  //     毎更新で再計算されるが、**返る文字列が同じなら下の useEffect は再実行されない**＝目的は達する。
+  const pendingEffectKey = useMemo(
+    () => (bs?.pending_effect ? JSON.stringify(bs.pending_effect) : null),
+    [bs],
+  );
+
   // pending_effectが変わったらカード選択をリセット（別効果の選択状態が残らないように）
   useEffect(() => {
     setEffectSelectedNums([]);
@@ -1267,8 +1284,8 @@ export default function BattleScreen({ user, roomId, myDeckId, cards, onBack }: 
       setLookReorderTrash(prev => (prev.size === 0 ? prev : new Set()));
       setLookReorderBottom(prev => (prev.size === 0 ? prev : new Set()));
     }
-
-  }, [bs?.pending_effect]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingEffectKey]);
 
   // 効果スタック整列UI の更新
   useEffect(() => {

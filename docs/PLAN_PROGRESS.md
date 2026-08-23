@@ -4,6 +4,21 @@
 
 ## 過去セッション要約（新しい順）
 
+- **セッション（2026-08-23・続き635・Opus 5）＝Opusタスク12 の在庫 (clii)+(cli) を残0クローズ**（在庫 **3→1**＝残るは (cxlvi) のみ）。**golden 2647→2651**（新規4本＝すべてトリップワイヤ確認済み）／**census 608 据置**／**live 修正 13効果**（outsideMainPhase 10＋fromLeftFieldUnder 3）。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、文型★ 323 据置、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors、**held 81 据置**、partial/idset **15/46** 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23。
+
+  | 件 | 中身 | live 修正 | 一言 |
+  |---|---|---:|---|
+  | (clii) | `collectLeaveFieldTriggers` の **self ループにゲート群が面で欠けていた** | 10 | `byOwnEffect`／`byEffect`／`outsideMainPhase`・`duringMainPhase`／`leftToZone` を追加。watcher 2ループにも main phase ゲート |
+  | (clii) D014 | 「あなたのメインフェイズ以外で」を parser が落としていた | （同上） | **母集団は登録票の3件ではなく12カード**＝ON_LEAVE_FIELD／ON_BANISH／引用付与の3経路すべてに効いた |
+  | (clii) E018 | 「このシグニの**下にあった**」が落ちて**トラッシュの同クラスなら何でも回収**できた | 3 | 新語彙を作らず既存 `source.fromLeftFieldUnder` へ配線＋`collectBanishTriggers` に離場直前 snapshot |
+  | (cli) | `TAKE_FROM_UNDER_SIGNI` の「そうした場合」 | 0 | **実測したら engine は段2 第11バッチで既に直っていた**＝golden にトリップワイヤ＋直接経路の記録＋逆翻訳の計器化（follow-up①） |
+
+  - 🔑**「あなたのメインフェイズ」はフェイズだけでなくターンプレイヤーも見る**（新ヘルパ `mainPhaseGateOk`）＝旧実装は全 collector が `ctx.turnPhase` だけを見ており、**対戦相手のメインフェイズを「あなたのメイン」に数えていた**（`duringMainPhase`＝過剰発火／`outsideMainPhase`＝過小発火）。ON_TRASH／ON_BANISH／ミルの各 collector も同じ規約へ揃えた。⚠**`collectFieldTriggers` の any_ally/any_opp だけは例外**（ターン限定を後段 `effectStack.turnGateOk` へ委ねる既存規約＝ソースに明示コメントを残した）。
+  - 🔑**登録票の見立ては3件とも実測とズレていた**（§3 の教訓(a)がまた当たった）＝(clii) の `byOpponentEffect` は**段2 第9バッチで先行着地済み**／D014 の母集団は 3件ではなく **12カード**／(cli) の engine 側は**第11バッチで解決済み**。**着手前に必ず実測**。
+  - 🔑**新語彙を作る前に既存機構を探す**＝E018 は `TargetFilter.underLeftCard`（カード名へ解決する旧語彙）を一度 parser へ配線したが、**`source.fromLeftFieldUnder`（インスタンス単位で `ctx.leftFieldUnderCards` と積集合を取る）が既に engine の2経路に実装済み**だったので差し替えた（名前一致より厳密）。⚠一度 live に載った `underLeftCard` は held 経由で巻き取った。
+  - **▶ 次の一手【Opus 側】**＝①**「型はあるが live 利用が極端に少ない語彙」の計器**（9回連続で当たっている型・最優先）②段2 の OPEN 消化継続（残 734）③引用能力 STUB の展開④§6.3 `L`。**Opusタスク12 の在庫は (cxlvi) 1件**（実機でしか再現しない非決定的バグ＝Claude が再現条件を確定させるのが先）。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。🆕**`V-86`（今回の3経路）を新設**。続き588 の6件／`V-85`／`V-84`／`V-83` も未消化。🔴続き616〜634 の21バッチも実機未検証のまま。
+
 - **セッション（2026-08-23・続き634・Opus 5）＝段2 を3バッチ（第41〜43）＋PC 落ちからの復旧**。**残 OPEN 746→734**（**−12**）／段2 消化 **363→406**／**live 修正 43効果**。**census 608 据置**／**golden 2639→2647**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、文型★ 323 据置、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、**held 82→81**、partial/idset **15/46** 据置。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23。
 
   | # | 題材 | live 修正 | 一言 |
