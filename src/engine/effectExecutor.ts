@@ -3439,8 +3439,20 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     const lrigName = s.field.lrig?.length
       ? (ctx.cardMap.get(getCardNum(s.field.lrig.at(-1) ?? ''))?.CardName ?? 'ルリグ')
       : '';
-    const newS: PlayerState = { ...s, field: { ...s.field, lrig_down: false } };
-    return done(addLog(setOwnerState(a.target.owner, newS, ctx), `${lrigName}をアップ`));
+    // 「あなたの**すべての**ルリグをアップする」（続き634・`WX25-P2-048-E1`）＝センターだけでなく
+    // **アシストルリグ2枠**も起こす。⚠`count:'ALL'` はここでしか消費されない＝parser 側だけ直しても
+    // 挙動は変わらない（§5-14 の死フラグ）。既定（`count:1` ほか）は**従来どおりセンターだけ**。
+    const upAllLrig = a.target.count === 'ALL';
+    const newS: PlayerState = {
+      ...s,
+      field: {
+        ...s.field,
+        lrig_down: false,
+        ...(upAllLrig ? { assist_lrig_l_down: false, assist_lrig_r_down: false } : {}),
+      },
+    };
+    return done(addLog(setOwnerState(a.target.owner, newS, ctx),
+      upAllLrig ? 'すべてのルリグをアップ' : `${lrigName}をアップ`));
   }
   // owner:'any'（修飾語なし「シグニ1体を対象とし」）は両フィールドから候補を集める（タスク12(lii)）
   const { cands: rawCandsUp, scope } = fieldCandidatesByOwner(a.target.owner, a.target.filter, ctx);

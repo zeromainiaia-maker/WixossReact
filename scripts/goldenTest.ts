@@ -108,7 +108,7 @@ import { isHandSigniPlayBlockedByPower, isSigniAutoAbility, findSigniAutoPayGate
 import { listActivatableSigniEffects } from '../src/screens/battle/signiActivateGate';
 import { CPU_AUTO_PAYABLE_COST_KEYS, activatedEnergyCostStr, cpuCanAutoPayActivatedCost, pickCpuSigniActivated, selectEnergyIndicesForCost } from '../src/screens/battle/cpuActivate';
 import { buildArtsPayerCtx, checkArtsUse, isArtsUseBlockedFor } from '../src/screens/battle/artsUseGate';
-import { signiClauseColorFilter } from '../src/data/parserUtils';
+import { signiClauseColorFilter, hasAllSubject } from '../src/data/parserUtils';
 import { CPU_UNSUPPORTED_ACTION_TYPES, cpuCanPayArtsWithEnergyOnly, defensiveKindOf, hasBlockedAttacker, hasCpuUnsupportedAction, hasIncomingThreat, pickCpuOffensiveArts, pickCpuResponseArts, responseArtsAllowedKinds } from '../src/screens/battle/cpuArts';
 import { cpuAttackValueOf, pickCpuAttackZone, pickCpuDeployCard } from '../src/screens/battle/cpuBoardEval';
 import { checkSpellUse } from '../src/screens/battle/spellUseGate';
@@ -44584,6 +44584,90 @@ test('段2 第38バッチ 据置契約: 依存filter・レベル別場出し・�
   ok(dependent.type === 'LOOK_AND_REORDER', '1枚目依存の共通色なしは群制約へ誤変換しない');
   ok(levels.type === 'LOOK_AND_REORDER', 'レベル1/2/3各1枚は第39バッチと重なるため据置');
   ok(cross.type === 'CHOOSE' && JSON.stringify(cross).includes('"maxCount":1'), '動的クロス構成枚数は固定groupsへ誤変換しない');
+});
+
+// ── 段2 第41バッチ：集合主語（「すべての〈X〉」）が count:1 へ潰れる ──
+const freshBatch41 = freshBatch38;
+
+test('段2 第41バッチ parser契約: 集合主語を count:"ALL" で表す（所有者の限定が無ければ owner:any）', () => {
+  for (const [cardNum, effectId, needles] of [
+    // 「すべての＜天使＞のシグニをバニッシュする」＝所有者の限定が無い＝両プレイヤー
+    ['WX05-027', 'WX05-027-BURST', ['"owner":"any","count":"ALL"', '"story":"天使"']],
+    // 「対戦相手のすべてのシグニをデッキの一番下に置く」
+    ['WXDi-CP02-036', 'WXDi-CP02-036-E1', ['"owner":"opponent","count":"ALL"', '"position":"bottom"']],
+    // 「あなたのすべてのルリグをアップする」
+    ['WX25-P2-048', 'WX25-P2-048-E1', ['"type":"LRIG","owner":"self","count":"ALL"']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch41(cardNum, effectId).action);
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+});
+
+test('段2 第41バッチ 非拡大契約: 条件節「すべてのシグニが〈X〉の場合」は対象ではない', () => {
+  // ⚠ここが崩れると条件節を対象へ引き込む（ALL_FIELD_SIGNI_MATCH の担当を奪う）＝過剰実行。
+  ok(!hasAllSubject('あなたの場にあるすべてのシグニが＜ブルアカ＞の場合', 'シグニ'), '「〜が〈X〉の場合」は集合主語ではない');
+  ok(!hasAllSubject('あなたの場にあるすべてのシグニが白であるかぎり', 'シグニ'), '「〜であるかぎり」も集合主語ではない');
+  ok(!hasAllSubject('対戦相手のすべてのシグニ２体を対象とし', 'シグニ'), '体数が明示されているなら集合主語ではない');
+  ok(hasAllSubject('あなたのすべての＜武勇＞のシグニは', 'シグニ'), '修飾語が挟まっても集合主語として拾う（陽性対照）');
+  ok(hasAllSubject('あなたのすべてのルリグをアップする', 'ルリグ'), 'ルリグ側の陽性対照');
+});
+
+test('段2 第41バッチ E2E: WX25-P2-048-E1 はセンターとアシスト2枠をすべて起こす', () => withSavedCursor(() => {
+  const action = freshBatch41('WX25-P2-048', 'WX25-P2-048-E1').action;
+  const lrig = fresh();
+  const mk = () => {
+    const ctx = mkCtx({ lrig: [lrig], assistL: [fresh()], assistR: [fresh()] }, {});
+    ctx.ownerState.field.lrig_down = true;
+    ctx.ownerState.field.assist_lrig_l_down = true;
+    ctx.ownerState.field.assist_lrig_r_down = true;
+    return ctx;
+  };
+  const after = run(action, mk());
+  eq(after.ownerState.field.lrig_down, false, 'センタールリグが起きる');
+  eq(after.ownerState.field.assist_lrig_l_down, false, '左アシストも起きる');
+  eq(after.ownerState.field.assist_lrig_r_down, false, '右アシストも起きる');
+  // 対照＝「すべての」でない従来形（count:1）はセンターだけ。ここが崩れると全効果が拡大する。
+  const centerOnly = run({ type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } } as EffectAction, mk());
+  eq(centerOnly.ownerState.field.lrig_down, false, '対照: センターは起きる');
+  eq(centerOnly.ownerState.field.assist_lrig_l_down, true, '対照: アシスト左は伏せたまま');
+  eq(centerOnly.ownerState.field.assist_lrig_r_down, true, '対照: アシスト右は伏せたまま');
+}));
+
+test('段2 第41バッチ E2E: WXDi-CP02-036-E1 は相手シグニを全部デッキ下へ送る', () => withSavedCursor(() => {
+  const action = freshBatch41('WXDi-CP02-036', 'WXDi-CP02-036-E1').action;
+  const a = fresh(); const b = fresh(); const c = fresh();
+  const ctx = mkCtx({}, { signi: [a, b, c] });
+  const after = run(action, ctx);
+  eq(after.otherState.field.signi.filter(z => z && z.length).length, 0, '3体すべてが場から消える');
+  for (const n of [a, b, c]) ok(after.otherState.deck.includes(n), `${n} がデッキへ戻る`);
+  // 対照＝1体だけ置く従来形は残り2体が場に残る（ALL が「全部」を意味していることの反証側）。
+  const one = run({ type: 'TRANSFER_TO_DECK', source: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, shuffle: false, position: 'bottom' } as EffectAction, mkCtx({}, { signi: [a, b, c] }));
+  eq(one.otherState.field.signi.filter(z => z && z.length).length, 2, '対照: count:1 なら2体残る');
+}));
+
+test('段2 第41バッチ E2E: WX05-027-BURST① は両プレイヤーの＜天使＞だけを全部バニッシュする', () => withSavedCursor(() => {
+  const angel = findCard(c => isSigni(c) && (c.CardClass ?? '').includes('天使'));
+  const other = findCard(c => isSigni(c) && !(c.CardClass ?? '').includes('天使'));
+  const burst = freshBatch41('WX05-027', 'WX05-027-BURST').action as { choices: { action: EffectAction }[] };
+  const banish = burst.choices[0].action;
+  const ctx = mkCtx({ signi: [angel, other, null] }, { signi: [angel, other, null] });
+  const after = run(banish, ctx);
+  ok(!after.ownerState.field.signi.some(z => z?.at(-1) === angel), '自分の＜天使＞が消える');
+  ok(!after.otherState.field.signi.some(z => z?.at(-1) === angel), '相手の＜天使＞も消える');
+  ok(after.ownerState.field.signi.some(z => z?.at(-1) === other), '対照: ＜天使＞でない自分のシグニは残る');
+  ok(after.otherState.field.signi.some(z => z?.at(-1) === other), '対照: ＜天使＞でない相手のシグニも残る');
+}));
+
+test('段2 第41バッチ 非採用契約: 表せない集合主語は据置（うっかり採用を防ぐ）', () => {
+  // ①「次にバニッシュされる場合、バニッシュされない」＝**1回消費**の語彙が GrantProtectionAction に無い。
+  //   集合へ広げると「全体が恒久で無敵」になり、現状（1体・恒久）より悪い過剰実行になる。
+  const oneShot = JSON.stringify(freshBatch41('WX15-010', 'WX15-010-E1').action);
+  ok(oneShot.includes('"count":1'), 'WX15-010-E1: 1回消費を表せないので集合化しない');
+  ok(!oneShot.includes('"subjectFilter"'), 'WX15-010-E1: 集合宣言へ流さない');
+  // ②「あなたのすべてのルリグは以下の能力を得る」＝GRANT_LRIG_ABILITY はセンターにしか付与できない
+  //   （アシストへ付与する語彙が型にも engine にも無い）。フィールドだけ足すと死フラグになる。
+  const grantAll = freshBatch41('WXDi-P15-004', 'WXDi-P15-004-E1').action as { type: string };
+  eq(grantAll.type, 'GRANT_LRIG_ABILITY', 'WXDi-P15-004-E1: 付与先を広げる語彙が無いので据置');
 });
 
 // ── 段2 第39バッチ：レベル条件（静的上限／参照値比較／合計制約） ──

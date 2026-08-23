@@ -58,7 +58,7 @@ import type {
 } from '../../types/effects';
 import {
   blockUntilFromText,
-  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
+  parseNum, parseSigniTarget, parsePowerFilter, parseLevelFilter, parseColorFilter, parseCardTypeFilter, parseCostTotalFilter, parseStoryFilter, parseColorMatchesLrig, parseGuardFilter, parseIconFilter, parseNoAbilitiesFilter, parseExcludeCardNameFilter, extractNounPhraseFilter, parseLevelLteLastProcessed, parseLastProcessedComparison, parseNameFilter, parseEnergyCosts, parseStateFilter, parseSelfComparison, parseTriggerComparison, parsePrintedComparison, toHalf, signiClauseOwner, fusedLookPickSentence, isSplitTopBottomReorder, hasOtherSelfSigniNoun, hasAllSubject, signiClauseStoryFilter, signiClauseIconFilter, signiClauseLevelFilter, signiClausePowerFilter, signiClauseColorFilter, signiClauseDisonaFilter, signiClauseTargetSpec,
 } from '../parserUtils';
 
 /**
@@ -2617,8 +2617,15 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
     //   従来これが無く、下の裸 SIGNI フォールバックへ落ちて **`UP{SIGNI}`＝シグニをアップ**に化けていた
     //   （実測9効果。原文「そのルリグをアップし」）。⚠**live 全9件とも効果主自身のルリグ**を指す
     //   （相手のルリグを指す用例は0件＝原文照合済み）ので owner:'self' で正しい。
-    if (t.match(/(この|その(?:センター)?|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/)) {
-      return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: 1 } };
+    {
+      const upLrigM = t.match(/(この|その(?:センター)?|あなたの(?:センター)?|あなたのすべての)ルリグ[をが]アップ(する|し)/);
+      if (upLrigM) {
+        // 「あなたの**すべての**ルリグをアップする」（続き634・`WX25-P2-048-E1`）＝センターだけでなく
+        // アシストルリグも起こす。⚠**`count:'ALL'` を消費するのは `execUp` の LRIG 分岐**（そこで
+        // `assist_lrig_l_down` / `assist_lrig_r_down` も倒す）。片方だけ直すと JSON だけ変わって挙動は同じ。
+        const allLrig = upLrigM[1] === 'あなたのすべての';
+        return { type: 'UP', target: { type: 'LRIG', owner: 'self', count: allLrig ? 'ALL' : 1 } };
+      }
     }
     if (hasOtherSelfSigniNoun(t)) return { type: 'UP', target: parseSigniTarget(t, 'self') };
     // ⚠**「他の」ゲートの穴**（続き377・(i)配線ギャップ 第6バッチ）＝従来はここが `count:1`・filter 無しの裸の
@@ -4315,7 +4322,10 @@ export function parseSentencePart1(t: string, cardNum?: string): EffectAction | 
   if (!isRevealedRemainderToDeckBottom && t.match(/デッキの一番下に置く/) && (t.includes('シグニ') || t.includes('それ'))) {
     const owner: Owner = t.includes('対戦相手') ? 'opponent' : 'self';
     const cM = t.match(/([０-９\d]+)体/);
-    const count = cM ? parseNum(cM[1]) : 1;
+    // 「対戦相手の**すべての**シグニをデッキの一番下に置く」＝集合主語（続き634・`WXDi-CP02-036-E1`）。
+    // ⚠従来は体数表記が無いと無条件で `1` へ潰れ、**全体除去が1体除去に化ける過小実行**だった。
+    // `hasAllSubject` は条件節（「〜がXの場合」）と体数明示を除外する（parserUtils の同関数を参照）。
+    const count: number | 'ALL' = cM ? parseNum(cM[1]) : (hasAllSubject(t, 'シグニ') ? 'ALL' : 1);
     // 「対戦相手のレベルNのシグニ」等のレベル指定をフィルタに反映（G100）
     // ⚠この `lvM` は「レベル**N**の」＝**丁度**しか見ておらず、「レベルN**以上／以下**の」を取りこぼす。
     //   下の filter で `signiClauseLevelFilter`（対象名詞句に隣接する範囲レベル）を併用する（続き377d）。

@@ -656,13 +656,43 @@ export function signiClauseOwner(text: string, fallback: Owner = 'self'): Owner 
   return 'any';
 }
 
+/**
+ * 「（あなた|対戦相手）の **すべての**〈修飾〉シグニ／ルリグ」＝**集合主語**の検出（続き634）。
+ *
+ * 従来の `text.includes('すべてのシグニ')` は**修飾語が間に入る形を取りこぼす**＝
+ * 「すべての**＜武勇＞の**シグニ」「**クロス状態の**すべてのシグニ」が `count:1` へ潰れ、
+ * **全体に効くはずの効果が1体にしか効かない過小実行**になっていた（`WX15-010-E1` ほか）。
+ *
+ * ⚠**条件節は絶対に拾わない**＝「あなたの場にあるすべてのシグニが〈X〉の**場合／であるかぎり**」は
+ *   `ALL_FIELD_SIGNI_MATCH`（条件）の担当であって**対象ではない**。ここで拾うと
+ *   「条件節を対象へ引き込む」既知の事故（parserUtils 冒頭が警告している型）になる。
+ *   ⇒ 名詞の直後が **`が`** で、その節が `の場合`／`かぎり` で閉じる形は除外する。
+ * ⚠**「N体」「N枚」の明示があるときは集合主語ではない**（「すべての」が別の名詞に掛かっている）。
+ * ⚠**読点・句点を跨がない**（`[^。、]`）＝別の節の「すべての」を引き込まないため。
+ */
+export function hasAllSubject(text: string, noun: 'シグニ' | 'ルリグ' = 'シグニ'): boolean {
+  const re = new RegExp(`(?:すべて|全て)の(?:[^。、]{0,12}?)${noun}`);
+  const m = text.match(re);
+  if (!m || m.index === undefined) return false;
+  const after = text.slice(m.index + m[0].length);
+  // 「〜が〈X〉の場合／であるかぎり」＝条件節（ALL_FIELD_SIGNI_MATCH の担当）は対象ではない
+  if (/^が[^。、]{0,16}(?:の場合|であるかぎり|かぎり)/.test(after)) return false;
+  // 明示の体数／枚数があるなら集合主語ではない
+  if (new RegExp(`${noun}(?:を)?[０-９\\d]+(?:体|枚)`).test(text)) return false;
+  return true;
+}
+
 export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   const all = text.includes('すべてのシグニ') || text.includes('全てのシグニ') ||
-              text.includes('シグニすべて') ||
+              text.includes('シグニすべて') || hasAllSubject(text, 'シグニ') ||
               (!text.includes('このシグニ') && !!text.match(/シグニのパワーを/) && !text.match(/シグニ([０-９\d]+)体/));
   const upToM = text.match(/シグニを?([０-９\d]+)体まで/);
   const countM = text.match(/シグニを?([０-９\d]+)体/);
   const count = all ? 'ALL' : (upToM ? parseNum(upToM[1]) : (countM ? parseNum(countM[1]) : 1));
+  // 「**すべての**＜天使＞のシグニをバニッシュする」＝所有者の限定が無い集合主語は**両プレイヤー**が対象
+  // （続き634・`WX05-027-BURST`）。⚠呼び出し元の既定 owner（多くは 'self'）のままだと
+  // **自分のシグニだけを消す**原文と逆の効果になる。修飾語が1つも無いときに限る。
+  const ownerResolved: Owner = (all && !/あなた|自分|対戦相手|相手の/.test(text)) ? 'any' : owner;
   const filter: TargetFilter = {
     cardType: 'シグニ',
     ...parsePowerFilter(text),
@@ -738,7 +768,7 @@ export function parseSigniTarget(text: string, owner: Owner): EffectTarget {
   Object.assign(filter, parseAnyAllyComparison(text));
   // 「表記されているパワーよりパワーの低い/高い」= 各候補の実効パワー vs 自身の表記パワー（WX25-CP1-093/WXK10-027）
   Object.assign(filter, parsePrintedComparison(text));
-  return { type: 'SIGNI', owner, count, filter, upToCount: !!upToM };
+  return { type: 'SIGNI', owner: ownerResolved, count, filter, upToCount: !!upToM };
 }
 
 export function hasOtherSelfSigniNoun(text: string): boolean {
