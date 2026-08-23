@@ -1710,8 +1710,16 @@ export function parseSentencePart4(t: string): EffectAction | null {
         { type: 'STUB', id: 'SELECT_TARGET_ONLY', selectTarget: target } as EffectAction,
         { type: 'STUB', id: 'STORE_LAST_PROCESSED_TARGETS' } as EffectAction,
         { type: 'STUB', id: 'OPTIONAL_COST', trashOwnKey: true } as EffectAction,
+        // 🔴**帰結の体数は「宣言側」に揃える**（2026-08-24・V-35(b) の実機で発見）＝原文は
+        //   「シグニを**２体まで**対象とし…**それら**をバニッシュする」なのに、ここが `count:1` 固定だったため
+        //   **2体を対象宣言してキーを払っても1体しか消えなかった**（`targetsStored` は候補を絞るだけで
+        //   体数は `target.count` から取る＝`execBanish`）。汎用の `bindToStoredTarget` が同じ是正を
+        //   持っているのにこの規則だけ自前で組み立てていて漏れていた。
+        //   ⚠**母集団は実測1件**（`targetsStored` を持つ live 170アクションのうち、宣言 count>1 なのに
+        //     実行 count=1 なのは `WDK06-R09-E1` だけ）。
         { type: 'CONDITIONAL', condition: { type: 'PAID_ADDITIONAL_COST' },
-          then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: 1, filter: { cardType: 'シグニ' } }, targetsStored: true } } as EffectAction,
+          then: { type: 'BANISH', target: { type: 'SIGNI', owner: 'opponent', count: target.count,
+            ...(target.upToCount ? { upToCount: true } : {}), filter: { cardType: 'シグニ' } }, targetsStored: true } } as EffectAction,
       ] } as EffectAction;
     }
   }

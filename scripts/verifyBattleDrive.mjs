@@ -22957,6 +22957,7 @@ scenarios.wdk06r09Pay = {
     const before = await H.queryState();
     H.log('開始時 guest.fieldSigni:', JSON.stringify(before?.guest?.fieldSigni), 'host.keyPiece:', before?.host?.keyPiece);
     let candidatesChecked = false; const picked = new Set(); let targetsConfirmed = false; let paid = false;
+    const picked2 = new Set();   // 支払い後の再確認 SELECT_TARGET 用（トグル対策）
     for (let s = 0; s < 40; s++) {
       await page.waitForTimeout(700);
       let did = null;
@@ -22977,6 +22978,23 @@ scenarios.wdk06r09Pay = {
       if (!did && targetsConfirmed && !paid) {
         const pay = await H.clickTestId('optcost-pay');
         if (pay) { did = pay; paid = true; }
+      }
+      // ⚠**支払いの後にもう一度 SELECT_TARGET が出る**（`fixedCardNums` で2件に絞られた再確認＝
+      //   `lxivMultiTargetPayBanishesBoth` と同じ形）。ここを解決しないと `pEff=SELECT_TARGET` のまま
+      //   40ティック空振りする（2026-08-24 実測＝engine 修正後にこの段まで進めるようになって初めて露見した）。
+      if (!did && paid) {
+        const st1 = await H.queryState();
+        const n2 = Array.isArray(st1?.pendingCandidates) ? st1.pendingCandidates.length : 0;
+        // ⚠🔴**候補は1つにつき1回だけ押す**＝同じ index を押し直すと**トグルで選択が外れ**、
+        //   永久に決定へ到達しない（V-19 でも踏んだ既知の罠）。押した index を集合で覚える。
+        if (n2 > 0 && picked2.size < n2) {
+          for (let i = 0; i < n2; i++) {
+            if (picked2.has(i)) continue;
+            const p2 = await H.clickTestId(`pick-${i}`);
+            if (p2) { picked2.add(i); did = p2; break; }
+          }
+        }
+        if (!did) did = await clickDecideNofM(page);
       }
       const st = await H.queryState();
       H.log(`  wdk06pay[${s}] -> ${did ?? 'なし'} | phase=${st?.turnPhase} active=${st?.activeUser} viewer=${st?.viewerUserId} stackLen=${st?.stackLen} candOk=${candidatesChecked} picked=${[...picked]} confirmed=${targetsConfirmed} paid=${paid} gField=${JSON.stringify(st?.guest?.fieldSigni)} hKey=${st?.host?.keyPiece} hLrigTrash=${st?.host?.lrigTrashCards} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
@@ -23036,50 +23054,39 @@ scenarios.wdk06r09Skip = {
   },
 };
 scenarios.wdk06r09NoKey = {
-  title: 'V-35(c) WDK06-R09-E1 対照：場にキーが無ければ支払い枝（optcost-pay）が出ない/使えない',
+  title: 'V-35(c) 対照：場にキーが無ければ「相手のターン終了時」の窓自体が開かない',
   spec: wdk06r09Spec(false),
   async drive(page, H) {
+    // 🔴**2026-08-24 に期待値を書き換えた（シナリオの腐り）**＝旧版は「候補は出るが pay 枝が
+    //   disabled」を期待していたが、**この【自】はキー（`WDK06-R09`）自身の能力**なので、
+    //   キーが場に無ければ `activeKeyAbilitySources` が拾わず**能力そのものが存在しない**
+    //   ＝**窓が一度も開かないのが正**（engine 修正後に実機で確認）。
+    // 🔑**対照は同じ盤面でキーだけを載せた `wdk06r09Pay`／`wdk06r09Skip`**＝あちらでは窓が開く。
+    //   「何も起きない」を単独で緑にしない（§4.4 の3）。
     const before = await H.queryState();
-    H.log('開始時 host.keyPiece:', before?.host?.keyPiece);
-    let candidatesChecked = false; const picked = new Set(); let targetsConfirmed = false; let sawUnavailable = false; let skipped = false;
-    for (let s = 0; s < 40; s++) {
+    H.log('開始時 host.keyPiece:', before?.host?.keyPiece, 'guest.attacked:', JSON.stringify(before?.guest?.fieldSigni));
+    let sawWindow = false; let quiet = 0;
+    for (let s = 0; s < 20; s++) {
       await page.waitForTimeout(700);
-      let did = null;
-      const st0 = await H.queryState();
-      if (!targetsConfirmed && Array.isArray(st0?.pendingCandidates) && st0.pendingCandidates.length) {
-        if (!candidatesChecked) {
-          candidatesChecked = wdk06r09CandidatesOk(st0.pendingCandidates);
-          if (!candidatesChecked) return { pass: false, detail: `候補が不正: ${JSON.stringify(st0.pendingCandidates)}` };
-        }
-        for (let i = 0; i < st0.pendingCandidates.length; i++) {
-          if (picked.has(i)) continue;
-          const p = await H.clickTestId(`pick-${i}`);
-          if (p) { picked.add(i); did = p; break; }
-        }
-        if (!did && picked.size >= st0.pendingCandidates.length) did = await H.clickBtn('決定');
-        if (did === 'btn:決定') targetsConfirmed = true;
-      }
-      if (!did && targetsConfirmed && !skipped) {
-        const opts = (await H.queryState())?.pendingOptions ?? [];
-        const payOpt = opts.find(o => o.startsWith('pay:'));
-        sawUnavailable = payOpt == null || payOpt.endsWith('(disabled)');
-        if (!sawUnavailable) return { pass: false, detail: `【回帰】キーが無いのに有効なpay枝がある: ${JSON.stringify(opts)}` };
-        const payBtn = page.getByTestId('optcost-pay').first();
-        if (await payBtn.count() && await payBtn.isVisible().catch(() => false) && await payBtn.isEnabled().catch(() => false)) {
-          return { pass: false, detail: '【回帰】キーが無いのにoptcost-payがenabled' };
-        }
-        const skip = await H.clickTestId('optcost-skip');
-        if (skip) { did = skip; skipped = true; }
-      }
       const st = await H.queryState();
-      H.log(`  wdk06nokey[${s}] -> ${did ?? 'なし'} | candOk=${candidatesChecked} confirmed=${targetsConfirmed} unavailable=${sawUnavailable} skipped=${skipped} pEff=${st?.pendingEffect ?? '-'} opts=${JSON.stringify(st?.pendingOptions)}`);
-      if (sawUnavailable && skipped && !st?.pendingEffect) {
-        const ok = candidatesChecked && sawUnavailable;
-        return { pass: ok, detail: `候補限定=${candidatesChecked}・キー無しではpay枝利用不能=${sawUnavailable}` };
+      if (st?.pendingEffect) sawWindow = true;
+      H.log(`  wdk06nokey[${s}] | sawWindow=${sawWindow} pEff=${st?.pendingEffect ?? '-'} stack=${st?.stackLen ?? '-'} phase=${st?.turnPhase} gField=${JSON.stringify(st?.guest?.fieldSigni)} hKey=${st?.host?.keyPiece}`);
+      quiet = (!st?.pendingEffect && (st?.stackLen ?? 0) === 0) ? quiet + 1 : 0;
+      if (sawWindow) {
+        return { pass: false, detail: `【回帰】キーが無いのに窓が開いた（pEff=${st?.pendingEffect}）` };
+      }
+      if (quiet >= 6) {
+        const gAlive = (st?.guest?.fieldSigni ?? []).flat().filter(Boolean);
+        const allAlive = [WDK06_GUEST_ATK1, WDK06_GUEST_ATK2, WDK06_GUEST_SAFE].every(n => gAlive.includes(n));
+        const hostIntact = (st?.host?.fieldSigni ?? []).flat().filter(Boolean).includes(WDK06_HOST_SIGNI);
+        return {
+          pass: allAlive && hostIntact && st?.host?.keyPiece == null,
+          detail: `キー無し＝窓は開かない（sawWindow=${sawWindow}）／相手のアタック済み2体を含む3体とも健在=${allAlive}／自分のシグニも無傷=${hostIntact}`,
+        };
       }
     }
     const fin = await H.queryState();
-    return { pass: false, detail: `未完了（cand=${candidatesChecked} confirmed=${targetsConfirmed} unavailable=${sawUnavailable} skipped=${skipped} pEff=${fin?.pendingEffect ?? '-'} opts=${JSON.stringify(fin?.pendingOptions)}）` };
+    return { pass: false, detail: `未完了（sawWindow=${sawWindow} pEff=${fin?.pendingEffect ?? '-'}）` };
   },
 };
 // ⚠意図的に order へは入れない（Opusタスク12(cxliii) 修正待ち＝上のコメント参照）。
@@ -23114,8 +23121,7 @@ function wx16021Spec(turnPhase) {
     },
     top: { active: 'host', turn_phase: turnPhase, turn_count: 2 },
   };
-}
-scenarios.wx16021SideAttackEmptyZoneNoButtonBeforeArts = {
+}scenarios.wx16021SideAttackEmptyZoneNoButtonBeforeArts = {
   title: 'V-28 WX16-021 対照：驚天動地を使う前は空ゾーンへの側面アタックボタン自体が出ない',
   spec: wx16021Spec('ATTACK_SIGNI'), // アタック系ボタンはATTACK_SIGNIフェイズでのみ生成される
   async drive(page, H) {
@@ -26265,6 +26271,104 @@ order.push('o47AttackerLosesIsBanished', 'o47TieBanishesBoth', 'o47AttackerWinsS
   'o48BattleBanishSendsUnderCardsToTrash');
 // ── O-47 / O-48 END ──
 
+// ── V-30 境界越え（§5.1 🅳）＝`abilities_removed_next_turn` → `abilities_removed` の昇格と失効 ──────
+// **READ 側（積まれている間 UI から【起】が消える）は続き585 で残0クローズ済み。**
+// 残っていたのは**ターン境界を実際に跨がせる**ぶん＝続き566 が「設計限界」としていた
+// 「`turn_phase:'END'` 直接注入が room 正規化で先走る」が長らくブロッカーだった。
+// 🔑**2026-08-24（V-19）でその回避策が確立した**＝**注入せずフェイズボタンを実際に歩く**（§4.4 の 8g）。
+//
+// **機構**＝`clearTurnEndScopedState`（`battle/turnScopedState.ts`）が**ターン終了時**に
+//   `abilities_removed = abilities_removed_next_turn` と昇格させ、予約スロットを空にする。
+//   予約は**次のターンの間だけ**生き、そのターンの終了時に同じ登録が空へ戻す＝**2スロット式の寿命**。
+// ⚠**両プレイヤーに適用される**（ターン終了処理はターンプレイヤー側・相手側の両方を通す）。
+const V30B_SIGNI = 'WX02-044#46001';   // 大罪の所以 バアル（【起】《ダウン》＝READ側シナリオと同じ札）
+
+function v30bSpec(reserve) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#46100'],
+      'field.signi': [[V30B_SIGNI], null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'abilities_removed': [],                                   // 🔑**今このターンは効いていない**
+      'abilities_removed_next_turn': reserve ? [V30B_SIGNI] : [], // 予約だけを置く（対照は空）
+      'energy': [], 'hand': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#46150', 'WD01-013#46151', 'WD01-013#46152', 'WD01-013#46153', 'WD01-013#46154'],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#46110'],
+      'field.signi': [null, null, null],
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+      'deck': ['WD01-013#46170', 'WD01-013#46171', 'WD01-013#46172', 'WD01-013#46173', 'WD01-013#46174'],
+    },
+    top: { active: 'host', turn_phase: 'ATTACK_LRIG', turn_count: 2 },
+  };
+}
+
+/** ターンを1つ進める（フェイズボタンを実際に歩く＝§4.4 の 8g）。`turn_count` が動いたら true。 */
+async function v30bAdvanceOneTurn(page, H, fromCount, tag, maxTicks = 40) {
+  for (let s = 0; s < maxTicks; s++) {
+    await page.waitForTimeout(700);
+    const st = await H.queryState();
+    if ((st?.turnCount ?? fromCount) !== fromCount) return st;
+    let did = await H.clickTextOrBtn(['このまま進む']);
+    if (!did) did = await H.clickTextOrBtn(['ターン終了', 'エンドフェイズへ', 'ルリグアタックへ', 'アーツ終了→相手へ', 'アーツ終了', 'アタックフェイズへ']);
+    if (!did) did = await H.stdStep(['発動順序を確定', '確定', '決定', 'OK', 'ガードしない', 'エナに送る']);
+    H.log(`    ${tag}[${s}] -> ${did ?? 'なし'} | turn=${st?.turnCount} phase=${st?.turnPhase} active=${st?.activeUser === st?.viewerUserId ? 'host' : 'cpu'} hRemoved=${JSON.stringify(st?.host?.abilitiesRemoved)} hNext=${JSON.stringify(st?.host?.abilitiesRemovedNextTurn)}`);
+  }
+  return null;
+}
+
+async function driveV30Boundary(page, H, reserve) {
+  const before = await H.queryState();
+  if ((before?.host?.abilitiesRemoved ?? []).length !== 0) {
+    return { pass: false, detail: `前提崩れ：開始時点で abilities_removed が空でない（${JSON.stringify(before?.host?.abilitiesRemoved)}）` };
+  }
+  // ① 自分のターンを終わらせる＝ここで予約が `abilities_removed` へ昇格するはず
+  const afterT1 = await v30bAdvanceOneTurn(page, H, before.turnCount, `v30b-${reserve}-t1`);
+  if (!afterT1) return { pass: false, detail: `ターン1の終了に到達できず（turn=${before.turnCount} のまま）` };
+  const promoted = JSON.stringify(afterT1.host.abilitiesRemoved ?? []);
+  const reservedLeft = JSON.stringify(afterT1.host.abilitiesRemovedNextTurn ?? []);
+  const promoteOk = reserve
+    ? promoted === JSON.stringify([V30B_SIGNI]) && reservedLeft === '[]'
+    : promoted === '[]';
+  if (!reserve) {
+    return {
+      pass: promoteOk,
+      detail: `対照（予約なし）＝ターン境界を越えても abilities_removed は空のまま=${promoted}（予約スロット=${reservedLeft}）`,
+    };
+  }
+  // ② さらに1ターン（＝相手ターン）を終わらせる＝**2スロット式なのでここで失効する**はず
+  const afterT2 = await v30bAdvanceOneTurn(page, H, afterT1.turnCount, `v30b-${reserve}-t2`, 60);
+  const expired = afterT2 ? JSON.stringify(afterT2.host.abilitiesRemoved ?? []) : '(未到達)';
+  return {
+    pass: promoteOk && expired === '[]',
+    detail: `ターン境界①で昇格＝abilities_removed=${promoted}（予約スロットは消費されて ${reservedLeft}）／`
+      + `ターン境界②で失効＝${expired}（[] が正・2スロット式の寿命）`,
+  };
+}
+
+scenarios.v30NextTurnReservationPromotesAndExpires = {
+  title: 'V-30 境界越え：abilities_removed_next_turn がターン終了で abilities_removed へ昇格し、次のターン終了で失効する',
+  spec: v30bSpec(true),
+  drive: (page, H) => driveV30Boundary(page, H, true),
+};
+scenarios.v30NoReservationStaysEmptyAcrossTurn = {
+  title: 'V-30対照 予約が無ければターン境界を越えても abilities_removed は空のまま',
+  spec: v30bSpec(false),
+  drive: (page, H) => driveV30Boundary(page, H, false),
+};
+order.push('v30NextTurnReservationPromotesAndExpires', 'v30NoReservationStaysEmptyAcrossTurn');
+// ── V-30 境界越え END ──
+
+// V-35(b)(c)：`WDK06-R09-E1`（メル＝マドラー・キー）の3本を**既定 order へ復帰**（2026-08-24）。
+// 続き578 で「ON_TURN_END が一度も発火しない」engine 配線漏れ（(cxliii)）のため意図的に order から外して
+// あったが、続き588 の engine 修正 ＋ 本セッションの parser 是正（「それら」が1体しか撃てなかった）と
+// シナリオ2本の腐り修正で3本とも緑になった。
+order.push('wdk06r09Pay', 'wdk06r09Skip', 'wdk06r09NoKey');
+
 const runIds = (requested.length ? requested : order).filter(id => scenarios[id]);
 if (runIds.length === 0) { console.error('シナリオ指定が不正:', requested, '使用可:', Object.keys(scenarios)); process.exit(2); }
 
@@ -26467,7 +26571,7 @@ try {
       const h = { apikey: ANON, Authorization: `Bearer ${token}` };
       const r1 = await fetch(`${SUPA_URL}/rest/v1/rooms?host_id=eq.${uid}&status=eq.PLAYING&select=id`, { headers: h });
       const roomId = (await r1.json())?.[0]?.id; if (!roomId) return { error: 'no room' };
-      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_spell,pending_effect,game_logs,turn_phase,active_user_id`, { headers: h });
+      const r2 = await fetch(`${SUPA_URL}/rest/v1/battle_states?room_id=eq.${roomId}&select=host_state,guest_state,effect_stack,pending_spell,pending_effect,game_logs,turn_phase,active_user_id,turn_count`, { headers: h });
       const row = (await r2.json())?.[0]; if (!row) return { error: 'no row' };
       const hs = row.host_state ?? {}, gs = row.guest_state ?? {};
       const buff = (hs.temp_power_mods ?? []).find(m => m.cardNum === 'PR-470A#1' && (m.delta ?? 0) >= 5000);
@@ -26509,6 +26613,9 @@ try {
         extraAttackPhases: (s.extra_attack_phases_this_turn ?? []).length,
         pendingExtraAttackStart: (s.pending_extra_attack_phase_start_effects ?? []).length,
         abilitiesRemoved: s.abilities_removed ?? [],
+        // V-30（2026-08-24）＝「次のターンの間」の予約スロット。`clearTurnEndScopedState` が
+        // ターン終了時に `abilities_removed` へ**昇格**させ、次のターン終了時に空へ戻す＝2スロット式の寿命。
+        abilitiesRemovedNextTurn: s.abilities_removed_next_turn ?? [],
         keysAbilitiesDisabled: s.keys_abilities_disabled ?? false,
         // 続き475g：ピース解決時に載せ替える「このゲームの間」付与（`WXDi-P15-003-E2`）の観測用
         grantedLrigAutoIds: (s.lrig_granted_auto_effects ?? []).map(e => e.effectId),
@@ -26560,6 +26667,7 @@ try {
         stackPending: [...(stack?.pendingTurn ?? []), ...(stack?.pendingOpp ?? [])].map(e => e.effectId),
         turnPhase: row.turn_phase,
         activeUser: row.active_user_id,
+        turnCount: row.turn_count ?? null,
         pr470aBuffed: !!buff,
         pendingSpell: row.pending_spell ? (row.pending_spell.card_num ?? 'y') : null,
         pendingEffect: row.pending_effect ? (row.pending_effect.interaction?.type ?? 'y') : null,

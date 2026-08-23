@@ -1,0 +1,33 @@
+// ⚠意図的に order へは入れない（Opusタスク12(cxliii) 修正待ち＝上のコメント参照）。
+// 修正後は `node scripts/verifyBattleDrive.mjs wdk06r09Pay wdk06r09Skip wdk06r09NoKey` で単体確認してから復帰する。
+// ── V-35(b)(c) END ──
+
+// ── V-28 START ──
+// §7 V-28（続き412＝O-13 A群5件目・§6.4）＝`WX16-021`（驚天動地）：
+// 「このターン、あなたの＜英知＞のシグニがシグニのない対戦相手のシグニゾーンにアタックする場合、
+// 代わりにそのアタックではそのシグニゾーンの正面にあるかのように対戦相手にダメージを与える。」
+// 実装（`screens/battle/sideAttackDamage.ts`）は**2箇所**（①側面アタックの空ゾーン先ボタン生成
+// ②`resolvePendingSigniBattleFor`の解決）を同じ`sideAttackEmptyZoneDealsDamage`で判定する設計＝
+// 両方を実UIで見る（**負方向＋対照の対**）。【側面アタック】キーワード自体は`keyword_grants`で直接付与
+// （native付与元カードの正否はこのシナリオの対象外＝WX16-021単体の挙動を切り分ける）。
+const WX16021_ATTACKER = 'WX15-054#9701'; // 四英の掛算（精像：英知・Lv3）＝側面アタックを直接付与
+function wx16021Spec(turnPhase) {
+  return {
+    hostSet: {
+      'field.lrig': ['WD01-001#9700'],
+      'field.signi': [null, [WX16021_ATTACKER], null], // 中央（zone1）に配置＝frontOpZone=2-1=1、隣接0/2が側面
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+      'keyword_grants': { [WX16021_ATTACKER]: ['側面アタック'] },
+      'lrig_deck': ['WX16-021#9702'],
+      'hand': [], 'energy': [], 'trash': [], 'actions_done': [],
+    },
+    guestSet: {
+      'field.lrig': ['WD01-001#9710'],
+      'field.signi': [null, null, null], // 全ゾーン空＝側面アタック先(zone0/zone2)も前面(zone1)も空
+      'field.signi_down': [false, false, false],
+      'field.check': null,
+    },
+    top: { active: 'host', turn_phase: turnPhase, turn_count: 2 },
+  };
+}

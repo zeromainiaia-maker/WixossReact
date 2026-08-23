@@ -38106,6 +38106,42 @@ test('§6.4 一時レゾナ: ターン終了処理2経路の両方で funnel を
   eq(calls, 2, `ターン終了処理2経路の両方から呼ぶ（現在 ${calls} 箇所）`);
 });
 
+// 🔴V-35(b)（2026-08-24・実機で発見）＝「シグニを**２体まで**対象とし…**それら**をバニッシュする」なのに
+// 帰結の `count` が 1 に固定されており、**2体宣言してコストを払っても1体しか消えなかった**。
+// ⚠`targetsStored` は**候補を絞るだけ**で体数は `target.count` から取る（`execBanish`）＝
+//   「宣言側と帰結側の count を揃える」が不変条件。汎用の `bindToStoredTarget` は既に揃えているのに、
+//   `WDK06-R09` 用の専用規則だけが自前で組み立てていて漏れていた。
+// **母集団は実測1件**（live で `targetsStored` を持つ170アクションのうち、宣言 count>1 で実行 count=1 は1件）。
+test('V-35 targetsStored: 「N体まで対象とし…それら」の帰結 count が宣言と一致する（live 全数）', () => {
+  const walk = (a: unknown, cb: (n: Record<string, unknown>) => void): void => {
+    if (!a || typeof a !== 'object') return;
+    cb(a as Record<string, unknown>);
+    for (const v of Object.values(a as Record<string, unknown>)) {
+      if (Array.isArray(v)) v.forEach(x => walk(x, cb));
+      else if (v && typeof v === 'object') walk(v, cb);
+    }
+  };
+  const bad: string[] = [];
+  for (const [, effs] of effectsMap) {
+    for (const e of effs) {
+      let declared: number | null = null;
+      walk(e.action, n => {
+        if (n.type === 'STUB' && n.id === 'SELECT_TARGET_ONLY' && n.selectTarget) {
+          const c = (n.selectTarget as { count?: unknown }).count;
+          if (typeof c === 'number') declared = c;
+        }
+      });
+      if (declared === null || declared <= 1) continue;
+      walk(e.action, n => {
+        if (n.targetsStored !== true) return;
+        const t = (n as { target?: { count?: unknown } }).target;
+        if (t && t.count === 1) bad.push(`${e.effectId}:${String(n.type)}`);
+      });
+    }
+  }
+  eq(bad.length, 0, `宣言は複数体なのに帰結が1体固定＝「それら」が1体しか撃てない: ${bad.join(', ')}`);
+});
+
 // 🔴V-19（2026-08-24・実機でカード消失を確認して修正）＝**上のテストは「funnel を呼ぶ」までしか見ておらず、
 // 「戻り値を lrig_deck へ永続化する」側の穴を検知できなかった**。実害＝一時レゾナが
 // **場からは消えるがルリグデッキにも戻らない＝カードがゲームから消滅**（手札上限内のターンだけ発生）。
