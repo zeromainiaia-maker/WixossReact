@@ -4,6 +4,25 @@
 
 ## 過去セッション要約（新しい順）
 
+- **🆕 セッション（2026-08-23・続き622〜626・Opus 5＋Codex）＝段2 を2バッチ＋§6.4 `O-42` を2バッチで残1まで消化**（計5投入・うち1回は Codex が正しく起動を拒否して再投入）。**残 OPEN 883→855**（**−28**）／段2 消化 **207→236**。**census 671→659**／**golden 2442→2518**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、held/partial/idset **87/15/46** は全バッチで維持。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch27〜28_report.md` ／ `o42_batch1〜2_report.md`。
+
+  | # | 題材 | live 修正 | 一言 |
+  |---|---|---:|---|
+  | 27 | 「〜のパワーを＋Ｎし、それ（ら）は…を得る」で**前半の `POWER_MODIFY` が丸ごと脱落** | 15 | 逆翻訳に付与だけ正しく出るので**偽陰性**。owner 反転・正面判定・保護期間も同時是正 |
+  | 28 | 【常】の「〜であるかぎり」条件が丸ごと落ちて**無条件付与** | 16 | `ActiveCondition` 新設3＋既存4拡張を**型・評価器・両方向golden の3点セット**で |
+  | O-42① | parser が追いついた manual 影武者コピー | 48 | 削除候補 **86→38**。`manualEffects.ts` は**278行の純削除** |
+  | O-42② | 同（完結） | 37 | 削除候補 **38→1**。`manualEffects` **451→412カード** |
+
+  - 🔑**このセッション最大の型＝「実体は同じだが所有者が違う」死荷重の掃除に、機械検証できる不変条件を1本立てた**（`O-42`）。`mergeManualEffects` は `parseStatus` を見ず effectId 一致で常に manual を勝たせるので、**parser が追いついた後もその効果だけ以後の改善を永久に受け取れない**（内容が同じうちは誰も気付けない）。85効果を解除した際の安全性は **「live の変化は `parseStatus:MANUAL→AUTO` だけ。`action`/`cost`/`condition`/`timing` は1バイトも変わらない」**という不変条件に載せ、**両バッチとも per-effect diff で 0件を機械確認**した（40件＋37件）。⇒ **この形は「掃除系バッチ」の定型にできる**＝先に不変条件を書き、それを破る効果は候補から外させる。
+  - 🔑**再発防止をリストではなくトリップワイヤで置いた**＝`MANUAL_EFFECTS × parseCardEffects` を**毎回再導出**して既知在庫と**集合一致**を assert する golden（`O42_KNOWN_REDUNDANT_MANUAL`・現在1件）。**新しい影武者コピーが生えた瞬間に落ちる**ので、CODEX_GUIDE §5 `10′`（影武者を機械的に作るな）が**人の記憶ではなくゲートで守られる**ようになった。
+  - 🔑**「集合主語が単体へ潰れる」に続いて「合成の前半が丸ごと落ちる」も1つの根で複数 action に出た**（第27）＝`GRANT_KEYWORD` / `GRANT_PROTECTION` / `REMOVE_ABILITIES` の**後段付与はどれも正しく出ていて、前半の `POWER_MODIFY` だけが無言で消える**。既存の受け皿は受動形（`このシグニのパワーは＋Nされ、…`）しか無く、**能動の連用中止形「…のパワーを＋Ｎし、」がどの枝にも当たっていなかった**。
+  - ⚠**Codex が Claude の見立てを2回訂正**＝①第27の母集団を**カード単位の「原文 `パワーを＋` 出現数 vs live `POWER_MODIFY` ノード数」**で数えたため、**兄弟効果に個数を相殺された `WXDi-CP02-092-E2` が漏れていた**（検証側で追加採用）②第28の A3 は `IS_SELF_ACCED{cardName}` 拡張だけでは足りず、**`collectEffectImmuneSigni` が `SEQUENCE` 内の自己対象 `GRANT_PROTECTION` を走査していない配線穴**があった（条件を付けても保護が一度も有効にならないところだった）。🆕**母集団の切り方に⑨を追加**＝**カード単位の「個数差」で数えない**（兄弟効果が相殺する）。
+  - ⚠**Claude 側の投入前実測が効いた例**＝第28の候補10件のうち**3件（`WX16-051-LAYER`／`WXEX2-59-LAYER`／`WXEX1-70-E3`）は既に正しかった**（入れ子の `abilities[]` に `SELF_POWER_THRESHOLD` が載っている／別ブロックの `GRANT_ACCE_HOST_ABILITY` を誤って突き合わせた）。指示書に D群として「触るな」と書き、**実際に差分0**。CODEX_GUIDE §3-3⁶ の再発。
+  - ⚠**計器の偽陽性を1つ較正した**（`O-42①`）＝MANUAL 解除で露出。census の色チェックが **`"color"` を単値の完全一致でしか見ておらず、複数色フィルタの配列形（`["白","黒"]`＝「白か黒のシグニ」）を欠落と誤検出**していた。live 24効果で配列形が正しく使われていることを原文照合してから較正（671→659）。**CODEX_GUIDE §3-3‴ の再発**。
+  - 🆕**新規発見・未修正**＝`WX10-018-E1`（**live 本文が manual/parser より貧しい**＝素の `STUB{NEGATE_NTH_ATTACK}` で `negateNthAttack{count:2,signi,lrig}` の payload が無い。`O-42` の削除候補に残っている唯一の1件）／`WD15-007-E1`（「その正面のシグニのパワーが12000以上であるかぎり」は**付与先ごとの動的条件**で既存 `fieldCondition`／`ActiveCondition` では表せず据置＝非採用契約を golden 化済み）／`WXDi-P04-079-BURST`（BurstText の `CHOOSE` が丸ごと消えて②だけになっている）／第27 C群の引用能力 STUB 群（`WX08-073-E1`／`WX24-P1-014-E1`／`WX24-P1-078-E1`／`WXDi-P06-059-E1`／`PR-K076-E2`／`WX26-CP1-024-E1`）。
+  - **▶ 次の一手【Opus 側】**（**着手前に必ず再実測**）：①🆕**`WX10-018-E1` の live 本文欠落**＝`O-42` 残1の正体。`syncManualLive.ts` 経由で manual の payload を live へ届ければ削除候補0でクローズできる ②🆕**引用能力 STUB（`GRANT_ABILITY_INNER_TEXT` live 34件）の展開**＝第27 C群がそのまま母集団 ③**count>1 の全数支払い機構**（`WX07-039-E2` 3体／`WXEX1-14-E2` エナ3枚＝engine 側） ④**§6.3 `L`**＝共通色比較（**8バッチ連続で保留**・残3効果）。§6.4 の残りは `O-44`。
+  - **▶ 次の一手【Sonnet 側】**＝§7 実機検証。**続き588 の6件が最優先**、次いで **`V-85`**、**`V-84`**、**`V-83`**。🆕**続き616〜621 の5バッチ＋今回の第27・第28バッチはすべて実機未検証**（耐性／キーワードの集合付与・犠牲側 owner・動的上限・**パワー加算と付与の合成**・**常在の条件つき付与**の6系統）。⚠**`O-42` の85効果は刻印だけの変更なので実機影響は無い**が、**以後は parser 出力が直接 live に載る**ので、次に parser を触ったときの回帰先が広がっている点に注意。
+
 - **🆕 セッション（2026-08-23・続き616〜621・Opus 5＋Codex）＝段2 を5バッチ連投**（第23〜26バッチ＋第24の積み残し回収）。**残 OPEN 905→883**（**−22**）／段2 消化 **184→207**。**census 702→693**／**golden 2442→2478**。smoke 10693 全異常0・SKIP 0、fuzz 全0、同型★ 0、`census:stubs` A群🔴0／C群0、manual-fields 0、lint 0 errors（261 warnings）、`_partial_fresh` 15／`_idset_fresh` 46／`censusManualDrift` 削除候補 **86** は全バッチで維持（`_held_fresh` は 88→87＝`WXEX2-70` が採用され離脱）。一次記録は [BUGFIXES.md](./BUGFIXES.md) 2026-08-23、報告書は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch23〜26_report.md`。
 
   | # | 題材 | live 修正 | 一言 |

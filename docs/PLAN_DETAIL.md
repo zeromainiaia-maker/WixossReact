@@ -3179,6 +3179,50 @@ PLAN §3 には1行サマリだけを残した。一次記録は `BUGFIXES.md` 2
 ## 2026-08-18 整理㉛（PLAN §4「恒久指標」「次の一手」の退避）
 
 
+- **🆕 2026-08-23 続き626（§6.4 `O-42` 第2バッチ＝manual 影武者の解除完結）後 最新値（本行が直近の正）**：
+  **census 659/659**（`BASELINE_HIGH` 更新済み・セッション開始時 693。**うち −12 は計器の偽陽性較正**＝下記）、
+  **golden 2518**（同 2442）、smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、
+  **lint 0 errors / 261 warnings 据置**、`census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
+  **live 効果総数 10693 据置**。`_held_fresh` **87 据置**／`_partial_fresh` **15 据置**／`_idset_fresh` **46 据置**。
+  🆕**`censusManualDrift`＝削除候補 86→**1**（§6.4 `O-42` ほぼ残0）／乖離 23/20/4/3/2（計52効果・47カード）据置／
+  `manualEffects` **451→412 カード**（`manualEffects.ts` は 474行の純削除）。
+  🆕**条件型の数＝`Condition` 122 据置／`ActiveCondition` 49→**52**（golden のトリップワイヤが正）。
+  🔴**engine の改変（セッション累計）**＝`GRANT_PROTECTION` / `REMOVE_ABILITIES` に `targetsLastProcessed` を新設して
+  `lastProcessedCards` の消費経路を追加（622）／`collectContinuousGrantedKeywords` が CONTINUOUS `SEQUENCE` 内の
+  `GRANT_KEYWORD` を収集し `matchesStateFilter` まで通す（622）／`collectEffectImmuneSigni` が `SEQUENCE` 内の
+  自己対象 `GRANT_PROTECTION` を読めなかった穴を配線（623）／`checkActiveCondition` に
+  `IS_SELF_SOUL_ATTACHED`・`ENERGY_EACH_LEVEL_FILTER_GTE`・`ARTS_USED_THIS_TURN{minCount}` を新設し、
+  `IS_SELF_ACCED{cardName}`／`THIS_CARD_HAS_UNDER{minCount}`／`SELF_HAS_KEYWORD{subject}` を拡張（623）／
+  `fieldCandidates` が `TargetFilter.keyword`（印字済み＋解決済み付与の双方）を評価（623）。
+  🔥**意味照合タスク8（§6.2 段2）＝残 OPEN 855**（セッション開始時 883・**closed effectId 202→231**）／段2 消化 **236**／
+  HIGH・MED・LOW＝**538・349・9**（`stage2_closed.txt` の effectId を除いた同一計算での実測）。
+  📊**母集団の切り方＝5原則＋α**（603〜608 で確立・CODEX_GUIDE §5 `3-3′`〜`3-4″`）＝
+  ①消費地点まで見る ②srctext でなく CSV ③完全一致で数えない ④同義語彙を全部列挙 ⑤「変な形＝バグ」と決めつけない
+  ⑥原文の括弧内ルール説明を能力として数えない（続き610）
+  ⑦再帰探索で入れ子まで拾わない＝トップレベルの action から見る（続き616・**続き623 で再発**）
+  ⑧既存の受け皿型を先に一覧化してから引き算する（続き621）
+  ⑨🆕**カード単位の「個数差」で数えない**（続き622＝原文の `パワーを＋` 出現数 vs live の `POWER_MODIFY` ノード数で数えたら、
+  **兄弟効果に個数を相殺された `WXDi-CP02-092-E2` が母集団から漏れた**。Codex が生パース差分で発見）
+  🆕🔑**続き624〜626 で確立＝「掃除系バッチは先に不変条件を書く」**＝`O-42` の85効果解除は
+  **「live の変化は `parseStatus:MANUAL→AUTO` だけ。それ以外は1バイトも変わらない」**を指示書に明記し、
+  **per-effect diff で 0件を機械確認**した（40件＋37件とも達成）。**破る効果は候補から外させる**運用で
+  `WX10-018-E1` 1件だけが正しく残置された（live 本文が manual/parser より貧しい＝別の実バグ）。
+  🆕🔑**再発防止はリストでなくトリップワイヤで置く**＝`MANUAL_EFFECTS × parseCardEffects` を毎回再導出して
+  既知在庫と**集合一致**を assert する golden（`O42_KNOWN_REDUNDANT_MANUAL`）。**新しい影武者が生えた瞬間に落ちる。**
+  ⚠**残 OPEN の真偽は実測済み**＝無作為20件で **19/20 が真バグ**（続き599）。
+  **§6.4 の生きた worklist は `O-44`**（🏁`O-41` は続き609、🏁`O-43` は続き615、🏁`O-42` は続き626 で残1までクローズ）。
+  **§6.3 の新規は `L`**（共通色比較・**8バッチ連続で保留中**）。**Opusタスク12＝在庫1件**（(cxlvi)）。
+  **`census:wiring` miss 合計 194**（続き606 実測・⚠`levelExact × BLOCK_ACTION{PLAYER}` の3件は恒久的な偽陽性）／**`census:timing` フォールバック 2効果**。
+  version **0.502 据置**。**実機シナリオ定義総数 476 据置**。（⚠**`census:goldentypes` は続き552d 以降 未再計測**）。
+  ⚠🔴**実機未検証＝続き588 の6件（最優先）＋`V-85`＋`V-84`＋`V-83`＋続き616〜621 の5バッチ＋🆕続き622・623 の2バッチ**
+  （耐性／キーワードの集合付与・犠牲側 owner・動的上限・**パワー加算と付与の合成**・**常在の条件つき付与**の6系統）。
+  ⚠**`.codex-work`（有料 Codex）は 2026-08-28 21:58 まで利用上限**＝当面は `CODEX_HOME=C:/Users/zerom/.codex`（＝既定なので環境変数なしの `codex exec`）で投げる。
+  **続き616〜626 の投入コマンド（実績）**＝`codex exec -C "C:/Users/zerom/WixossReact" -c sandbox_mode="danger-full-access" -c model_reasoning_effort="high" -o <report> - < <指示書> > <log> 2>&1`
+  （`~/.codex/config.toml` は `sandbox_mode` 未設定・`model_reasoning_effort="low"` なので **`-c` で両方とも上書きする**）。
+  ⚠🆕**投入前に必ず `git status --porcelain` を空にする**＝続き624 で Claude が投入前に計器（`censusManualDrift.ts`）を回したせいで
+  `docs/_manual_drift.txt` に**生成時刻1行の差分**が残り、**Codex が「ユーザーの既存変更を無断で破棄しない」と判断して起動を拒否した**
+  （判断自体は正しい）。**計器を回したら `git checkout` してから投げる。**
+
 - **🆕 2026-08-23 続き621（段2 第26バッチ＝動的な上限の復元）後 最新値（本行が直近の正）**：
   **census 693/693**（`BASELINE_HIGH` 更新済み・セッション開始時 702）、**golden 2478**（同 2442）、
   smoke **10693 / 全異常0 / SKIP 0 据置**、fuzz 全0、**lint 0 errors / 261 warnings 据置**、
