@@ -93,7 +93,8 @@ import { fileURLToPath } from 'url';
 // 7効果を原文全項目と照合して採用し、上限に同居した owner/excludeSelf/count/story/level/cardType filter も是正。
 // 生パース A/B は対象7効果だけ（outlier 0）。「Nまで」52→45、全体933→927。
 // 2026-08-09 §5d-0(ii) `parseStatus:UNKNOWN` 完全 no-op 7効果を解消。群A〜Cの6効果を実働化し、群Dは専用宣言STUBで未実装を可視化。910→909。旧履歴は下記。
-const BASELINE_HIGH = 659; // 2026-08-23 §6.4 O-42 第1バッチ＝manual 影武者解除で露出した色フィルタ計器の偽陽性を較正。単値 color だけでなく正規表現の color 配列も認識し、正しく複数色を表現済みの13効果を除外（671→659。WX05-004-E3 の MANUAL解除による可視化+1を含む純減12）。旧履歴は直下。
+const BASELINE_HIGH = 656; // 2026-08-23 段2 第29バッチ＝引用能力付与に飲まれていた外側の POWER_MODIFY / POWER_SET を12効果へ復元し、うち3効果が高シグナル欠落から解消（659→656）。旧履歴は直下。
+// 旧・§6.4 O-42 第1バッチ: const BASELINE_HIGH = 659; // manual 影武者解除で露出した色フィルタ計器の偽陽性を較正。単値 color だけでなく正規表現の color 配列も認識し、正しく複数色を表現済みの13効果を除外（671→659。WX05-004-E3 の MANUAL解除による可視化+1を含む純減12）。
 // 旧・段2 第28バッチ: const BASELINE_HIGH = 671; // 【常】の activeCondition と【自】の厳密パワー条件、対象のキーワード／ドライブ限定を復元（681→671）。
 // 旧・段2 第27バッチ: const BASELINE_HIGH = 681; // 能動連用中止「パワーを＋Nし、それ（ら）は…を得る」で脱落していた POWER_MODIFY を後段付与と同時復元（693→681）。
 // 旧・段2 第26バッチ: const BASELINE_HIGH = 693; // ゾーン／直前処理枚数で動くパワー・レベル上限13効果を復元（701→693）。

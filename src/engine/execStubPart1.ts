@@ -1452,16 +1452,23 @@ export function execStubPart1(
           const synthCard = { ...(srcCardGQ as import('../types').CardData), EffectText: quotedText, BurstText: '' } as import('../types').CardData;
           let parsedEffs: import('../types/effects').CardEffect[];
           try { parsedEffs = parseCardEffects(synthCard); } catch { parsedEffs = []; }
-          const usable = parsedEffs.filter(e => e.action && e.action.type !== 'STUB');
+          // 構造化 action のほか、engine 実装済みの引用内 STUB は付与してよい。
+          // `SET_OPP_SIGNI_POWER_BY_SELF_POWER` は引用【自】の解決時に execStubPart2 が消費するため、
+          // 「STUBだから」で落とすと PR-K076 の付与だけがログ no-op になる。
+          const usable = parsedEffs.filter(e => e.action
+            && (e.action.type !== 'STUB' || e.action.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER'));
           if (usable.length > 0) {
-            const grantedMapGQ = { ...(ctx.ownerState.granted_effects ?? {}) };
+            const grantStoreGQ = /次の(?:対戦相手|相手)の?ターン終了時まで/.test(txtGQ)
+              ? 'granted_effects_until_opp_turn' as const
+              : 'granted_effects' as const;
+            const grantedMapGQ = { ...(ctx.ownerState[grantStoreGQ] ?? {}) };
             let seqGQ = 0;
             for (const cn of selfTargets) {
               const tagged = usable.map(e => ({ ...e, effectId: `granted-gq-${cn}-${Date.now()}-${seqGQ++}`, duration: e.duration ?? ('UNTIL_END_OF_TURN' as const) }));
               grantedMapGQ[cn] = [...(grantedMapGQ[cn] ?? []), ...tagged];
             }
-            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, granted_effects: grantedMapGQ } },
-              `引用能力「${quotedText.slice(0, 20)}」を${selfTargets.length}体に付与（解析${usable.length}件・ターン終了時まで）`));
+            return done(addLog({ ...ctx, ownerState: { ...ctx.ownerState, [grantStoreGQ]: grantedMapGQ } },
+              `引用能力「${quotedText.slice(0, 20)}」を${selfTargets.length}体に付与（解析${usable.length}件・${grantStoreGQ === 'granted_effects_until_opp_turn' ? '次の対戦相手のターン終了時まで' : 'ターン終了時まで'}）`));
           }
         }
       }

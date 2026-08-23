@@ -42973,6 +42973,182 @@ for (const [effectId, exactDelta, missDelta] of [
   }));
 }
 
+// ── §6.2 段2 第29バッチ：引用能力つき合成の POWER_MODIFY / POWER_SET 脱落 ──
+function batch29Effect(effectId: string): CardEffect {
+  const cardNum = effectId.replace(/-(?:E\d+|BURST)$/, '');
+  const card = cardMap.get(cardNum);
+  if (!card) throw new Error(`${effectId}: card missing`);
+  const effect = parseCardEffects(card).find(candidate => candidate.effectId === effectId);
+  if (!effect) throw new Error(`${effectId}: fresh effect missing`);
+  return effect;
+}
+
+function batch29Resolve(effect: CardEffect, ctx: ExecCtx, action = effect.action): ExecResult {
+  const sourceCtx = { ...ctx, sourceEffectId: effect.effectId };
+  return finish(executeEffect({ ...effect, action }, sourceCtx), sourceCtx);
+}
+
+function batch29GrantedAutos(result: ExecResult, target: string, long = false): CardEffect[] {
+  const store = long ? result.ownerState.granted_effects_until_opp_turn : result.ownerState.granted_effects;
+  return store?.[target]?.filter(effect => effect.effectType === 'AUTO') ?? [];
+}
+
+test('段2 第29バッチ E2E: WX08-073-E1 はランサー所持だけを+10000し引用【自】も同じ対象へ付与', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX08-073-E1');
+  const source = 'WX08-073', lancer = fresh(), plain = fresh();
+  // 非所持を先に並べ、keyword filter が無い実装では必ず対照側を誤選択させる。
+  const ctx = mkCtx({ signi: [source, plain, lancer] }, {}, source);
+  ctx.ownerState.keyword_grants = { [lancer]: ['ランサー'] };
+  const result = batch29Resolve(effect, ctx);
+  ok(result.ownerState.temp_power_mods?.some(mod => mod.cardNum === lancer && mod.delta === 10000) ?? false, 'ランサー所持へ+10000');
+  ok(!result.ownerState.temp_power_mods?.some(mod => mod.cardNum === plain), '非所持は対象外');
+  ok(batch29GrantedAutos(result, lancer).some(granted => granted.action.type === 'ENERGY_CHARGE_FROM_DECK'), 'クラッシュ時エナチャージ【自】も付与');
+  eq(batch29GrantedAutos(result, plain).length, 0, '非所持へ引用能力を誤付与しない');
+}));
+
+for (const [effectId, delta] of [['WX24-P1-014-E1', 3000], ['WX24-P1-078-E1', 5000]] as const) {
+  test(`段2 第29バッチ E2E: ${effectId} は地獣を+${delta}しアタック時バニッシュも付与`, () => withSavedCursor(() => {
+    const effect = batch29Effect(effectId);
+    const source = effectId.replace(/-E\d+$/, '');
+    const beast = batch26Cards({ cardType: 'シグニ', story: '地獣' }, 1, [source])[0];
+    const ctx = mkCtx({ signi: [source, beast, null] }, {}, source);
+    const result = batch29Resolve(effect, ctx);
+    ok(result.ownerState.temp_power_mods?.some(mod => mod.cardNum === beast && mod.delta === delta) ?? false, `地獣へ+${delta}`);
+    ok(batch29GrantedAutos(result, beast).some(granted => granted.action.type === 'BANISH'), '引用アタック時バニッシュも付与');
+  }));
+}
+
+test('段2 第29バッチ E2E: WX25-CP1-064-E1 は自身+4000と引用【自】が次の相手ターン終了まで', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX25-CP1-064-E1');
+  const source = 'WX25-CP1-064';
+  const ctx = mkCtx({ signi: [source, null, null] }, {}, source);
+  const base = Number(cardMap.get(source)?.Power ?? 0);
+  const result = batch29Resolve(effect, ctx);
+  eq(batch27Power(result.ownerState, result.otherState, source), base + 4000, '自身+4000');
+  ok(batch29GrantedAutos(result, source, true).some(granted => granted.action.type === 'REVEAL_AND_PICK'), '引用ターン終了時能力も長期付与');
+  const ownEnded = batch27TurnEnd(result.ownerState);
+  eq(batch27Power(ownEnded, result.otherState, source), base + 4000, '自ターン終了では+4000維持');
+  ok((ownEnded.granted_effects_until_opp_turn?.[source]?.length ?? 0) > 0, '自ターン終了では引用能力も維持');
+  const expired = clearUntilOppTurnEffects(ownEnded);
+  eq(batch27Power(expired, result.otherState, source), base, '次の相手ターン終了で+4000失効');
+  eq(expired.granted_effects_until_opp_turn?.[source]?.length ?? 0, 0, '次の相手ターン終了で引用能力も失効');
+}));
+
+test('段2 第29バッチ E2E: WXDi-P13-061-E1 はディソナだけ+3000し引用【自】も次の相手ターン終了まで', () => withSavedCursor(() => {
+  const effect = batch29Effect('WXDi-P13-061-E1');
+  const source = 'WXDi-P13-061';
+  const disona = batch26Cards({ cardType: 'シグニ', isDisona: true }, 1, [source])[0];
+  const plain = batch26Cards({ cardType: 'シグニ', not: { isDisona: true } }, 1, [source, disona])[0];
+  const ctx = mkCtx({ signi: [source, disona, plain] }, {}, source);
+  const base = Number(cardMap.get(disona)?.Power ?? 0);
+  const result = batch29Resolve(effect, ctx);
+  eq(batch27Power(result.ownerState, result.otherState, disona), base + 3000, 'ディソナへ+3000');
+  ok(!result.ownerState.power_mods_until_opp_turn?.some(mod => mod.cardNum === plain), '非ディソナは対象外');
+  ok(batch29GrantedAutos(result, disona, true).some(granted => granted.action.type === 'CHOOSE'), 'ドロー/エナチャージ選択【自】も長期付与');
+  const ownEnded = batch27TurnEnd(result.ownerState);
+  eq(batch27Power(ownEnded, result.otherState, disona), base + 3000, '自ターン終了では+3000維持');
+  const expired = clearUntilOppTurnEffects(ownEnded);
+  eq(batch27Power(expired, result.otherState, disona), base, '次の相手ターン終了で+3000失効');
+  eq(expired.granted_effects_until_opp_turn?.[disona]?.length ?? 0, 0, '次の相手ターン終了で引用能力も失効');
+}));
+
+test('段2 第29バッチ E2E: WXDi-P06-059-E1 ②はライズ持ちを+3000し引用【自】も付与', () => withSavedCursor(() => {
+  const effect = batch29Effect('WXDi-P06-059-E1');
+  const choose = effect.action as Extract<EffectAction, { type: 'CHOOSE' }>;
+  const riseChoice = choose.choices[1].action;
+  const source = 'WXDi-P06-059';
+  const rise = findCard(card => card.Type === 'シグニ' && (card.EffectText ?? '').includes('【ライズ】') && card.CardNum !== source);
+  const plain = findCard(card => card.Type === 'シグニ' && !(card.EffectText ?? '').includes('【ライズ】') && card.CardNum !== source && card.CardNum !== rise);
+  const ctx = mkCtx({ signi: [source, rise, plain] }, {}, source);
+  const result = batch29Resolve(effect, ctx, riseChoice);
+  ok(result.ownerState.temp_power_mods?.some(mod => mod.cardNum === rise && mod.delta === 3000) ?? false, 'ライズ持ちへ+3000');
+  ok(!result.ownerState.temp_power_mods?.some(mod => mod.cardNum === plain), '非ライズは対象外');
+  ok(batch29GrantedAutos(result, rise).some(granted => granted.action.type === 'SEQUENCE'), '任意コストつきアタック時バニッシュも付与');
+}));
+
+test('段2 第29バッチ E2E: PR-K076-E2 は+3000と実装済み引用内STUBを同じ対象へ付与', () => withSavedCursor(() => {
+  const effect = batch29Effect('PR-K076-E2');
+  const source = 'PR-K076', target = fresh();
+  const result = batch29Resolve(effect, mkCtx({ signi: [target, null, null] }, {}, source));
+  ok(result.ownerState.temp_power_mods?.some(mod => mod.cardNum === target && mod.delta === 3000) ?? false, '対象へ+3000');
+  ok(batch29GrantedAutos(result, target).some(granted => granted.action.type === 'STUB'
+    && granted.action.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER'), '実装済み引用内STUBを捨てずに付与');
+}));
+
+function batch29ContinuousMap(effect: CardEffect): Map<string, CardEffect[]> {
+  const source = effect.effectId.replace(/-E\d+$/, '');
+  const local = new Map(effectsMap);
+  local.set(source, [effect]);
+  return local;
+}
+
+test('段2 第29バッチ E2E: WX09-017-E1 は鉱石5枚でだけ基本15000＋ダブルクラッシュ', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX09-017-E1'), source = 'WX09-017';
+  const ores = batch26Cards({ cardType: 'シグニ', story: '鉱石' }, 5, [source]);
+  const local = batch29ContinuousMap(effect), other = mkState({});
+  const active = mkState({ signi: [source, null, null] }); active.trash = ores;
+  eq(calcFieldPowers(active, other, true, local, cardMap).get(source), 15000, '鉱石5枚で基本15000');
+  ok(collectContinuousGrantedKeywords(active, other, true, local, cardMap)[source]?.includes('ダブルクラッシュ') ?? false, '同時にダブルクラッシュ');
+  const inactive = { ...active, trash: ores.slice(0, 4) };
+  eq(calcFieldPowers(inactive, other, true, local, cardMap).get(source), Number(cardMap.get(source)?.Power ?? 0), '鉱石4枚では基本値不変');
+  ok(!collectContinuousGrantedKeywords(inactive, other, true, local, cardMap)[source]?.includes('ダブルクラッシュ'), '鉱石4枚では付与しない');
+}));
+
+test('段2 第29バッチ E2E: WX09-018-E1 はスペル5枚でだけ基本15000＋相手シグニ効果耐性', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX09-018-E1'), source = 'WX09-018';
+  const spells = batch26Cards({ cardType: 'スペル' }, 5, [source]);
+  const local = batch29ContinuousMap(effect), other = mkState({});
+  const active = mkState({ signi: [source, null, null] }); active.trash = spells;
+  eq(calcFieldPowers(active, other, true, local, cardMap).get(source), 15000, 'スペル5枚で基本15000');
+  ok(collectEffectImmuneSigni(active, other, cardMap, local, true, 'シグニ', fresh()).has(source), '同時に相手シグニ効果耐性');
+  const inactive = { ...active, trash: spells.slice(0, 4) };
+  eq(calcFieldPowers(inactive, other, true, local, cardMap).get(source), Number(cardMap.get(source)?.Power ?? 0), 'スペル4枚では基本値不変');
+  ok(!collectEffectImmuneSigni(inactive, other, cardMap, local, true, 'シグニ', fresh()).has(source), 'スペル4枚では耐性なし');
+}));
+
+test('段2 第29バッチ E2E: WX12-037-E1 はトラッシュ25枚でだけ基本12000＋バニッシュ耐性', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX12-037-E1'), source = 'WX12-037';
+  const local = batch29ContinuousMap(effect), other = mkState({});
+  const active = mkState({ signi: [source, null, null], trash: 25 });
+  eq(calcFieldPowers(active, other, true, local, cardMap).get(source), 12000, '25枚で基本12000');
+  ok(collectBanishEffectProtectedSigni(active, other, true, local, cardMap).has(source), '同時にバニッシュ耐性');
+  const inactive = mkState({ signi: [source, null, null], trash: 24 });
+  eq(calcFieldPowers(inactive, other, true, local, cardMap).get(source), Number(cardMap.get(source)?.Power ?? 0), '24枚では基本値不変');
+  ok(!collectBanishEffectProtectedSigni(inactive, other, true, local, cardMap).has(source), '24枚では耐性なし');
+}));
+
+test('段2 第29バッチ E2E: WX11-053-E1 は能力なし相手がいる間だけ基本12000＋引用アタック時バウンス', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX11-053-E1'), source = 'WX11-053';
+  const vanilla = findCard(card => card.Type === 'シグニ' && (!card.EffectText || card.EffectText === '-') && card.CardNum !== source);
+  const local = batch29ContinuousMap(effect), active = mkState({ signi: [source, null, null] });
+  const opponent = mkState({ signi: [vanilla, null, null] });
+  eq(calcFieldPowers(active, opponent, true, local, cardMap).get(source), 12000, '能力なし相手ありで基本12000');
+  ok(collectGrantedFromLayer(active, opponent, true, local, cardMap).get(source)?.some(granted => granted.effectType === 'AUTO' && granted.action.type === 'BOUNCE') ?? false, '引用アタック時バウンスも付与');
+  const empty = mkState({});
+  eq(calcFieldPowers(active, empty, true, local, cardMap).get(source), Number(cardMap.get(source)?.Power ?? 0), '相手不在で基本値不変');
+  eq(collectGrantedFromLayer(active, empty, true, local, cardMap).get(source)?.length ?? 0, 0, '条件不成立で引用能力なし');
+}));
+
+test('段2 第29バッチ E2E: WX09-Re07-E1 はアーム/ウェポン合計3体で基本10000＋場離れ時SEARCH', () => withSavedCursor(() => {
+  const effect = batch29Effect('WX09-Re07-E1'), source = 'WX09-Re07';
+  const allies = batch26Cards({ cardType: 'シグニ', story: ['アーム', 'ウェポン'] }, 2, [source]);
+  const local = batch29ContinuousMap(effect), other = mkState({});
+  const active = mkState({ signi: [source, allies[0], allies[1]] });
+  eq(calcFieldPowers(active, other, true, local, cardMap).get(source), 10000, '合計3体で基本10000');
+  ok(collectGrantedFromLayer(active, other, true, local, cardMap).get(source)?.some(granted => granted.effectType === 'AUTO'
+    && granted.timing?.includes('ON_LEAVE_FIELD') && granted.action.type === 'SEARCH') ?? false, '引用場離れ時SEARCHとして付与');
+  const inactive = mkState({ signi: [source, allies[0], null] });
+  eq(calcFieldPowers(inactive, other, true, local, cardMap).get(source), Number(cardMap.get(source)?.Power ?? 0), '合計2体では基本値不変');
+  eq(collectGrantedFromLayer(inactive, other, true, local, cardMap).get(source)?.length ?? 0, 0, '合計2体では引用能力なし');
+}));
+
+test('段2 第29バッチ 非採用契約: WD16-014-E1 は期間つきPOWER_SET語彙が無い間STUB単独を維持', () => {
+  const effect = batch29Effect('WD16-014-E1');
+  eq(effect.action.type, 'STUB', '期間を表せないPOWER_SETを部分採用しない');
+  if (effect.action.type === 'STUB') eq(effect.action.id, 'GRANT_ABILITY_INNER_TEXT', '既存引用付与STUBを維持');
+  ok(!JSON.stringify(effect.action).includes('POWER_SET'), 'ターン終了失効不能な基本パワー固定を入れない');
+});
+
 // §6.4 O-42 の残件。ここに effectId が増えたら、また影武者コピーが生えたということ。
 // WX10-018-E1 は parser/manual に negateNthAttack がある一方、開始 live に無く、parseStatus 以外も変わるため解除しない。
 const O42_KNOWN_REDUNDANT_MANUAL = [

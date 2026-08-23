@@ -1,5 +1,15 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第29バッチ＝引用能力付与に飲まれた外側のパワー操作12効果
+
+「〈対象〉のパワーを±Nし、それは『【自】…』を得る」が引用付与STUB単独へ潰れるA群7効果と、「このシグニの基本パワーはNになり、…」の前半が落ちるB群をCSV原文・live・実行経路で再照合した。既存STUBは消さず、A群を `SEQUENCE[POWER_MODIFY, STUB]`、期間の無いB群5効果を `SEQUENCE[POWER_SET, 従来action]` に合成。A1の【ランサー】、地獣、ディソナ、ライズ、`thisCardOnly` とA4/A5の `UNTIL_OPP_TURN_END` も既存filter/期間storeへ配線した。B6は引用【自】内の `SEARCH` が外側の常時actionへ漏れていたため、同じ引用STUBへ戻して基本パワー10000と引用離脱能力を同時復元した。
+
+`sourceAbilityText` は `sourceEffectId` から `abilityBlockTextOf` で当該能力ブロックを返し、`execSequence` は同じctxを後段へ渡す。前段 `POWER_MODIFY` の `lastProcessedCards` がそのまま後段STUBの付与先になることを確認した。CONTINUOUSは `calcFieldPowers` の再帰 `extractPowerSets` が `activeCondition` 成立後に `POWER_SET` を読む。引用【自】はexecutorを通らないため `collectGrantedFromLayer` に同じブロック限定の展開を追加し、B3のバニッシュ耐性は `collectBanishEffectProtectedSigni` の限定再帰へ接続した。`POWER_SET` にdurationが無いB5 `WD16-014-E1` は部分固定せず非採用goldenで据置。
+
+採用live差分は指定12効果だけ。生パースoutlier 2効果 `WX14-060/061-E1` は同根だが、liveが既に `POWER_SET` と保護を2つのMANUAL効果で正しく保持するため非採用（idset 46内のfresh内容だけ変化）。C群は調査のみで、`WXDi-P10-034-E1` のvalue=5000は `PLACE_FACEDOWN_SIGNI`→`pending_facedown_flip.powerBonus`→`FACEDOWN_FLIP_UP` で実消費されることを確認、`WXDi-P15-002-E1` は不変。
+
+`npm run regen` / `npm run gates` 全緑。golden **2531/2531**（2518→2531）、census **656/656**（659→656、定数更新）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A群/C群0、manual-fields 0、held/partial/idset **87/15/46**、manualEffects 412カード・削除候補1（`WX10-018-E1`）据置。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch29_report.md`。
+
 ## 2026-08-23：§6.4 O-42 第2バッチ＝manual 影武者37効果を解除、live本文不一致1効果を残置
 
 開始HEAD `b08a24640` で `censusManualDrift` の削除候補38効果と指定集合が完全一致することを再実測し、全38効果について `MANUAL_EFFECTS` と `parseCardEffects` 生出力を `parseStatus` 除外で独立比較して一致を確認した。さらに開始live本文とも比較したところ、`WX10-018-E1` だけは live の `NEGATE_NTH_ATTACK` に `negateNthAttack:{count:2,signi:true,lrig:true}` が無く、解除すると `parseStatus` 以外も変わることを検出。依頼の不変条件に従って同効果は manual / live `MANUAL` を残し、残る37効果だけを `manualEffects.ts` から削除して live 刻印を `MANUAL→AUTO` へ戻した。

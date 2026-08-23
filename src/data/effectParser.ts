@@ -9047,6 +9047,72 @@ function prependShuffleBeforeTopDeckAction(text: string, parsed: EffectAction): 
   return inserted ? parsed : visit(parsed);
 }
 
+/**
+ * 「〈対象〉のパワーを±Nし、それ／そのシグニは『引用能力』を得る」の外側だけを、
+ * 引用漏出安全網が残した既存 STUB の前へ戻す（§6.2 段2 第29バッチ）。
+ *
+ * 引用 STUB は `sourceAbilityText(ctx)` で能力ブロック原文を読み直し、直前の
+ * `POWER_MODIFY` が選んだ `lastProcessedCards` へ能力を付与する。したがって STUB を
+ * 構造化付与へ置換せず、同じ対象を選んだ前半だけを SEQUENCE の先頭へ足す。
+ * 対象句はパワー節より前の読点区切り1節だけから読む（引用内の対象条件を混ぜない）。
+ */
+function prependOuterPowerBeforeQuotedGrant(text: string, parsed: EffectAction): EffectAction {
+  if (parsed.type !== 'STUB'
+      || !['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_AUTO_ABILITY', 'GRANT_QUOTED_ABILITY'].includes(parsed.id)) return parsed;
+  const powerM = text.match(/(?:それ|そのシグニ|このシグニ)のパワーを([＋+－-])([０-９\d,，]+)し、(?:それ|そのシグニ|このシグニ)は[「『]/);
+  if (!powerM || powerM.index === undefined) return parsed;
+
+  let target: EffectTarget | null = null;
+  if (/このシグニのパワーを/.test(powerM[0])) {
+    target = { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } };
+  } else {
+    const prefix = text.slice(0, powerM.index);
+    const targetClause = prefix.split(/[。、]/).reverse().find(clause => /シグニ[^。、]*を対象とし/.test(clause));
+    if (targetClause) {
+      const owner: Owner = targetClause.includes('対戦相手') ? 'opponent'
+        : targetClause.includes('あなた') ? 'self' : 'any';
+      target = parseSigniTarget(targetClause, owner);
+      const possessedKeyword = targetClause.match(/【([^】]+)】を持つ/)?.[1];
+      if (possessedKeyword) target.filter = { ...target.filter, keyword: possessedKeyword };
+    }
+  }
+  if (!target) return parsed;
+
+  const magnitude = parseNum(powerM[2].replace(/[,，]/g, ''));
+  const delta = powerM[1] === '－' || powerM[1] === '-' ? -magnitude : magnitude;
+  const duration: EffectDuration = /次の(?:対戦相手|相手)の?ターン終了時まで/.test(text)
+    ? 'UNTIL_OPP_TURN_END'
+    : /ターン終了時まで/.test(text) ? 'UNTIL_END_OF_TURN' : 'PERMANENT';
+  return {
+    type: 'SEQUENCE',
+    steps: [
+      { type: 'POWER_MODIFY', target, delta, duration } as PowerModifyAction,
+      parsed,
+    ],
+  } as SequenceAction;
+}
+
+/**
+ * CONTINUOUS の「このシグニの基本パワーはNになり、B」で、既存の B を一切
+ * 組み替えず `POWER_SET` だけを前置する。`calcFieldPowers` は SEQUENCE を再帰して
+ * POWER_SET を抽出し、同じ CardEffect の activeCondition 成立時だけ基本パワーへ適用する。
+ */
+function prependContinuousBasePowerSet(text: string, parsed: EffectAction): EffectAction {
+  const baseM = text.match(/このシグニの基本パワーは([０-９\d,，]+)になり[、,]?/);
+  if (!baseM || JSON.stringify(parsed).includes('"POWER_SET"')) return parsed;
+  return {
+    type: 'SEQUENCE',
+    steps: [
+      {
+        type: 'POWER_SET',
+        target: { type: 'SIGNI', owner: 'self', count: 1, filter: { thisCardOnly: true } },
+        value: parseNum(baseM[1].replace(/[,，]/g, '')),
+      },
+      parsed,
+    ],
+  } as SequenceAction;
+}
+
 function parseActionText(text: string): EffectAction {
   // 【常】：【K1】【K2】… の列挙形。動詞を省略した印字は各キーワードを自身が恒久的に持つ。
   const bareKeywordList = text.trim().replace(/。$/, '').match(/^((?:【(?:ランサー|アサシン|ダブルクラッシュ|トリプルクラッシュ|シャドウ(?::\{[^}]*\})?|バニッシュ耐性|シールド|チャーム)】){2,})$/);
@@ -9151,6 +9217,9 @@ function parseActionText(text: string): EffectAction {
   if (/バニッシュ/.test(quotedBodies)) leakedTypes.add('BANISH');
   if (/トラッシュに置く|捨てる/.test(quotedBodies)) leakedTypes.add('TRASH');
   if (/凍結/.test(quotedBodies)) leakedTypes.add('FREEZE');
+  // 引用【自】内の「デッキから探して場に出す」が外側 CONTINUOUS の SEARCH に化けると、
+  // 条件成立中ずっと探索を即時実行する。引用外 SEARCH は残し、引用本文に探索句がある場合だけ漏出候補にする。
+  if (/デッキから[^。]*探して/.test(quotedBodies)) leakedTypes.add('SEARCH');
   const hasNakedImmediate = (node: unknown): boolean => {
     if (!node || typeof node !== 'object') return false;
     const obj = node as { type?: string; [k: string]: unknown };
@@ -9209,7 +9278,8 @@ function parseActionText(text: string): EffectAction {
     return node;
   };
   const pruned = pruneExtraLeak(safeResult) ?? { type: 'STUB', id: 'GRANT_ABILITY_INNER_TEXT' } as StubAction;
-  return restoreQuotedLrigDamageReplaceGrant(text, pruned);
+  const restoredGrant = restoreQuotedLrigDamageReplaceGrant(text, pruned);
+  return prependOuterPowerBeforeQuotedGrant(text, restoredGrant);
 }
 
 /**
@@ -14569,6 +14639,10 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     else activeCondition = { type: 'AND', conditions: parsedConds };
     // CONTINUOUS 限定の引用能力付与（このシグニは/場全体「Q」を得る）を先に試す（GRANT_FIELD_SIGNI_ABILITY）
     resolvedAction = parseContinuousQuotedGrant(remaining || actionText) ?? parseActionText(remaining || actionText);
+    // 「基本パワーはNになり、B」では既存 parser が B だけを残していた。
+    // B の形（GRANT_KEYWORD / GRANT_PROTECTION / 引用 STUB）を変えず、CONTINUOUS collector が
+    // activeCondition と同時評価できる POWER_SET を前置する。
+    resolvedAction = prependContinuousBasePowerSet(remaining || actionText, resolvedAction);
     const selfConditionGrant = activeCondition?.type === 'IS_SELF_SOUL_ATTACHED'
       || (activeCondition?.type === 'THIS_CARD_HAS_UNDER' && activeCondition.minCount !== undefined);
     if (continuousSelfKeywordSubject && selfConditionGrant && resolvedAction.type === 'GRANT_KEYWORD'

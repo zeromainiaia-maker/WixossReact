@@ -35,7 +35,7 @@ import type {
 import { hasKeyword, isKeywordAbilityRemoved } from '../utils/keywords';
 import { acceCardsAt, allAcceCards, hasAcceAt } from '../utils/acce';
 import { normalizeFieldGrants } from '../utils/fieldGrants';
-import { abilityBlockTextOf } from '../data/effectParser';
+import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 // ルリグタイプの「印刷＋追加で得た分」は growLogic 側に funnel がある（グロウ互換／使用制限と同じ1本）。
 import { activeGainedLrigTypes } from '../screens/battle/growLogic';
 
@@ -4983,8 +4983,13 @@ export function collectBanishEffectProtectedSigni(
     for (const eff of (effectsMap.get(sourceNum) ?? [])) {
       if (eff.effectType !== 'CONTINUOUS') continue;
       if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, state, otherState, isOwnerTurn, cardMap, sourceNum, powersOf())) continue;
-      if (eff.action.type !== 'GRANT_PROTECTION') continue;
-      const gp = eff.action as import('../types/effects').GrantProtectionAction;
+      // 「基本パワーはNになり、このシグニはバニッシュされない」は
+      // SEQUENCE[POWER_SET, GRANT_PROTECTION]。分岐を持たないこの正準形だけ leaf を読む。
+      const protectionActions = eff.action.type === 'SEQUENCE'
+        && eff.action.steps.some(step => step.type === 'POWER_SET')
+        ? eff.action.steps.filter((step): step is GrantProtectionAction => step.type === 'GRANT_PROTECTION')
+        : eff.action.type === 'GRANT_PROTECTION' ? [eff.action as GrantProtectionAction] : [];
+      for (const gp of protectionActions) {
       // rule は従来どおり opponent 指定だけを受理し、any をルール処理（power<=0）へ広げない。
       // 効果解決では any または実際の効果オーナーに一致する保護だけを受理する。
       if (effectSourceOwner === 'rule'
@@ -5008,6 +5013,7 @@ export function collectBanishEffectProtectedSigni(
           const top2 = s2?.at(-1);
           if (top2) protected_.add(top2);
         }
+      }
       }
     }
   }
@@ -6155,11 +6161,37 @@ export function collectGrantedFromLayer(
       const actions = eff.action.type === 'SEQUENCE'
         ? (eff.action as import('../types/effects').SequenceAction).steps
         : [eff.action];
+      if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top, powersOf())) continue;
       for (const act of actions) {
-        if (act.type !== 'GRANT_FIELD_SIGNI_ABILITY') continue;
-        if (eff.activeCondition && !checkActiveCondition(eff.activeCondition, ownerState, otherState, isOwnerTurn, cardMap, top, powersOf())) continue;
-        const g = act as GrantAction;
-        (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
+        if (act.type === 'GRANT_FIELD_SIGNI_ABILITY') {
+          const g = act as GrantAction;
+          (g.targetOwner === 'opponent' ? oppGrants : selfGrants).push({ g, src: top });
+          continue;
+        }
+        // CONTINUOUS の引用付与 STUB は executor を通らないため、この collector で【自】を展開する。
+        // STUB 自体は消さず、`sourceAbilityText` と同じ `abilityBlockTextOf(card,effectId)` で当該ブロックだけを読む。
+        if (act.type === 'STUB'
+            && ['GRANT_ABILITY_INNER_TEXT', 'GRANT_QUOTED_AUTO_ABILITY', 'GRANT_QUOTED_ABILITY'].includes(act.id)) {
+          const sourceCard = cardMap.get(top);
+          const blockText = sourceCard ? abilityBlockTextOf(sourceCard, eff.effectId) : '';
+          const quotedText = blockText.match(/「([^」]+)」(?:の能力)?を得る/)?.[1] ?? '';
+          if (!sourceCard || !/^【自】/.test(quotedText)) continue;
+          const parsedQuoted: CardEffect[] = (() => {
+            try {
+              return parseCardEffects({ ...sourceCard, EffectText: quotedText, BurstText: '' });
+            } catch {
+              return [];
+            }
+          })();
+          const usable = parsedQuoted.filter(granted => granted.effectType === 'AUTO' && granted.action
+            && (granted.action.type !== 'STUB' || granted.action.id === 'SET_OPP_SIGNI_POWER_BY_SELF_POWER'));
+          if (usable.length === 0) continue;
+          const tagged = usable.map((granted, index) => ({
+            ...granted,
+            effectId: `${eff.effectId}-quoted-${index + 1}`,
+          }));
+          result.set(top, [...(result.get(top) ?? []), ...tagged]);
+        }
       }
     }
   }
