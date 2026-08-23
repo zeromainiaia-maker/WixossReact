@@ -3826,7 +3826,7 @@ test('マジックボックス欠落是正 WX24-P3-033-E1: 設置→＜トリッ
   const chain = seq.steps[1] as Extract<EffectAction, { type: 'LOOK_PICK_CHAIN' }>;
   eq(chain.type, 'LOOK_PICK_CHAIN', '1度見た5枚を2段で振り分ける');
   eq(JSON.stringify(chain.stages), JSON.stringify([
-    { pickCount: 1, pickNoun: 'カード', then: 'magic_box' },
+    { pickCount: 1, pickUpTo: true, pickNoun: 'カード', then: 'magic_box' },
     { filter: { cardType: 'シグニ', story: 'トリック' }, pickCount: 1, then: 'hand' },
   ]), '設置が先、＜トリック＞手札が後');
 
@@ -6585,13 +6585,13 @@ const xlviWave5LpcCases = [
   { cardNum: 'WXEX1-12', effectId: 'WXEX1-12-E1', dests: ['hand', 'hand'] as const,
     want: '[{"filter":{"story":"原子","cardType":"シグニ"},"pickCount":1,"then":"hand"},{"filter":{"cardType":"スペル"},"pickCount":1,"then":"hand","pickNoun":"スペル"}]|trash/any/false' },
   { cardNum: 'WX24-P2-031', effectId: 'WX24-P2-031-E1', dests: ['hand', 'hand'] as const,
-    want: '[{"filter":{"story":"天使","cardType":"シグニ"},"pickCount":1,"then":"hand"},{"filter":{"story":"悪魔","cardType":"シグニ"},"pickCount":1,"then":"hand"}]|deck/bottom/true' },
+    want: '[{"filter":{"story":"天使","cardType":"シグニ"},"pickCount":1,"then":"hand","pickUpTo":true},{"filter":{"story":"悪魔","cardType":"シグニ"},"pickCount":1,"then":"hand","pickUpTo":true}]|deck/bottom/true' },
   { cardNum: 'WX26-CP1-012', effectId: 'WX26-CP1-012-E1', dests: ['energy', 'hand'] as const,
-    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"赤"},"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/bottom/false' },
+    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickUpTo":true,"pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"赤"},"pickCount":1,"then":"hand","pickUpTo":true,"pickNoun":"カード"}]|deck/bottom/false' },
   { cardNum: 'WX26-CP1-014', effectId: 'WX26-CP1-014-E1', dests: ['energy', 'hand'] as const,
-    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"青"},"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/bottom/false' },
+    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickUpTo":true,"pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"青"},"pickCount":1,"then":"hand","pickUpTo":true,"pickNoun":"カード"}]|deck/bottom/false' },
   { cardNum: 'WX26-CP1-016', effectId: 'WX26-CP1-016-E1', dests: ['energy', 'hand'] as const,
-    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"緑"},"pickCount":1,"then":"hand","pickNoun":"カード"}]|deck/bottom/false' },
+    want: '[{"filter":{"story":"プリオケ"},"pickCount":1,"then":"energy","pickUpTo":true,"pickNoun":"カード"},{"filter":{"story":"プリオケ","color":"緑"},"pickCount":1,"then":"hand","pickUpTo":true,"pickNoun":"カード"}]|deck/bottom/false' },
 ] as const;
 function findLookPickChain(a: unknown): import('../src/types/effects').LookPickChainAction | null {
   if (!a || typeof a !== 'object') return null;
@@ -6970,7 +6970,7 @@ test('(xlvi)(a) WXDi-P15-031-E1: センタールリグと共通色/非共通色�
     const eff = effectsMap.get('WXDi-P15-031')?.find(e => e.effectId === 'WXDi-P15-031-E1');
     const lpc = findLookPickChain(eff!.action)!;
     eq(`${JSON.stringify(lpc.stages)}|${lpc.remainder.location}/${lpc.remainder.position}`,
-      '[{"filter":{"colorMatchesLrig":true,"cardType":"シグニ"},"pickCount":1,"then":"hand"},{"filter":{"colorNotMatchesLrig":true,"cardType":"シグニ"},"pickCount":1,"then":"hand"}]|deck/bottom',
+      '[{"filter":{"colorMatchesLrig":true,"cardType":"シグニ"},"pickCount":1,"then":"hand","pickUpTo":true},{"filter":{"colorNotMatchesLrig":true,"cardType":"シグニ"},"pickCount":1,"then":"hand","pickUpTo":true}]|deck/bottom',
       '2段（共通色／非共通色）');
     const used = new Set<string>();
     const white = signiOfColor('白', used), red = signiOfColor('赤', used);
@@ -43902,6 +43902,154 @@ test('段2 第33バッチ 据置契約: PR-322-E2 は手札から出す選択肢
   ok(encoded.includes('"type":"TRASH_CARD"') && encoded.includes('"color":"黒"'), '既存トラッシュ枝の黒指定は保持');
   ok(!encoded.includes('"type":"HAND_CARD"'), '別軸の手札枝欠落を据置として固定');
 });
+
+// ── 段2 第34バッチ：「N枚まで」の0枚選択と固定N枚の対照 ──
+test('段2 第34バッチ engine対照: REVEAL_AND_PICK は pickUpTo=true のときだけ0枚選択可', () => withSavedCursor(() => {
+  const ctx = mkCtx({ deckTop: fill(4) }, {});
+  const base = {
+    type: 'REVEAL_AND_PICK', owner: 'self', revealCount: 4, pickCount: 2,
+    then: { type: 'ADD_TO_HAND', owner: 'self' },
+    remainder: { location: 'deck', position: 'bottom' },
+  } as EffectAction;
+  const upTo = executeAction({ ...base, pickUpTo: true } as EffectAction, ctx);
+  ok(!upTo.done && upTo.pending.type === 'SEARCH' && upTo.pending.optional === true, '「まで」は0枚選択可');
+  const exact = executeAction(base, ctx);
+  ok(!exact.done && exact.pending.type === 'SEARCH' && exact.pending.optional !== true, '「まで」なしは固定枚数');
+}));
+
+test('段2 第34バッチ engine対照: LOOK_PICK_CHAIN は stage.pickUpTo=true のときだけ0枚選択可', () => withSavedCursor(() => {
+  const ctx = mkCtx({ deckTop: fill(4) }, {});
+  const chain = (pickUpTo?: boolean): EffectAction => ({
+    type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: 4,
+    stages: [{ pickCount: 2, ...(pickUpTo ? { pickUpTo: true } : {}), pickNoun: 'カード', then: 'hand' }],
+    remainder: { location: 'deck', position: 'bottom' },
+  } as EffectAction);
+  const upTo = executeAction(chain(true), ctx);
+  ok(!upTo.done && upTo.pending.type === 'SEARCH' && upTo.pending.optional === true, '「まで」は0枚選択可');
+  const exact = executeAction(chain(), ctx);
+  ok(!exact.done && exact.pending.type === 'SEARCH' && exact.pending.optional !== true, '固定段は従来どおり必須');
+}));
+
+test('段2 第34バッチ engine対照: LOOK_AND_REORDER は upToCount=true のときだけ見る枚数を0..Nから先決め', () => withSavedCursor(() => {
+  const ctx = mkCtx({ life: 4 }, {});
+  const base = {
+    type: 'LOOK_AND_REORDER', source: { location: 'life_cloth', owner: 'self' }, count: 4,
+    private: true, reorder: true, canTrash: false,
+    destination: { location: 'deck', owner: 'self', position: 'top' },
+  } as EffectAction;
+  const upTo = executeAction({ ...base, upToCount: true } as EffectAction, ctx);
+  ok(!upTo.done && upTo.pending.type === 'CHOOSE', '「まで」は枚数選択を先に提示');
+  if (!upTo.done && upTo.pending.type === 'CHOOSE') {
+    eq(upTo.pending.options.length, 5, '0..4の5択');
+    const skipped = resumeChoose('look_0', upTo.pending, ctxAfter(upTo, ctx));
+    ok(skipped.done && skipped.ownerState.life_cloth.length === 4, '0枚なら非公開・盤面不変');
+  }
+  const exact = executeAction(base, ctx);
+  ok(!exact.done && exact.pending.type === 'LOOK_AND_REORDER', '固定4枚は従来の並べ替えへ直行');
+}));
+
+test('段2 第34バッチ engine対照: LRIG_TRASH_CARD は upToCount=true のときだけ0枚可、固定はN枚移動', () => withSavedCursor(() => {
+  const arts = [...cardMap.values()].filter(c => c.Type === 'アーツ').slice(0, 2).map(c => c.CardNum);
+  eq(arts.length, 2, 'アーツfixture');
+  const action = (upToCount?: boolean): EffectAction => ({
+    type: 'TRANSFER_TO_DECK',
+    source: { type: 'LRIG_TRASH_CARD', owner: 'self', count: 2, ...(upToCount ? { upToCount: true } : {}), filter: { cardType: 'アーツ' } },
+    shuffle: false, destination: 'lrig_deck',
+  } as EffectAction);
+  const optCtx = mkCtx({}, {}); optCtx.ownerState.lrig_trash = [...arts];
+  const offer = executeAction(action(true), optCtx);
+  ok(!offer.done && offer.pending.type === 'SELECT_TARGET' && offer.pending.optional === true, '上限2枚を選択提示');
+  if (!offer.done && offer.pending.type === 'SELECT_TARGET') {
+    const skipped = resumeSelectTarget([], offer.pending, ctxAfter(offer, optCtx));
+    ok(skipped.done && skipped.ownerState.lrig_trash.length === 2 && skipped.ownerState.lrig_deck.length === 0, '0枚選択を実行');
+  }
+  const fixedCtx = mkCtx({}, {}); fixedCtx.ownerState.lrig_trash = [...arts];
+  const fixed = executeAction(action(), fixedCtx);
+  ok(fixed.done && fixed.ownerState.lrig_trash.length === 0 && fixed.ownerState.lrig_deck.length === 2, '固定2枚は従来どおり自動移動');
+}));
+
+test('段2 第34バッチ parser契約: 対象9効果は上限フラグと動的枚数をfresh木へ出す', () => {
+  const freshEffect = (cardNum: string, effectId: string) => {
+    const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    if (!effect) throw new Error(`${effectId} fresh not found`);
+    return JSON.stringify(effect.action);
+  };
+  for (const [cardNum, effectId, needle] of [
+    ['WD06-007', 'WD06-007-E1', '"upToCount":true'],
+    ['WXDi-P11-030', 'WXDi-P11-030-E1', '"pickUpTo":true'],
+    ['WXK01-057', 'WXK01-057-E1', '"pickUpTo":true'],
+    ['WX25-P1-091', 'WX25-P1-091-E1', '"pickUpTo":true'],
+    ['WXDi-P00-010', 'WXDi-P00-010-E1', '"pickUpTo":true'],
+    ['WD10-007', 'WD10-007-E1', '"$ref":"last_processed_count"'],
+    ['WX24-P3-033', 'WX24-P3-033-E1', '"pickUpTo":true'],
+    ['WXEX2-84', 'WXEX2-84-E1', '"upToCount":true'],
+    ['PR-380', 'PR-380-E1', '"cardType":"レゾナ"'],
+  ] as const) ok(freshEffect(cardNum, effectId).includes(needle), `${effectId}: ${needle}`);
+});
+
+test('段2 第34バッチ E2E: WD10-007-E1 は0枚捨てを許し、2枚捨てたときだけ相手2体を要求', () => withSavedCursor(() => {
+  const weapons = [...cardMap.values()]
+    .filter(card => card.Type === 'シグニ' && (card.CardClass ?? '').includes('ウェポン'))
+    .slice(0, 2).map(card => card.CardNum);
+  eq(weapons.length, 2, 'ウェポンfixture');
+  const opponents = fill(2);
+  const action = manualEffect('WD10-007', 'WD10-007-E1').action;
+
+  const skipCtx = mkCtx({ signi: [null, null, null] }, { signi: [opponents[0], opponents[1], null] }, 'WD10-007');
+  skipCtx.ownerState.hand = [...weapons];
+  const skipOffer = executeAction(action, skipCtx);
+  ok(!skipOffer.done && skipOffer.pending.type === 'SELECT_TARGET' && skipOffer.pending.optional === true, '0..2枚の捨て札を提示');
+  if (!skipOffer.done && skipOffer.pending.type === 'SELECT_TARGET') {
+    const skipped = resumeSelectTarget([], skipOffer.pending, ctxAfter(skipOffer, skipCtx));
+    ok(skipped.done && skipped.otherState.field.signi.filter(Boolean).length === 2, '0枚ならバニッシュ0体');
+  }
+
+  const twoCtx = mkCtx({ signi: [null, null, null] }, { signi: [opponents[0], opponents[1], null] }, 'WD10-007');
+  twoCtx.ownerState.hand = [...weapons];
+  const twoOffer = executeAction(action, twoCtx);
+  if (twoOffer.done || twoOffer.pending.type !== 'SELECT_TARGET') throw new Error('捨て札選択なし');
+  const banishOffer = resumeSelectTarget(weapons, twoOffer.pending, ctxAfter(twoOffer, twoCtx));
+  ok(!banishOffer.done && banishOffer.pending.type === 'SELECT_TARGET'
+    && banishOffer.pending.count === 2 && banishOffer.pending.optional === false, '実際に捨てた2枚と同じ2体を必須選択');
+}));
+
+test('段2 第34バッチ C群契約: SEARCH後段countは選択1枚ごとのpayloadで、選んだ複数枚をすべて処理', () => withSavedCursor(() => {
+  for (const [cardNum, effectId, maxCount, destination] of [
+    ['WX11-047', 'WX11-047-E1', 5, 'energy'],
+    ['WXEX1-17', 'WXEX1-17-E2', 2, 'energy'],
+    ['WD07-006', 'WD07-006-E1', 3, 'trash'],
+    ['WXK04-041', 'WXK04-041-E1', 3, 'energy'],
+  ] as const) {
+    const parsed = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+    if (!parsed) throw new Error(`${effectId} fresh not found`);
+    const findSearch = (node: EffectAction): EffectAction | undefined => {
+      if (node.type === 'SEARCH' && node.maxCount === maxCount) return node;
+      if (node.type === 'SEQUENCE') for (const step of node.steps) { const found = findSearch(step); if (found) return found; }
+      if (node.type === 'CHOOSE') for (const choice of node.choices) { const found = findSearch(choice.action); if (found) return found; }
+      return undefined;
+    };
+    const search = findSearch(parsed.action);
+    if (!search || search.type !== 'SEARCH') throw new Error(`${effectId} SEARCH not found`);
+    const eligible = [...cardMap.values()]
+      .filter(card => matchesFilter(card, search.filter))
+      .map(card => card.CardNum);
+    const chosen: string[] = [];
+    for (const card of eligible) {
+      if (search.selectionConstraint?.distinct === 'level'
+          && chosen.some(selected => cardMap.get(selected)?.Level === cardMap.get(card)?.Level)) continue;
+      chosen.push(card);
+      if (chosen.length === Math.min(2, maxCount)) break;
+    }
+    eq(chosen.length, Math.min(2, maxCount), `${effectId}: eligible fixture`);
+    const ctx = mkCtx({ deckTop: chosen }, {}, cardNum);
+    const offer = executeAction(search, ctx);
+    ok(!offer.done && offer.pending.type === 'SEARCH' && offer.pending.optional === true, `${effectId}: 0..N選択`);
+    if (offer.done || offer.pending.type !== 'SEARCH') continue;
+    const done = finish(resumeSearch(chosen, offer.pending, ctxAfter(offer, ctx)), ctx);
+    const zone = destination === 'energy' ? done.ownerState.energy : done.ownerState.trash;
+    ok(chosen.every(card => zone.includes(card)), `${effectId}: 選択した複数枚をすべて${destination}へ`);
+  }
+}));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }

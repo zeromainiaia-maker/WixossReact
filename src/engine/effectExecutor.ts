@@ -5195,6 +5195,23 @@ function execLookAndReorder(a: LookAndReorderAction, ctx: ExecCtx): ExecResult {
   const sourceCards = a.source.location === 'life_cloth' ? state.life_cloth : state.deck;
   // `'ALL'`＝そのゾーンの全部（「あなたのすべてのライフクロスを見て」＝§6.4 O-4）。
   const count = a.count === 'ALL' ? sourceCards.length : resolveNum(a.count);
+  // 「N枚まで見る」は情報を得る前に見る枚数を0..Nから決める。既定（フィールド省略）は
+  // 従来どおりN枚固定のままにし、upToCount:trueだけを選択経路へ送る。
+  if (a.upToCount && a.count !== 'ALL') {
+    const max = Math.min(count, sourceCards.length);
+    if (max === 0) return done(ctx);
+    return needsInteraction(addLog(ctx, `見る枚数を0～${max}枚から選ぶ`), {
+      type: 'CHOOSE', count: 1,
+      options: Array.from({ length: max + 1 }, (_, n) => ({
+        id: `look_${n}`,
+        label: `${n}枚見る`,
+        action: n === 0
+          ? ({ type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction)
+          : ({ ...a, count: n, upToCount: false } as LookAndReorderAction),
+        available: true,
+      })),
+    });
+  }
   const cards = a.source.location === 'life_cloth'
     ? sourceCards.slice(Math.max(0, sourceCards.length - count))
     : sourceCards.slice(0, count);
@@ -5269,6 +5286,11 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
   // LRIG_TRASH_CARD: ルリグトラッシュから（アーツ等を）ルリグデッキ/デッキへ戻す（WX05-001「白と黒のアーツをルリグデッキに戻す」）
   if (src.type === 'LRIG_TRASH_CARD') {
     const cands = (state.lrig_trash ?? []).filter(n => matchesFilter(ctx.cardMap.get(n), src.filter));
+    if (src.upToCount && src.count !== 'ALL') {
+      const count = resolveNum(src.count);
+      const scope: TargetScope = src.owner === 'opponent' ? 'opp_lrig_trash' : 'self_lrig_trash';
+      return selectOrInteract(cands, count, true, scope, a, undefined, ctx, false, { selectionConstraint: src.selectionConstraint });
+    }
     const cards = src.count === 'ALL' ? cands : cands.slice(0, resolveNum(src.count));
     if (cards.length === 0) return done(addLog(ctx, '対象のカードがルリグトラッシュにない'));
     const newLrigTrash = state.lrig_trash.filter(n => !cards.includes(n));
@@ -5815,6 +5837,7 @@ function execRevealAndPick(a: RevealAndPickAction, ctx: ExecCtx): ExecResult {
     type: 'SEARCH',
     visibleCards: pickable,
     maxPick,
+    ...(a.pickUpTo ? { optional: true } : {}),
     thenAction: a.then,
     ...(a.handOrField ? { handOrField: true } : {}),
     ...(a.handOrEnergy ? { handOrEnergy: true } : {}),
@@ -5908,6 +5931,7 @@ function execLookPickChain(a: import('../types/effects').LookPickChainAction, ct
       type: 'SEARCH',
       visibleCards: cands,
       maxPick: stageMax,
+      ...(stage.pickUpTo ? { optional: true } : {}),
       thenAction: lookPickThenAction(stage.then, owner),
       continuation: cont as EffectAction,
       ...(stage.handOrEnergy ? { handOrEnergy: true } : {}),
@@ -10291,12 +10315,14 @@ function applyDirectAction(action: EffectAction, cardNum: string, ctx: ExecCtx):
       else if (tdS.hand.includes(cardNum)) tdNew = { ...tdNew, hand: tdNew.hand.filter(x => x !== cardNum) };
       else if (tdS.trash.includes(cardNum)) tdNew = { ...tdNew, trash: tdNew.trash.filter(x => x !== cardNum) };
       else if (tdS.energy.includes(cardNum)) tdNew = { ...tdNew, energy: tdNew.energy.filter(x => x !== cardNum) };
+      else if ((tdS.lrig_trash ?? []).includes(cardNum)) tdNew = { ...tdNew, lrig_trash: tdNew.lrig_trash.filter(x => x !== cardNum) };
       else return done(ctx);
-      if (tdA.shuffle) tdNew = { ...tdNew, deck: shuffle([...tdNew.deck, cardNum]) };
+      if (tdA.destination === 'lrig_deck') tdNew = { ...tdNew, lrig_deck: [...(tdNew.lrig_deck ?? []), cardNum] };
+      else if (tdA.shuffle) tdNew = { ...tdNew, deck: shuffle([...tdNew.deck, cardNum]) };
       else if (tdA.position === 'bottom') tdNew = { ...tdNew, deck: [...tdNew.deck, cardNum] };
       else tdNew = { ...tdNew, deck: [cardNum, ...tdNew.deck] };
       return done(addLog(setOwnerState(tdOwner, tdNew, tdCtx),
-        `${tdCtx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}をデッキ${tdA.position === 'bottom' ? '下' : '上'}へ`));
+        `${tdCtx.cardMap.get(getCardNum(cardNum))?.CardName ?? cardNum}を${tdA.destination === 'lrig_deck' ? 'ルリグデッキ' : `デッキ${tdA.position === 'bottom' ? '下' : '上'}`}へ`));
     }
     case 'GRANT_PROTECTION': {
       // 外部SELECT_TARGET経由で選ばれた単一シグニへ効果耐性を付与（execGrantProtection の applyProtection と同じ）。

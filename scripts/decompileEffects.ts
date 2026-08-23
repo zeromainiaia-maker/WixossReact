@@ -1013,8 +1013,9 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'LOOK_AND_REORDER': {
       const src = a.source?.owner === 'opponent' ? '対戦相手の' : 'あなたの';
-      const loc = a.source?.location === 'hand' ? '手札' : 'デッキの上';
-      const cntJa = a.count === 99 ? '' : numJa(a.count) + '枚';
+      const loc = a.source?.location === 'hand' ? '手札'
+        : a.source?.location === 'life_cloth' ? 'ライフクロス' : 'デッキの上';
+      const cntJa = a.count === 99 ? '' : `${numJa(a.count)}枚${a.upToCount ? 'まで' : ''}`;
       if (a.shuffle && a.destination?.location === 'deck' && a.destination.position === 'bottom') {
         return `${src}${loc}から${cntJa}を公開し、公開したカードをシャッフルしてデッキの一番下に置く`;
       }
@@ -1446,7 +1447,7 @@ function actionJa(a?: Action, effectType?: string): string {
     }
     case 'LOOK_PICK_CHAIN': {
       const destVerb = (t: string) => t === 'hand' ? '手札に加え' : t === 'energy' ? 'エナゾーンに置き' : t === 'field' ? '場に出し' : t === 'beat' ? '【ビート】にし' : t === 'deck_top' ? 'デッキの一番上に戻し' : t === 'trap' ? '【トラップ】としてシグニゾーンに設置し' : t === 'magic_box' ? '【マジックボックス】としてシグニゾーンに設置し' : 'トラッシュに置き';
-      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? '好きな枚数' : `${numJa(s.pickCount)}枚まで`}${destVerb(s.then)}`;
+      const stageJa = (s: any) => `${s.sharesClassWithPrev ? 'そのシグニと共通するクラスを持つ' : ''}${s.notSharesClassWithPrev ? 'そのシグニと共通するクラスを持たない' : ''}${filterJa(s.filter)}${s.pickNoun ?? 'シグニ'}を${s.pickCount === 'ALL' ? (s.pickUpTo ? '好きな枚数' : 'すべて') : `${numJa(s.pickCount)}枚${s.pickUpTo ? 'まで' : ''}`}${destVerb(s.then)}`;
       // ⚠ location を先に見る（従来 energy が既定の「デッキの一番下」に化けていた＝WX24-P4-022-E2）
       const remJa = a.remainder?.location === 'trash' ? '残りをトラッシュに置く'
         : a.remainder?.location === 'energy' ? '残りをエナゾーンに置く'

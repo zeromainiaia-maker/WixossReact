@@ -147,6 +147,8 @@ export function EffectInteractionModal(p: EffectInteractionModalProps) {
               opp_hand_energy:  '相手の手札とエナから合計',
               self_lrig_deck: 'ルリグデッキから',
               opp_lrig_deck: '相手のルリグデッキから',
+              self_lrig_trash: 'ルリグトラッシュから',
+              opp_lrig_trash: '相手のルリグトラッシュから',
               self_assist_lrig: '自分のアシストルリグから',
               self_trash:  'トラッシュから',
               opp_trash:   '相手のトラッシュから',

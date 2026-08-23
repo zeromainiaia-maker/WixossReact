@@ -1169,6 +1169,7 @@ export type TargetScope =
   // 手札＋エナゾーンを跨いだ単一プール（「エナゾーンのカードと手札を合計N枚」＝タスク12(lxi) 第11波）
   | 'self_hand_energy' | 'opp_hand_energy'
   | 'self_lrig_deck' | 'opp_lrig_deck'
+  | 'self_lrig_trash' | 'opp_lrig_trash'
   | 'self_lrig_under'
   | 'self_assist_lrig'
   // 場のキー（`field.key_piece` ＋ `key_piece_extra`）。「対戦相手のキー１枚を対象とし」（§6.4 O-17）。

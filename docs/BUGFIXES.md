@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第34バッチ＝「N枚まで」を固定N枚にしていた33効果
+
+CSV原文1013効果をBOM除去付きで再走査し、既存の任意上限機構679効果を差し引いた。`REVEAL_AND_PICK.pickUpTo` は型/parserにあるのにengine未消費、`LOOK_PICK_CHAIN` はstage側の区別自体が無かったため、既定の固定枚数を変えず真のときだけSEARCH `optional:true`へ配線。`LOOK_AND_REORDER` は見る前に0..Nを選び、`LRIG_TRASH_CARD` は0枚を含む対象選択と選択札ごとのlrig deck移動を実装した。指定9効果と同文型24効果、計33 effectIdを採用。`WD10-007-E1` は実際に捨てた枚数を `$ref:'last_processed_count'` でbanish数へ渡し、`PR-380-E1` はarts/resona各1枚まで＋両方の支払色filterを復元した。
+
+C群4効果のSEARCH後段`count:1`は全体上限でなく選択札1枚ごとのpayloadで、`resumeSearch`が全picked札を処理する既存実装だったためデータ変更せず偽陽性として閉じた。0枚可／固定N必須の両方向、WD10の0/2枚、C群の複数枚移動をgolden固定。`npm run regen`／`npm run gates`全緑。golden **2595/2595**（2588→2595）、census **628/628**（630→628、定数更新）、smoke **10693/10693**（全異常0・SKIP0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB A/C 0、manual-fields 0、held/partial/idset **83/15/46**（集合増減0）。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch34_report.md`。
+
 ## 2026-08-23：§6.2 段2 第33バッチ＝対象・移動元・集計対象の色指定／色OR／色否定23効果
 
 未closed `findings.jsonl` を母集団の正に切り替え、CSV原文から色名詞466効果をBOM除去付きで再走査した。指定16効果と、同じparser規則で見つかった7効果を採用。`TargetFilter.color:string|string[]`、`colorExclude`、`anyOf` は型・`execUtils.matchesFilter`・`effectEngine.matchesFilter`・動的filter解決に既に実装済みだったため、新しいaction型やengine変更は加えずparser配線だけで直した。

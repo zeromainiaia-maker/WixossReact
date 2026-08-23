@@ -209,12 +209,10 @@ function makeLookPickStage(desc: string, noun: string, count: string, upTo: bool
   const filter = parsePickNounPhraseFilter(rest, noun);
   const then = pickDest(verb);
   if (!filter || !then) return null;
-  // LookPickChainStage.pickCount は常に「N枚まで」の上限。固定枚数（「まで」なし）も上限として扱う
-  // ＝engine は maxPick に使うだけで、公開札が足りない場合の挙動は同じ。
-  void upTo;
   return {
     ...(Object.keys(filter).length > 0 ? { filter } : {}),
     pickCount: parseNum(count), then,
+    ...(upTo ? { pickUpTo: true } : {}),
     ...(noun !== 'シグニ' ? { pickNoun: noun } : {}),
     ...flags,
   };
@@ -6566,7 +6564,6 @@ function applySharedColorBatch5c2(effects: CardEffect[]): void {
   addFilter('WX12-030-E1', { colorMatchesCostTrashed: true });
   addFilter('WX14-047-E1', { colorMatchesCostTrashed: true, excludeCardName: '未来の噴陰　†アークホールド†' });
   addFilter('WX25-P3-111-E2', { colorMatchesCostTrashed: true });
-  addFilter('PR-380-E1', { colorMatchesCostTrashed: true });
   // WX24-P1-040-E1「…あなたのアップ状態のルリグ１体をダウンしてもよい。その後、**この方法でダウンしたルリグと
   // 同じレベルの**対戦相手のシグニ１体を対象とし、《無》を支払ってもよい。そうした場合、それを手札に戻す。」＝
   // レベル条件は**対象句の文**にあり、実行本体（BOUNCE）は「そうした場合〜」の別文なので汎用パーサでは filter が
@@ -9507,6 +9504,92 @@ function applyUpperBoundSelectionWiring(text: string, action: EffectAction): Eff
     }
   }
 
+  // 「ライフクロスの上からカードをN枚まで見て」：見る前に枚数を決める LOOK_AND_REORDER だけへ配線。
+  const lifeLookClauses = [...text.matchAll(/ライフクロスの上からカードを([０-９\d]+)枚まで見て/g)];
+  const lifeLooks = nodesOfType(action, 'LOOK_AND_REORDER').filter(node => {
+    const source = node.source as Record<string, unknown> | undefined;
+    return source?.location === 'life_cloth' && source.owner === 'self';
+  });
+  if (lifeLookClauses.length === 1 && lifeLooks.length === 1
+      && lifeLooks[0].count === parseNum(lifeLookClauses[0][1])) {
+    lifeLooks[0].upToCount = true;
+  }
+
+  // 「手札から…シグニをN枚まで捨てる。その枚数と同じ数だけ…バニッシュ」：
+  // 前段の任意枚数と、実際に捨てた枚数を参照する後段を同じ一意な木へ配線する。
+  const discardSameCount = text.match(/手札から[^。]{0,64}?シグニを([０-９\d]+)枚まで捨てる。その後、対戦相手のシグニを、この方法で捨てたシグニの枚数と同じ数だけ対象とし、それらをバニッシュする/);
+  if (discardSameCount) {
+    const handTrashes = nodesOfType(action, 'TRASH').filter(node => {
+      const target = node.target as Record<string, unknown> | undefined;
+      return target?.type === 'HAND_CARD' && target.owner === 'self';
+    });
+    const opponentBanishes = nodesOfType(action, 'BANISH').filter(node => {
+      const target = node.target as Record<string, unknown> | undefined;
+      return target?.type === 'SIGNI' && target.owner === 'opponent';
+    });
+    if (handTrashes.length === 1 && opponentBanishes.length === 1) {
+      const trashTarget = handTrashes[0].target as Record<string, unknown>;
+      trashTarget.count = parseNum(discardSameCount[1]);
+      trashTarget.upToCount = true;
+      const banishTarget = opponentBanishes[0].target as Record<string, unknown>;
+      banishTarget.count = { $ref: 'last_processed_count' };
+      banishTarget.upToCount = false;
+    }
+  }
+
+  // ルリグトラッシュの単一カード種をN枚までルリグデッキへ戻す形。
+  const lrigTrashSingle = [...text.matchAll(/(?:ルリグトラッシュから(?:、)?|対象の)(アーツ|レゾナ|カード|ルリグ)を([０-９\d]+)枚まで(?:あなたの)?ルリグデッキに(?:加え|戻)/g)];
+  const lrigTrashTransfers = nodesOfType(action, 'TRANSFER_TO_DECK').filter(node => {
+    const source = node.source as Record<string, unknown> | undefined;
+    return source?.type === 'LRIG_TRASH_CARD' && node.destination === 'lrig_deck';
+  });
+  if (lrigTrashSingle.length === 1 && lrigTrashTransfers.length === 1) {
+    const source = lrigTrashTransfers[0].source as Record<string, unknown>;
+    source.count = parseNum(lrigTrashSingle[0][2]);
+    source.upToCount = true;
+    if (lrigTrashSingle[0][1] !== 'カード') {
+      source.filter = { ...((source.filter ?? {}) as Record<string, unknown>), cardType: lrigTrashSingle[0][1] };
+    }
+  }
+
+  // 「アーツとレゾナをそれぞれN枚まで」：一つに潰れた TRANSFER をカード種別ごとの2段へ分ける。
+  const lrigTrashPair = text.match(/ルリグトラッシュから[^。]{0,96}?アーツとレゾナをそれぞれ([０-９\d]+)枚まで対象とし、それらをルリグデッキに加える/);
+  if (lrigTrashPair && lrigTrashTransfers.length === 1) {
+    const base = lrigTrashTransfers[0] as unknown as import('../types/effects').TransferToDeckAction;
+    const sharedFilter = /使用コスト(?:として|で)支払ったエナと共通する色/.test(text)
+      ? { colorMatchesCostTrashed: true }
+      : {};
+    const makeTransfer = (cardType: 'アーツ' | 'レゾナ'): import('../types/effects').TransferToDeckAction => ({
+      ...base,
+      source: {
+        ...base.source,
+        count: parseNum(lrigTrashPair[1]),
+        upToCount: true,
+        filter: { ...(base.source.filter ?? {}), ...sharedFilter, cardType },
+      },
+    });
+    const replacement: EffectAction = { type: 'SEQUENCE', steps: [makeTransfer('アーツ'), makeTransfer('レゾナ')] };
+    const replace = (node: EffectAction): EffectAction => {
+      if (node === (base as unknown as EffectAction)) return replacement;
+      if (node.type === 'SEQUENCE') return { ...node, steps: node.steps.map(replace) };
+      if (node.type === 'CONDITIONAL') return { ...node, then: replace(node.then), ...(node.else ? { else: replace(node.else) } : {}) };
+      return node;
+    };
+    action = replace(action);
+  }
+
+  // wave2 の「各色のシグニをそれぞれN枚まで」：同じ公開木に同枚数・同じ手札行きの段が
+  // 複数ある場合だけ、全段を任意上限へする（他の固定段には波及させない）。
+  const eachLookPick = text.match(/シグニをそれぞれ([０-９\d]+)枚まで(?:公開し)?手札に加え/);
+  const lookChains = nodesOfType(action, 'LOOK_PICK_CHAIN');
+  if (eachLookPick && lookChains.length === 1) {
+    const n = parseNum(eachLookPick[1]);
+    const stages = lookChains[0].stages as Record<string, unknown>[] | undefined;
+    if (stages && stages.length >= 2 && stages.every(stage => stage.pickCount === n && stage.then === 'hand')) {
+      stages.forEach(stage => { stage.pickUpTo = true; });
+    }
+  }
+
   return action;
 }
 
@@ -10411,7 +10494,7 @@ function parseActionTextInner(text: string): EffectAction {
       };
       switch (_parsingCardNum) {
         case 'WXDi-P00-010':
-          stages = ['赤', '青', '緑'].map(color => ({ filter: { color, cardType: 'シグニ' }, pickCount: 1, then: 'hand' }));
+          stages = ['赤', '青', '緑'].map(color => ({ filter: { color, cardType: 'シグニ' }, pickCount: 1, pickUpTo: true, then: 'hand' }));
           break;
         case 'WXDi-P16-032':
           stages = [1, 2, 3].map(level => ({ filter: { cardType: 'シグニ', level }, pickCount: 1, then: 'hand' }));
@@ -10489,8 +10572,8 @@ function parseActionTextInner(text: string): EffectAction {
       const lpc: EffectAction = {
         type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(dp[1]),
         stages: [
-          { filter: handFilter, pickCount: parseNum(dp[3]), then: 'hand' },
-          { filter: fieldFilter, pickCount: parseNum(dp[5]), then: 'field' },
+          { filter: handFilter, pickCount: parseNum(dp[3]), pickUpTo: true, then: 'hand' },
+          { filter: fieldFilter, pickCount: parseNum(dp[5]), pickUpTo: true, then: 'field' },
         ],
         remainder,
       } as unknown as EffectAction;
@@ -10535,7 +10618,7 @@ function parseActionTextInner(text: string): EffectAction {
           } as RevealAndPickAction)
         : ({
             type: 'LOOK_PICK_CHAIN', owner: 'opponent', revealCount: parseNum(op[1]),
-            stages: [{ filter: filterOp, pickCount: parseNum(op[3]), then: 'field' }],
+            stages: [{ filter: filterOp, pickCount: parseNum(op[3]), ...(op[4] ? { pickUpTo: true } : {}), then: 'field' }],
             remainder: remainderOp,
             opponentResponds: true,
           } as unknown as EffectAction);
@@ -10583,7 +10666,7 @@ function parseActionTextInner(text: string): EffectAction {
       };
       const lpcF: EffectAction = {
         type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount: parseNum(fp[1]),
-        stages: [{ filter, pickCount: parseNum(fp[3]), then: 'field' }],
+        stages: [{ filter, pickCount: parseNum(fp[3]), ...(fp[4] ? { pickUpTo: true } : {}), then: 'field' }],
         remainder,
       } as unknown as EffectAction;
       // dual-pick 規則と同じく前後文を解析して SEQUENCE に組む（「その後、この方法で場に出たシグニは…」等）
@@ -16149,7 +16232,7 @@ function foldMagicBoxLookPickChain(action: EffectAction, sourceText: string): Ef
   steps[idx] = {
     type: 'LOOK_PICK_CHAIN', owner: 'self', revealCount,
     stages: [
-      { pickCount: parseNum(m[2]), pickNoun: 'カード', then: 'magic_box' },
+      { pickCount: parseNum(m[2]), ...(m[3] === 'まで' ? { pickUpTo: true } : {}), pickNoun: 'カード', then: 'magic_box' },
       { filter: { cardType: 'シグニ', story: m[4] }, pickCount: parseNum(m[5]), then: 'hand' },
     ],
     remainder: { location: 'deck', position: 'bottom' },

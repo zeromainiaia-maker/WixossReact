@@ -1475,6 +1475,8 @@ export interface LookAndReorderAction {
   source: { location: CardLocation; owner: Owner };
   /** `'ALL'`＝そのゾーンの全部（「あなたの**すべての**ライフクロスを見て」＝`WX05-010-E1`・§6.4 O-4）。 */
   count: NumberOrRef | 'ALL';
+  /** true＝「N枚まで見て」: 見る前に0..N枚を選ぶ。省略/falseは従来どおりN枚固定。 */
+  upToCount?: boolean;
   private: boolean;   // true = 自分だけ確認（相手に見せない）
   reorder: boolean;   // true = 順番を自由に決められる
   canTrash?: boolean; // true = 一部をトラッシュに置ける（残りをデッキに戻す）
@@ -1751,7 +1753,8 @@ export interface AttachCharmAction {
 // G255「カード1枚までトラッシュ＋＜X＞シグニ2枚まで手札」など、1度の公開からの多段ピック）。
 export interface LookPickChainStage {
   filter?: TargetFilter;          // ピック対象フィルタ（省略=任意カード）
-  pickCount: number | 'ALL';      // 上限枚数（「N枚まで」）。ALL＝公開札のうち好きな枚数
+  pickCount: number | 'ALL';      // 選択枚数。ALL＝公開札の全対象
+  pickUpTo?: boolean;             // true＝0..pickCount枚を選択可。省略/false＝pickCount枚必須
   // ピック先（手札／エナ／トラッシュ／場出し／【ビート】化／デッキの一番上へ戻す）。
   // 'deck_top'＝「その中から１枚をデッキの一番上に戻し、残りを（好きな順番で）デッキの一番下に置く」の中段。
   // このステージのピックは盤面を動かさず**デッキ内に留めたまま予約**し、remainder 処理時に一番上へ置く
