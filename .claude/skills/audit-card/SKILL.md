@@ -32,14 +32,14 @@ npm run audit -- --id <CardNum>
 |---|---|---|
 | **真 no-op（バグ）** | 原文の効果が engine で実行されていない（未実装 action 型・未配線 timing・誤配線・トリガー主語ミス） | ④で修正 |
 | **シナリオ空振り** | engine は正しいが、監査用トイ盤面に有効な対象が居ないだけ | `scripts/behaviorAudit.ts` の**シナリオビルダーを拡充**して偽陽性を消す（対象を盤に置く） |
-| **STUB 未実装** | STUB id のまま engine 実装が無い | `docs/STUBS.md` / PLAN §6.1・§6.3 の worklist へ登録（その場では直さない） |
+| **STUB 未実装** | STUB id のまま engine 実装が無い | `docs/STUBS.md` / PLAN §5.3 の worklist へ登録（その場では直さない） |
 
-⚠ **偽陽性パターン（PLAN §9）をまず除外する**。トリガー主語系（audit はトリガー条件を模擬しない＝逆翻訳照合で判定するしかない）・
+⚠ **偽陽性パターン（PLAN 付録B）をまず除外する**。トリガー主語系（audit はトリガー条件を模擬しない＝逆翻訳照合で判定するしかない）・
 CONTINUOUS（モディファイア登録なので盤面カード列が動かない）・条件未成立は**バグではない**。
 
 ## ④ 修正（真 no-op のとき）
 
-PLAN §3 の標準ワークフローに従う：
+PLAN §2 の作業の流れに従う：
 - effects JSON は**直接パッチ**（`effectId` をアンカーにした `.mjs` で外科的に）。`npm run build:effects` は破壊的＝実行しない。
 - **逆翻訳を直したら engine 実装までセット**（乖離＝偽陰性を作らない）。engine 未配線なら `engineUnwiredTimings` に登録して
   逆翻訳に `【※engine未配線】` を出す。
@@ -60,5 +60,5 @@ node scripts/groupSimilar.mjs --all   # 同型★0
 - `docs/BUGFIXES.md` に追記（新しいものを上）。
 - 同じバグ型が他カードにも居そうなら**正規表現＋JSON 走査の lint に落として全域展開**する（`_auditSystematicScan.mjs` の実績）。
   1枚直して終わりにせず、系統として刈る。
-- Sonnet セッションで見つけた engine/parser バグは**その場で直さず** PLAN §3 Opus タスク12 へ登録する。
-- PLAN §4 の進捗サマリ更新は `/baton` で。
+- 見つけた engine/parser バグは**その場で直す**のが既定（PLAN §2.4）。先送りしてよいのは新機構が要るときだけ＝PLAN §5.3 へ `O-<次番号>` で登録する。
+- PLAN §1 の進捗サマリ更新は `/baton` で。

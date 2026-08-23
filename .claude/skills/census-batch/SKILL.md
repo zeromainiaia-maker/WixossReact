@@ -1,6 +1,6 @@
 ---
 name: census-batch
-description: 語彙センサス（PLAN §5c）の文型バッチを1巡消化する。census:clusters でテンプレ選定 → parser 規則追加 → build:effects → heldReview で採用 → ゲート → 簿記。過剰効果/幻覚バグの系統消化に使う。
+description: 語彙センサス（PLAN §5.4）の文型バッチを1巡消化する。census:clusters でテンプレ選定 → parser 規則追加 → build:effects → heldReview で採用 → ゲート → 簿記。過剰効果/幻覚バグの系統消化に使う。
 ---
 
 # /census-batch — 語彙センサス文型バッチ 1巡
@@ -30,7 +30,7 @@ parser に規則を足して `build:effects` で収穫し、`heldReview` で採�
   - 「代わりに」昇格（置換ルールは専用機構待ち）
 - **⛔ 全再生成系の一括置換は禁止**（無検証置換で約90枚退化の前例）。
 - **✅ 採用後は `git show` / 機械 diff で「意図した枚数のみ変更」を確認**する。
-- 作業中に engine/parser のバグを見つけたら**その場で直さず** PLAN §3 の Opus タスク12（常設受け口）に登録する。
+- 作業中に engine/parser のバグを見つけたら**その場で直す**のが既定（PLAN §2.4）。新機構が要るときだけ PLAN §5.3 へ `O-nn`（常設受け口）に登録する。
 
 ---
 
@@ -41,13 +41,13 @@ parser に規則を足して `build:effects` で収穫し、`heldReview` で採�
 npm run census:clusters
 ```
 → `docs/_census_clusters.txt` を**枚数順**に見て、消化する文型テンプレを1つ選ぶ。
-残りの worklist は PLAN §5c の「残りの消化対象」を参照（消化済みの履歴は PLAN_DETAIL.md §5c）。
+残りの worklist は PLAN §5.4 を参照（消化済みの履歴は PLAN_DETAIL.md §5c）。
 
 ⚠ **クラスタ表の ID は effectId**（2026-07-13 続き109 で効果単位へ切替）。採用時は CardNum へ変換する。
 
 ### ② 表現可能性の確認
 そのテンプレの条件/構造が**既存 DSL 型（engine/decompiler 対応済み）**で表現できるか確認する。
-- できない → **機構待ち**として PLAN §6.3 へ枚数付きで送り、別テンプレを選ぶ（ここで無理に近似すると偽陰性を作る）。
+- できない → **機構待ち**として PLAN §5.3 へ枚数付きで送り、別テンプレを選ぶ（ここで無理に近似すると偽陰性を作る）。
 - できる → ③へ。
 
 ### ③ parser 規則を足す
@@ -77,10 +77,10 @@ npm run regen      # decompile 全10シート＋下流を再生成（UTF-8 直�
 node scripts/groupSimilar.mjs --all   # 同型★0 を確認
 ```
 - **テンプレ追加につき golden を1件足す**（回帰防止）。
-- census が減っていたら `BASELINE_HIGH`（`scripts/vocabCensus.ts`）と PLAN §4 恒久指標の実数を更新する。
+- census が減っていたら `BASELINE_HIGH`（`scripts/vocabCensus.ts`）と PLAN §6 恒久指標の実数を更新する。
 
 ### ⑦ 簿記
 - `docs/BUGFIXES.md` に追記（**新しいものを上**）。
-- PLAN §5c の worklist から消化分を削り、PLAN_DETAIL.md §5c の履歴へ移す。
-- PLAN §4 進捗サマリの入れ替えは `/baton` で行う。
+- PLAN §5.4 の worklist から消化分を**行ごと削る**（1行サマリも残さない＝全文は PLAN_DETAIL.md と BUGFIXES.md が正）。
+- PLAN §1 進捗サマリの入れ替えは `/baton` で行う。
 - commit / push（CI が typecheck・lint・golden・smoke・fuzz を再実行する）。

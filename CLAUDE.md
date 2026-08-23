@@ -6,7 +6,7 @@ WixossカードゲームのReactクローン実装。
 ---
 
 ## 注意事項
-- **モデル分担で作業を取る（トークン消費削減・2026-07-09運用）**：セッション開始時に現在のモデルを確認し、`docs/PLAN.md §3`「モデル分担」の対応リストから作業を選ぶ。**Opus 側（Opus 4.8 / Fable 5）＝機構・語彙の新規実装と意味的退化の見極め／Sonnet 側＝定型消化・データ単点修正**。Sonnet はスキル（`/census-batch` `/audit-card` `/baton`）の手順とガードレールを厳守し、**作業中に発見した engine/parser バグはその場で直さず PLAN §3 の Opus リストへ登録して次の Opus セッションに回す**。
+- 🆕**作業は `docs/PLAN.md §2「作業の流れ」`に従う（2026-08-23 運用・Opus 単独）**：**Opus/Sonnet のモデル分担は廃止**。1巡＝**①取る（§5 の上から1件）→②母集団を実測→③実装→④`npm run gates`→⑤実機検証→⑥簿記**で、**⑤の実機検証まで通って初めて完了**（次セッションへ「要実機検証」を送らない）。**作業中に見つけた engine/parser バグはその場で直す**のが既定（先送りしてよいのは新機構が要るときだけ＝PLAN §5.3 へ `O-nn` で登録）。
 - **CSV の順番を必ず維持する**（スクリプト内の `sorted` ロジックで対応済み）
 - `scripts/addWX01.mjs` などのWEL化スクリプトは削除済み（WEL化は廃止）
 
@@ -18,7 +18,7 @@ WixossカードゲームのReactクローン実装。
 - **ルート直下にスクリプトやレポートを作らない**。置いてよいのは設定類（package.json / tsconfig* / vite / eslint / .env* 等）・`index.html`・`verify.html`（viteの追加エントリ）・`CLAUDE.md` / `README.md` のみ。
 
 ## 検証コマンド（共同開発者・必読）
-実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/PLAN.md §12`。
+実機（ブラウザ対戦）不要でヘッドレス回帰検証できる。**`npm install` 後すぐ動く**（tsx は devDependency）。詳細は `docs/PLAN.md §7`。
 - `npm run gates` — **全ゲート一括**（typecheck 先行→golden/smoke/fuzz/census/census:stubs/manual-fields/lint を並列実行＝`scripts/runGates.mjs`）。engine/parser/decompiler を触ったらこれ1本でよい。**2026-07-12高速化：tsc incremental＋eslint --cache 導入で無変更時 約3秒・変更後も数秒**（キャッシュ消失時のみ約37秒。キャッシュ置き場は `node_modules/.tmp/`・`node_modules/.cache/eslint/`＝gitignore圏内）
 - `npm run regen` — **decompileシート全10枚＋下流（genReviewRepr/groupSimilar/groupBySentence）を一括再生成（UTF-8直書き）**。旧手順の「⚠Bash の `>` で1枚ずつリダイレクト」は不要（PowerShell の `>` が UTF-16 を書いて下流を壊す事故を構造的に回避。下流3スクリプトには UTF-16 混入ガードもあり、混入時は即 exit 1）
 - `npm run typecheck` — 型チェック（CIと同じ／必須）
@@ -41,14 +41,14 @@ WixossカードゲームのReactクローン実装。
 - **メモ・ノート・引き継ぎ（HANDOFF）・調査記録などの .md は必ず `docs/` にまとめる**。プロジェクトルートに散らばせない。
 - ルート直下に置いてよいのは定位置が規約で決まっているものだけ：`CLAUDE.md` / `README.md` / `.github/pull_request_template.md`
 - 現状の `docs/` の主要ファイル：
-  - **`PLAN.md` — 開発計画の唯一の正（旧 P1_PLAN.md/ROADMAP.md/TODO.md を2026-07-03に統合）。全体像・DoD・3人バトン式の現在地・フェーズ別残作業をすべて1本に集約。§4「現在地とバトン」に次の一手。cold startはまずこれ。§4 進捗サマリは**直近1件だけ**を置く入れ替え式（運用ルールは §4 冒頭）**
-  - **`PLAN_PROGRESS.md` — PLAN §4 から追い出した過去のセッション要約の倉庫（新しい順）。作業ごとに PLAN §4 の旧要約をここの先頭へ移す**
-  - **`PLAN_DETAIL.md` — PLAN から追い出した消化済みバッチ・完了項目の詳細台帳（2026-07-07新設）。完了項目の詳細はここへ移し、PLAN には1行✅サマリだけ残す（PLAN を「生きている worklist」だけに保つ）**。🆕**2026-08-17 続き539＝消化済みが溜まったら「ID と日付だけの索引」まで削ってよい**（§6.4 の「■ 消化済み」節21本＝6395文字を「整理㉖」へ退避した実績）
-  - 🆕**PLAN §6.4 と §7 の使い分け（2026-08-17 続き539で確立）＝§6.4 は「機構・基盤の worklist」、§7 は「実機で確かめる worklist（`V-nn`）」。⚠実機で確かめるだけの項目を §6.4 に書かない**＝機構を実装したら**観測点は §7 へ `V-<次番号>` で足す**。これを守らずに §6.4 の1セルへ書き足し続けた結果、旧 `O-13` が**8185文字・30ブロック**に肥大して §7 と二重の置き場になっていた（→ `V-28`〜`V-58` へ移設して解消）
+  - **`PLAN.md` — 開発計画の唯一の正（旧 P1_PLAN.md/ROADMAP.md/TODO.md を2026-07-03に統合）。🆕**2026-08-23 に全面再編**＝フェーズ軸（旧 §5/§6/§7）を廃して **§5 の単一キュー**へ統合し、**§2「作業の流れ」**と **§4「教訓集」**を新設。cold start は **§1 現在地 → §2 作業の流れ → §5 作業キュー** の順に読む。§1 進捗サマリと §6 恒久指標は**直近1件だけ**を置く入れ替え式**
+  - **`PLAN_PROGRESS.md` — PLAN §1 から追い出した過去のセッション要約の倉庫（新しい順）。作業ごとに PLAN §1 の旧要約をここの先頭へ移す**
+  - **`PLAN_DETAIL.md` — PLAN から追い出した消化済みバッチ・完了項目の詳細台帳（2026-07-07新設）。🆕**2026-08-23 以降は「PLAN に1行サマリを残す」もやめた＝クローズした項目は PLAN から消し、全文はここと BUGFIXES.md が正**（PLAN を「生きている worklist」だけに保つ）**。🆕**2026-08-17 続き539＝消化済みが溜まったら「ID と日付だけの索引」まで削ってよい**（§6.4 の「■ 消化済み」節21本＝6395文字を「整理㉖」へ退避した実績）
+  - 🆕**PLAN §5.3 と §5.1 の使い分け＝§5.3 は「機構・基盤の worklist（`O-nn`）」、§5.1 は「実機で確かめる worklist（`V-nn`）」。⚠実機で確かめるだけの項目を §5.3 に書かない**＝機構を実装したら**観測点は §5.1 へ `V-<次番号>` で足す**。これを守らずに §6.4 の1セルへ書き足し続けた結果、旧 `O-13` が**8185文字・30ブロック**に肥大して §7 と二重の置き場になっていた（→ `V-28`〜`V-58` へ移設して解消）
   - **`DESIGN.md` — 設計方針・開発ルール（まずこれを読む）**
   - **`BUGFIXES.md` — バグ修正記録（新しいものを上に追記）**
-  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸・§5c census文型バッチと並行の主作業）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
-  - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。補完的発見器として継続利用（worklistは PLAN.md §6.2）
+  - **`BEHAVIOR_AUDIT.md` — 挙動トレース監査（原文照合の主軸）。engine実行結果（盤面差分＋ログ）を原文と目視照合。LLM不使用・決定論**
+  - `SEMANTIC_AUDIT.md` — （旧・主軸から外した）LLM意味比較。補完的発見器として継続利用（worklistは PLAN.md §5.2）
   - `STUBS.md` — 全STUBの一覧と実装状況（`node scripts/genStubsMd.mjs` で再生成。手編集しない）
   - `TokenCallers.md` — トークン↔呼び出し元の対応表
   - `effects-json-guide.md` — effects JSONの表現語彙・ガイド
@@ -56,6 +56,6 @@ WixossカードゲームのReactクローン実装。
 
 ## 定型ワークフローはスキルで（2026-07-07新設）
 `.claude/skills/` に定型作業のスキルがある。**該当作業はスキルの手順・ガードレールに従う**（散文の記憶に頼らない）：
-- `/census-batch` — §5c census文型バッチ1巡（clusters選定→parser規則→build:effects→heldReview採用→ゲート→簿記。必須ガードレール込み）
+- `/census-batch` — census 文型バッチ1巡（PLAN §5.4）（clusters選定→parser規則→build:effects→heldReview採用→ゲート→簿記。必須ガードレール込み）
 - `/audit-card <CardNum>` — BEHAVIOR_AUDIT 1カード監査1巡（目視照合→3分類仕分け→修正→ゲート→簿記）
-- `/baton` — セッション終了時のバトン簿記（PLAN §4 進捗サマリの入れ替え・PLAN_PROGRESS.md への退避）
+- `/baton` — セッション終了時のバトン簿記（PLAN §1 進捗サマリの入れ替え・PLAN_PROGRESS.md への退避）
