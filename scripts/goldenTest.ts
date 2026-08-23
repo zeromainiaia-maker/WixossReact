@@ -43246,6 +43246,154 @@ test('§6.4 O-42 E2E: WX01-002-E1 は白と赤の両方が場にあるときだ�
   eq(inactivePowers.get(white), baseWhite, '赤が欠ければ強化しない');
 }));
 
+// ── §6.2 段2 第30バッチ: 盤面集約値（レベル/パワー合計・偶奇）──
+function batch30Effect(effectId: string): CardEffect {
+  const cardNum = effectId.replace(/-(?:E\d+|BURST|LAYER)$/, '');
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(candidate => candidate.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} fresh parse missing`);
+  return effect;
+}
+
+test('段2 第30バッチ A1 E2E: WXK03-078-E1 は先頭の偶数シグニを候補から除き奇数だけをバニッシュする', () => withSavedCursor(() => {
+  const even = SIGNI_L2, odd = SIGNI_L1;
+  const ctx = mkCtx({}, { signi: [even, odd, null] }, 'WXK03-078');
+  const first = executeEffect(batch30Effect('WXK03-078-E1'), ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '奇数対象の選択へ進む');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  eq(first.pending.candidates.join(','), odd, '偶数を先頭に置いても候補は奇数だけ');
+  const done = finish(first, ctx);
+  eq(done.otherState.field.signi[0]?.at(-1), even, '偶数シグニは場に残る');
+  eq(done.otherState.field.signi[1], null, '奇数シグニだけがバニッシュされる');
+}));
+
+test('段2 第30バッチ A2 E2E: WXK04-024-E1 は奇数シグニだけを-3000対象にする', () => withSavedCursor(() => {
+  const even = SIGNI_L2, odd = SIGNI_L3;
+  const ctx = mkCtx({}, { signi: [even, odd, null] }, 'WXK04-024');
+  const first = executeEffect(batch30Effect('WXK04-024-E1'), ctx);
+  ok(!first.done && first.pending.type === 'SELECT_TARGET', '対象選択へ進む');
+  if (first.done || first.pending.type !== 'SELECT_TARGET') return;
+  eq(first.pending.candidates.join(','), odd, '偶数を先頭に置いても候補は奇数だけ');
+  const done = finish(first, ctx);
+  ok((done.otherState.temp_power_mods ?? []).some(mod => mod.cardNum === odd && mod.delta === -3000), '奇数へ-3000');
+  ok(!(done.otherState.temp_power_mods ?? []).some(mod => mod.cardNum === even), '偶数へは付かない');
+}));
+
+test('段2 第30バッチ A3 E2E: WXK04-024-E2 のALLは奇数だけへ-15000する', () => withSavedCursor(() => {
+  const even = SIGNI_L4, odd = SIGNI_L1;
+  const done = run(batch30Effect('WXK04-024-E2').action, mkCtx({}, { signi: [even, odd, null] }, 'WXK04-024'));
+  ok((done.otherState.temp_power_mods ?? []).some(mod => mod.cardNum === odd && mod.delta === -15000), '奇数へ-15000');
+  ok(!(done.otherState.temp_power_mods ?? []).some(mod => mod.cardNum === even), 'ALLでも偶数へは付かない');
+}));
+
+test('段2 第30バッチ B1 E2E: WXK03-079-E1 は直前カードが奇数の＜トリック＞のときだけ場に出す', () => withSavedCursor(() => {
+  const oddTrick = findCard(card => matchesFilter(card, { cardType: 'シグニ', story: 'トリック', levelParity: 'odd' }));
+  const evenTrick = findCard(card => matchesFilter(card, { cardType: 'シグニ', story: 'トリック', levelParity: 'even' }));
+  const executeTop = (top: string) => {
+    const ctx = mkCtx({ deckTop: [top], trash: 0 }, {}, 'WXK03-079');
+    ctx.isOwnerTurn = true;
+    ctx.ownerState.trash = [];
+    return run(batch30Effect('WXK03-079-E1').action, ctx);
+  };
+  const hit = executeTop(oddTrick);
+  ok(hit.ownerState.field.signi.some(stack => stack?.at(-1) === oddTrick), '奇数の＜トリック＞は場に出る');
+  const miss = executeTop(evenTrick);
+  ok(!miss.ownerState.field.signi.some(stack => stack?.at(-1) === evenTrick), '偶数の＜トリック＞は場に出ない');
+  ok(miss.ownerState.trash.includes(evenTrick), '不成立カードはトラッシュに残る');
+}));
+
+test('段2 第30バッチ C1 E2E: WXDi-P04-039-E1 はルリグ合計偶数でのみエナを手札へ戻す', () => withSavedCursor(() => {
+  const l1 = findCard(card => card.Type === 'ルリグ' && card.Level === '1');
+  const l2 = findCard(card => card.Type === 'ルリグ' && card.Level === '2');
+  const hitCtx = mkCtx({ lrig: [l2], hand: 0, energy: 1 }, {}, 'WXDi-P04-039');
+  const hit = run(batch30Effect('WXDi-P04-039-E1').action, hitCtx);
+  eq(hit.ownerState.hand.length, 1, '合計2なら成立');
+  const missCtx = mkCtx({ lrig: [l1], hand: 0, energy: 1 }, {}, 'WXDi-P04-039');
+  const miss = run(batch30Effect('WXDi-P04-039-E1').action, missCtx);
+  eq(miss.ownerState.hand.length, 0, '合計1なら不成立');
+}));
+
+test('段2 第30バッチ C2 E2E: WXDi-P04-039-E2 はルリグ合計奇数でのみエナチャージする', () => withSavedCursor(() => {
+  const l1 = findCard(card => card.Type === 'ルリグ' && card.Level === '1');
+  const l2 = findCard(card => card.Type === 'ルリグ' && card.Level === '2');
+  eq(run(batch30Effect('WXDi-P04-039-E2').action, mkCtx({ lrig: [l1], energy: 0 }, {}, 'WXDi-P04-039')).ownerState.energy.length, 1, '合計1なら成立');
+  eq(run(batch30Effect('WXDi-P04-039-E2').action, mkCtx({ lrig: [l2], energy: 0 }, {}, 'WXDi-P04-039')).ownerState.energy.length, 0, '合計2なら不成立');
+}));
+
+test('段2 第30バッチ C3 E2E: WXDi-P08-045-E1 はシグニレベル合計偶数でのみエナチャージする', () => withSavedCursor(() => {
+  eq(run(batch30Effect('WXDi-P08-045-E1').action, mkCtx({ signi: [SIGNI_L2, null, null], energy: 0 }, {}, 'WXDi-P08-045')).ownerState.energy.length, 1, '合計2なら成立');
+  eq(run(batch30Effect('WXDi-P08-045-E1').action, mkCtx({ signi: [SIGNI_L3, null, null], energy: 0 }, {}, 'WXDi-P08-045')).ownerState.energy.length, 0, '合計3なら不成立');
+  eq(run(batch30Effect('WXDi-P08-045-E1').action, mkCtx({ signi: [null, null, null], energy: 0 }, {}, 'WXDi-P08-045')).ownerState.energy.length, 1, '空盤面の合計0は偶数として成立');
+}));
+
+test('段2 第30バッチ outlier E2E: WXDi-P05-051-E1 の実条件はシグニレベル合計の偶奇を評価する', () => withSavedCursor(() => {
+  const action = batch30Effect('WXDi-P05-051-E1').action;
+  ok(action.type === 'SEQUENCE' && action.steps[0]?.type === 'CONDITIONAL', '先頭の任意支払い処理だけを合計偶数条件で包む');
+  if (action.type !== 'SEQUENCE' || action.steps[0]?.type !== 'CONDITIONAL') return;
+  const condition = action.steps[0].condition;
+  ok(evalCondition(condition, mkCtx({ signi: [SIGNI_L2, null, null] }, {}, 'WXDi-P05-051')), '合計2なら成立');
+  ok(!evalCondition(condition, mkCtx({ signi: [SIGNI_L3, null, null] }, {}, 'WXDi-P05-051')), '合計3なら不成立');
+}));
+
+test('段2 第30バッチ D1 E2E: WXK07-104-E1 は全シグニ偶数かつ非空のときだけ1体へ-4000', () => withSavedCursor(() => {
+  const victim = SIGNI_L1;
+  const runAt = (signi: (string | null)[]) => run(batch30Effect('WXK07-104-E1').action, mkCtx({ signi }, { signi: [victim, null, null] }, 'WXK07-104'));
+  const hit = runAt([SIGNI_L2, SIGNI_L4, null]);
+  ok((hit.otherState.temp_power_mods ?? []).some(mod => mod.cardNum === victim && mod.delta === -4000), '全数偶数なら成立');
+  const mixed = runAt([SIGNI_L2, SIGNI_L3, null]);
+  eq(mixed.otherState.temp_power_mods?.length ?? 0, 0, '奇数が1体でも混じれば不成立');
+  const empty = runAt([null, null, null]);
+  eq(empty.otherState.temp_power_mods?.length ?? 0, 0, '全数条件は空集合で不成立');
+}));
+
+function batch30PowerCtx(total: number, source: string, energy = 0): ExecCtx {
+  const a = SIGNI_L1, b = SIGNI_L2;
+  const ctx = mkCtx({ signi: [a, b, null], hand: 0, energy }, {}, source);
+  ctx.effectivePowers = new Map([[a, 10000], [b, total - 10000]]);
+  return ctx;
+}
+
+test('段2 第30バッチ E1 E2E: WXDi-P07-042-E2 は実効パワー合計29999/30000を境界にドローする', () => withSavedCursor(() => {
+  eq(run(batch30Effect('WXDi-P07-042-E2').action, batch30PowerCtx(29999, 'WXDi-P07-042')).ownerState.hand.length, 0, '29999では不成立');
+  eq(run(batch30Effect('WXDi-P07-042-E2').action, batch30PowerCtx(30000, 'WXDi-P07-042')).ownerState.hand.length, 1, '30000で成立');
+}));
+
+test('段2 第30バッチ E2 E2E: SPDi43-19-E1 は実効パワー合計30000以上でのみエナチャージする', () => withSavedCursor(() => {
+  eq(run(batch30Effect('SPDi43-19-E1').action, batch30PowerCtx(29999, 'SPDi43-19')).ownerState.energy.length, 0, '29999では不成立');
+  eq(run(batch30Effect('SPDi43-19-E1').action, batch30PowerCtx(30000, 'SPDi43-19')).ownerState.energy.length, 1, '30000で成立');
+}));
+
+test('段2 第30バッチ E3 E2E: WXDi-P07-045-E1 のeqは29999/30001を通さず30000だけ通す', () => withSavedCursor(() => {
+  eq(run(batch30Effect('WXDi-P07-045-E1').action, batch30PowerCtx(29999, 'WXDi-P07-045')).ownerState.energy.length, 0, '29999では不成立');
+  eq(run(batch30Effect('WXDi-P07-045-E1').action, batch30PowerCtx(30000, 'WXDi-P07-045')).ownerState.energy.length, 2, '30000で成立');
+  eq(run(batch30Effect('WXDi-P07-045-E1').action, batch30PowerCtx(30001, 'WXDi-P07-045')).ownerState.energy.length, 0, '30001でも不成立');
+}));
+
+test('段2 第30バッチ E4 E2E: WXDi-P07-008-E2 はアシスト合計1/4の多段閾値を独立評価する', () => withSavedCursor(() => {
+  const l1 = findCard(card => card.Type === 'ルリグ' && card.Level === '1');
+  const l2 = findCard(card => card.Type === 'ルリグ' && card.Level === '2');
+  const l4 = findCard(card => card.Type === 'ルリグ' && card.Level === '4');
+  const action = batch30Effect('WXDi-P07-008-E2').action;
+  eq(run(action, mkCtx({ lrig: [l4], coins: 0 }, {}, 'WXDi-P07-008')).ownerState.coins, 0, 'センタールリグだけではアシスト合計0');
+  eq(run(action, mkCtx({ assistL: [l1], coins: 0 }, {}, 'WXDi-P07-008')).ownerState.coins, 1, 'アシスト合計1で1枚');
+  eq(run(action, mkCtx({ assistL: [l2], assistR: [l2], coins: 0 }, {}, 'WXDi-P07-008')).ownerState.coins, 2, 'アシスト合計4で追加分を含む2枚');
+}));
+
+test('段2 第30バッチ FIELD_LEVEL_SUM は ActiveCondition 側でも偶奇・実効パワー・空盤面を評価する', () => withSavedCursor(() => {
+  const owner = mkState({ signi: [SIGNI_L1, SIGNI_L2, null] });
+  const other = mkState({});
+  ok(checkActiveCondition({ type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', parity: 'odd' }, owner, other, true, cardMap), 'active level sum 3は奇数');
+  ok(checkActiveCondition({ type: 'FIELD_LEVEL_SUM', owner: 'opponent', target: 'signi', parity: 'even' }, owner, other, true, cardMap), 'active 空盤面の合計0は偶数');
+  const effective = new Map([[SIGNI_L1, 10000], [SIGNI_L2, 20000]]);
+  ok(checkActiveCondition({ type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', metric: 'power', operator: 'eq', value: 30000 }, owner, other, true, cardMap, undefined, effective), 'active power sumは実効値30000を見る');
+}));
+
+test('段2 第30バッチ 非採用契約: WXK05-028-E2 は公開領域全体を表せるまで近似条件を足さない', () => {
+  const effect = batch30Effect('WXK05-028-E2');
+  eq(effect.action.type, 'BANISH', '公開領域の一部だけを見る近似CONDITIONALへ変えない');
+  ok(!JSON.stringify(effect).includes('ALL_FIELD_SIGNI_MATCH'), '場だけの全数奇数条件へ狭めない');
+  ok(!JSON.stringify(effect).includes('FIELD_LEVEL_SUM'), '合計パリティとも混同しない');
+});
+
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);
 if (fails.length) { console.log('\n--- FAIL ---'); fails.forEach(f => console.log('  ✗ ' + f)); process.exit(1); }
 else console.log('✓ 全構文ゴールデン通過');

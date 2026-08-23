@@ -1896,14 +1896,24 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       const sum = (state: PlayerState): number => {
         const nums = cond.target === 'signi'
           ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
-          : lrigZoneTops(state.field).filter((n): n is string => !!n);
+          : cond.lrigRole === 'assist'
+            ? [state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)].filter((n): n is string => !!n)
+            : cond.lrigRole === 'center'
+              ? [state.field.lrig.at(-1)].filter((n): n is string => !!n)
+              : lrigZoneTops(state.field).filter((n): n is string => !!n);
+        if (cond.metric === 'power') {
+          return nums.reduce((total, n) => total + (ctx.effectivePowers?.get(n)
+            ?? (parseInt((ctx.cardMap.get(getCardNum(n))?.Power ?? '').replace(/[^0-9]/g, ''), 10) || 0)), 0);
+        }
         return nums.reduce((total, n) => total + (parseInt(ctx.cardMap.get(getCardNum(n))?.Level ?? '0', 10) || 0), 0);
       };
       const lhsState = st(cond.owner);
+      const lhs = sum(lhsState);
+      if (cond.parity) return Math.abs(lhs % 2) === (cond.parity === 'odd' ? 1 : 0);
       const rhs = cond.compareTo === 'opponent'
         ? (cond.owner === 'self' ? sum(ctx.otherState) : sum(ctx.ownerState))
         : cond.value;
-      return rhs !== undefined && cmp(sum(lhsState), cond.operator, rhs);
+      return cond.operator !== undefined && rhs !== undefined && cmp(lhs, cond.operator, rhs);
     }
     case 'LRIG_ANY_TEAM_COUNT': {
       // 【使用条件】【チーム】いずれかのチーム＝場のルリグ（センター＋アシストL/R）のうち

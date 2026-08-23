@@ -468,9 +468,14 @@ function condJa(c?: any): string {
     case 'FIELD_CLASS_COUNT': return `${ownerJa(c.owner)}場に＜${c.story}＞が${numJa(c.value)}体${countPredicateJa(c.operator)}`;
     case 'LRIG_TEAM_COUNT': return `${ownerJa(c.owner)}場に＜${c.team}＞のルリグが${numJa(c.value)}体${opJa(c.operator)}`;
     case 'FIELD_LEVEL_SUM': {
-      const subject = `${ownerJa(c.owner)}場にある${c.target === 'lrig' ? 'ルリグ' : 'シグニ'}のレベルの合計`;
+      const target = c.target === 'lrig'
+        ? (c.lrigRole === 'assist' ? 'アシストルリグ' : c.lrigRole === 'center' ? 'センタールリグ' : 'ルリグ')
+        : 'シグニ';
+      const metric = c.metric === 'power' ? 'パワー' : 'レベル';
+      const subject = `${ownerJa(c.owner)}場にある${target}の${metric}の合計`;
+      if (c.parity) return `${subject}が${c.parity === 'odd' ? '奇数' : '偶数'}`;
       return c.compareTo === 'opponent'
-        ? `${subject}が対戦相手の場にある${c.target === 'lrig' ? 'ルリグ' : 'シグニ'}のレベルの合計${opJa(c.operator)}`
+        ? `${subject}が対戦相手の場にある${target}の${metric}の合計${opJa(c.operator)}`
         : `${subject}が${numJa(c.value)}${opJa(c.operator)}`;
     }
     case 'TRASH_HAS_CARD':

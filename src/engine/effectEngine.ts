@@ -193,16 +193,26 @@ export function checkActiveCondition(
       const sum = (state: PlayerState): number => {
         const nums = cond.target === 'signi'
           ? state.field.signi.map(stack => stack?.at(-1)).filter((n): n is string => !!n)
-          : lrigZoneTops(state.field).filter((n): n is string => !!n);
+          : cond.lrigRole === 'assist'
+            ? [state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)].filter((n): n is string => !!n)
+            : cond.lrigRole === 'center'
+              ? [state.field.lrig.at(-1)].filter((n): n is string => !!n)
+              : lrigZoneTops(state.field).filter((n): n is string => !!n);
+        if (cond.metric === 'power') {
+          return nums.reduce((total, n) => total + (effectivePowers?.get(n)
+            ?? (parseInt((cardMap.get(n)?.Power ?? '').replace(/[^0-9]/g, ''), 10) || 0)), 0);
+        }
         return nums.reduce((total, n) => total + (cond.target === 'signi' && effectiveLevels?.has(n)
           ? effectiveLevels.get(n)!
           : (parseInt(cardMap.get(n)?.Level ?? '0', 10) || 0)), 0);
       };
       const lhsState = cond.owner === 'self' ? ownerState : otherState;
+      const lhs = sum(lhsState);
+      if (cond.parity) return Math.abs(lhs % 2) === (cond.parity === 'odd' ? 1 : 0);
       const rhs = cond.compareTo === 'opponent'
         ? sum(cond.owner === 'self' ? otherState : ownerState)
         : cond.value;
-      return rhs !== undefined && compare(sum(lhsState), cond.operator, rhs);
+      return cond.operator !== undefined && rhs !== undefined && compare(lhs, cond.operator, rhs);
     }
     case 'LRIG_TEAM_COUNT': {
       const field = (cond.owner === 'self' ? ownerState : otherState).field;

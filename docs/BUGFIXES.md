@@ -1,5 +1,13 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第30バッチ＝レベル／パワー集約条件とレベル奇偶フィルタの脱落
+
+対象レベル奇偶3効果、直前カード奇偶1効果、盤面レベル合計の偶奇3効果、全数レベル偶数1効果、パワー合計閾値3効果、アシストルリグの多段レベル合計1効果をCSV原文とlive JSONで再照合した。既存 `TargetFilter.levelParity`／`LAST_PROCESSED_MATCHES`／`ALL_FIELD_SIGNI_MATCH` を流用し、`FIELD_LEVEL_SUM` は union数を増やさず `parity`・`metric:'power'`・`lrigRole:'assist'` を追加。AUTO/ACTIVATED側は `evalCondition`、CONTINUOUS側は `checkActiveCondition` の同じ `FIELD_LEVEL_SUM` caseで評価する。パワー合計は既存 `FIELD_SIGNI_POWER_COUNT` と同じく `effectivePowers` 優先、空盤面は合計0＝偶数、全数一致は既存契約どおり非空を要求してfalseとした。
+
+指定12効果に加え、全6712カード生パース比較で同じ「場のシグニのレベル合計が偶数」欠落を持つ `WXDi-P05-051-E1` を1件発見し、原文照合・engine条件評価golden付きで採用した。`WXK07-104-E1` は条件だけでなく対象数が `ALL` に退化していたため原文どおり1体へ復旧。`WXK05-028-E2` の「公開領域にある表向きのシグニすべて」は全公開領域を列挙するengine概念がなく、場だけを見る近似を入れず非採用契約で据置。F群は調査のみで、コスト合計・アーツ耐性・選択集合レベル合計は本バッチでは変更していない。
+
+`npm run regen` / `npm run gates` 全緑。golden **2546/2546**（2531→2546）、census **647/647**（656→647、定数・コメント更新）、smoke **10693/10693**（CRASH/HANG/INVARIANT/SKIP 0）、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A群/C群0、manual-fields 0、held/partial/idset **87/15/46**、manualEffects 412カード・削除候補1（`WX10-018-E1`）据置、Condition/ActiveCondition **122/52**据置。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch30_report.md`。
+
 ## 2026-08-23：§6.2 段2 第29バッチ＝引用能力付与に飲まれた外側のパワー操作12効果
 
 「〈対象〉のパワーを±Nし、それは『【自】…』を得る」が引用付与STUB単独へ潰れるA群7効果と、「このシグニの基本パワーはNになり、…」の前半が落ちるB群をCSV原文・live・実行経路で再照合した。既存STUBは消さず、A群を `SEQUENCE[POWER_MODIFY, STUB]`、期間の無いB群5効果を `SEQUENCE[POWER_SET, 従来action]` に合成。A1の【ランサー】、地獣、ディソナ、ライズ、`thisCardOnly` とA4/A5の `UNTIL_OPP_TURN_END` も既存filter/期間storeへ配線した。B6は引用【自】内の `SEARCH` が外側の常時actionへ漏れていたため、同じ引用STUBへ戻して基本パワー10000と引用離脱能力を同時復元した。

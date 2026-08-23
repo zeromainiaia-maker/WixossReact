@@ -2243,6 +2243,14 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
   // 段2-9: 盤面・各領域・ターン履歴を主語にした条件。値は原文から取得し、既存 Condition 語彙へ落とす。
+  // 段2-30: 「合計が偶数/奇数」と「すべてが偶数/奇数」は別語彙。
+  // 前者は空盤面の合計0も偶数、後者は ALL_FIELD_SIGNI_MATCH の既存契約どおり空盤面false。
+  [/あなたの場にあるすべてのシグニのレベルが(偶数|奇数)の場合/,
+    g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', levelParity: g[0] === '偶数' ? 'even' : 'odd' } })],
+  [/あなたの場に(?:いる|ある)(ルリグ|シグニ)のレベルの合計が(偶数|奇数)の場合/,
+    g => ({ type: 'FIELD_LEVEL_SUM', owner: 'self', target: g[0] === 'ルリグ' ? 'lrig' : 'signi', parity: g[1] === '偶数' ? 'even' : 'odd' })],
+  [/あなたの場にあるシグニのパワーの合計が([０-９\d]+)(以上|以下)?の場合/,
+    g => ({ type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'signi', metric: 'power', operator: g[1] === '以上' ? 'gte' : g[1] === '以下' ? 'lte' : 'eq', value: parseNum(g[0]) })],
   [/あなたの場にあるすべてのシグニが＜([^＞]+)＞の場合/,
     g => ({ type: 'ALL_FIELD_SIGNI_MATCH', owner: 'self', filter: { cardType: 'シグニ', story: g[0] } })],
   [/あなたの場にあるすべてのシグニが《ディソナアイコン》の場合/,
@@ -12609,6 +12617,83 @@ function applyDynamicCountTargetLimit(action: EffectAction, sourceText: string):
   return action;
 }
 
+/**
+ * 「レベルが奇数/偶数の〈owner〉の（すべての）シグニ」という対象名詞句を、
+ * 既に確定した BANISH / POWER_MODIFY の単一対象 leaf へ戻す。
+ * 数値やカード名には依存せず、owner と「すべて」も同じ名詞句から取る。
+ */
+function applyLevelParityToSigniTarget(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(/レベルが(奇数|偶数)の(あなた|対戦相手)の(すべての)?シグニ(?:[０-９\d]+体を対象とし|のパワーを)/);
+  if (!m) return action;
+  const owner: Owner = m[2] === '対戦相手' ? 'opponent' : 'self';
+  const leaves: Array<{ target: EffectTarget }> = [];
+  const walk = (node: unknown): void => {
+    if (!node || typeof node !== 'object') return;
+    const obj = node as { type?: string; target?: EffectTarget } & Record<string, unknown>;
+    if ((obj.type === 'BANISH' || obj.type === 'POWER_MODIFY')
+        && obj.target?.type === 'SIGNI' && obj.target.owner === owner) leaves.push({ target: obj.target });
+    for (const value of Object.values(obj)) {
+      if (Array.isArray(value)) value.forEach(walk);
+      else if (value && typeof value === 'object') walk(value);
+    }
+  };
+  walk(action);
+  if (leaves.length !== 1) return action;
+  const target = leaves[0].target;
+  target.filter = { ...(target.filter ?? { cardType: 'シグニ' }), levelParity: m[1] === '奇数' ? 'odd' : 'even' };
+  if (m[3]) target.count = 'ALL';
+  return action;
+}
+
+/**
+ * デッキトップをトラッシュへ置いた直後の「それがレベル奇偶の＜class＞のシグニの場合」を、
+ * LAST_PROCESSED_MATCHES と場出し元 filter の両方へ載せる。
+ */
+function applyLastProcessedParityStoryGate(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(/それがレベルが(奇数|偶数)の＜([^＞]+)＞のシグニの場合、それをトラッシュから場に出す/);
+  if (!m) return action;
+  const parity = m[1] === '奇数' ? 'odd' as const : 'even' as const;
+  const filter: TargetFilter = { cardType: 'シグニ', story: m[2], levelParity: parity };
+  const rewrite = (node: EffectAction): EffectAction => {
+    if (node.type === 'CONDITIONAL') return { ...node, then: rewrite(node.then), ...(node.else ? { else: rewrite(node.else) } : {}) };
+    if (node.type !== 'SEQUENCE') return node;
+    const steps = [...node.steps];
+    for (let i = 0; i + 1 < steps.length; i++) {
+      const mill = steps[i];
+      const play = steps[i + 1];
+      const source = play.type === 'ADD_TO_FIELD' ? play.source : undefined;
+      if (mill.type !== 'TRASH' || mill.target.type !== 'DECK_CARD'
+          || play.type !== 'ADD_TO_FIELD' || source?.type !== 'TRASH_CARD') continue;
+      const add: AddToFieldAction = {
+        ...play,
+        source: { ...source, filter: { ...(source.filter ?? {}), ...filter } },
+      };
+      steps[i + 1] = { type: 'CONDITIONAL', condition: { type: 'LAST_PROCESSED_MATCHES', filter }, then: add };
+      return { ...node, steps };
+    }
+    return node;
+  };
+  return rewrite(action);
+}
+
+/** 「assist level sum >= Aならcoin、>= Bなら追加coin」の各段を独立した閾値条件へする。 */
+function applyAssistLrigLevelSumCoinGates(action: EffectAction, sourceText: string): EffectAction {
+  const m = sourceText.match(/あなたの場にいるアシストルリグのレベルの合計が([０-９\d]+)以上の場合、《コインアイコン》を得る。([０-９\d]+)以上の場合、追加で《コインアイコン》を得る/);
+  if (!m || action.type !== 'SEQUENCE') return action;
+  const coinIndices = action.steps.map((step, i) => step.type === 'GAIN_COIN' ? i : -1).filter(i => i >= 0);
+  if (coinIndices.length !== 2) return action;
+  const steps = [...action.steps];
+  for (let j = 0; j < 2; j++) {
+    const idx = coinIndices[j];
+    steps[idx] = {
+      type: 'CONDITIONAL',
+      condition: { type: 'FIELD_LEVEL_SUM', owner: 'self', target: 'lrig', lrigRole: 'assist', operator: 'gte', value: parseNum(m[j + 1]) },
+      then: steps[idx],
+    };
+  }
+  return { ...action, steps };
+}
+
 function parseBlock(cardNum: string, block: string, index: number): CardEffect | null {
   const typeM = block.match(/^【(クロス)?(ドライブ|チーム|絆)?(常|出|起|自|ガード)】/);
   if (!typeM) return null;
@@ -14699,6 +14784,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     }
   }
   resolvedAction = applyDynamicCountTargetLimit(resolvedAction, actionText);
+  resolvedAction = applyLevelParityToSigniTarget(resolvedAction, actionText);
+  resolvedAction = applyLastProcessedParityStoryGate(resolvedAction, actionText);
+  resolvedAction = applyAssistLrigLevelSumCoinGates(resolvedAction, actionText);
   if (leadingTurnOwnerActionCond) {
     resolvedAction = { type: 'CONDITIONAL', condition: leadingTurnOwnerActionCond, then: resolvedAction };
   }
