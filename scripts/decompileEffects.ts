@@ -110,7 +110,10 @@ const countPredicateJa = (op?: string) => ({
 // タスク12(liii)「それのレベル１につき」族＝対象シグニのレベルが枚数になる動的値
 const LEVEL_REFS = ['last_processed_level', 'stored_target_level'];
 const numJa = (n: any) => typeof n === 'object'
-  ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の' : '[参照値]')
+  ? (LEVEL_REFS.includes(n?.$ref) ? 'それのレベルと同じ数の'
+    : n?.$ref === 'last_processed_count' ? 'この方法で処理した枚数と同じ数の'
+    : n?.$ref === 'cards_drawn_this_attack_phase' ? 'このアタックフェイズ中に引いた枚数と同じ数の'
+    : '[参照値]')
   : String(n);
 
 // anyOf（OR フィルタ）＝下位フィルタごとに名詞まで出して「AかB」に組む。
@@ -120,11 +123,24 @@ function anyOfJa(list: any[]): string {
 }
 
 function countFromZoneJa(spec: any): string {
-  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', acce: '【アクセ】', trap: '【トラップ】' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
+  const zone = ({ field: '場', hand: '手札', energy: 'エナゾーン', trash: 'トラッシュ', lrig_trash: 'ルリグトラッシュ', deck: 'デッキ', acce: '【アクセ】', charm: '場の【チャーム】', trap: '【トラップ】' } as Record<string, string>)[spec?.zone] ?? spec?.zone;
   const noun = spec?.filter
     ? `${filterJa(spec.filter)}${([] as string[]).concat(spec.filter.cardType ?? []).join('か') || 'カード'}`
     : 'カード';
-  return `あなたの${zone}にある${noun}の枚数${spec?.per && spec.per !== 1 ? `×${spec.per}` : ''}`;
+  const owner = ownerJa(spec?.owner);
+  const base = spec?.zone === 'deck' ? `${owner}デッキの枚数`
+    : spec?.zone === 'charm' ? `${owner}場にある【チャーム】の枚数`
+    : `${owner}${zone}にある${noun}の枚数`;
+  return `${base}${spec?.unitSize ? `÷${spec.unitSize}` : ''}${spec?.per && spec.per !== 1 ? `×${spec.per}` : ''}`;
+}
+
+function countFromZonePerJa(spec: any, suffix: string, upTo = false): string {
+  const unit = spec?.unitSize ?? 1;
+  const per = spec?.per ?? 1;
+  const subject = spec?.zone === 'deck' ? `${ownerJa(spec.owner)}デッキの枚数`
+    : spec?.zone === 'charm' ? `${ownerJa(spec.owner)}場にある【チャーム】`
+    : `${ownerJa(spec.owner)}${({ acce: '【アクセ】', trash: 'トラッシュにあるカード' } as Record<string, string>)[spec?.zone] ?? `${spec?.zone}にあるカード`}`;
+  return `${subject}${unit}枚につき${per}${suffix}${upTo ? 'まで' : ''}`;
 }
 
 function lastProcessedCountJa(spec: any): string {
@@ -309,6 +325,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   }
   const counter = (loc || t.type === 'KEY') ? '枚' : '体';
   const setConstraint = t.selectionConstraint?.totalLevelExact !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelExact}になるように`
+    : t.selectionConstraint?.totalLevelExactRef?.$ref === 'last_processed_count' ? 'レベルの合計がこの方法で処理した枚数と同じになるように'
     : t.selectionConstraint?.totalLevelMax !== undefined ? `レベルの合計が${t.selectionConstraint.totalLevelMax}以下になるように`
     : t.selectionConstraint?.sharedColor === 'all' ? 'それぞれ共通する色を持つ'
     : t.selectionConstraint?.sharedColor === 'none' ? 'それぞれ共通する色を持たない'
@@ -316,7 +333,10 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
     : '';
   // 動的数：直前にトラッシュした枚数（「トラッシュに置いたシグニ1体につき」）
   if (typeof t.count === 'object' && t.count?.$ref === 'last_processed_count') {
-    return `トラッシュに置いたシグニ1${counter}につき${own}${filterJa(t.filter)}${u}1${counter}`.trim();
+    return `${own}${filterJa(t.filter)}${u}をこの方法で処理した枚数と同じ数だけ`.trim();
+  }
+  if (typeof t.count === 'object' && t.count?.$ref === 'cards_drawn_this_attack_phase') {
+    return `${own}${filterJa(t.filter)}${u}をこのアタックフェイズ中に引いたカードの枚数まで`.trim();
   }
   if (t.addLastProcessedCount) {
     return `${own}${filterJa(t.filter)}${u}をこの方法で処理した枚数に${t.count}を加えた数`.trim();
@@ -327,6 +347,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
   }
   // 「好きな数」（count:'ALL' + upToCount）
   if (t.count === 'ALL' && t.upToCount) {
+    if (setConstraint) return `${own}${filterJa(t.filter)}${u}を${setConstraint}好きな数`.trim();
     return `${own}好きな数の${filterJa(t.filter)}${u}`.trim();
   }
   const cnt = t.count === 'ALL' ? 'すべての' : '';
@@ -337,6 +358,7 @@ function targetJa(t?: any, unit = 'シグニ', exSelf = false): string {
 
 function constraintJa(c?: import('../src/types/effects').SelectionConstraint): string {
   if (c?.totalLevelExact !== undefined) return `レベルの合計が${c.totalLevelExact}になるように`;
+  if (c?.totalLevelExactRef?.$ref === 'last_processed_count') return 'レベルの合計がこの方法で処理した枚数と同じになるように';
   if (c?.totalLevelMax !== undefined) return `レベルの合計が${c.totalLevelMax}以下になるように`;
   if (c?.sharedColor === 'all') return '共通する色を持つ';
   if (c?.sharedColor === 'none') return '共通する色を持たない';
@@ -768,12 +790,16 @@ function actionJa(a?: Action, effectType?: string): string {
   switch (a.type) {
     case 'DRAW': return a.untilHandCount !== undefined
       ? `${ownerJa(a.owner)}手札が${a.untilHandCount}枚より少ない場合、その差の分だけカードを引く`
+      : a.countFromZone?.unitSize
+      ? `${countFromZonePerJa(a.countFromZone, '枚')}カードを引く`
       : a.perLastProcessedLevel
       ? `${ownerJa(a.owner)}そのシグニのレベル1につきカードを${numJa(a.count)}枚引く`
       // `addLastProcessedCount`＝「この方法で処理した枚数だけ」（§6.4 O-9(a)）。
       // ⚠出さないと `count:0` が「カードを0枚引く」と描かれ、**何も引かない**逆翻訳になる。
       : a.addLastProcessedCount
       ? `${ownerJa(a.owner)}この方法で処理したカード1枚につきカードを1枚引く${(a.count ?? 0) > 0 ? `（さらに${numJa(a.count)}枚）` : ''}`
+      : a.count?.$ref === 'last_processed_count'
+      ? 'この方法で処理したカードの枚数と同じ数だけカードを引く'
       : `${ownerJa(a.owner)}カードを${numJa(a.count)}枚引く`;
     case 'GAIN_COIN': return `${ownerJa(a.owner)}コインを${numJa(a.count ?? 1)}枚得る`;
     case 'DRAW_PER_FIELD_COUNT': return `${ownerJa(a.countOwner)}場の${filterJa(a.countFilter)}シグニ1体につきカードを${a.drawPerUnit}枚引く`;
@@ -833,9 +859,9 @@ function actionJa(a?: Action, effectType?: string): string {
         : '';
       const cnt = t?.count === 'ALL' ? (t?.upToCount ? '好きな枚数' : 'すべて')
         : (typeof t?.count === 'object' && LEVEL_REFS.includes(t?.count?.$ref)) ? 'それのレベル1につき1枚'
-        : (typeof t?.count === 'object' && t?.count?.$ref === 'last_processed_count' && t.count.filter)
+        : (typeof t?.count === 'object' && t?.count?.$ref === 'last_processed_count')
           ? `この方法で処理した${t.count.filter ? `${filterJa(t.count.filter)}カード` : 'カード'}と同じ枚数`
-        : `${t?.count}枚${t?.upToCount ? 'まで' : ''}`;
+        : `${numJa(t?.count)}枚${t?.upToCount ? 'まで' : ''}`;
       return `${ownerJa(t?.owner)}${filterJa(t?.filter)}${u}を${cnt}トラッシュに置く${t?.thisCardOnly ? '（このカード）' : ''}${who}${a.optional ? '（してもよい）' : ''}`;
     }
     case 'POWER_MODIFY': {
@@ -906,6 +932,8 @@ function actionJa(a?: Action, effectType?: string): string {
       return `${ownerJa(a.owner)}デッキから${numJa(a.count)}枚エナチャージする`;
     }
     case 'ENERGY_CHARGE_FROM_DECK':
+      if (a.countFromZone?.unitSize)
+        return `${countFromZonePerJa(a.countFromZone, '回')}【エナチャージ1】をする`;
       if (typeof a.count === 'object' && LEVEL_REFS.includes(a.count?.$ref))
         return `それのレベル1につき${ownerJa(a.owner)}デッキの上から1枚をエナゾーンに置く`;
       return `${ownerJa(a.owner)}デッキの上から${numJa(a.count)}枚をエナゾーンに置く`;
@@ -1392,7 +1420,11 @@ function actionJa(a?: Action, effectType?: string): string {
         return c.condition ? `${condJa(c.condition)}場合、${body}` : body;
       }).filter((s: string) => s !== '');
       const totalCh = a.from_count ?? (a.choices?.length ?? chOpts.length);
-      const cntCh = a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
+      const cntCh = a.countChoose?.countFromZone
+        ? `${countFromZonePerJa(a.countChoose.countFromZone, 'つ', a.countChoose.upTo)}選ぶ`
+        : a.countChoose
+        ? `${numJa(a.countChoose.count)}つ${a.countChoose.upTo ? 'まで' : 'を'}選ぶ`
+        : a.upTo ? `${numJa(a.choose_count)}つまで選ぶ` : `${numJa(a.choose_count)}つを選ぶ`;
       // betChoose＝「あなたがベットしていた場合、代わりにKつ(まで)選ぶ」の択一（engine が is_betting で choose_count 上書き）。
       const betCh = a.betChoose
         ? `。あなたがベットしていた場合、代わりに${numJa(a.betChoose.thenChooseCount)}つ${a.betChoose.thenUpTo ? 'まで' : ''}選ぶ`

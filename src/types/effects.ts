@@ -160,9 +160,12 @@ export interface Variable {
 export type NumberOrRef = number | { $ref: string; filter?: TargetFilter };
 
 export interface CountFromZone {
-  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'acce' | 'trap';
+  zone: 'field' | 'hand' | 'energy' | 'trash' | 'lrig_trash' | 'deck' | 'acce' | 'charm' | 'trap';
   owner: Owner;
   filter?: TargetFilter;
+  /** 「N枚につき」の単位。該当枚数をこの値で割り、端数を切り捨てる。 */
+  unitSize?: number;
+  /** 既存の「1枚につきN」用乗数。unitSize とは意味が逆なので互換性のため分離する。 */
   per?: number;
 }
 
@@ -859,6 +862,8 @@ export interface SelectionConstraint {
   sharedColor?: 'all' | 'none';
   /** 選択したカードのレベル合計をちょうど N にする。候補単体ではなく選択集合全体の制約。 */
   totalLevelExact?: number;
+  /** 実行時に解決するレベル合計の一致値（「この方法で処理した枚数と同じ」）。 */
+  totalLevelExactRef?: NumberOrRef;
   /** 選択したカードのレベル合計を N 以下にする（SEARCH／コストを含む共通経路）。 */
   totalLevelMax?: number;
 }
@@ -1441,7 +1446,7 @@ export interface ChooseAction {
    * ・「以下の３つから**対戦相手のセンタールリグのルリグタイプ１つにつき１つまで**選ぶ」（`PR-471`）
    * 🔴これが無かった頃は**カードごと受け皿 STUB に落ちて①②③が1つも実行されない**真 no-op だった。
    */
-  countChoose?: { count: NumberOrRef; upTo?: boolean };
+  countChoose?: { count: NumberOrRef; countFromZone?: CountFromZone; upTo?: boolean };
   /**
    * 「**同じ選択肢を２回以上選んでもよい**」（§6.4 O-29・`WX17-003-E1`／`WX22-016-E1`）。
    * ⚠**engine（`resumeChoose`）は最初から重複 id を受けられる**（`['c1','c1']` を順に実行する）＝

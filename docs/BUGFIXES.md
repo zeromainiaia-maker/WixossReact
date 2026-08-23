@@ -1,5 +1,11 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-23：§6.2 段2 第35バッチ＝動的な枚数（「同じ数だけ」「N枚につき」）9効果
+
+CSV原文の指定6文型をBOM除去付きで全走査し、findings側OPENの指定9 effect（実数15 findings）を修正した。直前処理数は既存 `NumberOrRef`、領域比例数は既存 `CountFromZone` を使い、従来の乗数 `per` と意味が逆になる除数を `unitSize` として分離した。`countFromZone` は `floor(該当枚数/unitSize)*per`、不正unitと数え元0は明示的に0へ倒す。`CHOOSE.countChoose`、DOWN/UP、動的レベル合計exact、好きな枚数のトラッシュ→デッキ、任意全BANISHをexecutorへ配線し、アタックフェイズ内ドロー累計も境界reset付きで追加した。live構造差分は `WX22-024-E2`,`WX10-034-E1`,`WXDi-P14-027-E1`,`WX11-030-E2`,`SPDi43-24-E1`,`PR-442-BURST`,`WXDi-P04-004-E1`,`WXEX2-46-E1`,`WXEX1-22-E1` の9件だけ。
+
+正負goldenを8件追加し、数え元2→2件／0→pendingなし・処理なし、および `unitSize:0` のfail-closedを固定。`npm run regen` / `npm run gates` 全緑（golden **2603/2603**、census **626/626**＝628→626で定数更新、smoke **10693/10693**・異常/SKIP 0、fuzz全0、lint **0 errors / 261 warnings**、同型★0、STUB無言A/C 0、manual-fields 0、held/partial/idset **83/15/46**）。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch35_report.md`。
+
 ## 2026-08-23：§6.2 段2 第34バッチ＝「N枚まで」を固定N枚にしていた33効果
 
 CSV原文1013効果をBOM除去付きで再走査し、既存の任意上限機構679効果を差し引いた。`REVEAL_AND_PICK.pickUpTo` は型/parserにあるのにengine未消費、`LOOK_PICK_CHAIN` はstage側の区別自体が無かったため、既定の固定枚数を変えず真のときだけSEARCH `optional:true`へ配線。`LOOK_AND_REORDER` は見る前に0..Nを選び、`LRIG_TRASH_CARD` は0枚を含む対象選択と選択札ごとのlrig deck移動を実装した。指定9効果と同文型24効果、計33 effectIdを採用。`WD10-007-E1` は実際に捨てた枚数を `$ref:'last_processed_count'` でbanish数へ渡し、`PR-380-E1` はarts/resona各1枚まで＋両方の支払色filterを復元した。

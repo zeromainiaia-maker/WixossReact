@@ -194,6 +194,7 @@ function execDraw(a: DrawAction, ctx: ExecCtx): ExecResult {
     deck: state.deck.slice(canDraw),
     // このターンに効果で引いた累計枚数（CARDS_DRAWN_BY_EFFECT 条件用）。ドローフェイズのドローは drawCards 経由でここを通らない。
     cards_drawn_by_effect_this_turn: (state.cards_drawn_by_effect_this_turn ?? 0) + canDraw,
+    cards_drawn_this_attack_phase: (state.cards_drawn_this_attack_phase ?? 0) + canDraw,
     // このドローの原因カード（drawBySourceStory 判定用）。実際に引いた場合のみ更新。collectDrawTriggers が
     // cards_drawn_by_effect_this_turn の増加を検出した直後に読むため、ここで上書きすれば常に最新の原因が反映される。
     last_effect_draw_source: canDraw > 0 ? ctx.sourceCardNum : state.last_effect_draw_source,
@@ -1237,6 +1238,18 @@ function execBanish(a: BanishAction, ctx: ExecCtx): ExecResult {
     });
   }
   if (tgt.count === 'ALL') {
+    // 「他のすべてを〜してもよい」は全件実行／全件スキップの二択。部分選択にはしない。
+    if (a.optional) {
+      const banishAll = { ...a, optional: false } as BanishAction;
+      const skip = { type: 'STUB', id: 'INTERNAL_SKIP_OPTIONAL_ACTION' } as import('../types/effects').StubAction;
+      return needsInteraction(addLog(ctx, '対象のシグニをすべてバニッシュしますか？'), {
+        type: 'CHOOSE', count: 1,
+        options: [
+          { id: 'banish', label: 'すべてバニッシュする', action: banishAll, available: true },
+          { id: 'skip', label: 'バニッシュしない', action: skip, available: true },
+        ],
+      });
+    }
     // 「好きな数」（count:'ALL' + upToCount）: プレイヤーが0〜全部を選択（自動全バニッシュにしない）。execTrash と同じ慣例。
     if (tgt.upToCount) {
       if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
@@ -1974,6 +1987,7 @@ function execTrash(a: TrashAction, ctx: ExecCtx): ExecResult {
       ? Math.max(0, state.hand.length - a.untilHandCount)
       : resolveCountRef(tgt.count, ctx, tgt.countFromZone)
       + (tgt.addLastProcessedCount ? (ctx.lastProcessedCards?.length ?? 0) : 0);
+    if (count <= 0) return done({ ...addLog(ctx, '手札を捨てる枚数0（処理なし）'), lastProcessedCards: [] });
     // actingPlayerSelects=true: 「手札を見てN枚選び捨てさせる」＝自分が選ぶ
     // それ以外の opponent 手札: 「対戦相手は手札をN枚捨てる」＝相手自身が選ぶ
     const opponentResponds = tgt.owner === 'opponent' && !tgt.blind && !tgt.actingPlayerSelects;
@@ -3366,11 +3380,24 @@ function execDown(a: DownAction, ctx: ExecCtx): ExecResult {
       candidateLevels,
     });
   }
+  // 「レベル合計が直前に処理した枚数と同じになるように好きな数」。ref は pending を作る前に
+  // 固定値へ解決し、UI/CPU/resume の既存 SelectionConstraint 検証へそのまま渡す。
+  const exactRef = a.target.selectionConstraint?.totalLevelExactRef;
+  if (exactRef !== undefined) {
+    const exact = resolveCountRef(exactRef, ctx);
+    if (exact <= 0) return done({ ...addLog(ctx, '動的レベル合計0（処理なし）'), lastProcessedCards: [] });
+    if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+    const { totalLevelExactRef: _ref, ...restConstraint } = a.target.selectionConstraint!;
+    return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false, {
+      selectionConstraint: { ...restConstraint, totalLevelExact: exact },
+    });
+  }
   if (a.target.count === 'ALL') return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
   if (downThisCardRestrict !== null) {
     return done({ ...applyDown(cands, ctx), lastProcessedCards: cands });
   }
-  const count = resolveNum(a.target.count);
+  const count = resolveCountRef(a.target.count, ctx, a.target.countFromZone);
+  if (count <= 0) return done({ ...addLog(ctx, 'ダウン数0（処理なし）'), lastProcessedCards: [] });
   // optional:「ダウンしてもよい」（スキップ可。スキップ時は resumeSelectTarget が後続の「そうした場合」を除去）
   const downOptional = a.optional || (a.target.upToCount ?? false);
   return selectOrInteract(cands, count, downOptional, scope, a, undefined, ctx);
@@ -3441,8 +3468,9 @@ function execUp(a: UpAction, ctx: ExecCtx): ExecResult {
     }
     return done(applyUp(cands, ctx));
   }
-  const count = resolveNum(a.target.count);
-  return selectOrInteract(cands, count, false, scope, a, undefined, ctx);
+  const count = resolveCountRef(a.target.count, ctx, a.target.countFromZone);
+  if (count <= 0) return done({ ...addLog(ctx, 'アップ数0（処理なし）'), lastProcessedCards: [] });
+  return selectOrInteract(cands, count, a.target.upToCount ?? false, scope, a, undefined, ctx);
 }
 
 const BLOCK_ACTION_LABELS: Record<string, string> = {
@@ -5094,9 +5122,12 @@ function execChoose(a: ChooseAction, ctx: ExecCtx): ExecResult {
   // 選択数そのものが実行時に決まる形（§6.4 O-11）。
   // ⚠**0 のときは選ばせない**＝「捨てた枚数と同じ数だけ選ぶ」で0枚捨てたのに1つ選べると過剰実行になる。
   if (a.countChoose) {
-    effectiveCount = Math.max(0, resolveCountRef(a.countChoose.count, ctx));
+    effectiveCount = Math.max(0, resolveCountRef(a.countChoose.count, ctx, a.countChoose.countFromZone));
     effectiveUpTo = a.countChoose.upTo ?? false;
     if (effectiveCount === 0) return done(addLog(ctx, '選択数0（選ばない）'));
+    // 同じ選択肢を繰り返せない通常形では、存在する選択肢数を越える要求を作らない。
+    if (!a.allowRepeat) effectiveCount = Math.min(effectiveCount, options.filter(o => o.available).length);
+    if (effectiveCount === 0) return done(addLog(ctx, '選択可能な選択肢0（選ばない）'));
   }
   const chooseCtx = a.additionalCostChoose
     ? { ...ctx, ownerState: { ...ctx.ownerState, self_optional_effect_taken: false } }
@@ -5325,6 +5356,13 @@ function execTransferToDeck(a: TransferToDeckAction, ctx: ExecCtx): ExecResult {
 
   if (src.type === 'TRASH_CARD') {
     const cands = movableTrashCandidates(src.owner, state, src.filter, ctx.cardMap, ctx, ctx.treatAsClassAllZones);
+    // 「好きな枚数」は0〜全件の選択。optional×ALL の全件実行／全件スキップとは別形。
+    if (src.count === 'ALL' && src.upToCount) {
+      if (cands.length === 0) return done({ ...ctx, lastProcessedCards: [] });
+      const scope: TargetScope = src.owner === 'opponent' ? 'opp_trash' : 'self_trash';
+      return selectOrInteract(cands, cands.length, true, scope, a, undefined, ctx, false,
+        { selectionConstraint: src.selectionConstraint });
+    }
     // 「トラッシュからすべてのカードをデッキに加えてもよい」は、枚数選択ではなく
     // 全件実行／全件スキップの二択。execReveal の optional×ALL と同じ形に揃える。
     if (src.count === 'ALL' && a.optional) {

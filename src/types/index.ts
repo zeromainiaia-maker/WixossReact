@@ -856,6 +856,9 @@ export interface PlayerState {
   // このターンに効果（execDraw 経由）で引いた累計枚数。ドローフェイズのドローは含まない。
   // 「このターンに効果によってカードをN枚以上引いていた場合」条件（CARDS_DRAWN_BY_EFFECT）用。ターン終了時に0へリセット。
   cards_drawn_by_effect_this_turn?: number;
+  // 現在のアタックフェイズ中にこのプレイヤーが引いた枚数。効果ドローを execDraw で記録し、
+  // アタックフェイズ開始時に0へリセットする（WX11-030「このターンのアタックフェイズの間に引いた枚数」）。
+  cards_drawn_this_attack_phase?: number;
   // このターンにこのプレイヤーが支払った《コイン》の累計枚数（グロウ/アーツ/キー/スペル/ベット/【出】/【起】の全経路）。
   // 「このターンにあなたが《コイン》を合計N枚以上支払っていた場合」条件（COINS_PAID_THIS_TURN）用＝
   // WXDi-P09-039/WXDi-P15-053/068/072/073。ターン境界で0へリセット（turn_arts_used と同じ境界）。

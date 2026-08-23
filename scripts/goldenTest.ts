@@ -4434,7 +4434,7 @@ test('§6.4 T4: live の REVEAL_PICK_PLAY は0件で、engine の原文再parse 
 
 // §6.4 ターン限定 PlayerState funnel（続き446の副次発見）。
 // フィールド名の唯一の一覧は funnel に置き、ここでは型由来24件の包含と規約外10件という集合性を固定する。
-test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと funnel レジストリが一致', () => {
+test('§6.4 turn-scoped T1: PlayerState のターン限定フィールドと funnel レジストリが一致', () => {
   const typeSource = fs.readFileSync(join(root, 'src/types/index.ts'), 'utf8');
   const declared = [...typeSource.matchAll(/^ {2}([A-Za-z0-9_]+)\??:/gm)].map(m => m[1]);
   const convention = declared.filter(k => k.endsWith('_this_turn') || k.endsWith('_this_attack_phase'));
@@ -4451,7 +4451,8 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   // 32 → 33（§6.4 O-11 続き533 で signi_downed_this_turn を追加＝「このターンでN回目」の台帳）
   // 33 → 34（§8／§6.4 O-1 続き551 で cpu_activated_effect_ids_this_turn を追加＝CPU の【起】重複起動止め）
   // 34 → 35（§8／§6.4 O-1 (a) 続き552 で cpu_used_card_nums_this_turn を追加＝CPU の応答アーツ選び直し止め）
-  eq(convention.length, 35, 'PlayerState の命名規約由来フィールド数');
+  // 35 → 36（段2 第35バッチで cards_drawn_this_attack_phase を追加）
+  eq(convention.length, 36, 'PlayerState の命名規約由来フィールド数');
   eq(missingConvention.join('|'), '', '命名規約由来フィールドはすべて funnel に登録');
   // 8 → 10（§6.4 O-3 で abilities_removed / keyword_abilities_removed を登録）
   // 11 → 12（§6.4 O-3 で pending_extra_attack_phase_start_effects を追加）
@@ -4466,7 +4467,7 @@ test('§6.4 turn-scoped T1: PlayerState のターン限定40フィールドと f
   eq(irregular.length, 23, '命名規約外のターン限定フィールド数');  // +1＝続き518 の team_piece_cutin_window
   // 20 → 22（§6.4 O-10 続き512 で declared_guard_restrict_level / _levels を登録＝
   //   手書きクリアが turn-end の一部経路にしか無く、宣言側と読み手が別プレイヤーなので残りうる穴だった）
-  eq(registered.length, 58, '型由来35件＋命名規約外23件の母集団');  // +1＝続き533 の signi_downed_this_turn／+1＝続き551 の cpu_activated_effect_ids_this_turn／+1＝続き552 の cpu_used_card_nums_this_turn
+  eq(registered.length, 59, '型由来36件＋命名規約外23件の母集団');  // +1＝段2 第35バッチの cards_drawn_this_attack_phase
 });
 
 function tsSourceFiles(dir: string): string[] {
@@ -38102,11 +38103,14 @@ test('C1 $refトリップワイヤ: live の動的枚数は resolveCountRef が�
     'TRASH_CARD.count',                // execAddToField / execTransferToHand の source
     'ADD_TO_LIFE.count',               // execAddToLife(:2596)
     'ENERGY_CHARGE_FROM_DECK.count',   // execEnergyChargeFromDeck(:1740)
+    'DRAW.count',                      // execDraw（last_processed_count / attack-phase draw count）
     'REVEAL_AND_PICK.revealCount',     // execRevealAndPick(:4986/:5081)
     'SEARCH.maxCount',                 // execSearch(:3360)
     // §6.4 O-11（続き532）＝`ChooseAction.countChoose`（選択数が実行時に決まる CHOOSE）。
     // 消費側は `execChoose` で `resolveCountRef(a.countChoose.count, ctx)`（0 のときは選ばせず終了）。
     'CHOOSE.count',
+    // 段2 第35バッチ：execDown が pending 生成前に resolveCountRef し、静的 totalLevelExact へ変換する。
+    'SIGNI.totalLevelExactRef',
   ]);
   const found = new Map<string, string[]>();
   const walk = (node: unknown, types: string[], key: string, who: string): void => {
@@ -38148,16 +38152,16 @@ test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集�
     if (m) fn = m[1];
     if (/resolveNum\(\s*[A-Za-z0-9_.]*\b(?:count|maxCount|revealCount)\b/.test(ln)) hits.add(fn);
   }
-  const FROZEN = ['execAttachCharm', 'execBlockAction', 'execDown', 'execExile', 'execFreeze', 'execGrantEffect',
+  const FROZEN = ['execAttachCharm', 'execBlockAction', 'execExile', 'execFreeze', 'execGrantEffect',
     'execGrantKeyword', 'execGrantProtection', 'execLevelModify', 'execLifeCrash', 'execLookAndReorder',
     'execNegateAttack', 'execPowerModify', 'execPowerModifyByTargetLevel', 'execPowerModifyPerField',
     'execPowerModifyPerHandCount', 'execPowerModifyPerLevelSum', 'execPowerModifyPerLifeCount',
     'execPowerModifyPerLrigLevel', 'execPowerModifyPerTrashCount', 'execPowerMultiply', 'execPowerSet',
     'execRemoveAbilities', 'execReveal', 'execRevealDeckTop', 'execStoryChange', 'execTransferToDeck',
-    'execTransferToHand', 'execTrash', 'execUp'];
+    'execTransferToHand', 'execTrash'];
   eq([...hits].sort().join(','), FROZEN.join(','),
     '枚数キーを resolveNum で解く関数集合が変化した（増＝新しい死角／減＝凍結リストの更新漏れ）');
-  // 今回直した4サイトは resolveCountRef であることを個別に固定する
+  // 今回までに直した6サイトは resolveCountRef であることを個別に固定する
   // （execTrash / execTransferToHand は LIFE_CLOTH 分岐が残るので上の集合には出続ける＝ここで枝を名指しする）。
   const whole = src.join('\n');
   ok(/function execBounce[\s\S]*?const count = resolveCountRef\(tgt\.count, ctx, tgt\.countFromZone\)/.test(whole),
@@ -38169,6 +38173,10 @@ test('C2 $refトリップワイヤ: 枚数を resolveNum で解く関数の集�
     'execTrash の ENERGY_CARD 経路は resolveCountRef');
   ok(/const count = src\.count === 'ALL' \? cands\.length : resolveCountRef\(src\.count, ctx, src\.countFromZone\)/.test(whole),
     'execTransferToHand の非ALL経路は resolveCountRef');
+  ok(/function execDown[\s\S]*?const count = resolveCountRef\(a\.target\.count, ctx, a\.target\.countFromZone\)/.test(whole),
+    'execDown の非ALL経路は resolveCountRef');
+  ok(/function execUp[\s\S]*?const count = resolveCountRef\(a\.target\.count, ctx, a\.target\.countFromZone\)/.test(whole),
+    'execUp の非ALL経路は resolveCountRef');
 });
 
 // 🔴タスク12(cxx)：エナ差分 watcher（ON_ENERGY_CHARGE / ON_POWER_THRESHOLD）が entries を積むだけで
@@ -44049,6 +44057,154 @@ test('段2 第34バッチ C群契約: SEARCH後段countは選択1枚ごとのpay
     const zone = destination === 'energy' ? done.ownerState.energy : done.ownerState.trash;
     ok(chosen.every(card => zone.includes(card)), `${effectId}: 選択した複数枚をすべて${destination}へ`);
   }
+}));
+
+// ── 段2 第35バッチ：動的な枚数（同じ数だけ／N枚につき）──
+const freshBatch35 = (cardNum: string, effectId: string): CardEffect => {
+  const effect = parseCardEffects(cardMap.get(cardNum)!).find(e => e.effectId === effectId);
+  if (!effect) throw new Error(`${effectId} fresh not found`);
+  return effect;
+};
+
+test('段2 第35バッチ parser契約: 対象9効果は動的枚数の受け皿をfresh木へ出す', () => {
+  for (const [cardNum, effectId, needles] of [
+    ['WX22-024', 'WX22-024-E2', ['"optional":true', '"$ref":"last_processed_count"']],
+    ['WX10-034', 'WX10-034-E1', ['"$ref":"last_processed_count"']],
+    ['WXDi-P14-027', 'WXDi-P14-027-E1', ['"count":"ALL"', '"totalLevelExactRef":{"$ref":"last_processed_count"}']],
+    ['WX11-030', 'WX11-030-E2', ['"$ref":"cards_drawn_this_attack_phase"', '"type":"UP"', '"type":"DOWN"']],
+    ['SPDi43-24', 'SPDi43-24-E1', ['"type":"DOWN"', '"$ref":"last_processed_count"']],
+    ['PR-442', 'PR-442-BURST', ['"zone":"deck"', '"unitSize":10']],
+    ['WXDi-P04-004', 'WXDi-P04-004-E1', ['"zone":"trash"', '"unitSize":10', '"duration":"UNTIL_END_OF_TURN"']],
+    ['WXEX2-46', 'WXEX2-46-E1', ['"zone":"acce"', '"unitSize":1']],
+    ['WXEX1-22', 'WXEX1-22-E1', ['"zone":"charm"', '"owner":"opponent"', '"upTo":true']],
+  ] as const) {
+    const encoded = JSON.stringify(freshBatch35(cardNum, effectId).action);
+    for (const needle of needles) ok(encoded.includes(needle), `${effectId}: ${needle}`);
+  }
+});
+
+test('段2 第35バッチ engine両方向: CountFromZone.unitSize は20枚→2・9枚→0でfail-closed', () => withSavedCursor(() => {
+  const draw: EffectAction = {
+    type: 'DRAW', owner: 'self', count: 1,
+    countFromZone: { zone: 'deck', owner: 'self', unitSize: 10 },
+  };
+  const twoCtx = mkCtx({ hand: 0 }, {}); twoCtx.ownerState.deck = fill(20); twoCtx.ownerState.hand = [];
+  const two = executeAction(draw, twoCtx);
+  ok(two.done && two.ownerState.hand.length === 2 && two.ownerState.deck.length === 18, '20枚なら2枚引く');
+  const zeroCtx = mkCtx({ hand: 0 }, {}); zeroCtx.ownerState.deck = fill(9); zeroCtx.ownerState.hand = [];
+  const zero = executeAction(draw, zeroCtx);
+  ok(zero.done && zero.ownerState.hand.length === 0 && zero.ownerState.deck.length === 9, '10枚未満なら0枚・既定1へ倒れない');
+
+  const invalidCtx = mkCtx({ hand: 0 }, {}); invalidCtx.ownerState.deck = fill(20); invalidCtx.ownerState.hand = [];
+  const invalid = executeAction({ ...draw, countFromZone: { zone: 'deck', owner: 'self', unitSize: 0 } } as EffectAction, invalidCtx);
+  ok(invalid.done && invalid.ownerState.hand.length === 0, '不正除数0も0枚へ閉じる');
+}));
+
+test('段2 第35バッチ engine両方向: 【アクセ】2枚→EC2・0枚→EC0', () => withSavedCursor(() => {
+  const action: EffectAction = {
+    type: 'ENERGY_CHARGE_FROM_DECK', owner: 'self', count: 1,
+    countFromZone: { zone: 'acce', owner: 'self', unitSize: 1 },
+  };
+  const twoCtx = mkCtx({}, {}); twoCtx.ownerState.deck = fill(3);
+  twoCtx.ownerState.field.signi_acce = [[fresh()], [fresh()], null];
+  const beforeEnergy = twoCtx.ownerState.energy.length;
+  const two = executeAction(action, twoCtx);
+  ok(two.done && two.ownerState.energy.length === beforeEnergy + 2 && two.ownerState.deck.length === 1, 'アクセ2枚ならEC2');
+  const zeroCtx = mkCtx({}, {}); zeroCtx.ownerState.deck = fill(3);
+  zeroCtx.ownerState.field.signi_acce = [null, null, null];
+  const zeroEnergy = zeroCtx.ownerState.energy.length;
+  const zero = executeAction(action, zeroCtx);
+  ok(zero.done && zero.ownerState.energy.length === zeroEnergy && zero.ownerState.deck.length === 3, 'アクセ0枚ならEC0');
+}));
+
+test('段2 第35バッチ engine両方向: 動的CHOOSEは数え元2なら2択・0なら対話なし', () => withSavedCursor(() => {
+  const action: EffectAction = {
+    type: 'CHOOSE', choose_count: 1, from_count: 3,
+    countChoose: { count: 0, countFromZone: { zone: 'charm', owner: 'opponent', unitSize: 1 }, upTo: true },
+    choices: [
+      { choiceId: 'a', label: 'A', action: { type: 'DRAW', owner: 'self', count: 1 } },
+      { choiceId: 'b', label: 'B', action: { type: 'DRAW', owner: 'self', count: 1 } },
+      { choiceId: 'c', label: 'C', action: { type: 'DRAW', owner: 'self', count: 1 } },
+    ],
+  };
+  const twoCtx = mkCtx({}, {}); twoCtx.otherState.field.signi_charms = [fresh(), fresh(), null];
+  const two = executeAction(action, twoCtx);
+  ok(!two.done && two.pending.type === 'CHOOSE' && two.pending.count === 2 && two.pending.upTo === true, 'チャーム2枚なら2つまで');
+  const zeroCtx = mkCtx({}, {}); zeroCtx.otherState.field.signi_charms = [null, null, null];
+  const zero = executeAction(action, zeroCtx);
+  ok(zero.done, 'チャーム0枚なら選択対話を出さない');
+}));
+
+test('段2 第35バッチ engine両方向: last_processed_count は2なら2枚・0なら0枚', () => withSavedCursor(() => {
+  const action: EffectAction = { type: 'DRAW', owner: 'self', count: { $ref: 'last_processed_count' } };
+  const twoCtx = mkCtx({ hand: 0 }, {}); twoCtx.ownerState.hand = []; twoCtx.ownerState.deck = fill(3);
+  const two = executeAction(action, { ...twoCtx, lastProcessedCards: [fresh(), fresh()] });
+  ok(two.done && two.ownerState.hand.length === 2, '直前2枚なら2枚引く');
+  const zeroCtx = mkCtx({ hand: 0 }, {}); zeroCtx.ownerState.hand = []; zeroCtx.ownerState.deck = fill(3);
+  const zero = executeAction(action, { ...zeroCtx, lastProcessedCards: [] });
+  ok(zero.done && zero.ownerState.hand.length === 0, '直前0枚なら0枚・既定1へ倒れない');
+}));
+
+test('段2 第35バッチ E2E: WXDi-P14-027 は戻した2枚をexact2へ渡し、0枚ならダウン0', () => withSavedCursor(() => {
+  const eligible = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.Guard !== '1')
+    .filter((c, i, all) => all.findIndex(x => x.CardName === c.CardName) === i).slice(0, 2).map(c => c.CardNum);
+  eq(eligible.length, 2, '非ガード・別名fixture');
+  const action = freshBatch35('WXDi-P14-027', 'WXDi-P14-027-E1').action;
+
+  const twoCtx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, 'WXDi-P14-027');
+  twoCtx.ownerState.trash = [...eligible];
+  const transfer = executeAction(action, twoCtx);
+  ok(!transfer.done && transfer.pending.type === 'SELECT_TARGET' && transfer.pending.optional === true, '好きな枚数を0..全件で提示');
+  if (!transfer.done && transfer.pending.type === 'SELECT_TARGET') {
+    const down = resumeSelectTarget(eligible, transfer.pending, ctxAfter(transfer, twoCtx));
+    ok(!down.done && down.pending.type === 'SELECT_TARGET'
+      && down.pending.selectionConstraint?.totalLevelExact === 2, '戻した2枚をレベル合計exact2へ解決');
+  }
+
+  const zeroCtx = mkCtx({}, { signi: [SIGNI_L1, SIGNI_L2, null] }, 'WXDi-P14-027');
+  zeroCtx.ownerState.trash = [...eligible];
+  const zeroOffer = executeAction(action, zeroCtx);
+  if (zeroOffer.done || zeroOffer.pending.type !== 'SELECT_TARGET') throw new Error('好きな枚数選択なし');
+  const zero = resumeSelectTarget([], zeroOffer.pending, ctxAfter(zeroOffer, zeroCtx));
+  ok(zero.done && zero.otherState.field.signi_down.every(x => !x), '0枚を戻したときはダウン0・対話なし');
+}));
+
+test('段2 第35バッチ E2E: SPDi43-24 は実際にダウンした2体/0体を両選択肢へ渡す', () => withSavedCursor(() => {
+  const blue = [...cardMap.values()].filter(c => c.Type === 'シグニ' && c.Color === '青').slice(0, 2).map(c => c.CardNum);
+  eq(blue.length, 2, '青シグニfixture');
+  const action = freshBatch35('SPDi43-24', 'SPDi43-24-E1').action;
+  const twoCtx = mkCtx({ signi: [blue[0], blue[1], null], down: [false, false, false], hand: 0 }, {}, 'SPDi43-24');
+  twoCtx.ownerState.hand = []; twoCtx.ownerState.deck = fill(3);
+  const downOffer = executeAction(action, twoCtx);
+  if (downOffer.done || downOffer.pending.type !== 'SELECT_TARGET') throw new Error('先行ダウン選択なし');
+  const choose = resumeSelectTarget(blue, downOffer.pending, ctxAfter(downOffer, twoCtx));
+  if (choose.done || choose.pending.type !== 'CHOOSE') throw new Error('結果選択なし');
+  const drawn = resumeChoose('c0', choose.pending, ctxAfter(choose, twoCtx));
+  ok(drawn.done && drawn.ownerState.hand.length === 2, '2体ダウンなら2枚ドロー');
+
+  const zeroCtx = mkCtx({ signi: [blue[0], blue[1], null], down: [false, false, false], hand: 0 }, {}, 'SPDi43-24');
+  zeroCtx.ownerState.hand = []; zeroCtx.ownerState.deck = fill(3);
+  const zeroDown = executeAction(action, zeroCtx);
+  if (zeroDown.done || zeroDown.pending.type !== 'SELECT_TARGET') throw new Error('先行ダウン選択なし');
+  const zeroChoose = resumeSelectTarget([], zeroDown.pending, ctxAfter(zeroDown, zeroCtx));
+  if (zeroChoose.done || zeroChoose.pending.type !== 'CHOOSE') throw new Error('結果選択なし');
+  const zero = resumeChoose('c0', zeroChoose.pending, ctxAfter(zeroChoose, zeroCtx));
+  ok(zero.done && zero.ownerState.hand.length === 0, '0体ダウンなら0枚ドロー');
+}));
+
+test('段2 第35バッチ engine両方向: アタックフェイズドロー累計は2を参照し、境界で0へ戻る', () => withSavedCursor(() => {
+  const ctx = mkCtx({ hand: 0 }, {}); ctx.ownerState.hand = []; ctx.ownerState.deck = fill(3);
+  const drawn = executeAction({ type: 'DRAW', owner: 'self', count: 2 }, ctx);
+  ok(drawn.done && drawn.ownerState.cards_drawn_this_attack_phase === 2, '効果ドロー2枚を累計');
+  const downAction: EffectAction = {
+    type: 'DOWN', target: { type: 'SIGNI', owner: 'opponent', count: { $ref: 'cards_drawn_this_attack_phase' }, upToCount: true },
+  };
+  const withTargets = { ...ctxAfter(drawn, ctx), otherState: mkState({ signi: [fresh(), fresh(), null] }) };
+  const offer = executeAction(downAction, withTargets);
+  ok(!offer.done && offer.pending.type === 'SELECT_TARGET' && offer.pending.count === 2, '累計2なら2体まで');
+  const cleared = clearAttackPhaseScopedState(drawn.ownerState);
+  const zero = executeAction(downAction, { ...withTargets, ownerState: cleared });
+  ok(zero.done && zero.otherState.field.signi_down.every(x => !x), '新しいアタックフェイズは0体・対話なし');
 }));
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

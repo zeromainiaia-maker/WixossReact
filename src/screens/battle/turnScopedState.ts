@@ -23,6 +23,8 @@ type ConventionTurnScopedField = Extract<
 const CONVENTION_TURN_SCOPED_STATE = {
   // 効果によるドロー累計は、そのターンが終われば条件判定に使わない。
   cards_drawn_by_effect_this_turn: { boundaries: ['turn-end'], reset: 0, reason: 'effect draw total for the current turn' },
+  // アタックフェイズごとのドロー累計。追加アタックフェイズでも新しいフェイズ開始時に数え直す。
+  cards_drawn_this_attack_phase: { boundaries: ['attack-phase-start'], reset: 0, reason: 'draw total starts fresh at each attack phase' },
   // ディソナ以外のスペル禁止は、付与されたターンだけ有効。
   dissona_only_spells_this_turn: { boundaries: ['turn-end'], reset: undefined, reason: 'spell restriction granted for the current turn' },
   // 相手効果によるエナ廃棄累計は、ターン単位の条件カウンタ。

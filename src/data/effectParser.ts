@@ -16787,6 +16787,134 @@ function normalizeRevealPickEnergyThen(node: EffectAction): void {
   }
 }
 
+/**
+ * 段2 第35バッチ：盤面や直前処理から決まる action 枚数を、既存の動的数量語彙へ配線する。
+ * カード番号ではなく、原文の文型と parser が作った直近の木の双方が一致した場合だけ書き換える。
+ * 片方が別機構へ変わったときに無関係な last_processed_count を読む退化を避けるためである。
+ */
+function applyDynamicActionCountBatch35(card: CardData, effects: CardEffect[]): void {
+  const cardText = `${card.EffectText ?? ''}\n${card.BurstText ?? ''}`;
+  if (!/(?:バニッシュしたシグニと同じ数だけ|好きな枚数対象とし[^。]*デッキに加えてシャッフル|アタックフェイズの間にあなたが引いたカードの枚数まで|この方法でダウンしたシグニ[１1]体につき|デッキの枚数[０-９\d]+枚につき|【アクセ】[０-９\d]+枚につき|トラッシュにあるカード[０-９\d]+枚につき[０-９\d]+つを選ぶ|場にある【チャーム】[０-９\d]+枚につき)/.test(cardText)) return;
+  const lastCount = { $ref: 'last_processed_count' } as const;
+  const attackDrawCount = { $ref: 'cards_drawn_this_attack_phase' } as const;
+
+  for (const effect of effects) {
+    const source = abilityBlockTextOf(card, effect.effectId);
+    const action = effect.action;
+
+    // 「（この方法／効果で）バニッシュしたシグニと同じ数だけ」：直前が BANISH で、後段が
+    // まだ固定枚数の場出し／エナ回収に潰れている2段木だけを参照形へ変える。
+    if (action.type === 'SEQUENCE' && action.steps.length === 2
+        && /(?:この方法|この効果)でバニッシュしたシグニと同じ数だけ/.test(source)
+        && action.steps[0]?.type === 'BANISH') {
+      const first = action.steps[0];
+      const second = action.steps[1];
+      if (second?.type === 'ADD_TO_FIELD' && second.source?.type === 'TRASH_CARD'
+          && typeof second.source.count === 'number') {
+        second.source.count = lastCount;
+      } else if (second?.type === 'TRANSFER_TO_HAND' && second.source.type === 'ENERGY_CARD'
+          && typeof second.source.count === 'number') {
+        second.source.count = lastCount;
+      }
+      if (first.target.count === 'ALL' && /すべてのシグニをバニッシュしてもよい/.test(source)) {
+        first.optional = true;
+      }
+    }
+
+    // トラッシュ→デッキへ好きな枚数戻し、その実処理枚数を後段のレベル合計 exact に使う形。
+    if (action.type === 'SEQUENCE' && action.steps.length === 2
+        && /トラッシュから[^。]*好きな枚数対象とし[^。]*デッキに加えてシャッフル/.test(source)
+        && /レベルの合計がこの方法でデッキに加えたシグニの枚数と同じになるように好きな数/.test(source)
+        && action.steps[0]?.type === 'TRANSFER_TO_DECK' && action.steps[0].source.type === 'TRASH_CARD'
+        && action.steps[1]?.type === 'DOWN') {
+      action.steps[0].source.count = 'ALL';
+      action.steps[0].source.upToCount = true;
+      action.steps[1].target.count = 'ALL';
+      action.steps[1].target.upToCount = true;
+      action.steps[1].target.selectionConstraint = {
+        ...(action.steps[1].target.selectionConstraint ?? {}), totalLevelExactRef: lastCount,
+      };
+    }
+
+    // アタックフェイズ中の累計ドロー枚数まで、同じ対象集合をアップするかダウンする。
+    if (/アタックフェイズの間にあなたが引いたカードの枚数までの数のシグニを対象とし、それらをアップするかダウンする/.test(source)
+        && action.type === 'DOWN' && action.target.type === 'SIGNI') {
+      const target: EffectTarget = { ...action.target, count: attackDrawCount, upToCount: true };
+      effect.action = {
+        type: 'CHOOSE', choose_count: 1, from_count: 2,
+        choices: [
+          { choiceId: 'up', label: '対象をアップする', action: { type: 'UP', target } },
+          { choiceId: 'down', label: '対象をダウンする', action: { type: 'DOWN', target } },
+        ],
+      } as ChooseAction;
+      continue;
+    }
+
+    // 先にアップ状態の色指定シグニをN体までダウンし、実際にダウンした枚数を選択肢の結果へ渡す。
+    const downThenChoose = source.match(/あなたのアップ状態の([白赤青緑黒])のシグニを([０-９\d]+)体までダウンし、以下の[０-９\d]+つから[０-９\d]+つを選ぶ/);
+    if (downThenChoose && action.type === 'CHOOSE' && action.choices.length === 2
+        && /この方法でダウンしたシグニ[１1]体につきカードを[１1]枚引く/.test(source)
+        && /この方法でダウンしたシグニ[１1]体につき対戦相手は手札を[１1]枚捨てる/.test(source)
+        && action.choices[0]?.action.type === 'DRAW_PER_FIELD_COUNT'
+        && action.choices[1]?.action.type === 'TRASH'
+        && action.choices[1].action.target.type === 'HAND_CARD') {
+      action.choices[0].action = { type: 'DRAW', owner: 'self', count: lastCount };
+      action.choices[1].action.target.count = lastCount;
+      effect.action = {
+        type: 'SEQUENCE', steps: [
+          {
+            type: 'DOWN',
+            target: {
+              type: 'SIGNI', owner: 'self', count: parseNum(downThenChoose[2]), upToCount: true,
+              filter: { cardType: 'シグニ', color: downThenChoose[1], isUp: true },
+            },
+          },
+          action,
+        ],
+      } as SequenceAction;
+      continue;
+    }
+
+    // 領域枚数を N で割った商（端数切り捨て）を action 枚数にする形。
+    const deckDraw = source.match(/デッキの枚数([０-９\d]+)枚につきカードを([０-９\d]+)枚引く/);
+    if (deckDraw && action.type === 'DRAW' && typeof action.count === 'number') {
+      action.countFromZone = { zone: 'deck', owner: 'self', unitSize: parseNum(deckDraw[1]), per: parseNum(deckDraw[2]) };
+      continue;
+    }
+    const acceCharge = source.match(/あなたの【アクセ】([０-９\d]+)枚につき【エナチャージ([０-９\d]+)】/);
+    if (acceCharge && action.type === 'ENERGY_CHARGE_FROM_DECK' && typeof action.count === 'number') {
+      action.countFromZone = { zone: 'acce', owner: 'self', unitSize: parseNum(acceCharge[1]), per: parseNum(acceCharge[2]) };
+      continue;
+    }
+    const trashChoose = source.match(/以下の[０-９\d]+つからあなたのトラッシュにあるカード([０-９\d]+)枚につき([０-９\d]+)つを選ぶ/);
+    if (trashChoose && action.type === 'SEQUENCE') {
+      const choose = action.steps.find((step): step is ChooseAction => step.type === 'CHOOSE');
+      const power = action.steps.find((step): step is PowerModifyAction => step.type === 'POWER_MODIFY');
+      if (choose && !choose.countChoose) {
+        choose.countChoose = {
+          count: 0,
+          countFromZone: { zone: 'trash', owner: 'self', unitSize: parseNum(trashChoose[1]), per: parseNum(trashChoose[2]) },
+        };
+      }
+      if (power && /ターン終了時まで、それのパワー/.test(source)) power.duration = 'UNTIL_END_OF_TURN';
+      continue;
+    }
+    const charmChoose = source.match(/以下の[０-９\d]+つから対戦相手の場にある【チャーム】([０-９\d]+)枚につき([０-９\d]+)つまで選ぶ/);
+    if (charmChoose && action.type === 'CHOOSE' && !action.countChoose) {
+      action.countChoose = {
+        count: 0,
+        countFromZone: { zone: 'charm', owner: 'opponent', unitSize: parseNum(charmChoose[1]), per: parseNum(charmChoose[2]) },
+        upTo: true,
+      };
+      if (/ターン終了時まで、それのパワー/.test(source)) {
+        for (const choice of action.choices) {
+          if (choice.action.type === 'POWER_MODIFY') choice.action.duration = 'UNTIL_END_OF_TURN';
+        }
+      }
+    }
+  }
+}
+
 export function parseCardEffects(card: CardData): CardEffect[] {
   const effects: CardEffect[] = [];
   let appearanceCondition: ReturnType<typeof parseAppearanceCondition> | undefined;
@@ -17336,6 +17464,8 @@ export function parseCardEffects(card: CardData): CardEffect[] {
   gate('WD19-015-E1', { type: 'VIRUS_COUNT', owner: 'opponent', operator: 'eq', value: 0 });
   gate('WDK05-R12-E2', { type: 'HAS_CARD_IN_FIELD', owner: 'opponent', filter: { cardType: 'シグニ', isFrozen: true }, minCount: 3 });
   gate('WDK09-017-E1', { type: 'IS_SELF_IN_CENTER_ZONE' });
+
+  applyDynamicActionCountBatch35(card, effects);
 
   // 実効果を増やさずカード先頭効果のメタデータとして保持する。
   // collector / executor / decompiler / census は従来どおり実効果だけを走査する。

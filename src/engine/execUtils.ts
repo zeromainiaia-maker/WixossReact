@@ -168,6 +168,9 @@ export function resolveCountRef(n: NumberOrRef, ctx: ExecCtx, fromZone?: CountFr
       ? cards.filter(cardNum => matchesFilter(ctx.cardMap.get(getCardNum(cardNum)), n.filter)).length
       : cards.length;
   }
+  if (n.$ref === 'cards_drawn_this_attack_phase') {
+    return Math.max(0, ctx.ownerState.cards_drawn_this_attack_phase ?? 0);
+  }
   if (n.$ref === 'last_processed_level') return maxCardLevel(ctx.lastProcessedCards, ctx);
   if (n.$ref === 'stored_target_level') return maxCardLevel(ctx.storedTargetCards, ctx);
   if (n.$ref === 'center_lrig_level') {
@@ -195,10 +198,15 @@ export function countFromZone(
     : fromZone.zone === 'energy' ? state.energy
     : fromZone.zone === 'trash' ? state.trash
     : fromZone.zone === 'lrig_trash' ? state.lrig_trash ?? []
+    : fromZone.zone === 'deck' ? state.deck
     : fromZone.zone === 'acce' ? (state.field.signi_acce ?? []).flatMap(slot => slot ?? [])
+    : fromZone.zone === 'charm' ? (state.field.signi_charms ?? []).filter((n): n is string => !!n)
     : (state.field.signi_traps ?? []).filter((n): n is string => !!n);
-  return cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter)).length
-    * (fromZone.per ?? 1);
+  const matched = cards.filter(cardNum => !fromZone.filter || matchesFilter(cardMap.get(getCardNum(cardNum)), fromZone.filter)).length;
+  // unitSize<=0 は無制限・既定1へ倒さず fail-closed。既存 per は乗数のまま維持する。
+  if (fromZone.unitSize !== undefined && (!Number.isFinite(fromZone.unitSize) || fromZone.unitSize <= 0)) return 0;
+  const units = fromZone.unitSize === undefined ? matched : Math.floor(matched / fromZone.unitSize);
+  return Math.max(0, units * (fromZone.per ?? 1));
 }
 
 // 「それのレベル１につき」族（タスク12(liii)）の倍率。対象は常に単数なので最大値＝そのカードのレベル。
