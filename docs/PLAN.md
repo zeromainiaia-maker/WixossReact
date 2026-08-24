@@ -10,14 +10,19 @@
 
 > **運用**＝この節には**直近1件の要約だけ**を残す（入れ替え式）。新しく作業したら ①いまの要約を [PLAN_PROGRESS.md](./PLAN_PROGRESS.md) の先頭へ移す ②この節を今回の要約へ書き換える。**溜めない**（溜めると cold start が最初に読む節が一番古くなる）。
 
-- 🏁**セッション（2026-08-25・続き650・Opus 5）＝`V-88` 決着＝`v12GrantedEnergyCharge*` 2本の FAIL は「engine の穴」でも「バイブス前提」でもなく、**ドライバが `nth: 1` を固定クリックしていた**シナリオの腐りだった**。gates 全緑（数値は続き649 から不動＝golden 2738／census 591／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260／同型★0）。**実機7本が2回連続 PASS＋反転確認済。差分は `scripts/verifyBattleDrive.mjs` のみ（18追加/4削除）。**
-  - ✅**真因**＝`【起】コストなし` ボタンは **1個しか出ていない**のに `nth: 1`（2個目）を押していた。probe を仕込んだ実測が `「【起】コストなし」=1` を返して確定。この spec は **`field.lrig_down: true` で始まる**ので**《ダウン》コストの `SPDi43-13-E1` が提示されず**、付与側の `E2` が **nth 0 へ繰り上がっていた**。⇒ **`nth = count - 1`（最後のボタン）**で狙う形へ是正。
-  - 🔴**`V-88` 登録時の私の見立ては誤診だった**＝「《ゲーム１回》バイブスMAX の前提を spec が作っていない」と書いたが、**`バイブス` は `src/` 全体で0ヒット＝engine に実装が無く**、コストは 《緑×0》＝実質無料。**バイブスは無関係**だった。⚠**「起動できない＝コスト条件が足りない」と決めつける前に、UI に何個ボタンが出ているかを実測する。**
-  - 🔴**`clickBtn` の空振りは例外にならない**（不在なら `null` を返して静かに次へ進む）＝**`nth` 固定は spec の盤面が変わると黙って腐る**。同一ラベルの【起】が複数出るカードを狙うシナリオは**相対指定（`count - 1`）**にする。
-  - ✅**反転確認済**＝`nth` を `1` 固定へ戻すと `completed=0 grantIds=[]` の元の FAIL が再現する。第42・第43バッチの実機4本も回帰で緑（計7本 ALL PASS）。
+- 🏁**セッション（2026-08-25・続き651・Opus 5）＝§5.2 段2 第44バッチ＝「あなた／対戦相手の場に〈X〉がある（N体ある）場合／かぎり」の盤面存在・体数条件が丸ごと落ちて無条件実行になる穴を配線**（**実装は Codex へ委譲・スコープ決定/検証/簿記は Claude**）。gates 全緑（**golden 2738→2743**／census **591→583**／smoke 10693 全0・SKIP 0／fuzz 全0／lint 0 errors・warnings 260（増分0）／同型★0）。**実機3本が2回連続 PASS＝1巡が §2.2 の⑤まで完了。台帳 694→689。**
+  - ✅**19効果を採用**（母集団＝群A 587効果中 受け皿なし42 → 偽陽性4を引いて真バグ36 → 既存語彙で安全に完成する19）。**21件は理由つきで据置**（トラップ／ソウル／下カード／付着カード／凍結ルリグ合算／source-relative 共有色＝受け皿不足）。
+  - 🔑**この軸は「型が無い」のではなく parser の配線漏れだった**＝同じ文型 587効果のうち **545 は既に受け皿条件を持っていた**。⚠**母集団は「原文が該当する数」ではなく「既存機構で正しく実装済みの群を全部外した残り」で数える**（§4 の 3-4‴）。**軸だけ見て 587 に着手していたら 14 倍の空振りだった。**
+  - 🔴**engine を触ったのは `VIRUS_COUNT` の1点**＝`Condition` union ＋ `evalCondition` ＋ `evalConditionForContinuous` の**3点セット**で入れた（`evalConditionForContinuous` は `default: return true` ＝permissive なので、足し忘れると恒久 no-op のまま全計器が緑）。既存 golden「未対応語彙は permissive＝常に可」を**実挙動の両方向 assert へ差し替え**た（§5-17）。
+  - 🔴**新規実機シナリオの罠を実測で踏んだ**＝**任意コスト付き【出】を持つシグニは `setPendingSigniOnPlayCost` が立つと配置ごと DB 保存が保留される**（`BattleScreen.tsx:6168`）。「スキップ」を押すまで盤面が変わらないので、押さずに観測すると**「召喚できなかった＝過小実行のバグ」に見える**。⚠**実際に Allowed 側が FAIL し、engine の穴だと誤読しかけた。** 切り分けは ①**同盤面で出撃制限を持たない素のシグニを召喚する対照シナリオ**でドライバ手順の妥当性を先に確定 ②`page.on('console')` で `[handleSummonSigni] called` の有無 ③`getByRole('button').allInnerTexts()` でモーダルのボタン名を実測、の3手（10分）。
+  - ✅**負方向テストは対照とセットで作った**＝`b44VirusDeployBlocked`（相手ウィルス0個→召喚不可）と `b44VirusDeployAllowed`（3個→可）は **spec が `guest.field.signi_virus` の1点だけ違う**＝「常に召喚できない」で満点になる罠（§5-3′/§5-21）を構造で排除。加えて `b44VirusControlPlain`（素のシグニ）でドライバ手順自体を固定した。
 
-**▶ 次の一手**＝**§5.2 の段2 消化を続ける**（残 OPEN **694**）。⚠**着手前に必ず `node scripts/archive/semanticAuditLedger.mjs` で数え直す。**
-🔑**次の候補は `O-63`（turnOwner 167効果）**＝母集団が大きく、engine 側は `collectTurnTriggers` に**ゲート1本**を足すだけで済む見込み。⚠**着手前に「両ターンで発火して実害が出る効果」だけに絞る**（対称な効果は実害が無い可能性がある＝§5-3-4‴ の引き算）。
+**▶ 次の一手**＝**§5.2 の段2 消化を続ける**（残 OPEN **689**）。⚠**着手前に必ず `node scripts/archive/semanticAuditLedger.mjs` で数え直す。**
+🔑**第44バッチの姉妹バッチが2本、スコープ確定済みで待っている**（同じ「条件節が丸ごと落ちる」根の、ゾーン違い／数え方違い）。**指示書は書いてあり、母集団も実測済み**：
+- **第45バッチ＝「トラッシュ／エナゾーンに〈X〉がある（N枚以上ある）場合／かぎり」**＝原文該当 275効果 / 受け皿なし41（うち `ENERGY_EACH_LEVEL_FILTER_GTE` 9件・`LAST_PROCESSED_ALL_MATCH` 1件は既に正しい＝**真の穴 約31効果**）。受け皿は `COUNT_THRESHOLD` / `TRASH_HAS_CARD` / `ENERGY_COUNT_FILTER` / `LRIG_TRASH_COUNT`。
+- **第46バッチ＝「〈X〉が N 種類以上ある」（distinct count）**＝原文該当 83効果 / **真の穴 13効果**。うち**5件が `CONTINUOUS`**。🔴**実コードで確認済みの engine の穴**＝**`TRASH_HAS_CARD` は `Condition` 側（`src/types/effects.ts:320`）に `distinctName` があるのに `ActiveCondition` 側（`:243`）に無い**＝「トラッシュに〈X〉が N 種類以上あるかぎり」を【常】で表す語彙が片側 union にしか育っていない（§4 の 2‴ そのもの）。**型＋両評価器＋golden の3点セットが要る。**
+- ⚠**着手前に `node tmp_popCond.mjs` で数え直す**（第44バッチで parser を触ったので件数は動いている）。
+- 🔑**「N 種類以上」の原文表現は1つではない**（`７種類以上` / `合計３種類以上` / `合計５種類ある` / `名前の異なる〜が N 枚以上` / `共通するクラスを持つ〜が N 種類以上`）＝**regex を絞りすぎると穴ごと消える。**
 
 ---
 
@@ -469,12 +474,12 @@ node C:/Users/zerom/.claude-shared/notify-mail.mjs --check                      
 
 > **運用**＝この節は**「いまの数字」だけ**を置く。新しく作業したら ①上の1行を [PLAN_DETAIL.md](./PLAN_DETAIL.md) の該当整理節へ移す ②この行を今回の値へ書き換える。⚠**溜め始めたら破綻する**（続き550 の整理時点で計測行15本＋ポインタ37本まで膨れ、cold start が最初に読む節が一番古い状態だった）。
 
-- **2026-08-25 続き649 後（本行が直近の正）**：
-  **census 591/591**、**golden 2738**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
+- **2026-08-25 続き651 後（本行が直近の正）**：
+  **census 583/583**、**golden 2743**、smoke **10693 / 全異常0 / SKIP 0**、fuzz 全0、**lint 0 errors（warnings 260）**、
   `census:stubs` **A群🔴0／C群0**、manual-fields **0**、**同型★ 0**、
-  **live カード 5975 / 効果総数 10693**、`_held_fresh` **75**／`_partial_fresh` **15**／`_idset_fresh` **45**、
-  **意味照合 残 OPEN 694**（段2消化 417・**本バッチで 701→694 の −7**／段0 221・段1偽陽性 113 は不動）、
-  **実機シナリオ +2**（`b43TurnHistoryNoReturnDoesNotCharge` / `b43TurnHistoryTwoReturnsCharges`）、version **0.502**。（⚠`census:wiring`／`census:timing`／`census:goldentypes` は本バッチ未再計測）
+  **live カード 5975 / 効果総数 10693**、`_held_fresh` **76**／`_partial_fresh` **15**／`_idset_fresh` **45**、
+  **意味照合 残 OPEN 689**（段2消化 423・**本バッチで 694→689 の −5**／段0 221 は不動・段1偽陽性 112→111）、
+  **実機シナリオ +3**（`b44VirusControlPlain` / `b44VirusDeployBlocked` / `b44VirusDeployAllowed`）、version **0.502**。（⚠`census:wiring`／`census:timing`／`census:goldentypes` は本バッチ未再計測）
 
 ---
 

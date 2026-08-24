@@ -9,6 +9,8 @@
 - **live A/B**＝変化は採用19 effectIdだけ、追加0・削除0・outlier 0。held **75/31 → 76/32** は見送り `WXK07-028` 1枚だけ。
 - **ゲート**＝`npm run gates` 全緑。golden **2743/0**、census **591→583**（baseline同期）、smoke 10693全0、fuzz全0、census:stubs 0/0、manual-fields 0/0、lint 0 errors/260 warnings、同型5986/265/★0。
 - **台帳**＝quote一致6本を追記。段0 **221→221** / 段1 **112→111** / 段2 **417→423** / OPEN **694→689**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch44_report.md`。
+- 🆕**実機検証（Claude・続き651）＝3本 ALL PASS を2回連続**（`b44VirusControlPlain` / `b44VirusDeployBlocked` / `b44VirusDeployAllowed`）。本バッチで engine を触ったのは `VIRUS_COUNT` の1点だけで、その enforcement は **`BattleScreen.handleSummonSigni` の `canSelfPlay`（:5946）＝実機の召喚経路にしか出ない**ため、ここだけ実機で押さえた。**Blocked/Allowed は spec が `guest.field.signi_virus` の1点だけ違う対**＝負方向テストが「常に召喚できない」で満点になる罠（§5-3′/§5-21）を構造で排除している。
+- 🔴**新規シナリオを書くときの罠を1つ実測で踏んだ**＝**任意コスト付き【出】を持つシグニは、`setPendingSigniOnPlayCost` が立つと配置ごと DB 保存が保留される**（`BattleScreen.tsx:6168` で `return`）。**モーダルの「スキップ」を押すまで盤面は一切変わらない**ので、押さずに観測すると「召喚できなかった＝過小実行のバグ」に見える。⚠**実際 Allowed 側が最初 FAIL し、engine の穴だと誤読しかけた。** 切り分けは ①**同じ盤面で出撃制限を持たない素のシグニを召喚する対照シナリオ**（`b44VirusControlPlain`）でドライバ手順の妥当性を先に確定 ②`page.on('console')` で `[handleSummonSigni] called` の有無を見る ③`getByRole('button').allInnerTexts()` でモーダルのボタン名を実測する、の3手で 10 分。**この3手はそのまま次のシナリオ作成にも効く。**
 
 ## 2026-08-25：`V-88` 決着＝`v12GrantedEnergyCharge*` 2本の FAIL は**ドライバの `nth` 固定**だった（シナリオの腐り）
 

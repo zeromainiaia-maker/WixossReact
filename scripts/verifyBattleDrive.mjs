@@ -16316,6 +16316,7 @@ scenarios.v12GrantedEnergyChargeThirdBlocked = {
 
 // ── /続き431 新規シナリオ境界 ─────────────────────────────────────────
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 実行本体
 // ─────────────────────────────────────────────────────────────────────────────
@@ -28665,6 +28666,100 @@ scenarios.b43TurnHistoryTwoReturnsCharges = {
 
 order.push('b43TurnHistoryNoReturnDoesNotCharge', 'b43TurnHistoryTwoReturnsCharges');
 // ── §5.2 段2 第43バッチ END ──
+
+// ── 段2 第44バッチ（続き651）＝VIRUS_COUNT 出撃制限の実機ペア ───────────────
+// WX19-030「【常】：このシグニは対戦相手の場に【ウィルス】が３つ以上ある場合にしか新たに場に出すことができない。」
+// 第44バッチで `VIRUS_COUNT` を Condition union と evalConditionForContinuous へ配線した。
+// enforcement は BattleScreen `handleSummonSigni` の `canSelfPlay`（:5946）＝**実機の召喚経路にしか出ない**。
+// ⚠**必ず2本セットで見る**（§5-3′＝片方向だけの負テストは「常に召喚できない」でも満点に見える）。
+//   Blocked  … 相手ウィルス0個 → 召喚が通らない
+//   Allowed  … spec は虫食い1点（`guest.field.signi_virus`）だけ違えて → 召喚が通る
+const b44VirusSpec = (virus) => ({
+  hostSet: {
+    'field.lrig': ['WD19-001#1'],              // ナナシ 其ノ四 Lv4/Limit11（WX19-030 は「ナナシ限定」Lv3）
+    'field.signi': [null, null, null],
+    'actions_done': [],
+  },
+  guestSet: {
+    'field.signi': [['WD05-009#4'], ['WD05-009#5'], ['WD05-009#6']],
+    'field.signi_virus': virus,
+  },
+  handPrepend: ['WX19-030#1'],
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const b44VirusDrive = (tag, expectPlaced) => async function drive(page, H) {
+  await H.ensureMain();
+  H.log('手札クリック(WX19-030):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+  let summoned = false;
+  let last = null;
+  for (let s = 0; s < 14; s++) {
+    await page.waitForTimeout(900);
+    await page.screenshot({ path: `${SHOT}/${tag}-${s}.png`, fullPage: true });
+    let did = null;
+    if (!summoned) {
+      const summonBtn = page.getByRole('button', { name: '召喚', exact: true }).first();
+      if (await summonBtn.count() && await summonBtn.isVisible().catch(() => false)) {
+        await summonBtn.click().catch(() => {}); did = 'btn:召喚'; summoned = true;
+      }
+    }
+    if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+    // ⚠WX19-030 の【出】は**任意コスト**（対戦相手の【ウィルス】1つを取り除く）＝
+    //   `setPendingSigniOnPlayCost` が立つと**配置ごと DB 保存が保留**される（BattleScreen:6168）。
+    //   「スキップ」で閉じるまで盤面は変わらない＝ここを踏まないと「召喚できなかった」と誤読する。
+    if (!did) did = await H.clickBtn('スキップ', { exact: true });
+    if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+    const st = await H.queryState();
+    last = st;
+    const placed = (st?.host?.fieldSigni ?? []).some(z => (z ?? []).some(n => n?.startsWith('WX19-030')));
+    H.log(`  ${tag}[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} hand=${JSON.stringify(st?.host?.handCards)} gVirus=${JSON.stringify(st?.guest?.signiVirus)} pEff=${st?.pendingEffect ?? '-'}`);
+    if (placed) {
+      return expectPlaced
+        ? { pass: true, detail: `相手ウィルス3個 → 召喚が通った（hField=${JSON.stringify(st.host.fieldSigni)}）` }
+        : { pass: false, detail: `【回帰】相手ウィルス0個なのに WX19-030 が場に出た（hField=${JSON.stringify(st.host.fieldSigni)}）＝VIRUS_COUNT の出撃制限が効いていない` };
+    }
+  }
+  return expectPlaced
+    ? { pass: false, detail: `相手ウィルス3個でも召喚できなかった（過小実行の疑い。hField=${JSON.stringify(last?.host?.fieldSigni)} hand=${JSON.stringify(last?.host?.handCards)}）` }
+    : { pass: true, detail: `相手ウィルス0個 → 14ステップ回しても WX19-030 は場に出ないまま（hField=${JSON.stringify(last?.host?.fieldSigni)} hand=${JSON.stringify(last?.host?.handCards)}）＝出撃制限が効いている` };
+};
+scenarios.b44VirusDeployBlocked = {
+  title: 'WX19-030 出撃制限（VIRUS_COUNT）＝相手ウィルス0個では召喚できない【負方向】',
+  spec: b44VirusSpec([0, 0, 0]),
+  drive: b44VirusDrive('b44VirusBlocked', false),
+};
+scenarios.b44VirusDeployAllowed = {
+  title: 'WX19-030 出撃制限（VIRUS_COUNT）＝相手ウィルス3個なら召喚できる【対照】',
+  spec: b44VirusSpec([1, 1, 1]),
+  drive: b44VirusDrive('b44VirusAllowed', true),
+};
+
+scenarios.b44VirusControlPlain = {
+  title: '【対照】同じ盤面で出撃制限を持たない素のシグニは召喚できる（ドライバ手順の妥当性確認）',
+  spec: { ...b44VirusSpec([1, 1, 1]), handPrepend: ['WD01-013#1'] },
+  drive: async function drive(page, H) {
+    await H.ensureMain();
+    H.log('手札クリック(WD01-013):', await H.clickTestId('my-hand-card-0') ?? '見つからず');
+    let summoned = false; let last = null;
+    for (let s = 0; s < 14; s++) {
+      await page.waitForTimeout(900);
+      let did = null;
+      if (!summoned) {
+        const b = page.getByRole('button', { name: '召喚', exact: true }).first();
+        if (await b.count() && await b.isVisible().catch(() => false)) { await b.click().catch(() => {}); did = 'btn:召喚'; summoned = true; }
+      }
+      if (!did && summoned) did = await H.clickTestId('summon-zone-0', 'summon-zone-1', 'summon-zone-2');
+      if (!did) did = await H.stdStep(['確定', '決定', 'OK', 'はい']);
+      const st = await H.queryState(); last = st;
+      const placed = (st?.host?.fieldSigni ?? []).some(z => (z ?? []).some(n => n?.startsWith('WD01-013')));
+      H.log(`  b44ctrl[${s}] -> ${did ?? 'なし'} | hField=${JSON.stringify(st?.host?.fieldSigni)} pEff=${st?.pendingEffect ?? '-'}`);
+      if (placed) return { pass: true, detail: 'ドライバ手順は正しい（素のシグニは同じ盤面で召喚できた）' };
+    }
+    return { pass: false, detail: `ドライバ手順そのものが通っていない（hField=${JSON.stringify(last?.host?.fieldSigni)}）` };
+  },
+};
+order.push('b44VirusControlPlain', 'b44VirusDeployBlocked', 'b44VirusDeployAllowed');
+// ── §5.2 段2 第44バッチ END ──
+
 
 
 
