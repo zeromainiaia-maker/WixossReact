@@ -941,14 +941,15 @@ type ConditionParseResult = {
 function parseActiveCondition(text: string): ConditionParseResult {
   // 段2 第44/45バッチ共通：場／トラッシュの「カード名に《X》か《Y》を含む」存在条件。
   // 同じ名前抽出式をゾーン別に二重化せず、受け皿だけ HAS_CARD_IN_FIELD / TRASH_HAS_CARD に分ける。
-  const zoneNameContainsM = text.match(/^(あなたの場|あなたのトラッシュ)にカード名に((?:《[^》]+》(?:か)?)+)を含む(シグニ|カード)があるかぎり、/);
+  const zoneNameContainsM = text.match(/^(あなたの場|あなたのトラッシュ)にカード名に((?:《[^》]+》(?:か)?)+)を含む(シグニ|カード)が(?:([０-９\d]+)種類以上)?あるかぎり、/);
   if (zoneNameContainsM) {
     const names = [...zoneNameContainsM[2].matchAll(/《([^》]+)》/g)].map(m => m[1]);
     const inField = zoneNameContainsM[1] === 'あなたの場';
     const nounFilter = zoneNameContainsM[3] === 'シグニ' ? { cardType: 'シグニ' as const } : {};
+    const distinctCount = zoneNameContainsM[4] ? parseNum(zoneNameContainsM[4]) : undefined;
     const mk = (cardName: string): ActiveCondition => inField
-      ? { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { ...nounFilter, cardName } }
-      : { type: 'TRASH_HAS_CARD', owner: 'self', filter: { ...nounFilter, cardName } };
+      ? { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { ...nounFilter, cardName }, ...(distinctCount ? { minCount: distinctCount, distinctNames: true } : {}) }
+      : { type: 'TRASH_HAS_CARD', owner: 'self', filter: { ...nounFilter, cardName }, ...(distinctCount ? { minCount: distinctCount, distinctName: true } : {}) };
     return {
       condition: names.length === 1 ? mk(names[0]) : { type: 'OR', conditions: names.map(mk) },
       rest: text.slice(zoneNameContainsM[0].length),
@@ -1159,6 +1160,16 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return {
       condition: { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ', level: parseNum(fieldLevelStoryM[1]), ...storyFilter } },
       rest: text.slice(fieldLevelStoryM[0].length),
+      conditionFound: true,
+    };
+  }
+
+  // 「トラッシュに＜X＞のシグニがN種類以上」＝枚数ではなくカード名の異なり数。
+  const trashStoryDistinctM = text.match(/^あなたのトラッシュに((?:＜[^＞]+＞(?:か)?)+)のシグニが([０-９\d]+)種類以上あるかぎり、/);
+  if (trashStoryDistinctM) {
+    return {
+      condition: { type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', ...parseStoryFilter(trashStoryDistinctM[1]) }, minCount: parseNum(trashStoryDistinctM[2]), distinctName: true },
+      rest: text.slice(trashStoryDistinctM[0].length),
       conditionFound: true,
     };
   }
@@ -1641,6 +1652,15 @@ function parseActiveCondition(text: string): ConditionParseResult {
     return {
       condition: { type: 'ENERGY_COLOR_TYPES', owner: 'self', operator: 'gte', value: parseNum(activeEnaColorTypesM[1]) },
       rest: text.slice(activeEnaColorTypesM[0].length), conditionFound: true,
+    };
+  }
+
+  // 「共通するクラスを持つシグニがN種類以上」＝既存 ENERGY_COUNT_FILTER のクラス種類数。
+  const activeEnaSharedClassesM = text.match(/^あなたのエナゾーンに共通するクラスを持つシグニが([０-９\d]+)種類以上あるかぎり、/);
+  if (activeEnaSharedClassesM) {
+    return {
+      condition: { type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ' }, distinctClasses: true, operator: 'gte', value: parseNum(activeEnaSharedClassesM[1]) },
+      rest: text.slice(activeEnaSharedClassesM[0].length), conditionFound: true,
     };
   }
 
@@ -2319,6 +2339,10 @@ function parseBareBranchCondition(clause: string, previous?: Condition): { condi
 // 続き29追加分（「代わりに」B系統残バッチ・2026-07-05）。STATE_CONDITION_CLAUSES と
 // parseSingleSentence の CONDITIONAL 持ち上げ CLAUSES の両方に組み込む共通テンプレ
 // （engine evalCondition・decompiler 対応済みの条件型のみ）。
+// 場全体（owner無指定）のシグニが持つレベル種類数。通常の状態条件表と、複合アクションが
+// 状態条件を先に消費してしまうブロック終端の救済で同じ1本を共有する。
+const FIELD_LEVEL_KIND_COUNT_RE = /場にあるシグニが持つレベルが合計([０-９\d]+)種類以上ある場合/;
+
 const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = [
   // ── 段2 第45バッチ：トラッシュ／エナゾーンの存在・枚数条件 ──
   // 第44バッチの HAS_CARD_IN_FIELD と既存 TRASH_HAS_CARD を OR で組み、2ゾーン形を新型にしない。
@@ -2493,13 +2517,13 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
     } })],
   [/いずれかのプレイヤーの手札が([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'HAND_COUNT', owner: 'any', operator: 'gte', value: parseNum(g[0]) })],
-  [/あなたのトラッシュに＜(古代兵器)＞のシグニが(７)種類以上ある場合/,
+  [/あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)種類以上ある場合/,
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: g[0] }, minCount: parseNum(g[1]), distinctName: true })],
   [/このターンにあなたがスペルを([０-９\d]+)枚以上使用していた場合/,
     g => ({ type: 'SPELL_USED_THIS_TURN', owner: 'self', minCount: parseNum(g[0]) })],
   [/このターンにあなたがドローフェイズ以外でカードを([０-９\d]+)枚以上引いていた場合/,
     g => ({ type: 'CARDS_DRAWN_BY_EFFECT', owner: 'self', operator: 'gte', value: parseNum(g[0]) })],
-  [/あなたのエナゾーンにあるカードの色が([０-９\d]+)種類以上ある場合/,
+  [/あなたのエナゾーンにあるカード(?:が持つ|の)色が(?:合計)?([０-９\d]+)種類以上ある場合/,
     g => ({ type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: {}, distinctColor: true, operator: 'gte', value: parseNum(g[0]) })],
   // 「あなたの手札が対戦相手より少ない場合」＝自分の手札枚数が相手より少ない（HAND_DIFF{lt,0}＝self−opp<0）。
   //   engine evalCondition・decompiler 両対応済（activeCondition 版「〜より多いかぎり」と同じ HAND_DIFF 型）。
@@ -2727,6 +2751,18 @@ const STATE_CONDITION_CLAUSES_V2: Array<[RegExp, (g: string[]) => Condition]> = 
   // 「N枚」は素の枚数（上の「N種類」と混同しない）。
   [/あなたのトラッシュにスペルが([０-９\d]+)枚以上ある場合/,
     g => ({ type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'スペル' }, minCount: parseNum(g[0]) })],
+  // コストで置いたカード自身の色種類数。現在のエナゾーンではなく last_cost_trashed_cards を見る。
+  [/この(?:コスト|方法)でトラッシュに置いたカードが持つ色が合計([０-９\d]+)種類以上ある場合/,
+    g => ({ type: 'COST_TRASHED_MATCHES', filter: {}, minCount: parseNum(g[0]), distinctColors: true })],
+  // 場の色種類数と効果元のアップ状態の連言。単独の色規則より先に置いて1つの AND にする。
+  [/あなたの場にあるシグニが持つ色が合計([０-９\d]+)種類以上あり(?:、?かつ)?このシグニがアップ状態の場合/,
+    g => ({ type: 'AND', conditions: [
+      { type: 'HAS_CARD_IN_FIELD', owner: 'self', filter: { cardType: 'シグニ' }, minCount: parseNum(g[0]), distinctColors: true },
+      { type: 'THIS_CARD_IS_UP' },
+    ] })],
+  // owner 無指定の「場」は両プレイヤーのシグニゾーンを合算する。
+  [FIELD_LEVEL_KIND_COUNT_RE,
+    g => ({ type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ' }, minCount: parseNum(g[0]), distinctLevels: true, distinctPhraseJa: 'kinds' })],
   // 「あなたの場にあるシグニが持つ色が合計N種類以上ある場合」＝場のシグニが持つ色の異なり数
   //   （`HAS_CARD_IN_FIELD.distinctColors`）。`WXDi-P13-036-E1` の「代わりに」ゲート。
   [/あなたの場にある(他の)?シグニが持つ色が合計([０-９\d]+)種類以上ある場合/,
@@ -15786,6 +15822,9 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
     else activeCondition = { type: 'AND', conditions: parsedConds };
     // CONTINUOUS 限定の引用能力付与（このシグニは/場全体「Q」を得る）を先に試す（GRANT_FIELD_SIGNI_ABILITY）
     resolvedAction = parseContinuousQuotedGrant(remaining || actionText) ?? parseActionText(remaining || actionText);
+    // ALL_COLOR は専用 collector が原文から条件を直接読み、同じ種類数を評価済み。
+    // 一般 activeCondition を重ねると専用実行器との二重ゲートになるため、受け皿へ昇格しない。
+    if (resolvedAction.type === 'STUB' && resolvedAction.id === 'ALL_COLOR') activeCondition = undefined;
     // 「基本パワーはNになり、B」では既存 parser が B だけを残していた。
     // B の形（GRANT_KEYWORD / GRANT_PROTECTION / 引用 STUB）を変えず、CONTINUOUS collector が
     // activeCondition と同時評価できる POWER_SET を前置する。
@@ -15858,7 +15897,21 @@ function parseBlock(cardNum: string, block: string, index: number): CardEffect |
       then: { type: 'SEQUENCE', steps: [gated.then, ...tail] },
     };
   }
+
   resolvedAction = applyDynamicCountTargetLimit(resolvedAction, actionText);
+  // 一部の「対象とし、条件の場合、それを〜」は複合アクション側が先に本文を消費するため、
+  // 単文の状態条件持ち上げを通らない。場全体のレベル種類数だけを効果ブロック終端で補う。
+  const blockFieldLevelKindsM = actionText.match(FIELD_LEVEL_KIND_COUNT_RE);
+  if (blockFieldLevelKindsM && !JSON.stringify(resolvedAction).includes('"distinctLevels":true')) {
+    resolvedAction = {
+      type: 'CONDITIONAL',
+      condition: {
+        type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ' },
+        minCount: parseNum(blockFieldLevelKindsM[1]), distinctLevels: true, distinctPhraseJa: 'kinds',
+      },
+      then: resolvedAction,
+    };
+  }
   resolvedAction = applyLevelParityToSigniTarget(resolvedAction, actionText);
   resolvedAction = applyLastProcessedParityStoryGate(resolvedAction, actionText);
   resolvedAction = applyAssistLrigLevelSumCoinGates(resolvedAction, actionText);
@@ -16532,6 +16585,13 @@ function parseArtsEffect(card: CardData): CardEffect | null {
   // ⚠複数の【使用条件】を持つカードは、全条件を表現できるまで一部だけを採らない。
   const normalizePrintedTeamName = (team: string): string => team.replace(/･/g, '・');
   const printedUseConditionPatterns: { pattern: RegExp; build: (match: RegExpMatchArray) => Condition }[] = [
+    {
+      pattern: /^【使用条件】あなたのトラッシュに＜([^＞]+)＞のシグニが([０-９\d]+)種類以上ある/,
+      build: match => ({
+        type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: match[1] },
+        minCount: parseNum(match[2]), distinctName: true,
+      }),
+    },
     {
       // 【チーム】は同じチームのセンター＋左右アシスト3体を要求する。
       // 原文には半角中黒「･」の表記揺れがあるため、CSV Team 列の全角中黒「・」へデータ側で正規化する。

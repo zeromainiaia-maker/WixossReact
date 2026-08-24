@@ -195,6 +195,24 @@ WXDi-P00-040
   - [1].condition.minCount = 7
   - [1].condition.distinctClasses = true
 
+## +CONDITIONAL +ENERGY_COUNT_FILTER ［1枚］
+WXDi-P03-031
+--- WXDi-P03-031
+  原文: 【出】：あなたのエナゾーンにあるカードが持つ色が合計３種類以上ある場合、対戦相手のシグニ１体を対象とし、それをダウンする。【出】：あなたのトラッシュにカードが１５枚以上ある場合、対戦相手のシグニ１体を対象とし、それをダウンする。,-
+  - [0].action.target.type = "SIGNI"
+  - [0].action.target.owner = "opponent"
+  - [0].action.target.count = 1
+  - [0].action.target.filter.cardType = "シグニ"
+  - [0].action.target.upToCount = false
+  ~ [0].action.type : "DOWN" → "CONDITIONAL"
+  + [0].action.condition.type = "ENERGY_COUNT_FILTER"
+  + [0].action.condition.owner = "self"
+  + [0].action.condition.distinctColor = true
+  + [0].action.condition.operator = "gte"
+  + [0].action.condition.value = 3
+  + [0].action.then.type = "DOWN"
+  …（他 5 行）
+
 ## +LRIG_TEAM_COUNT -BANISH -CHOOSE -CONDITIONAL -DRAW -ENERGY_CHARGE_FROM_DECK -GRANT_KEYWORD -IS_MY_TURN -SEQUENCE×2 -SIGNI×3 -STUB×2 ［1枚］
 WXDi-P04-002
 --- WXDi-P04-002

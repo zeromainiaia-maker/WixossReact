@@ -1808,52 +1808,54 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
     }
     case 'HAS_CARD_IN_FIELD': {
       const srcNum = ctx.sourceCardNum;
-      const fst = st(cond.owner);
+      const fieldStates = cond.owner === 'any' ? [ctx.ownerState, ctx.otherState] : [st(cond.owner)];
       // distinctNames:true は「N種類以上」＝カード名の異なる数を数える（「＜ブルアカ＞のシグニが３種類以上
       // ある場合」WX25-CP1-041/045・「それぞれ名前の異なる＜原子＞のシグニが３体あるかぎり」WX12-Re01）。
       // 一致したカード番号を集めてから数える（従来は件数だけ数えて distinctNames を黙って無視していた＝
       // 同名3体でも成立する過剰効果になっていた）。effectEngine の CONTINUOUS 収集と同じく CardName で寄せ、
       // CardData が引けない場合はカード番号にフォールバックする。
-      const matchedNums = fst.field.signi.filter((stack, zoneIdx) => {
-        if (!stack || stack.length === 0) return false;
-        const top = stack[stack.length - 1];
-        if (cond.excludeSelf && srcNum && top === srcNum) return false;
-        // ゾーン状態（クロス/凍結）はCardDataに無いのでmatchesFilterと別に判定する
-        if (cond.filter?.crossState !== undefined) {
-          const isCross = fst.field.cross_state?.[zoneIdx] ?? false;
-          if (cond.filter.crossState !== isCross) return false;
-        }
-        if (cond.filter?.isFrozen !== undefined) {
-          const isFrozen = (fst.field.signi_frozen?.[zoneIdx] ?? false);
-          if (cond.filter.isFrozen !== isFrozen) return false;
-        }
-        if (cond.filter?.isAwakened !== undefined) {
-          const isAwk = (fst.awakened_signi ?? []).includes(top);
-          if (cond.filter.isAwakened !== isAwk) return false;
-        }
-        if (cond.filter?.isPuppet !== undefined) {
-          const isPuppet = (fst.field.puppet_signi ?? []).includes(top);
-          if (cond.filter.isPuppet !== isPuppet) return false;
-        }
-        if (cond.filter?.hasCharm !== undefined) {
-          const hasCharm = (fst.field.signi_charms?.[zoneIdx] ?? null) !== null;
-          if (cond.filter.hasCharm !== hasCharm) return false;
-        }
-        // 「場にパワーN以上のシグニ」＝印字値ではなく CONTINUOUS/一時修整込みの実効パワーで判定する。
-        return matchesFilter(ctx.cardMap.get(top), cond.filter, ctx.effectivePowers?.get(top));
-      }).map(stack => stack![stack!.length - 1]);
+      const matchedNums = fieldStates.flatMap(fst => fst.field.signi.filter((stack, zoneIdx) => {
+          if (!stack || stack.length === 0) return false;
+          const top = stack[stack.length - 1];
+          if (cond.excludeSelf && srcNum && top === srcNum) return false;
+          // ゾーン状態（クロス/凍結）はCardDataに無いのでmatchesFilterと別に判定する
+          if (cond.filter?.crossState !== undefined) {
+            const isCross = fst.field.cross_state?.[zoneIdx] ?? false;
+            if (cond.filter.crossState !== isCross) return false;
+          }
+          if (cond.filter?.isFrozen !== undefined) {
+            const isFrozen = (fst.field.signi_frozen?.[zoneIdx] ?? false);
+            if (cond.filter.isFrozen !== isFrozen) return false;
+          }
+          if (cond.filter?.isAwakened !== undefined) {
+            const isAwk = (fst.awakened_signi ?? []).includes(top);
+            if (cond.filter.isAwakened !== isAwk) return false;
+          }
+          if (cond.filter?.isPuppet !== undefined) {
+            const isPuppet = (fst.field.puppet_signi ?? []).includes(top);
+            if (cond.filter.isPuppet !== isPuppet) return false;
+          }
+          if (cond.filter?.hasCharm !== undefined) {
+            const hasCharm = (fst.field.signi_charms?.[zoneIdx] ?? null) !== null;
+            if (cond.filter.hasCharm !== hasCharm) return false;
+          }
+          // 「場にパワーN以上のシグニ」＝印字値ではなく CONTINUOUS/一時修整込みの実効パワーで判定する。
+          return matchesFilter(ctx.cardMap.get(top), cond.filter, ctx.effectivePowers?.get(top));
+        }).map(stack => stack![stack!.length - 1]));
       // ルリグゾーン走査：「あなたの場に《X》がいる場合」で X がルリグ名の場合（census文型バッチ・
       // センタールリグ＋アシスト2枚の各グロウスタック頂点を見る）。crossState/isFrozen はシグニゾーン
       // 専用状態フィルタのため、それらが指定された条件ではルリグを走査しない（偽陽性防止）。
       if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
-        for (const ln of lrigZoneTops(fst.field)) {
-          if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matchedNums.push(ln);
+        for (const fst of fieldStates) {
+          for (const ln of lrigZoneTops(fst.field)) {
+            if (ln && matchesFilter(ctx.cardMap.get(ln), cond.filter)) matchedNums.push(ln);
+          }
+          // キーゾーン走査：「対戦相手の場にキーがある場合」。cardType:'キー' を
+          // matchesFilter で照合するため、既存のシグニ／ルリグ条件には影響しない。
+          const key = fst.field.key_piece;
+          if (key && !(cond.excludeSelf && srcNum && key === srcNum)
+              && matchesFilter(ctx.cardMap.get(key), cond.filter)) matchedNums.push(key);
         }
-        // キーゾーン走査：「対戦相手の場にキーがある場合」。cardType:'キー' を
-        // matchesFilter で照合するため、既存のシグニ／ルリグ条件には影響しない。
-        const key = fst.field.key_piece;
-        if (key && !(cond.excludeSelf && srcNum && key === srcNum)
-            && matchesFilter(ctx.cardMap.get(key), cond.filter)) matchedNums.push(key);
       }
       const matched = cond.distinctClasses
         ? new Set(matchedNums.flatMap(n => splitClasses(ctx.cardMap.get(n)?.CardClass)).filter(c => !(cond.excludeClasses ?? []).includes(c))).size
@@ -2340,7 +2342,10 @@ export function evalCondition(cond: Condition, ctx: ExecCtx): boolean {
       // minCount 指定時は**枚数閾値**（§6.4 O-35・続き530）＝「この方法でカードをN枚以上トラッシュに置いた場合」。
       const costMatched = (ctx.ownerState.last_cost_trashed_cards ?? [])
         .filter(n => matchesFilter(ctx.cardMap.get(getCardNum(n)), cond.filter));
-      return costMatched.length >= (cond.minCount ?? 1);
+      const count = cond.distinctColors
+        ? new Set(costMatched.flatMap(n => splitColors(ctx.cardMap.get(getCardNum(n))?.Color))).size
+        : costMatched.length;
+      return count >= (cond.minCount ?? 1);
     }
     case 'ENERGY_TRASH_COLOR_COUNT_GTE':
       return (ctx.ownerState.last_energy_trash_color_count ?? 0) >= cond.value;

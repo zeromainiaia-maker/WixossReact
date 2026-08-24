@@ -1,5 +1,18 @@
 # バグ修正記録 (BUGFIXES)
 
+## 2026-08-25：§5.2 段2 第46バッチ＝種類数（distinct count）条件の脱落
+
+- **母集団**＝`tmp_popCond.mjs C` は指示どおり **83効果 / 受け皿なし13効果**。ただし regex 外の「合計5種類ある」`WXDi-CP01-031-E1` を加えると表の実スコープは14効果。`WXK05-029-E1` は `collectAllColorSigni` が原文閾値を直接評価済みの偽陽性だった。
+- **配線**＝新条件typeは0。`ActiveCondition.TRASH_HAS_CARD` へ `distinctName`、Active側へ既存 `ENERGY_COUNT_FILTER` を対称化し、`checkActiveCondition` / `evalCondition` / `evalConditionForContinuous` の3評価器を揃えた。コスト支払いカードの色種類数は既存 `COST_TRASHED_MATCHES.distinctColors` で `last_cost_trashed_cards` を数える。
+- **採用9効果**＝`WX12-Re14-E1`, `WXEX2-65-E1`, `WXK10-047-E1`, `WXDi-P02-004-E1`, `WXDi-D06-015-E1`, `WXDi-P04-071-E1`, `WXK11-063-E2`, `WXDi-P03-042-E1`, `WXK11-021-E2`。live A/B はこの9件だけ、outlier 0。
+- **見送り／偽陽性**＝`WXEX1-40-E1` は2閾値2帰結をCONTINUOUS collectorが表せない。`WXDi-CP01-031-E1` は場＋エナのdistinct-name合算、`WXDi-P11-003-E1` / `WXDi-P15-003-E1` はゲーム中持続・各メインフェイズ再選択不可／ゲート設置後の恒久能力が未機構。条件だけの部分採用はしない。`WXK05-029-E1` は専用collector済み。
+- **golden**＝**2749→2756 / FAIL 0**。7種／6種／0枚／同名7枚、5クラス／4クラス／0枚／同一クラス5枚、3色／2色／0枚／同色3枚、両者の場を合算した3レベル／2レベル／0体／同レベル3体を固定した。
+- **ゲート**＝`npm run gates` 全緑。census **582→576**（baseline同期）、smoke 10693全0、fuzz全0、census:stubs A無言/C **0/0**、manual-fields **0/0**、lint **0 errors / 260 warnings**、同型 **5986/265/★0**。held **76/31→77/32** は、表外 `WXDi-P03-031` の既に正しいエナ3色条件が一般規則でもfreshに現れた1枚だけで、scope外のため不採用。
+- **台帳**＝quote前方一致6本だけを追記。段0 **221→221** / 段1 **111→111** / 段2 **428→434** / OPEN **684→678**。詳細は `scripts/archive/scratchpad/semantic_audit_clean_round1/stage2_batch46_report.md`。
+- ✅**Claude 側で「新しい engine 挙動が既存効果を巻き込んでいないか」を機械確認した**＝**`owner:'any'` を使う `HAS_CARD_IN_FIELD`/`TRASH_HAS_CARD`/`ENERGY_COUNT_FILTER` は、投入前 live に0件**（今回の `WXK11-021-E2` が最初の1件）。**`activeCondition` 下の `ENERGY_COUNT_FILTER` も投入前0件**（`WXK10-047-E1` が最初）。⇒ 両方とも**既存効果の挙動を静かに変えていない**。⚠**評価器の分岐を足すときは「その分岐に落ちる既存 live が何件あるか」を必ず先に数える**（`default: return true` から実評価へ変わる＝過剰実行が過小実行へ裏返りうる）。
+- 🆕**実機検証（Claude・続き651）＝新規3本 ALL PASS を2回連続**（`b46TrashKinds7` / `b46TrashKinds6` / `b46TrashSameName7`）＋第44・第45 の5本も回帰で緑（計8本）。観測点は `WX12-Re14-E1`＝**`activeCondition` の `TRASH_HAS_CARD{distinctName}` は `calcFieldPowers` → `checkActiveCondition` を通って盤面のパワー表示にしか出ない**（JSON assert では「UI へ届いているか」も「種類数として数えているか」も見えない）。名前の異なる＜原子＞**7枚→基本パワー15000／6枚→12000／同名7枚→12000**。
+- ✅**反転確認を実機で取った**＝`src/engine/effectEngine.ts` だけを `ed2a772f3`（修正前）へ戻して再ビルドすると、**`b46TrashSameName7` が 15000 を表示して FAIL**（同名7枚を7種類と数える＝まさに今回直した穴）。⚠**`b46TrashKinds6` は修正前も PASS する**（`minCount` 自体は元から効いていた）＝**この3本のうち「同名7枚」だけが今回の修正を捕まえている**。**負方向テストが本当に噛んでいるかは、修正前へ戻して1本ずつ確かめるまで分からない**（§5-3′′ の実演）。
+
 ## 2026-08-25：§5.2 段2 第45バッチ＝トラッシュ／エナゾーンの存在・枚数条件の脱落
 
 - **母集団訂正**＝群Bは投入時 **275効果 / RECVなし40効果**（41ではない）。既知10件に加え、専用実行器で条件を守る7件を偽陽性と確認。群C重複9件・表外 `WX09-027-E2`・既に複合AND済み `WXDi-P12-047-E1` を分離し、依頼表内の真の穴は **13効果**（採用11／新機構待ち2）だった。CSVはBOM除去後 **6712カード**。

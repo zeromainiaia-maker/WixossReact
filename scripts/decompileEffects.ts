@@ -567,6 +567,8 @@ function condJa(c?: any): string {
         return `${ownerJa(c.owner)}場にある${c.excludeSelf ? '他の' : ''}${filterJa(c.filter)}シグニが持つ色が合計${numJa(c.minCount ?? 1)}種類以上ある`;
       if (c.distinctClasses)
         return `${ownerJa(c.owner)}場にあるシグニが持つクラスが${c.excludeClasses?.length ? c.excludeClasses.map((x: string) => `＜${x}＞`).join('と') + 'を除いて' : ''}合計${numJa(c.minCount ?? 1)}種類以上ある`;
+      if (c.distinctLevels && c.distinctPhraseJa === 'kinds')
+        return `${ownerJa(c.owner)}場にあるシグニが持つレベルが合計${numJa(c.minCount ?? 1)}種類以上ある`;
       // 「場にカード名に《X》を含むシグニがいる」（WX20-076）
       if (c.filter?.cardName && c.filter?.cardType === 'シグニ')
         return `${ownerJa(c.owner)}場にカード名に《${c.filter.cardName}》を含むシグニがいる`;
@@ -691,10 +693,11 @@ function condJa(c?: any): string {
     case 'COST_DISCARDED_SIGNI_LEVEL': return `このコストでレベル${numJa((c as { level: number }).level)}のシグニを捨てた`;
     case 'COST_TRASHED_MATCHES': {
       // §3タスク6 C: 「このコストで<filter>を捨てた／トラッシュに置いた」
-      const cm = c as { filter?: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number };
+      const cm = c as { filter?: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number; distinctColors?: boolean };
       // minCount（§6.4 O-35）＝枚数閾値形「この方法でカードをN枚以上トラッシュに置いた」。
       // filter が空＝カード種別を問わないので「シグニ」を付けない（付けると原文と別物になる）。
       if (cm.minCount !== undefined) {
+        if (cm.distinctColors) return `この方法でトラッシュに置いたカードが持つ色が合計${numJa(cm.minCount)}種類以上ある`;
         return `この方法で${filterJa(cm.filter)}カードを${numJa(cm.minCount)}枚以上トラッシュに置いた`;
       }
       return `このコストで${filterJa(cm.filter)}${cm.filter?.cardType === 'スペル' ? 'スペル' : 'シグニ'}を${cm.verbJa === 'trash' ? 'トラッシュに置いた' : '捨てた'}`;

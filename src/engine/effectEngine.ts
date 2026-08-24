@@ -40,6 +40,8 @@ import { abilityBlockTextOf, parseCardEffects } from '../data/effectParser';
 import { activeGainedLrigTypes } from '../screens/battle/growLogic';
 
 const splitFieldColors = (color: string | undefined): string[] => color ? [...color].filter(c => '白赤青緑黒'.includes(c)) : [];
+const splitFieldClasses = (cardClass: string | undefined): string[] =>
+  (cardClass ?? '').split(/[・/]/).map(c => c.trim()).filter(Boolean);
 function fieldLrigsShareColor(state: PlayerState, minCount: number, cardMap: Map<string, CardData>): boolean {
   const nums = [state.field.lrig.at(-1), state.field.assist_lrig_l?.at(-1), state.field.assist_lrig_r?.at(-1)]
     .filter((n): n is string => !!n);
@@ -154,35 +156,47 @@ export function checkActiveCondition(
       return checkBeatCondition(ownerState.field.beat_zone ?? [], cond.condText, cardMap);
 
     case 'HAS_CARD_IN_FIELD': {
-      const state = cond.owner === 'self' ? ownerState : otherState;
+      const states = cond.owner === 'any'
+        ? [ownerState, otherState]
+        : [cond.owner === 'self' ? ownerState : otherState];
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
       let matched = 0;
       const distinctNameSet = cond.distinctNames ? new Set<string>() : null;
       const distinctColorSet = cond.distinctColors ? new Set<string>() : null;
-      state.field.signi.forEach((stack, zi) => {
-        const top = stack?.at(-1);
-        if (!top) return;
-        if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return;
-        const c = cardMap.get(top);
-        if (!matchesFilter(c, cond.filter)) return;
-        if (!matchesStateFilter(state, zi, cond.filter)) return;
+      const distinctLevelSet = cond.distinctLevels ? new Set<string>() : null;
+      const distinctClassSet = cond.distinctClasses ? new Set<string>() : null;
+      const record = (num: string, c: CardData | undefined) => {
         if (distinctColorSet) splitFieldColors(c?.Color).forEach(color => distinctColorSet.add(color));
-        else if (distinctNameSet) distinctNameSet.add(c?.CardName ?? top);
+        else if (distinctNameSet) distinctNameSet.add(c?.CardName ?? num);
+        else if (distinctLevelSet) distinctLevelSet.add(c?.Level ?? '');
+        else if (distinctClassSet) splitFieldClasses(c?.CardClass)
+          .filter(cls => !(cond.excludeClasses ?? []).includes(cls))
+          .forEach(cls => distinctClassSet.add(cls));
         else matched++;
-      });
+      };
+      for (const state of states) {
+        state.field.signi.forEach((stack, zi) => {
+          const top = stack?.at(-1);
+          if (!top) return;
+          if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return;
+          const c = cardMap.get(top);
+          if (!matchesFilter(c, cond.filter)) return;
+          if (!matchesStateFilter(state, zi, cond.filter)) return;
+          record(top, c);
+        });
       // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened/isPuppet はシグニ専用）
       // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
       //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
       //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
-      if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
-        for (const ln of lrigZoneTops(state.field)) {
-          if (ln && matchesFilter(cardMap.get(ln), cond.filter)) {
-            if (distinctNameSet) distinctNameSet.add(cardMap.get(ln)?.CardName ?? ln);
-            else matched++;
+        if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
+          for (const ln of lrigZoneTops(state.field)) {
+            const c = ln ? cardMap.get(ln) : undefined;
+            if (ln && matchesFilter(c, cond.filter)) record(ln, c);
           }
         }
       }
-      return (distinctColorSet ? distinctColorSet.size : distinctNameSet ? distinctNameSet.size : matched) >= (cond.minCount ?? 1);
+      const count = distinctColorSet?.size ?? distinctNameSet?.size ?? distinctLevelSet?.size ?? distinctClassSet?.size ?? matched;
+      return count >= (cond.minCount ?? 1);
     }
     case 'HAS_KEY_IN_FIELD': {
       const f = (cond.owner === 'self' ? ownerState : otherState).field;
@@ -626,10 +640,33 @@ export function checkActiveCondition(
       }).length >= cond.minEach);
     }
 
+    case 'ENERGY_COUNT_FILTER': {
+      const states = cond.owner === 'any'
+        ? [ownerState, otherState]
+        : [cond.owner === 'self' ? ownerState : otherState];
+      const cards = states.flatMap(state => state.energy)
+        .map(cn => cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]))
+        .filter((c): c is CardData => !!c && matchesFilter(c, cond.filter));
+      const count = cond.distinctName ? new Set(cards.map(c => c.CardName)).size
+        : cond.distinctColor ? new Set(cards.flatMap(c => splitFieldColors(c.Color))).size
+        : cond.distinctClasses ? new Set(cards.flatMap(c => splitFieldClasses(c.CardClass)
+          .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size
+        : cards.length;
+      return compare(count, cond.operator, cond.value);
+    }
+
     case 'TRASH_HAS_CARD': {
-      const trashState = cond.owner === 'self' ? ownerState : otherState;
-      const matched = trashState.trash.filter(cn => matchesFilter(cardMap.get(cn), cond.filter)).length;
-      return matched >= (cond.minCount ?? 1);
+      const states = cond.owner === 'any'
+        ? [ownerState, otherState]
+        : [cond.owner === 'self' ? ownerState : otherState];
+      const cards = states.flatMap(state => state.trash)
+        .map(cn => cardMap.get(cn) ?? cardMap.get(cn.split('#')[0]))
+        .filter((c): c is CardData => !!c && matchesFilter(c, cond.filter));
+      const count = cond.distinctName ? new Set(cards.map(c => c.CardName)).size
+        : cond.distinctClasses ? new Set(cards.flatMap(c => splitFieldClasses(c.CardClass)
+          .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size
+        : cards.length;
+      return count >= (cond.minCount ?? 1);
     }
 
     case 'LRIG_TRASH_COUNT': {
@@ -1122,29 +1159,46 @@ function evalConditionForContinuous(
       const count = st(cond.owner).energy.length;
       return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
     }
+    case 'ENERGY_COUNT_FILTER': {
+      const states = cond.owner === 'any' ? [ownerState, otherState] : [st(cond.owner)];
+      const cards = states.flatMap(state => state.energy)
+        .map(n => cardMap.get(n) ?? cardMap.get(n.split('#')[0]))
+        .filter((c): c is CardData => !!c && matchesFilter(c, cond.filter));
+      const count = cond.distinctName ? new Set(cards.map(c => c.CardName)).size
+        : cond.distinctColor ? new Set(cards.flatMap(c => splitFieldColors(c.Color))).size
+        : cond.distinctClasses ? new Set(cards.flatMap(c => splitFieldClasses(c.CardClass)
+          .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size
+        : cards.length;
+      return cmp(count, cond.operator, typeof cond.value === 'number' ? cond.value : 0);
+    }
     case 'ENERGY_HAS_COLOR': {
       const ez = st(cond.owner).energy;
       return cond.colors.every(color => ez.some(n => cardMap.get(n)?.Color?.includes(color)));
     }
     case 'HAS_CARD_IN_FIELD': {
-      const hcifState = st(cond.owner);
+      const hcifStates = cond.owner === 'any' ? [ownerState, otherState] : [st(cond.owner)];
       const matchedNums: string[] = [];
       // 状態フィルタ（isFrozen / isDown 等）も評価するためゾーンindex付きで走査する
-      hcifState.field.signi.forEach((stack, zi) => {
-        if (!stack?.length) return false;
-        const top = stack[stack.length - 1];
-        if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
-        if (matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter)) matchedNums.push(top);
-      });
+      for (const hcifState of hcifStates) {
+        hcifState.field.signi.forEach((stack, zi) => {
+          if (!stack?.length) return false;
+          const top = stack[stack.length - 1];
+          if (cond.excludeSelf && sourceCardNum && top === sourceCardNum) return false;
+          if (matchesFilter(cardMap.get(top), cond.filter) && matchesStateFilter(hcifState, zi, cond.filter)) matchedNums.push(top);
+        });
+      }
       if (cond.distinctColors) return new Set(matchedNums.flatMap(n => splitFieldColors(cardMap.get(n)?.Color))).size >= (cond.minCount ?? 1);
       if (cond.distinctNames) return new Set(matchedNums.map(n => cardMap.get(n)?.CardName ?? n)).size >= (cond.minCount ?? 1);
+      if (cond.distinctLevels) return new Set(matchedNums.map(n => cardMap.get(n)?.Level ?? '')).size >= (cond.minCount ?? 1);
+      if (cond.distinctClasses) return new Set(matchedNums.flatMap(n => splitFieldClasses(cardMap.get(n)?.CardClass)
+        .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size >= (cond.minCount ?? 1);
       if (matchedNums.length >= (cond.minCount ?? 1)) return true;
       // ルリグゾーン走査：「場に《X》がいる」で X がルリグ名の場合（crossState/isFrozen/isAwakened/isPuppet はシグニ専用）
       // ⚠**isPuppet が抜けていた**（2026-08-18 実測）＝execUtils.evalCondition（:1752）は4つとも除外しているのに
       //   こちらは3つで、matchesFilter は isPuppet を見ないため**ルリグが「傀儡状態のシグニ」として数えられる**。
       //   判定器が2つある語彙は片方だけ穴が空く（続き378 の教訓）＝両方を必ず揃える。
       if (!cond.filter?.crossState && !cond.filter?.isFrozen && !cond.filter?.isAwakened && !cond.filter?.isPuppet) {
-        return lrigZoneTops(hcifState.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter));
+        return hcifStates.some(state => lrigZoneTops(state.field).some(ln => ln && matchesFilter(cardMap.get(ln), cond.filter)));
       }
       return false;
     }
@@ -1161,12 +1215,16 @@ function evalConditionForContinuous(
     }
     case 'TRASH_HAS_CARD': {
       const stripCC = oppTrashColorLoss && cond.owner === 'self';
-      const matched = st(cond.owner).trash.filter(n => {
-        const c = cardMap.get(n);
-        if (!c) return false;
-        return matchesFilter(stripCC ? { ...c, Color: '', CardClass: '' } : c, cond.filter);
-      }).length;
-      return matched >= (cond.minCount ?? 1);
+      const states = cond.owner === 'any' ? [ownerState, otherState] : [st(cond.owner)];
+      const cards = states.flatMap(state => state.trash).map(n => cardMap.get(n) ?? cardMap.get(n.split('#')[0]))
+        .filter((c): c is CardData => !!c)
+        .map(c => stripCC ? { ...c, Color: '', CardClass: '' } : c)
+        .filter(c => matchesFilter(c, cond.filter));
+      const count = cond.distinctName ? new Set(cards.map(c => c.CardName)).size
+        : cond.distinctClasses ? new Set(cards.flatMap(c => splitFieldClasses(c.CardClass)
+          .filter(cls => !(cond.excludeClasses ?? []).includes(cls)))).size
+        : cards.length;
+      return count >= (cond.minCount ?? 1);
     }
     case 'LRIG_LEVEL': {
       const lrig = st(cond.owner).field.lrig;

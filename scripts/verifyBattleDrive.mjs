@@ -28811,6 +28811,46 @@ scenarios.b45TrashLv1NoBuff = {
 order.push('b45TrashLv1Buff', 'b45TrashLv1NoBuff');
 // ── §5.2 段2 第45バッチ END ──
 
+// ── 段2 第46バッチ（続き651）＝トラッシュの「種類数」条件つき CONTINUOUS パワーの実機3本 ──────
+// WX12-Re14「【常】：あなたのトラッシュに＜原子＞のシグニが**７種類以上**あるかぎり、このシグニの基本パワーは15000になる。」
+// 第46バッチの本丸は **`ActiveCondition.TRASH_HAS_CARD` に `distinctName` が無かった**こと
+// （`Condition` 側にはあった＝片側 union の育ち残し。`checkActiveCondition` は case の無い型を
+//  `return true`＝無条件成立に落とすので、**トラッシュが空でも基本パワー15000**になっていた）。
+// この条件は **`calcFieldPowers` → `checkActiveCondition` を通って盤面のパワー表示にしか出ない**＝
+// JSON assert では「UI へ届いているか」も「種類数として数えているか」も見られない。
+// ⚠**3本セットで見る**（§5-3′′）。spec はトラッシュの中身**だけ**が違う。
+//   Kinds7    … 名前の異なる＜原子＞7枚 → 基本パワーが **15000** に置き換わる
+//   Kinds6    … 名前の異なる＜原子＞6枚 → 印刷どおり **12000**（閾値−1 で不成立）
+//   SameName7 … **同名の＜原子＞7枚** → 印刷どおり **12000**（🔑「同名N枚 ≠ N種類」＝distinct で数えている証拠）
+const b46AtomSpec = (trash) => ({
+  hostSet: {
+    'field.lrig': ['WD03-002#1'],
+    'field.signi': [null, ['WX12-Re14#1'], null],   // 羅原 Ｎｉ（印刷パワー12000）
+    'field.signi_down': [false, false, false],
+    'trash': trash,
+    'actions_done': [],
+  },
+  top: { active: 'host', turn_phase: 'MAIN', turn_count: 2 },
+});
+const B46_ATOMS = ['WX04-033#1', 'WX04-047#1', 'WX04-079#1', 'WX04-081#1', 'WX05-023#1', 'WX05-035#1', 'WX05-060#1'];
+scenarios.b46TrashKinds7 = {
+  title: 'WX12-Re14（ActiveCondition TRASH_HAS_CARD distinctName）＝名前の異なる＜原子＞7枚で基本パワー12000→15000【成立】',
+  spec: b46AtomSpec(B46_ATOMS),
+  drive: b45PowerDrive('b46Kinds7', 15000),
+};
+scenarios.b46TrashKinds6 = {
+  title: 'WX12-Re14＝名前の異なる＜原子＞6枚なら 12000 のまま【閾値−1 で不成立】',
+  spec: b46AtomSpec(B46_ATOMS.slice(0, 6)),
+  drive: b45PowerDrive('b46Kinds6', 12000),
+};
+scenarios.b46TrashSameName7 = {
+  title: 'WX12-Re14＝**同名**の＜原子＞7枚なら 12000 のまま【🔑同名N枚 ≠ N種類】',
+  spec: b46AtomSpec(['WX04-033#1', 'WX04-033#2', 'WX04-033#3', 'WX04-033#4', 'WX04-033#5', 'WX04-033#6', 'WX04-033#7']),
+  drive: b45PowerDrive('b46SameName7', 12000),
+};
+order.push('b46TrashKinds7', 'b46TrashKinds6', 'b46TrashSameName7');
+// ── §5.2 段2 第46バッチ END ──
+
 
 
 

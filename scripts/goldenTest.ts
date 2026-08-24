@@ -19762,7 +19762,7 @@ test('(cxv) 条件型の取り違えガード：live JSON の activeCondition / 
   //    足すとキー不足で typecheck が落ち、追記が強制される。
   const AC_TYPES: Record<string, true> = ACTIVE_CONDITION_TYPES;
   const C_TYPES: Record<string, true> = CONDITION_TYPES;
-  eq(Object.keys(AC_TYPES).length, 55, 'ActiveCondition の型数（55＝段2 第43バッチで SIGNI_BANISHED_THIS_TURN / SELF_DECK_TO_TRASH_THIS_TURN を追加）');
+  eq(Object.keys(AC_TYPES).length, 56, 'ActiveCondition の型数（56＝段2 第46バッチで ENERGY_COUNT_FILTER を対称化）');
   eq(Object.keys(C_TYPES).length, 126, 'Condition の型数（126＝段2 第44バッチで VIRUS_COUNT を追加）');
 
   // ② live 全走査。`activeCondition` は AC_TYPES、`condition` は C_TYPES の型だけを持つ。
@@ -23604,8 +23604,9 @@ test('selectionConstraint: level/name/class/sharedColor(all/none) と無色', ()
 // 5c検証是正（Claude）: 群2代表の end-to-end（実 executor 経路で constraint 付き選択→デッキ下→did-it ゲート）と
 // 不正 set が resume で通らない負方向。codex が未追加だった指示書要求分。
 test('selectionConstraint E2E: TRANSFER_TO_DECK distinct level 選択→デッキ下＋不正setはresumeで弾く', () => {
-  const l2b = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== getCardNumG(SIGNI_L2));
   const ctx = mkCtx({}, {});
+  const l2b = findCard(c => isSigni(c) && c.Level === '2' && c.CardNum !== getCardNumG(SIGNI_L2)
+    && !ctx.ownerState.deck.includes(c.CardNum));
   ctx.ownerState.trash = [SIGNI_L1, SIGNI_L2, l2b, SIGNI_L3];
   const action = { type: 'TRANSFER_TO_DECK', source: { type: 'TRASH_CARD', owner: 'self', count: 3,
     filter: { cardType: 'シグニ' }, selectionConstraint: { distinct: 'level' } }, shuffle: false, position: 'bottom' } as EffectAction;
@@ -34342,12 +34343,15 @@ test('task12(lxxxiii) 第6波 live E2E: 他の該当クラスは収集し、発�
 
 test('task12(lxxxiii) 第6波 E2E: 対象宣言→任意コスト→同一他シグニへランサー付与', () => withSavedCursor(() => {
   const source = 'WXDi-P03-042';
-  const other = findCard(c => isSigni(c) && c.CardNum !== source);
+  const other = findCard(c => isSigni(c) && c.Color === '白');
+  const third = findCard(c => isSigni(c) && c.Color === '赤');
   const green = findCard(c => c.Color?.includes('緑') && c.CardNum !== source && c.CardNum !== other);
   const colorless = findCard(c => c.Color?.includes('無') && c.CardNum !== source && c.CardNum !== other && c.CardNum !== green);
   const effect = parseCardEffects(cardMap.get(source)!).find(e => e.effectId === 'WXDi-P03-042-E1')!;
-  const ctx = mkCtx({ signi: [source, other, null] }, {}, source);
+  const ctx = mkCtx({ signi: [source, other, third] }, {}, source);
   ctx.ownerState = { ...ctx.ownerState, energy: [green, colorless] };
+  const conditionGate = (effect.action as SequenceAction).steps.find(s => s.type === 'CONDITIONAL' && JSON.stringify(s).includes('THIS_CARD_IS_UP')) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  ok(evalCondition(conditionGate.condition, ctx), '3色＋アップのテスト盤面が条件を満たさない');
   const offered = executeEffect(effect, ctx);
   ok(!offered.done && offered.pending.type === 'SELECT_TARGET', '対象宣言の選択が出ない');
   if (offered.done || offered.pending.type !== 'SELECT_TARGET') return;
@@ -46587,6 +46591,148 @@ test('段2 第45バッチ 偽陽性／据置: 専用実行器と別バッチ対�
   ok(JSON.stringify(b43Live('WXDi-P12-047-E1')).includes('ALL_FIELD_SIGNI_MATCH'), '既に正しい複合条件を維持');
   ok(!JSON.stringify(b43Live('WXDi-P04-034-E1')).includes('ENERGY_COUNT'), 'SOUL存在機構待ちへ部分配線しない');
   ok(!JSON.stringify(b43Live('WXDi-P12-056-E1')).includes('TRASH_HAS_CARD'), '2ゾーン合算は新機構なしで近似しない');
+});
+
+// ── 段2 第46バッチ：種類数（distinct count）条件 ──
+const b46UniqueSigni = (predicate: (c: CardData) => boolean, count: number): string[] => {
+  const found: string[] = [];
+  const names = new Set<string>();
+  for (const [num, card] of cardMap) {
+    if (card.Type !== 'シグニ' || !predicate(card) || !card.CardName || names.has(card.CardName)) continue;
+    names.add(card.CardName);
+    found.push(num);
+    if (found.length === count) return found;
+  }
+  throw new Error(`第46バッチ: 異名シグニ${count}種のテストデータ不足`);
+};
+
+test('段2 第46バッチ live/fresh: 採用9効果にdistinct条件が残る', () => {
+  const expected: Array<[string, string[]]> = [
+    ['WX12-Re14-E1', ['TRASH_HAS_CARD', 'distinctName']],
+    ['WXEX2-65-E1', ['TRASH_HAS_CARD', 'distinctName']],
+    ['WXK10-047-E1', ['ENERGY_COUNT_FILTER', 'distinctClasses']],
+    ['WXDi-P02-004-E1', ['TRASH_HAS_CARD', 'distinctName']],
+    ['WXDi-D06-015-E1', ['COST_TRASHED_MATCHES', 'distinctColors']],
+    ['WXDi-P04-071-E1', ['COST_TRASHED_MATCHES', 'distinctColors']],
+    ['WXK11-063-E2', ['ENERGY_COUNT_FILTER', 'distinctColor']],
+    ['WXDi-P03-042-E1', ['AND', 'HAS_CARD_IN_FIELD', 'distinctColors', 'THIS_CARD_IS_UP', 'IS_MY_TURN']],
+    ['WXK11-021-E2', ['HAS_CARD_IN_FIELD', 'distinctLevels', '"owner":"any"']],
+  ];
+  for (const [effectId, tokens] of expected) {
+    for (const [label, effect] of [['fresh', b45Fresh(effectId)], ['live', b43Live(effectId)]] as const) {
+      const json = JSON.stringify(effect);
+      for (const token of tokens) ok(json.includes(token), `${effectId} ${label}: ${token}`);
+    }
+  }
+});
+
+test('段2 第46バッチ TRASH distinctName: 7種／6種／0枚／同名7枚をActive・Condition両経路で固定', () => withSavedCursor(() => {
+  const atoms = b46UniqueSigni(c => (c.CardClass ?? '').includes('原子'), 7);
+  const active: ActiveCondition = {
+    type: 'TRASH_HAS_CARD', owner: 'self', filter: { cardType: 'シグニ', story: '原子' }, minCount: 7, distinctName: true,
+  };
+  const condition = active as Condition;
+  const state = (trash: string[]) => { const s = mkState(); s.trash = trash; return s; };
+  const both = (trash: string[]) => checkActiveCondition(active, state(trash), mkState(), true, cardMap)
+    && evalCondition(condition, { ...mkCtx({}, {}), ownerState: state(trash) });
+  ok(both(atoms), '異名7種ちょうどなら両評価器で成立');
+  ok(!both(atoms.slice(0, 6)), '6種なら不成立');
+  ok(!both([]), '0枚なら不成立');
+  ok(!both(Array.from({ length: 7 }, () => atoms[0])), '同名7枚は1種類なので不成立（同名N枚≠N種類）');
+
+  const source = 'WX12-Re14';
+  const printed = parseInt(cardMap.get(source)?.Power ?? '0', 10);
+  const power = (trash: string[]) => {
+    const mine = state(trash); mine.field.signi = [[source], null, null];
+    return calcFieldPowers(mine, mkState(), true, effectsMap, cardMap).get(source);
+  };
+  eq(power(atoms), 15000, 'WX12-Re14: 7種で基本パワー15000');
+  eq(power(atoms.slice(0, 6)), printed, 'WX12-Re14: 6種では印字パワー');
+  eq(power([]), printed, 'WX12-Re14: 0枚では印字パワー');
+  eq(power(Array.from({ length: 7 }, () => atoms[0])), printed, 'WX12-Re14: 同名7枚では印字パワー');
+}));
+
+test('段2 第46バッチ ENERGY distinctClasses: 5種／4種／0枚／同一クラス5枚をActive側で固定', () => withSavedCursor(() => {
+  const picked: string[] = [];
+  const classes = new Set<string>();
+  for (const [num, card] of cardMap) {
+    const cs = (card.CardClass ?? '').split(/[・/]/).map(x => x.trim()).filter(Boolean);
+    if (card.Type !== 'シグニ' || cs.length !== 1 || classes.has(cs[0])) continue;
+    classes.add(cs[0]); picked.push(num);
+    if (picked.length === 5) break;
+  }
+  eq(picked.length, 5, '異なる単一クラス5種のテストデータ');
+  const cond: ActiveCondition = {
+    type: 'ENERGY_COUNT_FILTER', owner: 'self', filter: { cardType: 'シグニ' }, operator: 'gte', value: 5, distinctClasses: true,
+  };
+  const holds = (energy: string[]) => { const s = mkState(); s.energy = energy; return checkActiveCondition(cond, s, mkState(), true, cardMap); };
+  ok(holds(picked), 'クラス5種ちょうどなら成立');
+  ok(!holds(picked.slice(0, 4)), '4種なら不成立');
+  ok(!holds([]), '0枚なら不成立');
+  ok(!holds(Array.from({ length: 5 }, () => picked[0])), '同一クラス5枚は1種類なので不成立');
+}));
+
+test('段2 第46バッチ COST distinctColors: 3色／2色／0枚／同色3枚を実行ゲートで固定', () => withSavedCursor(() => {
+  const colors = ['白', '赤', '青'].map(color => findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes(color)));
+  const gate: EffectAction = {
+    type: 'CONDITIONAL',
+    condition: { type: 'COST_TRASHED_MATCHES', filter: {}, minCount: 3, distinctColors: true },
+    then: { type: 'DRAW', owner: 'self', count: 1 },
+  };
+  const handAfter = (paid: string[]) => {
+    const ctx = mkCtx({}, {}); ctx.ownerState.last_cost_trashed_cards = paid;
+    return run(gate, ctx).ownerState.hand.length;
+  };
+  eq(handAfter(colors), 6, '3色ちょうどなら実行');
+  eq(handAfter(colors.slice(0, 2)), 5, '2色なら実行しない');
+  eq(handAfter([]), 5, '0枚なら実行しない');
+  eq(handAfter([colors[0], colors[0], colors[0]]), 5, '同色3枚は1種類なので実行しない');
+}));
+
+test('段2 第46バッチ 場のdistinctLevels owner:any: 両者合算3種／2種／0体／同Lv3体を固定', () => withSavedCursor(() => {
+  const [lv1, lv2, lv3] = ['1', '2', '3'].map(level => findCard(c => c.Type === 'シグニ' && c.Level === level));
+  const cond: Condition = {
+    type: 'HAS_CARD_IN_FIELD', owner: 'any', filter: { cardType: 'シグニ' }, minCount: 3,
+    distinctLevels: true, distinctPhraseJa: 'kinds',
+  };
+  const holds = (mine: (string | null)[], opp: (string | null)[]) => evalCondition(cond, mkCtx({ signi: mine }, { signi: opp }));
+  ok(holds([lv1, null, null], [lv2, lv3, null]), '自場1種＋相手場2種＝3種で成立');
+  ok(!holds([lv1, null, null], [lv2, null, null]), '両者合算2種では不成立');
+  ok(!holds([null, null, null], [null, null, null]), '両者0体では不成立');
+  ok(!holds([lv1, lv1, null], [lv1, null, null]), '同レベル3体は1種類なので不成立');
+}));
+
+test('段2 第46バッチ 複合ANDとエナ色種類数: 各条件の成立・不成立を固定', () => withSavedCursor(() => {
+  const source = 'WXDi-P03-042';
+  const red = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('赤'));
+  const blue = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('青'));
+  const p03 = b43Live('WXDi-P03-042-E1');
+  const seq = p03.action as SequenceAction;
+  const costGate = seq.steps.find(s => s.type === 'CONDITIONAL' && JSON.stringify(s).includes('THIS_CARD_IS_UP')) as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const ctx = mkCtx({ signi: [source, red, blue] }, {}, source);
+  ok(evalCondition(costGate.condition, ctx), '3色かつ効果元アップなら成立');
+  ctx.ownerState.field.signi_down = [true, false, false];
+  ok(!evalCondition(costGate.condition, ctx), '3色でも効果元ダウンなら不成立');
+  const twoColor = mkCtx({ signi: [source, red, red] }, {}, source);
+  ok(!evalCondition(costGate.condition, twoColor), 'アップでも2色なら不成立');
+
+  const energyCond = (b43Live('WXK11-063-E2').action as SequenceAction).steps[1] as Extract<EffectAction, { type: 'CONDITIONAL' }>;
+  const white = findCard(c => c.Type === 'シグニ' && (c.Color ?? '').includes('白'));
+  const ectx = (energy: string[]) => { const c = mkCtx({}, {}); c.ownerState.energy = energy; return c; };
+  ok(evalCondition(energyCond.condition, ectx([white, red, blue])), 'エナ3色ちょうどなら追加効果成立');
+  ok(!evalCondition(energyCond.condition, ectx([white, red])), 'エナ2色なら不成立');
+  ok(!evalCondition(energyCond.condition, ectx([])), 'エナ0枚なら不成立');
+  ok(!evalCondition(energyCond.condition, ectx([white, white, white])), '同色3枚は1種類なので不成立');
+}));
+
+test('段2 第46バッチ 偽陽性／据置: 専用実行器と新機構待ちを部分配線しない', () => {
+  const allColor = b43Live('WXK05-029-E1');
+  eq(allColor.activeCondition, undefined, 'ALL_COLOR専用collectorへ一般条件を二重配線しない');
+  ok(JSON.stringify(allColor).includes('ALL_COLOR'), 'ALL_COLOR専用実行器を維持');
+  for (const id of ['WXEX1-40-E1', 'WXDi-CP01-031-E1', 'WXDi-P11-003-E1', 'WXDi-P15-003-E1']) {
+    const json = JSON.stringify(b43Live(id));
+    ok(!json.includes('distinctName') && !json.includes('distinctColor') && !json.includes('distinctLevels'), `${id}: 部分条件を採用しない`);
+  }
 });
 
 console.log(`PASS ${pass} / FAIL ${fails.length}  (計 ${pass + fails.length})`);

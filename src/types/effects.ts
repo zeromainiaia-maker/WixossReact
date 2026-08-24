@@ -205,6 +205,7 @@ export type ActiveCondition =
   | { type: 'LIFE_COMPARE_OPP'; operator: CompareOp; value?: number } // 自分のライフクロス−相手のライフクロスの符号付き差。value省略＝0（Condition側と同型）
   | { type: 'ENA_DIFF'; operator: CompareOp; value: number }   // 自分のエナと相手のエナの差
   | { type: 'ENERGY_COLOR_TYPES'; owner: Owner; operator: CompareOp; value: number } // エナゾーンのカードが持つ色の種類数（WX05-006「エナゾーンのカードの色が3種類以上」）
+  | { type: 'ENERGY_COUNT_FILTER'; owner: Owner; filter: TargetFilter; operator: CompareOp; value: number; distinctName?: boolean; distinctColor?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // Condition 側と同形。CONTINUOUS のエナ種類数ゲート
   | { type: 'LRIG_LEVEL'; owner: Owner; operator: CompareOp; value: number } // センタールリグのレベル条件
   | { type: 'EICHI_LEVEL_SUM'; operator: CompareOp; value: number } // 英知=N 条件
   | { type: 'IS_SELF_ARMORED' }                                 // このシグニが血晶武装状態であるかぎり
@@ -240,7 +241,7 @@ export type ActiveCondition =
   | { type: 'FIELD_HAS_GATE'; owner: Owner }                    // 指定プレイヤーの場にTHE DOOR【ゲート】があるかぎり（own_gate_zones が非空）
   | { type: 'ENERGY_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number } // エナゾーンにフィルタ一致カードがN枚以上あるかぎり（省略=1。「エナゾーンに＜植物＞のシグニがあるかぎり」。G038）
   | { type: 'ENERGY_EACH_LEVEL_FILTER_GTE'; owner: Owner; filter: TargetFilter; levels: number[]; minEach: number } // エナゾーンにレベル帯の各レベルごとに一致カードがN枚以上あるかぎり
-  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり（省略=1。「トラッシュに＜武勇＞のシグニが2枚以上あるかぎり」。G090）
+  | { type: 'TRASH_HAS_CARD'; owner: Owner; filter: TargetFilter; minCount?: number; distinctName?: boolean; distinctClasses?: boolean; excludeClasses?: string[] } // トラッシュにフィルタ一致カードがN枚以上あるかぎり。distinctName=true は異なるカード名の種類数
   | { type: 'LRIG_TRASH_COUNT'; cardType?: CardTypeFilter | CardTypeFilter[]; filter?: TargetFilter; operator: CompareOp; value: number; excludeSource?: boolean } // ルリグトラッシュの（cardType/filter一致）枚数（「ルリグトラッシュにアーツがあるかぎり」=アーツ,gte,1。G185）。Conditionと同形
   | { type: 'SIGNI_RETURNED_TO_HAND_THIS_TURN'; owner: Owner; minCount?: number } // このターンにシグニがN体以上場から手札に戻っていた場合（省略=1 は turn_signi_returned_to_hand フラグ、N≧2 は signi_returned_to_hand_count_this_turn。G087）
   | { type: 'ARTS_USED_THIS_TURN'; owner: Owner; color?: string; minCount?: number; exactCount?: number } // このターンにアーツを使用した回数（省略=1。minCount指定時はturn_arts_used_namesを数える。exactCount＝「N枚目のアーツだった場合」の**ちょうどN**）
@@ -312,7 +313,7 @@ export type Condition =
   //   コスト節が「エナゾーンからすべてのカードをトラッシュに置く」のように**支払い枚数が可変**な形で使う
   //   （`WX25-CP1-020-E2` 3/7枚・`WXDi-P16-012-E3` 5枚）。本文の直前ステップを見る `LAST_PROCESSED_COUNT_GTE`
   //   とは参照先が違う（あちらは効果の実行結果・こちらはコスト支払い＝`last_cost_trashed_cards`）。
-  | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number }
+  | { type: 'COST_TRASHED_MATCHES'; filter: TargetFilter; verbJa?: 'discard' | 'trash'; minCount?: number; distinctColors?: boolean }
   | { type: 'HAS_CARD_IN_FIELD'; owner: Owner; filter: TargetFilter; excludeSelf?: boolean; minCount?: number; distinctNames?: boolean; distinctColors?: boolean; distinctLevels?: boolean; distinctClasses?: boolean; excludeClasses?: string[]; distinctPhraseJa?: 'kinds'; negate?: boolean } // distinctColors=true は一致シグニが持つ色の種類数を minCount と比較。negate=true は「場に〈X〉が**ない**場合」（この条件系には NOT ラッパが無いのでここで否定を表す。§6.4 O-11）
   | { type: 'HAS_KEY_IN_FIELD'; owner: Owner }                 // キーゾーン（key_piece / key_piece_extra）にキーが1枚以上ある
   | { type: 'FIELD_LEVEL_SUM'; owner: Owner; target: 'signi' | 'lrig'; operator?: CompareOp; value?: number; compareTo?: 'opponent'; parity?: 'odd' | 'even'; metric?: 'level' | 'power'; lrigRole?: 'all' | 'center' | 'assist' }
@@ -449,7 +450,7 @@ export const ACTIVE_CONDITION_TYPES: Record<ActiveCondition['type'], true> = {
   FIELD_LRIGS_SHARE_COLOR: true, FRONT_SIGNI: true, FIELD_LRIGS_HAVE_COLORS: true, HAS_CARD_IN_FIELD: true,
   HAS_KEY_IN_FIELD: true, FIELD_LEVEL_SUM: true, LRIG_TEAM_COUNT: true, ALL_FIELD_SIGNI_MATCH: true, COUNT_THRESHOLD: true, FIELD_SIGNI_POWER_COUNT: true, SELF_POWER_THRESHOLD: true,
   FRONT_SIGNI_POWER: true, SELF_LEVEL_THRESHOLD: true,
-  HAND_DIFF: true, LIFE_COMPARE_OPP: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, LRIG_LEVEL: true,
+  HAND_DIFF: true, LIFE_COMPARE_OPP: true, ENA_DIFF: true, ENERGY_COLOR_TYPES: true, ENERGY_COUNT_FILTER: true, LRIG_LEVEL: true,
   EICHI_LEVEL_SUM: true, IS_SELF_ARMORED: true, IS_SELF_ACCED: true, IS_SELF_SOUL_ATTACHED: true, IS_SELF_CHARMED: true,
   IS_SELF_ACCE_CARD: true, IS_DRIVE_STATE: true, LRIG_IS_DRIVE_STATE: true, IS_SELF_AWAKENED: true, IS_SELF_DOWN: true, IS_SELF_UP: true,
   IS_SELF_IN_CENTER_ZONE: true, IS_SELF_IN_SIDE_ZONE: true, TURN_HAND_DISCARD_GTE: true,
